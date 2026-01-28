@@ -1,6 +1,3 @@
-//go:build interactive_input
-// +build interactive_input
-
 package main
 
 import (
@@ -53,10 +50,6 @@ func (b *SimpleInputBox) Measure(maxWidth, maxHeight int) (width, height int) {
 
 // Paint 绘制组件
 func (b *SimpleInputBox) Paint(ctx component.PaintContext, buf *paint.Buffer) {
-	if !b.IsVisible() {
-		return
-	}
-
 	x := ctx.X
 	y := ctx.Y
 	width := ctx.AvailableWidth

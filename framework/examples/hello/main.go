@@ -1,6 +1,3 @@
-//go:build !demo
-// +build !demo
-
 package main
 
 import (
@@ -11,7 +8,7 @@ import (
 	"github.com/wwsheng009/mint/runtime/style"
 )
 
-// main 简单示例 (默认)
+// main 简单示例 - Hello World
 func main() {
 	// 创建标题
 	title := display.NewText("TUI Framework V3")

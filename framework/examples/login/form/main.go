@@ -1,6 +1,3 @@
-//go:build !demo && !error_test && !visual_test && !interactive
-// +build !demo,!error_test,!visual_test,!interactive
-
 package main
 
 import (

@@ -1,6 +1,3 @@
-//go:build demo
-// +build demo
-
 package main
 
 import (
@@ -12,8 +9,8 @@ import (
 	"github.com/wwsheng009/mint/framework/input"
 	"github.com/wwsheng009/mint/framework/interactive"
 	"github.com/wwsheng009/mint/framework/layout"
-	"github.com/wwsheng009/mint/framework/validation"
 	"github.com/wwsheng009/mint/runtime/style"
+	"github.com/wwsheng009/mint/framework/validation"
 )
 
 func main() {

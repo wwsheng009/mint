@@ -1,13 +1,12 @@
-//go:build visual_test
-// +build visual_test
-
 package main
 
 import (
 	"fmt"
-	"strings"
+	"os"
 
+	"github.com/wwsheng009/mint/framework"
 	"github.com/wwsheng009/mint/framework/component"
+	"github.com/wwsheng009/mint/framework/event"
 	"github.com/wwsheng009/mint/framework/form"
 	"github.com/wwsheng009/mint/framework/input"
 	"github.com/wwsheng009/mint/framework/validation"
@@ -15,38 +14,60 @@ import (
 	"github.com/wwsheng009/mint/runtime/style"
 )
 
-// main 可视化登录表单示例
+// main 交互式登录表单示例 - 等待真实用户输入
 func main() {
 	fmt.Println("========================================")
-	fmt.Println("    TUI Framework - 可视化登录表单")
+	fmt.Println("  TUI Framework - 交互式登录表单")
 	fmt.Println("========================================")
 	fmt.Println()
+	fmt.Println("使用说明:")
+	fmt.Println("  Tab/方向键  - 在字段间导航")
+	fmt.Println("  Enter       - 提交表单")
+	fmt.Println("  Esc         - 退出")
+	fmt.Println()
+	fmt.Println("调试模式:")
+	fmt.Println("  设置环境变量 TUI_DEBUG=true 启用调试日志")
+	fmt.Println("  设置环境变量 TUI_INPUT_DEBUG=1 启用TextInput调试")
+	fmt.Println()
+	fmt.Print("按 Enter 开始...")
+	fmt.Scanln()
+
+	// 创建应用
+	app := framework.NewApp()
+
+	// 启用调试模式（如果设置了环境变量）
+	if os.Getenv("TUI_DEBUG") == "true" {
+		app.SetDebugMode(true)
+		fmt.Println("调试模式已启用")
+	}
 
 	// 创建登录表单
 	loginForm := createLoginForm()
 
-	// 模拟输入
-	usernameField, _ := loginForm.GetField("username")
-	usernameField.SetValue("admin")
+	// 设置为根组件
+	app.SetRoot(loginForm)
 
-	passwordField, _ := loginForm.GetField("password")
-	passwordField.SetValue("password123")
+	// 订阅键盘事件用于退出
+	app.OnEvent(event.EventKeyPress, event.EventHandlerFunc(func(ev event.Event) bool {
+		if keyEv, ok := ev.(*event.KeyEvent); ok {
+			if keyEv.Special == event.KeyEscape {
+				// 显示光标
+				fmt.Print("\x1b[?25h")
+				fmt.Println("\n用户取消登录")
+				app.Quit()
+				return true
+			}
+		}
+		return false
+	}))
 
-	// 显示表单渲染
-	renderForm(loginForm)
-
+	// 运行应用
+	fmt.Println("启动交互式登录界面...")
+	if err := app.Run(); err != nil {
+		fmt.Printf("运行出错: %v\n", err)
+	}
+	// 确保换行
 	fmt.Println()
-	fmt.Println("--- 表单操作说明 ---")
-	fmt.Println("↑↓   - 在字段间导航")
-	fmt.Println("Enter - 提交表单")
-	fmt.Println("Esc   - 取消登录")
-	fmt.Println()
-
-	// 模拟提交
-	values := loginForm.GetValues()
-	fmt.Println("--- 提交的数据 ---")
-	fmt.Printf("用户名: %s\n", values["username"])
-	fmt.Printf("密码:   %s\n", strings.Repeat("*", len([]rune(values["password"].(string)))))
 }
 
 // createLoginForm 创建登录表单
@@ -54,7 +75,7 @@ func createLoginForm() *form.Form {
 	f := form.NewForm()
 	f.SetID("login-form")
 
-	// 标题
+	// 标题样式
 	f.SetLabelStyle(style.Style{}.Foreground(style.Cyan))
 
 	// 用户名字段
@@ -118,19 +139,21 @@ func createLoginForm() *form.Form {
 
 	// 设置提交回调
 	f.SetOnSubmit(func(data map[string]interface{}) error {
-		fmt.Println()
-		fmt.Println("========================================")
+		fmt.Println("\n========================================")
 		fmt.Println("           登录成功!")
 		fmt.Println("========================================")
-		fmt.Printf("欢迎, %s!\n", data["username"])
+		fmt.Printf("用户名: %v\n", data["username"])
+		fmt.Printf("密码:   ******\n")
 		fmt.Println("========================================")
-		return nil
+
+		// 退出应用
+		return fmt.Errorf("exit") // 使用错误来退出循环
 	})
 
 	return f
 }
 
-// renderForm 渲染表单
+// renderForm 渲染表单到控制台
 func renderForm(f *form.Form) {
 	// 获取表单尺寸
 	width, height := f.Measure(50, 20)
@@ -163,7 +186,6 @@ func renderForm(f *form.Form) {
 	drawText(buf, helpX, helpY, helpText, style.Style{}.Foreground(style.BrightBlack))
 
 	// 输出渲染结果
-	fmt.Println("--- 表单预览 ---")
 	for y := 0; y < buf.Height; y++ {
 		line := ""
 		for x := 0; x < buf.Width; x++ {

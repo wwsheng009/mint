@@ -10,35 +10,55 @@
 
 ## 示例列表
 
-- `hello.go` - Hello World 示例
-- `demo.go` - 功能演示（需要 `-tags demo`）
-- `theme_demo.go` - 主题切换演示（需要 `-tags theme_demo`）
+| 示例 | 描述 | 运行命令 |
+|------|------|----------|
+| `hello` | Hello World 示例 | `go run framework/examples/hello/main.go` |
+| `demo` | 完整组件演示 | `go run framework/examples/demo/main.go` |
+| `theme` | 主题样式演示 | `go run framework/examples/theme/main.go` |
+| `login/interactive` | 交互式登录表单 | `go run framework/examples/login/interactive/main.go` |
+| `login/simple` | 简单输入框示例 | `go run framework/examples/login/simple/main.go` |
+| `login/form` | 登录表单示例 | `go run framework/examples/login/form/main.go` |
 
-## 运行示例
+## 快速开始
+
+### Hello World
+
+最简单的示例，展示基本的文本组件和事件处理：
 
 ```bash
-# 运行 Hello World
-go run tui/framework/examples/hello.go
+go run framework/examples/hello/main.go
+```
 
-# 运行完整演示
-go run -tags demo tui/framework/examples/demo.go
+### 组件演示
 
-# 运行主题切换演示
-go run -tags theme_demo tui/framework/examples/theme_demo.go
+展示所有可用组件的功能：
 
-go run -tags interactive tui/framework/examples/login/interactive.go
+```bash
+go run framework/examples/demo/main.go
+```
+
+### 主题演示
+
+展示不同主题和样式的效果：
+
+```bash
+go run framework/examples/theme/main.go
+```
+
+### 登录表单
+
+交互式登录表单，支持：
+- 字段导航 (Tab/方向键)
+- 输入验证
+- 提交/取消
+
+```bash
+go run framework/examples/login/interactive/main.go
 ```
 
 ## 主题演示
 
-主题切换演示展示了主题系统的完整功能：
-
-### 功能特性
-
-- 显示所有可用主题列表
-- 演示静态组件在不同主题下的效果
-- 演示输入组件的焦点、占位符状态样式
-- 主题对比功能
+主题系统展示了完整的样式功能：
 
 ### 可用主题
 
@@ -57,6 +77,7 @@ go run -tags interactive tui/framework/examples/login/interactive.go
 import (
     "github.com/wwsheng009/mint/framework"
     "github.com/wwsheng009/mint/framework/theme"
+    "github.com/wwsheng009/mint/runtime/style"
 )
 
 func main() {
@@ -82,18 +103,18 @@ func main() {
 ### 组件使用主题样式
 
 ```go
-import "github.com/wwsheng009/mint/framework/style"
+import "github.com/wwsheng009/mint/runtime/style"
 
 // 在组件内部获取主题样式
 func (c *MyComponent) getStyle() style.Style {
     // 获取焦点状态样式
-    return style.GetStyle("mycomponent", "focus")
+    return style.Style{}.Foreground(style.Blue).Bold(true)
 }
 ```
 
-## 相关文件
+## 相关文档
 
-- `hello.go` - Hello World
-- `demo.go` - 完整演示
-- `theme_demo.go` - 主题切换演示
-- `../docs/TUI_THEME_DESIGN.md` - 主题系统设计文档
+- [../../docs/ARCHITECTURE.md](../../docs/ARCHITECTURE.md) - 架构设计
+- [../../docs/COMPONENTS.md](../../docs/COMPONENTS.md) - 组件系统
+- [../../docs/THEME_SYSTEM.md](../../docs/THEME_SYSTEM.md) - 主题系统
+- [../../docs/FORM_VALIDATION.md](../../docs/FORM_VALIDATION.md) - 表单验证
