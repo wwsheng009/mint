@@ -14,12 +14,12 @@ package main
 import (
 	"fmt"
 
-	"github.com/yaoapp/yao/tui/framework/binding"
-	cb "github.com/yaoapp/yao/tui/framework/component/binding"
-	"github.com/yaoapp/yao/tui/framework/component"
-	"github.com/yaoapp/yao/tui/runtime/action"
-	"github.com/yaoapp/yao/tui/runtime/paint"
-	"github.com/yaoapp/yao/tui/runtime/style"
+	"github.com/wwsheng009/mint/framework/binding"
+	"github.com/wwsheng009/mint/framework/component"
+	cb "github.com/wwsheng009/mint/framework/component/binding"
+	"github.com/wwsheng009/mint/runtime/action"
+	"github.com/wwsheng009/mint/runtime/paint"
+	"github.com/wwsheng009/mint/runtime/style"
 )
 
 // ==============================================================================

@@ -79,7 +79,7 @@ const (
 package mycomponent
 
 import (
-    "github.com/yaoapp/yao/tui/runtime/style"
+    "github.com/wwsheng009/mint/runtime/style"
 )
 
 func (c *MyComponent) Paint(ctx PaintContext, buf *Buffer) {
@@ -97,7 +97,7 @@ func (c *MyComponent) Paint(ctx PaintContext, buf *Buffer) {
 ### 构建器模式
 
 ```go
-import "github.com/yaoapp/yao/tui/runtime/style"
+import "github.com/wwsheng009/mint/runtime/style"
 
 s := style.NewBuilder().
     Foreground("cyan").

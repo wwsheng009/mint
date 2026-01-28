@@ -3,7 +3,7 @@ package render
 import (
 	"sync"
 
-	"github.com/yaoapp/yao/tui/runtime"
+	"github.com/wwsheng009/mint/runtime"
 )
 
 // Viewport represents a visible region within a larger content area

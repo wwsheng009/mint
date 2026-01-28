@@ -5,10 +5,10 @@ import (
 	stdtesting "testing"
 	"time"
 
-	"github.com/yaoapp/yao/tui/runtime/ai"
-	"github.com/yaoapp/yao/tui/runtime/action"
-	"github.com/yaoapp/yao/tui/runtime/focus"
-	"github.com/yaoapp/yao/tui/runtime/state"
+	"github.com/wwsheng009/mint/runtime/action"
+	"github.com/wwsheng009/mint/runtime/ai"
+	"github.com/wwsheng009/mint/runtime/focus"
+	"github.com/wwsheng009/mint/runtime/state"
 )
 
 // =============================================================================

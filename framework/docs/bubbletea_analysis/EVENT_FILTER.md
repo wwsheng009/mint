@@ -237,7 +237,7 @@ package main
 
 import (
     "os"
-    "github.com/yaoapp/yao/tui/runtime/event"
+    "github.com/wwsheng009/mint/runtime/event"
 )
 
 func main() {

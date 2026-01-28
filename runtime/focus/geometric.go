@@ -3,7 +3,7 @@ package focus
 import (
 	"math"
 
-	"github.com/yaoapp/yao/tui/runtime"
+	"github.com/wwsheng009/mint/runtime"
 )
 
 // NavigationDirection represents the direction for focus navigation

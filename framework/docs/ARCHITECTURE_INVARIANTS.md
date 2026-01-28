@@ -33,9 +33,9 @@
 
 ```go
 // ❌ Runtime 绝不导入：
-import "github.com/yaoapp/yao/tui/framework"
-import "github.com/yaoapp/yao/tui/framework/component"
-import "github.com/yaoapp/yao/tui/framework/event"
+import "github.com/wwsheng009/mint/framework"
+import "github.com/wwsheng009/mint/framework/component"
+import "github.com/wwsheng009/mint/framework/event"
 
 // ❌ Runtime 绝不知道：
 - Button
@@ -235,7 +235,7 @@ func (t *Text) Paint(ctx PaintContext, buf *CellBuffer) {
 
 ```go
 // ❌ 错误：直接输出
-import "github.com/yaoapp/yao/tui/framework/platform"
+import "github.com/wwsheng009/mint/framework/platform"
 
 func (c *Component) SomeMethod() {
     platform.Terminal.WriteString("direct output")  // 越界！

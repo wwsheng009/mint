@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/yaoapp/yao/tui/framework/event"
-	"github.com/yaoapp/yao/tui/runtime/paint"
+	"github.com/wwsheng009/mint/framework/event"
+	"github.com/wwsheng009/mint/runtime/paint"
 )
 
 // Recorder 记录TUI运行时的状态变化

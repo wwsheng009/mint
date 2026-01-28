@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/yaoapp/yao/tui/runtime/style"
+	"github.com/wwsheng009/mint/runtime/style"
 )
 
 // Component is the base interface for all UI components.

@@ -404,7 +404,7 @@ var (
 package component
 
 import (
-    "github.com/yaoapp/yao/tui/framework/validation"
+    "github.com/wwsheng009/mint/framework/validation"
 )
 
 // Form 表单组件

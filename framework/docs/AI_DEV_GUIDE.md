@@ -222,7 +222,7 @@ import (
     "github.com/stretchr/testify/assert"  // 第三方
     "rogchap.com/v8go"
 
-    "github.com/yaoapp/yao/tui/framework/util"  // 本地
+    "github.com/wwsheng009/mint/framework/util"  // 本地
 )
 
 // 3. 常量

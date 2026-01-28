@@ -3,7 +3,7 @@ package paint
 import (
 	"strings"
 
-	"github.com/yaoapp/yao/tui/runtime/style"
+	"github.com/wwsheng009/mint/runtime/style"
 )
 
 // StyleStateMachine minimizes VT code changes by tracking current style

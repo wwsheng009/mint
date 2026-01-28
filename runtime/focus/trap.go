@@ -1,7 +1,7 @@
 package focus
 
 import (
-	"github.com/yaoapp/yao/tui/runtime"
+	"github.com/wwsheng009/mint/runtime"
 )
 
 // TrapType represents the type of focus trap

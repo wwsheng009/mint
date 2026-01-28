@@ -80,7 +80,7 @@ func CurrentTheme() string
 ### 主题系统初始化
 
 ```go
-import "github.com/yaoapp/yao/tui/framework/theme"
+import "github.com/wwsheng009/mint/framework/theme"
 
 // InitThemes 会自动注册到 styling 包
 themeMgr, err := theme.InitThemes("dark")
@@ -89,7 +89,7 @@ themeMgr, err := theme.InitThemes("dark")
 ### 运行时切换主题
 
 ```go
-import "github.com/yaoapp/yao/tui/framework/styling"
+import "github.com/wwsheng009/mint/framework/styling"
 
 // 所有组件立即生效
 err := styling.SetTheme("light")
@@ -100,7 +100,7 @@ err := styling.SetTheme("light")
 组件通常不需要直接导入 `styling` 包，而是通过 `style.GetStyle()` 间接使用：
 
 ```go
-import "github.com/yaoapp/yao/tui/framework/style"
+import "github.com/wwsheng009/mint/framework/style"
 
 // 在组件内部
 s := style.GetStyle("input", "focus")

@@ -96,8 +96,8 @@ type Table struct {
 package component
 
 import (
-    "github.com/yaoapp/yao/tui/framework/action"
-    "github.com/yaoapp/yao/tui/runtime/focus"
+    "github.com/wwsheng009/mint/framework/action"
+    "github.com/wwsheng009/mint/runtime/focus"
 )
 
 // TableSubFocus Table 子焦点

@@ -1,7 +1,7 @@
 package selection
 
 import (
-	"github.com/yaoapp/yao/tui/runtime"
+	"github.com/wwsheng009/mint/runtime"
 )
 
 // RuntimeAdapter 将文本选择功能集成到 Runtime 系统。

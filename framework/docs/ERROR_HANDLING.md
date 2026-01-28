@@ -177,7 +177,7 @@ func (r Result[T]) Value() T {
 
 package component
 
-import "github.com/yaoapp/yao/tui/framework/result"
+import "github.com/wwsheng009/mint/framework/result"
 
 // ErrorHandler 组件错误处理器
 type ErrorHandler struct {
@@ -317,7 +317,7 @@ func (h *ErrorHandler) Reset() {
 
 package action
 
-import "github.com/yaoapp/yao/tui/framework/result"
+import "github.com/wwsheng009/mint/framework/result"
 
 // ErrorAction 错误 Action 类型
 const (
@@ -411,7 +411,7 @@ func (a *Action) HasErrors() bool {
 
 package async
 
-import "github.com/yaoapp/yao/tui/framework/result"
+import "github.com/wwsheng009/mint/framework/result"
 
 // Task 异步任务
 type Task struct {

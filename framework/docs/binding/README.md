@@ -37,7 +37,7 @@ tui/framework/
 ### 1. 静态属性
 
 ```go
-import "github.com/yaoapp/yao/tui/framework/binding"
+import "github.com/wwsheng009/mint/framework/binding"
 
 // 创建静态属性
 titleProp := binding.NewStatic("Hello World")

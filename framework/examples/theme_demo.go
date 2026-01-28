@@ -6,11 +6,11 @@ package main
 import (
 	"fmt"
 
-	"github.com/yaoapp/yao/tui/framework"
-	"github.com/yaoapp/yao/tui/framework/component"
-	"github.com/yaoapp/yao/tui/framework/display"
-	"github.com/yaoapp/yao/tui/framework/input"
-	"github.com/yaoapp/yao/tui/framework/layout"
+	"github.com/wwsheng009/mint/framework"
+	"github.com/wwsheng009/mint/framework/component"
+	"github.com/wwsheng009/mint/framework/display"
+	"github.com/wwsheng009/mint/framework/input"
+	"github.com/wwsheng009/mint/framework/layout"
 )
 
 // =============================================================================

@@ -1,7 +1,7 @@
 package selection
 
 import (
-	"github.com/yaoapp/yao/tui/runtime/event"
+	"github.com/wwsheng009/mint/runtime/event"
 )
 
 // KeyboardHandler handles keyboard shortcuts for text selection operations.

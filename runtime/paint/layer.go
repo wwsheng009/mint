@@ -1,6 +1,6 @@
 package paint
 
-import "github.com/yaoapp/yao/tui/runtime/style"
+import "github.com/wwsheng009/mint/runtime/style"
 
 // LayerType represents the type of layer
 type LayerType int

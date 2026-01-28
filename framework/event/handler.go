@@ -1,6 +1,6 @@
 package event
 
-import "github.com/yaoapp/yao/tui/runtime/event"
+import "github.com/wwsheng009/mint/runtime/event"
 
 // EventHandler is the interface for event handlers.
 type EventHandler interface {

@@ -5,8 +5,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/yaoapp/yao/tui/runtime/platform"
-	"github.com/yaoapp/yao/tui/runtime/action"
+	"github.com/wwsheng009/mint/runtime/action"
+	"github.com/wwsheng009/mint/runtime/platform"
 	"gopkg.in/yaml.v3"
 )
 

@@ -3,7 +3,7 @@ package event
 import (
 	"time"
 
-	"github.com/yaoapp/yao/tui/runtime/event"
+	"github.com/wwsheng009/mint/runtime/event"
 )
 
 // ==============================================================================

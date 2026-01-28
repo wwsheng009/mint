@@ -87,9 +87,9 @@ if handler, ok := ctx.Root.(event.EventComponent); ok {
 All tests pass:
 ```bash
 $ go test ./tui/framework/...
-ok      github.com/yaoapp/yao/tui/framework
-ok      github.com/yaoapp/yao/tui/framework/form
-ok      github.com/yaoapp/yao/tui/framework/testing
+ok      github.com/wwsheng009/mint/framework
+ok      github.com/wwsheng009/mint/framework/form
+ok      github.com/wwsheng009/mint/framework/testing
 ```
 
 ## Migration Guide

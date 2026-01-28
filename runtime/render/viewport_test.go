@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/yaoapp/yao/tui/runtime"
+	"github.com/wwsheng009/mint/runtime"
 )
 
 // TestNewViewport tests viewport creation

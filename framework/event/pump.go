@@ -3,8 +3,8 @@ package event
 import (
 	"time"
 
-	"github.com/yaoapp/yao/tui/runtime/platform"
-	"github.com/yaoapp/yao/tui/runtime/event"
+	"github.com/wwsheng009/mint/runtime/event"
+	"github.com/wwsheng009/mint/runtime/platform"
 )
 
 // Pump reads raw input from the platform and converts to events.

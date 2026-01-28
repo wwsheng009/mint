@@ -6,9 +6,9 @@ package main
 import (
 	"fmt"
 
-	"github.com/yaoapp/yao/tui/framework/display"
-	"github.com/yaoapp/yao/tui/framework/event"
-	"github.com/yaoapp/yao/tui/runtime/style"
+	"github.com/wwsheng009/mint/framework/display"
+	"github.com/wwsheng009/mint/framework/event"
+	"github.com/wwsheng009/mint/runtime/style"
 )
 
 // main 简单示例 (默认)

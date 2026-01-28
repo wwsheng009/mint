@@ -5,13 +5,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/yaoapp/yao/tui/runtime/platform"
-	"github.com/yaoapp/yao/tui/runtime/action"
-	"github.com/yaoapp/yao/tui/runtime/focus"
-	"github.com/yaoapp/yao/tui/runtime/input"
-	"github.com/yaoapp/yao/tui/runtime/layout"
-	"github.com/yaoapp/yao/tui/runtime/paint"
-	"github.com/yaoapp/yao/tui/runtime/state"
+	"github.com/wwsheng009/mint/runtime/action"
+	"github.com/wwsheng009/mint/runtime/focus"
+	"github.com/wwsheng009/mint/runtime/input"
+	"github.com/wwsheng009/mint/runtime/layout"
+	"github.com/wwsheng009/mint/runtime/paint"
+	"github.com/wwsheng009/mint/runtime/platform"
+	"github.com/wwsheng009/mint/runtime/state"
 )
 
 // ==============================================================================

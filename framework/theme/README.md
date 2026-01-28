@@ -27,7 +27,7 @@ styling → 全局原子存储
 ## 快速开始
 
 ```go
-import "github.com/yaoapp/yao/tui/framework/theme"
+import "github.com/wwsheng009/mint/framework/theme"
 
 // 初始化主题系统（应用启动时调用一次）
 themeMgr, err := theme.InitThemes("dark")
@@ -218,7 +218,7 @@ theme.InitThemes("tokyo-night")
 ## 自定义主题
 
 ```go
-import "github.com/yaoapp/yao/tui/framework/theme"
+import "github.com/wwsheng009/mint/framework/theme"
 
 customTheme := &theme.Theme{
     Name:    "mytheme",
@@ -271,7 +271,7 @@ c := theme.ColorRef("Primary")
 ## 边框样式
 
 ```go
-import "github.com/yaoapp/yao/tui/framework/theme/border"
+import "github.com/wwsheng009/mint/framework/theme/border"
 
 // 使用预定义边框
 theme.WithBorder(theme.Borders{

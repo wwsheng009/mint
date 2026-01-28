@@ -203,7 +203,7 @@ func (s *MeasurableState) SetSize(w, h int) {
 package component
 
 import (
-    "github.com/yaoapp/yao/tui/runtime/paint"
+    "github.com/wwsheng009/mint/runtime/paint"
 )
 
 // PaintContext 绘制上下文
@@ -253,7 +253,7 @@ func (s *PaintableState) IsVisible() bool {
 package component
 
 import (
-    "github.com/yaoapp/yao/tui/runtime/action"
+    "github.com/wwsheng009/mint/runtime/action"
 )
 
 // ActionTarget 可处理 Action 的组件

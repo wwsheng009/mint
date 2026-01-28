@@ -1,8 +1,8 @@
 package component
 
 import (
-	"github.com/yaoapp/yao/tui/runtime"
-	"github.com/yaoapp/yao/tui/runtime/paint"
+	"github.com/wwsheng009/mint/runtime"
+	"github.com/wwsheng009/mint/runtime/paint"
 )
 
 // ==============================================================================

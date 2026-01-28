@@ -7,10 +7,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/yaoapp/yao/tui/framework/form"
-	"github.com/yaoapp/yao/tui/framework/input"
-	"github.com/yaoapp/yao/tui/framework/validation"
-	"github.com/yaoapp/yao/tui/runtime/action"
+	"github.com/wwsheng009/mint/framework/form"
+	"github.com/wwsheng009/mint/framework/input"
+	"github.com/wwsheng009/mint/framework/validation"
+	"github.com/wwsheng009/mint/runtime/action"
 )
 
 // main 登录表单示例

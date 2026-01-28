@@ -17,9 +17,9 @@
 
 ```go
 import (
-    "github.com/yaoapp/yao/tui/framework/binding"
-    cb "github.com/yaoapp/yao/tui/framework/component/binding"
-    "github.com/yaoapp/yao/tui/framework/component"
+    "github.com/wwsheng009/mint/framework/binding"
+    cb "github.com/wwsheng009/mint/framework/component/binding"
+    "github.com/wwsheng009/mint/framework/component"
 )
 ```
 
@@ -147,9 +147,9 @@ func (bt *BindableTextInput) WatchStore() {
 package display
 
 import (
-    "github.com/yaoapp/yao/tui/framework/binding"
-    cb "github.com/yaoapp/yao/tui/framework/component/binding"
-    "github.com/yaoapp/yao/tui/framework/component"
+    "github.com/wwsheng009/mint/framework/binding"
+    cb "github.com/wwsheng009/mint/framework/component/binding"
+    "github.com/wwsheng009/mint/framework/component"
 )
 
 type Label struct {
@@ -205,7 +205,7 @@ func (l *Label) Paint(ctx component.PaintContext, buf *paint.Buffer) {
 package interactive
 
 import (
-    cb "github.com/yaoapp/yao/tui/framework/component/binding"
+    cb "github.com/wwsheng009/mint/framework/component/binding"
 )
 
 type Button struct {
@@ -558,8 +558,8 @@ func (a *App) UpdateMultiple() {
 package main
 
 import (
-    "github.com/yaoapp/yao/tui/framework/binding"
-    cb "github.com/yaoapp/yao/tui/framework/component/binding"
+    "github.com/wwsheng009/mint/framework/binding"
+    cb "github.com/wwsheng009/mint/framework/component/binding"
 )
 
 // TodoApp 待办事项应用

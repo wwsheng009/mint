@@ -453,8 +453,8 @@ func (b *StreamBuffer) Clear() {
 package component
 
 import (
-    "github.com/yaoapp/yao/tui/framework/stream"
-    "github.com/yaoapp/yao/tui/runtime"
+    "github.com/wwsheng009/mint/framework/stream"
+    "github.com/wwsheng009/mint/runtime"
 )
 
 // StreamViewer 流查看器

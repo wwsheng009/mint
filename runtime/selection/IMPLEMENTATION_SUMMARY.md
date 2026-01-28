@@ -64,7 +64,7 @@ text, err := textSelection.Copy()
 ### 快速开始
 
 ```go
-import "github.com/yaoapp/yao/tui/runtime/selection"
+import "github.com/wwsheng009/mint/runtime/selection"
 
 // 1. 创建选择系统
 buffer := runtime.NewCellBuffer(80, 24)

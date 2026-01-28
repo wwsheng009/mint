@@ -3,8 +3,8 @@ package focus
 import (
 	"sync"
 
-	"github.com/yaoapp/yao/tui/runtime/state"
-	"github.com/yaoapp/yao/tui/runtime/layout"
+	"github.com/wwsheng009/mint/runtime/layout"
+	"github.com/wwsheng009/mint/runtime/state"
 )
 
 // ==============================================================================

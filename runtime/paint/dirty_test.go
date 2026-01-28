@@ -3,7 +3,7 @@ package paint
 import (
 	"testing"
 
-	"github.com/yaoapp/yao/tui/runtime/style"
+	"github.com/wwsheng009/mint/runtime/style"
 )
 
 // ==============================================================================

@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/yaoapp/yao/tui/runtime/platform"
+	"github.com/wwsheng009/mint/runtime/platform"
 )
 
 func main() {

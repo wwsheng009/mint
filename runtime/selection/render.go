@@ -1,7 +1,7 @@
 package selection
 
 import (
-	"github.com/yaoapp/yao/tui/runtime"
+	"github.com/wwsheng009/mint/runtime"
 )
 
 // Renderer handles rendering of selection highlights on a CellBuffer.

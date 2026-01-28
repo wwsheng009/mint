@@ -1,9 +1,9 @@
 package layout
 
 import (
-	"github.com/yaoapp/yao/tui/framework/component"
-	"github.com/yaoapp/yao/tui/runtime/style"
-	"github.com/yaoapp/yao/tui/runtime/paint"
+	"github.com/wwsheng009/mint/framework/component"
+	"github.com/wwsheng009/mint/runtime/paint"
+	"github.com/wwsheng009/mint/runtime/style"
 )
 
 // ==============================================================================

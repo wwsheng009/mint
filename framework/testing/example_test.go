@@ -5,10 +5,10 @@ import (
 	stdtesting "testing"
 	"time"
 
-	"github.com/yaoapp/yao/tui/framework/event"
-	"github.com/yaoapp/yao/tui/framework/form"
-	"github.com/yaoapp/yao/tui/framework/input"
-	"github.com/yaoapp/yao/tui/framework/validation"
+	"github.com/wwsheng009/mint/framework/event"
+	"github.com/wwsheng009/mint/framework/form"
+	"github.com/wwsheng009/mint/framework/input"
+	"github.com/wwsheng009/mint/framework/validation"
 )
 
 // TestLoginFormE2E 端到端测试登录表单

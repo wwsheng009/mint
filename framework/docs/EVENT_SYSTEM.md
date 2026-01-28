@@ -527,7 +527,7 @@ func (r *Router) getParentChain(target Node) []Node {
 package event
 
 import (
-    "github.com/yaoapp/yao/tui/platform"
+    "github.com/wwsheng009/mint/platform"
 )
 
 // Pump 事件泵

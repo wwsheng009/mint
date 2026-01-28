@@ -64,8 +64,8 @@ package runtime
 
 import (
     "time"
-    "github.com/yaoapp/yao/tui/runtime/animation"
-    sel "github.com/yaoapp/yao/tui/runtime/selection"  // 新增
+    "github.com/wwsheng009/mint/runtime/animation"
+    sel "github.com/wwsheng009/mint/runtime/selection"  // 新增
 )
 
 type RuntimeImpl struct {
@@ -274,7 +274,7 @@ type Config struct {
 package selection
 
 import (
-    "github.com/yaoapp/yao/tui/runtime"
+    "github.com/wwsheng009/mint/runtime"
 )
 
 // RuntimeAdapter 将文本选择集成到 Runtime
@@ -372,7 +372,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 ### 方式 3: 使用全局选择管理器（最简单）
 
 ```go
-import "github.com/yaoapp/yao/tui/runtime/selection"
+import "github.com/wwsheng009/mint/runtime/selection"
 
 // 在首次渲染后初始化
 selection.InitGlobalSelection(frame.Buffer)

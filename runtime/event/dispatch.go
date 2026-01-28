@@ -3,14 +3,14 @@ package event
 import (
 	"time"
 
-	"github.com/yaoapp/yao/tui/runtime"
+	"github.com/wwsheng009/mint/runtime"
 )
 
 // NOTE: Bubble Tea message conversion has been moved to the adapter layer
 // to maintain module boundary rules (runtime MUST NOT import Bubble Tea).
 //
 // For converting Bubble Tea messages to runtime events, use:
-//   "github.com/yaoapp/yao/tui/tui/adapter.ConvertBubbleTeaMsg(msg tea.Msg)
+//   "github.com/wwsheng009/mint/tui/adapter.ConvertBubbleTeaMsg(msg tea.Msg)
 
 // EventStruct is the concrete implementation of the Event interface.
 // This follows the V3 Event System specification with three-phase propagation.

@@ -8,15 +8,15 @@ import (
 	"os"
 	"time"
 
-	"github.com/yaoapp/yao/tui/framework/component"
-	"github.com/yaoapp/yao/tui/framework/debug"
-	frameworkevent "github.com/yaoapp/yao/tui/framework/event"
-	"github.com/yaoapp/yao/tui/framework/theme"
-	"github.com/yaoapp/yao/tui/runtime/core"
-	"github.com/yaoapp/yao/tui/runtime/paint"
-	"github.com/yaoapp/yao/tui/runtime/platform"
-	"github.com/yaoapp/yao/tui/runtime/render"
-	"github.com/yaoapp/yao/tui/runtime/style"
+	"github.com/wwsheng009/mint/framework/component"
+	"github.com/wwsheng009/mint/framework/debug"
+	frameworkevent "github.com/wwsheng009/mint/framework/event"
+	"github.com/wwsheng009/mint/framework/theme"
+	"github.com/wwsheng009/mint/runtime/core"
+	"github.com/wwsheng009/mint/runtime/paint"
+	"github.com/wwsheng009/mint/runtime/platform"
+	"github.com/wwsheng009/mint/runtime/render"
+	"github.com/wwsheng009/mint/runtime/style"
 )
 
 // AppState 应用状态

@@ -3,7 +3,7 @@ package runtime
 import (
 	"time"
 
-	"github.com/yaoapp/yao/tui/runtime/priority"
+	"github.com/wwsheng009/mint/runtime/priority"
 )
 
 // Scheduler manages priority-based rendering with time slicing

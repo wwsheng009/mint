@@ -1,6 +1,6 @@
 package runtime
 
-import "github.com/yaoapp/yao/tui/runtime/priority"
+import "github.com/wwsheng009/mint/runtime/priority"
 
 // LayoutNode is the UI Intermediate Representation (IR) for the Yao TUI Runtime.
 //

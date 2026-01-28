@@ -409,7 +409,7 @@ package priority
 
 import (
     "time"
-    "github.com/yaoapp/yao/tui/runtime"
+    "github.com/wwsheng009/mint/runtime"
 )
 
 // Scheduler manages priority-based rendering with time slicing
@@ -564,7 +564,7 @@ package paint
 
 import (
     "bytes"
-    "github.com/yaoapp/yao/tui/runtime"
+    "github.com/wwsheng009/mint/runtime"
 )
 
 // DrawCmd represents a single drawing command
@@ -747,7 +747,7 @@ func (b *CommandBatch) Count() int {
 package paint
 
 import (
-    "github.com/yaoapp/yao/tui/runtime"
+    "github.com/wwsheng009/mint/runtime"
 )
 
 // StyleStateMachine minimizes VT code changes by tracking current style
@@ -909,7 +909,7 @@ Create independent refresh regions for high-frequency updates (logs, streaming d
 package paint
 
 import (
-    "github.com/yaoapp/yao/tui/runtime"
+    "github.com/wwsheng009/mint/runtime"
 )
 
 // LayerType represents the type of layer
@@ -986,7 +986,7 @@ import (
     "bytes"
     "sort"
 
-    "github.com/yaoapp/yao/tui/runtime"
+    "github.com/wwsheng009/mint/runtime"
 )
 
 // Compositor manages multiple layers and composites them

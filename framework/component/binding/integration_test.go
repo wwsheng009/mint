@@ -3,8 +3,8 @@ package componentbinding
 import (
 	"testing"
 
-	"github.com/yaoapp/yao/tui/framework/binding"
-	"github.com/yaoapp/yao/tui/framework/component"
+	"github.com/wwsheng009/mint/framework/binding"
+	"github.com/wwsheng009/mint/framework/component"
 )
 
 func TestParseDSLProps(t *testing.T) {

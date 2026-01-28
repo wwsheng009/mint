@@ -565,7 +565,7 @@ package paint
 
 import (
     "io"
-    "github.com/yaoapp/yao/tui/framework/platform/terminal"
+    "github.com/wwsheng009/mint/framework/platform/terminal"
 )
 
 // TerminalPainter 终端绘图器
@@ -734,7 +734,7 @@ package paint
 
 import (
     "strings"
-    "github.com/yaoapp/yao/tui/framework/platform/html"
+    "github.com/wwsheng009/mint/framework/platform/html"
 )
 
 // HTMLPainter HTML 绘图器

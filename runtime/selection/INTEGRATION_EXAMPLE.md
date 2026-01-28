@@ -11,7 +11,7 @@ package selection
 以下是需要在 tui/runtime/runtime_impl.go 中修改的内容：
 
 1. 添加导入：
-    sel "github.com/yaoapp/yao/tui/runtime/selection"
+    sel "github.com/wwsheng009/mint/runtime/selection"
 
 2. 修改 RuntimeImpl 结构体，添加字段：
     selectionAdapter *sel.RuntimeAdapter

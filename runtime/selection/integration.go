@@ -1,8 +1,8 @@
 package selection
 
 import (
-	"github.com/yaoapp/yao/tui/runtime"
-	"github.com/yaoapp/yao/tui/runtime/event"
+	"github.com/wwsheng009/mint/runtime"
+	"github.com/wwsheng009/mint/runtime/event"
 )
 
 // TextSelection provides a complete text selection system for TUI applications.

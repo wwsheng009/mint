@@ -15,7 +15,7 @@
 ### 创建静态属性
 
 ```go
-import "github.com/yaoapp/yao/tui/framework/binding"
+import "github.com/wwsheng009/mint/framework/binding"
 
 // 字符串属性
 title := binding.NewStatic("Hello World")
@@ -229,7 +229,7 @@ for i, ctx := range contexts {
 
 ```go
 import (
-    cb "github.com/yaoapp/yao/tui/framework/component/binding"
+    cb "github.com/wwsheng009/mint/framework/component/binding"
 )
 
 type MyComponent struct {
@@ -308,8 +308,8 @@ binding := cb.NewTwoWayBinding(store, component, "value", "username")
 package main
 
 import (
-    "github.com/yaoapp/yao/tui/framework/binding"
-    cb "github.com/yaoapp/yao/tui/framework/component/binding"
+    "github.com/wwsheng009/mint/framework/binding"
+    cb "github.com/wwsheng009/mint/framework/component/binding"
 )
 
 func main() {

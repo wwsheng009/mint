@@ -299,7 +299,7 @@ TextInput 组件已集成主题系统，支持运行时主题切换。
 ### 使用方式
 
 ```go
-import "github.com/yaoapp/yao/tui/framework/input"
+import "github.com/wwsheng009/mint/framework/input"
 
 // 创建输入框
 input := input.NewTextInput()
@@ -314,7 +314,7 @@ input.SetPlaceholder("请输入用户名...")
 ### 本地样式覆盖
 
 ```go
-import "github.com/yaoapp/yao/tui/framework/style"
+import "github.com/wwsheng009/mint/framework/style"
 
 // 设置焦点样式（覆盖主题）
 input.SetFocusStyle(style.Style{}.
@@ -333,7 +333,7 @@ input.SetNormalStyle(style.Style{}.
 ### 主题切换
 
 ```go
-import "github.com/yaoapp/yao/tui/framework/styling"
+import "github.com/wwsheng009/mint/framework/styling"
 
 // 运行时切换主题（所有输入框立即生效）
 err := styling.SetTheme("light")

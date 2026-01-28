@@ -326,8 +326,8 @@ func DefaultMappings() *ProcessRegistry {
 package component
 
 import (
-    "github.com/yaoapp/yao/tui/framework"
-    "github.com/yaoapp/yao/tui/runtime"
+    "github.com/wwsheng009/mint/framework"
+    "github.com/wwsheng009/mint/runtime"
 )
 
 // ActionableComponent 可执行 Action 的组件
@@ -415,7 +415,7 @@ func (c *ActionableComponent) handleResult(result interface{}) {
 package component
 
 import (
-    "github.com/yaoapp/yao/tui/runtime"
+    "github.com/wwsheng009/mint/runtime"
 )
 
 // Button 按钮组件
@@ -463,7 +463,7 @@ func (b *Button) HandleAction(a *runtime.Action) bool {
 package component
 
 import (
-    "github.com/yaoapp/yao/tui/runtime"
+    "github.com/wwsheng009/mint/runtime"
 )
 
 // Table 表格组件
@@ -1005,9 +1005,9 @@ batchUpdate([]StateUpdate{
 package main
 
 import (
-    "github.com/yaoapp/yao/tui/framework"
-    "github.com/yaoapp/yao/tui/component"
-    "github.com/yaoapp/yao/tui/runtime"
+    "github.com/wwsheng009/mint/framework"
+    "github.com/wwsheng009/mint/component"
+    "github.com/wwsheng009/mint/runtime"
 )
 
 // UserListScreen 用户列表界面

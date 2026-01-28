@@ -73,7 +73,7 @@ package async
 import (
     "context"
     "time"
-    "github.com/yaoapp/yao/tui/framework/result"
+    "github.com/wwsheng009/mint/framework/result"
 )
 
 // Task 任务接口
@@ -582,8 +582,8 @@ import (
     "fmt"
     "time"
 
-    "github.com/yaoapp/yao/tui/framework/async"
-    "github.com/yaoapp/yao/tui/runtime"
+    "github.com/wwsheng009/mint/framework/async"
+    "github.com/wwsheng009/mint/runtime"
 )
 
 // AsyncIndicator 异步任务指示器

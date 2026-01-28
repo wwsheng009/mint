@@ -55,8 +55,8 @@ go run -tags interactive tui/framework/examples/login/interactive.go
 
 ```go
 import (
-    "github.com/yaoapp/yao/tui/framework"
-    "github.com/yaoapp/yao/tui/framework/theme"
+    "github.com/wwsheng009/mint/framework"
+    "github.com/wwsheng009/mint/framework/theme"
 )
 
 func main() {
@@ -82,7 +82,7 @@ func main() {
 ### 组件使用主题样式
 
 ```go
-import "github.com/yaoapp/yao/tui/framework/style"
+import "github.com/wwsheng009/mint/framework/style"
 
 // 在组件内部获取主题样式
 func (c *MyComponent) getStyle() style.Style {

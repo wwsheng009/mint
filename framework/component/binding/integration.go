@@ -4,9 +4,9 @@
 package componentbinding
 
 import (
-	"github.com/yaoapp/yao/tui/framework/binding"
-	"github.com/yaoapp/yao/tui/framework/component"
-	"github.com/yaoapp/yao/tui/runtime/paint"
+	"github.com/wwsheng009/mint/framework/binding"
+	"github.com/wwsheng009/mint/framework/component"
+	"github.com/wwsheng009/mint/runtime/paint"
 )
 
 // PaintContext extends the component PaintContext with binding support.

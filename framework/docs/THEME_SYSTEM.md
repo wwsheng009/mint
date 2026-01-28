@@ -15,7 +15,7 @@
 ### 快速开始
 
 ```go
-import "github.com/yaoapp/yao/tui/framework/theme"
+import "github.com/wwsheng009/mint/framework/theme"
 
 // 初始化主题（应用启动时调用一次）
 themeMgr, err := theme.InitThemes("dark")
@@ -27,7 +27,7 @@ themeMgr.Set("light")
 ### 组件使用
 
 ```go
-import "github.com/yaoapp/yao/tui/framework/style"
+import "github.com/wwsheng009/mint/framework/style"
 
 // 组件获取样式（无需持有 theme 或 styling 引用）
 s := style.GetStyle("input", "focus")

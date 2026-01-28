@@ -46,13 +46,13 @@
 
 ```go
 // ✅ Application 可以依赖 Framework
-import "github.com/yaoapp/yao/tui/framework"
+import "github.com/wwsheng009/mint/framework"
 
 // ✅ Framework 可以依赖 Runtime
-import "github.com/yaoapp/yao/tui/runtime"
+import "github.com/wwsheng009/mint/runtime"
 
 // ✅ Framework 可以依赖 Platform
-import "github.com/yaoapp/yao/tui/platform"
+import "github.com/wwsheng009/mint/platform"
 
 // ✅ Platform 实现可以依赖 OS
 import "os"
@@ -64,19 +64,19 @@ import "syscall"
 ```go
 // ❌ Runtime 绝不依赖 Framework
 // tui/runtime/ 不能导入 tui/framework/
-import "github.com/yaoapp/yao/tui/framework"  // 禁止！
+import "github.com/wwsheng009/mint/framework"  // 禁止！
 
 // ❌ Platform 绝不依赖 Framework 或 Runtime
 // platform 包只提供抽象接口
-import "github.com/yaoapp/yao/tui/framework"  // 禁止！
+import "github.com/wwsheng009/mint/framework"  // 禁止！
 
 // ❌ Component 绝不直接操作 Terminal
 // 必须通过 Runtime CellBuffer
-import "github.com/yaoapp/yao/tui/platform"   // 禁止！
+import "github.com/wwsheng009/mint/platform"   // 禁止！
 
 // ❌ 跨层直接访问
 // Application 不能直接使用 Runtime 内部类型
-import "github.com/yaoapp/yao/tui/runtime"    // 禁止！
+import "github.com/wwsheng009/mint/runtime"    // 禁止！
 ```
 
 ## Platform 层接口

@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	frameworkevent "github.com/yaoapp/yao/tui/framework/event"
-	"github.com/yaoapp/yao/tui/runtime/core"
-	"github.com/yaoapp/yao/tui/runtime/render"
+	frameworkevent "github.com/wwsheng009/mint/framework/event"
+	"github.com/wwsheng009/mint/runtime/core"
+	"github.com/wwsheng009/mint/runtime/render"
 )
 
 // TestApp_Throttler 测试 App 的节流器集成

@@ -66,8 +66,8 @@ package tui
 
 import (
     tea "github.com/charmbracelet/bubbletea"
-    "github.com/yaoapp/yao/tui/runtime"
-    "github.com/yaoapp/yao/tui/runtime/event"
+    "github.com/wwsheng009/mint/runtime"
+    "github.com/wwsheng009/mint/runtime/event"
 )
 
 type Model struct {
@@ -138,7 +138,7 @@ package main
 
 import (
     tea "github.com/charmbracelet/bubbletea"
-    "github.com/yaoapp/yao/tui/runtime"
+    "github.com/wwsheng009/mint/runtime"
 )
 
 type Model struct {

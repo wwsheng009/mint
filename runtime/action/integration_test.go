@@ -3,7 +3,7 @@ package action
 import (
 	"testing"
 
-	"github.com/yaoapp/yao/tui/runtime/state"
+	"github.com/wwsheng009/mint/runtime/state"
 )
 
 // TestActionSystemIntegration 测试 Action 系统的完整流程

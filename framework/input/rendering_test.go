@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/yaoapp/yao/tui/framework/component"
-	"github.com/yaoapp/yao/tui/runtime/action"
-	"github.com/yaoapp/yao/tui/runtime/paint"
+	"github.com/wwsheng009/mint/framework/component"
+	"github.com/wwsheng009/mint/runtime/action"
+	"github.com/wwsheng009/mint/runtime/paint"
 )
 
 // TestTextInputRendering 详细测试 TextInput 渲染逻辑

@@ -5,7 +5,7 @@ import (
 	"reflect"
 	stdtesting "testing"
 
-	"github.com/yaoapp/yao/tui/runtime/state"
+	"github.com/wwsheng009/mint/runtime/state"
 )
 
 // =============================================================================

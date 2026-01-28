@@ -5,13 +5,13 @@ import (
 	stdtesting "testing"
 	"time"
 
-	"github.com/yaoapp/yao/tui/framework/component"
-	"github.com/yaoapp/yao/tui/framework/cursor"
-	"github.com/yaoapp/yao/tui/framework/event"
-	"github.com/yaoapp/yao/tui/framework/input"
-	"github.com/yaoapp/yao/tui/runtime/style"
-	"github.com/yaoapp/yao/tui/framework/validation"
-	"github.com/yaoapp/yao/tui/runtime/paint"
+	"github.com/wwsheng009/mint/framework/component"
+	"github.com/wwsheng009/mint/framework/cursor"
+	"github.com/wwsheng009/mint/framework/event"
+	"github.com/wwsheng009/mint/framework/input"
+	"github.com/wwsheng009/mint/framework/validation"
+	"github.com/wwsheng009/mint/runtime/paint"
+	"github.com/wwsheng009/mint/runtime/style"
 )
 
 // TestRuntimeIntegration simulates the full app runtime flow

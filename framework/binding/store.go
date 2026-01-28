@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/yaoapp/yao/tui/runtime/priority"
+	"github.com/wwsheng009/mint/runtime/priority"
 )
 
 // Notifier is a function that notifies of state changes.

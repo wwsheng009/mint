@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"sort"
 
-	"github.com/yaoapp/yao/tui/runtime/style"
+	"github.com/wwsheng009/mint/runtime/style"
 )
 
 // Compositor manages multiple layers and composites them

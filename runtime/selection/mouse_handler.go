@@ -1,7 +1,7 @@
 package selection
 
 import (
-	"github.com/yaoapp/yao/tui/runtime/event"
+	"github.com/wwsheng009/mint/runtime/event"
 )
 
 // MouseHandler manages mouse-based text selection.

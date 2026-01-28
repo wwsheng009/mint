@@ -192,15 +192,15 @@ Runtime 层（`tui/runtime/`）绝对不能导入 Framework 层包。
 **❌ 禁止**:
 ```go
 // runtime/layout/engine.go
-import "github.com/yaoapp/yao/tui/framework/component"  // ❌
+import "github.com/wwsheng009/mint/framework/component"  // ❌
 ```
 
 **✅ 允许**:
 ```go
 // runtime/layout/engine.go
 import (
-    "github.com/yaoapp/yao/tui/runtime/node"     // ✅ runtime 包
-    "github.com/yaoapp/yao/tui/runtime/constraint" // ✅ runtime 包
+    "github.com/wwsheng009/mint/runtime/node"     // ✅ runtime 包
+    "github.com/wwsheng009/mint/runtime/constraint" // ✅ runtime 包
 )
 ```
 
@@ -571,8 +571,8 @@ func (c *MyComponent) SetValue(value string) {
 package display
 
 import (
-    "github.com/yaoapp/yao/tui/framework/component"
-    "github.com/yaoapp/yao/tui/runtime/paint"
+    "github.com/wwsheng009/mint/framework/component"
+    "github.com/wwsheng009/mint/runtime/paint"
 )
 
 type Text struct {
@@ -632,10 +632,10 @@ func (t *Text) Measure(maxWidth, maxHeight int) (width, height int) {
 package interactive
 
 import (
-    "github.com/yaoapp/yao/tui/framework/component"
-    "github.com/yaoapp/yao/tui/framework/event"
-    "github.com/yaoapp/yao/tui/runtime/action"
-    "github.com/yaoapp/yao/tui/runtime/paint"
+    "github.com/wwsheng009/mint/framework/component"
+    "github.com/wwsheng009/mint/framework/event"
+    "github.com/wwsheng009/mint/runtime/action"
+    "github.com/wwsheng009/mint/runtime/paint"
 )
 
 type Button struct {
@@ -733,8 +733,8 @@ func (b *Button) Validate() error {
 package layout
 
 import (
-    "github.com/yaoapp/yao/tui/framework/component"
-    "github.com/yaoapp/yao/tui/runtime/paint"
+    "github.com/wwsheng009/mint/framework/component"
+    "github.com/wwsheng009/mint/runtime/paint"
 )
 
 type VBox struct {
@@ -850,9 +850,9 @@ func (v *VBox) Paint(ctx component.PaintContext, buf *paint.Buffer) {
 package display
 
 import (
-    cb "github.com/yaoapp/yao/tui/framework/component/binding"
-    "github.com/yaoapp/yao/tui/framework/binding"
-    "github.com/yaoapp/yao/tui/framework/component"
+    cb "github.com/wwsheng009/mint/framework/component/binding"
+    "github.com/wwsheng009/mint/framework/binding"
+    "github.com/wwsheng009/mint/framework/component"
 )
 
 type BoundLabel struct {
@@ -892,9 +892,9 @@ func (l *BoundLabel) Paint(ctx component.PaintContext, buf *paint.Buffer) {
 package display
 
 import (
-    "github.com/yaoapp/yao/tui/framework/binding"
-    cb "github.com/yaoapp/yao/tui/framework/component/binding"
-    "github.com/yaoapp/yao/tui/framework/component"
+    "github.com/wwsheng009/mint/framework/binding"
+    cb "github.com/wwsheng009/mint/framework/component/binding"
+    "github.com/wwsheng009/mint/framework/component"
 )
 
 type ReactiveText struct {
@@ -987,7 +987,7 @@ func (c *Component) Paint(ctx PaintContext, buf *paint.Buffer) {
 package layout
 
 import (
-    "github.com/yaoapp/yao/tui/framework/component"  // ❌ 违反架构边界
+    "github.com/wwsheng009/mint/framework/component"  // ❌ 违反架构边界
 )
 
 func Layout(comp interface{}) LayoutBox {
@@ -998,8 +998,8 @@ func Layout(comp interface{}) LayoutBox {
 
 // ✅ 正确：只使用 Runtime 接口
 import (
-    "github.com/yaoapp/yao/tui/runtime/node"
-    "github.com/yaoapp/yao/tui/runtime/interfaces"
+    "github.com/wwsheng009/mint/runtime/node"
+    "github.com/wwsheng009/mint/runtime/interfaces"
 )
 
 func Layout(node runtime.Node) LayoutBox {
@@ -1167,10 +1167,10 @@ func (c *Component) Measure(maxWidth, maxHeight int) (width, height int) {
 
 ```go
 // 导入 Action 类型
-import "github.com/yaoapp/yao/tui/runtime/action"
+import "github.com/wwsheng009/mint/runtime/action"
 
 // 导入 Event 类型
-import "github.com/yaoapp/yao/tui/framework/event"
+import "github.com/wwsheng009/mint/framework/event"
 
 // 常用 Action 类型
 const (
@@ -1214,7 +1214,7 @@ const (
 
 ```go
 // 导入 Event 类型
-import "github.com/yaoapp/yao/tui/framework/event"
+import "github.com/wwsheng009/mint/framework/event"
 
 const (
     // 事件类型

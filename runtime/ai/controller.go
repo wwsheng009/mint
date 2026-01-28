@@ -3,8 +3,8 @@ package ai
 import (
 	"time"
 
-	"github.com/yaoapp/yao/tui/runtime/action"
-	"github.com/yaoapp/yao/tui/runtime/state"
+	"github.com/wwsheng009/mint/runtime/action"
+	"github.com/wwsheng009/mint/runtime/state"
 )
 
 // =============================================================================

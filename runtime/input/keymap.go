@@ -1,8 +1,8 @@
 package input
 
 import (
-	"github.com/yaoapp/yao/tui/runtime/platform"
-	"github.com/yaoapp/yao/tui/runtime/action"
+	"github.com/wwsheng009/mint/runtime/action"
+	"github.com/wwsheng009/mint/runtime/platform"
 )
 
 // ==============================================================================

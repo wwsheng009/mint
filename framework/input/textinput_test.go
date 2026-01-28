@@ -3,8 +3,8 @@ package input
 import (
 	"testing"
 
-	"github.com/yaoapp/yao/tui/framework/event"
-	"github.com/yaoapp/yao/tui/runtime/action"
+	"github.com/wwsheng009/mint/framework/event"
+	"github.com/wwsheng009/mint/runtime/action"
 )
 
 // TestTextInputBasicInsertion 测试基本字符输入

@@ -121,8 +121,8 @@ type Config struct {
 ```go
 import (
     "time"
-    sel "github.com/yaoapp/yao/tui/runtime/selection"
-    "github.com/yaoapp/yao/tui/runtime/animation"
+    sel "github.com/wwsheng009/mint/runtime/selection"
+    "github.com/wwsheng009/mint/runtime/animation"
 )
 ```
 

@@ -1,7 +1,7 @@
 package component
 
 import (
-	"github.com/yaoapp/yao/tui/framework/event"
+	"github.com/wwsheng009/mint/framework/event"
 )
 
 // Event 事件类型别名

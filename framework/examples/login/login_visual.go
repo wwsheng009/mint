@@ -7,12 +7,12 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/yaoapp/yao/tui/framework/component"
-	"github.com/yaoapp/yao/tui/framework/form"
-	"github.com/yaoapp/yao/tui/framework/input"
-	"github.com/yaoapp/yao/tui/runtime/style"
-	"github.com/yaoapp/yao/tui/framework/validation"
-	"github.com/yaoapp/yao/tui/runtime/paint"
+	"github.com/wwsheng009/mint/framework/component"
+	"github.com/wwsheng009/mint/framework/form"
+	"github.com/wwsheng009/mint/framework/input"
+	"github.com/wwsheng009/mint/framework/validation"
+	"github.com/wwsheng009/mint/runtime/paint"
+	"github.com/wwsheng009/mint/runtime/style"
 )
 
 // main 可视化登录表单示例

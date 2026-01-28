@@ -3,7 +3,7 @@ package focus
 import (
 	"sync"
 
-	"github.com/yaoapp/yao/tui/runtime"
+	"github.com/wwsheng009/mint/runtime"
 )
 
 // Manager manages focus state across components

@@ -3,8 +3,8 @@ package form
 import (
 	"testing"
 
-	"github.com/yaoapp/yao/tui/framework/event"
-	"github.com/yaoapp/yao/tui/framework/input"
+	"github.com/wwsheng009/mint/framework/event"
+	"github.com/wwsheng009/mint/framework/input"
 )
 
 // TestFormCharacterInput 测试表单字符输入

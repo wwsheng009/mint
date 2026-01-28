@@ -174,7 +174,7 @@ func (p *ThemeStyleProvider) CurrentTheme() string
 package main
 
 import (
-    "github.com/yaoapp/yao/tui/framework/theme"
+    "github.com/wwsheng009/mint/framework/theme"
 )
 
 func main() {
@@ -211,7 +211,7 @@ name := styling.CurrentTheme()
 package input
 
 import (
-    "github.com/yaoapp/yao/tui/framework/style"
+    "github.com/wwsheng009/mint/framework/style"
     // 不需要导入 styling 包！
 )
 
@@ -403,7 +403,7 @@ var DarkTheme = &Theme{
    package mycomponent
 
    import (
-       "github.com/yaoapp/yao/tui/framework/style"
+       "github.com/wwsheng009/mint/framework/style"
        // 不需要导入 styling 或 theme 包
    )
 

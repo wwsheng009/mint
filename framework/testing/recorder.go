@@ -6,8 +6,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/yaoapp/yao/tui/runtime/action"
-	"github.com/yaoapp/yao/tui/runtime/ai"
+	"github.com/wwsheng009/mint/runtime/action"
+	"github.com/wwsheng009/mint/runtime/ai"
 )
 
 // =============================================================================

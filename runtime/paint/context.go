@@ -1,8 +1,8 @@
 package paint
 
 import (
-	"github.com/yaoapp/yao/tui/runtime/style"
-	"github.com/yaoapp/yao/tui/runtime/state"
+	"github.com/wwsheng009/mint/runtime/state"
+	"github.com/wwsheng009/mint/runtime/style"
 )
 
 // ==============================================================================

@@ -3,7 +3,7 @@ package component
 import (
 	"sync"
 
-	"github.com/yaoapp/yao/tui/runtime/state"
+	"github.com/wwsheng009/mint/runtime/state"
 )
 
 // ==============================================================================

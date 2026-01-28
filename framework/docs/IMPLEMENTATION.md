@@ -351,7 +351,7 @@ func (b *StyleBuilder) Apply(text string) string {
 package internal
 
 import (
-    "github.com/yaoapp/yao/tui/runtime"
+    "github.com/wwsheng009/mint/runtime"
 )
 
 type RuntimeAdapter struct {

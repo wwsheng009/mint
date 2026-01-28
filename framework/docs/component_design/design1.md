@@ -189,8 +189,8 @@ package paint
 
 import (
 	"github.com/mattn/go-runewidth"
-	"github.com/yaoapp/yao/tui/framework/component"
-	"github.com/yaoapp/yao/tui/framework/style"
+	"github.com/wwsheng009/mint/framework/component"
+	"github.com/wwsheng009/mint/framework/style"
 )
 
 // Painter 绘制辅助器
@@ -401,9 +401,9 @@ func (f *Flex) Paint(ctx component.PaintContext, buf *paint.Buffer) {
 package widget
 
 import (
-	"github.com/yaoapp/yao/tui/framework/component"
-	"github.com/yaoapp/yao/tui/framework/paint"
-	"github.com/yaoapp/yao/tui/framework/style"
+	"github.com/wwsheng009/mint/framework/component"
+	"github.com/wwsheng009/mint/framework/paint"
+	"github.com/wwsheng009/mint/framework/style"
 )
 
 // Box 基础容器组件
@@ -539,9 +539,9 @@ package widget
 
 import (
 	"github.com/mattn/go-runewidth"
-	"github.com/yaoapp/yao/tui/framework/component"
-	"github.com/yaoapp/yao/tui/framework/paint"
-	"github.com/yaoapp/yao/tui/framework/style"
+	"github.com/wwsheng009/mint/framework/component"
+	"github.com/wwsheng009/mint/framework/paint"
+	"github.com/wwsheng009/mint/framework/style"
 )
 
 // Text 文本组件
@@ -874,7 +874,7 @@ func (p *Pump) convertKey(tek *tcell.EventKey) KeyEvent {
 package focus
 
 import (
-	"github.com/yaoapp/yao/tui/framework/component"
+	"github.com/wwsheng009/mint/framework/component"
 )
 
 // Manager 焦点管理器
