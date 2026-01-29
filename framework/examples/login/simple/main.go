@@ -57,11 +57,8 @@ func (b *SimpleInputBox) Paint(ctx component.PaintContext, buf *paint.Buffer) {
 	// 绘制标签和输入框
 	labelStyle := style.Style{}.Foreground(style.Cyan)
 
-	// 名字标签
-	buf.SetCell(x, y, []rune("名字: ")[0], labelStyle)
-	buf.SetCell(x+1, y, []rune("名字: ")[1], labelStyle)
-	buf.SetCell(x+2, y, []rune("名字: ")[2], labelStyle)
-	buf.SetCell(x+3, y, []rune("名字: ")[3], labelStyle)
+	// 名字标签 - 使用 SetString 正确处理宽字符
+	buf.SetString(x, y, "名字: ", labelStyle)
 
 	// 名字输入框
 	inputCtx := component.PaintContext{
@@ -72,11 +69,8 @@ func (b *SimpleInputBox) Paint(ctx component.PaintContext, buf *paint.Buffer) {
 	}
 	b.nameInput.Paint(inputCtx, buf)
 
-	// 邮箱标签
-	buf.SetCell(x, y+2, []rune("邮箱: ")[0], labelStyle)
-	buf.SetCell(x+1, y+2, []rune("邮箱: ")[1], labelStyle)
-	buf.SetCell(x+2, y+2, []rune("邮箱: ")[2], labelStyle)
-	buf.SetCell(x+3, y+2, []rune("邮箱: ")[3], labelStyle)
+	// 邮箱标签 - 使用 SetString 正确处理宽字符
+	buf.SetString(x, y+2, "邮箱: ", labelStyle)
 
 	// 邮箱输入框
 	emailInputCtx := component.PaintContext{
@@ -87,14 +81,12 @@ func (b *SimpleInputBox) Paint(ctx component.PaintContext, buf *paint.Buffer) {
 	}
 	b.emailInput.Paint(emailInputCtx, buf)
 
-	// 底部提示
+	// 底部提示 - 使用 SetString 正确处理宽字符
 	helpStyle := style.Style{}.Foreground(style.BrightBlack)
 	helpText := " Tab导航 Enter提交 Esc取消 "
 	helpRunes := []rune(helpText)
 	helpX := x + (width - len(helpRunes)) / 2
-	for i, r := range helpRunes {
-		buf.SetCell(helpX+i, y+5, r, helpStyle)
-	}
+	buf.SetString(helpX, y+5, helpText, helpStyle)
 }
 
 // HandleEvent 处理事件

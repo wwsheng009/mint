@@ -1,6 +1,7 @@
 package interactive
 
 import (
+	"github.com/mattn/go-runewidth"
 	"github.com/wwsheng009/mint/framework/component"
 	"github.com/wwsheng009/mint/runtime/action"
 	"github.com/wwsheng009/mint/runtime/paint"
@@ -102,7 +103,7 @@ func (b *Button) WithOnClick(onClick func()) *Button {
 // Measure 测量理想尺寸
 // 按钮尺寸 = "[label]" + 左右各 1 空格
 func (b *Button) Measure(maxWidth, maxHeight int) (width, height int) {
-	labelWidth := buttonRuneCount(b.label)
+	labelWidth := runewidth.StringWidth(b.label)
 	width = labelWidth + 2 // 左右括号
 	height = 1
 
@@ -146,7 +147,7 @@ func (b *Button) Paint(ctx component.PaintContext, buf *paint.Buffer) {
 	}
 
 	// 计算按钮文本
-	labelWidth := buttonRuneCount(b.label)
+	labelWidth := runewidth.StringWidth(b.label)
 	buttonText := "[" + b.label + "]"
 	buttonWidth := labelWidth + 2
 
@@ -168,13 +169,8 @@ func (b *Button) Paint(ctx component.PaintContext, buf *paint.Buffer) {
 		ctx.SetCell(i, y, ' ', style.Style{})
 	}
 
-	// 绘制按钮
-	for i, r := range buttonText {
-		pos := paddingLeft + i
-		if pos < width {
-			ctx.SetCell(pos, y, r, drawStyle)
-		}
-	}
+	// 绘制按钮 - 使用 SetString 正确处理宽字符
+	ctx.SetString(paddingLeft, y, buttonText, drawStyle)
 
 	// 绘制空格（按钮后的填充）
 	endPos := paddingLeft + buttonWidth
@@ -235,15 +231,6 @@ func (b *Button) OnBlur() {
 // ============================================================================
 // 内部方法
 // ============================================================================
-
-// buttonRuneCount 计算 rune 数量
-func buttonRuneCount(s string) int {
-	count := 0
-	for range s {
-		count++
-	}
-	return count
-}
 
 // ============================================================================
 // 辅助函数 - 创建常用按钮样式

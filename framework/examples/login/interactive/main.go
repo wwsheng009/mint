@@ -226,9 +226,7 @@ func drawDoubleBox(buf *paint.Buffer, x, y, width, height int) {
 }
 
 // drawText 绘制文本
+// 使用 SetString 正确处理宽字符（中文、emoji等）
 func drawText(buf *paint.Buffer, x, y int, text string, s style.Style) {
-	runes := []rune(text)
-	for i, r := range runes {
-		buf.SetCell(x+i, y, r, s)
-	}
+	buf.SetString(x, y, text, s)
 }

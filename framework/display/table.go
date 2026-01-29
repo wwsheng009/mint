@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/mattn/go-runewidth"
 	"github.com/wwsheng009/mint/framework/component"
 	"github.com/wwsheng009/mint/runtime/action"
 	"github.com/wwsheng009/mint/runtime/paint"
@@ -693,18 +694,30 @@ func (t *Table) paintEmptyRow(ctx component.PaintContext, buf *paint.Buffer, y i
 }
 
 // paintCell 绘制单元格
+// 使用 SetString 正确处理宽字符（中文、emoji等）
 func (t *Table) paintCell(buf *paint.Buffer, x, y int, text string, width int, s style.Style, align component.TextAlign) {
-	runes := []rune(text)
-	textLen := len(runes)
+	textWidth := runewidth.StringWidth(text)
 
 	// 截断过长的文本
-	if textLen > width {
-		runes = runes[:width]
-		textLen = width
+	truncated := text
+	if textWidth > width {
+		// 逐个字符截断，直到宽度合适
+		currentWidth := 0
+		truncatedRunes := make([]rune, 0)
+		for _, r := range text {
+			rw := runewidth.RuneWidth(r)
+			if currentWidth+rw > width {
+				break
+			}
+			truncatedRunes = append(truncatedRunes, r)
+			currentWidth += rw
+		}
+		truncated = string(truncatedRunes)
+		textWidth = currentWidth
 	}
 
 	// 计算对齐
-	padding := width - textLen
+	padding := width - textWidth
 	var leftPad, rightPad int
 
 	switch align {
@@ -725,10 +738,9 @@ func (t *Table) paintCell(buf *paint.Buffer, x, y int, text string, width int, s
 		buf.SetCell(currentX, y, ' ', s)
 		currentX++
 	}
-	for _, r := range runes {
-		buf.SetCell(currentX, y, r, s)
-		currentX++
-	}
+	// 使用 SetString 绘制文本
+	buf.SetString(currentX, y, truncated, s)
+	currentX += textWidth
 	for i := 0; i < rightPad; i++ {
 		buf.SetCell(currentX, y, ' ', s)
 		currentX++

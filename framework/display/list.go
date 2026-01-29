@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/mattn/go-runewidth"
 	"github.com/wwsheng009/mint/framework/component"
 	"github.com/wwsheng009/mint/runtime/action"
 	"github.com/wwsheng009/mint/runtime/paint"
@@ -169,11 +170,11 @@ func (l *List) Measure(maxWidth, maxHeight int) (width, height int) {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 
-	// 计算最大文本宽度
+	// 计算最大文本宽度（使用正确的显示宽度计算）
 	maxTextWidth := 0
 	for i := 0; i < l.dataSource.Count(); i++ {
 		text := l.formatItem(l.dataSource.Get(i))
-		textWidth := len([]rune(text))
+		textWidth := runewidth.StringWidth(text)
 		if textWidth > maxTextWidth {
 			maxTextWidth = textWidth
 		}
@@ -257,14 +258,15 @@ func (l *List) Paint(ctx component.PaintContext, buf *paint.Buffer) {
 }
 
 // paintLine 绘制单行文本
+// 使用 SetString 正确处理宽字符（中文、emoji等）
 func (l *List) paintLine(buf *paint.Buffer, x, y int, text string, width int, s style.Style) {
-	runes := []rune(text)
-	for i := 0; i < width; i++ {
-		if i < len(runes) {
-			buf.SetCell(x+i, y, runes[i], s)
-		} else {
-			buf.SetCell(x+i, y, ' ', s)
-		}
+	// 绘制文本
+	buf.SetString(x, y, text, s)
+
+	// 计算文本宽度并填充剩余空间
+	textWidth := runewidth.StringWidth(text)
+	for i := textWidth; i < width; i++ {
+		buf.SetCell(x+i, y, ' ', s)
 	}
 }
 

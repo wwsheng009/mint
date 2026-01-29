@@ -2,6 +2,7 @@ package selection
 
 import (
 	"github.com/wwsheng009/mint/runtime"
+	"github.com/wwsheng009/mint/runtime/style"
 )
 
 // Renderer handles rendering of selection highlights on a CellBuffer.
@@ -74,7 +75,7 @@ func (r *Renderer) highlightCell(x, y int) {
 		break
 	}
 	// Set the cell with the new style
-	r.buffer.SetCell(x, y, char, newStyle, currentCell.ZIndex)
+	r.buffer.SetContent(x, y, currentCell.ZIndex, char, newStyle, "")
 }
 
 // combineStyles combines two cell styles, with the highlight taking precedence.
@@ -83,26 +84,18 @@ func (r *Renderer) combineStyles(original runtime.CellStyle, highlight CellStyle
 
 	// If highlight uses reverse, that's our primary selection indicator
 	if highlight.Reverse {
-		result.Reverse = true
-	}
-
-	// Override colors if specified
-	if highlight.Foreground != "" {
-		result.Foreground = highlight.Foreground
-	}
-	if highlight.Background != "" {
-		result.Background = highlight.Background
+		result = result.Reverse(true)
 	}
 
 	// Add additional styling from highlight
 	if highlight.Bold {
-		result.Bold = true
+		result = result.Bold(true)
 	}
 	if highlight.Underline {
-		result.Underline = true
+		result = result.Underline(true)
 	}
 	if highlight.Italic {
-		result.Italic = true
+		result = result.Italic(true)
 	}
 
 	return result
@@ -163,16 +156,32 @@ type CellStyle struct {
 
 // ToRuntimeStyle converts a selection.CellStyle to runtime.CellStyle.
 func (s CellStyle) ToRuntimeStyle() runtime.CellStyle {
-	return runtime.CellStyle{
-		Bold:       s.Bold,
-		Underline:  s.Underline,
-		Italic:     s.Italic,
-		Strikethrough: s.Strikethrough,
-		Blink:      s.Blink,
-		Reverse:    s.Reverse,
-		Foreground: s.Foreground,
-		Background: s.Background,
+	st := runtime.CellStyle{}
+	if s.Bold {
+		st = st.Bold(true)
 	}
+	if s.Underline {
+		st = st.Underline(true)
+	}
+	if s.Italic {
+		st = st.Italic(true)
+	}
+	if s.Strikethrough {
+		st = st.Strikethrough(true)
+	}
+	if s.Blink {
+		st = st.Blink(true)
+	}
+	if s.Reverse {
+		st = st.Reverse(true)
+	}
+	if s.Foreground != "" {
+		st = st.Foreground(style.Color(s.Foreground))
+	}
+	if s.Background != "" {
+		st = st.Background(style.Color(s.Background))
+	}
+	return st
 }
 
 // TextBufferAdapter adapts runtime.CellBuffer to selection.TextBuffer.
@@ -209,7 +218,7 @@ func (a *TextBufferAdapter) Width() int {
 	if a.buffer == nil {
 		return 0
 	}
-	return a.buffer.Width()
+	return a.buffer.Width
 }
 
 // Height returns the buffer height.
@@ -217,7 +226,7 @@ func (a *TextBufferAdapter) Height() int {
 	if a.buffer == nil {
 		return 0
 	}
-	return a.buffer.Height()
+	return a.buffer.Height
 }
 
 // ManagerWithBuffer creates a new Manager with a CellBuffer as the text source.

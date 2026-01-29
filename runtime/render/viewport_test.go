@@ -368,7 +368,7 @@ func TestRenderVirtualList(t *testing.T) {
 		itemBuf := runtime.NewCellBuffer(20, 2)
 		style := runtime.CellStyle{}
 		if selected {
-			style.Bold = true
+			style = style.Bold(true)
 		}
 
 		for i, r := range text {
@@ -381,10 +381,10 @@ func TestRenderVirtualList(t *testing.T) {
 	RenderVirtualList(buf, state, config, renderer)
 
 	// Check that some items were rendered
-	cell := buf.GetCell(0, 0)
+	cell := buf.GetContent(0, 0)
 	assert.Equal(t, "I", cell.Cluster, "Should have rendered first item")
 
-	cell = buf.GetCell(0, 2)
+	cell = buf.GetContent(0, 2)
 	assert.Equal(t, "I", cell.Cluster, "Should have rendered second item")
 }
 

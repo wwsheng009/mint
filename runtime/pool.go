@@ -2,6 +2,8 @@ package runtime
 
 import (
 	"sync"
+
+	"github.com/wwsheng009/mint/runtime/paint"
 )
 
 // cellBufferPool is a pool of reusable CellBuffer instances.
@@ -17,6 +19,7 @@ var cellBufferPool = sync.Pool{
 const maxPooledBufferSize = 10000 // 100x100 cells
 
 // NewCellBuffer creates a new CellBuffer, potentially from the pool.
+// This is a pooling wrapper around paint.NewBuffer for performance.
 func NewCellBuffer(width, height int) *CellBuffer {
 	if width <= 0 {
 		width = 80
@@ -34,8 +37,8 @@ func NewCellBuffer(width, height int) *CellBuffer {
 		return buf
 	}
 
-	// For large buffers, create a new one
-	return createCellBuffer(width, height)
+	// For large buffers, create a new one via paint.NewBuffer
+	return (*CellBuffer)(paint.NewBuffer(width, height))
 }
 
 // ReleaseCellBuffer returns a CellBuffer to the pool for reuse.
@@ -44,65 +47,11 @@ func ReleaseCellBuffer(buf *CellBuffer) {
 		return
 	}
 
-	size := buf.Width() * buf.Height()
+	size := buf.Width * buf.Height
 	if size <= maxPooledBufferSize {
 		cellBufferPool.Put(buf)
 	}
 	// Large buffers are not pooled, let GC handle them
-}
-
-// createCellBuffer creates a new CellBuffer without pooling.
-func createCellBuffer(width, height int) *CellBuffer {
-	cells := make([][]Cell, height)
-	for y := 0; y < height; y++ {
-		cells[y] = make([]Cell, width)
-		for x := 0; x < width; x++ {
-			cells[y][x] = Cell{
-				Cluster: " ",
-				Style:  CellStyle{},
-				ZIndex: 0,
-			}
-		}
-	}
-
-	return &CellBuffer{
-		cells:  cells,
-		width:  width,
-		height: height,
-	}
-}
-
-// Reset resets the CellBuffer to the given dimensions.
-// This is used by the pool to reuse buffers.
-func (b *CellBuffer) Reset(width, height int) {
-	if width <= 0 {
-		width = 80
-	}
-	if height <= 0 {
-		height = 24
-	}
-
-	// Check if we need to allocate new cells
-	if b.cells == nil || len(b.cells) != height || (len(b.cells) > 0 && len(b.cells[0]) != width) {
-		b.cells = make([][]Cell, height)
-		for y := 0; y < height; y++ {
-			b.cells[y] = make([]Cell, width)
-		}
-	}
-
-	// Clear all cells
-	for y := 0; y < height; y++ {
-		for x := 0; x < width; x++ {
-			b.cells[y][x] = Cell{
-				Cluster: " ",
-				Style:  CellStyle{},
-				ZIndex: 0,
-			}
-		}
-	}
-
-	b.width = width
-	b.height = height
 }
 
 // nodePool is a pool of reusable LayoutNode instances.

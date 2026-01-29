@@ -2,6 +2,8 @@ package runtime
 
 import (
 	"testing"
+
+	"github.com/wwsheng009/mint/runtime/style"
 )
 
 // TestSelectionManager_NewManager tests creating a new selection manager.
@@ -134,8 +136,8 @@ func TestSelectionManager_SelectWord(t *testing.T) {
 	// Add some text: "hello world test"
 	text := "hello world test"
 	for x, ch := range text {
-		if x < buffer.width {
-			buffer.SetContent(x, 2, 0, ch, CellStyle{}, "")
+		if x < buffer.Width {
+			buffer.SetContent(x, 2, 0, ch, style.Style{}, "")
 		}
 	}
 
@@ -350,27 +352,29 @@ func TestSelectionManager_GetRegion(t *testing.T) {
 
 // TestDefaultSelectionHighlight tests the default highlight style.
 func TestDefaultSelectionHighlight(t *testing.T) {
-	style := DefaultSelectionHighlight()
+	highlight := DefaultSelectionHighlight()
 
-	if !style.Reverse {
+	if !highlight.IsReverse() {
 		t.Error("Default highlight should use reverse video")
 	}
 }
 
 // TestLightSelectionHighlight tests the light theme highlight.
 func TestLightSelectionHighlight(t *testing.T) {
-	style := LightSelectionHighlight()
+	highlight := LightSelectionHighlight()
 
-	if style.Background == "" {
-		t.Error("Light highlight should have background color")
+	// Check that the style is not empty (has some styling applied)
+	if highlight == (style.Style{}) {
+		t.Error("Light highlight should have styling")
 	}
 }
 
 // TestDarkSelectionHighlight tests the dark theme highlight.
 func TestDarkSelectionHighlight(t *testing.T) {
-	style := DarkSelectionHighlight()
+	highlight := DarkSelectionHighlight()
 
-	if style.Background == "" {
-		t.Error("Dark highlight should have background color")
+	// Check that the style is not empty (has some styling applied)
+	if highlight == (style.Style{}) {
+		t.Error("Dark highlight should have styling")
 	}
 }

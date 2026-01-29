@@ -23,4 +23,15 @@ type Cell struct {
 	// in the previous cell. When IsContinuation is true, this cell should
 	// be skipped during output and diff operations.
 	IsContinuation bool
+
+	// ZIndex is the layer depth for this cell. Higher values render on top.
+	// Used for layering components when they overlap.
+	ZIndex int
+
+	// NodeID identifies which component/element owns this cell.
+	// Used for hit testing and event routing.
+	NodeID string
+
+	// Selected indicates this cell is part of a text selection.
+	Selected bool
 }

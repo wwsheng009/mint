@@ -18,6 +18,8 @@ import (
 	"hash/crc32"
 	"os"
 	"strings"
+
+	"github.com/wwsheng009/mint/runtime/style"
 )
 
 // ExportFormat represents the output format for export.
@@ -125,8 +127,8 @@ func (e *Exporter) SaveToSVG(filename string) error {
 	}
 
 	buf := e.frame.Buffer
-	width := buf.Width()
-	height := buf.Height()
+	width := buf.Width
+	height := buf.Height
 
 	// Cell dimensions (in pixels)
 	cellWidth := 10
@@ -172,13 +174,13 @@ func (e *Exporter) SaveToSVG(filename string) error {
 
 			// Build style classes
 			var classes []string
-			if cell.Style.Bold {
+			if cell.Style.IsBold() {
 				classes = append(classes, "bold")
 			}
-			if cell.Style.Italic {
+			if cell.Style.IsItalic() {
 				classes = append(classes, "italic")
 			}
-			if cell.Style.Underline {
+			if cell.Style.IsUnderline() {
 				classes = append(classes, "underline")
 			}
 
@@ -208,8 +210,8 @@ func (e *Exporter) SaveToPNG(filename string) error {
 	}
 
 	buf := e.frame.Buffer
-	width := buf.Width()
-	height := buf.Height()
+	width := buf.Width
+	height := buf.Height
 
 	// Cell dimensions (in pixels)
 	cellWidth := 8
@@ -230,7 +232,7 @@ func (e *Exporter) SaveToPNG(filename string) error {
 
 			// Determine color
 			fgColor := e.colorScheme.Foreground
-			if cell.Style.Bold {
+			if cell.Style.IsBold() {
 				fgColor = e.colorScheme.Bold
 			}
 
@@ -256,8 +258,8 @@ func (e *Exporter) ToBase64PNG() (string, error) {
 	}
 
 	buf := e.frame.Buffer
-	width := buf.Width()
-	height := buf.Height()
+	width := buf.Width
+	height := buf.Height
 
 	cellWidth := 8
 	cellHeight := 16
@@ -274,7 +276,7 @@ func (e *Exporter) ToBase64PNG() (string, error) {
 			}
 
 			fgColor := e.colorScheme.Foreground
-			if cell.Style.Bold {
+			if cell.Style.IsBold() {
 				fgColor = e.colorScheme.Bold
 			}
 
@@ -297,8 +299,8 @@ func (e *Exporter) ToHTML() (string, error) {
 	}
 
 	buf := e.frame.Buffer
-	width := buf.Width()
-	height := buf.Height()
+	width := buf.Width
+	height := buf.Height
 
 	cellWidth := 10
 	cellHeight := 18
@@ -400,7 +402,7 @@ func (img *ImageBuffer) EncodePNG() ([]byte, error) {
 }
 
 // renderCharToBitmap renders a single character to the image buffer.
-func renderCharToBitmap(img *ImageBuffer, x, y int, cluster string, color RGBA, style CellStyle) {
+func renderCharToBitmap(img *ImageBuffer, x, y int, cluster string, color RGBA, style style.Style) {
 	// Get the first rune from cluster for bitmap rendering
 	var char rune
 	if len(cluster) > 0 {
@@ -425,7 +427,7 @@ func renderCharToBitmap(img *ImageBuffer, x, y int, cluster string, color RGBA, 
 	}
 
 	// Draw underline if needed
-	if style.Underline {
+	if style.IsUnderline() {
 		for col := 0; col < 8; col++ {
 			img.SetPixel(x+col, y+15, color)
 		}

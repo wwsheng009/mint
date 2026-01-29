@@ -45,7 +45,7 @@ func DebugFrame(frame *Frame, layoutResult *LayoutResult) *RenderDebug {
 		Frame:        frame,
 		LayoutResult: layoutResult,
 		Boxes:        make([]BoxDebugInfo, 0),
-		Summary:      fmt.Sprintf("Frame: %dx%d", frame.Buffer.Width(), frame.Buffer.Height()),
+		Summary:      fmt.Sprintf("Frame: %dx%d", frame.Buffer.Width, frame.Buffer.Height),
 	}
 
 	if layoutResult != nil {
@@ -71,8 +71,8 @@ func analyzeBuffer(buf *CellBuffer) *BufferDebugInfo {
 		return nil
 	}
 
-	width := buf.Width()
-	height := buf.Height()
+	width := buf.Width
+	height := buf.Height
 	info := &BufferDebugInfo{
 		Width:       width,
 		Height:      height,
@@ -120,8 +120,8 @@ func extractBoxContent(box *LayoutBox, buf *CellBuffer) string {
 	}
 
 	var content strings.Builder
-	maxY := minInt(box.Y+box.H, buf.Height())
-	maxX := minInt(box.X+box.W, buf.Width())
+	maxY := minInt(box.Y+box.H, buf.Height)
+	maxX := minInt(box.X+box.W, buf.Width)
 
 	for y := box.Y; y < maxY; y++ {
 		if y > box.Y {
@@ -189,8 +189,8 @@ func (d *RenderDebug) DiffOutput() string {
 	}
 
 	buf := d.Frame.Buffer
-	width := buf.Width()
-	height := buf.Height()
+	width := buf.Width
+	height := buf.Height
 	var result strings.Builder
 
 	// Calculate line number width
@@ -223,8 +223,8 @@ func (d *RenderDebug) PlainOutput() string {
 	}
 
 	buf := d.Frame.Buffer
-	width := buf.Width()
-	height := buf.Height()
+	width := buf.Width
+	height := buf.Height
 	var result strings.Builder
 
 	for y := 0; y < height; y++ {
@@ -285,8 +285,8 @@ func (d *RenderDebug) ToJSON() *JSONOutput {
 	}
 
 	buf := d.Frame.Buffer
-	width := buf.Width()
-	height := buf.Height()
+	width := buf.Width
+	height := buf.Height
 	output := &JSONOutput{
 		Width:  width,
 		Height: height,

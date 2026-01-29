@@ -375,13 +375,13 @@ func copyFrameToBuffer(dst *runtime.CellBuffer, src runtime.Frame, dstX, dstY in
 		return
 	}
 
-	srcWidth := src.Buffer.Width()
-	srcHeight := src.Buffer.Height()
+	srcWidth := src.Buffer.Width
+	srcHeight := src.Buffer.Height
 
 	for y := 0; y < srcHeight; y++ {
 		for x := 0; x < srcWidth; x++ {
-			if dstX+x < dst.Width() && dstY+y < dst.Height() {
-				cell := src.Buffer.GetCell(x, y)
+			if dstX+x < dst.Width && dstY+y < dst.Height {
+				cell := src.Buffer.GetContent(x, y)
 				// Convert cluster to first rune for SetContent
 				r := rune(0)
 				for _, c := range cell.Cluster {

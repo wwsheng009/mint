@@ -3,6 +3,8 @@ package runtime
 import (
 	"strings"
 	"testing"
+
+	"github.com/wwsheng009/mint/runtime/style"
 )
 
 // TestDebugFrame tests the DebugFrame function.
@@ -11,16 +13,16 @@ func TestDebugFrame(t *testing.T) {
 	buf := NewCellBuffer(40, 10)
 
 	// Add some content
-	buf.SetContent(0, 0, 0, 'H', CellStyle{Bold: true}, "test")
-	buf.SetContent(1, 0, 0, 'e', CellStyle{}, "test")
-	buf.SetContent(2, 0, 0, 'l', CellStyle{}, "test")
-	buf.SetContent(3, 0, 0, 'l', CellStyle{}, "test")
-	buf.SetContent(4, 0, 0, 'o', CellStyle{}, "test")
-	buf.SetContent(0, 1, 0, 'W', CellStyle{}, "test")
-	buf.SetContent(1, 1, 0, 'o', CellStyle{}, "test")
-	buf.SetContent(2, 1, 0, 'r', CellStyle{}, "test")
-	buf.SetContent(3, 1, 0, 'l', CellStyle{}, "test")
-	buf.SetContent(4, 1, 0, 'd', CellStyle{}, "test")
+	buf.SetContent(0, 0, 0, 'H', style.NewStyle().Bold(true), "test")
+	buf.SetContent(1, 0, 0, 'e', style.Style{}, "test")
+	buf.SetContent(2, 0, 0, 'l', style.Style{}, "test")
+	buf.SetContent(3, 0, 0, 'l', style.Style{}, "test")
+	buf.SetContent(4, 0, 0, 'o', style.Style{}, "test")
+	buf.SetContent(0, 1, 0, 'W', style.Style{}, "test")
+	buf.SetContent(1, 1, 0, 'o', style.Style{}, "test")
+	buf.SetContent(2, 1, 0, 'r', style.Style{}, "test")
+	buf.SetContent(3, 1, 0, 'l', style.Style{}, "test")
+	buf.SetContent(4, 1, 0, 'd', style.Style{}, "test")
 
 	// Create frame
 	frame := &Frame{

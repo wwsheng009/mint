@@ -1,6 +1,8 @@
 package paint
 
 import (
+	"strings"
+
 	"github.com/mattn/go-runewidth"
 	"github.com/rivo/uniseg"
 	"github.com/wwsheng009/mint/runtime/style"
@@ -127,6 +129,51 @@ func (b *Buffer) Fill(rect Rect, char rune, s style.Style) {
 	}
 }
 
+// GetContent returns the cell at the given position.
+// This provides compatibility with runtime.CellBuffer interface.
+func (b *Buffer) GetContent(x, y int) Cell {
+	if x < 0 || x >= b.Width || y < 0 || y >= b.Height {
+		return Cell{}
+	}
+	return b.Cells[y][x]
+}
+
+// SetContent sets a cell at the given position with Z-Index checking.
+// If the new Z-Index is greater than or equal to the existing cell's Z-Index,
+// the cell is overwritten. Otherwise, the operation is ignored.
+// This provides compatibility with runtime.CellBuffer interface.
+func (b *Buffer) SetContent(x, y, z int, char rune, s style.Style, nodeID string) {
+	if x < 0 || x >= b.Width || y < 0 || y >= b.Height {
+		return
+	}
+
+	// Check Z-Index - only overwrite if new Z is >= existing Z
+	if z < b.Cells[y][x].ZIndex {
+		return
+	}
+
+	b.Cells[y][x] = Cell{
+		Cluster: string(char),
+		Style:   s,
+		ZIndex:  z,
+		NodeID:  nodeID,
+	}
+}
+
+// SetContentDirect sets a cell at the given position without Z-Index checking.
+// This directly overwrites the cell regardless of Z-Index.
+func (b *Buffer) SetContentDirect(x, y int, char rune, s style.Style, zIndex int) {
+	if x < 0 || x >= b.Width || y < 0 || y >= b.Height {
+		return
+	}
+
+	b.Cells[y][x] = Cell{
+		Cluster: string(char),
+		Style:   s,
+		ZIndex:  zIndex,
+	}
+}
+
 // ==============================================================================
 // Wide Character Helper Functions
 // ==============================================================================
@@ -249,4 +296,123 @@ func minInt(a, b int) int {
 		return a
 	}
 	return b
+}
+
+// =============================================================================
+// Buffer Output and Selection Methods
+// =============================================================================
+
+// String returns the buffer as a string with ANSI escape codes for styling.
+// This outputs the buffer with proper terminal styling support.
+// Applies selection highlighting (reverse video) to selected cells.
+func (b *Buffer) String() string {
+	w, h := b.Width, b.Height
+	if h == 0 {
+		return ""
+	}
+
+	lines := make([]string, h)
+	for y := 0; y < h; y++ {
+		var lineBuilder strings.Builder
+
+		for x := 0; x < w; x++ {
+			cell := b.Cells[y][x]
+
+			// Skip continuation cells (wide characters)
+			if cell.IsContinuation {
+				continue
+			}
+
+			// Apply reverse video if selected
+			if cell.Selected {
+				lineBuilder.WriteString("\x1b[7m")
+			}
+
+			// Apply style if present
+			if cell.Style != (style.Style{}) {
+				lineBuilder.WriteString(cell.Style.ToANSI())
+			}
+
+			if cell.Cluster == "" || cell.Cluster == "\x00" {
+				lineBuilder.WriteRune(' ')
+			} else {
+				lineBuilder.WriteString(cell.Cluster)
+			}
+
+			// Reset style after each cell
+			if cell.Style != (style.Style{}) || cell.Selected {
+				lineBuilder.WriteString("\x1b[0m")
+			}
+		}
+
+		lines[y] = lineBuilder.String()
+	}
+
+	return strings.Join(lines, "\r\n")
+}
+
+// SetSelected sets the Selected flag for a cell at the given position.
+func (b *Buffer) SetSelected(x, y int, selected bool) {
+	w, h := b.Width, b.Height
+	if x < 0 || x >= w || y < 0 || y >= h {
+		return
+	}
+	b.Cells[y][x].Selected = selected
+}
+
+// ClearSelection clears the selection flag for all cells.
+func (b *Buffer) ClearSelection() {
+	w, h := b.Width, b.Height
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			b.Cells[y][x].Selected = false
+		}
+	}
+}
+
+// Clear clears the entire buffer.
+func (b *Buffer) Clear() {
+	w, h := b.Width, b.Height
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			b.Cells[y][x] = Cell{
+				Cluster: " ",
+				Style:   style.Style{},
+				ZIndex:  0,
+			}
+		}
+	}
+}
+
+// Reset resets the buffer to the given dimensions.
+// This is used by the pool to reuse buffers.
+func (b *Buffer) Reset(width, height int) {
+	if width <= 0 {
+		width = 80
+	}
+	if height <= 0 {
+		height = 24
+	}
+
+	// Check if we need to allocate new cells
+	if b.Cells == nil || len(b.Cells) != height || (len(b.Cells) > 0 && len(b.Cells[0]) != width) {
+		b.Cells = make([][]Cell, height)
+		for y := 0; y < height; y++ {
+			b.Cells[y] = make([]Cell, width)
+		}
+	}
+
+	// Clear all cells
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
+			b.Cells[y][x] = Cell{
+				Cluster: " ",
+				Style:   style.Style{},
+				ZIndex:  0,
+			}
+		}
+	}
+
+	b.Width = width
+	b.Height = height
 }

@@ -2,6 +2,8 @@ package runtime
 
 import (
 	"strings"
+
+	"github.com/wwsheng009/mint/runtime/style"
 )
 
 // SelectionManager manages text selection state within the Runtime.
@@ -17,7 +19,7 @@ type SelectionManager struct {
 	anchorY   int
 	mode      SelectionMode
 	buffer    *CellBuffer
-	highlight CellStyle
+	highlight style.Style
 }
 
 // SelectionMode defines how text selection works.
@@ -108,8 +110,8 @@ func (m *SelectionManager) Extend(x, y int) {
 		return
 	}
 
-	m.currentX = clampInt(x, 0, m.buffer.width-1)
-	m.currentY = clampInt(y, 0, m.buffer.height-1)
+	m.currentX = clampInt(x, 0, m.buffer.Width-1)
+	m.currentY = clampInt(y, 0, m.buffer.Height-1)
 }
 
 // Clear clears the current selection.
@@ -158,7 +160,7 @@ func (m *SelectionManager) GetSelectedText() string {
 		// For multi-line selections, use full line width for middle lines
 		if y > startY && y < endY {
 			lineStart = 0
-			lineEnd = m.buffer.width - 1
+			lineEnd = m.buffer.Width - 1
 		}
 
 		// Track styled text regions to avoid duplication
@@ -167,11 +169,11 @@ func (m *SelectionManager) GetSelectedText() string {
 			cell := m.buffer.GetContent(x, y)
 
 			// Check if this cell has styled text
-			if cell.StyledText != "" {
+			if "" != "" {
 				// This is the start of a styled text region
 				// Extract visible characters from styled text (excluding ANSI codes)
-				visibleChars := extractVisibleText(cell.StyledText)
-				visibleLen := countVisibleCharsInStyledText(cell.StyledText)
+				visibleChars := extractVisibleText("")
+				visibleLen := countVisibleCharsInStyledText("")
 
 				// Calculate the actual visible text we can take
 				// We need to account for any offset within the styled text
@@ -204,7 +206,7 @@ func (m *SelectionManager) GetSelectedText() string {
 
 				// Skip to the end of this styled text region
 				x += visibleLen
-			} else if cell.Cluster == "" || cell.Cluster == "\x00" && cell.StyledText == "" {
+			} else if cell.Cluster == "" || cell.Cluster == "\x00" && "" == "" {
 				// This might be a continuation cell of a styled text region
 				// Scan backwards to find the start of the styled text
 				styledText, spatialOffset := findStyledTextStart(m.buffer, x, y)
@@ -299,19 +301,19 @@ func countVisibleCharsInStyledText(s string) int {
 // Note: Continuation cells have Char=' ' (space) and StyledText="".
 // We need to skip these to find the actual styled text start.
 func findStyledTextStart(buffer *CellBuffer, x, y int) (string, int) {
-	if buffer == nil || x < 0 || y < 0 || y >= buffer.height {
+	if buffer == nil || x < 0 || y < 0 || y >= buffer.Height {
 		return "", 0
 	}
 
 	// Scan backwards from x to find the cell with StyledText
 	for scanX := x; scanX >= 0; scanX-- {
 		cell := buffer.GetContent(scanX, y)
-		if cell.StyledText != "" {
+		if "" != "" {
 			// Found the start of the styled text region
 			// Calculate the offset from this start to position x
 			// The offset is simply the distance from scanX to x
 			offset := x - scanX
-			return cell.StyledText, offset
+			return "", offset
 		}
 		// Also check if we hit a cell with a real character (not part of styled text)
 		// Note: Continuation cells have Char=' ', so we exclude space from this check
@@ -351,10 +353,10 @@ func (m *SelectionManager) normalize() (startX, endX, startY, endY int) {
 
 	// Clamp to buffer bounds if available
 	if m.buffer != nil {
-		startX = clampInt(startX, 0, m.buffer.width-1)
-		endX = clampInt(endX, 0, m.buffer.width-1)
-		startY = clampInt(startY, 0, m.buffer.height-1)
-		endY = clampInt(endY, 0, m.buffer.height-1)
+		startX = clampInt(startX, 0, m.buffer.Width-1)
+		endX = clampInt(endX, 0, m.buffer.Width-1)
+		startY = clampInt(startY, 0, m.buffer.Height-1)
+		endY = clampInt(endY, 0, m.buffer.Height-1)
 	}
 
 	// Swap if needed
@@ -374,8 +376,8 @@ func (m *SelectionManager) SelectWord(x, y int) {
 		return
 	}
 
-	x = clampInt(x, 0, m.buffer.width-1)
-	y = clampInt(y, 0, m.buffer.height-1)
+	x = clampInt(x, 0, m.buffer.Width-1)
+	y = clampInt(y, 0, m.buffer.Height-1)
 
 	// Find word boundaries
 	startX := x
@@ -397,7 +399,7 @@ func (m *SelectionManager) SelectWord(x, y int) {
 	}
 
 	// Find end of word (going right)
-	for endX < m.buffer.width-1 {
+	for endX < m.buffer.Width-1 {
 		cell := m.buffer.GetContent(endX+1, y)
 		// Extract first rune from cluster for whitespace check
 		r := rune(0)
@@ -427,12 +429,12 @@ func (m *SelectionManager) SelectLine(y int) {
 		return
 	}
 
-	y = clampInt(y, 0, m.buffer.height-1)
+	y = clampInt(y, 0, m.buffer.Height-1)
 
 	m.active = true
 	m.startX = 0
 	m.startY = y
-	m.currentX = m.buffer.width - 1
+	m.currentX = m.buffer.Width - 1
 	m.currentY = y
 	m.anchorX = 0
 	m.anchorY = y
@@ -448,8 +450,8 @@ func (m *SelectionManager) SelectAll() {
 	m.active = true
 	m.startX = 0
 	m.startY = 0
-	m.currentX = m.buffer.width - 1
-	m.currentY = m.buffer.height - 1
+	m.currentX = m.buffer.Width - 1
+	m.currentY = m.buffer.Height - 1
 	m.anchorX = 0
 	m.anchorY = 0
 	m.mode = SelectionModeChar
@@ -466,12 +468,12 @@ func (m *SelectionManager) GetMode() SelectionMode {
 }
 
 // SetHighlightStyle sets the style used for selection highlighting.
-func (m *SelectionManager) SetHighlightStyle(style CellStyle) {
+func (m *SelectionManager) SetHighlightStyle(style style.Style) {
 	m.highlight = style
 }
 
 // GetHighlightStyle returns the current highlight style.
-func (m *SelectionManager) GetHighlightStyle() CellStyle {
+func (m *SelectionManager) GetHighlightStyle() style.Style {
 	return m.highlight
 }
 
@@ -493,31 +495,23 @@ func (m *SelectionManager) ApplyHighlight() {
 }
 
 // combineStyles combines two cell styles, with the highlight taking precedence.
-func (m *SelectionManager) combineStyles(original, highlight CellStyle) CellStyle {
+func (m *SelectionManager) combineStyles(original, highlight style.Style) style.Style {
 	result := original
 
 	// If highlight uses reverse, that's our primary selection indicator
-	if highlight.Reverse {
-		result.Reverse = true
-	}
-
-	// Override colors if specified
-	if highlight.Foreground != "" {
-		result.Foreground = highlight.Foreground
-	}
-	if highlight.Background != "" {
-		result.Background = highlight.Background
+	if highlight.IsReverse() {
+		result = result.Reverse(true)
 	}
 
 	// Add additional styling from highlight
-	if highlight.Bold {
-		result.Bold = true
+	if highlight.IsBold() {
+		result = result.Bold(true)
 	}
-	if highlight.Underline {
-		result.Underline = true
+	if highlight.IsUnderline() {
+		result = result.Underline(true)
 	}
-	if highlight.Italic {
-		result.Italic = true
+	if highlight.IsItalic() {
+		result = result.Italic(true)
 	}
 
 	return result
@@ -586,29 +580,24 @@ func isWhitespace(r rune) bool {
 }
 
 // DefaultSelectionHighlight returns the default selection highlight style.
-func DefaultSelectionHighlight() CellStyle {
-	return CellStyle{
-		Reverse: true, // Reverse video is most visible
-		Bold:    false,
-	}
+func DefaultSelectionHighlight() style.Style {
+	return style.NewStyle().Reverse(true)
 }
 
 // LightSelectionHighlight returns a light theme selection highlight.
-func LightSelectionHighlight() CellStyle {
-	return CellStyle{
-		Background: "#4A90E2",
-		Foreground: "white",
-		Bold:       true,
-	}
+func LightSelectionHighlight() style.Style {
+	return style.NewStyle().
+		Background(style.Color("#4A90E2")).
+		Foreground(style.Color("white")).
+		Bold(true)
 }
 
 // DarkSelectionHighlight returns a dark theme selection highlight.
-func DarkSelectionHighlight() CellStyle {
-	return CellStyle{
-		Background: "#607D8B",
-		Foreground: "white",
-		Bold:       true,
-	}
+func DarkSelectionHighlight() style.Style {
+	return style.NewStyle().
+		Background(style.Color("#607D8B")).
+		Foreground(style.Color("white")).
+		Bold(true)
 }
 
 // clampInt clamps an integer between min and max.

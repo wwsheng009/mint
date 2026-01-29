@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/wwsheng009/mint/runtime"
+	"github.com/wwsheng009/mint/runtime/style"
 )
 
 func TestBoxConstraints(t *testing.T) {
@@ -88,8 +89,8 @@ func TestCellBuffer(t *testing.T) {
 	// Test creating buffer
 	buf := runtime.NewCellBuffer(10, 5)
 
-	assert.Equal(t, 10, buf.Width())
-	assert.Equal(t, 5, buf.Height())
+	assert.Equal(t, 10, buf.Width)
+	assert.Equal(t, 5, buf.Height)
 
 	// Test default cell
 	cell := buf.GetContent(5, 3)
@@ -97,17 +98,17 @@ func TestCellBuffer(t *testing.T) {
 	assert.Equal(t, 0, cell.ZIndex)
 
 	// Test setting content
-	style := runtime.CellStyle{Bold: true}
-	buf.SetContent(5, 3, 10, 'A', style, "test-node")
+	boldStyle := style.NewStyle().Bold(true)
+	buf.SetContent(5, 3, 10, 'A', boldStyle, "test-node")
 
 	cell = buf.GetContent(5, 3)
 	assert.Equal(t, "A", cell.Cluster)
 	assert.Equal(t, 10, cell.ZIndex)
 	assert.Equal(t, "test-node", cell.NodeID)
-	assert.True(t, cell.Style.Bold)
+	assert.True(t, cell.Style.IsBold())
 
 	// Test Z-Index (overwrites lower Z-Index)
-	buf.SetContent(5, 3, 5, 'B', runtime.CellStyle{}, "low-node")
+	buf.SetContent(5, 3, 5, 'B', style.Style{}, "low-node")
 	cell = buf.GetContent(5, 3)
 	assert.Equal(t, "A", cell.Cluster) // Higher Z-Index wins
 
@@ -118,13 +119,13 @@ func TestCellBuffer(t *testing.T) {
 	assert.Equal(t, 0, cell.ZIndex)
 
 	// Test String output
-	buf.SetContent(0, 0, 0, 'H', runtime.CellStyle{}, "")
-	buf.SetContent(1, 0, 0, 'i', runtime.CellStyle{}, "")
-	buf.SetContent(2, 0, 0, '!', runtime.CellStyle{}, "")
+	buf.SetContent(0, 0, 0, 'H', style.Style{}, "")
+	buf.SetContent(1, 0, 0, 'i', style.Style{}, "")
+	buf.SetContent(2, 0, 0, '!', style.Style{}, "")
 
-	buf.SetContent(0, 1, 0, 'B', runtime.CellStyle{}, "")
-	buf.SetContent(1, 1, 0, 'y', runtime.CellStyle{}, "")
-	buf.SetContent(2, 1, 0, 'e', runtime.CellStyle{}, "")
+	buf.SetContent(0, 1, 0, 'B', style.Style{}, "")
+	buf.SetContent(1, 1, 0, 'y', style.Style{}, "")
+	buf.SetContent(2, 1, 0, 'e', style.Style{}, "")
 
 	str := buf.String()
 	assert.Contains(t, str, "Hi!")
