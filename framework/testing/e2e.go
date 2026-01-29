@@ -111,8 +111,8 @@ type RenderSnapshot struct {
 
 // CellSnapshot 单元格快照
 type CellSnapshot struct {
-	Char rune
-	Style style.Style
+	Cluster string
+	Style   style.Style
 }
 
 // =============================================================================
@@ -523,8 +523,8 @@ func (ctx *TestContext) captureRender() {
 			for x := 0; x < buf.Width; x++ {
 				cell := buf.Cells[y][x]
 				snapshot.Cells[y][x] = CellSnapshot{
-					Char:  cell.Char,
-					Style: cell.Style,
+					Cluster: cell.Cluster,
+					Style:   cell.Style,
 				}
 			}
 		}
@@ -584,10 +584,10 @@ func (ctx *TestContext) renderToString(snapshot RenderSnapshot) string {
 		buf.WriteString("│")
 		for x := 0; x < snapshot.Width; x++ {
 			cell := snapshot.Cells[y][x]
-			if cell.Char == 0 {
+			if cell.Cluster == "" || cell.Cluster == "\x00" {
 				buf.WriteString(" ")
 			} else {
-				buf.WriteString(string(cell.Char))
+				buf.WriteString(cell.Cluster)
 			}
 		}
 		buf.WriteString("│\n")
@@ -605,7 +605,12 @@ func (ctx *TestContext) renderToString(snapshot RenderSnapshot) string {
 		buf.WriteString(fmt.Sprintf("%2d│", y))
 		for x := 0; x < min(snapshot.Width, 80); x++ {  // 限制输出列数
 			cell := snapshot.Cells[y][x]
-			char := cell.Char
+			// Extract first rune from cluster for display
+			char := rune(0)
+			for _, c := range cell.Cluster {
+				char = c
+				break
+			}
 			if char == 0 {
 				char = ' '
 			}

@@ -382,10 +382,10 @@ func TestRenderVirtualList(t *testing.T) {
 
 	// Check that some items were rendered
 	cell := buf.GetCell(0, 0)
-	assert.Equal(t, 'I', cell.Char, "Should have rendered first item")
+	assert.Equal(t, "I", cell.Cluster, "Should have rendered first item")
 
 	cell = buf.GetCell(0, 2)
-	assert.Equal(t, 'I', cell.Char, "Should have rendered second item")
+	assert.Equal(t, "I", cell.Cluster, "Should have rendered second item")
 }
 
 // BenchmarkViewportGetVisibleRange benchmarks visible range calculation

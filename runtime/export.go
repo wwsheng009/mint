@@ -163,7 +163,7 @@ func (e *Exporter) SaveToSVG(filename string) error {
 	for y := 0; y < height; y++ {
 		for x := 0; x < width; x++ {
 			cell := buf.GetContent(x, y)
-			if cell.Char == 0 || cell.Char == ' ' {
+			if cell.Cluster == "" || cell.Cluster == " " || cell.Cluster == "\x00" {
 				continue
 			}
 
@@ -188,7 +188,7 @@ func (e *Exporter) SaveToSVG(filename string) error {
 			}
 
 			// Escape special XML characters
-			text := escapeXML(string(cell.Char))
+			text := escapeXML(cell.Cluster)
 
 			sb.WriteString(fmt.Sprintf(`<text x="%d" y="%d"%s>%s</text>`,
 				px, py, classAttr, text))
@@ -224,7 +224,7 @@ func (e *Exporter) SaveToPNG(filename string) error {
 	for y := 0; y < height; y++ {
 		for x := 0; x < width; x++ {
 			cell := buf.GetContent(x, y)
-			if cell.Char == 0 || cell.Char == ' ' {
+			if cell.Cluster == "" || cell.Cluster == " " || cell.Cluster == "\x00" {
 				continue
 			}
 
@@ -235,7 +235,7 @@ func (e *Exporter) SaveToPNG(filename string) error {
 			}
 
 			// Render character using bitmap font
-			renderCharToBitmap(img, x*cellWidth, y*cellHeight, cell.Char, fgColor, cell.Style)
+			renderCharToBitmap(img, x*cellWidth, y*cellHeight, cell.Cluster, fgColor, cell.Style)
 		}
 	}
 
@@ -269,7 +269,7 @@ func (e *Exporter) ToBase64PNG() (string, error) {
 	for y := 0; y < height; y++ {
 		for x := 0; x < width; x++ {
 			cell := buf.GetContent(x, y)
-			if cell.Char == 0 || cell.Char == ' ' {
+			if cell.Cluster == "" || cell.Cluster == " " || cell.Cluster == "\x00" {
 				continue
 			}
 
@@ -278,7 +278,7 @@ func (e *Exporter) ToBase64PNG() (string, error) {
 				fgColor = e.colorScheme.Bold
 			}
 
-			renderCharToBitmap(img, x*cellWidth, y*cellHeight, cell.Char, fgColor, cell.Style)
+			renderCharToBitmap(img, x*cellWidth, y*cellHeight, cell.Cluster, fgColor, cell.Style)
 		}
 	}
 
@@ -318,13 +318,13 @@ func (e *Exporter) ToHTML() (string, error) {
 	for y := 0; y < height; y++ {
 		for x := 0; x < width; x++ {
 			cell := buf.GetContent(x, y)
-			if cell.Char == 0 || cell.Char == ' ' {
+			if cell.Cluster == "" || cell.Cluster == " " || cell.Cluster == "\x00" {
 				continue
 			}
 
 			px := x * cellWidth
 			py := (y + 1) * cellHeight
-			text := escapeHTML(string(cell.Char))
+			text := escapeHTML(cell.Cluster)
 
 			sb.WriteString(fmt.Sprintf(`<text x="%d" y="%d" class="cell" fill="#%02x%02x%02x">%s</text>`,
 				px, py, fg.R, fg.G, fg.B, text))
@@ -400,7 +400,15 @@ func (img *ImageBuffer) EncodePNG() ([]byte, error) {
 }
 
 // renderCharToBitmap renders a single character to the image buffer.
-func renderCharToBitmap(img *ImageBuffer, x, y int, char rune, color RGBA, style CellStyle) {
+func renderCharToBitmap(img *ImageBuffer, x, y int, cluster string, color RGBA, style CellStyle) {
+	// Get the first rune from cluster for bitmap rendering
+	var char rune
+	if len(cluster) > 0 {
+		for _, r := range cluster {
+			char = r
+			break
+		}
+	}
 	// Get bitmap for character
 	bitmap := getBitmapChar(char)
 	if bitmap == nil {

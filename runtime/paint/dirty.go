@@ -458,7 +458,7 @@ func (d *DirtyTracker) OptimizeRects() {
 
 // cellsEqual 比较两个单元格是否相等
 func cellsEqual(a, b Cell) bool {
-	return a.Char == b.Char && a.Style == b.Style && a.Width == b.Width
+	return a.Cluster == b.Cluster && a.Style == b.Style && a.Width == b.Width
 }
 
 // rectContains 检查 r1 是否包含 r2

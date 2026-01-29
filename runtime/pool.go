@@ -58,7 +58,7 @@ func createCellBuffer(width, height int) *CellBuffer {
 		cells[y] = make([]Cell, width)
 		for x := 0; x < width; x++ {
 			cells[y][x] = Cell{
-				Char:   ' ',
+				Cluster: " ",
 				Style:  CellStyle{},
 				ZIndex: 0,
 			}
@@ -94,7 +94,7 @@ func (b *CellBuffer) Reset(width, height int) {
 	for y := 0; y < height; y++ {
 		for x := 0; x < width; x++ {
 			b.cells[y][x] = Cell{
-				Char:   ' ',
+				Cluster: " ",
 				Style:  CellStyle{},
 				ZIndex: 0,
 			}

@@ -416,7 +416,11 @@ func (r *Runtime) writeFullBuffer() {
 	for y := 0; y < r.buffer.Height; y++ {
 		row := make([]rune, r.buffer.Width)
 		for x := 0; x < r.buffer.Width; x++ {
-			row[x] = r.buffer.Cells[y][x].Char
+			// Convert cluster to first rune
+			for _, c := range r.buffer.Cells[y][x].Cluster {
+				row[x] = c
+				break
+			}
 		}
 		// 写入平台
 		r.platform.WriteString(string(row))
@@ -436,8 +440,8 @@ func (r *Runtime) writeDirtyRegions() {
 					continue
 				}
 				// 写入单个单元格
-				char := r.buffer.Cells[y][x].Char
-				r.platform.WriteString(string(char))
+				cluster := r.buffer.Cells[y][x].Cluster
+				r.platform.WriteString(cluster)
 			}
 		}
 	}

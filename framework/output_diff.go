@@ -53,7 +53,7 @@ func CompareBuffers(newBuf *paint.Buffer, prevBuf [][]paint.Cell, lastCursorX, l
 			}
 
 			// 检查单元格是否改变
-			cellChanged := newCell.Char != oldCell.Char || newCell.Style != oldCell.Style
+			cellChanged := newCell.Cluster != oldCell.Cluster || newCell.Style != oldCell.Style
 
 			if cellChanged {
 				result.Changes = append(result.Changes, CellChange{X: x, Y: y, Force: false})
@@ -120,7 +120,7 @@ func FormatChangesAsANSI(buf *paint.Buffer, diffResult BufferDiffResult, firstRe
 		newCell := buf.Cells[y][x]
 
 		// 跳过空字符和宽字符的填充单元格
-		if newCell.Char == 0 || newCell.Width == 0 {
+		if newCell.Cluster == "" || newCell.Cluster == "\x00" || newCell.Width == 0 {
 			continue
 		}
 
@@ -147,8 +147,12 @@ func FormatChangesAsANSI(buf *paint.Buffer, diffResult BufferDiffResult, firstRe
 			cursorX = x
 		}
 
-		// 设置字符
-		char := newCell.Char
+		// 设置字符 - extract first rune from cluster
+		char := rune(0)
+		for _, c := range newCell.Cluster {
+			char = c
+			break
+		}
 		if char == 0 {
 			char = ' '
 		}

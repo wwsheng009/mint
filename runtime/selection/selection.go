@@ -45,7 +45,7 @@ type TextBuffer interface {
 
 // Cell represents a single cell in the text buffer.
 type Cell struct {
-	Char  rune
+	Cluster string
 	Empty bool
 }
 
@@ -201,7 +201,7 @@ func (m *Manager) GetSelectedText() string {
 		for x := lineStart; x <= lineEnd; x++ {
 			cell := m.buffer.GetCell(x, y)
 			if !cell.Empty {
-				lineBuilder.WriteRune(cell.Char)
+				lineBuilder.WriteString(cell.Cluster)
 			} else {
 				lineBuilder.WriteRune(' ')
 			}
@@ -271,7 +271,7 @@ func (m *Manager) SelectWord(x, y int) {
 	// Find start of word (going left)
 	for startX > 0 {
 		cell := m.buffer.GetCell(startX-1, y)
-		if isWhitespace(cell.Char) {
+		if isWhitespace(getFirstRuneFromCell(cell)) {
 			break
 		}
 		startX--
@@ -280,7 +280,7 @@ func (m *Manager) SelectWord(x, y int) {
 	// Find end of word (going right)
 	for endX < width-1 {
 		cell := m.buffer.GetCell(endX+1, y)
-		if isWhitespace(cell.Char) {
+		if isWhitespace(getFirstRuneFromCell(cell)) {
 			break
 		}
 		endX++
@@ -431,6 +431,15 @@ func (r SelectionRegion) Width() int {
 // Height returns the height of the selection region.
 func (r SelectionRegion) Height() int {
 	return r.EndY - r.StartY + 1
+}
+
+
+// getFirstRuneFromCell returns the first rune from a cell cluster.
+func getFirstRuneFromCell(cell Cell) rune {
+	for _, c := range cell.Cluster {
+		return c
+	}
+	return 0
 }
 
 // isWhitespace returns whether a rune is whitespace.

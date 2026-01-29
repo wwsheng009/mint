@@ -84,7 +84,7 @@ func analyzeBuffer(buf *CellBuffer) *BufferDebugInfo {
 		lineLen := 0
 		for x := 0; x < width; x++ {
 			cell := buf.GetContent(x, y)
-			if cell.Char != ' ' && cell.Char != 0 {
+			if cell.Cluster != " " && cell.Cluster != "" && cell.Cluster != "\x00" {
 				lineLen = x + 1
 				info.NonEmpty++
 			}
@@ -130,14 +130,14 @@ func extractBoxContent(box *LayoutBox, buf *CellBuffer) string {
 		lastX := box.X
 		for x := box.X; x < maxX; x++ {
 			cell := buf.GetContent(x, y)
-			if cell.Char != ' ' && cell.Char != 0 {
+			if cell.Cluster != " " && cell.Cluster != "" && cell.Cluster != "\x00" {
 				lastX = x + 1
 			}
 		}
 		for x := box.X; x < lastX; x++ {
 			cell := buf.GetContent(x, y)
-			if cell.Char != 0 {
-				content.WriteRune(cell.Char)
+			if cell.Cluster != "" && cell.Cluster != "\x00" {
+				content.WriteString(cell.Cluster)
 			} else {
 				content.WriteByte(' ')
 			}
@@ -203,10 +203,10 @@ func (d *RenderDebug) DiffOutput() string {
 		// Content with visible markers
 		for x := 0; x < width; x++ {
 			cell := buf.GetContent(x, y)
-			if cell.Char == 0 || cell.Char == ' ' {
+			if cell.Cluster == "" || cell.Cluster == " " || cell.Cluster == "\x00" {
 				result.WriteString("·") // Mark empty/space cells visibly
 			} else {
-				result.WriteRune(cell.Char)
+				result.WriteString(cell.Cluster)
 			}
 		}
 		result.WriteString("│\n")
@@ -234,16 +234,16 @@ func (d *RenderDebug) PlainOutput() string {
 		lineEnd := 0
 		for x := 0; x < width; x++ {
 			cell := buf.GetContent(x, y)
-			if cell.Char != 0 && cell.Char != ' ' {
+			if cell.Cluster != "" && cell.Cluster != "\x00" && cell.Cluster != " " {
 				lineEnd = x + 1
 			}
 		}
 		for x := 0; x < lineEnd; x++ {
 			cell := buf.GetContent(x, y)
-			if cell.Char == 0 {
+			if cell.Cluster == "" || cell.Cluster == "\x00" {
 				result.WriteByte(' ')
 			} else {
-				result.WriteRune(cell.Char)
+				result.WriteString(cell.Cluster)
 			}
 		}
 	}
@@ -299,10 +299,15 @@ func (d *RenderDebug) ToJSON() *JSONOutput {
 		line := make([]rune, width)
 		for x := 0; x < width; x++ {
 			cell := buf.GetContent(x, y)
-			if cell.Char == 0 {
+			if cell.Cluster == "" || cell.Cluster == "\x00" {
 				line[x] = ' '
 			} else {
-				line[x] = cell.Char
+				// Convert cluster to rune for line array (use first rune)
+if len(cell.Cluster) > 0 {
+line[x] = []rune(cell.Cluster)[0]
+} else {
+line[x] = ' '
+}
 			}
 		}
 		output.Lines[y] = strings.TrimRight(string(line), " ")

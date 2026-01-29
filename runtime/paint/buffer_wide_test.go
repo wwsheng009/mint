@@ -15,8 +15,8 @@ func TestSetCellWideChar(t *testing.T) {
 
 	// 验证主单元格
 	cell := buf.Cells[0][0]
-	if cell.Char != '演' {
-		t.Errorf("expected char '演', got %c", cell.Char)
+	if cell.Cluster != "演" {
+		t.Errorf("expected cluster '演', got %s", cell.Cluster)
 	}
 	if cell.Width != 2 {
 		t.Errorf("expected width 2, got %d", cell.Width)
@@ -27,8 +27,8 @@ func TestSetCellWideChar(t *testing.T) {
 
 	// 验证延续单元格
 	contCell := buf.Cells[0][1]
-	if contCell.Char != 0 {
-		t.Errorf("continuation cell should have no char, got %c", contCell.Char)
+	if contCell.Cluster != "" {
+		t.Errorf("continuation cell should have no cluster, got %s", contCell.Cluster)
 	}
 	if !contCell.IsContinuation {
 		t.Error("cell[0][1] should be marked as continuation")
@@ -51,8 +51,8 @@ func TestSetStringWideChar(t *testing.T) {
 			t.Fatalf("column %d out of bounds", col)
 		}
 		cell := buf.Cells[0][col]
-		if cell.Char != r {
-			t.Errorf("cell[0][%d]: expected char %c, got %c", col, r, cell.Char)
+		if cell.Cluster != string(r) {
+			t.Errorf("cell[0][%d]: expected char %c, got %s", col, r, cell.Cluster)
 		}
 		// 验证非延续单元格
 		if cell.IsContinuation {
@@ -81,13 +81,13 @@ func TestSetStringOverwriteWideChar(t *testing.T) {
 	buf.SetString(0, 0, "演示", s)
 
 	// 验证 "演" (宽度2) 和 "示" (宽度2)
-	if buf.Cells[0][0].Char != '演' || buf.Cells[0][0].Width != 2 {
+	if (buf.Cells[0][0].Cluster != "演") || buf.Cells[0][0].Width != 2 {
 		t.Error("first wide char not set correctly")
 	}
 	if !buf.Cells[0][1].IsContinuation {
 		t.Error("cell[0][1] should be continuation")
 	}
-	if buf.Cells[0][2].Char != '示' || buf.Cells[0][2].Width != 2 {
+	if (buf.Cells[0][2].Cluster != "示") || buf.Cells[0][2].Width != 2 {
 		t.Error("second wide char not set correctly")
 	}
 	if !buf.Cells[0][3].IsContinuation {
@@ -98,18 +98,18 @@ func TestSetStringOverwriteWideChar(t *testing.T) {
 	buf.SetString(0, 0, "ABC", s)
 
 	// 验证窄字符正确覆盖了宽字符
-	if buf.Cells[0][0].Char != 'A' || buf.Cells[0][0].Width != 1 {
-		t.Errorf("cell[0][0]: expected 'A' with width 1, got %c with width %d",
-			buf.Cells[0][0].Char, buf.Cells[0][0].Width)
+	if (buf.Cells[0][0].Cluster != "A") || buf.Cells[0][0].Width != 1 {
+		t.Errorf("cell[0][0]: expected 'A' with width 1, got %s with width %d",
+			buf.Cells[0][0].Cluster, buf.Cells[0][0].Width)
 	}
-	if buf.Cells[0][1].Char != 'B' {
-		t.Errorf("cell[0][1]: expected 'B', got %c", buf.Cells[0][1].Char)
+	if (buf.Cells[0][1].Cluster != "B") {
+		t.Errorf("cell[0][1]: expected 'B', got %s", buf.Cells[0][1].Cluster)
 	}
 	if buf.Cells[0][1].IsContinuation {
 		t.Error("cell[0][1] should not be continuation after overwrite")
 	}
-	if buf.Cells[0][2].Char != 'C' {
-		t.Errorf("cell[0][2]: expected 'C', got %c", buf.Cells[0][2].Char)
+	if (buf.Cells[0][2].Cluster != "C") {
+		t.Errorf("cell[0][2]: expected 'C', got %s", buf.Cells[0][2].Cluster)
 	}
 }
 
@@ -131,26 +131,26 @@ func TestIsCellChanged(t *testing.T) {
 		},
 		{
 			name:     "char changed",
-			cell:     Cell{Char: 'A'},
-			prevCell: Cell{Char: 'B'},
+			cell:     Cell{Cluster: "A"},
+			prevCell: Cell{Cluster: "B"},
 			want:     true,
 		},
 		{
 			name:     "style changed",
-			cell:     Cell{Char: 'A', Style: s1},
-			prevCell: Cell{Char: 'A', Style: s2},
+			cell:     Cell{Cluster: "A", Style: s1},
+			prevCell: Cell{Cluster: "A", Style: s2},
 			want:     true,
 		},
 		{
 			name:     "cell is continuation - should skip",
-			cell:     Cell{Char: 'A', IsContinuation: true},
+			cell:     Cell{Cluster: "A", IsContinuation: true},
 			prevCell: Cell{},
 			want:     false,
 		},
 		{
 			name:     "prev is continuation - should skip",
-			cell:     Cell{Char: 'A'},
-			prevCell: Cell{Char: 'B', IsContinuation: true},
+			cell:     Cell{Cluster: "A"},
+			prevCell: Cell{Cluster: "B", IsContinuation: true},
 			want:     false,
 		},
 		{
@@ -161,8 +161,8 @@ func TestIsCellChanged(t *testing.T) {
 		},
 		{
 			name:     "same char and style",
-			cell:     Cell{Char: 'A', Style: s1},
-			prevCell: Cell{Char: 'A', Style: s1},
+			cell:     Cell{Cluster: "A", Style: s1},
+			prevCell: Cell{Cluster: "A", Style: s1},
 			want:     false,
 		},
 	}
@@ -184,12 +184,12 @@ func TestGetCellWidth(t *testing.T) {
 	}{
 		{
 			name: "normal char",
-			cell: Cell{Char: 'A', Width: 1},
+			cell: Cell{Cluster: "A", Width: 1},
 			want: 1,
 		},
 		{
 			name: "wide char",
-			cell: Cell{Char: '演', Width: 2},
+			cell: Cell{Cluster: "演", Width: 2},
 			want: 2,
 		},
 		{
@@ -221,12 +221,12 @@ func TestShouldSkipCell(t *testing.T) {
 	}{
 		{
 			name: "normal cell",
-			cell: Cell{Char: 'A'},
+			cell: Cell{Cluster: "A"},
 			want: false,
 		},
 		{
 			name: "wide char main cell",
-			cell: Cell{Char: '演', Width: 2},
+			cell: Cell{Cluster: "演", Width: 2},
 			want: false,
 		},
 		{
@@ -253,7 +253,7 @@ func TestClearWideChar(t *testing.T) {
 	buf.SetCell(0, 0, '演', s)
 
 	// 验证已设置
-	if buf.Cells[0][0].Char != '演' {
+	if (buf.Cells[0][0].Cluster != "演") {
 		t.Fatal("wide char not set")
 	}
 	if !buf.Cells[0][1].IsContinuation {
@@ -264,8 +264,8 @@ func TestClearWideChar(t *testing.T) {
 	buf.ClearWideChar(0, 0)
 
 	// 验证主单元格已清除
-	if buf.Cells[0][0].Char != 0 {
-		t.Errorf("main cell not cleared, got %c", buf.Cells[0][0].Char)
+	if (buf.Cells[0][0].Cluster != "" && buf.Cells[0][0].Cluster != "\x00") {
+		t.Errorf("main cell not cleared, got %s", buf.Cells[0][0].Cluster)
 	}
 
 	// 验证延续单元格已清除

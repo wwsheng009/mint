@@ -660,8 +660,12 @@ func (a *App) outputBufferDirect(buf *paint.Buffer) {
 				continue
 			}
 
-			// 设置字符
-			char := cell.Char
+			// 设置字符 - extract first rune from cluster
+			char := rune(0)
+			for _, c := range cell.Cluster {
+				char = c
+				break
+			}
 			if char == 0 {
 				char = ' '
 			}

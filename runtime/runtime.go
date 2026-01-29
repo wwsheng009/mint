@@ -115,13 +115,16 @@ type CellBuffer struct {
 }
 
 // Cell represents a single cell in the CellBuffer.
+// Cluster is the grapheme cluster (visible character) to display.
+// Using string instead of rune to properly handle emoji ZWJ sequences,
+// combining characters, flag emojis, etc.
 type Cell struct {
-	Char   rune
-	Style  CellStyle
-	ZIndex int
-	NodeID string // For hit testing
+	Cluster string
+	Style   CellStyle
+	ZIndex  int
+	NodeID  string // For hit testing
 	// StyledText stores the original ANSI-styled text from lipgloss
-	// When non-empty, this takes precedence over Char+Style for rendering
+	// When non-empty, this takes precedence over Cluster+Style for rendering
 	StyledText string
 	// Selected indicates this cell is part of a selection
 	Selected bool
@@ -183,7 +186,7 @@ func (b *CellBuffer) SetContent(x, y, z int, char rune, style CellStyle, nodeID 
 	}
 
 	b.cells[y][x] = Cell{
-		Char:   char,
+		Cluster: string(char),
 		Style:  style,
 		ZIndex: z,
 		NodeID: nodeID,
@@ -203,7 +206,7 @@ func (b *CellBuffer) SetContentRuntime(x, y, z int, char rune, bold, underline, 
 	}
 
 	b.cells[y][x] = Cell{
-		Char:   char,
+		Cluster: string(char),
 		Style:  CellStyle{Bold: bold, Underline: underline, Italic: italic},
 		ZIndex: z,
 		NodeID: nodeID,
@@ -233,7 +236,7 @@ func (b *CellBuffer) SetCell(x, y int, char rune, style CellStyle, zIndex int) {
 	}
 
 	b.cells[y][x] = Cell{
-		Char:   char,
+		Cluster: string(char),
 		Style:  style,
 		ZIndex: zIndex,
 	}
@@ -252,7 +255,7 @@ func (b *CellBuffer) SetStyledText(x, y, z int, text string, nodeID string) {
 	// Mark the cell as containing styled text
 	if z >= b.cells[y][x].ZIndex {
 		b.cells[y][x] = Cell{
-			Char:       0, // 0 indicates styled text follows
+			Cluster:    "", // Empty string indicates styled text follows
 			StyledText: text,
 			ZIndex:     z,
 			NodeID:     nodeID,
@@ -283,7 +286,7 @@ func (b *CellBuffer) SetStyledText(x, y, z int, text string, nodeID string) {
 		for offsetX := 1; offsetX < visibleLen && x+offsetX < b.width; offsetX++ {
 			if z >= b.cells[y][x+offsetX].ZIndex {
 				b.cells[y][x+offsetX] = Cell{
-					Char:   ' ', // Placeholder, styled text will be output
+					Cluster: " ", // Placeholder, styled text will be output
 					ZIndex: z,
 					NodeID: nodeID,
 					// StyledText empty - this is a continuation cell
@@ -315,9 +318,9 @@ func (b *CellBuffer) Clear() {
 	for y := 0; y < b.height; y++ {
 		for x := 0; x < b.width; x++ {
 			b.cells[y][x] = Cell{
-				Char:   ' ',
-				Style:  CellStyle{},
-				ZIndex: 0,
+				Cluster: " ",
+				Style:   CellStyle{},
+				ZIndex:  0,
 			}
 		}
 	}
@@ -381,10 +384,10 @@ func (b *CellBuffer) String() string {
 					lineBuilder.WriteString("\x1b[7m")
 				}
 
-				if cell.Char == 0 {
+				if cell.Cluster == "" || cell.Cluster == "\x00" {
 					lineBuilder.WriteRune(' ')
 				} else {
-					lineBuilder.WriteRune(cell.Char)
+					lineBuilder.WriteString(cell.Cluster)
 				}
 
 				if cell.Selected {

@@ -190,10 +190,10 @@ func renderForm(f *form.Form) {
 		line := ""
 		for x := 0; x < buf.Width; x++ {
 			cell := buf.Cells[y][x]
-			if cell.Char == 0 {
+			if cell.Cluster == "" || cell.Cluster == "\x00" {
 				line += " "
 			} else {
-				line += string(cell.Char)
+				line += cell.Cluster
 			}
 		}
 		fmt.Println(line)

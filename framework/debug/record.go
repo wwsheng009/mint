@@ -56,10 +56,10 @@ type StateRecord struct {
 
 // CursorInfo 光标信息
 type CursorInfo struct {
-	Row       int
-	Col       int
-	Char      rune
-	Found     bool
+	Row     int
+	Col     int
+	Cluster string
+	Found   bool
 	HasStyle  bool
 	IsReverse bool
 }
@@ -152,8 +152,8 @@ func (r *Recorder) RecordRender(buf *paint.Buffer) {
 
 	// 如果找到光标，记录详细信息
 	if cursor.Found {
-		r.log("  CURSOR: row=%d col=%d char='%c' (0x%02x) reverse=%v",
-			cursor.Row, cursor.Col, cursor.Char, cursor.Char, cursor.IsReverse)
+		r.log("  CURSOR: row=%d col=%d cluster='%s' reverse=%v",
+			cursor.Row, cursor.Col, cursor.Cluster, cursor.IsReverse)
 
 		// 检查光标周围的内容
 		if cursor.Row < buf.Height && cursor.Col+5 < buf.Width {
@@ -161,11 +161,11 @@ func (r *Recorder) RecordRender(buf *paint.Buffer) {
 			for dx := -2; dx <= 2; dx++ {
 				xc := cursor.Col + dx
 				if xc >= 0 && xc < buf.Width {
-					ch := buf.Cells[cursor.Row][xc].Char
-					if ch == 0 {
-						ch = ' '
+					ch := buf.Cells[cursor.Row][xc].Cluster
+					if ch == "" || ch == "\x00" {
+						ch = " "
 					}
-					surrounding += string(ch)
+					surrounding += ch
 				}
 			}
 			r.log("  CURSOR SURROUNDING: '[%s]' (cursor at center)", surrounding)
@@ -209,18 +209,18 @@ func (r *Recorder) captureBufferPreview(buf *paint.Buffer, maxLines int) string 
 		preview.WriteString(fmt.Sprintf("%2d: ", y))
 		for x := 0; x < min(80, buf.Width); x++ {
 			cell := buf.Cells[y][x]
-			char := cell.Char
-			if char == 0 {
-				char = ' '
+			cluster := cell.Cluster
+			if cluster == "" || cluster == "\x00" {
+				cluster = " "
 			}
 
 			// 标记光标位置
 			if cell.Style.IsReverse() {
-				preview.WriteString(fmt.Sprintf("\033[7m%c\033[0m", char)) // 反白显示
+				preview.WriteString(fmt.Sprintf("\033[7m%s\033[0m", cluster)) // 反白显示
 			} else if cell.Style.IsBold() {
-				preview.WriteString(fmt.Sprintf("\033[1m%c\033[0m", char)) // 粗体
+				preview.WriteString(fmt.Sprintf("\033[1m%s\033[0m", cluster)) // 粗体
 			} else {
-				preview.WriteRune(char)
+				preview.WriteString(cluster)
 			}
 		}
 		preview.WriteString("\n")
@@ -240,7 +240,7 @@ func (r *Recorder) findCursor(buf *paint.Buffer) CursorInfo {
 				cursor.Found = true
 				cursor.Row = y
 				cursor.Col = x
-				cursor.Char = cell.Char
+				cursor.Cluster = cell.Cluster
 				cursor.HasStyle = true
 				cursor.IsReverse = true
 				return cursor
@@ -256,7 +256,7 @@ func (r *Recorder) countNonEmptyCells(buf *paint.Buffer) int {
 	count := 0
 	for y := 0; y < buf.Height; y++ {
 		for x := 0; x < buf.Width; x++ {
-			if buf.Cells[y][x].Char != 0 {
+			if buf.Cells[y][x].Cluster != "" && buf.Cells[y][x].Cluster != " " {
 				count++
 			}
 		}

@@ -186,10 +186,10 @@ func NewSelectionController(buffer TextBuffer) *SelectionController {
 // NewSelectionControllerWithBuffer creates a selection controller from a runtime CellBuffer.
 func NewSelectionControllerWithBuffer(buffer interface {
 	GetCell(x, y int) struct {
-		Char   rune
-		Style  interface{}
-		ZIndex int
-		NodeID string
+		Cluster string
+		Style   interface{}
+		ZIndex  int
+		NodeID  string
 	}
 	Width() int
 	Height() int
@@ -202,10 +202,10 @@ func NewSelectionControllerWithBuffer(buffer interface {
 type cellBufferWrapper struct {
 	buffer interface {
 		GetCell(x, y int) struct {
-			Char   rune
-			Style  interface{}
-			ZIndex int
-			NodeID string
+			Cluster string
+			Style   interface{}
+			ZIndex  int
+			NodeID  string
 		}
 		Width() int
 		Height() int
@@ -214,9 +214,15 @@ type cellBufferWrapper struct {
 
 func (w *cellBufferWrapper) GetCell(x, y int) Cell {
 	cell := w.buffer.GetCell(x, y)
+	// Extract first rune from cluster
+	r := rune(0)
+	for _, c := range cell.Cluster {
+		r = c
+		break
+	}
 	return Cell{
-		Char:  cell.Char,
-		Empty: cell.Char == ' ' || cell.Char == 0,
+		Cluster: string(r),
+		Empty: cell.Cluster == " " || cell.Cluster == "" || cell.Cluster == "\x00",
 	}
 }
 

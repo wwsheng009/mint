@@ -1,0 +1,53 @@
+--- a/runtime/selection/selection.go
++++ b/runtime/selection/selection.go
+@@ -44,7 +44,7 @@
+ 
+ // Cell represents a single cell in the text buffer.
+ type Cell struct {
+-	Char  rune   // Note: This is the first rune from the cluster
++	Cluster string   // Note: This is the first rune from the cluster
+ 	Empty bool
+ }
+ 
+@@ -201,7 +201,7 @@
+ 		for x := lineStart; x <= lineEnd; x++ {
+ 			cell := m.buffer.GetCell(x, y)
+ 			if !cell.Empty {
+-				lineBuilder.WriteRune(cell.Char)
++				lineBuilder.WriteString(cell.Cluster)
+ 			} else {
+ 				lineBuilder.WriteRune(' ')
+ 			}
+@@ -271,7 +271,7 @@
+ 	// Find start of word (going left)
+ 	for startX > 0 {
+ 		cell := m.buffer.GetCell(startX-1, y)
+-		if isWhitespace(cell.Char) {
++		if isWhitespace(getFirstRuneFromCell(cell)) {
+ 			break
+ 		}
+ 		startX--
+@@ -280,7 +280,7 @@
+ 	// Find end of word (going right)
+ 	for endX < width-1 {
+ 		cell := m.buffer.GetCell(endX+1, y)
+-		if isWhitespace(cell.Char) {
++		if isWhitespace(getFirstRuneFromCell(cell)) {
+ 			break
+ 		}
+ 		endX++
+@@ -434,6 +434,13 @@
+ 	return r.EndY - r.StartY + 1
+ }
+ 
++// getFirstRuneFromCell returns the first rune from a cell cluster.
++func getFirstRuneFromCell(cell Cell) rune {
++	for _, c := range cell.Cluster {
++		return c
++	}
++	return 0
++}
++
+ // isWhitespace returns whether a rune is whitespace.
+ func isWhitespace(r rune) bool {
+ 	return r == ' ' || r == '\t' || r == '\n' || r == '\r'

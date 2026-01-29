@@ -87,12 +87,23 @@ func TestAppSimulation(t *stdtesting.T) {
 	loginForm.Paint(ctx, buf)
 	fmt.Println("  Render complete")
 
+	// Helper function to get first rune from cluster
+	getFirstRune := func(cluster string) rune {
+		for _, c := range cluster {
+			return c
+		}
+		return 0
+	}
+
 	// Check if "test" appears in render
 	foundTest := false
 	for y := 0; y < buf.Height; y++ {
-		for x := 0; x < buf.Width; x++ {
+		for x := 0; x < buf.Width-3; x++ {
 			cell := buf.Cells[y][x]
-			if cell.Char == 't' && x < buf.Width-3 && buf.Cells[y][x+1].Char == 'e' && buf.Cells[y][x+2].Char == 's' && buf.Cells[y][x+3].Char == 't' {
+			if getFirstRune(cell.Cluster) == 't' &&
+				x+1 < buf.Width && getFirstRune(buf.Cells[y][x+1].Cluster) == 'e' &&
+				x+2 < buf.Width && getFirstRune(buf.Cells[y][x+2].Cluster) == 's' &&
+				x+3 < buf.Width && getFirstRune(buf.Cells[y][x+3].Cluster) == 't' {
 				foundTest = true
 				fmt.Printf("  Found 'test' at row %d, col %d\n", y, x)
 				break

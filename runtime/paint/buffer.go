@@ -1,6 +1,10 @@
 package paint
 
-import "github.com/wwsheng009/mint/runtime/style"
+import (
+	"github.com/mattn/go-runewidth"
+	"github.com/rivo/uniseg"
+	"github.com/wwsheng009/mint/runtime/style"
+)
 
 // Buffer represents a grid of cells that components paint into.
 // It acts as the "canvas" for the TUI rendering engine.
@@ -32,15 +36,25 @@ func NewBuffer(width, height int) *Buffer {
 
 // SetCell sets the character and style at the given coordinates.
 // It handles boundary checks safely and marks continuation cells for wide characters.
+// This is a convenience method that converts a rune to a string cluster.
+// For complex grapheme clusters, use SetString instead.
 func (b *Buffer) SetCell(x, y int, char rune, s style.Style) {
+	b.setCluster(x, y, string(char), runeWidth(char), s)
+}
+
+// setCluster sets a grapheme cluster at the given coordinates.
+// This is the low-level method that all writing operations should use.
+func (b *Buffer) setCluster(x, y int, cluster string, width int, s style.Style) {
 	if x < 0 || x >= b.Width || y < 0 || y >= b.Height {
 		return
 	}
-	width := runeWidth(char)
+
+	// 清除当前位置及其关联的宽字符单元格
+	b.clearCellAt(x, y)
 
 	// 设置当前单元格
 	b.Cells[y][x] = Cell{
-		Char:           char,
+		Cluster:        cluster,
 		Style:          s,
 		Width:          width,
 		IsContinuation: false,
@@ -49,10 +63,7 @@ func (b *Buffer) SetCell(x, y int, char rune, s style.Style) {
 	// 对于宽字符，标记下一个单元格为延续
 	if width == 2 && x+1 < b.Width {
 		b.Cells[y][x+1] = Cell{
-			Char:           0,
-			Style:          s,
-			Width:          0,
-			IsContinuation: true, // 标记为延续单元格
+			IsContinuation: true,
 		}
 	}
 }
@@ -80,28 +91,29 @@ func runeWidth(r rune) int {
 }
 
 // SetString writes a string starting at (x, y) with the given style.
+// This method properly handles grapheme clusters (emoji ZWJ sequences,
+// combining characters, flag emojis, etc.) using the uniseg library.
 func (b *Buffer) SetString(x, y int, text string, s style.Style) {
 	if y < 0 || y >= b.Height {
 		return
 	}
 
 	col := x
-	for _, char := range text {
+	g := uniseg.NewGraphemes(text)
+
+	for g.Next() {
+		cluster := g.Str()                       // 完整字形簇
+		width := runewidth.StringWidth(cluster)  // 使用标准库计算宽度
+
+		// 边界检查
 		if col >= b.Width {
 			break
 		}
-		width := runeWidth(char)
-		// 对于宽字符，需要检查下一个位置是否可用
 		if width == 2 && col+1 >= b.Width {
 			break
 		}
 
-		// 清除当前位置可能是延续单元格的状态
-		if b.Cells[y][col].IsContinuation {
-			b.Cells[y][col] = Cell{}
-		}
-
-		b.SetCell(col, y, char, s)
+		b.setCluster(col, y, cluster, width, s)
 		col += width
 	}
 }
@@ -119,15 +131,23 @@ func (b *Buffer) Fill(rect Rect, char rune, s style.Style) {
 // Wide Character Helper Functions
 // ==============================================================================
 
-// IsCellChanged 比较两个单元格是否不同，正确处理宽字符
-// 如果 cell 是延续单元格，则忽略（不认为它变化）
+// IsCellChanged 比较两个单元格是否不同，正确处理宽字符。
+// IsCellChanged 检查单元格是否有变化
+// 延续单元格始终返回 false（被其主单元格处理）
 func IsCellChanged(cell, prevCell Cell) bool {
-	// 跳过延续单元格
-	if cell.IsContinuation || prevCell.IsContinuation {
+	// 如果当前单元格是延续单元格，跳过（由主单元格处理）
+	if cell.IsContinuation {
 		return false
 	}
-	// 比较字符和样式
-	return cell.Char != prevCell.Char || cell.Style != prevCell.Style
+
+	// 如果前一个单元格是延续单元格，忽略其 Cluster，只比较 Style
+	// 因为延续单元格的 Cluster 是无效的
+	if prevCell.IsContinuation {
+		return cell.Style != prevCell.Style
+	}
+
+	// 正常比较 Cluster 和 Style
+	return cell.Cluster != prevCell.Cluster || cell.Style != prevCell.Style
 }
 
 // GetCellWidth 获取单元格的显示宽度
@@ -144,18 +164,40 @@ func ShouldSkipCell(cell Cell) bool {
 	return cell.IsContinuation
 }
 
-// ClearWideChar 清除从 (x,y) 开始的宽字符
-// 如果该位置的字符是宽字符，会同时清除其延续单元格
-func (b *Buffer) ClearWideChar(x, y int) {
+// clearCellAt 清除指定位置的单元格，并正确处理宽字符的关联清理。
+// 这是设计文档中的关键修复：
+// 1. 如果是 continuation，往左清除 head
+// 2. 如果是宽字符头，清除右侧 continuation
+// 3. 然后清除当前位置
+func (b *Buffer) clearCellAt(x, y int) {
 	if x < 0 || x >= b.Width || y < 0 || y >= b.Height {
 		return
 	}
+
 	cell := b.Cells[y][x]
-	b.Cells[y][x] = Cell{}
-	// 如果是宽字符，清除下一个位置
+
+	// 如果当前位置是 continuation，需要往左找到 head 并清除
+	if cell.IsContinuation && x > 0 {
+		head := b.Cells[y][x-1]
+		if head.Width == 2 {
+			b.Cells[y][x-1] = Cell{}
+		}
+	}
+
+	// 如果当前位置是宽字符头，需要清除右侧的 continuation
 	if cell.Width == 2 && x+1 < b.Width {
 		b.Cells[y][x+1] = Cell{}
 	}
+
+	// 清除当前位置
+	b.Cells[y][x] = Cell{}
+}
+
+// ClearWideChar 清除从 (x,y) 开始的宽字符
+// 如果该位置的字符是宽字符，会同时清除其延续单元格
+// 保留此方法以保持向后兼容，内部调用 clearCellAt
+func (b *Buffer) ClearWideChar(x, y int) {
+	b.clearCellAt(x, y)
 }
 
 // Rect represents a rectangular area.

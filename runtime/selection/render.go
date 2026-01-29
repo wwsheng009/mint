@@ -67,8 +67,14 @@ func (r *Renderer) highlightCell(x, y int) {
 	// Create a new style that combines the original with the highlight
 	newStyle := r.combineStyles(currentCell.Style, r.highlight)
 
+	// Extract first rune from cluster for SetCell
+	char := rune(0)
+	for _, c := range currentCell.Cluster {
+		char = c
+		break
+	}
 	// Set the cell with the new style
-	r.buffer.SetCell(x, y, currentCell.Char, newStyle, currentCell.ZIndex)
+	r.buffer.SetCell(x, y, char, newStyle, currentCell.ZIndex)
 }
 
 // combineStyles combines two cell styles, with the highlight taking precedence.
@@ -186,9 +192,15 @@ func (a *TextBufferAdapter) GetCell(x, y int) Cell {
 	}
 
 	runtimeCell := a.buffer.GetContent(x, y)
+	// Extract first rune from cluster
+	char := rune(0)
+	for _, c := range runtimeCell.Cluster {
+		char = c
+		break
+	}
 	return Cell{
-		Char:  runtimeCell.Char,
-		Empty: runtimeCell.Char == ' ' || runtimeCell.Char == 0,
+		Cluster: string(char),
+		Empty: runtimeCell.Cluster == " " || runtimeCell.Cluster == "" || runtimeCell.Cluster == "\x00",
 	}
 }
 

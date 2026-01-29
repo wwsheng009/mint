@@ -17,7 +17,7 @@ func newMockBuffer(width, height int) *mockBuffer {
 		cells[y] = make([]Cell, width)
 		for x := 0; x < width; x++ {
 			cells[y][x] = Cell{
-				Char:  rune('a' + x%26),
+				Cluster: string(rune('a' + x%26)),
 				Empty: false,
 			}
 		}
@@ -167,12 +167,12 @@ func TestManager_SelectWord(t *testing.T) {
 		x := 0
 		for _, ch := range word {
 			if x < 20 {
-				buffer.cells[y][x] = Cell{Char: ch, Empty: false}
+				buffer.cells[y][x] = Cell{Cluster: string(ch), Empty: false}
 				x++
 			}
 		}
 		for ; x < 20; x++ {
-			buffer.cells[y][x] = Cell{Char: ' ', Empty: false}
+			buffer.cells[y][x] = Cell{Cluster: " ", Empty: false}
 		}
 	}
 

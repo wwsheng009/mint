@@ -204,7 +204,7 @@ func (m *SelectionManager) GetSelectedText() string {
 
 				// Skip to the end of this styled text region
 				x += visibleLen
-			} else if cell.Char == 0 && cell.StyledText == "" {
+			} else if cell.Cluster == "" || cell.Cluster == "\x00" && cell.StyledText == "" {
 				// This might be a continuation cell of a styled text region
 				// Scan backwards to find the start of the styled text
 				styledText, spatialOffset := findStyledTextStart(m.buffer, x, y)
@@ -245,8 +245,8 @@ func (m *SelectionManager) GetSelectedText() string {
 				}
 			} else {
 				// Regular cell: use the character
-				if cell.Char != 0 {
-					lineBuilder.WriteRune(cell.Char)
+				if cell.Cluster != "" && cell.Cluster != "\x00" {
+					lineBuilder.WriteString(cell.Cluster)
 				} else {
 					lineBuilder.WriteRune(' ')
 				}
@@ -315,7 +315,7 @@ func findStyledTextStart(buffer *CellBuffer, x, y int) (string, int) {
 		}
 		// Also check if we hit a cell with a real character (not part of styled text)
 		// Note: Continuation cells have Char=' ', so we exclude space from this check
-		if cell.Char != 0 && cell.Char != ' ' {
+		if cell.Cluster != "" && cell.Cluster != "\x00" && cell.Cluster != " " {
 			// Hit a regular cell with a non-space character
 			// This is not part of a styled text region
 			return "", 0
@@ -384,7 +384,13 @@ func (m *SelectionManager) SelectWord(x, y int) {
 	// Find start of word (going left)
 	for startX > 0 {
 		cell := m.buffer.GetContent(startX-1, y)
-		if isWhitespace(cell.Char) {
+		// Extract first rune from cluster for whitespace check
+		r := rune(0)
+		for _, c := range cell.Cluster {
+			r = c
+			break
+		}
+		if isWhitespace(r) {
 			break
 		}
 		startX--
@@ -393,7 +399,13 @@ func (m *SelectionManager) SelectWord(x, y int) {
 	// Find end of word (going right)
 	for endX < m.buffer.width-1 {
 		cell := m.buffer.GetContent(endX+1, y)
-		if isWhitespace(cell.Char) {
+		// Extract first rune from cluster for whitespace check
+		r := rune(0)
+		for _, c := range cell.Cluster {
+			r = c
+			break
+		}
+		if isWhitespace(r) {
 			break
 		}
 		endX++

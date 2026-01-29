@@ -18,30 +18,30 @@ func TestWideCharIntegration(t *testing.T) {
 
 	// 验证每个字符的位置
 	expectedPositions := []struct {
-		char     rune
+		cluster  string
 		x        int
 		width    int
 		isCont   bool
 	}{
-		{'S', 0, 1, false},
-		{'c', 1, 1, false},
-		{'h', 2, 1, false},
-		{'e', 3, 1, false},
-		{'d', 4, 1, false},
-		{'u', 5, 1, false},
-		{'l', 6, 1, false},
-		{'e', 7, 1, false},
-		{'r', 8, 1, false},
-		{'演', 9, 2, false},  // 宽字符
-		{0, 10, 0, true},    // 延续单元格
-		{'示', 11, 2, false}, // 宽字符
-		{0, 12, 0, true},    // 延续单元格
+		{"S", 0, 1, false},
+		{"c", 1, 1, false},
+		{"h", 2, 1, false},
+		{"e", 3, 1, false},
+		{"d", 4, 1, false},
+		{"u", 5, 1, false},
+		{"l", 6, 1, false},
+		{"e", 7, 1, false},
+		{"r", 8, 1, false},
+		{"演", 9, 2, false},  // 宽字符
+		{"", 10, 0, true},    // 延续单元格
+		{"示", 11, 2, false}, // 宽字符
+		{"", 12, 0, true},    // 延续单元格
 	}
 
 	for _, exp := range expectedPositions {
 		cell := buf.Cells[0][exp.x]
-		if cell.Char != exp.char {
-			t.Errorf("pos %d: expected char %c, got %c", exp.x, exp.char, cell.Char)
+		if cell.Cluster != exp.cluster {
+			t.Errorf("pos %d: expected cluster %q, got %q", exp.x, exp.cluster, cell.Cluster)
 		}
 		if cell.Width != exp.width {
 			t.Errorf("pos %d: expected width %d, got %d", exp.x, exp.width, cell.Width)
@@ -57,19 +57,19 @@ func TestWideCharIntegration(t *testing.T) {
 
 	// 验证位置：'=' '=' '=' ' ' '日' '志' '面' '板' ' ' '=' '=' '='
 	// 位置:   0   1   2 3   4   5   6   7  8   9  10  11
-	expectedChars := map[int]rune{
-		0: '=', 1: '=', 2: '=', 3: ' ',
-		4: '日', // 宽字符
-		6: '志', // 宽字符，位置 5 是延续
-		8: '面', // 宽字符，位置 7 是延续
-		10: '板', // 宽字符，位置 9 是延续
-		12: ' ', 13: '=', 14: '=', 15: '=',
+	expectedChars := map[int]string{
+		0: "=", 1: "=", 2: "=", 3: " ",
+		4: "日", // 宽字符
+		6: "志", // 宽字符，位置 5 是延续
+		8: "面", // 宽字符，位置 7 是延续
+		10: "板", // 宽字符，位置 9 是延续
+		12: " ", 13: "=", 14: "=", 15: "=",
 	}
 
-	for x, expectedChar := range expectedChars {
+	for x, expectedCluster := range expectedChars {
 		cell := buf.Cells[2][x]
-		if cell.Char != expectedChar {
-			t.Errorf("row 2 pos %d: expected %c, got %c", x, expectedChar, cell.Char)
+		if cell.Cluster != expectedCluster {
+			t.Errorf("row 2 pos %d: expected %q, got %q", x, expectedCluster, cell.Cluster)
 		}
 	}
 
@@ -92,7 +92,7 @@ func TestWideCharOverwrite(t *testing.T) {
 	buf.SetString(0, 0, "演示", s)
 
 	// 验证宽字符已正确写入
-	if buf.Cells[0][0].Char != '演' || buf.Cells[0][0].Width != 2 {
+	if buf.Cells[0][0].Cluster != "演" || buf.Cells[0][0].Width != 2 {
 		t.Error("first wide char not set correctly")
 	}
 	if !buf.Cells[0][1].IsContinuation {
@@ -103,11 +103,11 @@ func TestWideCharOverwrite(t *testing.T) {
 	buf.SetString(0, 0, "ABC", s)
 
 	// 验证窄字符正确覆盖
-	if buf.Cells[0][0].Char != 'A' {
-		t.Errorf("cell[0][0]: expected 'A', got %c", buf.Cells[0][0].Char)
+	if buf.Cells[0][0].Cluster != "A" {
+		t.Errorf("cell[0][0]: expected 'A', got %s", buf.Cells[0][0].Cluster)
 	}
-	if buf.Cells[0][1].Char != 'B' {
-		t.Errorf("cell[0][1]: expected 'B', got %c", buf.Cells[0][1].Char)
+	if buf.Cells[0][1].Cluster != "B" {
+		t.Errorf("cell[0][1]: expected 'B', got %s", buf.Cells[0][1].Cluster)
 	}
 	if buf.Cells[0][1].IsContinuation {
 		t.Error("cell[0][1] should not be continuation after overwrite")
@@ -126,8 +126,8 @@ func TestWideCharWithDrawText(t *testing.T) {
 	// "测试" 显示宽度为 4，可用宽度为 20
 	// 居中位置 = (20 - 4) / 2 = 8
 	// 所以 '测' 在位置 8，'试' 在位置 10
-	if buf.Cells[0][8].Char != '测' {
-		t.Errorf("expected '测' at pos 8, got %c", buf.Cells[0][8].Char)
+	if buf.Cells[0][8].Cluster != "测" {
+		t.Errorf("expected '测' at pos 8, got %s", buf.Cells[0][8].Cluster)
 	}
 	if buf.Cells[0][8].Width != 2 {
 		t.Error("'测' should have width 2")
@@ -135,8 +135,8 @@ func TestWideCharWithDrawText(t *testing.T) {
 	if !buf.Cells[0][9].IsContinuation {
 		t.Error("cell[0][9] should be continuation cell for '测'")
 	}
-	if buf.Cells[0][10].Char != '试' {
-		t.Errorf("expected '试' at pos 10, got %c", buf.Cells[0][10].Char)
+	if buf.Cells[0][10].Cluster != "试" {
+		t.Errorf("expected '试' at pos 10, got %s", buf.Cells[0][10].Cluster)
 	}
 }
 
@@ -160,8 +160,8 @@ func TestOutputLoopSimulation(t *testing.T) {
 		}
 
 		// 输出字符
-		if cell.Char != 0 {
-			output += string(cell.Char)
+		if cell.Cluster != "" && cell.Cluster != "\x00" {
+			output += cell.Cluster
 		}
 
 		// 按字符宽度递增

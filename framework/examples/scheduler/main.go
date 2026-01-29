@@ -420,11 +420,11 @@ func (a *SchedulerApp) simpleOutput(buf *paint.Buffer, statusMsg string) {
 				fmt.Printf("\x1b[%d;%dH", y+1, x+1)
 
 				// 输出字符
-				if cell.Char != 0 {
+				if cell.Cluster != "" && cell.Cluster != "\x00" {
 					if cell.Style != (style.Style{}) {
 						fmt.Print(cell.Style.ToANSI())
 					}
-					fmt.Print(string(cell.Char))
+					fmt.Print(cell.Cluster)
 				} else {
 					fmt.Print(" ")
 				}

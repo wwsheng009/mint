@@ -9,6 +9,14 @@ import (
 	"github.com/wwsheng009/mint/runtime/paint"
 )
 
+// getFirstRune returns the first rune from a cluster string.
+func getFirstRune(cluster string) rune {
+	for _, c := range cluster {
+		return c
+	}
+	return 0
+}
+
 // TestTextInputRendering 详细测试 TextInput 渲染逻辑
 func TestTextInputRendering(t *testing.T) {
 	tests := []struct {
@@ -44,10 +52,10 @@ func TestTextInputRendering(t *testing.T) {
 			fmt.Print("渲染: ")
 			for x := 0; x < 20; x++ {
 				cell := buf.Cells[0][x]
-				if cell.Char == 0 {
+				if (cell.Cluster == "" || cell.Cluster == "\x00") {
 					fmt.Print(".")
 				} else {
-					fmt.Printf("%c", cell.Char)
+					fmt.Printf("%s", cell.Cluster)
 				}
 			}
 			fmt.Println()
@@ -57,27 +65,27 @@ func TestTextInputRendering(t *testing.T) {
 			for x := 0; x < len(tt.value)+3; x++ {
 				cell := buf.Cells[0][x]
 				char := " "
-				if cell.Char != 0 {
-					char = fmt.Sprintf("%c", cell.Char)
+				if (cell.Cluster != "" && cell.Cluster != "\x00") {
+					char = fmt.Sprintf("%s", cell.Cluster)
 				}
 				fmt.Printf("  x=%d: '%s' reverse=%v\n", x, char, cell.Style.IsReverse())
 			}
 
 			// 验证左边框
-			if buf.Cells[0][0].Char != '[' {
+			if buf.Cells[0][0].Cluster != "[" {
 				t.Errorf("位置 0 应该是 '['")
 			}
 
 			// 验证右边框位置（左边框 + 文字长度）
 			expectedRightBracket := 1 + len(tt.value) // 左边框后跟文字，然后是右边框
-			if buf.Cells[0][expectedRightBracket].Char != ']' {
-				t.Errorf("位置 %d 应该是 ']', 找到 '%c'", expectedRightBracket, buf.Cells[0][expectedRightBracket].Char)
+			if buf.Cells[0][expectedRightBracket].Cluster != "]" {
+				t.Errorf("位置 %d 应该是 ']', 找到 '%s'", expectedRightBracket, buf.Cells[0][expectedRightBracket].Cluster)
 			}
 
 			// 验证文字内容
 			for i, ch := range tt.value {
 				pos := 1 + i // 左边框后第 i 个位置
-				if buf.Cells[0][pos].Char != ch {
+				if getFirstRune(buf.Cells[0][pos].Cluster) != ch {
 					t.Errorf("位置 %d 应该是 '%c'", pos, ch)
 				}
 			}
@@ -124,24 +132,24 @@ func TestTextInputWithOffset(t *testing.T) {
 	fmt.Print("第 5 行 (x=0-25): ")
 	for x := 0; x < 25; x++ {
 		cell := buf.Cells[5][x]
-		if cell.Char == 0 {
+		if (cell.Cluster == "" || cell.Cluster == "\x00") {
 			fmt.Print(".")
 		} else {
-			fmt.Printf("%c", cell.Char)
+			fmt.Printf("%s", cell.Cluster)
 		}
 	}
 	fmt.Println()
 
 	// 验证：左边框应该在 10
-	if buf.Cells[5][10].Char != '[' {
-		t.Errorf("左边框应该在 x=10, 找到 '%c'", buf.Cells[5][10].Char)
+	if buf.Cells[5][10].Cluster != "[" {
+		t.Errorf("左边框应该在 x=10, 找到 '%s'", buf.Cells[5][10].Cluster)
 	} else {
 		fmt.Printf("✓ 左边框在 x=10\n")
 	}
 
 	// 验证：'h' 应该在 11
-	if buf.Cells[5][11].Char != 'h' {
-		t.Errorf("'h' 应该在 x=11, 找到 '%c'", buf.Cells[5][11].Char)
+	if buf.Cells[5][11].Cluster != "h" {
+		t.Errorf("'h' 应该在 x=11, 找到 '%s'", buf.Cells[5][11].Cluster)
 	} else {
 		fmt.Printf("✓ 'h' 在 x=11\n")
 	}
@@ -200,10 +208,10 @@ func TestTextInputTypingSequence(t *testing.T) {
 		fmt.Print("  渲染: ")
 		for x := 0; x < 15; x++ {
 			cell := buf.Cells[0][x]
-			if cell.Char == 0 {
+			if (cell.Cluster == "" || cell.Cluster == "\x00") {
 				fmt.Print(".")
 			} else {
-				fmt.Printf("%c", cell.Char)
+				fmt.Printf("%s", cell.Cluster)
 			}
 		}
 		fmt.Println()
@@ -230,36 +238,37 @@ func TestTextInputWideChar(t *testing.T) {
 	fmt.Print("渲染: ")
 	for x := 0; x < 15; x++ {
 		cell := buf.Cells[0][x]
-		if cell.Char == 0 {
+		if (cell.Cluster == "" || cell.Cluster == "\x00") {
 			fmt.Print(".")
 		} else {
-			fmt.Printf("%c", cell.Char)
+			fmt.Printf("%s", cell.Cluster)
 		}
 	}
 	fmt.Println()
 
-	// 验证内容 - 注意：中文字符在 rune 数组中占 1 个元素
-	// 渲染时也只占 1 个字符位置（尽管终端显示时可能占 2 列）
+	// 验证内容 - 使用 Cluster 后，中文字符宽度为 2
+	// 位置 0: '[', 位置 1: '你' (宽2), 位置 2: 延续, 位置 3: '好' (宽2), 位置 4: 延续, 位置 5: ']'
 	runes := []rune("你好")
-	for i, ch := range runes {
-		pos := 1 + i // 左边框后第 i 个位置
-		if buf.Cells[0][pos].Char != ch {
+	pos := 1 // 左边框后第一个位置
+	for _, ch := range runes {
+		if getFirstRune(buf.Cells[0][pos].Cluster) != ch {
 			t.Errorf("位置 %d 应该是 '%c'", pos, ch)
 		} else {
-			fmt.Printf("✓ 位置 %d: '%c'\n", pos, ch)
+			fmt.Printf("✓ 位置 %d: '%c' (宽度 %d)\n", pos, ch, buf.Cells[0][pos].Width)
 		}
+		pos += 2 // 跳到下一个字符（每个中文字符宽度为 2）
 	}
 
-	// 验证右边框 - 应该紧跟在最后一个字符后面
-	rightBracketPos := 1 + len(runes) // 位置 3
-	if buf.Cells[0][rightBracketPos].Char != ']' {
-		t.Errorf("位置 %d 应该是 ']', 找到 '%c'", rightBracketPos, buf.Cells[0][rightBracketPos].Char)
+	// 验证右边框 - 应该在 1 + 2 + 2 = 5 位置
+	rightBracketPos := 1 + 2 + 2 // 位置 5
+	if buf.Cells[0][rightBracketPos].Cluster != "]" {
+		t.Errorf("位置 %d 应该是 ']', 找到 '%s'", rightBracketPos, buf.Cells[0][rightBracketPos].Cluster)
 	} else {
 		fmt.Printf("✓ 右边框在位置 %d\n", rightBracketPos)
 	}
 
-	// 验证光标 - cursor=2 表示在第 3 个字符位置（0-你, 1-好, 2-末尾）
-	cursorPos := 1 + 2
+	// 验证光标 - cursor=2 表示在末尾（右边框位置）
+	cursorPos := rightBracketPos
 	if buf.Cells[0][cursorPos].Style.IsReverse() {
 		fmt.Printf("✓ 光标在位置 %d\n", cursorPos)
 	} else {
@@ -284,10 +293,10 @@ func TestBackspaceRendering(t *testing.T) {
 	fmt.Print("初始: ")
 	for x := 0; x < 10; x++ {
 		cell := buf.Cells[0][x]
-		if cell.Char == 0 {
+		if (cell.Cluster == "" || cell.Cluster == "\x00") {
 			fmt.Print(".")
 		} else {
-			fmt.Printf("%c", cell.Char)
+			fmt.Printf("%s", cell.Cluster)
 		}
 	}
 	fmt.Println()
@@ -302,10 +311,10 @@ func TestBackspaceRendering(t *testing.T) {
 	fmt.Print("退格后: ")
 	for x := 0; x < 10; x++ {
 		cell := buf.Cells[0][x]
-		if cell.Char == 0 {
+		if (cell.Cluster == "" || cell.Cluster == "\x00") {
 			fmt.Print(".")
 		} else {
-			fmt.Printf("%c", cell.Char)
+			fmt.Printf("%s", cell.Cluster)
 		}
 	}
 	fmt.Println()

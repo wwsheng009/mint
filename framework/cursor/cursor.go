@@ -266,10 +266,17 @@ func (c *Cursor) Paint(ctx component.PaintContext, buf *paint.Buffer) {
 			reverseStyle = baseStyle.Reverse(true)
 		}
 
-		cursorDebugLog("FOCUS RENDER: drew cursor at (%d,%d) on char '%c', baseStyle=%v, reverseStyle.IsReverse=%v",
-			x, y, cell.Char, baseStyle.IsReverse(), reverseStyle.IsReverse())
+		// Extract first rune from cluster for SetCell
+		char := rune(0)
+		for _, c := range cell.Cluster {
+			char = c
+			break
+		}
 
-		buf.SetCell(x, y, cell.Char, reverseStyle)
+		cursorDebugLog("FOCUS RENDER: drew cursor at (%d,%d) on cluster '%s', baseStyle=%v, reverseStyle.IsReverse=%v",
+			x, y, cell.Cluster, baseStyle.IsReverse(), reverseStyle.IsReverse())
+
+		buf.SetCell(x, y, char, reverseStyle)
 	case ShapeUnderline:
 		buf.SetCell(x, y, '_', cursorStyle)
 	case ShapeBar:

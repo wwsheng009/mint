@@ -4,8 +4,13 @@ import "github.com/wwsheng009/mint/runtime/style"
 
 // Cell represents a single terminal cell with content and style.
 type Cell struct {
-	// Char is the rune character to display.
-	Char rune
+	// Cluster is the grapheme cluster (visible character) to display.
+	// Using string instead of rune to properly handle:
+	// - Emoji ZWJ sequences (👨‍👩‍👧‍👦)
+	// - Combining characters (é = e + combining acute accent)
+	// - Flag emojis (🇨🇳 = two regional indicators)
+	// - Emoji with variation selectors (☺️)
+	Cluster string
 
 	// Style is the visual style (color, attributes) for this cell.
 	// We use the framework's style definition for consistency.

@@ -85,12 +85,12 @@ func (m *Manager) diff(old, new *Buffer) []Change {
 			oldCell := old.cells[y][x]
 			newCell := new.cells[y][x]
 
-			if oldCell.Char != newCell.Char || oldCell.Style != newCell.Style {
+			if oldCell.Cluster != newCell.Cluster || oldCell.Style != newCell.Style {
 				changes = append(changes, Change{
-					X:     x,
-					Y:     y,
-					Char:  newCell.Char,
-					Style: newCell.Style,
+					X:       x,
+					Y:       y,
+					Cluster: newCell.Cluster,
+					Style:   newCell.Style,
 				})
 			}
 		}
@@ -108,10 +108,10 @@ func (m *Manager) drawChanges(changes []Change) {
 		if ansi != "" {
 			print(ansi)
 		}
-		if c.Char == 0 {
+		if c.Cluster == "" || c.Cluster == " " {
 			print(" ")
 		} else {
-			print(string(c.Char))
+			print(c.Cluster)
 		}
 	}
 	// 重置样式
@@ -183,10 +183,10 @@ type Cursor struct {
 
 // Change 缓冲区变更
 type Change struct {
-	X     int
-	Y     int
-	Char  rune
-	Style style.Style
+	X       int
+	Y       int
+	Cluster string
+	Style   style.Style
 }
 
 // Buffer 渲染缓冲区
@@ -198,8 +198,8 @@ type Buffer struct {
 
 // Cell 缓冲区单元格
 type Cell struct {
-	Char  rune
-	Style style.Style
+	Cluster string
+	Style   style.Style
 }
 
 // NewBuffer 创建缓冲区
@@ -213,7 +213,7 @@ func NewBuffer(width, height int) *Buffer {
 	for y := 0; y < height; y++ {
 		b.cells[y] = make([]Cell, width)
 		for x := 0; x < width; x++ {
-			b.cells[y][x] = Cell{Char: ' '}
+			b.cells[y][x] = Cell{Cluster: " "}
 		}
 	}
 
@@ -228,7 +228,7 @@ func (b *Buffer) GetSize() (width, height int) {
 // SetCell 设置单元格
 func (b *Buffer) SetCell(x, y int, char rune, s style.Style) {
 	if x >= 0 && x < b.width && y >= 0 && y < b.height {
-		b.cells[y][x] = Cell{Char: char, Style: s}
+		b.cells[y][x] = Cell{Cluster: string(char), Style: s}
 	}
 }
 
@@ -238,10 +238,9 @@ func (b *Buffer) SetLine(y int, text string, s style.Style) {
 		return
 	}
 
-	runes := []rune(text)
-	for x, r := range runes {
+	for x, r := range text {
 		if x < b.width {
-			b.cells[y][x] = Cell{Char: r, Style: s}
+			b.cells[y][x] = Cell{Cluster: string(r), Style: s}
 		}
 	}
 }
@@ -250,7 +249,7 @@ func (b *Buffer) SetLine(y int, text string, s style.Style) {
 func (b *Buffer) Fill(x, y, width, height int, char rune, s style.Style) {
 	for py := y; py < y+height && py < b.height; py++ {
 		for px := x; px < x+width && px < b.width; px++ {
-			b.cells[py][px] = Cell{Char: char, Style: s}
+			b.cells[py][px] = Cell{Cluster: string(char), Style: s}
 		}
 	}
 }
@@ -259,7 +258,7 @@ func (b *Buffer) Fill(x, y, width, height int, char rune, s style.Style) {
 func (b *Buffer) Clear() {
 	for y := 0; y < b.height; y++ {
 		for x := 0; x < b.width; x++ {
-			b.cells[y][x] = Cell{Char: ' '}
+			b.cells[y][x] = Cell{Cluster: " "}
 		}
 	}
 }
@@ -287,10 +286,10 @@ func (b *Buffer) String() string {
 				line += cell.Style.ToANSI()
 				currentStyle = cell.Style
 			}
-			if cell.Char == 0 {
+			if cell.Cluster == "" || cell.Cluster == " " {
 				line += " "
 			} else {
-				line += string(cell.Char)
+				line += cell.Cluster
 			}
 		}
 		if currentStyle != (style.Style{}) {

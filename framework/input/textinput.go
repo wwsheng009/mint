@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/mattn/go-runewidth"
 	"github.com/wwsheng009/mint/framework/component"
 	"github.com/wwsheng009/mint/framework/cursor"
 	"github.com/wwsheng009/mint/framework/event"
@@ -420,29 +421,38 @@ func (t *TextInput) Paint(ctx component.PaintContext, buf *paint.Buffer) {
 	// 绘制左边框
 	ctx.SetCell(0, y, '[', drawStyle)
 
-	// 绘制内容（只绘制实际文字）
-	for i, r := range runes {
-		ctx.SetCell(1+i, y, r, drawStyle)
+	// 绘制内容（使用 SetString 正确处理宽字符和字形簇）
+	// 需要使用绝对坐标
+	absContentX := ctx.X + 1
+	absContentY := ctx.Y + y
+	if displayValue != "" {
+		buf.SetString(absContentX, absContentY, displayValue, drawStyle)
 	}
 
+	// 计算右边框位置 - 考虑宽字符的显示宽度
+	contentDisplayWidth := runewidth.StringWidth(displayValue)
+	rightBracketX := 1 + contentDisplayWidth
+
 	// 绘制右边框
-	ctx.SetCell(1+len(runes), y, ']', drawStyle)
+	ctx.SetCell(rightBracketX, y, ']', drawStyle)
 
 	// 绘制光标（使用独立的 Cursor 组件）
 	if isFocused {
 		// 计算光标位置（相对坐标）
 		// cursorPos 表示光标在文本中的索引（0-based）
-		// 块状光标高亮光标位置的字符
+		// 需要计算光标位置前面所有字符的显示宽度
 		var cursorX int
 		if len(runes) == 0 {
 			// 空输入，光标在右边括号位置（或左边框后）
 			cursorX = 1
 		} else if cursorPos >= len(runes) {
 			// 光标在末尾，高亮右边括号
-			cursorX = 1 + len(runes) // 右边括号的位置
+			cursorX = rightBracketX
 		} else {
-			// 光标在某个字符上，高亮该字符
-			cursorX = 1 + cursorPos
+			// 计算光标在光标位置之前的所有字符的显示宽度
+			textBeforeCursor := string(runes[:cursorPos])
+			widthBeforeCursor := runewidth.StringWidth(textBeforeCursor)
+			cursorX = 1 + widthBeforeCursor
 		}
 
 		debugLog("[%s] FOCUS CURSOR: logical=%d, relativeX=%d, lenRunes=%d",
@@ -458,8 +468,8 @@ func (t *TextInput) Paint(ctx component.PaintContext, buf *paint.Buffer) {
 		absCursorY := ctx.Y + y
 		if absCursorX < buf.Width && absCursorY < buf.Height {
 			cell := buf.Cells[absCursorY][absCursorX]
-			debugLog("[%s] FOCUS RESULT: (%d,%d)='%c' reverse=%v",
-				t.ID(), absCursorX, absCursorY, cell.Char, cell.Style.IsReverse())
+			debugLog("[%s] FOCUS RESULT: (%d,%d)='%s' reverse=%v",
+				t.ID(), absCursorX, absCursorY, cell.Cluster, cell.Style.IsReverse())
 		}
 	}
 
@@ -496,7 +506,7 @@ func (t *TextInput) visualizeReverseState(ctx component.PaintContext, buf *paint
 		cell := buf.Cells[y][absX]
 		if cell.Style.IsReverse() {
 			reverseState.WriteString("X") // 反转样式
-		} else if cell.Char == 0 {
+		} else if cell.Cluster == "" || cell.Cluster == "\x00" {
 			reverseState.WriteString("_") // 空字符
 		} else {
 			reverseState.WriteString(".") // 正常字符
@@ -518,10 +528,10 @@ func (t *TextInput) visualizeReverseState(ctx component.PaintContext, buf *paint
 			break
 		}
 		cell := buf.Cells[y][absX]
-		if cell.Char == 0 {
+		if cell.Cluster == "" || cell.Cluster == "\x00" {
 			contentState.WriteString("_")
 		} else {
-			contentState.WriteRune(cell.Char)
+			contentState.WriteString(cell.Cluster)
 		}
 	}
 

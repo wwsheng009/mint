@@ -120,14 +120,16 @@ func (c *Compositor) bufferToString(layer *Layer) string {
 	for y := 0; y < buf.Height; y++ {
 		for x := 0; x < buf.Width; x++ {
 			cell := buf.Cells[y][x]
-			if cell.Char != 0 {
-				c.batch.AddCell(
-					layer.Rect.X+x,
-					layer.Rect.Y+y,
-					cell.Char,
-					cell.Style,
-				)
+			// 跳过延续单元格和空单元格
+			if cell.IsContinuation || cell.Cluster == "" {
+				continue
 			}
+			c.batch.Add(
+				layer.Rect.X+x,
+				layer.Rect.Y+y,
+				cell.Cluster,
+				cell.Style,
+			)
 		}
 	}
 
@@ -165,7 +167,7 @@ func (c *Compositor) blitLayer(dst *Buffer, src *Layer) {
 			}
 
 			cell := src.Buffer.Cells[y][x]
-			if cell.Char != 0 {
+			if cell.Cluster != "" {
 				dst.Cells[srcY][srcX] = cell
 			}
 		}

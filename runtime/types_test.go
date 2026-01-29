@@ -93,7 +93,7 @@ func TestCellBuffer(t *testing.T) {
 
 	// Test default cell
 	cell := buf.GetContent(5, 3)
-	assert.Equal(t, ' ', cell.Char)
+	assert.Equal(t, " ", cell.Cluster)
 	assert.Equal(t, 0, cell.ZIndex)
 
 	// Test setting content
@@ -101,7 +101,7 @@ func TestCellBuffer(t *testing.T) {
 	buf.SetContent(5, 3, 10, 'A', style, "test-node")
 
 	cell = buf.GetContent(5, 3)
-	assert.Equal(t, 'A', cell.Char)
+	assert.Equal(t, "A", cell.Cluster)
 	assert.Equal(t, 10, cell.ZIndex)
 	assert.Equal(t, "test-node", cell.NodeID)
 	assert.True(t, cell.Style.Bold)
@@ -109,12 +109,12 @@ func TestCellBuffer(t *testing.T) {
 	// Test Z-Index (overwrites lower Z-Index)
 	buf.SetContent(5, 3, 5, 'B', runtime.CellStyle{}, "low-node")
 	cell = buf.GetContent(5, 3)
-	assert.Equal(t, 'A', cell.Char) // Higher Z-Index wins
+	assert.Equal(t, "A", cell.Cluster) // Higher Z-Index wins
 
 	// Test Clear
 	buf.Clear()
 	cell = buf.GetContent(5, 3)
-	assert.Equal(t, ' ', cell.Char)
+	assert.Equal(t, " ", cell.Cluster)
 	assert.Equal(t, 0, cell.ZIndex)
 
 	// Test String output

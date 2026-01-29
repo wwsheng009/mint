@@ -63,6 +63,14 @@ func TestRuntimeIntegration(t *stdtesting.T) {
 	// Step 4: Simulate typing (simulates event pump delivering key events)
 	fmt.Println("\n[Simulating key input 'test']")
 
+	// Helper function to get first rune from cluster
+	getFirstRune := func(cluster string) rune {
+		for _, c := range cluster {
+			return c
+		}
+		return 0
+	}
+
 	for i, ch := range "test" {
 		// Create KeyEvent (as event pump would)
 		keyEv := event.NewKeyEvent(event.Key{
@@ -106,10 +114,10 @@ func TestRuntimeIntegration(t *stdtesting.T) {
 	for y := 0; y < buf.Height; y++ {
 		for x := 0; x < buf.Width-3; x++ {
 			// Look for "test" in the buffer
-			if buf.Cells[y][x].Char == 't' &&
-				buf.Cells[y][x+1].Char == 'e' &&
-				buf.Cells[y][x+2].Char == 's' &&
-				buf.Cells[y][x+3].Char == 't' {
+			if getFirstRune(buf.Cells[y][x].Cluster) == 't' &&
+				x+1 < buf.Width && getFirstRune(buf.Cells[y][x+1].Cluster) == 'e' &&
+				x+2 < buf.Width && getFirstRune(buf.Cells[y][x+2].Cluster) == 's' &&
+				x+3 < buf.Width && getFirstRune(buf.Cells[y][x+3].Cluster) == 't' {
 				foundTest = true
 				fmt.Printf("  [Found 'test' at row %d, col %d]\n", y, x)
 			}
@@ -121,8 +129,8 @@ func TestRuntimeIntegration(t *stdtesting.T) {
 				fmt.Printf("  [Found cursor at row %d, col %d]\n", y, x)
 
 				// Show what character is at cursor
-				if buf.Cells[y][x].Char != 0 {
-					fmt.Printf("  [Cursor over character: '%c']\n", buf.Cells[y][x].Char)
+				if buf.Cells[y][x].Cluster != "" && buf.Cells[y][x].Cluster != "\x00" {
+					fmt.Printf("  [Cursor over character: '%s']\n", buf.Cells[y][x].Cluster)
 				}
 			}
 		}

@@ -46,6 +46,14 @@ func TestCursorPositionRendering(t *testing.T) {
 				t.Errorf("期望的绝对X位置是 %d, 但计算得到 %d", tt.expectedX, expectedAbsX)
 			}
 
+			// Helper function to get first rune from cluster
+			getFirstRune := func(cluster string) rune {
+				for _, c := range cluster {
+					return c
+				}
+				return 0
+			}
+
 			// 检查光标是否在正确位置（通过检查reverse样式）
 			// 光标应该在 (expectedAbsX, 1) 位置
 			cell := buf.Cells[1][expectedAbsX]
@@ -60,9 +68,9 @@ func TestCursorPositionRendering(t *testing.T) {
 			} else {
 				// 检查光标是否高亮了正确的字符
 				expectedRune := rune(tt.expectedCursor[0])
-				if cell.Char != expectedRune {
+				if getFirstRune(cell.Cluster) != expectedRune {
 					t.Errorf("位置 (%d,1) 应该是 '%c' 但得到 '%c'",
-						expectedAbsX, expectedRune, cell.Char)
+						expectedAbsX, expectedRune, getFirstRune(cell.Cluster))
 				}
 				if !cell.Style.IsReverse() {
 					t.Errorf("位置 (%d,1) 应该有反向样式", expectedAbsX)
@@ -72,16 +80,16 @@ func TestCursorPositionRendering(t *testing.T) {
 			// 验证输入框的格式是正确的 [content]
 			// 左边框应该在位置2
 			leftCell := buf.Cells[1][2]
-			if leftCell.Char != '[' {
-				t.Errorf("位置 (2,1) 应该是 '[' 但得到 '%c'", leftCell.Char)
+			if getFirstRune(leftCell.Cluster) != '[' {
+				t.Errorf("位置 (2,1) 应该是 '[' 但得到 '%c'", getFirstRune(leftCell.Cluster))
 			}
 
 			// 右边框应该在位置 2 + 1 + len(value)
 			rightX := 2 + 1 + len([]rune(tt.value))
 			if rightX < 80 {
 				rightCell := buf.Cells[1][rightX]
-				if rightCell.Char != ']' {
-					t.Errorf("位置 (%d,1) 应该是 ']' 但得到 '%c'", rightX, rightCell.Char)
+				if getFirstRune(rightCell.Cluster) != ']' {
+					t.Errorf("位置 (%d,1) 应该是 ']' 但得到 '%c'", rightX, getFirstRune(rightCell.Cluster))
 				}
 			}
 		})
@@ -97,14 +105,22 @@ func TestCursorPositionMovement(t *testing.T) {
 	buf := paint.NewBuffer(80, 24)
 	ctx := component.NewPaintContext(buf, 2, 1, 80, 24) // 模拟Form中的偏移
 
+	// Helper function to get first rune from cluster
+	getFirstRune := func(cluster string) rune {
+		for _, c := range cluster {
+			return c
+		}
+		return 0
+	}
+
 	// 测试不同光标位置
 	// cursorPos=n 表示光标在第n个字符位置（0-based）
 	// 如果 n < len(value)，光标高亮该字符
 	// 如果 n == len(value)，光标在末尾（右括号）
 	cursorPositions := []struct {
-		cursor          int
-		expectedChar     rune // 期望光标下的字符
-		expectedAbsX     int
+		cursor        int
+		expectedChar  rune // 期望光标下的字符
+		expectedAbsX  int
 	}{
 		{0, 't', 3},    // 光标在第1个字符't'
 		{1, 'e', 4},    // 光标在第2个字符'e'
@@ -129,9 +145,9 @@ func TestCursorPositionMovement(t *testing.T) {
 
 		cell := buf.Cells[1][expectedAbsX]
 
-		if cell.Char != cp.expectedChar {
+		if getFirstRune(cell.Cluster) != cp.expectedChar {
 			t.Errorf("cursor=%d: 位置 (%d,1) 应该是 '%c' 但得到 '%c'",
-				cp.cursor, expectedAbsX, cp.expectedChar, cell.Char)
+				cp.cursor, expectedAbsX, cp.expectedChar, getFirstRune(cell.Cluster))
 		}
 		if !cell.Style.IsReverse() {
 			t.Errorf("cursor=%d: 位置 (%d,1) 应该有反向样式",

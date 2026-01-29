@@ -181,8 +181,13 @@ func TestCursorPaint(t *testing.T) {
 	cell := buf.Cells[3][5]
 
 	// 块状光标应该保留原字符但改变样式
-	if cell.Char != 'x' {
-		t.Errorf("expected char 'x', got '%c'", cell.Char)
+	char := rune(0)
+	for _, c := range cell.Cluster {
+		char = c
+		break
+	}
+	if char != 'x' {
+		t.Errorf("expected char 'x', got '%c'", char)
 	}
 
 	// 测试下划线形状
@@ -192,8 +197,13 @@ func TestCursorPaint(t *testing.T) {
 
 	cell = buf.Cells[4][7]
 	// 下划线形状会替换字符
-	if cell.Char != '_' {
-		t.Errorf("expected char '_', got '%c'", cell.Char)
+	char = rune(0)
+	for _, c := range cell.Cluster {
+		char = c
+		break
+	}
+	if char != '_' {
+		t.Errorf("expected char '_', got '%c'", char)
 	}
 }
 
@@ -217,8 +227,13 @@ func TestCursorPaintWhenNotVisible(t *testing.T) {
 	// 检查原单元格没有被修改
 	cell := buf.Cells[3][5]
 	// 禁用闪烁时应该仍然可见（光标始终显示）
-	if cell.Char != 'x' {
-		t.Errorf("expected char 'x', got '%c'", cell.Char)
+	char := rune(0)
+	for _, c := range cell.Cluster {
+		char = c
+		break
+	}
+	if char != 'x' {
+		t.Errorf("expected char 'x', got '%c'", char)
 	}
 }
 

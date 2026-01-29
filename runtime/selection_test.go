@@ -276,8 +276,8 @@ func TestSelectionManager_ApplyHighlight(t *testing.T) {
 
 	// Get original cell
 	beforeCell := buffer.GetContent(5, 2)
-	if beforeCell.Char != 'A' {
-		t.Errorf("Expected 'A', got '%c'", beforeCell.Char)
+	if beforeCell.Cluster != "A" {
+		t.Errorf("Expected 'A', got '%s'", beforeCell.Cluster)
 	}
 
 	// Apply highlight

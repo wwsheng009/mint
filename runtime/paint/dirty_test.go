@@ -548,10 +548,10 @@ func TestCellsEqual(t *testing.T) {
 	style1 := style.Style{}
 	style2 := style.Style{}.Bold(true)
 
-	cell1 := Cell{Char: 'A', Style: style1, Width: 1}
-	cell2 := Cell{Char: 'A', Style: style1, Width: 1}
-	cell3 := Cell{Char: 'A', Style: style2, Width: 1}
-	cell4 := Cell{Char: 'B', Style: style1, Width: 1}
+	cell1 := Cell{Cluster: "A", Style: style1, Width: 1}
+	cell2 := Cell{Cluster: "A", Style: style1, Width: 1}
+	cell3 := Cell{Cluster: "A", Style: style2, Width: 1}
+	cell4 := Cell{Cluster: "B", Style: style1, Width: 1}
 
 	if !cellsEqual(cell1, cell2) {
 		t.Error("Identical cells should be equal")
