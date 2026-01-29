@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"sort"
 
+	"github.com/mattn/go-runewidth"
 	"github.com/wwsheng009/mint/runtime/style"
 )
 
@@ -18,6 +19,9 @@ type DrawCmd struct {
 type CommandBatch struct {
 	cmds    []DrawCmd
 	styleVM *StyleStateMachine
+	// Cursor position tracking for optimization
+	curX int
+	curY int
 }
 
 // NewCommandBatch creates a new command batch
@@ -25,6 +29,8 @@ func NewCommandBatch() *CommandBatch {
 	return &CommandBatch{
 		cmds:    make([]DrawCmd, 0, 256),
 		styleVM: NewStyleStateMachine(),
+		curX:    -1, // Unknown initial position
+		curY:    -1,
 	}
 }
 
@@ -51,6 +57,7 @@ func (b *CommandBatch) Flush() string {
 
 	var buf bytes.Buffer
 	b.styleVM.Reset()
+	b.curX, b.curY = -1, -1 // Reset cursor tracking
 
 	// Sort by Y then X for linear traversal
 	b.sortCommands()
@@ -58,13 +65,12 @@ func (b *CommandBatch) Flush() string {
 	// Merge adjacent commands with same style
 	merged := b.mergeCommands()
 
-	// Generate output with style state machine
-	lastX, lastY := -1, -1
+	// Generate output with style state machine and cursor optimization
 	for _, cmd := range merged {
-		// Move cursor if needed
-		if cmd.X != lastX || cmd.Y != lastY {
-			buf.WriteString(b.moveCursor(cmd.X, cmd.Y))
-			lastX, lastY = cmd.X, cmd.Y
+		// Move cursor if needed (with optimization)
+		cursorCmd := b.moveCursorOptimized(cmd.X, cmd.Y)
+		if cursorCmd != "" {
+			buf.WriteString(cursorCmd)
 		}
 
 		// Apply style if changed
@@ -72,9 +78,10 @@ func (b *CommandBatch) Flush() string {
 			buf.WriteString(b.styleVM.Update(cmd.Style))
 		}
 
-		// Write text
+		// Write text and update cursor position
 		buf.WriteString(cmd.Text)
-		lastX += len(cmd.Text)
+		b.curX = cmd.X + runewidth.StringWidth(cmd.Text)
+		b.curY = cmd.Y
 	}
 
 	// Reset style at end
@@ -134,7 +141,40 @@ func (b *CommandBatch) sortCommands() {
 	})
 }
 
-// moveCursor generates ANSI cursor movement
+// moveCursorOptimized generates optimized ANSI cursor movement
+// Optimization rules:
+// - Same position: no output
+// - Same line, small step right: use \x1b[nC (forward)
+// - Same line, large step: use absolute positioning
+// - Different line: use absolute positioning
+func (b *CommandBatch) moveCursorOptimized(x, y int) string {
+	// Unknown initial position, use absolute
+	if b.curX < 0 || b.curY < 0 {
+		b.curX, b.curY = x, y
+		return "\x1b[" + itoa(y+1) + ";" + itoa(x+1) + "H"
+	}
+
+	// Same position, no move needed
+	if b.curX == x && b.curY == y {
+		return ""
+	}
+
+	// Same line, moving right
+	if b.curY == y && x > b.curX {
+		delta := x - b.curX
+		// Small step: use relative forward cursor
+		if delta <= 5 {
+			b.curX = x
+			return "\x1b[" + itoa(delta) + "C"
+		}
+	}
+
+	// Default: absolute positioning
+	b.curX, b.curY = x, y
+	return "\x1b[" + itoa(y+1) + ";" + itoa(x+1) + "H"
+}
+
+// moveCursor generates ANSI cursor movement (kept for compatibility)
 func (b *CommandBatch) moveCursor(x, y int) string {
 	return "\x1b[" + itoa(y+1) + ";" + itoa(x+1) + "H"
 }

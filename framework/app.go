@@ -55,10 +55,16 @@ type App struct {
 	// 首次渲染标记
 	firstRender bool
 
-	// 上一帧缓冲区（用于局部刷新）
+	// ============================================================================
+	// 渲染器 - 使用新的双缓冲 Renderer (idea1 集成)
+	// ============================================================================
+	// Renderer 提供双缓冲、diff、run merging 等优化
+	renderer *paint.Renderer
+
+	// 上一帧缓冲区（用于局部刷新） - deprecated，保留用于兼容
 	prevBuffer [][]paint.Cell
 
-	// 光标位置跟踪（用于强制刷新光标区域）
+	// 光标位置跟踪（用于强制刷新光标区域） - deprecated
 	lastCursorX int
 	lastCursorY int
 
@@ -102,6 +108,7 @@ func NewApp() *App {
 		throttler:    render.NewThrottler(60), // 默认 60 FPS
 		contextMgr:   core.NewContextManager(context.Background()),
 		userData:     make(map[string]interface{}),
+		renderer:     paint.NewRenderer(80, 24), // 新增：初始化 Renderer
 	}
 }
 
@@ -438,6 +445,15 @@ func (a *App) Run() error {
 	renderStartTime := time.Now()
 
 	for a.state == StateRunning {
+		// 先检查是否需要渲染（确保首次渲染立即执行）
+		needsRender := a.dirty && a.throttler.ShouldRender()
+		if needsRender {
+			renderStartTime = time.Now()
+			a.render()
+			a.throttler.RecordFrameTime(time.Since(renderStartTime))
+		}
+
+		// 等待事件或定时器
 		select {
 		case ev := <-eventChan:
 			a.handleEvent(ev)
@@ -451,13 +467,6 @@ func (a *App) Run() error {
 		case <-a.contextMgr.Context().Done():
 			a.state = StateStopping
 			return nil
-		}
-
-		// 渲染 - 使用节流器控制帧率
-		if a.dirty && a.throttler.ShouldRender() {
-			renderStartTime = time.Now()
-			a.render()
-			a.throttler.RecordFrameTime(time.Since(renderStartTime))
 		}
 	}
 
@@ -539,7 +548,11 @@ func (a *App) render() {
 
 	// 使用 V3 Paintable 接口渲染
 	if paintable, ok := a.root.(component.Paintable); ok {
-		buf := paint.NewBuffer(a.terminalWidth, a.terminalHeight)
+		// 使用 Renderer 的 back buffer
+		buf := a.renderer.GetBackBuffer()
+
+		// 清空并调整 buffer 大小（Renderer 复用 buffer）
+		buf.Reset(a.terminalWidth, a.terminalHeight)
 
 		ctx := component.PaintContext{
 			AvailableWidth:  a.terminalWidth,
@@ -559,17 +572,38 @@ func (a *App) render() {
 		// 使用环境变量控制输出模式：
 		// TUI_OUTPUT_MODE=direct  使用全量刷新（绕过差异比较）
 		// TUI_OUTPUT_MODE=diff    使用差异比较优化（默认）
+		// TUI_OUTPUT_MODE=debug   调试模式，显示 diff 信息
 		outputMode := os.Getenv("TUI_OUTPUT_MODE")
 		if outputMode == "direct" {
 			a.outputBufferDirect(buf)
-			// a.outputBuffer(buf)
 		} else {
-			// 默认使用差异比较优化
-			a.outputBuffer(buf)
+			// 首次渲染：清屏、隐藏光标、强制全量渲染
+			if a.firstRender {
+				fmt.Print("\x1b[2J") // 清屏
+				fmt.Print("\x1b[?25l") // 隐藏光标
+				a.renderer.ForceFullRender() // 强制全屏渲染
+			}
+
+			// 使用新的 Renderer 输出（自动 diff + run merging + 光标优化）
+			output := a.renderer.Render()
+
+			// DEBUG: 输出渲染信息（每次）
+			if os.Getenv("TUI_OUTPUT_MODE") == "debug" {
+				fmt.Fprintf(os.Stderr, "[APP] FirstRender=%v, OutputLen=%d, Dirty=%v\n", a.firstRender, len(output), a.dirty)
+			}
+
+			if output != "" {
+				fmt.Print(output)
+			}
 		}
 	}
 
 	a.dirty = false
+
+	// 清除首次渲染标记
+	if a.firstRender {
+		a.firstRender = false
+	}
 }
 
 // outputBuffer 输出缓冲区到终端（局部刷新优化版）
@@ -808,6 +842,9 @@ func (a *App) Resize(width, height int) {
 	a.terminalHeight = height
 	a.dirty = true
 
+	// 更新 Renderer 的尺寸
+	a.renderer.Resize(width, height)
+
 	// 尺寸变化时清屏，避免残留内容
 	if sizeChanged && !a.firstRender {
 		a.clearScreen()
@@ -818,4 +855,19 @@ func (a *App) Resize(width, height int) {
 func (a *App) clearScreen() {
 	fmt.Print("\x1b[2J")  // 清屏
 	fmt.Print("\x1b[H")   // 移动光标到左上角
+}
+
+// ==============================================================================
+// Renderer 访问方法 (idea1 集成)
+// ==============================================================================
+
+// GetRenderer 获取渲染器（用于高级用途）
+func (a *App) GetRenderer() *paint.Renderer {
+	return a.renderer
+}
+
+// ForceFullRender 强制下一帧进行全量渲染
+func (a *App) ForceFullRender() {
+	a.renderer.ForceFullRender()
+	a.dirty = true
 }

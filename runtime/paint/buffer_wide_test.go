@@ -3,6 +3,7 @@ package paint
 import (
 	"testing"
 
+	"github.com/mattn/go-runewidth"
 	"github.com/wwsheng009/mint/runtime/style"
 )
 
@@ -58,7 +59,7 @@ func TestSetStringWideChar(t *testing.T) {
 		if cell.IsContinuation {
 			t.Errorf("cell[0][%d]: should not be continuation", col)
 		}
-		width := runeWidth(r)
+		width := runewidth.RuneWidth(r)
 		if cell.Width != width {
 			t.Errorf("cell[0][%d]: expected width %d, got %d", col, width, cell.Width)
 		}
@@ -148,10 +149,10 @@ func TestIsCellChanged(t *testing.T) {
 			want:     false,
 		},
 		{
-			name:     "prev is continuation - should skip",
+			name:     "prev is continuation - should refresh",
 			cell:     Cell{Cluster: "A"},
 			prevCell: Cell{Cluster: "B", IsContinuation: true},
-			want:     false,
+			want:     true,
 		},
 		{
 			name:     "both continuation - should skip",
@@ -288,13 +289,13 @@ func TestRuneWidth(t *testing.T) {
 		{'가', 2},       // 韩文
 		{'😀', 2},       // Emoji
 		{'🎉', 2},       // Emoji
-		{'\u0300', 1},   // Combining accent
-		{'\u200d', 1},   // Zero width joiner
+		{'\u0300', 0},   // Combining accent (zero width)
+		{'\u200d', 0},   // Zero width joiner (zero width)
 	}
 
 	for _, tt := range tests {
 		t.Run(string(tt.r), func(t *testing.T) {
-			if got := runeWidth(tt.r); got != tt.want {
+			if got := runewidth.RuneWidth(tt.r); got != tt.want {
 				t.Errorf("runeWidth(%c) = %v, want %v", tt.r, got, tt.want)
 			}
 		})

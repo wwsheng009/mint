@@ -15,8 +15,9 @@ func TestNewDirtyTracker(t *testing.T) {
 	if tracker == nil {
 		t.Fatal("NewDirtyTracker returned nil")
 	}
-	if !tracker.IsAllDirty() {
-		t.Error("New tracker should be all dirty initially")
+	// 初始状态不是全脏，由调用方决定何时全屏渲染
+	if tracker.IsAllDirty() {
+		t.Error("New tracker should not be all dirty initially")
 	}
 }
 
@@ -456,6 +457,7 @@ func TestDiff_EmptyBuffers(t *testing.T) {
 
 func TestGetDirtyRects_AllDirty(t *testing.T) {
 	tracker := NewDirtyTracker()
+	tracker.MarkAll() // 设置为全脏
 	tracker.SetPreviousBuffer(NewBuffer(100, 50))
 
 	rects := tracker.GetDirtyRects()
@@ -475,11 +477,20 @@ func TestGetDirtyRects_AllDirty(t *testing.T) {
 func TestString(t *testing.T) {
 	tracker := NewDirtyTracker()
 
+	// 初始状态不是 ALL
 	str := tracker.String()
-	if str != "DirtyTracker{ALL}" {
-		t.Errorf("Expected 'DirtyTracker{ALL}', got '%s'", str)
+	if str == "DirtyTracker{ALL}" {
+		t.Error("Should not be ALL initially")
 	}
 
+	// 设置为全脏
+	tracker.MarkAll()
+	str = tracker.String()
+	if str != "DirtyTracker{ALL}" {
+		t.Errorf("Expected 'DirtyTracker{ALL}' after MarkAll, got '%s'", str)
+	}
+
+	// 清除后不再是 ALL
 	tracker.Clear()
 	tracker.MarkCell(1, 1)
 

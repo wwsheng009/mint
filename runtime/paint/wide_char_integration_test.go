@@ -1,6 +1,7 @@
 package paint
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/wwsheng009/mint/runtime/style"
@@ -173,9 +174,11 @@ func TestOutputLoopSimulation(t *testing.T) {
 		}
 	}
 
-	// 验证输出正确
-	if output != "ABC测试123" {
-		t.Errorf("expected 'ABC测试123', got '%s'", output)
+	// 验证输出以正确的内容开头（buffer 初始化为空格，后面会有空格）
+	expected := "ABC测试123"                // 实际写入的内容
+	padding := strings.Repeat(" ", 20-10) // 剩余的空格 (20 - 10 = 10 个空格)
+	if output != expected+padding {
+		t.Errorf("expected '%s', got '%s'", expected+padding, output)
 	}
 
 	// 验证位置计算：正确循环应该访问 10 个位置 (8 个字符 + 2 个延续单元格)

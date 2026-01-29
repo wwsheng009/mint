@@ -1,6 +1,7 @@
 package paint
 
 import (
+	"github.com/mattn/go-runewidth"
 	"github.com/wwsheng009/mint/runtime/state"
 	"github.com/wwsheng009/mint/runtime/style"
 )
@@ -185,7 +186,7 @@ func (c *PaintContext) SetString(x, y int, text string, s style.Style) {
 		if col < 0 || col >= c.Buffer.Width {
 			break
 		}
-		width := runeWidth(char)
+		width := runewidth.RuneWidth(char)
 		// 对于宽字符，需要检查下一个位置是否可用
 		if width == 2 && col+1 >= c.Buffer.Width {
 			break
@@ -285,7 +286,7 @@ func (c *PaintContext) truncateTextByWidth(text string, maxWidth int) string {
 	result := make([]rune, 0, len(runes))
 
 	for _, r := range runes {
-		charWidth := runeWidth(r)
+		charWidth := runewidth.RuneWidth(r)
 		if currentWidth+charWidth > maxWidth {
 			break
 		}
@@ -300,7 +301,7 @@ func (c *PaintContext) truncateTextByWidth(text string, maxWidth int) string {
 func textDisplayWidth(s string) int {
 	width := 0
 	for _, r := range s {
-		width += runeWidth(r)
+		width += runewidth.RuneWidth(r)
 	}
 	return width
 }

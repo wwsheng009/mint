@@ -30,7 +30,10 @@ func NewBuffer(width, height int) *Buffer {
 
 	for y := 0; y < height; y++ {
 		b.Cells[y] = make([]Cell, width)
-		// Initialize with empty cells if needed, or rely on zero value
+		// 初始化为空格（与 Reset 保持一致）
+		for x := 0; x < width; x++ {
+			b.Cells[y][x] = Cell{Cluster: " "}
+		}
 	}
 
 	return b
@@ -41,7 +44,7 @@ func NewBuffer(width, height int) *Buffer {
 // This is a convenience method that converts a rune to a string cluster.
 // For complex grapheme clusters, use SetString instead.
 func (b *Buffer) SetCell(x, y int, char rune, s style.Style) {
-	b.setCluster(x, y, string(char), runeWidth(char), s)
+	b.setCluster(x, y, string(char), runewidth.RuneWidth(char), s)
 }
 
 // setCluster sets a grapheme cluster at the given coordinates.
@@ -68,28 +71,6 @@ func (b *Buffer) setCluster(x, y int, cluster string, width int, s style.Style) 
 			IsContinuation: true,
 		}
 	}
-}
-
-// runeWidth 返回字符的显示宽度 (1 或 2)
-func runeWidth(r rune) int {
-	// CJK 字符范围 (中文、日文、韩文等)
-	if r >= 0x1100 && (r <= 0x115f || r == 0x2329 || r == 0x232a ||
-		(r >= 0x2e80 && r <= 0xa4cf && r != 0x303f) ||
-		(r >= 0xac00 && r <= 0xd7a3) ||
-		(r >= 0xf900 && r <= 0xfaff) ||
-		(r >= 0xfe10 && r <= 0xfe19) ||
-		(r >= 0xfe30 && r <= 0xfe6f) ||
-		(r >= 0xff00 && r <= 0xff60) ||
-		(r >= 0xffe0 && r <= 0xffe6) ||
-		(r >= 0x20000 && r <= 0x2fffd) ||
-		(r >= 0x30000 && r <= 0x3fffd)) {
-		return 2
-	}
-	// Emoji 和其他符号
-	if r >= 0x1f300 && r <= 0x1f9f0 {
-		return 2
-	}
-	return 1
 }
 
 // SetString writes a string starting at (x, y) with the given style.
@@ -179,18 +160,28 @@ func (b *Buffer) SetContentDirect(x, y int, char rune, s style.Style, zIndex int
 // ==============================================================================
 
 // IsCellChanged 比较两个单元格是否不同，正确处理宽字符。
-// IsCellChanged 检查单元格是否有变化
-// 延续单元格始终返回 false（被其主单元格处理）
+//
+// 变化检测规则：
+// - continuation → continuation: ❌ 不刷新（由主单元格处理）
+// - head → continuation: ✅ 需要刷新（宽字符被覆盖）
+// - continuation → head: ✅ 需要刷新（宽字符位置现在有内容）
+// - 正常单元格: 比较 Cluster 和 Style
 func IsCellChanged(cell, prevCell Cell) bool {
 	// 如果当前单元格是延续单元格，跳过（由主单元格处理）
 	if cell.IsContinuation {
 		return false
 	}
 
-	// 如果前一个单元格是延续单元格，忽略其 Cluster，只比较 Style
-	// 因为延续单元格的 Cluster 是无效的
+	// 如果前一个单元格是 continuation，当前是 head → 需要刷新
+	// 这表示一个宽字符被新字符覆盖，必须刷新
 	if prevCell.IsContinuation {
-		return cell.Style != prevCell.Style
+		return true
+	}
+
+	// 如果前一个是宽字符头，当前是空/continuation → 需要刷新
+	// 这表示宽字符被部分覆盖
+	if prevCell.Width == 2 && cell.Width == 0 {
+		return true
 	}
 
 	// 正常比较 Cluster 和 Style

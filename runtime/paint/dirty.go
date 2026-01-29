@@ -1,6 +1,9 @@
 package paint
 
-import "fmt"
+import (
+	"fmt"
+	"os"
+)
 
 // ==============================================================================
 // Dirty Region Tracking (V3)
@@ -23,6 +26,11 @@ type DirtyTracker struct {
 
 	// 变更计数
 	changedCells int
+
+	// 复用的 visited 数组（用于 extractDirtyRegions，避免频繁分配）
+	visited      [][]bool
+	visitedWidth int
+	visitedHeight int
 }
 
 // cellRef 单元格引用
@@ -43,7 +51,7 @@ func NewDirtyTracker() *DirtyTracker {
 	return &DirtyTracker{
 		cells:      make(map[cellRef]struct{}),
 		rects:      make([]Rect, 0),
-		allDirty:   true, // 初始为全脏
+		allDirty:   false, // 初始状态为非全脏，由调用方决定何时全屏渲染
 		prevBuffer: nil,
 	}
 }
@@ -136,7 +144,7 @@ func (d *DirtyTracker) Diff(prev, curr *Buffer) DiffResult {
 	result := DiffResult{
 		DirtyRegions: []Rect{},
 		HasChanges:   false,
-		ChangedCells: 0,
+			ChangedCells: 0,
 	}
 
 	// 边界情况处理
@@ -161,6 +169,8 @@ func (d *DirtyTracker) Diff(prev, curr *Buffer) DiffResult {
 		result.DirtyRegions = append(result.DirtyRegions, Rect{
 			X: 0, Y: 0, Width: curr.Width, Height: curr.Height,
 		})
+		// 清除 allDirty 标记
+		d.allDirty = false
 		return result
 	}
 
@@ -171,6 +181,19 @@ func (d *DirtyTracker) Diff(prev, curr *Buffer) DiffResult {
 		result.DirtyRegions = append(result.DirtyRegions, Rect{
 			X: 0, Y: 0, Width: curr.Width, Height: curr.Height,
 		})
+		return result
+	}
+
+	// 检查是否标记为全脏（ForceFullRender 调用 MarkAll）
+	// 这会强制输出全屏，不管内容是否真的变化
+	if d.allDirty {
+		result.HasChanges = true
+		result.ChangedCells = curr.Width * curr.Height
+		result.DirtyRegions = []Rect{{X: 0, Y: 0, Width: curr.Width, Height: curr.Height}}
+		// 清除 allDirty 标记，这样下次渲染会使用正常 diff
+		d.allDirty = false
+		d.cells = make(map[cellRef]struct{})
+		d.rects = make([]Rect, 0)
 		return result
 	}
 
@@ -193,18 +216,43 @@ func (d *DirtyTracker) CompareBuffers(prev, curr *Buffer) {
 }
 
 // compareBuffersWithGrid 使用网格比较两个 Buffer
+// 使用 IsCellChanged 来确保与 renderLine 的逻辑一致
 func (d *DirtyTracker) compareBuffersWithGrid(prev, curr *Buffer) *dirtyGrid {
 	grid := newDirtyGrid(curr.Width, curr.Height)
 	d.changedCells = 0
+
+	// DEBUG: 调试光标闪烁问题
+	debugRender := os.Getenv("TUI_RENDER_DEBUG") == "1"
+	var firstChangedCell struct{ x, y int }
 
 	for y := 0; y < curr.Height; y++ {
 		for x := 0; x < curr.Width; x++ {
 			prevCell := prev.Cells[y][x]
 			currCell := curr.Cells[y][x]
-			if !cellsEqual(prevCell, currCell) {
+			// 使用 IsCellChanged 而不是 cellsEqual，确保逻辑一致
+			changed := IsCellChanged(currCell, prevCell)
+			if changed {
 				grid.Mark(x, y)
 				d.changedCells++
+				if debugRender && d.changedCells == 1 {
+					firstChangedCell.x = x
+					firstChangedCell.y = y
+				}
 			}
+		}
+	}
+
+	if debugRender && d.changedCells > 0 {
+		fmt.Fprintf(os.Stderr, "[compareBuffersWithGrid] ChangedCells=%d, first=(%d,%d)\n",
+			d.changedCells, firstChangedCell.x, firstChangedCell.y)
+		// 输出第一个变化单元格的详细信息
+		if curr.Height > firstChangedCell.y && curr.Width > firstChangedCell.x {
+			c := curr.Cells[firstChangedCell.y][firstChangedCell.x]
+			p := prev.Cells[firstChangedCell.y][firstChangedCell.x]
+			fmt.Fprintf(os.Stderr, "  curr: Cluster=%q, Width=%d, Style.Reverse=%v\n",
+				c.Cluster, c.Width, c.Style.IsReverse())
+			fmt.Fprintf(os.Stderr, "  prev: Cluster=%q, Width=%d, Style.Reverse=%v\n",
+				p.Cluster, p.Width, p.Style.IsReverse())
 		}
 	}
 
@@ -217,11 +265,25 @@ func (d *DirtyTracker) extractDirtyRegions(grid *dirtyGrid, width, height int) [
 		return []Rect{}
 	}
 
-	visited := make([][]bool, height)
-	for i := range visited {
-		visited[i] = make([]bool, width)
+	// 使用或分配复用的 visited 数组
+	if d.visited == nil || d.visitedWidth != width || d.visitedHeight != height {
+		d.visited = make([][]bool, height)
+		for i := range d.visited {
+			d.visited[i] = make([]bool, width)
+		}
+		d.visitedWidth = width
+		d.visitedHeight = height
+	} else {
+		// 清空 visited 数组（比重新分配更快）
+		for y := 0; y < height; y++ {
+			row := d.visited[y]
+			for x := 0; x < width; x++ {
+				row[x] = false
+			}
+		}
 	}
 
+	visited := d.visited
 	var regions []Rect
 
 	for y := 0; y < height; y++ {
@@ -234,8 +296,22 @@ func (d *DirtyTracker) extractDirtyRegions(grid *dirtyGrid, width, height int) [
 		}
 	}
 
+	// DEBUG: 调试区域提取
+	if os.Getenv("TUI_RENDER_DEBUG") == "1" {
+		fmt.Fprintf(os.Stderr, "[extractDirtyRegions] found %d regions\n", len(regions))
+		for i, r := range regions {
+			fmt.Fprintf(os.Stderr, "  Region[%d]: X=%d, Y=%d, W=%d, H=%d\n", i, r.X, r.Y, r.Width, r.Height)
+		}
+	}
+
 	// 合并重叠或相邻的区域
-	return d.mergeDirtyRegions(regions)
+	merged := d.mergeDirtyRegions(regions)
+
+	if os.Getenv("TUI_RENDER_DEBUG") == "1" && len(regions) != len(merged) {
+		fmt.Fprintf(os.Stderr, "[extractDirtyRegions] merged from %d to %d regions\n", len(regions), len(merged))
+	}
+
+	return merged
 }
 
 // extractRegion 使用 flood fill 提取单个连续脏区域
