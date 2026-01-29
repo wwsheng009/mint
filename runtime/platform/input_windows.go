@@ -380,10 +380,24 @@ func (r *windowsInputReader) updateWindowSize(handle uintptr) {
 	}
 
 	var info CONSOLE_SCREEN_BUFFER_INFO
-	procGetConsoleScreenBufferInfo.Call(outHandle, uintptr(unsafe.Pointer(&info)))
+	ret, _, _ := procGetConsoleScreenBufferInfo.Call(outHandle, uintptr(unsafe.Pointer(&info)))
+
+	// 检查 API 是否成功
+	if ret == 0 {
+		// GetConsoleScreenBufferInfo 失败，可能不在真正的控制台中
+		// 不发送 resize 事件，保持初始设置的大小
+		return
+	}
 
 	width := int(info.srWindow.Right - info.srWindow.Left + 1)
 	height := int(info.srWindow.Bottom - info.srWindow.Top + 1)
+
+	// 验证尺寸合理性（最小值检查）
+	if width < 10 || height < 5 {
+		// 尺寸异常，可能是 API 调用失败或环境不支持
+		// 不发送 resize 事件
+		return
+	}
 
 	// 检查大小是否变化
 	if width != r.lastWidth || height != r.lastHeight {
