@@ -506,7 +506,12 @@ func (f *FlexLayout) LayoutChildren(width, height int) []LayoutBox {
 				x = f.style.Padding.Left + crossPos
 				y = f.style.Padding.Top + mainPos
 			}
-			mainPos += finalSizes[idx].Width + f.style.Gap
+			// 根据方向增加 mainPos
+			if isRow {
+				mainPos += finalSizes[idx].Width + f.style.Gap
+			} else {
+				mainPos += finalSizes[idx].Height + f.style.Gap
+			}
 			if extraGap > 0 && i < len(f.children)-1 {
 				mainPos += extraGap
 			}
@@ -518,7 +523,12 @@ func (f *FlexLayout) LayoutChildren(width, height int) []LayoutBox {
 				x = f.style.Padding.Left + crossPos
 				y = f.style.Padding.Top + mainPos
 			}
-			mainPos += finalSizes[i].Width + f.style.Gap
+			// 根据方向增加 mainPos
+			if isRow {
+				mainPos += finalSizes[i].Width + f.style.Gap
+			} else {
+				mainPos += finalSizes[i].Height + f.style.Gap
+			}
 			if extraGap > 0 && i < len(f.children)-1 {
 				mainPos += extraGap
 			}

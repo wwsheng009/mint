@@ -148,7 +148,7 @@ func (t *Text) GetState() string {
 func (t *Text) Measure(maxWidth, maxHeight int) (width, height int) {
 	maxLineWidth := 0
 	for _, line := range t.lines {
-		lineWidth := textRuneCount(line)
+		lineWidth := textDisplayWidth(line)  // 使用显示宽度，考虑中文等宽字符
 		if lineWidth > maxLineWidth {
 			maxLineWidth = lineWidth
 		}
@@ -243,16 +243,16 @@ func (t *Text) processLine(line string, width int) string {
 		return ""
 	}
 
-	lineLen := textRuneCount(line)
+	lineWidth := textDisplayWidth(line)
 
 	// 处理自动换行
-	if t.wrap && lineLen > width {
+	if t.wrap && lineWidth > width {
 		return t.wrapLine(line, width)
 	}
 
-	// 处理截断
-	if lineLen > width {
-		return line[:width]
+	// 处理截断（按显示宽度）
+	if lineWidth > width {
+		return t.truncateByDisplayWidth(line, width)
 	}
 
 	return line
@@ -260,11 +260,29 @@ func (t *Text) processLine(line string, width int) string {
 
 // wrapLine 换行处理（返回第一行）
 func (t *Text) wrapLine(line string, width int) string {
-	runes := []rune(line)
-	if len(runes) <= width {
+	// 按显示宽度换行
+	if textDisplayWidth(line) <= width {
 		return line
 	}
-	return string(runes[:width])
+	return t.truncateByDisplayWidth(line, width)
+}
+
+// truncateByDisplayWidth 按显示宽度截断文本
+func (t *Text) truncateByDisplayWidth(line string, maxDisplayWidth int) string {
+	runes := []rune(line)
+	result := make([]rune, 0, len(runes))
+	currentWidth := 0
+
+	for _, r := range runes {
+		charWidth := runeWidth(r)
+		if currentWidth + charWidth > maxDisplayWidth {
+			break
+		}
+		result = append(result, r)
+		currentWidth += charWidth
+	}
+
+	return string(result)
 }
 
 // alignLine 对齐行
