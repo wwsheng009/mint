@@ -13,4 +13,9 @@ type Cell struct {
 
 	// Width is the visual width of the character (usually 1 or 2).
 	Width int
+
+	// IsContinuation marks this cell as a continuation of a wide character
+	// in the previous cell. When IsContinuation is true, this cell should
+	// be skipped during output and diff operations.
+	IsContinuation bool
 }

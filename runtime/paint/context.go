@@ -185,13 +185,19 @@ func (c *PaintContext) SetString(x, y int, text string, s style.Style) {
 		if col < 0 || col >= c.Buffer.Width {
 			break
 		}
+		width := runeWidth(char)
+		// 对于宽字符，需要检查下一个位置是否可用
+		if width == 2 && col+1 >= c.Buffer.Width {
+			break
+		}
 		c.Buffer.SetCell(col, actualY, char, s)
 
 		// 标记脏区域
 		if c.DirtyTracker != nil {
 			c.DirtyTracker.MarkCell(col, actualY)
 		}
-		col++
+		// 按字符宽度递增列位置
+		col += width
 	}
 }
 
@@ -252,8 +258,11 @@ func (c *PaintContext) DrawText(x, y int, text string, align TextAlign, s style.
 		return
 	}
 
-	// 截断文本
-	text = c.truncateText(text, availableWidth)
+	// 截断文本（按显示宽度）
+	text = c.truncateTextByWidth(text, availableWidth)
+
+	// 计算文本的显示宽度
+	textWidth := textDisplayWidth(text)
 
 	// 根据对齐方式计算起始位置
 	var startX int
@@ -261,24 +270,39 @@ func (c *PaintContext) DrawText(x, y int, text string, align TextAlign, s style.
 	case AlignLeft:
 		startX = x
 	case AlignCenter:
-		startX = x + (availableWidth-len(text))/2
+		startX = x + (availableWidth-textWidth)/2
 	case AlignRight:
-		startX = x + availableWidth - len(text)
+		startX = x + availableWidth - textWidth
 	}
 
 	c.SetString(startX, y, text, s)
 }
 
-// truncateText 截断文本到指定宽度
-func (c *PaintContext) truncateText(text string, maxWidth int) string {
+// truncateTextByWidth 按显示宽度截断文本
+func (c *PaintContext) truncateTextByWidth(text string, maxWidth int) string {
 	runes := []rune(text)
-	if len(runes) <= maxWidth {
-		return text
+	currentWidth := 0
+	result := make([]rune, 0, len(runes))
+
+	for _, r := range runes {
+		charWidth := runeWidth(r)
+		if currentWidth+charWidth > maxWidth {
+			break
+		}
+		result = append(result, r)
+		currentWidth += charWidth
 	}
-	if maxWidth <= 3 {
-		return string(runes[:maxWidth])
+
+	return string(result)
+}
+
+// textDisplayWidth 计算文本的显示宽度（考虑宽字符）
+func textDisplayWidth(s string) int {
+	width := 0
+	for _, r := range s {
+		width += runeWidth(r)
 	}
-	return string(runes[:maxWidth-3]) + "..."
+	return width
 }
 
 // Width 返回上下文宽度

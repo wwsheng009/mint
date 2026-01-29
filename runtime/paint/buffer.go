@@ -31,15 +31,29 @@ func NewBuffer(width, height int) *Buffer {
 }
 
 // SetCell sets the character and style at the given coordinates.
-// It handles boundary checks safely.
+// It handles boundary checks safely and marks continuation cells for wide characters.
 func (b *Buffer) SetCell(x, y int, char rune, s style.Style) {
 	if x < 0 || x >= b.Width || y < 0 || y >= b.Height {
 		return
 	}
+	width := runeWidth(char)
+
+	// 设置当前单元格
 	b.Cells[y][x] = Cell{
-		Char:  char,
-		Style: s,
-		Width: runeWidth(char),
+		Char:           char,
+		Style:          s,
+		Width:          width,
+		IsContinuation: false,
+	}
+
+	// 对于宽字符，标记下一个单元格为延续
+	if width == 2 && x+1 < b.Width {
+		b.Cells[y][x+1] = Cell{
+			Char:           0,
+			Style:          s,
+			Width:          0,
+			IsContinuation: true, // 标记为延续单元格
+		}
 	}
 }
 
@@ -81,6 +95,12 @@ func (b *Buffer) SetString(x, y int, text string, s style.Style) {
 		if width == 2 && col+1 >= b.Width {
 			break
 		}
+
+		// 清除当前位置可能是延续单元格的状态
+		if b.Cells[y][col].IsContinuation {
+			b.Cells[y][col] = Cell{}
+		}
+
 		b.SetCell(col, y, char, s)
 		col += width
 	}
@@ -92,6 +112,49 @@ func (b *Buffer) Fill(rect Rect, char rune, s style.Style) {
 		for x := rect.X; x < rect.X+rect.Width; x++ {
 			b.SetCell(x, y, char, s)
 		}
+	}
+}
+
+// ==============================================================================
+// Wide Character Helper Functions
+// ==============================================================================
+
+// IsCellChanged 比较两个单元格是否不同，正确处理宽字符
+// 如果 cell 是延续单元格，则忽略（不认为它变化）
+func IsCellChanged(cell, prevCell Cell) bool {
+	// 跳过延续单元格
+	if cell.IsContinuation || prevCell.IsContinuation {
+		return false
+	}
+	// 比较字符和样式
+	return cell.Char != prevCell.Char || cell.Style != prevCell.Style
+}
+
+// GetCellWidth 获取单元格的显示宽度
+// 如果是延续单元格，返回 0
+func GetCellWidth(cell Cell) int {
+	if cell.IsContinuation {
+		return 0
+	}
+	return cell.Width
+}
+
+// ShouldSkipCell 判断是否应该跳过输出此单元格
+func ShouldSkipCell(cell Cell) bool {
+	return cell.IsContinuation
+}
+
+// ClearWideChar 清除从 (x,y) 开始的宽字符
+// 如果该位置的字符是宽字符，会同时清除其延续单元格
+func (b *Buffer) ClearWideChar(x, y int) {
+	if x < 0 || x >= b.Width || y < 0 || y >= b.Height {
+		return
+	}
+	cell := b.Cells[y][x]
+	b.Cells[y][x] = Cell{}
+	// 如果是宽字符，清除下一个位置
+	if cell.Width == 2 && x+1 < b.Width {
+		b.Cells[y][x+1] = Cell{}
 	}
 }
 
