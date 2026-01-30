@@ -16,6 +16,12 @@ type EventID uint64
 // FrameID is a unique identifier for a frame.
 type FrameID int
 
+// LayoutID is a unique identifier for a layout change in the causal graph.
+type LayoutID uint64
+
+// RepaintID is a unique identifier for a repaint operation in the causal graph.
+type RepaintID uint64
+
 // ChangeMask is a bitmask indicating which fields of a node have changed.
 type ChangeMask uint8
 
