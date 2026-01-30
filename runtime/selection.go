@@ -169,11 +169,11 @@ func (m *SelectionManager) GetSelectedText() string {
 			cell := m.buffer.GetContent(x, y)
 
 			// Check if this cell has styled text
-			if "" != "" {
+			if cell.Cluster != "" && !cell.IsContinuation {
 				// This is the start of a styled text region
 				// Extract visible characters from styled text (excluding ANSI codes)
-				visibleChars := extractVisibleText("")
-				visibleLen := countVisibleCharsInStyledText("")
+				visibleChars := extractVisibleText(cell.Cluster)
+				visibleLen := countVisibleCharsInStyledText(cell.Cluster)
 
 				// Calculate the actual visible text we can take
 				// We need to account for any offset within the styled text
@@ -206,7 +206,7 @@ func (m *SelectionManager) GetSelectedText() string {
 
 				// Skip to the end of this styled text region
 				x += visibleLen
-			} else if cell.Cluster == "" || cell.Cluster == "\x00" && "" == "" {
+			} else if (cell.Cluster == "" || cell.Cluster == "\x00") && cell.IsContinuation {
 				// This might be a continuation cell of a styled text region
 				// Scan backwards to find the start of the styled text
 				styledText, spatialOffset := findStyledTextStart(m.buffer, x, y)
@@ -308,21 +308,25 @@ func findStyledTextStart(buffer *CellBuffer, x, y int) (string, int) {
 	// Scan backwards from x to find the cell with StyledText
 	for scanX := x; scanX >= 0; scanX-- {
 		cell := buffer.GetContent(scanX, y)
-		if "" != "" {
-			// Found the start of the styled text region
-			// Calculate the offset from this start to position x
-			// The offset is simply the distance from scanX to x
-			offset := x - scanX
-			return "", offset
+
+		// Skip continuation cells
+		if cell.IsContinuation {
+			continue
 		}
-		// Also check if we hit a cell with a real character (not part of styled text)
-		// Note: Continuation cells have Char=' ', so we exclude space from this check
-		if cell.Cluster != "" && cell.Cluster != "\x00" && cell.Cluster != " " {
-			// Hit a regular cell with a non-space character
-			// This is not part of a styled text region
-			return "", 0
+
+		// Skip empty cells (null character)
+		if cell.Cluster == "" || cell.Cluster == "\x00" {
+			continue
 		}
-		// Continue scanning for continuation cells (Char=' ') and empty cells (Char=0)
+
+		// Skip default empty cells (space character)
+		if cell.Cluster == " " {
+			continue
+		}
+
+		// Found a cell with content - this is the start of a styled text region
+		offset := x - scanX
+		return cell.Cluster, offset
 	}
 
 	return "", 0
