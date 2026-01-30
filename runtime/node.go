@@ -60,6 +60,11 @@ type LayoutNode struct {
 
 	// cacheKey is used for measurement caching
 	cacheKey string
+
+	// LayoutVersion is the version number for layout changes.
+	// This is used by DevTools to detect layout deltas without deep comparison.
+	// Incremented whenever the node's layout changes.
+	LayoutVersion uint32
 }
 
 // NewLayoutNode creates a new LayoutNode
@@ -110,6 +115,7 @@ func (n *LayoutNode) MarkLayoutDirty() {
 		return
 	}
 	n.layoutDirty = true
+	n.LayoutVersion++ // Increment version for DevTools delta detection
 	// Size change may affect parent layout
 	if n.Parent != nil {
 		n.Parent.MarkLayoutDirty()
@@ -259,4 +265,48 @@ func (lr *LayoutResult) FindBoxByID(id string) *LayoutBox {
 		}
 	}
 	return nil
+}
+
+// InvalidateLayout marks the node as layout dirty and increments the layout version.
+// This is called by DevTools to track layout changes.
+func (n *LayoutNode) InvalidateLayout() {
+	if n == nil {
+		return
+	}
+	n.LayoutVersion++
+	n.layoutDirty = true
+}
+
+// SetPosition sets the position of the node and increments layout version.
+// This is called by the layout engine and tracked by DevTools.
+func (n *LayoutNode) SetPosition(x, y int) {
+	if n == nil {
+		return
+	}
+	if n.X != x || n.Y != y {
+		n.X = x
+		n.Y = y
+		n.LayoutVersion++
+	}
+}
+
+// SetSize sets the measured size of the node and increments layout version.
+// This is called by the layout engine and tracked by DevTools.
+func (n *LayoutNode) SetSize(width, height int) {
+	if n == nil {
+		return
+	}
+	if n.MeasuredWidth != width || n.MeasuredHeight != height {
+		n.MeasuredWidth = width
+		n.MeasuredHeight = height
+		n.LayoutVersion++
+	}
+}
+
+// GetLayoutVersion returns the current layout version of the node.
+func (n *LayoutNode) GetLayoutVersion() uint32 {
+	if n == nil {
+		return 0
+	}
+	return n.LayoutVersion
 }

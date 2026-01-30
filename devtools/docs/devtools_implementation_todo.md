@@ -1,14 +1,55 @@
 # TUI DevTools 实施计划 TODO LIST
 
 > **项目**: Mint TUI Runtime
-> **文档版本**: 1.0
+> **文档版本**: 1.1
 > **创建日期**: 2026-01-30
-> **状态**: 实施阶段
+> **更新日期**: 2026-01-30
+> **状态**: 阶段1 已完成
 
+> **文档位置**: `devtools/docs/`
+>
 > **实施基础**:
-> - 设计文档: `idea5_devtools_implementation_v2.md`
-> - 架构审查: `idea5_review.md`
-> - 当前系统分析: 已完成
+> - 设计文档: `implementation_v2.md`
+> - 原始评审: `../../framework/docs/buffer/idea5_review.md`
+
+---
+
+## 📊 当前状态 (2026-01-30)
+
+### 阶段 1: 增量基础 (P0) - ✅ 已完成
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    阶段1 完成状态                                 │
+├─────────────────────────────────────────────────────────────────┤
+│  编译状态    │  ✅ 通过                                          │
+│  测试状态    │  ✅ 16/16 通过                                    │
+│  循环依赖    │  ✅ 无 (devtools → runtime 单向依赖)               │
+│                                                                  │
+│  已实现模块:                                                       │
+│  ✅ Runtime LayoutVersion 支持                                    │
+│  ✅ Debug ID 注册表系统                                          │
+│  ✅ 核心类型定义 (types.go)                                     │
+│  ✅ Lock-Free 事件总线 (bus.go)                                │
+│  ✅ Mutation Tap (tap.go)                                      │
+│  ✅ Layout/Event 增量收集器 (collector.go)                       │
+│  ✅ 异步收集器协调 (async_collector.go)                         │
+│  ✅ DevTools 主入口 (devtools.go)                              │
+│  ✅ 单元测试 (devtools_test.go)                                │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### 实施进度
+
+```
+阶段 1: ████████████████████████████████████████  增量基础 (P0) ✅ 100%
+阶段 2: ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  因果链 (P1)   0%
+阶段 3: ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  时间旅行 (P2) 0%
+阶段 4: ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  确定性回放 (P2) 0%
+阶段 5: ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  客户端 (P3)   0%
+阶段 6: ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  高级功能 (未来) 0%
+```
 
 ---
 
@@ -27,34 +68,57 @@
 
 ## 一、系统架构分析总结
 
-### 1.1 现有基础设施
+### 1.1 现有基础设施 (已更新)
 
 | 模块 | 位置 | 状态 | DevTools 相关性 |
 |------|------|------|----------------|
-| LayoutNode | `runtime/node.go` | ✅ 完善 | 需添加 `LayoutVersion` 字段 |
+| LayoutNode | `runtime/node.go` | ✅ 已更新 | ✅ 添加 `LayoutVersion` 字段 |
+| DebugID | `runtime/debug_id.go` | ✅ 新建 | ✅ ID 注册表系统 |
 | Buffer | `runtime/paint/buffer.go` | ✅ 完善 | 支持宽字符和 diff 模式 |
 | Layout Engine | `runtime/layout/` | ✅ 完善 | 需暴露 `DebugView` 接口 |
 | Event System | `runtime/event/` | ✅ 完善 | 需添加事件记录 Hook |
 | RenderDebug | `runtime/debug.go` | ✅ 存在 | 快照式，需升级为增量 |
-| DevTools | `devtools/` | ❌ 空目录 | 需从零创建 |
+| DevTools | `devtools/` | ✅ 已实现 | 核心模块已完成 |
 
-### 1.2 架构优势
+### 1.2 已实现的文件结构
 
-1. **Dirty 标志已存在**: `layoutDirty` 和 `paintDirty` 可直接用于增量检测
-2. **Buffer 系统完善**: 支持 Cell 级别的变化检测
-3. **清晰的分层**: layout/paint/event 分离良好
-4. **LayoutBox 结构**: 已有最终布局结果表示
+```
+mint/
+├── runtime/
+│   ├── node.go              # 修改: 添加 LayoutVersion 和辅助方法
+│   └── debug_id.go          # 新建: Debug ID 注册表
+│
+└── devtools/
+    ├── types.go              # 核心类型定义
+    ├── bus.go                # Lock-Free 事件总线
+    ├── tap.go                # Mutation Tap
+    ├── collector.go          # 增量收集器
+    ├── async_collector.go    # 异步协调器
+    ├── devtools.go           # 主入口 API
+    ├── devtools_test.go      # 单元测试
+    │
+    ├── docs/                 # 📚 文档目录
+    │   ├── README.md          # 文档索引
+    │   ├── implementation_todo.md  # 本文档
+    │   ├── implementation_v2.md    # 架构设计 V2.0
+    │   └── phase1_summary.md       # 阶段1 完成总结
+    │
+    ├── causal/               # 阶段2: 因果链引擎 (待实施)
+    ├── timetravel/           # 阶段3: 时间旅行 (待实施)
+    ├── replay/               # 阶段4: 确定性回放 (待实施)
+    └── client/               # 阶段5: 客户端 (待实施)
+```
 
-### 1.3 架构风险（来自审查文档）
+### 1.3 架构风险解决状态
 
-| 风险 | 级别 | 影响 | 解决方案 |
+| 风险 | 级别 | 状态 | 解决方案 |
 |------|------|------|----------|
-| 每帧全量快照 | P0 | GC 暴涨/CPU 抢占 | 增量 Delta 模型 |
-| 同步观察者 | P0 | 主循环阻塞 | 异步事件总线 |
-| LayoutCollector 复制布局 | P0 | 重复计算 | Runtime 暴露调试视图 |
-| DebugOverlay 污染渲染 | P1 | diff 失真 | 独立 Overlay Buffer |
-| Event Trace 缺时间线 | P1 | 无法因果分析 | FrameTimeline 模型 |
-| 协议层缺流控 | P2 | OOM 风险 | 背压机制 |
+| 每帧全量快照 | P0 | ✅ 已解决 | 增量 Delta 模型 |
+| 同步观察者 | P0 | ✅ 已解决 | 异步事件总线 |
+| LayoutCollector 复制布局 | P0 | ✅ 已解决 | 直接读取 LayoutVersion |
+| DebugOverlay 污染渲染 | P1 | ✅ 已解决 | 独立 DebugOverlay |
+| Event Trace 缺时间线 | P1 | 🚧 计划中 | FrameTimeline 模型 (阶段2) |
+| 协议层缺流控 | P2 | ✅ 已解决 | Channel 背压处理 |
 
 ---
 
@@ -65,7 +129,7 @@
 │                    TUI DevTools 实施路线图                        │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                  │
-│  阶段 1: ████████████████████░░░░░░░░░░░░░░░░  增量基础 (P0)    │
+│  阶段 1: ████████████████████████████████████████  增量基础 (P0) ✅│
 │    ├─ Layout Delta Collector                                     │
 │    ├─ Mutation Tap (Lock-Free Ring Buffer)                       │
 │    ├─ 异步事件总线                                                │
