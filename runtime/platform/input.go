@@ -248,17 +248,32 @@ func (w *defaultInputReaderWrapper) ReadEvent() (RawInput, error) {
 
 // RestoreTerminal 恢复终端到正常模式
 //
-// 这是一个安全的兜底函数，用于在程序异常退出时恢复终端状态。
-// 它会恢复行缓冲模式和回显，使 fmt.Scanln 等标准输入函数正常工作。
+// 🔥 这是应用层的恢复机制（多层防御系统的第 2 层）
 //
-// 应该在 main 函数的 defer 中调用，确保即使 panic 或异常退出也能恢复终端。
+// 恢复顺序（从内到外）：
 //
-// 示例：
+// 1. Engine 层（第 1 层）：Engine.Run() 的 defer cleanup() → inputReader.Stop() → 恢复 originalMode
+// 2. 应用层（第 2 层，这里）：main() 的 defer RestoreTerminal() → 强制恢复到安全模式（保险）
+// 3. 进程层（第 3 层）：init() 的信号处理 → Ctrl+C 时强制恢复（兜底）
+//
+// 为什么需要多层防御？
+//
+// 终端模式污染是致命问题，一次污染就会导致 shell 永久损坏。
+// 多层防御确保即使某一层失败，其他层仍能恢复终端。
+//
+// 使用示例：
 //
 //	func main() {
-//	    defer platform.RestoreTerminal()
+//	    defer platform.RestoreTerminal()  // 第 2 层防御
 //	    // ... 你的代码
 //	}
+//
+// 注意事项：
+// - 这个函数会直接恢复到 Windows 安全模式，不依赖任何内部状态
+// - 性能开销极小（只调用一次系统 API），但安全性提升显著
+// - 即使 Engine 的恢复有 bug，这里也能兜底
+//
+// 工业级 TUI 程序的最佳实践：宁可过度保护，不可终端污染。
 func RestoreTerminal() {
 	restoreTerminalImpl()
 }
