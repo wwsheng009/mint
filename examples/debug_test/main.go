@@ -11,6 +11,7 @@ import (
 	"github.com/wwsheng009/mint/runtime/engine"
 	"github.com/wwsheng009/mint/runtime/event"
 	"github.com/wwsheng009/mint/runtime/paint"
+	"github.com/wwsheng009/mint/runtime/platform"
 	"github.com/wwsheng009/mint/runtime/style"
 )
 
@@ -340,6 +341,10 @@ func DebugExample() error {
 
 func main() {
 	defer func() {
+		// 最先恢复终端控制台模式（必须在所有其他操作之前）
+		// 这会恢复 ENABLE_LINE_INPUT 和 ENABLE_ECHO_INPUT，让 fmt.Scanln 等正常工作
+		platform.RestoreTerminal()
+
 		fmt.Print("\x1b[?25h") // 显示光标
 		fmt.Print("\x1b[0m")  // 重置样式
 		fmt.Print("\x1b[H")   // 光标移到左上角

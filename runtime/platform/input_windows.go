@@ -4,6 +4,9 @@
 package platform
 
 import (
+	"fmt"
+	"os"
+	"os/signal"
 	"sync"
 	"syscall"
 	"time"
@@ -49,6 +52,10 @@ func (r *windowsInputReader) Start(events chan<- RawInput) error {
 		return err
 	}
 
+	// 🔥 关键修复：先重置控制台到安全模式，防止上次崩溃遗毒
+	r.resetConsoleToSaneMode(handle)
+
+	// 保存原始模式（现在保证是安全模式）
 	r.originalMode = r.getConsoleMode(handle)
 
 	// 设置原始输入模式以获得逐字符输入
@@ -432,13 +439,31 @@ const (
 	ENABLE_EXTENDED_FLAGS         = 0x0080 // 扩展标志
 	ENABLE_VIRTUAL_TERMINAL_INPUT = 0x0200 // VT 输入处理
 
-	STD_INPUT_HANDLE  = ^uintptr(10 - 1) // -10 as unsigned
-	STD_OUTPUT_HANDLE = ^uintptr(11 - 1) // -11 as unsigned
-
-	KEY_EVENT                  = 0x0001
-	MOUSE_EVENT                = 0x0002
-	WINDOW_BUFFER_SIZE_EVENT   = 0x0004
+	STD_INPUT_HANDLE         = ^uintptr(10 - 1) // -10 as unsigned
+	STD_OUTPUT_HANDLE        = ^uintptr(11 - 1) // -11 as unsigned
+	KEY_EVENT                = 0x0001
+	MOUSE_EVENT              = 0x0002
+	WINDOW_BUFFER_SIZE_EVENT = 0x0004
 )
+
+// resetConsoleToSaneMode 重置控制台到安全模式
+//
+// 🔥 关键函数：防止上次崩溃遗毒
+//
+// 如果程序上次崩溃，控制台可能处于 raw 模式。
+// 如果直接保存这个模式作为 "originalMode"，Stop() 恢复时就是错的。
+//
+// 必须先强制重置到 Windows 默认的安全模式，然后再保存。
+func (r *windowsInputReader) resetConsoleToSaneMode(handle uintptr) {
+	// Windows 默认 console input 模式（安全模式）
+	saneMode := uint32(
+		ENABLE_PROCESSED_INPUT | // 系统处理 Ctrl+C 和特殊字符
+			ENABLE_LINE_INPUT | // 行缓冲模式（fmt.Scanln 必需）
+			ENABLE_ECHO_INPUT | // 回显输入
+			ENABLE_EXTENDED_FLAGS, // 扩展标志
+	)
+	procSetConsoleMode.Call(handle, uintptr(saneMode))
+}
 
 type INPUT_RECORD struct {
 	EventType uint16
@@ -457,10 +482,10 @@ type KEY_EVENT_RECORD struct {
 
 // MOUSE_EVENT_RECORD 鼠标事件记录
 type MOUSE_EVENT_RECORD struct {
-	MousePosition    COORD
-	ButtonState      uint32
-	ControlKeyState  uint32
-	EventFlags       uint32
+	MousePosition   COORD
+	ButtonState     uint32
+	ControlKeyState uint32
+	EventFlags      uint32
 }
 
 // 鼠标按钮状态掩码
@@ -474,18 +499,18 @@ const (
 
 // 鼠标事件标志
 const (
-	DOUBLE_CLICK = 0x0002
-	MOUSE_MOVED   = 0x0001
-	MOUSE_WHEELED = 0x0004
+	DOUBLE_CLICK   = 0x0002
+	MOUSE_MOVED    = 0x0001
+	MOUSE_WHEELED  = 0x0004
 	MOUSE_HWHEELED = 0x0008
 )
 
 // CONSOLE_SCREEN_BUFFER_INFO 控制台屏幕缓冲区信息
 type CONSOLE_SCREEN_BUFFER_INFO struct {
 	dwSize              COORD
-	dwCursorPosition   COORD
-	wAttributes        uint16
-	srWindow           SMALL_RECT
+	dwCursorPosition    COORD
+	wAttributes         uint16
+	srWindow            SMALL_RECT
 	dwMaximumWindowSize COORD
 }
 
@@ -502,13 +527,13 @@ type SMALL_RECT struct {
 }
 
 var (
-	kernel32                         = syscall.NewLazyDLL("kernel32.dll")
-	procGetConsoleMode               = kernel32.NewProc("GetConsoleMode")
-	procSetConsoleMode               = kernel32.NewProc("SetConsoleMode")
-	procGetStdHandle                 = kernel32.NewProc("GetStdHandle")
-	procReadConsoleInput             = kernel32.NewProc("ReadConsoleInputW")
+	kernel32                          = syscall.NewLazyDLL("kernel32.dll")
+	procGetConsoleMode                = kernel32.NewProc("GetConsoleMode")
+	procSetConsoleMode                = kernel32.NewProc("SetConsoleMode")
+	procGetStdHandle                  = kernel32.NewProc("GetStdHandle")
+	procReadConsoleInput              = kernel32.NewProc("ReadConsoleInputW")
 	procGetNumberOfConsoleInputEvents = kernel32.NewProc("GetNumberOfConsoleInputEvents")
-	procGetConsoleScreenBufferInfo  = kernel32.NewProc("GetConsoleScreenBufferInfo")
+	procGetConsoleScreenBufferInfo    = kernel32.NewProc("GetConsoleScreenBufferInfo")
 )
 
 // restoreTerminalImpl Windows 终端恢复实现
@@ -516,7 +541,14 @@ func restoreTerminalImpl() {
 	handle, _, _ := procGetStdHandle.Call(STD_INPUT_HANDLE)
 	if handle != 0 {
 		// 恢复到默认控制台模式
-		defaultMode := uint32(ENABLE_EXTENDED_FLAGS | ENABLE_WINDOW_INPUT)
+		// Windows 默认模式：PROCESSED_INPUT + LINE_INPUT + ECHO_INPUT + EXTENDED_FLAGS
+		// 这些标志对 fmt.Scanln 等标准输入函数的正确工作至关重要
+		defaultMode := uint32(
+			ENABLE_PROCESSED_INPUT | // 系统处理 Ctrl+C 和特殊字符（包括 Enter）
+				ENABLE_LINE_INPUT | // 行缓冲模式（按 Enter 才返回）
+				ENABLE_ECHO_INPUT | // 回显输入
+				ENABLE_EXTENDED_FLAGS, // 扩展标志
+		)
 		procSetConsoleMode.Call(handle, uintptr(defaultMode))
 	}
 
@@ -531,3 +563,23 @@ func restoreTerminalImpl() {
 const (
 	ENABLE_VIRTUAL_TERMINAL_PROCESSING = 0x0004
 )
+
+// init 安装进程级终端恢复保险丝
+//
+// 🔥 工业级保护：即使程序 panic、强制关闭，也会恢复终端
+//
+// 这是最后一道防线，确保终端永远不会被永久污染。
+func init() {
+	go func() {
+		// 监听中断信号
+		ch := make(chan os.Signal, 1)
+		signal.Notify(ch, os.Interrupt, syscall.SIGTERM)
+
+		sig := <-ch
+		// 强制恢复终端
+		restoreTerminalImpl()
+		// 输出提示信息（注意：此时终端可能处于异常状态）
+		fmt.Fprintf(os.Stderr, "\n[WARNING] Received signal %v, terminal restored\n", sig)
+		os.Exit(1)
+	}()
+}

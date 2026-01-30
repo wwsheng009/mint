@@ -246,6 +246,23 @@ func (w *defaultInputReaderWrapper) ReadEvent() (RawInput, error) {
 	return w.impl.ReadEvent()
 }
 
+// RestoreTerminal 恢复终端到正常模式
+//
+// 这是一个安全的兜底函数，用于在程序异常退出时恢复终端状态。
+// 它会恢复行缓冲模式和回显，使 fmt.Scanln 等标准输入函数正常工作。
+//
+// 应该在 main 函数的 defer 中调用，确保即使 panic 或异常退出也能恢复终端。
+//
+// 示例：
+//
+//	func main() {
+//	    defer platform.RestoreTerminal()
+//	    // ... 你的代码
+//	}
+func RestoreTerminal() {
+	restoreTerminalImpl()
+}
+
 // inputReaderImpl 平台特定实现接口
 type inputReaderImpl interface {
 	Start(events chan<- RawInput) error

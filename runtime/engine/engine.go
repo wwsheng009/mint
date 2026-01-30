@@ -281,7 +281,8 @@ func (e *Engine) Run() error {
 		return err
 	}
 
-	// 清理函数 - 确保总是执行
+	// 🔥 关键修复：使用 defer 确保任何退出路径都会执行 cleanup
+	// 这包括 panic、os.Exit（在 defer 之后调用）、正常返回等
 	cleanup := func() {
 		if e.inputReader != nil {
 			e.inputReader.Stop()
@@ -296,6 +297,7 @@ func (e *Engine) Run() error {
 		// 移动光标到左上角
 		fmt.Print("\x1b[H")
 	}
+	defer cleanup() // 🔥 立即 defer，确保任何退出都会执行
 
 	// 设置信号处理
 	sigChan := make(chan os.Signal, 1)
@@ -305,8 +307,7 @@ func (e *Engine) Run() error {
 	go func() {
 		sig := <-sigChan
 		fmt.Printf("\n[Engine] Received signal: %v, cleaning up...\n", sig)
-		cleanup()
-		// 通过关闭 quit channel 让 Run() 正常返回，而不是强制退出
+		// 通过关闭 quit channel 让 Run() 正常返回，让 defer cleanup 执行
 		select {
 		case <-e.quit:
 			// 已经关闭
@@ -357,9 +358,8 @@ func (e *Engine) Run() error {
 		}
 	}()
 
-	// 清理
+	// 清理 ticker
 	ticker.Stop()
-	cleanup()
 	signal.Stop(sigChan)
 	close(sigChan)
 
