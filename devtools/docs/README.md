@@ -21,6 +21,19 @@
 | [phase4_summary.md](./phase4_summary.md) | 阶段4: 确定性回放实施总结 | ✅ 已完成 |
 | [phase5_summary.md](./phase5_summary.md) | 阶段5: 客户端实施总结 | ✅ 已完成 |
 
+### 🧪 问题分析
+
+| 文档 | 说明 | 状态 |
+|------|------|------|
+| [phase1_5_issues_analysis.md](./phase1_5_issues_analysis.md) | 阶段1-5潜在问题分析报告 | ✅ 已完成 |
+
+### 📐 设计文档
+
+| 文档 | 说明 | 状态 |
+|------|------|------|
+| [phase6_design.md](./phase6_design.md) | 阶段6: 高级功能详细设计方案 (初稿) |
+| [phase6_design_v2.md](./phase6_design_v2.md) | 阶段6: 智能分析层设计方案 V2.0 (修订版) | ✅ 已完成 |
+
 ### 📝 原始设计文档
 
 这些文档位于 `framework/docs/buffer/` 目录，是设计过程中的原始讨论和评审：
