@@ -46,6 +46,22 @@
 | [idea5_review.md](../../framework/docs/buffer/idea5_review.md) | 架构审查文档 |
 | [idea5_devtools_implementation_v2.md](../../framework/docs/buffer/idea5_devtools_implementation_v2.md) | 实施文档 V2.0 |
 
+### 📦 模块文档
+
+每个模块都有独立的文档说明其功能和使用方法：
+
+| 模块 | 说明 | 文档 |
+|------|------|------|
+| [client](../client/readme.md) | 调试客户端、协议处理、可视化 | TUI 面板、WebSocket 协议 |
+| [memory](../memory/readme.md) | 内存优化 | 环形缓冲区、自适应采样、内存监控 |
+| [observation](../observation/readme.md) | 观察层 | 数据收集、统计分析、模式检测 |
+| [protocol](../protocol/readme.md) | 类型定义、常量 | 核心类型系统 |
+| [remote](../remote/readme.md) | 远程调试 | WebSocket、HTTP API、Chromium 集成 |
+| [replay](../replay/readme.md) | 确定性回放 | 事件录制、回放引擎 |
+| [snapshot](../snapshot/readme.md) | 快照系统 | 状态捕获、差异比较 |
+| [testing](../testing/readme.md) | 测试工具 | Mock、Fixture、断言 |
+| [timetravel](../timetravel/readme.md) | 时间旅行 | 帧快照、状态导航 |
+
 ---
 
 ## 快速导航
