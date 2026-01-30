@@ -10,7 +10,7 @@ import (
 	"github.com/wwsheng009/mint/devtools"
 	"github.com/wwsheng009/mint/devtools/client"
 	"github.com/wwsheng009/mint/devtools/observation"
-	"github.com/wwsheng009/mint/devtools/observation/v1"
+	v1 "github.com/wwsheng009/mint/devtools/observation/v1"
 	"github.com/wwsheng009/mint/framework"
 	"github.com/wwsheng009/mint/framework/component"
 	"github.com/wwsheng009/mint/framework/event"
@@ -62,7 +62,7 @@ func logEvent(format string, args ...interface{}) {
 		debugState.eventLog = debugState.eventLog[1:]
 	}
 	debugState.Unlock()
-	fmt.Printf("[DEBUG] %s\n", msg)
+	// fmt.Printf("[DEBUG] %s\n", msg)
 }
 
 // =============================================================================

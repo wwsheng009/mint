@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/wwsheng009/mint/devtools/standalone"
 	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/engine"
 	"github.com/wwsheng009/mint/runtime/event"
@@ -26,12 +27,25 @@ var (
 		lastEvent  string
 		eventLog   []string
 	}
+
+	// 独立 Logger - 不依赖被调试程序状态
+	logger *standalone.Logger
 )
 
 func init() {
 	debugState.eventLog = make([]string, 0, 10)
 	debugState.mouseX = -1
 	debugState.mouseY = -1
+
+	// 初始化独立 Logger
+	var err error
+	logger, err = standalone.NewLogger(nil)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to initialize logger: %v\n", err)
+	} else {
+		logger.LogMessage("Logger initialized")
+		fmt.Printf("[DevTools] Logger started: %s\n", logger.GetPath())
+	}
 }
 
 func logEvent(format string, args ...interface{}) {
@@ -44,6 +58,11 @@ func logEvent(format string, args ...interface{}) {
 	}
 	debugState.Unlock()
 	// fmt.Printf("[DEBUG] %s\n", msg)
+
+	// 记录到日志文件（即使程序有问题，日志也会写入）
+	if logger != nil {
+		logger.LogMessage(msg)
+	}
 }
 
 func updateMousePos(x, y int) {
@@ -51,6 +70,11 @@ func updateMousePos(x, y int) {
 	debugState.mouseX = x
 	debugState.mouseY = y
 	debugState.Unlock()
+
+	// 记录鼠标移动到日志文件
+	if logger != nil {
+		logger.LogMouseEvent("root", x, y, "move", "")
+	}
 }
 
 func getMousePos() (int, int) {
@@ -159,6 +183,20 @@ func (b *Button) HandleMouse(ev *event.MouseEvent, localX, localY int) bool {
 	logEvent("Button %s received mouse event: Type=%v Click=%v Pos=(%d,%d)",
 		b.id, ev.Type, ev.Click, localX, localY)
 
+	// 记录鼠标事件到日志文件
+	if logger != nil {
+		clickType := "none"
+		switch ev.Click {
+		case event.MouseLeft:
+			clickType = "left"
+		case event.MouseMiddle:
+			clickType = "middle"
+		case event.MouseRight:
+			clickType = "right"
+		}
+		logger.LogMouseEvent(b.id, localX, localY, string(ev.Type), clickType)
+	}
+
 	if ev.Type == event.MousePress && ev.Click == event.MouseLeft {
 		logEvent("Button %s CLICKED! Triggering callback", b.id)
 		if b.onClick != nil {
@@ -173,6 +211,12 @@ func (b *Button) HandleMouse(ev *event.MouseEvent, localX, localY int) bool {
 func (b *Button) SetFocus(focus bool) {
 	b.focused = focus
 	logEvent("Button %s SetFocus(%v)", b.id, focus)
+
+	// 记录焦点变化到日志文件
+	if logger != nil {
+		logger.LogFocusEvent(b.id, focus)
+	}
+
 	if b.onFocus != nil {
 		b.onFocus(focus)
 	}
@@ -277,6 +321,17 @@ func (r *Root) ID() string {
 // AddButton 添加按钮
 func (r *Root) AddButton(btn *Button) {
 	r.buttons = append(r.buttons, btn)
+
+	// 记录组件添加到日志文件
+	if logger != nil {
+		logger.LogComponentAdd(btn.id, "Button", map[string]interface{}{
+			"text":   btn.text,
+			"x":      btn.x,
+			"y":      btn.y,
+			"width":  btn.width,
+			"height": btn.height,
+		})
+	}
 }
 
 // SetFocusedButton 设置焦点按钮
@@ -302,7 +357,7 @@ func (r *Root) Paint(buf *paint.Buffer) {
 
 	// 绘制标题
 	titleStyle := style.Style{}.Foreground(style.Cyan).Bold(true)
-	buf.SetString(2, 1, "Engine Example - Interactive Demo", titleStyle)
+	buf.SetString(2, 1, "Engine Example - with Standalone Logger", titleStyle)
 
 	// 绘制说明
 	infoStyle := style.Style{}.Foreground(style.White)
@@ -351,6 +406,13 @@ func (r *Root) drawStatusBar(buf *paint.Buffer) {
 	frameText := fmt.Sprintf("Frame: %d", r.frameCount)
 	buf.SetString(r.width-len(frameText)-2, r.height-3, frameText, style.Style{}.Foreground(style.BrightBlack))
 
+	// 显示 Logger 状态
+	loggerStatus := "Logger: OFF"
+	if logger != nil && logger.IsEnabled() {
+		loggerStatus = "Logger: ON (recording to file)"
+	}
+	buf.SetString(2, r.height-4, loggerStatus, style.Style{}.Foreground(style.Yellow))
+
 	// 显示最后事件
 	debugState.RLock()
 	lastEvent := debugState.lastEvent
@@ -370,6 +432,11 @@ func (r *Root) Update(dt time.Duration) {
 	r.cursor.Update(dt)
 	r.frameCount++
 	r.lastUpdate = time.Now()
+
+	// 记录帧更新
+	if logger != nil {
+		logger.BeginFrame()
+	}
 }
 
 // BuildLayoutBoxes 构建布局框用于命中测试
@@ -429,6 +496,8 @@ func EngineExample() error {
 		height = 15
 	)
 
+	logEvent("EngineExample starting...")
+
 	// 创建根组件
 	root := NewRoot("root", width, height)
 
@@ -440,8 +509,9 @@ func EngineExample() error {
 	// 创建引擎（需要先创建以便按钮可以调用 Stop）
 	eng := engine.New(width, height, root)
 
-	// 启用固定大小模式 - 忽略终端大小变化事件，保持指定的缓冲区大小
-	// 这可以防止在某些环境下（非真实控制台）终端大小检测失败导致缓冲区被重置
+	logEvent("Engine created")
+
+	// 启用固定大小模式
 	eng.SetFixedSize(true)
 
 	// 设置按钮回调
@@ -456,7 +526,7 @@ func EngineExample() error {
 	btn3.SetOnClick(func() {
 		logEvent(">>> Exit button clicked, quitting... <<<")
 		fmt.Println("\n[Exit] Stopping engine...")
-		eng.Stop() // 优雅退出，而不是 os.Exit
+		eng.Stop()
 	})
 
 	// 设置焦点变化回调
@@ -482,6 +552,8 @@ func EngineExample() error {
 	root.AddButton(btn2)
 	root.AddButton(btn3)
 
+	logEvent("Added 3 buttons to root")
+
 	// 设置输出函数
 	eng.SetOutputFunc(func(output string) {
 		if output != "" {
@@ -489,22 +561,19 @@ func EngineExample() error {
 		}
 	})
 
-	// 设置鼠标移动回调 - 用于显示鼠标位置
+	// 设置鼠标移动回调
 	eng.SetMouseMoveCallback(func(x, y int) {
 		updateMousePos(x, y)
 	})
 
-	// 设置布局框用于命中测试
+	// 设置布局框
 	boxes := root.BuildLayoutBoxes()
 	eng.SetLayoutBoxes(boxes)
 
-	// 终端初始化
-	fmt.Print("\x1b[?25l") // 隐藏光标
-	fmt.Print("\x1b[2J")  // 清屏
-	fmt.Print("\x1b[H")   // 光标移到左上角
+	logEvent("Layout boxes set: %d boxes", len(boxes))
 
 	// 打印启动信息
-	fmt.Println("=== Engine Example ===")
+	fmt.Println("=== Engine Example with Standalone Logger ===")
 	fmt.Println("Components: 3 Buttons")
 	fmt.Println()
 	fmt.Println("Controls:")
@@ -512,10 +581,23 @@ func EngineExample() error {
 	fmt.Println("  - Mouse click: Click buttons (green = hover, yellow = focused)")
 	fmt.Println("  - ESC or Ctrl+C: Exit")
 	fmt.Println()
-	fmt.Println("Debug info will appear at the bottom of the screen.")
+	fmt.Println("Logger Features:")
+	fmt.Println("  - All events are written to log file")
+	fmt.Println("  - Use 'mint-debugger' to view events in real-time")
 	fmt.Println()
+	fmt.Printf("Log file: %s\n", logger.GetPath())
+	fmt.Println()
+	fmt.Println("Press ENTER to start...")
 
 	logEvent("Engine started, waiting for input...")
+
+	// 等待用户按回车
+	fmt.Scanln()
+
+	// 终端初始化
+	fmt.Print("\x1b[?25l") // 隐藏光标
+	fmt.Print("\x1b[2J")  // 清屏
+	fmt.Print("\x1b[H")   // 光标移到左上角
 
 	// 运行引擎
 	if err := eng.Run(); err != nil {
@@ -523,23 +605,36 @@ func EngineExample() error {
 	}
 
 	fmt.Println("\n[Engine] Exited cleanly.")
+
+	// 刷新日志
+	if logger != nil {
+		logger.Flush()
+	}
+
 	return nil
 }
 
 func main() {
-	// 设置清理函数，确保程序退出时恢复终端状态
-	// 使用 defer 确保在 main 返回时总是执行
+	// 设置清理函数
 	defer func() {
 		// 恢复终端状态
 		fmt.Print("\x1b[?25h") // 显示光标
 		fmt.Print("\x1b[0m")  // 重置样式
 		fmt.Print("\x1b[H")   // 移动光标到左上角
 		fmt.Println()         // 换行
+
+		// 关闭 Logger
+		if logger != nil {
+			logger.Close()
+			fmt.Printf("[DevTools] Logger closed. Log saved to: %s\n", logger.GetPath())
+			fmt.Println()
+			fmt.Println("To analyze the log, run:")
+			fmt.Println("  mint-debugger")
+		}
 	}()
 
 	if err := EngineExample(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		// 不要使用 os.Exit，让 defer 执行清理
 		return
 	}
 }

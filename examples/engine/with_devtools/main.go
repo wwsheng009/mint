@@ -50,7 +50,7 @@ func logEvent(format string, args ...interface{}) {
 		debugState.eventLog = debugState.eventLog[1:]
 	}
 	debugState.Unlock()
-	fmt.Printf("[DEBUG] %s\n", msg)
+	// fmt.Printf("[DEBUG] %s\n", msg)
 
 	// 记录到 DevTools
 	if dt.IsEnabled() {
