@@ -4,6 +4,7 @@
 package observation
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 type Layer struct {
 	mu    sync.RWMutex
 	level *v1.LevelController
+	cfg   *Config
 
 	// V1: Pure statistics (no judgments)
 	metrics  *v1.MetricsCollector
@@ -58,6 +60,7 @@ func NewLayer(cfg *Config) *Layer {
 
 	return &Layer{
 		level:     level,
+		cfg:       cfg,
 		metrics:   v1.NewMetricsCollector(level),
 		stats:     v1.NewStatsAnalyzer(level, nil), // Will be linked after creation
 		series:    v1.NewTimeSeriesStore(level, cfg.TimeSeriesWindow, cfg.SeriesTTL),
@@ -125,7 +128,7 @@ func (ol *Layer) ProcessFrame(entry *devtools.FrameEntry) {
 	// V2: Record events for pattern detection
 	if ol.level.ShouldCollectEnhancedStats() {
 		for i := 0; i < entry.EventCount; i++ {
-			ol.patterns.RecordFrameEvent(entry.FrameID, devtools.NodeID(i), "event")
+			ol.patterns.RecordFrameEvent(entry.FrameID, devtools.NodeID(fmt.Sprintf("%d", i)), "event")
 		}
 	}
 }
@@ -247,7 +250,7 @@ func (ol *Layer) GetStats() *LayerStats {
 
 // CleanupExpired removes expired patterns and insights.
 func (ol *Layer) CleanupExpired() {
-	ol.patterns.CleanupExpired()
+	ol.patterns.CleanupExpired(ol.cfg.PatternTTL)
 	ol.insights.CleanupExpired()
 	ol.series.CleanupExpired()
 }
