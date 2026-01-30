@@ -2,11 +2,42 @@
 //
 // This file implements the causal graph that tracks the causal relationships
 // between events, mutations, layout changes, and repaints.
+// P1-3: 使用 sync.Pool 对象池减少 GC 压力
 package devtools
 
 import (
 	"sync"
 	"time"
+)
+
+// P1-3: 全局对象池
+var (
+	causalGraphPool = sync.Pool{
+		New: func() interface{} {
+			return &CausalGraph{
+				Events:        make([]*CausalEvent, 0, 16),
+				Mutations:     make([]*CausalMutation, 0, 32),
+				Layouts:       make([]*CausalLayout, 0, 32),
+				Repaints:      make([]*CausalRepaint, 0, 16),
+				Edges:         make([]*CausalEdge, 0, 64),
+				eventIndex:    make(map[EventID]int),
+				mutationIndex: make(map[MutationID]int),
+				layoutIndex:   make(map[NodeID]int),
+				repaintIndex:  make(map[RepaintID]int),
+			}
+		},
+	}
+
+	eventsSlicePool    = sync.Pool{New: func() interface{} { return make([]*CausalEvent, 0, 16) }}
+	mutationsSlicePool = sync.Pool{New: func() interface{} { return make([]*CausalMutation, 0, 32) }}
+	layoutsSlicePool   = sync.Pool{New: func() interface{} { return make([]*CausalLayout, 0, 32) }}
+	repaintsSlicePool  = sync.Pool{New: func() interface{} { return make([]*CausalRepaint, 0, 16) }}
+	edgesSlicePool     = sync.Pool{New: func() interface{} { return make([]*CausalEdge, 0, 64) }}
+
+	eventIndexPool    = sync.Pool{New: func() interface{} { return make(map[EventID]int) }}
+	mutationIndexPool = sync.Pool{New: func() interface{} { return make(map[MutationID]int) }}
+	layoutIndexPool   = sync.Pool{New: func() interface{} { return make(map[NodeID]int) }}
+	repaintIndexPool  = sync.Pool{New: func() interface{} { return make(map[RepaintID]int) }}
 )
 
 // CausalGraph represents a causal graph of a single frame.
@@ -35,19 +66,114 @@ type CausalGraph struct {
 }
 
 // NewCausalGraph creates a new causal graph for the given frame.
+// P1-3: 使用对象池获取实例
 func NewCausalGraph(frameID FrameID) *CausalGraph {
-	return &CausalGraph{
-		FrameID:       frameID,
-		StartTime:     time.Now(),
-		Events:        make([]*CausalEvent, 0, 16),
-		Mutations:     make([]*CausalMutation, 0, 32),
-		Layouts:        make([]*CausalLayout, 0, 32),
-		Repaints:       make([]*CausalRepaint, 0, 16),
-		Edges:         make([]*CausalEdge, 0, 64),
-		eventIndex:    make(map[EventID]int),
-		mutationIndex: make(map[MutationID]int),
-		layoutIndex:   make(map[NodeID]int),
-		repaintIndex:  make(map[RepaintID]int),
+	cg := causalGraphPool.Get().(*CausalGraph)
+	cg.FrameID = frameID
+	cg.StartTime = time.Now()
+	return cg
+}
+
+// P1-3: Release releases the causal graph back to the pool.
+// After calling this, the graph must not be used anymore.
+func (cg *CausalGraph) Release() {
+	cg.reset()
+	causalGraphPool.Put(cg)
+}
+
+// P1-3: reset resets the causal graph to its initial state.
+func (cg *CausalGraph) reset() {
+	cg.mu.Lock()
+	defer cg.mu.Unlock()
+
+	cg.FrameID = 0
+	cg.StartTime = time.Time{}
+	cg.EndTime = time.Time{}
+
+	// Return slices to pool
+	if cap(cg.Events) > 0 {
+		eventsSlicePool.Put(cg.Events)
+		cg.Events = nil
+	}
+	if cap(cg.Mutations) > 0 {
+		mutationsSlicePool.Put(cg.Mutations)
+		cg.Mutations = nil
+	}
+	if cap(cg.Layouts) > 0 {
+		layoutsSlicePool.Put(cg.Layouts)
+		cg.Layouts = nil
+	}
+	if cap(cg.Repaints) > 0 {
+		repaintsSlicePool.Put(cg.Repaints)
+		cg.Repaints = nil
+	}
+	if cap(cg.Edges) > 0 {
+		edgesSlicePool.Put(cg.Edges)
+		cg.Edges = nil
+	}
+
+	// Return maps to pool
+	if len(cg.eventIndex) > 0 {
+		for k := range cg.eventIndex {
+			delete(cg.eventIndex, k)
+		}
+		eventIndexPool.Put(cg.eventIndex)
+		cg.eventIndex = nil
+	}
+	if len(cg.mutationIndex) > 0 {
+		for k := range cg.mutationIndex {
+			delete(cg.mutationIndex, k)
+		}
+		mutationIndexPool.Put(cg.mutationIndex)
+		cg.mutationIndex = nil
+	}
+	if len(cg.layoutIndex) > 0 {
+		for k := range cg.layoutIndex {
+			delete(cg.layoutIndex, k)
+		}
+		layoutIndexPool.Put(cg.layoutIndex)
+		cg.layoutIndex = nil
+	}
+	if len(cg.repaintIndex) > 0 {
+		for k := range cg.repaintIndex {
+			delete(cg.repaintIndex, k)
+		}
+		repaintIndexPool.Put(cg.repaintIndex)
+		cg.repaintIndex = nil
+	}
+
+	// Reinitialize from pools if needed
+	if cg.Events == nil {
+		cg.Events = eventsSlicePool.Get().([]*CausalEvent)
+		cg.Events = cg.Events[:0]
+	}
+	if cg.Mutations == nil {
+		cg.Mutations = mutationsSlicePool.Get().([]*CausalMutation)
+		cg.Mutations = cg.Mutations[:0]
+	}
+	if cg.Layouts == nil {
+		cg.Layouts = layoutsSlicePool.Get().([]*CausalLayout)
+		cg.Layouts = cg.Layouts[:0]
+	}
+	if cg.Repaints == nil {
+		cg.Repaints = repaintsSlicePool.Get().([]*CausalRepaint)
+		cg.Repaints = cg.Repaints[:0]
+	}
+	if cg.Edges == nil {
+		cg.Edges = edgesSlicePool.Get().([]*CausalEdge)
+		cg.Edges = cg.Edges[:0]
+	}
+	if cg.eventIndex == nil {
+		cg.eventIndex = eventIndexPool.Get().(map[EventID]int)
+	}
+	if cg.mutationIndex == nil {
+		cg.mutationIndex = mutationIndexPool.Get().(map[MutationID]int)
+	}
+	if cg.layoutIndex == nil {
+		cg.layoutIndex = layoutIndexPool.Get().(map[NodeID]int)
+	}
+	if cg.repaintIndex == nil {
+		cg.repaintIndex = repaintIndexPool.Get().(map[RepaintID]int)
 	}
 }
 

@@ -2,6 +2,7 @@
 package devtools
 
 import (
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -48,6 +49,17 @@ type EventBus struct {
 	// Shutdown
 	done chan struct{}
 	once sync.Once
+
+	// P1-1: 统计信息
+	stats EventBusStats
+}
+
+// EventBusStats 统计信息
+type EventBusStats struct {
+	EventsSent       atomic.Uint64
+	EventsDropped    atomic.Uint64
+	BackpressureDrops atomic.Uint64
+	CurrentBufferLen atomic.Uint64
 }
 
 // NewEventBus creates a new event bus with the specified buffer size.
@@ -139,32 +151,71 @@ func (b *EventBus) Subscribe(ch chan<- DebugEvent) func() {
 
 // dispatchLoop runs in a separate goroutine for each subscriber.
 // It reads events from the ring buffer and sends them to the subscriber's channel.
+// P1-1: 优化为智能等待，降低CPU占用
 func (b *EventBus) dispatchLoop(ch chan<- DebugEvent) {
 	readPos := uint32(0)
-	ticker := time.NewTicker(10 * time.Millisecond)
-	defer ticker.Stop()
+	pollInterval := 10 * time.Millisecond
+	maxPollInterval := 100 * time.Millisecond
+	currentPollInterval := pollInterval
+
+	defer func() {
+		// 清理资源
+	}()
 
 	for {
+		// 检查退出信号
 		select {
 		case <-b.done:
 			return
-		case <-ticker.C:
-			// Get current write position
-			writePos := atomic.LoadUint32(&b.writePos)
+		default:
+		}
 
-			// Process all new events
-			for readPos < writePos {
-				ev := b.buffer[readPos&b.mask]
-				readPos++
+		// 获取当前写位置
+		writePos := atomic.LoadUint32(&b.writePos)
 
-				// Send to subscriber with backpressure handling
-				select {
-				case ch <- ev:
-				default:
-					// Backpressure: skip this event
-					// This prevents blocking the dispatch goroutine
+		// 如果没有新事件，智能等待
+		if readPos >= writePos {
+			// 动态调整轮询间隔：没有事件时降低频率
+			select {
+			case <-b.done:
+				return
+			case <-time.After(currentPollInterval):
+				// 下次轮询间隔加倍，直到最大值
+				currentPollInterval *= 2
+				if currentPollInterval > maxPollInterval {
+					currentPollInterval = maxPollInterval
 				}
+				continue
 			}
+		}
+
+		// 有新事件，重置轮询间隔
+		currentPollInterval = pollInterval
+
+		// 批量处理所有可用事件
+		batchCount := 0
+		maxBatch := 1000 // 单次最多处理1000个事件
+
+		for readPos < writePos && batchCount < maxBatch {
+			ev := b.buffer[readPos&b.mask]
+			readPos++
+
+			// 发送到订阅者，带背压处理
+			select {
+			case ch <- ev:
+				b.stats.EventsSent.Add(1)
+			case <-b.done:
+				return
+			default:
+				// 背压：跳过此事件
+				b.stats.BackpressureDrops.Add(1)
+			}
+			batchCount++
+		}
+
+		// 如果处理了大量事件，让出 CPU 时间片
+		if batchCount > 50 {
+			runtime.Gosched()
 		}
 	}
 }
@@ -195,4 +246,18 @@ func (b *EventBus) Close() {
 // This is useful for debugging and testing.
 func (b *EventBus) WritePosition() uint32 {
 	return atomic.LoadUint32(&b.writePos)
+}
+
+// P1-1: GetStats returns the current event bus statistics.
+func (b *EventBus) GetStats() EventBusStats {
+	// Calculate current buffer usage
+	writePos := atomic.LoadUint32(&b.writePos)
+	b.stats.CurrentBufferLen.Store(uint64(writePos & b.mask))
+
+	return EventBusStats{
+		EventsSent:       b.stats.EventsSent,
+		EventsDropped:    b.stats.EventsDropped,
+		BackpressureDrops: b.stats.BackpressureDrops,
+		CurrentBufferLen: b.stats.CurrentBufferLen,
+	}
 }

@@ -6,8 +6,7 @@ package devtools
 import (
 	"sync"
 	"sync/atomic"
-
-	"github.com/wwsheng009/mint/runtime"
+	"time"
 )
 
 // LayoutCollector collects incremental layout changes.
@@ -15,19 +14,27 @@ type LayoutCollector struct {
 	mu           sync.RWMutex
 	enabled      uint32
 	lastVersion  map[NodeID]uint32
-	nodeRegistry map[NodeID]*runtime.LayoutNode
+	nodeRegistry map[NodeID]*LayoutNodeAdapter
 	deltaCh      chan *LayoutDelta
 	currentFrame int
+
+	// P0-3: 新增清理机制
+	lastCleanupTime time.Time
+	cleanupInterval time.Duration
+	nodeLastSeen    map[NodeID]time.Time
 }
 
 // NewLayoutCollector creates a new layout delta collector.
 func NewLayoutCollector(deltaCh chan *LayoutDelta) *LayoutCollector {
 	return &LayoutCollector{
-		enabled:      0,
-		lastVersion:  make(map[NodeID]uint32),
-		nodeRegistry: make(map[NodeID]*runtime.LayoutNode),
-		deltaCh:      deltaCh,
-		currentFrame: 0,
+		enabled:         0,
+		lastVersion:     make(map[NodeID]uint32),
+		nodeRegistry:    make(map[NodeID]*LayoutNodeAdapter),
+		nodeLastSeen:    make(map[NodeID]time.Time),
+		deltaCh:         deltaCh,
+		currentFrame:    0,
+		cleanupInterval: 30 * time.Second, // 每30秒清理一次
+		lastCleanupTime: time.Now(),
 	}
 }
 
@@ -47,10 +54,16 @@ func (lc *LayoutCollector) IsEnabled() bool {
 }
 
 // Collect collects incremental layout data.
-func (lc *LayoutCollector) Collect(result *runtime.LayoutResult) {
+func (lc *LayoutCollector) Collect(result interface{}) {
 	if !lc.IsEnabled() || result == nil {
 		return
 	}
+
+	// P0-3: 定期清理过期节点
+	lc.cleanup()
+
+	// 使用适配器处理结果
+	adapter := AdaptLayoutResult(result)
 
 	delta := &LayoutDelta{
 		FrameID: FrameID(lc.currentFrame),
@@ -59,15 +72,19 @@ func (lc *LayoutCollector) Collect(result *runtime.LayoutResult) {
 	lc.mu.Lock()
 	defer lc.mu.Unlock()
 
+	now := time.Now()
 	currentNodes := make(map[NodeID]bool)
 
-	for _, box := range result.Boxes {
+	for _, box := range adapter.Boxes() {
 		if box.Node == nil {
 			continue
 		}
 
 		nodeID := NodeID(box.NodeID)
 		currentNodes[nodeID] = true
+
+		// P0-3: 更新访问时间
+		lc.nodeLastSeen[nodeID] = now
 
 		lastVersion, exists := lc.lastVersion[nodeID]
 		currentVersion := box.Node.GetLayoutVersion()
@@ -88,11 +105,13 @@ func (lc *LayoutCollector) Collect(result *runtime.LayoutResult) {
 		}
 	}
 
+	// 检测删除的节点，同时清理
 	for nodeID := range lc.lastVersion {
 		if !currentNodes[nodeID] {
 			delta.Removed = append(delta.Removed, nodeID)
 			delete(lc.lastVersion, nodeID)
 			delete(lc.nodeRegistry, nodeID)
+			delete(lc.nodeLastSeen, nodeID)
 		}
 	}
 
@@ -106,7 +125,31 @@ func (lc *LayoutCollector) Collect(result *runtime.LayoutResult) {
 	lc.currentFrame++
 }
 
-func (lc *LayoutCollector) buildNodeDelta(node *runtime.LayoutNode, nodeID NodeID) *NodeDelta {
+// cleanup 清理过期的节点记录 (P0-3)
+func (lc *LayoutCollector) cleanup() {
+	now := time.Now()
+	if now.Sub(lc.lastCleanupTime) < lc.cleanupInterval {
+		return
+	}
+
+	lc.mu.Lock()
+	defer lc.mu.Unlock()
+
+	// 清理超过 5 分钟未访问的节点
+	staleTime := now.Add(-5 * time.Minute)
+
+	for nodeID, lastSeen := range lc.nodeLastSeen {
+		if lastSeen.Before(staleTime) {
+			delete(lc.lastVersion, nodeID)
+			delete(lc.nodeRegistry, nodeID)
+			delete(lc.nodeLastSeen, nodeID)
+		}
+	}
+
+	lc.lastCleanupTime = now
+}
+
+func (lc *LayoutCollector) buildNodeDelta(node *LayoutNodeAdapter, nodeID NodeID) *NodeDelta {
 	delta := &NodeDelta{
 		ID:   nodeID,
 		Mask: 0,
@@ -114,10 +157,10 @@ func (lc *LayoutCollector) buildNodeDelta(node *runtime.LayoutNode, nodeID NodeI
 
 	oldRect, hasOldRect := lc.getNodeRect(nodeID)
 	newRect := Rect{
-		X:      node.X,
-		Y:      node.Y,
-		Width:  node.MeasuredWidth,
-		Height: node.MeasuredHeight,
+		X:      node.GetX(),
+		Y:      node.GetY(),
+		Width:  node.GetMeasuredWidth(),
+		Height: node.GetMeasuredHeight(),
 	}
 
 	if !hasOldRect || oldRect != newRect {
@@ -126,8 +169,9 @@ func (lc *LayoutCollector) buildNodeDelta(node *runtime.LayoutNode, nodeID NodeI
 	}
 
 	oldZIndex := lc.getNodeZIndex(nodeID)
-	if node.Style.ZIndex != oldZIndex {
-		delta.ZIndex = &node.Style.ZIndex
+	newZIndex := node.GetStyle().GetZIndex()
+	if newZIndex != oldZIndex {
+		delta.ZIndex = &newZIndex
 		delta.Mask |= ChangeZ
 	}
 
@@ -141,10 +185,10 @@ func (lc *LayoutCollector) buildNodeDelta(node *runtime.LayoutNode, nodeID NodeI
 func (lc *LayoutCollector) getNodeRect(id NodeID) (Rect, bool) {
 	if node, ok := lc.nodeRegistry[id]; ok {
 		return Rect{
-			X:      node.X,
-			Y:      node.Y,
-			Width:  node.MeasuredWidth,
-			Height: node.MeasuredHeight,
+			X:      node.GetX(),
+			Y:      node.GetY(),
+			Width:  node.GetMeasuredWidth(),
+			Height: node.GetMeasuredHeight(),
 		}, true
 	}
 	return Rect{}, false
@@ -152,7 +196,7 @@ func (lc *LayoutCollector) getNodeRect(id NodeID) (Rect, bool) {
 
 func (lc *LayoutCollector) getNodeZIndex(id NodeID) int {
 	if node, ok := lc.nodeRegistry[id]; ok {
-		return node.Style.ZIndex
+		return node.GetStyle().GetZIndex()
 	}
 	return 0
 }

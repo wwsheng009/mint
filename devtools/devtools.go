@@ -174,6 +174,14 @@ func (dt *DevTools) ClearOverlay() {
 	}
 }
 
+// Shutdown gracefully shuts down DevTools and waits for all goroutines to exit.
+// This should be called before program exit to ensure clean shutdown.
+func (dt *DevTools) Shutdown() error {
+	dt.Disable()
+	dt.asyncCollector.Stop()
+	return nil
+}
+
 // GetEventBus returns the event bus for direct event emission.
 func (dt *DevTools) GetEventBus() *EventBus {
 	return dt.asyncCollector.GetEventBus()

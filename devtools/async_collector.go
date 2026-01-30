@@ -90,8 +90,17 @@ func (ac *AsyncCollector) Stop() {
 	ac.eventCollector.Disable()
 	ac.eventBus.Disable()
 
+	// Signal goroutines to stop
 	close(ac.done)
+
+	// Close delta channels to unblock consumers
+	close(ac.layoutDeltaCh)
+	close(ac.eventDeltaCh)
+
+	// Wait for all goroutines to exit
 	ac.wg.Wait()
+
+	// Close event bus (stops dispatch loops)
 	ac.eventBus.Close()
 }
 
@@ -118,11 +127,19 @@ func (ac *AsyncCollector) processLayoutDeltas() {
 		select {
 		case <-ac.done:
 			return
-		case delta := <-ac.layoutDeltaCh:
+		case delta, ok := <-ac.layoutDeltaCh:
+			if !ok {
+				// Channel closed, exit
+				return
+			}
 			if delta != nil && ac.outputCh != nil {
-				ac.outputCh <- &DebugMessage{
+				select {
+				case ac.outputCh <- &DebugMessage{
 					Type:    MsgLayoutDelta,
 					Payload: delta,
+				}:
+				case <-ac.done:
+					return
 				}
 			}
 		}
@@ -137,11 +154,19 @@ func (ac *AsyncCollector) processEventDeltas() {
 		select {
 		case <-ac.done:
 			return
-		case delta := <-ac.eventDeltaCh:
+		case delta, ok := <-ac.eventDeltaCh:
+			if !ok {
+				// Channel closed, exit
+				return
+			}
 			if delta != nil && ac.outputCh != nil {
-				ac.outputCh <- &DebugMessage{
+				select {
+				case ac.outputCh <- &DebugMessage{
 					Type:    MsgEventDelta,
 					Payload: delta,
+				}:
+				case <-ac.done:
+					return
 				}
 			}
 		}
