@@ -10,11 +10,11 @@ import (
 
 // RenderDebug provides detailed debugging information about a rendered frame.
 type RenderDebug struct {
-	Frame       *Frame
+	Frame        *Frame
 	LayoutResult *LayoutResult
-	BufferInfo  *BufferDebugInfo
-	Boxes       []BoxDebugInfo
-	Summary     string
+	BufferInfo   *BufferDebugInfo
+	Boxes        []BoxDebugInfo
+	Summary      string
 }
 
 // BufferDebugInfo contains debug information about the CellBuffer.
@@ -155,7 +155,7 @@ func (d *RenderDebug) String() string {
 
 	var sb strings.Builder
 
-	sb.WriteString(fmt.Sprintf("=== Render Debug ===\n"))
+	sb.WriteString("=== Render Debug ===\n")
 	sb.WriteString(fmt.Sprintf("Summary: %s\n\n", d.Summary))
 
 	if d.BufferInfo != nil {
@@ -303,11 +303,11 @@ func (d *RenderDebug) ToJSON() *JSONOutput {
 				line[x] = ' '
 			} else {
 				// Convert cluster to rune for line array (use first rune)
-if len(cell.Cluster) > 0 {
-line[x] = []rune(cell.Cluster)[0]
-} else {
-line[x] = ' '
-}
+				if len(cell.Cluster) > 0 {
+					line[x] = []rune(cell.Cluster)[0]
+				} else {
+					line[x] = ' '
+				}
 			}
 		}
 		output.Lines[y] = strings.TrimRight(string(line), " ")
