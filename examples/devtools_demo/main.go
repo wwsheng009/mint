@@ -9,8 +9,8 @@ import (
 
 	"github.com/wwsheng009/mint/devtools"
 	"github.com/wwsheng009/mint/devtools/observation"
-	"github.com/wwsheng009/mint/devtools/observation/v1"
-	"github.com/wwsheng009/mint/devtools/observation/v2"
+	v1 "github.com/wwsheng009/mint/devtools/observation/v1"
+	v2 "github.com/wwsheng009/mint/devtools/observation/v2"
 )
 
 func main() {
