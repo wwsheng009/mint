@@ -98,6 +98,9 @@ type Engine struct {
 	// 鼠标回调
 	mouseMoveCallback func(x, y int)
 
+	// 键盘事件回调 - 用于应用层处理特殊按键（如 ESC 退出）
+	keyHandler func(ev *event.EventStruct)
+
 	// 固定大小模式 - 禁用自动调整大小
 	fixedSize bool
 }
@@ -159,10 +162,14 @@ func (e *Engine) SetIdleTimeout(timeout time.Duration) {
 }
 
 // SetLayoutBoxes 设置用于命中测试的布局框
+// 同时自动初始化/更新焦点管理器
 func (e *Engine) SetLayoutBoxes(boxes []runtime.LayoutBox) {
 	e.layoutMu.Lock()
 	defer e.layoutMu.Unlock()
 	e.layoutBoxes = boxes
+
+	// 自动初始化焦点管理器（如果尚未设置）
+	e.initOrUpdateFocusManager(boxes)
 }
 
 // GetLayoutBoxes 获取当前的布局框
@@ -180,6 +187,59 @@ func (e *Engine) SetFocusManager(fm *focus.Manager) {
 // GetFocusManager 获取焦点管理器
 func (e *Engine) GetFocusManager() *focus.Manager {
 	return e.focusManager
+}
+
+// SetKeyHandler 设置键盘事件处理回调
+//
+// 应用可以使用此回调来处理特殊按键（如 ESC 退出）
+// 返回 true 表示事件已被处理，false 表示继续传播
+func (e *Engine) SetKeyHandler(handler func(ev *event.EventStruct)) {
+	e.keyHandler = handler
+}
+
+// initOrUpdateFocusManager 自动初始化或更新焦点管理器
+// 如果用户没有手动设置焦点管理器，则自动创建一个
+func (e *Engine) initOrUpdateFocusManager(boxes []runtime.LayoutBox) {
+	// 如果用户已经手动设置了焦点管理器，只更新可聚焦组件
+	if e.focusManager != nil {
+		e.focusManager.RefreshFocusables()
+		return
+	}
+
+	// 创建一个简单的根节点用于焦点管理
+	rootNode := e.buildRootNodeFromBoxes(boxes)
+	if rootNode == nil {
+		return
+	}
+
+	// 创建焦点管理器
+	e.focusManager = focus.NewManager(rootNode)
+	e.focusManager.RefreshFocusables()
+
+	// 默认聚焦第一个组件
+	e.focusManager.FocusFirst()
+}
+
+// buildRootNodeFromBoxes 从布局框构建一个简单的根节点
+// 用于焦点管理的树遍历
+func (e *Engine) buildRootNodeFromBoxes(boxes []runtime.LayoutBox) *runtime.LayoutNode {
+	if len(boxes) == 0 {
+		return nil
+	}
+
+	// 创建一个虚拟根节点，包含所有布局节点作为子节点
+	root := &runtime.LayoutNode{
+		ID:   "__root__",
+		Type: runtime.NodeTypeFlex,
+	}
+
+	for _, box := range boxes {
+		if box.Node != nil {
+			root.AddChild(box.Node)
+		}
+	}
+
+	return root
 }
 
 // SetFixedSize 设置固定大小模式
@@ -231,9 +291,9 @@ func (e *Engine) Run() error {
 		fmt.Print("\x1b[?25h")
 		// 重置终端样式
 		fmt.Print("\x1b[0m")
-		// 清除屏幕（可选）
-		// fmt.Print("\x1b[2J")
-		// 移动光标到左下角
+		// 清除屏幕
+		fmt.Print("\x1b[2J")
+		// 移动光标到左上角
 		fmt.Print("\x1b[H")
 	}
 
@@ -246,7 +306,13 @@ func (e *Engine) Run() error {
 		sig := <-sigChan
 		fmt.Printf("\n[Engine] Received signal: %v, cleaning up...\n", sig)
 		cleanup()
-		os.Exit(0)
+		// 通过关闭 quit channel 让 Run() 正常返回，而不是强制退出
+		select {
+		case <-e.quit:
+			// 已经关闭
+		default:
+			close(e.quit)
+		}
 	}()
 
 	ticker := time.NewTicker(e.frameInterval)
@@ -341,6 +407,11 @@ func (e *Engine) frame() {
 //
 // 使用 runtime/event 的三阶段传播系统分发事件
 func (e *Engine) handleEvent(ev *event.EventStruct) {
+	// 先调用应用层的键盘处理回调
+	if e.keyHandler != nil && (ev.Type() == event.EventKeyPress || ev.Type() == event.EventKeyRelease) {
+		e.keyHandler(ev)
+	}
+
 	e.layoutMu.RLock()
 	boxes := e.layoutBoxes
 	e.layoutMu.RUnlock()
@@ -383,6 +454,11 @@ func (e *Engine) handleEvent(ev *event.EventStruct) {
 	if ev.Type() == event.EventMousePress || ev.Type() == event.EventMouseRelease {
 		e.RequestRepaint()
 	}
+
+	// 键盘事件也触发重绘（提供视觉反馈）
+	if ev.Type() == event.EventKeyPress {
+		e.RequestRepaint()
+	}
 }
 
 // convertInputLoop 将平台输入转换为事件
@@ -414,15 +490,19 @@ func (e *Engine) convertRawInput(raw platform.RawInput) *event.EventStruct {
 	case platform.InputKeyPress:
 		ev.TypeValue = event.EventKeyPress
 		ev.Key = &event.KeyEvent{
-			Key: raw.Key,
-			Mod: event.KeyModifier(raw.Modifiers),
+			Key:     raw.Key,
+			Special: raw.Special,
+			Type:    event.KeyPress,
+			Mod:     event.KeyModifier(raw.Modifiers),
 		}
 
 	case platform.InputKeyRelease:
 		ev.TypeValue = event.EventKeyRelease
 		ev.Key = &event.KeyEvent{
-			Key: raw.Key,
-			Mod: event.KeyModifier(raw.Modifiers),
+			Key:     raw.Key,
+			Special: raw.Special,
+			Type:    event.KeyRelease,
+			Mod:     event.KeyModifier(raw.Modifiers),
 		}
 
 	case platform.InputMouse:

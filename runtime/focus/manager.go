@@ -76,10 +76,11 @@ func (fm *Manager) FocusNext() (string, bool) {
 
 	// Find current focused index in available list
 	currentIndex := -1
+	var oldFocusedID string
 	if fm.focusedIndex >= 0 && fm.focusedIndex < len(fm.focusableComponents) {
-		currentFocusedID := fm.focusableComponents[fm.focusedIndex]
+		oldFocusedID = fm.focusableComponents[fm.focusedIndex]
 		for i, id := range available {
-			if id == currentFocusedID {
+			if id == oldFocusedID {
 				currentIndex = i
 				break
 			}
@@ -98,8 +99,8 @@ func (fm *Manager) FocusNext() (string, bool) {
 		}
 	}
 
-	// Apply focus to the component
-	fm.setFocus(componentID)
+	// Apply focus change (clears old, sets new)
+	fm.setFocusChange(oldFocusedID, componentID)
 
 	return componentID, true
 }
@@ -118,10 +119,11 @@ func (fm *Manager) FocusPrev() (string, bool) {
 
 	// Find current focused index in available list
 	currentIndex := -1
+	var oldFocusedID string
 	if fm.focusedIndex >= 0 && fm.focusedIndex < len(fm.focusableComponents) {
-		currentFocusedID := fm.focusableComponents[fm.focusedIndex]
+		oldFocusedID = fm.focusableComponents[fm.focusedIndex]
 		for i, id := range available {
-			if id == currentFocusedID {
+			if id == oldFocusedID {
 				currentIndex = i
 				break
 			}
@@ -143,8 +145,8 @@ func (fm *Manager) FocusPrev() (string, bool) {
 		}
 	}
 
-	// Apply focus to the component
-	fm.setFocus(componentID)
+	// Apply focus change (clears old, sets new)
+	fm.setFocusChange(oldFocusedID, componentID)
 
 	return componentID, true
 }
@@ -194,6 +196,12 @@ func (fm *Manager) FocusFirst() (string, bool) {
 
 	componentID := available[0]
 
+	// Track old focus before changing
+	var oldFocusedID string
+	if fm.focusedIndex >= 0 && fm.focusedIndex < len(fm.focusableComponents) {
+		oldFocusedID = fm.focusableComponents[fm.focusedIndex]
+	}
+
 	// Update focused index in the main list
 	for i, id := range fm.focusableComponents {
 		if id == componentID {
@@ -202,8 +210,8 @@ func (fm *Manager) FocusFirst() (string, bool) {
 		}
 	}
 
-	// Apply focus to the component
-	fm.setFocus(componentID)
+	// Apply focus change (clears old, sets new)
+	fm.setFocusChange(oldFocusedID, componentID)
 
 	return componentID, true
 }
@@ -278,7 +286,32 @@ func (fm *Manager) ClearFocusTraps() {
 }
 
 // setFocus applies focus to a component by ID
+// Also clears focus from the previously focused component
 func (fm *Manager) setFocus(componentID string) {
+	// This method is kept for backward compatibility with FocusSpecific
+	// It clears all focus and sets focus on the new component
+	fm.clearCurrentFocus()
+	fm.setFocusOnComponent(componentID)
+}
+
+// setFocusChange changes focus from old component to new component
+func (fm *Manager) setFocusChange(oldID, newID string) {
+	// Clear focus from old component
+	if oldID != "" && oldID != newID {
+		oldNode := fm.findNodeByID(fm.rootNode, oldID)
+		if oldNode != nil && oldNode.Component != nil && oldNode.Component.Instance != nil {
+			if focusable, ok := oldNode.Component.Instance.(runtime.FocusableComponent); ok {
+				focusable.SetFocus(false)
+			}
+		}
+	}
+
+	// Set focus on new component
+	fm.setFocusOnComponent(newID)
+}
+
+// setFocusOnComponent sets focus on a specific component by ID
+func (fm *Manager) setFocusOnComponent(componentID string) {
 	node := fm.findNodeByID(fm.rootNode, componentID)
 	if node != nil && node.Component != nil && node.Component.Instance != nil {
 		if focusable, ok := node.Component.Instance.(runtime.FocusableComponent); ok {

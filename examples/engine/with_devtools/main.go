@@ -11,6 +11,7 @@ import (
 	"github.com/wwsheng009/mint/runtime/engine"
 	"github.com/wwsheng009/mint/runtime/event"
 	"github.com/wwsheng009/mint/runtime/paint"
+	"github.com/wwsheng009/mint/runtime/platform"
 	"github.com/wwsheng009/mint/runtime/style"
 )
 
@@ -565,6 +566,14 @@ func EngineExample() error {
 	// 设置鼠标移动回调
 	eng.SetMouseMoveCallback(func(x, y int) {
 		updateMousePos(x, y)
+	})
+
+	// 设置键盘事件处理回调 - 处理 ESC 退出
+	eng.SetKeyHandler(func(ev *event.EventStruct) {
+		if ev.Key != nil && ev.Key.Special == platform.KeyEscape {
+			logEvent("ESC pressed, stopping engine...")
+			eng.Stop()
+		}
 	})
 
 	// 设置布局框

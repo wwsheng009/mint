@@ -103,6 +103,78 @@ const (
 	KeyL // vim right
 )
 
+// String returns the name of the special key.
+func (k SpecialKey) String() string {
+	switch k {
+	case KeyUnknown:
+		return "Unknown"
+	case KeyEscape:
+		return "Escape"
+	case KeyEnter:
+		return "Enter"
+	case KeyTab:
+		return "Tab"
+	case KeyBackspace:
+		return "Backspace"
+	case KeyDelete:
+		return "Delete"
+	case KeyInsert:
+		return "Insert"
+	case KeyUp:
+		return "Up"
+	case KeyDown:
+		return "Down"
+	case KeyLeft:
+		return "Left"
+	case KeyRight:
+		return "Right"
+	case KeyHome:
+		return "Home"
+	case KeyEnd:
+		return "End"
+	case KeyPageUp:
+		return "PageUp"
+	case KeyPageDown:
+		return "PageDown"
+	case KeyF1:
+		return "F1"
+	case KeyF2:
+		return "F2"
+	case KeyF3:
+		return "F3"
+	case KeyF4:
+		return "F4"
+	case KeyF5:
+		return "F5"
+	case KeyF6:
+		return "F6"
+	case KeyF7:
+		return "F7"
+	case KeyF8:
+		return "F8"
+	case KeyF9:
+		return "F9"
+	case KeyF10:
+		return "F10"
+	case KeyF11:
+		return "F11"
+	case KeyF12:
+		return "F12"
+	case KeySpace:
+		return "Space"
+	case KeyK:
+		return "K"
+	case KeyJ:
+		return "J"
+	case KeyH:
+		return "H"
+	case KeyL:
+		return "L"
+	default:
+		return fmt.Sprintf("SpecialKey(%d)", k)
+	}
+}
+
 // KeyModifier 修饰键
 type KeyModifier uint8
 

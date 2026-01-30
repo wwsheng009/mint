@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/wwsheng009/mint/runtime"
+	"github.com/wwsheng009/mint/runtime/platform"
 )
 
 // NOTE: Bubble Tea message conversion has been moved to the adapter layer
@@ -368,20 +369,50 @@ func dispatchKeyEvent(ev *KeyEvent, boxes []runtime.LayoutBox) EventResult {
 		FocusChange: FocusChangeNone,
 	}
 
-	// Check for navigation keys
-	switch ev.Key {
-	case '\t': // Tab key
-		result.FocusChange = FocusChangeNext
+	// Check for navigation keys using Special field (functional keys)
+	// or Key field (character keys like Tab when not treated as special)
+	switch {
+	case ev.Special == platform.KeyTab:
+		// Tab with Shift modifier = Previous, without Shift = Next
+		if ev.Mod == ModShift {
+			result.FocusChange = FocusChangePrev
+		} else {
+			result.FocusChange = FocusChangeNext
+		}
 		result.Handled = true
 		return result
-	case 20, 23: // Shift+Tab
-		result.FocusChange = FocusChangePrev
+	case ev.Key == '\t': // Fallback for Tab as character key
+		if ev.Mod == ModShift {
+			result.FocusChange = FocusChangePrev
+		} else {
+			result.FocusChange = FocusChangeNext
+		}
 		result.Handled = true
 		return result
 	}
 
-	// For other keys, we'd need to know the currently focused component
-	// This is handled by the FocusManager
+	// For other keys, dispatch to the focused component
+	// Find the focused component (typically the first focusable box)
+	for _, box := range boxes {
+		if box.Node == nil || box.Node.Component == nil {
+			continue
+		}
+
+		instance := box.Node.Component.Instance
+		if instance == nil {
+			continue
+		}
+
+		// Check if this component can handle keyboard events
+		if handler, ok := instance.(KeyEventHandler); ok {
+			if handler.HandleKey(ev) {
+				result.Handled = true
+				result.Updated = true
+				return result
+			}
+		}
+	}
+
 	return result
 }
 

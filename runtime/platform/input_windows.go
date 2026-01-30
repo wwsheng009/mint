@@ -157,8 +157,8 @@ func (r *windowsInputReader) readLoop(handle uintptr) {
 			}
 
 			input := r.parseRecord(record)
-			// 发送所有有效事件（InputKeyPress=0 是有效值！）
-			// 只过滤掉真正无效的类型（<0 或 >InputSignal）
+			// 只发送有效的输入事件（Type >= 0 且 <= InputSignal）
+			// Type = -1 表示无效输入（如按键释放事件、未知事件类型）
 			if input.Type >= 0 && input.Type <= InputSignal {
 				select {
 				case r.events <- input:
@@ -216,18 +216,23 @@ func (r *windowsInputReader) parseRecord(record *INPUT_RECORD) RawInput {
 				Height:    height,
 			}
 		}
-		return RawInput{Timestamp: now}
+		// 返回无效输入
+		return RawInput{Type: -1, Timestamp: now}
 
 	default:
-		return RawInput{Timestamp: now}
+		// 返回无效输入
+		return RawInput{Type: -1, Timestamp: now}
 	}
 }
 
 func (r *windowsInputReader) parseKeyEvent(record *INPUT_RECORD, now time.Time) RawInput {
 	keyEvent := (*KEY_EVENT_RECORD)(unsafe.Pointer(&record.Event[0]))
 
+	// 只处理按键按下事件，忽略按键释放
+	// KeyDown == 0 表示按键释放，我们不需要处理它
 	if keyEvent.KeyDown == 0 {
-		return RawInput{Timestamp: now}
+		// 返回一个无效的输入，通过设置 Type 为 -1
+		return RawInput{Type: -1, Timestamp: now}
 	}
 
 	input := RawInput{

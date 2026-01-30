@@ -2,6 +2,7 @@ package selection
 
 import (
 	"github.com/wwsheng009/mint/runtime/event"
+	"github.com/wwsheng009/mint/runtime/platform"
 )
 
 // KeyboardHandler handles keyboard shortcuts for text selection operations.
@@ -38,7 +39,12 @@ func (h *KeyboardHandler) HandleKeyEvent(ev *event.KeyEvent) bool {
 		return false
 	}
 
-	// Check for Ctrl modifier
+	// Escape key clears selection (without Ctrl modifier)
+	if ev.Special == platform.KeyEscape {
+		return h.handleEscape()
+	}
+
+	// Check for Ctrl modifier for other shortcuts
 	if ev.Type != event.KeyPress || ev.Mod != event.ModCtrl {
 		return false
 	}
@@ -56,9 +62,6 @@ func (h *KeyboardHandler) HandleKeyEvent(ev *event.KeyEvent) bool {
 	case 'd', 'D':
 		// Ctrl+D - Select word (some terminals use this)
 		return h.handleSelectWord()
-	case 27:
-		// Escape - Clear selection
-		return h.handleEscape()
 	}
 
 	return false
@@ -159,7 +162,7 @@ func DefaultKeyBindings() KeyBindings {
 		Copy:      'c',
 		Cut:       'x',
 		SelectAll: 'a',
-		Escape:    27,
+		Escape:    0, // Escape is now handled via Special field, not as a rune
 	}
 }
 
@@ -182,9 +185,7 @@ func NewConfigurableKeyboardHandler(manager *Manager, clipboard *Clipboard, bind
 	if bindings.SelectAll == 0 {
 		bindings.SelectAll = 'a'
 	}
-	if bindings.Escape == 0 {
-		bindings.Escape = 27
-	}
+	// Note: Escape is now handled via Special field, not bindings.Escape
 
 	return &ConfigurableKeyboardHandler{
 		manager:   manager,
@@ -200,6 +201,12 @@ func (h *ConfigurableKeyboardHandler) HandleKeyEvent(ev *event.KeyEvent) bool {
 		return false
 	}
 
+	// Escape key clears selection (without Ctrl modifier)
+	if ev.Special == platform.KeyEscape {
+		return h.handleEscape()
+	}
+
+	// Check for Ctrl modifier for other shortcuts
 	if ev.Type != event.KeyPress || ev.Mod != event.ModCtrl {
 		return false
 	}
@@ -211,8 +218,6 @@ func (h *ConfigurableKeyboardHandler) HandleKeyEvent(ev *event.KeyEvent) bool {
 		return h.handleCut()
 	case h.bindings.SelectAll:
 		return h.handleSelectAll()
-	case h.bindings.Escape:
-		return h.handleEscape()
 	}
 
 	return false

@@ -3,6 +3,7 @@ package event
 import (
 	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/layout"
+	"github.com/wwsheng009/mint/runtime/platform"
 )
 
 // =============================================================================
@@ -203,9 +204,10 @@ const (
 
 // KeyEvent represents a keyboard input event.
 type KeyEvent struct {
-	Key  rune
-	Type KeyEventType
-	Mod  KeyModifier
+	Key     rune
+	Special platform.SpecialKey
+	Type    KeyEventType
+	Mod     KeyModifier
 }
 
 // KeyEventType is the type of keyboard event.
