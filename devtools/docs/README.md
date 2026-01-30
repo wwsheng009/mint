@@ -20,6 +20,9 @@
 | [phase3_summary.md](./phase3_summary.md) | 阶段3: 时间旅行实施总结 | ✅ 已完成 |
 | [phase4_summary.md](./phase4_summary.md) | 阶段4: 确定性回放实施总结 | ✅ 已完成 |
 | [phase5_summary.md](./phase5_summary.md) | 阶段5: 客户端实施总结 | ✅ 已完成 |
+| [phase6_summary.md](./phase6_summary.md) | 阶段6: 快照系统实施总结 | ✅ 已完成 |
+| [phase7_summary.md](./phase7_summary.md) | 阶段7: 内存优化实施总结 | ✅ 已完成 |
+| [phase8_summary.md](./phase8_summary.md) | 阶段8: 远程调试实施总结 | ✅ 已完成 |
 
 ### 🧪 问题分析
 
@@ -66,6 +69,88 @@ dt.EndFrame()
 dt.Disable()
 ```
 
+### 📸 快照系统
+
+```go
+import "github.com/wwsheng009/mint/devtools/snapshot"
+
+// 创建快照管理器
+mgr := snapshot.NewManager(1000)
+
+// 捕获快照
+builder := snapshot.NewBuilder("snap-1", devtools.FrameID(42))
+builder.SetWindowSize(80, 24)
+builder.AddComponent(&snapshot.ComponentState{
+    NodeID: "button-1",
+    Type: "Button",
+    Props: map[string]interface{}{"label": "Click me"},
+})
+snap, _ := mgr.Capture(42, builder)
+
+// 比较快照
+differ := snapshot.NewDiffer()
+diff := differ.Compare(snap1, snap2)
+fmt.Printf("Changes: %d\n", len(diff.Changes))
+```
+
+### 💾 内存优化
+
+```go
+import "github.com/wwsheng009/mint/devtools/memory"
+
+// 环形缓冲区 (最近 1000 帧)
+ring := memory.NewRingBuffer(1000)
+ring.Write(devtools.FrameID(1))
+frames := ring.GetAll()
+
+// 自适应采样 (10%-100%)
+sampler := memory.NewAdaptiveStrategy(0.1, 1.0)
+if sampler.ShouldSample(frameID, context) {
+    captureFullMetrics()
+}
+
+// 内存监控
+monitor := memory.NewMonitor()
+monitor.SetThresholds(0.7, 0.9)  // 警告/严重阈值
+monitor.SetAlertCallback(func(alert memory.MemoryAlert) {
+    log.Printf("Alert: %s\n", alert.Message)
+})
+monitor.Start()
+```
+
+### 🌐 远程调试
+
+```go
+import "github.com/wwsheng009/mint/devtools/remote"
+
+// 创建服务器
+server := remote.NewDevToolsServer(9222, dt, snapshotMgr)
+go server.Start()
+
+// 服务器运行在:
+// - http://localhost:9222/debug    (Inspector UI)
+// - ws://localhost:9222/ws          (WebSocket)
+// - http://localhost:9222/api/*    (REST API)
+```
+
+**WebSocket 客户端示例:**
+
+```go
+ws, _ := websocket.Dial("ws://localhost:9222/ws", "", "http://localhost")
+
+// 发送请求
+websocket.JSON.Send(ws, map[string]interface{}{
+    "version": "1.0.0",
+    "type": "get_range",
+    "id": "req-1",
+    "payload": map[string]int{"from": 0, "to": 100},
+})
+
+// 接收响应
+var msg map[string]interface{}
+websocket.JSON.Receive(ws, &msg)
+```
+
 ### 📖 架构概览
 
 ```
@@ -80,7 +165,22 @@ dt.Disable()
 │              ├──> EventBus (异步处理)                            │
 │              ├──> MutationTap (变更捕获)                         │
 │              ├──> Collectors (增量收集)                          │
-│              └──> Client (调试界面)                              │
+│              │                                                   │
+│              ├──> snapshot (快照系统)                            │
+│              │    ├── Manager (生命周期管理)                    │
+│              │    ├── Differ (差异比较)                         │
+│              │    └── TimeTravelRange (时间旅行)                │
+│              │                                                   │
+│              ├──> memory (内存优化)                             │
+│              │    ├── RingBuffer (环形缓冲区)                   │
+│              │    ├── Sampling (自适应采样)                     │
+│              │    └── Monitor (内存监控)                        │
+│              │                                                   │
+│              └──> remote (远程调试)                             │
+│                   ├── Protocol (CDP 协议)                       │
+│                   ├── WebSocket (实时通信)                      │
+│                   ├── HTTP (REST API)                          │
+│                   └── Inspector (Web UI)                       │
 │                                                                  │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -89,11 +189,13 @@ dt.Disable()
 
 ```
 阶段 1: ███████████████████████████████████  增量基础 (P0) ✅
-阶段 2: ███████████████████████████████████  因果链 (P1) ✅
+阶段 2: ███████████████████████████████████  因果链引擎 (P1) ✅
 阶段 3: ███████████████████████████████████  时间旅行 (P2) ✅
 阶段 4: ███████████████████████████████████  确定性回放 (P2) ✅
-阶段 5: ███████████████████████████████████  客户端 (P3) ✅
-阶段 6: ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  高级功能 (未来)
+阶段 5: ███████████████████████████████████  客户端实施 (P3) ✅
+阶段 6: ███████████████████████████████████  快照系统 (P4) ✅
+阶段 7: ███████████████████████████████████  内存优化 (P4) ✅
+阶段 8: ███████████████████████████████████  远程调试 (P5) ✅
 ```
 
 ---
@@ -112,7 +214,7 @@ dt.Disable()
 
 ## 当前状态
 
-### ✅ 已完成 (阶段 1 + 阶段 2 + 阶段 3)
+### ✅ 已完成 (阶段 1-8)
 
 **阶段 1: 增量基础 (P0)**
 - [x] Runtime LayoutVersion 支持
@@ -153,7 +255,7 @@ dt.Disable()
 - [x] 断点功能
 - [x] 宏录制/回放
 
-**阶段 5: 客户端 (P3)**
+**阶段 5: 客户端实施 (P3)**
 - [x] TUI 调试面板 (TuiDebugPanel)
 - [x] WebSocket 协议 (WebSocketHandler)
 - [x] Web Dashboard
@@ -162,15 +264,36 @@ dt.Disable()
 - [x] 调试覆盖层 (DebugOverlay)
 - [x] 性能分析器 (Profiler)
 
+**阶段 6: 快照系统 (P4)**
+- [x] Snapshot 数据结构
+- [x] Builder 构建器模式
+- [x] Manager 快照管理器
+- [x] Differ 差异引擎
+- [x] TimeTravelRange 时间旅行范围
+- [x] 持久化支持 (Save/Load)
+- [x] 单元测试
+
+**阶段 7: 内存优化 (P4)**
+- [x] RingBuffer 环形缓冲区
+- [x] FrameWindow 滑动窗口
+- [x] AdaptiveStrategy 自适应采样
+- [x] FixedRateStrategy 固定速率采样
+- [x] PriorityStrategy 优先级采样
+- [x] Monitor 内存监控器
+- [x] Alert 告警系统
+
+**阶段 8: 远程调试 (P5)**
+- [x] Protocol 消息协议定义
+- [x] ChromiumBridge CDP 桥接器
+- [x] WebSocketServer WebSocket 服务器
+- [x] HTTPServer REST API 服务器
+- [x] Inspector UI (内嵌 HTML)
+- [x] 错误处理 (JSON 错误响应)
+- [x] 测试客户端
+
 **测试状态**
 - [x] 编译通过
-- [x] 16/16 单元测试通过
-
-### 📋 计划中 (阶段 6)
-
-**阶段 6: 高级功能**
-- [ ] 性能分析 AI
-- [ ] 自动异常检测
+- [x] 单元测试通过
 
 ---
 
