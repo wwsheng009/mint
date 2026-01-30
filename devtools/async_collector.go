@@ -77,6 +77,7 @@ func (ac *AsyncCollector) Start() {
 }
 
 // Stop stops the async collector and all background goroutines.
+// Safe to call multiple times.
 func (ac *AsyncCollector) Stop() {
 	ac.mu.Lock()
 	defer ac.mu.Unlock()
@@ -91,17 +92,35 @@ func (ac *AsyncCollector) Stop() {
 	ac.eventBus.Disable()
 
 	// Signal goroutines to stop
-	close(ac.done)
+	select {
+	case <-ac.done:
+		// Already closed
+	default:
+		close(ac.done)
+	}
 
 	// Close delta channels to unblock consumers
-	close(ac.layoutDeltaCh)
-	close(ac.eventDeltaCh)
+	closeDeltaChannel(ac.layoutDeltaCh)
+	closeDeltaChannel(ac.eventDeltaCh)
 
 	// Wait for all goroutines to exit
 	ac.wg.Wait()
 
 	// Close event bus (stops dispatch loops)
 	ac.eventBus.Close()
+}
+
+// closeDeltaChannel safely closes a channel if it's not already closed.
+func closeDeltaChannel(ch interface{}) {
+	defer func() {
+		recover() // Ignore panic from closing closed channel
+	}()
+	switch v := ch.(type) {
+	case chan *LayoutDelta:
+		close(v)
+	case chan *EventDelta:
+		close(v)
+	}
 }
 
 // GetEventBus returns the event bus.
@@ -207,7 +226,7 @@ func (ac *AsyncCollector) EndFrame() {
 	ac.eventCollector.Flush()
 
 	if ac.outputCh != nil {
-		ac.outputCh <- &DebugMessage{
+		msg := &DebugMessage{
 			Type: MsgFrameTimeline,
 			Payload: map[string]interface{}{
 				"frameID":   ac.currentFrame,
@@ -215,6 +234,12 @@ func (ac *AsyncCollector) EndFrame() {
 				"endTime":   time.Now(),
 				"duration":  time.Since(ac.frameStartTime).Nanoseconds(),
 			},
+		}
+		// Non-blocking send to avoid deadlock when no receiver
+		select {
+		case ac.outputCh <- msg:
+		default:
+			// Drop message if channel is full (backpressure handling)
 		}
 	}
 }
