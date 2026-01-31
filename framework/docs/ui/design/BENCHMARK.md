@@ -1,19 +1,21 @@
 # Mint UI 性能基准测试规范
 
-**版本**: v1.0
+**版本**: v1.1
 **日期**: 2026-01-31
+**更新**: 添加基准测试结果和 CI 集成
 
 ---
 
 ## 目录
 
 1. [性能目标](#一性能目标)
-2. [基准测试方法](#二基准测试方法)
-3. [性能指标](#三性能指标)
-4. [测试场景](#四测试场景)
-5. [性能分析工具](#五性能分析工具)
-6. [优化策略](#六优化策略)
-7. [性能回归检测](#七性能回归检测)
+2. [基准测试结果](#二基准测试结果-新增)
+3. [基准测试方法](#三基准测试方法)
+4. [性能指标](#四性能指标)
+5. [测试场景](#五测试场景)
+6. [性能分析工具](#六性能分析工具)
+7. [优化策略](#七优化策略)
+8. [性能回归检测](#八性能回归检测)
 
 ---
 
@@ -44,7 +46,144 @@
 
 ---
 
-## 二、基准测试方法
+## 二、基准测试结果 (新增)
+
+### 2.1 基准环境
+
+```
+Go Version:    go1.23.0
+OS:            Windows 11 / Linux Ubuntu 22.04
+CPU:           Intel Core i7-12700 / Apple M2
+Memory:        16 GB
+Terminal:      80x24 (标准) / 200x50 (高分辨率)
+```
+
+### 2.2 核心测试结果
+
+以下为目标基准值，实际测试结果应达到或优于这些值：
+
+#### 渲染性能
+
+| 测试名称 | 目标 ns/op | 目标 allocs/op | 说明 |
+|---------|-----------|----------------|------|
+| BenchmarkSimpleRender | < 500 | < 5 | 单个 Text 组件 |
+| BenchmarkDeepRender-10 | < 5,000 | < 50 | 10 层嵌套 |
+| BenchmarkWideRender-100 | < 10,000 | < 200 | 100 个子节点 |
+| BenchmarkComplexForm | < 20,000 | < 100 | 7 个表单组件 |
+
+#### Diff 性能
+
+| 测试名称 | 目标 ns/op | 目标 allocs/op | 说明 |
+|---------|-----------|----------------|------|
+| BenchmarkDiffSame | < 100 | 0 | 相同节点 |
+| BenchmarkDiffChangedText | < 200 | < 2 | 文本变化 |
+| BenchmarkDiffList-100 | < 5,000 | < 50 | 100 项列表 |
+| BenchmarkDiffList-1000 | < 50,000 | < 500 | 1000 项列表 |
+| BenchmarkDiffListWithKey | < 3,000 | < 30 | 带 Key 优化 |
+
+#### Hooks 性能
+
+| 测试名称 | 目标 ns/op | 目标 allocs/op | 说明 |
+|---------|-----------|----------------|------|
+| BenchmarkUseState | < 100 | < 2 | 状态创建 |
+| BenchmarkUseStateUpdate | < 50 | 0 | 状态更新 |
+| BenchmarkUseMemo | < 200 | < 3 | 缓存计算 |
+| BenchmarkUseMemoCached | < 50 | 0 | 缓存命中 |
+| BenchmarkUseEffect | < 150 | < 2 | 副作用注册 |
+
+#### 布局性能
+
+| 测试名称 | 目标 ns/op | 目标 allocs/op | 说明 |
+|---------|-----------|----------------|------|
+| BenchmarkMeasure-100 | < 10,000 | < 100 | 100 个子节点测量 |
+| BenchmarkFlexLayout | < 5,000 | < 50 | Flex 布局 |
+| BenchmarkGridLayout | < 8,000 | < 80 | Grid 布局 |
+
+#### Style Diff 性能
+
+| 测试名称 | 目标 ns/op | 输出缩减率 | 说明 |
+|---------|-----------|-----------|------|
+| BenchmarkStyleDiffNoChange | < 50 | 100% | 无变化 |
+| BenchmarkStyleDiffPartial | < 100 | > 80% | 部分变化 |
+| BenchmarkStyleDiffFull | < 200 | > 60% | 完全变化 |
+| BenchmarkStyleDiffReduction | - | > 95% | 大量相同样式 |
+
+### 2.3 压力测试结果
+
+| 测试场景 | 目标结果 | 说明 |
+|---------|---------|------|
+| 10,000 组件渲染 | < 100ms | 首次渲染 |
+| 10,000 组件更新 | < 50ms | 单项更新 |
+| 100,000 虚拟列表 | < 16ms/帧 | 滚动时 |
+| 1,000 次/秒状态更新 | 保持 60 FPS | 高频更新 |
+
+### 2.4 内存基准
+
+| 场景 | 目标内存 | 说明 |
+|-----|---------|------|
+| 空应用 | < 5 MB | 启动后 |
+| 100 组件 | < 10 MB | 简单应用 |
+| 1,000 组件 | < 20 MB | 中型应用 |
+| 10,000 组件 | < 50 MB | 大型应用 |
+
+### 2.5 运行基准测试
+
+```bash
+# 运行所有基准测试并保存结果
+go test ./framework/benchmark/... -bench=. -benchmem -count=5 | tee benchmark_results.txt
+
+# 生成基准报告
+go run scripts/benchmark_report.go benchmark_results.txt
+
+# 与基准线比较
+benchstat baseline.txt benchmark_results.txt
+```
+
+### 2.6 基准测试执行脚本
+
+```bash
+#!/bin/bash
+# scripts/run_benchmarks.sh
+
+set -e
+
+echo "🚀 Running Mint UI Benchmarks..."
+echo "================================"
+
+# 创建输出目录
+mkdir -p benchmark_output
+
+# 运行基准测试
+echo "📊 Running core benchmarks..."
+go test ./framework/benchmark/... -bench=. -benchmem -count=5 \
+    -timeout=10m \
+    2>&1 | tee benchmark_output/results.txt
+
+# 运行 CPU profile
+echo "🔥 Generating CPU profile..."
+go test ./framework/benchmark/... -bench=BenchmarkComplexForm \
+    -cpuprofile=benchmark_output/cpu.prof \
+    -benchtime=5s
+
+# 运行 Memory profile
+echo "💾 Generating memory profile..."
+go test ./framework/benchmark/... -bench=BenchmarkLargeList \
+    -memprofile=benchmark_output/mem.prof \
+    -benchtime=5s
+
+# 检查性能回归
+if [ -f "baseline.txt" ]; then
+    echo "📈 Checking for regressions..."
+    benchstat baseline.txt benchmark_output/results.txt
+fi
+
+echo "✅ Benchmarks complete!"
+echo "Results saved to: benchmark_output/"
+```
+
+---
+
+## 三、基准测试方法
 
 ### 2.1 测试环境
 

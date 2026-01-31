@@ -772,7 +772,165 @@ func Counter() VNode {
 
 ---
 
-### 5.2 useEffect
+### 5.2 状态系统分工：useState vs ReactiveStore (新增)
+
+**核心原则**：useState 用于组件本地状态，ReactiveStore 用于全局共享状态。
+
+#### 分工对比
+
+| 特性 | useState | ReactiveStore |
+|------|----------|---------------|
+| **作用域** | 组件本地 | 全局/跨组件 |
+| **生命周期** | 组件卸载时销毁 | 应用生命周期 |
+| **适用场景** | UI 状态、表单输入 | 用户数据、应用配置 |
+| **响应范围** | 仅当前组件 | 所有订阅组件 |
+| **持久化** | 无 | 可选 |
+
+#### 使用场景指南
+
+```go
+// ✅ useState: 组件本地 UI 状态
+func SearchBox() VNode {
+    query, setQuery := ui.UseStateString("")      // 输入状态
+    focused, setFocused := ui.UseStateBool(false) // 焦点状态
+    
+    return ui.Input("Search...").
+        Value(query).
+        OnChange(setQuery).
+        OnFocus(func() { setFocused(true) }).
+        OnBlur(func() { setFocused(false) })
+}
+
+// ✅ ReactiveStore: 全局共享状态
+var UserStore = store.New(UserState{
+    IsLoggedIn: false,
+    Username:   "",
+    Theme:      "light",
+})
+
+func Header() VNode {
+    // 订阅全局用户状态
+    user := ui.UseStore(UserStore, func(s UserState) string {
+        return s.Username
+    })
+    
+    return ui.Text(fmt.Sprintf("Welcome, %s", user))
+}
+
+func Settings() VNode {
+    // 同一个 Store，不同组件
+    theme := ui.UseStore(UserStore, func(s UserState) string {
+        return s.Theme
+    })
+    
+    return ui.Select([]string{"light", "dark"}).
+        Selected(theme).
+        OnChange(func(t string) {
+            UserStore.Update(func(s *UserState) {
+                s.Theme = t
+            })
+        })
+}
+```
+
+#### 决策流程图
+
+```
+需要状态管理？
+    │
+    ├── 仅当前组件使用？
+    │       │
+    │       ├── 是 → useState
+    │       │
+    │       └── 否 → 多个组件需要？
+    │                   │
+    │                   ├── 父子组件 → Props 传递
+    │                   │
+    │                   └── 跨层级组件 → ReactiveStore
+    │
+    └── 需要持久化？
+            │
+            ├── 是 → ReactiveStore + 持久化中间件
+            │
+            └── 否 → 根据共享范围选择
+```
+
+#### ReactiveStore API
+
+```go
+package store
+
+// New 创建响应式 Store
+func New[T any](initial T) *Store[T]
+
+// Store 响应式状态容器
+type Store[T any] struct {
+    state     T
+    listeners []func(T)
+}
+
+// Get 获取当前状态
+func (s *Store[T]) Get() T
+
+// Update 更新状态
+func (s *Store[T]) Update(fn func(*T))
+
+// Subscribe 订阅状态变化
+func (s *Store[T]) Subscribe(fn func(T)) func()
+```
+
+#### useStore Hook
+
+```go
+package ui
+
+// UseStore 订阅 Store 并选择部分状态
+func UseStore[T, S any](store *store.Store[T], selector func(T) S) S {
+    // 内部使用 useState + useEffect 实现订阅
+    state, setState := useState(selector(store.Get()))
+    
+    useEffect(func() {
+        // 订阅 Store
+        unsubscribe := store.Subscribe(func(newState T) {
+            selected := selector(newState)
+            setState(selected)
+        })
+        
+        // 清理：取消订阅
+        return unsubscribe
+    }, []interface{}{store})
+    
+    return state.(S)
+}
+```
+
+#### 反模式警告
+
+```go
+// ❌ 错误：将全局状态放入 useState
+func App() VNode {
+    // 这个状态无法被其他组件访问
+    user, setUser := ui.UseState(User{})  // 应该用 ReactiveStore
+    
+    return ui.VStack(
+        Header(),  // Header 无法访问 user
+        Content(),
+    )
+}
+
+// ❌ 错误：将本地 UI 状态放入 ReactiveStore
+var InputFocusStore = store.New(false)  // 过度设计
+
+// ✅ 正确：本地状态用 useState
+func Input() VNode {
+    focused, setFocused := ui.UseStateBool(false)
+    // ...
+}
+```
+
+---
+
+### 5.3 useEffect
 
 ```go
 package ui

@@ -545,7 +545,337 @@ func (g *GridLayout) checkOverlap() error {
 
 ---
 
-## 十、与其他布局的组合
+## 十、容错与错误恢复策略 (新增)
+
+### 10.1 设计原则
+
+**核心理念**：布局错误不应导致应用崩溃，而应优雅降级并提供调试信息。
+
+| 策略 | 说明 | 优先级 |
+|------|------|--------|
+| **安全降级** | 错误时使用默认布局 | P0 |
+| **边界约束** | 自动裁剪到有效范围 | P0 |
+| **错误可见** | 开发模式显示错误边界 | P1 |
+| **日志记录** | 记录错误供调试 | P1 |
+
+### 10.2 越界自动修复
+
+```go
+// framework/layout/grid_recovery.go
+
+package layout
+
+// RecoveryMode 错误恢复模式
+type RecoveryMode int
+
+const (
+    // RecoveryStrict 严格模式：报错
+    RecoveryStrict RecoveryMode = iota
+    // RecoveryClamp 裁剪模式：自动修正到有效范围
+    RecoveryClamp
+    // RecoveryExpand 扩展模式：自动扩展 Grid
+    RecoveryExpand
+)
+
+// GridRecovery Grid 容错处理器
+type GridRecovery struct {
+    Mode   RecoveryMode
+    Logger func(string)  // 错误日志回调
+}
+
+// HandleOutOfBounds 处理越界
+func (r *GridRecovery) HandleOutOfBounds(cell *CellProps, maxRow, maxCol int) error {
+    switch r.Mode {
+    case RecoveryStrict:
+        return &GridError{
+            Type:    ErrorOutOfBounds,
+            Message: fmt.Sprintf("cell (%d,%d) out of bounds (max: %d,%d)", 
+                cell.Row, cell.Col, maxRow-1, maxCol-1),
+            Cell:    cell,
+        }
+        
+    case RecoveryClamp:
+        // 裁剪到有效范围
+        originalRow, originalCol := cell.Row, cell.Col
+        cell.Row = clamp(cell.Row, 0, maxRow-1)
+        cell.Col = clamp(cell.Col, 0, maxCol-1)
+        
+        // 裁剪 Span
+        if cell.Row + cell.RowSpan > maxRow {
+            cell.RowSpan = maxRow - cell.Row
+        }
+        if cell.Col + cell.ColSpan > maxCol {
+            cell.ColSpan = maxCol - cell.Col
+        }
+        
+        // 记录警告
+        if r.Logger != nil {
+            r.Logger(fmt.Sprintf("[Grid Warning] Cell clamped from (%d,%d) to (%d,%d)",
+                originalRow, originalCol, cell.Row, cell.Col))
+        }
+        return nil
+        
+    case RecoveryExpand:
+        // 返回扩展建议（由调用方处理）
+        return &GridExpandRequest{
+            RequiredRows: cell.Row + cell.RowSpan,
+            RequiredCols: cell.Col + cell.ColSpan,
+        }
+    }
+    
+    return nil
+}
+
+// HandleOverlap 处理重叠
+func (r *GridRecovery) HandleOverlap(cell *CellProps, occupied map[string]*CellProps) error {
+    switch r.Mode {
+    case RecoveryStrict:
+        // 找出冲突的单元格
+        for key, existing := range occupied {
+            if isOverlapping(cell, existing) {
+                return &GridError{
+                    Type:    ErrorOverlap,
+                    Message: fmt.Sprintf("cell (%d,%d) overlaps with existing cell at %s",
+                        cell.Row, cell.Col, key),
+                    Cell:    cell,
+                }
+            }
+        }
+        
+    case RecoveryClamp:
+        // 后来者让步：缩小 Span 避免重叠
+        for {
+            hasOverlap := false
+            for _, existing := range occupied {
+                if isOverlapping(cell, existing) {
+                    hasOverlap = true
+                    // 尝试缩小 Span
+                    if cell.ColSpan > 1 {
+                        cell.ColSpan--
+                    } else if cell.RowSpan > 1 {
+                        cell.RowSpan--
+                    } else {
+                        // 无法缩小，跳过此单元格
+                        if r.Logger != nil {
+                            r.Logger(fmt.Sprintf("[Grid Warning] Cell (%d,%d) skipped due to overlap",
+                                cell.Row, cell.Col))
+                        }
+                        return &GridSkipCell{Cell: cell}
+                    }
+                    break
+                }
+            }
+            if !hasOverlap {
+                break
+            }
+        }
+        
+        if r.Logger != nil {
+            r.Logger(fmt.Sprintf("[Grid Warning] Cell span reduced to (%d,%d)",
+                cell.RowSpan, cell.ColSpan))
+        }
+    }
+    
+    return nil
+}
+
+// clamp 限制值在范围内
+func clamp(v, min, max int) int {
+    if v < min {
+        return min
+    }
+    if v > max {
+        return max
+    }
+    return v
+}
+
+// isOverlapping 检查两个单元格是否重叠
+func isOverlapping(a, b *CellProps) bool {
+    // 检查行范围重叠
+    aRowEnd := a.Row + a.RowSpan
+    bRowEnd := b.Row + b.RowSpan
+    rowOverlap := a.Row < bRowEnd && aRowEnd > b.Row
+    
+    // 检查列范围重叠
+    aColEnd := a.Col + a.ColSpan
+    bColEnd := b.Col + b.ColSpan
+    colOverlap := a.Col < bColEnd && aColEnd > b.Col
+    
+    return rowOverlap && colOverlap
+}
+```
+
+### 10.3 错误类型定义
+
+```go
+// framework/layout/grid_errors.go
+
+package layout
+
+// GridErrorType 错误类型
+type GridErrorType int
+
+const (
+    ErrorOutOfBounds GridErrorType = iota
+    ErrorOverlap
+    ErrorInvalidSpan
+    ErrorNegativeSize
+)
+
+// GridError Grid 布局错误
+type GridError struct {
+    Type    GridErrorType
+    Message string
+    Cell    *CellProps
+    Details map[string]interface{}
+}
+
+func (e *GridError) Error() string {
+    return fmt.Sprintf("[Grid Error] %s: %s", e.Type, e.Message)
+}
+
+// GridExpandRequest 扩展请求（用于 RecoveryExpand 模式）
+type GridExpandRequest struct {
+    RequiredRows int
+    RequiredCols int
+}
+
+func (e *GridExpandRequest) Error() string {
+    return fmt.Sprintf("grid expansion required: %dx%d", e.RequiredRows, e.RequiredCols)
+}
+
+// GridSkipCell 跳过单元格标记
+type GridSkipCell struct {
+    Cell *CellProps
+}
+
+func (e *GridSkipCell) Error() string {
+    return fmt.Sprintf("cell (%d,%d) skipped", e.Cell.Row, e.Cell.Col)
+}
+```
+
+### 10.4 开发模式错误可视化
+
+```go
+// framework/layout/grid_debug.go
+
+package layout
+
+import "github.com/wwsheng009/mint/ui"
+
+// GridDebugOverlay 错误可视化覆盖层
+type GridDebugOverlay struct {
+    Errors []GridError
+}
+
+// Render 渲染错误提示
+func (d *GridDebugOverlay) Render() ui.VNode {
+    if len(d.Errors) == 0 {
+        return nil
+    }
+    
+    errorNodes := make([]ui.VNode, len(d.Errors))
+    for i, err := range d.Errors {
+        errorNodes[i] = ui.HStack(
+            ui.Text("⚠").FgColor(color.Yellow),
+            ui.Text(err.Message).FgColor(color.Red),
+        )
+    }
+    
+    return ui.Box().
+        Border(true).
+        BorderColor(color.Red).
+        Background(color.RGBA(255, 0, 0, 50)).
+        Child(ui.VStack(errorNodes...))
+}
+
+// WrapWithDebug 包装 Grid 添加调试信息
+func WrapWithDebug(grid ui.VNode, errors []GridError) ui.VNode {
+    if !isDevMode() || len(errors) == 0 {
+        return grid
+    }
+    
+    overlay := &GridDebugOverlay{Errors: errors}
+    
+    return ui.Stack(
+        grid,
+        ui.Absolute(overlay.Render()).Top(0).Right(0),
+    )
+}
+```
+
+### 10.5 使用示例
+
+```go
+// 配置容错模式
+func CreateGrid() ui.VNode {
+    recovery := &layout.GridRecovery{
+        Mode: layout.RecoveryClamp,  // 自动修正模式
+        Logger: func(msg string) {
+            log.Println(msg)  // 记录警告
+        },
+    }
+    
+    return ui.Grid(
+        layout.GridProps{
+            RowSizes: []layout.Dimension{layout.Fixed(10), layout.Flex(1)},
+            ColSizes: []layout.Dimension{layout.Fixed(20), layout.Flex(1)},
+            Recovery: recovery,
+        },
+        ui.UICell(0, 0, Header()),
+        ui.UICell(1, 0, Sidebar()),
+        ui.UICell(0, 1, Content()),
+        // 即使这个越界，也会自动修正而不是崩溃
+        ui.UICell(5, 5, Footer()),  // 会被裁剪到 (1, 1)
+    )
+}
+```
+
+### 10.6 测试用例
+
+```go
+// framework/layout/grid_recovery_test.go
+
+func TestRecoveryClamp(t *testing.T) {
+    recovery := &GridRecovery{Mode: RecoveryClamp}
+    
+    cell := &CellProps{Row: 10, Col: 10, RowSpan: 1, ColSpan: 1}
+    err := recovery.HandleOutOfBounds(cell, 3, 3)
+    
+    assert.NoError(t, err)
+    assert.Equal(t, 2, cell.Row)  // 裁剪到 maxRow-1
+    assert.Equal(t, 2, cell.Col)  // 裁剪到 maxCol-1
+}
+
+func TestRecoveryStrict(t *testing.T) {
+    recovery := &GridRecovery{Mode: RecoveryStrict}
+    
+    cell := &CellProps{Row: 10, Col: 10}
+    err := recovery.HandleOutOfBounds(cell, 3, 3)
+    
+    assert.Error(t, err)
+    assert.IsType(t, &GridError{}, err)
+}
+
+func TestOverlapRecovery(t *testing.T) {
+    recovery := &GridRecovery{Mode: RecoveryClamp}
+    
+    occupied := map[string]*CellProps{
+        "0,0": {Row: 0, Col: 0, RowSpan: 2, ColSpan: 2},
+    }
+    
+    cell := &CellProps{Row: 1, Col: 1, RowSpan: 2, ColSpan: 2}
+    err := recovery.HandleOverlap(cell, occupied)
+    
+    // 应该缩小 Span 或跳过
+    assert.True(t, err == nil || errors.Is(err, &GridSkipCell{}))
+}
+```
+
+---
+
+## 十一、与其他布局的组合
 
 ### 10.1 Grid + Flex
 

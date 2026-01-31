@@ -1,6 +1,6 @@
 # Mint UI 声明式架构实施计划
 
-**版本**: v1.0
+**版本**: v1.1
 **日期**: 2026-01-31
 **基于**: SYSTEM_ARCHITECTURE.md, IMPLEMENTATION_GAP_ANALYSIS.md
 
@@ -8,17 +8,83 @@
 
 ## 执行摘要
 
-本实施计划将 Mint UI 从当前命令式架构迁移到声明式架构，分为 5 个阶段，预计 8 周完成。
+本实施计划将 Mint UI 从当前命令式架构迁移到声明式架构，采用 **MVP 优先策略**，分为 6 个阶段，预计 **10 周**完成（含缓冲时间）。
 
-### 关键里程碑
+### 🎯 MVP 优先策略
 
-| 阶段 | 周期 | 交付物 | 状态 |
-|------|------|--------|------|
-| Phase 1 | Week 1-2 | VNode + Hooks 基础 | ⏳ 待开始 |
-| Phase 2 | Week 3-4 | Reconciler + 渲染管线 | ⏳ 待开始 |
-| Phase 3 | Week 5-6 | 组件系统 + 布局 API | ⏳ 待开始 |
-| Phase 4 | Week 7 | DevTools 集成 | ⏳ 待开始 |
-| Phase 5 | Week 8 | 文档 + 示例 + 测试 | ⏳ 待开始 |
+**核心原则**：先交付最小可行产品，再迭代增强。
+
+| 优先级 | 功能 | 阶段 | 说明 |
+|--------|------|------|------|
+| **P0** | VNode + useState + 基础 Diff | Phase 0 | MVP 核心，必须首先完成 |
+| **P0** | Text/Button/Input 组件 | Phase 1 | 基础交互能力 |
+| **P1** | Fiber 架构 + useEffect | Phase 2 | 完整 Reconciler |
+| **P1** | HStack/VStack 布局 | Phase 2 | 基础布局 |
+| **P2** | Grid/Absolute 布局 | Phase 3 | 高级布局 |
+| **P2** | Layer 系统 | Phase 3 | Modal/Tooltip |
+| **P3** | Scheduler 时间切片 | Phase 4 | 性能优化 |
+| **P3** | 虚拟化渲染 | Phase 4 | 大数据量支持 |
+| **P4** | DevTools 集成 | Phase 5 | 调试工具 |
+
+### 关键里程碑（含缓冲时间）
+
+| 阶段 | 周期 | 缓冲 | 交付物 | 状态 |
+|------|------|------|--------|------|
+| **Phase 0** | Week 1 | +2天 | **MVP**: VNode + useState + 基础 Diff | ⏳ 待开始 |
+| Phase 1 | Week 2 | +2天 | 基础组件 (Text/Button/Input) | ⏳ 待开始 |
+| Phase 2 | Week 3-4 | +3天 | Fiber + Hooks + 布局 API | ⏳ 待开始 |
+| Phase 3 | Week 5-6 | +3天 | 高级布局 + Layer 系统 | ⏳ 待开始 |
+| Phase 4 | Week 7-8 | +2天 | Scheduler + 虚拟化 | ⏳ 待开始 |
+| Phase 5 | Week 9-10 | +2天 | DevTools + 文档 + 测试 | ⏳ 待开始 |
+
+**总缓冲时间**: 14 天（约 2 周），用于应对不可预见的技术挑战。
+
+---
+
+## Phase 0: MVP 核心 (Week 1) 🔴 最高优先级
+
+### 目标
+交付最小可行的声明式 UI 系统，验证核心架构可行性。
+
+### MVP 定义
+
+```go
+// MVP 目标：以下代码可以运行
+func App() VNode {
+    count, setCount := ui.UseState(0)
+    
+    return ui.VStack(
+        ui.Text(fmt.Sprintf("Count: %d", count)),
+        ui.Button("+").OnClick(func() {
+            setCount(count + 1)
+        }),
+    )
+}
+
+func main() {
+    ui.Run(App)
+}
+```
+
+### MVP 任务清单
+
+```markdown
+- [ ] 0.1 VNode 接口 + ElementVNode 实现
+- [ ] 0.2 useState Hook（最简实现）
+- [ ] 0.3 基础 Diff（类型比较 + Props Diff）
+- [ ] 0.4 简单渲染循环（无时间切片）
+- [ ] 0.5 Text 组件
+- [ ] 0.6 Button 组件（OnClick）
+- [ ] 0.7 VStack 布局（复用现有 FlexLayout）
+- [ ] 0.8 MVP 集成测试
+```
+
+### MVP 验收标准
+
+- [ ] Counter 示例可运行
+- [ ] 状态更新触发 UI 刷新
+- [ ] 基础 Diff 正确识别变化
+- [ ] 无明显性能问题（手动测试）
 
 ---
 

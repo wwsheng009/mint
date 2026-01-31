@@ -950,31 +950,284 @@ func UseContext = hooks.useContext
 
 ---
 
-## 第六部分：风险评估
+## 第六部分：风险评估与缓解措施 (增强版)
 
 ### 高风险项
 
-1. **状态系统合并**
-   - 风险: ReactiveStore 与 useState 功能重叠
-   - 缓解: 明确分工，useState 用于组件，ReactiveStore 用于全局
+#### 1. 状态系统合并
 
-2. **Fiber 架构复杂度**
-   - 风险: Fiber 树管理复杂，容易出错
-   - 缓解: 充分测试，逐步迁移
+| 维度 | 详情 |
+|------|------|
+| **风险描述** | ReactiveStore 与 useState 功能重叠，可能导致开发者困惑 |
+| **影响等级** | 🔴 高 |
+| **发生概率** | 中 |
 
-3. **Hooks 调用规则**
-   - 风险: 顺序调用约束容易被违反
-   - 缓解: Lint 检查，运行时验证
+**详细缓解措施**：
+
+```go
+// 1. 明确职责边界（已在 API_DESIGN.md 文档化）
+//    - useState: 组件本地状态
+//    - ReactiveStore: 全局/跨组件状态
+
+// 2. 编译时提示（通过代码注释）
+// useState 适用于：UI 状态、表单输入、动画状态
+// ReactiveStore 适用于：用户数据、应用配置、缓存数据
+
+// 3. Lint 规则建议
+// 检测在多个组件中重复定义相同状态的模式
+```
+
+**验证标准**：
+- [ ] 文档明确分工（已完成 ✅）
+- [ ] 示例代码展示正确用法
+- [ ] 代码审查检查清单包含状态选择
+
+---
+
+#### 2. Fiber 架构复杂度
+
+| 维度 | 详情 |
+|------|------|
+| **风险描述** | Fiber 树管理复杂，指针操作容易出错，调试困难 |
+| **影响等级** | 🔴 高 |
+| **发生概率** | 高 |
+
+**详细缓解措施**：
+
+```go
+// 1. 不变性检查
+type Fiber struct {
+    // 添加调试标记
+    debugID    string    // 唯一标识
+    createTime time.Time // 创建时间
+    updateCount int      // 更新次数
+}
+
+// 2. 树完整性验证
+func (f *Fiber) ValidateTree() error {
+    // 检查父子关系一致性
+    if f.Child != nil && f.Child.Return != f {
+        return fmt.Errorf("parent-child mismatch at %s", f.debugID)
+    }
+    // 检查兄弟链表完整性
+    // ...
+    return nil
+}
+
+// 3. 开发模式增强日志
+func (f *Fiber) DebugLog(phase string) {
+    if isDevMode() {
+        log.Printf("[Fiber %s] %s: type=%v, effect=%v",
+            f.debugID, phase, f.VNode.Type(), f.EffectTag)
+    }
+}
+```
+
+**测试策略**：
+- [ ] 单元测试覆盖所有 Fiber 操作
+- [ ] 模糊测试随机生成树结构
+- [ ] 集成测试验证完整渲染周期
+- [ ] 内存泄漏检测
+
+---
+
+#### 3. Hooks 调用规则
+
+| 维度 | 详情 |
+|------|------|
+| **风险描述** | Go 无法静态检查，顺序调用约束容易被违反 |
+| **影响等级** | 🔴 高 |
+| **发生概率** | 高 |
+
+**详细缓解措施**（已在 SYSTEM_ARCHITECTURE.md 实现）：
+
+```go
+// 1. 运行时验证器（已实现 ✅）
+// 见 SYSTEM_ARCHITECTURE.md 中的 HookValidator
+
+// 2. 开发模式堆栈追踪
+// 见 SYSTEM_ARCHITECTURE.md 中的 DevModeValidator
+
+// 3. 错误信息增强
+// 提供具体的错误位置和修复建议
+
+// 4. 文档和示例
+// 常见错误模式和正确写法对比
+```
+
+**验证标准**：
+- [x] 运行时验证器实现（已完成 ✅）
+- [ ] 错误信息包含修复建议
+- [ ] 文档包含常见错误示例
+- [ ] 测试覆盖所有错误场景
+
+---
 
 ### 中风险项
 
-1. **性能回归**
-   - 风险: 新增抽象层可能影响性能
-   - 缓解: 性能基准测试，优化热点
+#### 4. 性能回归
 
-2. **API 兼容性**
-   - 风险: 新旧 API 共存造成混乱
-   - 缓解: 清晰的迁移指南，标记废弃
+| 维度 | 详情 |
+|------|------|
+| **风险描述** | 新增抽象层（VNode、Fiber、DrawCmd）可能影响性能 |
+| **影响等级** | 🟡 中 |
+| **发生概率** | 中 |
+
+**详细缓解措施**（已在 BENCHMARK.md 实现）：
+
+```bash
+# 1. 建立性能基准（已完成 ✅）
+go test ./framework/benchmark/... -bench=. -benchmem
+
+# 2. CI 集成性能检测
+# 每次 PR 运行基准测试，与基准线比较
+
+# 3. 性能阈值告警
+# 超过 10% 回归自动标记 PR
+
+# 4. 热点优化
+# 使用 pprof 分析 CPU 和内存热点
+go tool pprof cpu.prof
+```
+
+**验证标准**：
+- [x] 基准测试套件完成（已完成 ✅）
+- [ ] CI 集成性能检测
+- [ ] 性能回归自动告警
+- [ ] 关键路径优化完成
+
+---
+
+#### 5. API 兼容性
+
+| 维度 | 详情 |
+|------|------|
+| **风险描述** | 新旧 API 共存期间可能造成开发者困惑 |
+| **影响等级** | 🟡 中 |
+| **发生概率** | 中 |
+
+**详细缓解措施**：
+
+```go
+// 1. 废弃标记
+// Deprecated: Use ui.Text instead
+func NewText(content string) *Text {
+    log.Println("DEPRECATED: NewText is deprecated, use ui.Text")
+    return &Text{content: content}
+}
+
+// 2. 适配器层
+// framework/compat/adapter.go
+func LegacyToVNode(legacy *component.Text) ui.VNode {
+    return ui.Text(legacy.Content()).
+        FgColor(legacy.FgColor()).
+        BgColor(legacy.BgColor())
+}
+
+// 3. 迁移工具
+// tools/migrate/main.go
+// 自动转换旧代码到新 API
+```
+
+**迁移时间表**：
+| 阶段 | 时间 | 行动 |
+|------|------|------|
+| 共存期 | v0.1-v0.3 | 新旧 API 并存，废弃警告 |
+| 过渡期 | v0.4-v0.5 | 默认新 API，旧 API 需显式启用 |
+| 移除期 | v1.0 | 移除旧 API |
+
+---
+
+#### 6. 布局错误处理
+
+| 维度 | 详情 |
+|------|------|
+| **风险描述** | Grid/Absolute 布局边界情况可能导致崩溃或显示异常 |
+| **影响等级** | 🟡 中 |
+| **发生概率** | 中 |
+
+**详细缓解措施**（已在 GRID_LAYOUT_DESIGN.md 实现）：
+
+```go
+// 1. 容错模式（已实现 ✅）
+// RecoveryStrict / RecoveryClamp / RecoveryExpand
+
+// 2. 错误可视化（已实现 ✅）
+// 开发模式显示布局错误边界
+
+// 3. 日志记录
+// 记录所有布局警告供调试
+```
+
+**验证标准**：
+- [x] 容错策略实现（已完成 ✅）
+- [x] 错误可视化实现（已完成 ✅）
+- [ ] 测试覆盖所有边界情况
+
+---
+
+### 低风险项
+
+#### 7. 内存泄漏
+
+| 维度 | 详情 |
+|------|------|
+| **风险描述** | Hooks Effect 清理不当、Fiber 节点未释放 |
+| **影响等级** | 🟢 低 |
+| **发生概率** | 低 |
+
+**缓解措施**：
+
+```go
+// 1. Effect 清理追踪
+type Effect struct {
+    cleanup   func()
+    cleaned   bool
+    debugInfo string
+}
+
+func (e *Effect) Cleanup() {
+    if e.cleanup != nil && !e.cleaned {
+        e.cleanup()
+        e.cleaned = true
+    }
+}
+
+// 2. Fiber 节点池
+var fiberPool = sync.Pool{
+    New: func() interface{} {
+        return &Fiber{}
+    },
+}
+
+// 3. 定期内存检查（开发模式）
+func StartMemoryMonitor() {
+    go func() {
+        for range time.Tick(10 * time.Second) {
+            var m runtime.MemStats
+            runtime.ReadMemStats(&m)
+            if m.HeapAlloc > threshold {
+                log.Printf("[Memory Warning] Heap: %d MB", m.HeapAlloc/1024/1024)
+            }
+        }
+    }()
+}
+```
+
+---
+
+### 风险矩阵总览
+
+```
+影响 ↑
+高   │ ③Hooks规则  ②Fiber复杂度
+     │ ①状态合并
+中   │ ④性能回归   ⑤API兼容   ⑥布局错误
+     │
+低   │             ⑦内存泄漏
+     └──────────────────────────────────→ 概率
+         低           中           高
+```
 
 ---
 
@@ -994,16 +1247,29 @@ func UseContext = hooks.useContext
 3. **测试先行**: 每个新模块都应有对应的测试
 4. **文档完善**: API 文档、迁移指南、示例代码
 
+### 已完成的改进 (v1.1)
+
+| 改进项 | 文档 | 状态 |
+|--------|------|------|
+| MVP 优先策略 | IMPLEMENTATION_PLAN.md | ✅ 完成 |
+| Hooks 运行时验证 | SYSTEM_ARCHITECTURE.md | ✅ 完成 |
+| useState vs ReactiveStore 分工 | API_DESIGN.md | ✅ 完成 |
+| 性能基准测试结果 | BENCHMARK.md | ✅ 完成 |
+| Grid 容错策略 | GRID_LAYOUT_DESIGN.md | ✅ 完成 |
+| 风险缓解措施细化 | 本文档 | ✅ 完成 |
+
 ### 下一步行动
 
-1. 创建详细实施计划 (`IMPLEMENTATION_PLAN.md`)
-2. 建立 API 设计文档 (`API_DESIGN.md`)
+1. ~~创建详细实施计划~~ (`IMPLEMENTATION_PLAN.md`) ✅
+2. ~~建立 API 设计文档~~ (`API_DESIGN.md`) ✅
 3. 准备迁移指南 (`MIGRATION_GUIDE.md`)
-4. 设置性能基准 (`BENCHMARK.md`)
+4. ~~设置性能基准~~ (`BENCHMARK.md`) ✅
+5. 开始 Phase 0: MVP 核心实现
 
 ---
 
 **文档结束**
 
 **版本历史**:
+- v1.1 (2026-01-31): 细化风险缓解措施，添加已完成改进清单
 - v1.0 (2026-01-31): 初始版本

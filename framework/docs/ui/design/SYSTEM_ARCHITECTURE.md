@@ -162,6 +162,155 @@ type ComponentContext struct {
 }
 ```
 
+#### 1.3 Hooks 运行时验证机制 (新增)
+
+**问题**：Go 语言无法像 JavaScript 那样通过 ESLint 静态检查 Hooks 调用顺序，需要运行时验证。
+
+**验证规则**：
+
+1. **顺序一致性**：每次渲染 Hooks 调用顺序必须相同
+2. **数量一致性**：每次渲染 Hooks 数量必须相同
+3. **类型一致性**：同一位置的 Hook 类型必须相同
+
+**运行时验证器**：
+
+```go
+// framework/hooks/validator.go
+
+type HookValidator struct {
+    componentID   string
+    expectedOrder []HookType  // 首次渲染记录的顺序
+    currentIndex  int
+    isFirstRender bool
+}
+
+// ValidateHookCall 验证 Hook 调用
+func (v *HookValidator) ValidateHookCall(hookType HookType) error {
+    if v.isFirstRender {
+        // 首次渲染，记录顺序
+        v.expectedOrder = append(v.expectedOrder, hookType)
+        v.currentIndex++
+        return nil
+    }
+    
+    // 后续渲染，验证顺序
+    if v.currentIndex >= len(v.expectedOrder) {
+        return &HookOrderError{
+            Component: v.componentID,
+            Message:   "Hook 调用数量超出首次渲染记录",
+            Expected:  len(v.expectedOrder),
+            Actual:    v.currentIndex + 1,
+        }
+    }
+    
+    expected := v.expectedOrder[v.currentIndex]
+    if hookType != expected {
+        return &HookOrderError{
+            Component:    v.componentID,
+            Message:      "Hook 调用顺序不一致",
+            Position:     v.currentIndex,
+            ExpectedType: expected,
+            ActualType:   hookType,
+        }
+    }
+    
+    v.currentIndex++
+    return nil
+}
+
+// FinishRender 渲染结束验证
+func (v *HookValidator) FinishRender() error {
+    if !v.isFirstRender && v.currentIndex != len(v.expectedOrder) {
+        return &HookOrderError{
+            Component: v.componentID,
+            Message:   "Hook 调用数量不足",
+            Expected:  len(v.expectedOrder),
+            Actual:    v.currentIndex,
+        }
+    }
+    v.isFirstRender = false
+    v.currentIndex = 0
+    return nil
+}
+
+// HookOrderError Hooks 顺序错误
+type HookOrderError struct {
+    Component    string
+    Message      string
+    Position     int
+    Expected     int
+    Actual       int
+    ExpectedType HookType
+    ActualType   HookType
+}
+
+func (e *HookOrderError) Error() string {
+    return fmt.Sprintf("[Hooks Error] %s in component '%s': %s (position: %d)",
+        e.Message, e.Component, e.detailMessage(), e.Position)
+}
+```
+
+**开发模式增强检测**：
+
+```go
+// framework/hooks/dev_validator.go
+
+// DevModeValidator 开发模式增强验证
+type DevModeValidator struct {
+    HookValidator
+    callStack []string  // 调用堆栈记录
+}
+
+// ValidateWithStack 带堆栈的验证
+func (v *DevModeValidator) ValidateWithStack(hookType HookType) error {
+    // 记录调用位置（用于调试）
+    _, file, line, _ := runtime.Caller(2)
+    v.callStack = append(v.callStack, fmt.Sprintf("%s:%d", file, line))
+    
+    if err := v.ValidateHookCall(hookType); err != nil {
+        // 附加堆栈信息
+        return fmt.Errorf("%w\n调用位置: %s", err, v.callStack[len(v.callStack)-1])
+    }
+    return nil
+}
+```
+
+**使用示例**：
+
+```go
+// useState 内部调用验证
+func useState(initial interface{}) (interface{}, func(interface{})) {
+    ctx := currentContext()
+    
+    // 验证 Hook 调用顺序
+    if err := ctx.validator.ValidateHookCall(HookState); err != nil {
+        panic(err)  // 开发阶段立即暴露问题
+    }
+    
+    // ... 正常逻辑
+}
+```
+
+**错误提示示例**：
+
+```
+[Hooks Error] Hook 调用顺序不一致 in component 'Counter': 
+  位置 2 期望 useState，实际调用 useEffect
+  
+  提示: Hooks 必须在组件顶层调用，不能在条件语句或循环中调用。
+  
+  错误代码示例:
+    if condition {
+        count, setCount := useState(0)  // ❌ 错误：条件调用
+    }
+  
+  正确代码示例:
+    count, setCount := useState(0)      // ✅ 正确：顶层调用
+    if condition {
+        // 使用 count
+    }
+```
+
 ---
 
 ### 2. Reconciler 系统
