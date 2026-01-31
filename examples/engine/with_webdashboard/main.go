@@ -1,8 +1,8 @@
-// Engine Example with WebDashboard
+// Engine Example with DevTools Server (New Unified Protocol)
 //
-// This example shows how to integrate WebDashboard into an existing TUI application.
+// This example shows how to integrate the DevTools server into an existing TUI application.
 // The key points:
-//   1. Start WebDashboard at application startup
+//   1. Start DevTools server at application startup
 //   2. Use BeginFrame/EndFrame to automatically capture frame data
 //   3. Component updates are recorded automatically
 //   4. No manual simulation needed - data comes from real application activity
@@ -18,7 +18,7 @@ import (
 	"time"
 
 	"github.com/wwsheng009/mint/devtools"
-	"github.com/wwsheng009/mint/devtools/client"
+	"github.com/wwsheng009/mint/devtools/protocol"
 	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/engine"
 	"github.com/wwsheng009/mint/runtime/event"
@@ -34,16 +34,16 @@ import (
 var (
 	debugState struct {
 		sync.RWMutex
-		mouseX     int
-		mouseY     int
-		lastEvent  string
+		mouseX    int
+		mouseY    int
+		lastEvent string
 	}
 
 	// DevTools 实例
 	dt *devtools.DevTools
 
-	// WebDashboard 实例 - 用于 Web UI
-	dashboard *client.WebDashboard
+	// DevToolsServer 实例 - 使用新的统一协议包
+	server *protocol.Server
 )
 
 func init() {
@@ -53,33 +53,37 @@ func init() {
 	// 初始化 DevTools
 	dt = devtools.New()
 
-	// 初始化 WebDashboard (在端口 8080)
-	dashboard = client.NewWebDashboard(8080)
+	// 初始化 DevToolsServer (使用新的 protocol 包)
+	server = protocol.NewServer(protocol.ServerConfig{
+		Port:              8080,
+		EnableDashboard:   true,
+		EnableTuiCommands: true,
+	})
 }
 
 // =============================================================================
 // 集成说明
 // =============================================================================
 //
-// 在现有应用中集成 WebDashboard 只需几步:
+// 在现有应用中集成 DevTools 只需几步:
 //
-// 1. 在 main() 或 init() 中创建 WebDashboard:
-//    dashboard := client.NewWebDashboard(8080)
+// 1. 在 main() 或 init() 中创建 DevToolsServer:
+//    server := protocol.NewServer(protocol.ServerConfig{Port: 8080})
 //
 // 2. 在应用启动时启动它:
-//    dashboard.Start()
-//    defer dashboard.Stop()
+//    server.Start()
+//    defer server.Stop()
 //
 // 3. 在渲染循环中使用 BeginFrame/EndFrame (这会自动记录帧数据):
 //    dt.BeginFrame()
 //    ... 渲染逻辑 ...
 //    dt.EndFrame()
 //
-// 4. (可选) 记录组件状态:
-//    dashboard.UpdateComponent(componentID, &client.DashboardComponent{...})
+// 4. (可选) 更新组件状态:
+//    server.UpdateComponent(componentID, &protocol.DashboardComponentData{...})
 //
 // 5. (可选) 定期更新性能指标:
-//    dashboard.UpdateMetrics(&client.DashboardMetrics{...})
+//    server.UpdateMetrics(&protocol.Metrics{...})
 //
 // 不需要 runSimulation! 数据来自真实的应用活动。
 //
@@ -255,7 +259,7 @@ func (r *Root) Paint(buf *paint.Buffer) {
 
 	// 绘制标题
 	titleStyle := style.Style{}.Foreground(style.Cyan).Bold(true)
-	buf.SetString(2, 1, "Engine with WebDashboard - Real-time Debugging", titleStyle)
+	buf.SetString(2, 1, "Engine with DevTools Server - Real-time Debugging", titleStyle)
 
 	// 绘制说明
 	infoStyle := style.Style{}.Foreground(style.White)
@@ -312,31 +316,45 @@ func (r *Root) drawStatusBar(buf *paint.Buffer) {
 func (r *Root) Update(dt time.Duration) {
 	r.frameCount++
 
-	// 每 10 帧更新一次性能指标到 WebDashboard
+	// 添加帧数据到 DevToolsServer
+	server.AddFrame(&protocol.FrameData{
+		FrameID:       devtools.FrameID(r.frameCount),
+		Timestamp:     time.Now(),
+		Duration:      dt,
+		EventCount:    0, // Could track actual events
+		MutationCount: 0,
+		LayoutCount:   1,
+		RepaintCount:  1,
+	})
+
+	// 每 10 帧更新一次性能指标到 DevToolsServer
 	if time.Since(r.lastMetricsUpdate) > 500*time.Millisecond {
 		r.updateMetrics()
 		r.lastMetricsUpdate = time.Now()
 	}
 
-	// 更新组件状态到 WebDashboard
+	// 更新组件状态到 DevToolsServer
 	r.updateComponents()
 }
 
 // updateMetrics 更新性能指标
 func (r *Root) updateMetrics() {
-	dashboard.UpdateMetrics(&client.DashboardMetrics{
-		FPS:            60.0,                       // 目标 FPS
-		FrameTime:      16 * time.Millisecond,    // ~60fps
-		MemoryUsage:    50 * 1024 * 1024,         // 50MB
-		ComponentCount: len(r.buttons) + 2,        // buttons + root + cursor
+	server.UpdateMetrics(&protocol.Metrics{
+		FPS:            60.0,                 // 目标 FPS
+		FrameTime:      16 * time.Millisecond, // ~60fps
+		LayoutTime:     5 * time.Millisecond,
+		PaintTime:      8 * time.Millisecond,
+		MemoryUsage:    50 * 1024 * 1024,    // 50MB
+		ComponentCount: len(r.buttons) + 2,   // buttons + root + cursor
+		FrameCount:     r.frameCount,
 	})
 }
 
-// updateComponents 更新组件状态到 WebDashboard
+// updateComponents 更新组件状态到 DevToolsServer
 func (r *Root) updateComponents() {
 	// 更新每个按钮的状态
 	for _, btn := range r.buttons {
-		dashboard.UpdateComponent(btn.id, &client.DashboardComponent{
+		server.UpdateComponent(btn.id, &protocol.DashboardComponentData{
 			ID:   btn.id,
 			Type: "Button",
 			Properties: map[string]interface{}{
@@ -389,7 +407,7 @@ func (r *Root) GetButtonByID(id string) *Button {
 }
 
 // =============================================================================
-// 主程序 - 集成 WebDashboard 的标准方式
+// 主程序 - 集成 DevToolsServer 的标准方式
 // =============================================================================
 
 func EngineExample() error {
@@ -398,12 +416,12 @@ func EngineExample() error {
 		height = 15
 	)
 
-	// 步骤 1: 启动 WebDashboard
-	fmt.Println("Starting WebDashboard on http://localhost:8080/")
-	if err := dashboard.Start(); err != nil {
-		return fmt.Errorf("failed to start dashboard: %w", err)
+	// 步骤 1: 启动 DevToolsServer (使用新的 protocol 包)
+	fmt.Println("Starting DevToolsServer on http://localhost:8080/")
+	if err := server.Start(); err != nil {
+		return fmt.Errorf("failed to start DevToolsServer: %w", err)
 	}
-	defer dashboard.Stop()
+	defer server.Stop()
 
 	// 步骤 2: 启用 DevTools
 	dt.Enable()
@@ -458,7 +476,7 @@ func EngineExample() error {
 	fmt.Print("\x1b[2J")
 	fmt.Print("\x1b[H")
 
-	fmt.Println("=== Engine Example with WebDashboard ===")
+	fmt.Println("=== Engine Example with DevTools Server ===")
 	fmt.Println()
 	fmt.Println("Web Dashboard: http://localhost:8080/")
 	fmt.Println()
@@ -495,8 +513,8 @@ func main() {
 			dt.Disable()
 		}
 
-		if dashboard != nil && dashboard.IsRunning() {
-			dashboard.Stop()
+		if server != nil && server.IsRunning() {
+			server.Stop()
 		}
 	}()
 

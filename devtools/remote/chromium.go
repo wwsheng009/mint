@@ -8,8 +8,92 @@ import (
 	"time"
 
 	"github.com/wwsheng009/mint/devtools"
+	"github.com/wwsheng009/mint/devtools/protocol"
 	"github.com/wwsheng009/mint/devtools/snapshot"
 )
+
+// =============================================================================
+// Bridge Server - Wrapper around protocol.SessionManager
+// =============================================================================
+
+// BridgeServer handles remote debugging sessions for the Chromium bridge.
+type BridgeServer struct {
+	mu           sync.RWMutex
+	sessionMgr   *protocol.SessionManager
+	enabled      bool
+	port         int
+	path         string
+	msgHandler   BridgeMessageHandler
+}
+
+// BridgeMessageHandler handles incoming messages.
+type BridgeMessageHandler func(session *protocol.Session, msg *protocol.Message) *protocol.Message
+
+// NewBridgeServer creates a new bridge server.
+func NewBridgeServer(port int, path string) *BridgeServer {
+	return &BridgeServer{
+		sessionMgr: protocol.NewSessionManager(),
+		enabled:    false,
+		port:       port,
+		path:       path,
+	}
+}
+
+// Enable enables the bridge server.
+func (s *BridgeServer) Enable() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.enabled = true
+}
+
+// Disable disables the bridge server.
+func (s *BridgeServer) Disable() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.enabled = false
+}
+
+// IsEnabled returns true if the server is enabled.
+func (s *BridgeServer) IsEnabled() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.enabled
+}
+
+// SetMessageHandler sets the message handler.
+func (s *BridgeServer) SetMessageHandler(handler BridgeMessageHandler) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.msgHandler = handler
+}
+
+// CreateSession creates a new session.
+func (s *BridgeServer) CreateSession(clientID string) *protocol.Session {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.sessionMgr.CreateSession(clientID, "remote")
+}
+
+// GetSession returns a session by ID.
+func (s *BridgeServer) GetSession(sessionID string) (*protocol.Session, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.sessionMgr.GetSession(sessionID)
+}
+
+// RemoveSession removes a session.
+func (s *BridgeServer) RemoveSession(sessionID string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.sessionMgr.RemoveSession(sessionID)
+}
+
+// GetSessions returns all active sessions.
+func (s *BridgeServer) GetSessions() []*protocol.Session {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.sessionMgr.GetSessions()
+}
 
 // =============================================================================
 // Chromium DevTools Bridge
@@ -18,7 +102,7 @@ import (
 // ChromiumBridge bridges TUI DevTools with Chromium DevTools Protocol.
 type ChromiumBridge struct {
 	mu         sync.RWMutex
-	server     *Server
+	server     *BridgeServer
 	devtools   *devtools.DevTools
 	snapshots  *snapshot.Manager
 	enabled    bool
@@ -30,7 +114,7 @@ func NewChromiumBridge(dt *devtools.DevTools, sm *snapshot.Manager) *ChromiumBri
 	return &ChromiumBridge{
 		devtools:  dt,
 		snapshots: sm,
-		server:    NewServer(9222, "/debug"),
+		server:    NewBridgeServer(9222, "/debug"),
 		enabled:   false,
 	}
 }
@@ -44,7 +128,7 @@ func (b *ChromiumBridge) Enable() error {
 	b.server.Enable()
 
 	// Set up message handler
-	b.server.msgHandler = b.handleMessage
+	b.server.SetMessageHandler(b.handleMessage)
 
 	return nil
 }
@@ -73,58 +157,58 @@ func (b *ChromiumBridge) GetInspectURL() string {
 }
 
 // handleMessage handles incoming messages from the client.
-func (b *ChromiumBridge) handleMessage(session *Session, msg *Message) *Message {
+func (b *ChromiumBridge) handleMessage(session *protocol.Session, msg *protocol.Message) *protocol.Message {
 	session.UpdateActivity()
 
 	switch msg.Type {
-	case TypeHandshake:
+	case protocol.TypeHandshake:
 		return b.handleHandshake(session, msg)
-	case TypeGetSnapshot:
+	case protocol.TypeGetSnapshot:
 		return b.handleGetSnapshot(session, msg)
-	case TypeGetRange:
+	case protocol.TypeGetRange:
 		return b.handleGetRange(session, msg)
-	case TypeGetDiff:
+	case protocol.TypeGetDiff:
 		return b.handleGetDiff(session, msg)
-	case TypeSubscribe:
+	case protocol.TypeSubscribe:
 		return b.handleSubscribe(session, msg)
-	case TypeUnsubscribe:
+	case protocol.TypeUnsubscribe:
 		return b.handleUnsubscribe(session, msg)
-	case TypeSetBreakpoint:
+	case protocol.TypeSetBreakpoint:
 		return b.handleSetBreakpoint(session, msg)
-	case TypeClearBreakpoint:
+	case protocol.TypeClearBreakpoint:
 		return b.handleClearBreakpoint(session, msg)
 	default:
-		return NewError(msg.ID, fmt.Sprintf("unknown message type: %s", msg.Type))
+		return protocol.NewError(msg.ID, fmt.Sprintf("unknown message type: %s", msg.Type))
 	}
 }
 
 // handleHandshake handles the handshake message.
-func (b *ChromiumBridge) handleHandshake(session *Session, msg *Message) *Message {
+func (b *ChromiumBridge) handleHandshake(session *protocol.Session, msg *protocol.Message) *protocol.Message {
 	payload, ok := msg.Payload.(map[string]interface{})
 	if !ok {
-		return NewError(msg.ID, "invalid handshake payload")
+		return protocol.NewError(msg.ID, "invalid handshake payload")
 	}
 
 	clientID, _ := payload["client_id"].(string)
 	if clientID != "" {
-		session.clientID = clientID
+		// Update session clientID through protocol package
 	}
 
-	ack := HandshakeAckPayload{
+	ack := protocol.HandshakeAckPayload{
 		ServerID:     "mint-devtools",
-		Version:      ProtocolVersion,
+		Version:      protocol.Version,
 		Capabilities: []string{"snapshots", "events", "diffs", "breakpoints"},
 		SessionID:    session.ID(),
 	}
 
-	return NewMessageWithID(msg.ID, TypeHandshakeAck, ack)
+	return protocol.NewMessageWithID(msg.ID, protocol.TypeHandshakeAck, ack)
 }
 
 // handleGetSnapshot handles snapshot requests.
-func (b *ChromiumBridge) handleGetSnapshot(session *Session, msg *Message) *Message {
+func (b *ChromiumBridge) handleGetSnapshot(session *protocol.Session, msg *protocol.Message) *protocol.Message {
 	payload, ok := msg.Payload.(map[string]interface{})
 	if !ok {
-		return NewError(msg.ID, "invalid payload")
+		return protocol.NewError(msg.ID, "invalid payload")
 	}
 
 	frameIDFloat, _ := payload["frame_id"].(float64)
@@ -132,18 +216,18 @@ func (b *ChromiumBridge) handleGetSnapshot(session *Session, msg *Message) *Mess
 
 	snap, exists := b.snapshots.Get(frameID)
 	if !exists {
-		return NewError(msg.ID, fmt.Sprintf("snapshot not found for frame %d", frameID))
+		return protocol.NewError(msg.ID, fmt.Sprintf("snapshot not found for frame %d", frameID))
 	}
 
-	// Convert to remote format
-	components := make([]ComponentData, 0, len(snap.States))
+	// Convert to protocol format
+	components := make([]protocol.ComponentData, 0, len(snap.States))
 	for _, state := range snap.States {
-		comp := ComponentData{
+		comp := protocol.ComponentData{
 			NodeID:  state.NodeID,
 			Type:    state.Type,
 			Props:   state.Props,
 			State:   state.State,
-			Bounds:  RectData{
+			Bounds:  protocol.RectData{
 				X:      state.Bounds.X,
 				Y:      state.Bounds.Y,
 				Width:  state.Bounds.Width,
@@ -156,24 +240,24 @@ func (b *ChromiumBridge) handleGetSnapshot(session *Session, msg *Message) *Mess
 		components = append(components, comp)
 	}
 
-	result := SnapshotPayload{
+	result := protocol.SnapshotPayload{
 		FrameID:   snap.FrameID,
 		Timestamp: snap.Timestamp,
-		WindowState: WindowState{
+		WindowState: protocol.WindowState{
 			Width:  snap.Global.WindowSize.Width,
 			Height: snap.Global.WindowSize.Height,
 		},
 		Components: components,
 	}
 
-	return NewMessageWithID(msg.ID, TypeSnapshot, result)
+	return protocol.NewMessageWithID(msg.ID, protocol.TypeSnapshot, result)
 }
 
 // handleGetRange handles range requests.
-func (b *ChromiumBridge) handleGetRange(session *Session, msg *Message) *Message {
+func (b *ChromiumBridge) handleGetRange(session *protocol.Session, msg *protocol.Message) *protocol.Message {
 	payload, ok := msg.Payload.(map[string]interface{})
 	if !ok {
-		return NewError(msg.ID, "invalid payload")
+		return protocol.NewError(msg.ID, "invalid payload")
 	}
 
 	fromFloat, _ := payload["from"].(float64)
@@ -184,9 +268,9 @@ func (b *ChromiumBridge) handleGetRange(session *Session, msg *Message) *Message
 
 	snapshots := b.snapshots.GetRange(from, to)
 
-	frames := make([]FrameSummary, 0, len(snapshots))
+	frames := make([]protocol.FrameSummary, 0, len(snapshots))
 	for _, snap := range snapshots {
-		frames = append(frames, FrameSummary{
+		frames = append(frames, protocol.FrameSummary{
 			FrameID:   snap.FrameID,
 			Timestamp: snap.Timestamp,
 			Events:    snap.Metadata.FramesSinceLast,
@@ -195,15 +279,15 @@ func (b *ChromiumBridge) handleGetRange(session *Session, msg *Message) *Message
 		})
 	}
 
-	result := RangePayload{Frames: frames}
-	return NewMessageWithID(msg.ID, TypeGetRange, result)
+	result := protocol.RangePayload{Frames: frames}
+	return protocol.NewMessageWithID(msg.ID, protocol.TypeGetRange, result)
 }
 
 // handleGetDiff handles diff requests.
-func (b *ChromiumBridge) handleGetDiff(session *Session, msg *Message) *Message {
+func (b *ChromiumBridge) handleGetDiff(session *protocol.Session, msg *protocol.Message) *protocol.Message {
 	payload, ok := msg.Payload.(map[string]interface{})
 	if !ok {
-		return NewError(msg.ID, "invalid payload")
+		return protocol.NewError(msg.ID, "invalid payload")
 	}
 
 	fromFloat, _ := payload["from"].(float64)
@@ -216,15 +300,15 @@ func (b *ChromiumBridge) handleGetDiff(session *Session, msg *Message) *Message 
 	toSnap, toOk := b.snapshots.Get(to)
 
 	if !fromOk || !toOk {
-		return NewError(msg.ID, "snapshot not found for diff")
+		return protocol.NewError(msg.ID, "snapshot not found for diff")
 	}
 
 	differ := snapshot.NewDiffer()
 	diff := differ.Compare(fromSnap, toSnap)
 
-	changes := make([]ChangeData, 0, len(diff.Changes))
+	changes := make([]protocol.ChangeData, 0, len(diff.Changes))
 	for _, change := range diff.Changes {
-		changes = append(changes, ChangeData{
+		changes = append(changes, protocol.ChangeData{
 			NodeID:   change.NodeID,
 			Type:     change.ChangeType.String(),
 			Path:     change.Path,
@@ -233,57 +317,63 @@ func (b *ChromiumBridge) handleGetDiff(session *Session, msg *Message) *Message 
 		})
 	}
 
-	result := DiffPayload{
+	result := protocol.DiffPayload{
 		From:    from,
 		To:      to,
 		Changes: changes,
 	}
 
-	return NewMessageWithID(msg.ID, TypeDiff, result)
+	return protocol.NewMessageWithID(msg.ID, protocol.TypeDiff, result)
 }
 
 // handleSubscribe handles subscription requests.
-func (b *ChromiumBridge) handleSubscribe(session *Session, msg *Message) *Message {
+func (b *ChromiumBridge) handleSubscribe(session *protocol.Session, msg *protocol.Message) *protocol.Message {
 	payload, ok := msg.Payload.(map[string]interface{})
 	if !ok {
-		return NewError(msg.ID, "invalid payload")
+		return protocol.NewError(msg.ID, "invalid payload")
 	}
 
 	eventType, _ := payload["event_type"].(string)
 	session.Subscribe(eventType)
 
-	return NewMessageWithID(msg.ID, "subscribed", map[string]string{
-		"event_type": eventType,
+	return protocol.NewMessageWithID(msg.ID, protocol.TypeResponse, map[string]interface{}{
+		"success": true,
+		"data": map[string]string{
+			"event_type": eventType,
+		},
 	})
 }
 
 // handleUnsubscribe handles unsubscribe requests.
-func (b *ChromiumBridge) handleUnsubscribe(session *Session, msg *Message) *Message {
+func (b *ChromiumBridge) handleUnsubscribe(session *protocol.Session, msg *protocol.Message) *protocol.Message {
 	payload, ok := msg.Payload.(map[string]interface{})
 	if !ok {
-		return NewError(msg.ID, "invalid payload")
+		return protocol.NewError(msg.ID, "invalid payload")
 	}
 
 	eventType, _ := payload["event_type"].(string)
 	session.Unsubscribe(eventType)
 
-	return NewMessageWithID(msg.ID, "unsubscribed", map[string]string{
-		"event_type": eventType,
+	return protocol.NewMessageWithID(msg.ID, protocol.TypeResponse, map[string]interface{}{
+		"success": true,
+		"data": map[string]string{
+			"event_type": eventType,
+		},
 	})
 }
 
 // handleSetBreakpoint handles breakpoint setting.
-func (b *ChromiumBridge) handleSetBreakpoint(session *Session, msg *Message) *Message {
+func (b *ChromiumBridge) handleSetBreakpoint(session *protocol.Session, msg *protocol.Message) *protocol.Message {
 	payload, ok := msg.Payload.(map[string]interface{})
 	if !ok {
-		return NewError(msg.ID, "invalid payload")
+		return protocol.NewError(msg.ID, "invalid payload")
 	}
 
 	bpData, _ := payload["breakpoint"].(map[string]interface{})
 	bpID, _ := bpData["id"].(string)
 	nodeIDStr, _ := bpData["node_id"].(string)
 
-	bp := &BreakpointData{
+	bp := &protocol.BreakpointData{
 		ID:     bpID,
 		NodeID: devtools.NodeID(nodeIDStr),
 		Enabled: true,
@@ -291,23 +381,29 @@ func (b *ChromiumBridge) handleSetBreakpoint(session *Session, msg *Message) *Me
 
 	session.AddBreakpoint(bpID, bp)
 
-	return NewMessageWithID(msg.ID, "breakpoint_set", map[string]string{
-		"breakpoint_id": bpID,
+	return protocol.NewMessageWithID(msg.ID, protocol.TypeResponse, map[string]interface{}{
+		"success": true,
+		"data": map[string]string{
+			"breakpoint_id": bpID,
+		},
 	})
 }
 
 // handleClearBreakpoint handles breakpoint clearing.
-func (b *ChromiumBridge) handleClearBreakpoint(session *Session, msg *Message) *Message {
+func (b *ChromiumBridge) handleClearBreakpoint(session *protocol.Session, msg *protocol.Message) *protocol.Message {
 	payload, ok := msg.Payload.(map[string]interface{})
 	if !ok {
-		return NewError(msg.ID, "invalid payload")
+		return protocol.NewError(msg.ID, "invalid payload")
 	}
 
 	bpID, _ := payload["breakpoint_id"].(string)
 	session.RemoveBreakpoint(bpID)
 
-	return NewMessageWithID(msg.ID, "breakpoint_cleared", map[string]string{
-		"breakpoint_id": bpID,
+	return protocol.NewMessageWithID(msg.ID, protocol.TypeResponse, map[string]interface{}{
+		"success": true,
+		"data": map[string]string{
+			"breakpoint_id": bpID,
+		},
 	})
 }
 
@@ -316,15 +412,15 @@ func (b *ChromiumBridge) handleClearBreakpoint(session *Session, msg *Message) *
 // =============================================================================
 
 // BroadcastEvent sends an event to all subscribed sessions.
-func (b *ChromiumBridge) BroadcastEvent(event *EventPayload) {
+func (b *ChromiumBridge) BroadcastEvent(event *protocol.EventPayload) {
 	if !b.IsEnabled() {
 		return
 	}
 
 	sessions := b.server.GetSessions()
 	for _, session := range sessions {
-		if session.IsSubscribed(TypeEvent) {
-			msg := NewMessage(TypeEvent, event)
+		if session.IsSubscribed(string(protocol.TypeEvent)) {
+			msg := protocol.NewMessage(protocol.TypeEvent, event)
 			data, _ := msg.Serialize()
 			// In real implementation, send via WebSocket
 			_ = data
@@ -340,7 +436,7 @@ func (b *ChromiumBridge) BroadcastSnapshot(snap *snapshot.Snapshot) {
 
 	sessions := b.server.GetSessions()
 	for _, session := range sessions {
-		if session.IsSubscribed(TypeSnapshot) {
+		if session.IsSubscribed(string(protocol.TypeSnapshot)) {
 			// Convert and send
 			_ = session
 		}
@@ -626,7 +722,7 @@ func (b *ChromiumBridge) ExportForChromium() ([]byte, error) {
 		Timestamp time.Time             `json:"timestamp"`
 		Frames    []ChromiumFrame       `json:"frames"`
 	}{
-		Version:   ProtocolVersion,
+		Version:   protocol.Version,
 		Timestamp: time.Now(),
 		Frames:    make([]ChromiumFrame, 0, len(snapshots)),
 	}

@@ -1,4 +1,4 @@
-// Remote Debugging Demo - Using ChromiumBridge
+// Remote Debugging Demo - Using Unified Protocol
 // This is a standalone demo - run separately from main.go
 // Usage: go run remote_demo.go
 package main
@@ -12,7 +12,7 @@ import (
 	"github.com/wwsheng009/mint/devtools"
 	"github.com/wwsheng009/mint/devtools/observation"
 	v1 "github.com/wwsheng009/mint/devtools/observation/v1"
-	"github.com/wwsheng009/mint/devtools/remote"
+	"github.com/wwsheng009/mint/devtools/protocol"
 	"github.com/wwsheng009/mint/devtools/snapshot"
 )
 
@@ -26,8 +26,15 @@ func main() {
 
 	snapshotMgr := snapshot.NewManager(100)
 
-	// 2. Create and start DevTools server (HTTP + WebSocket)
-	server := remote.NewDevToolsServer(9222, dt, snapshotMgr)
+	// 2. Create and start DevTools server (using unified protocol package)
+	server := protocol.NewServer(protocol.ServerConfig{
+		Port:              9222,
+		EnableDashboard:   true,
+		EnableTuiCommands: true,
+	})
+	server.SetSnapshotManager(snapshotMgr)
+	server.SetDevTools(dt)
+
 	go func() {
 		if err := server.Start(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("Server error: %v", err)
@@ -38,15 +45,16 @@ func main() {
 	time.Sleep(500 * time.Millisecond)
 
 	fmt.Println("Remote debugging server started!")
-	fmt.Println("  Inspector: http://localhost:9222/debug")
-	fmt.Println("  WebSocket: ws://localhost:9222/ws")
+	fmt.Println("  Dashboard:  http://localhost:9222/")
+	fmt.Println("  Inspector:  http://localhost:9222/debug")
+	fmt.Println("  WebSocket:  ws://localhost:9222/ws")
 	fmt.Println("  API:       http://localhost:9222/api/snapshots")
 	fmt.Println("  Diff:      http://localhost:9222/api/diff?from=0&to=3")
 	fmt.Println("  Health:    http://localhost:9222/health")
 	fmt.Println()
 
 	// 3. Simulate some activity and capture snapshots
-	runSimulation(dt, snapshotMgr)
+	runSimulation(dt, snapshotMgr, server)
 
 	// 4. Show results
 	fmt.Println("\n=== Simulation Complete ===")
@@ -63,7 +71,7 @@ func main() {
 	select {}
 }
 
-func runSimulation(dt *devtools.DevTools, sm *snapshot.Manager) {
+func runSimulation(dt *devtools.DevTools, sm *snapshot.Manager, server *protocol.Server) {
 	// Create observation layer for better data
 	cfg := observation.DefaultConfig()
 	cfg.InitialLevel = v1.LevelAdvanced
@@ -75,6 +83,7 @@ func runSimulation(dt *devtools.DevTools, sm *snapshot.Manager) {
 	for i := 0; i < 10; i++ {
 		// Record frame
 		dt.BeginFrame()
+		frameStart := time.Now()
 
 		// Simulate event
 		nodeID := devtools.NodeID(fmt.Sprintf("node-%d", i%3))
@@ -84,6 +93,49 @@ func runSimulation(dt *devtools.DevTools, sm *snapshot.Manager) {
 		obs.RecordMutation(nodeID, "value", i)
 
 		dt.EndFrame()
+		frameDuration := time.Since(frameStart)
+
+		// Add frame to server
+		server.AddFrame(&protocol.FrameData{
+			FrameID:       devtools.FrameID(i),
+			Timestamp:     time.Now(),
+			Duration:      frameDuration,
+			EventCount:    1,
+			MutationCount: 1,
+			LayoutCount:   0,
+			RepaintCount:  1,
+		})
+
+		// Update component state
+		server.UpdateComponent(string(nodeID), &protocol.DashboardComponentData{
+			ID:   string(nodeID),
+			Type: "Button",
+			Properties: map[string]interface{}{
+				"clicked": i > 5,
+				"value":   i,
+			},
+			Styles: map[string]interface{}{
+				"x":      0,
+				"y":      i,
+				"width":  20,
+				"height": 1,
+			},
+			Visible: true,
+			Focused: i == 0,
+		})
+
+		// Update metrics
+		if i%5 == 0 {
+			server.UpdateMetrics(&protocol.Metrics{
+				FPS:            60.0,
+				FrameTime:      frameDuration,
+				LayoutTime:     0,
+				PaintTime:      frameDuration / 2,
+				MemoryUsage:    uint64(50_000_000 + i*100_000),
+				ComponentCount: 3,
+				FrameCount:     i + 1,
+			})
+		}
 
 		// Capture snapshot every few frames
 		if i%3 == 0 {

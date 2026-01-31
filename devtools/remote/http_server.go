@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/wwsheng009/mint/devtools"
+	"github.com/wwsheng009/mint/devtools/protocol"
 	"github.com/wwsheng009/mint/devtools/snapshot"
 )
 
@@ -75,7 +76,7 @@ func (s *HTTPServer) setupRoutes() {
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"status":    "ok",
 			"server":    "mint-devtools",
-			"version":   ProtocolVersion,
+			"version":   protocol.Version,
 			"snapshots": s.snapshotManager.GetStats().TotalSnapshots,
 		})
 	})
@@ -118,14 +119,14 @@ func (s *HTTPServer) setupRoutes() {
 		}
 
 		// Convert to JSON-serializable format
-		components := make([]ComponentData, 0, len(snap.States))
+		components := make([]protocol.ComponentData, 0, len(snap.States))
 		for _, state := range snap.States {
-			comp := ComponentData{
+			comp := protocol.ComponentData{
 				NodeID:  state.NodeID,
 				Type:    state.Type,
 				Props:   state.Props,
 				State:   state.State,
-				Bounds: RectData{
+				Bounds: protocol.RectData{
 					X:      state.Bounds.X,
 					Y:      state.Bounds.Y,
 					Width:  state.Bounds.Width,
@@ -138,10 +139,10 @@ func (s *HTTPServer) setupRoutes() {
 			components = append(components, comp)
 		}
 
-		result := SnapshotPayload{
+		result := protocol.SnapshotPayload{
 			FrameID:   snap.FrameID,
 			Timestamp: snap.Timestamp,
-			WindowState: WindowState{
+			WindowState: protocol.WindowState{
 				Width:  snap.Global.WindowSize.Width,
 				Height: snap.Global.WindowSize.Height,
 			},
@@ -192,9 +193,9 @@ func (s *HTTPServer) setupRoutes() {
 		diff := differ.Compare(fromSnap, toSnap)
 
 		// Convert changes to JSON-serializable format
-		changes := make([]ChangeData, 0, len(diff.Changes))
+		changes := make([]protocol.ChangeData, 0, len(diff.Changes))
 		for _, change := range diff.Changes {
-			changes = append(changes, ChangeData{
+			changes = append(changes, protocol.ChangeData{
 				NodeID:   change.NodeID,
 				Type:     change.ChangeType.String(),
 				Path:     change.Path,
@@ -203,7 +204,7 @@ func (s *HTTPServer) setupRoutes() {
 			})
 		}
 
-		result := DiffPayload{
+		result := protocol.DiffPayload{
 			From:    devtools.FrameID(fromInt),
 			To:      devtools.FrameID(toInt),
 			Changes: changes,
