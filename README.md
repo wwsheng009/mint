@@ -1,73 +1,36 @@
-# TUI Framework
+# Mint UI - 声明式终端UI框架
 
-一个现代化的 Go 终端用户界面 (TUI) 框架，采用四层架构设计，支持组件化开发、主题切换和 AI 集成。
+一个现代化的 Go 终端用户界面 (TUI) 框架，支持声明式UI开发、组件化架构和React-like Hooks。
 
 ## 特性
 
-- **组件化** - 基于能力接口的组件系统
-- **事件驱动** - 完整的事件处理和 Action 系统
-- **主题系统** - 支持多种内置主题和自定义主题
-- **表单验证** - 内置表单组件和验证器
-- **虚拟滚动** - 高性能的大数据列表支持
-- **AI 友好** - 状态快照和操作回放，便于 AI 集成
+- **声明式UI** - React-like组件开发体验
+- **Hooks系统** - useState, useEffect, useMemo, useCallback, useRef
+- **组件库** - 丰富的预置组件 (Button, Input, Table, Progress等)
+- **类型安全** - 完整的类型定义和类型推断
+- **事件处理** - 完整的键盘事件和焦点管理
+- **主题系统** - 支持多种内置主题
 
 ## 架构
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                        Application Layer                               │
-│  用户应用代码 - 使用 Framework API 构建具体应用                          │
+│                    声明式UI组件 (ui/)                                   │
+│  - Text, Button, Input, Checkbox, Table, Progress, Select, Spinner    │
 └─────────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                        Framework Layer                                  │
-│  组件系统 + Action 路由 + 适配器                                          │
+│              组件系统 + 事件处理 + 布局引擎                                 │
 └─────────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                        Runtime Layer                                    │
-│  纯内核 - 无外部依赖，可独立测试                                          │
+│              渲染引擎 + 样式系统 + 焦点管理                                 │
 └─────────────────────────────────────────────────────────────────────────┘
-                                    │
-                                    ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│                        Platform Layer                                   │
-│  平台抽象 - 最小化接口                                                    │
-└─────────────────────────────────────────────────────────────────────────┘
-```
-
-## 目录结构
-
-```
-mint/
-├── framework/          # 框架层（组件、样式、表单等）
-│   ├── component/      # 组件系统
-│   ├── display/        # 显示组件（Text、List、Table）
-│   ├── input/          # 输入组件（TextInput、TextArea）
-│   ├── interactive/    # 交互组件（Button、Checkbox）
-│   ├── layout/         # 布局组件（Box、Flex）
-│   ├── form/           # 表单组件
-│   ├── styling/        # 样式系统
-│   ├── theme/          # 主题系统
-│   ├── validation/     # 验证器
-│   ├── event/          # 事件系统
-│   ├── cursor/         # 光标管理
-│   ├── screen/         # 屏幕管理
-│   └── examples/       # 示例代码
-│
-├── runtime/            # 运行时层（内核）
-│   ├── action/         # Action 系统
-│   ├── animation/      # 动画系统
-│   ├── event/          # 底层事件处理
-│   ├── focus/          # 焦点管理
-│   ├── input/          # 输入处理
-│   ├── layout/         # 布局引擎
-│   ├── paint/          # 绘制系统
-│   └── state/          # 状态管理
-│
-└── docs/               # 框架文档
 ```
 
 ## 快速开始
@@ -79,141 +42,233 @@ mint/
 ### 安装
 
 ```bash
-git clone https://github.com/yaoapp/yao/tui.git
-cd tui
+git clone https://github.com/wwsheng009/mint.git
+cd mint
 go mod download
 ```
 
-### 运行示例
+## 运行示例
 
 ```bash
-# Hello World
-go run framework/examples/hello/main.go
+# Counter Demo - 计数器
+cd examples/counter
+go run .
 
-# 组件演示
-go run framework/examples/demo/main.go
+# Timer Demo - 状态管理
+cd examples/timer
+go run .
 
-# 主题切换演示
-go run framework/examples/theme/main.go
+# Input Demo - 输入组件
+cd examples/input
+go run .
 
-# 登录表单
-go run framework/examples/login/interactive/main.go
+# Checkbox Demo - 复选框
+cd examples/checkbox
+go run .
+
+# Progress Demo - 进度条
+cd examples/progress
+go run .
+
+# Select Demo - 选择器+表格
+cd examples/select
+go run .
+
+# Demo - 综合演示
+cd examples/demo
+go run .
 ```
 
-### 编译测试
+## 组件列表
+
+### 基础组件
+
+| 组件 | 说明 | 状态 |
+|------|------|------|
+| `Text` | 文本显示 | ✅ |
+| `Button` | 按钮 | ✅ |
+| `Input` | 单行输入 | ✅ |
+| `Textarea` | 多行输入 | ✅ |
+| `Checkbox` | 复选框 | ✅ |
+| `Progress` | 进度条 | ✅ |
+| `Spinner` | 加载动画 | ✅ |
+| `Select` | 下拉选择器 | ✅ |
+| `Table` | 表格 | ✅ |
+
+### 布局组件
+
+| 组件 | 说明 | 状态 |
+|------|------|------|
+| `VStack` | 垂直布局 | ✅ |
+| `HStack` | 水平布局 | ✅ |
+| `Fragment` | 片段容器 | ✅ |
+
+### Hooks
+
+| Hook | 说明 | 状态 |
+|------|------|------|
+| `UseStateInt` | 整数状态 | ✅ |
+| `UseStateString` | 字符串状态 | ✅ |
+| `UseStateBool` | 布尔状态 | ✅ |
+| `UseEffect` | 副作用管理 | ✅ |
+| `UseMemo` | 记忆化计算 | ✅ |
+| `UseCallback` | 记忆化回调 | ✅ |
+| `UseRef` | 引用 | ✅ |
+
+## 使用示例
+
+### Counter - 计数器
+
+```go
+package main
+
+import "github.com/wwsheng009/mint/ui"
+
+func main() {
+    count, setCount, _ := ui.UseStateInt(0)
+
+    ui.Run(func() ui.VNode {
+        return ui.VStack(
+            ui.NewTextBuilder("Count: %d", count).Build(),
+            ui.ButtonBuilder("+").OnClick(func() {
+                setCount(count + 1)
+            }).Build(),
+        )
+    }, ui.WithWidth(40), ui.WithHeight(10))
+}
+```
+
+### Input - 输入框
+
+```go
+text, setText := ui.UseStateString("")
+
+ui.InputBuilder().
+    Value(text).
+    Placeholder("Type here...").
+    MaxLength(20).
+    OnChange(setText).
+    Build()
+```
+
+### Table - 表格
+
+```go
+ui.TableBuilder().
+    Columns([]ui.TableColumn{
+        {Title: "ID", Width: 5},
+        {Title: "Name", Width: 15},
+        {Title: "Status", Width: 10},
+    }).
+    AddRow("1", "Alice", "Active").
+    AddRow("2", "Bob", "Inactive").
+    Build()
+```
+
+### Checkbox - 复选框
+
+```go
+checked, setChecked := ui.UseStateBool(false)
+
+ui.CheckboxBuilder().
+    Label("Accept terms").
+    Checked(checked).
+    OnChange(setChecked).
+    Build()
+```
+
+### Progress - 进度条
+
+```go
+progress, setProgress, _ := ui.UseStateInt(0)
+
+ui.ProgressBuilder().
+    Label("Loading:").
+    Value(progress).
+    Max(100).
+    ShowPercent(true).
+    Build()
+```
+
+## 键盘快捷键
+
+| 按键 | 功能 |
+|------|------|
+| `Tab` | 下一个焦点元素 |
+| `Shift+Tab` | 上一个焦点元素 |
+| `Enter` | 激活按钮/切换选项 |
+| `Space` | 切换复选框 |
+| `↑` `↓` | 选择器导航 |
+| `←` `→` | 元素导航 |
+| `Backspace` | 删除字符 |
+| `q` | 退出程序 |
+
+## 编译测试
 
 ```bash
 # 运行所有测试
 go test ./...
 
-# 运行单个包测试
-go test ./framework/component
+# 运行UI包测试
+go test ./ui/... -v
+
+# 查看测试覆盖率
+go test ./ui/... -cover
 ```
 
-## 组件示例
+## 目录结构
 
-### 文本显示
-
-```go
-import "github.com/yaoapp/yao/tui/framework/display"
-import "github.com/yaoapp/yao/tui/runtime/style"
-
-text := display.NewText("Hello, TUI!")
-text.SetStyle(style.Style{}.Foreground(style.Blue).Bold(true))
+```
+mint/
+├── ui/                  # 声明式UI包
+│   ├── vnode.go        # 虚拟节点
+│   ├── component.go    # 组件系统
+│   ├── layout.go       # 布局组件
+│   ├── hooks.go        # Hooks系统
+│   ├── button.go       # 按钮
+│   ├── text.go         # 文本
+│   ├── input.go        # 输入框
+│   ├── checkbox.go     # 复选框
+│   ├── progress.go     # 进度条/加载动画
+│   ├── select.go       # 选择器/表格
+│   ├── app.go          # 应用运行时
+│   └── *_test.go       # 测试文件
+│
+├── framework/          # 框架层
+├── runtime/            # 运行时层
+├── examples/           # 示例程序
+│   ├── counter/        # 计数器示例
+│   ├── timer/          # 状态管理示例
+│   ├── input/          # 输入组件示例
+│   ├── checkbox/       # 复选框示例
+│   ├── progress/       # 进度条示例
+│   ├── select/         # 选择器示例
+│   └── demo/           # 综合演示
+│
+└── docs/               # 文档
 ```
 
-### 文本输入
+## 开发路线图
 
-```go
-import "github.com/yaoapp/yao/tui/framework/input"
+- [x] 基础组件 (Text, Button)
+- [x] 输入组件 (Input, Textarea)
+- [x] 选择组件 (Checkbox, Select)
+- [x] 反馈组件 (Progress, Spinner)
+- [x] 数据展示 (Table)
+- [x] Hooks系统 (useState, useEffect, useMemo, useCallback, useRef)
+- [x] 布局组件 (VStack, HStack)
+- [ ] 更多组件 (Modal, Tabs, Slider, List...)
+- [ ] 动画系统
+- [ ] 路由系统
 
-input := input.NewTextInput()
-input.SetPlaceholder("请输入用户名")
-input.SetValue("demo")
+## 测试状态
+
+```
+ok  	github.com/wwsheng009/mint/ui	coverage: 40.7%
 ```
 
-### 按钮
-
-```go
-import "github.com/yaoapp/yao/tui/framework/interactive"
-
-button := interactive.NewButton("提交")
-button.SetOnClick(func() {
-    fmt.Println("按钮被点击")
-})
-```
-
-### 表单
-
-```go
-import "github.com/yaoapp/yao/tui/framework/form"
-import "github.com/yaoapp/yao/tui/framework/validation"
-
-form := form.NewForm()
-
-usernameField := form.NewFormField("username")
-usernameField.Label = "用户名"
-usernameField.Input = input.NewTextInput()
-usernameField.Validators = []validation.Validator{
-    validation.Required(),
-    validation.MinLength(3),
-}
-
-form.AddField(usernameField)
-
-form.SetOnSubmit(func(data map[string]interface{}) error {
-    fmt.Printf("提交: %v\n", data)
-    return nil
-})
-```
-
-### 表格
-
-```go
-import "github.com/yaoapp/yao/tui/framework/display"
-
-table := display.NewTable([]display.TableColumn{
-    {Title: "ID", Width: 10},
-    {Title: "名称", Width: 30},
-    {Title: "状态", Width: 15},
-})
-
-table.SetRows([][]string{
-    {"1", "用户管理", "完成"},
-    {"2", "订单系统", "进行中"},
-})
-```
-
-## 可用主题
-
-| 主题 | 说明 |
-|------|------|
-| `light` | 亮色主题 |
-| `dark` | 暗色主题 |
-| `dracula` | Dracula 配色 |
-| `nord` | Nord 冷色调 |
-| `monokai` | Monokai 暗色 |
-| `tokyo-night` | Tokyo Night |
-
-## 示例列表
-
-| 示例 | 描述 |
-|------|------|
-| `hello` | Hello World |
-| `demo` | 完整组件演示 |
-| `theme` | 主题切换演示 |
-| `login` | 登录表单示例 |
-
-## 文档
-
-详细文档请查看 [framework/docs](framework/docs/)
-
-- [架构设计](framework/docs/ARCHITECTURE.md)
-- [组件系统](framework/docs/COMPONENTS.md)
-- [事件系统](framework/docs/EVENT_SYSTEM.md)
-- [主题系统](framework/docs/THEME_SYSTEM.md)
-- [表单验证](framework/docs/FORM_VALIDATION.md)
+- **136个测试全部通过** ✅
 
 ## 许可证
 
-[MIT License](LICENSE)
+MIT License

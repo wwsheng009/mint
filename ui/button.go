@@ -33,11 +33,12 @@ const (
 // ButtonVNode represents a button component
 type ButtonVNode struct {
 	*ElementVNode
-	label    string
-	onClick  func()
-	variant  ButtonVariant
-	size     ButtonSize
-	disabled bool
+	label      string
+	onClick    func()
+	variant    ButtonVariant
+	size       ButtonSize
+	disabled   bool
+	focusIndex int // Index for focus management, set during collection
 }
 
 // NewButton creates a new button

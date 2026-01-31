@@ -89,33 +89,36 @@ func Run(app ComponentFunc, opts ...Option) error {
 // declarativeRoot wraps a declarative component to work with the framework
 type declarativeRoot struct {
 	component.Node
-	appFn            ComponentFunc
-	ctx              *ComponentContext
-	app              *framework.App
-	buttons          []*ButtonVNode   // Collected buttons for focus management
-	inputs           []*InputVNode    // Collected inputs for focus management
-	textareas        []*TextareaVNode // Collected textareas for focus management
-	checkboxes       []*CheckboxVNode // Collected checkboxes for focus management
-	selects          []*SelectVNode   // Collected selects for focus management
-	focusedIndex     int              // Currently focused element index (-1 = none)
-	focusedType      int              // Type: 0=button, 1=input, 2=textarea, 3=checkbox, 4=select
-	renderBtnIndex   int              // Current button index during rendering
-	renderInputIndex int              // Current input index during rendering
+	appFn               ComponentFunc
+	ctx                 *ComponentContext
+	app                 *framework.App
+	buttons             []*ButtonVNode   // Collected buttons for focus management
+	inputs              []*InputVNode    // Collected inputs for focus management
+	textareas           []*TextareaVNode // Collected textareas for focus management
+	checkboxes          []*CheckboxVNode // Collected checkboxes for focus management
+	selects             []*SelectVNode   // Collected selects for focus management
+	focusedIndex        int              // Currently focused element index (-1 = none)
+	focusedType         int              // Type: 0=button, 1=input, 2=textarea, 3=checkbox, 4=select
+	renderBtnIndex      int              // Current button index during rendering
+	renderInputIndex    int              // Current input index during rendering
+	renderTextareaIndex int              // Current textarea index during rendering
+	renderCheckboxIndex int              // Current checkbox index during rendering
+	renderSelectIndex   int              // Current select index during rendering
 }
 
 // newDeclarativeRoot creates a new declarative root component
 func newDeclarativeRoot(fn ComponentFunc, app *framework.App) component.Node {
 	return &declarativeRoot{
-		appFn:       fn,
-		ctx:         newComponentContext("App"),
-		app:         app,
-		buttons:     make([]*ButtonVNode, 0),
-		inputs:      make([]*InputVNode, 0),
-		textareas:   make([]*TextareaVNode, 0),
-		checkboxes:  make([]*CheckboxVNode, 0),
-		selects:     make([]*SelectVNode, 0),
+		appFn:        fn,
+		ctx:          newComponentContext("App"),
+		app:          app,
+		buttons:      make([]*ButtonVNode, 0),
+		inputs:       make([]*InputVNode, 0),
+		textareas:    make([]*TextareaVNode, 0),
+		checkboxes:   make([]*CheckboxVNode, 0),
+		selects:      make([]*SelectVNode, 0),
 		focusedIndex: -1,
-		focusedType: 0,
+		focusedType:  0,
 	}
 }
 
@@ -159,6 +162,9 @@ func (d *declarativeRoot) Paint(ctx component.PaintContext, buffer *paint.Buffer
 	// Reset render indices for tracking during render
 	d.renderBtnIndex = 0
 	d.renderInputIndex = 0
+	d.renderTextareaIndex = 0
+	d.renderCheckboxIndex = 0
+	d.renderSelectIndex = 0
 
 	// Render the VNode tree to the buffer
 	d.renderVNode(vnode, ctx.X, ctx.Y, buffer)
@@ -281,13 +287,20 @@ func (d *declarativeRoot) renderButton(node *ButtonVNode, x, y int, buffer *pain
 		buttonStyle = buttonStyle.Foreground("white")
 	}
 
-	// Highlight focused button using index comparison
-	if d.renderBtnIndex == d.focusedIndex {
-		buttonStyle = buttonStyle.Background("blue").Foreground("white").Bold(true)
+	// Find the actual index of this button in the collected buttons array
+	buttonIndex := -1
+	for i, btn := range d.buttons {
+		if btn == node {
+			buttonIndex = i
+			break
+		}
 	}
 
-	// Increment render button index for next button
-	d.renderBtnIndex++
+	// Highlight focused button
+	isFocused := d.focusedType == 0 && buttonIndex == d.focusedIndex
+	if isFocused {
+		buttonStyle = buttonStyle.Background("blue").Foreground("white").Bold(true)
+	}
 
 	label := node.Label()
 	if label == "" {
@@ -296,6 +309,11 @@ func (d *declarativeRoot) renderButton(node *ButtonVNode, x, y int, buffer *pain
 
 	// Draw [ label ]
 	fullLabel := "[" + label + "]"
+
+	// DEBUG: 检查最终样式
+	fmt.Fprintf(os.Stderr, "STYLE: label=%s, focused=%v, BG=%q, FG=%q, Bold=%v\n",
+		label, isFocused, buttonStyle.BG, buttonStyle.FG, buttonStyle.IsBold)
+
 	buffer.SetString(x, y, fullLabel, buttonStyle)
 }
 
@@ -306,9 +324,10 @@ func (d *declarativeRoot) renderInput(node *InputVNode, x, y int, buffer *paint.
 		return
 	}
 
-	// Update focus state
-	node.SetFocus(d.renderInputIndex == d.focusedIndex && d.focusedType == 1)
-	d.renderInputIndex++
+	// Update focus state by comparing pointer directly
+	localInputIndex := d.focusedIndex - len(d.buttons)
+	isFocused := d.focusedType == 1 && localInputIndex >= 0 && localInputIndex < len(d.inputs) && d.inputs[localInputIndex] == node
+	node.SetFocus(isFocused)
 
 	inputStyle := node.Style()
 	if inputStyle.FG == "" {
@@ -360,9 +379,10 @@ func (d *declarativeRoot) renderInput(node *InputVNode, x, y int, buffer *paint.
 
 // renderTextarea renders a textarea node
 func (d *declarativeRoot) renderTextarea(node *TextareaVNode, x, y int, buffer *paint.Buffer) {
-	// Update focus state
-	node.SetFocus(d.renderInputIndex == d.focusedIndex && d.focusedType == 2)
-	d.renderInputIndex++
+	// Update focus state by comparing pointer directly
+	localTextareaIndex := d.focusedIndex - len(d.buttons) - len(d.inputs)
+	isFocused := d.focusedType == 2 && localTextareaIndex >= 0 && localTextareaIndex < len(d.textareas) && d.textareas[localTextareaIndex] == node
+	node.SetFocus(isFocused)
 
 	rows := node.Rows()
 	if rows < 1 {
@@ -406,9 +426,10 @@ func (d *declarativeRoot) renderCheckbox(node *CheckboxVNode, x, y int, buffer *
 		return
 	}
 
-	// Update focus state using same index system as inputs
-	node.SetFocus(d.renderInputIndex == d.focusedIndex && d.focusedType == 3)
-	d.renderInputIndex++
+	// Update focus state by comparing pointer directly
+	localCheckboxIndex := d.focusedIndex - len(d.buttons) - len(d.inputs) - len(d.textareas)
+	isFocused := d.focusedType == 3 && localCheckboxIndex >= 0 && localCheckboxIndex < len(d.checkboxes) && d.checkboxes[localCheckboxIndex] == node
+	node.SetFocus(isFocused)
 
 	checkboxStyle := node.Style()
 	if checkboxStyle.FG == "" {
@@ -506,9 +527,10 @@ func (d *declarativeRoot) renderSelect(node *SelectVNode, x, y int, buffer *pain
 		return
 	}
 
-	// Update focus state
-	node.SetFocus(d.renderInputIndex == d.focusedIndex && d.focusedType == 4)
-	d.renderInputIndex++
+	// Update focus state by comparing pointer directly
+	localSelectIndex := d.focusedIndex - len(d.buttons) - len(d.inputs) - len(d.textareas) - len(d.checkboxes)
+	isFocused := d.focusedType == 4 && localSelectIndex >= 0 && localSelectIndex < len(d.selects) && d.selects[localSelectIndex] == node
+	node.SetFocus(isFocused)
 
 	selectStyle := node.Style()
 	if selectStyle.FG == "" {
@@ -692,6 +714,7 @@ func (d *declarativeRoot) collectInteractiveElements(node VNode) {
 	switch n := node.(type) {
 	case *ButtonVNode:
 		if !n.Disabled() {
+			n.focusIndex = len(d.buttons) // Set focus index before adding
 			d.buttons = append(d.buttons, n)
 		}
 	case *InputVNode:

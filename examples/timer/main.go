@@ -6,20 +6,11 @@ import (
 	"github.com/wwsheng009/mint/ui"
 )
 
-// Counter is a dynamic counter component using useState
-func Counter() ui.VNode {
-	count, setCount, getCount := ui.UseStateInt(0)
-
-	// Use getCount() in handlers to get the latest value
-	decrement := func() {
-		setCount(getCount() - 1)
-	}
-	increment := func() {
-		setCount(getCount() + 1)
-	}
+func RefDemo() ui.VNode {
+	count, setCount, _ := ui.UseStateInt(0)
 
 	return ui.VStack(
-		ui.NewTextBuilder("Mint UI Counter Demo").
+		ui.NewTextBuilder("State Demo").
 			FgColor("cyan").
 			Bold(true).
 			Build(),
@@ -30,25 +21,29 @@ func Counter() ui.VNode {
 		ui.Text(""),
 		ui.HStack(
 			ui.ButtonBuilder("  -  ").
-				OnClick(decrement).
+				OnClick(func() {
+					setCount(func(c int) int { return c - 1 })
+				}).
 				Build(),
 			ui.Text("   "),
 			ui.ButtonBuilder("  +  ").
-				OnClick(increment).
+				OnClick(func() {
+					setCount(func(c int) int { return c + 1 })
+				}).
 				Build(),
 		),
 		ui.Text(""),
-		ui.NewTextBuilder("Tab/Arrows: focus | Enter/Space: click | q: quit").
+		ui.NewTextBuilder("Tab: focus | Enter: click | q: quit").
 			FgColor("bright-black").
 			Build(),
 	)
 }
 
 func main() {
-	err := ui.Run(Counter,
+	err := ui.Run(RefDemo,
 		ui.WithWidth(40),
 		ui.WithHeight(12),
-		ui.WithTitle("Counter Demo"),
+		ui.WithTitle("State Demo"),
 	)
 	if err != nil {
 		panic(err)
