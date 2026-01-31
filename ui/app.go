@@ -200,6 +200,83 @@ func (d *declarativeRoot) renderVNode(node VNode, x, y int, buffer *paint.Buffer
 			}
 		}
 
+	case *GridVNode:
+		// Apply padding
+		padding := n.Padding()
+		gap := n.Gap()
+		currentX := x + padding[3]
+		currentY = y + padding[0]
+
+		// Get available width/height
+		availableWidth := buffer.Width - padding[1] - padding[3]
+		availableHeight := buffer.Height - padding[0] - padding[2]
+
+		// Calculate column widths and row heights
+		colWidths := n.CalculateColumnWidths(availableWidth)
+		rowHeights := n.CalculateRowHeights(availableHeight)
+
+		// Track occupied cells for spanning
+		occupied := make(map[[2]int]bool)
+
+		// Render each cell
+		for _, cell := range n.Cells() {
+			// Check if this position is already occupied
+			key := [2]int{cell.Row, cell.Col}
+			if occupied[key] {
+				continue
+			}
+
+			// Mark this cell and any spanned cells as occupied
+			for r := cell.Row; r < cell.Row+cell.RowSpan && r < len(rowHeights); r++ {
+				for c := cell.Col; c < cell.Col+cell.ColSpan && c < len(colWidths); c++ {
+					occupied[[2]int{r, c}] = true
+				}
+			}
+
+			// Calculate cell position and size
+			cellX := currentX
+			for c := 0; c < cell.Col && c < len(colWidths); c++ {
+				cellX += colWidths[c]
+				if c < len(colWidths)-1 {
+					cellX += gap[0]
+				}
+			}
+
+			cellY := currentY
+			for r := 0; r < cell.Row && r < len(rowHeights); r++ {
+				cellY += rowHeights[r]
+				if r < len(rowHeights)-1 {
+					cellY += gap[1]
+				}
+			}
+
+			// Calculate cell width and height (considering spans)
+			cellWidth := 0
+			for c := cell.Col; c < cell.Col+cell.ColSpan && c < len(colWidths); c++ {
+				cellWidth += colWidths[c]
+				if c < cell.Col+cell.ColSpan-1 && c < len(colWidths)-1 {
+					cellWidth += gap[0]
+				}
+			}
+
+			cellHeight := 0
+			for r := cell.Row; r < cell.Row+cell.RowSpan && r < len(rowHeights); r++ {
+				cellHeight += rowHeights[r]
+				if r < cell.Row+cell.RowSpan-1 && r < len(rowHeights)-1 {
+					cellHeight += gap[1]
+				}
+			}
+
+			// Render the child (clip to cell bounds if needed)
+			d.renderVNode(cell.Child, cellX, cellY, buffer)
+		}
+
+		// Calculate total height
+		for _, h := range rowHeights {
+			currentY += h
+		}
+		currentY += padding[2]
+
 	case *ButtonVNode:
 		d.renderButton(n, x, currentY, buffer)
 		currentY += 1
@@ -233,6 +310,58 @@ func (d *declarativeRoot) renderVNode(node VNode, x, y int, buffer *paint.Buffer
 	case *TableVNode:
 		height := d.renderTable(n, x, currentY, buffer)
 		currentY += height
+
+	case *AbsoluteVNode:
+		// Calculate position relative to container
+		absX, absY := n.CalculatePosition(buffer.Width, buffer.Height)
+		// Render child at absolute position
+		d.renderVNode(n.Child(), x+absX, y+absY, buffer)
+		// Absolute doesn't affect flow
+
+	case *VirtualListVNode:
+		// Virtual list rendering
+		if n.RenderItem() != nil && len(n.Items()) > 0 {
+			start, end := n.GetVisibleRange()
+			renderY := y
+
+			// Render visible items
+			for i := start; i < end; i++ {
+				if i >= 0 && i < len(n.Items()) {
+					item := n.Items()[i]
+					itemVNode := n.RenderItem()(item)
+					offsetY := d.renderVNode(itemVNode, x, renderY, buffer)
+					renderY += offsetY
+				}
+			}
+			currentY = y + n.ListHeight()
+		}
+
+	case *TooltipVNode:
+		// Render the content, and optionally the tooltip text
+		d.renderVNode(n.Content(), x, y, buffer)
+		currentY += 1
+		// Tooltip could be rendered as an overlay if visible
+
+	case *ToastVNode:
+		// Render toast if visible
+		if n.IsVisible() {
+			// Choose color based on type
+			color := "blue"
+			switch n.ToastType() {
+			case ToastSuccess:
+				color = "green"
+			case ToastWarning:
+				color = "yellow"
+			case ToastError:
+				color = "red"
+			}
+			// Render toast message
+			toastText := NewTextBuilder(n.Message()).FgColor(color).Build()
+			if tv, ok := toastText.(*TextVNode); ok {
+				d.renderText(tv, x, y, buffer)
+			}
+			currentY += 1
+		}
 
 	case *FragmentVNode:
 		for _, child := range n.Children() {
@@ -723,6 +852,15 @@ func (d *declarativeRoot) collectInteractiveElements(node VNode) {
 		for _, child := range n.Children() {
 			d.collectInteractiveElements(child)
 		}
+	case *GridVNode:
+		for _, cell := range n.Cells() {
+			d.collectInteractiveElements(cell.Child)
+		}
+	case *AbsoluteVNode:
+		d.collectInteractiveElements(n.Child())
+	case *VirtualListVNode:
+		// Virtual list items might be interactive, but they're dynamically rendered
+		// We'll collect from the actual rendered items during the render phase
 	case *FragmentVNode:
 		for _, child := range n.Children() {
 			d.collectInteractiveElements(child)

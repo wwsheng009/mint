@@ -223,6 +223,15 @@ func (ct *ComponentTest) AssertCheckboxCount(expected int) *ComponentTest {
 	return ct
 }
 
+// AssertTextareaCount verifies the number of textareas
+func (ct *ComponentTest) AssertTextareaCount(expected int) *ComponentTest {
+	actual := len(ct.root.textareas)
+	if actual != expected {
+		ct.t.Errorf("Expected %d textareas, got %d", expected, actual)
+	}
+	return ct
+}
+
 // AssertInputValue verifies the value of the first input
 func (ct *ComponentTest) AssertInputValue(expected string) *ComponentTest {
 	if len(ct.root.inputs) == 0 {
@@ -474,6 +483,102 @@ func TestInputInteraction(t *testing.T) {
 
 	// Input should have the new value
 	test.AssertInputValue("Hello World")
+}
+
+// TestTextareaBasic tests basic textarea rendering
+func TestTextareaBasic(t *testing.T) {
+	component := func() VNode {
+		return TextareaBuilder().
+			Placeholder("Enter your message").
+			Rows(5).
+			Cols(40).
+			Build()
+	}
+
+	test := NewComponentTest(t, component).
+		Render()
+
+	// Should have 1 textarea
+	test.AssertTextareaCount(1)
+}
+
+// TestTextareaInteraction tests textarea with initial value
+func TestTextareaInteraction(t *testing.T) {
+	component := func() VNode {
+		return VStack(
+			TextareaBuilder().
+				Placeholder("Type here").
+				Rows(3).
+				Cols(30).
+				Build(),
+		)
+	}
+
+	test := NewComponentTest(t, component).
+		Render()
+
+	// Should have 1 non-disabled textarea
+	test.AssertTextareaCount(1)
+
+	// Verify textarea properties
+	ta := test.root.textareas[0]
+	if ta.Rows() != 3 {
+		t.Errorf("Expected 3 rows, got %d", ta.Rows())
+	}
+	if ta.Cols() != 30 {
+		t.Errorf("Expected 30 cols, got %d", ta.Cols())
+	}
+}
+
+// TestTextareaDisabled tests disabled textarea
+func TestTextareaDisabled(t *testing.T) {
+	component := func() VNode {
+		return TextareaBuilder().
+			Disabled(true).
+			Build()
+	}
+
+	test := NewComponentTest(t, component).
+		Render()
+
+	// Disabled textareas are not collected (not focusable)
+	// This is expected behavior - disabled elements should not be interactive
+	test.AssertTextareaCount(0)
+}
+
+// TestGridBasic tests basic grid layout
+func TestGridBasic(t *testing.T) {
+	component := func() VNode {
+		return GridBuilder().
+			Columns(Fixed(10), Fixed(10), Flex{Factor: 1}).
+			Rows(Auto{}, Auto{}).
+			Cell(0, 0, Text("A")).
+			Cell(0, 1, Text("B")).
+			Cell(1, 0, Text("C")).
+			Cell(1, 1, Text("D")).
+			Build()
+	}
+
+	// Just verify the grid can be created without error
+	_ = NewComponentTest(t, component).Render()
+}
+
+// TestAbsoluteBasic tests basic absolute positioning
+func TestAbsoluteBasic(t *testing.T) {
+	component := func() VNode {
+		return VStack(
+			Text("Background"),
+			AbsoluteBuilder(
+				NewTextBuilder("Overlay").FgColor("red").Build(),
+			).
+				Left(AbsolutePosition(5)).
+				Top(AbsolutePosition(2)).
+				Build(),
+		)
+	}
+
+	// Just verify absolute positioning can be created without error
+	_ = NewComponentTest(t, component).Render()
 }
 
 // TestConditionalModal tests a modal that opens/closes based on state

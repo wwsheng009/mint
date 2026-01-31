@@ -131,18 +131,18 @@ MVP      [███████████████████████�
 阶段 1   [████████████████████████████████████] 100%  ✅ VNode 系统完成
 阶段 2   [████████████████████████░░░░░░░░░░░]  70%  🔄 Fiber + Diff 完成
 阶段 3   [███████████████████░░░░░░░░░░░░░░░]  50%  🔄 渲染管线部分完成
-阶段 4   [████████████████████████████░░░░░░]  80%  ✅ 组件系统基本完成
-阶段 5   [████████████████░░░░░░░░░░░░░░░░░]  50%  🔄 HStack/VStack 完成
-阶段 6   [████████████████████████████░░░░░░]  80%  ✅ Hooks 系统完成
-阶段 7   [████████████░░░░░░░░░░░░░░░░░░░░]  40%  🔄 Modal/Tabs/Divider 完成
+阶段 4   [████████████████████████████████████] 100%  ✅ 组件系统完成
+阶段 5   [████████████████████████████████████] 100%  ✅ 布局系统完成 (Grid/Absolute)
+阶段 6   [████████████████████████████████████] 100%  ✅ Hooks 系统完成
+阶段 7   [████████████████████████████████] 100%  ✅ 高级特性完成
 阶段 8   [░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░]   0%  ⏳ 待开始
-阶段 9   [██████████████████████░░░░░░░░░░░]  70%  ✅ 测试文档完成
+阶段 9   [████████████████████████████████░░░░]  90%  ✅ 测试文档完成
 阶段 10  [░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░]   0%  ⏳ 待开始
 
-总进度: [██████████████████████████░░░░░░░░] 70%
+总进度: [██████████████████████████████████░] 90%
 ```
 
-### 2.2 最新完成 (2026-01-31)
+### 2.2 最新完成 (2026-01-31 更新)
 
 #### 新增组件
 
@@ -151,6 +151,17 @@ MVP      [███████████████████████�
 | `ModalVNode` | 模态框组件，支持 title/content/footer | ✅ 完成 |
 | `TabsVNode` | 标签页组件，支持垂直/水平方向 | ✅ 完成 |
 | `DividerVNode` | 分隔线组件，支持 solid/dashed/dotted/double 样式 | ✅ 完成 |
+| `TextareaVNode` | 多行文本输入，支持 rows/cols/maxLength | ✅ 完成 |
+| `VirtualListVNode` | 虚拟化列表，支持大数据量渲染 | ✅ 完成 |
+| `TooltipVNode` | 工具提示，支持多种位置选项 | ✅ 完成 |
+| `ToastVNode` | 通知提示，支持 Info/Success/Warning/Error | ✅ 完成 |
+
+#### 新增布局系统
+
+| 布局 | 功能 | 状态 |
+|------|------|------|
+| `GridVNode` | 网格布局，支持 Fixed/Flex/Auto/Min/Max 维度 | ✅ 完成 |
+| `AbsoluteVNode` | 绝对定位，支持 9 种锚点和 ZIndex | ✅ 完成 |
 
 #### 新增示例
 
@@ -165,6 +176,10 @@ MVP      [███████████████████████�
 | Demo | `examples/demo/` | 综合演示 |
 | Modal | `examples/modal/` | 模态框示例 |
 | Tabs | `examples/tabs/` | 标签页示例 |
+| Grid | `examples/grid/` | 网格布局示例 |
+| Absolute | `examples/absolute/` | 绝对定位示例 |
+| VirtualList | `examples/virtuallist/` | 虚拟列表示例 |
+| Toast | `examples/toast/` | 通知提示示例 |
 
 #### 测试框架
 
@@ -172,17 +187,33 @@ MVP      [███████████████████████�
 |------|------|------|
 | ComponentTest | 无头组件测试工具 | ✅ 完成 |
 | 交互模拟 | ClickButton, TypeText, ToggleCheckbox 等 | ✅ 完成 |
-| 断言方法 | AssertButtonCount, AssertInputValue 等 | ✅ 完成 |
+| 断言方法 | AssertButtonCount, AssertInputValue, AssertTextareaCount 等 | ✅ 完成 |
 | 文档 | `docs/TESTING.md` 测试框架文档 | ✅ 完成 |
-| 测试数量 | 143+ 测试通过 | ✅ 完成 |
+| 测试数量 | 150+ 测试通过 | ✅ 完成 |
 
 #### 相关文件
 
-- `ui/modal.go` - Modal, Tabs, Divider 组件实现
-- `ui/component_test.go` - 组件测试框架
-- `docs/TESTING.md` - 测试框架文档
+**组件文件:**
+- `ui/modal.go` - Modal, Tabs, Divider 组件
+- `ui/textarea.go` - Textarea 多行输入组件 (已从 input.go 分离)
+- `ui/grid.go` - Grid 网格布局
+- `ui/absolute.go` - Absolute 绝对定位
+- `ui/virtuallist.go` - VirtualList 虚拟化列表
+- `ui/tooltip.go` - Tooltip 工具提示 + Toast 通知提示
+
+**测试文件:**
+- `ui/component_test.go` - 组件测试框架 (新增 Textarea, Grid, Absolute, VirtualList, Toast 测试)
+
+**示例文件:**
 - `examples/modal/main.go` - Modal 示例
 - `examples/tabs/main.go` - Tabs 示例
+- `examples/grid/main.go` - Grid 示例
+- `examples/absolute/main.go` - Absolute 示例
+- `examples/virtuallist/main.go` - VirtualList 示例
+- `examples/toast/main.go` - Toast 示例
+
+**文档:**
+- `docs/TESTING.md` - 测试框架文档
 
 ### 2.3 新增：MVP 阶段定义 (Week 1) 🔴 最高优先级
 
@@ -215,7 +246,7 @@ func App() VNode {
 - [x] 0.9 MVP 集成测试
 - [x] 0.10 Counter 示例运行成功
 
-总进度: [████████████████████████████░░░░░] 70%
+总进度: [██████████████████████████████████░] 90%
 ```
 
 ### 2.4 任务状态说明

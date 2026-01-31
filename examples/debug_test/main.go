@@ -112,11 +112,15 @@ func (b *Button) Paint(buf *paint.Buffer) {
 }
 
 func (b *Button) HandleMouse(ev *event.MouseEvent, localX, localY int) bool {
-	logMsg(fmt.Sprintf("Button %s HandleMouse: Type=%v", b.id, ev.Type))
+	logMsg(fmt.Sprintf("Button %s HandleMouse: Type=%v Click=%v localX=%d localY=%d", b.id, ev.Type, ev.Click, localX, localY))
 	logger.LogMouseEvent(b.id, localX, localY, string(ev.Type), "left")
 
+	// 严格检查：必须是鼠标按下事件，且是左键
 	if ev.Type == event.MousePress && ev.Click == event.MouseLeft {
-		logMsg(fmt.Sprintf("Button %s CLICKED!", b.id))
+		logMsg(fmt.Sprintf("Button %s CLICKED! (Type=%v, Click=%v)", b.id, ev.Type, ev.Click))
+		if b.onClick != nil {
+			b.onClick()
+		}
 		return true
 	}
 	return false
@@ -289,6 +293,12 @@ func DebugExample() error {
 	eng := engine.New(width, height, root)
 	eng.SetFixedSize(true)
 
+	// 设置 Test 按钮回调
+	btn1.SetOnClick(func() {
+		logMsg(">>> Test button clicked! <<<")
+		fmt.Println("[Test] Button clicked!")
+	})
+
 	// 设置 Exit 按钮回调
 	btn2.SetOnClick(func() {
 		logMsg(">>> Exit button clicked, stopping... <<<")
@@ -316,7 +326,7 @@ func DebugExample() error {
 	fmt.Print("\x1b[H")   // 光标移到左上角
 
 	fmt.Println("=== Debug Test ===")
-	fmt.Println("Press keys or click buttons, ESC to exit")
+	fmt.Println("Press keys or click buttons with mouse, ESC to exit")
 	fmt.Printf("Log: %s\n", logger.GetPath())
 	fmt.Println()
 

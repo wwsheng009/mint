@@ -299,11 +299,9 @@ func (r *windowsInputReader) parseMouseEvent(record *INPUT_RECORD, now time.Time
 		input.MouseAction = MousePress
 		input.Modifiers |= ModShift // 临时使用 Shift 位表示双击
 	} else if eventFlags&MOUSE_MOVED != 0 {
-		if buttonState != 0 {
-			input.MouseAction = MousePress // 拖动
-		} else {
-			input.MouseAction = MouseMotion
-		}
+		// 鼠标移动时，无论按钮是否按下，都应该是 MouseMotion
+		// 按钮状态由 MouseButton 字段表示
+		input.MouseAction = MouseMotion
 	} else {
 		if buttonState != 0 {
 			input.MouseAction = MousePress
