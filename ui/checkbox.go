@@ -1,6 +1,9 @@
 package ui
 
-import "github.com/wwsheng009/mint/runtime/style"
+import (
+	"github.com/wwsheng009/mint/framework/event"
+	"github.com/wwsheng009/mint/runtime/style"
+)
 
 // CheckboxVNode represents a checkbox component
 type CheckboxVNode struct {
@@ -11,6 +14,12 @@ type CheckboxVNode struct {
 	onChange  func(bool)
 	isFocused bool // Internal focus state
 	focusIndex int // Index for focus management, set during collection
+	// Mouse interaction state
+	isHovered   bool
+	onMouseEnter func()
+	onMouseLeave func()
+	// Bounds for hit testing (x, y, width, height)
+	bounds     [4]int
 }
 
 // NewCheckbox creates a new checkbox
@@ -190,4 +199,110 @@ func (b *CheckboxBuilderType) Bold(v bool) *CheckboxBuilderType {
 // Build returns the VNode
 func (b *CheckboxBuilderType) Build() VNode {
 	return b.node
+}
+
+// =============================================================================
+// Mouse Event Support
+// =============================================================================
+
+// IsHovered returns whether the checkbox is currently hovered
+func (c *CheckboxVNode) IsHovered() bool {
+	return c.isHovered
+}
+
+// SetHovered sets the hover state
+func (c *CheckboxVNode) SetHovered(hovered bool) *CheckboxVNode {
+	c.isHovered = hovered
+	return c
+}
+
+// SetBounds sets the checkbox bounds for hit testing
+func (c *CheckboxVNode) SetBounds(x, y, width, height int) {
+	c.bounds = [4]int{x, y, width, height}
+}
+
+// Bounds returns the checkbox bounds
+func (c *CheckboxVNode) Bounds() [4]int {
+	return c.bounds
+}
+
+// ContainsPoint checks if a point is within the checkbox bounds
+func (c *CheckboxVNode) ContainsPoint(x, y int) bool {
+	if c.bounds[2] <= 0 || c.bounds[3] <= 0 {
+		return false
+	}
+	return x >= c.bounds[0] && x < c.bounds[0]+c.bounds[2] &&
+		y >= c.bounds[1] && y < c.bounds[1]+c.bounds[3]
+}
+
+// SetOnMouseEnter sets the mouse enter handler
+func (c *CheckboxVNode) SetOnMouseEnter(fn func()) *CheckboxVNode {
+	c.onMouseEnter = fn
+	return c
+}
+
+// SetOnMouseLeave sets the mouse leave handler
+func (c *CheckboxVNode) SetOnMouseLeave(fn func()) *CheckboxVNode {
+	c.onMouseLeave = fn
+	return c
+}
+
+// HandleEvent processes mouse events for the checkbox
+func (c *CheckboxVNode) HandleEvent(e event.Event) bool {
+	if c.disabled {
+		return false
+	}
+
+	mouseEvent, ok := e.(*event.MouseEvent)
+	if !ok {
+		return false
+	}
+
+	switch mouseEvent.Type() {
+	case event.EventMouseEnter:
+		if !c.isHovered {
+			c.isHovered = true
+			if c.onMouseEnter != nil {
+				c.onMouseEnter()
+			}
+		}
+		return true
+
+	case event.EventMouseLeave:
+		if c.isHovered {
+			c.isHovered = false
+			if c.onMouseLeave != nil {
+				c.onMouseLeave()
+			}
+		}
+		return true
+
+	case event.EventMousePress, event.EventClick:
+		if c.isHovered && mouseEvent.Button == event.MouseLeft {
+			// Toggle the checkbox
+			newState := c.Toggle()
+			if c.onChange != nil {
+				c.onChange(newState)
+			}
+			return true
+		}
+	}
+
+	return false
+}
+
+// =============================================================================
+// Mouse Event Builder Methods
+// =============================================================================
+
+// OnMouseEnter sets the mouse enter handler (builder)
+func (b *CheckboxBuilderType) OnMouseEnter(fn func()) *CheckboxBuilderType {
+	b.node.SetOnMouseEnter(fn)
+	return b
+}
+
+// OnMouseLeave sets the mouse leave handler (builder)
+func (b *CheckboxBuilderType) OnMouseLeave(fn func()) *CheckboxBuilderType {
+	b.node.SetOnMouseLeave(fn)
+	return b
 }

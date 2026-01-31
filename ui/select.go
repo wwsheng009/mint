@@ -1,6 +1,9 @@
 package ui
 
-import "github.com/wwsheng009/mint/runtime/style"
+import (
+	"github.com/wwsheng009/mint/framework/event"
+	"github.com/wwsheng009/mint/runtime/style"
+)
 
 // SelectOption represents a single option in a select
 type SelectOption struct {
@@ -18,6 +21,10 @@ type SelectVNode struct {
 	isOpen    bool // Whether dropdown is open
 	onChange  func(string)
 	focusIndex int // Index for focus management, set during collection
+	// Mouse interaction state
+	isHovered   bool
+	// Bounds for hit testing (x, y, width, height)
+	bounds     [4]int
 }
 
 // NewSelect creates a new select
@@ -152,6 +159,82 @@ func (s *SelectVNode) SelectByValue(value string) *SelectVNode {
 		}
 	}
 	return s
+}
+
+// =============================================================================
+// Mouse Event Support
+// =============================================================================
+
+// IsHovered returns whether the select is currently hovered
+func (s *SelectVNode) IsHovered() bool {
+	return s.isHovered
+}
+
+// SetHovered sets the hover state
+func (s *SelectVNode) SetHovered(hovered bool) *SelectVNode {
+	s.isHovered = hovered
+	return s
+}
+
+// SetBounds sets the select bounds for hit testing
+func (s *SelectVNode) SetBounds(x, y, width, height int) {
+	s.bounds = [4]int{x, y, width, height}
+}
+
+// Bounds returns the select bounds
+func (s *SelectVNode) Bounds() [4]int {
+	return s.bounds
+}
+
+// ContainsPoint checks if a point is within the select bounds
+func (s *SelectVNode) ContainsPoint(x, y int) bool {
+	if s.bounds[2] <= 0 || s.bounds[3] <= 0 {
+		return false
+	}
+	return x >= s.bounds[0] && x < s.bounds[0]+s.bounds[2] &&
+		y >= s.bounds[1] && y < s.bounds[1]+s.bounds[3]
+}
+
+// HandleEvent processes mouse events for the select
+func (s *SelectVNode) HandleEvent(e event.Event) bool {
+	if s.disabled {
+		return false
+	}
+
+	mouseEvent, ok := e.(*event.MouseEvent)
+	if !ok {
+		return false
+	}
+
+	switch mouseEvent.Type() {
+	case event.EventMouseEnter:
+		if !s.isHovered {
+			s.isHovered = true
+		}
+		return true
+
+	case event.EventMouseLeave:
+		if s.isHovered {
+			s.isHovered = false
+		}
+		return true
+
+	case event.EventMousePress, event.EventClick:
+		if s.isHovered && mouseEvent.Button == event.MouseLeft {
+			// Cycle to next option on click
+			nextIdx := s.selected + 1
+			if nextIdx >= len(s.options) {
+				nextIdx = 0
+			}
+			s.SetSelected(nextIdx)
+			if s.onChange != nil {
+				s.onChange(s.SelectedValue())
+			}
+			return true
+		}
+	}
+
+	return false
 }
 
 // =============================================================================

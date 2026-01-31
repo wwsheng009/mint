@@ -778,6 +778,9 @@ func (a *App) Close() error {
 	// 显示终端光标
 	a.ShowCursor()
 
+	// 清屏，避免退出时残留内容
+	a.clearScreen()
+
 	// 关闭 panic 恢复管理器
 	if a.recovery != nil {
 		a.recovery.Close()
@@ -800,9 +803,12 @@ func (a *App) ShowCursor() {
 	fmt.Print("\x1b[?25h")
 }
 
-// ExitAltScreen 退出备用屏幕
+// ExitAltScreen 退出备用屏幕（并清屏，因为我们并未真正使用备用屏幕模式）
 func (a *App) ExitAltScreen() {
 	fmt.Print("\x1b[?1049l")
+	// 由于我们未使用备用屏幕模式（只用 \x1b[2J 清屏），
+	// panic 时需要主动清屏以避免 TUI 内容残留
+	a.clearScreen()
 }
 
 // EnableEcho 启用回显

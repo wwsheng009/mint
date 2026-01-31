@@ -413,6 +413,11 @@ func (d *declarativeRoot) renderButton(node *ButtonVNode, x, y int, buffer *pain
 		buttonStyle = buttonStyle.Background("blue").Foreground("white").Bold(true)
 	}
 
+	// Highlight hovered button
+	if node.IsHovered() && !isFocused {
+		buttonStyle = buttonStyle.Background("cyan").Foreground("black").Bold(true)
+	}
+
 	label := node.Label()
 	if label == "" {
 		label = " "
@@ -426,6 +431,10 @@ func (d *declarativeRoot) renderButton(node *ButtonVNode, x, y int, buffer *pain
 	// 	label, isFocused, buttonStyle.BG, buttonStyle.FG, buttonStyle.IsBold())
 
 	buffer.SetString(x, y, fullLabel, buttonStyle)
+
+	// Track bounds for mouse hit testing
+	width := len(fullLabel)
+	node.SetBounds(x, y, width, 1)
 }
 
 // renderInput renders an input node
@@ -447,6 +456,11 @@ func (d *declarativeRoot) renderInput(node *InputVNode, x, y int, buffer *paint.
 	// Highlight focused input
 	if node.IsFocused() {
 		inputStyle = inputStyle.Background("blue").Foreground("white").Bold(true)
+	}
+
+	// Highlight hovered input
+	if node.IsHovered() && !isFocused {
+		inputStyle = inputStyle.Background("cyan").Foreground("black").Bold(true)
 	}
 
 	// Get display value (or placeholder if empty)
@@ -483,8 +497,18 @@ func (d *declarativeRoot) renderInput(node *InputVNode, x, y int, buffer *paint.
 		padding = 0
 	}
 
-	fullInput := "[" + displayValue + string(make([]byte, padding)) + "]"
+	// Create padding string
+	paddingStr := ""
+	for i := 0; i < padding; i++ {
+		paddingStr += " "
+	}
+
+	fullInput := "[" + displayValue + paddingStr + "]"
 	buffer.SetString(x, y, fullInput, inputStyle)
+
+	// Track bounds for mouse hit testing
+	width := len(fullInput)
+	node.SetBounds(x, y, width, 1)
 }
 
 // renderTextarea renders a textarea node
@@ -496,6 +520,11 @@ func (d *declarativeRoot) renderTextarea(node *TextareaVNode, x, y int, buffer *
 	rows := node.Rows()
 	if rows < 1 {
 		rows = 1
+	}
+
+	cols := node.Cols()
+	if cols < 1 {
+		cols = 20
 	}
 
 	for row := 0; row < rows; row++ {
@@ -514,6 +543,11 @@ func (d *declarativeRoot) renderTextarea(node *TextareaVNode, x, y int, buffer *
 			textareaStyle = textareaStyle.Background("blue").Foreground("white").Bold(true)
 		}
 
+		// Highlight hovered textarea (only on first row)
+		if node.IsHovered() && row == 0 && !isFocused {
+			textareaStyle = textareaStyle.Background("cyan").Foreground("black").Bold(true)
+		}
+
 		// Simple multi-line rendering
 		value := node.Value()
 		if value == "" {
@@ -523,9 +557,23 @@ func (d *declarativeRoot) renderTextarea(node *TextareaVNode, x, y int, buffer *
 			}
 		}
 
+		// Truncate if too long
+		if len(value) > cols {
+			value = value[:cols]
+		}
+
+		// Pad if too short
+		for len(value) < cols {
+			value += " "
+		}
+
 		// Draw row
 		buffer.SetString(x, renderY, "["+value+"]", textareaStyle)
 	}
+
+	// Track bounds for mouse hit testing (full textarea area)
+	width := cols + 2 // +2 for brackets
+	node.SetBounds(x, y, width, rows)
 }
 
 // renderCheckbox renders a checkbox node
@@ -549,6 +597,11 @@ func (d *declarativeRoot) renderCheckbox(node *CheckboxVNode, x, y int, buffer *
 		checkboxStyle = checkboxStyle.Background("blue").Foreground("white").Bold(true)
 	}
 
+	// Highlight hovered checkbox
+	if node.IsHovered() && !isFocused {
+		checkboxStyle = checkboxStyle.Background("cyan").Foreground("black").Bold(true)
+	}
+
 	// Checkbox character: [X] for checked, [ ] for unchecked
 	boxChar := " "
 	if node.Checked() {
@@ -562,6 +615,10 @@ func (d *declarativeRoot) renderCheckbox(node *CheckboxVNode, x, y int, buffer *
 	}
 
 	buffer.SetString(x, y, display, checkboxStyle)
+
+	// Track bounds for mouse hit testing
+	width := len(display)
+	node.SetBounds(x, y, width, 1)
 }
 
 // renderProgress renders a progress bar node
@@ -649,6 +706,11 @@ func (d *declarativeRoot) renderSelect(node *SelectVNode, x, y int, buffer *pain
 		selectStyle = selectStyle.Background("blue").Foreground("white").Bold(true)
 	}
 
+	// Highlight hovered select
+	if node.IsHovered() && !isFocused {
+		selectStyle = selectStyle.Background("cyan").Foreground("black").Bold(true)
+	}
+
 	// Get display value
 	display := node.SelectedLabel()
 	if display == "" {
@@ -671,8 +733,16 @@ func (d *declarativeRoot) renderSelect(node *SelectVNode, x, y int, buffer *pain
 	if padding < 1 {
 		padding = 1
 	}
-	fullSelect := "[" + display + string(make([]byte, padding)) + "▼]"
+	paddingStr := ""
+	for i := 0; i < padding; i++ {
+		paddingStr += " "
+	}
+	fullSelect := "[" + display + paddingStr + "▼]"
 	buffer.SetString(x, y, fullSelect, selectStyle)
+
+	// Track bounds for mouse hit testing
+	width := len(fullSelect)
+	node.SetBounds(x, y, width, 1)
 }
 
 // renderTable renders a table node
@@ -1154,6 +1224,11 @@ func (d *declarativeRoot) HandleEvent(ev frameworkevent.Event) bool {
 		}
 	}
 
+	// Handle mouse events
+	if mouseEv, ok := ev.(*frameworkevent.MouseEvent); ok {
+		return d.handleMouseEvent(mouseEv)
+	}
+
 	// Mark for re-render on any event
 	return true
 }
@@ -1209,4 +1284,224 @@ func (d *declarativeRoot) handleInputBackspace(input *InputVNode) {
 	if d.app != nil {
 		d.app.MarkDirty()
 	}
+}
+
+// handleMouseEvent handles mouse events
+func (d *declarativeRoot) handleMouseEvent(ev *frameworkevent.MouseEvent) bool {
+	x, y := ev.X, ev.Y
+
+	// Check if mouse is over any button
+	for _, btn := range d.buttons {
+		if btn.ContainsPoint(x, y) {
+			// Mouse is over this button
+			if ev.Type() == frameworkevent.EventMouseEnter || ev.Type() == frameworkevent.EventMouseMove {
+				if !btn.IsHovered() {
+					btn.SetHovered(true)
+					if d.app != nil {
+						d.app.MarkDirty()
+					}
+				}
+				// Dispatch mouse enter event to button
+				if btn.HandleEvent(ev) {
+					return true
+				}
+			} else if ev.Type() == frameworkevent.EventMousePress || ev.Type() == frameworkevent.EventMouseRelease || ev.Type() == frameworkevent.EventClick {
+				// Dispatch mouse press/release/click to button
+				if btn.HandleEvent(ev) {
+					if d.app != nil {
+						d.app.MarkDirty()
+					}
+					return true
+				}
+			}
+		} else {
+			// Mouse is not over this button
+			if btn.IsHovered() {
+				btn.SetHovered(false)
+				if d.app != nil {
+					d.app.MarkDirty()
+				}
+			}
+		}
+	}
+
+	// Check if mouse is over any checkbox
+	for _, chk := range d.checkboxes {
+		if chk.ContainsPoint(x, y) {
+			// Mouse is over this checkbox
+			if ev.Type() == frameworkevent.EventMouseEnter || ev.Type() == frameworkevent.EventMouseMove {
+				if !chk.IsHovered() {
+					chk.SetHovered(true)
+					if d.app != nil {
+						d.app.MarkDirty()
+					}
+				}
+				// Dispatch mouse enter event to checkbox
+				if chk.HandleEvent(ev) {
+					return true
+				}
+			} else if ev.Type() == frameworkevent.EventMousePress || ev.Type() == frameworkevent.EventMouseRelease || ev.Type() == frameworkevent.EventClick {
+				// Dispatch mouse press/release/click to checkbox
+				if chk.HandleEvent(ev) {
+					if d.app != nil {
+						d.app.MarkDirty()
+					}
+					return true
+				}
+			}
+		} else {
+			// Mouse is not over this checkbox
+			if chk.IsHovered() {
+				chk.SetHovered(false)
+				if d.app != nil {
+					d.app.MarkDirty()
+				}
+			}
+		}
+	}
+
+	// Check if mouse is over any input
+	for _, inp := range d.inputs {
+		if inp.ContainsPoint(x, y) {
+			// Mouse is over this input
+			if ev.Type() == frameworkevent.EventMouseEnter || ev.Type() == frameworkevent.EventMouseMove {
+				if !inp.IsHovered() {
+					inp.SetHovered(true)
+					if d.app != nil {
+						d.app.MarkDirty()
+					}
+				}
+				// Dispatch mouse enter event to input
+				if inp.HandleEvent(ev) {
+					return true
+				}
+			} else if ev.Type() == frameworkevent.EventMousePress || ev.Type() == frameworkevent.EventMouseRelease || ev.Type() == frameworkevent.EventClick {
+				// Dispatch mouse press/release/click to input
+				if inp.HandleEvent(ev) {
+					if d.app != nil {
+						d.app.MarkDirty()
+					}
+					return true
+				}
+			}
+		} else {
+			// Mouse is not over this input
+			if inp.IsHovered() {
+				inp.SetHovered(false)
+				if d.app != nil {
+					d.app.MarkDirty()
+				}
+			}
+		}
+	}
+
+	// Check if mouse is over any select
+	for _, sel := range d.selects {
+		if sel.ContainsPoint(x, y) {
+			// Mouse is over this select
+			if ev.Type() == frameworkevent.EventMouseEnter || ev.Type() == frameworkevent.EventMouseMove {
+				if !sel.IsHovered() {
+					sel.SetHovered(true)
+					if d.app != nil {
+						d.app.MarkDirty()
+					}
+				}
+				// Dispatch mouse enter event to select
+				if sel.HandleEvent(ev) {
+					return true
+				}
+			} else if ev.Type() == frameworkevent.EventMousePress || ev.Type() == frameworkevent.EventMouseRelease || ev.Type() == frameworkevent.EventClick {
+				// Dispatch mouse press/release/click to select
+				if sel.HandleEvent(ev) {
+					if d.app != nil {
+						d.app.MarkDirty()
+					}
+					return true
+				}
+			}
+		} else {
+			// Mouse is not over this select
+			if sel.IsHovered() {
+				sel.SetHovered(false)
+				if d.app != nil {
+					d.app.MarkDirty()
+				}
+			}
+		}
+	}
+
+	// Check if mouse is over any textarea
+	for _, ta := range d.textareas {
+		if ta.ContainsPoint(x, y) {
+			// Mouse is over this textarea
+			if ev.Type() == frameworkevent.EventMouseEnter || ev.Type() == frameworkevent.EventMouseMove {
+				if !ta.IsHovered() {
+					ta.SetHovered(true)
+					if d.app != nil {
+						d.app.MarkDirty()
+					}
+				}
+				// Dispatch mouse enter event to textarea
+				if ta.HandleEvent(ev) {
+					return true
+				}
+			} else if ev.Type() == frameworkevent.EventMousePress || ev.Type() == frameworkevent.EventMouseRelease || ev.Type() == frameworkevent.EventClick {
+				// Dispatch mouse press/release/click to textarea
+				if ta.HandleEvent(ev) {
+					if d.app != nil {
+						d.app.MarkDirty()
+					}
+					return true
+				}
+			}
+		} else {
+			// Mouse is not over this textarea
+			if ta.IsHovered() {
+				ta.SetHovered(false)
+				if d.app != nil {
+					d.app.MarkDirty()
+				}
+			}
+		}
+	}
+
+	// Handle mouse leave event - clear all hover states
+	if ev.Type() == frameworkevent.EventMouseLeave {
+		for _, btn := range d.buttons {
+			if btn.IsHovered() {
+				btn.SetHovered(false)
+				btn.HandleEvent(ev)
+			}
+		}
+		for _, chk := range d.checkboxes {
+			if chk.IsHovered() {
+				chk.SetHovered(false)
+				chk.HandleEvent(ev)
+			}
+		}
+		for _, inp := range d.inputs {
+			if inp.IsHovered() {
+				inp.SetHovered(false)
+				inp.HandleEvent(ev)
+			}
+		}
+		for _, sel := range d.selects {
+			if sel.IsHovered() {
+				sel.SetHovered(false)
+				sel.HandleEvent(ev)
+			}
+		}
+		for _, ta := range d.textareas {
+			if ta.IsHovered() {
+				ta.SetHovered(false)
+				ta.HandleEvent(ev)
+			}
+		}
+		if d.app != nil {
+			d.app.MarkDirty()
+		}
+		return true
+	}
+
+	return false
 }

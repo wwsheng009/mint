@@ -1,6 +1,9 @@
 package ui
 
-import "github.com/wwsheng009/mint/runtime/style"
+import (
+	"github.com/wwsheng009/mint/framework/event"
+	"github.com/wwsheng009/mint/runtime/style"
+)
 
 // ButtonVariant represents button style variants
 type ButtonVariant int
@@ -33,12 +36,20 @@ const (
 // ButtonVNode represents a button component
 type ButtonVNode struct {
 	*ElementVNode
-	label      string
-	onClick    func()
-	variant    ButtonVariant
-	size       ButtonSize
-	disabled   bool
-	focusIndex int // Index for focus management, set during collection
+	label       string
+	onClick     func()
+	variant     ButtonVariant
+	size        ButtonSize
+	disabled    bool
+	focusIndex  int // Index for focus management, set during collection
+	// Mouse interaction state
+	isHovered   bool
+	onMouseEnter func()
+	onMouseLeave func()
+	onMousePress func()
+	onMouseRelease func()
+	// Bounds for hit testing (x, y, width, height)
+	bounds     [4]int
 }
 
 // NewButton creates a new button
@@ -201,4 +212,152 @@ func (b *ButtonBuilderType) BgColor(c interface{}) *ButtonBuilderType {
 // Build returns the VNode
 func (b *ButtonBuilderType) Build() VNode {
 	return b.node
+}
+
+// =============================================================================
+// Mouse Event Support
+// =============================================================================
+
+// IsHovered returns whether the button is currently hovered
+func (b *ButtonVNode) IsHovered() bool {
+	return b.isHovered
+}
+
+// SetHovered sets the hover state
+func (b *ButtonVNode) SetHovered(hovered bool) *ButtonVNode {
+	b.isHovered = hovered
+	return b
+}
+
+// SetBounds sets the button bounds for hit testing
+func (b *ButtonVNode) SetBounds(x, y, width, height int) {
+	b.bounds = [4]int{x, y, width, height}
+}
+
+// Bounds returns the button bounds
+func (b *ButtonVNode) Bounds() [4]int {
+	return b.bounds
+}
+
+// ContainsPoint checks if a point is within the button bounds
+func (b *ButtonVNode) ContainsPoint(x, y int) bool {
+	if b.bounds[2] <= 0 || b.bounds[3] <= 0 {
+		return false
+	}
+	return x >= b.bounds[0] && x < b.bounds[0]+b.bounds[2] &&
+		y >= b.bounds[1] && y < b.bounds[1]+b.bounds[3]
+}
+
+// SetOnMouseEnter sets the mouse enter handler
+func (b *ButtonVNode) SetOnMouseEnter(fn func()) *ButtonVNode {
+	b.onMouseEnter = fn
+	return b
+}
+
+// SetOnMouseLeave sets the mouse leave handler
+func (b *ButtonVNode) SetOnMouseLeave(fn func()) *ButtonVNode {
+	b.onMouseLeave = fn
+	return b
+}
+
+// SetOnMousePress sets the mouse press handler
+func (b *ButtonVNode) SetOnMousePress(fn func()) *ButtonVNode {
+	b.onMousePress = fn
+	return b
+}
+
+// SetOnMouseRelease sets the mouse release handler
+func (b *ButtonVNode) SetOnMouseRelease(fn func()) *ButtonVNode {
+	b.onMouseRelease = fn
+	return b
+}
+
+// HandleEvent processes mouse events for the button
+func (b *ButtonVNode) HandleEvent(e event.Event) bool {
+	if b.disabled {
+		return false
+	}
+
+	mouseEvent, ok := e.(*event.MouseEvent)
+	if !ok {
+		return false
+	}
+
+	switch mouseEvent.Type() {
+	case event.EventMouseEnter:
+		if !b.isHovered {
+			b.isHovered = true
+			if b.onMouseEnter != nil {
+				b.onMouseEnter()
+			}
+		}
+		return true
+
+	case event.EventMouseLeave:
+		if b.isHovered {
+			b.isHovered = false
+			if b.onMouseLeave != nil {
+				b.onMouseLeave()
+			}
+		}
+		return true
+
+	case event.EventMousePress:
+		if b.isHovered && mouseEvent.Button == event.MouseLeft {
+			if b.onMousePress != nil {
+				b.onMousePress()
+			}
+			return true
+		}
+
+	case event.EventMouseRelease:
+		if b.isHovered && mouseEvent.Button == event.MouseLeft {
+			if b.onMouseRelease != nil {
+				b.onMouseRelease()
+			}
+			// Trigger click on mouse release when still hovered
+			if b.onClick != nil {
+				b.onClick()
+			}
+			return true
+		}
+
+	case event.EventClick:
+		if b.isHovered && mouseEvent.Button == event.MouseLeft {
+			if b.onClick != nil {
+				b.onClick()
+			}
+			return true
+		}
+	}
+
+	return false
+}
+
+// =============================================================================
+// Mouse Event Builder Methods
+// =============================================================================
+
+// OnMouseEnter sets the mouse enter handler (builder)
+func (b *ButtonBuilderType) OnMouseEnter(fn func()) *ButtonBuilderType {
+	b.node.SetOnMouseEnter(fn)
+	return b
+}
+
+// OnMouseLeave sets the mouse leave handler (builder)
+func (b *ButtonBuilderType) OnMouseLeave(fn func()) *ButtonBuilderType {
+	b.node.SetOnMouseLeave(fn)
+	return b
+}
+
+// OnMousePress sets the mouse press handler (builder)
+func (b *ButtonBuilderType) OnMousePress(fn func()) *ButtonBuilderType {
+	b.node.SetOnMousePress(fn)
+	return b
+}
+
+// OnMouseRelease sets the mouse release handler (builder)
+func (b *ButtonBuilderType) OnMouseRelease(fn func()) *ButtonBuilderType {
+	b.node.SetOnMouseRelease(fn)
+	return b
 }

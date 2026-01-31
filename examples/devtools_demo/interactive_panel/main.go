@@ -15,6 +15,7 @@ import (
 	"github.com/wwsheng009/mint/framework/component"
 	"github.com/wwsheng009/mint/framework/event"
 	"github.com/wwsheng009/mint/runtime/paint"
+	"github.com/wwsheng009/mint/runtime/platform"
 	"github.com/wwsheng009/mint/runtime/style"
 )
 
@@ -541,10 +542,7 @@ func (t *Tab) SetFocus(focus bool) {
 
 func main() {
 	defer func() {
-		fmt.Print("\x1b[?25h") // Show cursor
-		fmt.Print("\x1b[0m")  // Reset style
-		fmt.Print("\x1b[H")   // Move cursor to top-left
-		fmt.Println()
+		platform.RestoreTerminal();
 	}()
 
 	const (

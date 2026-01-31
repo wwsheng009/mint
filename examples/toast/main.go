@@ -5,13 +5,12 @@ import (
 )
 
 func main() {
-	// Track toast visibility
-	infoToast, setInfoToast, _ := ui.UseStateInt(0)
-	successToast, setSuccessToast, _ := ui.UseStateInt(0)
-	warningToast, setWarningToast, _ := ui.UseStateInt(0)
-	errorToast, setErrorToast, _ := ui.UseStateInt(0)
-
 	ui.Run(func() ui.VNode {
+		// Track toast visibility - hooks must be called inside component
+		infoToast, setInfoToast, _ := ui.UseStateInt(0)
+		successToast, setSuccessToast, _ := ui.UseStateInt(0)
+		warningToast, setWarningToast, _ := ui.UseStateInt(0)
+		errorToast, setErrorToast, _ := ui.UseStateInt(0)
 		// Build toast notifications based on state
 		var toasts []ui.VNode
 

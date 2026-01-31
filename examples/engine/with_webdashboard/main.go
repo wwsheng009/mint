@@ -2,10 +2,10 @@
 //
 // This example shows how to integrate the DevTools server into an existing TUI application.
 // The key points:
-//   1. Start DevTools server at application startup
-//   2. Use BeginFrame/EndFrame to automatically capture frame data
-//   3. Component updates are recorded automatically
-//   4. No manual simulation needed - data comes from real application activity
+//  1. Start DevTools server at application startup
+//  2. Use BeginFrame/EndFrame to automatically capture frame data
+//  3. Component updates are recorded automatically
+//  4. No manual simulation needed - data comes from real application activity
 //
 // Usage: go run main.go
 // Then open http://localhost:8080/ in your browser
@@ -493,7 +493,7 @@ func EngineExample() error {
 		return err
 	}
 
-	fmt.Println("\n[Engine] Exited cleanly.")
+	// fmt.Println("\n[Engine] Exited cleanly.")
 
 	// 步骤 5: 清理
 	dt.Disable()
@@ -504,11 +504,6 @@ func EngineExample() error {
 func main() {
 	defer func() {
 		platform.RestoreTerminal()
-		fmt.Print("\x1b[?25h")
-		fmt.Print("\x1b[0m")
-		fmt.Print("\x1b[H")
-		fmt.Println()
-
 		if dt.IsEnabled() {
 			dt.Disable()
 		}

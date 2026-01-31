@@ -1,6 +1,9 @@
 package ui
 
-import "github.com/wwsheng009/mint/runtime/style"
+import (
+	"github.com/wwsheng009/mint/framework/event"
+	"github.com/wwsheng009/mint/runtime/style"
+)
 
 // =============================================================================
 // Textarea component
@@ -22,6 +25,10 @@ type TextareaVNode struct {
 	onSubmit    func() // Ctrl+Enter or Alt+Enter
 	isFocused   bool
 	focusIndex  int // Index for focus management, set during collection
+	// Mouse interaction state
+	isHovered   bool
+	// Bounds for hit testing (x, y, width, height)
+	bounds     [4]int
 }
 
 // NewTextarea creates a new textarea
@@ -192,6 +199,75 @@ func (t *TextareaVNode) IsFocused() bool {
 func (t *TextareaVNode) SetFocus(focused bool) *TextareaVNode {
 	t.isFocused = focused
 	return t
+}
+
+// =============================================================================
+// Mouse Event Support
+// =============================================================================
+
+// IsHovered returns whether the textarea is currently hovered
+func (t *TextareaVNode) IsHovered() bool {
+	return t.isHovered
+}
+
+// SetHovered sets the hover state
+func (t *TextareaVNode) SetHovered(hovered bool) *TextareaVNode {
+	t.isHovered = hovered
+	return t
+}
+
+// SetBounds sets the textarea bounds for hit testing
+func (t *TextareaVNode) SetBounds(x, y, width, height int) {
+	t.bounds = [4]int{x, y, width, height}
+}
+
+// Bounds returns the textarea bounds
+func (t *TextareaVNode) Bounds() [4]int {
+	return t.bounds
+}
+
+// ContainsPoint checks if a point is within the textarea bounds
+func (t *TextareaVNode) ContainsPoint(x, y int) bool {
+	if t.bounds[2] <= 0 || t.bounds[3] <= 0 {
+		return false
+	}
+	return x >= t.bounds[0] && x < t.bounds[0]+t.bounds[2] &&
+		y >= t.bounds[1] && y < t.bounds[1]+t.bounds[3]
+}
+
+// HandleEvent processes mouse events for the textarea
+func (t *TextareaVNode) HandleEvent(e event.Event) bool {
+	if t.disabled {
+		return false
+	}
+
+	mouseEvent, ok := e.(*event.MouseEvent)
+	if !ok {
+		return false
+	}
+
+	switch mouseEvent.Type() {
+	case event.EventMouseEnter:
+		if !t.isHovered {
+			t.isHovered = true
+		}
+		return true
+
+	case event.EventMouseLeave:
+		if t.isHovered {
+			t.isHovered = false
+		}
+		return true
+
+	case event.EventMousePress, event.EventClick:
+		if t.isHovered && mouseEvent.Button == event.MouseLeft {
+			// Focus the textarea - the actual focus is managed by the framework
+			// Return true to indicate the event was handled
+			return true
+		}
+	}
+
+	return false
 }
 
 // =============================================================================

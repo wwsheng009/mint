@@ -1,6 +1,9 @@
 package ui
 
-import "github.com/wwsheng009/mint/runtime/style"
+import (
+	"github.com/wwsheng009/mint/framework/event"
+	"github.com/wwsheng009/mint/runtime/style"
+)
 
 // InputType represents the type of input
 type InputType int
@@ -31,6 +34,10 @@ type InputVNode struct {
 	onSubmit      func()
 	isFocused     bool // Internal focus state
 	focusIndex    int // Index for focus management, set during collection
+	// Mouse interaction state
+	isHovered   bool
+	// Bounds for hit testing (x, y, width, height)
+	bounds     [4]int
 }
 
 // NewInput creates a new input
@@ -320,5 +327,74 @@ func (b *InputBuilderType) Bold(v bool) *InputBuilderType {
 // Build returns the VNode
 func (b *InputBuilderType) Build() VNode {
 	return b.node
+}
+
+// =============================================================================
+// Mouse Event Support
+// =============================================================================
+
+// IsHovered returns whether the input is currently hovered
+func (i *InputVNode) IsHovered() bool {
+	return i.isHovered
+}
+
+// SetHovered sets the hover state
+func (i *InputVNode) SetHovered(hovered bool) *InputVNode {
+	i.isHovered = hovered
+	return i
+}
+
+// SetBounds sets the input bounds for hit testing
+func (i *InputVNode) SetBounds(x, y, width, height int) {
+	i.bounds = [4]int{x, y, width, height}
+}
+
+// Bounds returns the input bounds
+func (i *InputVNode) Bounds() [4]int {
+	return i.bounds
+}
+
+// ContainsPoint checks if a point is within the input bounds
+func (i *InputVNode) ContainsPoint(x, y int) bool {
+	if i.bounds[2] <= 0 || i.bounds[3] <= 0 {
+		return false
+	}
+	return x >= i.bounds[0] && x < i.bounds[0]+i.bounds[2] &&
+		y >= i.bounds[1] && y < i.bounds[1]+i.bounds[3]
+}
+
+// HandleEvent processes mouse events for the input
+func (i *InputVNode) HandleEvent(e event.Event) bool {
+	if i.disabled || i.readOnly {
+		return false
+	}
+
+	mouseEvent, ok := e.(*event.MouseEvent)
+	if !ok {
+		return false
+	}
+
+	switch mouseEvent.Type() {
+	case event.EventMouseEnter:
+		if !i.isHovered {
+			i.isHovered = true
+		}
+		return true
+
+	case event.EventMouseLeave:
+		if i.isHovered {
+			i.isHovered = false
+		}
+		return true
+
+	case event.EventMousePress, event.EventClick:
+		if i.isHovered && mouseEvent.Button == event.MouseLeft {
+			// Focus the input - the actual focus is managed by the framework
+			// Return true to indicate the event was handled
+			return true
+		}
+	}
+
+	return false
 }
 

@@ -531,7 +531,7 @@ func EngineExample() error {
 		return err
 	}
 
-	fmt.Println("\n[Engine] Exited cleanly.")
+	// fmt.Println("\n[Engine] Exited cleanly.")
 	return nil
 }
 
@@ -542,12 +542,6 @@ func main() {
 		// 最先恢复终端控制台模式（必须在所有其他操作之前）
 		// 这会恢复 ENABLE_LINE_INPUT 和 ENABLE_ECHO_INPUT，让 fmt.Scanln 等正常工作
 		platform.RestoreTerminal()
-
-		// 恢复终端状态
-		fmt.Print("\x1b[?25h") // 显示光标
-		fmt.Print("\x1b[0m")  // 重置样式
-		fmt.Print("\x1b[H")   // 移动光标到左上角
-		fmt.Println()         // 换行
 	}()
 
 	if err := EngineExample(); err != nil {
