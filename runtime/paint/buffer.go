@@ -165,7 +165,7 @@ func (b *Buffer) SetContentDirect(x, y int, char rune, s style.Style, zIndex int
 // - continuation → continuation: ❌ 不刷新（由主单元格处理）
 // - head → continuation: ✅ 需要刷新（宽字符被覆盖）
 // - continuation → head: ✅ 需要刷新（宽字符位置现在有内容）
-// - 正常单元格: 比较 Cluster 和 Style
+// - 正常单元格: 比较 Cluster、Style 和 Selected
 func IsCellChanged(cell, prevCell Cell) bool {
 	// 如果当前单元格是延续单元格，跳过（由主单元格处理）
 	if cell.IsContinuation {
@@ -184,8 +184,10 @@ func IsCellChanged(cell, prevCell Cell) bool {
 		return true
 	}
 
-	// 正常比较 Cluster 和 Style
-	return cell.Cluster != prevCell.Cluster || cell.Style != prevCell.Style
+	// 正常比较 Cluster、Style 和 Selected（文本选择高亮）
+	return cell.Cluster != prevCell.Cluster ||
+		cell.Style != prevCell.Style ||
+		cell.Selected != prevCell.Selected
 }
 
 // GetCellWidth 获取单元格的显示宽度

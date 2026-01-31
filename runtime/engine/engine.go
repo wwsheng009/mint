@@ -102,6 +102,42 @@ type Engine struct {
 
 	// 固定大小模式 - 禁用自动调整大小
 	fixedSize bool
+
+	// 文本选择模式状态
+	selectionState SelectionState
+}
+
+// SelectionState 文本选择模式状态
+type SelectionState struct {
+	enabled       bool          // 是否启用选择模式
+	startX, startY int          // 选择起始位置
+	endX, endY     int          // 选择结束位置
+	isSelecting   bool          // 是否正在拖拽选择中（鼠标左键按住并移动）
+	isLeftButtonDown bool       // 左键是否按下
+	hasSelection  bool          // 是否有有效的选择区域（释放后保持）
+	selectStartTime time.Time   // 选择开始时间（用于检测长按）
+}
+
+// IsInSelectionMode 检查是否处于文本选择模式
+func (e *Engine) IsInSelectionMode() bool {
+	return e.selectionState.enabled
+}
+
+// GetSelection 获取当前选择区域
+func (e *Engine) GetSelection() (startX, startY, endX, endY int, hasSelection bool) {
+	if !e.selectionState.enabled || !e.selectionState.isSelecting {
+		return 0, 0, 0, 0, false
+	}
+	return e.selectionState.startX, e.selectionState.startY,
+		e.selectionState.endX, e.selectionState.endY, true
+}
+
+// ClearSelection 清除选择
+func (e *Engine) ClearSelection() {
+	e.selectionState.enabled = false
+	e.selectionState.isSelecting = false
+	e.selectionState.hasSelection = false
+	e.RequestRepaint()
 }
 
 // New 创建新的引擎
@@ -365,7 +401,8 @@ func (e *Engine) Run() error {
 // 1. 更新组件状态（如果实现 Updatable）
 // 2. 布局（如果实现 Layoutable）
 // 3. 绘制到 back buffer
-// 4. 渲染输出
+// 4. 应用文本选择高亮
+// 5. 渲染输出
 func (e *Engine) frame() {
 	e.rootMu.RLock()
 	root := e.root
@@ -389,10 +426,73 @@ func (e *Engine) frame() {
 	buf := e.renderer.GetBackBuffer()
 	root.Paint(buf)
 
-	// 4. 渲染输出
+	// 4. 应用文本选择高亮
+	e.applySelectionHighlight(buf)
+
+	// 5. 渲染输出
 	output := e.renderer.Render()
 	if output != "" && e.outputFunc != nil {
 		e.outputFunc(output)
+	}
+}
+
+// applySelectionHighlight 应用文本选择高亮
+func (e *Engine) applySelectionHighlight(buf *paint.Buffer) {
+	// 只要选择模式启用就渲染（包括正在拖拽和已释放）
+	if !e.selectionState.enabled {
+		return
+	}
+
+	// 计算选择区域的边界（确保 start <= end）
+	startX, startY := e.selectionState.startX, e.selectionState.startY
+	endX, endY := e.selectionState.endX, e.selectionState.endY
+
+	// 规范化坐标（确保 start 在左上角，end 在右下角）
+	if startY > endY || (startY == endY && startX > endX) {
+		startX, endX = endX, startX
+		startY, endY = endY, startY
+	}
+
+	// 边界检查
+	if startX < 0 {
+		startX = 0
+	}
+	if startY < 0 {
+		startY = 0
+	}
+	if endX >= buf.Width {
+		endX = buf.Width - 1
+	}
+	if endY >= buf.Height {
+		endY = buf.Height - 1
+	}
+
+	// 应用选择高亮 - 直接修改 cell 的 Style 添加反色
+	for y := startY; y <= endY; y++ {
+		if y < 0 || y >= buf.Height {
+			continue
+		}
+
+		lineStart := 0
+		lineEnd := buf.Width - 1
+
+		if y == startY {
+			lineStart = startX
+		}
+		if y == endY {
+			lineEnd = endX
+		}
+
+		for x := lineStart; x <= lineEnd; x++ {
+			if x < 0 || x >= buf.Width {
+				continue
+			}
+
+			// 直接修改 cell 的 Style，添加反色效果
+			cell := buf.Cells[y][x]
+			cell.Style = cell.Style.Reverse(true)
+			buf.Cells[y][x] = cell
+		}
 	}
 }
 
@@ -409,13 +509,15 @@ func (e *Engine) handleEvent(ev *event.EventStruct) {
 	boxes := e.layoutBoxes
 	e.layoutMu.RUnlock()
 
-	// 处理鼠标移动事件 - 更新位置并触发重绘
-	if ev.Type() == event.EventMouseMove && ev.Mouse != nil {
-		if e.mouseMoveCallback != nil {
-			e.mouseMoveCallback(ev.Mouse.X, ev.Mouse.Y)
-		}
-		e.RequestRepaint()
+	// 处理鼠标事件（支持文本选择模式）
+	if ev.Mouse != nil {
+		e.handleMouseEvent(ev)
 		return
+	}
+
+	// 键盘事件：如果有选择区域，先清除选择
+	if ev.Type() == event.EventKeyPress && e.selectionState.hasSelection {
+		e.ClearSelection()
 	}
 
 	// 使用事件分发器进行三阶段传播
@@ -443,13 +545,107 @@ func (e *Engine) handleEvent(ev *event.EventStruct) {
 		e.RequestRepaint()
 	}
 
-	// 任何鼠标事件都触发重绘（用于显示悬停效果）
-	if ev.Type() == event.EventMousePress || ev.Type() == event.EventMouseRelease {
-		e.RequestRepaint()
-	}
-
 	// 键盘事件也触发重绘（提供视觉反馈）
 	if ev.Type() == event.EventKeyPress {
+		e.RequestRepaint()
+	}
+}
+
+// handleMouseEvent 处理鼠标事件（包括文本选择模式）
+func (e *Engine) handleMouseEvent(ev *event.EventStruct) {
+	mouseEv := ev.Mouse
+
+	switch ev.Type() {
+	case event.EventMousePress:
+		// 左键按下：开始选择模式计时
+		if mouseEv.Click == event.MouseLeft {
+			// 如果已有选择区域，先清除它（开始新的选择）
+			if e.selectionState.hasSelection {
+				e.selectionState.hasSelection = false
+				e.selectionState.enabled = false
+			}
+
+			e.selectionState.isLeftButtonDown = true
+			e.selectionState.selectStartTime = time.Now()
+			e.selectionState.startX = mouseEv.X
+			e.selectionState.startY = mouseEv.Y
+			e.selectionState.endX = mouseEv.X
+			e.selectionState.endY = mouseEv.Y
+			e.selectionState.isSelecting = false // 还未进入选择模式
+			e.selectionState.enabled = false     // 重置选择模式
+		}
+
+		// 调用鼠标移动回调
+		if e.mouseMoveCallback != nil {
+			e.mouseMoveCallback(mouseEv.X, mouseEv.Y)
+		}
+
+		// 只有在非选择模式下才分发点击事件给组件
+		if !e.selectionState.enabled {
+			e.layoutMu.RLock()
+			boxes := e.layoutBoxes
+			e.layoutMu.RUnlock()
+			result := event.DispatchEvent(ev, boxes)
+			if result.Updated {
+				e.RequestRepaint()
+			}
+		}
+		e.RequestRepaint()
+
+	case event.EventMouseRelease:
+		// 左键释放：结束拖拽，但保持选择区域
+		if mouseEv.Click == event.MouseLeft {
+			e.selectionState.isLeftButtonDown = false
+
+			// 检查是否移动过（用于区分点击和选择）
+			dx := mouseEv.X - e.selectionState.startX
+			dy := mouseEv.Y - e.selectionState.startY
+			hasMoved := dx != 0 || dy != 0
+			wasSelecting := e.selectionState.enabled && e.selectionState.isSelecting
+
+			if !wasSelecting || !hasMoved {
+				// 没有移动过，视为普通点击，清除选择区域
+				e.selectionState.hasSelection = false
+				e.selectionState.enabled = false
+				e.selectionState.isSelecting = false
+			} else {
+				// 有有效的选择区域，保持它
+				e.selectionState.hasSelection = true
+				e.selectionState.isSelecting = false
+				// 注意：enabled 保持 true 以显示选择高亮
+			}
+		}
+
+		// 调用鼠标移动回调
+		if e.mouseMoveCallback != nil {
+			e.mouseMoveCallback(mouseEv.X, mouseEv.Y)
+		}
+		e.RequestRepaint()
+
+	case event.EventMouseMove:
+		// 鼠标移动：更新位置
+		if e.mouseMoveCallback != nil {
+			e.mouseMoveCallback(mouseEv.X, mouseEv.Y)
+		}
+
+		// 检查是否应该进入选择模式（按住左键并移动）
+		if e.selectionState.isLeftButtonDown && !e.selectionState.enabled {
+			dx := mouseEv.X - e.selectionState.startX
+			dy := mouseEv.Y - e.selectionState.startY
+
+			// 只要按住并移动（任意距离），立即进入选择模式
+			if dx != 0 || dy != 0 {
+				e.selectionState.enabled = true
+				e.selectionState.isSelecting = true
+			}
+		}
+
+		// 如果处于选择模式，更新选择区域
+		if e.selectionState.enabled && e.selectionState.isSelecting {
+			e.selectionState.endX = mouseEv.X
+			e.selectionState.endY = mouseEv.Y
+		}
+
 		e.RequestRepaint()
 	}
 }
