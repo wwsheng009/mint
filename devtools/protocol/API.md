@@ -39,7 +39,7 @@ Mint DevTools 提供了 HTTP REST API 和 WebSocket 接口，用于 TUI 应用�
 
 ---
 
-### 2. 性能指标
+### 2. 性能指标 (Planned)
 
 获取当前性能指标。
 
@@ -71,7 +71,7 @@ Mint DevTools 提供了 HTTP REST API 和 WebSocket 接口，用于 TUI 应用�
 
 ---
 
-### 3. 帧列表
+### 3. 帧列表 (Planned)
 
 获取所有已记录的帧。
 
@@ -94,7 +94,7 @@ Mint DevTools 提供了 HTTP REST API 和 WebSocket 接口，用于 TUI 应用�
 
 ---
 
-### 4. 组件列表
+### 4. 组件列表 (Planned)
 
 获取所有组件的状态。
 
@@ -229,7 +229,7 @@ Mint DevTools 提供了 HTTP REST API 和 WebSocket 接口，用于 TUI 应用�
 
 ---
 
-### 8. 调试报告
+### 8. 调试报告 (Planned)
 
 生成完整的调试报告。
 
@@ -279,7 +279,7 @@ Mint DevTools 提供了 HTTP REST API 和 WebSocket 接口，用于 TUI 应用�
 
 ---
 
-### 10. 导入数据
+### 10. 导入数据 (Planned)
 
 导入调试数据。
 
@@ -448,6 +448,36 @@ Mint DevTools 提供了 HTTP REST API 和 WebSocket 接口，用于 TUI 应用�
   "payload": {
     "node_id": "node-5",
     "color": "red"
+  }
+}
+```
+
+#### 7. evaluate - 表达式求值
+
+```json
+{
+  "version": "1.0.0",
+  "type": "evaluate",
+  "id": "req-6",
+  "payload": {
+    "expression": "component.props.label",
+    "context": {"node_id": "node-5"},
+    "frame_id": 10
+  }
+}
+```
+
+**响应 (evaluation_result)**:
+
+```json
+{
+  "version": "1.0.0",
+  "type": "evaluation_result",
+  "id": "req-6",
+  "payload": {
+    "result": "Click Me",
+    "type": "string",
+    "frame_id": 10
   }
 }
 ```

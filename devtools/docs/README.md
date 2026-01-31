@@ -8,7 +8,7 @@
 
 | 文档 | 说明 | 状态 |
 |------|------|------|
-| [implementation_todo.md](./implementation_todo.md) | 分阶段实施计划 TODO LIST | 进行中 |
+| [implementation_todo.md](./implementation_todo.md) | 分阶段实施计划 TODO LIST | ✅ 已完成 |
 | [implementation_v2.md](./implementation_v2.md) | V2.0 架构设计文档 | 已完成 |
 
 ### 📊 阶段总结
@@ -55,8 +55,7 @@
 | [client](../client/readme.md) | 调试客户端、协议处理、可视化 | TUI 面板、WebSocket 协议 |
 | [memory](../memory/readme.md) | 内存优化 | 环形缓冲区、自适应采样、内存监控 |
 | [observation](../observation/readme.md) | 观察层 | 数据收集、统计分析、模式检测 |
-| [protocol](../protocol/readme.md) | 类型定义、常量 | 核心类型系统 |
-| [remote](../remote/readme.md) | 远程调试 | WebSocket、HTTP API、Chromium 集成 |
+| [protocol](../protocol/readme.md) | 统一协议服务器、类型定义 | WebSocket、HTTP API、仪表盘 UI |
 | [replay](../replay/readme.md) | 确定性回放 | 事件录制、回放引擎 |
 | [snapshot](../snapshot/readme.md) | 快照系统 | 状态捕获、差异比较 |
 | [testing](../testing/readme.md) | 测试工具 | Mock、Fixture、断言 |
@@ -149,7 +148,7 @@
 │  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐             │    │
 │  │  │   Protocol  │  │   HTTP      │  │   WebSocket│             │    │
 │  │  │             │  │             │  │             │             │    │
-│  │  │ - Messages  │  │ - /debug    │  │ - /ws       │             │    │
+│  │  │ - Messages  │  │ - / (仪表盘) │  │ - /ws       │             │    │
 │  │  │ - Session   │  │ - /api/*    │  │ - Binary    │             │    │
 │  │  │ - Subscribe │  │ - Export    │  │ - Broadcast │             │    │
 │  │  └─────────────┘  └─────────────┘  └─────────────┘             │    │
@@ -372,34 +371,46 @@ monitor.Start()
 ### 🌐 远程调试
 
 ```go
-import "github.com/wwsheng009/mint/devtools/remote"
+import "github.com/wwsheng009/mint/devtools/protocol"
 
 // 创建服务器
-server := remote.NewDevToolsServer(9222, dt, snapshotMgr)
+server := protocol.NewServer(protocol.ServerConfig{
+    Port:              8080,
+    EnableDashboard:   true,
+    EnableTuiCommands: true,
+    EnableCdp:         true,
+})
+server.SetSnapshotManager(snapshotMgr)
 go server.Start()
 
 // 服务器运行在:
-// - http://localhost:9222/debug    (Inspector UI)
-// - ws://localhost:9222/ws          (WebSocket)
-// - http://localhost:9222/api/*    (REST API)
+// - http://localhost:8080/         (主仪表盘)
+// - ws://localhost:8080/ws         (WebSocket)
+// - http://localhost:8080/api/*    (REST API)
+// - http://localhost:8080/health   (健康检查)
 ```
 
 **WebSocket 客户端示例:**
 
 ```go
-ws, _ := websocket.Dial("ws://localhost:9222/ws", "", "http://localhost")
-
-// 发送请求
+// 连接并发送握手
+ws, _ := websocket.Dial("ws://localhost:8080/ws", "", "http://localhost")
 websocket.JSON.Send(ws, map[string]interface{}{
     "version": "1.0.0",
-    "type": "get_range",
-    "id": "req-1",
-    "payload": map[string]int{"from": 0, "to": 100},
+    "type": "handshake",
+    "id": "web-dashboard",
+    "payload": map[string]interface{}{
+        "client_id": "my-client",
+        "capabilities": []string{"snapshots", "metrics", "frames"},
+        "version": "1.0.0",
+        "protocol": "remote",
+    },
 })
 
 // 接收响应
 var msg map[string]interface{}
 websocket.JSON.Receive(ws, &msg)
+// msg.type == "handshake_ack"
 ```
 
 ### 📖 架构概览

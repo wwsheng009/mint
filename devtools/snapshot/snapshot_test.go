@@ -132,18 +132,21 @@ func TestManager(t *testing.T) {
 func TestManagerAutoCapture(t *testing.T) {
 	mgr := NewManager(100)
 
-	// Enable auto capture with 1 frame interval
-	mgr.SetAutoCapture(true, 16*time.Millisecond) // ~60fps = 16ms
+	// Enable auto capture with large interval (1 second = ~60 frames)
+	mgr.SetAutoCapture(true, 1*time.Second)
 
 	if !mgr.ShouldAutoCapture(0) {
 		t.Error("expected first frame to be captured")
 	}
 
+	// Actually capture frame 0 and note it
+	builder := NewBuilder("snap-0", devtools.FrameID(0))
+	mgr.Capture(0, builder)
 	mgr.NoteAutoCapture(0)
 
-	// Should not capture immediately again
+	// Should not capture frame 1 (elapsed=1, interval=60)
 	if mgr.ShouldAutoCapture(1) {
-		t.Error("expected not to capture immediately")
+		t.Error("expected not to capture frame 1 (interval 1s)")
 	}
 }
 

@@ -260,7 +260,6 @@ func (s *Server) Start() error {
 	// Dashboard UI
 	if s.config.EnableDashboard {
 		mux.HandleFunc("/", s.handleDashboard)
-		mux.HandleFunc("/debug", s.handleDebugInspector)
 	}
 
 	// WebSocket endpoint
@@ -280,7 +279,6 @@ func (s *Server) Start() error {
 		if s.config.EnableDashboard {
 			log.Printf("[DevTools]   Dashboard: http://localhost:%d/", s.config.Port)
 		}
-		log.Printf("[DevTools]   Inspector: http://localhost:%d/debug", s.config.Port)
 		log.Printf("[DevTools]   WebSocket: ws://localhost:%d/ws", s.config.Port)
 		log.Printf("[DevTools]   API:       http://localhost:%d/api/*", s.config.Port)
 
@@ -397,12 +395,6 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	fmt.Fprint(w, getDashboardHTML())
-}
-
-// handleDebugInspector serves the debug inspector UI.
-func (s *Server) handleDebugInspector(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	fmt.Fprint(w, getInspectorHTML())
 }
 
 // handleGetSnapshots returns all snapshots.

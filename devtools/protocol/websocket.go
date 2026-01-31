@@ -124,7 +124,7 @@ func (s *WebSocketServer) Handler() http.Handler {
 func (s *WebSocketServer) handleConnection(ws *websocket.Conn) {
 	clientID := ws.Request().RemoteAddr
 	if clientID == "" {
-		clientID = fmt.Sprintf("client-%d", ws.Request().URL.RequestURI())
+		clientID = fmt.Sprintf("client-%s", ws.Request().URL.RequestURI())
 	}
 
 	s.mu.Lock()
