@@ -52,6 +52,13 @@ func NewRenderer(width, height int) *Renderer {
 func (r *Renderer) GetBackBuffer() *Buffer {
 	return r.back
 }
+// ResetState resets the internal state machine (cursor, style)
+// This should be called before starting a new frame rendering
+func (r *Renderer) ResetState() {
+	r.styleState.Reset()
+	r.cursorX = -1
+	r.cursorY = -1
+}
 
 // Render 对比 front/back 并生成差异输出
 //
@@ -65,6 +72,9 @@ func (r *Renderer) Render() string {
 	defer r.mu.Unlock()
 
 	r.output.Reset()
+
+	// 重置内部状态，确保每帧渲染起点确定
+	r.ResetState()
 
 	// 执行 diff，找出变化区域
 	diff := r.dirtyTracker.Diff(r.front, r.back)
@@ -355,8 +365,6 @@ func (r *Renderer) Reset() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	r.styleState.Reset()
-	r.cursorX = -1
-	r.cursorY = -1
+	r.ResetState()
 	r.output.Reset()
 }

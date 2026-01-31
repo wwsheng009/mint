@@ -17,6 +17,7 @@ type SelectVNode struct {
 	isFocused bool
 	isOpen    bool // Whether dropdown is open
 	onChange  func(string)
+	focusIndex int // Index for focus management, set during collection
 }
 
 // NewSelect creates a new select

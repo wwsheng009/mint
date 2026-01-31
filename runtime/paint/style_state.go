@@ -37,6 +37,7 @@ func (s *StyleStateMachine) Update(st style.Style) string {
 
 // buildDiffCodes builds only the codes that need to change
 func (s *StyleStateMachine) buildDiffCodes(from, to style.Style) string {
+	
 	if from == to {
 		return ""
 	}
@@ -52,6 +53,38 @@ func (s *StyleStateMachine) buildDiffCodes(from, to style.Style) string {
 	}
 
 	var codes []string
+
+	// Check if we need to turn OFF any attributes - this requires a reset
+	needsReset := false
+	if from.IsBold() && !to.IsBold() {
+		needsReset = true
+	}
+	if from.IsItalic() && !to.IsItalic() {
+		needsReset = true
+	}
+	if from.IsUnderline() && !to.IsUnderline() {
+		needsReset = true
+	}
+	if from.IsReverse() && !to.IsReverse() {
+		needsReset = true
+	}
+	if from.IsStrikethrough() && !to.IsStrikethrough() {
+		needsReset = true
+	}
+	if from.IsBlink() && !to.IsBlink() {
+		needsReset = true
+	}
+	if from.BG != "" && to.BG == "" {
+		needsReset = true
+	}
+	if from.FG != "" && to.FG == "" {
+		needsReset = true
+	}
+
+	// If we need to reset attributes, reset and apply full new style
+	if needsReset {
+		return "\x1b[0m" + s.fullStyle(to)
+	}
 
 	// Check for reset needed - if many things changed, just reset and start fresh
 	changes := 0

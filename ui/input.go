@@ -30,6 +30,7 @@ type InputVNode struct {
 	onBlur        func()
 	onSubmit      func()
 	isFocused     bool // Internal focus state
+	focusIndex    int // Index for focus management, set during collection
 }
 
 // NewInput creates a new input
@@ -340,6 +341,7 @@ type TextareaVNode struct {
 	onBlur      func()
 	onSubmit    func() // Ctrl+Enter or Alt+Enter
 	isFocused   bool
+	focusIndex  int // Index for focus management, set during collection
 }
 
 // NewTextarea creates a new textarea

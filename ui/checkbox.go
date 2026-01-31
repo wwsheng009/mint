@@ -10,6 +10,7 @@ type CheckboxVNode struct {
 	label     string
 	onChange  func(bool)
 	isFocused bool // Internal focus state
+	focusIndex int // Index for focus management, set during collection
 }
 
 // NewCheckbox creates a new checkbox
