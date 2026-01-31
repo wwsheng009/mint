@@ -170,7 +170,7 @@ func init() {
 		restoreTerminalImpl()
 		// 输出提示信息（注意：此时终端可能处于异常状态）
 		fmt.Fprintf(os.Stderr, "\n[WARNING] Received signal %v, terminal restored\n", sig)
-		os.Exit(1)
+		os.Exit(0)
 	}()
 }
 ```
@@ -211,13 +211,6 @@ func main() {
 		// 最先恢复终端控制台模式（必须在所有其他操作之前）
 		// 这会恢复 ENABLE_LINE_INPUT 和 ENABLE_ECHO_INPUT，让 fmt.Scanln 等正常工作
 		platform.RestoreTerminal()
-
-		// 恢复终端 ANSI 序列
-		fmt.Print("\x1b[?25h") // 显示光标
-		fmt.Print("\x1b[0m")  // 重置样式
-		fmt.Print("\x1b[H")   // 移动光标到左上角
-		fmt.Println()         // 换行
-
 		// ... 其他清理逻辑
 	}()
 
@@ -807,7 +800,7 @@ func init() {
 		sig := <-ch
 		restoreTerminalImpl()
 		fmt.Fprintf(os.Stderr, "\n[WARNING] Received signal %v, terminal restored\n", sig)
-		os.Exit(1)
+		os.Exit(0)
 	}()
 }
 ```

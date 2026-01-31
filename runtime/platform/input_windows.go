@@ -11,6 +11,8 @@ import (
 	"syscall"
 	"time"
 	"unsafe"
+
+	"golang.org/x/sys/windows"
 )
 
 type windowsInputReader struct {
@@ -68,6 +70,9 @@ func (r *windowsInputReader) Start(events chan<- RawInput) error {
 	// mode &^= ENABLE_PROCESSED_INPUT
 	// 启用我们需要的功能
 	mode |= ENABLE_WINDOW_INPUT | ENABLE_EXTENDED_FLAGS | ENABLE_MOUSE_INPUT
+
+	// 打开 ANSI 支持
+	mode |= windows.ENABLE_VIRTUAL_TERMINAL_PROCESSING
 	// 禁用 VT 输入（使用原始输入）
 	mode &^= ENABLE_VIRTUAL_TERMINAL_INPUT
 	r.setConsoleMode(handle, mode)
@@ -534,8 +539,29 @@ var (
 	procGetConsoleScreenBufferInfo    = kernel32.NewProc("GetConsoleScreenBufferInfo")
 )
 
+func enableVirtualTerminal() error {
+	stdout := windows.Handle(os.Stdout.Fd())
+	var mode uint32
+	if err := windows.GetConsoleMode(stdout, &mode); err != nil {
+		return err
+	}
+	// 打开 ANSI 支持
+	return windows.SetConsoleMode(stdout, mode|windows.ENABLE_VIRTUAL_TERMINAL_PROCESSING)
+}
+
 // restoreTerminalImpl Windows 终端恢复实现
 func restoreTerminalImpl() {
+// 先清屏和显示光标（在修改控制台模式之前，确保 ANSI 序列有效）
+	fmt.Print("\x1b[2J")   // 清屏
+	
+	if err := enableVirtualTerminal(); err != nil {
+		fmt.Println("无法开启 ANSI 支持:", err)
+	}
+	
+	fmt.Print("\x1b[H")    // 移动光标到左上角
+	fmt.Print("\x1b[?25h") // 显示光标（如果被隐藏了）
+	fmt.Print("\x1b[0m")   // 重置终端样式
+
 	handle, _, _ := procGetStdHandle.Call(STD_INPUT_HANDLE)
 	if handle != 0 {
 		// 恢复到默认控制台模式
@@ -549,18 +575,8 @@ func restoreTerminalImpl() {
 		)
 		procSetConsoleMode.Call(handle, uintptr(defaultMode))
 	}
-
-	// 同时恢复输出模式
-	outHandle, _, _ := procGetStdHandle.Call(STD_OUTPUT_HANDLE)
-	if outHandle != 0 {
-		// 启用虚拟终端处理
-		procSetConsoleMode.Call(outHandle, uintptr(ENABLE_VIRTUAL_TERMINAL_PROCESSING))
-	}
 }
 
-const (
-	ENABLE_VIRTUAL_TERMINAL_PROCESSING = 0x0004
-)
 
 // init 安装进程级终端恢复保险丝
 //
@@ -569,15 +585,14 @@ const (
 // 这是最后一道防线，确保终端永远不会被永久污染。
 func init() {
 	go func() {
+
 		// 监听中断信号
 		ch := make(chan os.Signal, 1)
 		signal.Notify(ch, os.Interrupt, syscall.SIGTERM)
 
-		sig := <-ch
+		_ = <-ch
 		// 强制恢复终端
 		restoreTerminalImpl()
-		// 输出提示信息（注意：此时终端可能处于异常状态）
-		fmt.Fprintf(os.Stderr, "\n[WARNING] Received signal %v, terminal restored\n", sig)
-		os.Exit(1)
+		os.Exit(0)
 	}()
 }

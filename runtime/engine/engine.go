@@ -11,7 +11,6 @@ package engine
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"os/signal"
 	"sync"
@@ -288,14 +287,8 @@ func (e *Engine) Run() error {
 			e.inputReader.Stop()
 			e.inputReader = nil
 		}
-		// 显示光标（如果被隐藏了）
-		fmt.Print("\x1b[?25h")
-		// 重置终端样式
-		fmt.Print("\x1b[0m")
-		// 清除屏幕
-		fmt.Print("\x1b[2J")
-		// 移动光标到左上角
-		fmt.Print("\x1b[H")
+		
+		platform.RestoreTerminal()
 	}
 	defer cleanup() // 🔥 立即 defer，确保任何退出都会执行
 
@@ -305,8 +298,8 @@ func (e *Engine) Run() error {
 
 	// 启动信号处理 goroutine
 	go func() {
-		sig := <-sigChan
-		fmt.Printf("\n[Engine] Received signal: %v, cleaning up...\n", sig)
+		 <-sigChan
+		// fmt.Printf("[Engine] Received signal: %v, cleaning up...", sig)
 		// 通过关闭 quit channel 让 Run() 正常返回，让 defer cleanup 执行
 		select {
 		case <-e.quit:

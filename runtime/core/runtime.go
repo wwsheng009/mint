@@ -606,6 +606,9 @@ func (r *Runtime) Shutdown(timeout ...time.Duration) error {
 	// 停止运行
 	r.running = false
 
+	// 清屏，避免退出时残留内容
+	_ = r.platform.Clear()
+
 	// 关闭平台
 	if err := r.platform.Close(); err != nil {
 		return err

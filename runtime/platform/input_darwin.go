@@ -1,6 +1,5 @@
-//go:build (unix || linux || freebsd) && !darwin && !windows
-// +build unix linux freebsd,!darwin
-// +build freebsd,!windows
+//go:build darwin
+// +build darwin
 
 package platform
 
@@ -12,7 +11,7 @@ import (
 	"unsafe"
 )
 
-type unixInputReader struct {
+type darwinInputReader struct {
 	events     chan<- RawInput
 	quit       chan struct{}
 	original   *syscall.Termios
@@ -20,17 +19,17 @@ type unixInputReader struct {
 }
 
 func newInputReaderImpl() inputReaderImpl {
-	return newUnixInputReader()
+	return newDarwinInputReader()
 }
 
-func newUnixInputReader() inputReaderImpl {
-	return &unixInputReader{
+func newDarwinInputReader() inputReaderImpl {
+	return &darwinInputReader{
 		quit:       make(chan struct{}),
 		parseBuffer: make([]byte, 0, 64),
 	}
 }
 
-func (r *unixInputReader) Start(events chan<- RawInput) error {
+func (r *darwinInputReader) Start(events chan<- RawInput) error {
 	r.events = events
 
 	if err := r.enableRawMode(); err != nil {
@@ -45,7 +44,7 @@ func (r *unixInputReader) Start(events chan<- RawInput) error {
 	return nil
 }
 
-func (r *unixInputReader) Stop() error {
+func (r *darwinInputReader) Stop() error {
 	close(r.quit)
 
 	// 禁用鼠标跟踪
@@ -58,7 +57,7 @@ func (r *unixInputReader) Stop() error {
 	return nil
 }
 
-func (r *unixInputReader) ReadEvent() (RawInput, error) {
+func (r *darwinInputReader) ReadEvent() (RawInput, error) {
 	buf := make([]byte, 1)
 	_, err := os.Stdin.Read(buf)
 	if err != nil {
@@ -68,7 +67,7 @@ func (r *unixInputReader) ReadEvent() (RawInput, error) {
 	return r.parseInput(buf), nil
 }
 
-func (r *unixInputReader) readLoop() {
+func (r *darwinInputReader) readLoop() {
 	buf := make([]byte, 1, 128)
 
 	for {
@@ -111,7 +110,7 @@ func (r *unixInputReader) readLoop() {
 	}
 }
 
-func (r *unixInputReader) parseSequence(buf []byte) (RawInput, []byte) {
+func (r *darwinInputReader) parseSequence(buf []byte) (RawInput, []byte) {
 	now := time.Now()
 
 	if len(buf) == 0 {
@@ -170,7 +169,7 @@ func (r *unixInputReader) parseSequence(buf []byte) (RawInput, []byte) {
 	return RawInput{Timestamp: now}, buf[1:]
 }
 
-func (r *unixInputReader) parseInput(buf []byte) RawInput {
+func (r *darwinInputReader) parseInput(buf []byte) RawInput {
 	now := time.Now()
 	if len(buf) == 0 {
 		return RawInput{Timestamp: now}
@@ -200,11 +199,11 @@ func (r *unixInputReader) parseInput(buf []byte) RawInput {
 	return RawInput{Type: InputKeyPress, Timestamp: now}
 }
 
-func (r *unixInputReader) enableRawMode() error {
+func (r *darwinInputReader) enableRawMode() error {
 	fd := int(os.Stdin.Fd())
 
 	var termios syscall.Termios
-	if err := ioctl(uintptr(fd), syscall.TCGETS, uintptr(unsafe.Pointer(&termios))); err != nil {
+	if err := ioctl(fd, syscall.TIOCGETA, uintptr(unsafe.Pointer(&termios))); err != nil {
 		return err
 	}
 
@@ -219,27 +218,27 @@ func (r *unixInputReader) enableRawMode() error {
 	termios.Cc[syscall.VMIN] = 1
 	termios.Cc[syscall.VTIME] = 0
 
-	return ioctl(uintptr(fd), syscall.TCSETS, uintptr(unsafe.Pointer(&termios)))
+	return ioctl(fd, syscall.TIOCSETA, uintptr(unsafe.Pointer(&termios)))
 }
 
-func (r *unixInputReader) restoreMode() error {
+func (r *darwinInputReader) restoreMode() error {
 	if r.original == nil {
 		return nil
 	}
 
 	fd := int(os.Stdin.Fd())
-	return ioctl(uintptr(fd), syscall.TCSETS, uintptr(unsafe.Pointer(r.original)))
+	return ioctl(fd, syscall.TIOCSETA, uintptr(unsafe.Pointer(r.original)))
 }
 
-func ioctl(fd, cmd, arg uintptr) error {
-	_, _, err := syscall.Syscall(syscall.SYS_IOCTL, fd, cmd, arg)
+func ioctl(fd int, cmd, arg uintptr) error {
+	_, _, err := syscall.Syscall(syscall.SYS_IOCTL, uintptr(fd), cmd, arg)
 	if err != 0 {
 		return err
 	}
 	return nil
 }
 
-// restoreTerminalImpl Unix 终端恢复实现
+// restoreTerminalImpl Darwin 终端恢复实现
 func restoreTerminalImpl() {
 	// 先清屏和显示光标（在修改终端模式之前）
 	fmt.Print("\x1b[2J")    // 清屏
@@ -249,7 +248,7 @@ func restoreTerminalImpl() {
 	fd := int(os.Stdin.Fd())
 
 	var termios syscall.Termios
-	if err := ioctl(uintptr(fd), syscall.TCGETS, uintptr(unsafe.Pointer(&termios))); err != nil {
+	if err := ioctl(fd, syscall.TIOCGETA, uintptr(unsafe.Pointer(&termios))); err != nil {
 		return
 	}
 
@@ -258,7 +257,7 @@ func restoreTerminalImpl() {
 	termios.Iflag |= syscall.ICRNL | syscall.IXON
 	termios.Oflag |= syscall.OPOST
 
-	ioctl(uintptr(fd), syscall.TCSETS, uintptr(unsafe.Pointer(&termios)))
+	ioctl(fd, syscall.TIOCSETA, uintptr(unsafe.Pointer(&termios)))
 }
 
 // ==============================================================================
@@ -266,12 +265,8 @@ func restoreTerminalImpl() {
 // ==============================================================================
 
 // enableMouse 启用鼠标跟踪 (SGR 格式)
-func (r *unixInputReader) enableMouse() {
+func (r *darwinInputReader) enableMouse() {
 	// SGR 1006: 启用扩展的鼠标报告格式，支持所有事件
-	// \x1b[?1000h - 启用鼠标跟踪 (按键和释放)
-	// \x1b[?1002h - 启用按钮事件跟踪
-	// \x1b[?1003h - 启用所有鼠标事件跟踪
-	// \x1b[?1006h - 启用 SGR 扩展模式
 	os.Stdout.WriteString("\x1b[?1000h")
 	os.Stdout.WriteString("\x1b[?1002h")
 	os.Stdout.WriteString("\x1b[?1003h")
@@ -279,7 +274,7 @@ func (r *unixInputReader) enableMouse() {
 }
 
 // disableMouse 禁用鼠标跟踪
-func (r *unixInputReader) disableMouse() {
+func (r *darwinInputReader) disableMouse() {
 	os.Stdout.WriteString("\x1b[?1003l")
 	os.Stdout.WriteString("\x1b[?1002l")
 	os.Stdout.WriteString("\x1b[?1000l")
@@ -287,11 +282,7 @@ func (r *unixInputReader) disableMouse() {
 }
 
 // parseSGRMouseEvent 解析 SGR 格式鼠标事件
-// 格式: ESC [ < Cb ; Cx ; Cy M(m)
-// Cb: 按钮码 (bitmask)
-// Cx, Cy: 坐标 (1-based)
-// M: 按下, m: 释放
-func (r *unixInputReader) parseSGRMouseEvent(buf []byte, now time.Time) (RawInput, []byte) {
+func (r *darwinInputReader) parseSGRMouseEvent(buf []byte, now time.Time) (RawInput, []byte) {
 	// 查找序列结束位置 (M 或 m)
 	end := -1
 	for i := 3; i < len(buf); i++ {
@@ -302,13 +293,10 @@ func (r *unixInputReader) parseSGRMouseEvent(buf []byte, now time.Time) (RawInpu
 	}
 
 	if end == -1 {
-		// 序列不完整，需要更多数据
 		return RawInput{}, nil
 	}
 
-	// 提取参数部分: ESC [ < ... M/m
 	params := string(buf[3:end])
-	// 分离三个参数: Cb;Cx;Cy
 	var cb, cx, cy int
 	if _, err := fmt.Sscanf(params, "%d;%d;%d", &cb, &cx, &cy); err != nil {
 		return RawInput{Timestamp: now}, buf[end+1:]
@@ -317,16 +305,10 @@ func (r *unixInputReader) parseSGRMouseEvent(buf []byte, now time.Time) (RawInpu
 	input := RawInput{
 		Type:      InputMouse,
 		Timestamp: now,
-		MouseX:    cx - 1, // 转换为 0-based
+		MouseX:    cx - 1,
 		MouseY:    cy - 1,
 	}
 
-	// 解析按钮码 (bitmask)
-	// bit 0: 左键
-	// bit 1: 中键
-	// bit 2: 右键
-	// bit 3-4: 释放时移动
-	// bit 5-6: 滚轮
 	buttonCode := cb & 0x43
 	release := buf[end] == 'm'
 
@@ -347,14 +329,10 @@ func (r *unixInputReader) parseSGRMouseEvent(buf []byte, now time.Time) (RawInpu
 		input.MouseButton = MouseNone
 	}
 
-	// 确定动作类型
 	switch {
 	case buttonCode == 32 || buttonCode == 33:
-		// 滚轮，已在上面设置
 	case buttonCode >= 64:
-		// 鼠标移动 (带按钮状态)
 		input.MouseAction = MouseMotion
-		// 更新按钮状态
 		if buttonCode&0x01 != 0 {
 			input.MouseButton = MouseLeft
 		} else if buttonCode&0x02 != 0 {
@@ -372,17 +350,13 @@ func (r *unixInputReader) parseSGRMouseEvent(buf []byte, now time.Time) (RawInpu
 }
 
 // parseX10MouseEvent 解析 X10 格式鼠标事件
-// 格式: ESC [ M Cb Cx Cy
-// Cb: 按钮码 + 32
-// Cx, Cy: 坐标 + 32
-func (r *unixInputReader) parseX10MouseEvent(buf []byte, now time.Time) (RawInput, []byte) {
-	// X10 格式固定长度: ESC [ M Cb Cx Cy = 6 字节
+func (r *darwinInputReader) parseX10MouseEvent(buf []byte, now time.Time) (RawInput, []byte) {
 	if len(buf) < 6 {
 		return RawInput{}, nil
 	}
 
 	cb := int(buf[3] - 32)
-	cx := int(buf[4] - 33) // 转换为 0-based
+	cx := int(buf[4] - 33)
 	cy := int(buf[5] - 33)
 
 	input := RawInput{
@@ -392,7 +366,6 @@ func (r *unixInputReader) parseX10MouseEvent(buf []byte, now time.Time) (RawInpu
 		MouseY:    cy,
 	}
 
-	// 解析按钮
 	button := cb & 0x03
 	modifiers := cb & 0x1c
 
@@ -404,10 +377,9 @@ func (r *unixInputReader) parseX10MouseEvent(buf []byte, now time.Time) (RawInpu
 	case 2:
 		input.MouseButton = MouseRight
 	case 3:
-		input.MouseButton = MouseNone // 释放
+		input.MouseButton = MouseNone
 	}
 
-	// 检查是否是滚轮事件 (modifiers = 0x40 或 0x41)
 	if modifiers == 0x40 {
 		input.MouseButton = MouseNone
 		input.MouseAction = MouseWheelUp
@@ -425,9 +397,8 @@ func (r *unixInputReader) parseX10MouseEvent(buf []byte, now time.Time) (RawInpu
 	return input, buf[6:]
 }
 
-// parseCSISquence 解析 CSI 序列 (光标键等)
-func (r *unixInputReader) parseCSISquence(buf []byte, now time.Time) RawInput {
-	// 查找序列结束字符
+// parseCSISquence 解析 CSI 序列
+func (r *darwinInputReader) parseCSISquence(buf []byte, now time.Time) RawInput {
 	end := -1
 	for i := 2; i < len(buf); i++ {
 		c := buf[i]
@@ -456,7 +427,6 @@ func (r *unixInputReader) parseCSISquence(buf []byte, now time.Time) RawInput {
 	case 'H':
 		return RawInput{Type: InputKeyPress, Special: KeyHome, Timestamp: now}
 	case '~':
-		// 解析参数
 		params := string(buf[2:end])
 		switch params {
 		case "1", "7":

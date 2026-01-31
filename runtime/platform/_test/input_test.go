@@ -18,13 +18,13 @@ func main() {
 	input, err := platform.NewInputReader()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "创建输入读取器失败: %v\n", err)
-		os.Exit(1)
+		os.Exit(0)
 	}
 
 	events := make(chan platform.RawInput, 100)
 	if err := input.Start(events); err != nil {
 		fmt.Fprintf(os.Stderr, "启动输入读取器失败: %v\n", err)
-		os.Exit(1)
+		os.Exit(0)
 	}
 	defer input.Stop()
 
