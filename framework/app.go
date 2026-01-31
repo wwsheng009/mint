@@ -38,10 +38,10 @@ type App struct {
 	root component.Node
 
 	// 事件
-	router       *frameworkevent.Router
-	keyMap       *frameworkevent.KeyMap
-	pump         *frameworkevent.Pump
-	eventFilter  func(frameworkevent.Event) bool // 事件过滤器回调，返回 false 表示拦截
+	router      *frameworkevent.Router
+	keyMap      *frameworkevent.KeyMap
+	pump        *frameworkevent.Pump
+	eventFilter func(frameworkevent.Event) bool // 事件过滤器回调，返回 false 表示拦截
 
 	// 生命周期
 	state AppState
@@ -100,7 +100,7 @@ func NewApp() *App {
 		router:       frameworkevent.NewRouter(),
 		keyMap:       frameworkevent.NewKeyMap(),
 		eventFilter:  func(ev frameworkevent.Event) bool { return true }, // 默认放行所有事件
-		quit:         make(chan struct{}),
+		quit:         make(chan struct{}, 1),
 		tickInterval: 16 * time.Millisecond, // ~60fps
 		firstRender:  true,
 		debugMode:    os.Getenv("TUI_DEBUG") == "true",
@@ -579,8 +579,8 @@ func (a *App) render() {
 		} else {
 			// 首次渲染：清屏、隐藏光标、强制全量渲染
 			if a.firstRender {
-				fmt.Print("\x1b[2J") // 清屏
-				fmt.Print("\x1b[?25l") // 隐藏光标
+				fmt.Print("\x1b[2J")         // 清屏
+				fmt.Print("\x1b[?25l")       // 隐藏光标
 				a.renderer.ForceFullRender() // 强制全屏渲染
 			}
 
@@ -659,7 +659,7 @@ func (a *App) outputBufferDirect(buf *paint.Buffer) {
 
 	// 首次渲染时清屏
 	if a.firstRender {
-		output.WriteString("\x1b[2J")  // 清屏
+		output.WriteString("\x1b[2J") // 清屏
 		a.firstRender = false
 	}
 
@@ -853,8 +853,8 @@ func (a *App) Resize(width, height int) {
 
 // clearScreen 清屏
 func (a *App) clearScreen() {
-	fmt.Print("\x1b[2J")  // 清屏
-	fmt.Print("\x1b[H")   // 移动光标到左上角
+	fmt.Print("\x1b[2J") // 清屏
+	fmt.Print("\x1b[H")  // 移动光标到左上角
 }
 
 // ==============================================================================
@@ -869,5 +869,10 @@ func (a *App) GetRenderer() *paint.Renderer {
 // ForceFullRender 强制下一帧进行全量渲染
 func (a *App) ForceFullRender() {
 	a.renderer.ForceFullRender()
+	a.dirty = true
+}
+
+// MarkDirty 标记需要重新渲染
+func (a *App) MarkDirty() {
 	a.dirty = true
 }

@@ -121,14 +121,38 @@ func (r *Renderer) renderLine(y int, region Rect) {
 	}
 
 	x := region.X
+	// 确保 endX 不超过 back 和 front 缓冲区的宽度
 	endX := minInt(region.X+region.Width, r.back.Width)
-	if debugRender && x >= endX {
-		fmt.Fprintf(os.Stderr, "[renderLine] x=%d >= endX=%d, no render!\n", x, endX)
+	if r.front != nil && r.front.Width < endX {
+		endX = r.front.Width
+	}
+
+	// 确保 x 不超出范围
+	if x >= endX || x < 0 {
+		if debugRender {
+			fmt.Fprintf(os.Stderr, "[renderLine] x=%d >= endX=%d or x<0, no render!\n", x, endX)
+		}
+		return
+	}
+
+	// 确保 y 在有效范围内
+	if y >= len(r.back.Cells) || (r.front != nil && y >= len(r.front.Cells)) {
+		if debugRender {
+			fmt.Fprintf(os.Stderr, "[renderLine] y=%d out of bounds, no render!\n", y)
+		}
 		return
 	}
 
 	runCount := 0
 	for x < endX {
+		// 边界检查
+		if x >= len(r.back.Cells[y]) || (r.front != nil && x >= len(r.front.Cells[y])) {
+			if debugRender {
+				fmt.Fprintf(os.Stderr, "[renderLine] x=%d out of row bounds, break\n", x)
+			}
+			break
+		}
+
 		cell := r.back.Cells[y][x]
 		prevCell := r.front.Cells[y][x]
 
@@ -242,10 +266,38 @@ func (r *Renderer) moveCursorOptimized(x, y int) string {
 func (r *Renderer) swapBuffers() {
 	r.front, r.back = r.back, r.front
 
+	// 确保两个缓冲区大小一致
+	if r.front == nil || r.back == nil {
+		return
+	}
+
+	// 如果大小不一致，调整 back 缓冲区
+	if r.back.Width != r.front.Width || r.back.Height != r.front.Height {
+		r.back = NewBuffer(r.front.Width, r.front.Height)
+	}
+
 	// 将 front 的内容复制到 back，作为下一帧绘制的基准
 	// 这样确保 diff 算法只检测真正变化的部分
-	for y := 0; y < r.front.Height; y++ {
-		copy(r.back.Cells[y], r.front.Cells[y])
+	minHeight := r.front.Height
+	if len(r.front.Cells) < minHeight {
+		minHeight = len(r.front.Cells)
+	}
+	if len(r.back.Cells) < minHeight {
+		minHeight = len(r.back.Cells)
+	}
+
+	for y := 0; y < minHeight; y++ {
+		// 确保行存在且长度足够
+		if y >= len(r.front.Cells) || y >= len(r.back.Cells) {
+			break
+		}
+		srcRow := r.front.Cells[y]
+		dstRow := r.back.Cells[y]
+		copyLen := len(srcRow)
+		if len(dstRow) < copyLen {
+			copyLen = len(dstRow)
+		}
+		copy(dstRow[:copyLen], srcRow[:copyLen])
 	}
 }
 
