@@ -131,14 +131,33 @@
 
 ### 3.1 阅读文档清单
 
-- [ ] [SYSTEM_ARCHITECTURE.md](design/SYSTEM_ARCHITECTURE.md) - 系统架构设计
-- [ ] [IMPLEMENTATION_GAP_ANALYSIS.md](design/IMPLEMENTATION_GAP_ANALYSIS.md) - 实现差距分析
-- [ ] [DIRECTORY_STRUCTURE.md](design/DIRECTORY_STRUCTURE.md) - 目录结构设计
-- [ ] [COMPONENT_CLASSIFICATION.md](design/COMPONENT_CLASSIFICATION.md) - 组件分类方案
-- [ ] [IMPLEMENTATION_PLAN.md](design/IMPLEMENTATION_PLAN.md) - 实施计划
-- [ ] [API_DESIGN.md](design/API_DESIGN.md) - API 设计
-- [ ] [MIGRATION_GUIDE.md](design/MIGRATION_GUIDE.md) - 迁移指南
-- [ ] [BENCHMARK.md](design/BENCHMARK.md) - 性能基准
+#### 核心设计文档
+
+- [x] [SYSTEM_ARCHITECTURE.md](design/SYSTEM_ARCHITECTURE.md) - 系统架构设计
+- [x] [IMPLEMENTATION_GAP_ANALYSIS.md](design/IMPLEMENTATION_GAP_ANALYSIS.md) - 实现差距分析
+- [x] [DIRECTORY_STRUCTURE.md](design/DIRECTORY_STRUCTURE.md) - 目录结构设计
+- [x] [COMPONENT_CLASSIFICATION.md](design/COMPONENT_CLASSIFICATION.md) - 组件分类方案
+- [x] [IMPLEMENTATION_PLAN.md](design/IMPLEMENTATION_PLAN.md) - 实施计划
+- [x] [API_DESIGN.md](design/API_DESIGN.md) - API 设计
+- [x] [MIGRATION_GUIDE.md](design/MIGRATION_GUIDE.md) - 迁移指南
+- [x] [BENCHMARK.md](design/BENCHMARK.md) - 性能基准
+
+#### 新增设计文档
+
+- [x] [STYLE_DIFF_DESIGN.md](design/STYLE_DIFF_DESIGN.md) - 终端样式优化设计 🔴
+- [x] [LAYER_SYSTEM_DESIGN.md](design/LAYER_SYSTEM_DESIGN.md) - 视觉层级系统设计 🟡
+- [x] [TEXT_BUFFER_DESIGN.md](design/TEXT_BUFFER_DESIGN.md) - 文本缓冲区设计 🟡
+- [x] [INPUT_SCHEDULING.md](design/INPUT_SCHEDULING.md) - 输入优先级调度设计 🟡
+- [x] [IDEA_COVERAGE_ANALYSIS.md](design/IDEA_COVERAGE_ANALYSIS.md) - Idea 文档覆盖分析
+- [x] [GRID_LAYOUT_DESIGN.md](design/GRID_LAYOUT_DESIGN.md) - Grid 布局设计 🟡 (新增)
+- [x] [ABSOLUTE_POSITIONING_DESIGN.md](design/ABSOLUTE_POSITIONING_DESIGN.md) - Absolute 定位设计 🟡 (新增)
+- [x] [SYNTAX_HIGHLIGHT_DESIGN.md](design/SYNTAX_HIGHLIGHT_DESIGN.md) - 语法高亮设计 🟢 (新增)
+- [x] [DEMO_COVERAGE_ANALYSIS.md](design/DEMO_COVERAGE_ANALYSIS.md) - Demo 功能覆盖分析 (新增)
+
+#### 相关文档
+
+- [x] [TODO.md](TODO.md) - 本文档
+- [ ] [phase_0_progress.md](progress/phase_0_progress.md) - 阶段 0 进度
 
 ### 3.2 环境准备
 
@@ -156,6 +175,8 @@ mkdir -p framework/hooks
 mkdir -p framework/components
 mkdir -p framework/render
 mkdir -p framework/layout
+mkdir -p framework/layer
+mkdir -p framework/input
 mkdir -p framework/docs/ui/progress
 ```
 
@@ -547,19 +568,56 @@ assert.NotNil(t, root.Child.Sibling)
 
 ---
 
-### 5.4 Day 10: BeginWork 和 CompleteWork
+### 5.4 Day 10: Scheduler + 输入优先级 🟡
 
 #### 任务清单
 
-- [ ] 创建 `framework/reconciler/begin_work.go`
-  - [ ] 实现 `BeginWork()` 函数
-  - [ ] 处理不同节点类型
-- [ ] 创建 `framework/reconciler/complete_work.go`
-  - [ ] 实现 `CompleteWork()` 函数
-  - [ ] 处理 Effect 收集
-- [ ] 创建 `framework/reconciler/effects.go`
-  - [ ] 实现 Effect 链操作
+##### 基础 Scheduler
+
+- [ ] 创建 `framework/reconciler/scheduler.go`
+  - [ ] 实现 `Scheduler` 结构
+  - [ ] 实现任务队列
+  - [ ] 实现按优先级排序
+- [ ] 创建 `framework/reconciler/lanes.go`
+  - [ ] 定义 `Lane` 优先级类型
+  - [ ] 实现 `MergeLanes()` 函数
+- [ ] 创建 `framework/reconciler/workloop.go`
+  - [ ] 实现工作循环
+  - [ ] 实现时间切片
+  - [ ] 实现 `requestAnimationFrame()`
+
+##### 输入优先级调度 (新增)
+
+- [ ] 创建 `framework/scheduler/input_queue.go`
+  - [ ] 实现 `InputQueue` 结构
+  - [ ] 实现 `Push()` 按优先级插入
+  - [ ] 实现 `Pop()` 取出事件
+  - [ ] 实现 `HasPending()` 检查
+- [ ] 创建 `framework/scheduler/priority.go`
+  - [ ] 定义 `Priority` 类型
+  - [ ] 定义优先级映射表
+- [ ] 创建 `framework/scheduler/interruptible.go`
+  - [ ] 实现 `InterruptibleTask` 结构
+  - [ ] 实现 `Execute()` 方法（可中断）
+  - [ ] 实现 `Cancel()` 取消方法
+  - [ ] 实现 `Resume()` 恢复方法
+- [ ] 创建 `framework/scheduler/input_handler.go`
+  - [ ] 实现 `InputHandler` 结构
+  - [ ] 实现 `ProcessInput()` 立即处理
+  - [ ] 实现 `convertToEvent()` 转换
+- [ ] 创建 `framework/scheduler/mouse.go`
+  - [ ] 实现 `MouseMoveHandler` (节流)
+  - [ ] 实现鼠标移动优化
+- [ ] 集成到 Runtime 主循环
 - [ ] 编写单元测试
+- [ ] 性能基准测试
+
+#### 验收标准
+
+- [ ] 输入事件优先处理
+- [ ] 高优先级任务打断低优先级任务
+- [ ] 鼠标移动节流生效
+- [ ] 输入响应延迟 < 16ms
 
 ---
 
@@ -669,23 +727,48 @@ assert.Equal(t, "text", cmd.Type())
 
 ---
 
-### 6.3 Day 14: Buffer Diff
+### 6.3 Day 14: Buffer Diff 与 Style 优化 🔴
 
 #### 任务清单
+
+##### Buffer Diff
 
 - [ ] 创建 `framework/render/buffer_diff.go`
   - [ ] 实现 `DiffBuffer()` 函数
   - [ ] 实现 `CellChange` 结构
   - [ ] 优化 Diff 算法
-- [ ] 创建 `framework/render/ansi.go`
-  - [ ] 实现 ANSI 优化输出
-  - [ ] 减少 Style 切换
 - [ ] 编写单元测试
+
+##### Style Diff 优化 (新增)
+
+- [ ] 创建 `framework/render/terminal_state.go`
+  - [ ] 实现 `TerminalState` 结构
+  - [ ] 实现 `Equals()` 方法
+  - [ ] 实现 `Diff()` 方法
+- [ ] 创建 `framework/render/style_change.go`
+  - [ ] 实现 `StyleChange` 结构
+  - [ ] 实现 `ToANSI()` 方法
+  - [ ] 实现 `IsEmpty()` 检查
+- [ ] 创建 `framework/render/rle.go`
+  - [ ] 实现 `Run` 结构
+  - [ ] 实现 `RunLengthEncoder`
+  - [ ] 实现 RLE 编码算法
+- [ ] 创建 `framework/render/optimizer.go`
+  - [ ] 实现 `Optimizer` 结构
+  - [ ] 实现 `WriteBuffer()` 方法
+  - [ ] 集成 TerminalState 追踪
+- [ ] 创建 `framework/render/compat.go`
+  - [ ] 实现 `CompatibilityMode`
+  - [ ] 实现模式切换
+- [ ] 编写单元测试
+- [ ] 性能基准测试
 
 #### 性能要求
 
 - [ ] Buffer Diff (全屏) < 1ms
-- [ ] ANSI 优化减少 ≥ 50% 切换
+- [ ] ANSI 优化减少 ≥ 95% 切换 (目标: 99%)
+- [ ] 输出字节数减少 ≥ 90%
+- [ ] 全屏渲染 < 5ms
 
 ---
 
@@ -877,11 +960,22 @@ func main() {
 
 #### 任务清单
 
+##### Input 组件
 - [ ] 实现 `components/form/input.go`
 - [ ] 实现 `ui.Input()` 函数
 - [ ] 支持受控和非受控模式
 - [ ] 编写测试
 - [ ] 创建示例
+
+##### TextBuffer 实现 (新增)
+- [ ] 实现 `framework/input/buffer.go` - 核心 UTF-32 rune 存储
+- [ ] 实现 `framework/input/selection.go` - 选择区域管理
+- [ ] 实现 `framework/input/cursor.go` - 光标移动
+- [ ] 实现 `framework/input/line.go` - 行操作
+- [ ] 实现 `framework/input/scroll.go` - 滚动控制
+- [ ] 实现 `framework/input/history.go` - 撤销/重做
+- [ ] 编写 TextBuffer 单元测试
+- [ ] 创建文本编辑示例
 
 ---
 
@@ -928,13 +1022,15 @@ func main() {
 
 ## 八、阶段 5: 布局系统
 
-**时间**: Day 23-26 (4 天)
-**目标**: 实现 HStack/VStack 声明式布局
+**时间**: Day 23-30 (8 天)
+**目标**: 实现 HStack/VStack/Grid/Absolute 声明式布局
 
 ### 相关文档
 
 - [API_DESIGN.md](design/API_DESIGN.md) - 布局 API
 - [SYSTEM_ARCHITECTURE.md](design/SYSTEM_ARCHITECTURE.md) - 布局系统设计
+- [GRID_LAYOUT_DESIGN.md](design/GRID_LAYOUT_DESIGN.md) - Grid 布局设计
+- [ABSOLUTE_POSITIONING_DESIGN.md](design/ABSOLUTE_POSITIONING_DESIGN.md) - Absolute 定位设计
 
 ### 5.1 Day 23: HStack 实现
 
@@ -1022,27 +1118,123 @@ func main() {
 
 ---
 
-### 5.5 阶段 5 验收标准
+### 5.5 Day 27-28: Grid 布局 (新增)
+
+#### 任务清单
+
+##### 核心实现
+- [ ] 创建 `framework/layout/dimension.go` - Dimension 类型
+- [ ] 创建 `framework/layout/grid.go` - Grid 布局
+- [ ] 创建 `framework/layout/grid_algorithm.go` - 布局算法
+- [ ] 创建 `framework/layout/grid_cache.go` - 缓存优化
+
+##### UI 集成
+- [ ] 实现 `ui.Grid()` 函数
+- [ ] 实现 `ui.Cell()` 函数
+- [ ] 实现 `ui.CellSpan()` 函数
+- [ ] 实现 `ui.Fixed()`, `ui.Flex()`, `ui.Auto()` 函数
+
+##### 测试与示例
+- [ ] 编写 Grid 单元测试
+- [ ] 创建 Dashboard 示例
+- [ ] 创建 IDE 布局示例
+- [ ] 测试跨行跨列
+
+#### 示例程序
+
+```go
+// examples/grid_demo/main.go
+func main() {
+    ui.Run(func() ui.VNode {
+        return ui.Grid(
+            []ui.Dimension{ui.Fixed(10), ui.Fixed(10), ui.Flex(1)},
+            []ui.Dimension{ui.Fixed(5), ui.Flex(1)},
+            ui.Cell(0, 0, CpuPanel()),
+            ui.Cell(0, 1, MemPanel()),
+            ui.CellSpan(1, 0, 1, 3, LogsPanel()),
+        )
+    })
+}
+```
+
+---
+
+### 5.6 Day 29-30: Absolute 定位 (新增)
+
+#### 任务清单
+
+##### 核心实现
+- [ ] 创建 `framework/layout/position.go` - Position 类型
+- [ ] 创建 `framework/layout/absolute.go` - Absolute 定位
+- [ ] 创建 `framework/layout/absolute_algorithm.go` - 定位算法
+- [ ] 创建 `framework/layout/absolute_builder.go` - 链式 API
+
+##### UI 集成
+- [ ] 实现 `ui.Absolute()` 函数
+- [ ] 实现 `ui.TopLeft()` 等快捷函数
+- [ ] 实现 `ui.Center()` 函数
+- [ ] 实现 Z-Index 排序
+
+##### 测试与示例
+- [ ] 编写 Absolute 单元测试
+- [ ] 创建 Badge 示例
+- [ ] 创建 居中 Modal 示例
+- [ ] 测试百分比定位
+
+#### 示例程序
+
+```go
+// examples/absolute_demo/main.go
+func main() {
+    ui.Run(func() ui.VNode {
+        count, setCount := ui.UseState(0)
+
+        return ui.Box().Padding(5).Child(
+            ui.Stack(
+                ui.Button("Click Me").OnClick(func() {
+                    setCount(count + 1)
+                }),
+                // 右上角徽章
+                ui.Absolute(
+                    ui.Text(fmt.Sprintf("Count: %d", count)).
+                        FgColor(ui.ColorRed).
+                        Bold(true),
+                ).Top(0).Right(2),
+            ),
+        )
+    })
+}
+```
+
+---
+
+### 5.7 阶段 5 验收标准
 
 - [ ] HStack/VStack 正常工作
 - [ ] Flex 参数正确
 - [ ] 对齐方式正确
-- [ ] Spacer/Box 正常
-- [ ] 示例程序完整
+- [ ] Grid 布局支持跨行跨列
+- [ ] Grid 弹性空间分配正确
+- [ ] Absolute 定位位置准确
+- [ ] Absolute 百分比定位正确
+- [ ] Z-Index 层级正确
+- [ ] 所有布局示例可运行
 - [ ] 测试覆盖率 ≥ 75%
 
-### 5.6 阶段 5 输出文档
+### 5.8 阶段 5 输出文档
 
 - [ ] `progress/phase_5_progress.md`
 - [ ] `progress/phase_5_summary.md`
-- [ ] `docs/layout.md` - 布局文档
+- [ ] `docs/layout.md` - 布局系统文档
 - [ ] `examples/layout_demo/` - 布局示例
+- [ ] `examples/grid_demo/` - Grid 示例
+- [ ] `examples/absolute_demo/` - Absolute 示例
 
 ---
 
 ## 九、阶段 6: Hooks 系统
 
-**时间**: Day 27-31 (5 天)
+**时间**: Day 31-35 (5 天)
 **目标**: 实现完整的 Hooks 系统
 
 ### 相关文档
@@ -1194,8 +1386,12 @@ func Timer() ui.VNode {
 
 ## 十、阶段 7: 高级特性
 
-**时间**: Day 32-36 (5 天)
-**目标**: 实现虚拟化和动画
+**时间**: Day 36-42 (7 天)
+**目标**: 实现虚拟化、动画和 Layer 系统
+
+### 相关文档
+
+- [LAYER_SYSTEM_DESIGN.md](design/LAYER_SYSTEM_DESIGN.md) - Layer 系统设计
 
 ### 7.1 Day 32-33: 虚拟化渲染
 
@@ -1242,32 +1438,105 @@ func main() {
 
 ---
 
-### 7.3 阶段 7 验收标准
+### 7.3 Day 41-42: Layer 系统 (新增)
+
+#### 任务清单
+
+##### Layer 核心实现
+- [ ] 创建 `framework/layer/layer.go` - Layer 类型定义
+- [ ] 创建 `framework/layer/tree.go` - LayerTree 实现
+- [ ] 创建 `framework/layer/manager.go` - Manager 实现
+- [ ] 创建 `framework/layer/event.go` - 事件处理
+- [ ] 创建 `framework/layer/render.go` - 渲染集成
+- [ ] 创建 `framework/layer/layout.go` - 布局处理
+- [ ] 创建 `framework/layer/focus.go` - 焦点管理
+
+##### Layer UI 集成
+- [ ] 实现 `ui.Layer()` 函数
+- [ ] 实现 `ui.Modal()` 函数
+- [ ] 实现 `ui.CloseModal()` 函数
+- [ ] 实现 `ui.Tooltip()` 函数
+- [ ] 实现 `ui.Toast()` 函数
+
+##### 测试与示例
+- [ ] 编写 LayerManager 单元测试
+- [ ] 编写 Modal 示例
+- [ ] 编写 Tooltip 示例
+- [ ] 编写 Toast 示例
+- [ ] 测试模态框嵌套
+- [ ] 测试 ESC 键关闭
+
+#### 示例程序
+
+```go
+// examples/modal_demo/main.go
+func main() {
+    showModal, setShowModal := ui.useState(false)
+
+    ui.Run(func() ui.VNode {
+        if showModal {
+            ui.Modal("confirm-modal", ConfirmDialog())
+        }
+
+        return ui.VStack(
+            ui.Text("Main Content"),
+            ui.Button("Show Modal").OnClick(func() {
+                setShowModal(true)
+            }),
+        )
+    })
+}
+
+func ConfirmDialog() ui.VNode {
+    return ui.Box().Border(true).Padding(2).Child(
+        ui.VStack(
+            ui.Text("Confirm").Bold(true),
+            ui.Separator(),
+            ui.Text("Are you sure?"),
+            ui.HStack(
+                ui.Button("Cancel").OnClick(func() {
+                    ui.CloseModal()
+                }),
+                ui.Button("OK"),
+            ),
+        ),
+    )
+}
+```
+
+---
+
+### 7.4 阶段 7 验收标准
 
 - [ ] VirtualList 支持 100000+ 项
 - [ ] 动画流畅 (≥ 60 FPS)
+- [ ] Layer 系统正常工作
+- [ ] Modal/Tooltip/Toast 可用
+- [ ] 焦点陷阱正常工作
 - [ ] 示例程序完整
 - [ ] 测试覆盖率 ≥ 75%
 
-### 7.4 阶段 7 输出文档
+### 7.5 阶段 7 输出文档
 
 - [ ] `progress/phase_7_progress.md`
 - [ ] `progress/phase_7_summary.md`
 - [ ] `docs/advanced.md` - 高级特性文档
+- [ ] `docs/layer.md` - Layer 系统文档
 - [ ] `examples/virtuallist_demo/` - 虚拟化示例
+- [ ] `examples/modal_demo/` - Modal 示例
 
 ---
 
 ## 十一、阶段 8: DevTools 集成
 
-**时间**: Day 37-40 (4 天)
+**时间**: Day 43-46 (4 天)
 **目标**: 集成 DevTools 调试支持
 
 ### 相关文档
 
 - [SYSTEM_ARCHITECTURE.md](design/SYSTEM_ARCHITECTURE.md) - DevTools 设计
 
-### 8.1 Day 37: DevTools 桥接
+### 8.1 Day 39: DevTools 桥接
 
 #### 任务清单
 
@@ -1280,7 +1549,7 @@ func main() {
 
 ---
 
-### 8.2 Day 38-39: 性能分析
+### 8.2 Day 44-45: 性能分析
 
 #### 任务清单
 
@@ -1293,7 +1562,7 @@ func main() {
 
 ---
 
-### 8.3 Day 40: DevTools UI
+### 8.3 Day 46: DevTools UI
 
 #### 任务清单
 
@@ -1322,10 +1591,10 @@ func main() {
 
 ## 十二、阶段 9: 文档与示例
 
-**时间**: Day 41-44 (4 天)
+**时间**: Day 47-50 (4 天)
 **目标**: 完善文档和示例
 
-### 9.1 Day 41: API 文档
+### 9.1 Day 47: API 文档
 
 #### 任务清单
 
@@ -1336,7 +1605,7 @@ func main() {
 
 ---
 
-### 9.2 Day 42-43: 示例程序
+### 9.2 Day 48-49: 示例程序
 
 #### 任务清单
 
@@ -1349,7 +1618,7 @@ func main() {
 
 ---
 
-### 9.3 Day 44: 教程和指南
+### 9.3 Day 50: 教程和指南
 
 #### 任务清单
 
@@ -1379,10 +1648,10 @@ func main() {
 
 ## 十三、阶段 10: 测试与发布
 
-**时间**: Day 45-47 (3 天)
+**时间**: Day 51-53 (3 天)
 **目标**: 质量保证和发布
 
-### 10.1 Day 45: 全面测试
+### 10.1 Day 51: 全面测试
 
 #### 任务清单
 
@@ -1394,7 +1663,7 @@ func main() {
 
 ---
 
-### 10.2 Day 46: 发布准备
+### 10.2 Day 52: 发布准备
 
 #### 任务清单
 
@@ -1406,7 +1675,7 @@ func main() {
 
 ---
 
-### 10.3 Day 47: 发布
+### 10.3 Day 53: 发布
 
 #### 任务清单
 

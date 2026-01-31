@@ -26,6 +26,7 @@
 | **渲染帧率** | ≥ 60 FPS | 帧间隔 < 16.6ms |
 | **布局计算** | < 1 ms | 基准测试 |
 | **Diff 算法** | < 5 ms (1000 节点) | 基准测试 |
+| **Style Diff 优化** | 输出减少 ≥ 95% | 字节数对比 |
 | **组件数量** | ≥ 10,000 | 压力测试 |
 | **虚拟滚动** | ≥ 100,000 项 | 列表测试 |
 | **内存占用** | < 50 MB | 空闲应用 |
@@ -242,6 +243,88 @@ func BenchmarkDiffListWithKey(b *testing.B) {
     BenchMark(b, func() {
         _ = reconciler.Diff(old, new)
     })
+}
+```
+
+### 3.2.1 Style Diff 性能 (新增)
+
+```go
+// framework/benchmark/style_diff_test.go
+
+package benchmark
+
+import (
+    "testing"
+    "github.com/wwsheng009/mint/framework/render"
+)
+
+// BenchmarkStyleDiffNoChange 样式无变化
+func BenchmarkStyleDiffNoChange(b *testing.B) {
+    state := render.NewTerminalState()
+    style := render.Style{
+        FgColor: color.White,
+        BgColor: color.Black,
+        Bold:    true,
+    }
+
+    b.ResetTimer()
+    for i := 0; i < b.N; i++ {
+        _ = render.DiffStyles(style, state)
+    }
+}
+
+// BenchmarkStyleDiffFullChange 样式完全变化
+func BenchmarkStyleDiffFullChange(b *testing.B) {
+    state := render.NewTerminalState()
+    oldStyle := render.Style{
+        FgColor: color.White,
+        BgColor: color.Black,
+    }
+    newStyle := render.Style{
+        FgColor: color.Red,
+        BgColor: color.Blue,
+        Bold:    true,
+    }
+
+    b.ResetTimer()
+    for i := 0; i < b.N; i++ {
+        _ = render.DiffStyles(newStyle, state)
+        state.Apply(oldStyle)
+    }
+}
+
+// BenchmarkRLEEncoding RLE 编码性能
+func BenchmarkRLEEncoding(b *testing.B) {
+    data := make([]byte, 1000)
+    for i := range data {
+        data[i] = 'A'
+    }
+
+    b.ResetTimer()
+    for i := 0; i < b.N; i++ {
+        _ = render.EncodeRLE(data)
+    }
+}
+
+// BenchmarkStyleDiffReduction 测试输出缩减率
+func BenchmarkStyleDiffReduction(b *testing.B) {
+    // 生成大量相同样式的文本
+    items := make([]ui.VNode, 100)
+    for i := 0; i < 100; i++ {
+        items[i] = ui.Text("Item").FgColor(color.White).Bold(true)
+    }
+    vnode := ui.VStack(items...)
+
+    // 渲染到 DrawCmd
+    cmds := render.VNodeToDrawCmds(vnode)
+
+    // 优化前后对比
+    before := render.Serialize(cmds)               // 原始输出
+    after := render.OptimizeStyleDiff(cmds)       // 优化后
+
+    reduction := 1.0 - float64(len(after))/float64(len(before))
+
+    b.ReportMetric(reduction*100, "pct_reduction")
 }
 ```
 

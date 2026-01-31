@@ -343,7 +343,56 @@ ui.HStack(
 )
 ```
 
-#### 3.3 虚拟化渲染
+#### 3.3 Grid 布局 (新增)
+
+**二维网格布局**：
+
+```go
+ui.Grid(
+    []ui.Dimension{ui.Fixed(10), ui.Fixed(10), ui.Flex(1)},
+    []ui.Dimension{ui.Fixed(5), ui.Flex(1)},
+    ui.UICell(0, 0, CpuPanel()),
+    ui.UICell(0, 1, MemPanel()),
+    ui.UICellSpan(1, 0, 1, 2, LogsPanel()), // 跨列
+)
+```
+
+**Grid 特性**：
+
+- 固定尺寸：`ui.Fixed(n)`
+- 弹性尺寸：`ui.Flex(n)` - 按比例分配
+- 自动尺寸：`ui.Auto()` - 由内容决定
+- 跨行跨列：`ui.UICellSpan(row, col, rowSpan, colSpan, child)`
+- 间距控制：`RowGap`, `ColGap`
+
+详见：[GRID_LAYOUT_DESIGN.md](GRID_LAYOUT_DESIGN.md)
+
+#### 3.4 Absolute 定位 (新增)
+
+**脱离布局流的绝对定位**：
+
+```go
+ui.Box().Child(
+    ui.Stack(
+        ui.Text("Background"),
+        ui.Absolute(
+            ui.Text("Overlay"),
+        ).Top(0).Right(0),
+    ),
+)
+```
+
+**Absolute 特性**：
+
+- 位置控制：`Top()`, `Bottom()`, `Left()`, `Right()`
+- 百分比定位：`TopPercent(n)`, `LeftPercent(n)`
+- 尺寸控制：`Width()`, `Height()`
+- Z-Index：控制层级
+- 锚点：`Anchor(Center)`, `Anchor(TopRight)` 等
+
+详见：[ABSOLUTE_POSITIONING_DESIGN.md](ABSOLUTE_POSITIONING_DESIGN.md)
+
+#### 3.5 虚拟化渲染
 
 **Viewport 机制**：
 
@@ -1012,9 +1061,142 @@ func mainLoop() {
 
 ---
 
-### 12. 容错与自愈机制
+### 10. Layer 层级系统 (新增)
 
-#### 12.1 渲染级容错
+**目标**: 实现视觉层级管理，支持 Modal、Tooltip 等脱离正常布局流的组件
+
+**详见**: [LAYER_SYSTEM_DESIGN.md](LAYER_SYSTEM_DESIGN.md)
+
+**层级定义**:
+
+```go
+type Layer int
+
+const (
+    LayerBase Layer = iota      // 基础层（默认内容）
+    LayerOverlay                 // 覆盖层（下拉菜单）
+    LayerModal                   // 模态框层
+    LayerTooltip                 // 提示框层
+    LayerNotification            // 通知层
+)
+```
+
+**使用示例**:
+
+```go
+// 显示模态框
+ui.Modal("my-modal", ModalContent())
+
+// 显示提示
+ui.Tooltip("tip", ui.Text("Help text"))
+
+// 显示通知
+ui.Toast("toast", ui.Text("Message"))
+```
+
+**特性**:
+- Focus Trap（焦点陷阱）
+- ESC 自动关闭
+- 背景冻结
+- 事件阻止
+
+---
+
+### 11. 输入优先级调度 (新增)
+
+**目标**: 输入永远优先于渲染，确保即时响应
+
+**详见**: [INPUT_SCHEDULING.md](INPUT_SCHEDULING.md)
+
+**优先级定义**:
+
+```go
+type Priority int
+
+const (
+    PriorityImmediate Priority = 3  // 输入事件
+    PriorityUserBlock Priority = 2  // 交互事件
+    PriorityNormal    Priority = 1  // UI 更新
+    PriorityLow       Priority = 0  // 后台任务
+)
+```
+
+**核心机制**:
+
+```go
+// 可中断任务
+func (t *InterruptibleTask) Execute(inputQueue *InputQueue) error {
+    for {
+        if inputQueue.HasPending() {
+            return ErrInterrupted  // 立即中断
+        }
+        performUnitOfWork()
+    }
+}
+```
+
+---
+
+### 12. TextBuffer 文本缓冲 (新增)
+
+**目标**: 文本编辑器级的输入处理
+
+**详见**: [TEXT_BUFFER_DESIGN.md](TEXT_BUFFER_DESIGN.md)
+
+**核心特性**:
+- UTF-32 rune 存储（避免中文乱码）
+- 光标移动（字符、单词、行）
+- 选择区（复制/粘贴）
+- 撤销/重做
+
+**API 示例**:
+
+```go
+// Input 组件内部使用
+buffer := input.NewTextBuffer()
+buffer.Insert("你好")  // 正确处理中文
+buffer.MoveWordForward()
+buffer.DeleteWord()
+```
+
+---
+
+### 13. 语法高亮 (新增)
+
+**目标**: 代码编辑器级的语法着色
+
+**详见**: [SYNTAX_HIGHLIGHT_DESIGN.md](SYNTAX_HIGHLIGHT_DESIGN.md)
+
+**核心特性**:
+- 增量词法分析（只解析修改行）
+- 跨行状态传播（多行注释、字符串）
+- Token 缓存（避免重复解析）
+- 多语言支持（Go, JavaScript, Python, etc.）
+
+**API 示例**:
+
+```go
+// 创建增量词法分析器
+lexer := editor.NewIncrementalLexer(buffer)
+
+// 文本变化时标记脏行
+buffer.OnChange(func(line int) {
+    lexer.MarkDirty(line)
+})
+
+// 渲染时获取 Token
+tokens := lexer.GetTokens(lineNum)
+for _, token := range tokens {
+    style := editor.GetStyle(token.Type)
+    buffer.Draw(token.Text, style)
+}
+```
+
+---
+
+### 14. 容错与自愈机制
+
+#### 14.1 渲染级容错
 
 ```go
 func safeRender(fiber *Fiber) VNode {
@@ -1156,7 +1338,9 @@ mint/
 │   ├── render/             # 渲染管线
 │   │   ├── drawcmd.go
 │   │   ├── rasterize.go
-│   │   └── buffer.go
+│   │   ├── buffer.go
+│   │   ├── style_diff.go      # Style Diff 优化 (新增)
+│   │   └── optimizer.go       # 输出优化器 (新增)
 │   │
 │   ├── terminal/           # 终端驱动
 │   │   ├── ansi.go
@@ -1182,6 +1366,21 @@ mint/
 │   │   ├── timeline.go
 │   │   ├── easing.go
 │   │   └── hooks.go
+│   │
+│   ├── layer/              # 层级系统 (新增)
+│   │   ├── layer.go
+│   │   ├── tree.go
+│   │   └── manager.go
+│   │
+│   ├── input/              # 输入处理 (新增)
+│   │   ├── buffer.go
+│   │   ├── cursor.go
+│   │   └── selection.go
+│   │
+│   ├── scheduler/          # 调度器 (增强)
+│   │   ├── scheduler.go
+│   │   ├── priority.go
+│   │   └── interruptible.go
 │   │
 │   ├── remote/             # 远程渲染
 │   │   ├── protocol.go
@@ -1316,13 +1515,47 @@ mint/
 
 ## 📚 相关文档
 
+### 核心设计文档
+
+- **`SYSTEM_ARCHITECTURE.md`** - 本文档，系统架构总览
+- **`DIRECTORY_STRUCTURE.md`** - 目录结构设计
+- **`COMPONENT_CLASSIFICATION.md`** - 组件分类方案
+- **`API_DESIGN.md`** - API 设计文档
+- **`MIGRATION_GUIDE.md`** - 迁移指南
+- **`BENCHMARK.md`** - 性能基准
+
+### 新增设计文档
+
+#### 渲染优化
+- **`STYLE_DIFF_DESIGN.md`** - 终端样式优化设计
+
+#### 布局系统
+- **`LAYER_SYSTEM_DESIGN.md`** - 视觉层级系统设计 (Modal/Tooltip/Toast)
+- **`GRID_LAYOUT_DESIGN.md`** - 二维网格布局设计
+- **`ABSOLUTE_POSITIONING_DESIGN.md`** - 绝对定位设计
+
+#### 输入与编辑
+- **`TEXT_BUFFER_DESIGN.md`** - 文本缓冲区设计 (UTF-32)
+- **`INPUT_SCHEDULING.md`** - 输入优先级调度设计
+- **`SYNTAX_HIGHLIGHT_DESIGN.md`** - 语法高亮设计 (增量 Lexer)
+
+#### 分析文档
+- **`IDEA_COVERAGE_ANALYSIS.md`** - Idea 文档覆盖分析
+- **`DEMO_COVERAGE_ANALYSIS.md`** - Demo 功能覆盖分析
+
+### Idea 构思文档
+
 - **`idea/idea1.md`** - 声明式架构设计理念
 - **`idea/idea2_layout.md`** - 布局引擎设计
 - **`idea/idea3_vnode.md`** - VNode 与渲染管线
 - **`idea/idea4_comp.md`** - 组件系统规范
 - **`idea/idea5_style.md`** - 样式系统设计
+- **`idea/idea5.1_style_diff.md`** - 样式 Diff 优化
+- **`idea/idea4.3_modal.md`** - Modal 组件与 Layer 系统
+- **`idea/idea4.4_input.md`** - Input 组件与 TextBuffer
 - **`idea/idea6_remote.md`** - 远程渲染协议
 - **`idea/idea8_Concurrent.md`** - 并发调度设计
+- **`idea/idea9_dev_tools.md`** - DevTools 设计
 - **`idea/idea10_checklist.md`** - 稳定性检查清单
 - **`idea/idea11_safe.md`** - 容错与自愈机制
 - **`idea/idea12_platform.md`** - 平台化落地设计

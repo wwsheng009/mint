@@ -17,6 +17,7 @@
 8. [布局 API](#八布局-api)
 9. [工具 API](#九工具-api)
 10. [类型定义](#十类型定义)
+11. [最佳实践](#十一最佳实践)
 
 ---
 
@@ -1301,6 +1302,147 @@ ui.HStack(
 
 ---
 
+### 8.5 Grid 布局 (新增)
+
+```go
+package ui
+
+// Dimension 尺寸类型
+type Dimension interface {
+    isDimension()
+}
+
+// Fixed 固定尺寸
+func Fixed(n int) Dimension
+
+// Flex 弹性尺寸
+func Flex(n int) Dimension
+
+// Auto 自动尺寸
+func Auto() Dimension
+
+// Grid 创建网格布局
+func Grid(rowSizes, colSizes []Dimension, children ...VNode) VNode
+
+// Cell 创建网格单元
+func Cell(row, col int, child VNode) VNode
+
+// CellSpan 创建跨行跨列单元
+func CellSpan(row, col, rowSpan, colSpan int, child VNode) VNode
+```
+
+#### 使用示例
+
+```go
+// Dashboard 布局
+ui.Grid(
+    []ui.Dimension{ui.Fixed(10), ui.Fixed(10), ui.Flex(1)},
+    []ui.Dimension{ui.Fixed(5), ui.Flex(1)},
+    ui.Cell(0, 0, CpuPanel()),
+    ui.Cell(0, 1, MemPanel()),
+    ui.CellSpan(1, 0, 1, 3, LogsPanel()), // 跨 3 列
+)
+
+// IDE 主布局
+ui.Grid(
+    []ui.Dimension{ui.Fixed(3), ui.Flex(1), ui.Fixed(1)},
+    []ui.Dimension{ui.Flex(1)},
+    ui.Cell(0, 0, Header()),
+    ui.Cell(1, 0, MainArea()),
+    ui.Cell(2, 0, StatusBar()),
+)
+```
+
+详见：[GRID_LAYOUT_DESIGN.md](GRID_LAYOUT_DESIGN.md)
+
+---
+
+### 8.6 Absolute 定位 (新增)
+
+```go
+package ui
+
+// Absolute 创建绝对定位容器
+func Absolute(child VNode) *AbsoluteBuilder
+
+// AbsoluteBuilder 绝对定位构建器
+type AbsoluteBuilder struct {
+    props layout.AbsoluteProps
+}
+
+// Top 设置顶部位置
+func (b *AbsoluteBuilder) Top(n int) *AbsoluteBuilder
+
+// Bottom 设置底部位置
+func (b *AbsoluteBuilder) Bottom(n int) *AbsoluteBuilder
+
+// Left 设置左侧位置
+func (b *AbsoluteBuilder) Left(n int) *AbsoluteBuilder
+
+// Right 设置右侧位置
+func (b *AbsoluteBuilder) Right(n int) *AbsoluteBuilder
+
+// TopPercent 设置顶部百分比
+func (b *AbsoluteBuilder) TopPercent(n int) *AbsoluteBuilder
+
+// LeftPercent 设置左侧百分比
+func (b *AbsoluteBuilder) LeftPercent(n int) *AbsoluteBuilder
+
+// Width 设置宽度
+func (b *AbsoluteBuilder) Width(n int) *AbsoluteBuilder
+
+// Height 设置高度
+func (b *AbsoluteBuilder) Height(n int) *AbsoluteBuilder
+
+// ZIndex 设置层级
+func (b *AbsoluteBuilder) ZIndex(n int) *AbsoluteBuilder
+
+// Anchor 设置锚点
+func (b *AbsoluteBuilder) Anchor(a layout.AnchorType) *AbsoluteBuilder
+
+// Build 构建 VNode
+func (b *AbsoluteBuilder) Build() VNode
+
+// 预定义锚点
+func TopLeft(child VNode) *AbsoluteBuilder
+func TopRight(child VNode) *AbsoluteBuilder
+func BottomLeft(child VNode) *AbsoluteBuilder
+func BottomRight(child VNode) *AbsoluteBuilder
+func Center(child VNode) *AbsoluteBuilder
+```
+
+#### 使用示例
+
+```go
+// 右上角徽章
+ui.Box().Child(
+    ui.Stack(
+        ui.Button("Notifications"),
+        ui.Absolute(
+            ui.Text("3").FgColor(ui.ColorRed),
+        ).Top(0).Right(2),
+    ),
+)
+
+// 居中 Modal
+ui.Box().Flex(1).Child(
+    ui.Absolute(
+        ui.Box().Width(40).Height(10).Child(
+            ui.Text("Modal Content"),
+        ),
+    ).Anchor(layout.AnchorCenter),
+)
+
+// 百分比定位
+ui.Absolute(
+    ui.Box().Width(20).Height(5),
+).LeftPercent(10).TopPercent(20)
+```
+
+详见：[ABSOLUTE_POSITIONING_DESIGN.md](ABSOLUTE_POSITIONING_DESIGN.md)
+
+---
+
 ## 九、工具 API
 
 ### 9.1 Key
@@ -1495,6 +1637,112 @@ type KeyHandler func(KeyEvent)
 
 // SubmitHandler 提交处理器
 type SubmitHandler func(Event)
+```
+
+---
+
+### 10.4 Layer API (新增)
+
+Layer 系统提供脱离正常布局流的视觉层级管理。
+
+```go
+package ui
+
+// Layer 在指定层级显示内容
+func Layer(l LayerType, id string, content VNode) VNode
+
+// Modal 显示模态框
+func Modal(id string, content VNode) VNode
+
+// CloseModal 关闭当前模态框
+func CloseModal()
+
+// Tooltip 显示提示框
+func Tooltip(id string, content VNode) VNode
+
+// Toast 显示通知
+func Toast(id string, content VNode) VNode
+```
+
+#### LayerType 类型定义
+
+```go
+package layer
+
+// LayerType 视觉层级
+type LayerType int
+
+const (
+    // LayerBase 基础层（默认内容）
+    LayerBase LayerType = iota
+
+    // LayerOverlay 覆盖层（下拉菜单、Popover）
+    LayerOverlay
+
+    // LayerModal 模态框层
+    LayerModal
+
+    // LayerTooltip 提示框层
+    LayerTooltip
+
+    // LayerNotification 通知层
+    LayerNotification
+)
+```
+
+#### 使用示例
+
+```go
+// 模态框示例
+func App() VNode {
+    showModal, setShowModal := ui.UseStateBool(false)
+
+    return ui.VStack(
+        ui.Text("Main Content"),
+        ui.Button("Open Modal").OnClick(func() {
+            setShowModal(true)
+        }),
+        // 条件渲染 Modal
+        ui.If(showModal, func() VNode {
+            return ui.Modal("confirm-modal", ConfirmDialog())
+        }),
+    )
+}
+
+func ConfirmDialog() VNode {
+    return ui.Box().Border(true).Padding(2).Child(
+        ui.VStack(
+            ui.Text("Confirm").Bold(true),
+            ui.Separator(),
+            ui.Text("Are you sure?"),
+            ui.HStack(
+                ui.Button("Cancel").OnClick(func() {
+                    ui.CloseModal()
+                }),
+                ui.Button("OK"),
+            ),
+        ),
+    )
+}
+
+// Tooltip 示例
+func WithTooltip() VNode {
+    showTip, setShowTip := ui.UseStateBool(false)
+
+    return ui.Text("Hover me")
+        .OnMouseEnter(func() {
+            setShowTip(true)
+        })
+        .OnMouseLeave(func() {
+            setShowTip(false)
+            ui.CloseLayer("tip-1")
+        })
+        .Child(
+            ui.If(showTip, func() VNode {
+                return ui.Tooltip("tip-1", ui.Text("This is a tooltip"))
+            }),
+        )
+}
 ```
 
 ---

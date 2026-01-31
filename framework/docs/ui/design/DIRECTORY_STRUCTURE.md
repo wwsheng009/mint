@@ -116,13 +116,25 @@ mint/
 │   │   ├── stack.go                # 通用堆叠
 │   │   ├── spacer.go               # 弹性空间
 │   │   ├── align.go                # 对齐方式
-│   │   └── virtual.go              # 虚拟化列表 (复用 runtime/layout)
+│   │   ├── virtual.go              # 虚拟化列表 (复用 runtime/layout)
+│   │   ├── grid.go                 # Grid 布局 (新增)
+│   │   ├── grid_algorithm.go       # Grid 算法 (新增)
+│   │   ├── grid_cache.go           # Grid 缓存 (新增)
+│   │   ├── dimension.go            # Dimension 类型 (新增)
+│   │   ├── absolute.go             # Absolute 定位 (新增)
+│   │   ├── absolute_algorithm.go   # Absolute 算法 (新增)
+│   │   ├── absolute_builder.go     # Absolute API (新增)
+│   │   └── position.go             # Position 类型 (新增)
 │   │
 │   ├── render/                     # 渲染管线 (新建)
 │   │   ├── drawcmd.go              # DrawCmd 定义
 │   │   ├── rasterize.go            # 光栅化
 │   │   ├── buffer_adapter.go       # Buffer 适配器
-│   │   └── diff.go                 # Buffer Diff
+│   │   ├── diff.go                 # Buffer Diff
+│   │   ├── terminal_state.go       # 终端状态跟踪 (新增)
+│   │   ├── style_change.go         # 样式变化检测 (新增)
+│   │   ├── rle.go                  # RLE 编码 (新增)
+│   │   └── optimizer.go            # 渲染优化器 (新增)
 │   │
 │   ├── terminal/                   # 终端相关 (新建)
 │   │   ├── ansi.go                 # ANSI 代码 (复用 runtime)
@@ -157,6 +169,44 @@ mint/
 │   │   ├── protocol.go             # 协议定义
 │   │   ├── server.go               # 服务器
 │   │   └── stream.go               # DrawCmd 流式传输
+│   │
+│   ├── layer/                      # Layer 系统 (新增)
+│   │   ├── layer.go                # Layer 类型定义
+│   │   ├── tree.go                 # LayerTree 实现
+│   │   ├── manager.go              # Manager 实现
+│   │   ├── event.go                # 事件处理
+│   │   ├── render.go               # 渲染集成
+│   │   ├── layout.go               # 布局处理
+│   │   └── focus.go                # 焦点管理
+│   │
+│   ├── input/                      # 输入缓冲系统 (新增)
+│   │   ├── buffer.go               # UTF-32 文本缓冲
+│   │   ├── selection.go            # 选择区域管理
+│   │   ├── cursor.go               # 光标移动
+│   │   ├── line.go                 # 行操作
+│   │   ├── scroll.go               # 滚动控制
+│   │   └── history.go              # 撤销/重做
+│   │
+│   ├── scheduler/                  # 输入优先级调度 (新增)
+│   │   ├── priority.go             # 优先级定义
+│   │   ├── input_queue.go          # 输入队列
+│   │   ├── input_handler.go        # 输入处理器
+│   │   ├── interruptible.go        # 可中断任务
+│   │   └── scheduler.go            # 核心调度器
+│   │
+│   ├── editor/                     # 编辑器组件 (新增)
+│   │   ├── buffer.go               # UTF-32 文本缓冲
+│   │   ├── cursor.go               # 光标管理
+│   │   ├── selection.go            # 选择区
+│   │   ├── scroll.go               # 滚动控制
+│   │   ├── history.go              # 撤销/重做
+│   │   ├── lexer.go                # 词法分析器接口 (新增)
+│   │   ├── go_lexer.go             # Go 语言 Lexer (新增)
+│   │   ├── js_lexer.go             # JavaScript Lexer (新增)
+│   │   ├── incremental_lexer.go    # 增量 Lexer (新增)
+│   │   ├── token.go                # Token 类型 (新增)
+│   │   ├── token_style.go          # Token 样式 (新增)
+│   │   └── highlight_render.go     # 高亮渲染 (新增)
 │   │
 │   ├── components/                 # 内置组件 (新建)
 │   │   ├── text.go                 # Text
