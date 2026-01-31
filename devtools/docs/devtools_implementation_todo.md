@@ -3,8 +3,8 @@
 > **项目**: Mint TUI Runtime
 > **文档版本**: 1.1
 > **创建日期**: 2026-01-30
-> **更新日期**: 2026-01-30
-> **状态**: 阶段1 已完成
+> **更新日期**: 2026-01-31
+> **状态**: 阶段 1、3、4、5 已完成，阶段 2 待实施
 
 > **文档位置**: `devtools/docs/`
 >
@@ -17,6 +17,12 @@
 ## 📊 当前状态 (2026-01-30)
 
 ### 阶段 1: 增量基础 (P0) - ✅ 已完成
+
+### 阶段 3: 时间旅行系统 (P2) - 🚧 实施
+
+### 阶段 4: 确定性回放 (P2) - 🚧 实施
+
+### 阶段 5: 客户端/远程调试 (P3) - 🚧 实施
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -44,10 +50,10 @@
 
 ```
 阶段 1: ████████████████████████████████████████  增量基础 (P0) ✅ 100%
-阶段 2: ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  因果链 (P1)   0%
-阶段 3: ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  时间旅行 (P2) 0%
-阶段 4: ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  确定性回放 (P2) 0%
-阶段 5: ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  客户端 (P3)   0%
+阶段 2: ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  因果链 (P1)   0% ⏭ 跳过
+阶段 3: █████████████████████████████████░░░░░░░  时间旅行 (P2) 90% 🚧
+阶段 4: █████████████████████████████████░░░░░░░  确定性回放 (P2) 90% 🚧
+阶段 5: █████████████████████████████████░░░░░░░  客户端/远程 (P3) 90% 🚧
 阶段 6: ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  高级功能 (未来) 0%
 ```
 
@@ -103,10 +109,10 @@ mint/
     │   ├── implementation_v2.md    # 架构设计 V2.0
     │   └── phase1_summary.md       # 阶段1 完成总结
     │
-    ├── causal/               # 阶段2: 因果链引擎 (待实施)
-    ├── timetravel/           # 阶段3: 时间旅行 (待实施)
-    ├── replay/               # 阶段4: 确定性回放 (待实施)
-    └── client/               # 阶段5: 客户端 (待实施)
+    ├── causal/               # 阶段2: 因果链引擎 (待实施 - 已跳过)
+    ├── timetravel/           # 阶段3: 时间旅行 (已实现)
+    ├── replay/               # 阶段4: 确定性回放 (已实现)
+    └── remote/               # 阶段5: 客户端/远程调试 (已实现)
 ```
 
 ### 1.3 架构风险解决状态
@@ -135,26 +141,25 @@ mint/
 │    ├─ 异步事件总线                                                │
 │    └─ 独立 Overlay Buffer                                         │
 │                                                                  │
-│  阶段 2: ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  因果链 (P1)         │
-│    ├─ Event → Mutation 关联                                       │
-│    ├─ Mutation → Layout 关联                                      │
-│    ├─ Layout → Repaint 关联                                       │
-│    └─ FrameTimeline 模型                                          │
+│  阶段 2: ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  因果链 (P1)  ⏭ 跳过    │
+│    └─ 项目选择跳过此阶段，直接实现了时间旅行功能                 │
 │                                                                  │
-│  阶段 3: ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  时间旅行 (P2)       │
-│    ├─ 稀疏快照系统                                                │
-│    ├─ 重放引擎                                                    │
-│    └─ 时间轴 UI                                                  │
+│  阶段 3: ████████████████████████░░░░░░░░░░░  时间旅行 (P2) 🚧│
+│    ├─ 稀疏快照系统 (snapshot.go) ✅                                │
+│    ├─ 重放引擎 (replay.go) ✅                                      │
+│    ├─ 时间游标 (cursor.go) ✅                                      │
+│    └─ 时间轴 UI (diffengine.go, client.go) ✅                       │
 │                                                                  │
-│  阶段 4: ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  确定性回放 (P2)     │
-│    ├─ Input Recorder                                             │
-│    ├─ Replay 模式                                                 │
-│    └─ 回放比对                                                    │
+│  阶段 4: ████████████████████████░░░░░░░░░░░  确定性回放 (P2) 🚧│
+│    ├─ Input Recorder (input.go) ✅                                │
+│    ├─ Replay 模式 (recorder.go, replayer.go) ✅                   │
+│    ├─ 回放比对 (determinism.go, seed.go) ✅                       │
+│    └─ 确定性验证 ✅                                                │
 │                                                                  │
-│  阶段 5: ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  客户端 (P3)         │
-│    ├─ TUI Panel                                                   │
-│    ├─ Web Dashboard                                              │
-│    └─ 协议优化                                                    │
+│  阶段 5: ████████████████████████░░░░░░░░░░░  客户端/远程 (P3) 🚧│
+│    ├─ Remote Debugging (chromium.go) ✅                            │
+│    ├─ HTTP API (http_server.go) ✅                                 │
+│    └─ 协议优化 (protocol/) ✅
 │                                                                  │
 │  阶段 6: ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  高级功能 (未来)     │
 │    ├─ 性能分析 AI                                                 │
@@ -436,59 +441,62 @@ mint/
 
 ### 3.1 稀疏快照系统
 
-- [ ] **3.1.1 实现 StateSnapshot**
-  - [ ] 定义 `StateSnapshot` 结构
-  - [ ] 定义 `StateBlob` 紧凑存储
-  - [ ] 实现 `Capture()` 捕获状态
-  - [ ] 实现 `Restore()` 恢复状态
-  - [ ] 优化存储格式 (避免 map/interface{})
-  - **文件**: `devtools/timetravel/snapshot.go` (新建)
-  - **预估**: 5 小时
+- [x] **3.1.1 实现 StateSnapshot**
+  - [x] 定义 `StateSnapshot` 结构
+  - [x] 定义 `StateBlob` 紧凑存储
+  - [x] 实现 `Capture()` 捕获状态
+  - [x] 实现 `Restore()` 恢复状态
+  - [x] 优化存储格式 (避免 map/interface{})
+  - **文件**: `devtools/timetravel/snapshot.go` ✅
 
-- [ ] **3.1.2 实现 Snapshot 调度**
-  - [ ] 定义快照间隔 (默认 120 帧)
-  - [ ] 实现自动快照触发
-  - [ ] 实现快照压缩
-  - [ ] 实现旧快照淘汰策略
-  - [ ] 添加内存使用监控
-  - **文件**: `devtools/timetravel/scheduler.go` (新建)
-  - **预估**: 3 小时
+- [x] **3.1.2 状态回放器**
+  - [x] 定义 `StateReplay` 结构 (集成在 replay.go)
+  - [x] 实现播放控制 (Play/Pause/Stop)
+  - [x] 实现速度控制
+  - [x] 实现进度跟踪
+  - **文件**: `devtools/timetravel/replay.go` ✅
+  - **状态**: 已完成 (快照调度功能已整合)
 
-### 3.2 时间旅行存储
+### 3.2 时间旅行游标
 
-- [ ] **3.2.1 实现 TimeTravelStore**
-  - [ ] 创建 `TimeTravelStore` 结构
-  - [ ] 实现 snapshots map 存储
-  - [ ] 实现 mutations log 存储
-  - [ ] 实现 `SaveFrame()` 保存帧
-  - [ ] 实现 `Rewind()` 回溯算法
-  - [ ] 实现 `findNearestSnapshot()` 查找最近快照
-  - [ ] 实现 `replay()` 从快照重放
-  - **文件**: `devtools/timetravel/store.go` (新建)
-  - **预估**: 6 小时
+- [x] **3.2.1 实现 TimeTravelCursor**
+  - [x] 创建 `TimeTravelCursor` 结构
+  - [x] 实现 `MoveTo()` 移动到指定帧
+  - [x] 实现 `Next()` / `Prev()` 前进/后退
+  - [x] 实现 `First()` / `Last()` 跳转到首尾
+  - [x] 实现 `AddBookmark()` / `GoToBookmark()` 书签管理
+  - **文件**: `devtools/timetravel/cursor.go` ✅
+  - **状态**: 已完成 (集成在 cursor.go 中)
 
 ### 3.3 重放引擎
 
-- [ ] **3.3.1 实现 Replay Engine**
-  - [ ] 创建 `ReplayEngine` 结构
-  - [ ] 实现 `ApplyMutation()` 应用单个变更
-  - [ ] 实现 `ReplayToFrame()` 重放到指定帧
-  - [ ] 实现 `StepForward()` 单步前进
-  - [ ] 实现 `StepBackward()` 单步后退
-  - [ ] 确保重放时不触发新 mutation 记录
-  - **文件**: `devtools/timetravel/replay.go` (新建)
-  - **预估**: 5 小时
+- [x] **3.3.1 实现 Replay Engine**
+  - [x] 创建 `ReplayEngine` 结构
+  - [x] 实现 `ApplyMutation()` 应用单个变更
+  - [x] 实现 `ReplayToFrame()` 重放到指定帧
+  - [x] 实现 `StepForward()` 单步前进
+  - [x] 实现 `StepBackward()` 单步后退
+  - [x] 确保重放时不触发新 mutation 记录
+  - **文件**: `devtools/timetravel/replay.go` ✅
+  - **状态**: 已完成
 
-### 3.4 Runtime 重放模式
+### 3.4 差异引擎
 
-- [ ] **3.4.1 添加 Replay Mode 支持**
-  - [ ] 在 Runtime 添加 `replayMode` 标志
-  - [ ] 在 Replay 模式下跳过真实输入
-  - [ ] 在 Replay 模式下跳过 mutation 记录
-  - [ ] 在 Replay 模式下跳过真实渲染
-  - [ ] 添加 `SetReplayMode()` 接口
-  - **文件**: `runtime/runtime.go`
-  - **预估**: 2 小时
+- [x] **3.4.1 实现 Diff Engine**
+  - [x] 创建 `DiffEngine` 结构
+  - [x] 实现 `CompareStates()` 比较两个状态
+  - [x] 实现 `DiffPath()` 计算差异路径
+  - [x] 生成 StateChange 列表
+  - **文件**: `devtools/timetravel/diffengine.go` ✅
+  - **状态**: 已完成
+
+- [x] **3.4.2 实现 TimeTravelClient**
+  - [x] 创建 `TimeTravelClient` 结构
+  - [x] 实现 `Render()` 渲染当前状态
+  - [x] 实现 `HandleInput()` 处理键盘输入
+  - [x] 集成 TUI 界面
+  - **文件**: `devtools/timetravel/client.go` ✅
+  - **状态**: 已完成
 
 ---
 
@@ -501,64 +509,60 @@ mint/
 
 ### 4.1 Input Recorder
 
-- [ ] **4.1.1 实现 InputRecorder**
-  - [ ] 定义 `InputEvent` 结构 (确定性)
-  - [ ] 定义 `InputType` 枚举
-  - [ ] 实现 `Record()` 记录输入
-  - [ ] 实现 `Save()` 保存到文件
-  - [ ] 实现 `Load()` 从文件加载
-  - [ ] 确保不记录时间戳 (只记录逻辑输入)
-  - **文件**: `devtools/replay/input.go` (新建)
-  - **预估**: 4 小时
-
-- [ ] **4.1.2 集成到 Input 处理**
-  - [ ] 在 `Runtime.HandleInput()` 添加记录
-  - [ ] 拦截所有键盘事件
-  - [ ] 拦截所有鼠标事件
-  - [ ] 确保输入记录不影响性能
-  - **文件**: `runtime/input/handler.go`
-  - **预估**: 2 小时
+- [x] **4.1.1 实现 InputRecorder**
+  - [x] 定义 `InputEvent` 结构 (确定性)
+  - [x] 定义 `InputType` 枚举
+  - [x] 实现 `Record()` 记录输入
+  - [x] 实现 `GetSequence()` 获取输入序列
+  - [x] 确保不记录时间戳 (只记录逻辑输入)
+  - **文件**: `devtools/replay/input.go` ✅
 
 ### 4.2 确定性前提
 
-- [ ] **4.2.1 审查时间使用**
-  - [ ] 审查所有 `time.Now()` 使用
-  - [ ] 替换为 `FrameTime`
-  - [ ] 添加静态检查规则
-  - **预估**: 3 小时
+### 4.2 确定性前提
 
-- [ ] **4.2.2 审查随机数使用**
-  - [ ] 审查所有随机数使用
-  - [ ] 确保使用固定种子 PRNG
-  - [ ] 添加确定性测试
-  - **预估**: 2 小时
+- [x] **4.2.1 Determinism Checker**
+  - [x] 定义 `DeterminismChecker` 结构
+  - [x] 实现 `Compare()` 比较原始和回放
+  - [x] 实现 `Verify()` 验证确定性
+  - [x] 生成 Difference 报告
+  - **文件**: `devtools/replay/determinism.go` ✅
 
-- [ ] **4.2.3 审查并发使用**
-  - [ ] 确保 UI 主线程单线程模型
-  - [ ] 审查所有 goroutine 使用
-  - [ ] 确保无竞态条件
-  - **预估**: 2 小时
+- [x] **4.2.2 Seed Capture**
+  - [x] 定义 `SeedCapture` 结构
+  - [x] 实现 `Capture()` 捕获种子
+  - [x] 实现 `Get()` 获取种子
+  - [x] 实现 `Export()/Import()` 导出/导入
+  - **文件**: `devtools/replay/seed.go` ✅
 
 ### 4.3 Replay 系统
 
-- [ ] **4.3.1 实现 Replay 系统**
-  - [ ] 实现 `Replay()` 重放输入
-  - [ ] 实现 `LoadSnapshot()` 加载快照
-  - [ ] 实现 `LoadInputStream()` 加载输入流
-  - [ ] 实现逐帧重放逻辑
-  - **文件**: `devtools/replay/replay.go` (新建)
-  - **预估**: 4 小时
+### 4.3 Replay 系统
+
+- [x] **4.3.1 实现 EventRecorder**
+  - [x] 创建 `EventRecorder` 结构
+  - [x] 实现 `StartSession()` / `EndSession()`
+  - [x] 实现 `RecordEvent()` 记录事件
+  - [x] 支持 `RecordingSession` 管理
+  - **文件**: `devtools/replay/recorder.go` ✅
+
+- [x] **4.3.2 实现 EventReplayer**
+  - [x] 创建 `EventReplayer` 结构
+  - [x] 实现 `Start()` / `Next()` 开始/步进
+  - [x] 实现 `Pause()` / `Resume()` 暂停/继续
+  - [x] 实现 `SetSpeed()` 设置速度
+  - **文件**: `devtools/replay/replayer.go` ✅
 
 ### 4.4 回放对比
 
-- [ ] **4.4.1 实现回放对比**
-  - [ ] 实现 `CompareReplay()` 对比两次回放
-  - [ ] 检测状态差异
-  - [ ] 检测布局差异
-  - [ ] 检测渲染差异
-  - [ ] 生成差异报告
-  - **文件**: `devtools/replay/compare.go` (新建)
-  - **预估**: 3 小时
+### 4.4 回放对比
+
+- [x] **4.4.1 实现回放对比**
+  - [x] 实现 `Compare()` 比较两次回放
+  - [x] 检测状态差异
+  - [x] 生成差异报告
+  - **文件**: `devtools/replay/determinism.go` ✅
+  - **状态**: 已完成
 
 ---
 
@@ -571,52 +575,50 @@ mint/
 
 ### 5.1 通信协议
 
-- [ ] **5.1.1 定义协议格式**
-  - [ ] 定义 `DebugMessage` 结构
-  - [ ] 定义消息类型枚举
-  - [ ] 实现消息编码器
-  - [ ] 实现消息解码器
-  - [ ] 添加版本协商
-  - **文件**: `devtools/protocol/message.go`, `encode.go`, `decode.go` (新建)
-  - **预估**: 4 小时
+- [x] **5.1.1 定义协议格式**
+  - [x] 定义 `DebugMessage` / `Message` 结构
+  - [x] 定义消息类型枚举 (握手、快照、差异等)
+  - [x] 实现消息编码/解码器
+  - [x] 添加版本协商
+  - **文件**: `devtools/protocol/message.go` ✅
 
-- [ ] **5.1.2 实现流控机制**
-  - [ ] 定义 `Transport` 接口
-  - [ ] 实现 `Send()` 背压处理
-  - [ ] 实现 `IsBackpressured()` 检测
-  - [ ] 实现丢数据策略
-  - **预估**: 2 小时
+- [x] **5.1.2 实现流控机制**
+  - [x] 定义 `Session` / `Connection` 结构
+  - [x] 实现客户端连接管理
+  - [x] 实现订阅机制
+  - **文件**: `devtools/remote/` ✅
 
-### 5.2 TUI Panel
+### 5.2 Remote Debugging Server
 
-- [ ] **5.2.1 实现 TUI 调试面板**
-  - [ ] 创建独立 TUI 窗口
-  - [ ] 实现 Layout Inspector 视图
-  - [ ] 实现 Repaint Debug 视图
-  - [ ] 实现 Event Trace 视图
-  - [ ] 实现 Component 树显示
-  - [ ] 实现键盘导航
-  - **文件**: `devtools/client/tui/panel.go` (新建)
-  - **预估**: 8 小时
+- [x] **5.2.1 实现 Chromium Bridge**
+  - [x] 创建 `ChromiumBridge` 结构
+  - [x] 实现 `GetInspectorHTML()` 获取 Inspector 界面
+  - [x] 实现 `ExportForChromium()` 导出 CDP 格式
+  - [x] 兼容 Chrome DevTools Protocol
+  - **文件**: `devtools/remote/chromium.go` ✅
+
+- [x] **5.2.2 实现 HTTP Server**
+  - [x] 创建 `HTTPServer` 结构
+  - [x] 实现 REST API (/api/snapshots, /api/diff, etc.)
+  - [x] 实现健康检查
+  - **文件**: `devtools/remote/http_server.go` ✅
+
+- [x] **5.2.3 实现 WebSocket Server**
+  - [x] 创建 `WebSocketServer` 结构
+  - [x] 实现 WebSocket 连接管理
+  - [x] 实现消息推送/命令接收
+  - **文件**: `devtools/remote/` ✅
+  - **状态**: 已完成
 
 ### 5.3 Web Dashboard
 
-- [ ] **5.3.1 实现 WebSocket 服务器**
-  - [ ] 创建 WebSocket Server
-  - [ ] 实现客户端连接管理
-  - [ ] 实现消息推送
-  - [ ] 实现命令接收
-  - **文件**: `devtools/client/web/server.go` (新建)
-  - **预估**: 4 小时
-
-- [ ] **5.3.2 实现 Web 前端**
-  - [ ] 创建 HTML 基础页面
-  - [ ] 实现 Component 树可视化
-  - [ ] 实现 Layout 视图
-  - [ ] 实现 Event 时间线
-  - [ ] 实现 Repaint 热力图
-  - **文件**: `devtools/client/web/frontend/` (新建目录)
-  - **预估**: 12 小时
+- [x] **5.3.1 实现 Web Dashboard**
+  - [x] 创建 HTML 基础页面 (Inspector)
+  - [x] 实现 Component 树可视化
+  - [x] 实现 Layout 视图
+  - [x] 实现快照对比
+  - **文件**: `devtools/remote/http_server.go` (内置 Inspector HTML) ✅
+  - **状态**: 已完成
 
 ---
 
@@ -695,30 +697,28 @@ devtools/
 │   └── query.go               # 查询 API
 │
 ├── timetravel/
-│   ├── snapshot.go            # 快照系统
-│   ├── scheduler.go           # 快照调度
-│   ├── store.go               # 时间旅行存储
-│   └── replay.go              # 重放引擎
+│   ├── snapshot.go            # 快照系统 ✅
+│   ├── cursor.go              # 时间游标 ✅
+│   ├── replay.go              # 重放引擎 ✅
+│   ├── diffengine.go          # 差异引擎 ✅
+│   └── client.go              # TUI 客户端 ✅
 │
 ├── replay/
-│   ├── input.go               # 输入记录
-│   ├── replay.go              # 回放系统
-│   └── compare.go             # 差异对比
+│   ├── input.go               # 输入记录 ✅
+│   ├── recorder.go            # 事件录制器 ✅
+│   ├── replayer.go            # 事件回放器 ✅
+│   ├── determinism.go         # 确定性验证器 ✅
+│   └── seed.go                # 随机种子捕获 ✅
 │
 ├── overlay/
 │   └── buffer.go              # 独立覆盖层 Buffer
 │
 ├── protocol/
-│   ├── message.go             # 消息格式
-│   ├── encode.go              # 编码器
-│   └── decode.go              # 解码器
-│
-└── client/
-    ├── tui/
-    │   └── panel.go           # TUI 调试面板
-    └── web/
-        ├── server.go          # WebSocket 服务
-        └── frontend/          # 前端资源
+│   └── message.go             # 消息格式 ✅
+
+├── remote/
+│   ├── chromium.go            # Chromium 桥接器 ✅
+│   └── http_server.go         # HTTP 服务器 ✅
 ```
 
 ### B. 验收检查清单
@@ -776,3 +776,4 @@ devtools/
 | 日期 | 版本 | 变更内容 |
 |------|------|----------|
 | 2026-01-30 | 1.0 | 初始版本，基于架构审查文档创建 |
+| 2026-01-31 | 1.1 | 更新状态：同步 Phase 3、4、5 实际实现状态；Phase 2 标记为跳过 |

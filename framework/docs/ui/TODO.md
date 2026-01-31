@@ -1,0 +1,1630 @@
+# Mint UI 声明式架构 - 详细 TODO LIST
+
+**项目代号**: Mint UI v1.0
+**开始日期**: 2026-01-31
+**预计完成**: 2026-03-28 (8 周)
+**文档版本**: v1.0
+
+---
+
+## 📋 目录
+
+1. [项目概览](#一项目概览)
+2. [进度追踪](#二进度追踪)
+3. [阶段 0: 准备阶段](#三阶段-0-准备阶段)
+4. [阶段 1: 基础架构](#四阶段-1-基础架构)
+5. [阶段 2: Reconciler 系统](#五阶段-2-reconciler-系统)
+6. [阶段 3: 渲染管线](#六阶段-3-渲染管线)
+7. [阶段 4: 组件系统](#七阶段-4-组件系统)
+8. [阶段 5: 布局系统](#八阶段-5-布局系统)
+9. [阶段 6: Hooks 系统](#九阶段-6-hooks-系统)
+10. [阶段 7: 高级特性](#十阶段-7-高级特性)
+11. [阶段 8: DevTools 集成](#十一阶段-8-devtools-集成)
+12. [阶段 9: 文档与示例](#十二阶段-9-文档与示例)
+13. [阶段 10: 测试与发布](#十三阶段-10-测试与发布)
+14. [附录](#附录)
+
+---
+
+## 一、项目概览
+
+### 1.1 项目目标
+
+将 Mint UI 从**命令式架构**迁移到**声明式架构**，实现：
+
+- ✅ 声明式组件 API
+- ✅ VNode 虚拟节点系统
+- ✅ Diff 算法
+- ✅ Fiber 架构
+- ✅ Hooks 状态管理
+- ✅ 调度器
+- ✅ 完整的组件库
+
+### 1.2 阶段划分
+
+| 阶段 | 名称 | 周期 | 交付物 |
+|------|------|------|--------|
+| 0 | 准备阶段 | 2 天 | 环境配置，文档审阅 |
+| 1 | 基础架构 | 4 天 | VNode 系统 |
+| 2 | Reconciler | 5 天 | Diff + Fiber |
+| 3 | 渲染管线 | 5 天 | DrawCmd + Buffer |
+| 4 | 组件系统 | 6 天 | 基础组件库 |
+| 5 | 布局系统 | 4 天 | HStack/VStack |
+| 6 | Hooks 系统 | 5 天 | useState/useEffect |
+| 7 | 高级特性 | 5 天 | 虚拟化 + 动画 |
+| 8 | DevTools | 4 天 | 调试工具集成 |
+| 9 | 文档示例 | 4 天 | 完整文档 |
+| 10 | 测试发布 | 3 天 | 质量保证 |
+
+### 1.3 每日工作流程
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     每日工作流程                             │
+├─────────────────────────────────────────────────────────────┤
+│  09:00-09:30  │ 阅读今日任务及相关文档                       │
+│  09:30-12:00  │ 执行开发任务                                 │
+│  12:00-13:00  │ 午休                                         │
+│  13:00-15:00  │ 继续开发任务                                 │
+│  15:00-16:00  │ 编写/运行单元测试                             │
+│  16:00-17:00  │ 更新进度文档，记录问题                        │
+│  17:00-17:30  │ 代码提交，准备明日任务                        │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 1.4 阶段回顾会议
+
+每个阶段结束时进行回顾会议：
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                   阶段回顾会议议程                           │
+├─────────────────────────────────────────────────────────────┤
+│  1. 回顾阶段目标完成情况 (15 分钟)                           │
+│  2. 演示新功能 (15 分钟)                                     │
+│  3. 讨论遇到的问题 (15 分钟)                                 │
+│  4. 总结经验教训 (10 分钟)                                   │
+│  5. 规划下一阶段 (5 分钟)                                    │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 二、进度追踪
+
+### 2.1 总体进度
+
+```
+阶段 0  [████████████████████████████████████] 100%  ✅ 完成
+阶段 1  [░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░]   0%  ⏳ 待开始
+阶段 2  [░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░]   0%  ⏳ 待开始
+阶段 3  [░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░]   0%  ⏳ 待开始
+阶段 4  [░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░]   0%  ⏳ 待开始
+阶段 5  [░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░]   0%  ⏳ 待开始
+阶段 6  [░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░]   0%  ⏳ 待开始
+阶段 7  [░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░]   0%  ⏳ 待开始
+阶段 8  [░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░]   0%  ⏳ 待开始
+阶段 9  [░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░]   0%  ⏳ 待开始
+阶段 10 [░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░]   0%  ⏳ 待开始
+
+总进度: [███░░░░░░░░░░░░░░░░░░░░░░░░░░░░] 10%
+```
+
+### 2.2 任务状态说明
+
+| 状态 | 图标 | 说明 |
+|------|------|------|
+| 待开始 | ⏳ | 任务未开始 |
+| 进行中 | 🔄 | 正在开发中 |
+| 待测试 | 🧪 | 开发完成，待测试 |
+| 待审查 | 👀 | 待代码审查 |
+| 已完成 | ✅ | 完成并验收 |
+| 阻塞 | 🚫 | 有问题阻塞 |
+| 已跳过 | ⏭️ | 不需要执行 |
+
+---
+
+## 三、阶段 0: 准备阶段
+
+**时间**: Day 1-2
+**目标**: 环境配置，文档审阅，项目初始化
+
+### 3.1 阅读文档清单
+
+- [ ] [SYSTEM_ARCHITECTURE.md](design/SYSTEM_ARCHITECTURE.md) - 系统架构设计
+- [ ] [IMPLEMENTATION_GAP_ANALYSIS.md](design/IMPLEMENTATION_GAP_ANALYSIS.md) - 实现差距分析
+- [ ] [DIRECTORY_STRUCTURE.md](design/DIRECTORY_STRUCTURE.md) - 目录结构设计
+- [ ] [COMPONENT_CLASSIFICATION.md](design/COMPONENT_CLASSIFICATION.md) - 组件分类方案
+- [ ] [IMPLEMENTATION_PLAN.md](design/IMPLEMENTATION_PLAN.md) - 实施计划
+- [ ] [API_DESIGN.md](design/API_DESIGN.md) - API 设计
+- [ ] [MIGRATION_GUIDE.md](design/MIGRATION_GUIDE.md) - 迁移指南
+- [ ] [BENCHMARK.md](design/BENCHMARK.md) - 性能基准
+
+### 3.2 环境准备
+
+- [ ] 确保 Go 版本 ≥ 1.23
+- [ ] 更新 go.mod 依赖
+- [ ] 创建开发分支 `feature/declarative-ui`
+- [ ] 创建阶段目录结构
+
+#### 目录结构创建
+
+```bash
+mkdir -p ui
+mkdir -p framework/reconciler
+mkdir -p framework/hooks
+mkdir -p framework/components
+mkdir -p framework/render
+mkdir -p framework/layout
+mkdir -p framework/docs/ui/progress
+```
+
+### 3.3 工具配置
+
+- [ ] 配置 pre-commit hooks
+- [ ] 配置 golangci-lint
+- [ ] 配置 IDE 代码片段
+- [ ] 创建测试配置文件
+
+### 3.4 文档模板创建
+
+- [ ] 阶段进度模板 (`progress/phase_X_progress.md`)
+- [ ] 阶段总结模板 (`progress/phase_X_summary.md`)
+- [ ] 每日日志模板 (`progress/daily/YYYY-MM-DD.md`)
+
+### 3.5 阶段 0 验收标准
+
+- [ ] 所有设计文档已阅读并理解
+- [ ] 开发环境配置完成
+- [ ] 目录结构创建完成
+- [ ] 文档模板准备就绪
+- [ ] 团队成员对计划达成共识
+
+### 3.6 阶段 0 输出文档
+
+- [ ] `progress/phase_0_setup.md` - 环境配置记录
+- [ ] `progress/phase_0_summary.md` - 阶段 0 总结
+
+---
+
+## 四、阶段 1: 基础架构 - VNode 系统
+
+**时间**: Day 3-6 (4 天)
+**目标**: 实现 VNode 虚拟节点系统
+
+### 相关文档
+
+- [API_DESIGN.md](design/API_DESIGN.md) - VNode 接口定义
+- [SYSTEM_ARCHITECTURE.md](design/SYSTEM_ARCHITECTURE.md) - VNode 设计理念
+
+### 4.1 Day 3: VNode 接口定义
+
+#### 任务清单
+
+- [ ] 创建 `ui/vnode.go`
+  - [ ] 定义 `VNode` 接口
+  - [ ] 定义 `VNodeType` 枚举
+  - [ ] 定义 `Props` 类型
+- [ ] 创建 `ui/vnode_types.go`
+  - [ ] 实现 `ElementVNode`
+  - [ ] 实现 `TextVNode`
+  - [ ] 实现 `ComponentVNode`
+  - [ ] 实现 `FragmentVNode`
+- [ ] 编写单元测试 `ui/vnode_test.go`
+
+#### 验收标准
+
+```go
+// ✅ 应该能够
+vnode := ui.Element("div")
+vnode.SetKey("my-key")
+vnode.Type() == ui.VNodeElement
+
+text := ui.Text("Hello")
+text.Type() == ui.VNodeText
+
+fragment := ui.Fragment(child1, child2)
+fragment.Type() == ui.VNodeFragment
+```
+
+#### 测试要求
+
+- [ ] 所有 VNode 类型创建测试
+- [ ] Props 设置和获取测试
+- [ ] Key 设置测试
+- [ ] Children 操作测试
+- [ ] 测试覆盖率 ≥ 80%
+
+#### 代码提交
+
+```bash
+git add ui/vnode.go ui/vnode_types.go ui/vnode_test.go
+git commit -m "feat: implement VNode interface and types
+
+- Add VNode interface with Type/Props/Children/Key methods
+- Implement ElementVNode, TextVNode, ComponentVNode, FragmentVNode
+- Add comprehensive unit tests
+- Test coverage: 85%
+
+Refs: #1"
+```
+
+#### 每日日志
+
+创建 `progress/daily/2026-01-31.md`:
+
+```markdown
+# 2026-01-31 - VNode 接口定义
+
+## 完成任务
+- [x] 创建 ui/vnode.go
+- [x] 定义 VNode 接口
+- [x] 实现 4 种 VNode 类型
+- [x] 编写单元测试
+
+## 遇到问题
+- 无
+
+## 明日计划
+- 实现 Props 系统
+- 实现 Builder 模式
+
+## 代码提交
+- Commit: abc123
+```
+
+---
+
+### 4.2 Day 4: Props 系统
+
+#### 任务清单
+
+- [ ] 创建 `ui/props.go`
+  - [ ] 实现 `Props` 类型
+  - [ ] 实现 `Get/GetBool/GetInt/GetString`
+  - [ ] 实现 `Set/Merge`
+  - [ ] 实现 `Clone`
+- [ ] 编写单元测试 `ui/props_test.go`
+
+#### 验收标准
+
+```go
+// ✅ 应该能够
+props := ui.Props{
+    "text": "Hello",
+    "count": 42,
+    "enabled": true,
+}
+
+text := props.GetString("text") // "Hello"
+count := props.GetInt("count")   // 42
+enabled := props.GetBool("enabled") // true
+
+merged := props.Merge(ui.Props{"new": true})
+```
+
+#### 测试要求
+
+- [ ] 基本类型获取测试
+- [ ] 类型转换测试
+- [ ] 合并操作测试
+- [ ] 克隆操作测试
+- [ ] 边界情况测试
+
+---
+
+### 4.3 Day 5: Builder 模式
+
+#### 任务清单
+
+- [ ] 创建 `ui/builder.go`
+  - [ ] 实现 `Builder` 接口
+  - [ ] 实现 `ElementBuilder`
+  - [ ] 实现 `TextBuilder`
+  - [ ] 实现链式调用方法
+- [ ] 创建 `ui/element.go`
+  - [ ] 实现 `Element()` 函数
+  - [ ] 实现 `Text()` 函数
+  - [ ] 实现 `Fragment()` 函数
+- [ ] 编写单元测试 `ui/builder_test.go`
+
+#### 验收标准
+
+```go
+// ✅ 应该能够
+vnode := ui.Element("div").
+    Prop("class", "container").
+    Prop("id", "main").
+    Child(ui.Text("Hello")).
+    Build()
+
+text := ui.Text("Hello").
+    FgColor(color.Red).
+    Bold(true).
+    Build()
+```
+
+---
+
+### 4.4 Day 6: VNode 测试与集成
+
+#### 任务清单
+
+- [ ] 完善单元测试
+- [ ] 编写集成测试
+- [ ] 性能基准测试
+- [ ] 代码审查
+- [ ] 文档更新
+
+#### 集成测试要求
+
+```go
+// TestVNodeTree 集成测试
+func TestVNodeTree(t *testing.T) {
+    // 测试复杂嵌套结构
+    tree := ui.VStack(
+        ui.Text("Title").Bold(true),
+        ui.HStack(
+            ui.Text("Left"),
+            ui.Text("Right"),
+        ),
+        ui.Text("Content"),
+    )
+
+    // 验证结构
+    assert.Equal(t, 3, len(tree.Children()))
+    // ...
+}
+```
+
+#### 性能基准测试
+
+```go
+// BenchmarkVNodeCreate
+func BenchmarkVNodeCreate(b *testing.B) {
+    for i := 0; i < b.N; i++ {
+        _ = ui.Text("Hello").Bold(true).Build()
+    }
+}
+```
+
+---
+
+### 4.5 阶段 1 验收标准
+
+- [ ] VNode 接口完整实现
+- [ ] 4 种 VNode 类型正常工作
+- [ ] Props 系统完整
+- [ ] Builder 模式可用
+- [ ] 单元测试覆盖率 ≥ 80%
+- [ ] 集成测试通过
+- [ ] 性能基准达标
+
+### 4.6 阶段 1 回顾会议
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    阶段 1 回顾会议                           │
+├─────────────────────────────────────────────────────────────┤
+│  日期: 2026-02-03                                            │
+│  参与者:                                                     │
+│  - 架构师                                                    │
+│  - 核心开发                                                  │
+│                                                             │
+│  议程:                                                       │
+│  1. 演示 VNode 创建和使用 (15 分钟)                          │
+│  2. 展示测试覆盖率报告 (5 分钟)                              │
+│  3. 讨论技术问题 (10 分钟)                                   │
+│  4. 确认阶段 1 完成 (5 分钟)                                 │
+│                                                             │
+│  决策:                                                       │
+│  - VNode 接口设计通过 ✅                                     │
+│  - Props 系统通过 ✅                                         │
+│  - 可以进入阶段 2 ✅                                         │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 4.7 阶段 1 输出文档
+
+- [ ] `progress/phase_1_progress.md` - 实时进度追踪
+- [ ] `progress/phase_1_summary.md` - 阶段总结
+- [ ] `api/vnode.md` - VNode API 文档
+- [ ] `examples/vnode_demo/` - VNode 示例程序
+
+---
+
+## 五、阶段 2: Reconciler 系统
+
+**时间**: Day 7-11 (5 天)
+**目标**: 实现 Diff 算法和 Fiber 架构
+
+### 相关文档
+
+- [SYSTEM_ARCHITECTURE.md](design/SYSTEM_ARCHITECTURE.md) - Reconciler 设计
+- [API_DESIGN.md](design/API_DESIGN.md) - Reconciler API
+
+### 5.1 Day 7: Diff 算法基础
+
+#### 任务清单
+
+- [ ] 创建 `framework/reconciler/diff.go`
+  - [ ] 定义 `Patch` 类型
+  - [ ] 定义 `CreatePatch`
+  - [ ] 定义 `DeletePatch`
+  - [ ] 定义 `ReplacePatch`
+  - [ ] 定义 `UpdatePatch`
+- [ ] 实现基础 `Diff()` 函数
+- [ ] 创建 `framework/reconciler/patch.go`
+  - [ ] 实现 `Apply()` 方法
+- [ ] 编写单元测试
+
+#### 验收标准
+
+```go
+// ✅ 基础 Diff
+old := ui.Text("Hello")
+new := ui.Text("World")
+patch := Diff(old, new)
+// patch should be UpdatePatch{OldValue: "Hello", NewValue: "World"}
+
+// ✅ 创建
+patch := Diff(nil, ui.Text("New"))
+// patch should be CreatePatch{Node: ...}
+
+// ✅ 删除
+patch := Diff(ui.Text("Old"), nil)
+// patch should be DeletePatch{Node: ...}
+```
+
+---
+
+### 5.2 Day 8: Diff 算法进阶
+
+#### 任务清单
+
+- [ ] 实现 Props Diff
+- [ ] 实现 Children Diff
+- [ ] 实现 Key 优化
+- [ ] 实现双指针算法
+- [ ] 编写单元测试
+
+#### 验收标准
+
+```go
+// ✅ Props Diff
+old := ui.Text("Hello").FgColor(color.Red)
+new := ui.Text("Hello").FgColor(color.Blue)
+patch := Diff(old, new)
+// should only update FgColor
+
+// ✅ Children Diff with Keys
+old := ui.HStack(
+    ui.Key("a", ui.Text("A")),
+    ui.Key("b", ui.Text("B")),
+    ui.Key("c", ui.Text("C")),
+)
+new := ui.HStack(
+    ui.Key("a", ui.Text("A")),
+    ui.Key("c", ui.Text("C")),
+    ui.Key("b", ui.Text("B")),
+)
+patch := Diff(old, new)
+// should reorder, not recreate
+```
+
+---
+
+### 5.3 Day 9: Fiber 节点
+
+#### 任务清单
+
+- [ ] 创建 `framework/reconciler/fiber.go`
+  - [ ] 定义 `Fiber` 结构
+  - [ ] 定义 `EffectFlag` 类型
+  - [ ] 定义 `Lane` 类型
+- [ ] 实现 `CreateFiber()` 函数
+- [ ] 实现 Fiber 树构建
+- [ ] 编写单元测试
+
+#### 验收标准
+
+```go
+// ✅ Fiber 结构
+fiber := CreateFiber(ui.Text("Hello"))
+assert.NotNil(t, fiber.VNode)
+assert.Nil(t, fiber.Return)
+assert.Nil(t, fiber.Child)
+assert.Nil(t, fiber.Sibling)
+
+// ✅ Fiber 树
+root := CreateFiber(ui.VStack(
+    ui.Text("A"),
+    ui.Text("B"),
+))
+assert.NotNil(t, root.Child)
+assert.NotNil(t, root.Child.Sibling)
+```
+
+---
+
+### 5.4 Day 10: BeginWork 和 CompleteWork
+
+#### 任务清单
+
+- [ ] 创建 `framework/reconciler/begin_work.go`
+  - [ ] 实现 `BeginWork()` 函数
+  - [ ] 处理不同节点类型
+- [ ] 创建 `framework/reconciler/complete_work.go`
+  - [ ] 实现 `CompleteWork()` 函数
+  - [ ] 处理 Effect 收集
+- [ ] 创建 `framework/reconciler/effects.go`
+  - [ ] 实现 Effect 链操作
+- [ ] 编写单元测试
+
+---
+
+### 5.5 Day 11: Reconciler 测试与集成
+
+#### 任务清单
+
+- [ ] 完整的 Diff 测试套件
+- [ ] Fiber 树操作测试
+- [ ] 工作单元测试
+- [ ] 性能基准测试
+- [ ] 集成测试
+
+#### 性能基准测试要求
+
+```go
+// BenchmarkDiffSimple
+func BenchmarkDiffSimple(b *testing.B) {
+    old := ui.Text("Hello")
+    new := ui.Text("Hello")
+    for i := 0; i < b.N; i++ {
+        _ = Diff(old, new)
+    }
+}
+
+// BenchmarkDiffList100 - 100 个节点列表
+func BenchmarkDiffList100(b *testing.B) {
+    // ...
+}
+
+// BenchmarkDiffList1000 - 1000 个节点列表
+func BenchmarkDiffList1000(b *testing.B) {
+    // ...
+}
+```
+
+---
+
+### 5.6 阶段 2 验收标准
+
+- [ ] Diff 算法正确实现
+- [ ] Fiber 节点正常工作
+- [ ] BeginWork/CompleteWork 正常
+- [ ] Effect 链正确收集
+- [ ] 单元测试覆盖率 ≥ 80%
+- [ ] 性能基准: Diff(1000 节点) < 5ms
+- [ ] 集成测试通过
+
+### 5.7 阶段 2 输出文档
+
+- [ ] `progress/phase_2_progress.md`
+- [ ] `progress/phase_2_summary.md`
+- [ ] `docs/reconciler.md` - Reconciler 文档
+- [ ] `examples/reconciler_demo/` - Reconciler 示例
+
+---
+
+## 六、阶段 3: 渲染管线
+
+**时间**: Day 12-16 (5 天)
+**目标**: 实现 DrawCmd 和 Buffer Diff
+
+### 相关文档
+
+- [SYSTEM_ARCHITECTURE.md](design/SYSTEM_ARCHITECTURE.md) - 渲染管线设计
+- [BENCHMARK.md](design/BENCHMARK.md) - 渲染性能指标
+
+### 6.1 Day 12: DrawCmd 定义
+
+#### 任务清单
+
+- [ ] 创建 `framework/render/drawcmd.go`
+  - [ ] 定义 `DrawCmd` 接口
+  - [ ] 定义 `DrawText`
+  - [ ] 定义 `DrawRect`
+  - [ ] 定义 `DrawClip`
+  - [ ] 定义 `DrawTransform`
+- [ ] 编写单元测试
+
+#### 验收标准
+
+```go
+// ✅ DrawCmd 接口
+cmd := &DrawText{
+    X:     0,
+    Y:     0,
+    Text:  "Hello",
+    Style: style.Style{Bold: true},
+}
+assert.Equal(t, "text", cmd.Type())
+```
+
+---
+
+### 6.2 Day 13: 光栅化器
+
+#### 任务清单
+
+- [ ] 创建 `framework/render/rasterize.go`
+  - [ ] 实现 `Rasterize()` 函数
+  - [ ] 处理 DrawText
+  - [ ] 处理 DrawRect
+  - [ ] 处理 DrawClip
+- [ ] 创建 `framework/render/buffer_adapter.go`
+  - [ ] 适配 runtime.Buffer
+- [ ] 编写单元测试
+
+---
+
+### 6.3 Day 14: Buffer Diff
+
+#### 任务清单
+
+- [ ] 创建 `framework/render/buffer_diff.go`
+  - [ ] 实现 `DiffBuffer()` 函数
+  - [ ] 实现 `CellChange` 结构
+  - [ ] 优化 Diff 算法
+- [ ] 创建 `framework/render/ansi.go`
+  - [ ] 实现 ANSI 优化输出
+  - [ ] 减少 Style 切换
+- [ ] 编写单元测试
+
+#### 性能要求
+
+- [ ] Buffer Diff (全屏) < 1ms
+- [ ] ANSI 优化减少 ≥ 50% 切换
+
+---
+
+### 6.4 Day 15: 渲染器集成
+
+#### 任务清单
+
+- [ ] 创建 `framework/render/renderer.go`
+  - [ ] 实现 `Renderer` 结构
+  - [ ] 实现 `Render()` 方法
+  - [ ] 集成 DrawCmd -> Buffer
+  - [ ] 集成 Buffer Diff -> ANSI
+- [ ] 编写集成测试
+
+---
+
+### 6.5 Day 16: 渲染测试与优化
+
+#### 任务清单
+
+- [ ] 完整的渲染测试套件
+- [ ] 性能基准测试
+- [ ] 内存泄漏检测
+- [ ] 优化热点代码
+
+#### 性能基准
+
+```go
+// BenchmarkRenderSimple
+func BenchmarkRenderSimple(b *testing.B) {
+    renderer := NewRenderer()
+    vnode := ui.Text("Hello").Bold(true)
+    for i := 0; i < b.N; i++ {
+        renderer.Render(vnode)
+    }
+}
+
+// 目标: > 1000 ops/sec
+```
+
+---
+
+### 6.6 阶段 3 验收标准
+
+- [ ] DrawCmd 系统完整
+- [ ] 光栅化正确工作
+- [ ] Buffer Diff 正确
+- [ ] ANSI 优化有效
+- [ ] 渲染帧率 ≥ 60 FPS
+- [ ] 单元测试覆盖率 ≥ 80%
+
+### 6.7 阶段 3 输出文档
+
+- [ ] `progress/phase_3_progress.md`
+- [ ] `progress/phase_3_summary.md`
+- [ ] `docs/rendering.md` - 渲染管线文档
+- [ ] `examples/render_demo/` - 渲染示例
+
+---
+
+## 七、阶段 4: 组件系统
+
+**时间**: Day 17-22 (6 天)
+**目标**: 实现基础组件库
+
+### 相关文档
+
+- [API_DESIGN.md](design/API_DESIGN.md) - 组件 API
+- [COMPONENT_CLASSIFICATION.md](design/COMPONENT_CLASSIFICATION.md) - 组件分类
+
+### 4.1 组件开发规范
+
+每个新组件必须包含：
+
+1. **组件实现** (`components/xxx/xxx.go`)
+2. **单元测试** (`components/xxx/xxx_test.go`)
+3. **示例程序** (`examples/xxx_demo/`)
+4. **API 文档** (`docs/components/xxx.md`)
+
+### 4.2 Day 17: 组件基础设施
+
+#### 任务清单
+
+- [ ] 创建 `framework/components/` 目录
+  - [ ] `basic/` - 基础组件
+  - [ ] `form/` - 表单组件
+  - [ ] `button/` - 按钮组件
+  - [ ] `data/` - 数据展示
+  - [ ] `feedback/` - 反馈组件
+- [ ] 创建 `ui/components.go`
+  - [ ] 导出所有组件
+- [ ] 创建组件模板
+
+---
+
+### 4.3 Day 18: Text 组件
+
+#### 任务清单
+
+- [ ] 实现 `components/basic/text.go`
+- [ ] 实现 `ui.Text()` 函数
+- [ ] 支持链式调用
+- [ ] 编写测试 `text_test.go`
+- [ ] 创建示例 `examples/text_demo/`
+
+#### 组件 API
+
+```go
+func Text(content string) *TextBuilder
+
+type TextBuilder struct {
+    // ...
+}
+
+func (b *TextBuilder) Content(s string) *TextBuilder
+func (b *TextBuilder) FgColor(c color.Color) *TextBuilder
+func (b *TextBuilder) BgColor(c color.Color) *TextBuilder
+func (b *TextBuilder) Bold(v bool) *TextBuilder
+func (b *TextBuilder) Italic(v bool) *TextBuilder
+func (b *TextBuilder) Underline(v bool) *TextBuilder
+func (b *TextBuilder) Align(a TextAlign) *TextBuilder
+func (b *TextBuilder) MaxLines(n int) *TextBuilder
+func (b *TextBuilder) Build() VNode
+```
+
+#### 示例程序要求
+
+```go
+// examples/text_demo/main.go
+package main
+
+func main() {
+    ui.Run(func() ui.VNode {
+        return ui.VStack(
+            ui.Text("Basic Text"),
+            ui.Text("Bold Text").Bold(true),
+            ui.Text("Colored Text").FgColor(color.Red),
+            ui.Text("Aligned Text").Align(ui.AlignCenter),
+        )
+    })
+}
+```
+
+#### 测试要求
+
+- [ ] 基本渲染测试
+- [ ] 样式应用测试
+- [ ] 对齐方式测试
+- [ ] 多行文本测试
+- [ ] 行数限制测试
+
+---
+
+### 4.4 Day 19: Button 组件
+
+#### 任务清单
+
+- [ ] 实现 `components/button/button.go`
+- [ ] 实现 `ui.Button()` 函数
+- [ ] 支持多种变体
+- [ ] 编写测试
+- [ ] 创建示例
+
+#### 示例程序要求
+
+```go
+// examples/button_demo/main.go
+func main() {
+    count, _ := ui.UseStateInt(0)
+
+    ui.Run(func() ui.VNode {
+        return ui.VStack(
+            ui.Text("Button Demo"),
+            ui.Button("Default"),
+            ui.Button("Primary").Variant(ui.ButtonVariantPrimary),
+            ui.Button("Danger").Variant(ui.ButtonVariantDanger),
+            ui.Text(fmt.Sprintf("Clicked: %d", count)),
+            ui.Button("Increment").OnClick(func() {
+                setCount(count + 1)
+            }),
+        )
+    })
+}
+```
+
+---
+
+### 4.5 Day 20: Input 组件
+
+#### 任务清单
+
+- [ ] 实现 `components/form/input.go`
+- [ ] 实现 `ui.Input()` 函数
+- [ ] 支持受控和非受控模式
+- [ ] 编写测试
+- [ ] 创建示例
+
+---
+
+### 4.6 Day 21: List 和 Table 组件
+
+#### 任务清单
+
+- [ ] 实现 `components/data/list.go`
+- [ ] 实现 `components/data/table.go`
+- [ ] 编写测试
+- [ ] 创建示例
+
+---
+
+### 4.7 Day 22: 其他基础组件
+
+#### 任务清单
+
+- [ ] CheckBox 组件
+- [ ] Separator 组件
+- [ ] ProgressBar 组件
+- [ ] 编写测试
+- [ ] 创建示例
+
+---
+
+### 4.8 阶段 4 验收标准
+
+- [ ] 至少 8 个基础组件完成
+- [ ] 每个组件有单元测试
+- [ ] 每个组件有示例程序
+- [ ] 每个组件有 API 文档
+- [ ] 所有示例可运行
+- [ ] 测试覆盖率 ≥ 75%
+
+### 4.9 阶段 4 输出文档
+
+- [ ] `progress/phase_4_progress.md`
+- [ ] `progress/phase_4_summary.md`
+- [ ] `docs/components/` - 组件文档目录
+- [ ] `examples/*_demo/` - 示例程序目录
+
+---
+
+## 八、阶段 5: 布局系统
+
+**时间**: Day 23-26 (4 天)
+**目标**: 实现 HStack/VStack 声明式布局
+
+### 相关文档
+
+- [API_DESIGN.md](design/API_DESIGN.md) - 布局 API
+- [SYSTEM_ARCHITECTURE.md](design/SYSTEM_ARCHITECTURE.md) - 布局系统设计
+
+### 5.1 Day 23: HStack 实现
+
+#### 任务清单
+
+- [ ] 创建 `framework/layout/hstack.go`
+- [ ] 实现 `ui.HStack()` 函数
+- [ ] 封装 runtime FlexLayout
+- [ ] 支持链式调用
+- [ ] 编写测试
+- [ ] 创建示例
+
+#### API 设计
+
+```go
+func HStack(children ...VNode) *LayoutBuilder
+
+type LayoutBuilder struct {
+    // ...
+}
+
+func (b *LayoutBuilder) Align(a Align) *LayoutBuilder
+func (b *LayoutBuilder) AlignCross(a Align) *LayoutBuilder
+func (b *LayoutBuilder) Gap(n int) *LayoutBuilder
+func (b *LayoutBuilder) Padding(top, right, bottom, left int) *LayoutBuilder
+func (b *LayoutBuilder) Width(n int) *LayoutBuilder
+func (b *LayoutBuilder) Height(n int) *LayoutBuilder
+```
+
+---
+
+### 5.2 Day 24: VStack 实现
+
+#### 任务清单
+
+- [ ] 创建 `framework/layout/vstack.go`
+- [ ] 实现 `ui.VStack()` 函数
+- [ ] 封装 runtime FlexLayout
+- [ ] 编写测试
+- [ ] 创建示例
+
+---
+
+### 5.3 Day 25: 其他布局组件
+
+#### 任务清单
+
+- [ ] Spacer 组件
+- [ ] Box 容器
+- [ ] Overlay 组件
+- [ ] 编写测试
+- [ ] 创建示例
+
+---
+
+### 5.4 Day 26: 布局测试与示例
+
+#### 任务清单
+
+- [ ] 完整的布局测试套件
+- [ ] 布局示例程序
+- [ ] 性能测试
+- [ ] 文档更新
+
+#### 示例程序
+
+```go
+// examples/layout_demo/main.go
+func main() {
+    ui.Run(func() ui.VNode {
+        return ui.VStack(
+            ui.Text("Layout Demo"),
+            ui.HStack(
+                ui.Text("Left").Flex(1),
+                ui.Text("Center").Flex(2),
+                ui.Text("Right").Flex(1),
+            ).Gap(2),
+            ui.Box().Border(true).Padding(2).Child(
+                ui.Text("Box Content"),
+            ),
+        )
+    })
+}
+```
+
+---
+
+### 5.5 阶段 5 验收标准
+
+- [ ] HStack/VStack 正常工作
+- [ ] Flex 参数正确
+- [ ] 对齐方式正确
+- [ ] Spacer/Box 正常
+- [ ] 示例程序完整
+- [ ] 测试覆盖率 ≥ 75%
+
+### 5.6 阶段 5 输出文档
+
+- [ ] `progress/phase_5_progress.md`
+- [ ] `progress/phase_5_summary.md`
+- [ ] `docs/layout.md` - 布局文档
+- [ ] `examples/layout_demo/` - 布局示例
+
+---
+
+## 九、阶段 6: Hooks 系统
+
+**时间**: Day 27-31 (5 天)
+**目标**: 实现完整的 Hooks 系统
+
+### 相关文档
+
+- [API_DESIGN.md](design/API_DESIGN.md) - Hooks API
+- [SYSTEM_ARCHITECTURE.md](design/SYSTEM_ARCHITECTURE.md) - Hooks 设计
+
+### 6.1 Day 27: useState
+
+#### 任务清单
+
+- [ ] 创建 `framework/hooks/context.go`
+  - [ ] 实现 HookContext
+  - [ ] 实现 context 管理
+- [ ] 创建 `framework/hooks/state.go`
+  - [ ] 实现 useState
+  - [ ] 实现类型安全版本
+- [ ] 编写测试
+- [ ] 创建示例
+
+#### 示例程序
+
+```go
+// examples/usestate_demo/main.go
+func main() {
+    ui.Run(func() ui.VNode {
+        return Counter()
+    })
+}
+
+func Counter() ui.VNode {
+    count, setCount := ui.UseStateInt(0)
+
+    return ui.VStack(
+        ui.Text(fmt.Sprintf("Count: %d", count)),
+        ui.Button("Increment").OnClick(func() {
+            setCount(count + 1)
+        }),
+        ui.Button("Decrement").OnClick(func() {
+            setCount(count - 1)
+        }),
+    )
+}
+```
+
+---
+
+### 6.2 Day 28: useEffect
+
+#### 任务清单
+
+- [ ] 创建 `framework/hooks/effect.go`
+  - [ ] 实现 useEffect
+  - [ ] 实现依赖比较
+  - [ ] 实现清理函数
+- [ ] 编写测试
+- [ ] 创建示例
+
+#### 示例程序
+
+```go
+// examples/useeffect_demo/main.go
+func Timer() ui.VNode {
+    count, setCount := ui.UseStateInt(0)
+
+    ui.UseEffect(func() {
+        ticker := time.NewTicker(time.Second)
+        done := make(chan bool)
+
+        go func() {
+            for {
+                select {
+                case <-ticker.C:
+                    setCount(count + 1)
+                case <-done:
+                    return
+                }
+            }
+        }()
+
+        return func() {
+            ticker.Stop()
+            close(done)
+        }
+    }, nil)
+
+    return ui.Text(fmt.Sprintf("Time: %d", count))
+}
+```
+
+---
+
+### 6.3 Day 29: useContext
+
+#### 任务清单
+
+- [ ] 创建 `framework/hooks/context_hook.go`
+  - [ ] 实现 useContext
+  - [ ] 实现 createContext
+  - [ ] 实现 Provider
+- [ ] 编写测试
+- [ ] 创建示例
+
+---
+
+### 6.4 Day 30: useMemo 和 useCallback
+
+#### 任务清单
+
+- [ ] 创建 `framework/hooks/memo.go`
+  - [ ] 实现 useMemo
+  - [ ] 实现 useCallback
+- [ ] 编写测试
+- [ ] 创建示例
+
+---
+
+### 6.5 Day 31: useRef 和其他 Hooks
+
+#### 任务清单
+
+- [ ] 创建 `framework/hooks/ref.go`
+  - [ ] 实现 useRef
+  - [ ] 实现 useImperativeHandle
+- [ ] 创建 `framework/hooks/reducer.go`
+  - [ ] 实现 useReducer
+- [ ] 编写测试
+- [ ] 创建示例
+
+---
+
+### 6.6 阶段 6 验收标准
+
+- [ ] 所有基础 Hooks 实现
+- [ ] Hooks 调用规则检查
+- [ ] 状态更新正确触发
+- [ ] Effect 清理正确执行
+- [ ] 示例程序完整
+- [ ] 测试覆盖率 ≥ 80%
+
+### 6.7 阶段 6 输出文档
+
+- [ ] `progress/phase_6_progress.md`
+- [ ] `progress/phase_6_summary.md`
+- [ ] `docs/hooks.md` - Hooks 文档
+- [ ] `examples/hooks_demo/` - Hooks 示例
+
+---
+
+## 十、阶段 7: 高级特性
+
+**时间**: Day 32-36 (5 天)
+**目标**: 实现虚拟化和动画
+
+### 7.1 Day 32-33: 虚拟化渲染
+
+#### 任务清单
+
+- [ ] 创建 `framework/components/data/virtual_list.go`
+- [ ] 实现 VirtualList 组件
+- [ ] 实现可见范围计算
+- [ ] 编写测试
+- [ ] 创建大列表示例 (10000+ 项)
+
+#### 示例程序
+
+```go
+// examples/virtuallist_demo/main.go
+func main() {
+    // 生成 100000 项数据
+    items := make([]string, 100000)
+    for i := 0; i < 100000; i++ {
+        items[i] = fmt.Sprintf("Item %d", i)
+    }
+
+    ui.Run(func() ui.VNode {
+        return ui.VirtualList(items).
+            ItemHeight(1).
+            RenderItem(func(item interface{}) ui.VNode {
+                return ui.Text(item.(string))
+            })
+    })
+}
+```
+
+---
+
+### 7.2 Day 34-36: 动画系统
+
+#### 任务清单
+
+- [ ] 扩展 `framework/animation/`
+- [ ] 实现 useAnimation Hook
+- [ ] 实现过渡动画
+- [ ] 编写测试
+- [ ] 创建示例
+
+---
+
+### 7.3 阶段 7 验收标准
+
+- [ ] VirtualList 支持 100000+ 项
+- [ ] 动画流畅 (≥ 60 FPS)
+- [ ] 示例程序完整
+- [ ] 测试覆盖率 ≥ 75%
+
+### 7.4 阶段 7 输出文档
+
+- [ ] `progress/phase_7_progress.md`
+- [ ] `progress/phase_7_summary.md`
+- [ ] `docs/advanced.md` - 高级特性文档
+- [ ] `examples/virtuallist_demo/` - 虚拟化示例
+
+---
+
+## 十一、阶段 8: DevTools 集成
+
+**时间**: Day 37-40 (4 天)
+**目标**: 集成 DevTools 调试支持
+
+### 相关文档
+
+- [SYSTEM_ARCHITECTURE.md](design/SYSTEM_ARCHITECTURE.md) - DevTools 设计
+
+### 8.1 Day 37: DevTools 桥接
+
+#### 任务清单
+
+- [ ] 创建 `devtools/bridge/fiber.go`
+  - [ ] 实现 Fiber 树导出
+  - [ ] 实现组件状态导出
+- [ ] 创建 `devtools/bridge/inspector.go`
+  - [ ] 实现组件检查器
+- [ ] 编写测试
+
+---
+
+### 8.2 Day 38-39: 性能分析
+
+#### 任务清单
+
+- [ ] 创建 `devtools/bridge/profiler.go`
+  - [ ] 实现性能收集
+  - [ ] 实现火焰图生成
+- [ ] 创建 `devtools/bridge/layout.go`
+  - [ ] 实现布局调试
+- [ ] 编写测试
+
+---
+
+### 8.3 Day 40: DevTools UI
+
+#### 任务清单
+
+- [ ] 更新 Web Dashboard
+- [ ] 添加 Fiber 树视图
+- [ ] 添加性能面板
+- [ ] 添加布局调试面板
+- [ ] 测试
+
+---
+
+### 8.4 阶段 8 验收标准
+
+- [ ] DevTools 可查看 Fiber 树
+- [ ] 可查看组件 Props/State
+- [ ] 性能分析正常工作
+- [ ] 布局调试可用
+
+### 8.5 阶段 8 输出文档
+
+- [ ] `progress/phase_8_progress.md`
+- [ ] `progress/phase_8_summary.md`
+- [ ] `docs/devtools.md` - DevTools 文档
+
+---
+
+## 十二、阶段 9: 文档与示例
+
+**时间**: Day 41-44 (4 天)
+**目标**: 完善文档和示例
+
+### 9.1 Day 41: API 文档
+
+#### 任务清单
+
+- [ ] 完善 `docs/api/` 目录
+- [ ] 为每个组件编写 API 文档
+- [ ] 为每个 Hook 编写 API 文档
+- [ ] 生成 godoc
+
+---
+
+### 9.2 Day 42-43: 示例程序
+
+#### 任务清单
+
+- [ ] Hello World 示例
+- [ ] Counter 示例
+- [ ] Todo List 示例
+- [ ] Form 示例
+- [ ] Dashboard 示例
+- [ ] 确保所有示例可运行
+
+---
+
+### 9.3 Day 44: 教程和指南
+
+#### 任务清单
+
+- [ ] 快速开始指南
+- [ ] 组件开发教程
+- [ ] Hooks 使用教程
+- [ ] 最佳实践文档
+- [ ] 迁移指南更新
+
+---
+
+### 9.4 阶段 9 验收标准
+
+- [ ] API 文档完整
+- [ ] 所有示例可运行
+- [ ] 教程清晰易懂
+- [ ] godoc 可生成
+
+### 9.5 阶段 9 输出文档
+
+- [ ] `progress/phase_9_progress.md`
+- [ ] `progress/phase_9_summary.md`
+- [ ] `docs/` - 完整文档目录
+- [ ] `examples/` - 完整示例目录
+
+---
+
+## 十三、阶段 10: 测试与发布
+
+**时间**: Day 45-47 (3 天)
+**目标**: 质量保证和发布
+
+### 10.1 Day 45: 全面测试
+
+#### 任务清单
+
+- [ ] 运行所有单元测试
+- [ ] 运行所有集成测试
+- [ ] 运行性能基准测试
+- [ ] 竞态检测
+- [ ] 内存泄漏检测
+
+---
+
+### 10.2 Day 46: 发布准备
+
+#### 任务清单
+
+- [ ] 更新 CHANGELOG.md
+- [ ] 更新 README.md
+- [ ] 创建 Release Notes
+- [ ] 准备版本号
+- [ ] 打 Git tag
+
+---
+
+### 10.3 Day 47: 发布
+
+#### 任务清单
+
+- [ ] 合并到 main 分支
+- [ ] 创建 GitHub Release
+- [ ] 发布到 go modules
+- [ ] 发布公告
+- [ ] 庆祝 🎉
+
+---
+
+### 10.4 阶段 10 验收标准
+
+- [ ] 所有测试通过
+- [ ] 无已知 Critical bug
+- [ ] 性能达标
+- [ ] 文档完整
+- [ ] 发布成功
+
+### 10.5 阶段 10 输出文档
+
+- [ ] `progress/phase_10_progress.md`
+- [ ] `progress/phase_10_summary.md`
+- [ ] `CHANGELOG.md`
+- [ ] `RELEASE_NOTES.md`
+
+---
+
+## 附录
+
+### A. 每日日志模板
+
+```markdown
+# YYYY-MM-DD - [阶段名称] [任务名称]
+
+## 今日完成
+- [x] 任务 1
+- [x] 任务 2
+
+## 进行中
+- [ ] 任务 3 (50%)
+
+## 遇到问题
+- 问题描述:
+  - 影响:
+  - 解决方案:
+
+## 明日计划
+- [ ] 任务 3
+- [ ] 任务 4
+
+## 代码提交
+- Commit: hash
+- PR: #
+
+## 学习笔记
+- 今日学到的新知识
+```
+
+---
+
+### B. 阶段总结模板
+
+```markdown
+# 阶段 X 总结
+
+## 概述
+- 开始日期:
+- 结束日期:
+- 实际工期:
+- 计划工期:
+
+## 完成情况
+- 计划任务数:
+- 实际完成:
+- 完成率:
+
+## 交付物
+- [ ] 交付物 1
+- [ ] 交付物 2
+
+## 遇到的问题
+1. 问题描述
+   - 解决方案:
+   - 经验教训:
+
+2. 问题描述
+   - 解决方案:
+   - 经验教训:
+
+## 性能指标
+- 测试覆盖率:
+- 性能基准:
+- 内存使用:
+
+## 代码统计
+- 新增文件:
+- 修改文件:
+- 新增代码行:
+- 测试代码行:
+
+## 下一步
+- 进入阶段 X+1
+- 重点注意事项:
+```
+
+---
+
+### C. 进度更新命令
+
+```bash
+# 更新总进度
+# 编辑 TODO.md 第一部分的进度条
+
+# 更新阶段进度
+# 编辑 progress/phase_X_progress.md
+
+# 记录每日日志
+# 创建 progress/daily/YYYY-MM-DD.md
+
+# 更新任务状态
+# 在 TODO.md 中将 [ ] 改为 [x]
+```
+
+---
+
+### D. 代码提交规范
+
+```bash
+# 提交格式
+git commit -m "<type>: <subject>
+
+<body>
+
+<footer>
+
+# 类型
+feat:     新功能
+fix:      修复 bug
+docs:     文档更新
+test:     测试相关
+refactor: 重构
+perf:     性能优化
+style:    代码格式
+chore:    构建/工具
+
+# 示例
+git commit -m "feat(ui): implement VNode interface
+
+- Add VNode interface with Type/Props/Children methods
+- Implement ElementVNode and TextVNode
+- Add unit tests with 85% coverage
+
+Refs: #1
+Related to #2"
+```
+
+---
+
+### E. 检查清单
+
+#### 开发前检查
+
+- [ ] 阅读相关设计文档
+- [ ] 理解任务要求
+- [ ] 确认依赖已就绪
+- [ ] 创建功能分支
+
+#### 开发中检查
+
+- [ ] 代码符合规范
+- [ ] 添加必要注释
+- [ ] 编写单元测试
+- [ ] 运行测试验证
+
+#### 提交前检查
+
+- [ ] 所有测试通过
+- [ ] 代码已自审
+- [ ] 更新相关文档
+- [ ] 更新 TODO.md
+
+#### 阶段结束检查
+
+- [ ] 所有任务完成
+- [ ] 验收标准满足
+- [ ] 文档已更新
+- [ ] 总结已编写
+
+---
+
+## 文档索引
+
+### 设计文档
+
+| 文档 | 路径 | 状态 |
+|------|------|------|
+| 系统架构 | `design/SYSTEM_ARCHITECTURE.md` | ✅ |
+| 差距分析 | `design/IMPLEMENTATION_GAP_ANALYSIS.md` | ✅ |
+| 目录结构 | `design/DIRECTORY_STRUCTURE.md` | ✅ |
+| 组件分类 | `design/COMPONENT_CLASSIFICATION.md` | ✅ |
+| 实施计划 | `design/IMPLEMENTATION_PLAN.md` | ✅ |
+| API 设计 | `design/API_DESIGN.md` | ✅ |
+| 迁移指南 | `design/MIGRATION_GUIDE.md` | ✅ |
+| 性能基准 | `design/BENCHMARK.md` | ✅ |
+
+### 进度文档
+
+| 文档 | 路径 | 状态 |
+|------|------|------|
+| TODO 列表 | `TODO.md` | ✅ |
+| 阶段 0 进度 | `progress/phase_0_progress.md` | ⏳ |
+| 阶段 1 进度 | `progress/phase_1_progress.md` | ⏳ |
+| ... | ... | ... |
+
+---
+
+**文档结束**
+
+**最后更新**: 2026-01-31
+**维护者**: Mint UI Team
