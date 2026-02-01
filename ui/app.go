@@ -217,6 +217,10 @@ func (d *declarativeRoot) paintWithFiber(ctx component.PaintContext, buffer *pai
 	// Reset interactive elements collection
 	d.resetInteractiveElements()
 
+	if os.Getenv("TUI_DEBUG_UI") == "true" {
+		fmt.Fprintf(os.Stderr, "[paintWithFiber] Reset interactive elements, starting Fiber render\n")
+	}
+
 	// Share instance manager with reconciler for consistent state
 	d.reconciler.SetInstanceManager(d.instanceManager)
 
@@ -482,6 +486,10 @@ func (d *declarativeRoot) renderVNodeFiber(node VNode, x, y int, buffer *paint.B
 		if !n.Disabled() {
 			n.focusIndex = len(d.buttons)
 			d.buttons = append(d.buttons, n)
+			if os.Getenv("TUI_DEBUG_UI") == "true" {
+				fmt.Fprintf(os.Stderr, "[renderVNodeFiber] Collected button %d: label=%s\n",
+					n.focusIndex, n.Label())
+			}
 		}
 		d.renderButton(n, x, y, buffer)
 
@@ -1433,9 +1441,14 @@ func (d *declarativeRoot) isFocused(btn *ButtonVNode) bool {
 // HandleEvent implements frameworkevent.Component interface
 func (d *declarativeRoot) HandleEvent(ev frameworkevent.Event) bool {
 	if os.Getenv("TUI_DEBUG_UI") == "true" {
+		fmt.Fprintf(os.Stderr, "[HandleEvent] Called: Type=%v", ev.Type())
 		if keyEv, ok := ev.(*frameworkevent.KeyEvent); ok {
-			fmt.Fprintf(os.Stderr, "HandleEvent: Rune=%c, Name=%s\n", keyEv.Key.Rune, keyEv.Key.Name)
+			fmt.Fprintf(os.Stderr, ", Rune=%c, Special=%v, Modifiers=%v",
+				keyEv.Key.Rune, keyEv.Special, keyEv.Modifiers)
 		}
+		fmt.Fprintf(os.Stderr, "\n")
+		fmt.Fprintf(os.Stderr, "[HandleEvent] State: focusedIndex=%d, totalElements=%d, buttons=%d\n",
+			d.focusedIndex, d.getTotalFocusableCount(), len(d.buttons))
 	}
 
 	// Handle keyboard events
@@ -1498,6 +1511,9 @@ func (d *declarativeRoot) HandleEvent(ev frameworkevent.Event) bool {
 		switch keyEv.Special {
 		case frameworkevent.KeyTab:
 			// Tab: focus next element
+			if os.Getenv("TUI_DEBUG_UI") == "true" {
+				fmt.Fprintf(os.Stderr, "[HandleEvent] KeyTab: focusedIndex=%d -> ", d.focusedIndex)
+			}
 			if keyEv.Modifiers == frameworkevent.ModShift {
 				d.focusedIndex--
 				if d.focusedIndex < 0 {
@@ -1512,6 +1528,9 @@ func (d *declarativeRoot) HandleEvent(ev frameworkevent.Event) bool {
 			d.updateFocusedType()
 			if d.app != nil {
 				d.app.MarkDirty()
+			}
+			if os.Getenv("TUI_DEBUG_UI") == "true" {
+				fmt.Fprintf(os.Stderr, "%d\n", d.focusedIndex)
 			}
 			return true
 
@@ -1530,9 +1549,13 @@ func (d *declarativeRoot) HandleEvent(ev frameworkevent.Event) bool {
 		case frameworkevent.KeyEnter:
 			// Enter key behavior
 			if os.Getenv("TUI_DEBUG_UI") == "true" {
-				fmt.Fprintf(os.Stderr, "Enter pressed: focusedIndex=%d, buttons=%d\n", d.focusedIndex, len(d.buttons))
+				fmt.Fprintf(os.Stderr, "[HandleEvent] KeyEnter: focusedIndex=%d, totalElements=%d, buttons=%d\n",
+					d.focusedIndex, totalElements, len(d.buttons))
 			}
 			elem, elemType := d.getElementByIndex(d.focusedIndex)
+			if os.Getenv("TUI_DEBUG_UI") == "true" {
+				fmt.Fprintf(os.Stderr, "[HandleEvent] getElementByIndex(%d) -> elemType=%d\n", d.focusedIndex, elemType)
+			}
 			if elemType == 1 { // Input
 				input := elem.(*InputVNode)
 				if input.IsFocused() {
@@ -1544,8 +1567,28 @@ func (d *declarativeRoot) HandleEvent(ev frameworkevent.Event) bool {
 				}
 			} else if elemType == 0 { // Button
 				btn := elem.(*ButtonVNode)
+				if os.Getenv("TUI_DEBUG_UI") == "true" {
+					fmt.Fprintf(os.Stderr, "[HandleEvent] Triggering button: label=%s, hasOnClick=%v\n",
+						btn.Label(), btn.OnClick() != nil)
+				}
 				if onClick := btn.OnClick(); onClick != nil {
-					onClick()
+					if os.Getenv("TUI_DEBUG_UI") == "true" {
+						fmt.Fprintf(os.Stderr, "[HandleEvent] About to call onClick, ptr=%p\n", onClick)
+					}
+					// Wrap in defer to catch any panics
+					func() {
+						defer func() {
+							if r := recover(); r != nil {
+								if os.Getenv("TUI_DEBUG_UI") == "true" {
+									fmt.Fprintf(os.Stderr, "[HandleEvent] PANIC in onClick: %v\n", r)
+								}
+							}
+						}()
+						onClick()
+					}()
+					if os.Getenv("TUI_DEBUG_UI") == "true" {
+						fmt.Fprintf(os.Stderr, "[HandleEvent] Returned from onClick\n")
+					}
 				}
 				return true
 			} else if elemType == 3 { // Checkbox

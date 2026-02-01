@@ -444,22 +444,37 @@ func (a *App) Run() error {
 	eventChan := a.pump.Events()
 	renderStartTime := time.Now()
 
-	for a.state == StateRunning {
-		// 先检查是否需要渲染（确保首次渲染立即执行）
-		needsRender := a.dirty && a.throttler.ShouldRender()
-		if needsRender {
-			renderStartTime = time.Now()
-			a.render()
-			a.throttler.RecordFrameTime(time.Since(renderStartTime))
-		}
+	// DEBUG 主循环状态
+	if os.Getenv("TUI_DEBUG_UI") == "true" {
+		fmt.Fprintf(os.Stderr, "[APP] Starting main loop, state=%d, pump running=%v\n",
+			a.state, a.pump != nil && a.pump.IsRunning())
+		fmt.Fprintf(os.Stderr, "[APP] eventChan=%p, pump.Events()=%p\n",
+			eventChan, a.pump.Events())
+	}
 
-		// 等待事件或定时器
+	for a.state == StateRunning {
+		// 等待事件或定时器（优先处理事件）
 		select {
 		case ev := <-eventChan:
+			if ev == nil {
+				// 通道关闭，退出
+				break
+			}
+			if os.Getenv("TUI_DEBUG_UI") == "true" {
+				fmt.Fprintf(os.Stderr, "[APP] Event from channel: Type=%v\n", ev.Type())
+			}
 			a.handleEvent(ev)
 
 		case <-ticker.C:
 			a.handleTick()
+
+			// 处理完 tick 后，如果需要渲染则渲染
+			needsRender := a.dirty && a.throttler.ShouldRender()
+			if needsRender {
+				renderStartTime = time.Now()
+				a.render()
+				a.throttler.RecordFrameTime(time.Since(renderStartTime))
+			}
 
 		case <-a.quit:
 			a.state = StateStopping
@@ -492,7 +507,9 @@ func (a *App) handleEvent(ev frameworkevent.Event) {
 	}
 
 	// 路由事件
-	a.router.Route(ev)
+	if a.router != nil {
+		a.router.Route(ev)
+	}
 
 	// 窗口大小调整事件处理
 	if ev.Type() == frameworkevent.EventResize {
@@ -504,6 +521,11 @@ func (a *App) handleEvent(ev frameworkevent.Event) {
 
 	// 键盘事件处理
 	if ev.Type() == frameworkevent.EventKeyPress {
+		// DEBUG: 调试键盘事件
+		if os.Getenv("TUI_DEBUG_UI") == "true" {
+			fmt.Fprintf(os.Stderr, "[APP] KeyPress event received\n")
+		}
+
 		// 首先检查快捷键映射
 		if keyEv, ok := ev.(*frameworkevent.KeyEvent); ok {
 			if handler, found := a.keyMap.Lookup(keyEv); found {
@@ -516,11 +538,21 @@ func (a *App) handleEvent(ev frameworkevent.Event) {
 
 		// 然后发送到根组件
 		if a.root != nil {
+			if os.Getenv("TUI_DEBUG_UI") == "true" {
+				fmt.Fprintf(os.Stderr, "[APP] Sending event to root, type=%T\n", a.root)
+			}
 			// 使用 event.Component 接口检查，而不是匿名接口
 			// 这样可以避免类型别名导致的类型断言失败
 			if handler, ok := a.root.(frameworkevent.Component); ok {
+				if os.Getenv("TUI_DEBUG_UI") == "true" {
+					fmt.Fprintf(os.Stderr, "[APP] root implements Component, calling HandleEvent\n")
+				}
 				if handler.HandleEvent(ev) {
 					a.dirty = true
+				}
+			} else {
+				if os.Getenv("TUI_DEBUG_UI") == "true" {
+					fmt.Fprintf(os.Stderr, "[APP] root does NOT implement Component\n")
 				}
 			}
 		}
@@ -904,4 +936,34 @@ func (a *App) ForceFullRender() {
 // MarkDirty 标记需要重新渲染
 func (a *App) MarkDirty() {
 	a.dirty = true
+}
+
+// ForceRenderNow 强制立即渲染一次（用于测试）
+// 注意：此方法仅用于测试
+func (a *App) ForceRenderNow() {
+	a.render()
+	a.dirty = false
+}
+
+// ============================================================================
+// 测试支持 - 事件注入接口
+// ============================================================================
+
+// InjectEvent 用于测试时注入事件
+// 注意：此方法仅用于测试，不应用于生产代码
+func (a *App) InjectEvent(raw platform.RawInput) error {
+	if a.pump == nil {
+		return errors.New("event pump not initialized")
+	}
+	if !a.pump.IsRunning() {
+		return errors.New("event pump not running")
+	}
+	a.pump.Inject(raw)
+	return nil
+}
+
+// GetPump 获取事件泵（用于高级测试场景）
+// 注意：此方法仅用于测试
+func (a *App) GetPump() *frameworkevent.Pump {
+	return a.pump
 }

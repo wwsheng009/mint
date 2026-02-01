@@ -9,18 +9,44 @@ import (
 	"github.com/wwsheng009/mint/runtime/platform"
 )
 
-// Pump reads raw input from the platform and converts to events.
+// EventSource 事件源接口
+// Pump 从 EventSource 读取原始输入，转换为框架事件
+//
+// 实现者：
+//   - PlatformEventSource: 包装 platform.InputReader (真实终端)
+//   - SandboxEventSource: 包装 sandbox.MockSandbox (测试环境)
+//   - ChannelEventSource: 直接从通道读取 (最简单)
+type EventSource interface {
+	// Start 启动事件源，返回事件通道
+	Start() (<-chan platform.RawInput, error)
+
+	// Stop 停止事件源
+	Stop() error
+}
+
+// Pump reads raw input from an EventSource and converts to events.
 type Pump struct {
-	input  platform.InputReader
+	source EventSource
 	events chan Event
 	quit   chan struct{}
 	running bool
 }
 
-// NewPump creates a new event pump.
+// NewPump creates a new event pump with a platform input reader.
 func NewPump(reader platform.InputReader) *Pump {
 	return &Pump{
-		input:  reader,
+		source: &PlatformEventSource{reader: reader},
+		events: make(chan Event, 100),
+		quit:   make(chan struct{}),
+		running: false,
+	}
+}
+
+// NewPumpWithSource creates a new event pump with a custom EventSource.
+// This allows using MockSandbox or other test event sources.
+func NewPumpWithSource(source EventSource) *Pump {
+	return &Pump{
+		source: source,
 		events: make(chan Event, 100),
 		quit:   make(chan struct{}),
 		running: false,
@@ -33,11 +59,9 @@ func (p *Pump) Start() error {
 		return nil
 	}
 
-	// Create raw input channel
-	rawInputs := make(chan platform.RawInput, 50)
-
-	// Start platform input reader
-	if err := p.input.Start(rawInputs); err != nil {
+	// Start event source and get input channel
+	rawInputs, err := p.source.Start()
+	if err != nil {
 		return err
 	}
 
@@ -177,9 +201,9 @@ func (p *Pump) Stop() {
 	// Send quit signal
 	close(p.quit)
 
-	// Stop input reader
-	if p.input != nil {
-		p.input.Stop()
+	// Stop event source
+	if p.source != nil {
+		p.source.Stop()
 	}
 
 	// Close events channel
@@ -203,5 +227,76 @@ func (p *Pump) PumpWithTimeout(timeout time.Duration) (Event, bool) {
 		return ev, true
 	case <-time.After(timeout):
 		return nil, false
+	}
+}
+
+// ============================================================================
+// EventSource 实现
+// ============================================================================
+
+// PlatformEventSource 包装 platform.InputReader 为 EventSource
+type PlatformEventSource struct {
+	reader     platform.InputReader
+	rawInputs  chan platform.RawInput
+}
+
+// Start 启动平台输入源
+func (s *PlatformEventSource) Start() (<-chan platform.RawInput, error) {
+	s.rawInputs = make(chan platform.RawInput, 50)
+	if err := s.reader.Start(s.rawInputs); err != nil {
+		return nil, err
+	}
+	return s.rawInputs, nil
+}
+
+// Stop 停止平台输入源
+func (s *PlatformEventSource) Stop() error {
+	if s.reader != nil {
+		return s.reader.Stop()
+	}
+	return nil
+}
+
+// ChannelEventSource 直接从通道读取事件 (最简单的 EventSource)
+type ChannelEventSource struct {
+	ch chan platform.RawInput
+}
+
+// NewChannelEventSource 创建通道事件源
+func NewChannelEventSource(ch chan platform.RawInput) *ChannelEventSource {
+	return &ChannelEventSource{ch: ch}
+}
+
+// Start 返回事件通道
+func (s *ChannelEventSource) Start() (<-chan platform.RawInput, error) {
+	return s.ch, nil
+}
+
+// Stop 停止 (无操作)
+func (s *ChannelEventSource) Stop() error {
+	return nil
+}
+
+// Inject 用于测试时直接注入事件到 Pump
+// 注意：此方法仅用于测试，不应用于生产代码
+func (p *Pump) Inject(raw platform.RawInput) {
+	if !p.running {
+		if os.Getenv("TUI_DEBUG_UI") == "true" {
+			fmt.Fprintf(os.Stderr, "[PUMP] Inject: pump not running!\n")
+		}
+		return
+	}
+	ev := p.convertToEvent(raw)
+	if ev != nil {
+		if os.Getenv("TUI_DEBUG_UI") == "true" {
+			fmt.Fprintf(os.Stderr, "[PUMP] Injecting event: Type=%v\n", ev.Type())
+		}
+		select {
+		case p.events <- ev:
+			if os.Getenv("TUI_DEBUG_UI") == "true" {
+				fmt.Fprintf(os.Stderr, "[PUMP] Event sent to channel\n")
+			}
+		case <-p.quit:
+		}
 	}
 }
