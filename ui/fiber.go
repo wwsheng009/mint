@@ -341,6 +341,11 @@ func (f *Fiber) EnqueueUpdate(update *Update) {
 
 // mergeLanes combines two lane values
 func mergeLanes(a, b Lane) Lane {
+	return MergeLanes(a, b)
+}
+
+// MergeLanes combines two lane values (exported for Fiber)
+func MergeLanes(a, b Lane) Lane {
 	return a | b
 }
 

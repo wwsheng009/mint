@@ -81,11 +81,21 @@ func setCurrentContext(ctx *ComponentContext) {
 	currentContext = ctx
 }
 
+// SetCurrentContext sets the current rendering context (exported for Fiber)
+func SetCurrentContext(ctx *ComponentContext) {
+	setCurrentContext(ctx)
+}
+
 // getCurrentContext returns the current rendering context
 func getCurrentContext() *ComponentContext {
 	currentContextMu.RLock()
 	defer currentContextMu.RUnlock()
 	return currentContext
+}
+
+// GetCurrentContext returns the current rendering context (exported for Fiber)
+func GetCurrentContext() *ComponentContext {
+	return getCurrentContext()
 }
 
 // useState creates a state hook
@@ -226,15 +236,30 @@ func newComponentContext(name string) *ComponentContext {
 	}
 }
 
+// NewComponentContextForRoot creates a new component context for the root (exported for Fiber)
+func NewComponentContextForRoot() *ComponentContext {
+	return newComponentContext("App")
+}
+
 // resetContext resets the hook index for re-rendering
 func (ctx *ComponentContext) resetContext() {
 	ctx.HookIndex = 0
 	ctx.RenderCount++
 }
 
+// ResetContext resets the hook index for re-rendering (exported for Fiber)
+func (ctx *ComponentContext) ResetContext() {
+	ctx.resetContext()
+}
+
 // finishRender finishes the render and validates hooks
 func (ctx *ComponentContext) finishRender() error {
 	return ctx.Validator.FinishRender()
+}
+
+// FinishRender finishes the render and validates hooks (exported for Fiber)
+func (ctx *ComponentContext) FinishRender() error {
+	return ctx.finishRender()
 }
 
 // =============================================================================
@@ -316,6 +341,12 @@ func UseEffect(callback EffectCallback, deps []interface{}) {
 // runEffects executes all pending effects after render
 // This should be called by the reconciler after committing changes
 func (ctx *ComponentContext) runEffects() {
+	ctx.RunEffects()
+}
+
+// RunEffects executes all pending effects after render (exported for Fiber)
+// This should be called by the reconciler after committing changes
+func (ctx *ComponentContext) RunEffects() {
 	for i := range ctx.Hooks {
 		hook := &ctx.Hooks[i]
 		if hook.Type == HookEffect && hook.Value != nil {
@@ -467,4 +498,58 @@ func UseCallback(callback func(), deps []interface{}) func() {
 	return UseMemo(func() interface{} {
 		return callback
 	}, deps).(func())
+}
+
+// =============================================================================
+// useHoverState Hook
+// =============================================================================
+
+// HoverStateChange is called when hover state changes
+type HoverStateChange func(bool)
+
+// useHoverState creates a hover state hook that persists across renders
+// It uses a ref internally to maintain state without triggering re-renders
+//
+// This is useful for interactive elements that need to track hover state
+// without causing full re-renders on every mouse move.
+//
+// Example:
+//
+//	isHovered, setHovered := UseHoverState()
+//	isHovered()  // Returns current hover state
+//	setHovered(true)  // Sets hover state
+func useHoverState() (func() bool, func(bool)) {
+	ctx := getCurrentContext()
+	if ctx == nil {
+		panic("useHoverState must be called within a component")
+	}
+
+	// Use ref to persist state across renders
+	ref := UseRef(false)
+
+	// Getter returns current hover state
+	getter := func() bool {
+		if ref.Value == nil {
+			return false
+		}
+		return ref.Value.(bool)
+	}
+
+	// Setter updates hover state without triggering re-render
+	// The actual visual update will happen during next paint cycle
+	setter := func(hovered bool) {
+		ref.Value = hovered
+		// We don't trigger a full re-render for hover changes
+		// Instead, the component will check hover state during paint
+	}
+
+	return getter, setter
+}
+
+// UseHoverState is the public API for useHoverState
+// Returns:
+//   - getter: func() bool - returns current hover state
+//   - setter: func(bool) - sets hover state
+func UseHoverState() (func() bool, func(bool)) {
+	return useHoverState()
 }

@@ -94,6 +94,16 @@ func (c *ComponentVNode) Render() VNode {
 	return nil
 }
 
+// Fn returns the component function (exported for Fiber)
+func (c *ComponentVNode) Fn() ComponentFunc {
+	return c.fn
+}
+
+// FnWithProps returns the component function with props (exported for Fiber)
+func (c *ComponentVNode) FnWithProps() ComponentFuncWithProps {
+	return c.fnWithProps
+}
+
 // Component creates a new component builder
 func Component(name string, fn ComponentFunc) *ComponentBuilder {
 	return &ComponentBuilder{
