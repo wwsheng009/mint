@@ -17,6 +17,13 @@ func SelectDemo() ui.VNode {
 		"dracula": "Dracula Theme",
 		"nord":    "Nord Theme",
 	}
+	// Map values to indices
+	themeToIndex := map[string]int{
+		"dark":    0,
+		"light":   1,
+		"dracula": 2,
+		"nord":    3,
+	}
 
 	return ui.VStack(
 		ui.NewTextBuilder("Settings Demo").
@@ -37,7 +44,7 @@ func SelectDemo() ui.VNode {
 			AddOption("light", "Light Theme").
 			AddOption("dracula", "Dracula Theme").
 			AddOption("nord", "Nord Theme").
-			Selected(0).
+			Selected(themeToIndex[selectedTheme]).
 			OnChange(setSelectedTheme).
 			Build(),
 		ui.Text(""),
