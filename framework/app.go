@@ -475,6 +475,11 @@ func (a *App) Run() error {
 
 // handleEvent 处理事件
 func (a *App) handleEvent(ev frameworkevent.Event) {
+	// 调试模式：记录所有事件类型
+	if a.debugMode {
+		fmt.Fprintf(os.Stderr, "[EVENT] Type: %d (%s), IsMouse: %v\n",
+			ev.Type(), ev.Type(), ev.Type().IsMouse())
+	}
 	// 调试模式：记录事件
 	if a.debugMode && a.debugRecorder != nil {
 		a.debugRecorder.RecordEvent(ev)
@@ -513,6 +518,24 @@ func (a *App) handleEvent(ev frameworkevent.Event) {
 		if a.root != nil {
 			// 使用 event.Component 接口检查，而不是匿名接口
 			// 这样可以避免类型别名导致的类型断言失败
+			if handler, ok := a.root.(frameworkevent.Component); ok {
+				if handler.HandleEvent(ev) {
+					a.dirty = true
+				}
+			}
+		}
+		return
+	}
+
+	// 鼠标事件处理 - 发送到根组件
+	// 支持的鼠标事件类型: EventMousePress, EventMouseRelease, EventMouseMove,
+	// EventMouseWheel, EventMouseEnter, EventMouseLeave, EventClick
+	if ev.Type().IsMouse() || ev.Type() == frameworkevent.EventClick {
+		// DEBUG: 打印鼠标事件
+		if a.debugMode {
+			fmt.Fprintf(os.Stderr, "[MOUSE] Event type: %d, Target: %v\n", ev.Type(), ev.Target())
+		}
+		if a.root != nil {
 			if handler, ok := a.root.(frameworkevent.Component); ok {
 				if handler.HandleEvent(ev) {
 					a.dirty = true
