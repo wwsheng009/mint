@@ -2,7 +2,7 @@
 
 > Mint TUI 应用 Sandbox 集成快速指南
 >
-> 版本: 1.1 - 支持 SandboxEventSource 集成
+> 版本: 1.2 - 支持 SandboxEventSource 集成，新增测试退出机制说明
 
 ## 概述
 
@@ -181,6 +181,55 @@ testApp.InjectString("hello world")
 
 // 鼠标事件
 testApp.InjectMouse(10, 5, platform.MouseLeft, platform.MousePress)
+```
+
+### 测试退出机制
+
+**重要：测试中无需显式发送退出消息**
+
+```go
+func TestMyApp(t *testing.T) {
+    testApp, err := ui.RunTest(MyApp)
+    if err != nil {
+        t.Fatal(err)
+    }
+    defer testApp.Close()  // ← 自动清理，无需显式退出
+
+    // 测试逻辑...
+    // 无需调用 Quit() 或发送 'q' 键
+}
+```
+
+**退出机制说明：**
+
+| 特性 | 说明 |
+|------|------|
+| 自动清理 | `defer testApp.Close()` 自动处理所有清理工作 |
+| 无需退出键 | 不需要发送 'q' 或 Ctrl+C |
+| 主循环退出 | Close() 改变应用状态，后台 goroutine 自动退出 |
+| 通道关闭 | Pump.Stop() 关闭事件通道，主循环自然退出 |
+
+**何时需要显式退出：**
+
+只有测试"退出功能本身"时才需要：
+
+```go
+// 测试退出键功能
+func TestQuitKey(t *testing.T) {
+    testApp, _ := ui.RunTest(MyApp)
+    defer testApp.Close()
+
+    fwApp := testApp.GetFrameworkApp()
+
+    // 模拟 Ctrl+C 退出
+    testApp.InjectKeyWithMod('c', platform.KeyModCtrl)
+    time.Sleep(100 * time.Millisecond)
+
+    // 验证应用已停止
+    if fwApp.GetState() == framework.StateRunning {
+        t.Error("App should have stopped")
+    }
+}
 ```
 
 ---
