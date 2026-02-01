@@ -3,21 +3,18 @@ package main
 
 import (
 	"fmt"
-	"os"
-	"strings"
 	"testing"
 
-	"github.com/wwsheng009/mint/runtime/platform"
-	"github.com/wwsheng009/mint/sandbox"
 	"github.com/wwsheng009/mint/ui"
 )
 
-// TestContextRecreation 测试 Context 是否被重新创建
-func TestContextRecreation(t *testing.T) {
+// TestSimpleContextRecreation 简单测试 Context 是否被重新创建
+// 与 debug_test.go 中的测试不同，这里使用 TestApp.GetContext()
+func TestSimpleContextRecreation(t *testing.T) {
 	t.Setenv("MINT_USE_FIBER", "true")
 	t.Setenv("TUI_DEBUG_UI", "true")
 
-	t.Log("=== 测试 Context 重新创建问题 ===")
+	t.Log("=== 测试 Context 重新创建问题 (使用 TestApp.GetContext) ===")
 
 	contextPointers := make(map[string]int)
 
@@ -27,8 +24,8 @@ func TestContextRecreation(t *testing.T) {
 			t.Fatalf("TestRun failed: %v", err)
 		}
 
-		// 获取当前 Context
-		ctx := ui.GetCurrentContext()
+		// 使用 TestApp.GetContext() 获取 Context
+		ctx := testApp.GetContext()
 		if ctx != nil {
 			ptr := fmt.Sprintf("%p", ctx)
 			contextPointers[ptr]++
@@ -47,46 +44,52 @@ func TestContextRecreation(t *testing.T) {
 	t.Logf("\n总结:")
 	if len(contextPointers) == 1 {
 		for ptr, count := range contextPointers {
-			t.Logf("使用同一个 Context (指针: %s, 使用次数: %d)", ptr, count)
+			t.Logf("❌ 使用同一个 Context (指针: %s, 使用次数: %d)", ptr, count)
+			t.Log("   这是问题！每次 TestRun 应该创建新的 Context")
 		}
 	} else {
-		t.Logf("使用 %d 个不同的 Context - Context 在每次渲染时被重新创建!", len(contextPointers))
+		t.Logf("✅ 使用 %d 个不同的 Context - 每次测试创建独立 Context", len(contextPointers))
 		for ptr, count := range contextPointers {
 			t.Logf("  Context 指针 %s: 使用 %d 次", ptr, count)
 		}
 	}
 }
 
-// TestHookValueTracking 测试 Hook 值的变化
-func TestHookValueTracking(t *testing.T) {
+// TestHookValueInSameApp 测试同一 TestApp 中多次渲染的 Hook 值变化
+func TestHookValueInSameApp(t *testing.T) {
 	t.Setenv("MINT_USE_FIBER", "true")
 	t.Setenv("TUI_DEBUG_UI", "true")
 
-	t.Log("=== 测试 Hook 值追踪 ===")
+	t.Log("=== 测试同一 TestApp 中多次渲染的 Hook 值 ===")
+
+	testApp, err := ui.TestRun(DebugCounter, ui.TestWithSize(40, 12))
+	if err != nil {
+		t.Fatalf("TestRun failed: %v", err)
+	}
+	defer testApp.Close()
 
 	var hookValues []interface{}
-	var contextPointers []string
+	contextPtr := ""
 
+	// 多次渲染同一个 TestApp
 	for i := 0; i < 3; i++ {
-		testApp, err := ui.TestRun(DebugCounter, ui.TestWithSize(40, 12))
-		if err != nil {
-			t.Fatalf("TestRun failed: %v", err)
+		testApp.Render()
+
+		ctx := testApp.GetContext()
+		if ctx != nil {
+			if contextPtr == "" {
+				contextPtr = fmt.Sprintf("%p", ctx)
+			}
+			if len(ctx.Hooks) > 0 {
+				hookValues = append(hookValues, ctx.Hooks[0].Value)
+				t.Logf("渲染 %d: Hook[0].Value = %v, Context=%s",
+					i+1, ctx.Hooks[0].Value, fmt.Sprintf("%p", ctx))
+			}
 		}
-
-		ctx := ui.GetCurrentContext()
-		if ctx != nil && len(ctx.Hooks) > 0 {
-			hookValues = append(hookValues, ctx.Hooks[0].Value)
-			contextPointers = append(contextPointers, fmt.Sprintf("%p", ctx))
-
-			val := ctx.Hooks[0].Value
-			t.Logf("渲染 %d: Hook[0].Value = %v, Hook 指针 = %p",
-				i+1, val, &ctx.Hooks[0])
-		}
-
-		testApp.Close()
 	}
 
 	t.Logf("\nHook 值序列: %v", hookValues)
+	t.Logf("Context 指针: %s", contextPtr)
 
 	// 检查是否有变化
 	hasChange := false
@@ -100,93 +103,6 @@ func TestHookValueTracking(t *testing.T) {
 		t.Log("✅ Hook 值有变化")
 	} else {
 		t.Log("❌ Hook 值始终为 0 - setState 未生效")
-	}
-
-	// 检查 Context
-	if len(contextPointers) == 1 {
-		t.Log("✅ 使用同一个 Context")
-	} else {
-		t.Logf("❌ 使用 %d 个不同 Context", len(contextPointers))
-	}
-}
-
-// TestEventClickInjection 测试点击事件是否触发
-func TestEventClickInjection(t *testing.T) {
-	t.Setenv("MINT_USE_FIBER", "true")
-	t.Setenv("TUI_DEBUG_UI", "true")
-
-	t.Log("=== 测试点击事件注入 ===")
-
-	testApp, err := ui.TestRun(DebugCounter, ui.TestWithSize(40, 12))
-	if err != nil {
-		t.Fatalf("TestRun failed: %v", err)
-	}
-	defer testApp.Close()
-
-	sb := testApp.Sandbox()
-
-	// 设置调试日志
-	logMessages := []string{}
-	ui.SetDebugLogger(func(msg string) {
-		logMessages = append(logMessages, msg)
-	})
-
-	// 获取初始渲染
-	initialRender := sb.RenderString()
-	t.Logf("初始渲染:\n%s", initialRender)
-
-	// 清空日志（清除初始渲染的日志）
-	logMessages = nil
-
-	// 模拟点击 + 按钮
-	t.Log("模拟点击 + 按钮...")
-	sb.Helper().Tab().Tab().Press(platform.KeyEnter).Process()
-
-	afterRender := sb.RenderString()
-	t.Logf("点击后渲染:\n%s", afterRender)
-
-	// 分析日志
-	t.Logf("\n调试日志 (%d 条):", len(logMessages))
-	onClickFound := false
-	setStateFound := false
-	useStateFound := false
-
-	for _, msg := range logMessages {
-		if strings.Contains(msg, "onClick") {
-			onClickFound = true
-			t.Logf("  [FOUND] %s", msg)
-		}
-		if strings.Contains(msg, "setState") {
-			setStateFound = true
-			t.Logf("  [FOUND] %s", msg)
-		}
-		if strings.Contains(msg, "UseStateInt") || strings.Contains(msg, "useState") {
-			useStateFound = true
-		}
-	}
-
-	t.Logf("\n结果:")
-	if onClickFound {
-		t.Log("✅ onClick 被调用")
-	} else {
-		t.Log("❌ onClick 未被调用 - 事件路由问题")
-	}
-
-	if setStateFound {
-		t.Log("✅ setState 被调用")
-	} else {
-		t.Log("❌ setState 未被调用")
-	}
-
-	if useStateFound {
-		t.Log("✅ useState 被调用")
-	}
-
-	// 检查最终状态
-	if strings.Contains(afterRender, "Count: 1") {
-		t.Log("✅ 渲染显示 Count: 1")
-	} else if strings.Contains(afterRender, "Count: 0") {
-		t.Log("❌ 渲染仍显示 Count: 0")
 	}
 }
 
@@ -204,7 +120,7 @@ func TestDirectContextMutation(t *testing.T) {
 	defer testApp.Close()
 
 	// 获取 Context
-	ctx := ui.GetCurrentContext()
+	ctx := testApp.GetContext()
 	if ctx == nil {
 		t.Fatal("无法获取 Context")
 	}
@@ -222,42 +138,38 @@ func TestDirectContextMutation(t *testing.T) {
 		t.Logf("直接修改: Hooks[0].Value: %v -> 999", oldVal)
 	}
 
-	// 重新渲染（触发 VNode 重建）
-	sb := testApp.Sandbox()
-	rendered := sb.RenderString()
+	// 重新渲染
+	testApp.Render()
 
-	t.Logf("\n修改后渲染:\n%s", rendered)
+	// 检查修改后的值
+	ctx = testApp.GetContext()
+	if ctx != nil && len(ctx.Hooks) > 0 {
+		newVal := ctx.Hooks[0].Value
+		t.Logf("重新渲染后: Hooks[0].Value = %v", newVal)
 
-	if strings.Contains(rendered, "999") {
-		t.Log("✅ 直接修改 Hook 后渲染显示新值 - useState 会读取新值")
-	} else {
-		t.Log("❌ 直接修改 Hook 后仍显示旧值 - useState 使用缓存或未读取 Hook")
+		if newVal == 999 {
+			t.Log("❌ 直接修改后值仍是 999 - useState 重新初始化了 Hook")
+		} else if newVal == 0 {
+			t.Log("✅ useState 重新初始化为 0 - 预期行为")
+		}
 	}
 }
 
-// TestComprehensive 综合调试测试
-func TestComprehensive(t *testing.T) {
+// TestComprehensiveSimple 综合调试测试（简化版）
+func TestComprehensiveSimple(t *testing.T) {
 	t.Setenv("MINT_USE_FIBER", "true")
 	t.Setenv("TUI_DEBUG_UI", "true")
 
 	t.Log("\n╔══════════════════════════════════════════════════╗")
-	t.Log("║            Fiber 问题根因分析测试                      ║")
+	t.Log("║         Fiber 问题根因分析测试（简化版）              ║")
 	t.Log("╚══════════════════════════════════════════════════╝")
 
-	// 启用详细日志
-	ui.SetDebugLogger(func(msg string) {
-		t.Logf("[DBG] %s", msg)
-	})
-
 	// 1. 测试 Context 复用
-	t.Run("Context复用", TestContextRecreation)
+	t.Run("Context复用", TestSimpleContextRecreation)
 
 	// 2. 测试 Hook 值追踪
-	t.Run("Hook值追踪", TestHookValueTracking)
+	t.Run("Hook值追踪", TestHookValueInSameApp)
 
-	// 3. 测试点击事件
-	t.Run("点击事件", TestEventClickInjection)
-
-	// 4. 测试直接修改
+	// 3. 测试直接修改
 	t.Run("直接修改Context", TestDirectContextMutation)
 }

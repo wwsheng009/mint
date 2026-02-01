@@ -89,7 +89,7 @@ func TestHooksPointerStability(t *testing.T) {
 	if len(uniqueContexts) == 1 {
 		t.Log("✅ Context 被复用 - 所有渲染使用同一个 Context")
 	} else {
-		t.Logf("❌ Context 未复用 - 有 %%d 个不同的 Context 实例", len(uniqueContexts))
+		t.Logf("❌ Context 未复用 - 有 %d 个不同的 Context 实例", len(uniqueContexts))
 		t.Log("   这可能是问题的根源！每次渲染创建新 Context 导致 Hooks 丢失")
 	}
 
@@ -437,11 +437,11 @@ func TestComprehensiveDebug(t *testing.T) {
 	// 2. 执行操作
 	t.Log("\n--- 阶段 2: 执行点击操作 ---")
 
-	t.Log("操作前: HookIndex=%d", ctxInfo["hookIndex"])
+	t.Logf("操作前: HookIndex=%d", ctxInfo["hookIndex"])
 	sb.Helper().Tab().Tab().Press(platform.KeyEnter).Process()
 
 	afterCtxInfo := ui.DebugContextInfo()
-	t.Log("操作后: HookIndex=%d", afterCtxInfo["hookIndex"])
+	t.Logf("操作后: HookIndex=%d", afterCtxInfo["hookIndex"])
 
 	// 3. 对比差异
 	t.Log("\n--- 阶段 3: 状态对比 ---")

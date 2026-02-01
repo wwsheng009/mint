@@ -12,15 +12,31 @@ import (
 func DebugCounter() ui.VNode {
 	count, setCount, _, hookIndex := ui.UseStateIntWithDebug(0)
 
+	// Debug: log what value we got
+	if os.Getenv("TUI_DEBUG_UI") == "true" {
+		fmt.Fprintf(os.Stderr, "[DebugCounter] Using count=%d, hookIndex=%d\n", count, hookIndex)
+	}
+
+	// Create the count text with logging
+	countTextStr := fmt.Sprintf("Count: %d (hookIndex=%d)", count, hookIndex)
+	if os.Getenv("TUI_DEBUG_UI") == "true" {
+		fmt.Fprintf(os.Stderr, "[DebugCounter] Creating TextVNode with content: %s\n", countTextStr)
+	}
+	countText := ui.NewTextBuilder(countTextStr).
+		FgColor("green").
+		Build()
+
+	if os.Getenv("TUI_DEBUG_UI") == "true" {
+		fmt.Fprintf(os.Stderr, "[DebugCounter] Created TextVNode ptr=%p, content=%s\n", countText, countText.(*ui.TextVNode).Content())
+	}
+
 	return ui.VStack(
 		ui.NewTextBuilder("=== Fiber Counter (Debug Mode) ===").
 			FgColor("cyan").
 			Bold(true).
 			Build(),
 		ui.Text(""),
-		ui.NewTextBuilder(fmt.Sprintf("Count: %d (hookIndex=%d)", count, hookIndex)).
-			FgColor("green").
-			Build(),
+		countText,
 		ui.Text(""),
 		ui.HStack(
 			ui.ButtonBuilder("  -  ").
