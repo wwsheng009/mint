@@ -2,6 +2,9 @@
 package sandbox
 
 import (
+	"encoding/json"
+	"fmt"
+	"os"
 	"sync"
 
 	"github.com/wwsheng009/mint/runtime/platform"
@@ -153,4 +156,43 @@ func (r *EventRecorder) Len() int {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return len(r.events)
+}
+
+// SaveToFile 保存录制的事件到文件
+func (r *EventRecorder) SaveToFile(filename string) error {
+	r.mu.Lock()
+	events := make([]platform.RawInput, len(r.events))
+	copy(events, r.events)
+	r.mu.Unlock()
+
+	// 使用 JSON 格式保存
+	data, err := json.MarshalIndent(events, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal events: %w", err)
+	}
+
+	return os.WriteFile(filename, data, 0644)
+}
+
+// LoadFromFile 从文件加载录制的事件
+func (r *EventRecorder) LoadFromFile(filename string) error {
+	data, err := os.ReadFile(filename)
+	if err != nil {
+		return fmt.Errorf("read file: %w", err)
+	}
+
+	var events []platform.RawInput
+	if err := json.Unmarshal(data, &events); err != nil {
+		return fmt.Errorf("unmarshal events: %w", err)
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.events = events
+	if len(events) > r.maxLen {
+		r.events = r.events[len(events)-r.maxLen:]
+	}
+
+	return nil
 }

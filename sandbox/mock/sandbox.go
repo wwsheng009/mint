@@ -157,6 +157,11 @@ func (ms *MockSandbox) Inject(event platform.RawInput) error {
 	return ms.injector.Inject(event)
 }
 
+// InjectRaw 注入原始事件（Inject 的别名）
+func (ms *MockSandbox) InjectRaw(event platform.RawInput) error {
+	return ms.Inject(event)
+}
+
 // InjectKey 注入按键事件
 func (ms *MockSandbox) InjectKey(key rune) error {
 	event := adapter.BuildKeyEvent(key)
@@ -250,6 +255,40 @@ func (ms *MockSandbox) ListSnapshots() []*sandbox.SnapshotMetadata {
 	return ms.snapMgr.List()
 }
 
+// FindSnapshots 按标签查找快照
+func (ms *MockSandbox) FindSnapshots(tag string) []*sandbox.Snapshot {
+	metadataList := ms.snapMgr.List()
+	var result []*sandbox.Snapshot
+
+	for _, meta := range metadataList {
+		for _, t := range meta.Tags {
+			if t == tag {
+				// 从快照管理器获取完整快照
+				if snap, err := ms.snapMgr.Get(meta.ID); err == nil {
+					result = append(result, snap)
+				}
+				break
+			}
+		}
+	}
+
+	return result
+}
+
+// DeleteSnapshot 删除指定ID的快照
+func (ms *MockSandbox) DeleteSnapshot(snapshotID string) {
+	ms.snapMgr.Delete(snapshotID)
+}
+
+// ClearSnapshots 清空所有快照
+func (ms *MockSandbox) ClearSnapshots() {
+	ms.mu.Lock()
+	defer ms.mu.Unlock()
+	// 创建新的快照管理器替换旧的
+	maxCount := ms.snapMgr.MaxCount()
+	ms.snapMgr = sandbox.NewSnapshotManager(maxCount)
+}
+
 // ==============================================================================
 // TestSandbox Interface
 // ==============================================================================
@@ -322,4 +361,30 @@ func (ms *MockSandbox) Helper() *TestHelper {
 // QueueStats 返回队列统计
 func (ms *MockSandbox) QueueStats() QueueStats {
 	return ms.queue.Stats()
+}
+
+// ==============================================================================
+// Recorder Support
+// ==============================================================================
+
+// SetRecorder 设置事件录制器
+func (ms *MockSandbox) SetRecorder(recorder *sandbox.EventRecorder) {
+	ms.mu.Lock()
+	defer ms.mu.Unlock()
+	ms.recorder = recorder
+	ms.injector.SetRecorder(recorder)
+}
+
+// Recorder 获取当前事件录制器
+func (ms *MockSandbox) Recorder() *sandbox.EventRecorder {
+	ms.mu.RLock()
+	defer ms.mu.RUnlock()
+	return ms.recorder
+}
+
+// Injector 获取事件注入器（用于高级配置）
+func (ms *MockSandbox) Injector() *sandbox.EventInjector {
+	ms.mu.RLock()
+	defer ms.mu.RUnlock()
+	return ms.injector
 }

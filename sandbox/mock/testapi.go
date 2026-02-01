@@ -48,6 +48,14 @@ func (th *TestHelper) Type(text string) *TestHelper {
 	return th
 }
 
+// TypeFast 快速输入文本（无延迟）
+func (th *TestHelper) TypeFast(text string) *TestHelper {
+	if err := th.sandbox.InjectString(text); err != nil {
+		th.errors = append(th.errors, err)
+	}
+	return th
+}
+
 // Press 按下按键
 func (th *TestHelper) Press(key platform.SpecialKey) *TestHelper {
 	if err := th.sandbox.InjectSpecialKey(key); err != nil {

@@ -66,6 +66,13 @@ func (sm *SnapshotManager) SetStorage(storage SnapshotStorage) {
 	sm.storage = storage
 }
 
+// MaxCount 返回最大快照数量
+func (sm *SnapshotManager) MaxCount() int {
+	sm.mu.RLock()
+	defer sm.mu.RUnlock()
+	return sm.maxCount
+}
+
 // Create 创建快照
 func (sm *SnapshotManager) Create(level SnapshotLevel, buffer *paint.Buffer, events []platform.RawInput, state map[string]interface{}, tags ...string) (*Snapshot, error) {
 	sm.mu.Lock()
