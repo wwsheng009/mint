@@ -18,6 +18,7 @@ import (
 
 	"github.com/wwsheng009/mint/framework"
 	"github.com/wwsheng009/mint/framework/component"
+	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/ui"
 )
@@ -49,6 +50,11 @@ type Reconciler struct {
 	paintCtx       component.PaintContext
 	renderCallback RenderFunc // Callback for rendering VNodes
 
+	// === Layout Integration ===
+	vnodeConverter *VNodeConverter         // VNode → runtime.LayoutNode converter
+	layoutRoot     *runtime.LayoutNode    // Root of the layout tree
+	layoutBoxes    []runtime.LayoutBox     // Layout boxes for hit testing
+
 	// === Configuration ===
 	enableFiber bool // Use Fiber reconciliation (env controlled)
 }
@@ -76,6 +82,7 @@ func NewReconciler(app *framework.App, rootComponent ui.ComponentFunc, config Re
 		timeBudget:          timeBudget,
 		ctx:                 ui.NewComponentContextForRoot(),
 		enableFiber:         config.EnableFiber,
+		vnodeConverter:      NewVNodeConverter(),
 	}
 }
 
@@ -240,7 +247,20 @@ func (r *Reconciler) CommitRoot() {
 		return
 	}
 
-	// Render the Fiber tree to buffer
+	// Phase 1: Build layout tree from Fiber tree
+	// Convert VNode tree to runtime.LayoutNode tree
+	r.layoutRoot = r.buildLayoutTree(r.root)
+
+	// Phase 2: Calculate layout
+	// Use the runtime flex layout to calculate positions
+	r.calculateLayout(r.buffer.Width, r.buffer.Height)
+
+	// Phase 3: Generate LayoutBoxes for hit testing
+	if r.layoutRoot != nil {
+		r.layoutBoxes = r.vnodeConverter.GenerateLayoutBoxes(r.layoutRoot)
+	}
+
+	// Phase 4: Render the Fiber tree to buffer
 	// r.root now contains the updated tree from workInProgress (swapped in workLoopSync)
 	r.renderFiberToBuffer(r.root, 0, 0, r.buffer)
 
@@ -372,6 +392,144 @@ type RenderFunc func(vnode ui.VNode, x, y int, buffer *paint.Buffer)
 // SetRenderCallback sets the render callback
 func (r *Reconciler) SetRenderCallback(cb RenderFunc) {
 	r.renderCallback = cb
+}
+
+// =============================================================================
+// Layout Tree Integration
+// =============================================================================
+
+// buildLayoutTree builds a runtime.LayoutNode tree from a Fiber tree
+func (r *Reconciler) buildLayoutTree(fiber *Fiber) *runtime.LayoutNode {
+	if fiber == nil {
+		return nil
+	}
+
+	// Convert the root VNode to LayoutNode
+	// The VNodeConverter will recursively convert children
+	return r.vnodeConverter.Convert(fiber.VNode)
+}
+
+// calculateLayout calculates layout for the layout tree using runtime flex layout
+func (r *Reconciler) calculateLayout(width, height int) {
+	if r.layoutRoot == nil {
+		return
+	}
+
+	// Create constraints for the root node
+	constraints := runtime.BoxConstraints{
+		MinWidth:  0,
+		MaxWidth:  width,
+		MinHeight: 0,
+		MaxHeight: height,
+	}
+
+	// Measure and layout each node
+	r.measureAndLayoutNode(r.layoutRoot, constraints)
+}
+
+// measureAndLayoutNode measures and layouts a single node and its children
+func (r *Reconciler) measureAndLayoutNode(node *runtime.LayoutNode, constraints runtime.BoxConstraints) {
+	if node == nil {
+		return
+	}
+
+	// Measure this node's size
+	size := r.measureNode(node, constraints)
+	node.MeasuredWidth = size.Width
+	node.MeasuredHeight = size.Height
+
+	// Layout children based on direction
+	if len(node.Children) > 0 {
+		r.layoutChildren(node, constraints)
+	}
+}
+
+// measureNode measures a single node's size
+func (r *Reconciler) measureNode(node *runtime.LayoutNode, constraints runtime.BoxConstraints) runtime.Size {
+	// If node has a component, try to measure it
+	if node.Component != nil {
+		if componentSize := node.Component.Measure(constraints); componentSize.Width > 0 || componentSize.Height > 0 {
+			return componentSize
+		}
+	}
+
+	// Default measurement based on style
+	width := node.Style.Width
+	height := node.Style.Height
+
+	// Handle auto sizing (-1)
+	if width < 0 {
+		width = constraints.MinWidth
+		if width <= 0 {
+			width = 10 // Minimum default width
+		}
+	}
+	if height < 0 {
+		height = constraints.MinHeight
+		if height <= 0 {
+			height = 1 // Minimum default height
+		}
+	}
+
+	// Apply constraints
+	if width < constraints.MinWidth {
+		width = constraints.MinWidth
+	}
+	if width > constraints.MaxWidth && constraints.MaxWidth > 0 {
+		width = constraints.MaxWidth
+	}
+	if height < constraints.MinHeight {
+		height = constraints.MinHeight
+	}
+	if height > constraints.MaxHeight && constraints.MaxHeight > 0 {
+		height = constraints.MaxHeight
+	}
+
+	return runtime.Size{Width: width, Height: height}
+}
+
+// layoutChildren layouts children based on the node's direction
+func (r *Reconciler) layoutChildren(parent *runtime.LayoutNode, constraints runtime.BoxConstraints) {
+	if parent == nil || len(parent.Children) == 0 {
+		return
+	}
+
+	// Create child constraints
+	childConstraints := constraints
+	if parent.Style.Direction == runtime.DirectionRow {
+		// For row: split width among children
+		childConstraints.MaxWidth = constraints.MaxWidth
+		childConstraints.MaxHeight = parent.MeasuredHeight
+	} else {
+		// For column: split height among children
+		childConstraints.MaxWidth = parent.MeasuredWidth
+		childConstraints.MaxHeight = constraints.MaxHeight
+	}
+
+	// Calculate child positions
+	x := parent.Style.Padding.Left
+	y := parent.Style.Padding.Top
+
+	for _, child := range parent.Children {
+		// Measure child
+		r.measureAndLayoutNode(child, childConstraints)
+
+		// Set position
+		child.X = x
+		child.Y = y
+
+		// Move to next position
+		if parent.Style.Direction == runtime.DirectionRow {
+			x += child.MeasuredWidth + parent.Style.Gap
+		} else {
+			y += child.MeasuredHeight + parent.Style.Gap
+		}
+	}
+}
+
+// GetLayoutBoxes returns the calculated layout boxes for hit testing
+func (r *Reconciler) GetLayoutBoxes() []runtime.LayoutBox {
+	return r.layoutBoxes
 }
 
 // =============================================================================
