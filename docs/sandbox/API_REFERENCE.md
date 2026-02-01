@@ -2,7 +2,7 @@
 
 > Mint TUI 框架沙箱测试环境 API 完整参考
 >
-> 版本: 1.0
+> 版本: 1.1
 > 更新日期: 2026-02-01
 
 ---
@@ -2499,11 +2499,322 @@ func (ta *TestApp) Helper() *mock.TestHelper
 **返回：**
 - `*mock.TestHelper` - 测试辅助器
 
+**返回：**
+- `*mock.TestHelper` - 测试辅助器
+
 ---
 
-### TestOption
+### TestableApp (推荐 - 新版测试 API)
 
-测试选项类型。
+> 版本: 1.1
+>
+> 推荐：使用 `TestableApp` 获取完整的框架功能支持，包括 Fiber 模式、完整事件处理、渲染缓冲区等。
+
+测试应用包装器（使用完整的 framework.App）。
+
+```go
+type TestableApp struct {
+    fwApp   *framework.App
+    root    *declarativeRoot
+    opts    *Options
+    sandbox *mock.MockSandbox // 可选：使用 MockSandbox 作为事件源
+}
+```
+
+#### 构造函数
+
+##### RunTest
+
+运行可测试的应用（推荐方式）。
+
+```go
+func RunTest(app ComponentFunc, opts ...Option) (*TestableApp, error)
+```
+
+**参数：**
+- `app` - 组件函数
+- `opts` - 可选配置（WithWidth, WithHeight, WithTitle, WithFPS）
+
+**返回：**
+- `*TestableApp` - 可测试应用
+- `error` - 错误
+
+**示例：**
+```go
+testApp, err := ui.RunTest(MyComponent,
+    ui.WithWidth(40),
+    ui.WithHeight(12),
+)
+if err != nil {
+    t.Fatal(err)
+}
+defer testApp.Close()
+
+// 注入事件
+testApp.InjectSpecialKey(platform.KeyTab)
+testApp.InjectSpecialKey(platform.KeyEnter)
+
+// 获取渲染结果
+rendered := testApp.GetRenderString()
+```
+
+---
+
+##### RunTestWithSandbox
+
+使用 MockSandbox 作为事件源进行测试（高级功能）。
+
+```go
+func RunTestWithSandbox(app ComponentFunc, opts ...Option) (*TestableApp, error)
+```
+
+**参数：**
+- `app` - 组件函数
+- `opts` - 可选配置
+
+**返回：**
+- `*TestableApp` - 可测试应用（包含 MockSandbox）
+- `error` - 错误
+
+**特点：**
+- ✅ 支持事件录制/回放
+- ✅ 支持 MockSandbox 的所有高级功能
+- ✅ 可以通过 `GetSandbox()` 访问 MockSandbox
+
+**示例：**
+```go
+testApp, err := ui.RunTestWithSandbox(MyComponent,
+    ui.WithWidth(40),
+    ui.WithHeight(12),
+)
+if err != nil {
+    t.Fatal(err)
+}
+defer testApp.Close()
+
+// 通过 Sandbox 注入事件
+sb := testApp.GetSandbox()
+sb.InjectSpecialKey(platform.KeyTab)
+sb.InjectSpecialKey(platform.KeyEnter)
+
+// 直接注入也支持
+testApp.InjectKey('a')
+```
+
+---
+
+#### 方法
+
+##### Close
+
+关闭测试应用。
+
+```go
+func (ta *TestableApp) Close() error
+```
+
+**返回：**
+- `error` - 错误
+
+---
+
+##### GetSandbox
+
+获取 MockSandbox（仅在使用 RunTestWithSandbox 创建时可用）。
+
+```go
+func (ta *TestableApp) GetSandbox() *mock.MockSandbox
+```
+
+**返回：**
+- `*mock.MockSandbox` - Mock 沙箱（如果使用 RunTestWithSandbox 创建）
+- `nil` - 如果使用 RunTest 创建
+
+**用途：**
+- 事件录制/回放
+- 访问 MockSandbox 的高级功能
+- 获取队列统计信息
+
+---
+
+##### GetFrameworkApp
+
+获取 framework.App（用于高级测试场景）。
+
+```go
+func (ta *TestableApp) GetFrameworkApp() *framework.App
+```
+
+**返回：**
+- `*framework.App` - 框架应用
+
+---
+
+##### GetBuffer
+
+获取当前渲染缓冲区。
+
+```go
+func (ta *TestableApp) GetBuffer() *paint.Buffer
+```
+
+**返回：**
+- `*paint.Buffer` - 渲染缓冲区
+
+---
+
+##### GetRenderString
+
+获取渲染输出字符串。
+
+```go
+func (ta *TestableApp) GetRenderString() string
+```
+
+**返回：**
+- `string` - 渲染输出的字符串表示
+
+---
+
+##### AssertRender
+
+断言渲染输出包含指定文本。
+
+```go
+func (ta *TestableApp) AssertRender(text string) error
+```
+
+**参数：**
+- `text` - 期望的文本
+
+**返回：**
+- `error` - 如果不包含文本则返回错误
+
+---
+
+##### AssertNotRender
+
+断言渲染输出不包含指定文本。
+
+```go
+func (ta *TestableApp) AssertNotRender(text string) error
+```
+
+**参数：**
+- `text` - 不期望的文本
+
+**返回：**
+- `error` - 如果包含文本则返回错误
+
+---
+
+##### 事件注入方法
+
+###### InjectKey
+
+注入字符键。
+
+```go
+func (ta *TestableApp) InjectKey(key rune) error
+```
+
+---
+
+###### InjectSpecialKey
+
+注入特殊按键。
+
+```go
+func (ta *TestableApp) InjectSpecialKey(key platform.SpecialKey) error
+```
+
+---
+
+###### InjectKeyWithMod
+
+注入带修饰符的按键。
+
+```go
+func (ta *TestableApp) InjectKeyWithMod(key rune, mod platform.KeyModifier) error
+```
+
+---
+
+###### InjectMouse
+
+注入鼠标事件。
+
+```go
+func (ta *TestableApp) InjectMouse(x, y int, button platform.MouseButton, action platform.MouseAction) error
+```
+
+---
+
+###### InjectString
+
+注入字符串（逐字符注入）。
+
+```go
+func (ta *TestableApp) InjectString(text string) error
+```
+
+---
+
+### Option (新版测试选项)
+
+新版测试 API 的选项类型。
+
+```go
+type Option func(*Options)
+```
+
+#### 可用选项
+
+##### WithWidth
+
+设置窗口宽度。
+
+```go
+func WithWidth(w int) Option
+```
+
+---
+
+##### WithHeight
+
+设置窗口高度。
+
+```go
+func WithHeight(h int) Option
+```
+
+---
+
+##### WithTitle
+
+设置窗口标题。
+
+```go
+func WithTitle(title string) Option
+```
+
+---
+
+##### WithFPS
+
+设置帧率。
+
+```go
+func WithFPS(fps int) Option
+```
+
+---
+
+### TestOption (旧版测试选项)
+
+> Deprecated: 推荐使用新版 `Option`
+>
+> 旧版测试 API 的选项类型，仅用于简单组件测试
 
 ```go
 type TestOption func(*testConfig)

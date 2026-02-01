@@ -483,41 +483,117 @@ func (p *Pump) Inject(raw platform.RawInput) {
 | EventSource 接口 | ✅ 完成 | 支持可插拔事件源 |
 | PlatformEventSource | ✅ 完成 | 生产环境实现 |
 | ChannelEventSource | ✅ 完成 | 测试环境实现 |
-| SandboxEventSource | ⚠️ 未使用 | 已实现但未集成 |
-| Pump.Inject() | ✅ 完成 | 直接注入事件 |
+| SandboxEventSource | ✅ 完成 | 已集成，支持事件录制/回放 |
+| Pump.Inject() | ✅ 完成 | 直接注入事件，带并发安全保护 |
 | framework.App.InjectEvent() | ✅ 完成 | 应用层注入接口 |
-| ui.RunTest() | ✅ 完成 | 测试模式入口 |
-| TestableApp | ✅ 完成 | 测试应用封装 |
+| framework.NewAppWithSource() | ✅ 完成 | 支持自定义 EventSource |
+| ui.RunTest() | ✅ 完成 | 测试模式入口（直接注入） |
+| ui.RunTestWithSandbox() | ✅ 完成 | 测试模式入口（Sandbox 模式） |
+| TestableApp.GetSandbox() | ✅ 完成 | 获取 MockSandbox 实例 |
 | 集成测试 | ✅ 完成 | fiber_counter 测试通过 |
 | Fiber 集成 | ✅ 完成 | Fiber 模式事件处理正常 |
+| Pump 并发安全 | ✅ 完成 | 添加 RWMutex 保护 events 通道 |
 
----
+### 8.1 并发安全修复 (v1.1)
 
-## 9. 待改进项
+**问题**: Pump 关闭时，convertLoop 可能仍在尝试向 events 通道发送，导致 "send on closed channel" panic。
 
-### 9.1 SandboxEventSource 集成
-
-**当前状态**: 已实现但未使用
-
-**改进方向**: 可以将 `SandboxEventSource` 集成到 `RunTest` 中，提供更丰富的事件模拟功能：
+**解决方案**: 添加 `sync.RWMutex` 保护 events 通道的并发访问：
 
 ```go
-// 可能的改进
-func RunTestWithSandbox(app ComponentFunc, opts ...Option) (*TestableApp, error) {
-    // 创建 MockSandbox
-    sb := mock.New(width, height)
+// framework/event/pump.go
+type Pump struct {
+    source EventSource
+    events chan Event
+    quit   chan struct{}
+    running bool
+    mu     sync.RWMutex // 保护 events 通道
+}
 
-    // 创建 SandboxEventSource
-    source := NewSandboxEventSource(sb)
-
-    // 创建 Pump
-    pump := event.NewPumpWithSource(source)
-
+// convertLoop - 获取读锁后发送
+func (p *Pump) convertLoop(rawInputs <-chan platform.RawInput) {
     // ...
+    p.mu.RLock()
+    select {
+    case p.events <- ev:
+        p.mu.RUnlock()
+    case <-p.quit:
+        p.mu.RUnlock()
+        return
+    }
+}
+
+// Stop - 获取写锁后关闭
+func (p *Pump) Stop() {
+    // ...
+    p.mu.Lock()
+    close(p.events)
+    p.mu.Unlock()
+}
+
+// Inject - 获取读锁后发送
+func (p *Pump) Inject(raw platform.RawInput) {
+    // ...
+    p.mu.RLock()
+    select {
+    case p.events <- ev:
+        p.mu.RUnlock()
+    case <-p.quit:
+        p.mu.RUnlock()
+    }
 }
 ```
 
-### 9.2 事件录制与回放
+---
+
+## 9. SandboxEventSource 集成 (v1.1)
+
+**状态**: ✅ 完成
+
+`SandboxEventSource` 现已完全集成，支持通过 MockSandbox 进行事件注入。
+
+### 9.1 使用方式
+
+```go
+// 创建使用 Sandbox 事件源的测试应用
+testApp, err := ui.RunTestWithSandbox(MyComponent,
+    ui.WithWidth(80),
+    ui.WithHeight(24),
+)
+defer testApp.Close()
+
+// 获取 MockSandbox
+sb := testApp.GetSandbox()
+
+// 通过 Sandbox 注入事件（会转发到 Pump）
+sb.InjectSpecialKey(platform.KeyTab)
+sb.InjectSpecialKey(platform.KeyEnter)
+
+// 直接注入也支持
+testApp.InjectKey('a')
+```
+
+### 9.2 数据流
+
+```
+TestableApp.GetSandbox()
+    ↓
+mock.MockSandbox.InjectSpecialKey()
+    ↓
+MockSandbox.EventHandler 回调
+    ↓
+SandboxEventSource.rawInputs 通道
+    ↓
+Pump.convertLoop()
+    ↓
+Pump.events 通道
+    ↓
+framework.App 事件处理
+```
+
+---
+
+## 10. 待改进项
 
 ```go
 // 利用 MockSandbox 的录制功能
@@ -538,8 +614,9 @@ func TestRecordAndReplay(t *testing.T) {
 
 ---
 
-## 10. 参考资料
+## 11. 参考资料
 
 - [Fiber 集成修复报告](./FIBER_INTEGRATION_FIX_REPORT.md)
 - [Sandbox 调试技巧指南](./SANDBOX_DEBUG_GUIDE.md)
 - [Sandbox 设计文档](./SANDBOX_DESIGN_V3.md)
+- [SandboxEventSource 集成指南](./SANDBOX_EVENT_SOURCE_INTEGRATION.md)

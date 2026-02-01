@@ -1,8 +1,12 @@
 # SandboxEventSource 集成指南
 
+> 版本: 1.1 - 已完成集成
+>
+> `SandboxEventSource` 现已完全集成到测试框架中
+
 ## 1. 当前状态
 
-`SandboxEventSource` 已实现但未使用。它作为适配器连接：
+`SandboxEventSource` 已实现并完全集成。它作为适配器连接：
 - **MockSandbox** (回调模式) → **SandboxEventSource** (通道模式) → **Pump**
 
 ```go
@@ -216,61 +220,126 @@ func TestRecordAndReplay(t *testing.T) {
 
 ---
 
-## 5. 需要修改的文件
+## 5. 已完成的文件修改
 
-### 5.1 framework/app.go - 添加 NewAppWithSource
+### 5.1 framework/app.go - 添加 NewAppWithSource (✅ 完成)
 
 ```go
 // framework/app.go
 
-// NewAppWithSource 创建使用自定义 EventSource 的应用
-func NewAppWithSource(source event.EventSource) *App {
-    pump := event.NewPumpWithSource(source)
+// App 结构体添加 customSource 字段
+type App struct {
+    // ... 其他字段
+    customSource frameworkevent.EventSource // 自定义事件源（测试时使用）
+}
 
+// NewAppWithSource 创建使用自定义 EventSource 的应用
+func NewAppWithSource(source frameworkevent.EventSource) *App {
     return &App{
-        pump:        pump,
-        state:       StateCreated,
-        renderer:    paint.NewRenderer(),
-        theme:       theme.NewTheme(),
-        throttler:   NewFrameThrottler(60),
-        dirty:       true,
-        eventQueue:  make(chan frameworkevent.Event, 100),
-        resizeQueue: make(chan frameworkevent.Event, 10),
+        // ... 标准初始化
+        customSource: source, // 使用自定义事件源
     }
+}
+
+// Init() 方法支持自定义 EventSource
+func (a *App) Init() error {
+    // ...
+    if a.customSource != nil {
+        a.pump = frameworkevent.NewPumpWithSource(a.customSource)
+    } else {
+        inputReader, err := platform.NewInputReader()
+        // ...
+        a.pump = frameworkevent.NewPump(inputReader)
+    }
+    // ...
 }
 ```
 
-### 5.2 ui/app.go - 添加 RunTestWithSandbox
+### 5.2 ui/test.go - 添加 RunTestWithSandbox (✅ 完成)
 
 ```go
-// ui/app.go
+// ui/test.go
 
 import (
     "github.com/wwsheng009/mint/sandbox/mock"
 )
 
-// RunTestWithSandbox 使用 MockSandbox 作为事件源
-func RunTestWithSandbox(app ComponentFunc, opts ...Option) (*TestableApp, error) {
-    // ... (见方案 A 代码)
-}
-```
-
-### 5.3 ui/app.go - 扩展 TestableApp
-
-```go
-// ui/app.go
-
+// TestableApp 结构体添加 sandbox 字段
 type TestableApp struct {
     fwApp   *framework.App
     root    *declarativeRoot
     opts    *Options
-    sandbox *mock.MockSandbox // 新增
+    sandbox *mock.MockSandbox // 可选：使用 MockSandbox 作为事件源
 }
 
-// 添加 Sandbox 相关方法
-func (ta *TestableApp) InjectViaSandbox(key rune) error { ... }
-func (ta *TestableApp) InjectSpecialKeyViaSandbox(key platform.SpecialKey) error { ... }
-func (ta *TestableApp) GetSandbox() *mock.MockSandbox { ... }
+// RunTestWithSandbox 使用 MockSandbox 作为事件源进行测试
+func RunTestWithSandbox(app ComponentFunc, opts ...Option) (*TestableApp, error) {
+    options := &Options{Width: 80, Height: 24, Title: "Mint UI Test (Sandbox)", FPS: 60}
+
+    // 创建 MockSandbox
+    sb := mock.New(options.Width, options.Height)
+    if err := sb.Initialize(nil); err != nil {
+        return nil, fmt.Errorf("sandbox init failed: %w", err)
+    }
+
+    // 创建 SandboxEventSource
+    source := NewSandboxEventSource(sb)
+
+    // 创建使用自定义 EventSource 的 framework.App
+    fwApp := framework.NewAppWithSource(source)
+    fwApp.Resize(options.Width, options.Height)
+    fwApp.InitTheme("dark")
+
+    // 创建声明式根组件并运行
+    // ...
+
+    return &TestableApp{
+        fwApp:   fwApp,
+        root:    declarativeRoot,
+        opts:    options,
+        sandbox: sb, // 保存 MockSandbox 引用
+    }, nil
+}
+
+// GetSandbox 获取 MockSandbox
+func (ta *TestableApp) GetSandbox() *mock.MockSandbox {
+    return ta.sandbox
+}
+```
+
+### 5.3 framework/event/pump.go - 并发安全修复 (✅ 完成)
+
+```go
+// framework/event/pump.go
+
+type Pump struct {
+    source EventSource
+    events chan Event
+    quit   chan struct{}
+    running bool
+    mu     sync.RWMutex // 保护 events 通道
+}
+
+// convertLoop 发送前获取读锁
+func (p *Pump) convertLoop(rawInputs <-chan platform.RawInput) {
+    // ...
+    p.mu.RLock()
+    select {
+    case p.events <- ev:
+        p.mu.RUnlock()
+    case <-p.quit:
+        p.mu.RUnlock()
+        return
+    }
+}
+
+// Stop 关闭前获取写锁
+func (p *Pump) Stop() {
+    // ...
+    p.mu.Lock()
+    close(p.events)
+    p.mu.Unlock()
+}
 ```
 
 ---
@@ -290,49 +359,45 @@ func (ta *TestableApp) GetSandbox() *mock.MockSandbox { ... }
 
 ## 7. 推荐使用场景
 
-### 使用 RunTest (当前默认)
+### 使用 RunTest (推荐 - 默认)
 - 简单的集成测试
 - 按钮点击、文本输入
 - 不需要高级功能
 
-### 使用 RunTestWithSandbox (可选)
+```go
+testApp, err := ui.RunTest(MyComponent, ui.WithWidth(80), ui.WithHeight(24))
+defer testApp.Close()
+```
+
+### 使用 RunTestWithSandbox (可选 - 高级功能)
 - 需要事件录制/回放
 - 需要事件队列调试
 - 需要复杂的交互场景测试
 - 测试事件时序问题
 
----
-
-## 8. 实现步骤
-
-### 第一步：添加 framework.NewAppWithSource
-
 ```go
-// framework/app.go
+testApp, err := ui.RunTestWithSandbox(MyComponent, ui.WithWidth(80), ui.WithHeight(24))
+defer testApp.Close()
 
-func NewAppWithSource(source event.EventSource) *App {
-    pump := event.NewPumpWithSource(source)
-
-    return &App{
-        pump:        pump,
-        // ... 其他字段
-    }
-}
+sb := testApp.GetSandbox()
+stats := sb.QueueStats() // 访问队列统计
 ```
 
-### 第二步：实现 RunTestWithSandbox
+---
 
-```go
-// ui/app.go
+## 8. 实现步骤 (已完成)
 
-func RunTestWithSandbox(app ComponentFunc, opts ...Option) (*TestableApp, error) {
-    // 创建 MockSandbox
-    sb := mock.New(width, height)
+### ✅ 第一步：添加 framework.NewAppWithSource (已完成)
 
-    // 创建 SandboxEventSource
-    source := NewSandboxEventSource(sb)
+### ✅ 第二步：实现 RunTestWithSandbox (已完成)
 
-    // 创建使用自定义 EventSource 的 App
+### ✅ 第三步：扩展 TestableApp (已完成)
+
+### ✅ 第四步：编写测试 (已完成)
+
+---
+
+## 9. 测试验证 (已完成)
     fwApp := framework.NewAppWithSource(source)
 
     // ... 后续代码与 RunTest 相同
@@ -421,3 +486,16 @@ func TestSandboxIntegration(t *testing.T) {
 - 如果只需要基本的测试功能 → 当前 `RunTest` 已足够
 - 如果需要事件录制/回放 → 集成 `SandboxEventSource` 有价值
 - 可以作为可选功能，不强制使用
+
+
+---
+
+**集成状态**: ✅ 完成 (v1.1)
+
+**完成日期**: 2026-02-01
+
+**相关文件**:
+- framework/app.go - 添加 NewAppWithSource()
+- ui/test.go - 添加 RunTestWithSandbox() 和 GetSandbox()
+- framework/event/pump.go - 并发安全修复
+- ui/test_integration_test.go - 测试验证

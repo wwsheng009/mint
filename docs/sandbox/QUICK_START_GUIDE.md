@@ -1,6 +1,8 @@
 # 如何使用 Sandbox 运行你的应用
 
 > Mint TUI 应用 Sandbox 集成快速指南
+>
+> 版本: 1.1 - 支持 SandboxEventSource 集成
 
 ## 概述
 
@@ -14,7 +16,9 @@ Sandbox 是 Mint TUI 框架的测试环境，支持三种运行模式：
 
 ## 第一部分：Mock 沙箱测试（推荐用于单元测试）
 
-### 基本步骤
+### 方式一：使用 RunTest (推荐 - 新版 API)
+
+新版 API 提供完整的框架功能支持，包括 Fiber 模式、完整事件处理、渲染缓冲区等。
 
 #### 1. 导入必要的包
 
@@ -22,6 +26,7 @@ Sandbox 是 Mint TUI 框架的测试环境，支持三种运行模式：
 import (
     "testing"
     "github.com/wwsheng009/mint/ui"
+    "github.com/wwsheng009/mint/runtime/platform"
 )
 ```
 
@@ -29,17 +34,74 @@ import (
 
 ```go
 func TestMyApp(t *testing.T) {
-    // 创建测试应用
-    testApp, err := ui.TestRun(MyApp, ui.TestWithSize(80, 24))
+    // 创建测试应用（完整框架支持）
+    testApp, err := ui.RunTest(MyApp,
+        ui.WithWidth(80),
+        ui.WithHeight(24),
+    )
     if err != nil {
         t.Fatal(err)
     }
     defer testApp.Close()  // 重要：确保清理
 
-    // 获取测试辅助器
-    helper := testApp.Helper()
+    // 注入事件
+    testApp.InjectSpecialKey(platform.KeyTab)
+    testApp.InjectSpecialKey(platform.KeyEnter)
 
-    // 使用链式 API 测试
+    // 获取渲染结果
+    rendered := testApp.GetRenderString()
+
+    // 断言
+    if err := testApp.AssertRender("Expected Text"); err != nil {
+        t.Error(err)
+    }
+}
+```
+
+### 方式二：使用 RunTestWithSandbox (高级功能)
+
+支持事件录制/回放等 MockSandbox 高级功能。
+
+```go
+func TestMyApp_WithSandbox(t *testing.T) {
+    // 使用 MockSandbox 作为事件源
+    testApp, err := ui.RunTestWithSandbox(MyApp,
+        ui.WithWidth(80),
+        ui.WithHeight(24),
+    )
+    if err != nil {
+        t.Fatal(err)
+    }
+    defer testApp.Close()
+
+    // 获取 MockSandbox
+    sb := testApp.GetSandbox()
+
+    // 通过 Sandbox 注入事件
+    sb.InjectSpecialKey(platform.KeyTab)
+    sb.InjectSpecialKey(platform.KeyEnter)
+
+    // 获取队列统计
+    stats := sb.QueueStats()
+    t.Logf("Queue length: %d", stats.Length)
+
+    // 直接注入也支持
+    testApp.InjectKey('a')
+}
+```
+
+### 方式三：使用 TestRun (Deprecated - 仅用于简单组件)
+
+```go
+// Deprecated: 推荐使用 ui.RunTest() 获取完整的框架功能支持
+func TestMyApp_Simple(t *testing.T) {
+    testApp, err := ui.TestRun(MyApp, ui.TestWithSize(80, 24))
+    if err != nil {
+        t.Fatal(err)
+    }
+    defer testApp.Close()
+
+    helper := testApp.Helper()
     result := helper.
         Process().
         AssertRender("Expected Text").
@@ -65,64 +127,60 @@ package main_test
 import (
     "testing"
     "github.com/wwsheng009/mint/ui"
+    "github.com/wwsheng009/mint/runtime/platform"
 )
 
 func TestCounterIncrement(t *testing.T) {
-    testApp, err := ui.TestRun(Counter, ui.TestWithSize(40, 18))
+    testApp, err := ui.RunTest(Counter,
+        ui.WithWidth(40),
+        ui.WithHeight(18),
+    )
     if err != nil {
         t.Fatal(err)
     }
     defer testApp.Close()
 
-    helper := testApp.Helper()
-
     // 验证初始状态
-    result := helper.
-        Process().
-        AssertRender("Count: 0").
-        Result()
-
-    if !result.OK() {
-        t.Error(result.Error())
+    if err := testApp.AssertRender("Count: 0"); err != nil {
+        t.Error(err)
     }
 
     // 点击 "+" 按钮
-    result = helper.
-        Tab().Tab().          // 导航到 "+"
-        Enter().              // 点击
-        Process().
-        AssertRender("Count: 1").
-        Result()
+    testApp.InjectSpecialKey(platform.KeyTab)  // 切换焦点
+    testApp.InjectSpecialKey(platform.KeyEnter) // 触发点击
 
-    if !result.OK() {
-        t.Error(result.Error())
+    // 验证状态更新
+    if err := testApp.AssertRender("Count: 1"); err != nil {
+        t.Error(err)
     }
 }
 ```
 
-### 常用链式方法
-
-#### 动作方法
+### 常用事件注入方法
 
 ```go
-helper.
-    Type("text").                    // 输入文本
-    Press(platform.KeyTab).          // 按 Tab
-    PressKey('a').                   // 按字符键
-    Click(x, y).                     // 鼠标点击
-    Tab().                           // Tab 键
-    Enter().                         // Enter 键
-    Escape().                        // Escape 键
-    Process().                       // 处理所有事件
-    Wait(100*time.Millisecond).      // 等待
-```
+// 字符键
+testApp.InjectKey('a')
 
-#### 断言方法
+// 特殊按键
+testApp.InjectSpecialKey(platform.KeyEnter)
+testApp.InjectSpecialKey(platform.KeyTab)
+testApp.InjectSpecialKey(platform.KeyEscape)
+testApp.InjectSpecialKey(platform.KeyBackspace)
 
-```go
-helper.
-    AssertRender("expected").        // 断言包含文本
-    AssertNotRender("unexpected").  // 断言不包含文本
+// 带修饰符
+raw := platform.RawInput{
+    Type:  platform.InputKeyPress,
+    Key:   's',
+    Modifiers: platform.ModCtrl,
+}
+testApp.GetFrameworkApp().InjectEvent(raw)
+
+// 字符串
+testApp.InjectString("hello world")
+
+// 鼠标事件
+testApp.InjectMouse(10, 5, platform.MouseLeft, platform.MousePress)
 ```
 
 ---

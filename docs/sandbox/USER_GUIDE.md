@@ -714,7 +714,7 @@ func TestChainWithSnapshots(t *testing.T) {
 
 ## UI 层集成
 
-### 使用 TestRun
+### 使用 RunTest (推荐 - 新版 API)
 
 ```go
 package ui_test
@@ -725,9 +725,65 @@ import (
 )
 
 func TestComponent(t *testing.T) {
-    // 创建测试应用
-    app := &MyComponent{}
+    // 创建测试应用（完整框架支持）
+    testApp, err := ui.RunTest(MyComponent,
+        ui.WithWidth(80),
+        ui.WithHeight(24),
+    )
+    if err != nil {
+        t.Fatal(err)
+    }
+    defer testApp.Close()
 
+    // 注入事件
+    testApp.InjectSpecialKey(platform.KeyTab)
+    testApp.InjectSpecialKey(platform.KeyEnter)
+
+    // 获取渲染结果
+    rendered := testApp.GetRenderString()
+
+    // 断言
+    if err := testApp.AssertRender("Expected Text"); err != nil {
+        t.Error(err)
+    }
+}
+```
+
+### 使用 RunTestWithSandbox (高级功能)
+
+```go
+func TestWithSandbox(t *testing.T) {
+    // 使用 MockSandbox 作为事件源
+    testApp, err := ui.RunTestWithSandbox(MyComponent,
+        ui.WithWidth(80),
+        ui.WithHeight(24),
+    )
+    if err != nil {
+        t.Fatal(err)
+    }
+    defer testApp.Close()
+
+    // 获取 MockSandbox（用于高级功能）
+    sb := testApp.GetSandbox()
+
+    // 通过 Sandbox 注入事件
+    sb.InjectSpecialKey(platform.KeyTab)
+    sb.InjectSpecialKey(platform.KeyEnter)
+
+    // 直接注入也支持
+    testApp.InjectKey('a')
+
+    // 获取队列统计
+    stats := sb.QueueStats()
+    t.Logf("Queue length: %d", stats.Length)
+}
+```
+
+### 使用 TestRun (Deprecated - 仅用于简单组件)
+
+```go
+// Deprecated: 推荐使用 ui.RunTest() 获取完整的框架功能支持
+func TestComponent_Simple(t *testing.T) {
     testApp, err := ui.TestRun(app, ui.TestWithSize(80, 24))
     if err != nil {
         t.Fatal(err)
@@ -740,12 +796,10 @@ func TestComponent(t *testing.T) {
 }
 ```
 
-### 使用 TestRunWithConfig
+### 使用 TestRunWithConfig (Deprecated)
 
 ```go
 func TestWithCustomConfig(t *testing.T) {
-    app := &MyComponent{}
-
     config := sandbox.DefaultConfig()
     config.Width = 120
     config.Height = 40
@@ -761,42 +815,55 @@ func TestWithCustomConfig(t *testing.T) {
 }
 ```
 
-### TestOptions
+### TestOptions (新版 API)
 
 ```go
 // 设置宽度
-ui.TestRun(app, ui.TestWithWidth(100))
+ui.RunTest(app, ui.WithWidth(100))
 
 // 设置高度
-ui.TestRun(app, ui.TestWithHeight(30))
+ui.RunTest(app, ui.WithHeight(30))
 
-// 同时设置宽高
-ui.TestRun(app, ui.TestWithSize(100, 30))
+// 设置标题
+ui.RunTest(app, ui.WithTitle("My Test"))
+
+// 设置帧率
+ui.RunTest(app, ui.WithFPS(60))
 
 // 多个选项
-ui.TestRun(app,
-    ui.TestWithWidth(100),
-    ui.TestWithHeight(30),
+ui.RunTest(app,
+    ui.WithWidth(100),
+    ui.WithHeight(30),
+    ui.WithTitle("My Test"),
 )
+```
+
+### TestOptions (旧版 API - Deprecated)
+
+```go
+// Deprecated: 推荐使用新版 WithWidth/WithHeight
+ui.TestRun(app, ui.TestWithWidth(100))
+ui.TestRun(app, ui.TestWithHeight(30))
+ui.TestRun(app, ui.TestWithSize(100, 30))
 ```
 
 ### 访问底层沙箱
 
 ```go
+// 新版 API (RunTestWithSandbox)
+testApp, _ := ui.RunTestWithSandbox(app)
+sb := testApp.GetSandbox()
+if sb != nil {
+    // 使用 MockSandbox 的高级功能
+    sb.InjectString("test")
+    stats := sb.QueueStats()
+}
+
+// 旧版 API (TestRun)
 testApp, _ := ui.TestRun(app)
-
-// 获取 Mock 沙箱
 sb := testApp.Sandbox()
-
-// 使用沙箱的所有方法
 sb.InjectString("test")
 sb.ProcessEvents()
-
-// 检查渲染
-rendered := sb.RenderString()
-
-// 创建快照
-snap, _ := sb.Snapshot(sandbox.SnapshotStandard)
 ```
 
 ---
