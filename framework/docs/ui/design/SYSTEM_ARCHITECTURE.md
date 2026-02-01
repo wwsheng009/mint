@@ -1749,8 +1749,8 @@ MIT License
 
 ## 📞 联系方式
 
-- **Issues**: https://github.com/yao/wwsheng009/mint/issues
-- **Discussions**: https://github.com/yao/wwsheng009/mint/discussions
+- **Issues**: https://github.com/wwsheng009/mint/issues
+- **Discussions**: https://github/yao/wwsheng009/mint/discussions
 
 ---
 
