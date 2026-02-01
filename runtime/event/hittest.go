@@ -181,6 +181,7 @@ type MouseEvent struct {
 	Type  MouseEventType
 	Data  interface{}
 	Click MouseClickType
+	Mod   KeyModifier // 修饰键状态（Shift, Ctrl, Alt）
 }
 
 // MouseEventType is the type of mouse event.

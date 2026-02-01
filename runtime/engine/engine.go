@@ -13,6 +13,7 @@ import (
 	"context"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -116,6 +117,10 @@ type SelectionState struct {
 	isLeftButtonDown bool       // 左键是否按下
 	hasSelection  bool          // 是否有有效的选择区域（释放后保持）
 	selectStartTime time.Time   // 选择开始时间（用于检测长按）
+	clickCount    int           // 连续点击计数（用于双击、三击检测）
+	lastClickTime time.Time     // 上次点击时间
+	lastClickX    int           // 上次点击位置 X
+	lastClickY    int           // 上次点击位置 Y
 }
 
 // IsInSelectionMode 检查是否处于文本选择模式
@@ -138,6 +143,167 @@ func (e *Engine) ClearSelection() {
 	e.selectionState.isSelecting = false
 	e.selectionState.hasSelection = false
 	e.RequestRepaint()
+}
+
+// GetSelectedText 获取选中的文本内容
+func (e *Engine) GetSelectedText() string {
+	if !e.selectionState.enabled {
+		return ""
+	}
+
+	// 获取规范化后的选择区域
+	startX, startY, endX, endY := e.getNormalizedSelection()
+
+	// 获取渲染缓冲区
+	buf := e.renderer.GetBackBuffer()
+
+	var result strings.Builder
+
+	// 按行提取文本
+	for y := startY; y <= endY; y++ {
+		if y < 0 || y >= buf.Height {
+			continue
+		}
+
+		lineStart := 0
+		lineEnd := buf.Width - 1
+
+		if y == startY {
+			lineStart = startX
+		}
+		if y == endY {
+			lineEnd = endX
+		}
+
+		for x := lineStart; x <= lineEnd; x++ {
+			if x < 0 || x >= buf.Width {
+				continue
+			}
+
+			cell := buf.Cells[y][x]
+			if cell.IsContinuation {
+				continue // 跳过宽字符的延续单元格
+			}
+			if cell.Cluster != "" && cell.Cluster != " " && cell.Cluster != "\x00" {
+				result.WriteString(cell.Cluster)
+			} else {
+				result.WriteRune(' ')
+			}
+		}
+
+		// 非最后一行添加换行符
+		if y < endY {
+			result.WriteRune('\n')
+		}
+	}
+
+	return result.String()
+}
+
+// CopySelection 复制选中的文本到剪贴板
+func (e *Engine) CopySelection() error {
+	text := e.GetSelectedText()
+	if text == "" {
+		return nil
+	}
+
+	return e.copyToClipboard(text)
+}
+
+// copyToClipboard 将文本复制到系统剪贴板
+func (e *Engine) copyToClipboard(text string) error {
+	// 尝试使用系统剪贴板命令
+	return copyToClipboardPlatform(text)
+}
+
+// getNormalizedSelection 获取规范化后的选择区域（确保 start <= end）
+func (e *Engine) getNormalizedSelection() (startX, startY, endX, endY int) {
+	startX, startY = e.selectionState.startX, e.selectionState.startY
+	endX, endY = e.selectionState.endX, e.selectionState.endY
+
+	// 规范化坐标
+	if startY > endY || (startY == endY && startX > endX) {
+		startX, endX = endX, startX
+		startY, endY = endY, startY
+	}
+
+	return startX, startY, endX, endY
+}
+
+// selectWordAt 选中指定位置的单词
+func (e *Engine) selectWordAt(x, y int) {
+	buf := e.renderer.GetBackBuffer()
+	if y < 0 || y >= buf.Height || x < 0 || x >= buf.Width {
+		return
+	}
+
+	// 找到单词的开始位置
+	startX := x
+	for startX > 0 {
+		cell := buf.Cells[y][startX-1]
+		if cell.IsContinuation || !isWordChar(cell.Cluster) {
+			break
+		}
+		startX--
+	}
+
+	// 找到单词的结束位置
+	endX := x
+	for endX < buf.Width-1 {
+		cell := buf.Cells[y][endX+1]
+		if cell.IsContinuation || !isWordChar(cell.Cluster) {
+			break
+		}
+		endX++
+	}
+
+	// 设置选择区域
+	e.selectionState.startX = startX
+	e.selectionState.startY = y
+	e.selectionState.endX = endX
+	e.selectionState.endY = y
+	e.selectionState.enabled = true
+	e.selectionState.hasSelection = true
+	e.selectionState.isSelecting = false
+	e.selectionState.isLeftButtonDown = false
+
+	e.RequestRepaint()
+}
+
+// selectLineAt 选中指定行
+func (e *Engine) selectLineAt(y int) {
+	buf := e.renderer.GetBackBuffer()
+	if y < 0 || y >= buf.Height {
+		return
+	}
+
+	// 找到行的实际内容边界
+	startX := 0
+	endX := buf.Width - 1
+
+	// 设置选择区域
+	e.selectionState.startX = startX
+	e.selectionState.startY = y
+	e.selectionState.endX = endX
+	e.selectionState.endY = y
+	e.selectionState.enabled = true
+	e.selectionState.hasSelection = true
+	e.selectionState.isSelecting = false
+	e.selectionState.isLeftButtonDown = false
+
+	e.RequestRepaint()
+}
+
+// isWordChar 判断字符是否为单词字符
+func isWordChar(s string) bool {
+	if s == "" || len(s) != 1 {
+		return false
+	}
+	r := rune(s[0])
+	return (r >= 'a' && r <= 'z') ||
+		(r >= 'A' && r <= 'Z') ||
+		(r >= '0' && r <= '9') ||
+		r == '_'
 }
 
 // New 创建新的引擎
@@ -515,9 +681,25 @@ func (e *Engine) handleEvent(ev *event.EventStruct) {
 		return
 	}
 
-	// 键盘事件：如果有选择区域，先清除选择
-	if ev.Type() == event.EventKeyPress && e.selectionState.hasSelection {
-		e.ClearSelection()
+	// 键盘事件处理
+	if ev.Type() == event.EventKeyPress {
+		// 检查是否是 Ctrl+C（复制）
+		if e.selectionState.enabled && ev.Key != nil {
+			isCtrlC := (ev.Key.Key == 'c' || ev.Key.Key == 'C') && (ev.Key.Mod&event.ModCtrl) != 0
+			if isCtrlC {
+				// 复制选中的文本
+				if err := e.CopySelection(); err == nil {
+					// 复制成功，不清除选择
+					e.RequestRepaint()
+					return
+				}
+			}
+		}
+
+		// 其他键盘按键：如果有选择区域，清除选择
+		if e.selectionState.hasSelection {
+			e.ClearSelection()
+		}
 	}
 
 	// 使用事件分发器进行三阶段传播
@@ -559,20 +741,57 @@ func (e *Engine) handleMouseEvent(ev *event.EventStruct) {
 	case event.EventMousePress:
 		// 左键按下：开始选择模式计时
 		if mouseEv.Click == event.MouseLeft {
-			// 如果已有选择区域，先清除它（开始新的选择）
-			if e.selectionState.hasSelection {
-				e.selectionState.hasSelection = false
-				e.selectionState.enabled = false
+			// 检测双击/三击（500ms 内，相同位置）
+			timeSinceLastClick := time.Since(e.selectionState.lastClickTime)
+			dx := mouseEv.X - e.selectionState.lastClickX
+			dy := mouseEv.Y - e.selectionState.lastClickY
+			isSamePosition := dx*dx+dy*dy <= 4 // 距离小于2个单元格
+
+			if timeSinceLastClick < 500*time.Millisecond && isSamePosition {
+				e.selectionState.clickCount++
+			} else {
+				e.selectionState.clickCount = 1
 			}
 
-			e.selectionState.isLeftButtonDown = true
-			e.selectionState.selectStartTime = time.Now()
-			e.selectionState.startX = mouseEv.X
-			e.selectionState.startY = mouseEv.Y
-			e.selectionState.endX = mouseEv.X
-			e.selectionState.endY = mouseEv.Y
-			e.selectionState.isSelecting = false // 还未进入选择模式
-			e.selectionState.enabled = false     // 重置选择模式
+			e.selectionState.lastClickTime = time.Now()
+			e.selectionState.lastClickX = mouseEv.X
+			e.selectionState.lastClickY = mouseEv.Y
+
+			// 根据点击次数执行不同操作
+			switch e.selectionState.clickCount {
+			case 2:
+				// 双击：选中单词
+				e.selectWordAt(mouseEv.X, mouseEv.Y)
+			case 3:
+				// 三击：选中整行
+				e.selectLineAt(mouseEv.Y)
+			default:
+				// 检查是否按住 Shift 键（扩展选择）
+				isShiftPressed := (mouseEv.Mod & event.ModShift) != 0
+
+				if isShiftPressed && e.selectionState.hasSelection {
+					// Shift+点击：扩展选择范围
+					e.selectionState.endX = mouseEv.X
+					e.selectionState.endY = mouseEv.Y
+					e.selectionState.isSelecting = false
+					e.selectionState.enabled = true
+				} else {
+					// 普通单击：开始新的选择
+					if e.selectionState.hasSelection {
+						e.selectionState.hasSelection = false
+						e.selectionState.enabled = false
+					}
+
+					e.selectionState.isLeftButtonDown = true
+					e.selectionState.selectStartTime = time.Now()
+					e.selectionState.startX = mouseEv.X
+					e.selectionState.startY = mouseEv.Y
+					e.selectionState.endX = mouseEv.X
+					e.selectionState.endY = mouseEv.Y
+					e.selectionState.isSelecting = false
+					e.selectionState.enabled = false
+				}
+			}
 		}
 
 		// 调用鼠标移动回调
@@ -712,6 +931,7 @@ func (e *Engine) convertRawInput(raw platform.RawInput) *event.EventStruct {
 			Y:     raw.MouseY,
 			Type:  mouseActionToEventType(raw.MouseAction),
 			Click: mouseButtonToClickType(raw.MouseButton),
+			Mod:   event.KeyModifier(raw.Modifiers),
 		}
 
 	case platform.InputResize:

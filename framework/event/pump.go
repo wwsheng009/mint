@@ -1,6 +1,8 @@
 package event
 
 import (
+	"fmt"
+	"os"
 	"time"
 
 	"github.com/wwsheng009/mint/runtime/event"
@@ -41,6 +43,11 @@ func (p *Pump) Start() error {
 
 	p.running = true
 
+	// DEBUG: 打印启动信息
+	if os.Getenv("TUI_DEBUG_PUMP") == "true" {
+		fmt.Fprintf(os.Stderr, "[PUMP] Started, convertLoop running...\n")
+	}
+
 	// Start conversion loop
 	go p.convertLoop(rawInputs)
 
@@ -80,7 +87,7 @@ func (p *Pump) convertToEvent(raw platform.RawInput) Event {
 		return p.convertResizeEvent(raw)
 
 	case platform.InputMouse:
-		return p.convertMouseEvent(raw)
+			return p.convertMouseEvent(raw)
 
 	default:
 		return nil
