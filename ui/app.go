@@ -3,11 +3,13 @@ package ui
 import (
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/wwsheng009/mint/framework"
 	"github.com/wwsheng009/mint/framework/component"
 	frameworkevent "github.com/wwsheng009/mint/framework/event"
 	"github.com/wwsheng009/mint/runtime/paint"
+	"github.com/wwsheng009/mint/runtime/scheduler"
 )
 
 // Option configures the app
@@ -73,7 +75,9 @@ func Run(app ComponentFunc, opts ...Option) error {
 
 	// Initialize theme
 	if err := fwApp.InitTheme("dark"); err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to initialize theme: %v\n", err)
+		if os.Getenv("TUI_DEBUG_UI") == "true" {
+			fmt.Fprintf(os.Stderr, "Failed to initialize theme: %v\n", err)
+		}
 	}
 
 	// Create the declarative root component
@@ -92,6 +96,9 @@ type declarativeRoot struct {
 	appFn               ComponentFunc
 	ctx                 *ComponentContext
 	app                 *framework.App
+	instanceManager     *InstanceManager  // Manages persistent component instances
+	reconciler          *Reconciler       // Fiber reconciler (env controlled)
+	activeComponentKeys []string          // Track active component keys for cleanup
 	buttons             []*ButtonVNode   // Collected buttons for focus management
 	inputs              []*InputVNode    // Collected inputs for focus management
 	textareas           []*TextareaVNode // Collected textareas for focus management
@@ -99,31 +106,154 @@ type declarativeRoot struct {
 	selects             []*SelectVNode   // Collected selects for focus management
 	focusedIndex        int              // Currently focused element index (-1 = none)
 	focusedType         int              // Type: 0=button, 1=input, 2=textarea, 3=checkbox, 4=select
+
+	// Input scheduling - priority-based event processing
+	inputQueue      *scheduler.InputQueue
+	mouseMoveHandler *scheduler.MouseMoveHandler
+	mouseClickHandler *scheduler.MouseClickHandler
+	mouseTracker     *scheduler.MouseTracker
+
+	// Interaction state manager - persists hover/focus state across renders
+	// Uses InstanceManager with auto-generated keys based on component position
+	interactionState map[string]bool // key -> state (hovered, focused, etc.)
 }
 
 // newDeclarativeRoot creates a new declarative root component
 func newDeclarativeRoot(fn ComponentFunc, app *framework.App) component.Node {
+	// Initialize input queue
+	inputQueue := scheduler.NewInputQueue()
+
+	// Initialize mouse tracker
+	mouseTracker := scheduler.NewMouseTracker()
+
+	// Create mouse handlers with default throttle config
+	config := scheduler.DefaultThrottleConfig()
+
+	mouseMoveHandler := scheduler.NewMouseMoveHandler(
+		scheduler.MouseHandlerFunc(func(event *scheduler.MouseEvent) {
+			// Mouse move events are handled immediately through handleMouseEvent
+			if app != nil {
+				app.MarkDirty()
+			}
+		}),
+		config,
+	)
+
+	mouseClickHandler := scheduler.NewMouseClickHandler(
+		scheduler.MouseHandlerFunc(func(event *scheduler.MouseEvent) {
+			// Click events are handled immediately through handleMouseEvent
+			if app != nil {
+				app.MarkDirty()
+			}
+		}),
+		config,
+	)
+
+	// Initialize Fiber reconciler if enabled via environment variable
+	var reconciler *Reconciler
+	enableFiber := os.Getenv("MINT_USE_FIBER") == "true"
+	if enableFiber {
+		reconciler = NewReconciler(app, fn, ReconcilerConfig{
+			TimeBudget:      5 * time.Millisecond,
+			EnableProfiling: false,
+			EnableFiber:     true,
+		})
+		// Set render callback for VNode rendering
+		reconciler.SetRenderCallback(func(vnode VNode, x, y int, buffer *paint.Buffer) {
+			// This will be called during commit phase to render each VNode
+			// For now, we'll use the existing renderVNode method
+		})
+	}
+
 	return &declarativeRoot{
-		appFn:        fn,
-		ctx:          newComponentContext("App"),
-		app:          app,
-		buttons:      make([]*ButtonVNode, 0),
-		inputs:       make([]*InputVNode, 0),
-		textareas:    make([]*TextareaVNode, 0),
-		checkboxes:   make([]*CheckboxVNode, 0),
-		selects:      make([]*SelectVNode, 0),
-		focusedIndex: -1,
-		focusedType:  0,
+		appFn:               fn,
+		ctx:                 newComponentContext("App"),
+		app:                 app,
+		instanceManager:     NewInstanceManager(),
+		reconciler:          reconciler,
+		activeComponentKeys: make([]string, 0),
+		buttons:             make([]*ButtonVNode, 0),
+		inputs:              make([]*InputVNode, 0),
+		textareas:           make([]*TextareaVNode, 0),
+		checkboxes:          make([]*CheckboxVNode, 0),
+		selects:             make([]*SelectVNode, 0),
+		focusedIndex:        -1,
+		focusedType:         0,
+		inputQueue:          inputQueue,
+		mouseMoveHandler:    mouseMoveHandler,
+		mouseClickHandler:   mouseClickHandler,
+		mouseTracker:        mouseTracker,
 	}
 }
 
 // Paint implements component.Paintable
 func (d *declarativeRoot) Paint(ctx component.PaintContext, buffer *paint.Buffer) {
+	// Use Fiber reconciler if enabled
+	if d.reconciler != nil {
+		d.paintWithFiber(ctx, buffer)
+		return
+	}
+
+	// Legacy direct rendering path
+	d.paintLegacy(ctx, buffer)
+}
+
+// paintWithFiber renders using the Fiber reconciler
+func (d *declarativeRoot) paintWithFiber(ctx component.PaintContext, buffer *paint.Buffer) {
+	// Clear active component keys for this render
+	d.activeComponentKeys = d.activeComponentKeys[:0]
+
+	// Save hover state before render
+	hoveredButtons := d.saveHoveredButtons()
+	hoveredInputs := d.saveHoveredInputs()
+	hoveredCheckboxes := d.saveHoveredCheckboxes()
+	hoveredSelects := d.saveHoveredSelects()
+	hoveredTextareas := d.saveHoveredTextareas()
+
+	// Reset interactive elements collection
+	d.resetInteractiveElements()
+
+	// Render using Fiber reconciler
+	// The reconciler will call the root component function
+	d.reconciler.SetRenderCallback(func(vnode VNode, x, y int, buffer *paint.Buffer) {
+		// Collect interactive elements during Fiber traversal
+		d.collectInteractiveElements(vnode)
+		// Actually render the VNode
+		d.renderVNode(vnode, x, y, buffer)
+	})
+
+	d.reconciler.Render(ctx, buffer, d.appFn)
+
+	// Restore hover state after render
+	d.restoreHoveredButtons(hoveredButtons)
+	d.restoreHoveredInputs(hoveredInputs)
+	d.restoreHoveredCheckboxes(hoveredCheckboxes)
+	d.restoreHoveredSelects(hoveredSelects)
+	d.restoreHoveredTextareas(hoveredTextareas)
+
+	// Validate and clamp focusedIndex to valid range
+	totalElements := d.getTotalFocusableCount()
+	if totalElements == 0 {
+		d.focusedIndex = -1
+		d.focusedType = -1
+	} else if d.focusedIndex < 0 || d.focusedIndex >= totalElements {
+		d.focusedIndex = 0
+		d.focusedType = d.getFirstElementType()
+	} else {
+		_, d.focusedType = d.getElementByIndex(d.focusedIndex)
+	}
+}
+
+// paintLegacy renders using direct VNode traversal (original implementation)
+func (d *declarativeRoot) paintLegacy(ctx component.PaintContext, buffer *paint.Buffer) {
 	// Reset hook index for re-render
 	d.ctx.resetContext()
 
 	// Set current context
 	setCurrentContext(d.ctx)
+
+	// Clear active component keys for this render
+	d.activeComponentKeys = d.activeComponentKeys[:0]
 
 	// Call the root component to get VNode
 	vnode := d.appFn()
@@ -133,14 +263,53 @@ func (d *declarativeRoot) Paint(ctx component.PaintContext, buffer *paint.Buffer
 
 	// Validate hooks finished correctly
 	if err := d.ctx.finishRender(); err != nil {
-		fmt.Fprintf(os.Stderr, "Hook validation error: %v\n", err)
+		if os.Getenv("TUI_DEBUG_UI") == "true" {
+			fmt.Fprintf(os.Stderr, "Hook validation error: %v\n", err)
+		}
 		return
 	}
 
 	// Run effects after render completes
 	d.ctx.runEffects()
 
+	// Cleanup unused component instances
+	d.instanceManager.Cleanup(d.activeComponentKeys)
+
 	// Clear and collect interactive elements for focus management
+	// 保存 hover 状态，使用组件在列表中的索引作为key
+	// 索引在重新渲染前后是稳定的（组件在树中的位置不变）
+	hoveredButtons := make(map[int]bool)
+	hoveredInputs := make(map[int]bool)
+	hoveredCheckboxes := make(map[int]bool)
+	hoveredSelects := make(map[int]bool)
+	hoveredTextareas := make(map[int]bool)
+
+	for i, btn := range d.buttons {
+		if btn.IsHovered() {
+			hoveredButtons[i] = true
+		}
+	}
+	for i, inp := range d.inputs {
+		if inp.IsHovered() {
+			hoveredInputs[i] = true
+		}
+	}
+	for i, chk := range d.checkboxes {
+		if chk.IsHovered() {
+			hoveredCheckboxes[i] = true
+		}
+	}
+	for i, sel := range d.selects {
+		if sel.IsHovered() {
+			hoveredSelects[i] = true
+		}
+	}
+	for i, ta := range d.textareas {
+		if ta.IsHovered() {
+			hoveredTextareas[i] = true
+		}
+	}
+
 	d.resetInteractiveElements()
 	d.collectInteractiveElements(vnode)
 
@@ -157,8 +326,126 @@ func (d *declarativeRoot) Paint(ctx component.PaintContext, buffer *paint.Buffer
 		_, d.focusedType = d.getElementByIndex(d.focusedIndex)
 	}
 
-	// Render the VNode tree to the buffer
+	// 渲染 VNode 树到缓冲区（此过程会设置 bounds）
 	d.renderVNode(vnode, ctx.X, ctx.Y, buffer)
+
+	// 渲染完成后恢复 hover 状态（使用索引匹配）
+	for i, btn := range d.buttons {
+		if hoveredButtons[i] {
+			btn.SetHovered(true)
+		}
+	}
+	for i, inp := range d.inputs {
+		if hoveredInputs[i] {
+			inp.SetHovered(true)
+		}
+	}
+	for i, chk := range d.checkboxes {
+		if hoveredCheckboxes[i] {
+			chk.SetHovered(true)
+		}
+	}
+	for i, sel := range d.selects {
+		if hoveredSelects[i] {
+			sel.SetHovered(true)
+		}
+	}
+	for i, ta := range d.textareas {
+		if hoveredTextareas[i] {
+			ta.SetHovered(true)
+		}
+	}
+}
+
+// Helper functions to save/restore hover state
+func (d *declarativeRoot) saveHoveredButtons() map[int]bool {
+	result := make(map[int]bool)
+	for i, btn := range d.buttons {
+		if btn.IsHovered() {
+			result[i] = true
+		}
+	}
+	return result
+}
+
+func (d *declarativeRoot) saveHoveredInputs() map[int]bool {
+	result := make(map[int]bool)
+	for i, inp := range d.inputs {
+		if inp.IsHovered() {
+			result[i] = true
+		}
+	}
+	return result
+}
+
+func (d *declarativeRoot) saveHoveredCheckboxes() map[int]bool {
+	result := make(map[int]bool)
+	for i, chk := range d.checkboxes {
+		if chk.IsHovered() {
+			result[i] = true
+		}
+	}
+	return result
+}
+
+func (d *declarativeRoot) saveHoveredSelects() map[int]bool {
+	result := make(map[int]bool)
+	for i, sel := range d.selects {
+		if sel.IsHovered() {
+			result[i] = true
+		}
+	}
+	return result
+}
+
+func (d *declarativeRoot) saveHoveredTextareas() map[int]bool {
+	result := make(map[int]bool)
+	for i, ta := range d.textareas {
+		if ta.IsHovered() {
+			result[i] = true
+		}
+	}
+	return result
+}
+
+func (d *declarativeRoot) restoreHoveredButtons(hovered map[int]bool) {
+	for i, btn := range d.buttons {
+		if hovered[i] {
+			btn.SetHovered(true)
+		}
+	}
+}
+
+func (d *declarativeRoot) restoreHoveredInputs(hovered map[int]bool) {
+	for i, inp := range d.inputs {
+		if hovered[i] {
+			inp.SetHovered(true)
+		}
+	}
+}
+
+func (d *declarativeRoot) restoreHoveredCheckboxes(hovered map[int]bool) {
+	for i, chk := range d.checkboxes {
+		if hovered[i] {
+			chk.SetHovered(true)
+		}
+	}
+}
+
+func (d *declarativeRoot) restoreHoveredSelects(hovered map[int]bool) {
+	for i, sel := range d.selects {
+		if hovered[i] {
+			sel.SetHovered(true)
+		}
+	}
+}
+
+func (d *declarativeRoot) restoreHoveredTextareas(hovered map[int]bool) {
+	for i, ta := range d.textareas {
+		if hovered[i] {
+			ta.SetHovered(true)
+		}
+	}
 }
 
 // renderVNode recursively renders a VNode to the buffer
@@ -370,9 +657,43 @@ func (d *declarativeRoot) renderVNode(node VNode, x, y int, buffer *paint.Buffer
 		}
 
 	case *ComponentVNode:
-		// Render the component by calling its function
-		rendered := n.Render()
+		// Use instance manager for persistent component state
+		componentKey := n.Key()
+		if componentKey == "" {
+			// Generate a stable key from component name if none provided
+			componentKey = "component:" + n.Name()
+		}
+
+		// Track this component as active
+		d.activeComponentKeys = append(d.activeComponentKeys, componentKey)
+
+		// Get or create component instance
+		instance := d.instanceManager.GetOrCreate(componentKey, func() ComponentInstance {
+			if n.fnWithProps != nil {
+				return NewBaseComponentInstanceWithProps(componentKey, n.fnWithProps, n.Props())
+			}
+			return NewBaseComponentInstance(componentKey, n.fn)
+		})
+
+		// Update props if they changed
+		if n.Props() != nil {
+			instance.SetProps(n.Props())
+		}
+
+		// Render using the persistent instance
+		// This ensures hooks state is preserved across renders
+		oldContext := getCurrentContext()
+		setCurrentContext(instance.GetContext())
+
+		rendered := instance.Render()
+
+		setCurrentContext(oldContext)
+
+		// Run effects for this component
 		if rendered != nil {
+			instance.GetContext().runEffects()
+
+			// Render the component's output
 			offsetY := d.renderVNode(rendered, x, currentY, buffer)
 			currentY += offsetY
 		}
@@ -1286,9 +1607,51 @@ func (d *declarativeRoot) handleInputBackspace(input *InputVNode) {
 	}
 }
 
-// handleMouseEvent handles mouse events
+// handleMouseEvent handles mouse events with priority-based scheduling
 func (d *declarativeRoot) handleMouseEvent(ev *frameworkevent.MouseEvent) bool {
 	x, y := ev.X, ev.Y
+
+	// Update mouse tracker
+	d.mouseTracker.UpdatePosition(x, y)
+
+	// Convert button to int
+	button := int(ev.Button)
+
+	// Route events through handlers for throttling/debouncing
+	switch ev.Type() {
+	case frameworkevent.EventMouseMove:
+		// Use throttled handler for mouse move
+		d.mouseMoveHandler.Handle(x, y)
+		// Still dispatch for immediate feedback
+		return d.dispatchMouseEvent(ev, x, y)
+
+	case frameworkevent.EventMousePress:
+		// Update button state in tracker
+		d.mouseTracker.UpdateButton(button, true)
+		// Always handle press immediately for responsiveness
+		return d.dispatchMouseEvent(ev, x, y)
+
+	case frameworkevent.EventMouseRelease:
+		// Update button state in tracker
+		d.mouseTracker.UpdateButton(button, false)
+		// Always handle release immediately for responsiveness
+		return d.dispatchMouseEvent(ev, x, y)
+
+	case frameworkevent.EventClick:
+		// Use debounced handler for clicks
+		d.mouseClickHandler.Handle(x, y, button)
+		// Handle click immediately too for responsiveness
+		return d.dispatchMouseEvent(ev, x, y)
+
+	default:
+		// Handle other events normally
+		return d.dispatchMouseEvent(ev, x, y)
+	}
+}
+
+// dispatchMouseEvent dispatches the mouse event to all interactive elements
+func (d *declarativeRoot) dispatchMouseEvent(ev *frameworkevent.MouseEvent, x, y int) bool {
+	handled := false
 
 	// Check if mouse is over any button
 	for _, btn := range d.buttons {
@@ -1303,7 +1666,7 @@ func (d *declarativeRoot) handleMouseEvent(ev *frameworkevent.MouseEvent) bool {
 				}
 				// Dispatch mouse enter event to button
 				if btn.HandleEvent(ev) {
-					return true
+					handled = true
 				}
 			} else if ev.Type() == frameworkevent.EventMousePress || ev.Type() == frameworkevent.EventMouseRelease || ev.Type() == frameworkevent.EventClick {
 				// Dispatch mouse press/release/click to button
@@ -1311,7 +1674,7 @@ func (d *declarativeRoot) handleMouseEvent(ev *frameworkevent.MouseEvent) bool {
 					if d.app != nil {
 						d.app.MarkDirty()
 					}
-					return true
+					handled = true
 				}
 			}
 		} else {
@@ -1338,7 +1701,7 @@ func (d *declarativeRoot) handleMouseEvent(ev *frameworkevent.MouseEvent) bool {
 				}
 				// Dispatch mouse enter event to checkbox
 				if chk.HandleEvent(ev) {
-					return true
+					handled = true
 				}
 			} else if ev.Type() == frameworkevent.EventMousePress || ev.Type() == frameworkevent.EventMouseRelease || ev.Type() == frameworkevent.EventClick {
 				// Dispatch mouse press/release/click to checkbox
@@ -1346,7 +1709,7 @@ func (d *declarativeRoot) handleMouseEvent(ev *frameworkevent.MouseEvent) bool {
 					if d.app != nil {
 						d.app.MarkDirty()
 					}
-					return true
+					handled = true
 				}
 			}
 		} else {
@@ -1373,7 +1736,7 @@ func (d *declarativeRoot) handleMouseEvent(ev *frameworkevent.MouseEvent) bool {
 				}
 				// Dispatch mouse enter event to input
 				if inp.HandleEvent(ev) {
-					return true
+					handled = true
 				}
 			} else if ev.Type() == frameworkevent.EventMousePress || ev.Type() == frameworkevent.EventMouseRelease || ev.Type() == frameworkevent.EventClick {
 				// Dispatch mouse press/release/click to input
@@ -1408,7 +1771,7 @@ func (d *declarativeRoot) handleMouseEvent(ev *frameworkevent.MouseEvent) bool {
 				}
 				// Dispatch mouse enter event to select
 				if sel.HandleEvent(ev) {
-					return true
+					handled = true
 				}
 			} else if ev.Type() == frameworkevent.EventMousePress || ev.Type() == frameworkevent.EventMouseRelease || ev.Type() == frameworkevent.EventClick {
 				// Dispatch mouse press/release/click to select
@@ -1416,7 +1779,7 @@ func (d *declarativeRoot) handleMouseEvent(ev *frameworkevent.MouseEvent) bool {
 					if d.app != nil {
 						d.app.MarkDirty()
 					}
-					return true
+					handled = true
 				}
 			}
 		} else {
@@ -1443,7 +1806,7 @@ func (d *declarativeRoot) handleMouseEvent(ev *frameworkevent.MouseEvent) bool {
 				}
 				// Dispatch mouse enter event to textarea
 				if ta.HandleEvent(ev) {
-					return true
+					handled = true
 				}
 			} else if ev.Type() == frameworkevent.EventMousePress || ev.Type() == frameworkevent.EventMouseRelease || ev.Type() == frameworkevent.EventClick {
 				// Dispatch mouse press/release/click to textarea
@@ -1451,7 +1814,7 @@ func (d *declarativeRoot) handleMouseEvent(ev *frameworkevent.MouseEvent) bool {
 					if d.app != nil {
 						d.app.MarkDirty()
 					}
-					return true
+					handled = true
 				}
 			}
 		} else {
@@ -1503,5 +1866,5 @@ func (d *declarativeRoot) handleMouseEvent(ev *frameworkevent.MouseEvent) bool {
 		return true
 	}
 
-	return false
+	return handled
 }

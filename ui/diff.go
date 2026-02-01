@@ -207,3 +207,157 @@ func stylesEqual(a, b interface{}) bool {
 	// A proper implementation would compare each field
 	return false
 }
+
+// =============================================================================
+// Fiber Reconciliation Algorithm
+// =============================================================================
+// reconcileChildren implements the Fiber tree diffing algorithm.
+// This is separate from the Patch-based diff above - it operates on Fiber nodes.
+// =============================================================================
+
+// reconcileChildren reconciles the current children with new children
+// Returns the first child of the reconciled Fiber tree
+func reconcileChildren(
+	returnFiber *Fiber,
+	currentFirstChild *Fiber,
+	newChildren []VNode,
+	lanes Lane,
+) *Fiber {
+	// If no new children, delete all existing children
+	if len(newChildren) == 0 {
+		return nil
+	}
+
+	// If no existing children, create all new children
+	if currentFirstChild == nil {
+		return createAllNewChildren(returnFiber, newChildren, lanes)
+	}
+
+	// Both old and new children exist - reconcile
+	return reconcileExistingChildren(returnFiber, currentFirstChild, newChildren, lanes)
+}
+
+// createAllNewChildren creates Fiber nodes for all new children
+func createAllNewChildren(returnFiber *Fiber, children []VNode, lanes Lane) *Fiber {
+	var firstChild *Fiber
+	var previousChild *Fiber
+
+	for _, childVNode := range children {
+		child := createChildFiber(returnFiber, childVNode, lanes)
+
+		if firstChild == nil {
+			firstChild = child
+		} else {
+			previousChild.Sibling = child
+		}
+
+		previousChild = child
+	}
+
+	return firstChild
+}
+
+// reconcileExistingChildren reconciles existing children with new children
+// This is a simplified position-based reconciliation
+func reconcileExistingChildren(
+	returnFiber *Fiber,
+	currentFirstChild *Fiber,
+	newChildren []VNode,
+	lanes Lane,
+) *Fiber {
+	var firstChild *Fiber
+	var previousChild *Fiber
+	currentChild := currentFirstChild
+
+	for _, childVNode := range newChildren {
+		var child *Fiber
+
+		// Try to match with current child
+		if currentChild != nil && shouldUpdate(currentChild, childVNode) {
+			// Reuse existing fiber
+			child = cloneExistingFiber(returnFiber, currentChild, childVNode)
+			currentChild = currentChild.Sibling
+		} else {
+			// Create new fiber
+			child = createChildFiber(returnFiber, childVNode, lanes)
+			// Remaining currentChildren will be deleted
+			_ = currentChild // TODO: Schedule deletion in Phase 2
+		}
+
+		if firstChild == nil {
+			firstChild = child
+		} else {
+			previousChild.Sibling = child
+		}
+
+		previousChild = child
+	}
+
+	// Delete remaining current children
+	// TODO: Schedule deletion in Phase 2
+	_ = currentChild
+
+	return firstChild
+}
+
+// shouldUpdate checks if a current fiber can be updated with new VNode
+func shouldUpdate(current *Fiber, vnode VNode) bool {
+	if current == nil || vnode == nil {
+		return false
+	}
+
+	// Check if types match
+	if current.Type != vnode.Type() {
+		return false
+	}
+
+	// For components, check if the component function is the same
+	if current.Type == VNodeComponent {
+		currentComp, ok1 := current.VNode.(*ComponentVNode)
+		newComp, ok2 := vnode.(*ComponentVNode)
+		if ok1 && ok2 {
+			// Compare component names since functions cannot be directly compared
+			// In production, you'd want a more stable identity check
+			return currentComp.Name() == newComp.Name()
+		}
+	}
+
+	// For elements, check if tag is the same
+	if current.Type == VNodeElement {
+		currentElem, ok1 := current.VNode.(*ElementVNode)
+		newElem, ok2 := vnode.(*ElementVNode)
+		if ok1 && ok2 {
+			return currentElem.Tag() == newElem.Tag()
+		}
+	}
+
+	// For text and fragments, type match is sufficient
+	return true
+}
+
+// createChildFiber creates a new Fiber for a child VNode
+func createChildFiber(returnFiber *Fiber, vnode VNode, lanes Lane) *Fiber {
+	fiber := CreateFiberFromVNode(vnode)
+	fiber.Return = returnFiber
+	fiber.Lanes = lanes
+	fiber.Props = vnode.Props()
+	return fiber
+}
+
+// cloneExistingFiber clones an existing fiber with new VNode data
+func cloneExistingFiber(returnFiber *Fiber, current *Fiber, vnode VNode) *Fiber {
+	fiber := CloneFiber(current)
+	fiber.Return = returnFiber
+	fiber.VNode = vnode
+	fiber.Props = vnode.Props()
+	fiber.Lanes = LaneNoLane
+	fiber.Flags = EffectNoEffect
+
+	// Link to alternate
+	fiber.Alternate = current
+	if current.Alternate != nil {
+		current.Alternate.Alternate = nil
+	}
+
+	return fiber
+}
