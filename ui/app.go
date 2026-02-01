@@ -1566,7 +1566,8 @@ func (d *declarativeRoot) HandleEvent(ev frameworkevent.Event) bool {
 			elem, elemType := d.getElementByIndex(d.focusedIndex)
 			if elemType == 1 { // Input
 				input := elem.(*InputVNode)
-				if input.IsFocused() && !input.ReadOnly() && !input.Disabled() {
+				// Don't check IsFocused() - we already know this is the focused element
+				if !input.ReadOnly() && !input.Disabled() {
 					d.handleInputChar(input, keyEv.Key.Rune)
 					return true
 				}
@@ -1616,7 +1617,8 @@ func (d *declarativeRoot) HandleEvent(ev frameworkevent.Event) bool {
 			elem, elemType := d.getElementByIndex(d.focusedIndex)
 			if elemType == 1 { // Input
 				input := elem.(*InputVNode)
-				if input.IsFocused() && !input.ReadOnly() && !input.Disabled() {
+				// Don't check IsFocused() - we already know this is the focused element
+				if !input.ReadOnly() && !input.Disabled() {
 					d.handleInputBackspace(input)
 					return true
 				}
@@ -1635,13 +1637,12 @@ func (d *declarativeRoot) HandleEvent(ev frameworkevent.Event) bool {
 			}
 			if elemType == 1 { // Input
 				input := elem.(*InputVNode)
-				if input.IsFocused() {
-					// Trigger submit handler
-					if onSubmit := input.OnSubmitFunc(); onSubmit != nil {
-						onSubmit()
-					}
-					return true
+				// Don't check IsFocused() - we already know this is the focused element
+				// Trigger submit handler
+				if onSubmit := input.OnSubmitFunc(); onSubmit != nil {
+					onSubmit()
 				}
+				return true
 			} else if elemType == 0 { // Button
 				btn := elem.(*ButtonVNode)
 				if os.Getenv("TUI_DEBUG_UI") == "true" {
@@ -1773,9 +1774,38 @@ func (d *declarativeRoot) HandleEvent(ev frameworkevent.Event) bool {
 }
 
 // updateFocusedType updates the focused type based on current index
+// and sets the isFocused flag on the actual elements
 func (d *declarativeRoot) updateFocusedType() {
-	_, elemType := d.getElementByIndex(d.focusedIndex)
+	elem, elemType := d.getElementByIndex(d.focusedIndex)
 	d.focusedType = elemType
+
+	// Clear focus from all elements that support it
+	for _, input := range d.inputs {
+		input.SetFocus(false)
+	}
+	for _, checkbox := range d.checkboxes {
+		checkbox.SetFocus(false)
+	}
+	for _, sel := range d.selects {
+		sel.SetFocus(false)
+	}
+	for _, textarea := range d.textareas {
+		textarea.SetFocus(false)
+	}
+
+	// Set focus on the currently focused element
+	if elem != nil {
+		switch e := elem.(type) {
+		case *InputVNode:
+			e.SetFocus(true)
+		case *CheckboxVNode:
+			e.SetFocus(true)
+		case *SelectVNode:
+			e.SetFocus(true)
+		case *TextareaVNode:
+			e.SetFocus(true)
+		}
+	}
 }
 
 // handleInputChar handles character input for an input field
@@ -1888,11 +1918,23 @@ func (d *declarativeRoot) dispatchMouseEvent(ev *frameworkevent.MouseEvent, x, y
 				}
 			} else if ev.Type() == frameworkevent.EventMousePress || ev.Type() == frameworkevent.EventMouseRelease || ev.Type() == frameworkevent.EventClick {
 				// Dispatch mouse press/release/click to button
+				// In Fiber mode, isHovered might not be set, so handle clicks directly
 				if btn.HandleEvent(ev) {
 					if d.app != nil {
 						d.app.MarkDirty()
 					}
 					handled = true
+				} else {
+					// Button didn't handle it (likely due to isHovered=false in Fiber mode)
+					// Handle click directly for buttons at this position
+					onClick := btn.OnClick()
+					if onClick != nil {
+						onClick()
+						if d.app != nil {
+							d.app.MarkDirty()
+						}
+						handled = true
+					}
 				}
 			}
 		} else {
