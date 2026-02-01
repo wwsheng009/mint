@@ -223,6 +223,15 @@ func reconcileChildren(
 	newChildren []VNode,
 	lanes Lane,
 ) *Fiber {
+	// Validate keys for list children (React-style warning)
+	if currentReconciler != nil && currentReconciler.keyValidator != nil {
+		var parentVNode VNode
+		if returnFiber != nil {
+			parentVNode = returnFiber.VNode
+		}
+		currentReconciler.keyValidator.ValidateChildren(parentVNode, newChildren)
+	}
+
 	// If no new children, delete all existing children
 	if len(newChildren) == 0 {
 		return nil
@@ -301,8 +310,20 @@ func reconcileExistingChildren(
 }
 
 // shouldUpdate checks if a current fiber can be updated with new VNode
+// This follows React's reconciliation logic:
+// 1. Key is primary - different keys mean different elements
+// 2. Type is secondary - same key but different type means replace
 func shouldUpdate(current *Fiber, vnode VNode) bool {
 	if current == nil || vnode == nil {
+		return false
+	}
+
+	// Get the keys for comparison
+	currentKey := current.Key
+	newKey := vnode.Key()
+
+	// If keys differ, this is definitely not the same element
+	if currentKey != newKey {
 		return false
 	}
 
@@ -317,7 +338,7 @@ func shouldUpdate(current *Fiber, vnode VNode) bool {
 		newComp, ok2 := vnode.(*ComponentVNode)
 		if ok1 && ok2 {
 			// Compare component names since functions cannot be directly compared
-			// In production, you'd want a more stable identity check
+			// Same key + same name = same component
 			return currentComp.Name() == newComp.Name()
 		}
 	}

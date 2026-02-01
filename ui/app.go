@@ -199,6 +199,10 @@ func (d *declarativeRoot) Paint(ctx component.PaintContext, buffer *paint.Buffer
 }
 
 // paintWithFiber renders using the Fiber reconciler
+// In Fiber mode:
+// - Component functions are called by beginWorkComponent (not by renderVNode)
+// - Fiber tree is built and traversed by reconciler
+// - renderCallback only renders leaf nodes (no recursion)
 func (d *declarativeRoot) paintWithFiber(ctx component.PaintContext, buffer *paint.Buffer) {
 	// Clear active component keys for this render
 	d.activeComponentKeys = d.activeComponentKeys[:0]
@@ -213,15 +217,20 @@ func (d *declarativeRoot) paintWithFiber(ctx component.PaintContext, buffer *pai
 	// Reset interactive elements collection
 	d.resetInteractiveElements()
 
-	// Render using Fiber reconciler
-	// The reconciler will call the root component function
-	d.reconciler.SetRenderCallback(func(vnode VNode, x, y int, buffer *paint.Buffer) {
-		// Collect interactive elements during Fiber traversal
-		d.collectInteractiveElements(vnode)
-		// Actually render the VNode
-		d.renderVNode(vnode, x, y, buffer)
-	})
+	// Share instance manager with reconciler for consistent state
+	d.reconciler.SetInstanceManager(d.instanceManager)
 
+	// Set render callback for Fiber mode
+	// This callback is called for each Fiber node during commit phase
+	// It should ONLY render the current node, NOT recurse into children
+	// (Fiber tree traversal handles children)
+	d.reconciler.SetRenderCallback(d.renderVNodeFiber)
+
+	// Render using Fiber reconciler
+	// The reconciler will:
+	// 1. Call d.appFn() to get root VNode
+	// 2. Build Fiber tree (beginWorkComponent expands components)
+	// 3. Traverse Fiber tree and call renderCallback for each node
 	d.reconciler.Render(ctx, buffer, d.appFn)
 
 	// Restore hover state after render
@@ -233,6 +242,10 @@ func (d *declarativeRoot) paintWithFiber(ctx component.PaintContext, buffer *pai
 
 	// Validate and clamp focusedIndex to valid range
 	totalElements := d.getTotalFocusableCount()
+	if os.Getenv("TUI_DEBUG_UI") == "true" {
+		fmt.Fprintf(os.Stderr, "After render: buttons=%d, totalElements=%d, focusedIndex=%d\n",
+			len(d.buttons), totalElements, d.focusedIndex)
+	}
 	if totalElements == 0 {
 		d.focusedIndex = -1
 		d.focusedType = -1
@@ -448,7 +461,79 @@ func (d *declarativeRoot) restoreHoveredTextareas(hovered map[int]bool) {
 	}
 }
 
-// renderVNode recursively renders a VNode to the buffer
+// renderVNodeFiber renders a SINGLE VNode without recursing into children
+// Used in Fiber mode where the Fiber tree traversal handles children
+// This is called by renderCallback during the commit phase
+func (d *declarativeRoot) renderVNodeFiber(node VNode, x, y int, buffer *paint.Buffer) {
+	if node == nil {
+		return
+	}
+
+	if os.Getenv("TUI_DEBUG_UI") == "true" {
+		fmt.Fprintf(os.Stderr, "renderVNodeFiber: type=%T, node=%+v\n", node, node)
+	}
+
+	switch n := node.(type) {
+	case *TextVNode:
+		d.renderText(n, x, y, buffer)
+
+	case *ButtonVNode:
+		// Collect button for focus management
+		if !n.Disabled() {
+			n.focusIndex = len(d.buttons)
+			d.buttons = append(d.buttons, n)
+		}
+		d.renderButton(n, x, y, buffer)
+
+	case *InputVNode:
+		// Collect input for focus management
+		if !n.Disabled() && !n.ReadOnly() {
+			n.focusIndex = len(d.inputs)
+			d.inputs = append(d.inputs, n)
+		}
+		d.renderInput(n, x, y, buffer)
+
+	case *TextareaVNode:
+		// Collect textarea for focus management
+		if !n.Disabled() {
+			n.focusIndex = len(d.textareas)
+			d.textareas = append(d.textareas, n)
+		}
+		d.renderTextarea(n, x, y, buffer)
+
+	case *CheckboxVNode:
+		// Collect checkbox for focus management
+		if !n.Disabled() {
+			n.focusIndex = len(d.checkboxes)
+			d.checkboxes = append(d.checkboxes, n)
+		}
+		d.renderCheckbox(n, x, y, buffer)
+
+	case *SelectVNode:
+		// Collect select for focus management
+		if !n.Disabled() {
+			n.focusIndex = len(d.selects)
+			d.selects = append(d.selects, n)
+		}
+		d.renderSelect(n, x, y, buffer)
+
+	case *ProgressVNode:
+		d.renderProgress(n, x, y, buffer)
+
+	case *SpinnerVNode:
+		d.renderSpinner(n, x, y, buffer)
+
+	case *TableVNode:
+		d.renderTable(n, x, y, buffer)
+
+	// Container nodes and ComponentVNode are handled by Fiber tree traversal
+	// We don't need to render them here as their children will be rendered separately
+	case *ElementVNode, *LayoutNode, *GridVNode, *FragmentVNode, *ComponentVNode, *AbsoluteVNode, *VirtualListVNode:
+		// Skip - children are rendered by Fiber tree traversal
+	}
+}
+
+// renderVNode recursively renders a VNode to the buffer (legacy mode)
 func (d *declarativeRoot) renderVNode(node VNode, x, y int, buffer *paint.Buffer) int {
 	if node == nil {
 		return 0
@@ -1347,6 +1432,12 @@ func (d *declarativeRoot) isFocused(btn *ButtonVNode) bool {
 
 // HandleEvent implements frameworkevent.Component interface
 func (d *declarativeRoot) HandleEvent(ev frameworkevent.Event) bool {
+	if os.Getenv("TUI_DEBUG_UI") == "true" {
+		if keyEv, ok := ev.(*frameworkevent.KeyEvent); ok {
+			fmt.Fprintf(os.Stderr, "HandleEvent: Rune=%c, Name=%s\n", keyEv.Key.Rune, keyEv.Key.Name)
+		}
+	}
+
 	// Handle keyboard events
 	if keyEv, ok := ev.(*frameworkevent.KeyEvent); ok {
 		// Check for quit keys: 'q', 'Q'
@@ -1438,6 +1529,9 @@ func (d *declarativeRoot) HandleEvent(ev frameworkevent.Event) bool {
 
 		case frameworkevent.KeyEnter:
 			// Enter key behavior
+			if os.Getenv("TUI_DEBUG_UI") == "true" {
+				fmt.Fprintf(os.Stderr, "Enter pressed: focusedIndex=%d, buttons=%d\n", d.focusedIndex, len(d.buttons))
+			}
 			elem, elemType := d.getElementByIndex(d.focusedIndex)
 			if elemType == 1 { // Input
 				input := elem.(*InputVNode)

@@ -1,2 +1,6 @@
 *.exe
 AGENTS.md
+*.exe~
+coverage.out
+.claude
+.vscode

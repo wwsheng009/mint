@@ -2,6 +2,8 @@
 package ui
 
 import (
+	"fmt"
+	"os"
 	"time"
 
 	"github.com/wwsheng009/mint/framework"
@@ -35,10 +37,12 @@ type Reconciler struct {
 	timeBudget time.Duration // Time slice budget per frame
 
 	// === Integration ===
-	app          *framework.App   // Framework app
-	instanceMgr  *InstanceManager // Component instance manager
-	rootComponent ComponentFunc    // Root component function
-	ctx          *ComponentContext // Root component context
+	app                 *framework.App          // Framework app
+	instanceMgr         *InstanceManager        // Component instance manager
+	interactionStateMgr *InteractionStateManager // Interaction state (hover/focus/etc)
+	keyValidator        *KeyValidator            // Key validation
+	rootComponent       ComponentFunc           // Root component function
+	ctx                 *ComponentContext       // Root component context
 
 	// === Render State ===
 	buffer        *paint.Buffer           // Render target
@@ -64,12 +68,14 @@ func NewReconciler(app *framework.App, rootComponent ComponentFunc, config Recon
 	}
 
 	return &Reconciler{
-		app:           app,
-		rootComponent: rootComponent,
-		instanceMgr:   NewInstanceManager(),
-		timeBudget:    timeBudget,
-		ctx:           NewComponentContextForRoot(),
-		enableFiber:   config.EnableFiber,
+		app:                 app,
+		rootComponent:       rootComponent,
+		instanceMgr:         NewInstanceManager(),
+		interactionStateMgr: NewInteractionStateManager(),
+		keyValidator:        NewKeyValidator(),
+		timeBudget:          timeBudget,
+		ctx:                 NewComponentContextForRoot(),
+		enableFiber:         config.EnableFiber,
 	}
 }
 
@@ -142,6 +148,10 @@ func (r *Reconciler) workLoopSync() {
 	if r.workInProgress == nil {
 		return
 	}
+
+	// Set current reconciler for BeginWork to access InstanceManager
+	currentReconciler = r
+	defer func() { currentReconciler = nil }()
 
 	// Process all work units
 	workInProgress := r.workInProgress
@@ -238,23 +248,90 @@ func (r *Reconciler) renderFiberToBuffer(fiber *Fiber, x, y int, buffer *paint.B
 		return
 	}
 
+	// Debug: log fiber traversal
+	if os.Getenv("TUI_DEBUG_UI") == "true" {
+		fmt.Fprintf(os.Stderr, "renderFiberToBuffer: type=%T, x=%d, y=%d\n", fiber.VNode, x, y)
+	}
+
 	// Render this fiber based on its type
 	r.renderFiber(fiber, x, y, buffer)
 
-	// Render children
+	// Render children with proper layout
 	childX := x
 	childY := y
+
+	// Check if this is a LayoutNode to handle horizontal layout
+	isHStack := false
+	var gap int
+	if layoutNode, ok := fiber.VNode.(*LayoutNode); ok {
+		isHStack = layoutNode.direction == 0 // DirectionRow = 0
+		gap = layoutNode.Gap()
+	}
+
 	for child := fiber.Child; child != nil; child = child.Sibling {
 		r.renderFiberToBuffer(child, childX, childY, buffer)
-		// Move position for next sibling (vertical layout)
-		offsetY := r.measureFiberHeight(child)
-		childY += offsetY
+
+		// Move position for next sibling
+		if isHStack {
+			// Horizontal layout: move X, keep Y
+			width := r.measureFiberWidth(child)
+			childX += width + gap
+		} else {
+			// Vertical layout: move Y, keep X
+			offsetY := r.measureFiberHeight(child)
+			childY += offsetY
+		}
+	}
+}
+
+// measureFiberWidth measures the width of a fiber node
+func (r *Reconciler) measureFiberWidth(fiber *Fiber) int {
+	if fiber == nil || fiber.VNode == nil {
+		return 0
+	}
+
+	switch v := fiber.VNode.(type) {
+	case *TextVNode:
+		return len(v.Content())
+	case *ButtonVNode:
+		return len(v.Label()) + 2 // [label]
+	case *InputVNode:
+		return 22 // [ + 20 chars + ]
+	case *SelectVNode:
+		maxLen := 10
+		for _, opt := range v.Options() {
+			if len(opt.Label) > maxLen {
+				maxLen = len(opt.Label)
+			}
+		}
+		return maxLen + 4 // [label + ▼]
+	case *CheckboxVNode:
+		width := 4 // [X] or [ ]
+		if v.Label() != "" {
+			width += 1 + len(v.Label())
+		}
+		return width
+	case *ElementVNode, *LayoutNode, *FragmentVNode:
+		// Containers - sum up children widths
+		width := 0
+		for child := fiber.Child; child != nil; child = child.Sibling {
+			width += r.measureFiberWidth(child)
+		}
+		return width
+	default:
+		return 10
 	}
 }
 
 // renderFiber renders a single Fiber to the buffer
 func (r *Reconciler) renderFiber(fiber *Fiber, x, y int, buffer *paint.Buffer) {
 	if fiber == nil || fiber.VNode == nil {
+		return
+	}
+
+	// Skip ComponentVNode - its children are already expanded in the Fiber tree
+	// The renderCallback should only be called for rendered nodes, not component definitions
+	if fiber.VNode.Type() == VNodeComponent {
 		return
 	}
 
@@ -308,9 +385,24 @@ func (r *Reconciler) GetInstanceManager() *InstanceManager {
 	return r.instanceMgr
 }
 
+// GetInteractionStateManager returns the interaction state manager
+func (r *Reconciler) GetInteractionStateManager() *InteractionStateManager {
+	return r.interactionStateMgr
+}
+
+// GetKeyValidator returns the key validator
+func (r *Reconciler) GetKeyValidator() *KeyValidator {
+	return r.keyValidator
+}
+
 // GetContext returns the root component context
 func (r *Reconciler) GetContext() *ComponentContext {
 	return r.ctx
+}
+
+// SetInstanceManager sets the instance manager (shared with declarativeRoot)
+func (r *Reconciler) SetInstanceManager(mgr *InstanceManager) {
+	r.instanceMgr = mgr
 }
 
 // =============================================================================

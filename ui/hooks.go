@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"os"
 	"sync"
 )
 
@@ -119,9 +120,19 @@ func useState(initial interface{}) (interface{}, func(interface{})) {
 		hook.Value = initial
 	}
 
+	if os.Getenv("TUI_DEBUG_UI") == "true" {
+		fmt.Fprintf(os.Stderr, "useState: componentID=%s, hookIndex=%d, value=%v\n", ctx.ComponentID, ctx.HookIndex, hook.Value)
+	}
+
 	// Create setter function
 	setState := func(newValue interface{}) {
+		if os.Getenv("TUI_DEBUG_UI") == "true" {
+			fmt.Fprintf(os.Stderr, "setState BEFORE: componentID=%s, hook.Value=%v, hook=%p\n", ctx.ComponentID, hook.Value, hook)
+		}
 		hook.Value = newValue
+		if os.Getenv("TUI_DEBUG_UI") == "true" {
+			fmt.Fprintf(os.Stderr, "setState AFTER: componentID=%s, hook.Value=%v\n", ctx.ComponentID, hook.Value)
+		}
 		// Schedule re-render (will be implemented in reconciler)
 		scheduleRender(ctx.ComponentID)
 	}
@@ -200,6 +211,9 @@ func UseStateBool(initial bool) (bool, func(bool)) {
 func (ctx *ComponentContext) getOrCreateHook(hookType HookType) *Hook {
 	if ctx.HookIndex < len(ctx.Hooks) {
 		hook := &ctx.Hooks[ctx.HookIndex]
+		if os.Getenv("TUI_DEBUG_UI") == "true" {
+			fmt.Fprintf(os.Stderr, "  getOrCreateHook: EXISTS, hookIndex=%d, value=%v, hook=%p\n", ctx.HookIndex, hook.Value, hook)
+		}
 		if hook.Type != hookType {
 			panic(fmt.Sprintf("hook order changed: expected %s, got %s at position %d",
 				hook.Type, hookType, ctx.HookIndex))
@@ -214,6 +228,9 @@ func (ctx *ComponentContext) getOrCreateHook(hookType HookType) *Hook {
 	}
 	ctx.Hooks = append(ctx.Hooks, *hook)
 	ctx.HookIndex++
+	if os.Getenv("TUI_DEBUG_UI") == "true" {
+		fmt.Fprintf(os.Stderr, "  getOrCreateHook: NEW, hookIndex=%d, hooks len=%d\n", ctx.HookIndex-1, len(ctx.Hooks))
+	}
 	return &ctx.Hooks[len(ctx.Hooks)-1]
 }
 

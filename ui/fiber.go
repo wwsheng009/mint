@@ -96,6 +96,10 @@ type Fiber struct {
 	// === Tag for debugging ===
 	// Component or element tag
 	Tag string
+
+	// === Component Instance ===
+	// Persistent component instance for state preservation
+	ComponentInstance ComponentInstance
 }
 
 // Update represents a state update

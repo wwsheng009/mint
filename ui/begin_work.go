@@ -14,6 +14,10 @@ package ui
 // After BeginWork comes CompleteWork.
 // =============================================================================
 
+// currentReconciler holds the active reconciler during render
+// This is set by the reconciler before calling BeginWork
+var currentReconciler *Reconciler
+
 // BeginWork processes a Fiber node during the render phase
 // Returns the next Fiber to process (usually nil, since we traverse in workLoop)
 func BeginWork(current, workInProgress *Fiber) *Fiber {
@@ -53,6 +57,38 @@ func beginWorkComponent(current, workInProgress *Fiber) *Fiber {
 	componentVNode, ok := workInProgress.VNode.(*ComponentVNode)
 	if !ok {
 		return workInProgress
+	}
+
+	// Generate or get the component key for instance management
+	componentKey := workInProgress.Key
+	if componentKey == "" {
+		// Use component name as key for single-instance components
+		componentKey = "component:" + componentVNode.Name()
+	}
+
+	// Get or create component instance from InstanceManager
+	// This ensures hooks state is preserved across renders for the same component
+	var instance ComponentInstance
+	if currentReconciler != nil && currentReconciler.instanceMgr != nil {
+		instance = currentReconciler.instanceMgr.GetOrCreate(componentKey, func() ComponentInstance {
+			if componentVNode.FnWithProps() != nil {
+				return NewBaseComponentInstanceWithProps(componentKey, componentVNode.FnWithProps(), workInProgress.Props)
+			}
+			return NewBaseComponentInstance(componentKey, componentVNode.Fn())
+		})
+
+		// Update props if they changed
+		if workInProgress.Props != nil {
+			instance.SetProps(workInProgress.Props)
+		}
+
+		// Store the instance in the fiber for later use
+		workInProgress.ComponentInstance = instance
+
+		// Use the instance's context for hooks
+		oldContext := GetCurrentContext()
+		SetCurrentContext(instance.GetContext())
+		defer SetCurrentContext(oldContext)
 	}
 
 	// Get children by calling the component function
@@ -108,13 +144,18 @@ func beginWorkText(current, workInProgress *Fiber) *Fiber {
 
 // beginWorkElement processes an element Fiber
 func beginWorkElement(current, workInProgress *Fiber) *Fiber {
-	elementVNode, ok := workInProgress.VNode.(*ElementVNode)
-	if !ok {
+	var children []VNode
+
+	// Handle both ElementVNode and LayoutNode (which embeds ElementVNode)
+	switch v := workInProgress.VNode.(type) {
+	case *ElementVNode:
+		children = v.Children()
+	case *LayoutNode:
+		// LayoutNode embeds ElementVNode, so Children() works
+		children = v.Children()
+	default:
 		return workInProgress
 	}
-
-	// Get children from element
-	children := elementVNode.Children()
 
 	// Get current child for reconciliation
 	var currentChild *Fiber
