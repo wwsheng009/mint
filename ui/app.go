@@ -289,8 +289,8 @@ func (d *declarativeRoot) paintLegacy(ctx component.PaintContext, buffer *paint.
 	// Run effects after render completes
 	d.ctx.runEffects()
 
-	// Cleanup unused component instances
-	d.instanceManager.Cleanup(d.activeComponentKeys)
+	// Note: Component instance cleanup is moved to after renderVNode
+	// because activeComponentKeys is populated during render, not during appFn()
 
 	// Clear and collect interactive elements for focus management
 	// 保存 hover 状态，使用组件在列表中的索引作为key
@@ -327,10 +327,23 @@ func (d *declarativeRoot) paintLegacy(ctx component.PaintContext, buffer *paint.
 		}
 	}
 
+	// Reset interactive elements collection
+	// They will be collected during renderVNode to avoid double-rendering components
 	d.resetInteractiveElements()
-	d.collectInteractiveElements(vnode)
 
 	// Validate and clamp focusedIndex to valid range
+	// Note: totalElements will be computed during renderVNode
+	// We'll validate after render completes
+
+	// 渲染 VNode 树到缓冲区（此过程会设置 bounds）
+	// Interactive elements are collected during this render pass
+	d.renderVNode(vnode, ctx.X, ctx.Y, buffer)
+
+	// Cleanup unused component instances after render completes
+	// activeComponentKeys has been populated by renderVNode's component handling
+	d.instanceManager.Cleanup(d.activeComponentKeys)
+
+	// Now validate focusedIndex after elements have been collected
 	totalElements := d.getTotalFocusableCount()
 	if totalElements == 0 {
 		d.focusedIndex = -1
@@ -342,9 +355,6 @@ func (d *declarativeRoot) paintLegacy(ctx component.PaintContext, buffer *paint.
 		// Update focusedType in case the element type at focusedIndex changed
 		_, d.focusedType = d.getElementByIndex(d.focusedIndex)
 	}
-
-	// 渲染 VNode 树到缓冲区（此过程会设置 bounds）
-	d.renderVNode(vnode, ctx.X, ctx.Y, buffer)
 
 	// 渲染完成后恢复 hover 状态（使用索引匹配）
 	for i, btn := range d.buttons {
@@ -567,9 +577,15 @@ func (d *declarativeRoot) renderVNode(node VNode, x, y int, buffer *paint.Buffer
 		currentY = y + padding[0]
 		gap := n.Gap()
 
+		// Track the maximum height for DirectionRow
+		maxHeight := 0
 		for i, child := range n.Children() {
 			offsetY := d.renderVNode(child, currentX, currentY, buffer)
 			if n.direction == DirectionRow {
+				// Track maximum height for row layout
+				if offsetY > maxHeight {
+					maxHeight = offsetY
+				}
 				width := d.measureWidth(child)
 				currentX += width + gap
 			} else {
@@ -578,6 +594,11 @@ func (d *declarativeRoot) renderVNode(node VNode, x, y int, buffer *paint.Buffer
 					currentY += gap
 				}
 			}
+		}
+
+		// For DirectionRow, add the maximum child height to currentY
+		if n.direction == DirectionRow {
+			currentY += maxHeight
 		}
 
 	case *GridVNode:
@@ -658,20 +679,40 @@ func (d *declarativeRoot) renderVNode(node VNode, x, y int, buffer *paint.Buffer
 		currentY += padding[2]
 
 	case *ButtonVNode:
+		// Collect button for focus management
+		if !n.Disabled() {
+			n.focusIndex = len(d.buttons)
+			d.buttons = append(d.buttons, n)
+		}
 		d.renderButton(n, x, currentY, buffer)
 		currentY += 1
 
 	case *InputVNode:
+		// Collect input for focus management
+		if !n.Disabled() && !n.ReadOnly() {
+			n.focusIndex = len(d.inputs)
+			d.inputs = append(d.inputs, n)
+		}
 		d.renderInput(n, x, currentY, buffer)
 		currentY += 1
 
 	case *TextareaVNode:
+		// Collect textarea for focus management
+		if !n.Disabled() {
+			n.focusIndex = len(d.textareas)
+			d.textareas = append(d.textareas, n)
+		}
 		// Textarea can be multiple lines
 		height := n.Rows()
 		d.renderTextarea(n, x, currentY, buffer)
 		currentY += height
 
 	case *CheckboxVNode:
+		// Collect checkbox for focus management
+		if !n.Disabled() {
+			n.focusIndex = len(d.checkboxes)
+			d.checkboxes = append(d.checkboxes, n)
+		}
 		d.renderCheckbox(n, x, currentY, buffer)
 		currentY += 1
 
@@ -684,6 +725,11 @@ func (d *declarativeRoot) renderVNode(node VNode, x, y int, buffer *paint.Buffer
 		currentY += 1
 
 	case *SelectVNode:
+		// Collect select for focus management
+		if !n.Disabled() {
+			n.focusIndex = len(d.selects)
+			d.selects = append(d.selects, n)
+		}
 		d.renderSelect(n, x, currentY, buffer)
 		currentY += 1
 
@@ -1350,7 +1396,38 @@ func (d *declarativeRoot) collectInteractiveElements(node VNode) {
 			d.collectInteractiveElements(child)
 		}
 	case *ComponentVNode:
-		rendered := n.Render()
+		// Use instance manager for persistent component state (same as renderVNode)
+		componentKey := n.Key()
+		if componentKey == "" {
+			// Generate a stable key from component name if none provided
+			componentKey = "component:" + n.Name()
+		}
+
+		// Track this component as active
+		d.activeComponentKeys = append(d.activeComponentKeys, componentKey)
+
+		// Get or create component instance
+		instance := d.instanceManager.GetOrCreate(componentKey, func() ComponentInstance {
+			if n.FnWithProps() != nil {
+				return NewBaseComponentInstanceWithProps(componentKey, n.FnWithProps(), n.Props())
+			}
+			return NewBaseComponentInstance(componentKey, n.Fn())
+		})
+
+		// Update props if they changed
+		if n.Props() != nil {
+			instance.SetProps(n.Props())
+		}
+
+		// Render using the persistent instance with proper context setup
+		oldContext := getCurrentContext()
+		setCurrentContext(instance.GetContext())
+
+		rendered := instance.Render()
+
+		setCurrentContext(oldContext)
+
+		// Recursively collect interactive elements from the rendered output
 		if rendered != nil {
 			d.collectInteractiveElements(rendered)
 		}
@@ -1589,6 +1666,10 @@ func (d *declarativeRoot) HandleEvent(ev frameworkevent.Event) bool {
 					if os.Getenv("TUI_DEBUG_UI") == "true" {
 						fmt.Fprintf(os.Stderr, "[HandleEvent] Returned from onClick\n")
 					}
+				}
+				// Mark dirty to trigger re-render after button click
+				if d.app != nil {
+					d.app.MarkDirty()
 				}
 				return true
 			} else if elemType == 3 { // Checkbox
@@ -2004,4 +2085,43 @@ func (d *declarativeRoot) dispatchMouseEvent(ev *frameworkevent.MouseEvent, x, y
 	}
 
 	return handled
+}
+
+// =============================================================================
+// Getter methods for testing/debugging
+// =============================================================================
+
+// GetButtons returns the collected buttons (for testing)
+func (d *declarativeRoot) GetButtons() []*ButtonVNode {
+	return d.buttons
+}
+
+// GetInputs returns the collected inputs (for testing)
+func (d *declarativeRoot) GetInputs() []*InputVNode {
+	return d.inputs
+}
+
+// GetTextareas returns the collected textareas (for testing)
+func (d *declarativeRoot) GetTextareas() []*TextareaVNode {
+	return d.textareas
+}
+
+// GetCheckboxes returns the collected checkboxes (for testing)
+func (d *declarativeRoot) GetCheckboxes() []*CheckboxVNode {
+	return d.checkboxes
+}
+
+// GetSelects returns the collected selects (for testing)
+func (d *declarativeRoot) GetSelects() []*SelectVNode {
+	return d.selects
+}
+
+// GetFocusedIndex returns the current focused element index (for testing)
+func (d *declarativeRoot) GetFocusedIndex() int {
+	return d.focusedIndex
+}
+
+// GetFocusedType returns the current focused element type (for testing)
+func (d *declarativeRoot) GetFocusedType() int {
+	return d.focusedType
 }

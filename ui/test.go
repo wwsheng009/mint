@@ -534,8 +534,35 @@ func (ta *TestableApp) InjectString(text string) error {
 }
 
 // GetBuffer 获取当前渲染缓冲区
+// Returns the appropriate buffer based on whether renderer.Render() was called:
+// - If front buffer has content (swapped), return front (normal mode)
+// - Otherwise return back (direct mode or after paint but before swap)
 func (ta *TestableApp) GetBuffer() *paint.Buffer {
-	return ta.fwApp.GetRenderer().GetBackBuffer()
+	renderer := ta.fwApp.GetRenderer()
+	front := renderer.GetFrontBuffer()
+	back := renderer.GetBackBuffer()
+
+	// Check if front buffer has been rendered to (has non-space content)
+	// This indicates renderer.Render() was called and swapped buffers
+	hasContent := false
+	if front != nil && front.Height > 0 && len(front.Cells) > 0 {
+		for y := 0; y < front.Height; y++ {
+			for x := 0; x < front.Width; x++ {
+				if front.Cells[y][x].Cluster != "" && front.Cells[y][x].Cluster != " " {
+					hasContent = true
+					break
+				}
+			}
+			if hasContent {
+				break
+			}
+		}
+	}
+
+	if hasContent {
+		return front
+	}
+	return back
 }
 
 // GetRenderString 获取渲染输出字符串
