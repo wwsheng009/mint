@@ -644,7 +644,11 @@ func UseStateIntWithDebug(initial int) (int, func(interface{}), func() int, int)
 		}
 	}
 
-	return value.(int), setInt, getValue, hookIndex
+	intValue := value.(int)
+	if os.Getenv("TUI_DEBUG_UI") == "true" {
+		fmt.Fprintf(os.Stderr, "[DEBUG] UseStateIntWithDebug RETURN: hookIndex=%d, returning value=%d, ptr=%p\n", hookIndex, intValue, &intValue)
+	}
+	return intValue, setInt, getValue, hookIndex
 }
 
 // ==============================================================================

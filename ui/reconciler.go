@@ -156,7 +156,10 @@ func (r *Reconciler) workLoopSync() {
 	// The traversal follows: BeginWork down the tree, then CompleteWork back up
 	r.performUnitOfWork(r.workInProgress)
 
-	// Work complete, prepare for commit
+	// CRITICAL: Swap workInProgress tree with root tree (double buffering)
+	// After the work loop completes, workInProgress becomes the new current tree
+	// This is the core of React Fiber's double buffering architecture
+	r.root = r.workInProgress
 	r.workInProgress = nil
 }
 
@@ -238,6 +241,7 @@ func (r *Reconciler) CommitRoot() {
 	}
 
 	// Render the Fiber tree to buffer
+	// r.root now contains the updated tree from workInProgress (swapped in workLoopSync)
 	r.renderFiberToBuffer(r.root, 0, 0, r.buffer)
 
 	// Validate hooks finished correctly
