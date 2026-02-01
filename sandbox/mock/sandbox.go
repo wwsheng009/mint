@@ -53,6 +53,34 @@ func New(width, height int) *MockSandbox {
 	return ms
 }
 
+// NewWithConfig 使用自定义配置创建模拟沙箱
+func NewWithConfig(config *sandbox.Config) *MockSandbox {
+	if config == nil {
+		config = sandbox.MockConfig()
+	}
+
+	width := config.Width
+	height := config.Height
+
+	ms := &MockSandbox{
+		lifecycle: sandbox.NewLifecycle(),
+		config:    config,
+		buffer:    paint.NewBuffer(width, height),
+		injector:  sandbox.NewEventInjector(config.Event.Strategy),
+		queue:     NewBoundedQueue(QueueConfig{
+			MaxSize:     config.Event.QueueMaxSize,
+			MaxMemory:   config.Event.QueueMaxMemory,
+			EvictPolicy: config.Event.EvictPolicy,
+		}),
+		recorder: sandbox.NewEventRecorder(config.Event.RecordMaxLen),
+		snapMgr:  sandbox.NewSnapshotManager(config.Snapshot.MaxCount),
+	}
+
+	ms.injector.SetRecorder(ms.recorder)
+
+	return ms
+}
+
 // ==============================================================================
 // Sandbox Interface
 // ==============================================================================

@@ -137,10 +137,11 @@ func (q *BoundedQueue) evictOne() error {
 
 // QueueStats 队列统计
 type QueueStats struct {
-	Length      int
-	MemoryUsed  int64
-	MemoryLimit int64
-	EvictCount  int64
+	Length      int   // 当前队列长度
+	MaxQueueSize int  // 队列最大长度
+	MemoryUsed  int64 // 已用内存
+	MemoryLimit int64 // 内存限制
+	EvictCount  int64 // 淘汰事件数
 }
 
 // Stats 获取队列统计
@@ -149,10 +150,11 @@ func (q *BoundedQueue) Stats() QueueStats {
 	defer q.mu.RUnlock()
 
 	return QueueStats{
-		Length:      len(q.events),
-		MemoryUsed:  q.memory,
-		MemoryLimit: q.config.MaxMemory,
-		EvictCount:  q.evictCount,
+		Length:       len(q.events),
+		MaxQueueSize: q.config.MaxSize,
+		MemoryUsed:   q.memory,
+		MemoryLimit:  q.config.MaxMemory,
+		EvictCount:   q.evictCount,
 	}
 }
 
