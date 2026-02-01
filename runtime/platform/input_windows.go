@@ -16,13 +16,14 @@ import (
 )
 
 type windowsInputReader struct {
-	events       chan<- RawInput
-	quit         chan struct{}
-	quitOnce     sync.Once
-	mu           sync.Mutex
-	originalMode uint32
-	lastWidth    int
-	lastHeight   int
+	events            chan<- RawInput
+	quit              chan struct{}
+	quitOnce          sync.Once
+	mu                sync.Mutex
+	originalMode      uint32
+	lastWidth         int
+	lastHeight        int
+	lastPressedButton MouseButton // Track which button was pressed for release events
 }
 
 func newInputReaderImpl() inputReaderImpl {
@@ -330,14 +331,15 @@ func (r *windowsInputReader) parseMouseEvent(record *INPUT_RECORD, now time.Time
 
 	// 确定鼠标按钮
 	buttonState := mouseEvent.ButtonState
+	var currentButton MouseButton
 	if buttonState&FROM_LEFT_1ST_BUTTON_PRESSED != 0 {
-		input.MouseButton = MouseLeft
+		currentButton = MouseLeft
 	} else if buttonState&RIGHTMOST_BUTTON_PRESSED != 0 {
-		input.MouseButton = MouseRight
+		currentButton = MouseRight
 	} else if buttonState&FROM_LEFT_2ND_BUTTON_PRESSED != 0 {
-		input.MouseButton = MouseMiddle
+		currentButton = MouseMiddle
 	} else {
-		input.MouseButton = MouseNone
+		currentButton = MouseNone
 	}
 
 	// 确定鼠标动作类型
@@ -348,16 +350,25 @@ func (r *windowsInputReader) parseMouseEvent(record *INPUT_RECORD, now time.Time
 		input.MouseAction = MouseWheelDown
 	} else if eventFlags&DOUBLE_CLICK != 0 {
 		input.MouseAction = MousePress
+		input.MouseButton = currentButton
+		r.lastPressedButton = currentButton
 		input.Modifiers |= ModShift // 临时使用 Shift 位表示双击
 	} else if eventFlags&MOUSE_MOVED != 0 {
 		// 鼠标移动时，无论按钮是否按下，都应该是 MouseMotion
 		// 按钮状态由 MouseButton 字段表示
 		input.MouseAction = MouseMotion
+		input.MouseButton = currentButton
 	} else {
 		if buttonState != 0 {
+			// Button pressed - track which button for future release
 			input.MouseAction = MousePress
+			input.MouseButton = currentButton
+			r.lastPressedButton = currentButton
 		} else {
+			// Button released - use the last pressed button
 			input.MouseAction = MouseRelease
+			input.MouseButton = r.lastPressedButton
+			r.lastPressedButton = MouseNone // Reset after release
 		}
 	}
 

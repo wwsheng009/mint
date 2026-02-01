@@ -42,20 +42,8 @@ func TestCounterWithRunTest(t *testing.T) {
 
 	// 测试增加计数
 	t.Run("IncrementCount", func(t *testing.T) {
-		// 先重置焦点（Escape）
-		if err := testApp.InjectSpecialKey(platform.KeyEscape); err != nil {
-			t.Errorf("Failed to inject Escape: %v", err)
-		}
-		time.Sleep(50 * time.Millisecond)
-
 		// 使用 Tab 导航到 "+" 按钮并按 Enter 点击
-		// 第一个 Tab: 聚焦到 [-] 按钮
-		if err := testApp.InjectSpecialKey(platform.KeyTab); err != nil {
-			t.Errorf("Failed to inject Tab: %v", err)
-		}
-		time.Sleep(50 * time.Millisecond)
-
-		// 第二个 Tab: 聚焦到 [+] 按钮
+		// 焦点从 [-] (index 0) -> [+] (index 1)
 		if err := testApp.InjectSpecialKey(platform.KeyTab); err != nil {
 			t.Errorf("Failed to inject Tab: %v", err)
 		}
@@ -65,9 +53,7 @@ func TestCounterWithRunTest(t *testing.T) {
 		if err := testApp.InjectSpecialKey(platform.KeyEnter); err != nil {
 			t.Errorf("Failed to inject Enter: %v", err)
 		}
-		time.Sleep(100 * time.Millisecond)
-		testApp.GetFrameworkApp().ForceRenderNow()
-		time.Sleep(50 * time.Millisecond)
+		time.Sleep(150 * time.Millisecond)
 
 		// 检查渲染
 		rendered := testApp.GetRenderString()
@@ -80,7 +66,13 @@ func TestCounterWithRunTest(t *testing.T) {
 
 	// 测试减少计数
 	t.Run("DecrementCount", func(t *testing.T) {
-		// 导航到 "-" 按钮并点击
+		// 当前焦点可能在 [+] (index 1)，需要导航到 [-] (index 0)
+		// 路径: [+] (1) -> Input (2) -> [-] (0) wraps around
+		if err := testApp.InjectSpecialKey(platform.KeyTab); err != nil {
+			t.Errorf("Failed to inject Tab: %v", err)
+		}
+		time.Sleep(50 * time.Millisecond)
+
 		if err := testApp.InjectSpecialKey(platform.KeyTab); err != nil {
 			t.Errorf("Failed to inject Tab: %v", err)
 		}
@@ -89,9 +81,7 @@ func TestCounterWithRunTest(t *testing.T) {
 		if err := testApp.InjectSpecialKey(platform.KeyEnter); err != nil {
 			t.Errorf("Failed to inject Enter: %v", err)
 		}
-		time.Sleep(100 * time.Millisecond)
-		testApp.GetFrameworkApp().ForceRenderNow()
-		time.Sleep(50 * time.Millisecond)
+		time.Sleep(150 * time.Millisecond)
 
 		// 检查渲染
 		rendered := testApp.GetRenderString()
@@ -120,9 +110,7 @@ func TestCounterWithRunTest(t *testing.T) {
 			if err := testApp.InjectSpecialKey(platform.KeyEnter); err != nil {
 				t.Errorf("Failed to inject Enter: %v", err)
 			}
-			time.Sleep(100 * time.Millisecond)
-			testApp.GetFrameworkApp().ForceRenderNow()
-			time.Sleep(50 * time.Millisecond)
+			time.Sleep(150 * time.Millisecond)
 
 			// 检查渲染
 			rendered := testApp.GetRenderString()
@@ -171,9 +159,7 @@ func TestCounterWithInputField(t *testing.T) {
 		}
 		time.Sleep(50 * time.Millisecond)
 	}
-	time.Sleep(100 * time.Millisecond)
-	testApp.GetFrameworkApp().ForceRenderNow()
-	time.Sleep(50 * time.Millisecond)
+	time.Sleep(150 * time.Millisecond)
 
 	// 检查渲染
 	rendered := testApp.GetRenderString()
@@ -255,9 +241,7 @@ func TestCounterMouseClick(t *testing.T) {
 		if err := testApp.InjectMouse(clickX, clickY, platform.MouseLeft, platform.MousePress); err != nil {
 			t.Errorf("Failed to inject mouse click: %v", err)
 		}
-		time.Sleep(100 * time.Millisecond)
-		testApp.GetFrameworkApp().ForceRenderNow()
-		time.Sleep(50 * time.Millisecond)
+		time.Sleep(150 * time.Millisecond)
 
 		// 检查渲染
 		rendered := testApp.GetRenderString()
@@ -299,9 +283,7 @@ func TestCounterComprehensive(t *testing.T) {
 		}
 		time.Sleep(50 * time.Millisecond)
 	}
-	time.Sleep(100 * time.Millisecond)
-	testApp.GetFrameworkApp().ForceRenderNow()
-	time.Sleep(50 * time.Millisecond)
+	time.Sleep(150 * time.Millisecond)
 
 	if err := testApp.AssertRender("Hello, Bob"); err != nil {
 		t.Errorf("Name change failed: %v", err)
@@ -319,9 +301,7 @@ func TestCounterComprehensive(t *testing.T) {
 	if err := testApp.InjectSpecialKey(platform.KeyEnter); err != nil {
 		t.Errorf("Failed to inject Enter: %v", err)
 	}
-	time.Sleep(100 * time.Millisecond)
-	testApp.GetFrameworkApp().ForceRenderNow()
-	time.Sleep(50 * time.Millisecond)
+	time.Sleep(150 * time.Millisecond)
 
 	if err := testApp.AssertRender("Count: 1"); err != nil {
 		t.Errorf("Increment failed: %v", err)
@@ -337,9 +317,7 @@ func TestCounterComprehensive(t *testing.T) {
 	if err := testApp.InjectSpecialKey(platform.KeyEnter); err != nil {
 		t.Errorf("Failed to inject Enter: %v", err)
 	}
-	time.Sleep(100 * time.Millisecond)
-	testApp.GetFrameworkApp().ForceRenderNow()
-	time.Sleep(50 * time.Millisecond)
+	time.Sleep(150 * time.Millisecond)
 
 	if err := testApp.AssertRender("Count: 0"); err != nil {
 		t.Errorf("Decrement failed: %v", err)

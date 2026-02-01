@@ -409,9 +409,9 @@ func RunTest(app ComponentFunc, opts ...Option) (*TestableApp, error) {
 		fwApp.Run()
 	}()
 
-	// Wait for app to start running
-	for i := 0; i < 100; i++ {
-		if fwApp.GetState() == framework.StateRunning {
+	// Wait for app to start running AND pump to be ready
+	for i := 0; i < 200; i++ {
+		if fwApp.GetState() == framework.StateRunning && fwApp.GetPump() != nil && fwApp.GetPump().IsRunning() {
 			break
 		}
 		time.Sleep(10 * time.Millisecond)
@@ -472,9 +472,9 @@ func RunTestWithSandbox(app ComponentFunc, opts ...Option) (*TestableApp, error)
 		fwApp.Run()
 	}()
 
-	// 等待应用启动
-	for i := 0; i < 100; i++ {
-		if fwApp.GetState() == framework.StateRunning {
+	// 等待应用启动 AND pump 就绪
+	for i := 0; i < 200; i++ {
+		if fwApp.GetState() == framework.StateRunning && fwApp.GetPump() != nil && fwApp.GetPump().IsRunning() {
 			break
 		}
 		time.Sleep(10 * time.Millisecond)

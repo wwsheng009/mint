@@ -985,6 +985,9 @@ func (a *App) InjectEvent(raw platform.RawInput) error {
 		return errors.New("event pump not initialized")
 	}
 	if !a.pump.IsRunning() {
+		if os.Getenv("TUI_DEBUG_UI") == "true" {
+			fmt.Fprintf(os.Stderr, "[APP] InjectEvent: pump not running, state=%d, pump=%v\n", a.state, a.pump)
+		}
 		return errors.New("event pump not running")
 	}
 	a.pump.Inject(raw)

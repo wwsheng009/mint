@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/wwsheng009/mint/runtime/event"
@@ -30,7 +31,7 @@ type Pump struct {
 	source EventSource
 	events chan Event
 	quit   chan struct{}
-	running bool
+	running int32 // Use atomic for cross-goroutine visibility (0=stopped, 1=running)
 	mu     sync.RWMutex // Protects events channel from close while sending
 	wg     sync.WaitGroup // Waits for convertLoop to exit
 }
@@ -41,7 +42,7 @@ func NewPump(reader platform.InputReader) *Pump {
 		source: &PlatformEventSource{reader: reader},
 		events: make(chan Event, 100),
 		quit:   make(chan struct{}),
-		running: false,
+		running: 0,
 	}
 }
 
@@ -52,13 +53,13 @@ func NewPumpWithSource(source EventSource) *Pump {
 		source: source,
 		events: make(chan Event, 100),
 		quit:   make(chan struct{}),
-		running: false,
+		running: 0,
 	}
 }
 
 // Start starts the event pump.
 func (p *Pump) Start() error {
-	if p.running {
+	if atomic.LoadInt32(&p.running) != 0 {
 		return nil
 	}
 
@@ -68,7 +69,7 @@ func (p *Pump) Start() error {
 		return err
 	}
 
-	p.running = true
+	atomic.StoreInt32(&p.running, 1)
 
 	// DEBUG: 打印启动信息
 	if os.Getenv("TUI_DEBUG_PUMP") == "true" {
@@ -198,11 +199,11 @@ func (p *Pump) convertMouseEvent(raw platform.RawInput) Event {
 
 // Stop stops the event pump.
 func (p *Pump) Stop() {
-	if !p.running {
+	if atomic.LoadInt32(&p.running) == 0 {
 		return
 	}
 
-	p.running = false
+	atomic.StoreInt32(&p.running, 0)
 
 	// Send quit signal first (signals convertLoop to stop)
 	close(p.quit)
@@ -228,7 +229,7 @@ func (p *Pump) Events() <-chan Event {
 
 // IsRunning checks if the pump is running.
 func (p *Pump) IsRunning() bool {
-	return p.running
+	return atomic.LoadInt32(&p.running) != 0
 }
 
 // PumpWithTimeout gets an event with timeout.
@@ -291,7 +292,7 @@ func (s *ChannelEventSource) Stop() error {
 // Inject 用于测试时直接注入事件到 Pump
 // 注意：此方法仅用于测试，不应用于生产代码
 func (p *Pump) Inject(raw platform.RawInput) {
-	if !p.running {
+	if atomic.LoadInt32(&p.running) == 0 {
 		if os.Getenv("TUI_DEBUG_UI") == "true" {
 			fmt.Fprintf(os.Stderr, "[PUMP] Inject: pump not running!\n")
 		}
