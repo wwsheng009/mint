@@ -174,7 +174,35 @@ examples/debug_test/
 - 鼠标事件标志: `MOUSE_MOVED`, `FROM_LEFT_1ST_BUTTON_PRESSED`, 等
 - 事件系统设计文档: `runtime/event/README.md`
 
+## 测试结果
+
+### 修复前
+```
+鼠标移动到按钮 → Button HandleMouse: Type=press Click=left → CLICKED!  ❌
+```
+
+### 修复后
+```
+鼠标移动到按钮 → Button HandleMouse: Type=move Click=left → [无触发]  ✅
+真正点击时     → Button HandleMouse: Type=press Click=left → CLICKED!  ✅
+```
+
+### 测试覆盖
+- ✅ 鼠标移动事件（无按钮按下）
+- ✅ 鼠标拖动事件（按钮按下时移动）
+- ✅ 鼠标按下事件
+- ✅ 鼠标释放事件
+- ✅ 点击事件（按下+释放）
+- **测试状态**: 全部通过
+
+## 经验总结
+
+1. **事件语义清晰化**: 鼠标事件应该明确区分"移动"和"点击"，拖动操作属于移动而非点击
+2. **字段职责分离**: 事件类型和按钮状态应该由不同的字段表示，避免混淆
+3. **系统性测试**: 需要覆盖各种鼠标操作场景（移动、拖动、点击等）
+4. **日志驱动调试**: 在关键路径添加日志是快速定位问题的有效方法
+
 ---
 
-**修复提交**: 2026-01-31  
+**修复提交**: 2026-01-31
 **修复者**: AI Assistant

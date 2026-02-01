@@ -1107,6 +1107,7 @@ const (
 
 - [ENGINE_SANDBOX_INTEGRATION.md](./ENGINE_SANDBOX_INTEGRATION.md) - Engine 与 Sandbox 集成架构
 - [SANDBOX_DEBUG_GUIDE.md](./SANDBOX_DEBUG_GUIDE.md) - Sandbox 调试技巧
+- [SANDBOX_ADVANCED_FEATURES.md](./SANDBOX_ADVANCED_FEATURES.md) - Sandbox 高级功能（录制/回放、快照、TestHelper）
 - [API_REFERENCE.md](./API_REFERENCE.md) - API 完整参考
 - [USER_GUIDE.md](./USER_GUIDE.md) - 使用手册
 

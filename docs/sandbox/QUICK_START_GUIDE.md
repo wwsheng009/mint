@@ -2,7 +2,7 @@
 
 > Mint TUI 应用 Sandbox 集成快速指南
 >
-> 版本: 1.2 - 支持 SandboxEventSource 集成，新增测试退出机制说明
+> 版本: 1.3 - 支持 SandboxEventSource 集成，新增测试退出机制说明，新增高级功能介绍
 
 ## 概述
 
@@ -231,6 +231,40 @@ func TestQuitKey(t *testing.T) {
     }
 }
 ```
+
+### Sandbox 高级功能
+
+MockSandbox 提供了丰富的高级功能用于复杂测试场景：
+
+| 功能 | 描述 | 文档 |
+|------|------|------|
+| **事件录制** | 记录用户操作序列，可保存和加载 | [SANDBOX_ADVANCED_FEATURES.md](./SANDBOX_ADVANCED_FEATURES.md) |
+| **事件回放** | 按录制序列重放操作，支持速度调节 | 同上 |
+| **快照系统** | 保存和恢复应用状态，支持三级快照 | 同上 |
+| **队列统计** | 实时监控事件队列的长度和内存使用 | 同上 |
+| **TestHelper** | 链式 API 测试辅助器，简化测试代码 | 同上 |
+
+**快速示例：**
+
+```go
+// 事件录制
+recorder := sandbox.NewEventRecorder(10000)
+sb.SetRecorder(recorder)
+// ... 执行操作 ...
+events := recorder.Events() // 获取录制的事件
+
+// 快照
+snapshot, _ := sb.Snapshot(sandbox.SnapshotStandard, "tag")
+sb.Restore(snapshot) // 恢复状态
+
+// TestHelper 链式调用
+sb.Helper().
+    Type("hello").
+    Press(platform.KeyEnter).
+    AssertRender("hello")
+```
+
+> **详细文档：** 查看 [SANDBOX_ADVANCED_FEATURES.md](./SANDBOX_ADVANCED_FEATURES.md) 了解完整的高级功能 API 和使用示例。
 
 ---
 
@@ -822,3 +856,4 @@ testApp, _ := ui.TestRunWithConfig(MyApp, config)
 - `examples/sandbox_demo/` - 完整示例代码
 - `docs/sandbox/USER_GUIDE.md` - 详细使用手册
 - `docs/sandbox/API_REFERENCE.md` - API 参考手册
+- `docs/sandbox/SANDBOX_ADVANCED_FEATURES.md` - 高级功能指南（录制/回放、快照、TestHelper等）
