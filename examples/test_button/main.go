@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"os"
 
 	"github.com/wwsheng009/mint/ui"
@@ -19,19 +18,11 @@ func main() {
 	// Enable debug
 	os.Setenv("TUI_DEBUG_UI", "true")
 
-	app := ui.NewApp(
-		SimpleTest,
+	err := ui.Run(SimpleTest,
 		ui.WithWidth(30),
 		ui.WithHeight(10),
 		ui.WithTitle("Button Test"),
 	)
-
-	// Get the root to check button collection
-	if root, ok := app.(*ui.DeclarativeRoot); ok {
-		fmt.Fprintf(os.Stderr, "[DEBUG] Before run, buttons: %d\n", len(root.(*ui.declarativeRoot).buttons))
-	}
-
-	err := app.Run()
 	if err != nil {
 		panic(err)
 	}
