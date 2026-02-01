@@ -597,3 +597,9 @@ func (ta *TestableApp) GetFrameworkApp() *framework.App {
 func (ta *TestableApp) GetDeclarativeRoot() *declarativeRoot {
 	return ta.root
 }
+
+// GetSandbox 获取 MockSandbox（仅在使用 RunTestWithSandbox 创建时可用）
+// 可用于事件录制/回放等高级功能
+func (ta *TestableApp) GetSandbox() *mock.MockSandbox {
+	return ta.sandbox
+}

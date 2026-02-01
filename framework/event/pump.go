@@ -3,6 +3,7 @@ package event
 import (
 	"fmt"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/wwsheng009/mint/runtime/event"
@@ -30,6 +31,7 @@ type Pump struct {
 	events chan Event
 	quit   chan struct{}
 	running bool
+	mu     sync.RWMutex // Protects events channel from close while sending
 }
 
 // NewPump creates a new event pump with a platform input reader.
@@ -91,9 +93,13 @@ func (p *Pump) convertLoop(rawInputs <-chan platform.RawInput) {
 			}
 			ev := p.convertToEvent(raw)
 			if ev != nil {
+				// Acquire read lock to prevent events from being closed while sending
+				p.mu.RLock()
 				select {
 				case p.events <- ev:
+					p.mu.RUnlock()
 				case <-p.quit:
+					p.mu.RUnlock()
 					return
 				}
 			}
@@ -198,7 +204,7 @@ func (p *Pump) Stop() {
 
 	p.running = false
 
-	// Send quit signal
+	// Send quit signal first (signals convertLoop to stop)
 	close(p.quit)
 
 	// Stop event source
@@ -206,8 +212,10 @@ func (p *Pump) Stop() {
 		p.source.Stop()
 	}
 
-	// Close events channel
+	// Close events channel with write lock to prevent concurrent send
+	p.mu.Lock()
 	close(p.events)
+	p.mu.Unlock()
 }
 
 // Events returns the event channel.
@@ -291,12 +299,16 @@ func (p *Pump) Inject(raw platform.RawInput) {
 		if os.Getenv("TUI_DEBUG_UI") == "true" {
 			fmt.Fprintf(os.Stderr, "[PUMP] Injecting event: Type=%v\n", ev.Type())
 		}
+		// Acquire read lock to prevent events from being closed while sending
+		p.mu.RLock()
 		select {
 		case p.events <- ev:
+			p.mu.RUnlock()
 			if os.Getenv("TUI_DEBUG_UI") == "true" {
 				fmt.Fprintf(os.Stderr, "[PUMP] Event sent to channel\n")
 			}
 		case <-p.quit:
+			p.mu.RUnlock()
 		}
 	}
 }
