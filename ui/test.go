@@ -14,8 +14,16 @@ import (
 	"github.com/wwsheng009/mint/sandbox/mock"
 )
 
+// =============================================================================
+// 旧版测试 API (简单测试)
+// =============================================================================
+
 // TestApp 测试应用包装器
 // 提供简化的测试环境，不需要完整的 framework.App
+//
+// Deprecated: 推荐使用 ui.RunTest() 获取完整的框架功能支持，
+// 包括 Fiber 模式、完整事件处理、渲染缓冲区等。
+// TestApp 仅保留用于简单组件测试。
 type TestApp struct {
 	sandbox       *mock.MockSandbox
 	app           ComponentFunc
@@ -35,6 +43,9 @@ type TestOption func(*testConfig)
 
 // TestRun 运行测试应用
 // 创建一个测试环境，初始化 Context 和 MockSandbox
+//
+// Deprecated: 推荐使用 ui.RunTest() 获取完整的框架功能支持。
+// TestRun 仅保留用于简单组件测试。
 func TestRun(app interface{}, opts ...TestOption) (*TestApp, error) {
 	config := &testConfig{
 		width:  80,
@@ -87,6 +98,7 @@ func TestRun(app interface{}, opts ...TestOption) (*TestApp, error) {
 }
 
 // setupEventHandler 设置 Sandbox 的事件处理器
+// 注意：这是旧版 API 的一部分，仅用于 TestApp
 func (ta *TestApp) setupEventHandler() {
 	ta.sandbox.SetEventHandler(func(event platform.RawInput) error {
 		if os.Getenv("TUI_DEBUG_UI") == "true" {
@@ -284,9 +296,9 @@ func (ta *TestApp) TriggerButtonClickByLabel(label string) {
 	}
 }
 
-// ==============================================================================
+// =============================================================================
 // Test Options
-// ==============================================================================
+// =============================================================================
 
 // TestWithWidth 设置测试宽度
 func TestWithWidth(w int) TestOption {
@@ -310,9 +322,9 @@ func TestWithSize(w, h int) TestOption {
 	}
 }
 
-// ==============================================================================
+// =============================================================================
 // TestRunWithConfig 使用自定义配置运行测试应用
-// ==============================================================================
+// =============================================================================
 
 func TestRunWithConfig(app interface{}, config *sandbox.Config) (*TestApp, error) {
 	width := config.Width
@@ -328,18 +340,36 @@ func TestRunWithConfig(app interface{}, config *sandbox.Config) (*TestApp, error
 
 
 // ============================================================================
-// 测试模式 - RunTest
+// 新版测试 API - RunTest (完整框架支持)
 // ============================================================================
+// 推荐使用此 API 进行测试，支持完整的框架功能，包括 Fiber 模式
 
 // TestableApp 可测试的应用包装器
+// 使用完整的 framework.App，支持事件注入和 Fiber 模式
 type TestableApp struct {
-	fwApp *framework.App
-	root  *declarativeRoot
-	opts  *Options
+	fwApp   *framework.App
+	root    *declarativeRoot
+	opts    *Options
+	sandbox *mock.MockSandbox // 可选：使用 MockSandbox 作为事件源
 }
 
 // RunTest 运行可测试的应用（在后台运行，支持事件注入）
-// 注意：此函数仅用于测试
+// 推荐使用此函数进行测试，支持完整的框架功能。
+//
+// 示例:
+//
+//	testApp, err := ui.RunTest(MyComponent,
+//	    ui.WithWidth(40),
+//	    ui.WithHeight(12),
+//	)
+//	defer testApp.Close()
+//
+//	// 注入事件
+//	testApp.InjectSpecialKey(platform.KeyTab)
+//	testApp.InjectSpecialKey(platform.KeyEnter)
+//
+//	// 获取渲染结果
+//	rendered := testApp.GetRenderString()
 func RunTest(app ComponentFunc, opts ...Option) (*TestableApp, error) {
 	options := &Options{
 		Width:  80,
@@ -369,7 +399,7 @@ func RunTest(app ComponentFunc, opts ...Option) (*TestableApp, error) {
 	}
 
 	// Set as root
-	fwApp.SetRoot(declarativeNode)
+	fwApp.SetRoot(declarativeRoot)
 
 	// Run the app in background (Run will call Init)
 	go func() {
@@ -388,6 +418,67 @@ func RunTest(app ComponentFunc, opts ...Option) (*TestableApp, error) {
 		fwApp: fwApp,
 		root:  declarativeRoot,
 		opts:  options,
+	}, nil
+}
+
+// RunTestWithSandbox 使用 MockSandbox 作为事件源进行测试
+// 这允许使用 MockSandbox 的丰富功能，如事件录制、回放等
+func RunTestWithSandbox(app ComponentFunc, opts ...Option) (*TestableApp, error) {
+	options := &Options{
+		Width:  80,
+		Height: 24,
+		Title:  "Mint UI Test (Sandbox)",
+		FPS:    60,
+	}
+
+	for _, opt := range opts {
+		opt(options)
+	}
+
+	// 创建 MockSandbox
+	sb := mock.New(options.Width, options.Height)
+	if err := sb.Initialize(nil); err != nil {
+		return nil, fmt.Errorf("sandbox init failed: %w", err)
+	}
+
+	// 创建 SandboxEventSource
+	source := NewSandboxEventSource(sb)
+
+	// 创建使用自定义 EventSource 的 framework.App
+	fwApp := framework.NewAppWithSource(source)
+	fwApp.Resize(options.Width, options.Height)
+	fwApp.InitTheme("dark")
+
+	// 创建声明式根组件
+	declarativeNode := newDeclarativeRoot(app, fwApp)
+
+	// Type assert to获取具体的类型
+	declarativeRoot, ok := declarativeNode.(*declarativeRoot)
+	if !ok {
+		return nil, fmt.Errorf("failed to get declarativeRoot")
+	}
+
+	// Set as root
+	fwApp.SetRoot(declarativeRoot)
+
+	// 在后台运行
+	go func() {
+		fwApp.Run()
+	}()
+
+	// 等待应用启动
+	for i := 0; i < 100; i++ {
+		if fwApp.GetState() == framework.StateRunning {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	return &TestableApp{
+		fwApp:   fwApp,
+		root:    declarativeRoot,
+		opts:    options,
+		sandbox: sb, // 保存 MockSandbox 引用
 	}, nil
 }
 

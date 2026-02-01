@@ -43,6 +43,9 @@ type App struct {
 	pump        *frameworkevent.Pump
 	eventFilter func(frameworkevent.Event) bool // 事件过滤器回调，返回 false 表示拦截
 
+	// 自定义事件源（测试时使用，如 MockSandbox）
+	customSource frameworkevent.EventSource
+
 	// 生命周期
 	state AppState
 	quit  chan struct{}
@@ -109,6 +112,26 @@ func NewApp() *App {
 		contextMgr:   core.NewContextManager(context.Background()),
 		userData:     make(map[string]interface{}),
 		renderer:     paint.NewRenderer(80, 24), // 新增：初始化 Renderer
+	}
+}
+
+// NewAppWithSource 创建使用自定义 EventSource 的应用
+// 允许测试时使用 MockSandbox 或其他事件源替代真实的平台输入
+func NewAppWithSource(source frameworkevent.EventSource) *App {
+	return &App{
+		router:       frameworkevent.NewRouter(),
+		keyMap:       frameworkevent.NewKeyMap(),
+		eventFilter:  func(ev frameworkevent.Event) bool { return true },
+			quit:         make(chan struct{}, 1),
+		tickInterval: 16 * time.Millisecond,
+		firstRender:  true,
+		debugMode:    os.Getenv("TUI_DEBUG") == "true",
+		debugLogFile: os.Getenv("TUI_DEBUG_LOG"),
+		throttler:    render.NewThrottler(60),
+		contextMgr:   core.NewContextManager(context.Background()),
+		userData:     make(map[string]interface{}),
+		renderer:     paint.NewRenderer(80, 24),
+		customSource: source, // 使用自定义事件源
 	}
 }
 
@@ -388,12 +411,18 @@ func (a *App) Init() error {
 	a.setupRouter()
 
 	// 创建并启动事件泵
-	inputReader, err := platform.NewInputReader()
-	if err != nil {
-		return err
+	if a.customSource != nil {
+		// 使用自定义事件源（测试模式）
+		a.pump = frameworkevent.NewPumpWithSource(a.customSource)
+	} else {
+		// 使用默认的平台输入源（生产模式）
+		inputReader, err := platform.NewInputReader()
+		if err != nil {
+			return err
+		}
+		a.pump = frameworkevent.NewPump(inputReader)
 	}
 
-	a.pump = frameworkevent.NewPump(inputReader)
 	if err := a.pump.Start(); err != nil {
 		return err
 	}
