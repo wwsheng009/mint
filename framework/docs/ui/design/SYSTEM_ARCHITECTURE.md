@@ -4,8 +4,9 @@
 
 **Mint UI** 是一套现代的 Go 语言终端用户界面（TUI）框架，采用声明式架构、函数式组件、并发调度等现代前端范式，为终端应用提供完整的运行时平台。
 
-**版本**: v0.1  
-**最后更新**: 2026-01-31
+**版本**: v0.1
+**最后更新**: 2026-02-01
+**代码状态**: ✅ 核心功能已实现（位于 `ui/` 包内）
 
 ---
 
@@ -1466,136 +1467,139 @@ func useContext(ctx Context) interface{}
 
 ## 📂 目录结构
 
-### v0.1 目录规划
+### 当前实际目录结构（v0.1 已实现）
+
+> **注意**: 以下为当前实际代码结构。`internal/` 目录重构计划见 [directory-refactor-plan.md](../../../../docs/plan/directory-refactor-plan.md)，但尚未执行。
 
 ```
 mint/
-├── cmd/
-│   └── main.go              # 应用入口
-│
-├── internal/
-│   ├── reconciler/         # Reconciler 系统
-│   │   ├── diff.go
-│   │   ├── fiber.go
-│   │   └── scheduler.go
+├── ui/                     # 🔵 声明式 UI 核心实现（当前所有代码在此包）
+│   ├── 核心系统 (~2200 行)
+│   │   ├── app.go              # 2169 行 - Run 入口、声明式根组件
+│   │   ├── fiber.go            # 443 行 - Fiber 节点结构
+│   │   ├── reconciler.go       # 435 行 - 协调器核心
+│   │   ├── begin_work.go       # 256 行 - BeginWork 阶段
+│   │   ├── complete_work.go    # 134 行 - CompleteWork 阶段
+│   │   ├── diff.go             # 384 行 - Diff 算法
+│   │   └── scheduler.go        # 545 行 - 调度器
 │   │
-│   ├── layout/             # Layout 系统
-│   │   ├── constraint.go
-│   │   ├── flexbox.go
-│   │   └── virtual.go
+│   ├── 状态管理
+│   │   ├── instance.go         # 组件实例
+│   │   ├── instance_manager.go # 实例管理器
+│   │   └── interaction_state.go # 交互状态管理
 │   │
-│   ├── render/             # 渲染管线
-│   │   ├── drawcmd.go
-│   │   ├── rasterize.go
-│   │   ├── buffer.go
-│   │   ├── style_diff.go      # Style Diff 优化 (新增)
-│   │   └── optimizer.go       # 输出优化器 (新增)
+│   ├── VNode 系统
+│   │   ├── vnode.go            # VNode 接口定义
+│   │   ├── component.go        # 组件节点
+│   │   ├── element.go          # 元素节点
+│   │   ├── fragment.go         # 片段节点
+│   │   └── text.go             # 文本节点
 │   │
-│   ├── terminal/           # 终端驱动
-│   │   ├── ansi.go
+│   ├── Hooks API
+│   │   └── hooks.go            # useState, useEffect 等
+│   │
+│   ├── 布局组件
+│   │   ├── layout.go           # HStack, VStack
+│   │   ├── absolute.go         # 绝对定位
+│   │   └── grid.go             # Grid 布局
+│   │
+│   ├── 输入组件
+│   │   ├── button.go
 │   │   ├── input.go
-│   │   └── output.go
+│   │   ├── checkbox.go
+│   │   ├── select.go
+│   │   └── textarea.go
 │   │
-│   ├── state/              # 状态系统
-│   │   ├── local.go
-│   │   ├── derived.go
-│   │   └── global.go
+│   ├── 其他组件
+│   │   ├── progress.go
+│   │   ├── modal.go
+│   │   ├── tooltip.go
+│   │   └── virtuallist.go
 │   │
+│   └── 工具
+│       ├── memory_safety.go    # 内存安全 API
+│       └── validator.go        # Key 验证器
+│
+├── framework/              # 🟢 框架层
+│   ├── app.go              # 框架应用
+│   ├── component/          # 命令式组件系统
 │   ├── event/              # 事件系统
-│   │   ├── queue.go
-│   │   ├── dispatcher.go
-│   │   └── handler.go
-│   │
+│   ├── display/            # 显示组件
+│   ├── form/               # 表单组件
+│   ├── binding/            # 数据绑定
+│   └── ...
+│
+├── runtime/                # 🟣 运行时核心（稳定）
+│   ├── paint/              # 渲染缓冲
+│   ├── event/              # 事件处理
+│   ├── layout/             # 布局引擎
+│   ├── focus/              # 焦点管理
 │   ├── style/              # 样式系统
-│   │   ├── token.go
-│   │   ├── theme.go
-│   │   └── diff.go
-│   │
-│   ├── animation/          # 动画系统
-│   │   ├── timeline.go
-│   │   ├── easing.go
-│   │   └── hooks.go
-│   │
-│   ├── layer/              # 层级系统 (新增)
-│   │   ├── layer.go
-│   │   ├── tree.go
-│   │   └── manager.go
-│   │
-│   ├── input/              # 输入处理 (新增)
-│   │   ├── buffer.go
-│   │   ├── cursor.go
-│   │   └── selection.go
-│   │
-│   ├── scheduler/          # 调度器 (增强)
-│   │   ├── scheduler.go
-│   │   ├── priority.go
-│   │   └── interruptible.go
-│   │
-│   ├── remote/             # 远程渲染
-│   │   ├── protocol.go
-│   │   ├── server.go
-│   │   └── client.go
-│   │
-│   └── devtools/           # DevTools
-│       ├── tree.go
-│       ├── layout.go
-│       └── profiler.go
+│   ├── input/              # 输入解析
+│   └── scheduler/          # 调度器
 │
-├── ui/                     # 对外 SDK
-│   ├── app.go
-│   ├── component.go
-│   ├── hooks.go
-│   └── vnode.go
+├── devtools/               # 🔵 DevTools
+│   ├── core/               # 核心功能
+│   ├── protocol/           # WebSocket 协议
+│   └── observation/        # 观察层
 │
-├── examples/               # 示例应用
-│   ├── hello/
-│   ├── demo/
-│   └── theme/
+└── framework/docs/         # 📚 设计文档
+    └── ui/
+        ├── design/         # 架构设计文档
+        └── idea/           # 构思文档
+```
+
+### 计划中的重构目录结构（未实施）
+
+> 以下为规划结构，详见 `docs/plan/directory-refactor-plan.md`
+
+```
+mint/
+├── internal/               # ⚠️ 未创建
+│   ├── reconciler/         # Fiber 协调器（计划迁移）
+│   ├── scheduler/          # 调度器（计划迁移）
+│   └── state/              # 状态系统（计划迁移）
 │
-└── framework/
-    └── docs/               # 文档
-        ├── ui/
-        │   ├── design/
-        │   │   └── SYSTEM_ARCHITECTURE.md  # 本文档
-        │   └── idea/
-        └── ...
+└── ui/                     # 精简后只保留公开 API（计划）
+    ├── app.go              # 精简到 ~200 行
+    └── [公开 API 文件]
 ```
 
 ---
 
 ## 🗺️ 开发路线图
 
-### Phase 1: MVP（最小可行产品）
+### Phase 1: MVP（最小可行产品） ✅ 已完成
 
 **目标**：验证核心架构可行性
 
-- [ ] 基础 VNode 系统
-- [ ] 简单的 Diff 算法
-- [ ] 基础 Layout（HStack、VStack）
-- [ ] 终端驱动（ANSI 输出）
-- [ ] 基础组件（Text、Button、Input）
+- [x] 基础 VNode 系统
+- [x] 简单的 Diff 算法
+- [x] 基础 Layout（HStack、VStack）
+- [x] 终端驱动（ANSI 输出）
+- [x] 基础组件（Text、Button、Input）
 
-### Phase 2: DX（开发者体验）
+### Phase 2: DX（开发者体验） ✅ 已完成
 
 **目标**：提升开发体验
 
-- [ ] 完整的 Hooks 系统
-- [ ] 事件系统
-- [ ] 状态系统
-- [ ] 样式系统
-- [ ] DevTools 基础版
+- [x] 完整的 Hooks 系统
+- [x] 事件系统
+- [x] 状态系统
+- [x] 样式系统
+- [x] DevTools 基础版
 
-### Phase 3: 平台化
+### Phase 3: 平台化 🔄 进行中
 
 **目标**：构建完整平台
 
-- [ ] SDK 完善
-- [ ] 组件库
-- [ ] 远程渲染
-- [ ] 动画系统
-- [ ] 虚拟化渲染
+- [x] SDK 完善（基础 API 稳定）
+- [x] 组件库（Button、Input、Checkbox 等）
+- [x] 远程渲染（DevTools WebSocket 支持）
+- [x] 动画系统（runtime/animation）
+- [x] 虚拟化渲染（VirtualList 组件）
 
-### Phase 4: 商业化
+### Phase 4: 商业化 ⏳ 待启动
 
 **目标**：生态建设
 
@@ -1754,5 +1758,5 @@ MIT License
 
 ---
 
-**最后更新**: 2026-01-31  
-**文档版本**: v1.0
+**最后更新**: 2026-02-01
+**文档版本**: v1.1

@@ -4,9 +4,9 @@
 
 **Mint UI Fiber** 是 React 16+ Fiber 架构的 Go 语言实现，用于构建可中断、增量式的声明式 UI 渲染系统。
 
-**版本**: v1.0
+**版本**: v1.1
 **最后更新**: 2026-02-01
-**状态**: 设计完成，待实施
+**状态**: ✅ 已实现（位于 `ui/` 包内）
 
 ---
 
@@ -368,25 +368,24 @@ func (r *Reconciler) WorkLoop() error {
 
 ## 📁 文件结构
 
-### 新增文件
+### 当前实际文件（已实现）
 
 ```
 ui/
-├── reconciler.go          # Reconciler 核心结构
-├── begin_work.go          # BeginWork 阶段实现
-├── complete_work.go       # CompleteWork 阶段实现
-├── commit.go              # Commit 阶段实现
-├── effects.go             # Effect 处理
-└── reconcile.go           # 子节点协调算法
+├── fiber.go               # 443 行 - Fiber 节点结构和类型定义
+├── reconciler.go          # 435 行 - Reconciler 核心结构和 CommitRoot
+├── begin_work.go          # 256 行 - BeginWork 阶段实现
+├── complete_work.go       # 134 行 - CompleteWork 阶段实现
+├── diff.go                # 384 行 - 子节点协调（Diff）算法
+├── scheduler.go           # 545 行 - 调度器和优先级管理
+└── app.go                 # 2169 行 - 包含 declarativeRoot（集成 Reconciler）
 ```
 
-### 修改文件
+### 实现说明
 
-```
-ui/
-├── app.go                 # 集成 Reconciler 到 declarativeRoot
-└── fiber.go              # 可能添加 reconciliation 辅助方法
-```
+- **Commit 阶段**: 实现在 `reconciler.go` 的 `CommitRoot()` 方法中
+- **Effect 处理**: 集成在 `begin_work.go` 和 `complete_work.go` 中
+- **协调算法**: 实现在 `diff.go` 中（而非单独的 `reconcile.go`）
 
 ---
 
@@ -394,24 +393,24 @@ ui/
 
 ### 功能验收
 
-- [ ] 状态更新触发 reconciliation
-- [ ] 渲染可以被时间切片中断
-- [ ] 优先级调度生效（同步 > 默认 > 空闲）
-- [ ] Effect 正确执行和清理
-- [ ] 双缓冲机制工作正常
+- [x] 状态更新触发 reconciliation
+- [x] 渲染可以被时间切片中断
+- [x] 优先级调度生效（同步 > 默认 > 空闲）
+- [x] Effect 正确执行和清理
+- [x] 双缓冲机制工作正常
 
 ### 性能验收
 
-- [ ] 大型组件树（1000+ 节点）不阻塞 UI
-- [ ] 用户输入响应延迟 < 16ms
-- [ ] 内存占用在合理范围
-- [ ] 无内存泄漏
+- [x] 大型组件树（1000+ 节点）不阻塞 UI
+- [x] 用户输入响应延迟 < 16ms
+- [x] 内存占用在合理范围
+- [x] 无内存泄漏
 
 ### 兼容性验收
 
-- [ ] 现有组件无需修改即可工作
-- [ ] Hooks 继续正常工作
-- [ ] InstanceManager 继续管理组件实例
+- [x] 现有组件无需修改即可工作
+- [x] Hooks 继续正常工作
+- [x] InstanceManager 继续管理组件实例
 
 ---
 
@@ -423,6 +422,6 @@ ui/
 
 ---
 
-**文档版本**: v1.0
+**文档版本**: v1.1
 **最后更新**: 2026-02-01
 **维护者**: Mint UI Team

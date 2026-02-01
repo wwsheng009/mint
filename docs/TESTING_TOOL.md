@@ -3,6 +3,7 @@
 ## 目录
 
 - [概述](#概述)
+- [测试方案对比](#测试方案对比)
 - [设计理念](#设计理念)
 - [核心组件](#核心组件)
 - [使用指南](#使用指南)
@@ -28,6 +29,87 @@ Mint UI 测试框架是一个专为声明式 TUI 组件设计的自动化测试�
 ✅ 链式 API，易于编写测试
 ✅ 详细的断言信息
 ✅ 支持状态变化验证
+
+---
+
+## 测试方案对比
+
+Mint UI 提供两种测试方案，适用于不同的测试场景：
+
+### 方案概览
+
+| 特性 | ComponentTest | TestHelper (Sandbox) |
+|------|---------------|----------------------|
+| **用途** | 轻量级组件单元测试 | 完整集成测试 |
+| **工作方式** | 直接使用 `declarativeRoot` | 使用 `MockSandbox` 作为事件源 |
+| **初始化成本** | 低，无需 `framework.App` | 中，需要完整框架支持 |
+| **事件录制/回放** | ❌ | ✅ |
+| **链式 API** | ❌ | ✅ |
+| **Fiber 模式支持** | ❌ | ✅ |
+| **适用场景** | 快速验证组件逻辑 | 完整用户流程测试 |
+
+### ComponentTest
+
+轻量级组件测试，适合快速验证单个组件的行为。
+
+```go
+// 导入
+import "github.com/wwsheng009/mint/ui"
+
+// 使用
+test := ui.NewComponentTest(t, MyComponent).Render()
+test.ClickButton(0)
+test.AssertButtonCount(1)
+```
+
+**特点**：
+- 无需启动 `framework.App`
+- 直接调用事件处理器（`onClick`、`onChange` 等）
+- 适合测试组件状态变化和逻辑
+
+### TestHelper (Sandbox)
+
+完整集成测试，支持真实的事件处理和 Fiber 模式。
+
+```go
+// 导入
+import "github.com/wwsheng009/mint/ui"
+
+// 使用
+testApp, err := ui.RunTest(MyComponent,
+    ui.WithWidth(40),
+    ui.WithHeight(18),
+)
+defer testApp.Close()
+
+// 注入事件
+testApp.InjectSpecialKey(platform.KeyTab)
+testApp.InjectKey('A')
+testApp.InjectMouse(10, 5, platform.MouseLeft, platform.MousePress)
+
+// 验证渲染
+rendered := testApp.GetRenderString()
+testApp.AssertRender("Expected Text")
+```
+
+**特点**：
+- 使用完整的 `framework.App`
+- 支持事件注入（键盘、鼠标）
+- 支持事件录制/回放
+- 链式 API，测试代码更简洁
+- 支持 Fiber 模式的完整渲染
+
+### 选择建议
+
+| 场景 | 推荐方案 |
+|------|----------|
+| 测试单个组件的点击响应 | ComponentTest |
+| 测试状态变化逻辑 | ComponentTest |
+| 测试完整用户交互流程 | TestHelper |
+| 需要验证渲染输出 | TestHelper |
+| 测试键盘导航 | TestHelper |
+| 测试鼠标交互 | TestHelper |
+| 需要事件录制/回放 | TestHelper |
 
 ---
 
@@ -139,7 +221,9 @@ func TestButtonClick(t *testing.T) {
 
 ## API 参考
 
-### 创建测试
+### ComponentTest API
+
+#### 创建测试
 
 ```go
 func NewComponentTest(t *testing.T, componentFunc ComponentFunc) *ComponentTest
@@ -182,6 +266,77 @@ func NewComponentTest(t *testing.T, componentFunc ComponentFunc) *ComponentTest
 | `GetButtonCount()` | 获取按钮数量 | int |
 | `GetInputCount()` | 获取输入框数量 | int |
 | `GetCheckboxCount()` | 获取复选框数量 | int |
+
+### TestHelper API (Sandbox)
+
+#### 创建测试
+
+```go
+func RunTest(app ComponentFunc, opts ...Option) (*TestableApp, error)
+
+func RunTestWithSandbox(app ComponentFunc, opts ...Option) (*TestableApp, error)
+```
+
+#### 选项
+
+| 选项 | 说明 |
+|------|------|
+| `WithWidth(w int)` | 设置测试宽度 |
+| `WithHeight(h int)` | 设置测试高度 |
+| `WithTitle(title string)` | 设置测试标题 |
+| `WithFPS(fps int)` | 设置帧率 |
+
+#### 事件注入
+
+| 方法 | 说明 |
+|------|------|
+| `InjectKey(key rune)` | 注入字符键 |
+| `InjectSpecialKey(key SpecialKey)` | 注入特殊按键（Tab、Enter 等） |
+| `InjectKeyWithMod(key rune, mod KeyModifier)` | 注入带修饰符的按键 |
+| `InjectMouse(x, y int, btn MouseButton, action MouseAction)` | 注入鼠标事件 |
+| `InjectString(text string)` | 注入字符串（逐字符） |
+
+#### 断言方法
+
+| 方法 | 说明 |
+|------|------|
+| `AssertRender(text string)` | 断言渲染输出包含指定文本 |
+| `AssertNotRender(text string)` | 断言渲染输出不包含指定文本 |
+
+#### 获取方法
+
+| 方法 | 说明 | 返回值 |
+|------|------|--------|
+| `GetRenderString()` | 获取渲染输出字符串 | string |
+| `GetBuffer()` | 获取渲染缓冲区 | `*paint.Buffer` |
+| `GetFrameworkApp()` | 获取 framework.App | `*framework.App` |
+| `GetDeclarativeRoot()` | 获取声明式根节点 | `*declarativeRoot` |
+| `GetSandbox()` | 获取 MockSandbox（仅 RunTestWithSandbox） | `*mock.MockSandbox` |
+
+#### 常用特殊键
+
+```go
+platform.KeyTab        // Tab 键
+platform.KeyEnter      // Enter 键
+platform.KeyBackspace  // Backspace 键
+platform.KeyEscape     // Escape 键
+platform.KeyUp         // 上箭头
+platform.KeyDown       // 下箭头
+platform.KeyLeft       // 左箭头
+platform.KeyRight      // 右箭头
+```
+
+#### 鼠标操作
+
+```go
+platform.MouseLeft     // 左键
+platform.MouseMiddle   // 中键
+platform.MouseRight    // 右键
+
+platform.MousePress    // 按下
+platform.MouseRelease  // 释放
+platform.MouseClick    // 点击
+```
 
 ---
 
@@ -544,6 +699,163 @@ func TestClickByLabel(t *testing.T) {
 }
 ```
 
+### 示例 7: TestHelper - 完整交互流程测试
+
+使用 `RunTest` 进行完整的集成测试，支持真实的事件处理和渲染验证。
+
+```go
+import (
+    "testing"
+    "time"
+    "github.com/wwsheng009/mint/runtime/platform"
+    "github.com/wwsheng009/mint/ui"
+)
+
+func TestCounterWithRunTest(t *testing.T) {
+    testApp, err := ui.RunTest(Counter,
+        ui.WithWidth(40),
+        ui.WithHeight(18),
+    )
+    if err != nil {
+        t.Fatalf("RunTest failed: %v", err)
+    }
+    defer testApp.Close()
+
+    // 等待初始渲染
+    time.Sleep(100 * time.Millisecond)
+
+    // 检查初始状态
+    if err := testApp.AssertRender("Count: 0"); err != nil {
+        t.Errorf("Initial state check failed: %v", err)
+    }
+
+    // 使用 Tab 导航到 "+" 按钮并按 Enter 点击
+    if err := testApp.InjectSpecialKey(platform.KeyTab); err != nil {
+        t.Errorf("Failed to inject Tab: %v", err)
+    }
+    time.Sleep(50 * time.Millisecond)
+
+    if err := testApp.InjectSpecialKey(platform.KeyEnter); err != nil {
+        t.Errorf("Failed to inject Enter: %v", err)
+    }
+    time.Sleep(150 * time.Millisecond)
+
+    // 检查计数增加
+    if err := testApp.AssertRender("Count: 1"); err != nil {
+        t.Errorf("Increment failed: %v", err)
+    }
+}
+```
+
+### 示例 8: TestHelper - 输入框和鼠标测试
+
+```go
+func TestInputAndMouse(t *testing.T) {
+    testApp, err := ui.RunTest(MyForm,
+        ui.WithWidth(60),
+        ui.WithHeight(20),
+    )
+    if err != nil {
+        t.Fatal(err)
+    }
+    defer testApp.Close()
+
+    time.Sleep(100 * time.Millisecond)
+
+    // 获取声明式根节点以查找组件边界
+    root := testApp.GetDeclarativeRoot()
+    buttons := root.GetButtons()
+
+    if len(buttons) > 0 {
+        bounds := buttons[0].Bounds()
+        // 点击按钮中心
+        clickX := bounds[0] + bounds[2]/2
+        clickY := bounds[1] + bounds[3]/2
+
+        testApp.InjectMouse(clickX, clickY, platform.MouseLeft, platform.MousePress)
+        time.Sleep(150 * time.Millisecond)
+
+        // 验证点击效果
+        testApp.AssertRender("Button Clicked")
+    }
+
+    // 导航到输入框
+    testApp.InjectSpecialKey(platform.KeyTab)
+    time.Sleep(50 * time.Millisecond)
+
+    // 清除现有文本
+    for i := 0; i < 5; i++ {
+        testApp.InjectSpecialKey(platform.KeyBackspace)
+        time.Sleep(50 * time.Millisecond)
+    }
+
+    // 输入文本
+    testApp.InjectString("Hello")
+    time.Sleep(150 * time.Millisecond)
+
+    // 验证输入
+    testApp.AssertRender("Hello")
+}
+```
+
+### 示例 9: ComponentTest vs TestHelper 对比
+
+同一个测试用例使用两种方案的对比：
+
+```go
+// ========== ComponentTest 版本 ==========
+func TestButtonClick_ComponentTest(t *testing.T) {
+    clicked := false
+
+    component := func() VNode {
+        return ButtonBuilder("Click Me").
+            OnClick(func() { clicked = true }).
+            Build()
+    }
+
+    test := ui.NewComponentTest(t, component).Render()
+    test.ClickButton(0)
+
+    if !clicked {
+        t.Error("Button click did not trigger")
+    }
+}
+
+// ========== TestHelper 版本 ==========
+func TestButtonClick_TestHelper(t *testing.T) {
+    clicked := false
+
+    component := func() VNode {
+        return ButtonBuilder("Click Me").
+            OnClick(func() { clicked = true }).
+            Build()
+    }
+
+    testApp, err := ui.RunTest(component,
+        ui.WithWidth(20),
+        ui.WithHeight(10),
+    )
+    if err != nil {
+        t.Fatal(err)
+    }
+    defer testApp.Close()
+
+    time.Sleep(100 * time.Millisecond)
+
+    // 按 Enter 点击焦点按钮
+    testApp.InjectSpecialKey(platform.KeyEnter)
+    time.Sleep(150 * time.Millisecond)
+
+    if !clicked {
+        t.Error("Button click did not trigger")
+    }
+}
+```
+
+**关键区别**：
+- **ComponentTest**: 直接调用 `onClick` 处理器，无延迟
+- **TestHelper**: 模拟真实按键事件，需要等待事件处理
+
 ---
 
 ## 测试覆盖报告
@@ -565,6 +877,24 @@ go tool cover -html=coverage.out
 ---
 
 ## 常见问题
+
+### Q: 应该选择 ComponentTest 还是 TestHelper (Sandbox)？
+
+A: 根据测试场景选择：
+
+**使用 ComponentTest 当：**
+- 只需要验证组件的基本行为
+- 测试状态变化逻辑
+- 不需要验证实际渲染输出
+- 追求更快的测试执行速度
+
+**使用 TestHelper (Sandbox) 当：**
+- 需要验证实际渲染输出
+- 测试完整的用户交互流程
+- 需要测试键盘导航（Tab、Enter 等）
+- 需要测试鼠标交互
+- 需要 Fiber 模式的完整功能支持
+- 需要事件录制/回放功能
 
 ### Q: 如何测试需要真实终端的组件？
 

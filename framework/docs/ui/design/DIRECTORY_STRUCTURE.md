@@ -1,7 +1,18 @@
 # Mint UI 目录结构设计方案
 
-**版本**: v1.0
-**日期**: 2026-01-31
+**版本**: v1.1
+**日期**: 2026-02-01
+**状态**: ⚠️ **文档包含未实施的重构计划**
+
+---
+
+## ⚠️ 重要说明
+
+本文档包含两部分内容：
+1. **当前实际目录结构**（已实现）
+2. **计划中的重构方案**（未实施）
+
+文档末尾的重构路径部分为规划内容，详见 `docs/plan/directory-refactor-plan.md`。
 
 ---
 
@@ -404,9 +415,128 @@ mint/
 
 ---
 
-## 三、模块依赖关系
+## 二、当前实际目录结构（v0.1 已实现）
 
-### 3.1 依赖图
+> **更新日期**: 2026-02-01
+> **状态**: ✅ 运行中
+
+### 2.1 实际目录结构
+
+```
+mint/
+├── ui/                     # 🔵 声明式 UI 核心（所有代码在此包）
+│   ├── 核心系统 (2169+443+435+256+134+384+545 = 4366 行)
+│   │   ├── app.go              # 2169 行 - Run 入口、声明式根组件
+│   │   ├── fiber.go            # 443 行 - Fiber 节点结构
+│   │   ├── reconciler.go       # 435 行 - 协调器核心
+│   │   ├── begin_work.go       # 256 行 - BeginWork 阶段
+│   │   ├── complete_work.go    # 134 行 - CompleteWork 阶段
+│   │   ├── diff.go             # 384 行 - Diff 算法
+│   │   └── scheduler.go        # 545 行 - 调度器
+│   │
+│   ├── 状态管理
+│   │   ├── instance.go
+│   │   ├── instance_manager.go
+│   │   └── interaction_state.go
+│   │
+│   ├── VNode 系统
+│   │   ├── vnode.go
+│   │   ├── component.go
+│   │   ├── element.go
+│   │   ├── fragment.go
+│   │   └── text.go
+│   │
+│   ├── Hooks API
+│   │   └── hooks.go
+│   │
+│   ├── 布局组件
+│   │   ├── layout.go
+│   │   ├── absolute.go
+│   │   └── grid.go
+│   │
+│   ├── 输入组件
+│   │   ├── button.go
+│   │   ├── input.go
+│   │   ├── checkbox.go
+│   │   ├── select.go
+│   │   └── textarea.go
+│   │
+│   ├── 其他组件
+│   │   ├── progress.go
+│   │   ├── modal.go
+│   │   ├── tooltip.go
+│   │   └── virtuallist.go
+│   │
+│   ├── 工具
+│   │   ├── memory_safety.go
+│   │   └── validator.go
+│   │
+│   └── 测试文件 (13 个 *_test.go)
+│
+├── framework/              # 🟢 框架层
+│   ├── app.go
+│   ├── component/
+│   ├── event/
+│   ├── binding/
+│   └── ...
+│
+├── runtime/                # 🟣 运行时核心（稳定）
+│   ├── paint/
+│   ├── event/
+│   ├── layout/
+│   ├── focus/
+│   ├── style/
+│   ├── input/
+│   └── scheduler/
+│
+├── devtools/               # 🔵 DevTools
+│   ├── core/
+│   ├── protocol/
+│   └── observation/
+│
+└── docs/                   # 📚 文档
+    └── plan/
+        └── directory-refactor-plan.md
+```
+
+### 2.2 当前依赖关系
+
+```
+ui/ (包含所有实现)
+  ↓ 依赖
+framework/
+  ↓ 依赖
+runtime/ (基础层)
+
+devtools/
+  ↓ 依赖
+ui/ 和 runtime/
+```
+
+---
+
+## 三、计划中的重构方案（未实施）
+
+> 以下内容为规划，详见 `docs/plan/directory-refactor-plan.md`
+
+### 3.1 目标结构摘要
+
+```
+mint/
+├── internal/               # ⚠️ 未创建
+│   ├── reconciler/         # 从 ui/ 迁移
+│   ├── scheduler/          # 从 ui/ 迁移
+│   └── state/              # 从 ui/ 迁移
+│
+└── ui/                     # 精简为公开 API
+    └── app.go (~200 行)
+```
+
+---
+
+## 四、模块依赖关系（规划）
+
+### 4.1 依赖图
 
 ```
 ui/
@@ -435,7 +565,7 @@ devtools/
   └── runtime/
 ```
 
-### 3.2 导入规则
+### 4.2 导入规则
 
 ```go
 // ✅ 允许：ui → framework

@@ -1,8 +1,29 @@
 # Mint UI 目录结构重构计划
 
 > **创建日期**: 2026-02-01
+> **最后更新**: 2026-02-01
+> **状态**: ⚠️ **未实施** - 本文档为规划文档，重构尚未执行
 > **目标**: 实现清晰、模块化、低耦合的分层架构
 > **参考文档**: framework/docs/ui/design/SYSTEM_ARCHITECTURE.md
+
+---
+
+## ⚠️ 重要说明
+
+**当前实际状态**（2026-02-01）：
+- ❌ `internal/` 目录尚未创建
+- ❌ 所有文件仍在 `ui/` 目录下
+- ✅ Fiber/Reconciler 系统已实现，位于 `ui/` 包内
+- ✅ 所有组件和 API 功能正常工作
+
+**当前实际文件行数**：
+- `ui/app.go`: 2169 行（文档中引用的 1933 行已过时）
+- `ui/fiber.go`: 443 行
+- `ui/reconciler.go`: 435 行
+- `ui/begin_work.go`: 256 行
+- `ui/complete_work.go`: 134 行
+- `ui/diff.go`: 384 行
+- `ui/scheduler.go`: 545 行
 
 ---
 
@@ -24,22 +45,22 @@
 
 ```
 mint/
-├── ui/                     # 问题：职责过重
-│   ├── app.go              # 1933 行，包含大量实现细节
-│   ├── fiber.go            # Fiber 架构实现
-│   ├── reconciler.go       # 协调器实现
-│   ├── begin_work.go       # BeginWork 阶段
-│   ├── complete_work.go    # CompleteWork 阶段
-│   ├── diff.go             # Diff 算法
-│   ├── scheduler.go        # UI 调度器
+├── ui/                     # 当前状态：所有实现都在此包内
+│   ├── app.go              # 2169 行，包含声明式根组件和 Run 入口
+│   ├── fiber.go            # 443 行，Fiber 架构实现
+│   ├── reconciler.go       # 435 行，协调器实现
+│   ├── begin_work.go       # 256 行，BeginWork 阶段
+│   ├── complete_work.go    # 134 行，CompleteWork 阶段
+│   ├── diff.go             # 384 行，Diff 算法
+│   ├── scheduler.go        # 545 行，UI 调度器
 │   ├── instance.go         # 组件实例
 │   ├── instance_manager.go # 实例管理器
 │   ├── interaction_state.go # 交互状态
-│   ├── vnode.go            # VNode 接口 (应保留)
-│   ├── component.go        # 组件节点 (应保留)
-│   ├── element.go          # 元素节点 (应保留)
-│   ├── hooks.go            # Hooks API (应保留)
-│   └── [各组件文件]         # 组件实现 (应保留)
+│   ├── vnode.go            # VNode 接口
+│   ├── component.go        # 组件节点
+│   ├── element.go          # 元素节点
+│   ├── hooks.go            # Hooks API
+│   └── [各组件文件]         # 布局和输入组件
 │
 ├── framework/              # 框架层
 │   ├── app.go
@@ -73,12 +94,12 @@ ui/ (app.go 1933行)
 
 ### 1.4 需要迁移的文件统计
 
-| 分类 | 文件数 | 代码行数 (估算) |
+| 分类 | 文件数 | 代码行数 (实际) |
 |------|--------|----------------|
-| Reconciler 系统 | 5 | ~1500 |
-| State 管理 | 3 | ~600 |
-| Scheduler | 1 | ~200 |
-| **合计** | **9** | **~2300** |
+| Reconciler 系统 | 5 | 1652 |
+| State 管理 | 3 | ~600 (估算) |
+| Scheduler | 1 | 545 |
+| **合计** | **9** | **~2800** |
 
 ---
 
