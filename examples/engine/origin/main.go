@@ -266,7 +266,7 @@ func NewRoot(id string, width, height int) *Root {
 		width:      width,
 		height:     height,
 		buttons:    make([]*Button, 0),
-		cursor:     NewBlinkingCursor("cursor", 25, 8),
+		cursor:     NewBlinkingCursor("cursor", 35, 5), // 移到 y=5，留出更多空间
 		lastUpdate: time.Now(),
 	}
 }
@@ -293,6 +293,10 @@ func (r *Root) SetFocusedButton(btnID string) {
 
 // Paint 绘制
 func (r *Root) Paint(buf *paint.Buffer) {
+	// 调试：显示实际缓冲区尺寸
+	bufDims := fmt.Sprintf("Buf:%dx%d", buf.Width, buf.Height)
+	buf.SetString(r.width-len(bufDims)-2, 0, bufDims, style.Style{}.Foreground(style.Yellow))
+
 	// 清空缓冲区
 	emptyStyle := style.Style{}
 	for y := 0; y < r.height; y++ {
@@ -324,9 +328,14 @@ func (r *Root) Paint(buf *paint.Buffer) {
 
 // drawStatusBar 绘制状态栏
 func (r *Root) drawStatusBar(buf *paint.Buffer) {
-	statusStyle := style.Style{}.Foreground(style.Green)
+	// 布局：分4行显示，避免重叠
+	// height-4: Focused + Frame (左右分布)
+	// height-3: Mouse + Selection Mode
+	// height-2: 分隔线
+	// height-1: 最后事件
 
-	// 显示焦点状态
+	// 第1行：Focused (左) + Frame (右)
+	statusStyle := style.Style{}.Foreground(style.Green)
 	focusedBtn := ""
 	for _, btn := range r.buttons {
 		if btn.focused {
@@ -338,21 +347,28 @@ func (r *Root) drawStatusBar(buf *paint.Buffer) {
 	if focusedBtn == "" {
 		statusText = "Focused: None"
 	}
-	buf.SetString(2, r.height-3, statusText, statusStyle)
+	buf.SetString(2, r.height-4, statusText, statusStyle)
 
-	// 显示鼠标位置
+	// 显示帧计数 (右侧)
+	frameText := fmt.Sprintf("Frame: %d", r.frameCount)
+	buf.SetString(r.width-len(frameText)-2, r.height-4, frameText, style.Style{}.Foreground(style.BrightBlack))
+
+	// 第2行：鼠标位置 + 选择模式状态
 	mx, my := getMousePos()
 	mouseText := "Mouse: (-,-)"
 	if mx >= 0 {
 		mouseText = fmt.Sprintf("Mouse: (%d,%d)", mx, my)
 	}
-	buf.SetString(2, r.height-2, mouseText, style.Style{}.Foreground(style.Magenta))
+	buf.SetString(2, r.height-3, mouseText, style.Style{}.Foreground(style.Magenta))
 
-	// 显示帧计数
-	frameText := fmt.Sprintf("Frame: %d", r.frameCount)
-	buf.SetString(r.width-len(frameText)-2, r.height-3, frameText, style.Style{}.Foreground(style.BrightBlack))
+	// 第3行：分隔线
+	sepLine := ""
+	for i := 0; i < r.width-4; i++ {
+		sepLine += "─"
+	}
+	buf.SetString(2, r.height-2, sepLine, style.Style{}.Foreground(style.BrightBlack))
 
-	// 显示最后事件
+	// 第4行：最后事件
 	debugState.RLock()
 	lastEvent := debugState.lastEvent
 	debugState.RUnlock()
@@ -427,16 +443,16 @@ func (r *Root) HandleMouseMove(x, y int) {
 func EngineExample() error {
 	const (
 		width  = 70
-		height = 15
+		height = 20  // 足够避免重叠
 	)
 
 	// 创建根组件
 	root := NewRoot("root", width, height)
 
-	// 创建按钮
-	btn1 := NewButton("btn1", "Button 1", 5, 7)
-	btn2 := NewButton("btn2", "Button 2", 25, 7)
-	btn3 := NewButton("btn3", "Exit", 45, 7)
+	// 创建按钮 - 重新布局避免重叠
+	btn1 := NewButton("btn1", "Button 1", 5, 10)  // 下移到 y=10
+	btn2 := NewButton("btn2", "Button 2", 25, 10)
+	btn3 := NewButton("btn3", "Exit", 45, 10)
 
 	// 创建引擎（需要先创建以便按钮可以调用 Stop）
 	eng := engine.New(width, height, root)
@@ -507,11 +523,6 @@ func EngineExample() error {
 	boxes := root.BuildLayoutBoxes()
 	eng.SetLayoutBoxes(boxes)
 
-	// 终端初始化
-	fmt.Print("\x1b[?25l") // 隐藏光标
-	fmt.Print("\x1b[2J")  // 清屏
-	fmt.Print("\x1b[H")   // 光标移到左上角
-
 	// 打印启动信息
 	fmt.Println("=== Engine Example ===")
 	fmt.Println("Components: 3 Buttons")
@@ -519,10 +530,19 @@ func EngineExample() error {
 	fmt.Println("Controls:")
 	fmt.Println("  - Mouse move: Shows mouse position")
 	fmt.Println("  - Mouse click: Click buttons (green = hover, yellow = focused)")
+	fmt.Println("  - Hold left button (300ms+): Enter text selection mode")
+	fmt.Println("  - Drag while holding: Select text area (highlighted in reverse video)")
 	fmt.Println("  - ESC or Ctrl+C: Exit")
 	fmt.Println()
 	fmt.Println("Debug info will appear at the bottom of the screen.")
 	fmt.Println()
+	fmt.Print("Press Enter to start...")
+	fmt.Scanln() // 等待用户按回车
+
+	// 终端初始化 - 用户确认后再清屏并启动
+	fmt.Print("\x1b[?25l") // 隐藏光标
+	fmt.Print("\x1b[2J")  // 清屏
+	fmt.Print("\x1b[H")   // 光标移到左上角
 
 	logEvent("Engine started, waiting for input...")
 
