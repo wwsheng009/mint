@@ -69,6 +69,8 @@ func beginWorkComponent(current, workInProgress *Fiber) *Fiber {
 	// Get or create component instance from InstanceManager
 	// This ensures hooks state is preserved across renders for the same component
 	var instance ComponentInstance
+	var ctx *ComponentContext
+
 	if currentReconciler != nil && currentReconciler.instanceMgr != nil {
 		instance = currentReconciler.instanceMgr.GetOrCreate(componentKey, func() ComponentInstance {
 			if componentVNode.FnWithProps() != nil {
@@ -85,11 +87,21 @@ func beginWorkComponent(current, workInProgress *Fiber) *Fiber {
 		// Store the instance in the fiber for later use
 		workInProgress.ComponentInstance = instance
 
-		// Use the instance's context for hooks
-		oldContext := GetCurrentContext()
-		SetCurrentContext(instance.GetContext())
-		defer SetCurrentContext(oldContext)
+		// Get context from instance
+		ctx = instance.GetContext()
+	} else {
+		// Fallback: create a temporary context if no reconciler
+		// This should not happen in normal Fiber mode, but provides safety
+		ctx = newComponentContext(componentKey)
 	}
+
+	// CRITICAL: Reset hook index before re-rendering
+	// This ensures hooks are called in the same order each render
+	ctx.ResetContext()
+
+	// Use the context for hooks
+	oldContext := GetCurrentContext()
+	SetCurrentContext(ctx)
 
 	// Get children by calling the component function
 	var children []VNode
@@ -109,6 +121,9 @@ func beginWorkComponent(current, workInProgress *Fiber) *Fiber {
 			children = []VNode{rendered}
 		}
 	}
+
+	// Restore old context
+	SetCurrentContext(oldContext)
 
 	// Get current child for reconciliation
 	var currentChild *Fiber

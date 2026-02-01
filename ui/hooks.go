@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 )
 
@@ -112,34 +113,48 @@ func useState(initial interface{}) (interface{}, func(interface{})) {
 		panic(err)
 	}
 
+	// Capture the hook index BEFORE getOrCreateHook increments it
+	hookIndex := ctx.HookIndex
+
 	// Get or create hook
 	hook := ctx.getOrCreateHook(HookState)
 
-	// Initialize if first render
-	if hook.Value == nil {
+	// Initialize if first render (not just if Value is nil)
+	if !hook.Initialized {
 		hook.Value = initial
+		hook.Initialized = true
 	}
+
+	// Get the current value to return
+	currentValue := hook.Value
 
 	if os.Getenv("TUI_DEBUG_UI") == "true" {
-		fmt.Fprintf(os.Stderr, "useState: componentID=%s, hookIndex=%d, value=%v\n", ctx.ComponentID, ctx.HookIndex, hook.Value)
+		fmt.Fprintf(os.Stderr, "useState: componentID=%s, hookIndex=%d, value=%v\n", ctx.ComponentID, hookIndex, currentValue)
 	}
 
-	// Create setter function
+	// Create setter function that captures ctx and hookIndex (not the hook pointer)
+	// This ensures we always access the correct hook even if the slice is reallocated
 	setState := func(newValue interface{}) {
 		if os.Getenv("TUI_DEBUG_UI") == "true" {
-			fmt.Fprintf(os.Stderr, "setState BEFORE: componentID=%s, hook.Value=%v, hook=%p\n", ctx.ComponentID, hook.Value, hook)
+			fmt.Fprintf(os.Stderr, "setState BEFORE: componentID=%s, hookIndex=%d, value=%v\n", ctx.ComponentID, hookIndex, ctx.Hooks[hookIndex].Value)
 		}
-		hook.Value = newValue
-		if os.Getenv("TUI_DEBUG_UI") == "true" {
-			fmt.Fprintf(os.Stderr, "setState AFTER: componentID=%s, hook.Value=%v\n", ctx.ComponentID, hook.Value)
+		// Use index to access hook - this is safe even if slice was reallocated
+		if hookIndex < len(ctx.Hooks) {
+			ctx.Hooks[hookIndex].Value = newValue
+			if os.Getenv("TUI_DEBUG_UI") == "true" {
+				fmt.Fprintf(os.Stderr, "setState AFTER: componentID=%s, hookIndex=%d, value=%v\n", ctx.ComponentID, hookIndex, ctx.Hooks[hookIndex].Value)
+			}
 		}
-		// Schedule re-render (will be implemented in reconciler)
+		// Schedule re-render
 		scheduleRender(ctx.ComponentID)
 	}
 
-	hook.SetValue = setState
+	// Also update SetValue on the hook for compatibility
+	if hookIndex < len(ctx.Hooks) {
+		ctx.Hooks[hookIndex].SetValue = setState
+	}
 
-	return hook.Value, setState
+	return currentValue, setState
 }
 
 // IntSetter is the type for setting int state
@@ -154,19 +169,24 @@ type SetIntFunc func(int) int
 // Use getValue() in event handlers to get the latest value
 //
 // The setter accepts either an int value or a SetIntFunc:
-//   setCount(5)                    // Set directly
-//   setCount(func(c int) int {     // Functional update
-//       return c + 1
-//   })
+//
+//	setCount(5)                    // Set directly
+//	setCount(func(c int) int {     // Functional update
+//	    return c + 1
+//	})
 func UseStateInt(initial int) (int, func(interface{}), func() int) {
-	value, setValue := useState(initial)
-	// Capture the hook for getValue
+	// Get context BEFORE calling useState (useState will increment HookIndex)
 	ctx := getCurrentContext()
-	hookIndex := ctx.HookIndex - 1 // The hook was just created/accessed
+	hookIndex := ctx.HookIndex // Capture index before useState increments it
 
+	value, setValue := useState(initial)
+
+	// getValue uses the captured hookIndex to always get the latest value
 	getValue := func() int {
 		if hookIndex < len(ctx.Hooks) {
-			return ctx.Hooks[hookIndex].Value.(int)
+			if v, ok := ctx.Hooks[hookIndex].Value.(int); ok {
+				return v
+			}
 		}
 		return initial
 	}
@@ -569,4 +589,135 @@ func useHoverState() (func() bool, func(bool)) {
 //   - setter: func(bool) - sets hover state
 func UseHoverState() (func() bool, func(bool)) {
 	return useHoverState()
+}
+
+// UseStateIntWithDebug is UseStateInt with additional debug output
+// Returns:
+//   - value: int - current state value
+//   - setValue: func(interface{}) - sets new value
+//   - getValue: func() int - gets current value
+//   - hookIndex: int - the hook index (for debugging)
+func UseStateIntWithDebug(initial int) (int, func(interface{}), func() int, int) {
+	// Get context BEFORE calling useState (useState will increment HookIndex)
+	ctx := getCurrentContext()
+	hookIndex := ctx.HookIndex // Capture index before useState increments it
+
+	if os.Getenv("TUI_DEBUG_UI") == "true" {
+		fmt.Fprintf(os.Stderr, "[DEBUG] UseStateIntWithDebug: initial=%d, hookIndex=%d\n", initial, hookIndex)
+	}
+
+	value, setValue := useState(initial)
+
+	// getValue uses the captured hookIndex to always get the latest value
+	getValue := func() int {
+		if hookIndex < len(ctx.Hooks) {
+			if v, ok := ctx.Hooks[hookIndex].Value.(int); ok {
+				if os.Getenv("TUI_DEBUG_UI") == "true" {
+					fmt.Fprintf(os.Stderr, "[DEBUG] getValue: hookIndex=%d, value=%d, hook=%p\n",
+						hookIndex, v, &ctx.Hooks[hookIndex])
+				}
+				return v
+			}
+		}
+		return initial
+	}
+
+	setInt := func(newValue interface{}) {
+		switch v := newValue.(type) {
+		case int:
+			if os.Getenv("TUI_DEBUG_UI") == "true" {
+				fmt.Fprintf(os.Stderr, "[DEBUG] setInt: hookIndex=%d, oldValue=%v, newValue=%d\n",
+					hookIndex, value, v)
+			}
+			setValue(v)
+		case func(int) int:
+			// Also support raw func(int) int
+			current := getValue()
+			newVal := v(current)
+			if os.Getenv("TUI_DEBUG_UI") == "true" {
+				fmt.Fprintf(os.Stderr, "[DEBUG] setInt(fn): hookIndex=%d, oldValue=%d, newValue=%d\n",
+					hookIndex, current, newVal)
+			}
+			setValue(newVal)
+		default:
+			setValue(newValue)
+		}
+	}
+
+	return value.(int), setInt, getValue, hookIndex
+}
+
+// ==============================================================================
+// Debug Functions for Sandbox Testing
+// ==============================================================================
+
+// DebugContextInfo returns debug information about the current context
+func DebugContextInfo() map[string]interface{} {
+	currentContextMu.RLock()
+	defer currentContextMu.RUnlock()
+
+	if currentContext == nil {
+		return map[string]interface{}{
+			"hasContext": false,
+		}
+	}
+
+	hooksInfo := make([]map[string]interface{}, len(currentContext.Hooks))
+	for i, hook := range currentContext.Hooks {
+		hooksInfo[i] = map[string]interface{}{
+			"type":     hook.Type.String(),
+			"value":    hook.Value,
+			"pointer": fmt.Sprintf("%p", &hook),
+		}
+	}
+
+	return map[string]interface{}{
+		"hasContext":     true,
+		"componentID":    currentContext.ComponentID,
+		"hooksCount":     len(currentContext.Hooks),
+		"hookIndex":      currentContext.HookIndex,
+		"renderCount":    currentContext.RenderCount,
+		"hooks":          hooksInfo,
+		"contextPointer": fmt.Sprintf("%p", currentContext),
+	}
+}
+
+// DebugHooksState returns a detailed dump of hooks state
+func DebugHooksState() string {
+	currentContextMu.RLock()
+	defer currentContextMu.RUnlock()
+
+	if currentContext == nil {
+		return "No current context"
+	}
+
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("Context: %s\n", currentContext.ComponentID))
+	sb.WriteString(fmt.Sprintf("HookIndex: %d\n", currentContext.HookIndex))
+	sb.WriteString(fmt.Sprintf("Hooks Count: %d\n", len(currentContext.Hooks)))
+	sb.WriteString("Hooks:\n")
+
+	for i, hook := range currentContext.Hooks {
+		sb.WriteString(fmt.Sprintf("  [%d] Type=%s, Value=%v, Ptr=%p\n",
+			i, hook.Type, hook.Value, &hook))
+	}
+
+	return sb.String()
+}
+
+// SetDebugLogger sets a function to receive debug callbacks
+var debugLogger func(string)
+
+// SetDebugLogger sets a debug logger function
+func SetDebugLogger(logger func(string)) {
+	currentContextMu.Lock()
+	defer currentContextMu.Unlock()
+	debugLogger = logger
+}
+
+// logDebug sends a message to the debug logger if set
+func logDebug(format string, args ...interface{}) {
+	if debugLogger != nil {
+		debugLogger(fmt.Sprintf(format, args...))
+	}
 }

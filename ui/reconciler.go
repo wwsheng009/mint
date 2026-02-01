@@ -30,24 +30,24 @@ type Reconciler struct {
 
 	// === State ===
 	lanes     Lane // Pending lanes (work to do)
-	isWorking bool  // Currently working
+	isWorking bool // Currently working
 
 	// === Scheduling ===
 	deadline   time.Time     // Current frame deadline
 	timeBudget time.Duration // Time slice budget per frame
 
 	// === Integration ===
-	app                 *framework.App          // Framework app
-	instanceMgr         *InstanceManager        // Component instance manager
+	app                 *framework.App           // Framework app
+	instanceMgr         *InstanceManager         // Component instance manager
 	interactionStateMgr *InteractionStateManager // Interaction state (hover/focus/etc)
 	keyValidator        *KeyValidator            // Key validation
-	rootComponent       ComponentFunc           // Root component function
-	ctx                 *ComponentContext       // Root component context
+	rootComponent       ComponentFunc            // Root component function
+	ctx                 *ComponentContext        // Root component context
 
 	// === Render State ===
-	buffer        *paint.Buffer           // Render target
-	paintCtx      component.PaintContext
-	renderCallback RenderFunc              // Callback for rendering VNodes
+	buffer         *paint.Buffer // Render target
+	paintCtx       component.PaintContext
+	renderCallback RenderFunc // Callback for rendering VNodes
 
 	// === Configuration ===
 	enableFiber bool // Use Fiber reconciliation (env controlled)
@@ -56,8 +56,8 @@ type Reconciler struct {
 // ReconcilerConfig configures the reconciler
 type ReconcilerConfig struct {
 	TimeBudget      time.Duration // Time slice budget
-	EnableProfiling bool           // Enable performance profiling
-	EnableFiber     bool           // Enable Fiber reconciliation
+	EnableProfiling bool          // Enable performance profiling
+	EnableFiber     bool          // Enable Fiber reconciliation
 }
 
 // NewReconciler creates a new reconciler
@@ -119,25 +119,24 @@ func (r *Reconciler) MarkDirty() {
 // =============================================================================
 
 // prepareFreshStack prepares a fresh Fiber stack for rendering
+// IMPORTANT: We do NOT call renderFunc() here directly.
+// Instead, we wrap it as a ComponentVNode so that beginWorkComponent
+// will handle the actual component invocation with proper Context management.
+// This ensures all hooks use the same ComponentInstance's context.
 func (r *Reconciler) prepareFreshStack(renderFunc func() VNode) {
-	// Reset hook context for root
-	r.ctx.ResetContext()
-	SetCurrentContext(r.ctx)
-
-	// Call root component to get VNode
-	vnode := renderFunc()
-
-	// Clear current context
-	SetCurrentContext(nil)
+	// Wrap the root component as a ComponentVNode
+	// This ensures it goes through beginWorkComponent which manages Context properly
+	rootComponentVNode := NewComponent("RootComponent", renderFunc)
+	rootComponentVNode.SetKey("root")
 
 	// Create or update Fiber tree
 	if r.root == nil {
-		// First render - create new tree
-		r.root = CreateFiberFromVNode(vnode)
+		// First render - create new tree from the wrapped component
+		r.root = CreateFiberFromVNode(rootComponentVNode)
 		r.workInProgress = r.root
 	} else {
 		// Subsequent render - create work-in-progress tree
-		r.workInProgress = r.createWorkInProgress(r.root, vnode)
+		r.workInProgress = r.createWorkInProgress(r.root, rootComponentVNode)
 	}
 }
 
@@ -153,24 +152,35 @@ func (r *Reconciler) workLoopSync() {
 	currentReconciler = r
 	defer func() { currentReconciler = nil }()
 
-	// Process all work units
-	workInProgress := r.workInProgress
-
-	for workInProgress != nil {
-		// BeginWork: reconcile and create children
-		workInProgress = BeginWork(nil, workInProgress)
-
-		// CompleteWork: finalize and collect effects
-		if workInProgress != nil {
-			workInProgress = CompleteWork(nil, workInProgress)
-		}
-
-		// Move to next work unit
-		workInProgress = r.getNextWorkUnit(workInProgress)
-	}
+	// Process all work units using correct Fiber traversal
+	// The traversal follows: BeginWork down the tree, then CompleteWork back up
+	r.performUnitOfWork(r.workInProgress)
 
 	// Work complete, prepare for commit
 	r.workInProgress = nil
+}
+
+// performUnitOfWork processes a single fiber and its subtree
+func (r *Reconciler) performUnitOfWork(unitOfWork *Fiber) {
+	if unitOfWork == nil {
+		return
+	}
+
+	// BeginWork: process this fiber and create children
+	next := BeginWork(unitOfWork.Alternate, unitOfWork)
+
+	// If BeginWork returned a child, process it first (depth-first)
+	if next != nil && next.Child != nil {
+		r.performUnitOfWork(next.Child)
+	}
+
+	// CompleteWork: finalize this fiber
+	CompleteWork(unitOfWork.Alternate, unitOfWork)
+
+	// Process siblings
+	if unitOfWork.Sibling != nil {
+		r.performUnitOfWork(unitOfWork.Sibling)
+	}
 }
 
 // createWorkInProgress creates a work-in-progress fiber
