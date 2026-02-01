@@ -32,6 +32,7 @@ type Pump struct {
 	quit   chan struct{}
 	running bool
 	mu     sync.RWMutex // Protects events channel from close while sending
+	wg     sync.WaitGroup // Waits for convertLoop to exit
 }
 
 // NewPump creates a new event pump with a platform input reader.
@@ -75,6 +76,7 @@ func (p *Pump) Start() error {
 	}
 
 	// Start conversion loop
+	p.wg.Add(1)
 	go p.convertLoop(rawInputs)
 
 	return nil
@@ -82,6 +84,7 @@ func (p *Pump) Start() error {
 
 // convertLoop converts raw inputs to events.
 func (p *Pump) convertLoop(rawInputs <-chan platform.RawInput) {
+	defer p.wg.Done()
 	for {
 		select {
 		case <-p.quit:
@@ -93,13 +96,10 @@ func (p *Pump) convertLoop(rawInputs <-chan platform.RawInput) {
 			}
 			ev := p.convertToEvent(raw)
 			if ev != nil {
-				// Acquire read lock to prevent events from being closed while sending
-				p.mu.RLock()
+				// Safe to send because Stop() waits for this goroutine to exit
 				select {
 				case p.events <- ev:
-					p.mu.RUnlock()
 				case <-p.quit:
-					p.mu.RUnlock()
 					return
 				}
 			}
@@ -212,7 +212,10 @@ func (p *Pump) Stop() {
 		p.source.Stop()
 	}
 
-	// Close events channel with write lock to prevent concurrent send
+	// Wait for convertLoop to exit (prevents send on closed channel)
+	p.wg.Wait()
+
+	// Now safe to close events channel
 	p.mu.Lock()
 	close(p.events)
 	p.mu.Unlock()
@@ -299,16 +302,13 @@ func (p *Pump) Inject(raw platform.RawInput) {
 		if os.Getenv("TUI_DEBUG_UI") == "true" {
 			fmt.Fprintf(os.Stderr, "[PUMP] Injecting event: Type=%v\n", ev.Type())
 		}
-		// Acquire read lock to prevent events from being closed while sending
-		p.mu.RLock()
+		// Safe to send because Stop() waits for all goroutines to exit first
 		select {
 		case p.events <- ev:
-			p.mu.RUnlock()
 			if os.Getenv("TUI_DEBUG_UI") == "true" {
 				fmt.Fprintf(os.Stderr, "[PUMP] Event sent to channel\n")
 			}
 		case <-p.quit:
-			p.mu.RUnlock()
 		}
 	}
 }
