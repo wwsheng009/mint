@@ -389,6 +389,9 @@ func RunTest(app ComponentFunc, opts ...Option) (*TestableApp, error) {
 	// Initialize theme (optional, don't fail on error)
 	fwApp.InitTheme("dark")
 
+	// 设置全局 appInstance 以支持 setState 中的 scheduleRender
+	appInstance = fwApp
+
 	// Create the declarative root component
 	declarativeNode := newDeclarativeRoot(app, fwApp)
 
@@ -448,6 +451,9 @@ func RunTestWithSandbox(app ComponentFunc, opts ...Option) (*TestableApp, error)
 	fwApp := framework.NewAppWithSource(source)
 	fwApp.Resize(options.Width, options.Height)
 	fwApp.InitTheme("dark")
+
+	// 设置全局 appInstance 以支持 setState 中的 scheduleRender
+	appInstance = fwApp
 
 	// 创建声明式根组件
 	declarativeNode := newDeclarativeRoot(app, fwApp)
