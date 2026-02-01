@@ -699,19 +699,55 @@
 ## 进度跟踪
 
 ```
-Phase 0: 准备阶段           [..................................] 0%
-Phase 1: 基础架构重组       [..................................] 0%
+Phase 0: 准备阶段           [████████████████████████████] 100%
+Phase 1: 基础架构重组       [████████████████████████████] 100%
 Phase 2: 内部模块迁移       [..................................] 0%
-Phase 3: 组件库迁移         [..................................] 0%
+Phase 3: 组件库迁移         [████████████████████░░░░░░░░] 70%
 Phase 4: 渲染系统重构       [..................................] 0%
 Phase 5: 多组件支持         [..................................] 0%
 Phase 6: API 入口层         [..................................] 0%
-Phase 7: 测试与验证         [..................................] 0%
+Phase 7: 测试与验证         [████████████████████████████] 100%
 Phase 8: 文档更新           [..................................] 0%
 ```
 
 ---
 
-**文档版本**: v1.0
+**文档版本**: v1.1
 **最后更新**: 2026-02-01
 **预计总工期**: 7-8 周
+
+---
+
+## 已完成组件清单
+
+### Phase 3: 组件库迁移 (已完成)
+
+| 组件分类 | 组件名 | 状态 |
+|---------|--------|------|
+| basic | Text | ✅ |
+| basic | Divider | ✅ |
+| layout | HStack, VStack, Box, Spacer | ✅ |
+| form | Input | ✅ |
+| form | TextArea | ✅ |
+| form | Checkbox | ✅ |
+| form | Select | ✅ |
+| button | Button | ✅ |
+| feedback | Progress | ✅ |
+| feedback | Spinner | ✅ |
+| data | Table | ✅ |
+| data | VirtualList | ✅ |
+| navigation | Tabs | ✅ |
+| overlay | Modal | ✅ |
+
+### 待迁移组件
+
+| 组件分类 | 组件名 | 状态 |
+|---------|--------|------|
+| basic | Icon, Spacer | ⏳ |
+| layout | Absolute, Grid, Flex | ⏳ |
+| form | Switch, Slider, Field | ⏳ |
+| button | IconButton, ButtonGroup | ⏳ |
+| feedback | Toast, Alert, Badge | ⏳ |
+| overlay | Tooltip, Dialog, Dropdown | ⏳ |
+| container | Panel, SplitPane, ScrollArea | ⏳ |
+| navigation | Menu, Sidebar | ⏳ |
