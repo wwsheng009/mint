@@ -2,6 +2,8 @@ package ui
 
 import (
 	"testing"
+
+	"github.com/wwsheng009/mint/runtime/style"
 )
 
 func TestPropsBasicOperations(t *testing.T) {
@@ -335,5 +337,276 @@ func TestTextElement(t *testing.T) {
 
 	if elem.Props().GetString("content") != content {
 		t.Errorf("Text element content = %v, want %v", elem.Props().GetString("content"), content)
+	}
+}
+
+func TestPropsGetFunc(t *testing.T) {
+	p := make(Props)
+	fn := func() {}
+
+	p.Set("onClick", fn)
+
+	if val := p.GetFunc("onClick"); val == nil {
+		t.Error("GetFunc() should return function")
+	}
+
+	if val := p.GetFunc("missing"); val != nil {
+		t.Error("GetFunc() missing key should return nil")
+	}
+}
+
+func TestLayoutNodeMethods(t *testing.T) {
+	// Test HStack as LayoutNode with builder
+	hstackNode := HStack(
+		Element("text").Prop("content", "a").Build(),
+		Element("text").Prop("content", "b").Build(),
+	)
+
+	if layout, ok := hstackNode.(*LayoutNode); ok {
+		if layout.Direction() != DirectionRow {
+			t.Errorf("HStack Direction = %v, want DirectionRow", layout.Direction())
+		}
+
+		// Test Gap getter (returns 0 by default)
+		if layout.Gap() != 0 {
+			t.Errorf("LayoutNode default Gap = %v, want 0", layout.Gap())
+		}
+
+		// Test Padding getter (returns [0,0,0,0] by default)
+		p := layout.Padding()
+		if p[0] != 0 || p[1] != 0 || p[2] != 0 || p[3] != 0 {
+			t.Errorf("LayoutNode default Padding = %v, want [0 0 0 0]", p)
+		}
+	}
+
+	// Test VStack with builder
+	vstackNode := VStack(
+		Element("text").Prop("content", "a").Build(),
+	)
+
+	if layout, ok := vstackNode.(*LayoutNode); ok {
+		if layout.Direction() != DirectionColumn {
+			t.Errorf("VStack Direction = %v, want DirectionColumn", layout.Direction())
+		}
+
+		// Test Align getter
+		if layout.Align() != AlignStart {
+			t.Errorf("LayoutNode default Align = %v, want AlignStart", layout.Align())
+		}
+
+		// Test CrossAlign getter
+		if layout.CrossAlign() != AlignStart {
+			t.Errorf("LayoutNode default CrossAlign = %v, want AlignStart", layout.CrossAlign())
+		}
+	}
+}
+
+func TestLayoutBuilderChaining(t *testing.T) {
+	// Test VStack builder with all methods
+	vstack := VStack(
+		Element("text").Prop("content", "a").Build(),
+	)
+
+	// Create a new LayoutBuilder from VStack
+	builder := &LayoutBuilder{
+		node:     vstack.(*LayoutNode),
+		children: []VNode{Element("text").Prop("content", "a").Build()},
+	}
+
+	// Test all builder methods
+	node := builder.Align(AlignCenter).
+		AlignCross(AlignEnd).
+		Gap(10).
+		Padding(1, 2, 3, 4).
+		Width(100).
+		Height(50).
+		Flex(2).
+		Key("test-key").
+		Build()
+
+	if node == nil {
+		t.Fatal("LayoutBuilder.Build() returned nil")
+	}
+
+	// Verify props were set through builder
+	if node.Props().GetInt("width") != 100 {
+		t.Error("Builder Width not set")
+	}
+	if node.Props().GetInt("height") != 50 {
+		t.Error("Builder Height not set")
+	}
+	if node.Props().GetInt("flex") != 2 {
+		t.Error("Builder Flex not set")
+	}
+}
+
+func TestBoxLayoutBuilder(t *testing.T) {
+	box := Box().
+		Border(true).
+		BorderStyle("double").
+		Padding(10).
+		Background("blue").
+		Child(Element("text").Prop("content", "test").Build()).
+		Width(100).
+		Height(50).
+		Flex(1).
+		Build()
+
+	if box == nil {
+		t.Fatal("Box().Build() returned nil")
+	}
+
+	if box.Props().GetBool("border") != true {
+		t.Error("Box border prop not set")
+	}
+
+	if box.Props().GetInt("padding") != 10 {
+		t.Error("Box padding prop not set")
+	}
+
+	if box.Props().GetInt("width") != 100 {
+		t.Error("Box width prop not set")
+	}
+
+	if box.Props().GetInt("height") != 50 {
+		t.Error("Box height prop not set")
+	}
+
+	if box.Props().GetInt("flex") != 1 {
+		t.Error("Box flex prop not set")
+	}
+}
+
+func TestSpacerBuilder(t *testing.T) {
+	spacer := Spacer().Flex(2).Build()
+
+	if spacer == nil {
+		t.Fatal("Spacer().Build() returned nil")
+	}
+
+	if spacer.Props().GetInt("flex") != 2 {
+		t.Error("Spacer flex prop not set")
+	}
+}
+
+func TestLayoutBuilderWithStyle(t *testing.T) {
+	vstack := VStack(
+		Element("text").Prop("content", "a").Build(),
+	)
+
+	builder := &LayoutBuilder{
+		node:     vstack.(*LayoutNode),
+		children: []VNode{Element("text").Prop("content", "a").Build()},
+	}
+
+	s := style.Style{}.Foreground("red").Background("blue")
+	styledNode := builder.Style(s).Build()
+
+	if styledNode == nil {
+		t.Fatal("Styled VStack returned nil")
+	}
+
+	st := styledNode.Style()
+	if st.FG != "red" {
+		t.Errorf("Style FG = %v, want red", st.FG)
+	}
+	if st.BG != "blue" {
+		t.Errorf("Style BG = %v, want blue", st.BG)
+	}
+}
+
+func TestLayoutBuilderWithColor(t *testing.T) {
+	hstack := HStack(
+		Element("text").Prop("content", "a").Build(),
+	)
+
+	builder := &LayoutBuilder{
+		node:     hstack.(*LayoutNode),
+		children: []VNode{Element("text").Prop("content", "a").Build()},
+	}
+
+	fgNode := builder.FgColor("cyan").Build()
+	s := fgNode.Style()
+	if s.FG != "cyan" {
+		t.Errorf("FgColor FG = %v, want cyan", s.FG)
+	}
+
+	vstack := VStack(
+		Element("text").Prop("content", "a").Build(),
+	)
+
+	builder2 := &LayoutBuilder{
+		node:     vstack.(*LayoutNode),
+		children: []VNode{Element("text").Prop("content", "a").Build()},
+	}
+
+	bgNode := builder2.BgColor("white").Build()
+	s = bgNode.Style()
+	if s.BG != "white" {
+		t.Errorf("BgColor BG = %v, want white", s.BG)
+	}
+}
+
+func TestLayoutBuilderWithKey(t *testing.T) {
+	vstack := VStack(
+		Element("text").Prop("content", "a").Build(),
+	)
+
+	builder := &LayoutBuilder{
+		node:     vstack.(*LayoutNode),
+		children: []VNode{Element("text").Prop("content", "a").Build()},
+	}
+
+	node := builder.Key("test-key").Build()
+
+	if node.Key() != "test-key" {
+		t.Errorf("LayoutNode Key = %v, want 'test-key'", node.Key())
+	}
+}
+
+func TestHookValidator(t *testing.T) {
+	// Test 1: First render with hooks
+	validator := NewHookValidator("test-comp")
+
+	if err := validator.ValidateHookCall(HookState); err != nil {
+		t.Errorf("ValidateHookCall first call error: %v", err)
+	}
+
+	if err := validator.FinishRender(); err != nil {
+		t.Errorf("FinishRender first render error: %v", err)
+	}
+
+	// Test 2: Second render with same hook count (should succeed)
+	if err := validator.ValidateHookCall(HookState); err != nil {
+		t.Errorf("ValidateHookCall second call error: %v", err)
+	}
+
+	if err := validator.FinishRender(); err != nil {
+		t.Errorf("FinishRender second render error: %v", err)
+	}
+
+	// Test 3: Hook type mismatch at same position
+	if err := validator.ValidateHookCall(HookEffect); err == nil {
+		t.Error("ValidateHookCall should return error for different hook type at same position")
+	}
+
+	// Test 4: Reset - after reset, should be first render again
+	validator.Reset()
+	if err := validator.ValidateHookCall(HookEffect); err != nil {
+		t.Errorf("ValidateHookCall after Reset should succeed: %v", err)
+	}
+
+	if err := validator.FinishRender(); err != nil {
+		t.Errorf("FinishRender after Reset error: %v", err)
+	}
+
+	// Test 5: Second render with matching type
+	if err := validator.ValidateHookCall(HookEffect); err != nil {
+		t.Errorf("ValidateHookCall second render error: %v", err)
+	}
+
+	// Test 6: Hook count exceeds first render
+	if err := validator.ValidateHookCall(HookState); err == nil {
+		t.Error("ValidateHookCall should return error for hook count exceeding first render")
 	}
 }
