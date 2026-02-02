@@ -9,6 +9,7 @@ package main
 import (
 	"fmt"
 
+	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/ui"
 )
 
@@ -20,19 +21,19 @@ func FormApp() ui.VNode {
 	message, setMessage := ui.UseStateString("")
 
 	return ui.VStack(
-		ui.NewTextBuilder("╔══════════════════════════════╗").
+		app.NewTextBuilder("╔══════════════════════════════╗").
 			FgColor("cyan").
 			Build(),
-		ui.NewTextBuilder("║     TestHelper Demo           ║").
+		app.NewTextBuilder("║     TestHelper Demo           ║").
 			FgColor("cyan").
 			Build(),
-		ui.NewTextBuilder("╚══════════════════════════════╝").
+		app.NewTextBuilder("╚══════════════════════════════╝").
 			FgColor("cyan").
 			Build(),
 		ui.Text(""),
 		ui.HStack(
 			ui.Text("Username: "),
-			ui.InputBuilder().
+			app.InputBuilder().
 				Value(username).
 				Placeholder("Enter username").
 				MaxLength(15).
@@ -42,7 +43,7 @@ func FormApp() ui.VNode {
 		ui.Text(""),
 		ui.HStack(
 			ui.Text("Password: "),
-			ui.InputBuilder().
+			app.InputBuilder().
 				Value(password).
 				Placeholder("Enter password").
 				MaxLength(20).
@@ -51,7 +52,7 @@ func FormApp() ui.VNode {
 				Build(),
 		),
 		ui.Text(""),
-		ui.ButtonBuilder("  [ Submit ]  ").
+		app.ButtonBuilder("  [ Submit ]  ").
 			OnClick(func() {
 				setSubmitted(true)
 				if username != "" && password != "" {
@@ -62,7 +63,7 @@ func FormApp() ui.VNode {
 			}).
 			Build(),
 		ui.Text(""),
-		ui.ButtonBuilder("  [ Clear ]  ").
+		app.ButtonBuilder("  [ Clear ]  ").
 			OnClick(func() {
 				setUsername("")
 				setPassword("")
@@ -73,7 +74,7 @@ func FormApp() ui.VNode {
 		ui.Text(""),
 		func() ui.VNode {
 			if submitted {
-				return ui.NewTextBuilder(message).
+				return app.NewTextBuilder(message).
 					FgColor(func() string {
 						if username != "" && password != "" {
 							return "green"

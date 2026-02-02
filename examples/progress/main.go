@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/ui"
 )
 
@@ -8,18 +9,18 @@ import (
 func ProgressDemo() ui.VNode {
 	progress, setProgress, _ := ui.UseStateInt(0)
 
-	return ui.VStack(
-		ui.NewTextBuilder("Progress Bar Demo").
+	return app.VStack(
+		app.NewTextBuilder("Progress Bar Demo").
 			FgColor("cyan").
 			Bold(true).
 			Build(),
-		ui.Text(""),
-		ui.SpinnerBuilder().
+		app.Text(""),
+		app.SpinnerBuilder().
 			Message("Loading demo...").
 			FgColor("yellow").
 			Build(),
-		ui.Text(""),
-		ui.ProgressBuilder().
+		app.Text(""),
+		app.ProgressBuilder().
 			Label("Download:").
 			Value(progress).
 			Max(100).
@@ -27,31 +28,31 @@ func ProgressDemo() ui.VNode {
 			ShowPercent(true).
 			FgColor("green").
 			Build(),
-		ui.Text(""),
-		ui.NewTextBuilder("Status:").
+		app.Text(""),
+		app.NewTextBuilder("Status:").
 			FgColor("bright-black").
 			Build(),
 		func() ui.VNode {
 			if progress < 30 {
-				return ui.NewTextBuilder("  Starting...").
+				return app.NewTextBuilder("  Starting...").
 					FgColor("bright-black").
 					Build()
 			} else if progress < 70 {
-				return ui.NewTextBuilder("  In progress...").
+				return app.NewTextBuilder("  In progress...").
 					FgColor("yellow").
 					Build()
 			} else if progress < 100 {
-				return ui.NewTextBuilder("  Almost done!").
+				return app.NewTextBuilder("  Almost done!").
 					FgColor("cyan").
 					Build()
 			}
-			return ui.NewTextBuilder("  Complete!").
+			return app.NewTextBuilder("  Complete!").
 				FgColor("green").
 				Bold(true).
 				Build()
 		}(),
-		ui.Text(""),
-		ui.ButtonBuilder("  +10%  ").
+		app.Text(""),
+		app.ButtonBuilder("  +10%  ").
 			OnClick(func() {
 				if progress >= 100 {
 					return
@@ -60,12 +61,12 @@ func ProgressDemo() ui.VNode {
 			}).
 			Disabled(progress >= 100).
 			Build(),
-		ui.Text(""),
-		ui.NewTextBuilder("Press button to increase progress").
+		app.Text(""),
+		app.NewTextBuilder("Press button to increase progress").
 			FgColor("bright-black").
 			Build(),
-		ui.Text(""),
-		ui.NewTextBuilder("q: quit").
+		app.Text(""),
+		app.NewTextBuilder("q: quit").
 			FgColor("bright-black").
 			Build(),
 	)

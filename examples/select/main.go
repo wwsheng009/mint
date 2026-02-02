@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 
+	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/ui"
 )
 
@@ -26,20 +27,20 @@ func SelectDemo() ui.VNode {
 	}
 
 	return ui.VStack(
-		ui.NewTextBuilder("Settings Demo").
+		app.NewTextBuilder("Settings Demo").
 			FgColor("cyan").
 			Bold(true).
 			Build(),
-		ui.Text(""),
-		ui.NewTextBuilder("─────────────────────────────────────").
+		app.Text(""),
+		app.NewTextBuilder("─────────────────────────────────────").
 			FgColor("bright-black").
 			Build(),
-		ui.Text(""),
-		ui.NewTextBuilder("Theme:").
+		app.Text(""),
+		app.NewTextBuilder("Theme:").
 			FgColor("bright-black").
 			Build(),
-		ui.Text(""),
-		ui.SelectBuilder().
+		app.Text(""),
+		app.SelectBuilder().
 			AddOption("dark", "Dark Theme").
 			AddOption("light", "Light Theme").
 			AddOption("dracula", "Dracula Theme").
@@ -47,13 +48,13 @@ func SelectDemo() ui.VNode {
 			Selected(themeToIndex[selectedTheme]).
 			OnChange(setSelectedTheme).
 			Build(),
-		ui.Text(""),
-		ui.NewTextBuilder(fmt.Sprintf("Selected: %s", themes[selectedTheme])).
+		app.Text(""),
+		app.NewTextBuilder(fmt.Sprintf("Selected: %s", themes[selectedTheme])).
 			FgColor("green").
 			Build(),
-		ui.Text(""),
-		ui.TableBuilder().
-			Columns([]ui.TableColumn{
+		app.Text(""),
+		app.TableBuilder().
+			Columns([]app.TableColumn{
 				{Title: "ID", Width: 5},
 				{Title: "Name", Width: 12},
 				{Title: "Status", Width: 10},
@@ -62,8 +63,8 @@ func SelectDemo() ui.VNode {
 			AddRow("2", "Bob", "Active").
 			AddRow("3", "Charlie", "Inactive").
 			Build(),
-		ui.Text(""),
-		ui.NewTextBuilder("Tab: focus | Up/Down/Enter: select | q: quit").
+		app.Text(""),
+		app.NewTextBuilder("Tab: focus | Up/Down/Enter: select | q: quit").
 			FgColor("bright-black").
 			Build(),
 	)

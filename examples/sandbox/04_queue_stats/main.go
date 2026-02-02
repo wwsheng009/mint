@@ -9,6 +9,7 @@ package main
 import (
 	"fmt"
 
+	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/ui"
 )
 
@@ -19,19 +20,19 @@ func StatsApp() ui.VNode {
 	memory, setMemory, _ := ui.UseStateInt(0)
 
 	return ui.VStack(
-		ui.NewTextBuilder("╔══════════════════════════════╗").
+		app.NewTextBuilder("╔══════════════════════════════╗").
 			FgColor("cyan").
 			Build(),
-		ui.NewTextBuilder("║    Queue Stats Demo           ║").
+		app.NewTextBuilder("║    Queue Stats Demo           ║").
 			FgColor("cyan").
 			Build(),
-		ui.NewTextBuilder("╚══════════════════════════════╝").
+		app.NewTextBuilder("╚══════════════════════════════╝").
 			FgColor("cyan").
 			Build(),
 		ui.Text(""),
 		ui.HStack(
 			ui.Text("Count: "),
-			ui.NewTextBuilder(fmt.Sprintf("%d", count)).
+			app.NewTextBuilder(fmt.Sprintf("%d", count)).
 				FgColor("green").
 				Bold(true).
 				Build(),
@@ -39,26 +40,26 @@ func StatsApp() ui.VNode {
 		ui.Text(""),
 		ui.HStack(
 			ui.Text("Events: "),
-			ui.NewTextBuilder(fmt.Sprintf("%d", events)).
+			app.NewTextBuilder(fmt.Sprintf("%d", events)).
 				FgColor("yellow").
 				Build(),
 		),
 		ui.Text(""),
 		ui.HStack(
 			ui.Text("Memory: "),
-			ui.NewTextBuilder(fmt.Sprintf("%d bytes", memory)).
+			app.NewTextBuilder(fmt.Sprintf("%d bytes", memory)).
 				FgColor("magenta").
 				Build(),
 		),
 		ui.Text(""),
-		ui.ButtonBuilder("  [ + ]  ").
+		app.ButtonBuilder("  [ + ]  ").
 			OnClick(func() {
 				setCount(count + 1)
 				setEvents(events + 1)
 				setMemory(memory + 128)
 			}).
 			Build(),
-		ui.ButtonBuilder("  [ - ]  ").
+		app.ButtonBuilder("  [ - ]  ").
 			OnClick(func() {
 				if count > 0 {
 					setCount(count - 1)
@@ -72,14 +73,14 @@ func StatsApp() ui.VNode {
 			}).
 			Build(),
 		ui.Text(""),
-		ui.NewTextBuilder("──────────────────────────────────").
+		app.NewTextBuilder("──────────────────────────────────").
 			FgColor("bright-black").
 			Build(),
 		ui.Text(""),
-		ui.NewTextBuilder("This demo shows queue stats.").
+		app.NewTextBuilder("This demo shows queue stats.").
 			FgColor("bright-black").
 			Build(),
-		ui.NewTextBuilder("Run tests to see monitoring.").
+		app.NewTextBuilder("Run tests to see monitoring.").
 			FgColor("bright-black").
 			Build(),
 	)

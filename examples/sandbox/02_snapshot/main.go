@@ -9,6 +9,7 @@ package main
 import (
 	"fmt"
 
+	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/ui"
 )
 
@@ -23,47 +24,47 @@ func StatefulApp() ui.VNode {
 	modeName := modeNames[mode%3]
 
 	return ui.VStack(
-		ui.NewTextBuilder("╔══════════════════════════════╗").
+		app.NewTextBuilder("╔══════════════════════════════╗").
 			FgColor("cyan").
 			Build(),
-		ui.NewTextBuilder("║     Snapshot Demo             ║").
+		app.NewTextBuilder("║     Snapshot Demo             ║").
 			FgColor("cyan").
 			Build(),
-		ui.NewTextBuilder("╚══════════════════════════════╝").
+		app.NewTextBuilder("╚══════════════════════════════╝").
 			FgColor("cyan").
 			Build(),
 		ui.Text(""),
 		ui.HStack(
 			ui.Text("Mode: "),
-			ui.NewTextBuilder(modeName).
+			app.NewTextBuilder(modeName).
 				FgColor("yellow").
 				Bold(true).
 				Build(),
 		),
 		ui.Text(""),
-		ui.NewTextBuilder(fmt.Sprintf("Count: %d", count)).
+		app.NewTextBuilder(fmt.Sprintf("Count: %d", count)).
 			FgColor("green").
 			Bold(true).
 			Build(),
 		ui.Text(""),
 		ui.HStack(
 			ui.Text("Text: "),
-			ui.NewTextBuilder(text).
+			app.NewTextBuilder(text).
 				FgColor("magenta").
 				Build(),
 		),
 		ui.Text(""),
-		ui.ButtonBuilder("  [ + ]  ").
+		app.ButtonBuilder("  [ + ]  ").
 			OnClick(func() {
 				setCount(count + 1)
 			}).
 			Build(),
-		ui.ButtonBuilder("  [ - ]  ").
+		app.ButtonBuilder("  [ - ]  ").
 			OnClick(func() {
 				setCount(count - 1)
 			}).
 			Build(),
-		ui.ButtonBuilder("  [ Mode ]  ").
+		app.ButtonBuilder("  [ Mode ]  ").
 			OnClick(func() {
 				setMode(mode + 1)
 			}).
@@ -71,7 +72,7 @@ func StatefulApp() ui.VNode {
 		ui.Text(""),
 		ui.HStack(
 			ui.Text("Input: "),
-			ui.InputBuilder().
+			app.InputBuilder().
 				Value(text).
 				Placeholder("Type something...").
 				MaxLength(20).
@@ -79,14 +80,14 @@ func StatefulApp() ui.VNode {
 				Build(),
 		),
 		ui.Text(""),
-		ui.NewTextBuilder("──────────────────────────────────").
+		app.NewTextBuilder("──────────────────────────────────").
 			FgColor("bright-black").
 			Build(),
 		ui.Text(""),
-		ui.NewTextBuilder("This app demonstrates snapshots.").
+		app.NewTextBuilder("This app demonstrates snapshots.").
 			FgColor("bright-black").
 			Build(),
-		ui.NewTextBuilder("Run tests to see save/restore.").
+		app.NewTextBuilder("Run tests to see save/restore.").
 			FgColor("bright-black").
 			Build(),
 	)

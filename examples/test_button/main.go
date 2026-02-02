@@ -3,14 +3,15 @@ package main
 import (
 	"os"
 
+	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/ui"
 )
 
 func SimpleTest() ui.VNode {
 	return ui.VStack(
 		ui.Text("Button Test"),
-		ui.ButtonBuilder("Button1").Build(),
-		ui.ButtonBuilder("Button2").Build(),
+		app.ButtonBuilder("Button1").Build(),
+		app.ButtonBuilder("Button2").Build(),
 	)
 }
 

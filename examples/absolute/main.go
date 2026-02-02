@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 
+	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/ui"
 )
 
@@ -11,46 +12,46 @@ func main() {
 		// Simple badge example
 		count, setCount, _ := ui.UseStateInt(0)
 
-		return ui.VStack(
-			ui.NewTextBuilder("Absolute Positioning Demo").Bold(true).FgColor("cyan").Build(),
-			ui.Text(""),
-			ui.Text("Button with notification badge:"),
-			ui.Text(""),
-			ui.HStack(
-				ui.ButtonBuilder("  Messages  ").
+		return app.VStack(
+			app.NewTextBuilder("Absolute Positioning Demo").Bold(true).FgColor("cyan").Build(),
+			app.Text(""),
+			app.Text("Button with notification badge:"),
+			app.Text(""),
+			app.HStack(
+				app.ButtonBuilder("  Messages  ").
 					OnClick(func() {
 						setCount(count + 1)
 					}).
 					Build(),
 				// Badge positioned absolutely relative to parent
-				ui.AbsoluteBuilder(
-					ui.NewTextBuilder("New!").
+				app.AbsoluteBuilder(
+					app.NewTextBuilder("New!").
 						FgColor("red").
 						Bold(true).
 						Build(),
 				).
-					Left(ui.AbsolutePosition(15)).
-					Top(ui.AbsolutePosition(0)).
+					Left(app.AbsolutePosition(15)).
+					Top(app.AbsolutePosition(0)).
 					Build(),
 			),
-			ui.Text(""),
-			ui.NewTextBuilder("Stacked Elements").FgColor("yellow").Build(),
-			ui.Text(""),
-			ui.VStack(
-				ui.Text("Background layer"),
-				ui.HStack(
-					ui.Text("Middle layer"),
-					ui.AbsoluteBuilder(
-						ui.NewTextBuilder("OVERLAY").FgColor("white").BgColor("red").Build(),
+			app.Text(""),
+			app.NewTextBuilder("Stacked Elements").FgColor("yellow").Build(),
+			app.Text(""),
+			app.VStack(
+				app.Text("Background layer"),
+				app.HStack(
+					app.Text("Middle layer"),
+					app.AbsoluteBuilder(
+						app.NewTextBuilder("OVERLAY").FgColor("white").BgColor("red").Build(),
 					).
-						Left(ui.AbsolutePosition(20)).
-						Top(ui.AbsolutePosition(0)).
+						Left(app.AbsolutePosition(20)).
+						Top(app.AbsolutePosition(0)).
 						ZIndex(10).
 						Build(),
 				),
 			),
-			ui.Text(""),
-			ui.NewTextBuilder(fmt.Sprintf("Click count: %d", count)).Build(),
+			app.Text(""),
+			app.NewTextBuilder(fmt.Sprintf("Click count: %d", count)).Build(),
 		)
 	},
 		ui.WithWidth(50),

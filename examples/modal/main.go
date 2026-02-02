@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/ui"
 )
 
@@ -13,47 +14,47 @@ func main() {
 
 		// If modal is open, show modal content
 		if state == 1 {
-			return ui.VStack(
-				ui.NewTextBuilder("┌───────────────────────────────────────┐").FgColor("cyan").Build(),
-				ui.NewTextBuilder("│           MODAL IS OPEN               │").FgColor("cyan").Build(),
-				ui.NewTextBuilder("│                                       │").FgColor("cyan").Build(),
-				ui.NewTextBuilder("│  Do you want to proceed?              │").FgColor("white").Build(),
-				ui.NewTextBuilder("│                                       │").FgColor("cyan").Build(),
-				ui.HStack(
-					ui.NewTextBuilder("│  ").FgColor("cyan").Build(),
-					ui.ButtonBuilder(" Yes ").
+			return app.VStack(
+				app.NewTextBuilder("┌───────────────────────────────────────┐").FgColor("cyan").Build(),
+				app.NewTextBuilder("│           MODAL IS OPEN               │").FgColor("cyan").Build(),
+				app.NewTextBuilder("│                                       │").FgColor("cyan").Build(),
+				app.NewTextBuilder("│  Do you want to proceed?              │").FgColor("white").Build(),
+				app.NewTextBuilder("│                                       │").FgColor("cyan").Build(),
+				app.HStack(
+					app.NewTextBuilder("│  ").FgColor("cyan").Build(),
+					app.ButtonBuilder(" Yes ").
 						OnClick(func() {
 							setState(0)
 						}).
 						Build(),
-					ui.NewTextBuilder("  ").FgColor("cyan").Build(),
-					ui.ButtonBuilder(" No ").
+					app.NewTextBuilder("  ").FgColor("cyan").Build(),
+					app.ButtonBuilder(" No ").
 						OnClick(func() {
 							setState(0)
 						}).
 						Build(),
-					ui.NewTextBuilder("               │").FgColor("cyan").Build(),
+					app.NewTextBuilder("               │").FgColor("cyan").Build(),
 				),
-				ui.NewTextBuilder("│                                       │").FgColor("cyan").Build(),
-				ui.NewTextBuilder("└───────────────────────────────────────┘").FgColor("cyan").Build(),
-				ui.Text(""),
-				ui.NewTextBuilder("Press Tab to focus, Enter to close").FgColor("gray").Build(),
+				app.NewTextBuilder("│                                       │").FgColor("cyan").Build(),
+				app.NewTextBuilder("└───────────────────────────────────────┘").FgColor("cyan").Build(),
+				app.Text(""),
+				app.NewTextBuilder("Press Tab to focus, Enter to close").FgColor("gray").Build(),
 			)
 		}
 
 		// Modal is closed - show main content
-		return ui.VStack(
-			ui.NewTextBuilder("Modal Demo").Bold(true).FgColor("cyan").Build(),
-			ui.Text(""),
-			ui.NewTextBuilder("Click the button below to open a modal dialog").FgColor("gray").Build(),
-			ui.Text(""),
-			ui.ButtonBuilder("  Show Modal  ").
+		return app.VStack(
+			app.NewTextBuilder("Modal Demo").Bold(true).FgColor("cyan").Build(),
+			app.Text(""),
+			app.NewTextBuilder("Click the button below to open a modal dialog").FgColor("gray").Build(),
+			app.Text(""),
+			app.ButtonBuilder("  Show Modal  ").
 				OnClick(func() {
 					setState(1)
 				}).
 				Build(),
-			ui.Text(""),
-			ui.NewTextBuilder("Tab/Arrows: focus | Enter/Space: click").FgColor("gray").Build(),
+			app.Text(""),
+			app.NewTextBuilder("Tab/Arrows: focus | Enter/Space: click").FgColor("gray").Build(),
 		)
 	},
 		ui.WithWidth(50),

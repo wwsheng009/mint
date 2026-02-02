@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 
+	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/ui"
 )
 
@@ -17,40 +18,40 @@ func MouseInteractionDemo() ui.VNode {
 
 	return ui.VStack(
 		// Header
-		ui.NewTextBuilder("╔══════════════════════════════════════════╗").
+		app.NewTextBuilder("╔══════════════════════════════════════════╗").
 			FgColor("cyan").
 			Build(),
-		ui.NewTextBuilder("║     Mouse Interaction Demo               ║").
+		app.NewTextBuilder("║     Mouse Interaction Demo               ║").
 			FgColor("cyan").
 			Build(),
-		ui.NewTextBuilder("║     🖱️ Hover & Click to interact          ║").
+		app.NewTextBuilder("║     🖱️ Hover & Click to interact          ║").
 			FgColor("cyan").
 			Build(),
-		ui.NewTextBuilder("╚══════════════════════════════════════════╝").
+		app.NewTextBuilder("╚══════════════════════════════════════════╝").
 			FgColor("cyan").
 			Build(),
 		ui.Text(""),
 		ui.Text(""),
 
 		// Button Section
-		ui.NewTextBuilder("🔘 BUTTONS - Click to interact").
+		app.NewTextBuilder("🔘 BUTTONS - Click to interact").
 			FgColor("yellow").
 			Bold(true).
 			Build(),
 		ui.Text(""),
 		ui.HStack(
-			ui.ButtonBuilder(" [-] ").
+			app.ButtonBuilder(" [-] ").
 				OnClick(func() {
 					setCount(count - 1)
 				}).
 				Build(),
 			ui.Text(" "),
-			ui.NewTextBuilder(fmt.Sprintf(" Count: %d ", count)).
+			app.NewTextBuilder(fmt.Sprintf(" Count: %d ", count)).
 				Bold(true).
 				FgColor("green").
 				Build(),
 			ui.Text(" "),
-			ui.ButtonBuilder(" [+] ").
+			app.ButtonBuilder(" [+] ").
 				OnClick(func() {
 					setCount(count + 1)
 				}).
@@ -59,17 +60,17 @@ func MouseInteractionDemo() ui.VNode {
 		ui.Text(""),
 
 		// Checkbox Section
-		ui.NewTextBuilder("☑️ CHECKBOXES - Click to toggle").
+		app.NewTextBuilder("☑️ CHECKBOXES - Click to toggle").
 			FgColor("yellow").
 			Bold(true).
 			Build(),
 		ui.Text(""),
-		ui.CheckboxBuilder().
+		app.CheckboxBuilder().
 			Label("Enable notifications").
 			Checked(checked1).
 			OnChange(setChecked1).
 			Build(),
-		ui.CheckboxBuilder().
+		app.CheckboxBuilder().
 			Label("Accept terms and conditions").
 			Checked(checked2).
 			OnChange(setChecked2).
@@ -77,14 +78,14 @@ func MouseInteractionDemo() ui.VNode {
 		ui.Text(""),
 
 		// Input Section
-		ui.NewTextBuilder("📝 INPUT - Click to focus, type to edit").
+		app.NewTextBuilder("📝 INPUT - Click to focus, type to edit").
 			FgColor("yellow").
 			Bold(true).
 			Build(),
 		ui.Text(""),
 		ui.HStack(
 			ui.Text("Name: "),
-			ui.InputBuilder().
+			app.InputBuilder().
 				Value(text).
 				Placeholder("Hover and click here...").
 				MaxLength(20).
@@ -94,15 +95,15 @@ func MouseInteractionDemo() ui.VNode {
 		ui.Text(""),
 
 		// Select Section
-		ui.NewTextBuilder("📋 SELECT - Click to cycle options").
+		app.NewTextBuilder("📋 SELECT - Click to cycle options").
 			FgColor("yellow").
 			Bold(true).
 			Build(),
 		ui.Text(""),
 		ui.HStack(
 			ui.Text("Theme: "),
-			ui.SelectBuilder().
-				Options([]ui.SelectOption{
+			app.SelectBuilder().
+				Options([]app.SelectOption{
 					{Value: "dark", Label: "Dark"},
 					{Value: "light", Label: "Light"},
 					{Value: "blue", Label: "Blue"},
@@ -111,7 +112,7 @@ func MouseInteractionDemo() ui.VNode {
 				Selected(selectedIndex).
 				OnChange(func(value string) {
 					// Find index by value
-					for i, opt := range []ui.SelectOption{
+					for i, opt := range []app.SelectOption{
 						{Value: "dark", Label: "Dark"},
 						{Value: "light", Label: "Light"},
 						{Value: "blue", Label: "Blue"},
@@ -128,12 +129,12 @@ func MouseInteractionDemo() ui.VNode {
 		ui.Text(""),
 
 		// Textarea Section
-		ui.NewTextBuilder("📄 TEXTAREA - Click to focus").
+		app.NewTextBuilder("📄 TEXTAREA - Click to focus").
 			FgColor("yellow").
 			Bold(true).
 			Build(),
 		ui.Text(""),
-		ui.TextareaBuilder().
+		app.TextareaBuilder().
 			Placeholder("Hover and click to edit multi-line text...").
 			Rows(3).
 			Cols(40).
@@ -141,17 +142,17 @@ func MouseInteractionDemo() ui.VNode {
 		ui.Text(""),
 
 		// Info Section
-		ui.NewTextBuilder("─────────────────────────────────────────").
+		app.NewTextBuilder("─────────────────────────────────────────").
 			FgColor("bright-black").
 			Build(),
 		ui.Text(""),
-		ui.NewTextBuilder("💡 TIP: Hover over controls highlights them").
+		app.NewTextBuilder("💡 TIP: Hover over controls highlights them").
 			FgColor("gray").
 			Build(),
-		ui.NewTextBuilder("💡 TIP: Click buttons/checkboxes to interact").
+		app.NewTextBuilder("💡 TIP: Click buttons/checkboxes to interact").
 			FgColor("gray").
 			Build(),
-		ui.NewTextBuilder("💡 TIP: Use Tab to navigate, Enter to select").
+		app.NewTextBuilder("💡 TIP: Use Tab to navigate, Enter to select").
 			FgColor("gray").
 			Build(),
 	)

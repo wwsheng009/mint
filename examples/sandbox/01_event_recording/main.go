@@ -9,6 +9,7 @@ package main
 import (
 	"fmt"
 
+	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/ui"
 )
 
@@ -17,56 +18,56 @@ func SimpleCounter() ui.VNode {
 	count, setCount, _ := ui.UseStateInt(0)
 
 	return ui.VStack(
-		ui.NewTextBuilder("╔══════════════════════════════╗").
+		app.NewTextBuilder("╔══════════════════════════════╗").
 			FgColor("cyan").
 			Build(),
-		ui.NewTextBuilder("║   Event Recording Demo       ║").
+		app.NewTextBuilder("║   Event Recording Demo       ║").
 			FgColor("cyan").
 			Build(),
-		ui.NewTextBuilder("╚══════════════════════════════╝").
+		app.NewTextBuilder("╚══════════════════════════════╝").
 			FgColor("cyan").
 			Build(),
 		ui.Text(""),
-		ui.NewTextBuilder(fmt.Sprintf("Count: %d", count)).
+		app.NewTextBuilder(fmt.Sprintf("Count: %d", count)).
 			FgColor("green").
 			Bold(true).
 			Build(),
 		ui.Text(""),
 		ui.HStack(
-			ui.ButtonBuilder("  [ - ]  ").
+			app.ButtonBuilder("  [ - ]  ").
 				OnClick(func() {
 					setCount(func(c int) int { return c - 1 })
 				}).
 				Build(),
 			ui.Text(" "),
-			ui.ButtonBuilder("  [ + ]  ").
+			app.ButtonBuilder("  [ + ]  ").
 				OnClick(func() {
 					setCount(func(c int) int { return c + 1 })
 				}).
 				Build(),
 		),
 		ui.Text(""),
-		ui.NewTextBuilder("──────────────────────────────────").
+		app.NewTextBuilder("──────────────────────────────────").
 			FgColor("bright-black").
 			Build(),
 		ui.Text(""),
-		ui.NewTextBuilder("This demo records your actions").
+		app.NewTextBuilder("This demo records your actions").
 			FgColor("bright-black").
 			Build(),
-		ui.NewTextBuilder("and can replay them later.").
+		app.NewTextBuilder("and can replay them later.").
 			FgColor("bright-black").
 			Build(),
 		ui.Text(""),
 		ui.HStack(
-			ui.NewTextBuilder("Tab: focus").
+			app.NewTextBuilder("Tab: focus").
 				FgColor("bright-black").
 				Build(),
 			ui.Text("  "),
-			ui.NewTextBuilder("Enter: click").
+			app.NewTextBuilder("Enter: click").
 				FgColor("bright-black").
 				Build(),
 			ui.Text("  "),
-			ui.NewTextBuilder("q: quit").
+			app.NewTextBuilder("q: quit").
 				FgColor("bright-black").
 				Build(),
 		),

@@ -11,6 +11,7 @@ package main
 import (
 	"fmt"
 
+	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/ui"
 )
 
@@ -20,35 +21,35 @@ func StrategyApp() ui.VNode {
 	strategy, _ := ui.UseStateString("Allowed")
 
 	return ui.VStack(
-		ui.NewTextBuilder("╔══════════════════════════════╗").
+		app.NewTextBuilder("╔══════════════════════════════╗").
 			FgColor("cyan").
 			Build(),
-		ui.NewTextBuilder("║   Injection Strategy Demo     ║").
+		app.NewTextBuilder("║   Injection Strategy Demo     ║").
 			FgColor("cyan").
 			Build(),
-		ui.NewTextBuilder("╚══════════════════════════════╝").
+		app.NewTextBuilder("╚══════════════════════════════╝").
 			FgColor("cyan").
 			Build(),
 		ui.Text(""),
 		ui.HStack(
 			ui.Text("Strategy: "),
-			ui.NewTextBuilder(strategy).
+			app.NewTextBuilder(strategy).
 				FgColor("yellow").
 				Bold(true).
 				Build(),
 		),
 		ui.Text(""),
-		ui.NewTextBuilder(fmt.Sprintf("Count: %d", count)).
+		app.NewTextBuilder(fmt.Sprintf("Count: %d", count)).
 			FgColor("green").
 			Bold(true).
 			Build(),
 		ui.Text(""),
-		ui.ButtonBuilder("  [ + ]  ").
+		app.ButtonBuilder("  [ + ]  ").
 			OnClick(func() {
 				setCount(count + 1)
 			}).
 			Build(),
-		ui.ButtonBuilder("  [ - ]  ").
+		app.ButtonBuilder("  [ - ]  ").
 			OnClick(func() {
 				if count > 0 {
 					setCount(count - 1)
@@ -56,11 +57,11 @@ func StrategyApp() ui.VNode {
 			}).
 			Build(),
 		ui.Text(""),
-		ui.NewTextBuilder("──────────────────────────────────").
+		app.NewTextBuilder("──────────────────────────────────").
 			FgColor("bright-black").
 			Build(),
 		ui.Text(""),
-		ui.NewTextBuilder("Strategies:").
+		app.NewTextBuilder("Strategies:").
 			FgColor("bright-black").
 			Build(),
 		ui.Text("  • Prohibited - 生产环境"),

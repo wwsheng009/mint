@@ -13,6 +13,7 @@ package main
 import (
 	"fmt"
 
+	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/ui"
 )
 
@@ -29,25 +30,25 @@ func ComprehensiveApp() ui.VNode {
 	}
 
 	return ui.VStack(
-		ui.NewTextBuilder("╔══════════════════════════════╗").
+		app.NewTextBuilder("╔══════════════════════════════╗").
 			FgColor("cyan").
 			Build(),
-		ui.NewTextBuilder("║     Comprehensive Demo         ║").
+		app.NewTextBuilder("║     Comprehensive Demo         ║").
 			FgColor("cyan").
 			Build(),
-		ui.NewTextBuilder("╚══════════════════════════════╝").
+		app.NewTextBuilder("╚══════════════════════════════╝").
 			FgColor("cyan").
 			Build(),
 		ui.Text(""),
 		ui.HStack(
 			ui.Text("Step: "),
-			ui.NewTextBuilder(fmt.Sprintf("%d/3", step)).
+			app.NewTextBuilder(fmt.Sprintf("%d/3", step)).
 				FgColor("yellow").
 				Bold(true).
 				Build(),
 		),
 		ui.Text(""),
-		ui.NewTextBuilder(steps[step-1]).
+		app.NewTextBuilder(steps[step-1]).
 			FgColor("bright-black").
 			Build(),
 		ui.Text(""),
@@ -57,7 +58,7 @@ func ComprehensiveApp() ui.VNode {
 			if step == 1 {
 				return ui.HStack(
 					ui.Text("Name: "),
-					ui.InputBuilder().
+					app.InputBuilder().
 						Value(name).
 						Placeholder("Your name").
 						MaxLength(15).
@@ -74,20 +75,20 @@ func ComprehensiveApp() ui.VNode {
 				return ui.VStack(
 					ui.HStack(
 						ui.Text("Hello, "),
-						ui.NewTextBuilder(name).
+						app.NewTextBuilder(name).
 							FgColor("magenta").
 							Bold(true).
 							Build(),
 						ui.Text("!"),
 					),
 					ui.Text(""),
-					ui.NewTextBuilder(fmt.Sprintf("Count: %d", count)).
+					app.NewTextBuilder(fmt.Sprintf("Count: %d", count)).
 						FgColor("green").
 						Bold(true).
 						Build(),
 					ui.Text(""),
 					ui.HStack(
-						ui.ButtonBuilder("  [ - ]  ").
+						app.ButtonBuilder("  [ - ]  ").
 							OnClick(func() {
 								if count > 0 {
 									setCount(count - 1)
@@ -95,7 +96,7 @@ func ComprehensiveApp() ui.VNode {
 							}).
 							Build(),
 						ui.Text(" "),
-						ui.ButtonBuilder("  [ + ]  ").
+						app.ButtonBuilder("  [ + ]  ").
 							OnClick(func() {
 								setCount(count + 1)
 							}).
@@ -107,14 +108,14 @@ func ComprehensiveApp() ui.VNode {
 		}(),
 
 		ui.Text(""),
-		ui.ButtonBuilder("  [ Next ]  ").
+		app.ButtonBuilder("  [ Next ]  ").
 			OnClick(func() {
 				if step < 3 {
 					setStep(step + 1)
 				}
 			}).
 			Build(),
-		ui.ButtonBuilder("  [ Back ]  ").
+		app.ButtonBuilder("  [ Back ]  ").
 			OnClick(func() {
 				if step > 1 {
 					setStep(step - 1)

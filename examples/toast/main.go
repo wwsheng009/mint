@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/ui"
 )
 
@@ -15,65 +16,65 @@ func main() {
 		var toasts []ui.VNode
 
 		if infoToast == 1 {
-			toasts = append(toasts, ui.ToastBuilder().
+			toasts = append(toasts, app.ToastBuilder().
 				Message("This is an info message").
 				Info().
 				Visible(true).
 				Build())
 		}
 		if successToast == 1 {
-			toasts = append(toasts, ui.ToastBuilder().
+			toasts = append(toasts, app.ToastBuilder().
 				Message("Operation completed successfully!").
 				Success().
 				Visible(true).
 				Build())
 		}
 		if warningToast == 1 {
-			toasts = append(toasts, ui.ToastBuilder().
+			toasts = append(toasts, app.ToastBuilder().
 				Message("Please check your input").
 				Warning().
 				Visible(true).
 				Build())
 		}
 		if errorToast == 1 {
-			toasts = append(toasts, ui.ToastBuilder().
+			toasts = append(toasts, app.ToastBuilder().
 				Message("An error occurred!").
 				Error().
 				Visible(true).
 				Build())
 		}
 
-		return ui.VStack(
-			ui.NewTextBuilder("Toast Notifications Demo").Bold(true).FgColor("cyan").Build(),
-			ui.Text(""),
-			ui.Text("Click buttons below to show different toast types:"),
-			ui.Text(""),
-			ui.HStack(
-				ui.ButtonBuilder(" Info ").
+		return app.VStack(
+			app.NewTextBuilder("Toast Notifications Demo").Bold(true).FgColor("cyan").Build(),
+			app.Text(""),
+			app.Text("Click buttons below to show different toast types:"),
+			app.Text(""),
+			app.HStack(
+				app.ButtonBuilder(" Info ").
 					OnClick(func() {
 						setInfoToast(1)
 					}).
 					Build(),
-				ui.ButtonBuilder(" Success ").
+				app.ButtonBuilder(" Success ").
 					OnClick(func() {
 						setSuccessToast(1)
 					}).
 					Build(),
-				ui.ButtonBuilder(" Warning ").
+				app.ButtonBuilder(" Warning ").
 					OnClick(func() {
 						setWarningToast(1)
 					}).
 					Build(),
-				ui.ButtonBuilder(" Error ").
+				app.ButtonBuilder(" Error ").
 					OnClick(func() {
 						setErrorToast(1)
 					}).
 					Build(),
 			),
-			ui.Text(""),
-			ui.Text(""),
-			ui.HStack(
-				ui.ButtonBuilder(" Clear All ").
+			app.Text(""),
+			app.Text(""),
+			app.HStack(
+				app.ButtonBuilder(" Clear All ").
 					OnClick(func() {
 						setInfoToast(0)
 						setSuccessToast(0)
@@ -82,11 +83,11 @@ func main() {
 					}).
 					Build(),
 			),
-			ui.Text(""),
-			ui.NewTextBuilder("────────────────────────────").FgColor("blue").Build(),
-			ui.Text(""),
+			app.Text(""),
+			app.NewTextBuilder("────────────────────────────").FgColor("blue").Build(),
+			app.Text(""),
 			// Display toasts
-			ui.VStack(toasts...),
+			app.VStack(toasts...),
 		)
 	},
 		ui.WithWidth(50),

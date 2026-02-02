@@ -4,6 +4,7 @@ package main
 import (
 	"fmt"
 
+	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/ui"
 )
 
@@ -12,34 +13,34 @@ func SimpleCounter() ui.VNode {
 	count, setCount, _ := ui.UseStateInt(0)
 
 	return ui.VStack(
-		ui.NewTextBuilder("Fiber Reconciler Test").
+		app.NewTextBuilder("Fiber Reconciler Test").
 			FgColor("cyan").
 			Bold(true).
 			Build(),
 		ui.Text(""),
-		ui.NewTextBuilder(fmt.Sprintf("Count: %d", count)).
+		app.NewTextBuilder(fmt.Sprintf("Count: %d", count)).
 			FgColor("green").
 			Build(),
 		ui.Text(""),
 		ui.HStack(
-			ui.ButtonBuilder("  -  ").
+			app.ButtonBuilder("  -  ").
 				OnClick(func() {
 					setCount(func(c int) int { return c - 1 })
 				}).
 				Build(),
 			ui.Text("   "),
-			ui.ButtonBuilder("  +  ").
+			app.ButtonBuilder("  +  ").
 				OnClick(func() {
 					setCount(func(c int) int { return c + 1 })
 				}).
 				Build(),
 		),
 		ui.Text(""),
-		ui.NewTextBuilder("Fiber Mode: ENABLED").
+		app.NewTextBuilder("Fiber Mode: ENABLED").
 			FgColor("yellow").
 			Build(),
 		ui.Text(""),
-		ui.NewTextBuilder("Tab/Arrows: focus | Enter/Space: click | q: quit").
+		app.NewTextBuilder("Tab/Arrows: focus | Enter/Space: click | q: quit").
 			FgColor("bright-black").
 			Build(),
 	)

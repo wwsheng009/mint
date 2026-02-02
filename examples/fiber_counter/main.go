@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/ui"
 )
 
@@ -22,7 +23,7 @@ func DebugCounter() ui.VNode {
 	if os.Getenv("TUI_DEBUG_UI") == "true" {
 		fmt.Fprintf(os.Stderr, "[DebugCounter] Creating TextVNode with content: %s\n", countTextStr)
 	}
-	countText := ui.NewTextBuilder(countTextStr).
+	countText := app.NewTextBuilder(countTextStr).
 		FgColor("green").
 		Build()
 
@@ -31,7 +32,7 @@ func DebugCounter() ui.VNode {
 	}
 
 	return ui.VStack(
-		ui.NewTextBuilder("=== Fiber Counter (Debug Mode) ===").
+		app.NewTextBuilder("=== Fiber Counter (Debug Mode) ===").
 			FgColor("cyan").
 			Bold(true).
 			Build(),
@@ -39,7 +40,7 @@ func DebugCounter() ui.VNode {
 		countText,
 		ui.Text(""),
 		ui.HStack(
-			ui.ButtonBuilder("  -  ").
+			app.ButtonBuilder("  -  ").
 				OnClick(func() {
 					fmt.Fprintf(os.Stderr, "[DEBUG] onClick: decrement called, current count=%d\n", count)
 					setCount(func(c int) int {
@@ -50,7 +51,7 @@ func DebugCounter() ui.VNode {
 				}).
 				Build(),
 			ui.Text("   "),
-			ui.ButtonBuilder("  +  ").
+			app.ButtonBuilder("  +  ").
 				OnClick(func() {
 					fmt.Fprintf(os.Stderr, "[DEBUG] onClick: increment called, current count=%d\n", count)
 					setCount(func(c int) int {
@@ -62,7 +63,7 @@ func DebugCounter() ui.VNode {
 				Build(),
 		),
 		ui.Text(""),
-		ui.NewTextBuilder("Tab: focus | Enter: click | q: quit").
+		app.NewTextBuilder("Tab: focus | Enter: click | q: quit").
 			FgColor("bright-black").
 			Build(),
 	)
@@ -73,15 +74,15 @@ func SimpleCounter() ui.VNode {
 	count, setCount, _ := ui.UseStateInt(0)
 
 	return ui.VStack(
-		ui.NewTextBuilder(fmt.Sprintf("Count: %d", count)).
+		app.NewTextBuilder(fmt.Sprintf("Count: %d", count)).
 			FgColor("green").
 			Build(),
 		ui.HStack(
-			ui.ButtonBuilder(" - ").
+			app.ButtonBuilder(" - ").
 				OnClick(func() { setCount(func(c int) int { return c - 1 }) }).
 				Build(),
 			ui.Text(" "),
-			ui.ButtonBuilder(" + ").
+			app.ButtonBuilder(" + ").
 				OnClick(func() { setCount(func(c int) int { return c + 1 }) }).
 				Build(),
 		),

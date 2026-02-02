@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 
+	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/ui"
 )
 
@@ -18,14 +19,14 @@ func main() {
 		offset, setOffset, _ := ui.UseStateInt(0)
 		selected, setSelected, _ := ui.UseStateInt(-1)
 
-		return ui.VStack(
-			ui.NewTextBuilder("Virtual List Demo").Bold(true).FgColor("cyan").Build(),
-			ui.Text(""),
-			ui.NewTextBuilder(fmt.Sprintf("Items: %d | Offset: %d | Selected: %d",
+		return app.VStack(
+			app.NewTextBuilder("Virtual List Demo").Bold(true).FgColor("cyan").Build(),
+			app.Text(""),
+			app.NewTextBuilder(fmt.Sprintf("Items: %d | Offset: %d | Selected: %d",
 				len(items), offset, selected)).FgColor("gray").Build(),
-			ui.Text(""),
-			ui.HStack(
-				ui.ButtonBuilder(" Scroll Up ").
+			app.Text(""),
+			app.HStack(
+				app.ButtonBuilder(" Scroll Up ").
 					OnClick(func() {
 						newOffset := offset - 5
 						if newOffset < 0 {
@@ -34,7 +35,7 @@ func main() {
 						setOffset(newOffset)
 					}).
 					Build(),
-				ui.ButtonBuilder(" Scroll Down ").
+				app.ButtonBuilder(" Scroll Down ").
 					OnClick(func() {
 						newOffset := offset + 5
 						maxOffset := len(items) - 10
@@ -48,15 +49,15 @@ func main() {
 					}).
 					Build(),
 			),
-			ui.Text(""),
-			ui.NewTextBuilder("────────────────────────────").FgColor("blue").Build(),
-			ui.Text(""),
+			app.Text(""),
+			app.NewTextBuilder("────────────────────────────").FgColor("blue").Build(),
+			app.Text(""),
 			// Virtual list - only renders visible items
-			ui.VirtualListBuilder().
+			app.VirtualListBuilder().
 				Items(items).
 				RenderItem(func(item interface{}) ui.VNode {
 					text := item.(string)
-					return ui.Text(text)
+					return app.Text(text)
 				}).
 				ItemHeight(1).
 				VisibleCount(10).
@@ -70,10 +71,10 @@ func main() {
 					return fmt.Sprintf("%v", item)
 				}).
 				Build(),
-			ui.Text(""),
-			ui.NewTextBuilder("────────────────────────────").FgColor("blue").Build(),
-			ui.Text(""),
-			ui.NewTextBuilder("Tab to buttons, Enter to scroll").FgColor("gray").Build(),
+			app.Text(""),
+			app.NewTextBuilder("────────────────────────────").FgColor("blue").Build(),
+			app.Text(""),
+			app.NewTextBuilder("Tab to buttons, Enter to scroll").FgColor("gray").Build(),
 		)
 	},
 		ui.WithWidth(60),

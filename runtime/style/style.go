@@ -72,6 +72,9 @@ type Style struct {
 	isStrikethrough bool
 	isReverse     bool
 	isBlink       bool
+	// Width and Height for layout constraints (optional, 0 means not set)
+	Width  int
+	Height int
 }
 
 // NewStyle 创建默认样式

@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 
+	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/ui"
 )
 
@@ -25,36 +26,36 @@ func CheckboxDemo() ui.VNode {
 	}
 
 	return ui.VStack(
-		ui.NewTextBuilder("Checkbox Demo").
+		app.NewTextBuilder("Checkbox Demo").
 			FgColor("cyan").
 			Bold(true).
 			Build(),
-		ui.Text(""),
-		ui.NewTextBuilder("Select your preferences:").
+		app.Text(""),
+		app.NewTextBuilder("Select your preferences:").
 			FgColor("bright-black").
 			Build(),
-		ui.Text(""),
-		ui.CheckboxBuilder().
+		app.Text(""),
+		app.CheckboxBuilder().
 			Label("I accept the terms and conditions").
 			Checked(acceptTerms).
 			OnChange(setAcceptTerms).
 			Build(),
-		ui.CheckboxBuilder().
+		app.CheckboxBuilder().
 			Label("Subscribe to updates").
 			Checked(acceptUpdates).
 			OnChange(setAcceptUpdates).
 			Build(),
-		ui.CheckboxBuilder().
+		app.CheckboxBuilder().
 			Label("I have read the privacy policy").
 			Checked(acceptPrivacy).
 			OnChange(setAcceptPrivacy).
 			Build(),
-		ui.Text(""),
-		ui.NewTextBuilder(fmt.Sprintf("Checked: %d/3", checkedCount)).
+		app.Text(""),
+		app.NewTextBuilder(fmt.Sprintf("Checked: %d/3", checkedCount)).
 			FgColor("yellow").
 			Build(),
-		ui.Text(""),
-		ui.NewTextBuilder("Tab: focus | Space/Enter: toggle | q: quit").
+		app.Text(""),
+		app.NewTextBuilder("Tab: focus | Space/Enter: toggle | q: quit").
 			FgColor("bright-black").
 			Build(),
 	)

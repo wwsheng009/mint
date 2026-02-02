@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/ui"
 )
 
@@ -13,58 +14,58 @@ func main() {
 		var content ui.VNode
 		switch activeTab {
 		case 0:
-			content = ui.VStack(
-				ui.NewTextBuilder("Welcome to the Home tab!").FgColor("green").Build(),
-				ui.Text(""),
-				ui.NewTextBuilder("This is the main content area.").FgColor("gray").Build(),
-				ui.Text(""),
-				ui.NewTextBuilder("Navigate using the buttons below:").FgColor("bright-black").Build(),
+			content = app.VStack(
+				app.NewTextBuilder("Welcome to the Home tab!").FgColor("green").Build(),
+				app.Text(""),
+				app.NewTextBuilder("This is the main content area.").FgColor("gray").Build(),
+				app.Text(""),
+				app.NewTextBuilder("Navigate using the buttons below:").FgColor("bright-black").Build(),
 			)
 		case 1:
-			content = ui.VStack(
-				ui.NewTextBuilder("User Profile").FgColor("cyan").Build(),
-				ui.Text(""),
-				ui.NewTextBuilder("Name:   John Doe").Build(),
-				ui.NewTextBuilder("Email:  john@example.com").Build(),
-				ui.NewTextBuilder("Role:   Administrator").Build(),
-				ui.Text(""),
-				ui.NewTextBuilder("Member since: Jan 2025").FgColor("gray").Build(),
+			content = app.VStack(
+				app.NewTextBuilder("User Profile").FgColor("cyan").Build(),
+				app.Text(""),
+				app.NewTextBuilder("Name:   John Doe").Build(),
+				app.NewTextBuilder("Email:  john@example.com").Build(),
+				app.NewTextBuilder("Role:   Administrator").Build(),
+				app.Text(""),
+				app.NewTextBuilder("Member since: Jan 2025").FgColor("gray").Build(),
 			)
 		case 2:
-			content = ui.VStack(
-				ui.NewTextBuilder("System Settings").FgColor("yellow").Build(),
-				ui.Text(""),
-				ui.NewTextBuilder("Theme:     Dark").Build(),
-				ui.NewTextBuilder("Language:  English").Build(),
-				ui.NewTextBuilder("Auto-save:  Enabled").Build(),
-				ui.Text(""),
-				ui.NewTextBuilder("Notifications: On").FgColor("green").Build(),
+			content = app.VStack(
+				app.NewTextBuilder("System Settings").FgColor("yellow").Build(),
+				app.Text(""),
+				app.NewTextBuilder("Theme:     Dark").Build(),
+				app.NewTextBuilder("Language:  English").Build(),
+				app.NewTextBuilder("Auto-save:  Enabled").Build(),
+				app.Text(""),
+				app.NewTextBuilder("Notifications: On").FgColor("green").Build(),
 			)
 		}
 
-		return ui.VStack(
-			ui.NewTextBuilder("Tabs Demo").Bold(true).FgColor("cyan").Build(),
-			ui.Text(""),
-			ui.HStack(
-				ui.ButtonBuilder(" Home ").
+		return app.VStack(
+			app.NewTextBuilder("Tabs Demo").Bold(true).FgColor("cyan").Build(),
+			app.Text(""),
+			app.HStack(
+				app.ButtonBuilder(" Home ").
 					OnClick(func() {
 						setActiveTab(0)
 					}).
 					Build(),
-				ui.ButtonBuilder(" Profile ").
+				app.ButtonBuilder(" Profile ").
 					OnClick(func() {
 						setActiveTab(1)
 					}).
 					Build(),
-				ui.ButtonBuilder(" Settings ").
+				app.ButtonBuilder(" Settings ").
 					OnClick(func() {
 						setActiveTab(2)
 					}).
 					Build(),
 			),
-			ui.Text(""),
-			ui.DividerBuilder().Style(ui.DividerDashed).Build(),
-			ui.Text(""),
+			app.Text(""),
+			app.DividerBuilder().Style(app.DividerDashed).Build(),
+			app.Text(""),
 			content,
 		)
 	},

@@ -1,82 +1,81 @@
+// Package main provides sandbox demo application - updated for new architecture
 package main
 
 import (
 	"fmt"
 
+	"github.com/wwsheng009/mint/app"
+	"github.com/wwsheng009/mint/runtime/style"
 	"github.com/wwsheng009/mint/ui"
 )
 
 // Counter 示例计数器应用
-// 这是一个简单的计数器应用，演示如何使用 Sandbox 进行测试
+// 演示如何使用 Sandbox 进行交互式组件测试
 func Counter() ui.VNode {
 	count, setCount, _ := ui.UseStateInt(0)
 	name, setName := ui.UseStateString("Guest")
 
-	return ui.VStack(
-		ui.NewTextBuilder("╔══════════════════════════════╗").
-			FgColor("cyan").
-			Build(),
-		ui.NewTextBuilder("║     Sandbox Demo: Counter     ║").
-			FgColor("cyan").
-			Build(),
-		ui.NewTextBuilder("╚══════════════════════════════╝").
-			FgColor("cyan").
-			Build(),
+	// Style builders
+	cyanStyle := style.NewStyle().Foreground(style.Color("cyan"))
+	yellowBoldStyle := style.NewStyle().Foreground(style.Color("yellow")).Bold(true)
+	greenBoldStyle := style.NewStyle().Foreground(style.Color("green")).Bold(true)
+	grayStyle := style.NewStyle().Foreground(style.Color("bright-black"))
+
+	// Build VNode tree using builder pattern
+	return app.VStack(
+		ui.TextWithStyle("╔══════════════════════════════╗", cyanStyle),
+		ui.TextWithStyle("║     Sandbox Demo: Counter     ║", cyanStyle),
+		ui.TextWithStyle("╚══════════════════════════════╝", cyanStyle),
 		ui.Text(""),
-		ui.HStack(
+
+		// Greeting
+		app.HStack(
 			ui.Text("Hello, "),
-			ui.NewTextBuilder(name).
-				FgColor("yellow").
-				Bold(true).
-				Build(),
+			ui.TextWithStyle(name, yellowBoldStyle),
 			ui.Text("!"),
 		),
 		ui.Text(""),
-		ui.NewTextBuilder(fmt.Sprintf("Count: %d", count)).
-			FgColor("green").
-			Bold(true).
-			Build(),
+
+		// Counter display
+		ui.TextWithStyle(fmt.Sprintf("Count: %d", count), greenBoldStyle),
 		ui.Text(""),
-		ui.HStack(
-			ui.ButtonBuilder("  [ - ]  ").
+
+		// Buttons
+		app.HStack(
+			app.ButtonBuilder("  [ - ]  ").
 				OnClick(func() {
 					setCount(func(c int) int { return c - 1 })
 				}).
 				Build(),
 			ui.Text(" "),
-			ui.ButtonBuilder("  [ + ]  ").
+			app.ButtonBuilder("  [ + ]  ").
 				OnClick(func() {
 					setCount(func(c int) int { return c + 1 })
 				}).
 				Build(),
 		),
 		ui.Text(""),
-		ui.HStack(
+
+		// Input field
+		app.HStack(
 			ui.Text("Name: "),
-			ui.InputBuilder().
+			app.InputBuilder().
 				Value(name).
 				Placeholder("Enter name").
-				MaxLength(15).
 				OnChange(setName).
 				Build(),
 		),
 		ui.Text(""),
-		ui.NewTextBuilder("──────────────────────────────────").
-			FgColor("bright-black").
-			Build(),
+		ui.TextWithStyle("──────────────────────────────────", grayStyle),
 		ui.Text(""),
-		ui.HStack(
-			ui.NewTextBuilder("Tab: focus").
-				FgColor("bright-black").
-				Build(),
+
+		// Instructions
+		app.HStack(
+			ui.TextWithStyle("Tab: focus", grayStyle),
 			ui.Text("  "),
-			ui.NewTextBuilder("Enter: click").
-				FgColor("bright-black").
-				Build(),
+			ui.TextWithStyle("Enter: click", grayStyle),
 			ui.Text("  "),
-			ui.NewTextBuilder("q: quit").
-				FgColor("bright-black").
-				Build(),
+			ui.TextWithStyle("q: quit", grayStyle),
 		),
 	)
 }

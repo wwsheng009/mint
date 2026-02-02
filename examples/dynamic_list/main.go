@@ -4,6 +4,7 @@ package main
 import (
 	"fmt"
 
+	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/ui"
 )
 
@@ -34,7 +35,7 @@ func TodoItem(props ui.Props) ui.VNode {
 	}
 
 	return ui.HStack(
-		ui.NewTextBuilder(fmt.Sprintf("%s %s", status, displayText)).
+		app.NewTextBuilder(fmt.Sprintf("%s %s", status, displayText)).
 			FgColor(func() string {
 				if todo.Done {
 					return "bright-black"
@@ -42,7 +43,7 @@ func TodoItem(props ui.Props) ui.VNode {
 				return "white"
 			}()).
 			Build(),
-		ui.ButtonBuilder(" +").
+		app.ButtonBuilder(" +").
 			OnClick(func() {
 				setCount(func(c int) int { return c + 1 })
 			}).
@@ -62,16 +63,16 @@ func TodoList() ui.VNode {
 	// Render todo list with keys for state preservation
 	items := make([]ui.VNode, 0, len(todos)+5)
 	items = append(items,
-		ui.NewTextBuilder("Dynamic List Demo - State Preservation").
+		app.NewTextBuilder("Dynamic List Demo - State Preservation").
 			FgColor("cyan").
 			Bold(true).
 			Build(),
 		ui.Text(""),
-		ui.NewTextBuilder("Each item has local click count").
+		app.NewTextBuilder("Each item has local click count").
 			FgColor("yellow").
 			Build(),
 		ui.Text(""),
-		ui.NewTextBuilder("Click + on each item, then re-run to see").
+		app.NewTextBuilder("Click + on each item, then re-run to see").
 			FgColor("bright-black").
 			Build(),
 		ui.Text(""),
@@ -91,11 +92,11 @@ func TodoList() ui.VNode {
 
 	items = append(items,
 		ui.Text(""),
-		ui.NewTextBuilder(fmt.Sprintf("Total: %d items", len(todos))).
+		app.NewTextBuilder(fmt.Sprintf("Total: %d items", len(todos))).
 			FgColor("bright-black").
 			Build(),
 		ui.Text(""),
-		ui.NewTextBuilder("Press 'q' to quit").
+		app.NewTextBuilder("Press 'q' to quit").
 			FgColor("bright-black").
 			Build(),
 	)

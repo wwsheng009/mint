@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 
+	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/ui"
 )
 
@@ -10,35 +11,35 @@ import (
 func ControlledInputDemo() ui.VNode {
 	text, setText := ui.UseStateString("")
 
-	return ui.VStack(
-		ui.NewTextBuilder("Input Demo").
+	return app.VStack(
+		app.NewTextBuilder("Input Demo").
 			Bold(true).
 			Build(),
-		ui.Text(""),
-		ui.NewTextBuilder("Type something:").
+		app.Text(""),
+		app.NewTextBuilder("Type something:").
 			Build(),
-		ui.Text(""),
-		ui.HStack(
-			ui.Text("> "),
-			ui.InputBuilder().
+		app.Text(""),
+		app.HStack(
+			app.Text("> "),
+			app.InputBuilder().
 				Value(text).
 				Placeholder("Type here...").
 				MaxLength(20).
 				OnChange(setText).
 				Build(),
 		),
-		ui.Text(""),
-		ui.NewTextBuilder(fmt.Sprintf("Length: %d/20", len(text))).
+		app.Text(""),
+		app.NewTextBuilder(fmt.Sprintf("Length: %d/20", len(text))).
 			Build(),
-		ui.Text(""),
-		ui.NewTextBuilder("Value:").
+		app.Text(""),
+		app.NewTextBuilder("Value:").
 			Build(),
-		ui.Text(""),
-		ui.NewTextBuilder(fmt.Sprintf("\"%s\"", text)).
+		app.Text(""),
+		app.NewTextBuilder(fmt.Sprintf("\"%s\"", text)).
 			FgColor("cyan").
 			Build(),
-		ui.Text(""),
-		ui.NewTextBuilder("Tab: focus | Type: add text | Backspace: delete | q: quit").
+		app.Text(""),
+		app.NewTextBuilder("Tab: focus | Type: add text | Backspace: delete | q: quit").
 			FgColor("bright-black").
 			Build(),
 	)

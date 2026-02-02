@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/ui"
 )
 
@@ -14,32 +15,32 @@ func DemoApp() ui.VNode {
 	checked3, setChecked3 := ui.UseStateBool(false)
 
 	return ui.VStack(
-		ui.NewTextBuilder("╔═══════════════════════════════════════╗").
+		app.NewTextBuilder("╔═══════════════════════════════════════╗").
 			FgColor("cyan").
 			Build(),
-		ui.NewTextBuilder("║     Mint UI Declarative Framework     ║").
+		app.NewTextBuilder("║     Mint UI Declarative Framework     ║").
 			FgColor("cyan").
 			Build(),
-		ui.NewTextBuilder("╚═══════════════════════════════════════╝").
+		app.NewTextBuilder("╚═══════════════════════════════════════╝").
 			FgColor("cyan").
 			Build(),
 		ui.Text(""),
 		// Tab navigation
 		ui.HStack(
-			ui.ButtonBuilder(" [1] Counter ").
+			app.ButtonBuilder(" [1] Counter ").
 				OnClick(func() { setCurrentTab("counter") }).
 				Build(),
 			ui.Text(" "),
-			ui.ButtonBuilder(" [2] Input ").
+			app.ButtonBuilder(" [2] Input ").
 				OnClick(func() { setCurrentTab("input") }).
 				Build(),
 			ui.Text(" "),
-			ui.ButtonBuilder(" [3] Tasks ").
+			app.ButtonBuilder(" [3] Tasks ").
 				OnClick(func() { setCurrentTab("tasks") }).
 				Build(),
 		),
 		ui.Text(""),
-		ui.NewTextBuilder("───────────────────────────────────────").
+		app.NewTextBuilder("───────────────────────────────────────").
 			FgColor("bright-black").
 			Build(),
 		ui.Text(""),
@@ -47,42 +48,42 @@ func DemoApp() ui.VNode {
 		func() ui.VNode {
 			if currentTab == "counter" {
 				return ui.Fragment(
-					ui.NewTextBuilder("📊 Counter Demo").
+					app.NewTextBuilder("📊 Counter Demo").
 						FgColor("yellow").
 						Bold(true).
 						Build(),
 					ui.Text(""),
-					ui.NewTextBuilder("   Count:   ").
+					app.NewTextBuilder("   Count:   ").
 						FgColor("bright-black").
 						Build(),
 					ui.HStack(
-						ui.NewTextBuilder("   ").
+						app.NewTextBuilder("   ").
 							FgColor("green").
 							Bold(true).
 							Build(),
-						ui.NewTextBuilder("  ").
+						app.NewTextBuilder("  ").
 							FgColor("green").
 							Bold(true).
 							Build(),
-						ui.ButtonBuilder("  [ - ]  ").
+						app.ButtonBuilder("  [ - ]  ").
 							OnClick(func() { setCounter(counter - 1) }).
 							Build(),
 						ui.Text(" "),
-						ui.ButtonBuilder("  [ + ]  ").
+						app.ButtonBuilder("  [ + ]  ").
 							OnClick(func() { setCounter(counter + 1) }).
 							Build(),
 					),
 				)
 			} else if currentTab == "input" {
 				return ui.Fragment(
-					ui.NewTextBuilder("📝 Input Demo").
+					app.NewTextBuilder("📝 Input Demo").
 						FgColor("yellow").
 						Bold(true).
 						Build(),
 					ui.Text(""),
 					ui.HStack(
 						ui.Text("Name: "),
-						ui.InputBuilder().
+						app.InputBuilder().
 							Value(text).
 							Placeholder("Type here...").
 							MaxLength(20).
@@ -92,22 +93,22 @@ func DemoApp() ui.VNode {
 				)
 			} else {
 				return ui.Fragment(
-					ui.NewTextBuilder("✓ Task List").
+					app.NewTextBuilder("✓ Task List").
 						FgColor("yellow").
 						Bold(true).
 						Build(),
 					ui.Text(""),
-					ui.CheckboxBuilder().
+					app.CheckboxBuilder().
 						Label("Review documentation").
 						Checked(checked1).
 						OnChange(setChecked1).
 						Build(),
-					ui.CheckboxBuilder().
+					app.CheckboxBuilder().
 						Label("Write tests").
 						Checked(checked2).
 						OnChange(setChecked2).
 						Build(),
-					ui.CheckboxBuilder().
+					app.CheckboxBuilder().
 						Label("Build release").
 						Checked(checked3).
 						OnChange(setChecked3).
