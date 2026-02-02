@@ -15,8 +15,7 @@ package reconciler
 
 import (
 	rtui "github.com/wwsheng009/mint/runtime/ui"
-	"github.com/wwsheng009/mint/ui"
-) // Note: ui is still needed for component-specific VNode types (TextVNode, ButtonVNode, etc.)
+)
 
 // CompleteWork completes processing of a Fiber node during the render phase
 // Returns the next Fiber to process (usually nil, since we traverse in workLoop)
@@ -72,7 +71,7 @@ func completeWorkComponent(current, workInProgress *Fiber) *Fiber {
 
 // completeWorkText finalizes a text Fiber
 func completeWorkText(current, workInProgress *Fiber) *Fiber {
-	textVNode, ok := workInProgress.VNode.(*ui.TextVNode)
+	textVNode, ok := workInProgress.VNode.(*rtui.TextVNode)
 	if !ok {
 		return workInProgress
 	}

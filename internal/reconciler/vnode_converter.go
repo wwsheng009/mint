@@ -15,8 +15,7 @@ import (
 
 	"github.com/wwsheng009/mint/runtime"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
-	"github.com/wwsheng009/mint/ui"
-) // Note: ui is still needed for component-specific VNode types (TextVNode, ButtonVNode, etc.)
+)
 
 // VNodeConverter converts ui.VNode trees to runtime.LayoutNode trees
 type VNodeConverter struct {
@@ -40,7 +39,7 @@ func (c *VNodeConverter) Convert(vnode rtui.VNode) *runtime.LayoutNode {
 }
 
 // convertVNode recursively converts a VNode to a LayoutNode
-func (c *VNodeConverter) convertVNode(vnode ui.VNode, parent *runtime.LayoutNode) *runtime.LayoutNode {
+func (c *VNodeConverter) convertVNode(vnode rtui.VNode, parent *runtime.LayoutNode) *runtime.LayoutNode {
 	if vnode == nil {
 		return nil
 	}
@@ -50,7 +49,7 @@ func (c *VNodeConverter) convertVNode(vnode ui.VNode, parent *runtime.LayoutNode
 
 	// Convert based on VNode type
 	switch v := vnode.(type) {
-	case *ui.TextVNode:
+	case *rtui.TextVNode:
 		return c.convertText(v, parent, id)
 
 	case *rtui.ComponentVNode:
@@ -71,37 +70,37 @@ func (c *VNodeConverter) convertVNode(vnode ui.VNode, parent *runtime.LayoutNode
 	case *rtui.FragmentVNode:
 		return c.convertFragment(v, parent, id)
 
-	case *ui.ButtonVNode:
+	case *rtui.ButtonVNode:
 		return c.convertButton(v, parent, id)
 
-	case *ui.InputVNode:
+	case *rtui.InputVNode:
 		return c.convertInput(v, parent, id)
 
-	case *ui.TextareaVNode:
+	case *rtui.TextareaVNode:
 		return c.convertTextarea(v, parent, id)
 
-	case *ui.CheckboxVNode:
+	case *rtui.CheckboxVNode:
 		return c.convertCheckbox(v, parent, id)
 
-	case *ui.SelectVNode:
+	case *rtui.SelectVNode:
 		return c.convertSelect(v, parent, id)
 
-	case *ui.ModalVNode:
+	case *rtui.ModalVNode:
 		return c.convertModal(v, parent, id)
 
-	case *ui.TabsVNode:
+	case *rtui.TabsVNode:
 		return c.convertTabs(v, parent, id)
 
-	case *ui.TableVNode:
+	case *rtui.TableVNode:
 		return c.convertTable(v, parent, id)
 
-	case *ui.VirtualListVNode:
+	case *rtui.VirtualListVNode:
 		return c.convertVirtualList(v, parent, id)
 
-	case *ui.ProgressVNode:
+	case *rtui.ProgressVNode:
 		return c.convertProgress(v, parent, id)
 
-	case *ui.SpinnerVNode:
+	case *rtui.SpinnerVNode:
 		return c.convertSpinner(v, parent, id)
 
 	default:
@@ -112,7 +111,7 @@ func (c *VNodeConverter) convertVNode(vnode ui.VNode, parent *runtime.LayoutNode
 }
 
 // generateID generates a unique ID for a LayoutNode
-func (c *VNodeConverter) generateID(vnode ui.VNode) string {
+func (c *VNodeConverter) generateID(vnode rtui.VNode) string {
 	c.nodeCounter++
 	typeName := getVNodeTypeName(vnode)
 	if typeName == "" {
@@ -122,34 +121,34 @@ func (c *VNodeConverter) generateID(vnode ui.VNode) string {
 }
 
 // getVNodeTypeName returns the type name of a VNode
-func getVNodeTypeName(vnode ui.VNode) string {
+func getVNodeTypeName(vnode rtui.VNode) string {
 	if vnode == nil {
 		return ""
 	}
 	switch vnode.(type) {
-	case *ui.TextVNode:
+	case *rtui.TextVNode:
 		return "text"
-	case *ui.ButtonVNode:
+	case *rtui.ButtonVNode:
 		return "button"
-	case *ui.InputVNode:
+	case *rtui.InputVNode:
 		return "input"
-	case *ui.TextareaVNode:
+	case *rtui.TextareaVNode:
 		return "textarea"
-	case *ui.CheckboxVNode:
+	case *rtui.CheckboxVNode:
 		return "checkbox"
-	case *ui.SelectVNode:
+	case *rtui.SelectVNode:
 		return "select"
-	case *ui.ModalVNode:
+	case *rtui.ModalVNode:
 		return "modal"
-	case *ui.TabsVNode:
+	case *rtui.TabsVNode:
 		return "tabs"
-	case *ui.TableVNode:
+	case *rtui.TableVNode:
 		return "table"
-	case *ui.VirtualListVNode:
+	case *rtui.VirtualListVNode:
 		return "virtuallist"
-	case *ui.ProgressVNode:
+	case *rtui.ProgressVNode:
 		return "progress"
-	case *ui.SpinnerVNode:
+	case *rtui.SpinnerVNode:
 		return "spinner"
 	case *rtui.LayoutNode:
 		return "layout"
@@ -165,7 +164,7 @@ func getVNodeTypeName(vnode ui.VNode) string {
 }
 
 // getElementTag extracts the tag from an ElementVNode
-func getElementTag(vnode ui.VNode) string {
+func getElementTag(vnode rtui.VNode) string {
 	if elem, ok := vnode.(*rtui.ElementVNode); ok {
 		return elem.Tag()
 	}
@@ -178,7 +177,7 @@ func getElementTag(vnode ui.VNode) string {
 // Text Conversion
 // =============================================================================
 
-func (c *VNodeConverter) convertText(text *ui.TextVNode, parent *runtime.LayoutNode, id string) *runtime.LayoutNode {
+func (c *VNodeConverter) convertText(text *rtui.TextVNode, parent *runtime.LayoutNode, id string) *runtime.LayoutNode {
 	runtimeStyle := runtime.NewStyle()
 
 	node := runtime.NewLayoutNode(id, runtime.NodeTypeText, runtimeStyle)
@@ -230,7 +229,7 @@ func (c *VNodeConverter) convertElement(elem *rtui.ElementVNode, parent *runtime
 }
 
 // convertElementByTag handles elements by their tag name
-func (c *VNodeConverter) convertElementByTag(vnode ui.VNode, parent *runtime.LayoutNode, id, tag string) *runtime.LayoutNode {
+func (c *VNodeConverter) convertElementByTag(vnode rtui.VNode, parent *runtime.LayoutNode, id, tag string) *runtime.LayoutNode {
 	runtimeStyle := runtime.NewStyle()
 	nodeType := c.mapElementType(tag)
 
@@ -278,10 +277,10 @@ func (c *VNodeConverter) convertLayoutNode(layout *rtui.LayoutNode, parent *runt
 	// Map direction to node type and runtime style
 	var nodeType runtime.NodeType
 	switch layout.Direction() {
-	case ui.DirectionRow:
+	case rtui.DirectionRow:
 		nodeType = runtime.NodeTypeRow
 		runtimeStyle.Direction = runtime.DirectionRow
-	case ui.DirectionColumn:
+	case rtui.DirectionColumn:
 		nodeType = runtime.NodeTypeColumn
 		runtimeStyle.Direction = runtime.DirectionColumn
 	default:
@@ -371,7 +370,7 @@ func mapUIAlignToRuntimeJustify(align rtui.Align) runtime.Justify {
 // Fragment Conversion
 // =============================================================================
 
-func (c *VNodeConverter) convertFragment(frag ui.VNode, parent *runtime.LayoutNode, id string) *runtime.LayoutNode {
+func (c *VNodeConverter) convertFragment(frag rtui.VNode, parent *runtime.LayoutNode, id string) *runtime.LayoutNode {
 	// Fragments don't create their own node
 	// Instead, they directly add children to parent
 	children := frag.Children()
@@ -403,7 +402,7 @@ func (c *VNodeConverter) convertFragment(frag ui.VNode, parent *runtime.LayoutNo
 // Component-Specific Conversions
 // =============================================================================
 
-func (c *VNodeConverter) convertButton(btn *ui.ButtonVNode, parent *runtime.LayoutNode, id string) *runtime.LayoutNode {
+func (c *VNodeConverter) convertButton(btn *rtui.ButtonVNode, parent *runtime.LayoutNode, id string) *runtime.LayoutNode {
 	runtimeStyle := runtime.NewStyle()
 
 	node := runtime.NewLayoutNode(id, runtime.NodeTypeCustom, runtimeStyle)
@@ -421,7 +420,7 @@ func (c *VNodeConverter) convertButton(btn *ui.ButtonVNode, parent *runtime.Layo
 	return node
 }
 
-func (c *VNodeConverter) convertInput(input *ui.InputVNode, parent *runtime.LayoutNode, id string) *runtime.LayoutNode {
+func (c *VNodeConverter) convertInput(input *rtui.InputVNode, parent *runtime.LayoutNode, id string) *runtime.LayoutNode {
 	runtimeStyle := runtime.NewStyle()
 	// Default width for input
 	runtimeStyle.Width = 20
@@ -442,7 +441,7 @@ func (c *VNodeConverter) convertInput(input *ui.InputVNode, parent *runtime.Layo
 	return node
 }
 
-func (c *VNodeConverter) convertTextarea(ta *ui.TextareaVNode, parent *runtime.LayoutNode, id string) *runtime.LayoutNode {
+func (c *VNodeConverter) convertTextarea(ta *rtui.TextareaVNode, parent *runtime.LayoutNode, id string) *runtime.LayoutNode {
 	runtimeStyle := runtime.NewStyle()
 	// Default size for textarea
 	runtimeStyle.Width = 40
@@ -464,7 +463,7 @@ func (c *VNodeConverter) convertTextarea(ta *ui.TextareaVNode, parent *runtime.L
 	return node
 }
 
-func (c *VNodeConverter) convertCheckbox(cb *ui.CheckboxVNode, parent *runtime.LayoutNode, id string) *runtime.LayoutNode {
+func (c *VNodeConverter) convertCheckbox(cb *rtui.CheckboxVNode, parent *runtime.LayoutNode, id string) *runtime.LayoutNode {
 	runtimeStyle := runtime.NewStyle()
 
 	node := runtime.NewLayoutNode(id, runtime.NodeTypeCustom, runtimeStyle)
@@ -483,7 +482,7 @@ func (c *VNodeConverter) convertCheckbox(cb *ui.CheckboxVNode, parent *runtime.L
 	return node
 }
 
-func (c *VNodeConverter) convertSelect(sel *ui.SelectVNode, parent *runtime.LayoutNode, id string) *runtime.LayoutNode {
+func (c *VNodeConverter) convertSelect(sel *rtui.SelectVNode, parent *runtime.LayoutNode, id string) *runtime.LayoutNode {
 	runtimeStyle := runtime.NewStyle()
 
 	node := runtime.NewLayoutNode(id, runtime.NodeTypeCustom, runtimeStyle)
@@ -502,7 +501,7 @@ func (c *VNodeConverter) convertSelect(sel *ui.SelectVNode, parent *runtime.Layo
 	return node
 }
 
-func (c *VNodeConverter) convertModal(modal *ui.ModalVNode, parent *runtime.LayoutNode, id string) *runtime.LayoutNode {
+func (c *VNodeConverter) convertModal(modal *rtui.ModalVNode, parent *runtime.LayoutNode, id string) *runtime.LayoutNode {
 	runtimeStyle := runtime.NewStyle()
 	runtimeStyle.ZIndex = 1000 // Modals always on top
 
@@ -540,7 +539,7 @@ func (c *VNodeConverter) convertModal(modal *ui.ModalVNode, parent *runtime.Layo
 	return node
 }
 
-func (c *VNodeConverter) convertTabs(tabs *ui.TabsVNode, parent *runtime.LayoutNode, id string) *runtime.LayoutNode {
+func (c *VNodeConverter) convertTabs(tabs *rtui.TabsVNode, parent *runtime.LayoutNode, id string) *runtime.LayoutNode {
 	runtimeStyle := runtime.NewStyle()
 
 	node := runtime.NewLayoutNode(id, runtime.NodeTypeCustom, runtimeStyle)
@@ -563,7 +562,7 @@ func (c *VNodeConverter) convertTabs(tabs *ui.TabsVNode, parent *runtime.LayoutN
 	return node
 }
 
-func (c *VNodeConverter) convertTable(table *ui.TableVNode, parent *runtime.LayoutNode, id string) *runtime.LayoutNode {
+func (c *VNodeConverter) convertTable(table *rtui.TableVNode, parent *runtime.LayoutNode, id string) *runtime.LayoutNode {
 	runtimeStyle := runtime.NewStyle()
 
 	node := runtime.NewLayoutNode(id, runtime.NodeTypeCustom, runtimeStyle)
@@ -582,7 +581,7 @@ func (c *VNodeConverter) convertTable(table *ui.TableVNode, parent *runtime.Layo
 	return node
 }
 
-func (c *VNodeConverter) convertVirtualList(vl *ui.VirtualListVNode, parent *runtime.LayoutNode, id string) *runtime.LayoutNode {
+func (c *VNodeConverter) convertVirtualList(vl *rtui.VirtualListVNode, parent *runtime.LayoutNode, id string) *runtime.LayoutNode {
 	runtimeStyle := runtime.NewStyle()
 
 	// Set list height if available
@@ -606,7 +605,7 @@ func (c *VNodeConverter) convertVirtualList(vl *ui.VirtualListVNode, parent *run
 	return node
 }
 
-func (c *VNodeConverter) convertProgress(prog *ui.ProgressVNode, parent *runtime.LayoutNode, id string) *runtime.LayoutNode {
+func (c *VNodeConverter) convertProgress(prog *rtui.ProgressVNode, parent *runtime.LayoutNode, id string) *runtime.LayoutNode {
 	runtimeStyle := runtime.NewStyle()
 
 	// Set progress width if available
@@ -631,7 +630,7 @@ func (c *VNodeConverter) convertProgress(prog *ui.ProgressVNode, parent *runtime
 	return node
 }
 
-func (c *VNodeConverter) convertSpinner(spinner *ui.SpinnerVNode, parent *runtime.LayoutNode, id string) *runtime.LayoutNode {
+func (c *VNodeConverter) convertSpinner(spinner *rtui.SpinnerVNode, parent *runtime.LayoutNode, id string) *runtime.LayoutNode {
 	runtimeStyle := runtime.NewStyle()
 
 	node := runtime.NewLayoutNode(id, runtime.NodeTypeCustom, runtimeStyle)

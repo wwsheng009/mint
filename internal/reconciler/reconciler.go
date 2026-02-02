@@ -22,8 +22,7 @@ import (
 	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/paint"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
-	"github.com/wwsheng009/mint/ui"
-) // Note: ui is still needed for component-specific VNode types (TextVNode, ButtonVNode, etc.)
+)
 
 // Reconciler manages Fiber reconciliation
 type Reconciler struct {
@@ -302,7 +301,7 @@ func (r *Reconciler) renderFiberToBuffer(fiber *Fiber, x, y int, buffer *paint.B
 	// Check if this is a LayoutNode to handle horizontal layout
 	isHStack := false
 	var gap int
-	if layoutNode, ok := fiber.VNode.(*ui.LayoutNode); ok {
+	if layoutNode, ok := fiber.VNode.(*rtui.LayoutNode); ok {
 		isHStack = layoutNode.Direction() == 0 // DirectionRow = 0
 		gap = layoutNode.Gap()
 	}
@@ -330,13 +329,13 @@ func (r *Reconciler) measureFiberWidth(fiber *Fiber) int {
 	}
 
 	switch v := fiber.VNode.(type) {
-	case *ui.TextVNode:
+	case *rtui.TextVNode:
 		return len(v.Content())
-	case *ui.ButtonVNode:
+	case *rtui.ButtonVNode:
 		return len(v.Label()) + 2 // [label]
-	case *ui.InputVNode:
+	case *rtui.InputVNode:
 		return 22 // [ + 20 chars + ]
-	case *ui.SelectVNode:
+	case *rtui.SelectVNode:
 		maxLen := 10
 		for _, opt := range v.Options() {
 			if len(opt.Label) > maxLen {
@@ -344,13 +343,13 @@ func (r *Reconciler) measureFiberWidth(fiber *Fiber) int {
 			}
 		}
 		return maxLen + 4 // [label + ▼]
-	case *ui.CheckboxVNode:
+	case *rtui.CheckboxVNode:
 		width := 4 // [X] or [ ]
 		if v.Label() != "" {
 			width += 1 + len(v.Label())
 		}
 		return width
-	case *ui.ElementVNode, *ui.LayoutNode, *ui.FragmentVNode:
+	case *rtui.ElementVNode, *rtui.LayoutNode, *rtui.FragmentVNode:
 		// Containers - sum up children widths
 		width := 0
 		for child := fiber.Child; child != nil; child = child.Sibling {
