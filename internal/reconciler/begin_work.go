@@ -15,7 +15,6 @@ package reconciler
 
 import (
 	rtui "github.com/wwsheng009/mint/runtime/ui"
-	"github.com/wwsheng009/mint/ui"
 )
 
 // BeginWork processes a Fiber node during the render phase
@@ -30,16 +29,16 @@ func BeginWork(current, workInProgress *Fiber) *Fiber {
 
 	// Dispatch based on Fiber type
 	switch workInProgress.Type {
-	case ui.VNodeComponent:
+	case rtui.VNodeComponent:
 		return beginWorkComponent(current, workInProgress)
 
-	case ui.VNodeText:
+	case rtui.VNodeText:
 		return beginWorkText(current, workInProgress)
 
-	case ui.VNodeElement:
+	case rtui.VNodeElement:
 		return beginWorkElement(current, workInProgress)
 
-	case ui.VNodeFragment:
+	case rtui.VNodeFragment:
 		return beginWorkFragment(current, workInProgress)
 
 	default:
@@ -54,7 +53,7 @@ func BeginWork(current, workInProgress *Fiber) *Fiber {
 
 // beginWorkComponent processes a component Fiber
 func beginWorkComponent(current, workInProgress *Fiber) *Fiber {
-	componentVNode, ok := workInProgress.VNode.(*ui.ComponentVNode)
+	componentVNode, ok := workInProgress.VNode.(*rtui.ComponentVNode)
 	if !ok {
 		return workInProgress
 	}
@@ -104,21 +103,21 @@ func beginWorkComponent(current, workInProgress *Fiber) *Fiber {
 	rtui.SetCurrentContext(ctx)
 
 	// Get children by calling the component function
-	var children []ui.VNode
+	var children []rtui.VNode
 
 	if componentVNode.Fn() != nil {
 		// Simple component function
 		vnode := componentVNode.Fn()()
-		children = []ui.VNode{vnode}
+		children = []rtui.VNode{vnode}
 	} else if componentVNode.FnWithProps() != nil {
 		// Component function with props
 		vnode := componentVNode.FnWithProps()(workInProgress.Props)
-		children = []ui.VNode{vnode}
+		children = []rtui.VNode{vnode}
 	} else {
 		// No function - use rendered value from VNode
 		rendered := componentVNode.Render()
 		if rendered != nil {
-			children = []ui.VNode{rendered}
+			children = []rtui.VNode{rendered}
 		}
 	}
 
@@ -159,13 +158,13 @@ func beginWorkText(current, workInProgress *Fiber) *Fiber {
 
 // beginWorkElement processes an element Fiber
 func beginWorkElement(current, workInProgress *Fiber) *Fiber {
-	var children []ui.VNode
+	var children []rtui.VNode
 
 	// Handle both ElementVNode and LayoutNode (which embeds ElementVNode)
 	switch v := workInProgress.VNode.(type) {
-	case *ui.ElementVNode:
+	case *rtui.ElementVNode:
 		children = v.Children()
-	case *ui.LayoutNode:
+	case *rtui.LayoutNode:
 		// LayoutNode embeds ElementVNode, so Children() works
 		children = v.Children()
 	default:
@@ -195,7 +194,7 @@ func beginWorkElement(current, workInProgress *Fiber) *Fiber {
 
 // beginWorkFragment processes a fragment Fiber
 func beginWorkFragment(current, workInProgress *Fiber) *Fiber {
-	fragmentVNode, ok := workInProgress.VNode.(*ui.FragmentVNode)
+	fragmentVNode, ok := workInProgress.VNode.(*rtui.FragmentVNode)
 	if !ok {
 		return workInProgress
 	}

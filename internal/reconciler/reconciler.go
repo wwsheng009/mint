@@ -23,7 +23,7 @@ import (
 	"github.com/wwsheng009/mint/runtime/paint"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/ui"
-)
+) // Note: ui is still needed for component-specific VNode types (TextVNode, ButtonVNode, etc.)
 
 // Reconciler manages Fiber reconciliation
 type Reconciler struct {
@@ -94,7 +94,7 @@ func NewReconciler(app *framework.App, rootComponent rtui.ComponentFunc, config 
 
 // Render executes the rendering process
 // This is the main entry point called from declarativeRoot.Paint
-func (r *Reconciler) Render(ctx component.PaintContext, buffer *paint.Buffer, renderFunc func() ui.VNode) {
+func (r *Reconciler) Render(ctx component.PaintContext, buffer *paint.Buffer, renderFunc func() rtui.VNode) {
 	// Note: renderFunc returns ui.VNode (VNode interface is from ui package)
 	// This is correct as VNode implementations are in ui package
 	if !r.enableFiber {
@@ -134,10 +134,10 @@ func (r *Reconciler) MarkDirty() {
 // Instead, we wrap it as a ComponentVNode so that beginWorkComponent
 // will handle the actual component invocation with proper Context management.
 // This ensures all hooks use the same ComponentInstance's context.
-func (r *Reconciler) prepareFreshStack(renderFunc func() ui.VNode) {
+func (r *Reconciler) prepareFreshStack(renderFunc func() rtui.VNode) {
 	// Wrap the root component as a ComponentVNode
 	// This ensures it goes through beginWorkComponent which manages Context properly
-	rootComponentVNode := ui.NewComponent("RootComponent", renderFunc)
+	rootComponentVNode := rtui.NewComponent("RootComponent", renderFunc)
 	rootComponentVNode.SetKey("root")
 
 	// Create or update Fiber tree
@@ -198,7 +198,7 @@ func (r *Reconciler) performUnitOfWork(unitOfWork *Fiber) {
 }
 
 // createWorkInProgress creates a work-in-progress fiber
-func (r *Reconciler) createWorkInProgress(current *Fiber, vnode ui.VNode) *Fiber {
+func (r *Reconciler) createWorkInProgress(current *Fiber, vnode rtui.VNode) *Fiber {
 	// Note: vnode is ui.VNode - VNode interface and implementations are from ui package
 	if current == nil {
 		return CreateFiberFromVNode(vnode)
@@ -370,7 +370,7 @@ func (r *Reconciler) renderFiber(fiber *Fiber, x, y int, buffer *paint.Buffer) {
 
 	// Skip ComponentVNode - its children are already expanded in the Fiber tree
 	// The renderCallback should only be called for rendered nodes, not component definitions
-	if fiber.VNode.Type() == ui.VNodeComponent {
+	if fiber.VNode.Type() == 	rtui.VNodeComponent {
 		return
 	}
 
@@ -392,7 +392,7 @@ func (r *Reconciler) measureFiberHeight(fiber *Fiber) int {
 }
 
 // RenderFunc is a function to render a VNode to the buffer
-type RenderFunc func(vnode ui.VNode, x, y int, buffer *paint.Buffer)
+type RenderFunc func(vnode rtui.VNode, x, y int, buffer *paint.Buffer)
 // Note: vnode is ui.VNode - VNode interface and implementations are from ui package
 
 // SetRenderCallback sets the render callback

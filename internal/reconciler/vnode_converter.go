@@ -14,8 +14,9 @@ import (
 	"fmt"
 
 	"github.com/wwsheng009/mint/runtime"
+	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/ui"
-)
+) // Note: ui is still needed for component-specific VNode types (TextVNode, ButtonVNode, etc.)
 
 // VNodeConverter converts ui.VNode trees to runtime.LayoutNode trees
 type VNodeConverter struct {
@@ -31,7 +32,7 @@ func NewVNodeConverter() *VNodeConverter {
 }
 
 // Convert converts a ui.VNode tree to a runtime.LayoutNode tree
-func (c *VNodeConverter) Convert(vnode ui.VNode) *runtime.LayoutNode {
+func (c *VNodeConverter) Convert(vnode rtui.VNode) *runtime.LayoutNode {
 	if vnode == nil {
 		return nil
 	}
@@ -52,7 +53,7 @@ func (c *VNodeConverter) convertVNode(vnode ui.VNode, parent *runtime.LayoutNode
 	case *ui.TextVNode:
 		return c.convertText(v, parent, id)
 
-	case *ui.ComponentVNode:
+	case *rtui.ComponentVNode:
 		// Component nodes are expanded in the Fiber tree,
 		// so we skip them here and convert children directly
 		children := vnode.Children()
@@ -61,13 +62,13 @@ func (c *VNodeConverter) convertVNode(vnode ui.VNode, parent *runtime.LayoutNode
 		}
 		return c.convertFragment(vnode, parent, id)
 
-	case *ui.ElementVNode:
+	case *rtui.ElementVNode:
 		return c.convertElement(v, parent, id)
 
-	case *ui.LayoutNode:
+	case *rtui.LayoutNode:
 		return c.convertLayoutNode(v, parent, id)
 
-	case *ui.FragmentVNode:
+	case *rtui.FragmentVNode:
 		return c.convertFragment(v, parent, id)
 
 	case *ui.ButtonVNode:
@@ -150,13 +151,13 @@ func getVNodeTypeName(vnode ui.VNode) string {
 		return "progress"
 	case *ui.SpinnerVNode:
 		return "spinner"
-	case *ui.LayoutNode:
+	case *rtui.LayoutNode:
 		return "layout"
-	case *ui.ElementVNode:
+	case *rtui.ElementVNode:
 		return getElementTag(vnode)
-	case *ui.ComponentVNode:
+	case *rtui.ComponentVNode:
 		return "component"
-	case *ui.FragmentVNode:
+	case *rtui.FragmentVNode:
 		return "fragment"
 	default:
 		return fmt.Sprintf("%T", vnode)
@@ -165,7 +166,7 @@ func getVNodeTypeName(vnode ui.VNode) string {
 
 // getElementTag extracts the tag from an ElementVNode
 func getElementTag(vnode ui.VNode) string {
-	if elem, ok := vnode.(*ui.ElementVNode); ok {
+	if elem, ok := vnode.(*rtui.ElementVNode); ok {
 		return elem.Tag()
 	}
 	// Try to get tag from Type() method
@@ -199,7 +200,7 @@ func (c *VNodeConverter) convertText(text *ui.TextVNode, parent *runtime.LayoutN
 // Element Conversion
 // =============================================================================
 
-func (c *VNodeConverter) convertElement(elem *ui.ElementVNode, parent *runtime.LayoutNode, id string) *runtime.LayoutNode {
+func (c *VNodeConverter) convertElement(elem *rtui.ElementVNode, parent *runtime.LayoutNode, id string) *runtime.LayoutNode {
 	runtimeStyle := c.convertStyleFromProps(elem.Props())
 
 	// Determine node type based on element tag
@@ -271,7 +272,7 @@ func (c *VNodeConverter) mapElementType(tag string) runtime.NodeType {
 // LayoutNode Conversion (ui.LayoutNode → runtime.LayoutNode)
 // =============================================================================
 
-func (c *VNodeConverter) convertLayoutNode(layout *ui.LayoutNode, parent *runtime.LayoutNode, id string) *runtime.LayoutNode {
+func (c *VNodeConverter) convertLayoutNode(layout *rtui.LayoutNode, parent *runtime.LayoutNode, id string) *runtime.LayoutNode {
 	runtimeStyle := runtime.NewStyle()
 
 	// Map direction to node type and runtime style
@@ -296,7 +297,7 @@ func (c *VNodeConverter) convertLayoutNode(layout *ui.LayoutNode, parent *runtim
 		"padding": layout.Padding(),
 	}
 
-	// Convert ui.Align to runtime.Align/Justify
+	// Convert rtui.Align to runtime.Align/Justify
 	align := layout.Align()
 	runtimeStyle.AlignItems = mapUIAlignToRuntime(align)
 	runtimeStyle.Justify = mapUIAlignToRuntimeJustify(align)
@@ -330,36 +331,36 @@ func (c *VNodeConverter) convertLayoutNode(layout *ui.LayoutNode, parent *runtim
 	return node
 }
 
-// mapUIAlignToRuntime converts ui.Align to runtime.Align
-func mapUIAlignToRuntime(align ui.Align) runtime.Align {
+// mapUIAlignToRuntime converts rtui.Align to runtime.Align
+func mapUIAlignToRuntime(align rtui.Align) runtime.Align {
 	switch align {
-	case ui.AlignStart:
+	case rtui.AlignStart:
 		return runtime.AlignStart
-	case ui.AlignCenter:
+	case rtui.AlignCenter:
 		return runtime.AlignCenter
-	case ui.AlignEnd:
+	case rtui.AlignEnd:
 		return runtime.AlignEnd
-	case ui.AlignSpaceBetween:
+	case rtui.AlignSpaceBetween:
 		return runtime.AlignStart // No direct equivalent
-	case ui.AlignSpaceAround:
+	case rtui.AlignSpaceAround:
 		return runtime.AlignStart // No direct equivalent
 	default:
 		return runtime.AlignStart
 	}
 }
 
-// mapUIAlignToRuntimeJustify converts ui.Align to runtime.Justify
-func mapUIAlignToRuntimeJustify(align ui.Align) runtime.Justify {
+// mapUIAlignToRuntimeJustify converts rtui.Align to runtime.Justify
+func mapUIAlignToRuntimeJustify(align rtui.Align) runtime.Justify {
 	switch align {
-	case ui.AlignStart:
+	case rtui.AlignStart:
 		return runtime.JustifyStart
-	case ui.AlignCenter:
+	case rtui.AlignCenter:
 		return runtime.JustifyCenter
-	case ui.AlignEnd:
+	case rtui.AlignEnd:
 		return runtime.JustifyEnd
-	case ui.AlignSpaceBetween:
+	case rtui.AlignSpaceBetween:
 		return runtime.JustifyStart // No direct equivalent
-	case ui.AlignSpaceAround:
+	case rtui.AlignSpaceAround:
 		return runtime.JustifyStart // No direct equivalent
 	default:
 		return runtime.JustifyStart
@@ -652,7 +653,7 @@ func (c *VNodeConverter) convertSpinner(spinner *ui.SpinnerVNode, parent *runtim
 // =============================================================================
 
 // convertStyleFromProps extracts layout properties from Props
-func (c *VNodeConverter) convertStyleFromProps(props ui.Props) runtime.Style {
+func (c *VNodeConverter) convertStyleFromProps(props rtui.Props) runtime.Style {
 	rs := runtime.NewStyle()
 
 	// Extract width/height from props if present

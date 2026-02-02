@@ -8,7 +8,7 @@ package reconciler
 // =============================================================================
 
 import (
-	"github.com/wwsheng009/mint/ui"
+	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
 
 // reconcileChildren reconciles the current children with new children
@@ -16,12 +16,12 @@ import (
 func reconcileChildren(
 	returnFiber *Fiber,
 	currentFirstChild *Fiber,
-	newChildren []ui.VNode,
+	newChildren []rtui.VNode,
 	lanes Lane,
 ) *Fiber {
 	// Validate keys for list children (React-style warning)
 	if currentReconciler != nil && currentReconciler.keyValidator != nil {
-		var parentVNode ui.VNode
+		var parentVNode rtui.VNode
 		if returnFiber != nil {
 			parentVNode = returnFiber.VNode
 		}
@@ -43,7 +43,7 @@ func reconcileChildren(
 }
 
 // createAllNewChildren creates Fiber nodes for all new children
-func createAllNewChildren(returnFiber *Fiber, children []ui.VNode, lanes Lane) *Fiber {
+func createAllNewChildren(returnFiber *Fiber, children []rtui.VNode, lanes Lane) *Fiber {
 	var firstChild *Fiber
 	var previousChild *Fiber
 
@@ -67,7 +67,7 @@ func createAllNewChildren(returnFiber *Fiber, children []ui.VNode, lanes Lane) *
 func reconcileExistingChildren(
 	returnFiber *Fiber,
 	currentFirstChild *Fiber,
-	newChildren []ui.VNode,
+	newChildren []rtui.VNode,
 	lanes Lane,
 ) *Fiber {
 	var firstChild *Fiber
@@ -109,7 +109,7 @@ func reconcileExistingChildren(
 // This follows React's reconciliation logic:
 // 1. Key is primary - different keys mean different elements
 // 2. Type is secondary - same key but different type means replace
-func shouldUpdate(current *Fiber, vnode ui.VNode) bool {
+func shouldUpdate(current *Fiber, vnode rtui.VNode) bool {
 	if current == nil || vnode == nil {
 		return false
 	}
@@ -129,9 +129,9 @@ func shouldUpdate(current *Fiber, vnode ui.VNode) bool {
 	}
 
 	// For components, check if the component function is the same
-	if current.Type == ui.VNodeComponent {
-		currentComp, ok1 := current.VNode.(*ui.ComponentVNode)
-		newComp, ok2 := vnode.(*ui.ComponentVNode)
+	if current.Type == rtui.VNodeComponent {
+		currentComp, ok1 := current.VNode.(*rtui.ComponentVNode)
+		newComp, ok2 := vnode.(*rtui.ComponentVNode)
 		if ok1 && ok2 {
 			// Compare component names since functions cannot be directly compared
 			// Same key + same name = same component
@@ -140,9 +140,9 @@ func shouldUpdate(current *Fiber, vnode ui.VNode) bool {
 	}
 
 	// For elements, check if tag is the same
-	if current.Type == ui.VNodeElement {
-		currentElem, ok1 := current.VNode.(*ui.ElementVNode)
-		newElem, ok2 := vnode.(*ui.ElementVNode)
+	if current.Type == rtui.VNodeElement {
+		currentElem, ok1 := current.VNode.(*rtui.ElementVNode)
+		newElem, ok2 := vnode.(*rtui.ElementVNode)
 		if ok1 && ok2 {
 			return currentElem.Tag() == newElem.Tag()
 		}
@@ -153,7 +153,7 @@ func shouldUpdate(current *Fiber, vnode ui.VNode) bool {
 }
 
 // createChildFiber creates a new Fiber for a child VNode
-func createChildFiber(returnFiber *Fiber, vnode ui.VNode, lanes Lane) *Fiber {
+func createChildFiber(returnFiber *Fiber, vnode rtui.VNode, lanes Lane) *Fiber {
 	fiber := CreateFiberFromVNode(vnode)
 	fiber.Return = returnFiber
 	fiber.Lanes = lanes
@@ -162,7 +162,7 @@ func createChildFiber(returnFiber *Fiber, vnode ui.VNode, lanes Lane) *Fiber {
 }
 
 // cloneExistingFiber clones an existing fiber with new VNode data
-func cloneExistingFiber(returnFiber *Fiber, current *Fiber, vnode ui.VNode) *Fiber {
+func cloneExistingFiber(returnFiber *Fiber, current *Fiber, vnode rtui.VNode) *Fiber {
 	fiber := CloneFiber(current)
 	fiber.Return = returnFiber
 	fiber.VNode = vnode

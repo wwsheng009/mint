@@ -14,8 +14,9 @@ package reconciler
 // =============================================================================
 
 import (
+	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/ui"
-)
+) // Note: ui is still needed for component-specific VNode types (TextVNode, ButtonVNode, etc.)
 
 // CompleteWork completes processing of a Fiber node during the render phase
 // Returns the next Fiber to process (usually nil, since we traverse in workLoop)
@@ -26,16 +27,16 @@ func CompleteWork(current, workInProgress *Fiber) *Fiber {
 
 	// Dispatch based on Fiber type
 	switch workInProgress.Type {
-	case ui.VNodeComponent:
+	case rtui.VNodeComponent:
 		return completeWorkComponent(current, workInProgress)
 
-	case ui.VNodeText:
+	case rtui.VNodeText:
 		return completeWorkText(current, workInProgress)
 
-	case ui.VNodeElement:
+	case rtui.VNodeElement:
 		return completeWorkElement(current, workInProgress)
 
-	case ui.VNodeFragment:
+	case rtui.VNodeFragment:
 		return completeWorkFragment(current, workInProgress)
 
 	default:
@@ -50,7 +51,7 @@ func CompleteWork(current, workInProgress *Fiber) *Fiber {
 
 // completeWorkComponent finalizes a component Fiber
 func completeWorkComponent(current, workInProgress *Fiber) *Fiber {
-	componentVNode, ok := workInProgress.VNode.(*ui.ComponentVNode)
+	componentVNode, ok := workInProgress.VNode.(*rtui.ComponentVNode)
 	if !ok {
 		return workInProgress
 	}
@@ -88,7 +89,7 @@ func completeWorkText(current, workInProgress *Fiber) *Fiber {
 
 // completeWorkElement finalizes an element Fiber
 func completeWorkElement(current, workInProgress *Fiber) *Fiber {
-	elementVNode, ok := workInProgress.VNode.(*ui.ElementVNode)
+	elementVNode, ok := workInProgress.VNode.(*rtui.ElementVNode)
 	if !ok {
 		return workInProgress
 	}
