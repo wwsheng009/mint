@@ -486,9 +486,9 @@ func TestResourcePool_Close(t *testing.T) {
 // =============================================================================
 
 func TestUseGoRoutine_InComponent(t *testing.T) {
-	ctx := newComponentContext("TestComponent")
-	setCurrentContext(ctx)
-	defer setCurrentContext(nil)
+	ctx := NewComponentContextForRoot()
+	SetCurrentContext(ctx)
+	defer SetCurrentContext(nil)
 
 	gr := UseGoRoutine()
 
@@ -520,9 +520,9 @@ func TestUseGoRoutine_InComponent(t *testing.T) {
 }
 
 func TestUseGoRoutine_HookPersistence(t *testing.T) {
-	ctx := newComponentContext("TestComponent")
-	setCurrentContext(ctx)
-	defer setCurrentContext(nil)
+	ctx := NewComponentContextForRoot()
+	SetCurrentContext(ctx)
+	defer SetCurrentContext(nil)
 
 	// First render
 	gr1 := UseGoRoutine()
@@ -531,7 +531,7 @@ func TestUseGoRoutine_HookPersistence(t *testing.T) {
 	}
 
 	// Re-render - should return same instance
-	ctx.resetContext()
+	ctx.ResetContext()
 	gr2 := UseGoRoutine()
 
 	if gr1 != gr2 {
@@ -540,9 +540,9 @@ func TestUseGoRoutine_HookPersistence(t *testing.T) {
 }
 
 func TestUseSubscription_Basic(t *testing.T) {
-	ctx := newComponentContext("TestComponent")
-	setCurrentContext(ctx)
-	defer setCurrentContext(nil)
+	ctx := NewComponentContextForRoot()
+	SetCurrentContext(ctx)
+	defer SetCurrentContext(nil)
 
 	var count int
 	var mu sync.Mutex
@@ -572,7 +572,7 @@ func TestUseSubscription_Basic(t *testing.T) {
 
 	// Cleanup happens via useEffect
 	// The subscription should be cleaned up when context is cleaned
-	ctx.cleanupAll()
+	ctx.CleanupAll()
 
 	sub.Unsubscribe()
 

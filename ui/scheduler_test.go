@@ -33,7 +33,7 @@ func TestNewUISchedulerWithBudget(t *testing.T) {
 // TestScheduleUpdate tests scheduling fiber updates
 func TestScheduleUpdate(t *testing.T) {
 	s := NewUIScheduler()
-	fiber := CreateFiber(NewText("Test"))
+	fiber := CreateFiber(Text("Test"))
 
 	s.ScheduleUpdate(fiber, LaneSyncLane)
 
@@ -48,9 +48,9 @@ func TestScheduleFiberTree(t *testing.T) {
 	s := NewUIScheduler()
 
 	tree := VStack(
-		NewText("A"),
-		NewText("B"),
-		NewText("C"),
+		Text("A"),
+		Text("B"),
+		Text("C"),
 	)
 
 	fiber := CreateFiberFromVNode(tree)
@@ -79,7 +79,7 @@ func TestBatching(t *testing.T) {
 		t.Error("Should be batching after BeginBatch()")
 	}
 
-	fiber := CreateFiber(NewText("Test"))
+	fiber := CreateFiber(Text("Test"))
 	s.ScheduleUpdate(fiber, LaneSyncLane)
 
 	// During batching, updates may not be immediately visible
@@ -95,7 +95,7 @@ func TestBatching(t *testing.T) {
 // TestClear tests clearing dirty nodes
 func TestClear(t *testing.T) {
 	s := NewUIScheduler()
-	fiber := CreateFiber(NewText("Test"))
+	fiber := CreateFiber(Text("Test"))
 
 	s.ScheduleUpdate(fiber, LaneSyncLane)
 	if s.TotalDirtyCount() == 0 {
@@ -169,7 +169,7 @@ func TestFiberRendererAdapter(t *testing.T) {
 	}
 
 	adapter := &fiberRendererAdapter{renderer: renderer}
-	fiber := CreateFiber(NewText("Test"))
+	fiber := CreateFiber(Text("Test"))
 
 	adapter.Layout(fiber)
 	adapter.Paint(fiber) // Also call Paint
@@ -270,7 +270,7 @@ func TestWorkLoop(t *testing.T) {
 		t.Error("Should be running after Start()")
 	}
 
-	fiber := CreateFiber(NewText("Test"))
+	fiber := CreateFiber(Text("Test"))
 	loop.SetRoot(fiber)
 	loop.Invalidate(LaneSyncLane)
 
@@ -288,7 +288,7 @@ func TestWorkLoop(t *testing.T) {
 // BenchmarkScheduleUpdate benchmarks update scheduling
 func BenchmarkScheduleUpdate(b *testing.B) {
 	s := NewUIScheduler()
-	fiber := CreateFiber(NewText("Test"))
+	fiber := CreateFiber(Text("Test"))
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -305,7 +305,7 @@ func BenchmarkFiberTreeScheduling(b *testing.B) {
 
 	var children []VNode
 	for i := 0; i < 50; i++ {
-		children = append(children, NewText("Item"))
+		children = append(children, Text("Item"))
 	}
 	tree := VStack(children...)
 	fiber := CreateFiberFromVNode(tree)

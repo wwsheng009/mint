@@ -6,7 +6,7 @@ import (
 
 // TestCreateFiber tests basic fiber creation
 func TestCreateFiber(t *testing.T) {
-	vnode := NewText("Hello")
+	vnode := Text("Hello")
 	fiber := CreateFiber(vnode)
 
 	if fiber == nil {
@@ -17,8 +17,8 @@ func TestCreateFiber(t *testing.T) {
 		t.Error("VNode not set correctly")
 	}
 
-	if fiber.Type != VNodeText {
-		t.Errorf("Type = %v, want %v", fiber.Type, VNodeText)
+	if fiber.Type != VNodeElement {
+		t.Errorf("Type = %v, want %v", fiber.Type, VNodeElement)
 	}
 
 	if fiber.Tag != "text" {
@@ -41,9 +41,9 @@ func TestCreateFiber(t *testing.T) {
 // TestCreateFiberFromVNode tests fiber tree creation
 func TestCreateFiberFromVNode(t *testing.T) {
 	vnode := VStack(
-		NewText("Child 1"),
-		NewText("Child 2"),
-		NewText("Child 3"),
+		Text("Child 1"),
+		Text("Child 2"),
+		Text("Child 3"),
 	)
 
 	root := CreateFiberFromVNode(vnode)
@@ -66,8 +66,8 @@ func TestCreateFiberFromVNode(t *testing.T) {
 
 // TestFiberTreeStructure tests fiber tree parent-child relationships
 func TestFiberTreeStructure(t *testing.T) {
-	child1 := NewText("A")
-	child2 := NewText("B")
+	child1 := Text("A")
+	child2 := Text("B")
 	parent := VStack(child1, child2)
 
 	root := CreateFiberFromVNode(parent)
@@ -106,12 +106,12 @@ func TestFiberTreeStructure(t *testing.T) {
 // TestWalkFiberDepthFirst tests depth-first traversal
 func TestWalkFiberDepthFirst(t *testing.T) {
 	vnode := VStack(
-		NewText("A"),
+		Text("A"),
 		HStack(
-			NewText("B1"),
-			NewText("B2"),
+			Text("B1"),
+			Text("B2"),
 		),
-		NewText("C"),
+		Text("C"),
 	)
 
 	root := CreateFiberFromVNode(vnode)
@@ -132,9 +132,9 @@ func TestWalkFiberDepthFirst(t *testing.T) {
 // TestWalkFiberBreadthFirst tests breadth-first traversal
 func TestWalkFiberBreadthFirst(t *testing.T) {
 	vnode := VStack(
-		NewText("A"),
-		NewText("B"),
-		NewText("C"),
+		Text("A"),
+		Text("B"),
+		Text("C"),
 	)
 
 	root := CreateFiberFromVNode(vnode)
@@ -155,9 +155,9 @@ func TestWalkFiberBreadthFirst(t *testing.T) {
 // TestWalkFiberEarlyExit tests early exit from traversal
 func TestWalkFiberEarlyExit(t *testing.T) {
 	vnode := VStack(
-		NewText("A"),
-		NewText("B"),
-		NewText("C"),
+		Text("A"),
+		Text("B"),
+		Text("C"),
 	)
 
 	root := CreateFiberFromVNode(vnode)
@@ -176,7 +176,7 @@ func TestWalkFiberEarlyExit(t *testing.T) {
 
 // TestCloneFiber tests fiber cloning
 func TestCloneFiber(t *testing.T) {
-	vnode := NewText("Hello")
+	vnode := Text("Hello")
 	original := CreateFiber(vnode)
 
 	original.Flags = EffectUpdate
@@ -209,7 +209,7 @@ func TestCloneFiber(t *testing.T) {
 
 // TestFiberKey tests fiber key handling
 func TestFiberKey(t *testing.T) {
-	vnode := NewText("Hello")
+	vnode := Text("Hello")
 	vnode.SetKey("test-key")
 
 	fiber := CreateFiber(vnode)
@@ -223,17 +223,17 @@ func TestFiberKey(t *testing.T) {
 func TestFindFiberByKey(t *testing.T) {
 	vnode := VStack(
 		func() VNode {
-			n := NewText("A")
+			n := Text("A")
 			n.SetKey("a")
 			return n
 		}(),
 		func() VNode {
-			n := NewText("B")
+			n := Text("B")
 			n.SetKey("b")
 			return n
 		}(),
 		func() VNode {
-			n := NewText("C")
+			n := Text("C")
 			n.SetKey("c")
 			return n
 		}(),
@@ -260,7 +260,7 @@ func TestFindFiberByKey(t *testing.T) {
 // TestMarkUpdate tests marking fibers for update
 func TestMarkUpdate(t *testing.T) {
 	parent := CreateFiber(NewElement("div"))
-	child := CreateFiber(NewText("Hello"))
+	child := CreateFiber(Text("Hello"))
 	child.Return = parent
 	parent.Child = child
 
@@ -283,7 +283,7 @@ func TestMarkUpdate(t *testing.T) {
 
 // TestHasNoPendingWork tests pending work detection
 func TestHasNoPendingWork(t *testing.T) {
-	fiber := CreateFiber(NewText("Hello"))
+	fiber := CreateFiber(Text("Hello"))
 
 	if !fiber.HasNoPendingWork() {
 		t.Error("New fiber should have no pending work")
@@ -300,7 +300,7 @@ func TestHasNoPendingWork(t *testing.T) {
 func TestGetFiberDepth(t *testing.T) {
 	vnode := VStack(
 		HStack(
-			NewText("Deep"),
+			Text("Deep"),
 		),
 	)
 
@@ -329,8 +329,8 @@ func TestGetFiberDepth(t *testing.T) {
 // TestCollectFibersWithFlags tests collecting fibers with specific flags
 func TestCollectFibersWithFlags(t *testing.T) {
 	vnode := VStack(
-		NewText("A"),
-		NewText("B"),
+		Text("A"),
+		Text("B"),
 	)
 
 	root := CreateFiberFromVNode(vnode)
@@ -350,38 +350,16 @@ func TestCollectFibersWithFlags(t *testing.T) {
 
 // TestLaneOperations tests lane utility functions
 func TestLaneOperations(t *testing.T) {
-	// mergeLanes
-	merged := mergeLanes(LaneSyncLane, LaneDefaultLane)
+	// MergeLanes is the only exported lane function now
+	merged := MergeLanes(LaneSyncLane, LaneDefaultLane)
 	if merged != (LaneSyncLane | LaneDefaultLane) {
-		t.Error("mergeLanes failed")
-	}
-
-	// hasLanes
-	if !hasLanes(merged, LaneSyncLane) {
-		t.Error("hasLanes should return true")
-	}
-
-	// removeLanes
-	removed := removeLanes(merged, LaneSyncLane)
-	if hasLanes(removed, LaneSyncLane) {
-		t.Error("removeLanes failed")
-	}
-
-	// isSubsetLanes
-	if !isSubsetLanes(LaneSyncLane, LaneRoot) {
-		t.Error("isSubsetLanes should return true")
-	}
-
-	// getHighestPriorityLane
-	highest := getHighestPriorityLane(LaneSyncLane | LaneDefaultLane)
-	if highest != LaneSyncLane {
-		t.Errorf("Highest priority lane = %v, want %v", highest, LaneSyncLane)
+		t.Error("MergeLanes failed")
 	}
 }
 
 // BenchmarkCreateFiber benchmarks fiber creation
 func BenchmarkCreateFiber(b *testing.B) {
-	vnode := NewText("Hello")
+	vnode := Text("Hello")
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -392,9 +370,9 @@ func BenchmarkCreateFiber(b *testing.B) {
 // BenchmarkCreateFiberFromVNode benchmarks fiber tree creation
 func BenchmarkCreateFiberFromVNode(b *testing.B) {
 	vnode := VStack(
-		NewText("A"),
-		NewText("B"),
-		NewText("C"),
+		Text("A"),
+		Text("B"),
+		Text("C"),
 	)
 
 	b.ResetTimer()

@@ -105,10 +105,8 @@ func TestRunTestWithSandbox_VerifyIntegration(t *testing.T) {
 
 	counter := func() VNode {
 		return VStack(
-			NewTextBuilder(fmt.Sprintf("Count: %d", count)).Build(),
-			ButtonBuilder("+").OnClick(func() {
-				count++
-			}).Build(),
+			Text(fmt.Sprintf("Count: %d", count)),
+			Element("button").Prop("label", "+").Build(),
 		)
 	}
 
@@ -140,7 +138,7 @@ func TestRunTestWithSandbox_VerifyIntegration(t *testing.T) {
 // TestSandboxSourceVsDirectInjection 对比两种注入方式
 func TestSandboxSourceVsDirectInjection(t *testing.T) {
 	simpleApp := func() VNode {
-		return NewTextBuilder("Hello, Sandbox!").Build()
+		return Text("Hello, Sandbox!")
 	}
 
 	// 方式1: RunTest (直接注入到 Pump)

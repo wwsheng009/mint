@@ -6,9 +6,9 @@ import (
 
 // TestUseStateInt tests UseStateInt hook
 func TestUseStateInt(t *testing.T) {
-	ctx := newComponentContext("TestComponent")
-	setCurrentContext(ctx)
-	defer setCurrentContext(nil)
+	ctx := NewComponentContextForRoot()
+	SetCurrentContext(ctx)
+	defer SetCurrentContext(nil)
 
 	// First call should initialize
 	count, setCount, getCount := UseStateInt(0)
@@ -25,7 +25,7 @@ func TestUseStateInt(t *testing.T) {
 	}
 
 	// Reset context and render again - should preserve value
-	ctx.resetContext()
+	ctx.ResetContext()
 	count2, _, getCount2 := UseStateInt(0)
 	if count2 != 5 {
 		t.Errorf("After re-render count = %v, want 5", count2)
@@ -37,9 +37,9 @@ func TestUseStateInt(t *testing.T) {
 
 // TestUseStateIntFunctional tests functional updates
 func TestUseStateIntFunctional(t *testing.T) {
-	ctx := newComponentContext("TestComponent")
-	setCurrentContext(ctx)
-	defer setCurrentContext(nil)
+	ctx := NewComponentContextForRoot()
+	SetCurrentContext(ctx)
+	defer SetCurrentContext(nil)
 
 	count, setCount, _ := UseStateInt(10)
 
@@ -51,7 +51,7 @@ func TestUseStateIntFunctional(t *testing.T) {
 	setCount(func(c int) int { return c + 5 })
 
 	// After functional update, value should be 15
-	ctx.resetContext()
+	ctx.ResetContext()
 	count2, _, _ := UseStateInt(0)
 	if count2 != 15 {
 		t.Errorf("After functional update count = %v, want 15", count2)
@@ -59,7 +59,7 @@ func TestUseStateIntFunctional(t *testing.T) {
 
 	// Another functional update
 	setCount(func(c int) int { return c * 2 })
-	ctx.resetContext()
+	ctx.ResetContext()
 	count3, _, _ := UseStateInt(0)
 	if count3 != 30 {
 		t.Errorf("After second functional update count = %v, want 30", count3)
@@ -68,9 +68,9 @@ func TestUseStateIntFunctional(t *testing.T) {
 
 // TestUseStateString tests UseStateString hook
 func TestUseStateString(t *testing.T) {
-	ctx := newComponentContext("TestComponent")
-	setCurrentContext(ctx)
-	defer setCurrentContext(nil)
+	ctx := NewComponentContextForRoot()
+	SetCurrentContext(ctx)
+	defer SetCurrentContext(nil)
 
 	// Note: The returned value is a snapshot, not updated by setter
 	_, setName := UseStateString("")
@@ -79,7 +79,7 @@ func TestUseStateString(t *testing.T) {
 	setName("Alice")
 	// The 'name' variable still holds the initial value
 	// To get the updated value, we need to re-render
-	ctx.resetContext()
+	ctx.ResetContext()
 	name2, _ := UseStateString("")
 
 	if name2 != "Alice" {
@@ -89,9 +89,9 @@ func TestUseStateString(t *testing.T) {
 
 // TestUseStateBool tests UseStateBool hook
 func TestUseStateBool(t *testing.T) {
-	ctx := newComponentContext("TestComponent")
-	setCurrentContext(ctx)
-	defer setCurrentContext(nil)
+	ctx := NewComponentContextForRoot()
+	SetCurrentContext(ctx)
+	defer SetCurrentContext(nil)
 
 	_, setVisible := UseStateBool(false)
 
@@ -99,7 +99,7 @@ func TestUseStateBool(t *testing.T) {
 	setVisible(true)
 	// The 'visible' variable still holds the initial value
 	// To get the updated value, we need to re-render
-	ctx.resetContext()
+	ctx.ResetContext()
 	visible2, _ := UseStateBool(false)
 
 	if visible2 != true {
@@ -109,9 +109,9 @@ func TestUseStateBool(t *testing.T) {
 
 // TestMultipleHooks tests multiple hook calls
 func TestMultipleHooks(t *testing.T) {
-	ctx := newComponentContext("TestComponent")
-	setCurrentContext(ctx)
-	defer setCurrentContext(nil)
+	ctx := NewComponentContextForRoot()
+	SetCurrentContext(ctx)
+	defer SetCurrentContext(nil)
 
 	// Call multiple hooks
 	count, _, _ := UseStateInt(0)
@@ -123,7 +123,7 @@ func TestMultipleHooks(t *testing.T) {
 	}
 
 	// Re-render with same order
-	ctx.resetContext()
+	ctx.ResetContext()
 	count2, _, _ := UseStateInt(0)
 	name2, _ := UseStateString("")
 	flag2, _ := UseStateBool(false)
@@ -135,7 +135,7 @@ func TestMultipleHooks(t *testing.T) {
 
 // TestHookOutsideComponentPanic tests that hooks panic outside component
 func TestHookOutsideComponentPanic(t *testing.T) {
-	setCurrentContext(nil)
+	SetCurrentContext(nil)
 	defer func() {
 		if r := recover(); r == nil {
 			t.Error("Expected panic when calling useState outside component")
@@ -146,7 +146,7 @@ func TestHookOutsideComponentPanic(t *testing.T) {
 
 // TestNewComponentContext tests component context creation
 func TestNewComponentContext(t *testing.T) {
-	ctx := newComponentContext("TestComponent")
+	ctx := NewComponentContextForRoot()
 
 	if ctx.ComponentID == "" {
 		t.Error("ComponentID should not be empty")
@@ -164,9 +164,9 @@ func TestNewComponentContext(t *testing.T) {
 
 // TestResetContext tests context reset
 func TestResetContext(t *testing.T) {
-	ctx := newComponentContext("TestComponent")
-	setCurrentContext(ctx)
-	defer setCurrentContext(nil)
+	ctx := NewComponentContextForRoot()
+	SetCurrentContext(ctx)
+	defer SetCurrentContext(nil)
 
 	// Add a hook
 	UseStateInt(42)
@@ -175,7 +175,7 @@ func TestResetContext(t *testing.T) {
 	}
 
 	// Reset
-	ctx.resetContext()
+	ctx.ResetContext()
 	if ctx.HookIndex != 0 {
 		t.Errorf("After reset HookIndex = %v, want 0", ctx.HookIndex)
 	}
@@ -186,85 +186,85 @@ func TestResetContext(t *testing.T) {
 
 // TestFinishRender tests hook validation on render finish
 func TestFinishRender(t *testing.T) {
-	ctx := newComponentContext("TestComponent")
+	ctx := NewComponentContextForRoot()
 
 	// Reset and add hooks
-	ctx.resetContext()
-	setCurrentContext(ctx)
-	defer setCurrentContext(nil)
+	ctx.ResetContext()
+	SetCurrentContext(ctx)
+	defer SetCurrentContext(nil)
 
 	UseStateInt(0)
 	UseStateString("")
 
 	// Should pass with consistent hooks
-	if err := ctx.finishRender(); err != nil {
+	if err := ctx.FinishRender(); err != nil {
 		t.Errorf("finishRender() = %v, want nil", err)
 	}
 
 	// Second render with same hook count should pass
-	ctx.resetContext()
+	ctx.ResetContext()
 	UseStateInt(0)
 	UseStateString("")
 
-	if err := ctx.finishRender(); err != nil {
+	if err := ctx.FinishRender(); err != nil {
 		t.Errorf("finishRender() = %v, want nil", err)
 	}
 }
 
 // TestHookOrderValidation tests hook order validation
 func TestHookOrderValidation(t *testing.T) {
-	ctx := newComponentContext("TestComponent")
-	setCurrentContext(ctx)
-	defer setCurrentContext(nil)
+	ctx := NewComponentContextForRoot()
+	SetCurrentContext(ctx)
+	defer SetCurrentContext(nil)
 
 	// First render - 2 hooks
 	UseStateInt(0)
 	UseStateString("")
 
-	ctx.finishRender()
+	ctx.FinishRender()
 
 	// Second render - should have same order
-	ctx.resetContext()
+	ctx.ResetContext()
 	UseStateInt(0)
 	UseStateString("")
 
-	if err := ctx.finishRender(); err != nil {
+	if err := ctx.FinishRender(); err != nil {
 		t.Errorf("finishRender() = %v, want nil", err)
 	}
 }
 
 // TestHookOrderViolation tests that hook order violations are detected
 func TestHookOrderViolation(t *testing.T) {
-	ctx := newComponentContext("TestComponent")
-	setCurrentContext(ctx)
-	defer setCurrentContext(nil)
+	ctx := NewComponentContextForRoot()
+	SetCurrentContext(ctx)
+	defer SetCurrentContext(nil)
 
 	// First render - 2 hooks
 	UseStateInt(0)
 	UseStateString("")
 
-	ctx.finishRender()
+	ctx.FinishRender()
 
 	// Second render - only 1 hook (order violation)
-	ctx.resetContext()
+	ctx.ResetContext()
 	UseStateInt(0)
 	// Missing UseStateString - this should cause error on finishRender
 
-	if err := ctx.finishRender(); err == nil {
+	if err := ctx.FinishRender(); err == nil {
 		t.Error("finishRender() should error when hook count changes")
 	}
 }
 
 // BenchmarkUseStateInt benchmarks UseStateInt
 func BenchmarkUseStateInt(b *testing.B) {
-	ctx := newComponentContext("Benchmark")
-	setCurrentContext(ctx)
-	ctx.resetContext() // Initialize hooks slice
+	ctx := NewComponentContextForRoot()
+	SetCurrentContext(ctx)
+	ctx.ResetContext() // Initialize hooks slice
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		if i == 0 {
-			ctx.resetContext()
+			ctx.ResetContext()
 		}
 		UseStateInt(0)
 	}
@@ -272,12 +272,12 @@ func BenchmarkUseStateInt(b *testing.B) {
 
 // BenchmarkUseStateIntMultiple benchmarks multiple UseStateInt calls
 func BenchmarkUseStateIntMultiple(b *testing.B) {
-	ctx := newComponentContext("Benchmark")
-	setCurrentContext(ctx)
+	ctx := NewComponentContextForRoot()
+	SetCurrentContext(ctx)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		ctx.resetContext()
+		ctx.ResetContext()
 		UseStateInt(0)
 		UseStateInt(0)
 		UseStateInt(0)
@@ -292,9 +292,9 @@ func BenchmarkUseStateIntMultiple(b *testing.B) {
 
 // TestUseEffectOnce tests useEffect with nil deps (runs once on mount)
 func TestUseEffectOnce(t *testing.T) {
-	ctx := newComponentContext("TestComponent")
-	setCurrentContext(ctx)
-	defer setCurrentContext(nil)
+	ctx := NewComponentContextForRoot()
+	SetCurrentContext(ctx)
+	defer SetCurrentContext(nil)
 
 	runCount := 0
 
@@ -309,19 +309,19 @@ func TestUseEffectOnce(t *testing.T) {
 	}
 
 	// Run effects explicitly
-	ctx.runEffects()
+	ctx.RunEffects()
 
 	if runCount != 1 {
 		t.Errorf("Effect should run once, runCount = %d", runCount)
 	}
 
 	// Second render - effect should NOT run again
-	ctx.resetContext()
+	ctx.ResetContext()
 	UseEffect(func() CleanupFunc {
 		runCount++
 		return nil
 	}, nil)
-	ctx.runEffects()
+	ctx.RunEffects()
 
 	if runCount != 1 {
 		t.Errorf("Effect should not run again, runCount = %d", runCount)
@@ -330,9 +330,9 @@ func TestUseEffectOnce(t *testing.T) {
 
 // TestUseEffectWithDeps tests useEffect with dependency tracking
 func TestUseEffectWithDeps(t *testing.T) {
-	ctx := newComponentContext("TestComponent")
-	setCurrentContext(ctx)
-	defer setCurrentContext(nil)
+	ctx := NewComponentContextForRoot()
+	SetCurrentContext(ctx)
+	defer SetCurrentContext(nil)
 
 	runCount := 0
 	deps := []interface{}{1}
@@ -342,32 +342,32 @@ func TestUseEffectWithDeps(t *testing.T) {
 		runCount++
 		return nil
 	}, deps)
-	ctx.runEffects()
+	ctx.RunEffects()
 
 	if runCount != 1 {
 		t.Errorf("Effect should run on first render, runCount = %d", runCount)
 	}
 
 	// Second render with same deps - should NOT run
-	ctx.resetContext()
+	ctx.ResetContext()
 	UseEffect(func() CleanupFunc {
 		runCount++
 		return nil
 	}, deps)
-	ctx.runEffects()
+	ctx.RunEffects()
 
 	if runCount != 1 {
 		t.Errorf("Effect should not run with same deps, runCount = %d", runCount)
 	}
 
 	// Third render with different deps - should run
-	ctx.resetContext()
+	ctx.ResetContext()
 	newDeps := []interface{}{2}
 	UseEffect(func() CleanupFunc {
 		runCount++
 		return nil
 	}, newDeps)
-	ctx.runEffects()
+	ctx.RunEffects()
 
 	if runCount != 2 {
 		t.Errorf("Effect should run with different deps, runCount = %d", runCount)
@@ -376,9 +376,9 @@ func TestUseEffectWithDeps(t *testing.T) {
 
 // TestUseEffectCleanup tests useEffect cleanup function
 func TestUseEffectCleanup(t *testing.T) {
-	ctx := newComponentContext("TestComponent")
-	setCurrentContext(ctx)
-	defer setCurrentContext(nil)
+	ctx := NewComponentContextForRoot()
+	SetCurrentContext(ctx)
+	defer SetCurrentContext(nil)
 
 	cleanupCount := 0
 
@@ -388,33 +388,33 @@ func TestUseEffectCleanup(t *testing.T) {
 			cleanupCount++
 		}
 	}, nil)
-	ctx.runEffects()
+	ctx.RunEffects()
 
 	if cleanupCount != 0 {
 		t.Errorf("Cleanup should not run during render, cleanupCount = %d", cleanupCount)
 	}
 
 	// Second render with nil deps - cleanup should NOT run (run-once behavior)
-	ctx.resetContext()
+	ctx.ResetContext()
 	UseEffect(func() CleanupFunc {
 		return func() {
 			cleanupCount++
 		}
 	}, nil)
-	ctx.runEffects()
+	ctx.RunEffects()
 
 	if cleanupCount != 0 {
 		t.Errorf("Cleanup should not run with nil deps, cleanupCount = %d", cleanupCount)
 	}
 
 	// Third render with different deps - cleanup SHOULD run
-	ctx.resetContext()
+	ctx.ResetContext()
 	UseEffect(func() CleanupFunc {
 		return func() {
 			cleanupCount++
 		}
 	}, []interface{}{1})
-	ctx.runEffects()
+	ctx.RunEffects()
 
 	if cleanupCount != 1 {
 		t.Errorf("Cleanup should run when deps change, cleanupCount = %d", cleanupCount)
@@ -423,9 +423,9 @@ func TestUseEffectCleanup(t *testing.T) {
 
 // TestUseEffectEmptyDeps tests useEffect with empty deps array
 func TestUseEffectEmptyDeps(t *testing.T) {
-	ctx := newComponentContext("TestComponent")
-	setCurrentContext(ctx)
-	defer setCurrentContext(nil)
+	ctx := NewComponentContextForRoot()
+	SetCurrentContext(ctx)
+	defer SetCurrentContext(nil)
 
 	runCount := 0
 
@@ -434,19 +434,19 @@ func TestUseEffectEmptyDeps(t *testing.T) {
 		runCount++
 		return nil
 	}, []interface{}{})
-	ctx.runEffects()
+	ctx.RunEffects()
 
 	if runCount != 1 {
 		t.Errorf("Effect should run, runCount = %d", runCount)
 	}
 
 	// Second render - should run again
-	ctx.resetContext()
+	ctx.ResetContext()
 	UseEffect(func() CleanupFunc {
 		runCount++
 		return nil
 	}, []interface{}{})
-	ctx.runEffects()
+	ctx.RunEffects()
 
 	if runCount != 2 {
 		t.Errorf("Effect should run again with empty deps, runCount = %d", runCount)
@@ -459,9 +459,9 @@ func TestUseEffectEmptyDeps(t *testing.T) {
 
 // TestUseRef tests useRef hook
 func TestUseRef(t *testing.T) {
-	ctx := newComponentContext("TestComponent")
-	setCurrentContext(ctx)
-	defer setCurrentContext(nil)
+	ctx := NewComponentContextForRoot()
+	SetCurrentContext(ctx)
+	defer SetCurrentContext(nil)
 
 	ref := UseRef(42)
 
@@ -477,7 +477,7 @@ func TestUseRef(t *testing.T) {
 	}
 
 	// Re-render - ref should persist
-	ctx.resetContext()
+	ctx.ResetContext()
 	ref2 := UseRef(0) // Initial value ignored on re-render
 
 	if ref2 != ref {
@@ -490,7 +490,7 @@ func TestUseRef(t *testing.T) {
 
 // TestUseRefOutsideComponentPanic tests that useRef panics outside component
 func TestUseRefOutsideComponentPanic(t *testing.T) {
-	setCurrentContext(nil)
+	SetCurrentContext(nil)
 	defer func() {
 		if r := recover(); r == nil {
 			t.Error("Expected panic when calling UseRef outside component")
@@ -505,9 +505,9 @@ func TestUseRefOutsideComponentPanic(t *testing.T) {
 
 // TestUseMemo tests useMemo hook
 func TestUseMemo(t *testing.T) {
-	ctx := newComponentContext("TestComponent")
-	setCurrentContext(ctx)
-	defer setCurrentContext(nil)
+	ctx := NewComponentContextForRoot()
+	SetCurrentContext(ctx)
+	defer SetCurrentContext(nil)
 
 	computeCount := 0
 	compute := func() interface{} {
@@ -526,7 +526,7 @@ func TestUseMemo(t *testing.T) {
 	}
 
 	// Re-render with same deps - should NOT recompute
-	ctx.resetContext()
+	ctx.ResetContext()
 	result2 := UseMemo(compute, []interface{}{1})
 
 	if result2 != 42 {
@@ -537,7 +537,7 @@ func TestUseMemo(t *testing.T) {
 	}
 
 	// Re-render with different deps - should recompute
-	ctx.resetContext()
+	ctx.ResetContext()
 	result3 := UseMemo(compute, []interface{}{2})
 
 	if result3 != 42 {
@@ -550,9 +550,9 @@ func TestUseMemo(t *testing.T) {
 
 // TestUseMemoNilDeps tests useMemo with nil deps (computes once)
 func TestUseMemoNilDeps(t *testing.T) {
-	ctx := newComponentContext("TestComponent")
-	setCurrentContext(ctx)
-	defer setCurrentContext(nil)
+	ctx := NewComponentContextForRoot()
+	SetCurrentContext(ctx)
+	defer SetCurrentContext(nil)
 
 	computeCount := 0
 	compute := func() interface{} {
@@ -568,7 +568,7 @@ func TestUseMemoNilDeps(t *testing.T) {
 	}
 
 	// Re-render - should NOT recompute with nil deps
-	ctx.resetContext()
+	ctx.ResetContext()
 	UseMemo(compute, nil)
 
 	if computeCount != 1 {
@@ -584,9 +584,9 @@ func TestUseMemoNilDeps(t *testing.T) {
 
 // TestUseCallback tests useCallback hook
 func TestUseCallback(t *testing.T) {
-	ctx := newComponentContext("TestComponent")
-	setCurrentContext(ctx)
-	defer setCurrentContext(nil)
+	ctx := NewComponentContextForRoot()
+	SetCurrentContext(ctx)
+	defer SetCurrentContext(nil)
 
 	computeCount := 0
 	callback := func() {
@@ -606,7 +606,7 @@ func TestUseCallback(t *testing.T) {
 
 	// Re-render with same deps - memoized value should be preserved
 	// We can't compare functions directly, but we can test behavior
-	ctx.resetContext()
+	ctx.ResetContext()
 	cb2 := UseCallback(callback, []interface{}{1})
 
 	if cb2 == nil {
@@ -623,7 +623,7 @@ func TestUseCallback(t *testing.T) {
 
 	// Re-render with different deps - should create new callback
 	// Again, we verify behavior rather than identity
-	ctx.resetContext()
+	ctx.ResetContext()
 	cb3 := UseCallback(callback, []interface{}{2})
 
 	if cb3 == nil {
@@ -666,12 +666,12 @@ func TestDepsEqual(t *testing.T) {
 
 // BenchmarkUseEffect benchmarks useEffect
 func BenchmarkUseEffect(b *testing.B) {
-	ctx := newComponentContext("Benchmark")
-	setCurrentContext(ctx)
+	ctx := NewComponentContextForRoot()
+	SetCurrentContext(ctx)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		ctx.resetContext()
+		ctx.ResetContext()
 		UseEffect(func() CleanupFunc {
 			return func() {}
 		}, nil)
@@ -680,20 +680,20 @@ func BenchmarkUseEffect(b *testing.B) {
 
 // BenchmarkUseRef benchmarks UseRef
 func BenchmarkUseRef(b *testing.B) {
-	ctx := newComponentContext("Benchmark")
-	setCurrentContext(ctx)
+	ctx := NewComponentContextForRoot()
+	SetCurrentContext(ctx)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		ctx.resetContext()
+		ctx.ResetContext()
 		UseRef(0)
 	}
 }
 
 // BenchmarkUseMemo benchmarks UseMemo
 func BenchmarkUseMemo(b *testing.B) {
-	ctx := newComponentContext("Benchmark")
-	setCurrentContext(ctx)
+	ctx := NewComponentContextForRoot()
+	SetCurrentContext(ctx)
 
 	compute := func() interface{} {
 		return 42
@@ -701,7 +701,7 @@ func BenchmarkUseMemo(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		ctx.resetContext()
+		ctx.ResetContext()
 		UseMemo(compute, []interface{}{1})
 	}
 }

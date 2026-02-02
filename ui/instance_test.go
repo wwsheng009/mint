@@ -19,7 +19,7 @@ func TestInstanceManager_GetOrCreate(t *testing.T) {
 	creator := func() ComponentInstance {
 		createCount++
 		return NewBaseComponentInstance("test", func() VNode {
-			return NewText("test")
+			return Text("test")
 		})
 	}
 
@@ -57,13 +57,13 @@ func TestInstanceManager_Cleanup(t *testing.T) {
 
 	// Create three instances
 	inst1 := m.GetOrCreate("key1", func() ComponentInstance {
-		return NewBaseComponentInstance("test1", func() VNode { return NewText("1") })
+		return NewBaseComponentInstance("test1", func() VNode { return Text("1") })
 	})
 	_ = m.GetOrCreate("key2", func() ComponentInstance {
-		return NewBaseComponentInstance("test2", func() VNode { return NewText("2") })
+		return NewBaseComponentInstance("test2", func() VNode { return Text("2") })
 	})
 	inst3 := m.GetOrCreate("key3", func() ComponentInstance {
-		return NewBaseComponentInstance("test3", func() VNode { return NewText("3") })
+		return NewBaseComponentInstance("test3", func() VNode { return Text("3") })
 	})
 
 	if m.Count() != 3 {
@@ -96,13 +96,13 @@ func TestInstanceManager_LRU(t *testing.T) {
 
 	// Create 3 instances (at limit)
 	m.GetOrCreate("key1", func() ComponentInstance {
-		return NewBaseComponentInstance("test1", func() VNode { return NewText("1") })
+		return NewBaseComponentInstance("test1", func() VNode { return Text("1") })
 	})
 	m.GetOrCreate("key2", func() ComponentInstance {
-		return NewBaseComponentInstance("test2", func() VNode { return NewText("2") })
+		return NewBaseComponentInstance("test2", func() VNode { return Text("2") })
 	})
 	m.GetOrCreate("key3", func() ComponentInstance {
-		return NewBaseComponentInstance("test3", func() VNode { return NewText("3") })
+		return NewBaseComponentInstance("test3", func() VNode { return Text("3") })
 	})
 
 	if m.Count() != 3 {
@@ -111,12 +111,12 @@ func TestInstanceManager_LRU(t *testing.T) {
 
 	// Access key1 to make it more recent
 	m.GetOrCreate("key1", func() ComponentInstance {
-		return NewBaseComponentInstance("test1", func() VNode { return NewText("1") })
+		return NewBaseComponentInstance("test1", func() VNode { return Text("1") })
 	})
 
 	// Create key4 - should evict key2 (least recently used)
 	m.GetOrCreate("key4", func() ComponentInstance {
-		return NewBaseComponentInstance("test4", func() VNode { return NewText("4") })
+		return NewBaseComponentInstance("test4", func() VNode { return Text("4") })
 	})
 
 	if m.Count() != 3 {
@@ -145,7 +145,7 @@ func TestInstanceManager_Remove(t *testing.T) {
 	m := NewInstanceManager()
 
 	inst := m.GetOrCreate("key1", func() ComponentInstance {
-		return NewBaseComponentInstance("test", func() VNode { return NewText("test") })
+		return NewBaseComponentInstance("test", func() VNode { return Text("test") })
 	})
 
 	if m.Count() != 1 {
@@ -172,13 +172,13 @@ func TestInstanceManager_Clear(t *testing.T) {
 
 	// Create multiple instances
 	m.GetOrCreate("key1", func() ComponentInstance {
-		return NewBaseComponentInstance("test1", func() VNode { return NewText("1") })
+		return NewBaseComponentInstance("test1", func() VNode { return Text("1") })
 	})
 	m.GetOrCreate("key2", func() ComponentInstance {
-		return NewBaseComponentInstance("test2", func() VNode { return NewText("2") })
+		return NewBaseComponentInstance("test2", func() VNode { return Text("2") })
 	})
 	m.GetOrCreate("key3", func() ComponentInstance {
-		return NewBaseComponentInstance("test3", func() VNode { return NewText("3") })
+		return NewBaseComponentInstance("test3", func() VNode { return Text("3") })
 	})
 
 	if m.Count() != 3 {
@@ -200,7 +200,7 @@ func TestInstanceManager_Clear(t *testing.T) {
 // TestComponentInstance_OnMount tests OnMount is called
 func TestComponentInstance_OnMount(t *testing.T) {
 	inst := NewBaseComponentInstance("test", func() VNode {
-		return NewText("test")
+		return Text("test")
 	})
 
 	// Initially not mounted
@@ -229,20 +229,20 @@ func TestComponentInstance_OnUnmount(t *testing.T) {
 				*cleanupPtr = true
 			}
 		}, nil)
-		return NewText("test")
+		return Text("test")
 	}
 
 	// Create instance - this creates a new context
 	inst := NewBaseComponentInstance("test", componentFn)
 
 	// Render the component (registers the useEffect)
-	oldContext := getCurrentContext()
-	setCurrentContext(inst.GetContext())
+	oldContext := GetCurrentContext()
+	SetCurrentContext(inst.GetContext())
 	inst.Render()
-	setCurrentContext(oldContext)
+	SetCurrentContext(oldContext)
 
 	// Run effects to register cleanup function
-	inst.GetContext().runEffects()
+	inst.GetContext().RunEffects()
 
 	// Unmount should call cleanup
 	inst.OnUnmount()
@@ -258,12 +258,12 @@ func TestComponentInstance_OnUnmount(t *testing.T) {
 // TestComponentInstance_StatePersistence tests state persists across renders
 func TestComponentInstance_StatePersistence(t *testing.T) {
 	inst := NewBaseComponentInstance("test", func() VNode {
-		return NewText("test")
+		return Text("test")
 	})
 
 	// Set some state via the context
-	setCurrentContext(inst.GetContext())
-	defer setCurrentContext(nil)
+	SetCurrentContext(inst.GetContext())
+	defer SetCurrentContext(nil)
 
 	count, setCount, _ := UseStateInt(0)
 	if count != 0 {
@@ -274,7 +274,7 @@ func TestComponentInstance_StatePersistence(t *testing.T) {
 	setCount(42)
 
 	// Re-render
-	inst.GetContext().resetContext()
+	inst.GetContext().ResetContext()
 	count2, _, _ := UseStateInt(0)
 
 	if count2 != 42 {
@@ -314,9 +314,9 @@ func TestComponentInstance_Props(t *testing.T) {
 
 // TestUseHoverState tests the useHoverState hook
 func TestUseHoverState(t *testing.T) {
-	ctx := newComponentContext("TestComponent")
-	setCurrentContext(ctx)
-	defer setCurrentContext(nil)
+	ctx := NewComponentContextForRoot()
+	SetCurrentContext(ctx)
+	defer SetCurrentContext(nil)
 
 	isHovered, setHovered := useHoverState()
 
@@ -332,7 +332,7 @@ func TestUseHoverState(t *testing.T) {
 	}
 
 	// Re-render - state should persist (still true)
-	ctx.resetContext()
+	ctx.ResetContext()
 	isHovered2, setHovered2 := useHoverState()
 
 	if !isHovered2() {
@@ -348,9 +348,9 @@ func TestUseHoverState(t *testing.T) {
 
 // TestUseHoverStateInComponent tests useHoverState in a realistic scenario
 func TestUseHoverStateInComponent(t *testing.T) {
-	ctx := newComponentContext("HoverButton")
-	setCurrentContext(ctx)
-	defer setCurrentContext(nil)
+	ctx := NewComponentContextForRoot()
+	SetCurrentContext(ctx)
+	defer SetCurrentContext(nil)
 
 	// Simulate component using useHoverState
 	isHovered, setHovered := useHoverState()
@@ -364,7 +364,7 @@ func TestUseHoverStateInComponent(t *testing.T) {
 
 	// Simulate multiple renders
 	for i := 0; i < 5; i++ {
-		ctx.resetContext()
+		ctx.ResetContext()
 		isHovered, _ := useHoverState()
 		if isHovered() {
 			hoveredCount++
@@ -382,9 +382,9 @@ func TestUseHoverStateInComponent(t *testing.T) {
 
 // TestCleanupAllCalled tests that cleanup functions are called
 func TestCleanupAllCalled(t *testing.T) {
-	ctx := newComponentContext("TestComponent")
-	setCurrentContext(ctx)
-	defer setCurrentContext(nil)
+	ctx := NewComponentContextForRoot()
+	SetCurrentContext(ctx)
+	defer SetCurrentContext(nil)
 
 	cleanupCount := 0
 	// Use a pointer to make updates visible in closures
@@ -400,12 +400,12 @@ func TestCleanupAllCalled(t *testing.T) {
 	}, []interface{}{1})
 
 	// Run effects to register cleanup functions
-	ctx.runEffects()
+	ctx.RunEffects()
 	t.Logf("After runEffects: cleanupCount = %d, hooks[0].Cleanup = %v, hooks[1].Cleanup = %v",
 		cleanupCount, ctx.Hooks[0].Cleanup != nil, ctx.Hooks[1].Cleanup != nil)
 
 	// Cleanup all
-	ctx.cleanupAll()
+	ctx.CleanupAll()
 	t.Logf("After cleanupAll: cleanupCount = %d", cleanupCount)
 
 	// cleanupCount should be 2 (from cleanupAll)
@@ -432,9 +432,9 @@ func TestGoroutineLeakDetection(t *testing.T) {
 	// This test verifies that properly written effects don't leak goroutines
 	// In a real application, you'd use runtime.NumGoroutine() to detect leaks
 
-	ctx := newComponentContext("TestComponent")
-	setCurrentContext(ctx)
-	defer setCurrentContext(nil)
+	ctx := NewComponentContextForRoot()
+	SetCurrentContext(ctx)
+	defer SetCurrentContext(nil)
 
 	doneChans := make([]chan struct{}, 0)
 
@@ -460,10 +460,10 @@ func TestGoroutineLeakDetection(t *testing.T) {
 	}
 
 	// Run effects
-	ctx.runEffects()
+	ctx.RunEffects()
 
 	// Cleanup all - all goroutines should exit
-	ctx.cleanupAll()
+	ctx.CleanupAll()
 
 	// Wait a bit for goroutines to exit
 	time.Sleep(50 * time.Millisecond)
@@ -488,7 +488,7 @@ func TestInstanceManager_ConcurrentGetOrCreate(t *testing.T) {
 		createCount++
 		mu.Unlock()
 		return NewBaseComponentInstance("test", func() VNode {
-			return NewText("test")
+			return Text("test")
 		})
 	}
 
@@ -524,7 +524,7 @@ func TestInstanceManager_ConcurrentCleanup(t *testing.T) {
 		key := fmt.Sprintf("key%d", i)
 		m.GetOrCreate(key, func() ComponentInstance {
 			return NewBaseComponentInstance(key, func() VNode {
-				return NewText(key)
+				return Text(key)
 			})
 		})
 	}
