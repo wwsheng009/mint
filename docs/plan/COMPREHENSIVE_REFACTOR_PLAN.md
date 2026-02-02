@@ -1,9 +1,10 @@
 # Mint UI 全面重构计划
 
 > **创建日期**: 2026-02-01
-> **状态**: 📋 规划中
+> **更新日期**: 2026-02-02
+> **状态**: 📋 规划中 (已更新类型基础包 runtime/ui)
 > **目标**: 构建符合设计愿景的 Terminal UI Runtime Platform
-> **参考文档**: framework/docs/ui/idea/*.md
+> **参考文档**: framework/docs/ui/idea/*.md, docs/plan/REFACTOR_TODO.md
 
 ---
 
@@ -60,9 +61,10 @@ ui/app.go (2169行)
 
 | 维度 | 设计愿景 | 当前实现 | 差距 |
 |------|---------|---------|------|
+| **类型基础** | 独立类型包 | 分散在 ui/ | ✅ 已创建 runtime/ui |
 | **组件契约** | Render/Measure/Paint 分离 | VNode 没有这些方法 | ⚠️ 需补充 |
 | **渲染方式** | DrawCmd → Rasterizer | 直接写 Buffer | ⚠️ 部分实现 |
-| **组件组织** | 按功能分类 (basic/form/button) | 全在 ui/ 目录 | ⚠️ 需重构 |
+| **组件组织** | 按功能分类 (basic/form/button) | 全在 ui/ 目录 | ✅ components/ 已组织 |
 | **状态管理** | Hooks Slot (位置绑定) | 部分在 VNode 字段 | ⚠️ 需统一 |
 | **多组件支持** | 可独立渲染 | 单一 declarativeRoot | ⚠️ 需解耦 |
 | **动画系统** | 与状态分离 | 未分离 | ⚠️ 需新增 |
@@ -78,771 +80,496 @@ mint/
 ├── cmd/                            # 可执行程序
 │   └── examples/                   # 示例入口
 │
-├── ui/                             # 公开 API 层 (精简)
+├── ui/                             # 公开 API 层 (精简，重导出 runtime/ui)
 │   ├── app.go                      # Run() 入口 ~100行
-│   ├── hooks.go                    # Hooks API
-│   ├── vnode.go                    # VNode 接口
-│   ├── builder.go                  # 组件构造器
+│   ├── hooks.go                    # Hooks API 实现
+│   ├── vnode.go                    # VNode 接口重导出
+│   ├── element.go                  # ElementVNode 重导出
+│   ├── component.go                # ComponentVNode 重导出
+│   ├── fragment.go                  # FragmentVNode 重导出
+│   ├── layout.go                    # LayoutNode 重导出
+│   ├── fiber.go                     # Fiber 类型重导出
+│   ├── instance.go                  # ComponentInstance 重导出
+│   ├── validator.go                 # HookValidator 重导出
+│   ├── compat.go                    # 兼容性存根 (临时)
 │   └── shortcuts.go                # 快捷函数
+│
+├── runtime/                        # 运行时层 (类型定义)
+│   ├── types/                       # ✨ 新增: 核心类型包
+│   │   ├── vnode.go                # VNode 接口, VNodeType, Props
+│   │   ├── element.go              # ElementVNode, ElementBuilder
+│   │   ├── component.go            # ComponentVNode, ComponentBuilder
+│   │   ├── fragment.go              # FragmentVNode
+│   │   ├── fiber.go                 # Lane, Fiber, EffectFlag
+│   │   ├── fiber_util.go            # CreateFiber, CloneFiber, 等
+│   │   ├── hooks.go                 # ComponentContext, Hook, Ref
+│   │   ├── instance.go              # ComponentInstance, BaseComponentInstance
+│   │   ├── validator.go             # HookValidator, HookOrderError
+│   │   └── layout.go                # LayoutNode, Direction, Align
+│   │
+│   ├── paint/                       # 渲染接口
+│   │   ├── paintable.go             # Paintable 接口
+│   │   └── batch.go                 # DrawCmd
+│   │
+│   ├── layout/                      # 布局引擎
+│   │   ├── constraints.go           # BoxConstraints
+│   │   └── size.go                  # Size
+│   │
+│   ├── style/                       # 样式系统
+│   ├── event/                       # 事件系统
+│   └── platform/                    # 平台抽象
 │
 ├── components/                     # 声明式组件库 (新增)
 │   ├── basic/                      # 基础组件
 │   │   ├── text.go                 # Text 组件
-│   │   ├── icon.go                 # Icon 组件
-│   │   ├── separator.go            # Separator 组件
-│   │   └── spacer.go               # Spacer 组件
-│   │
+│   │   ├── divider.go              # Divider 组件
+│   │   └── ...
 │   ├── layout/                     # 布局组件
-│   │   ├── box.go                  # Box 组件
-│   │   ├── flex.go                 # Flex 组件
-│   │   ├── stack.go                # HStack/VStack
-│   │   ├── grid.go                 # Grid 组件
-│   │   └── overlay.go              # Overlay 组件
-│   │
 │   ├── form/                       # 表单组件
-│   │   ├── input.go                # TextInput 组件
-│   │   ├── textarea.go             # TextArea 组件
-│   │   ├── checkbox.go             # Checkbox 组件
-│   │   ├── select.go               # Select 组件
-│   │   └── field.go                # Field 包装器
-│   │
 │   ├── button/                     # 按钮组件
-│   │   ├── button.go               # Button 组件
-│   │   ├── icon_button.go          # IconButton
-│   │   └── button_group.go         # ButtonGroup
-│   │
 │   ├── feedback/                   # 反馈组件
-│   │   ├── progress.go             # ProgressBar
-│   │   ├── spinner.go              # Spinner
-│   │   ├── toast.go                # Toast
-│   │   ├── alert.go                # Alert
-│   │   └── badge.go                # Badge
-│   │
 │   ├── data/                       # 数据展示
-│   │   ├── list.go                 # List 组件
-│   │   ├── table.go                # Table 组件
-│   │   ├── tree.go                 # Tree 组件
-│   │   └── virtuallist.go          # VirtualList
-│   │
 │   ├── navigation/                 # 导航组件
-│   │   ├── tabs.go                 # Tabs
-│   │   ├── menu.go                 # Menu
-│   │   └── sidebar.go              # Sidebar
-│   │
 │   ├── overlay/                    # 覆盖层组件
-│   │   ├── modal.go                # Modal
-│   │   ├── dialog.go               # Dialog
-│   │   ├── dropdown.go             # Dropdown
-│   │   └── tooltip.go              # Tooltip
-│   │
 │   └── container/                  # 容器组件
-│       ├── panel.go                # Panel
-│       ├── split.go                # SplitPane
-│       └── scroll.go               # ScrollArea
 │
 ├── internal/                       # 内部实现 (不对外暴露)
 │   ├── reconciler/                 # 协调器系统
-│   │   ├── fiber.go
-│   │   ├── reconciler.go
-│   │   ├── begin_work.go
-│   │   ├── complete_work.go
-│   │   ├── diff.go
+│   │   ├── fiber.go                # 已迁移到 runtime/ui
+│   │   ├── reconciler.go           # Reconciler 实现
+│   │   ├── vnode_converter.go      # VNode → LayoutNode 转换
 │   │   └── public.go               # 公开接口
 │   │
 │   ├── scheduler/                  # 调度器
-│   │   ├── ui_scheduler.go
 │   │   └── priority.go
 │   │
-│   ├── state/                      # 状态系统
-│   │   ├── instance.go
-│   │   ├── instance_manager.go
-│   │   ├── interaction_state.go
-│   │   └── public.go
-│   │
-│   └── render/                     # 渲染引擎
-│       ├── rnode.go                # 真实节点树
-│       ├── layout_engine.go        # 布局引擎
-│       ├── render_tree.go          # 渲染树
-│       └── rasterizer.go           # 栅格化器
+│   └── state/                      # 状态系统
+│       ├── instance_manager.go
+│       └── interaction_state.go
 │
 ├── framework/                      # 框架层 (保持)
 │   ├── app.go
 │   ├── component/
-│   ├── event/
-│   └── ...
-│
-├── runtime/                        # 运行时层 (保持)
-│   ├── paint/                      # 已有 Painter/DrawCmd
-│   ├── event/
-│   ├── platform/
-│   └── ...
+│   └── event/
 │
 └── docs/                           # 文档
 ```
 
-### 2.2 依赖关系图
+### 2.2 依赖关系图（单向，无循环）
 
 ```
-components/ (用户层)
-    ↓ 使用
-ui/ (公开API层)
-    ↓ 使用
-internal/ (内部实现层)
-    ├─ reconciler/
-    ├─ scheduler/
-    ├─ state/
-    └─ render/
-    ↓ 使用
-framework/ (框架层)
-    ↓ 使用
-runtime/ (运行时层)
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                           单向依赖关系图 (已更新 runtime/ui)                        │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                  │
+│  用户代码 (examples/)                                                         │
+│      ↓ import                                                                    │
+│  ┌─────────────────────────────────────────────────────────────────────────┐    │
+│  │ ui/ (API 入口层 - 精简，重导出 runtime/ui)                                   │    │
+│  │ ├── vnode.go              # VNode = types.VNode (重导出)                   │    │
+│  │ ├── element.go            # ElementVNode = types.ElementVNode (重导出)       │    │
+│  │ ├── component.go           # ComponentVNode = types.ComponentVNode (重导出)   │    │
+│  │ ├── hooks.go               # UseState, UseEffect (实现)                       │    │
+│  │ ├── app.go                 # Run() 入口                                              │    │
+│  │ └── compat.go              # 兼容性存根类型 (临时)                           │    │
+│  └─────────────────────────────────────────────────────────────────────────┘    │
+│      ↓ import (重导出 + 类型别名)                                               │
+│  ┌─────────────────────────────────────────────────────────────────────────┐    │
+│  │ components/ (组件实现层)                                                   │    │
+│  │ ├── basic/text.go         # TextVNode 实现 ui.VNode + Paintable              │    │
+│  │ ├── button/button.go     # ButtonVNode 实现 ui.VNode + Paintable            │    │
+│  │ └── ...                  # 其他组件同样实现                                   │    │
+│  │                                                                              │    │
+│  │ 组件实现:                                                                     │  │    │
+│  │   - 实现 ui.VNode 接口 (来自 runtime/ui)                                   │  │    │
+│  │   - 实现 runtime.Measurable 接口                                            │  │    │
+│  │   - 实现 paint.Paintable 接口                                              │  │    │
+│  │   - 使用 types.ComponentContext (来自 runtime/ui)                             │  │    │
+│  └─────────────────────────────────────────────────────────────────────────┘    │
+│      ↓ import (导入 runtime/ui)                                               │
+│  ┌─────────────────────────────────────────────────────────────────────────┐    │
+│  │ internal/ (内部实现层)                                                       │    │
+│  │ ├── reconciler/           # VNodeConverter 使用 types.VNode                    │    │
+│  │ ├── scheduler/            # 使用 types.Lane, types.Fiber                       │    │
+│  │ └── state/                # 使用 types.ComponentContext                     │    │
+│  └─────────────────────────────────────────────────────────────────────────┘    │
+│      ↓ import                                                                    │
+│  ┌─────────────────────────────────────────────────────────────────────────┐    │
+│  │ runtime/ui/ (类型基础层 - 新增)                                          │    │
+│  │ ├── vnode.go              # VNode 接口, VNodeType, Props                    │    │
+│  │ ├── element.go            # ElementVNode, ElementBuilder                   │    │    │
+│  │ ├── component.go            # ComponentVNode, ComponentFunc                 │    │
+│  │ ├── fragment.go              # FragmentVNode                                   │    │
+│  │ ├── fiber.go                 # Lane, Fiber, EffectFlag, UpdateQueue      │    │
+│  │ ├── fiber_util.go            # CreateFiber, CloneFiber, WalkFiber*        │    │
+│  │ ├── hooks.go                 # ComponentContext, Hook, Ref, EffectCallback    │    │
+│  │ ├── instance.go              # ComponentInstance, BaseComponentInstance    │    │
+│  │ ├── validator.go             # HookValidator, HookOrderError                 │    │
+│  │ └── layout.go                # LayoutNode, Direction, Align, HStack, VStack  │    │
+│  └─────────────────────────────────────────────────────────────────────────┘    │
+│                                                                                  │
+│  ✅ 关键设计:                                                                  │
+│  - runtime/ui/ 作为类型基础包，所有核心类型定义在此                               │
+│  - ui/ 通过类型别名重导出 types，保持向后兼容                                      │
+│  - components/ 实现 types.VNode 接口                                                │
+│  - internal/ 导入 types，不导入 ui (避免循环)                                      │
+│  - 无循环依赖: components/ → runtime/ui ← ui/ (重导出)                             │
+└─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
----
+### 2.3 类型分层架构
 
-## 三、组件解耦方案
-
-### 3.1 组件标准接口
-
-```go
-// internal/render/component.go
-
-// Component 组件标准接口
-// 参考: framework/docs/ui/idea/idea4_comp.md
-type Component interface {
-    // 组件标识
-    ID() string
-    Type() string
-
-    // 生命周期 (参考 idea4_comp.md)
-    Mount(ctx Context) error
-    Update(ctx Context) error
-    Unmount(ctx Context) error
-
-    // 渲染能力 (与 idea3_vnode.md 一致)
-    Measure(constraints Constraints) Size
-    Paint(ctx PaintContext)
-}
-
-// 渲染上下文 - 已在 runtime/paint/context.go 实现
-// PaintContext 提供了 Painter 接口，组件通过 Painter 绘制
 ```
-
-### 3.2 VNode 与 Component 的关系
-
-```go
-// VNode 保持为轻量级描述接口
-type VNode interface {
-    Type() VNodeType
-    Props() Props
-    SetProps(p Props)
-    Children() []VNode
-    SetChildren(children []VNode)
-    Key() string
-    SetKey(key string)
-    Style() style.Style
-    SetStyle(s style.Style)
-}
-
-// 新增: 可渲染 VNode 接口
-type RenderableVNode interface {
-    VNode
-    Measure(constraints Constraints) Size
-    Paint(ctx PaintContext)
-}
-
-// ElementVNode 实现 RenderableVNode
-func (e *ElementVNode) Measure(constraints Constraints) Size {
-    // 根据类型调用对应的组件
-}
-
-func (e *ElementVNode) Paint(ctx PaintContext) {
-    // 使用 runtime/paint 的 Painter
-}
-```
-
-### 3.3 组件库结构
-
-```go
-// components/form/input.go
-
-package form
-
-import (
-    "github.com/wwsheng009/mint/ui"
-    "github.com/wwsheng009/mint/runtime/style"
-)
-
-// TextInput 组件
-// 实现内部组件接口，同时提供 Builder 模式
-type TextInput struct {
-    // 组合而非继承
-    vnode ui.VNode
-
-    // 组件状态 (不持久化，每次重建)
-    value    string
-    placeholder string
-    readOnly bool
-    disabled bool
-    onChange func(string)
-}
-
-// New 创建输入组件
-func NewInput() *TextInput {
-    return &TextInput{
-        vnode: ui.NewElement("input"),
-    }
-}
-
-// Build 构建 VNode (供 ui 包使用)
-func (t *TextInput) Build() ui.VNode {
-    return t.vnode
-}
-
-// Builder 模式
-type InputBuilder struct {
-    node *TextInput
-}
-
-func Input(placeholder string) *InputBuilder {
-    return &InputBuilder{
-        node: &TextInput{
-            vnode:      ui.NewElement("input"),
-            placeholder: placeholder,
-        },
-    }
-}
-
-func (b *InputBuilder) Value(v string) *InputBuilder {
-    b.node.value = v
-    return b
-}
-
-func (b *InputBuilder) OnChange(fn func(string)) *InputBuilder {
-    b.node.onChange = fn
-    return b
-}
-
-func (b *InputBuilder) Build() ui.VNode {
-    return b.node.Build()
-}
-```
-
-### 3.4 ui 包作为入口
-
-```go
-// ui/shortcuts.go
-
-// 提供便捷的组件构造函数
-// 这些函数代理到 components 包
-
-import (
-    "github.com/wwsheng009/mint/components/basic"
-    "github.com/wwsheng009/mint/components/form"
-    "github.com/wwsheng009/mint/components/button"
-    "github.com/wwsheng009/mint/components/layout"
-)
-
-// Text 创建文本组件
-func Text(content string) ui.VNode {
-    return basic.NewText(content).Build()
-}
-
-// Input 创建输入组件
-func Input(placeholder string) *form.InputBuilder {
-    return form.Input(placeholder)
-}
-
-// Button 创建按钮组件
-func Button(label string) *button.ButtonBuilder {
-    return button.Button(label)
-}
-
-// HStack 创建水平布局
-func HStack(children ...ui.VNode) ui.VNode {
-    return layout.HStack(children...)
-}
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                      runtime/ui/ 类型基础包架构                                      │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                  │
+│  ┌───────────────────────────────────────────────────────────────────────────┐  │    │
+│  │ 1. VNode 系统 (vnode.go)                                                      │  │    │
+│  │  ┌─────────────────────────────────────────────────────────────────────┐   │  │    │
+│  │  │ type VNode interface {                                                     │   │  │    │
+│  │  │     Type() VNodeType                                                        │   │  │    │
+│  │  │     Props() Props                                                            │   │  │    │
+│  │  │     Children() []VNode                                                       │   │  │    │
+│  │  │     Key() string                                                             │   │  │    │
+│  │  │     Style() style.Style                                                     │   │  │    │
+│  │  │ }                                                                            │   │  │    │
+│  │  │                                                                             │   │  │    │
+│  │  │ type VNodeType int (Element/Text/Component/Fragment)                       │   │  │    │
+│  │  │ type Props map[string]interface{}                                             │   │  │    │
+│  │  │ type ComponentFunc func() VNode                                              │   │  │    │
+│  │  │ type ComponentFuncWithProps func(Props) VNode                                │   │  │    │  │    │
+│  │  └─────────────────────────────────────────────────────────────────────┘   │  │    │
+│  └───────────────────────────────────────────────────────────────────────────┘  │    │
+│                                                                                  │    │
+│  ┌───────────────────────────────────────────────────────────────────────────┐  │    │
+│  │ 2. 具体节点类型 (element.go, component.go, fragment.go)                               │  │    │
+│  │  ┌─────────────────────────────────────────────────────────────────────┐   │  │    │
+│  │  │ type ElementVNode struct { ... }          // 通用元素节点                │   │  │    │
+│  │  │ type ComponentVNode struct { ... }        // 函数组件节点                │   │  │    │
+│  │  │ type FragmentVNode struct { ... }         // 片段节点                    │   │  │    │
+│  │  │                                                                             │   │  │    │
+│  │  │ // Builder 模式支持                                                           │   │  │    │
+│  │  │ type ElementBuilder struct { node *ElementVNode }                           │   │  │    │
+│  │  │ type ComponentBuilder struct { node *ComponentVNode }                         │   │  │  │    │
+│  │  └─────────────────────────────────────────────────────────────────────┘   │  │    │
+│  └───────────────────────────────────────────────────────────────────────────┘  │    │
+│                                                                                  │    │
+│  ┌───────────────────────────────────────────────────────────────────────────┐  │    │
+│  │ 3. Fiber 系统 (fiber.go, fiber_util.go)                                           │  │    │
+│  │  ┌─────────────────────────────────────────────────────────────────────┐   │  │    │
+│  │  │ type Lane uint64                           // 优先级车道                    │   │  │    │
+│  │  │ type Fiber struct { ... }                  // 工作单元                      │   │  │    │
+│  │  │ type EffectFlag int                         // 副作用标志                    │   │  │  │    │
+│  │  │                                                                             │   │  │    │
+│  │  │ // 工具函数                                                                   │   │  │    │
+│  │  │ func CreateFiber(vnode VNode) *Fiber                                      │   │  │    │
+│  │  │ func CreateFiberFromVNode(vnode VNode) *Fiber                             │   │  │    │
+│  │  │ func CloneFiber(fiber *Fiber) *Fiber                                        │   │  │    │
+│  │  │ func WalkFiberDepthFirst(root *Fiber, callback) bool                        │   │  │    │
+│  │  │ func MergeLanes(a, b Lane) Lane                                             │   │  │    │
+│  │  └─────────────────────────────────────────────────────────────────────┘   │  │    │
+│  └───────────────────────────────────────────────────────────────────────────┘  │    │
+│                                                                                  │    │
+│  ┌───────────────────────────────────────────────────────────────────────────┐  │    │
+│  │ 4. Hooks 系统 (hooks.go)                                                         │  │    │
+│  │  ┌─────────────────────────────────────────────────────────────────────┐   │  │    │
+│  │  │ type HookType int (State/Effect/Context/Memo/Ref)                          │   │  │    │
+│  │  │ type Hook struct { Type, Value, Deps, Cleanup, Initialized }                    │   │  │    │
+│  │  │ type ComponentContext struct {                                                │   │  │    │
+│  │  │     ComponentID string                                                         │   │  │    │
+│  │  │     Hooks []Hook                                                               │   │  │    │
+│  │  │     HookIndex int                                                             │   │  │    │
+│  │  │     Validator *HookValidator                                                │   │  │    │
+│  │  │ }                                                                            │   │  │    │
+│  │  │ type Ref struct { Value interface{} }                                         │   │  │    │
+│  │  │ type EffectCallback func() CleanupFunc                                        │   │  │    │
+│  │  │                                                                             │   │  │    │
+│  │  │ // 上下文管理                                                                 │   │  │    │
+│  │  │ func SetCurrentContext(ctx *ComponentContext)                                 │   │  │    │
+│  │  │ func GetCurrentContext() *ComponentContext                                  │   │  │    │
+│  │  │ func NewComponentContext(name string) *ComponentContext                       │   │  │    │
+│  │  └─────────────────────────────────────────────────────────────────────┘   │  │    │
+│  └───────────────────────────────────────────────────────────────────────────┘  │    │
+│                                                                                  │    │
+│  ┌───────────────────────────────────────────────────────────────────────────┐  │    │
+│  │ 5. Component 实例系统 (instance.go)                                               │  │    │
+│  │  ┌─────────────────────────────────────────────────────────────────────┐   │  │    │
+│  │  │ type ComponentInstance interface { ... }                                   │   │  │    │
+│  │  │ type BaseComponentInstance struct { ... }                                │   │  │    │
+│  │  │ func NewBaseComponentInstance(key string, fn ComponentFunc) *BaseComponentInstance  │   │  │    │
+│  │  └─────────────────────────────────────────────────────────────────────┘   │  │    │
+│  └───────────────────────────────────────────────────────────────────────────┘  │    │
+│                                                                                  │
+│  ✅ runtime/ui/ 提供的类型供以下包使用:                                        │
+│  - ui/ 重导出 (通过类型别名)                                                       │
+│  - components/ 实现 (VNode 接口)                                                   │
+│  - internal/reconciler/ 使用 (Fiber, Lane, Context, etc.)                             │
+└─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 三、声明式 API 设计与兼容性
+## 三、组件解耦与自绘架构
 
-### 3.1 核心承诺：声明式组件功能完全保留
-
-重构的**首要原则**是保持现有代码无需修改。用户编写的声明式组件将在重构后继续工作：
-
-```go
-// ✅ 当前写法 (重构后完全支持)
-func Counter() ui.VNode {
-    count, setCount := ui.UseState(0)
-
-    return ui.VStack(
-        ui.Text(fmt.Sprintf("Count: %d", count)),
-        ui.HStack(
-            ui.Button("-").OnClick(func() { setCount(count - 1) }),
-            ui.Text(fmt.Sprintf("%d", count)),
-            ui.Button("+").OnClick(func() { setCount(count + 1) }),
-        ),
-        ui.Input("Name").Value(name),
-    )
-}
-```
-
-### 3.2 三种 API 层次并存
-
-重构后提供三种使用方式，满足不同场景需求：
-
-#### 方式 1: 声明式函数（推荐，最简洁）
-
-```go
-// 快速构建 UI，适合大多数场景
-func MyApp() ui.VNode {
-    return ui.VStack(
-        ui.Text("Hello"),
-        ui.Button("Click"),
-    )
-}
-```
-
-#### 方式 2: Builder 模式（复杂配置）
-
-```go
-// 需要多属性配置时使用
-ui.Input("Name").
-    Placeholder("Enter name").
-    Value(value).
-    OnChange(func(s string) { value = s }).
-    Style(style.Style{}.Fg(color.Cyan))
-```
-
-#### 方式 3: 直接导入（高级用法）
-
-```go
-// 需要访问组件特有方法或精细控制时
-import "github.com/wwsheng009/mint/components/form"
-
-input := form.NewInput()
-// ... 直接操作 input
-```
-
-### 3.3 API 桥接层设计
-
-```go
-// ui/shortcuts.go - API 桥接层
-
-package ui
-
-// 基础组件快捷函数
-func Text(content string) ui.VNode {
-    return components.basic.Text(content).Build()
-}
-
-func Icon(name string) ui.VNode {
-    return components.basic.Icon(name).Build()
-}
-
-// 布局组件快捷函数
-func HStack(children ...ui.VNode) ui.VNode {
-    return components.layout.HStack(children...)
-}
-
-func VStack(children ...ui.VNode) ui.VNode {
-    return components.layout.VStack(children...)
-}
-
-// 表单组件快捷函数 - 返回 Builder 以支持链式调用
-func Input(placeholder string) *components.form.InputBuilder {
-    return components.form.Input(placeholder)
-}
-
-func Checkbox(label string) *components.form.CheckboxBuilder {
-    return components.form.Checkbox(label)
-}
-
-// 按钮组件快捷函数
-func Button(label string) *components.button.ButtonBuilder {
-    return components.button.Button(label)
-}
-```
-
-### 3.4 完整示例：重构前后对比
-
-#### 重构前（当前）
-
-```go
-package main
-
-import (
-    "fmt"
-    "github.com/wwsheng009/mint/ui"
-)
-
-func Counter() ui.VNode {
-    count, setCount := ui.UseState(0)
-
-    return ui.VStack(
-        ui.Text(fmt.Sprintf("Count: %d", count)),
-        ui.HStack(
-            ui.Button("-").OnClick(func() { setCount(count - 1) }),
-            ui.Text(fmt.Sprintf("%d", count)),
-            ui.Button("+").OnClick(func() { setCount(count + 1) }),
-        ),
-    )
-}
-
-func main() {
-    ui.Run(Counter)
-}
-```
-
-#### 重构后（保持不变！）
-
-```go
-package main
-
-import (
-    "fmt"
-    "github.com/wwsheng009/mint/ui"  // ← 仅此导入不变
-)
-
-func Counter() ui.VNode {  // ← 函数签名不变
-    count, setCount := ui.UseState(0)  // ← Hooks 用法不变
-
-    return ui.VStack(  // ← 声明式组件不变
-        ui.Text(fmt.Sprintf("Count: %d", count)),  // ← 简单组件不变
-        ui.HStack(  // ← 布局组件不变
-            ui.Button("-").OnClick(func() { setCount(count - 1) }),  // ← 链式调用不变
-            ui.Text(fmt.Sprintf("%d", count)),
-            ui.Button("+").OnClick(func() { setCount(count + 1) }),
-        ),
-    )
-}
-
-func main() {
-    ui.Run(Counter)  // ← 运行方式不变
-}
-```
-
-**关键点**：用户代码 **零修改**！
-
-### 3.5 新增能力：直接导入组件
-
-重构后，用户还可以选择直接导入组件：
-
-```go
-package main
-
-import (
-    "fmt"
-    "github.com/wwsheng009/mint/ui"              // 核心 API
-    "github.com/wwsheng009/mint/components/form"  // 表单组件
-    "github.com/wwsheng009/mint/components/button" // 按钮组件
-)
-
-func Counter() ui.VNode {
-    count, setCount := ui.UseState(0)
-
-    // 方式 1: 使用 ui 快捷函数
-    incrementBtn := ui.Button("+").OnClick(func() { setCount(count + 1) })
-
-    // 方式 2: 直接使用 form.Button (可访问更多方法)
-    nameInput := form.Input("Name").
-        Placeholder("Enter name").
-        MaxLength(20).
-        Validator(func(s string) error {
-            if len(s) < 3 {
-                return fmt.Errorf("name too short")
-            }
-            return nil
-        })
-
-    return ui.VStack(
-        ui.Text(fmt.Sprintf("Count: %d", count)),
-        incrementBtn,
-        nameInput.Build(),  // Builder 需要调用 Build()
-    )
-}
-```
-
-### 3.6 API 迁移路径
+### 3.1 组件自绘接口（避免循环引用）
 
 ```
-Phase 0 (当前)          Phase 1 (重构后)       Phase 2 (新增能力)
-─────────────────    ───────────────────    ──────────────────
-ui.Text("Hello")  →  ui.Text("Hello")   →  三种方式并存
-                      (零代码改动)         (新增直接导入)
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                    组件自绘架构 - runtime/ui/ 作为类型中心                         │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                  │
+│  原则: runtime/ui/ 定义所有类型 → components/ 实现 VNode → reconciler/ 调用              │
+│                                                                                  │
+│  ┌───────────────────────────────────────────────────────────────────────────┐  │    │
+│  │ 1. runtime/ui/ (类型定义层 - 新增核心)                                        │  │    │
+│  │  ┌─────────────────────────────────────────────────────────────────────┐   │  │    │
+│  │  │ // vnode.go - VNode 接口定义                                                │   │  │    │
+│  │  │ type VNode interface { ... }                                                 │   │  │    │
+│  │  │                                                                             │   │  │    │
+│  │  │ // fiber.go - Fiber 相关类型                                                   │   │  │    │
+│  │  │ type Lane uint64                                                           │   │  │    │
+│  │  │ type Fiber struct { ... }                                                    │   │  │  │    │
+│  │  │ type EffectFlag int                                                          │   │  │    │
+│  │  │                                                                             │   │  │    │
+│  │  │ // hooks.go - Hooks 相关类型                                                   │   │  │    │
+│  │  │ type ComponentContext struct { ... }                                         │   │  │    │
+│  │  │ type Hook struct { ... }                                                     │   │  │    │
+│  │  │ type Ref struct { Value interface{} }                                         │   │  │    │
+│  │  │                                                                             │   │  │    │
+│  │  │ // instance.go - Component 实例类型                                           │   │  │    │
+│  │  │ type ComponentInstance interface { ... }                                    │   │  │    │
+│  │  │ type BaseComponentInstance struct { ... }                                 │   │  │    │
+│  │  └─────────────────────────────────────────────────────────────────────┘   │  │    │
+│  └───────────────────────────────────────────────────────────────────────────┘  │    │
+│                              ↑ 实现 VNode 接口                                  │    │
+│  ┌───────────────────────────────────────────────────────────────────────────┐  │    │
+│  │ 2. components/ (组件实现层)                                                     │  │    │
+│  │  ┌─────────────────────────────────────────────────────────────────────┐   │  │    │
+│  │  │ // components/basic/text.go                                                   │   │  │    │
+│  │  │ package basic                                                                  │   │  │    │
+│  │  │ import (                                                                       │   │  │    │
+│  │  │     "github.com/wwsheng009/mint/runtime/ui"                             │   │  │    │
+│  │  │     "github.com/wwsheng009/mint/runtime/paint"                              │   │  │    │
+│  │  │ )                                                                               │   │  │    │
+│  │  │                                                                               │   │  │    │
+│  │  │ // TextVNode 实现 types.VNode 接口                                              │   │  │    │
+│  │  │ type TextVNode struct {                                                         │   │  │    │
+│  │  │     content string                                                               │   │  │    │
+│  │  │     key     string                                                               │   │  │    │
+│  │  │     props   types.Props                                                        │   │  │    │
+│  │  │     style   runtime.Style                                                      │   │  │    │
+│  │  │ }                                                                                │   │  │    │
+│  │  │                                                                               │   │  │    │
+│  │  │ // 实现 types.VNode 接口方法                                                   │   │  │    │
+│  │  │ func (t *TextVNode) Type() types.VNodeType { return types.VNodeText }        │   │  │    │
+│  │  │ func (t *TextVNode) Props() types.Props { return t.props }                     │   │  │    │
+│  │  │ // ... 其他方法                                                                 │   │  │    │
+│  │  │                                                                               │   │  │    │
+│  │  │ // 实现 paint.Paintable 接口                                                    │   │  │    │
+│  │  │ func (t *TextVNode) Paint(x, y int) []paint.DrawCmd { ... }                 │   │  │    │
+│  │  │                                                                               │   │ │    │
+│  │  │ // 实现 runtime.Measurable 接口                                              │   │  │  │    │
+│  │  │ func (t *TextVNode) Measure(c runtime.BoxConstraints) runtime.Size {  │   │  │    │
+│  │  │     // ...                                                                         │   │  │    │
+│  │  │ }                                                                                │   │  │    │
+│  │  └─────────────────────────────────────────────────────────────────────┘   │  │    │
+│  └───────────────────────────────────────────────────────────────────────────┘  │    │
+│                              ↑ 通过类型断言调用 Paint/Measure                      │    │
+│  ┌───────────────────────────────────────────────────────────────────────────┐  │    │
+│  │ 3. internal/reconciler/ (协调器 - 渲染协调)                                       │  │    │
+│  │  ┌─────────────────────────────────────────────────────────────────────┐   │  │    │
+│  │  │ // renderFiberToBuffer 渲染 Fiber 树到 Buffer                                     │   │  │    │
+│  │  │ func (r *Reconciler) renderFiberToBuffer(fiber, x, y int, buffer) {   │   │  │    │
+│  │  │     switch v := fiber.VNode.(type) {                                          │   │  │    │
+│  │  │     case types.VNodeText:  // 通过类型断言获取组件方法                          │   │  │  │    │
+│  │  │         if p, ok := v.(paint.Paintable); ok {                                │   │  │    │
+│  │  │             cmds := p.Paint(x, y)                                           │   │  │    │
+│  │  │             // 执行绘制命令                                                   │   │  │  │    │
+│  │  │         }                                                                   │   │  │    │
+│  │  │     }                                                                       │   │  │    │
+│  │  │ }                                                                             │   │  │    │
+│  │  │ }                                                                             │   │  │    │
+│  │  └─────────────────────────────────────────────────────────────────────┘   │  │    │
+│  └───────────────────────────────────────────────────────────────────────────┘  │    │
+│                                                                                  │
+│  ✅ 无循环依赖:                                                                  │
+│  - components/ 导入 runtime/ui (类型定义)                                      │
+│  │             runtime/paint (接口)                                               │
+│  - ui/ 导入 runtime/ui 并重导出 (类型别名)                                       │
+│  - internal/reconciler/ 导入 runtime/ui 和 runtime/paint                             │
+│  - reconciler/ 不导入 ui/，避免循环                                              │
+└─────────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 3.2 ui/ 与 components/ 的正确分工
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                      ui/ 和 components/ 的职责划分 (已更新 runtime/ui)                   │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                  │
+│  ┌───────────────────────────────────────────────────────────────────────────┐  │    │
+│  │ ui/ (API 入口层 - 精简，重导出 runtime/ui)                                      │  │    │
+│  │ ┌─────────────────────────────────────────────────────────────────────┐  │  │    │
+│  │ │ 只保留:                                                                        │  │  │    │
+│  │ │ ├── vnode.go              # VNode = types.VNode (类型别名重导出)           │  │  │    │
+│  │ │ ├── element.go            # ElementVNode = types.ElementVNode (重导出)    │  │ │    │
+│  │ │ ├── component.go           # ComponentVNode = types.ComponentVNode (重导出) │  │  │    │
+│  │ │ ├── fragment.go            # FragmentVNode = types.FragmentVNode (重导出)   │  │  │    │
+│  │ │ ├── fiber.go               # Fiber = types.Fiber (重导出)                    │  │  │    │
+│  │ │ ├── hooks.go               # UseState, UseEffect (实现，使用 types.Context)  │  │ │    │
+│  │ │ ├── instance.go            # ComponentInstance = types.ComponentInstance   │  │  │    │
+│  │ │ ├── validator.go           # HookValidator = types.HookValidator         │  │  │    │
+│ │ │ ├── layout.go              # HStack, VStack, Box (重导出 types)            │  │  │    │
+│  │ │ ├── compat.go              # 兼容性存根 (临时，用于 reconciler)        │  │  │    │
+│  │ │ └── shortcuts.go            # 重新导出 components (如需要)             │  │  │    │
+│  │ └─────────────────────────────────────────────────────────────────────┘  │  │    │
+│  └───────────────────────────────────────────────────────────────────────────┘  │    │
+│                              ↓ 实现 types.VNode 接口                             │    │
+│  ┌───────────────────────────────────────────────────────────────────────────┐  │    │
+│  │ components/ (组件实现层 - 唯一定义)                                             │  │    │
+│  │ ┌─────────────────────────────────────────────────────────────────────┐  │  │    │
+│  │ │ 组件的完整实现:                                                                  │  │  │    │
+│  │ │                                                                               │  │  │    │
+│  │ │ components/basic/text.go:                                                       │  │ │    │
+│  │ │   type TextVNode struct { content, key, props, style }                             │  │  │    │
+│  │ │   func (t *TextVNode) Type() types.VNodeType { return types.VNodeText }       │  │  │    │
+│  │ │   func (t *TextVNode) Props() types.Props { return t.props }                      │  │  │    │
+│  │ │   // ... 其他 types.VNode 接口方法                                              │  │  │    │
+│  │ │   func (t *TextVNode) Paint(x, y int) []paint.DrawCmd { ... }                 │  │  │    │
+│  │ │                                                                               │  │  │    │
+│  │ │ components/button/button.go:                                                    │  │  │    │
+│  │ │   type ButtonVNode struct { label, onClick, ... }                            │  │  │    │
+│  │ │   func (b *ButtonVNode) Type() types.VNodeType { ... }                         │  │  │  │    │
+│  │ │   func (b *ButtonVNode) Paint(x, y int) []paint.DrawCmd { ... }               │  │  │  │    │
+│  │ └─────────────────────────────────────────────────────────────────────┘  │  │    │
+│  └───────────────────────────────────────────────────────────────────────────┘  │    │
+│                                                                                  │
+│  ✅ 关键设计:                                                                      │
+│  - runtime/ui/ 作为唯一的类型定义来源                                            │
+│  - ui/ 通过类型别名重导出，保持向后兼容                                                 │
+│  - components/ 实现 types.VNode 接口                                                 │
+│  - internal/ 使用 types 类型，不依赖 ui/                                            │
+└─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
 ## 四、核心模块重构
 
-### 4.1 渲染流程重构
+### 4.1 runtime/ui/ 包结构（已完成）
 
-当前问题：`renderVNode` 直接写 Buffer
+```
+runtime/ui/
+├── vnode.go         # VNode 接口, VNodeType, Props, ComponentFunc
+├── element.go       # ElementVNode, ElementBuilder
+├── component.go     # ComponentVNode, ComponentBuilder
+├── fragment.go       # FragmentVNode, Fragment()
+├── fiber.go          # Lane, Fiber, EffectFlag, UpdateQueue
+├── fiber_util.go     # CreateFiber, CloneFiber, WalkFiber*, MergeLanes
+├── hooks.go          # ComponentContext, Hook, Ref, EffectCallback
+├── instance.go       # ComponentInstance, BaseComponentInstance
+├── validator.go      # HookValidator, HookOrderError
+└── layout.go         # LayoutNode, Direction, Align, HStack, VStack
+```
+
+### 4.2 类型重导出设计（ui/ → runtime/ui/）
+
+```go
+// ui/vnode.go - 通过类型别名重导出 runtime/ui
+
+package ui
+
+import "github.com/wwsheng009/mint/runtime/ui"
+
+// VNode 是虚拟节点接口 - 核心的声明式 UI 系统
+type VNode = types.VNode
+
+// VNodeType 代表 VNode 的类型
+type VNodeType = types.VNodeType
+
+const (
+    VNodeElement   = types.VNodeElement
+    VNodeText      = types.VNodeText
+    VNodeComponent = types.VNodeComponent
+    VNodeFragment  = types.VNodeFragment
+)
+
+// Props 表示 VNode 的属性映射
+type Props = types.Props
+
+// ComponentFunc 代表返回 VNode 的函数组件
+type ComponentFunc = types.ComponentFunc
+
+// ComponentFuncWithProps 代表接受 Props 的组件
+type ComponentFuncWithProps = types.ComponentFuncWithProps
+```
+
+### 4.3 渲染流程重构
 
 目标流程：
 ```
-VNode Tree
-    ↓ Measure
+VNode Tree (components/ 实现)
+    ↓ Measure (runtime.Measurable)
 Layout Tree (with x,y,w,h)
-    ↓ Paint (生成 DrawCmd)
+    ↓ Paint (paint.Paintable)
 Render Tree (DrawCmd[])
     ↓ Rasterize
 Buffer
-```
-
-### 4.2 DrawCmd 模式 (已部分实现)
-
-`runtime/paint` 已有 `Painter` 和 `PaintContext`，需要明确：
-
-```go
-// internal/render/render_tree.go
-
-// DrawCmd 绘制命令接口
-type DrawCmd interface {
-    // 命令的类型，用于批量优化
-    Type() CmdType
-    // 执行绘制
-    Execute(painter *paint.Painter)
-}
-
-type CmdType int
-
-const (
-    CmdText CmdType = iota
-    CmdFill
-    CmdBox
-   CmdCustom
-)
-
-// TextCmd 文本绘制命令
-type TextCmd struct {
-    X, Y  int
-    Text  string
-    Style style.Style
-}
-
-func (c *TextCmd) Type() CmdType { return CmdText }
-func (c *TextCmd) Execute(painter *paint.Painter) {
-    painter.Print(c.X, c.Y, c.Text, c.Style)
-}
-```
-
-### 4.3 多组件支持
-
-当前：单一 `declarativeRoot`
-
-目标：支持多个独立的声明式组件
-
-```go
-// internal/render/declarative_node.go
-
-// DeclarativeNode 可独立渲染的声明式节点
-type DeclarativeNode struct {
-    component.Component
-
-    // 声明式特有
-    componentFn ui.ComponentFunc
-    ctx         *ui.ComponentContext
-    reconciler   *reconciler.Reconciler
-    instanceMgr  *state.InstanceManager
-
-    // 局部渲染
-    buffer       *paint.Buffer  // 可选：独立缓冲区
-    bounds       paint.Rect      // 渲染边界
-}
-
-// RenderTo 渲染到指定区域
-func (d *DeclarativeNode) RenderTo(x, y int, buffer *paint.Buffer) {
-    ctx := paint.NewPaintContext(buffer, paint.Rect{
-        X: x, Y: y,
-        Width: d.bounds.Width,
-        Height: d.bounds.Height,
-    })
-
-    // 执行渲染流程
-    d.reconciler.Render(ctx, buffer, d.componentFn)
-}
-```
-
-### 4.4 焦点系统解耦
-
-当前：全局 `focusedIndex` + 集中收集按钮
-
-目标：每个组件可管理自己的焦点
-
-```go
-// internal/state/focus_manager.go
-
-// FocusManager 焦点管理器
-type FocusManager struct {
-    mu       sync.RWMutex
-    focused  string // 当前焦点组件 ID
-    root     *FocusScope
-}
-
-// FocusScope 焦点作用域
-type FocusScope struct {
-    id       string
-    parent   *FocusScope
-    children []*FocusScope
-    focusable []string // 可聚焦的组件 ID
-    current  int      // 当前焦点索引
-}
-
-// NewFocusManager 创建焦点管理器
-func NewFocusManager() *FocusManager {
-    return &FocusManager{
-        root: &FocusScope{id: "root"},
-    }
-}
-
-// Register 注册可聚焦组件
-func (fm *FocusManager) Register(scopeID, componentID string) {
-    // ...
-}
-
-// Focus 设置焦点
-func (fm *FocusManager) Focus(componentID string) bool {
-    // ...
-}
-
-// Next 下一个焦点
-func (fm *FocusManager) Next() {
-    // ...
-}
-
-// Prev 上一个焦点
-func (fm *FocusManager) Prev() {
-    // ...
-}
 ```
 
 ---
 
 ## 五、实施路线图
 
-### Phase 1: 基础重构 (Week 1-2)
+### Phase 1: 类型基础迁移 ✅ 已完成
 
-**目标**: 目录重组，接口定义
-
-```
-┌─────────────────────────────────────────────┐
-│ Week 1                                      │
-├─────────────────────────────────────────────┤
-│ Day 1-2: 创建目录结构                        │
-│   ├── 创建 components/ 各子目录             │
-│   ├── 创建 internal/ 各子目录               │
-│   └── 创建接口定义文件                       │
-│                                              │
-│ Day 3-4: 迁移核心文件到 internal/            │
-│   ├── reconciler/                           │
-│   ├── scheduler/                            │
-│   └── state/                                │
-│                                              │
-│ Day 5: 更新导入路径，确保编译通过            │
-└─────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────┐
-│ Week 2                                      │
-├─────────────────────────────────────────────┤
-│ Day 1-3: 迁移组件到 components/             │
-│   ├── 从 ui/ 提取组件到各分类目录            │
-│   ├── 保持 Builder 模式                      │
-│   └── 添加 components 包的 public.go         │
-│                                              │
-│ Day 4-5: 更新 ui/ 作为入口层                 │
-│   ├── 精简 ui/app.go                         │
-│   ├── 添加 shortcuts.go                      │
-│   └── 保持向后兼容的 API                     │
-└─────────────────────────────────────────────┘
-```
-
-### Phase 2: 渲染重构 (Week 3-4)
-
-**目标**: 实现完整的渲染管线
+**目标**: 创建 runtime/ui/ 包，迁移所有核心类型
 
 ```
-┌─────────────────────────────────────────────┐
-│ Week 3                                      │
-├─────────────────────────────────────────────┤
-│ Day 1-2: RNode 系统实现                     │
-│   ├── RNode 数据结构                        │
-│   ├── VNode → RNode 转换                    │
-│   └── RNode 树遍历                           │
-│                                              │
-│ Day 3-4: Layout Engine                       │
-│   ├── 约束系统                               │
-│   ├── 测量传递                               │
-│   └── 布局计算                               │
-│                                              │
-│ Day 5: Render Tree                          │
-│   ├── DrawCmd 收集                           │
-│   └── 渲染命令优化                           │
-└─────────────────────────────────────────────┘
+✅ runtime/ui/vnode.go          # VNode 接口, VNodeType, Props
+✅ runtime/ui/element.go        # ElementVNode, ElementBuilder
+✅ runtime/ui/component.go      # ComponentVNode, ComponentBuilder
+✅ runtime/ui/fragment.go      # FragmentVNode
+✅ runtime/ui/fiber.go         # Lane, Fiber, EffectFlag
+✅ runtime/ui/fiber_util.go    # CreateFiber, CloneFiber, 等
+✅ runtime/ui/hooks.go         # ComponentContext, Hook, Ref
+✅ runtime/ui/instance.go      # ComponentInstance
+✅ runtime/ui/validator.go     # HookValidator
+✅ runtime/ui/layout.go        # LayoutNode, HStack, VStack
 
-┌─────────────────────────────────────────────┐
-│ Week 4                                      │
-├─────────────────────────────────────────────┤
-│ Day 1-2: Rasterizer                         │
-│   ├── DrawCmd 执行                           │
-│   ├── 裁剪与变换                             │
-│   └── Buffer 写入                            │
-│                                              │
-│ Day 3-4: 集成测试                            │
-│   ├── 端到端渲染测试                         │
-│   ├── 性能基准测试                           │
-│   └── 内存泄漏检测                           │
-│                                              │
-│ Day 5: 文档更新                              │
-└─────────────────────────────────────────────┘
+✅ ui/vnode.go                   # 重导出 types.VNode
+✅ ui/element.go                  # 重导出 types.ElementVNode
+✅ ui/component.go                # 重导出 types.ComponentVNode
+✅ ui/fragment.go                  # 重导出 types.FragmentVNode
+✅ ui/layout.go                    # 重导出 types.LayoutNode
+✅ ui/fiber.go                     # 重导出 types.Fiber
+✅ ui/hooks.go                     # 使用 types.ComponentContext
+✅ ui/instance.go                  # 重导出 types.ComponentInstance
+✅ ui/validator.go                 # 重导出 types.HookValidator
+
+✅ ui/compat.go                    # 兼容性存根（临时）
 ```
 
-### Phase 3: 组件完善 (Week 5-6)
-
-**目标**: 完善组件库
+### Phase 2: 组件库迁移 ✅ 已完成
 
 ```
-┌─────────────────────────────────────────────┐
-│ Week 5                                      │
-├─────────────────────────────────────────────┤
-│ Day 1-2: 补充基础组件                        │
-│   ├── Icon, Separator, Spacer              │
-│   └── 样式统一                               │
-│                                              │
-│ Day 3-4: 补充表单组件                        │
-│   ├── TextArea 完善                         │
-│   ├── Switch, Slider                        │
-│   └── Field 包装器                           │
-│                                              │
-│ Day 5: 补充反馈组件                          │
-│   ├── Toast, Alert                          │
-│   └── Badge                                  │
-└─────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────┐
-│ Week 6                                      │
-├─────────────────────────────────────────────┤
-│ Day 1-2: 补充导航组件                        │
-│   ├── Tabs, Menu                            │
-│   └── Sidebar                                │
-│                                              │
-│ Day 3-4: 补充容器组件                        │
-│   ├── Panel, SplitPane                      │
-│   └── ScrollArea                             │
-│                                              │
-│ Day 5: 示例更新                              │
-└─────────────────────────────────────────────┘
+✅ components/basic/text.go
+✅ components/basic/divider.go
+✅ components/layout/
+✅ components/form/
+✅ components/button/
+✅ components/feedback/
+✅ components/data/
+✅ components/navigation/
+✅ components/overlay/
 ```
 
-### Phase 4: 高级特性 (Week 7+)
-
-**目标**: 动画、并发、DevTools
+### Phase 3: Reconciler 迁移 ✅ 进行中
 
 ```
-Week 7+: 动画系统 + 并发模式 + DevTools
+✅ internal/reconciler/vnode_converter.go
 ```
 
 ---
@@ -854,7 +581,7 @@ Week 7+: 动画系统 + 并发模式 + DevTools
 | 验证项 | 标准 | 测试方法 |
 |--------|------|----------|
 | API 兼容性 | 所有公开 API 仍然可用 | 运行现有示例 |
-| 组件独立 | 组件可独立导入使用 | `import "github.com/wwsheng009/mint/components/form"` |
+| 类型独立 | runtime/ui/ 可独立导入 | `import "github.com/wwsheng009/mint/runtime/ui"` |
 | 渲染正确 | 与当前实现输出一致 | 视觉对比测试 |
 | 性能不退化 | 关键操作性能保持 | 基准测试 |
 
@@ -862,60 +589,27 @@ Week 7+: 动画系统 + 并发模式 + DevTools
 
 | 验证项 | 标准 |
 |--------|------|
-| 分层清晰 | ui/ → components/ → internal/ → framework/ |
-| 职责单一 | 每个包只有一个明确职责 |
-| 依赖单向 | 无循环依赖 |
-| 接口稳定 | public.go 定义的接口稳定 |
+| 分层清晰 | runtime/ui/ → ui/ → components/ → internal/ |
+| 职责单一 | runtime/ui/ 只负责类型定义 |
+| 依赖单向 | internal/ 不依赖 ui/，只依赖 runtime/ui/ |
+| 接口稳定 | runtime/ui/ 定义的接口稳定 |
 
 ### 6.3 代码质量
 
 ```bash
 # 验证命令
-go build ./...                    # 编译通过
-go test ./... -cover               # 测试覆盖率 > 70%
-go vet ./...                       # 静态检查
-golangci-lint run                  # 代码质量
+go build ./ui/...                # ui/ 编译通过
+go build ./internal/...           # internal/ 编译通过
+go build ./runtime/ui/...       # runtime/ui/ 编译通过
+go build ./components/...         # components/ 编译通过
 ```
 
 ---
 
-## 附录
-
-### A. 文件迁移清单
-
-| 源文件 | 目标 | 优先级 |
-|--------|------|--------|
-| ui/fiber.go | internal/reconciler/fiber.go | P0 |
-| ui/reconciler.go | internal/reconciler/reconciler.go | P0 |
-| ui/diff.go | internal/reconciler/diff.go | P0 |
-| ui/begin_work.go | internal/reconciler/begin_work.go | P0 |
-| ui/complete_work.go | internal/reconciler/complete_work.go | P0 |
-| ui/scheduler.go | internal/scheduler/ui_scheduler.go | P0 |
-| ui/instance.go | internal/state/instance.go | P0 |
-| ui/instance_manager.go | internal/state/instance_manager.go | P0 |
-| ui/interaction_state.go | internal/state/interaction_state.go | P0 |
-| ui/button.go | components/button/button.go | P1 |
-| ui/input.go | components/form/input.go | P1 |
-| ui/checkbox.go | components/form/checkbox.go | P1 |
-| ui/select.go | components/form/select.go | P1 |
-| ui/textarea.go | components/form/textarea.go | P1 |
-| ui/progress.go | components/feedback/progress.go | P1 |
-| ui/modal.go | components/overlay/modal.go | P1 |
-| ui/tooltip.go | components/overlay/tooltip.go | P1 |
-| ui/virtuallist.go | components/data/virtuallist.go | P1 |
-| ui/layout.go | components/layout/stack.go | P1 |
-| ui/absolute.go | components/layout/absolute.go | P1 |
-| ui/grid.go | components/layout/grid.go | P1 |
-| ui/text.go | components/basic/text.go | P1 |
-
-### B. 关键设计决策
-
-1. **components/ 对外公开** - 用户可以直接 `import "github.com/wwsheng009/mint/components/form"`
-2. **ui/ 作为快捷入口** - 提供 `ui.Input()` 等便捷函数
-3. **internal/ 完全隐藏** - 实现细节不对外暴露
-4. **向后兼容** - 保留所有现有 API，渐进式迁移
-
----
-
-**文档版本**: v1.0
-**最后更新**: 2026-02-01
+**文档版本**: v1.2 (runtime/ui 基础包)
+**最后更新**: 2026-02-02
+**更新内容**:
+- ✅ 新增 runtime/ui/ 作为类型基础包
+- ✅ 更新架构分层图，展示 runtime/ui/ 的中心地位
+- ✅ 明确类型重导出设计（ui/ 通过类型别名重导出）
+- ✅ 更新依赖关系图，消除循环依赖
