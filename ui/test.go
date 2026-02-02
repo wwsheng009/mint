@@ -10,6 +10,7 @@ import (
 	"github.com/wwsheng009/mint/internal/render"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/platform"
+	"github.com/wwsheng009/mint/sandbox"
 	"github.com/wwsheng009/mint/sandbox/mock"
 )
 
@@ -157,8 +158,16 @@ func TestWithSize(w, h int) TestOption {
 
 // TestRunWithConfig 使用自定义配置运行测试应用
 func TestRunWithConfig(app interface{}, config interface{}) (*TestApp, error) {
-	// Simplified implementation
-	return TestRun(app, TestWithSize(80, 24))
+	// Try to use *sandbox.Config if provided
+	var width, height int
+	if sbConfig, ok := config.(*sandbox.Config); ok {
+		width = sbConfig.Width
+		height = sbConfig.Height
+	} else {
+		width = 80
+		height = 24
+	}
+	return TestRun(app, TestWithSize(width, height))
 }
 
 // ============================================================================
@@ -171,6 +180,7 @@ type TestableApp struct {
 	fwApp   *framework.App
 	root    *render.DeclarativeNode
 	opts    *Options
+	sandbox *mock.MockSandbox
 }
 
 // RunTest 运行可测试的应用（在后台运行，支持事件注入）
@@ -224,8 +234,58 @@ func RunTest(app ComponentFunc, opts ...Option) (*TestableApp, error) {
 
 // RunTestWithSandbox 使用 MockSandbox 作为事件源进行测试
 func RunTestWithSandbox(app ComponentFunc, opts ...Option) (*TestableApp, error) {
-	// For now, just use RunTest - sandbox integration can be added later
-	return RunTest(app, opts...)
+	options := &Options{
+		Width:  80,
+		Height: 24,
+		Title:  "Mint UI Test",
+		FPS:    60,
+	}
+
+	for _, opt := range opts {
+		opt(options)
+	}
+
+	// Create MockSandbox for testing
+	sb := mock.New(options.Width, options.Height)
+	if err := sb.Initialize(nil); err != nil {
+		return nil, err
+	}
+
+	// Create the framework app
+	fwApp := framework.NewApp()
+	fwApp.Resize(options.Width, options.Height)
+
+	// Initialize theme (optional, don't fail on error)
+	fwApp.InitTheme("dark")
+
+	// Set global appInstance
+	appInstance = fwApp
+
+	// Create the declarative root component using internal/render
+	declarativeNode := render.NewDeclarativeNodeFromFunc(app)
+
+	// Set as root
+	fwApp.SetRoot(declarativeNode)
+
+	// Run the app in background (Run will call Init)
+	go func() {
+		fwApp.Run()
+	}()
+
+	// Wait for app to start running
+	for i := 0; i < 200; i++ {
+		if fwApp.GetState() == framework.StateRunning {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	return &TestableApp{
+		fwApp:   fwApp,
+		root:    declarativeNode,
+		opts:    options,
+		sandbox: sb,
+	}, nil
 }
 
 // InjectKey 注入字符键
@@ -354,6 +414,9 @@ func (ta *TestableApp) AssertNotRender(text string) error {
 
 // Close 关闭测试应用
 func (ta *TestableApp) Close() error {
+	if ta.sandbox != nil {
+		ta.sandbox.Close()
+	}
 	return ta.fwApp.Close()
 }
 
@@ -369,8 +432,7 @@ func (ta *TestableApp) GetDeclarativeRoot() *render.DeclarativeNode {
 
 // GetSandbox 获取 MockSandbox（仅在使用 RunTestWithSandbox 创建时可用）
 func (ta *TestableApp) GetSandbox() *mock.MockSandbox {
-	// Not implemented in basic RunTest
-	return nil
+	return ta.sandbox
 }
 
 // GetFocusedIndex 获取当前焦点元素索引

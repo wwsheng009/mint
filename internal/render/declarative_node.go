@@ -6,6 +6,7 @@ import (
 	"os"
 	"sync"
 
+	"github.com/wwsheng009/mint/framework"
 	"github.com/wwsheng009/mint/framework/component"
 	frameworkevent "github.com/wwsheng009/mint/framework/event"
 	"github.com/wwsheng009/mint/runtime"
@@ -26,6 +27,10 @@ type DeclarativeNode struct {
 	renderFn  rtui.ComponentFunc     // Function that renders the VNode
 	instance  *rtui.ComponentContext // Component instance for hooks
 	focusMgr  *rtui.VNodeFocusManager // Focus manager for keyboard navigation
+
+	// Fiber reconciler integration
+	reconciler rtui.Reconciler // Fiber reconciler (if enabled) - use interface to avoid import cycle
+	useFiber   bool            // Whether Fiber mode is enabled
 }
 
 // NewDeclarativeNode creates a new declarative node from a VNode
@@ -41,7 +46,32 @@ func NewDeclarativeNodeFromFunc(fn rtui.ComponentFunc) *DeclarativeNode {
 		renderFn: fn,
 		instance: rtui.NewComponentContextForRoot(),
 		focusMgr: rtui.NewVNodeFocusManager(),
+		useFiber: false, // Default to non-Fiber mode
 	}
+}
+
+// NewDeclarativeNodeFromFuncWithFiber creates a new declarative node with Fiber reconciler enabled
+// This function is called from ui.Run when MINT_USE_FIBER is set
+func NewDeclarativeNodeFromFuncWithFiber(fn rtui.ComponentFunc, fwApp *framework.App) *DeclarativeNode {
+	// Import the reconciler package here to avoid import cycles in ui package
+	// This is safe because internal/render can import internal/reconciler
+	r := newFiberReconciler(fwApp, fn)
+	return &DeclarativeNode{
+		renderFn:  fn,
+		instance:  rtui.NewComponentContextForRoot(),
+		focusMgr:  rtui.NewVNodeFocusManager(),
+		reconciler: r,
+		useFiber:  true,
+	}
+}
+
+// SetReconciler sets the Fiber reconciler for this node
+// This is called by ui.Run when Fiber mode is enabled
+func (n *DeclarativeNode) SetReconciler(r rtui.Reconciler) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.reconciler = r
+	n.useFiber = r != nil
 }
 
 // =============================================================================
@@ -110,9 +140,35 @@ func (n *DeclarativeNode) Paint(ctx component.PaintContext, buf *paint.Buffer) {
 
 	// Debug logging
 	if os.Getenv("TUI_DEBUG_UI") == "true" {
-		fmt.Fprintf(os.Stderr, "DeclarativeNode.Paint: ctx.X=%d, ctx.Y=%d, buf=%dx%d\n", ctx.X, ctx.Y, buf.Width, buf.Height)
+		fmt.Fprintf(os.Stderr, "DeclarativeNode.Paint: ctx.X=%d, ctx.Y=%d, buf=%dx%d, useFiber=%v\n",
+			ctx.X, ctx.Y, buf.Width, buf.Height, n.useFiber)
 	}
 
+	// If Fiber reconciler is enabled, use it for rendering
+	if n.useFiber && n.reconciler != nil {
+		// The reconciler handles the entire render cycle
+		// We need to call it with the render function
+		n.reconciler.Render(ctx, buf, func() rtui.VNode {
+			if n.renderFn != nil {
+				return n.renderFn()
+			}
+			return n.root
+		})
+
+		// After reconciler renders, update root for event handling
+		if n.renderFn != nil {
+			n.root = n.renderFn()
+		}
+
+		// Collect focusable nodes
+		if n.focusMgr != nil && n.root != nil {
+			focusable := rtui.CollectFocusable(n.root)
+			n.focusMgr.SetFocusable(focusable)
+		}
+		return
+	}
+
+	// Non-Fiber mode: traditional rendering
 	// Initialize component context if needed
 	if n.instance == nil && n.renderFn != nil {
 		n.instance = rtui.NewComponentContextForRoot()
@@ -568,4 +624,20 @@ func minInt(a, b int) int {
 		return a
 	}
 	return b
+}
+
+// =============================================================================
+// Fiber Reconciler Integration
+// =============================================================================
+// These functions create and configure the Fiber reconciler.
+// This is separated to avoid import cycles - ui package calls this via NewDeclarativeNodeFromFuncWithFiber.
+
+// newFiberReconciler creates a new Fiber reconciler for the given app and render function
+// TODO: Implement actual Fiber reconciler integration. Currently a stub to avoid import cycles.
+// The actual reconciler lives in internal/reconciler but importing it would create a cycle:
+//   internal/render → internal/reconciler → ui → internal/render
+func newFiberReconciler(fwApp *framework.App, fn rtui.ComponentFunc) rtui.Reconciler {
+	// Stub implementation - returns nil for now
+	// In the future, this will create and configure the Fiber reconciler
+	return nil
 }

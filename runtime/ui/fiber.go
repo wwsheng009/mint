@@ -216,3 +216,18 @@ func (f *Fiber) EnqueueUpdate(update *Update) {
 	// Mark fiber as having work
 	f.MarkUpdate(LaneSyncLane)
 }
+
+// =============================================================================
+// Reconciler Interface
+// =============================================================================
+// This interface allows internal/render to use Fiber reconciler without
+// importing internal/reconciler directly (which would cause a cycle).
+
+// Reconciler is the interface for Fiber reconciliation
+type Reconciler interface {
+	// Render executes the rendering process
+	// ctx and buffer are passed as interface{} to avoid import cycles
+	Render(ctx interface{}, buffer interface{}, renderFunc func() VNode)
+	// SetApp sets the framework app for scheduling
+	SetApp(app interface{})
+}

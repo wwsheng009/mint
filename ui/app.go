@@ -90,8 +90,20 @@ func Run(app ComponentFunc, opts ...Option) error {
 		}
 	}
 
+	// Check if Fiber mode is enabled via environment variable
+	enableFiber := os.Getenv("MINT_USE_FIBER") == "true"
+
 	// Create declarative node from the component function
-	declarativeRoot := render.NewDeclarativeNodeFromFunc(app)
+	// If Fiber mode is enabled, use the factory function that creates a node with reconciler
+	var declarativeRoot *render.DeclarativeNode
+	if enableFiber {
+		if os.Getenv("TUI_DEBUG_UI") == "true" {
+			fmt.Fprintf(os.Stderr, "ui.Run: Fiber mode enabled\n")
+		}
+		declarativeRoot = render.NewDeclarativeNodeFromFuncWithFiber(app, fwApp)
+	} else {
+		declarativeRoot = render.NewDeclarativeNodeFromFunc(app)
+	}
 
 	// Set as the root of the framework app
 	fwApp.SetRoot(declarativeRoot)

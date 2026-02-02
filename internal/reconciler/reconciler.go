@@ -18,8 +18,10 @@ import (
 
 	"github.com/wwsheng009/mint/framework"
 	"github.com/wwsheng009/mint/framework/component"
+	"github.com/wwsheng009/mint/internal/state"
 	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/paint"
+	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/ui"
 )
 
@@ -39,11 +41,11 @@ type Reconciler struct {
 
 	// === Integration ===
 	app                 *framework.App           // Framework app
-	instanceMgr         *ui.InstanceManager         // Component instance manager
-	interactionStateMgr *ui.InteractionStateManager // Interaction state (hover/focus/etc)
-	keyValidator        *ui.KeyValidator            // Key validation
-	rootComponent       ui.ComponentFunc            // Root component function
-	ctx                 *ui.ComponentContext        // Root component context
+	instanceMgr         *state.InstanceManager         // Component instance manager
+	interactionStateMgr *state.InteractionStateManager // Interaction state (hover/focus/etc)
+	keyValidator        *state.KeyValidator            // Key validation
+	rootComponent       rtui.ComponentFunc             // Root component function
+	ctx                 *rtui.ComponentContext         // Root component context
 
 	// === Render State ===
 	buffer         *paint.Buffer // Render target
@@ -67,7 +69,7 @@ type ReconcilerConfig struct {
 }
 
 // NewReconciler creates a new reconciler
-func NewReconciler(app *framework.App, rootComponent ui.ComponentFunc, config ReconcilerConfig) *Reconciler {
+func NewReconciler(app *framework.App, rootComponent rtui.ComponentFunc, config ReconcilerConfig) *Reconciler {
 	timeBudget := config.TimeBudget
 	if timeBudget == 0 {
 		timeBudget = 5 * time.Millisecond // Default 5ms budget
@@ -76,11 +78,11 @@ func NewReconciler(app *framework.App, rootComponent ui.ComponentFunc, config Re
 	return &Reconciler{
 		app:                 app,
 		rootComponent:       rootComponent,
-		instanceMgr:         ui.NewInstanceManager(),
-		interactionStateMgr: ui.NewInteractionStateManager(),
-		keyValidator:        ui.NewKeyValidator(),
+		instanceMgr:         state.NewInstanceManager(),
+		interactionStateMgr: state.NewInteractionStateManager(),
+		keyValidator:        state.NewKeyValidator(),
 		timeBudget:          timeBudget,
-		ctx:                 ui.NewComponentContextForRoot(),
+		ctx:                 rtui.NewComponentContextForRoot(),
 		enableFiber:         config.EnableFiber,
 		vnodeConverter:      NewVNodeConverter(),
 	}
@@ -93,6 +95,8 @@ func NewReconciler(app *framework.App, rootComponent ui.ComponentFunc, config Re
 // Render executes the rendering process
 // This is the main entry point called from declarativeRoot.Paint
 func (r *Reconciler) Render(ctx component.PaintContext, buffer *paint.Buffer, renderFunc func() ui.VNode) {
+	// Note: renderFunc returns ui.VNode (VNode interface is from ui package)
+	// This is correct as VNode implementations are in ui package
 	if !r.enableFiber {
 		return // Fiber not enabled, use legacy rendering
 	}
@@ -195,6 +199,7 @@ func (r *Reconciler) performUnitOfWork(unitOfWork *Fiber) {
 
 // createWorkInProgress creates a work-in-progress fiber
 func (r *Reconciler) createWorkInProgress(current *Fiber, vnode ui.VNode) *Fiber {
+	// Note: vnode is ui.VNode - VNode interface and implementations are from ui package
 	if current == nil {
 		return CreateFiberFromVNode(vnode)
 	}
@@ -388,6 +393,7 @@ func (r *Reconciler) measureFiberHeight(fiber *Fiber) int {
 
 // RenderFunc is a function to render a VNode to the buffer
 type RenderFunc func(vnode ui.VNode, x, y int, buffer *paint.Buffer)
+// Note: vnode is ui.VNode - VNode interface and implementations are from ui package
 
 // SetRenderCallback sets the render callback
 func (r *Reconciler) SetRenderCallback(cb RenderFunc) {
@@ -553,27 +559,27 @@ func (r *Reconciler) hasMoreWork() bool {
 // =============================================================================
 
 // GetInstanceManager returns the instance manager
-func (r *Reconciler) GetInstanceManager() *ui.InstanceManager {
+func (r *Reconciler) GetInstanceManager() *state.InstanceManager {
 	return r.instanceMgr
 }
 
 // GetInteractionStateManager returns the interaction state manager
-func (r *Reconciler) GetInteractionStateManager() *ui.InteractionStateManager {
+func (r *Reconciler) GetInteractionStateManager() *state.InteractionStateManager {
 	return r.interactionStateMgr
 }
 
 // GetKeyValidator returns the key validator
-func (r *Reconciler) GetKeyValidator() *ui.KeyValidator {
+func (r *Reconciler) GetKeyValidator() *state.KeyValidator {
 	return r.keyValidator
 }
 
 // GetContext returns the root component context
-func (r *Reconciler) GetContext() *ui.ComponentContext {
+func (r *Reconciler) GetContext() *rtui.ComponentContext {
 	return r.ctx
 }
 
 // SetInstanceManager sets the instance manager (shared with declarativeRoot)
-func (r *Reconciler) SetInstanceManager(mgr *ui.InstanceManager) {
+func (r *Reconciler) SetInstanceManager(mgr *state.InstanceManager) {
 	r.instanceMgr = mgr
 }
 

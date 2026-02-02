@@ -14,6 +14,7 @@ package reconciler
 // =============================================================================
 
 import (
+	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/ui"
 )
 
@@ -67,15 +68,15 @@ func beginWorkComponent(current, workInProgress *Fiber) *Fiber {
 
 	// Get or create component instance from InstanceManager
 	// This ensures hooks state is preserved across renders for the same component
-	var instance ui.ComponentInstance
-	var ctx *ui.ComponentContext
+	var instance rtui.ComponentInstance
+	var ctx *rtui.ComponentContext
 
 	if currentReconciler != nil && currentReconciler.instanceMgr != nil {
-		instance = currentReconciler.instanceMgr.GetOrCreate(componentKey, func() ui.ComponentInstance {
+		instance = currentReconciler.instanceMgr.GetOrCreate(componentKey, func() rtui.ComponentInstance {
 			if componentVNode.FnWithProps() != nil {
-				return ui.NewBaseComponentInstanceWithProps(componentKey, componentVNode.FnWithProps(), workInProgress.Props)
+				return rtui.NewBaseComponentInstanceWithProps(componentKey, componentVNode.FnWithProps(), workInProgress.Props)
 			}
-			return ui.NewBaseComponentInstance(componentKey, componentVNode.Fn())
+			return rtui.NewBaseComponentInstance(componentKey, componentVNode.Fn())
 		})
 
 		// Update props if they changed
@@ -91,7 +92,7 @@ func beginWorkComponent(current, workInProgress *Fiber) *Fiber {
 	} else {
 		// Fallback: create a temporary context if no reconciler
 		// This should not happen in normal Fiber mode, but provides safety
-		ctx = ui.NewComponentContextForRoot() // Use root context as fallback
+		ctx = rtui.NewComponentContextForRoot() // Use root context as fallback
 	}
 
 	// CRITICAL: Reset hook index before re-rendering
@@ -99,8 +100,8 @@ func beginWorkComponent(current, workInProgress *Fiber) *Fiber {
 	ctx.ResetContext()
 
 	// Use the context for hooks
-	oldContext := ui.GetCurrentContext()
-	ui.SetCurrentContext(ctx)
+	oldContext := rtui.GetCurrentContext()
+	rtui.SetCurrentContext(ctx)
 
 	// Get children by calling the component function
 	var children []ui.VNode
@@ -122,7 +123,7 @@ func beginWorkComponent(current, workInProgress *Fiber) *Fiber {
 	}
 
 	// Restore old context
-	ui.SetCurrentContext(oldContext)
+	rtui.SetCurrentContext(oldContext)
 
 	// Get current child for reconciliation
 	var currentChild *Fiber
