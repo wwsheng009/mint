@@ -6,6 +6,8 @@ import (
 	"runtime"
 	"sync"
 	"time"
+
+	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
 
 // =============================================================================
@@ -87,18 +89,18 @@ func (g *GoRoutine) GoWithRestart(fn func(<-chan struct{}) func()) func() {
 // useGoRoutine creates a managed goroutine hook
 // This is the public API for components
 func useGoRoutine() *GoRoutine {
-	ctx := getCurrentContext()
+	ctx := rtui.GetCurrentContext()
 	if ctx == nil {
 		panic("useGoRoutine must be called within a component")
 	}
 
 	// Validate hook call
-	if err := ctx.Validator.ValidateHookCall(HookRef); err != nil {
+	if err := ctx.Validator.ValidateHookCall(rtui.HookRef); err != nil {
 		panic(err)
 	}
 
 	// Get or create hook
-	hook := ctx.getOrCreateHook(HookRef)
+	hook := ctx.GetOrCreateHook(rtui.HookRef)
 
 	// Initialize if first render
 	if hook.Value == nil {
@@ -156,7 +158,7 @@ func (s *Subscription) Done() <-chan struct{} {
 //	    })
 //	 })
 func UseSubscription(createSub func() *Subscription) *Subscription {
-	ctx := getCurrentContext()
+	ctx := rtui.GetCurrentContext()
 	if ctx == nil {
 		panic("UseSubscription must be called within a component")
 	}

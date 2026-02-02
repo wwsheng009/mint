@@ -4,112 +4,75 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"sync"
+
+	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
 
+// =============================================================================
+// Hook Types (re-exported from runtime/types)
+// =============================================================================
+
 // HookType represents the type of hook
-type HookType int
+type HookType = rtui.HookType
 
 const (
 	// HookState is the useState hook type
-	HookState HookType = iota
+	HookState = rtui.HookState
 	// HookEffect is the useEffect hook type
-	HookEffect
+	HookEffect = rtui.HookEffect
 	// HookContext is the useContext hook type
-	HookContext
+	HookContext = rtui.HookContext
 	// HookMemo is the useMemo/useCallback hook type
-	HookMemo
+	HookMemo = rtui.HookMemo
 	// HookRef is the useRef hook type
-	HookRef
+	HookRef = rtui.HookRef
 )
-
-// String returns the string representation of HookType
-func (h HookType) String() string {
-	switch h {
-	case HookState:
-		return "useState"
-	case HookEffect:
-		return "useEffect"
-	case HookContext:
-		return "useContext"
-	case HookMemo:
-		return "useMemo"
-	case HookRef:
-		return "useRef"
-	default:
-		return "unknown"
-	}
-}
-
-// Hook represents a single hook instance
-type Hook struct {
-	Type        HookType
-	Value       interface{}
-	SetValue    func(interface{})
-	Deps        []interface{}
-	Cleanup     func()
-	Initialized bool // Tracks if hook has been initialized
-}
 
 // ComponentContext holds the state for a component during rendering
-type ComponentContext struct {
-	ComponentID string
-	Hooks       []Hook
-	HookIndex   int
-	Validator   *HookValidator
-	RenderCount int
-}
+type ComponentContext = rtui.ComponentContext
 
-// Global context for the currently rendering component
-var (
-	currentContext      *ComponentContext
-	currentContextMu    sync.RWMutex
-	globalComponentID   int
-	globalComponentIDMu sync.Mutex
-)
+// Ref holds a mutable value that persists across renders
+type Ref = rtui.Ref
 
-// nextComponentID generates a unique component ID
-func nextComponentID() string {
-	globalComponentIDMu.Lock()
-	defer globalComponentIDMu.Unlock()
-	globalComponentID++
-	return fmt.Sprintf("comp-%d", globalComponentID)
-}
+// EffectCallback is the function passed to useEffect
+type EffectCallback = rtui.EffectCallback
 
-// setCurrentContext sets the current rendering context
-func setCurrentContext(ctx *ComponentContext) {
-	currentContextMu.Lock()
-	defer currentContextMu.Unlock()
-	currentContext = ctx
-}
+// CleanupFunc is the optional cleanup function returned by EffectCallback
+type CleanupFunc = rtui.CleanupFunc
 
-// SetCurrentContext sets the current rendering context (exported for Fiber)
+// =============================================================================
+// Context Management (forwarded to runtime/types)
+// =============================================================================
+
+// SetCurrentContext sets the current rendering context
 func SetCurrentContext(ctx *ComponentContext) {
-	setCurrentContext(ctx)
+	rtui.SetCurrentContext(ctx)
 }
 
-// getCurrentContext returns the current rendering context
-func getCurrentContext() *ComponentContext {
-	currentContextMu.RLock()
-	defer currentContextMu.RUnlock()
-	return currentContext
-}
-
-// GetCurrentContext returns the current rendering context (exported for Fiber)
+// GetCurrentContext returns the current rendering context
 func GetCurrentContext() *ComponentContext {
-	return getCurrentContext()
+	return rtui.GetCurrentContext()
 }
+
+// NewComponentContextForRoot creates a new component context for the root
+func NewComponentContextForRoot() *ComponentContext {
+	return rtui.NewComponentContextForRoot()
+}
+
+// =============================================================================
+// useState Hook
+// =============================================================================
 
 // useState creates a state hook
 // Usage: count, setCount := useState(0)
 func useState(initial interface{}) (interface{}, func(interface{})) {
-	ctx := getCurrentContext()
+	ctx := rtui.GetCurrentContext()
 	if ctx == nil {
 		panic("useState must be called within a component")
 	}
 
 	// Validate hook call
-	if err := ctx.Validator.ValidateHookCall(HookState); err != nil {
+	if err := ctx.Validator.ValidateHookCall(rtui.HookState); err != nil {
 		panic(err)
 	}
 
@@ -117,7 +80,7 @@ func useState(initial interface{}) (interface{}, func(interface{})) {
 	hookIndex := ctx.HookIndex
 
 	// Get or create hook
-	hook := ctx.getOrCreateHook(HookState)
+	hook := ctx.GetOrCreateHook(rtui.HookState)
 
 	// Initialize if first render (not just if Value is nil)
 	if !hook.Initialized {
@@ -129,20 +92,23 @@ func useState(initial interface{}) (interface{}, func(interface{})) {
 	currentValue := hook.Value
 
 	if os.Getenv("TUI_DEBUG_UI") == "true" {
-		fmt.Fprintf(os.Stderr, "useState: componentID=%s, hookIndex=%d, value=%v\n", ctx.ComponentID, hookIndex, currentValue)
+		fmt.Fprintf(os.Stderr, "useState: componentID=%s, hookIndex=%d, value=%v, hook=%p, &ctx.Hooks[%d]=%p, &ctx=%p\n",
+			ctx.ComponentID, hookIndex, currentValue, hook, hookIndex, &ctx.Hooks[hookIndex], ctx)
 	}
 
 	// Create setter function that captures ctx and hookIndex (not the hook pointer)
 	// This ensures we always access the correct hook even if the slice is reallocated
 	setState := func(newValue interface{}) {
 		if os.Getenv("TUI_DEBUG_UI") == "true" {
-			fmt.Fprintf(os.Stderr, "setState BEFORE: componentID=%s, hookIndex=%d, value=%v\n", ctx.ComponentID, hookIndex, ctx.Hooks[hookIndex].Value)
+			fmt.Fprintf(os.Stderr, "setState BEFORE: componentID=%s, hookIndex=%d, value=%v, &ctx=%p, &ctx.Hooks=%p\n",
+				ctx.ComponentID, hookIndex, ctx.Hooks[hookIndex].Value, ctx, &ctx.Hooks)
 		}
 		// Use index to access hook - this is safe even if slice was reallocated
 		if hookIndex < len(ctx.Hooks) {
 			ctx.Hooks[hookIndex].Value = newValue
 			if os.Getenv("TUI_DEBUG_UI") == "true" {
-				fmt.Fprintf(os.Stderr, "setState AFTER: componentID=%s, hookIndex=%d, value=%v\n", ctx.ComponentID, hookIndex, ctx.Hooks[hookIndex].Value)
+				fmt.Fprintf(os.Stderr, "setState AFTER: componentID=%s, hookIndex=%d, value=%v, &ctx=%p\n",
+					ctx.ComponentID, hookIndex, ctx.Hooks[hookIndex].Value, ctx)
 			}
 		}
 		// Schedule re-render
@@ -176,7 +142,7 @@ type SetIntFunc func(int) int
 //	})
 func UseStateInt(initial int) (int, func(interface{}), func() int) {
 	// Get context BEFORE calling useState (useState will increment HookIndex)
-	ctx := getCurrentContext()
+	ctx := rtui.GetCurrentContext()
 	hookIndex := ctx.HookIndex // Capture index before useState increments it
 
 	value, setValue := useState(initial)
@@ -227,87 +193,27 @@ func UseStateBool(initial bool) (bool, func(bool)) {
 	}
 }
 
-// getOrCreateHook gets an existing hook or creates a new one
-func (ctx *ComponentContext) getOrCreateHook(hookType HookType) *Hook {
-	if ctx.HookIndex < len(ctx.Hooks) {
-		hook := &ctx.Hooks[ctx.HookIndex]
-		if os.Getenv("TUI_DEBUG_UI") == "true" {
-			fmt.Fprintf(os.Stderr, "  getOrCreateHook: EXISTS, hookIndex=%d, value=%v, hook=%p\n", ctx.HookIndex, hook.Value, hook)
-		}
-		if hook.Type != hookType {
-			panic(fmt.Sprintf("hook order changed: expected %s, got %s at position %d",
-				hook.Type, hookType, ctx.HookIndex))
-		}
-		ctx.HookIndex++
-		return hook
-	}
-
-	// Create new hook
-	hook := &Hook{
-		Type: hookType,
-	}
-	ctx.Hooks = append(ctx.Hooks, *hook)
-	ctx.HookIndex++
-	if os.Getenv("TUI_DEBUG_UI") == "true" {
-		fmt.Fprintf(os.Stderr, "  getOrCreateHook: NEW, hookIndex=%d, hooks len=%d\n", ctx.HookIndex-1, len(ctx.Hooks))
-	}
-	return &ctx.Hooks[len(ctx.Hooks)-1]
-}
-
 // scheduleRender schedules a re-render by marking the app as dirty
 func scheduleRender(componentID string) {
 	// Access the global app instance to mark it dirty
+	if os.Getenv("TUI_DEBUG_UI") == "true" {
+		fmt.Fprintf(os.Stderr, "scheduleRender: componentID=%s, appInstance=%v\n", componentID, appInstance != nil)
+	}
 	if appInstance != nil {
 		appInstance.MarkDirty()
+		if os.Getenv("TUI_DEBUG_UI") == "true" {
+			fmt.Fprintf(os.Stderr, "scheduleRender: MarkDirty() called, state=%v\n", appInstance.GetState())
+		}
+	} else {
+		if os.Getenv("TUI_DEBUG_UI") == "true" {
+			fmt.Fprintf(os.Stderr, "scheduleRender: appInstance is nil, cannot MarkDirty()\n")
+		}
 	}
-}
-
-// newComponentContext creates a new component context
-func newComponentContext(name string) *ComponentContext {
-	return &ComponentContext{
-		ComponentID: fmt.Sprintf("%s-%s", name, nextComponentID()),
-		Hooks:       make([]Hook, 0),
-		HookIndex:   0,
-		Validator:   NewHookValidator(name),
-		RenderCount: 0,
-	}
-}
-
-// NewComponentContextForRoot creates a new component context for the root (exported for Fiber)
-func NewComponentContextForRoot() *ComponentContext {
-	return newComponentContext("App")
-}
-
-// resetContext resets the hook index for re-rendering
-func (ctx *ComponentContext) resetContext() {
-	ctx.HookIndex = 0
-	ctx.RenderCount++
-}
-
-// ResetContext resets the hook index for re-rendering (exported for Fiber)
-func (ctx *ComponentContext) ResetContext() {
-	ctx.resetContext()
-}
-
-// finishRender finishes the render and validates hooks
-func (ctx *ComponentContext) finishRender() error {
-	return ctx.Validator.FinishRender()
-}
-
-// FinishRender finishes the render and validates hooks (exported for Fiber)
-func (ctx *ComponentContext) FinishRender() error {
-	return ctx.finishRender()
 }
 
 // =============================================================================
 // useEffect Hook
 // =============================================================================
-
-// EffectCallback is the function passed to useEffect
-type EffectCallback func() CleanupFunc
-
-// CleanupFunc is the optional cleanup function returned by EffectCallback
-type CleanupFunc func()
 
 // useEffect runs side effects after render
 // deps: nil = run once (mount), [] = run every render, [values] = run when values change
@@ -326,18 +232,18 @@ type CleanupFunc func()
 //	    return func() { ticker.Stop() } // cleanup
 //	}, nil) // nil deps = run once on mount
 func useEffect(callback EffectCallback, deps []interface{}) {
-	ctx := getCurrentContext()
+	ctx := rtui.GetCurrentContext()
 	if ctx == nil {
 		panic("useEffect must be called within a component")
 	}
 
 	// Validate hook call
-	if err := ctx.Validator.ValidateHookCall(HookEffect); err != nil {
+	if err := ctx.Validator.ValidateHookCall(rtui.HookEffect); err != nil {
 		panic(err)
 	}
 
 	// Get or create hook
-	hook := ctx.getOrCreateHook(HookEffect)
+	hook := ctx.GetOrCreateHook(rtui.HookEffect)
 
 	// Check if dependencies changed
 	shouldRun := false
@@ -375,66 +281,11 @@ func UseEffect(callback EffectCallback, deps []interface{}) {
 	useEffect(callback, deps)
 }
 
-// runEffects executes all pending effects after render
-// This should be called by the reconciler after committing changes
-func (ctx *ComponentContext) runEffects() {
-	ctx.RunEffects()
-}
-
-// RunEffects executes all pending effects after render (exported for Fiber)
-// This should be called by the reconciler after committing changes
-func (ctx *ComponentContext) RunEffects() {
-	for i := range ctx.Hooks {
-		hook := &ctx.Hooks[i]
-		if hook.Type == HookEffect && hook.Value != nil {
-			callback, ok := hook.Value.(EffectCallback)
-			if ok && callback != nil {
-				// Run the effect
-				cleanup := callback()
-				if cleanup != nil {
-					hook.Cleanup = cleanup
-				}
-				// Clear Value to mark this effect as run
-				hook.Value = nil
-			}
-		}
-	}
-}
-
-// cleanupAll runs all cleanup functions (for unmounting)
-func (ctx *ComponentContext) cleanupAll() {
-	for i := range ctx.Hooks {
-		hook := &ctx.Hooks[i]
-		if hook.Cleanup != nil {
-			hook.Cleanup()
-			hook.Cleanup = nil
-		}
-	}
-}
-
-// depsEqual compares two dependency arrays
-func depsEqual(a, b []interface{}) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
-}
-
 // =============================================================================
 // useRef Hook
 // =============================================================================
 
-// Ref holds a mutable value that persists across renders
-type Ref struct {
-	Value interface{}
-}
-
-// useRef creates a ref that persists across renders
+// UseRef creates a ref that persists across renders
 // Useful for:
 // - Accessing DOM nodes (future)
 // - Storing mutable values without triggering re-renders
@@ -446,18 +297,18 @@ type Ref struct {
 //	// Update ref.Value directly - no re-render
 //	countRef.Value = countRef.Value.(int) + 1
 func UseRef(initial interface{}) *Ref {
-	ctx := getCurrentContext()
+	ctx := rtui.GetCurrentContext()
 	if ctx == nil {
 		panic("useRef must be called within a component")
 	}
 
 	// Validate hook call
-	if err := ctx.Validator.ValidateHookCall(HookRef); err != nil {
+	if err := ctx.Validator.ValidateHookCall(rtui.HookRef); err != nil {
 		panic(err)
 	}
 
 	// Get or create hook
-	hook := ctx.getOrCreateHook(HookRef)
+	hook := ctx.GetOrCreateHook(rtui.HookRef)
 
 	// Initialize if first render
 	if hook.Value == nil {
@@ -471,7 +322,7 @@ func UseRef(initial interface{}) *Ref {
 // useMemo Hook
 // =============================================================================
 
-// useMemo memoizes a computed value
+// UseMemo memoizes a computed value
 // Only recomputes when dependencies change
 //
 // Example:
@@ -480,18 +331,18 @@ func UseRef(initial interface{}) *Ref {
 //	    return computeExpensive(a, b)
 //	}, []interface{}{a, b})
 func UseMemo(compute func() interface{}, deps []interface{}) interface{} {
-	ctx := getCurrentContext()
+	ctx := rtui.GetCurrentContext()
 	if ctx == nil {
 		panic("useMemo must be called within a component")
 	}
 
 	// Validate hook call
-	if err := ctx.Validator.ValidateHookCall(HookMemo); err != nil {
+	if err := ctx.Validator.ValidateHookCall(rtui.HookMemo); err != nil {
 		panic(err)
 	}
 
 	// Get or create hook
-	hook := ctx.getOrCreateHook(HookMemo)
+	hook := ctx.GetOrCreateHook(rtui.HookMemo)
 
 	// Check if dependencies changed or first render
 	shouldCompute := false
@@ -522,7 +373,7 @@ func UseMemo(compute func() interface{}, deps []interface{}) interface{} {
 // useCallback Hook
 // =============================================================================
 
-// useCallback memoizes a function
+// UseCallback memoizes a function
 // Only creates new function when dependencies change
 // Equivalent to useMemo(() => callback, deps)
 //
@@ -556,7 +407,7 @@ type HoverStateChange func(bool)
 //	isHovered()  // Returns current hover state
 //	setHovered(true)  // Sets hover state
 func useHoverState() (func() bool, func(bool)) {
-	ctx := getCurrentContext()
+	ctx := rtui.GetCurrentContext()
 	if ctx == nil {
 		panic("useHoverState must be called within a component")
 	}
@@ -599,7 +450,7 @@ func UseHoverState() (func() bool, func(bool)) {
 //   - hookIndex: int - the hook index (for debugging)
 func UseStateIntWithDebug(initial int) (int, func(interface{}), func() int, int) {
 	// Get context BEFORE calling useState (useState will increment HookIndex)
-	ctx := getCurrentContext()
+	ctx := rtui.GetCurrentContext()
 	hookIndex := ctx.HookIndex // Capture index before useState increments it
 
 	if os.Getenv("TUI_DEBUG_UI") == "true" {
@@ -657,17 +508,16 @@ func UseStateIntWithDebug(initial int) (int, func(interface{}), func() int, int)
 
 // DebugContextInfo returns debug information about the current context
 func DebugContextInfo() map[string]interface{} {
-	currentContextMu.RLock()
-	defer currentContextMu.RUnlock()
+	ctx := rtui.GetCurrentContext()
 
-	if currentContext == nil {
+	if ctx == nil {
 		return map[string]interface{}{
 			"hasContext": false,
 		}
 	}
 
-	hooksInfo := make([]map[string]interface{}, len(currentContext.Hooks))
-	for i, hook := range currentContext.Hooks {
+	hooksInfo := make([]map[string]interface{}, len(ctx.Hooks))
+	for i, hook := range ctx.Hooks {
 		hooksInfo[i] = map[string]interface{}{
 			"type":     hook.Type.String(),
 			"value":    hook.Value,
@@ -677,31 +527,30 @@ func DebugContextInfo() map[string]interface{} {
 
 	return map[string]interface{}{
 		"hasContext":     true,
-		"componentID":    currentContext.ComponentID,
-		"hooksCount":     len(currentContext.Hooks),
-		"hookIndex":      currentContext.HookIndex,
-		"renderCount":    currentContext.RenderCount,
+		"componentID":    ctx.ComponentID,
+		"hooksCount":     len(ctx.Hooks),
+		"hookIndex":      ctx.HookIndex,
+		"renderCount":    ctx.RenderCount,
 		"hooks":          hooksInfo,
-		"contextPointer": fmt.Sprintf("%p", currentContext),
+		"contextPointer": fmt.Sprintf("%p", ctx),
 	}
 }
 
 // DebugHooksState returns a detailed dump of hooks state
 func DebugHooksState() string {
-	currentContextMu.RLock()
-	defer currentContextMu.RUnlock()
+	ctx := rtui.GetCurrentContext()
 
-	if currentContext == nil {
+	if ctx == nil {
 		return "No current context"
 	}
 
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("Context: %s\n", currentContext.ComponentID))
-	sb.WriteString(fmt.Sprintf("HookIndex: %d\n", currentContext.HookIndex))
-	sb.WriteString(fmt.Sprintf("Hooks Count: %d\n", len(currentContext.Hooks)))
+	sb.WriteString(fmt.Sprintf("Context: %s\n", ctx.ComponentID))
+	sb.WriteString(fmt.Sprintf("HookIndex: %d\n", ctx.HookIndex))
+	sb.WriteString(fmt.Sprintf("Hooks Count: %d\n", len(ctx.Hooks)))
 	sb.WriteString("Hooks:\n")
 
-	for i, hook := range currentContext.Hooks {
+	for i, hook := range ctx.Hooks {
 		sb.WriteString(fmt.Sprintf("  [%d] Type=%s, Value=%v, Ptr=%p\n",
 			i, hook.Type, hook.Value, &hook))
 	}
@@ -714,8 +563,6 @@ var debugLogger func(string)
 
 // SetDebugLogger sets a debug logger function
 func SetDebugLogger(logger func(string)) {
-	currentContextMu.Lock()
-	defer currentContextMu.Unlock()
 	debugLogger = logger
 }
 
@@ -724,4 +571,17 @@ func logDebug(format string, args ...interface{}) {
 	if debugLogger != nil {
 		debugLogger(fmt.Sprintf(format, args...))
 	}
+}
+
+// depsEqual compares two dependency arrays
+func depsEqual(a, b []interface{}) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }

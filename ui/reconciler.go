@@ -278,7 +278,7 @@ func (r *Reconciler) renderFiberToBuffer(fiber *Fiber, x, y int, buffer *paint.B
 	isHStack := false
 	var gap int
 	if layoutNode, ok := fiber.VNode.(*LayoutNode); ok {
-		isHStack = layoutNode.direction == 0 // DirectionRow = 0
+		isHStack = layoutNode.Direction() == 0 // DirectionRow = 0
 		gap = layoutNode.Gap()
 	}
 

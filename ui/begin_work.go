@@ -1,6 +1,8 @@
 // Package ui provides the BeginWork phase for Fiber reconciliation.
 package ui
 
+import rtui "github.com/wwsheng009/mint/runtime/ui"
+
 // =============================================================================
 // BeginWork Phase
 // =============================================================================
@@ -92,7 +94,7 @@ func beginWorkComponent(current, workInProgress *Fiber) *Fiber {
 	} else {
 		// Fallback: create a temporary context if no reconciler
 		// This should not happen in normal Fiber mode, but provides safety
-		ctx = newComponentContext(componentKey)
+		ctx = rtui.NewComponentContext(componentKey)
 	}
 
 	// CRITICAL: Reset hook index before re-rendering
