@@ -164,21 +164,9 @@ func NewKeyValidator() *KeyValidator {
 	}
 }
 
-// VNodeInterface is the minimal interface needed for key validation
-type VNodeInterface interface {
-	Key() string
-	Type() VNodeTypeInterface
-	Children() []VNodeInterface
-}
-
-// VNodeTypeInterface represents the type of VNode
-type VNodeTypeInterface interface {
-	String() string
-}
-
 // ValidateChildren checks if children in a list have proper keys
 // Returns true if valid, false if keys are missing in a potential list scenario
-func (v *KeyValidator) ValidateChildren(parent VNodeInterface, children []VNodeInterface) bool {
+func (v *KeyValidator) ValidateChildren(parent VNode, children []VNode) bool {
 	if !v.enableWarnings {
 		return true
 	}
@@ -223,7 +211,7 @@ func (v *KeyValidator) ValidateChildren(parent VNodeInterface, children []VNodeI
 }
 
 // warnAboutMissingKeys prints a warning about missing keys
-func (v *KeyValidator) warnAboutMissingKeys(parent VNodeInterface, children []VNodeInterface, missing []int) {
+func (v *KeyValidator) warnAboutMissingKeys(parent VNode, children []VNode, missing []int) {
 	parentName := "Fragment"
 	if parent != nil {
 		parentName = parent.Type().String()
@@ -240,7 +228,7 @@ func (v *KeyValidator) warnAboutMissingKeys(parent VNodeInterface, children []VN
 }
 
 // warnAboutDuplicateKeys prints a warning about duplicate keys
-func (v *KeyValidator) warnAboutDuplicateKeys(parent VNodeInterface, duplicates map[string]int) {
+func (v *KeyValidator) warnAboutDuplicateKeys(parent VNode, duplicates map[string]int) {
 	parentName := "Fragment"
 	if parent != nil {
 		parentName = parent.Type().String()
