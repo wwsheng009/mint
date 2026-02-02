@@ -1,6 +1,10 @@
 package basic
 
 import (
+	"unicode/utf8"
+
+	"github.com/wwsheng009/mint/runtime"
+	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
 	"github.com/wwsheng009/mint/ui"
 )
@@ -77,6 +81,70 @@ func (t *TextVNode) Content() string {
 func (t *TextVNode) SetContent(content string) *TextVNode {
 	t.content = content
 	return t
+}
+
+// =============================================================================
+// Measurable Interface Implementation
+// =============================================================================
+
+// Measure implements runtime.Measurable interface
+// Calculates the size of the text based on content and constraints
+func (t *TextVNode) Measure(constraints runtime.BoxConstraints) runtime.Size {
+	if t == nil {
+		return runtime.Size{Width: 0, Height: 0}
+	}
+
+	// Calculate text width (number of visible characters)
+	content := t.content
+	if content == "" {
+		content = " " // Empty text still has minimal width
+	}
+
+	// Simple width calculation: count rune width
+	width := utf8.RuneCountInString(content)
+
+	// Height is always 1 for single-line text
+	height := 1
+
+	// Apply constraints
+	if width < constraints.MinWidth {
+		width = constraints.MinWidth
+	}
+	if width > constraints.MaxWidth && constraints.MaxWidth > 0 {
+		width = constraints.MaxWidth
+	}
+	if height < constraints.MinHeight {
+		height = constraints.MinHeight
+	}
+	if height > constraints.MaxHeight && constraints.MaxHeight > 0 {
+		height = constraints.MaxHeight
+	}
+
+	// Apply explicit style dimensions if set
+	if t.style.Width > 0 {
+		width = t.style.Width
+	}
+	if t.style.Height > 0 {
+		height = t.style.Height
+	}
+
+	return runtime.Size{Width: width, Height: height}
+}
+
+// =============================================================================
+// Paintable Interface Implementation
+// =============================================================================
+
+// Paint implements paint.Paintable interface
+// Generates draw commands for rendering this text component
+func (t *TextVNode) Paint(x, y int) []paint.DrawCmd {
+	if t == nil {
+		return nil
+	}
+
+	return []paint.DrawCmd{
+		paint.NewTextCmd(x, y, t.content, t.style),
+	}
 }
 
 // Text creates a new text node (simple version)

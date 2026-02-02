@@ -5,6 +5,8 @@ package layout
 // =============================================================================
 
 import (
+	"github.com/wwsheng009/mint/runtime"
+	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
 	"github.com/wwsheng009/mint/ui"
 )
@@ -321,4 +323,63 @@ func Center(child ui.VNode) ui.VNode {
 		Top(RelativePosition(50)).
 		Anchor(AnchorCenter).
 		Build()
+}
+
+// =============================================================================
+// Measurable & Paintable Interface Implementation
+// =============================================================================
+
+// Measure implements runtime.Measurable interface
+func (a *AbsoluteVNode) Measure(constraints runtime.BoxConstraints) runtime.Size {
+	if a == nil {
+		return runtime.Size{Width: 0, Height: 0}
+	}
+
+	width := a.width
+	height := a.height
+
+	// If no explicit size, use child's size or defaults
+	if width == 0 {
+		width = 20
+	}
+	if height == 0 {
+		height = 1
+	}
+
+	// Check explicit style dimensions
+	elemStyle := a.Style()
+	if elemStyle.Width > 0 {
+		width = elemStyle.Width
+	}
+	if elemStyle.Height > 0 {
+		height = elemStyle.Height
+	}
+
+	// Apply constraints
+	if width < constraints.MinWidth {
+		width = constraints.MinWidth
+	}
+	if width > constraints.MaxWidth && constraints.MaxWidth > 0 {
+		width = constraints.MaxWidth
+	}
+	if height < constraints.MinHeight {
+		height = constraints.MinHeight
+	}
+	if height > constraints.MaxHeight && constraints.MaxHeight > 0 {
+		height = constraints.MaxHeight
+	}
+
+	return runtime.Size{Width: width, Height: height}
+}
+
+// Paint implements paint.Paintable interface
+// Absolute container doesn't have visual representation - child is painted by reconciler
+func (a *AbsoluteVNode) Paint(x, y int) []paint.DrawCmd {
+	if a == nil {
+		return nil
+	}
+
+	// Absolute container itself doesn't have visual representation
+	// The layout engine will position and render the child
+	return []paint.DrawCmd{}
 }

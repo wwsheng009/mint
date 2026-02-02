@@ -1,6 +1,11 @@
 package data
 
 import (
+	"strings"
+	"unicode/utf8"
+
+	"github.com/wwsheng009/mint/runtime"
+	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
 	"github.com/wwsheng009/mint/ui"
 )
@@ -158,4 +163,85 @@ func (b *TableBuilderType) BgColor(c interface{}) *TableBuilderType {
 // Build returns the ui.VNode
 func (b *TableBuilderType) Build() ui.VNode {
 	return b.node
+}
+
+// =============================================================================
+// Measurable & Paintable Interface Implementation
+// =============================================================================
+
+// Measure implements runtime.Measurable interface
+func (t *TableVNode) Measure(constraints runtime.BoxConstraints) runtime.Size {
+	if t == nil {
+		return runtime.Size{Width: 0, Height: 0}
+	}
+
+	// Calculate width based on columns
+	totalWidth := 0
+	for _, col := range t.columns {
+		if col.Width > 0 {
+			totalWidth += col.Width
+		} else {
+			totalWidth += utf8.RuneCountInString(col.Title) + 2 // +2 for padding
+		}
+	}
+
+	// Add separator width
+	if len(t.columns) > 0 {
+		totalWidth += len(t.columns) - 1 // +1 for each " | " separator
+	}
+
+	// Height: header (1) + row count
+	height := 1 + len(t.rows)
+	if height < 2 {
+		height = 2 // At least header + 1 row
+	}
+
+	// Apply constraints
+	if totalWidth < constraints.MinWidth {
+		totalWidth = constraints.MinWidth
+	}
+	if totalWidth > constraints.MaxWidth && constraints.MaxWidth > 0 {
+		totalWidth = constraints.MaxWidth
+	}
+	if height < constraints.MinHeight {
+		height = constraints.MinHeight
+	}
+	if height > constraints.MaxHeight && constraints.MaxHeight > 0 {
+		height = constraints.MaxHeight
+	}
+
+	return runtime.Size{Width: totalWidth, Height: height}
+}
+
+// Paint implements paint.Paintable interface
+func (t *TableVNode) Paint(x, y int) []paint.DrawCmd {
+	if t == nil || len(t.columns) == 0 {
+		return nil
+	}
+
+	var cmds []paint.DrawCmd
+	tableStyle := t.Style()
+
+	// Build header row
+	var headers []string
+	for _, col := range t.columns {
+		headers = append(headers, col.Title)
+	}
+	headerLine := strings.Join(headers, " | ")
+	cmds = append(cmds, paint.NewTextCmd(x, y, headerLine, t.headerStyle))
+
+	// Draw separator line
+	separator := strings.Repeat("─", len(headerLine))
+	cmds = append(cmds, paint.NewTextCmd(x, y+1, separator, tableStyle))
+
+	// Draw data rows
+	for i, row := range t.rows {
+		if i >= len(row) {
+			continue
+		}
+		rowLine := strings.Join(row, " | ")
+		cmds = append(cmds, paint.NewTextCmd(x, y+2+i, rowLine, tableStyle))
+	}
+
+	return cmds
 }

@@ -1,6 +1,11 @@
 package basic
 
 import (
+	"strings"
+	"unicode/utf8"
+
+	"github.com/wwsheng009/mint/runtime"
+	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/ui"
 )
 
@@ -89,3 +94,81 @@ func (d *DividerVNode) Thickness() int      { return d.thickness }
 func (d *DividerVNode) SetText(text string)               { d.text = text }
 func (d *DividerVNode) SetDividerStyle(style DividerStyle) { d.dividerStyle = style }
 func (d *DividerVNode) SetThickness(thickness int)         { d.thickness = thickness }
+
+// =============================================================================
+// Measurable & Paintable Interface Implementation
+// =============================================================================
+
+// Measure implements runtime.Measurable interface
+func (d *DividerVNode) Measure(constraints runtime.BoxConstraints) runtime.Size {
+	if d == nil {
+		return runtime.Size{Width: 0, Height: 0}
+	}
+
+	width := constraints.MaxWidth
+	if width <= 0 {
+		width = 80 // Default width
+	}
+
+	height := d.thickness
+	if height < 1 {
+		height = 1
+	}
+
+	// Apply constraints
+	if width < constraints.MinWidth {
+		width = constraints.MinWidth
+	}
+	if height < constraints.MinHeight {
+		height = constraints.MinHeight
+	}
+
+	return runtime.Size{Width: width, Height: height}
+}
+
+// Paint implements paint.Paintable interface
+func (d *DividerVNode) Paint(x, y int) []paint.DrawCmd {
+	if d == nil {
+		return nil
+	}
+
+	style := d.Style()
+
+	// Get width from style or use default
+	width := 80
+	if style.Width > 0 {
+		width = style.Width
+	}
+
+	var dividerStr string
+	switch d.dividerStyle {
+	case DividerSolid:
+		dividerStr = strings.Repeat("─", width)
+	case DividerDashed:
+		dividerStr = strings.Repeat("─ ", width/2)
+	case DividerDotted:
+		dividerStr = strings.Repeat("· ", width/2)
+	case DividerDouble:
+		dividerStr = strings.Repeat("═", width)
+	default:
+		dividerStr = strings.Repeat("─", width)
+	}
+
+	// If there's text, insert it in the middle
+	if d.text != "" {
+		textLen := utf8.RuneCountInString(d.text)
+		if textLen < width {
+			padding := (width - textLen) / 2
+			leftPart := dividerStr[:padding]
+			rightPart := dividerStr[padding+textLen:]
+			if len(rightPart) > len(dividerStr) {
+				rightPart = ""
+			}
+			dividerStr = leftPart + d.text + rightPart
+		}
+	}
+
+	return []paint.DrawCmd{
+		paint.NewTextCmd(x, y, dividerStr, style),
+	}
+}

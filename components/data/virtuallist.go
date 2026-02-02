@@ -1,6 +1,10 @@
 package data
 
 import (
+	"strings"
+
+	"github.com/wwsheng009/mint/runtime"
+	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
 	"github.com/wwsheng009/mint/ui"
 )
@@ -157,11 +161,11 @@ func (b *VirtualListBuilderType) Style(s style.Style) *VirtualListBuilderType {
 func (b *VirtualListBuilderType) FgColor(c interface{}) *VirtualListBuilderType {
 	if colorStr, ok := c.(string); ok {
 		s := b.node.Style()
-		s.FG = style.Color(colorStr)
+		s = s.Foreground(style.Color(colorStr))
 		b.node.SetStyle(s)
 	} else if color, ok := c.(style.Color); ok {
 		s := b.node.Style()
-		s.FG = color
+		s = s.Foreground(color)
 		b.node.SetStyle(s)
 	}
 	return b
@@ -171,11 +175,11 @@ func (b *VirtualListBuilderType) FgColor(c interface{}) *VirtualListBuilderType 
 func (b *VirtualListBuilderType) BgColor(c interface{}) *VirtualListBuilderType {
 	if colorStr, ok := c.(string); ok {
 		s := b.node.Style()
-		s.BG = style.Color(colorStr)
+		s = s.Background(style.Color(colorStr))
 		b.node.SetStyle(s)
 	} else if color, ok := c.(style.Color); ok {
 		s := b.node.Style()
-		s.BG = color
+		s = s.Background(color)
 		b.node.SetStyle(s)
 	}
 	return b
@@ -287,4 +291,114 @@ func (v *VirtualListVNode) GetItem(index int) interface{} {
 		return v.items[index]
 	}
 	return nil
+}
+
+// =============================================================================
+// Measurable & Paintable Interface Implementation
+// =============================================================================
+
+// Measure implements runtime.Measurable interface
+func (v *VirtualListVNode) Measure(constraints runtime.BoxConstraints) runtime.Size {
+	if v == nil {
+		return runtime.Size{Width: 0, Height: 0}
+	}
+
+	width := 40 // Default width
+	height := v.height
+
+	// Apply constraints
+	if width < constraints.MinWidth {
+		width = constraints.MinWidth
+	}
+	if width > constraints.MaxWidth && constraints.MaxWidth > 0 {
+		width = constraints.MaxWidth
+	}
+	if height < constraints.MinHeight {
+		height = constraints.MinHeight
+	}
+	if height > constraints.MaxHeight && constraints.MaxHeight > 0 {
+		height = constraints.MaxHeight
+	}
+
+	return runtime.Size{Width: width, Height: height}
+}
+
+// Paint implements paint.Paintable interface
+func (v *VirtualListVNode) Paint(x, y int) []paint.DrawCmd {
+	if v == nil {
+		return nil
+	}
+
+	listStyle := v.Style()
+	var cmds []paint.DrawCmd
+
+	measured := v.Measure(runtime.BoxConstraints{})
+	width := measured.Width
+	height := measured.Height
+
+	// Draw list border
+	topBorder := "┌" + strings.Repeat("─", width-2) + "┐"
+	bottomBorder := "└" + strings.Repeat("─", width-2) + "┘"
+
+	cmds = append(cmds, paint.NewTextCmd(x, y, topBorder, listStyle))
+
+	// Get visible range
+	start, end := v.GetVisibleRange()
+
+	// Draw visible items
+	for i := start; i < end; i++ {
+		rowY := y + 1 + (i - start)
+		if rowY >= y+height-1 {
+			break
+		}
+
+		// Get item text
+		var itemText string
+		if v.renderItem != nil && i < len(v.items) {
+			// If custom renderer exists, we can't use it directly here
+			// Just show a placeholder
+			item := v.items[i]
+			if str, ok := item.(string); ok {
+				itemText = str
+			} else {
+				itemText = "[item]"
+			}
+		} else if i < len(v.items) {
+			if str, ok := v.items[i].(string); ok {
+				itemText = str
+			} else {
+				itemText = "[item]"
+			}
+		} else {
+			itemText = ""
+		}
+
+		// Truncate if too long
+		if len(itemText) > width-4 {
+			itemText = itemText[:width-4] + ".."
+		}
+
+		// Add padding
+		itemText = "│ " + itemText + strings.Repeat(" ", width-4-len(itemText)) + "│"
+
+		// Highlight selected item
+		itemStyle := listStyle
+		if i == v.selectedIndex {
+			itemStyle = itemStyle.Bold(true)
+		}
+
+		cmds = append(cmds, paint.NewTextCmd(x, rowY, itemText, itemStyle))
+	}
+
+	// Fill remaining space with empty rows
+	visibleItemCount := end - start
+	for i := visibleItemCount; i < height-2; i++ {
+		rowY := y + 1 + i
+		emptyRow := "│" + strings.Repeat(" ", width-2) + "│"
+		cmds = append(cmds, paint.NewTextCmd(x, rowY, emptyRow, listStyle))
+	}
+
+	cmds = append(cmds, paint.NewTextCmd(x, y+height-1, bottomBorder, listStyle))
+
+	return cmds
 }

@@ -1,6 +1,7 @@
 package layout
 
 import (
+	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
 	"github.com/wwsheng009/mint/ui"
 )
@@ -63,6 +64,117 @@ func (l *LayoutNode) Gap() int {
 // Padding returns the padding
 func (l *LayoutNode) Padding() [4]int {
 	return l.padding
+}
+
+// Paint implements paint.Paintable interface
+// Generates draw commands for the layout and its children
+func (l *LayoutNode) Paint(x, y int) []paint.DrawCmd {
+	if l == nil {
+		return nil
+	}
+
+	var cmds []paint.DrawCmd
+	children := l.Children()
+
+	// Apply padding
+	currentX := x + l.padding[3] // left padding
+	currentY := y + l.padding[0] // top padding
+
+	for i, child := range children {
+		// Check if child implements Paintable
+		if paintable, ok := child.(interface{ Paint(int, int) []paint.DrawCmd }); ok {
+			// Child has custom paint logic
+			childCmds := paintable.Paint(currentX, currentY)
+			cmds = append(cmds, childCmds...)
+		} else {
+			// Fallback: render as text element
+			if props := child.Props(); props != nil {
+				if content := props.GetString("content"); content != "" {
+					cmds = append(cmds, paint.DrawCmd{
+						X:     currentX,
+						Y:     currentY,
+						Text:  content,
+						Style: child.Style(),
+					})
+				}
+			}
+		}
+
+		// Update position based on direction
+		if l.direction == DirectionRow {
+			// HStack: move horizontally
+			// Simple width estimation
+			childWidth := l.estimateChildWidth(child)
+			currentX += childWidth
+			if i < len(children)-1 {
+				currentX += l.gap
+			}
+		} else {
+			// VStack: move vertically
+			currentY++
+			if i < len(children)-1 {
+				currentY += l.gap
+			}
+		}
+	}
+
+	return cmds
+}
+
+// estimateChildWidth estimates the width of a child for layout
+func (l *LayoutNode) estimateChildWidth(child ui.VNode) int {
+	if child == nil {
+		return 0
+	}
+
+	// Check if child has explicit width
+	if props := child.Props(); props != nil {
+		if w := props.GetInt("width"); w > 0 {
+			return w
+		}
+	}
+
+	// Check if child has explicit height (for Input)
+	if props := child.Props(); props != nil {
+		if h := props.GetInt("height"); h > 0 {
+			// For Input, use height as width hint if not specified
+			return h
+		}
+	}
+
+	// Estimate from content
+	if props := child.Props(); props != nil {
+		if content := props.GetString("content"); content != "" {
+			// Simple width: length of content
+			runes := []rune(content)
+			return len(runes)
+		}
+	}
+
+	// Check if child is Button/Input (has label)
+	if labelGetter, ok := child.(interface{ Label() string }); ok {
+		label := labelGetter.Label()
+		if label != "" {
+			return len(label) + 4 // Add space for brackets
+		}
+	}
+
+	// Check if child is Input (has Value/Placeholder)
+	if valueGetter, ok := child.(interface{ Value() string }); ok {
+		value := valueGetter.Value()
+		if value != "" {
+			return len(value) + 2 // Add space for colons
+		}
+	}
+	if placeholderGetter, ok := child.(interface{ Placeholder() string }); ok {
+		placeholder := placeholderGetter.Placeholder()
+		if placeholder != "" {
+			return len(placeholder) + 2 // Add space for colons
+		}
+	}
+
+	// Default minimum width
+	return 10
 }
 
 // HStack creates a horizontal layout container

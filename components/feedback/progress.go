@@ -1,6 +1,11 @@
 package feedback
 
 import (
+	"fmt"
+	"unicode/utf8"
+
+	"github.com/wwsheng009/mint/runtime"
+	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
 	"github.com/wwsheng009/mint/ui"
 )
@@ -175,11 +180,11 @@ func (b *ProgressBuilderType) Style(s style.Style) *ProgressBuilderType {
 func (b *ProgressBuilderType) FgColor(c interface{}) *ProgressBuilderType {
 	if colorStr, ok := c.(string); ok {
 		s := b.node.Style()
-		s.FG = style.Color(colorStr)
+		s = s.Foreground(style.Color(colorStr))
 		b.node.SetStyle(s)
 	} else if color, ok := c.(style.Color); ok {
 		s := b.node.Style()
-		s.FG = color
+		s = s.Foreground(color)
 		b.node.SetStyle(s)
 	}
 	return b
@@ -189,11 +194,11 @@ func (b *ProgressBuilderType) FgColor(c interface{}) *ProgressBuilderType {
 func (b *ProgressBuilderType) BgColor(c interface{}) *ProgressBuilderType {
 	if colorStr, ok := c.(string); ok {
 		s := b.node.Style()
-		s.BG = style.Color(colorStr)
+		s = s.Background(style.Color(colorStr))
 		b.node.SetStyle(s)
 	} else if color, ok := c.(style.Color); ok {
 		s := b.node.Style()
-		s.BG = color
+		s = s.Background(color)
 		b.node.SetStyle(s)
 	}
 	return b
@@ -302,11 +307,11 @@ func (b *SpinnerBuilderType) Style(s style.Style) *SpinnerBuilderType {
 func (b *SpinnerBuilderType) FgColor(c interface{}) *SpinnerBuilderType {
 	if colorStr, ok := c.(string); ok {
 		s := b.node.Style()
-		s.FG = style.Color(colorStr)
+		s = s.Foreground(style.Color(colorStr))
 		b.node.SetStyle(s)
 	} else if color, ok := c.(style.Color); ok {
 		s := b.node.Style()
-		s.FG = color
+		s = s.Foreground(color)
 		b.node.SetStyle(s)
 	}
 	return b
@@ -315,4 +320,139 @@ func (b *SpinnerBuilderType) FgColor(c interface{}) *SpinnerBuilderType {
 // Build returns the ui.VNode
 func (b *SpinnerBuilderType) Build() ui.VNode {
 	return b.node
+}
+
+// =============================================================================
+// Measurable & Paintable Interface Implementation
+// =============================================================================
+
+// Measure implements runtime.Measurable interface for ProgressVNode
+func (p *ProgressVNode) Measure(constraints runtime.BoxConstraints) runtime.Size {
+	if p == nil {
+		return runtime.Size{Width: 0, Height: 0}
+	}
+
+	width := p.width
+	if width < 10 {
+		width = 10
+	}
+
+	height := 1
+
+	// Add height for label if present
+	if p.label != "" {
+		height = 2
+	}
+
+	// Apply constraints
+	if width < constraints.MinWidth {
+		width = constraints.MinWidth
+	}
+	if width > constraints.MaxWidth && constraints.MaxWidth > 0 {
+		width = constraints.MaxWidth
+	}
+	if height < constraints.MinHeight {
+		height = constraints.MinHeight
+	}
+	if height > constraints.MaxHeight && constraints.MaxHeight > 0 {
+		height = constraints.MaxHeight
+	}
+
+	return runtime.Size{Width: width, Height: height}
+}
+
+// Paint implements paint.Paintable interface for ProgressVNode
+func (p *ProgressVNode) Paint(x, y int) []paint.DrawCmd {
+	if p == nil {
+		return nil
+	}
+
+	progressStyle := p.Style()
+	var cmds []paint.DrawCmd
+
+	measured := p.Measure(runtime.BoxConstraints{})
+	width := measured.Width
+
+	// Calculate filled width
+	percent := p.Percent()
+
+	// Build progress bar: [======>     ]
+	barWidth := width - 2
+	filledCount := (percent * barWidth) / 100
+
+	bar := "["
+	for i := 0; i < barWidth; i++ {
+		if i < filledCount {
+			bar += "="
+		} else if i == filledCount {
+			bar += ">"
+		} else {
+			bar += " "
+		}
+	}
+	bar += "]"
+
+	// Draw progress bar
+	cmds = append(cmds, paint.NewTextCmd(x, y, bar, progressStyle))
+
+	// Draw percentage or label below
+	if p.showPercent || p.label != "" {
+		labelY := y + 1
+		var label string
+		if p.label != "" && p.showPercent {
+			label = fmt.Sprintf("%s: %d%%", p.label, percent)
+		} else if p.label != "" {
+			label = p.label
+		} else {
+			label = fmt.Sprintf("%d%%", percent)
+		}
+		cmds = append(cmds, paint.NewTextCmd(x, labelY, label, progressStyle))
+	}
+
+	return cmds
+}
+
+// Measure implements runtime.Measurable interface for SpinnerVNode
+func (s *SpinnerVNode) Measure(constraints runtime.BoxConstraints) runtime.Size {
+	if s == nil {
+		return runtime.Size{Width: 0, Height: 0}
+	}
+
+	width := utf8.RuneCountInString(s.message) + 2 // +2 for spinner icon
+	height := 1
+
+	// Apply constraints
+	if width < constraints.MinWidth {
+		width = constraints.MinWidth
+	}
+	if width > constraints.MaxWidth && constraints.MaxWidth > 0 {
+		width = constraints.MaxWidth
+	}
+	if height < constraints.MinHeight {
+		height = constraints.MinHeight
+	}
+	if height > constraints.MaxHeight && constraints.MaxHeight > 0 {
+		height = constraints.MaxHeight
+	}
+
+	return runtime.Size{Width: width, Height: height}
+}
+
+// Paint implements paint.Paintable interface for SpinnerVNode
+func (s *SpinnerVNode) Paint(x, y int) []paint.DrawCmd {
+	if s == nil {
+		return nil
+	}
+
+	spinnerStyle := s.Style()
+
+	// Get current frame
+	frame := s.CurrentFrame()
+
+	// Build spinner display: ⠋ Loading...
+	displayText := frame + " " + s.message
+
+	return []paint.DrawCmd{
+		paint.NewTextCmd(x, y, displayText, spinnerStyle),
+	}
 }

@@ -5,6 +5,8 @@ package layout
 // =============================================================================
 
 import (
+	"github.com/wwsheng009/mint/runtime"
+	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
 	"github.com/wwsheng009/mint/ui"
 )
@@ -376,4 +378,57 @@ func (g *GridVNode) CalculateRowHeights(totalHeight int) []int {
 	}
 
 	return heights
+}
+
+// =============================================================================
+// Measurable & Paintable Interface Implementation
+// =============================================================================
+
+// Measure implements runtime.Measurable interface
+func (g *GridVNode) Measure(constraints runtime.BoxConstraints) runtime.Size {
+	if g == nil {
+		return runtime.Size{Width: 0, Height: 0}
+	}
+
+	// Default size for grid container
+	width := 80
+	height := 24
+
+	// Check if explicit dimensions are set
+	elemStyle := g.Style()
+	if elemStyle.Width > 0 {
+		width = elemStyle.Width
+	}
+	if elemStyle.Height > 0 {
+		height = elemStyle.Height
+	}
+
+	// Apply constraints
+	if width < constraints.MinWidth {
+		width = constraints.MinWidth
+	}
+	if width > constraints.MaxWidth && constraints.MaxWidth > 0 {
+		width = constraints.MaxWidth
+	}
+	if height < constraints.MinHeight {
+		height = constraints.MinHeight
+	}
+	if height > constraints.MaxHeight && constraints.MaxHeight > 0 {
+		height = constraints.MaxHeight
+	}
+
+	return runtime.Size{Width: width, Height: height}
+}
+
+// Paint implements paint.Paintable interface
+// Grid is primarily a layout container - actual rendering is handled by the layout engine
+func (g *GridVNode) Paint(x, y int) []paint.DrawCmd {
+	if g == nil {
+		return nil
+	}
+
+	// Grid container itself doesn't have visual representation
+	// The layout engine will position and render children
+	// Return empty command set - children will be painted by the reconciler
+	return []paint.DrawCmd{}
 }

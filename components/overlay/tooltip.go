@@ -6,7 +6,10 @@ package overlay
 
 import (
 	"time"
+	"unicode/utf8"
 
+	"github.com/wwsheng009/mint/runtime"
+	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
 	"github.com/wwsheng009/mint/ui"
 )
@@ -113,11 +116,11 @@ func (b *TooltipBuilderType) Style(s style.Style) *TooltipBuilderType {
 func (b *TooltipBuilderType) FgColor(c interface{}) *TooltipBuilderType {
 	if colorStr, ok := c.(string); ok {
 		s := b.node.Style()
-		s.FG = style.Color(colorStr)
+		s = s.Foreground(style.Color(colorStr))
 		b.node.SetStyle(s)
 	} else if color, ok := c.(style.Color); ok {
 		s := b.node.Style()
-		s.FG = color
+		s = s.Foreground(color)
 		b.node.SetStyle(s)
 	}
 	return b
@@ -127,11 +130,11 @@ func (b *TooltipBuilderType) FgColor(c interface{}) *TooltipBuilderType {
 func (b *TooltipBuilderType) BgColor(c interface{}) *TooltipBuilderType {
 	if colorStr, ok := c.(string); ok {
 		s := b.node.Style()
-		s.BG = style.Color(colorStr)
+		s = s.Background(style.Color(colorStr))
 		b.node.SetStyle(s)
 	} else if color, ok := c.(style.Color); ok {
 		s := b.node.Style()
-		s.BG = color
+		s = s.Background(color)
 		b.node.SetStyle(s)
 	}
 	return b
@@ -285,11 +288,11 @@ func (b *ToastBuilderType) Style(s style.Style) *ToastBuilderType {
 func (b *ToastBuilderType) FgColor(c interface{}) *ToastBuilderType {
 	if colorStr, ok := c.(string); ok {
 		s := b.node.Style()
-		s.FG = style.Color(colorStr)
+		s = s.Foreground(style.Color(colorStr))
 		b.node.SetStyle(s)
 	} else if color, ok := c.(style.Color); ok {
 		s := b.node.Style()
-		s.FG = color
+		s = s.Foreground(color)
 		b.node.SetStyle(s)
 	}
 	return b
@@ -299,11 +302,11 @@ func (b *ToastBuilderType) FgColor(c interface{}) *ToastBuilderType {
 func (b *ToastBuilderType) BgColor(c interface{}) *ToastBuilderType {
 	if colorStr, ok := c.(string); ok {
 		s := b.node.Style()
-		s.BG = style.Color(colorStr)
+		s = s.Background(style.Color(colorStr))
 		b.node.SetStyle(s)
 	} else if color, ok := c.(style.Color); ok {
 		s := b.node.Style()
-		s.BG = color
+		s = s.Background(color)
 		b.node.SetStyle(s)
 	}
 	return b
@@ -390,4 +393,132 @@ func (tm *ToastManager) Clear() {
 // GetToasts returns all active toasts
 func (tm *ToastManager) GetToasts() []ui.VNode {
 	return tm.toasts
+}
+
+// =============================================================================
+// Measurable & Paintable Interface Implementation
+// =============================================================================
+
+// Measure implements runtime.Measurable interface for TooltipVNode
+func (t *TooltipVNode) Measure(constraints runtime.BoxConstraints) runtime.Size {
+	if t == nil {
+		return runtime.Size{Width: 0, Height: 0}
+	}
+
+	// If not visible, takes no space
+	if !t.visible {
+		return runtime.Size{Width: 0, Height: 0}
+	}
+
+	width := utf8.RuneCountInString(t.text) + 2 // +2 for padding
+	height := 1
+
+	// Apply constraints
+	if width < constraints.MinWidth {
+		width = constraints.MinWidth
+	}
+	if width > constraints.MaxWidth && constraints.MaxWidth > 0 {
+		width = constraints.MaxWidth
+	}
+	if height < constraints.MinHeight {
+		height = constraints.MinHeight
+	}
+	if height > constraints.MaxHeight && constraints.MaxHeight > 0 {
+		height = constraints.MaxHeight
+	}
+
+	return runtime.Size{Width: width, Height: height}
+}
+
+// Paint implements paint.Paintable interface for TooltipVNode
+func (t *TooltipVNode) Paint(x, y int) []paint.DrawCmd {
+	if t == nil || !t.visible {
+		return nil
+	}
+
+	tooltipStyle := t.Style()
+
+	// Simple tooltip rendering
+	tooltipText := " " + t.text + " "
+
+	return []paint.DrawCmd{
+		paint.NewTextCmd(x, y, tooltipText, tooltipStyle),
+	}
+}
+
+// Measure implements runtime.Measurable interface for ToastVNode
+func (t *ToastVNode) Measure(constraints runtime.BoxConstraints) runtime.Size {
+	if t == nil {
+		return runtime.Size{Width: 0, Height: 0}
+	}
+
+	// If not visible, takes no space
+	if !t.visible {
+		return runtime.Size{Width: 0, Height: 0}
+	}
+
+	width := 30 // Default width
+	if t.title != "" {
+		titleLen := utf8.RuneCountInString(t.title)
+		if titleLen > width {
+			width = titleLen
+		}
+	}
+	msgLen := utf8.RuneCountInString(t.message)
+	if msgLen > width {
+		width = msgLen
+	}
+
+	height := 1
+	if t.title != "" {
+		height = 2
+	}
+
+	// Apply constraints
+	if width < constraints.MinWidth {
+		width = constraints.MinWidth
+	}
+	if width > constraints.MaxWidth && constraints.MaxWidth > 0 {
+		width = constraints.MaxWidth
+	}
+	if height < constraints.MinHeight {
+		height = constraints.MinHeight
+	}
+	if height > constraints.MaxHeight && constraints.MaxHeight > 0 {
+		height = constraints.MaxHeight
+	}
+
+	return runtime.Size{Width: width, Height: height}
+}
+
+// Paint implements paint.Paintable interface for ToastVNode
+func (t *ToastVNode) Paint(x, y int) []paint.DrawCmd {
+	if t == nil || !t.visible {
+		return nil
+	}
+
+	toastStyle := t.Style()
+
+	// Set style based on toast type
+	switch t.toastType {
+	case ToastSuccess:
+		toastStyle = toastStyle.Foreground(style.Color("green"))
+	case ToastWarning:
+		toastStyle = toastStyle.Foreground(style.Color("yellow"))
+	case ToastError:
+		toastStyle = toastStyle.Foreground(style.Color("red"))
+	case ToastInfo:
+		toastStyle = toastStyle.Foreground(style.Color("blue"))
+	}
+
+	var cmds []paint.DrawCmd
+
+	if t.title != "" {
+		cmds = append(cmds, paint.NewTextCmd(x, y, t.title, toastStyle.Bold(true)))
+		cmds = append(cmds, paint.NewTextCmd(x, y+1, t.message, toastStyle))
+	} else {
+		cmds = append(cmds, paint.NewTextCmd(x, y, t.message, toastStyle))
+	}
+
+	return cmds
 }

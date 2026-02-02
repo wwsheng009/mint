@@ -1,6 +1,10 @@
 package overlay
 
 import (
+	"strings"
+
+	"github.com/wwsheng009/mint/runtime"
+	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/ui"
 )
 
@@ -124,4 +128,86 @@ func (m *ModalVNode) SetCentered(centered bool)       { m.centered = centered }
 func (m *ModalVNode) Toggle() bool {
 	m.isOpen = !m.isOpen
 	return m.isOpen
+}
+
+// =============================================================================
+// Measurable & Paintable Interface Implementation
+// =============================================================================
+
+// Measure implements runtime.Measurable interface
+func (m *ModalVNode) Measure(constraints runtime.BoxConstraints) runtime.Size {
+	if m == nil {
+		return runtime.Size{Width: 0, Height: 0}
+	}
+
+	// If modal is not open, it takes no space
+	if !m.isOpen {
+		return runtime.Size{Width: 0, Height: 0}
+	}
+
+	width := m.width
+	height := m.height
+
+	// Apply constraints
+	if width < constraints.MinWidth {
+		width = constraints.MinWidth
+	}
+	if width > constraints.MaxWidth && constraints.MaxWidth > 0 {
+		width = constraints.MaxWidth
+	}
+	if height < constraints.MinHeight {
+		height = constraints.MinHeight
+	}
+	if height > constraints.MaxHeight && constraints.MaxHeight > 0 {
+		height = constraints.MaxHeight
+	}
+
+	return runtime.Size{Width: width, Height: height}
+}
+
+// Paint implements paint.Paintable interface
+// Generates draw commands for rendering this modal component
+func (m *ModalVNode) Paint(x, y int) []paint.DrawCmd {
+	if m == nil || !m.isOpen {
+		return nil
+	}
+
+	modalStyle := m.Style()
+	measured := m.Measure(runtime.BoxConstraints{})
+	width := measured.Width
+	height := measured.Height
+
+	var cmds []paint.DrawCmd
+
+	// Build top border
+	topBorder := "┌" + strings.Repeat("─", width-2) + "┐"
+	cmds = append(cmds, paint.NewTextCmd(x, y, topBorder, modalStyle))
+
+	// Draw title row if present
+	if m.title != "" {
+		titleRow := "│ " + m.title + strings.Repeat(" ", width-3-len(m.title)) + "│"
+		cmds = append(cmds, paint.NewTextCmd(x, y+1, titleRow, modalStyle))
+
+		// Separator after title
+		separator := "├" + strings.Repeat("─", width-2) + "┤"
+		cmds = append(cmds, paint.NewTextCmd(x, y+2, separator, modalStyle))
+
+		// Draw content area (empty rows for now)
+		for i := 3; i < height-2; i++ {
+			contentRow := "│" + strings.Repeat(" ", width-2) + "│"
+			cmds = append(cmds, paint.NewTextCmd(x, y+i, contentRow, modalStyle))
+		}
+	} else {
+		// Draw content area (empty rows)
+		for i := 1; i < height-1; i++ {
+			contentRow := "│" + strings.Repeat(" ", width-2) + "│"
+			cmds = append(cmds, paint.NewTextCmd(x, y+i, contentRow, modalStyle))
+		}
+	}
+
+	// Draw bottom border
+	bottomBorder := "└" + strings.Repeat("─", width-2) + "┘"
+	cmds = append(cmds, paint.NewTextCmd(x, y+height-1, bottomBorder, modalStyle))
+
+	return cmds
 }
