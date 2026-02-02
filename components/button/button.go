@@ -1,7 +1,13 @@
 package button
 
 import (
+	"fmt"
+	"os"
+	"unicode/utf8"
+
 	"github.com/wwsheng009/mint/framework/event"
+	"github.com/wwsheng009/mint/runtime"
+	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
 	"github.com/wwsheng009/mint/ui"
 )
@@ -43,6 +49,8 @@ type ButtonVNode struct {
 	size          ButtonSize
 	disabled      bool
 	focusIndex    int // Index for focus management, set during collection
+	// Focus state
+	hasFocus      bool // Whether this button currently has keyboard focus
 	// Mouse interaction state
 	isHovered     bool
 	onMouseEnter  func()
@@ -273,9 +281,55 @@ func (b *ButtonVNode) SetOnMouseRelease(fn func()) *ButtonVNode {
 	return b
 }
 
-// HandleEvent processes mouse events for the button
+// HandleEvent processes mouse and keyboard events for the button
 func (b *ButtonVNode) HandleEvent(e event.Event) bool {
+	if os.Getenv("TUI_DEBUG_UI") == "true" {
+		fmt.Fprintf(os.Stderr, "Button HandleEvent called: label=%q, disabled=%v, hasFocus=%v, event type=%T\n",
+			b.label, b.disabled, b.hasFocus, e)
+	}
+
 	if b.disabled {
+		return false
+	}
+
+	// Handle keyboard events (Enter/Space to click)
+	keyEvent, ok := e.(*event.KeyEvent)
+	if os.Getenv("TUI_DEBUG_UI") == "true" {
+		fmt.Fprintf(os.Stderr, "Button HandleEvent: type assertion ok=%v, event type=%T\n", ok, e)
+	}
+	if ok {
+		// Only respond to keyboard events when focused
+		if !b.hasFocus {
+			if os.Getenv("TUI_DEBUG_UI") == "true" {
+				fmt.Fprintf(os.Stderr, "Button HandleEvent: ignoring key event, button not focused (label=%q)\n", b.label)
+			}
+			return false
+		}
+
+		if os.Getenv("TUI_DEBUG_UI") == "true" {
+			fmt.Fprintf(os.Stderr, "Button HandleEvent: KeyEvent, Special=%d (%v), Rune=%c, KeyEnter=%d\n",
+				keyEvent.Special, keyEvent.Special, keyEvent.Key.Rune, event.KeyEnter)
+		}
+		// Check for Enter key or Space key
+		if keyEvent.Special == event.KeyEnter || keyEvent.Key.Rune == ' ' {
+			// Space or Enter triggers click
+			if b.onClick != nil {
+				if os.Getenv("TUI_DEBUG_UI") == "true" {
+					fmt.Fprintf(os.Stderr, "Button HandleEvent: triggering onClick for label=%q (Special=%d)\n", b.label, keyEvent.Special)
+				}
+				b.onClick()
+				return true
+			} else {
+				if os.Getenv("TUI_DEBUG_UI") == "true" {
+					fmt.Fprintf(os.Stderr, "Button HandleEvent: onClick is nil for label=%q\n", b.label)
+				}
+			}
+		} else {
+			if os.Getenv("TUI_DEBUG_UI") == "true" {
+				fmt.Fprintf(os.Stderr, "Button HandleEvent: key not matched (Special=%d vs KeyEnter=%d)\n",
+					keyEvent.Special, event.KeyEnter)
+			}
+		}
 		return false
 	}
 
@@ -318,6 +372,9 @@ func (b *ButtonVNode) HandleEvent(e event.Event) bool {
 			}
 			// Trigger click on mouse release when still hovered
 			if b.onClick != nil {
+				if os.Getenv("TUI_DEBUG_UI") == "true" {
+					fmt.Fprintf(os.Stderr, "Button HandleEvent: mouse click for label=%q\n", b.label)
+				}
 				b.onClick()
 			}
 			return true
@@ -326,6 +383,9 @@ func (b *ButtonVNode) HandleEvent(e event.Event) bool {
 	case event.EventClick:
 		if b.isHovered && mouseEvent.Button == event.MouseLeft {
 			if b.onClick != nil {
+				if os.Getenv("TUI_DEBUG_UI") == "true" {
+					fmt.Fprintf(os.Stderr, "Button HandleEvent: click event for label=%q\n", b.label)
+				}
 				b.onClick()
 			}
 			return true
@@ -361,4 +421,162 @@ func (b *ButtonBuilderType) OnMousePress(fn func()) *ButtonBuilderType {
 func (b *ButtonBuilderType) OnMouseRelease(fn func()) *ButtonBuilderType {
 	b.node.SetOnMouseRelease(fn)
 	return b
+}
+
+// =============================================================================
+// Measurable & Paintable Interface Implementation
+// =============================================================================
+
+// Measure implements runtime.Measurable interface
+// Calculates the size of the button based on label and constraints
+func (b *ButtonVNode) Measure(constraints runtime.BoxConstraints) runtime.Size {
+	if b == nil {
+		return runtime.Size{Width: 0, Height: 0}
+	}
+
+	// Calculate button width: label + padding (brackets)
+	label := b.label
+	if label == "" {
+		label = " " // Empty button still has minimal width
+	}
+
+	// Width: label length + 2 for brackets "[]"
+	width := utf8.RuneCountInString(label) + 2
+
+	// Height is always 1 for single-line button
+	height := 1
+
+	// Apply size modifiers
+	switch b.size {
+	case ButtonSizeSmall:
+		// Small button: no extra padding
+	case ButtonSizeMedium:
+		// Medium button: +1 padding on each side
+		width += 2
+	case ButtonSizeLarge:
+		// Large button: +2 padding on each side
+		width += 4
+	}
+
+	// Apply constraints
+	if width < constraints.MinWidth {
+		width = constraints.MinWidth
+	}
+	if width > constraints.MaxWidth && constraints.MaxWidth > 0 {
+		width = constraints.MaxWidth
+	}
+	if height < constraints.MinHeight {
+		height = constraints.MinHeight
+	}
+	if height > constraints.MaxHeight && constraints.MaxHeight > 0 {
+		height = constraints.MaxHeight
+	}
+
+	// Apply explicit style dimensions if set
+	style := b.Style()
+	if style.Width > 0 {
+		width = style.Width
+	}
+	if style.Height > 0 {
+		height = style.Height
+	}
+
+	return runtime.Size{Width: width, Height: height}
+}
+
+// Paint implements paint.Paintable interface
+// Generates draw commands for rendering this button component
+func (b *ButtonVNode) Paint(x, y int) []paint.DrawCmd {
+	if b == nil {
+		return nil
+	}
+
+	// Get button style for rendering
+	buttonStyle := b.Style()
+
+	// Build button label with brackets
+	displayLabel := b.label
+	if displayLabel == "" {
+		displayLabel = " "
+	}
+
+	// Format: [label]
+	var labelText string
+	switch b.size {
+	case ButtonSizeSmall:
+		labelText = "[" + displayLabel + "]"
+	case ButtonSizeMedium:
+		labelText = "[ " + displayLabel + " ]"
+	case ButtonSizeLarge:
+		labelText = "[  " + displayLabel + "  ]"
+	default:
+		labelText = "[" + displayLabel + "]"
+	}
+
+	// Apply variant-based styling if not explicitly set
+	if buttonStyle.FG == "" && buttonStyle.BG == "" {
+		switch b.variant {
+		case ButtonVariantPrimary:
+			buttonStyle = buttonStyle.Foreground(style.Color("white")).Background(style.Color("blue")).Bold(true)
+		case ButtonVariantSecondary:
+			buttonStyle = buttonStyle.Foreground(style.Color("black")).Background(style.Color("gray"))
+		case ButtonVariantDanger:
+			buttonStyle = buttonStyle.Foreground(style.Color("white")).Background(style.Color("red")).Bold(true)
+		case ButtonVariantSuccess:
+			buttonStyle = buttonStyle.Foreground(style.Color("white")).Background(style.Color("green")).Bold(true)
+		case ButtonVariantDefault:
+			buttonStyle = buttonStyle.Foreground(style.Color("black")).Background(style.Color("white"))
+		}
+	}
+
+	// Apply disabled state
+	if b.disabled {
+		buttonStyle = buttonStyle.Foreground(style.Color("gray")).Background(style.Color("darkgray"))
+	}
+
+	// State priority: Focused > Hovered > Normal
+	// Focus: distinct visual feedback (reversed colors)
+	// Hover: subtle feedback (underline)
+	if b.hasFocus && !b.disabled {
+		// Focused state: blue background with white text for clear visibility
+		buttonStyle = buttonStyle.Foreground(style.Color("white")).Background(style.Color("blue")).Bold(true)
+	} else if b.isHovered && !b.disabled {
+		// Hovered state: underline only
+		buttonStyle = buttonStyle.Underline(true)
+	}
+
+	return []paint.DrawCmd{
+		paint.NewTextCmd(x, y, labelText, buttonStyle),
+	}
+}
+
+// =============================================================================
+// FocusableVNode Interface Implementation
+// =============================================================================
+
+// SetFocus sets the focus state of this button.
+// When focused, the button will display visual feedback (e.g., underline).
+func (b *ButtonVNode) SetFocus(hasFocus bool) {
+	b.hasFocus = hasFocus
+}
+
+// HasFocus returns whether this button currently has focus.
+func (b *ButtonVNode) HasFocus() bool {
+	return b.hasFocus
+}
+
+// IsFocusable returns whether this button can receive focus.
+// Disabled buttons cannot receive focus.
+func (b *ButtonVNode) IsFocusable() bool {
+	return !b.disabled
+}
+
+// GetFocusID returns a unique identifier for focus persistence.
+// Uses the button's Key if set, otherwise generates a stable ID.
+func (b *ButtonVNode) GetFocusID() string {
+	if key := b.Key(); key != "" {
+		return "button:" + key
+	}
+	// Generate stable ID based on label
+	return "button:" + b.label
 }

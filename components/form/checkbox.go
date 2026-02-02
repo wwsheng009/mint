@@ -1,7 +1,11 @@
 package form
 
 import (
+	"unicode/utf8"
+
 	"github.com/wwsheng009/mint/framework/event"
+	"github.com/wwsheng009/mint/runtime"
+	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
 	"github.com/wwsheng009/mint/ui"
 )
@@ -110,10 +114,9 @@ func (c *CheckboxVNode) IsFocused() bool {
 	return c.isFocused
 }
 
-// SetFocus sets the focused state (used internally)
-func (c *CheckboxVNode) SetFocus(focused bool) *CheckboxVNode {
+// SetFocus sets the focused state (implements FocusableVNode)
+func (c *CheckboxVNode) SetFocus(focused bool) {
 	c.isFocused = focused
-	return c
 }
 
 // =============================================================================
@@ -165,11 +168,11 @@ func (b *CheckboxBuilderType) Style(s style.Style) *CheckboxBuilderType {
 func (b *CheckboxBuilderType) FgColor(c interface{}) *CheckboxBuilderType {
 	if colorStr, ok := c.(string); ok {
 		s := b.node.Style()
-		s.FG = style.Color(colorStr)
+		s = s.Foreground(style.Color(colorStr))
 		b.node.SetStyle(s)
 	} else if color, ok := c.(style.Color); ok {
 		s := b.node.Style()
-		s.FG = color
+		s = s.Foreground(color)
 		b.node.SetStyle(s)
 	}
 	return b
@@ -179,11 +182,11 @@ func (b *CheckboxBuilderType) FgColor(c interface{}) *CheckboxBuilderType {
 func (b *CheckboxBuilderType) BgColor(c interface{}) *CheckboxBuilderType {
 	if colorStr, ok := c.(string); ok {
 		s := b.node.Style()
-		s.BG = style.Color(colorStr)
+		s = s.Background(style.Color(colorStr))
 		b.node.SetStyle(s)
 	} else if color, ok := c.(style.Color); ok {
 		s := b.node.Style()
-		s.BG = color
+		s = s.Background(color)
 		b.node.SetStyle(s)
 	}
 	return b
@@ -248,9 +251,28 @@ func (c *CheckboxVNode) SetOnMouseLeave(fn func()) *CheckboxVNode {
 	return c
 }
 
-// HandleEvent processes mouse events for the checkbox
+// HandleEvent processes mouse and keyboard events for the checkbox
 func (c *CheckboxVNode) HandleEvent(e event.Event) bool {
 	if c.disabled {
+		return false
+	}
+
+	// Handle keyboard events (Space to toggle)
+	keyEvent, ok := e.(*event.KeyEvent)
+	if ok {
+		// Only respond to keyboard events when focused
+		if !c.isFocused {
+			return false
+		}
+
+		// Space toggles the checkbox
+		if keyEvent.Key.Rune == ' ' {
+			newState := c.Toggle()
+			if c.onChange != nil {
+				c.onChange(newState)
+			}
+			return true
+		}
 		return false
 	}
 
@@ -306,4 +328,113 @@ func (b *CheckboxBuilderType) OnMouseEnter(fn func()) *CheckboxBuilderType {
 func (b *CheckboxBuilderType) OnMouseLeave(fn func()) *CheckboxBuilderType {
 	b.node.SetOnMouseLeave(fn)
 	return b
+}
+
+// =============================================================================
+// Measurable & Paintable Interface Implementation
+// =============================================================================
+
+// Measure implements runtime.Measurable interface
+// Calculates the size of the checkbox based on label and constraints
+func (c *CheckboxVNode) Measure(constraints runtime.BoxConstraints) runtime.Size {
+	if c == nil {
+		return runtime.Size{Width: 0, Height: 0}
+	}
+
+	// Width: checkbox "[X]" (3) + space (1) + label length
+	width := 4 + utf8.RuneCountInString(c.label)
+	height := 1
+
+	// Apply constraints
+	if width < constraints.MinWidth {
+		width = constraints.MinWidth
+	}
+	if width > constraints.MaxWidth && constraints.MaxWidth > 0 {
+		width = constraints.MaxWidth
+	}
+	if height < constraints.MinHeight {
+		height = constraints.MinHeight
+	}
+	if height > constraints.MaxHeight && constraints.MaxHeight > 0 {
+		height = constraints.MaxHeight
+	}
+
+	// Apply explicit style dimensions if set
+	elemStyle := c.Style()
+	if elemStyle.Width > 0 {
+		width = elemStyle.Width
+	}
+	if elemStyle.Height > 0 {
+		height = elemStyle.Height
+	}
+
+	return runtime.Size{Width: width, Height: height}
+}
+
+// Paint implements paint.Paintable interface
+// Generates draw commands for rendering this checkbox component
+func (c *CheckboxVNode) Paint(x, y int) []paint.DrawCmd {
+	if c == nil {
+		return nil
+	}
+
+	checkboxStyle := c.Style()
+
+	// Checkbox indicator: [X] or [ ]
+	var indicator string
+	if c.checked {
+		indicator = "[X]"
+	} else {
+		indicator = "[ ]"
+	}
+
+	// Build checkbox display: indicator + label
+	var displayText string
+	if c.label != "" {
+		displayText = indicator + " " + c.label
+	} else {
+		displayText = indicator
+	}
+
+	// State priority: Focused > Hovered > Normal
+	// Focus: blue background with white text for clear visibility
+	// Hover: underline only
+	if c.isFocused && !c.disabled {
+		checkboxStyle = checkboxStyle.Foreground(style.Color("white")).Background(style.Color("blue")).Bold(true)
+	} else if c.isHovered && !c.disabled {
+		checkboxStyle = checkboxStyle.Underline(true)
+	}
+
+	// Apply disabled state
+	if c.disabled {
+		checkboxStyle = checkboxStyle.Foreground(style.Color("gray"))
+	}
+
+	return []paint.DrawCmd{
+		paint.NewTextCmd(x, y, displayText, checkboxStyle),
+	}
+}
+
+// =============================================================================
+// FocusableVNode Interface Implementation
+// =============================================================================
+
+// IsFocusable returns whether this checkbox can receive focus.
+// Disabled checkboxes cannot receive focus.
+func (c *CheckboxVNode) IsFocusable() bool {
+	return !c.disabled
+}
+
+// GetFocusID returns a unique identifier for focus persistence.
+// Uses the checkbox's Key if set, otherwise generates a stable ID.
+func (c *CheckboxVNode) GetFocusID() string {
+	if key := c.Key(); key != "" {
+		return "checkbox:" + key
+	}
+	// Generate stable ID based on label
+	id := c.label
+	if id == "" {
+		id = "checkbox"
+	}
+	return "checkbox:" + id
 }

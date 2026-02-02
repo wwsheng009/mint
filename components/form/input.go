@@ -1,7 +1,11 @@
 package form
 
 import (
+	"unicode/utf8"
+
 	"github.com/wwsheng009/mint/framework/event"
+	"github.com/wwsheng009/mint/runtime"
+	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
 	"github.com/wwsheng009/mint/ui"
 )
@@ -196,10 +200,15 @@ func (i *InputVNode) IsFocused() bool {
 	return i.isFocused
 }
 
-// SetFocus sets the focused state (used internally)
-func (i *InputVNode) SetFocus(focused bool) *InputVNode {
+// SetFocus sets the focused state (implements FocusableVNode)
+func (i *InputVNode) SetFocus(focused bool) {
 	i.isFocused = focused
-	return i
+	// Call focus handler if set
+	if focused && i.onFocus != nil {
+		i.onFocus()
+	} else if !focused && i.onBlur != nil {
+		i.onBlur()
+	}
 }
 
 // =============================================================================
@@ -293,11 +302,11 @@ func (b *InputBuilderType) Style(s style.Style) *InputBuilderType {
 func (b *InputBuilderType) FgColor(c interface{}) *InputBuilderType {
 	if colorStr, ok := c.(string); ok {
 		s := b.node.Style()
-		s.FG = style.Color(colorStr)
+		s = s.Foreground(style.Color(colorStr))
 		b.node.SetStyle(s)
 	} else if color, ok := c.(style.Color); ok {
 		s := b.node.Style()
-		s.FG = color
+		s = s.Foreground(color)
 		b.node.SetStyle(s)
 	}
 	return b
@@ -307,11 +316,11 @@ func (b *InputBuilderType) FgColor(c interface{}) *InputBuilderType {
 func (b *InputBuilderType) BgColor(c interface{}) *InputBuilderType {
 	if colorStr, ok := c.(string); ok {
 		s := b.node.Style()
-		s.BG = style.Color(colorStr)
+		s = s.Background(style.Color(colorStr))
 		b.node.SetStyle(s)
 	} else if color, ok := c.(style.Color); ok {
 		s := b.node.Style()
-		s.BG = color
+		s = s.Background(color)
 		b.node.SetStyle(s)
 	}
 	return b
@@ -364,9 +373,56 @@ func (i *InputVNode) ContainsPoint(x, y int) bool {
 		y >= i.bounds[1] && y < i.bounds[1]+i.bounds[3]
 }
 
-// HandleEvent processes mouse events for the input
+// HandleEvent processes mouse and keyboard events for the input
 func (i *InputVNode) HandleEvent(e event.Event) bool {
 	if i.disabled || i.readOnly {
+		return false
+	}
+
+	// Handle keyboard events (character input)
+	keyEvent, ok := e.(*event.KeyEvent)
+	if ok {
+		// Only process keyboard input when focused
+		if !i.isFocused {
+			return false
+		}
+
+		// Handle special keys
+		if keyEvent.Special == event.KeyBackspace || keyEvent.Special == event.KeyDelete {
+			// Delete last character
+			if len(i.value) > 0 {
+				runes := []rune(i.value)
+				i.value = string(runes[:len(runes)-1])
+				if i.onChange != nil {
+					i.onChange(i.value)
+				}
+			}
+			return true
+		}
+
+		if keyEvent.Special == event.KeyEnter {
+			// Submit (if handler exists)
+			if i.onSubmit != nil {
+				i.onSubmit()
+			}
+			return true
+		}
+
+		// Handle character input
+		if keyEvent.Key.Rune > 0 && keyEvent.Key.Rune >= 32 && keyEvent.Key.Rune <= 126 {
+			// Check max length
+			if i.maxLength > 0 && utf8.RuneCountInString(i.value) >= i.maxLength {
+				return true // Reached max length
+			}
+
+			// Append character
+			i.value += string(keyEvent.Key.Rune)
+			if i.onChange != nil {
+				i.onChange(i.value)
+			}
+			return true
+		}
+
 		return false
 	}
 
@@ -397,4 +453,140 @@ func (i *InputVNode) HandleEvent(e event.Event) bool {
 	}
 
 	return false
+}
+
+// =============================================================================
+// Measurable & Paintable Interface Implementation
+// =============================================================================
+
+// Measure implements runtime.Measurable interface
+// Calculates the size of the input based on value/placeholder and constraints
+func (i *InputVNode) Measure(constraints runtime.BoxConstraints) runtime.Size {
+	if i == nil {
+		return runtime.Size{Width: 0, Height: 0}
+	}
+
+	// Calculate content width
+	content := i.value
+	if content == "" && i.placeholder != "" {
+		content = i.placeholder
+	}
+	if content == "" {
+		content = " " // Empty input still has minimal width
+	}
+
+	// Width: content length + 2 for brackets ":"
+	width := utf8.RuneCountInString(content) + 2
+	height := 1
+
+	// Apply max length constraint
+	if i.maxLength > 0 && width > i.maxLength+2 {
+		width = i.maxLength + 2
+	}
+
+	// Apply constraints
+	if width < constraints.MinWidth {
+		width = constraints.MinWidth
+	}
+	if width > constraints.MaxWidth && constraints.MaxWidth > 0 {
+		width = constraints.MaxWidth
+	}
+	if height < constraints.MinHeight {
+		height = constraints.MinHeight
+	}
+	if height > constraints.MaxHeight && constraints.MaxHeight > 0 {
+		height = constraints.MaxHeight
+	}
+
+	// Apply explicit style dimensions if set
+	elemStyle := i.Style()
+	if elemStyle.Width > 0 {
+		width = elemStyle.Width
+	}
+	if elemStyle.Height > 0 {
+		height = elemStyle.Height
+	}
+
+	return runtime.Size{Width: width, Height: height}
+}
+
+// Paint implements paint.Paintable interface
+// Generates draw commands for rendering this input component
+func (i *InputVNode) Paint(x, y int) []paint.DrawCmd {
+	if i == nil {
+		return nil
+	}
+
+	inputStyle := i.Style()
+
+	// Determine what to display
+	displayValue := i.value
+	if displayValue == "" {
+		displayValue = i.placeholder
+	}
+
+	// Format input value based on type
+	var displayText string
+	switch i.inputType {
+	case InputTypePassword:
+		// Hide password characters
+		maskedLen := utf8.RuneCountInString(i.value)
+		if maskedLen == 0 && i.placeholder != "" {
+			displayText = i.placeholder
+		} else {
+			displayText = ""
+			for j := 0; j < maskedLen; j++ {
+				displayText += "*"
+			}
+		}
+	default:
+		displayText = displayValue
+	}
+
+	// Build input display with brackets
+	inputLabel := ":" + displayText + ":"
+
+	// Apply focus/hover styling
+	if i.isFocused {
+		inputStyle = inputStyle.Underline(true)
+		inputStyle = inputStyle.Bold(true)
+	} else if i.isHovered {
+		inputStyle = inputStyle.Underline(true)
+	}
+
+	// Apply disabled state
+	if i.disabled {
+		inputStyle = inputStyle.Foreground(style.Color("gray"))
+	}
+
+	return []paint.DrawCmd{
+		paint.NewTextCmd(x, y, inputLabel, inputStyle),
+	}
+}
+
+// =============================================================================
+// FocusableVNode Interface Implementation
+// =============================================================================
+
+// IsFocusable returns whether this input can receive focus.
+// Disabled or read-only inputs cannot receive focus.
+func (i *InputVNode) IsFocusable() bool {
+	return !i.disabled && !i.readOnly
+}
+
+// GetFocusID returns a unique identifier for focus persistence.
+// Uses the input's Key if set, otherwise generates a stable ID.
+func (i *InputVNode) GetFocusID() string {
+	if key := i.Key(); key != "" {
+		return "input:" + key
+	}
+	// Generate stable ID based on placeholder or value
+	id := i.placeholder
+	if id == "" {
+		id = i.value
+	}
+	if id == "" {
+		id = "input"
+	}
+	return "input:" + id
 }

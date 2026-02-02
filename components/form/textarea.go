@@ -1,7 +1,12 @@
 package form
 
 import (
+	"strings"
+	"unicode/utf8"
+
 	"github.com/wwsheng009/mint/framework/event"
+	"github.com/wwsheng009/mint/runtime"
+	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
 	"github.com/wwsheng009/mint/ui"
 )
@@ -196,10 +201,15 @@ func (t *TextareaVNode) IsFocused() bool {
 	return t.isFocused
 }
 
-// SetFocus sets the focused state (used internally)
-func (t *TextareaVNode) SetFocus(focused bool) *TextareaVNode {
+// SetFocus sets the focused state (implements FocusableVNode)
+func (t *TextareaVNode) SetFocus(focused bool) {
 	t.isFocused = focused
-	return t
+	// Call focus handler if set
+	if focused && t.onFocus != nil {
+		t.onFocus()
+	} else if !focused && t.onBlur != nil {
+		t.onBlur()
+	}
 }
 
 // =============================================================================
@@ -269,6 +279,151 @@ func (t *TextareaVNode) HandleEvent(e event.Event) bool {
 	}
 
 	return false
+}
+
+// =============================================================================
+// Measurable & Paintable Interface Implementation
+// =============================================================================
+
+// Measure implements runtime.Measurable interface
+// Calculates the size of the textarea based on content and constraints
+func (t *TextareaVNode) Measure(constraints runtime.BoxConstraints) runtime.Size {
+	if t == nil {
+		return runtime.Size{Width: 0, Height: 0}
+	}
+
+	// Calculate dimensions based on content
+	content := t.value
+	if content == "" && t.placeholder != "" {
+		content = t.placeholder
+	}
+
+	// Split content into lines
+	lines := strings.Split(content, "\n")
+	if len(lines) == 0 {
+		lines = []string{" "}
+	}
+
+	// Calculate width based on longest line
+	maxWidth := 0
+	for _, line := range lines {
+		lineWidth := utf8.RuneCountInString(line)
+		if lineWidth > maxWidth {
+			maxWidth = lineWidth
+		}
+	}
+
+	// Width: content + 2 for border on each side (total 4)
+	width := maxWidth + 4
+
+	// Height: number of lines + 2 for top/bottom border
+	height := len(lines) + 2
+
+	// Apply explicit rows/cols if set
+	if t.rows > 0 && height < t.rows+2 {
+		height = t.rows + 2
+	}
+	if t.cols > 0 && width < t.cols+4 {
+		width = t.cols + 4
+	}
+
+	// Apply constraints
+	if width < constraints.MinWidth {
+		width = constraints.MinWidth
+	}
+	if width > constraints.MaxWidth && constraints.MaxWidth > 0 {
+		width = constraints.MaxWidth
+	}
+	if height < constraints.MinHeight {
+		height = constraints.MinHeight
+	}
+	if height > constraints.MaxHeight && constraints.MaxHeight > 0 {
+		height = constraints.MaxHeight
+	}
+
+	// Apply explicit style dimensions if set
+	elemStyle := t.Style()
+	if elemStyle.Width > 0 {
+		width = elemStyle.Width
+	}
+	if elemStyle.Height > 0 {
+		height = elemStyle.Height
+	}
+
+	return runtime.Size{Width: width, Height: height}
+}
+
+// Paint implements paint.Paintable interface
+// Generates draw commands for rendering this textarea component
+func (t *TextareaVNode) Paint(x, y int) []paint.DrawCmd {
+	if t == nil {
+		return nil
+	}
+
+	textareaStyle := t.Style()
+
+	// Apply focus/hover/disabled styling first
+	// Focus: blue border for clear visibility
+	// Disabled: gray
+	borderStyle := textareaStyle
+	contentStyle := textareaStyle
+
+	if t.isFocused && !t.disabled {
+		// Focused: blue borders
+		borderStyle = borderStyle.Foreground(style.Color("blue")).Bold(true)
+	} else if t.disabled {
+		// Disabled: gray
+		borderStyle = borderStyle.Foreground(style.Color("gray"))
+		contentStyle = contentStyle.Foreground(style.Color("gray"))
+	}
+
+	// Determine what to display
+	displayValue := t.value
+	if displayValue == "" {
+		displayValue = t.placeholder
+	}
+
+	// Split content into lines
+	lines := strings.Split(displayValue, "\n")
+	if len(lines) == 0 {
+		lines = []string{""}
+	}
+
+	// Calculate dimensions
+	measured := t.Measure(runtime.BoxConstraints{})
+	width := measured.Width
+	height := measured.Height
+
+	// Build top border
+	topBorder := "+" + strings.Repeat("-", width-2) + "+"
+
+	// Build commands
+	var cmds []paint.DrawCmd
+
+	// Draw top border
+	cmds = append(cmds, paint.NewTextCmd(x, y, topBorder, borderStyle))
+
+	// Draw each line with side borders
+	for i, line := range lines {
+		if i >= height-2 {
+			break // Don't exceed height
+		}
+
+		// Pad line to fit width
+		lineWidth := utf8.RuneCountInString(line)
+		padding := width - 2 - lineWidth
+		if padding < 0 {
+			padding = 0
+		}
+
+		lineText := "|" + line + strings.Repeat(" ", padding) + "|"
+		cmds = append(cmds, paint.NewTextCmd(x, y+1+i, lineText, borderStyle))
+	}
+
+	// Draw bottom border
+	cmds = append(cmds, paint.NewTextCmd(x, y+height-1, topBorder, borderStyle))
+
+	return cmds
 }
 
 // =============================================================================
@@ -362,11 +517,11 @@ func (b *TextareaBuilderType) Style(s style.Style) *TextareaBuilderType {
 func (b *TextareaBuilderType) FgColor(c interface{}) *TextareaBuilderType {
 	if colorStr, ok := c.(string); ok {
 		s := b.node.Style()
-		s.FG = style.Color(colorStr)
+		s = s.Foreground(style.Color(colorStr))
 		b.node.SetStyle(s)
 	} else if color, ok := c.(style.Color); ok {
 		s := b.node.Style()
-		s.FG = color
+		s = s.Foreground(color)
 		b.node.SetStyle(s)
 	}
 	return b
@@ -376,11 +531,11 @@ func (b *TextareaBuilderType) FgColor(c interface{}) *TextareaBuilderType {
 func (b *TextareaBuilderType) BgColor(c interface{}) *TextareaBuilderType {
 	if colorStr, ok := c.(string); ok {
 		s := b.node.Style()
-		s.BG = style.Color(colorStr)
+		s = s.Background(style.Color(colorStr))
 		b.node.SetStyle(s)
 	} else if color, ok := c.(style.Color); ok {
 		s := b.node.Style()
-		s.BG = color
+		s = s.Background(color)
 		b.node.SetStyle(s)
 	}
 	return b
@@ -401,4 +556,31 @@ func (b *TextareaBuilderType) Height(h int) *TextareaBuilderType {
 // Build returns the ui.VNode
 func (b *TextareaBuilderType) Build() ui.VNode {
 	return b.node
+}
+
+// =============================================================================
+// FocusableVNode Interface Implementation
+// =============================================================================
+
+// IsFocusable returns whether this textarea can receive focus.
+// Disabled textareas cannot receive focus.
+func (t *TextareaVNode) IsFocusable() bool {
+	return !t.disabled
+}
+
+// GetFocusID returns a unique identifier for focus persistence.
+// Uses the textarea's Key if set, otherwise generates a stable ID.
+func (t *TextareaVNode) GetFocusID() string {
+	if key := t.Key(); key != "" {
+		return "textarea:" + key
+	}
+	// Generate stable ID based on placeholder or value
+	id := t.placeholder
+	if id == "" {
+		id = t.value
+	}
+	if id == "" {
+		id = "textarea"
+	}
+	return "textarea:" + id
 }

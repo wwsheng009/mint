@@ -1,7 +1,11 @@
 package form
 
 import (
+	"unicode/utf8"
+
 	"github.com/wwsheng009/mint/framework/event"
+	"github.com/wwsheng009/mint/runtime"
+	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
 	"github.com/wwsheng009/mint/ui"
 )
@@ -121,10 +125,9 @@ func (s *SelectVNode) IsFocused() bool {
 	return s.isFocused
 }
 
-// SetFocus sets the focused state
-func (s *SelectVNode) SetFocus(focused bool) *SelectVNode {
+// SetFocus sets the focused state (implements FocusableVNode)
+func (s *SelectVNode) SetFocus(focused bool) {
 	s.isFocused = focused
-	return s
 }
 
 // IsOpen returns whether the dropdown is open
@@ -196,9 +199,34 @@ func (s *SelectVNode) ContainsPoint(x, y int) bool {
 		y >= s.bounds[1] && y < s.bounds[1]+s.bounds[3]
 }
 
-// HandleEvent processes mouse events for the select
+// HandleEvent processes mouse and keyboard events for the select
 func (s *SelectVNode) HandleEvent(e event.Event) bool {
 	if s.disabled {
+		return false
+	}
+
+	// Handle keyboard events (Space/Enter to cycle)
+	keyEvent, ok := e.(*event.KeyEvent)
+	if ok {
+		// Only respond to keyboard events when focused
+		if !s.isFocused {
+			return false
+		}
+
+		// Space or Enter cycles to next option
+		if keyEvent.Key.Rune == ' ' || keyEvent.Special == event.KeyEnter {
+			if len(s.options) > 0 {
+				nextIdx := s.selected + 1
+				if nextIdx >= len(s.options) {
+					nextIdx = 0
+				}
+				s.SetSelected(nextIdx)
+				if s.onChange != nil {
+					s.onChange(s.SelectedValue())
+				}
+				return true
+			}
+		}
 		return false
 	}
 
@@ -293,11 +321,11 @@ func (b *SelectBuilderType) Style(s style.Style) *SelectBuilderType {
 func (b *SelectBuilderType) FgColor(c interface{}) *SelectBuilderType {
 	if colorStr, ok := c.(string); ok {
 		s := b.node.Style()
-		s.FG = style.Color(colorStr)
+		s = s.Foreground(style.Color(colorStr))
 		b.node.SetStyle(s)
 	} else if color, ok := c.(style.Color); ok {
 		s := b.node.Style()
-		s.FG = color
+		s = s.Foreground(color)
 		b.node.SetStyle(s)
 	}
 	return b
@@ -307,11 +335,11 @@ func (b *SelectBuilderType) FgColor(c interface{}) *SelectBuilderType {
 func (b *SelectBuilderType) BgColor(c interface{}) *SelectBuilderType {
 	if colorStr, ok := c.(string); ok {
 		s := b.node.Style()
-		s.BG = style.Color(colorStr)
+		s = s.Background(style.Color(colorStr))
 		b.node.SetStyle(s)
 	} else if color, ok := c.(style.Color); ok {
 		s := b.node.Style()
-		s.BG = color
+		s = s.Background(color)
 		b.node.SetStyle(s)
 	}
 	return b
@@ -320,4 +348,138 @@ func (b *SelectBuilderType) BgColor(c interface{}) *SelectBuilderType {
 // Build returns the ui.VNode
 func (b *SelectBuilderType) Build() ui.VNode {
 	return b.node
+}
+
+// =============================================================================
+// Measurable & Paintable Interface Implementation
+// =============================================================================
+
+// Measure implements runtime.Measurable interface
+// Calculates the size of the select based on options and constraints
+func (s *SelectVNode) Measure(constraints runtime.BoxConstraints) runtime.Size {
+	if s == nil {
+		return runtime.Size{Width: 0, Height: 0}
+	}
+
+	// Find the longest option label
+	maxWidth := 0
+	for _, opt := range s.options {
+		labelWidth := utf8.RuneCountInString(opt.Label)
+		if labelWidth > maxWidth {
+			maxWidth = labelWidth
+		}
+	}
+
+	// If no options, use default width
+	if maxWidth == 0 {
+		maxWidth = 10
+	}
+
+	// Width: longest label + 4 for "< " and " >"
+	width := maxWidth + 4
+	height := 1
+
+	// Apply constraints
+	if width < constraints.MinWidth {
+		width = constraints.MinWidth
+	}
+	if width > constraints.MaxWidth && constraints.MaxWidth > 0 {
+		width = constraints.MaxWidth
+	}
+	if height < constraints.MinHeight {
+		height = constraints.MinHeight
+	}
+	if height > constraints.MaxHeight && constraints.MaxHeight > 0 {
+		height = constraints.MaxHeight
+	}
+
+	// Apply explicit style dimensions if set
+	elemStyle := s.Style()
+	if elemStyle.Width > 0 {
+		width = elemStyle.Width
+	}
+	if elemStyle.Height > 0 {
+		height = elemStyle.Height
+	}
+
+	return runtime.Size{Width: width, Height: height}
+}
+
+// Paint implements paint.Paintable interface
+// Generates draw commands for rendering this select component
+func (s *SelectVNode) Paint(x, y int) []paint.DrawCmd {
+	if s == nil {
+		return nil
+	}
+
+	selectStyle := s.Style()
+
+	// Get the selected label to display
+	displayLabel := s.SelectedLabel()
+	if displayLabel == "" {
+		if len(s.options) > 0 {
+			displayLabel = s.options[0].Label
+		} else {
+			displayLabel = "..."
+		}
+	}
+
+	// Build select display: < label >
+	// Truncate if too long
+	measured := s.Measure(runtime.BoxConstraints{})
+	maxLabelWidth := measured.Width - 4
+
+	labelWidth := utf8.RuneCountInString(displayLabel)
+	if labelWidth > maxLabelWidth {
+		// Truncate label
+		runes := []rune(displayLabel)
+		displayLabel = string(runes[:maxLabelWidth-3]) + "..."
+	}
+
+	selectDisplay := "< " + displayLabel + " >"
+
+	// State priority: Focused > Hovered > Normal
+	// Focus: blue background with white text for clear visibility
+	// Hover: underline only
+	if s.isFocused && !s.disabled {
+		selectStyle = selectStyle.Foreground(style.Color("white")).Background(style.Color("blue")).Bold(true)
+	} else if s.isHovered && !s.disabled {
+		selectStyle = selectStyle.Underline(true)
+	}
+
+	// Apply disabled state
+	if s.disabled {
+		selectStyle = selectStyle.Foreground(style.Color("gray"))
+	}
+
+	return []paint.DrawCmd{
+		paint.NewTextCmd(x, y, selectDisplay, selectStyle),
+	}
+}
+
+// =============================================================================
+// FocusableVNode Interface Implementation
+// =============================================================================
+
+// IsFocusable returns whether this select can receive focus.
+// Disabled selects cannot receive focus.
+func (s *SelectVNode) IsFocusable() bool {
+	return !s.disabled && len(s.options) > 0
+}
+
+// GetFocusID returns a unique identifier for focus persistence.
+// Uses the select's Key if set, otherwise generates a stable ID.
+func (s *SelectVNode) GetFocusID() string {
+	if key := s.Key(); key != "" {
+		return "select:" + key
+	}
+	// Generate stable ID based on first option label
+	id := ""
+	if len(s.options) > 0 {
+		id = s.options[0].Label
+	}
+	if id == "" {
+		id = "select"
+	}
+	return "select:" + id
 }
