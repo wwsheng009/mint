@@ -40,6 +40,14 @@ func WithHeight(height int) Option {
 	}
 }
 
+// WithSize sets both width and height
+func WithSize(width, height int) Option {
+	return func(o *Options) {
+		o.Width = width
+		o.Height = height
+	}
+}
+
 // WithTitle sets the window title
 func WithTitle(title string) Option {
 	return func(o *Options) {

@@ -358,9 +358,21 @@ func (b *ButtonVNode) HandleEvent(e event.Event) bool {
 		return true
 
 	case event.EventMousePress:
-		if b.isHovered && mouseEvent.Button == event.MouseLeft {
+		// Check if mouse is within button bounds
+		if b.ContainsPoint(mouseEvent.X, mouseEvent.Y) && mouseEvent.Button == event.MouseLeft {
+			if os.Getenv("TUI_DEBUG_UI") == "true" {
+				fmt.Fprintf(os.Stderr, "Button HandleEvent: mouse press within bounds for label=%q, x=%d, y=%d, bounds=%v\n",
+					b.label, mouseEvent.X, mouseEvent.Y, b.bounds)
+			}
 			if b.onMousePress != nil {
 				b.onMousePress()
+			}
+			// Trigger click on press for better responsiveness
+			if b.onClick != nil {
+				if os.Getenv("TUI_DEBUG_UI") == "true" {
+					fmt.Fprintf(os.Stderr, "Button HandleEvent: triggering onClick for label=%q\n", b.label)
+				}
+				b.onClick()
 			}
 			return true
 		}

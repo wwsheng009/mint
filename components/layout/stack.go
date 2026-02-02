@@ -1,6 +1,7 @@
 package layout
 
 import (
+	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
 	"github.com/wwsheng009/mint/ui"
@@ -81,6 +82,9 @@ func (l *LayoutNode) Paint(x, y int) []paint.DrawCmd {
 	currentY := y + l.padding[0] // top padding
 
 	for i, child := range children {
+		// Set child bounds for hit testing (if child supports SetBounds)
+		l.setChildBounds(child, currentX, currentY)
+
 		// Check if child implements Paintable
 		if paintable, ok := child.(interface{ Paint(int, int) []paint.DrawCmd }); ok {
 			// Child has custom paint logic
@@ -119,6 +123,39 @@ func (l *LayoutNode) Paint(x, y int) []paint.DrawCmd {
 	}
 
 	return cmds
+}
+
+// setChildBounds sets the bounds of a child for hit testing
+func (l *LayoutNode) setChildBounds(child ui.VNode, x, y int) {
+	if child == nil {
+		return
+	}
+
+	// Check if child implements SetBounds
+	if boundsAware, ok := child.(interface{ SetBounds(x, y, width, height int) }); ok {
+		width := 0
+		height := 0
+
+		// Try to get measured size from Measurable interface
+		type measurable interface {
+			Measure(constraints runtime.BoxConstraints) runtime.Size
+		}
+		if m, ok := child.(measurable); ok {
+			size := m.Measure(runtime.BoxConstraints{})
+			width = size.Width
+			height = size.Height
+		}
+
+		// Fallback to estimation
+		if width == 0 {
+			width = l.estimateChildWidth(child)
+		}
+		if height == 0 {
+			height = 1 // Default height
+		}
+
+		boundsAware.SetBounds(x, y, width, height)
+	}
 }
 
 // estimateChildWidth estimates the width of a child for layout

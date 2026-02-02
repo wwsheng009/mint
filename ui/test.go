@@ -375,43 +375,81 @@ func (ta *TestableApp) GetSandbox() *mock.MockSandbox {
 
 // GetFocusedIndex 获取当前焦点元素索引
 func (ta *TestableApp) GetFocusedIndex() int {
-	// For now, return -1 (no focused element)
-	// TODO: Implement proper focus tracking
-	return -1
+	if ta.root == nil {
+		return -1
+	}
+	return ta.root.GetFocusedIndex()
 }
 
 // GetFocusedType 获取当前焦点元素类型
 func (ta *TestableApp) GetFocusedType() int {
-	// For now, return 0 (no type)
-	// TODO: Implement proper focus tracking
-	return 0
+	if ta.root == nil {
+		return 0
+	}
+	return ta.root.GetFocusedType()
 }
 
 // GetButtons 获取按钮列表
 func (ta *TestableApp) GetButtons() []interface{} {
-	// For now, return empty list
-	// TODO: Collect buttons from VNode tree
-	return []interface{}{}
+	if ta.root == nil {
+		return []interface{}{}
+	}
+	buttons := ta.root.GetButtons()
+	result := make([]interface{}, len(buttons))
+	for i, b := range buttons {
+		result[i] = b
+	}
+	return result
 }
 
 // GetInputs 获取输入框列表
 func (ta *TestableApp) GetInputs() []interface{} {
-	// For now, return empty list
-	// TODO: Collect inputs from VNode tree
-	return []interface{}{}
+	if ta.root == nil {
+		return []interface{}{}
+	}
+	inputs := ta.root.GetInputs()
+	result := make([]interface{}, len(inputs))
+	for i, inp := range inputs {
+		result[i] = inp
+	}
+	return result
 }
 
 // GetTextareas 获取文本域列表
 func (ta *TestableApp) GetTextareas() []interface{} {
-	return []interface{}{}
+	if ta.root == nil {
+		return []interface{}{}
+	}
+	textareas := ta.root.GetTextareas()
+	result := make([]interface{}, len(textareas))
+	for i, ta := range textareas {
+		result[i] = ta
+	}
+	return result
 }
 
 // GetCheckboxes 获取复选框列表
 func (ta *TestableApp) GetCheckboxes() []interface{} {
-	return []interface{}{}
+	if ta.root == nil {
+		return []interface{}{}
+	}
+	checkboxes := ta.root.GetCheckboxes()
+	result := make([]interface{}, len(checkboxes))
+	for i, cb := range checkboxes {
+		result[i] = cb
+	}
+	return result
 }
 
 // GetSelects 获取选择框列表
 func (ta *TestableApp) GetSelects() []interface{} {
-	return []interface{}{}
+	if ta.root == nil {
+		return []interface{}{}
+	}
+	selects := ta.root.GetSelects()
+	result := make([]interface{}, len(selects))
+	for i, s := range selects {
+		result[i] = s
+	}
+	return result
 }

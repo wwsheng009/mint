@@ -1,5 +1,12 @@
 package main
 
+// ============================================================================
+// 旧版测试 - 已弃用
+// 这些测试使用 ui.TestRun (旧版 API)，依赖 Sandbox Helper 功能
+// 新版 ui.RunTest 不提供 Sandbox() 方法
+// 请使用 sandbox_mock_test.go 中的新版测试
+// ============================================================================
+
 import (
 	"fmt"
 	"testing"
@@ -9,18 +16,18 @@ import (
 	"github.com/wwsheng009/mint/ui"
 )
 
-// SnapshotExamples 演示快照功能的各种用法
-func SnapshotExamples(t *testing.T) {
-	t.Run("BasicSnapshot", testBasicSnapshot)
-	t.Run("SnapshotLevels", testSnapshotLevels)
-	t.Run("RestoreSnapshot", testRestoreSnapshot)
-	t.Run("SnapshotTags", testSnapshotTags)
-	t.Run("SnapshotWithActions", testSnapshotWithActions)
-	t.Run("SnapshotReusability", testSnapshotReusability)
+// SnapshotExamples_OLD 演示快照功能的各种用法 (已弃用)
+func SnapshotExamples_OLD(t *testing.T) {
+	t.Run("BasicSnapshot", testBasicSnapshot_OLD)
+	t.Run("SnapshotLevels", testSnapshotLevels_OLD)
+	t.Run("RestoreSnapshot", testRestoreSnapshot_OLD)
+	t.Run("SnapshotTags", testSnapshotTags_OLD)
+	t.Run("SnapshotWithActions", testSnapshotWithActions_OLD)
+	t.Run("SnapshotReusability", testSnapshotReusability_OLD)
 }
 
-// testBasicSnapshot 基础快照功能
-func testBasicSnapshot(t *testing.T) {
+// testBasicSnapshot_OLD 基础快照功能 (已弃用)
+func testBasicSnapshot_OLD(t *testing.T) {
 	testApp, err := ui.TestRun(Counter, ui.TestWithSize(40, 18))
 	if err != nil {
 		t.Fatal(err)
@@ -50,8 +57,8 @@ func testBasicSnapshot(t *testing.T) {
 	}
 }
 
-// testSnapshotLevels 测试不同快照级别
-func testSnapshotLevels(t *testing.T) {
+// testSnapshotLevels_OLD 测试不同快照级别 (已弃用)
+func testSnapshotLevels_OLD(t *testing.T) {
 	testApp, err := ui.TestRun(Counter, ui.TestWithSize(40, 18))
 	if err != nil {
 		t.Fatal(err)
@@ -95,8 +102,8 @@ func testSnapshotLevels(t *testing.T) {
 	t.Logf("  - State: %d items", len(snapFull.State))
 }
 
-// testRestoreSnapshot 快照恢复测试
-func testRestoreSnapshot(t *testing.T) {
+// testRestoreSnapshot_OLD 快照恢复测试 (已弃用)
+func testRestoreSnapshot_OLD(t *testing.T) {
 	testApp, err := ui.TestRun(Counter, ui.TestWithSize(40, 18))
 	if err != nil {
 		t.Fatal(err)
@@ -130,8 +137,8 @@ func testRestoreSnapshot(t *testing.T) {
 	}
 }
 
-// testSnapshotTags 测试快照标签
-func testSnapshotTags(t *testing.T) {
+// testSnapshotTags_OLD 测试快照标签 (已弃用)
+func testSnapshotTags_OLD(t *testing.T) {
 	testApp, err := ui.TestRun(Counter, ui.TestWithSize(40, 18))
 	if err != nil {
 		t.Fatal(err)
@@ -172,8 +179,8 @@ func testSnapshotTags(t *testing.T) {
 	}
 }
 
-// testSnapshotWithActions 使用快照保存和恢复操作
-func testSnapshotWithActions(t *testing.T) {
+// testSnapshotWithActions_OLD 使用快照保存和恢复操作 (已弃用)
+func testSnapshotWithActions_OLD(t *testing.T) {
 	testApp, err := ui.TestRun(Counter, ui.TestWithSize(40, 18))
 	if err != nil {
 		t.Fatal(err)
@@ -229,8 +236,8 @@ func testSnapshotWithActions(t *testing.T) {
 	}
 }
 
-// testSnapshotReusability 快照可重用性测试
-func testSnapshotReusability(t *testing.T) {
+// testSnapshotReusability_OLD 快照可重用性测试 (已弃用)
+func testSnapshotReusability_OLD(t *testing.T) {
 	testApp, err := ui.TestRun(Counter, ui.TestWithSize(40, 18))
 	if err != nil {
 		t.Fatal(err)
@@ -265,8 +272,8 @@ func testSnapshotReusability(t *testing.T) {
 	}
 }
 
-// testSnapshotList 列出快照测试
-func testSnapshotList(t *testing.T) {
+// testSnapshotList_OLD 列出快照测试 (已弃用)
+func testSnapshotList_OLD(t *testing.T) {
 	testApp, err := ui.TestRun(Counter, ui.TestWithSize(40, 18))
 	if err != nil {
 		t.Fatal(err)
@@ -298,8 +305,8 @@ func testSnapshotList(t *testing.T) {
 	}
 }
 
-// testSnapshotEviction 快照淘汰测试
-func testSnapshotEviction(t *testing.T) {
+// testSnapshotEviction_OLD 快照淘汰测试 (已弃用)
+func testSnapshotEviction_OLD(t *testing.T) {
 	testApp, err := ui.TestRun(Counter, ui.TestWithSize(40, 18))
 	if err != nil {
 		t.Fatal(err)
@@ -333,8 +340,8 @@ func testSnapshotEviction(t *testing.T) {
 	}
 }
 
-// testSnapshotPerformance 快照性能测试
-func testSnapshotPerformance(t *testing.T) {
+// testSnapshotPerformance_OLD 快照性能测试 (已弃用)
+func testSnapshotPerformance_OLD(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping performance test in short mode")
 	}
@@ -380,8 +387,8 @@ func testSnapshotPerformance(t *testing.T) {
 	t.Logf("Listed and accessed snapshots in: %v", elapsed)
 }
 
-// testSnapshotIntegrity 快照完整性测试
-func testSnapshotIntegrity(t *testing.T) {
+// testSnapshotIntegrity_OLD 快照完整性测试 (已弃用)
+func testSnapshotIntegrity_OLD(t *testing.T) {
 	testApp, err := ui.TestRun(Counter, ui.TestWithSize(40, 18))
 	if err != nil {
 		t.Fatal(err)
@@ -419,8 +426,8 @@ func testSnapshotIntegrity(t *testing.T) {
 	t.Logf("  Size: %d bytes", snap.Metadata.Size)
 }
 
-// testSnapshotWithComplexState 测试包含复杂状态的快照
-func testSnapshotWithComplexState(t *testing.T) {
+// testSnapshotWithComplexState_OLD 测试包含复杂状态的快照 (已弃用)
+func testSnapshotWithComplexState_OLD(t *testing.T) {
 	testApp, err := ui.TestRun(Counter, ui.TestWithSize(40, 18))
 	if err != nil {
 		t.Fatal(err)

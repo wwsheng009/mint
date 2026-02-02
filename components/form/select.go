@@ -483,3 +483,12 @@ func (s *SelectVNode) GetFocusID() string {
 	}
 	return "select:" + id
 }
+
+// Label returns a label for this select for testing/debugging.
+// Returns the first option's label or "select".
+func (s *SelectVNode) Label() string {
+	if len(s.options) > 0 {
+		return s.options[0].Label
+	}
+	return "select"
+}

@@ -8,6 +8,7 @@ import (
 
 	"github.com/wwsheng009/mint/framework/component"
 	frameworkevent "github.com/wwsheng009/mint/framework/event"
+	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/paint"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
@@ -174,6 +175,37 @@ func (n *DeclarativeNode) Paint(ctx component.PaintContext, buf *paint.Buffer) {
 func (n *DeclarativeNode) paintVNode(vnode rtui.VNode, x, y int, buf *paint.Buffer) {
 	if vnode == nil {
 		return
+	}
+
+	// Debug logging
+	if os.Getenv("TUI_DEBUG_UI") == "true" {
+		fmt.Fprintf(os.Stderr, "[paintVNode] vnode type=%d (%s), x=%d, y=%d, actual type=%T\n",
+			vnode.Type(), vnode.Type(), x, y, vnode)
+	}
+
+	// Set component bounds for mouse hit testing
+	// Check if vnode implements SetBounds method
+	if boundsAware, ok := vnode.(interface{ SetBounds(x, y, width, height int) }); ok {
+		// Get the component's measured size
+		width := 0
+		height := 0
+		if measurable, ok := vnode.(interface {
+			Measure(constraints runtime.BoxConstraints) runtime.Size
+		}); ok {
+			size := measurable.Measure(runtime.BoxConstraints{})
+			width = size.Width
+			height = size.Height
+		}
+		// Debug logging
+		if os.Getenv("TUI_DEBUG_UI") == "true" {
+			fmt.Fprintf(os.Stderr, "[paintVNode] Setting bounds: x=%d, y=%d, w=%d, h=%d\n", x, y, width, height)
+		}
+		// Set bounds for hit testing
+		boundsAware.SetBounds(x, y, width, height)
+	} else {
+		if os.Getenv("TUI_DEBUG_UI") == "true" {
+			fmt.Fprintf(os.Stderr, "[paintVNode] vnode does not implement SetBounds\n")
+		}
 	}
 
 	// Check if vnode implements Paintable interface (custom rendering)
@@ -386,8 +418,150 @@ func (n *DeclarativeNode) distributeEventToVNode(vnode rtui.VNode, ev frameworke
 }
 
 // =============================================================================
+// Test Helper Methods
+// =============================================================================
+
+// GetFocusManager returns the focus manager for this declarative node
+func (n *DeclarativeNode) GetFocusManager() *rtui.VNodeFocusManager {
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+	return n.focusMgr
+}
+
+// GetFocusedIndex returns the index of the currently focused element
+func (n *DeclarativeNode) GetFocusedIndex() int {
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+	if n.focusMgr == nil {
+		return -1
+	}
+	return n.focusMgr.CurrentIndex()
+}
+
+// GetFocusedType returns the type of the currently focused element
+func (n *DeclarativeNode) GetFocusedType() int {
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+	if n.focusMgr == nil {
+		return 0
+	}
+	current := n.focusMgr.GetCurrent()
+	if current == nil {
+		return 0
+	}
+	// Return VNodeType as int
+	return int(current.Type())
+}
+
+// GetButtons returns all button VNodes in the tree
+func (n *DeclarativeNode) GetButtons() []rtui.FocusableVNode {
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+	return collectByType(n.root, func(vnode rtui.VNode) bool {
+		if focusable, ok := vnode.(rtui.FocusableVNode); ok {
+			// Check if this is a button by its tag
+			if vnode.Type() == rtui.VNodeElement {
+				if tag, ok := vnode.(interface{ Tag() string }); ok && tag.Tag() == "button" {
+					return focusable.IsFocusable()
+				}
+			}
+		}
+		return false
+	})
+}
+
+// GetInputs returns all input VNodes in the tree
+func (n *DeclarativeNode) GetInputs() []rtui.FocusableVNode {
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+	return collectByType(n.root, func(vnode rtui.VNode) bool {
+		if focusable, ok := vnode.(rtui.FocusableVNode); ok {
+			// Check if this is an input by its tag
+			if vnode.Type() == rtui.VNodeElement {
+				if tag, ok := vnode.(interface{ Tag() string }); ok && tag.Tag() == "input" {
+					return focusable.IsFocusable()
+				}
+			}
+		}
+		return false
+	})
+}
+
+// GetTextareas returns all textarea VNodes in the tree
+func (n *DeclarativeNode) GetTextareas() []rtui.FocusableVNode {
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+	return collectByType(n.root, func(vnode rtui.VNode) bool {
+		if focusable, ok := vnode.(rtui.FocusableVNode); ok {
+			if vnode.Type() == rtui.VNodeElement {
+				if tag, ok := vnode.(interface{ Tag() string }); ok && tag.Tag() == "textarea" {
+					return focusable.IsFocusable()
+				}
+			}
+		}
+		return false
+	})
+}
+
+// GetCheckboxes returns all checkbox VNodes in the tree
+func (n *DeclarativeNode) GetCheckboxes() []rtui.FocusableVNode {
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+	return collectByType(n.root, func(vnode rtui.VNode) bool {
+		if focusable, ok := vnode.(rtui.FocusableVNode); ok {
+			if vnode.Type() == rtui.VNodeElement {
+				if tag, ok := vnode.(interface{ Tag() string }); ok && tag.Tag() == "checkbox" {
+					return focusable.IsFocusable()
+				}
+			}
+		}
+		return false
+	})
+}
+
+// GetSelects returns all select VNodes in the tree
+func (n *DeclarativeNode) GetSelects() []rtui.FocusableVNode {
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+	return collectByType(n.root, func(vnode rtui.VNode) bool {
+		if focusable, ok := vnode.(rtui.FocusableVNode); ok {
+			if vnode.Type() == rtui.VNodeElement {
+				if tag, ok := vnode.(interface{ Tag() string }); ok && tag.Tag() == "select" {
+					return focusable.IsFocusable()
+				}
+			}
+		}
+		return false
+	})
+}
+
+// =============================================================================
 // Utility functions
 // =============================================================================
+
+// collectByType collects VNodes that match a predicate function
+func collectByType(root rtui.VNode, predicate func(rtui.VNode) bool) []rtui.FocusableVNode {
+	var result []rtui.FocusableVNode
+
+	if root == nil {
+		return result
+	}
+
+	// Check current node
+	if focusable, ok := root.(rtui.FocusableVNode); ok {
+		if predicate(root) {
+			result = append(result, focusable)
+		}
+	}
+
+	// Recursively check children
+	for _, child := range root.Children() {
+		childResult := collectByType(child, predicate)
+		result = append(result, childResult...)
+	}
+
+	return result
+}
 
 func minInt(a, b int) int {
 	if a < b {

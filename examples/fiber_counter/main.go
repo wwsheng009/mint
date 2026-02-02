@@ -28,7 +28,12 @@ func DebugCounter() ui.VNode {
 		Build()
 
 	if os.Getenv("TUI_DEBUG_UI") == "true" {
-		fmt.Fprintf(os.Stderr, "[DebugCounter] Created TextVNode ptr=%p, content=%s\n", countText, countText.(*ui.TextVNode).Content())
+		// Use Props() to get content without type assertion
+		content := ""
+		if countText.Props() != nil {
+			content = countText.Props().GetString("content")
+		}
+		fmt.Fprintf(os.Stderr, "[DebugCounter] Created TextVNode ptr=%p, content=%s\n", countText, content)
 	}
 
 	return ui.VStack(

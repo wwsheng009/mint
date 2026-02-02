@@ -19,4 +19,9 @@ type FocusableVNode interface {
 	// This allows the focus manager to restore focus after re-renders.
 	// If the component has a Key set, it should be used as the focus ID.
 	GetFocusID() string
+
+	// Label returns a text label for this focusable element.
+	// Used for testing and debugging to identify elements.
+	// Default implementation returns empty string.
+	Label() string
 }

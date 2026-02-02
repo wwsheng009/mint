@@ -584,3 +584,19 @@ func (t *TextareaVNode) GetFocusID() string {
 	}
 	return "textarea:" + id
 }
+
+// Label returns a label for this textarea for testing/debugging.
+// Returns the placeholder if set, otherwise "textarea".
+func (t *TextareaVNode) Label() string {
+	if t.placeholder != "" {
+		return t.placeholder
+	}
+	if t.value != "" {
+		// Truncate long values for label
+		if len(t.value) > 20 {
+			return t.value[:20] + "..."
+		}
+		return t.value
+	}
+	return "textarea"
+}

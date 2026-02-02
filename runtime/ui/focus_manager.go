@@ -176,6 +176,12 @@ func (m *VNodeFocusManager) Count() int {
 	return len(m.focusable)
 }
 
+// CurrentIndex returns the index of the currently focused node.
+// Returns -1 if no node is focused.
+func (m *VNodeFocusManager) CurrentIndex() int {
+	return m.current
+}
+
 // updateFocusState updates the focus state of nodes when focus changes.
 func (m *VNodeFocusManager) updateFocusState(oldIndex, newIndex int) {
 	// Remove focus from old node

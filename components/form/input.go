@@ -590,3 +590,15 @@ func (i *InputVNode) GetFocusID() string {
 	}
 	return "input:" + id
 }
+
+// Label returns a label for this input for testing/debugging.
+// Returns the placeholder if set, otherwise "input".
+func (i *InputVNode) Label() string {
+	if i.placeholder != "" {
+		return i.placeholder
+	}
+	if i.value != "" {
+		return i.value
+	}
+	return "input"
+}
