@@ -9,6 +9,7 @@ import (
 	"github.com/wwsheng009/mint/framework"
 	"github.com/wwsheng009/mint/framework/component"
 	frameworkevent "github.com/wwsheng009/mint/framework/event"
+	"github.com/wwsheng009/mint/internal/reconciler"
 	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/paint"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
@@ -147,7 +148,7 @@ func (n *DeclarativeNode) Paint(ctx component.PaintContext, buf *paint.Buffer) {
 	// If Fiber reconciler is enabled, use it for rendering
 	if n.useFiber && n.reconciler != nil {
 		// The reconciler handles the entire render cycle
-		// We need to call it with the render function
+		// The reconciler will call the render function with proper context management
 		n.reconciler.Render(ctx, buf, func() rtui.VNode {
 			if n.renderFn != nil {
 				return n.renderFn()
@@ -155,10 +156,19 @@ func (n *DeclarativeNode) Paint(ctx component.PaintContext, buf *paint.Buffer) {
 			return n.root
 		})
 
-		// After reconciler renders, update root for event handling
+		// Note: We don't call renderFn() again here because:
+		// 1. The reconciler already called it during Render()
+		// 2. Calling it again would require setting up context again
+		// 3. The reconciler stores the rendered result, so we can get it from there
+
+		// For now, to get the rendered result for focus management, we need to call renderFn with context
+		// TODO: Make reconciler return the rendered VNode tree
+		n.instance.ResetContext()
+		rtui.SetCurrentContext(n.instance)
 		if n.renderFn != nil {
 			n.root = n.renderFn()
 		}
+		rtui.SetCurrentContext(nil)
 
 		// Collect focusable nodes
 		if n.focusMgr != nil && n.root != nil {
@@ -630,14 +640,39 @@ func minInt(a, b int) int {
 // Fiber Reconciler Integration
 // =============================================================================
 // These functions create and configure the Fiber reconciler.
-// This is separated to avoid import cycles - ui package calls this via NewDeclarativeNodeFromFuncWithFiber.
+
+// fiberReconcilerAdapter adapts internal/reconciler.Reconciler to rtui.Reconciler interface
+type fiberReconcilerAdapter struct {
+	r *reconciler.Reconciler
+}
+
+// Render executes the rendering process (adapter method with interface{} parameters)
+func (a *fiberReconcilerAdapter) Render(ctx interface{}, buffer interface{}, renderFunc func() rtui.VNode) {
+	// Type assert to concrete types
+	paintCtx, ok := ctx.(component.PaintContext)
+	paintBuffer, ok := buffer.(*paint.Buffer)
+	if !ok || paintBuffer == nil {
+		return
+	}
+
+	// Call the actual reconciler's Render method
+	a.r.Render(paintCtx, paintBuffer, renderFunc)
+}
+
+// SetApp sets the framework app (adapter method)
+func (a *fiberReconcilerAdapter) SetApp(app interface{}) {
+	if fwApp, ok := app.(*framework.App); ok {
+		a.r.SetApp(fwApp)
+	}
+}
 
 // newFiberReconciler creates a new Fiber reconciler for the given app and render function
-// TODO: Implement actual Fiber reconciler integration. Currently a stub to avoid import cycles.
-// The actual reconciler lives in internal/reconciler but importing it would create a cycle:
-//   internal/render → internal/reconciler → ui → internal/render
 func newFiberReconciler(fwApp *framework.App, fn rtui.ComponentFunc) rtui.Reconciler {
-	// Stub implementation - returns nil for now
-	// In the future, this will create and configure the Fiber reconciler
-	return nil
+	// Create the actual reconciler from internal/reconciler
+	r := reconciler.NewReconciler(fwApp, fn, reconciler.ReconcilerConfig{
+		EnableFiber: true,
+	})
+
+	// Wrap in adapter to satisfy rtui.Reconciler interface
+	return &fiberReconcilerAdapter{r: r}
 }

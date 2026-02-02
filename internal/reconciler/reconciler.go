@@ -582,6 +582,11 @@ func (r *Reconciler) SetInstanceManager(mgr *state.InstanceManager) {
 	r.instanceMgr = mgr
 }
 
+// SetApp sets the framework app for the reconciler
+func (r *Reconciler) SetApp(app *framework.App) {
+	r.app = app
+}
+
 // =============================================================================
 // Debug / Profiling
 // =============================================================================
