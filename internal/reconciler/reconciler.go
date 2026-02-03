@@ -12,12 +12,11 @@ package reconciler
 // =============================================================================
 
 import (
-	"fmt"
-	"os"
 	"time"
 
 	"github.com/wwsheng009/mint/framework"
 	"github.com/wwsheng009/mint/framework/component"
+	"github.com/wwsheng009/mint/internal/log"
 	"github.com/wwsheng009/mint/internal/state"
 	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/paint"
@@ -320,13 +319,11 @@ func (r *Reconciler) renderFiberToBuffer(fiber *Fiber, x, y int, buffer *paint.B
 	}
 
 	// Debug: log fiber traversal
-	if os.Getenv("TUI_DEBUG_FOCUS") == "true" {
-		var tag string
-		if t, ok := fiber.VNode.(interface{ Tag() string }); ok {
-			tag = t.Tag()
-		}
-		fmt.Fprintf(os.Stderr, "[renderFiberToBuffer] tag=%q, x=%d, y=%d, isHStack=%v\n", tag, x, y, r.isHStackFiber(fiber))
+	var tag string
+	if t, ok := fiber.VNode.(interface{ Tag() string }); ok {
+		tag = t.Tag()
 	}
+	log.RenderLogger.Debug("renderFiberToBuffer tag=%q, x=%d, y=%d, isHStack=%v", tag, x, y, r.isHStackFiber(fiber))
 
 	// Render this fiber based on its type
 	r.renderFiber(fiber, x, y, buffer)
@@ -755,18 +752,14 @@ func (r *Reconciler) GetFiberRoot() *Fiber {
 // updateRenderedRoot extracts and stores the rendered VNode tree from the Fiber tree
 // The root Fiber is a ComponentVNode wrapper, its children contain the actual content
 func (r *Reconciler) updateRenderedRoot() {
-	if os.Getenv("TUI_DEBUG_FOCUS") == "true" {
-		fmt.Fprintf(os.Stderr, "[updateRenderedRoot] called, r.root=%v\n", r.root != nil)
-		if r.root != nil && r.root.VNode != nil {
-			fmt.Fprintf(os.Stderr, "[updateRenderedRoot] r.root.VNode type=%d\n", r.root.VNode.Type())
-		}
+	log.FocusLogger.Debug("updateRenderedRoot called, r.root=%v", r.root != nil)
+	if r.root != nil && r.root.VNode != nil {
+		log.FocusLogger.Debug("updateRenderedRoot r.root.VNode type=%d", r.root.VNode.Type())
 	}
 
 	if r.root == nil || r.root.VNode == nil {
 		r.renderedRoot = nil
-		if os.Getenv("TUI_DEBUG_FOCUS") == "true" {
-			fmt.Fprintf(os.Stderr, "[updateRenderedRoot] root or VNode is nil, setting renderedRoot=nil\n")
-		}
+		log.FocusLogger.Debug("updateRenderedRoot root or VNode is nil, setting renderedRoot=nil")
 		return
 	}
 
@@ -775,13 +768,11 @@ func (r *Reconciler) updateRenderedRoot() {
 	// We need to reconstruct the VNode tree from the Fiber tree
 	r.renderedRoot = r.buildVNodeTree(r.root)
 
-	if os.Getenv("TUI_DEBUG_FOCUS") == "true" {
-		if r.renderedRoot == nil {
-			fmt.Fprintf(os.Stderr, "[updateRenderedRoot] buildVNodeTree returned nil!\n")
-		} else {
-			fmt.Fprintf(os.Stderr, "[updateRenderedRoot] buildVNodeTree returned type=%d, children=%d\n",
-				r.renderedRoot.Type(), len(r.renderedRoot.Children()))
-		}
+	if r.renderedRoot == nil {
+		log.FocusLogger.Debug("updateRenderedRoot buildVNodeTree returned nil!")
+	} else {
+		log.FocusLogger.Debug("updateRenderedRoot buildVNodeTree returned type=%d, children=%d",
+			r.renderedRoot.Type(), len(r.renderedRoot.Children()))
 	}
 }
 
@@ -969,9 +960,7 @@ func (r *Reconciler) commitDeletions(fiber *Fiber) {
 	// Collect all fibers marked for deletion
 	deletedFibers := r.collectDeletedFibers(fiber)
 
-	if os.Getenv("TUI_DEBUG_RECONCILER") == "true" {
-		fmt.Fprintf(os.Stderr, "[commitDeletions] Found %d fibers to delete\n", len(deletedFibers))
-	}
+	log.ReconcilerLogger.Debug("commitDeletions found %d fibers to delete", len(deletedFibers))
 
 	// Process each deleted fiber
 	for _, deleted := range deletedFibers {
@@ -997,6 +986,8 @@ func (r *Reconciler) collectDeletedFibers(fiber *Fiber) []*Fiber {
 		childDeletions := r.collectDeletedFibers(fiber.Child)
 		result = append(result, childDeletions...)
 	}
+
+	log.ReconcilerLogger.Debug("collectDeletedFibers found %d fibers to delete", len(result))
 
 	return result
 }
@@ -1045,16 +1036,12 @@ func (r *Reconciler) applyFocusStateToFiber(fiber *Fiber) {
 	// Collect all focusable VNodes in order
 	focusable := r.collectFocusableFromFiber(fiber)
 
-	if os.Getenv("TUI_DEBUG_FOCUS") == "true" {
-		fmt.Fprintf(os.Stderr, "[applyFocus] focusedIndex=%d, totalFocusable=%d\n", focusedIndex, len(focusable))
-	}
+	log.FocusLogger.Debug("applyFocus focusedIndex=%d, totalFocusable=%d", focusedIndex, len(focusable))
 
 	// Set focus by index (not by ID, because multiple elements may have the same ID)
 	for i, elem := range focusable {
 		if i == focusedIndex {
-			if os.Getenv("TUI_DEBUG_FOCUS") == "true" {
-				fmt.Fprintf(os.Stderr, "[applyFocus] setting focus=true on index %d (%s)\n", i, elem.GetFocusID())
-			}
+			log.FocusLogger.Debug("applyFocus setting focus=true on index %d (%s)", i, elem.GetFocusID())
 			elem.SetFocus(true)
 		} else {
 			elem.SetFocus(false)
@@ -1109,9 +1096,7 @@ func (r *Reconciler) collectFocusableFromFiberWithIndex(fiber *Fiber, startIndex
 		if btn, ok := fiber.VNode.(interface{ SetFocusIndex(int) }); ok {
 			btn.SetFocusIndex(currentIndex)
 		}
-		if os.Getenv("TUI_DEBUG_FOCUS") == "true" {
-			fmt.Fprintf(os.Stderr, "[collectFocusable] adding focusable %d: %s\n", currentIndex, focusable.GetFocusID())
-		}
+		log.FocusLogger.Debug("collectFocusable adding focusable %d: %s", currentIndex, focusable.GetFocusID())
 		result = append(result, focusable)
 		currentIndex++
 	}

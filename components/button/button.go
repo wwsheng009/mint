@@ -2,10 +2,10 @@ package button
 
 import (
 	"fmt"
-	"os"
 	"unicode/utf8"
 
 	"github.com/wwsheng009/mint/framework/event"
+	"github.com/wwsheng009/mint/internal/log"
 	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
@@ -284,10 +284,8 @@ func (b *ButtonVNode) SetOnMouseRelease(fn func()) *ButtonVNode {
 
 // HandleEvent processes mouse and keyboard events for the button
 func (b *ButtonVNode) HandleEvent(e event.Event) bool {
-	if os.Getenv("TUI_DEBUG_UI") == "true" {
-		fmt.Fprintf(os.Stderr, "Button HandleEvent called: label=%q, disabled=%v, hasFocus=%v, event type=%T\n",
-			b.label, b.disabled, b.hasFocus, e)
-	}
+	log.UILogger.Debug("Button HandleEvent called: label=%q, disabled=%v, hasFocus=%v, event type=%T",
+		b.label, b.disabled, b.hasFocus, e)
 
 	if b.disabled {
 		return false
@@ -295,41 +293,29 @@ func (b *ButtonVNode) HandleEvent(e event.Event) bool {
 
 	// Handle keyboard events (Enter/Space to click)
 	keyEvent, ok := e.(*event.KeyEvent)
-	if os.Getenv("TUI_DEBUG_UI") == "true" {
-		fmt.Fprintf(os.Stderr, "Button HandleEvent: type assertion ok=%v, event type=%T\n", ok, e)
-	}
+	log.UILogger.Debug("Button HandleEvent: type assertion ok=%v, event type=%T", ok, e)
 	if ok {
 		// Only respond to keyboard events when focused
 		if !b.hasFocus {
-			if os.Getenv("TUI_DEBUG_UI") == "true" {
-				fmt.Fprintf(os.Stderr, "Button HandleEvent: ignoring key event, button not focused (label=%q)\n", b.label)
-			}
+			log.UILogger.Debug("Button HandleEvent: ignoring key event, button not focused (label=%q)", b.label)
 			return false
 		}
 
-		if os.Getenv("TUI_DEBUG_UI") == "true" {
-			fmt.Fprintf(os.Stderr, "Button HandleEvent: KeyEvent, Special=%d (%v), Rune=%c, KeyEnter=%d\n",
-				keyEvent.Special, keyEvent.Special, keyEvent.Key.Rune, event.KeyEnter)
-		}
+		log.UILogger.Debug("Button HandleEvent: KeyEvent, Special=%d (%v), Rune=%c, KeyEnter=%d",
+			keyEvent.Special, keyEvent.Special, keyEvent.Key.Rune, event.KeyEnter)
 		// Check for Enter key or Space key
 		if keyEvent.Special == event.KeyEnter || keyEvent.Key.Rune == ' ' {
 			// Space or Enter triggers click
 			if b.onClick != nil {
-				if os.Getenv("TUI_DEBUG_UI") == "true" {
-					fmt.Fprintf(os.Stderr, "Button HandleEvent: triggering onClick for label=%q (Special=%d)\n", b.label, keyEvent.Special)
-				}
+				log.UILogger.Debug("Button HandleEvent: triggering onClick for label=%q (Special=%d)", b.label, keyEvent.Special)
 				b.onClick()
 				return true
 			} else {
-				if os.Getenv("TUI_DEBUG_UI") == "true" {
-					fmt.Fprintf(os.Stderr, "Button HandleEvent: onClick is nil for label=%q\n", b.label)
-				}
+				log.UILogger.Debug("Button HandleEvent: onClick is nil for label=%q", b.label)
 			}
 		} else {
-			if os.Getenv("TUI_DEBUG_UI") == "true" {
-				fmt.Fprintf(os.Stderr, "Button HandleEvent: key not matched (Special=%d vs KeyEnter=%d)\n",
-					keyEvent.Special, event.KeyEnter)
-			}
+			log.UILogger.Debug("Button HandleEvent: key not matched (Special=%d vs KeyEnter=%d)",
+				keyEvent.Special, event.KeyEnter)
 		}
 		return false
 	}
@@ -361,18 +347,14 @@ func (b *ButtonVNode) HandleEvent(e event.Event) bool {
 	case event.EventMousePress:
 		// Check if mouse is within button bounds
 		if b.ContainsPoint(mouseEvent.X, mouseEvent.Y) && mouseEvent.Button == event.MouseLeft {
-			if os.Getenv("TUI_DEBUG_UI") == "true" {
-				fmt.Fprintf(os.Stderr, "Button HandleEvent: mouse press within bounds for label=%q, x=%d, y=%d, bounds=%v\n",
-					b.label, mouseEvent.X, mouseEvent.Y, b.bounds)
-			}
+			log.UILogger.Debug("Button HandleEvent: mouse press within bounds for label=%q, x=%d, y=%d, bounds=%v",
+				b.label, mouseEvent.X, mouseEvent.Y, b.bounds)
 			if b.onMousePress != nil {
 				b.onMousePress()
 			}
 			// Trigger click on press for better responsiveness
 			if b.onClick != nil {
-				if os.Getenv("TUI_DEBUG_UI") == "true" {
-					fmt.Fprintf(os.Stderr, "Button HandleEvent: triggering onClick for label=%q\n", b.label)
-				}
+				log.UILogger.Debug("Button HandleEvent: triggering onClick for label=%q", b.label)
 				b.onClick()
 			}
 			return true
@@ -385,9 +367,7 @@ func (b *ButtonVNode) HandleEvent(e event.Event) bool {
 			}
 			// Trigger click on mouse release when still hovered
 			if b.onClick != nil {
-				if os.Getenv("TUI_DEBUG_UI") == "true" {
-					fmt.Fprintf(os.Stderr, "Button HandleEvent: mouse click for label=%q\n", b.label)
-				}
+				log.UILogger.Debug("Button HandleEvent: mouse click for label=%q", b.label)
 				b.onClick()
 			}
 			return true
@@ -396,9 +376,7 @@ func (b *ButtonVNode) HandleEvent(e event.Event) bool {
 	case event.EventClick:
 		if b.isHovered && mouseEvent.Button == event.MouseLeft {
 			if b.onClick != nil {
-				if os.Getenv("TUI_DEBUG_UI") == "true" {
-					fmt.Fprintf(os.Stderr, "Button HandleEvent: click event for label=%q\n", b.label)
-				}
+				log.UILogger.Debug("Button HandleEvent: click event for label=%q", b.label)
 				b.onClick()
 			}
 			return true
@@ -504,14 +482,12 @@ func (b *ButtonVNode) Paint(x, y int) []paint.DrawCmd {
 		return nil
 	}
 
-	// Debug: log button paint state (always log in debug mode)
-	if os.Getenv("TUI_DEBUG_FOCUS") == "true" || os.Getenv("TUI_DEBUG_BUTTON") == "true" {
-		focusMarker := " "
-		if b.hasFocus {
-			focusMarker = "*"
-		}
-		fmt.Fprintf(os.Stderr, "[ButtonPaint] label=%q, hasFocus=%v, focusMarker=%s\n", b.label, b.hasFocus, focusMarker)
+	// Debug: log button paint state
+	focusMarker := " "
+	if b.hasFocus {
+		focusMarker = "*"
 	}
+	log.ButtonLogger.Debug("ButtonPaint label=%q, hasFocus=%v, focusMarker=%s", b.label, b.hasFocus, focusMarker)
 
 	// Get button style for rendering
 	buttonStyle := b.Style()

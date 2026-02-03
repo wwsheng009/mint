@@ -2,9 +2,9 @@ package ui
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/wwsheng009/mint/framework/event"
+	"github.com/wwsheng009/mint/internal/log"
 )
 
 // VNodeFocusManager manages keyboard focus within a VNode tree.
@@ -32,9 +32,7 @@ func (m *VNodeFocusManager) SetFocusable(nodes []FocusableVNode) {
 	currentIndexBefore := m.current
 	if m.current >= 0 && m.current < len(m.focusable) {
 		currentID = m.focusable[m.current].GetFocusID()
-		if os.Getenv("TUI_DEBUG_FOCUS") == "true" {
-			fmt.Fprintf(os.Stderr, "[FocusManager] SetFocusable: saving currentID=%s from index %d\n", currentID, m.current)
-		}
+		log.FocusLogger.Debug("SetFocusable: saving currentID=%s from index %d", currentID, m.current)
 	}
 
 	m.focusable = nodes
@@ -50,22 +48,16 @@ func (m *VNodeFocusManager) SetFocusable(nodes []FocusableVNode) {
 				// Same ID at same index - preserve focus by index
 				m.current = currentIndexBefore
 				m.focusable[m.current].SetFocus(true)
-				if os.Getenv("TUI_DEBUG_FOCUS") == "true" {
-					fmt.Fprintf(os.Stderr, "[FocusManager] SetFocusable: preserved focus at index %d by position\n", m.current)
-				}
+				log.FocusLogger.Debug("SetFocusable: preserved focus at index %d by position", m.current)
 			} else {
 				// Different ID - search by ID
 				for i, node := range m.focusable {
 					nodeID := node.GetFocusID()
-					if os.Getenv("TUI_DEBUG_FOCUS") == "true" {
-						fmt.Fprintf(os.Stderr, "[FocusManager] SetFocusable: checking node %d, ID=%s\n", i, nodeID)
-					}
+					log.FocusLogger.Debug("SetFocusable: checking node %d, ID=%s", i, nodeID)
 					if nodeID == currentID {
 						m.current = i
 						node.SetFocus(true)
-						if os.Getenv("TUI_DEBUG_FOCUS") == "true" {
-							fmt.Fprintf(os.Stderr, "[FocusManager] SetFocusable: restored focus to index %d by ID=%s\n", i, nodeID)
-						}
+						log.FocusLogger.Debug("SetFocusable: restored focus to index %d by ID=%s", i, nodeID)
 						break
 					}
 				}
@@ -74,24 +66,18 @@ func (m *VNodeFocusManager) SetFocusable(nodes []FocusableVNode) {
 			// Previous index out of range - search by ID
 			for i, node := range m.focusable {
 				nodeID := node.GetFocusID()
-				if os.Getenv("TUI_DEBUG_FOCUS") == "true" {
-					fmt.Fprintf(os.Stderr, "[FocusManager] SetFocusable: checking node %d, ID=%s\n", i, nodeID)
-				}
+				log.FocusLogger.Debug("SetFocusable: checking node %d, ID=%s", i, nodeID)
 				if nodeID == currentID {
 					m.current = i
 					node.SetFocus(true)
-					if os.Getenv("TUI_DEBUG_FOCUS") == "true" {
-						fmt.Fprintf(os.Stderr, "[FocusManager] SetFocusable: restored focus to index %d by ID=%s\n", i, nodeID)
-					}
+					log.FocusLogger.Debug("SetFocusable: restored focus to index %d by ID=%s", i, nodeID)
 					break
 				}
 			}
 		}
 	}
 
-	if os.Getenv("TUI_DEBUG_FOCUS") == "true" {
-		fmt.Fprintf(os.Stderr, "[FocusManager] SetFocusable: before=%d, after=%d, nodes=%d\n", currentIndexBefore, m.current, len(nodes))
-	}
+	log.FocusLogger.Debug("SetFocusable: before=%d, after=%d, nodes=%d", currentIndexBefore, m.current, len(nodes))
 
 	// If no focus and there are focusable nodes, focus the first one
 	if m.current < 0 && len(m.focusable) > 0 {
@@ -109,9 +95,7 @@ func (m *VNodeFocusManager) UpdateFocusableList(nodes []FocusableVNode) {
 // FocusNext moves focus to the next focusable node.
 // Wraps around to the first node when at the end.
 func (m *VNodeFocusManager) FocusNext() bool {
-	if os.Getenv("TUI_DEBUG_FOCUS") == "true" {
-		fmt.Fprintf(os.Stderr, "[FocusNext] current=%d, len(focusable)=%d\n", m.current, len(m.focusable))
-	}
+	log.FocusLogger.Debug("FocusNext current=%d, len(focusable)=%d", m.current, len(m.focusable))
 	if len(m.focusable) == 0 {
 		return false
 	}
@@ -119,9 +103,7 @@ func (m *VNodeFocusManager) FocusNext() bool {
 	old := m.current
 	m.current = (m.current + 1) % len(m.focusable)
 
-	if os.Getenv("TUI_DEBUG_FOCUS") == "true" {
-		fmt.Fprintf(os.Stderr, "[FocusNext] old=%d, new=%d\n", old, m.current)
-	}
+	log.FocusLogger.Debug("FocusNext old=%d, new=%d", old, m.current)
 
 	m.updateFocusState(old, m.current)
 
@@ -203,24 +185,22 @@ func (m *VNodeFocusManager) HandleEvent(ev event.Event) (handled bool, shouldRen
 	}
 
 	// Debug: Log all key events
-	if os.Getenv("TUI_DEBUG_KEYS") == "true" {
-		modStr := ""
-		if keyEvent.Key.Alt {
-			modStr += "Alt+"
-		}
-		if keyEvent.Key.Ctrl {
-			modStr += "Ctrl+"
-		}
-		if keyEvent.Modifiers == event.ModShift {
-			modStr += "Shift+"
-		}
-		if keyEvent.Special != 0 { // 0 = KeyUnknown
-			fmt.Fprintf(os.Stderr, "[KEY] SpecialKey: %s (value=%d) Modifiers: %s\n",
-				keyEvent.Special, keyEvent.Special, modStr)
-		} else if keyEvent.Key.Rune > 0 {
-			fmt.Fprintf(os.Stderr, "[KEY] Rune: %c (0x%X) Modifiers: %s\n",
-				keyEvent.Key.Rune, keyEvent.Key.Rune, modStr)
-		}
+	modStr := ""
+	if keyEvent.Key.Alt {
+		modStr += "Alt+"
+	}
+	if keyEvent.Key.Ctrl {
+		modStr += "Ctrl+"
+	}
+	if keyEvent.Modifiers == event.ModShift {
+		modStr += "Shift+"
+	}
+	if keyEvent.Special != 0 { // 0 = KeyUnknown
+		log.KeyLogger.Debug("SpecialKey: %s (value=%d) Modifiers: %s",
+			keyEvent.Special, keyEvent.Special, modStr)
+	} else if keyEvent.Key.Rune > 0 {
+		log.KeyLogger.Debug("Rune: %c (0x%X) Modifiers: %s",
+			keyEvent.Key.Rune, keyEvent.Key.Rune, modStr)
 	}
 
 	// Tab - navigate to next
