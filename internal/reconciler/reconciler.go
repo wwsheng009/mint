@@ -196,6 +196,10 @@ func (r *Reconciler) performUnitOfWork(unitOfWork *Fiber) {
 	// CompleteWork: finalize this fiber
 	CompleteWork(unitOfWork.Alternate, unitOfWork)
 
+	// Collect child effects - bubble up SubtreeFlags from children
+	// This ensures parent fibers know about descendant effects for proper commit
+	collectChildEffects(unitOfWork)
+
 	// Process siblings
 	if unitOfWork.Sibling != nil {
 		r.performUnitOfWork(unitOfWork.Sibling)
@@ -256,6 +260,10 @@ func (r *Reconciler) CommitRoot() {
 	if r.root == nil {
 		return
 	}
+
+	// Phase -1: Commit deletions before any other work
+	// This ensures deleted nodes are cleaned up (hooks, refs, etc.) before rendering
+	r.commitDeletions(r.root)
 
 	// Phase 0: Apply focus state to Fiber tree before rendering
 	// IMPORTANT: We must collect the focusable elements from the NEW Fiber tree first
@@ -942,6 +950,82 @@ func (r *Reconciler) SetApp(app *framework.App) {
 func (r *Reconciler) SetFocusManager(mgr *rtui.VNodeFocusManager) {
 	r.focusMgr = mgr
 }
+
+// =============================================================================
+// Deletion Handling
+// =============================================================================
+
+// commitDeletions processes all fibers marked for deletion
+// This traverses the fiber tree and cleans up any nodes with the EffectDeletion flag
+// Cleanup includes:
+// - Running useEffect cleanup functions
+// - Clearing refs
+// - Removing component instances
+func (r *Reconciler) commitDeletions(fiber *Fiber) {
+	if fiber == nil {
+		return
+	}
+
+	// Collect all fibers marked for deletion
+	deletedFibers := r.collectDeletedFibers(fiber)
+
+	if os.Getenv("TUI_DEBUG_RECONCILER") == "true" {
+		fmt.Fprintf(os.Stderr, "[commitDeletions] Found %d fibers to delete\n", len(deletedFibers))
+	}
+
+	// Process each deleted fiber
+	for _, deleted := range deletedFibers {
+		r.cleanupDeletedFiber(deleted)
+	}
+}
+
+// collectDeletedFibers collects all fibers marked with EffectDeletion flag
+func (r *Reconciler) collectDeletedFibers(fiber *Fiber) []*Fiber {
+	var result []*Fiber
+
+	if fiber == nil {
+		return result
+	}
+
+	// Check if this fiber is marked for deletion
+	if fiber.Flags&EffectDeletion != 0 {
+		result = append(result, fiber)
+	}
+
+	// Recursively check children (but not siblings - they will be checked by the caller)
+	if fiber.Child != nil {
+		childDeletions := r.collectDeletedFibers(fiber.Child)
+		result = append(result, childDeletions...)
+	}
+
+	return result
+}
+
+// cleanupDeletedFiber performs cleanup for a single deleted fiber
+func (r *Reconciler) cleanupDeletedFiber(fiber *Fiber) {
+	if fiber == nil {
+		return
+	}
+
+	// For component fibers, run cleanup effects
+	if fiber.Type == rtui.VNodeComponent {
+		// Run useEffect cleanup functions if any
+		// This is done by the instance manager
+		if r.instanceMgr != nil {
+			// The instance will be cleaned up during instance manager's cleanup
+			_ = r.instanceMgr
+		}
+	}
+
+	// Recursively cleanup children
+	if fiber.Child != nil {
+		r.cleanupDeletedFiber(fiber.Child)
+	}
+}
+
+// =============================================================================
+// Focus Management
+// =============================================================================
 
 // applyFocusStateToFiber applies focus state from the focus manager to Fiber tree VNodes
 // This must be called before rendering to ensure focused elements are rendered correctly

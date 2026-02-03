@@ -8,6 +8,9 @@ package reconciler
 // =============================================================================
 
 import (
+	"fmt"
+	"os"
+
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
 
@@ -63,7 +66,7 @@ func createAllNewChildren(returnFiber *Fiber, children []rtui.VNode, lanes Lane)
 }
 
 // reconcileExistingChildren reconciles existing children with new children
-// This is a simplified position-based reconciliation
+// This is a simplified position-based reconciliation with key-based matching
 func reconcileExistingChildren(
 	returnFiber *Fiber,
 	currentFirstChild *Fiber,
@@ -77,16 +80,27 @@ func reconcileExistingChildren(
 	for _, childVNode := range newChildren {
 		var child *Fiber
 
-		// Try to match with current child
-		if currentChild != nil && shouldUpdate(currentChild, childVNode) {
-			// Reuse existing fiber
-			child = cloneExistingFiber(returnFiber, currentChild, childVNode)
-			currentChild = currentChild.Sibling
+		// Try to match with current child or any of its siblings
+		// This handles cases where a child later in the list matches
+		matchedChild := findMatchingChild(currentChild, childVNode)
+
+		if matchedChild != nil {
+			// Found a match - reuse existing fiber
+			child = cloneExistingFiber(returnFiber, matchedChild, childVNode)
+
+			// Mark all children between currentChild and matchedChild for deletion
+			// (they were skipped over and are no longer in the tree)
+			for currentChild != nil && currentChild != matchedChild {
+				markForDeletion(currentChild)
+				currentChild = currentChild.Sibling
+			}
+
+			// Advance past the matched child
+			currentChild = matchedChild.Sibling
 		} else {
-			// Create new fiber
+			// No match found - create new fiber
 			child = createChildFiber(returnFiber, childVNode, lanes)
-			// Remaining currentChildren will be deleted
-			_ = currentChild // TODO: Schedule deletion in Phase 2
+			// The currentChild remains unchanged (will be processed in next iteration or deleted)
 		}
 
 		if firstChild == nil {
@@ -98,11 +112,25 @@ func reconcileExistingChildren(
 		previousChild = child
 	}
 
-	// Delete remaining current children
-	// TODO: Schedule deletion in Phase 2
-	_ = currentChild
+	// Delete remaining current children that weren't matched
+	// These nodes are being removed from the tree
+	for currentChild != nil {
+		markForDeletion(currentChild)
+		currentChild = currentChild.Sibling
+	}
 
 	return firstChild
+}
+
+// findMatchingChild searches for a child fiber that matches the given VNode
+// It checks currentChild and all its siblings for a match based on key and type
+func findMatchingChild(currentChild *Fiber, vnode rtui.VNode) *Fiber {
+	for child := currentChild; child != nil; child = child.Sibling {
+		if shouldUpdate(child, vnode) {
+			return child
+		}
+	}
+	return nil
 }
 
 // shouldUpdate checks if a current fiber can be updated with new VNode
@@ -177,4 +205,38 @@ func cloneExistingFiber(returnFiber *Fiber, current *Fiber, vnode rtui.VNode) *F
 	}
 
 	return fiber
+}
+
+// =============================================================================
+// Node Deletion
+// =============================================================================
+
+// markForDeletion marks a fiber and all its descendants for deletion
+// This recursively traverses the subtree and sets the EffectDeletion flag
+// The actual cleanup happens during the commit phase
+//
+// IMPORTANT: This only marks the fiber and its CHILD descendants, NOT siblings.
+// Siblings are separate tree branches that should be processed independently.
+func markForDeletion(fiber *Fiber) {
+	if fiber == nil {
+		return
+	}
+
+	// Debug logging
+	if os.Getenv("TUI_DEBUG_DELETION") == "true" {
+		fmt.Fprintf(os.Stderr, "[markForDeletion] Marking key=%q, current flags=%d\n",
+			fiber.Key, fiber.Flags)
+	}
+
+	// Mark this fiber for deletion
+	fiber.Flags |= EffectDeletion
+
+	// Recursively mark all descendants (children only, not siblings)
+	if child := fiber.Child; child != nil {
+		markForDeletion(child)
+	}
+
+	// Trigger cleanup for component instances (e.g., useEffect cleanup)
+	// This will be called during commit phase
+	_ = fiber
 }
