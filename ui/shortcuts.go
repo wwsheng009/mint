@@ -169,3 +169,95 @@ func WithProps(props map[string]interface{}) func(VNode) VNode {
 		return vnode
 	}
 }
+
+// =============================================================================
+// Error Boundary Shortcuts
+// =============================================================================
+
+// ErrorBoundary creates a new error boundary wrapper
+//   - name: identifier for this boundary (for debugging)
+//   - component: the component function to wrap
+//   - fallback: the VNode to render when errors occur
+func ErrorBoundary(name string, component rtui.ComponentFunc, fallback rtui.VNode) rtui.VNode {
+	return rtui.ErrorBoundary(name, component, fallback)
+}
+
+// FallbackText creates a simple text fallback
+func FallbackText(text string) rtui.VNode {
+	return rtui.FallbackText(text)
+}
+
+// FallbackError creates an error message fallback with details
+func FallbackError(prefix string) rtui.VNode {
+	return rtui.FallbackError(prefix)
+}
+
+// FallbackBox creates a boxed error message
+func FallbackBox(title, message string) rtui.VNode {
+	return rtui.FallbackBox(title, message)
+}
+
+// =============================================================================
+// Memo Shortcuts
+// =============================================================================
+
+// Memo wraps a component to memoize its output, skipping re-renders when props haven't changed
+// Similar to React.memo() - uses shallow comparison by default
+func Memo(component VNode) VNode {
+	return rtui.NewMemo(component)
+}
+
+// MemoWithCompare wraps a component with a custom comparison function
+// The compare function should return true if props are equal (no update needed)
+func MemoWithCompare(component VNode, compare rtui.PropsEqual) VNode {
+	return rtui.NewMemoWithCompare(component, compare)
+}
+
+// MemoComponent wraps a component function with memoization (convenience wrapper)
+func MemoizedComponent(name string, fn rtui.ComponentFunc) VNode {
+	return rtui.MemoComponent(name, fn)
+}
+
+// ShallowPropsEqual performs shallow comparison of two Props objects
+// Returns true if they are equal (no update needed)
+func ShallowPropsEqual(oldProps, newProps rtui.Props) bool {
+	return rtui.ShallowPropsEqual(oldProps, newProps)
+}
+
+// PropsEqualExcept creates a comparison function that ignores specific keys
+func PropsEqualExcept(exceptKeys ...string) rtui.PropsEqual {
+	return rtui.PropsEqualExcept(exceptKeys...)
+}
+
+// PropsEqualOnly creates a comparison function that only checks specific keys
+func PropsEqualOnly(keys ...string) rtui.PropsEqual {
+	return rtui.PropsEqualOnly(keys...)
+}
+
+// PureComponent creates a memoized component that only re-renders when props change
+// This is a convenience alias for MemoComponent, equivalent to React's PureComponent
+// Use this for components that render the same output given the same props
+//
+// Example:
+//
+//	pureExpensive := ui.PureComponent("ExpensiveCalculation", func() ui.VNode {
+//	    result := expensiveCalculation()
+//	    return app.Text(result)
+//	})
+func PureComponent(name string, fn rtui.ComponentFunc) VNode {
+	return rtui.MemoComponent(name, fn)
+}
+
+// PureComponentWithProps creates a memoized component with props
+// Only re-renders when props change (shallow comparison)
+//
+// Example:
+//
+//	pureItem := ui.PureComponentWithProps("ListItem", func(props rtui.Props) ui.VNode {
+//	    title := props.Get("title").(string)
+//	    return app.Text(title)
+//	})
+func PureComponentWithProps(name string, fn rtui.ComponentFuncWithProps) VNode {
+	component := rtui.NewComponentWithProps(name, fn)
+	return rtui.NewMemo(component)
+}

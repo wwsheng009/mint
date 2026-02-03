@@ -16,6 +16,7 @@ package reconciler
 import (
 	"fmt"
 	"os"
+	"runtime/debug"
 
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
@@ -29,6 +30,16 @@ func BeginWork(current, workInProgress *Fiber) *Fiber {
 
 	// Process updates in the queue
 	processUpdateQueue(workInProgress)
+
+	// Check for ErrorBoundary - handle before regular component processing
+	if boundary, ok := workInProgress.VNode.(*rtui.ErrorBoundaryVNode); ok {
+		return beginWorkErrorBoundary(current, workInProgress, boundary)
+	}
+
+	// Check for Memo - handle memoization to skip unnecessary renders
+	if memo, ok := workInProgress.VNode.(*rtui.MemoVNode); ok {
+		return beginWorkMemo(current, workInProgress, memo)
+	}
 
 	// Dispatch based on Fiber type
 	switch workInProgress.Type {
@@ -261,4 +272,129 @@ func processUpdateQueue(workInProgress *Fiber) {
 
 	// Clear the queue after processing
 	workInProgress.UpdateQueue = nil
+}
+
+// =============================================================================
+// ErrorBoundary BeginWork
+// =============================================================================
+
+// beginWorkErrorBoundary processes an error boundary Fiber
+// Error boundaries catch panics from their child components and render a fallback UI
+func beginWorkErrorBoundary(current, workInProgress *Fiber, boundary *rtui.ErrorBoundaryVNode) *Fiber {
+	// The error boundary wraps a component that might panic
+	// We need to call the component's function with panic recovery
+
+	// Get the component function from the boundary
+	componentFn := boundary.Component()
+
+	// Try to render the component with panic recovery
+	var children []rtui.VNode
+	var hadPanic bool
+
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				hadPanic = true
+
+				// Update the boundary's error state
+				boundary.SetError(r.(error), fmt.Sprintf("panic in %s: %v", boundary.Name(), r), string(debug.Stack()))
+			}
+		}()
+
+		// Render the wrapped component
+		if componentFn != nil {
+			vnode := componentFn()
+			children = []rtui.VNode{vnode}
+		}
+	}()
+
+	// If panic occurred, render the fallback instead
+	if hadPanic {
+		fallback := boundary.Fallback()
+		if fallback != nil {
+			children = []rtui.VNode{fallback}
+		} else {
+			// No fallback, render empty fragment
+			children = []rtui.VNode{rtui.Fragment()}
+		}
+	}
+
+	// Get current child for reconciliation
+	var currentChild *Fiber
+	if current != nil {
+		currentChild = current.Child
+	}
+
+	// Reconcile children (either the component result or the fallback)
+	workInProgress.Child = reconcileChildren(
+		workInProgress,
+		currentChild,
+		children,
+		workInProgress.Lanes,
+	)
+
+	return workInProgress
+}
+
+// =============================================================================
+// Memo BeginWork
+// =============================================================================
+
+// beginWorkMemo processes a memoized component Fiber
+// Memo components skip re-rendering if their props haven't changed
+func beginWorkMemo(current, workInProgress *Fiber, memo *rtui.MemoVNode) *Fiber {
+	// Get current props
+	newProps := workInProgress.GetProps()
+
+	// Check if we should update based on prop comparison
+	var shouldUpdate bool
+	if current == nil {
+		// First render - always update
+		shouldUpdate = true
+	} else {
+		// Use memo's comparison function
+		oldProps := current.GetProps()
+		compare := memo.GetCompare()
+		if compare != nil {
+			// Use custom comparison from memo
+			// Note: compare returns true if props are equal (no update needed)
+			propsEqual := compare(oldProps, newProps)
+			shouldUpdate = !propsEqual
+		} else {
+			// Default shallow comparison
+			shouldUpdate = !rtui.ShallowPropsEqual(oldProps, newProps)
+		}
+	}
+
+	// If props haven't changed and no pending updates, skip re-render
+	if !shouldUpdate && workInProgress.Lanes == rtui.LaneNoLane {
+		// Props unchanged - reuse current fiber's result
+		// Copy child pointers from current to workInProgress
+		if current != nil {
+			workInProgress.Child = current.Child
+			// Copy subtree flags to preserve effect information
+			workInProgress.SubtreeFlags = current.SubtreeFlags
+		}
+		return workInProgress
+	}
+
+	// Props changed or have pending updates - process the wrapped component
+	wrappedComponent := memo.GetComponent()
+
+	// Get current child for reconciliation
+	var currentChild *Fiber
+	if current != nil {
+		currentChild = current.Child
+	}
+
+	// Reconcile the wrapped component as a single child
+	children := []rtui.VNode{wrappedComponent}
+	workInProgress.Child = reconcileChildren(
+		workInProgress,
+		currentChild,
+		children,
+		workInProgress.Lanes,
+	)
+
+	return workInProgress
 }
