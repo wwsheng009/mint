@@ -62,9 +62,11 @@ type Fiber struct {
 	Alternate *Fiber
 
 	// === Props & State ===
-	// Props for this fiber
+	// Props for this fiber (snapshot taken when Fiber was created).
+	// NOTE: This field may become stale if VNode props are updated.
+	// Use GetProps() method to get current props from VNode.
 	Props Props
-	// Memoized props (previous props)
+	// Memoized props (previous props for diffing)
 	MemoizedProps Props
 	// Memoized state
 	MemoizedState interface{}
@@ -98,6 +100,29 @@ type Fiber struct {
 	// === Component Instance ===
 	// Persistent component instance for state preservation
 	ComponentInstance ComponentInstance
+}
+
+// =============================================================================
+// Fiber Methods
+// =============================================================================
+
+// GetProps returns the current props from the VNode.
+// This method should be used instead of accessing the Props field directly,
+// as the Props field is only a snapshot taken when the Fiber was created.
+//
+// The Props field may become stale if the VNode's props are updated after
+// the Fiber is created. Use GetProps() to always get the current props.
+func (f *Fiber) GetProps() Props {
+	if f.VNode == nil {
+		return nil
+	}
+	return f.VNode.Props()
+}
+
+// GetMemoizedProps returns the memoized props for comparison during reconciliation.
+// These are the props from the previous render.
+func (f *Fiber) GetMemoizedProps() Props {
+	return f.MemoizedProps
 }
 
 // Update represents a state update

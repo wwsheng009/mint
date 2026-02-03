@@ -164,7 +164,9 @@ func CloneFiber(fiber *Fiber) *Fiber {
 		Child:         fiber.Child,
 		Sibling:       fiber.Sibling,
 		Alternate:     fiber.Alternate,
-		UpdateQueue:   fiber.UpdateQueue,
+		// Don't share UpdateQueue - cloned fiber gets its own empty queue
+		// This prevents updates to the clone from affecting the original
+		UpdateQueue:   nil,
 		Flags:         fiber.Flags,
 		SubtreeFlags:  fiber.SubtreeFlags,
 		Lanes:         fiber.Lanes,
