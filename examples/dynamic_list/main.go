@@ -17,7 +17,10 @@ type Todo struct {
 
 // TodoItem represents a single todo item component
 func TodoItem(props ui.Props) ui.VNode {
-	todo := props["todo"].(Todo)
+	todo, ok := props["todo"].(Todo)
+	if !ok {
+		return ui.Element("text").Prop("content", "Invalid todo item").Build()
+	}
 
 	// Local state for this item - preserved across re-renders
 	count, setCount, _ := ui.UseStateInt(0)

@@ -128,7 +128,11 @@ func (cb *CausalBuilder) RecordMutation(component string, kind MutationKind, fie
 	}
 
 	// Get current event as cause
-	causedBy := cb.currentEvent.Load().(EventID)
+	causedBy, _ := cb.currentEvent.Load().(EventID)
+	if causedBy == 0 {
+		// No current event, use zero event ID
+		causedBy = 0
+	}
 
 	mutationID := graph.AddMutation(component, kind, field, oldValue, newValue, causedBy)
 

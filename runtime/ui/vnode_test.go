@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/wwsheng009/mint/runtime/style"
@@ -608,5 +609,653 @@ func TestHookValidator(t *testing.T) {
 	// Test 6: Hook count exceeds first render
 	if err := validator.ValidateHookCall(HookState); err == nil {
 		t.Error("ValidateHookCall should return error for hook count exceeding first render")
+	}
+}
+
+func TestFiberLaneOperations(t *testing.T) {
+	lanes := LaneSyncLane | LaneDefaultLane
+
+	// Test HasLanes (package function)
+	if !HasLanes(lanes, LaneSyncLane) {
+		t.Error("HasLanes should return true for LaneSyncLane")
+	}
+
+	if HasLanes(lanes, LaneIdleLane) {
+		t.Error("HasLanes should return false for LaneIdleLane")
+	}
+
+	// Test IsSubsetLanes
+	if !IsSubsetLanes(lanes, LaneSyncLane|LaneDefaultLane) {
+		t.Error("IsSubsetLanes should return true for same lanes")
+	}
+
+	if IsSubsetLanes(lanes, LaneSyncLane|LaneIdleLane) {
+		t.Error("IsSubsetLanes should return false when lanes not subset")
+	}
+
+	// Test RemoveLanes
+	updated := RemoveLanes(lanes, LaneSyncLane)
+	if HasLanes(updated, LaneSyncLane) {
+		t.Error("RemoveLanes should remove LaneSyncLane")
+	}
+
+	if !HasLanes(updated, LaneDefaultLane) {
+		t.Error("RemoveLanes should preserve other lanes")
+	}
+
+	// Test GetHighestPriorityLane
+	lanes2 := LaneDefaultLane | LaneIdleLane
+	highest := GetHighestPriorityLane(lanes2)
+	if highest != LaneDefaultLane {
+		t.Errorf("GetHighestPriorityLane should return LaneDefaultLane, got %v", highest)
+	}
+}
+
+func TestFiberLaneString(t *testing.T) {
+	fiber := &Fiber{
+		Lanes: LaneSyncLane | LaneInputContinuousLane,
+	}
+
+	// Test String method - should not panic
+	_ = fiber.String()
+}
+
+func TestElementBuilder_AddChild(t *testing.T) {
+	// Create an element pointer
+	elem := &ElementVNode{tag: "div"}
+
+	// AddChild modifies and returns the element
+	result := elem.AddChild(Element("text").Prop("content", "Child").Build())
+
+	if result == nil {
+		t.Error("AddChild should return the element")
+	}
+
+	children := result.Children()
+	if len(children) != 1 {
+		t.Errorf("Should have 1 child, got %d", len(children))
+	}
+}
+
+func TestElementBuilder_AddChildren(t *testing.T) {
+	elem := &ElementVNode{tag: "div"}
+
+	children := []VNode{
+		Element("text").Prop("content", "A").Build(),
+		Element("text").Prop("content", "B").Build(),
+	}
+
+	result := elem.AddChildren(children...)
+
+	if result == nil {
+		t.Error("AddChildren should return the element")
+	}
+
+	resultChildren := result.Children()
+	if len(resultChildren) != 2 {
+		t.Errorf("Should have 2 children, got %d", len(resultChildren))
+	}
+}
+
+func TestElementBuilder_SetProps(t *testing.T) {
+	// SetProps on ElementVNode directly
+	elem := &ElementVNode{tag: "div"}
+	elem.SetProps(Props{"class": "test", "id": "myid"})
+
+	if elem.Props().GetString("class") != "test" {
+		t.Error("SetProps should set props")
+	}
+}
+
+func TestElementInterfaceMethods(t *testing.T) {
+	elem := Element("div").
+		Prop("id", "test").
+		Child(Element("text").Prop("content", "Child").Build()).
+		Build()
+
+	// Test Tag method - need type assertion
+	if elemVNode, ok := elem.(*ElementVNode); ok {
+		if elemVNode.Tag() != "div" {
+			t.Errorf("Tag() should return 'div', got %s", elemVNode.Tag())
+		}
+	}
+
+	// Test Props method
+	props := elem.Props()
+	if props == nil {
+		t.Error("Props() should not return nil")
+	}
+
+	if props.GetString("id") != "test" {
+		t.Error("Props() should return element props")
+	}
+
+	// Test Children method
+	children := elem.Children()
+	if len(children) != 1 {
+		t.Errorf("Children() should return 1 child, got %d", len(children))
+	}
+}
+
+func TestElementBuilder_KeyMethod(t *testing.T) {
+	elem := Element("div").Build()
+
+	elem.SetKey("unique-key")
+
+	if elem.Key() != "unique-key" {
+		t.Errorf("Key() should return 'unique-key', got %s", elem.Key())
+	}
+}
+
+func TestElementBuilder_StyleMethod(t *testing.T) {
+	s := style.Style{}.Foreground("red")
+
+	elem := &ElementVNode{tag: "div"}
+	elem.SetStyle(s)
+
+	if elem.Style().FG != "red" {
+		t.Error("SetStyle should set the style")
+	}
+}
+
+func TestComponentWithPropsBuilder(t *testing.T) {
+	fn := func(props Props) VNode {
+		return Element("div").Build()
+	}
+
+	builder := ComponentWithProps("MyComponent", fn)
+
+	if builder == nil {
+		t.Error("ComponentWithProps should return a component")
+	}
+
+	comp := builder.Prop("test", "value")
+	if comp == nil {
+		t.Error("Prop should return the component")
+	}
+}
+
+func TestComponentPropsMethods(t *testing.T) {
+	fn := func(props Props) VNode {
+		return Element("div").Build()
+	}
+
+	comp := ComponentWithProps("Test", fn).Prop("id", "test").Build()
+
+	// Test Props method
+	props := comp.Props()
+	if props.GetString("id") != "test" {
+		t.Error("Component Props() should return props")
+	}
+
+	// Test SetProps
+	comp.SetProps(Props{"new": "value"})
+	if comp.Props().GetString("new") != "value" {
+		t.Error("SetProps should set new props")
+	}
+
+	// Test Children method
+	children := comp.Children()
+	if children != nil {
+		t.Error("Component Children() should return nil before render")
+	}
+
+	// Test SetChildren - ComponentVNode's SetChildren is a no-op
+	// Components don't have static children
+	comp.SetChildren([]VNode{Element("text").Build()})
+	// Children() still returns nil for components
+}
+
+func TestComponentStyleMethods(t *testing.T) {
+	fn := func() VNode {
+		return Element("div").Build()
+	}
+
+	comp := NewComponent("Test", fn)
+
+	// Test Style
+	s := style.Style{}.Foreground("blue")
+	comp.SetStyle(s)
+
+	if comp.Style().FG != "blue" {
+		t.Error("SetStyle should set style")
+	}
+
+	// Test Name
+	if comp.Name() != "Test" {
+		t.Errorf("Name() should return 'Test', got %s", comp.Name())
+	}
+
+	// Test Render
+	rendered := comp.Render()
+	if rendered == nil {
+		t.Error("Render() should return a VNode")
+	}
+
+	// Test Fn
+	if comp.Fn() == nil {
+		t.Error("Fn() should return function")
+	}
+
+	// Test FnWithProps
+	if comp.FnWithProps() != nil {
+		t.Error("FnWithProps() should return nil for simple component")
+	}
+}
+
+func TestNewComponentWithProps(t *testing.T) {
+	fn := func(props Props) VNode {
+		id := props.GetString("id")
+		return Element("div").Prop("id", id).Build()
+	}
+
+	comp := NewComponentWithProps("Test", fn)
+
+	if comp == nil {
+		t.Fatal("NewComponentWithProps should return a component")
+	}
+
+	if comp.Name() != "Test" {
+		t.Errorf("Name should be 'Test', got %s", comp.Name())
+	}
+
+	// Set props
+	comp.SetProps(Props{"id": "test123"})
+	if comp.Props().GetString("id") != "test123" {
+		t.Error("SetProps should set props")
+	}
+}
+
+func TestSetCurrentContext(t *testing.T) {
+	ctx := NewComponentContext("test")
+
+	// Initially may have context from other tests
+	originalCtx := GetCurrentContext()
+
+	// Set context
+	SetCurrentContext(ctx)
+
+	if GetCurrentContext() != ctx {
+		t.Error("GetCurrentContext should return the set context")
+	}
+
+	// Restore original context
+	SetCurrentContext(originalCtx)
+}
+
+func TestNewComponentContextForRoot(t *testing.T) {
+	ctx := NewComponentContextForRoot()
+
+	if ctx == nil {
+		t.Fatal("NewComponentContextForRoot should return a context")
+	}
+
+	if ctx.ComponentID == "" {
+		t.Error("ComponentID should not be empty")
+	}
+
+	// Root context should have "App" in its name
+	if !strings.Contains(ctx.ComponentID, "App") {
+		t.Errorf("ComponentID should contain 'App', got %s", ctx.ComponentID)
+	}
+}
+
+func TestComponentContext_ResetContext(t *testing.T) {
+	ctx := NewComponentContext("test")
+
+	// Add a hook
+	hook := Hook{Type: HookState, Value: 42}
+	ctx.Hooks = append(ctx.Hooks, hook)
+	ctx.HookIndex = 1
+
+	initialRenderCount := ctx.RenderCount
+
+	// Reset context
+	ctx.ResetContext()
+
+	if ctx.HookIndex != 0 {
+		t.Errorf("ResetContext should reset HookIndex to 0, got %d", ctx.HookIndex)
+	}
+
+	if ctx.RenderCount != initialRenderCount+1 {
+		t.Errorf("ResetContext should increment RenderCount, got %d", ctx.RenderCount)
+	}
+}
+
+func TestComponentContext_RunEffects(t *testing.T) {
+	ctx := NewComponentContext("test")
+
+	// Add an effect hook with cleanup
+	effectCalled := false
+	cleanupCalled := false
+
+	effect := EffectCallback(func() CleanupFunc {
+		effectCalled = true
+		return func() {
+			cleanupCalled = true
+		}
+	})
+
+	ctx.Hooks = append(ctx.Hooks, Hook{Type: HookEffect, Value: effect})
+	ctx.HookIndex = 1
+
+	// Run effects
+	ctx.RunEffects()
+
+	// Effect should have been executed
+	if !effectCalled {
+		t.Error("RunEffects should execute effect callback")
+	}
+
+	// Hook should be cleared after execution
+	if ctx.Hooks[0].Value != nil {
+		t.Error("RunEffects should clear effect value after execution")
+	}
+
+	// Cleanup should be stored
+	if ctx.Hooks[0].Cleanup == nil {
+		t.Error("RunEffects should store cleanup function")
+	}
+
+	// Now call CleanupAll to execute the cleanup
+	ctx.CleanupAll()
+
+	if !cleanupCalled {
+		t.Error("CleanupAll should execute stored cleanup functions")
+	}
+}
+
+func TestComponentContext_RunEffects_Multiple(t *testing.T) {
+	ctx := NewComponentContext("test")
+
+	effect1Called := false
+	effect1 := EffectCallback(func() CleanupFunc {
+		effect1Called = true
+		return nil
+	})
+
+	effect2Called := false
+	effect2 := EffectCallback(func() CleanupFunc {
+		effect2Called = true
+		return func() {
+			// This cleanup won't be called by RunEffects, only by CleanupAll
+		}
+	})
+
+	ctx.Hooks = append(ctx.Hooks,
+		Hook{Type: HookEffect, Value: effect1},
+		Hook{Type: HookEffect, Value: effect2},
+	)
+	ctx.HookIndex = 2
+
+	// Run effects
+	ctx.RunEffects()
+
+	if !effect1Called || !effect2Called {
+		t.Error("RunEffects should execute all effects")
+	}
+
+	// All hook values should be cleared
+	if ctx.Hooks[0].Value != nil || ctx.Hooks[1].Value != nil {
+		t.Error("RunEffects should clear all effect values")
+	}
+
+	// Second hook should have cleanup stored
+	if ctx.Hooks[1].Cleanup == nil {
+		t.Error("RunEffects should store cleanup from second effect")
+	}
+}
+
+func TestUpdateQueue_Enqueue(t *testing.T) {
+	fiber := &Fiber{}
+
+	// Create an update
+	update := &Update{
+		Lane: LaneSyncLane,
+		Payload: func(state interface{}) interface{} {
+			return "updated"
+		},
+	}
+
+	// Enqueue update
+	fiber.EnqueueUpdate(update)
+
+	if fiber.UpdateQueue == nil {
+		t.Fatal("EnqueueUpdate should create update queue")
+	}
+
+	if fiber.UpdateQueue.First != update {
+		t.Error("EnqueueUpdate should set update as first")
+	}
+}
+
+func TestUpdateQueue_EnqueueMultiple(t *testing.T) {
+	fiber := &Fiber{}
+
+	update1 := &Update{Lane: LaneSyncLane}
+	update2 := &Update{Lane: LaneDefaultLane}
+
+	// Enqueue multiple updates
+	fiber.EnqueueUpdate(update1)
+	fiber.EnqueueUpdate(update2)
+
+	if fiber.UpdateQueue.First != update1 {
+		t.Error("First update should be update1")
+	}
+
+	if fiber.UpdateQueue.First.Next != update2 {
+		t.Error("Second update should be update2")
+	}
+}
+
+func TestFiber_MarkUpdate(t *testing.T) {
+	fiber := &Fiber{
+		Return: &Fiber{}, // Has parent for propagation
+	}
+
+	// Mark for update
+	fiber.MarkUpdate(LaneSyncLane)
+
+	// Should have lanes set
+	if fiber.Lanes != LaneSyncLane {
+		t.Errorf("Fiber.Lanes = %v after MarkUpdate, want LaneSyncLane", fiber.Lanes)
+	}
+
+	// Should have effect flag set
+	if fiber.Flags&EffectUpdate == 0 {
+		t.Error("MarkUpdate should set EffectUpdate flag")
+	}
+
+	// Parent should have child lanes set
+	if fiber.Return.ChildLanes != LaneSyncLane {
+		t.Errorf("Parent ChildLanes should be set, got %v", fiber.Return.ChildLanes)
+	}
+}
+
+func TestElementVNode_ChildrenMethod(t *testing.T) {
+	elem := &ElementVNode{tag: "div"}
+
+	// Children method returns the internal slice
+	children := elem.Children()
+	if children != nil {
+		t.Error("New element should have nil children")
+	}
+
+	// Add children directly
+	elem.children = []VNode{
+		Element("text").Prop("content", "A").Build(),
+		Element("text").Prop("content", "B").Build(),
+	}
+
+	children = elem.Children()
+	if len(children) != 2 {
+		t.Errorf("Children() should return 2 children, got %d", len(children))
+	}
+}
+
+func TestElementVNode_KeyMethod(t *testing.T) {
+	elem := &ElementVNode{tag: "div"}
+
+	elem.SetKey("my-key")
+
+	if elem.Key() != "my-key" {
+		t.Errorf("Key() should return 'my-key', got %s", elem.Key())
+	}
+}
+
+func TestElementVNode_StyleMethod(t *testing.T) {
+	s := style.Style{}.Background("blue")
+
+	elem := &ElementVNode{tag: "div"}
+	elem.SetStyle(s)
+
+	if elem.Style().BG != "blue" {
+		t.Error("SetStyle should set background color")
+	}
+}
+
+func TestElementVNode_PropsMethod(t *testing.T) {
+	elem := &ElementVNode{tag: "div"}
+	elem.props = Props{"id": "test"}
+
+	props := elem.Props()
+	if props.GetString("id") != "test" {
+		t.Error("Props() should return the props map")
+	}
+}
+
+func TestComponentVNode_PropsMethod(t *testing.T) {
+	comp := &ComponentVNode{name: "Test"}
+	comp.props = Props{"data": "value"}
+
+	props := comp.Props()
+	if props == nil {
+		t.Error("Props() should return props map")
+	}
+
+	if props.GetString("data") != "value" {
+		t.Error("Props() should return the props map value")
+	}
+}
+
+func TestComponentVNode_RenderMethod(t *testing.T) {
+	renderFn := func() VNode {
+		return Element("span").Build()
+	}
+
+	comp := &ComponentVNode{name: "Test", fn: renderFn}
+
+	// Render returns the result of calling the component function
+	result := comp.Render()
+
+	if result == nil {
+		t.Error("Render() should return a VNode")
+	}
+
+	if result.Type() != VNodeElement {
+		t.Errorf("Render() should return ElementVNode, got %v", result.Type())
+	}
+}
+
+func TestComponentVNode_FnMethods(t *testing.T) {
+	renderFn := func() VNode {
+		return Element("div").Build()
+	}
+
+	propsFn := func(props Props) VNode {
+		return Element("div").Prop("id", props.GetString("id")).Build()
+	}
+
+	comp := &ComponentVNode{name: "Test", fn: renderFn, fnWithProps: propsFn}
+
+	if comp.Fn() == nil {
+		t.Error("Fn() should return the component function")
+	}
+
+	if comp.FnWithProps() == nil {
+		t.Error("FnWithProps() should return the props function")
+	}
+}
+
+func TestRef_Cleanup(t *testing.T) {
+	cleanupCalled := false
+
+	ref := &Ref{
+		Value: "initial",
+	}
+
+	cleanup := CleanupFunc(func() {
+		cleanupCalled = true
+	})
+
+	// Simulate setting a cleanup function
+	ref.Value = cleanup
+
+	// Execute cleanup using the correct type
+	if fn, ok := ref.Value.(CleanupFunc); ok {
+		fn()
+	}
+
+	if !cleanupCalled {
+		t.Error("Cleanup function should be called")
+	}
+
+	// After calling cleanup, the ref value is still the cleanup function
+	// The caller is responsible for clearing it
+	if ref.Value == nil {
+		t.Error("Ref.Value should still be set after cleanup is called")
+	}
+}
+
+func TestMergeLanes_Idempotent(t *testing.T) {
+	// Merging with NoLane should be idempotent
+	lanes := LaneSyncLane
+
+	result := MergeLanes(lanes, LaneNoLane)
+	if result != lanes {
+		t.Errorf("MergeLanes with NoLane should return original, got %v", result)
+	}
+}
+
+func TestFragment_KeyMethod(t *testing.T) {
+	frag := Fragment()
+
+	frag.SetKey("frag-key")
+
+	if frag.Key() != "frag-key" {
+		t.Errorf("Fragment Key() should return 'frag-key', got %s", frag.Key())
+	}
+}
+
+func TestFragment_StyleMethod(t *testing.T) {
+	s := style.Style{}.Foreground("green")
+
+	frag := Fragment()
+	frag.SetStyle(s)
+
+	if frag.Style().FG != "green" {
+		t.Error("Fragment SetStyle should set foreground color")
+	}
+}
+
+func TestFragment_ChildrenMethod(t *testing.T) {
+	child1 := Element("text").Prop("content", "A").Build()
+	child2 := Element("text").Prop("content", "B").Build()
+
+	frag := Fragment(child1, child2)
+
+	children := frag.Children()
+	if len(children) != 2 {
+		t.Errorf("Fragment Children() should return 2 children, got %d", len(children))
+	}
+}
+
+func TestFragment_PropsMethod(t *testing.T) {
+	frag := Fragment()
+	frag.SetProps(Props{"custom": "value"})
+
+	props := frag.Props()
+	if props.GetString("custom") != "value" {
+		t.Error("Fragment Props() should return set props")
 	}
 }

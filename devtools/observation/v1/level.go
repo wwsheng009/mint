@@ -52,7 +52,12 @@ func (lc *LevelController) SetLevel(level Level) {
 
 // GetLevel returns the current analysis level.
 func (lc *LevelController) GetLevel() Level {
-	return lc.level.Load().(Level)
+	if v := lc.level.Load(); v != nil {
+		if level, ok := v.(Level); ok {
+			return level
+		}
+	}
+	return LevelNone
 }
 
 // IsEnabled returns true if any analysis is enabled.
