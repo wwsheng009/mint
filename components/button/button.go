@@ -48,7 +48,6 @@ type ButtonVNode struct {
 	variant       ButtonVariant
 	size          ButtonSize
 	disabled      bool
-	focusIndex    int // Index for focus management, set during collection
 	// Focus state
 	hasFocus      bool // Whether this button currently has keyboard focus
 	// Mouse interaction state
@@ -69,7 +68,6 @@ func NewButton(label string) *ButtonVNode {
 		variant:      ButtonVariantDefault,
 		size:         ButtonSizeMedium,
 		disabled:     false,
-		focusIndex:   -1, // -1 means not yet set
 	}
 }
 
@@ -579,28 +577,16 @@ func (b *ButtonVNode) IsFocusable() bool {
 	return !b.disabled
 }
 
-// SetFocusIndex sets the focus index for this button.
-// This is called during collection to ensure each button has a unique FocusID.
-// Only sets the index if not already set (-1), to prevent overwriting during
-// multiple collection passes (e.g., in applyFocusStateToFiber and updateFocusManagerFromFiber).
-func (b *ButtonVNode) SetFocusIndex(index int) {
-	if b.focusIndex < 0 {
-		b.focusIndex = index
-	}
-}
-
 // GetFocusID returns a unique identifier for focus persistence.
-// Uses the button's Key if set, otherwise generates a stable ID using focusIndex.
-// The focusIndex is set during collection to ensure each button has a unique ID.
+// Uses the button's Key if set, otherwise generates a unique ID using
+// the button's memory address. This ensures uniqueness without requiring
+// a separate focusIndex field that would need to be managed during collection.
 func (b *ButtonVNode) GetFocusID() string {
 	if key := b.Key(); key != "" {
 		return "button:" + key
 	}
-	// Use focusIndex to generate a unique ID for buttons with the same label
-	// focusIndex is set during collection (e.g., by the reconciler or declarative node)
-	if b.focusIndex >= 0 {
-		return fmt.Sprintf("button:%s@%d", b.label, b.focusIndex)
-	}
-	// Fallback: use label only (may not be unique for buttons with same label)
-	return "button:" + b.label
+	// Use the button's pointer address for uniqueness when no key is set.
+	// This works because each button component is a distinct instance.
+	// The %p format gives us a stable unique identifier for the lifetime of the button.
+	return fmt.Sprintf("button:%s@%p", b.label, b)
 }

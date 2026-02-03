@@ -358,6 +358,24 @@ func (m *VNodeFocusManager) SetFocusByIndex(index int) bool {
 	return true
 }
 
+// HasFocus returns whether the given node currently has focus.
+// This provides a single source of truth for focus state - components
+// should call this method instead of storing their own hasFocus field.
+func (m *VNodeFocusManager) HasFocus(node FocusableVNode) bool {
+	if m.current < 0 || m.current >= len(m.focusable) {
+		return false
+	}
+	return m.focusable[m.current] == node
+}
+
+// GetFocusedNode returns the currently focused node, or nil if none.
+func (m *VNodeFocusManager) GetFocusedNode() FocusableVNode {
+	if m.current < 0 || m.current >= len(m.focusable) {
+		return nil
+	}
+	return m.focusable[m.current]
+}
+
 // DebugString returns a debug string representation of the focus manager.
 func (m *VNodeFocusManager) DebugString() string {
 	if len(m.focusable) == 0 {

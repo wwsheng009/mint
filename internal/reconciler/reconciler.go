@@ -1092,10 +1092,6 @@ func (r *Reconciler) collectFocusableFromFiberWithIndex(fiber *Fiber, startIndex
 
 	// Check if current VNode is focusable
 	if focusable, ok := fiber.VNode.(rtui.FocusableVNode); ok && focusable.IsFocusable() {
-		// Set focusIndex for buttons to ensure unique FocusID
-		if btn, ok := fiber.VNode.(interface{ SetFocusIndex(int) }); ok {
-			btn.SetFocusIndex(currentIndex)
-		}
 		log.FocusLogger.Debug("collectFocusable adding focusable %d: %s", currentIndex, focusable.GetFocusID())
 		result = append(result, focusable)
 		currentIndex++

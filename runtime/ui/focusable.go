@@ -3,12 +3,19 @@ package ui
 // FocusableVNode is an extension interface for VNodes that can receive focus.
 // Components that implement this interface can participate in keyboard navigation
 // and receive focused keyboard events (like Enter/Space).
+//
+// Focus State Management:
+// - FocusManager is the single source of truth for which element has focus
+// - SetFocus() is called by FocusManager during render to indicate visual state
+// - For authoritative focus state, query FocusManager.HasFocus(node) instead
 type FocusableVNode interface {
 	VNode
 
-	// SetFocus sets the focus state of this component.
-	// When hasFocus is true, the component should visually indicate focus
-	// and prepare to receive keyboard input.
+	// SetFocus sets the focus state of this component for rendering purposes.
+	// This is called by FocusManager during the render phase.
+	// When hasFocus is true, the component should visually indicate focus.
+	// Note: This sets transient render state. For authoritative focus state,
+	// query FocusManager.HasFocus(node).
 	SetFocus(hasFocus bool)
 
 	// IsFocusable returns whether this component can currently receive focus.
