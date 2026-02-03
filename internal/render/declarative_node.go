@@ -673,6 +673,53 @@ func newFiberReconciler(fwApp *framework.App, fn rtui.ComponentFunc) rtui.Reconc
 		EnableFiber: true,
 	})
 
+	// Set up the render callback to actually render VNodes to the buffer
+	// This callback is called by renderFiber for each non-component VNode
+	r.SetRenderCallback(func(vnode rtui.VNode, x, y int, buffer *paint.Buffer) {
+		renderVNodeToBuffer(vnode, x, y, buffer)
+	})
+
 	// Wrap in adapter to satisfy rtui.Reconciler interface
 	return &fiberReconcilerAdapter{r: r}
+}
+
+// renderVNodeToBuffer renders a single VNode to the buffer
+// This is used as the render callback for the Fiber reconciler
+func renderVNodeToBuffer(vnode rtui.VNode, x, y int, buffer *paint.Buffer) {
+	if vnode == nil {
+		return
+	}
+
+	// Check if vnode implements Paintable interface (custom rendering)
+	if paintable, ok := vnode.(interface{ Paint(int, int) []paint.DrawCmd }); ok {
+		commands := paintable.Paint(x, y)
+		for _, cmd := range commands {
+			buffer.SetString(cmd.X, cmd.Y, cmd.Text, cmd.Style)
+		}
+		return
+	}
+
+	// Handle built-in VNode types
+	switch vnode.Type() {
+	case rtui.VNodeText:
+		// Get text content from props
+		text := ""
+		if props := vnode.Props(); props != nil {
+			text = props.GetString("content")
+		}
+		if text != "" {
+			buffer.SetString(x, y, text, vnode.Style())
+		}
+
+	case rtui.VNodeElement:
+		// Check if element has text content
+		if props := vnode.Props(); props != nil {
+			if content := props.GetString("content"); content != "" {
+				buffer.SetString(x, y, content, vnode.Style())
+				return
+			}
+		}
+		// Elements that don't have text content are containers (buttons, etc.)
+		// They should implement Paintable interface for custom rendering
+	}
 }
