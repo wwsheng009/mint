@@ -1034,7 +1034,7 @@ func (r *Reconciler) applyFocusStateToFiber(fiber *Fiber) {
 	}
 
 	// Collect all focusable VNodes in order
-	focusable := r.collectFocusableFromFiber(fiber)
+	focusable := CollectFocusableFromFiber(fiber)
 
 	log.FocusLogger.Debug("applyFocus focusedIndex=%d, totalFocusable=%d", focusedIndex, len(focusable))
 
@@ -1065,52 +1065,6 @@ func (r *Reconciler) clearFocusOnFiber(fiber *Fiber) {
 	if fiber.Sibling != nil {
 		r.clearFocusOnFiber(fiber.Sibling)
 	}
-}
-
-// collectFocusableFromFiber collects all focusable VNodes from the Fiber tree in order
-func (r *Reconciler) collectFocusableFromFiber(fiber *Fiber) []rtui.FocusableVNode {
-	return r.collectFocusableFromFiberWithIndex(fiber, 0)
-}
-
-// collectFocusableFromFiberWithIndex collects focusable VNodes with a starting index
-// This ensures consistent index assignment across recursive calls
-func (r *Reconciler) collectFocusableFromFiberWithIndex(fiber *Fiber, startIndex int) []rtui.FocusableVNode {
-	result := make([]rtui.FocusableVNode, 0)
-	currentIndex := startIndex
-
-	if fiber == nil || fiber.VNode == nil {
-		return result
-	}
-
-	// Skip ComponentVNode wrappers
-	if fiber.VNode.Type() == rtui.VNodeComponent {
-		if fiber.Child != nil {
-			return r.collectFocusableFromFiberWithIndex(fiber.Child, startIndex)
-		}
-		return result
-	}
-
-	// Check if current VNode is focusable
-	if focusable, ok := fiber.VNode.(rtui.FocusableVNode); ok && focusable.IsFocusable() {
-		log.FocusLogger.Debug("collectFocusable adding focusable %d: %s", currentIndex, focusable.GetFocusID())
-		result = append(result, focusable)
-		currentIndex++
-	}
-
-	// Recursively check children (pass the current index)
-	if fiber.Child != nil {
-		childResult := r.collectFocusableFromFiberWithIndex(fiber.Child, currentIndex)
-		result = append(result, childResult...)
-		currentIndex += len(childResult)
-	}
-
-	// Recursively check siblings (pass the current index)
-	if fiber.Sibling != nil {
-		siblingResult := r.collectFocusableFromFiberWithIndex(fiber.Sibling, currentIndex)
-		result = append(result, siblingResult...)
-	}
-
-	return result
 }
 
 // setFocusOnFiber is deprecated - use applyFocusStateToFiber with index instead
@@ -1146,7 +1100,7 @@ func (r *Reconciler) updateFocusManagerFromFiber(fiber *Fiber) {
 	}
 
 	// Collect all focusable VNodes from the Fiber tree
-	focusable := r.collectFocusableFromFiber(fiber)
+	focusable := CollectFocusableFromFiber(fiber)
 	if len(focusable) == 0 {
 		return
 	}
