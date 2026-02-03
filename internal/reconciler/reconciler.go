@@ -323,7 +323,8 @@ func (r *Reconciler) renderFiberToBuffer(fiber *Fiber, x, y int, buffer *paint.B
 	if t, ok := fiber.VNode.(interface{ Tag() string }); ok {
 		tag = t.Tag()
 	}
-	log.RenderLogger.Debug("renderFiberToBuffer tag=%q, x=%d, y=%d, isHStack=%v", tag, x, y, r.isHStackFiber(fiber))
+	layoutInfo := rtui.GetLayoutInfo(fiber.VNode)
+	log.RenderLogger.Debug("renderFiberToBuffer tag=%q, x=%d, y=%d, isHStack=%v", tag, x, y, layoutInfo.IsHorizontal)
 
 	// Render this fiber based on its type
 	r.renderFiber(fiber, x, y, buffer)
@@ -332,40 +333,8 @@ func (r *Reconciler) renderFiberToBuffer(fiber *Fiber, x, y int, buffer *paint.B
 	childX := x
 	childY := y
 
-	// Check if this is a LayoutNode to handle horizontal layout
-	isHStack := false
-	var gap int
-
-	// Check the VNode type for layout direction
-	if fiber.VNode != nil {
-		if layoutNode, ok := fiber.VNode.(*rtui.LayoutNode); ok {
-			isHStack = layoutNode.Direction() == 0 // DirectionRow = 0
-			gap = layoutNode.Gap()
-		}
-		// Also check ElementVNode for hstack/vstack
-		if elemNode, ok := fiber.VNode.(*rtui.ElementVNode); ok {
-			tag := elemNode.Tag()
-			if tag == "hstack" || tag == "row" {
-				isHStack = true
-				if g, ok := elemNode.Props()["gap"].(int); ok {
-					gap = g
-				}
-			}
-		}
-		// Check for Tag() method on other types (e.g., LayoutBuilder)
-		if tagger, ok := fiber.VNode.(interface{ Tag() string }); ok {
-			tag := tagger.Tag()
-			if tag == "hstack" || tag == "row" {
-				isHStack = true
-				// Try to get gap from Props
-				if props := fiber.VNode.Props(); props != nil {
-					if g, ok := props["gap"].(int); ok {
-						gap = g
-					}
-				}
-			}
-		}
-	}
+	isHStack := layoutInfo.IsHorizontal
+	gap := layoutInfo.Gap
 
 	for child := fiber.Child; child != nil; child = child.Sibling {
 		r.renderFiberToBuffer(child, childX, childY, buffer)
@@ -381,28 +350,6 @@ func (r *Reconciler) renderFiberToBuffer(fiber *Fiber, x, y int, buffer *paint.B
 			childY += offsetY
 		}
 	}
-}
-
-// isHStackFiber checks if a fiber is an HStack (for debug)
-func (r *Reconciler) isHStackFiber(fiber *Fiber) bool {
-	if fiber == nil || fiber.VNode == nil {
-		return false
-	}
-	if layoutNode, ok := fiber.VNode.(*rtui.LayoutNode); ok {
-		return layoutNode.Direction() == 0
-	}
-	if elemNode, ok := fiber.VNode.(*rtui.ElementVNode); ok {
-		tag := elemNode.Tag()
-		return tag == "hstack" || tag == "row"
-	}
-	// Try Tag() method for other types
-	if tagger, ok := fiber.VNode.(interface{ Tag() string }); ok {
-		tag := tagger.Tag()
-		if tag == "hstack" || tag == "row" {
-			return true
-		}
-	}
-	return false
 }
 
 // measureFiberWidth measures the width of a fiber node

@@ -312,26 +312,10 @@ func (n *DeclarativeNode) paintVNode(vnode rtui.VNode, x, y int, buf *paint.Buff
 	if vnode.Type() == rtui.VNodeElement {
 		children := vnode.Children()
 		if len(children) > 0 {
-			// Check if this is an HStack (horizontal layout)
-			isHStack := false
-			gap := 1 // default gap (matches HStack default)
-
-			// Check for LayoutNode (from ui.HStack)
-			if layoutNode, ok := vnode.(*rtui.LayoutNode); ok {
-				isHStack = layoutNode.Direction() == rtui.DirectionRow
-				gap = layoutNode.Gap()
-			} else {
-				// Check for ElementVNode with hstack tag
-				if elemNode, ok := vnode.(*rtui.ElementVNode); ok {
-					tag := elemNode.Tag()
-					if tag == "hstack" || tag == "row" {
-						isHStack = true
-						if g, ok := elemNode.Props()["gap"].(int); ok {
-							gap = g
-						}
-					}
-				}
-			}
+			// Use shared layout detection utility
+			layoutInfo := rtui.GetLayoutInfo(vnode)
+			isHStack := layoutInfo.IsHorizontal
+			gap := layoutInfo.Gap
 
 			if isHStack {
 				// Horizontal layout: paint children on the same line with x offset
