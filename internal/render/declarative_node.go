@@ -32,6 +32,7 @@ type DeclarativeNode struct {
 	// Framework integration
 	fwApp     *framework.App         // Framework app (for triggering re-renders in non-Fiber mode)
 	reconciler rtui.Reconciler       // Fiber reconciler (if enabled) - use interface to avoid import cycle
+	renderer   rtui.VNodeRenderer    // VNode renderer (implements VNodeRenderer interface)
 	useFiber   bool                // Whether Fiber mode is enabled
 }
 
@@ -44,13 +45,16 @@ func NewDeclarativeNode(vnode rtui.VNode) *DeclarativeNode {
 
 // NewDeclarativeNodeFromFunc creates a new declarative node from a render function
 func NewDeclarativeNodeFromFunc(fn rtui.ComponentFunc) *DeclarativeNode {
-	return &DeclarativeNode{
+	node := &DeclarativeNode{
 		renderFn: fn,
 		instance: rtui.NewComponentContextForRoot(),
 		focusMgr: rtui.NewVNodeFocusManager(),
 		fwApp:    nil, // Will be set by SetFrameworkApp
 		useFiber: false, // Default to non-Fiber mode
 	}
+	// Create the non-Fiber renderer
+	node.renderer = NewNonFiberRenderer(node)
+	return node
 }
 
 // SetFrameworkApp sets the framework app reference (called from ui/test.go in RunTest)
@@ -73,12 +77,16 @@ func NewDeclarativeNodeFromFuncWithFiber(fn rtui.ComponentFunc, fwApp *framework
 		adapter.SetFocusManager(focusMgr)
 	}
 
+	// Create the Fiber renderer with the render callback
+	renderer := NewFiberRenderer(renderVNodeToBuffer)
+
 	return &DeclarativeNode{
 		renderFn:  fn,
 		instance:  rtui.NewComponentContextForRoot(),
 		focusMgr:  focusMgr,
 		fwApp:     fwApp,
 		reconciler: r,
+		renderer:   renderer,
 		useFiber:  true,
 	}
 }
@@ -230,27 +238,27 @@ func (n *DeclarativeNode) Paint(ctx component.PaintContext, buf *paint.Buffer) {
 	}
 
 	// Walk the VNode tree and paint each node
-	n.paintVNode(n.root, ctx.X, ctx.Y, buf)
+	n.PaintVNode(n.root, ctx.X, ctx.Y, buf)
 
 	if os.Getenv("TUI_DEBUG_UI") == "true" {
 		fmt.Fprintf(os.Stderr, "DeclarativeNode.Paint: painting complete\n")
 	}
 }
 
-// paintVNode recursively paints a VNode and its children
+// PaintVNode recursively paints a VNode and its children.
 //
 // Rendering strategy:
 // 1. If node implements Paintable: use Paint(x, y) → []DrawCmd → write to buffer
 // 2. Otherwise: handle by node type (Text/Element/Fragment)
 // 3. Always process children for container nodes
-func (n *DeclarativeNode) paintVNode(vnode rtui.VNode, x, y int, buf *paint.Buffer) {
+func (n *DeclarativeNode) PaintVNode(vnode rtui.VNode, x, y int, buf *paint.Buffer) {
 	if vnode == nil {
 		return
 	}
 
 	// Debug logging
 	if os.Getenv("TUI_DEBUG_UI") == "true" {
-		fmt.Fprintf(os.Stderr, "[paintVNode] vnode type=%d (%s), x=%d, y=%d, actual type=%T\n",
+		fmt.Fprintf(os.Stderr, "[PaintVNode] vnode type=%d (%s), x=%d, y=%d, actual type=%T\n",
 			vnode.Type(), vnode.Type(), x, y, vnode)
 	}
 
@@ -269,13 +277,13 @@ func (n *DeclarativeNode) paintVNode(vnode rtui.VNode, x, y int, buf *paint.Buff
 		}
 		// Debug logging
 		if os.Getenv("TUI_DEBUG_UI") == "true" {
-			fmt.Fprintf(os.Stderr, "[paintVNode] Setting bounds: x=%d, y=%d, w=%d, h=%d\n", x, y, width, height)
+			fmt.Fprintf(os.Stderr, "[PaintVNode] Setting bounds: x=%d, y=%d, w=%d, h=%d\n", x, y, width, height)
 		}
 		// Set bounds for hit testing
 		boundsAware.SetBounds(x, y, width, height)
 	} else {
 		if os.Getenv("TUI_DEBUG_UI") == "true" {
-			fmt.Fprintf(os.Stderr, "[paintVNode] vnode does not implement SetBounds\n")
+			fmt.Fprintf(os.Stderr, "[PaintVNode] vnode does not implement SetBounds\n")
 		}
 	}
 
@@ -321,15 +329,15 @@ func (n *DeclarativeNode) paintVNode(vnode rtui.VNode, x, y int, buf *paint.Buff
 				// Horizontal layout: paint children on the same line with x offset
 				childX := x
 				for _, child := range children {
-					n.paintVNode(child, childX, y, buf)
+					n.PaintVNode(child, childX, y, buf)
 					// Move X by the width of this child + gap
-					childX += n.measureVNodeWidth(child) + gap
+					childX += n.MeasureVNodeWidth(child) + gap
 				}
 			} else {
 				// Vertical layout: paint children on different lines
 				childY := y
 				for _, child := range children {
-					n.paintVNode(child, x, childY, buf)
+					n.PaintVNode(child, x, childY, buf)
 					childY++
 				}
 			}
@@ -364,13 +372,13 @@ func (n *DeclarativeNode) paintChildren(vnode rtui.VNode, x, y int, buf *paint.B
 
 	childY := y
 	for _, child := range children {
-		n.paintVNode(child, x, childY, buf)
+		n.PaintVNode(child, x, childY, buf)
 		childY++
 	}
 }
 
-// measureVNodeWidth measures the width of a VNode for horizontal layout
-func (n *DeclarativeNode) measureVNodeWidth(vnode rtui.VNode) int {
+// MeasureVNodeWidth measures the width of a VNode for horizontal layout
+func (n *DeclarativeNode) MeasureVNodeWidth(vnode rtui.VNode) int {
 	if vnode == nil {
 		return 0
 	}
@@ -641,6 +649,13 @@ func (n *DeclarativeNode) GetFocusManager() *rtui.VNodeFocusManager {
 	n.mu.RLock()
 	defer n.mu.RUnlock()
 	return n.focusMgr
+}
+
+// GetRenderer returns the VNode renderer for this declarative node
+func (n *DeclarativeNode) GetRenderer() rtui.VNodeRenderer {
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+	return n.renderer
 }
 
 // GetFocusedIndex returns the index of the currently focused element
