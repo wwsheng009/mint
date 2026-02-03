@@ -207,8 +207,17 @@ func RunTest(app ComponentFunc, opts ...Option) (*TestableApp, error) {
 	// Set global appInstance
 	appInstance = fwApp
 
+	// Check if Fiber mode is enabled via environment variable
+	enableFiber := os.Getenv("MINT_USE_FIBER") == "true"
+
 	// Create the declarative root component using internal/render
-	declarativeNode := render.NewDeclarativeNodeFromFunc(app)
+	var declarativeNode *render.DeclarativeNode
+	if enableFiber {
+		declarativeNode = render.NewDeclarativeNodeFromFuncWithFiber(app, fwApp)
+	} else {
+		declarativeNode = render.NewDeclarativeNodeFromFunc(app)
+		declarativeNode.SetFrameworkApp(fwApp) // Set framework app for non-Fiber mode re-renders
+	}
 
 	// Set as root
 	fwApp.SetRoot(declarativeNode)
@@ -227,9 +236,10 @@ func RunTest(app ComponentFunc, opts ...Option) (*TestableApp, error) {
 	}
 
 	return &TestableApp{
-		fwApp: fwApp,
-		root:  declarativeNode,
-		opts:  options,
+		fwApp:   fwApp,
+		root:    declarativeNode,
+		opts:    options,
+		sandbox: nil, // RunTest doesn't use MockSandbox
 	}, nil
 }
 
@@ -271,6 +281,7 @@ func RunTestWithSandbox(app ComponentFunc, opts ...Option) (*TestableApp, error)
 		declarativeNode = render.NewDeclarativeNodeFromFuncWithFiber(app, fwApp)
 	} else {
 		declarativeNode = render.NewDeclarativeNodeFromFunc(app)
+		declarativeNode.SetFrameworkApp(fwApp) // Set framework app for non-Fiber mode re-renders
 	}
 
 	// Set as root
@@ -541,4 +552,13 @@ func (ta *TestableApp) GetFocusManager() interface{} {
 		return nil
 	}
 	return ta.root.GetFocusManager()
+}
+
+// ForceRender forces a render to ensure the VNode tree is built
+// This is needed in Fiber mode where GetButtons() depends on Paint() being called first
+func (ta *TestableApp) ForceRender() {
+	// Trigger a render by calling the framework's render method
+	if ta.fwApp != nil {
+		ta.fwApp.ForceRenderNow()
+	}
 }

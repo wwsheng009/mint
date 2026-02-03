@@ -3,6 +3,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -30,7 +31,8 @@ func TestDynamicListKeyboardInput(t *testing.T) {
 	t.Logf("Initial render:\n%s", rendered)
 
 	// Check that buttons are present
-	if err := testApp.AssertRender("[ +]"); err != nil {
+	// Button renders as "[  + ]" (with two spaces on each side for Medium size)
+	if err := testApp.AssertRender("[  + ]"); err != nil {
 		t.Errorf("Buttons not found in initial render: %v", err)
 	}
 
@@ -160,9 +162,23 @@ func TestDynamicListMouseClick(t *testing.T) {
 	// Wait for initial render
 	time.Sleep(100 * time.Millisecond)
 
-	root := testApp.GetDeclarativeRoot()
-	buttons := root.GetButtons()
+	// Force render to ensure VNode tree is built (especially important in Fiber mode)
+	testApp.ForceRender()
+	time.Sleep(50 * time.Millisecond)
 
+	// Check the declarative root state for debugging
+	root := testApp.GetDeclarativeRoot()
+	t.Logf("Declarative root: %+v", root)
+	if root != nil {
+		t.Logf("Root children: %d", len(root.GetButtons()))
+		t.Logf("Root inputs: %d", len(root.GetInputs()))
+	}
+
+	// Use TestableApp.GetButtons() instead of GetDeclarativeRoot().GetButtons()
+	// This properly handles both Fiber and non-Fiber modes
+	buttons := testApp.GetButtons()
+
+	t.Logf("useFiber=%v", os.Getenv("MINT_USE_FIBER"))
 	t.Logf("Found %d buttons", len(buttons))
 	if len(buttons) == 0 {
 		t.Fatal("No buttons found in the app")

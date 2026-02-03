@@ -46,7 +46,7 @@ func HStack(children ...VNode) VNode {
 			direction:    DirectionRow,
 			align:        AlignStart,
 			crossAlign:   AlignStart,
-			gap:          0,
+			gap:          1, // Default gap of 1 space between items
 			padding:      [4]int{0, 0, 0, 0},
 		},
 		children: children,

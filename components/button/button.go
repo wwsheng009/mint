@@ -69,6 +69,7 @@ func NewButton(label string) *ButtonVNode {
 		variant:      ButtonVariantDefault,
 		size:         ButtonSizeMedium,
 		disabled:     false,
+		focusIndex:   -1, // -1 means not yet set
 	}
 }
 
@@ -503,6 +504,15 @@ func (b *ButtonVNode) Paint(x, y int) []paint.DrawCmd {
 		return nil
 	}
 
+	// Debug: log button paint state (always log in debug mode)
+	if os.Getenv("TUI_DEBUG_FOCUS") == "true" || os.Getenv("TUI_DEBUG_BUTTON") == "true" {
+		focusMarker := " "
+		if b.hasFocus {
+			focusMarker = "*"
+		}
+		fmt.Fprintf(os.Stderr, "[ButtonPaint] label=%q, hasFocus=%v, focusMarker=%s\n", b.label, b.hasFocus, focusMarker)
+	}
+
 	// Get button style for rendering
 	buttonStyle := b.Style()
 
@@ -537,28 +547,38 @@ func (b *ButtonVNode) Paint(x, y int) []paint.DrawCmd {
 		case ButtonVariantSuccess:
 			buttonStyle = buttonStyle.Foreground(style.Color("white")).Background(style.Color("green")).Bold(true)
 		case ButtonVariantDefault:
-			buttonStyle = buttonStyle.Foreground(style.Color("black")).Background(style.Color("white"))
+			// Default: no background, just brackets [label]
+			buttonStyle = buttonStyle.Foreground(style.Color("white"))
 		}
 	}
 
 	// Apply disabled state
 	if b.disabled {
-		buttonStyle = buttonStyle.Foreground(style.Color("gray")).Background(style.Color("darkgray"))
+		buttonStyle = buttonStyle.Foreground(style.Color("gray"))
 	}
 
 	// State priority: Focused > Hovered > Normal
-	// Focus: distinct visual feedback (reversed colors)
+	// Focus: distinct visual feedback (blue background with white text)
 	// Hover: subtle feedback (underline)
 	if b.hasFocus && !b.disabled {
 		// Focused state: blue background with white text for clear visibility
 		buttonStyle = buttonStyle.Foreground(style.Color("white")).Background(style.Color("blue")).Bold(true)
 	} else if b.isHovered && !b.disabled {
-		// Hovered state: underline only
+		// Hovered state: underline only (no background)
 		buttonStyle = buttonStyle.Underline(true)
 	}
 
+	// Add focus indicator: * before focused button
+	var focusIndicator string
+	if b.hasFocus && !b.disabled {
+		focusIndicator = "*"
+	} else {
+		focusIndicator = " "
+	}
+
+	// Return draw commands: focus indicator + button label
 	return []paint.DrawCmd{
-		paint.NewTextCmd(x, y, labelText, buttonStyle),
+		paint.NewTextCmd(x, y, focusIndicator+labelText, buttonStyle),
 	}
 }
 
@@ -583,12 +603,28 @@ func (b *ButtonVNode) IsFocusable() bool {
 	return !b.disabled
 }
 
+// SetFocusIndex sets the focus index for this button.
+// This is called during collection to ensure each button has a unique FocusID.
+// Only sets the index if not already set (-1), to prevent overwriting during
+// multiple collection passes (e.g., in applyFocusStateToFiber and updateFocusManagerFromFiber).
+func (b *ButtonVNode) SetFocusIndex(index int) {
+	if b.focusIndex < 0 {
+		b.focusIndex = index
+	}
+}
+
 // GetFocusID returns a unique identifier for focus persistence.
-// Uses the button's Key if set, otherwise generates a stable ID.
+// Uses the button's Key if set, otherwise generates a stable ID using focusIndex.
+// The focusIndex is set during collection to ensure each button has a unique ID.
 func (b *ButtonVNode) GetFocusID() string {
 	if key := b.Key(); key != "" {
 		return "button:" + key
 	}
-	// Generate stable ID based on label
+	// Use focusIndex to generate a unique ID for buttons with the same label
+	// focusIndex is set during collection (e.g., by the reconciler or declarative node)
+	if b.focusIndex >= 0 {
+		return fmt.Sprintf("button:%s@%d", b.label, b.focusIndex)
+	}
+	// Fallback: use label only (may not be unique for buttons with same label)
 	return "button:" + b.label
 }

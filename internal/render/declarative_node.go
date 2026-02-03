@@ -29,9 +29,10 @@ type DeclarativeNode struct {
 	instance  *rtui.ComponentContext // Component instance for hooks
 	focusMgr  *rtui.VNodeFocusManager // Focus manager for keyboard navigation
 
-	// Fiber reconciler integration
-	reconciler rtui.Reconciler // Fiber reconciler (if enabled) - use interface to avoid import cycle
-	useFiber   bool            // Whether Fiber mode is enabled
+	// Framework integration
+	fwApp     *framework.App         // Framework app (for triggering re-renders in non-Fiber mode)
+	reconciler rtui.Reconciler       // Fiber reconciler (if enabled) - use interface to avoid import cycle
+	useFiber   bool                // Whether Fiber mode is enabled
 }
 
 // NewDeclarativeNode creates a new declarative node from a VNode
@@ -47,8 +48,16 @@ func NewDeclarativeNodeFromFunc(fn rtui.ComponentFunc) *DeclarativeNode {
 		renderFn: fn,
 		instance: rtui.NewComponentContextForRoot(),
 		focusMgr: rtui.NewVNodeFocusManager(),
+		fwApp:    nil, // Will be set by SetFrameworkApp
 		useFiber: false, // Default to non-Fiber mode
 	}
+}
+
+// SetFrameworkApp sets the framework app reference (called from ui/test.go in RunTest)
+func (n *DeclarativeNode) SetFrameworkApp(app *framework.App) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.fwApp = app
 }
 
 // NewDeclarativeNodeFromFuncWithFiber creates a new declarative node with Fiber reconciler enabled
@@ -57,10 +66,18 @@ func NewDeclarativeNodeFromFuncWithFiber(fn rtui.ComponentFunc, fwApp *framework
 	// Import the reconciler package here to avoid import cycles in ui package
 	// This is safe because internal/render can import internal/reconciler
 	r := newFiberReconciler(fwApp, fn)
+	focusMgr := rtui.NewVNodeFocusManager()
+
+	// Set the focus manager on the reconciler so it can apply focus state before rendering
+	if adapter, ok := r.(*fiberReconcilerAdapter); ok {
+		adapter.SetFocusManager(focusMgr)
+	}
+
 	return &DeclarativeNode{
 		renderFn:  fn,
 		instance:  rtui.NewComponentContextForRoot(),
-		focusMgr:  rtui.NewVNodeFocusManager(),
+		focusMgr:  focusMgr,
+		fwApp:     fwApp,
 		reconciler: r,
 		useFiber:  true,
 	}
@@ -159,12 +176,6 @@ func (n *DeclarativeNode) Paint(ctx component.PaintContext, buf *paint.Buffer) {
 		// Get the rendered VNode tree from the reconciler for focus management
 		// This avoids calling renderFn() twice which would create different VNode objects
 		n.root = n.reconciler.GetRenderedRoot()
-
-		// Collect focusable nodes from the rendered VNode tree
-		if n.focusMgr != nil && n.root != nil {
-			focusable := rtui.CollectFocusable(n.root)
-			n.focusMgr.SetFocusable(focusable)
-		}
 		return
 	}
 
@@ -194,17 +205,21 @@ func (n *DeclarativeNode) Paint(ctx component.PaintContext, buf *paint.Buffer) {
 			fmt.Fprintf(os.Stderr, "DeclarativeNode.Paint: renderFn() returned, root type=%d\n", n.root.Type())
 		}
 
-		// Collect focusable nodes and update focus manager
-		if n.focusMgr != nil && n.root != nil {
-			focusable := rtui.CollectFocusable(n.root)
-			n.focusMgr.SetFocusable(focusable)
-			if os.Getenv("TUI_DEBUG_UI") == "true" {
-				fmt.Fprintf(os.Stderr, "DeclarativeNode.Paint: collected %d focusable nodes\n", len(focusable))
-			}
-		}
+		// Expand all ComponentVNodes recursively (non-Fiber mode only)
+		// This ensures nested components are rendered with proper hook context
+		n.root = n.expandComponents(n.root)
 
 		// Clear current context
 		rtui.SetCurrentContext(nil)
+	}
+
+	// Collect focusable nodes and update focus manager (after expansion)
+	if n.focusMgr != nil && n.root != nil {
+		focusable := rtui.CollectFocusable(n.root)
+		n.focusMgr.SetFocusable(focusable)
+		if os.Getenv("TUI_DEBUG_UI") == "true" {
+			fmt.Fprintf(os.Stderr, "DeclarativeNode.Paint: collected %d focusable nodes\n", len(focusable))
+		}
 	}
 
 	if n.root == nil {
@@ -284,8 +299,9 @@ func (n *DeclarativeNode) paintVNode(vnode rtui.VNode, x, y int, buf *paint.Buff
 		n.paintElement(vnode, x, y, buf)
 
 	case rtui.VNodeComponent:
-		// Component nodes - should implement Paintable, but if not, skip
-		// (they should handle their own rendering)
+		// Component nodes should be expanded before painting
+		// In non-Fiber mode, expandComponents() handles this
+		// In Fiber mode, components are already expanded in the Fiber tree
 
 	case rtui.VNodeFragment:
 		// Fragment - just paint children, no self-rendering
@@ -296,10 +312,42 @@ func (n *DeclarativeNode) paintVNode(vnode rtui.VNode, x, y int, buf *paint.Buff
 	if vnode.Type() == rtui.VNodeElement {
 		children := vnode.Children()
 		if len(children) > 0 {
-			childY := y
-			for _, child := range children {
-				n.paintVNode(child, x, childY, buf)
-				childY++
+			// Check if this is an HStack (horizontal layout)
+			isHStack := false
+			gap := 1 // default gap (matches HStack default)
+
+			// Check for LayoutNode (from ui.HStack)
+			if layoutNode, ok := vnode.(*rtui.LayoutNode); ok {
+				isHStack = layoutNode.Direction() == rtui.DirectionRow
+				gap = layoutNode.Gap()
+			} else {
+				// Check for ElementVNode with hstack tag
+				if elemNode, ok := vnode.(*rtui.ElementVNode); ok {
+					tag := elemNode.Tag()
+					if tag == "hstack" || tag == "row" {
+						isHStack = true
+						if g, ok := elemNode.Props()["gap"].(int); ok {
+							gap = g
+						}
+					}
+				}
+			}
+
+			if isHStack {
+				// Horizontal layout: paint children on the same line with x offset
+				childX := x
+				for _, child := range children {
+					n.paintVNode(child, childX, y, buf)
+					// Move X by the width of this child + gap
+					childX += n.measureVNodeWidth(child) + gap
+				}
+			} else {
+				// Vertical layout: paint children on different lines
+				childY := y
+				for _, child := range children {
+					n.paintVNode(child, x, childY, buf)
+					childY++
+				}
 			}
 		}
 	}
@@ -341,6 +389,131 @@ func (n *DeclarativeNode) paintChildren(vnode rtui.VNode, x, y int, buf *paint.B
 	for _, child := range children {
 		n.paintVNode(child, x, childY, buf)
 		childY++
+	}
+}
+
+// measureVNodeWidth measures the width of a VNode for horizontal layout
+func (n *DeclarativeNode) measureVNodeWidth(vnode rtui.VNode) int {
+	if vnode == nil {
+		return 0
+	}
+
+	// Check the VNode type first
+	switch vnode.Type() {
+	case rtui.VNodeText:
+		// Try Content() method for both ui.TextVNode and basic.TextVNode
+		if contenter, ok := vnode.(interface{ Content() string }); ok {
+			return len(contenter.Content())
+		}
+		// Fall back to checking Props
+		if props := vnode.Props(); props != nil {
+			if content, ok := props["content"].(string); ok {
+				return len(content)
+			}
+		}
+		return 0
+
+	case rtui.VNodeElement:
+		// Check if it's a button
+		if btn, ok := vnode.(interface{ Label() string }); ok {
+			return len(btn.Label()) + 2 // [label] with brackets
+		}
+		// For elements, try to get width from props
+		if props := vnode.Props(); props != nil {
+			if content, ok := props["content"].(string); ok {
+				return len(content)
+			}
+			if label, ok := props["label"].(string); ok {
+				return len(label) + 2 // [label]
+			}
+		}
+		return 0
+	}
+
+	// For containers, return 0 (they don't contribute to width themselves)
+	return 0
+}
+
+// expandComponents recursively expands all ComponentVNodes in the tree
+// This is used in non-Fiber mode to ensure components are rendered with proper hook context
+// The hook context must be set before calling this function
+func (n *DeclarativeNode) expandComponents(vnode rtui.VNode) rtui.VNode {
+	if vnode == nil {
+		return nil
+	}
+
+	// If this is a ComponentVNode, expand it by calling its render function
+	if vnode.Type() == rtui.VNodeComponent {
+		if componentVNode, ok := vnode.(*rtui.ComponentVNode); ok {
+			rendered := componentVNode.Render()
+			if rendered != nil {
+				// Recursively expand the rendered VNode
+				return n.expandComponents(rendered)
+			}
+		}
+		return nil
+	}
+
+	// For non-component nodes, we need to expand their children
+	// Create a new VNode with expanded children
+	switch v := vnode.(type) {
+	case *rtui.ElementVNode:
+		// Expand children of ElementVNode
+		children := vnode.Children()
+		if len(children) == 0 {
+			return vnode
+		}
+		expandedChildren := make([]rtui.VNode, 0, len(children))
+		for _, child := range children {
+			expanded := n.expandComponents(child)
+			if expanded != nil {
+				expandedChildren = append(expandedChildren, expanded)
+			}
+		}
+		// Create a clone with expanded children
+		cloned := rtui.NewElement(v.Tag())
+		cloned.SetProps(vnode.Props())
+		cloned.SetKey(vnode.Key())
+		cloned.SetStyle(vnode.Style())
+		cloned.SetChildren(expandedChildren)
+		return cloned
+
+	case *rtui.LayoutNode:
+		// LayoutNode embeds ElementVNode, so similar handling
+		children := vnode.Children()
+		if len(children) == 0 {
+			return vnode
+		}
+		expandedChildren := make([]rtui.VNode, 0, len(children))
+		for _, child := range children {
+			expanded := n.expandComponents(child)
+			if expanded != nil {
+				expandedChildren = append(expandedChildren, expanded)
+			}
+		}
+		// For LayoutNode, we can't directly clone it because private fields
+		// Instead, modify the existing node's children in place
+		vnode.SetChildren(expandedChildren)
+		return vnode
+
+	case *rtui.FragmentVNode:
+		// Fragment - expand children
+		children := vnode.Children()
+		if len(children) == 0 {
+			return vnode
+		}
+		expandedChildren := make([]rtui.VNode, 0, len(children))
+		for _, child := range children {
+			expanded := n.expandComponents(child)
+			if expanded != nil {
+				expandedChildren = append(expandedChildren, expanded)
+			}
+		}
+		return rtui.Fragment(expandedChildren...)
+
+	default:
+		// For TextVNode and other leaf nodes, return as-is
+		return vnode
 	}
 }
 
@@ -417,12 +590,20 @@ func (n *DeclarativeNode) HandleEvent(ev frameworkevent.Event) bool {
 			if os.Getenv("TUI_DEBUG_UI") == "true" {
 				fmt.Fprintf(os.Stderr, "DeclarativeNode.HandleEvent: focus manager handled event, shouldRender=%v\n", shouldRender)
 			}
-			// In Fiber mode, request a re-render when focus changes
-			if shouldRender && useFiber && reconciler != nil {
-				// Request the framework to schedule a re-render
-				// This will trigger Paint() again with the updated focus state
-				if r, ok := reconciler.(*fiberReconcilerAdapter); ok {
-					r.r.ScheduleUpdate(rtui.LaneSyncLane)
+			// Request a re-render when focus changes
+			// In Fiber mode, use the reconciler; in non-Fiber mode, mark as dirty
+			if shouldRender {
+				if useFiber && reconciler != nil {
+					// Fiber mode: schedule reconciler update
+					if r, ok := reconciler.(*fiberReconcilerAdapter); ok {
+						r.r.ScheduleUpdate(rtui.LaneSyncLane)
+					}
+				} else {
+					// Non-Fiber mode: mark framework app as dirty to trigger re-render
+					// This ensures the updated focus state is painted
+					if fwApp := n.getFrameworkApp(); fwApp != nil {
+						fwApp.MarkDirty()
+					}
 				}
 			}
 			return true
@@ -519,21 +700,124 @@ func (n *DeclarativeNode) GetFocusedType() int {
 	return int(current.Type())
 }
 
+// getFrameworkApp returns the framework app (for triggering re-renders)
+func (n *DeclarativeNode) getFrameworkApp() *framework.App {
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+	return n.fwApp
+}
+
 // GetButtons returns all button VNodes in the tree
 func (n *DeclarativeNode) GetButtons() []rtui.FocusableVNode {
 	n.mu.RLock()
 	defer n.mu.RUnlock()
+
+	// In Fiber mode, collect buttons directly from the Fiber tree
+	// This preserves the original button VNode objects with their layout bounds
+	if n.useFiber && n.reconciler != nil {
+		// Access the reconciler directly to get the Fiber root
+		// The reconciler is a fiberReconcilerAdapter which wraps the actual reconciler
+		if adapter, ok := n.reconciler.(*fiberReconcilerAdapter); ok {
+			if fiberRoot := adapter.r.GetFiberRoot(); fiberRoot != nil {
+				return n.collectButtonsFromFiber(fiberRoot)
+			}
+		}
+	}
+
+	// Non-Fiber mode: use the traditional collection method
 	return collectByType(n.root, func(vnode rtui.VNode) bool {
-		if focusable, ok := vnode.(rtui.FocusableVNode); ok {
-			// Check if this is a button by its tag
-			if vnode.Type() == rtui.VNodeElement {
-				if tag, ok := vnode.(interface{ Tag() string }); ok && tag.Tag() == "button" {
-					return focusable.IsFocusable()
-				}
+		// Check if this is a button by checking if it has a Tag() method that returns "button"
+		if tag, hasTag := vnode.(interface{ Tag() string }); hasTag && tag.Tag() == "button" {
+			if focusable, ok := vnode.(rtui.FocusableVNode); ok {
+				return focusable.IsFocusable()
 			}
 		}
 		return false
 	})
+}
+
+// collectButtonsFromFiber traverses the Fiber tree to collect button VNodes
+// This preserves the original button objects with their layout bounds
+func (n *DeclarativeNode) collectButtonsFromFiber(fiber *reconciler.Fiber) []rtui.FocusableVNode {
+	var result []rtui.FocusableVNode
+
+	if fiber == nil || fiber.VNode == nil {
+		return result
+	}
+
+	// Skip the root ComponentVNode wrapper
+	if fiber.Key == "root" && fiber.VNode.Type() == rtui.VNodeComponent {
+		return n.collectButtonsFromFiber(fiber.Child)
+	}
+
+	// Check if current VNode is a button
+	if n.isButtonVNode(fiber.VNode) {
+		if focusable, ok := fiber.VNode.(rtui.FocusableVNode); ok && focusable.IsFocusable() {
+			result = append(result, focusable)
+		}
+	}
+
+	// Recursively check children
+	if child := fiber.Child; child != nil {
+		result = append(result, n.collectButtonsFromFiber(child)...)
+	}
+
+	// Recursively check siblings
+	if sibling := fiber.Sibling; sibling != nil {
+		result = append(result, n.collectButtonsFromFiber(sibling)...)
+	}
+
+	return result
+}
+
+// isButtonVNode checks if a VNode is a button element
+func (n *DeclarativeNode) isButtonVNode(vnode rtui.VNode) bool {
+	if vnode == nil {
+		return false
+	}
+	// Check if this is a button by checking if it has a Tag() method that returns "button"
+	if tag, hasTag := vnode.(interface{ Tag() string }); hasTag && tag.Tag() == "button" {
+		return true
+	}
+	return false
+}
+
+// collectFocusableFromFiber collects all focusable elements from the Fiber tree
+// This includes buttons, inputs, checkboxes, textareas, and selects
+func (n *DeclarativeNode) collectFocusableFromFiber(fiber *reconciler.Fiber) []rtui.FocusableVNode {
+	var result []rtui.FocusableVNode
+
+	if fiber == nil || fiber.VNode == nil {
+		return result
+	}
+
+	// Skip the root ComponentVNode wrapper
+	if fiber.Key == "root" && fiber.VNode.Type() == rtui.VNodeComponent {
+		return n.collectFocusableFromFiber(fiber.Child)
+	}
+
+	// Check if current VNode is focusable
+	if focusable, ok := fiber.VNode.(rtui.FocusableVNode); ok {
+		if focusable.IsFocusable() {
+			// Set focusIndex for buttons to ensure unique FocusID
+			if btn, ok := fiber.VNode.(interface{ SetFocusIndex(int) }); ok {
+				btn.SetFocusIndex(len(result))
+			}
+			result = append(result, focusable)
+		}
+	}
+
+	// Recursively check children
+	if child := fiber.Child; child != nil {
+		result = append(result, n.collectFocusableFromFiber(child)...)
+	}
+
+	// Recursively check siblings
+	if sibling := fiber.Sibling; sibling != nil {
+		result = append(result, n.collectFocusableFromFiber(sibling)...)
+	}
+
+	return result
 }
 
 // GetInputs returns all input VNodes in the tree
@@ -666,6 +950,11 @@ func (a *fiberReconcilerAdapter) SetApp(app interface{}) {
 	}
 }
 
+// SetFocusManager sets the focus manager (adapter method)
+func (a *fiberReconcilerAdapter) SetFocusManager(mgr *rtui.VNodeFocusManager) {
+	a.r.SetFocusManager(mgr)
+}
+
 // GetRenderedRoot returns the rendered VNode tree (adapter method)
 func (a *fiberReconcilerAdapter) GetRenderedRoot() rtui.VNode {
 	return a.r.GetRenderedRoot()
@@ -697,8 +986,19 @@ func renderVNodeToBuffer(vnode rtui.VNode, x, y int, buffer *paint.Buffer) {
 
 	// Check if vnode implements Paintable interface (custom rendering)
 	if paintable, ok := vnode.(interface{ Paint(int, int) []paint.DrawCmd }); ok {
+		if os.Getenv("TUI_DEBUG_FOCUS") == "true" {
+			// Get label for debug
+			label := "?"
+			if l, ok := vnode.(interface{ Label() string }); ok {
+				label = l.Label()
+			}
+			fmt.Fprintf(os.Stderr, "[renderVNodeToBuffer] BEFORE Paint, label=%q, x=%d, y=%d\n", label, x, y)
+		}
 		commands := paintable.Paint(x, y)
 		for _, cmd := range commands {
+			if os.Getenv("TUI_DEBUG_FOCUS") == "true" {
+				fmt.Fprintf(os.Stderr, "[renderVNodeToBuffer] AFTER Paint, x=%d, y=%d, text=%q\n", cmd.X, cmd.Y, cmd.Text)
+			}
 			buffer.SetString(cmd.X, cmd.Y, cmd.Text, cmd.Style)
 		}
 		return

@@ -103,6 +103,7 @@ func Run(app ComponentFunc, opts ...Option) error {
 		declarativeRoot = render.NewDeclarativeNodeFromFuncWithFiber(app, fwApp)
 	} else {
 		declarativeRoot = render.NewDeclarativeNodeFromFunc(app)
+		declarativeRoot.SetFrameworkApp(fwApp) // Set framework app for non-Fiber mode re-renders
 	}
 
 	// Set as the root of the framework app

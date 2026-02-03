@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/components/basic"
@@ -18,7 +19,7 @@ func main() {
 	os.Setenv("TUI_DEBUG_UI", "false")
 
 	ui.Run(RootApp,
-		ui.WithSize(100, 40),
+		ui.WithSize(100, 42),
 		ui.WithTitle("Mint UI - Complex Test"),
 	)
 }
@@ -32,6 +33,12 @@ var (
 	listItems     = []string{"Item 1", "Item 2", "Item 3"}
 	showModal     = false
 	progressValue = 0
+
+	// Key event tracking for debugging
+	lastKeyName   = ""
+	lastKeyValue  = 0
+	isSpecialKey  = false
+	keyModifiers  = ""
 )
 
 // RootApp 根组件
@@ -54,10 +61,51 @@ func RootApp() ui.VNode {
 
 		basic.Text(""),
 		basic.Divider(),
+
+		// Key event info display (for debugging)
+		renderKeyInfo(),
+
 		basic.Text(""),
 
 		// 标签页内容
 		renderTabContent(),
+	)
+}
+
+// renderKeyInfo 渲染按键信息
+func renderKeyInfo() ui.VNode {
+	// Build key info string
+	var infoParts []string
+	if lastKeyName == "" {
+		infoParts = append(infoParts, "No key pressed yet")
+	} else {
+		infoParts = append(infoParts, fmt.Sprintf("Key: %s", lastKeyName))
+		if isSpecialKey {
+			infoParts = append(infoParts, fmt.Sprintf("Value: %d", lastKeyValue))
+			infoParts = append(infoParts, "Type: Special")
+		} else {
+			infoParts = append(infoParts, fmt.Sprintf("Rune: %c", lastKeyValue))
+			infoParts = append(infoParts, "Type: Regular")
+		}
+		if keyModifiers != "" {
+			infoParts = append(infoParts, fmt.Sprintf("Modifiers: %s", keyModifiers))
+		}
+	}
+
+	// Tab key info (hardcoded reference)
+	tabInfo := "Tab key value: 3 (KeyTab=3, KeyUnknown=0, KeyEscape=1, KeyEnter=2)"
+
+	infoText := strings.Join(infoParts, " | ")
+
+	text1 := basic.NewText(infoText)
+	text1.SetStyle(style.Style{}.Foreground(style.Color("yellow")))
+
+	text2 := basic.NewText(tabInfo)
+	text2.SetStyle(style.Style{}.Foreground(style.Color("gray")))
+
+	return layout.VStack(
+		text1,
+		text2,
 	)
 }
 

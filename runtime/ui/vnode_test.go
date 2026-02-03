@@ -368,9 +368,9 @@ func TestLayoutNodeMethods(t *testing.T) {
 			t.Errorf("HStack Direction = %v, want DirectionRow", layout.Direction())
 		}
 
-		// Test Gap getter (returns 0 by default)
-		if layout.Gap() != 0 {
-			t.Errorf("LayoutNode default Gap = %v, want 0", layout.Gap())
+		// Test Gap getter (returns 1 by default for HStack)
+		if layout.Gap() != 1 {
+			t.Errorf("LayoutNode default Gap = %v, want 1", layout.Gap())
 		}
 
 		// Test Padding getter (returns [0,0,0,0] by default)

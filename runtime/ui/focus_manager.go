@@ -25,8 +25,9 @@ func NewVNodeFocusManager() *VNodeFocusManager {
 
 // SetFocusable updates the list of focusable nodes.
 // It attempts to preserve focus by ID across re-renders.
+// If IDs are duplicated, it preserves focus by index position.
 func (m *VNodeFocusManager) SetFocusable(nodes []FocusableVNode) {
-	// Save current focus ID
+	// Save current focus ID and index
 	currentID := ""
 	currentIndexBefore := m.current
 	if m.current >= 0 && m.current < len(m.focusable) {
@@ -38,21 +39,52 @@ func (m *VNodeFocusManager) SetFocusable(nodes []FocusableVNode) {
 
 	m.focusable = nodes
 
-	// Try to restore focus by ID
+	// Try to restore focus by ID and index
 	m.current = -1
-	if currentID != "" {
-		for i, node := range m.focusable {
-			nodeID := node.GetFocusID()
-			if os.Getenv("TUI_DEBUG_FOCUS") == "true" {
-				fmt.Fprintf(os.Stderr, "[FocusManager] SetFocusable: checking node %d, ID=%s\n", i, nodeID)
-			}
+	if currentID != "" && currentIndexBefore >= 0 {
+		// First, try to preserve focus by index if the node at that index has the same ID
+		// This handles the case where multiple nodes have the same ID (e.g., buttons without keys)
+		if currentIndexBefore < len(m.focusable) {
+			nodeID := m.focusable[currentIndexBefore].GetFocusID()
 			if nodeID == currentID {
-				m.current = i
-				node.SetFocus(true)
+				// Same ID at same index - preserve focus by index
+				m.current = currentIndexBefore
+				m.focusable[m.current].SetFocus(true)
 				if os.Getenv("TUI_DEBUG_FOCUS") == "true" {
-					fmt.Fprintf(os.Stderr, "[FocusManager] SetFocusable: restored focus to index %d, ID=%s\n", i, nodeID)
+					fmt.Fprintf(os.Stderr, "[FocusManager] SetFocusable: preserved focus at index %d by position\n", m.current)
 				}
-				break
+			} else {
+				// Different ID - search by ID
+				for i, node := range m.focusable {
+					nodeID := node.GetFocusID()
+					if os.Getenv("TUI_DEBUG_FOCUS") == "true" {
+						fmt.Fprintf(os.Stderr, "[FocusManager] SetFocusable: checking node %d, ID=%s\n", i, nodeID)
+					}
+					if nodeID == currentID {
+						m.current = i
+						node.SetFocus(true)
+						if os.Getenv("TUI_DEBUG_FOCUS") == "true" {
+							fmt.Fprintf(os.Stderr, "[FocusManager] SetFocusable: restored focus to index %d by ID=%s\n", i, nodeID)
+						}
+						break
+					}
+				}
+			}
+		} else {
+			// Previous index out of range - search by ID
+			for i, node := range m.focusable {
+				nodeID := node.GetFocusID()
+				if os.Getenv("TUI_DEBUG_FOCUS") == "true" {
+					fmt.Fprintf(os.Stderr, "[FocusManager] SetFocusable: checking node %d, ID=%s\n", i, nodeID)
+				}
+				if nodeID == currentID {
+					m.current = i
+					node.SetFocus(true)
+					if os.Getenv("TUI_DEBUG_FOCUS") == "true" {
+						fmt.Fprintf(os.Stderr, "[FocusManager] SetFocusable: restored focus to index %d by ID=%s\n", i, nodeID)
+					}
+					break
+				}
 			}
 		}
 	}
@@ -67,15 +99,29 @@ func (m *VNodeFocusManager) SetFocusable(nodes []FocusableVNode) {
 	}
 }
 
+// UpdateFocusableList directly updates the focusable list without changing focus state.
+// This is used internally (e.g., by the reconciler) when the list needs to be refreshed
+// but the focus index should be preserved as-is.
+func (m *VNodeFocusManager) UpdateFocusableList(nodes []FocusableVNode) {
+	m.focusable = nodes
+}
+
 // FocusNext moves focus to the next focusable node.
 // Wraps around to the first node when at the end.
 func (m *VNodeFocusManager) FocusNext() bool {
+	if os.Getenv("TUI_DEBUG_FOCUS") == "true" {
+		fmt.Fprintf(os.Stderr, "[FocusNext] current=%d, len(focusable)=%d\n", m.current, len(m.focusable))
+	}
 	if len(m.focusable) == 0 {
 		return false
 	}
 
 	old := m.current
 	m.current = (m.current + 1) % len(m.focusable)
+
+	if os.Getenv("TUI_DEBUG_FOCUS") == "true" {
+		fmt.Fprintf(os.Stderr, "[FocusNext] old=%d, new=%d\n", old, m.current)
+	}
 
 	m.updateFocusState(old, m.current)
 
@@ -156,6 +202,27 @@ func (m *VNodeFocusManager) HandleEvent(ev event.Event) (handled bool, shouldRen
 		return false, false
 	}
 
+	// Debug: Log all key events
+	if os.Getenv("TUI_DEBUG_KEYS") == "true" {
+		modStr := ""
+		if keyEvent.Key.Alt {
+			modStr += "Alt+"
+		}
+		if keyEvent.Key.Ctrl {
+			modStr += "Ctrl+"
+		}
+		if keyEvent.Modifiers == event.ModShift {
+			modStr += "Shift+"
+		}
+		if keyEvent.Special != 0 { // 0 = KeyUnknown
+			fmt.Fprintf(os.Stderr, "[KEY] SpecialKey: %s (value=%d) Modifiers: %s\n",
+				keyEvent.Special, keyEvent.Special, modStr)
+		} else if keyEvent.Key.Rune > 0 {
+			fmt.Fprintf(os.Stderr, "[KEY] Rune: %c (0x%X) Modifiers: %s\n",
+				keyEvent.Key.Rune, keyEvent.Key.Rune, modStr)
+		}
+	}
+
 	// Tab - navigate to next
 	if keyEvent.Special == event.KeyTab {
 		if keyEvent.Modifiers == event.ModShift {
@@ -190,6 +257,11 @@ func (m *VNodeFocusManager) SetOnNavigate(fn func(from, to FocusableVNode)) {
 // Count returns the number of focusable nodes.
 func (m *VNodeFocusManager) Count() int {
 	return len(m.focusable)
+}
+
+// GetFocusable returns the list of focusable nodes.
+func (m *VNodeFocusManager) GetFocusable() []FocusableVNode {
+	return m.focusable
 }
 
 // CurrentIndex returns the index of the currently focused node.
@@ -289,6 +361,21 @@ func (m *VNodeFocusManager) SetFocusByID(id string) bool {
 		}
 	}
 	return false
+}
+
+// SetFocusByIndex sets focus to a node at the given index.
+// Returns true if the index is valid, false otherwise.
+func (m *VNodeFocusManager) SetFocusByIndex(index int) bool {
+	if index < 0 || index >= len(m.focusable) {
+		return false
+	}
+	old := m.current
+	m.current = index
+	m.updateFocusState(old, m.current)
+	if m.onNavigate != nil {
+		m.onNavigate(getOrNil(m.focusable, old), m.focusable[index])
+	}
+	return true
 }
 
 // DebugString returns a debug string representation of the focus manager.
