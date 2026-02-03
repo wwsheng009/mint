@@ -224,10 +224,28 @@ func (n *DeclarativeNode) Paint(ctx component.PaintContext, buf *paint.Buffer) {
 	// Collect focusable nodes and update focus manager (after expansion)
 	if n.focusMgr != nil && n.root != nil {
 		focusable := rtui.CollectFocusable(n.root)
-		n.focusMgr.SetFocusable(focusable)
+		// In non-Fiber mode, use UpdateFocusableList instead of SetFocusable
+		// because VNode instances are recreated on each render, so ID matching
+		// (which includes pointer addresses) would fail. We preserve the focus
+		// index directly instead.
+		n.focusMgr.UpdateFocusableList(focusable)
+		// Clamp focus index to valid range in case the number of focusable nodes changed
+		currentIndex := n.focusMgr.CurrentIndex()
+		if currentIndex >= len(focusable) {
+			currentIndex = len(focusable) - 1
+		}
+		if currentIndex < 0 && len(focusable) > 0 {
+			currentIndex = 0
+		}
+		if currentIndex >= 0 {
+			n.focusMgr.SetFocusByIndex(currentIndex)
+		}
 		if os.Getenv("TUI_DEBUG_UI") == "true" {
 			fmt.Fprintf(os.Stderr, "DeclarativeNode.Paint: collected %d focusable nodes\n", len(focusable))
 		}
+
+		// Apply focus state to VNodes (non-Fiber mode)
+		n.applyFocus(focusable)
 	}
 
 	if n.root == nil {
@@ -408,6 +426,35 @@ func (n *DeclarativeNode) MeasureVNodeWidth(vnode rtui.VNode) int {
 
 	// For containers, return 0 (they don't contribute to width themselves)
 	return 0
+}
+
+// applyFocus applies focus state to VNodes based on the current focus index.
+// This is called in non-Fiber mode to ensure the focused element is visually highlighted.
+func (n *DeclarativeNode) applyFocus(focusable []rtui.FocusableVNode) {
+	if n.focusMgr == nil {
+		return
+	}
+
+	focusedIndex := n.focusMgr.CurrentIndex()
+	if focusedIndex < 0 || focusedIndex >= len(focusable) {
+		// No valid focus, clear all focus
+		for _, elem := range focusable {
+			elem.SetFocus(false)
+		}
+		return
+	}
+
+	// Set focus by index
+	for i, elem := range focusable {
+		if i == focusedIndex {
+			if os.Getenv("TUI_DEBUG_FOCUS") == "true" {
+				fmt.Fprintf(os.Stderr, "[applyFocus] setting focus=true on index %d (%s)\n", i, elem.GetFocusID())
+			}
+			elem.SetFocus(true)
+		} else {
+			elem.SetFocus(false)
+		}
+	}
 }
 
 // expandComponents recursively expands all ComponentVNodes in the tree
