@@ -3,6 +3,7 @@ package ui
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -261,8 +262,16 @@ func RunTestWithSandbox(app ComponentFunc, opts ...Option) (*TestableApp, error)
 	// Set global appInstance
 	appInstance = fwApp
 
+	// Check if Fiber mode is enabled via environment variable
+	enableFiber := os.Getenv("MINT_USE_FIBER") == "true"
+
 	// Create the declarative root component using internal/render
-	declarativeNode := render.NewDeclarativeNodeFromFunc(app)
+	var declarativeNode *render.DeclarativeNode
+	if enableFiber {
+		declarativeNode = render.NewDeclarativeNodeFromFuncWithFiber(app, fwApp)
+	} else {
+		declarativeNode = render.NewDeclarativeNodeFromFunc(app)
+	}
 
 	// Set as root
 	fwApp.SetRoot(declarativeNode)
@@ -302,6 +311,16 @@ func (ta *TestableApp) InjectSpecialKey(key platform.SpecialKey) error {
 	raw := platform.RawInput{
 		Type:    platform.InputKeyPress,
 		Special: key,
+	}
+	return ta.fwApp.InjectEvent(raw)
+}
+
+// InjectSpecialKeyWithMod 注入带修饰符的特殊按键
+func (ta *TestableApp) InjectSpecialKeyWithMod(key platform.SpecialKey, mod platform.KeyModifier) error {
+	raw := platform.RawInput{
+		Type:      platform.InputKeyPress,
+		Special:   key,
+		Modifiers: mod,
 	}
 	return ta.fwApp.InjectEvent(raw)
 }
@@ -514,4 +533,12 @@ func (ta *TestableApp) GetSelects() []interface{} {
 		result[i] = s
 	}
 	return result
+}
+
+// GetFocusManager 获取焦点管理器
+func (ta *TestableApp) GetFocusManager() interface{} {
+	if ta.root == nil {
+		return nil
+	}
+	return ta.root.GetFocusManager()
 }

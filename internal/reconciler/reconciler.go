@@ -50,6 +50,7 @@ type Reconciler struct {
 	buffer         *paint.Buffer // Render target
 	paintCtx       component.PaintContext
 	renderCallback RenderFunc // Callback for rendering VNodes
+	renderedRoot   rtui.VNode  // The rendered VNode tree (for focus management, etc.)
 
 	// === Layout Integration ===
 	vnodeConverter *VNodeConverter         // VNode → runtime.LayoutNode converter
@@ -111,6 +112,10 @@ func (r *Reconciler) Render(ctx component.PaintContext, buffer *paint.Buffer, re
 
 	// Phase 3: Commit changes
 	r.CommitRoot()
+
+	// Store the rendered VNode tree for focus management and other purposes
+	// The root is a ComponentVNode, its children contain the actual rendered content
+	r.updateRenderedRoot()
 }
 
 // ScheduleUpdate schedules a state update
@@ -575,6 +580,62 @@ func (r *Reconciler) GetKeyValidator() *state.KeyValidator {
 // GetContext returns the root component context
 func (r *Reconciler) GetContext() *rtui.ComponentContext {
 	return r.ctx
+}
+
+// GetRenderedRoot returns the rendered VNode tree for focus management, etc.
+// This is the VNode tree that was actually rendered to the buffer.
+func (r *Reconciler) GetRenderedRoot() rtui.VNode {
+	return r.renderedRoot
+}
+
+// updateRenderedRoot extracts and stores the rendered VNode tree from the Fiber tree
+// The root Fiber is a ComponentVNode wrapper, its children contain the actual content
+func (r *Reconciler) updateRenderedRoot() {
+	if r.root == nil || r.root.VNode == nil {
+		r.renderedRoot = nil
+		return
+	}
+
+	// The root is a ComponentVNode wrapper
+	// Its children contain the actual rendered VNode tree
+	// We need to reconstruct the VNode tree from the Fiber tree
+	r.renderedRoot = r.buildVNodeTree(r.root)
+}
+
+// buildVNodeTree reconstructs a VNode tree from a Fiber tree
+func (r *Reconciler) buildVNodeTree(fiber *Fiber) rtui.VNode {
+	if fiber == nil || fiber.VNode == nil {
+		return nil
+	}
+
+	// Skip the root ComponentVNode wrapper and return its children
+	// This is the actual rendered content
+	if fiber.VNode.Type() == rtui.VNodeComponent && fiber.Key == "root" {
+		// Return the children as a Fragment
+		children := r.buildVNodeList(fiber.Child)
+		if len(children) == 0 {
+			return nil
+		}
+		if len(children) == 1 {
+			return children[0]
+		}
+		return rtui.Fragment(children...)
+	}
+
+	// For other fibers, return the VNode
+	return fiber.VNode
+}
+
+// buildVNodeList builds a list of VNodes from sibling Fibers
+func (r *Reconciler) buildVNodeList(fiber *Fiber) []rtui.VNode {
+	var result []rtui.VNode
+	for fiber != nil {
+		if vnode := r.buildVNodeTree(fiber); vnode != nil {
+			result = append(result, vnode)
+		}
+		fiber = fiber.Sibling
+	}
+	return result
 }
 
 // SetInstanceManager sets the instance manager (shared with declarativeRoot)

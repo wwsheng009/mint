@@ -230,4 +230,6 @@ type Reconciler interface {
 	Render(ctx interface{}, buffer interface{}, renderFunc func() VNode)
 	// SetApp sets the framework app for scheduling
 	SetApp(app interface{})
+	// GetRenderedRoot returns the rendered VNode tree for focus management
+	GetRenderedRoot() VNode
 }

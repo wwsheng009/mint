@@ -156,21 +156,11 @@ func (n *DeclarativeNode) Paint(ctx component.PaintContext, buf *paint.Buffer) {
 			return n.root
 		})
 
-		// Note: We don't call renderFn() again here because:
-		// 1. The reconciler already called it during Render()
-		// 2. Calling it again would require setting up context again
-		// 3. The reconciler stores the rendered result, so we can get it from there
+		// Get the rendered VNode tree from the reconciler for focus management
+		// This avoids calling renderFn() twice which would create different VNode objects
+		n.root = n.reconciler.GetRenderedRoot()
 
-		// For now, to get the rendered result for focus management, we need to call renderFn with context
-		// TODO: Make reconciler return the rendered VNode tree
-		n.instance.ResetContext()
-		rtui.SetCurrentContext(n.instance)
-		if n.renderFn != nil {
-			n.root = n.renderFn()
-		}
-		rtui.SetCurrentContext(nil)
-
-		// Collect focusable nodes
+		// Collect focusable nodes from the rendered VNode tree
 		if n.focusMgr != nil && n.root != nil {
 			focusable := rtui.CollectFocusable(n.root)
 			n.focusMgr.SetFocusable(focusable)
@@ -412,6 +402,8 @@ func (n *DeclarativeNode) HandleEvent(ev frameworkevent.Event) bool {
 	n.mu.RLock()
 	root := n.root
 	focusMgr := n.focusMgr
+	useFiber := n.useFiber
+	reconciler := n.reconciler
 	n.mu.RUnlock()
 
 	if root == nil {
@@ -420,10 +412,18 @@ func (n *DeclarativeNode) HandleEvent(ev frameworkevent.Event) bool {
 
 	// 1. Let focus manager handle navigation (Tab, Shift+Tab)
 	if focusMgr != nil {
-		handled, _ := focusMgr.HandleEvent(ev)
+		handled, shouldRender := focusMgr.HandleEvent(ev)
 		if handled {
 			if os.Getenv("TUI_DEBUG_UI") == "true" {
-				fmt.Fprintf(os.Stderr, "DeclarativeNode.HandleEvent: focus manager handled event\n")
+				fmt.Fprintf(os.Stderr, "DeclarativeNode.HandleEvent: focus manager handled event, shouldRender=%v\n", shouldRender)
+			}
+			// In Fiber mode, request a re-render when focus changes
+			if shouldRender && useFiber && reconciler != nil {
+				// Request the framework to schedule a re-render
+				// This will trigger Paint() again with the updated focus state
+				if r, ok := reconciler.(*fiberReconcilerAdapter); ok {
+					r.r.ScheduleUpdate(rtui.LaneSyncLane)
+				}
 			}
 			return true
 		}
@@ -664,6 +664,11 @@ func (a *fiberReconcilerAdapter) SetApp(app interface{}) {
 	if fwApp, ok := app.(*framework.App); ok {
 		a.r.SetApp(fwApp)
 	}
+}
+
+// GetRenderedRoot returns the rendered VNode tree (adapter method)
+func (a *fiberReconcilerAdapter) GetRenderedRoot() rtui.VNode {
+	return a.r.GetRenderedRoot()
 }
 
 // newFiberReconciler creates a new Fiber reconciler for the given app and render function

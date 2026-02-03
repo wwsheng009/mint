@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/wwsheng009/mint/framework/event"
 )
@@ -27,8 +28,12 @@ func NewVNodeFocusManager() *VNodeFocusManager {
 func (m *VNodeFocusManager) SetFocusable(nodes []FocusableVNode) {
 	// Save current focus ID
 	currentID := ""
+	currentIndexBefore := m.current
 	if m.current >= 0 && m.current < len(m.focusable) {
 		currentID = m.focusable[m.current].GetFocusID()
+		if os.Getenv("TUI_DEBUG_FOCUS") == "true" {
+			fmt.Fprintf(os.Stderr, "[FocusManager] SetFocusable: saving currentID=%s from index %d\n", currentID, m.current)
+		}
 	}
 
 	m.focusable = nodes
@@ -37,12 +42,23 @@ func (m *VNodeFocusManager) SetFocusable(nodes []FocusableVNode) {
 	m.current = -1
 	if currentID != "" {
 		for i, node := range m.focusable {
-			if node.GetFocusID() == currentID {
+			nodeID := node.GetFocusID()
+			if os.Getenv("TUI_DEBUG_FOCUS") == "true" {
+				fmt.Fprintf(os.Stderr, "[FocusManager] SetFocusable: checking node %d, ID=%s\n", i, nodeID)
+			}
+			if nodeID == currentID {
 				m.current = i
 				node.SetFocus(true)
+				if os.Getenv("TUI_DEBUG_FOCUS") == "true" {
+					fmt.Fprintf(os.Stderr, "[FocusManager] SetFocusable: restored focus to index %d, ID=%s\n", i, nodeID)
+				}
 				break
 			}
 		}
+	}
+
+	if os.Getenv("TUI_DEBUG_FOCUS") == "true" {
+		fmt.Fprintf(os.Stderr, "[FocusManager] SetFocusable: before=%d, after=%d, nodes=%d\n", currentIndexBefore, m.current, len(nodes))
 	}
 
 	// If no focus and there are focusable nodes, focus the first one
