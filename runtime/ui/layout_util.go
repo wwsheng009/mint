@@ -71,3 +71,31 @@ func GetLayoutInfo(vnode VNode) LayoutInfo {
 
 	return info
 }
+
+// GetTextContent extracts text content from a VNode.
+// This is a shared utility used by both Fiber and non-Fiber rendering paths.
+//
+// It handles:
+// - VNodeText with "content" prop
+// - VNodeElement with "content" prop (e.g., ui.Text elements)
+//
+// Returns the text content string, or empty string if no content is found.
+func GetTextContent(vnode VNode) string {
+	if vnode == nil {
+		return ""
+	}
+
+	// Check for Content() method first (for TextVNode)
+	if contenter, ok := vnode.(interface{ Content() string }); ok {
+		return contenter.Content()
+	}
+
+	// Fall back to checking Props
+	if props := vnode.Props(); props != nil {
+		if content, ok := props["content"].(string); ok {
+			return content
+		}
+	}
+
+	return ""
+}

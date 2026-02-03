@@ -339,12 +339,7 @@ func (n *DeclarativeNode) paintVNode(vnode rtui.VNode, x, y int, buf *paint.Buff
 
 // paintText paints a text VNode
 func (n *DeclarativeNode) paintText(vnode rtui.VNode, x, y int, buf *paint.Buffer) {
-	text := ""
-	// Get text content from props
-	if props := vnode.Props(); props != nil {
-		text = props.GetString("content")
-	}
-
+	text := rtui.GetTextContent(vnode)
 	if text != "" {
 		buf.SetString(x, y, text, vnode.Style())
 	}
@@ -353,11 +348,9 @@ func (n *DeclarativeNode) paintText(vnode rtui.VNode, x, y int, buf *paint.Buffe
 // paintElement paints an element VNode
 func (n *DeclarativeNode) paintElement(vnode rtui.VNode, x, y int, buf *paint.Buffer) {
 	// Check if element has text content (for text elements created with ui.Text)
-	if props := vnode.Props(); props != nil {
-		if content := props.GetString("content"); content != "" {
-			buf.SetString(x, y, content, vnode.Style())
-			return // Don't paint children for text elements
-		}
+	if content := rtui.GetTextContent(vnode); content != "" {
+		buf.SetString(x, y, content, vnode.Style())
+		return // Don't paint children for text elements
 	}
 	// For non-text elements, children will be painted after the switch
 }
@@ -385,28 +378,19 @@ func (n *DeclarativeNode) measureVNodeWidth(vnode rtui.VNode) int {
 	// Check the VNode type first
 	switch vnode.Type() {
 	case rtui.VNodeText:
-		// Try Content() method for both ui.TextVNode and basic.TextVNode
-		if contenter, ok := vnode.(interface{ Content() string }); ok {
-			return len(contenter.Content())
-		}
-		// Fall back to checking Props
-		if props := vnode.Props(); props != nil {
-			if content, ok := props["content"].(string); ok {
-				return len(content)
-			}
-		}
-		return 0
+		return len(rtui.GetTextContent(vnode))
 
 	case rtui.VNodeElement:
 		// Check if it's a button
 		if btn, ok := vnode.(interface{ Label() string }); ok {
 			return len(btn.Label()) + 2 // [label] with brackets
 		}
-		// For elements, try to get width from props
+		// For elements, try text content
+		if content := rtui.GetTextContent(vnode); content != "" {
+			return len(content)
+		}
+		// Check for label in props
 		if props := vnode.Props(); props != nil {
-			if content, ok := props["content"].(string); ok {
-				return len(content)
-			}
 			if label, ok := props["label"].(string); ok {
 				return len(label) + 2 // [label]
 			}
@@ -991,22 +975,15 @@ func renderVNodeToBuffer(vnode rtui.VNode, x, y int, buffer *paint.Buffer) {
 	// Handle built-in VNode types
 	switch vnode.Type() {
 	case rtui.VNodeText:
-		// Get text content from props
-		text := ""
-		if props := vnode.Props(); props != nil {
-			text = props.GetString("content")
-		}
-		if text != "" {
+		if text := rtui.GetTextContent(vnode); text != "" {
 			buffer.SetString(x, y, text, vnode.Style())
 		}
 
 	case rtui.VNodeElement:
 		// Check if element has text content
-		if props := vnode.Props(); props != nil {
-			if content := props.GetString("content"); content != "" {
-				buffer.SetString(x, y, content, vnode.Style())
-				return
-			}
+		if content := rtui.GetTextContent(vnode); content != "" {
+			buffer.SetString(x, y, content, vnode.Style())
+			return
 		}
 		// Elements that don't have text content are containers (buttons, etc.)
 		// They should implement Paintable interface for custom rendering
