@@ -1,5 +1,26 @@
 package ui
 
+// VNodeRenderer defines the contract for rendering VNodes.
+// Both Fiber and non-Fiber rendering paths should implement this interface
+// to ensure consistent behavior across different rendering modes.
+//
+// The interface is intentionally simple to allow flexibility in implementation
+// while maintaining a clear contract for VNode rendering.
+type VNodeRenderer interface {
+	// Render renders a VNode tree to a buffer at the specified position.
+	// The renderer is responsible for:
+	// - Handling custom Paintable VNodes
+	// - Rendering text content
+	// - Applying layout (HStack/VStack positioning)
+	// - Rendering children with proper spacing
+	Render(vnode VNode, x, y int, buffer interface{})
+
+	// Measure returns the width and height of a VNode.
+	// This is used for layout calculations, particularly for HStack
+	// horizontal positioning.
+	Measure(vnode VNode) (width, height int)
+}
+
 // LayoutInfo describes the layout properties of a VNode.
 // This is used by renderers to determine how to position children.
 type LayoutInfo struct {
