@@ -84,7 +84,7 @@
 
 - [x] `runtime/ui/component.go`
   - [x] 定义 `ComponentVNode` 结构
-  -x] 定义 `ComponentBuilder`
+  - [x] 定义 `ComponentBuilder`
   - [x] 实现 `NewComponent()` 函数
   - [x] 实现 `NewComponentWithProps()` 函数
   - [x] 实现 `Component()` 函数
@@ -100,12 +100,12 @@
   - [x] 定义 `EffectFlag` 类型
   - [x] 定义 `Fiber` 结构
   - [x] 定义 `Update` 和 `UpdateQueue` 结构
-  -x] Fiber 方法: HasNoPendingWork, HasEffect, HasSubtreeEffect, MarkUpdate, EnqueueUpdate
+  - [x] Fiber 方法: HasNoPendingWork, HasEffect, HasSubtreeEffect, MarkUpdate, EnqueueUpdate
 
 - [x] `runtime/ui/fiber_util.go`
   - [x] 实现 `CreateFiber(vnode) *Fiber`
   - [x] 实现 `CreateFiberFromVNode(vnode) *Fiber`
-  -x] 实现 `buildFiberTree()`
+  - [x] 实现 `buildFiberTree()`
   - [x] 实现 `CloneFiber(fiber) *Fiber`
   - [x] 实现 `WalkFiberDepthFirst()`
   - [x] 实现 `WalkFiberBreadthFirst()`
@@ -114,7 +114,7 @@
 
 - [x] `runtime/ui/hooks.go`
   - [x] 定义 `HookType` 枚举
-  -x] 定义 `Hook` 结构
+  - [x] 定义 `Hook` 结构
   - [x] 定义 `ComponentContext` 结构
   - [x] 定义 `Ref` 结构
   - [x] 定义 `EffectCallback` 和 `CleanupFunc` 类型
@@ -123,15 +123,15 @@
   - [x] 实现 `GetCurrentContext()` 函数
   - [x] 实现 `NewComponentContext()` 函数
   - [x] 实现 `NewComponentContextForRoot()` 函数
-  -x] 实现 `ComponentContext` 方法: ResetContext, FinishRender, RunEffects, CleanupAll, GetOrCreateHook
+  - [x] 实现 `ComponentContext` 方法: ResetContext, FinishRender, RunEffects, CleanupAll, GetOrCreateHook
 
 - [x] `runtime/ui/instance.go`
   - [x] 定义 `ComponentInstance` 接口
   - [x] 定义 `BaseComponentInstance` 结构
   - [x] 实现 `NewBaseComponentInstance()`
   - [x] 实现 `NewBaseComponentInstanceWithProps()`
-  -x] 实现 ComponentInstance 接口的所有方法
-  -x] 实现 BaseComponentInstance 的所有方法
+  - [x] 实现 ComponentInstance 接口的所有方法
+  - [x] 实现 BaseComponentInstance 的所有方法
 
 - [x] `runtime/ui/validator.go`
   - [x] 定义 `HookValidator` 结构
@@ -148,10 +148,10 @@
   - [x] 实现 `HStack()` 函数
   - [x] 实现 `VStack()` 函数
   - [x] 实现 `Box()` 函数
-  -x] 实现 `Spacer()` 函数
-  -x] 实现 `LayoutBuilder` 结构及方法
-  -x] 实现 `BoxLayoutBuilder` 结构及方法
-  -x] 实现 `SpacerBuilder` 结构及方法
+  - [x] 实现 `Spacer()` 函数
+  - [x] 实现 `LayoutBuilder` 结构及方法
+  - [x] 实现 `BoxLayoutBuilder` 结构及方法
+  - [x] 实现 `SpacerBuilder` 结构及方法
 
 ### 1.2 更新 ui/ 包以重导出 runtime/ui
 
@@ -165,67 +165,67 @@
 - [x] `ui/element.go`
   - [x] 通过类型别名重导出 `ElementVNode = types.ElementVNode`
   - [x] 实现 `NewElement()` 调用 `types.NewElement()`
-  -x] 实现 `Element()` 调用 `types.Element()`
+  - [x] 实现 `Element()` 调用 `types.Element()`
 
 - [x] `ui/component.go`
   - [x] 通过类型别名重导出 `ComponentVNode = types.ComponentVNode`
   - [x] 实现 `NewComponent()` 调用 `types.NewComponent()`
-  -x] 实现 `NewComponentWithProps()` 调用 `types.NewComponentWithProps()`
+  - [x] 实现 `NewComponentWithProps()` 调用 `types.NewComponentWithProps()`
   - [x] 实现 `Component()` 调用 `types.Component()`
 
 - [x] `ui/fragment.go`
   - [x] 通过类型别名重导出 `FragmentVNode = types.FragmentVNode`
   - [x] 实现 `NewFragment()` 调用 `types.NewFragment()`
-  -x] 实现 `Fragment()` 调用 `types.Fragment()`
+  - [x] 实现 `Fragment()` 调用 `types.Fragment()`
 
 - [x] `ui/layout.go`
   - [x] 通过类型别名重导出 `LayoutNode = types.LayoutNode`
   - [x] 通过类型别名重导出 `Direction = types.Direction`
   - [x] 通过类型别名重导出 `Align = types.Align`
-  -x] 重导出 Direction 和 Align 常量
+  - [x] 重导出 Direction 和 Align 常量
   - [x] 实现 `HStack()` 调用 `types.HStack()`
-  -x] 实现 `VStack()` 调用 `types.VStack()`
-  -x] 实现 `Box()` 调用 `types.Box()`
-  -x] 实现 `Spacer()` 调用 `types.Spacer()`
+  - [x] 实现 `VStack()` 调用 `types.VStack()`
+  - [x] 实现 `Box()` 调用 `types.Box()`
+  - [x] 实现 `Spacer()` 调用 `types.Spacer()`
 
 - [x] `ui/fiber.go`
   - [x] 通过类型别名重导出 `Lane = types.Lane`
-  -x] 重导出 Lane 常量
+  - [x] 重导出 Lane 常量
   - [x] 通过类型别名重导出 `EffectFlag = types.EffectFlag`
-  -x] 重导出 EffectFlag 常量
+  - [x] 重导出 EffectFlag 常量
   - [x] 通过类型别名重导出 `Fiber = types.Fiber`
   - [x] 通过类型别名重导出 `Update = types.Update`
-  -x] 通过类型别名重导出 `UpdateQueue = types.UpdateQueue`
-  -x] 重导出 Fiber 函数: CreateFiber, CreateFiberFromVNode, WalkFiberDepthFirst, WalkFiberBreadthFirst, CloneFiber, MergeLanes, FindFiberByKey, CountFibers, GetFiberDepth, CollectFibersWithFlags
+  - [x] 通过类型别名重导出 `UpdateQueue = types.UpdateQueue`
+  - [x] 重导出 Fiber 函数: CreateFiber, CreateFiberFromVNode, WalkFiberDepthFirst, WalkFiberBreadthFirst, CloneFiber, MergeLanes, FindFiberByKey, CountFibers, GetFiberDepth, CollectFibersWithFlags
 
 - [x] `ui/hooks.go`
   - [x] 通过类型别名重导出 `HookType = types.HookType`
-  -x] 重导出 HookType 常量
+  - [x] 重导出 HookType 常量
   - [x] 通过类型别名重导出 `ComponentContext = types.ComponentContext`
   - [x] 通过类型别名重导出 `Ref = types.Ref`
-  -x] 通过类型别名重导出 `EffectCallback = types.EffectCallback`
-  -x] 通过类型别名重导出 `CleanupFunc = types.CleanupFunc`
-  -x] 实现 SetCurrentContext() 调用 types.SetCurrentContext()
-  -x] 实现 GetCurrentContext() 调用 types.GetCurrentContext()
-  -x] 实现 NewComponentContextForRoot() 调用 types.NewComponentContextForRoot()
-  -x] 更新 useState() 使用 types.GetCurrentContext()
-  -x] 更新 UseStateInt() 使用 types.GetCurrentContext()
-  -x] 更新 useEffect() 使用 types.GetCurrentContext()
-  -x] 更新 UseRef() 使用 types.GetCurrentContext()
-  -x] 更新 UseMemo() 使用 types.GetCurrentContext()
-  -x] 更新 useHoverState() 使用 types.GetCurrentContext()
-  -x] 更新 UseStateIntWithDebug() 使用 types.GetCurrentContext()
+  - [x] 通过类型别名重导出 `EffectCallback = types.EffectCallback`
+  - [x] 通过类型别名重导出 `CleanupFunc = types.CleanupFunc`
+  - [x] 实现 SetCurrentContext() 调用 types.SetCurrentContext()
+  - [x] 实现 GetCurrentContext() 调用 types.GetCurrentContext()
+  - [x] 实现 NewComponentContextForRoot() 调用 types.NewComponentContextForRoot()
+  - [x] 更新 useState() 使用 types.GetCurrentContext()
+  - [x] 更新 UseStateInt() 使用 types.GetCurrentContext()
+  - [x] 更新 useEffect() 使用 types.GetCurrentContext()
+  - [x] 更新 UseRef() 使用 types.GetCurrentContext()
+  - [x] 更新 UseMemo() 使用 types.GetCurrentContext()
+  - [x] 更新 useHoverState() 使用 types.GetCurrentContext()
+  - [x] 更新 UseStateIntWithDebug() 使用 types.GetCurrentContext()
 
 - [x] `ui/instance.go`
   - [x] 通过类型别名重导出 `ComponentInstance = types.ComponentInstance`
-  -x] 通过类型别名重导出 `BaseComponentInstance = types.BaseComponentInstance`
-  -x] 实现 NewBaseComponentInstance() 调用 types.NewBaseComponentInstance()
-  -x] 实现 NewBaseComponentInstanceWithProps() 调用 types.NewBaseComponentInstanceWithProps()
+  - [x] 通过类型别名重导出 `BaseComponentInstance = types.BaseComponentInstance`
+  - [x] 实现 NewBaseComponentInstance() 调用 types.NewBaseComponentInstance()
+  - [x] 实现 NewBaseComponentInstanceWithProps() 调用 types.NewBaseComponentInstanceWithProps()
 
 - [x] `ui/validator.go`
   - [x] 通过类型别名重导出 `HookValidator = types.HookValidator`
   - [x] 通过类型别名重导出 `HookOrderError = types.HookOrderError`
-  -x] 实现 NewHookValidator() 调用 types.NewHookValidator()
+  - [x] 实现 NewHookValidator() 调用 types.NewHookValidator()
 
 - [x] `ui/compat.go` (临时兼容层)
   - [x] 为 stub 类型添加 accessor 方法，支持 internal/reconciler
@@ -234,10 +234,10 @@
   - [x] CheckboxVNode: Label(), Checked()
   - [x] SelectVNode: Selected(), Options(), SelectOption 类型
   - [x] ModalVNode: Width(), Height(), Title(), IsOpen(), Content(), Footer()
-  -x] TabsVNode: ActiveTab()
-  -x] TableVNode: Columns(), Rows()
-  -x] VirtualListVNode: ListHeight(), ItemCount(), ItemHeight()
-  -x] ProgressVNode: Value(), Max(), Percent(), Width()
+  - [x] TabsVNode: ActiveTab()
+  - [x] TableVNode: Columns(), Rows()
+  - [x] VirtualListVNode: ListHeight(), ItemCount(), ItemHeight()
+  - [x] ProgressVNode: Value(), Max(), Percent(), Width()
 
 ### 1.3 更新 internal/reconciler 使用 runtime/ui
 
