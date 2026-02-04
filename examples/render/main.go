@@ -97,7 +97,7 @@ func (a *DemoApp) demoRLECompression() {
 
 	if len(runs) == 1 {
 		compressStyle := style.NewStyle().Foreground("yellow").Bold(true)
-		a.drawString(0, 7, fmt.Sprintf("压缩率: 98%% (50 -> 1)", len(runs)), compressStyle)
+		a.drawString(0, 7, "压缩率: 98%% (50 -> 1)", compressStyle)
 	}
 
 	a.drawString(0, 9, "下方是渲染结果:", style.NewStyle())

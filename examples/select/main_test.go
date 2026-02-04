@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/wwsheng009/mint/components/form"
 	"github.com/wwsheng009/mint/ui"
 	"github.com/wwsheng009/mint/runtime/platform"
 )
@@ -72,7 +73,10 @@ func TestSelectMouseClick(t *testing.T) {
 	}
 
 	t.Logf("Found %d select component(s)", len(selects))
-	selectComp := selects[0]
+	selectComp, ok := selects[0].(*form.SelectVNode)
+	if !ok {
+		t.Fatal("Select component is not a *form.SelectVNode")
+	}
 	bounds := selectComp.Bounds()
 	t.Logf("Select bounds: x=%d, y=%d, w=%d, h=%d", bounds[0], bounds[1], bounds[2], bounds[3])
 
@@ -108,7 +112,10 @@ func TestSelectMouseClick(t *testing.T) {
 	if len(selects) == 0 {
 		t.Fatal("Select component disappeared after first click")
 	}
-	selectComp = selects[0]
+	selectComp, ok = selects[0].(*form.SelectVNode)
+	if !ok {
+		t.Fatal("Select component is not a *form.SelectVNode")
+	}
 	bounds = selectComp.Bounds()
 	clickX = bounds[0] + bounds[2]/2
 	clickY = bounds[1] + bounds[3]/2
@@ -152,7 +159,10 @@ func TestSelectCycleAllOptions(t *testing.T) {
 		t.Fatal("No select components found")
 	}
 
-	selectComp := selects[0]
+	selectComp, ok := selects[0].(*form.SelectVNode)
+	if !ok {
+		t.Fatal("Select component is not a *form.SelectVNode")
+	}
 	bounds := selectComp.Bounds()
 	clickX := bounds[0] + bounds[2]/2
 	clickY := bounds[1] + bounds[3]/2
@@ -231,7 +241,10 @@ func TestSelectComponentsFound(t *testing.T) {
 	if len(selects) == 0 {
 		t.Error("No select components found")
 	} else {
-		s := selects[0]
+		s, ok := selects[0].(*form.SelectVNode)
+		if !ok {
+			t.Fatal("Select component is not a *form.SelectVNode")
+		}
 		t.Logf("Select: selected=%d, options=%d, focused=%v",
 			s.Selected(), len(s.Options()), s.IsFocused())
 		if s.Selected() != 0 {

@@ -10,7 +10,8 @@ import (
 )
 
 func main() {
-	fmt.Println("=== DevTools Control Panel Demo ===\n")
+	fmt.Println("=== DevTools Control Panel Demo ===")
+	fmt.Println()
 
 	// 1. Create DevTools instance
 	dt := devtools.New()
