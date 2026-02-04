@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	rtui "github.com/wwsheng009/mint/runtime/ui"
-	"github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/runtime/style"
 	"github.com/wwsheng009/mint/framework/event"
 )

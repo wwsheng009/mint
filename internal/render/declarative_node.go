@@ -167,7 +167,7 @@ func (n *DeclarativeNode) Paint(ctx component.PaintContext, buf *paint.Buffer) {
 	// Debug logging
 	if os.Getenv("TUI_DEBUG_UI") == "true" {
 		fmt.Fprintf(os.Stderr, "DeclarativeNode.Paint: ctx.X=%d, ctx.Y=%d, buf=%dx%d, useFiber=%v\n",
-			ctx.X, ctx.Y, buf.Width, buf.Height, n.useFiber)
+			ctx.Bounds.X, ctx.Bounds.Y, buf.Width, buf.Height, n.useFiber)
 	}
 
 	// If Fiber reconciler is enabled, use it for rendering
@@ -256,7 +256,7 @@ func (n *DeclarativeNode) Paint(ctx component.PaintContext, buf *paint.Buffer) {
 	}
 
 	// Walk the VNode tree and paint each node
-	n.PaintVNode(n.root, ctx.X, ctx.Y, buf)
+	n.PaintVNode(n.root, ctx.Bounds.X, ctx.Bounds.Y, buf)
 
 	if os.Getenv("TUI_DEBUG_UI") == "true" {
 		fmt.Fprintf(os.Stderr, "DeclarativeNode.Paint: painting complete\n")

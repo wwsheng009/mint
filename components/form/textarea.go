@@ -30,7 +30,6 @@ type TextareaVNode struct {
 	onBlur      func()
 	onSubmit    func() // Ctrl+Enter or Alt+Enter
 	isFocused   bool
-	focusIndex  int // Index for focus management, set during collection
 	// Mouse interaction state
 	isHovered bool
 	// Bounds for hit testing (x, y, width, height)

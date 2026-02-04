@@ -25,7 +25,6 @@ type SelectVNode struct {
 	isFocused  bool
 	isOpen     bool // Whether dropdown is open
 	onChange   func(string)
-	focusIndex int // Index for focus management, set during collection
 	// Mouse interaction state
 	isHovered bool
 	// Bounds for hit testing (x, y, width, height)

@@ -34,7 +34,6 @@ type Reconciler struct {
 	isWorking bool // Currently working
 
 	// === Scheduling ===
-	deadline   time.Time     // Current frame deadline
 	timeBudget time.Duration // Time slice budget per frame
 
 	// === Integration ===
@@ -1016,31 +1015,6 @@ func (r *Reconciler) clearFocusOnFiber(fiber *Fiber) {
 	}
 	if fiber.Sibling != nil {
 		r.clearFocusOnFiber(fiber.Sibling)
-	}
-}
-
-// setFocusOnFiber is deprecated - use applyFocusStateToFiber with index instead
-func (r *Reconciler) setFocusOnFiber(fiber *Fiber, focusID string) {
-	if fiber == nil || fiber.VNode == nil {
-		return
-	}
-
-	// Check if this VNode matches the focus ID
-	if focusable, ok := fiber.VNode.(rtui.FocusableVNode); ok {
-		if focusable.GetFocusID() == focusID {
-			focusable.SetFocus(true)
-		} else {
-			// Clear focus from non-focused elements
-			focusable.SetFocus(false)
-		}
-	}
-
-	// Recursively process children and siblings
-	if fiber.Child != nil {
-		r.setFocusOnFiber(fiber.Child, focusID)
-	}
-	if fiber.Sibling != nil {
-		r.setFocusOnFiber(fiber.Sibling, focusID)
 	}
 }
 
