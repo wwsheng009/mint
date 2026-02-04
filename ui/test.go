@@ -442,6 +442,18 @@ func (ta *TestableApp) AssertNotRender(text string) error {
 	return nil
 }
 
+// DumpBuffer 打印渲染输出到标准输出，用于调试和验证
+func (ta *TestableApp) DumpBuffer() {
+	fmt.Printf("===== Buffer Dump (%dx%d) =====\n", ta.GetBuffer().Width, ta.GetBuffer().Height)
+	fmt.Print(ta.GetRenderString())
+	fmt.Printf("===== End of Buffer =====\n")
+}
+
+// SaveBufferToFile 将渲染输出保存到文件
+func (ta *TestableApp) SaveBufferToFile(path string) error {
+	return os.WriteFile(path, []byte(ta.GetRenderString()), 0644)
+}
+
 // Close 关闭测试应用
 func (ta *TestableApp) Close() error {
 	if ta.sandbox != nil {
