@@ -4,6 +4,7 @@ package render
 import (
 	"testing"
 
+	"github.com/wwsheng009/mint/runtime/paint"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
 
@@ -146,4 +147,114 @@ func TestVNodeRendererInterface(t *testing.T) {
 	// This test verifies that both renderer types implement VNodeRenderer
 	var _ rtui.VNodeRenderer = &NonFiberRenderer{}
 	var _ rtui.VNodeRenderer = &FiberRenderer{}
+}
+
+// =============================================================================
+// getBuffer Tests
+// =============================================================================
+
+func TestGetBuffer(t *testing.T) {
+	t.Run("returns buffer for valid *paint.Buffer", func(t *testing.T) {
+		buf := paint.NewBuffer(80, 24)
+		result := getBuffer(buf)
+		if result != buf {
+			t.Error("getBuffer should return the same buffer")
+		}
+	})
+
+	t.Run("returns nil for nil buffer", func(t *testing.T) {
+		result := getBuffer(nil)
+		if result != nil {
+			t.Error("getBuffer should return nil for nil input")
+		}
+	})
+
+	t.Run("returns nil for wrong type", func(t *testing.T) {
+		result := getBuffer("not a buffer")
+		if result != nil {
+			t.Error("getBuffer should return nil for wrong type")
+		}
+	})
+}
+
+// =============================================================================
+// NonFiberRenderer.Render Tests
+// =============================================================================
+
+func TestNonFiberRenderer_Render_Method(t *testing.T) {
+	node := NewDeclarativeNodeFromFunc(func() rtui.VNode {
+		return rtui.Element("text").Prop("content", "Hello").Build()
+	})
+
+	renderer, ok := node.GetRenderer().(*NonFiberRenderer)
+	if !ok {
+		t.Fatalf("Expected *NonFiberRenderer, got %T", node.GetRenderer())
+	}
+
+	t.Run("renders to valid buffer", func(t *testing.T) {
+		buf := paint.NewBuffer(80, 24)
+		vnode := rtui.Element("text").Prop("content", "Hi").Build()
+
+		// Should not panic
+		renderer.Render(vnode, 0, 0, buf)
+	})
+
+	t.Run("handles nil buffer gracefully", func(t *testing.T) {
+		vnode := rtui.Element("text").Prop("content", "Hi").Build()
+
+		// Should not panic
+		renderer.Render(vnode, 0, 0, nil)
+	})
+
+	t.Run("handles wrong buffer type gracefully", func(t *testing.T) {
+		vnode := rtui.Element("text").Prop("content", "Hi").Build()
+
+		// Should not panic
+		renderer.Render(vnode, 0, 0, "not a buffer")
+	})
+}
+
+// =============================================================================
+// FiberRenderer.Render Tests
+// =============================================================================
+
+func TestFiberRenderer_Render_Method(t *testing.T) {
+	t.Run("calls renderCallback when set", func(t *testing.T) {
+		called := false
+		renderer := NewFiberRenderer(func(vnode rtui.VNode, x, y int, buf *paint.Buffer) {
+			called = true
+		})
+
+		buf := paint.NewBuffer(80, 24)
+		vnode := rtui.Element("text").Prop("content", "Hi").Build()
+
+		renderer.Render(vnode, 0, 0, buf)
+
+		if !called {
+			t.Error("renderCallback should have been called")
+		}
+	})
+
+	t.Run("handles nil buffer gracefully", func(t *testing.T) {
+		called := false
+		renderer := NewFiberRenderer(func(vnode rtui.VNode, x, y int, buf *paint.Buffer) {
+			called = true
+		})
+
+		vnode := rtui.Element("text").Prop("content", "Hi").Build()
+		renderer.Render(vnode, 0, 0, nil)
+
+		if called {
+			t.Error("renderCallback should not have been called with nil buffer")
+		}
+	})
+
+	t.Run("handles nil callback gracefully", func(t *testing.T) {
+		renderer := NewFiberRenderer(nil)
+		buf := paint.NewBuffer(80, 24)
+		vnode := rtui.Element("text").Prop("content", "Hi").Build()
+
+		// Should not panic
+		renderer.Render(vnode, 0, 0, buf)
+	})
 }

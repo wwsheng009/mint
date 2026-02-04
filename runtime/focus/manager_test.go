@@ -642,9 +642,825 @@ func BenchmarkFocusManager_Focus(b *testing.B) {
 	
 	mgr := runtime.NewFocusManager()
 	mgr.SetFocusable(items)
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		mgr.Focus("node50")
 	}
+}
+
+// =============================================================================
+// focus.Manager Tests (for runtime/focus/manager.go)
+// =============================================================================
+
+// createFocusableNode creates a LayoutNode with a focusable component
+func createFocusableNode(id string, x, y, w, h int, children ...*runtime.LayoutNode) *runtime.LayoutNode {
+	mockComp := NewMockFocusableComponent(id, true)
+	node := &runtime.LayoutNode{
+		ID:            id,
+		X:             x,
+		Y:             y,
+		MeasuredWidth:  w,
+		MeasuredHeight: h,
+		Children:      children,
+		Component: &runtime.ComponentRef{
+			Instance: mockComp,
+		},
+	}
+	return node
+}
+
+func TestNewManager(t *testing.T) {
+	root := createFocusableNode("root", 0, 0, 100, 100)
+	mgr := NewManager(root)
+
+	if mgr == nil {
+		t.Fatal("NewManager returned nil")
+	}
+
+	if mgr.focusedIndex != -1 {
+		t.Errorf("Initial focusedIndex should be -1, got %d", mgr.focusedIndex)
+	}
+
+	if mgr.rootNode != root {
+		t.Error("Root node should be set")
+	}
+
+	if mgr.geometricNavigator == nil {
+		t.Error("GeometricNavigator should be initialized")
+	}
+
+	if mgr.trapManager == nil {
+		t.Error("TrapManager should be initialized")
+	}
+}
+
+func TestNewManager_NilRoot(t *testing.T) {
+	mgr := NewManager(nil)
+
+	if mgr == nil {
+		t.Fatal("NewManager with nil root should still return manager")
+	}
+
+	if mgr.rootNode != nil {
+		t.Error("Root node should be nil when nil was passed")
+	}
+}
+
+func TestManager_RefreshFocusables(t *testing.T) {
+	// Create a tree with focusable and non-focusable components
+	child1 := createFocusableNode("child1", 0, 0, 50, 50)
+	child2 := createFocusableNode("child2", 50, 0, 50, 50)
+	nonFocusable := &runtime.LayoutNode{
+		ID:            "label",
+		X:             0,
+		Y:             50,
+		MeasuredWidth: 100,
+		MeasuredHeight: 30,
+		// No component, so not focusable
+	}
+
+	root := &runtime.LayoutNode{
+		ID:            "root",
+		X:             0,
+		Y:             0,
+		MeasuredWidth: 100,
+		MeasuredHeight: 100,
+		Children:      []*runtime.LayoutNode{child1, child2, nonFocusable},
+	}
+
+	mgr := NewManager(root)
+	mgr.RefreshFocusables()
+
+	// Should have 2 focusable components (child1, child2)
+	if len(mgr.focusableComponents) != 2 {
+		t.Errorf("Expected 2 focusable components, got %d", len(mgr.focusableComponents))
+	}
+
+	// focusedIndex should be reset to -1
+	if mgr.focusedIndex != -1 {
+		t.Errorf("focusedIndex should be -1 after RefreshFocusables, got %d", mgr.focusedIndex)
+	}
+
+	// Check IDs are correct
+	containsID := func(id string) bool {
+		for _, fid := range mgr.focusableComponents {
+			if fid == id {
+				return true
+			}
+		}
+		return false
+	}
+
+	if !containsID("child1") {
+		t.Error("child1 should be focusable")
+	}
+	if !containsID("child2") {
+		t.Error("child2 should be focusable")
+	}
+	if containsID("label") {
+		t.Error("label should not be focusable")
+	}
+}
+
+func TestManager_RefreshFocusables_NilRoot(t *testing.T) {
+	mgr := NewManager(nil)
+
+	// Should not panic
+	mgr.RefreshFocusables()
+
+	if len(mgr.focusableComponents) != 0 {
+		t.Errorf("Expected 0 focusable components with nil root, got %d", len(mgr.focusableComponents))
+	}
+}
+
+func TestManager_FocusNext(t *testing.T) {
+	child1 := createFocusableNode("child1", 0, 0, 50, 50)
+	child2 := createFocusableNode("child2", 50, 0, 50, 50)
+	child3 := createFocusableNode("child3", 0, 50, 50, 50)
+	root := &runtime.LayoutNode{
+		ID:            "root",
+		X:             0,
+		Y:             0,
+		MeasuredWidth: 100,
+		MeasuredHeight: 100,
+		Children:      []*runtime.LayoutNode{child1, child2, child3},
+	}
+
+	mgr := NewManager(root)
+	mgr.RefreshFocusables()
+
+	t.Run("focus next from no focus", func(t *testing.T) {
+		id, ok := mgr.FocusNext()
+
+		if !ok {
+			t.Error("FocusNext should succeed")
+		}
+		if id != "child1" {
+			t.Errorf("Expected first focusable to be 'child1', got '%s'", id)
+		}
+		if mgr.focusedIndex != 0 {
+			t.Errorf("focusedIndex should be 0, got %d", mgr.focusedIndex)
+		}
+	})
+
+	t.Run("focus next moves to next component", func(t *testing.T) {
+		// child1 is already focused from previous test
+		id, ok := mgr.FocusNext()
+
+		if !ok {
+			t.Error("FocusNext should succeed")
+		}
+		if id != "child2" {
+			t.Errorf("Expected next focusable to be 'child2', got '%s'", id)
+		}
+	})
+
+	t.Run("focus next wraps around", func(t *testing.T) {
+		// Move to last
+		mgr.FocusNext()
+
+		// One more should wrap to first
+		id, ok := mgr.FocusNext()
+
+		if !ok {
+			t.Error("FocusNext should succeed with wraparound")
+		}
+		if id != "child1" {
+			t.Errorf("Expected wraparound to 'child1', got '%s'", id)
+		}
+	})
+}
+
+func TestManager_FocusNext_EmptyList(t *testing.T) {
+	root := &runtime.LayoutNode{
+		ID:            "root",
+		X:             0,
+		Y:             0,
+		MeasuredWidth: 100,
+		MeasuredHeight: 100,
+		Children:      []*runtime.LayoutNode{},
+	}
+
+	mgr := NewManager(root)
+	mgr.RefreshFocusables()
+
+	id, ok := mgr.FocusNext()
+
+	if ok {
+		t.Errorf("FocusNext should fail with empty list, got '%s'", id)
+	}
+	if id != "" {
+		t.Errorf("Expected empty ID with empty list, got '%s'", id)
+	}
+}
+
+func TestManager_FocusPrev(t *testing.T) {
+	child1 := createFocusableNode("child1", 0, 0, 50, 50)
+	child2 := createFocusableNode("child2", 50, 0, 50, 50)
+	child3 := createFocusableNode("child3", 0, 50, 50, 50)
+	root := &runtime.LayoutNode{
+		ID:            "root",
+		X:             0,
+		Y:             0,
+		MeasuredWidth: 100,
+		MeasuredHeight: 100,
+		Children:      []*runtime.LayoutNode{child1, child2, child3},
+	}
+
+	mgr := NewManager(root)
+	mgr.RefreshFocusables()
+
+	t.Run("focus prev from no focus wraps to last", func(t *testing.T) {
+		id, ok := mgr.FocusPrev()
+
+		if !ok {
+			t.Error("FocusPrev should succeed")
+		}
+		if id != "child3" {
+			t.Errorf("Expected last focusable to be 'child3', got '%s'", id)
+		}
+	})
+
+	t.Run("focus prev moves to previous component", func(t *testing.T) {
+		// child3 is focused
+		id, ok := mgr.FocusPrev()
+
+		if !ok {
+			t.Error("FocusPrev should succeed")
+		}
+		if id != "child2" {
+			t.Errorf("Expected previous focusable to be 'child2', got '%s'", id)
+		}
+	})
+
+	t.Run("focus prev wraps around to last", func(t *testing.T) {
+		// Current state: child2 is focused
+		// FocusPrev twice: child2 -> child1 -> child3 (wrap)
+		mgr.FocusPrev()
+		id, ok := mgr.FocusPrev()
+
+		if !ok {
+			t.Error("FocusPrev should succeed with wraparound")
+		}
+		if id != "child3" {
+			t.Errorf("Expected wraparound to 'child3', got '%s'", id)
+		}
+	})
+}
+
+func TestManager_FocusPrev_EmptyList(t *testing.T) {
+	root := &runtime.LayoutNode{
+		ID:            "root",
+		X:             0,
+		Y:             0,
+		MeasuredWidth: 100,
+		MeasuredHeight: 100,
+		Children:      []*runtime.LayoutNode{},
+	}
+
+	mgr := NewManager(root)
+	mgr.RefreshFocusables()
+
+	id, ok := mgr.FocusPrev()
+
+	if ok {
+		t.Errorf("FocusPrev should fail with empty list, got '%s'", id)
+	}
+	if id != "" {
+		t.Errorf("Expected empty ID with empty list, got '%s'", id)
+	}
+}
+
+func TestManager_FocusFirst(t *testing.T) {
+	child1 := createFocusableNode("child1", 0, 0, 50, 50)
+	child2 := createFocusableNode("child2", 50, 0, 50, 50)
+	root := &runtime.LayoutNode{
+		ID:            "root",
+		X:             0,
+		Y:             0,
+		MeasuredWidth: 100,
+		MeasuredHeight: 100,
+		Children:      []*runtime.LayoutNode{child1, child2},
+	}
+
+	mgr := NewManager(root)
+	mgr.RefreshFocusables()
+
+	t.Run("focus first from any position", func(t *testing.T) {
+		// Focus second component first
+		mgr.FocusSpecific("child2")
+
+		id, ok := mgr.FocusFirst()
+
+		if !ok {
+			t.Error("FocusFirst should succeed")
+		}
+		if id != "child1" {
+			t.Errorf("Expected first focusable to be 'child1', got '%s'", id)
+		}
+	})
+
+	t.Run("focus first with empty list", func(t *testing.T) {
+		emptyRoot := &runtime.LayoutNode{
+			ID:            "empty",
+			X:             0,
+			Y:             0,
+			MeasuredWidth: 100,
+			MeasuredHeight: 100,
+			Children:      []*runtime.LayoutNode{},
+		}
+		emptyMgr := NewManager(emptyRoot)
+		emptyMgr.RefreshFocusables()
+
+		id, ok := emptyMgr.FocusFirst()
+
+		if ok {
+			t.Errorf("FocusFirst should fail with empty list, got '%s'", id)
+		}
+		if id != "" {
+			t.Errorf("Expected empty ID with empty list, got '%s'", id)
+		}
+	})
+}
+
+func TestManager_FocusSpecific(t *testing.T) {
+	child1 := createFocusableNode("child1", 0, 0, 50, 50)
+	child2 := createFocusableNode("child2", 50, 0, 50, 50)
+	root := &runtime.LayoutNode{
+		ID:            "root",
+		X:             0,
+		Y:             0,
+		MeasuredWidth: 100,
+		MeasuredHeight: 100,
+		Children:      []*runtime.LayoutNode{child1, child2},
+	}
+
+	mgr := NewManager(root)
+	mgr.RefreshFocusables()
+
+	t.Run("focus specific valid component", func(t *testing.T) {
+		ok := mgr.FocusSpecific("child2")
+
+		if !ok {
+			t.Error("FocusSpecific should succeed for valid component")
+		}
+
+		focusedID, hasFocus := mgr.GetFocused()
+		if !hasFocus || focusedID != "child2" {
+			t.Errorf("Expected focus on 'child2', got '%s', hasFocus=%v", focusedID, hasFocus)
+		}
+	})
+
+	t.Run("focus specific invalid component", func(t *testing.T) {
+		ok := mgr.FocusSpecific("nonexistent")
+
+		if ok {
+			t.Error("FocusSpecific should fail for invalid component")
+		}
+	})
+}
+
+func TestManager_GetFocused(t *testing.T) {
+	child1 := createFocusableNode("child1", 0, 0, 50, 50)
+	root := &runtime.LayoutNode{
+		ID:            "root",
+		X:             0,
+		Y:             0,
+		MeasuredWidth: 100,
+		MeasuredHeight: 100,
+		Children:      []*runtime.LayoutNode{child1},
+	}
+
+	mgr := NewManager(root)
+	mgr.RefreshFocusables()
+
+	t.Run("no focus initially", func(t *testing.T) {
+		id, hasFocus := mgr.GetFocused()
+
+		if hasFocus {
+			t.Errorf("Should not have focus initially, got '%s'", id)
+		}
+		if id != "" {
+			t.Errorf("Expected empty ID when no focus, got '%s'", id)
+		}
+	})
+
+	t.Run("get focused after focusing", func(t *testing.T) {
+		mgr.FocusSpecific("child1")
+
+		id, hasFocus := mgr.GetFocused()
+
+		if !hasFocus {
+			t.Error("Should have focus after FocusSpecific")
+		}
+		if id != "child1" {
+			t.Errorf("Expected focused 'child1', got '%s'", id)
+		}
+	})
+}
+
+func TestManager_HasFocus(t *testing.T) {
+	child1 := createFocusableNode("child1", 0, 0, 50, 50)
+	child2 := createFocusableNode("child2", 50, 0, 50, 50)
+	root := &runtime.LayoutNode{
+		ID:            "root",
+		X:             0,
+		Y:             0,
+		MeasuredWidth: 100,
+		MeasuredHeight: 100,
+		Children:      []*runtime.LayoutNode{child1, child2},
+	}
+
+	mgr := NewManager(root)
+	mgr.RefreshFocusables()
+
+	t.Run("has focus on focused component", func(t *testing.T) {
+		mgr.FocusSpecific("child1")
+
+		if !mgr.HasFocus("child1") {
+			t.Error("Should have focus on child1")
+		}
+		if mgr.HasFocus("child2") {
+			t.Error("Should not have focus on child2")
+		}
+		if mgr.HasFocus("nonexistent") {
+			t.Error("Should not have focus on nonexistent component")
+		}
+	})
+
+	t.Run("has focus when no focus", func(t *testing.T) {
+		mgr.Clear()
+
+		if mgr.HasFocus("child1") {
+			t.Error("Should not have focus after Clear")
+		}
+	})
+}
+
+func TestManager_PushFocusTrap(t *testing.T) {
+	root := createFocusableNode("root", 0, 0, 100, 100)
+	mgr := NewManager(root)
+
+	t.Run("push focus trap", func(t *testing.T) {
+		trap := NewFocusTrap("modal", TrapModal, root)
+		mgr.PushFocusTrap(trap)
+
+		if !mgr.HasActiveFocusTrap() {
+			t.Error("Should have active focus trap")
+		}
+
+		currentTrap := mgr.GetCurrentFocusTrap()
+		if currentTrap == nil {
+			t.Error("GetCurrentFocusTrap should return the trap")
+		}
+		if currentTrap.ID != "modal" {
+			t.Errorf("Expected trap ID 'modal', got '%s'", currentTrap.ID)
+		}
+	})
+
+	t.Run("push multiple traps", func(t *testing.T) {
+		mgr.ClearFocusTraps()
+
+		trap1 := NewFocusTrap("trap1", TrapMenu, root)
+		trap2 := NewFocusTrap("trap2", TrapModal, root)
+
+		mgr.PushFocusTrap(trap1)
+		mgr.PushFocusTrap(trap2)
+
+		// Should have 2 traps in stack (managed by TrapManager)
+		if !mgr.HasActiveFocusTrap() {
+			t.Error("Should have active focus trap")
+		}
+	})
+}
+
+func TestManager_PopFocusTrap(t *testing.T) {
+	root := createFocusableNode("root", 0, 0, 100, 100)
+	mgr := NewManager(root)
+
+	t.Run("pop focus trap", func(t *testing.T) {
+		trap := NewFocusTrap("modal", TrapModal, root)
+		mgr.PushFocusTrap(trap)
+
+		if !mgr.HasActiveFocusTrap() {
+			t.Fatal("Should have active focus trap before pop")
+		}
+
+		popped := mgr.PopFocusTrap()
+
+		if popped == nil {
+			t.Error("PopFocusTrap should return the trap")
+		}
+		if popped.ID != "modal" {
+			t.Errorf("Expected popped trap ID 'modal', got '%s'", popped.ID)
+		}
+
+		if mgr.HasActiveFocusTrap() {
+			t.Error("Should not have active focus trap after pop")
+		}
+	})
+
+	t.Run("pop from empty traps", func(t *testing.T) {
+		// Pop without push should return nil
+		popped := mgr.PopFocusTrap()
+
+		if popped != nil {
+			t.Errorf("PopFocusTrap with no traps should return nil, got '%v'", popped)
+		}
+	})
+}
+
+func TestManager_RemoveFocusTrap(t *testing.T) {
+	root := createFocusableNode("root", 0, 0, 100, 100)
+	mgr := NewManager(root)
+
+	t.Run("remove focus trap by ID", func(t *testing.T) {
+		trap := NewFocusTrap("modal", TrapModal, root)
+		mgr.PushFocusTrap(trap)
+
+		removed := mgr.RemoveFocusTrap("modal")
+
+		if !removed {
+			t.Error("RemoveFocusTrap should return true for existing trap")
+		}
+
+		if mgr.HasActiveFocusTrap() {
+			t.Error("Should not have active focus trap after removal")
+		}
+	})
+
+	t.Run("remove non-existent trap", func(t *testing.T) {
+		removed := mgr.RemoveFocusTrap("nonexistent")
+
+		if removed {
+			t.Error("RemoveFocusTrap should return false for non-existent trap")
+		}
+	})
+}
+
+func TestManager_IsFocusTrapActive(t *testing.T) {
+	root := createFocusableNode("root", 0, 0, 100, 100)
+	mgr := NewManager(root)
+
+	t.Run("inactive trap initially", func(t *testing.T) {
+		if mgr.IsFocusTrapActive("modal") {
+			t.Error("Should not have active trap initially")
+		}
+	})
+
+	t.Run("check active trap", func(t *testing.T) {
+		trap := NewFocusTrap("modal", TrapModal, root)
+		mgr.PushFocusTrap(trap)
+
+		if !mgr.IsFocusTrapActive("modal") {
+			t.Error("Should have active 'modal' trap")
+		}
+		if mgr.IsFocusTrapActive("other") {
+			t.Error("Should not have active 'other' trap")
+		}
+	})
+}
+
+func TestManager_HasActiveFocusTrap(t *testing.T) {
+	root := createFocusableNode("root", 0, 0, 100, 100)
+	mgr := NewManager(root)
+
+	if mgr.HasActiveFocusTrap() {
+		t.Error("Should not have active focus trap initially")
+	}
+
+	trap := NewFocusTrap("modal", TrapModal, root)
+	mgr.PushFocusTrap(trap)
+
+	if !mgr.HasActiveFocusTrap() {
+		t.Error("Should have active focus trap after push")
+	}
+}
+
+func TestManager_GetCurrentFocusTrap(t *testing.T) {
+	root := createFocusableNode("root", 0, 0, 100, 100)
+	mgr := NewManager(root)
+
+	t.Run("get current trap with no trap", func(t *testing.T) {
+		trap := mgr.GetCurrentFocusTrap()
+
+		if trap != nil {
+			t.Error("GetCurrentFocusTrap should return nil when no trap")
+		}
+	})
+
+	t.Run("get current active trap", func(t *testing.T) {
+		trap := NewFocusTrap("modal", TrapModal, root)
+		mgr.PushFocusTrap(trap)
+
+		current := mgr.GetCurrentFocusTrap()
+
+		if current == nil {
+			t.Error("GetCurrentFocusTrap should return active trap")
+		}
+		if current.ID != "modal" {
+			t.Errorf("Expected trap ID 'modal', got '%s'", current.ID)
+		}
+	})
+}
+
+func TestManager_ClearFocusTraps(t *testing.T) {
+	root := createFocusableNode("root", 0, 0, 100, 100)
+	mgr := NewManager(root)
+
+	t.Run("clear all traps", func(t *testing.T) {
+		trap1 := NewFocusTrap("trap1", TrapMenu, root)
+		trap2 := NewFocusTrap("trap2", TrapModal, root)
+		mgr.PushFocusTrap(trap1)
+		mgr.PushFocusTrap(trap2)
+
+		if !mgr.HasActiveFocusTrap() {
+			t.Fatal("Should have active focus trap")
+		}
+
+		mgr.ClearFocusTraps()
+
+		if mgr.HasActiveFocusTrap() {
+			t.Error("Should not have active focus trap after ClearFocusTraps")
+		}
+	})
+}
+
+func TestManager_GetFocusableComponents(t *testing.T) {
+	child1 := createFocusableNode("child1", 0, 0, 50, 50)
+	child2 := createFocusableNode("child2", 50, 0, 50, 50)
+	root := &runtime.LayoutNode{
+		ID:            "root",
+		X:             0,
+		Y:             0,
+		MeasuredWidth: 100,
+		MeasuredHeight: 100,
+		Children:      []*runtime.LayoutNode{child1, child2},
+	}
+
+	mgr := NewManager(root)
+	mgr.RefreshFocusables()
+
+	components := mgr.GetFocusableComponents()
+
+	if len(components) != 2 {
+		t.Errorf("Expected 2 focusable components, got %d", len(components))
+	}
+}
+
+func TestManager_GetFocusableCount(t *testing.T) {
+	child1 := createFocusableNode("child1", 0, 0, 50, 50)
+	child2 := createFocusableNode("child2", 50, 0, 50, 50)
+	root := &runtime.LayoutNode{
+		ID:            "root",
+		X:             0,
+		Y:             0,
+		MeasuredWidth: 100,
+		MeasuredHeight: 100,
+		Children:      []*runtime.LayoutNode{child1, child2},
+	}
+
+	mgr := NewManager(root)
+	mgr.RefreshFocusables()
+
+	count := mgr.GetFocusableCount()
+
+	if count != 2 {
+		t.Errorf("Expected count 2, got %d", count)
+	}
+}
+
+func TestManager_Clear(t *testing.T) {
+	child1 := createFocusableNode("child1", 0, 0, 50, 50)
+	root := &runtime.LayoutNode{
+		ID:            "root",
+		X:             0,
+		Y:             0,
+		MeasuredWidth: 100,
+		MeasuredHeight: 100,
+		Children:      []*runtime.LayoutNode{child1},
+	}
+
+	mgr := NewManager(root)
+	mgr.RefreshFocusables()
+	mgr.FocusSpecific("child1")
+
+	// Verify focus is set
+	if !mgr.HasFocus("child1") {
+		t.Fatal("Should have focus before Clear")
+	}
+
+	mgr.Clear()
+
+	// Focus should be cleared
+	if mgr.HasFocus("child1") {
+		t.Error("Focus should be cleared")
+	}
+
+	// Focusable list should be empty
+	if mgr.GetFocusableCount() != 0 {
+		t.Errorf("Focusable count should be 0 after Clear, got %d", mgr.GetFocusableCount())
+	}
+
+	// focusedIndex should be -1
+	if mgr.focusedIndex != -1 {
+		t.Errorf("focusedIndex should be -1 after Clear, got %d", mgr.focusedIndex)
+	}
+
+	// Traps should be cleared
+	if mgr.HasActiveFocusTrap() {
+		t.Error("Focus traps should be cleared")
+	}
+}
+
+func TestManager_FocusDirection(t *testing.T) {
+	child1 := createFocusableNode("child1", 0, 0, 50, 50)
+	child2 := createFocusableNode("child2", 50, 0, 50, 50)
+	root := &runtime.LayoutNode{
+		ID:            "root",
+		X:             0,
+		Y:             0,
+		MeasuredWidth: 100,
+		MeasuredHeight: 100,
+		Children:      []*runtime.LayoutNode{child1, child2},
+	}
+
+	mgr := NewManager(root)
+	mgr.RefreshFocusables()
+	mgr.geometricNavigator.RefreshBounds(mgr.GetFocusableComponents())
+
+	t.Run("focus direction with empty list", func(t *testing.T) {
+		emptyMgr := NewManager(nil)
+		emptyMgr.RefreshFocusables()
+
+		id, ok := emptyMgr.FocusDirection(DirectionUp)
+
+		if ok {
+			t.Errorf("FocusDirection should fail with empty list, got '%s'", id)
+		}
+	})
+
+	t.Run("focus direction to component", func(t *testing.T) {
+		id, ok := mgr.FocusDirection(DirectionRight)
+
+		if !ok {
+			t.Error("FocusDirection should succeed")
+		}
+		if id == "" {
+			t.Error("FocusDirection should return a component ID")
+		}
+	})
+}
+
+func TestManager_FocusUp(t *testing.T) {
+	t.Run("focus up with empty list", func(t *testing.T) {
+		mgr := NewManager(nil)
+		mgr.RefreshFocusables()
+
+		id, ok := mgr.FocusUp()
+
+		if ok {
+			t.Errorf("FocusUp should fail with empty list, got '%s'", id)
+		}
+	})
+}
+
+func TestManager_FocusDown(t *testing.T) {
+	t.Run("focus down with empty list", func(t *testing.T) {
+		mgr := NewManager(nil)
+		mgr.RefreshFocusables()
+
+		id, ok := mgr.FocusDown()
+
+		if ok {
+			t.Errorf("FocusDown should fail with empty list, got '%s'", id)
+		}
+	})
+}
+
+func TestManager_FocusLeft(t *testing.T) {
+	t.Run("focus left with empty list", func(t *testing.T) {
+		mgr := NewManager(nil)
+		mgr.RefreshFocusables()
+
+		id, ok := mgr.FocusLeft()
+
+		if ok {
+			t.Errorf("FocusLeft should fail with empty list, got '%s'", id)
+		}
+	})
+}
+
+func TestManager_FocusRight(t *testing.T) {
+	t.Run("focus right with empty list", func(t *testing.T) {
+		mgr := NewManager(nil)
+		mgr.RefreshFocusables()
+
+		id, ok := mgr.FocusRight()
+
+		if ok {
+			t.Errorf("FocusRight should fail with empty list, got '%s'", id)
+		}
+	})
 }
