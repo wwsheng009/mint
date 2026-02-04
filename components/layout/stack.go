@@ -67,6 +67,126 @@ func (l *LayoutNode) Padding() [4]int {
 	return l.padding
 }
 
+// =============================================================================
+// Measurable Interface Implementation
+// =============================================================================
+
+// Measure implements runtime.Measurable interface
+// Calculates the size of the layout based on children and constraints
+func (l *LayoutNode) Measure(constraints runtime.BoxConstraints) runtime.Size {
+	if l == nil {
+		return runtime.Size{Width: 0, Height: 0}
+	}
+
+	children := l.Children()
+	if len(children) == 0 {
+		// Empty layout takes minimum space
+		return runtime.Size{
+			Width:  max(constraints.MinWidth, 0),
+			Height: max(constraints.MinHeight, 0),
+		}
+	}
+
+	// Add padding to content size
+	paddingWidth := l.padding[1] + l.padding[3] // left + right
+	paddingHeight := l.padding[0] + l.padding[2] // top + bottom
+
+	var totalWidth, totalHeight int
+
+	if l.direction == DirectionRow {
+		// HStack: measure total width and max height
+		maxChildHeight := 0
+		for i, child := range l.Children() {
+			childSize := l.measureChild(child, runtime.BoxConstraints{
+				MinWidth:  0,
+				MaxWidth:  constraints.MaxWidth - paddingWidth,
+				MinHeight: 0,
+				MaxHeight: constraints.MaxHeight - paddingHeight,
+			})
+			totalWidth += childSize.Width
+			if childSize.Height > maxChildHeight {
+				maxChildHeight = childSize.Height
+			}
+			// Add gap
+			if i < len(children)-1 {
+				totalWidth += l.gap
+			}
+		}
+		totalHeight = maxChildHeight
+
+		// Apply alignment to height
+		if totalHeight < constraints.MinHeight {
+			totalHeight = constraints.MinHeight
+		}
+	} else {
+		// VStack: measure max width and total height
+		maxChildWidth := 0
+		for i, child := range l.Children() {
+			childSize := l.measureChild(child, runtime.BoxConstraints{
+				MinWidth:  0,
+				MaxWidth:  constraints.MaxWidth - paddingWidth,
+				MinHeight: 0,
+				MaxHeight: constraints.MaxHeight - paddingHeight,
+			})
+			if childSize.Width > maxChildWidth {
+				maxChildWidth = childSize.Width
+			}
+			totalHeight += childSize.Height
+			// Add gap
+			if i < len(children)-1 {
+				totalHeight += l.gap
+			}
+		}
+		totalWidth = maxChildWidth
+
+		// Apply alignment to width
+		if totalWidth < constraints.MinWidth {
+			totalWidth = constraints.MinWidth
+		}
+	}
+
+	// Add padding
+	totalWidth += paddingWidth
+	totalHeight += paddingHeight
+
+	// Apply constraints
+	if totalWidth < constraints.MinWidth {
+		totalWidth = constraints.MinWidth
+	}
+	if totalWidth > constraints.MaxWidth && constraints.MaxWidth > 0 {
+		totalWidth = constraints.MaxWidth
+	}
+	if totalHeight < constraints.MinHeight {
+		totalHeight = constraints.MinHeight
+	}
+	if totalHeight > constraints.MaxHeight && constraints.MaxHeight > 0 {
+		totalHeight = constraints.MaxHeight
+	}
+
+	return runtime.Size{Width: totalWidth, Height: totalHeight}
+}
+
+// measureChild measures a single child, returning its size
+func (l *LayoutNode) measureChild(child ui.VNode, constraints runtime.BoxConstraints) runtime.Size {
+	if child == nil {
+		return runtime.Size{Width: 0, Height: 0}
+	}
+
+	// Check if child implements Measurable
+	type measurable interface {
+		Measure(constraints runtime.BoxConstraints) runtime.Size
+	}
+	if m, ok := child.(measurable); ok {
+		return m.Measure(constraints)
+	}
+
+	// Fallback to estimation
+	width := l.estimateChildWidth(child)
+	height := 1 // Default height
+
+	return runtime.Size{Width: width, Height: height}
+}
+
 // Paint implements paint.Paintable interface
 // Generates draw commands for the layout and its children
 func (l *LayoutNode) Paint(x, y int) []paint.DrawCmd {

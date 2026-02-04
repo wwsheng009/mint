@@ -2,6 +2,7 @@
 package render
 
 import (
+	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/paint"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
@@ -66,7 +67,21 @@ func (r *NonFiberRenderer) Measure(vnode rtui.VNode) (width, height int) {
 		return 0, 0
 	}
 
-	// Get the width using the existing measurement logic
+	// Check if VNode implements Measurable interface (Phase 4 improvement)
+	type measurable interface {
+		Measure(constraints runtime.BoxConstraints) runtime.Size
+	}
+	if m, ok := vnode.(measurable); ok {
+		size := m.Measure(runtime.BoxConstraints{
+			MinWidth:  0,
+			MaxWidth:  1000,
+			MinHeight: 0,
+			MaxHeight: 1000,
+		})
+		return size.Width, size.Height
+	}
+
+	// Fallback: Get the width using the existing measurement logic
 	width = r.owner.MeasureVNodeWidth(vnode)
 
 	// Height is typically 1 for leaf nodes, calculated for containers
@@ -154,7 +169,23 @@ func (r *FiberRenderer) Measure(vnode rtui.VNode) (width, height int) {
 		height = h
 	}
 
-	// For text content, measure the text length
+	// Check if VNode implements Measurable interface (Phase 4 improvement)
+	type measurable interface {
+		Measure(constraints runtime.BoxConstraints) runtime.Size
+	}
+	if m, ok := vnode.(measurable); ok {
+		// Use the component's Measure implementation
+		// Provide loose constraints for measurement
+		size := m.Measure(runtime.BoxConstraints{
+			MinWidth:  0,
+			MaxWidth: 1000, // Large default max width
+			MinHeight: 0,
+			MaxHeight: 1000,
+		})
+		return size.Width, size.Height
+	}
+
+	// Fallback: For text content, measure the text length
 	if width == 0 {
 		if text := rtui.GetTextContent(vnode); text != "" {
 			width = len(text)
