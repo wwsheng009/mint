@@ -1,0 +1,24 @@
++--------------------------------------------------+                            
+|  TUI Engine Demo                              *[ [Open Modal] ]Clicks: 0  |   
++--------------------------------------------------+                            
++-----------+--------------------------------------+                            
+|  Menu      |  Input:  :Type something...:                                     
+|            |  --------------------------------------                          
+|   [ Add Cou|  Log Output (VirtualList)                                        
+|            |                                                                  
+|   [ Subtrac| C  Log line #0000                                                
+                  Log line #0001                                                
+                  Log line #0002                                                
+                  Log line #0003                                                
+                  Log line #0004                                                
+                  Log line #0005                                                
+                  ... (94 more items, scroll to see)                            
+|            |                                                                  
+|   [ Quit [q| ]... (more items, scroll to see)                                 
++-----------+--------------------------------------+                            
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                

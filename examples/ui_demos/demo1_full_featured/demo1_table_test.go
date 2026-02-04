@@ -36,6 +36,8 @@ func TestDemo1TableLayout(t *testing.T) {
 		expected string
 	}{
 		{"Header border", "+"},
+		{"Open Modal button", "Open Modal"},
+		{"Click counter", "C:"},
 		{"Menu label", "Menu"},
 		{"Input label", "Input:"},
 		// Note: Buttons may be truncated due to column width, so we check for partial text

@@ -72,7 +72,7 @@ func App() ui.VNode {
 // Header demonstrates state + layout
 func Header(count int, showModal bool, setShowModal func(bool), setCount func(interface{})) ui.VNode {
 	return ui.VStack(
-		app.NewTextBuilder("+--------------------------------------------------+").
+		app.NewTextBuilder("+-----------+--------------------------------------+").
 			FgColor("blue").
 			Build(),
 		ui.HStack(
@@ -84,7 +84,7 @@ func Header(count int, showModal bool, setShowModal func(bool), setCount func(in
 				FgColor("white").
 				BgColor("blue").
 				Build(),
-			app.NewTextBuilder("                            ").
+			app.NewTextBuilder("      ").
 				BgColor("blue").
 				Build(),
 			app.ButtonBuilder("[Open Modal]").
@@ -95,7 +95,7 @@ func Header(count int, showModal bool, setShowModal func(bool), setCount func(in
 			app.NewTextBuilder(" ").
 				BgColor("blue").
 				Build(),
-			app.NewTextBuilder(fmt.Sprintf("Clicks: %d", count)).
+			app.NewTextBuilder(fmt.Sprintf("C:%d", count)).
 				BgColor("blue").
 				FgColor("yellow").
 				Build(),
@@ -104,7 +104,7 @@ func Header(count int, showModal bool, setShowModal func(bool), setCount func(in
 				BgColor("blue").
 				Build(),
 		),
-		app.NewTextBuilder("+--------------------------------------------------+").
+		app.NewTextBuilder("+-----------+--------------------------------------+").
 			FgColor("blue").
 			Build(),
 	)
