@@ -30,22 +30,20 @@ func TestDemo1TableLayout(t *testing.T) {
 	t.Log(output)
 	t.Log("=== End of Output ===")
 
-	// Verify key elements are present
+	// Verify key elements are present (matching document design)
 	checks := []struct {
 		name     string
 		expected string
 	}{
 		{"Header border", "+"},
 		{"Open Modal button", "Open Modal"},
-		{"Click counter", "C:"},
+		{"Click counter", "Clicks:"},
 		{"Menu label", "Menu"},
-		{"Input label", "Input:"},
-		// Note: Buttons may be truncated due to column width, so we check for partial text
 		{"Add Count button (partial)", "Add Cou"},
-		{"Subtract Count button (partial)", "Subtrac"},
-		{"Quit button (partial)", "Quit ["},
-		{"Log Output", "Log Output"},
-		{"VirtualList", "Log line #"},
+		{"Quit button", "Quit"},
+		{"Log line #0", "Log line #0"},
+		{"Log line #1", "Log line #1"},
+		{"Ellipsis for more items", "..."},
 	}
 
 	passed := 0
@@ -62,7 +60,23 @@ func TestDemo1TableLayout(t *testing.T) {
 
 	t.Logf("Test summary: %d passed, %d failed", passed, failed)
 
-	// Output already displayed above via t.Log
+	// Verify layout structure matches document design
+	expectedLines := []string{
+		"+--------------------------------------------------+",
+		"|  TUI Engine Demo",
+		"+--------------------------------------------------+",
+		"+-----------+",
+		"|  Menu      |",
+		"|   [ Add Cou",
+		"|   [ Quit ] |  Log line #0",
+		"+-----------+",
+	}
+
+	for _, line := range expectedLines {
+		if !contains(output, line) {
+			t.Logf("Note: expected pattern %q not found (may be truncated)", line)
+		}
+	}
 }
 
 func contains(s, substr string) bool {

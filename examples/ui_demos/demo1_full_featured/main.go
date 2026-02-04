@@ -44,16 +44,13 @@ func App() ui.VNode {
 	// Generate large list for VirtualList
 	items := make([]string, 100)
 	for i := range items {
-		items[i] = fmt.Sprintf("Log line #%04d", i)
+		items[i] = fmt.Sprintf("Log line #%d", i)
 	}
-
-	// Track scroll offset manually for demo
-	scrollOffset, setScrollOffset, _ := ui.UseStateInt(0)
 
 	// Build main content using Table for row-based layout
 	mainContent := ui.VStack(
 		Header(count, showModal, setShowModal, setCount),
-		MainBody(count, setCount, input, setInput, items, scrollOffset, setScrollOffset),
+		MainBody(count, setCount, input, setInput, items),
 	)
 
 	// Layer: Modal (conditional rendering)
@@ -72,7 +69,7 @@ func App() ui.VNode {
 // Header demonstrates state + layout
 func Header(count int, showModal bool, setShowModal func(bool), setCount func(interface{})) ui.VNode {
 	return ui.VStack(
-		app.NewTextBuilder("+-----------+--------------------------------------+").
+		app.NewTextBuilder("+--------------------------------------------------+").
 			FgColor("blue").
 			Build(),
 		ui.HStack(
@@ -84,7 +81,7 @@ func Header(count int, showModal bool, setShowModal func(bool), setCount func(in
 				FgColor("white").
 				BgColor("blue").
 				Build(),
-			app.NewTextBuilder("      ").
+			app.NewTextBuilder("              ").
 				BgColor("blue").
 				Build(),
 			app.ButtonBuilder("[Open Modal]").
@@ -95,7 +92,7 @@ func Header(count int, showModal bool, setShowModal func(bool), setCount func(in
 			app.NewTextBuilder(" ").
 				BgColor("blue").
 				Build(),
-			app.NewTextBuilder(fmt.Sprintf("C:%d", count)).
+			app.NewTextBuilder(fmt.Sprintf("Clicks: %d", count)).
 				BgColor("blue").
 				FgColor("yellow").
 				Build(),
@@ -104,22 +101,31 @@ func Header(count int, showModal bool, setShowModal func(bool), setCount func(in
 				BgColor("blue").
 				Build(),
 		),
-		app.NewTextBuilder("+-----------+--------------------------------------+").
+		app.NewTextBuilder("+--------------------------------------------------+").
 			FgColor("blue").
 			Build(),
 	)
 }
 
 // MainBody uses Table layout to align sidebar and content area row by row
-func MainBody(count int, setCount func(interface{}), input string, setInput func(string), items []string, scrollOffset int, setScrollOffset func(interface{})) ui.VNode {
-	// Create a table with paired rows from sidebar and content area
+// Matches the design from framework/docs/ui/demo/demo1.md:
+//
+//	| Menu      | [ Input box....................... ] |
+//	| Add Count |--------------------------------------|
+//	| Quit      | Log line #0                          |
+//	|           | Log line #1                          |
+//	|           | ...                                  |
+//	|           | (scroll)                             |
+//	+-----------+--------------------------------------+
+func MainBody(count int, setCount func(interface{}), input string, setInput func(string), items []string) ui.VNode {
 	return ui.Table(
 		// Border top row
 		ui.Row(
 			ui.Cell(app.NewTextBuilder("+-----------+").FgColor("blue").Build()),
 			ui.Cell(app.NewTextBuilder("--------------------------------------+").FgColor("blue").Build()),
 		),
-		// "Menu" row
+
+		// Row 1: "Menu" | Input box
 		ui.Row(
 			ui.Cell(ui.HStack(
 				app.NewTextBuilder("| ").FgColor("blue").Build(),
@@ -127,82 +133,99 @@ func MainBody(count int, setCount func(interface{}), input string, setInput func
 			)),
 			ui.Cell(ui.HStack(
 				app.NewTextBuilder("| ").FgColor("blue").Build(),
-				app.NewTextBuilder("Input: ").FgColor("cyan").Build(),
 				app.InputBuilder().Value(input).Placeholder("Type something...").OnChange(setInput).Build(),
 			)),
 		),
-		// Empty row
+
+		// Row 2: "Add Count" | Separator
 		ui.Row(
 			ui.Cell(ui.HStack(
 				app.NewTextBuilder("| ").FgColor("blue").Build(),
-				ui.Text(""),
-			)),
-			ui.Cell(ui.HStack(
-				app.NewTextBuilder("| ").FgColor("blue").Build(),
-				app.NewTextBuilder("--------------------------------------").FgColor("blue").Build(),
-			)),
-		),
-		// "Add Count" button row
-		ui.Row(
-			ui.Cell(ui.HStack(
-				app.NewTextBuilder("| ").FgColor("blue").Build(),
-				app.ButtonBuilder("Add Count [+1]").OnClick(func() {
+				app.ButtonBuilder("Add Count").OnClick(func() {
 					setCount(func(c int) int { return c + 1 })
 				}).Build(),
 			)),
 			ui.Cell(ui.HStack(
-				app.NewTextBuilder("| ").FgColor("blue").Build(),
-				app.NewTextBuilder("Log Output (VirtualList)").FgColor("green").Bold(true).Build(),
+				app.NewTextBuilder("|").FgColor("blue").Build(),
+				app.NewTextBuilder("--------------------------------------").FgColor("blue").Build(),
 			)),
 		),
-		// Empty row
+
+		// Row 3: "Quit" | Log line #0
 		ui.Row(
 			ui.Cell(ui.HStack(
 				app.NewTextBuilder("| ").FgColor("blue").Build(),
-				ui.Text(""),
-			)),
-			ui.Cell(ui.HStack(
-				app.NewTextBuilder("| ").FgColor("blue").Build(),
-				ui.Text(""),
-			)),
-		),
-		// "Subtract Count" button row
-		ui.Row(
-			ui.Cell(ui.HStack(
-				app.NewTextBuilder("| ").FgColor("blue").Build(),
-				app.ButtonBuilder("Subtract Count [-1]").OnClick(func() {
-					setCount(func(c int) int { return c - 1 })
-				}).Build(),
-			)),
-			ui.Cell(ui.HStack(
-				app.NewTextBuilder("| ").FgColor("blue").Build(),
-				renderVisibleItems(items, scrollOffset, 6),
-			)),
-		),
-		// Empty row
-		ui.Row(
-			ui.Cell(ui.HStack(
-				app.NewTextBuilder("| ").FgColor("blue").Build(),
-				ui.Text(""),
-			)),
-			ui.Cell(ui.HStack(
-				app.NewTextBuilder("| ").FgColor("blue").Build(),
-				ui.Text(""),
-			)),
-		),
-		// "Quit" button row
-		ui.Row(
-			ui.Cell(ui.HStack(
-				app.NewTextBuilder("| ").FgColor("blue").Build(),
-				app.ButtonBuilder("Quit [q]").BgColor("red").FgColor("white").OnClick(func() {
+				app.ButtonBuilder("Quit").BgColor("red").FgColor("white").OnClick(func() {
 					ui.Quit()
 				}).Build(),
 			)),
 			ui.Cell(ui.HStack(
 				app.NewTextBuilder("| ").FgColor("blue").Build(),
-				app.NewTextBuilder("... (more items, scroll to see)").FgColor("dark-gray").Italic(true).Build(),
+				app.NewTextBuilder(items[0]).FgColor("gray").Build(),
 			)),
 		),
+
+		// Row 4: Empty | Log line #1
+		ui.Row(
+			ui.Cell(ui.HStack(
+				app.NewTextBuilder("|").FgColor("blue").Build(),
+				app.NewTextBuilder("           ").Build(),
+			)),
+			ui.Cell(ui.HStack(
+				app.NewTextBuilder("| ").FgColor("blue").Build(),
+				app.NewTextBuilder(items[1]).FgColor("gray").Build(),
+			)),
+		),
+
+		// Row 5: Empty | Log line #2
+		ui.Row(
+			ui.Cell(ui.HStack(
+				app.NewTextBuilder("|").FgColor("blue").Build(),
+				app.NewTextBuilder("           ").Build(),
+			)),
+			ui.Cell(ui.HStack(
+				app.NewTextBuilder("| ").FgColor("blue").Build(),
+				app.NewTextBuilder(items[2]).FgColor("gray").Build(),
+			)),
+		),
+
+		// Row 6: Empty | Log line #3
+		ui.Row(
+			ui.Cell(ui.HStack(
+				app.NewTextBuilder("|").FgColor("blue").Build(),
+				app.NewTextBuilder("           ").Build(),
+			)),
+			ui.Cell(ui.HStack(
+				app.NewTextBuilder("| ").FgColor("blue").Build(),
+				app.NewTextBuilder(items[3]).FgColor("gray").Build(),
+			)),
+		),
+
+		// Row 7: Empty | Log line #4
+		ui.Row(
+			ui.Cell(ui.HStack(
+				app.NewTextBuilder("|").FgColor("blue").Build(),
+				app.NewTextBuilder("           ").Build(),
+			)),
+			ui.Cell(ui.HStack(
+				app.NewTextBuilder("| ").FgColor("blue").Build(),
+				app.NewTextBuilder(items[4]).FgColor("gray").Build(),
+			)),
+		),
+
+		// Row 8: Empty | Log line #5 + "..."
+		ui.Row(
+			ui.Cell(ui.HStack(
+				app.NewTextBuilder("|").FgColor("blue").Build(),
+				app.NewTextBuilder("           ").Build(),
+			)),
+			ui.Cell(ui.HStack(
+				app.NewTextBuilder("| ").FgColor("blue").Build(),
+				app.NewTextBuilder(items[5]).FgColor("gray").Build(),
+				app.NewTextBuilder(" ...").FgColor("dark-gray").Italic(true).Build(),
+			)),
+		),
+
 		// Border bottom row
 		ui.Row(
 			ui.Cell(app.NewTextBuilder("+-----------+").FgColor("blue").Build()),
@@ -211,7 +234,8 @@ func MainBody(count int, setCount func(interface{}), input string, setInput func
 	)
 }
 
-// renderVisibleItems renders a visible portion of the list (simple virtualization)
+// renderVisibleItems renders log lines in the content area
+// Note: This function is no longer used, kept for reference
 func renderVisibleItems(items []string, offset int, visibleCount int) ui.VNode {
 	children := make([]ui.VNode, 0, visibleCount)
 
@@ -222,7 +246,7 @@ func renderVisibleItems(items []string, offset int, visibleCount int) ui.VNode {
 
 	for i := offset; i < end; i++ {
 		children = append(children,
-			app.NewTextBuilder(fmt.Sprintf("  %s", items[i])).
+			app.NewTextBuilder(fmt.Sprintf(" %s", items[i])).
 				FgColor("gray").
 				Build(),
 		)
@@ -230,14 +254,18 @@ func renderVisibleItems(items []string, offset int, visibleCount int) ui.VNode {
 
 	if len(items) > visibleCount {
 		children = append(children,
-			app.NewTextBuilder(fmt.Sprintf("  ... (%d more items, scroll to see)", len(items)-visibleCount)).
+			app.NewTextBuilder(" ...").
 				FgColor("dark-gray").
 				Italic(true).
 				Build(),
 		)
 	}
 
-	return ui.VStack(children...)
+	return ui.HStack(
+		app.NewTextBuilder("|").FgColor("blue").Build(),
+		ui.VStack(children...),
+		app.NewTextBuilder("|").FgColor("blue").Build(),
+	)
 }
 
 // ConfirmModal demonstrates Layer + Animation + Focus Trap
