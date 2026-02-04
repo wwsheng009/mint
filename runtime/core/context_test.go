@@ -148,16 +148,16 @@ func TestContextManager_WithTimeout(t *testing.T) {
 func TestContextManager_Go(t *testing.T) {
 	m := NewContextManager(context.Background())
 
-	var ran bool
+	var ran int32
 	m.Go(func(ctx context.Context) error {
-		ran = true
+		atomic.StoreInt32(&ran, 1)
 		return nil
 	})
 
 	// 等待 goroutine 完成
 	time.Sleep(50 * time.Millisecond)
 
-	if !ran {
+	if atomic.LoadInt32(&ran) == 0 {
 		t.Error("goroutine should have run")
 	}
 

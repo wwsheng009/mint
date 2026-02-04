@@ -75,7 +75,10 @@ func copyWithWindowsAPI(text string) error {
 	}
 
 	// 复制 UTF-16 数据
-	copy((*[1 << 30]uint16)(unsafe.Pointer(ptr))[:len(utf16Text)], utf16Text)
+	// 使用 RtlMoveMemory 避免直接操作 unsafe.Pointer
+	// 将 utf16Text 切片的指针作为源
+	dataLen := len(utf16Text) * 2 // 每个 uint16 占 2 字节
+	procRtlMoveMemory.Call(ptr, uintptr(unsafe.Pointer(&utf16Text[0])), uintptr(dataLen))
 
 	procGlobalUnlock.Call(hGlobal)
 

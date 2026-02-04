@@ -109,17 +109,17 @@ func TestRecovery_AddHandler(t *testing.T) {
 	terminal := newMockTerminal()
 	recovery := NewRecovery(terminal)
 
-	var handled bool
+	var handled int32
 	handler := &MockPanicHandler{
 		onPanic: func(r interface{}, stack []byte) {
-			handled = true
+			atomic.StoreInt32(&handled, 1)
 		},
 	}
 
 	recovery.AddHandler(handler)
 	recovery.Handle("test")
 
-	if !handled {
+	if atomic.LoadInt32(&handled) == 0 {
 		t.Error("handler should be called")
 	}
 }

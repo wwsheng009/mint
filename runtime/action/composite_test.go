@@ -477,7 +477,7 @@ func TestWorkerPool_Submit(t *testing.T) {
 
 	time.Sleep(50 * time.Millisecond)
 
-	if executed == 0 {
+	if atomic.LoadInt32(&executed) == 0 {
 		t.Error("action should have been executed")
 	}
 }
