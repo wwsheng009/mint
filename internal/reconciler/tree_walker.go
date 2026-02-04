@@ -58,7 +58,7 @@ func (w *TreeWalker) CollectFocusable() []rtui.FocusableVNode {
 // FindByTag finds all VNodes with the given tag name.
 // This handles both ElementVNode and LayoutNode types.
 func (w *TreeWalker) FindByTag(tag string) []*Fiber {
-	var result []*Fiber
+	result := make([]*Fiber, 0)
 	w.walk(w.root, func(fiber *Fiber) bool {
 		if fiber == nil || fiber.VNode == nil {
 			return true
