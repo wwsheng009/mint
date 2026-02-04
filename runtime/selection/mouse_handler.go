@@ -14,10 +14,7 @@ type MouseHandler struct {
 	dragStartY   int
 	lastX        int
 	lastY        int
-	clickCount   int      // For double/triple click detection
-	lastClickTime int64    // For double/triple click detection
-	lastClickX   int
-	lastClickY   int
+	clickCount   int // For double/triple click detection
 	enabled      bool
 }
 

@@ -184,16 +184,6 @@ func (e *ErrorBoundaryVNode) SetError(err error, msg string, stack string) {
 	e.stack = stack
 }
 
-// =============================================================================
-// Error Boundary Builder
-// =============================================================================
-
-// ErrorBoundaryBuilder provides fluent API for building error boundaries
-type ErrorBoundaryBuilder struct {
-	node     *ErrorBoundaryVNode
-	fallback VNode
-}
-
 // ErrorBoundary creates a new error boundary
 //   - name: identifier for this boundary (for debugging)
 //   - component: the component function to wrap

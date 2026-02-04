@@ -12,18 +12,6 @@ type Renderer struct {
 	highlight CellStyle
 }
 
-// CellStyleAdapter adapts selection.CellStyle to runtime.CellStyle.
-type CellStyleAdapter struct {
-	bold       bool
-	underline  bool
-	italic     bool
-	strikethrough bool
-	blink      bool
-	reverse    bool
-	foreground string
-	background string
-}
-
 // NewRenderer creates a new selection renderer.
 func NewRenderer(manager *Manager, buffer *runtime.CellBuffer) *Renderer {
 	return &Renderer{

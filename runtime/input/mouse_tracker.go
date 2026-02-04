@@ -22,11 +22,10 @@ type MouseTracker struct {
 	lastClickCount  int
 
 	// 当前拖动状态
-	isDragging        bool
-	dragStartX        int
-	dragStartY        int
-	dragButton        platform.MouseButton
-	dragTargetID      string
+	isDragging bool
+	dragStartX int
+	dragStartY int
+	dragButton platform.MouseButton
 
 	// 双击检测配置
 	doubleClickTimeout time.Duration

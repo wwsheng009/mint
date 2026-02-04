@@ -174,11 +174,6 @@ func (b *CommandBatch) moveCursorOptimized(x, y int) string {
 	return "\x1b[" + itoa(y+1) + ";" + itoa(x+1) + "H"
 }
 
-// moveCursor generates ANSI cursor movement (kept for compatibility)
-func (b *CommandBatch) moveCursor(x, y int) string {
-	return "\x1b[" + itoa(y+1) + ";" + itoa(x+1) + "H"
-}
-
 // Clear clears all commands
 func (b *CommandBatch) Clear() {
 	b.cmds = b.cmds[:0]

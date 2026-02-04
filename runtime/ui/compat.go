@@ -28,10 +28,9 @@ func (t *TextVNode) Tag() string {
 // ButtonVNode represents a button component
 type ButtonVNode struct {
 	*ElementVNode
-	label      string
-	onClick    func()
-	disabled   bool
-	focusIndex int
+	label    string
+	onClick  func()
+	disabled bool
 }
 
 // Label returns the button label

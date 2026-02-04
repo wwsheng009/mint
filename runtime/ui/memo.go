@@ -27,13 +27,12 @@ type PropsEqual func(oldProps, newProps Props) bool
 
 // MemoVNode represents a memoized component wrapper
 type MemoVNode struct {
-	component    VNode              // The component to memoize
-	compare      PropsEqual         // Optional custom comparison function
-	lastProps    Props             // Cached props from last render
-	memoizedVNode VNode             // Cached rendered result
-	shouldUpdate bool              // Whether update should occur
-	key         string
-	style       style.Style
+	component    VNode      // The component to memoize
+	compare      PropsEqual // Optional custom comparison function
+	lastProps    Props      // Cached props from last render
+	memoizedVNode VNode     // Cached rendered result
+	key          string
+	style        style.Style
 }
 
 // NewMemo creates a new memo VNode with default shallow comparison

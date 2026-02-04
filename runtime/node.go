@@ -58,9 +58,6 @@ type LayoutNode struct {
 	// Priority level for time-sliced rendering
 	priorityLevel priority.DirtyLevel
 
-	// cacheKey is used for measurement caching
-	cacheKey string
-
 	// LayoutVersion is the version number for layout changes.
 	// This is used by DevTools to detect layout deltas without deep comparison.
 	// Incremented whenever the node's layout changes.
