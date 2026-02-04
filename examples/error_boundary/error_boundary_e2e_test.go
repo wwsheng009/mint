@@ -16,8 +16,8 @@ import (
 // Test Components for Error Boundary E2E Tests
 // =============================================================================
 
-// ErrorBoundaryApp creates an app with error boundary (for testing)
-func ErrorBoundaryApp() ui.VNode {
+// ErrorBoundaryAppTest creates an app with error boundary (for testing)
+func ErrorBoundaryAppTest() ui.VNode {
 	return ui.VStack(
 		ui.Element("text").Prop("content", "Error Boundary Demo").Prop("style", style.Style{}.Bold(true)).Build(),
 		ui.ErrorBoundary(

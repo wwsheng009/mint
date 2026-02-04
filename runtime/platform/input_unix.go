@@ -1,6 +1,5 @@
-//go:build (unix || linux || freebsd) && !darwin && !windows
-// +build unix linux freebsd,!darwin
-// +build freebsd,!windows
+//go:build linux || freebsd
+// +build linux freebsd
 
 package platform
 

@@ -414,8 +414,16 @@ func NewResourcePool(maxSize int) *ResourcePool {
 }
 
 // Acquire acquires a resource from the pool
-// Returns nil if pool is closed
+// Returns false if pool is closed
 func (p *ResourcePool) Acquire() bool {
+	// Check close first with a non-blocking select
+	select {
+	case <-p.close:
+		return false
+	default:
+		// Not closed, proceed to acquire
+	}
+
 	select {
 	case p.sem <- struct{}{}:
 		return true
