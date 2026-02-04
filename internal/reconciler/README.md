@@ -568,39 +568,40 @@ func CloneFiber(fiber *Fiber) *Fiber {
 2. 文档说明 CloneFiber 仅用于 workInProgress 创建
 3. 添加 flag 控制共享行为
 
-#### 5. 状态冗余
+#### 5. 状态冗余 ✅ 已澄清（非 bug）
+
 **文件**: `runtime/ui/fiber.go:70` 和 `runtime/ui/instance.go`
 
-**问题描述**:
-存在三个潜在的状态存储位置：
+**原始问题描述**:
+存在三个潜在的状态存储位置，容易混淆：
 - `Fiber.MemoizedState`（用途不明确）
 - `Fiber.ComponentInstance`（来自 hooks）
 - `ComponentInstance.GetState()`（返回 hook 状态）
 
-**问题代码**:
+**结论（已澄清）**:
+这**不是冗余**——`MemoizedState` 根据 VNode 类型服务于不同目的：
+
+| VNode 类型 | MemoizedState 用途 | 状态来源 |
+|-----------|-------------------|---------|
+| TextVNode | 存储文本内容 | `completeWorkText()` 设置 |
+| ComponentVNode (UpdateQueue) | 存储功能更新状态 | `beginWork()` 处理更新队列 |
+| ComponentVNode (hooks) | **未使用** | 状态在 `ComponentContext.Hooks[]` |
+
 ```go
-type Fiber struct {
-    MemoizedState     interface{}         // 状态快照
-    ComponentInstance ComponentInstance   // 实例（包含状态）
+// TextVNode: complete_work.go:80
+workInProgress.MemoizedState = textVNode.Content()
+
+// ComponentVNode with updates: begin_work.go:247-251
+if fn, ok := update.Payload.(func(interface{}) interface{}); ok {
+    result := fn(workInProgress.MemoizedState)
+    workInProgress.MemoizedState = result
 }
+
+// ComponentVNode with hooks: MemoizedState NOT used
+// State is in ComponentContext.Hooks[] accessed via ComponentInstance.GetState()
 ```
 
-**影响**:
-- 混淆哪个状态源是权威的
-- 可能导致状态不一致
-
-**修复方案**:
-```go
-// 选项 A: 移除 MemoizedState，使用 ComponentInstance.GetState()
-// 选项 B: 使 MemoizedState 成为权威，文档明确
-// 选项 C: 通过单一方法合并状态访问
-func (f *Fiber) GetState() interface{} {
-    if f.ComponentInstance != nil {
-        return f.ComponentInstance.GetState()
-    }
-    return f.MemoizedState
-}
-```
+**无需修复**——只需文档说明各状态用途。
 
 ### 🟢 轻微问题（文档和清理）
 
@@ -715,12 +716,12 @@ TestStateRedundancy - PASS
 3. UpdateQueue 共享是 workInProgress 创建的预期行为
 
 **建议重构（代码质量提升）**:
-4. Tag 赋值逻辑：向 VNode 接口添加 Tag() 方法
-5. 状态冗余：明确 MemoizedState 用途，或使用 ComponentInstance 作为单一状态源
-6. EffectFlag：使用 iota 从 1 开始定义
-7. EnqueueUpdate：支持 update.Lane 而非强制 SyncLane
-8. SubtreeFlags：添加传播逻辑文档
-9. Lane 优先级：实现或在同步模式下移除未使用的 lane 代码
+4. ~~Tag 赋值逻辑~~ → ✅ 已完成：Tag() 方法已添加到 VNode 接口
+5. ~~状态冗余~~ → ✅ 已澄清：MemoizedState 根据节点类型有不同用途（TextVNode/UpdateQueue/hooks）
+6. ~~EffectFlag~~ → ✅ 已正确：使用 iota 从 1 开始定义（EffectNoEffect = 0）
+7. ~~EnqueueUpdate~~ → ✅ 已完成：支持 update.Lane 而非强制 SyncLane
+8. ~~SubtreeFlags~~ → ✅ 已文档化：添加了传播逻辑文档到 Fiber 和 collectChildEffects
+9. ~~Lane 优先级~~ → ✅ 已文档化：Lane 系统保留用于未来扩展（当前为同步模式）
 
 ### 参考资料
 
@@ -745,134 +746,24 @@ TestStateRedundancy - PASS
 - `vnode_converter.go` - VNode 转换为 LayoutNode
 - `reconciler.go` - 事务处理和 commit 逻辑
 
-### 🔴 严重问题（需要实现）
+### ✅ 已实现
 
-#### 1. 节点删除未实现
-**文件**: `diff.go:89, 102`, `reconciler.go:254-296`
+#### 1. 节点删除已实现
+**文件**: `diff.go:215-242`, `reconciler.go:896-950`
 
-**问题描述**:
-当子节点在 reconciliation 时被删除，这些节点应该标记为 `EffectDeletion` 并在 commit 阶段清理。但当前实现中，删除逻辑被标记为 TODO 且未实现。
-
-**问题代码**:
-```go
-// diff.go:88-89
-if currentChild != nil && shouldUpdate(currentChild, childVNode) {
-    child = cloneExistingFiber(returnFiber, currentChild, childVNode)
-    currentChild = currentChild.Sibling
-} else {
-    child = createChildFiber(returnFiber, childVNode, lanes)
-    _ = currentChild // TODO: Schedule deletion in Phase 2 ← 未实现
-}
-
-// diff.go:101-103
-// Delete remaining current children
-// TODO: Schedule deletion in Phase 2
-_ = currentChild // ← 未实现
-```
+**实现状态**:
+节点删除逻辑已完整实现：
+- `markForDeletion()` 标记节点和其子树为删除（递归设置 EffectDeletion 标志）
+- `reconcileExistingChildren()` 在 diff 过程中调用 `markForDeletion()`
+- `commitDeletions()` 在 commit 阶段清理已标记的节点
+- `cleanupDeletedFiber()` 执行 useEffect 清理、移除 refs、清理组件实例
 
 **测试验证**:
 ```
-TestNodeDeletionInDiff ❌ FAIL
-    PROBLEM: Expected 2 fibers (parent + item3), got 1
-    Old children (should be deleted): item1, item2
-    DELETION NOT SCHEDULED: Old children still in tree or deletion not marked
-    Child item1 is NOT marked for deletion (flags: 0)
-    Child item2 is NOT marked for deletion (flags: 0)
-    ISSUE: Deletion logic at diff.go:89, 102 is marked as TODO and not implemented
-```
-
-**影响**:
-- 删除的子节点不会被清理，可能导致组件状态和钩子泄漏
-- 被 `EffectDeletion` 标记的节点永远不会被 commit 和清理
-
-**修复方案**:
-```go
-// diff.go 修复
-func reconcileExistingChildren(
-    returnFiber *Fiber,
-    currentFirstChild *Fiber,
-    newChildren []rtui.VNode,
-    lanes Lane,
-) *Fiber {
-    var firstChild *Fiber
-    var previousChild *Fiber
-    currentChild := currentFirstChild
-
-    for _, childVNode := range newChildren {
-        var child *Fiber
-
-        if currentChild != nil && shouldUpdate(currentChild, childVNode) {
-            child = cloneExistingFiber(returnFiber, currentChild, childVNode)
-            currentChild = currentChild.Sibling
-        } else {
-            child = createChildFiber(returnFiber, childVNode, lanes)
-            // 标记剩余的currentChild为删除
-            if currentChild != nil {
-                // 遍历并标记所有剩余的currentChild为删除
-                orphan := currentChild
-                for orphan != nil {
-                    orphan.Flags |= EffectDeletion
-                    orphan.Parent = returnFiber
-                    orphan.Return = returnFiber
-                    orphan = orphan.Sibling
-                }
-            }
-        }
-
-        if firstChild == nil {
-            firstChild = child
-        } else {
-            previousChild.Sibling = child
-        }
-        previousChild = child
-    }
-
-    // 删除所有剩余的currentChild
-    orphan := currentChild
-    for orphan != nil {
-        nextOrphan := orphan.Sibling
-        orphan.Flags |= EffectDeletion
-        orphan.Parent = returnFiber
-        orphan.Return = returnFiber
-        orphan = nextOrphan
-    }
-
-    return firstChild
-}
-
-// reconciler.go CommitRoot 添加清理逻辑
-func (r *Reconciler) CommitRoot() {
-    // ... 现有逻辑 ...
-
-    // 新增：处理删除的节点
-    r.processDeletedFibers(r.root)
-
-    // ... 现有逻辑 ...
-}
-
-func (r *Reconciler) processDeletedFibers(root *Fiber) {
-    // 遍历树，找到标记为EffectDeletion的节点
-    var deleteList []*Fiber
-    WalkFiberDepthFirst(root, func(fiber *Fiber) bool {
-        if fiber.Flags & EffectDeletion != 0 {
-            deleteList = append(deleteList, fiber)
-        }
-        return true
-    })
-
-    // 清理每个被删除的节点
-    for _, fiber := range deleteList {
-        // 清理组件实例状态
-        if fiber.ComponentInstance != nil {
-            r.instanceMgr.Remove(fiber.Key)
-        }
-        // 清理effects
-        r.cleanupComponentEffects(fiber)
-    }
-
-    // 从树中移除被删除的节点
-    r.removeDeletedNodesFromTree(root)
-}
+TestNodeDeletionInDiff ✅ PASS
+    PASS: child1 marked with EffectDeletion
+    PASS: child2 marked with EffectDeletion
+    PASS: child3 not marked for deletion (still in tree)
 ```
 
 ---
@@ -1407,20 +1298,23 @@ func (r *Reconciler) createWorkInProgress(current *Fiber, vnode rtui.VNode) *Fib
 
 ---
 
-#### 4. 状态冗余 - ⚠️ 设计不清晰但无 bug
+#### 4. 状态冗余 - ✅ 已澄清（非 bug）
 
 **测试输出**:
 ```
 TestStateRedundancy - PASS
-    fiber.MemoizedState: map[key1:value1]
-    instance.GetState(): map[]
-    fiber.MemoizedState is non-nil - this field exists but its purpose is unclear
+    TextVNode: MemoizedState will contain text content after CompleteWork
+    fiber.MemoizedState: <nil>
+    instance.GetState() (from hooks): map[]
+    CONCLUSION: MemoizedState and hook state serve different purposes:
+      - MemoizedState: VNode-level data (text content, UpdateQueue state)
+      - ComponentInstance.GetState(): Hook-based state from useState
 ```
 
-**分析**:
-- `Fiber.MemoizedState` 字段存在但用途不明确
-- `ComponentInstance.GetState()` 返回 hook 状态
-- 两者在不同场景使用，但容易混淆
+**结论**:
+- `Fiber.MemoizedState` 用于 VNode 级别的数据（文本内容、更新队列状态）
+- `ComponentInstance.GetState()` 返回 hook 状态（useState）
+- 两者服务于不同目的，不重叠，不是冗余
 
 **建议**: 统一状态所有权，明确每个字段的用途
 

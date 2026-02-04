@@ -26,18 +26,31 @@ const (
 )
 
 // Lane represents the priority of work (lanes model)
+//
+// NOTE: The current implementation operates in synchronous mode, meaning all
+// updates are processed immediately regardless of lane priority. The lane system
+// is maintained for:
+// 1. Future extensibility - async scheduling can be added
+// 2. Work categorization - tracking what type of update each fiber represents
+// 3. Scheduler integration - the scheduler uses lanes for priority decisions
+//
+// To fully implement priority scheduling, the work loop would need to:
+// - Process higher priority lanes first
+// - Time-slice work and resume for lower priority lanes
+// - Defer low-priority work when high-priority work is pending
 type Lane uint64
 
 const (
 	// LaneNoLane indicates no lane
 	LaneNoLane Lane = 0
-	// LaneSyncLane is the default synchronous lane
+	// LaneSyncLane is the default synchronous lane (highest priority)
 	LaneSyncLane Lane = 1
 	// LaneInputContinuousLane is for continuous input (dragging, typing)
+	// Higher priority than default, lower than sync
 	LaneInputContinuousLane Lane = 1 << 1
-	// LaneDefaultLane is for default updates
+	// LaneDefaultLane is for default updates (normal priority)
 	LaneDefaultLane Lane = 1 << 2
-	// LaneIdleLane is for low-priority work
+	// LaneIdleLane is for low-priority work (background tasks)
 	LaneIdleLane Lane = 1 << 3
 )
 
@@ -68,7 +81,10 @@ type Fiber struct {
 	Props Props
 	// Memoized props (previous props for diffing)
 	MemoizedProps Props
-	// Memoized state
+	// Memoized state serves different purposes based on VNode type:
+	// - TextVNode: stores text content (set by completeWorkText)
+	// - ComponentVNode with UpdateQueue: stores state for functional updates (beginWork)
+	// - ComponentVNode with hooks: NOT used (state is in ComponentContext.Hooks)
 	MemoizedState interface{}
 	// Update queue
 	UpdateQueue *UpdateQueue
@@ -77,6 +93,22 @@ type Fiber struct {
 	// Flags indicating what side effects this fiber has
 	Flags EffectFlag
 	// SubtreeFlags indicating effects in descendants
+	//
+	// This field aggregates all effect flags from the entire subtree below this fiber.
+	// It is computed during the render phase by collectChildEffects() which:
+	// 1. ORs each child's Flags into the parent's SubtreeFlags
+	// 2. ORs each child's SubtreeFlags into the parent's SubtreeFlags
+	//
+	// This allows ancestors to efficiently know if any descendant has effects
+	// without traversing the entire subtree during commit.
+	//
+	// Propagation is bottom-up: when a child's flags change, all ancestors
+	// are updated during the next render cycle.
+	//
+	// Example:
+	//   Parent (Flags: 0, SubtreeFlags: EffectUpdate | EffectDeletion)
+	//     ├── Child1 (Flags: EffectUpdate, SubtreeFlags: 0)
+	//     └── Child2 (Flags: 0, SubtreeFlags: EffectDeletion)
 	SubtreeFlags EffectFlag
 
 	// === Priority ===
@@ -238,8 +270,12 @@ func (f *Fiber) EnqueueUpdate(update *Update) {
 		f.UpdateQueue.Last = update
 	}
 
-	// Mark fiber as having work
-	f.MarkUpdate(LaneSyncLane)
+	// Mark fiber as having work - use update's lane if specified, otherwise default to SyncLane
+	lane := update.Lane
+	if lane == LaneNoLane {
+		lane = LaneSyncLane
+	}
+	f.MarkUpdate(lane)
 }
 
 // =============================================================================

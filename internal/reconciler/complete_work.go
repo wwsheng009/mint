@@ -120,6 +120,28 @@ func completeWorkFragment(current, workInProgress *Fiber) *Fiber {
 
 // collectChildEffects collects effect flags from children
 // This bubbles up effect flags from descendant fibers
+//
+// SubtreeFlags Propagation Algorithm:
+// - Bottom-up aggregation: child flags propagate to parent during render
+// - For each child, we OR both child.Flags and child.SubtreeFlags into parent
+// - This creates a complete picture of all effects in the subtree
+//
+// When called:
+// - During performUnitOfWork, after CompleteWork for each fiber
+// - Ensures parents know about all descendant effects before commit
+//
+// Example propagation:
+//   Tree before collection:
+//     Parent (SubtreeFlags: 0)
+//       ├── ChildA (Flags: 2, SubtreeFlags: 4)
+//       └── ChildB (Flags: 8, SubtreeFlags: 0)
+//
+//   After collection (Parent.SubtreeFlags = 2 | 4 | 8 = 14):
+//     Parent (SubtreeFlags: 14) ← OR of all descendant flags
+//
+// Note: SubtreeFlags is NOT automatically propagated upward when flags change.
+// The entire tree must be re-rendered to update SubtreeFlags. This is acceptable
+// because flag changes trigger re-renders anyway.
 func collectChildEffects(workInProgress *Fiber) {
 	if workInProgress == nil {
 		return

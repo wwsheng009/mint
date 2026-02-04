@@ -64,6 +64,11 @@ func (f *FragmentVNode) SetStyle(s style.Style) {
 	f.style = s
 }
 
+// Tag returns "fragment" (implements VNode interface)
+func (f *FragmentVNode) Tag() string {
+	return "fragment"
+}
+
 // AddChild adds a single child
 func (f *FragmentVNode) AddChild(child VNode) *FragmentVNode {
 	f.children = append(f.children, child)

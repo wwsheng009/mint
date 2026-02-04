@@ -88,27 +88,54 @@ func buildFiberTree(parentFiber *Fiber, parentVNode VNode) {
 // =============================================================================
 
 // WalkFiberDepthFirst walks the fiber tree in depth-first order
+// Uses iterative approach to avoid stack overflow on very deep trees
 func WalkFiberDepthFirst(root *Fiber, callback func(*Fiber) bool) bool {
 	if root == nil {
 		return true
 	}
 
-	// Visit current node
-	if !callback(root) {
-		return false
+	// Use explicit stack for iterative traversal
+	// This avoids stack overflow for very deep trees (e.g., deeply nested lists)
+	type frame struct {
+		fiber    *Fiber
+		state    int // 0 = visit self, 1 = visit children, 2 = visit siblings, 3 = done
+		children bool // whether children were visited
+		siblings bool // whether siblings were visited
 	}
 
-	// Visit children
-	if root.Child != nil {
-		if !WalkFiberDepthFirst(root.Child, callback) {
-			return false
-		}
-	}
+	stack := make([]frame, 0, 32)
+	stack = append(stack, frame{fiber: root, state: 0})
 
-	// Visit siblings
-	if root.Sibling != nil {
-		if !WalkFiberDepthFirst(root.Sibling, callback) {
-			return false
+	for len(stack) > 0 {
+		// Peek at top of stack
+		top := &stack[len(stack)-1]
+
+		switch top.state {
+		case 0: // Visit current node
+			if !callback(top.fiber) {
+				return false // Stop traversal
+			}
+			top.state = 1
+
+		case 1: // Visit children
+			if !top.children && top.fiber.Child != nil {
+				top.children = true
+				// Push child onto stack
+				stack = append(stack, frame{fiber: top.fiber.Child, state: 0})
+			} else {
+				top.state = 2
+			}
+
+		case 2: // Visit siblings
+			if !top.siblings && top.fiber.Sibling != nil {
+				top.siblings = true
+				// Push sibling onto stack
+				stack = append(stack, frame{fiber: top.fiber.Sibling, state: 0})
+			}
+			top.state = 3
+
+		case 3: // Done with this frame
+			stack = stack[:len(stack)-1]
 		}
 	}
 
@@ -116,17 +143,19 @@ func WalkFiberDepthFirst(root *Fiber, callback func(*Fiber) bool) bool {
 }
 
 // WalkFiberBreadthFirst walks the fiber tree in breadth-first order
+// Optimized to avoid slice allocation on each dequeue operation
 func WalkFiberBreadthFirst(root *Fiber, callback func(*Fiber) bool) bool {
 	if root == nil {
 		return true
 	}
 
-	queue := []*Fiber{root}
+	// Pre-allocate queue with reasonable capacity to reduce allocations
+	queue := make([]*Fiber, 0, 32)
+	queue = append(queue, root)
 
-	for len(queue) > 0 {
-		// Dequeue
-		current := queue[0]
-		queue = queue[1:]
+	for i := 0; i < len(queue); i++ {
+		// Dequeue by index - avoids slice allocation from queue[1:]
+		current := queue[i]
 
 		// Visit current node
 		if !callback(current) {

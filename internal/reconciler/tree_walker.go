@@ -23,8 +23,21 @@ func (w *TreeWalker) SetRoot(root *Fiber) {
 
 // CollectFocusable collects all focusable VNodes from the Fiber tree in order.
 // This replaces the recursive collectFocusableFromFiber function.
+// Optimized to pre-allocate slice capacity based on tree count.
 func (w *TreeWalker) CollectFocusable() []rtui.FocusableVNode {
-	var result []rtui.FocusableVNode
+	// First pass: count total fibers to pre-allocate
+	count := 0
+	w.walk(w.root, func(fiber *Fiber) bool {
+		if fiber != nil {
+			count++
+		}
+		return true
+	})
+
+	// Pre-allocate with estimated capacity (focusable nodes are usually a subset)
+	result := make([]rtui.FocusableVNode, 0, count/4+4)
+
+	// Second pass: collect focusable nodes
 	w.walk(w.root, func(fiber *Fiber) bool {
 		if fiber == nil || fiber.VNode == nil {
 			return true

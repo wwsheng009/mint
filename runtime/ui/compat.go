@@ -20,6 +20,11 @@ func (t *TextVNode) Content() string {
 	return t.content
 }
 
+// Tag returns "text" (implements VNode interface)
+func (t *TextVNode) Tag() string {
+	return "text"
+}
+
 // ButtonVNode represents a button component
 type ButtonVNode struct {
 	*ElementVNode

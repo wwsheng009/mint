@@ -6,6 +6,36 @@ import (
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
 
+// =============================================================================
+// Common Utilities
+// =============================================================================
+
+// getBuffer safely extracts a paint.Buffer from an interface{}
+// Returns nil if the buffer is invalid or wrong type
+func getBuffer(buffer interface{}) *paint.Buffer {
+	if buf, ok := buffer.(*paint.Buffer); ok && buf != nil {
+		return buf
+	}
+	return nil
+}
+
+// measureExplicitDimensions checks for explicit width/height in props
+// Returns (width, height) with 0 meaning not explicitly set
+func measureExplicitDimensions(vnode rtui.VNode) (width, height int) {
+	if vnode == nil {
+		return 0, 0
+	}
+	props := vnode.Props()
+	if props == nil {
+		return 0, 0
+	}
+	return props.GetInt("width"), props.GetInt("height")
+}
+
+// =============================================================================
+// NonFiberRenderer
+// =============================================================================
+
 // NonFiberRenderer implements VNodeRenderer for traditional (non-Fiber) rendering.
 // It walks the VNode tree directly and renders each node to the buffer.
 type NonFiberRenderer struct {
@@ -22,8 +52,8 @@ func NewNonFiberRenderer(owner *DeclarativeNode) *NonFiberRenderer {
 // Render renders a VNode tree to a buffer at the specified position.
 // This implements the VNodeRenderer interface.
 func (r *NonFiberRenderer) Render(vnode rtui.VNode, x, y int, buffer interface{}) {
-	buf, ok := buffer.(*paint.Buffer)
-	if !ok || buf == nil {
+	buf := getBuffer(buffer)
+	if buf == nil {
 		return
 	}
 	r.owner.PaintVNode(vnode, x, y, buf)
@@ -99,8 +129,8 @@ func NewFiberRenderer(renderCallback func(rtui.VNode, int, int, *paint.Buffer)) 
 // Render renders a VNode to a buffer at the specified position.
 // This implements the VNodeRenderer interface.
 func (r *FiberRenderer) Render(vnode rtui.VNode, x, y int, buffer interface{}) {
-	buf, ok := buffer.(*paint.Buffer)
-	if !ok || buf == nil {
+	buf := getBuffer(buffer)
+	if buf == nil {
 		return
 	}
 	if r.renderCallback != nil {
@@ -115,23 +145,28 @@ func (r *FiberRenderer) Measure(vnode rtui.VNode) (width, height int) {
 		return 0, 0
 	}
 
+	// Check for explicit dimensions first
+	w, h := measureExplicitDimensions(vnode)
+	if w > 0 {
+		width = w
+	}
+	if h > 0 {
+		height = h
+	}
+
 	// For text content, measure the text length
-	if text := rtui.GetTextContent(vnode); text != "" {
-		return len(text), 1
+	if width == 0 {
+		if text := rtui.GetTextContent(vnode); text != "" {
+			width = len(text)
+			height = 1
+		}
 	}
 
 	// For buttons, measure label + brackets
-	if btn, ok := vnode.(interface{ Label() string }); ok {
-		return len(btn.Label()) + 2, 1
-	}
-
-	// Check for explicit dimensions in props
-	if props := vnode.Props(); props != nil {
-		if w := props.GetInt("width"); w > 0 {
-			width = w
-		}
-		if h := props.GetInt("height"); h > 0 {
-			height = h
+	if width == 0 {
+		if btn, ok := vnode.(interface{ Label() string }); ok {
+			width = len(btn.Label()) + 2
+			height = 1
 		}
 	}
 

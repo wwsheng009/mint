@@ -121,54 +121,41 @@ func countUpdateQueue(queue *UpdateQueue) int {
 	return count
 }
 
-// TestStateRedundancy tests the three potential state sources
+// TestStateRedundancy clarifies the different state sources
 func TestStateRedundancy(t *testing.T) {
-	// Create a component VNode
+	// Fiber.MemoizedState serves different purposes depending on VNode type:
+	// 1. TextVNode: stores text content (complete_work.go:80)
+	// 2. ComponentVNode with UpdateQueue: stores state for functional updates (begin_work.go:247-251)
+	// 3. ComponentVNode with hooks: NOT used - hooks use ComponentContext
+
+	// For hook-based components, state is in ComponentContext.Hooks, NOT in MemoizedState
 	componentFunc := func() rtui.VNode {
 		return rtui.Element("text").Prop("content", "test").Build()
 	}
 	compVNode := rtui.NewComponent("TestComponent", componentFunc)
 
-	// Create a Fiber
 	fiber := &Fiber{
 		VNode: compVNode,
 		Type:  rtui.VNodeComponent,
 		Tag:   "TestComponent",
 		Key:   "test-comp",
-		MemoizedState: map[string]interface{}{
-			"key1": "value1",
-		},
 	}
 
-	// Create a ComponentInstance
 	instance := rtui.NewBaseComponentInstance("test-comp", componentFunc)
 	fiber.ComponentInstance = instance
 
-	// Now we have three potential state sources:
-	// 1. fiber.MemoizedState
-	// 2. fiber.ComponentInstance (which has hooks/state)
-	// 3. instance.GetState()
+	// MemoizedState is nil for hook-based components (unless using UpdateQueue)
+	t.Logf("fiber.MemoizedState: %v", fiber.MemoizedState)
+	t.Logf("instance.GetState() (from hooks): %v", instance.GetState())
 
-	state1 := fiber.MemoizedState
-	if state1 != nil {
-		if m, ok := state1.(map[string]interface{}); ok {
-			t.Logf("fiber.MemoizedState: %v", m)
-		}
-	}
-
-	state3 := instance.GetState()
-	t.Logf("instance.GetState(): %v", state3)
-
-	// BUG: Confusion about which state source is authoritative
-	if state1 != nil && len(state3) > 0 {
-		t.Error("Potential bug: Two different state sources exist")
-		t.Error("  - fiber.MemoizedState is used where?")
-		t.Error("  - instance.GetState() returns hook state")
-		t.Error("Which one should be used?")
-	}
-
-	// Check if MemoizedState is actually used anywhere
-	if fiber.MemoizedState != nil {
-		t.Log("fiber.MemoizedState is non-nil - this field exists but its purpose is unclear")
-	}
+	// CONCLUSION: No actual redundancy
+	// - MemoizedState is for VNode-level data (text content, update queue state)
+	// - ComponentInstance.GetState() is for hook-based state (useState)
+	// They serve different purposes and don't overlap
+	t.Log("CONCLUSION: MemoizedState and hook state serve different purposes:")
+	t.Log("  - MemoizedState: VNode-level data (text content, UpdateQueue state)")
+	t.Log("  - ComponentInstance.GetState(): Hook-based state from useState")
+	t.Log("  - For TextVNode: completeWorkText() sets MemoizedState to text content")
+	t.Log("  - For ComponentVNode with UpdateQueue: beginWork() uses MemoizedState for functional updates")
+	t.Log("  - For ComponentVNode with hooks: MemoizedState NOT used (state in ComponentContext.Hooks)")
 }

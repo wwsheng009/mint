@@ -83,6 +83,11 @@ func (c *ComponentVNode) Name() string {
 	return c.name
 }
 
+// Tag returns the component name (implements VNode interface)
+func (c *ComponentVNode) Tag() string {
+	return c.name
+}
+
 // Render calls the component function to get the rendered VNode
 func (c *ComponentVNode) Render() VNode {
 	if c.fn != nil {

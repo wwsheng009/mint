@@ -72,6 +72,11 @@ func (t *TextVNode) SetStyle(s style.Style) {
 	t.style = s
 }
 
+// Tag implements ui.VNode - returns "text"
+func (t *TextVNode) Tag() string {
+	return "text"
+}
+
 // Content returns the text content
 func (t *TextVNode) Content() string {
 	return t.content

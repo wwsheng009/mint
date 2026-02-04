@@ -25,6 +25,13 @@ type VNode interface {
 	// Style returns the visual style
 	Style() style.Style
 	SetStyle(s style.Style)
+
+	// Tag returns the tag/name of this node for identification
+	// For elements: the HTML-like tag (e.g., "div", "button")
+	// For components: the component name (e.g., "MyComponent")
+	// For fragments: "fragment"
+	// For text/layout nodes: the type identifier (e.g., "text", "hstack")
+	Tag() string
 }
 
 // VNodeType represents the type of VNode
