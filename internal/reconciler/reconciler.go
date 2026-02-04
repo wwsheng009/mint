@@ -441,9 +441,60 @@ func (r *Reconciler) measureFiberHeight(fiber *Fiber) int {
 		return 0
 	}
 
-	// Simple height measurement
-	// TODO: Implement proper height calculation
-	return 1
+	// ComponentVNode - measure the child instead
+	if fiber.VNode.Type() == rtui.VNodeComponent {
+		if fiber.Child != nil {
+			return r.measureFiberHeight(fiber.Child)
+		}
+		return 0
+	}
+
+	// Check if VNode has explicit height prop
+	if props := fiber.VNode.Props(); props != nil {
+		if h, ok := props["height"].(int); ok && h > 0 {
+			return h
+		}
+	}
+
+	// Get layout info to determine if this is a vertical or horizontal container
+	layoutInfo := rtui.GetLayoutInfo(fiber.VNode)
+
+	switch fiber.VNode.(type) {
+	case *rtui.ButtonVNode, *rtui.InputVNode, *rtui.CheckboxVNode:
+		return 1 // Single-line controls
+	case *rtui.SelectVNode:
+		return 1 // Single-line dropdown
+	case *rtui.TextVNode, *rtui.ElementVNode:
+		// Text elements are single line
+		if rtui.GetTextContent(fiber.VNode) != "" {
+			return 1
+		}
+		// Fall through to container handling
+	case *rtui.LayoutNode, *rtui.FragmentVNode:
+		// For containers, calculate height based on layout direction
+		if layoutInfo.IsHorizontal {
+			// HStack: height is the maximum of children's heights
+			maxHeight := 0
+			for child := fiber.Child; child != nil; child = child.Sibling {
+				childHeight := r.measureFiberHeight(child)
+				if childHeight > maxHeight {
+					maxHeight = childHeight
+				}
+			}
+			return maxHeight
+		} else {
+			// VStack: height is the sum of children's heights
+			totalHeight := 0
+			for child := fiber.Child; child != nil; child = child.Sibling {
+				totalHeight += r.measureFiberHeight(child)
+			}
+			return totalHeight
+		}
+	default:
+		// For any other type, default to 1
+		return 1
+	}
+	return 1 // Should never reach here, but needed for Go's type switch
 }
 
 // RenderFunc is a function to render a VNode to the buffer

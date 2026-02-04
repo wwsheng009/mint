@@ -356,7 +356,7 @@ func (n *DeclarativeNode) PaintVNode(vnode rtui.VNode, x, y int, buf *paint.Buff
 				childY := y
 				for _, child := range children {
 					n.PaintVNode(child, x, childY, buf)
-					childY++
+					childY += n.MeasureVNodeHeight(child)
 				}
 			}
 		}
@@ -391,7 +391,7 @@ func (n *DeclarativeNode) paintChildren(vnode rtui.VNode, x, y int, buf *paint.B
 	childY := y
 	for _, child := range children {
 		n.PaintVNode(child, x, childY, buf)
-		childY++
+		childY += n.MeasureVNodeHeight(child)
 	}
 }
 
@@ -424,8 +424,71 @@ func (n *DeclarativeNode) MeasureVNodeWidth(vnode rtui.VNode) int {
 		return 0
 	}
 
-	// For containers, return 0 (they don't contribute to width themselves)
+	// For containers, calculate width as sum of children's widths
+	layoutInfo := rtui.GetLayoutInfo(vnode)
+	if layoutInfo.IsHorizontal {
+		// HStack: sum of children's widths
+		width := 0
+		for _, child := range vnode.Children() {
+			width += n.MeasureVNodeWidth(child)
+		}
+		return width
+	}
+	// VStack: return 0 (no width contribution)
 	return 0
+}
+
+// MeasureVNodeHeight measures the height of a VNode for vertical layout
+func (n *DeclarativeNode) MeasureVNodeHeight(vnode rtui.VNode) int {
+	if vnode == nil {
+		return 0
+	}
+
+	// Check for explicit height in props
+	if props := vnode.Props(); props != nil {
+		if h := props.GetInt("height"); h > 0 {
+			return h
+		}
+	}
+
+	// Check the VNode type
+	switch vnode.Type() {
+	case rtui.VNodeText, rtui.VNodeElement:
+		// Text elements are single line
+		if rtui.GetTextContent(vnode) != "" {
+			return 1
+		}
+		// For elements without text content, check if they're containers
+		layoutInfo := rtui.GetLayoutInfo(vnode)
+		if layoutInfo.IsHorizontal {
+			// HStack: height is max of children's heights
+			maxHeight := 0
+			for _, child := range vnode.Children() {
+				childHeight := n.MeasureVNodeHeight(child)
+				if childHeight > maxHeight {
+					maxHeight = childHeight
+				}
+			}
+			return maxHeight
+		} else {
+			// VStack: height is sum of children's heights
+			totalHeight := 0
+			for _, child := range vnode.Children() {
+				totalHeight += n.MeasureVNodeHeight(child)
+			}
+			return totalHeight
+		}
+	case rtui.VNodeFragment:
+		// Fragment: height is sum of children's heights
+		totalHeight := 0
+		for _, child := range vnode.Children() {
+			totalHeight += n.MeasureVNodeHeight(child)
+		}
+		return totalHeight
+	}
+
+	// Default height for leaf nodes
+	return 1
 }
 
 // applyFocus applies focus state to VNodes based on the current focus index.
