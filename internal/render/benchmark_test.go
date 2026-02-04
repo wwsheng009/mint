@@ -238,7 +238,7 @@ func BenchmarkCollectFocusable_Empty(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = ui.CollectFocusable(root)
+		_ = rtui.CollectFocusable(root)
 	}
 }
 
@@ -251,7 +251,7 @@ func BenchmarkCollectFocusable_Single(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = ui.CollectFocusable(root)
+		_ = rtui.CollectFocusable(root)
 	}
 }
 
@@ -266,7 +266,7 @@ func BenchmarkCollectFocusable_Small(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = ui.CollectFocusable(root)
+		_ = rtui.CollectFocusable(root)
 	}
 }
 
@@ -281,7 +281,7 @@ func BenchmarkCollectFocusable_Medium(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = ui.CollectFocusable(root)
+		_ = rtui.CollectFocusable(root)
 	}
 }
 
@@ -296,7 +296,7 @@ func BenchmarkCollectFocusable_Large(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = ui.CollectFocusable(root)
+		_ = rtui.CollectFocusable(root)
 	}
 }
 
@@ -316,7 +316,7 @@ func BenchmarkCollectFocusable_Nested(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = ui.CollectFocusable(root)
+		_ = rtui.CollectFocusable(root)
 	}
 }
 
@@ -326,15 +326,15 @@ func BenchmarkCollectFocusable_Nested(b *testing.B) {
 
 // BenchmarkFocusManager_SetFocusable benchmarks SetFocusable with preservation
 func BenchmarkFocusManager_SetFocusable(b *testing.B) {
-	m := ui.NewVNodeFocusManager()
-	nodes := make([]ui.FocusableVNode, 10)
+	m := rtui.NewVNodeFocusManager()
+	nodes := make([]rtui.FocusableVNode, 10)
 	for i := 0; i < 10; i++ {
 		nodes[i] = createMockFocusable("btn", i)
 	}
 	m.SetFocusable(nodes)
 	m.SetFocusByIndex(5) // Set focus to middle
 
-	newNodes := make([]ui.FocusableVNode, 10)
+	newNodes := make([]rtui.FocusableVNode, 10)
 	for i := 0; i < 10; i++ {
 		newNodes[i] = createMockFocusable("btn", i)
 	}
@@ -348,8 +348,8 @@ func BenchmarkFocusManager_SetFocusable(b *testing.B) {
 
 // BenchmarkFocusManager_FocusNext benchmarks FocusNext
 func BenchmarkFocusManager_FocusNext(b *testing.B) {
-	m := ui.NewVNodeFocusManager()
-	nodes := make([]ui.FocusableVNode, 50)
+	m := rtui.NewVNodeFocusManager()
+	nodes := make([]rtui.FocusableVNode, 50)
 	for i := 0; i < 50; i++ {
 		nodes[i] = createMockFocusable("btn", i)
 	}
@@ -364,8 +364,8 @@ func BenchmarkFocusManager_FocusNext(b *testing.B) {
 
 // BenchmarkFocusManager_FocusPrev benchmarks FocusPrev
 func BenchmarkFocusManager_FocusPrev(b *testing.B) {
-	m := ui.NewVNodeFocusManager()
-	nodes := make([]ui.FocusableVNode, 50)
+	m := rtui.NewVNodeFocusManager()
+	nodes := make([]rtui.FocusableVNode, 50)
 	for i := 0; i < 50; i++ {
 		nodes[i] = createMockFocusable("btn", i)
 	}
@@ -381,8 +381,8 @@ func BenchmarkFocusManager_FocusPrev(b *testing.B) {
 
 // BenchmarkFocusManager_SetFocusByID benchmarks SetFocusByID
 func BenchmarkFocusManager_SetFocusByID(b *testing.B) {
-	m := ui.NewVNodeFocusManager()
-	nodes := make([]ui.FocusableVNode, 100)
+	m := rtui.NewVNodeFocusManager()
+	nodes := make([]rtui.FocusableVNode, 100)
 	for i := 0; i < 100; i++ {
 		nodes[i] = createMockFocusable("btn", i)
 	}
@@ -397,8 +397,8 @@ func BenchmarkFocusManager_SetFocusByID(b *testing.B) {
 
 // BenchmarkFocusManager_HandleEvent_Tab benchmarks Tab key handling
 func BenchmarkFocusManager_HandleEvent_Tab(b *testing.B) {
-	m := ui.NewVNodeFocusManager()
-	nodes := make([]ui.FocusableVNode, 10)
+	m := rtui.NewVNodeFocusManager()
+	nodes := make([]rtui.FocusableVNode, 10)
 	for i := 0; i < 10; i++ {
 		nodes[i] = createMockFocusable("btn", i)
 	}
@@ -424,7 +424,7 @@ func BenchmarkGetLayoutInfo_HStack(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = ui.GetLayoutInfo(vnode)
+		_ = rtui.GetLayoutInfo(vnode)
 	}
 }
 
@@ -435,7 +435,7 @@ func BenchmarkGetLayoutInfo_VStack(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = ui.GetLayoutInfo(vnode)
+		_ = rtui.GetLayoutInfo(vnode)
 	}
 }
 
@@ -446,7 +446,7 @@ func BenchmarkGetLayoutInfo_Element(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = ui.GetLayoutInfo(vnode)
+		_ = rtui.GetLayoutInfo(vnode)
 	}
 }
 
@@ -541,7 +541,7 @@ func BenchmarkStyle_CreationWithProps(b *testing.B) {
 // =============================================================================
 
 // createMockFocusable creates a mock focusable node for benchmarking
-func createMockFocusable(prefix string, index int) ui.FocusableVNode {
+func createMockFocusable(prefix string, index int) rtui.FocusableVNode {
 	return &mockFocusableNode{
 		ElementVNode: rtui.NewElement("button"),
 		id:           fmt.Sprintf("%s-%d", prefix, index),
@@ -605,7 +605,7 @@ func BenchmarkParallel_CollectFocusable(b *testing.B) {
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			_ = ui.CollectFocusable(root)
+			_ = rtui.CollectFocusable(root)
 		}
 	})
 }
