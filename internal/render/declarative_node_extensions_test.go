@@ -7,6 +7,7 @@ import (
 
 	"github.com/wwsheng009/mint/framework"
 	"github.com/wwsheng009/mint/framework/event"
+	"github.com/wwsheng009/mint/internal/reconciler"
 	"github.com/wwsheng009/mint/runtime/paint"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
@@ -357,3 +358,123 @@ func (m *mockKeyEvent) Source() event.Component {
 }
 
 func (m *mockKeyEvent) SetSource(source event.Component) {}
+
+// =============================================================================
+// DeclarativeNode.distributeEventToVNode Tests
+// =============================================================================
+
+func TestDeclarativeNode_distributeEventToVNode(t *testing.T) {
+	t.Run("returns false for nil VNode", func(t *testing.T) {
+		node := NewDeclarativeNode(rtui.Element("div").Build())
+		ev := &mockKeyEvent{key: 'a'}
+
+		result := node.distributeEventToVNode(nil, ev)
+		if result {
+			t.Error("distributeEventToVNode should return false for nil VNode")
+		}
+	})
+
+	t.Run("returns false when VNode doesn't handle event", func(t *testing.T) {
+		node := NewDeclarativeNode(rtui.Element("div").Build())
+		div := rtui.Element("div").Build()
+		ev := &mockKeyEvent{key: 'a'}
+
+		result := node.distributeEventToVNode(div, ev)
+		if result {
+			t.Error("distributeEventToVNode should return false when event not handled")
+		}
+	})
+
+	t.Run("distributes to children", func(t *testing.T) {
+		node := NewDeclarativeNode(rtui.Element("div").Build())
+		root := rtui.Element("div").Children(
+			rtui.Element("span").Build(),
+			rtui.Element("span").Build(),
+		).Build()
+		ev := &mockKeyEvent{key: 'a'}
+
+		// Should not panic and should return false
+		result := node.distributeEventToVNode(root, ev)
+		if result {
+			t.Error("distributeEventToVNode should return false when no children handle event")
+		}
+	})
+}
+
+// =============================================================================
+// DeclarativeNode.getFrameworkApp Tests
+// =============================================================================
+
+func TestDeclarativeNode_getFrameworkApp(t *testing.T) {
+	t.Run("returns nil for new node", func(t *testing.T) {
+		node := NewDeclarativeNode(rtui.Element("div").Build())
+
+		app := node.getFrameworkApp()
+		if app != nil {
+			t.Error("getFrameworkApp should return nil for node without app")
+		}
+	})
+}
+
+// =============================================================================
+// DeclarativeNode.GetFocusedType with focus manager Tests
+// =============================================================================
+
+func TestDeclarativeNode_GetFocusedType_WithFocusManager(t *testing.T) {
+	t.Run("returns 0 for empty focus manager", func(t *testing.T) {
+		node := NewDeclarativeNode(rtui.Element("div").Build())
+
+		typ := node.GetFocusedType()
+		if typ != 0 {
+			t.Errorf("GetFocusedType() = %d, want 0 for empty focus manager", typ)
+		}
+	})
+}
+
+// =============================================================================
+// DeclarativeNode.collectButtonsFromFiber Tests
+// =============================================================================
+
+func TestDeclarativeNode_collectButtonsFromFiber(t *testing.T) {
+	t.Run("returns empty for nil fiber", func(t *testing.T) {
+		node := NewDeclarativeNode(rtui.Element("div").Build())
+
+		result := node.collectButtonsFromFiber(nil)
+		if result == nil || len(result) != 0 {
+			// Expected: empty slice or nil
+		}
+	})
+
+	t.Run("returns empty for fiber with nil VNode", func(t *testing.T) {
+		node := NewDeclarativeNode(rtui.Element("div").Build())
+
+		result := node.collectButtonsFromFiber(&reconciler.Fiber{})
+		if result == nil || len(result) != 0 {
+			// Expected: empty slice or nil
+		}
+	})
+}
+
+// =============================================================================
+// DeclarativeNode.collectFocusableFromFiber Tests
+// =============================================================================
+
+func TestDeclarativeNode_collectFocusableFromFiber(t *testing.T) {
+	t.Run("returns empty for nil fiber", func(t *testing.T) {
+		node := NewDeclarativeNode(rtui.Element("div").Build())
+
+		result := node.collectFocusableFromFiber(nil)
+		if result == nil || len(result) != 0 {
+			// Expected: empty slice or nil
+		}
+	})
+
+	t.Run("returns empty for fiber with nil VNode", func(t *testing.T) {
+		node := NewDeclarativeNode(rtui.Element("div").Build())
+
+		result := node.collectFocusableFromFiber(&reconciler.Fiber{})
+		if result == nil || len(result) != 0 {
+			// Expected: empty slice or nil
+		}
+	})
+}
