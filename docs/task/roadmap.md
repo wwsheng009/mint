@@ -1,6 +1,6 @@
 # Mint TUI Framework - Development Roadmap
 
-> Last updated: 2025-02-04
+> Last updated: 2026-02-04
 > Status: Active Development
 
 ## Overview
@@ -12,17 +12,21 @@ This roadmap outlines the planned development work for the Mint TUI framework, o
 ## 1. Test Coverage Improvements
 
 ### Current State
-| Package | Coverage | Priority |
-|---------|----------|----------|
-| internal/render | 11.7% | High |
-| runtime/selection | 22.8% | Medium |
-| runtime | 23.3% | High |
-| runtime/ui | 50.9% | Low |
-| runtime/focus | 33.7% | Medium |
+| Package | Coverage | Target | Priority |
+|---------|----------|--------|----------|
+| runtime/focus | 71.1% | 70% | Medium |
+| runtime/core | 70.4% | 70% | High |
+| runtime/selection | 61.3% | 70% | Medium |
+| internal/render | 57.5% | 60% | High |
+| runtime | 31.2% | 50% | High |
+| runtime/ui | 50.9% | 60% | Low |
 
 ### Tasks
 
 #### 1.1 internal/render (Target: 60%)
+- [x] Add tests for SimplePaintContext
+- [x] Add tests for Constraints and Size types
+- [x] Add tests for DeclarativeNode extensions
 - [ ] Add tests for DeclarativeNode.Paint()
 - [ ] Add tests for DeclarativeNode.Measure()
 - [ ] Add tests for TreeWalker traversal
@@ -37,16 +41,24 @@ This roadmap outlines the planned development work for the Mint TUI framework, o
 - [ ] Test selection persistence
 
 #### 1.3 runtime (Target: 50%)
+- [x] Test ComponentRef
 - [ ] Test LayoutNode.Measure()
 - [ ] Test BoxConstraints application
 - [ ] Test Size calculation
 - [ ] Test dirty flag propagation
 
-#### 1.4 runtime/focus (Target: 70%)
-- [ ] Test VNodeFocusManager navigation
-- [ ] Test focus persistence across re-renders
-- [ ] Test focus bounds
-- [ ] Test FocusableVNode integration
+#### 1.4 runtime/focus (Target: 70%) ✅ COMPLETED
+- [x] Test VNodeFocusManager navigation
+- [x] Test focus persistence across re-renders
+- [x] Test focus bounds
+- [x] Test FocusableVNode integration
+
+#### 1.5 runtime/core (Target: 70%) ✅ COMPLETED
+- [x] Test Runtime lifecycle (Start, Stop, Shutdown)
+- [x] Test platform integration
+- [x] Test context management
+- [x] Test action dispatching
+- [x] Test focus manager integration
 
 ---
 
