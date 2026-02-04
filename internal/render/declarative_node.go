@@ -336,6 +336,12 @@ func (n *DeclarativeNode) PaintVNode(vnode rtui.VNode, x, y int, buf *paint.Buff
 
 	// For non-Paintable elements, paint children after self-rendering
 	if vnode.Type() == rtui.VNodeElement {
+		// Check if this is a table element
+		if tagger, ok := vnode.(interface{ Tag() string }); ok && tagger.Tag() == "table" {
+			n.paintTable(vnode, x, y, buf)
+			return
+		}
+
 		children := vnode.Children()
 		if len(children) > 0 {
 			// Use shared layout detection utility
@@ -395,9 +401,82 @@ func (n *DeclarativeNode) paintChildren(vnode rtui.VNode, x, y int, buf *paint.B
 	}
 }
 
+// paintTable paints a table element row by row
+// Tables use row-based layout where each row (tr) contains cells (td)
+// Cells in each row are painted horizontally, and rows are stacked vertically
+func (n *DeclarativeNode) paintTable(vnode rtui.VNode, x, y int, buf *paint.Buffer) {
+	rows := vnode.Children()
+	if len(rows) == 0 {
+		return
+	}
+
+	// Calculate column widths by measuring all cells in each column
+	// First, find the maximum number of columns
+	maxCols := 0
+	for _, row := range rows {
+		if tagger, ok := row.(interface{ Tag() string }); ok && tagger.Tag() == "tr" {
+			cells := row.Children()
+			if len(cells) > maxCols {
+				maxCols = len(cells)
+			}
+		}
+	}
+
+	// Measure the width of each column
+	colWidths := make([]int, maxCols)
+	for _, row := range rows {
+		if tagger, ok := row.(interface{ Tag() string }); ok && tagger.Tag() == "tr" {
+			cells := row.Children()
+			for colIdx, cell := range cells {
+				if colIdx < maxCols {
+					cellWidth := n.MeasureVNodeWidth(cell)
+					if cellWidth > colWidths[colIdx] {
+						colWidths[colIdx] = cellWidth
+					}
+				}
+			}
+		}
+	}
+
+	// Paint each row
+	rowY := y
+	for _, row := range rows {
+		// Check if this is a table row (tr)
+		if tagger, ok := row.(interface{ Tag() string }); ok && tagger.Tag() == "tr" {
+			cells := row.Children()
+			cellX := x
+			for colIdx, cell := range cells {
+				// Paint the cell
+				n.PaintVNode(cell, cellX, rowY, buf)
+				// Move X by the column width
+				if colIdx < len(colWidths) {
+					cellX += colWidths[colIdx]
+				} else {
+					cellX += n.MeasureVNodeWidth(cell)
+				}
+			}
+			// Move to next row
+			rowY += n.MeasureVNodeHeight(row)
+		} else {
+			// Non-row children are painted vertically
+			n.PaintVNode(row, x, rowY, buf)
+			rowY += n.MeasureVNodeHeight(row)
+		}
+	}
+}
+
 // MeasureVNodeWidth measures the width of a VNode for horizontal layout
 func (n *DeclarativeNode) MeasureVNodeWidth(vnode rtui.VNode) int {
 	if vnode == nil {
+		return 0
+	}
+
+	// Check for table cell (td) - measure its content
+	if tagger, ok := vnode.(interface{ Tag() string }); ok && tagger.Tag() == "td" {
+		children := vnode.Children()
+		if len(children) > 0 {
+			return n.MeasureVNodeWidth(children[0])
+		}
 		return 0
 	}
 
@@ -442,6 +521,27 @@ func (n *DeclarativeNode) MeasureVNodeWidth(vnode rtui.VNode) int {
 func (n *DeclarativeNode) MeasureVNodeHeight(vnode rtui.VNode) int {
 	if vnode == nil {
 		return 0
+	}
+
+	// Check for table row (tr) - height is max of cell heights
+	if tagger, ok := vnode.(interface{ Tag() string }); ok && tagger.Tag() == "tr" {
+		maxHeight := 0
+		for _, cell := range vnode.Children() {
+			cellHeight := n.MeasureVNodeHeight(cell)
+			if cellHeight > maxHeight {
+				maxHeight = cellHeight
+			}
+		}
+		return maxHeight
+	}
+
+	// Check for table cell (td) - height of its content
+	if tagger, ok := vnode.(interface{ Tag() string }); ok && tagger.Tag() == "td" {
+		children := vnode.Children()
+		if len(children) > 0 {
+			return n.MeasureVNodeHeight(children[0])
+		}
+		return 1
 	}
 
 	// Check for explicit height in props
@@ -1105,6 +1205,15 @@ func renderVNodeToBuffer(vnode rtui.VNode, x, y int, buffer *paint.Buffer) {
 		}
 
 	case rtui.VNodeElement:
+		// Check for table cell (td) - render its content directly
+		if tagger, ok := vnode.(interface{ Tag() string }); ok && tagger.Tag() == "td" {
+			children := vnode.Children()
+			if len(children) > 0 {
+				renderVNodeToBuffer(children[0], x, y, buffer)
+			}
+			return
+		}
+
 		// Check if element has text content
 		if content := rtui.GetTextContent(vnode); content != "" {
 			buffer.SetString(x, y, content, vnode.Style())

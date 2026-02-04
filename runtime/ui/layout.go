@@ -293,3 +293,59 @@ func (b *SpacerBuilder) Flex(n int) *SpacerBuilder {
 func (b *SpacerBuilder) Build() VNode {
 	return b.node
 }
+
+// =============================================================================
+// Table Layout (Row-based layout for aligned columns)
+// =============================================================================
+
+// TableRow represents a row in a table layout
+type TableRow struct {
+	*ElementVNode
+}
+
+// TableCell represents a cell in a table row
+type TableCell struct {
+	*ElementVNode
+}
+
+// Table creates a table with row-based layout
+// Each row is rendered independently, allowing different content in each column per row
+func Table(rows ...VNode) VNode {
+	node := NewElement("table")
+	node.SetChildren(rows)
+	return node
+}
+
+// Row creates a table row containing cells
+func Row(cells ...VNode) VNode {
+	row := &TableRow{
+		ElementVNode: NewElement("tr"),
+	}
+	row.SetChildren(cells)
+	return row
+}
+
+// Cell creates a table cell containing content
+func Cell(content VNode) VNode {
+	cell := &TableCell{
+		ElementVNode: NewElement("td"),
+	}
+	if content != nil {
+		cell.SetChildren([]VNode{content})
+	}
+	return cell
+}
+
+// GetTableCells returns the cells in a table row
+func (tr *TableRow) GetTableCells() []VNode {
+	return tr.Children()
+}
+
+// GetCellContent returns the content of a table cell
+func (td *TableCell) GetCellContent() VNode {
+	children := td.Children()
+	if len(children) > 0 {
+		return children[0]
+	}
+	return nil
+}

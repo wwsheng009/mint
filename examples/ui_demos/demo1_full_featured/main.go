@@ -3,7 +3,7 @@
 // This demo demonstrates the complete TUI engine architecture, covering:
 // - Declarative components
 // - State system (Hooks)
-// - Layout system (Flex, VStack, HStack)
+// - Layout system (Flex, VStack, HStack, Table)
 // - Modal (Layer)
 // - Input with Focus management
 // - Scroll containers
@@ -50,13 +50,10 @@ func App() ui.VNode {
 	// Track scroll offset manually for demo
 	scrollOffset, setScrollOffset, _ := ui.UseStateInt(0)
 
-	// Build main content
+	// Build main content using Table for row-based layout
 	mainContent := ui.VStack(
 		Header(count, showModal, setShowModal, setCount),
-		ui.HStack(
-			Sidebar(setCount),
-			ContentArea(input, setInput, items, scrollOffset, setScrollOffset),
-		),
+		MainBody(count, setCount, input, setInput, items, scrollOffset, setScrollOffset),
 	)
 
 	// Layer: Modal (conditional rendering)
@@ -113,103 +110,104 @@ func Header(count int, showModal bool, setShowModal func(bool), setCount func(in
 	)
 }
 
-// Sidebar demonstrates event handling
-func Sidebar(setCount func(interface{})) ui.VNode {
-	return ui.VStack(
-		app.NewTextBuilder("+-----------+").
-			FgColor("blue").
-			Build(),
-		ui.HStack(
-			app.NewTextBuilder("| ").
-				FgColor("blue").
-				Build(),
-			ui.VStack(
-				app.NewTextBuilder("Menu").
-					Bold(true).
-					Underline(true).
-					Build(),
-				ui.Text(""),
-				app.ButtonBuilder("Add Count [+1]").
-					OnClick(func() {
-						setCount(func(c int) int { return c + 1 })
-					}).
-					Build(),
-				ui.Text(""),
-				app.ButtonBuilder("Subtract Count [-1]").
-					OnClick(func() {
-						setCount(func(c int) int { return c - 1 })
-					}).
-					Build(),
-				ui.Text(""),
-				app.ButtonBuilder("Quit [q]").
-					BgColor("red").
-					FgColor("white").
-					OnClick(func() {
-						ui.Quit()
-					}).
-					Build(),
-			),
-			app.NewTextBuilder(" |").
-				FgColor("blue").
-				Build(),
+// MainBody uses Table layout to align sidebar and content area row by row
+func MainBody(count int, setCount func(interface{}), input string, setInput func(string), items []string, scrollOffset int, setScrollOffset func(interface{})) ui.VNode {
+	// Create a table with paired rows from sidebar and content area
+	return ui.Table(
+		// Border top row
+		ui.Row(
+			ui.Cell(app.NewTextBuilder("+-----------+").FgColor("blue").Build()),
+			ui.Cell(app.NewTextBuilder("--------------------------------------+").FgColor("blue").Build()),
 		),
-		app.NewTextBuilder("+-----------+").
-			FgColor("blue").
-			Build(),
-	)
-}
-
-// ContentArea demonstrates Input + Scroll + VirtualList
-func ContentArea(value string, setValue func(string), items []string, scrollOffset int, setScrollOffset func(interface{})) ui.VNode {
-	return ui.VStack(
-		ui.HStack(
-			app.NewTextBuilder("+--------------------------------------------------+").
-				FgColor("blue").
-				Build(),
+		// "Menu" row
+		ui.Row(
+			ui.Cell(ui.HStack(
+				app.NewTextBuilder("| ").FgColor("blue").Build(),
+				app.NewTextBuilder("Menu").Bold(true).Underline(true).Build(),
+			)),
+			ui.Cell(ui.HStack(
+				app.NewTextBuilder("| ").FgColor("blue").Build(),
+				app.NewTextBuilder("Input: ").FgColor("cyan").Build(),
+				app.InputBuilder().Value(input).Placeholder("Type something...").OnChange(setInput).Build(),
+			)),
 		),
-		ui.HStack(
-			app.NewTextBuilder("| ").
-				FgColor("blue").
-				Build(),
-			ui.VStack(
-				// Input area
-				app.NewTextBuilder("Input: ").
-					FgColor("cyan").
-					Build(),
-				ui.HStack(
-					app.InputBuilder().
-						Value(value).
-						Placeholder("Type something...").
-						OnChange(setValue).
-						Build(),
-					app.NewTextBuilder(" |").
-						FgColor("blue").
-						Build(),
-				),
-				app.NewTextBuilder("+--------------------------------------------------+").
-					FgColor("blue").
-					Build(),
-				ui.HStack(
-					app.NewTextBuilder("| ").
-						FgColor("blue").
-						Build(),
-					ui.VStack(
-						app.NewTextBuilder("Log Output (VirtualList)").
-							FgColor("green").
-							Bold(true).
-							Build(),
-						// Show a slice of items based on scroll offset
-						renderVisibleItems(items, scrollOffset, 8),
-					),
-					app.NewTextBuilder(" |").
-						FgColor("blue").
-						Build(),
-				),
-			),
+		// Empty row
+		ui.Row(
+			ui.Cell(ui.HStack(
+				app.NewTextBuilder("| ").FgColor("blue").Build(),
+				ui.Text(""),
+			)),
+			ui.Cell(ui.HStack(
+				app.NewTextBuilder("| ").FgColor("blue").Build(),
+				app.NewTextBuilder("--------------------------------------").FgColor("blue").Build(),
+			)),
 		),
-		app.NewTextBuilder("+--------------------------------------------------+").
-			FgColor("blue").
-			Build(),
+		// "Add Count" button row
+		ui.Row(
+			ui.Cell(ui.HStack(
+				app.NewTextBuilder("| ").FgColor("blue").Build(),
+				app.ButtonBuilder("Add Count [+1]").OnClick(func() {
+					setCount(func(c int) int { return c + 1 })
+				}).Build(),
+			)),
+			ui.Cell(ui.HStack(
+				app.NewTextBuilder("| ").FgColor("blue").Build(),
+				app.NewTextBuilder("Log Output (VirtualList)").FgColor("green").Bold(true).Build(),
+			)),
+		),
+		// Empty row
+		ui.Row(
+			ui.Cell(ui.HStack(
+				app.NewTextBuilder("| ").FgColor("blue").Build(),
+				ui.Text(""),
+			)),
+			ui.Cell(ui.HStack(
+				app.NewTextBuilder("| ").FgColor("blue").Build(),
+				ui.Text(""),
+			)),
+		),
+		// "Subtract Count" button row
+		ui.Row(
+			ui.Cell(ui.HStack(
+				app.NewTextBuilder("| ").FgColor("blue").Build(),
+				app.ButtonBuilder("Subtract Count [-1]").OnClick(func() {
+					setCount(func(c int) int { return c - 1 })
+				}).Build(),
+			)),
+			ui.Cell(ui.HStack(
+				app.NewTextBuilder("| ").FgColor("blue").Build(),
+				renderVisibleItems(items, scrollOffset, 6),
+			)),
+		),
+		// Empty row
+		ui.Row(
+			ui.Cell(ui.HStack(
+				app.NewTextBuilder("| ").FgColor("blue").Build(),
+				ui.Text(""),
+			)),
+			ui.Cell(ui.HStack(
+				app.NewTextBuilder("| ").FgColor("blue").Build(),
+				ui.Text(""),
+			)),
+		),
+		// "Quit" button row
+		ui.Row(
+			ui.Cell(ui.HStack(
+				app.NewTextBuilder("| ").FgColor("blue").Build(),
+				app.ButtonBuilder("Quit [q]").BgColor("red").FgColor("white").OnClick(func() {
+					ui.Quit()
+				}).Build(),
+			)),
+			ui.Cell(ui.HStack(
+				app.NewTextBuilder("| ").FgColor("blue").Build(),
+				app.NewTextBuilder("... (more items, scroll to see)").FgColor("dark-gray").Italic(true).Build(),
+			)),
+		),
+		// Border bottom row
+		ui.Row(
+			ui.Cell(app.NewTextBuilder("+-----------+").FgColor("blue").Build()),
+			ui.Cell(app.NewTextBuilder("--------------------------------------+").FgColor("blue").Build()),
+		),
 	)
 }
 

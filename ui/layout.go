@@ -54,3 +54,28 @@ func Box() *rtui.BoxLayoutBuilder {
 func Spacer() *rtui.SpacerBuilder {
 	return rtui.Spacer()
 }
+
+// =============================================================================
+// Table Layout Types (re-exported from runtime/ui)
+// =============================================================================
+
+// TableRow represents a row in a table layout
+type TableRow = rtui.TableRow
+
+// TableCell represents a cell in a table row
+type TableCell = rtui.TableCell
+
+// Table creates a table with row-based layout
+func Table(rows ...VNode) VNode {
+	return rtui.Table(rows...)
+}
+
+// Row creates a table row containing cells
+func Row(cells ...VNode) VNode {
+	return rtui.Row(cells...)
+}
+
+// Cell creates a table cell containing content
+func Cell(content VNode) VNode {
+	return rtui.Cell(content)
+}
