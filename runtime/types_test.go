@@ -503,3 +503,106 @@ func TestLayoutResult_FindBoxByID(t *testing.T) {
 	emptyResult := runtime.LayoutResult{}
 	assert.Nil(t, emptyResult.FindBoxByID("node1"))
 }
+
+// =============================================================================
+// ComponentRef Tests
+// =============================================================================
+
+func TestNewComponentRef(t *testing.T) {
+	ref := runtime.NewComponentRef("test-id", "button", nil)
+
+	assert.Equal(t, "test-id", ref.ID)
+	assert.Equal(t, "button", ref.Type)
+	assert.Nil(t, ref.Instance)
+}
+
+func TestNewComponentRefFromInstance(t *testing.T) {
+	mockComp := &mockMeasurableComponent{
+		width:  50,
+		height: 30,
+	}
+
+	ref := runtime.NewComponentRefFromInstance("test-id", "mock", mockComp)
+
+	assert.Equal(t, "test-id", ref.ID)
+	assert.Equal(t, "mock", ref.Type)
+	assert.Equal(t, mockComp, ref.Instance)
+}
+
+func TestComponentRef_Measure(t *testing.T) {
+	t.Run("nil ref returns zero size", func(t *testing.T) {
+		var ref *runtime.ComponentRef
+		constraints := runtime.NewBoxConstraints(10, 100, 10, 100)
+
+		size := ref.Measure(constraints)
+		assert.Equal(t, 0, size.Width)
+		assert.Equal(t, 0, size.Height)
+	})
+
+	t.Run("nil instance returns zero size", func(t *testing.T) {
+		ref := runtime.NewComponentRef("test", "button", nil)
+		constraints := runtime.NewBoxConstraints(10, 100, 10, 100)
+
+		size := ref.Measure(constraints)
+		assert.Equal(t, 0, size.Width)
+		assert.Equal(t, 0, size.Height)
+	})
+
+	t.Run("measurable component", func(t *testing.T) {
+		mockComp := &mockMeasurableComponent{
+			width:  50,
+			height: 30,
+		}
+		ref := runtime.NewComponentRef("test", "mock", mockComp)
+		constraints := runtime.NewBoxConstraints(10, 100, 10, 100)
+
+		size := ref.Measure(constraints)
+		assert.Equal(t, 50, size.Width)
+		assert.Equal(t, 30, size.Height)
+	})
+}
+
+func TestComponentRef_Measure_Legacy(t *testing.T) {
+	// Test legacy MeasurableLegacy interface
+	legacyComp := &legacyMeasurableComponent{
+		width:  40,
+		height: 20,
+	}
+	ref := runtime.NewComponentRefFromInstance("test", "legacy", legacyComp)
+
+	constraints := runtime.NewBoxConstraints(10, 100, 10, 100)
+	size := ref.Measure(constraints)
+
+	assert.Equal(t, 40, size.Width)
+	assert.Equal(t, 20, size.Height)
+}
+
+func TestComponentRef_Measure_Legacy_Unbounded(t *testing.T) {
+	// Test that unbounded constraints use defaults
+	legacyComp := &legacyMeasurableComponent{
+		width:  80,
+		height: 24,
+	}
+	ref := runtime.NewComponentRefFromInstance("test", "legacy", legacyComp)
+
+	// Unbounded constraints (negative max values)
+	constraints := runtime.BoxConstraints{
+		MinWidth:  0,
+		MaxWidth:  -1,
+		MinHeight: 0,
+		MaxHeight: -1,
+	}
+	size := ref.Measure(constraints)
+
+	assert.Equal(t, 80, size.Width)
+	assert.Equal(t, 24, size.Height)
+}
+
+// legacyMeasurableComponent implements the old Measure interface
+type legacyMeasurableComponent struct {
+	width, height int
+}
+
+func (l *legacyMeasurableComponent) Measure(maxWidth, maxHeight int) (int, int) {
+	return l.width, l.height
+}
