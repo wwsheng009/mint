@@ -789,6 +789,11 @@ func (r *Reconciler) expandVNodeTree(vnode rtui.VNode, fiber *Fiber) rtui.VNode 
 			return vnode
 		}
 
+		// If fiber is nil, we can't expand children - return original vnode
+		if fiber == nil {
+			return vnode
+		}
+
 		// Find the first child fiber and expand each child
 		childFiber := fiber.Child
 		expandedChildren := make([]rtui.VNode, 0, len(originalChildren))
