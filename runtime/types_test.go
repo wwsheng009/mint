@@ -173,3 +173,333 @@ func TestSize(t *testing.T) {
 	assert.Equal(t, 100, size.Width)
 	assert.Equal(t, 50, size.Height)
 }
+
+// =============================================================================
+// LayoutNode Dirty Flag Tests
+// =============================================================================
+
+func TestLayoutNode_MarkLayoutDirty(t *testing.T) {
+	parent := runtime.NewLayoutNode("parent", runtime.NodeTypeFlex, runtime.NewStyle())
+	child := runtime.NewLayoutNode("child", runtime.NodeTypeText, runtime.NewStyle())
+	parent.AddChild(child)
+
+	// Clear all dirty flags
+	parent.ClearDirty()
+	child.ClearDirty()
+
+	// Mark child as layout dirty
+	child.MarkLayoutDirty()
+
+	// Child should be layout dirty
+	assert.True(t, child.IsLayoutDirty())
+	assert.False(t, child.IsPaintDirty())
+
+	// Parent should also be layout dirty (propagates)
+	assert.True(t, parent.IsLayoutDirty())
+
+	// LayoutVersion should be incremented on first call
+	assert.Greater(t, child.LayoutVersion, uint32(0))
+
+	// Call again when already dirty - should skip increment (early return)
+	versionAfterSecondCall := child.LayoutVersion
+	child.MarkLayoutDirty()
+	assert.Equal(t, versionAfterSecondCall, child.LayoutVersion)
+}
+
+func TestLayoutNode_MarkPaintDirty(t *testing.T) {
+	parent := runtime.NewLayoutNode("parent", runtime.NodeTypeFlex, runtime.NewStyle())
+	child := runtime.NewLayoutNode("child", runtime.NodeTypeText, runtime.NewStyle())
+	parent.AddChild(child)
+
+	// Clear all dirty flags
+	parent.ClearDirty()
+	child.ClearDirty()
+
+	// Mark child as paint dirty
+	child.MarkPaintDirty()
+
+	// Child should be paint dirty
+	assert.True(t, child.IsPaintDirty())
+	assert.False(t, child.IsLayoutDirty())
+
+	// Parent should NOT be affected (paint dirtiness doesn't propagate)
+	assert.False(t, parent.IsPaintDirty())
+	assert.False(t, parent.IsLayoutDirty())
+}
+
+func TestLayoutNode_IsDirtyFlags(t *testing.T) {
+	node := runtime.NewLayoutNode("test", runtime.NodeTypeText, runtime.NewStyle())
+
+	// Initially only layout dirty is true (from constructor)
+	assert.True(t, node.IsLayoutDirty())
+	assert.False(t, node.IsPaintDirty()) // paintDirty is false initially
+	assert.True(t, node.IsDirty())        // But overall dirty because layoutDirty=true
+
+	// Clear layout dirty only
+	node.ClearLayoutDirty()
+	assert.False(t, node.IsLayoutDirty())
+	assert.False(t, node.IsPaintDirty())
+	assert.False(t, node.IsDirty())
+
+	// Mark paint dirty only
+	node.MarkPaintDirty()
+	assert.False(t, node.IsLayoutDirty())
+	assert.True(t, node.IsPaintDirty())
+	assert.True(t, node.IsDirty())
+
+	// Clear paint dirty only
+	node.ClearPaintDirty()
+	assert.False(t, node.IsLayoutDirty())
+	assert.False(t, node.IsPaintDirty())
+	assert.False(t, node.IsDirty())
+
+	// MarkDirty sets both flags
+	node.MarkDirty()
+	assert.True(t, node.IsLayoutDirty())
+	assert.True(t, node.IsPaintDirty())
+	assert.True(t, node.IsDirty())
+}
+
+func TestLayoutNode_ClearDirty(t *testing.T) {
+	node := runtime.NewLayoutNode("test", runtime.NodeTypeText, runtime.NewStyle())
+
+	// Mark as dirty
+	node.MarkDirty()
+	assert.True(t, node.IsDirty())
+
+	// Clear all dirty flags
+	node.ClearDirty()
+	assert.False(t, node.IsLayoutDirty())
+	assert.False(t, node.IsPaintDirty())
+	assert.False(t, node.IsDirty())
+}
+
+func TestLayoutNode_ClearDirty_NilNode(t *testing.T) {
+	var node *runtime.LayoutNode
+
+	// Should not panic on nil node
+	node.ClearDirty()
+	node.ClearLayoutDirty()
+	node.ClearPaintDirty()
+
+	// Is functions should return false for nil
+	assert.False(t, node.IsLayoutDirty())
+	assert.False(t, node.IsPaintDirty())
+	assert.False(t, node.IsDirty())
+}
+
+// =============================================================================
+// LayoutNode Priority Tests
+// =============================================================================
+
+func TestLayoutNode_Priority(t *testing.T) {
+	node := runtime.NewLayoutNode("test", runtime.NodeTypeText, runtime.NewStyle())
+
+	// Default priority is DirtyNormal (1)
+	assert.Equal(t, 1, int(node.GetPriority()))
+
+	// Set priority
+	node.SetPriority(2)
+	assert.Equal(t, 2, int(node.GetPriority()))
+
+	node.SetPriority(0)
+	assert.Equal(t, 0, int(node.GetPriority()))
+}
+
+func TestLayoutNode_Priority_NilNode(t *testing.T) {
+	var node *runtime.LayoutNode
+
+	// Should return DirtyNormal (1) for nil node
+	assert.Equal(t, 1, int(node.GetPriority()))
+
+	// Should not panic on nil node
+	node.SetPriority(2)
+}
+
+// =============================================================================
+// LayoutNode Measure Tests
+// =============================================================================
+
+func TestLayoutNode_Measure(t *testing.T) {
+	// Node without component returns zero size
+	node := runtime.NewLayoutNode("test", runtime.NodeTypeText, runtime.NewStyle())
+	constraints := runtime.NewBoxConstraints(10, 100, 10, 100)
+
+	size := node.Measure(constraints)
+	assert.Equal(t, 0, size.Width)
+	assert.Equal(t, 0, size.Height)
+}
+
+func TestLayoutNode_Measure_WithComponent(t *testing.T) {
+	// Create a mock component
+	mockComp := &mockMeasurableComponent{
+		width:  50,
+		height: 30,
+	}
+
+	node := runtime.NewLayoutNode("test", runtime.NodeTypeText, runtime.NewStyle())
+	node.Component = runtime.NewComponentRef("test", "mock", mockComp)
+
+	constraints := runtime.NewBoxConstraints(10, 100, 10, 100)
+	size := node.Measure(constraints)
+
+	assert.Equal(t, 50, size.Width)
+	assert.Equal(t, 30, size.Height)
+}
+
+// mockMeasurableComponent is a test component that implements Measure
+type mockMeasurableComponent struct {
+	width, height int
+}
+
+func (m *mockMeasurableComponent) Measure(c runtime.BoxConstraints) runtime.Size {
+	return runtime.Size{Width: m.width, Height: m.height}
+}
+
+// =============================================================================
+// LayoutNode Bounds Tests
+// =============================================================================
+
+func TestLayoutNode_GetBounds(t *testing.T) {
+	node := runtime.NewLayoutNode("test", runtime.NodeTypeText, runtime.NewStyle())
+	node.X = 10
+	node.Y = 20
+	node.MeasuredWidth = 30
+	node.MeasuredHeight = 40
+
+	x, y, w, h := node.GetBounds()
+	assert.Equal(t, 10, x)
+	assert.Equal(t, 20, y)
+	assert.Equal(t, 30, w)
+	assert.Equal(t, 40, h)
+}
+
+func TestLayoutNode_GetBounds_NilNode(t *testing.T) {
+	var node *runtime.LayoutNode
+	x, y, w, h := node.GetBounds()
+	assert.Equal(t, 0, x)
+	assert.Equal(t, 0, y)
+	assert.Equal(t, 0, w)
+	assert.Equal(t, 0, h)
+}
+
+func TestLayoutNode_GetInnerBounds(t *testing.T) {
+	node := runtime.NewLayoutNode("test", runtime.NodeTypeText, runtime.NewStyle())
+	node.X = 10
+	node.Y = 20
+	node.MeasuredWidth = 100
+	node.MeasuredHeight = 80
+	node.Style.Padding = runtime.NewInsets(5, 10, 15, 20) // top, right, bottom, left
+
+	x, y, w, h := node.GetInnerBounds()
+	assert.Equal(t, 30, x)  // 10 + 20 (left)
+	assert.Equal(t, 25, y)  // 20 + 5 (top)
+	assert.Equal(t, 70, w)  // 100 - 20 - 10 (left - right)
+	assert.Equal(t, 60, h)  // 80 - 5 - 15 (top - bottom)
+}
+
+func TestLayoutNode_GetInnerBounds_NilNode(t *testing.T) {
+	var node *runtime.LayoutNode
+	x, y, w, h := node.GetInnerBounds()
+	assert.Equal(t, 0, x)
+	assert.Equal(t, 0, y)
+	assert.Equal(t, 0, w)
+	assert.Equal(t, 0, h)
+}
+
+// =============================================================================
+// LayoutNode AddChildren Tests
+// =============================================================================
+
+func TestLayoutNode_AddChildren(t *testing.T) {
+	parent := runtime.NewLayoutNode("parent", runtime.NodeTypeFlex, runtime.NewStyle())
+	child1 := runtime.NewLayoutNode("child1", runtime.NodeTypeText, runtime.NewStyle())
+	child2 := runtime.NewLayoutNode("child2", runtime.NodeTypeText, runtime.NewStyle())
+	child3 := runtime.NewLayoutNode("child3", runtime.NodeTypeText, runtime.NewStyle())
+
+	parent.AddChildren(child1, child2, child3)
+
+	assert.Equal(t, 3, len(parent.Children))
+	assert.Equal(t, parent, child1.Parent)
+	assert.Equal(t, parent, child2.Parent)
+	assert.Equal(t, parent, child3.Parent)
+}
+
+func TestLayoutNode_AddChildren_WithNil(t *testing.T) {
+	parent := runtime.NewLayoutNode("parent", runtime.NodeTypeFlex, runtime.NewStyle())
+	child1 := runtime.NewLayoutNode("child1", runtime.NodeTypeText, runtime.NewStyle())
+
+	// Should handle nil children gracefully
+	parent.AddChildren(child1, nil, (*runtime.LayoutNode)(nil))
+
+	assert.Equal(t, 1, len(parent.Children))
+}
+
+// =============================================================================
+// LayoutBox Tests
+// =============================================================================
+
+func TestNewLayoutBox(t *testing.T) {
+	node := runtime.NewLayoutNode("test", runtime.NodeTypeText, runtime.NewStyle())
+	node.X = 10
+	node.Y = 20
+	node.MeasuredWidth = 30
+	node.MeasuredHeight = 40
+	node.Style.ZIndex = 5
+
+	box := runtime.NewLayoutBox(node)
+
+	assert.Equal(t, "test", box.NodeID)
+	assert.Equal(t, 10, box.X)
+	assert.Equal(t, 20, box.Y)
+	assert.Equal(t, 30, box.W)
+	assert.Equal(t, 40, box.H)
+	assert.Equal(t, 5, box.ZIndex)
+	assert.Equal(t, node, box.Node)
+}
+
+func TestNewLayoutBox_NilNode(t *testing.T) {
+	// Note: NewLayoutBox panics on nil node
+	// This test documents that behavior
+	assert.Panics(t, func() {
+		runtime.NewLayoutBox(nil)
+	})
+}
+
+// =============================================================================
+// LayoutResult Tests
+// =============================================================================
+
+func TestLayoutResult_FindBoxByID(t *testing.T) {
+	node1 := runtime.NewLayoutNode("node1", runtime.NodeTypeText, runtime.NewStyle())
+	node1.X = 10
+	node1.Y = 20
+	node1.MeasuredWidth = 30
+	node1.MeasuredHeight = 40
+
+	node2 := runtime.NewLayoutNode("node2", runtime.NodeTypeText, runtime.NewStyle())
+	node2.X = 50
+	node2.Y = 60
+	node2.MeasuredWidth = 20
+	node2.MeasuredHeight = 30
+
+	box1 := runtime.NewLayoutBox(node1)
+	box2 := runtime.NewLayoutBox(node2)
+
+	result := runtime.LayoutResult{
+		Boxes: []runtime.LayoutBox{box1, box2},
+	}
+
+	// Find existing box
+	found := result.FindBoxByID("node1")
+	assert.NotNil(t, found)
+	assert.Equal(t, "node1", found.NodeID)
+
+	// Find non-existent box
+	notFound := result.FindBoxByID("node3")
+	assert.Nil(t, notFound)
+
+	// Empty result
+	emptyResult := runtime.LayoutResult{}
+	assert.Nil(t, emptyResult.FindBoxByID("node1"))
+}
