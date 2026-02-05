@@ -26,6 +26,7 @@ type LayoutCacheKey struct {
 	VNodeKey    string
 	Constraints runtime.BoxConstraints
 	PropsHash   uint64
+	ContentHash uint64 // Hash of text content for text nodes
 }
 
 // LayoutCacheEntry is a cached layout result

@@ -539,6 +539,18 @@ func (e *Engine) getCacheKey(vnode VNode, constraints runtime.BoxConstraints) La
 		key.VNodeKey = keyNode
 	}
 
+	// Include text content in hash for text nodes
+	if vnode.Type() == rtui.VNodeText {
+		if text := rtui.GetTextContent(vnode); text != "" {
+			// Simple hash of text content
+			h := uint64(5381)
+			for _, c := range text {
+				h = h*31 + uint64(c)
+			}
+			key.ContentHash = h
+		}
+	}
+
 	// Include relevant props in the key
 	if props := vnode.Props(); props != nil {
 		if w := props.GetInt("width"); w > 0 {
