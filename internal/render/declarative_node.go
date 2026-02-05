@@ -230,21 +230,20 @@ func (n *DeclarativeNode) renderWithFiberContext() rtui.VNode {
 	}
 
 	// The reconciler manages hook context through its render cycle
-	// For now, we need to call reconciler.Render() to get proper hook context
-	// but we'll discard its rendering output and use the PipelineRenderer instead
-	//
-	// TODO: Add reconciler.Update() method that only manages state/hooks without rendering
+	// We capture the VNode tree during the render to avoid calling renderFn twice
+	var capturedVNode rtui.VNode
 
 	nullBuf := paint.NewBuffer(1, 1)
 	n.reconciler.Render(component.PaintContext{
 		Bounds: paint.Rect{X: 0, Y: 0, Width: 1, Height: 1},
 	}, nullBuf, func() rtui.VNode {
-		return n.renderFn()
+		vnode := n.renderFn()
+		capturedVNode = vnode // Capture for PipelineRenderer
+		return vnode
 	})
 
-	// Return the raw render function result for PipelineRenderer
-	// NOT the reconciler's GetRenderedRoot() which may have lost information
-	return n.renderFn()
+	// Return the captured VNode tree for PipelineRenderer
+	return capturedVNode
 }
 
 // nonFiberRender renders the VNode tree in non-Fiber mode
