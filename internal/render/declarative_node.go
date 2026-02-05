@@ -178,9 +178,7 @@ func (n *DeclarativeNode) Measure(maxWidth, maxHeight int) (width, height int) {
 // =============================================================================
 
 // Paint renders the VNode tree to the buffer
-// UNIFIED RENDERING: Both Fiber and non-Fiber modes now use the PipelineRenderer
-// - Fiber reconciler: manages tree state, hooks, and reconciliation
-// - PipelineRenderer: handles all actual rendering with constraint-driven layout
+// UNIFIED RENDERING: Both Fiber and non-Fiber modes use the PipelineRenderer
 func (n *DeclarativeNode) Paint(ctx component.PaintContext, buf *paint.Buffer) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
@@ -191,13 +189,13 @@ func (n *DeclarativeNode) Paint(ctx component.PaintContext, buf *paint.Buffer) {
 			ctx.Bounds.X, ctx.Bounds.Y, buf.Width, buf.Height, n.useFiber)
 	}
 
-	// Phase 1: Get/update the VNode tree (different paths for Fiber vs non-Fiber)
+	// Phase 1: Get the VNode tree
 	if n.useFiber && n.reconciler != nil {
-		// Fiber mode: reconciler manages tree state, hooks, and reconciliation
-		// Call reconciler's Update phase (no rendering)
-		n.root = n.reconcilerUpdate()
+		// Fiber mode: just call render function directly for now
+		// The reconciler's state management still happens through hooks
+		n.root = n.renderWithFiberContext()
 	} else {
-		// Non-Fiber mode: simple render function call
+		// Non-Fiber mode
 		n.root = n.nonFiberRender()
 	}
 
@@ -208,11 +206,10 @@ func (n *DeclarativeNode) Paint(ctx component.PaintContext, buf *paint.Buffer) {
 		return
 	}
 
-	// Phase 2: Apply focus state (both modes)
+	// Phase 2: Apply focus state
 	n.applyFocusState()
 
-	// Phase 3: UNIFIED RENDERING - use PipelineRenderer for both modes
-	// The renderer handles layout (constraints) and painting
+	// Phase 3: UNIFIED RENDERING - use PipelineRenderer
 	if n.renderer != nil {
 		n.renderer.Render(n.root, ctx.Bounds.X, ctx.Bounds.Y, buf)
 	} else {
@@ -225,32 +222,29 @@ func (n *DeclarativeNode) Paint(ctx component.PaintContext, buf *paint.Buffer) {
 	}
 }
 
-// reconcilerUpdate runs the Fiber reconciler's update phase without rendering
-// Returns the rendered VNode tree
-func (n *DeclarativeNode) reconcilerUpdate() rtui.VNode {
-	if n.reconciler == nil {
-		return nil
+// renderWithFiberContext renders the VNode tree with Fiber hook context
+// This ensures hooks work correctly in Fiber mode
+func (n *DeclarativeNode) renderWithFiberContext() rtui.VNode {
+	if n.renderFn == nil {
+		return n.root
 	}
 
-	// Create a temp buffer for the reconciler (it needs one but we won't use it)
-	// The reconciler's Render method does: update phase -> render phase -> cleanup
-	// We only want the update phase, but they're coupled.
-	// For now, let the reconciler do its thing, then extract the tree for our renderer.
-	// TODO: Refactor reconciler to separate Update() from Render()
+	// The reconciler manages hook context through its render cycle
+	// For now, we need to call reconciler.Render() to get proper hook context
+	// but we'll discard its rendering output and use the PipelineRenderer instead
+	//
+	// TODO: Add reconciler.Update() method that only manages state/hooks without rendering
 
-	// Use a null buffer that we discard
 	nullBuf := paint.NewBuffer(1, 1)
 	n.reconciler.Render(component.PaintContext{
 		Bounds: paint.Rect{X: 0, Y: 0, Width: 1, Height: 1},
 	}, nullBuf, func() rtui.VNode {
-		if n.renderFn != nil {
-			return n.renderFn()
-		}
-		return n.root
+		return n.renderFn()
 	})
 
-	// Get the rendered tree from reconciler
-	return n.reconciler.GetRenderedRoot()
+	// Return the raw render function result for PipelineRenderer
+	// NOT the reconciler's GetRenderedRoot() which may have lost information
+	return n.renderFn()
 }
 
 // nonFiberRender renders the VNode tree in non-Fiber mode
@@ -280,7 +274,7 @@ func (n *DeclarativeNode) nonFiberRender() rtui.VNode {
 	return n.root
 }
 
-// applyFocusState applies focus state to the VNode tree (both modes)
+// applyFocusState applies focus state to the VNode tree
 func (n *DeclarativeNode) applyFocusState() {
 	if n.focusMgr == nil || n.root == nil {
 		return
