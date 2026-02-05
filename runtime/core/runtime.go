@@ -348,7 +348,7 @@ func (r *Runtime) layout() error {
 		0, r.windowHeight,
 	)
 
-	result := r.layoutEngine.Layout([]layout.Node{r.root}, constraints)
+	result := r.layoutEngine.Layout(r.root, constraints)
 
 	// 更新根节点尺寸
 	if len(result.Boxes) > 0 {
