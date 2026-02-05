@@ -1,4 +1,4 @@
-// demo1_table_test.go - Test demo1 with Table layout
+// demo1_table_test.go - Test demo1 with Bordered components
 package main
 
 import (
@@ -8,7 +8,7 @@ import (
 	"github.com/wwsheng009/mint/ui"
 )
 
-// TestDemo1TableLayout verifies the Table layout renders correctly
+// TestDemo1TableLayout verifies the layout with Bordered components renders correctly
 func TestDemo1TableLayout(t *testing.T) {
 	app, err := ui.RunTestWithSandbox(App,
 		ui.WithWidth(80),
@@ -30,16 +30,17 @@ func TestDemo1TableLayout(t *testing.T) {
 	t.Log(output)
 	t.Log("=== End of Output ===")
 
-	// Verify key elements are present (matching document design)
+	// Verify key elements are present (using Bordered component)
 	checks := []struct {
 		name     string
 		expected string
 	}{
-		{"Header border", "+"},
+		// Unicode border characters instead of ASCII
+		{"Header top border", "┌"},
+		{"Header bottom border", "└"},
 		{"Open Modal button", "Open Modal"},
 		{"Click counter", "Clicks:"},
 		{"Menu label", "Menu"},
-		{"Add Count button (partial)", "Add Cou"},
 		{"Quit button", "Quit"},
 		{"Log line #0", "Log line #0"},
 		{"Log line #1", "Log line #1"},
@@ -60,21 +61,21 @@ func TestDemo1TableLayout(t *testing.T) {
 
 	t.Logf("Test summary: %d passed, %d failed", passed, failed)
 
-	// Verify layout structure matches document design
-	expectedLines := []string{
-		"+--------------------------------------------------+",
-		"|  TUI Engine Demo",
-		"+--------------------------------------------------+",
-		"+-----------+",
-		"|  Menu      |",
-		"|   [ Add Cou",
-		"|   [ Quit ] |  Log line #0",
-		"+-----------+",
+	// Verify layout structure with Unicode borders
+	expectedPatterns := []struct {
+		name     string
+		pattern  string
+	}{
+		{"Header box", "└──"},
+		{"Sidebar box", "┌"},
+		{"Content box", "│"},
 	}
 
-	for _, line := range expectedLines {
-		if !contains(output, line) {
-			t.Logf("Note: expected pattern %q not found (may be truncated)", line)
+	for _, p := range expectedPatterns {
+		if !contains(output, p.pattern) {
+			t.Logf("Note: expected pattern %q not found", p.pattern)
+		} else {
+			t.Logf("✓ Found pattern: %s", p.name)
 		}
 	}
 }

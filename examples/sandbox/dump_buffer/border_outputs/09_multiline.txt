@@ -1,0 +1,24 @@
+┌─── Multiple Lines ───┐                                                        
+│Line 1: First content │                                                        
+│Line 2: Second content│                                                        
+│Line 3: Third content │                                                        
+└──────────────────────┘                                                        
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                

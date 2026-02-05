@@ -567,7 +567,8 @@ func (n *DeclarativeNode) MeasureVNodeWidth(vnode rtui.VNode) int {
 	case rtui.VNodeElement:
 		// Check if it's a button
 		if btn, ok := vnode.(interface{ Label() string }); ok {
-			return len(btn.Label()) + 2 // [label] with brackets
+			// Buttons render as "[ label ]" (bracket + space + label + space + bracket)
+			return len(btn.Label()) + 4
 		}
 		// For elements, try text content
 		if content := rtui.GetTextContent(vnode); content != "" {
@@ -646,6 +647,11 @@ func (n *DeclarativeNode) MeasureVNodeHeight(vnode rtui.VNode) int {
 		if h := props.GetInt("height"); h > 0 {
 			return h
 		}
+	}
+
+	// Check if it's a button - buttons are single line
+	if btn, ok := vnode.(interface{ Label() string }); ok && btn.Label() != "" {
+		return 1
 	}
 
 	// Check the VNode type

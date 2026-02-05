@@ -47,7 +47,7 @@ func App() ui.VNode {
 		items[i] = fmt.Sprintf("Log line #%d", i)
 	}
 
-	// Build main content using Table for row-based layout
+	// Build main content using VStack for vertical layout
 	mainContent := ui.VStack(
 		Header(count, showModal, setShowModal, setCount),
 		MainBody(count, setCount, input, setInput, items),
@@ -66,284 +66,166 @@ func App() ui.VNode {
 	return mainContent
 }
 
-// Header demonstrates state + layout
+// Header demonstrates state + layout with Bordered component
 func Header(count int, showModal bool, setShowModal func(bool), setCount func(interface{})) ui.VNode {
-	return ui.VStack(
-		app.NewTextBuilder("+--------------------------------------------------+").
-			FgColor("blue").
+	headerContent := ui.HStack(
+		app.NewTextBuilder("TUI Engine Demo").
+			Bold(true).
+			FgColor("white").
+			BgColor("blue").
 			Build(),
-		ui.HStack(
-			app.NewTextBuilder("| ").
-				FgColor("blue").
-				Build(),
-			app.NewTextBuilder("TUI Engine Demo").
-				Bold(true).
-				FgColor("white").
-				BgColor("blue").
-				Build(),
-			app.NewTextBuilder("              ").
-				BgColor("blue").
-				Build(),
-			app.ButtonBuilder("[Open Modal]").
-				OnClick(func() {
-					setShowModal(true)
-				}).
-				Build(),
-			app.NewTextBuilder(" ").
-				BgColor("blue").
-				Build(),
-			app.NewTextBuilder(fmt.Sprintf("Clicks: %d", count)).
-				BgColor("blue").
-				FgColor("yellow").
-				Build(),
-			app.NewTextBuilder(" |").
-				FgColor("blue").
-				BgColor("blue").
-				Build(),
-		),
-		app.NewTextBuilder("+--------------------------------------------------+").
-			FgColor("blue").
+		app.NewTextBuilder("              ").
+			BgColor("blue").
+			Build(),
+		app.ButtonBuilder("[Open Modal]").
+			OnClick(func() {
+				setShowModal(true)
+			}).
+			Build(),
+		app.NewTextBuilder(" ").
+			BgColor("blue").
+			Build(),
+		app.NewTextBuilder(fmt.Sprintf("Clicks: %d", count)).
+			BgColor("blue").
+			FgColor("yellow").
 			Build(),
 	)
+
+	return ui.Bordered().
+		Color("blue").
+		Child(headerContent).
+		Build()
 }
 
-// MainBody uses Table layout to align sidebar and content area row by row
+// MainBody uses VStack/HStack with Bordered components for layout
 // Matches the design from framework/docs/ui/demo/demo1.md:
 //
-//	| Menu      | [ Input box....................... ] |
-//	| Add Count |--------------------------------------|
-//	| Quit      | Log line #0                          |
-//	|           | Log line #1                          |
-//	|           | ...                                  |
-//	|           | (scroll)                             |
-//	+-----------+--------------------------------------+
+//	┌───────────┬──────────────────────────────────────────┐
+//	│ Menu      │ [ Input box............................... ] │
+//	├───────────┼──────────────────────────────────────────┤
+//	│ Add Count │ Log line #0                               │
+//	├───────────┼──────────────────────────────────────────┤
+//	│ Quit      │ Log line #1                               │
+//	├───────────┼──────────────────────────────────────────┤
+//	│           │ Log line #2                               │
+//	├───────────┼──────────────────────────────────────────┤
+//	│           │ Log line #3                               │
+//	├───────────┼──────────────────────────────────────────┤
+//	│           │ Log line #4                               │
+//	├───────────┼──────────────────────────────────────────┤
+//	│           │ Log line #5 ...                            │
+//	└───────────┴──────────────────────────────────────────┘
 func MainBody(count int, setCount func(interface{}), input string, setInput func(string), items []string) ui.VNode {
-	return ui.Table(
-		// Border top row
-		ui.Row(
-			ui.Cell(app.NewTextBuilder("+-----------+").FgColor("blue").Build()),
-			ui.Cell(app.NewTextBuilder("--------------------------------------+").FgColor("blue").Build()),
-		),
-
-		// Row 1: "Menu" | Input box
-		ui.Row(
-			ui.Cell(ui.HStack(
-				app.NewTextBuilder("| ").FgColor("blue").Build(),
-				app.NewTextBuilder("Menu").Bold(true).Underline(true).Build(),
-			)),
-			ui.Cell(ui.HStack(
-				app.NewTextBuilder("| ").FgColor("blue").Build(),
-				app.InputBuilder().Value(input).Placeholder("Type something...").OnChange(setInput).Build(),
-			)),
-		),
-
-		// Row 2: "Add Count" | Separator
-		ui.Row(
-			ui.Cell(ui.HStack(
-				app.NewTextBuilder("| ").FgColor("blue").Build(),
-				app.ButtonBuilder("Add Count").OnClick(func() {
-					setCount(func(c int) int { return c + 1 })
-				}).Build(),
-			)),
-			ui.Cell(ui.HStack(
-				app.NewTextBuilder("|").FgColor("blue").Build(),
-				app.NewTextBuilder("--------------------------------------").FgColor("blue").Build(),
-			)),
-		),
-
-		// Row 3: "Quit" | Log line #0
-		ui.Row(
-			ui.Cell(ui.HStack(
-				app.NewTextBuilder("| ").FgColor("blue").Build(),
-				app.ButtonBuilder("Quit").BgColor("red").FgColor("white").OnClick(func() {
-					ui.Quit()
-				}).Build(),
-			)),
-			ui.Cell(ui.HStack(
-				app.NewTextBuilder("| ").FgColor("blue").Build(),
-				app.NewTextBuilder(items[0]).FgColor("gray").Build(),
-			)),
-		),
-
-		// Row 4: Empty | Log line #1
-		ui.Row(
-			ui.Cell(ui.HStack(
-				app.NewTextBuilder("|").FgColor("blue").Build(),
-				app.NewTextBuilder("           ").Build(),
-			)),
-			ui.Cell(ui.HStack(
-				app.NewTextBuilder("| ").FgColor("blue").Build(),
-				app.NewTextBuilder(items[1]).FgColor("gray").Build(),
-			)),
-		),
-
-		// Row 5: Empty | Log line #2
-		ui.Row(
-			ui.Cell(ui.HStack(
-				app.NewTextBuilder("|").FgColor("blue").Build(),
-				app.NewTextBuilder("           ").Build(),
-			)),
-			ui.Cell(ui.HStack(
-				app.NewTextBuilder("| ").FgColor("blue").Build(),
-				app.NewTextBuilder(items[2]).FgColor("gray").Build(),
-			)),
-		),
-
-		// Row 6: Empty | Log line #3
-		ui.Row(
-			ui.Cell(ui.HStack(
-				app.NewTextBuilder("|").FgColor("blue").Build(),
-				app.NewTextBuilder("           ").Build(),
-			)),
-			ui.Cell(ui.HStack(
-				app.NewTextBuilder("| ").FgColor("blue").Build(),
-				app.NewTextBuilder(items[3]).FgColor("gray").Build(),
-			)),
-		),
-
-		// Row 7: Empty | Log line #4
-		ui.Row(
-			ui.Cell(ui.HStack(
-				app.NewTextBuilder("|").FgColor("blue").Build(),
-				app.NewTextBuilder("           ").Build(),
-			)),
-			ui.Cell(ui.HStack(
-				app.NewTextBuilder("| ").FgColor("blue").Build(),
-				app.NewTextBuilder(items[4]).FgColor("gray").Build(),
-			)),
-		),
-
-		// Row 8: Empty | Log line #5 + "..."
-		ui.Row(
-			ui.Cell(ui.HStack(
-				app.NewTextBuilder("|").FgColor("blue").Build(),
-				app.NewTextBuilder("           ").Build(),
-			)),
-			ui.Cell(ui.HStack(
-				app.NewTextBuilder("| ").FgColor("blue").Build(),
-				app.NewTextBuilder(items[5]).FgColor("gray").Build(),
-				app.NewTextBuilder(" ...").FgColor("dark-gray").Italic(true).Build(),
-			)),
-		),
-
-		// Border bottom row
-		ui.Row(
-			ui.Cell(app.NewTextBuilder("+-----------+").FgColor("blue").Build()),
-			ui.Cell(app.NewTextBuilder("--------------------------------------+").FgColor("blue").Build()),
-		),
+	// Left sidebar with menu buttons
+	sidebar := ui.VStack(
+		app.NewTextBuilder("Menu").
+			Bold(true).
+			Underline(true).
+			Build(),
+		app.ButtonBuilder("Add Count").
+			OnClick(func() {
+				setCount(func(c int) int { return c + 1 })
+			}).
+			Build(),
+		app.ButtonBuilder("Quit").
+			BgColor("red").
+			FgColor("white").
+			OnClick(func() {
+				ui.Quit()
+			}).
+			Build(),
 	)
-}
 
-// renderVisibleItems renders log lines in the content area
-// Note: This function is no longer used, kept for reference
-func renderVisibleItems(items []string, offset int, visibleCount int) ui.VNode {
-	children := make([]ui.VNode, 0, visibleCount)
-
-	end := offset + visibleCount
-	if end > len(items) {
-		end = len(items)
-	}
-
-	for i := offset; i < end; i++ {
-		children = append(children,
-			app.NewTextBuilder(fmt.Sprintf(" %s", items[i])).
+	// Right content area with input and log lines
+	contentArea := ui.VStack(
+		app.InputBuilder().
+			Value(input).
+			Placeholder("Type something...").
+			OnChange(setInput).
+			Build(),
+		app.NewTextBuilder("──────────────────────────────").
+			FgColor("blue").
+			Build(),
+		app.NewTextBuilder(items[0]).
+			FgColor("gray").
+			Build(),
+		app.NewTextBuilder(items[1]).
+			FgColor("gray").
+			Build(),
+		app.NewTextBuilder(items[2]).
+			FgColor("gray").
+			Build(),
+		app.NewTextBuilder(items[3]).
+			FgColor("gray").
+			Build(),
+		app.NewTextBuilder(items[4]).
+			FgColor("gray").
+			Build(),
+		ui.HStack(
+			app.NewTextBuilder(items[5]).
 				FgColor("gray").
 				Build(),
-		)
-	}
-
-	if len(items) > visibleCount {
-		children = append(children,
 			app.NewTextBuilder(" ...").
 				FgColor("dark-gray").
 				Italic(true).
 				Build(),
-		)
-	}
+		),
+	)
 
+	// Combine sidebar and content with borders
 	return ui.HStack(
-		app.NewTextBuilder("|").FgColor("blue").Build(),
-		ui.VStack(children...),
-		app.NewTextBuilder("|").FgColor("blue").Build(),
+		ui.Bordered().
+			Color("blue").
+			Child(sidebar).
+			Build(),
+		ui.Bordered().
+			Color("blue").
+			Child(contentArea).
+			Build(),
 	)
 }
 
-// ConfirmModal demonstrates Layer + Animation + Focus Trap
+// ConfirmModal demonstrates Layer + Animation + Focus Trap with Bordered component
 func ConfirmModal(onClose func()) ui.VNode {
+	modalContent := ui.VStack(
+		ui.Text(""),
+		ui.HStack(
+			ui.Text("       "),
+			app.ButtonBuilder("[Cancel]").
+				OnClick(onClose).
+				Build(),
+			ui.Text(" "),
+			app.ButtonBuilder("[OK]").
+				BgColor("green").
+				FgColor("white").
+				OnClick(onClose).
+				Build(),
+		),
+		ui.Text(""),
+	)
+
 	return ui.VStack(
 		ui.Text(""),
 		ui.HStack(
-			ui.Text("         "),
-			ui.VStack(
-				app.NewTextBuilder("+--------------------------------------+").
-					FgColor("yellow").
-					Build(),
-				ui.HStack(
-					app.NewTextBuilder("| ").
-						FgColor("yellow").
-						Build(),
-					app.NewTextBuilder("           ").
-						Build(),
-					app.NewTextBuilder("|").
-						FgColor("yellow").
-						Build(),
-				),
-				ui.HStack(
-					app.NewTextBuilder("| ").
-						FgColor("yellow").
-						Build(),
-					app.NewTextBuilder("    *** Are you sure? ***").
-						Bold(true).
-						FgColor("yellow").
-						Build(),
-					app.NewTextBuilder("     |").
-						FgColor("yellow").
-						Build(),
-				),
-				ui.HStack(
-					app.NewTextBuilder("| ").
-						FgColor("yellow").
-						Build(),
-					app.NewTextBuilder("           ").
-						Build(),
-					app.NewTextBuilder("|").
-						FgColor("yellow").
-						Build(),
-				),
-				ui.HStack(
-					app.NewTextBuilder("| ").
-						FgColor("yellow").
-						Build(),
-					ui.HStack(
-						ui.Text("       "),
-						app.ButtonBuilder("[Cancel]").
-							OnClick(onClose).
-							Build(),
-						ui.Text(" "),
-						app.ButtonBuilder("[OK]").
-							BgColor("green").
-							FgColor("white").
-							OnClick(onClose).
-							Build(),
+			ui.Text("        "),
+			ui.Bordered().
+				Color("yellow").
+				Style("double").
+				Child(
+					ui.VStack(
+						ui.Text(""),
+						ui.HStack(
+							ui.Text("       "),
+							app.NewTextBuilder("*** Are you sure? ***").
+								Bold(true).
+								FgColor("yellow").
+								Build(),
+						),
+						ui.Text(""),
+						modalContent,
 					),
-					app.NewTextBuilder("       |").
-						FgColor("yellow").
-						Build(),
-				),
-				ui.HStack(
-					app.NewTextBuilder("| ").
-						FgColor("yellow").
-						Build(),
-					app.NewTextBuilder("           ").
-						Build(),
-					app.NewTextBuilder("|").
-						FgColor("yellow").
-						Build(),
-				),
-				app.NewTextBuilder("+--------------------------------------+").
-					FgColor("yellow").
-					Build(),
-			),
+				).
+				Build(),
 		),
 		ui.Text(""),
 		app.NewTextBuilder("Press ESC to close").
