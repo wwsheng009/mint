@@ -119,6 +119,10 @@ type CellsAtPosition struct {
 // Render generates border cells around the given content area
 // The content area is defined by (x, y, width, height)
 // Border is rendered OUTSIDE the content area
+//
+// When a label is present and is wider than the content, the border is expanded
+// to accommodate the label. The actual content width inside the border remains
+// at least contentWidth.
 func (r *Renderer) Render(x, y, contentWidth, contentHeight int) []Cell {
 	if r.config.Style == StyleNone {
 		return nil
@@ -139,45 +143,60 @@ func (r *Renderer) Render(x, y, contentWidth, contentHeight int) []Cell {
 	// Get border characters
 	cornerTL, cornerTR, cornerBL, cornerBR, horizontal, vertical := r.GetBorderChars()
 
+	// Calculate the actual content width inside the border
+	// If label is present and wider than content, expand to fit the label
+	innerWidth := contentWidth
+	if r.config.Label != "" {
+		labelRunes := []rune(" " + r.config.Label + " ")
+		labelWidth := len(labelRunes)
+		// Ensure inner width is at least label width
+		if labelWidth > innerWidth {
+			innerWidth = labelWidth
+		}
+	}
+
 	// === Top border (with optional label) ===
 	if r.config.Label == "" {
 		// Simple top border: cornerTL + horizontal + cornerTR
 		cells = append(cells, Cell{cornerTL, x, y, borderStyle})
-		for i := 0; i < contentWidth; i++ {
+		for i := 0; i < innerWidth; i++ {
 			cells = append(cells, Cell{horizontal, x + 1 + i, y, borderStyle})
 		}
-		cells = append(cells, Cell{cornerTR, x + contentWidth + 1, y, borderStyle})
+		cells = append(cells, Cell{cornerTR, x + innerWidth + 1, y, borderStyle})
 	} else {
 		// Top border with label
 		labelRunes := []rune(" " + r.config.Label + " ")
 		labelWidth := len(labelRunes)
-		padding := (contentWidth - labelWidth) / 2
+
+		// Calculate padding to center the label
+		padding := (innerWidth - labelWidth) / 2
 		if padding < 0 {
 			padding = 0
 		}
 
-		// Corner TL + horizontal padding
+		// Corner TL
 		cells = append(cells, Cell{cornerTL, x, y, borderStyle})
-		for i := 0; i < padding+1; i++ {
+
+		// Horizontal padding before label
+		for i := 0; i < padding; i++ {
 			cells = append(cells, Cell{horizontal, x + 1 + i, y, borderStyle})
 		}
 
-		// Label
-		labelX := x + 1 + padding + 1
+		// Label (centered)
+		labelX := x + 1 + padding
 		for i, ch := range labelRunes {
 			cells = append(cells, Cell{ch, labelX + i, y, labelStyle})
 		}
 
-		// Remaining horizontal + corner TR
-		remainingX := labelX + labelWidth
-		remainingCount := contentWidth - padding - labelWidth + 2
-		if remainingCount < 0 {
-			remainingCount = 0
-		}
+		// Horizontal padding after label
+		afterLabelX := labelX + labelWidth
+		remainingCount := innerWidth - padding - labelWidth
 		for i := 0; i < remainingCount; i++ {
-			cells = append(cells, Cell{horizontal, remainingX + i, y, borderStyle})
+			cells = append(cells, Cell{horizontal, afterLabelX + i, y, borderStyle})
 		}
-		cells = append(cells, Cell{cornerTR, x + contentWidth + 1, y, borderStyle})
+
+		// Corner TR
+		cells = append(cells, Cell{cornerTR, x + innerWidth + 1, y, borderStyle})
 	}
 
 	// === Middle rows (left border + content area + right border) ===
@@ -185,17 +204,17 @@ func (r *Renderer) Render(x, y, contentWidth, contentHeight int) []Cell {
 		rowY := y + 1 + row
 		// Left border
 		cells = append(cells, Cell{vertical, x, rowY, borderStyle})
-		// Right border
-		cells = append(cells, Cell{vertical, x + contentWidth + 1, rowY, borderStyle})
+		// Right border (at the expanded width)
+		cells = append(cells, Cell{vertical, x + innerWidth + 1, rowY, borderStyle})
 	}
 
 	// === Bottom border ===
 	bottomY := y + 1 + contentHeight
 	cells = append(cells, Cell{cornerBL, x, bottomY, borderStyle})
-	for i := 0; i < contentWidth; i++ {
+	for i := 0; i < innerWidth; i++ {
 		cells = append(cells, Cell{horizontal, x + 1 + i, bottomY, borderStyle})
 	}
-	cells = append(cells, Cell{cornerBR, x + contentWidth + 1, bottomY, borderStyle})
+	cells = append(cells, Cell{cornerBR, x + innerWidth + 1, bottomY, borderStyle})
 
 	return cells
 }

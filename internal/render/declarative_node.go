@@ -515,10 +515,10 @@ func (n *DeclarativeNode) paintBordered(vnode rtui.VNode, _ interface{ RenderBor
 	})
 
 	// Paint content inside border
+	// Just paint once at the offset - the child (e.g., VStack) will handle
+	// painting all its children at the correct relative positions
 	offsetX, offsetY := renderer.GetContentOffset()
-	for row := 0; row < contentHeight; row++ {
-		n.PaintVNode(child, x+offsetX, y+offsetY+row, buf)
-	}
+	n.PaintVNode(child, x+offsetX, y+offsetY, buf)
 }
 
 // MeasureVNodeWidth measures the width of a VNode for horizontal layout
@@ -534,6 +534,29 @@ func (n *DeclarativeNode) MeasureVNodeWidth(vnode rtui.VNode) int {
 			return n.MeasureVNodeWidth(children[0])
 		}
 		return 0
+	}
+
+	// Check if it's a bordered element - measure total width including border
+	if _, ok := vnode.(interface{ RenderBorder(int, int) []rtui.VNode }); ok {
+		children := vnode.Children()
+		if len(children) > 0 {
+			contentWidth := n.MeasureVNodeWidth(children[0])
+			// Get label if present
+			label := ""
+			if getLabel, ok := vnode.(interface{ GetBorderLabel() string }); ok {
+				label = getLabel.GetBorderLabel()
+			}
+			// Calculate inner width (content or label, whichever is wider)
+			innerWidth := contentWidth
+			if label != "" {
+				labelWidth := len(" " + label + " ")
+				if labelWidth > innerWidth {
+					innerWidth = labelWidth
+				}
+			}
+			// Total width = border (left + right = 2) + inner width
+			return innerWidth + 2
+		}
 	}
 
 	// Check the VNode type first
@@ -556,10 +579,11 @@ func (n *DeclarativeNode) MeasureVNodeWidth(vnode rtui.VNode) int {
 				return len(label) + 2 // [label]
 			}
 		}
-		return 0
+		// Don't return 0 - fall through to container handling for VStack/HStack
 	}
 
-	// For containers, calculate width as sum of children's widths
+	// For containers, calculate width based on layout type
+	// This handles VStack/HStack that don't have direct text content
 	layoutInfo := rtui.GetLayoutInfo(vnode)
 	if layoutInfo.IsHorizontal {
 		// HStack: sum of children's widths
@@ -569,8 +593,15 @@ func (n *DeclarativeNode) MeasureVNodeWidth(vnode rtui.VNode) int {
 		}
 		return width
 	}
-	// VStack: return 0 (no width contribution)
-	return 0
+	// VStack: return maximum width of all children
+	maxWidth := 0
+	for _, child := range vnode.Children() {
+		childWidth := n.MeasureVNodeWidth(child)
+		if childWidth > maxWidth {
+			maxWidth = childWidth
+		}
+	}
+	return maxWidth
 }
 
 // MeasureVNodeHeight measures the height of a VNode for vertical layout
@@ -598,6 +629,16 @@ func (n *DeclarativeNode) MeasureVNodeHeight(vnode rtui.VNode) int {
 			return n.MeasureVNodeHeight(children[0])
 		}
 		return 1
+	}
+
+	// Check if it's a bordered element - measure total height including border
+	if _, ok := vnode.(interface{ RenderBorder(int, int) []rtui.VNode }); ok {
+		children := vnode.Children()
+		if len(children) > 0 {
+			contentHeight := n.MeasureVNodeHeight(children[0])
+			// Total height = border (top + bottom = 2) + content height
+			return contentHeight + 2
+		}
 	}
 
 	// Check for explicit height in props
