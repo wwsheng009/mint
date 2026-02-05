@@ -80,11 +80,27 @@ func (e *Engine) computeLayout(nodes []Node, constraints Constraints) *LayoutRes
 }
 
 // measureNodes 测量节点
+// 优化：跳过未标记为脏的节点
 func (e *Engine) measureNodes(nodes []Node, constraints Constraints) {
 	for _, node := range nodes {
+		// 检查节点是否支持脏标记
+		if dirtyable, ok := node.(Dirtyable); ok {
+			if !dirtyable.IsLayoutDirty() {
+				// 节点未标记为脏，跳过测量（使用缓存值）
+				e.stats.DirtyOptimizations++
+				continue
+			}
+		}
+
+		// 测量节点
 		if measurable, ok := node.(Measurable); ok {
 			_ = measurable.Measure(constraints)
 			// 测量结果会缓存到节点内部
+		}
+
+		// 清除脏标记
+		if dirtyable, ok := node.(Dirtyable); ok {
+			dirtyable.ClearLayoutDirty()
 		}
 	}
 }

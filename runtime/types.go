@@ -2,6 +2,9 @@ package runtime
 
 // Core types for Yao TUI Runtime v1
 
+// Infinity represents an unbounded constraint value
+const Infinity = 1<<30 - 1
+
 // BoxConstraints defines the min/max constraints for layout
 type BoxConstraints struct {
 	MinWidth, MaxWidth   int
@@ -38,6 +41,63 @@ func (bc BoxConstraints) Loosen() BoxConstraints {
 		MinHeight: 0,
 		MaxHeight: bc.MaxHeight,
 	}
+}
+
+// TightConstraints creates constraints with fixed width and height
+func TightConstraints(width, height int) BoxConstraints {
+	return BoxConstraints{
+		MinWidth:  width,
+		MaxWidth:  width,
+		MinHeight: height,
+		MaxHeight: height,
+	}
+}
+
+// LooseConstraints creates constraints with only maximum bounds
+func LooseConstraints(maxWidth, maxHeight int) BoxConstraints {
+	return BoxConstraints{
+		MinWidth:  0,
+		MaxWidth:  maxWidth,
+		MinHeight: 0,
+		MaxHeight: maxHeight,
+	}
+}
+
+// UnboundedConstraints creates constraints with no bounds (except Infinity)
+func UnboundedConstraints() BoxConstraints {
+	return BoxConstraints{
+		MinWidth:  0,
+		MaxWidth:  Infinity,
+		MinHeight: 0,
+		MaxHeight: Infinity,
+	}
+}
+
+// IsBounded returns true if the constraints have an upper bound
+func (bc BoxConstraints) IsBounded() bool {
+	return bc.MaxWidth < Infinity || bc.MaxHeight < Infinity
+}
+
+// ConstrainWidth clamps a width within the constraints
+func (bc BoxConstraints) ConstrainWidth(width int) int {
+	if width < bc.MinWidth {
+		return bc.MinWidth
+	}
+	if width > bc.MaxWidth {
+		return bc.MaxWidth
+	}
+	return width
+}
+
+// ConstrainHeight clamps a height within the constraints
+func (bc BoxConstraints) ConstrainHeight(height int) int {
+	if height < bc.MinHeight {
+		return bc.MinHeight
+	}
+	if height > bc.MaxHeight {
+		return bc.MaxHeight
+	}
+	return height
 }
 
 // clamp clamps a value between min and max

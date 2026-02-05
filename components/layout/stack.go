@@ -80,10 +80,10 @@ func (l *LayoutNode) Measure(constraints runtime.BoxConstraints) runtime.Size {
 
 	children := l.Children()
 	if len(children) == 0 {
-		// Empty layout takes minimum space
+		// Empty layout takes minimum space specified by constraints
 		return runtime.Size{
-			Width:  max(constraints.MinWidth, 0),
-			Height: max(constraints.MinHeight, 0),
+			Width:  constraints.MinWidth,
+			Height: constraints.MinHeight,
 		}
 	}
 
@@ -91,77 +91,72 @@ func (l *LayoutNode) Measure(constraints runtime.BoxConstraints) runtime.Size {
 	paddingWidth := l.padding[1] + l.padding[3] // left + right
 	paddingHeight := l.padding[0] + l.padding[2] // top + bottom
 
+	// Calculate inner constraints (subtract padding from available space)
+	innerMaxWidth := constraints.MaxWidth - paddingWidth
+	innerMaxHeight := constraints.MaxHeight - paddingHeight
+	if innerMaxWidth < 0 {
+		innerMaxWidth = 0
+	}
+	if innerMaxHeight < 0 {
+		innerMaxHeight = 0
+	}
+
 	var totalWidth, totalHeight int
 
 	if l.direction == DirectionRow {
 		// HStack: measure total width and max height
 		maxChildHeight := 0
 		for i, child := range l.Children() {
-			childSize := l.measureChild(child, runtime.BoxConstraints{
+			// For HStack, children get unlimited width (to measure natural size)
+			// but height is constrained to the container's height
+			childConstraints := runtime.BoxConstraints{
 				MinWidth:  0,
-				MaxWidth:  constraints.MaxWidth - paddingWidth,
+				MaxWidth:  runtime.Infinity, // Let children expand to natural width
 				MinHeight: 0,
-				MaxHeight: constraints.MaxHeight - paddingHeight,
-			})
+				MaxHeight: innerMaxHeight,
+			}
+			childSize := l.measureChild(child, childConstraints)
 			totalWidth += childSize.Width
 			if childSize.Height > maxChildHeight {
 				maxChildHeight = childSize.Height
 			}
-			// Add gap
+			// Add gap between children
 			if i < len(children)-1 {
 				totalWidth += l.gap
 			}
 		}
 		totalHeight = maxChildHeight
-
-		// Apply alignment to height
-		if totalHeight < constraints.MinHeight {
-			totalHeight = constraints.MinHeight
-		}
 	} else {
 		// VStack: measure max width and total height
 		maxChildWidth := 0
 		for i, child := range l.Children() {
-			childSize := l.measureChild(child, runtime.BoxConstraints{
+			// For VStack, children get width constraint but unlimited height
+			// (to measure natural height)
+			childConstraints := runtime.BoxConstraints{
 				MinWidth:  0,
-				MaxWidth:  constraints.MaxWidth - paddingWidth,
+				MaxWidth:  innerMaxWidth,
 				MinHeight: 0,
-				MaxHeight: constraints.MaxHeight - paddingHeight,
-			})
+				MaxHeight: runtime.Infinity, // Let children expand to natural height
+			}
+			childSize := l.measureChild(child, childConstraints)
 			if childSize.Width > maxChildWidth {
 				maxChildWidth = childSize.Width
 			}
 			totalHeight += childSize.Height
-			// Add gap
+			// Add gap between children
 			if i < len(children)-1 {
 				totalHeight += l.gap
 			}
 		}
 		totalWidth = maxChildWidth
-
-		// Apply alignment to width
-		if totalWidth < constraints.MinWidth {
-			totalWidth = constraints.MinWidth
-		}
 	}
 
 	// Add padding
 	totalWidth += paddingWidth
 	totalHeight += paddingHeight
 
-	// Apply constraints
-	if totalWidth < constraints.MinWidth {
-		totalWidth = constraints.MinWidth
-	}
-	if totalWidth > constraints.MaxWidth && constraints.MaxWidth > 0 {
-		totalWidth = constraints.MaxWidth
-	}
-	if totalHeight < constraints.MinHeight {
-		totalHeight = constraints.MinHeight
-	}
-	if totalHeight > constraints.MaxHeight && constraints.MaxHeight > 0 {
-		totalHeight = constraints.MaxHeight
-	}
+	// Apply constraints using the helper method
+	totalWidth, totalHeight = constraints.Constrain(totalWidth, totalHeight)
 
 	return runtime.Size{Width: totalWidth, Height: totalHeight}
 }

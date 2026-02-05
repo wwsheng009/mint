@@ -226,3 +226,14 @@ type Measurable interface {
 	// Measure 测量节点在给定约束下的理想尺寸
 	Measure(constraints Constraints) Size
 }
+
+// Dirtyable 脏标记节点（可选接口）
+// 节点可以实现此接口以支持增量布局优化
+type Dirtyable interface {
+	// IsLayoutDirty 返回节点是否需要重新布局
+	IsLayoutDirty() bool
+	// ClearLayoutDirty 清除布局脏标记
+	ClearLayoutDirty()
+	// MarkLayoutDirty 标记节点为需要布局
+	MarkLayoutDirty()
+}

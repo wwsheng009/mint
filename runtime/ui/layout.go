@@ -3,6 +3,7 @@ package ui
 import (
 	"strings"
 
+	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/style"
 )
 
@@ -576,5 +577,95 @@ func (bn *BorderedNode) GetBorderChars() (cornerTL, cornerTR, cornerBL, cornerBR
 	default: // BorderSingle - continuous line style
 		return '┌', '┐', '└', '┘', '─', '│'
 	}
+}
+
+// =============================================================================
+// Measurable Interface Implementation
+// =============================================================================
+
+// Measure calculates the size of the bordered container
+// The border adds 2 characters to width and height (1 on each side)
+// If a label is present, the width expands to accommodate it
+func (bn *BorderedNode) Measure(constraints runtime.BoxConstraints) runtime.Size {
+	if bn == nil {
+		return runtime.Size{Width: 0, Height: 0}
+	}
+
+	borderWidth := 0
+	borderHeight := 0
+	if bn.borderStyle != BorderNone {
+		borderWidth = 2  // 1 char on left, 1 char on right
+		borderHeight = 2 // 1 char on top, 1 char on bottom
+	}
+
+	// Calculate label width if present
+	labelWidth := 0
+	if bn.borderLabel != "" && bn.borderStyle != BorderNone {
+		labelWidth = len(bn.borderLabel) + 2 // +2 for spaces around label
+	}
+
+	// Measure child content
+	var contentWidth, contentHeight int
+	children := bn.Children()
+	if len(children) > 0 {
+		child := children[0]
+		if measurable, ok := child.(interface {
+			Measure(runtime.BoxConstraints) runtime.Size
+		}); ok {
+			// Child implements Measurable - measure with inner constraints
+			innerConstraints := runtime.BoxConstraints{
+				MinWidth:  max(0, constraints.MinWidth-borderWidth),
+				MaxWidth:  max(0, constraints.MaxWidth-borderWidth),
+				MinHeight: max(0, constraints.MinHeight-borderHeight),
+				MaxHeight: max(0, constraints.MaxHeight-borderHeight),
+			}
+			contentSize := measurable.Measure(innerConstraints)
+			contentWidth = contentSize.Width
+			contentHeight = contentSize.Height
+		} else {
+			// Fallback: estimate child size
+			contentWidth = 10  // Default minimum
+			contentHeight = 1
+		}
+	} else {
+		// No child - minimum size
+		contentWidth = 1
+		contentHeight = 1
+	}
+
+	// Inner width is the larger of content and label
+	innerWidth := contentWidth
+	if labelWidth > innerWidth {
+		innerWidth = labelWidth
+	}
+
+	// Total size = content + border
+	totalWidth := innerWidth + borderWidth
+	totalHeight := contentHeight + borderHeight
+
+	// Apply constraints
+	if totalWidth < constraints.MinWidth {
+		totalWidth = constraints.MinWidth
+	}
+	if totalWidth > constraints.MaxWidth && constraints.MaxWidth > 0 {
+		totalWidth = constraints.MaxWidth
+	}
+	if totalHeight < constraints.MinHeight {
+		totalHeight = constraints.MinHeight
+	}
+	if totalHeight > constraints.MaxHeight && constraints.MaxHeight > 0 {
+		totalHeight = constraints.MaxHeight
+	}
+
+	// Apply explicit style dimensions if set
+	elemStyle := bn.Style()
+	if elemStyle.Width > 0 {
+		totalWidth = elemStyle.Width
+	}
+	if elemStyle.Height > 0 {
+		totalHeight = elemStyle.Height
+	}
+
+	return runtime.Size{Width: totalWidth, Height: totalHeight}
 }
 
