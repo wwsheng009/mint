@@ -93,8 +93,10 @@ func NewDeclarativeNodeFromFuncWithFiber(fn rtui.ComponentFunc, fwApp *framework
 		adapter.SetFocusManager(focusMgr)
 	}
 
-	// Create the Fiber renderer with the render callback
-	renderer := NewFiberRenderer(renderVNodeToBuffer)
+	// Use the new PipelineRenderer with Layout/Paint separation
+	// The Fiber reconciler handles the update/reconciliation logic,
+	// while PipelineRenderer handles the actual rendering
+	renderer := NewPipelineRendererAdapter()
 
 	return &DeclarativeNode{
 		renderFn:  fn,
