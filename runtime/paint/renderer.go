@@ -6,7 +6,6 @@ import (
 	"os"
 	"sync"
 
-	"github.com/mattn/go-runewidth"
 	"github.com/wwsheng009/mint/runtime/style"
 )
 
@@ -204,13 +203,40 @@ func (r *Renderer) renderLine(y int, region Rect) {
 		x += width
 
 		runCount++
-		// 输出这个 run
-		r.emitRun(startX, y, runStyle, runText.String())
+		// 输出这个 run，传入实际的 cell width 用于光标跟踪
+		r.emitRunWithWidth(startX, y, runStyle, runText.String(), width)
 	}
 
 	if debugRender {
 		fmt.Fprintf(os.Stderr, "[renderLine] emitted %d runs\n", runCount)
 	}
+}
+
+// emitRunWithWidth 输出一个渲染批次（带宽度参数，用于正确跟踪光标）
+// 对于边框字符，使用 cell width 而非 runewidth.StringWidth，避免光标位置错误
+func (r *Renderer) emitRunWithWidth(x, y int, runStyle style.Style, text string, textWidth int) {
+	if text == "" {
+		return
+	}
+
+	// 移动光标
+	cursorCmd := r.moveCursorOptimized(x, y)
+	if cursorCmd != "" {
+		r.output.WriteString(cursorCmd)
+	}
+
+	// 设置样式（只输出变化部分）
+	if r.styleState.NeedsUpdate(runStyle) {
+		r.output.WriteString(r.styleState.Update(runStyle))
+	}
+
+	// 输出文本
+	r.output.WriteString(text)
+
+	// 更新光标位置 - 使用实际的 cell width 而非 runewidth.StringWidth
+	// 这修复了边框字符被 runewidth 认为宽度 2 导致光标跳过的问题
+	r.cursorX = x + textWidth
+	r.cursorY = y
 }
 
 // emitRun 输出一个渲染批次
@@ -238,8 +264,8 @@ func (r *Renderer) emitRun(x, y int, runStyle style.Style, text string) {
 	// 输出文本
 	r.output.WriteString(text)
 
-	// 更新光标位置
-	r.cursorX = x + runewidth.StringWidth(text)
+	// 更新光标位置 - 使用正确计算的文本宽度
+	r.cursorX = x + r.getTextWidth(text)
 	r.cursorY = y
 }
 
@@ -268,6 +294,13 @@ func (r *Renderer) moveCursorOptimized(x, y int) string {
 	// 默认绝对定位
 	r.cursorX, r.cursorY = x, y
 	return "\x1b[" + itoa(y+1) + ";" + itoa(x+1) + "H"
+}
+
+// getTextWidth 计算文本的显示宽度
+// 对于边框字符（U+2500-U+257F Unicode Box Drawing block），返回 1 而非 runewidth.StringWidth 的 2
+// 这确保光标跟踪正确，不会跳过字符
+func (r *Renderer) getTextWidth(text string) int {
+	return StringWidth(text)
 }
 
 // swapBuffers 交换前后缓冲区

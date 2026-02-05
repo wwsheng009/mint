@@ -657,13 +657,18 @@ func (a *App) render() {
 		// TUI_OUTPUT_MODE=direct  使用全量刷新（绕过差异比较）
 		// TUI_OUTPUT_MODE=diff    使用差异比较优化（默认）
 		// TUI_OUTPUT_MODE=debug   调试模式，显示 diff 信息
+		// MINT_NO_ALTERNATE_SCREEN=true  不清屏，允许复制/滚动
 		outputMode := os.Getenv("TUI_OUTPUT_MODE")
+		noAltScreen := os.Getenv("MINT_NO_ALTERNATE_SCREEN") == "true"
 		if outputMode == "direct" {
 			a.outputBufferDirect(buf)
 		} else {
 			// 首次渲染：清屏、隐藏光标、强制全量渲染
+			// 除非 MINT_NO_ALTERNATE_SCREEN=true
 			if a.firstRender {
-				fmt.Print("\x1b[2J")         // 清屏
+				if !noAltScreen {
+					fmt.Print("\x1b[2J") // 清屏
+				}
 				fmt.Print("\x1b[?25l")       // 隐藏光标
 				a.renderer.ForceFullRender() // 强制全屏渲染
 			}
@@ -741,9 +746,13 @@ func (a *App) outputBuffer(buf *paint.Buffer) {
 func (a *App) outputBufferDirect(buf *paint.Buffer) {
 	var output bytes.Buffer
 
-	// 首次渲染时清屏
+	noAltScreen := os.Getenv("MINT_NO_ALTERNATE_SCREEN") == "true"
+
+	// 首次渲染时清屏（除非 MINT_NO_ALTERNATE_SCREEN=true）
 	if a.firstRender {
-		output.WriteString("\x1b[2J") // 清屏
+		if !noAltScreen {
+			output.WriteString("\x1b[2J") // 清屏
+		}
 		a.firstRender = false
 	}
 
@@ -863,7 +872,13 @@ func (a *App) Close() error {
 	a.ShowCursor()
 
 	// 清屏，避免退出时残留内容
-	a.clearScreen()
+	// 除非 MINT_NO_ALTERNATE_SCREEN=true（保留输出以便复制）
+	if os.Getenv("MINT_NO_ALTERNATE_SCREEN") != "true" {
+		a.clearScreen()
+	} else {
+		// 在 NoAlternateScreen 模式下，打印一个空行分隔输出
+		fmt.Println()
+	}
 
 	// 关闭 panic 恢复管理器
 	if a.recovery != nil {

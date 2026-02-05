@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/mattn/go-runewidth"
 	"github.com/wwsheng009/mint/framework/component"
 	"github.com/wwsheng009/mint/runtime/action"
 	"github.com/wwsheng009/mint/runtime/paint"
@@ -696,7 +695,7 @@ func (t *Table) paintEmptyRow(ctx component.PaintContext, buf *paint.Buffer, y i
 // paintCell 绘制单元格
 // 使用 SetString 正确处理宽字符（中文、emoji等）
 func (t *Table) paintCell(buf *paint.Buffer, x, y int, text string, width int, s style.Style, align component.TextAlign) {
-	textWidth := runewidth.StringWidth(text)
+	textWidth := paint.StringWidth(text)
 
 	// 截断过长的文本
 	truncated := text
@@ -705,7 +704,7 @@ func (t *Table) paintCell(buf *paint.Buffer, x, y int, text string, width int, s
 		currentWidth := 0
 		truncatedRunes := make([]rune, 0)
 		for _, r := range text {
-			rw := runewidth.RuneWidth(r)
+			rw := paint.RuneWidth(r)
 			if currentWidth+rw > width {
 				break
 			}

@@ -7,7 +7,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/mattn/go-runewidth"
 	"github.com/wwsheng009/mint/framework/component"
 	"github.com/wwsheng009/mint/framework/cursor"
 	"github.com/wwsheng009/mint/framework/event"
@@ -430,7 +429,7 @@ func (t *TextInput) Paint(ctx component.PaintContext, buf *paint.Buffer) {
 	}
 
 	// 计算右边框位置 - 考虑宽字符的显示宽度
-	contentDisplayWidth := runewidth.StringWidth(displayValue)
+	contentDisplayWidth := paint.StringWidth(displayValue)
 	rightBracketX := 1 + contentDisplayWidth
 
 	// 绘制右边框
@@ -451,7 +450,7 @@ func (t *TextInput) Paint(ctx component.PaintContext, buf *paint.Buffer) {
 		} else {
 			// 计算光标在光标位置之前的所有字符的显示宽度
 			textBeforeCursor := string(runes[:cursorPos])
-			widthBeforeCursor := runewidth.StringWidth(textBeforeCursor)
+			widthBeforeCursor := paint.StringWidth(textBeforeCursor)
 			cursorX = 1 + widthBeforeCursor
 		}
 

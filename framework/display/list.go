@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/mattn/go-runewidth"
 	"github.com/wwsheng009/mint/framework/component"
 	"github.com/wwsheng009/mint/runtime/action"
 	"github.com/wwsheng009/mint/runtime/paint"
@@ -174,7 +173,7 @@ func (l *List) Measure(maxWidth, maxHeight int) (width, height int) {
 	maxTextWidth := 0
 	for i := 0; i < l.dataSource.Count(); i++ {
 		text := l.formatItem(l.dataSource.Get(i))
-		textWidth := runewidth.StringWidth(text)
+		textWidth := paint.StringWidth(text)
 		if textWidth > maxTextWidth {
 			maxTextWidth = textWidth
 		}
@@ -264,7 +263,7 @@ func (l *List) paintLine(buf *paint.Buffer, x, y int, text string, width int, s 
 	buf.SetString(x, y, text, s)
 
 	// 计算文本宽度并填充剩余空间
-	textWidth := runewidth.StringWidth(text)
+	textWidth := paint.StringWidth(text)
 	for i := textWidth; i < width; i++ {
 		buf.SetCell(x+i, y, ' ', s)
 	}

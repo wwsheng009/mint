@@ -237,3 +237,112 @@ type Dirtyable interface {
 	// MarkLayoutDirty 标记节点为需要布局
 	MarkLayoutDirty()
 }
+
+// =============================================================================
+// Layout Engine (V3)
+// =============================================================================
+
+// Engine 布局引擎
+// 负责计算节点树中所有节点的位置和尺寸
+type Engine struct {
+	// dirtyNodes 脏节点集合
+	dirtyNodes map[string]bool
+}
+
+// NewEngine 创建新的布局引擎
+func NewEngine() *Engine {
+	return &Engine{
+		dirtyNodes: make(map[string]bool),
+	}
+}
+
+// Invalidate 使整个布局树失效
+func (e *Engine) Invalidate() {
+	e.dirtyNodes = make(map[string]bool)
+}
+
+// InvalidateNode 使单个节点失效
+func (e *Engine) InvalidateNode(id string) {
+	e.dirtyNodes[id] = true
+}
+
+// Layout 执行布局计算
+// 输入根节点和约束，返回布局结果
+func (e *Engine) Layout(root Node, constraints Constraints) *LayoutResult {
+	if root == nil {
+		return &LayoutResult{}
+	}
+
+	result := &LayoutResult{
+		Boxes: make([]LayoutBox, 0),
+		Dirty:  true,
+	}
+
+	// 递归布局节点
+	box := e.layoutNode(root, constraints, 0, 0)
+	result.Root = box
+	result.Boxes = e.collectBoxes(box)
+
+	return result
+}
+
+// layoutNode 递归布局单个节点
+func (e *Engine) layoutNode(node Node, constraints Constraints, x, y int) *LayoutBox {
+	if node == nil {
+		return nil
+	}
+
+	// 获取节点尺寸
+	width, height := node.GetSize()
+
+	// 如果节点实现了 Measurable 接口，测量其尺寸
+	if measurable, ok := node.(Measurable); ok {
+		size := measurable.Measure(constraints)
+		width, height = size.Width, size.Height
+	}
+
+	box := &LayoutBox{
+		ID:      node.ID(),
+		X:       x,
+		Y:       y,
+		Width:   width,
+		Height:  height,
+		Children: make([]*LayoutBox, 0),
+	}
+
+	// 设置节点位置和尺寸
+	node.SetPosition(x, y)
+	node.SetSize(width, height)
+
+	// 递归布局子节点
+	childX := x
+	childY := y
+	for _, child := range node.Children() {
+		childBox := e.layoutNode(child, constraints, childX, childY)
+		if childBox != nil {
+			box.Children = append(box.Children, childBox)
+			childY += childBox.Height
+		}
+	}
+
+	return box
+}
+
+// collectBoxes 收集所有布局盒子
+func (e *Engine) collectBoxes(root *LayoutBox) []LayoutBox {
+	if root == nil {
+		return nil
+	}
+
+	boxes := make([]LayoutBox, 0)
+	e.collectBoxesRecursive(root, &boxes)
+	return boxes
+}
+
+// collectBoxesRecursive 递归收集布局盒子
+func (e *Engine) collectBoxesRecursive(box *LayoutBox, boxes *[]LayoutBox) {
+	*boxes = append(*boxes, *box)
+	for _, child := range box.Children {
+		e.collectBoxesRecursive(child, boxes)
+	}
+}

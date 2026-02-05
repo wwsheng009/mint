@@ -19,11 +19,12 @@ type Option func(*Options)
 
 // Options holds app configuration
 type Options struct {
-	Width          int
-	Height         int
-	Title          string
-	FPS            int
-	EnableDevTools bool
+	Width             int
+	Height            int
+	Title             string
+	FPS               int
+	EnableDevTools    bool
+	NoAlternateScreen bool // Don't use alternate screen mode - allows copying/scrolling
 }
 
 // WithWidth sets the window width
@@ -62,6 +63,17 @@ func WithFPS(fps int) Option {
 	}
 }
 
+// WithNoAlternateScreen disables alternate screen mode
+// This allows:
+// - Copying text from the terminal with mouse
+// - Scrolling through previous output
+// - Content persists after the app exits
+func WithNoAlternateScreen() Option {
+	return func(o *Options) {
+		o.NoAlternateScreen = true
+	}
+}
+
 // appInstance holds the framework app for quit functionality
 var appInstance *framework.App
 
@@ -76,6 +88,14 @@ func Run(app ComponentFunc, opts ...Option) error {
 
 	for _, opt := range opts {
 		opt(options)
+	}
+
+	// Set environment variable for NoAlternateScreen mode
+	// The framework will check this to skip screen clearing
+	if options.NoAlternateScreen {
+		os.Setenv("MINT_NO_ALTERNATE_SCREEN", "true")
+	} else {
+		os.Unsetenv("MINT_NO_ALTERNATE_SCREEN")
 	}
 
 	// Create the framework app

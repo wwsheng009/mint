@@ -196,6 +196,177 @@ func (l *LayoutNode) Padding() [4]int {
 }
 
 // =============================================================================
+// Measurable Interface Implementation
+// =============================================================================
+
+// Measure implements runtime.Measurable interface
+// Calculates the size of the layout based on children and constraints
+func (l *LayoutNode) Measure(constraints runtime.BoxConstraints) runtime.Size {
+	if l == nil {
+		return runtime.Size{Width: 0, Height: 0}
+	}
+
+	children := l.Children()
+	if len(children) == 0 {
+		// Empty layout takes minimum space specified by constraints
+		return runtime.Size{
+			Width:  constraints.MinWidth,
+			Height: constraints.MinHeight,
+		}
+	}
+
+	// Add padding to content size
+	paddingWidth := l.padding[1] + l.padding[3] // left + right
+	paddingHeight := l.padding[0] + l.padding[2] // top + bottom
+
+	// Calculate inner constraints (subtract padding from available space)
+	innerMaxWidth := constraints.MaxWidth - paddingWidth
+	innerMaxHeight := constraints.MaxHeight - paddingHeight
+	if innerMaxWidth < 0 {
+		innerMaxWidth = 0
+	}
+	if innerMaxHeight < 0 {
+		innerMaxHeight = 0
+	}
+
+	var totalWidth, totalHeight int
+
+	if l.direction == DirectionRow {
+		// HStack: measure total width and max height
+		maxChildHeight := 0
+		for i, child := range l.Children() {
+			// For HStack, children get unlimited width (to measure natural size)
+			// but height is constrained to the container's height
+			childConstraints := runtime.BoxConstraints{
+				MinWidth:  0,
+				MaxWidth:  runtime.Infinity, // Let children expand to natural width
+				MinHeight: 0,
+				MaxHeight: innerMaxHeight,
+			}
+			childSize := l.measureChild(child, childConstraints)
+			totalWidth += childSize.Width
+			if childSize.Height > maxChildHeight {
+				maxChildHeight = childSize.Height
+			}
+			// Add gap between children
+			if i < len(children)-1 {
+				totalWidth += l.gap
+			}
+		}
+		totalHeight = maxChildHeight
+	} else {
+		// VStack: measure max width and total height
+		maxChildWidth := 0
+		for i, child := range l.Children() {
+			// For VStack, children get width constraint but unlimited height
+			// (to measure natural height)
+			childConstraints := runtime.BoxConstraints{
+				MinWidth:  0,
+				MaxWidth:  innerMaxWidth,
+				MinHeight: 0,
+				MaxHeight: runtime.Infinity, // Let children expand to natural height
+			}
+			childSize := l.measureChild(child, childConstraints)
+			if childSize.Width > maxChildWidth {
+				maxChildWidth = childSize.Width
+			}
+			totalHeight += childSize.Height
+			// Add gap between children
+			if i < len(children)-1 {
+				totalHeight += l.gap
+			}
+		}
+		totalWidth = maxChildWidth
+	}
+
+	// Add padding
+	totalWidth += paddingWidth
+	totalHeight += paddingHeight
+
+	// Apply constraints using the helper method
+	totalWidth, totalHeight = constraints.Constrain(totalWidth, totalHeight)
+
+	return runtime.Size{Width: totalWidth, Height: totalHeight}
+}
+
+// measureChild measures a single child, returning its size
+func (l *LayoutNode) measureChild(child VNode, constraints runtime.BoxConstraints) runtime.Size {
+	if child == nil {
+		return runtime.Size{Width: 0, Height: 0}
+	}
+
+	// Check if child implements Measurable
+	type measurable interface {
+		Measure(constraints runtime.BoxConstraints) runtime.Size
+	}
+	if m, ok := child.(measurable); ok {
+		return m.Measure(constraints)
+	}
+
+	// Fallback to estimation
+	width := l.estimateChildWidth(child)
+	height := 1 // Default height
+
+	return runtime.Size{Width: width, Height: height}
+}
+
+// estimateChildWidth estimates the width of a child for layout
+func (l *LayoutNode) estimateChildWidth(child VNode) int {
+	if child == nil {
+		return 0
+	}
+
+	// Check if child has explicit width
+	if props := child.Props(); props != nil {
+		if w := props.GetInt("width"); w > 0 {
+			return w
+		}
+	}
+
+	// Check if child has explicit height (for Input)
+	if props := child.Props(); props != nil {
+		if h := props.GetInt("height"); h > 0 {
+			// For Input, use height as width hint if not specified
+			return h
+		}
+	}
+
+	// Estimate from content
+	if props := child.Props(); props != nil {
+		if content := props.GetString("content"); content != "" {
+			// Simple width: length of content
+			runes := []rune(content)
+			return len(runes)
+		}
+	}
+
+	// Check if child is Button/Input (has label)
+	if labelGetter, ok := child.(interface{ Label() string }); ok {
+		label := labelGetter.Label()
+		if label != "" {
+			return len(label) + 4 // Add space for brackets
+		}
+	}
+
+	// Check if child is Input (has Value/Placeholder)
+	if valueGetter, ok := child.(interface{ Value() string }); ok {
+		value := valueGetter.Value()
+		if value != "" {
+			return len(value) + 2 // Add space for colons
+		}
+	}
+	if placeholderGetter, ok := child.(interface{ Placeholder() string }); ok {
+		placeholder := placeholderGetter.Placeholder()
+		if placeholder != "" {
+			return len(placeholder) + 2 // Add space for colons
+		}
+	}
+
+	// Default minimum width
+	return 10
+}
+
+// =============================================================================
 // Box Layout
 // =============================================================================
 
@@ -640,7 +811,12 @@ func (bn *BorderedNode) Measure(constraints runtime.BoxConstraints) runtime.Size
 	}
 
 	// Total size = content + border
+	// When label is present, renderTopBorder adds extra 2 chars for visual balance
+	// This matches the actual rendering logic in renderTopBorder
 	totalWidth := innerWidth + borderWidth
+	if labelWidth > 0 {
+		totalWidth += 2  // Extra padding for label rendering (see renderTopBorder)
+	}
 	totalHeight := contentHeight + borderHeight
 
 	// Apply constraints

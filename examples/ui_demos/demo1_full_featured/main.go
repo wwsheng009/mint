@@ -141,6 +141,7 @@ func MainBody(count int, setCount func(interface{}), input string, setInput func
 		app.InputBuilder().
 			Value(input).
 			Placeholder("Type something...").
+			Width(30). // Set explicit width to match divider
 			OnChange(setInput).
 			Build(),
 		app.NewTextBuilder("──────────────────────────────").

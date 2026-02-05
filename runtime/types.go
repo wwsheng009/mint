@@ -1,5 +1,7 @@
 package runtime
 
+import "fmt"
+
 // Core types for Yao TUI Runtime v1
 
 // Infinity represents an unbounded constraint value
@@ -115,6 +117,37 @@ func clamp(value, min, max int) int {
 type Size struct {
 	Width  int
 	Height int
+}
+
+// Box represents a rectangular area with position and size
+type Box struct {
+	X      int
+	Y      int
+	Width  int
+	Height int
+}
+
+// Empty returns true if the box has zero area
+func (b Box) Empty() bool {
+	return b.Width <= 0 || b.Height <= 0
+}
+
+// Contains returns true if the point (x, y) is inside the box
+func (b Box) Contains(x, y int) bool {
+	return x >= b.X && x < b.X+b.Width && y >= b.Y && y < b.Y+b.Height
+}
+
+// Intersects returns true if two boxes intersect
+func (b Box) Intersects(other Box) bool {
+	return b.X < other.X+other.Width &&
+		b.X+b.Width > other.X &&
+		b.Y < other.Y+other.Height &&
+		b.Y+b.Height > other.Y
+}
+
+// String returns a string representation of the box
+func (b Box) String() string {
+	return fmt.Sprintf("(%d,%d,%d×%d)", b.X, b.Y, b.Width, b.Height)
 }
 
 // ConstraintsAlias is an alias for backward compatibility with legacy code

@@ -54,8 +54,22 @@ func NewDeclarativeNodeFromFunc(fn rtui.ComponentFunc) *DeclarativeNode {
 		fwApp:    nil, // Will be set by SetFrameworkApp
 		useFiber: false, // Default to non-Fiber mode
 	}
-	// Create the non-Fiber renderer
-	node.renderer = NewNonFiberRenderer(node)
+	// Use the new PipelineRenderer with Layout/Paint separation by default
+	// This provides constraint-driven layout, caching, and better architecture
+	node.renderer = NewPipelineRendererAdapter()
+	if os.Getenv("TUI_DEBUG_UI") == "true" {
+		fmt.Fprintf(os.Stderr, "[DeclarativeNode] Using new PipelineRenderer (Layout/Paint separation)\n")
+	}
+
+	// LEGACY RENDERER (commented out - kept for reference only)
+	// To use the old renderer, set MINT_USE_LEGACY_RENDERER=true
+	// if os.Getenv("MINT_USE_LEGACY_RENDERER") == "true" {
+	// 	node.renderer = NewNonFiberRenderer(node)
+	// 	if os.Getenv("TUI_DEBUG_UI") == "true" {
+	// 		fmt.Fprintf(os.Stderr, "[DeclarativeNode] Using LEGACY renderer\n")
+	// 	}
+	// }
+
 	return node
 }
 
@@ -360,10 +374,19 @@ func (n *DeclarativeNode) PaintVNode(vnode rtui.VNode, x, y int, buf *paint.Buff
 			if isHStack {
 				// Horizontal layout: paint children on the same line with x offset
 				childX := x
-				for _, child := range children {
+				for i, child := range children {
+					childWidth := n.MeasureVNodeWidth(child)
+					if os.Getenv("TUI_BORDER_DEBUG") == "1" {
+						label := "?"
+						if l, ok := child.(interface{ Tag() string }); ok {
+							label = fmt.Sprintf("tag=%s", l.Tag())
+						}
+						fmt.Fprintf(os.Stderr, "[HSTACK] child %d (%s): x=%d, width=%d, nextX=%d\n",
+							i, label, childX, childWidth, childX+childWidth+gap)
+					}
 					n.PaintVNode(child, childX, y, buf)
 					// Move X by the width of this child + gap
-					childX += n.MeasureVNodeWidth(child) + gap
+					childX += childWidth + gap
 				}
 			} else {
 				// Vertical layout: paint children on different lines
@@ -490,6 +513,22 @@ func (n *DeclarativeNode) paintBordered(vnode rtui.VNode, _ interface{ RenderBor
 	contentWidth := n.MeasureVNodeWidth(child)
 	contentHeight := n.MeasureVNodeHeight(child)
 
+	// DEBUG: Log border painting info
+	if os.Getenv("TUI_BORDER_DEBUG") == "1" {
+		// Try to get a label for debugging
+		label := "?"
+		if l, ok := child.(interface{ Tag() string }); ok {
+			label = l.Tag()
+		}
+		if l, ok := child.(interface{ GetBorderLabel() string }); ok && l.GetBorderLabel() != "" {
+			label = l.GetBorderLabel()
+		}
+		fmt.Fprintf(os.Stderr, "[BORDER] %s: x=%d, y=%d, contentW=%d, contentH=%d, totalH=%d\n",
+			label, x, y, contentWidth, contentHeight, contentHeight+2)
+		fmt.Fprintf(os.Stderr, "[BORDER] Left border should be at col %d, rows %d-%d\n",
+			x, y, y+contentHeight+1)
+	}
+
 	// Get border config from BorderedNode
 	config := border.DefaultConfig()
 
@@ -511,6 +550,12 @@ func (n *DeclarativeNode) paintBordered(vnode rtui.VNode, _ interface{ RenderBor
 
 	// Paint border cells
 	renderer.Paint(x, y, contentWidth, contentHeight, func(px, py int, ch rune, s style.Style) {
+		if os.Getenv("TUI_BORDER_DEBUG") == "1" {
+			// Log first few border cells for debugging
+			if ch == '┌' || (px == x && py == y) {
+				fmt.Fprintf(os.Stderr, "[BORDER.Paint] cornerTL at (%d,%d): '%c'\n", px, py, ch)
+			}
+		}
 		buf.SetCell(px, py, ch, s)
 	})
 
@@ -522,12 +567,22 @@ func (n *DeclarativeNode) paintBordered(vnode rtui.VNode, _ interface{ RenderBor
 }
 
 // MeasureVNodeWidth measures the width of a VNode for horizontal layout
+// This method now prioritizes the Measurable interface over fallback logic
 func (n *DeclarativeNode) MeasureVNodeWidth(vnode rtui.VNode) int {
 	if vnode == nil {
 		return 0
 	}
 
-	// Check for table cell (td) - measure its content
+	// PRIORITY 1: Use Measurable interface if available (new constraint-based measurement)
+	if measurable, ok := vnode.(interface {
+		Measure(constraints runtime.BoxConstraints) runtime.Size
+	}); ok {
+		// Use UnboundedConstraints to get natural size
+		size := measurable.Measure(runtime.UnboundedConstraints())
+		return size.Width
+	}
+
+	// PRIORITY 2: Check for table cell (td) - measure its content
 	if tagger, ok := vnode.(interface{ Tag() string }); ok && tagger.Tag() == "td" {
 		children := vnode.Children()
 		if len(children) > 0 {
@@ -536,16 +591,13 @@ func (n *DeclarativeNode) MeasureVNodeWidth(vnode rtui.VNode) int {
 		return 0
 	}
 
-	// Check if it's a bordered element - measure total width including border
-	if _, ok := vnode.(interface{ RenderBorder(int, int) []rtui.VNode }); ok {
+	// PRIORITY 3: Check if it's a bordered element - measure total width including border
+	if borderedNode, ok := vnode.(interface{ GetBorderLabel() string }); ok {
+		// BorderedNode now implements Measurable, but handle it here for compatibility
 		children := vnode.Children()
 		if len(children) > 0 {
 			contentWidth := n.MeasureVNodeWidth(children[0])
-			// Get label if present
-			label := ""
-			if getLabel, ok := vnode.(interface{ GetBorderLabel() string }); ok {
-				label = getLabel.GetBorderLabel()
-			}
+			label := borderedNode.GetBorderLabel()
 			// Calculate inner width (content or label, whichever is wider)
 			innerWidth := contentWidth
 			if label != "" {
@@ -559,16 +611,25 @@ func (n *DeclarativeNode) MeasureVNodeWidth(vnode rtui.VNode) int {
 		}
 	}
 
+	// PRIORITY 4: Fallback logic for legacy components
 	// Check the VNode type first
 	switch vnode.Type() {
+	case rtui.VNodeFragment:
+		// Fragment is a virtual container - doesn't contribute its own width
+		return 0
+
 	case rtui.VNodeText:
 		return len(rtui.GetTextContent(vnode))
 
 	case rtui.VNodeElement:
 		// Check if it's a button
 		if btn, ok := vnode.(interface{ Label() string }); ok {
-			// Buttons render as "[ label ]" (bracket + space + label + space + bracket)
-			return len(btn.Label()) + 4
+			// Button width matches Button.Measure:
+			// - Label length
+			// - +2 for brackets "[]"
+			// - +2 for medium button padding (1 on each side)
+			// - +1 for focus indicator
+			return len(btn.Label()) + 5
 		}
 		// For elements, try text content
 		if content := rtui.GetTextContent(vnode); content != "" {
@@ -583,7 +644,7 @@ func (n *DeclarativeNode) MeasureVNodeWidth(vnode rtui.VNode) int {
 		// Don't return 0 - fall through to container handling for VStack/HStack
 	}
 
-	// For containers, calculate width based on layout type
+	// PRIORITY 5: For containers, calculate width based on layout type
 	// This handles VStack/HStack that don't have direct text content
 	layoutInfo := rtui.GetLayoutInfo(vnode)
 	if layoutInfo.IsHorizontal {
@@ -606,12 +667,22 @@ func (n *DeclarativeNode) MeasureVNodeWidth(vnode rtui.VNode) int {
 }
 
 // MeasureVNodeHeight measures the height of a VNode for vertical layout
+// This method now prioritizes the Measurable interface over fallback logic
 func (n *DeclarativeNode) MeasureVNodeHeight(vnode rtui.VNode) int {
 	if vnode == nil {
 		return 0
 	}
 
-	// Check for table row (tr) - height is max of cell heights
+	// PRIORITY 1: Use Measurable interface if available (new constraint-based measurement)
+	if measurable, ok := vnode.(interface {
+		Measure(constraints runtime.BoxConstraints) runtime.Size
+	}); ok {
+		// Use UnboundedConstraints to get natural size
+		size := measurable.Measure(runtime.UnboundedConstraints())
+		return size.Height
+	}
+
+	// PRIORITY 2: Check for table row (tr) - height is max of cell heights
 	if tagger, ok := vnode.(interface{ Tag() string }); ok && tagger.Tag() == "tr" {
 		maxHeight := 0
 		for _, cell := range vnode.Children() {
@@ -623,7 +694,7 @@ func (n *DeclarativeNode) MeasureVNodeHeight(vnode rtui.VNode) int {
 		return maxHeight
 	}
 
-	// Check for table cell (td) - height of its content
+	// PRIORITY 3: Check for table cell (td) - height of its content
 	if tagger, ok := vnode.(interface{ Tag() string }); ok && tagger.Tag() == "td" {
 		children := vnode.Children()
 		if len(children) > 0 {
@@ -632,8 +703,9 @@ func (n *DeclarativeNode) MeasureVNodeHeight(vnode rtui.VNode) int {
 		return 1
 	}
 
-	// Check if it's a bordered element - measure total height including border
-	if _, ok := vnode.(interface{ RenderBorder(int, int) []rtui.VNode }); ok {
+	// PRIORITY 4: Check if it's a bordered element - measure total height including border
+	if _, ok := vnode.(interface{ GetBorderLabel() string }); ok {
+		// BorderedNode now implements Measurable, but handle it here for compatibility
 		children := vnode.Children()
 		if len(children) > 0 {
 			contentHeight := n.MeasureVNodeHeight(children[0])
@@ -642,13 +714,14 @@ func (n *DeclarativeNode) MeasureVNodeHeight(vnode rtui.VNode) int {
 		}
 	}
 
-	// Check for explicit height in props
+	// PRIORITY 5: Check for explicit height in props
 	if props := vnode.Props(); props != nil {
 		if h := props.GetInt("height"); h > 0 {
 			return h
 		}
 	}
 
+	// PRIORITY 6: Fallback logic for legacy components
 	// Check if it's a button - buttons are single line
 	if btn, ok := vnode.(interface{ Label() string }); ok && btn.Label() != "" {
 		return 1

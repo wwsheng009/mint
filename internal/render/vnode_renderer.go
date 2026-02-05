@@ -72,12 +72,9 @@ func (r *NonFiberRenderer) Measure(vnode rtui.VNode) (width, height int) {
 		Measure(constraints runtime.BoxConstraints) runtime.Size
 	}
 	if m, ok := vnode.(measurable); ok {
-		size := m.Measure(runtime.BoxConstraints{
-			MinWidth:  0,
-			MaxWidth:  1000,
-			MinHeight: 0,
-			MaxHeight: 1000,
-		})
+		// Use UnboundedConstraints to get natural size
+		// Components will report their content-based size, not expand to fill arbitrary max widths
+		size := m.Measure(runtime.UnboundedConstraints())
 		return size.Width, size.Height
 	}
 
@@ -174,14 +171,9 @@ func (r *FiberRenderer) Measure(vnode rtui.VNode) (width, height int) {
 		Measure(constraints runtime.BoxConstraints) runtime.Size
 	}
 	if m, ok := vnode.(measurable); ok {
-		// Use the component's Measure implementation
-		// Provide loose constraints for measurement
-		size := m.Measure(runtime.BoxConstraints{
-			MinWidth:  0,
-			MaxWidth: 1000, // Large default max width
-			MinHeight: 0,
-			MaxHeight: 1000,
-		})
+		// Use UnboundedConstraints to get natural size
+		// Components will report their content-based size, not expand to fill arbitrary max widths
+		size := m.Measure(runtime.UnboundedConstraints())
 		return size.Width, size.Height
 	}
 
@@ -211,3 +203,49 @@ func (r *FiberRenderer) Measure(vnode rtui.VNode) (width, height int) {
 
 	return width, height
 }
+
+// =============================================================================
+// PipelineRendererAdapter - Adapts PipelineRenderer to VNodeRenderer interface
+// =============================================================================
+
+// PipelineRendererAdapter wraps the new PipelineRenderer to implement VNodeRenderer.
+// This is now the DEFAULT renderer for all VNode rendering.
+type PipelineRendererAdapter struct {
+	pipeline *PipelineRenderer
+}
+
+// NewPipelineRendererAdapter creates a new adapter using the new rendering pipeline.
+func NewPipelineRendererAdapter() *PipelineRendererAdapter {
+	return &PipelineRendererAdapter{
+		pipeline: NewPipelineRenderer(),
+	}
+}
+
+// Render renders a VNode using the new Layout/Paint pipeline.
+// This implements the VNodeRenderer interface.
+func (r *PipelineRendererAdapter) Render(vnode rtui.VNode, x, y int, buffer interface{}) {
+	buf := getBuffer(buffer)
+	if buf == nil {
+		return
+	}
+	r.pipeline.Render(vnode, x, y, buf)
+}
+
+// Measure returns the width and height of a VNode using the new pipeline.
+// This implements the VNodeRenderer interface.
+func (r *PipelineRendererAdapter) Measure(vnode rtui.VNode) (width, height int) {
+	// Use the new pipeline's measure method
+	// We use a large max value for unbounded measurement
+	return r.pipeline.Measure(vnode, 1000, 1000)
+}
+
+// GetCacheStats returns cache statistics from the pipeline.
+func (r *PipelineRendererAdapter) GetCacheStats() string {
+	return r.pipeline.GetCacheStats()
+}
+
+// ClearCache clears the layout cache.
+func (r *PipelineRendererAdapter) ClearCache() {
+	r.pipeline.ClearCache()
+}
+

@@ -429,8 +429,8 @@ func (b *ButtonVNode) Measure(constraints runtime.BoxConstraints) runtime.Size {
 		label = " " // Empty button still has minimal width
 	}
 
-	// Width: label length + 2 for brackets "[]"
-	width := utf8.RuneCountInString(label) + 2
+	// Width: label length + 2 for brackets "[]" + 1 for focus indicator
+	width := utf8.RuneCountInString(label) + 3
 
 	// Height is always 1 for single-line button
 	height := 1

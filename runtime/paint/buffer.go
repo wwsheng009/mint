@@ -65,6 +65,12 @@ func getRuneWidth(char rune) int {
 	}
 }
 
+// getClusterWidth returns the display width for a grapheme cluster.
+// Border drawing characters are treated as width 1 to avoid conflicts.
+func getClusterWidth(cluster string) int {
+	return StringWidth(cluster)
+}
+
 // setCluster sets a grapheme cluster at the given coordinates.
 // This is the low-level method that all writing operations should use.
 func (b *Buffer) setCluster(x, y int, cluster string, width int, s style.Style) {
@@ -103,8 +109,8 @@ func (b *Buffer) SetString(x, y int, text string, s style.Style) {
 	g := uniseg.NewGraphemes(text)
 
 	for g.Next() {
-		cluster := g.Str()                       // 完整字形簇
-		width := runewidth.StringWidth(cluster)  // 使用标准库计算宽度
+		cluster := g.Str()                         // 完整字形簇
+		width := getClusterWidth(cluster)           // 使用正确的宽度计算（边框字符为宽度1）
 
 		// 边界检查
 		if col >= b.Width {

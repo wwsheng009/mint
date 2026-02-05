@@ -333,6 +333,14 @@ func (b *InputBuilderType) Bold(v bool) *InputBuilderType {
 	return b
 }
 
+// Width sets the explicit width of the input
+func (b *InputBuilderType) Width(w int) *InputBuilderType {
+	s := b.node.Style()
+	s.Width = w
+	b.node.SetStyle(s)
+	return b
+}
+
 // Build returns the ui.VNode
 func (b *InputBuilderType) Build() ui.VNode {
 	return b.node
@@ -544,6 +552,23 @@ func (i *InputVNode) Paint(x, y int) []paint.DrawCmd {
 
 	// Build input display with brackets
 	inputLabel := ":" + displayText + ":"
+
+	// If explicit width is set, pad to fill the width
+	// Width includes the brackets, so content area is Width - 2
+	elemStyle := i.Style()
+	if elemStyle.Width > 0 {
+		targetContentWidth := elemStyle.Width - 2 // Account for brackets ":"
+		if targetContentWidth > 0 {
+			currentContentWidth := utf8.RuneCountInString(displayText)
+			if currentContentWidth < targetContentWidth {
+				// Pad with spaces to fill the width
+				padding := targetContentWidth - currentContentWidth
+				for k := 0; k < padding; k++ {
+					inputLabel += " "
+				}
+			}
+		}
+	}
 
 	// Apply focus/hover styling
 	if i.isFocused {

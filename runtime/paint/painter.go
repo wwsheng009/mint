@@ -1,7 +1,6 @@
 package paint
 
 import (
-	"github.com/mattn/go-runewidth"
 	"github.com/wwsheng009/mint/runtime/style"
 )
 
@@ -235,7 +234,7 @@ func (p *Painter) DrawButton(x, y, width, height int, label string, isFocused bo
 	}
 
 	buttonText := "[" + label + "]"
-	buttonWidth := runewidth.StringWidth(label) + 2
+	buttonWidth := StringWidth(label) + 2
 
 	// Center the button
 	paddingLeft := (width - buttonWidth) / 2

@@ -1,7 +1,6 @@
 package interactive
 
 import (
-	"github.com/mattn/go-runewidth"
 	"github.com/wwsheng009/mint/framework/component"
 	"github.com/wwsheng009/mint/runtime/action"
 	"github.com/wwsheng009/mint/runtime/paint"
@@ -103,7 +102,7 @@ func (b *Button) WithOnClick(onClick func()) *Button {
 // Measure 测量理想尺寸
 // 按钮尺寸 = "[label]" + 左右各 1 空格
 func (b *Button) Measure(maxWidth, maxHeight int) (width, height int) {
-	labelWidth := runewidth.StringWidth(b.label)
+	labelWidth := paint.StringWidth(b.label)
 	width = labelWidth + 2 // 左右括号
 	height = 1
 
@@ -147,7 +146,7 @@ func (b *Button) Paint(ctx component.PaintContext, buf *paint.Buffer) {
 	}
 
 	// 计算按钮文本
-	labelWidth := runewidth.StringWidth(b.label)
+	labelWidth := paint.StringWidth(b.label)
 	buttonText := "[" + b.label + "]"
 	buttonWidth := labelWidth + 2
 

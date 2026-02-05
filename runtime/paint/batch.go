@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"sort"
 
-	"github.com/mattn/go-runewidth"
 	"github.com/wwsheng009/mint/runtime/style"
 )
 
@@ -80,7 +79,7 @@ func (b *CommandBatch) Flush() string {
 
 		// Write text and update cursor position
 		buf.WriteString(cmd.Text)
-		b.curX = cmd.X + runewidth.StringWidth(cmd.Text)
+		b.curX = cmd.X + StringWidth(cmd.Text)
 		b.curY = cmd.Y
 	}
 
