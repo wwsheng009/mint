@@ -370,33 +370,34 @@ func (r *Reconciler) measureFiberWidth(fiber *Fiber) int {
 		// Try to get content from Props first (works for both ui.TextVNode and basic.TextVNode)
 		if props := fiber.VNode.Props(); props != nil {
 			if content, ok := props["content"].(string); ok {
-				return len(content)
+				return paint.StringWidth(content)
 			}
 		}
 		// Try Content() method for types that implement it
 		if contenter, ok := fiber.VNode.(interface{ Content() string }); ok {
-			return len(contenter.Content())
+			return paint.StringWidth(contenter.Content())
 		}
 		return 10
 	}
 
 	switch v := fiber.VNode.(type) {
 	case *rtui.ButtonVNode:
-		return len(v.Label()) + 2 // [label]
+		return paint.StringWidth(v.Label()) + 2 // [label]
 	case *rtui.InputVNode:
 		return 22 // [ + 20 chars + ]
 	case *rtui.SelectVNode:
 		maxLen := 10
 		for _, opt := range v.Options() {
-			if len(opt.Label) > maxLen {
-				maxLen = len(opt.Label)
+			w := paint.StringWidth(opt.Label)
+			if w > maxLen {
+				maxLen = w
 			}
 		}
 		return maxLen + 4 // [label + ▼]
 	case *rtui.CheckboxVNode:
 		width := 4 // [X] or [ ]
 		if v.Label() != "" {
-			width += 1 + len(v.Label())
+			width += 1 + paint.StringWidth(v.Label())
 		}
 		return width
 	case *rtui.ElementVNode, *rtui.LayoutNode, *rtui.FragmentVNode:
@@ -410,7 +411,7 @@ func (r *Reconciler) measureFiberWidth(fiber *Fiber) int {
 		// For any other type, try to get content from Props
 		if props := fiber.VNode.Props(); props != nil {
 			if content, ok := props["content"].(string); ok {
-				return len(content)
+				return paint.StringWidth(content)
 			}
 		}
 		return 10
