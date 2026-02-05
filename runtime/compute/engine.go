@@ -529,6 +529,13 @@ func (e *Engine) calculateColumnWidthsFromBoxes(box *ComputedBox) []int {
 // =============================================================================
 
 // getCacheKey generates a cache key for a VNode
+//
+// The cache key MUST include all properties that affect the VNode's size:
+// - Text content for text nodes
+// - Label for buttons/checkboxes
+// - Value/placeholder for inputs
+// - Border style/color/label for bordered nodes
+// - Any other props that affect rendering
 func (e *Engine) getCacheKey(vnode VNode, constraints runtime.BoxConstraints) LayoutCacheKey {
 	key := LayoutCacheKey{
 		VNodeType:   vnode.Type().String(),
@@ -539,16 +546,62 @@ func (e *Engine) getCacheKey(vnode VNode, constraints runtime.BoxConstraints) La
 		key.VNodeKey = keyNode
 	}
 
-	// Include text content in hash for text nodes
-	if vnode.Type() == rtui.VNodeText {
+	// Include content hash based on VNode type
+	switch {
+	// Text nodes - hash the text content
+	case vnode.Type() == rtui.VNodeText:
 		if text := rtui.GetTextContent(vnode); text != "" {
-			// Simple hash of text content
-			h := uint64(5381)
-			for _, c := range text {
-				h = h*31 + uint64(c)
-			}
-			key.ContentHash = h
+			key.ContentHash = hashString(text)
 		}
+
+	// Button nodes - hash the label (different labels = different sizes)
+	case vnode.Type() == rtui.VNodeElement && vnode.Tag() == "button":
+		if labeler, ok := vnode.(interface{ Label() string }); ok {
+			if label := labeler.Label(); label != "" {
+				key.ContentHash = hashString(label)
+			}
+		}
+
+	// Input nodes - hash value/placeholder (affects displayed width)
+	case vnode.Type() == rtui.VNodeElement && vnode.Tag() == "input":
+		var content string
+		if valuer, ok := vnode.(interface{ Value() string }); ok {
+			content = valuer.Value()
+		}
+		if content == "" {
+			if placer, ok := vnode.(interface{ Placeholder() string }); ok {
+				content = placer.Placeholder()
+			}
+		}
+		if content != "" {
+			key.ContentHash = hashString(content)
+		}
+
+	// Checkbox nodes - hash label
+	case vnode.Type() == rtui.VNodeElement && vnode.Tag() == "checkbox":
+		if labeler, ok := vnode.(interface{ Label() string }); ok {
+			if label := labeler.Label(); label != "" {
+				key.ContentHash = hashString(label)
+			}
+		}
+
+	// Bordered nodes - hash style, color, and label
+	case vnode.Type() == rtui.VNodeElement && vnode.Tag() == "bordered":
+		h := uint64(5381)
+		if styler, ok := vnode.(interface{ GetBorderStyle() rtui.BorderStyle }); ok {
+			h = h*31 + uint64(styler.GetBorderStyle())
+		}
+		if colorer, ok := vnode.(interface{ GetBorderColor() string }); ok {
+			if color := colorer.GetBorderColor(); color != "" {
+				h = h*31 + hashString(color)
+			}
+		}
+		if labeler, ok := vnode.(interface{ GetBorderLabel() string }); ok {
+			if label := labeler.GetBorderLabel(); label != "" {
+				h = h*31 + hashString(label)
+			}
+		}
+		key.ContentHash = h
 	}
 
 	// Include relevant props in the key
@@ -585,10 +638,11 @@ func (e *Engine) computeHash(vnode VNode, constraints runtime.BoxConstraints) ui
 	return h
 }
 
-func hashString(s string) uint32 {
-	h := uint32(5381)
+// hashString computes a hash of a string for cache keys
+func hashString(s string) uint64 {
+	h := uint64(5381)
 	for _, c := range s {
-		h = h*32 + uint32(c)
+		h = h*31 + uint64(c)
 	}
 	return h
 }
