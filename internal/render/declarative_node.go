@@ -178,6 +178,9 @@ func (n *DeclarativeNode) Measure(maxWidth, maxHeight int) (width, height int) {
 // =============================================================================
 
 // Paint renders the VNode tree to the buffer
+// UNIFIED RENDERING: Both Fiber and non-Fiber modes now use the PipelineRenderer
+// - Fiber reconciler: manages tree state, hooks, and reconciliation
+// - PipelineRenderer: handles all actual rendering with constraint-driven layout
 func (n *DeclarativeNode) Paint(ctx component.PaintContext, buf *paint.Buffer) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
@@ -188,82 +191,14 @@ func (n *DeclarativeNode) Paint(ctx component.PaintContext, buf *paint.Buffer) {
 			ctx.Bounds.X, ctx.Bounds.Y, buf.Width, buf.Height, n.useFiber)
 	}
 
-	// If Fiber reconciler is enabled, use it for rendering
+	// Phase 1: Get/update the VNode tree (different paths for Fiber vs non-Fiber)
 	if n.useFiber && n.reconciler != nil {
-		// The reconciler handles the entire render cycle
-		// The reconciler will call the render function with proper context management
-		n.reconciler.Render(ctx, buf, func() rtui.VNode {
-			if n.renderFn != nil {
-				return n.renderFn()
-			}
-			return n.root
-		})
-
-		// Get the rendered VNode tree from the reconciler for focus management
-		// This avoids calling renderFn() twice which would create different VNode objects
-		n.root = n.reconciler.GetRenderedRoot()
-		return
-	}
-
-	// Non-Fiber mode: traditional rendering
-	// Initialize component context if needed
-	if n.instance == nil && n.renderFn != nil {
-		n.instance = rtui.NewComponentContextForRoot()
-		if os.Getenv("TUI_DEBUG_UI") == "true" {
-			fmt.Fprintf(os.Stderr, "DeclarativeNode.Paint: created new ComponentContext\n")
-		}
-	}
-
-	// Ensure root VNode is rendered
-	if n.renderFn != nil {
-		// Reset and set component context for hooks
-		n.instance.ResetContext()
-		rtui.SetCurrentContext(n.instance)
-
-		if os.Getenv("TUI_DEBUG_UI") == "true" {
-			fmt.Fprintf(os.Stderr, "DeclarativeNode.Paint: calling renderFn()...\n")
-		}
-
-		// Call render function to get root VNode
-		n.root = n.renderFn()
-
-		if os.Getenv("TUI_DEBUG_UI") == "true" {
-			fmt.Fprintf(os.Stderr, "DeclarativeNode.Paint: renderFn() returned, root type=%d\n", n.root.Type())
-		}
-
-		// Expand all ComponentVNodes recursively (non-Fiber mode only)
-		// This ensures nested components are rendered with proper hook context
-		n.root = n.expandComponents(n.root)
-
-		// Clear current context
-		rtui.SetCurrentContext(nil)
-	}
-
-	// Collect focusable nodes and update focus manager (after expansion)
-	if n.focusMgr != nil && n.root != nil {
-		focusable := rtui.CollectFocusable(n.root)
-		// In non-Fiber mode, use UpdateFocusableList instead of SetFocusable
-		// because VNode instances are recreated on each render, so ID matching
-		// (which includes pointer addresses) would fail. We preserve the focus
-		// index directly instead.
-		n.focusMgr.UpdateFocusableList(focusable)
-		// Clamp focus index to valid range in case the number of focusable nodes changed
-		currentIndex := n.focusMgr.CurrentIndex()
-		if currentIndex >= len(focusable) {
-			currentIndex = len(focusable) - 1
-		}
-		if currentIndex < 0 && len(focusable) > 0 {
-			currentIndex = 0
-		}
-		if currentIndex >= 0 {
-			n.focusMgr.SetFocusByIndex(currentIndex)
-		}
-		if os.Getenv("TUI_DEBUG_UI") == "true" {
-			fmt.Fprintf(os.Stderr, "DeclarativeNode.Paint: collected %d focusable nodes\n", len(focusable))
-		}
-
-		// Apply focus state to VNodes (non-Fiber mode)
-		n.applyFocus(focusable)
+		// Fiber mode: reconciler manages tree state, hooks, and reconciliation
+		// Call reconciler's Update phase (no rendering)
+		n.root = n.reconcilerUpdate()
+	} else {
+		// Non-Fiber mode: simple render function call
+		n.root = n.nonFiberRender()
 	}
 
 	if n.root == nil {
@@ -273,12 +208,105 @@ func (n *DeclarativeNode) Paint(ctx component.PaintContext, buf *paint.Buffer) {
 		return
 	}
 
-	// Walk the VNode tree and paint each node
-	n.PaintVNode(n.root, ctx.Bounds.X, ctx.Bounds.Y, buf)
+	// Phase 2: Apply focus state (both modes)
+	n.applyFocusState()
+
+	// Phase 3: UNIFIED RENDERING - use PipelineRenderer for both modes
+	// The renderer handles layout (constraints) and painting
+	if n.renderer != nil {
+		n.renderer.Render(n.root, ctx.Bounds.X, ctx.Bounds.Y, buf)
+	} else {
+		// Fallback to legacy painting
+		n.PaintVNode(n.root, ctx.Bounds.X, ctx.Bounds.Y, buf)
+	}
 
 	if os.Getenv("TUI_DEBUG_UI") == "true" {
 		fmt.Fprintf(os.Stderr, "DeclarativeNode.Paint: painting complete\n")
 	}
+}
+
+// reconcilerUpdate runs the Fiber reconciler's update phase without rendering
+// Returns the rendered VNode tree
+func (n *DeclarativeNode) reconcilerUpdate() rtui.VNode {
+	if n.reconciler == nil {
+		return nil
+	}
+
+	// Create a temp buffer for the reconciler (it needs one but we won't use it)
+	// The reconciler's Render method does: update phase -> render phase -> cleanup
+	// We only want the update phase, but they're coupled.
+	// For now, let the reconciler do its thing, then extract the tree for our renderer.
+	// TODO: Refactor reconciler to separate Update() from Render()
+
+	// Use a null buffer that we discard
+	nullBuf := paint.NewBuffer(1, 1)
+	n.reconciler.Render(component.PaintContext{
+		Bounds: paint.Rect{X: 0, Y: 0, Width: 1, Height: 1},
+	}, nullBuf, func() rtui.VNode {
+		if n.renderFn != nil {
+			return n.renderFn()
+		}
+		return n.root
+	})
+
+	// Get the rendered tree from reconciler
+	return n.reconciler.GetRenderedRoot()
+}
+
+// nonFiberRender renders the VNode tree in non-Fiber mode
+func (n *DeclarativeNode) nonFiberRender() rtui.VNode {
+	// Initialize component context if needed
+	if n.instance == nil && n.renderFn != nil {
+		n.instance = rtui.NewComponentContextForRoot()
+	}
+
+	if n.renderFn == nil {
+		return n.root
+	}
+
+	// Set component context for hooks
+	n.instance.ResetContext()
+	rtui.SetCurrentContext(n.instance)
+
+	// Call render function
+	n.root = n.renderFn()
+
+	// Expand all ComponentVNodes recursively
+	n.root = n.expandComponents(n.root)
+
+	// Clear context
+	rtui.SetCurrentContext(nil)
+
+	return n.root
+}
+
+// applyFocusState applies focus state to the VNode tree (both modes)
+func (n *DeclarativeNode) applyFocusState() {
+	if n.focusMgr == nil || n.root == nil {
+		return
+	}
+
+	focusable := rtui.CollectFocusable(n.root)
+	n.focusMgr.UpdateFocusableList(focusable)
+
+	// Clamp focus index
+	currentIndex := n.focusMgr.CurrentIndex()
+	if currentIndex >= len(focusable) {
+		currentIndex = len(focusable) - 1
+	}
+	if currentIndex < 0 && len(focusable) > 0 {
+		currentIndex = 0
+	}
+	if currentIndex >= 0 {
+		n.focusMgr.SetFocusByIndex(currentIndex)
+	}
+
+	if os.Getenv("TUI_DEBUG_UI") == "true" {
+		fmt.Fprintf(os.Stderr, "DeclarativeNode.Paint: collected %d focusable nodes\n", len(focusable))
+	}
+
+	// Apply focus state
+	n.applyFocus(focusable)
 }
 
 // PaintVNode recursively paints a VNode and its children.
