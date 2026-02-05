@@ -44,7 +44,25 @@ func NewBuffer(width, height int) *Buffer {
 // This is a convenience method that converts a rune to a string cluster.
 // For complex grapheme clusters, use SetString instead.
 func (b *Buffer) SetCell(x, y int, char rune, s style.Style) {
-	b.setCluster(x, y, string(char), runewidth.RuneWidth(char), s)
+	b.setCluster(x, y, string(char), getRuneWidth(char), s)
+}
+
+// getRuneWidth returns the display width for a rune.
+// Border drawing characters are treated as width 1 to avoid conflicts.
+func getRuneWidth(char rune) int {
+	// Check if this is a border drawing character
+	// These characters should be treated as single-width for TUI borders
+	switch char {
+	case '┌', '┐', '└', '┘', // Corners
+		'─', '│',           // Lines
+		'╔', '╗', '╚', '╝',  // Double corners
+		'═', '║',           // Double lines
+		'╭', '╮', '╰', '╯',  // Rounded corners
+		'+', '|':             // ASCII style
+		return 1
+	default:
+		return runewidth.RuneWidth(char)
+	}
 }
 
 // setCluster sets a grapheme cluster at the given coordinates.
@@ -217,9 +235,11 @@ func (b *Buffer) clearCellAt(x, y int) {
 	cell := b.Cells[y][x]
 
 	// 如果当前位置是 continuation，需要往左找到 head 并清除
+	// 但要检查 head 是否与当前位置宽度相同（防止误清除）
 	if cell.IsContinuation && x > 0 {
 		head := b.Cells[y][x-1]
-		if head.Width == 2 {
+		// 只清除 head 当它是宽字符且宽度大于0
+		if head.Width == 2 && head.Cluster != "" {
 			b.Cells[y][x-1] = Cell{}
 		}
 	}

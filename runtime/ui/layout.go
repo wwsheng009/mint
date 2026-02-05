@@ -1,6 +1,10 @@
 package ui
 
-import "github.com/wwsheng009/mint/runtime/style"
+import (
+	"strings"
+
+	"github.com/wwsheng009/mint/runtime/style"
+)
 
 // Direction represents layout direction
 type Direction int
@@ -349,3 +353,228 @@ func (td *TableCell) GetCellContent() VNode {
 	}
 	return nil
 }
+
+// =============================================================================
+// Bordered Container - Auto-rendered borders (don't occupy content space)
+// =============================================================================
+
+// BorderStyle defines the visual style of borders
+type BorderStyle int
+
+const (
+	BorderSingle BorderStyle = iota // Single line: ┌───┐
+	BorderDouble                      // Double line: ╔═══╗
+	BorderRounded                     // Rounded: ╭───╮
+	BorderDashed                      // Dashed: +---+
+	BorderNone                        // No border
+)
+
+// BorderedNode represents a container with auto-rendered border
+// The border is rendered outside the content area, not taking up content space
+type BorderedNode struct {
+	*ElementVNode
+	borderStyle BorderStyle
+	borderColor string
+	borderLabel  string // Optional title shown on top border
+}
+
+// Bordered creates a container with auto-rendered border
+// Usage:
+//   ui.Bordered().Child(content).Build()
+//   ui.Bordered().Style("double").Label("Title").Child(content).Build()
+func Bordered() *BorderedBuilder {
+	return &BorderedBuilder{
+		node: &BorderedNode{
+			ElementVNode: NewElement("bordered"),
+			borderStyle:  BorderSingle,
+			borderColor: "blue",
+		},
+	}
+}
+
+// BorderedBuilder builds a bordered container
+type BorderedBuilder struct {
+	node *BorderedNode
+}
+
+// Style sets the border style ("single", "double", "rounded", "dashed")
+func (b *BorderedBuilder) Style(style string) *BorderedBuilder {
+	switch style {
+	case "double":
+		b.node.borderStyle = BorderDouble
+	case "rounded":
+		b.node.borderStyle = BorderRounded
+	case "dashed":
+		b.node.borderStyle = BorderDashed
+	case "none":
+		b.node.borderStyle = BorderNone
+	default:
+		b.node.borderStyle = BorderSingle
+	}
+	return b
+}
+
+// Color sets the border color
+func (b *BorderedBuilder) Color(c string) *BorderedBuilder {
+	b.node.borderColor = c
+	return b
+}
+
+// Label sets a title shown on the top border
+func (b *BorderedBuilder) Label(label string) *BorderedBuilder {
+	b.node.borderLabel = label
+	return b
+}
+
+// Child sets the content inside the border
+func (b *BorderedBuilder) Child(child VNode) *BorderedBuilder {
+	b.node.SetChildren([]VNode{child})
+	return b
+}
+
+// Width sets the content width (border adds 2 chars)
+func (b *BorderedBuilder) Width(n int) *BorderedBuilder {
+	b.node.SetProp("width", n)
+	return b
+}
+
+// Height sets the content height (border adds 2 lines)
+func (b *BorderedBuilder) Height(n int) *BorderedBuilder {
+	b.node.SetProp("height", n)
+	return b
+}
+
+// Build returns the VNode
+func (b *BorderedBuilder) Build() VNode {
+	return b.node
+}
+
+// GetBorderStyle returns the border style
+func (bn *BorderedNode) GetBorderStyle() BorderStyle {
+	return bn.borderStyle
+}
+
+// GetBorderColor returns the border color
+func (bn *BorderedNode) GetBorderColor() string {
+	return bn.borderColor
+}
+
+// GetBorderLabel returns the border label
+func (bn *BorderedNode) GetBorderLabel() string {
+	return bn.borderLabel
+}
+
+// RenderBorder returns the border VNodes for a bordered container
+// This is called by the renderer to draw borders around content
+func (bn *BorderedNode) RenderBorder(contentWidth, contentHeight int) []VNode {
+	if bn.borderStyle == BorderNone {
+		return nil
+	}
+
+	// Ensure minimum size
+	if contentWidth < 0 {
+		contentWidth = 0
+	}
+	if contentHeight < 0 {
+		contentHeight = 0
+	}
+
+	result := make([]VNode, 0)
+
+	// Get border characters
+	cornerTL, cornerTR, cornerBL, cornerBR, horizontal, vertical := bn.GetBorderChars()
+
+	// Top border (with optional label)
+	topBorder := bn.renderTopBorder(cornerTL, cornerTR, horizontal, contentWidth)
+	result = append(result, topBorder...)
+
+	// Middle rows (left + right borders only, content painted between them)
+	for i := 0; i < contentHeight; i++ {
+		// Left border
+		leftBorder := Element("text").Prop("content", string(vertical)).Style(style.Style{FG: style.Color(bn.borderColor)}).Build()
+		result = append(result, leftBorder)
+
+		// Right border (will be positioned at contentWidth + 1)
+		rightBorder := Element("text").Prop("content", string(vertical)).Style(style.Style{FG: style.Color(bn.borderColor)}).Build()
+		result = append(result, rightBorder)
+	}
+
+	// Bottom border
+	result = append(result, bn.renderBottomBorder(cornerBL, cornerBR, horizontal, contentWidth)...)
+
+	return result
+}
+
+// renderTopBorder renders the top border line with optional label
+func (bn *BorderedNode) renderTopBorder(cornerTL, cornerTR, horizontal rune, contentWidth int) []VNode {
+	color := bn.borderColor
+	textStyle := style.Style{FG: style.Color(color)}
+
+	if bn.borderLabel == "" {
+		// Simple top border without label: cornerTL + horizontal fill + cornerTR
+		// Return 3 separate VNodes for proper positioning
+		horizontalFill := strings.Repeat(string(horizontal), contentWidth)
+		if contentWidth > 0 {
+			return []VNode{
+				Element("text").Prop("content", string(cornerTL)).Style(textStyle).Build(),
+				Element("text").Prop("content", horizontalFill).Style(textStyle).Build(),
+				Element("text").Prop("content", string(cornerTR)).Style(textStyle).Build(),
+			}
+		}
+		// Empty content - just corners
+		return []VNode{
+			Element("text").Prop("content", string(cornerTL)+string(horizontal)).Style(textStyle).Build(),
+			Element("text").Prop("content", string(horizontal)+string(cornerTR)).Style(textStyle).Build(),
+		}
+	}
+
+	// Top border with label: "+-- Label ----+"
+	label := bn.borderLabel
+	labelWidth := len(label) + 2 // +1 for space on each side
+	padding := (contentWidth - labelWidth) / 2
+	if padding < 0 {
+		padding = 0
+	}
+
+	return []VNode{
+		Element("text").Prop("content", string(cornerTL)+strings.Repeat(string(horizontal), padding+1)).Style(textStyle).Build(),
+		Element("text").Prop("content", " "+label+" ").Style(textStyle.Bold(true)).Build(),
+		Element("text").Prop("content", strings.Repeat(string(horizontal), contentWidth-padding-labelWidth+2)+string(cornerTR)).Style(textStyle).Build(),
+	}
+}
+
+// renderBottomBorder renders the bottom border line
+func (bn *BorderedNode) renderBottomBorder(cornerBL, cornerBR, horizontal rune, contentWidth int) []VNode {
+	color := bn.borderColor
+	textStyle := style.Style{FG: style.Color(color)}
+
+	// Bottom border: cornerBL + horizontal fill + cornerBR
+	horizontalFill := strings.Repeat(string(horizontal), contentWidth)
+	if contentWidth > 0 {
+		return []VNode{
+			Element("text").Prop("content", string(cornerBL)).Style(textStyle).Build(),
+			Element("text").Prop("content", horizontalFill).Style(textStyle).Build(),
+			Element("text").Prop("content", string(cornerBR)).Style(textStyle).Build(),
+		}
+	}
+	// Empty content - just corners
+	return []VNode{
+		Element("text").Prop("content", string(cornerBL)+string(horizontal)).Style(textStyle).Build(),
+		Element("text").Prop("content", string(horizontal)+string(cornerBR)).Style(textStyle).Build(),
+	}
+}
+
+// GetBorderChars returns the border characters for the current style
+func (bn *BorderedNode) GetBorderChars() (cornerTL, cornerTR, cornerBL, cornerBR, horizontal, vertical rune) {
+	switch bn.borderStyle {
+	case BorderDouble:
+		return '╔', '╗', '╚', '╝', '═', '║'
+	case BorderRounded:
+		return '╭', '╮', '╰', '╯', '─', '│'
+	case BorderDashed:
+		return '+', '+', '+', '+', '-', '|'
+	default: // BorderSingle - continuous line style
+		return '┌', '┐', '└', '┘', '─', '│'
+	}
+}
+

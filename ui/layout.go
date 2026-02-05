@@ -79,3 +79,27 @@ func Row(cells ...VNode) VNode {
 func Cell(content VNode) VNode {
 	return rtui.Cell(content)
 }
+
+// =============================================================================
+// Bordered Container (re-exported from runtime/ui)
+// =============================================================================
+
+// BorderStyle defines the visual style of borders
+type BorderStyle = rtui.BorderStyle
+
+const (
+	BorderSingle = rtui.BorderSingle
+	BorderDouble = rtui.BorderDouble
+	BorderRounded = rtui.BorderRounded
+	BorderDashed  = rtui.BorderDashed
+	BorderNone    = rtui.BorderNone
+)
+
+// BorderedNode represents a container with auto-rendered border
+type BorderedNode = rtui.BorderedNode
+
+// Bordered creates a container with auto-rendered border
+// The border is rendered outside the content area, not taking up content space
+func Bordered() *rtui.BorderedBuilder {
+	return rtui.Bordered()
+}

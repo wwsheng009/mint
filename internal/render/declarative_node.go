@@ -11,7 +11,9 @@ import (
 	frameworkevent "github.com/wwsheng009/mint/framework/event"
 	"github.com/wwsheng009/mint/internal/reconciler"
 	"github.com/wwsheng009/mint/runtime"
+	"github.com/wwsheng009/mint/runtime/border"
 	"github.com/wwsheng009/mint/runtime/paint"
+	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
 
@@ -336,6 +338,12 @@ func (n *DeclarativeNode) PaintVNode(vnode rtui.VNode, x, y int, buf *paint.Buff
 
 	// For non-Paintable elements, paint children after self-rendering
 	if vnode.Type() == rtui.VNodeElement {
+		// Check if this is a bordered element - render border + content
+		if borderedNode, ok := vnode.(interface{ RenderBorder(int, int) []rtui.VNode }); ok {
+			n.paintBordered(vnode, borderedNode, x, y, buf)
+			return
+		}
+
 		// Check if this is a table element
 		if tagger, ok := vnode.(interface{ Tag() string }); ok && tagger.Tag() == "table" {
 			n.paintTable(vnode, x, y, buf)
@@ -462,6 +470,54 @@ func (n *DeclarativeNode) paintTable(vnode rtui.VNode, x, y int, buf *paint.Buff
 			n.PaintVNode(row, x, rowY, buf)
 			rowY += n.MeasureVNodeHeight(row)
 		}
+	}
+}
+
+// paintBordered paints a bordered element with auto-rendered borders
+// The border is rendered outside the content area
+func (n *DeclarativeNode) paintBordered(vnode rtui.VNode, _ interface{ RenderBorder(int, int) []rtui.VNode }, x, y int, buf *paint.Buffer) {
+	children := vnode.Children()
+	if len(children) == 0 {
+		return
+	}
+
+	child := children[0]
+	if child == nil {
+		return
+	}
+
+	// Measure content size
+	contentWidth := n.MeasureVNodeWidth(child)
+	contentHeight := n.MeasureVNodeHeight(child)
+
+	// Get border config from BorderedNode
+	config := border.DefaultConfig()
+
+	// Get style from BorderedNode (it returns rtui.BorderStyle)
+	if bn, ok := vnode.(interface{ GetBorderStyle() rtui.BorderStyle }); ok {
+		// Convert rtui.BorderStyle to border.Style
+		// They have the same int values, so we can cast
+		config.Style = border.Style(bn.GetBorderStyle())
+	}
+	if bn, ok := vnode.(interface{ GetBorderColor() string }); ok {
+		config.Color = bn.GetBorderColor()
+	}
+	if bn, ok := vnode.(interface{ GetBorderLabel() string }); ok {
+		config.Label = bn.GetBorderLabel()
+	}
+
+	// Create border renderer and paint
+	renderer := border.WithConfig(config)
+
+	// Paint border cells
+	renderer.Paint(x, y, contentWidth, contentHeight, func(px, py int, ch rune, s style.Style) {
+		buf.SetCell(px, py, ch, s)
+	})
+
+	// Paint content inside border
+	offsetX, offsetY := renderer.GetContentOffset()
+	for row := 0; row < contentHeight; row++ {
+		n.PaintVNode(child, x+offsetX, y+offsetY+row, buf)
 	}
 }
 
