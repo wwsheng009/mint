@@ -47,24 +47,20 @@ func App() ui.VNode {
 		items[i] = fmt.Sprintf("Log line #%d", i)
 	}
 
-	// Build main content using VStack for vertical layout
+	// Layer: Modal (conditional rendering)
+	// When modal is open, render ONLY the modal (overlay mode)
+	if showModal {
+		return ConfirmModal(func() {
+			setShowModal(false)
+		})
+	}
+
+	// Otherwise render main content
 	// Use Stretch() so children (Header, MainBody) expand to fill width
-	mainContent := ui.VStackBuilder(
+	return ui.VStackBuilder(
 		Header(count, showModal, setShowModal, setCount),
 		MainBody(count, setCount, input, setInput, items),
 	).Stretch().Build()
-
-	// Layer: Modal (conditional rendering)
-	if showModal {
-		return ui.VStackBuilder(
-			mainContent,
-			ConfirmModal(func() {
-				setShowModal(false)
-			}),
-		).Stretch().Build()
-	}
-
-	return mainContent
 }
 
 // Header demonstrates state + layout with Bordered component
@@ -196,51 +192,61 @@ func MainBody(count int, setCount func(interface{}), input string, setInput func
 	).Gap(0).Build()
 }
 
-// ConfirmModal demonstrates Layer + Animation + Focus Trap with Bordered component
+// ConfirmModal demonstrates Layer + Focus Trap with overlay rendering
+// Modal renders as a centered overlay with backdrop
 func ConfirmModal(onClose func()) ui.VNode {
-	modalContent := ui.VStack(
-		ui.Text(""),
-		ui.HStack(
-			ui.Text("       "),
-			app.ButtonBuilder("[Cancel]").
-				OnClick(onClose).
-				Build(),
-			ui.Text(" "),
-			app.ButtonBuilder("[OK]").
-				BgColor("green").
-				FgColor("white").
-				OnClick(onClose).
-				Build(),
-		),
-		ui.Text(""),
-	)
+	// Modal content - the actual dialog box with border
+	modalBox := ui.Bordered().
+		Color("yellow").
+		Child(
+			ui.VStackBuilder(
+				ui.Text(""),
+				app.NewTextBuilder("*** Are you sure? ***").
+					Bold(true).
+					FgColor("yellow").
+					Build(),
+				ui.Text(""),
+				ui.HStack(
+					ui.Text("       "),
+					app.ButtonBuilder("[ Cancel ]").
+						OnClick(onClose).
+						Build(),
+					ui.Text(" "),
+					app.ButtonBuilder("[ OK ]").
+						BgColor("green").
+						FgColor("white").
+						OnClick(onClose).
+						Build(),
+				),
+				ui.Text(""),
+				app.NewTextBuilder("Press ESC to close").
+					FgColor("gray").
+					Build(),
+			).Build(),
+		).
+		Build()
 
-	return ui.VStack(
+	// Return the modal centered with backdrop
+	// Using VStack with spacing to center the modal
+	return ui.VStackBuilder(
+		// Top spacing to push modal down (vertical centering)
 		ui.Text(""),
-		ui.HStack(
-			ui.Text("        "),
-			ui.Bordered().
-				Color("yellow").
-				Style("double").
-				Child(
-					ui.VStack(
-						ui.Text(""),
-						ui.HStack(
-							ui.Text("       "),
-							app.NewTextBuilder("*** Are you sure? ***").
-								Bold(true).
-								FgColor("yellow").
-								Build(),
-						),
-						ui.Text(""),
-						modalContent,
-					),
-				).
-				Build(),
-		),
 		ui.Text(""),
-		app.NewTextBuilder("Press ESC to close").
-			FgColor("gray").
-			Build(),
-	)
+		ui.Text(""),
+		ui.Text(""),
+		ui.Text(""),
+		ui.Text(""),
+		ui.Text(""),
+		// The modal box (horizontally centered by layout)
+		modalBox,
+		// Bottom spacing
+		ui.Text(""),
+		ui.Text(""),
+		ui.Text(""),
+		ui.Text(""),
+		ui.Text(""),
+		ui.Text(""),
+		ui.Text(""),
+		ui.Text(""),
+	).Build()
 }
