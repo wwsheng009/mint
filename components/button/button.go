@@ -571,8 +571,12 @@ func (b *ButtonVNode) Paint(x, y int) []paint.DrawCmd {
 		// Apply focus style based on setting
 		switch b.focusStyle {
 		case FocusStyleUnderline:
-			// Underline only (preserves background color)
-			buttonStyle = buttonStyle.Underline(true).Bold(true)
+			// Bright underline with contrasting color for visibility
+			// Use bright yellow/white foreground to stand out on any background
+			buttonStyle = buttonStyle.
+				Foreground(style.Color("bright-yellow")).
+				Underline(true).
+				Bold(true)
 		case FocusStyleBracket:
 			// Brackets only (preserves background color)
 			// Brackets are already in labelText, just make it bold
@@ -593,6 +597,8 @@ func (b *ButtonVNode) Paint(x, y int) []paint.DrawCmd {
 	var focusIndicator string
 	if b.hasFocus && !b.disabled && b.focusStyle == FocusStyleReverse {
 		focusIndicator = "*"
+	} else if b.hasFocus && !b.disabled && b.focusStyle == FocusStyleUnderline {
+		focusIndicator = ">" // Visible indicator for underline style
 	} else {
 		focusIndicator = " "
 	}
