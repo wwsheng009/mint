@@ -578,8 +578,16 @@ func (b *ButtonVNode) Paint(x, y int) []paint.DrawCmd {
 				Underline(true).
 				Bold(true)
 		case FocusStyleBracket:
-			// Brackets only (preserves background color)
-			buttonStyle = buttonStyle.Bold(true)
+			// Brackets with bright color for visibility
+			// If button has no custom foreground, use bright focus color
+			if buttonStyle.FG == "" {
+				buttonStyle = buttonStyle.
+					Foreground(theme.FocusBright()).
+					Bold(true)
+			} else {
+				// Preserve custom colors but make bold
+				buttonStyle = buttonStyle.Bold(true)
+			}
 		case FocusStyleBold:
 			// Bold only (preserves background color)
 			buttonStyle = buttonStyle.Bold(true)
@@ -598,6 +606,8 @@ func (b *ButtonVNode) Paint(x, y int) []paint.DrawCmd {
 		focusIndicator = "*"
 	} else if b.hasFocus && !b.disabled && b.focusStyle == FocusStyleUnderline {
 		focusIndicator = ">" // Visible indicator for underline style
+	} else if b.hasFocus && !b.disabled && b.focusStyle == FocusStyleBracket {
+		focusIndicator = ">" // Visible indicator for bracket style
 	} else {
 		focusIndicator = " "
 	}
