@@ -85,6 +85,7 @@ func Header(count int, setShowModal func(bool), setCount func(interface{})) ui.V
 			OnClick(func() {
 				setShowModal(true)
 			}).
+			FocusStyle(app.FocusStyleUnderline).
 			Build(),
 		app.NewTextBuilder(" ").
 			BgColor("blue").
@@ -130,10 +131,12 @@ func MainBody(count int, setCount func(interface{}), input string, setInput func
 			OnClick(func() {
 				setCount(func(c int) int { return c + 1 })
 			}).
+			FocusStyle(app.FocusStyleBracket).
 			Build(),
 		app.ButtonBuilder("Quit").
 			BgColor("red").
 			FgColor("white").
+			FocusStyle(app.FocusStyleBracket).
 			OnClick(func() {
 				ui.Quit()
 			}).
@@ -221,11 +224,13 @@ func ConfirmModal(onClose func()) ui.VNode {
 				ui.HStackBuilder(
 					app.ButtonBuilder("[ Cancel ]").
 						OnClick(onClose).
+						FocusStyle(app.FocusStyleBracket).
 						Build(),
 					ui.Text(" "),
 					app.ButtonBuilder("[ OK ]").
 						BgColor("green").
 						FgColor("white").
+						FocusStyle(app.FocusStyleBracket).
 						OnClick(onClose).
 						Build(),
 				).Align(ui.AlignCenter).Build(),

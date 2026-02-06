@@ -40,6 +40,20 @@ const (
 	ButtonSizeLarge
 )
 
+// ButtonFocusStyle defines how a button displays focus state
+type ButtonFocusStyle int
+
+const (
+	// FocusStyleReverse uses reversed colors (default)
+	FocusStyleReverse ButtonFocusStyle = iota
+	// FocusStyleUnderline uses underline only (preserves background)
+	FocusStyleUnderline
+	// FocusStyleBracket uses brackets around the label (preserves background)
+	FocusStyleBracket
+	// FocusStyleBold uses bold text only (preserves background)
+	FocusStyleBold
+)
+
 // ButtonVNode represents a button component
 type ButtonVNode struct {
 	*ui.ElementVNode
@@ -50,6 +64,7 @@ type ButtonVNode struct {
 	disabled      bool
 	// Focus state
 	hasFocus      bool // Whether this button currently has keyboard focus
+	focusStyle    ButtonFocusStyle // How to display focus state
 	// Mouse interaction state
 	isHovered     bool
 	onMouseEnter  func()
@@ -68,6 +83,7 @@ func NewButton(label string) *ButtonVNode {
 		variant:      ButtonVariantDefault,
 		size:         ButtonSizeMedium,
 		disabled:     false,
+		focusStyle:   FocusStyleReverse, // Default: reverse colors
 	}
 }
 
@@ -130,6 +146,18 @@ func (b *ButtonVNode) SetDisabled(v bool) *ButtonVNode {
 	return b
 }
 
+// FocusStyle returns the button focus style
+func (b *ButtonVNode) FocusStyle() ButtonFocusStyle {
+	return b.focusStyle
+}
+
+// SetFocusStyle sets the button focus style
+func (b *ButtonVNode) SetFocusStyle(s ButtonFocusStyle) *ButtonVNode {
+	b.focusStyle = s
+	b.SetProp("focusStyle", s)
+	return b
+}
+
 // Button creates a new button node
 func Button(label string) ui.VNode {
 	return NewButton(label)
@@ -174,6 +202,12 @@ func (b *ButtonBuilderType) Size(s ButtonSize) *ButtonBuilderType {
 // Disabled sets the disabled state
 func (b *ButtonBuilderType) Disabled(v bool) *ButtonBuilderType {
 	b.node.SetDisabled(v)
+	return b
+}
+
+// FocusStyle sets the focus style
+func (b *ButtonBuilderType) FocusStyle(s ButtonFocusStyle) *ButtonBuilderType {
+	b.node.SetFocusStyle(s)
 	return b
 }
 
@@ -532,19 +566,32 @@ func (b *ButtonVNode) Paint(x, y int) []paint.DrawCmd {
 	}
 
 	// State priority: Focused > Hovered > Normal
-	// Focus: distinct visual feedback (blue background with white text)
-	// Hover: subtle feedback (underline)
+	// Focus style is controlled by b.focusStyle
 	if b.hasFocus && !b.disabled {
-		// Focused state: blue background with white text for clear visibility
-		buttonStyle = buttonStyle.Foreground(style.Color("white")).Background(style.Color("blue")).Bold(true)
+		// Apply focus style based on setting
+		switch b.focusStyle {
+		case FocusStyleUnderline:
+			// Underline only (preserves background color)
+			buttonStyle = buttonStyle.Underline(true).Bold(true)
+		case FocusStyleBracket:
+			// Brackets only (preserves background color)
+			// Brackets are already in labelText, just make it bold
+			buttonStyle = buttonStyle.Bold(true)
+		case FocusStyleBold:
+			// Bold only (preserves background color)
+			buttonStyle = buttonStyle.Bold(true)
+		case FocusStyleReverse:
+			// Default: reverse colors (blue background with white text)
+			buttonStyle = buttonStyle.Foreground(style.Color("white")).Background(style.Color("blue")).Bold(true)
+		}
 	} else if b.isHovered && !b.disabled {
 		// Hovered state: underline only (no background)
 		buttonStyle = buttonStyle.Underline(true)
 	}
 
-	// Add focus indicator: * before focused button
+	// Add focus indicator: * before focused button (only for Reverse style)
 	var focusIndicator string
-	if b.hasFocus && !b.disabled {
+	if b.hasFocus && !b.disabled && b.focusStyle == FocusStyleReverse {
 		focusIndicator = "*"
 	} else {
 		focusIndicator = " "

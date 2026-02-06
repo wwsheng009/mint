@@ -43,6 +43,16 @@ var (
 	ButtonBuilder = button.ButtonBuilder
 )
 
+// ButtonFocusStyle type and constants
+type ButtonFocusStyle = button.ButtonFocusStyle
+
+const (
+	FocusStyleReverse   = button.FocusStyleReverse
+	FocusStyleUnderline = button.FocusStyleUnderline
+	FocusStyleBracket   = button.FocusStyleBracket
+	FocusStyleBold      = button.FocusStyleBold
+)
+
 // Form components
 var (
 	Input        = form.Input
