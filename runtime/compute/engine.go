@@ -63,13 +63,14 @@ func (e *Engine) Layout(vnode VNode, constraints runtime.BoxConstraints) (*Compu
 // Layout Box Building (First Pass: Measurement)
 // =============================================================================
 
-// buildComputedBox creates a computed box for a VNode with its children
+// buildComputedBoxWithSize creates a computed box for a VNode with its children,
+// using a pre-measured size if provided (to avoid re-measurement in single-pass layout).
 // This is the first pass - measuring sizes
 //
 // Caching strategy: Only cache leaf nodes (nodes without vnode children).
 // This avoids the complexity of caching entire subtrees while still
 // providing performance benefits for simple nodes like text.
-func (e *Engine) buildComputedBox(vnode VNode, parent *ComputedBox, constraints runtime.BoxConstraints) *ComputedBox {
+func (e *Engine) buildComputedBoxWithSize(vnode VNode, parent *ComputedBox, constraints runtime.BoxConstraints, preMeasuredSize *runtime.Size) *ComputedBox {
 	if vnode == nil {
 		return nil
 	}
@@ -104,21 +105,101 @@ func (e *Engine) buildComputedBox(vnode VNode, parent *ComputedBox, constraints 
 		}
 	}
 
-	// Measure the vnode
-	size := e.measureVNode(vnode, constraints)
-	box.Box.Width = size.Width
-	box.Box.Height = size.Height
+	// If pre-measured size is provided, use it directly (single-pass optimization)
+	debug := os.Getenv("TUI_LAYOUT_DEBUG") == "true"
+	if preMeasuredSize != nil {
+		box.Box.Width = preMeasuredSize.Width
+		box.Box.Height = preMeasuredSize.Height
 
-	// Build children layout boxes
-	box.Children = make([]*ComputedBox, 0, len(vnodeChildren))
+		if debug {
+			tag := "none"
+			if tagger, ok := vnode.(interface{ Tag() string }); ok {
+				tag = tagger.Tag()
+			}
+			fmt.Fprintf(os.Stderr, "[buildComputedBox] tag=%s, using pre-measured size=%v\n",
+				tag, *preMeasuredSize)
+		}
+	} else {
+		// Try single-pass measurement if LayoutMeasurer is implemented
+		measurement := e.TryMeasureLayout(vnode, constraints)
+		if debug {
+			tag := "none"
+			if tagger, ok := vnode.(interface{ Tag() string }); ok {
+				tag = tagger.Tag()
+			}
+			fmt.Fprintf(os.Stderr, "[buildComputedBox] tag=%s, childConstraints=%d, using single-pass=%v\n",
+				tag, len(measurement.ChildConstraints), len(measurement.ChildConstraints) > 0)
+		}
+		// Check if we got a valid measurement (has child constraints)
+		if len(measurement.ChildConstraints) > 0 {
+			// Use the new single-pass approach
+			box.Box.Width = measurement.Size.Width
+			box.Box.Height = measurement.Size.Height
 
-	for _, child := range vnodeChildren {
-		// Calculate child constraints based on layout type
-		childConstraints := e.getChildConstraints(vnode, child, constraints, size)
+			// Build children using pre-calculated constraints AND pre-measured sizes
+			box.Children = make([]*ComputedBox, 0, len(vnodeChildren))
+			for i, child := range vnode.Children() {
+				childConstraints := measurement.ChildConstraints[i]
+				var childPreSize *runtime.Size
+				if i < len(measurement.ChildSizes) {
+					childPreSize = &measurement.ChildSizes[i]
+				}
+				childBox := e.buildComputedBoxWithSize(child, box, childConstraints, childPreSize)
+				if childBox != nil {
+					box.Children = append(box.Children, childBox)
+				}
+			}
 
-		childBox := e.buildComputedBox(child, box, childConstraints)
-		if childBox != nil {
-			box.Children = append(box.Children, childBox)
+			// Cache the result for leaf nodes
+			if isLeaf {
+				e.cache.Set(cacheKey, LayoutCacheEntry{
+					Box:     box.Box,
+					Size:    runtime.Size{Width: box.Box.Width, Height: box.Box.Height},
+					Hash:    e.computeHash(vnode, constraints),
+					IsLeaf:  true,
+					VNodeID: vnode.Key(),
+				})
+				if e.debug {
+					fmt.Fprintf(os.Stderr, "[Layout.CacheSet] %s: %v\n",
+						vnode.Type().String(), box.Box)
+				}
+			}
+
+			return box
+		}
+		// FALLBACK: Use the legacy two-pass approach
+		size := e.measureVNode(vnode, constraints)
+		box.Box.Width = size.Width
+		box.Box.Height = size.Height
+
+		// Build children layout boxes
+		box.Children = make([]*ComputedBox, 0, len(vnodeChildren))
+
+		for _, child := range vnodeChildren {
+			// Calculate child constraints based on layout type
+			childConstraints := e.getChildConstraints(vnode, child, constraints, size)
+
+			childBox := e.buildComputedBox(child, box, childConstraints)
+			if childBox != nil {
+				box.Children = append(box.Children, childBox)
+			}
+		}
+	}
+
+	// Build children for pre-measured nodes (still need to build the tree)
+	// Note: We use buildComputedBox without pre-measured size for children here
+	// since we don't have their pre-measured sizes
+	if preMeasuredSize != nil && len(vnodeChildren) > 0 {
+		// For pre-measured nodes, we need to build children with legacy constraints
+		// This is a limitation - ideally we'd have pre-measured sizes for all descendants
+		box.Children = make([]*ComputedBox, 0, len(vnodeChildren))
+		for _, child := range vnodeChildren {
+			// Get constraints for this child using legacy method
+			childConstraints := e.getChildConstraints(vnode, child, constraints, *preMeasuredSize)
+			childBox := e.buildComputedBox(child, box, childConstraints)
+			if childBox != nil {
+				box.Children = append(box.Children, childBox)
+			}
 		}
 	}
 
@@ -127,7 +208,7 @@ func (e *Engine) buildComputedBox(vnode VNode, parent *ComputedBox, constraints 
 	if isLeaf {
 		e.cache.Set(cacheKey, LayoutCacheEntry{
 			Box:     box.Box,
-			Size:    size,
+			Size:    runtime.Size{Width: box.Box.Width, Height: box.Box.Height},
 			Hash:    e.computeHash(vnode, constraints),
 			IsLeaf:  true,
 			VNodeID: vnode.Key(),
@@ -139,6 +220,12 @@ func (e *Engine) buildComputedBox(vnode VNode, parent *ComputedBox, constraints 
 	}
 
 	return box
+}
+
+// buildComputedBox creates a computed box for a VNode with its children.
+// This is a convenience wrapper for buildComputedBoxWithSize without pre-measurement.
+func (e *Engine) buildComputedBox(vnode VNode, parent *ComputedBox, constraints runtime.BoxConstraints) *ComputedBox {
+	return e.buildComputedBoxWithSize(vnode, parent, constraints, nil)
 }
 
 // measureVNode measures a VNode's size using constraints
@@ -469,11 +556,50 @@ func (e *Engine) measureBordered(vnode VNode, constraints runtime.BoxConstraints
 		return runtime.Size{Width: 2, Height: 2}
 	}
 
+	// Check for explicit width/height props
+	props := vnode.Props()
+	explicitWidth := 0
+	explicitHeight := 0
+	hasWidthConstraint := false
+	hasHeightConstraint := false
+
+	if props != nil {
+		if w, ok := props["width"].(int); ok && w > 0 {
+			explicitWidth = w
+			hasWidthConstraint = true
+		}
+		if h, ok := props["height"].(int); ok && h > 0 {
+			explicitHeight = h
+			hasHeightConstraint = true
+		}
+	}
+
 	child := children[0]
 
 	// Measure child with inner constraints (subtract border)
 	// Use SubtractPadding helper to properly handle bounded/unbounded constraints
 	innerConstraints := constraints.SubtractPadding(2, 2)
+
+	// If explicit width is set, constrain to that width (minus border)
+	if hasWidthConstraint {
+		innerConstraints = runtime.NewBoxConstraints(
+			explicitWidth-2,  // MinWidth = MaxWidth to enforce fixed width
+			explicitWidth-2,  // MaxWidth
+			0,
+			innerConstraints.MaxHeight,
+		)
+	}
+
+	// If explicit height is set, constrain to that height (minus border)
+	if hasHeightConstraint {
+		innerConstraints = runtime.NewBoxConstraints(
+			innerConstraints.MinWidth,
+			innerConstraints.MaxWidth,
+			0,
+			explicitHeight-2,
+		)
+	}
+
 	childSize := e.measureVNode(child, innerConstraints)
 
 	// Check for label
@@ -487,11 +613,24 @@ func (e *Engine) measureBordered(vnode VNode, constraints runtime.BoxConstraints
 		}
 	}
 
-	// Border adds 2 to width and height
-	return runtime.Size{
-		Width:  childSize.Width + 2,
-		Height: childSize.Height + 2,
+	// Calculate final size
+	contentWidth := childSize.Width
+	contentHeight := childSize.Height
+
+	// Use explicit constraints if set
+	if hasWidthConstraint {
+		contentWidth = explicitWidth - 2 // Subtract border
 	}
+	if hasHeightConstraint {
+		contentHeight = explicitHeight - 2 // Subtract border
+	}
+
+	// Border adds 2 to width and height
+	result := runtime.Size{
+		Width:  contentWidth + 2,
+		Height: contentHeight + 2,
+	}
+	return result
 }
 
 // measureTable measures a table
@@ -746,16 +885,68 @@ func (e *Engine) getChildConstraints(parent, child VNode, parentConstraints runt
 			}
 
 			// Non-flex child: unconstrained height
+			// Special case: if child is HStack and parent has bounded width,
+			// make it fill full width for main-axis alignment to work
+			childMinWidth := 0
+			if childMaxWidth != runtime.Infinity && isHStack(child) {
+				childMinWidth = childMaxWidth // HStack in VStack fills width for alignment
+			}
 			return runtime.BoxConstraints{
-				MinWidth:  0,
+				MinWidth:  childMinWidth,
 				MaxWidth:  childMaxWidth,
 				MinHeight: 0,
 				MaxHeight: runtime.Infinity,
 			}
 		case "bordered":
 			// Bordered: subtract border (2 units) from constraints
-			// Use SubtractPadding helper to handle bounded/unbounded constraints
-			return parentConstraints.SubtractPadding(2, 2)
+			// But check for explicit width/height props first
+			props := parent.Props()
+			explicitWidth, hasExplicitWidth := 0, false
+			explicitHeight, hasExplicitHeight := 0, false
+
+			if props != nil {
+				if w, ok := props["width"].(int); ok && w > 0 {
+					explicitWidth = w
+					hasExplicitWidth = true
+				}
+				if h, ok := props["height"].(int); ok && h > 0 {
+					explicitHeight = h
+					hasExplicitHeight = true
+				}
+			}
+
+			// If explicit width is set, create tight constraint for child
+			if hasExplicitWidth {
+				contentWidth := explicitWidth - 2 // Subtract border
+				if contentWidth < 0 {
+					contentWidth = 0
+				}
+				if hasExplicitHeight {
+					contentHeight := explicitHeight - 2
+					if contentHeight < 0 {
+						contentHeight = 0
+					}
+					result := runtime.BoxConstraints{
+						MinWidth:  contentWidth,
+						MaxWidth:  contentWidth,
+						MinHeight: contentHeight,
+						MaxHeight: contentHeight,
+					}
+					return result
+				}
+				// Only width is explicit
+				result := runtime.BoxConstraints{
+					MinWidth:  contentWidth,
+					MaxWidth:  contentWidth,
+					MinHeight: 0,
+					MaxHeight: runtime.Infinity,
+				}
+				return result
+			}
+
+			// No explicit width, use default behavior
+			result := parentConstraints.SubtractPadding(2, 2)
+			return result
 		}
 	}
 
@@ -807,10 +998,48 @@ func (e *Engine) layoutHStack(box *ComputedBox, x, y int) {
 	layoutInfo := rtui.GetLayoutInfo(box.VNode)
 	gap := layoutInfo.Gap
 	crossAlign := layoutInfo.CrossAlign
+	mainAlign := layoutInfo.Align
 	stretchCross := layoutInfo.StretchCross
 
-	childX := x
+	// Debug: check alignment
+	if os.Getenv("TUI_ALIGN_DEBUG") == "true" {
+		fmt.Fprintf(os.Stderr, "[layoutHStack] mainAlign=%d (AlignCenter=%d), box.Width=%d, x=%d\n",
+			mainAlign, rtui.AlignCenter, box.Box.Width, x)
+	}
+
+	// Calculate total width of all children (for main-axis alignment)
+	totalChildWidth := 0
 	for _, child := range box.Children {
+		totalChildWidth += child.Box.Width
+	}
+	if len(box.Children) > 0 {
+		totalChildWidth += (len(box.Children) - 1) * gap
+	}
+
+	// Calculate starting X position based on main-axis alignment
+	childX := x
+	switch mainAlign {
+	case rtui.AlignCenter:
+		if totalChildWidth < box.Box.Width {
+			childX = x + (box.Box.Width-totalChildWidth)/2
+		}
+	case rtui.AlignEnd:
+		if totalChildWidth < box.Box.Width {
+			childX = x + box.Box.Width - totalChildWidth
+		}
+	case rtui.AlignSpaceBetween:
+		if len(box.Children) > 1 && totalChildWidth < box.Box.Width {
+			gap = (box.Box.Width - totalChildWidth) / (len(box.Children) - 1)
+		}
+	case rtui.AlignSpaceAround:
+		if len(box.Children) > 0 && totalChildWidth < box.Box.Width {
+			extraSpace := box.Box.Width - totalChildWidth
+			gap = extraSpace / len(box.Children)
+			childX = x + gap/2
+		}
+	}
+
+	for i, child := range box.Children {
 		childInfo := rtui.GetLayoutInfo(child.VNode)
 
 		// Stretch child to container height if:
@@ -836,7 +1065,14 @@ func (e *Engine) layoutHStack(box *ComputedBox, x, y int) {
 		}
 
 		e.calculatePositions(child, childX, childY)
-		childX += child.Box.Width + gap
+		// Calculate next child position based on alignment mode
+		if mainAlign == rtui.AlignSpaceAround {
+			childX += child.Box.Width + gap
+		} else if mainAlign == rtui.AlignSpaceBetween && i < len(box.Children)-1 {
+			childX += child.Box.Width + gap
+		} else {
+			childX += child.Box.Width + layoutInfo.Gap
+		}
 	}
 }
 
@@ -1140,6 +1376,72 @@ func max(a, b int) int {
 		return a
 	}
 	return b
+}
+
+// =============================================================================
+// Helper Functions
+// =============================================================================
+
+// =============================================================================
+// Single-Pass Layout Support
+// =============================================================================
+
+// MeasureChild implements runtime.ChildMeasurer interface.
+// This allows LayoutNode to call this without importing compute package.
+func (e *Engine) MeasureChild(child interface{}, constraints runtime.BoxConstraints) runtime.Size {
+	// Type assert to VNode
+	if vnode, ok := child.(VNode); ok {
+		return e.measureVNode(vnode, constraints)
+	}
+	// Fallback for non-VNode types
+	return runtime.Size{Width: 0, Height: 0}
+}
+
+// TryMeasureLayout attempts to use the new LayoutMeasurer interface if available.
+// Returns a valid LayoutMeasurement if the node implements LayoutMeasurer.
+// Returns a zero LayoutMeasurement if the node should use the fallback path.
+func (e *Engine) TryMeasureLayout(vnode VNode, constraints runtime.BoxConstraints) runtime.LayoutMeasurement {
+	// Check if vnode implements LayoutMeasurer via the marker method
+	if _, ok := vnode.(interface{ IsLayoutMeasurer() }); !ok {
+		return runtime.LayoutMeasurement{}
+	}
+
+	// Type assert to LayoutMeasurer
+	measurer, ok := vnode.(runtime.LayoutMeasurer)
+	if !ok {
+		return runtime.LayoutMeasurement{}
+	}
+
+	// Call MeasureLayout with the engine as the ChildMeasurer
+	return measurer.MeasureLayout(e, constraints)
+}
+
+// =============================================================================
+// Helper Functions
+// =============================================================================
+
+// isHStack checks if a VNode is an HStack (horizontal layout)
+// Used to determine if a child should fill the available width for alignment
+func isHStack(vnode rtui.VNode) bool {
+	if vnode == nil {
+		return false
+	}
+	// Check by tag
+	if tagger, ok := vnode.(interface{ Tag() string }); ok {
+		return tagger.Tag() == "hstack" || tagger.Tag() == "row"
+	}
+	return false
+}
+
+// getTag returns the tag of a VNode for debugging
+func getTag(vnode rtui.VNode) string {
+	if vnode == nil {
+		return "nil"
+	}
+	if tagger, ok := vnode.(interface{ Tag() string }); ok {
+		return tagger.Tag()
+	}
+	return vnode.Type().String()
 }
 
 // =============================================================================

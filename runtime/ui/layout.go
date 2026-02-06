@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"fmt"
+	"os"
 	"strings"
 
 	"github.com/wwsheng009/mint/runtime"
@@ -116,12 +118,16 @@ type LayoutBuilder struct {
 // Align sets the main axis alignment
 func (b *LayoutBuilder) Align(a Align) *LayoutBuilder {
 	b.node.align = a
+	// Also set as prop so it flows through VNode transformations
+	b.node.SetProp("align", int(a))
 	return b
 }
 
 // AlignCross sets the cross axis alignment
 func (b *LayoutBuilder) AlignCross(a Align) *LayoutBuilder {
 	b.node.crossAlign = a
+	// Also set as prop so it flows through VNode transformations
+	b.node.SetProp("crossAlign", int(a))
 	return b
 }
 
@@ -330,10 +336,15 @@ func (l *LayoutNode) Measure(constraints runtime.BoxConstraints) runtime.Size {
 				flexTotalFactor += childInfo.Flex
 			} else {
 				// Non-flex child: measure with natural width
+				// Special case: if child is VStack, make it fill full height for alignment to work
+				childMinHeight := 0
+				if innerMaxHeight != runtime.Infinity && isVStack(child) {
+					childMinHeight = innerMaxHeight // VStack in HStack fills height for alignment
+				}
 				childConstraints := runtime.BoxConstraints{
 					MinWidth:  0,
 					MaxWidth:  runtime.Infinity,
-					MinHeight: 0,
+					MinHeight: childMinHeight,
 					MaxHeight: innerMaxHeight,
 				}
 				childSize := l.measureChild(child, childConstraints)
@@ -362,10 +373,14 @@ func (l *LayoutNode) Measure(constraints runtime.BoxConstraints) runtime.Size {
 					flexWidth = 0
 				}
 
+				childMinHeight := 0
+				if innerMaxHeight != runtime.Infinity && isVStack(fc.child) {
+					childMinHeight = innerMaxHeight // VStack in HStack fills height
+				}
 				childConstraints := runtime.BoxConstraints{
 					MinWidth:  flexWidth,
 					MaxWidth:  flexWidth,
-					MinHeight: 0,
+					MinHeight: childMinHeight,
 					MaxHeight: innerMaxHeight,
 				}
 				childSize := l.measureChild(fc.child, childConstraints)
@@ -377,10 +392,14 @@ func (l *LayoutNode) Measure(constraints runtime.BoxConstraints) runtime.Size {
 		} else {
 			// No flex or unbounded width: measure flex children naturally
 			for _, fc := range flexChildren {
+				childMinHeight := 0
+				if innerMaxHeight != runtime.Infinity && isVStack(fc.child) {
+					childMinHeight = innerMaxHeight // VStack in HStack fills height
+				}
 				childConstraints := runtime.BoxConstraints{
 					MinWidth:  0,
 					MaxWidth:  runtime.Infinity,
-					MinHeight: 0,
+					MinHeight: childMinHeight,
 					MaxHeight: innerMaxHeight,
 				}
 				childSize := l.measureChild(fc.child, childConstraints)
@@ -423,11 +442,25 @@ func (l *LayoutNode) Measure(constraints runtime.BoxConstraints) runtime.Size {
 				flexTotalFactor += childInfo.Flex
 			} else {
 				// Non-flex child: measure with natural height
+				// Special case: if child is HStack, make it fill full width for alignment to work
+				childMinWidth := 0
+				isHS := isHStack(child)
+				if innerMaxWidth != runtime.Infinity && isHS {
+					childMinWidth = innerMaxWidth // HStack in VStack fills width for alignment
+				}
 				childConstraints := runtime.BoxConstraints{
-					MinWidth:  0,
+					MinWidth:  childMinWidth,
 					MaxWidth:  innerMaxWidth,
 					MinHeight: 0,
 					MaxHeight: runtime.Infinity,
+				}
+				if os.Getenv("TUI_ALIGN_DEBUG") == "true" {
+					childTag := "none"
+					if tagger, ok := child.(interface{ Tag() string }); ok {
+						childTag = tagger.Tag()
+					}
+					fmt.Fprintf(os.Stderr, "[VStack.Measure] non-flex child: type=%T, Type()=%q, Tag()=%q, isHStack=%v, childMinWidth=%d\n",
+						child, child.Type().String(), childTag, isHS, childMinWidth)
 				}
 				childSize := l.measureChild(child, childConstraints)
 				if childSize.Width > maxChildWidth {
@@ -457,8 +490,12 @@ func (l *LayoutNode) Measure(constraints runtime.BoxConstraints) runtime.Size {
 					flexHeight = 0
 				}
 
+				childMinWidth := 0
+				if innerMaxWidth != runtime.Infinity && isHStack(fc.child) {
+					childMinWidth = innerMaxWidth // HStack in VStack fills width
+				}
 				childConstraints := runtime.BoxConstraints{
-					MinWidth:  0,
+					MinWidth:  childMinWidth,
 					MaxWidth:  innerMaxWidth,
 					MinHeight: flexHeight,
 					MaxHeight: flexHeight,
@@ -472,8 +509,12 @@ func (l *LayoutNode) Measure(constraints runtime.BoxConstraints) runtime.Size {
 		} else {
 			// No flex or unbounded height: measure flex children naturally
 			for _, fc := range flexChildren {
+				childMinWidth := 0
+				if innerMaxWidth != runtime.Infinity && isHStack(fc.child) {
+					childMinWidth = innerMaxWidth // HStack in VStack fills width
+				}
 				childConstraints := runtime.BoxConstraints{
-					MinWidth:  0,
+					MinWidth:  childMinWidth,
 					MaxWidth:  innerMaxWidth,
 					MinHeight: 0,
 					MaxHeight: runtime.Infinity,
@@ -506,6 +547,7 @@ func (l *LayoutNode) Measure(constraints runtime.BoxConstraints) runtime.Size {
 	// IMPORTANT: Cross-axis filling
 	// - VStack: fill available width (MaxWidth) so children can stretch horizontally
 	// - HStack: fill available height (MaxHeight) so children can stretch vertically
+	// - Additionally: fill main-axis when tight constraint (MinWidth == MaxWidth or MinHeight == MaxHeight)
 	// This is the NATURAL SIZE for layout containers - they expand to fill cross-axis space.
 	if l.direction == DirectionColumn { // VStack
 		// Fill available width so children can stretch
@@ -516,6 +558,19 @@ func (l *LayoutNode) Measure(constraints runtime.BoxConstraints) runtime.Size {
 		// Fill available height so children can stretch
 		if constraints.HasBoundedHeight() && totalHeight < constraints.MaxHeight {
 			totalHeight = constraints.MaxHeight
+		}
+		// Also fill width if tight constraint (MinWidth == MaxWidth)
+		// This allows HStack to fill its container for alignment to work
+		if os.Getenv("TUI_ALIGN_DEBUG") == "true" {
+			fmt.Fprintf(os.Stderr, "[HStack.Measure] constraints=%+v, totalWidth=%d, IsTight=%v, tag=%s\n",
+				constraints, totalWidth, constraints.MinWidth == constraints.MaxWidth, l.tag)
+		}
+		if constraints.HasBoundedWidth() && constraints.MinWidth == constraints.MaxWidth && totalWidth < constraints.MaxWidth {
+			if os.Getenv("TUI_ALIGN_DEBUG") == "true" {
+				fmt.Fprintf(os.Stderr, "[HStack.Measure] FILLING WIDTH: totalWidth=%d -> MaxWidth=%d, tag=%s\n",
+					totalWidth, constraints.MaxWidth, l.tag)
+			}
+			totalWidth = constraints.MaxWidth
 		}
 	}
 
@@ -605,6 +660,38 @@ func (l *LayoutNode) estimateChildWidth(child VNode) int {
 
 	// Default minimum width
 	return 10
+}
+
+// isHStack checks if a VNode is an HStack (horizontal layout)
+func isHStack(vnode VNode) bool {
+	if vnode == nil {
+		return false
+	}
+	// Check by type
+	if ln, ok := vnode.(*LayoutNode); ok {
+		return ln.direction == DirectionRow
+	}
+	// Check by tag (not Type!)
+	if tagger, ok := vnode.(interface{ Tag() string }); ok {
+		return tagger.Tag() == "hstack" || tagger.Tag() == "row"
+	}
+	return false
+}
+
+// isVStack checks if a VNode is a VStack (vertical layout)
+func isVStack(vnode VNode) bool {
+	if vnode == nil {
+		return false
+	}
+	// Check by type
+	if ln, ok := vnode.(*LayoutNode); ok {
+		return ln.direction == DirectionColumn
+	}
+	// Check by tag (not Type!)
+	if tagger, ok := vnode.(interface{ Tag() string }); ok {
+		return tagger.Tag() == "vstack" || tagger.Tag() == "column"
+	}
+	return false
 }
 
 // =============================================================================
@@ -1032,6 +1119,11 @@ func (bn *BorderedNode) Measure(constraints runtime.BoxConstraints) runtime.Size
 		return runtime.Size{Width: 0, Height: 0}
 	}
 
+	if os.Getenv("TUI_ALIGN_DEBUG") == "true" {
+		fmt.Fprintf(os.Stderr, "[BorderedNode.Measure] called with constraints=%+v, width prop=%v\n",
+			constraints, bn.Props()["width"])
+	}
+
 	borderWidth := 0
 	borderHeight := 0
 	if bn.borderStyle != BorderNone {
@@ -1045,25 +1137,84 @@ func (bn *BorderedNode) Measure(constraints runtime.BoxConstraints) runtime.Size
 		labelWidth = len(bn.borderLabel) + 2 // +2 for spaces around label
 	}
 
-	// Measure child content
-	var contentWidth, contentHeight int
-	children := bn.Children()
+	// Check for explicit width/height props BEFORE measuring child
+	// This allows us to create tight constraints for the child
+	props := bn.Props()
+	explicitWidth, hasExplicitWidth := 0, false
+	explicitHeight, hasExplicitHeight := 0, false
+
+	if props != nil {
+		if w, ok := props["width"].(int); ok && w > 0 {
+			explicitWidth = w
+			hasExplicitWidth = true
+		}
+		if h, ok := props["height"].(int); ok && h > 0 {
+			explicitHeight = h
+			hasExplicitHeight = true
+		}
+	}
+
 	// Check if this Bordered node has flex (should expand to fill available space)
 	hasFlex := false
-	if props := bn.Props(); props != nil {
+	if props != nil {
 		if f, ok := props["flex"].(int); ok && f > 0 {
 			hasFlex = true
 		}
 	}
+
+	// Calculate inner constraints for child measurement
+	// Start with parent constraints minus border space
+	innerConstraints := constraints.SubtractPadding(borderWidth, borderHeight)
+
+	// If explicit width is set, create tight constraint for the content area
+	// The content should be (explicitWidth - borderWidth) to fit inside the border
+	if hasExplicitWidth {
+		contentWidth := explicitWidth - borderWidth
+		// Still respect parent constraints - explicit size must fit within parent
+		if contentWidth < constraints.MinWidth-borderWidth {
+			contentWidth = max(0, constraints.MinWidth-borderWidth)
+		}
+		if constraints.MaxWidth > 0 && contentWidth > constraints.MaxWidth-borderWidth {
+			contentWidth = max(0, constraints.MaxWidth-borderWidth)
+		}
+		// Create tight constraint (min = max) to force child to this exact size
+		innerConstraints = runtime.NewBoxConstraints(
+			contentWidth,  // MinWidth
+			contentWidth,  // MaxWidth
+			innerConstraints.MinHeight,
+			innerConstraints.MaxHeight,
+		)
+		if os.Getenv("TUI_ALIGN_DEBUG") == "true" {
+			fmt.Fprintf(os.Stderr, "[BorderedNode.Measure] explicitWidth=%d, created tight constraint for child: %+v\n", explicitWidth, innerConstraints)
+		}
+	}
+
+	// If explicit height is set, create tight constraint for the content area
+	if hasExplicitHeight {
+		contentHeight := explicitHeight - borderHeight
+		if contentHeight < constraints.MinHeight-borderHeight {
+			contentHeight = max(0, constraints.MinHeight-borderHeight)
+		}
+		if constraints.MaxHeight > 0 && contentHeight > constraints.MaxHeight-borderHeight {
+			contentHeight = max(0, constraints.MaxHeight-borderHeight)
+		}
+		innerConstraints = runtime.NewBoxConstraints(
+			innerConstraints.MinWidth,
+			innerConstraints.MaxWidth,
+			contentHeight,  // MinHeight
+			contentHeight,  // MaxHeight
+		)
+	}
+
+	// Measure child content with the calculated constraints
+	var contentWidth, contentHeight int
+	children := bn.Children()
 
 	if len(children) > 0 {
 		child := children[0]
 		if measurable, ok := child.(interface {
 			Measure(runtime.BoxConstraints) runtime.Size
 		}); ok {
-			// Child implements Measurable - measure with inner constraints
-			// Use SubtractPadding helper to properly handle bounded/unbounded constraints
-			innerConstraints := constraints.SubtractPadding(borderWidth, borderHeight)
 			contentSize := measurable.Measure(innerConstraints)
 			contentWidth = contentSize.Width
 			contentHeight = contentSize.Height
@@ -1088,11 +1239,11 @@ func (bn *BorderedNode) Measure(constraints runtime.BoxConstraints) runtime.Size
 		contentHeight = 1
 		// If flex, expand to fill available space
 		if hasFlex {
-			if constraints.HasBoundedWidth() {
-				contentWidth = max(0, constraints.MaxWidth-borderWidth)
+			if innerConstraints.HasBoundedWidth() {
+				contentWidth = innerConstraints.MaxWidth
 			}
-			if constraints.HasBoundedHeight() {
-				contentHeight = max(0, constraints.MaxHeight-borderHeight)
+			if innerConstraints.HasBoundedHeight() {
+				contentHeight = innerConstraints.MaxHeight
 			}
 		}
 	}
@@ -1105,14 +1256,13 @@ func (bn *BorderedNode) Measure(constraints runtime.BoxConstraints) runtime.Size
 
 	// Total size = content + border
 	// When label is present, renderTopBorder adds extra 2 chars for visual balance
-	// This matches the actual rendering logic in renderTopBorder
 	totalWidth := innerWidth + borderWidth
 	if labelWidth > 0 {
 		totalWidth += 2  // Extra padding for label rendering (see renderTopBorder)
 	}
 	totalHeight := contentHeight + borderHeight
 
-	// Apply constraints
+	// Apply parent constraints (final clamp)
 	if totalWidth < constraints.MinWidth {
 		totalWidth = constraints.MinWidth
 	}
@@ -1126,12 +1276,13 @@ func (bn *BorderedNode) Measure(constraints runtime.BoxConstraints) runtime.Size
 		totalHeight = constraints.MaxHeight
 	}
 
-	// Apply explicit style dimensions if set
+	// Apply explicit style dimensions if set (for backward compatibility)
+	// Note: Props-based width/height are now handled via constraints above
 	elemStyle := bn.Style()
-	if elemStyle.Width > 0 {
+	if elemStyle.Width > 0 && !hasExplicitWidth {
 		totalWidth = elemStyle.Width
 	}
-	if elemStyle.Height > 0 {
+	if elemStyle.Height > 0 && !hasExplicitHeight {
 		totalHeight = elemStyle.Height
 	}
 

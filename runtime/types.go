@@ -93,17 +93,38 @@ func (bc BoxConstraints) HasBoundedHeight() bool {
 // SubtractPadding returns new constraints with padding subtracted (only if bounded)
 func (bc BoxConstraints) SubtractPadding(horizontal, vertical int) BoxConstraints {
 	result := bc
+	// Subtract padding from MaxWidth (if bounded)
 	if bc.HasBoundedWidth() && bc.MaxWidth > horizontal {
 		result.MaxWidth = bc.MaxWidth - horizontal
 		if result.MaxWidth < 0 {
 			result.MaxWidth = 0
 		}
 	}
+	// Also subtract from MinWidth (but don't go below 0)
+	if bc.MinWidth > horizontal {
+		result.MinWidth = bc.MinWidth - horizontal
+	} else {
+		result.MinWidth = 0
+	}
+	// Subtract padding from MaxHeight (if bounded)
 	if bc.HasBoundedHeight() && bc.MaxHeight > vertical {
 		result.MaxHeight = bc.MaxHeight - vertical
 		if result.MaxHeight < 0 {
 			result.MaxHeight = 0
 		}
+	}
+	// Also subtract from MinHeight (but don't go below 0)
+	if bc.MinHeight > vertical {
+		result.MinHeight = bc.MinHeight - vertical
+	} else {
+		result.MinHeight = 0
+	}
+	// Ensure MinWidth <= MaxWidth and MinHeight <= MaxHeight
+	if result.MinWidth > result.MaxWidth {
+		result.MinWidth = result.MaxWidth
+	}
+	if result.MinHeight > result.MaxHeight {
+		result.MinHeight = result.MaxHeight
 	}
 	return result
 }

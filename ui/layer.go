@@ -73,8 +73,8 @@ func (b *ModalBuilder) Build() VNode {
 		"_onClose":         b.onClose,
 	}
 
+	// Merge with existing props
 	if b.content.Props() != nil {
-		// Merge with existing props
 		for k, v := range b.content.Props() {
 			if k != "_layer" { // Don't override layer
 				props[k] = v

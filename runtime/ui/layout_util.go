@@ -101,6 +101,13 @@ func GetLayoutInfo(vnode VNode) LayoutInfo {
 				if f, ok := props["flex"].(int); ok {
 					info.Flex = f
 				}
+				// Read align and crossAlign props for ElementVNode
+				if a, ok := props["align"].(int); ok {
+					info.Align = Align(a)
+				}
+				if a, ok := props["crossAlign"].(int); ok {
+					info.CrossAlign = Align(a)
+				}
 			}
 		} else if tag == "vstack" || tag == "column" {
 			info.IsHorizontal = false
@@ -110,6 +117,13 @@ func GetLayoutInfo(vnode VNode) LayoutInfo {
 				}
 				if f, ok := props["flex"].(int); ok {
 					info.Flex = f
+				}
+				// Read align and crossAlign props for ElementVNode
+				if a, ok := props["align"].(int); ok {
+					info.Align = Align(a)
+				}
+				if a, ok := props["crossAlign"].(int); ok {
+					info.CrossAlign = Align(a)
 				}
 			}
 		} else {
@@ -137,6 +151,30 @@ func GetLayoutInfo(vnode VNode) LayoutInfo {
 				}
 				if f, ok := props["flex"].(int); ok {
 					info.Flex = f
+				}
+				// Read align and crossAlign props
+				if a, ok := props["align"].(int); ok {
+					info.Align = Align(a)
+				}
+				if a, ok := props["crossAlign"].(int); ok {
+					info.CrossAlign = Align(a)
+				}
+			}
+		} else if tag == "vstack" || tag == "column" {
+			info.IsHorizontal = false
+			if props := vnode.Props(); props != nil {
+				if g, ok := props["gap"].(int); ok {
+					info.Gap = g
+				}
+				if f, ok := props["flex"].(int); ok {
+					info.Flex = f
+				}
+				// Read align and crossAlign props
+				if a, ok := props["align"].(int); ok {
+					info.Align = Align(a)
+				}
+				if a, ok := props["crossAlign"].(int); ok {
+					info.CrossAlign = Align(a)
 				}
 			}
 		}

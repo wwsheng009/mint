@@ -203,26 +203,22 @@ func MainBody(count int, setCount func(interface{}), input string, setInput func
 // Uses the new Layer system for automatic centering and backdrop
 func ConfirmModal(onClose func()) ui.VNode {
 	// Modal content - the actual dialog box with border
-	// Fixed size modal for consistent centering
 	modalBox := ui.Bordered().
 		Color("yellow").
 		Width(40).  // Fixed width for the modal
 		Child(
 			ui.VStackBuilder(
 				ui.Text(""),
-				// Centered title
-				ui.HStack(
-					ui.Text(""),
+				// Centered title - use HStack with AlignCenter
+				ui.HStackBuilder(
 					app.NewTextBuilder("*** Are you sure? ***").
 						Bold(true).
 						FgColor("yellow").
 						Build(),
-					ui.Text(""),
-				),
+				).Align(ui.AlignCenter).Build(),
 				ui.Text(""),
-				// Centered buttons
-				ui.HStack(
-					ui.Text(""),
+				// Centered buttons - use HStack with AlignCenter
+				ui.HStackBuilder(
 					app.ButtonBuilder("[ Cancel ]").
 						OnClick(onClose).
 						Build(),
@@ -232,17 +228,14 @@ func ConfirmModal(onClose func()) ui.VNode {
 						FgColor("white").
 						OnClick(onClose).
 						Build(),
-					ui.Text(""),
-				),
+				).Align(ui.AlignCenter).Build(),
 				ui.Text(""),
 				// Centered footer text
-				ui.HStack(
-					ui.Text(""),
+				ui.HStackBuilder(
 					app.NewTextBuilder("Press ESC to close").
 						FgColor("gray").
 						Build(),
-					ui.Text(""),
-				),
+				).Align(ui.AlignCenter).Build(),
 				ui.Text(""),
 			).Build(),
 		).
