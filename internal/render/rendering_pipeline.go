@@ -7,6 +7,7 @@ import (
 
 	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/compute"
+	"github.com/wwsheng009/mint/runtime/layer"
 	"github.com/wwsheng009/mint/runtime/paint"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
@@ -132,4 +133,61 @@ func (p *RenderingPipeline) InvalidateCacheByType(vNodeType string) {
 // InvalidateCacheByKey removes cached entries for a specific VNode key
 func (p *RenderingPipeline) InvalidateCacheByKey(vnodeKey string) {
 	p.layoutEngine.InvalidateCacheByKey(vnodeKey)
+}
+
+// =============================================================================
+// Multi-Layer Rendering
+// =============================================================================
+
+// RenderLayers renders a VNode tree with multi-layer support
+// This is the main entry point for layer-based rendering
+func (p *RenderingPipeline) RenderLayers(
+	vnode rtui.VNode,
+	constraints runtime.BoxConstraints,
+	buffer *paint.Buffer,
+) error {
+	if vnode == nil {
+		return nil
+	}
+
+	if os.Getenv("TUI_PIPELINE_DEBUG") == "true" {
+		fmt.Fprintf(os.Stderr, "[RenderingPipeline] RenderLayers started\n")
+	}
+
+	// Create a layer manager for this render pass
+	layerMgr := layer.NewManager()
+
+	// Collect and layout all layers
+	if err := layerMgr.CollectAndLayout(vnode, constraints, p.layoutEngine); err != nil {
+		if os.Getenv("TUI_PIPELINE_DEBUG") == "true" {
+			fmt.Fprintf(os.Stderr, "[RenderingPipeline] Layer layout failed: %v\n", err)
+		}
+		// Fallback to regular rendering
+		return p.Render(vnode, constraints, buffer)
+	}
+
+	// Get all layer layouts
+	layouts := layerMgr.GetLayouts()
+
+	if os.Getenv("TUI_PIPELINE_DEBUG") == "true" {
+		fmt.Fprintf(os.Stderr, "[RenderingPipeline] Layer layouts complete, rendering %d layers\n", len(layouts))
+	}
+
+	// Paint all layers
+	if err := p.paintEngine.PaintLayers(layouts, buffer); err != nil {
+		if os.Getenv("TUI_PIPELINE_DEBUG") == "true" {
+			fmt.Fprintf(os.Stderr, "[RenderingPipeline] PaintLayers failed: %v\n", err)
+		}
+		return err
+	}
+
+	return nil
+}
+
+// HasModalChecks returns whether the rendering pipeline detected any modal content
+// This can be used to determine if events should be blocked
+func (p *RenderingPipeline) HasModalChecks(vnode rtui.VNode, constraints runtime.BoxConstraints) bool {
+	layerMgr := layer.NewManager()
+	layerMgr.CollectAndLayout(vnode, constraints, p.layoutEngine)
+	return layerMgr.HasModal()
 }
