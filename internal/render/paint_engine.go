@@ -7,6 +7,7 @@ import (
 
 	"github.com/wwsheng009/mint/runtime/border"
 	"github.com/wwsheng009/mint/runtime/compute"
+	"github.com/wwsheng009/mint/runtime/layer"
 	"github.com/wwsheng009/mint/runtime/paint"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/runtime/style"
@@ -192,4 +193,117 @@ func (e *PaintEngine) paintTable(box *compute.ComputedBox, buffer *paint.Buffer)
 	// Tables use the computed positions for their cells
 	// Just need to paint children at their computed positions
 	return e.paintChildren(box, buffer)
+}
+
+// =============================================================================
+// Multi-Layer Rendering
+// =============================================================================
+
+// PaintLayers renders multiple layers in order (from lowest to highest)
+// This is the main entry point for layer-based rendering
+func (e *PaintEngine) PaintLayers(
+	layouts layer.LayerLayouts,
+	buffer *paint.Buffer,
+) error {
+	// Render layers in order from lowest (base) to highest (tooltip)
+	// This ensures proper z-ordering
+	renderOrder := []rtui.Layer{
+		rtui.LayerBase,
+		rtui.LayerOverlay,
+		rtui.LayerModal,
+		rtui.LayerTooltip,
+	}
+
+	for _, l := range renderOrder {
+		layout, ok := layouts[l]
+		if !ok || layout.Root == nil {
+			continue
+		}
+
+		if e.debug {
+			fmt.Fprintf(os.Stderr, "[PaintLayers] Rendering layer: %s\n", l.String())
+		}
+
+		// Paint this layer
+		if err := e.Paint(layout, buffer); err != nil {
+			return fmt.Errorf("error painting layer %s: %w", l.String(), err)
+		}
+
+		// Special handling for modal layer - draw backdrop
+		if l == rtui.LayerModal {
+			e.paintModalBackdrop(layout.Root, buffer)
+		}
+	}
+
+	return nil
+}
+
+// paintModalBackdrop draws a semi-transparent backdrop behind the modal
+// In TUI, we simulate this by dimming the area outside the modal
+func (e *PaintEngine) paintModalBackdrop(root *compute.ComputedBox, buffer *paint.Buffer) {
+	if root == nil {
+		return
+	}
+
+	// Get buffer dimensions
+	width, height := buffer.Width, buffer.Height
+
+	// Modal bounds
+	modalX := root.Box.X
+	modalY := root.Box.Y
+	modalWidth := root.Box.Width
+	modalHeight := root.Box.Height
+
+	// Draw dimmed background in areas outside the modal
+	// We use a special style to indicate "dimmed" content
+	dimStyle := style.Style{FG: style.Color("gray")}
+
+	// Area above modal
+	for y := 0; y < modalY && y < height; y++ {
+		for x := 0; x < width; x++ {
+			if cell := buffer.GetContent(x, y); cell.Cluster != "" && cell.Cluster != " " {
+				// Get the rune from the cluster
+				runeStr := cell.Cluster
+				if len(runeStr) > 0 {
+					buffer.SetCell(x, y, []rune(runeStr)[0], dimStyle)
+				}
+			}
+		}
+	}
+
+	// Area below modal
+	for y := modalY + modalHeight; y < height; y++ {
+		for x := 0; x < width; x++ {
+			if cell := buffer.GetContent(x, y); cell.Cluster != "" && cell.Cluster != " " {
+				runeStr := cell.Cluster
+				if len(runeStr) > 0 {
+					buffer.SetCell(x, y, []rune(runeStr)[0], dimStyle)
+				}
+			}
+		}
+	}
+
+	// Area left of modal
+	for y := modalY; y < modalY+modalHeight && y < height; y++ {
+		for x := 0; x < modalX; x++ {
+			if cell := buffer.GetContent(x, y); cell.Cluster != "" && cell.Cluster != " " {
+				runeStr := cell.Cluster
+				if len(runeStr) > 0 {
+					buffer.SetCell(x, y, []rune(runeStr)[0], dimStyle)
+				}
+			}
+		}
+	}
+
+	// Area right of modal
+	for y := modalY; y < modalY+modalHeight && y < height; y++ {
+		for x := modalX + modalWidth; x < width; x++ {
+			if cell := buffer.GetContent(x, y); cell.Cluster != "" && cell.Cluster != " " {
+				runeStr := cell.Cluster
+				if len(runeStr) > 0 {
+					buffer.SetCell(x, y, []rune(runeStr)[0], dimStyle)
+				}
+			}
+		}
+	}
 }

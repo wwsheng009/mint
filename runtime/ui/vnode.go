@@ -4,6 +4,67 @@ package ui
 
 import "github.com/wwsheng009/mint/runtime/style"
 
+// =============================================================================
+// Layer Type
+// =============================================================================
+
+// Layer represents a visual rendering layer for overlay components
+type Layer int
+
+const (
+	// LayerBase is the default layer for normal UI content
+	LayerBase Layer = iota
+
+	// LayerOverlay is for dropdown menus, popovers, and similar components
+	LayerOverlay
+
+	// LayerModal is for modal dialogs that require user attention
+	LayerModal
+
+	// LayerTooltip is for tooltips and hints
+	LayerTooltip
+)
+
+// String returns the string representation of the layer
+func (l Layer) String() string {
+	switch l {
+	case LayerBase:
+		return "base"
+	case LayerOverlay:
+		return "overlay"
+	case LayerModal:
+		return "modal"
+	case LayerTooltip:
+		return "tooltip"
+	default:
+		return "unknown"
+	}
+}
+
+// ZIndex returns the z-index value for this layer (higher = rendered on top)
+func (l Layer) ZIndex() int {
+	return int(l)
+}
+
+// IsValid checks if the layer value is valid
+func (l Layer) IsValid() bool {
+	return l >= LayerBase && l <= LayerTooltip
+}
+
+// IsModal checks if this layer is the modal layer
+func (l Layer) IsModal() bool {
+	return l == LayerModal
+}
+
+// IsOverlay checks if this layer is any overlay type (Overlay, Modal, or Tooltip)
+func (l Layer) IsOverlay() bool {
+	return l >= LayerOverlay
+}
+
+// =============================================================================
+// VNode Interface
+// =============================================================================
+
 // VNode is the virtual node interface - the core of the declarative UI system.
 // It represents a lightweight description of what should be rendered.
 type VNode interface {
@@ -32,6 +93,13 @@ type VNode interface {
 	// For fragments: "fragment"
 	// For text/layout nodes: the type identifier (e.g., "text", "hstack")
 	Tag() string
+
+	// GetLayer returns the rendering layer for this node
+	// Returns LayerBase if no layer is explicitly set
+	GetLayer() Layer
+
+	// SetLayer sets the rendering layer for this node
+	SetLayer(l Layer) VNode
 }
 
 // VNodeType represents the type of VNode
@@ -145,3 +213,75 @@ type ComponentFunc func() VNode
 
 // ComponentFuncWithProps represents a component that accepts props
 type ComponentFuncWithProps func(Props) VNode
+
+// =============================================================================
+// Layer Methods (default implementations)
+// =============================================================================
+
+// GetLayer returns the rendering layer from props
+// Default implementation for nodes that don't override it
+func getNodeLayer(vnode VNode) Layer {
+	if vnode == nil {
+		return LayerBase
+	}
+	props := vnode.Props()
+	if props == nil {
+		return LayerBase
+	}
+	if l, ok := props["_layer"].(Layer); ok {
+		return l
+	}
+	return LayerBase
+}
+
+// SetLayer sets the rendering layer in props
+func setNodeLayer(vnode VNode, l Layer) VNode {
+	if vnode == nil {
+		return nil
+	}
+	if vnode.Props() == nil {
+		vnode.SetProps(make(Props))
+	}
+	vnode.Props().Set("_layer", l)
+	return vnode
+}
+
+// GetLayer for ElementVNode
+func (n *ElementVNode) GetLayer() Layer {
+	return getNodeLayer(n)
+}
+
+// SetLayer for ElementVNode
+func (n *ElementVNode) SetLayer(l Layer) VNode {
+	return setNodeLayer(n, l)
+}
+
+// GetLayer for TextVNode
+func (n *TextVNode) GetLayer() Layer {
+	return getNodeLayer(n)
+}
+
+// SetLayer for TextVNode
+func (n *TextVNode) SetLayer(l Layer) VNode {
+	return setNodeLayer(n, l)
+}
+
+// GetLayer for ComponentVNode
+func (n *ComponentVNode) GetLayer() Layer {
+	return getNodeLayer(n)
+}
+
+// SetLayer for ComponentVNode
+func (n *ComponentVNode) SetLayer(l Layer) VNode {
+	return setNodeLayer(n, l)
+}
+
+// GetLayer for FragmentVNode
+func (n *FragmentVNode) GetLayer() Layer {
+	return getNodeLayer(n)
+}
+
+// SetLayer for FragmentVNode
+func (n *FragmentVNode) SetLayer(l Layer) VNode {
+	return setNodeLayer(n, l)
+}

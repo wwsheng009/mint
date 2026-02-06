@@ -109,6 +109,22 @@ func (m *MemoVNode) Tag() string {
 	return "Memo:Component"
 }
 
+// GetLayer returns the layer from props (delegates to wrapped component)
+func (m *MemoVNode) GetLayer() Layer {
+	if m.component != nil {
+		return m.component.GetLayer()
+	}
+	return LayerBase
+}
+
+// SetLayer sets the layer (delegates to wrapped component)
+func (m *MemoVNode) SetLayer(l Layer) VNode {
+	if m.component != nil {
+		m.component = m.component.SetLayer(l)
+	}
+	return m
+}
+
 // Render returns the memoized component or re-renders if props changed
 func (m *MemoVNode) Render() VNode {
 	currentProps := m.component.Props()

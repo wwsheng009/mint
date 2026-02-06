@@ -77,6 +77,26 @@ func (t *TextVNode) Tag() string {
 	return "text"
 }
 
+// GetLayer implements ui.VNode - returns the rendering layer
+func (t *TextVNode) GetLayer() ui.Layer {
+	if t.props == nil {
+		return ui.LayerBase
+	}
+	if l, ok := t.props["_layer"].(ui.Layer); ok {
+		return l
+	}
+	return ui.LayerBase
+}
+
+// SetLayer implements ui.VNode - sets the rendering layer
+func (t *TextVNode) SetLayer(l ui.Layer) ui.VNode {
+	if t.props == nil {
+		t.props = make(ui.Props)
+	}
+	t.props["_layer"] = l
+	return t
+}
+
 // Content returns the text content
 func (t *TextVNode) Content() string {
 	return t.content

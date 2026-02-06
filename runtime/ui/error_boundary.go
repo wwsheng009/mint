@@ -34,6 +34,7 @@ type ErrorBoundaryVNode struct {
 	name     string
 	component ComponentFunc
 	fallback VNode
+	layer    Layer
 	// Error state
 	hadError bool
 	error    error
@@ -99,6 +100,17 @@ func (e *ErrorBoundaryVNode) SetStyle(s style.Style) {
 // Tag implements VNode
 func (e *ErrorBoundaryVNode) Tag() string {
 	return "ErrorBoundary:" + e.name
+}
+
+// GetLayer returns the layer for this error boundary
+func (e *ErrorBoundaryVNode) GetLayer() Layer {
+	return e.layer
+}
+
+// SetLayer sets the layer for this error boundary
+func (e *ErrorBoundaryVNode) SetLayer(l Layer) VNode {
+	e.layer = l
+	return e
 }
 
 // Name returns the error boundary name

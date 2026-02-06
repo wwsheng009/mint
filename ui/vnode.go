@@ -36,3 +36,20 @@ type ComponentFunc = rtui.ComponentFunc
 
 // ComponentFuncWithProps represents a component that accepts props
 type ComponentFuncWithProps = rtui.ComponentFuncWithProps
+
+// Layer represents a visual rendering layer for overlay components
+type Layer = rtui.Layer
+
+const (
+	// LayerBase is the default layer for normal UI content
+	LayerBase = rtui.LayerBase
+
+	// LayerOverlay is for dropdown menus, popovers, and similar components
+	LayerOverlay = rtui.LayerOverlay
+
+	// LayerModal is for modal dialogs that require user attention
+	LayerModal = rtui.LayerModal
+
+	// LayerTooltip is for tooltips and hints
+	LayerTooltip = rtui.LayerTooltip
+)
