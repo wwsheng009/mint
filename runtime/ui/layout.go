@@ -36,11 +36,13 @@ const (
 // LayoutNode represents a layout container
 type LayoutNode struct {
 	*ElementVNode
-	direction Direction
-	align     Align
-	crossAlign Align
-	gap       int
-	padding   [4]int // top, right, bottom, left
+	direction    Direction
+	align        Align
+	crossAlign   Align
+	gap          int
+	flex         int // Flex factor (0 = fixed size, >0 = grows to fill space)
+	padding      [4]int // top, right, bottom, left
+	stretchCross bool  // Stretch children to fill cross axis (width for VStack, height for HStack)
 }
 
 // HStack creates a horizontal layout container
@@ -59,6 +61,21 @@ func HStack(children ...VNode) VNode {
 	return builder.Build()
 }
 
+// HStackBuilder creates a horizontal layout container builder for method chaining
+func HStackBuilder(children ...VNode) *LayoutBuilder {
+	return &LayoutBuilder{
+		node: &LayoutNode{
+			ElementVNode: NewElement("hstack"),
+			direction:    DirectionRow,
+			align:        AlignStart,
+			crossAlign:   AlignStart,
+			gap:          1, // Default gap of 1 space between items
+			padding:      [4]int{0, 0, 0, 0},
+		},
+		children: children,
+	}
+}
+
 // VStack creates a vertical layout container
 func VStack(children ...VNode) VNode {
 	builder := &LayoutBuilder{
@@ -73,6 +90,21 @@ func VStack(children ...VNode) VNode {
 		children: children,
 	}
 	return builder.Build()
+}
+
+// VStackBuilder creates a vertical layout container builder for method chaining
+func VStackBuilder(children ...VNode) *LayoutBuilder {
+	return &LayoutBuilder{
+		node: &LayoutNode{
+			ElementVNode: NewElement("vstack"),
+			direction:    DirectionColumn,
+			align:        AlignStart,
+			crossAlign:   AlignStart,
+			gap:          0,
+			padding:      [4]int{0, 0, 0, 0},
+		},
+		children: children,
+	}
 }
 
 // LayoutBuilder provides fluent API for building layouts
@@ -120,6 +152,15 @@ func (b *LayoutBuilder) Height(n int) *LayoutBuilder {
 // Flex sets the flex factor
 func (b *LayoutBuilder) Flex(n int) *LayoutBuilder {
 	b.node.SetProp("flex", n)
+	b.node.flex = n // Also set the field for LayoutNode.Flex()
+	return b
+}
+
+// Stretch makes all children stretch to fill the cross axis
+// For VStack: children stretch to fill width
+// For HStack: children stretch to fill height
+func (b *LayoutBuilder) Stretch() *LayoutBuilder {
+	b.node.stretchCross = true
 	return b
 }
 
@@ -190,9 +231,45 @@ func (l *LayoutNode) Gap() int {
 	return l.gap
 }
 
+// Flex returns the flex factor
+func (l *LayoutNode) Flex() int {
+	return l.flex
+}
+
 // Padding returns the padding
 func (l *LayoutNode) Padding() [4]int {
 	return l.padding
+}
+
+// StretchCross returns whether children stretch to fill cross axis
+func (l *LayoutNode) StretchCross() bool {
+	return l.stretchCross
+}
+
+// =============================================================================
+// Flex Wrapper - elegant API for making VNodes flexible
+// =============================================================================
+
+// Flex wraps a VNode to make it flexible in a layout
+// Usage: ui.Flex(vnode, 1) or just ui.Flex(vnode)
+func Flex(vnode VNode, flexFactors ...int) VNode {
+	flex := 1 // Default flex factor
+	if len(flexFactors) > 0 {
+		flex = flexFactors[0]
+	}
+	// Try SetProp method first (for builders)
+	if n, ok := vnode.(interface{ SetProp(string, interface{}) }); ok {
+		n.SetProp("flex", flex)
+		return vnode
+	}
+	// Fall back to SetProps (for VNode interface)
+	props := vnode.Props()
+	if props == nil {
+		props = make(Props)
+	}
+	props["flex"] = flex
+	vnode.SetProps(props)
+	return vnode
 }
 
 // =============================================================================
@@ -200,7 +277,8 @@ func (l *LayoutNode) Padding() [4]int {
 // =============================================================================
 
 // Measure implements runtime.Measurable interface
-// Calculates the size of the layout based on children and constraints
+// Calculates the NATURAL size of the layout based on children only.
+// This phase should NOT apply StretchCross - stretching is handled in the Layout phase.
 func (l *LayoutNode) Measure(constraints runtime.BoxConstraints) runtime.Size {
 	if l == nil {
 		return runtime.Size{Width: 0, Height: 0}
@@ -219,63 +297,197 @@ func (l *LayoutNode) Measure(constraints runtime.BoxConstraints) runtime.Size {
 	paddingWidth := l.padding[1] + l.padding[3] // left + right
 	paddingHeight := l.padding[0] + l.padding[2] // top + bottom
 
-	// Calculate inner constraints (subtract padding from available space)
-	innerMaxWidth := constraints.MaxWidth - paddingWidth
-	innerMaxHeight := constraints.MaxHeight - paddingHeight
-	if innerMaxWidth < 0 {
-		innerMaxWidth = 0
-	}
-	if innerMaxHeight < 0 {
-		innerMaxHeight = 0
-	}
-
 	var totalWidth, totalHeight int
 
 	if l.direction == DirectionRow {
 		// HStack: measure total width and max height
+		// Children get unlimited width (to measure natural width)
+		// Height is constrained by parent's MaxHeight (if bounded)
 		maxChildHeight := 0
+
+		// Calculate inner height constraint
+		// Use parent's MaxHeight only if it's bounded, otherwise use Infinity
+		innerMaxHeight := runtime.Infinity
+		if constraints.HasBoundedHeight() {
+			innerMaxHeight = max(0, constraints.MaxHeight-paddingHeight)
+		}
+
+		// First pass: identify flex children and measure non-flex children
+		var flexChildren []struct {
+			child  VNode
+			factor int
+		}
+		var fixedWidth int
+		flexTotalFactor := 0
+
 		for i, child := range l.Children() {
-			// For HStack, children get unlimited width (to measure natural size)
-			// but height is constrained to the container's height
-			childConstraints := runtime.BoxConstraints{
-				MinWidth:  0,
-				MaxWidth:  runtime.Infinity, // Let children expand to natural width
-				MinHeight: 0,
-				MaxHeight: innerMaxHeight,
+			childInfo := GetLayoutInfo(child)
+			if childInfo.Flex > 0 {
+				flexChildren = append(flexChildren, struct {
+					child  VNode
+					factor int
+				}{child, childInfo.Flex})
+				flexTotalFactor += childInfo.Flex
+			} else {
+				// Non-flex child: measure with natural width
+				childConstraints := runtime.BoxConstraints{
+					MinWidth:  0,
+					MaxWidth:  runtime.Infinity,
+					MinHeight: 0,
+					MaxHeight: innerMaxHeight,
+				}
+				childSize := l.measureChild(child, childConstraints)
+				fixedWidth += childSize.Width
+				if childSize.Height > maxChildHeight {
+					maxChildHeight = childSize.Height
+				}
 			}
-			childSize := l.measureChild(child, childConstraints)
-			totalWidth += childSize.Width
-			if childSize.Height > maxChildHeight {
-				maxChildHeight = childSize.Height
-			}
-			// Add gap between children
+			// Account for gap (except after last child)
 			if i < len(children)-1 {
-				totalWidth += l.gap
+				fixedWidth += l.gap
 			}
 		}
+
+		totalWidth = fixedWidth
+
+		// If we have flex children and bounded width, distribute remaining space
+		if len(flexChildren) > 0 && constraints.HasBoundedWidth() {
+			availableWidth := constraints.MaxWidth - paddingWidth - (len(children)-1)*l.gap
+			remainingSpace := availableWidth - fixedWidth
+
+			// Distribute remaining space to flex children
+			for _, fc := range flexChildren {
+				flexWidth := (remainingSpace * fc.factor) / flexTotalFactor
+				if flexWidth < 0 {
+					flexWidth = 0
+				}
+
+				childConstraints := runtime.BoxConstraints{
+					MinWidth:  flexWidth,
+					MaxWidth:  flexWidth,
+					MinHeight: 0,
+					MaxHeight: innerMaxHeight,
+				}
+				childSize := l.measureChild(fc.child, childConstraints)
+				totalWidth += childSize.Width
+				if childSize.Height > maxChildHeight {
+					maxChildHeight = childSize.Height
+				}
+			}
+		} else {
+			// No flex or unbounded width: measure flex children naturally
+			for _, fc := range flexChildren {
+				childConstraints := runtime.BoxConstraints{
+					MinWidth:  0,
+					MaxWidth:  runtime.Infinity,
+					MinHeight: 0,
+					MaxHeight: innerMaxHeight,
+				}
+				childSize := l.measureChild(fc.child, childConstraints)
+				totalWidth += childSize.Width
+				if childSize.Height > maxChildHeight {
+					maxChildHeight = childSize.Height
+				}
+			}
+		}
+
 		totalHeight = maxChildHeight
 	} else {
 		// VStack: measure max width and total height
+		// Width is constrained by parent's MaxWidth (if bounded)
+		// Children get unlimited height (to measure natural height)
 		maxChildWidth := 0
+
+		// Calculate inner width constraint
+		// Use parent's MaxWidth only if it's bounded, otherwise use Infinity
+		innerMaxWidth := runtime.Infinity
+		if constraints.HasBoundedWidth() {
+			innerMaxWidth = max(0, constraints.MaxWidth-paddingWidth)
+		}
+
+		// First pass: identify flex children and measure non-flex children
+		var flexChildren []struct {
+			child  VNode
+			factor int
+		}
+		var fixedHeight int
+		flexTotalFactor := 0
+
 		for i, child := range l.Children() {
-			// For VStack, children get width constraint but unlimited height
-			// (to measure natural height)
-			childConstraints := runtime.BoxConstraints{
-				MinWidth:  0,
-				MaxWidth:  innerMaxWidth,
-				MinHeight: 0,
-				MaxHeight: runtime.Infinity, // Let children expand to natural height
+			childInfo := GetLayoutInfo(child)
+			if childInfo.Flex > 0 {
+				flexChildren = append(flexChildren, struct {
+					child  VNode
+					factor int
+				}{child, childInfo.Flex})
+				flexTotalFactor += childInfo.Flex
+			} else {
+				// Non-flex child: measure with natural height
+				childConstraints := runtime.BoxConstraints{
+					MinWidth:  0,
+					MaxWidth:  innerMaxWidth,
+					MinHeight: 0,
+					MaxHeight: runtime.Infinity,
+				}
+				childSize := l.measureChild(child, childConstraints)
+				if childSize.Width > maxChildWidth {
+					maxChildWidth = childSize.Width
+				}
+				if childSize.Height < runtime.Infinity {
+					fixedHeight += childSize.Height
+				}
 			}
-			childSize := l.measureChild(child, childConstraints)
-			if childSize.Width > maxChildWidth {
-				maxChildWidth = childSize.Width
-			}
-			totalHeight += childSize.Height
-			// Add gap between children
+			// Account for gap (except after last child)
 			if i < len(children)-1 {
-				totalHeight += l.gap
+				fixedHeight += l.gap
 			}
 		}
+
+		totalHeight = fixedHeight
+
+		// If we have flex children and bounded height, distribute remaining space
+		if len(flexChildren) > 0 && constraints.HasBoundedHeight() {
+			availableHeight := constraints.MaxHeight - paddingHeight - (len(children)-1)*l.gap
+			remainingSpace := availableHeight - fixedHeight
+
+			// Distribute remaining space to flex children
+			for _, fc := range flexChildren {
+				flexHeight := (remainingSpace * fc.factor) / flexTotalFactor
+				if flexHeight < 0 {
+					flexHeight = 0
+				}
+
+				childConstraints := runtime.BoxConstraints{
+					MinWidth:  0,
+					MaxWidth:  innerMaxWidth,
+					MinHeight: flexHeight,
+					MaxHeight: flexHeight,
+				}
+				childSize := l.measureChild(fc.child, childConstraints)
+				if childSize.Width > maxChildWidth {
+					maxChildWidth = childSize.Width
+				}
+				totalHeight += childSize.Height
+			}
+		} else {
+			// No flex or unbounded height: measure flex children naturally
+			for _, fc := range flexChildren {
+				childConstraints := runtime.BoxConstraints{
+					MinWidth:  0,
+					MaxWidth:  innerMaxWidth,
+					MinHeight: 0,
+					MaxHeight: runtime.Infinity,
+				}
+				childSize := l.measureChild(fc.child, childConstraints)
+				if childSize.Width > maxChildWidth {
+					maxChildWidth = childSize.Width
+				}
+				if childSize.Height < runtime.Infinity {
+					totalHeight += childSize.Height
+				}
+			}
+		}
+
 		totalWidth = maxChildWidth
 	}
 
@@ -283,8 +495,37 @@ func (l *LayoutNode) Measure(constraints runtime.BoxConstraints) runtime.Size {
 	totalWidth += paddingWidth
 	totalHeight += paddingHeight
 
-	// Apply constraints using the helper method
-	totalWidth, totalHeight = constraints.Constrain(totalWidth, totalHeight)
+	// Apply MinWidth/MinHeight constraints
+	if totalWidth < constraints.MinWidth {
+		totalWidth = constraints.MinWidth
+	}
+	if totalHeight < constraints.MinHeight {
+		totalHeight = constraints.MinHeight
+	}
+
+	// IMPORTANT: Cross-axis filling
+	// - VStack: fill available width (MaxWidth) so children can stretch horizontally
+	// - HStack: fill available height (MaxHeight) so children can stretch vertically
+	// This is the NATURAL SIZE for layout containers - they expand to fill cross-axis space.
+	if l.direction == DirectionColumn { // VStack
+		// Fill available width so children can stretch
+		if constraints.HasBoundedWidth() && totalWidth < constraints.MaxWidth {
+			totalWidth = constraints.MaxWidth
+		}
+	} else { // HStack
+		// Fill available height so children can stretch
+		if constraints.HasBoundedHeight() && totalHeight < constraints.MaxHeight {
+			totalHeight = constraints.MaxHeight
+		}
+	}
+
+	// Clamp to MaxWidth/MaxHeight if exceeded
+	if constraints.HasBoundedWidth() && totalWidth > constraints.MaxWidth {
+		totalWidth = constraints.MaxWidth
+	}
+	if constraints.HasBoundedHeight() && totalHeight > constraints.MaxHeight {
+		totalHeight = constraints.MaxHeight
+	}
 
 	return runtime.Size{Width: totalWidth, Height: totalHeight}
 }
@@ -778,21 +1019,35 @@ func (bn *BorderedNode) Measure(constraints runtime.BoxConstraints) runtime.Size
 	// Measure child content
 	var contentWidth, contentHeight int
 	children := bn.Children()
+	// Check if this Bordered node has flex (should expand to fill available space)
+	hasFlex := false
+	if props := bn.Props(); props != nil {
+		if f, ok := props["flex"].(int); ok && f > 0 {
+			hasFlex = true
+		}
+	}
+
 	if len(children) > 0 {
 		child := children[0]
 		if measurable, ok := child.(interface {
 			Measure(runtime.BoxConstraints) runtime.Size
 		}); ok {
 			// Child implements Measurable - measure with inner constraints
-			innerConstraints := runtime.BoxConstraints{
-				MinWidth:  max(0, constraints.MinWidth-borderWidth),
-				MaxWidth:  max(0, constraints.MaxWidth-borderWidth),
-				MinHeight: max(0, constraints.MinHeight-borderHeight),
-				MaxHeight: max(0, constraints.MaxHeight-borderHeight),
-			}
+			// Use SubtractPadding helper to properly handle bounded/unbounded constraints
+			innerConstraints := constraints.SubtractPadding(borderWidth, borderHeight)
 			contentSize := measurable.Measure(innerConstraints)
 			contentWidth = contentSize.Width
 			contentHeight = contentSize.Height
+
+			// If this Bordered node has flex, expand child to fill available space
+			if hasFlex {
+				if innerConstraints.HasBoundedWidth() && contentWidth < innerConstraints.MaxWidth {
+					contentWidth = innerConstraints.MaxWidth
+				}
+				if innerConstraints.HasBoundedHeight() && contentHeight < innerConstraints.MaxHeight {
+					contentHeight = innerConstraints.MaxHeight
+				}
+			}
 		} else {
 			// Fallback: estimate child size
 			contentWidth = 10  // Default minimum
@@ -802,6 +1057,15 @@ func (bn *BorderedNode) Measure(constraints runtime.BoxConstraints) runtime.Size
 		// No child - minimum size
 		contentWidth = 1
 		contentHeight = 1
+		// If flex, expand to fill available space
+		if hasFlex {
+			if constraints.HasBoundedWidth() {
+				contentWidth = max(0, constraints.MaxWidth-borderWidth)
+			}
+			if constraints.HasBoundedHeight() {
+				contentHeight = max(0, constraints.MaxHeight-borderHeight)
+			}
+		}
 	}
 
 	// Inner width is the larger of content and label
@@ -843,5 +1107,12 @@ func (bn *BorderedNode) Measure(constraints runtime.BoxConstraints) runtime.Size
 	}
 
 	return runtime.Size{Width: totalWidth, Height: totalHeight}
+}
+
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }
 

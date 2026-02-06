@@ -812,3 +812,228 @@ PASS
 1. **性能基准测试**: 对比新旧管线的详细性能数据
 2. **框架集成**: 在 framework/App 中提供新管线选项
 3. **完整迁移**: 评估迁移 framework 组件到 VNode 模式
+
+---
+
+## 十二、阶段 8: Flex 分布优化 (2025-02-06)
+
+### 实施背景
+
+用户反馈布局中存在以下问题：
+1. **HStack 子元素宽度计算不正确** - flex 子元素没有正确分配可用空间
+2. **VStack 子元素横向不填充** - 需要启用 `.Stretch()` 才能填充
+3. **Gap 导致不对齐** - 需要支持 `.Gap(0)` 无间距布局
+
+### 完成的任务
+
+#### 1. Flex 分布算法完善
+
+**问题**: 原 flex 计算只在 `layoutVStack/layoutHStack` 中应用，没有在 `Measure` 阶段计算
+
+**解决方案**: 在 `LayoutNode.Measure()` 中实现完整的 flex 分布算法
+
+```go
+// runtime/ui/layout.go:287-379
+func (l *LayoutNode) Measure(constraints runtime.BoxConstraints) runtime.Size {
+    // 第一遍：识别 flex 子元素，测量非 flex 子元素
+    var flexChildren []struct{ child VNode; factor int }
+    var fixedWidth int
+    flexTotalFactor := 0
+
+    for i, child := range children {
+        childInfo := GetLayoutInfo(child)
+        if childInfo.Flex > 0 {
+            flexChildren = append(flexChildren, ...)
+            flexTotalFactor += childInfo.Flex
+        } else {
+            fixedWidth += childSize.Width
+        }
+        fixedWidth += l.gap
+    }
+
+    // 第二遍：分配剩余空间给 flex 子元素
+    if len(flexChildren) > 0 && constraints.HasBoundedWidth() {
+        availableWidth := constraints.MaxWidth - paddingWidth - gaps
+        remainingSpace := availableWidth - fixedWidth
+
+        for _, fc := range flexChildren {
+            flexWidth := (remainingSpace * fc.factor) / flexTotalFactor
+            // 使用固定约束测量
+        }
+    }
+}
+```
+
+#### 2. getChildConstraints Flex 支持
+
+**问题**: `buildComputedBox` 阶段没有正确传递 flex 约束
+
+**解决方案**: 在 `getChildConstraints()` 中添加 flex 计算逻辑
+
+```go
+// runtime/compute/engine.go:592-658
+case "hstack":
+    if childInfo.Flex > 0 && parentConstraints.HasBoundedWidth() {
+        // 计算所有兄弟元素的 flex 分布
+        for _, sibling := range parentChildren {
+            // 累计 fixedWidth 和 totalFlexFactor
+        }
+        flexWidth := (remainingSpace * childInfo.Flex) / totalFlexFactor
+
+        return BoxConstraints{
+            MinWidth:  flexWidth,
+            MaxWidth:  flexWidth,
+            ...
+        }
+    }
+```
+
+#### 3. HStackBuilder API
+
+**问题**: HStack 没有对应的 Builder API，无法设置 Gap
+
+**解决方案**: 添加 `HStackBuilder()` 函数
+
+```go
+// runtime/ui/layout.go:64-77
+func HStackBuilder(children ...VNode) *LayoutBuilder {
+    return &LayoutBuilder{
+        node: &LayoutNode{
+            ElementVNode: NewElement("hstack"),
+            direction:    DirectionRow,
+            gap:          1,
+            ...
+        },
+        children: children,
+    }
+}
+```
+
+### 测试结果
+
+```
+修改前:
+[Layout.Position] Element at (0,0,62×3)    // Header 只有 62 宽
+[Layout.Position] Element at (0,3,79×10)   // MainBody 只有 79 宽
+[Layout.Position] Element at (0,3,16×10)   // 左侧 16 宽
+[Layout.Position] Element at (17,3,32×10)  // 右侧 32 宽
+
+修改后:
+[Layout.Position] Element at (0,0,80×3)    // Header 80 宽 ✓
+[Layout.Position] Element at (0,3,80×10)   // MainBody 80 宽 ✓
+[Layout.Position] Element at (0,3,40×10)   // 左侧 40 宽 ✓
+[Layout.Position] Element at (40,3,40×10)  // 右侧 40 宽 ✓
+```
+
+### 新增文件
+
+| 文件 | 说明 |
+|------|------|
+| `docs/layout/stretch_layout.md` | 完整的拉伸布局系统文档 |
+
+### 修改文件
+
+| 文件 | 变更 |
+|------|------|
+| `runtime/ui/layout.go` | 添加 Flex 分布算法，HStackBuilder() |
+| `runtime/compute/engine.go` | 完善 getChildConstraints() flex 计算 |
+| `ui/layout.go` | 重新导出 HStackBuilder() |
+| `examples/ui_demos/demo1_full_featured/main.go` | 使用 Stretch 和 Gap(0) |
+
+### 版本历史
+
+| 版本 | 日期 | 变更 |
+|------|------|------|
+| 2.0 | 2025-02-06 | Flex 分布算法完善 |
+| 2.1 | 2025-02-06 | HStackBuilder API |
+| 2.2 | 2025-02-06 | 文档更新 |
+
+---
+
+## 附录：当前架构状态 (2025-02-06)
+
+### 已实现功能
+
+| 功能 | 状态 | 说明 |
+|------|------|------|
+| Layout/Paint 分离 | ✅ | RenderingPipeline 完全分离 |
+| 约束驱动布局 | ✅ | BoxConstraints 系统 |
+| Flex 主轴分配 | ✅ | 按 flex factor 分配空间 |
+| StretchCross 跨轴拉伸 | ✅ | VStack/HStack 跨轴拉伸 |
+| Gap 间距控制 | ✅ | Builder API 设置 gap |
+| HStackBuilder | ✅ | 支持 .Gap(), .Stretch() 等 |
+| VStackBuilder | ✅ | 支持完整的 Builder 链 |
+| 布局缓存 | ✅ | LayoutCache 80% 命中率 |
+| 脏标记追踪 | ✅ | DirtyTracker |
+
+### 待实现功能
+
+| 功能 | 优先级 | 预计工作量 |
+|------|--------|-----------|
+| 百分比尺寸 | 中 | 1-2 天 |
+| 最小尺寸保证 | 中 | 1 天 |
+| 文本对齐选项 | 低 | 1 天 |
+| Grid 布局 | 中 | 3-5 天 |
+| 绝对定位 | 低 | 2-3 天 |
+| 布局动画 | 低 | 3-5 天 |
+
+### 架构图 (当前状态)
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                          用户代码层                                 │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐               │
+│  │ ui.Flex()   │  │ .Stretch()  │  │  .Gap(0)     │               │
+│  │ ui.HStack   │  │ ui.VStack   │  │ ui.Bordered  │               │
+│  └──────────────┘  └──────────────┘  └──────────────┘               │
+└─────────────────────────────────────────────────────────────────────┘
+                                │
+                                ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                       VNode 抽象层 (runtime/ui)                      │
+│  ┌─────────────────────────────────────────────────────────────────┐ │
+│  │  LayoutNode.Measure()  ← Flex 分布算法 (两遍测量)              │ │
+│  │  GetLayoutInfo()       ← 提取 flex, gap, stretchCross         │ │
+│  └─────────────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────────┘
+                                │
+                                ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                     布局引擎层 (runtime/compute)                     │
+│  ┌─────────────────────────────────────────────────────────────────┐ │
+│  │  Engine.buildComputedBox()                                     │ │
+│  │    ├─ measureVNode()      ← 测量阶段                          │ │
+│  │    └─ getChildConstraints() ← Flex 约束传递                    │ │
+│  │                                                                │ │
+│  │  Engine.calculatePositions()                                   │ │
+│  │    ├─ layoutHStack()        ← 横向布局                          │ │
+│  │    ├─ layoutVStack()        ← 纵向布局                          │ │
+│  │    └─ layoutBordered()      ← 边框布局                          │ │
+│  └─────────────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────────┘
+                                │
+                                ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                   渲染引擎层 (internal/render)                      │
+│  ┌─────────────────────────────────────────────────────────────────┐ │
+│  │  RenderingPipeline                                             │ │
+│  │    ├─ LayoutEngine  ← compute.Engine                          │ │
+│  │    └─ PaintEngine   ← render.PaintEngine                      │ │
+│  └─────────────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### 关键代码位置
+
+| 功能 | 文件 | 行号 |
+|------|------|------|
+| Flex 分布算法 | `runtime/ui/layout.go` | 287-477 |
+| getChildConstraints | `runtime/compute/engine.go` | 578-732 |
+| layoutVStack | `runtime/compute/engine.go` | 579-645 |
+| layoutHStack | `runtime/compute/engine.go` | 541-576 |
+| GetLayoutInfo | `runtime/ui/layout_util.go` | 50-146 |
+| HStackBuilder | `runtime/ui/layout.go` | 64-77 |
+
+---
+
+*文档最后更新: 2025-02-06*

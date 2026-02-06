@@ -6,6 +6,15 @@ import (
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
 
+// FlexDistributionInfo caches flex distribution calculation for a parent container
+// This avoids O(N²) re-measurement when calculating constraints for each flex child
+type FlexDistributionInfo struct {
+	TotalFlexFactor int // Sum of all flex factors
+	FixedSize       int // Sum of all non-flex children sizes
+	ChildCount      int // Number of children (for gap calculation)
+	Valid           bool // Whether the cache is valid
+}
+
 // VNode is an alias for the VNode type from runtime/ui
 type VNode = rtui.VNode
 
@@ -33,6 +42,10 @@ type ComputedBox struct {
 	// Layout state
 	LayoutDirty bool
 	LayoutHash  uint64
+
+	// RenderedText contains the final text to render (with padding if needed)
+	// This is calculated during layout phase to avoid modifying content during paint
+	RenderedText string
 }
 
 // =============================================================================

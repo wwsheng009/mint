@@ -40,9 +40,27 @@ func HStack(children ...VNode) VNode {
 	return rtui.HStack(children...)
 }
 
+// HStackBuilder creates a horizontal layout container builder for method chaining
+// Example: ui.HStackBuilder(item1, item2).Gap(0).Stretch().Build()
+func HStackBuilder(children ...VNode) *rtui.LayoutBuilder {
+	return rtui.HStackBuilder(children...)
+}
+
 // VStack creates a vertical layout container
 func VStack(children ...VNode) VNode {
 	return rtui.VStack(children...)
+}
+
+// VStackBuilder creates a vertical layout container builder for method chaining
+// Example: ui.VStackBuilder(item1, item2).Stretch().Build()
+func VStackBuilder(children ...VNode) *rtui.LayoutBuilder {
+	return rtui.VStackBuilder(children...)
+}
+
+// Flex wraps a VNode to make it flexible in a layout
+// The flex factor determines how much the child grows to fill available space
+func Flex(vnode VNode, flexFactors ...int) VNode {
+	return rtui.Flex(vnode, flexFactors...)
 }
 
 // Box creates a container box

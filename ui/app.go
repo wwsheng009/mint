@@ -86,6 +86,10 @@ func Run(app ComponentFunc, opts ...Option) error {
 		FPS:    60,
 	}
 
+	if os.Getenv("TUI_DEBUG_UI") == "true" {
+		fmt.Fprintf(os.Stderr, "ui.Run: Starting\n")
+	}
+
 	for _, opt := range opts {
 		opt(options)
 	}
@@ -99,11 +103,17 @@ func Run(app ComponentFunc, opts ...Option) error {
 	}
 
 	// Create the framework app
+	if os.Getenv("TUI_DEBUG_UI") == "true" {
+		fmt.Fprintf(os.Stderr, "ui.Run: Creating framework app\n")
+	}
 	fwApp := framework.NewApp()
 	fwApp.Resize(options.Width, options.Height)
 	appInstance = fwApp
 
 	// Initialize theme
+	if os.Getenv("TUI_DEBUG_UI") == "true" {
+		fmt.Fprintf(os.Stderr, "ui.Run: Initializing theme\n")
+	}
 	if err := fwApp.InitTheme("dark"); err != nil {
 		if os.Getenv("TUI_DEBUG_UI") == "true" {
 			fmt.Fprintf(os.Stderr, "Failed to initialize theme: %v\n", err)
@@ -134,6 +144,9 @@ func Run(app ComponentFunc, opts ...Option) error {
 	}
 
 	// Run the app
+	if os.Getenv("TUI_DEBUG_UI") == "true" {
+		fmt.Fprintf(os.Stderr, "ui.Run: Calling fwApp.Run()\n")
+	}
 	return fwApp.Run()
 }
 

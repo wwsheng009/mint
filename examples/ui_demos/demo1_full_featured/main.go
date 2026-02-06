@@ -48,19 +48,20 @@ func App() ui.VNode {
 	}
 
 	// Build main content using VStack for vertical layout
-	mainContent := ui.VStack(
+	// Use Stretch() so children (Header, MainBody) expand to fill width
+	mainContent := ui.VStackBuilder(
 		Header(count, showModal, setShowModal, setCount),
 		MainBody(count, setCount, input, setInput, items),
-	)
+	).Stretch().Build()
 
 	// Layer: Modal (conditional rendering)
 	if showModal {
-		return ui.VStack(
+		return ui.VStackBuilder(
 			mainContent,
 			ConfirmModal(func() {
 				setShowModal(false)
 			}),
-		)
+		).Stretch().Build()
 	}
 
 	return mainContent
@@ -117,7 +118,7 @@ func Header(count int, showModal bool, setShowModal func(bool), setCount func(in
 //	└───────────┴──────────────────────────────────────────┘
 func MainBody(count int, setCount func(interface{}), input string, setInput func(string), items []string) ui.VNode {
 	// Left sidebar with menu buttons
-	sidebar := ui.VStack(
+	sidebar := ui.VStackBuilder(
 		app.NewTextBuilder("Menu").
 			Bold(true).
 			Underline(true).
@@ -134,10 +135,11 @@ func MainBody(count int, setCount func(interface{}), input string, setInput func
 				ui.Quit()
 			}).
 			Build(),
-	)
+	).Stretch().Build()
 
 	// Right content area with input and log lines
-	contentArea := ui.VStack(
+	// Use VStackBuilder with Stretch to make all items fill the width
+	contentArea := ui.VStackBuilder(
 		app.InputBuilder().
 			Value(input).
 			Placeholder("Type something...").
@@ -171,19 +173,27 @@ func MainBody(count int, setCount func(interface{}), input string, setInput func
 				Italic(true).
 				Build(),
 		),
-	)
+	).Stretch().Build()
 
 	// Combine sidebar and content with borders
-	return ui.HStack(
-		ui.Bordered().
-			Color("blue").
-			Child(sidebar).
-			Build(),
-		ui.Bordered().
-			Color("blue").
-			Child(contentArea).
-			Build(),
-	)
+	// Apply Flex to both Bordered nodes so they stretch to match heights
+	// Use gap=0 so they fill the full width evenly
+	return ui.HStackBuilder(
+		ui.Flex(
+			ui.Bordered().
+				Color("blue").
+				Child(sidebar).
+				Build(),
+			1, // Flex factor
+		),
+		ui.Flex(
+			ui.Bordered().
+				Color("blue").
+				Child(contentArea).
+				Build(),
+			1, // Flex factor
+		),
+	).Gap(0).Build()
 }
 
 // ConfirmModal demonstrates Layer + Animation + Focus Trap with Bordered component

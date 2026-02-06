@@ -1,0 +1,142 @@
+# Demo1 Baseline Output - Before Optimization
+# Date: 2025-02-06
+# Command: go run ./examples/ui_demos/demo1_full_featured/main.go
+
+## Layout.Measure Output (First Render)
+
+[Layout.Measure] Element: constraints={0 80 0 24}, size={80 13}
+[Layout.Measure] Element: constraints={0 80 0 1073741823}, size={62 3}
+[Layout.Measure] Element: constraints={0 78 0 1073741823}, size={60 1}
+[Layout.Measure] Text: constraints={0 1073741823 0 1073741823}, size={15 1}
+[Layout.CacheSet] Text: (0,0,15x1)
+[Layout.Measure] Text: constraints={0 1073741823 0 1073741823}, size={14 1}
+[Layout.CacheSet] Text: (0,0,14x1)
+[Layout.Measure] Element: constraints={0 1073741823 0 1073741823}, size={17 1}
+[Layout.CacheSet] Element: (0,0,17x1)
+[Layout.Measure] Text: constraints={0 1073741823 0 1073741823}, size={1 1}
+[Layout.CacheSet] Text: (0,0,1x1)
+[Layout.Measure] Text: constraints={0 1073741823 0 1073741823}, size={9 1}
+[Layout.CacheSet] Text: (0,0,9x1)
+[Layout.Measure] Element: constraints={0 80 0 1073741823}, size={80 10}
+[getChildConstraints.HStack] child flex=1/2, flexWidth=40
+[Layout.Measure] Element: constraints={40 40 0 1073741823}, size={40 5}
+[Layout.Measure] Element: constraints={40 38 0 1073741823}, size={38 3}
+[Layout.Measure] Text: constraints={0 38 0 1073741823}, size={4 1}
+[Layout.CacheSet] Text: (0,0,4x1)
+[Layout.Measure] Element: constraints={0 38 0 1073741823}, size={14 1}
+[Layout.CacheSet] Element: (0,0,14x1)
+[Layout.Measure] Element: constraints={0 38 0 1073741823}, size={9 1}
+[Layout.CacheSet] Element: (0,0,9x1)
+[getChildConstraints.HStack] child flex=1/2, flexWidth=40
+[Layout.Measure] Element: constraints={40 40 0 1073741823}, size={40 10}
+[Layout.Measure] Element: constraints={40 38 0 1073741823}, size={38 8}
+[Layout.Measure] Element: constraints={0 38 0 1073741823}, size={30 1}
+[Layout.CacheSet] Element: (0,0,30x1)
+[Layout.Measure] Text: constraints={0 38 0 1073741823}, size={30 1}
+[Layout.CacheSet] Text: (0,0,30x1)
+[Layout.Measure] Text: constraints={0 38 0 1073741823}, size={11 1}
+[Layout.CacheSet] Text: (0,0,11x1)
+[Layout.Measure] Text: constraints={0 38 0 1073741823}, size={11 1}
+[Layout.CacheSet] Text: (0,0,11x1)
+[Layout.Measure] Text: constraints={0 38 0 1073741823}, size={11 1}
+[Layout.CacheSet] Text: (0,0,11x1)
+[Layout.Measure] Text: constraints={0 38 0 1073741823}, size={11 1}
+[Layout.CacheSet] Text: (0,0,11x1)
+[Layout.Measure] Text: constraints={0 38 0 1073741823}, size={11 1}
+[Layout.CacheSet] Text: (0,0,11x1)
+[Layout.Measure] Element: constraints={0 38 0 1073741823}, size={16 1}
+[Layout.Measure] Text: constraints={0 1073741823 0 1073741823}, size={11 1}
+[Layout.CacheSet] Text: (0,0,11x1)
+[Layout.Measure] Text: constraints={0 1073741823 0 1073741823}, size={4 1}
+[Layout.CacheSet] Text: (0,0,4x1)
+[Layout.Position] Element at (0,0,80x13)
+[layoutVStack] box=(0,0,80x13) stretchCross=true
+[layoutVStack]   stretch child: 62 -> 80 (text="")
+[Layout.Position] Element at (0,0,80x3)
+[Layout.Position] Element at (1,1,60x1)
+[Layout.Position] Text at (1,1,15x1)
+[Layout.Position] Text at (17,1,14x1)
+[Layout.Position] Element at (32,1,17x1)
+[Layout.Position] Text at (50,1,1x1)
+[Layout.Position] Text at (52,1,9x1)
+[layoutVStack]   stretch child: 80 -> 80 (text="")
+[Layout.Position] Element at (0,3,80x10)
+[Layout.Position] Element at (0,3,40x10)
+[Layout.Position] Element at (1,4,38x3)
+[layoutVStack] box=(1,4,38x3) stretchCross=true
+[layoutVStack]   stretch child: 4 -> 38 (text="Menu")
+[layoutVStack]   renderedText: "Menu                                  " (len=38)
+[Layout.Position] Text at (1,4,38x1)
+[layoutVStack]   stretch child: 14 -> 38 (text="")
+[Layout.Position] Element at (1,5,38x1)
+[layoutVStack]   stretch child: 9 -> 38 (text="")
+[Layout.Position] Element at (1,6,38x1)
+[Layout.Position] Element at (40,3,40x10)
+[Layout.Position] Element at (41,4,38x8)
+[layoutVStack] box=(41,4,38x8) stretchCross=true
+[layoutVStack]   stretch child: 30 -> 38 (text="")
+[Layout.Position] Element at (41,4,38x1)
+[layoutVStack]   stretch child: 30 -> 38 (text="──────────────────────────────")
+[Layout.Position] Text at (41,5,38x1)
+[layoutVStack]   stretch child: 11 -> 38 (text="Log line #0")
+[layoutVStack]   renderedText: "Log line #0                           " (len=38)
+[Layout.Position] Text at (41,6,38x1)
+[layoutVStack]   stretch child: 11 -> 38 (text="Log line #1")
+[layoutVStack]   renderedText: "Log line #1                           " (len=38)
+[Layout.Position] Text at (41,7,38x1)
+[layoutVStack]   stretch child: 11 -> 38 (text="Log line #2")
+[layoutVStack]   renderedText: "Log line #2                           " (len=38)
+[Layout.Position] Text at (41,8,38x1)
+[layoutVStack]   stretch child: 11 -> 38 (text="Log line #3")
+[layoutVStack]   renderedText: "Log line #3                           " (len=38)
+[Layout.Position] Text at (41,9,38x1)
+[layoutVStack]   stretch child: 11 -> 38 (text="Log line #4")
+[layoutVStack]   renderedText: "Log line #4                           " (len=38)
+[Layout.Position] Text at (41,10,38x1)
+[layoutVStack]   stretch child: 16 -> 38 (text="")
+[Layout.Position] Element at (41,11,38x1)
+[Layout.Position] Text at (41,11,11x1)
+[Layout.Position] Text at (53,11,4x1)
+
+## Second Render (Cache Hits)
+
+[Layout.Measure] Element: constraints={0 80 0 24}, size={80 13}
+[Layout.Measure] Element: constraints={0 80 0 1073741823}, size={62 3}
+[Layout.Measure] Element: constraints={0 78 0 1073741823}, size={60 1}
+[Layout.CacheHit] Text (key=): (0,0,15x1)
+[Layout.CacheHit] Text (key=): (0,0,14x1)
+[Layout.CacheHit] Element (key=): (0,0,17x1)
+[Layout.CacheHit] Text (key=): (0,0,1x1)
+
+## Rendered Screen
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│TUI Engine Demo              *[ [Open Modal] ]  Clicks: 0                     │
+└──────────────────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────┐┌──────────────────────────────────────┐
+│Menu                                  ││:Type something...:                   │
+│ [ Add Count ]                        ││──────────────────────────────        │
+│ [ Quit ]                             ││Log line #0                           │
+│                                      ││Log line #1                           │
+│                                      ││Log line #2                           │
+│                                      ││Log line #3                           │
+│                                      ││Log line #4                           │
+│                                      ││Log line #5  ...                      │
+└──────────────────────────────────────┘└──────────────────────────────────────┘
+
+## Key Observations
+
+1. Root container: 80x13 (fits within 80x24)
+2. Header: 80x3 (stretches to full width via StretchCross)
+3. Body: 80x10 (stretches to full width)
+4. Left panel: 40x10 (flex=1/2)
+5. Right panel: 40x10 (flex=1/2)
+6. Gap=0 between panels (perfect alignment)
+7. Cache working: second render shows CacheHit messages
+
+## Issues Identified
+
+1. Flex calculation repeated: "child flex=1/2" appears twice (once per flex child)
+2. Character-by-character space padding in stretch
+3. No text alignment options (always left-aligned)
+4. StretchCross only affects direct children (not recursive)

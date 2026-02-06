@@ -4,8 +4,10 @@ package compute
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/wwsheng009/mint/runtime"
+	"github.com/wwsheng009/mint/runtime/paint"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
 
@@ -15,6 +17,7 @@ type Engine struct {
 	cache        *LayoutCache
 	dirtyTracker *DirtyTracker
 	debug        bool
+	flexCache    map[string]*FlexDistributionInfo // Cache for flex distribution per parent
 }
 
 // NewEngine creates a new layout engine
@@ -37,6 +40,9 @@ func (e *Engine) Layout(vnode VNode, constraints runtime.BoxConstraints) (*Compu
 	if vnode == nil {
 		return nil, fmt.Errorf("cannot layout nil VNode")
 	}
+
+	// Reset flex cache for each layout pass
+	e.flexCache = make(map[string]*FlexDistributionInfo)
 
 	// Build layout tree and measure
 	root := e.buildComputedBox(vnode, nil, constraints)
@@ -186,48 +192,271 @@ func (e *Engine) measureLayoutChildren(vnode VNode, constraints runtime.BoxConst
 	// Get layout info
 	layoutInfo := rtui.GetLayoutInfo(vnode)
 	gap := layoutInfo.Gap
+	padding := layoutInfo.Padding // top, right, bottom, left
+	paddingWidth := padding[1] + padding[3]
+	paddingHeight := padding[0] + padding[2]
 
 	if layoutInfo.IsHorizontal {
 		// HStack: sum widths, max height
 		totalWidth := 0
 		maxHeight := 0
+
+		// Calculate inner height constraint
+		// Use parent's MaxHeight only if it's bounded, otherwise use Infinity
+		innerMaxHeight := runtime.Infinity
+		if constraints.HasBoundedHeight() {
+			innerMaxHeight = max(0, constraints.MaxHeight-paddingHeight)
+		}
+
+		if e.debug {
+			fmt.Fprintf(os.Stderr, "[measureLayoutChildren.HStack] constraints=%v, paddingWidth=%d, paddingHeight=%d\n",
+				constraints, paddingWidth, paddingHeight)
+		}
+
+		// First pass: identify flex children and measure non-flex children
+		var flexChildren []struct {
+			child  VNode
+			index  int
+			factor int
+		}
+		var fixedWidth int
+		flexTotalFactor := 0
+
 		for i, child := range children {
-			childSize := e.measureVNode(child, runtime.BoxConstraints{
-				MinWidth:  0,
-				MaxWidth:  runtime.Infinity,
-				MinHeight: 0,
-				MaxHeight: constraints.MaxHeight,
-			})
-			totalWidth += childSize.Width
-			if childSize.Height > maxHeight {
-				maxHeight = childSize.Height
+			childInfo := rtui.GetLayoutInfo(child)
+			if childInfo.Flex > 0 {
+				flexChildren = append(flexChildren, struct {
+					child  VNode
+					index  int
+					factor int
+				}{child, i, childInfo.Flex})
+				flexTotalFactor += childInfo.Flex
+			} else {
+				// Non-flex child: measure with natural width
+				childConstraints := runtime.BoxConstraints{
+					MinWidth:  0,
+					MaxWidth:  runtime.Infinity,
+					MinHeight: 0,
+					MaxHeight: innerMaxHeight,
+				}
+				childSize := e.measureVNode(child, childConstraints)
+				fixedWidth += childSize.Width
+				if childSize.Height > maxHeight && childSize.Height < runtime.Infinity {
+					maxHeight = childSize.Height
+				}
 			}
-			// Add gap (except after last child)
+			// Account for gap (except after last child)
 			if i < len(children)-1 {
-				totalWidth += gap
+				fixedWidth += gap
 			}
 		}
+
+		totalWidth = fixedWidth
+
+		// If we have flex children and bounded width, distribute remaining space
+		if len(flexChildren) > 0 && constraints.HasBoundedWidth() {
+			availableWidth := constraints.MaxWidth - paddingWidth - (len(children)-1)*gap
+			remainingSpace := availableWidth - fixedWidth
+
+			if e.debug && remainingSpace > 0 {
+				fmt.Fprintf(os.Stderr, "[measureLayoutChildren.HStack] flex distribution: available=%d, fixed=%d, remaining=%d, factors=%d\n",
+					availableWidth, fixedWidth, remainingSpace, flexTotalFactor)
+			}
+
+			// Distribute remaining space to flex children
+			for _, fc := range flexChildren {
+				flexWidth := (remainingSpace * fc.factor) / flexTotalFactor
+				if flexWidth < 0 {
+					flexWidth = 0
+				}
+
+				childConstraints := runtime.BoxConstraints{
+					MinWidth:  flexWidth,
+					MaxWidth:  flexWidth,
+					MinHeight: 0,
+					MaxHeight: innerMaxHeight,
+				}
+				childSize := e.measureVNode(fc.child, childConstraints)
+				totalWidth += childSize.Width
+				if childSize.Height > maxHeight && childSize.Height < runtime.Infinity {
+					maxHeight = childSize.Height
+				}
+			}
+		} else {
+			// No flex or unbounded width: measure flex children naturally
+			for _, fc := range flexChildren {
+				childConstraints := runtime.BoxConstraints{
+					MinWidth:  0,
+					MaxWidth:  runtime.Infinity,
+					MinHeight: 0,
+					MaxHeight: innerMaxHeight,
+				}
+				childSize := e.measureVNode(fc.child, childConstraints)
+				totalWidth += childSize.Width
+				if childSize.Height > maxHeight && childSize.Height < runtime.Infinity {
+					maxHeight = childSize.Height
+				}
+			}
+		}
+
+		// Add padding to total size
+		totalWidth += paddingWidth
+		maxHeight += paddingHeight
+
+		// IMPORTANT: Cross-axis filling for HStack
+		// Fill available height so children can stretch vertically
+		if constraints.HasBoundedHeight() && maxHeight < constraints.MaxHeight {
+			maxHeight = constraints.MaxHeight
+		}
+
+		// Apply MinHeight constraint
+		if maxHeight < constraints.MinHeight {
+			maxHeight = constraints.MinHeight
+		}
+
+		// Clamp to MaxHeight if exceeded
+		if constraints.HasBoundedHeight() && maxHeight > constraints.MaxHeight {
+			maxHeight = constraints.MaxHeight
+		}
+
+		if e.debug {
+			fmt.Fprintf(os.Stderr, "[measureLayoutChildren.HStack] RETURN: Width=%d, Height=%d\n",
+				totalWidth, maxHeight)
+		}
+
 		return runtime.Size{Width: totalWidth, Height: maxHeight}
 	} else {
 		// VStack: max width, sum heights
 		maxWidth := 0
 		totalHeight := 0
+
+		// Calculate inner width constraint
+		// Use parent's MaxWidth only if it's bounded, otherwise use Infinity
+		innerMaxWidth := runtime.Infinity
+		if constraints.HasBoundedWidth() {
+			innerMaxWidth = max(0, constraints.MaxWidth-paddingWidth)
+		}
+
+		if e.debug {
+			fmt.Fprintf(os.Stderr, "[measureLayoutChildren.VStack] constraints=%v, innerMaxWidth=%d\n",
+				constraints, innerMaxWidth)
+		}
+
+		// First pass: identify flex children and measure non-flex children
+		var flexChildren []struct {
+			child  VNode
+			index  int
+			factor int
+		}
+		var fixedHeight int
+		flexTotalFactor := 0
+
 		for i, child := range children {
-			childSize := e.measureVNode(child, runtime.BoxConstraints{
-				MinWidth:  0,
-				MaxWidth:  constraints.MaxWidth,
-				MinHeight: 0,
-				MaxHeight: runtime.Infinity,
-			})
-			if childSize.Width > maxWidth {
-				maxWidth = childSize.Width
+			childInfo := rtui.GetLayoutInfo(child)
+			if childInfo.Flex > 0 {
+				flexChildren = append(flexChildren, struct {
+					child  VNode
+					index  int
+					factor int
+				}{child, i, childInfo.Flex})
+				flexTotalFactor += childInfo.Flex
+			} else {
+				// Non-flex child: measure with natural height
+				childConstraints := runtime.BoxConstraints{
+					MinWidth:  0,
+					MaxWidth:  innerMaxWidth,
+					MinHeight: 0,
+					MaxHeight: runtime.Infinity,
+				}
+				childSize := e.measureVNode(child, childConstraints)
+				if childSize.Width > maxWidth && childSize.Width < runtime.Infinity {
+					maxWidth = childSize.Width
+				}
+				if childSize.Height < runtime.Infinity {
+					fixedHeight += childSize.Height
+				}
 			}
-			totalHeight += childSize.Height
-			// Add gap (except after last child)
+			// Account for gap (except after last child)
 			if i < len(children)-1 {
-				totalHeight += gap
+				fixedHeight += gap
 			}
 		}
+
+		totalHeight = fixedHeight
+
+		// If we have flex children and bounded height, distribute remaining space
+		if len(flexChildren) > 0 && constraints.HasBoundedHeight() {
+			availableHeight := constraints.MaxHeight - paddingHeight - (len(children)-1)*gap
+			remainingSpace := availableHeight - fixedHeight
+
+			if e.debug && remainingSpace > 0 {
+				fmt.Fprintf(os.Stderr, "[measureLayoutChildren.VStack] flex distribution: available=%d, fixed=%d, remaining=%d, factors=%d\n",
+					availableHeight, fixedHeight, remainingSpace, flexTotalFactor)
+			}
+
+			// Distribute remaining space to flex children
+			for _, fc := range flexChildren {
+				flexHeight := (remainingSpace * fc.factor) / flexTotalFactor
+				if flexHeight < 0 {
+					flexHeight = 0
+				}
+
+				childConstraints := runtime.BoxConstraints{
+					MinWidth:  0,
+					MaxWidth:  innerMaxWidth,
+					MinHeight: flexHeight,
+					MaxHeight: flexHeight,
+				}
+				childSize := e.measureVNode(fc.child, childConstraints)
+				if childSize.Width > maxWidth && childSize.Width < runtime.Infinity {
+					maxWidth = childSize.Width
+				}
+				totalHeight += childSize.Height
+			}
+		} else {
+			// No flex or unbounded height: measure flex children naturally
+			for _, fc := range flexChildren {
+				childConstraints := runtime.BoxConstraints{
+					MinWidth:  0,
+					MaxWidth:  innerMaxWidth,
+					MinHeight: 0,
+					MaxHeight: runtime.Infinity,
+				}
+				childSize := e.measureVNode(fc.child, childConstraints)
+				if childSize.Width > maxWidth && childSize.Width < runtime.Infinity {
+					maxWidth = childSize.Width
+				}
+				if childSize.Height < runtime.Infinity {
+					totalHeight += childSize.Height
+				}
+			}
+		}
+
+		// Add padding to total size
+		maxWidth += paddingWidth
+		totalHeight += paddingHeight
+
+		// IMPORTANT: Cross-axis filling for VStack
+		// Fill available width so children can stretch horizontally
+		if constraints.HasBoundedWidth() && maxWidth < constraints.MaxWidth {
+			maxWidth = constraints.MaxWidth
+		}
+
+		// Apply MinWidth constraint
+		if maxWidth < constraints.MinWidth {
+			maxWidth = constraints.MinWidth
+		}
+
+		// Clamp to MaxWidth if exceeded
+		if constraints.HasBoundedWidth() && maxWidth > constraints.MaxWidth {
+			maxWidth = constraints.MaxWidth
+		}
+
+		if e.debug {
+			fmt.Fprintf(os.Stderr, "[measureLayoutChildren.VStack] RETURN: Width=%d, Height=%d\n",
+				maxWidth, totalHeight)
+		}
+
 		return runtime.Size{Width: maxWidth, Height: totalHeight}
 	}
 }
@@ -243,12 +472,8 @@ func (e *Engine) measureBordered(vnode VNode, constraints runtime.BoxConstraints
 	child := children[0]
 
 	// Measure child with inner constraints (subtract border)
-	innerConstraints := runtime.BoxConstraints{
-		MinWidth:  max(0, constraints.MinWidth-2),
-		MaxWidth:  max(0, constraints.MaxWidth-2),
-		MinHeight: max(0, constraints.MinHeight-2),
-		MaxHeight: max(0, constraints.MaxHeight-2),
-	}
+	// Use SubtractPadding helper to properly handle bounded/unbounded constraints
+	innerConstraints := constraints.SubtractPadding(2, 2)
 	childSize := e.measureVNode(child, innerConstraints)
 
 	// Check for label
@@ -350,35 +575,187 @@ func (e *Engine) estimateSize(vnode VNode, constraints runtime.BoxConstraints) r
 	return runtime.Size{Width: 10, Height: 1}
 }
 
+// measureTextWidth returns the display width of a text string
+func (e *Engine) measureTextWidth(text string) int {
+	return paint.StringWidth(text)
+}
+
+// getFlexDistribution calculates (or retrieves from cache) the flex distribution
+// for a parent HStack or VStack. This avoids O(N²) re-measurement.
+// isHorizontal: true for HStack, false for VStack
+// maxSize: MaxHeight for HStack, MaxWidth for VStack
+func (e *Engine) getFlexDistribution(parent VNode, isHorizontal bool, maxSize int) *FlexDistributionInfo {
+	// Generate cache key from parent's key or address
+	cacheKey := ""
+	if key := parent.Key(); key != "" {
+		cacheKey = key
+	} else {
+		// Fallback: use a unique identifier based on parent's address (not ideal but works)
+		cacheKey = fmt.Sprintf("%p", parent)
+	}
+
+	// Check cache
+	if cached, ok := e.flexCache[cacheKey]; ok && cached.Valid {
+		return cached
+	}
+
+	// Calculate flex distribution
+	info := &FlexDistributionInfo{
+		TotalFlexFactor: 0,
+		FixedSize:       0,
+		ChildCount:      0,
+		Valid:           true,
+	}
+
+	children := parent.Children()
+	info.ChildCount = len(children)
+
+	for _, child := range children {
+		childInfo := rtui.GetLayoutInfo(child)
+		if childInfo.Flex > 0 {
+			info.TotalFlexFactor += childInfo.Flex
+		} else {
+			// Measure non-flex child
+			var childSize runtime.Size
+			if isHorizontal {
+				// HStack: measure with unlimited width
+				childConstraints := runtime.BoxConstraints{
+					MinWidth:  0,
+					MaxWidth:  runtime.Infinity,
+					MinHeight: 0,
+					MaxHeight: maxSize,
+				}
+				childSize = e.measureVNode(child, childConstraints)
+				info.FixedSize += childSize.Width
+			} else {
+				// VStack: measure with unlimited height
+				childConstraints := runtime.BoxConstraints{
+					MinWidth:  0,
+					MaxWidth:  maxSize,
+					MinHeight: 0,
+					MaxHeight: runtime.Infinity,
+				}
+				childSize = e.measureVNode(child, childConstraints)
+				if childSize.Height < runtime.Infinity {
+					info.FixedSize += childSize.Height
+				}
+			}
+		}
+	}
+
+	// Store in cache
+	e.flexCache[cacheKey] = info
+
+	return info
+}
+
 // getChildConstraints calculates constraints for a child VNode
+// IMPORTANT: Constraints should be passed based on parent's actual bounds, not Infinity
+// Padding must be subtracted from constraints before passing to children
+// Flex distribution is handled here for layout containers
 func (e *Engine) getChildConstraints(parent, child VNode, parentConstraints runtime.BoxConstraints, parentSize runtime.Size) runtime.BoxConstraints {
+	// Get parent layout info to check for padding
+	layoutInfo := rtui.GetLayoutInfo(parent)
+	padding := layoutInfo.Padding // top, right, bottom, left
+	paddingWidth := padding[1] + padding[3]
+	paddingHeight := padding[0] + padding[2]
+
 	// Check if parent is a layout container
 	if tagger, ok := parent.(interface{ Tag() string }); ok {
 		switch tagger.Tag() {
 		case "hstack":
-			// HStack: children get unlimited width, constrained height
+			// HStack: calculate flex distribution if applicable
+			childMaxHeight := runtime.Infinity
+			if parentConstraints.HasBoundedHeight() {
+				childMaxHeight = max(0, parentConstraints.MaxHeight-paddingHeight)
+			}
+
+			// Check if child has flex
+			childInfo := rtui.GetLayoutInfo(child)
+
+			// If child has flex and parent has bounded width, calculate flex width
+			if childInfo.Flex > 0 && parentConstraints.HasBoundedWidth() {
+				// Use cached flex distribution to avoid O(N²) re-measurement
+				flexDist := e.getFlexDistribution(parent, true, childMaxHeight)
+
+				// Calculate available space and this child's flex width
+				gapSpace := 0
+				if flexDist.ChildCount > 1 {
+					gapSpace = (flexDist.ChildCount - 1) * layoutInfo.Gap
+				}
+				availableWidth := parentConstraints.MaxWidth - paddingWidth - gapSpace
+				remainingSpace := availableWidth - flexDist.FixedSize
+				flexWidth := (remainingSpace * childInfo.Flex) / flexDist.TotalFlexFactor
+				if flexWidth < 0 {
+					flexWidth = 0
+				}
+
+				if e.debug {
+					fmt.Fprintf(os.Stderr, "[getChildConstraints.HStack] child flex=%d/%d, flexWidth=%d (cached)\n",
+						childInfo.Flex, flexDist.TotalFlexFactor, flexWidth)
+				}
+
+				return runtime.BoxConstraints{
+					MinWidth:  flexWidth,
+					MaxWidth:  flexWidth,
+					MinHeight: 0,
+					MaxHeight: childMaxHeight,
+				}
+			}
+
+			// Non-flex child: unconstrained width
 			return runtime.BoxConstraints{
 				MinWidth:  0,
 				MaxWidth:  runtime.Infinity,
 				MinHeight: 0,
-				MaxHeight: parentSize.Height,
+				MaxHeight: childMaxHeight,
 			}
 		case "vstack":
-			// VStack: children get constrained width, unlimited height
+			// VStack: calculate flex distribution if applicable
+			childMaxWidth := runtime.Infinity
+			if parentConstraints.HasBoundedWidth() {
+				childMaxWidth = max(0, parentConstraints.MaxWidth-paddingWidth)
+			}
+
+			// Check if child has flex
+			childInfo := rtui.GetLayoutInfo(child)
+
+			// If child has flex and parent has bounded height, calculate flex height
+			if childInfo.Flex > 0 && parentConstraints.HasBoundedHeight() {
+				// Use cached flex distribution to avoid O(N²) re-measurement
+				flexDist := e.getFlexDistribution(parent, false, childMaxWidth)
+
+				// Calculate available space and this child's flex height
+				gapSpace := 0
+				if flexDist.ChildCount > 1 {
+					gapSpace = (flexDist.ChildCount - 1) * layoutInfo.Gap
+				}
+				availableHeight := parentConstraints.MaxHeight - paddingHeight - gapSpace
+				remainingSpace := availableHeight - flexDist.FixedSize
+				flexHeight := (remainingSpace * childInfo.Flex) / flexDist.TotalFlexFactor
+				if flexHeight < 0 {
+					flexHeight = 0
+				}
+
+				return runtime.BoxConstraints{
+					MinWidth:  0,
+					MaxWidth:  childMaxWidth,
+					MinHeight: flexHeight,
+					MaxHeight: flexHeight,
+				}
+			}
+
+			// Non-flex child: unconstrained height
 			return runtime.BoxConstraints{
 				MinWidth:  0,
-				MaxWidth:  parentSize.Width,
+				MaxWidth:  childMaxWidth,
 				MinHeight: 0,
 				MaxHeight: runtime.Infinity,
 			}
 		case "bordered":
-			// Bordered: subtract border from constraints
-			return runtime.BoxConstraints{
-				MinWidth:  max(0, parentConstraints.MinWidth-2),
-				MaxWidth:  max(0, parentConstraints.MaxWidth-2),
-				MinHeight: max(0, parentConstraints.MinHeight-2),
-				MaxHeight: max(0, parentConstraints.MaxHeight-2),
-			}
+			// Bordered: subtract border (2 units) from constraints
+			// Use SubtractPadding helper to handle bounded/unbounded constraints
+			return parentConstraints.SubtractPadding(2, 2)
 		}
 	}
 
@@ -429,10 +806,36 @@ func (e *Engine) calculatePositions(box *ComputedBox, x, y int) {
 func (e *Engine) layoutHStack(box *ComputedBox, x, y int) {
 	layoutInfo := rtui.GetLayoutInfo(box.VNode)
 	gap := layoutInfo.Gap
+	crossAlign := layoutInfo.CrossAlign
+	stretchCross := layoutInfo.StretchCross
 
 	childX := x
 	for _, child := range box.Children {
-		e.calculatePositions(child, childX, y)
+		childInfo := rtui.GetLayoutInfo(child.VNode)
+
+		// Stretch child to container height if:
+		// 1. Child has flex > 0 (explicit flex), OR
+	// 2. Container has StretchCross enabled (auto-stretch all children)
+	// IMPORTANT: Only stretch if container height is finite (not Infinity)
+	if (childInfo.Flex > 0 || stretchCross) && box.Box.Height < runtime.Infinity {
+		child.Box.Height = box.Box.Height
+	}
+
+		// Calculate child Y position based on cross-axis alignment
+		childY := y
+		if child.Box.Height < box.Box.Height {
+			switch crossAlign {
+			case rtui.AlignCenter:
+				childY = y + (box.Box.Height-child.Box.Height)/2
+			case rtui.AlignEnd:
+				childY = y + box.Box.Height - child.Box.Height
+			case rtui.AlignStart, rtui.AlignSpaceBetween, rtui.AlignSpaceAround:
+				// Default to top align
+				childY = y
+			}
+		}
+
+		e.calculatePositions(child, childX, childY)
 		childX += child.Box.Width + gap
 	}
 }
@@ -441,10 +844,95 @@ func (e *Engine) layoutHStack(box *ComputedBox, x, y int) {
 func (e *Engine) layoutVStack(box *ComputedBox, x, y int) {
 	layoutInfo := rtui.GetLayoutInfo(box.VNode)
 	gap := layoutInfo.Gap
+	crossAlign := layoutInfo.CrossAlign
+	stretchCross := layoutInfo.StretchCross
+
+	if os.Getenv("TUI_STRETCH_DEBUG") == "true" {
+		fmt.Fprintf(os.Stderr, "[layoutVStack] box=(%d,%d,%dx%d) stretchCross=%v\n",
+			box.Box.X, box.Box.Y, box.Box.Width, box.Box.Height, stretchCross)
+	}
 
 	childY := y
 	for _, child := range box.Children {
-		e.calculatePositions(child, x, childY)
+		childInfo := rtui.GetLayoutInfo(child.VNode)
+		oldWidth := child.Box.Width
+
+		// Stretch child to container width if:
+		// 1. Child has flex > 0 (explicit flex), OR
+		// 2. Container has StretchCross enabled (auto-stretch all children)
+		// IMPORTANT: Only stretch if container width is finite (not Infinity)
+		if (childInfo.Flex > 0 || stretchCross) && box.Box.Width < runtime.Infinity {
+			child.Box.Width = box.Box.Width
+			if os.Getenv("TUI_STRETCH_DEBUG") == "true" {
+				fmt.Fprintf(os.Stderr, "[layoutVStack]   stretch child: %d -> %d (text=%q)\n",
+					oldWidth, child.Box.Width, rtui.GetTextContent(child.VNode))
+			}
+		}
+
+		// If text node was stretched, calculate RenderedText with padding
+		// IMPORTANT: Only do this if the width is reasonable (not Infinity)
+		if child.Box.Width > oldWidth && child.Box.Width > 0 && child.Box.Width < runtime.Infinity {
+			if text := rtui.GetTextContent(child.VNode); text != "" {
+				// Calculate padding needed
+				textWidth := e.measureTextWidth(text)
+				padding := child.Box.Width - textWidth
+				if padding > 0 && padding < 1000 { // Also check padding is reasonable
+					// Get text alignment from props (default: left)
+					textAlign := runtime.TextAlignLeft
+					if props := child.VNode.Props(); props != nil {
+						if align, ok := props["textAlign"].(runtime.TextAlign); ok {
+							textAlign = align
+						} else if alignStr, ok := props["textAlign"].(string); ok {
+							// Support string values too: "left", "center", "right"
+							switch alignStr {
+							case "center":
+								textAlign = runtime.TextAlignCenter
+							case "right":
+								textAlign = runtime.TextAlignRight
+							}
+						}
+					}
+
+					// Apply padding based on alignment
+					var leftPad, rightPad int
+					switch textAlign {
+					case runtime.TextAlignCenter:
+						leftPad = padding / 2
+						rightPad = padding - leftPad
+					case runtime.TextAlignRight:
+						leftPad = padding
+						rightPad = 0
+					default: // TextAlignLeft
+						leftPad = 0
+						rightPad = padding
+					}
+
+					// Build rendered text with padding
+					rendered := strings.Repeat(" ", leftPad) + text + strings.Repeat(" ", rightPad)
+					child.RenderedText = rendered
+					if os.Getenv("TUI_STRETCH_DEBUG") == "true" {
+						fmt.Fprintf(os.Stderr, "[layoutVStack]   renderedText: %q (len=%d, align=%v)\n",
+							child.RenderedText, len(child.RenderedText), textAlign)
+					}
+				}
+			}
+		}
+
+		// Calculate child X position based on cross-axis alignment
+		childX := x
+		if child.Box.Width < box.Box.Width {
+			switch crossAlign {
+			case rtui.AlignCenter:
+				childX = x + (box.Box.Width-child.Box.Width)/2
+			case rtui.AlignEnd:
+				childX = x + box.Box.Width - child.Box.Width
+			case rtui.AlignStart, rtui.AlignSpaceBetween, rtui.AlignSpaceAround:
+				// Default to left align
+				childX = x
+			}
+		}
+
+		e.calculatePositions(child, childX, childY)
 		childY += child.Box.Height + gap
 	}
 }

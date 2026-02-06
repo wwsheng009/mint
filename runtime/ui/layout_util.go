@@ -28,6 +28,16 @@ type LayoutInfo struct {
 	IsHorizontal bool
 	// Gap is the spacing between children
 	Gap int
+	// Flex is the flex factor (0 = fixed size, >0 = grows to fill space)
+	Flex int
+	// Align is the main axis alignment
+	Align Align
+	// CrossAlign is the cross axis alignment
+	CrossAlign Align
+	// StretchCross makes all children stretch to fill cross axis
+	StretchCross bool
+	// Padding is the inner spacing [top, right, bottom, left]
+	Padding [4]int
 }
 
 // GetLayoutInfo extracts layout information from a VNode.
@@ -51,6 +61,28 @@ func GetLayoutInfo(vnode VNode) LayoutInfo {
 	if layoutNode, ok := vnode.(*LayoutNode); ok {
 		info.IsHorizontal = layoutNode.Direction() == DirectionRow
 		info.Gap = layoutNode.Gap()
+		info.Flex = layoutNode.Flex()
+		info.Align = layoutNode.Align()
+		info.CrossAlign = layoutNode.CrossAlign()
+		info.StretchCross = layoutNode.StretchCross()
+		info.Padding = layoutNode.Padding()
+		// Check props for flex override (from ui.Flex wrapper)
+		if props := vnode.Props(); props != nil {
+			if f, ok := props["flex"].(int); ok {
+				info.Flex = f
+			}
+		}
+		return info
+	}
+
+	// Check for BorderedNode (from ui.Bordered)
+	if _, ok := vnode.(*BorderedNode); ok {
+		// BorderedNode can have flex
+		if props := vnode.Props(); props != nil {
+			if f, ok := props["flex"].(int); ok {
+				info.Flex = f
+			}
+		}
 		return info
 	}
 
@@ -60,15 +92,32 @@ func GetLayoutInfo(vnode VNode) LayoutInfo {
 		if tag == "hstack" || tag == "row" {
 			info.IsHorizontal = true
 			// Try to get gap from props
-			if g, ok := elemNode.Props()["gap"].(int); ok {
-				info.Gap = g
-			} else {
-				info.Gap = 1 // Default gap for hstack
+			if props := vnode.Props(); props != nil {
+				if g, ok := props["gap"].(int); ok {
+					info.Gap = g
+				} else {
+					info.Gap = 1 // Default gap for hstack
+				}
+				if f, ok := props["flex"].(int); ok {
+					info.Flex = f
+				}
 			}
 		} else if tag == "vstack" || tag == "column" {
 			info.IsHorizontal = false
-			if g, ok := elemNode.Props()["gap"].(int); ok {
-				info.Gap = g
+			if props := vnode.Props(); props != nil {
+				if g, ok := props["gap"].(int); ok {
+					info.Gap = g
+				}
+				if f, ok := props["flex"].(int); ok {
+					info.Flex = f
+				}
+			}
+		} else {
+			// For other element types (bordered, etc.), check for flex prop
+			if props := vnode.Props(); props != nil {
+				if f, ok := props["flex"].(int); ok {
+					info.Flex = f
+				}
 			}
 		}
 		return info
@@ -85,6 +134,9 @@ func GetLayoutInfo(vnode VNode) LayoutInfo {
 					info.Gap = g
 				} else {
 					info.Gap = 1 // Default gap for hstack
+				}
+				if f, ok := props["flex"].(int); ok {
+					info.Flex = f
 				}
 			}
 		}

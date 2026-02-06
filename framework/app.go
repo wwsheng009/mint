@@ -403,6 +403,10 @@ func (a *App) Init() error {
 
 	a.state = StateInitializing
 
+	if os.Getenv("TUI_DEBUG_UI") == "true" {
+		fmt.Fprintf(os.Stderr, "[APP] Init: Starting initialization\n")
+	}
+
 	// 设置默认终端尺寸
 	a.terminalWidth = 80
 	a.terminalHeight = 24
@@ -410,21 +414,37 @@ func (a *App) Init() error {
 	// 设置路由器
 	a.setupRouter()
 
+	if os.Getenv("TUI_DEBUG_UI") == "true" {
+		fmt.Fprintf(os.Stderr, "[APP] Init: Router setup complete\n")
+	}
+
 	// 创建并启动事件泵
 	if a.customSource != nil {
 		// 使用自定义事件源（测试模式）
 		a.pump = frameworkevent.NewPumpWithSource(a.customSource)
 	} else {
 		// 使用默认的平台输入源（生产模式）
+		if os.Getenv("TUI_DEBUG_UI") == "true" {
+			fmt.Fprintf(os.Stderr, "[APP] Init: Creating input reader\n")
+		}
 		inputReader, err := platform.NewInputReader()
 		if err != nil {
 			return err
 		}
+		if os.Getenv("TUI_DEBUG_UI") == "true" {
+			fmt.Fprintf(os.Stderr, "[APP] Init: Input reader created\n")
+		}
 		a.pump = frameworkevent.NewPump(inputReader)
 	}
 
+	if os.Getenv("TUI_DEBUG_UI") == "true" {
+		fmt.Fprintf(os.Stderr, "[APP] Init: Starting pump\n")
+	}
 	if err := a.pump.Start(); err != nil {
 		return err
+	}
+	if os.Getenv("TUI_DEBUG_UI") == "true" {
+		fmt.Fprintf(os.Stderr, "[APP] Init: Pump started\n")
 	}
 
 	// 让根组件获得焦点
@@ -436,6 +456,10 @@ func (a *App) Init() error {
 
 	a.state = StateRunning
 	a.dirty = true
+
+	if os.Getenv("TUI_DEBUG_UI") == "true" {
+		fmt.Fprintf(os.Stderr, "[APP] Init: Complete, state=StateRunning\n")
+	}
 
 	return nil
 }
@@ -495,14 +519,26 @@ func (a *App) Run() error {
 			a.handleEvent(ev)
 
 		case <-ticker.C:
+			if os.Getenv("TUI_DEBUG_UI") == "true" {
+				fmt.Fprintf(os.Stderr, "[APP] Tick triggered\n")
+			}
 			a.handleTick()
 
 			// 处理完 tick 后，如果需要渲染则渲染
 			needsRender := a.dirty && a.throttler.ShouldRender()
+			if os.Getenv("TUI_DEBUG_UI") == "true" {
+				fmt.Fprintf(os.Stderr, "[APP] needsRender=%v, dirty=%v\n", needsRender, a.dirty)
+			}
 			if needsRender {
+				if os.Getenv("TUI_DEBUG_UI") == "true" {
+					fmt.Fprintf(os.Stderr, "[APP] Calling render()\n")
+				}
 				renderStartTime = time.Now()
 				a.render()
 				a.throttler.RecordFrameTime(time.Since(renderStartTime))
+				if os.Getenv("TUI_DEBUG_UI") == "true" {
+					fmt.Fprintf(os.Stderr, "[APP] render() complete\n")
+				}
 			}
 
 		case <-a.quit:

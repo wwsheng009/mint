@@ -100,7 +100,15 @@ func (e *PaintEngine) paintNode(box *compute.ComputedBox, buffer *paint.Buffer) 
 
 // paintText paints a text node
 func (e *PaintEngine) paintText(box *compute.ComputedBox, buffer *paint.Buffer) {
-	text := rtui.GetTextContent(box.VNode)
+	// Use RenderedText calculated during layout phase if available
+	text := box.RenderedText
+	if text == "" {
+		text = rtui.GetTextContent(box.VNode)
+	}
+	if e.debug {
+		fmt.Fprintf(os.Stderr, "[Paint.paintText] box=(%d,%d,%dx%d) renderedText=%q text=%q\n",
+			box.Box.X, box.Box.Y, box.Box.Width, box.Box.Height, box.RenderedText, text)
+	}
 	if text != "" {
 		buffer.SetString(box.Box.X, box.Box.Y, text, box.VNode.Style())
 	}
@@ -108,8 +116,12 @@ func (e *PaintEngine) paintText(box *compute.ComputedBox, buffer *paint.Buffer) 
 
 // paintElement paints an element node
 func (e *PaintEngine) paintElement(box *compute.ComputedBox, buffer *paint.Buffer) {
-	// Check if element has text content (for text elements created with ui.Text)
-	if content := rtui.GetTextContent(box.VNode); content != "" {
+	// Use RenderedText calculated during layout phase if available
+	content := box.RenderedText
+	if content == "" {
+		content = rtui.GetTextContent(box.VNode)
+	}
+	if content != "" {
 		buffer.SetString(box.Box.X, box.Box.Y, content, box.VNode.Style())
 		return // Don't paint children for text elements
 	}

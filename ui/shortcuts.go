@@ -33,6 +33,23 @@ func TextWithStyle(content string, s style.Style) VNode {
 	return rtui.Element("text").Prop("content", content).Style(s).Build()
 }
 
+// TextAlign creates a text VNode with horizontal alignment
+// Align is applied when text is stretched in a VStack with Stretch()
+// Supported align values: "left", "center", "right"
+func TextAlign(content string, align string) VNode {
+	return rtui.Element("text").Prop("content", content).Prop("textAlign", align).Build()
+}
+
+// TextCenter creates a centered text VNode
+func TextCenter(content string) VNode {
+	return rtui.Element("text").Prop("content", content).Prop("textAlign", "center").Build()
+}
+
+// TextRight creates a right-aligned text VNode
+func TextRight(content string) VNode {
+	return rtui.Element("text").Prop("content", content).Prop("textAlign", "right").Build()
+}
+
 // =============================================================================
 // Form Component Shortcuts
 // =============================================================================

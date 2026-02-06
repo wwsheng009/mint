@@ -80,6 +80,34 @@ func (bc BoxConstraints) IsBounded() bool {
 	return bc.MaxWidth < Infinity || bc.MaxHeight < Infinity
 }
 
+// HasBoundedWidth returns true if MaxWidth is not Infinity
+func (bc BoxConstraints) HasBoundedWidth() bool {
+	return bc.MaxWidth < Infinity
+}
+
+// HasBoundedHeight returns true if MaxHeight is not Infinity
+func (bc BoxConstraints) HasBoundedHeight() bool {
+	return bc.MaxHeight < Infinity
+}
+
+// SubtractPadding returns new constraints with padding subtracted (only if bounded)
+func (bc BoxConstraints) SubtractPadding(horizontal, vertical int) BoxConstraints {
+	result := bc
+	if bc.HasBoundedWidth() && bc.MaxWidth > horizontal {
+		result.MaxWidth = bc.MaxWidth - horizontal
+		if result.MaxWidth < 0 {
+			result.MaxWidth = 0
+		}
+	}
+	if bc.HasBoundedHeight() && bc.MaxHeight > vertical {
+		result.MaxHeight = bc.MaxHeight - vertical
+		if result.MaxHeight < 0 {
+			result.MaxHeight = 0
+		}
+	}
+	return result
+}
+
 // ConstrainWidth clamps a width within the constraints
 func (bc BoxConstraints) ConstrainWidth(width int) int {
 	if width < bc.MinWidth {
@@ -189,6 +217,15 @@ type Position struct {
 	Right  *int
 	Bottom *int
 }
+
+// TextAlign defines horizontal text alignment within a container
+type TextAlign int
+
+const (
+	TextAlignLeft TextAlign = iota
+	TextAlignCenter
+	TextAlignRight
+)
 
 // NewPosition creates a new Position with relative positioning (default)
 func NewPosition() Position {
