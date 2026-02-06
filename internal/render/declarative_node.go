@@ -855,12 +855,16 @@ func (n *DeclarativeNode) expandComponents(vnode rtui.VNode) rtui.VNode {
 				expandedChildren = append(expandedChildren, expanded)
 			}
 		}
-		// Create a clone with expanded children
+		// Create a clone with expanded children AND layer info
 		cloned := rtui.NewElement(v.Tag())
-		cloned.SetProps(vnode.Props())
+		cloned.SetProps(vnode.Props().Clone())  // Clone to preserve _layer
 		cloned.SetKey(vnode.Key())
 		cloned.SetStyle(vnode.Style())
 		cloned.SetChildren(expandedChildren)
+		// Preserve layer information
+		if layer := vnode.GetLayer(); layer != rtui.LayerBase {
+			cloned.SetLayer(layer)
+		}
 		return cloned
 
 	case *rtui.LayoutNode:
@@ -895,6 +899,24 @@ func (n *DeclarativeNode) expandComponents(vnode rtui.VNode) rtui.VNode {
 			}
 		}
 		return rtui.Fragment(expandedChildren...)
+
+	case *rtui.BorderedNode:
+		// BorderedNode embeds ElementVNode, need to expand children
+		children := vnode.Children()
+		if len(children) == 0 {
+			return vnode
+		}
+		expandedChildren := make([]rtui.VNode, 0, len(children))
+		for _, child := range children {
+			expanded := n.expandComponents(child)
+			if expanded != nil {
+				expandedChildren = append(expandedChildren, expanded)
+			}
+		}
+		// Modify in place like LayoutNode since we can't clone BorderedNode easily
+		// Layer info should be preserved in the props
+		vnode.SetChildren(expandedChildren)
+		return vnode
 
 	default:
 		// For TextVNode and other leaf nodes, return as-is
@@ -1018,7 +1040,13 @@ func (n *DeclarativeNode) HandleEvent(ev frameworkevent.Event) bool {
 	}
 
 	// 3. Fall back to global event distribution
-	return n.distributeEventToVNode(root, ev)
+	handled := n.distributeEventToVNode(root, ev)
+	if handled {
+		// Event was handled by a component (e.g., button click)
+		// Trigger re-render to update the UI with new state
+		n.requestRender(useFiber, reconciler)
+	}
+	return handled
 }
 
 // distributeEventToVNode recursively distributes an event to VNode tree

@@ -1,6 +1,11 @@
 // Package ui provides declarative UI components for terminal applications
 package ui
 
+import (
+	"fmt"
+	"os"
+)
+
 // =============================================================================
 // Layer API
 // =============================================================================
@@ -82,8 +87,42 @@ func (b *ModalBuilder) Build() VNode {
 		}
 	}
 
+	if os.Getenv("TUI_LAYER_DEBUG") == "true" {
+		fmt.Fprintf(os.Stderr, "[Modal.Build] BEFORE SetProps - content type=%T\n", b.content)
+		fmt.Fprintf(os.Stderr, "[Modal.Build] BEFORE - content.Props()=%+v\n", b.content.Props())
+		fmt.Fprintf(os.Stderr, "[Modal.Build] BEFORE - GetLayer()=%d (LayerBase=%d, LayerModal=%d)\n",
+			b.content.GetLayer(), LayerBase, LayerModal)
+	}
+
 	b.content.SetProps(props)
-	return b.content.SetLayer(LayerModal)
+
+	if os.Getenv("TUI_LAYER_DEBUG") == "true" {
+		fmt.Fprintf(os.Stderr, "[Modal.Build] AFTER SetProps - content.Props()=%+v\n", b.content.Props())
+		fmt.Fprintf(os.Stderr, "[Modal.Build] AFTER SetProps - GetLayer()=%d\n", b.content.GetLayer())
+
+		// Check if _layer is in props
+		if b.content.Props() != nil {
+			if l, ok := b.content.Props()["_layer"]; ok {
+				fmt.Fprintf(os.Stderr, "[Modal.Build] _layer in props=%v, type=%T\n", l, l)
+			} else {
+				fmt.Fprintf(os.Stderr, "[Modal.Build] _layer NOT found in props!\n")
+			}
+		}
+	}
+
+	result := b.content.SetLayer(LayerModal)
+
+	if os.Getenv("TUI_LAYER_DEBUG") == "true" {
+		fmt.Fprintf(os.Stderr, "[Modal.Build] AFTER SetLayer - result type=%T, GetLayer()=%d\n",
+			result, result.GetLayer())
+		if result.Props() != nil {
+			if l, ok := result.Props()["_layer"]; ok {
+				fmt.Fprintf(os.Stderr, "[Modal.Build] result.Props()[_layer]=%v, type=%T\n", l, l)
+			}
+		}
+	}
+
+	return result
 }
 
 // =============================================================================
