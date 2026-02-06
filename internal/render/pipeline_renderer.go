@@ -104,7 +104,8 @@ func (r *PipelineRenderer) hasLayerNodes(vnode rtui.VNode) bool {
 	}
 
 	// Check this node
-	if vnode.GetLayer() != rtui.LayerBase && vnode.GetLayer().IsValid() {
+	layer := vnode.GetLayer()
+	if layer != rtui.LayerBase && layer.IsValid() {
 		return true
 	}
 

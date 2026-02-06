@@ -132,6 +132,7 @@ func (c *Collector) walk(vnode rtui.VNode) {
 
 	// Check if this node has a non-base layer
 	if layer := vnode.GetLayer(); layer != rtui.LayerBase && layer.IsValid() {
+
 		// Create a layer node for this content
 		node := &LayerNode{
 			Layer:   layer,

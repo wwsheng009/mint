@@ -877,6 +877,35 @@ func (bn *BorderedNode) GetBorderLabel() string {
 	return bn.borderLabel
 }
 
+// SetLayer sets the rendering layer for this BorderedNode
+// This overrides the embedded ElementVNode.SetLayer to preserve the BorderedNode type
+func (bn *BorderedNode) SetLayer(l Layer) VNode {
+	if bn == nil {
+		return nil
+	}
+	// Set the layer in props
+	if bn.Props() == nil {
+		bn.SetProps(make(Props))
+	}
+	bn.Props().Set("_layer", l)
+	return bn // Return bn (BorderedNode) instead of the generic ElementVNode
+}
+
+// GetLayer returns the rendering layer for this BorderedNode
+func (bn *BorderedNode) GetLayer() Layer {
+	if bn == nil {
+		return LayerBase
+	}
+	props := bn.Props()
+	if props == nil {
+		return LayerBase
+	}
+	if layer, ok := props["_layer"].(Layer); ok {
+		return layer
+	}
+	return LayerBase
+}
+
 // RenderBorder returns the border VNodes for a bordered container
 // This is called by the renderer to draw borders around content
 func (bn *BorderedNode) RenderBorder(contentWidth, contentHeight int) []VNode {
