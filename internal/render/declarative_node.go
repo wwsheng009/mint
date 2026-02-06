@@ -994,7 +994,7 @@ func (n *DeclarativeNode) HandleEvent(ev frameworkevent.Event) bool {
 	// This takes priority over all other event handling
 	if ev.Type() == frameworkevent.EventKeyPress {
 		if keyEv, ok := ev.(*frameworkevent.KeyEvent); ok {
-			if keyEv.Key.Name == "esc" {
+			if keyEv.Key.Name == "escape" || keyEv.Key.Name == "esc" {
 				if n.handleLayerKeyEvent(root) {
 					// Modal was closed, trigger re-render
 					n.requestRender(useFiber, reconciler)
@@ -1494,11 +1494,7 @@ func (n *DeclarativeNode) handleLayerKeyEvent(root rtui.VNode) bool {
 
 	// Trigger the OnClose callback
 	if onClose, ok := props["_onClose"].(func()); ok {
-		if os.Getenv("TUI_LAYER_DEBUG") == "true" {
-			fmt.Fprintf(os.Stderr, "[DeclarativeNode] ESC pressed, closing modal\n")
-		}
-		// Call OnClose in a goroutine to avoid blocking
-		go onClose()
+		onClose()
 		return true
 	}
 

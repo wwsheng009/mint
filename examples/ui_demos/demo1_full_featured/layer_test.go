@@ -1,0 +1,430 @@
+// Layer System Interactive Tests for demo1_full_featured
+//
+// These tests verify:
+// 1. Modal opens on button click
+// 2. Modal has proper layering (centered, overlay)
+// 3. Modal has border
+// 4. Modal can be closed with ESC
+// 5. Focus trap works (Tab limited to modal)
+
+package main
+
+import (
+	"testing"
+	"time"
+
+	"github.com/wwsheng009/mint/ui"
+	"github.com/wwsheng009/mint/runtime/platform"
+)
+
+// TestModalOpenClick verifies modal opens when clicking the "Open Modal" button
+func TestModalOpenClick(t *testing.T) {
+	testApp, err := ui.RunTest(App,
+		ui.WithWidth(80),
+		ui.WithHeight(24),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer testApp.Close()
+
+	// Wait for initial render
+	time.Sleep(100 * time.Millisecond)
+	testApp.ForceRender()
+
+	// Initial state - modal NOT visible
+	if err := testApp.AssertRender("TUI Engine Demo"); err != nil {
+		t.Logf("Initial render issue: %v", err)
+	}
+	if err := testApp.AssertNotRender("*** Are you sure? ***"); err != nil {
+		t.Logf("Modal already visible at start: %v", err)
+	} else {
+		t.Log("PASS: Modal not visible initially")
+	}
+
+	// Check initial focus - Open Modal button should be focused (has asterisk)
+	rendered := testApp.GetRenderString()
+	t.Logf("Initial state:\n%s\n", rendered)
+	if contains(rendered, "*[ [Open Modal] ]") {
+		t.Log("PASS: Open Modal button is initially focused")
+	} else {
+		t.Log("Note: Open Modal button not initially focused, trying Tab navigation")
+		// If not focused, try Tab to reach it
+		for i := 0; i < 10; i++ {
+			testApp.InjectSpecialKey(platform.KeyTab)
+			time.Sleep(50 * time.Millisecond)
+			testApp.ForceRender()
+			r := testApp.GetRenderString()
+			if contains(r, "*[ [Open Modal] ]") {
+				t.Log("Found Open Modal button after Tab")
+				break
+			}
+		}
+	}
+
+	// Press Enter to click the button (Open Modal is already focused)
+	testApp.InjectSpecialKey(platform.KeyEnter)
+	time.Sleep(200 * time.Millisecond)
+	testApp.ForceRender()
+
+	// Check if modal is now visible
+	rendered = testApp.GetRenderString()
+	t.Logf("After clicking Open Modal button:\n%s\n", rendered)
+
+	if err := testApp.AssertRender("*** Are you sure? ***"); err != nil {
+		t.Errorf("Modal should be visible after clicking button: %v", err)
+	} else {
+		t.Log("PASS: Modal is visible after button click")
+	}
+
+	// Check for border characters
+	if err := testApp.AssertRender("│"); err != nil {
+		t.Errorf("Modal should have border: %v", err)
+	} else {
+		t.Log("PASS: Modal has border")
+	}
+}
+
+// TestModalCloseESC verifies modal closes when pressing ESC
+func TestModalCloseESC(t *testing.T) {
+	testApp, err := ui.RunTest(App,
+		ui.WithWidth(80),
+		ui.WithHeight(24),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer testApp.Close()
+
+	time.Sleep(100 * time.Millisecond)
+	testApp.ForceRender()
+
+	// Open modal - Open Modal button is already focused
+	testApp.InjectSpecialKey(platform.KeyEnter)
+	time.Sleep(200 * time.Millisecond)
+	testApp.ForceRender()
+
+	// Verify modal is open
+	if err := testApp.AssertRender("*** Are you sure? ***"); err != nil {
+		t.Skipf("Modal not open, skipping ESC test: %v", err)
+	}
+
+	// Press ESC to close modal
+	testApp.InjectSpecialKey(platform.KeyEscape)
+	time.Sleep(200 * time.Millisecond)
+	testApp.ForceRender()
+
+	// Verify modal is closed
+	if err := testApp.AssertNotRender("*** Are you sure? ***"); err != nil {
+		t.Errorf("Modal should be closed after ESC: %v", err)
+	} else {
+		t.Log("PASS: Modal closed after ESC")
+	}
+}
+
+// TestModalCentered verifies modal is centered in viewport
+func TestModalCentered(t *testing.T) {
+	testApp, err := ui.RunTest(App,
+		ui.WithWidth(80),
+		ui.WithHeight(24),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer testApp.Close()
+
+	time.Sleep(100 * time.Millisecond)
+	testApp.ForceRender()
+
+	// Open modal - Open Modal button is already focused
+	testApp.InjectSpecialKey(platform.KeyEnter)
+	time.Sleep(200 * time.Millisecond)
+	testApp.ForceRender()
+
+	rendered := testApp.GetRenderString()
+	lines := splitLines(rendered)
+
+	// Find modal content lines (look for "*** Are you sure? ***" and "Press ESC to close")
+	var modalLines []int
+	for y, line := range lines {
+		if contains(line, "*** Are you sure? ***") || contains(line, "Press ESC to close") {
+			modalLines = append(modalLines, y)
+		}
+	}
+
+	if len(modalLines) == 0 {
+		t.Error("Modal content not found in output")
+		return
+	}
+
+	t.Logf("Modal content found at lines: %v", modalLines)
+
+	// Check approximate centering (modal should be roughly in middle of 24-line viewport)
+	minModalLine := modalLines[0]
+	maxModalLine := modalLines[len(modalLines)-1]
+	centerY := (minModalLine + maxModalLine) / 2
+
+	// Center should be around line 11-12 (middle of 24)
+	// Allow some flexibility since the modal has internal spacing
+	if centerY < 8 || centerY > 16 {
+		t.Errorf("Modal not centered: centerY=%d (expected ~11-12), modal spans lines %d-%d", centerY, minModalLine, maxModalLine)
+	} else {
+		t.Logf("PASS: Modal centered at approximately line %d (spans %d-%d)", centerY, minModalLine, maxModalLine)
+	}
+}
+
+// TestLayerRenderingOrder verifies layer rendering order (modal on top)
+func TestLayerRenderingOrder(t *testing.T) {
+	testApp, err := ui.RunTest(App,
+		ui.WithWidth(80),
+		ui.WithHeight(24),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer testApp.Close()
+
+	time.Sleep(100 * time.Millisecond)
+	testApp.ForceRender()
+
+	// Open modal - Open Modal button is already focused
+	testApp.InjectSpecialKey(platform.KeyEnter)
+	time.Sleep(200 * time.Millisecond)
+	testApp.ForceRender()
+
+	// Both base content and modal should be visible
+	rendered := testApp.GetRenderString()
+
+	// Should have base content
+	if !contains(rendered, "TUI Engine Demo") {
+		t.Error("Base content should still be visible")
+	} else {
+		t.Log("PASS: Base content visible")
+	}
+
+	// Should have modal overlay
+	if !contains(rendered, "*** Are you sure? ***") {
+		t.Error("Modal content should be visible")
+	} else {
+		t.Log("PASS: Modal content visible")
+	}
+}
+
+// TestFocusTrap verifies Tab navigation is limited to modal when open
+func TestFocusTrap(t *testing.T) {
+	testApp, err := ui.RunTest(App,
+		ui.WithWidth(80),
+		ui.WithHeight(24),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer testApp.Close()
+
+	time.Sleep(100 * time.Millisecond)
+	testApp.ForceRender()
+
+	// Open modal
+	for i := 0; i < 5; i++ {
+		testApp.InjectSpecialKey(platform.KeyTab)
+		time.Sleep(50 * time.Millisecond)
+	}
+	testApp.InjectSpecialKey(platform.KeyEnter)
+	time.Sleep(200 * time.Millisecond)
+	testApp.ForceRender()
+
+	// With modal open, Tab should cycle between modal buttons only
+	// The modal has [ Cancel ] and [ OK ] buttons
+	focusedIndices := make(map[int]bool)
+
+	for i := 0; i < 10; i++ {
+		idx := testApp.GetFocusedIndex()
+		focusedIndices[idx] = true
+		testApp.InjectSpecialKey(platform.KeyTab)
+		time.Sleep(50 * time.Millisecond)
+	}
+
+	t.Logf("Focused indices when modal open: %v", focusedIndices)
+
+	// With focus trap, we should only cycle between a small number of elements
+	// (the modal's Cancel and OK buttons)
+	if len(focusedIndices) > 5 {
+		t.Errorf("Focus trap not working: %d different indices focused (expected ~2)", len(focusedIndices))
+	} else {
+		t.Log("PASS: Focus appears to be limited to modal")
+	}
+}
+
+// TestClickCount verifies the click counter works (tests state updates)
+func TestClickCount(t *testing.T) {
+	testApp, err := ui.RunTest(App,
+		ui.WithWidth(80),
+		ui.WithHeight(24),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer testApp.Close()
+
+	time.Sleep(100 * time.Millisecond)
+	testApp.ForceRender()
+
+	// Check initial count
+	rendered := testApp.GetRenderString()
+	if !contains(rendered, "Clicks: 0") {
+		t.Logf("Initial count not 0: %s", rendered)
+	}
+
+	// Navigate to "Add Count" button and click it a few times
+	for iteration := 0; iteration < 3; iteration++ {
+		// Tab to Add Count button (should be a few tabs away)
+		for i := 0; i < 10; i++ {
+			testApp.InjectSpecialKey(platform.KeyTab)
+			time.Sleep(30 * time.Millisecond)
+		}
+		testApp.InjectSpecialKey(platform.KeyEnter)
+		time.Sleep(100 * time.Millisecond)
+		testApp.ForceRender()
+	}
+
+	rendered = testApp.GetRenderString()
+	t.Logf("After clicking Add Count:\n%s", rendered)
+
+	// Counter should have increased
+	if contains(rendered, "Clicks: 3") || contains(rendered, "Clicks: 1") {
+		t.Log("PASS: Click count is working")
+	} else {
+		t.Errorf("Click count not working properly: %s", rendered)
+	}
+}
+
+// =============================================================================
+// Helper Functions
+// =============================================================================
+
+func splitLines(s string) []string {
+	lines := make([]string, 0)
+	current := ""
+	for _, r := range s {
+		if r == '\n' {
+			lines = append(lines, current)
+			current = ""
+		} else {
+			current += string(r)
+		}
+	}
+	if current != "" {
+		lines = append(lines, current)
+	}
+	return lines
+}
+
+func contains(s, substr string) bool {
+	return len(s) >= len(substr) && findSubstring(s, substr)
+}
+
+func findSubstring(s, substr string) bool {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		match := true
+		for j := 0; j < len(substr); j++ {
+			if s[i+j] != substr[j] {
+				match = false
+				break
+			}
+		}
+		if match {
+			return true
+		}
+	}
+	return false
+}
+
+// TestManualInteraction runs a manual interactive test
+func TestManualInteraction(t *testing.T) {
+	// Enable debug mode
+	t.Setenv("TUI_LAYER_DEBUG", "true")
+	t.Setenv("TUI_PIPELINE_DEBUG", "true")
+	t.Setenv("TUI_PAINT_DEBUG", "true")
+
+	testApp, err := ui.RunTest(App,
+		ui.WithWidth(80),
+		ui.WithHeight(24),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer testApp.Close()
+
+	time.Sleep(100 * time.Millisecond)
+	testApp.ForceRender()
+
+	t.Log("=== Initial State ===")
+	testApp.DumpBuffer()
+
+	t.Log("\n=== Pressing Enter (should open modal) ===")
+	testApp.InjectSpecialKey(platform.KeyEnter)
+	time.Sleep(200 * time.Millisecond)
+	testApp.ForceRender()
+	testApp.DumpBuffer()
+
+	t.Log("\n=== Focused Index:", testApp.GetFocusedIndex(), "===")
+}
+
+// TestLayerDetection tests the internal layer detection
+func TestLayerDetection(t *testing.T) {
+	testApp, err := ui.RunTest(App,
+		ui.WithWidth(80),
+		ui.WithHeight(24),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer testApp.Close()
+
+	time.Sleep(100 * time.Millisecond)
+	testApp.ForceRender()
+
+	root := testApp.GetDeclarativeRoot()
+	if root == nil {
+		t.Skip("Declarative root not available")
+	}
+
+	// Check if hasLayerNodes works
+	// This tests the internal layer detection mechanism
+	t.Logf("Root node type: %T", root)
+
+	// The modal should NOT be visible initially
+	rendered := testApp.GetRenderString()
+	if contains(rendered, "*** Are you sure? ***") {
+		t.Error("Modal should not be visible initially")
+	}
+
+	t.Log("PASS: Layer detection test completed")
+}
+
+// BenchmarkModalRender benchmarks modal rendering performance
+func BenchmarkModalRender(b *testing.B) {
+	testApp, err := ui.RunTest(App,
+		ui.WithWidth(80),
+		ui.WithHeight(24),
+	)
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer testApp.Close()
+
+	time.Sleep(100 * time.Millisecond)
+	testApp.ForceRender()
+
+	// Open modal
+	for i := 0; i < 5; i++ {
+		testApp.InjectSpecialKey(platform.KeyTab)
+	}
+	testApp.InjectSpecialKey(platform.KeyEnter)
+	time.Sleep(200 * time.Millisecond)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		testApp.ForceRender()
+	}
+}

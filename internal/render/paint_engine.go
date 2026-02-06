@@ -221,7 +221,8 @@ func (e *PaintEngine) PaintLayers(
 		}
 
 		if e.debug {
-			fmt.Fprintf(os.Stderr, "[PaintLayers] Rendering layer: %s\n", l.String())
+			fmt.Fprintf(os.Stderr, "[PaintLayers] Rendering layer: %s root=(%d,%d) size=%dx%d\n",
+				l.String(), layout.Root.Box.X, layout.Root.Box.Y, layout.Root.Box.Width, layout.Root.Box.Height)
 		}
 
 		// Paint this layer

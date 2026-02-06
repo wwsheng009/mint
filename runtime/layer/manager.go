@@ -2,6 +2,9 @@
 package layer
 
 import (
+	"fmt"
+	"os"
+
 	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/compute"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
@@ -40,14 +43,28 @@ func (m *Manager) CollectAndLayout(
 	constraints runtime.BoxConstraints,
 	engine *compute.Engine,
 ) error {
+	debug := os.Getenv("TUI_LAYER_DEBUG") == "true"
+
 	// Clear previous state
 	m.layouts = make(LayerLayouts)
 
 	// 1. Collect layer nodes from the VNode tree
 	m.collector.Collect(vnode)
 
+	if debug {
+		fmt.Fprintf(os.Stderr, "[CollectAndLayout] collected %d modal nodes\n", len(m.collector.GetModalNodes()))
+	}
+
 	// 2. Strip layer nodes from the main tree to get clean base content
 	baseTree := m.collector.StripLayers(vnode)
+
+	if debug {
+		baseChildren := baseTree.Children()
+		fmt.Fprintf(os.Stderr, "[CollectAndLayout] baseTree has %d children (after stripping)\n", len(baseChildren))
+		for i, child := range baseChildren {
+			fmt.Fprintf(os.Stderr, "[CollectAndLayout]   child %d: layer=%d type=%s\n", i, child.GetLayer(), child.Type().String())
+		}
+	}
 
 	// 3. Layout the base layer
 	baseLayout, err := engine.Layout(baseTree, constraints)
@@ -145,9 +162,13 @@ func (m *Manager) centerModal(root *compute.ComputedBox, constraints runtime.Box
 		return
 	}
 
+	debug := os.Getenv("TUI_LAYER_DEBUG") == "true"
+
 	// Calculate centering offset
 	modalWidth := root.Box.Width
 	modalHeight := root.Box.Height
+	originalX := root.Box.X
+	originalY := root.Box.Y
 
 	containerWidth := constraints.MaxWidth
 	containerHeight := constraints.MaxHeight
@@ -171,8 +192,18 @@ func (m *Manager) centerModal(root *compute.ComputedBox, constraints runtime.Box
 		offsetY = 0
 	}
 
+	if debug {
+		fmt.Fprintf(os.Stderr, "[centerModal] modal=(%d,%d) size=%dx%d container=%dx%d offset=(%d,%d)\n",
+			originalX, originalY, modalWidth, modalHeight, containerWidth, containerHeight, offsetX, offsetY)
+	}
+
 	// Shift the entire layout tree
 	m.shiftPositions(root, offsetX, offsetY)
+
+	if debug {
+		fmt.Fprintf(os.Stderr, "[centerModal] after shift: modal=(%d,%d)\n",
+			root.Box.X, root.Box.Y)
+	}
 }
 
 // shiftPositions shifts all boxes in a layout tree by the given offset

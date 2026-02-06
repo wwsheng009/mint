@@ -251,6 +251,22 @@ func (c *Collector) cloneWithoutLayers(vnode rtui.VNode) rtui.VNode {
 		cloned.SetKey(n.Key())
 		cloned.SetChildren(nonLayerChildren)
 		return cloned
+	case *rtui.LayoutNode:
+		// LayoutNode embeds ElementVNode, handle specially to preserve layout properties
+		cloned := rtui.NewElement(n.Tag())
+		cloned.SetProps(n.Props().Clone())
+		cloned.SetStyle(n.Style())
+		cloned.SetKey(n.Key())
+		cloned.SetChildren(nonLayerChildren)
+		return cloned
+	case *rtui.BorderedNode:
+		// BorderedNode embeds ElementVNode, handle specially
+		cloned := rtui.NewElement(n.Tag())
+		cloned.SetProps(n.Props().Clone())
+		cloned.SetStyle(n.Style())
+		cloned.SetKey(n.Key())
+		cloned.SetChildren(nonLayerChildren)
+		return cloned
 	case *rtui.ComponentVNode:
 		cloned := rtui.NewComponent(n.Name(), nil)
 		cloned.SetProps(n.Props().Clone())
@@ -265,6 +281,10 @@ func (c *Collector) cloneWithoutLayers(vnode rtui.VNode) rtui.VNode {
 		// Text nodes don't have children
 		return vnode
 	default:
+		// For unknown types, try to set children if the interface supports it
+		if len(nonLayerChildren) != len(vnode.Children()) {
+			vnode.SetChildren(nonLayerChildren)
+		}
 		return vnode
 	}
 }
