@@ -356,20 +356,62 @@ case "vstack":
 **现象**：
 - Modal 宽度为 0
 - 或者 Modal 宽度超出屏幕
+- `Width(40)` 不生效，显示为全屏宽度
 
 **原因**：
 ```go
-// Bordered 节点的 width prop 处理
-if hasWidthConstraint {
-    innerConstraints = NewBoxConstraints(
-        explicitWidth-2,  // MinWidth
-        explicitWidth-2,  // MaxWidth
-        ...
-    )
+// 问题1: BorderedBuilder.Width() 设置的位置
+func (b *BorderedBuilder) Width(n int) *BorderedBuilder {
+    b.node.SetProp("width", n)  // 存储在 Props
+    return b
+}
+
+// 问题2: BorderedNode.Measure() 检查的位置
+func (bn *BorderedNode) Measure(constraints runtime.BoxConstraints) runtime.Size {
+    // ...
+    elemStyle := bn.Style()
+    if elemStyle.Width > 0 {  // ❌ 只检查 Style，不检查 Props!
+        totalWidth = elemStyle.Width
+    }
 }
 ```
 
-如果 `explicitWidth` 为 0 或负数，会导致无效约束。
+**修复 (2025-02-07)**：
+遵循"layout不参与计算"的设计原则，由Engine负责处理Props并创建约束：
+
+```go
+// runtime/compute/engine.go - measureVNode()
+func (e *Engine) measureVNode(vnode VNode, constraints runtime.BoxConstraints) runtime.Size {
+    // SPECIAL CASE: Bordered nodes use Engine's measureBordered
+    if isBordered(vnode) {
+        return e.measureBordered(vnode, constraints)  // ✅
+    }
+    // ...
+}
+
+// runtime/compute/engine.go - measureBordered()
+func (e *Engine) measureBordered(vnode VNode, constraints runtime.BoxConstraints) runtime.Size {
+    // 检查 Props["width"]
+    if props := vnode.Props(); props != nil {
+        if w, ok := props["width"].(int); ok && w > 0 {
+            // 创建 tight 约束
+            innerConstraints = NewBoxConstraints(
+                w-2,  // MinWidth = MaxWidth (tight)
+                w-2,
+                0,
+                innerConstraints.MaxHeight,
+            )
+        }
+    }
+    // ...
+}
+```
+
+**设计原则**：
+| 组件 | 职责 |
+|------|------|
+| Engine | 读取Props，创建tight约束 |
+| BorderedNode | 只根据传入的constraints计算尺寸 |
 
 #### 问题 3: 约束传播失败
 
@@ -1006,3 +1048,17 @@ func TestModalCentering(t *testing.T) {
 3. **完善事件处理**
    - 集成 LayerEventHandler 到主循环
    - 实现完整的 focus trap
+
+---
+
+## 版本历史
+
+| 版本 | 日期 | 变更 |
+|------|------|------|
+| 1.0 | 2025-02-06 | 初始版本 |
+| 1.1 | 2025-02-07 | 添加 Bordered.Width() 修复说明，明确 Engine/Node 职责分离 |
+
+---
+
+*文档维护者: Claude*
+*最后更新: 2025-02-07*
