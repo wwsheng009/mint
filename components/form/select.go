@@ -7,6 +7,7 @@ import (
 	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
+	"github.com/wwsheng009/mint/runtime/theme"
 	"github.com/wwsheng009/mint/ui"
 )
 
@@ -438,17 +439,17 @@ func (s *SelectVNode) Paint(x, y int) []paint.DrawCmd {
 	selectDisplay := "< " + displayLabel + " >"
 
 	// State priority: Focused > Hovered > Normal
-	// Focus: blue background with white text for clear visibility
+	// Focus: theme focus background with foreground text for clear visibility
 	// Hover: underline only
 	if s.isFocused && !s.disabled {
-		selectStyle = selectStyle.Foreground(style.Color("white")).Background(style.Color("blue")).Bold(true)
+		selectStyle = selectStyle.Foreground(theme.Foreground()).Background(theme.Focus()).Bold(true)
 	} else if s.isHovered && !s.disabled {
 		selectStyle = selectStyle.Underline(true)
 	}
 
 	// Apply disabled state
 	if s.disabled {
-		selectStyle = selectStyle.Foreground(style.Color("gray"))
+		selectStyle = selectStyle.Foreground(theme.Disabled())
 	}
 
 	return []paint.DrawCmd{

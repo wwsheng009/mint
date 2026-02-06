@@ -9,6 +9,7 @@ import (
 	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
+	"github.com/wwsheng009/mint/runtime/theme"
 	"github.com/wwsheng009/mint/ui"
 )
 
@@ -547,22 +548,22 @@ func (b *ButtonVNode) Paint(x, y int) []paint.DrawCmd {
 	if buttonStyle.FG == "" && buttonStyle.BG == "" {
 		switch b.variant {
 		case ButtonVariantPrimary:
-			buttonStyle = buttonStyle.Foreground(style.Color("white")).Background(style.Color("blue")).Bold(true)
+			buttonStyle = buttonStyle.Foreground(theme.Foreground()).Background(theme.Primary()).Bold(true)
 		case ButtonVariantSecondary:
-			buttonStyle = buttonStyle.Foreground(style.Color("black")).Background(style.Color("gray"))
+			buttonStyle = buttonStyle.Foreground(style.Color("black")).Background(theme.Muted())
 		case ButtonVariantDanger:
-			buttonStyle = buttonStyle.Foreground(style.Color("white")).Background(style.Color("red")).Bold(true)
+			buttonStyle = buttonStyle.Foreground(theme.Foreground()).Background(theme.Error()).Bold(true)
 		case ButtonVariantSuccess:
-			buttonStyle = buttonStyle.Foreground(style.Color("white")).Background(style.Color("green")).Bold(true)
+			buttonStyle = buttonStyle.Foreground(theme.Foreground()).Background(theme.Success()).Bold(true)
 		case ButtonVariantDefault:
 			// Default: no background, just brackets [label]
-			buttonStyle = buttonStyle.Foreground(style.Color("white"))
+			buttonStyle = buttonStyle.Foreground(theme.Foreground())
 		}
 	}
 
 	// Apply disabled state
 	if b.disabled {
-		buttonStyle = buttonStyle.Foreground(style.Color("gray"))
+		buttonStyle = buttonStyle.Foreground(theme.Disabled())
 	}
 
 	// State priority: Focused > Hovered > Normal
@@ -572,21 +573,19 @@ func (b *ButtonVNode) Paint(x, y int) []paint.DrawCmd {
 		switch b.focusStyle {
 		case FocusStyleUnderline:
 			// Bright underline with contrasting color for visibility
-			// Use bright yellow/white foreground to stand out on any background
 			buttonStyle = buttonStyle.
-				Foreground(style.Color("bright-yellow")).
+				Foreground(theme.FocusBright()).
 				Underline(true).
 				Bold(true)
 		case FocusStyleBracket:
 			// Brackets only (preserves background color)
-			// Brackets are already in labelText, just make it bold
 			buttonStyle = buttonStyle.Bold(true)
 		case FocusStyleBold:
 			// Bold only (preserves background color)
 			buttonStyle = buttonStyle.Bold(true)
 		case FocusStyleReverse:
-			// Default: reverse colors (blue background with white text)
-			buttonStyle = buttonStyle.Foreground(style.Color("white")).Background(style.Color("blue")).Bold(true)
+			// Default: theme focus background with foreground text
+			buttonStyle = buttonStyle.Foreground(theme.Foreground()).Background(theme.Focus()).Bold(true)
 		}
 	} else if b.isHovered && !b.disabled {
 		// Hovered state: underline only (no background)

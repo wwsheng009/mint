@@ -7,6 +7,7 @@ import (
 	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
+	"github.com/wwsheng009/mint/runtime/theme"
 	"github.com/wwsheng009/mint/ui"
 )
 
@@ -396,17 +397,17 @@ func (c *CheckboxVNode) Paint(x, y int) []paint.DrawCmd {
 	}
 
 	// State priority: Focused > Hovered > Normal
-	// Focus: blue background with white text for clear visibility
+	// Focus: theme focus background with foreground text for clear visibility
 	// Hover: underline only
 	if c.isFocused && !c.disabled {
-		checkboxStyle = checkboxStyle.Foreground(style.Color("white")).Background(style.Color("blue")).Bold(true)
+		checkboxStyle = checkboxStyle.Foreground(theme.Foreground()).Background(theme.Focus()).Bold(true)
 	} else if c.isHovered && !c.disabled {
 		checkboxStyle = checkboxStyle.Underline(true)
 	}
 
 	// Apply disabled state
 	if c.disabled {
-		checkboxStyle = checkboxStyle.Foreground(style.Color("gray"))
+		checkboxStyle = checkboxStyle.Foreground(theme.Disabled())
 	}
 
 	return []paint.DrawCmd{

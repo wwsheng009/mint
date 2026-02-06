@@ -8,6 +8,7 @@ import (
 	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
+	"github.com/wwsheng009/mint/runtime/theme"
 	"github.com/wwsheng009/mint/ui"
 )
 
@@ -362,18 +363,18 @@ func (t *TextareaVNode) Paint(x, y int) []paint.DrawCmd {
 	textareaStyle := t.Style()
 
 	// Apply focus/hover/disabled styling first
-	// Focus: blue border for clear visibility
-	// Disabled: gray
+	// Focus: theme border color for clear visibility
+	// Disabled: disabled color
 	borderStyle := textareaStyle
 	contentStyle := textareaStyle
 
 	if t.isFocused && !t.disabled {
-		// Focused: blue borders
-		borderStyle = borderStyle.Foreground(style.Color("blue")).Bold(true)
+		// Focused: theme focus color borders
+		borderStyle = borderStyle.Foreground(theme.Focus()).Bold(true)
 	} else if t.disabled {
-		// Disabled: gray
-		borderStyle = borderStyle.Foreground(style.Color("gray"))
-		contentStyle = contentStyle.Foreground(style.Color("gray"))
+		// Disabled: disabled color
+		borderStyle = borderStyle.Foreground(theme.Disabled())
+		contentStyle = contentStyle.Foreground(theme.Disabled())
 	}
 
 	// Determine what to display
