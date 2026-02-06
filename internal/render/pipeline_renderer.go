@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/wwsheng009/mint/runtime"
+	"github.com/wwsheng009/mint/runtime/layer"
 	"github.com/wwsheng009/mint/runtime/paint"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
@@ -17,17 +18,23 @@ import (
 // - Constraint-driven layout calculation
 // - Independent paint phase using pre-computed positions
 // - Caching for leaf nodes
+// - Multi-layer rendering support (Modal, Overlay, Tooltip)
 // - Better separation of concerns
 type PipelineRenderer struct {
-	pipeline *RenderingPipeline
-	debug    bool
+	pipeline    *RenderingPipeline
+	layerMgr    *layer.Manager
+	layerEvents *layer.EventHandler
+	debug       bool
 }
 
 // NewPipelineRenderer creates a new pipeline-based VNodeRenderer
 func NewPipelineRenderer() *PipelineRenderer {
+	layerMgr := layer.NewManager()
 	return &PipelineRenderer{
-		pipeline: NewRenderingPipeline(),
-		debug:    os.Getenv("TUI_PIPELINE_DEBUG") == "true",
+		pipeline:    NewRenderingPipeline(),
+		layerMgr:    layerMgr,
+		layerEvents: layer.NewEventHandler(layerMgr),
+		debug:       os.Getenv("TUI_PIPELINE_DEBUG") == "true",
 	}
 }
 
@@ -52,8 +59,21 @@ func (r *PipelineRenderer) Render(vnode rtui.VNode, x, y int, buffer interface{}
 	height := buf.Height
 	constraints := runtime.NewBoxConstraints(0, width, 0, height)
 
-	// Use the rendering pipeline
-	err := r.pipeline.Render(vnode, constraints, buf)
+	// Check if VNode tree contains any layer nodes (Modal, Overlay, Tooltip)
+	hasLayers := r.hasLayerNodes(vnode)
+
+	var err error
+	if hasLayers {
+		// Use multi-layer rendering for modals, overlays, tooltips
+		if r.debug {
+			fmt.Fprintf(os.Stderr, "[PipelineRenderer] Using RenderLayers for multi-layer rendering\n")
+		}
+		err = r.pipeline.RenderLayers(vnode, constraints, buf)
+	} else {
+		// Use standard rendering for simple VNode trees
+		err = r.pipeline.Render(vnode, constraints, buf)
+	}
+
 	if err != nil {
 		if r.debug {
 			fmt.Fprintf(os.Stderr, "[PipelineRenderer] Render failed: %v, falling back to legacy\n", err)
@@ -68,6 +88,27 @@ func (r *PipelineRenderer) Render(vnode rtui.VNode, x, y int, buffer interface{}
 	}
 
 	return nil
+}
+
+// hasLayerNodes checks if the VNode tree contains any non-base layer nodes
+func (r *PipelineRenderer) hasLayerNodes(vnode rtui.VNode) bool {
+	if vnode == nil {
+		return false
+	}
+
+	// Check this node
+	if vnode.GetLayer() != rtui.LayerBase && vnode.GetLayer().IsValid() {
+		return true
+	}
+
+	// Recursively check children
+	for _, child := range vnode.Children() {
+		if r.hasLayerNodes(child) {
+			return true
+		}
+	}
+
+	return false
 }
 
 // Measure implements the VNodeRenderer Measure interface

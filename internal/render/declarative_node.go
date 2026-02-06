@@ -968,6 +968,20 @@ func (n *DeclarativeNode) HandleEvent(ev frameworkevent.Event) bool {
 		return false
 	}
 
+	// 0. Handle layer-specific events (ESC to close modal, etc.)
+	// This takes priority over all other event handling
+	if ev.Type() == frameworkevent.EventKeyPress {
+		if keyEv, ok := ev.(*frameworkevent.KeyEvent); ok {
+			if keyEv.Key.Name == "esc" {
+				if n.handleLayerKeyEvent(root) {
+					// Modal was closed, trigger re-render
+					n.requestRender(useFiber, reconciler)
+					return true
+				}
+			}
+		}
+	}
+
 	// 1. Let focus manager handle navigation (Tab, Shift+Tab)
 	if focusMgr != nil {
 		handled, shouldRender := focusMgr.HandleEvent(ev)
@@ -1420,5 +1434,81 @@ func renderVNodeToBuffer(vnode rtui.VNode, x, y int, buffer *paint.Buffer) {
 		}
 		// Elements that don't have text content are containers (buttons, etc.)
 		// They should implement Paintable interface for custom rendering
+	}
+}
+
+// =============================================================================
+// Layer Event Handling
+// =============================================================================
+
+// handleLayerKeyEvent handles keyboard events for layer components (e.g., ESC to close modal)
+// Returns true if the event was handled
+func (n *DeclarativeNode) handleLayerKeyEvent(root rtui.VNode) bool {
+	modalNode := n.findModalNode(root)
+	if modalNode == nil {
+		return false
+	}
+
+	// Check if this modal should close on ESC
+	props := modalNode.Props()
+	if props == nil {
+		return false
+	}
+
+	closeOnESC := true // Default to true
+	if v, ok := props["_closeOnESC"].(bool); ok {
+		closeOnESC = v
+	}
+
+	if !closeOnESC {
+		return false
+	}
+
+	// Trigger the OnClose callback
+	if onClose, ok := props["_onClose"].(func()); ok {
+		if os.Getenv("TUI_LAYER_DEBUG") == "true" {
+			fmt.Fprintf(os.Stderr, "[DeclarativeNode] ESC pressed, closing modal\n")
+		}
+		// Call OnClose in a goroutine to avoid blocking
+		go onClose()
+		return true
+	}
+
+	return false
+}
+
+// findModalNode recursively searches for a modal node in the VNode tree
+func (n *DeclarativeNode) findModalNode(vnode rtui.VNode) rtui.VNode {
+	if vnode == nil {
+		return nil
+	}
+
+	// Check if this node is a modal
+	if vnode.GetLayer() == rtui.LayerModal {
+		return vnode
+	}
+
+	// Recursively check children
+	for _, child := range vnode.Children() {
+		if modal := n.findModalNode(child); modal != nil {
+			return modal
+		}
+	}
+
+	return nil
+}
+
+// requestRender triggers a re-render
+func (n *DeclarativeNode) requestRender(useFiber bool, reconciler rtui.Reconciler) {
+	if useFiber && reconciler != nil {
+		// Fiber mode: schedule reconciler update
+		if r, ok := reconciler.(*fiberReconcilerAdapter); ok {
+			r.r.ScheduleUpdate(rtui.LaneSyncLane)
+		}
+	} else {
+		// Non-Fiber mode: mark framework app as dirty to trigger re-render
+		if fwApp := n.getFrameworkApp(); fwApp != nil {
+			fwApp.MarkDirty()
+		}
 	}
 }
