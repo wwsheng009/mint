@@ -4,7 +4,7 @@
 // - Declarative components
 // - State system (Hooks)
 // - Layout system (Flex, VStack, HStack, Table)
-// - Modal (Layer)
+// - Modal (Layer) - NEW: Using Layer system
 // - Input with Focus management
 // - Scroll containers
 // - VirtualList for large data
@@ -47,24 +47,31 @@ func App() ui.VNode {
 		items[i] = fmt.Sprintf("Log line #%d", i)
 	}
 
-	// Layer: Modal (conditional rendering)
-	// When modal is open, render ONLY the modal (overlay mode)
-	if showModal {
-		return ConfirmModal(func() {
-			setShowModal(false)
-		})
-	}
-
-	// Otherwise render main content
-	// Use Stretch() so children (Header, MainBody) expand to fill width
-	return ui.VStackBuilder(
-		Header(count, showModal, setShowModal, setCount),
+	// NEW: Render both main content AND modal (when open)
+	// The Layer system handles proper z-ordering and centering
+	mainContent := ui.VStackBuilder(
+		Header(count, setShowModal, setCount),
 		MainBody(count, setCount, input, setInput, items),
 	).Stretch().Build()
+
+	// If modal is open, render both main content and modal
+	// The LayerManager will separate them into different layers
+	if showModal {
+		return ui.VStack(
+			mainContent,
+			// Modal layer - automatically centered and overlays main content
+			ConfirmModal(func() {
+				setShowModal(false)
+			}),
+		)
+	}
+
+	// Otherwise render just main content
+	return mainContent
 }
 
 // Header demonstrates state + layout with Bordered component
-func Header(count int, showModal bool, setShowModal func(bool), setCount func(interface{})) ui.VNode {
+func Header(count int, setShowModal func(bool), setCount func(interface{})) ui.VNode {
 	headerContent := ui.HStack(
 		app.NewTextBuilder("TUI Engine Demo").
 			Bold(true).
@@ -193,7 +200,7 @@ func MainBody(count int, setCount func(interface{}), input string, setInput func
 }
 
 // ConfirmModal demonstrates Layer + Focus Trap with overlay rendering
-// Modal renders as a centered overlay with backdrop
+// Uses the new Layer system for automatic centering and backdrop
 func ConfirmModal(onClose func()) ui.VNode {
 	// Modal content - the actual dialog box with border
 	modalBox := ui.Bordered().
@@ -226,27 +233,16 @@ func ConfirmModal(onClose func()) ui.VNode {
 		).
 		Build()
 
-	// Return the modal centered with backdrop
-	// Using VStack with spacing to center the modal
-	return ui.VStackBuilder(
-		// Top spacing to push modal down (vertical centering)
-		ui.Text(""),
-		ui.Text(""),
-		ui.Text(""),
-		ui.Text(""),
-		ui.Text(""),
-		ui.Text(""),
-		ui.Text(""),
-		// The modal box (horizontally centered by layout)
-		modalBox,
-		// Bottom spacing
-		ui.Text(""),
-		ui.Text(""),
-		ui.Text(""),
-		ui.Text(""),
-		ui.Text(""),
-		ui.Text(""),
-		ui.Text(""),
-		ui.Text(""),
-	).Build()
+	// NEW: Use ui.Modal() for automatic layer handling
+	// The modal will be:
+	// - Automatically centered in the viewport
+	// - Rendered on top of all other content (LayerModal)
+	// - Have backdrop dimming effect
+	// - Closeable via ESC key (respects _closeOnESC prop)
+	// - Closeable via click outside (respects _closeOnBackdrop prop)
+	return ui.Modal(modalBox).
+		OnClose(onClose).
+		CloseOnESC(true).
+		CloseOnBackdropClick(true).
+		Build()
 }
