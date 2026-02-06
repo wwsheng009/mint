@@ -362,19 +362,33 @@ func (t *TextareaVNode) Paint(x, y int) []paint.DrawCmd {
 
 	textareaStyle := t.Style()
 
+	// Apply default colors based on component spec
+	// Background: SURFACE, Text: TEXT
+	if textareaStyle.FG == "" {
+		textareaStyle = textareaStyle.Foreground(theme.Text())
+	}
+	if textareaStyle.BG == "" {
+		textareaStyle = textareaStyle.Background(theme.Surface())
+	}
+
 	// Apply focus/hover/disabled styling first
-	// Focus: theme border color for clear visibility
-	// Disabled: disabled color
+	// Focus: FOCUS border for clear visibility
+	// Disabled: DISABLED colors
 	borderStyle := textareaStyle
 	contentStyle := textareaStyle
 
+	// Placeholder should use PLACEHOLDER color
+	if t.value == "" && t.placeholder != "" {
+		contentStyle = contentStyle.Foreground(theme.Placeholder())
+	}
+
 	if t.isFocused && !t.disabled {
-		// Focused: theme focus color borders
+		// Focused: FOCUS color borders
 		borderStyle = borderStyle.Foreground(theme.Focus()).Bold(true)
 	} else if t.disabled {
-		// Disabled: disabled color
-		borderStyle = borderStyle.Foreground(theme.Disabled())
-		contentStyle = contentStyle.Foreground(theme.Disabled())
+		// Disabled: DISABLED_BG, DISABLED_FG
+		borderStyle = borderStyle.Foreground(theme.DisabledBG())
+		contentStyle = contentStyle.Foreground(theme.DisabledFG())
 	}
 
 	// Determine what to display

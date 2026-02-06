@@ -545,25 +545,31 @@ func (b *ButtonVNode) Paint(x, y int) []paint.DrawCmd {
 	}
 
 	// Apply variant-based styling if not explicitly set
+	// Based on component spec: comp_1.md and comp_2.md
 	if buttonStyle.FG == "" && buttonStyle.BG == "" {
 		switch b.variant {
 		case ButtonVariantPrimary:
-			buttonStyle = buttonStyle.Foreground(theme.Foreground()).Background(theme.Primary()).Bold(true)
+			// Primary: BG=PRIMARY, FG=BG
+			buttonStyle = buttonStyle.Foreground(theme.BG()).Background(theme.Primary()).Bold(true)
 		case ButtonVariantSecondary:
-			buttonStyle = buttonStyle.Foreground(style.Color("black")).Background(theme.Muted())
+			// Secondary: BG=SURFACE, FG=TEXT
+			buttonStyle = buttonStyle.Foreground(theme.Text()).Background(theme.Surface())
 		case ButtonVariantDanger:
-			buttonStyle = buttonStyle.Foreground(theme.Foreground()).Background(theme.Error()).Bold(true)
+			// Danger: BG=ERROR, FG=BG
+			buttonStyle = buttonStyle.Foreground(theme.BG()).Background(theme.Error()).Bold(true)
 		case ButtonVariantSuccess:
-			buttonStyle = buttonStyle.Foreground(theme.Foreground()).Background(theme.Success()).Bold(true)
+			// Success: BG=SUCCESS, FG=BG
+			buttonStyle = buttonStyle.Foreground(theme.BG()).Background(theme.Success()).Bold(true)
 		case ButtonVariantDefault:
-			// Default: no background, just brackets [label]
-			buttonStyle = buttonStyle.Foreground(theme.Foreground())
+			// Default: BG=SURFACE, FG=TEXT
+			buttonStyle = buttonStyle.Foreground(theme.Text()).Background(theme.Surface())
 		}
 	}
 
 	// Apply disabled state
+	// Disabled: FG=DISABLED_FG, BG=DISABLED_BG
 	if b.disabled {
-		buttonStyle = buttonStyle.Foreground(theme.Disabled())
+		buttonStyle = buttonStyle.Foreground(theme.DisabledFG()).Background(theme.DisabledBG())
 	}
 
 	// State priority: Focused > Hovered > Normal

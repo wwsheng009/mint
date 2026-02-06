@@ -396,18 +396,31 @@ func (c *CheckboxVNode) Paint(x, y int) []paint.DrawCmd {
 		displayText = indicator
 	}
 
-	// State priority: Focused > Hovered > Normal
-	// Focus: theme focus background with foreground text for clear visibility
-	// Hover: underline only
+	// Apply default colors based on component spec
+	// Normal: BG=SURFACE, FG=TEXT
+	if checkboxStyle.FG == "" {
+		checkboxStyle = checkboxStyle.Foreground(theme.Text())
+	}
+	if checkboxStyle.BG == "" {
+		checkboxStyle = checkboxStyle.Background(theme.Surface())
+	}
+
+	// Checked state: BG=PRIMARY, FG=BG
+	if c.checked && !c.disabled {
+		checkboxStyle = checkboxStyle.Foreground(theme.BG()).Background(theme.Primary()).Bold(true)
+	}
+
+	// State priority: Focused > Hovered > Normal > Checked
+	// Focus: FOCUS border (outline effect)
 	if c.isFocused && !c.disabled {
-		checkboxStyle = checkboxStyle.Foreground(theme.Foreground()).Background(theme.Focus()).Bold(true)
+		checkboxStyle = checkboxStyle.Foreground(theme.Focus()).Bold(true)
 	} else if c.isHovered && !c.disabled {
 		checkboxStyle = checkboxStyle.Underline(true)
 	}
 
-	// Apply disabled state
+	// Apply disabled state: DISABLED_BG, DISABLED_FG
 	if c.disabled {
-		checkboxStyle = checkboxStyle.Foreground(theme.Disabled())
+		checkboxStyle = checkboxStyle.Foreground(theme.DisabledFG()).Background(theme.DisabledBG())
 	}
 
 	return []paint.DrawCmd{

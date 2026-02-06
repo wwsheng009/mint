@@ -438,18 +438,26 @@ func (s *SelectVNode) Paint(x, y int) []paint.DrawCmd {
 
 	selectDisplay := "< " + displayLabel + " >"
 
+	// Apply default colors based on component spec
+	// Normal: BG=SURFACE, FG=TEXT
+	if selectStyle.FG == "" {
+		selectStyle = selectStyle.Foreground(theme.Text())
+	}
+	if selectStyle.BG == "" {
+		selectStyle = selectStyle.Background(theme.Surface())
+	}
+
 	// State priority: Focused > Hovered > Normal
-	// Focus: theme focus background with foreground text for clear visibility
-	// Hover: underline only
+	// Focus: FOCUS border effect
 	if s.isFocused && !s.disabled {
-		selectStyle = selectStyle.Foreground(theme.Foreground()).Background(theme.Focus()).Bold(true)
+		selectStyle = selectStyle.Foreground(theme.Focus()).Bold(true)
 	} else if s.isHovered && !s.disabled {
 		selectStyle = selectStyle.Underline(true)
 	}
 
-	// Apply disabled state
+	// Apply disabled state: DISABLED_BG, DISABLED_FG
 	if s.disabled {
-		selectStyle = selectStyle.Foreground(theme.Disabled())
+		selectStyle = selectStyle.Foreground(theme.DisabledFG()).Background(theme.DisabledBG())
 	}
 
 	return []paint.DrawCmd{

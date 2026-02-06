@@ -7,6 +7,7 @@ import (
 	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
+	"github.com/wwsheng009/mint/runtime/theme"
 	"github.com/wwsheng009/mint/ui"
 )
 
@@ -570,17 +571,30 @@ func (i *InputVNode) Paint(x, y int) []paint.DrawCmd {
 		}
 	}
 
-	// Apply focus/hover styling
+	// Apply focus/hover styling based on component spec
+	// Background: SURFACE, Text: TEXT, Focus border: FOCUS
+	if inputStyle.FG == "" {
+		inputStyle = inputStyle.Foreground(theme.Text())
+	}
+	if inputStyle.BG == "" {
+		inputStyle = inputStyle.Background(theme.Surface())
+	}
+
+	// Placeholder should use PLACEHOLDER color
+	if i.value == "" && i.placeholder != "" {
+		inputStyle = inputStyle.Foreground(theme.Placeholder())
+	}
+
+	// Focus state: FOCUS border (underline + bold)
 	if i.isFocused {
-		inputStyle = inputStyle.Underline(true)
-		inputStyle = inputStyle.Bold(true)
+		inputStyle = inputStyle.Foreground(theme.Focus()).Underline(true).Bold(true)
 	} else if i.isHovered {
 		inputStyle = inputStyle.Underline(true)
 	}
 
-	// Apply disabled state
+	// Apply disabled state: DISABLED_BG, DISABLED_FG
 	if i.disabled {
-		inputStyle = inputStyle.Foreground(style.Color("gray"))
+		inputStyle = inputStyle.Foreground(theme.DisabledFG()).Background(theme.DisabledBG())
 	}
 
 	return []paint.DrawCmd{
