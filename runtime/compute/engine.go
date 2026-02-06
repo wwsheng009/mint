@@ -105,101 +105,69 @@ func (e *Engine) buildComputedBoxWithSize(vnode VNode, parent *ComputedBox, cons
 		}
 	}
 
-	// If pre-measured size is provided, use it directly (single-pass optimization)
+	// Try single-pass measurement if LayoutMeasurer is implemented
+	measurement := e.TryMeasureLayout(vnode, constraints)
 	debug := os.Getenv("TUI_LAYOUT_DEBUG") == "true"
-	if preMeasuredSize != nil {
-		box.Box.Width = preMeasuredSize.Width
-		box.Box.Height = preMeasuredSize.Height
-
-		if debug {
-			tag := "none"
-			if tagger, ok := vnode.(interface{ Tag() string }); ok {
-				tag = tagger.Tag()
-			}
-			fmt.Fprintf(os.Stderr, "[buildComputedBox] tag=%s, using pre-measured size=%v\n",
-				tag, *preMeasuredSize)
+	if debug {
+		tag := "none"
+		if tagger, ok := vnode.(interface{ Tag() string }); ok {
+			tag = tagger.Tag()
 		}
-	} else {
-		// Try single-pass measurement if LayoutMeasurer is implemented
-		measurement := e.TryMeasureLayout(vnode, constraints)
-		if debug {
-			tag := "none"
-			if tagger, ok := vnode.(interface{ Tag() string }); ok {
-				tag = tagger.Tag()
-			}
-			fmt.Fprintf(os.Stderr, "[buildComputedBox] tag=%s, childConstraints=%d, using single-pass=%v\n",
-				tag, len(measurement.ChildConstraints), len(measurement.ChildConstraints) > 0)
-		}
-		// Check if we got a valid measurement (has child constraints)
-		if len(measurement.ChildConstraints) > 0 {
-			// Use the new single-pass approach
-			box.Box.Width = measurement.Size.Width
-			box.Box.Height = measurement.Size.Height
+		fmt.Fprintf(os.Stderr, "[buildComputedBox] tag=%s, childConstraints=%d, using single-pass=%v\n",
+			tag, len(measurement.ChildConstraints), len(measurement.ChildConstraints) > 0)
+	}
+	// Check if we got a valid measurement (has child constraints)
+	if len(measurement.ChildConstraints) > 0 {
+		// Use the new single-pass approach
+		box.Box.Width = measurement.Size.Width
+		box.Box.Height = measurement.Size.Height
 
-			// Build children using pre-calculated constraints AND pre-measured sizes
-			box.Children = make([]*ComputedBox, 0, len(vnodeChildren))
-			for i, child := range vnode.Children() {
-				childConstraints := measurement.ChildConstraints[i]
-				var childPreSize *runtime.Size
-				if i < len(measurement.ChildSizes) {
-					childPreSize = &measurement.ChildSizes[i]
-				}
-				childBox := e.buildComputedBoxWithSize(child, box, childConstraints, childPreSize)
-				if childBox != nil {
-					box.Children = append(box.Children, childBox)
-				}
-			}
-
-			// Cache the result for leaf nodes
-			if isLeaf {
-				e.cache.Set(cacheKey, LayoutCacheEntry{
-					Box:     box.Box,
-					Size:    runtime.Size{Width: box.Box.Width, Height: box.Box.Height},
-					Hash:    e.computeHash(vnode, constraints),
-					IsLeaf:  true,
-					VNodeID: vnode.Key(),
-				})
-				if e.debug {
-					fmt.Fprintf(os.Stderr, "[Layout.CacheSet] %s: %v\n",
-						vnode.Type().String(), box.Box)
-				}
-			}
-
-			return box
-		}
-		// FALLBACK: Use the legacy two-pass approach
-		size := e.measureVNode(vnode, constraints)
-		box.Box.Width = size.Width
-		box.Box.Height = size.Height
-
-		// Build children layout boxes
+		// Build children using pre-calculated constraints
+		// Note: We don't pass pre-measured sizes because:
+		// 1. LayoutNodes will use their own MeasureLayout with the correct constraints
+		// 2. Leaf nodes will be measured with the correct constraints
 		box.Children = make([]*ComputedBox, 0, len(vnodeChildren))
-
-		for _, child := range vnodeChildren {
-			// Calculate child constraints based on layout type
-			childConstraints := e.getChildConstraints(vnode, child, constraints, size)
-
+		for i, child := range vnode.Children() {
+			childConstraints := measurement.ChildConstraints[i]
 			childBox := e.buildComputedBox(child, box, childConstraints)
 			if childBox != nil {
 				box.Children = append(box.Children, childBox)
 			}
 		}
+
+		// Cache the result for leaf nodes
+		if isLeaf {
+			e.cache.Set(cacheKey, LayoutCacheEntry{
+				Box:     box.Box,
+				Size:    runtime.Size{Width: box.Box.Width, Height: box.Box.Height},
+				Hash:    e.computeHash(vnode, constraints),
+				IsLeaf:  true,
+				VNodeID: vnode.Key(),
+			})
+			if e.debug {
+				fmt.Fprintf(os.Stderr, "[Layout.CacheSet] %s: %v\n",
+					vnode.Type().String(), box.Box)
+			}
+		}
+
+		return box
 	}
 
-	// Build children for pre-measured nodes (still need to build the tree)
-	// Note: We use buildComputedBox without pre-measured size for children here
-	// since we don't have their pre-measured sizes
-	if preMeasuredSize != nil && len(vnodeChildren) > 0 {
-		// For pre-measured nodes, we need to build children with legacy constraints
-		// This is a limitation - ideally we'd have pre-measured sizes for all descendants
-		box.Children = make([]*ComputedBox, 0, len(vnodeChildren))
-		for _, child := range vnodeChildren {
-			// Get constraints for this child using legacy method
-			childConstraints := e.getChildConstraints(vnode, child, constraints, *preMeasuredSize)
-			childBox := e.buildComputedBox(child, box, childConstraints)
-			if childBox != nil {
-				box.Children = append(box.Children, childBox)
-			}
+	// FALLBACK: Use the legacy two-pass approach
+	size := e.measureVNode(vnode, constraints)
+	box.Box.Width = size.Width
+	box.Box.Height = size.Height
+
+	// Build children layout boxes
+	box.Children = make([]*ComputedBox, 0, len(vnodeChildren))
+
+	for _, child := range vnodeChildren {
+		// Calculate child constraints based on layout type
+		childConstraints := e.getChildConstraints(vnode, child, constraints, size)
+
+		childBox := e.buildComputedBox(child, box, childConstraints)
+		if childBox != nil {
+			box.Children = append(box.Children, childBox)
 		}
 	}
 
@@ -230,6 +198,13 @@ func (e *Engine) buildComputedBox(vnode VNode, parent *ComputedBox, constraints 
 
 // measureVNode measures a VNode's size using constraints
 func (e *Engine) measureVNode(vnode VNode, constraints runtime.BoxConstraints) runtime.Size {
+	// SPECIAL CASE: Bordered nodes use Engine's measureBordered to handle
+	// explicit width/height props correctly through constraints.
+	// This bypasses the node's own Measure() method which doesn't check props.
+	if isBordered(vnode) {
+		return e.measureBordered(vnode, constraints)
+	}
+
 	// PRIORITY 1: Use Measurable interface (constraint-based measurement)
 	if measurable, ok := vnode.(interface {
 		Measure(runtime.BoxConstraints) runtime.Size
@@ -249,10 +224,6 @@ func (e *Engine) measureVNode(vnode VNode, constraints runtime.BoxConstraints) r
 			// LayoutNode types should implement Measurable
 			// Fallback to measuring children
 			return e.measureLayoutChildren(vnode, constraints)
-		case "bordered":
-			// BorderedNode should implement Measurable
-			// Fallback to content size + 2
-			return e.measureBordered(vnode, constraints)
 		case "text":
 			// Text node
 			if text := rtui.GetTextContent(vnode); text != "" {
@@ -449,8 +420,14 @@ func (e *Engine) measureLayoutChildren(vnode VNode, constraints runtime.BoxConst
 				flexTotalFactor += childInfo.Flex
 			} else {
 				// Non-flex child: measure with natural height
+				// Special case: if child is HStack and parent has bounded width,
+				// make it fill full width for main-axis alignment to work
+				childMinWidth := 0
+				if innerMaxWidth != runtime.Infinity && isHStack(child) {
+					childMinWidth = innerMaxWidth // HStack in VStack fills width for alignment
+				}
 				childConstraints := runtime.BoxConstraints{
-					MinWidth:  0,
+					MinWidth:  childMinWidth,
 					MaxWidth:  innerMaxWidth,
 					MinHeight: 0,
 					MaxHeight: runtime.Infinity,
@@ -488,8 +465,14 @@ func (e *Engine) measureLayoutChildren(vnode VNode, constraints runtime.BoxConst
 					flexHeight = 0
 				}
 
+				// Special case: if child is HStack and parent has bounded width,
+				// make it fill full width for main-axis alignment to work
+				childMinWidth := 0
+				if innerMaxWidth != runtime.Infinity && isHStack(fc.child) {
+					childMinWidth = innerMaxWidth // HStack in VStack fills width
+				}
 				childConstraints := runtime.BoxConstraints{
-					MinWidth:  0,
+					MinWidth:  childMinWidth,
 					MaxWidth:  innerMaxWidth,
 					MinHeight: flexHeight,
 					MaxHeight: flexHeight,
@@ -503,8 +486,14 @@ func (e *Engine) measureLayoutChildren(vnode VNode, constraints runtime.BoxConst
 		} else {
 			// No flex or unbounded height: measure flex children naturally
 			for _, fc := range flexChildren {
+				// Special case: if child is HStack and parent has bounded width,
+				// make it fill full width for main-axis alignment to work
+				childMinWidth := 0
+				if innerMaxWidth != runtime.Infinity && isHStack(fc.child) {
+					childMinWidth = innerMaxWidth // HStack in VStack fills width
+				}
 				childConstraints := runtime.BoxConstraints{
-					MinWidth:  0,
+					MinWidth:  childMinWidth,
 					MaxWidth:  innerMaxWidth,
 					MinHeight: 0,
 					MaxHeight: runtime.Infinity,
@@ -790,113 +779,14 @@ func (e *Engine) getFlexDistribution(parent VNode, isHorizontal bool, maxSize in
 
 // getChildConstraints calculates constraints for a child VNode
 // IMPORTANT: Constraints should be passed based on parent's actual bounds, not Infinity
-// Padding must be subtracted from constraints before passing to children
-// Flex distribution is handled here for layout containers
+//
+// NOTE: HStack/VStack nodes use the single-pass LayoutMeasurer path, so they are
+// handled by MeasureLayout rather than this function. This function is only for
+// nodes that don't implement LayoutMeasurer (fallback path).
 func (e *Engine) getChildConstraints(parent, child VNode, parentConstraints runtime.BoxConstraints, parentSize runtime.Size) runtime.BoxConstraints {
-	// Get parent layout info to check for padding
-	layoutInfo := rtui.GetLayoutInfo(parent)
-	padding := layoutInfo.Padding // top, right, bottom, left
-	paddingWidth := padding[1] + padding[3]
-	paddingHeight := padding[0] + padding[2]
-
-	// Check if parent is a layout container
+	// Check if parent is a special node type
 	if tagger, ok := parent.(interface{ Tag() string }); ok {
 		switch tagger.Tag() {
-		case "hstack":
-			// HStack: calculate flex distribution if applicable
-			childMaxHeight := runtime.Infinity
-			if parentConstraints.HasBoundedHeight() {
-				childMaxHeight = max(0, parentConstraints.MaxHeight-paddingHeight)
-			}
-
-			// Check if child has flex
-			childInfo := rtui.GetLayoutInfo(child)
-
-			// If child has flex and parent has bounded width, calculate flex width
-			if childInfo.Flex > 0 && parentConstraints.HasBoundedWidth() {
-				// Use cached flex distribution to avoid O(N²) re-measurement
-				flexDist := e.getFlexDistribution(parent, true, childMaxHeight)
-
-				// Calculate available space and this child's flex width
-				gapSpace := 0
-				if flexDist.ChildCount > 1 {
-					gapSpace = (flexDist.ChildCount - 1) * layoutInfo.Gap
-				}
-				availableWidth := parentConstraints.MaxWidth - paddingWidth - gapSpace
-				remainingSpace := availableWidth - flexDist.FixedSize
-				flexWidth := (remainingSpace * childInfo.Flex) / flexDist.TotalFlexFactor
-				if flexWidth < 0 {
-					flexWidth = 0
-				}
-
-				if e.debug {
-					fmt.Fprintf(os.Stderr, "[getChildConstraints.HStack] child flex=%d/%d, flexWidth=%d (cached)\n",
-						childInfo.Flex, flexDist.TotalFlexFactor, flexWidth)
-				}
-
-				return runtime.BoxConstraints{
-					MinWidth:  flexWidth,
-					MaxWidth:  flexWidth,
-					MinHeight: 0,
-					MaxHeight: childMaxHeight,
-				}
-			}
-
-			// Non-flex child: unconstrained width
-			return runtime.BoxConstraints{
-				MinWidth:  0,
-				MaxWidth:  runtime.Infinity,
-				MinHeight: 0,
-				MaxHeight: childMaxHeight,
-			}
-		case "vstack":
-			// VStack: calculate flex distribution if applicable
-			childMaxWidth := runtime.Infinity
-			if parentConstraints.HasBoundedWidth() {
-				childMaxWidth = max(0, parentConstraints.MaxWidth-paddingWidth)
-			}
-
-			// Check if child has flex
-			childInfo := rtui.GetLayoutInfo(child)
-
-			// If child has flex and parent has bounded height, calculate flex height
-			if childInfo.Flex > 0 && parentConstraints.HasBoundedHeight() {
-				// Use cached flex distribution to avoid O(N²) re-measurement
-				flexDist := e.getFlexDistribution(parent, false, childMaxWidth)
-
-				// Calculate available space and this child's flex height
-				gapSpace := 0
-				if flexDist.ChildCount > 1 {
-					gapSpace = (flexDist.ChildCount - 1) * layoutInfo.Gap
-				}
-				availableHeight := parentConstraints.MaxHeight - paddingHeight - gapSpace
-				remainingSpace := availableHeight - flexDist.FixedSize
-				flexHeight := (remainingSpace * childInfo.Flex) / flexDist.TotalFlexFactor
-				if flexHeight < 0 {
-					flexHeight = 0
-				}
-
-				return runtime.BoxConstraints{
-					MinWidth:  0,
-					MaxWidth:  childMaxWidth,
-					MinHeight: flexHeight,
-					MaxHeight: flexHeight,
-				}
-			}
-
-			// Non-flex child: unconstrained height
-			// Special case: if child is HStack and parent has bounded width,
-			// make it fill full width for main-axis alignment to work
-			childMinWidth := 0
-			if childMaxWidth != runtime.Infinity && isHStack(child) {
-				childMinWidth = childMaxWidth // HStack in VStack fills width for alignment
-			}
-			return runtime.BoxConstraints{
-				MinWidth:  childMinWidth,
-				MaxWidth:  childMaxWidth,
-				MinHeight: 0,
-				MaxHeight: runtime.Infinity,
-			}
 		case "bordered":
 			// Bordered: subtract border (2 units) from constraints
 			// But check for explicit width/height props first
@@ -1429,6 +1319,17 @@ func isHStack(vnode rtui.VNode) bool {
 	// Check by tag
 	if tagger, ok := vnode.(interface{ Tag() string }); ok {
 		return tagger.Tag() == "hstack" || tagger.Tag() == "row"
+	}
+	return false
+}
+
+// isBordered checks if a VNode is a Bordered container
+func isBordered(vnode VNode) bool {
+	if vnode == nil {
+		return false
+	}
+	if tagger, ok := vnode.(interface{ Tag() string }); ok {
+		return tagger.Tag() == "bordered"
 	}
 	return false
 }

@@ -266,7 +266,11 @@ func (l *LayoutNode) measureVStackLayout(
 			// Non-flex child: measure with natural height
 			// SPECIAL CASE: HStack in VStack needs tight width for alignment
 			childMinWidth := 0
-			if innerMaxWidth != runtime.Infinity && isHStack(child) {
+			childTag := ""
+			if tagger, ok := child.(interface{ Tag() string }); ok {
+				childTag = tagger.Tag()
+			}
+			if innerMaxWidth != runtime.Infinity && (childTag == "hstack" || childTag == "row") {
 				// HStack fills VStack width for main-axis alignment to work
 				childMinWidth = innerMaxWidth
 			}
@@ -280,7 +284,6 @@ func (l *LayoutNode) measureVStackLayout(
 			childSizes[i] = measurer.MeasureChild(child, childConstraints[i])
 
 			if debug {
-				childTag := getTagForDebug(child)
 				fmt.Fprintf(os.Stderr, "[VStack.MeasureLayout] non-flex child %d (tag=%s): constraints=%v, size=%v\n",
 					i, childTag, childConstraints[i], childSizes[i])
 			}
