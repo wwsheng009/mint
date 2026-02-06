@@ -280,6 +280,85 @@ func CollectFocusable(root VNode) []FocusableVNode {
 	return collectFocusableRecursive(root)
 }
 
+// CollectFocusableInLayer collects only focusable VNodes from a specific layer.
+// When a modal is open, this ensures Tab navigation is limited to modal elements.
+func CollectFocusableInLayer(root VNode, layer Layer) []FocusableVNode {
+	return collectFocusableInLayerRecursive(root, layer)
+}
+
+// collectFocusableInLayerRecursive recursively collects focusable nodes in a specific layer.
+// When collecting for modal layer, we need to track whether we're inside a modal subtree.
+func collectFocusableInLayerRecursive(node VNode, targetLayer Layer) []FocusableVNode {
+	return collectFocusableInLayerWithParent(node, targetLayer, false)
+}
+
+// collectFocusableInLayerWithParent recursively collects focusable nodes with parent layer tracking.
+// insideTargetLayer is true when we're traversing inside a subtree that belongs to the target layer.
+func collectFocusableInLayerWithParent(node VNode, targetLayer Layer, insideTargetLayer bool) []FocusableVNode {
+	var result []FocusableVNode
+
+	if node == nil {
+		return result
+	}
+
+	// Check this node's layer
+	nodeLayer := node.GetLayer()
+
+	// Update insideTargetLayer flag
+	// If we're not inside target layer but this node IS the target layer, enter it
+	if !insideTargetLayer && nodeLayer == targetLayer {
+		insideTargetLayer = true
+	}
+	// If we encounter a different non-base layer while inside target layer, exit
+	if insideTargetLayer && nodeLayer != LayerBase && nodeLayer != targetLayer {
+		// We've exited the target layer subtree
+		return result
+	}
+
+	// For collecting modal focusables, we only include nodes that are inside a modal subtree
+	if insideTargetLayer {
+		// Check if current node is focusable
+		if focusable, ok := node.(FocusableVNode); ok {
+			if focusable.IsFocusable() {
+				result = append(result, focusable)
+			}
+		}
+	}
+
+	// Recursively check children
+	for _, child := range node.Children() {
+		childFocusable := collectFocusableInLayerWithParent(child, targetLayer, insideTargetLayer)
+		result = append(result, childFocusable...)
+	}
+
+	return result
+}
+
+// HasModalInTree checks if the VNode tree contains any modal layer nodes.
+// This is used to determine if focus should be trapped in the modal.
+func HasModalInTree(root VNode) bool {
+	return hasModalInTreeRecursive(root)
+}
+
+// hasModalInTreeRecursive recursively checks for modal nodes.
+func hasModalInTreeRecursive(node VNode) bool {
+	if node == nil {
+		return false
+	}
+
+	if node.GetLayer() == LayerModal {
+		return true
+	}
+
+	for _, child := range node.Children() {
+		if hasModalInTreeRecursive(child) {
+			return true
+		}
+	}
+
+	return false
+}
+
 // collectFocusableRecursive recursively collects focusable nodes.
 func collectFocusableRecursive(node VNode) []FocusableVNode {
 	var result []FocusableVNode

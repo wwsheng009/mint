@@ -279,7 +279,25 @@ func (n *DeclarativeNode) applyFocusState() {
 		return
 	}
 
-	focusable := rtui.CollectFocusable(n.root)
+	var focusable []rtui.FocusableVNode
+
+	// Check if there's a modal open - if so, trap focus in modal
+	hasModal := rtui.HasModalInTree(n.root)
+
+	if hasModal {
+		// Focus trap: only collect focusable elements from modal layer
+		focusable = rtui.CollectFocusableInLayer(n.root, rtui.LayerModal)
+		if os.Getenv("TUI_DEBUG_UI") == "true" {
+			fmt.Fprintf(os.Stderr, "DeclarativeNode.Paint: modal detected, collected %d modal focusable nodes\n", len(focusable))
+		}
+	} else {
+		// No modal: collect all focusable elements
+		focusable = rtui.CollectFocusable(n.root)
+		if os.Getenv("TUI_DEBUG_UI") == "true" {
+			fmt.Fprintf(os.Stderr, "DeclarativeNode.Paint: no modal, collected %d focusable nodes\n", len(focusable))
+		}
+	}
+
 	n.focusMgr.UpdateFocusableList(focusable)
 
 	// Clamp focus index
@@ -292,10 +310,6 @@ func (n *DeclarativeNode) applyFocusState() {
 	}
 	if currentIndex >= 0 {
 		n.focusMgr.SetFocusByIndex(currentIndex)
-	}
-
-	if os.Getenv("TUI_DEBUG_UI") == "true" {
-		fmt.Fprintf(os.Stderr, "DeclarativeNode.Paint: collected %d focusable nodes\n", len(focusable))
 	}
 
 	// Apply focus state
