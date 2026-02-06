@@ -19,7 +19,6 @@ package main
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/ui"
@@ -42,9 +41,6 @@ func App() ui.VNode {
 	showModal, setShowModal := ui.UseStateBool(false)
 	input, setInput := ui.UseStateString("")
 
-	// Debug: track renders
-	fmt.Fprintf(os.Stderr, "[App] Rendering, showModal=%v\n", showModal)
-
 	// Generate large list for VirtualList
 	items := make([]string, 100)
 	for i := range items {
@@ -61,32 +57,21 @@ func App() ui.VNode {
 	// If modal is open, render both main content and modal
 	// The LayerManager will separate them into different layers
 	if showModal {
-		fmt.Fprintf(os.Stderr, "[App] Creating modal stack\n")
-		result := ui.VStack(
+		return ui.VStack(
 			mainContent,
 			// Modal layer - automatically centered and overlays main content
 			ConfirmModal(func() {
-				fmt.Fprintf(os.Stderr, "[App] Modal onClose called\n")
 				setShowModal(false)
 			}),
 		)
-		fmt.Fprintf(os.Stderr, "[App] Modal stack type=%T, result layer=%d\n", result, result.GetLayer())
-		return result
 	}
 
 	// Otherwise render just main content
-	fmt.Fprintf(os.Stderr, "[App] Returning mainContent only\n")
 	return mainContent
 }
 
 // Header demonstrates state + layout with Bordered component
 func Header(count int, setShowModal func(bool), setCount func(interface{})) ui.VNode {
-	// Debug: wrap setShowModal to track calls
-	trackedSetShowModal := func(show bool) {
-		fmt.Fprintf(os.Stderr, "[Header] setShowModal called with show=%v\n", show)
-		setShowModal(show)
-	}
-
 	headerContent := ui.HStack(
 		app.NewTextBuilder("TUI Engine Demo").
 			Bold(true).
@@ -98,8 +83,7 @@ func Header(count int, setShowModal func(bool), setCount func(interface{})) ui.V
 			Build(),
 		app.ButtonBuilder("[Open Modal]").
 			OnClick(func() {
-				fmt.Fprintf(os.Stderr, "[Header] [Open Modal] button clicked\n")
-				trackedSetShowModal(true)
+				setShowModal(true)
 			}).
 			Build(),
 		app.NewTextBuilder(" ").
@@ -256,15 +240,9 @@ func ConfirmModal(onClose func()) ui.VNode {
 	// - Have backdrop dimming effect
 	// - Closeable via ESC key (respects _closeOnESC prop)
 	// - Closeable via click outside (respects _closeOnBackdrop prop)
-	modalResult := ui.Modal(modalBox).
+	return ui.Modal(modalBox).
 		OnClose(onClose).
 		CloseOnESC(true).
 		CloseOnBackdropClick(true).
 		Build()
-
-	// Debug: verify layer was set
-	fmt.Fprintf(os.Stderr, "[ConfirmModal] modalBox type=%T, layer=%d\n", modalBox, modalBox.GetLayer())
-	fmt.Fprintf(os.Stderr, "[ConfirmModal] modalResult type=%T, layer=%d\n", modalResult, modalResult.GetLayer())
-
-	return modalResult
 }

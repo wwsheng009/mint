@@ -99,21 +99,12 @@ func (r *PipelineRenderer) Render(vnode rtui.VNode, x, y int, buffer interface{}
 
 // hasLayerNodes checks if the VNode tree contains any non-base layer nodes
 func (r *PipelineRenderer) hasLayerNodes(vnode rtui.VNode) bool {
-	if os.Getenv("TUI_LAYER_DEBUG") == "true" {
-		layer := vnode.GetLayer()
-		fmt.Fprintf(os.Stderr, "[hasLayerNodes] node type=%T, layer=%d (LayerBase=%d, LayerModal=%d)\n",
-			vnode, layer, rtui.LayerBase, rtui.LayerModal)
-	}
-
 	if vnode == nil {
 		return false
 	}
 
 	// Check this node
 	if vnode.GetLayer() != rtui.LayerBase && vnode.GetLayer().IsValid() {
-		if os.Getenv("TUI_LAYER_DEBUG") == "true" {
-			fmt.Fprintf(os.Stderr, "[hasLayerNodes] FOUND layer node: layer=%d\n", vnode.GetLayer())
-		}
 		return true
 	}
 
