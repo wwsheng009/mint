@@ -203,18 +203,26 @@ func MainBody(count int, setCount func(interface{}), input string, setInput func
 // Uses the new Layer system for automatic centering and backdrop
 func ConfirmModal(onClose func()) ui.VNode {
 	// Modal content - the actual dialog box with border
+	// Fixed size modal for consistent centering
 	modalBox := ui.Bordered().
 		Color("yellow").
+		Width(40).  // Fixed width for the modal
 		Child(
 			ui.VStackBuilder(
 				ui.Text(""),
-				app.NewTextBuilder("*** Are you sure? ***").
-					Bold(true).
-					FgColor("yellow").
-					Build(),
-				ui.Text(""),
+				// Centered title
 				ui.HStack(
-					ui.Text("       "),
+					ui.Text(""),
+					app.NewTextBuilder("*** Are you sure? ***").
+						Bold(true).
+						FgColor("yellow").
+						Build(),
+					ui.Text(""),
+				),
+				ui.Text(""),
+				// Centered buttons
+				ui.HStack(
+					ui.Text(""),
 					app.ButtonBuilder("[ Cancel ]").
 						OnClick(onClose).
 						Build(),
@@ -224,22 +232,22 @@ func ConfirmModal(onClose func()) ui.VNode {
 						FgColor("white").
 						OnClick(onClose).
 						Build(),
+					ui.Text(""),
 				),
 				ui.Text(""),
-				app.NewTextBuilder("Press ESC to close").
-					FgColor("gray").
-					Build(),
+				// Centered footer text
+				ui.HStack(
+					ui.Text(""),
+					app.NewTextBuilder("Press ESC to close").
+						FgColor("gray").
+						Build(),
+					ui.Text(""),
+				),
+				ui.Text(""),
 			).Build(),
 		).
 		Build()
 
-	// NEW: Use ui.Modal() for automatic layer handling
-	// The modal will be:
-	// - Automatically centered in the viewport
-	// - Rendered on top of all other content (LayerModal)
-	// - Have backdrop dimming effect
-	// - Closeable via ESC key (respects _closeOnESC prop)
-	// - Closeable via click outside (respects _closeOnBackdrop prop)
 	return ui.Modal(modalBox).
 		OnClose(onClose).
 		CloseOnESC(true).
