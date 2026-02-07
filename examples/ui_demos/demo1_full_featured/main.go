@@ -188,7 +188,6 @@ func MainBody(count int, setCount func(interface{}), input string, setInput func
 
 	// Combine sidebar and content with borders
 	// Uses theme BORDER color for borders
-	// IMPORTANT: Set Width to ensure panels fill the entire screen width
 	return ui.HStackBuilder(
 		ui.Flex(
 			ui.Bordered().
@@ -204,7 +203,7 @@ func MainBody(count int, setCount func(interface{}), input string, setInput func
 				Build(),
 			1, // Flex factor
 		),
-	).Gap(0).Stretch().Build()
+	).Gap(0).Build()
 }
 
 // ConfirmModal demonstrates Layer + Focus Trap with overlay rendering
