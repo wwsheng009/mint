@@ -251,13 +251,13 @@ func ControlPanel(
 func ExplanationPanel(currentPhase string) ui.VNode {
 	explanations := map[string]string{
 		"idle":      "System idle, waiting for events...",
-		"Event":     "🔁 Event Phase: Keyboard/Mouse/Resize events are captured from the terminal and queued for processing.",
-		"setState":  "⚡ setState: Component state changes are queued, components are marked dirty for re-rendering.",
-		"Scheduler": "🗓️ Scheduler: Batches dirty components and schedules them for rendering. Implements time-slicing.",
-		"Render":    "🌲 Render: Component functions are called to generate new VNode trees based on current state.",
-		"Reconcile": "🔄 Reconcile: Diff algorithm compares old VNode tree with new VNode tree, computes minimal changes.",
-		"Layout":    "📐 Layout: Constraint-based layout computes position (x,y) and size (w,h) for each visible node.",
-		"Paint":     "🎨 Paint: Nodes render their content to the back buffer. Only dirty regions are updated.",
+		"Event":     "Event captured from terminal, queued for processing.",
+		"setState":  "State changes queued, components marked dirty for re-render.",
+		"Scheduler": "Batches dirty components, schedules rendering with time-slicing.",
+		"Render":    "Component functions called to generate VNode trees from state.",
+		"Reconcile": "Diff algorithm compares old/new VNode trees, computes minimal changes.",
+		"Layout":    "Constraint-based layout computes position (x,y) and size (w,h).",
+		"Paint":     "Nodes render to back buffer. Only dirty regions are updated.",
 	}
 
 	text := explanations[currentPhase]
@@ -265,7 +265,7 @@ func ExplanationPanel(currentPhase string) ui.VNode {
 		text = "Select a phase to see detailed explanation..."
 	}
 
-	content := app.NewTextBuilder(fmt.Sprintf("%-98s", text)).
+	content := app.NewTextBuilder(text).
 		Style(style.Foreground(theme.Text())).
 		Build()
 
