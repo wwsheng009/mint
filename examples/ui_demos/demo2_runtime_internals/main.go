@@ -41,19 +41,20 @@ func RuntimeDemo() ui.VNode {
 	renderCount, setRenderCount, _ := ui.UseStateInt(0)
 	bufferUpdates, setBufferUpdates, _ := ui.UseStateInt(0)
 
-	return ui.VStack(
+	return ui.VStackBuilder(
 		HeaderPanel(),
 		PipelineVisualization(currentPhase),
 		StatisticsPanel(eventCount, renderCount, bufferUpdates),
 		ControlPanel(setCurrentPhase, setEventCount, setRenderCount, setBufferUpdates),
 		ExplanationPanel(currentPhase),
-	)
+	).
+		Stretch(). // Make all children stretch to fill width (VStack's cross-axis)
+		Build()
 }
 
 // HeaderPanel shows the title with border
 func HeaderPanel() ui.VNode {
 	// Use HStackBuilder with AlignCenter for true center alignment
-	// instead of manual space padding
 	headerContent := ui.HStackBuilder(
 		app.NewTextBuilder("Runtime Scheduling Pipeline Visualization").
 			Style(style.FgBold(theme.Text())).
@@ -63,18 +64,10 @@ func HeaderPanel() ui.VNode {
 		Align(ui.AlignCenter).
 		Build()
 
-	borderedPanel := ui.Bordered().
+	// Parent VStack will handle width stretching via Stretch()
+	return ui.Bordered().
 		Style(string(theme.Primary())).
 		Child(headerContent).
-		Build()
-
-	// Wrap in HStack to control stretch direction:
-	// - Flex(1): stretch horizontally (HStack's main axis)
-	// - No Stretch(): don't stretch vertically (HStack's cross axis)
-	return ui.HStackBuilder(
-		borderedPanel,
-	).
-		Flex(1). // Horizontal stretch ONLY
 		Build()
 }
 
