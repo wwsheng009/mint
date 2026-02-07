@@ -190,6 +190,18 @@ func (s Style) Merge(other Style) Style {
 	return result
 }
 
+// IsEmpty checks if the style has no properties set.
+func (s Style) IsEmpty() bool {
+	return s.FG == "" && s.BG == "" &&
+		!s.isBold && !s.isItalic && !s.isUnderline &&
+		!s.isStrikethrough && !s.isReverse && !s.isBlink
+}
+
+// Clone creates a copy of the style.
+func (s Style) Clone() Style {
+	return s
+}
+
 // ToANSI 转换为 ANSI 转义码
 // 正确处理标准色 (30-37/40-47) 和明亮色 (90-97/100-107)
 func (s Style) ToANSI() string {
