@@ -175,7 +175,7 @@ func ControlPanel(
 	setRenderCount func(interface{}),
 	setBufferUpdates func(interface{}),
 ) ui.VNode {
-	buttonsTop := ui.HStack(
+	buttonsTop := ui.HStackBuilder(
 		app.ButtonBuilder("[1] Event").
 			Variant(app.ButtonVariantDanger).
 			OnClick(func() {
@@ -184,7 +184,6 @@ func ControlPanel(
 			}).
 			FocusStyle(app.FocusStyleBracket).
 			Build(),
-		ui.Text(" "),
 		app.ButtonBuilder("[2] setState").
 			Variant(app.ButtonVariantSecondary).
 			OnClick(func() {
@@ -192,7 +191,6 @@ func ControlPanel(
 			}).
 			FocusStyle(app.FocusStyleBracket).
 			Build(),
-		ui.Text(" "),
 		app.ButtonBuilder("[3] Scheduler").
 			Variant(app.ButtonVariantSuccess).
 			OnClick(func() {
@@ -201,7 +199,6 @@ func ControlPanel(
 			}).
 			FocusStyle(app.FocusStyleBracket).
 			Build(),
-		ui.Text(" "),
 		app.ButtonBuilder("[4] Render").
 			Variant(app.ButtonVariantPrimary).
 			OnClick(func() {
@@ -209,23 +206,24 @@ func ControlPanel(
 			}).
 			FocusStyle(app.FocusStyleBracket).
 			Build(),
-	)
+	).
+		Gap(1). // 使用 Gap 而不是手动空格
+		Align(ui.AlignStart). // 从左到右排列，对应标题
+		Build()
 
-	buttonsBottom := ui.HStack(
+	buttonsBottom := ui.HStackBuilder(
 		app.ButtonBuilder("[5] Reconcile").
 			OnClick(func() {
 				setCurrentPhase("Reconcile")
 			}).
 			FocusStyle(app.FocusStyleBracket).
 			Build(),
-		ui.Text(" "),
 		app.ButtonBuilder("[6] Layout").
 			OnClick(func() {
 				setCurrentPhase("Layout")
 			}).
 			FocusStyle(app.FocusStyleBracket).
 			Build(),
-		ui.Text(" "),
 		app.ButtonBuilder("[7] Paint").
 			OnClick(func() {
 				setCurrentPhase("Paint")
@@ -233,14 +231,16 @@ func ControlPanel(
 			}).
 			FocusStyle(app.FocusStyleBracket).
 			Build(),
-		ui.Text(" "),
 		app.ButtonBuilder("[0] Idle").
 			OnClick(func() {
 				setCurrentPhase("idle")
 			}).
 			FocusStyle(app.FocusStyleBracket).
 			Build(),
-	)
+	).
+		Gap(1). // 使用 Gap 而不是手动空格
+		Align(ui.AlignStart). // 从左到右排列，对应标题
+		Build()
 
 	content := ui.VStack(
 		buttonsTop,
@@ -251,6 +251,7 @@ func ControlPanel(
 	return ui.Bordered().
 		Style(string(theme.Border())).
 		Child(content).
+		FillWidth(). // 让按钮面板横向拉伸
 		Build()
 }
 
