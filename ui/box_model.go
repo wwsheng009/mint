@@ -4,6 +4,16 @@ package ui
 // These functions implement the CSS-like box model for TUI
 
 func setPadding(vnode VNode, top, right, bottom, left int) {
+	// First, try to use BoxModel interface if available
+	if boxModel, ok := vnode.(interface {
+		SetPadding(top, right, bottom, left int)
+	}); ok {
+		// Component has BoxModelMixin - use its setter
+		boxModel.SetPadding(top, right, bottom, left)
+		return
+	}
+
+	// Fallback: store in props for components not yet migrated
 	props := vnode.Props()
 	if props == nil {
 		props = make(Props)
@@ -13,6 +23,16 @@ func setPadding(vnode VNode, top, right, bottom, left int) {
 }
 
 func setMargin(vnode VNode, top, right, bottom, left int) {
+	// First, try to use BoxModel interface if available
+	if boxModel, ok := vnode.(interface {
+		SetMargin(top, right, bottom, left int)
+	}); ok {
+		// Component has BoxModelMixin - use its setter
+		boxModel.SetMargin(top, right, bottom, left)
+		return
+	}
+
+	// Fallback: store in props for components not yet migrated
 	props := vnode.Props()
 	if props == nil {
 		props = make(Props)
@@ -23,6 +43,16 @@ func setMargin(vnode VNode, top, right, bottom, left int) {
 
 // setTextAlign sets text alignment for any VNode
 func setTextAlign(vnode VNode, align Align) {
+	// First, try to use BoxModel interface if available
+	if boxModel, ok := vnode.(interface {
+		SetTextAlign(align Align)
+	}); ok {
+		// Component has BoxModelMixin - use its setter
+		boxModel.SetTextAlign(align)
+		return
+	}
+
+	// Fallback: store in props for components not yet migrated
 	props := vnode.Props()
 	if props == nil {
 		props = make(Props)
