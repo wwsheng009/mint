@@ -61,6 +61,13 @@ func GetLayoutInfo(vnode VNode) LayoutInfo {
 		return info
 	}
 
+	// First, check props for stretchCross (works for any VNode type, including components/layout.LayoutNode)
+	if props := vnode.Props(); props != nil {
+		if sc, ok := props["stretchCross"].(bool); ok {
+			info.StretchCross = sc
+		}
+	}
+
 	// Check for LayoutNode (from ui.HStack, ui.VStack)
 	if layoutNode, ok := vnode.(*LayoutNode); ok {
 		info.IsHorizontal = layoutNode.Direction() == DirectionRow
@@ -80,6 +87,10 @@ func GetLayoutInfo(vnode VNode) LayoutInfo {
 			}
 			if fh, ok := props["fillHeight"].(bool); ok {
 				info.FillHeight = fh
+			}
+			// Check props for stretchCross override (from components/layout)
+			if sc, ok := props["stretchCross"].(bool); ok {
+				info.StretchCross = sc
 			}
 		}
 		return info
@@ -123,6 +134,10 @@ func GetLayoutInfo(vnode VNode) LayoutInfo {
 				if fh, ok := props["fillHeight"].(bool); ok {
 					info.FillHeight = fh
 				}
+				// Read stretchCross prop (for components using layout.LayoutNode)
+				if sc, ok := props["stretchCross"].(bool); ok {
+					info.StretchCross = sc
+				}
 				// Read align and crossAlign props for ElementVNode
 				if a, ok := props["align"].(int); ok {
 					info.Align = Align(a)
@@ -145,6 +160,10 @@ func GetLayoutInfo(vnode VNode) LayoutInfo {
 				}
 				if fh, ok := props["fillHeight"].(bool); ok {
 					info.FillHeight = fh
+				}
+				// Read stretchCross prop (for components using layout.LayoutNode)
+				if sc, ok := props["stretchCross"].(bool); ok {
+					info.StretchCross = sc
 				}
 				// Read align and crossAlign props for ElementVNode
 				if a, ok := props["align"].(int); ok {
@@ -221,6 +240,20 @@ func GetLayoutInfo(vnode VNode) LayoutInfo {
 				}
 				if a, ok := props["crossAlign"].(int); ok {
 					info.CrossAlign = Align(a)
+				}
+			}
+		} else {
+			// For any other tag (e.g., "button", "text", etc.), read flex properties
+			// This is important for components like Button that need to participate in flex layout
+			if props := vnode.Props(); props != nil {
+				if f, ok := props["flex"].(int); ok {
+					info.Flex = f
+				}
+				if fw, ok := props["fillWidth"].(bool); ok {
+					info.FillWidth = fw
+				}
+				if fh, ok := props["fillHeight"].(bool); ok {
+					info.FillHeight = fh
 				}
 			}
 		}

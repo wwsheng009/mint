@@ -169,15 +169,15 @@ func StatisticsPanel(eventCount, renderCount, bufferUpdates int) ui.VNode {
 }
 
 // ControlPanel provides buttons to trigger each phase
+// Uses Wrap component for automatic wrapping based on screen width
 func ControlPanel(
 	setCurrentPhase func(string),
 	setEventCount func(interface{}),
 	setRenderCount func(interface{}),
 	setBufferUpdates func(interface{}),
 ) ui.VNode {
-	// All buttons in one row with gap spacing
-	// They will naturally wrap if screen is too narrow (terminal limitation)
-	allButtons := ui.HStackBuilder(
+	// Create all buttons as a slice
+	allButtons := []ui.VNode{
 		app.ButtonBuilder("[1] Event").
 			Variant(app.ButtonVariantDanger).
 			OnClick(func() {
@@ -186,14 +186,14 @@ func ControlPanel(
 			}).
 			FocusStyle(app.FocusStyleBracket).
 			Build(),
-		app.ButtonBuilder("[2] setState").
+		app.ButtonBuilder("[2]setState").
 			Variant(app.ButtonVariantSecondary).
 			OnClick(func() {
 				setCurrentPhase("setState")
 			}).
 			FocusStyle(app.FocusStyleBracket).
 			Build(),
-		app.ButtonBuilder("[3] Scheduler").
+		app.ButtonBuilder("[3]Scheduler").
 			Variant(app.ButtonVariantSuccess).
 			OnClick(func() {
 				setCurrentPhase("Scheduler")
@@ -208,7 +208,7 @@ func ControlPanel(
 			}).
 			FocusStyle(app.FocusStyleBracket).
 			Build(),
-		app.ButtonBuilder("[5] Reconcile").
+		app.ButtonBuilder("[5]Reconcile").
 			OnClick(func() {
 				setCurrentPhase("Reconcile")
 			}).
@@ -233,14 +233,22 @@ func ControlPanel(
 			}).
 			FocusStyle(app.FocusStyleBracket).
 			Build(),
-	).
-		Gap(1).           // 1 space gap between buttons
-		Align(ui.AlignStart). // Left-to-right order
+	}
+
+	// Use Wrap component for automatic wrapping
+	// ScreenWidth: actual measured box.Width from runtime (65, not 78)
+	// Using SpaceAround for better visual distribution
+	wrappedButtons := app.WrapBuilder(allButtons...).
+		Gap(1).                     // 1 space gap between buttons
+		RowGap(0).                  // No extra gap between rows
+		ScreenWidth(65).            // Actual runtime box.Width (observed from debug)
+		Align(ui.AlignSpaceAround). // Distribute space around each button
+		FillWidth().                // Stretch each row to fill width
 		Build()
 
 	return ui.Bordered().
 		Style(string(theme.Border())).
-		Child(allButtons).
+		Child(wrappedButtons).
 		FillWidth(). // Stretch to full width
 		Build()
 }

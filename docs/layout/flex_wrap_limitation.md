@@ -74,69 +74,52 @@ ui.VStack(row1, row2).Gap(0).Build()
 
 ---
 
-### 方案 2: 实现自动换行组件
+### 方案 2: 使用 Wrap 组件（已实现） ✅
 
-创建一个智能的 Wrap 组件，自动计算子元素宽度并换行。
+**好消息！** Mint TUI 现在提供了 `Wrap` 组件，支持自动换行。
 
-**实现思路：**
+详细文档：[Wrap Component](./wrap_component.md)
 
-```go
-// WrapComponent - 自动换行的容器
-func WrapComponent(children []ui.VNode, gap int) ui.VNode {
-    const screenWidth = 100 // 可从运行时获取
-
-    var rows [][]ui.VNode
-    currentRow := []ui.VNode{}
-    currentWidth := 0
-
-    for _, child := range children {
-        childWidth := estimateWidth(child)
-
-        // 如果当前行放不下，开始新行
-        if currentWidth + childWidth > screenWidth && len(currentRow) > 0 {
-            rows = append(rows, currentRow)
-            currentRow = []ui.VNode{child}
-            currentWidth = childWidth
-        } else {
-            currentRow = append(currentRow, child)
-            currentWidth += childWidth + gap
-        }
-    }
-
-    // 添加最后一行
-    if len(currentRow) > 0 {
-        rows = append(rows, currentRow)
-    }
-
-    // 构建 VStack
-    var rowNodes []ui.VNode
-    for _, row := range rows {
-        rowNodes = append(rowNodes, ui.HStackBuilder(row...).Gap(gap).Align(ui.AlignStart).Build())
-    }
-
-    return ui.VStackBuilder(rowNodes...).Gap(0).Build()
-}
-```
-
-**使用：**
+**使用示例：**
 
 ```go
+import (
+    "github.com/wwsheng009/mint/app"
+    ui "github.com/wwsheng009/mint/ui"
+)
+
 buttons := []ui.VNode{
-    btn1, btn2, btn3, btn4, btn5, btn6, btn7, btn8,
+    app.ButtonBuilder("[1] Event").Build(),
+    app.ButtonBuilder("[2] State").Build(),
+    app.ButtonBuilder("[3] Scheduler").Build(),
+    app.ButtonBuilder("[4] Render").Build(),
+    app.ButtonBuilder("[5] Reconcile").Build(),
+    app.ButtonBuilder("[6] Layout").Build(),
+    app.ButtonBuilder("[7] Paint").Build(),
+    app.ButtonBuilder("[0] Idle").Build(),
 }
 
-wrapped := WrapComponent(buttons, 1) // 自动换行，gap=1
+wrapped := app.WrapBuilder(buttons...).
+    Gap(1).
+    RowGap(0).
+    ScreenWidth(98).  // 100 - border (2)
+    Align(ui.AlignStart).
+    Build()
 ```
 
 **优点：**
 - ✅ 自动适配屏幕宽度
 - ✅ 响应式布局
 - ✅ 类似 CSS flex-wrap
+- ✅ 基于现有的 HStack/VStack，性能好
+- ✅ 支持多种对齐方式
+- ✅ 智能宽度估算（Button, Text, Input）
 
-**缺点：**
-- ❌ 需要实现 width estimation
-- ❌ 性能开销（需要测量每个子元素）
-- ❌ 复杂度增加
+**使用场景：**
+- 按钮网格/控制面板
+- 标签云
+- 响应式导航
+- 任何需要自动换行的布局
 
 ---
 
@@ -180,9 +163,33 @@ scrollable := ui.Scrollable().Content(allButtons).Build()
 
 ## 推荐做法
 
-### 短期（当前实现）
+### ✅ 推荐方案：使用 Wrap 组件
 
-**手动分行，适应最常见的场景：**
+**最佳实践：**
+
+```go
+// 自动换行，适配不同终端宽度
+wrapped := app.WrapBuilder(buttons...).
+    Gap(1).
+    RowGap(0).
+    ScreenWidth(availableWidth).
+    Align(ui.AlignStart).
+    Build()
+```
+
+**优点：**
+- 简单、可靠、性能好
+- 自动适配终端宽度（80-120 字符）
+- 易于维护和调试
+- 响应式布局
+
+详细使用指南：[Wrap Component Documentation](./wrap_component.md)
+
+---
+
+### 备选方案：手动分行（特殊情况）
+
+如果需要精确控制每行内容，可以手动分行：
 
 ```go
 // 根据终端宽度合理分组
@@ -192,33 +199,10 @@ row2 := ui.HStackBuilder(btn5, btn6, btn7, btn8).Gap(1).Build()
 ui.VStack(row1, row2).Gap(0).Build()
 ```
 
-**优点：**
-- 简单、可靠、性能好
-- 适合大多数终端宽度（80-120 字符）
-- 易于维护和调试
-
----
-
-### 中期（功能增强）
-
-**添加智能换行组件：**
-
-```go
-// 自动检测屏幕宽度并换行
-wrapped := ui.Wrap(
-    ui.Config{
-        ScreenWidth: 100,  // 从运行时获取
-        Gap: 1,
-    },
-    buttons...
-)
-```
-
-**需要实现：**
-1. `ui.Wrap()` 组件
-2. 子元素宽度估算
-3. 屏幕宽度检测
-4. 动态分行逻辑
+**适用场景：**
+- 需要精确控制每行内容
+- 功能性分组（如将相关按钮放在同一行）
+- 固定布局需求
 
 ---
 
@@ -299,29 +283,39 @@ row2 := ui.HStackBuilder(
 | 特性 | CSS Flexbox | Mint TUI | 说明 |
 |------|-------------|----------|------|
 | `flex-wrap: nowrap` | ✅ 默认 | ✅ 默认 | 单行，不换行 |
-| `flex-wrap: wrap` | ✅ 支持 | ❌ 不支持 | 需要手动分行 |
+| `flex-wrap: wrap` | ✅ 支持 | ✅ **支持** | 使用 `Wrap` 组件 |
 | `flex-wrap: wrap-reverse` | ✅ 支持 | ❌ 不支持 | - |
-| `align-content` | ✅ 支持 | ❌ 不支持 | 多行对齐 |
+| `align-content` | ✅ 支持 | ⚠️ 部分 | 支持 per-row alignment |
 | 响应式宽度 | ✅ 媒体查询 | ⚠️ 有限 | 终端宽度固定 |
+
+**解决方案：**
+- 自动换行：使用 `app.WrapBuilder()` - [查看文档](./wrap_component.md)
+- 手动分行：使用 `HStack` + `VStack` 组合
 
 ---
 
 ## 总结
 
-**当前最佳实践：**
+**当前最佳实践（2024+）：**
 
 1. ✅ 使用 `HStackBuilder` + `Gap()` 代替手动空格
 2. ✅ 使用 `Align(ui.AlignStart)` 从左到右排列
 3. ✅ 使用 `FillWidth()` 让容器横向拉伸
-4. ⚠️ 手动分行以适应不同终端宽度
-5. ❌ 不支持自动换行（需要手动实现）
+4. ✅ **使用 `Wrap` 组件实现自动换行** - [查看文档](./wrap_component.md)
+5. ✅ 自动适配不同终端宽度（80-120 字符）
 
-**未来改进方向：**
+**使用建议：**
 
-1. 实现 `Wrap` 组件（自动换行）
-2. 支持屏幕宽度检测
-3. 实现完整的 flex-wrap 支持
-4. 添加响应式布局支持
+| 场景 | 推荐方案 | 示例 |
+|------|---------|------|
+| 自动换行 | `app.WrapBuilder()` | 按钮网格、标签云 |
+| 精确控制 | 手动 `HStack` + `VStack` | 固定布局 |
+| 单行布局 | `HStackBuilder()` | 导航栏 |
+
+**相关文档：**
+- [Wrap Component](./wrap_component.md) - 完整的使用指南和 API 参考
+- [Flex Layout Comparison](./flex_layout.md) - Flexbox 对比
+- [Layout Best Practices](../guide/layout.md) - 布局最佳实践
 
 ---
 

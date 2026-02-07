@@ -311,48 +311,45 @@ func (e *Engine) measureLayoutChildren(vnode VNode, constraints runtime.BoxConst
 
 		totalWidth = fixedWidth
 
-		// If we have flex children and bounded width, distribute remaining space
-		if len(flexChildren) > 0 && constraints.HasBoundedWidth() {
-			availableWidth := constraints.MaxWidth - paddingWidth - (len(children)-1)*gap
-			remainingSpace := availableWidth - fixedWidth
+		// If we have flex children, distribute space
+		if len(flexChildren) > 0 {
+			if constraints.HasBoundedWidth() {
+				availableWidth := constraints.MaxWidth - paddingWidth - (len(children)-1)*gap
+				remainingSpace := availableWidth - fixedWidth
 
-			if e.debug && remainingSpace > 0 {
-				fmt.Fprintf(os.Stderr, "[measureLayoutChildren.HStack] flex distribution: available=%d, fixed=%d, remaining=%d, factors=%d\n",
-					availableWidth, fixedWidth, remainingSpace, flexTotalFactor)
-			}
+				// Distribute remaining space to flex children
+				for _, fc := range flexChildren {
+					flexWidth := (remainingSpace * fc.factor) / flexTotalFactor
+					if flexWidth < 0 {
+						flexWidth = 0
+					}
 
-			// Distribute remaining space to flex children
-			for _, fc := range flexChildren {
-				flexWidth := (remainingSpace * fc.factor) / flexTotalFactor
-				if flexWidth < 0 {
-					flexWidth = 0
+					childConstraints := runtime.BoxConstraints{
+						MinWidth:  flexWidth,
+						MaxWidth:  flexWidth,
+						MinHeight: 0,
+						MaxHeight: innerMaxHeight,
+					}
+					childSize := e.measureVNode(fc.child, childConstraints)
+					totalWidth += childSize.Width
+					if childSize.Height > maxHeight && childSize.Height < runtime.Infinity {
+						maxHeight = childSize.Height
+					}
 				}
-
-				childConstraints := runtime.BoxConstraints{
-					MinWidth:  flexWidth,
-					MaxWidth:  flexWidth,
-					MinHeight: 0,
-					MaxHeight: innerMaxHeight,
-				}
-				childSize := e.measureVNode(fc.child, childConstraints)
-				totalWidth += childSize.Width
-				if childSize.Height > maxHeight && childSize.Height < runtime.Infinity {
-					maxHeight = childSize.Height
-				}
-			}
-		} else {
-			// No flex or unbounded width: measure flex children naturally
-			for _, fc := range flexChildren {
-				childConstraints := runtime.BoxConstraints{
-					MinWidth:  0,
-					MaxWidth:  runtime.Infinity,
-					MinHeight: 0,
-					MaxHeight: innerMaxHeight,
-				}
-				childSize := e.measureVNode(fc.child, childConstraints)
-				totalWidth += childSize.Width
-				if childSize.Height > maxHeight && childSize.Height < runtime.Infinity {
-					maxHeight = childSize.Height
+			} else {
+				// No bounded width: measure flex children naturally
+				for _, fc := range flexChildren {
+					childConstraints := runtime.BoxConstraints{
+						MinWidth:  0,
+						MaxWidth:  runtime.Infinity,
+						MinHeight: 0,
+						MaxHeight: innerMaxHeight,
+					}
+					childSize := e.measureVNode(fc.child, childConstraints)
+					totalWidth += childSize.Width
+					if childSize.Height > maxHeight && childSize.Height < runtime.Infinity {
+						maxHeight = childSize.Height
+					}
 				}
 			}
 		}
@@ -854,6 +851,28 @@ func (e *Engine) calculatePositions(box *ComputedBox, x, y int) {
 	box.Box.X = x
 	box.Box.Y = y
 
+	// Store bounds in VNode if it supports SetBounds (for Paint methods)
+	if box.VNode != nil {
+		// Debug: check what type of VNode we're dealing with
+		if tagger, ok := box.VNode.(interface{ Tag() string }); ok {
+			tag := tagger.Tag()
+			if tag == "button" {
+				// This is a button - why isn't SetBounds being called?
+				if boundsAware, ok := box.VNode.(interface{ SetBounds(int, int, int, int) }); ok {
+					fmt.Fprintf(os.Stderr, "[calculatePositions] BUTTON: SetBounds type assertion SUCCESS, calling SetBounds(x=%d, y=%d, w=%d, h=%d)\n",
+						x, y, box.Box.Width, box.Box.Height)
+					boundsAware.SetBounds(x, y, box.Box.Width, box.Box.Height)
+				} else {
+					fmt.Fprintf(os.Stderr, "[calculatePositions] BUTTON: SetBounds type assertion FAILED! Type=%T\n", box.VNode)
+				}
+			}
+		}
+		// Original logic for all VNodes
+		if boundsAware, ok := box.VNode.(interface{ SetBounds(int, int, int, int) }); ok {
+			boundsAware.SetBounds(x, y, box.Box.Width, box.Box.Height)
+		}
+	}
+
 	if e.debug {
 		fmt.Fprintf(os.Stderr, "[Layout.Position] %s at %s\n",
 			box.VNode.Type(), box.Box.String())
@@ -891,12 +910,6 @@ func (e *Engine) layoutHStack(box *ComputedBox, x, y int) {
 	mainAlign := layoutInfo.Align
 	stretchCross := layoutInfo.StretchCross
 
-	// Debug: check alignment
-	if os.Getenv("TUI_ALIGN_DEBUG") == "true" {
-		fmt.Fprintf(os.Stderr, "[layoutHStack] mainAlign=%d (AlignCenter=%d), box.Width=%d, x=%d\n",
-			mainAlign, rtui.AlignCenter, box.Box.Width, x)
-	}
-
 	// Calculate total width of all children (for main-axis alignment)
 	totalChildWidth := 0
 	for _, child := range box.Children {
@@ -918,8 +931,18 @@ func (e *Engine) layoutHStack(box *ComputedBox, x, y int) {
 			childX = x + box.Box.Width - totalChildWidth
 		}
 	case rtui.AlignSpaceBetween:
-		if len(box.Children) > 1 && totalChildWidth < box.Box.Width {
-			gap = (box.Box.Width - totalChildWidth) / (len(box.Children) - 1)
+		// For SpaceBetween, recalculate gap without including initial gap
+		// SpaceBetween distributes ALL available space as gaps between items
+		if len(box.Children) > 1 {
+			// Calculate total button width only (without gaps)
+			totalButtonWidth := 0
+			for _, child := range box.Children {
+				totalButtonWidth += child.Box.Width
+			}
+			// Distribute remaining space as gaps
+			if totalButtonWidth < box.Box.Width {
+				gap = (box.Box.Width - totalButtonWidth) / (len(box.Children) - 1)
+			}
 		}
 	case rtui.AlignSpaceAround:
 		if len(box.Children) > 0 && totalChildWidth < box.Box.Width {
@@ -974,11 +997,6 @@ func (e *Engine) layoutVStack(box *ComputedBox, x, y int) {
 	crossAlign := layoutInfo.CrossAlign
 	stretchCross := layoutInfo.StretchCross
 
-	if os.Getenv("TUI_STRETCH_DEBUG") == "true" {
-		fmt.Fprintf(os.Stderr, "[layoutVStack] box=(%d,%d,%dx%d) stretchCross=%v\n",
-			box.Box.X, box.Box.Y, box.Box.Width, box.Box.Height, stretchCross)
-	}
-
 	childY := y
 	for _, child := range box.Children {
 		childInfo := rtui.GetLayoutInfo(child.VNode)
@@ -991,10 +1009,6 @@ func (e *Engine) layoutVStack(box *ComputedBox, x, y int) {
 		// IMPORTANT: Only stretch if container width is finite (not Infinity)
 		if (childInfo.Flex > 0 || stretchCross || childInfo.FillWidth) && box.Box.Width < runtime.Infinity {
 			child.Box.Width = box.Box.Width
-			if os.Getenv("TUI_STRETCH_DEBUG") == "true" {
-				fmt.Fprintf(os.Stderr, "[layoutVStack]   stretch child: %d -> %d (text=%q)\n",
-					oldWidth, child.Box.Width, rtui.GetTextContent(child.VNode))
-			}
 		}
 
 		// If text node was stretched, calculate RenderedText with padding
@@ -1038,10 +1052,6 @@ func (e *Engine) layoutVStack(box *ComputedBox, x, y int) {
 					// Build rendered text with padding
 					rendered := strings.Repeat(" ", leftPad) + text + strings.Repeat(" ", rightPad)
 					child.RenderedText = rendered
-					if os.Getenv("TUI_STRETCH_DEBUG") == "true" {
-						fmt.Fprintf(os.Stderr, "[layoutVStack]   renderedText: %q (len=%d, align=%v)\n",
-							child.RenderedText, len(child.RenderedText), textAlign)
-					}
 				}
 			}
 		}

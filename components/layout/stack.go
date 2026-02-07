@@ -4,6 +4,7 @@ import (
 	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
+	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/ui"
 )
 
@@ -35,11 +36,12 @@ const (
 // LayoutNode represents a layout container
 type LayoutNode struct {
 	*ui.ElementVNode
-	direction  Direction
-	align      Align
-	crossAlign Align
-	gap        int
-	padding    [4]int // top, right, bottom, left
+	direction    Direction
+	align        Align
+	crossAlign   Align
+	gap          int
+	padding      [4]int // top, right, bottom, left
+	stretchCross bool   // Stretch children to fill cross axis
 }
 
 // Direction returns the layout direction
@@ -65,6 +67,11 @@ func (l *LayoutNode) Gap() int {
 // Padding returns the padding
 func (l *LayoutNode) Padding() [4]int {
 	return l.padding
+}
+
+// StretchCross returns whether children should stretch to fill cross axis
+func (l *LayoutNode) StretchCross() bool {
+	return l.stretchCross
 }
 
 // =============================================================================
@@ -106,25 +113,91 @@ func (l *LayoutNode) Measure(constraints runtime.BoxConstraints) runtime.Size {
 	if l.direction == DirectionRow {
 		// HStack: measure total width and max height
 		maxChildHeight := 0
+
+		// First pass: identify flex children and measure non-flex children
+		type flexChild struct {
+			child  ui.VNode
+			index  int
+			factor int
+		}
+		var flexChildren []flexChild
+		fixedWidth := 0
+		flexTotalFactor := 0
+
 		for i, child := range l.Children() {
-			// For HStack, children get unlimited width (to measure natural size)
-			// but height is constrained to the container's height
-			childConstraints := runtime.BoxConstraints{
-				MinWidth:  0,
-				MaxWidth:  runtime.Infinity, // Let children expand to natural width
-				MinHeight: 0,
-				MaxHeight: innerMaxHeight,
+			childInfo := rtui.GetLayoutInfo(child)
+			if childInfo.Flex > 0 {
+				// Flex child: will be measured in second pass
+				flexChildren = append(flexChildren, flexChild{
+					child:  child,
+					index:  i,
+					factor: childInfo.Flex,
+				})
+				flexTotalFactor += childInfo.Flex
+			} else {
+				// Non-flex child: measure with natural width
+				childConstraints := runtime.BoxConstraints{
+					MinWidth:  0,
+					MaxWidth:  runtime.Infinity,
+					MinHeight: 0,
+					MaxHeight: innerMaxHeight,
+				}
+				childSize := l.measureChild(child, childConstraints)
+				fixedWidth += childSize.Width
+				if childSize.Height > maxChildHeight {
+					maxChildHeight = childSize.Height
+				}
 			}
-			childSize := l.measureChild(child, childConstraints)
-			totalWidth += childSize.Width
-			if childSize.Height > maxChildHeight {
-				maxChildHeight = childSize.Height
-			}
-			// Add gap between children
+			// Account for gap (except after last child)
 			if i < len(children)-1 {
-				totalWidth += l.gap
+				fixedWidth += l.gap
 			}
 		}
+
+		totalWidth = fixedWidth
+
+		// Second pass: distribute space to flex children if we have bounded width
+		if len(flexChildren) > 0 && constraints.HasBoundedWidth() {
+			availableWidth := constraints.MaxWidth - paddingWidth - (len(children)-1)*l.gap
+			remainingSpace := availableWidth - fixedWidth
+
+			// Distribute remaining space to flex children
+			for _, fc := range flexChildren {
+				flexWidth := (remainingSpace * fc.factor) / flexTotalFactor
+				if flexWidth < 0 {
+					flexWidth = 0
+				}
+
+				childConstraints := runtime.BoxConstraints{
+					MinWidth:  flexWidth,
+					MaxWidth:  flexWidth,
+					MinHeight: 0,
+					MaxHeight: innerMaxHeight,
+				}
+				childSize := l.measureChild(fc.child, childConstraints)
+
+				totalWidth += childSize.Width
+				if childSize.Height > maxChildHeight {
+					maxChildHeight = childSize.Height
+				}
+			}
+		} else {
+			// No bounded width or no flex children: measure flex children naturally
+			for _, fc := range flexChildren {
+				childConstraints := runtime.BoxConstraints{
+					MinWidth:  0,
+					MaxWidth:  runtime.Infinity,
+					MinHeight: 0,
+					MaxHeight: innerMaxHeight,
+				}
+				childSize := l.measureChild(fc.child, childConstraints)
+				totalWidth += childSize.Width
+				if childSize.Height > maxChildHeight {
+					maxChildHeight = childSize.Height
+				}
+			}
+		}
+
 		totalHeight = maxChildHeight
 	} else {
 		// VStack: measure max width and total height
@@ -159,6 +232,158 @@ func (l *LayoutNode) Measure(constraints runtime.BoxConstraints) runtime.Size {
 	totalWidth, totalHeight = constraints.Constrain(totalWidth, totalHeight)
 
 	return runtime.Size{Width: totalWidth, Height: totalHeight}
+}
+
+// IsLayoutMeasurer marks LayoutNode as implementing the LayoutMeasurer interface
+func (l *LayoutNode) IsLayoutMeasurer() {
+}
+
+// MeasureLayout implements runtime.LayoutMeasurer interface
+// This provides single-pass measurement that preserves flex child constraints
+func (l *LayoutNode) MeasureLayout(measurer runtime.ChildMeasurer, constraints runtime.BoxConstraints) runtime.LayoutMeasurement {
+	children := l.Children()
+	if len(children) == 0 {
+		return runtime.NewLayoutMeasurement(
+			runtime.Size{Width: constraints.MinWidth, Height: constraints.MinHeight},
+			nil,
+		)
+	}
+
+	// Add padding to content size
+	paddingWidth := l.padding[1] + l.padding[3] // left + right
+	paddingHeight := l.padding[0] + l.padding[2] // top + bottom
+
+	// Calculate inner constraints (subtract padding from available space)
+	innerMaxWidth := constraints.MaxWidth - paddingWidth
+	innerMaxHeight := constraints.MaxHeight - paddingHeight
+	if innerMaxWidth < 0 {
+		innerMaxWidth = 0
+	}
+	if innerMaxHeight < 0 {
+		innerMaxHeight = 0
+	}
+
+	childConstraints := make([]runtime.BoxConstraints, len(children))
+	var totalWidth, totalHeight int
+
+	if l.direction == DirectionRow {
+		// HStack: measure total width and max height
+		maxChildHeight := 0
+
+		// First pass: identify flex children and measure non-flex children
+		type flexChild struct {
+			index  int
+			factor int
+		}
+		var flexChildren []flexChild
+		fixedWidth := 0
+		flexTotalFactor := 0
+
+		for i, child := range children {
+			childInfo := rtui.GetLayoutInfo(child)
+			if childInfo.Flex > 0 {
+				flexChildren = append(flexChildren, flexChild{
+					index:  i,
+					factor: childInfo.Flex,
+				})
+				flexTotalFactor += childInfo.Flex
+			} else {
+				// Non-flex child: measure with natural width
+				cc := runtime.BoxConstraints{
+					MinWidth:  0,
+					MaxWidth:  runtime.Infinity,
+					MinHeight: 0,
+					MaxHeight: innerMaxHeight,
+				}
+				childSize := measurer.MeasureChild(child, cc)
+				childConstraints[i] = cc
+				fixedWidth += childSize.Width
+				if childSize.Height > maxChildHeight {
+					maxChildHeight = childSize.Height
+				}
+			}
+			// Account for gap (except after last child)
+			if i < len(children)-1 {
+				fixedWidth += l.gap
+			}
+		}
+
+		totalWidth = fixedWidth
+
+		// Second pass: distribute space to flex children if we have bounded width
+		if len(flexChildren) > 0 && constraints.HasBoundedWidth() {
+			availableWidth := constraints.MaxWidth - paddingWidth - (len(children)-1)*l.gap
+			remainingSpace := availableWidth - fixedWidth
+
+			// Distribute remaining space to flex children
+			for _, fc := range flexChildren {
+				flexWidth := (remainingSpace * fc.factor) / flexTotalFactor
+				if flexWidth < 0 {
+					flexWidth = 0
+				}
+
+				cc := runtime.BoxConstraints{
+					MinWidth:  flexWidth,
+					MaxWidth:  flexWidth,
+					MinHeight: 0,
+					MaxHeight: innerMaxHeight,
+				}
+				childConstraints[fc.index] = cc
+				totalWidth += flexWidth
+			}
+		} else {
+			// No bounded width or no flex children: measure flex children naturally
+			for _, fc := range flexChildren {
+				cc := runtime.BoxConstraints{
+					MinWidth:  0,
+					MaxWidth:  runtime.Infinity,
+					MinHeight: 0,
+					MaxHeight: innerMaxHeight,
+				}
+				childConstraints[fc.index] = cc
+			}
+		}
+
+		totalHeight = maxChildHeight
+	} else {
+		// VStack: measure max width and total height
+		maxChildWidth := 0
+		for i := range children {
+			// For VStack, children get width constraint but unlimited height
+			cc := runtime.BoxConstraints{
+				MinWidth:  0,
+				MaxWidth:  innerMaxWidth,
+				MinHeight: 0,
+				MaxHeight: runtime.Infinity,
+			}
+			childConstraints[i] = cc
+			// Note: We can't measure children here without access to their actual sizes
+			// The Engine will use these constraints to measure children
+			if cc.MaxWidth > maxChildWidth {
+				maxChildWidth = cc.MaxWidth
+			}
+		}
+		totalWidth = maxChildWidth
+		// For VStack, we can't calculate totalHeight without measuring children
+		// Use MaxHeight if bounded, otherwise use a reasonable default
+		if constraints.HasBoundedHeight() {
+			totalHeight = constraints.MaxHeight
+		} else {
+			totalHeight = runtime.Infinity
+		}
+	}
+
+	// Add padding
+	totalWidth += paddingWidth
+	totalHeight += paddingHeight
+
+	// Apply constraints
+	totalWidth, totalHeight = constraints.Constrain(totalWidth, totalHeight)
+
+	return runtime.LayoutMeasurement{
+		Size:            runtime.Size{Width: totalWidth, Height: totalHeight},
+		ChildConstraints: childConstraints,
+	}
 }
 
 // measureChild measures a single child, returning its size
@@ -388,6 +613,14 @@ func (b *LayoutBuilder) Gap(n int) *LayoutBuilder {
 // Padding sets the padding (top, right, bottom, left)
 func (b *LayoutBuilder) Padding(top, right, bottom, left int) *LayoutBuilder {
 	b.node.padding = [4]int{top, right, bottom, left}
+	return b
+}
+
+// Stretch makes all children stretch to fill the cross axis
+// For VStack: children stretch to fill width
+// For HStack: children stretch to fill height
+func (b *LayoutBuilder) Stretch() *LayoutBuilder {
+	b.node.stretchCross = true
 	return b
 }
 

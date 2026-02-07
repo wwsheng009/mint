@@ -2,6 +2,7 @@ package button
 
 import (
 	"fmt"
+	"strings"
 	"unicode/utf8"
 
 	"github.com/wwsheng009/mint/framework/event"
@@ -619,14 +620,29 @@ func (b *ButtonVNode) Paint(x, y int) []paint.DrawCmd {
 		focusIndicator = " "
 	}
 
-	// CRITICAL: Set bounds for mouse hit testing
-	// Calculate the actual button width (focus indicator + text)
-	buttonText := focusIndicator + labelText
-	buttonWidth := len(buttonText)  // Simple: each character is 1 cell wide
-	buttonHeight := 1  // Buttons are single-line
+	// CRITICAL: Check if layout engine has set bounds
+	// The layout engine will call SetBounds BEFORE Paint() is called
+	// We use these bounds to determine if we should stretch the button
+	naturalWidth := len(focusIndicator + labelText)  // Simple: each character is 1 cell wide
 
-	// Update the button bounds for mouse event hit testing
-	b.SetBounds(x, y, buttonWidth, buttonHeight)
+	// Build the button text
+	buttonText := focusIndicator + labelText
+	buttonWidth := naturalWidth
+
+	// IMPORTANT: If bounds were set by layout engine, use the layout width
+	// This allows buttons to stretch to fill available space (flex layout)
+	if b.bounds[2] > 0 {
+		// Bounds were set by layout engine (before Paint was called)
+		layoutWidth := b.bounds[2]  // bounds = [x, y, width, height]
+
+		// If layout width is larger than natural width, pad the text to fill
+		if layoutWidth > buttonWidth {
+			// Pad text with spaces to fill the layout width
+			padding := layoutWidth - buttonWidth
+			buttonText += strings.Repeat(" ", padding)
+			buttonWidth = layoutWidth
+		}
+	}
 
 	// Return draw commands: focus indicator + button label
 	return []paint.DrawCmd{

@@ -97,6 +97,8 @@ var (
 	Grid          = layout.Grid
 	GridBuilder   = layout.GridBuilder
 	Center        = layout.Center
+	Wrap          = layout.Wrap
+	WrapBuilder   = layout.NewWrapBuilder
 )
 
 // Grid dimension types
