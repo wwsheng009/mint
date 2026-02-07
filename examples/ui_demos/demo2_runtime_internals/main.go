@@ -175,7 +175,9 @@ func ControlPanel(
 	setRenderCount func(interface{}),
 	setBufferUpdates func(interface{}),
 ) ui.VNode {
-	buttonsTop := ui.HStackBuilder(
+	// All buttons in one row with gap spacing
+	// They will naturally wrap if screen is too narrow (terminal limitation)
+	allButtons := ui.HStackBuilder(
 		app.ButtonBuilder("[1] Event").
 			Variant(app.ButtonVariantDanger).
 			OnClick(func() {
@@ -206,12 +208,6 @@ func ControlPanel(
 			}).
 			FocusStyle(app.FocusStyleBracket).
 			Build(),
-	).
-		Gap(1). // 使用 Gap 而不是手动空格
-		Align(ui.AlignStart). // 从左到右排列，对应标题
-		Build()
-
-	buttonsBottom := ui.HStackBuilder(
 		app.ButtonBuilder("[5] Reconcile").
 			OnClick(func() {
 				setCurrentPhase("Reconcile")
@@ -238,20 +234,14 @@ func ControlPanel(
 			FocusStyle(app.FocusStyleBracket).
 			Build(),
 	).
-		Gap(1). // 使用 Gap 而不是手动空格
-		Align(ui.AlignStart). // 从左到右排列，对应标题
+		Gap(1).           // 1 space gap between buttons
+		Align(ui.AlignStart). // Left-to-right order
 		Build()
-
-	content := ui.VStack(
-		buttonsTop,
-		ui.Text(""),
-		buttonsBottom,
-	)
 
 	return ui.Bordered().
 		Style(string(theme.Border())).
-		Child(content).
-		FillWidth(). // 让按钮面板横向拉伸
+		Child(allButtons).
+		FillWidth(). // Stretch to full width
 		Build()
 }
 
