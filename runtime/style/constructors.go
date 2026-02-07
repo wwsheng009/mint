@@ -69,6 +69,16 @@ func FgBgUnderline(fg, bg Color) Style {
 	return Style{FG: fg, BG: bg, isUnderline: true}
 }
 
+// FgBoldUnderline creates a style with foreground, bold, and underline.
+func FgBoldUnderline(c Color) Style {
+	return Style{FG: c, isBold: true, isUnderline: true}
+}
+
+// FgItalic creates a style with foreground and italic.
+func FgItalic(c Color) Style {
+	return Style{FG: c, isItalic: true}
+}
+
 // =============================================================================
 // 常用样式预设
 // =============================================================================
