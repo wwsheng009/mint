@@ -1071,6 +1071,32 @@ func (n *DeclarativeNode) HandleEvent(ev frameworkevent.Event) bool {
 		}
 	}
 
+	// 1.5. Handle mouse clicks - switch focus before dispatching event
+	// This ensures that clicking a button focuses it before triggering its action
+	if ev.Type().IsMouse() {
+		if mouseEv, ok := ev.(*frameworkevent.MouseEvent); ok {
+			// Handle mouse press and click events
+			if ev.Type() == frameworkevent.EventMousePress || ev.Type() == frameworkevent.EventClick {
+				if n.handleMouseFocus(mouseEv) {
+					if os.Getenv("TUI_DEBUG_UI") == "true" {
+						fmt.Fprintf(os.Stderr, "DeclarativeNode.HandleEvent: mouse click switched focus\n")
+					}
+					// Focus was switched, trigger re-render
+					if useFiber && reconciler != nil {
+						if r, ok := reconciler.(*fiberReconcilerAdapter); ok {
+							r.r.ScheduleUpdate(rtui.LaneSyncLane)
+						}
+					} else {
+						if fwApp := n.getFrameworkApp(); fwApp != nil {
+							fwApp.MarkDirty()
+						}
+					}
+					// Continue to dispatch the event to the newly focused element
+				}
+			}
+		}
+	}
+
 	// 3. Fall back to global event distribution
 	handled := n.distributeEventToVNode(root, ev)
 	if handled {
@@ -1118,6 +1144,86 @@ func (n *DeclarativeNode) distributeEventToVNode(vnode rtui.VNode, ev frameworke
 				return true
 			}
 		}
+	}
+
+	return false
+}
+
+// handleMouseFocus handles mouse clicks by switching focus to the clicked focusable node.
+// Returns true if focus was switched, false otherwise.
+func (n *DeclarativeNode) handleMouseFocus(mouseEv *frameworkevent.MouseEvent) bool {
+	if n.focusMgr == nil {
+		return false
+	}
+
+	// Collect all focusable nodes from the tree
+	var focusable []rtui.FocusableVNode
+	hasModal := rtui.HasModalInTree(n.root)
+
+	if hasModal {
+		// Modal is open: only consider focusable nodes in modal layer
+		focusable = rtui.CollectFocusableInLayer(n.root, rtui.LayerModal)
+	} else {
+		// No modal: consider all focusable nodes
+		focusable = rtui.CollectFocusable(n.root)
+	}
+
+	if len(focusable) == 0 {
+		return false
+	}
+
+	// Find the focusable node that was clicked
+	for i, node := range focusable {
+		if n.nodeWasClicked(node, mouseEv.X, mouseEv.Y) {
+			// Found the clicked focusable node
+			currentIndex := n.focusMgr.CurrentIndex()
+			if i == currentIndex {
+				// Already focused, no change
+				return false
+			}
+
+			if os.Getenv("TUI_DEBUG_UI") == "true" {
+				fmt.Fprintf(os.Stderr, "handleMouseFocus: switching focus from index %d to %d\n",
+					currentIndex, i)
+			}
+
+			// Switch focus to the clicked node
+			n.focusMgr.SetFocusByIndex(i)
+			return true
+		}
+	}
+
+	return false
+}
+
+// nodeWasClicked checks if a VNode was clicked based on mouse coordinates.
+// This performs hit testing using the node's bounds if available.
+func (n *DeclarativeNode) nodeWasClicked(node rtui.VNode, x, y int) bool {
+	// Check if node has bounds information (from SetBounds during Paint)
+	if boundsAware, ok := node.(interface{ GetBounds() (x, y, width, height int) }); ok {
+		bx, by, bw, bh := boundsAware.GetBounds()
+		if os.Getenv("TUI_DEBUG_UI") == "true" {
+			fmt.Fprintf(os.Stderr, "nodeWasClicked: bounds=(%d,%d,%d,%d), mouse=(%d,%d)\n",
+				bx, by, bw, bh, x, y)
+		}
+
+		// Check if mouse click is within bounds
+		if x >= bx && x < bx+bw && y >= by && y < by+bh {
+			if os.Getenv("TUI_DEBUG_UI") == "true" {
+				fmt.Fprintf(os.Stderr, "nodeWasClicked: HIT!\n")
+			}
+			return true
+		}
+
+		if os.Getenv("TUI_DEBUG_UI") == "true" {
+			fmt.Fprintf(os.Stderr, "nodeWasClicked: MISS!\n")
+		}
+		return false
+	}
+
+	// Fallback: check if node implements button-like interface
+	if hasContainsPoint, ok := node.(interface{ ContainsPoint(x, y int) bool }); ok {
+		return hasContainsPoint.ContainsPoint(x, y)
 	}
 
 	return false
