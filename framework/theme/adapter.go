@@ -327,7 +327,7 @@ func InitThemes(initialTheme string) (*Manager, error) {
 	// 如果已经初始化过，直接返回默认管理器
 	if styling.IsThemeInitialized() {
 		mgr := NewManager()
-		mgr.RegisterMultiple(BuiltinThemes())
+		mgr.RegisterAllPresets()
 		if initialTheme != "" {
 			if err := mgr.Set(initialTheme); err != nil {
 				return mgr, fmt.Errorf("failed to set initial theme: %w", err)
@@ -338,7 +338,7 @@ func InitThemes(initialTheme string) (*Manager, error) {
 
 	// 首次初始化
 	mgr := NewManager()
-	mgr.RegisterMultiple(BuiltinThemes())
+	mgr.RegisterAllPresets()
 
 	if initialTheme != "" {
 		if err := mgr.Set(initialTheme); err != nil {

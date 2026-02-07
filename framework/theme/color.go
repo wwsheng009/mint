@@ -333,51 +333,164 @@ func (c Color) Equals(other Color) bool {
 	}
 }
 
-// ColorPalette 颜色调色板
+// ToStyleString converts theme.Color to style.Color string representation
+func (c Color) ToStyleString() string {
+	if c.Type == ColorNone {
+		return ""
+	}
+
+	switch c.Type {
+	case ColorNamed:
+		if name, ok := c.Value.(string); ok {
+			return name
+		}
+	case Color256:
+		if code, ok := c.Value.(int); ok {
+			return fmt.Sprintf("%d", code)
+		}
+	case ColorRGB, ColorHex:
+		if rgb, ok := c.Value.([3]int); ok {
+			return fmt.Sprintf("#%02x%02x%02x", rgb[0], rgb[1], rgb[2])
+		}
+	}
+
+	return ""
+}
+
+
+// ColorPalette 颜色调色板 - semantic color palette with 23 colors
 type ColorPalette struct {
-	// 主色
+	// Layer System - 构建空间层次
+	BG      Color
+	Surface Color
+	Overlay Color
+
+	// Typography - 信息层级
+	Text        Color
+	Muted       Color
+	Placeholder Color
+
+	// Brand & Action - 操作优先级
 	Primary   Color
 	Secondary Color
 	Accent    Color
 
-	// 功能色
+	// State - 系统反馈
 	Success Color
 	Warning Color
 	Error   Color
-	Info    Color
 
-	// 中性色
-	Background Color
-	Foreground Color
-	Muted      Color
+	// Content Relations - 内容连接
+	Link    Color
+	Visited Color
 
-	// 边框色
-	Border Color
-	Focus  Color
+	// Boundaries - 交互定位
+	Border    Color
+	Focus     Color
+	Select    Color
+	Highlight Color
 
-	// 状态色
-	Disabled Color
-	Hover    Color
-	Active   Color
+	// Disabled - 禁用状态
+	DisabledBG Color
+	DisabledFG Color
+
+	// System UI - 系统控件
+	Scrollbar Color
+	Shadow    Color
+	Caret     Color
 }
 
 // NewColorPalette 创建默认颜色调色板
 func NewColorPalette() ColorPalette {
 	return ColorPalette{
-		Primary:     Blue,
-		Secondary:   Cyan,
-		Accent:      Yellow,
-		Success:     Green,
-		Warning:     Yellow,
-		Error:       Red,
-		Info:        Blue,
-		Background:  Black,
-		Foreground:  White,
+		// Layer System
+		BG:      Black,
+		Surface: BrightBlack,
+		Overlay: Black,
+
+		// Typography
+		Text:        White,
 		Muted:       BrightBlack,
-		Border:      BrightBlack,
-		Focus:       Blue,
-		Disabled:    BrightBlack,
-		Hover:       Blue,
-		Active:      Blue,
+		Placeholder: BrightBlack,
+
+		// Brand & Action
+		Primary:   Blue,
+		Secondary: Cyan,
+		Accent:    Yellow,
+
+		// State
+		Success: Green,
+		Warning: Yellow,
+		Error:   Red,
+
+		// Content Relations
+		Link:    Blue,
+		Visited: Magenta,
+
+		// Boundaries
+		Border:    BrightBlack,
+		Focus:     Blue,
+		Select:    Blue,
+		Highlight: Yellow,
+
+		// Disabled
+		DisabledBG: BrightBlack,
+		DisabledFG: BrightBlack,
+
+		// System UI
+		Scrollbar: BrightBlack,
+		Shadow:    Black,
+		Caret:     White,
+	}
+}
+
+// NewColorPaletteFromPreset creates a ColorPalette from a ThemePreset
+func NewColorPaletteFromPreset(preset ThemePreset) ColorPalette {
+	getColor := func(key string) Color {
+		if cv, ok := preset.Colors[key]; ok {
+			return Color{Type: ColorRGB, Value: cv.RGB}
+		}
+		return NoColor
+	}
+
+	return ColorPalette{
+		// Layer System
+		BG:      getColor("bg"),
+		Surface: getColor("surface"),
+		Overlay: getColor("overlay"),
+
+		// Typography
+		Text:        getColor("text"),
+		Muted:       getColor("muted"),
+		Placeholder: getColor("placeholder"),
+
+		// Brand & Action
+		Primary:   getColor("primary"),
+		Secondary: getColor("secondary"),
+		Accent:    getColor("accent"),
+
+		// State
+		Success: getColor("success"),
+		Warning: getColor("warning"),
+		Error:   getColor("error"),
+
+		// Content Relations
+		Link:    getColor("link"),
+		Visited: getColor("visited"),
+
+		// Boundaries
+		Border:    getColor("border"),
+		Focus:     getColor("focus"),
+		Select:    getColor("select"),
+		Highlight: getColor("highlight"),
+
+		// Disabled
+		DisabledBG: getColor("disabled-bg"),
+		DisabledFG: getColor("disabled-fg"),
+
+		// System UI
+		Scrollbar: getColor("scrollbar"),
+		Shadow:    getColor("shadow"),
+		Caret:     getColor("caret"),
 	}
 }

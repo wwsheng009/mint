@@ -5,6 +5,8 @@ import (
 	"sort"
 	"sync"
 	"time"
+
+	"github.com/wwsheng009/mint/runtime/style"
 )
 
 // Manager 主题管理器
@@ -50,6 +52,27 @@ func (m *Manager) Register(theme *Theme) {
 	// 如果是第一个主题，设为默认
 	if m.current == nil {
 		m.current = theme
+	}
+}
+
+// RegisterPreset 注册预设主题
+func (m *Manager) RegisterPreset(name string) error {
+	presets := Presets()
+	preset, ok := presets[name]
+	if !ok {
+		return fmt.Errorf("preset not found: %s", name)
+	}
+
+	theme := NewThemeWithPalette(name, NewColorPaletteFromPreset(preset))
+	m.Register(theme)
+	return nil
+}
+
+// RegisterAllPresets 注册所有预设主题
+func (m *Manager) RegisterAllPresets() {
+	presets := Presets()
+	for name := range presets {
+		_ = m.RegisterPreset(name)
 	}
 }
 
@@ -514,3 +537,161 @@ func (t *Transition) GetProgress() float64 {
 func (t *Transition) IsComplete() bool {
 	return t.progress >= 1.0
 }
+
+// =============================================================================
+// Global Theme Manager
+// =============================================================================
+
+var globalManager = NewManager()
+
+// init initializes the global theme manager with all presets
+func init() {
+	globalManager.RegisterAllPresets()
+	// Set nord as the default theme
+	_ = globalManager.Set("nord")
+}
+
+// GlobalManager returns the global theme manager
+func GlobalManager() *Manager {
+	return globalManager
+}
+
+// SetTheme sets the current theme by name
+func SetTheme(name string) error {
+	return globalManager.Set(name)
+}
+
+// GetTheme returns the current theme
+func GetTheme() *Theme {
+	return globalManager.Current()
+}
+
+// GetColor returns a color from the current theme
+func GetColor(key string) Color {
+	return globalManager.GetColor(key)
+}
+
+// GetStyle returns a style from the current theme
+func GetStyle(componentID, styleKey string) StyleConfig {
+	return globalManager.GetStyle(componentID, styleKey)
+}
+
+// ListThemes returns all available theme names
+func ListThemes() []string {
+	return globalManager.List()
+}
+
+// =============================================================================
+// Convenience Functions for Semantic Colors (return style.Color for components)
+// =============================================================================
+
+// Layer System
+func BG() style.Color      { return style.Color(GetColor("bg").ToStyleString()) }
+func Surface() style.Color { return style.Color(GetColor("surface").ToStyleString()) }
+func Overlay() style.Color { return style.Color(GetColor("overlay").ToStyleString()) }
+
+// Typography
+func Text() style.Color        { return style.Color(GetColor("text").ToStyleString()) }
+func Muted() style.Color       { return style.Color(GetColor("muted").ToStyleString()) }
+func Placeholder() style.Color { return style.Color(GetColor("placeholder").ToStyleString()) }
+
+// Brand & Action
+func Primary() style.Color   { return style.Color(GetColor("primary").ToStyleString()) }
+func Secondary() style.Color { return style.Color(GetColor("secondary").ToStyleString()) }
+func Accent() style.Color    { return style.Color(GetColor("accent").ToStyleString()) }
+
+// State
+func Success() style.Color { return style.Color(GetColor("success").ToStyleString()) }
+func Warning() style.Color { return style.Color(GetColor("warning").ToStyleString()) }
+func Error() style.Color   { return style.Color(GetColor("error").ToStyleString()) }
+
+// Content Relations
+func Link() style.Color    { return style.Color(GetColor("link").ToStyleString()) }
+func Visited() style.Color { return style.Color(GetColor("visited").ToStyleString()) }
+
+// Boundaries
+func Border() style.Color    { return style.Color(GetColor("border").ToStyleString()) }
+func Focus() style.Color     { return style.Color(GetColor("focus").ToStyleString()) }
+func Select() style.Color    { return style.Color(GetColor("select").ToStyleString()) }
+func Highlight() style.Color { return style.Color(GetColor("highlight").ToStyleString()) }
+
+// Disabled
+func DisabledBG() style.Color { return style.Color(GetColor("disabled-bg").ToStyleString()) }
+func DisabledFG() style.Color { return style.Color(GetColor("disabled-fg").ToStyleString()) }
+
+// System UI
+func Scrollbar() style.Color { return style.Color(GetColor("scrollbar").ToStyleString()) }
+func Shadow() style.Color    { return style.Color(GetColor("shadow").ToStyleString()) }
+func Caret() style.Color     { return style.Color(GetColor("caret").ToStyleString()) }
+
+// =============================================================================
+// Legacy convenience aliases (for backward compatibility)
+// =============================================================================
+
+// Foreground returns the primary text color
+func Foreground() style.Color { return Text() }
+
+// Background returns the global background color
+func Background() style.Color { return BG() }
+
+// Disabled returns the disabled foreground color
+func Disabled() style.Color { return DisabledFG() }
+
+// Hover returns the select color (for hover state)
+func Hover() style.Color { return Select() }
+
+// Active returns the select color (for active state)
+func Active() style.Color { return Select() }
+
+// Info returns the primary color
+func Info() style.Color { return Primary() }
+
+// FocusBright returns a bright variant for high visibility focus
+func FocusBright() style.Color {
+	// Use bright-yellow for maximum visibility on any background
+	return style.Color("bright-yellow")
+}
+
+// =============================================================================
+// Color functions that return theme.Color type
+// =============================================================================
+
+// Layer System (Color type)
+func BGColor() Color      { return GetColor("bg") }
+func SurfaceColor() Color { return GetColor("surface") }
+func OverlayColor() Color { return GetColor("overlay") }
+
+// Typography (Color type)
+func TextColor() Color        { return GetColor("text") }
+func MutedColor() Color       { return GetColor("muted") }
+func PlaceholderColor() Color { return GetColor("placeholder") }
+
+// Brand & Action (Color type)
+func PrimaryColor() Color   { return GetColor("primary") }
+func SecondaryColor() Color { return GetColor("secondary") }
+func AccentColor() Color    { return GetColor("accent") }
+
+// State (Color type)
+func SuccessColor() Color { return GetColor("success") }
+func WarningColor() Color { return GetColor("warning") }
+func ErrorColor() Color   { return GetColor("error") }
+
+// Content Relations (Color type)
+func LinkColor() Color    { return GetColor("link") }
+func VisitedColor() Color { return GetColor("visited") }
+
+// Boundaries (Color type)
+func BorderColor() Color    { return GetColor("border") }
+func FocusColor() Color     { return GetColor("focus") }
+func SelectColor() Color    { return GetColor("select") }
+func HighlightColor() Color { return GetColor("highlight") }
+
+// Disabled (Color type)
+func DisabledBGColor() Color { return GetColor("disabled-bg") }
+func DisabledFGColor() Color { return GetColor("disabled-fg") }
+
+// System UI (Color type)
+func ScrollbarColor() Color { return GetColor("scrollbar") }
+func ShadowColor() Color    { return GetColor("shadow") }
+func CaretColor() Color     { return GetColor("caret") }
+

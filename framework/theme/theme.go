@@ -135,36 +135,72 @@ func (t *Theme) resolveColor(key string) Color {
 
 func (t *Theme) getColorByName(name string) Color {
 	switch strings.ToLower(name) {
+	// Layer System
+	case "bg", "background":
+		return t.Colors.BG
+	case "surface":
+		return t.Colors.Surface
+	case "overlay":
+		return t.Colors.Overlay
+
+	// Typography
+	case "text", "fg", "foreground":
+		return t.Colors.Text
+	case "muted":
+		return t.Colors.Muted
+	case "placeholder":
+		return t.Colors.Placeholder
+
+	// Brand & Action
 	case "primary":
 		return t.Colors.Primary
 	case "secondary":
 		return t.Colors.Secondary
 	case "accent":
 		return t.Colors.Accent
+
+	// State
 	case "success":
 		return t.Colors.Success
 	case "warning":
 		return t.Colors.Warning
 	case "error":
 		return t.Colors.Error
-	case "info":
-		return t.Colors.Info
-	case "background", "bg":
-		return t.Colors.Background
-	case "foreground", "fg":
-		return t.Colors.Foreground
-	case "muted":
-		return t.Colors.Muted
+
+	// Content Relations
+	case "link":
+		return t.Colors.Link
+	case "visited":
+		return t.Colors.Visited
+
+	// Boundaries
 	case "border":
 		return t.Colors.Border
 	case "focus":
 		return t.Colors.Focus
-	case "disabled":
-		return t.Colors.Disabled
-	case "hover":
-		return t.Colors.Hover
-	case "active":
-		return t.Colors.Active
+	case "select", "active", "hover":
+		return t.Colors.Select
+	case "highlight":
+		return t.Colors.Highlight
+
+	// Disabled
+	case "disabled-bg":
+		return t.Colors.DisabledBG
+	case "disabled-fg", "disabled":
+		return t.Colors.DisabledFG
+
+	// System UI
+	case "scrollbar":
+		return t.Colors.Scrollbar
+	case "shadow":
+		return t.Colors.Shadow
+	case "caret":
+		return t.Colors.Caret
+
+	// Legacy aliases for backward compatibility
+	case "info":
+		return t.Colors.Primary
+
 	default:
 		return NoColor
 	}
@@ -258,36 +294,71 @@ func (t *Theme) WithColor(colorName string, color Color) *Theme {
 
 	// 修改指定颜色
 	switch strings.ToLower(colorName) {
+	// Layer System
+	case "bg", "background":
+		newTheme.Colors.BG = color
+	case "surface":
+		newTheme.Colors.Surface = color
+	case "overlay":
+		newTheme.Colors.Overlay = color
+
+	// Typography
+	case "text", "fg", "foreground":
+		newTheme.Colors.Text = color
+	case "muted":
+		newTheme.Colors.Muted = color
+	case "placeholder":
+		newTheme.Colors.Placeholder = color
+
+	// Brand & Action
 	case "primary":
 		newTheme.Colors.Primary = color
 	case "secondary":
 		newTheme.Colors.Secondary = color
 	case "accent":
 		newTheme.Colors.Accent = color
+
+	// State
 	case "success":
 		newTheme.Colors.Success = color
 	case "warning":
 		newTheme.Colors.Warning = color
 	case "error":
 		newTheme.Colors.Error = color
-	case "info":
-		newTheme.Colors.Info = color
-	case "background", "bg":
-		newTheme.Colors.Background = color
-	case "foreground", "fg":
-		newTheme.Colors.Foreground = color
-	case "muted":
-		newTheme.Colors.Muted = color
+
+	// Content Relations
+	case "link":
+		newTheme.Colors.Link = color
+	case "visited":
+		newTheme.Colors.Visited = color
+
+	// Boundaries
 	case "border":
 		newTheme.Colors.Border = color
 	case "focus":
 		newTheme.Colors.Focus = color
-	case "disabled":
-		newTheme.Colors.Disabled = color
-	case "hover":
-		newTheme.Colors.Hover = color
-	case "active":
-		newTheme.Colors.Active = color
+	case "select", "active", "hover":
+		newTheme.Colors.Select = color
+	case "highlight":
+		newTheme.Colors.Highlight = color
+
+	// Disabled
+	case "disabled-bg":
+		newTheme.Colors.DisabledBG = color
+	case "disabled-fg", "disabled":
+		newTheme.Colors.DisabledFG = color
+
+	// System UI
+	case "scrollbar":
+		newTheme.Colors.Scrollbar = color
+	case "shadow":
+		newTheme.Colors.Shadow = color
+	case "caret":
+		newTheme.Colors.Caret = color
+
+	// Legacy aliases
+	case "info":
+		newTheme.Colors.Primary = color
 	}
 
 	return &newTheme
@@ -371,7 +442,29 @@ func (t *Theme) Merge(other *Theme) *Theme {
 
 	// 合并颜色（other 优先）
 	if other != nil {
-		// 如果颜色不是 NoColor，则覆盖
+		// Layer System
+		if !other.Colors.BG.IsNone() {
+			result.Colors.BG = other.Colors.BG
+		}
+		if !other.Colors.Surface.IsNone() {
+			result.Colors.Surface = other.Colors.Surface
+		}
+		if !other.Colors.Overlay.IsNone() {
+			result.Colors.Overlay = other.Colors.Overlay
+		}
+
+		// Typography
+		if !other.Colors.Text.IsNone() {
+			result.Colors.Text = other.Colors.Text
+		}
+		if !other.Colors.Muted.IsNone() {
+			result.Colors.Muted = other.Colors.Muted
+		}
+		if !other.Colors.Placeholder.IsNone() {
+			result.Colors.Placeholder = other.Colors.Placeholder
+		}
+
+		// Brand & Action
 		if !other.Colors.Primary.IsNone() {
 			result.Colors.Primary = other.Colors.Primary
 		}
@@ -381,6 +474,8 @@ func (t *Theme) Merge(other *Theme) *Theme {
 		if !other.Colors.Accent.IsNone() {
 			result.Colors.Accent = other.Colors.Accent
 		}
+
+		// State
 		if !other.Colors.Success.IsNone() {
 			result.Colors.Success = other.Colors.Success
 		}
@@ -390,32 +485,46 @@ func (t *Theme) Merge(other *Theme) *Theme {
 		if !other.Colors.Error.IsNone() {
 			result.Colors.Error = other.Colors.Error
 		}
-		if !other.Colors.Info.IsNone() {
-			result.Colors.Info = other.Colors.Info
+
+		// Content Relations
+		if !other.Colors.Link.IsNone() {
+			result.Colors.Link = other.Colors.Link
 		}
-		if !other.Colors.Background.IsNone() {
-			result.Colors.Background = other.Colors.Background
+		if !other.Colors.Visited.IsNone() {
+			result.Colors.Visited = other.Colors.Visited
 		}
-		if !other.Colors.Foreground.IsNone() {
-			result.Colors.Foreground = other.Colors.Foreground
-		}
-		if !other.Colors.Muted.IsNone() {
-			result.Colors.Muted = other.Colors.Muted
-		}
+
+		// Boundaries
 		if !other.Colors.Border.IsNone() {
 			result.Colors.Border = other.Colors.Border
 		}
 		if !other.Colors.Focus.IsNone() {
 			result.Colors.Focus = other.Colors.Focus
 		}
-		if !other.Colors.Disabled.IsNone() {
-			result.Colors.Disabled = other.Colors.Disabled
+		if !other.Colors.Select.IsNone() {
+			result.Colors.Select = other.Colors.Select
 		}
-		if !other.Colors.Hover.IsNone() {
-			result.Colors.Hover = other.Colors.Hover
+		if !other.Colors.Highlight.IsNone() {
+			result.Colors.Highlight = other.Colors.Highlight
 		}
-		if !other.Colors.Active.IsNone() {
-			result.Colors.Active = other.Colors.Active
+
+		// Disabled
+		if !other.Colors.DisabledBG.IsNone() {
+			result.Colors.DisabledBG = other.Colors.DisabledBG
+		}
+		if !other.Colors.DisabledFG.IsNone() {
+			result.Colors.DisabledFG = other.Colors.DisabledFG
+		}
+
+		// System UI
+		if !other.Colors.Scrollbar.IsNone() {
+			result.Colors.Scrollbar = other.Colors.Scrollbar
+		}
+		if !other.Colors.Shadow.IsNone() {
+			result.Colors.Shadow = other.Colors.Shadow
+		}
+		if !other.Colors.Caret.IsNone() {
+			result.Colors.Caret = other.Colors.Caret
 		}
 
 		// 合并样式
