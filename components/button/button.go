@@ -2,6 +2,7 @@ package button
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"unicode/utf8"
 
@@ -778,13 +779,22 @@ func (b *ButtonVNode) Paint(x, y int) []paint.DrawCmd {
 	paddingLeft := padding[3]
 	paddingRight := padding[1]
 
-	// Natural width includes content and user-specified padding
-	naturalWidth := contentWidth + paddingLeft + paddingRight
+	// Natural width is just the content width (buttonText includes brackets and focus)
+	// Padding will be applied during rendering, not included in naturalWidth calculation
+	naturalWidth := contentWidth
 
 	// Get layout width from bounds (set by layout engine)
 	layoutWidth := naturalWidth
 	if b.bounds[2] > 0 {
 		layoutWidth = b.bounds[2]  // Allocated width from flex
+	}
+
+	// Debug logging for paint calculations
+	if os.Getenv("TUI_PAINT_DEBUG") == "true" {
+		fmt.Fprintf(os.Stderr, "[DEBUG-PAINT] label=%q, bounds=[%d %d %d %d], x=%d, y=%d\n",
+			b.label, b.bounds[0], b.bounds[1], b.bounds[2], b.bounds[3], x, y)
+		fmt.Fprintf(os.Stderr, "[DEBUG-PAINT]   contentWidth=%d, naturalWidth=%d, layoutWidth=%d, paddingLeft=%d, paddingRight=%d\n",
+			contentWidth, naturalWidth, layoutWidth, paddingLeft, paddingRight)
 	}
 
 	// Apply text alignment if button is stretched by flex layout
@@ -794,25 +804,29 @@ func (b *ButtonVNode) Paint(x, y int) []paint.DrawCmd {
 
 		switch textAlign {
 		case rtui.AlignCenter:
-			// Center text: distribute space on both sides
-			leftPadding := paddingLeft + availableSpace/2
-			rightPadding := paddingRight + (availableSpace - availableSpace/2)
-			buttonText = strings.Repeat(" ", leftPadding) + buttonText +
-				strings.Repeat(" ", rightPadding)
+			// Center text: distribute space evenly on both sides
+			// Start with user-specified padding, then distribute remaining space
+			leftSpace := paddingLeft + availableSpace/2
+			rightSpace := paddingRight + (availableSpace - availableSpace/2)
+			buttonText = strings.Repeat(" ", leftSpace) + buttonText +
+				strings.Repeat(" ", rightSpace)
 
 		case rtui.AlignEnd:
-			// Right-align: add all space to left
-			leftPadding := paddingLeft + availableSpace
-			buttonText = strings.Repeat(" ", leftPadding) + buttonText
+			// Right-align: add all available space to left
+			leftSpace := paddingLeft + availableSpace
+			buttonText = strings.Repeat(" ", leftSpace) + buttonText +
+				strings.Repeat(" ", paddingRight)
 
 		case rtui.AlignStart:
-			// Left-align: add all space to right (default)
-			buttonText = buttonText + strings.Repeat(" ", paddingRight + availableSpace)
+			// Left-align: add all available space to right
+			buttonText = strings.Repeat(" ", paddingLeft) + buttonText +
+				strings.Repeat(" ", paddingRight+availableSpace)
 
 		case rtui.AlignSpaceBetween, rtui.AlignSpaceAround:
 			// These don't make sense for single button text alignment
 			// Fall back to left-align
-			buttonText = buttonText + strings.Repeat(" ", paddingRight + availableSpace)
+			buttonText = strings.Repeat(" ", paddingLeft) + buttonText +
+				strings.Repeat(" ", paddingRight+availableSpace)
 		}
 	} else {
 		// Not stretched: just apply user-specified padding
