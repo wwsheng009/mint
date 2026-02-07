@@ -52,16 +52,25 @@ func RuntimeDemo() ui.VNode {
 
 // HeaderPanel shows the title with border
 func HeaderPanel() ui.VNode {
-	headerContent := ui.HStack(
-		app.NewTextBuilder("                    Runtime Scheduling Pipeline Visualization").
+	// Use HStackBuilder with AlignCenter for true center alignment
+	// instead of manual space padding
+	headerContent := ui.HStackBuilder(
+		app.NewTextBuilder("Runtime Scheduling Pipeline Visualization").
 			Style(style.FgBold(theme.Text())).
 			Build(),
-	)
-
-	return ui.Bordered().
-		Style(string(theme.Primary())).
-		Child(headerContent).
+	).
+		Gap(0).
+		Align(ui.AlignCenter).
 		Build()
+
+	// Wrap Bordered with Flex to make it stretch to full available width
+	return ui.Flex(
+		ui.Bordered().
+			Style(string(theme.Primary())).
+			Child(headerContent).
+			Build(),
+		1, // Flex factor 1 = grow to fill available space
+	)
 }
 
 // PipelineVisualization shows the runtime pipeline flow
