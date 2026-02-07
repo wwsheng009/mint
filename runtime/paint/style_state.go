@@ -1,6 +1,7 @@
 package paint
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/wwsheng009/mint/runtime/style"
@@ -134,11 +135,14 @@ func (s *StyleStateMachine) buildDiffCodes(from, to style.Style) string {
 	}
 
 	// Colors
+	// CRITICAL FIX: Always emit background color if target has background
+	// This prevents issues where background is "unchanged" but should be re-applied after a reset
+	if to.BG != "" {
+		codes = append(codes, colorCode(to.BG, true))
+	}
+	// Foreground
 	if from.FG != to.FG && to.FG != "" {
 		codes = append(codes, colorCode(to.FG, false))
-	}
-	if from.BG != to.BG && to.BG != "" {
-		codes = append(codes, colorCode(to.BG, true))
 	}
 
 	if len(codes) == 0 {
@@ -179,29 +183,141 @@ func (s *StyleStateMachine) fullStyle(st style.Style) string {
 }
 
 // colorCode converts a color to ANSI code
+// 正确处理标准色 (30-37/40-47)、明亮色 (90-97/100-107) 和 TrueColor (RGB)
 func colorCode(color style.Color, isBackground bool) string {
 	c := string(color)
-	// Handle hex colors
+
+	// Handle hex colors (#RRGGBB format) - convert to TrueColor ANSI
 	if strings.HasPrefix(c, "#") {
-		// For now, skip hex colors - would require extended ANSI codes
-		return ""
+		rgb, err := parseHexString(c)
+		if err != nil {
+			return ""
+		}
+		// TrueColor format: ESC[38;2;R;G;B for FG, ESC[48;2;R;G;B for BG
+		if isBackground {
+			return fmt.Sprintf("48;2;%d;%d;%d", rgb[0], rgb[1], rgb[2])
+		}
+		return fmt.Sprintf("38;2;%d;%d;%d", rgb[0], rgb[1], rgb[2])
 	}
 
-	// Handle RGB format
+	// Handle RGB format rgb(r,g,b)
 	if strings.HasPrefix(c, "rgb(") {
-		return ""
+		rgb, err := parseRGBString(c)
+		if err != nil {
+			return ""
+		}
+		if isBackground {
+			return fmt.Sprintf("48;2;%d;%d;%d", rgb[0], rgb[1], rgb[2])
+		}
+		return fmt.Sprintf("38;2;%d;%d;%d", rgb[0], rgb[1], rgb[2])
 	}
 
-	// Standard colors
+	// Handle 256-color format (number 0-255)
+	if is256Color(c) {
+		code, _ := parse256Color(c)
+		if isBackground {
+			return fmt.Sprintf("48;5;%d", code)
+		}
+		return fmt.Sprintf("38;5;%d", code)
+	}
+
+	// Standard and bright colors (named colors)
 	code, ok := colorToAnsi[strings.ToLower(c)]
 	if !ok {
 		return ""
 	}
 
+	// 检查是否为明亮色 (code >= 8)
+	if code >= 8 && code <= 15 {
+		// 明亮色使用 90-97 (fg) 或 100-107 (bg) 范围
+		// colorToAnsi 中 bright- 颜色的编码是 8-15
+		// 我们需要将其映射到正确的 ANSI 范围
+		brightCode := code - 8  // 0-7 范围
+		if isBackground {
+			return itoa(100 + brightCode)  // 100-107
+		}
+		return itoa(90 + brightCode)  // 90-97
+	}
+
+	// 标准色使用 30-37 (fg) 或 40-47 (bg) 范围
 	if isBackground {
 		return itoa(code + 40)
 	}
 	return itoa(code + 30)
+}
+
+// parseHexString parses #RRGGBB hex color string
+func parseHexString(s string) ([3]int, error) {
+	s = strings.TrimPrefix(s, "#")
+	if len(s) != 6 {
+		return [3]int{}, fmt.Errorf("invalid hex color: %s", s)
+	}
+
+	var rgb [3]int
+	for i := 0; i < 3; i++ {
+		val, err := parseHexByte(s[i*2 : i*2+2])
+		if err != nil {
+			return [3]int{}, err
+		}
+		rgb[i] = val
+	}
+	return rgb, nil
+}
+
+// parseHexByte parses a 2-character hex string to byte
+func parseHexByte(s string) (int, error) {
+	var val int
+	_, err := fmt.Sscanf(s, "%02x", &val)
+	return val, err
+}
+
+// parseRGBString parses rgb(r,g,b) format
+func parseRGBString(s string) ([3]int, error) {
+	s = strings.TrimPrefix(s, "rgb(")
+	s = strings.TrimSuffix(s, ")")
+
+	parts := strings.Split(s, ",")
+	if len(parts) != 3 {
+		return [3]int{}, fmt.Errorf("invalid rgb color: %s", s)
+	}
+
+	var rgb [3]int
+	for i, part := range parts {
+		val, err := parseDecimalInt(strings.TrimSpace(part))
+		if err != nil {
+			return [3]int{}, err
+		}
+		rgb[i] = val
+	}
+	return rgb, nil
+}
+
+// parseDecimalInt parses a decimal integer string
+func parseDecimalInt(s string) (int, error) {
+	var val int
+	_, err := fmt.Sscanf(s, "%d", &val)
+	return val, err
+}
+
+// is256Color checks if the string is a 256-color code (0-255)
+func is256Color(s string) bool {
+	if len(s) == 0 {
+		return false
+	}
+	// Check if all characters are digits
+	for _, c := range s {
+		if c < '0' || c > '9' {
+			return false
+		}
+	}
+	// Check if it's in valid range 0-255
+	val, _ := parseDecimalInt(s)
+	return val >= 0 && val <= 255
+}
+
+// parse256Color parses a 256-color code string
+func parse256Color(s string) (int, error) {
+	return parseDecimalInt(s)
 }
 
 // colorToAnsi maps color names to ANSI color codes

@@ -5,11 +5,11 @@ import (
 	"unicode/utf8"
 
 	"github.com/wwsheng009/mint/framework/event"
+	"github.com/wwsheng009/mint/framework/theme"
 	"github.com/wwsheng009/mint/internal/log"
 	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
-	"github.com/wwsheng009/mint/runtime/theme"
 	"github.com/wwsheng009/mint/ui"
 )
 
@@ -585,14 +585,15 @@ func (b *ButtonVNode) Paint(x, y int) []paint.DrawCmd {
 				Bold(true)
 		case FocusStyleBracket:
 			// Brackets with bright color for visibility
-			// If button has no custom foreground, use bright focus color
-			if buttonStyle.FG == "" {
-				buttonStyle = buttonStyle.
-					Foreground(theme.FocusBright()).
-					Bold(true)
-			} else {
-				// Preserve custom colors but make bold
-				buttonStyle = buttonStyle.Bold(true)
+			// IMPORTANT: Preserve background color, but ALWAYS use bright foreground for focus
+			customBG := buttonStyle.BG
+			// Force bright foreground color for focus visibility
+			buttonStyle = buttonStyle.
+				Foreground(theme.FocusBright()).
+				Bold(true)
+			// Ensure custom background is not lost
+			if customBG != "" {
+				buttonStyle = buttonStyle.Background(customBG)
 			}
 		case FocusStyleBold:
 			// Bold only (preserves background color)
@@ -618,9 +619,18 @@ func (b *ButtonVNode) Paint(x, y int) []paint.DrawCmd {
 		focusIndicator = " "
 	}
 
+	// CRITICAL: Set bounds for mouse hit testing
+	// Calculate the actual button width (focus indicator + text)
+	buttonText := focusIndicator + labelText
+	buttonWidth := len(buttonText)  // Simple: each character is 1 cell wide
+	buttonHeight := 1  // Buttons are single-line
+
+	// Update the button bounds for mouse event hit testing
+	b.SetBounds(x, y, buttonWidth, buttonHeight)
+
 	// Return draw commands: focus indicator + button label
 	return []paint.DrawCmd{
-		paint.NewTextCmd(x, y, focusIndicator+labelText, buttonStyle),
+		paint.NewTextCmd(x, y, buttonText, buttonStyle),
 	}
 }
 

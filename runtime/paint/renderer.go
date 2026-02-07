@@ -95,6 +95,9 @@ func (r *Renderer) Render() string {
 
 	// 重置样式
 	r.output.WriteString("\x1b[0m")
+	// CRITICAL: Reset style state machine's current style after emitting reset
+	// This ensures the next render call will have a clean state
+	r.styleState.Reset()
 
 	// 交换缓冲区
 	r.swapBuffers()
