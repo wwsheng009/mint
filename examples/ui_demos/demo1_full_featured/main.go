@@ -155,10 +155,10 @@ func MainBody(count int, setCount func(interface{}), input string, setInput func
 		app.InputBuilder().
 			Value(input).
 			Placeholder("Type something...").
-			Width(30). // Set explicit width to match divider
+			Width(30). // Input width (less than panel width)
 			OnChange(setInput).
 			Build(),
-		app.NewTextBuilder("──────────────────────────────").
+		app.NewTextBuilder("──────────────────────────────────────").
 			Style(style.Style{}.Foreground(theme.Border())).
 			Build(),
 		app.NewTextBuilder(items[0]).
