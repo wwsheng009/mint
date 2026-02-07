@@ -2,7 +2,6 @@ package button
 
 import (
 	"fmt"
-	"os"
 	"unicode/utf8"
 
 	"github.com/wwsheng009/mint/framework/event"
@@ -521,8 +520,6 @@ func (b *ButtonVNode) Paint(x, y int) []paint.DrawCmd {
 	if b.hasFocus {
 		focusMarker = "*"
 	}
-	fmt.Fprintf(os.Stderr, "[Button.Paint] label=%q, hasFocus=%v, focusMarker=%s, x=%d, y=%d, bounds=%v\n",
-		b.label, b.hasFocus, focusMarker, x, y, b.bounds)
 	log.ButtonLogger.Debug("ButtonPaint label=%q, hasFocus=%v, focusMarker=%s", b.label, b.hasFocus, focusMarker)
 
 	// Get button style for rendering

@@ -94,14 +94,6 @@ func (e *Engine) buildComputedBoxWithSize(vnode VNode, parent *ComputedBox, cons
 			MaxHeight: runtime.Infinity,
 		})
 		box.NaturalWidth = naturalSize.Width
-		if e.debug {
-			tag := "unknown"
-			if tagger, ok := vnode.(interface{ Tag() string }); ok {
-				tag = tagger.Tag()
-			}
-			fmt.Fprintf(os.Stderr, "[buildComputedBox] tag=%s: NaturalWidth=%d\n",
-				tag, box.NaturalWidth)
-		}
 	}
 
 	// Get vnode children to determine if this is a leaf node
@@ -876,21 +868,7 @@ func (e *Engine) calculatePositions(box *ComputedBox, x, y int) {
 
 	// Store bounds in VNode if it supports SetBounds (for Paint methods)
 	if box.VNode != nil {
-		// Debug: check what type of VNode we're dealing with
-		if tagger, ok := box.VNode.(interface{ Tag() string }); ok {
-			tag := tagger.Tag()
-			if tag == "button" {
-				// This is a button - why isn't SetBounds being called?
-				if boundsAware, ok := box.VNode.(interface{ SetBounds(int, int, int, int) }); ok {
-					fmt.Fprintf(os.Stderr, "[calculatePositions] BUTTON: SetBounds type assertion SUCCESS, calling SetBounds(x=%d, y=%d, w=%d, h=%d)\n",
-						x, y, box.Box.Width, box.Box.Height)
-					boundsAware.SetBounds(x, y, box.Box.Width, box.Box.Height)
-				} else {
-					fmt.Fprintf(os.Stderr, "[calculatePositions] BUTTON: SetBounds type assertion FAILED! Type=%T\n", box.VNode)
-				}
-			}
-		}
-		// Original logic for all VNodes
+		// Store bounds in VNode if it supports SetBounds
 		if boundsAware, ok := box.VNode.(interface{ SetBounds(int, int, int, int) }); ok {
 			boundsAware.SetBounds(x, y, box.Box.Width, box.Box.Height)
 		}
@@ -996,14 +974,6 @@ func (e *Engine) layoutHStack(box *ComputedBox, x, y int) {
 			case rtui.AlignStart, rtui.AlignSpaceBetween, rtui.AlignSpaceAround:
 				// Left align (default): no adjustment
 				alignedChildX = childX
-			}
-			if e.debug {
-				tag := "unknown"
-				if tagger, ok := child.VNode.(interface{ Tag() string }); ok {
-					tag = tagger.Tag()
-				}
-				fmt.Fprintf(os.Stderr, "[layoutHStack] child[%d] tag=%s: naturalWidth=%d, allocatedWidth=%d, alignment adjusted: x=%d -> %d\n",
-					i, tag, child.NaturalWidth, child.Box.Width, childX, alignedChildX)
 			}
 		}
 
