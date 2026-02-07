@@ -4,11 +4,12 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/wwsheng009/mint/runtime/dimension"
 	"github.com/wwsheng009/mint/framework/event"
+	"github.com/wwsheng009/mint/framework/theme"
 	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
-	"github.com/wwsheng009/mint/runtime/theme"
 	"github.com/wwsheng009/mint/ui"
 )
 
@@ -287,12 +288,13 @@ func (t *TextareaVNode) HandleEvent(e event.Event) bool {
 
 // Measure implements runtime.Measurable interface
 // Calculates the size of the textarea based on content and constraints
+// Per Ant Design spec: min-height=3, padding=1, line-gap=0
 func (t *TextareaVNode) Measure(constraints runtime.BoxConstraints) runtime.Size {
 	if t == nil {
 		return runtime.Size{Width: 0, Height: 0}
 	}
 
-	// Calculate dimensions based on content
+	// Calculate dimensions based on content per dimension spec
 	content := t.value
 	if content == "" && t.placeholder != "" {
 		content = t.placeholder
@@ -313,11 +315,17 @@ func (t *TextareaVNode) Measure(constraints runtime.BoxConstraints) runtime.Size
 		}
 	}
 
-	// Width: content + 2 for border on each side (total 4)
-	width := maxWidth + 4
+	// Width: content + padding per dimension spec (TextAreaPadding=1, so total +2)
+	// + 2 for border on each side (total +4)
+	width := maxWidth + 4 + (dimension.TextAreaPadding * 2)
 
 	// Height: number of lines + 2 for top/bottom border
 	height := len(lines) + 2
+
+	// Apply minimum height per dimension spec
+	if height < dimension.TextAreaMinHeight {
+		height = dimension.TextAreaMinHeight
+	}
 
 	// Apply explicit rows/cols if set
 	if t.rows > 0 && height < t.rows+2 {
@@ -436,6 +444,9 @@ func (t *TextareaVNode) Paint(x, y int) []paint.DrawCmd {
 
 	// Draw bottom border
 	cmds = append(cmds, paint.NewTextCmd(x, y+height-1, topBorder, borderStyle))
+
+	// CRITICAL: Set bounds for mouse hit testing
+	t.SetBounds(x, y, width, height)
 
 	return cmds
 }

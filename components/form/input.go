@@ -3,11 +3,12 @@ package form
 import (
 	"unicode/utf8"
 
+	"github.com/wwsheng009/mint/runtime/dimension"
 	"github.com/wwsheng009/mint/framework/event"
+	"github.com/wwsheng009/mint/framework/theme"
 	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
-	"github.com/wwsheng009/mint/runtime/theme"
 	"github.com/wwsheng009/mint/ui"
 )
 
@@ -469,12 +470,13 @@ func (i *InputVNode) HandleEvent(e event.Event) bool {
 
 // Measure implements runtime.Measurable interface
 // Calculates the size of the input based on value/placeholder and constraints
+// Per Ant Design spec: height=1, padding LR=1, min-width=10
 func (i *InputVNode) Measure(constraints runtime.BoxConstraints) runtime.Size {
 	if i == nil {
 		return runtime.Size{Width: 0, Height: 0}
 	}
 
-	// Calculate content width
+	// Calculate content width per dimension spec
 	content := i.value
 	if content == "" && i.placeholder != "" {
 		content = i.placeholder
@@ -484,12 +486,18 @@ func (i *InputVNode) Measure(constraints runtime.BoxConstraints) runtime.Size {
 	}
 
 	// Width: content length + 2 for brackets ":"
-	width := utf8.RuneCountInString(content) + 2
-	height := 1
+	// + padding per dimension spec (InputPaddingLR=1, so total +2)
+	width := utf8.RuneCountInString(content) + 2 + (dimension.InputPaddingLR * 2)
+	height := dimension.InputHeight
 
 	// Apply max length constraint
 	if i.maxLength > 0 && width > i.maxLength+2 {
 		width = i.maxLength + 2
+	}
+
+	// Apply minimum width per dimension spec
+	if width < dimension.InputMinWidth {
+		width = dimension.InputMinWidth
 	}
 
 	// Apply constraints
@@ -596,6 +604,11 @@ func (i *InputVNode) Paint(x, y int) []paint.DrawCmd {
 	if i.disabled {
 		inputStyle = inputStyle.Foreground(theme.DisabledFG()).Background(theme.DisabledBG())
 	}
+
+	// CRITICAL: Set bounds for mouse hit testing
+	inputWidth := utf8.RuneCountInString(inputLabel)
+	inputHeight := 1
+	i.SetBounds(x, y, inputWidth, inputHeight)
 
 	return []paint.DrawCmd{
 		paint.NewTextCmd(x, y, inputLabel, inputStyle),

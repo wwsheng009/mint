@@ -3,11 +3,12 @@ package form
 import (
 	"unicode/utf8"
 
+	"github.com/wwsheng009/mint/runtime/dimension"
 	"github.com/wwsheng009/mint/framework/event"
+	"github.com/wwsheng009/mint/framework/theme"
 	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
-	"github.com/wwsheng009/mint/runtime/theme"
 	"github.com/wwsheng009/mint/ui"
 )
 
@@ -336,13 +337,14 @@ func (b *CheckboxBuilderType) OnMouseLeave(fn func()) *CheckboxBuilderType {
 
 // Measure implements runtime.Measurable interface
 // Calculates the size of the checkbox based on label and constraints
+// Per Ant Design spec: box-width=3, gap=1
 func (c *CheckboxVNode) Measure(constraints runtime.BoxConstraints) runtime.Size {
 	if c == nil {
 		return runtime.Size{Width: 0, Height: 0}
 	}
 
-	// Width: checkbox "[X]" (3) + space (1) + label length
-	width := 4 + utf8.RuneCountInString(c.label)
+	// Width per dimension spec: CheckBoxWidth "[X]" + CheckBoxGap + label length
+	width := dimension.CheckBoxWidth + dimension.CheckBoxGap + utf8.RuneCountInString(c.label)
 	height := 1
 
 	// Apply constraints
@@ -422,6 +424,11 @@ func (c *CheckboxVNode) Paint(x, y int) []paint.DrawCmd {
 	if c.disabled {
 		checkboxStyle = checkboxStyle.Foreground(theme.DisabledFG()).Background(theme.DisabledBG())
 	}
+
+	// CRITICAL: Set bounds for mouse hit testing
+	checkboxWidth := utf8.RuneCountInString(displayText)
+	checkboxHeight := 1
+	c.SetBounds(x, y, checkboxWidth, checkboxHeight)
 
 	return []paint.DrawCmd{
 		paint.NewTextCmd(x, y, displayText, checkboxStyle),

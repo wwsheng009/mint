@@ -3,11 +3,12 @@ package form
 import (
 	"unicode/utf8"
 
+	"github.com/wwsheng009/mint/runtime/dimension"
 	"github.com/wwsheng009/mint/framework/event"
+	"github.com/wwsheng009/mint/framework/theme"
 	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
-	"github.com/wwsheng009/mint/runtime/theme"
 	"github.com/wwsheng009/mint/ui"
 )
 
@@ -356,6 +357,7 @@ func (b *SelectBuilderType) Build() ui.VNode {
 
 // Measure implements runtime.Measurable interface
 // Calculates the size of the select based on options and constraints
+// Per Ant Design spec: height=1, uses Input dimension spec
 func (s *SelectVNode) Measure(constraints runtime.BoxConstraints) runtime.Size {
 	if s == nil {
 		return runtime.Size{Width: 0, Height: 0}
@@ -370,14 +372,15 @@ func (s *SelectVNode) Measure(constraints runtime.BoxConstraints) runtime.Size {
 		}
 	}
 
-	// If no options, use default width
+	// If no options, use Input min-width per dimension spec
 	if maxWidth == 0 {
-		maxWidth = 10
+		maxWidth = dimension.InputMinWidth
 	}
 
 	// Width: longest label + 4 for "< " and " >"
-	width := maxWidth + 4
-	height := 1
+	// + padding per Input spec (InputPaddingLR=1, so total +2)
+	width := maxWidth + 4 + (dimension.InputPaddingLR * 2)
+	height := dimension.InputHeight
 
 	// Apply constraints
 	if width < constraints.MinWidth {
@@ -459,6 +462,11 @@ func (s *SelectVNode) Paint(x, y int) []paint.DrawCmd {
 	if s.disabled {
 		selectStyle = selectStyle.Foreground(theme.DisabledFG()).Background(theme.DisabledBG())
 	}
+
+	// CRITICAL: Set bounds for mouse hit testing
+	selectWidth := utf8.RuneCountInString(selectDisplay)
+	selectHeight := 1
+	s.SetBounds(x, y, selectWidth, selectHeight)
 
 	return []paint.DrawCmd{
 		paint.NewTextCmd(x, y, selectDisplay, selectStyle),
