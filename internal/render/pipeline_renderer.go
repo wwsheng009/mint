@@ -119,6 +119,12 @@ func (r *PipelineRenderer) hasLayerNodes(vnode rtui.VNode) bool {
 	return false
 }
 
+// GetRenderingPipeline returns the inner RenderingPipeline for direct access.
+// This allows calling the constraint-based Render method directly.
+func (r *PipelineRenderer) GetRenderingPipeline() *RenderingPipeline {
+	return r.pipeline
+}
+
 // Measure implements the VNodeRenderer Measure interface
 // This allows the renderer to be used for size calculation
 func (r *PipelineRenderer) Measure(vnode rtui.VNode, maxWidth, maxHeight int) (width, height int) {

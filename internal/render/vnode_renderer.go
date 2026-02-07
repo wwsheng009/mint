@@ -249,3 +249,15 @@ func (r *PipelineRendererAdapter) ClearCache() {
 	r.pipeline.ClearCache()
 }
 
+// GetPipeline returns the underlying PipelineRenderer for direct access.
+// This allows callers to access the rendering pipeline if needed.
+func (r *PipelineRendererAdapter) GetPipeline() *PipelineRenderer {
+	return r.pipeline
+}
+
+// GetRenderingPipeline returns the inner RenderingPipeline for constraint-based rendering.
+// This is the recommended way to access the pipeline for layout-aware rendering.
+func (r *PipelineRendererAdapter) GetRenderingPipeline() *RenderingPipeline {
+	return r.pipeline.GetRenderingPipeline()
+}
+

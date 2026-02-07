@@ -209,9 +209,24 @@ func (n *DeclarativeNode) Paint(ctx component.PaintContext, buf *paint.Buffer) {
 	// Phase 2: Apply focus state
 	n.applyFocusState()
 
-	// Phase 3: UNIFIED RENDERING - use PipelineRenderer
+	// Phase 3: UNIFIED RENDERING - use PipelineRenderer with constraint-based layout
 	if n.renderer != nil {
-		n.renderer.Render(n.root, ctx.Bounds.X, ctx.Bounds.Y, buf)
+		// Use the buffer's dimensions as layout constraints (not the x, y position)
+		// The RenderingPipeline will use BoxConstraints for proper flex layout behavior
+		if adapter, ok := n.renderer.(*PipelineRendererAdapter); ok {
+			// Call the pipeline directly with buffer size constraints
+			constraints := runtime.NewBoxConstraints(0, buf.Width, 0, buf.Height)
+			if err := adapter.GetRenderingPipeline().Render(n.root, constraints, buf); err != nil {
+				// Fallback to legacy rendering if pipeline fails
+				if os.Getenv("TUI_DEBUG_UI") == "true" {
+					fmt.Fprintf(os.Stderr, "DeclarativeNode.Paint: pipeline render failed: %v, falling back to legacy\n", err)
+				}
+				n.PaintVNode(n.root, ctx.Bounds.X, ctx.Bounds.Y, buf)
+			}
+		} else {
+			// Use the generic renderer interface (old path)
+			n.renderer.Render(n.root, ctx.Bounds.X, ctx.Bounds.Y, buf)
+		}
 	} else {
 		// Fallback to legacy painting
 		n.PaintVNode(n.root, ctx.Bounds.X, ctx.Bounds.Y, buf)
