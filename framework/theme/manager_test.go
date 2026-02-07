@@ -363,70 +363,60 @@ func TestManagerUnregister(t *testing.T) {
 	}
 }
 
-func TestBuiltinThemes(t *testing.T) {
-	themes := BuiltinThemes()
+func TestPresets(t *testing.T) {
+	presets := Presets()
 
-	if len(themes) < 4 {
-		t.Errorf("BuiltinThemes() should return at least 4 themes, got %d", len(themes))
+	if len(presets) < 5 {
+		t.Errorf("Presets() should return at least 5 themes, got %d", len(presets))
 	}
 
-	for _, theme := range themes {
-		if theme == nil {
-			t.Error("BuiltinThemes() should not contain nil themes")
+	expectedThemes := []string{"nord", "dracula", "gruvbox-dark", "catppuccin-mocha", "solarized-dark"}
+	for _, name := range expectedThemes {
+		if _, ok := presets[name]; !ok {
+			t.Errorf("Presets() should contain theme: %s", name)
 		}
-		if theme.Name == "" {
-			t.Error("BuiltinThemes() themes should have names")
+	}
+
+	for name, preset := range presets {
+		if preset.Name != name {
+			t.Errorf("Preset name mismatch: got %s, want %s", preset.Name, name)
+		}
+		if len(preset.Colors) != 23 {
+			t.Errorf("Preset %s should have 23 colors, got %d", name, len(preset.Colors))
 		}
 	}
 }
 
-func TestGetBuiltinTheme(t *testing.T) {
-	tests := []struct {
-		name       string
-		theme      string
-		wantNotNil bool
-		wantName   string
-	}{
-		{"light theme", "light", true, "light"},
-		{"dark theme", "dark", true, "dark"},
-		{"dracula theme", "dracula", true, "dracula"},
-		{"nord theme", "nord", true, "nord"},
-		{"unknown theme", "unknown", true, "dark"}, // returns default dark theme
+func TestRegisterPreset(t *testing.T) {
+	mgr := NewManager()
+
+	err := mgr.RegisterPreset("nord")
+	if err != nil {
+		t.Errorf("RegisterPreset() failed: %v", err)
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := GetBuiltinTheme(tt.theme)
-			if (got != nil) != tt.wantNotNil {
-				t.Errorf("GetBuiltinTheme() = %v, wantNotNil %v", got, tt.wantNotNil)
-			}
-			if got != nil && got.Name != tt.wantName {
-				t.Errorf("GetBuiltinTheme() Name = %v, want %v", got.Name, tt.wantName)
-			}
-		})
+	if !mgr.Has("nord") {
+		t.Error("RegisterPreset() should register the theme")
 	}
 }
 
-func TestBuiltinThemeNames(t *testing.T) {
-	names := BuiltinThemeNames()
+func TestRegisterAllPresets(t *testing.T) {
+	mgr := NewManager()
+	mgr.RegisterAllPresets()
 
-	if len(names) < 4 {
-		t.Errorf("BuiltinThemeNames() should return at least 4 names, got %d", len(names))
-	}
-
-	// Check that all names are unique
-	seen := make(map[string]bool)
-	for _, name := range names {
-		if seen[name] {
-			t.Errorf("BuiltinThemeNames() contains duplicate: %s", name)
-		}
-		seen[name] = true
+	expectedCount := 5
+	if mgr.Count() != expectedCount {
+		t.Errorf("RegisterAllPresets() should register %d themes, got %d", expectedCount, mgr.Count())
 	}
 }
 
 func TestTransition(t *testing.T) {
-	from := DarkTheme
-	to := LightTheme
+	mgr := NewManager()
+	mgr.RegisterAllPresets()
+
+	from := mgr.Current()
+	_ = mgr.Set("dracula")
+	to := mgr.Current()
 
 	transition := NewTransition(from, to, 300*1000000) // 300ms in nanoseconds
 

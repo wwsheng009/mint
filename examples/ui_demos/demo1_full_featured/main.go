@@ -4,8 +4,10 @@
 // - Declarative components
 // - State system (Hooks)
 // - Layout system (Flex, VStack, HStack, Table)
-// - Modal (Layer) - NEW: Using Layer system
+// - Modal (Layer) - Using Layer system
 // - Input with Focus management
+// - Theme system with semantic colors
+// - Button variants (Primary, Secondary, Danger, Success)
 // - Scroll containers
 // - VirtualList for large data
 // - Event handling
@@ -21,10 +23,15 @@ import (
 	"fmt"
 
 	"github.com/wwsheng009/mint/app"
+	"github.com/wwsheng009/mint/framework/theme"
+	"github.com/wwsheng009/mint/runtime/style"
 	"github.com/wwsheng009/mint/ui"
 )
 
 func main() {
+	// Ensure default theme is loaded
+	_ = theme.SetTheme("nord")
+
 	err := ui.Run(App,
 		ui.WithWidth(80),
 		ui.WithHeight(24),
@@ -71,33 +78,32 @@ func App() ui.VNode {
 }
 
 // Header demonstrates state + layout with Bordered component
+// Uses theme colors: PRIMARY for header background, TEXT for text
 func Header(count int, setShowModal func(bool), setCount func(interface{})) ui.VNode {
 	headerContent := ui.HStack(
 		app.NewTextBuilder("TUI Engine Demo").
-			Bold(true).
-			FgColor("white").
-			BgColor("blue").
+			Style(style.Style{}.Foreground(theme.Text()).Background(theme.Primary()).Bold(true)).
 			Build(),
 		app.NewTextBuilder("              ").
-			BgColor("blue").
+			Style(style.Style{}.Foreground(theme.Surface()).Background(theme.Primary())).
 			Build(),
 		app.ButtonBuilder("[Open Modal]").
+			Variant(app.ButtonVariantPrimary). // 使用 Primary variant，默认就有 PRIMARY 背景
 			OnClick(func() {
 				setShowModal(true)
 			}).
-			FocusStyle(app.FocusStyleUnderline).
+			FocusStyle(app.FocusStyleBracket). // 恢复 Bracket 样式
 			Build(),
 		app.NewTextBuilder(" ").
-			BgColor("blue").
+			Style(style.Style{}.Foreground(theme.Surface()).Background(theme.Primary())).
 			Build(),
 		app.NewTextBuilder(fmt.Sprintf("Clicks: %d", count)).
-			BgColor("blue").
-			FgColor("yellow").
+			Style(style.Style{}.Foreground(theme.BG()).Background(theme.Primary()).Bold(true)).
 			Build(),
 	)
 
 	return ui.Bordered().
-		Color("blue").
+		Style(string(theme.Primary())).
 		Child(headerContent).
 		Build()
 }
@@ -122,20 +128,20 @@ func Header(count int, setShowModal func(bool), setCount func(interface{})) ui.V
 //	└───────────┴──────────────────────────────────────────┘
 func MainBody(count int, setCount func(interface{}), input string, setInput func(string), items []string) ui.VNode {
 	// Left sidebar with menu buttons
+	// Uses theme colors: MUTED for menu label, Primary variant for Add Count, Danger variant for Quit
 	sidebar := ui.VStackBuilder(
 		app.NewTextBuilder("Menu").
-			Bold(true).
-			Underline(true).
+			Style(style.Style{}.Foreground(theme.Muted()).Bold(true).Underline(true)).
 			Build(),
 		app.ButtonBuilder("Add Count").
+			Variant(app.ButtonVariantPrimary).
 			OnClick(func() {
 				setCount(func(c int) int { return c + 1 })
 			}).
 			FocusStyle(app.FocusStyleBracket).
 			Build(),
 		app.ButtonBuilder("Quit").
-			BgColor("red").
-			FgColor("white").
+			Variant(app.ButtonVariantDanger).
 			FocusStyle(app.FocusStyleBracket).
 			OnClick(func() {
 				ui.Quit()
@@ -144,7 +150,7 @@ func MainBody(count int, setCount func(interface{}), input string, setInput func
 	).Stretch().Build()
 
 	// Right content area with input and log lines
-	// Use VStackBuilder with Stretch to make all items fill the width
+	// Uses theme colors: TEXT for labels, MUTED for log lines, BORDER for divider
 	contentArea := ui.VStackBuilder(
 		app.InputBuilder().
 			Value(input).
@@ -153,48 +159,46 @@ func MainBody(count int, setCount func(interface{}), input string, setInput func
 			OnChange(setInput).
 			Build(),
 		app.NewTextBuilder("──────────────────────────────").
-			FgColor("blue").
+			Style(style.Style{}.Foreground(theme.Border())).
 			Build(),
 		app.NewTextBuilder(items[0]).
-			FgColor("gray").
+			Style(style.Style{}.Foreground(theme.Muted())).
 			Build(),
 		app.NewTextBuilder(items[1]).
-			FgColor("gray").
+			Style(style.Style{}.Foreground(theme.Muted())).
 			Build(),
 		app.NewTextBuilder(items[2]).
-			FgColor("gray").
+			Style(style.Style{}.Foreground(theme.Muted())).
 			Build(),
 		app.NewTextBuilder(items[3]).
-			FgColor("gray").
+			Style(style.Style{}.Foreground(theme.Muted())).
 			Build(),
 		app.NewTextBuilder(items[4]).
-			FgColor("gray").
+			Style(style.Style{}.Foreground(theme.Muted())).
 			Build(),
 		ui.HStack(
 			app.NewTextBuilder(items[5]).
-				FgColor("gray").
+				Style(style.Style{}.Foreground(theme.Muted())).
 				Build(),
 			app.NewTextBuilder(" ...").
-				FgColor("dark-gray").
-				Italic(true).
+				Style(style.Style{}.Foreground(theme.Placeholder()).Italic(true)).
 				Build(),
 		),
 	).Stretch().Build()
 
 	// Combine sidebar and content with borders
-	// Apply Flex to both Bordered nodes so they stretch to match heights
-	// Use gap=0 so they fill the full width evenly
+	// Uses theme BORDER color for borders
 	return ui.HStackBuilder(
 		ui.Flex(
 			ui.Bordered().
-				Color("blue").
+				Style(string(theme.Border())).
 				Child(sidebar).
 				Build(),
 			1, // Flex factor
 		),
 		ui.Flex(
 			ui.Bordered().
-				Color("blue").
+				Style(string(theme.Border())).
 				Child(contentArea).
 				Build(),
 			1, // Flex factor
@@ -204,41 +208,45 @@ func MainBody(count int, setCount func(interface{}), input string, setInput func
 
 // ConfirmModal demonstrates Layer + Focus Trap with overlay rendering
 // Uses the new Layer system for automatic centering and backdrop
+// Uses theme colors: WARNING for modal border, SUCCESS for OK button
 func ConfirmModal(onClose func()) ui.VNode {
 	// Modal content - the actual dialog box with border
+	// Uses theme WARNING color for modal border to indicate caution
 	modalBox := ui.Bordered().
-		Color("yellow").
-		Width(40).  // Fixed width for the modal
+		Style(string(theme.Warning())).
+		Width(40). // Fixed width for the modal
 		Child(
 			ui.VStackBuilder(
 				ui.Text(""),
 				// Centered title - use HStack with AlignCenter
+				// Uses theme WARNING color for title
 				ui.HStackBuilder(
 					app.NewTextBuilder("*** Are you sure? ***").
-						Bold(true).
-						FgColor("yellow").
+						Style(style.Style{}.Foreground(theme.Warning()).Bold(true)).
 						Build(),
 				).Align(ui.AlignCenter).Build(),
 				ui.Text(""),
 				// Centered buttons - use HStack with AlignCenter
+				// Uses theme colors: Secondary for Cancel, Success for OK
 				ui.HStackBuilder(
 					app.ButtonBuilder("[ Cancel ]").
+						Variant(app.ButtonVariantSecondary).
 						OnClick(onClose).
 						FocusStyle(app.FocusStyleBracket).
 						Build(),
 					ui.Text(" "),
 					app.ButtonBuilder("[ OK ]").
-						BgColor("green").
-						FgColor("white").
+						Variant(app.ButtonVariantSuccess).
 						FocusStyle(app.FocusStyleBracket).
 						OnClick(onClose).
 						Build(),
 				).Align(ui.AlignCenter).Build(),
 				ui.Text(""),
 				// Centered footer text
+				// Uses theme PLACEHOLDER color for hint text
 				ui.HStackBuilder(
 					app.NewTextBuilder("Press ESC to close").
-						FgColor("gray").
+						Style(style.Style{}.Foreground(theme.Placeholder())).
 						Build(),
 				).Align(ui.AlignCenter).Build(),
 				ui.Text(""),

@@ -106,10 +106,10 @@ func TestNewColorPalette(t *testing.T) {
 	if palette.Primary.IsNone() {
 		t.Error("Primary color should not be none")
 	}
-	if palette.Background.IsNone() {
-		t.Error("Background color should not be none")
+	if palette.BG.IsNone() {
+		t.Error("BG color should not be none")
 	}
-	if palette.Foreground.IsNone() {
-		t.Error("Foreground color should not be none")
+	if palette.Text.IsNone() {
+		t.Error("Text color should not be none")
 	}
 }
