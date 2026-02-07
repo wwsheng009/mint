@@ -624,16 +624,34 @@ func (a *App) handleEvent(ev frameworkevent.Event) {
 		return
 	}
 
-	// 鼠标事件处理 - 发送到根组件
+	// 鼠标事件处理 - 发送到根组件进行 hit testing
 	// 支持的鼠标事件类型: EventMousePress, EventMouseRelease, EventMouseMove,
-	// EventMouseWheel, EventMouseEnter, EventMouseLeave, EventClick
-	if ev.Type().IsMouse() || ev.Type() == frameworkevent.EventClick {
+	// EventMouseWheel, EventMouseEnter, EventMouseLeave
+	if ev.Type().IsMouse() {
 		// DEBUG: 打印鼠标事件
 		if a.debugMode {
-			fmt.Fprintf(os.Stderr, "[MOUSE] Event type: %d, Target: %v\n", ev.Type(), ev.Target())
+			fmt.Fprintf(os.Stderr, "[MOUSE] Event type: %d\n", ev.Type())
 		}
+
+		// 发送到根组件处理，由根组件负责 hit testing 和分发
 		if a.root != nil {
 			if handler, ok := a.root.(frameworkevent.Component); ok {
+				if handler.HandleEvent(ev) {
+					a.dirty = true
+				}
+			}
+		}
+		return
+	}
+
+	// Click 事件（已包含目标信息）
+	if ev.Type() == frameworkevent.EventClick {
+		if a.debugMode {
+			fmt.Fprintf(os.Stderr, "[CLICK] Target: %v\n", ev.Target())
+		}
+		// 直接分发到目标组件
+		if target := ev.Target(); target != nil {
+			if handler, ok := target.(frameworkevent.Component); ok {
 				if handler.HandleEvent(ev) {
 					a.dirty = true
 				}

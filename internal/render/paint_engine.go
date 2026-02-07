@@ -16,7 +16,9 @@ import (
 // PaintEngine renders VNode trees using pre-computed layout information
 // This is the paint-only phase of the new rendering pipeline
 type PaintEngine struct {
-	debug bool
+	debug         bool
+	lastHadModal  bool  // Track if modal was present in last frame (for backdrop restoration)
+	forceFullRender bool // Flag to force full buffer render on next frame
 }
 
 // NewPaintEngine creates a new paint engine
@@ -36,6 +38,18 @@ func (e *PaintEngine) Paint(layout *compute.ComputedLayout, buffer *paint.Buffer
 	if layout == nil || layout.Root == nil {
 		return nil
 	}
+
+	// If force full render is set (e.g., modal appeared/disappeared), clear buffer
+	if e.forceFullRender {
+		e.forceFullRender = false
+		// Clear the entire buffer to force re-render of all cells
+		for y := 0; y < buffer.Height; y++ {
+			for x := 0; x < buffer.Width; x++ {
+				buffer.Cells[y][x] = paint.Cell{}
+			}
+		}
+	}
+
 	return e.paintNode(layout.Root, buffer)
 }
 
@@ -205,6 +219,16 @@ func (e *PaintEngine) PaintLayers(
 	layouts layer.LayerLayouts,
 	buffer *paint.Buffer,
 ) error {
+	// Check if modal layer exists (for backdrop restoration)
+	_, hasModal := layouts[rtui.LayerModal]
+	hadModal := e.lastHadModal
+
+	// If modal state changed, force full render to restore/clear backdrop
+	if hasModal != hadModal {
+		e.forceFullRender = true
+	}
+	e.lastHadModal = hasModal
+
 	// Render layers in order from lowest (base) to highest (tooltip)
 	// This ensures proper z-ordering
 	renderOrder := []rtui.Layer{
@@ -240,7 +264,9 @@ func (e *PaintEngine) PaintLayers(
 }
 
 // paintModalBackdrop draws a semi-transparent backdrop behind the modal
-// In TUI, we simulate this by dimming the area outside the modal
+// In TUI, we simulate this by:
+// 1. Setting a dimmed background color for all areas outside the modal
+// 2. Dimming the foreground text to gray
 func (e *PaintEngine) paintModalBackdrop(root *compute.ComputedBox, buffer *paint.Buffer) {
 	if root == nil {
 		return
@@ -255,56 +281,56 @@ func (e *PaintEngine) paintModalBackdrop(root *compute.ComputedBox, buffer *pain
 	modalWidth := root.Box.Width
 	modalHeight := root.Box.Height
 
-	// Draw dimmed background in areas outside the modal
-	// We use a special style to indicate "dimmed" content
-	dimStyle := style.Style{FG: style.Color("gray")}
+	// Dimmed style: gray foreground on dark background (simulates transparency)
+	dimmedFG := style.Color("bright-black")  // Dimmed text color
+	dimmedBG := style.Color("#1e2028")       // Dark overlay background (nord0 darker)
 
+	// Helper function to apply dimmed effect to a cell
+	applyDimmed := func(x, y int) {
+		cell := buffer.GetContent(x, y)
+
+		if cell.Cluster == "" || cell.Cluster == " " {
+			// Empty cell: just set dimmed background
+			buffer.SetCell(x, y, ' ', style.Style{BG: dimmedBG})
+		} else {
+			// Cell with content: dimmed foreground + dimmed background
+			dimmedStyle := style.Style{
+				FG: dimmedFG,
+				BG: dimmedBG,
+			}
+			runeStr := cell.Cluster
+			if len(runeStr) > 0 {
+				buffer.SetCell(x, y, []rune(runeStr)[0], dimmedStyle)
+			}
+		}
+	}
+
+	// Apply dimmed effect to all areas outside the modal
 	// Area above modal
 	for y := 0; y < modalY && y < height; y++ {
 		for x := 0; x < width; x++ {
-			if cell := buffer.GetContent(x, y); cell.Cluster != "" && cell.Cluster != " " {
-				// Get the rune from the cluster
-				runeStr := cell.Cluster
-				if len(runeStr) > 0 {
-					buffer.SetCell(x, y, []rune(runeStr)[0], dimStyle)
-				}
-			}
+			applyDimmed(x, y)
 		}
 	}
 
 	// Area below modal
 	for y := modalY + modalHeight; y < height; y++ {
 		for x := 0; x < width; x++ {
-			if cell := buffer.GetContent(x, y); cell.Cluster != "" && cell.Cluster != " " {
-				runeStr := cell.Cluster
-				if len(runeStr) > 0 {
-					buffer.SetCell(x, y, []rune(runeStr)[0], dimStyle)
-				}
-			}
+			applyDimmed(x, y)
 		}
 	}
 
 	// Area left of modal
 	for y := modalY; y < modalY+modalHeight && y < height; y++ {
 		for x := 0; x < modalX; x++ {
-			if cell := buffer.GetContent(x, y); cell.Cluster != "" && cell.Cluster != " " {
-				runeStr := cell.Cluster
-				if len(runeStr) > 0 {
-					buffer.SetCell(x, y, []rune(runeStr)[0], dimStyle)
-				}
-			}
+			applyDimmed(x, y)
 		}
 	}
 
 	// Area right of modal
 	for y := modalY; y < modalY+modalHeight && y < height; y++ {
 		for x := modalX + modalWidth; x < width; x++ {
-			if cell := buffer.GetContent(x, y); cell.Cluster != "" && cell.Cluster != " " {
-				runeStr := cell.Cluster
-				if len(runeStr) > 0 {
-					buffer.SetCell(x, y, []rune(runeStr)[0], dimStyle)
-				}
-			}
+			applyDimmed(x, y)
 		}
 	}
 }

@@ -53,6 +53,17 @@ const (
 	FocusStyleBold      = button.FocusStyleBold
 )
 
+// ButtonVariant type and constants
+type ButtonVariant = button.ButtonVariant
+
+const (
+	ButtonVariantDefault   = button.ButtonVariantDefault
+	ButtonVariantPrimary   = button.ButtonVariantPrimary
+	ButtonVariantSecondary = button.ButtonVariantSecondary
+	ButtonVariantDanger    = button.ButtonVariantDanger
+	ButtonVariantSuccess   = button.ButtonVariantSuccess
+)
+
 // Form components
 var (
 	Input        = form.Input

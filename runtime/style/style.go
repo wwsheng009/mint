@@ -191,15 +191,38 @@ func (s Style) Merge(other Style) Style {
 }
 
 // ToANSI 转换为 ANSI 转义码
+// 正确处理标准色 (30-37/40-47) 和明亮色 (90-97/100-107)
 func (s Style) ToANSI() string {
 	var codes []string
 
-	if fg, ok := colorCodes[string(s.FG)]; ok {
-		codes = append(codes, fmt.Sprintf("%d", fg+30))
+	// 前景色转换
+	if s.FG != "" {
+		if code, ok := colorCodes[string(s.FG)]; ok {
+			// 检查是否为明亮色 (bright- 前缀)
+			if code >= 8 && code <= 15 {
+				// 明亮色使用 90-97 范围
+				codes = append(codes, fmt.Sprintf("%d", 90+(code-8)))
+			} else {
+				// 标准色使用 30-37 范围
+				codes = append(codes, fmt.Sprintf("%d", 30+code))
+			}
+		}
 	}
-	if bg, ok := colorCodes[string(s.BG)]; ok {
-		codes = append(codes, fmt.Sprintf("%d", bg+40))
+
+	// 背景色转换
+	if s.BG != "" {
+		if code, ok := colorCodes[string(s.BG)]; ok {
+			// 检查是否为明亮色 (bright- 前缀)
+			if code >= 8 && code <= 15 {
+				// 明亮色使用 100-107 范围
+				codes = append(codes, fmt.Sprintf("%d", 100+(code-8)))
+			} else {
+				// 标准色使用 40-47 范围
+				codes = append(codes, fmt.Sprintf("%d", 40+code))
+			}
+		}
 	}
+
 	if s.isBold {
 		codes = append(codes, "1")
 	}
