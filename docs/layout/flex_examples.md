@@ -1,3 +1,5 @@
+```go
+
 // Mint TUI Flex Examples
 // 展示如何像 CSS Flexbox 一样使用 Mint TUI 布局系统
 
@@ -148,24 +150,28 @@ func Example5_FlexRatio() ui.VNode {
 
 // CSS: width: 100%;
 func Example6_FillWidth() ui.VNode {
-	return ui.VStack(
+	return ui.VStackBuilder(
 		ui.Bordered().
 			Child(app.NewTextBuilder("I stretch to full width").Build()).
 			FillWidth(). // width: 100%
 			Build(),
 		ui.Box().Build(), // 保持原宽
-	)
+	).
+		Gap(0).
+		Build()
 }
 
 // CSS: height: 100%;
 func Example6_FillHeight() ui.VNode {
-	return ui.HStack(
+	return ui.HStackBuilder(
 		ui.Bordered().
 			Child(app.NewTextBuilder("I stretch to full height").Build()).
 			FillHeight(). // height: 100%
 			Build(),
 		ui.Box().Build(), // 保持原高
-	)
+	).
+		Gap(0).
+		Build()
 }
 
 // =============================================================================
@@ -218,7 +224,7 @@ func Example8_Padding() ui.VNode {
 // .main { flex: 1; }
 // .footer { flex: 0 0 40px; }
 func Example9_NestedLayout() ui.VNode {
-	return ui.VStack(
+	return ui.VStackBuilder(
 		// Header: 固定高度
 		ui.Bordered().
 			Child(app.NewTextBuilder("Header").Build()).
@@ -226,7 +232,7 @@ func Example9_NestedLayout() ui.VNode {
 			Build(),
 
 		// Main: 填充剩余空间
-		ui.VStack(
+		ui.VStackBuilder(
 			app.NewTextBuilder("Main Content").Build(),
 			app.NewTextBuilder("More Content").Build(),
 		).
@@ -292,7 +298,9 @@ func Example11_StretchVsFill() ui.VNode {
 		ui.Bordered().Child(app.NewTextBuilder("Not stretched").Build()).Build(),
 	)
 
-	return ui.VStack(container1, container2).Gap(1).Build()
+	return ui.VStackBuilder(container1, container2).
+		Gap(1).
+		Build()
 }
 
 // =============================================================================
@@ -411,3 +419,4 @@ func Example15_ProgressBar() ui.VNode {
 		FillWidth().
 		Build()
 }
+```
