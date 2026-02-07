@@ -63,14 +63,12 @@ func HeaderPanel() ui.VNode {
 		Align(ui.AlignCenter).
 		Build()
 
-	// Wrap Bordered with Flex to make it stretch to full available width
-	return ui.Flex(
-		ui.Bordered().
-			Style(string(theme.Primary())).
-			Child(headerContent).
-			Build(),
-		1, // Flex factor 1 = grow to fill available space
-	)
+	// Set width to 100 (full screen width) without Flex to avoid vertical stretching
+	return ui.Bordered().
+		Style(string(theme.Primary())).
+		Child(headerContent).
+		Width(100). // Horizontal stretch only
+		Build()
 }
 
 // PipelineVisualization shows the runtime pipeline flow
