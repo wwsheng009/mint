@@ -41,15 +41,13 @@ func RuntimeDemo() ui.VNode {
 	renderCount, setRenderCount, _ := ui.UseStateInt(0)
 	bufferUpdates, setBufferUpdates, _ := ui.UseStateInt(0)
 
-	return ui.VStackBuilder(
+	return ui.VStack(
 		HeaderPanel(),
 		PipelineVisualization(currentPhase),
 		StatisticsPanel(eventCount, renderCount, bufferUpdates),
 		ControlPanel(setCurrentPhase, setEventCount, setRenderCount, setBufferUpdates),
 		ExplanationPanel(currentPhase),
-	).
-		Stretch(). // Make all children stretch to fill width (VStack's cross-axis)
-		Build()
+	)
 }
 
 // HeaderPanel shows the title with border
@@ -64,10 +62,12 @@ func HeaderPanel() ui.VNode {
 		Align(ui.AlignCenter).
 		Build()
 
-	// Parent VStack will handle width stretching via Stretch()
+	// Use FillWidth() to stretch horizontally WITHOUT affecting vertical direction
+	// This is the new layout system feature for single-component stretching
 	return ui.Bordered().
 		Style(string(theme.Primary())).
 		Child(headerContent).
+		FillWidth(). // Horizontal stretch ONLY (doesn't affect height)
 		Build()
 }
 

@@ -934,9 +934,10 @@ func (e *Engine) layoutHStack(box *ComputedBox, x, y int) {
 
 		// Stretch child to container height if:
 		// 1. Child has flex > 0 (explicit flex), OR
-	// 2. Container has StretchCross enabled (auto-stretch all children)
+	// 2. Container has StretchCross enabled (auto-stretch all children), OR
+		// 3. Child has FillHeight enabled (stretch this specific child)
 	// IMPORTANT: Only stretch if container height is finite (not Infinity)
-	if (childInfo.Flex > 0 || stretchCross) && box.Box.Height < runtime.Infinity {
+	if (childInfo.Flex > 0 || stretchCross || childInfo.FillHeight) && box.Box.Height < runtime.Infinity {
 		child.Box.Height = box.Box.Height
 	}
 
@@ -986,8 +987,9 @@ func (e *Engine) layoutVStack(box *ComputedBox, x, y int) {
 		// Stretch child to container width if:
 		// 1. Child has flex > 0 (explicit flex), OR
 		// 2. Container has StretchCross enabled (auto-stretch all children)
+			// 3. Child has FillWidth enabled (stretch this specific child)
 		// IMPORTANT: Only stretch if container width is finite (not Infinity)
-		if (childInfo.Flex > 0 || stretchCross) && box.Box.Width < runtime.Infinity {
+		if (childInfo.Flex > 0 || stretchCross || childInfo.FillWidth) && box.Box.Width < runtime.Infinity {
 			child.Box.Width = box.Box.Width
 			if os.Getenv("TUI_STRETCH_DEBUG") == "true" {
 				fmt.Fprintf(os.Stderr, "[layoutVStack]   stretch child: %d -> %d (text=%q)\n",

@@ -38,6 +38,10 @@ type LayoutInfo struct {
 	StretchCross bool
 	// Padding is the inner spacing [top, right, bottom, left]
 	Padding [4]int
+	// FillWidth makes this component stretch to fill parent's width (for VStack children)
+	FillWidth bool
+	// FillHeight makes this component stretch to fill parent's height (for HStack children)
+	FillHeight bool
 }
 
 // GetLayoutInfo extracts layout information from a VNode.
@@ -71,16 +75,28 @@ func GetLayoutInfo(vnode VNode) LayoutInfo {
 			if f, ok := props["flex"].(int); ok {
 				info.Flex = f
 			}
+			if fw, ok := props["fillWidth"].(bool); ok {
+				info.FillWidth = fw
+			}
+			if fh, ok := props["fillHeight"].(bool); ok {
+				info.FillHeight = fh
+			}
 		}
 		return info
 	}
 
 	// Check for BorderedNode (from ui.Bordered)
 	if _, ok := vnode.(*BorderedNode); ok {
-		// BorderedNode can have flex
+		// BorderedNode can have flex and fill properties
 		if props := vnode.Props(); props != nil {
 			if f, ok := props["flex"].(int); ok {
 				info.Flex = f
+			}
+			if fw, ok := props["fillWidth"].(bool); ok {
+				info.FillWidth = fw
+			}
+			if fh, ok := props["fillHeight"].(bool); ok {
+				info.FillHeight = fh
 			}
 		}
 		return info
@@ -101,6 +117,12 @@ func GetLayoutInfo(vnode VNode) LayoutInfo {
 				if f, ok := props["flex"].(int); ok {
 					info.Flex = f
 				}
+				if fw, ok := props["fillWidth"].(bool); ok {
+					info.FillWidth = fw
+				}
+				if fh, ok := props["fillHeight"].(bool); ok {
+					info.FillHeight = fh
+				}
 				// Read align and crossAlign props for ElementVNode
 				if a, ok := props["align"].(int); ok {
 					info.Align = Align(a)
@@ -118,6 +140,12 @@ func GetLayoutInfo(vnode VNode) LayoutInfo {
 				if f, ok := props["flex"].(int); ok {
 					info.Flex = f
 				}
+				if fw, ok := props["fillWidth"].(bool); ok {
+					info.FillWidth = fw
+				}
+				if fh, ok := props["fillHeight"].(bool); ok {
+					info.FillHeight = fh
+				}
 				// Read align and crossAlign props for ElementVNode
 				if a, ok := props["align"].(int); ok {
 					info.Align = Align(a)
@@ -131,6 +159,12 @@ func GetLayoutInfo(vnode VNode) LayoutInfo {
 			if props := vnode.Props(); props != nil {
 				if f, ok := props["flex"].(int); ok {
 					info.Flex = f
+				}
+				if fw, ok := props["fillWidth"].(bool); ok {
+					info.FillWidth = fw
+				}
+				if fh, ok := props["fillHeight"].(bool); ok {
+					info.FillHeight = fh
 				}
 			}
 		}
@@ -152,6 +186,12 @@ func GetLayoutInfo(vnode VNode) LayoutInfo {
 				if f, ok := props["flex"].(int); ok {
 					info.Flex = f
 				}
+				if fw, ok := props["fillWidth"].(bool); ok {
+					info.FillWidth = fw
+				}
+				if fh, ok := props["fillHeight"].(bool); ok {
+					info.FillHeight = fh
+				}
 				// Read align and crossAlign props
 				if a, ok := props["align"].(int); ok {
 					info.Align = Align(a)
@@ -168,6 +208,12 @@ func GetLayoutInfo(vnode VNode) LayoutInfo {
 				}
 				if f, ok := props["flex"].(int); ok {
 					info.Flex = f
+				}
+				if fw, ok := props["fillWidth"].(bool); ok {
+					info.FillWidth = fw
+				}
+				if fh, ok := props["fillHeight"].(bool); ok {
+					info.FillHeight = fh
 				}
 				// Read align and crossAlign props
 				if a, ok := props["align"].(int); ok {

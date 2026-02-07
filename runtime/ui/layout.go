@@ -164,6 +164,22 @@ func (b *LayoutBuilder) Stretch() *LayoutBuilder {
 	return b
 }
 
+// FillWidth makes this component stretch to fill the parent's width
+// This is typically used for children in a VStack (where cross-axis is horizontal)
+// Unlike Stretch() which affects all children, FillWidth() applies to a single component
+func (b *LayoutBuilder) FillWidth() *LayoutBuilder {
+	b.node.SetProp("fillWidth", true)
+	return b
+}
+
+// FillHeight makes this component stretch to fill the parent's height
+// This is typically used for children in an HStack (where cross-axis is vertical)
+// Unlike Stretch() which affects all children, FillHeight() applies to a single component
+func (b *LayoutBuilder) FillHeight() *LayoutBuilder {
+	b.node.SetProp("fillHeight", true)
+	return b
+}
+
 // Style sets the visual style
 func (b *LayoutBuilder) Style(s style.Style) *LayoutBuilder {
 	b.node.SetStyle(s)
@@ -679,6 +695,18 @@ func (b *BoxLayoutBuilder) Flex(n int) *BoxLayoutBuilder {
 	return b
 }
 
+// FillWidth makes the box stretch to fill parent's width
+func (b *BoxLayoutBuilder) FillWidth() *BoxLayoutBuilder {
+	b.node.SetProp("fillWidth", true)
+	return b
+}
+
+// FillHeight makes the box stretch to fill parent's height
+func (b *BoxLayoutBuilder) FillHeight() *BoxLayoutBuilder {
+	b.node.SetProp("fillHeight", true)
+	return b
+}
+
 // Build returns the VNode
 func (b *BoxLayoutBuilder) Build() VNode {
 	return b.node
@@ -854,6 +882,18 @@ func (b *BorderedBuilder) Width(n int) *BorderedBuilder {
 // Height sets the content height (border adds 2 lines)
 func (b *BorderedBuilder) Height(n int) *BorderedBuilder {
 	b.node.SetProp("height", n)
+	return b
+}
+
+// FillWidth makes the bordered container stretch to fill parent's width
+func (b *BorderedBuilder) FillWidth() *BorderedBuilder {
+	b.node.SetProp("fillWidth", true)
+	return b
+}
+
+// FillHeight makes the bordered container stretch to fill parent's height
+func (b *BorderedBuilder) FillHeight() *BorderedBuilder {
+	b.node.SetProp("fillHeight", true)
 	return b
 }
 
