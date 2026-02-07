@@ -12,7 +12,7 @@ import (
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
-	ui "github.com/wwsheng009/mint/ui"
+	"github.com/wwsheng009/mint/ui"
 )
 
 // ButtonVariant represents button style variants
@@ -76,6 +76,8 @@ type ButtonVNode struct {
 	onMouseRelease func()
 	// Bounds for hit testing (x, y, width, height)
 	bounds        [4]int
+	// ⭐ NEW: Embed BoxModelMixin for automatic box model support
+	rtui.BoxModelMixin
 }
 
 // NewButton creates a new button
@@ -87,6 +89,7 @@ func NewButton(label string) *ButtonVNode {
 		size:         ButtonSizeMedium,
 		disabled:     false,
 		focusStyle:   FocusStyleReverse, // Default: reverse colors
+		// BoxModelMixin fields are zero-initialized: padding=[0,0,0,0], margin=[0,0,0,0], textAlign=AlignStart
 	}
 }
 
@@ -255,10 +258,9 @@ func (b *ButtonBuilderType) BgColor(c interface{}) *ButtonBuilderType {
 }
 
 // SetTextAlign sets the text alignment within the button
-// Uses universal helper - works the same way on all components
-// Options: AlignStart (left), AlignCenter (centered), AlignEnd (right)
+// Uses BoxModelMixin method - type-safe!
 func (b *ButtonBuilderType) SetTextAlign(align rtui.Align) *ButtonBuilderType {
-	ui.SetTextAlign(b.node, align)
+	b.node.SetTextAlign(align)
 	return b
 }
 
@@ -620,10 +622,11 @@ func (b *ButtonVNode) Measure(constraints runtime.BoxConstraints) runtime.Size {
 		contentWidth += 4
 	}
 
-	// ⭐ NEW: Apply user-specified padding from LayoutInfo
-	layoutInfo := rtui.GetLayoutInfo(b)
-	horizontalPadding := layoutInfo.Padding[1] + layoutInfo.Padding[3] // right + left
-	verticalPadding := layoutInfo.Padding[0] + layoutInfo.Padding[2]   // top + bottom
+	// ⭐ NEW: Apply user-specified padding from BoxModelMixin
+	// Use interface method instead of props/LayoutInfo
+	padding := b.Padding()
+	horizontalPadding := padding[1] + padding[3] // right + left
+	verticalPadding := padding[0] + padding[2]   // top + bottom
 
 	width := contentWidth + horizontalPadding
 	height := contentHeight + verticalPadding
@@ -652,17 +655,6 @@ func (b *ButtonVNode) Measure(constraints runtime.BoxConstraints) runtime.Size {
 	}
 
 	return runtime.Size{Width: width, Height: height}
-}
-
-// getTextAlign returns the text alignment within the button
-// Defaults to AlignStart (left-aligned) if not specified
-func (b *ButtonVNode) getTextAlign() rtui.Align {
-	if props := b.Props(); props != nil {
-		if align, ok := props["textAlign"].(int); ok {
-			return rtui.Align(align)
-		}
-	}
-	return rtui.AlignStart // Default: left-aligned
 }
 
 // Paint implements paint.Paintable interface
@@ -780,10 +772,10 @@ func (b *ButtonVNode) Paint(x, y int) []paint.DrawCmd {
 	buttonText := focusIndicator + labelText
 	contentWidth := len(buttonText)
 
-	// ⭐ NEW: Get padding from LayoutInfo (set by universal Padding() methods)
-	layoutInfo := rtui.GetLayoutInfo(b)
-	paddingLeft := layoutInfo.Padding[3]
-	paddingRight := layoutInfo.Padding[1]
+	// ⭐ NEW: Get padding from BoxModelMixin (type-safe, no props needed!)
+	padding := b.Padding()
+	paddingLeft := padding[3]
+	paddingRight := padding[1]
 
 	// Natural width includes content and user-specified padding
 	naturalWidth := contentWidth + paddingLeft + paddingRight
@@ -796,7 +788,7 @@ func (b *ButtonVNode) Paint(x, y int) []paint.DrawCmd {
 
 	// Apply text alignment if button is stretched by flex layout
 	if layoutWidth > naturalWidth {
-		textAlign := b.getTextAlign()
+		textAlign := b.TextAlign()  // ⭐ Use interface method
 		availableSpace := layoutWidth - naturalWidth
 
 		switch textAlign {
