@@ -2,6 +2,7 @@ package button
 
 import (
 	"fmt"
+	"strings"
 	"unicode/utf8"
 
 	"github.com/wwsheng009/mint/framework/event"
@@ -10,7 +11,8 @@ import (
 	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
-	"github.com/wwsheng009/mint/ui"
+	rtui "github.com/wwsheng009/mint/runtime/ui"
+	ui "github.com/wwsheng009/mint/ui"
 )
 
 // ButtonVariant represents button style variants
@@ -252,6 +254,142 @@ func (b *ButtonBuilderType) BgColor(c interface{}) *ButtonBuilderType {
 	return b
 }
 
+// SetTextAlign sets the text alignment within the button
+// Uses universal helper - works the same way on all components
+// Options: AlignStart (left), AlignCenter (centered), AlignEnd (right)
+func (b *ButtonBuilderType) SetTextAlign(align rtui.Align) *ButtonBuilderType {
+	ui.SetTextAlign(b.node, align)
+	return b
+}
+
+// =============================================================================
+// Padding Methods - Universal box model (same API for all components)
+// =============================================================================
+
+// Padding adds padding on all sides (top, right, bottom, left)
+func (b *ButtonBuilderType) Padding(top, right, bottom, left int) *ButtonBuilderType {
+	ui.Padding(b.node, top, right, bottom, left)
+	return b
+}
+
+// PaddingH sets horizontal padding (left, right)
+func (b *ButtonBuilderType) PaddingH(left, right int) *ButtonBuilderType {
+	ui.PaddingH(b.node, left, right)
+	return b
+}
+
+// PaddingV sets vertical padding (top, bottom)
+func (b *ButtonBuilderType) PaddingV(top, bottom int) *ButtonBuilderType {
+	ui.PaddingV(b.node, top, bottom)
+	return b
+}
+
+// PaddingAll sets same padding on all sides
+func (b *ButtonBuilderType) PaddingAll(p int) *ButtonBuilderType {
+	ui.PaddingAll(b.node, p)
+	return b
+}
+
+// PaddingTop sets top padding
+func (b *ButtonBuilderType) PaddingTop(p int) *ButtonBuilderType {
+	ui.Padding(b.node, p, 0, 0, 0)
+	return b
+}
+
+// PaddingRight sets right padding
+func (b *ButtonBuilderType) PaddingRight(p int) *ButtonBuilderType {
+	ui.Padding(b.node, 0, p, 0, 0)
+	return b
+}
+
+// PaddingBottom sets bottom padding
+func (b *ButtonBuilderType) PaddingBottom(p int) *ButtonBuilderType {
+	ui.Padding(b.node, 0, 0, p, 0)
+	return b
+}
+
+// PaddingLeft sets left padding
+func (b *ButtonBuilderType) PaddingLeft(p int) *ButtonBuilderType {
+	ui.Padding(b.node, 0, 0, 0, p)
+	return b
+}
+
+// =============================================================================
+// Margin Methods - Universal box model (same API for all components)
+// =============================================================================
+
+// Margin adds margin on all sides (top, right, bottom, left)
+func (b *ButtonBuilderType) Margin(top, right, bottom, left int) *ButtonBuilderType {
+	ui.Margin(b.node, top, right, bottom, left)
+	return b
+}
+
+// MarginH sets horizontal margin (left, right)
+func (b *ButtonBuilderType) MarginH(left, right int) *ButtonBuilderType {
+	ui.MarginH(b.node, left, right)
+	return b
+}
+
+// MarginV sets vertical margin (top, bottom)
+func (b *ButtonBuilderType) MarginV(top, bottom int) *ButtonBuilderType {
+	ui.MarginV(b.node, top, bottom)
+	return b
+}
+
+// MarginAll sets same margin on all sides
+func (b *ButtonBuilderType) MarginAll(m int) *ButtonBuilderType {
+	ui.MarginAll(b.node, m)
+	return b
+}
+
+// MarginTop sets top margin
+func (b *ButtonBuilderType) MarginTop(m int) *ButtonBuilderType {
+	ui.Margin(b.node, m, 0, 0, 0)
+	return b
+}
+
+// MarginRight sets right margin
+func (b *ButtonBuilderType) MarginRight(m int) *ButtonBuilderType {
+	ui.Margin(b.node, 0, m, 0, 0)
+	return b
+}
+
+// MarginBottom sets bottom margin
+func (b *ButtonBuilderType) MarginBottom(m int) *ButtonBuilderType {
+	ui.Margin(b.node, 0, 0, m, 0)
+	return b
+}
+
+// MarginLeft sets left margin
+func (b *ButtonBuilderType) MarginLeft(m int) *ButtonBuilderType {
+	ui.Margin(b.node, 0, 0, 0, m)
+	return b
+}
+
+// =============================================================================
+// Layout Properties - Elegant chainable methods (no SetProp needed!)
+// =============================================================================
+
+// Flex sets the flex factor for this button
+// CSS equivalent: flex: value
+func (b *ButtonBuilderType) Flex(f int) *ButtonBuilderType {
+	b.node.SetProp("flex", f)
+	return b
+}
+
+// FillWidth makes this button stretch to fill parent's width
+// CSS equivalent: width: 100%
+func (b *ButtonBuilderType) FillWidth() *ButtonBuilderType {
+	b.node.SetProp("fillWidth", true)
+	return b
+}
+
+// FillHeight makes this button stretch to fill parent's height
+func (b *ButtonBuilderType) FillHeight() *ButtonBuilderType {
+	b.node.SetProp("fillHeight", true)
+	return b
+}
+
 // Build returns the ui.VNode
 func (b *ButtonBuilderType) Build() ui.VNode {
 	return b.node
@@ -458,17 +596,17 @@ func (b *ButtonVNode) Measure(constraints runtime.BoxConstraints) runtime.Size {
 		return runtime.Size{Width: 0, Height: 0}
 	}
 
-	// Calculate button width: label + padding (brackets)
+	// Calculate button content width: label + brackets + focus indicator
 	label := b.label
 	if label == "" {
 		label = " " // Empty button still has minimal width
 	}
 
 	// Width: label length + 2 for brackets "[]" + 1 for focus indicator
-	width := utf8.RuneCountInString(label) + 3
+	contentWidth := utf8.RuneCountInString(label) + 3
 
 	// Height is always 1 for single-line button
-	height := 1
+	contentHeight := 1
 
 	// Apply size modifiers
 	switch b.size {
@@ -476,11 +614,19 @@ func (b *ButtonVNode) Measure(constraints runtime.BoxConstraints) runtime.Size {
 		// Small button: no extra padding
 	case ButtonSizeMedium:
 		// Medium button: +1 padding on each side
-		width += 2
+		contentWidth += 2
 	case ButtonSizeLarge:
 		// Large button: +2 padding on each side
-		width += 4
+		contentWidth += 4
 	}
+
+	// ⭐ NEW: Apply user-specified padding from LayoutInfo
+	layoutInfo := rtui.GetLayoutInfo(b)
+	horizontalPadding := layoutInfo.Padding[1] + layoutInfo.Padding[3] // right + left
+	verticalPadding := layoutInfo.Padding[0] + layoutInfo.Padding[2]   // top + bottom
+
+	width := contentWidth + horizontalPadding
+	height := contentHeight + verticalPadding
 
 	// Apply constraints
 	if width < constraints.MinWidth {
@@ -506,6 +652,17 @@ func (b *ButtonVNode) Measure(constraints runtime.BoxConstraints) runtime.Size {
 	}
 
 	return runtime.Size{Width: width, Height: height}
+}
+
+// getTextAlign returns the text alignment within the button
+// Defaults to AlignStart (left-aligned) if not specified
+func (b *ButtonVNode) getTextAlign() rtui.Align {
+	if props := b.Props(); props != nil {
+		if align, ok := props["textAlign"].(int); ok {
+			return rtui.Align(align)
+		}
+	}
+	return rtui.AlignStart // Default: left-aligned
 }
 
 // Paint implements paint.Paintable interface
@@ -620,9 +777,59 @@ func (b *ButtonVNode) Paint(x, y int) []paint.DrawCmd {
 	}
 
 	// Build the button text with natural width
-	// IMPORTANT: The layout engine handles alignment by adjusting the X coordinate
-	// We should NOT manually add padding spaces - let the layout engine center/align
 	buttonText := focusIndicator + labelText
+	contentWidth := len(buttonText)
+
+	// ⭐ NEW: Get padding from LayoutInfo (set by universal Padding() methods)
+	layoutInfo := rtui.GetLayoutInfo(b)
+	paddingLeft := layoutInfo.Padding[3]
+	paddingRight := layoutInfo.Padding[1]
+
+	// Natural width includes content and user-specified padding
+	naturalWidth := contentWidth + paddingLeft + paddingRight
+
+	// Get layout width from bounds (set by layout engine)
+	layoutWidth := naturalWidth
+	if b.bounds[2] > 0 {
+		layoutWidth = b.bounds[2]  // Allocated width from flex
+	}
+
+	// Apply text alignment if button is stretched by flex layout
+	if layoutWidth > naturalWidth {
+		textAlign := b.getTextAlign()
+		availableSpace := layoutWidth - naturalWidth
+
+		switch textAlign {
+		case rtui.AlignCenter:
+			// Center text: distribute space on both sides
+			leftPadding := paddingLeft + availableSpace/2
+			rightPadding := paddingRight + (availableSpace - availableSpace/2)
+			buttonText = strings.Repeat(" ", leftPadding) + buttonText +
+				strings.Repeat(" ", rightPadding)
+
+		case rtui.AlignEnd:
+			// Right-align: add all space to left
+			leftPadding := paddingLeft + availableSpace
+			buttonText = strings.Repeat(" ", leftPadding) + buttonText
+
+		case rtui.AlignStart:
+			// Left-align: add all space to right (default)
+			buttonText = buttonText + strings.Repeat(" ", paddingRight + availableSpace)
+
+		case rtui.AlignSpaceBetween, rtui.AlignSpaceAround:
+			// These don't make sense for single button text alignment
+			// Fall back to left-align
+			buttonText = buttonText + strings.Repeat(" ", paddingRight + availableSpace)
+		}
+	} else {
+		// Not stretched: just apply user-specified padding
+		if paddingLeft > 0 {
+			buttonText = strings.Repeat(" ", paddingLeft) + buttonText
+		}
+		if paddingRight > 0 {
+			buttonText = buttonText + strings.Repeat(" ", paddingRight)
+		}
+	}
 
 	// Return draw commands: focus indicator + button label
 	return []paint.DrawCmd{

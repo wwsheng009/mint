@@ -42,6 +42,10 @@ type LayoutInfo struct {
 	FillWidth bool
 	// FillHeight makes this component stretch to fill parent's height (for HStack children)
 	FillHeight bool
+	// Margin is the outer spacing [top, right, bottom, left]
+	Margin [4]int
+	// TextAlign controls text alignment within the component (Start/Center/End)
+	TextAlign Align
 }
 
 // GetLayoutInfo extracts layout information from a VNode.
@@ -61,8 +65,22 @@ func GetLayoutInfo(vnode VNode) LayoutInfo {
 		return info
 	}
 
-	// First, check props for stretchCross (works for any VNode type, including components/layout.LayoutNode)
+	// ⭐ NEW: Read universal box model props (works for ANY VNode)
+	// This allows padding/margin on any component (Button, Text, Input, etc.)
 	if props := vnode.Props(); props != nil {
+		// Read padding [top, right, bottom, left]
+		if p, ok := props["padding"].([4]int); ok {
+			info.Padding = p
+		}
+		// Read margin [top, right, bottom, left]
+		if m, ok := props["margin"].([4]int); ok {
+			info.Margin = m
+		}
+		// Read text alignment
+		if ta, ok := props["textAlign"].(int); ok {
+			info.TextAlign = Align(ta)
+		}
+		// Read stretchCross
 		if sc, ok := props["stretchCross"].(bool); ok {
 			info.StretchCross = sc
 		}
