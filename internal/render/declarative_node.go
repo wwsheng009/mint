@@ -212,11 +212,14 @@ func (n *DeclarativeNode) Paint(ctx component.PaintContext, buf *paint.Buffer) {
 	// Phase 3: UNIFIED RENDERING - use PipelineRenderer with constraint-based layout
 	if n.renderer != nil {
 		// Use the buffer's dimensions as layout constraints (not the x, y position)
-		// The RenderingPipeline will use BoxConstraints for proper flex layout behavior
+		// The PipelineRenderer will detect layer nodes (Modal, Overlay, Tooltip)
+		// and use RenderLayers() which includes centering logic for modals
 		if adapter, ok := n.renderer.(*PipelineRendererAdapter); ok {
-			// Call the pipeline directly with buffer size constraints
-			constraints := runtime.NewBoxConstraints(0, buf.Width, 0, buf.Height)
-			if err := adapter.GetRenderingPipeline().Render(n.root, constraints, buf); err != nil {
+			// Call PipelineRenderer which will:
+			// 1. Use buffer dimensions as BoxConstraints
+			// 2. Detect layer nodes and call RenderLayers() if needed
+			// 3. Apply modal centering for LayerModal nodes
+			if err := adapter.GetPipeline().Render(n.root, 0, 0, buf); err != nil {
 				// Fallback to legacy rendering if pipeline fails
 				if os.Getenv("TUI_DEBUG_UI") == "true" {
 					fmt.Fprintf(os.Stderr, "DeclarativeNode.Paint: pipeline render failed: %v, falling back to legacy\n", err)
