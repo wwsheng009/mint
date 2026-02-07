@@ -63,11 +63,18 @@ func HeaderPanel() ui.VNode {
 		Align(ui.AlignCenter).
 		Build()
 
-	// Set width to 100 (full screen width) without Flex to avoid vertical stretching
-	return ui.Bordered().
+	borderedPanel := ui.Bordered().
 		Style(string(theme.Primary())).
 		Child(headerContent).
-		Width(100). // Horizontal stretch only
+		Build()
+
+	// Wrap in HStack to control stretch direction:
+	// - Flex(1): stretch horizontally (HStack's main axis)
+	// - No Stretch(): don't stretch vertically (HStack's cross axis)
+	return ui.HStackBuilder(
+		borderedPanel,
+	).
+		Flex(1). // Horizontal stretch ONLY
 		Build()
 }
 
