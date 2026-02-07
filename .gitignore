@@ -4,3 +4,22 @@ AGENTS.md
 coverage.out
 .claude
 .vscode
+
+# Test outputs and temporary files
+examples/sandbox/01_event_recording/*.json
+examples/sandbox/dump_buffer/border_outputs/*.txt
+examples/sandbox/dump_buffer/border_outputs/demo.txt
+
+# Analysis and verification documents (temporary)
+docs/theme/*_analysis.md
+docs/theme/demo1_*.md
+docs/theme/header_background_fix.md
+docs/theme/check_*.md
+
+# Demo test files and verification
+examples/ui_demos/demo1_full_featured/mouse_test.go
+examples/ui_demos/demo1_full_featured/*_analysis.md
+examples/ui_demos/demo1_full_featured/*_verification.md
+
+# Trash directory (moved temporary files)
+trash/
