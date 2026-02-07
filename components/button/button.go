@@ -2,6 +2,7 @@ package button
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"unicode/utf8"
 
@@ -516,11 +517,13 @@ func (b *ButtonVNode) Paint(x, y int) []paint.DrawCmd {
 		return nil
 	}
 
-	// Debug: log button paint state
+	// Debug: log button paint state with bounds
 	focusMarker := " "
 	if b.hasFocus {
 		focusMarker = "*"
 	}
+	fmt.Fprintf(os.Stderr, "[Button.Paint] label=%q, hasFocus=%v, focusMarker=%s, x=%d, y=%d, bounds=%v\n",
+		b.label, b.hasFocus, focusMarker, x, y, b.bounds)
 	log.ButtonLogger.Debug("ButtonPaint label=%q, hasFocus=%v, focusMarker=%s", b.label, b.hasFocus, focusMarker)
 
 	// Get button style for rendering
@@ -639,8 +642,16 @@ func (b *ButtonVNode) Paint(x, y int) []paint.DrawCmd {
 		if layoutWidth > buttonWidth {
 			// Pad text with spaces to fill the layout width
 			padding := layoutWidth - buttonWidth
+			if os.Getenv("TUI_DEBUG_UI") == "true" {
+				fmt.Fprintf(os.Stderr, "[Button.Paint] STRETCHING: layoutWidth=%d > buttonWidth=%d, padding=%d\n",
+					layoutWidth, buttonWidth, padding)
+				fmt.Fprintf(os.Stderr, "[Button.Paint] buttonText before=%q (%d chars)\n", buttonText, len(buttonText))
+			}
 			buttonText += strings.Repeat(" ", padding)
 			buttonWidth = layoutWidth
+			if os.Getenv("TUI_DEBUG_UI") == "true" {
+				fmt.Fprintf(os.Stderr, "[Button.Paint] buttonText after=%q (%d chars)\n", buttonText, len(buttonText))
+			}
 		}
 	}
 

@@ -210,28 +210,46 @@ func (n *DeclarativeNode) Paint(ctx component.PaintContext, buf *paint.Buffer) {
 	n.applyFocusState()
 
 	// Phase 3: UNIFIED RENDERING - use PipelineRenderer with constraint-based layout
+	if os.Getenv("TUI_DEBUG_RENDERING") == "true" {
+		fmt.Fprintf(os.Stderr, "[DeclarativeNode.Paint] n.renderer = %v\n", n.renderer)
+		if n.renderer != nil {
+			fmt.Fprintf(os.Stderr, "[DeclarativeNode.Paint] renderer type = %T\n", n.renderer)
+		}
+	}
+
 	if n.renderer != nil {
 		// Use the buffer's dimensions as layout constraints (not the x, y position)
 		// The PipelineRenderer will detect layer nodes (Modal, Overlay, Tooltip)
 		// and use RenderLayers() which includes centering logic for modals
 		if adapter, ok := n.renderer.(*PipelineRendererAdapter); ok {
+			if os.Getenv("TUI_DEBUG_RENDERING") == "true" {
+				fmt.Fprintf(os.Stderr, "[DeclarativeNode.Paint] ✅ Using PipelineRendererAdapter\n")
+			}
 			// Call PipelineRenderer which will:
 			// 1. Use buffer dimensions as BoxConstraints
 			// 2. Detect layer nodes and call RenderLayers() if needed
 			// 3. Apply modal centering for LayerModal nodes
 			if err := adapter.GetPipeline().Render(n.root, 0, 0, buf); err != nil {
 				// Fallback to legacy rendering if pipeline fails
-				if os.Getenv("TUI_DEBUG_UI") == "true" {
-					fmt.Fprintf(os.Stderr, "DeclarativeNode.Paint: pipeline render failed: %v, falling back to legacy\n", err)
-				}
+				fmt.Fprintf(os.Stderr, "[DeclarativeNode.Paint] ❌ Pipeline render FAILED: %v, falling back to legacy\n", err)
 				n.PaintVNode(n.root, ctx.Bounds.X, ctx.Bounds.Y, buf)
+			} else {
+				if os.Getenv("TUI_DEBUG_RENDERING") == "true" {
+					fmt.Fprintf(os.Stderr, "[DeclarativeNode.Paint] ✅ Pipeline render SUCCESS\n")
+				}
 			}
 		} else {
 			// Use the generic renderer interface (old path)
+			if os.Getenv("TUI_DEBUG_RENDERING") == "true" {
+				fmt.Fprintf(os.Stderr, "[DeclarativeNode.Paint] ⚠️ Using generic renderer interface (old path)\n")
+			}
 			n.renderer.Render(n.root, ctx.Bounds.X, ctx.Bounds.Y, buf)
 		}
 	} else {
 		// Fallback to legacy painting
+		if os.Getenv("TUI_DEBUG_RENDERING") == "true" {
+			fmt.Fprintf(os.Stderr, "[DeclarativeNode.Paint] ⚠️ No renderer, using legacy PaintVNode\n")
+		}
 		n.PaintVNode(n.root, ctx.Bounds.X, ctx.Bounds.Y, buf)
 	}
 
@@ -353,23 +371,17 @@ func (n *DeclarativeNode) PaintVNode(vnode rtui.VNode, x, y int, buf *paint.Buff
 
 	// Set component bounds for mouse hit testing
 	// Check if vnode implements SetBounds method
-	if boundsAware, ok := vnode.(interface{ SetBounds(x, y, width, height int) }); ok {
-		// Get the component's measured size
-		width := 0
-		height := 0
-		if measurable, ok := vnode.(interface {
-			Measure(constraints runtime.BoxConstraints) runtime.Size
-		}); ok {
-			size := measurable.Measure(runtime.BoxConstraints{})
-			width = size.Width
-			height = size.Height
-		}
-		// Debug logging
+	if _, ok := vnode.(interface{ SetBounds(x, y, width, height int) }); ok {
+		// ⚠️ IMPORTANT: Don't Measure() here!
+		// If LayoutEngine already calculated flex widths, we should use those
+		// Instead of re-Measuring with empty constraints, skip SetBounds for now
+		// The Paint() method will use the constraints that were calculated during Layout
+
+		// TODO: We need to get the calculated layout size from somewhere
+		// For now, skip SetBounds to avoid overwriting flex widths with natural widths
 		if os.Getenv("TUI_DEBUG_UI") == "true" {
-			fmt.Fprintf(os.Stderr, "[PaintVNode] Setting bounds: x=%d, y=%d, w=%d, h=%d\n", x, y, width, height)
+			fmt.Fprintf(os.Stderr, "[PaintVNode] ⚠️ Skipping SetBounds to preserve flex widths\n")
 		}
-		// Set bounds for hit testing
-		boundsAware.SetBounds(x, y, width, height)
 	} else {
 		if os.Getenv("TUI_DEBUG_UI") == "true" {
 			fmt.Fprintf(os.Stderr, "[PaintVNode] vnode does not implement SetBounds\n")

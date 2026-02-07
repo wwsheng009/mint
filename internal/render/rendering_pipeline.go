@@ -46,7 +46,7 @@ func (p *RenderingPipeline) Render(vnode rtui.VNode, constraints runtime.BoxCons
 		return nil
 	}
 
-	if os.Getenv("TUI_PIPELINE_DEBUG") == "true" {
+	if os.Getenv("TUI_PIPELINE_DEBUG") == "true" || os.Getenv("TUI_DEBUG_RENDERING") == "true" {
 		fmt.Fprintf(os.Stderr, "[RenderingPipeline] Render started\n")
 	}
 
@@ -54,20 +54,21 @@ func (p *RenderingPipeline) Render(vnode rtui.VNode, constraints runtime.BoxCons
 	layout, err := p.layoutEngine.Layout(vnode, constraints)
 	if err != nil {
 		// Fallback to legacy rendering if layout fails
-		if os.Getenv("TUI_PIPELINE_DEBUG") == "true" {
-			fmt.Fprintf(os.Stderr, "[RenderingPipeline] Layout failed: %v, falling back to legacy\n", err)
-		}
+		fmt.Fprintf(os.Stderr, "[RenderingPipeline] ❌ Layout FAILED: %v, falling back to legacy\n", err)
 		return p.renderLegacy(vnode, 0, 0, buffer)
 	}
 
-	if os.Getenv("TUI_PIPELINE_DEBUG") == "true" {
-		fmt.Fprintf(os.Stderr, "[RenderingPipeline] Layout complete, starting Paint phase\n")
+	if os.Getenv("TUI_PIPELINE_DEBUG") == "true" || os.Getenv("TUI_DEBUG_RENDERING") == "true" {
+		fmt.Fprintf(os.Stderr, "[RenderingPipeline] ✅ Layout complete, starting Paint phase\n")
 	}
 
 	// Phase 2: Paint - render using computed positions
+	if os.Getenv("TUI_DEBUG_RENDERING") == "true" {
+		fmt.Fprintf(os.Stderr, "[RenderingPipeline] Starting Paint phase...\n")
+	}
 	err = p.paintEngine.Paint(layout, buffer)
 
-	if os.Getenv("TUI_PIPELINE_DEBUG") == "true" {
+	if os.Getenv("TUI_PIPELINE_DEBUG") == "true" || os.Getenv("TUI_PAINT_DEBUG") == "true" || os.Getenv("TUI_DEBUG_RENDERING") == "true" {
 		fmt.Fprintf(os.Stderr, "[RenderingPipeline] Paint complete, err=%v\n", err)
 	}
 

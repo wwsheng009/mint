@@ -69,24 +69,28 @@ func (r *PipelineRenderer) Render(vnode rtui.VNode, x, y int, buffer interface{}
 	var err error
 	if hasLayers {
 		// Use multi-layer rendering for modals, overlays, tooltips
-		if r.debug {
+		if r.debug || os.Getenv("TUI_DEBUG_RENDERING") == "true" {
 			fmt.Fprintf(os.Stderr, "[PipelineRenderer] Using RenderLayers for multi-layer rendering\n")
 		}
 		err = r.pipeline.RenderLayers(vnode, constraints, buf)
 	} else {
 		// Use standard rendering for simple VNode trees
-		if r.debug {
+		if r.debug || os.Getenv("TUI_DEBUG_RENDERING") == "true" {
 			fmt.Fprintf(os.Stderr, "[PipelineRenderer] Using standard Render\n")
 		}
 		err = r.pipeline.Render(vnode, constraints, buf)
 	}
 
 	if err != nil {
-		if r.debug {
-			fmt.Fprintf(os.Stderr, "[PipelineRenderer] Render failed: %v, falling back to legacy\n", err)
+		if r.debug || os.Getenv("TUI_DEBUG_RENDERING") == "true" {
+			fmt.Fprintf(os.Stderr, "[PipelineRenderer] ❌ Render FAILED: %v, falling back to legacy\n", err)
 		}
 		// Fall back to legacy rendering if pipeline fails
 		return r.renderLegacy(vnode, x, y, buf)
+	}
+
+	if r.debug || os.Getenv("TUI_DEBUG_RENDERING") == "true" {
+		fmt.Fprintf(os.Stderr, "[PipelineRenderer] ✅ Render SUCCESS\n")
 	}
 
 	if r.debug {

@@ -349,6 +349,10 @@ func (b *WrapBuilder) Build() ui.VNode {
 		hstackBuilder.node.SetProp("crossAlign", int(ui.AlignStart))
 		hstackBuilder.node.SetProp("gap", b.node.gap)
 
+		// ⭐ CRITICAL: Set the HStack width to match the container
+		// This ensures flex children fill the entire available width
+		hstackBuilder.node.SetProp("width", b.node.screenWidth)
+
 		// If fillWidth is enabled, set stretchCross on each HStack so they stretch
 		// This is critical for the VStack's stretchCross to work properly
 		if fillWidth {

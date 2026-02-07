@@ -1,6 +1,9 @@
 package layout
 
 import (
+	"fmt"
+	"os"
+
 	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
@@ -249,6 +252,25 @@ func (l *LayoutNode) MeasureLayout(measurer runtime.ChildMeasurer, constraints r
 		)
 	}
 
+	// ⭐ IMPORTANT: Check if this node has an explicit width prop
+	// If set, use it as the constraint MaxWidth instead of parent's constraint
+	if props := l.Props(); props != nil {
+		if explicitWidth := props.GetInt("width"); explicitWidth > 0 {
+			// Override with explicit width
+			constraints.MaxWidth = explicitWidth
+			if os.Getenv("TUI_DEBUG_LAYOUT") == "true" {
+				fmt.Fprintf(os.Stderr, "[HStack.MeasureLayout] tag=%s, using explicit width=%d\n",
+					l.Tag(), explicitWidth)
+			}
+		}
+	}
+
+	// Debug: log constraints received
+	if os.Getenv("TUI_DEBUG_LAYOUT") == "true" {
+		fmt.Fprintf(os.Stderr, "[HStack.MeasureLayout] tag=%s, constraints.MinWidth=%d, MaxWidth=%d, gap=%d\n",
+			l.Tag(), constraints.MinWidth, constraints.MaxWidth, l.gap)
+	}
+
 	// Add padding to content size
 	paddingWidth := l.padding[1] + l.padding[3] // left + right
 	paddingHeight := l.padding[0] + l.padding[2] // top + bottom
@@ -302,10 +324,9 @@ func (l *LayoutNode) MeasureLayout(measurer runtime.ChildMeasurer, constraints r
 					maxChildHeight = childSize.Height
 				}
 			}
-			// Account for gap (except after last child)
-			if i < len(children)-1 {
-				fixedWidth += l.gap
-			}
+			// ⚠️ DON'T add gap to fixedWidth here!
+			// Gaps are already subtracted from availableWidth in the second pass
+			// Adding them here would cause remainingSpace to be calculated incorrectly
 		}
 
 		totalWidth = fixedWidth
@@ -315,11 +336,40 @@ func (l *LayoutNode) MeasureLayout(measurer runtime.ChildMeasurer, constraints r
 			availableWidth := constraints.MaxWidth - paddingWidth - (len(children)-1)*l.gap
 			remainingSpace := availableWidth - fixedWidth
 
-			// Distribute remaining space to flex children
+			if os.Getenv("TUI_DEBUG_LAYOUT") == "true" {
+				fmt.Fprintf(os.Stderr, "[HStack] availableWidth=%d, fixedWidth=%d, remainingSpace=%d, flexChildren=%d\n",
+					availableWidth, fixedWidth, remainingSpace, len(flexChildren))
+			}
+
+			// ✅ IMPROVED: Distribute remaining space with remainder handling
+			// This ensures all available space is used (no wasted pixels)
+			baseFlexWidth := remainingSpace / flexTotalFactor
+			remainder := remainingSpace % flexTotalFactor
+
+			if os.Getenv("TUI_DEBUG_LAYOUT") == "true" {
+				fmt.Fprintf(os.Stderr, "[HStack] baseFlexWidth=%d, remainder=%d\n", baseFlexWidth, remainder)
+			}
+
+			// Distribute to flex children
 			for _, fc := range flexChildren {
-				flexWidth := (remainingSpace * fc.factor) / flexTotalFactor
+				flexWidth := baseFlexWidth * fc.factor
+
+				// Distribute remainder to first few children
+				if remainder > 0 {
+					extra := 1
+					if remainder < fc.factor {
+						extra = remainder
+					}
+					flexWidth += extra
+					remainder -= extra
+				}
+
 				if flexWidth < 0 {
 					flexWidth = 0
+				}
+
+				if os.Getenv("TUI_DEBUG_LAYOUT") == "true" {
+					fmt.Fprintf(os.Stderr, "[HStack]   child[%d]: flexWidth=%d\n", fc.index, flexWidth)
 				}
 
 				cc := runtime.BoxConstraints{
@@ -330,6 +380,12 @@ func (l *LayoutNode) MeasureLayout(measurer runtime.ChildMeasurer, constraints r
 				}
 				childConstraints[fc.index] = cc
 				totalWidth += flexWidth
+
+				// ✅ IMPORTANT: Measure flex children to get their heights!
+				childSize := measurer.MeasureChild(children[fc.index], cc)
+				if childSize.Height > maxChildHeight {
+					maxChildHeight = childSize.Height
+				}
 			}
 		} else {
 			// No bounded width or no flex children: measure flex children naturally
@@ -341,6 +397,12 @@ func (l *LayoutNode) MeasureLayout(measurer runtime.ChildMeasurer, constraints r
 					MaxHeight: innerMaxHeight,
 				}
 				childConstraints[fc.index] = cc
+
+				// ✅ IMPORTANT: Measure flex children to get their heights!
+				childSize := measurer.MeasureChild(children[fc.index], cc)
+				if childSize.Height > maxChildHeight {
+					maxChildHeight = childSize.Height
+				}
 			}
 		}
 
@@ -422,21 +484,44 @@ func (l *LayoutNode) Paint(x, y int) []paint.DrawCmd {
 	currentY := y + l.padding[0] // top padding
 
 	for i, child := range children {
-		// Set child bounds for hit testing (if child supports SetBounds)
-		l.setChildBounds(child, currentX, currentY)
+		// ⚠️ IMPORTANT: In two-phase rendering, LayoutEngine.calculatePositions()
+		// already set the correct bounds with flex widths. We should:
+		// 1. Use the bounds x, y coordinates for Paint()
+		// 2. Use the bounds width for position calculation
+		// 3. NOT overwrite bounds with natural widths
+
+		var paintX, paintY int
+		var childWidth, childHeight int
+		hasLayoutBounds := false
+
+		// Check if child has layout bounds (set by LayoutEngine)
+		if boundsAware, ok := child.(interface{ Bounds() [4]int }); ok {
+			if bounds := boundsAware.Bounds(); bounds[2] > 0 {
+				// Use layout engine's bounds
+				paintX, paintY = bounds[0], bounds[1]
+				childWidth, childHeight = bounds[2], bounds[3]
+				hasLayoutBounds = true
+			}
+		}
+
+		if !hasLayoutBounds {
+			// Legacy path: use currentX/currentY
+			paintX, paintY = currentX, currentY
+			l.setChildBounds(child, currentX, currentY)
+		}
 
 		// Check if child implements Paintable
 		if paintable, ok := child.(interface{ Paint(int, int) []paint.DrawCmd }); ok {
 			// Child has custom paint logic
-			childCmds := paintable.Paint(currentX, currentY)
+			childCmds := paintable.Paint(paintX, paintY)
 			cmds = append(cmds, childCmds...)
 		} else {
 			// Fallback: render as text element
 			if props := child.Props(); props != nil {
 				if content := props.GetString("content"); content != "" {
 					cmds = append(cmds, paint.DrawCmd{
-						X:     currentX,
-						Y:     currentY,
+						X:     paintX,
+						Y:     paintY,
 						Text:  content,
 						Style: child.Style(),
 					})
@@ -447,15 +532,24 @@ func (l *LayoutNode) Paint(x, y int) []paint.DrawCmd {
 		// Update position based on direction
 		if l.direction == DirectionRow {
 			// HStack: move horizontally
-			// Simple width estimation
-			childWidth := l.estimateChildWidth(child)
-			currentX += childWidth
+			if hasLayoutBounds {
+				// Use flex width from layout engine
+				currentX = paintX + childWidth
+			} else {
+				// Legacy: estimate natural width
+				childWidth = l.estimateChildWidth(child)
+				currentX += childWidth
+			}
 			if i < len(children)-1 {
 				currentX += l.gap
 			}
 		} else {
 			// VStack: move vertically
-			currentY++
+			if hasLayoutBounds {
+				currentY = paintY + childHeight
+			} else {
+				currentY++
+			}
 			if i < len(children)-1 {
 				currentY += l.gap
 			}

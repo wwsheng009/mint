@@ -39,6 +39,11 @@ func (e *PaintEngine) Paint(layout *compute.ComputedLayout, buffer *paint.Buffer
 		return nil
 	}
 
+	if os.Getenv("TUI_DEBUG_RENDERING") == "true" {
+		fmt.Fprintf(os.Stderr, "[PaintEngine.Paint] START: layout.Root=%T, box=(%d,%d,%dx%d)\n",
+			layout.Root.VNode, layout.Root.Box.X, layout.Root.Box.Y, layout.Root.Box.Width, layout.Root.Box.Height)
+	}
+
 	// If force full render is set (e.g., modal appeared/disappeared), clear buffer
 	if e.forceFullRender {
 		e.forceFullRender = false
@@ -50,7 +55,11 @@ func (e *PaintEngine) Paint(layout *compute.ComputedLayout, buffer *paint.Buffer
 		}
 	}
 
-	return e.paintNode(layout.Root, buffer)
+	err := e.paintNode(layout.Root, buffer)
+	if os.Getenv("TUI_DEBUG_RENDERING") == "true" {
+		fmt.Fprintf(os.Stderr, "[PaintEngine.Paint] END: err=%v\n", err)
+	}
+	return err
 }
 
 // paintNode recursively paints a computed box and its children
@@ -59,13 +68,17 @@ func (e *PaintEngine) paintNode(box *compute.ComputedBox, buffer *paint.Buffer) 
 		return nil
 	}
 
-	if e.debug {
-		fmt.Fprintf(os.Stderr, "[Paint] %s at (%d,%d) size %dx%d\n",
-			box.VNode.Type().String(), box.Box.X, box.Box.Y, box.Box.Width, box.Box.Height)
+	if e.debug || os.Getenv("TUI_PAINT_DEBUG") == "true" || os.Getenv("TUI_DEBUG_RENDERING") == "true" {
+		fmt.Fprintf(os.Stderr, "[Paint.paintNode] %s at (%d,%d) size %dx%d, vnode_type=%T\n",
+			box.VNode.Type().String(), box.Box.X, box.Box.Y, box.Box.Width, box.Box.Height, box.VNode)
 	}
 
 	// FIRST: Check if vnode implements Paintable interface (custom rendering like buttons)
-	if paintable, ok := box.VNode.(interface{ Paint(int, int) []paint.DrawCmd }); ok {
+	paintable, ok := box.VNode.(interface{ Paint(int, int) []paint.DrawCmd })
+	if ok {
+		if e.debug || os.Getenv("TUI_PAINT_DEBUG") == "true" || os.Getenv("TUI_DEBUG_RENDERING") == "true" {
+			fmt.Fprintf(os.Stderr, "[Paint.paintNode]   ✅ Paintable: YES, calling Paint(%d, %d)\n", box.Box.X, box.Box.Y)
+		}
 		// Component has custom paint logic - use it
 		commands := paintable.Paint(box.Box.X, box.Box.Y)
 		for _, cmd := range commands {
@@ -73,6 +86,10 @@ func (e *PaintEngine) paintNode(box *compute.ComputedBox, buffer *paint.Buffer) 
 		}
 		// Paintable components handle their own rendering, including children
 		return nil
+	} else {
+		if e.debug || os.Getenv("TUI_PAINT_DEBUG") == "true" || os.Getenv("TUI_DEBUG_RENDERING") == "true" {
+			fmt.Fprintf(os.Stderr, "[Paint.paintNode]   ❌ Paintable: NO (type assertion failed)\n")
+		}
 	}
 
 	// Paint the node based on its type
