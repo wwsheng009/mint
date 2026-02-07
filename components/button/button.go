@@ -664,12 +664,13 @@ func (b *ButtonVNode) Paint(x, y int) []paint.DrawCmd {
 		return nil
 	}
 
-	// Debug: log button paint state with bounds
+	// Debug: log button paint state
 	focusMarker := " "
 	if b.hasFocus {
 		focusMarker = "*"
 	}
-	log.ButtonLogger.Debug("ButtonPaint label=%q, hasFocus=%v, focusMarker=%s", b.label, b.hasFocus, focusMarker)
+	log.ButtonLogger.Debug("ButtonPaint label=%q, hasFocus=%v, focusMarker=%s",
+		b.label, b.hasFocus, focusMarker)
 
 	// Get button style for rendering
 	buttonStyle := b.Style()

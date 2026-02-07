@@ -66,6 +66,22 @@ func (l *LayoutNode) measureHStackLayout(
 
 	debug := os.Getenv("TUI_LAYOUT_DEBUG") == "true"
 
+	// ⭐ NEW: Check for explicit width prop and use it to constrain MaxWidth
+	// This allows Wrap component to set width="78" to force HStack to that width
+	if props := l.Props(); props != nil {
+		if width, ok := props["width"].(int); ok && width > 0 {
+			// Use explicit width as MaxWidth constraint
+			constraints.MaxWidth = width
+			// Ensure MinWidth doesn't exceed MaxWidth
+			if constraints.MinWidth > width {
+				constraints.MinWidth = width
+			}
+			if debug {
+				fmt.Fprintf(os.Stderr, "[MeasureLayout] Using width prop: %d\n", width)
+			}
+		}
+	}
+
 	// First pass: identify flex children and measure non-flex children
 	type flexChild struct {
 		child  VNode
@@ -239,6 +255,22 @@ func (l *LayoutNode) measureVStackLayout(
 	}
 
 	debug := os.Getenv("TUI_LAYOUT_DEBUG") == "true"
+
+	// ⭐ NEW: Check for explicit width prop and use it to constrain MaxWidth
+	// This allows Wrap component to set width="78" to force HStack to that width
+	if props := l.Props(); props != nil {
+		if width, ok := props["width"].(int); ok && width > 0 {
+			// Use explicit width as MaxWidth constraint
+			constraints.MaxWidth = width
+			// Ensure MinWidth doesn't exceed MaxWidth
+			if constraints.MinWidth > width {
+				constraints.MinWidth = width
+			}
+			if debug {
+				fmt.Fprintf(os.Stderr, "[MeasureLayout] Using width prop: %d\n", width)
+			}
+		}
+	}
 
 	// First pass: identify flex children and measure non-flex children
 	type flexChild struct {
