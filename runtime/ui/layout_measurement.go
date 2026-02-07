@@ -97,6 +97,10 @@ func (l *LayoutNode) measureHStackLayout(
 
 	for i, child := range children {
 		childInfo := GetLayoutInfo(child)
+		if debug {
+			fmt.Fprintf(os.Stderr, "[HStack.MeasureLayout] child %d: GetLayoutInfo.Flex=%d, tag=%s\n",
+				i, childInfo.Flex, child.Type().String())
+		}
 		if childInfo.Flex > 0 {
 			flexChildren = append(flexChildren, flexChild{
 				child:  child,

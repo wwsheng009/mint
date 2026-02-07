@@ -793,8 +793,10 @@ func (b *ButtonVNode) Paint(x, y int) []paint.DrawCmd {
 	if os.Getenv("TUI_PAINT_DEBUG") == "true" {
 		fmt.Fprintf(os.Stderr, "[DEBUG-PAINT] label=%q, bounds=[%d %d %d %d], x=%d, y=%d\n",
 			b.label, b.bounds[0], b.bounds[1], b.bounds[2], b.bounds[3], x, y)
-		fmt.Fprintf(os.Stderr, "[DEBUG-PAINT]   contentWidth=%d, naturalWidth=%d, layoutWidth=%d, paddingLeft=%d, paddingRight=%d\n",
-			contentWidth, naturalWidth, layoutWidth, paddingLeft, paddingRight)
+		fmt.Fprintf(os.Stderr, "[DEBUG-PAINT]   buttonText=\"%s\", contentWidth=%d, naturalWidth=%d, layoutWidth=%d\n",
+			buttonText, contentWidth, naturalWidth, layoutWidth)
+		fmt.Fprintf(os.Stderr, "[DEBUG-PAINT]   paddingLeft=%d, paddingRight=%d, willStretch=%v\n",
+			paddingLeft, paddingRight, layoutWidth > naturalWidth)
 	}
 
 	// Apply text alignment if button is stretched by flex layout
@@ -839,6 +841,10 @@ func (b *ButtonVNode) Paint(x, y int) []paint.DrawCmd {
 	}
 
 	// Return draw commands: focus indicator + button label
+	if os.Getenv("TUI_PAINT_DEBUG") == "true" {
+		fmt.Fprintf(os.Stderr, "[DEBUG-PAINT]   final buttonText length=%d, text=\"%s\"\n",
+			len(buttonText), buttonText)
+	}
 	return []paint.DrawCmd{
 		paint.NewTextCmd(x, y, buttonText, buttonStyle),
 	}
