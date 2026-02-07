@@ -15,10 +15,15 @@ import (
 	"fmt"
 
 	"github.com/wwsheng009/mint/app"
+	"github.com/wwsheng009/mint/framework/theme"
+	"github.com/wwsheng009/mint/runtime/style"
 	"github.com/wwsheng009/mint/ui"
 )
 
 func main() {
+	// Initialize theme
+	_ = theme.SetTheme("nord")
+
 	err := ui.Run(RuntimeDemo,
 		ui.WithWidth(100),
 		ui.WithHeight(35),
@@ -45,28 +50,18 @@ func RuntimeDemo() ui.VNode {
 	)
 }
 
-// HeaderPanel shows the title
+// HeaderPanel shows the title with border
 func HeaderPanel() ui.VNode {
-	return ui.VStack(
-		app.NewTextBuilder("╔══════════════════════════════════════════════════════════════════════════════════════════╗").
-			FgColor("cyan").
-			Build(),
-		ui.HStack(
-			app.NewTextBuilder("║ ").
-				FgColor("cyan").
-				Build(),
-			app.NewTextBuilder("                    Runtime Scheduling Pipeline Visualization").
-				Bold(true).
-				FgColor("white").
-				Build(),
-			app.NewTextBuilder("                          ║").
-				FgColor("cyan").
-				Build(),
-		),
-		app.NewTextBuilder("╚══════════════════════════════════════════════════════════════════════════════════════════╝").
-			FgColor("cyan").
+	headerContent := ui.HStack(
+		app.NewTextBuilder("                    Runtime Scheduling Pipeline Visualization").
+			Style(style.FgBold(theme.Text())).
 			Build(),
 	)
+
+	return ui.Bordered().
+		Style(string(theme.Primary())).
+		Child(headerContent).
+		Build()
 }
 
 // PipelineVisualization shows the runtime pipeline flow
@@ -93,35 +88,16 @@ func PipelineVisualization(currentPhase string) ui.VNode {
 		}
 	}
 
-	return ui.VStack(
-		app.NewTextBuilder("┌─ Runtime Pipeline ─────────────────────────────────────────────────────────────────────────┐").
-			FgColor("gray").
-			Build(),
-		ui.HStack(
-			app.NewTextBuilder("│ ").
-				FgColor("gray").
-				Build(),
-			buildPipelineLine(phases, activeIndex),
-			app.NewTextBuilder(" │").
-				FgColor("gray").
-				Build(),
-		),
-		app.NewTextBuilder("│                                                                                              │").
-			FgColor("gray").
-			Build(),
-		ui.HStack(
-			app.NewTextBuilder("│ ").
-				FgColor("gray").
-				Build(),
-			buildPipelineArrows(phases, activeIndex),
-			app.NewTextBuilder(" │").
-				FgColor("gray").
-				Build(),
-		),
-		app.NewTextBuilder("└──────────────────────────────────────────────────────────────────────────────────────────────┘").
-			FgColor("gray").
-			Build(),
-	)
+	return ui.Bordered().
+		Style(string(theme.Border())).
+		Child(
+			ui.VStack(
+				buildPipelineLine(phases, activeIndex),
+				ui.Text(""),
+				buildPipelineArrows(phases, activeIndex),
+			),
+		).
+		Build()
 }
 
 // buildPipelineLine creates the phase boxes
@@ -135,7 +111,9 @@ func buildPipelineLine(phases []struct{ name string; color string; position int 
 		result += "[" + p.name + "]"
 		_ = p // unused but kept for clarity
 	}
-	return app.NewTextBuilder(result).Build()
+	return app.NewTextBuilder(result).
+		Style(style.Foreground(theme.Muted())).
+		Build()
 }
 
 // buildPipelineArrows creates the flow arrows
@@ -150,52 +128,37 @@ func buildPipelineArrows(phases []struct{ name string; color string; position in
 		}
 	}
 	return app.NewTextBuilder(result).
-		FgColor("gray").
+		Style(style.Foreground(theme.Muted())).
 		Build()
 }
 
 // StatisticsPanel shows runtime statistics
 func StatisticsPanel(eventCount, renderCount, bufferUpdates int) ui.VNode {
-	return ui.VStack(
-		app.NewTextBuilder("┌─ Runtime Statistics ─────────────────────────────────────────────────────────────────────────┐").
-			FgColor("gray").
+	content := ui.HStack(
+		app.NewTextBuilder("Events:").
+			Style(style.Foreground(theme.Text())).
 			Build(),
-		ui.HStack(
-			app.NewTextBuilder("│ ").
-				FgColor("gray").
-				Build(),
-			app.NewTextBuilder("Events Processed: ").
-				FgColor("white").
-				Build(),
-			app.NewTextBuilder(fmt.Sprintf("%6d", eventCount)).
-				BgColor("red").
-				FgColor("white").
-				Bold(true).
-				Build(),
-			app.NewTextBuilder("    Renders: ").
-				FgColor("white").
-				Build(),
-			app.NewTextBuilder(fmt.Sprintf("%6d", renderCount)).
-				BgColor("blue").
-				FgColor("white").
-				Bold(true).
-				Build(),
-			app.NewTextBuilder("    Buffer Updates: ").
-				FgColor("white").
-				Build(),
-			app.NewTextBuilder(fmt.Sprintf("%6d", bufferUpdates)).
-				BgColor("green").
-				FgColor("white").
-				Bold(true).
-				Build(),
-			app.NewTextBuilder(" │").
-				FgColor("gray").
-				Build(),
-		),
-		app.NewTextBuilder("└──────────────────────────────────────────────────────────────────────────────────────────────┘").
-			FgColor("gray").
+		app.NewTextBuilder(fmt.Sprintf("%6d", eventCount)).
+			Style(style.FgBgBold(theme.Error(), theme.BG())).
+			Build(),
+		app.NewTextBuilder("  Renders:").
+			Style(style.Foreground(theme.Text())).
+			Build(),
+		app.NewTextBuilder(fmt.Sprintf("%6d", renderCount)).
+			Style(style.FgBgBold(theme.Info(), theme.BG())).
+			Build(),
+		app.NewTextBuilder("  Buffers:").
+			Style(style.Foreground(theme.Text())).
+			Build(),
+		app.NewTextBuilder(fmt.Sprintf("%6d", bufferUpdates)).
+			Style(style.FgBgBold(theme.Success(), theme.BG())).
 			Build(),
 	)
+
+	return ui.Bordered().
+		Style(string(theme.Border())).
+		Child(content).
+		Build()
 }
 
 // ControlPanel provides buttons to trigger each phase
@@ -205,86 +168,83 @@ func ControlPanel(
 	setRenderCount func(interface{}),
 	setBufferUpdates func(interface{}),
 ) ui.VNode {
-	return ui.VStack(
-		app.NewTextBuilder("┌─ Phase Triggers ──────────────────────────────────────────────────────────────────────────────┐").
-			FgColor("gray").
+	buttonsTop := ui.HStack(
+		app.ButtonBuilder("[1] Event").
+			Variant(app.ButtonVariantDanger).
+			OnClick(func() {
+				setCurrentPhase("Event")
+				setEventCount(func(c int) int { return c + 1 })
+			}).
+			FocusStyle(app.FocusStyleBracket).
 			Build(),
-		ui.HStack(
-			app.NewTextBuilder("│ ").
-				FgColor("gray").
-				Build(),
-			ui.VStack(
-				ui.HStack(
-					app.ButtonBuilder("[1] Event").
-						FgColor("red").
-						OnClick(func() {
-							setCurrentPhase("Event")
-							setEventCount(func(c int) int { return c + 1 })
-						}).
-						Build(),
-					ui.Text(" "),
-					app.ButtonBuilder("[2] setState").
-						FgColor("yellow").
-						OnClick(func() {
-							setCurrentPhase("setState")
-						}).
-						Build(),
-					ui.Text(" "),
-					app.ButtonBuilder("[3] Scheduler").
-						FgColor("green").
-						OnClick(func() {
-							setCurrentPhase("Scheduler")
-							setRenderCount(func(c int) int { return c + 1 })
-						}).
-						Build(),
-					ui.Text(" "),
-					app.ButtonBuilder("[4] Render").
-						FgColor("blue").
-						OnClick(func() {
-							setCurrentPhase("Render")
-						}).
-						Build(),
-				),
-				ui.Text(""),
-				ui.HStack(
-					app.ButtonBuilder("[5] Reconcile").
-						FgColor("magenta").
-						OnClick(func() {
-							setCurrentPhase("Reconcile")
-						}).
-						Build(),
-					ui.Text(" "),
-					app.ButtonBuilder("[6] Layout").
-						FgColor("cyan").
-						OnClick(func() {
-							setCurrentPhase("Layout")
-						}).
-						Build(),
-					ui.Text(" "),
-					app.ButtonBuilder("[7] Paint").
-						FgColor("white").
-						OnClick(func() {
-							setCurrentPhase("Paint")
-							setBufferUpdates(func(c int) int { return c + 1 })
-						}).
-						Build(),
-					ui.Text(" "),
-					app.ButtonBuilder("[0] Idle").
-						FgColor("gray").
-						OnClick(func() {
-							setCurrentPhase("idle")
-						}).
-						Build(),
-				),
-			),
-			app.NewTextBuilder(" │").
-				FgColor("gray").
-				Build(),
-		),
-		app.NewTextBuilder("└──────────────────────────────────────────────────────────────────────────────────────────────┘").
-			FgColor("gray").
+		ui.Text(" "),
+		app.ButtonBuilder("[2] setState").
+			Variant(app.ButtonVariantSecondary).
+			OnClick(func() {
+				setCurrentPhase("setState")
+			}).
+			FocusStyle(app.FocusStyleBracket).
+			Build(),
+		ui.Text(" "),
+		app.ButtonBuilder("[3] Scheduler").
+			Variant(app.ButtonVariantSuccess).
+			OnClick(func() {
+				setCurrentPhase("Scheduler")
+				setRenderCount(func(c int) int { return c + 1 })
+			}).
+			FocusStyle(app.FocusStyleBracket).
+			Build(),
+		ui.Text(" "),
+		app.ButtonBuilder("[4] Render").
+			Variant(app.ButtonVariantPrimary).
+			OnClick(func() {
+				setCurrentPhase("Render")
+			}).
+			FocusStyle(app.FocusStyleBracket).
 			Build(),
 	)
+
+	buttonsBottom := ui.HStack(
+		app.ButtonBuilder("[5] Reconcile").
+			OnClick(func() {
+				setCurrentPhase("Reconcile")
+			}).
+			FocusStyle(app.FocusStyleBracket).
+			Build(),
+		ui.Text(" "),
+		app.ButtonBuilder("[6] Layout").
+			OnClick(func() {
+				setCurrentPhase("Layout")
+			}).
+			FocusStyle(app.FocusStyleBracket).
+			Build(),
+		ui.Text(" "),
+		app.ButtonBuilder("[7] Paint").
+			OnClick(func() {
+				setCurrentPhase("Paint")
+				setBufferUpdates(func(c int) int { return c + 1 })
+			}).
+			FocusStyle(app.FocusStyleBracket).
+			Build(),
+		ui.Text(" "),
+		app.ButtonBuilder("[0] Idle").
+			OnClick(func() {
+				setCurrentPhase("idle")
+			}).
+			FocusStyle(app.FocusStyleBracket).
+			Build(),
+	)
+
+	content := ui.VStack(
+		buttonsTop,
+		ui.Text(""),
+		buttonsBottom,
+	)
+
+	return ui.Bordered().
+		Style(string(theme.Border())).
+		Child(content).
+		Build()
 }
 
 // ExplanationPanel shows detailed explanation of each phase
@@ -305,23 +265,12 @@ func ExplanationPanel(currentPhase string) ui.VNode {
 		text = "Select a phase to see detailed explanation..."
 	}
 
-	return ui.VStack(
-		app.NewTextBuilder("┌─ Phase Details ────────────────────────────────────────────────────────────────────────────────┐").
-			FgColor("gray").
-			Build(),
-		ui.HStack(
-			app.NewTextBuilder("│ ").
-				FgColor("gray").
-				Build(),
-			app.NewTextBuilder(fmt.Sprintf("%-100s", text)).
-				FgColor("white").
-				Build(),
-			app.NewTextBuilder("│").
-				FgColor("gray").
-				Build(),
-		),
-		app.NewTextBuilder("└──────────────────────────────────────────────────────────────────────────────────────────────┘").
-			FgColor("gray").
-			Build(),
-	)
+	content := app.NewTextBuilder(fmt.Sprintf("%-98s", text)).
+		Style(style.Foreground(theme.Text())).
+		Build()
+
+	return ui.Bordered().
+		Style(string(theme.Border())).
+		Child(content).
+		Build()
 }
