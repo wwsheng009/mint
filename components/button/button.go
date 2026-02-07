@@ -3,7 +3,6 @@ package button
 import (
 	"fmt"
 	"os"
-	"strings"
 	"unicode/utf8"
 
 	"github.com/wwsheng009/mint/framework/event"
@@ -623,37 +622,10 @@ func (b *ButtonVNode) Paint(x, y int) []paint.DrawCmd {
 		focusIndicator = " "
 	}
 
-	// CRITICAL: Check if layout engine has set bounds
-	// The layout engine will call SetBounds BEFORE Paint() is called
-	// We use these bounds to determine if we should stretch the button
-	naturalWidth := len(focusIndicator + labelText)  // Simple: each character is 1 cell wide
-
-	// Build the button text
+	// Build the button text with natural width
+	// IMPORTANT: The layout engine handles alignment by adjusting the X coordinate
+	// We should NOT manually add padding spaces - let the layout engine center/align
 	buttonText := focusIndicator + labelText
-	buttonWidth := naturalWidth
-
-	// IMPORTANT: If bounds were set by layout engine, use the layout width
-	// This allows buttons to stretch to fill available space (flex layout)
-	if b.bounds[2] > 0 {
-		// Bounds were set by layout engine (before Paint was called)
-		layoutWidth := b.bounds[2]  // bounds = [x, y, width, height]
-
-		// If layout width is larger than natural width, pad the text to fill
-		if layoutWidth > buttonWidth {
-			// Pad text with spaces to fill the layout width
-			padding := layoutWidth - buttonWidth
-			if os.Getenv("TUI_DEBUG_UI") == "true" {
-				fmt.Fprintf(os.Stderr, "[Button.Paint] STRETCHING: layoutWidth=%d > buttonWidth=%d, padding=%d\n",
-					layoutWidth, buttonWidth, padding)
-				fmt.Fprintf(os.Stderr, "[Button.Paint] buttonText before=%q (%d chars)\n", buttonText, len(buttonText))
-			}
-			buttonText += strings.Repeat(" ", padding)
-			buttonWidth = layoutWidth
-			if os.Getenv("TUI_DEBUG_UI") == "true" {
-				fmt.Fprintf(os.Stderr, "[Button.Paint] buttonText after=%q (%d chars)\n", buttonText, len(buttonText))
-			}
-		}
-	}
 
 	// Return draw commands: focus indicator + button label
 	return []paint.DrawCmd{

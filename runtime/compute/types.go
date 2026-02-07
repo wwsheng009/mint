@@ -46,6 +46,11 @@ type ComputedBox struct {
 	// RenderedText contains the final text to render (with padding if needed)
 	// This is calculated during layout phase to avoid modifying content during paint
 	RenderedText string
+
+	// NaturalWidth stores the natural (unconstrained) width of the element
+	// This is used for alignment calculations (center, end) when the element
+	// is stretched to fill available space (flex layout)
+	NaturalWidth int
 }
 
 // =============================================================================

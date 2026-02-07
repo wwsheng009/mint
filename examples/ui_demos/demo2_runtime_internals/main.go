@@ -239,11 +239,11 @@ func ControlPanel(
 	// ScreenWidth: 78 = container width (80) - border (2)
 	// This ensures buttons fill the entire available width
 	wrappedButtons := app.WrapBuilder(allButtons...).
-		Gap(1).                     // 1 space gap between buttons
-		RowGap(0).                  // No extra gap between rows
-		ScreenWidth(78).            // Container width (80) - borders (2) = 78
-		Align(ui.AlignSpaceAround). // Distribute space around each button
-		FillWidth().                // Stretch each row to fill width
+		Gap(1).                    // 1 space gap between buttons
+		RowGap(0).                 // No extra gap between rows
+		ScreenWidth(78).           // Container width (80) - borders (2) = 78
+		Align(ui.AlignCenter).     // Center each button within its allocated space
+		FillWidth().               // Stretch each row to fill width
 		Build()
 
 	return ui.Bordered().

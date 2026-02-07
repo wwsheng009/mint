@@ -76,9 +76,32 @@ func (e *Engine) buildComputedBoxWithSize(vnode VNode, parent *ComputedBox, cons
 	}
 
 	box := &ComputedBox{
-		VNode:  vnode,
-		Parent: parent,
-		Box:    runtime.Box{X: 0, Y: 0, Width: 0, Height: 0},
+		VNode:        vnode,
+		Parent:       parent,
+		Box:          runtime.Box{X: 0, Y: 0, Width: 0, Height: 0},
+		NaturalWidth: 0, // Will be measured below
+	}
+
+	// Measure natural width (unconstrained) for alignment calculations
+	// This is needed for proper centering when element is stretched by flex
+	if measurable, ok := vnode.(interface {
+		Measure(runtime.BoxConstraints) runtime.Size
+	}); ok {
+		naturalSize := measurable.Measure(runtime.BoxConstraints{
+			MinWidth:  0,
+			MaxWidth:  runtime.Infinity,
+			MinHeight: 0,
+			MaxHeight: runtime.Infinity,
+		})
+		box.NaturalWidth = naturalSize.Width
+		if e.debug {
+			tag := "unknown"
+			if tagger, ok := vnode.(interface{ Tag() string }); ok {
+				tag = tagger.Tag()
+			}
+			fmt.Fprintf(os.Stderr, "[buildComputedBox] tag=%s: NaturalWidth=%d\n",
+				tag, box.NaturalWidth)
+		}
 	}
 
 	// Get vnode children to determine if this is a leaf node
@@ -955,14 +978,43 @@ func (e *Engine) layoutHStack(box *ComputedBox, x, y int) {
 	for i, child := range box.Children {
 		childInfo := rtui.GetLayoutInfo(child.VNode)
 
+		// Calculate child X position with individual alignment
+		// If child was stretched by flex (allocated width > natural width),
+		// apply mainAlign to position content within allocated space
+		alignedChildX := childX
+		if child.NaturalWidth > 0 && child.Box.Width > child.NaturalWidth {
+			// Child was stretched (flex layout), apply alignment
+			switch mainAlign {
+			case rtui.AlignCenter:
+				// Center: left padding = (allocated - natural) / 2
+				padding := (child.Box.Width - child.NaturalWidth) / 2
+				alignedChildX = childX + padding
+			case rtui.AlignEnd:
+				// Right align: left padding = allocated - natural
+				padding := child.Box.Width - child.NaturalWidth
+				alignedChildX = childX + padding
+			case rtui.AlignStart, rtui.AlignSpaceBetween, rtui.AlignSpaceAround:
+				// Left align (default): no adjustment
+				alignedChildX = childX
+			}
+			if e.debug {
+				tag := "unknown"
+				if tagger, ok := child.VNode.(interface{ Tag() string }); ok {
+					tag = tagger.Tag()
+				}
+				fmt.Fprintf(os.Stderr, "[layoutHStack] child[%d] tag=%s: naturalWidth=%d, allocatedWidth=%d, alignment adjusted: x=%d -> %d\n",
+					i, tag, child.NaturalWidth, child.Box.Width, childX, alignedChildX)
+			}
+		}
+
 		// Stretch child to container height if:
 		// 1. Child has flex > 0 (explicit flex), OR
-	// 2. Container has StretchCross enabled (auto-stretch all children), OR
+		// 2. Container has StretchCross enabled (auto-stretch all children), OR
 		// 3. Child has FillHeight enabled (stretch this specific child)
-	// IMPORTANT: Only stretch if container height is finite (not Infinity)
-	if (childInfo.Flex > 0 || stretchCross || childInfo.FillHeight) && box.Box.Height < runtime.Infinity {
-		child.Box.Height = box.Box.Height
-	}
+		// IMPORTANT: Only stretch if container height is finite (not Infinity)
+		if (childInfo.Flex > 0 || stretchCross || childInfo.FillHeight) && box.Box.Height < runtime.Infinity {
+			child.Box.Height = box.Box.Height
+		}
 
 		// Calculate child Y position based on cross-axis alignment
 		childY := y
@@ -978,7 +1030,7 @@ func (e *Engine) layoutHStack(box *ComputedBox, x, y int) {
 			}
 		}
 
-		e.calculatePositions(child, childX, childY)
+		e.calculatePositions(child, alignedChildX, childY)
 		// Calculate next child position based on alignment mode
 		if mainAlign == rtui.AlignSpaceAround {
 			childX += child.Box.Width + gap
