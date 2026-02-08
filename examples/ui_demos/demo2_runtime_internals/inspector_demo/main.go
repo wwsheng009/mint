@@ -75,7 +75,7 @@ func RuntimeDemoWithInspector() ui.VNode {
 	eventCount, setEventCount, _ := ui.UseStateInt(0)
 	renderCount, setRenderCount, _ := ui.UseStateInt(0)
 	bufferUpdates, setBufferUpdates, _ := ui.UseStateInt(0)
-	showInspector, _ := ui.UseStateBool(inspectorEnabled)
+	showInspector, setShowInspector := ui.UseStateBool(inspectorEnabled)
 
 	// Track render performance
 	globalPerf.StartFrame()
@@ -86,7 +86,7 @@ func RuntimeDemoWithInspector() ui.VNode {
 		HeaderPanel(),
 		PipelineVisualization(currentPhase),
 		StatisticsPanel(eventCount, renderCount, bufferUpdates),
-		ControlPanel(setCurrentPhase, setEventCount, setRenderCount, setBufferUpdates),
+		ControlPanel(setCurrentPhase, setEventCount, setRenderCount, setBufferUpdates, setShowInspector),
 		ExplanationPanel(currentPhase),
 	)
 
@@ -374,6 +374,7 @@ func ControlPanel(
 	setEventCount func(interface{}),
 	setRenderCount func(interface{}),
 	setBufferUpdates func(interface{}),
+	setShowInspector func(bool),
 ) ui.VNode {
 	allButtons := []ui.VNode{
 		app.ButtonBuilder("[1] Event").
@@ -434,12 +435,19 @@ func ControlPanel(
 		app.ButtonBuilder("[I] Toggle Inspector").
 			Variant(app.ButtonVariantSecondary).
 			OnClick(func() {
-				inspectorEnabled = !inspectorEnabled
-				if inspectorEnabled {
+				// Toggle inspector state
+				newState := !inspectorEnabled
+				inspectorEnabled = newState
+
+				// Update global inspector
+				if newState {
 					globalInspector.Enable()
 				} else {
 					globalInspector.Disable()
 				}
+
+				// Update UI state to trigger re-render
+				setShowInspector(newState)
 			}).
 			FocusStyle(app.FocusStyleBracket).
 			Build(),
