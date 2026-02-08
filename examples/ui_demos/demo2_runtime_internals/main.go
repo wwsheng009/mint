@@ -13,6 +13,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/framework/theme"
@@ -21,6 +22,12 @@ import (
 )
 
 func main() {
+	// Check if layout debug mode is enabled
+	if os.Getenv("TUI_UI_DEBUG_LAYOUT") == "true" || os.Getenv("TUI_LAYOUT_DEBUG") == "true" {
+		TestLayoutInfo()
+		return
+	}
+
 	// Initialize theme
 	_ = theme.SetTheme("nord")
 
