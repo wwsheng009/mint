@@ -23,6 +23,9 @@ const (
 
 	// LayerTooltip is for tooltips and hints
 	LayerTooltip
+
+	// LayerInspector is for the UI Inspector debugging overlay
+	LayerInspector
 )
 
 // String returns the string representation of the layer
@@ -36,6 +39,8 @@ func (l Layer) String() string {
 		return "modal"
 	case LayerTooltip:
 		return "tooltip"
+	case LayerInspector:
+		return "inspector"
 	default:
 		return "unknown"
 	}
@@ -48,7 +53,7 @@ func (l Layer) ZIndex() int {
 
 // IsValid checks if the layer value is valid
 func (l Layer) IsValid() bool {
-	return l >= LayerBase && l <= LayerTooltip
+	return l >= LayerBase && l <= LayerInspector
 }
 
 // IsModal checks if this layer is the modal layer

@@ -138,6 +138,15 @@ func (m *Manager) layoutLayer(
 			MaxHeight: constraints.MaxHeight,
 		}
 
+	case rtui.LayerInspector:
+		// Inspector overlay positions itself (typically in a corner)
+		layerConstraints = runtime.BoxConstraints{
+			MinWidth:  0,
+			MaxWidth:  constraints.MaxWidth,
+			MinHeight: 0,
+			MaxHeight: constraints.MaxHeight,
+		}
+
 	default:
 		layerConstraints = constraints
 	}
@@ -270,6 +279,16 @@ func (m *Manager) GetTooltipNodes() []*LayerNode {
 	return m.collector.GetTooltipNodes()
 }
 
+// GetInspectorNodes returns all inspector layer nodes
+func (m *Manager) GetInspectorNodes() []*LayerNode {
+	return m.collector.GetInspectorNodes()
+}
+
+// HasInspector returns true if there is an inspector layer
+func (m *Manager) HasInspector() bool {
+	return m.collector.HasInspector()
+}
+
 // =============================================================================
 // Layer Ordering
 // =============================================================================
@@ -296,6 +315,11 @@ func (m *Manager) RenderOrder() []rtui.Layer {
 	// Add tooltip
 	if _, ok := m.layouts[rtui.LayerTooltip]; ok {
 		layers = append(layers, rtui.LayerTooltip)
+	}
+
+	// Add inspector (highest layer)
+	if _, ok := m.layouts[rtui.LayerInspector]; ok {
+		layers = append(layers, rtui.LayerInspector)
 	}
 
 	return layers

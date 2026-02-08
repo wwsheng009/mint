@@ -153,6 +153,7 @@ func (p *Pump) convertKeyEvent(raw platform.RawInput) Event {
 		ev.Modifiers |= ModCtrl
 	}
 	if raw.Modifiers&platform.ModShift != 0 {
+		ev.Key.Shift = true
 		ev.Modifiers |= ModShift
 	}
 

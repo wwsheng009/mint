@@ -99,6 +99,7 @@ var (
 	Center        = layout.Center
 	Wrap          = layout.Wrap
 	WrapBuilder   = layout.NewWrapBuilder
+	ScrollView    = layout.NewScrollView
 )
 
 // Grid dimension types

@@ -13,7 +13,8 @@ import (
 func GetLayoutTree(root ui.VNode, constraints runtime.BoxConstraints) (*debug.LayoutTree, error) {
 	fmt.Println("==============================================")
 	fmt.Println("Demo2 布局调试信息")
-	fmt.Println("==============================================\n")
+	fmt.Println("==============================================")
+	fmt.Println()
 
 	// 创建布局引擎
 	engine := compute.NewEngine()
@@ -63,7 +64,8 @@ func TestControlPanelLayout() ui.VNode {
 func TestLayoutInfo() {
 	fmt.Println("==============================================")
 	fmt.Println("Demo2 布局调试信息")
-	fmt.Println("==============================================\n")
+	fmt.Println("==============================================")
+	fmt.Println()
 
 	// 获取简化的 ControlPanel（不使用 hooks）
 	root := TestControlPanelLayout()

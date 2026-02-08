@@ -103,6 +103,7 @@ func RuntimeDemoWithInspector() ui.VNode {
 		inspectorPanel := buildInspectorPanel(currentPhase, eventCount, renderCount, bufferUpdates)
 
 		// Show main content and inspector side by side
+		// Use HStack to place inspector on the right side
 		return ui.HStack(
 			mainContent,
 			ui.Text("│"), // Separator
@@ -124,8 +125,24 @@ func buildInspectorPanel(currentPhase string, eventCount, renderCount, bufferUpd
 			Build(),
 	)
 
+	// Current Phase Section
+	inspectorSections = append(inspectorSections,
+		app.NewTextBuilder("┌─ Current Phase ─").
+			Style(style.FgBold(style.Cyan)).
+			Build(),
+		app.NewTextBuilder(fmt.Sprintf("Phase: %s", currentPhase)).
+			Style(style.Foreground(style.White)).
+			Build(),
+		app.NewTextBuilder("").
+			Style(style.Foreground(theme.Muted())).
+			Build(),
+	)
+
 	// Performance Section
 	inspectorSections = append(inspectorSections, buildPerformanceSection())
+
+	// Statistics Section
+	inspectorSections = append(inspectorSections, buildStatisticsSection(eventCount, renderCount, bufferUpdates))
 
 	// Diagnostics Section
 	inspectorSections = append(inspectorSections, buildDiagnosticsSection())
@@ -143,10 +160,10 @@ func buildInspectorPanel(currentPhase string, eventCount, renderCount, bufferUpd
 		app.NewTextBuilder("─────────────────").
 			Style(style.Foreground(theme.Muted())).
 			Build(),
-		app.NewTextBuilder("F12: Toggle").
+		app.NewTextBuilder("[I]: Toggle").
 			Style(style.Foreground(theme.Muted())).
 			Build(),
-		app.NewTextBuilder("Tab: Next element").
+		app.NewTextBuilder("Tab: Navigate").
 			Style(style.Foreground(theme.Muted())).
 			Build(),
 	)
@@ -155,6 +172,7 @@ func buildInspectorPanel(currentPhase string, eventCount, renderCount, bufferUpd
 		Style(string(theme.Info())).
 		Child(ui.VStack(inspectorSections...)).
 		FillHeight().
+		Width(50). // Set fixed width for inspector panel
 		Build()
 }
 
@@ -247,6 +265,27 @@ func buildSelectedElementSection() ui.VNode {
 			selected.Position.Y,
 			selected.Size.Width,
 			selected.Size.Height)).
+			Style(style.Foreground(theme.Muted())).
+			Build(),
+	)
+}
+
+// buildStatisticsSection creates statistics display
+func buildStatisticsSection(eventCount, renderCount, bufferUpdates int) ui.VNode {
+	return ui.VStack(
+		app.NewTextBuilder("┌─ Statistics ────").
+			Style(style.FgBold(style.Cyan)).
+			Build(),
+		app.NewTextBuilder(fmt.Sprintf("Events: %d", eventCount)).
+			Style(style.Foreground(style.White)).
+			Build(),
+		app.NewTextBuilder(fmt.Sprintf("Renders: %d", renderCount)).
+			Style(style.Foreground(style.White)).
+			Build(),
+		app.NewTextBuilder(fmt.Sprintf("Buffers: %d", bufferUpdates)).
+			Style(style.Foreground(style.White)).
+			Build(),
+		app.NewTextBuilder("").
 			Style(style.Foreground(theme.Muted())).
 			Build(),
 	)

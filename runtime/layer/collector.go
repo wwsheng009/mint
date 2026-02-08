@@ -71,7 +71,7 @@ func (m LayerMap) HasModal() bool {
 
 // HasOverlay checks if any overlay layer nodes exist
 func (m LayerMap) HasOverlay() bool {
-	for l := rtui.LayerOverlay; l <= rtui.LayerTooltip; l++ {
+	for l := rtui.LayerOverlay; l <= rtui.LayerInspector; l++ {
 		if len(m[l]) > 0 {
 			return true
 		}
@@ -79,9 +79,14 @@ func (m LayerMap) HasOverlay() bool {
 	return false
 }
 
+// HasInspector checks if any inspector layer nodes exist
+func (m LayerMap) HasInspector() bool {
+	return len(m[rtui.LayerInspector]) > 0
+}
+
 // GetHighestLayer returns the highest layer that has visible nodes
 func (m LayerMap) GetHighestLayer() rtui.Layer {
-	for l := rtui.LayerTooltip; l >= rtui.LayerBase; l-- {
+	for l := rtui.LayerInspector; l >= rtui.LayerBase; l-- {
 		if len(m[l]) > 0 {
 			for _, node := range m[l] {
 				if node.Visible {
@@ -308,4 +313,14 @@ func (c *Collector) GetOverlayNodes() []*LayerNode {
 // GetTooltipNodes returns all tooltip layer nodes
 func (c *Collector) GetTooltipNodes() []*LayerNode {
 	return c.layers.Get(rtui.LayerTooltip)
+}
+
+// GetInspectorNodes returns all inspector layer nodes
+func (c *Collector) GetInspectorNodes() []*LayerNode {
+	return c.layers.Get(rtui.LayerInspector)
+}
+
+// HasInspector checks if any inspector nodes were collected
+func (c *Collector) HasInspector() bool {
+	return c.layers.HasInspector()
 }

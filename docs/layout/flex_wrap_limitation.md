@@ -324,3 +324,86 @@ row2 := ui.HStackBuilder(
 - **CSS Flexbox:** https://developer.mozilla.org/en-US/docs/Web/CSS/flex-wrap
 - **Mint TUI 布局系统:** `docs/layout/flex_comparison.md`
 - **布局问题修复:** `docs/layout/issue/`
+
+---
+
+## 附录：容器背景渲染系统
+
+**更新日期**: 2025-02-08
+
+Mint TUI 现在支持完整的容器背景渲染系统，包括：
+
+### 功能特性
+
+1. **容器背景渲染** - 为整个容器设置统一的背景色
+2. **内容遮挡** - 自动遮挡底层内容，避免"透视"效果
+3. **背景继承** - 子控件自动继承父容器背景，确保视觉一致
+
+### 快速示例
+
+```go
+import (
+    rtui "github.com/wwsheng009/mint/runtime/ui"
+    "github.com/wwsheng009/mint/runtime/style"
+)
+
+// 创建带背景的容器
+content := rtui.VStack(
+    ui.Text("内容 1"),
+    ui.Text("内容 2"),
+    ui.Text("内容 3"),
+)
+
+// 设置背景色（内部所有子控件自动继承）
+content.SetStyle(style.NewStyle().Background(style.Blue))
+
+// 包裹边框并设置大小
+panel := rtui.Bordered().
+    Style(string(theme.Border())).
+    Child(content).
+    Width(40).    // 重要：大小设置在外层
+    Height(15).
+    Build()
+```
+
+### 使用场景
+
+- **Modal 对话框** - 深色背景遮挡底层应用
+- **Inspector 面板** - 蓝色背景便于区分
+- **Dropdown 菜单** - 白色背景突出选项
+- **Tooltip 提示** - 黄色背景吸引注意
+
+### 相关文档
+
+- **完整文档**: [Container Background Rendering](./container_background_rendering.md)
+- **快速参考**: [Background Quick Reference](./background_quick_reference.md)
+- **实现细节**:
+  - `INSPECTOR_CONTAINER_BACKGROUND_FIX.md` - 容器背景修复
+  - `INSPECTOR_OCCLUSION_FIX.md` - 遮挡透视修复
+  - `INSPECTOR_BACKGROUND_INHERITANCE.md` - 背景继承机制
+  - `INSPECTOR_BACKGROUND_COMPLETE_SOLUTION.md` - 完整解决方案
+
+### 调试支持
+
+```bash
+# 查看背景渲染过程
+TUI_PAINT_DEBUG=true ./your_app
+
+# 输出示例：
+# [Paint.paintContainerBackground] Occluded 40x15 area at (10, 5) with BG=blue
+# [Paint.paintNode]   🎨 Inherited parent BG=blue
+```
+
+### 最佳实践
+
+| 场景 | 背景色 | 前景色 | 用途 |
+|------|--------|--------|------|
+| Modal 对话框 | `style.Black` | `style.White` | 深色主题 |
+| Dropdown 菜单 | `style.White` | `style.Black` | 浅色主题 |
+| Inspector 面板 | `style.Blue` | `style.White` | 强调区分 |
+| 错误提示 | `style.Red` | `style.Yellow` | 警告强调 |
+| 成功提示 | `style.Green` | `style.White` | 成功反馈 |
+
+---
+
+**回到**: [布局系统限制](#当前状态) | [目录](#目录)

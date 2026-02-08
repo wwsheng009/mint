@@ -1,6 +1,11 @@
 package event
 
-import "github.com/wwsheng009/mint/runtime/event"
+import (
+	"fmt"
+	"os"
+
+	"github.com/wwsheng009/mint/runtime/event"
+)
 
 // EventHandler is the interface for event handlers.
 type EventHandler interface {
@@ -106,14 +111,33 @@ func (k *KeyMap) Bind(combo string, handler EventHandler) error {
 
 // Lookup looks up a handler for a keyboard event.
 func (k *KeyMap) Lookup(ev *KeyEvent) (EventHandler, bool) {
-	// Try character key first
+	// Build combo string with modifiers
+	combo := k.buildComboString(ev.Key, ev.Modifiers)
+
+	// Debug output
+	if os.Getenv("TUI_DEBUG_UI") == "true" || os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
+		fmt.Fprintf(os.Stderr, "[KeyMap] Lookup: Rune=%c Name=%q Modifiers=%d Combo=%q\n",
+			ev.Key.Rune, ev.Key.Name, ev.Modifiers, combo)
+	}
+
+	// Try combo with modifiers first (e.g., "alt+k", "ctrl+d")
+	if combo != "" {
+		if handler, ok := k.bindings[combo]; ok {
+			if os.Getenv("TUI_DEBUG_UI") == "true" || os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
+				fmt.Fprintf(os.Stderr, "[KeyMap] Found handler for combo '%s'\n", combo)
+			}
+			return handler, true
+		}
+	}
+
+	// Try character key without modifiers
 	if ev.Key.Rune > 0 {
 		if handler, ok := k.bindings[string(ev.Key.Rune)]; ok {
 			return handler, true
 		}
 	}
 
-	// Try special key name
+	// Try special key name without modifiers
 	if ev.Key.Name != "" {
 		if handler, ok := k.bindings[ev.Key.Name]; ok {
 			return handler, true
@@ -121,6 +145,37 @@ func (k *KeyMap) Lookup(ev *KeyEvent) (EventHandler, bool) {
 	}
 
 	return nil, false
+}
+
+// buildComboString builds a combo string like "alt+k" or "ctrl+d" from key and modifiers
+func (k *KeyMap) buildComboString(key Key, modifiers Modifier) string {
+	if modifiers == 0 {
+		return ""
+	}
+
+	var combo string
+
+	// Add modifier prefixes
+	if modifiers&ModAlt != 0 {
+		combo += "alt+"
+	}
+	if modifiers&ModCtrl != 0 {
+		combo += "ctrl+"
+	}
+	if modifiers&ModShift != 0 {
+		combo += "shift+"
+	}
+
+	// Add key name or rune
+	if key.Rune > 0 {
+		combo += string(key.Rune)
+	} else if key.Name != "" {
+		combo += key.Name
+	} else {
+		return ""
+	}
+
+	return combo
 }
 
 // ============================================================================

@@ -118,6 +118,28 @@ func (tv *TreeView) FormatTree() string {
 	return strings.Join(lines, "\n")
 }
 
+// FormatTreePaginated formats the tree with pagination support
+// Returns all lines, total count, and allows showing only a range
+func (tv *TreeView) FormatTreePaginated() ([]string, int) {
+	if tv.root == nil {
+		return []string{"No tree to display"}, 1
+	}
+
+	var lines []string
+	lines = append(lines, "┌─ Layout Tree ─────────────────────────────────")
+
+	lines = tv.formatNode(tv.root, lines, true)
+
+	lines = append(lines, "└─────────────────────────────────────────────┘")
+
+	return lines, len(lines)
+}
+
+// GetTreeLines returns all lines and total count for scrolling
+func (tv *TreeView) GetTreeLines() ([]string, int) {
+	return tv.FormatTreePaginated()
+}
+
 // formatNode recursively formats a tree node and returns the updated lines
 func (tv *TreeView) formatNode(node *TreeNode, lines []string, isLast bool) []string {
 	if node == nil {

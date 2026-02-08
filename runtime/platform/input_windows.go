@@ -295,18 +295,63 @@ func (r *windowsInputReader) parseKeyEvent(record *INPUT_RECORD, now time.Time) 
 
 	input.Special = SpecialKey(r.virtualKeyToSpecial(keyEvent.VirtualKeyCode))
 
-	if keyEvent.ControlKeyState&0x0008 != 0 {
+	// Windows ControlKeyState flags (from WinCon.h):
+	// RIGHT_CTRL_PRESSED = 0x0004
+	// LEFT_CTRL_PRESSED  = 0x0008
+	// SHIFT_PRESSED      = 0x0010
+	// RIGHT_ALT_PRESSED  = 0x0001
+	// LEFT_ALT_PRESSED   = 0x0002
+
+	// Check for Shift (0x0010)
+	if keyEvent.ControlKeyState&0x0010 != 0 {
 		input.Modifiers |= ModShift
 	}
-	if keyEvent.ControlKeyState&0x0004 != 0 {
+	// Check for Ctrl (both LEFT 0x0008 and RIGHT 0x0004)
+	if keyEvent.ControlKeyState&0x0004 != 0 || keyEvent.ControlKeyState&0x0008 != 0 {
 		input.Modifiers |= ModCtrl
 	}
-	if keyEvent.ControlKeyState&0x0002 != 0 {
+	// Check for Alt (both LEFT 0x0002 and RIGHT 0x0001)
+	if keyEvent.ControlKeyState&0x0002 != 0 || keyEvent.ControlKeyState&0x0001 != 0 {
 		input.Modifiers |= ModAlt
 	}
 
-	if input.Special == KeyUnknown && keyEvent.UChar > 0 {
+	// Handle Ctrl+letter combinations
+	// Windows console sends control characters (UChar 1-26) for Ctrl+A to Ctrl+Z
+	// We need to convert these back to the letter with Ctrl modifier
+	if keyEvent.UChar >= 1 && keyEvent.UChar <= 26 && keyEvent.VirtualKeyCode >= 0x41 && keyEvent.VirtualKeyCode <= 0x5A {
+		// This is Ctrl+letter (A-Z)
+		// Preserve case: lowercase for ctrl+letter, uppercase for ctrl+shift+letter
+		if keyEvent.ControlKeyState&0x0010 != 0 {
+			// Shift is pressed - use uppercase (e.g., Ctrl+Shift+D → 'D')
+			input.Key = rune(keyEvent.VirtualKeyCode)  // 'A'-'Z'
+		} else {
+			// No shift - use lowercase (e.g., Ctrl+d → 'd')
+			input.Key = rune(keyEvent.VirtualKeyCode + 32)  // 'a'-'z'
+		}
+		input.Modifiers |= ModCtrl
+		input.Special = KeyUnknown
+	} else if input.Special == KeyUnknown && keyEvent.UChar > 0 {
 		input.Key = rune(keyEvent.UChar)
+	}
+
+	// Debug: Print ALL key events (not just modifiers) to see what's happening
+	if os.Getenv("TUI_DEBUG_INPUT") == "true" {
+		modStr := ""
+		if input.Modifiers&ModAlt != 0 {
+			modStr += "Alt+"
+		}
+		if input.Modifiers&ModCtrl != 0 {
+			modStr += "Ctrl+"
+		}
+		if input.Modifiers&ModShift != 0 {
+			modStr += "Shift+"
+		}
+		if modStr == "" {
+			modStr = "none"
+		}
+		fmt.Fprintf(os.Stderr, "[WIN INPUT] VK=0x%02X UChar=0x%02X Special=%d Key=%c ControlKeyState=0x%04X Modifiers=%s\n",
+			keyEvent.VirtualKeyCode, keyEvent.UChar, input.Special, input.Key,
+			keyEvent.ControlKeyState, modStr)
 	}
 
 	return input

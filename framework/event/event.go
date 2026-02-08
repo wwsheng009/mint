@@ -231,6 +231,9 @@ type Key struct {
 
 	// Ctrl is true if Ctrl key was pressed.
 	Ctrl bool
+
+	// Shift is true if Shift key was pressed.
+	Shift bool
 }
 
 // Modifier represents keyboard modifiers.

@@ -19,6 +19,7 @@ type PaintEngine struct {
 	debug         bool
 	lastHadModal  bool  // Track if modal was present in last frame (for backdrop restoration)
 	forceFullRender bool // Flag to force full buffer render on next frame
+	parentBackground map[*compute.ComputedBox]style.Color // Track parent background for inheritance
 }
 
 // NewPaintEngine creates a new paint engine
@@ -43,6 +44,10 @@ func (e *PaintEngine) Paint(layout *compute.ComputedLayout, buffer *paint.Buffer
 		fmt.Fprintf(os.Stderr, "[PaintEngine.Paint] START: layout.Root=%T, box=(%d,%d,%dx%d)\n",
 			layout.Root.VNode, layout.Root.Box.X, layout.Root.Box.Y, layout.Root.Box.Width, layout.Root.Box.Height)
 	}
+
+	// Clear parent background map at the start of each frame
+	// This prevents stale background inheritance from previous frames
+	e.parentBackground = make(map[*compute.ComputedBox]style.Color)
 
 	// If force full render is set (e.g., modal appeared/disappeared), clear buffer
 	if e.forceFullRender {
@@ -73,6 +78,16 @@ func (e *PaintEngine) paintNode(box *compute.ComputedBox, buffer *paint.Buffer) 
 			box.VNode.Type().String(), box.Box.X, box.Box.Y, box.Box.Width, box.Box.Height, box.VNode)
 	}
 
+	// Check if we have a parent background to inherit
+	var parentBG style.Color
+	cleanUpParentBG := false
+	if e.parentBackground != nil {
+		if inheritedBG, ok := e.parentBackground[box]; ok && inheritedBG != "" {
+			parentBG = inheritedBG
+			cleanUpParentBG = true
+		}
+	}
+
 	// FIRST: Check if vnode implements Paintable interface (custom rendering like buttons)
 	paintable, ok := box.VNode.(interface{ Paint(int, int) []paint.DrawCmd })
 	if ok {
@@ -81,15 +96,53 @@ func (e *PaintEngine) paintNode(box *compute.ComputedBox, buffer *paint.Buffer) 
 		}
 		// Component has custom paint logic - use it
 		commands := paintable.Paint(box.Box.X, box.Box.Y)
+
+		// Apply commands with potential background inheritance
 		for _, cmd := range commands {
-			buffer.SetString(cmd.X, cmd.Y, cmd.Text, cmd.Style)
+			styleToApply := cmd.Style
+			// If command has no background and parent has one, inherit it
+			if parentBG != "" && (styleToApply.BG == "" || styleToApply.BG == style.NoColor) {
+				styleToApply.BG = parentBG
+				if e.debug || os.Getenv("TUI_PAINT_DEBUG") == "true" {
+					fmt.Fprintf(os.Stderr, "[Paint.paintNode]   🎨 Paintable inherited parent BG=%s\n", parentBG)
+				}
+			}
+			buffer.SetString(cmd.X, cmd.Y, cmd.Text, styleToApply)
 		}
+
+		// Clean up parent background entry
+		if cleanUpParentBG {
+			delete(e.parentBackground, box)
+		}
+
 		// Paintable components handle their own rendering, including children
 		return nil
 	} else {
 		if e.debug || os.Getenv("TUI_PAINT_DEBUG") == "true" || os.Getenv("TUI_DEBUG_RENDERING") == "true" {
 			fmt.Fprintf(os.Stderr, "[Paint.paintNode]   ❌ Paintable: NO (type assertion failed)\n")
 		}
+	}
+
+	// ENHANCEMENT: Inherit parent background for non-Paintable nodes
+	// This ensures child controls blend with parent container's background
+	if parentBG != "" {
+		nodeStyle := box.VNode.Style()
+		// Only inherit if node doesn't have its own background
+		if nodeStyle.BG == "" || nodeStyle.BG == style.NoColor {
+			// Inherit parent background
+			inheritedStyle := nodeStyle
+			inheritedStyle.BG = parentBG
+			box.VNode.SetStyle(inheritedStyle)
+
+			if e.debug || os.Getenv("TUI_PAINT_DEBUG") == "true" {
+				fmt.Fprintf(os.Stderr, "[Paint.paintNode]   🎨 Inherited parent BG=%s\n", parentBG)
+			}
+		}
+	}
+
+	// Clean up parent background entry
+	if cleanUpParentBG {
+		delete(e.parentBackground, box)
 	}
 
 	// Paint the node based on its type
@@ -157,7 +210,48 @@ func (e *PaintEngine) paintElement(box *compute.ComputedBox, buffer *paint.Buffe
 		buffer.SetString(box.Box.X, box.Box.Y, content, box.VNode.Style())
 		return // Don't paint children for text elements
 	}
+
+	// ENHANCEMENT: Paint container background if set
+	// This allows elements like Inspector panels to have solid backgrounds
+	nodeStyle := box.VNode.Style()
+	if nodeStyle.BG != "" && nodeStyle.BG != style.NoColor {
+		e.paintContainerBackground(box, buffer, nodeStyle)
+
+		// IMPORTANT: Store parent background for child inheritance
+		// Children without explicit background will inherit this background
+		if e.parentBackground == nil {
+			e.parentBackground = make(map[*compute.ComputedBox]style.Color)
+		}
+		for _, childBox := range box.Children {
+			e.parentBackground[childBox] = nodeStyle.BG
+		}
+	}
+
 	// For non-text elements, children will be painted after the switch
+}
+
+// paintContainerBackground fills the entire container area with background color
+// This is used to create solid backgrounds for panels like Inspector
+// IMPORTANT: This must be called BEFORE painting children to occlude underlying content
+func (e *PaintEngine) paintContainerBackground(box *compute.ComputedBox, buffer *paint.Buffer, bgStyle style.Style) {
+	// Create background style (only BG, no foreground)
+	backgroundStyle := style.Style{}.Background(bgStyle.BG)
+
+	// CRITICAL: Unconditionally fill entire container area with background color
+	// This occludes any content rendered underneath (e.g., from lower layers)
+	// Children will be painted on top of this background
+	for y := 0; y < box.Box.Height; y++ {
+		for x := 0; x < box.Box.Width; x++ {
+			// Unconditionally set background to occlude underlying content
+			// Use space character ' ' to clear any existing content
+			buffer.SetCell(box.Box.X+x, box.Box.Y+y, ' ', backgroundStyle)
+		}
+	}
+
+	if e.debug || os.Getenv("TUI_PAINT_DEBUG") == "true" {
+		fmt.Fprintf(os.Stderr, "[Paint.paintContainerBackground] Occluded %dx%d area at (%d,%d) with BG=%s\n",
+			box.Box.Width, box.Box.Height, box.Box.X, box.Box.Y, bgStyle.BG)
+	}
 }
 
 // paintChildren paints children of a node using their computed positions
@@ -246,13 +340,14 @@ func (e *PaintEngine) PaintLayers(
 	}
 	e.lastHadModal = hasModal
 
-	// Render layers in order from lowest (base) to highest (tooltip)
+	// Render layers in order from lowest (base) to highest (inspector)
 	// This ensures proper z-ordering
 	renderOrder := []rtui.Layer{
 		rtui.LayerBase,
 		rtui.LayerOverlay,
 		rtui.LayerModal,
 		rtui.LayerTooltip,
+		rtui.LayerInspector,
 	}
 
 	for _, l := range renderOrder {

@@ -1,0 +1,280 @@
+package inspector
+
+import (
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/wwsheng009/mint/app"
+	ui "github.com/wwsheng009/mint/ui"
+)
+
+// TestInspectorWithRealContent 测试 Inspector 与实际内容的集成
+func TestInspectorWithRealContent(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping interactive test in short mode")
+	}
+
+	// 创建 Inspector
+	inspector := NewStandaloneInspector()
+	inspector.Enable()
+	inspector.ToggleVisibility()
+	inspector.SetOverlaySize(100, 40)
+
+	// 创建一个复杂的应用树
+	appRoot := ui.VStack(
+		ui.Text("Root Container"),
+		ui.Text("───────────────"),
+		ui.HStack(
+			ui.Text("Left"),
+			app.ButtonBuilder("[Button A]").Build(),
+			ui.Text("Right"),
+		),
+		ui.VStack(
+			ui.Text("Nested VStack"),
+			app.ButtonBuilder("[Button B]").Build(),
+			app.ButtonBuilder("[Button C]").Build(),
+		),
+		ui.Text("───────────────"),
+		ui.Text("End of content"),
+	)
+
+	// 附加应用到 Inspector
+	inspector.AttachToApp(appRoot)
+
+	testApp, err := ui.RunTest(func() ui.VNode {
+		return ui.VStack(
+			appRoot,
+			ui.Text(""),
+			ui.Text("Press 'i' to toggle Inspector"),
+		)
+	},
+		ui.WithWidth(100),
+		ui.WithHeight(40),
+		ui.WithTitle("Inspector with Real Content"),
+	)
+	if err != nil {
+		t.Fatalf("Failed to create test app: %v", err)
+	}
+	defer testApp.Close()
+
+	// 等待初始渲染
+	time.Sleep(300 * time.Millisecond)
+
+	// 获取树视图内容
+	treeView := inspector.GetTreeView()
+	lines, totalLines := treeView.GetTreeLines()
+
+	t.Logf("Tree has %d lines, %d total nodes", len(lines), totalLines)
+	t.Logf("=== Tree Content (first 30 lines) ===")
+	for i := 0; i < len(lines) && i < 30; i++ {
+		t.Logf("  %s", lines[i])
+	}
+	t.Logf("=== End ===")
+
+	// 验证树有内容
+	if totalLines == 0 {
+		t.Error("Tree should have content after AttachToApp")
+	}
+
+	if len(lines) == 0 {
+		t.Error("Tree lines should not be empty")
+	}
+
+	// 验证包含预期的节点类型
+	expectedTypes := []string{"VStack", "HStack", "Text", "Button"}
+	missingTypes := []string{}
+	treeContent := strings.Join(lines, " ")
+
+	for _, expectedType := range expectedTypes {
+		if !strings.Contains(treeContent, expectedType) {
+			missingTypes = append(missingTypes, expectedType)
+		}
+	}
+
+	if len(missingTypes) > 0 {
+		t.Errorf("Tree is missing expected node types: %v", missingTypes)
+	} else {
+		t.Log("✓ Tree contains all expected node types")
+	}
+
+	// 现在测试 Inspector 的渲染
+	overlay := inspector.RenderOverlay()
+	if overlay == nil {
+		t.Fatal("Inspector overlay is nil")
+	}
+
+	testApp2, err := ui.RunTest(func() ui.VNode {
+		return overlay
+	},
+		ui.WithWidth(100),
+		ui.WithHeight(40),
+		ui.WithTitle("Inspector Overlay"),
+	)
+	if err != nil {
+		t.Fatalf("Failed to create overlay test app: %v", err)
+	}
+	defer testApp2.Close()
+
+	time.Sleep(300 * time.Millisecond)
+
+	// 获取渲染输出
+	rendered := testApp2.GetRenderString()
+
+	t.Logf("=== Inspector Overlay Render ===\n%s\n=== End ===", rendered)
+
+	// 验证 Inspector 显示了树内容
+	if !strings.Contains(rendered, "VStack") && !strings.Contains(rendered, "Button") {
+		t.Error("Inspector should display tree nodes")
+	} else {
+		t.Log("✓ Inspector displays tree nodes")
+	}
+
+	// 验证显示节点数量
+	if strings.Contains(rendered, "Nodes: 0") {
+		t.Error("Inspector should show non-zero node count")
+	} else if strings.Contains(rendered, "Nodes:") {
+		t.Log("✓ Inspector shows node count")
+	}
+}
+
+// TestInspectorWithAttachedApp 测试完整的 Inspector 功能
+func TestInspectorWithAttachedApp(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping interactive test in short mode")
+	}
+
+	// 创建 Inspector
+	inspector := NewStandaloneInspector()
+	inspector.Enable()
+	inspector.ToggleVisibility()
+	inspector.SetOverlaySize(100, 40)
+
+	// 创建应用
+	createApp := func() ui.VNode {
+		return ui.VStack(
+			ui.Text("Demo Application"),
+			ui.Text("────────────────"),
+			ui.HStack(
+				ui.Text("Column 1:"),
+				ui.VStack(
+					app.ButtonBuilder("[Btn 1]").Build(),
+					app.ButtonBuilder("[Btn 2]").Build(),
+					app.ButtonBuilder("[Btn 3]").Build(),
+				),
+				ui.Text("  "),
+				ui.Text("Column 2:"),
+				ui.VStack(
+					app.ButtonBuilder("[Btn 4]").Build(),
+					app.ButtonBuilder("[Btn 5]").Build(),
+				),
+			),
+			ui.Text("────────────────"),
+			ui.Text("Footer content"),
+		)
+	}
+
+	// 附加应用到 Inspector
+	appRoot := createApp()
+	inspector.AttachToApp(appRoot)
+
+	// 获取树信息
+	treeView := inspector.GetTreeView()
+	lines, _ := treeView.GetTreeLines()
+
+	t.Logf("Application tree has %d lines", len(lines))
+
+	// 验证树的结构
+	hasVStack := false
+	hasHStack := false
+	hasButton := false
+
+	for _, line := range lines {
+		if strings.Contains(line, "VStack") {
+			hasVStack = true
+		}
+		if strings.Contains(line, "HStack") {
+			hasHStack = true
+		}
+		if strings.Contains(line, "Button") {
+			hasButton = true
+		}
+	}
+
+	if !hasVStack {
+		t.Error("Tree should contain VStack nodes")
+	} else {
+		t.Log("✓ Tree contains VStack")
+	}
+
+	if !hasHStack {
+		t.Error("Tree should contain HStack nodes")
+	} else {
+		t.Log("✓ Tree contains HStack")
+	}
+
+	if !hasButton {
+		t.Error("Tree should contain Button nodes")
+	} else {
+		t.Log("✓ Tree contains Buttons")
+	}
+
+	// 渲染 Inspector 查看实际显示
+	overlay := inspector.RenderOverlay()
+
+	testApp, err := ui.RunTest(func() ui.VNode {
+		return overlay
+	},
+		ui.WithWidth(100),
+		ui.WithHeight(40),
+		ui.WithTitle("Full Inspector Test"),
+	)
+	if err != nil {
+		t.Fatalf("Failed to create test app: %v", err)
+	}
+	defer testApp.Close()
+
+	time.Sleep(300 * time.Millisecond)
+
+	rendered := testApp.GetRenderString()
+
+	t.Logf("=== Full Inspector Render ===\n%s\n=== End ===", rendered)
+
+	// 验证关键内容存在
+	expectedContent := []string{
+		"INSPECTOR",
+		"Elements",
+		"Layout Tree",
+		"Nodes:",
+	}
+
+	missing := []string{}
+	for _, expected := range expectedContent {
+		if !strings.Contains(rendered, expected) {
+			missing = append(missing, expected)
+		}
+	}
+
+	if len(missing) > 0 {
+		t.Errorf("Inspector missing content: %v", missing)
+	} else {
+		t.Log("✓ All expected content present")
+	}
+
+	// 检查节点数是否大于0
+	if strings.Contains(rendered, "Nodes: 0") {
+		t.Error("Node count should be greater than 0")
+		t.Log("This suggests AttachToApp didn't work properly")
+	} else if strings.Contains(rendered, "Nodes: ") {
+		// 提取节点数
+		idx := strings.Index(rendered, "Nodes: ")
+		if idx >= 0 {
+			nodeCountStr := rendered[idx+7:]
+			endIdx := strings.IndexAny(nodeCountStr, " |\n")
+			if endIdx > 0 {
+				nodeCountStr = nodeCountStr[:endIdx]
+				t.Logf("✓ Inspector shows: Nodes: %s", nodeCountStr)
+			}
+		}
+	}
+}

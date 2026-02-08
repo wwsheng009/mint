@@ -140,3 +140,44 @@
 - 实现报告: `feature_implementation.md`
 - 设计文档: `feature_design.md`
 - 优化报告: `demo_optimization_report.md`
+
+---
+
+## 📖 English Documentation
+
+The following directories contain English documentation for international users:
+
+### Components (`components/`)
+Component library documentation
+- ScrollView, VirtualScroll, Tabs, TreeView
+- Component usage and API reference
+
+### Key Handling Guide (`guide/key-handling/`)
+Keyboard input system documentation
+- [Complete Guide](guide/key-handling/KEY_HANDLING_COMPLETE_GUIDE.md) - Comprehensive key handling reference
+- [Alt+K Debug Guide](guide/key-handling/ALT_K_DEBUG_GUIDE.md) - Debugging Alt+K issues
+- [Ctrl Key Fix Summary](guide/key-handling/CTRL_KEY_FIX_SUMMARY.md) - Ctrl detection fixes
+- [Case Preservation](guide/key-handling/CTRL_SHIFT_CASE_PRESERVATION.md) - Shift handling
+
+### Architecture (`architecture/`)
+System architecture and design
+- [Layer System Architecture](architecture/LAYER_SYSTEM_ARCHITECTURE.md) - Layer system overview
+- [Implementation Summary](architecture/LAYER_SYSTEM_IMPLEMENTATION_SUMMARY.md) - Implementation details
+- [Agents](architecture/AGENTS.md) - Agent system
+- [Two Rendering Systems](architecture/TWO_RENDERING_SYSTEMS_EXPLAINED.md) - Rendering approaches
+
+### Inspector (`examples/inspector/`)
+UI Inspector tool documentation
+- [Quick Reference](examples/inspector/INSPECTOR_QUICK_REFERENCE.md) - All shortcuts and features
+- [All Fixes Summary](examples/inspector/INSPECTOR_ALL_FIXES_SUMMARY.md) - Complete fix history
+- [Key Debug Feature](examples/inspector/INSPECTOR_KEY_DEBUG.md) - Debug key presses
+- [Modal Behavior](examples/inspector/INSPECTOR_MODAL_BEHAVIOR_FIXED.md) - Modal behavior
+
+### Testing (`testing/`)
+Test documentation and results
+- [BoxModel Test Results](testing/BOXMODEL_TEST_RESULTS.md) - Test results
+
+### Sandbox (`sandbox/`)
+Testing sandbox documentation
+- [Event Integration](sandbox/SANDBOX_EVENT_INTEGRATION_ANALYSIS.md) - Event system integration
+

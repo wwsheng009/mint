@@ -95,11 +95,29 @@ type App struct {
 
 	// 用户数据存储（用于存储任意用户定义数据）
 	userData map[string]interface{}
+
+	// ============================================================================
+	// UI Inspector 支持
+	// ============================================================================
+	// Inspector 实例（用于框架级覆盖层模式）
+	inspector        interface{} // *inspector.StandaloneInspector (avoid import cycle)
+	inspectorEnabled bool
+	inspectorVisible bool
+
+	// ============================================================================
+	// Layer 系统支持
+	// ============================================================================
+	// useLayers 控制是否显式使用 Layer 系统
+	// 注意：当前 Layer 系统已经集成在 DeclarativeNode → PipelineRenderer → RenderingPipeline 中
+	// 这个标志主要用于调试和未来扩展
+	useLayers bool // 是否启用 Layer 系统（通过环境变量 TUI_USE_LAYERS=true 启用）
 }
 
 // NewApp 创建新应用
 func NewApp() *App {
-	return &App{
+	useLayers := os.Getenv("TUI_USE_LAYERS") == "true"
+
+	app := &App{
 		router:       frameworkevent.NewRouter(),
 		keyMap:       frameworkevent.NewKeyMap(),
 		eventFilter:  func(ev frameworkevent.Event) bool { return true }, // 默认放行所有事件
@@ -112,7 +130,15 @@ func NewApp() *App {
 		contextMgr:   core.NewContextManager(context.Background()),
 		userData:     make(map[string]interface{}),
 		renderer:     paint.NewRenderer(80, 24), // 新增：初始化 Renderer
+		useLayers:    useLayers, // Layer 系统开关
 	}
+
+	if useLayers && os.Getenv("TUI_DEBUG_UI") == "true" {
+		fmt.Fprintf(os.Stderr, "[APP] Layer system enabled (TUI_USE_LAYERS=true)\n")
+		fmt.Fprintf(os.Stderr, "[APP] Note: Layer rendering is handled by PipelineRenderer internally\n")
+	}
+
+	return app
 }
 
 // NewAppWithSource 创建使用自定义 EventSource 的应用
@@ -390,6 +416,183 @@ func (a *App) OnKeyCombo(combo string, handler func()) {
 	})
 }
 
+// ============================================================================
+// Inspector 快捷键支持
+// ============================================================================
+
+// SetInspector 设置 Inspector 实例
+// 这个方法用于注册 Inspector，使其可以通过 F12/Ctrl+D 切换
+//
+// 使用示例:
+//   inspector := inspector.NewStandaloneInspector()
+//   app.SetInspector(inspector)
+//   app.SetupInspectorShortcut()
+func (a *App) SetInspector(inspector interface{}) {
+	a.inspector = inspector
+	if i, ok := inspector.(interface{ IsVisible() bool }); ok {
+		a.inspectorVisible = i.IsVisible()
+	}
+}
+
+// isInspectorVisible checks if the Inspector overlay is currently visible
+// This is used to determine if keyboard events should be routed to the Inspector
+func (a *App) isInspectorVisible() bool {
+	if a.inspector == nil {
+		return false
+	}
+	if inspector, ok := a.inspector.(interface{ IsVisible() bool }); ok {
+		return inspector.IsVisible()
+	}
+	return false
+}
+
+// SetupInspectorShortcut 设置 F12 快捷键来切换 Inspector 显示
+// 这是一个便捷方法，用于在框架级别启用 Inspector 快捷键
+//
+// 使用示例:
+//   app := framework.NewApp()
+//   app.SetInspector(inspector)
+//   app.SetupInspectorShortcut() // 启用 F12 切换 Inspector
+func (a *App) SetupInspectorShortcut() {
+	if a.inspector == nil {
+		if os.Getenv("TUI_DEBUG_UI") == "true" {
+			fmt.Fprintf(os.Stderr, "[APP] Warning: SetupInspectorShortcut() called but no Inspector set\n")
+			fmt.Fprintf(os.Stderr, "[APP] Call SetInspector() first\n")
+		}
+		return
+	}
+
+	// 注册 F12 快捷键（在大多数终端中是 F12）
+	// Note: Use lowercase because SpecialKey.String() returns lowercase
+	a.OnKeyCombo("f12", func() {
+		a.toggleInspector()
+	})
+
+	// 也注册 Ctrl+D 作为备用快捷键（更容易输入）
+	a.OnKeyCombo("ctrl+d", func() {
+		a.toggleInspector()
+	})
+
+	// 注册 Alt+H/J/K/L 快捷键来移动 Inspector 面板
+	// Alt+H: 向左移动
+	a.OnKeyCombo("alt+h", func() {
+		a.moveInspector(-2, 0)
+	})
+	a.OnKeyCombo("alt+left", func() {
+		a.moveInspector(-2, 0)
+	})
+
+	// Alt+L: 向右移动
+	a.OnKeyCombo("alt+l", func() {
+		a.moveInspector(2, 0)
+	})
+	a.OnKeyCombo("alt+right", func() {
+		a.moveInspector(2, 0)
+	})
+
+	// Alt+K: 向上移动
+	a.OnKeyCombo("alt+k", func() {
+		a.moveInspector(0, -1)
+	})
+	a.OnKeyCombo("alt+up", func() {
+		a.moveInspector(0, -1)
+	})
+
+	// Alt+J: 向下移动
+	a.OnKeyCombo("alt+j", func() {
+		a.moveInspector(0, 1)
+	})
+	a.OnKeyCombo("alt+down", func() {
+		a.moveInspector(0, 1)
+	})
+
+	// 注册数字键 1-5 来切换 Inspector 标签页
+	for i := 1; i <= 5; i++ {
+		tabNum := i
+		key := fmt.Sprintf("%d", i)
+		a.OnKeyCombo(key, func() {
+			a.switchInspectorTab(tabNum)
+		})
+	}
+
+	if os.Getenv("TUI_DEBUG_UI") == "true" {
+		fmt.Fprintf(os.Stderr, "[APP] Inspector shortcuts registered: F12, Ctrl+D (toggle)\n")
+		fmt.Fprintf(os.Stderr, "[APP] Panel movement: Alt+H/J/K/L or Alt+Arrow keys\n")
+		fmt.Fprintf(os.Stderr, "[APP] Tab switching: 1-5\n")
+		fmt.Fprintf(os.Stderr, "[APP] Tree scroll: PgUp/PgDn, Home/End (when Elements tab active)\n")
+	}
+}
+
+// toggleInspector 切换 Inspector 显示状态
+// 这个方法会被快捷键触发
+func (a *App) toggleInspector() {
+	if a.inspector == nil {
+		if os.Getenv("TUI_DEBUG_UI") == "true" {
+			fmt.Fprintf(os.Stderr, "[APP] Inspector not initialized, ignoring toggle\n")
+		}
+		return
+	}
+
+	// 调用 Inspector 的 ToggleVisibility 方法
+	// 注意：这里使用接口调用避免直接导入 inspector 包
+	if inspectorObj, ok := a.inspector.(interface {
+		ToggleVisibility()
+		IsVisible() bool
+	}); ok {
+		inspectorObj.ToggleVisibility()
+		a.inspectorVisible = inspectorObj.IsVisible()
+		a.dirty = true // 触发重绘
+
+		if os.Getenv("TUI_DEBUG_UI") == "true" {
+			fmt.Fprintf(os.Stderr, "[APP] Inspector toggled: now visible=%v\n", a.inspectorVisible)
+		}
+	}
+}
+
+// moveInspector 移动 Inspector 面板位置
+func (a *App) moveInspector(dx, dy int) {
+	if a.inspector == nil {
+		return
+	}
+
+	// 调用 Inspector 的 Move 方法
+	if inspectorObj, ok := a.inspector.(interface {
+		Move(dx, dy int)
+		GetPosition() (x, y int)
+	}); ok {
+		inspectorObj.Move(dx, dy)
+		a.dirty = true // 触发重绘
+
+		if os.Getenv("TUI_DEBUG_UI") == "true" || os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
+			x, y := inspectorObj.GetPosition()
+			fmt.Fprintf(os.Stderr, "[APP] Inspector moved to (%d, %d)\n", x, y)
+		}
+	}
+}
+
+// switchInspectorTab 切换 Inspector 标签页
+func (a *App) switchInspectorTab(tabNum int) {
+	if a.inspector == nil {
+		return
+	}
+
+	// 调用 Inspector 的 HandleKeyEvent 方法
+	if inspectorObj, ok := a.inspector.(interface {
+		HandleKeyEvent(key string, alt, ctrl bool) bool
+	}); ok {
+		key := fmt.Sprintf("%d", tabNum)
+		if inspectorObj.HandleKeyEvent(key, false, false) {
+			a.dirty = true // 触发重绘
+
+			if os.Getenv("TUI_DEBUG_UI") == "true" || os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
+				fmt.Fprintf(os.Stderr, "[APP] Inspector switched to tab %d\n", tabNum)
+			}
+		}
+	}
+}
+
+
+
 // OnEvent 注册事件处理
 func (a *App) OnEvent(eventType frameworkevent.EventType, handler frameworkevent.EventHandler) func() {
 	return a.router.Subscribe(eventType, handler)
@@ -594,9 +797,54 @@ func (a *App) handleEvent(ev frameworkevent.Event) {
 		// 首先检查快捷键映射
 		if keyEv, ok := ev.(*frameworkevent.KeyEvent); ok {
 			if handler, found := a.keyMap.Lookup(keyEv); found {
+				if os.Getenv("TUI_DEBUG_UI") == "true" || os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
+					fmt.Fprintf(os.Stderr, "[APP] KeyMap found handler for key '%s' (modifiers=%d)\n",
+						keyEv.Key.Name, keyEv.Modifiers)
+				}
 				if handler.HandleEvent(ev) {
 					a.dirty = true
 					return
+				}
+			} else {
+				if os.Getenv("TUI_DEBUG_UI") == "true" || os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
+					fmt.Fprintf(os.Stderr, "[APP] KeyMap: No handler found for key '%s' (modifiers=%d)\n",
+						keyEv.Key.Name, keyEv.Modifiers)
+				}
+			}
+		}
+
+		// Route to Inspector if visible (NEW!)
+		// Inspector gets second chance at keyboard events after registered shortcuts
+		// If Inspector handles the event, it won't be sent to the VNode tree
+		if a.inspector != nil && a.isInspectorVisible() {
+			if inspectorObj, ok := a.inspector.(interface {
+				HandleKeyEvent(key string, alt, ctrl, shift bool) bool
+			}); ok {
+				if keyEv, ok := ev.(*frameworkevent.KeyEvent); ok {
+					// Use Name for special keys, Rune for character keys
+					var keyName string
+					if keyEv.Key.Name != "" {
+						keyName = keyEv.Key.Name
+					} else if keyEv.Key.Rune > 0 {
+						keyName = string(keyEv.Key.Rune)
+					}
+
+					alt := keyEv.Key.Alt
+					ctrl := keyEv.Key.Ctrl
+					shift := keyEv.Key.Shift
+
+					if os.Getenv("TUI_DEBUG_UI") == "true" || os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
+						fmt.Fprintf(os.Stderr, "[APP] Routing key '%s' to Inspector (visible=%v, alt=%v)\n",
+							keyName, a.isInspectorVisible(), alt)
+					}
+
+					if inspectorObj.HandleKeyEvent(keyName, alt, ctrl, shift) {
+						a.dirty = true
+						if os.Getenv("TUI_DEBUG_UI") == "true" || os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
+							fmt.Fprintf(os.Stderr, "[APP] Inspector handled key '%s'\n", keyName)
+						}
+						return // Inspector handled it, don't send to VNode tree
+					}
 				}
 			}
 		}
