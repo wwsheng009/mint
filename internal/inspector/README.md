@@ -14,11 +14,11 @@ Mint TUI UI Inspector - 开发进度总览
 | **Phase 2** | ✅ 完成 | 90% | 2025-02-08 |
 | **Phase 3** | ✅ 完成 | 80% | 2025-02-08 |
 | **Phase 4** | ✅ 完成 | 100% | 2025-02-08 |
-| Phase 5 | ⏳ 待开始 | 0% | - |
+| **Phase 5** | ✅ 完成 | 100% | 2025-02-08 |
 | Phase 6 | ⏳ 待开始 | 0% | - |
 | Phase 7 | ⏳ 待开始 | 0% | - |
 
-**总体完成度**: ~60% (4/7 phases)
+**总体完成度**: ~75% (5/7 phases)
 
 ---
 
@@ -167,16 +167,42 @@ Mint TUI UI Inspector - 开发进度总览
 
 ---
 
-## ⏳ Phase 5: 侧边栏面板 (待实施)
+## ✅ Phase 5: 侧边栏面板 (完成)
 
-**预计时间**: 1 天
+**提交**: (待提交)
 
-### 计划任务
+### 实现内容
 
-- [ ] 实现侧边栏布局
-- [ ] 格式化显示所有信息
-- [ ] 支持折叠/展开
-- [ ] 支持复制信息
+**侧边栏系统**:
+- ✅ `Sidebar` 结构体 - 侧边栏配置和状态管理
+- ✅ 侧边栏布局 - 40字符宽度，可自定义
+- ✅ 启用/禁用控制
+- ✅ 宽度和高度设置
+
+**格式化功能**:
+- ✅ `FormatSidebar()` - 完整的树状结构格式化
+- ✅ `FormatCompact()` - 单行紧凑格式
+- ✅ `FormatTable()` - 多元素表格格式
+- ✅ `GetCopyableText()` - 纯文本可复制格式
+
+**折叠/展开系统**:
+- ✅ `ToggleSection()` - 切换section折叠状态
+- ✅ 支持所有section折叠（type, position, size, layout, bounds, constraints, properties, path）
+- ✅ 折叠状态持久化
+
+**VNode集成**:
+- ✅ `BuildVNode()` - 构建完整侧边栏VNode
+- ✅ `BuildCompactVNode()` - 构建紧凑VNode
+- ✅ 可直接集成到UI树
+
+**单元测试**: 21 passing
+
+**文件**:
+- `sidebar.go` (362 lines) - 新增
+- `sidebar_test.go` (459 lines) - 新增
+- `PHASE5_REPORT.md` - 完成报告
+
+**详细报告**: [PHASE5_REPORT.md](PHASE5_REPORT.md)
 
 ---
 
@@ -213,18 +239,22 @@ internal/inspector/
 ├── element_info_test.go      # 180 lines (Phase 1)
 ├── inspector.go              # 240 lines (Phase 2 + Phase 3)
 ├── inspector_test.go         # 230 lines (Phase 2)
-├── overlay.go                # 523 lines (Phase 2 + Phase 4) ⭐ 扩展
-├── overlay_test.go           # 469 lines (Phase 4) ⭐ 新增
+├── overlay.go                # 523 lines (Phase 2 + Phase 4)
+├── overlay_test.go           # 469 lines (Phase 4)
 ├── integration.go            # 150 lines (Phase 3)
 ├── integration_test.go       # 330 lines (Phase 3)
+├── sidebar.go                # 362 lines (Phase 5) ⭐ 新增
+├── sidebar_test.go           # 459 lines (Phase 5) ⭐ 新增
 ├── README.md                 # 本文档
 ├── PHASE1_REPORT.md          # Phase 1 完成报告
 ├── PHASE2_REPORT.md          # Phase 2 完成报告
 ├── PHASE3_REPORT.md          # Phase 3 完成报告
-└── PHASE4_REPORT.md          # Phase 4 完成报告 ⭐ 新增
+├── PHASE4_REPORT.md          # Phase 4 完成报告
+├── PHASE5_REPORT.md          # Phase 5 完成报告 ⭐ 新增
+└── PHASE6_REPORT.md          # Phase 6 完成报告 (未来)
 ```
 
-**总代码行数**: ~2,442 行 + 全面测试
+**总代码行数**: ~3,263 行 + 全面测试
 
 ---
 
@@ -232,7 +262,7 @@ internal/inspector/
 
 ### 已实现功能
 
-**Phase 1 + Phase 2 + Phase 3 + Phase 4** 可以：
+**Phase 1 + Phase 2 + Phase 3 + Phase 4 + Phase 5** 可以：
 
 1. ✅ 从任何 VNode 提取详细信息
 2. ✅ 查找指定位置的 VNode
@@ -248,6 +278,10 @@ internal/inspector/
 12. ✅ 元素类型标签
 13. ✅ 增强尺寸标注
 14. ✅ Padding 可视化（可选）
+15. ✅ 侧边栏面板系统
+16. ✅ 多种信息格式（完整、紧凑、表格、可复制）
+17. ✅ Section 折叠/展开功能
+18. ✅ VNode 集成（侧边栏可作为VNode使用）
 
 ### 使用示例
 
@@ -255,20 +289,33 @@ internal/inspector/
 // 创建检查器
 inspector := inspector.NewInspector()
 
+// 创建侧边栏
+sidebar := inspector.NewSidebar()
+
 // 启用
 inspector.Enable()
+sidebar.Enable()
 
 // 处理鼠标移动
 inspector.HandleMouseEvent(50, 25)
 
 // 获取悬停元素信息
 hoveredInfo := inspector.GetHoveredInfo()
-fmt.Println(inspector.FormatElementInfo(hoveredInfo))
+
+// 格式化显示侧边栏
+sidebarText := sidebar.FormatSidebar(hoveredInfo)
+fmt.Println(sidebarText)
+
+// 或者使用紧凑格式
+compactText := sidebar.FormatCompact(hoveredInfo)
+fmt.Println(compactText)
 
 // 选择元素
 inspector.SetSelectedVNode(button)
 selectedInfo := inspector.GetSelectedInfo()
-fmt.Println(inspector.FormatElementInfo(selectedInfo))
+
+// 获取可复制文本
+copyText := sidebar.GetCopyableText(selectedInfo)
 
 // 键盘快捷键
 inspector.HandleKeyEvent(KeyEvent{Key: "tab"})      // 下一个元素
@@ -278,6 +325,9 @@ inspector.HandleKeyEvent(KeyEvent{Key: "escape"})  // 清除选择或关闭
 // 绘制覆盖层
 overlay := inspector.NewOverlay()
 overlay.Paint(buffer, inspector.GetSelectedVNode(), inspector.GetHoveredVNode())
+
+// 构建侧边栏VNode集成到UI
+sidebarVNode := sidebar.BuildVNode(selectedInfo)
 
 // 框架集成
 helper := inspector.NewIntegrationHelper(inspector)
@@ -333,12 +383,13 @@ if inspector.IsEnabled() {
 - [Phase 2 完成报告](PHASE2_REPORT.md)
 - [Phase 3 完成报告](PHASE3_REPORT.md)
 - [Phase 4 完成报告](PHASE4_REPORT.md)
+- [Phase 5 完成报告](PHASE5_REPORT.md)
 - [Debug 工具文档](../../debug/README.md)
 
 ---
 
-**当前版本**: Phase 4 完成
+**当前版本**: Phase 5 完成
 **维护者**: Claude Sonnet 4.5
 **最后更新**: 2025-02-08
 
-**下一步**: Phase 5 侧边栏面板（详细信息面板、折叠/展开功能）
+**下一步**: Phase 6 布局树视图（树遍历、树状显示、节点展开/折叠）
