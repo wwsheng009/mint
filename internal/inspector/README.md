@@ -1,273 +1,307 @@
-# UI Inspector - Phase 1 完成报告
+# UI Inspector 实施进度
 
-**完成日期**: 2025-02-08
-**状态**: ✅ 完成
-**实施阶段**: Phase 1 - 基础信息提取
+Mint TUI UI Inspector - 开发进度总览
 
----
-
-## ✅ 已完成的功能
-
-### 1. ElementInfo 结构体
-
-**文件**: `internal/inspector/element_info.go`
-
-实现了完整的 ElementInfo 结构，包含：
-
-```go
-type ElementInfo struct {
-    // VNode reference
-    VNode    ui.VNode
-
-    // Identification
-    Type     string  // VNode type name
-    Tag      string  // Tag if available
-    Key      string  // Key if available
-    Label    string  // Label for buttons/text
-    Path     string  // Path from root
-
-    // Position and Size
-    Position Position  // X, Y coordinates
-    Size     Size      // Width, Height
-
-    // Layout Information
-    Layout    LayoutInfo
-    Bounds    [4]int          // [x, y, width, height]
-    Constraints BoxConstraints
-    Properties map[string]interface{}
-}
-
-type LayoutInfo struct {
-    NaturalWidth  int
-    LayoutWidth   int
-    Padding       int
-    Flex          int
-    IsFlexChild   bool
-    Align         string
-}
-```
-
-### 2. ExtractElementInfo() 函数
-
-**功能**: 从 VNode 提取所有相关信息
-
-**支持**:
-- ✅ 基本识别信息 (Type, Tag, Key, Label)
-- ✅ 位置和尺寸
-- ✅ 布局信息 (自然宽度、布局宽度、Flex、Padding、Align)
-- ✅ Bounds 提取
-- ✅ 约束信息
-- ✅ 组件属性提取
-
-**支持的组件类型**:
-- ✅ Button
-- ✅ Text
-- ✅ HStack/VStack (LayoutNode)
-- ✅ BorderedNode
-- ✅ 任何实现了 SetBounds 的组件
-
-### 3. FormatElementInfo() 函数
-
-**功能**: 格式化输出 ElementInfo
-
-**输出示例**:
-```
-Element: ButtonVNode
-  Tag: button
-Position:
-  X: 10
-  Y: 5
-Size:
-  Width: 18
-  Height: 1
-Layout:
-  Natural Width: 15
-  Layout Width: 18 ✅
-  Flex: 1
-  Align: Center
-Bounds:
-  [x: 10, y: 5, w: 18, h: 1]
-Properties:
-  Props: map[flex:1 textAlign:1]
-```
-
-### 4. 单元测试
-
-**文件**: `internal/inspector/element_info_test.go`
-
-**测试覆盖**:
-- ✅ `TestExtractElementInfo_Button` - Button 信息提取
-- ✅ `TestExtractElementInfo_Text` - Text 信息提取
-- ✅ `TestExtractElementInfo_NilVNode` - nil 处理
-- ✅ `TestFormatElementInfo` - 格式化输出
-- ✅ `TestExtractElementInfo_NaturalWidthCalculation` - 自然宽度计算
-- ⏳ `TestExtractElementInfo_WithBounds` - Bounds 提取 (需要布局引擎)
-- ⏳ `TestExtractElementInfo_Flex` - Flex 属性 (需要 Props 处理)
-
-**测试结果**: 5 passing, 2 skipped
+**设计文档**: [docs/plan/ui_inspector_design.md](../../plan/ui_inspector_design.md)
 
 ---
 
-## 📊 验收标准检查
+## 📊 总体进度
 
-根据设计文档 `docs/plan/ui_inspector_design.md` Phase 1 的验收标准：
+| 阶段 | 状态 | 完成度 | 实施时间 |
+|------|------|--------|----------|
+| **Phase 1** | ✅ 完成 | 100% | 2025-02-08 |
+| **Phase 2** | ✅ 完成 | 90% | 2025-02-08 |
+| **Phase 3** | ✅ 完成 | 80% | 2025-02-08 |
+| Phase 4 | ⏳ 待开始 | 0% | - |
+| Phase 5 | ⏳ 待开始 | 0% | - |
+| Phase 6 | ⏳ 待开始 | 0% | - |
+| Phase 7 | ⏳ 待开始 | 0% | - |
 
-```go
-info := ExtractElementInfo(button)
-// info.Type == "ButtonVNode" ✅
-// info.NaturalWidth == 14 ✅ (或根据 label 长度变化)
-// info.LayoutWidth == 18 ✅ (如果有 bounds)
-// info.Flex == 1 ✅ (如果有 flex prop)
-```
-
-**结果**: ✅ 所有基本验收标准已通过
-
----
-
-## 🎯 实现的任务清单
-
-根据设计文档 Phase 1 任务列表：
-
-- [x] 实现 `ElementInfo` 结构体
-- [x] 实现 `ExtractElementInfo()` 函数
-- [x] 支持基本信息：类型、标签、位置、尺寸 ✅
-- [x] 支持布局信息：自然宽度、布局宽度、flex 属性 ✅
-- [x] 支持 bounds 和 constraints ✅
-- [x] 编写单元测试 ✅
-- [x] 所有测试通过 ✅
+**总体完成度**: ~45% (3/7 phases)
 
 ---
 
-## 📁 文件结构
+## ✅ Phase 1: 基础信息提取 (完成)
 
-```
-internal/inspector/
-├── element_info.go         # ElementInfo 结构和提取函数
-├── element_info_test.go    # 单元测试
-└── README.md               # 本文档
-```
+**提交**: `f432c607`
 
----
+### 实现内容
 
-## 🔍 关键实现细节
+**ElementInfo 结构体**:
+- 识别信息 (Type, Tag, Key, Label)
+- 位置和尺寸
+- 布局信息 (NaturalWidth, LayoutWidth, Flex, Padding, Align)
+- Bounds 和 Constraints
+- 组件属性
 
-### 1. 类型名称提取
+**ExtractElementInfo() 函数**:
+- 从 VNode 提取所有信息
+- 支持 Button, Text, HStack/VStack, BorderedNode
+- 使用反射获取类型名称
 
-使用反射获取 VNode 的真实类型名：
-```go
-t := reflect.TypeOf(vnode)
-if t.Kind() == reflect.Ptr {
-    t = t.Elem()
-}
-return t.Name()
-```
+**FormatElementInfo() 函数**:
+- 格式化输出元素信息
+- 清晰的分层显示
+- 包含所有关键信息
 
-### 2. Label 提取
+**单元测试**: 5 passing, 2 skipped
 
-优先级顺序：
-1. `Label()` 方法 (Button)
-2. `GetTextContent()` 函数 (Text)
-3. Truncate long text (> 20 chars)
+**文件**: `element_info.go`, `element_info_test.go` (~500 lines)
 
-### 3. 自然宽度计算
-
-**Button**: `label长度 + 2(brackets) + 2(focus space)`
-**Text**: `text内容长度`
-
-### 4. LayoutWidth 提取
-
-优先使用 bounds 中的宽度，否则使用 naturalWidth：
-```go
-if info.Bounds[2] > 0 {
-    info.Layout.LayoutWidth = info.Bounds[2]
-} else {
-    info.Layout.LayoutWidth = naturalSize.Width
-}
-```
+**详细报告**: [PHASE1_REPORT](PHASE1_REPORT.md)
 
 ---
 
-## 🐛 已知限制
+## ✅ Phase 2: 鼠标交互 (完成)
 
-### 1. SetBounds 测试需要布局引擎
+**提交**: `66f0dda7`
 
-`TestExtractElementInfo_WithBounds` 被跳过，因为：
-- 需要实际的布局引擎来调用 SetBounds
-- 单独的 VNode 无法模拟完整的布局流程
+### 实现内容
 
-**解决方案**: 在 Phase 2 集成测试中验证
+**Inspector 核心结构**:
+- enabled 标志
+- selectedVNode 和 hoveredVNode
+- 鼠标位置追踪
+- 启用/禁用控制
 
-### 2. SetProp 测试需要实际 Props
+**FindVNodeAt 算法**:
+- 递归 VNode 树遍历
+- 基于边界的点包含检测
+- 返回最深（最内层）的节点
 
-`TestExtractElementInfo_Flex` 被跳过，因为：
-- VNode 接口没有 SetProp 方法
-- Props 需要通过 Builder 设置
+**Overlay 视觉覆盖层**:
+- 多种边框样式（选中、悬停、flex）
+- 类型特定的边框（Button、Text等）
+- 尺寸标注绘制
+- 角落高亮
 
-**解决方案**: 在实际使用中验证（Phase 2+）
+**交互功能**:
+- HandleMouseEvent(x, y) - 鼠标事件处理
+- HandleKeyEvent(event) - 键盘快捷键（框架待集成）
+- 选中/悬停状态管理
 
-### 3. Path 属性未实现
+**单元测试**: 11 passing, 2 skipped
 
-ElementInfo.Path 字段当前为空字符串。
+**文件**: `inspector.go`, `overlay.go`, `inspector_test.go` (~580 lines)
 
-**原因**: 需要遍历 VNode 树来构建路径
-**计划**: Phase 6 (布局树视图) 中实现
-
----
-
-## 📈 性能考虑
-
-- **提取速度**: < 0.5ms (单次调用)
-- **内存分配**: 最小化，使用栈分配
-- **无依赖**: 不依赖布局引擎或渲染管线
-
----
-
-## 🎉 成果总结
-
-### 代码统计
-
-- **新增文件**: 2 个
-  - `element_info.go` - 320 行
-  - `element_info_test.go` - 180 行
-- **总代码行数**: ~500 行
-- **测试覆盖**: 核心功能 100%
-
-### 功能完成度
-
-| 功能 | 状态 |
-|------|------|
-| 基础信息提取 | ✅ 100% |
-| 布局信息提取 | ✅ 90% (Path 待实现) |
-| 格式化输出 | ✅ 100% |
-| 单元测试 | ✅ 100% (核心功能) |
+**详细报告**: [PHASE2_REPORT.md](PHASE2_REPORT.md)
 
 ---
 
-## 🚀 下一步 (Phase 2)
+## ✅ Phase 3: 键盘导航 (完成)
 
-根据设计文档，Phase 2 是 **鼠标交互**：
+**提交**: (待提交)
+
+### 实现内容
+
+**键盘快捷键系统**:
+- ✅ F12 / Ctrl+I 切换检查器
+- ✅ Tab 在元素间切换（BFS 导航）
+- ✅ Enter 查看详情
+- ✅ Esc 关闭检查器（两段式：先清除选择，再关闭）
+- ✅ 禁用状态下仍响应切换快捷键
+
+**元素导航系统**:
+- `NavigateToNextElement()` - 导航到下一个可选元素
+- `FindNextSelectable()` - 查找下一个可选元素
+- `CollectAllElements()` - 收集所有可选元素
+- `IsSelectable()` - 判断元素是否可选
+
+**框架集成支持**:
+- `IntegrationHelper` 结构体
+- `CreateEventFilter()` - 事件过滤器
+- `CreateMouseHandler()` - 鼠标处理器
+- `EnableFromEnvironment()` - 环境变量自动启用
+
+**单元测试**: 7 passing, 1 skipped
+
+**文件**:
+- `inspector.go` (扩展到 240 lines)
+- `integration.go` (150 lines) - 新增
+- `integration_test.go` (330 lines) - 新增
+
+**详细报告**: [PHASE3_REPORT.md](PHASE3_REPORT.md)
+
+---
+
+## ⏳ Phase 4: 视觉增强 (待实施)
+
+**预计时间**: 1-2 天
 
 ### 计划任务
 
-1. 实现鼠标位置追踪
-2. 实现 `FindVNodeAt(x, y)` 算法
-3. 实现悬停高亮显示
-4. 实现简单的信息面板
+- [ ] 实现边框高亮（已实现基础）
+- [ ] 实现尺寸标注（已实现基础）
+- [ ] 实现不同颜色区分
+- [ ] 动画效果（可选）
+
+---
+
+## ⏳ Phase 5: 侧边栏面板 (待实施)
 
 **预计时间**: 1 天
 
-**依赖**: Phase 1 ✅ (已完成)
+### 计划任务
+
+- [ ] 实现侧边栏布局
+- [ ] 格式化显示所有信息
+- [ ] 支持折叠/展开
+- [ ] 支持复制信息
 
 ---
 
-## 📖 相关文档
+## ⏳ Phase 6: 布局树视图 (待实施)
 
-- [设计文档](../plan/ui_inspector_design.md) - 完整的 UI Inspector 设计
-- [API 参考](https://chromedevtools.github.io/devtools/) - Chrome DevTools 参考
-- [实现计划](../plan/ui_inspector_design.md#4-实现计划) - 7 个阶段的详细计划
+**预计时间**: 1 天
+
+### 计划任务
+
+- [ ] 实现树遍历
+- [ ] 实现树状显示
+- [ ] 支持展开/折叠节点
+- [ ] 支持搜索节点
+- [ ] 实现 Path 属性
 
 ---
 
-**Phase 1 状态**: ✅ **完成**
-**完成时间**: 2025-02-08
-**下次更新**: Phase 2 完成后
+## ⏳ Phase 7: 高级功能 (可选)
+
+### 计划任务
+
+- [ ] 性能分析（渲染时间、内存使用）
+- [ ] 布局问题检测（约束冲突、溢出）
+- [ ] 实时编辑属性
+- [ ] 导出布局报告
+
+---
+
+## 📁 当前文件结构
+
+```
+internal/inspector/
+├── element_info.go           # 320 lines (Phase 1)
+├── element_info_test.go      # 180 lines (Phase 1)
+├── inspector.go              # 240 lines (Phase 2 + Phase 3)
+├── inspector_test.go         # 230 lines (Phase 2)
+├── overlay.go                # 185 lines (Phase 2)
+├── integration.go            # 150 lines (Phase 3) ⭐ 新增
+├── integration_test.go       # 330 lines (Phase 3) ⭐ 新增
+├── README.md                 # 本文档
+├── PHASE1_REPORT.md          # Phase 1 完成报告
+├── PHASE2_REPORT.md          # Phase 2 完成报告
+└── PHASE3_REPORT.md          # Phase 3 完成报告 ⭐ 新增
+```
+
+**总代码行数**: ~1,635 行 + 全面测试
+
+---
+
+## 🎯 当前能力
+
+### 已实现功能
+
+**Phase 1 + Phase 2 + Phase 3** 可以：
+
+1. ✅ 从任何 VNode 提取详细信息
+2. ✅ 查找指定位置的 VNode
+3. ✅ 追踪鼠标位置
+4. ✅ 管理选中/悬停状态
+5. ✅ 绘制视觉覆盖层
+6. ✅ 格式化显示元素信息
+7. ✅ 键盘快捷键控制（F12, Ctrl+I, Tab, Enter, Esc）
+8. ✅ 元素间键盘导航
+9. ✅ 框架事件系统集成
+
+### 使用示例
+
+```go
+// 创建检查器
+inspector := inspector.NewInspector()
+
+// 启用
+inspector.Enable()
+
+// 处理鼠标移动
+inspector.HandleMouseEvent(50, 25)
+
+// 获取悬停元素信息
+hoveredInfo := inspector.GetHoveredInfo()
+fmt.Println(inspector.FormatElementInfo(hoveredInfo))
+
+// 选择元素
+inspector.SetSelectedVNode(button)
+selectedInfo := inspector.GetSelectedInfo()
+fmt.Println(inspector.FormatElementInfo(selectedInfo))
+
+// 键盘快捷键
+inspector.HandleKeyEvent(KeyEvent{Key: "tab"})      // 下一个元素
+inspector.HandleKeyEvent(KeyEvent{Key: "enter"})    // 查看详情
+inspector.HandleKeyEvent(KeyEvent{Key: "escape"})  // 清除选择或关闭
+
+// 绘制覆盖层
+overlay := inspector.NewOverlay()
+overlay.Paint(buffer, inspector.GetSelectedVNode(), inspector.GetHoveredVNode())
+
+// 框架集成
+helper := inspector.NewIntegrationHelper(inspector)
+eventFilter := helper.CreateEventFilter()
+mouseHandler := helper.CreateMouseHandler()
+helper.EnableFromEnvironment()  // 从环境变量启用
+```
+
+---
+
+## 🔧 集成指南
+
+### 在应用中启用 UI Inspector
+
+```go
+import (
+    "github.com/wwsheng009/mint/internal/inspector"
+)
+
+func main() {
+    // 创建检查器
+    insp := inspector.NewInspector()
+
+    // 启用（可选：通过环境变量）
+    if os.Getenv("TUI_INSPECTOR") == "true" {
+        insp.Enable()
+    }
+
+    // 正常运行应用
+    ui.Run(myApp, /* ... */)
+}
+```
+
+### 在渲染管线中集成
+
+```go
+// 在 RenderingPipeline.Render() 中
+if inspector.IsEnabled() {
+    // 绘制覆盖层
+    overlay := inspector.NewOverlay()
+    overlay.Paint(buffer,
+        inspector.GetSelectedVNode(),
+        inspector.GetHoveredVNode())
+}
+```
+
+---
+
+## 📖 文档链接
+
+- [UI Inspector 设计文档](../../plan/ui_inspector_design.md)
+- [Phase 1 完成报告](PHASE1_REPORT.md)
+- [Phase 2 完成报告](PHASE2_REPORT.md)
+- [Phase 3 完成报告](PHASE3_REPORT.md)
+- [Debug 工具文档](../../debug/README.md)
+
+---
+
+**当前版本**: Phase 3 完成
+**维护者**: Claude Sonnet 4.5
+**最后更新**: 2025-02-08
+
+**下一步**: Phase 4 视觉增强（边框颜色、尺寸标注优化）
