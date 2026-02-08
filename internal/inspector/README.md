@@ -13,12 +13,12 @@ Mint TUI UI Inspector - 开发进度总览
 | **Phase 1** | ✅ 完成 | 100% | 2025-02-08 |
 | **Phase 2** | ✅ 完成 | 90% | 2025-02-08 |
 | **Phase 3** | ✅ 完成 | 80% | 2025-02-08 |
-| Phase 4 | ⏳ 待开始 | 0% | - |
+| **Phase 4** | ✅ 完成 | 100% | 2025-02-08 |
 | Phase 5 | ⏳ 待开始 | 0% | - |
 | Phase 6 | ⏳ 待开始 | 0% | - |
 | Phase 7 | ⏳ 待开始 | 0% | - |
 
-**总体完成度**: ~45% (3/7 phases)
+**总体完成度**: ~60% (4/7 phases)
 
 ---
 
@@ -125,16 +125,45 @@ Mint TUI UI Inspector - 开发进度总览
 
 ---
 
-## ⏳ Phase 4: 视觉增强 (待实施)
+## ✅ Phase 4: 视觉增强 (完成)
 
-**预计时间**: 1-2 天
+**提交**: (待提交)
 
-### 计划任务
+### 实现内容
 
-- [ ] 实现边框高亮（已实现基础）
-- [ ] 实现尺寸标注（已实现基础）
-- [ ] 实现不同颜色区分
-- [ ] 动画效果（可选）
+**颜色系统**:
+- ✅ `ColorScheme` 结构体 - 定义所有颜色
+- ✅ `DefaultColorScheme()` - 默认颜色方案
+  - Selected: 黄色边框
+  - Hovered: 青色边框
+  - Flex: 品红边框
+  - Button: 绿色边框
+  - Text: 白色边框
+  - Input: 蓝色边框
+  - Container: 灰色边框
+
+**视觉增强**:
+- ✅ 彩色边框 - 根据元素类型显示不同颜色
+- ✅ 角落标签 - 元素类型指示符（█, ▪, ▬, →, ↓, ■, ╔）
+- ✅ 元素类型标签 - 下方显示类型名称（BTN, TXT, IN, H, V, BOX）
+- ✅ 增强尺寸标注 - 黄色高亮
+- ✅ Padding 可视化 - 可选的 padding 显示（·点）
+
+**新增 API**:
+- `SetColorScheme()` - 设置自定义颜色方案
+- `GetColorScheme()` - 获取当前颜色方案
+- `SetShowCornerTags()` - 控制角落标签
+- `SetShowElementTypes()` - 控制类型标签
+- `SetShowPadding()` - 控制 padding 可视化
+
+**单元测试**: 13 passing, 1 skipped
+
+**文件**:
+- `overlay.go` (扩展到 523 lines, Phase 4 增强)
+- `overlay_test.go` (469 lines) - 新增
+- `PHASE4_REPORT.md` - 完成报告
+
+**详细报告**: [PHASE4_REPORT.md](PHASE4_REPORT.md)
 
 ---
 
@@ -184,16 +213,18 @@ internal/inspector/
 ├── element_info_test.go      # 180 lines (Phase 1)
 ├── inspector.go              # 240 lines (Phase 2 + Phase 3)
 ├── inspector_test.go         # 230 lines (Phase 2)
-├── overlay.go                # 185 lines (Phase 2)
-├── integration.go            # 150 lines (Phase 3) ⭐ 新增
-├── integration_test.go       # 330 lines (Phase 3) ⭐ 新增
+├── overlay.go                # 523 lines (Phase 2 + Phase 4) ⭐ 扩展
+├── overlay_test.go           # 469 lines (Phase 4) ⭐ 新增
+├── integration.go            # 150 lines (Phase 3)
+├── integration_test.go       # 330 lines (Phase 3)
 ├── README.md                 # 本文档
 ├── PHASE1_REPORT.md          # Phase 1 完成报告
 ├── PHASE2_REPORT.md          # Phase 2 完成报告
-└── PHASE3_REPORT.md          # Phase 3 完成报告 ⭐ 新增
+├── PHASE3_REPORT.md          # Phase 3 完成报告
+└── PHASE4_REPORT.md          # Phase 4 完成报告 ⭐ 新增
 ```
 
-**总代码行数**: ~1,635 行 + 全面测试
+**总代码行数**: ~2,442 行 + 全面测试
 
 ---
 
@@ -201,7 +232,7 @@ internal/inspector/
 
 ### 已实现功能
 
-**Phase 1 + Phase 2 + Phase 3** 可以：
+**Phase 1 + Phase 2 + Phase 3 + Phase 4** 可以：
 
 1. ✅ 从任何 VNode 提取详细信息
 2. ✅ 查找指定位置的 VNode
@@ -212,6 +243,11 @@ internal/inspector/
 7. ✅ 键盘快捷键控制（F12, Ctrl+I, Tab, Enter, Esc）
 8. ✅ 元素间键盘导航
 9. ✅ 框架事件系统集成
+10. ✅ 彩色边框系统（不同元素类型不同颜色）
+11. ✅ 角落类型指示符
+12. ✅ 元素类型标签
+13. ✅ 增强尺寸标注
+14. ✅ Padding 可视化（可选）
 
 ### 使用示例
 
@@ -296,12 +332,13 @@ if inspector.IsEnabled() {
 - [Phase 1 完成报告](PHASE1_REPORT.md)
 - [Phase 2 完成报告](PHASE2_REPORT.md)
 - [Phase 3 完成报告](PHASE3_REPORT.md)
+- [Phase 4 完成报告](PHASE4_REPORT.md)
 - [Debug 工具文档](../../debug/README.md)
 
 ---
 
-**当前版本**: Phase 3 完成
+**当前版本**: Phase 4 完成
 **维护者**: Claude Sonnet 4.5
 **最后更新**: 2025-02-08
 
-**下一步**: Phase 4 视觉增强（边框颜色、尺寸标注优化）
+**下一步**: Phase 5 侧边栏面板（详细信息面板、折叠/展开功能）
