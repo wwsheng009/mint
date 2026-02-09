@@ -55,6 +55,15 @@ func main() {
 
 	// Create framework app to enable F12 shortcut
 	fwApp := framework.NewApp()
+
+	// Create declarative root
+	declarativeRoot := render.NewDeclarativeNodeFromFunc(RuntimeDemoWithInspectorOverlay)
+	declarativeRoot.SetFrameworkApp(fwApp)
+
+	// Set as root FIRST (before registering Inspector)
+	fwApp.SetRoot(declarativeRoot)
+
+	// THEN register Inspector (after root is set, so hooks can be registered)
 	fwApp.SetInspector(globalInspector)
 	fwApp.SetupInspectorShortcut() // Enable F12 and Ctrl+D shortcuts
 
@@ -64,13 +73,6 @@ func main() {
 	if err := fwApp.InitTheme("nord"); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to initialize theme: %v\n", err)
 	}
-
-	// Create declarative root
-	declarativeRoot := render.NewDeclarativeNodeFromFunc(RuntimeDemoWithInspectorOverlay)
-	declarativeRoot.SetFrameworkApp(fwApp)
-
-	// Set as root
-	fwApp.SetRoot(declarativeRoot)
 
 	// Run the app
 	fmt.Println("Starting Mint TUI Demo - Press F12 or Ctrl+D to toggle Inspector")
@@ -92,7 +94,18 @@ func RuntimeDemoWithInspectorOverlay() ui.VNode {
 	eventCount, setEventCount, _ := ui.UseStateInt(0)
 	renderCount, setRenderCount, _ := ui.UseStateInt(0)
 	bufferUpdates, setBufferUpdates, _ := ui.UseStateInt(0)
+
+	// Debug: check inspector visibility before hook
+	if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
+		fmt.Fprintf(os.Stderr, "[DEMO] globalInspector.IsVisible() = %v\n", globalInspector.IsVisible())
+	}
+
 	showInspector, setShowInspector := ui.UseStateBool(globalInspector.IsVisible())
+
+	// Debug: log state
+	if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
+		fmt.Fprintf(os.Stderr, "[DEMO] showInspector (from hook) = %v\n", showInspector)
+	}
 
 	// Track performance
 	globalInspector.StartFrame()
@@ -108,18 +121,29 @@ func RuntimeDemoWithInspectorOverlay() ui.VNode {
 	// Attach inspector to app (for analysis)
 	globalInspector.AttachToApp(appContent)
 
-	// If inspector is enabled, get overlay
-	if showInspector {
-		inspectorOverlay := globalInspector.RenderOverlay()
+	// IMPORTANT: Check inspector visibility on every render
+	// This fixes the state synchronization issue between imperative Inspector API
+	// and React-like declarative hooks
+	inspectorVisible := globalInspector.IsVisible()
 
-		// Return app content with inspector overlay
-		// The overlay has LayerInspector set, so it will render on top
-		return ui.VStack(
-			appContent,
-			inspectorOverlay, // This will be in LayerInspector (z-index: 4)
-		)
+	// Debug: log visibility check
+	if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
+		fmt.Fprintf(os.Stderr, "[DEMO] Inspector visible: %v (showInspector state: %v)\n",
+			inspectorVisible, showInspector)
 	}
 
+	// NOTE: Inspector overlay is now automatically injected by the hook system
+	// The framework's PipelineRenderer will automatically wrap the app content with
+	// Inspector overlay when Inspector is visible. Application code no longer needs
+	// to manually handle Fragment wrapping or SetLayer() calls.
+	//
+	// If inspector is enabled, the hook system will:
+	// 1. Call inspector.RenderContent()
+	// 2. Set LayerInspector on the overlay
+	// 3. Wrap in Fragment with app content
+	// 4. Render using multi-layer pipeline
+
+	// Just return app content - Inspector is handled by hooks
 	return appContent
 }
 
