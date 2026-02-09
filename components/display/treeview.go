@@ -171,6 +171,9 @@ func (b *TreeViewBuilder) generateFromNode(node rtui.VNode, depth int, isLast bo
 
 // parseLines parses pre-formatted tree lines
 func (b *TreeViewBuilder) parseLines(lines []string) {
+	// Clear existing lines before parsing to avoid duplicates
+	b.node.lines = b.node.lines[:0]
+
 	for i, line := range lines {
 		// Calculate indentation
 		indent := 0
@@ -630,13 +633,17 @@ func (t *TreeView) UpdateLines(lines []string) {
 		return
 	}
 
-	// Parse new lines
+	// Parse new lines (this now clears old lines before parsing)
 	t.builder.sourceLines = lines
 	t.builder.parseLines(lines)
 
 	// Update lines from the builder's node
 	t.lines = t.builder.node.lines
 	t.totalLines = len(t.lines)
+
+	if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
+		fmt.Fprintf(os.Stderr, "[TreeView] UpdateLines: updated %d lines\n", len(t.lines))
+	}
 
 	// Re-render with the new lines (preserving viewportHeight)
 	t.regenerateDisplay()

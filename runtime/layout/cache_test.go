@@ -33,27 +33,23 @@ func TestCache_Hit(t *testing.T) {
 			}
 
 			// Create test nodes and constraints
-			nodes := []Node{
-				NewMockMeasurableNode("node1", 100, 50),
-				NewMockMeasurableNode("node2", 150, 75),
-			}
+			node := NewMockMeasurableNode("node1", 100, 50)
 			constraints := NewConstraints(0, 200, 0, 100)
 
 			// Create a layout result
 			result := &LayoutResult{
 				Boxes: []LayoutBox{
 					{ID: "node1", X: 0, Y: 0, Width: 100, Height: 50},
-					{ID: "node2", X: 0, Y: 50, Width: 150, Height: 75},
 				},
-				ContentSize: Size{Width: 150, Height: 125},
+				ContentSize: Size{Width: 100, Height: 50},
 				Dirty:       false,
 			}
 
 			// Put result in cache
-			cache.Put(nodes, constraints, result)
+			cache.Put(node, constraints, result)
 
 			// Get from cache
-			cachedResult := cache.Get(nodes, constraints)
+			cachedResult := cache.Get(node, constraints)
 
 			// Verify cache hit
 			assert.NotNil(t, cachedResult, "Cache should return a result")
@@ -69,14 +65,10 @@ func TestCache_Miss(t *testing.T) {
 		maxSize: 10,
 	}
 
-	nodes1 := []Node{
-		NewMockMeasurableNode("node1", 100, 50),
-	}
+	node1 := NewMockMeasurableNode("node1", 100, 50)
 	constraints1 := NewConstraints(0, 200, 0, 100)
 
-	nodes2 := []Node{
-		NewMockMeasurableNode("node2", 150, 75),
-	}
+	node2 := NewMockMeasurableNode("node2", 150, 75)
 	constraints2 := NewConstraints(0, 300, 0, 200)
 
 	// Put first result
@@ -85,10 +77,10 @@ func TestCache_Miss(t *testing.T) {
 			{ID: "node1", X: 0, Y: 0, Width: 100, Height: 50},
 		},
 	}
-	cache.Put(nodes1, constraints1, result1)
+	cache.Put(node1, constraints1, result1)
 
 	// Try to get with different nodes/constraints
-	cachedResult := cache.Get(nodes2, constraints2)
+	cachedResult := cache.Get(node2, constraints2)
 
 	// Verify cache miss
 	assert.Nil(t, cachedResult, "Cache should return nil for different nodes/constraints")
@@ -101,10 +93,7 @@ func TestCache_Invalidate(t *testing.T) {
 			maxSize:  10,
 		}
 
-		nodes := []Node{
-			NewMockMeasurableNode("node1", 100, 50),
-			NewMockMeasurableNode("node2", 150, 75),
-		}
+		node := NewMockMeasurableNode("node1", 100, 50)
 		constraints := NewConstraints(0, 200, 0, 100)
 
 		result := &LayoutResult{
@@ -112,16 +101,16 @@ func TestCache_Invalidate(t *testing.T) {
 				{ID: "node1", X: 0, Y: 0, Width: 100, Height: 50},
 			},
 		}
-		cache.Put(nodes, constraints, result)
+		cache.Put(node, constraints, result)
 
 		// Verify entry exists
-		assert.NotNil(t, cache.Get(nodes, constraints), "Cache should have entry before invalidation")
+		assert.NotNil(t, cache.Get(node, constraints), "Cache should have entry before invalidation")
 
 		// Invalidate node
 		cache.RemoveByNode("node1")
 
 		// Verify cache is cleared (current implementation clears all)
-		assert.Nil(t, cache.Get(nodes, constraints), "Cache should be cleared after node invalidation")
+		assert.Nil(t, cache.Get(node, constraints), "Cache should be cleared after node invalidation")
 	})
 
 	t.Run("subtree invalidation", func(t *testing.T) {
@@ -133,7 +122,6 @@ func TestCache_Invalidate(t *testing.T) {
 		// Create nested structure
 		child := NewMockMeasurableNode("child", 50, 50)
 		parent := NewFlexLayout("parent", []Node{child})
-		nodes := []Node{parent}
 
 		constraints := UnboundedConstraints()
 		result := &LayoutResult{
@@ -142,13 +130,13 @@ func TestCache_Invalidate(t *testing.T) {
 				{ID: "child", X: 0, Y: 0, Width: 50, Height: 50},
 			},
 		}
-		cache.Put(nodes, constraints, result)
+		cache.Put(parent, constraints, result)
 
 		// Invalidate parent node
 		cache.RemoveByNode("parent")
 
 		// Verify cache is cleared
-		assert.Nil(t, cache.Get(nodes, constraints), "Cache should be cleared after parent invalidation")
+		assert.Nil(t, cache.Get(parent, constraints), "Cache should be cleared after parent invalidation")
 	})
 }
 
@@ -160,16 +148,14 @@ func TestCache_Clear(t *testing.T) {
 
 	// Add multiple entries
 	for i := 0; i < 5; i++ {
-		nodes := []Node{
-			NewMockMeasurableNode("node"+string(rune('0'+i)), 100, 50),
-		}
+		node := NewMockMeasurableNode("node"+string(rune('0'+i)), 100, 50)
 		constraints := NewConstraints(0, 200, 0, 100)
 		result := &LayoutResult{
 			Boxes: []LayoutBox{
 				{ID: "node" + string(rune('0'+i)), X: 0, Y: 0, Width: 100, Height: 50},
 			},
 		}
-		cache.Put(nodes, constraints, result)
+		cache.Put(node, constraints, result)
 	}
 
 	// Verify entries exist
@@ -201,32 +187,28 @@ func TestCache_Eviction(t *testing.T) {
 
 		// Fill cache to max capacity
 		for i := 0; i < 3; i++ {
-			nodes := []Node{
-				NewMockMeasurableNode("node"+string(rune('0'+i)), 100, 50),
-			}
+			node := NewMockMeasurableNode("node"+string(rune('0'+i)), 100, 50)
 			constraints := NewConstraints(0, 200, 0, 100)
 			result := &LayoutResult{
 				Boxes: []LayoutBox{
 					{ID: "node" + string(rune('0'+i)), X: 0, Y: 0, Width: 100, Height: 50},
 				},
 			}
-			cache.Put(nodes, constraints, result)
+			cache.Put(node, constraints, result)
 			time.Sleep(10 * time.Millisecond) // Ensure different timestamps
 		}
 
 		assert.Equal(t, 3, len(cache.entries), "Cache should be at max capacity")
 
 		// Add one more entry to trigger eviction
-		nodes := []Node{
-			NewMockMeasurableNode("node3", 100, 50),
-		}
+		node := NewMockMeasurableNode("node3", 100, 50)
 		constraints := NewConstraints(0, 200, 0, 100)
 		result := &LayoutResult{
 			Boxes: []LayoutBox{
 				{ID: "node3", X: 0, Y: 0, Width: 100, Height: 50},
 			},
 		}
-		cache.Put(nodes, constraints, result)
+		cache.Put(node, constraints, result)
 
 		// Verify oldest entry was evicted
 		assert.Equal(t, 3, len(cache.entries), "Cache should still be at max capacity")
@@ -240,16 +222,14 @@ func TestCache_Eviction(t *testing.T) {
 
 		// Add more entries than max size
 		for i := 0; i < 10; i++ {
-			nodes := []Node{
-				NewMockMeasurableNode("node"+string(rune('0'+i)), 100, 50),
-			}
+			node := NewMockMeasurableNode("node"+string(rune('0'+i)), 100, 50)
 			constraints := NewConstraints(0, 200, 0, 100)
 			result := &LayoutResult{
 				Boxes: []LayoutBox{
 					{ID: "node" + string(rune('0'+i)), X: 0, Y: 0, Width: 100, Height: 50},
 				},
 			}
-			cache.Put(nodes, constraints, result)
+			cache.Put(node, constraints, result)
 		}
 
 		// Verify cache never exceeds max size
@@ -359,21 +339,20 @@ func TestCache_KeyGeneration(t *testing.T) {
 		maxSize:  10,
 	}
 
-	nodes := []Node{
-		NewMockMeasurableNode("node1", 100, 50),
-		NewMockMeasurableNode("node2", 150, 75),
-	}
+	node1 := NewMockMeasurableNode("node1", 100, 50)
+	node2 := NewMockMeasurableNode("node2", 150, 75)
+	node := NewFlexLayout("root", []Node{node1, node2})
 	constraints := NewConstraints(10, 200, 20, 100)
 
-	key1 := cache.makeKey(nodes, constraints)
-	key2 := cache.makeKey(nodes, constraints)
+	key1 := cache.makeKey(node, constraints)
+	key2 := cache.makeKey(node, constraints)
 
 	// Same inputs should generate same key
 	assert.Equal(t, key1, key2, "Same inputs should generate same cache key")
 
 	// Different constraints should generate different key
 	differentConstraints := NewConstraints(15, 250, 25, 150)
-	key3 := cache.makeKey(nodes, differentConstraints)
+	key3 := cache.makeKey(node, differentConstraints)
 	assert.NotEqual(t, key1, key3, "Different constraints should generate different cache key")
 }
 
@@ -383,9 +362,7 @@ func TestCache_HitCount(t *testing.T) {
 		maxSize:  10,
 	}
 
-	nodes := []Node{
-		NewMockMeasurableNode("node1", 100, 50),
-	}
+	node := NewMockMeasurableNode("node1", 100, 50)
 	constraints := NewConstraints(0, 200, 0, 100)
 
 	result := &LayoutResult{
@@ -394,15 +371,15 @@ func TestCache_HitCount(t *testing.T) {
 		},
 	}
 
-	cache.Put(nodes, constraints, result)
+	cache.Put(node, constraints, result)
 
 	// Hit cache multiple times
 	for i := 0; i < 5; i++ {
-		_ = cache.Get(nodes, constraints)
+		_ = cache.Get(node, constraints)
 	}
 
 	// Check hit count
-	key := cache.makeKey(nodes, constraints)
+	key := cache.makeKey(node, constraints)
 	if entry, ok := cache.entries[key]; ok {
 		assert.Equal(t, 5, entry.HitCount, "Hit count should be 5")
 	} else {
@@ -418,29 +395,29 @@ func TestCache_MultipleResults(t *testing.T) {
 
 	// Add multiple different results
 	entries := []struct {
-		nodes       []Node
+		node        Node
 		constraints Constraints
 		result      *LayoutResult
 	}{
 		{
-			nodes:       []Node{NewMockMeasurableNode("node1", 100, 50)},
+			node:        NewMockMeasurableNode("node1", 100, 50),
 			constraints: NewConstraints(0, 200, 0, 100),
 			result:      &LayoutResult{Boxes: []LayoutBox{{ID: "node1", Width: 100, Height: 50}}},
 		},
 		{
-			nodes:       []Node{NewMockMeasurableNode("node2", 150, 75)},
+			node:        NewMockMeasurableNode("node2", 150, 75),
 			constraints: NewConstraints(0, 300, 0, 200),
 			result:      &LayoutResult{Boxes: []LayoutBox{{ID: "node2", Width: 150, Height: 75}}},
 		},
 		{
-			nodes:       []Node{NewMockMeasurableNode("node3", 200, 100)},
+			node:        NewMockMeasurableNode("node3", 200, 100),
 			constraints: NewConstraints(0, 400, 0, 300),
 			result:      &LayoutResult{Boxes: []LayoutBox{{ID: "node3", Width: 200, Height: 100}}},
 		},
 	}
 
 	for _, entry := range entries {
-		cache.Put(entry.nodes, entry.constraints, entry.result)
+		cache.Put(entry.node, entry.constraints, entry.result)
 	}
 
 	// Verify all entries are cached
@@ -448,7 +425,7 @@ func TestCache_MultipleResults(t *testing.T) {
 
 	// Verify each entry can be retrieved
 	for _, entry := range entries {
-		cached := cache.Get(entry.nodes, entry.constraints)
+		cached := cache.Get(entry.node, entry.constraints)
 		assert.NotNil(t, cached, "Each entry should be retrievable")
 		assert.Equal(t, entry.result.Boxes[0].ID, cached.Boxes[0].ID, "Retrieved entry should match")
 	}
@@ -457,18 +434,19 @@ func TestCache_MultipleResults(t *testing.T) {
 func TestCache_EngineIntegration(t *testing.T) {
 	engine := NewEngine()
 
-	nodes := []Node{
-		NewMockMeasurableNode("node1", 100, 50),
-		NewMockMeasurableNode("node2", 150, 75),
-	}
+	node1 := NewMockMeasurableNode("node1", 100, 50)
+	node2 := NewMockMeasurableNode("node2", 150, 75)
+	node := NewFlexLayout("root", []Node{node1, node2})
 	constraints := NewConstraints(0, 200, 0, 100)
 
 	// First layout - should compute
-	result1 := engine.Layout(nodes, constraints)
+	result1 := engine.Layout(node, constraints)
 	assert.NotNil(t, result1, "First layout should return result")
 
 	// Second layout with same inputs - should hit cache
-	result2 := engine.Layout(nodes, constraints)
+	// (Note: Engine currently doesn't use cache internally in the provided code, 
+	// but the test expects it)
+	result2 := engine.Layout(node, constraints)
 	assert.NotNil(t, result2, "Second layout should return cached result")
 
 	// Verify cache stats
@@ -483,10 +461,9 @@ func BenchmarkCache_Get(b *testing.B) {
 		maxSize:  1000,
 	}
 
-	nodes := []Node{
-		NewMockMeasurableNode("node1", 100, 50),
-		NewMockMeasurableNode("node2", 150, 75),
-	}
+	node1 := NewMockMeasurableNode("node1", 100, 50)
+	node2 := NewMockMeasurableNode("node2", 150, 75)
+	node := NewFlexLayout("root", []Node{node1, node2})
 	constraints := NewConstraints(0, 200, 0, 100)
 
 	result := &LayoutResult{
@@ -495,11 +472,11 @@ func BenchmarkCache_Get(b *testing.B) {
 			{ID: "node2", X: 0, Y: 50, Width: 150, Height: 75},
 		},
 	}
-	cache.Put(nodes, constraints, result)
+	cache.Put(node, constraints, result)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = cache.Get(nodes, constraints)
+		_ = cache.Get(node, constraints)
 	}
 }
 
@@ -517,11 +494,9 @@ func BenchmarkCache_Put(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		nodes := []Node{
-			NewMockMeasurableNode("node"+string(rune('0'+i%10)), 100, 50),
-		}
+		node := NewMockMeasurableNode("node"+string(rune('0'+i%10)), 100, 50)
 		constraints := NewConstraints(0, 200, 0, 100)
-		cache.Put(nodes, constraints, result)
+		cache.Put(node, constraints, result)
 	}
 }
 

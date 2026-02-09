@@ -2,6 +2,8 @@ package ui
 
 import (
 	"testing"
+
+	"github.com/wwsheng009/mint/runtime"
 )
 
 // TestVStack tests VStack layout
@@ -143,3 +145,164 @@ func BenchmarkNestedLayouts(b *testing.B) {
 		)
 	}
 }
+
+// TestVStackPropagatesHeightConstraints tests that VStack propagates height constraints to children
+func TestVStackPropagatesHeightConstraints(t *testing.T) {
+	// Create a VStack with explicit height using builder
+	vstack := VStackBuilder(
+		Text("Line 1"),
+		Text("Line 2"),
+		Text("Line 3"),
+	).Height(10).Build()
+
+	// Measure with bounded constraints
+	constraints := runtime.BoxConstraints{
+		MinWidth:  0,
+		MaxWidth:  80,
+		MinHeight: 0,
+		MaxHeight: 10,
+	}
+
+	// The VStack should implement Measurable interface
+	measurable, ok := vstack.(interface {
+		Measure(runtime.BoxConstraints) runtime.Size
+	})
+	if !ok {
+		t.Fatal("VStack should implement Measurable interface")
+	}
+
+	size := measurable.Measure(constraints)
+
+	// VStack should respect the height constraint
+	if size.Height != 10 {
+		t.Errorf("VStack height = %d, want 10 (should respect height constraint)", size.Height)
+	}
+}
+
+// TestVStackWithNonFlexChildrenRespectsHeight tests VStack constrains non-flex children
+func TestVStackWithNonFlexChildrenRespectsHeight(t *testing.T) {
+	// Create a VStack with Height prop that's smaller than natural height
+	// Natural height would be 3 lines, but we constrain to 2
+	vstack := VStackBuilder(
+		Text("Line 1"),
+		Text("Line 2"),
+		Text("Line 3"),
+	).Height(2).Build()
+
+	// The VStack has Height(2) prop, which should constrain children
+	measurable, ok := vstack.(interface {
+		Measure(runtime.BoxConstraints) runtime.Size
+	})
+	if !ok {
+		t.Fatal("VStack should implement Measurable interface")
+	}
+
+	// Measure with unbounded constraints - the Height(2) prop should still apply
+	constraints := runtime.BoxConstraints{
+		MinWidth:  0,
+		MaxWidth:  80,
+		MinHeight: 0,
+		MaxHeight: runtime.Infinity,
+	}
+
+	size := measurable.Measure(constraints)
+
+	// VStack should return height=2 due to Height prop
+	if size.Height != 2 {
+		t.Errorf("VStack height = %d, want 2 (Height prop should constrain)", size.Height)
+	}
+}
+
+// TestHStackPropagatesHeightConstraints tests that HStack propagates height constraints to children
+func TestHStackPropagatesHeightConstraints(t *testing.T) {
+	// Create an HStack with explicit height
+	hstack := HStackBuilder(
+		Text("A"),
+		Text("B"),
+	).Height(5).Build()
+
+	measurable, ok := hstack.(interface {
+		Measure(runtime.BoxConstraints) runtime.Size
+	})
+	if !ok {
+		t.Fatal("HStack should implement Measurable interface")
+	}
+
+	constraints := runtime.BoxConstraints{
+		MinWidth:  0,
+		MaxWidth:  runtime.Infinity,
+		MinHeight: 0,
+		MaxHeight: 5,
+	}
+
+	size := measurable.Measure(constraints)
+
+	// HStack should respect the height constraint
+	if size.Height != 5 {
+		t.Errorf("HStack height = %d, want 5", size.Height)
+	}
+}
+
+// TestNestedVStackPropagatesConstraints tests nested VStack constraint propagation
+func TestNestedVStackPropagatesConstraints(t *testing.T) {
+	// Outer VStack with height constraint
+	outer := VStackBuilder(
+		// Inner VStack without explicit height
+		VStackBuilder(
+			Text("A"),
+			Text("B"),
+		).Build(),
+	).Height(8).Build()
+
+	measurable, ok := outer.(interface {
+		Measure(runtime.BoxConstraints) runtime.Size
+	})
+	if !ok {
+		t.Fatal("VStack should implement Measurable interface")
+	}
+
+	constraints := runtime.BoxConstraints{
+		MinWidth:  0,
+		MaxWidth:  80,
+		MinHeight: 0,
+		MaxHeight: 8,
+	}
+
+	size := measurable.Measure(constraints)
+
+	// Outer VStack should respect height constraint
+	if size.Height != 8 {
+		t.Errorf("Outer VStack height = %d, want 8", size.Height)
+	}
+}
+
+// TestVStackWidthConstraints tests VStack width constraint propagation
+func TestVStackWidthConstraints(t *testing.T) {
+	// Create VStack with width constraint
+	vstack := VStackBuilder(
+		Text("Short"),
+		Text("Very long text that should be constrained"),
+	).Width(20).Build()
+
+	measurable, ok := vstack.(interface {
+		Measure(runtime.BoxConstraints) runtime.Size
+	})
+	if !ok {
+		t.Fatal("VStack should implement Measurable interface")
+	}
+
+	constraints := runtime.BoxConstraints{
+		MinWidth:  0,
+		MaxWidth:  20,
+		MinHeight: 0,
+		MaxHeight: runtime.Infinity,
+	}
+
+	size := measurable.Measure(constraints)
+
+	// VStack should respect width constraint
+	if size.Width != 20 {
+		t.Errorf("VStack width = %d, want 20", size.Width)
+	}
+}
+

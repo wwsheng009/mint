@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/wwsheng009/mint/runtime"
 	ui "github.com/wwsheng009/mint/ui"
 )
 
@@ -177,5 +178,137 @@ func TestTabsWithScrollView(t *testing.T) {
 		t.Log("✓ At least some content is visible (virtual scrolling may be working)")
 	} else {
 		t.Error("ScrollView content not visible")
+	}
+}
+
+// TestTabsWithHeightProp tests that Tabs component respects height prop
+func TestTabsWithHeightProp(t *testing.T) {
+	// Create Tabs with explicit height using builder
+	tabs := TabsBuilder().
+		AddTab("tab1", "Tab 1").
+		Content("tab1", ui.Text("Content 1")).
+		AddTab("tab2", "Tab 2").
+		Content("tab2", ui.Text("Content 2")).
+		Height(20).
+		Build()
+
+	// The Tabs should implement Measurable interface
+	measurable, ok := tabs.(interface {
+		Measure(runtime.BoxConstraints) runtime.Size
+	})
+	if !ok {
+		t.Fatal("Tabs should implement Measurable interface")
+	}
+
+	// Measure with unbounded constraints - the Height(20) prop should still apply
+	constraints := runtime.BoxConstraints{
+		MinWidth:  0,
+		MaxWidth:  80,
+		MinHeight: 0,
+		MaxHeight: runtime.Infinity,
+	}
+
+	size := measurable.Measure(constraints)
+
+	// Tabs should return height=20 due to Height prop
+	if size.Height != 20 {
+		t.Errorf("Tabs height = %d, want 20 (Height prop should constrain)", size.Height)
+	}
+}
+
+// TestTabsRespectsParentHeightConstraint tests that Tabs respects parent's height constraint
+func TestTabsRespectsParentHeightConstraint(t *testing.T) {
+	// Create Tabs without explicit height prop
+	tabs := TabsBuilder().
+		AddTab("tab1", "Tab 1").
+		Content("tab1", ui.VStack( // Create taller content
+			ui.Text("Line 1"),
+			ui.Text("Line 2"),
+			ui.Text("Line 3"),
+			ui.Text("Line 4"),
+			ui.Text("Line 5"),
+			ui.Text("Line 6"),
+			ui.Text("Line 7"),
+			ui.Text("Line 8"),
+			ui.Text("Line 9"),
+			ui.Text("Line 10"),
+			ui.Text("Line 11"),
+			ui.Text("Line 12"),
+			ui.Text("Line 13"),
+			ui.Text("Line 14"),
+			ui.Text("Line 15"),
+			ui.Text("Line 16"),
+			ui.Text("Line 17"),
+			ui.Text("Line 18"),
+			ui.Text("Line 19"),
+			ui.Text("Line 20"),
+		)).
+		AddTab("tab2", "Tab 2").
+		Content("tab2", ui.Text("Content 2")).
+		Build()
+
+	measurable, ok := tabs.(interface {
+		Measure(runtime.BoxConstraints) runtime.Size
+	})
+	if !ok {
+		t.Fatal("Tabs should implement Measurable interface")
+	}
+
+	// Measure with bounded height constraint from parent (15 lines available)
+	// Tab bar is 1 line, so content gets 14 lines
+	constraints := runtime.BoxConstraints{
+		MinWidth:  0,
+		MaxWidth:  80,
+		MinHeight: 0,
+		MaxHeight: 15,
+	}
+
+	size := measurable.Measure(constraints)
+
+	// Tabs should respect parent's height constraint
+	// Content has 20 lines, but parent constraint is 15, so we get:
+	// 1 (tab bar) + 14 (constrained content) = 15 total
+	// OR: content returns natural size < 15, so we get that instead
+	// The key is: Tabs should NOT exceed MaxHeight of 15
+	if size.Height > 15 {
+		t.Errorf("Tabs height = %d, should not exceed MaxHeight of 15 (parent constraint)", size.Height)
+	}
+	if size.Height < 1 {
+		t.Errorf("Tabs height = %d, should be at least 1 (tab bar)", size.Height)
+	}
+	t.Logf("Tabs measured height: %d (within parent MaxHeight of 15)", size.Height)
+}
+
+// TestTabsWidthProp tests that Tabs component respects width prop
+func TestTabsWidthProp(t *testing.T) {
+	// Create Tabs with explicit width using builder
+	tabs := TabsBuilder().
+		AddTab("tab1", "A very long tab name").
+		Content("tab1", ui.Text("Content")).
+		AddTab("tab2", "Another long tab name").
+		Content("tab2", ui.Text("Content")).
+		Width(40).
+		Build()
+
+	measurable, ok := tabs.(interface {
+		Measure(runtime.BoxConstraints) runtime.Size
+	})
+	if !ok {
+		t.Fatal("Tabs should implement Measurable interface")
+	}
+
+	// Measure with unbounded constraints - the Width(40) prop should still apply
+	constraints := runtime.BoxConstraints{
+		MinWidth:  0,
+		MaxWidth:  runtime.Infinity,
+		MinHeight: 0,
+		MaxHeight: runtime.Infinity,
+	}
+
+	size := measurable.Measure(constraints)
+
+	// Tabs should return width=40 due to Width prop
+	if size.Width != 40 {
+		t.Errorf("Tabs width = %d, want 40 (Width prop should constrain)", size.Width)
 	}
 }

@@ -34,7 +34,7 @@ func TestLayout_DeepNesting(t *testing.T) {
 			
 			// Should not crash and should complete in reasonable time
 			start := time.Now()
-			result := engine.Layout([]Node{node}, constraints)
+			result := engine.Layout(node, constraints)
 			elapsed := time.Since(start)
 			
 			assert.NotNil(t, result, "Layout should complete without crashing")
@@ -97,7 +97,7 @@ func TestLayout_ConflictingConstraints(t *testing.T) {
 			
 			// Test with engine
 			engine := NewEngine()
-			result := engine.Layout(nodes, constraints)
+			result := engine.Layout(NewFlexLayout("root", nodes), constraints)
 			
 			assert.NotNil(t, result, "Should handle conflicting constraints gracefully")
 		})
@@ -131,7 +131,7 @@ func TestLayout_Performance_Large(t *testing.T) {
 			
 			// Measure layout time
 			start := time.Now()
-			result := engine.Layout([]Node{flex}, constraints)
+			result := engine.Layout(flex, constraints)
 			elapsed := time.Since(start)
 			
 			assert.NotNil(t, result, "Layout should complete")
@@ -167,7 +167,7 @@ func TestLayout_Performance_Deep(t *testing.T) {
 			
 			// Measure layout time
 			start := time.Now()
-			result := engine.Layout([]Node{node}, constraints)
+			result := engine.Layout(node, constraints)
 			elapsed := time.Since(start)
 			
 			assert.NotNil(t, result, "Deep layout should complete")
@@ -241,8 +241,17 @@ func TestLayout_EdgeCases(t *testing.T) {
 			nodes := tt.setupNodes()
 			engine := NewEngine()
 			
+			var root Node
+			if len(nodes) == 0 {
+				root = nil
+			} else if len(nodes) == 1 {
+				root = nodes[0]
+			} else {
+				root = NewFlexLayout("root", nodes)
+			}
+			
 			// Should not panic on edge cases
-			result := engine.Layout(nodes, tt.constraints)
+			result := engine.Layout(root, tt.constraints)
 			
 			assert.NotNil(t, result, "Should handle edge case gracefully")
 		})
@@ -263,7 +272,7 @@ func TestLayout_MixedContent(t *testing.T) {
 		flex.SetGap(5)
 		
 		engine := NewEngine()
-		result := engine.Layout([]Node{flex}, UnboundedConstraints())
+		result := engine.Layout(flex, UnboundedConstraints())
 		
 		assert.NotNil(t, result, "Mixed content layout should work")
 		// Root may not be set in current implementation
@@ -291,7 +300,7 @@ func TestLayout_MixedContent(t *testing.T) {
 		mixed.SetDirection(FlexColumn)
 		
 		engine := NewEngine()
-		result := engine.Layout([]Node{mixed}, UnboundedConstraints())
+		result := engine.Layout(mixed, UnboundedConstraints())
 		
 		assert.NotNil(t, result, "Nested different layouts should work")
 	})
@@ -309,7 +318,7 @@ func TestLayout_DynamicChanges(t *testing.T) {
 		engine := NewEngine()
 		
 		// Initial layout
-		_ = engine.Layout([]Node{flex}, UnboundedConstraints())
+		_ = engine.Layout(flex, UnboundedConstraints())
 		
 		// Add children (simulate by creating new flex)
 		newNodes := []Node{
@@ -321,7 +330,7 @@ func TestLayout_DynamicChanges(t *testing.T) {
 		newFlex.SetDirection(FlexRow)
 		
 		// New layout
-		result2 := engine.Layout([]Node{newFlex}, UnboundedConstraints())
+		result2 := engine.Layout(newFlex, UnboundedConstraints())
 		
 		assert.NotNil(t, result2, "Second layout should work")
 		if result2.Root != nil {
@@ -337,10 +346,10 @@ func TestLayout_DynamicChanges(t *testing.T) {
 		engine := NewEngine()
 		
 		// Large constraints
-		_ = engine.Layout(nodes, NewConstraints(0, 500, 0, 500))
+		_ = engine.Layout(nodes[0], NewConstraints(0, 500, 0, 500))
 		
 		// Small constraints
-		result2 := engine.Layout(nodes, NewConstraints(0, 100, 0, 100))
+		result2 := engine.Layout(nodes[0], NewConstraints(0, 100, 0, 100))
 		
 		assert.NotNil(t, result2, "Constrained layout should work")
 		if result2.Root != nil {
@@ -376,7 +385,7 @@ func TestLayout_RealWorldScenarios(t *testing.T) {
 		form.SetGap(15)
 		
 		engine := NewEngine()
-		result := engine.Layout([]Node{form}, UnboundedConstraints())
+		result := engine.Layout(form, UnboundedConstraints())
 		
 		assert.NotNil(t, result, "Form layout should work")
 		if result.Root != nil {
@@ -398,7 +407,7 @@ func TestLayout_RealWorldScenarios(t *testing.T) {
 		toolbar.SetPadding(10, 10, 5, 5)
 		
 		engine := NewEngine()
-		result := engine.Layout([]Node{toolbar}, UnboundedConstraints())
+		result := engine.Layout(toolbar, UnboundedConstraints())
 		
 		assert.NotNil(t, result, "Toolbar layout should work")
 		// First child box should have left padding applied
@@ -435,7 +444,7 @@ func TestLayout_RealWorldScenarios(t *testing.T) {
 		layout.SetGap(20)
 		
 		engine := NewEngine()
-		result := engine.Layout([]Node{layout}, UnboundedConstraints())
+		result := engine.Layout(layout, UnboundedConstraints())
 		
 		assert.NotNil(t, result, "Sidebar + content layout should work")
 		if result.Root != nil {
@@ -471,7 +480,7 @@ func TestLayout_Stress(t *testing.T) {
 		
 		engine := NewEngine()
 		start := time.Now()
-		result := engine.Layout([]Node{root}, UnboundedConstraints())
+		result := engine.Layout(root, UnboundedConstraints())
 		elapsed := time.Since(start)
 		
 		assert.NotNil(t, result, "Complex nested layout should work")
@@ -501,7 +510,7 @@ func TestLayout_Stress(t *testing.T) {
 		}
 		
 		engine := NewEngine()
-		result := engine.Layout([]Node{flex}, UnboundedConstraints())
+		result := engine.Layout(flex, UnboundedConstraints())
 		
 		assert.NotNil(t, result, "Alternating direction layout should work")
 	})
@@ -522,7 +531,7 @@ func BenchmarkLayout_Simple(b *testing.B) {
 	
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = engine.Layout([]Node{flex}, constraints)
+		_ = engine.Layout(flex, constraints)
 	}
 }
 
@@ -539,7 +548,7 @@ func BenchmarkLayout_Nested(b *testing.B) {
 	
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = engine.Layout([]Node{node}, constraints)
+		_ = engine.Layout(node, constraints)
 	}
 }
 
@@ -557,7 +566,7 @@ func BenchmarkLayout_ManyNodes(b *testing.B) {
 	
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = engine.Layout([]Node{flex}, constraints)
+		_ = engine.Layout(flex, constraints)
 	}
 }
 
@@ -574,10 +583,10 @@ func BenchmarkLayout_WithCache(b *testing.B) {
 	constraints := UnboundedConstraints()
 	
 	// First run to populate cache
-	_ = engine.Layout([]Node{flex}, constraints)
+	_ = engine.Layout(flex, constraints)
 	
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = engine.Layout([]Node{flex}, constraints)
+		_ = engine.Layout(flex, constraints)
 	}
 }

@@ -587,3 +587,74 @@ func BenchmarkBoxConstraints_IsTight(b *testing.B) {
 		c.IsTight()
 	}
 }
+
+type mockMeasurable struct {
+	id         string
+	children   []Node
+	size       Size
+	measured   bool
+	constraints Constraints
+}
+
+func (m *mockMeasurable) ID() string             { return m.id }
+func (m *mockMeasurable) Type() string           { return "mock" }
+func (m *mockMeasurable) Children() []Node       { return m.children }
+func (m *mockMeasurable) GetPosition() (x, y int) { return 0, 0 }
+func (m *mockMeasurable) SetPosition(x, y int)   {}
+func (m *mockMeasurable) GetSize() (w, h int)    { return m.size.Width, m.size.Height }
+func (m *mockMeasurable) SetSize(w, h int)       { m.size = Size{w, h} }
+func (m *mockMeasurable) GetWidth() int          { return m.size.Width }
+func (m *mockMeasurable) GetHeight() int         { return m.size.Height }
+func (m *mockMeasurable) Measure(c Constraints) Size {
+	m.measured = true
+	m.constraints = c
+	w, h := c.Constrain(m.size.Width, m.size.Height)
+	return Size{w, h}
+}
+
+func TestConstraintFailure_Reproduction(t *testing.T) {
+	t.Run("negative constraints from padding", func(t *testing.T) {
+		// Mock a scenario similar to runtime/ui/layout.go where padding > MaxWidth
+		parentConstraints := NewConstraints(0, 10, 0, 10)
+		padding := 20
+
+		// Simulate SubtractPadding logic
+		innerMaxWidth := parentConstraints.MaxWidth - padding
+		// If not clamped, innerMaxWidth would be -10
+
+		child := &mockMeasurable{
+			id:   "child",
+			size: Size{Width: 5, Height: 5},
+		}
+
+		// Use the possibly negative constraint
+		childConstraints := NewConstraints(0, innerMaxWidth, 0, innerMaxWidth)
+		
+		// In V3 layout/types.go, NewConstraints doesn't clamp. 
+		// But Measure uses Constrain() which handles negatives by clamping to MinWidth (0).
+		size := child.Measure(childConstraints)
+		
+		assert.GreaterOrEqual(t, size.Width, 0)
+		assert.GreaterOrEqual(t, size.Height, 0)
+	})
+
+	t.Run("conflict between flex basis and constraints", func(t *testing.T) {
+		flex := &Flex{Grow: 1, Basis: 100}
+		constraints := NewConstraints(0, 50, 0, 50)
+		
+		// If basis (100) is used without clamping to constraints.MaxWidth (50), it breaks.
+		childSize := Size{Width: 10, Height: 10}
+		
+		// Simulate flex measurement logic in flex.go:245-254
+		basis := flex.Basis
+		if basis == 0 {
+			basis = childSize.Width
+		}
+		
+		// Here's the risk: basis is used directly for totalMainSize calculation
+		totalMainSize := basis
+		
+		finalWidth := constraints.ConstrainWidth(totalMainSize)
+		assert.Equal(t, 50, finalWidth, "Flex basis should be capped by MaxWidth")
+	})
+}

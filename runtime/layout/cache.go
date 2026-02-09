@@ -3,6 +3,7 @@ package layout
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"hash"
 	"time"
 )
 
@@ -31,8 +32,8 @@ type CachedLayout struct {
 }
 
 // Get 获取缓存
-func (c *Cache) Get(nodes []Node, constraints Constraints) *LayoutResult {
-	key := c.makeKey(nodes, constraints)
+func (c *Cache) Get(node Node, constraints Constraints) *LayoutResult {
+	key := c.makeKey(node, constraints)
 	if entry, ok := c.entries[key]; ok {
 		entry.HitCount++
 		// 返回克隆避免修改缓存
@@ -42,8 +43,8 @@ func (c *Cache) Get(nodes []Node, constraints Constraints) *LayoutResult {
 }
 
 // Put 存入缓存
-func (c *Cache) Put(nodes []Node, constraints Constraints, result *LayoutResult) {
-	key := c.makeKey(nodes, constraints)
+func (c *Cache) Put(node Node, constraints Constraints, result *LayoutResult) {
+	key := c.makeKey(node, constraints)
 
 	// 如果缓存已满，删除最旧的条目
 	if len(c.entries) >= c.maxSize {
@@ -87,11 +88,10 @@ func (c *Cache) evict() {
 }
 
 // makeKey 生成缓存键
-func (c *Cache) makeKey(nodes []Node, constraints Constraints) string {
-	// 简化实现：基于约束生成键
+func (c *Cache) makeKey(node Node, constraints Constraints) string {
 	// 实际应该基于节点树结构
 	constraintKey := c.constraintsKey(constraints)
-	nodesHash := c.nodesHash(nodes)
+	nodesHash := c.nodesHash(node)
 
 	return constraintKey + ":" + nodesHash
 }
@@ -105,13 +105,25 @@ func (c *Cache) constraintsKey(constraints Constraints) string {
 }
 
 // nodesHash 节点哈希
-func (c *Cache) nodesHash(nodes []Node) string {
+func (c *Cache) nodesHash(node Node) string {
 	h := sha256.New()
-	for _, node := range nodes {
-		h.Write([]byte(node.ID()))
-		h.Write([]byte(node.Type()))
-	}
+	c.nodesHashRecursive(node, h)
 	return hex.EncodeToString(h.Sum(nil))[:16]
+}
+
+// nodesHashRecursive 递归计算节点哈希
+func (c *Cache) nodesHashRecursive(node Node, h hash.Hash) {
+	if node == nil {
+		return
+	}
+	h.Write([]byte(node.ID()))
+	h.Write([]byte(node.Type()))
+
+	// 如果实现了 Measurable，可能需要包含其属性（这里简化）
+
+	for _, child := range node.Children() {
+		c.nodesHashRecursive(child, h)
+	}
 }
 
 // cloneResult 克隆布局结果

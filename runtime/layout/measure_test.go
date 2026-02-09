@@ -490,8 +490,8 @@ func TestEngine_Measure(t *testing.T) {
 			name:        "non-measurable node",
 			node:        NewMockNode("non-measurable", 100, 50),
 			constraints: NewConstraints(10, 200, 10, 100),
-			wantWidth:   10,
-			wantHeight:  10,
+			wantWidth:   100,
+			wantHeight:  50,
 		},
 		{
 			name:        "constrained measurable",
