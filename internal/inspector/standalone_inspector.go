@@ -21,6 +21,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/components/display"
@@ -80,6 +81,11 @@ type StandaloneInspector struct {
 	lastCtrl     bool   // Last Ctrl modifier state
 	lastShift    bool   // Last Shift modifier state
 	showKeyDebug bool   // Show key debug info in UI
+
+	// Update throttling
+	lastUpdate          time.Time
+	updateInterval      time.Duration
+	lastTreeChangeCount int64 // Track tree view changes to avoid regenerating lines
 }
 
 // InspectorTab represents different inspector panels
@@ -128,9 +134,10 @@ func NewStandaloneInspector() *StandaloneInspector {
 		overlayHeight: 25,
 		position:      PositionFloating, // Change to floating by default
 		// Floating position (left side, visible in 80-column terminal)
-		floatX:     0, // Default X position (left edge)
-		floatY:     0, // Default Y position (top edge)
-		isDragging: false,
+		floatX:         0, // Default X position (left edge)
+		floatY:         0, // Default Y position (top edge)
+		isDragging:     false,
+		updateInterval: 200 * time.Millisecond, // Throttle updates (5 FPS for tree/diagnostics)
 	}
 }
 
@@ -204,11 +211,18 @@ func (si *StandaloneInspector) AttachToApp(root rtui.VNode) {
 
 	si.appRoot = root
 
-	// Update tree view
+	// Throttle heavy updates to avoid excessive tree traversal
+	if time.Since(si.lastUpdate) < si.updateInterval {
+		return
+	}
+	si.lastUpdate = time.Now()
+
+	// Update tree view (expensive recursive build)
 	si.treeView.SetRoot(root)
 
-	// Run diagnostics if visible
-	if si.visible {
+	// Run diagnostics if visible AND on diagnostics tab
+	// Analyze is very expensive (full tree traversal + rule checking)
+	if si.visible && si.activeTab == TabDiagnostics {
 		si.diagnostics.Analyze(root)
 	}
 }
@@ -404,9 +418,9 @@ func (si *StandaloneInspector) buildTabBar() rtui.VNode {
 	var tabs []rtui.VNode
 
 	allTabs := []struct {
-		tab   InspectorTab
-		key   string
-		name  string
+		tab  InspectorTab
+		key  string
+		name string
 	}{
 		{TabElements, "1", "Elements"},
 		{TabConsole, "2", "Console"},
@@ -477,11 +491,14 @@ func (si *StandaloneInspector) buildElementsTabContent() rtui.VNode {
 	if si.treeViewComponent != nil && si.treeViewComponent.ExpandStateChanged() {
 		lineIndex := si.treeViewComponent.GetExpandStateLineIndex()
 		// Get uniqueID for this line index
-		uniqueID := si.treeView.GetUniqueIDForLineIndex(lineIndex)
-		if uniqueID != "" {
-			si.treeView.ToggleNode(uniqueID)
-			if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
-				fmt.Fprintf(os.Stderr, "[Inspector] Toggled node: %s (line %d)\n", uniqueID, lineIndex)
+		// Use cached lines for lookup
+		if lineIndex >= 0 && lineIndex < len(si.treeLines) {
+			uniqueID := si.treeView.GetUniqueIDForLineIndex(lineIndex)
+			if uniqueID != "" {
+				si.treeView.ToggleNode(uniqueID)
+				if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
+					fmt.Fprintf(os.Stderr, "[Inspector] Toggled node: %s (line %d)\n", uniqueID, lineIndex)
+				}
 			}
 		}
 		// Clear the flag
@@ -489,13 +506,21 @@ func (si *StandaloneInspector) buildElementsTabContent() rtui.VNode {
 	}
 
 	// Tree visualization - use TreeView component with navigation
-	allLines, totalLines := si.treeView.GetTreeLines()
-	si.treeTotalLines = totalLines
+	// Optimize: Only regenerate lines if tree structure or expansion state changed
+	currentChangeCount := si.treeView.GetChangeCount()
+	if currentChangeCount != si.lastTreeChangeCount || len(si.treeLines) == 0 {
+		si.treeLines, si.treeTotalLines = si.treeView.GetTreeLines()
+		si.lastTreeChangeCount = currentChangeCount
+
+		if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
+			fmt.Fprintf(os.Stderr, "[Inspector] Tree lines regenerated (count: %d)\n", len(si.treeLines))
+		}
+	}
 
 	// Create or update TreeView component with navigation support
 	if si.treeViewComponent == nil {
 		si.treeViewComponent = display.NewTreeView().
-			FromLines(allLines).
+			FromLines(si.treeLines).
 			ExpandLevel(1).
 			ShowIcons(true).
 			Compact(false).
@@ -503,7 +528,7 @@ func (si *StandaloneInspector) buildElementsTabContent() rtui.VNode {
 	} else {
 		// Update existing TreeView with new lines WITHOUT creating a new instance
 		// This preserves the viewportHeight that was set by the layout engine
-		si.treeViewComponent.UpdateLines(allLines)
+		si.treeViewComponent.UpdateLines(si.treeLines)
 	}
 	// Get focused line index to display above tree
 	focusIndex := si.treeViewComponent.GetFocusIndex()
@@ -773,7 +798,7 @@ func (si *StandaloneInspector) buildLayoutTabContent() rtui.VNode {
 	// Analyze the target node
 	constraints := runtime.BoxConstraints{
 		MinWidth:  0,
-		MaxWidth: si.overlayWidth - 4,
+		MaxWidth:  si.overlayWidth - 4,
 		MinHeight: 0,
 		MaxHeight: si.overlayHeight - 10,
 	}
@@ -1375,30 +1400,48 @@ func (si *StandaloneInspector) HandleKeyEvent(key string, alt bool, ctrl bool, s
 		}
 	}
 
-	// Tab switching
+	// Tab switching - return false to let event propagate and trigger re-render
 	if key == "1" {
 		si.activeTab = TabElements
-		return true
+		if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
+			fmt.Fprintf(os.Stderr, "[Inspector] Switched to Elements tab (key=1)\n")
+		}
+		return false  // Return false to propagate event and trigger re-render
 	}
 	if key == "2" {
 		si.activeTab = TabConsole
-		return true
+		if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
+			fmt.Fprintf(os.Stderr, "[Inspector] Switched to Console tab (key=2)\n")
+		}
+		return false
 	}
 	if key == "3" {
 		si.activeTab = TabPerformance
-		return true
+		if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
+			fmt.Fprintf(os.Stderr, "[Inspector] Switched to Performance tab (key=3)\n")
+		}
+		return false
 	}
 	if key == "4" {
 		si.activeTab = TabDiagnostics
-		return true
+		if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
+			fmt.Fprintf(os.Stderr, "[Inspector] Switched to Diagnostics tab (key=4)\n")
+		}
+		return false
 	}
 	if key == "5" {
 		si.activeTab = TabLayout
-		return true
+		if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
+			fmt.Fprintf(os.Stderr, "[Inspector] Switched to Layout tab (key=5)\n")
+		}
+		return false  // Return false to propagate event and trigger re-render
 	}
 	if key == "6" {
 		si.activeTab = TabNetwork
-		return true
+		if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
+			fmt.Fprintf(os.Stderr, "[Inspector] Switched to Network tab (key=6)\n")
+		}
+		return false
 	}
 
 	// Tab cycling - cycle through inspector tabs

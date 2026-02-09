@@ -10,37 +10,39 @@ import (
 
 // TreeNode represents a node in the layout tree
 type TreeNode struct {
-	VNode        ui.VNode
-	Info         ElementInfo
-	Children     []*TreeNode
-	Parent       *TreeNode
-	Expanded     bool
-	Level        int  // Depth in tree (0 = root)
-	Index        int  // Index among siblings
-	Path         string // Full path from root
-	UniqueID     string // Unique identifier for expand/collapse tracking
+	VNode    ui.VNode
+	Info     ElementInfo
+	Children []*TreeNode
+	Parent   *TreeNode
+	Expanded bool
+	Level    int    // Depth in tree (0 = root)
+	Index    int    // Index among siblings
+	Path     string // Full path from root
+	UniqueID string // Unique identifier for expand/collapse tracking
 }
 
 // TreeView provides tree visualization and traversal
 type TreeView struct {
-	root         *TreeNode
-	expanded     map[string]bool // Track expanded nodes by unique ID (path-based)
-	showIcons    bool            // Show type icons
-	showPaths    bool            // Show paths
-	compact      bool            // Use compact display
-	maxDepth     int             // Maximum traversal depth
-	maxNodes     int             // Maximum nodes to display
+	root             *TreeNode
+	expanded         map[string]bool // Track expanded nodes by unique ID (path-based)
+	selectedUniqueID string          // Track selected node by unique ID
+	showIcons        bool            // Show type icons
+	showPaths        bool            // Show paths
+	compact          bool            // Use compact display
+	maxDepth         int             // Maximum traversal depth
+	maxNodes         int             // Maximum nodes to display
+	changeCount      int64           // Counter for tree changes (structure or expansion)
 }
 
 // NewTreeView creates a new TreeView instance
 func NewTreeView() *TreeView {
 	return &TreeView{
-		expanded:   make(map[string]bool),
-		showIcons:  true,
-		showPaths:  false,
-		compact:    false,
-		maxDepth:   100, // Effectively unlimited
-		maxNodes:   1000,
+		expanded:  make(map[string]bool),
+		showIcons: true,
+		showPaths: false,
+		compact:   false,
+		maxDepth:  100, // Effectively unlimited
+		maxNodes:  1000,
 	}
 }
 
@@ -53,6 +55,7 @@ func (tv *TreeView) SetRoot(root ui.VNode) error {
 
 	// Build tree structure (root has index 0)
 	tv.root = tv.buildTree(root, nil, 0, "", 0)
+	tv.changeCount++
 	return nil
 }
 
@@ -104,14 +107,14 @@ func (tv *TreeView) buildTree(vnode ui.VNode, parent *TreeNode, level int, path 
 	}
 
 	node := &TreeNode{
-		VNode:        vnode,
-		Info:         info,
-		Parent:       parent,
-		Level:        level,
-		Path:         nodePath,
-		Expanded:     expanded,
-		UniqueID:     uniqueID,
-		Index:        index,
+		VNode:    vnode,
+		Info:     info,
+		Parent:   parent,
+		Level:    level,
+		Path:     nodePath,
+		Expanded: expanded,
+		UniqueID: uniqueID,
+		Index:    index,
 	}
 
 	// Recursively build children
@@ -225,10 +228,16 @@ func (tv *TreeView) formatNode(node *TreeNode, lines []string, isLast bool) []st
 		return lines
 	}
 
+	// Check if this node is selected
+	isSelected := tv.selectedUniqueID != "" && node.UniqueID == tv.selectedUniqueID
+
 	// Build prefix
 	prefix := strings.Repeat("│  ", node.Level)
 	var connector string
-	if isLast {
+	if isSelected {
+		// Show selection indicator
+		connector = "▶ "
+	} else if isLast {
 		connector = "└── "
 	} else {
 		connector = "├── "
@@ -301,6 +310,7 @@ func (tv *TreeView) ToggleNode(uniqueID string) {
 	// Update tree if we have a root
 	if tv.root != nil {
 		tv.updateNodeExpansion(tv.root, uniqueID)
+		tv.changeCount++
 	}
 }
 
@@ -350,6 +360,7 @@ func (tv *TreeView) ExpandAll() {
 	}
 
 	tv.expandAllRecursive(tv.root)
+	tv.changeCount++
 }
 
 // expandAllRecursive recursively expands all nodes
@@ -373,6 +384,7 @@ func (tv *TreeView) CollapseAll() {
 	}
 
 	tv.collapseAllRecursive(tv.root)
+	tv.changeCount++
 }
 
 // collapseAllRecursive recursively collapses all nodes
@@ -553,12 +565,35 @@ func (tv *TreeView) SetMaxNodes(max int) {
 	tv.maxNodes = max
 }
 
+// SetSelectedNode sets the currently selected node by unique ID
+func (tv *TreeView) SetSelectedNode(uniqueID string) {
+	tv.selectedUniqueID = uniqueID
+}
+
+// GetSelectedNode returns the unique ID of the currently selected node
+func (tv *TreeView) GetSelectedNode() string {
+	return tv.selectedUniqueID
+}
+
+// GetSelectedNodeInfo returns information about the selected node
+func (tv *TreeView) GetSelectedNodeInfo() *TreeNode {
+	if tv.selectedUniqueID == "" {
+		return nil
+	}
+	return tv.findNodeByUniqueID(tv.root, tv.selectedUniqueID)
+}
+
+// GetChangeCount returns the current change counter
+func (tv *TreeView) GetChangeCount() int64 {
+	return tv.changeCount
+}
+
 // TreeStats represents tree statistics
 type TreeStats struct {
-	TotalNodes int
-	LeafNodes  int
+	TotalNodes  int
+	LeafNodes   int
 	ParentNodes int
-	MaxDepth   int
+	MaxDepth    int
 }
 
 // Helper functions
