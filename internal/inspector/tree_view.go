@@ -2,6 +2,7 @@ package inspector
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/wwsheng009/mint/ui"
@@ -9,36 +10,37 @@ import (
 
 // TreeNode represents a node in the layout tree
 type TreeNode struct {
-	VNode     ui.VNode
-	Info      ElementInfo
-	Children  []*TreeNode
-	Parent    *TreeNode
-	Expanded  bool
-	Level     int  // Depth in tree (0 = root)
-	Index     int  // Index among siblings
-	Path      string // Full path from root
+	VNode        ui.VNode
+	Info         ElementInfo
+	Children     []*TreeNode
+	Parent       *TreeNode
+	Expanded     bool
+	Level        int  // Depth in tree (0 = root)
+	Index        int  // Index among siblings
+	Path         string // Full path from root
+	UniqueID     string // Unique identifier for expand/collapse tracking
 }
 
 // TreeView provides tree visualization and traversal
 type TreeView struct {
-	root        *TreeNode
-	expanded    map[string]bool // Track expanded nodes by path
-	showIcons   bool            // Show type icons
-	showPaths   bool            // Show paths
-	compact     bool            // Use compact display
-	maxDepth    int             // Maximum traversal depth
-	maxNodes   int             // Maximum nodes to display
+	root         *TreeNode
+	expanded     map[string]bool // Track expanded nodes by unique ID (path-based)
+	showIcons    bool            // Show type icons
+	showPaths    bool            // Show paths
+	compact      bool            // Use compact display
+	maxDepth     int             // Maximum traversal depth
+	maxNodes     int             // Maximum nodes to display
 }
 
 // NewTreeView creates a new TreeView instance
 func NewTreeView() *TreeView {
 	return &TreeView{
-		expanded:  make(map[string]bool),
-		showIcons: true,
-		showPaths: false,
-		compact: false,
-		maxDepth: 100, // Effectively unlimited
-		maxNodes: 1000,
+		expanded:   make(map[string]bool),
+		showIcons:  true,
+		showPaths:  false,
+		compact:    false,
+		maxDepth:   100, // Effectively unlimited
+		maxNodes:   1000,
 	}
 }
 
@@ -49,42 +51,67 @@ func (tv *TreeView) SetRoot(root ui.VNode) error {
 		return nil
 	}
 
-	// Build tree structure
-	tv.root = tv.buildTree(root, nil, 0, "")
+	// Build tree structure (root has index 0)
+	tv.root = tv.buildTree(root, nil, 0, "", 0)
 	return nil
 }
 
 // buildTree recursively builds the tree structure
-func (tv *TreeView) buildTree(vnode ui.VNode, parent *TreeNode, level int, path string) *TreeNode {
+func (tv *TreeView) buildTree(vnode ui.VNode, parent *TreeNode, level int, path string, index int) *TreeNode {
 	if vnode == nil {
 		return nil
 	}
 
 	// Generate path for this node
+	// Include parent's index in path to ensure uniqueness
 	var nodePath string
 	if path == "" {
 		nodePath = getSimpleType(vnode)
 	} else {
-		nodePath = path + "." + getSimpleType(vnode)
+		nodePath = fmt.Sprintf("%s[%d].%s", path, index, getSimpleType(vnode))
 	}
 
 	// Extract element info
 	info := ExtractElementInfo(vnode)
 
+	// Generate UniqueID following React's philosophy:
+	// 1. User-defined key (preferred, like React's key prop)
+	// 2. Path + index (stable across rebuilds, like React's index fallback)
+	//
+	// This matches React's approach where user keys are preferred,
+	// and index is used as fallback (index is stable as long as structure doesn't change)
+	var uniqueID string
+
+	// Priority 1: User-defined key (most stable, matches React's key prop)
+	if keyer, ok := vnode.(interface{ Key() string }); ok {
+		if key := keyer.Key(); key != "" {
+			uniqueID = fmt.Sprintf("%s[%s]", nodePath, key)
+		}
+	}
+
+	// Priority 2: Path + index (stable across rebuilds, like React's array index)
+	// This is stable as long as the structure (order of children) doesn't change
+	// Example: "vstack.text[0]"
+	if uniqueID == "" {
+		uniqueID = fmt.Sprintf("%s[%d]", nodePath, index)
+	}
+
 	// Create tree node
 	// Expand by default if no explicit state is set
-	expanded, ok := tv.expanded[nodePath]
+	expanded, ok := tv.expanded[uniqueID]
 	if !ok {
 		expanded = true // Expand by default
 	}
 
 	node := &TreeNode{
-		VNode:    vnode,
-		Info:     info,
-		Parent:   parent,
-		Level:    level,
-		Path:     nodePath,
-		Expanded: expanded,
+		VNode:        vnode,
+		Info:         info,
+		Parent:       parent,
+		Level:        level,
+		Path:         nodePath,
+		Expanded:     expanded,
+		UniqueID:     uniqueID,
+		Index:        index,
 	}
 
 	// Recursively build children
@@ -92,9 +119,8 @@ func (tv *TreeView) buildTree(vnode ui.VNode, parent *TreeNode, level int, path 
 	node.Children = make([]*TreeNode, 0, len(children))
 
 	for i, child := range children {
-		childNode := tv.buildTree(child, node, level+1, nodePath)
+		childNode := tv.buildTree(child, node, level+1, nodePath, i)
 		if childNode != nil {
-			childNode.Index = i
 			node.Children = append(node.Children, childNode)
 		}
 	}
@@ -138,6 +164,54 @@ func (tv *TreeView) FormatTreePaginated() ([]string, int) {
 // GetTreeLines returns all lines and total count for scrolling
 func (tv *TreeView) GetTreeLines() ([]string, int) {
 	return tv.FormatTreePaginated()
+}
+
+// GetUniqueIDForLineIndex finds the unique ID for a given line index by traversing the tree
+// This is used when expand/collapse changes to find which node to toggle
+func (tv *TreeView) GetUniqueIDForLineIndex(targetIndex int) string {
+	if tv.root == nil {
+		return ""
+	}
+	currentIndex := 0
+	return tv.findUniqueIDByIndex(tv.root, targetIndex, &currentIndex)
+}
+
+// findUniqueIDByIndex recursively searches for the unique ID at a given line index
+func (tv *TreeView) findUniqueIDByIndex(node *TreeNode, targetIndex int, currentIndex *int) string {
+	if node == nil {
+		return ""
+	}
+
+	// Check if this is the target index (this node counts as 1 line)
+	if *currentIndex == targetIndex {
+		return node.UniqueID
+	}
+	*currentIndex++
+
+	// If expanded, search children
+	if node.Expanded && len(node.Children) > 0 {
+		for _, child := range node.Children {
+			uid := tv.findUniqueIDByIndex(child, targetIndex, currentIndex)
+			if uid != "" {
+				return uid
+			}
+		}
+	} else if len(node.Children) > 0 {
+		// Collapsed node with children - count the collapsed indicator line
+		// This line also toggles the parent
+		if *currentIndex == targetIndex {
+			return node.UniqueID
+		}
+		*currentIndex++
+	}
+
+	return ""
+}
+
+// TreeLine represents a single line with its associated path
+type TreeLine struct {
+	Line string
+	Path string
 }
 
 // formatNode recursively formats a tree node and returns the updated lines
@@ -208,34 +282,60 @@ func (tv *TreeView) formatNode(node *TreeNode, lines []string, isLast bool) []st
 }
 
 // ToggleNode toggles a node's expanded state
-func (tv *TreeView) ToggleNode(path string) {
-	// If key doesn't exist, it means it's expanded by default (true)
-	// So we need to toggle it to false
-	currentState, exists := tv.expanded[path]
-	if !exists {
-		currentState = true // Default expanded state
+func (tv *TreeView) ToggleNode(uniqueID string) {
+	// First, find the node to get its current expansion state
+	currentState := false // Default to collapsed
+	node := tv.findNodeByUniqueID(tv.root, uniqueID)
+	if node != nil {
+		currentState = node.Expanded
 	}
-	tv.expanded[path] = !currentState
+
+	// Toggle the state
+	newState := !currentState
+	tv.expanded[uniqueID] = newState
+
+	if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
+		fmt.Fprintf(os.Stderr, "[TreeView] ToggleNode: uniqueID=%s, %v -> %v\n", uniqueID, currentState, newState)
+	}
 
 	// Update tree if we have a root
 	if tv.root != nil {
-		tv.updateNodeExpansion(tv.root, path)
+		tv.updateNodeExpansion(tv.root, uniqueID)
 	}
 }
 
+// findNodeByUniqueID finds a tree node by its unique ID
+func (tv *TreeView) findNodeByUniqueID(node *TreeNode, uniqueID string) *TreeNode {
+	if node == nil {
+		return nil
+	}
+
+	if node.UniqueID == uniqueID {
+		return node
+	}
+
+	for _, child := range node.Children {
+		if found := tv.findNodeByUniqueID(child, uniqueID); found != nil {
+			return found
+		}
+	}
+
+	return nil
+}
+
 // updateNodeExpansion recursively updates expansion state
-func (tv *TreeView) updateNodeExpansion(node *TreeNode, path string) bool {
+func (tv *TreeView) updateNodeExpansion(node *TreeNode, uniqueID string) bool {
 	if node == nil {
 		return false
 	}
 
-	if node.Path == path {
-		node.Expanded = tv.expanded[path]
+	if node.UniqueID == uniqueID {
+		node.Expanded = tv.expanded[uniqueID]
 		return true
 	}
 
 	for _, child := range node.Children {
-		if tv.updateNodeExpansion(child, path) {
+		if tv.updateNodeExpansion(child, uniqueID) {
 			return true
 		}
 	}

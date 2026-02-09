@@ -122,21 +122,21 @@ func TestToggleNode(t *testing.T) {
 	button := app.ButtonBuilder("Test").Build()
 	treeView.SetRoot(button)
 
-	// Get initial path
-	path := treeView.root.Path
+	// Get initial UniqueID
+	uniqueID := treeView.root.UniqueID
 
 	// Initially should be expanded by default? Let's check
 	initialState := treeView.root.Expanded
 
 	// Toggle
-	treeView.ToggleNode(path)
+	treeView.ToggleNode(uniqueID)
 
 	if treeView.root.Expanded == initialState {
 		t.Error("Expansion state should toggle")
 	}
 
 	// Toggle back
-	treeView.ToggleNode(path)
+	treeView.ToggleNode(uniqueID)
 
 	if treeView.root.Expanded != initialState {
 		t.Error("Expansion state should toggle back")
