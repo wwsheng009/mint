@@ -108,8 +108,26 @@ type Constraints struct {
 	MaxHeight int
 }
 
-// NewConstraints 创建约束
+// NewConstraints 创建约束，并确保 Min <= Max 且值非负
 func NewConstraints(minWidth, maxWidth, minHeight, maxHeight int) Constraints {
+	if minWidth < 0 {
+		minWidth = 0
+	}
+	if minHeight < 0 {
+		minHeight = 0
+	}
+	if maxWidth < 0 {
+		maxWidth = 0
+	}
+	if maxHeight < 0 {
+		maxHeight = 0
+	}
+	if maxWidth < minWidth {
+		minWidth = maxWidth
+	}
+	if maxHeight < minHeight {
+		minHeight = maxHeight
+	}
 	return Constraints{
 		MinWidth:  minWidth,
 		MaxWidth:  maxWidth,
@@ -247,12 +265,23 @@ type Dirtyable interface {
 type Engine struct {
 	// dirtyNodes 脏节点集合
 	dirtyNodes map[string]bool
+
+	// stats 布局统计
+	stats LayoutStats
+
+	// cache 布局缓存
+	cache *Cache
 }
 
 // NewEngine 创建新的布局引擎
 func NewEngine() *Engine {
 	return &Engine{
 		dirtyNodes: make(map[string]bool),
+		stats:      LayoutStats{},
+		cache: &Cache{
+			entries: make(map[string]*CachedLayout),
+			maxSize: 1000,
+		},
 	}
 }
 
@@ -273,15 +302,29 @@ func (e *Engine) Layout(root Node, constraints Constraints) *LayoutResult {
 		return &LayoutResult{}
 	}
 
+	// 检查缓存
+	if e.cache != nil {
+		if cached := e.cache.Get(root, constraints); cached != nil {
+			e.stats.CacheHits++
+			return cached
+		}
+		e.stats.CacheMisses++
+	}
+
 	result := &LayoutResult{
 		Boxes: make([]LayoutBox, 0),
-		Dirty:  true,
+		Dirty: true,
 	}
 
 	// 递归布局节点
 	box := e.layoutNode(root, constraints, 0, 0)
 	result.Root = box
 	result.Boxes = e.collectBoxes(box)
+
+	// 存入缓存
+	if e.cache != nil {
+		e.cache.Put(root, constraints, result)
+	}
 
 	return result
 }
@@ -345,4 +388,33 @@ func (e *Engine) collectBoxesRecursive(box *LayoutBox, boxes *[]LayoutBox) {
 	for _, child := range box.Children {
 		e.collectBoxesRecursive(child, boxes)
 	}
+}
+
+// LayoutStats 布局统计
+type LayoutStats struct {
+	CacheHits   int64
+	CacheMisses int64
+}
+
+// GetStats 获取布局统计
+func (e *Engine) GetStats() LayoutStats {
+	return e.stats
+}
+
+// Engine.Measure method should check if the node is Measurable, and if so, call its Measure method. 
+// Otherwise, it should return the node's current size constrained by the input.
+func (e *Engine) Measure(node Node, constraints Constraints) Size {
+	if node == nil {
+		return Size{}
+	}
+
+	if measurable, ok := node.(Measurable); ok {
+		return measurable.Measure(constraints)
+	}
+
+	// Default: return current node size but respect the constraints.
+	w, h := node.GetSize()
+	w = constraints.ConstrainWidth(w)
+	h = constraints.ConstrainHeight(h)
+	return Size{Width: w, Height: h}
 }

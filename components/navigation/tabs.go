@@ -231,24 +231,47 @@ func (t *TabsVNode) Measure(constraints runtime.BoxConstraints) runtime.Size {
 		height = len(t.tabs)
 	}
 
+	// ADDED: Check for explicit width/height props (like measureLayoutChildren does)
+	props := t.Props()
+	explicitWidth := 0
+	hasWidthProp := false
+	explicitHeight := 0
+	hasHeightProp := false
+
+	if props != nil {
+		if w, ok := props["width"].(int); ok && w > 0 {
+			explicitWidth = w
+			hasWidthProp = true
+		}
+		if h, ok := props["height"].(int); ok && h > 0 {
+			explicitHeight = h
+			hasHeightProp = true
+		}
+	}
+
 	// Measure content height if active tab has content
 	if t.activeTab >= 0 && t.activeTab < len(t.tabs) {
 		activeTabID := t.tabs[t.activeTab].ID
 		if content, ok := t.contents[activeTabID]; ok && content != nil {
 			// If content is measurable, measure it
 			if measurable, ok := content.(interface{ Measure(runtime.BoxConstraints) runtime.Size }); ok {
-				// Create constraints for content (unbounded height, but respect width)
+				// MODIFIED: Use bounded height from prop or constraint
+				maxContentHeight := runtime.Infinity
+				if hasHeightProp {
+					maxContentHeight = explicitHeight - height // Subtract tab bar
+				} else if constraints.HasBoundedHeight() {
+					maxContentHeight = constraints.MaxHeight - height
+				}
+
+				// Create constraints for content
 				contentConstraints := runtime.BoxConstraints{
 					MinWidth:  0,
 					MaxWidth:  constraints.MaxWidth,
 					MinHeight: 0,
-					MaxHeight: constraints.MaxHeight,
+					MaxHeight: maxContentHeight,
 				}
-				if height > 0 && !t.vertical {
-					contentConstraints.MaxHeight = constraints.MaxHeight - height
-					if contentConstraints.MaxHeight < 0 {
-						contentConstraints.MaxHeight = 0
-					}
+				if contentConstraints.MaxHeight < 0 {
+					contentConstraints.MaxHeight = 0
 				}
 
 				contentSize := measurable.Measure(contentConstraints)
@@ -266,18 +289,27 @@ func (t *TabsVNode) Measure(constraints runtime.BoxConstraints) runtime.Size {
 		}
 	}
 
-	// Apply constraints
-	if totalWidth < constraints.MinWidth {
-		totalWidth = constraints.MinWidth
+	// Apply constraints (respect explicit width/height props first)
+	if hasWidthProp {
+		totalWidth = explicitWidth
+	} else {
+		if totalWidth < constraints.MinWidth {
+			totalWidth = constraints.MinWidth
+		}
+		if totalWidth > constraints.MaxWidth && constraints.MaxWidth > 0 {
+			totalWidth = constraints.MaxWidth
+		}
 	}
-	if totalWidth > constraints.MaxWidth && constraints.MaxWidth > 0 {
-		totalWidth = constraints.MaxWidth
-	}
-	if height < constraints.MinHeight {
-		height = constraints.MinHeight
-	}
-	if height > constraints.MaxHeight && constraints.MaxHeight > 0 {
-		height = constraints.MaxHeight
+
+	if hasHeightProp {
+		height = explicitHeight
+	} else {
+		if height < constraints.MinHeight {
+			height = constraints.MinHeight
+		}
+		if height > constraints.MaxHeight && constraints.MaxHeight > 0 {
+			height = constraints.MaxHeight
+		}
 	}
 
 	return runtime.Size{Width: totalWidth, Height: height}

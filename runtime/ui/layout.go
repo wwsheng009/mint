@@ -886,6 +886,12 @@ func (b *BorderedBuilder) Height(n int) *BorderedBuilder {
 	return b
 }
 
+// Flex sets the flex factor
+func (b *BorderedBuilder) Flex(n int) *BorderedBuilder {
+	b.node.SetProp("flex", n)
+	return b
+}
+
 // FillWidth makes the bordered container stretch to fill parent's width
 func (b *BorderedBuilder) FillWidth() *BorderedBuilder {
 	b.node.SetProp("fillWidth", true)

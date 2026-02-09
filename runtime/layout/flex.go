@@ -249,8 +249,14 @@ func (f *FlexLayout) Measure(constraints Constraints) Size {
 					basis = childSizes[i].Width
 				}
 				totalMainSize += basis
+				if totalMainSize > MaxInt {
+					totalMainSize = MaxInt
+				}
 			} else {
 				totalMainSize += childSizes[i].Width
+				if totalMainSize > MaxInt {
+					totalMainSize = MaxInt
+				}
 			}
 			if childSizes[i].Height > maxCrossSize {
 				maxCrossSize = childSizes[i].Height
@@ -263,8 +269,14 @@ func (f *FlexLayout) Measure(constraints Constraints) Size {
 					basis = childSizes[i].Height
 				}
 				totalMainSize += basis
+				if totalMainSize > MaxInt {
+					totalMainSize = MaxInt
+				}
 			} else {
 				totalMainSize += childSizes[i].Height
+				if totalMainSize > MaxInt {
+					totalMainSize = MaxInt
+				}
 			}
 			if childSizes[i].Width > maxCrossSize {
 				maxCrossSize = childSizes[i].Width
@@ -276,6 +288,9 @@ func (f *FlexLayout) Measure(constraints Constraints) Size {
 	gapCount := len(f.children) - 1
 	if gapCount > 0 {
 		totalMainSize += f.style.Gap * gapCount
+		if totalMainSize > MaxInt {
+			totalMainSize = MaxInt
+		}
 	}
 
 	// 计算总尺寸
@@ -301,24 +316,22 @@ func (f *FlexLayout) childConstraints(constraints Constraints, index int) Constr
 	// 减去内边距
 	availableMain := constraints.MaxWidth - f.style.Padding.Left - f.style.Padding.Right
 	availableCross := constraints.MaxHeight - f.style.Padding.Top - f.style.Padding.Bottom
+	
+	// Ensure available space is non-negative
+	if availableMain < 0 {
+		availableMain = 0
+	}
+	if availableCross < 0 {
+		availableCross = 0
+	}
 	if !isRow {
 		availableMain, availableCross = availableCross, availableMain
 	}
 
 	if isRow {
-		return Constraints{
-			MinWidth:  0,
-			MaxWidth:  availableMain,
-			MinHeight: constraints.MinHeight,
-			MaxHeight: availableCross,
-		}
+		return NewConstraints(0, availableMain, 0, availableCross)
 	}
-	return Constraints{
-		MinWidth:  constraints.MinWidth,
-		MaxWidth:  availableCross,
-		MinHeight: 0,
-		MaxHeight: availableMain,
-	}
+	return NewConstraints(0, availableCross, 0, availableMain)
 }
 
 // LayoutChildren 布局子节点

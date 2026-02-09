@@ -5,7 +5,7 @@ import "fmt"
 // Core types for Yao TUI Runtime v1
 
 // Infinity represents an unbounded constraint value
-const Infinity = 1<<30 - 1
+const Infinity = 1 << 30
 
 // BoxConstraints defines the min/max constraints for layout
 type BoxConstraints struct {
