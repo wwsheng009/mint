@@ -827,13 +827,22 @@ func (a *App) handleEvent(ev frameworkevent.Event) {
 							keyName, a.isInspectorVisible(), alt)
 					}
 
-					if inspectorObj.HandleKeyEvent(keyName, alt, ctrl, shift) {
-						a.dirty = true
-						if os.Getenv("TUI_DEBUG_UI") == "true" || os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
-							fmt.Fprintf(os.Stderr, "[APP] Inspector handled key '%s'\n", keyName)
-						}
-						return // Inspector handled it, don't send to VNode tree
+					// Call HandleKeyEvent and check return value
+					handled := inspectorObj.HandleKeyEvent(keyName, alt, ctrl, shift)
+
+					// Always trigger re-render when Inspector processes a key event
+					// This ensures UI updates even when event propagates (handled=false)
+					a.dirty = true
+
+					if os.Getenv("TUI_DEBUG_UI") == "true" || os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
+						fmt.Fprintf(os.Stderr, "[APP] Inspector processed key '%s' (handled=%v)\n", keyName, handled)
 					}
+
+					// If Inspector handled the event, don't send to VNode tree
+					if handled {
+						return
+					}
+					// If not handled, event continues to VNode tree (but re-render will happen)
 				}
 			}
 		}
