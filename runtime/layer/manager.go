@@ -162,6 +162,11 @@ func (m *Manager) layoutLayer(
 		m.centerModal(layout.Root, constraints)
 	}
 
+	// Post-process layout for inspector (position it at specified coordinates)
+	if layer == rtui.LayerInspector && layout.Root != nil {
+		m.positionInspector(node, layout.Root)
+	}
+
 	return layout, nil
 }
 
@@ -226,6 +231,60 @@ func (m *Manager) shiftPositions(box *compute.ComputedBox, offsetX, offsetY int)
 
 	for _, child := range box.Children {
 		m.shiftPositions(child, offsetX, offsetY)
+	}
+}
+
+// positionInspector positions the inspector overlay at its specified coordinates
+// Inspector overlays use "x" and "y" props to specify their position
+func (m *Manager) positionInspector(node *LayerNode, root *compute.ComputedBox) {
+	if root == nil {
+		return
+	}
+
+	debug := os.Getenv("TUI_LAYER_DEBUG") == "true" || os.Getenv("TUI_INSPECTOR_VERBOSE") == "true"
+
+	// Get the specified position from props
+	var targetX, targetY int
+	props := node.Content.Props()
+
+	if x, ok := props["x"].(int); ok {
+		targetX = x
+	} else {
+		targetX = 0 // Default to left edge
+	}
+
+	if y, ok := props["y"].(int); ok {
+		targetY = y
+	} else {
+		targetY = 0 // Default to top edge
+	}
+
+	// Clamp negative coordinates to 0
+	if targetX < 0 {
+		targetX = 0
+	}
+	if targetY < 0 {
+		targetY = 0
+	}
+
+	originalX := root.Box.X
+	originalY := root.Box.Y
+
+	if debug {
+		fmt.Fprintf(os.Stderr, "[positionInspector] original=(%d,%d) target=(%d,%d)\n",
+			originalX, originalY, targetX, targetY)
+	}
+
+	// Calculate offset
+	offsetX := targetX - originalX
+	offsetY := targetY - originalY
+
+	// Shift the entire layout tree
+	m.shiftPositions(root, offsetX, offsetY)
+
+	if debug {
+		fmt.Fprintf(os.Stderr, "[positionInspector] after shift: inspector=(%d,%d) size=%dx%d\n",
+			root.Box.X, root.Box.Y, root.Box.Width, root.Box.Height)
 	}
 }
 

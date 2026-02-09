@@ -1,12 +1,21 @@
 package layout
 
 import (
+	"fmt"
+	"os"
 	"strings"
 
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 	ui "github.com/wwsheng009/mint/ui"
 	"github.com/wwsheng009/mint/runtime/style"
 )
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
 
 // ScrollView is a scrollable container that clips its content to the viewport size
 // It supports vertical scrolling and displays a scroll position indicator
@@ -95,6 +104,59 @@ func (b *ScrollViewBuilder) Build() ui.VNode {
 	lines := strings.Split(contentText, "\n")
 	b.node.totalLines = len(lines)
 
+	// Auto-height mode: if height is 0 or not set, render all content
+	// Parent container (with ui.Flex) will constrain the actual height
+	if b.height <= 0 {
+		// Render all content without clipping
+		visibleText := contentText
+
+		// DEBUG: Log what we extracted
+		if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
+			lineCount := strings.Count(contentText, "\n") + 1
+			if len(contentText) == 0 {
+				fmt.Fprintf(os.Stderr, "[ScrollView] Auto-height mode: NO CONTENT EXTRACTED!\n")
+				fmt.Fprintf(os.Stderr, "[ScrollView] Input type: %T\n", b.content)
+			} else {
+				fmt.Fprintf(os.Stderr, "[ScrollView] Auto-height mode: extracted %d lines\n", lineCount)
+				fmt.Fprintf(os.Stderr, "[ScrollView] First 200 chars: %q\n", contentText[:min(200, len(contentText))])
+			}
+		}
+
+		// Create text node for all content
+		textNode := ui.Text(visibleText)
+
+		// Apply style if set
+		if b.node.Style().FG != "" || b.node.Style().BG != "" {
+			textNode.SetStyle(b.node.Style())
+		}
+
+		// Store configuration
+		b.node.content = b.content
+		b.node.width = b.width
+		b.node.height = 0  // Auto-height
+
+		// Mark as flexible for parent layout
+		textNode.SetProps(ui.Props{
+			"flex":           1,              // Allow to grow
+			"scroll-content":  contentText,    // Store original for scrolling
+			"scroll-offset":  b.scrollOffset, // Store scroll position
+			"total-lines":    b.node.totalLines,
+		})
+
+		// Wrap in VStackBuilder to maintain consistent type (LayoutNode)
+		result := ui.VStackBuilder(textNode).
+			Width(b.width).
+			Build()
+
+		// Copy style to wrapper
+		if b.node.Style().FG != "" || b.node.Style().BG != "" {
+			result.SetStyle(b.node.Style())
+		}
+
+		return result
+	}
+
+	// Fixed-height mode: clip content to viewport
 	// Clamp scroll offset to valid range
 	maxOffset := len(lines) - b.height
 	if maxOffset < 0 {

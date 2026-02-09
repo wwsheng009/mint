@@ -2,11 +2,14 @@ package display
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
+	"github.com/wwsheng009/mint/app"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 	ui "github.com/wwsheng009/mint/ui"
 	"github.com/wwsheng009/mint/runtime/platform"
+	"github.com/wwsheng009/mint/runtime/style"
 )
 
 // TreeView is a component for displaying tree structures with proper formatting
@@ -24,6 +27,9 @@ type TreeView struct {
 	scrollOffset int             // Current scroll offset
 	viewportHeight int           // Visible height for scrolling
 	builder     *TreeViewBuilder // Reference to builder for rebuilds
+	currentRender ui.VNode       // Latest render result (for GetRender())
+	expandStateChanged bool      // True when expand/collapse state changed
+	expandStateLineIndex int     // Which line index needs expand toggle
 }
 
 // TreeViewLine represents a single line in the tree view
@@ -33,6 +39,7 @@ type TreeViewLine struct {
 	Prefix   string // Tree prefix (├──, └──, │  , etc.)
 	NodeType  string // Node type for icon display
 	NodeID    int    // Optional: node ID for selection
+	Path      string // Unique path identifier for this node (stable across expand/collapse)
 }
 
 // TreeViewBuilder builds tree view components
@@ -126,21 +133,38 @@ func (b *TreeViewBuilder) Build() ui.VNode {
 			fullLine = b.formatLineNumber(i+1) + " " + fullLine
 		}
 
-		// Apply style based on focus/selection state
+		// Apply style based on focus/selection state using actual style attributes
 		if i == b.node.selectedIdx {
-			// Selected line - reverse video
-			lineNodes = append(lineNodes, ui.Text(fmt.Sprintf("[reverse]%s[/reverse]", fullLine)))
+			// Selected line - add * prefix with REVERSE video (most visible)
+			fullLine = "* " + fullLine  // Add * prefix for selection
+			lineNodes = append(lineNodes, app.NewTextBuilder(fullLine).
+				Style(style.NewStyle().
+					Reverse(true).
+					Bold(true)).
+				Build())
 		} else if i == b.node.focusIndex {
-			// Focused line - bright/bold
-			lineNodes = append(lineNodes, ui.Text(fmt.Sprintf("[bold]%s[/bold]", fullLine)))
+			// Focused line - add > prefix with REVERSE video
+			fullLine = "> " + fullLine  // Add > prefix for focus
+			lineNodes = append(lineNodes, app.NewTextBuilder(fullLine).
+				Style(style.NewStyle().
+					Reverse(true).
+					Bold(true)).
+				Build())
 		} else {
-			// Normal line
-			lineNodes = append(lineNodes, ui.Text(fullLine))
+			// Normal line - white text with regular spacing
+			fullLine = "  " + fullLine  // Regular spacing for non-focused lines
+			lineNodes = append(lineNodes, app.NewTextBuilder(fullLine).
+				Style(style.NewStyle().
+					Foreground(style.White)).
+				Build())
 		}
 	}
 
 	// Wrap in VStack for proper rendering
 	result := ui.VStack(lineNodes...)
+
+	// Store as current render for GetRender()
+	b.node.currentRender = result
 	b.node.SetChildren([]ui.VNode{result})
 
 	return b.node
@@ -264,8 +288,8 @@ func (b *TreeViewBuilder) getNodeDescription(node ui.VNode) string {
 		return content
 	}
 
-	// Use node type
-	return string(node.Type())
+	// Use node type (convert int to string properly)
+	return fmt.Sprintf("%d", node.Type())
 }
 
 // formatLineNumber formats a line number
@@ -351,13 +375,14 @@ func (t *TreeView) ScrollTo(index int) int {
 	return index
 }
 
-// SelectLine selects a line (returns its index)
+// SelectLine selects a line and regenerates display
 func (t *TreeView) SelectLine(lineNum int) int {
 	if lineNum < 0 || lineNum >= len(t.lines) {
 		return -1
 	}
 
 	t.selectedIdx = lineNum
+	t.regenerateDisplay() // Regenerate text nodes with new selection state
 	return lineNum
 }
 
@@ -468,6 +493,7 @@ func (t *TreeView) MoveUp() {
 	if t.focusIndex > 0 {
 		t.focusIndex--
 		t.ensureVisible()
+		t.regenerateDisplay()
 	}
 }
 
@@ -476,6 +502,7 @@ func (t *TreeView) MoveDown() {
 	if t.focusIndex < len(t.lines)-1 {
 		t.focusIndex++
 		t.ensureVisible()
+		t.regenerateDisplay()
 	}
 }
 
@@ -491,6 +518,7 @@ func (t *TreeView) PageUp() {
 		t.focusIndex = 0
 	}
 	t.ensureVisible()
+	t.regenerateDisplay()
 }
 
 // PageDown moves focus down by one page
@@ -505,18 +533,21 @@ func (t *TreeView) PageDown() {
 		t.focusIndex = len(t.lines) - 1
 	}
 	t.ensureVisible()
+	t.regenerateDisplay()
 }
 
 // Home moves focus to the first line
 func (t *TreeView) Home() {
 	t.focusIndex = 0
 	t.scrollOffset = 0
+	t.regenerateDisplay()
 }
 
 // End moves focus to the last line
 func (t *TreeView) End() {
 	t.focusIndex = len(t.lines) - 1
 	t.ensureVisible()
+	t.regenerateDisplay()
 }
 
 // ensureVisible ensures the focused line is visible in the viewport
@@ -540,19 +571,57 @@ func (t *TreeView) ensureVisible() {
 func (t *TreeView) ToggleExpandCurrent() {
 	if t.focusIndex >= 0 && t.focusIndex < len(t.lines) {
 		line := &t.lines[t.focusIndex]
-		// Toggle expand state
-		if expanded, ok := t.expandState[line.NodeID]; ok {
-			t.expandState[line.NodeID] = !expanded
-		} else {
-			t.expandState[line.NodeID] = true
+
+		// Mark that expand state changed (Inspector will rebuild tree)
+		t.expandStateChanged = true
+		t.expandStateLineIndex = t.focusIndex // Store which line was toggled
+		if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
+			fmt.Fprintf(os.Stderr, "[TreeView] Requesting expand toggle for line #%d (NodeID: %d)\n", t.focusIndex, line.NodeID)
 		}
 	}
+}
+
+// nodeHasChildren checks if a tree node can have children
+func (t *TreeView) nodeHasChildren(line *TreeViewLine) bool {
+	// Simple heuristic: if it's a container node (LayoutNode, ElementVNode with children)
+	// In a real implementation, this would check the actual VNode structure
+	return line.NodeType != "" && (line.NodeType == "LayoutNode" ||
+		line.NodeType == "ElementVNode" ||
+		line.NodeType == "ComponentNode")
+}
+
+// rebuildTreeFromSource rebuilds the tree lines based on current expand state
+func (t *TreeView) rebuildTreeFromSource() {
+	if t.builder == nil || len(t.builder.sourceLines) == 0 {
+		return
+	}
+
+	if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
+		fmt.Fprintf(os.Stderr, "[TreeView] Rebuilding tree with %d source lines\n", len(t.builder.sourceLines))
+	}
+
+	// Re-parse lines with current expand state
+	t.builder.parseLines(t.builder.sourceLines)
+	t.lines = t.builder.node.lines
+	t.totalLines = len(t.lines)
+
+	// Adjust focus index if it's now out of bounds
+	if t.focusIndex >= t.totalLines {
+		t.focusIndex = t.totalLines - 1
+	}
+	if t.focusIndex < 0 {
+		t.focusIndex = 0
+	}
+
+	// Update display with new tree
+	t.regenerateDisplay()
 }
 
 // SelectCurrent selects the currently focused line
 func (t *TreeView) SelectCurrent() {
 	if t.focusIndex >= 0 && t.focusIndex < len(t.lines) {
 		t.selectedIdx = t.focusIndex
+		t.regenerateDisplay()
 	}
 }
 
@@ -564,9 +633,31 @@ func (t *TreeView) GetFocusedLine() TreeViewLine {
 	return TreeViewLine{}
 }
 
+// GetLines returns all lines in the tree view
+func (t *TreeView) GetLines() []TreeViewLine {
+	return t.lines
+}
+
+// GetRender returns the current render result with latest focus/selection highlighting
+// This should be used instead of Children() to get the latest styled VNode tree
+func (t *TreeView) GetRender() ui.VNode {
+	if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
+		if t.currentRender == nil {
+			fmt.Fprintf(os.Stderr, "[TreeView] GetRender() returning nil!\n")
+		} else {
+			fmt.Fprintf(os.Stderr, "[TreeView] GetRender() returning valid render, type=%T\n", t.currentRender)
+		}
+	}
+	return t.currentRender
+}
+
 // SetViewportHeight sets the viewport height for scrolling calculations
 func (t *TreeView) SetViewportHeight(height int) {
-	t.viewportHeight = height
+	if t.viewportHeight != height {
+		t.viewportHeight = height
+		// Trigger re-render when viewport height changes
+		t.regenerateDisplay()
+	}
 }
 
 // GetScrollOffset returns the current scroll offset
@@ -586,7 +677,11 @@ func (t *TreeView) SetScrollOffset(offset int) {
 	if offset > maxOffset {
 		offset = maxOffset
 	}
-	t.scrollOffset = offset
+	if t.scrollOffset != offset {
+		t.scrollOffset = offset
+		// Trigger re-render when scroll offset changes
+		t.regenerateDisplay()
+	}
 }
 
 // Rebuild rebuilds the tree view with current state
@@ -604,12 +699,30 @@ func (t *TreeView) GetFocusIndex() int {
 	return t.focusIndex
 }
 
-// SetFocusIndex sets the focus index
+// SetFocusIndex sets the focus index and regenerates display
 func (t *TreeView) SetFocusIndex(index int) {
 	if index >= 0 && index < len(t.lines) {
 		t.focusIndex = index
 		t.ensureVisible()
+		t.regenerateDisplay() // Regenerate text nodes with new focus state
 	}
+}
+
+// ExpandStateChanged returns true if expand state changed since last check
+// This is used by the Inspector to know when to rebuild the tree
+func (t *TreeView) ExpandStateChanged() bool {
+	return t.expandStateChanged
+}
+
+// GetExpandStateLineIndex returns the line index that needs expand toggle
+func (t *TreeView) GetExpandStateLineIndex() int {
+	return t.expandStateLineIndex
+}
+
+// ClearExpandStateChanged clears the expand state changed flag
+func (t *TreeView) ClearExpandStateChanged() {
+	t.expandStateChanged = false
+	t.expandStateLineIndex = -1
 }
 
 // IsExpanded returns true if a node is expanded
@@ -633,4 +746,122 @@ func (t *TreeView) ClearSelection() {
 // HasSelection returns true if there's a selection
 func (t *TreeView) HasSelection() bool {
 	return t.selectedIdx >= 0 && t.selectedIdx < len(t.lines)
+}
+
+// regenerateDisplay recreates the children VNodes based on current state
+// This is called when focusIndex or selectedIdx changes to update the visual display
+// Implements virtual scrolling: only renders visible lines based on viewportHeight
+func (t *TreeView) regenerateDisplay() {
+	if t.builder == nil {
+		if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
+			fmt.Fprintf(os.Stderr, "[TreeView] regenerateDisplay: builder is nil!\n")
+		}
+		return
+	}
+
+	if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
+		fmt.Fprintf(os.Stderr, "[TreeView] regenerateDisplay: focus=%d, selected=%d, total lines=%d, viewportHeight=%d, scrollOffset=%d\n",
+			t.focusIndex, t.selectedIdx, len(t.lines), t.viewportHeight, t.scrollOffset)
+	}
+
+	// Calculate visible range for virtual scrolling
+	// Only render lines that are visible in the viewport
+	totalLines := len(t.lines)
+	var startLine, endLine int
+
+	// If viewportHeight is not set (0 or negative), render all lines (fallback to old behavior)
+	if t.viewportHeight <= 0 {
+		if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
+			fmt.Fprintf(os.Stderr, "[TreeView] Viewport height not set (%d), rendering all %d lines\n",
+				t.viewportHeight, totalLines)
+		}
+		startLine = 0
+		endLine = totalLines
+	} else {
+		// Virtual scrolling: only render visible lines
+		startLine = t.scrollOffset
+		endLine = startLine + t.viewportHeight
+
+		// Clamp to valid range
+		if startLine < 0 {
+			startLine = 0
+		}
+		if endLine > totalLines {
+			endLine = totalLines
+		}
+		if startLine >= totalLines {
+			startLine = totalLines
+			endLine = totalLines
+		}
+
+		if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
+			fmt.Fprintf(os.Stderr, "[TreeView] Virtual scroll: rendering lines [%d:%d] of %d total lines\n",
+				startLine, endLine, totalLines)
+		}
+	}
+
+	// Recreate text nodes for each VISIBLE line with current focus/selection state
+	var lineNodes []ui.VNode
+	for i := startLine; i < endLine; i++ {
+		line := t.lines[i]
+
+		// Build the full line with prefix and content
+		fullLine := strings.Repeat(" ", line.Indent) + line.Prefix + line.Content
+		if t.builder.showIcons && line.NodeType != "" {
+			fullLine = t.builder.addIcon(fullLine, line.NodeType)
+		}
+		if t.builder.showLineNums {
+			fullLine = t.builder.formatLineNumber(i+1) + " " + fullLine
+		}
+
+		// Apply style based on focus/selection state using actual style attributes
+		if i == t.selectedIdx {
+			// Selected line - add * prefix with REVERSE video (most visible)
+			if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
+				fmt.Fprintf(os.Stderr, "[TreeView] Line %d: SELECTED (* + REVERSE)\n", i)
+			}
+			fullLine = "* " + fullLine  // Add * prefix for selection
+			lineNodes = append(lineNodes, app.NewTextBuilder(fullLine).
+				Style(style.NewStyle().
+					Reverse(true).
+					Bold(true)).
+				Build())
+		} else if i == t.focusIndex {
+			// Focused line - add > prefix with REVERSE video
+			if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
+				fmt.Fprintf(os.Stderr, "[TreeView] Line %d: FOCUSED (> + REVERSE)\n", i)
+			}
+			fullLine = "> " + fullLine  // Add > prefix for focus
+			lineNodes = append(lineNodes, app.NewTextBuilder(fullLine).
+				Style(style.NewStyle().
+					Reverse(true).
+					Bold(true)).
+				Build())
+		} else {
+			// Normal line - white text with regular spacing
+			fullLine = "  " + fullLine  // Regular spacing for non-focused lines
+			lineNodes = append(lineNodes, app.NewTextBuilder(fullLine).
+				Style(style.NewStyle().
+					Foreground(style.White)).
+				Build())
+		}
+	}
+
+	// Add placeholder if no lines are visible (edge case)
+	if len(lineNodes) == 0 && totalLines > 0 {
+		lineNodes = append(lineNodes, app.NewTextBuilder("...").Build())
+	}
+
+	// Wrap in VStack for proper rendering
+	result := ui.VStack(lineNodes...)
+
+	// IMPORTANT: Store this as the current render result for GetRender()
+	t.currentRender = result
+
+	t.SetChildren([]ui.VNode{result})
+
+	if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
+		fmt.Fprintf(os.Stderr, "[TreeView] regenerateDisplay: Rendered %d lines (visible range [%d:%d]), Set %d children\n",
+			len(lineNodes), startLine, endLine, len(result.Children()))
+	}
 }
