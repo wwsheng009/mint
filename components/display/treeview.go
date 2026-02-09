@@ -35,13 +35,15 @@ type TreeView struct {
 	currentRender        ui.VNode         // Latest render result (for GetRender())
 	expandStateChanged   bool             // True when expand/collapse state changed
 	expandStateLineIndex int              // Which line index needs expand toggle
+	lastMeasuredWidth    int              // Last measured width (for constraining content)
 }
 
 // TreeViewLine represents a single line in the tree view
 type TreeViewLine struct {
-	Indent   int    // Indentation level (0-based)
-	Content  string // The line content without prefix
-	Prefix   string // Tree prefix (├──, └──, │  , etc.)
+	Indent   int    // Byte offset where content starts (or space indentation)
+	Content  string // The actual content (node name, etc.)
+	RawLine  string // Original full line (for accurate rendering)
+	Prefix   string // Tree prefix (├──, └──, │  , etc.) - deprecated
 	NodeType string // Node type for icon display
 	NodeID   int    // Optional: node ID for selection
 	Path     string // Unique path identifier for this node (stable across expand/collapse)
@@ -175,36 +177,44 @@ func (b *TreeViewBuilder) parseLines(lines []string) {
 	b.node.lines = b.node.lines[:0]
 
 	for i, line := range lines {
-		// Calculate indentation
-		indent := 0
-		for j := 0; j < len(line); j++ {
-			if line[j] == ' ' {
-				indent++
-			} else {
-				break
-			}
+		// Skip empty lines
+		if strings.TrimSpace(line) == "" {
+			continue
 		}
 
-		// Extract prefix (tree structure characters)
-		prefix := ""
-		remaining := strings.TrimLeft(line, " ")
-		for _, ch := range remaining {
-			if ch == '│' || ch == '├' || ch == '└' || ch == '─' || ch == '┌' || ch == '┐' {
-				prefix += string(ch)
-				indent++ // Count prefix chars for indentation
-			} else {
-				break
+		// SIMPLE APPROACH: Store the original line and try to identify where content starts
+		// Find the position where actual content begins (after tree connectors)
+		contentStart := 0
+		seenContent := false
+
+		// Convert to runes for proper Unicode character handling
+		runes := []rune(line)
+		for j, ch := range runes {
+			// Tree connector characters (as runes)
+			if ch == ' ' || ch == '│' || ch == '├' || ch == '└' || ch == '─' || ch == '┌' || ch == '┐' {
+				continue
 			}
+			// Found content start (non-space, non-connector)
+			contentStart = j
+			seenContent = true
+			break
 		}
 
-		// Content is the rest after prefix
-		content := strings.TrimPrefix(remaining, prefix)
-		content = strings.TrimLeft(content, " ")
+		var rawLine, content string
+		if seenContent {
+			rawLine = line
+			content = string(runes[contentStart:])
+		} else {
+			// All connectors, no content
+			rawLine = line
+			content = ""
+		}
 
 		b.node.lines = append(b.node.lines, TreeViewLine{
-			Indent:   indent,
+			Indent:   contentStart, // Store as rune offset
 			Content:  content,
-			Prefix:   prefix,
+			RawLine:  rawLine, // Store original line for rendering
+			Prefix:   "",
 			NodeType: "",
 			NodeID:   i,
 		})
@@ -218,15 +228,17 @@ func (b *TreeViewBuilder) getNodeIcon(nodeType string) string {
 	}
 
 	// Map node types to icons
+	// NOTE: Using single-rune icons only to avoid VS16/ZWJ issues in TUI
+	// See: docs/TUI_BUFFER_SPECIAL_CHARS_ISSUE.md and TUI_BUFFER_FIX.md
 	icons := map[string]string{
 		"vstack":    "📦",
 		"hstack":    "📦",
 		"text":      "📝",
 		"button":    "🔵",
-		"bordered":  "🖼️",
+		"bordered":  "🎨", // Use art icon instead of multi-rune "🖼️"
 		"flex":      "🔧",
 		"element":   "📦",
-		"component": "⚙️",
+		"component": "⚙", // Use single-rune gear
 	}
 
 	typeStr := string(nodeType)
@@ -798,41 +810,55 @@ func (t *TreeView) regenerateDisplay() {
 	for i := startLine; i < endLine; i++ {
 		line := t.lines[i]
 
-		// Build the full line with prefix and content
-		fullLine := strings.Repeat(" ", line.Indent) + line.Prefix + line.Content
-		if t.builder.showIcons && line.NodeType != "" {
-			fullLine = t.builder.addIcon(fullLine, line.NodeType)
-		}
-		if t.builder.showLineNums {
-			fullLine = t.builder.formatLineNumber(i+1) + " " + fullLine
+		// Use RawLine which has the original correctly formatted tree structure
+		// If RawLine is empty (old code path), fall back to reconstruction
+		var fullLine string
+		if line.RawLine != "" {
+			fullLine = line.RawLine
+
+			// Insert icon after tree connectors (at Indent position)
+			if t.builder.showIcons && line.NodeType != "" {
+				icon := t.builder.getNodeIcon(line.NodeType)
+				if icon != "" {
+					// Insert icon at Indent position (which is where content starts)
+					runes := []rune(fullLine)
+					if line.Indent < len(runes) {
+						// Insert icon before content
+						prefix := string(runes[:line.Indent])
+						suffix := string(runes[line.Indent:])
+						fullLine = prefix + icon + suffix
+					}
+				}
+			}
+		} else {
+			// Fallback for old code path
+			fullLine = strings.Repeat(" ", line.Indent) + line.Prefix + line.Content
 		}
 
 		// Apply style based on focus/selection state using actual style attributes
+		// NOTE: We don't add prefixes (>, *, spaces) to avoid breaking tree connector alignment
 		if i == t.selectedIdx {
-			// Selected line - add * prefix with REVERSE video (most visible)
+			// Selected line - use REVERSE video + BOLD (most visible)
 			if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
-				fmt.Fprintf(os.Stderr, "[TreeView] Line %d: SELECTED (* + REVERSE)\n", i)
+				fmt.Fprintf(os.Stderr, "[TreeView] Line %d: SELECTED (REVERSE + BOLD)\n", i)
 			}
-			fullLine = "* " + fullLine // Add * prefix for selection
 			lineNodes = append(lineNodes, app.NewTextBuilder(fullLine).
 				Style(style.NewStyle().
 					Reverse(true).
 					Bold(true)).
 				Build())
 		} else if i == t.focusIndex {
-			// Focused line - add > prefix with REVERSE video
+			// Focused line - use REVERSE video + BOLD
 			if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
-				fmt.Fprintf(os.Stderr, "[TreeView] Line %d: FOCUSED (> + REVERSE)\n", i)
+				fmt.Fprintf(os.Stderr, "[TreeView] Line %d: FOCUSED (REVERSE + BOLD)\n", i)
 			}
-			fullLine = "> " + fullLine // Add > prefix for focus
 			lineNodes = append(lineNodes, app.NewTextBuilder(fullLine).
 				Style(style.NewStyle().
 					Reverse(true).
 					Bold(true)).
 				Build())
 		} else {
-			// Normal line - white text with regular spacing
-			fullLine = "  " + fullLine // Regular spacing for non-focused lines
+			// Normal line - white text
 			lineNodes = append(lineNodes, app.NewTextBuilder(fullLine).
 				Style(style.NewStyle().
 					Foreground(style.White)).
@@ -852,6 +878,66 @@ func (t *TreeView) regenerateDisplay() {
 	if t.viewportHeight > 0 {
 		vstackBuilder.Height(t.viewportHeight)
 	}
+
+	// IMPORTANT: Also constrain width to ensure it doesn't overflow parent
+	// This prevents tree content from extending beyond the expected area
+	contentWidth := t.lastMeasuredWidth
+	if contentWidth <= 0 {
+		// Fallback: get width from props or use default
+		if w, ok := t.Props()["width"].(int); ok && w > 0 {
+			contentWidth = w
+		} else {
+			// Use a reasonable default width
+			contentWidth = 76 // Common inspector width minus padding
+		}
+	}
+
+	if contentWidth > 0 {
+		vstackBuilder.Width(contentWidth)
+
+		// Truncate long lines to fit within width to prevent overflow
+		// This is important for ensuring tree content doesn't extend beyond borders
+		truncatedLineNodes := make([]ui.VNode, 0, len(lineNodes))
+		for _, node := range lineNodes {
+			// Try to get the text content from the node
+			var text string
+			switch n := node.(type) {
+			case *rtui.TextVNode:
+				text = n.Content()
+			case interface{ String() string }:
+				text = n.String()
+			}
+
+			// IMPORTANT: Truncate by number of runes (each rune = 1 cell in TUI)
+			// This correctly handles multi-rune emojis like 🖼️ (2 runes = 2 cells)
+			if text != "" && len(text) > contentWidth {
+				runes := []rune(text)
+				if contentWidth > 3 {
+					truncated := string(runes[:contentWidth-3]) + "..."
+					truncatedLineNodes = append(truncatedLineNodes, app.NewTextBuilder(truncated).Build())
+				} else {
+					truncatedLineNodes = append(truncatedLineNodes, node)
+				}
+			} else {
+				truncatedLineNodes = append(truncatedLineNodes, node)
+			}
+
+			if text != "" && len(text) > contentWidth {
+				// Truncate to fit within width
+				runes := []rune(text)
+				if contentWidth > 3 {
+					truncated := string(runes[:contentWidth-3]) + "..."
+					truncatedLineNodes = append(truncatedLineNodes, app.NewTextBuilder(truncated).Build())
+				} else {
+					truncatedLineNodes = append(truncatedLineNodes, node)
+				}
+			} else {
+				truncatedLineNodes = append(truncatedLineNodes, node)
+			}
+		}
+		lineNodes = truncatedLineNodes
+	}
+
 	result := vstackBuilder.Build()
 
 	// IMPORTANT: Store this as the current render result for GetRender()
@@ -893,6 +979,8 @@ func (t *TreeView) Measure(constraints runtime.BoxConstraints) runtime.Size {
 		if width == 0 || width > 200 {
 			width = 80
 		}
+		// Store measured width for constraining internal VStack
+		t.lastMeasuredWidth = width
 	}
 
 	// If we have bounded height, use it for viewport

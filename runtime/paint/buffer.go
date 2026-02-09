@@ -54,11 +54,13 @@ func getRuneWidth(char rune) int {
 	// These characters should be treated as single-width for TUI borders
 	switch char {
 	case '┌', '┐', '└', '┘', // Corners
-		'─', '│',           // Lines
-		'╔', '╗', '╚', '╝',  // Double corners
-		'═', '║',           // Double lines
-		'╭', '╮', '╰', '╯',  // Rounded corners
-		'+', '|':             // ASCII style
+		'─', '│', // Lines (including vertical for TreeView)
+		'╔', '╗', '╚', '╝', // Double corners
+		'═', '║', // Double lines
+		'╭', '╮', '╰', '╯', // Rounded corners
+		'+', '|', // ASCII style
+		'├', '┤', '┬', '┴', // Tree connectors (important for TreeView)
+		'┼': // Cross connector
 		return 1
 	default:
 		return runewidth.RuneWidth(char)
@@ -101,6 +103,19 @@ func (b *Buffer) setCluster(x, y int, cluster string, width int, s style.Style) 
 // This method properly handles grapheme clusters (emoji ZWJ sequences,
 // combining characters, flag emojis, etc.) using the uniseg library.
 func (b *Buffer) SetString(x, y int, text string, s style.Style) {
+	b.writeString(x, y, text, s, 0)
+}
+
+// SetStringAligned writes a string and pads the remaining cells in the row up to maxWidth.
+// This implements row-level full coverage rendering (TUI_BUFFER_FIX2.md) to prevent
+// leftover characters from previous renders (e.g., wide emoji continuation cells).
+func (b *Buffer) SetStringAligned(x, y int, text string, s style.Style, maxWidth int) {
+	b.writeString(x, y, text, s, maxWidth)
+}
+
+// writeString is the internal implementation that optionally pads the row.
+// maxWidth: if > 0, pad from end of text to maxWidth with spaces
+func (b *Buffer) writeString(x, y int, text string, s style.Style, maxWidth int) {
 	if y < 0 || y >= b.Height {
 		return
 	}
@@ -109,8 +124,8 @@ func (b *Buffer) SetString(x, y int, text string, s style.Style) {
 	g := uniseg.NewGraphemes(text)
 
 	for g.Next() {
-		cluster := g.Str()                         // 完整字形簇
-		width := getClusterWidth(cluster)           // 使用正确的宽度计算（边框字符为宽度1）
+		cluster := g.Str()                // 完整字形簇
+		width := getClusterWidth(cluster) // 使用正确的宽度计算（边框字符为宽度1）
 
 		// 边界检查
 		if col >= b.Width {
@@ -122,6 +137,17 @@ func (b *Buffer) SetString(x, y int, text string, s style.Style) {
 
 		b.setCluster(col, y, cluster, width, s)
 		col += width
+	}
+
+	// Pad remaining cells to maxWidth (TUI_BUFFER_FIX2.md - border collapse fix)
+	if maxWidth > 0 && col < maxWidth {
+		endX := col + maxWidth - col
+		if endX > b.Width {
+			endX = b.Width
+		}
+		for i := col; i < endX; i++ {
+			b.setCluster(i, y, " ", 1, s)
+		}
 	}
 }
 

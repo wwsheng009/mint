@@ -266,6 +266,11 @@ func (tv *TreeView) formatNode(node *TreeNode, lines []string, isLast bool) []st
 		icon = getIconForType(node.Info.Type)
 	}
 
+	// Add space after icon if it exists
+	if icon != "" {
+		icon += " "
+	}
+
 	label := fmt.Sprintf("%s%s", icon, node.Info.Type)
 	if node.Info.Label != "" {
 		label += fmt.Sprintf("(%s)", node.Info.Label)
@@ -635,6 +640,8 @@ func getSimpleType(vnode ui.VNode) string {
 }
 
 // getIconForType returns an icon for a given element type
+// NOTE: Using single-rune icons only to avoid VS16/ZWJ issues in TUI
+// See: docs/TUI_BUFFER_SPECIAL_CHARS_ISSUE.md and TUI_BUFFER_FIX.md
 func getIconForType(typeName string) string {
 	typeLower := strings.ToLower(typeName)
 
@@ -650,11 +657,11 @@ func getIconForType(typeName string) string {
 	case strings.Contains(typeLower, "box"):
 		return "📦"
 	case strings.Contains(typeLower, "border"):
-		return "🖼️"
+		return "🎨" // Use art icon instead of multi-rune "🖼️"
 	case strings.Contains(typeLower, "input"):
-		return "✏️"
+		return "✏" // Use single-rune pencil
 	case strings.Contains(typeLower, "checkbox"):
-		return "☑️"
+		return "☑" // Use single-rune checkbox
 	case strings.Contains(typeLower, "select"):
 		return "📋"
 	default:

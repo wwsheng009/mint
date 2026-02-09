@@ -5,27 +5,32 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/border"
 	"github.com/wwsheng009/mint/runtime/compute"
 	"github.com/wwsheng009/mint/runtime/layer"
 	"github.com/wwsheng009/mint/runtime/paint"
-	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/runtime/style"
+	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
 
 // PaintEngine renders VNode trees using pre-computed layout information
 // This is the paint-only phase of the new rendering pipeline
 type PaintEngine struct {
-	debug         bool
-	lastHadModal  bool  // Track if modal was present in last frame (for backdrop restoration)
-	forceFullRender bool // Flag to force full buffer render on next frame
-	parentBackground map[*compute.ComputedBox]style.Color // Track parent background for inheritance
+	debug             bool
+	lastHadModal      bool                                 // Track if modal was present in last frame (for backdrop restoration)
+	forceFullRender   bool                                 // Flag to force full buffer render on next frame
+	parentBackground  map[*compute.ComputedBox]style.Color // Track parent background for inheritance
+	lastLayersPresent map[rtui.Layer]bool                  // Track which layers were present in last frame
+	lastLayerBounds   map[rtui.Layer]runtime.Box           // Track last bounds of each layer for cleanup
 }
 
 // NewPaintEngine creates a new paint engine
 func NewPaintEngine() *PaintEngine {
 	return &PaintEngine{
-		debug: os.Getenv("TUI_PAINT_DEBUG") == "true",
+		debug:             os.Getenv("TUI_PAINT_DEBUG") == "true",
+		lastLayersPresent: make(map[rtui.Layer]bool),
+		lastLayerBounds:   make(map[rtui.Layer]runtime.Box),
 	}
 }
 
@@ -89,7 +94,9 @@ func (e *PaintEngine) paintNode(box *compute.ComputedBox, buffer *paint.Buffer) 
 	}
 
 	// FIRST: Check if vnode implements Paintable interface (custom rendering like buttons)
-	paintable, ok := box.VNode.(interface{ Paint(int, int) []paint.DrawCmd })
+	paintable, ok := box.VNode.(interface {
+		Paint(int, int) []paint.DrawCmd
+	})
 	if ok {
 		if e.debug || os.Getenv("TUI_PAINT_DEBUG") == "true" || os.Getenv("TUI_DEBUG_RENDERING") == "true" {
 			fmt.Fprintf(os.Stderr, "[Paint.paintNode]   ✅ Paintable: YES, calling Paint(%d, %d)\n", box.Box.X, box.Box.Y)
@@ -195,7 +202,10 @@ func (e *PaintEngine) paintText(box *compute.ComputedBox, buffer *paint.Buffer) 
 			box.Box.X, box.Box.Y, box.Box.Width, box.Box.Height, box.RenderedText, text)
 	}
 	if text != "" {
-		buffer.SetString(box.Box.X, box.Box.Y, text, box.VNode.Style())
+		// Use SetStringAligned to pad row and prevent leftover characters (TUI_BUFFER_FIX2.md)
+		// Pad to box.Box.X + box.Box.Width to fill entire row within component boundary
+		maxX := box.Box.X + box.Box.Width
+		buffer.SetStringAligned(box.Box.X, box.Box.Y, text, box.VNode.Style(), maxX)
 	}
 }
 
@@ -207,7 +217,10 @@ func (e *PaintEngine) paintElement(box *compute.ComputedBox, buffer *paint.Buffe
 		content = rtui.GetTextContent(box.VNode)
 	}
 	if content != "" {
-		buffer.SetString(box.Box.X, box.Box.Y, content, box.VNode.Style())
+		// Use SetStringAligned to pad row and prevent leftover characters (TUI_BUFFER_FIX2.md)
+		// Pad to box.Box.X + box.Box.Width to fill entire row within component boundary
+		maxX := box.Box.X + box.Box.Width
+		buffer.SetStringAligned(box.Box.X, box.Box.Y, content, box.VNode.Style(), maxX)
 		return // Don't paint children for text elements
 	}
 
@@ -251,6 +264,29 @@ func (e *PaintEngine) paintContainerBackground(box *compute.ComputedBox, buffer 
 	if e.debug || os.Getenv("TUI_PAINT_DEBUG") == "true" {
 		fmt.Fprintf(os.Stderr, "[Paint.paintContainerBackground] Occluded %dx%d area at (%d,%d) with BG=%s\n",
 			box.Box.Width, box.Box.Height, box.Box.X, box.Box.Y, bgStyle.BG)
+	}
+}
+
+// clearRegion clears a rectangular region of the buffer
+// This is used to clean up areas that were previously occupied by disappeared layers
+func (e *PaintEngine) clearRegion(bounds runtime.Box, buffer *paint.Buffer) {
+	// Clamp bounds to buffer size
+	maxX := buffer.Width
+	maxY := buffer.Height
+
+	for y := bounds.Y; y < bounds.Y+bounds.Height && y < maxY; y++ {
+		// CRITICAL: Clear from right to left to properly handle wide characters
+		// If we clear from left to right, when we hit a continuation cell,
+		// it will clear the head at (x-1), which might already have been processed
+		for x := bounds.X + bounds.Width - 1; x >= bounds.X && x < maxX; x-- {
+			// Clear the cell by setting to empty
+			buffer.SetCell(x, y, ' ', style.Style{})
+		}
+	}
+
+	if e.debug || os.Getenv("TUI_PAINT_DEBUG") == "true" {
+		fmt.Fprintf(os.Stderr, "[Paint.clearRegion] Cleared %dx%d region at (%d,%d)\n",
+			bounds.Width, bounds.Height, bounds.X, bounds.Y)
 	}
 }
 
@@ -340,8 +376,9 @@ func (e *PaintEngine) PaintLayers(
 	}
 	e.lastHadModal = hasModal
 
-	// Render layers in order from lowest (base) to highest (inspector)
-	// This ensures proper z-ordering
+	// Check if any layer's presence changed
+	// This is important for clearing inspector content when it's hidden
+	// Also track layer bounds to clear specific regions when layers disappear
 	renderOrder := []rtui.Layer{
 		rtui.LayerBase,
 		rtui.LayerOverlay,
@@ -349,6 +386,48 @@ func (e *PaintEngine) PaintLayers(
 		rtui.LayerTooltip,
 		rtui.LayerInspector,
 	}
+
+	for _, l := range renderOrder {
+		hasLayer := false
+		var currentBounds runtime.Box = runtime.Box{}
+		if layout, ok := layouts[l]; ok && layout.Root != nil {
+			hasLayer = true
+			currentBounds = layout.Root.Box
+		}
+		hadLayer := e.lastLayersPresent[l]
+		prevBounds := e.lastLayerBounds[l]
+
+		// If layer disappeared, clear its previous region
+		if hadLayer && !hasLayer {
+			if os.Getenv("TUI_PAINT_DEBUG") == "true" {
+				fmt.Fprintf(os.Stderr, "[PaintLayers] Layer %s disappeared, clearing region: (%d,%d) %dx%d\n",
+					l.String(), prevBounds.X, prevBounds.Y, prevBounds.Width, prevBounds.Height)
+			}
+			// Clear the region that was previously occupied by this layer
+			e.clearRegion(prevBounds, buffer)
+			e.forceFullRender = true // Force full render to ensure proper repaint
+		}
+
+		// If layer layer bounds changed significantly, also force full render
+		if hasLayer && hadLayer && currentBounds != prevBounds {
+			if os.Getenv("TUI_PAINT_DEBUG") == "true" {
+				fmt.Fprintf(os.Stderr, "[PaintLayers] Layer %s bounds changed: (%d,%d) %dx%d -> (%d,%d) %dx%d\n",
+					l.String(), prevBounds.X, prevBounds.Y, prevBounds.Width, prevBounds.Height,
+					currentBounds.X, currentBounds.Y, currentBounds.Width, currentBounds.Height)
+			}
+			e.forceFullRender = true
+		}
+
+		e.lastLayersPresent[l] = hasLayer
+		if hasLayer {
+			e.lastLayerBounds[l] = currentBounds
+		} else {
+			delete(e.lastLayerBounds, l)
+		}
+	}
+
+	// Render layers in order from lowest (base) to highest (inspector)
+	// This ensures proper z-ordering
 
 	for _, l := range renderOrder {
 		layout, ok := layouts[l]
@@ -394,8 +473,8 @@ func (e *PaintEngine) paintModalBackdrop(root *compute.ComputedBox, buffer *pain
 	modalHeight := root.Box.Height
 
 	// Dimmed style: gray foreground on dark background (simulates transparency)
-	dimmedFG := style.Color("bright-black")  // Dimmed text color
-	dimmedBG := style.Color("#1e2028")       // Dark overlay background (nord0 darker)
+	dimmedFG := style.Color("bright-black") // Dimmed text color
+	dimmedBG := style.Color("#1e2028")      // Dark overlay background (nord0 darker)
 
 	// Helper function to apply dimmed effect to a cell
 	applyDimmed := func(x, y int) {
