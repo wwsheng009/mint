@@ -6,30 +6,35 @@ import (
 	"strings"
 
 	"github.com/wwsheng009/mint/app"
-	rtui "github.com/wwsheng009/mint/runtime/ui"
-	ui "github.com/wwsheng009/mint/ui"
+	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/platform"
 	"github.com/wwsheng009/mint/runtime/style"
+	rtui "github.com/wwsheng009/mint/runtime/ui"
+	ui "github.com/wwsheng009/mint/ui"
 )
 
+// Ensure TreeView implements runtime.Measurable
+var _ runtime.Measurable = (*TreeView)(nil)
+
 // TreeView is a component for displaying tree structures with proper formatting
+
 // Unlike the simple text-based approach, this component maintains tree structure
 // with proper indentation, line breaks, and visual hierarchy
 type TreeView struct {
 	*ui.ElementVNode
-	lines       []TreeViewLine  // Pre-rendered tree lines
-	focusIndex  int              // Currently focused line index
-	totalLines  int              // Total number of lines
-	expandState map[int]bool     // Expand/collapse state for each node
-	selectedIdx int              // Currently selected line index
+	lines       []TreeViewLine // Pre-rendered tree lines
+	focusIndex  int            // Currently focused line index
+	totalLines  int            // Total number of lines
+	expandState map[int]bool   // Expand/collapse state for each node
+	selectedIdx int            // Currently selected line index
 
 	// Navigation state
-	scrollOffset int             // Current scroll offset
-	viewportHeight int           // Visible height for scrolling
-	builder     *TreeViewBuilder // Reference to builder for rebuilds
-	currentRender ui.VNode       // Latest render result (for GetRender())
-	expandStateChanged bool      // True when expand/collapse state changed
-	expandStateLineIndex int     // Which line index needs expand toggle
+	scrollOffset         int              // Current scroll offset
+	viewportHeight       int              // Visible height for scrolling
+	builder              *TreeViewBuilder // Reference to builder for rebuilds
+	currentRender        ui.VNode         // Latest render result (for GetRender())
+	expandStateChanged   bool             // True when expand/collapse state changed
+	expandStateLineIndex int              // Which line index needs expand toggle
 }
 
 // TreeViewLine represents a single line in the tree view
@@ -37,35 +42,35 @@ type TreeViewLine struct {
 	Indent   int    // Indentation level (0-based)
 	Content  string // The line content without prefix
 	Prefix   string // Tree prefix (├──, └──, │  , etc.)
-	NodeType  string // Node type for icon display
-	NodeID    int    // Optional: node ID for selection
-	Path      string // Unique path identifier for this node (stable across expand/collapse)
+	NodeType string // Node type for icon display
+	NodeID   int    // Optional: node ID for selection
+	Path     string // Unique path identifier for this node (stable across expand/collapse)
 }
 
 // TreeViewBuilder builds tree view components
 type TreeViewBuilder struct {
 	node         *TreeView
-	sourceLines  []string // Raw tree lines
+	sourceLines  []string   // Raw tree lines
 	rootNode     rtui.VNode // Optional: root node for auto-generation
-	expandLevel  int      // Default expand level (0 = all collapsed, -1 = all expanded)
-	showIcons    bool    // Show type icons
-	showLineNums  bool    // Show line numbers
-	compact      bool    // Use compact display
+	expandLevel  int        // Default expand level (0 = all collapsed, -1 = all expanded)
+	showIcons    bool       // Show type icons
+	showLineNums bool       // Show line numbers
+	compact      bool       // Use compact display
 }
 
 // NewTreeView creates a new tree view builder
 func NewTreeView() *TreeViewBuilder {
 	return &TreeViewBuilder{
-		expandLevel: 1, // Default: expand first level
-		showIcons:   true,
+		expandLevel:  1, // Default: expand first level
+		showIcons:    true,
 		showLineNums: false,
-		compact:     false,
+		compact:      false,
 		node: &TreeView{
 			ElementVNode: ui.NewElement("treeview"),
 			lines:        []TreeViewLine{},
 			focusIndex:   0,
 			totalLines:   0,
-			expandState:   make(map[int]bool),
+			expandState:  make(map[int]bool),
 			selectedIdx:  -1,
 		},
 	}
@@ -121,51 +126,9 @@ func (b *TreeViewBuilder) Build() ui.VNode {
 	// Store builder reference for rebuilds
 	b.node.builder = b
 
-	// Create text nodes for each line
-	var lineNodes []ui.VNode
-	for i, line := range b.node.lines {
-		// Build the full line with prefix and content
-		fullLine := strings.Repeat(" ", line.Indent) + line.Prefix + line.Content
-		if b.showIcons && line.NodeType != "" {
-			fullLine = b.addIcon(fullLine, line.NodeType)
-		}
-		if b.showLineNums {
-			fullLine = b.formatLineNumber(i+1) + " " + fullLine
-		}
-
-		// Apply style based on focus/selection state using actual style attributes
-		if i == b.node.selectedIdx {
-			// Selected line - add * prefix with REVERSE video (most visible)
-			fullLine = "* " + fullLine  // Add * prefix for selection
-			lineNodes = append(lineNodes, app.NewTextBuilder(fullLine).
-				Style(style.NewStyle().
-					Reverse(true).
-					Bold(true)).
-				Build())
-		} else if i == b.node.focusIndex {
-			// Focused line - add > prefix with REVERSE video
-			fullLine = "> " + fullLine  // Add > prefix for focus
-			lineNodes = append(lineNodes, app.NewTextBuilder(fullLine).
-				Style(style.NewStyle().
-					Reverse(true).
-					Bold(true)).
-				Build())
-		} else {
-			// Normal line - white text with regular spacing
-			fullLine = "  " + fullLine  // Regular spacing for non-focused lines
-			lineNodes = append(lineNodes, app.NewTextBuilder(fullLine).
-				Style(style.NewStyle().
-					Foreground(style.White)).
-				Build())
-		}
-	}
-
-	// Wrap in VStack for proper rendering
-	result := ui.VStack(lineNodes...)
-
-	// Store as current render for GetRender()
-	b.node.currentRender = result
-	b.node.SetChildren([]ui.VNode{result})
+	// Call regenerateDisplay to handle virtual scrolling
+	// This ensures only visible lines are rendered based on viewportHeight
+	b.node.regenerateDisplay()
 
 	return b.node
 }
@@ -224,10 +187,10 @@ func (b *TreeViewBuilder) parseLines(lines []string) {
 		remaining := strings.TrimLeft(line, " ")
 		for _, ch := range remaining {
 			if ch == '│' || ch == '├' || ch == '└' || ch == '─' || ch == '┌' || ch == '┐' {
-			prefix += string(ch)
-			indent++ // Count prefix chars for indentation
-		} else {
-			break
+				prefix += string(ch)
+				indent++ // Count prefix chars for indentation
+			} else {
+				break
 			}
 		}
 
@@ -236,8 +199,8 @@ func (b *TreeViewBuilder) parseLines(lines []string) {
 		content = strings.TrimLeft(content, " ")
 
 		b.node.lines = append(b.node.lines, TreeViewLine{
-			Indent:  indent,
-			Content: content,
+			Indent:   indent,
+			Content:  content,
 			Prefix:   prefix,
 			NodeType: "",
 			NodeID:   i,
@@ -255,12 +218,12 @@ func (b *TreeViewBuilder) getNodeIcon(nodeType string) string {
 	icons := map[string]string{
 		"vstack":    "📦",
 		"hstack":    "📦",
-		"text":       "📝",
-		"button":     "🔵",
-		"bordered":   "🖼️",
-		"flex":       "🔧",
-		"element":    "📦",
-		"component":  "⚙️",
+		"text":      "📝",
+		"button":    "🔵",
+		"bordered":  "🖼️",
+		"flex":      "🔧",
+		"element":   "📦",
+		"component": "⚙️",
 	}
 
 	typeStr := string(nodeType)
@@ -301,7 +264,7 @@ func (b *TreeViewBuilder) formatLineNumber(num int) string {
 func (b *TreeViewBuilder) getLineStyle(index int) string {
 	styles := map[string]string{
 		"fg":      "white",
-			"bg":      "",
+		"bg":      "",
 		"bold":    "false",
 		"reverse": "false",
 	}
@@ -660,6 +623,25 @@ func (t *TreeView) SetViewportHeight(height int) {
 	}
 }
 
+// UpdateLines updates the tree lines without creating a new TreeView instance
+// This preserves the viewportHeight that was set by the layout engine
+func (t *TreeView) UpdateLines(lines []string) {
+	if t.builder == nil {
+		return
+	}
+
+	// Parse new lines
+	t.builder.sourceLines = lines
+	t.builder.parseLines(lines)
+
+	// Update lines from the builder's node
+	t.lines = t.builder.node.lines
+	t.totalLines = len(t.lines)
+
+	// Re-render with the new lines (preserving viewportHeight)
+	t.regenerateDisplay()
+}
+
 // GetScrollOffset returns the current scroll offset
 func (t *TreeView) GetScrollOffset() int {
 	return t.scrollOffset
@@ -759,6 +741,10 @@ func (t *TreeView) regenerateDisplay() {
 		return
 	}
 
+	if os.Getenv("TUI_LAYOUT_DEBUG") == "true" {
+		fmt.Fprintf(os.Stderr, "[TreeView.regenerateDisplay] viewportHeight=%d, totalLines=%d\n", t.viewportHeight, len(t.lines))
+	}
+
 	if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
 		fmt.Fprintf(os.Stderr, "[TreeView] regenerateDisplay: focus=%d, selected=%d, total lines=%d, viewportHeight=%d, scrollOffset=%d\n",
 			t.focusIndex, t.selectedIdx, len(t.lines), t.viewportHeight, t.scrollOffset)
@@ -820,7 +806,7 @@ func (t *TreeView) regenerateDisplay() {
 			if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
 				fmt.Fprintf(os.Stderr, "[TreeView] Line %d: SELECTED (* + REVERSE)\n", i)
 			}
-			fullLine = "* " + fullLine  // Add * prefix for selection
+			fullLine = "* " + fullLine // Add * prefix for selection
 			lineNodes = append(lineNodes, app.NewTextBuilder(fullLine).
 				Style(style.NewStyle().
 					Reverse(true).
@@ -831,7 +817,7 @@ func (t *TreeView) regenerateDisplay() {
 			if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
 				fmt.Fprintf(os.Stderr, "[TreeView] Line %d: FOCUSED (> + REVERSE)\n", i)
 			}
-			fullLine = "> " + fullLine  // Add > prefix for focus
+			fullLine = "> " + fullLine // Add > prefix for focus
 			lineNodes = append(lineNodes, app.NewTextBuilder(fullLine).
 				Style(style.NewStyle().
 					Reverse(true).
@@ -839,7 +825,7 @@ func (t *TreeView) regenerateDisplay() {
 				Build())
 		} else {
 			// Normal line - white text with regular spacing
-			fullLine = "  " + fullLine  // Regular spacing for non-focused lines
+			fullLine = "  " + fullLine // Regular spacing for non-focused lines
 			lineNodes = append(lineNodes, app.NewTextBuilder(fullLine).
 				Style(style.NewStyle().
 					Foreground(style.White)).
@@ -853,7 +839,13 @@ func (t *TreeView) regenerateDisplay() {
 	}
 
 	// Wrap in VStack for proper rendering
-	result := ui.VStack(lineNodes...)
+	// IMPORTANT: If viewportHeight is set, constrain the VStack height
+	// This ensures the Layout engine measures VStack with bounded constraints
+	vstackBuilder := ui.VStackBuilder(lineNodes...)
+	if t.viewportHeight > 0 {
+		vstackBuilder.Height(t.viewportHeight)
+	}
+	result := vstackBuilder.Build()
 
 	// IMPORTANT: Store this as the current render result for GetRender()
 	t.currentRender = result
@@ -864,4 +856,67 @@ func (t *TreeView) regenerateDisplay() {
 		fmt.Fprintf(os.Stderr, "[TreeView] regenerateDisplay: Rendered %d lines (visible range [%d:%d]), Set %d children\n",
 			len(lineNodes), startLine, endLine, len(result.Children()))
 	}
+}
+
+// Measure implements runtime.Measurable interface
+// This allows TreeView to respond to layout constraints and adjust its viewport
+func (t *TreeView) Measure(constraints runtime.BoxConstraints) runtime.Size {
+	if t == nil {
+		return runtime.Size{Width: 0, Height: 0}
+	}
+
+	// FORCE PANIC TO VERIFY CALL
+	if os.Getenv("TUI_LAYOUT_DEBUG") == "true" {
+		fmt.Fprintf(os.Stderr, "PANIC CHECK: TreeView.Measure called!\n")
+	}
+
+	if os.Getenv("TUI_LAYOUT_DEBUG") == "true" {
+		fmt.Fprintf(os.Stderr, "[TreeView.Measure] constraints=%v\n", constraints)
+	}
+
+	totalLines := len(t.lines)
+
+	// Default size
+	width := 80
+	height := totalLines
+
+	// Respect width constraint if bounded
+	if constraints.HasBoundedWidth() {
+		width = constraints.MaxWidth
+		if width == 0 || width > 200 {
+			width = 80
+		}
+	}
+
+	// If we have bounded height, use it for viewport
+	if constraints.HasBoundedHeight() {
+		viewportHeight := constraints.MaxHeight
+
+		// Check if viewportHeight changed, and if so, re-render
+		oldViewportHeight := t.viewportHeight
+		t.SetViewportHeight(viewportHeight)
+		height = viewportHeight
+
+		// Re-render if viewport height changed (to apply virtual scrolling)
+		if oldViewportHeight != viewportHeight && t.builder != nil {
+			if os.Getenv("TUI_LAYOUT_DEBUG") == "true" {
+				fmt.Fprintf(os.Stderr, "[TreeView.Measure] Bounded height: %d, triggering regenerateDisplay\n", viewportHeight)
+			}
+			t.regenerateDisplay()
+		} else {
+			if os.Getenv("TUI_LAYOUT_DEBUG") == "true" {
+				fmt.Fprintf(os.Stderr, "[TreeView.Measure] Viewport height unchanged: %d\n", viewportHeight)
+			}
+		}
+	} else {
+		// No bounded height - render all lines
+		t.SetViewportHeight(0) // 0 means render all
+		height = totalLines
+
+		if os.Getenv("TUI_LAYOUT_DEBUG") == "true" {
+			fmt.Fprintf(os.Stderr, "[TreeView.Measure] No bounded height, rendering all %d lines\n", totalLines)
+		}
+	}
+
+	return runtime.Size{Width: width, Height: height}
 }

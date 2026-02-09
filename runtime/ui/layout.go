@@ -40,9 +40,9 @@ type LayoutNode struct {
 	align        Align
 	crossAlign   Align
 	gap          int
-	flex         int // Flex factor (0 = fixed size, >0 = grows to fill space)
+	flex         int    // Flex factor (0 = fixed size, >0 = grows to fill space)
 	padding      [4]int // top, right, bottom, left
-	stretchCross bool  // Stretch children to fill cross axis (width for VStack, height for HStack)
+	stretchCross bool   // Stretch children to fill cross axis (width for VStack, height for HStack)
 }
 
 // HStack creates a horizontal layout container
@@ -310,7 +310,7 @@ func (l *LayoutNode) Measure(constraints runtime.BoxConstraints) runtime.Size {
 	}
 
 	// Add padding to content size
-	paddingWidth := l.padding[1] + l.padding[3] // left + right
+	paddingWidth := l.padding[1] + l.padding[3]  // left + right
 	paddingHeight := l.padding[0] + l.padding[2] // top + bottom
 
 	var totalWidth, totalHeight int
@@ -803,11 +803,11 @@ func (td *TableCell) GetCellContent() VNode {
 type BorderStyle int
 
 const (
-	BorderSingle BorderStyle = iota // Single line: ┌───┐
-	BorderDouble                      // Double line: ╔═══╗
-	BorderRounded                     // Rounded: ╭───╮
-	BorderDashed                      // Dashed: +---+
-	BorderNone                        // No border
+	BorderSingle  BorderStyle = iota // Single line: ┌───┐
+	BorderDouble                     // Double line: ╔═══╗
+	BorderRounded                    // Rounded: ╭───╮
+	BorderDashed                     // Dashed: +---+
+	BorderNone                       // No border
 )
 
 // BorderedNode represents a container with auto-rendered border
@@ -816,19 +816,20 @@ type BorderedNode struct {
 	*ElementVNode
 	borderStyle BorderStyle
 	borderColor string
-	borderLabel  string // Optional title shown on top border
+	borderLabel string // Optional title shown on top border
 }
 
 // Bordered creates a container with auto-rendered border
 // Usage:
-//   ui.Bordered().Child(content).Build()
-//   ui.Bordered().Style("double").Label("Title").Child(content).Build()
+//
+//	ui.Bordered().Child(content).Build()
+//	ui.Bordered().Style("double").Label("Title").Child(content).Build()
 func Bordered() *BorderedBuilder {
 	return &BorderedBuilder{
 		node: &BorderedNode{
 			ElementVNode: NewElement("bordered"),
 			borderStyle:  BorderSingle,
-			borderColor: "blue",
+			borderColor:  "blue",
 		},
 	}
 }
@@ -1088,11 +1089,25 @@ func (bn *BorderedNode) Measure(constraints runtime.BoxConstraints) runtime.Size
 	// Measure child content
 	var contentWidth, contentHeight int
 	children := bn.Children()
-	// Check if this Bordered node has flex (should expand to fill available space)
+	// Check if this Bordered node has flex or explicit width/height
 	hasFlex := false
-	if props := bn.Props(); props != nil {
+	props := bn.Props()
+	if props != nil {
 		if f, ok := props["flex"].(int); ok && f > 0 {
 			hasFlex = true
+		}
+		// Check for explicit width/height props and apply as constraints
+		if width, ok := props["width"].(int); ok && width > 0 {
+			constraints.MaxWidth = width
+			if constraints.MinWidth > width {
+				constraints.MinWidth = width
+			}
+		}
+		if height, ok := props["height"].(int); ok && height > 0 {
+			constraints.MaxHeight = height
+			if constraints.MinHeight > height {
+				constraints.MinHeight = height
+			}
 		}
 	}
 
@@ -1119,7 +1134,7 @@ func (bn *BorderedNode) Measure(constraints runtime.BoxConstraints) runtime.Size
 			}
 		} else {
 			// Fallback: estimate child size
-			contentWidth = 10  // Default minimum
+			contentWidth = 10 // Default minimum
 			contentHeight = 1
 		}
 	} else {
@@ -1148,7 +1163,7 @@ func (bn *BorderedNode) Measure(constraints runtime.BoxConstraints) runtime.Size
 	// This matches the actual rendering logic in renderTopBorder
 	totalWidth := innerWidth + borderWidth
 	if labelWidth > 0 {
-		totalWidth += 2  // Extra padding for label rendering (see renderTopBorder)
+		totalWidth += 2 // Extra padding for label rendering (see renderTopBorder)
 	}
 	totalHeight := contentHeight + borderHeight
 
@@ -1184,4 +1199,3 @@ func max(a, b int) int {
 	}
 	return b
 }
-

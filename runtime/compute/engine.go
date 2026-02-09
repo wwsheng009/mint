@@ -18,6 +18,22 @@ type Engine struct {
 	dirtyTracker *DirtyTracker
 	debug        bool
 	flexCache    map[string]*FlexDistributionInfo // Cache for flex distribution per parent
+	traceDepth   int                              // Current depth for layout tracing
+}
+
+func (e *Engine) getTraceDepth() int {
+	return e.traceDepth
+}
+
+func (e *Engine) incrementTraceDepth() {
+	e.traceDepth++
+}
+
+func (e *Engine) decrementTraceDepth() {
+	e.traceDepth--
+	if e.traceDepth < 0 {
+		e.traceDepth = 0
+	}
 }
 
 // NewEngine creates a new layout engine
@@ -173,6 +189,9 @@ func (e *Engine) buildComputedBoxWithSize(vnode VNode, parent *ComputedBox, cons
 	box.Box.Width = size.Width
 	box.Box.Height = size.Height
 
+	// REFRESH children: Measure() might have updated the children list (e.g. TreeView virtual scrolling)
+	vnodeChildren = vnode.Children()
+
 	// Build children layout boxes
 	box.Children = make([]*ComputedBox, 0, len(vnodeChildren))
 
@@ -213,6 +232,27 @@ func (e *Engine) buildComputedBox(vnode VNode, parent *ComputedBox, constraints 
 
 // measureVNode measures a VNode's size using constraints
 func (e *Engine) measureVNode(vnode VNode, constraints runtime.BoxConstraints) runtime.Size {
+	// Add layout tracing for debugging if enabled
+	if os.Getenv("TUI_LAYOUT_DEBUG") == "true" {
+		depth := e.getTraceDepth()
+		e.incrementTraceDepth()
+		defer e.decrementTraceDepth()
+
+		indent := strings.Repeat("  ", depth)
+		fmt.Fprintf(os.Stderr, "%s[Layout.ENTER] Type=%T %s Props:%v Constraints:%v\n",
+			indent, vnode, vnode.Type().String(), vnode.Props(), constraints)
+
+		size := e.doMeasureVNode(vnode, constraints)
+
+		fmt.Fprintf(os.Stderr, "%s[Layout.LEAVE] %s Size:%v\n",
+			indent, vnode.Type().String(), size)
+		return size
+	}
+
+	return e.doMeasureVNode(vnode, constraints)
+}
+
+func (e *Engine) doMeasureVNode(vnode VNode, constraints runtime.BoxConstraints) runtime.Size {
 	// SPECIAL CASE: Bordered nodes use Engine's measureBordered to handle
 	// explicit width/height props correctly through constraints.
 	// This bypasses the node's own Measure() method which doesn't check props.
@@ -221,15 +261,8 @@ func (e *Engine) measureVNode(vnode VNode, constraints runtime.BoxConstraints) r
 	}
 
 	// PRIORITY 1: Use Measurable interface (constraint-based measurement)
-	if measurable, ok := vnode.(interface {
-		Measure(runtime.BoxConstraints) runtime.Size
-	}); ok {
-		size := measurable.Measure(constraints)
-		if e.debug {
-			fmt.Fprintf(os.Stderr, "[Layout.Measure] %s: constraints=%v, size=%v\n",
-				vnode.Type().String(), constraints, size)
-		}
-		return size
+	if measurable, ok := vnode.(runtime.Measurable); ok {
+		return measurable.Measure(constraints)
 	}
 
 	// PRIORITY 2: Check for known layout types
@@ -269,10 +302,21 @@ func (e *Engine) measureLayoutChildren(vnode VNode, constraints runtime.BoxConst
 	paddingWidth := padding[1] + padding[3]
 	paddingHeight := padding[0] + padding[2]
 
+	// Get props for explicit width/height
+	props := vnode.Props()
+
 	if layoutInfo.IsHorizontal {
 		// HStack: sum widths, max height
 		totalWidth := 0
 		maxHeight := 0
+
+		// Check for explicit height prop - this creates a bounded constraint
+		if height, ok := props["height"].(int); ok && height > 0 {
+			constraints.MaxHeight = height
+			if constraints.MinHeight > height {
+				constraints.MinHeight = height
+			}
+		}
 
 		// Calculate inner height constraint
 		// Use parent's MaxHeight only if it's bounded, otherwise use Infinity
@@ -399,6 +443,14 @@ func (e *Engine) measureLayoutChildren(vnode VNode, constraints runtime.BoxConst
 		// VStack: max width, sum heights
 		maxWidth := 0
 		totalHeight := 0
+
+		// Check for explicit height prop - this creates a bounded constraint
+		if height, ok := props["height"].(int); ok && height > 0 {
+			constraints.MaxHeight = height
+			if constraints.MinHeight > height {
+				constraints.MinHeight = height
+			}
+		}
 
 		// Calculate inner width constraint
 		// Use parent's MaxWidth only if it's bounded, otherwise use Infinity
@@ -584,8 +636,8 @@ func (e *Engine) measureBordered(vnode VNode, constraints runtime.BoxConstraints
 	// If explicit width is set, constrain to that width (minus border)
 	if hasWidthConstraint {
 		innerConstraints = runtime.NewBoxConstraints(
-			explicitWidth-2,  // MinWidth = MaxWidth to enforce fixed width
-			explicitWidth-2,  // MaxWidth
+			explicitWidth-2, // MinWidth = MaxWidth to enforce fixed width
+			explicitWidth-2, // MaxWidth
 			0,
 			innerConstraints.MaxHeight,
 		)
@@ -1027,7 +1079,7 @@ func (e *Engine) layoutVStack(box *ComputedBox, x, y int) {
 		// Stretch child to container width if:
 		// 1. Child has flex > 0 (explicit flex), OR
 		// 2. Container has StretchCross enabled (auto-stretch all children)
-			// 3. Child has FillWidth enabled (stretch this specific child)
+		// 3. Child has FillWidth enabled (stretch this specific child)
 		// IMPORTANT: Only stretch if container width is finite (not Infinity)
 		if (childInfo.Flex > 0 || stretchCross || childInfo.FillWidth) && box.Box.Width < runtime.Infinity {
 			child.Box.Width = box.Box.Width

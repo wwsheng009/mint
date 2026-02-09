@@ -66,8 +66,8 @@ func (l *LayoutNode) measureHStackLayout(
 
 	debug := os.Getenv("TUI_LAYOUT_DEBUG") == "true"
 
-	// ⭐ NEW: Check for explicit width prop and use it to constrain MaxWidth
-	// This allows Wrap component to set width="78" to force HStack to that width
+	// ⭐ Check for explicit width/height props and use them to constrain layout
+	// This allows HStack().Width(n).Height(n) to properly constrain children
 	if props := l.Props(); props != nil {
 		if width, ok := props["width"].(int); ok && width > 0 {
 			// Use explicit width as MaxWidth constraint
@@ -77,7 +77,22 @@ func (l *LayoutNode) measureHStackLayout(
 				constraints.MinWidth = width
 			}
 			if debug {
-				fmt.Fprintf(os.Stderr, "[MeasureLayout] Using width prop: %d\n", width)
+				fmt.Fprintf(os.Stderr, "[HStack.MeasureLayout] Using width prop: %d\n", width)
+			}
+		}
+		// ⭐ CRITICAL FIX: Also check height prop for bounded height constraint
+		// This ensures flex children receive bounded constraints
+		if height, ok := props["height"].(int); ok && height > 0 {
+			// Use explicit height as bounded constraint
+			constraints.MaxHeight = height
+			// Ensure MinHeight doesn't exceed MaxHeight
+			if constraints.MinHeight > height {
+				constraints.MinHeight = height
+			}
+			// Recalculate innerMaxHeight with new constraint
+			innerMaxHeight = max(0, height-paddingHeight)
+			if debug {
+				fmt.Fprintf(os.Stderr, "[HStack.MeasureLayout] Using height prop: %d, innerMaxHeight=%d\n", height, innerMaxHeight)
 			}
 		}
 	}
@@ -221,9 +236,9 @@ func (l *LayoutNode) measureHStackLayout(
 	}
 
 	return runtime.LayoutMeasurement{
-		Size:            runtime.Size{Width: totalWidth, Height: maxHeight},
+		Size:             runtime.Size{Width: totalWidth, Height: maxHeight},
 		ChildConstraints: childConstraints,
-		ChildSizes:      childSizes,
+		ChildSizes:       childSizes,
 	}
 }
 
@@ -260,8 +275,8 @@ func (l *LayoutNode) measureVStackLayout(
 
 	debug := os.Getenv("TUI_LAYOUT_DEBUG") == "true"
 
-	// ⭐ NEW: Check for explicit width prop and use it to constrain MaxWidth
-	// This allows Wrap component to set width="78" to force HStack to that width
+	// ⭐ Check for explicit width/height props and use them to constrain layout
+	// This allows VStack().Width(n).Height(n) to properly constrain children
 	if props := l.Props(); props != nil {
 		if width, ok := props["width"].(int); ok && width > 0 {
 			// Use explicit width as MaxWidth constraint
@@ -270,8 +285,25 @@ func (l *LayoutNode) measureVStackLayout(
 			if constraints.MinWidth > width {
 				constraints.MinWidth = width
 			}
+			// Recalculate innerMaxWidth with new constraint
+			innerMaxWidth = max(0, width-paddingWidth)
 			if debug {
-				fmt.Fprintf(os.Stderr, "[MeasureLayout] Using width prop: %d\n", width)
+				fmt.Fprintf(os.Stderr, "[VStack.MeasureLayout] Using width prop: %d, innerMaxWidth=%d\n", width, innerMaxWidth)
+			}
+		}
+		// ⭐ CRITICAL FIX: Also check height prop for bounded height constraint
+		// This ensures flex children receive bounded constraints and can properly
+		// distribute remaining space. Without this, TreeView and other flex children
+		// would receive unbounded height and render all content.
+		if height, ok := props["height"].(int); ok && height > 0 {
+			// Use explicit height as bounded constraint
+			constraints.MaxHeight = height
+			// Ensure MinHeight doesn't exceed MaxHeight
+			if constraints.MinHeight > height {
+				constraints.MinHeight = height
+			}
+			if debug {
+				fmt.Fprintf(os.Stderr, "[VStack.MeasureLayout] Using height prop: %d\n", height)
 			}
 		}
 	}
@@ -411,9 +443,9 @@ func (l *LayoutNode) measureVStackLayout(
 	}
 
 	return runtime.LayoutMeasurement{
-		Size:            runtime.Size{Width: maxWidth, Height: totalHeight},
+		Size:             runtime.Size{Width: maxWidth, Height: totalHeight},
 		ChildConstraints: childConstraints,
-		ChildSizes:      childSizes,
+		ChildSizes:       childSizes,
 	}
 }
 

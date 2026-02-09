@@ -4,9 +4,10 @@
 // similar to browser DevTools, rather than being embedded in the application UI.
 //
 // Usage:
-//   inspector := NewStandaloneInspector()
-//   inspector.Enable()
-//   inspector.AttachToApp(rootVNode)
+//
+//	inspector := NewStandaloneInspector()
+//	inspector.Enable()
+//	inspector.AttachToApp(rootVNode)
 //
 // Features:
 //   - F12: Toggle inspector overlay
@@ -18,12 +19,14 @@ package inspector
 import (
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 
 	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/components/display"
 	"github.com/wwsheng009/mint/components/navigation"
 	"github.com/wwsheng009/mint/framework/theme"
+	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/platform"
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
@@ -36,19 +39,19 @@ type StandaloneInspector struct {
 	mu sync.RWMutex
 
 	// State
-	enabled    bool
-	visible    bool
-	activeTab  InspectorTab
+	enabled   bool
+	visible   bool
+	activeTab InspectorTab
 
 	// Data sources
-	treeView   *TreeView
+	treeView          *TreeView
 	treeViewComponent *display.TreeView // New: TreeView component with navigation
-	perf       *PerformanceAnalyzer
-	diagnostics *LayoutDiagnostics
-	editor     *PropertyEditor
+	perf              *PerformanceAnalyzer
+	diagnostics       *LayoutDiagnostics
+	editor            *PropertyEditor
 
 	// VNode tracking
-	appRoot    rtui.VNode
+	appRoot       rtui.VNode
 	selectedVNode rtui.VNode
 	selectedPath  string
 
@@ -67,16 +70,16 @@ type StandaloneInspector struct {
 	floatStartY int  // Panel Y when drag started
 
 	// Tree scroll state
-	treeScrollOffset int  // Vertical scroll offset for tree view (in items)
+	treeScrollOffset int      // Vertical scroll offset for tree view (in items)
 	treeLines        []string // Cached tree lines for virtual scrolling
 	treeTotalLines   int      // Total number of tree lines (for scroll bounds)
 
 	// Key debug info (for displaying what keys are being pressed)
-	lastKey       string  // Last key name received
-	lastAlt       bool    // Last Alt modifier state
-	lastCtrl      bool    // Last Ctrl modifier state
-	lastShift     bool    // Last Shift modifier state
-	showKeyDebug  bool    // Show key debug info in UI
+	lastKey      string // Last key name received
+	lastAlt      bool   // Last Alt modifier state
+	lastCtrl     bool   // Last Ctrl modifier state
+	lastShift    bool   // Last Shift modifier state
+	showKeyDebug bool   // Show key debug info in UI
 }
 
 // InspectorTab represents different inspector panels
@@ -87,6 +90,7 @@ const (
 	TabConsole
 	TabPerformance
 	TabDiagnostics
+	TabLayout
 	TabNetwork
 )
 
@@ -102,11 +106,12 @@ const (
 
 // Tab names
 var tabNames = map[InspectorTab]string{
-	TabElements:     "Elements",
-	TabConsole:      "Console",
-	TabPerformance:  "Performance",
-	TabDiagnostics:  "Diagnostics",
-	TabNetwork:      "Network",
+	TabElements:    "Elements",
+	TabConsole:     "Console",
+	TabPerformance: "Performance",
+	TabDiagnostics: "Diagnostics",
+	TabLayout:      "Layout",
+	TabNetwork:     "Network",
 }
 
 // NewStandaloneInspector creates a new standalone inspector instance
@@ -123,9 +128,9 @@ func NewStandaloneInspector() *StandaloneInspector {
 		overlayHeight: 25,
 		position:      PositionFloating, // Change to floating by default
 		// Floating position (left side, visible in 80-column terminal)
-		floatX:        0,   // Default X position (left edge)
-		floatY:        0,   // Default Y position (top edge)
-		isDragging:    false,
+		floatX:     0, // Default X position (left edge)
+		floatY:     0, // Default Y position (top edge)
+		isDragging: false,
 	}
 }
 
@@ -320,11 +325,12 @@ func (si *StandaloneInspector) buildOverlayContent() rtui.VNode {
 
 	// Create tabs using Tab component
 	tabItems := []*navigation.TabItem{
-		{ID: "elements", Label: "Elements", Content: si.buildElementsTabContent()},
-		{ID: "console", Label: "Console", Content: si.buildConsoleTabContent()},
-		{ID: "performance", Label: "Performance", Content: si.buildPerformanceTabContent()},
-		{ID: "diagnostics", Label: "Diagnostics", Content: si.buildDiagnosticsTabContent()},
-		{ID: "network", Label: "Network", Content: si.buildNetworkTabContent()},
+		{ID: "elements", Label: "Elements(1)", Content: si.buildElementsTabContent()},
+		{ID: "console", Label: "Console(2)", Content: si.buildConsoleTabContent()},
+		{ID: "performance", Label: "Performance(3)", Content: si.buildPerformanceTabContent()},
+		{ID: "diagnostics", Label: "Diagnostics(4)", Content: si.buildDiagnosticsTabContent()},
+		{ID: "layout", Label: "Layout(5)", Content: si.buildLayoutTabContent()},
+		{ID: "network", Label: "Network(6)", Content: si.buildNetworkTabContent()},
 	}
 
 	// Build tabs with Tab component using Builder pattern
@@ -334,6 +340,15 @@ func (si *StandaloneInspector) buildOverlayContent() rtui.VNode {
 		tabsBuilder.Content(tab.ID, tab.Content)
 	}
 	tabsBuilder.ActiveTab(int(si.activeTab))
+
+	// Calculate available height for tabs content
+	// Subtract title bar (3 lines) and separator (1 line) from total overlay height
+	tabsHeight := si.overlayHeight - 4
+	if tabsHeight < 1 {
+		tabsHeight = 1
+	}
+	tabsBuilder.Height(tabsHeight)
+
 	tabsComponent := tabsBuilder.Build()
 
 	// Combine title bar, tabs, and separator
@@ -363,18 +378,22 @@ func (si *StandaloneInspector) buildOverlayContainer(content rtui.VNode) rtui.VN
 	tabBar := si.buildTabBar()
 
 	// Main content area
-	mainContent := rtui.VStack(
+	// The VStack has bounded height which allows flex children to properly size
+	mainContent := ui.VStackBuilder(
 		tabBar,
 		ui.Text("─"), // Separator
 		content,
-	)
+	).
+		Width(si.overlayWidth).
+		Height(si.overlayHeight).
+		Build()
 
-	// Wrap in bordered box with title
+	// Wrap in bordered box (bordered wrapper doesn't need height constraint
+	// since mainContent already has it)
 	overlay := rtui.Bordered().
 		Style(string(theme.Border())).
 		Child(mainContent).
 		Width(si.overlayWidth).
-		Height(si.overlayHeight).
 		Build()
 
 	return overlay
@@ -384,27 +403,30 @@ func (si *StandaloneInspector) buildOverlayContainer(content rtui.VNode) rtui.VN
 func (si *StandaloneInspector) buildTabBar() rtui.VNode {
 	var tabs []rtui.VNode
 
-	allTabs := []InspectorTab{
-		TabElements,
-		TabConsole,
-		TabPerformance,
-		TabDiagnostics,
-		TabNetwork,
+	allTabs := []struct {
+		tab   InspectorTab
+		key   string
+		name  string
+	}{
+		{TabElements, "1", "Elements"},
+		{TabConsole, "2", "Console"},
+		{TabPerformance, "3", "Performance"},
+		{TabDiagnostics, "4", "Diagnostics"},
+		{TabLayout, "5", "Layout"},
+		{TabNetwork, "6", "Network"},
 	}
 
-	for _, tab := range allTabs {
-		tabName := tabNames[tab]
-
+	for _, item := range allTabs {
 		// Highlight active tab
-		if tab == si.activeTab {
+		if item.tab == si.activeTab {
 			tabs = append(tabs,
-				app.NewTextBuilder(fmt.Sprintf("[%s]", tabName)).
+				app.NewTextBuilder(fmt.Sprintf("[%s]", item.name)).
 					Style(style.FgBgBold(style.Yellow, style.Blue)).
 					Build(),
 			)
 		} else {
 			tabs = append(tabs,
-				app.NewTextBuilder(fmt.Sprintf(" %s ", tabName)).
+				app.NewTextBuilder(fmt.Sprintf(" %s(%s) ", item.name, item.key)).
 					Style(style.Foreground(style.White)).
 					Build(),
 			)
@@ -425,6 +447,8 @@ func (si *StandaloneInspector) buildActiveTabContent() rtui.VNode {
 		return si.buildPerformanceTabContent()
 	case TabDiagnostics:
 		return si.buildDiagnosticsTabContent()
+	case TabLayout:
+		return si.buildLayoutTabContent()
 	case TabNetwork:
 		return si.buildNetworkTabContent()
 	default:
@@ -449,37 +473,24 @@ func (si *StandaloneInspector) buildElementsTabContent() rtui.VNode {
 			Build(),
 	)
 
-	// Selected element info
-	var selectedInfo rtui.VNode
-	if si.selectedVNode != nil {
-		props := si.selectedVNode.Props()
-		infoText := fmt.Sprintf("Selected: %s", si.selectedVNode.Type())
-		if props != nil {
-			if key, ok := props["key"]; ok && key != "" {
-				infoText += fmt.Sprintf(" (key: %v)", key)
+	// Check for expand/collapse state change BEFORE building tree
+	if si.treeViewComponent != nil && si.treeViewComponent.ExpandStateChanged() {
+		lineIndex := si.treeViewComponent.GetExpandStateLineIndex()
+		// Get uniqueID for this line index
+		uniqueID := si.treeView.GetUniqueIDForLineIndex(lineIndex)
+		if uniqueID != "" {
+			si.treeView.ToggleNode(uniqueID)
+			if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
+				fmt.Fprintf(os.Stderr, "[Inspector] Toggled node: %s (line %d)\n", uniqueID, lineIndex)
 			}
 		}
-
-		selectedInfo = rtui.VStack(
-			app.NewTextBuilder("─").
-				Style(style.Foreground(theme.Muted())).
-				Build(),
-			app.NewTextBuilder(infoText).
-				Style(style.FgBold(style.Yellow)).
-				Build(),
-			app.NewTextBuilder(fmt.Sprintf("Path: %s", si.selectedPath)).
-				Style(style.Foreground(style.Cyan)).
-				Build(),
-			app.NewTextBuilder("").
-				Build(),
-		)
+		// Clear the flag
+		si.treeViewComponent.ClearExpandStateChanged()
 	}
 
 	// Tree visualization - use TreeView component with navigation
 	allLines, totalLines := si.treeView.GetTreeLines()
 	si.treeTotalLines = totalLines
-
-	treeViewHeight := si.overlayHeight - 14 // Approximate available space for tree
 
 	// Create or update TreeView component with navigation support
 	if si.treeViewComponent == nil {
@@ -490,64 +501,85 @@ func (si *StandaloneInspector) buildElementsTabContent() rtui.VNode {
 			Compact(false).
 			Build().(*display.TreeView)
 	} else {
-		// Update existing component with new lines
-		updated := display.NewTreeView().
-			FromLines(allLines).
-			ExpandLevel(1).
-			ShowIcons(true).
-			Compact(false).
-			Build().(*display.TreeView)
-
-		// Preserve navigation state
-		updated.SetFocusIndex(si.treeViewComponent.GetFocusIndex())
-		updated.SetScrollOffset(si.treeScrollOffset)
-		updated.SetViewportHeight(treeViewHeight)
-		si.treeViewComponent = updated
+		// Update existing TreeView with new lines WITHOUT creating a new instance
+		// This preserves the viewportHeight that was set by the layout engine
+		si.treeViewComponent.UpdateLines(allLines)
 	}
-
-	// Sync scroll offset
-	si.treeViewComponent.SetViewportHeight(treeViewHeight)
-	si.treeViewComponent.SetScrollOffset(si.treeScrollOffset)
-
-	// Get visible lines from TreeView component
-	scrollOffset := si.treeViewComponent.GetScrollOffset()
-	startLine := scrollOffset
-	endLine := startLine + treeViewHeight
-	if endLine > len(allLines) {
-		endLine = len(allLines)
-	}
-
-	// Create Text nodes for visible lines
-	var lineNodes []ui.VNode
+	// Get focused line index to display above tree
 	focusIndex := si.treeViewComponent.GetFocusIndex()
-	selectedIdx := si.treeViewComponent.GetSelectedLine().NodeID
 
-	for i := startLine; i < endLine; i++ {
-		line := allLines[i]
+	// Build selected/focused element info
+	// Priority: show selected (Enter) if available, otherwise show focused (↑↓)
+	var targetVNode rtui.VNode
+	var targetPath string
+	var displayType string
 
-		// Highlight selected line
-		if i == selectedIdx {
-			lineNodes = append(lineNodes, app.NewTextBuilder(line).
-				Style(style.NewStyle().Reverse(true)).
-				Build())
-		} else if i == focusIndex {
-			// Highlight focused line
-			lineNodes = append(lineNodes, app.NewTextBuilder(line).
-				Style(style.NewStyle().Bold(true).Foreground(style.Yellow)).
-				Build())
-		} else {
-			lineNodes = append(lineNodes, ui.Text(line))
+	if si.selectedVNode != nil {
+		// User pressed Enter to select
+		targetVNode = si.selectedVNode
+		targetPath = si.selectedPath
+		displayType = "Selected"
+	} else if focusIndex >= 0 {
+		// Show focused item - use focusIndex to find node by index
+		// The tree lines match 1-to-1 with the flattened tree nodes
+		flatNodes := si.treeView.GetFlatList()
+		if focusIndex < len(flatNodes) {
+			node := flatNodes[focusIndex]
+			targetVNode = node.VNode
+			targetPath = node.Path
+			displayType = "Focused"
 		}
 	}
 
-	// Display visible lines in VStack
-	treePreview := ui.VStackBuilder(lineNodes...).
-		Width(si.overlayWidth - 4).
-		Build()
+	// Create info display
+	var selectedInfo rtui.VNode
+	if targetVNode != nil {
+		props := targetVNode.Props()
+		infoText := fmt.Sprintf("%s: %s", displayType, targetVNode.Type())
+		if props != nil {
+			if key, ok := props["key"]; ok && key != "" {
+				infoText += fmt.Sprintf(" (key: %v)", key)
+			}
+		}
+
+		// Create separator line that fills the width
+		separator := strings.Repeat("─", si.overlayWidth-4)
+
+		selectedInfo = rtui.VStack(
+			app.NewTextBuilder(separator).
+				Style(style.Foreground(theme.Muted())).
+				Build(),
+			app.NewTextBuilder(infoText).
+				Style(style.FgBold(style.Yellow)).
+				Build(),
+			app.NewTextBuilder(fmt.Sprintf("Path: %s", targetPath)).
+				Style(style.Foreground(style.Cyan)).
+				Build(),
+			app.NewTextBuilder("").
+				Build(),
+		)
+	} else {
+		// No selection or focus - show empty placeholder
+		separator := strings.Repeat("─", si.overlayWidth-4)
+
+		selectedInfo = rtui.VStack(
+			app.NewTextBuilder(separator).
+				Style(style.Foreground(theme.Muted())).
+				Build(),
+			app.NewTextBuilder("").
+				Build(),
+		)
+	}
+
+	// TreeView implements Measurable interface and will receive bounded constraints from parent
+	// Set Flex prop directly on TreeView so it can grow to fill available space
+	si.treeViewComponent.SetProp("flex", 1)
+	treePreview := si.treeViewComponent // Directly use TreeView, no wrapper!
 
 	// Instructions
+	separator := strings.Repeat("─", si.overlayWidth-4)
 	instructions := rtui.VStack(
-		app.NewTextBuilder("─").
+		app.NewTextBuilder(separator).
 			Style(style.Foreground(theme.Muted())).
 			Build(),
 		app.NewTextBuilder("Instructions:").
@@ -567,12 +599,25 @@ func (si *StandaloneInspector) buildElementsTabContent() rtui.VNode {
 			Build(),
 	)
 
-	return rtui.VStack(
+	// Build the content VStack with explicit height constraint
+	// Using Height() prop makes VStack pass bounded constraints to its children (including TreeView)
+	// This is the GENERAL solution for constraint propagation in layout system
+
+	// Calculate available height: overlayHeight(25) - titleBar(3) - tabBar(1) - separator(1) = 20
+	availableHeight := si.overlayHeight - 5
+	if availableHeight < 1 {
+		availableHeight = 1
+	}
+
+	return ui.VStackBuilder(
 		header,
 		selectedInfo,
-		treePreview,
+		treePreview, // TreeView will receive bounded height constraints
 		instructions,
-	)
+	).
+		Width(si.overlayWidth - 4).
+		Height(availableHeight). // ← This triggers constraint propagation to children!
+		Build()
 }
 
 // buildConsoleTabContent builds content for Console tab
@@ -694,6 +739,121 @@ func (si *StandaloneInspector) buildNetworkTabContent() rtui.VNode {
 	)
 }
 
+// buildLayoutTabContent builds content for Layout Diagnostics tab
+func (si *StandaloneInspector) buildLayoutTabContent() rtui.VNode {
+	// Create diagnostic instance
+	diagnostic := NewLayoutDiagnostic()
+
+	// Analyze the selected node if available, otherwise analyze the entire app root
+	var targetVNode rtui.VNode
+	var displayText string
+
+	if si.selectedVNode != nil {
+		targetVNode = si.selectedVNode
+		displayText = fmt.Sprintf("Selected: %s", si.selectedVNode.Type().String())
+	} else if si.appRoot != nil {
+		targetVNode = si.appRoot
+		displayText = "Analyzing entire app root"
+	} else {
+		return rtui.VStack(
+			app.NewTextBuilder("📐 Layout Diagnostics").
+				Style(style.FgBold(style.Green)).
+				Build(),
+			app.NewTextBuilder("").
+				Build(),
+			app.NewTextBuilder("No VNode to analyze").
+				Style(style.Foreground(theme.Muted())).
+				Build(),
+			app.NewTextBuilder("Select a node in Elements tab first").
+				Style(style.Foreground(theme.Muted())).
+				Build(),
+		)
+	}
+
+	// Analyze the target node
+	constraints := runtime.BoxConstraints{
+		MinWidth:  0,
+		MaxWidth: si.overlayWidth - 4,
+		MinHeight: 0,
+		MaxHeight: si.overlayHeight - 10,
+	}
+
+	result := diagnostic.AnalyzeSelectedNode(targetVNode, constraints)
+	formattedResult := diagnostic.FormatSingleResult(result)
+
+	// Split into lines for display
+	lines := strings.Split(formattedResult, "\n")
+
+	// Limit lines to fit in overlay
+	maxLines := si.overlayHeight - 8
+	if len(lines) > maxLines {
+		lines = lines[:maxLines]
+		lines = append(lines, "... (truncated)")
+	}
+
+	// Convert lines to VNodes
+	contentNodes := make([]rtui.VNode, 0, len(lines))
+	for _, line := range lines {
+		// Skip empty lines for cleaner display
+		if line == "" {
+			continue
+		}
+
+		// Colorize based on content
+		var text rtui.VNode
+		if strings.Contains(line, "✅") {
+			text = app.NewTextBuilder(line).
+				Style(style.FgBold(style.Green)).
+				Build()
+		} else if strings.Contains(line, "❌") {
+			text = app.NewTextBuilder(line).
+				Style(style.FgBold(style.Red)).
+				Build()
+		} else if strings.Contains(line, "⚠️") {
+			text = app.NewTextBuilder(line).
+				Style(style.FgBold(style.Yellow)).
+				Build()
+		} else if strings.Contains(line, "SELECTED NODE") || strings.Contains(line, "═") {
+			text = app.NewTextBuilder(line).
+				Style(style.FgBold(style.Cyan)).
+				Build()
+		} else if strings.Contains(line, "Constraints:") || strings.Contains(line, "Measured:") {
+			text = app.NewTextBuilder(line).
+				Style(style.Foreground(style.White)).
+				Build()
+		} else if strings.Contains(line, "Issues:") {
+			text = app.NewTextBuilder(line).
+				Style(style.FgBold(style.Yellow)).
+				Build()
+		} else {
+			text = app.NewTextBuilder(line).
+				Style(style.Foreground(style.White)).
+				Build()
+		}
+		contentNodes = append(contentNodes, text)
+	}
+
+	// Build the VStack with header and content
+	headerNodes := []rtui.VNode{
+		app.NewTextBuilder("📐 Layout Diagnostics").
+			Style(style.FgBold(style.Green)).
+			Build(),
+		app.NewTextBuilder(displayText).
+			Style(style.Foreground(style.Cyan)).
+			Build(),
+		app.NewTextBuilder("").
+			Build(),
+		app.NewTextBuilder("─").
+			Style(style.Foreground(theme.Muted())).
+			Build(),
+	}
+
+	// Combine header and content
+	allNodes := append(headerNodes, contentNodes...)
+
+	return rtui.VStack(allNodes...)
+}
+
 // buildConsoleTab builds the Console tab
 func (si *StandaloneInspector) buildConsoleTab() rtui.VNode {
 	return rtui.VStack(
@@ -718,11 +878,11 @@ func (si *StandaloneInspector) buildPerformanceTab() rtui.VNode {
 	// Build metrics display
 	metricsText := fmt.Sprintf(
 		"Frame Count: %d\n"+
-		"FPS: %.1f\n"+
-		"Avg Render Time: %s\n"+
-		"Memory: %s\n"+
-		"GC Count: %d\n"+
-		"Last GC: %s",
+			"FPS: %.1f\n"+
+			"Avg Render Time: %s\n"+
+			"Memory: %s\n"+
+			"GC Count: %d\n"+
+			"Last GC: %s",
 		metrics.FrameCount,
 		metrics.FPS,
 		metrics.AvgRenderTime,
@@ -762,10 +922,10 @@ func (si *StandaloneInspector) buildDiagnosticsTab() rtui.VNode {
 	// Build summary
 	summaryText := fmt.Sprintf(
 		"Total Problems: %d\n"+
-		"Critical: %d\n"+
-		"Errors: %d\n"+
-		"Warnings: %d\n"+
-		"Info: %d",
+			"Critical: %d\n"+
+			"Errors: %d\n"+
+			"Warnings: %d\n"+
+			"Info: %d",
 		len(problems),
 		counts[SeverityCritical],
 		counts[SeverityError],
@@ -875,17 +1035,17 @@ func (si *StandaloneInspector) ExportReport() string {
 
 	report := fmt.Sprintf(
 		"=== Standalone Inspector Report ===\n\n"+
-		"Performance:\n"+
-		"  FPS: %.1f\n"+
-		"  Memory: %s\n"+
-		"  Frames: %d\n"+
-		"  GC Count: %d\n\n"+
-		"Layout Tree:\n"+
-		"  Nodes: %d\n"+
-		"  Depth: %d\n"+
-		"  Leaves: %d\n\n"+
-		"Diagnostics:\n"+
-		"  Problems: %d\n",
+			"Performance:\n"+
+			"  FPS: %.1f\n"+
+			"  Memory: %s\n"+
+			"  Frames: %d\n"+
+			"  GC Count: %d\n\n"+
+			"Layout Tree:\n"+
+			"  Nodes: %d\n"+
+			"  Depth: %d\n"+
+			"  Leaves: %d\n\n"+
+			"Diagnostics:\n"+
+			"  Problems: %d\n",
 		metrics.FPS,
 		formatBytes(metrics.LastHeapAlloc),
 		metrics.FrameCount,
@@ -1144,10 +1304,18 @@ func (si *StandaloneInspector) HandleKeyEvent(key string, alt bool, ctrl bool, s
 	// Debug output for key detection
 	if os.Getenv("TUI_DEBUG_UI") == "true" || os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
 		modifiers := ""
-		if alt { modifiers += "Alt+" }
-		if ctrl { modifiers += "Ctrl+" }
-		if shift { modifiers += "Shift+" }
-		if modifiers == "" { modifiers = "none" }
+		if alt {
+			modifiers += "Alt+"
+		}
+		if ctrl {
+			modifiers += "Ctrl+"
+		}
+		if shift {
+			modifiers += "Shift+"
+		}
+		if modifiers == "" {
+			modifiers = "none"
+		}
 		fmt.Fprintf(os.Stderr, "[Inspector] Key received: key='%s' modifiers=%s showKeyDebug=%v\n",
 			key, modifiers, si.showKeyDebug)
 	}
@@ -1156,6 +1324,18 @@ func (si *StandaloneInspector) HandleKeyEvent(key string, alt bool, ctrl bool, s
 	if key == "d" && ctrl {
 		si.showKeyDebug = !si.showKeyDebug
 		fmt.Fprintf(os.Stderr, "[Inspector] showKeyDebug toggled to %v\n", si.showKeyDebug)
+		return true
+	}
+
+	// Layout Dump with Ctrl+L
+	if key == "l" && ctrl {
+		if si.appRoot != nil {
+			analyzer := NewLayoutAnalyzer()
+			snapshot := analyzer.Capture(si.appRoot, 0)
+			treeStr := analyzer.FormatTree(snapshot)
+			_ = os.WriteFile("layout_dump.txt", []byte(treeStr), 0644)
+			fmt.Fprintf(os.Stderr, "[Inspector] Layout dump saved to layout_dump.txt\n")
+		}
 		return true
 	}
 
@@ -1213,6 +1393,10 @@ func (si *StandaloneInspector) HandleKeyEvent(key string, alt bool, ctrl bool, s
 		return true
 	}
 	if key == "5" {
+		si.activeTab = TabLayout
+		return true
+	}
+	if key == "6" {
 		si.activeTab = TabNetwork
 		return true
 	}
@@ -1280,6 +1464,23 @@ func (si *StandaloneInspector) HandleKeyEvent(key string, alt bool, ctrl bool, s
 			case "enter":
 				platformKey = platform.KeyEnter
 				handled = si.treeViewComponent.HandleKey(platformKey, r)
+
+				// Update selected node info when Enter is pressed
+				if handled {
+					selectedLine := si.treeViewComponent.GetSelectedLine()
+					if selectedLine.NodeID >= 0 && selectedLine.Path != "" {
+						// Find the node by path and update selection
+						node := si.treeView.FindNodeByPath(selectedLine.Path)
+						if node != nil {
+							si.selectedVNode = node.VNode
+							si.selectedPath = selectedLine.Path
+							if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
+								fmt.Fprintf(os.Stderr, "[Inspector] Selected node: %s (path: %s)\n",
+									node.Info.Type, selectedLine.Path)
+							}
+						}
+					}
+				}
 			}
 
 			if handled {
