@@ -182,6 +182,26 @@ func (p *RenderingPipeline) RenderLayers(
 		return err
 	}
 
+	// 验证 buffer 内容
+	if os.Getenv("TUI_PIPELINE_DEBUG") == "true" || os.Getenv("TUI_DEBUG_RENDERING") == "true" {
+		contentCount := 0
+		for y := 0; y < buffer.Height; y++ {
+			for x := 0; x < buffer.Width; x++ {
+				if buffer.Cells[y][x].Cluster != "" {
+					contentCount++
+				}
+			}
+		}
+		fmt.Fprintf(os.Stderr, "[RenderLayers] Buffer content after PaintLayers: %d cells (buffer size: %dx%d)\n",
+			contentCount, buffer.Width, buffer.Height)
+
+		if contentCount == 0 {
+			fmt.Fprintf(os.Stderr, "[RenderLayers] ⚠️  WARNING: Buffer is empty!\n")
+		} else {
+			fmt.Fprintf(os.Stderr, "[RenderLayers] ✅ Buffer has content\n")
+		}
+	}
+
 	return nil
 }
 

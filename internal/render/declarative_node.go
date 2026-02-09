@@ -13,6 +13,7 @@ import (
 	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/border"
 	"github.com/wwsheng009/mint/runtime/paint"
+	"github.com/wwsheng009/mint/runtime/render"
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
@@ -1685,4 +1686,20 @@ func (n *DeclarativeNode) requestRender(useFiber bool, reconciler rtui.Reconcile
 			fwApp.MarkDirty()
 		}
 	}
+}
+
+
+
+// GetHooks returns the HookManager for registering VNode transformation hooks.
+// This delegates to the underlying PipelineRendererAdapter.
+func (n *DeclarativeNode) GetHooks() *render.HookManager {
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+
+	// Get the renderer (should be PipelineRendererAdapter)
+	if adapter, ok := n.renderer.(*PipelineRendererAdapter); ok {
+		return adapter.GetHooks()
+	}
+
+	return nil
 }

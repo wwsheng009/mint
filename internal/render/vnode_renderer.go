@@ -4,6 +4,7 @@ package render
 import (
 	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/paint"
+	"github.com/wwsheng009/mint/runtime/render"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
 
@@ -259,5 +260,11 @@ func (r *PipelineRendererAdapter) GetPipeline() *PipelineRenderer {
 // This is the recommended way to access the pipeline for layout-aware rendering.
 func (r *PipelineRendererAdapter) GetRenderingPipeline() *RenderingPipeline {
 	return r.pipeline.GetRenderingPipeline()
+}
+
+// GetHooks returns the HookManager for registering VNode transformation hooks.
+// This allows framework to register Inspector and other overlay hooks.
+func (r *PipelineRendererAdapter) GetHooks() *render.HookManager {
+	return r.pipeline.GetHooks()
 }
 

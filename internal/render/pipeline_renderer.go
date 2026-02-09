@@ -8,6 +8,7 @@ import (
 	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/layer"
 	"github.com/wwsheng009/mint/runtime/paint"
+	"github.com/wwsheng009/mint/runtime/render"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
 
@@ -20,10 +21,12 @@ import (
 // - Caching for leaf nodes
 // - Multi-layer rendering support (Modal, Overlay, Tooltip)
 // - Better separation of concerns
+// - Hook system for VNode transformation (e.g., Inspector injection)
 type PipelineRenderer struct {
 	pipeline    *RenderingPipeline
 	layerMgr    *layer.Manager
 	layerEvents *layer.EventHandler
+	hooks       *render.HookManager
 	debug       bool
 }
 
@@ -34,6 +37,7 @@ func NewPipelineRenderer() *PipelineRenderer {
 		pipeline:    NewRenderingPipeline(),
 		layerMgr:    layerMgr,
 		layerEvents: layer.NewEventHandler(layerMgr),
+		hooks:       render.NewHookManager(),
 		debug:       os.Getenv("TUI_PIPELINE_DEBUG") == "true",
 	}
 }
@@ -53,6 +57,10 @@ func (r *PipelineRenderer) Render(vnode rtui.VNode, x, y int, buffer interface{}
 	if buf == nil {
 		return nil
 	}
+
+	// Apply VNode hooks (e.g., Inspector injection)
+	// Hooks can modify the VNode tree before rendering
+	vnode = r.hooks.ApplyVNodeHooks(vnode)
 
 	// For the new pipeline, we use the buffer size as constraints
 	width := buf.Width
@@ -127,6 +135,13 @@ func (r *PipelineRenderer) hasLayerNodes(vnode rtui.VNode) bool {
 // This allows calling the constraint-based Render method directly.
 func (r *PipelineRenderer) GetRenderingPipeline() *RenderingPipeline {
 	return r.pipeline
+}
+
+// GetHooks returns the HookManager for registering VNode transformation hooks.
+// This allows external code (like framework) to register hooks for features
+// like Inspector injection.
+func (r *PipelineRenderer) GetHooks() *render.HookManager {
+	return r.hooks
 }
 
 // Measure implements the VNodeRenderer Measure interface
