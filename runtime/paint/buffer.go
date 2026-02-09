@@ -3,7 +3,6 @@ package paint
 import (
 	"strings"
 
-	"github.com/mattn/go-runewidth"
 	"github.com/rivo/uniseg"
 	"github.com/wwsheng009/mint/runtime/style"
 )
@@ -63,7 +62,7 @@ func getRuneWidth(char rune) int {
 		'┼': // Cross connector
 		return 1
 	default:
-		return runewidth.RuneWidth(char)
+		return RuneWidth(char)
 	}
 }
 
