@@ -132,7 +132,7 @@ func NewAppWithSource(source frameworkevent.EventSource) *App {
 		router:       frameworkevent.NewRouter(),
 		keyMap:       frameworkevent.NewKeyMap(),
 		eventFilter:  func(ev frameworkevent.Event) bool { return true },
-			quit:         make(chan struct{}, 1),
+		quit:         make(chan struct{}, 1),
 		tickInterval: 16 * time.Millisecond,
 		firstRender:  true,
 		debugMode:    os.Getenv("TUI_DEBUG") == "true",
@@ -409,9 +409,10 @@ func (a *App) OnKeyCombo(combo string, handler func()) {
 // Inspector会自动通过hook系统集成到渲染流程中
 //
 // 使用示例:
-//   inspector := inspector.NewStandaloneInspector()
-//   app.SetInspector(inspector)
-//   app.SetupInspectorShortcut()
+//
+//	inspector := inspector.NewStandaloneInspector()
+//	app.SetInspector(inspector)
+//	app.SetupInspectorShortcut()
 func (a *App) SetInspector(inspector interface{}) {
 	a.inspector = inspector
 	if i, ok := inspector.(interface{ IsVisible() bool }); ok {
@@ -439,9 +440,10 @@ func (a *App) isInspectorVisible() bool {
 // 这是一个便捷方法，用于在框架级别启用 Inspector 快捷键
 //
 // 使用示例:
-//   app := framework.NewApp()
-//   app.SetInspector(inspector)
-//   app.SetupInspectorShortcut() // 启用 F12 切换 Inspector
+//
+//	app := framework.NewApp()
+//	app.SetInspector(inspector)
+//	app.SetupInspectorShortcut() // 启用 F12 切换 Inspector
 func (a *App) SetupInspectorShortcut() {
 	if a.inspector == nil {
 		if os.Getenv("TUI_DEBUG_UI") == "true" {
@@ -495,19 +497,17 @@ func (a *App) SetupInspectorShortcut() {
 		a.moveInspector(0, 1)
 	})
 
-	// 注册数字键 1-5 来切换 Inspector 标签页
-	for i := 1; i <= 5; i++ {
-		tabNum := i
-		key := fmt.Sprintf("%d", i)
-		a.OnKeyCombo(key, func() {
-			a.switchInspectorTab(tabNum)
-		})
-	}
+	// REMOVED: Number keys 1-5 are now handled directly by the Inspector's HandleKeyEvent
+	// via the event routing fallback. This avoids interface signature mismatches and
+	// allows the Inspector to handle any number of tabs dynamically.
+	//
+	// The routing logic at the end of handleEvent() will forward any unhandled keys
+	// to the Inspector if it is visible.
 
 	if os.Getenv("TUI_DEBUG_UI") == "true" {
 		fmt.Fprintf(os.Stderr, "[APP] Inspector shortcuts registered: F12, Ctrl+D (toggle)\n")
 		fmt.Fprintf(os.Stderr, "[APP] Panel movement: Alt+H/J/K/L or Alt+Arrow keys\n")
-		fmt.Fprintf(os.Stderr, "[APP] Tab switching: 1-5\n")
+		fmt.Fprintf(os.Stderr, "[APP] Tab switching: 1-6 (handled dynamically)\n")
 		fmt.Fprintf(os.Stderr, "[APP] Tree scroll: PgUp/PgDn, Home/End (when Elements tab active)\n")
 	}
 }
@@ -567,10 +567,10 @@ func (a *App) switchInspectorTab(tabNum int) {
 
 	// 调用 Inspector 的 HandleKeyEvent 方法
 	if inspectorObj, ok := a.inspector.(interface {
-		HandleKeyEvent(key string, alt, ctrl bool) bool
+		HandleKeyEvent(key string, alt, ctrl, shift bool) bool
 	}); ok {
 		key := fmt.Sprintf("%d", tabNum)
-		if inspectorObj.HandleKeyEvent(key, false, false) {
+		if inspectorObj.HandleKeyEvent(key, false, false, false) {
 			a.dirty = true // 触发重绘
 
 			if os.Getenv("TUI_DEBUG_UI") == "true" || os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
@@ -579,8 +579,6 @@ func (a *App) switchInspectorTab(tabNum int) {
 		}
 	}
 }
-
-
 
 // OnEvent 注册事件处理
 func (a *App) OnEvent(eventType frameworkevent.EventType, handler frameworkevent.EventHandler) func() {

@@ -32,6 +32,7 @@ type TreeView struct {
 	maxDepth         int             // Maximum traversal depth
 	maxNodes         int             // Maximum nodes to display
 	changeCount      int64           // Counter for tree changes (structure or expansion)
+	lastRootVNode    ui.VNode        // Last root VNode (to avoid unnecessary rebuilds)
 }
 
 // NewTreeView creates a new TreeView instance
@@ -50,12 +51,28 @@ func NewTreeView() *TreeView {
 func (tv *TreeView) SetRoot(root ui.VNode) error {
 	if root == nil {
 		tv.root = nil
+		tv.lastRootVNode = nil
+		return nil
+	}
+
+	// Check if VNode has actually changed (by pointer comparison)
+	// This avoids expensive tree rebuilding when the same VNode is passed multiple times
+	if tv.lastRootVNode == root {
+		if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
+			fmt.Fprintf(os.Stderr, "[TreeView] SetRoot: VNode unchanged, skipping rebuild\n")
+		}
 		return nil
 	}
 
 	// Build tree structure (root has index 0)
 	tv.root = tv.buildTree(root, nil, 0, "", 0)
+	tv.lastRootVNode = root
 	tv.changeCount++
+
+	if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
+		fmt.Fprintf(os.Stderr, "[TreeView] SetRoot: VNode changed, rebuilding tree (changeCount=%d)\n", tv.changeCount)
+	}
+
 	return nil
 }
 

@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/wwsheng009/mint/app"
+	"github.com/wwsheng009/mint/components/container"
 	"github.com/wwsheng009/mint/components/display"
 	"github.com/wwsheng009/mint/components/navigation"
 	"github.com/wwsheng009/mint/framework/theme"
@@ -83,9 +84,12 @@ type StandaloneInspector struct {
 	showKeyDebug bool   // Show key debug info in UI
 
 	// Update throttling
-	lastUpdate          time.Time
-	updateInterval      time.Duration
-	lastTreeChangeCount int64 // Track tree view changes to avoid regenerating lines
+	lastUpdate     time.Time
+	updateInterval time.Duration
+
+	// VNode change tracking (to avoid unnecessary tree rebuilds)
+	lastRootVNode       ui.VNode // Last root VNode that was attached
+	lastTreeChangeCount int64    // Track tree view changes to avoid regenerating lines
 }
 
 // InspectorTab represents different inspector panels
@@ -217,8 +221,22 @@ func (si *StandaloneInspector) AttachToApp(root rtui.VNode) {
 	}
 	si.lastUpdate = time.Now()
 
-	// Update tree view (expensive recursive build)
+	// Check if VNode has actually changed (by pointer comparison)
+	// This avoids expensive tree rebuilding when the same VNode is passed multiple times
+	if si.lastRootVNode == root {
+		if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
+			fmt.Fprintf(os.Stderr, "[Inspector] AttachToApp: VNode unchanged, skipping SetRoot\n")
+		}
+		return
+	}
+
+	// Update tree view (expensive recursive build) - only if VNode changed
 	si.treeView.SetRoot(root)
+	si.lastRootVNode = root
+
+	if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
+		fmt.Fprintf(os.Stderr, "[Inspector] AttachToApp: VNode changed, SetRoot called\n")
+	}
 
 	// Run diagnostics if visible AND on diagnostics tab
 	// Analyze is very expensive (full tree traversal + rule checking)
@@ -302,18 +320,7 @@ func (si *StandaloneInspector) RenderContent() rtui.VNode {
 // buildOverlayContent builds the overlay UI using Tab and ScrollView components
 // Returns a modern inspector panel with reusable components
 func (si *StandaloneInspector) buildOverlayContent() rtui.VNode {
-	// Create title bar
-	titleBarParts := []rtui.VNode{
-		app.NewTextBuilder("╔═ INSPECTOR ═╗").
-			Style(style.NewStyle().Bold(true).Foreground(style.Blue).Background(style.Yellow).Reverse(true)).
-			Build(),
-		app.NewTextBuilder("F12:关闭 | Alt+H/J/K/L:移动 | Ctrl+D:按键调试").
-			Style(style.NewStyle().Foreground(style.White).Background(style.Blue).Reverse(true)).
-			Build(),
-	}
-
-	// Add key debug info (always visible when Inspector is shown)
-	// Shows what key was last pressed
+	// Build combined header line: shortcuts + last key
 	modifiers := ""
 	if si.lastAlt {
 		modifiers += "Alt+"
@@ -328,14 +335,12 @@ func (si *StandaloneInspector) buildOverlayContent() rtui.VNode {
 		modifiers = "无"
 	}
 
-	keyInfo := fmt.Sprintf("🔍 Last key: '%s' (%s)", si.lastKey, modifiers)
-	titleBarParts = append(titleBarParts,
-		app.NewTextBuilder(keyInfo).
-			Style(style.NewStyle().Foreground(style.Yellow).Background(style.Blue).Reverse(true)).
-			Build(),
-	)
+	keyInfo := fmt.Sprintf("🔍 '%s' (%s)", si.lastKey, modifiers)
+	headerText := fmt.Sprintf("F12:关闭 | Alt+J/K/L:移动 | Ctrl+D:调试 | %s", keyInfo)
 
-	titleBar := rtui.VStack(titleBarParts...)
+	titleBar := app.NewTextBuilder(headerText).
+		Style(style.NewStyle().Foreground(style.White).Background(style.Blue).Bold(true)).
+		Build()
 
 	// Create tabs using Tab component
 	tabItems := []*navigation.TabItem{
@@ -355,33 +360,25 @@ func (si *StandaloneInspector) buildOverlayContent() rtui.VNode {
 	}
 	tabsBuilder.ActiveTab(int(si.activeTab))
 
-	// Calculate available height for tabs content
-	// Subtract title bar (3 lines) and separator (1 line) from total overlay height
-	tabsHeight := si.overlayHeight - 4
-	if tabsHeight < 1 {
-		tabsHeight = 1
-	}
-	tabsBuilder.Height(tabsHeight)
-
+	// No manual height calculation needed!
+	// Panel + Flex layout handles this automatically.
 	tabsComponent := tabsBuilder.Build()
 
-	// Combine title bar, tabs, and separator
-	content := rtui.VStack(
-		titleBar,
-		tabsComponent,
-		ui.Text("─"), // Separator
-	)
-
-	// Wrap in bordered box
-	panel := rtui.Bordered().
-		Style(string(theme.Border())).
-		Child(content).
+	// Use the new Panel component
+	panel := container.PanelBuilder().
+		Header(titleBar).
+		Content(tabsComponent).
+		Footer(ui.Text("─")). // Bottom separator
 		Width(si.overlayWidth).
 		Height(si.overlayHeight).
 		Build()
 
 	// Set background on panel
-	panel.SetStyle(style.NewStyle().Background(style.Blue))
+	// Note: We need to cast to Stylable or set prop if Panel doesn't expose it directly via builder
+	// Panel wraps BorderedNode, which supports SetStyle
+	if stylable, ok := panel.(interface{ SetStyle(style.Style) }); ok {
+		stylable.SetStyle(style.NewStyle().Background(style.Blue))
+	}
 
 	return panel
 }
@@ -514,6 +511,10 @@ func (si *StandaloneInspector) buildElementsTabContent() rtui.VNode {
 
 		if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
 			fmt.Fprintf(os.Stderr, "[Inspector] Tree lines regenerated (count: %d)\n", len(si.treeLines))
+			// Log first few lines to debug
+			for i := 0; i < min(5, len(si.treeLines)); i++ {
+				fmt.Fprintf(os.Stderr, "[Inspector] Tree line %d: %q\n", i, si.treeLines[i])
+			}
 		}
 	}
 
@@ -528,6 +529,9 @@ func (si *StandaloneInspector) buildElementsTabContent() rtui.VNode {
 	} else {
 		// Update existing TreeView with new lines WITHOUT creating a new instance
 		// This preserves the viewportHeight that was set by the layout engine
+		if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
+			fmt.Fprintf(os.Stderr, "[Inspector] Updating TreeViewComponent with %d lines\n", len(si.treeLines))
+		}
 		si.treeViewComponent.UpdateLines(si.treeLines)
 	}
 	// Get focused line index to display above tree
@@ -624,16 +628,10 @@ func (si *StandaloneInspector) buildElementsTabContent() rtui.VNode {
 			Build(),
 	)
 
-	// Build the content VStack with explicit height constraint
-	// Using Height() prop makes VStack pass bounded constraints to its children (including TreeView)
-	// This is the GENERAL solution for constraint propagation in layout system
-
-	// Calculate available height: overlayHeight(25) - titleBar(3) - tabBar(1) - separator(1) = 20
-	availableHeight := si.overlayHeight - 5
-	if availableHeight < 1 {
-		availableHeight = 1
-	}
-
+	// Build the content VStack
+	// Using Flex(1) makes the VStack expand to fill the Tabs content area
+	// The Tabs component will pass the available height constraint to this VStack
+	// The VStack will then distribute this height to its children (specifically TreeView with flex=1)
 	return ui.VStackBuilder(
 		header,
 		selectedInfo,
@@ -641,7 +639,7 @@ func (si *StandaloneInspector) buildElementsTabContent() rtui.VNode {
 		instructions,
 	).
 		Width(si.overlayWidth - 4).
-		Height(availableHeight). // ← This triggers constraint propagation to children!
+		Flex(1). // Expand to fill Tab content area
 		Build()
 }
 
@@ -1400,48 +1398,48 @@ func (si *StandaloneInspector) HandleKeyEvent(key string, alt bool, ctrl bool, s
 		}
 	}
 
-	// Tab switching - return false to let event propagate and trigger re-render
+	// Tab switching
 	if key == "1" {
 		si.activeTab = TabElements
 		if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
 			fmt.Fprintf(os.Stderr, "[Inspector] Switched to Elements tab (key=1)\n")
 		}
-		return false  // Return false to propagate event and trigger re-render
+		return true
 	}
 	if key == "2" {
 		si.activeTab = TabConsole
 		if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
 			fmt.Fprintf(os.Stderr, "[Inspector] Switched to Console tab (key=2)\n")
 		}
-		return false
+		return true
 	}
 	if key == "3" {
 		si.activeTab = TabPerformance
 		if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
 			fmt.Fprintf(os.Stderr, "[Inspector] Switched to Performance tab (key=3)\n")
 		}
-		return false
+		return true
 	}
 	if key == "4" {
 		si.activeTab = TabDiagnostics
 		if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
 			fmt.Fprintf(os.Stderr, "[Inspector] Switched to Diagnostics tab (key=4)\n")
 		}
-		return false
+		return true
 	}
 	if key == "5" {
 		si.activeTab = TabLayout
 		if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
 			fmt.Fprintf(os.Stderr, "[Inspector] Switched to Layout tab (key=5)\n")
 		}
-		return false  // Return false to propagate event and trigger re-render
+		return true
 	}
 	if key == "6" {
 		si.activeTab = TabNetwork
 		if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
 			fmt.Fprintf(os.Stderr, "[Inspector] Switched to Network tab (key=6)\n")
 		}
-		return false
+		return true
 	}
 
 	// Tab cycling - cycle through inspector tabs
@@ -1474,7 +1472,14 @@ func (si *StandaloneInspector) HandleKeyEvent(key string, alt bool, ctrl bool, s
 	if si.activeTab == TabElements {
 		// If we have a TreeView component, delegate navigation to it
 		if si.treeViewComponent != nil {
-			treeViewHeight := si.overlayHeight - 14
+			// Calculate approximate tree view height for paging
+			// Overhead: Border(2) + Title(3) + Sep(1) + TabBar(1) + Header(3) + SelectedInfo(4) + Instructions(6) = 20
+			treeViewHeight := si.overlayHeight - 20
+			if treeViewHeight < 1 {
+				treeViewHeight = 1
+			}
+			// Note: We don't strictly need to set this here as Measure() will update it,
+			// but setting it helps with accurate Paging calculations before next render
 			si.treeViewComponent.SetViewportHeight(treeViewHeight)
 
 			// Map key strings to platform.SpecialKey and handle navigation
@@ -1541,7 +1546,11 @@ func (si *StandaloneInspector) HandleKeyEvent(key string, alt bool, ctrl bool, s
 		}
 
 		// Fallback to old scrolling behavior if TreeView not available
-		treeViewHeight := si.overlayHeight - 14
+		// Overhead: Border(2) + Title(3) + Sep(1) + TabBar(1) + Header(3) + SelectedInfo(4) + Instructions(6) = 20
+		treeViewHeight := si.overlayHeight - 20
+		if treeViewHeight < 1 {
+			treeViewHeight = 1
+		}
 		maxOffset := len(si.treeLines) - treeViewHeight
 		if maxOffset < 0 {
 			maxOffset = 0
