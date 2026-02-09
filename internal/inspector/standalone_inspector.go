@@ -122,9 +122,9 @@ func NewStandaloneInspector() *StandaloneInspector {
 		overlayWidth:  80,
 		overlayHeight: 25,
 		position:      PositionFloating, // Change to floating by default
-		// Floating position (top-right corner)
-		floatX:        80,  // Default X position
-		floatY:        5,   // Default Y position
+		// Floating position (left side, visible in 80-column terminal)
+		floatX:        0,   // Default X position (left edge)
+		floatY:        0,   // Default Y position (top edge)
 		isDragging:    false,
 	}
 }
@@ -245,6 +245,9 @@ func (si *StandaloneInspector) GetActiveTab() InspectorTab {
 
 // RenderOverlay renders the inspector overlay as a VNode
 // This is used in framework-level overlay mode (LayerInspector)
+//
+// Deprecated: Use RenderContent() instead. This method will be removed
+// once the hook system is fully integrated.
 func (si *StandaloneInspector) RenderOverlay() rtui.VNode {
 	si.mu.RLock()
 	defer si.mu.RUnlock()
@@ -260,6 +263,21 @@ func (si *StandaloneInspector) RenderOverlay() rtui.VNode {
 	content.SetLayer(rtui.LayerInspector)
 
 	return content
+}
+
+// RenderContent renders the inspector UI content without setting Layer
+// This is used by the hook system. The hook will set LayerInspector
+// and position the overlay, keeping this method purely focused on UI.
+func (si *StandaloneInspector) RenderContent() rtui.VNode {
+	si.mu.RLock()
+	defer si.mu.RUnlock()
+
+	if !si.visible {
+		return nil
+	}
+
+	// Build overlay content (UI only, no Layer set)
+	return si.buildOverlayContent()
 }
 
 // buildOverlayContent builds the overlay UI using Tab and ScrollView components
