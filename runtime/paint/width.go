@@ -2,27 +2,34 @@ package paint
 
 import (
 	"github.com/mattn/go-runewidth"
+	"github.com/rivo/uniseg"
 )
+
+var tuiWidthCondition = &runewidth.Condition{
+	EastAsianWidth: false,
+}
 
 // StringWidth calculates the display width of text for TUI rendering.
 //
-// For Unicode Box Drawing characters (U+2500-U+257F), returns 1 instead of runewidth's 2.
-// This ensures correct cursor tracking and cell width calculation in TUI.
-//
-// For multi-character clusters (emoji, etc.) or regular text, uses runewidth.
-//
-// This is the recommended function for all TUI width calculations.
+// Width is measured by grapheme cluster to avoid over-counting joined emoji
+// sequences, while still forcing box-drawing runes to width 1.
 func StringWidth(text string) int {
-	runes := []rune(text)
-	if len(runes) == 1 {
-		ch := runes[0]
-		// Unicode Box Drawing block - always treat as width 1 for TUI
-		if ch >= 0x2500 && ch <= 0x257F {
-			return 1
-		}
+	if text == "" {
+		return 0
 	}
-	// For multi-character clusters (emoji, etc.) or regular text, use runewidth
-	return runewidth.StringWidth(text)
+
+	width := 0
+	g := uniseg.NewGraphemes(text)
+	for g.Next() {
+		cluster := g.Str()
+		runes := []rune(cluster)
+		if len(runes) == 1 {
+			width += RuneWidth(runes[0])
+			continue
+		}
+		width += tuiWidthCondition.StringWidth(cluster)
+	}
+	return width
 }
 
 // RuneWidth calculates the display width of a single rune for TUI rendering.
@@ -33,5 +40,5 @@ func RuneWidth(r rune) int {
 	if r >= 0x2500 && r <= 0x257F {
 		return 1
 	}
-	return runewidth.RuneWidth(r)
+	return tuiWidthCondition.RuneWidth(r)
 }

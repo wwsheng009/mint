@@ -3,7 +3,6 @@ package paint
 import (
 	"strings"
 
-	"github.com/mattn/go-runewidth"
 	"github.com/rivo/uniseg"
 	"github.com/wwsheng009/mint/runtime/style"
 )
@@ -54,14 +53,14 @@ func getRuneWidth(char rune) int {
 	// These characters should be treated as single-width for TUI borders
 	switch char {
 	case '┌', '┐', '└', '┘', // Corners
-		'─', '│',           // Lines
-		'╔', '╗', '╚', '╝',  // Double corners
-		'═', '║',           // Double lines
-		'╭', '╮', '╰', '╯',  // Rounded corners
-		'+', '|':             // ASCII style
+		'─', '│', // Lines
+		'╔', '╗', '╚', '╝', // Double corners
+		'═', '║', // Double lines
+		'╭', '╮', '╰', '╯', // Rounded corners
+		'+', '|': // ASCII style
 		return 1
 	default:
-		return runewidth.RuneWidth(char)
+		return RuneWidth(char)
 	}
 }
 
@@ -109,8 +108,8 @@ func (b *Buffer) SetString(x, y int, text string, s style.Style) {
 	g := uniseg.NewGraphemes(text)
 
 	for g.Next() {
-		cluster := g.Str()                         // 完整字形簇
-		width := getClusterWidth(cluster)           // 使用正确的宽度计算（边框字符为宽度1）
+		cluster := g.Str()                // 完整字形簇
+		width := getClusterWidth(cluster) // 使用正确的宽度计算（边框字符为宽度1）
 
 		// 边界检查
 		if col >= b.Width {
