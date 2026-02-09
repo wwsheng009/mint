@@ -103,20 +103,10 @@ type App struct {
 	inspector        interface{} // *inspector.StandaloneInspector (avoid import cycle)
 	inspectorEnabled bool
 	inspectorVisible bool
-
-	// ============================================================================
-	// Layer 系统支持
-	// ============================================================================
-	// useLayers 控制是否显式使用 Layer 系统
-	// 注意：当前 Layer 系统已经集成在 DeclarativeNode → PipelineRenderer → RenderingPipeline 中
-	// 这个标志主要用于调试和未来扩展
-	useLayers bool // 是否启用 Layer 系统（通过环境变量 TUI_USE_LAYERS=true 启用）
 }
 
 // NewApp 创建新应用
 func NewApp() *App {
-	useLayers := os.Getenv("TUI_USE_LAYERS") == "true"
-
 	app := &App{
 		router:       frameworkevent.NewRouter(),
 		keyMap:       frameworkevent.NewKeyMap(),
@@ -130,12 +120,6 @@ func NewApp() *App {
 		contextMgr:   core.NewContextManager(context.Background()),
 		userData:     make(map[string]interface{}),
 		renderer:     paint.NewRenderer(80, 24), // 新增：初始化 Renderer
-		useLayers:    useLayers, // Layer 系统开关
-	}
-
-	if useLayers && os.Getenv("TUI_DEBUG_UI") == "true" {
-		fmt.Fprintf(os.Stderr, "[APP] Layer system enabled (TUI_USE_LAYERS=true)\n")
-		fmt.Fprintf(os.Stderr, "[APP] Note: Layer rendering is handled by PipelineRenderer internally\n")
 	}
 
 	return app
@@ -420,8 +404,9 @@ func (a *App) OnKeyCombo(combo string, handler func()) {
 // Inspector 快捷键支持
 // ============================================================================
 
-// SetInspector 设置 Inspector 实例
+// SetInspector 设置 Inspector 实例并自动注册渲染hook
 // 这个方法用于注册 Inspector，使其可以通过 F12/Ctrl+D 切换
+// Inspector会自动通过hook系统集成到渲染流程中
 //
 // 使用示例:
 //   inspector := inspector.NewStandaloneInspector()
@@ -432,6 +417,10 @@ func (a *App) SetInspector(inspector interface{}) {
 	if i, ok := inspector.(interface{ IsVisible() bool }); ok {
 		a.inspectorVisible = i.IsVisible()
 	}
+
+	// 自动注册Inspector hook到渲染系统
+	// 使用接口避免import循环
+	a.registerInspectorHook(inspector)
 }
 
 // isInspectorVisible checks if the Inspector overlay is currently visible
