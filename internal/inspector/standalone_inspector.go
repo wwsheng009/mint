@@ -1678,6 +1678,12 @@ func (si *StandaloneInspector) HandleMouseEvent(eventType frameworkevent.EventTy
 	si.lastMouseButton = ev.Button
 	si.lastMouseEvent = eventType
 
+	// Debug logging for all mouse events
+	if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
+		fmt.Fprintf(os.Stderr, "[Inspector] HandleMouseEvent: type=%v, pos=(%d,%d), button=%d, visible=%v\n",
+			eventType, ev.X, ev.Y, ev.Button, si.visible)
+	}
+
 	// Update hovered VNode by hit testing current app root
 	if si.appRoot != nil {
 		if node := findVNodeAtRecursive(si.appRoot, ev.X, ev.Y, 0); node != nil {
@@ -1695,12 +1701,22 @@ func (si *StandaloneInspector) HandleMouseEvent(eventType frameworkevent.EventTy
 		minX, minY := si.floatX, si.floatY
 		maxX := si.floatX + si.overlayWidth
 		maxY := si.floatY + si.overlayHeight
+
+		if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
+			fmt.Fprintf(os.Stderr, "[Inspector] Overlay bounds: minX=%d, minY=%d, maxX=%d, maxY=%d\n",
+				minX, minY, maxX, maxY)
+			fmt.Fprintf(os.Stderr, "[Inspector] Mouse pos: (%d,%d), in overlay: %v\n",
+				ev.X, ev.Y, ev.X >= minX && ev.X < maxX && ev.Y >= minY && ev.Y < maxY)
+		}
+
 		if ev.X >= minX && ev.X < maxX && ev.Y >= minY && ev.Y < maxY {
 			// Mouse is over inspector overlay - try to dispatch to overlay components
 			// Create a new mouse event with local coordinates for the overlay
+			localX := ev.X - minX
+			localY := ev.Y - minY
 			localEv := &frameworkevent.MouseEvent{
-				X:      ev.X - minX,
-				Y:      ev.Y - minY,
+				X:      localX,
+				Y:      localY,
 				Button: ev.Button,
 			}
 
@@ -1708,14 +1724,19 @@ func (si *StandaloneInspector) HandleMouseEvent(eventType frameworkevent.EventTy
 			overlayContent := si.buildOverlayContent()
 			if component, ok := overlayContent.(frameworkevent.Component); ok {
 				if component.HandleEvent(localEv) {
+					if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
+						fmt.Fprintf(os.Stderr, "[Inspector] Event handled by overlay component\n")
+					}
 					return true // Event was handled by overlay component
 				}
 			}
 
-			// Fallback: attempt to handle overlay-level interactions (tabs) manually
-			if si.handleOverlayMouse(ev.X-minX, ev.Y-minY, eventType, ev.Button) {
-				return true
+			// Fallback: attempt to handle overlay-level interactions (tabs, treeview) manually
+			handled := si.handleOverlayMouse(localX, localY, eventType, ev.Button)
+			if handled && os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
+				fmt.Fprintf(os.Stderr, "[Inspector] Event handled by handleOverlayMouse\n")
 			}
+			return handled
 		}
 	}
 
