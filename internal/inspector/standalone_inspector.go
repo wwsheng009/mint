@@ -22,10 +22,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"fmt"
-	"os"
-	"strings"
-	"sync"
 	"time"
 
 	"github.com/wwsheng009/mint/app"
@@ -1720,12 +1716,14 @@ func (si *StandaloneInspector) HandleMouseEvent(eventType frameworkevent.EventTy
 			localX := ev.X - minX
 			localY := ev.Y - minY
 			localEv := &frameworkevent.MouseEvent{
-				X:      localX,
-				Y:      localY,
-				Button: ev.Button,
+				BaseEvent: frameworkevent.NewBaseEvent(eventType),
+				X:         localX,
+				Y:         localY,
+				Button:    ev.Button,
 			}
 
-			// Try to dispatch to the overlay content
+			// Try to dispatch to the overlay content using component system
+			// This allows each child component (TreeView, Tabs, etc.) to handle its own hit testing
 			overlayContent := si.buildOverlayContent()
 			if component, ok := overlayContent.(frameworkevent.Component); ok {
 				if component.HandleEvent(localEv) {
