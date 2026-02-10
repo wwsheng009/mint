@@ -1945,22 +1945,21 @@ func (si *StandaloneInspector) handleOverlayClick(localX, localY int) bool {
 		contentY := tabBarY + tabBarHeight
 		contentHeight := si.overlayHeight - contentY
 
-		if si.treeViewComponent.boundsX == 0 && si.treeViewComponent.boundsY == 0 {
-			// Bounds not set yet, set them now
-			si.treeViewComponent.SetBounds(0, contentY, si.overlayWidth, contentHeight)
+		// Always update bounds before handling event to ensure hit testing works
+		si.treeViewComponent.SetBounds(0, contentY, si.overlayWidth, contentHeight)
 
-			if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
-				fmt.Fprintf(os.Stderr, "[Inspector] Set TreeView bounds: x=0, y=%d, w=%d, h=%d\n",
-					contentY, si.overlayWidth, contentHeight)
-			}
+		if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
+			fmt.Fprintf(os.Stderr, "[Inspector] Set TreeView bounds: x=0, y=%d, w=%d, h=%d\n",
+				contentY, si.overlayWidth, contentHeight)
 		}
 
 		// Now try to handle the click through TreeView's own HandleEvent
 		// Convert global overlay Y to local TreeView coordinates
 		localEv := &frameworkevent.MouseEvent{
-			X:      localX,
-			Y:      localY,
-			Button: frameworkevent.MouseLeft,
+			BaseEvent: frameworkevent.NewBaseEvent(frameworkevent.EventMousePress),
+			X:         localX,
+			Y:         localY,
+			Button:    frameworkevent.MouseLeft,
 		}
 
 		// Let TreeView component handle the event
