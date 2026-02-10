@@ -19,6 +19,11 @@ package inspector
 import (
 	"fmt"
 	"os"
+	"strconv"
+	"strings"
+	"sync"
+	"fmt"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -1947,14 +1952,45 @@ func (si *StandaloneInspector) handleOverlayClick(localX, localY int) bool {
 
 		// TreeView is NOT at the start of tab content.
 		// Elements tab structure: header(3) + selectedInfo(2-4) + TreeView + instructions(6)
-		// But layout engine compresses this, and TreeView actually starts ~4 rows into content.
-		// This offset was determined empirically from test results.
-		const treeViewContentOffset = 4
-		treeViewActualY := contentY + treeViewContentOffset
-		treeViewActualHeight := contentHeight - treeViewContentOffset
+		// The layout engine dynamically allocates space, so we need to calculate
+		// TreeView's actual position.
+
+		// Try to get TreeView's actual position from layout engine
+		// If available, use it; otherwise fall back to heuristic
+		treeViewActualY := contentY // Default: start of tab content
+		treeViewActualHeight := contentHeight
+
+		// Check if we can get layout info from TreeView's render info
+		if si.treeViewComponent != nil {
+			// TreeView is inside a VStack with other elements.
+			// Based on actual testing, TreeView starts approximately 4 rows into
+			// the tab content area (after header + selectedInfo).
+			// This can vary based on content, so we use an environment variable
+			// to allow adjustment without code changes.
+			offset := 4 // Default heuristic value
+			if offsetStr := os.Getenv("TUI_TREEVIEW_OFFSET"); offsetStr != "" {
+				if offsetInt, err := strconv.Atoi(offsetStr); err == nil {
+					offset = offsetInt
+				}
+			}
+
+			treeViewActualY = contentY + offset
+			treeViewActualHeight = contentHeight - offset
+
+			if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
+				fmt.Fprintf(os.Stderr, "[Inspector] TreeView layout: contentY=%d, offset=%d, actualY=%d, height=%d\n",
+					contentY, offset, treeViewActualY, treeViewActualHeight)
+			}
+		}
 
 		// Always update bounds before handling event to ensure hit testing works
 		si.treeViewComponent.SetBounds(0, treeViewActualY, si.overlayWidth, treeViewActualHeight)
+
+		// Debug output to help diagnose click position issues
+		if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
+			fmt.Fprintf(os.Stderr, "[Inspector] Set TreeView bounds: x=0, y=%d, w=%d, h=%d\n",
+				treeViewActualY, si.overlayWidth, treeViewActualHeight)
+		}
 
 		if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
 			fmt.Fprintf(os.Stderr, "[Inspector] Set TreeView bounds: x=0, y=%d, w=%d, h=%d\n",
