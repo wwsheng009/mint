@@ -1940,52 +1940,66 @@ func (si *StandaloneInspector) handleOverlayClick(localX, localY int) bool {
 
 	// Handle TreeView clicks (Elements tab)
 	if si.activeTab == TabElements && si.treeViewComponent != nil {
-		// Calculate TreeView area based on actual layout
-		// From buildElementsTabContent:
-		//   - header: 3 lines
-		//   - selectedInfo: 4 lines (when has selection/focus)
-		//   - instructions: 6 lines
-		//   Total overhead: ~13 lines before TreeView
-		overhead := 13
-		treeViewStartY := overhead
+		// Ensure TreeView has bounds set for hit testing
+		// Set bounds to overlay content area (below tab bar)
+		contentY := tabBarY + tabBarHeight
+		contentHeight := si.overlayHeight - contentY
 
-		if localY >= treeViewStartY {
-			// Click is in TreeView area
-			// Calculate line index from Y coordinate
-			lineIndex := localY - treeViewStartY
+		if si.treeViewComponent.boundsX == 0 && si.treeViewComponent.boundsY == 0 {
+			// Bounds not set yet, set them now
+			si.treeViewComponent.SetBounds(0, contentY, si.overlayWidth, contentHeight)
 
-			// Debug logging
 			if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
-				fmt.Fprintf(os.Stderr, "[Inspector] TreeView click: localY=%d, lineIndex=%d, lineCount=%d\n",
+				fmt.Fprintf(os.Stderr, "[Inspector] Set TreeView bounds: x=0, y=%d, w=%d, h=%d\n",
+					contentY, si.overlayWidth, contentHeight)
+			}
+		}
+
+		// Now try to handle the click through TreeView's own HandleEvent
+		// Convert global overlay Y to local TreeView coordinates
+		localEv := &frameworkevent.MouseEvent{
+			X:      localX,
+			Y:      localY,
+			Button: frameworkevent.MouseLeft,
+		}
+
+		// Let TreeView component handle the event
+		if si.treeViewComponent.HandleEvent(localEv) {
+			if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
+				fmt.Fprintf(os.Stderr, "[Inspector] TreeView handled click at (X=%d, Y=%d)\n",
+					localX, localY)
+			}
+			return true
+		}
+
+		// Fallback: manual calculation
+		// Estimate TreeView start position
+		overhead := 12
+		if localY >= overhead {
+			lineIndex := localY - overhead
+
+			if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
+				fmt.Fprintf(os.Stderr, "[Inspector] Manual TreeView click: localY=%d, lineIndex=%d, lineCount=%d\n",
 					localY, lineIndex, si.treeViewComponent.GetLineCount())
 			}
 
-			// Check if line index is valid
 			if lineIndex >= 0 && lineIndex < si.treeViewComponent.GetLineCount() {
-				// Set focus to the clicked line
 				si.treeViewComponent.SetFocusIndex(lineIndex)
 
-				// Create and handle click action using the new event system
 				clickAction := &action.Action{
 					Type:     action.ActionClick,
 					Source:   "mouse",
-					TargetID: "", // TreeView will determine target
+					TargetID: "",
 				}
 
-				// Handle the action
 				handled := si.treeViewComponent.HandleAction(clickAction)
 
 				if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
-					fmt.Fprintf(os.Stderr, "[Inspector] TreeView clicked at line %d, handled=%v\n",
+					fmt.Fprintf(os.Stderr, "[Inspector] Manual TreeView click at line %d, handled=%v\n",
 						lineIndex, handled)
 				}
 
 				return handled
-			} else {
-				if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
-					fmt.Fprintf(os.Stderr, "[Inspector] TreeView click OUT OF RANGE: lineIndex=%d, lineCount=%d\n",
-						lineIndex, si.treeViewComponent.GetLineCount())
-				}
 			}
 		}
 	}
