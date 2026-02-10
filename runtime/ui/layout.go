@@ -511,6 +511,13 @@ func (l *LayoutNode) Measure(constraints runtime.BoxConstraints) runtime.Size {
 	totalWidth += paddingWidth
 	totalHeight += paddingHeight
 
+	// Respect explicit height prop when provided
+	if props := l.Props(); props != nil {
+		if explicitHeight := props.GetInt("height"); explicitHeight > 0 {
+			totalHeight = explicitHeight
+		}
+	}
+
 	// Apply MinWidth/MinHeight constraints
 	if totalWidth < constraints.MinWidth {
 		totalWidth = constraints.MinWidth

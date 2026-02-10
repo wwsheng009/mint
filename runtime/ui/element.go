@@ -10,6 +10,8 @@ type ElementVNode struct {
 	props     Props
 	children  []VNode
 	style     style.Style
+	// Layout bounds (set by layout engine for hit testing)
+	bounds [4]int // [x, y, width, height]
 }
 
 // NewElement creates a new element VNode
@@ -71,6 +73,17 @@ func (e *ElementVNode) SetStyle(s style.Style) {
 // Tag returns the element tag name
 func (e *ElementVNode) Tag() string {
 	return e.tag
+}
+
+// SetBounds sets the layout bounds (called by layout engine)
+// This enables hit testing for inspector hover detection
+func (e *ElementVNode) SetBounds(x, y, width, height int) {
+	e.bounds = [4]int{x, y, width, height}
+}
+
+// GetBounds returns the layout bounds [x, y, width, height]
+func (e *ElementVNode) GetBounds() [4]int {
+	return e.bounds
 }
 
 // AddChild adds a single child

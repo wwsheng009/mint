@@ -159,13 +159,19 @@ func findVNodeAtRecursive(vnode rtui.VNode, x, y int, depth int) rtui.VNode {
 
 // vnodeContains checks if a VNode contains the point (x, y)
 func vnodeContains(vnode rtui.VNode, x, y int) bool {
-	// Try to get bounds
+	// Try to get bounds - multiple interface signatures supported
+
+	// Signature 1: GetBounds() [4]int (array return)
 	if boundsAware, ok := vnode.(interface{ GetBounds() [4]int }); ok {
 		bounds := boundsAware.GetBounds()
 		// bounds = [x, y, width, height]
 		vx, vy, vw, vh := bounds[0], bounds[1], bounds[2], bounds[3]
+		return x >= vx && x < vx+vw && y >= vy && y < vy+vh
+	}
 
-		// Check if point is within bounds
+	// Signature 2: GetBounds() (int, int, int, int) (tuple return)
+	if boundsAware, ok := vnode.(interface{ GetBounds() (int, int, int, int) }); ok {
+		vx, vy, vw, vh := boundsAware.GetBounds()
 		return x >= vx && x < vx+vw && y >= vy && y < vy+vh
 	}
 

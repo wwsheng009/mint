@@ -4,27 +4,31 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	frameworkevent "github.com/wwsheng009/mint/framework/event"
 	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/ui"
 )
+
+// Ensure TabsVNode can handle framework events (mouse)
+var _ frameworkevent.Component = (*TabsVNode)(nil)
 
 // TabPosition defines where tabs are positioned relative to content
 type TabPosition int
 
 const (
 	TabPositionTop    TabPosition = iota // Tabs above content
-	TabPositionBottom                       // Tabs below content
-	TabPositionLeft                         // Tabs to the left of content
-	TabPositionRight                        // Tabs to the right of content
+	TabPositionBottom                    // Tabs below content
+	TabPositionLeft                      // Tabs to the left of content
+	TabPositionRight                     // Tabs to the right of content
 )
 
 // Tab represents a single tab in a Tabs component
 type TabItem struct {
 	ID       string
 	Label    string
-	Content  ui.VNode    // Content to show when tab is active
-	Key      string      // Optional key for diffing
-	Disabled bool        // Whether the tab is disabled
+	Content  ui.VNode // Content to show when tab is active
+	Key      string   // Optional key for diffing
+	Disabled bool     // Whether the tab is disabled
 }
 
 // =============================================================================
@@ -36,10 +40,16 @@ type TabsVNode struct {
 	*ui.ElementVNode
 	tabs      []TabItem
 	activeTab int
-	position  TabPosition     // Tab position (top, bottom, left, right)
-	onChange  func(string)     // Callback when tab changes
-	vertical  bool            // DEPRECATED: Use position instead
+	position  TabPosition         // Tab position (top, bottom, left, right)
+	onChange  func(string)        // Callback when tab changes
+	vertical  bool                // DEPRECATED: Use position instead
 	contents  map[string]ui.VNode // Tab content mapping
+
+	// Layout bounds for mouse hit testing
+	boundsX int
+	boundsY int
+	boundsW int
+	boundsH int
 }
 
 // NewTabs creates a new tabs component
@@ -76,6 +86,8 @@ func TabsBuilder() *TabsBuilderType {
 
 // Build returns the tabs ui.VNode
 func (b *TabsBuilderType) Build() ui.VNode {
+	// Ensure children reflect current active tab (tab bar + content)
+	b.node.updateActiveContent()
 	return b.node
 }
 
@@ -149,21 +161,93 @@ func (b *TabsBuilderType) Key(key string) *TabsBuilderType {
 }
 
 // Getters
-func (t *TabsVNode) Tabs() []TabItem     { return t.tabs }
-func (t *TabsVNode) ActiveTab() int        { return t.activeTab }
-func (t *TabsVNode) OnChange() func(string) { return t.onChange }
-func (t *TabsVNode) Vertical() bool         { return t.vertical }
+func (t *TabsVNode) Tabs() []TabItem               { return t.tabs }
+func (t *TabsVNode) ActiveTab() int                { return t.activeTab }
+func (t *TabsVNode) OnChange() func(string)        { return t.onChange }
+func (t *TabsVNode) Vertical() bool                { return t.vertical }
 func (t *TabsVNode) Contents() map[string]ui.VNode { return t.contents }
 
 // Setters
-func (t *TabsVNode) SetTabs(tabs []TabItem)      { t.tabs = tabs }
+func (t *TabsVNode) SetTabs(tabs []TabItem) { t.tabs = tabs }
 func (t *TabsVNode) SetActiveTab(index int) {
 	t.activeTab = index
 	// Update children to reflect the new active tab
 	t.updateActiveContent()
 }
 func (t *TabsVNode) SetOnChange(fn func(string)) { t.onChange = fn }
-func (t *TabsVNode) SetVertical(v bool)           { t.vertical = v }
+func (t *TabsVNode) SetVertical(v bool)          { t.vertical = v }
+
+// SetBounds stores layout bounds (called by layout engine when available).
+func (t *TabsVNode) SetBounds(x, y, width, height int) {
+	t.boundsX, t.boundsY, t.boundsW, t.boundsH = x, y, width, height
+}
+
+// Bounds returns the stored layout bounds.
+func (t *TabsVNode) Bounds() [4]int {
+	return [4]int{t.boundsX, t.boundsY, t.boundsW, t.boundsH}
+}
+
+// GetBounds (tuple form) used by hit-testing helpers.
+func (t *TabsVNode) GetBounds() (int, int, int, int) {
+	return t.boundsX, t.boundsY, t.boundsW, t.boundsH
+}
+
+// containsPoint checks if the coordinate is inside the tabs area.
+func (t *TabsVNode) containsPoint(x, y int) bool {
+	return x >= t.boundsX && x < t.boundsX+t.boundsW &&
+		y >= t.boundsY && y < t.boundsY+t.boundsH
+}
+
+// HandleEvent enables mouse tab switching.
+func (t *TabsVNode) HandleEvent(ev frameworkevent.Event) bool {
+	me, ok := ev.(*frameworkevent.MouseEvent)
+	if !ok || ev.Type() != frameworkevent.EventMousePress {
+		return false
+	}
+
+	if !t.containsPoint(me.X, me.Y) {
+		return false
+	}
+
+	// Only react to clicks on the first row (tab bar).
+	localY := me.Y - t.boundsY
+	if localY != 0 {
+		return false
+	}
+
+	localX := me.X - t.boundsX
+
+	// Reconstruct tab bar layout to map x → tab.
+	cursor := 0
+	for i, tab := range t.tabs {
+		if i > 0 {
+			cursor += 3 // " | "
+		}
+
+		labelWidth := utf8.RuneCountInString(tab.Label)
+		width := labelWidth
+		if i == t.activeTab {
+			width += 2 // brackets []
+		}
+
+		if localX >= cursor && localX < cursor+width {
+			if tab.Disabled {
+				return true // consume but no action
+			}
+			if i != t.activeTab {
+				t.SetActiveTab(i)
+				if t.onChange != nil {
+					t.onChange(tab.ID)
+				}
+			}
+			return true
+		}
+
+		cursor += width
+	}
+
+	return false
+}
 
 // =============================================================================
 // Internal Helper Methods
@@ -254,7 +338,9 @@ func (t *TabsVNode) Measure(constraints runtime.BoxConstraints) runtime.Size {
 		activeTabID := t.tabs[t.activeTab].ID
 		if content, ok := t.contents[activeTabID]; ok && content != nil {
 			// If content is measurable, measure it
-			if measurable, ok := content.(interface{ Measure(runtime.BoxConstraints) runtime.Size }); ok {
+			if measurable, ok := content.(interface {
+				Measure(runtime.BoxConstraints) runtime.Size
+			}); ok {
 				// MODIFIED: Use bounded height from prop or constraint
 				maxContentHeight := runtime.Infinity
 				if hasHeightProp {
@@ -592,4 +678,3 @@ func (t *TabsVNode) GetPosition() TabPosition {
 func (t *TabsVNode) SetPosition(pos TabPosition) {
 	t.position = pos
 }
-

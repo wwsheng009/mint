@@ -98,7 +98,7 @@ func (l *LayoutNode) Measure(constraints runtime.BoxConstraints) runtime.Size {
 	}
 
 	// Add padding to content size
-	paddingWidth := l.padding[1] + l.padding[3] // left + right
+	paddingWidth := l.padding[1] + l.padding[3]  // left + right
 	paddingHeight := l.padding[0] + l.padding[2] // top + bottom
 
 	// Calculate inner constraints (subtract padding from available space)
@@ -231,6 +231,13 @@ func (l *LayoutNode) Measure(constraints runtime.BoxConstraints) runtime.Size {
 	totalWidth += paddingWidth
 	totalHeight += paddingHeight
 
+	// Respect explicit height prop if provided
+	if props := l.Props(); props != nil {
+		if explicitHeight := props.GetInt("height"); explicitHeight > 0 {
+			totalHeight = explicitHeight
+		}
+	}
+
 	// Apply constraints using the helper method
 	totalWidth, totalHeight = constraints.Constrain(totalWidth, totalHeight)
 
@@ -272,7 +279,7 @@ func (l *LayoutNode) MeasureLayout(measurer runtime.ChildMeasurer, constraints r
 	}
 
 	// Add padding to content size
-	paddingWidth := l.padding[1] + l.padding[3] // left + right
+	paddingWidth := l.padding[1] + l.padding[3]  // left + right
 	paddingHeight := l.padding[0] + l.padding[2] // top + bottom
 
 	// Calculate inner constraints (subtract padding from available space)
@@ -443,7 +450,7 @@ func (l *LayoutNode) MeasureLayout(measurer runtime.ChildMeasurer, constraints r
 	totalWidth, totalHeight = constraints.Constrain(totalWidth, totalHeight)
 
 	return runtime.LayoutMeasurement{
-		Size:            runtime.Size{Width: totalWidth, Height: totalHeight},
+		Size:             runtime.Size{Width: totalWidth, Height: totalHeight},
 		ChildConstraints: childConstraints,
 	}
 }
@@ -511,7 +518,9 @@ func (l *LayoutNode) Paint(x, y int) []paint.DrawCmd {
 		}
 
 		// Check if child implements Paintable
-		if paintable, ok := child.(interface{ Paint(int, int) []paint.DrawCmd }); ok {
+		if paintable, ok := child.(interface {
+			Paint(int, int) []paint.DrawCmd
+		}); ok {
 			// Child has custom paint logic
 			childCmds := paintable.Paint(paintX, paintY)
 			cmds = append(cmds, childCmds...)

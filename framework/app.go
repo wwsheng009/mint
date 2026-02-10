@@ -877,6 +877,24 @@ func (a *App) handleEvent(ev frameworkevent.Event) {
 			fmt.Fprintf(os.Stderr, "[MOUSE] Event type: %d\n", ev.Type())
 		}
 
+		// Route mouse events to Inspector first (for hover tracking, overlay hit test, etc.)
+		if a.inspector != nil && a.isInspectorVisible() {
+			if inspectorObj, ok := a.inspector.(interface {
+				HandleMouseEvent(frameworkevent.EventType, *frameworkevent.MouseEvent) bool
+			}); ok {
+				if mouseEv, ok := ev.(*frameworkevent.MouseEvent); ok {
+					if os.Getenv("TUI_DEBUG_UI") == "true" || os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
+						fmt.Fprintf(os.Stderr, "[APP] Routing mouse (%d,%d) to Inspector (type=%v)\n", mouseEv.X, mouseEv.Y, ev.Type())
+					}
+					handled := inspectorObj.HandleMouseEvent(ev.Type(), mouseEv)
+					a.dirty = true // refresh overlay with latest mouse info
+					if handled {
+						return
+					}
+				}
+			}
+		}
+
 		// 发送到根组件处理，由根组件负责 hit testing 和分发
 		if a.root != nil {
 			if handler, ok := a.root.(frameworkevent.Component); ok {

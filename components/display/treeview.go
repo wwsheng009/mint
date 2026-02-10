@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/wwsheng009/mint/app"
+	frameworkevent "github.com/wwsheng009/mint/framework/event"
 	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/platform"
 	"github.com/wwsheng009/mint/runtime/style"
@@ -15,6 +16,9 @@ import (
 
 // Ensure TreeView implements runtime.Measurable
 var _ runtime.Measurable = (*TreeView)(nil)
+
+// Ensure TreeView can receive framework events (mouse)
+var _ frameworkevent.Component = (*TreeView)(nil)
 
 // TreeView is a component for displaying tree structures with proper formatting
 
@@ -36,6 +40,12 @@ type TreeView struct {
 	expandStateChanged   bool             // True when expand/collapse state changed
 	expandStateLineIndex int              // Which line index needs expand toggle
 	lastMeasuredWidth    int              // Last measured width (for constraining content)
+
+	// Layout bounds (for mouse hit testing)
+	boundsX int
+	boundsY int
+	boundsW int
+	boundsH int
 }
 
 // TreeViewLine represents a single line in the tree view
@@ -322,6 +332,107 @@ func (t *TreeView) GetTreeLines() ([]string, int) {
 	}
 
 	return lines, len(lines)
+}
+
+// SetBounds stores layout bounds for mouse hit testing.
+func (t *TreeView) SetBounds(x, y, width, height int) {
+	t.boundsX = x
+	t.boundsY = y
+	t.boundsW = width
+	t.boundsH = height
+}
+
+// GetBounds returns stored bounds (tuple form for hit testing).
+func (t *TreeView) GetBounds() (int, int, int, int) {
+	return t.boundsX, t.boundsY, t.boundsW, t.boundsH
+}
+
+// Bounds returns bounds as array (used by some inspector utilities).
+func (t *TreeView) Bounds() [4]int {
+	return [4]int{t.boundsX, t.boundsY, t.boundsW, t.boundsH}
+}
+
+// containsPoint reports whether screen coordinates are inside the tree view.
+func (t *TreeView) containsPoint(x, y int) bool {
+	return x >= t.boundsX && x < t.boundsX+t.boundsW &&
+		y >= t.boundsY && y < t.boundsY+t.boundsH
+}
+
+// HandleEvent adds basic mouse interaction: click to focus/select, wheel to scroll.
+func (t *TreeView) HandleEvent(ev frameworkevent.Event) bool {
+	me, ok := ev.(*frameworkevent.MouseEvent)
+	if !ok {
+		return false
+	}
+
+	// Ignore events outside our bounds.
+	if !t.containsPoint(me.X, me.Y) {
+		return false
+	}
+
+	switch ev.Type() {
+	case frameworkevent.EventMousePress:
+		localY := me.Y - t.boundsY
+		if localY < 0 {
+			return false
+		}
+
+		target := t.scrollOffset + localY
+		if target < 0 || target >= len(t.lines) {
+			return false
+		}
+
+		t.SetFocusIndex(target)
+		t.SelectLine(target)
+		return true
+
+	case frameworkevent.EventMouseWheel:
+		// Wheel events lack direction info in current event model; ignore for now.
+		return false
+
+	case frameworkevent.EventMouseMove:
+		// Hover focus (non-selecting) for visual cue.
+		localY := me.Y - t.boundsY
+		if localY < 0 {
+			return false
+		}
+		target := t.scrollOffset + localY
+		if target < 0 || target >= len(t.lines) {
+			return false
+		}
+		if target != t.focusIndex {
+			t.SetFocusIndex(target)
+			return true
+		}
+	}
+
+	return false
+}
+
+// MoveUpN moves focus up by n lines.
+func (t *TreeView) MoveUpN(n int) {
+	if n <= 0 {
+		return
+	}
+	t.focusIndex -= n
+	if t.focusIndex < 0 {
+		t.focusIndex = 0
+	}
+	t.ensureVisible()
+	t.regenerateDisplay()
+}
+
+// MoveDownN moves focus down by n lines.
+func (t *TreeView) MoveDownN(n int) {
+	if n <= 0 {
+		return
+	}
+	t.focusIndex += n
+	if t.focusIndex >= len(t.lines) {
+		t.focusIndex = len(t.lines) - 1
+	}
+	t.ensureVisible()
+	t.regenerateDisplay()
 }
 
 // ScrollBy scrolls the tree view by delta lines

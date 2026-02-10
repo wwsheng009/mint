@@ -27,6 +27,7 @@ import (
 	"github.com/wwsheng009/mint/components/container"
 	"github.com/wwsheng009/mint/components/display"
 	"github.com/wwsheng009/mint/components/navigation"
+	frameworkevent "github.com/wwsheng009/mint/framework/event"
 	"github.com/wwsheng009/mint/framework/theme"
 	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/platform"
@@ -56,11 +57,20 @@ type StandaloneInspector struct {
 	appRoot       rtui.VNode
 	selectedVNode rtui.VNode
 	selectedPath  string
+	hoveredVNode  rtui.VNode
+	hoveredPath   string
 
 	// Overlay configuration
 	overlayWidth  int
 	overlayHeight int
 	position      OverlayPosition
+
+	// Mouse tracking
+	lastMouseX       int
+	lastMouseY       int
+	lastMouseButton  frameworkevent.MouseButton
+	lastMouseEvent   frameworkevent.EventType
+	lastMouseHandled bool
 
 	// Floating position (for dragging)
 	floatX      int  // X position when in floating mode
@@ -75,6 +85,9 @@ type StandaloneInspector struct {
 	treeScrollOffset int      // Vertical scroll offset for tree view (in items)
 	treeLines        []string // Cached tree lines for virtual scrolling
 	treeTotalLines   int      // Total number of tree lines (for scroll bounds)
+
+	// Cached overlay content for event dispatching
+	cachedOverlayContent rtui.VNode // Cached overlay root for mouse events
 
 	// Key debug info (for displaying what keys are being pressed)
 	lastKey      string // Last key name received
@@ -336,7 +349,9 @@ func (si *StandaloneInspector) buildOverlayContent() rtui.VNode {
 	}
 
 	keyInfo := fmt.Sprintf("🔍 '%s' (%s)", si.lastKey, modifiers)
-	headerText := fmt.Sprintf("F12:关闭 | Alt+J/K/L:移动 | Ctrl+D:调试 | %s", keyInfo)
+	mouseInfo := fmt.Sprintf("🖱 %d,%d %s", si.lastMouseX, si.lastMouseY, formatMouseButton(si.lastMouseEvent, si.lastMouseButton))
+	hoverInfo := fmt.Sprintf("Hover: %s", si.formatHovered())
+	headerText := fmt.Sprintf("F12:关闭 | Alt+J/K/L:移动 | Ctrl+D:调试 | %s | %s | %s", keyInfo, mouseInfo, hoverInfo)
 
 	titleBar := app.NewTextBuilder(headerText).
 		Style(style.NewStyle().Foreground(style.White).Background(style.Blue).Bold(true)).
@@ -359,6 +374,15 @@ func (si *StandaloneInspector) buildOverlayContent() rtui.VNode {
 		tabsBuilder.Content(tab.ID, tab.Content)
 	}
 	tabsBuilder.ActiveTab(int(si.activeTab))
+	tabsBuilder.OnChange(func(id string) {
+		// Map id back to enum index
+		for idx, item := range tabItems {
+			if item.ID == id {
+				si.activeTab = InspectorTab(idx)
+				break
+			}
+		}
+	})
 
 	// No manual height calculation needed!
 	// Panel + Flex layout handles this automatically.
@@ -381,6 +405,37 @@ func (si *StandaloneInspector) buildOverlayContent() rtui.VNode {
 	}
 
 	return panel
+}
+
+// formatMouseButton returns human-readable mouse state.
+func formatMouseButton(eventType frameworkevent.EventType, btn frameworkevent.MouseButton) string {
+	var btnStr string
+	switch btn {
+	case frameworkevent.MouseLeft:
+		btnStr = "Left"
+	case frameworkevent.MouseMiddle:
+		btnStr = "Middle"
+	case frameworkevent.MouseRight:
+		btnStr = "Right"
+	default:
+		btnStr = "None"
+	}
+
+	var evt string
+	switch eventType {
+	case frameworkevent.EventMousePress:
+		evt = "Press"
+	case frameworkevent.EventMouseRelease:
+		evt = "Release"
+	case frameworkevent.EventMouseMove:
+		evt = "Move"
+	case frameworkevent.EventMouseWheel:
+		evt = "Wheel"
+	default:
+		evt = "None"
+	}
+
+	return fmt.Sprintf("%s/%s", btnStr, evt)
 }
 
 // buildOverlayContainer creates the overlay container
@@ -603,7 +658,8 @@ func (si *StandaloneInspector) buildElementsTabContent() rtui.VNode {
 	// TreeView implements Measurable interface and will receive bounded constraints from parent
 	// Set Flex prop directly on TreeView so it can grow to fill available space
 	si.treeViewComponent.SetProp("flex", 1)
-	treePreview := si.treeViewComponent // Directly use TreeView, no wrapper!
+	si.treeViewComponent.SetProp("treeView", true) // hint for tests/diagnostics
+	treePreview := si.treeViewComponent            // Directly use TreeView, no wrapper!
 
 	// Instructions
 	separator := strings.Repeat("─", si.overlayWidth-4)
@@ -639,6 +695,7 @@ func (si *StandaloneInspector) buildElementsTabContent() rtui.VNode {
 		instructions,
 	).
 		Width(si.overlayWidth - 4).
+		Height(si.overlayHeight - 4).
 		Flex(1). // Expand to fill Tab content area
 		Build()
 }
@@ -1602,4 +1659,164 @@ func (si *StandaloneInspector) HandleKeyEvent(key string, alt bool, ctrl bool, s
 			key, alt, ctrl)
 	}
 	return true
+}
+
+// HandleMouseEvent processes mouse events for the inspector (position & button tracking).
+// Returns true if the event should be captured by the inspector.
+func (si *StandaloneInspector) HandleMouseEvent(eventType frameworkevent.EventType, ev *frameworkevent.MouseEvent) bool {
+	si.mu.Lock()
+	defer si.mu.Unlock()
+
+	if !si.enabled {
+		return false
+	}
+
+	// Track latest position and button for display
+	si.lastMouseX = ev.X
+	si.lastMouseY = ev.Y
+	si.lastMouseButton = ev.Button
+	si.lastMouseEvent = eventType
+
+	// Update hovered VNode by hit testing current app root
+	if si.appRoot != nil {
+		if node := findVNodeAtRecursive(si.appRoot, ev.X, ev.Y, 0); node != nil {
+			si.hoveredVNode = node
+			si.hoveredPath = si.lookupPathForVNode(node)
+		} else {
+			si.hoveredVNode = nil
+			si.hoveredPath = ""
+		}
+	}
+
+	// If inspector is visible and mouse is over its floating area, capture click to prevent app interference.
+	if si.visible {
+		// Rough bounding box based on overlay size and floating position.
+		minX, minY := si.floatX, si.floatY
+		maxX := si.floatX + si.overlayWidth
+		maxY := si.floatY + si.overlayHeight
+		if ev.X >= minX && ev.X < maxX && ev.Y >= minY && ev.Y < maxY {
+			// Mouse is over inspector overlay - try to dispatch to overlay components
+			// Create a new mouse event with local coordinates for the overlay
+			localEv := &frameworkevent.MouseEvent{
+				X:      ev.X - minX,
+				Y:      ev.Y - minY,
+				Button: ev.Button,
+			}
+
+			// Try to dispatch to the overlay content
+			overlayContent := si.buildOverlayContent()
+			if component, ok := overlayContent.(frameworkevent.Component); ok {
+				if component.HandleEvent(localEv) {
+					return true // Event was handled by overlay component
+				}
+			}
+
+			// Fallback: attempt to handle overlay-level interactions (tabs) manually
+			if si.handleOverlayMouse(ev.X-minX, ev.Y-minY, eventType, ev.Button) {
+				return true
+			}
+		}
+	}
+
+	// Do not block application mouse handling.
+	return false
+}
+
+// handleOverlayMouse processes clicks within the overlay (e.g., tabs).
+func (si *StandaloneInspector) handleOverlayMouse(localX, localY int, eventType frameworkevent.EventType, btn frameworkevent.MouseButton) bool {
+	// Only handle left button presses
+	if eventType != frameworkevent.EventMousePress || btn != frameworkevent.MouseLeft {
+		return false
+	}
+
+	// Tab bar location calculation:
+	// Panel structure:
+	//   Row 0: Border top line
+	//   Row 1: Header (titleBar) - may wrap to multiple lines
+	//   Row 1+headerLines: Separator line
+	//   Row 2+headerLines: Tab bar (first line of Tabs component)
+	//   Row 3+headerLines: Tab content
+	//
+	// For a simple title bar that doesn't wrap, tab bar is at row 2
+	// But to be safe, let's check rows 1-3 for the tab bar pattern
+
+	// Check if we're in a potential tab bar row (rows 1-3)
+	if localY < 1 || localY > 3 {
+		return false
+	}
+
+	// Build the tab labels
+	labels := []string{
+		tabNames[TabElements] + "(1)",
+		tabNames[TabConsole] + "(2)",
+		tabNames[TabPerformance] + "(3)",
+		tabNames[TabDiagnostics] + "(4)",
+		tabNames[TabLayout] + "(5)",
+		tabNames[TabNetwork] + "(6)",
+	}
+
+	// Build the same string as the Tabs component would render:
+	// Active tab: "[Label]"  Inactive: " Label "  Separator: " | "
+	cursor := 0
+	for idx, label := range labels {
+		var width int
+		if InspectorTab(idx) == si.activeTab {
+			// Active tab: [label]
+			width = len(label) + 2 // [ ]
+			if localX >= cursor && localX < cursor+width {
+				return false // clicking active tab does nothing, consume event
+			}
+			cursor += width
+		} else {
+			// Inactive tab: " label " (with spaces)
+			width = len(label) + 2 // leading/trailing spaces
+			if localX >= cursor && localX < cursor+width {
+				si.activeTab = InspectorTab(idx)
+				if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
+					fmt.Fprintf(os.Stderr, "[Inspector] Tab clicked: %s (row %d, col %d)\n", label, localY, localX)
+				}
+				return true // tab switched, consume event
+			}
+			cursor += width
+		}
+		// separator " | " except after last tab
+		if idx < len(labels)-1 {
+			cursor += 3
+		}
+	}
+
+	return false // not on a tab, let event pass through
+}
+
+// formatHovered returns a human-readable name of the currently hovered control.
+func (si *StandaloneInspector) formatHovered() string {
+	if si.hoveredVNode == nil {
+		return "无"
+	}
+
+	var name string
+	if tagger, ok := si.hoveredVNode.(interface{ Tag() string }); ok {
+		name = tagger.Tag()
+	} else {
+		name = fmt.Sprintf("%T", si.hoveredVNode)
+	}
+
+	if si.hoveredPath != "" {
+		return fmt.Sprintf("%s (%s)", name, si.hoveredPath)
+	}
+	return name
+}
+
+// lookupPathForVNode tries to find the path of a VNode in the current tree.
+func (si *StandaloneInspector) lookupPathForVNode(vnode rtui.VNode) string {
+	if si.treeView == nil {
+		return ""
+	}
+	flat := si.treeView.GetFlatList()
+	for _, n := range flat {
+		if n.VNode == vnode {
+			return n.Path
+		}
+	}
+	return ""
 }
