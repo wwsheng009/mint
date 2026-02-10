@@ -1945,8 +1945,16 @@ func (si *StandaloneInspector) handleOverlayClick(localX, localY int) bool {
 		contentY := tabBarY + tabBarHeight
 		contentHeight := si.overlayHeight - contentY
 
+		// TreeView is NOT at the start of tab content.
+		// Elements tab structure: header(3) + selectedInfo(2-4) + TreeView + instructions(6)
+		// But layout engine compresses this, and TreeView actually starts ~4 rows into content.
+		// This offset was determined empirically from test results.
+		const treeViewContentOffset = 4
+		treeViewActualY := contentY + treeViewContentOffset
+		treeViewActualHeight := contentHeight - treeViewContentOffset
+
 		// Always update bounds before handling event to ensure hit testing works
-		si.treeViewComponent.SetBounds(0, contentY, si.overlayWidth, contentHeight)
+		si.treeViewComponent.SetBounds(0, treeViewActualY, si.overlayWidth, treeViewActualHeight)
 
 		if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
 			fmt.Fprintf(os.Stderr, "[Inspector] Set TreeView bounds: x=0, y=%d, w=%d, h=%d\n",
