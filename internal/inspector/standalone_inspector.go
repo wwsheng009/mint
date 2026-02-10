@@ -1920,13 +1920,13 @@ func (si *StandaloneInspector) handleOverlayClick(localX, localY int) bool {
 // handleTabBarClick handles clicks on the tab bar.
 // Returns true if the click was handled.
 func (si *StandaloneInspector) handleTabBarClick(localX int) bool {
-	// Tab layout: [Tree] [Layout] [Props] [Perf] [Diag] [Console]
+	// Tab layout: [Elements] [Layout] [Network] [Perf] [Diag] [Console]
 	// Each tab is roughly 8 characters wide with spacing
 
 	tabs := []InspectorTab{
-		TabTree,
+		TabElements,
 		TabLayout,
-		TabProperties,
+		TabNetwork,
 		TabPerformance,
 		TabDiagnostics,
 		TabConsole,

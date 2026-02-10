@@ -168,7 +168,7 @@ func (l *EventLogger) Visualize() string {
 	builder.WriteString(strings.Repeat("=", 80))
 	builder.WriteString("\n")
 
-	for i, entry := range l.entries {
+	for _, entry := range l.entries {
 		// 格式: [TIME] PHASE -> TYPE (TARGET)
 		builder.WriteString(fmt.Sprintf("[%s] %s -> %s",
 			entry.Timestamp.Format("15:04:05.000"),

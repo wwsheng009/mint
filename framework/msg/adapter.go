@@ -7,53 +7,29 @@ import (
 	runtimeevent "github.com/wwsheng009/mint/runtime/event"
 )
 
-// ToMsg 将 runtime.Event 转换为 Msg
-//
-// ToMsg 是 Event 到 Msg 的适配器函数，它将运行时的事件转换为
-// 应用层的消息，实现 Event → Msg → Action 的流程。
-func ToMsg(event runtimeevent.Event) Msg {
-	if event == nil {
-		return nil
-	}
-
-	switch e := event.(type) {
-	case *runtimeevent.KeyEvent:
-		return keyEventToMsg(e)
-
-	case *runtimeevent.MouseEvent:
-		return mouseEventToMsg(e)
-
-	case *runtimeevent.ResizeEvent:
-		return resizeEventToMsg(e)
-
-	default:
-		return NewBaseMsg(MsgTypeUnknown)
-	}
-}
-
-// keyEventToMsg 将 KeyEvent 转换为 KeyMsg
-func keyEventToMsg(keyEvent *runtimeevent.KeyEvent) Msg {
+// KeyEventToMsg 将 KeyEvent 转换为 KeyMsg
+func KeyEventToMsg(keyEvent *runtimeevent.KeyEvent) Msg {
 	if keyEvent == nil {
 		return nil
 	}
 
 	return &KeyMsg{
 		BaseMsg: BaseMsg{
-			TypeValue:   MsgTypeKey,
+			TypeValue:       MsgTypeKey,
 			TimestampValue: time.Now(),
 		},
-		Rune: keyEvent.Key.Rune,
+		Rune:    keyEvent.Key,
 		Special: keyEvent.Special,
 		Mod: Modifiers{
-			Alt:   keyEvent.Key.Alt,
-			Ctrl:  keyEvent.Key.Ctrl,
-			Shift: keyEvent.Key.Shift,
+			Alt:   keyEvent.Mod&runtimeevent.ModAlt != 0,
+			Ctrl:  keyEvent.Mod&runtimeevent.ModCtrl != 0,
+			Shift: keyEvent.Mod&runtimeevent.ModShift != 0,
 		},
 	}
 }
 
-// mouseEventToMsg 将 MouseEvent 转换为 MouseMsg
-func mouseEventToMsg(mouseEvent *runtimeevent.MouseEvent) Msg {
+// MouseEventToMsg 将 MouseEvent 转换为 MouseMsg
+func MouseEventToMsg(mouseEvent *runtimeevent.MouseEvent) Msg {
 	if mouseEvent == nil {
 		return nil
 	}
@@ -73,47 +49,43 @@ func mouseEventToMsg(mouseEvent *runtimeevent.MouseEvent) Msg {
 
 	// 转换 MouseAction
 	var action MouseAction
-	switch mouseEvent.Type {
-	case runtimeevent.EventMousePress:
+	switch mouseEvent.Action {
+	case runtimeevent.MouseActionPress:
 		action = MouseActionPress
-	case runtimeevent.EventMouseRelease:
+	case runtimeevent.MouseActionRelease:
 		action = MouseActionRelease
-	case runtimeevent.EventMouseMove:
+	case runtimeevent.MouseActionMove:
 		action = MouseActionMove
-	case runtimeevent.EventMouseWheel:
+	case runtimeevent.MouseActionWheel:
 		action = MouseActionWheel
 	default:
-		action = MouseActionUnknown
+		// Fallback to Type field for backward compatibility
+		switch mouseEvent.Type {
+		case "press":
+			action = MouseActionPress
+		case "release":
+			action = MouseActionRelease
+		case "move", "motion":
+			action = MouseActionMove
+		case "wheel":
+			action = MouseActionWheel
+		default:
+			action = MouseActionUnknown
+		}
 	}
 
 	return &MouseMsg{
 		BaseMsg: BaseMsg{
-			TypeValue:   MsgTypeMouse,
+			TypeValue:       MsgTypeMouse,
 			TimestampValue: time.Now(),
 		},
 		X:        mouseEvent.X,
 		Y:        mouseEvent.Y,
-		LocalX:   0, // TODO: 从 HitMap 获取
-		LocalY:   0, // TODO: 从 HitMap 获取
-		TargetID: "", // TODO: 从 HitMap 获取
+		LocalX:   mouseEvent.LocalX,
+		LocalY:   mouseEvent.LocalY,
+		TargetID: mouseEvent.TargetID,
 		Button:   button,
 		Action:   action,
-	}
-}
-
-// resizeEventToMsg 将 ResizeEvent 转换为 ResizeMsg
-func resizeEventToMsg(resizeEvent *runtimeevent.ResizeEvent) Msg {
-	if resizeEvent == nil {
-		return nil
-	}
-
-	return &ResizeMsg{
-		BaseMsg: BaseMsg{
-			TypeValue:   MsgTypeResize,
-			TimestampValue: time.Now(),
-		},
-		Width:  resizeEvent.Width,
-		Height: resizeEvent.Height,
 	}
 }
 
@@ -132,7 +104,7 @@ type ResizeMsg struct {
 func NewResizeMsg(width, height int) *ResizeMsg {
 	return &ResizeMsg{
 		BaseMsg: BaseMsg{
-			TypeValue:   MsgTypeResize,
+			TypeValue:       MsgTypeResize,
 			TimestampValue: time.Now(),
 		},
 		Width:  width,
