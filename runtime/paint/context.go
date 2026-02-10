@@ -1,7 +1,6 @@
 package paint
 
 import (
-	"github.com/mattn/go-runewidth"
 	"github.com/wwsheng009/mint/runtime/state"
 	"github.com/wwsheng009/mint/runtime/style"
 )
@@ -181,24 +180,16 @@ func (c *PaintContext) SetString(x, y int, text string, s style.Style) {
 		return
 	}
 
-	col := actualX
-	for _, char := range text {
-		if col < 0 || col >= c.Buffer.Width {
-			break
-		}
-		width := runewidth.RuneWidth(char)
-		// 对于宽字符，需要检查下一个位置是否可用
-		if width == 2 && col+1 >= c.Buffer.Width {
-			break
-		}
-		c.Buffer.SetCell(col, actualY, char, s)
+	c.Buffer.SetString(actualX, actualY, text, s)
 
-		// 标记脏区域
-		if c.DirtyTracker != nil {
-			c.DirtyTracker.MarkCell(col, actualY)
+	// 标记脏区域（按最终 cell 宽度标记，确保 continuation 也被覆盖）
+	if c.DirtyTracker != nil {
+		startX := maxInt(actualX, 0)
+		markedWidth := StringWidth(SanitizeForTerminal(text))
+		endX := minInt(actualX+markedWidth, c.Buffer.Width)
+		for xx := startX; xx < endX; xx++ {
+			c.DirtyTracker.MarkCell(xx, actualY)
 		}
-		// 按字符宽度递增列位置
-		col += width
 	}
 }
 
@@ -281,29 +272,26 @@ func (c *PaintContext) DrawText(x, y int, text string, align TextAlign, s style.
 
 // truncateTextByWidth 按显示宽度截断文本
 func (c *PaintContext) truncateTextByWidth(text string, maxWidth int) string {
-	runes := []rune(text)
-	currentWidth := 0
-	result := make([]rune, 0, len(runes))
-
-	for _, r := range runes {
-		charWidth := runewidth.RuneWidth(r)
-		if currentWidth+charWidth > maxWidth {
-			break
-		}
-		result = append(result, r)
-		currentWidth += charWidth
+	if text == "" || maxWidth <= 0 {
+		return ""
 	}
 
-	return string(result)
+	text = SanitizeForTerminal(text)
+	width := 0
+	for i, r := range text {
+		rw := RuneWidth(r)
+		if width+rw > maxWidth {
+			return text[:i]
+		}
+		width += rw
+	}
+
+	return text
 }
 
 // textDisplayWidth 计算文本的显示宽度（考虑宽字符）
 func textDisplayWidth(s string) int {
-	width := 0
-	for _, r := range s {
-		width += runewidth.RuneWidth(r)
-	}
-	return width
+	return StringWidth(SanitizeForTerminal(s))
 }
 
 // Width 返回上下文宽度

@@ -141,6 +141,35 @@ func TestWideCharWithDrawText(t *testing.T) {
 	}
 }
 
+func TestSetStringSanitizeUnsafeEmoji(t *testing.T) {
+	buf := NewBuffer(20, 2)
+	s := style.Style{}
+
+	buf.SetString(0, 0, "🖼️X", s)
+
+	if got := buf.Cells[0][0].Cluster; got != "🖼" {
+		t.Fatalf("expected sanitized emoji head at [0], got %q", got)
+	}
+	if got := buf.Cells[0][1].Cluster; got != "X" {
+		t.Fatalf("expected X at [1], got %q", got)
+	}
+}
+
+func TestPaintContextSetStringUsesBufferSemantics(t *testing.T) {
+	buf := NewBuffer(20, 2)
+	ctx := NewPaintContext(buf, Rect{X: 0, Y: 0, Width: 20, Height: 2})
+	s := style.Style{}
+
+	ctx.SetString(0, 0, "e\u0301A", s) // e + combining acute + A
+
+	if got := buf.Cells[0][0].Cluster; got != "e" {
+		t.Fatalf("expected sanitized e at [0], got %q", got)
+	}
+	if got := buf.Cells[0][1].Cluster; got != "A" {
+		t.Fatalf("expected A at [1], got %q", got)
+	}
+}
+
 // TestOutputLoopSimulation 模拟输出循环，验证正确跳过延续单元格
 func TestOutputLoopSimulation(t *testing.T) {
 	buf := NewBuffer(20, 1)
