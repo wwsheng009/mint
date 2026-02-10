@@ -27,6 +27,7 @@ import (
 	"github.com/wwsheng009/mint/components/container"
 	"github.com/wwsheng009/mint/components/display"
 	"github.com/wwsheng009/mint/components/navigation"
+	"github.com/wwsheng009/mint/framework/action"
 	frameworkevent "github.com/wwsheng009/mint/framework/event"
 	"github.com/wwsheng009/mint/framework/theme"
 	"github.com/wwsheng009/mint/runtime"
@@ -1819,4 +1820,131 @@ func (si *StandaloneInspector) lookupPathForVNode(vnode rtui.VNode) string {
 		}
 	}
 	return ""
+}
+
+// ============================================================================
+// CaptureActionHandler Implementation - Phase 3-5
+// ============================================================================
+
+// HandleCapture implements action.CaptureActionHandler interface.
+// The Inspector captures overlay-related actions before they reach the application.
+//
+// Priority: High (100) - Inspector should intercept overlay actions before application
+func (si *StandaloneInspector) HandleCapture(act *action.Action, target *runtime.LayoutNode) bool {
+	si.mu.Lock()
+	defer si.mu.Unlock()
+
+	// Only capture when inspector is enabled and visible
+	if !si.enabled || !si.visible {
+		return false
+	}
+
+	// Capture mouse-related actions
+	switch act.Type {
+	case action.ActionClick, action.ActionHover:
+		return si.handleCaptureMouseAction(act)
+
+	case action.ActionInspect:
+		// Toggle inspector visibility
+		si.visible = !si.visible
+		return true // Stop propagation
+
+	default:
+		// Don't capture other actions
+		return false
+	}
+}
+
+// Priority returns the priority for the capture handler.
+// Inspector uses high priority to ensure it can intercept overlay events.
+func (si *StandaloneInspector) Priority() int {
+	return 100 // High priority - Inspector overlay should be handled first
+}
+
+// handleCaptureMouseAction handles mouse-related actions in the capture phase.
+// Returns true if the action was captured and should stop propagation.
+func (si *StandaloneInspector) handleCaptureMouseAction(act *action.Action) bool {
+	// Extract mouse coordinates from payload
+	x, y, ok := act.GetPayloadPoint()
+	if !ok {
+		return false
+	}
+
+	// Check if mouse is over the inspector overlay
+	minX, minY := si.floatX, si.floatY
+	maxX := si.floatX + si.overlayWidth
+	maxY := si.floatY + si.overlayHeight
+
+	if x >= minX && x < maxX && y >= minY && y < maxY {
+		// Mouse is over inspector overlay
+		localX := x - minX
+		localY := y - minY
+
+		// Handle the action within the overlay
+		if act.Type == action.ActionClick {
+			return si.handleOverlayClick(localX, localY)
+		}
+		// For hover, we track but don't stop propagation
+		// so the app can also see hover events
+	}
+
+	return false
+}
+
+// handleOverlayClick handles click actions within the overlay.
+// Returns true if the click was handled by the overlay.
+func (si *StandaloneInspector) handleOverlayClick(localX, localY int) bool {
+	// Check if click is in the tab bar area
+	// Panel structure:
+	//   Row 0: Border top line
+	//   Row 1: Header (titleBar)
+	//   Row 2: Separator
+	//   Row 3: Tab bar
+	//   Row 4+: Tab content
+
+	// Calculate header height
+	headerHeight := 2 // Title bar + separator
+
+	// Tab bar is at row 3 (after header)
+	tabBarY := headerHeight
+	tabBarHeight := 1
+
+	// Check if click is in tab bar
+	if localY >= tabBarY && localY < tabBarY+tabBarHeight {
+		return si.handleTabBarClick(localX)
+	}
+
+	return false
+}
+
+// handleTabBarClick handles clicks on the tab bar.
+// Returns true if the click was handled.
+func (si *StandaloneInspector) handleTabBarClick(localX int) bool {
+	// Tab layout: [Tree] [Layout] [Props] [Perf] [Diag] [Console]
+	// Each tab is roughly 8 characters wide with spacing
+
+	tabs := []InspectorTab{
+		TabTree,
+		TabLayout,
+		TabProperties,
+		TabPerformance,
+		TabDiagnostics,
+		TabConsole,
+	}
+
+	tabWidth := 10 // Approximate width of each tab including spacing
+	xOffset := 2   // Left padding
+
+	for i, tab := range tabs {
+		tabStart := xOffset + i*tabWidth
+		tabEnd := tabStart + tabWidth - 2
+
+		if localX >= tabStart && localX < tabEnd {
+			// Clicked on this tab
+			si.activeTab = tab
+			return true // Handled
+		}
+	}
+
+	return false
 }

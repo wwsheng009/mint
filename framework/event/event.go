@@ -271,6 +271,13 @@ type MouseEvent struct {
 	*BaseEvent
 	X, Y   int
 	Button MouseButton
+
+	// Hit testing information (filled by Pump from HitMap)
+	Action   event.MouseAction // Type of mouse action (press, release, move, wheel)
+	TargetID string           // ID of the hit target node
+	LocalX   int              // X coordinate relative to target
+	LocalY   int              // Y coordinate relative to target
+	Delta    int              // Scroll delta (+1 for up, -1 for down)
 }
 
 // MouseButton represents a mouse button.

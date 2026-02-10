@@ -286,7 +286,7 @@ func dispatchMouseEventWithPropagation(ev *EventStruct, mouseEv *MouseEvent, box
 			result.Updated = true
 
 			// If this was a click and the component is focusable, focus it
-			if mouseEv.Type == MousePress && mouseEv.Click == MouseLeft {
+			if mouseEv.Type == MousePress && mouseEv.Button == MouseLeft {
 				if focusable, ok := ev.TargetValue.Component.Instance.(runtime.FocusableComponent); ok {
 					if focusable.IsFocusable() {
 						result.FocusTarget = hitResult.NodeID

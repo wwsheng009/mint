@@ -3,6 +3,7 @@ package form
 import (
 	"unicode/utf8"
 
+	"github.com/wwsheng009/mint/framework/action"
 	"github.com/wwsheng009/mint/runtime/dimension"
 	"github.com/wwsheng009/mint/framework/event"
 	"github.com/wwsheng009/mint/framework/theme"
@@ -40,10 +41,13 @@ type InputVNode struct {
 	onBlur      func()
 	onSubmit    func()
 	isFocused   bool // Internal focus state
+	cursorPos   int // Cursor position for editing
 	// Mouse interaction state
 	isHovered bool
 	// Bounds for hit testing (x, y, width, height)
 	bounds [4]int
+	// ActionTarget support
+	supportedActions []action.ActionType // Supported action types
 }
 
 // NewInput creates a new input
@@ -51,12 +55,20 @@ func NewInput() *InputVNode {
 	return &InputVNode{
 		ElementVNode: ui.NewElement("input"),
 		value:        "",
-		placeholder:  "",
+		placeholder: "",
 		inputType:    InputTypeText,
 		maxLength:    0, // 0 = no limit
 		disabled:     false,
 		readOnly:     false,
 		isFocused:    false,
+		cursorPos:    0, // Start at position 0
+		supportedActions: []action.ActionType{
+			action.ActionInputText,
+			action.ActionBackspace,
+			action.ActionDeleteChar,
+			action.ActionEnter,
+			action.ActionSubmit,
+		},
 	}
 }
 
@@ -642,14 +654,213 @@ func (i *InputVNode) GetFocusID() string {
 	return "input:" + id
 }
 
-// Label returns a label for this input for testing/debugging.
-// Returns the placeholder if set, otherwise "input".
-func (i *InputVNode) Label() string {
-	if i.placeholder != "" {
-		return i.placeholder
+
+// ============================================================================
+// ActionTarget 接口实现
+// ============================================================================
+
+// HandleAction implements ActionTarget interface
+func (i *InputVNode) HandleAction(act *action.Action) bool {
+	if act == nil || i.disabled || i.readOnly {
+		return false
 	}
-	if i.value != "" {
-		return i.value
+
+	// Handle action based on type
+	switch act.Type {
+	// Text input
+	case action.ActionInputText:
+		if text, ok := act.GetPayloadString(); ok {
+			return i.InsertText(text)
+		}
+		return false
+
+	// Deletion
+	case action.ActionBackspace:
+		return i.DeleteText(-1) // Backspace = delete backwards
+
+	case action.ActionDeleteChar:
+		return i.DeleteText(1) // Delete = delete forwards
+
+	// Submission
+	case action.ActionEnter, action.ActionSubmit:
+		if i.onSubmit != nil {
+			i.onSubmit()
+			return true
+		}
+		return false
 	}
-	return "input"
+
+	return false
+}
+
+// GetSupportedActions implements ActionTarget interface
+func (i *InputVNode) GetSupportedActions() []action.ActionType {
+	if i.supportedActions == nil {
+		return []action.ActionType{
+			action.ActionInputText,
+			action.ActionBackspace,
+			action.ActionDeleteChar,
+			action.ActionEnter,
+			action.ActionSubmit,
+		}
+	}
+	return i.supportedActions
+}
+
+// CanHandleAction implements ActionTarget interface
+func (i *InputVNode) CanHandleAction(act *action.Action) bool {
+	if act == nil || i.disabled || i.readOnly {
+		return false
+	}
+
+	// Check if action type is supported
+	supported := i.GetSupportedActions()
+	for _, supportedType := range supported {
+		if supportedType == act.Type {
+			return true
+		}
+	}
+
+	return false
+}
+
+// ============================================================================
+// FocusableActionTarget 接口实现
+// ============================================================================
+
+// Focus implements FocusableActionTarget interface
+func (i *InputVNode) Focus() bool {
+	if i.disabled || i.readOnly {
+		return false
+	}
+	i.SetFocus(true)
+	return true
+}
+
+// Blur implements FocusableActionTarget interface
+func (i *InputVNode) Blur() {
+	i.SetFocus(false)
+}
+
+
+
+// ============================================================================
+// EditableActionTarget 接口实现
+// ============================================================================
+
+// InsertText inserts text at the current cursor position
+func (i *InputVNode) InsertText(text string) bool {
+	if i.disabled || i.readOnly {
+		return false
+	}
+
+	// Check max length
+	if i.maxLength > 0 {
+		currentLen := utf8.RuneCountInString(i.value)
+		textLen := utf8.RuneCountInString(text)
+		if currentLen+textLen > i.maxLength {
+			return false // Would exceed max length
+		}
+	}
+
+	// Insert text at cursor position
+	runes := []rune(i.value)
+	before := runes[:i.cursorPos]
+	after := runes[i.cursorPos:]
+	textRunes := []rune(text)
+	newRunes := append(append(before, textRunes...), after...)
+	i.value = string(newRunes)
+	i.cursorPos += len(textRunes)
+
+	// Trigger onChange
+	if i.onChange != nil {
+		i.onChange(i.value)
+	}
+
+	return true
+}
+
+// DeleteText deletes text
+// direction: -1 = backwards (Backspace), 1 = forwards (Delete)
+func (i *InputVNode) DeleteText(direction int) bool {
+	if i.disabled || i.readOnly {
+		return false
+	}
+
+	runes := []rune(i.value)
+	if len(runes) == 0 {
+		return false // Nothing to delete
+	}
+
+	if direction < 0 {
+		// Backspace: delete character before cursor
+		if i.cursorPos == 0 {
+			return false // Already at start
+		}
+		// Remove character at cursorPos-1
+		newRunes := make([]rune, 0, len(runes)-1)
+		newRunes = append(newRunes, runes[:i.cursorPos-1]...)
+		newRunes = append(newRunes, runes[i.cursorPos:]...)
+		i.value = string(newRunes)
+		i.cursorPos--
+	} else {
+		// Delete: delete character at cursor
+		if i.cursorPos >= len(runes) {
+			return false // Already at end
+		}
+		// Remove character at cursorPos
+		newRunes := make([]rune, 0, len(runes)-1)
+		newRunes = append(newRunes, runes[:i.cursorPos]...)
+		newRunes = append(newRunes, runes[i.cursorPos+1:]...)
+		i.value = string(newRunes)
+		// cursorPos stays the same
+	}
+
+	// Trigger onChange
+	if i.onChange != nil {
+		i.onChange(i.value)
+	}
+
+	return true
+}
+
+// ReplaceText replaces all text
+func (i *InputVNode) ReplaceText(text string) bool {
+	if i.disabled || i.readOnly {
+		return false
+	}
+
+	// Check max length
+	if i.maxLength > 0 && utf8.RuneCountInString(text) > i.maxLength {
+		return false
+	}
+
+	i.value = text
+	i.cursorPos = utf8.RuneCountInString(text)
+
+	// Trigger onChange
+	if i.onChange != nil {
+		i.onChange(i.value)
+	}
+
+	return true
+}
+
+// GetText returns the current text content
+func (i *InputVNode) GetText() string {
+	return i.value
+}
+
+// GetCursorPosition returns the cursor position
+func (i *InputVNode) GetCursorPosition() int {
+	return i.cursorPos
+}
+
+// SetCursorPosition sets the cursor position
+func (i *InputVNode) SetCursorPosition(pos int) bool {
+	if pos < 0 || pos > utf8.RuneCountInString(i.value) {
+		return false
+	}
+	i.cursorPos = pos
+	return true
 }

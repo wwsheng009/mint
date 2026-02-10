@@ -56,6 +56,20 @@ type Rect struct {
 	Height int
 }
 
+// Contains 检查点 (x, y) 是否在矩形内
+func (r Rect) Contains(x, y int) bool {
+	return x >= r.X && x < r.X+r.Width &&
+		y >= r.Y && y < r.Y+r.Height
+}
+
+// Intersects 检查两个矩形是否相交
+func (r Rect) Intersects(other Rect) bool {
+	return r.X < other.X+other.Width &&
+		r.X+r.Width > other.X &&
+		r.Y < other.Y+other.Height &&
+		r.Y+r.Height > other.Y
+}
+
 // LayoutBox 布局结果盒子
 // 表示一个节点在布局后的最终位置和尺寸
 type LayoutBox struct {

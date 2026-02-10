@@ -150,7 +150,7 @@ func TestDispatchMouseEvent(t *testing.T) {
 		X:     15, // 在盒子内
 		Y:     12,
 		Type:  MousePress,
-		Click: MouseLeft,
+		Button: MouseLeft,
 	}
 
 	ev := &EventStruct{

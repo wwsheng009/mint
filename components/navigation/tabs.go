@@ -4,6 +4,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/wwsheng009/mint/framework/action"
 	frameworkevent "github.com/wwsheng009/mint/framework/event"
 	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/ui"
@@ -11,6 +12,12 @@ import (
 
 // Ensure TabsVNode can handle framework events (mouse)
 var _ frameworkevent.Component = (*TabsVNode)(nil)
+
+// Ensure TabsVNode implements ActionTarget interfaces
+var _ action.ActionTarget = (*TabsVNode)(nil)
+var _ action.FocusableActionTarget = (*TabsVNode)(nil)
+var _ action.ScrollableActionTarget = (*TabsVNode)(nil)
+var _ action.SelectableActionTarget = (*TabsVNode)(nil)
 
 // TabPosition defines where tabs are positioned relative to content
 type TabPosition int
@@ -50,6 +57,9 @@ type TabsVNode struct {
 	boundsY int
 	boundsW int
 	boundsH int
+
+	// ActionTarget support
+	supportedActions []action.ActionType // Supported action types
 }
 
 // NewTabs creates a new tabs component
@@ -62,6 +72,18 @@ func NewTabs() *TabsVNode {
 		onChange:     nil,
 		vertical:     false, // DEPRECATED
 		contents:     make(map[string]ui.VNode),
+		supportedActions: []action.ActionType{
+			action.ActionNavigateNext,
+			action.ActionNavigatePrev,
+			action.ActionNavigateLeft,
+			action.ActionNavigateRight,
+			action.ActionNavigateHome,
+			action.ActionNavigateEnd,
+			action.ActionSelect,
+			action.ActionEnter,
+			action.ActionScroll,
+			action.ActionClick,
+		},
 	}
 }
 
@@ -677,4 +699,175 @@ func (t *TabsVNode) GetPosition() TabPosition {
 // SetPosition sets where tabs are positioned relative to content
 func (t *TabsVNode) SetPosition(pos TabPosition) {
 	t.position = pos
+}
+
+// ============================================================================
+// ActionTarget 接口实现
+// ============================================================================
+
+// HandleAction implements ActionTarget interface
+func (t *TabsVNode) HandleAction(act *action.Action) bool {
+	if act == nil {
+		return false
+	}
+
+	// Handle action based on type
+	switch act.Type {
+	// Navigation actions
+	case action.ActionNavigateNext, action.ActionNavigateRight:
+		return t.NextTab()
+	case action.ActionNavigatePrev, action.ActionNavigateLeft:
+		return t.PreviousTab()
+	case action.ActionNavigateHome:
+		return t.FirstTab()
+	case action.ActionNavigateEnd:
+		return t.LastTab()
+
+	// Selection actions
+	case action.ActionSelect, action.ActionEnter:
+		// Select current tab (already active)
+		return true
+
+	// Scroll action
+	case action.ActionScroll:
+		if delta, ok := act.GetPayloadInt(); ok {
+			if delta > 0 {
+				return t.NextTab()
+			} else if delta < 0 {
+				return t.PreviousTab()
+			}
+		}
+		return false
+
+	// Mouse click
+	case action.ActionClick:
+		// Click action already handled by HandleEvent
+		return true
+	}
+
+	return false
+}
+
+// GetSupportedActions implements ActionTarget interface
+func (t *TabsVNode) GetSupportedActions() []action.ActionType {
+	if t.supportedActions == nil {
+		return []action.ActionType{
+			action.ActionNavigateNext,
+			action.ActionNavigatePrev,
+			action.ActionNavigateLeft,
+			action.ActionNavigateRight,
+			action.ActionNavigateHome,
+			action.ActionNavigateEnd,
+			action.ActionSelect,
+			action.ActionEnter,
+			action.ActionScroll,
+			action.ActionClick,
+		}
+	}
+	return t.supportedActions
+}
+
+// CanHandleAction implements ActionTarget interface
+func (t *TabsVNode) CanHandleAction(act *action.Action) bool {
+	if act == nil {
+		return false
+	}
+
+	// Check if action type is supported
+	supported := t.GetSupportedActions()
+	for _, supportedType := range supported {
+		if supportedType == act.Type {
+			return true
+		}
+	}
+
+	return false
+}
+
+// ============================================================================
+// FocusableActionTarget 接口实现
+// ============================================================================
+
+// Focus implements FocusableActionTarget interface
+func (t *TabsVNode) Focus() bool {
+	return len(t.tabs) > 0
+}
+
+// Blur implements FocusableActionTarget interface
+func (t *TabsVNode) Blur() {
+	// Tabs don't have a distinct focus state
+}
+
+// IsFocused implements FocusableActionTarget interface
+func (t *TabsVNode) IsFocused() bool {
+	// Tabs are always "focused" when they have tabs
+	return len(t.tabs) > 0
+}
+
+// IsFocusable implements FocusableActionTarget interface
+func (t *TabsVNode) IsFocusable() bool {
+	return len(t.tabs) > 0
+}
+
+// ============================================================================
+// ScrollableActionTarget 接口实现
+// ============================================================================
+
+// CanScroll implements ScrollableActionTarget interface
+func (t *TabsVNode) CanScroll(delta int) bool {
+	if delta > 0 {
+		return t.CanGoNext()
+	} else if delta < 0 {
+		return t.CanGoPrevious()
+	}
+	return false
+}
+
+// Scroll implements ScrollableActionTarget interface
+func (t *TabsVNode) Scroll(delta int) bool {
+	if !t.CanScroll(delta) {
+		return false
+	}
+	if delta > 0 {
+		return t.NextTab()
+	} else {
+		return t.PreviousTab()
+	}
+}
+
+// GetScrollPosition implements ScrollableActionTarget interface
+func (t *TabsVNode) GetScrollPosition() (int, int, int) {
+	current := t.activeTab
+	total := len(t.tabs)
+	visible := 1 // Only one tab is visible at a time
+	return current, total, visible
+}
+
+// ============================================================================
+// SelectableActionTarget 接口实现
+// ============================================================================
+
+// Select implements SelectableActionTarget interface
+func (t *TabsVNode) Select() bool {
+	return len(t.tabs) > 0
+}
+
+// IsSelected implements SelectableActionTarget interface
+func (t *TabsVNode) IsSelected() bool {
+	// A tab is always considered "selected" (the active one)
+	return len(t.tabs) > 0
+}
+
+// ToggleSelection implements SelectableActionTarget interface
+func (t *TabsVNode) ToggleSelection() bool {
+	// Tabs can't be toggled off, but we can navigate
+	return t.NextTab()
+}
+
+// GetSelectedCount implements SelectableActionTarget interface
+func (t *TabsVNode) GetSelectedCount() int {
+	if len(t.tabs) > 0 {
+		return 1 // One tab is always active
+	}
+	return 0
 }

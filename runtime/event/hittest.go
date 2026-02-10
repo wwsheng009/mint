@@ -176,15 +176,35 @@ func rectsIntersect(a, b Rect) bool {
 
 // MouseEvent represents a mouse input event.
 type MouseEvent struct {
-	X     int
-	Y     int
-	Type  MouseEventType
-	Data  interface{}
-	Click MouseClickType
-	Mod   KeyModifier // 修饰键状态（Shift, Ctrl, Alt）
+	// Screen coordinates
+	X, Y int
+
+	// Event type (legacy, for backward compatibility)
+	Type MouseEventType
+
+	// Event action (new, more specific)
+	Action MouseAction
+
+	// Hit testing information (filled by Pump from HitMap)
+	TargetID string     // ID of the hit target node
+	LocalX   int        // X coordinate relative to target
+	LocalY   int        // Y coordinate relative to target
+
+	// Mouse button
+	Button MouseClickType
+
+	// Scroll delta (+1 for scroll up, -1 for scroll down)
+	Delta int
+
+	// Arbitrary data (for flexibility)
+	Data interface{}
+
+	// Modifiers (Shift, Ctrl, Alt)
+	Mod KeyModifier
 }
 
-// MouseEventType is the type of mouse event.
+// MouseEventType is the type of mouse event (legacy).
+// Deprecated: Use Action instead for new code.
 type MouseEventType string
 
 const (
@@ -194,14 +214,56 @@ const (
 	MouseScroll  MouseEventType = "scroll"
 )
 
-// MouseClickType indicates which button was clicked.
+// MouseAction represents the specific mouse action.
+// This is the preferred field for new code.
+type MouseAction int
+
+const (
+	MouseActionPress MouseAction = iota
+	MouseActionRelease
+	MouseActionMove
+	MouseActionWheel
+)
+
+// String returns the string representation of MouseAction.
+func (a MouseAction) String() string {
+	switch a {
+	case MouseActionPress:
+		return "Press"
+	case MouseActionRelease:
+		return "Release"
+	case MouseActionMove:
+		return "Move"
+	case MouseActionWheel:
+		return "Wheel"
+	default:
+		return "Unknown"
+	}
+}
+
+// MouseClickType indicates which mouse button was pressed.
 type MouseClickType int
 
 const (
-	MouseLeft   MouseClickType = iota
+	MouseNone MouseClickType = iota
+	MouseLeft
 	MouseMiddle
 	MouseRight
 )
+
+// String returns the string representation of MouseClickType.
+func (b MouseClickType) String() string {
+	switch b {
+	case MouseLeft:
+		return "Left"
+	case MouseMiddle:
+		return "Middle"
+	case MouseRight:
+		return "Right"
+	default:
+		return "None"
+	}
+}
 
 // KeyEvent represents a keyboard input event.
 type KeyEvent struct {

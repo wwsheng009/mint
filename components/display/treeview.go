@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/wwsheng009/mint/app"
+	"github.com/wwsheng009/mint/framework/action"
 	frameworkevent "github.com/wwsheng009/mint/framework/event"
 	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/platform"
@@ -19,6 +20,13 @@ var _ runtime.Measurable = (*TreeView)(nil)
 
 // Ensure TreeView can receive framework events (mouse)
 var _ frameworkevent.Component = (*TreeView)(nil)
+
+// Ensure TreeView implements ActionTarget interfaces
+var _ action.ActionTarget = (*TreeView)(nil)
+var _ action.FocusableActionTarget = (*TreeView)(nil)
+var _ action.ScrollableActionTarget = (*TreeView)(nil)
+var _ action.SelectableActionTarget = (*TreeView)(nil)
+// Note: TreeView cannot implement ExpandableActionTarget due to IsExpanded() vs IsExpanded(int) conflict
 
 // TreeView is a component for displaying tree structures with proper formatting
 
@@ -46,6 +54,9 @@ type TreeView struct {
 	boundsY int
 	boundsW int
 	boundsH int
+
+	// ActionTarget support
+	supportedActions []action.ActionType // Supported action types
 }
 
 // TreeViewLine represents a single line in the tree view
@@ -79,11 +90,27 @@ func NewTreeView() *TreeViewBuilder {
 		compact:      false,
 		node: &TreeView{
 			ElementVNode: ui.NewElement("treeview"),
-			lines:        []TreeViewLine{},
-			focusIndex:   0,
-			totalLines:   0,
-			expandState:  make(map[int]bool),
-			selectedIdx:  -1,
+			lines:         []TreeViewLine{},
+			focusIndex:    0,
+			totalLines:    0,
+			expandState:   make(map[int]bool),
+			selectedIdx:   -1,
+			supportedActions: []action.ActionType{
+				action.ActionNavigateUp,
+				action.ActionNavigateDown,
+				action.ActionNavigateLeft,
+				action.ActionNavigateRight,
+				action.ActionNavigatePageUp,
+				action.ActionNavigatePageDown,
+				action.ActionNavigateHome,
+				action.ActionNavigateEnd,
+				action.ActionSelect,
+				action.ActionToggle,
+				action.ActionExpand,
+				action.ActionCollapse,
+				action.ActionScroll,
+				action.ActionClick,
+			},
 		},
 	}
 }
@@ -1126,3 +1153,232 @@ func (t *TreeView) Measure(constraints runtime.BoxConstraints) runtime.Size {
 
 	return runtime.Size{Width: width, Height: height}
 }
+
+// ============================================================================
+// ActionTarget 接口实现
+// ============================================================================
+
+// HandleAction implements ActionTarget interface
+func (t *TreeView) HandleAction(act *action.Action) bool {
+	if act == nil {
+		return false
+	}
+
+	// Handle action based on type
+	switch act.Type {
+	// Navigation actions
+	case action.ActionNavigateUp:
+		t.MoveUp()
+		return true
+	case action.ActionNavigateDown:
+		t.MoveDown()
+		return true
+	case action.ActionNavigateLeft:
+		// Left arrow: collapse current node
+		t.ToggleExpandCurrent()
+		return true
+	case action.ActionNavigateRight:
+		// Right arrow: expand current node
+		t.ToggleExpandCurrent()
+		return true
+	case action.ActionNavigatePageUp:
+		t.PageUp()
+		return true
+	case action.ActionNavigatePageDown:
+		t.PageDown()
+		return true
+	case action.ActionNavigateHome:
+		t.Home()
+		return true
+	case action.ActionNavigateEnd:
+		t.End()
+		return true
+
+	// Selection actions
+	case action.ActionSelect, action.ActionEnter:
+		t.SelectCurrent()
+		return true
+
+	// Expand/Collapse actions
+	case action.ActionToggle, action.ActionExpand, action.ActionCollapse:
+		t.ToggleExpandCurrent()
+		return true
+
+	// Scroll action
+	case action.ActionScroll:
+		if delta, ok := act.GetPayloadInt(); ok {
+			if delta > 0 && t.CanScrollDown() {
+				t.MoveDown()
+				return true
+			} else if delta < 0 && t.CanScrollUp() {
+				t.MoveUp()
+				return true
+			}
+		}
+		return false
+
+	// Mouse click
+	case action.ActionClick:
+		// Click action already handled by HandleEvent
+		// But we can update selection if needed
+		if t.focusIndex >= 0 && t.focusIndex < len(t.lines) {
+			t.SelectLine(t.focusIndex)
+			return true
+		}
+		return false
+	}
+
+	return false
+}
+
+// GetSupportedActions implements ActionTarget interface
+func (t *TreeView) GetSupportedActions() []action.ActionType {
+	if t.supportedActions == nil {
+		return []action.ActionType{
+			action.ActionNavigateUp,
+			action.ActionNavigateDown,
+			action.ActionNavigateLeft,
+			action.ActionNavigateRight,
+			action.ActionNavigatePageUp,
+			action.ActionNavigatePageDown,
+			action.ActionNavigateHome,
+			action.ActionNavigateEnd,
+			action.ActionSelect,
+			action.ActionToggle,
+			action.ActionExpand,
+			action.ActionCollapse,
+			action.ActionScroll,
+			action.ActionClick,
+		}
+	}
+	return t.supportedActions
+}
+
+// CanHandleAction implements ActionTarget interface
+func (t *TreeView) CanHandleAction(act *action.Action) bool {
+	if act == nil {
+		return false
+	}
+
+	// Check if action type is supported
+	supported := t.GetSupportedActions()
+	for _, supportedType := range supported {
+		if supportedType == act.Type {
+			return true
+		}
+	}
+
+	return false
+}
+
+// ============================================================================
+// FocusableActionTarget 接口实现
+// ============================================================================
+
+// Focus implements FocusableActionTarget interface
+func (t *TreeView) Focus() bool {
+	if len(t.lines) == 0 {
+		return false
+	}
+	// Focus on first line if no focus
+	if t.focusIndex < 0 {
+		t.focusIndex = 0
+	}
+	t.regenerateDisplay()
+	return true
+}
+
+// Blur implements FocusableActionTarget interface
+func (t *TreeView) Blur() {
+	// Clear visual focus indication
+	t.focusIndex = -1
+	t.regenerateDisplay()
+}
+
+// IsFocused implements FocusableActionTarget interface
+func (t *TreeView) IsFocused() bool {
+	return t.focusIndex >= 0 && t.focusIndex < len(t.lines)
+}
+
+// IsFocusable implements FocusableActionTarget interface
+func (t *TreeView) IsFocusable() bool {
+	return len(t.lines) > 0
+}
+
+// ============================================================================
+// ScrollableActionTarget 接口实现
+// ============================================================================
+
+// CanScroll implements ScrollableActionTarget interface
+func (t *TreeView) CanScroll(delta int) bool {
+	if delta > 0 {
+		return t.CanScrollDown()
+	} else if delta < 0 {
+		return t.CanScrollUp()
+	}
+	return false
+}
+
+// Scroll implements ScrollableActionTarget interface
+func (t *TreeView) Scroll(delta int) bool {
+	if !t.CanScroll(delta) {
+		return false
+	}
+	t.ScrollBy(delta)
+	return true
+}
+
+// GetScrollPosition implements ScrollableActionTarget interface
+func (t *TreeView) GetScrollPosition() (int, int, int) {
+	current := t.focusIndex
+	total := len(t.lines)
+	visible := t.viewportHeight
+	if visible <= 0 {
+		visible = total
+	}
+	return current, total, visible
+}
+
+// ============================================================================
+// SelectableActionTarget 接口实现
+// ============================================================================
+
+// Select implements SelectableActionTarget interface
+func (t *TreeView) Select() bool {
+	if !t.IsFocusable() {
+		return false
+	}
+	t.SelectCurrent()
+	return true
+}
+
+// IsSelected implements SelectableActionTarget interface
+func (t *TreeView) IsSelected() bool {
+	return t.HasSelection()
+}
+
+// ToggleSelection implements SelectableActionTarget interface
+func (t *TreeView) ToggleSelection() bool {
+	if t.HasSelection() {
+		t.ClearSelection()
+		return false
+	}
+	t.SelectCurrent()
+	return true
+}
+
+// GetSelectedCount implements SelectableActionTarget interface
+func (t *TreeView) GetSelectedCount() int {
+	if t.HasSelection() {
+		return 1
+	}
+	return 0
+}
+
+// Note: TreeView cannot fully implement ExpandableActionTarget interface
+// because it has IsExpanded(int) method which conflicts with IsExpanded().
+// The expand/collapse functionality is available through:
+// - ToggleExpandCurrent()
+// - SetExpanded(nodeID, expanded)
+// - IsExpanded(nodeID)
+

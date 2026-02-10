@@ -34,6 +34,10 @@ type Pump struct {
 	running int32 // Use atomic for cross-goroutine visibility (0=stopped, 1=running)
 	mu     sync.RWMutex // Protects events channel from close while sending
 	wg     sync.WaitGroup // Waits for convertLoop to exit
+
+	// HitMap for mouse event hit testing (set by App after each render)
+	hitMap *event.HitMap
+	hitMapMu sync.RWMutex // Protects hitMap from concurrent access
 }
 
 // NewPump creates a new event pump with a platform input reader.
@@ -174,28 +178,63 @@ func (p *Pump) convertResizeEvent(raw platform.RawInput) Event {
 // convertMouseEvent converts mouse raw input to MouseEvent.
 func (p *Pump) convertMouseEvent(raw platform.RawInput) Event {
 	var eventType event.EventType
+	var mouseAction event.MouseAction
 
 	switch raw.MouseAction {
 	case platform.MousePress:
 		eventType = event.EventMousePress
+		mouseAction = event.MouseActionPress
 	case platform.MouseRelease:
 		eventType = event.EventMouseRelease
+		mouseAction = event.MouseActionRelease
 	case platform.MouseMotion:
 		eventType = event.EventMouseMove
+		mouseAction = event.MouseActionMove
 	case platform.MouseWheelUp:
 		eventType = event.EventMouseWheel
+		mouseAction = event.MouseActionWheel
 	case platform.MouseWheelDown:
 		eventType = event.EventMouseWheel
+		mouseAction = event.MouseActionWheel
 	default:
 		eventType = event.EventMousePress
+		mouseAction = event.MouseActionPress
 	}
 
-	return &MouseEvent{
+	// Create MouseEvent with basic fields
+	ev := &MouseEvent{
 		BaseEvent: NewBaseEvent(eventType),
 		X:         raw.MouseX,
 		Y:         raw.MouseY,
 		Button:    MouseButton(raw.MouseButton),
+		Action:    mouseAction,
 	}
+
+	// Phase 1-6: Fill in hit testing information from HitMap
+	p.hitMapMu.RLock()
+	hitMap := p.hitMap
+	p.hitMapMu.RUnlock()
+
+	if hitMap != nil {
+		// Perform hit testing
+		entry := hitMap.HitTest(raw.MouseX, raw.MouseY)
+		if entry != nil {
+			ev.TargetID = entry.NodeID
+			// Calculate local coordinates using the entry's LocalXY function
+			localX, localY := entry.LocalXY(raw.MouseX, raw.MouseY)
+			ev.LocalX = localX
+			ev.LocalY = localY
+		}
+	}
+
+	// Calculate Delta for wheel events
+	if raw.MouseAction == platform.MouseWheelUp {
+		ev.Delta = 1
+	} else if raw.MouseAction == platform.MouseWheelDown {
+		ev.Delta = -1
+	}
+
+	return ev
 }
 
 // Stop stops the event pump.
@@ -288,6 +327,15 @@ func (s *ChannelEventSource) Start() (<-chan platform.RawInput, error) {
 // Stop 停止 (无操作)
 func (s *ChannelEventSource) Stop() error {
 	return nil
+}
+
+// SetHitMap sets the HitMap for mouse event hit testing.
+// This should be called by App after each render to ensure hit testing
+// uses the latest layout information.
+func (p *Pump) SetHitMap(hitMap *event.HitMap) {
+	p.hitMapMu.Lock()
+	defer p.hitMapMu.Unlock()
+	p.hitMap = hitMap
 }
 
 // Inject 用于测试时直接注入事件到 Pump

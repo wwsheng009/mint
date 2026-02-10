@@ -6,6 +6,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/wwsheng009/mint/framework/action"
 	"github.com/wwsheng009/mint/framework/event"
 	"github.com/wwsheng009/mint/framework/theme"
 	"github.com/wwsheng009/mint/internal/log"
@@ -79,6 +80,8 @@ type ButtonVNode struct {
 	bounds        [4]int
 	// ⭐ NEW: Embed BoxModelMixin for automatic box model support
 	rtui.BoxModelMixin
+	// ActionTarget support
+	supportedActions []action.ActionType // Supported action types
 }
 
 // NewButton creates a new button
@@ -90,6 +93,10 @@ func NewButton(label string) *ButtonVNode {
 		size:         ButtonSizeMedium,
 		disabled:     false,
 		focusStyle:   FocusStyleReverse, // Default: reverse colors
+		supportedActions: []action.ActionType{
+			action.ActionClick,
+			action.ActionEnter,
+		},
 		// BoxModelMixin fields are zero-initialized: padding=[0,0,0,0], margin=[0,0,0,0], textAlign=AlignStart
 	}
 }
@@ -883,4 +890,81 @@ func (b *ButtonVNode) GetFocusID() string {
 	// This works because each button component is a distinct instance.
 	// The %p format gives us a stable unique identifier for the lifetime of the button.
 	return fmt.Sprintf("button:%s@%p", b.label, b)
+}
+
+// ============================================================================
+// ActionTarget 接口实现
+// ============================================================================
+
+// HandleAction implements ActionTarget interface
+func (b *ButtonVNode) HandleAction(act *action.Action) bool {
+	if act == nil || b.disabled {
+		return false
+	}
+
+	// Handle action based on type
+	switch act.Type {
+	// Click action (mouse or keyboard)
+	case action.ActionClick, action.ActionEnter:
+		if b.onClick != nil {
+			log.UILogger.Debug("Button HandleAction: triggering onClick for label=%q, actionType=%s", b.label, act.Type)
+			b.onClick()
+			return true
+		}
+		log.UILogger.Debug("Button HandleAction: onClick is nil for label=%q", b.label)
+		return false
+	}
+
+	return false
+}
+
+// GetSupportedActions implements ActionTarget interface
+func (b *ButtonVNode) GetSupportedActions() []action.ActionType {
+	if b.supportedActions == nil {
+		return []action.ActionType{
+			action.ActionClick,
+			action.ActionEnter,
+		}
+	}
+	return b.supportedActions
+}
+
+// CanHandleAction implements ActionTarget interface
+func (b *ButtonVNode) CanHandleAction(act *action.Action) bool {
+	if act == nil || b.disabled {
+		return false
+	}
+
+	// Check if action type is supported
+	supported := b.GetSupportedActions()
+	for _, supportedType := range supported {
+		if supportedType == act.Type {
+			return true
+		}
+	}
+
+	return false
+}
+
+// ============================================================================
+// FocusableActionTarget 接口实现
+// ============================================================================
+
+// Focus implements FocusableActionTarget interface
+func (b *ButtonVNode) Focus() bool {
+	if b.disabled {
+		return false
+	}
+	b.SetFocus(true)
+	return true
+}
+
+// Blur implements FocusableActionTarget interface
+func (b *ButtonVNode) Blur() {
+	b.SetFocus(false)
+}
+
+// IsFocused implements FocusableActionTarget interface
+func (b *ButtonVNode) IsFocused() bool {
+	return b.HasFocus()
 }

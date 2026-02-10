@@ -13,6 +13,8 @@ import (
 	frameworkevent "github.com/wwsheng009/mint/framework/event"
 	"github.com/wwsheng009/mint/framework/theme"
 	"github.com/wwsheng009/mint/runtime/core"
+	"github.com/wwsheng009/mint/runtime/layout"
+	runtimeevent "github.com/wwsheng009/mint/runtime/event"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/platform"
 	"github.com/wwsheng009/mint/runtime/render"
@@ -103,6 +105,13 @@ type App struct {
 	inspector        interface{} // *inspector.StandaloneInspector (avoid import cycle)
 	inspectorEnabled bool
 	inspectorVisible bool
+
+	// ============================================================================
+	// HitMap 系统（Phase 1: 统一命中测试）
+	// ============================================================================
+	// hitMap 存储从布局树构建的命中映射表
+	// 在每次渲染后构建，用于鼠标事件的快速命中测试
+	hitMap *runtimeevent.HitMap
 }
 
 // NewApp 创建新应用
@@ -1003,6 +1012,29 @@ func (a *App) render() {
 		}
 	}
 
+	// ============================================================================
+	// Phase 1: 构建 HitMap（在每次渲染后）
+	// ============================================================================
+	// 在渲染完成后，从布局树构建 HitMap
+	// HitMap 用于下一帧的鼠标事件命中测试
+	if a.root != nil {
+		// 尝试从根节点构建 HitMap
+		// 注意：需要根节点实现 layout.Node 接口
+		if layoutRoot, ok := a.root.(layout.Node); ok {
+			a.hitMap = runtimeevent.BuildHitMap(layoutRoot)
+
+			// Phase 1-6: 将 HitMap 传递给 Pump 用于鼠标事件命中测试
+			if a.pump != nil {
+				a.pump.SetHitMap(a.hitMap)
+			}
+
+			// DEBUG: 输出 HitMap 统计信息
+			if os.Getenv("TUI_DEBUG_HITMAP") == "true" {
+				fmt.Fprintf(os.Stderr, "[APP] HitMap built: %d entries\n", a.hitMap.Size())
+			}
+		}
+	}
+
 	a.dirty = false
 
 	// 清除首次渲染标记
@@ -1285,6 +1317,24 @@ func (a *App) clearScreen() {
 // GetRenderer 获取渲染器（用于高级用途）
 func (a *App) GetRenderer() *paint.Renderer {
 	return a.renderer
+}
+
+// GetHitMap 获取当前的命中映射表（Phase 1: HitMap 集成）
+// 返回从最新渲染构建的 HitMap，用于鼠标事件命中测试
+//
+// 返回：
+//   *runtimeevent.HitMap - 当前的 HitMap，如果未渲染则返回 nil
+//
+// 示例：
+//   hitMap := app.GetHitMap()
+//   if hitMap != nil {
+//       entry := hitMap.HitTest(x, y)
+//       if entry != nil {
+//           fmt.Printf("Hit node: %s\n", entry.NodeID)
+//       }
+//   }
+func (a *App) GetHitMap() *runtimeevent.HitMap {
+	return a.hitMap
 }
 
 // ForceFullRender 强制下一帧进行全量渲染
