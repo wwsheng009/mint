@@ -1723,7 +1723,7 @@ func (si *StandaloneInspector) HandleMouseEvent(eventType frameworkevent.EventTy
 	return false
 }
 
-// handleOverlayMouse processes clicks within the overlay (e.g., tabs).
+// handleOverlayMouse processes clicks within the overlay (e.g., tabs, treeview).
 func (si *StandaloneInspector) handleOverlayMouse(localX, localY int, eventType frameworkevent.EventType, btn frameworkevent.MouseButton) bool {
 	// Only handle left button presses
 	if eventType != frameworkevent.EventMousePress || btn != frameworkevent.MouseLeft {
@@ -1742,51 +1742,54 @@ func (si *StandaloneInspector) handleOverlayMouse(localX, localY int, eventType 
 	// But to be safe, let's check rows 1-3 for the tab bar pattern
 
 	// Check if we're in a potential tab bar row (rows 1-3)
-	if localY < 1 || localY > 3 {
-		return false
-	}
+	if localY >= 1 && localY <= 3 {
+		// Build the tab labels
+		labels := []string{
+			tabNames[TabElements] + "(1)",
+			tabNames[TabConsole] + "(2)",
+			tabNames[TabPerformance] + "(3)",
+			tabNames[TabDiagnostics] + "(4)",
+			tabNames[TabLayout] + "(5)",
+			tabNames[TabNetwork] + "(6)",
+		}
 
-	// Build the tab labels
-	labels := []string{
-		tabNames[TabElements] + "(1)",
-		tabNames[TabConsole] + "(2)",
-		tabNames[TabPerformance] + "(3)",
-		tabNames[TabDiagnostics] + "(4)",
-		tabNames[TabLayout] + "(5)",
-		tabNames[TabNetwork] + "(6)",
-	}
-
-	// Build the same string as the Tabs component would render:
-	// Active tab: "[Label]"  Inactive: " Label "  Separator: " | "
-	cursor := 0
-	for idx, label := range labels {
-		var width int
-		if InspectorTab(idx) == si.activeTab {
-			// Active tab: [label]
-			width = len(label) + 2 // [ ]
-			if localX >= cursor && localX < cursor+width {
-				return false // clicking active tab does nothing, consume event
-			}
-			cursor += width
-		} else {
-			// Inactive tab: " label " (with spaces)
-			width = len(label) + 2 // leading/trailing spaces
-			if localX >= cursor && localX < cursor+width {
-				si.activeTab = InspectorTab(idx)
-				if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
-					fmt.Fprintf(os.Stderr, "[Inspector] Tab clicked: %s (row %d, col %d)\n", label, localY, localX)
+		// Build the same string as the Tabs component would render:
+		// Active tab: "[Label]"  Inactive: " Label "  Separator: " | "
+		cursor := 0
+		for idx, label := range labels {
+			var width int
+			if InspectorTab(idx) == si.activeTab {
+				// Active tab: [label]
+				width = len(label) + 2 // [ ]
+				if localX >= cursor && localX < cursor+width {
+					return false // clicking active tab does nothing, consume event
 				}
-				return true // tab switched, consume event
+				cursor += width
+			} else {
+				// Inactive tab: " label " (with spaces)
+				width = len(label) + 2 // leading/trailing spaces
+				if localX >= cursor && localX < cursor+width {
+					si.activeTab = InspectorTab(idx)
+					if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
+						fmt.Fprintf(os.Stderr, "[Inspector] Tab clicked: %s (row %d, col %d)\n", label, localY, localX)
+					}
+					return true // tab switched, consume event
+				}
+				cursor += width
 			}
-			cursor += width
-		}
-		// separator " | " except after last tab
-		if idx < len(labels)-1 {
-			cursor += 3
+			// separator " | " except after last tab
+			if idx < len(labels)-1 {
+				cursor += 3
+			}
 		}
 	}
 
-	return false // not on a tab, let event pass through
+	// Try to handle click through handleOverlayClick (includes TreeView, etc.)
+	if si.handleOverlayClick(localX, localY) {
+		return true
+	}
+
+	return false // not handled, let event pass through
 }
 
 // formatHovered returns a human-readable name of the currently hovered control.
@@ -1916,14 +1919,25 @@ func (si *StandaloneInspector) handleOverlayClick(localX, localY int) bool {
 
 	// Handle TreeView clicks (Elements tab)
 	if si.activeTab == TabElements && si.treeViewComponent != nil {
-		// Calculate TreeView area
-		// Overhead: Border(2) + Title(3) + Sep(1) + TabBar(1) + Header(3) + SelectedInfo(4) + Instructions(6) ≈ 20
-		treeViewStartY := headerHeight + tabBarHeight + 10 // Approximate position after headers
+		// Calculate TreeView area based on actual layout
+		// From buildElementsTabContent:
+		//   - header: 3 lines
+		//   - selectedInfo: 4 lines (when has selection/focus)
+		//   - instructions: 6 lines
+		//   Total overhead: ~13 lines before TreeView
+		overhead := 13
+		treeViewStartY := overhead
 
 		if localY >= treeViewStartY {
 			// Click is in TreeView area
 			// Calculate line index from Y coordinate
 			lineIndex := localY - treeViewStartY
+
+			// Debug logging
+			if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
+				fmt.Fprintf(os.Stderr, "[Inspector] TreeView click: localY=%d, lineIndex=%d, lineCount=%d\n",
+					localY, lineIndex, si.treeViewComponent.GetLineCount())
+			}
 
 			// Check if line index is valid
 			if lineIndex >= 0 && lineIndex < si.treeViewComponent.GetLineCount() {
@@ -1938,13 +1952,19 @@ func (si *StandaloneInspector) handleOverlayClick(localX, localY int) bool {
 				}
 
 				// Handle the action
-				si.treeViewComponent.HandleAction(clickAction)
+				handled := si.treeViewComponent.HandleAction(clickAction)
 
 				if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
-					fmt.Fprintf(os.Stderr, "[Inspector] TreeView clicked at line %d\n", lineIndex)
+					fmt.Fprintf(os.Stderr, "[Inspector] TreeView clicked at line %d, handled=%v\n",
+						lineIndex, handled)
 				}
 
-				return true // Click was handled
+				return handled
+			} else {
+				if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
+					fmt.Fprintf(os.Stderr, "[Inspector] TreeView click OUT OF RANGE: lineIndex=%d, lineCount=%d\n",
+						lineIndex, si.treeViewComponent.GetLineCount())
+				}
 			}
 		}
 	}
