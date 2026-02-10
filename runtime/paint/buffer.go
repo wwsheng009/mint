@@ -119,12 +119,18 @@ func (b *Buffer) writeString(x, y int, text string, s style.Style, maxWidth int)
 		return
 	}
 
+	// 统一做终端安全过滤，避免 VS16/ZWJ/组合符导致的 cell 错位。
+	text = SanitizeForTerminal(text)
+
 	col := x
 	g := uniseg.NewGraphemes(text)
 
 	for g.Next() {
 		cluster := g.Str()                // 完整字形簇
 		width := getClusterWidth(cluster) // 使用正确的宽度计算（边框字符为宽度1）
+		if width <= 0 {
+			continue
+		}
 
 		// 边界检查
 		if col >= b.Width {
