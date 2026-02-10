@@ -1914,6 +1914,41 @@ func (si *StandaloneInspector) handleOverlayClick(localX, localY int) bool {
 		return si.handleTabBarClick(localX)
 	}
 
+	// Handle TreeView clicks (Elements tab)
+	if si.activeTab == TabElements && si.treeViewComponent != nil {
+		// Calculate TreeView area
+		// Overhead: Border(2) + Title(3) + Sep(1) + TabBar(1) + Header(3) + SelectedInfo(4) + Instructions(6) ≈ 20
+		treeViewStartY := headerHeight + tabBarHeight + 10 // Approximate position after headers
+
+		if localY >= treeViewStartY {
+			// Click is in TreeView area
+			// Calculate line index from Y coordinate
+			lineIndex := localY - treeViewStartY
+
+			// Check if line index is valid
+			if lineIndex >= 0 && lineIndex < si.treeViewComponent.GetLineCount() {
+				// Set focus to the clicked line
+				si.treeViewComponent.SetFocusIndex(lineIndex)
+
+				// Create and handle click action using the new event system
+				clickAction := &action.Action{
+					Type:     action.ActionClick,
+					Source:   "mouse",
+					TargetID: "", // TreeView will determine target
+				}
+
+				// Handle the action
+				si.treeViewComponent.HandleAction(clickAction)
+
+				if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
+					fmt.Fprintf(os.Stderr, "[Inspector] TreeView clicked at line %d\n", lineIndex)
+				}
+
+				return true // Click was handled
+			}
+		}
+	}
+
 	return false
 }
 
