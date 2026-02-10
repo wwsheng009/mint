@@ -7,8 +7,12 @@ import (
 	"unicode/utf8"
 
 	"github.com/wwsheng009/mint/framework/action"
-	"github.com/wwsheng009/mint/framework/event"
+	"github.com/wwsheng009/mint/framework/cmd"
+	"github.com/wwsheng009/mint/framework/component"
+	frameworkevent "github.com/wwsheng009/mint/framework/event"
 	"github.com/wwsheng009/mint/framework/theme"
+	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
+	runtimeplatform "github.com/wwsheng009/mint/runtime/platform"
 	"github.com/wwsheng009/mint/internal/log"
 	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/paint"
@@ -16,6 +20,11 @@ import (
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/ui"
 )
+
+// Interface implementation assertions
+var _ frameworkevent.Component = (*ButtonVNode)(nil)
+var _ component.Updater = (*ButtonVNode)(nil) // Phase 3: Msg/Cmd support
+var _ action.ActionTarget = (*ButtonVNode)(nil)
 
 // ButtonVariant represents button style variants
 type ButtonVariant int
@@ -464,7 +473,7 @@ func (b *ButtonVNode) SetOnMouseRelease(fn func()) *ButtonVNode {
 }
 
 // HandleEvent processes mouse and keyboard events for the button
-func (b *ButtonVNode) HandleEvent(e event.Event) bool {
+func (b *ButtonVNode) HandleEvent(e frameworkevent.Event) bool {
 	log.UILogger.Debug("Button HandleEvent called: label=%q, disabled=%v, hasFocus=%v, event type=%T",
 		b.label, b.disabled, b.hasFocus, e)
 
@@ -473,7 +482,7 @@ func (b *ButtonVNode) HandleEvent(e event.Event) bool {
 	}
 
 	// Handle keyboard events (Enter/Space to click)
-	keyEvent, ok := e.(*event.KeyEvent)
+	keyEvent, ok := e.(*frameworkevent.KeyEvent)
 	log.UILogger.Debug("Button HandleEvent: type assertion ok=%v, event type=%T", ok, e)
 	if ok {
 		// Only respond to keyboard events when focused
@@ -483,9 +492,9 @@ func (b *ButtonVNode) HandleEvent(e event.Event) bool {
 		}
 
 		log.UILogger.Debug("Button HandleEvent: KeyEvent, Special=%d (%v), Rune=%c, KeyEnter=%d",
-			keyEvent.Special, keyEvent.Special, keyEvent.Key.Rune, event.KeyEnter)
+			keyEvent.Special, keyEvent.Special, keyEvent.Key.Rune, frameworkevent.KeyEnter)
 		// Check for Enter key or Space key
-		if keyEvent.Special == event.KeyEnter || keyEvent.Key.Rune == ' ' {
+		if keyEvent.Special == frameworkevent.KeyEnter || keyEvent.Key.Rune == ' ' {
 			// Space or Enter triggers click
 			if b.onClick != nil {
 				log.UILogger.Debug("Button HandleEvent: triggering onClick for label=%q (Special=%d)", b.label, keyEvent.Special)
@@ -496,18 +505,18 @@ func (b *ButtonVNode) HandleEvent(e event.Event) bool {
 			}
 		} else {
 			log.UILogger.Debug("Button HandleEvent: key not matched (Special=%d vs KeyEnter=%d)",
-				keyEvent.Special, event.KeyEnter)
+				keyEvent.Special, frameworkevent.KeyEnter)
 		}
 		return false
 	}
 
-	mouseEvent, ok := e.(*event.MouseEvent)
+	mouseEvent, ok := e.(*frameworkevent.MouseEvent)
 	if !ok {
 		return false
 	}
 
 	switch mouseEvent.Type() {
-	case event.EventMouseEnter:
+	case frameworkevent.EventMouseEnter:
 		if !b.isHovered {
 			b.isHovered = true
 			if b.onMouseEnter != nil {
@@ -516,7 +525,7 @@ func (b *ButtonVNode) HandleEvent(e event.Event) bool {
 		}
 		return true
 
-	case event.EventMouseLeave:
+	case frameworkevent.EventMouseLeave:
 		if b.isHovered {
 			b.isHovered = false
 			if b.onMouseLeave != nil {
@@ -525,9 +534,9 @@ func (b *ButtonVNode) HandleEvent(e event.Event) bool {
 		}
 		return true
 
-	case event.EventMousePress:
+	case frameworkevent.EventMousePress:
 		// Check if mouse is within button bounds
-		if b.ContainsPoint(mouseEvent.X, mouseEvent.Y) && mouseEvent.Button == event.MouseLeft {
+		if b.ContainsPoint(mouseEvent.X, mouseEvent.Y) && mouseEvent.Button == frameworkevent.MouseLeft {
 			log.UILogger.Debug("Button HandleEvent: mouse press within bounds for label=%q, x=%d, y=%d, bounds=%v",
 				b.label, mouseEvent.X, mouseEvent.Y, b.bounds)
 			if b.onMousePress != nil {
@@ -541,8 +550,8 @@ func (b *ButtonVNode) HandleEvent(e event.Event) bool {
 			return true
 		}
 
-	case event.EventMouseRelease:
-		if b.isHovered && mouseEvent.Button == event.MouseLeft {
+	case frameworkevent.EventMouseRelease:
+		if b.isHovered && mouseEvent.Button == frameworkevent.MouseLeft {
 			if b.onMouseRelease != nil {
 				b.onMouseRelease()
 			}
@@ -554,8 +563,8 @@ func (b *ButtonVNode) HandleEvent(e event.Event) bool {
 			return true
 		}
 
-	case event.EventClick:
-		if b.isHovered && mouseEvent.Button == event.MouseLeft {
+	case frameworkevent.EventClick:
+		if b.isHovered && mouseEvent.Button == frameworkevent.MouseLeft {
 			if b.onClick != nil {
 				log.UILogger.Debug("Button HandleEvent: click event for label=%q", b.label)
 				b.onClick()
@@ -565,6 +574,72 @@ func (b *ButtonVNode) HandleEvent(e event.Event) bool {
 	}
 
 	return false
+}
+
+// =============================================================================
+// Msg/Cmd Architecture Support (Phase 3)
+// =============================================================================
+
+// Update implements component.Updater interface for Msg/Cmd architecture
+//
+// This method is called by the App when the button receives a Msg directly via
+// the component registry (bypassing the Event system).
+//
+// Handles:
+// - MouseMsg with TargetID: Direct routing from Pump via HitMap
+// - KeyMsg: When button has focus (Enter/Space to trigger click)
+func (b *ButtonVNode) Update(message runtimemsg.Msg) cmd.Cmd {
+	if b.disabled {
+		return nil
+	}
+
+	switch msg := message.(type) {
+	case *runtimemsg.MouseMsg:
+		// Phase 2: Direct routing for targeted mouse events
+		return b.updateMouse(msg)
+
+	case *runtimemsg.KeyMsg:
+		// Handle keyboard events when focused
+		if !b.hasFocus {
+			return nil
+		}
+		return b.updateKey(msg)
+	}
+
+	return nil
+}
+
+// updateMouse handles mouse messages (direct routing via TargetID)
+func (b *ButtonVNode) updateMouse(mouseMsg *runtimemsg.MouseMsg) cmd.Cmd {
+	switch mouseMsg.Action {
+	case runtimemsg.MouseActionPress:
+		if mouseMsg.Button == runtimemsg.MouseLeft {
+			if b.onMousePress != nil {
+				b.onMousePress()
+			}
+			if b.onClick != nil {
+				log.UILogger.Debug("[Update] Button click: label=%q via MouseMsg", b.label)
+				b.onClick()
+			}
+			return nil // TODO: Return Cmd to trigger re-render
+		}
+	}
+
+	return nil
+}
+
+// updateKey handles keyboard messages (when focused)
+func (b *ButtonVNode) updateKey(keyMsg *runtimemsg.KeyMsg) cmd.Cmd {
+	// Check for Enter key or Space key
+	if keyMsg.Special == runtimeplatform.KeyEnter || keyMsg.Rune == ' ' {
+		if b.onClick != nil {
+			log.UILogger.Debug("[Update] Button click: label=%q via KeyMsg", b.label)
+			b.onClick()
+		}
+		return nil
+	}
+
+	return nil
 }
 
 // =============================================================================

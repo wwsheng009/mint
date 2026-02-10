@@ -40,33 +40,12 @@ type Modifiers struct {
 func NewKeyMsg(rune rune, special runtimeplatform.SpecialKey, mod Modifiers) *KeyMsg {
 	return &KeyMsg{
 		BaseMsg: BaseMsg{
-			TypeValue:   MsgTypeKey,
+			TypeValue:      MsgTypeKey,
 			TimestampValue: time.Now(),
 		},
 		Rune:    rune,
 		Special: special,
 		Mod:     mod,
-	}
-}
-
-// NewKeyMsgFromKeyEvent 从 runtime KeyEvent 创建 KeyMsg
-func NewKeyMsgFromKeyEvent(keyEvent *KeyEvent) *KeyMsg {
-	if keyEvent == nil {
-		return nil
-	}
-
-	return &KeyMsg{
-		BaseMsg: BaseMsg{
-			TypeValue:   MsgTypeKey,
-			TimestampValue: time.Now(),
-		},
-		Rune:    keyEvent.Key.Rune,
-		Special: keyEvent.Special,
-		Mod: Modifiers{
-			Alt:   keyEvent.Key.Alt,
-			Ctrl:  keyEvent.Key.Ctrl,
-			Shift: keyEvent.Key.Shift,
-		},
 	}
 }
 
@@ -133,9 +112,9 @@ func (k *KeyMsg) IsDelete() bool {
 func (k *KeyMsg) IsNavigation() bool {
 	switch k.Special {
 	case runtimeplatform.KeyUp, runtimeplatform.KeyDown,
-	     runtimeplatform.KeyLeft, runtimeplatform.KeyRight,
-	     runtimeplatform.KeyHome, runtimeplatform.KeyEnd,
-	     runtimeplatform.KeyPageUp, runtimeplatform.KeyPageDown:
+		runtimeplatform.KeyLeft, runtimeplatform.KeyRight,
+		runtimeplatform.KeyHome, runtimeplatform.KeyEnd,
+		runtimeplatform.KeyPageUp, runtimeplatform.KeyPageDown:
 		return true
 	default:
 		return false
@@ -145,6 +124,86 @@ func (k *KeyMsg) IsNavigation() bool {
 // IsFunctionKey 检查是否为功能键（F1-F12）
 func (k *KeyMsg) IsFunctionKey() bool {
 	return k.Special >= runtimeplatform.KeyF1 && k.Special <= runtimeplatform.KeyF12
+}
+
+// IsF1 检查是否为 F1 键
+func (k *KeyMsg) IsF1() bool {
+	return k.Special == runtimeplatform.KeyF1
+}
+
+// IsF2 检查是否为 F2 键
+func (k *KeyMsg) IsF2() bool {
+	return k.Special == runtimeplatform.KeyF2
+}
+
+// IsF3 检查是否为 F3 键
+func (k *KeyMsg) IsF3() bool {
+	return k.Special == runtimeplatform.KeyF3
+}
+
+// IsF4 检查是否为 F4 键
+func (k *KeyMsg) IsF4() bool {
+	return k.Special == runtimeplatform.KeyF4
+}
+
+// IsF5 检查是否为 F5 键
+func (k *KeyMsg) IsF5() bool {
+	return k.Special == runtimeplatform.KeyF5
+}
+
+// IsF6 检查是否为 F6 键
+func (k *KeyMsg) IsF6() bool {
+	return k.Special == runtimeplatform.KeyF6
+}
+
+// IsF7 检查是否为 F7 键
+func (k *KeyMsg) IsF7() bool {
+	return k.Special == runtimeplatform.KeyF7
+}
+
+// IsF8 检查是否为 F8 键
+func (k *KeyMsg) IsF8() bool {
+	return k.Special == runtimeplatform.KeyF8
+}
+
+// IsF9 检查是否为 F9 键
+func (k *KeyMsg) IsF9() bool {
+	return k.Special == runtimeplatform.KeyF9
+}
+
+// IsF10 检查是否为 F10 键
+func (k *KeyMsg) IsF10() bool {
+	return k.Special == runtimeplatform.KeyF10
+}
+
+// IsF11 检查是否为 F11 键
+func (k *KeyMsg) IsF11() bool {
+	return k.Special == runtimeplatform.KeyF11
+}
+
+// IsF12 检查是否为 F12 键
+func (k *KeyMsg) IsF12() bool {
+	return k.Special == runtimeplatform.KeyF12
+}
+
+// IsUp 检查是否为向上键
+func (k *KeyMsg) IsUp() bool {
+	return k.Special == runtimeplatform.KeyUp
+}
+
+// IsDown 检查是否为向下键
+func (k *KeyMsg) IsDown() bool {
+	return k.Special == runtimeplatform.KeyDown
+}
+
+// IsLeft 检查是否为向左键
+func (k *KeyMsg) IsLeft() bool {
+	return k.Special == runtimeplatform.KeyLeft
+}
+
+// IsRight 检查是否为向右键
+func (k *KeyMsg) IsRight() bool {
+	return k.Special == runtimeplatform.KeyRight
 }
 
 // String 返回 KeyMsg 的字符串表示
@@ -232,19 +291,4 @@ func (k *KeyMsg) specialKeyString() string {
 	default:
 		return fmt.Sprintf("Special(%d)", k.Special)
 	}
-}
-
-// KeyEvent 是兼容 runtime.KeyEvent 的结构
-// 这个结构用于适配器从 runtime.Event 转换
-type KeyEvent struct {
-	Key     Key
-	Special runtimeplatform.SpecialKey
-}
-
-// Key 表示一个按键
-type Key struct {
-	Rune  rune
-	Alt   bool
-	Ctrl  bool
-	Shift bool
 }

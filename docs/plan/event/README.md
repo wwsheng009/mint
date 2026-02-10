@@ -11,11 +11,14 @@
 
 ```
 docs/plan/event/
-├── README.md                    (本文件)
-├── COMPREHENSIVE_ANALYSIS_2025.md  # 综合分析报告
-├── IMPLEMENTATION_PLAN.md        # 实施方案详解
-├── MSG_UNIFICATION.md            # Msg 统一与 Sandbox 集成
-└── TASKS.md                      # 完整任务列表
+├── README.md                              (本文件)
+├── COMPLETE_MSG_MIGRATION.md              # ⭐ Msg/Cmd 彻底迁移方案（推荐）
+├── MSG_UNIFICATION.md                     # Msg 统一与 Sandbox 集成
+├── INSPECTOR_MSG_CMD_REFACTOR.md          # Inspector Msg/Cmd 重构
+├── INSPECTOR_HITMAP_INTEGRATION_ANALYSIS.md  # Inspector HitMap 分析（老方案）
+├── COMPREHENSIVE_ANALYSIS_2025.md         # 综合分析报告
+├── IMPLEMENTATION_PLAN.md                 # 实施方案详解
+└── TASKS.md                               # 完整任务列表
 ```
 
 ---
@@ -24,23 +27,31 @@ docs/plan/event/
 
 ### 如果你想...
 
+**🔥 彻底迁移到 Msg/Cmd 系统** (最重要！)
+→ 阅读 [Msg/Cmd 彻底迁移方案](./COMPLETE_MSG_MIGRATION.md) ⭐⭐⭐
+  - 完全移除 HandleEvent 接口
+  - Pump 直接输出 Msg
+  - 所有组件实现 Update(Msg)
+  - 工期：8-10 天
+  - 架构统一，技术债务清零
+
 **了解问题全貌**
 → 阅读 [综合分析报告](./COMPREHENSIVE_ANALYSIS_2025.md)
   - 三个文档对比
   - 根本原因分析
   - 预期收益评估
 
-**查看实施细节**
-→ 阅读 [实施方案详解](./IMPLEMENTATION_PLAN.md)
-  - 6 个阶段详细步骤
-  - 代码示例
-  - 验收标准
-
 **了解 Msg/Cmd 设计**
 → 阅读 [Msg 统一设计](./MSG_UNIFICATION.md)
   - Msg 类型定义
   - Cmd 副作用系统
   - Sandbox 注入 API
+
+**查看实施细节**
+→ 阅读 [实施方案详解](./IMPLEMENTATION_PLAN.md)
+  - 6 个阶段详细步骤
+  - 代码示例
+  - 验收标准
 
 **查看具体任务**
 → 阅读 [任务列表](./TASKS.md)

@@ -82,6 +82,24 @@ func TestOverlayTreeViewClick(t *testing.T) {
 	t.Logf("TreeView state: lineCount=%d, focusIndex=%d",
 		tvComponent.GetLineCount(), tvComponent.GetFocusIndex())
 
+	// IMPORTANT: Call RenderOverlay to initialize cachedOverlayContent
+	// This ensures components have accurate bounds from the layout engine
+	overlay := si.RenderOverlay()
+
+	// In a real application, layout engine would set bounds during rendering.
+	// In tests, we don't need to manually set bounds since LocalX/LocalY are provided directly.
+	if overlay != nil {
+		t.Logf("Overlay type: %T", overlay)
+
+		if _, ok := overlay.(frameworkevent.Component); ok {
+			t.Logf("✓ Overlay implements Component interface")
+		} else {
+			t.Logf("✗ Overlay does NOT implement Component interface")
+		}
+	} else {
+		t.Logf("WARNING: RenderOverlay returned nil")
+	}
+
 	// TreeView is rendered below tab bar (starting around Y=4-5)
 	// Click in middle of overlay where TreeView should be
 	x := 10
@@ -93,6 +111,13 @@ func TestOverlayTreeViewClick(t *testing.T) {
 		Y:         y,
 		Button:    frameworkevent.MouseLeft,
 	}
+
+	// NOTE: In a real application, layout engine would set bounds on all components.
+	// In this unit test, components don't have accurate bounds from layout engine.
+	// The component forwarding system works correctly, but TreeView needs accurate
+	// bounds to calculate which line was clicked.
+	//
+	// For now, we just verify that the event routing works (overlay → Panel → Tabs → content).
 
 	handled := si.HandleMouseEvent(frameworkevent.EventMousePress, ev)
 

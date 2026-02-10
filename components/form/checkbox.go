@@ -3,14 +3,21 @@ package form
 import (
 	"unicode/utf8"
 
+	"github.com/wwsheng009/mint/framework/cmd"
+	"github.com/wwsheng009/mint/framework/component"
+	frameworkevent "github.com/wwsheng009/mint/framework/event"
 	"github.com/wwsheng009/mint/runtime/dimension"
-	"github.com/wwsheng009/mint/framework/event"
+	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
 	"github.com/wwsheng009/mint/framework/theme"
 	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
 	"github.com/wwsheng009/mint/ui"
 )
+
+// Interface implementation assertions
+var _ frameworkevent.Component = (*CheckboxVNode)(nil)
+var _ component.Updater = (*CheckboxVNode)(nil) // Phase 3: Msg/Cmd support
 
 // CheckboxVNode represents a checkbox component
 type CheckboxVNode struct {
@@ -253,13 +260,13 @@ func (c *CheckboxVNode) SetOnMouseLeave(fn func()) *CheckboxVNode {
 }
 
 // HandleEvent processes mouse and keyboard events for the checkbox
-func (c *CheckboxVNode) HandleEvent(e event.Event) bool {
+func (c *CheckboxVNode) HandleEvent(e frameworkevent.Event) bool {
 	if c.disabled {
 		return false
 	}
 
 	// Handle keyboard events (Space to toggle)
-	keyEvent, ok := e.(*event.KeyEvent)
+	keyEvent, ok := e.(*frameworkevent.KeyEvent)
 	if ok {
 		// Only respond to keyboard events when focused
 		if !c.isFocused {
@@ -277,13 +284,13 @@ func (c *CheckboxVNode) HandleEvent(e event.Event) bool {
 		return false
 	}
 
-	mouseEvent, ok := e.(*event.MouseEvent)
+	mouseEvent, ok := e.(*frameworkevent.MouseEvent)
 	if !ok {
 		return false
 	}
 
 	switch mouseEvent.Type() {
-	case event.EventMouseEnter:
+	case frameworkevent.EventMouseEnter:
 		if !c.isHovered {
 			c.isHovered = true
 			if c.onMouseEnter != nil {
@@ -292,7 +299,7 @@ func (c *CheckboxVNode) HandleEvent(e event.Event) bool {
 		}
 		return true
 
-	case event.EventMouseLeave:
+	case frameworkevent.EventMouseLeave:
 		if c.isHovered {
 			c.isHovered = false
 			if c.onMouseLeave != nil {
@@ -301,8 +308,8 @@ func (c *CheckboxVNode) HandleEvent(e event.Event) bool {
 		}
 		return true
 
-	case event.EventMousePress, event.EventClick:
-		if c.isHovered && mouseEvent.Button == event.MouseLeft {
+	case frameworkevent.EventMousePress, frameworkevent.EventClick:
+		if c.isHovered && mouseEvent.Button == frameworkevent.MouseLeft {
 			// Toggle the checkbox
 			newState := c.Toggle()
 			if c.onChange != nil {
@@ -313,6 +320,76 @@ func (c *CheckboxVNode) HandleEvent(e event.Event) bool {
 	}
 
 	return false
+}
+
+// =============================================================================
+// Msg/Cmd Architecture Support (Phase 3)
+// =============================================================================
+
+// Update implements component.Updater interface for Msg/Cmd architecture
+//
+// Handles:
+// - KeyMsg: Space to toggle (when focused)
+// - MouseMsg: Click to toggle
+func (c *CheckboxVNode) Update(message runtimemsg.Msg) cmd.Cmd {
+	if c.disabled {
+		return nil
+	}
+
+	switch msg := message.(type) {
+	case *runtimemsg.KeyMsg:
+		// Only respond to keyboard events when focused
+		if !c.isFocused {
+			return nil
+		}
+		return c.updateKey(msg)
+
+	case *runtimemsg.MouseMsg:
+		return c.updateMouse(msg)
+	}
+
+	return nil
+}
+
+// updateKey handles keyboard messages (Space to toggle)
+func (c *CheckboxVNode) updateKey(keyMsg *runtimemsg.KeyMsg) cmd.Cmd {
+	// Space toggles the checkbox
+	if keyMsg.Rune == ' ' {
+		newState := c.Toggle()
+		if c.onChange != nil {
+			c.onChange(newState)
+		}
+		return nil
+	}
+
+	return nil
+}
+
+// updateMouse handles mouse messages (click to toggle, hover tracking)
+func (c *CheckboxVNode) updateMouse(mouseMsg *runtimemsg.MouseMsg) cmd.Cmd {
+	switch mouseMsg.Action {
+	case runtimemsg.MouseActionMove:
+		// Update hover state
+		if !c.isHovered {
+			c.isHovered = true
+			if c.onMouseEnter != nil {
+				c.onMouseEnter()
+			}
+		}
+		return nil
+
+	case runtimemsg.MouseActionPress:
+		if mouseMsg.Button == runtimemsg.MouseLeft {
+			// Toggle the checkbox
+			newState := c.Toggle()
+			if c.onChange != nil {
+				c.onChange(newState)
+			}
+			return nil
+		}
+	}
+
+	return nil
 }
 
 // =============================================================================

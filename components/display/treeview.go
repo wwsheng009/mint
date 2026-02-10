@@ -7,7 +7,11 @@ import (
 
 	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/framework/action"
+	"github.com/wwsheng009/mint/framework/cmd"
+	"github.com/wwsheng009/mint/framework/component"
 	frameworkevent "github.com/wwsheng009/mint/framework/event"
+	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
+	runtimeplatform "github.com/wwsheng009/mint/runtime/platform"
 	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/platform"
 	"github.com/wwsheng009/mint/runtime/style"
@@ -15,13 +19,10 @@ import (
 	ui "github.com/wwsheng009/mint/ui"
 )
 
-// Ensure TreeView implements runtime.Measurable
+// Interface implementation assertions
 var _ runtime.Measurable = (*TreeView)(nil)
-
-// Ensure TreeView can receive framework events (mouse)
 var _ frameworkevent.Component = (*TreeView)(nil)
-
-// Ensure TreeView implements ActionTarget interfaces
+var _ component.Updater = (*TreeView)(nil) // Phase 3: Msg/Cmd support
 var _ action.ActionTarget = (*TreeView)(nil)
 var _ action.FocusableActionTarget = (*TreeView)(nil)
 var _ action.ScrollableActionTarget = (*TreeView)(nil)
@@ -434,6 +435,118 @@ func (t *TreeView) HandleEvent(ev frameworkevent.Event) bool {
 	}
 
 	return false
+}
+
+// =============================================================================
+// Msg/Cmd Architecture Support (Phase 3)
+// =============================================================================
+
+// Update implements component.Updater interface for Msg/Cmd architecture
+//
+// Handles:
+// - MouseMsg: Tree node selection, hover focus
+// - KeyMsg: Keyboard navigation (when focused)
+func (t *TreeView) Update(message runtimemsg.Msg) cmd.Cmd {
+	switch msg := message.(type) {
+	case *runtimemsg.MouseMsg:
+		return t.updateMouse(msg)
+	case *runtimemsg.KeyMsg:
+		return t.updateKey(msg)
+	}
+	return nil
+}
+
+// updateMouse handles mouse messages for tree node interaction
+func (t *TreeView) updateMouse(mouseMsg *runtimemsg.MouseMsg) cmd.Cmd {
+	switch mouseMsg.Action {
+	case runtimemsg.MouseActionPress:
+		// Calculate which line was clicked based on LocalY
+		// LocalY is relative to the TreeView component
+		localY := mouseMsg.LocalY
+		if localY < 0 {
+			return nil
+		}
+
+		// Calculate target line (account for scroll offset)
+		target := t.scrollOffset + localY
+		if target < 0 || target >= len(t.lines) {
+			return nil
+		}
+
+		// Set focus and select the line
+		t.SetFocusIndex(target)
+		t.SelectLine(target)
+		return nil // TODO: Return Cmd to trigger re-render
+
+	case runtimemsg.MouseActionMove:
+		// Hover focus (non-selecting) for visual cue
+		localY := mouseMsg.LocalY
+		if localY < 0 {
+			return nil
+		}
+		target := t.scrollOffset + localY
+		if target < 0 || target >= len(t.lines) {
+			return nil
+		}
+		if target != t.focusIndex {
+			t.SetFocusIndex(target)
+			return nil
+		}
+	}
+
+	return nil
+}
+
+// updateKey handles keyboard messages for navigation (when focused)
+func (t *TreeView) updateKey(keyMsg *runtimemsg.KeyMsg) cmd.Cmd {
+	switch keyMsg.Special {
+	case runtimeplatform.KeyUp:
+		// Move focus up
+		if t.focusIndex > 0 {
+			t.SetFocusIndex(t.focusIndex - 1)
+		}
+		return nil
+
+	case runtimeplatform.KeyDown:
+		// Move focus down
+		if t.focusIndex < len(t.lines)-1 {
+			t.SetFocusIndex(t.focusIndex + 1)
+		}
+		return nil
+
+	case runtimeplatform.KeyEnter:
+		// Select current focused line
+		if t.focusIndex >= 0 && t.focusIndex < len(t.lines) {
+			t.SelectLine(t.focusIndex)
+		}
+		return nil
+
+	case runtimeplatform.KeyHome:
+		// Move to first line
+		if len(t.lines) > 0 {
+			t.SetFocusIndex(0)
+		}
+		return nil
+
+	case runtimeplatform.KeyEnd:
+		// Move to last line
+		if len(t.lines) > 0 {
+			t.SetFocusIndex(len(t.lines) - 1)
+		}
+		return nil
+
+	case runtimeplatform.KeyPageUp:
+		// Move up by viewport height
+		t.MoveUpN(t.viewportHeight)
+		return nil
+
+	case runtimeplatform.KeyPageDown:
+		// Move down by viewport height
+		t.MoveDownN(t.viewportHeight)
+		return nil
+	}
+
+	return nil
 }
 
 // MoveUpN moves focus up by n lines.

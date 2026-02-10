@@ -1,21 +1,25 @@
 package navigation
 
 import (
+	"fmt"
+	"os"
 	"strings"
 	"unicode/utf8"
 
 	"github.com/wwsheng009/mint/framework/action"
+	"github.com/wwsheng009/mint/framework/cmd"
+	"github.com/wwsheng009/mint/framework/component"
 	frameworkevent "github.com/wwsheng009/mint/framework/event"
+	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
+	runtimeplatform "github.com/wwsheng009/mint/runtime/platform"
 	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/ui"
 )
 
-// Ensure TabsVNode can handle framework events (mouse)
+// Interface implementation assertions
 var _ frameworkevent.Component = (*TabsVNode)(nil)
-
-// Ensure TabsVNode implements ActionTarget interfaces
+var _ component.Updater = (*TabsVNode)(nil) // Phase 3: Msg/Cmd support
 var _ action.ActionTarget = (*TabsVNode)(nil)
-var _ action.FocusableActionTarget = (*TabsVNode)(nil)
 var _ action.ScrollableActionTarget = (*TabsVNode)(nil)
 var _ action.SelectableActionTarget = (*TabsVNode)(nil)
 
@@ -51,12 +55,6 @@ type TabsVNode struct {
 	onChange  func(string)        // Callback when tab changes
 	vertical  bool                // DEPRECATED: Use position instead
 	contents  map[string]ui.VNode // Tab content mapping
-
-	// Layout bounds for mouse hit testing
-	boundsX int
-	boundsY int
-	boundsW int
-	boundsH int
 
 	// ActionTarget support
 	supportedActions []action.ActionType // Supported action types
@@ -197,48 +195,120 @@ func (t *TabsVNode) SetActiveTab(index int) {
 	t.updateActiveContent()
 }
 func (t *TabsVNode) SetOnChange(fn func(string)) { t.onChange = fn }
-func (t *TabsVNode) SetVertical(v bool)          { t.vertical = v }
+func (t *TabsVNode) SetVertical(v bool) { t.vertical = v }
 
-// SetBounds stores layout bounds (called by layout engine when available).
-func (t *TabsVNode) SetBounds(x, y, width, height int) {
-	t.boundsX, t.boundsY, t.boundsW, t.boundsH = x, y, width, height
-}
-
-// Bounds returns the stored layout bounds.
-func (t *TabsVNode) Bounds() [4]int {
-	return [4]int{t.boundsX, t.boundsY, t.boundsW, t.boundsH}
-}
-
-// GetBounds (tuple form) used by hit-testing helpers.
-func (t *TabsVNode) GetBounds() (int, int, int, int) {
-	return t.boundsX, t.boundsY, t.boundsW, t.boundsH
-}
-
-// containsPoint checks if the coordinate is inside the tabs area.
-func (t *TabsVNode) containsPoint(x, y int) bool {
-	return x >= t.boundsX && x < t.boundsX+t.boundsW &&
-		y >= t.boundsY && y < t.boundsY+t.boundsH
-}
-
-// HandleEvent enables mouse tab switching.
+// HandleEvent enables mouse tab switching using LocalX/LocalY from HitMap.
+// The Inspector's HitMap-based event routing delivers events directly to target components.
 func (t *TabsVNode) HandleEvent(ev frameworkevent.Event) bool {
 	me, ok := ev.(*frameworkevent.MouseEvent)
 	if !ok || ev.Type() != frameworkevent.EventMousePress {
 		return false
 	}
 
-	if !t.containsPoint(me.X, me.Y) {
+	if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
+		fmt.Fprintf(os.Stderr, "[Tabs] HandleEvent: LocalX=%d, LocalY=%d\n", me.LocalX, me.LocalY)
+	}
+
+	// Use LocalX/LocalY directly (pre-calculated by HitMap)
+	localX := me.LocalX
+	localY := me.LocalY
+
+	// Check if click is in tab bar (first row)
+	if localY == 0 {
+		// Handle tab bar click - switch tabs
+		return t.handleTabBarClick(localX)
+	}
+
+	// Click is below tab bar - forward to active tab content
+	if t.activeTab < 0 || t.activeTab >= len(t.tabs) {
 		return false
 	}
 
-	// Only react to clicks on the first row (tab bar).
-	localY := me.Y - t.boundsY
-	if localY != 0 {
-		return false
+	activeTabID := t.tabs[t.activeTab].ID
+	if content, ok := t.contents[activeTabID]; ok && content != nil {
+		// Try to forward event to content component
+		if contentComponent, ok := content.(frameworkevent.Component); ok {
+			// Forward the event with the same LocalX/LocalY
+			// Content should use these coordinates to determine what was clicked
+			return contentComponent.HandleEvent(ev)
+		}
 	}
 
-	localX := me.X - t.boundsX
+	return false
+}
 
+// =============================================================================
+// Msg/Cmd Architecture Support (Phase 3)
+// =============================================================================
+
+// Update implements component.Updater interface for Msg/Cmd architecture
+//
+// Handles:
+// - MouseMsg: Direct routing via TargetID from HitMap
+// - KeyMsg: Keyboard navigation (arrows, Enter, Tab)
+func (t *TabsVNode) Update(message runtimemsg.Msg) cmd.Cmd {
+	switch msg := message.(type) {
+	case *runtimemsg.MouseMsg:
+		return t.updateMouse(msg)
+	case *runtimemsg.KeyMsg:
+		return t.updateKey(msg)
+	}
+	return nil
+}
+
+// updateMouse handles mouse messages (direct routing via TargetID)
+func (t *TabsVNode) updateMouse(mouseMsg *runtimemsg.MouseMsg) cmd.Cmd {
+	// Only handle mouse press
+	if mouseMsg.Action != runtimemsg.MouseActionPress {
+		return nil
+	}
+
+	// Use LocalX/LocalY directly (pre-calculated by HitMap)
+	localX := mouseMsg.LocalX
+	localY := mouseMsg.LocalY
+
+	// Check if click is in tab bar (first row)
+	if localY == 0 {
+		// Handle tab bar click - switch tabs
+		t.handleTabBarClick(localX)
+		return nil // TODO: Return Cmd to trigger re-render
+	}
+
+	// Click is below tab bar - forward to active tab content
+	// TODO: Need to support forwarding MouseMsg to child components
+	// For now, return nil and let Event system handle it
+	return nil
+}
+
+// updateKey handles keyboard messages (when focused)
+func (t *TabsVNode) updateKey(keyMsg *runtimemsg.KeyMsg) cmd.Cmd {
+	// Arrow keys for navigation
+	switch keyMsg.Special {
+	case runtimeplatform.KeyLeft:
+		t.PreviousTab()
+		return nil
+	case runtimeplatform.KeyRight:
+		t.NextTab()
+		return nil
+	case runtimeplatform.KeyHome:
+		t.FirstTab()
+		return nil
+	case runtimeplatform.KeyEnd:
+		t.LastTab()
+		return nil
+	case runtimeplatform.KeyEnter:
+		// Enter on current tab - trigger onChange callback
+		if t.activeTab >= 0 && t.activeTab < len(t.tabs) && t.onChange != nil {
+			t.onChange(t.tabs[t.activeTab].ID)
+		}
+		return nil
+	}
+
+	return nil
+}
+
+// handleTabBarClick handles clicks on the tab bar
+func (t *TabsVNode) handleTabBarClick(localX int) bool {
 	// Reconstruct tab bar layout to map x → tab.
 	cursor := 0
 	for i, tab := range t.tabs {

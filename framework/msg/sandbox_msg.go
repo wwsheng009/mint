@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/wwsheng009/mint/framework/action"
+	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
 )
 
 // SandboxMsg 表示测试沙箱注入的消息
@@ -15,16 +16,16 @@ import (
 // - 注入语义化的 Action
 // - 直接修改组件状态
 type SandboxMsg struct {
-	BaseMsg
+	runtimemsg.BaseMsg // 嵌入 runtime/msg 的 BaseMsg
 
 	// InjectType 表示注入的类型
 	InjectType SandboxInjectType
 
 	// KeyData 是键盘注入数据（仅当 InjectType = SandboxInjectKey 时有效）
-	KeyData *KeyMsg
+	KeyData *runtimemsg.KeyMsg
 
 	// MouseData 是鼠标注入数据（仅当 InjectType = SandboxInjectMouse 时有效）
-	MouseData *MouseMsg
+	MouseData *runtimemsg.MouseMsg
 
 	// ActionData 是 Action 注入数据（仅当 InjectType = SandboxInjectAction 时有效）
 	ActionData *action.Action
@@ -59,10 +60,10 @@ type StateMutation struct {
 }
 
 // NewSandboxKeyMsg 创建键盘注入消息
-func NewSandboxKeyMsg(keyMsg *KeyMsg) *SandboxMsg {
+func NewSandboxKeyMsg(keyMsg *runtimemsg.KeyMsg) *SandboxMsg {
 	return &SandboxMsg{
-		BaseMsg: BaseMsg{
-			TypeValue:   MsgTypeSandbox,
+		BaseMsg: runtimemsg.BaseMsg{
+			TypeValue:      runtimemsg.MsgTypeSandbox,
 			TimestampValue: time.Now(),
 		},
 		InjectType: SandboxInjectKey,
@@ -71,10 +72,10 @@ func NewSandboxKeyMsg(keyMsg *KeyMsg) *SandboxMsg {
 }
 
 // NewSandboxMouseMsg 创建鼠标注入消息
-func NewSandboxMouseMsg(mouseMsg *MouseMsg) *SandboxMsg {
+func NewSandboxMouseMsg(mouseMsg *runtimemsg.MouseMsg) *SandboxMsg {
 	return &SandboxMsg{
-		BaseMsg: BaseMsg{
-			TypeValue:   MsgTypeSandbox,
+		BaseMsg: runtimemsg.BaseMsg{
+			TypeValue:      runtimemsg.MsgTypeSandbox,
 			TimestampValue: time.Now(),
 		},
 		InjectType: SandboxInjectMouse,
@@ -85,8 +86,8 @@ func NewSandboxMouseMsg(mouseMsg *MouseMsg) *SandboxMsg {
 // NewSandboxActionMsg 创建 Action 注入消息
 func NewSandboxActionMsg(act *action.Action) *SandboxMsg {
 	return &SandboxMsg{
-		BaseMsg: BaseMsg{
-			TypeValue:   MsgTypeSandbox,
+		BaseMsg: runtimemsg.BaseMsg{
+			TypeValue:      runtimemsg.MsgTypeSandbox,
 			TimestampValue: time.Now(),
 		},
 		InjectType: SandboxInjectAction,
@@ -97,8 +98,8 @@ func NewSandboxActionMsg(act *action.Action) *SandboxMsg {
 // NewSandboxStateMsg 创建状态修改消息
 func NewSandboxStateMsg(targetID, path string, value interface{}) *SandboxMsg {
 	return &SandboxMsg{
-		BaseMsg: BaseMsg{
-			TypeValue:   MsgTypeSandbox,
+		BaseMsg: runtimemsg.BaseMsg{
+			TypeValue:      runtimemsg.MsgTypeSandbox,
 			TimestampValue: time.Now(),
 		},
 		InjectType: SandboxInjectState,
@@ -110,22 +111,17 @@ func NewSandboxStateMsg(targetID, path string, value interface{}) *SandboxMsg {
 	}
 }
 
-// IsInput 检查是否为输入类注入（键盘或鼠标）
-func (s *SandboxMsg) IsInput() bool {
-	return s.InjectType == SandboxInjectKey || s.InjectType == SandboxInjectMouse
+// Type 实现 runtimemsg.Msg 接口
+func (s *SandboxMsg) Type() runtimemsg.MsgType {
+	return s.BaseMsg.Type()
 }
 
-// IsDirectAction 检查是否为直接 Action 注入
-func (s *SandboxMsg) IsDirectAction() bool {
-	return s.InjectType == SandboxInjectAction
+// Timestamp 实现 runtimemsg.Msg 接口
+func (s *SandboxMsg) Timestamp() time.Time {
+	return s.BaseMsg.Timestamp()
 }
 
-// IsStateMutation 检查是否为状态修改
-func (s *SandboxMsg) IsStateMutation() bool {
-	return s.InjectType == SandboxInjectState
-}
-
-// String 返回 SandboxMsg 的字符串表示
+// String 实现 runtimemsg.Msg 接口
 func (s *SandboxMsg) String() string {
 	switch s.InjectType {
 	case SandboxInjectKey:
@@ -158,4 +154,19 @@ func (s *SandboxMsg) String() string {
 	default:
 		return "SandboxMsg{<unknown>}"
 	}
+}
+
+// IsInput 检查是否为输入类注入（键盘或鼠标）
+func (s *SandboxMsg) IsInput() bool {
+	return s.InjectType == SandboxInjectKey || s.InjectType == SandboxInjectMouse
+}
+
+// IsDirectAction 检查是否为直接 Action 注入
+func (s *SandboxMsg) IsDirectAction() bool {
+	return s.InjectType == SandboxInjectAction
+}
+
+// IsStateMutation 检查是否为状态修改
+func (s *SandboxMsg) IsStateMutation() bool {
+	return s.InjectType == SandboxInjectState
 }

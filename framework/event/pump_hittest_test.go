@@ -140,10 +140,16 @@ func TestPump_HitMapIntegration(t *testing.T) {
 				MouseY:      tt.mouseY,
 			}
 
-			// 转换为事件
-			ev := pump.convertToEvent(raw)
+			// 转换为消息（Phase 1: Pump now outputs Msg）
+			msg := pump.convertToMsg(raw)
+			if msg == nil {
+				t.Fatal("convertToMsg returned nil")
+			}
+
+			// 转换Msg为Event（临时适配器，用于测试验证）
+			ev := MsgToEvent(msg)
 			if ev == nil {
-				t.Fatal("convertToEvent returned nil")
+				t.Fatal("MsgToEvent returned nil")
 			}
 
 			// 类型断言为 MouseEvent
@@ -216,9 +222,14 @@ func TestPump_WheelDelta(t *testing.T) {
 				MouseY:      10,
 			}
 
-			ev := pump.convertToEvent(raw)
+			msg := pump.convertToMsg(raw)
+			if msg == nil {
+				t.Fatal("convertToMsg returned nil")
+			}
+
+			ev := MsgToEvent(msg)
 			if ev == nil {
-				t.Fatal("convertToEvent returned nil")
+				t.Fatal("MsgToEvent returned nil")
 			}
 
 			mouseEv, ok := ev.(*MouseEvent)
@@ -247,9 +258,14 @@ func TestPump_NilHitMap(t *testing.T) {
 		MouseY:      10,
 	}
 
-	ev := pump.convertToEvent(raw)
+	msg := pump.convertToMsg(raw)
+	if msg == nil {
+		t.Fatal("convertToMsg returned nil")
+	}
+
+	ev := MsgToEvent(msg)
 	if ev == nil {
-		t.Fatal("convertToEvent returned nil")
+		t.Fatal("MsgToEvent returned nil")
 	}
 
 	mouseEv, ok := ev.(*MouseEvent)
@@ -304,7 +320,7 @@ func TestPump_ConcurrentHitMapAccess(t *testing.T) {
 				MouseX:      10,
 				MouseY:      10,
 			}
-			pump.convertToEvent(raw)
+			pump.convertToMsg(raw)
 		}
 		done <- true
 	}()
@@ -319,9 +335,14 @@ func TestPump_ConcurrentHitMapAccess(t *testing.T) {
 		MouseX:      10,
 		MouseY:      10,
 	}
-	ev := pump.convertToEvent(raw)
+	msg := pump.convertToMsg(raw)
+	if msg == nil {
+		t.Fatal("convertToMsg returned nil")
+	}
+
+	ev := MsgToEvent(msg)
 	if ev == nil {
-		t.Fatal("convertToEvent returned nil")
+		t.Fatal("MsgToEvent returned nil")
 	}
 
 	mouseEv, ok := ev.(*MouseEvent)

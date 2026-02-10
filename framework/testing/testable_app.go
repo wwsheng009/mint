@@ -5,6 +5,7 @@ import (
 
 	"github.com/wwsheng009/mint/framework/action"
 	"github.com/wwsheng009/mint/framework/msg"
+	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
 	"github.com/wwsheng009/mint/runtime/platform"
 )
 
@@ -23,7 +24,7 @@ type TestableApp struct {
 	lastError error
 
 	// lastMsg 记录最后一条消息
-	lastMsg msg.Msg
+	lastMsg *msg.SandboxMsg
 }
 
 // NewTestableApp 创建一个新的可测试应用
@@ -41,7 +42,7 @@ func NewTestableApp(root interface{}, router *action.Router) *TestableApp {
 //   app.InjectKeySequence("Ctrl+C")
 func (t *TestableApp) InjectKeySequence(keys string) {
 	for _, ch := range keys {
-		keyMsg := msg.NewKeyMsg(ch, platform.KeyUnknown, msg.Modifiers{})
+		keyMsg := runtimemsg.NewKeyMsg(ch, platform.KeyUnknown, runtimemsg.Modifiers{})
 		act := t.keyMsgToAction(keyMsg)
 		if act != nil {
 			t.router.Dispatch(act)
@@ -50,8 +51,8 @@ func (t *TestableApp) InjectKeySequence(keys string) {
 }
 
 // InjectKey 注入单个键盘按键
-func (t *TestableApp) InjectKey(key rune, special platform.SpecialKey, mod msg.Modifiers) {
-	keyMsg := msg.NewKeyMsg(key, special, mod)
+func (t *TestableApp) InjectKey(key rune, special platform.SpecialKey, mod runtimemsg.Modifiers) {
+	keyMsg := runtimemsg.NewKeyMsg(key, special, mod)
 	act := t.keyMsgToAction(keyMsg)
 	if act != nil {
 		t.router.Dispatch(act)
@@ -166,7 +167,7 @@ func (t *TestableApp) Wait(duration time.Duration) {
 }
 
 // KeyMsgToAction 将 KeyMsg 转换为 Action
-func (t *TestableApp) keyMsgToAction(keyMsg *msg.KeyMsg) *action.Action {
+func (t *TestableApp) keyMsgToAction(keyMsg *runtimemsg.KeyMsg) *action.Action {
 	if keyMsg == nil {
 		return nil
 	}
@@ -224,6 +225,6 @@ func (t *TestableApp) GetLastError() error {
 }
 
 // GetLastMsg 获取最后的消息
-func (t *TestableApp) GetLastMsg() msg.Msg {
+func (t *TestableApp) GetLastMsg() *msg.SandboxMsg {
 	return t.lastMsg
 }

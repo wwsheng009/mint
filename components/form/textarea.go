@@ -4,14 +4,21 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/wwsheng009/mint/framework/cmd"
+	"github.com/wwsheng009/mint/framework/component"
+	frameworkevent "github.com/wwsheng009/mint/framework/event"
 	"github.com/wwsheng009/mint/runtime/dimension"
-	"github.com/wwsheng009/mint/framework/event"
+	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
 	"github.com/wwsheng009/mint/framework/theme"
 	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
 	"github.com/wwsheng009/mint/ui"
 )
+
+// Interface implementation assertions
+var _ frameworkevent.Component = (*TextareaVNode)(nil)
+var _ component.Updater = (*TextareaVNode)(nil) // Phase 3: Msg/Cmd support
 
 // =============================================================================
 // Textarea component
@@ -248,31 +255,31 @@ func (t *TextareaVNode) ContainsPoint(x, y int) bool {
 }
 
 // HandleEvent processes mouse events for the textarea
-func (t *TextareaVNode) HandleEvent(e event.Event) bool {
+func (t *TextareaVNode) HandleEvent(e frameworkevent.Event) bool {
 	if t.disabled {
 		return false
 	}
 
-	mouseEvent, ok := e.(*event.MouseEvent)
+	mouseEvent, ok := e.(*frameworkevent.MouseEvent)
 	if !ok {
 		return false
 	}
 
 	switch mouseEvent.Type() {
-	case event.EventMouseEnter:
+	case frameworkevent.EventMouseEnter:
 		if !t.isHovered {
 			t.isHovered = true
 		}
 		return true
 
-	case event.EventMouseLeave:
+	case frameworkevent.EventMouseLeave:
 		if t.isHovered {
 			t.isHovered = false
 		}
 		return true
 
-	case event.EventMousePress, event.EventClick:
-		if t.isHovered && mouseEvent.Button == event.MouseLeft {
+	case frameworkevent.EventMousePress, frameworkevent.EventClick:
+		if t.isHovered && mouseEvent.Button == frameworkevent.MouseLeft {
 			// Focus the textarea - the actual focus is managed by the framework
 			// Return true to indicate the event was handled
 			return true
@@ -280,6 +287,46 @@ func (t *TextareaVNode) HandleEvent(e event.Event) bool {
 	}
 
 	return false
+}
+
+// =============================================================================
+// Msg/Cmd Architecture Support (Phase 3)
+// =============================================================================
+
+// Update implements component.Updater interface for Msg/Cmd architecture
+//
+// Note: TextArea primarily handles mouse events for focus.
+// Keyboard input is handled through the FocusableVNode interface.
+func (t *TextareaVNode) Update(message runtimemsg.Msg) cmd.Cmd {
+	if t.disabled {
+		return nil
+	}
+
+	switch msg := message.(type) {
+	case *runtimemsg.MouseMsg:
+		return t.updateMouse(msg)
+	}
+
+	return nil
+}
+
+// updateMouse handles mouse messages for focus handling
+func (t *TextareaVNode) updateMouse(mouseMsg *runtimemsg.MouseMsg) cmd.Cmd {
+	switch mouseMsg.Action {
+	case runtimemsg.MouseActionMove:
+		// Update hover state
+		t.isHovered = true
+		return nil
+
+	case runtimemsg.MouseActionPress:
+		if mouseMsg.Button == runtimemsg.MouseLeft {
+			// Focus the textarea - the actual focus is managed by the framework
+			t.isHovered = true
+			return nil
+		}
+	}
+
+	return nil
 }
 
 // =============================================================================

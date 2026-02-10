@@ -2,7 +2,7 @@ package component
 
 import (
 	"github.com/wwsheng009/mint/framework/cmd"
-	"github.com/wwsheng009/mint/framework/msg"
+	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
 )
 
 // Updater 是支持 Msg 更新的组件接口
@@ -18,20 +18,20 @@ type Updater interface {
 	// 返回 nil 表示没有命令需要执行。
 	//
 	// 使用示例：
-	//   func (b *Button) Update(message msg.Msg) cmd.Cmd {
+	//   func (b *Button) Update(message runtimemsg.Msg) cmd.Cmd {
 	//       switch m := message.(type) {
-	//       case *msg.KeyMsg:
+	//       case *runtimemsg.KeyMsg:
 	//           if m.IsEnter() {
 	//               b.onClick()
 	//           }
-	//       case *msg.MouseMsg:
+	//       case *runtimemsg.MouseMsg:
 	//           if m.IsClick() {
 	//               b.onClick()
 	//           }
 	//       }
 	//       return nil
 	//   }
-	Update(message msg.Msg) cmd.Cmd
+	Update(message runtimemsg.Msg) cmd.Cmd
 }
 
 // UpdateWithModel 是带模型的组件更新接口
@@ -43,7 +43,7 @@ type UpdateWithModel interface {
 	//
 	// 这个方法返回新的模型和命令。
 	// 如果返回的模型与输入模型不同，应该替换旧模型。
-	UpdateWithModel(message msg.Msg, model interface{}) (newModel interface{}, command cmd.Cmd)
+	UpdateWithModel(message runtimemsg.Msg, model interface{}) (newModel interface{}, command cmd.Cmd)
 }
 
 // CanUpdate 检查组件是否实现了 Updater 接口
@@ -56,7 +56,7 @@ func CanUpdate(component interface{}) bool {
 //
 // 如果组件实现了 Updater 接口，调用其 Update 方法并返回结果。
 // 否则返回 nil。
-func TryUpdate(component interface{}, message msg.Msg) cmd.Cmd {
+func TryUpdate(component interface{}, message runtimemsg.Msg) cmd.Cmd {
 	if updater, ok := component.(Updater); ok {
 		return updater.Update(message)
 	}
@@ -67,7 +67,7 @@ func TryUpdate(component interface{}, message msg.Msg) cmd.Cmd {
 //
 // 如果组件实现了 UpdateWithModel 接口，调用其方法并返回结果。
 // 否则返回 (nil, nil)。
-func TryUpdateWithModel(component interface{}, message msg.Msg, model interface{}) (interface{}, cmd.Cmd) {
+func TryUpdateWithModel(component interface{}, message runtimemsg.Msg, model interface{}) (interface{}, cmd.Cmd) {
 	if updater, ok := component.(UpdateWithModel); ok {
 		return updater.UpdateWithModel(message, model)
 	}

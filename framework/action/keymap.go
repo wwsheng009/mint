@@ -5,19 +5,20 @@ import (
 	"strings"
 	"sync"
 
-	frameworkevent "github.com/wwsheng009/mint/framework/event"
+	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
+	runtimeplatform "github.com/wwsheng009/mint/runtime/platform"
 )
 
 // KeyMap 键盘映射表
 //
-// KeyMap 用于将键盘事件映射为语义化的 Action
+// KeyMap 用于将键盘消息映射为语义化的 Action
 // 支持全局映射和上下文相关映射
 //
 // 使用示例：
 //   km := NewKeyMap()
 //   km.Bind("ctrl+c", ActionCopy)
 //   km.BindWithContext("input", "ctrl+v", ActionPaste)
-//   action := km.LookupKeyEvent(keyEvent)
+//   action := km.LookupKeyMsg(keyMsg)
 type KeyMap struct {
 	mu             sync.RWMutex
 	globalMappings map[string]*Action  // 全局映射
@@ -127,21 +128,21 @@ func (km *KeyMap) BindWithContext(context, keySpec string, action *Action) error
 	return nil
 }
 
-// LookupKeyEvent 查找键盘事件对应的 Action
+// LookupKeyMsg 查找键盘消息对应的 Action
 //
 // 查找顺序：
 // 1. 当前上下文映射（如果有）
 // 2. 全局映射
 // 3. 返回 nil（未找到）
-func (km *KeyMap) LookupKeyEvent(ev *frameworkevent.KeyEvent) *Action {
+func (km *KeyMap) LookupKeyMsg(keyMsg *runtimemsg.KeyMsg) *Action {
 	km.mu.RLock()
 	defer km.mu.RUnlock()
 
 	// 构建按键签名
 	signature := KeySignature{
-		Key:      ev.Key.Rune,
-		Special:  ev.Special.String(), // 使用 String() 方法获取字符串
-		Modifiers: parseKeyModifiers(ev),
+		Key:      keyMsg.Rune,
+		Special:  specialKeyToString(keyMsg.Special),
+		Modifiers: parseKeyMsgModifiers(keyMsg),
 	}
 
 	key := signature.toString()
@@ -163,6 +164,14 @@ func (km *KeyMap) LookupKeyEvent(ev *frameworkevent.KeyEvent) *Action {
 
 	// 3. 未找到映射
 	return nil
+}
+
+// LookupKeyEvent 保持向后兼容（已废弃）
+// 请使用 LookupKeyMsg 代替
+func (km *KeyMap) LookupKeyEvent(key rune, special runtimeplatform.SpecialKey, modifiers runtimemsg.Modifiers) *Action {
+	// 创建临时的 KeyMsg
+	keyMsg := runtimemsg.NewKeyMsg(key, special, modifiers)
+	return km.LookupKeyMsg(keyMsg)
 }
 
 // Lookup 直接通过按键规格查找 Action
@@ -378,21 +387,79 @@ func isSpecialKey(key string) bool {
 	return specialKeys[key]
 }
 
-// parseKeyModifiers 从 KeyEvent 解析修饰键
-func parseKeyModifiers(ev *frameworkevent.KeyEvent) Modifier {
+// parseKeyMsgModifiers 从 KeyMsg 解析修饰键
+func parseKeyMsgModifiers(keyMsg *runtimemsg.KeyMsg) Modifier {
 	var mod Modifier
 
-	if ev.Key.Ctrl {
+	if keyMsg.Mod.Ctrl {
 		mod |= ModCtrl
 	}
-	if ev.Key.Alt {
+	if keyMsg.Mod.Alt {
 		mod |= ModAlt
 	}
-	if ev.Key.Shift {
+	if keyMsg.Mod.Shift {
 		mod |= ModShift
 	}
 
 	return mod
+}
+
+// specialKeyToString 将 runtimeplatform.SpecialKey 转换为字符串
+func specialKeyToString(special runtimeplatform.SpecialKey) string {
+	switch special {
+	case runtimeplatform.KeyUp:
+		return "up"
+	case runtimeplatform.KeyDown:
+		return "down"
+	case runtimeplatform.KeyLeft:
+		return "left"
+	case runtimeplatform.KeyRight:
+		return "right"
+	case runtimeplatform.KeyEnter:
+		return "enter"
+	case runtimeplatform.KeyTab:
+		return "tab"
+	case runtimeplatform.KeyBackspace:
+		return "backspace"
+	case runtimeplatform.KeyDelete:
+		return "delete"
+	case runtimeplatform.KeyEscape:
+		return "escape"
+	case runtimeplatform.KeyHome:
+		return "home"
+	case runtimeplatform.KeyEnd:
+		return "end"
+	case runtimeplatform.KeyPageUp:
+		return "page up"
+	case runtimeplatform.KeyPageDown:
+		return "page down"
+	case runtimeplatform.KeyF1:
+		return "f1"
+	case runtimeplatform.KeyF2:
+		return "f2"
+	case runtimeplatform.KeyF3:
+		return "f3"
+	case runtimeplatform.KeyF4:
+		return "f4"
+	case runtimeplatform.KeyF5:
+		return "f5"
+	case runtimeplatform.KeyF6:
+		return "f6"
+	case runtimeplatform.KeyF7:
+		return "f7"
+	case runtimeplatform.KeyF8:
+		return "f8"
+	case runtimeplatform.KeyF9:
+		return "f9"
+	case runtimeplatform.KeyF10:
+		return "f10"
+	case runtimeplatform.KeyF11:
+		return "f11"
+	case runtimeplatform.KeyF12:
+		return "f12"
+	default:
+		return ""
+	}
 }
 
 // ============================================================================

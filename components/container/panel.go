@@ -1,17 +1,23 @@
 package container
 
 import (
+	"github.com/wwsheng009/mint/framework/cmd"
+	"github.com/wwsheng009/mint/framework/component"
+	frameworkevent "github.com/wwsheng009/mint/framework/event"
+	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
 	"github.com/wwsheng009/mint/framework/theme"
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/ui"
 )
 
+// Interface implementation assertions
+var _ frameworkevent.Component = (*Panel)(nil)
+var _ component.Updater = (*Panel)(nil) // Phase 3: Msg/Cmd support
+
 // Panel is a high-level container component that manages borders, headers, and content layout.
 // It simplifies layout by automatically handling height calculations and flex distribution.
 type Panel struct {
-	*rtui.BorderedNode
-
 	title       string
 	header      rtui.VNode
 	footer      rtui.VNode
@@ -21,6 +27,43 @@ type Panel struct {
 	width       int
 	height      int
 	flex        int
+}
+
+// HandleEvent implements frameworkevent.Component interface
+// Forwards events to the content component (typically Tabs)
+func (p *Panel) HandleEvent(ev frameworkevent.Event) bool {
+	// Only forward mouse events
+	if ev.Type() != frameworkevent.EventMousePress && ev.Type() != frameworkevent.EventMouseRelease {
+		return false
+	}
+
+	// Check if we have content to forward to
+	if p.content == nil {
+		return false
+	}
+
+	// Try to forward event to content component
+	if contentComponent, ok := p.content.(frameworkevent.Component); ok {
+		// Forward the event - content will use LocalX/LocalY from the event
+		return contentComponent.HandleEvent(ev)
+	}
+
+	return false
+}
+
+// =============================================================================
+// Msg/Cmd Architecture Support (Phase 3)
+// =============================================================================
+
+// Update implements component.Updater interface for Msg/Cmd architecture
+//
+// Note: Panel is a container component. With direct routing via TargetID,
+// events go directly to child components (Tabs, Button, etc.) through the
+// component registry. Panel doesn't need to handle or forward messages.
+func (p *Panel) Update(message runtimemsg.Msg) cmd.Cmd {
+	// Panel is just a container - no direct message handling needed
+	// Child components receive messages directly via TargetID routing
+	return nil
 }
 
 // PanelBuilder creates a new Panel
@@ -149,7 +192,8 @@ func (b *panelBuilder) Build() rtui.VNode {
 	// Create the Bordered wrapper
 	borderBuilder := rtui.Bordered().
 		Style(b.panel.borderStyle).
-		Child(container)
+		Child(container).
+		Component(b.panel) // Attach Panel for event forwarding
 
 	if b.panel.width > 0 {
 		borderBuilder.Width(b.panel.width)

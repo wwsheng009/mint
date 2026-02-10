@@ -3,8 +3,6 @@ package msg
 import (
 	"fmt"
 	"time"
-
-	runtimeevent "github.com/wwsheng009/mint/runtime/event"
 )
 
 // MouseMsg 表示鼠标输入消息
@@ -31,6 +29,9 @@ type MouseMsg struct {
 
 	// Action 是鼠标动作类型
 	Action MouseAction
+
+	// Delta 是滚轮增量（+1/-1，仅当 Action = MouseActionWheel 时有效）
+	Delta int
 }
 
 // MouseButton 表示鼠标按钮
@@ -58,7 +59,7 @@ const (
 func NewMouseMsg(x, y int, button MouseButton, action MouseAction) *MouseMsg {
 	return &MouseMsg{
 		BaseMsg: BaseMsg{
-			TypeValue:   MsgTypeMouse,
+			TypeValue:      MsgTypeMouse,
 			TimestampValue: time.Now(),
 		},
 		X:      x,
@@ -68,52 +69,34 @@ func NewMouseMsg(x, y int, button MouseButton, action MouseAction) *MouseMsg {
 	}
 }
 
-// NewMouseMsgFromMouseEvent 从 runtime MouseEvent 创建 MouseMsg
-func NewMouseMsgFromMouseEvent(mouseEvent *runtimeevent.MouseEvent) *MouseMsg {
-	if mouseEvent == nil {
-		return nil
-	}
-
-	// 转换 MouseButton
-	var button MouseButton
-	switch mouseEvent.Button {
-	case runtimeevent.MouseLeft:
-		button = MouseLeft
-	case runtimeevent.MouseMiddle:
-		button = MouseMiddle
-	case runtimeevent.MouseRight:
-		button = MouseRight
-	default:
-		button = MouseButtonUnknown
-	}
-
-	// 转换 MouseAction
-	var action MouseAction
-	switch mouseEvent.Action {
-	case runtimeevent.MouseActionPress:
-		action = MouseActionPress
-	case runtimeevent.MouseActionRelease:
-		action = MouseActionRelease
-	case runtimeevent.MouseActionMove:
-		action = MouseActionMove
-	case runtimeevent.MouseActionWheel:
-		action = MouseActionWheel
-	default:
-		action = MouseActionUnknown
-	}
-
+// NewMouseMsgWithTarget 创建带有目标信息的鼠标消息
+func NewMouseMsgWithTarget(x, y, localX, localY int, targetID string, button MouseButton, action MouseAction) *MouseMsg {
 	return &MouseMsg{
 		BaseMsg: BaseMsg{
-			TypeValue:   MsgTypeMouse,
+			TypeValue:      MsgTypeMouse,
 			TimestampValue: time.Now(),
 		},
-		X:        mouseEvent.X,
-		Y:        mouseEvent.Y,
-		LocalX:   mouseEvent.LocalX,
-		LocalY:   mouseEvent.LocalY,
-		TargetID: mouseEvent.TargetID,
+		X:        x,
+		Y:        y,
+		LocalX:   localX,
+		LocalY:   localY,
+		TargetID: targetID,
 		Button:   button,
 		Action:   action,
+	}
+}
+
+// NewMouseMsgWithDelta 创建带有滚轮增量的鼠标消息
+func NewMouseMsgWithDelta(x, y, delta int, action MouseAction) *MouseMsg {
+	return &MouseMsg{
+		BaseMsg: BaseMsg{
+			TypeValue:      MsgTypeMouse,
+			TimestampValue: time.Now(),
+		},
+		X:      x,
+		Y:      y,
+		Action: action,
+		Delta:  delta,
 	}
 }
 
@@ -202,7 +185,7 @@ func (m *MouseMsg) actionString() string {
 	case MouseActionMove:
 		return "Move"
 	case MouseActionWheel:
-		return "Wheel"
+		return fmt.Sprintf("Wheel(%+d)", m.Delta)
 	default:
 		return "Unknown"
 	}

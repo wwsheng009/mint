@@ -3,14 +3,22 @@ package form
 import (
 	"unicode/utf8"
 
+	"github.com/wwsheng009/mint/framework/cmd"
+	"github.com/wwsheng009/mint/framework/component"
+	frameworkevent "github.com/wwsheng009/mint/framework/event"
 	"github.com/wwsheng009/mint/runtime/dimension"
-	"github.com/wwsheng009/mint/framework/event"
+	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
+	runtimeplatform "github.com/wwsheng009/mint/runtime/platform"
 	"github.com/wwsheng009/mint/framework/theme"
 	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
 	"github.com/wwsheng009/mint/ui"
 )
+
+// Interface implementation assertions
+var _ frameworkevent.Component = (*SelectVNode)(nil)
+var _ component.Updater = (*SelectVNode)(nil) // Phase 3: Msg/Cmd support
 
 // SelectOption represents a single option in a select
 type SelectOption struct {
@@ -201,13 +209,13 @@ func (s *SelectVNode) ContainsPoint(x, y int) bool {
 }
 
 // HandleEvent processes mouse and keyboard events for the select
-func (s *SelectVNode) HandleEvent(e event.Event) bool {
+func (s *SelectVNode) HandleEvent(e frameworkevent.Event) bool {
 	if s.disabled {
 		return false
 	}
 
 	// Handle keyboard events (Space/Enter to cycle)
-	keyEvent, ok := e.(*event.KeyEvent)
+	keyEvent, ok := e.(*frameworkevent.KeyEvent)
 	if ok {
 		// Only respond to keyboard events when focused
 		if !s.isFocused {
@@ -215,7 +223,7 @@ func (s *SelectVNode) HandleEvent(e event.Event) bool {
 		}
 
 		// Space or Enter cycles to next option
-		if keyEvent.Key.Rune == ' ' || keyEvent.Special == event.KeyEnter {
+		if keyEvent.Key.Rune == ' ' || keyEvent.Special == frameworkevent.KeyEnter {
 			if len(s.options) > 0 {
 				nextIdx := s.selected + 1
 				if nextIdx >= len(s.options) {
@@ -231,26 +239,26 @@ func (s *SelectVNode) HandleEvent(e event.Event) bool {
 		return false
 	}
 
-	mouseEvent, ok := e.(*event.MouseEvent)
+	mouseEvent, ok := e.(*frameworkevent.MouseEvent)
 	if !ok {
 		return false
 	}
 
 	switch mouseEvent.Type() {
-	case event.EventMouseEnter:
+	case frameworkevent.EventMouseEnter:
 		if !s.isHovered {
 			s.isHovered = true
 		}
 		return true
 
-	case event.EventMouseLeave:
+	case frameworkevent.EventMouseLeave:
 		if s.isHovered {
 			s.isHovered = false
 		}
 		return true
 
-	case event.EventMousePress, event.EventClick:
-		if s.isHovered && mouseEvent.Button == event.MouseLeft {
+	case frameworkevent.EventMousePress, frameworkevent.EventClick:
+		if s.isHovered && mouseEvent.Button == frameworkevent.MouseLeft {
 			// Cycle to next option on click
 			nextIdx := s.selected + 1
 			if nextIdx >= len(s.options) {
@@ -265,6 +273,75 @@ func (s *SelectVNode) HandleEvent(e event.Event) bool {
 	}
 
 	return false
+}
+
+// =============================================================================
+// Msg/Cmd Architecture Support (Phase 3)
+// =============================================================================
+
+// Update implements component.Updater interface for Msg/Cmd architecture
+//
+// Handles:
+// - KeyMsg: Space/Enter to cycle options
+// - MouseMsg: Click to cycle options
+func (s *SelectVNode) Update(message runtimemsg.Msg) cmd.Cmd {
+	if s.disabled {
+		return nil
+	}
+
+	switch msg := message.(type) {
+	case *runtimemsg.KeyMsg:
+		// Only respond to keyboard events when focused
+		if !s.isFocused {
+			return nil
+		}
+		return s.updateKey(msg)
+
+	case *runtimemsg.MouseMsg:
+		return s.updateMouse(msg)
+	}
+
+	return nil
+}
+
+// updateKey handles keyboard messages (Space/Enter to cycle options)
+func (s *SelectVNode) updateKey(keyMsg *runtimemsg.KeyMsg) cmd.Cmd {
+	// Space or Enter cycles to next option
+	if keyMsg.Rune == ' ' || keyMsg.Special == runtimeplatform.KeyEnter {
+		if len(s.options) > 0 {
+			nextIdx := s.selected + 1
+			if nextIdx >= len(s.options) {
+				nextIdx = 0
+			}
+			s.SetSelected(nextIdx)
+			if s.onChange != nil {
+				s.onChange(s.SelectedValue())
+			}
+			return nil
+		}
+	}
+
+	return nil
+}
+
+// updateMouse handles mouse messages (click to cycle options)
+func (s *SelectVNode) updateMouse(mouseMsg *runtimemsg.MouseMsg) cmd.Cmd {
+	if mouseMsg.Action == runtimemsg.MouseActionPress {
+		if mouseMsg.Button == runtimemsg.MouseLeft {
+			// Cycle to next option on click
+			nextIdx := s.selected + 1
+			if nextIdx >= len(s.options) {
+				nextIdx = 0
+			}
+			s.SetSelected(nextIdx)
+			if s.onChange != nil {
+				s.onChange(s.SelectedValue())
+			}
+			return nil
+		}
+	}
+
+	return nil
 }
 
 // =============================================================================

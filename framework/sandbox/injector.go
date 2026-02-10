@@ -3,6 +3,7 @@ package sandbox
 import (
 	"github.com/wwsheng009/mint/framework/action"
 	"github.com/wwsheng009/mint/framework/msg"
+	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
 	"github.com/wwsheng009/mint/runtime/platform"
 )
 
@@ -12,7 +13,7 @@ import (
 // 用于测试和自动化场景。
 type Injector struct {
 	// messages 是注入的消息队列
-	messages []msg.Msg
+	messages []*msg.SandboxMsg
 
 	// actions 是注入的 Action 队列
 	actions []*action.Action
@@ -21,7 +22,7 @@ type Injector struct {
 // NewInjector 创建一个新的注入器
 func NewInjector() *Injector {
 	return &Injector{
-		messages: make([]msg.Msg, 0),
+		messages: make([]*msg.SandboxMsg, 0),
 		actions: make([]*action.Action, 0),
 	}
 }
@@ -31,8 +32,8 @@ func NewInjector() *Injector {
 // ============================================================================
 
 // InjectKey 注入单个按键
-func (i *Injector) InjectKey(key rune, special platform.SpecialKey, mod msg.Modifiers) *Injector {
-	keyMsg := msg.NewKeyMsg(key, special, mod)
+func (i *Injector) InjectKey(key rune, special platform.SpecialKey, mod runtimemsg.Modifiers) *Injector {
+	keyMsg := runtimemsg.NewKeyMsg(key, special, mod)
 	sandboxMsg := msg.NewSandboxKeyMsg(keyMsg)
 	i.messages = append(i.messages, sandboxMsg)
 	return i
@@ -44,14 +45,14 @@ func (i *Injector) InjectKey(key rune, special platform.SpecialKey, mod msg.Modi
 //   injector.InjectKeySequence("hello")
 func (i *Injector) InjectKeySequence(keys string) *Injector {
 	for _, ch := range keys {
-		i.InjectKey(ch, platform.KeyUnknown, msg.Modifiers{})
+		i.InjectKey(ch, platform.KeyUnknown, runtimemsg.Modifiers{})
 	}
 	return i
 }
 
 // InjectChar 注入单个字符
 func (i *Injector) InjectChar(ch rune) *Injector {
-	return i.InjectKey(ch, platform.KeyUnknown, msg.Modifiers{})
+	return i.InjectKey(ch, platform.KeyUnknown, runtimemsg.Modifiers{})
 }
 
 // InjectEnter 注入 Enter 键
@@ -122,7 +123,7 @@ func (i *Injector) InjectRight() *Injector {
 // 示例：
 //   injector.InjectCtrlKey('c') // Ctrl+C
 func (i *Injector) InjectCtrlKey(key rune) *Injector {
-	keyMsg := msg.NewKeyMsg(key, platform.KeyUnknown, msg.Modifiers{Ctrl: true})
+	keyMsg := runtimemsg.NewKeyMsg(key, platform.KeyUnknown, runtimemsg.Modifiers{Ctrl: true})
 	sandboxMsg := msg.NewSandboxKeyMsg(keyMsg)
 	i.messages = append(i.messages, sandboxMsg)
 	return i
@@ -130,7 +131,7 @@ func (i *Injector) InjectCtrlKey(key rune) *Injector {
 
 // InjectAltKey 注入 Alt 组合键
 func (i *Injector) InjectAltKey(key rune) *Injector {
-	keyMsg := msg.NewKeyMsg(key, platform.KeyUnknown, msg.Modifiers{Alt: true})
+	keyMsg := runtimemsg.NewKeyMsg(key, platform.KeyUnknown, runtimemsg.Modifiers{Alt: true})
 	sandboxMsg := msg.NewSandboxKeyMsg(keyMsg)
 	i.messages = append(i.messages, sandboxMsg)
 	return i
@@ -243,7 +244,7 @@ func (i *Injector) InjectSetFocused(targetID string, focused bool) *Injector {
 // ============================================================================
 
 // GetMessages 获取所有注入的消息
-func (i *Injector) GetMessages() []msg.Msg {
+func (i *Injector) GetMessages() []*msg.SandboxMsg {
 	return i.messages
 }
 
@@ -254,7 +255,7 @@ func (i *Injector) GetActions() []*action.Action {
 
 // Clear 清空所有注入的内容
 func (i *Injector) Clear() {
-	i.messages = make([]msg.Msg, 0)
+	i.messages = make([]*msg.SandboxMsg, 0)
 	i.actions = make([]*action.Action, 0)
 }
 

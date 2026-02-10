@@ -19,7 +19,6 @@ package inspector
 import (
 	"fmt"
 	"os"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -301,8 +300,8 @@ func (si *StandaloneInspector) GetActiveTab() InspectorTab {
 // Deprecated: Use RenderContent() instead. This method will be removed
 // once the hook system is fully integrated.
 func (si *StandaloneInspector) RenderOverlay() rtui.VNode {
-	si.mu.RLock()
-	defer si.mu.RUnlock()
+	si.mu.Lock()
+	defer si.mu.Unlock()
 
 	if !si.visible {
 		return nil
@@ -313,6 +312,9 @@ func (si *StandaloneInspector) RenderOverlay() rtui.VNode {
 
 	// Mark as Inspector layer
 	content.SetLayer(rtui.LayerInspector)
+
+	// Cache for event dispatching
+	si.cachedOverlayContent = content
 
 	return content
 }
@@ -1711,33 +1713,40 @@ func (si *StandaloneInspector) HandleMouseEvent(eventType frameworkevent.EventTy
 		}
 
 		if ev.X >= minX && ev.X < maxX && ev.Y >= minY && ev.Y < maxY {
-			// Mouse is over inspector overlay - try to dispatch to overlay components
-			// Create a new mouse event with local coordinates for the overlay
+			// Convert to overlay coordinates
 			localX := ev.X - minX
 			localY := ev.Y - minY
+
+			// Try to deliver event to components in the overlay
+			// Create MouseEvent with local coordinates for the overlay
 			localEv := &frameworkevent.MouseEvent{
 				BaseEvent: frameworkevent.NewBaseEvent(eventType),
-				X:         localX,
+				X:         localX, // Overlay-local coordinates
 				Y:         localY,
+				LocalX:    localX, // Same as X for overlay-root coordinates
+				LocalY:    localY,
 				Button:    ev.Button,
 			}
 
-			// Try to dispatch to the overlay content using component system
-			// This allows each child component (TreeView, Tabs, etc.) to handle its own hit testing
-			overlayContent := si.buildOverlayContent()
-			if component, ok := overlayContent.(frameworkevent.Component); ok {
-				if component.HandleEvent(localEv) {
-					if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
-						fmt.Fprintf(os.Stderr, "[Inspector] Event handled by overlay component\n")
+			// Try to deliver to cached overlay content
+			if si.cachedOverlayContent != nil {
+				// The overlay content is a Panel that contains Tabs
+				// Try to deliver the event to it
+				if component, ok := si.cachedOverlayContent.(frameworkevent.Component); ok {
+					handled := component.HandleEvent(localEv)
+					if handled {
+						if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
+							fmt.Fprintf(os.Stderr, "[Inspector] Event handled by overlay component\n")
+						}
+						return true
 					}
-					return true // Event was handled by overlay component
 				}
 			}
 
-			// Fallback: attempt to handle overlay-level interactions (tabs, treeview) manually
+			// Fallback: manual handling for tab bar
 			handled := si.handleOverlayMouse(localX, localY, eventType, ev.Button)
 			if handled && os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
-				fmt.Fprintf(os.Stderr, "[Inspector] Event handled by handleOverlayMouse\n")
+				fmt.Fprintf(os.Stderr, "[Inspector] Event handled by manual fallback\n")
 			}
 			return handled
 		}
@@ -1941,110 +1950,9 @@ func (si *StandaloneInspector) handleOverlayClick(localX, localY int) bool {
 		return si.handleTabBarClick(localX)
 	}
 
-	// Handle TreeView clicks (Elements tab)
-	if si.activeTab == TabElements && si.treeViewComponent != nil {
-		// Ensure TreeView has bounds set for hit testing
-		// Set bounds to overlay content area (below tab bar)
-		contentY := tabBarY + tabBarHeight
-		contentHeight := si.overlayHeight - contentY
-
-		// TreeView is NOT at the start of tab content.
-		// Elements tab structure: header(3) + selectedInfo(2-4) + TreeView + instructions(6)
-		// The layout engine dynamically allocates space, so we need to calculate
-		// TreeView's actual position.
-
-		// Try to get TreeView's actual position from layout engine
-		// If available, use it; otherwise fall back to heuristic
-		treeViewActualY := contentY // Default: start of tab content
-		treeViewActualHeight := contentHeight
-
-		// Check if we can get layout info from TreeView's render info
-		if si.treeViewComponent != nil {
-			// TreeView is inside a VStack with other elements.
-			// Based on actual testing, TreeView starts approximately 4 rows into
-			// the tab content area (after header + selectedInfo).
-			// This can vary based on content, so we use an environment variable
-			// to allow adjustment without code changes.
-			offset := 4 // Default heuristic value
-			if offsetStr := os.Getenv("TUI_TREEVIEW_OFFSET"); offsetStr != "" {
-				if offsetInt, err := strconv.Atoi(offsetStr); err == nil {
-					offset = offsetInt
-				}
-			}
-
-			treeViewActualY = contentY + offset
-			treeViewActualHeight = contentHeight - offset
-
-			if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
-				fmt.Fprintf(os.Stderr, "[Inspector] TreeView layout: contentY=%d, offset=%d, actualY=%d, height=%d\n",
-					contentY, offset, treeViewActualY, treeViewActualHeight)
-			}
-		}
-
-		// Always update bounds before handling event to ensure hit testing works
-		si.treeViewComponent.SetBounds(0, treeViewActualY, si.overlayWidth, treeViewActualHeight)
-
-		// Debug output to help diagnose click position issues
-		if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
-			fmt.Fprintf(os.Stderr, "[Inspector] Set TreeView bounds: x=0, y=%d, w=%d, h=%d\n",
-				treeViewActualY, si.overlayWidth, treeViewActualHeight)
-		}
-
-		if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
-			fmt.Fprintf(os.Stderr, "[Inspector] Set TreeView bounds: x=0, y=%d, w=%d, h=%d\n",
-				contentY, si.overlayWidth, contentHeight)
-		}
-
-		// Now try to handle the click through TreeView's own HandleEvent
-		// Convert global overlay Y to local TreeView coordinates
-		localEv := &frameworkevent.MouseEvent{
-			BaseEvent: frameworkevent.NewBaseEvent(frameworkevent.EventMousePress),
-			X:         localX,
-			Y:         localY,
-			Button:    frameworkevent.MouseLeft,
-		}
-
-		// Let TreeView component handle the event
-		if si.treeViewComponent.HandleEvent(localEv) {
-			if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
-				fmt.Fprintf(os.Stderr, "[Inspector] TreeView handled click at (X=%d, Y=%d)\n",
-					localX, localY)
-			}
-			return true
-		}
-
-		// Fallback: manual calculation
-		// Estimate TreeView start position
-		overhead := 12
-		if localY >= overhead {
-			lineIndex := localY - overhead
-
-			if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
-				fmt.Fprintf(os.Stderr, "[Inspector] Manual TreeView click: localY=%d, lineIndex=%d, lineCount=%d\n",
-					localY, lineIndex, si.treeViewComponent.GetLineCount())
-			}
-
-			if lineIndex >= 0 && lineIndex < si.treeViewComponent.GetLineCount() {
-				si.treeViewComponent.SetFocusIndex(lineIndex)
-
-				clickAction := &action.Action{
-					Type:     action.ActionClick,
-					Source:   "mouse",
-					TargetID: "",
-				}
-
-				handled := si.treeViewComponent.HandleAction(clickAction)
-
-				if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
-					fmt.Fprintf(os.Stderr, "[Inspector] Manual TreeView click at line %d, handled=%v\n",
-						lineIndex, handled)
-				}
-
-				return handled
-			}
-		}
-	}
-
+	// TreeView clicks are now handled by the component system:
+	// Panel → Tabs → ActiveTabContent → TreeView
+	// Each component manages its own hit testing with proper bounds from the layout engine.
 	return false
 }
 

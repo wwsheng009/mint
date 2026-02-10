@@ -12,6 +12,7 @@ import (
 	"github.com/wwsheng009/mint/framework/debug"
 	frameworkevent "github.com/wwsheng009/mint/framework/event"
 	"github.com/wwsheng009/mint/framework/theme"
+	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
 	"github.com/wwsheng009/mint/runtime/core"
 	"github.com/wwsheng009/mint/runtime/layout"
 	runtimeevent "github.com/wwsheng009/mint/runtime/event"
@@ -19,6 +20,7 @@ import (
 	"github.com/wwsheng009/mint/runtime/platform"
 	"github.com/wwsheng009/mint/runtime/render"
 	"github.com/wwsheng009/mint/runtime/style"
+	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
 
 // AppState 应用状态
@@ -40,10 +42,12 @@ type App struct {
 	root component.Node
 
 	// 事件
-	router      *frameworkevent.Router
-	keyMap      *frameworkevent.KeyMap
-	pump        *frameworkevent.Pump
-	eventFilter func(frameworkevent.Event) bool // 事件过滤器回调，返回 false 表示拦截
+	router        *frameworkevent.Router
+	keyMap        *frameworkevent.KeyMap
+	pump          *frameworkevent.Pump
+	eventFilter   func(frameworkevent.Event) bool // 事件过滤器回调，返回 false 表示拦截
+	componentReg  *component.Registry             // Component registry for direct Msg routing (Phase 2)
+	focusManager  *rtui.VNodeFocusManager         // Focus manager for KeyMsg routing (Phase 3)
 
 	// 自定义事件源（测试时使用，如 MockSandbox）
 	customSource frameworkevent.EventSource
@@ -119,6 +123,8 @@ func NewApp() *App {
 	app := &App{
 		router:       frameworkevent.NewRouter(),
 		keyMap:       frameworkevent.NewKeyMap(),
+		componentReg: component.NewRegistry(), // Phase 2: Component registry for direct Msg routing
+		focusManager: rtui.NewVNodeFocusManager(), // Phase 3: Focus manager for KeyMsg routing
 		eventFilter:  func(ev frameworkevent.Event) bool { return true }, // 默认放行所有事件
 		quit:         make(chan struct{}, 1),
 		tickInterval: 16 * time.Millisecond, // ~60fps
@@ -140,6 +146,8 @@ func NewAppWithSource(source frameworkevent.EventSource) *App {
 	return &App{
 		router:       frameworkevent.NewRouter(),
 		keyMap:       frameworkevent.NewKeyMap(),
+		componentReg: component.NewRegistry(), // Phase 2: Component registry
+		focusManager: rtui.NewVNodeFocusManager(), // Phase 3: Focus manager
 		eventFilter:  func(ev frameworkevent.Event) bool { return true },
 		quit:         make(chan struct{}, 1),
 		tickInterval: 16 * time.Millisecond,
@@ -707,15 +715,25 @@ func (a *App) Run() error {
 	for a.state == StateRunning {
 		// 等待事件或定时器（优先处理事件）
 		select {
-		case ev := <-eventChan:
-			if ev == nil {
+		case msg := <-eventChan:
+			if msg == nil {
 				// 通道关闭，退出
 				break
 			}
 			if os.Getenv("TUI_DEBUG_UI") == "true" {
-				fmt.Fprintf(os.Stderr, "[APP] Event from channel: Type=%v\n", ev.Type())
+				fmt.Fprintf(os.Stderr, "[APP] Msg from channel: Type=%v\n", msg.Type())
 			}
-			a.handleEvent(ev)
+
+			// Phase 2: Direct Msg routing for targeted mouse events
+			handled := a.handleMsg(msg)
+
+			// If not handled by direct routing, fall back to Event path
+			if !handled {
+				ev := frameworkevent.MsgToEvent(msg)
+				if ev != nil {
+					a.handleEvent(ev)
+				}
+			}
 
 		case <-ticker.C:
 			if os.Getenv("TUI_DEBUG_UI") == "true" {
@@ -750,6 +768,162 @@ func (a *App) Run() error {
 	}
 
 	return nil
+}
+
+// handleMsg 直接处理 Msg（Phase 2/3: 绕过 Event 系统直接路由）
+//
+// 返回 true 表示消息已被处理，false 表示需要回退到 Event 系统
+func (a *App) handleMsg(message runtimemsg.Msg) bool {
+	if a.componentReg == nil {
+		return false
+	}
+
+	// 处理带 TargetID 的鼠标消息（直接路由）
+	if mouseMsg, ok := message.(*runtimemsg.MouseMsg); ok {
+		if mouseMsg.TargetID != "" {
+			if os.Getenv("TUI_DEBUG_UI") == "true" {
+				fmt.Fprintf(os.Stderr, "[APP] Direct routing: MouseMsg → %s\n", mouseMsg.TargetID)
+			}
+
+			// 从组件注册表查找目标组件
+			component := a.componentReg.Lookup(mouseMsg.TargetID)
+			if component != nil {
+				// 调用组件的 Update 方法
+				cmd := component.Update(mouseMsg)
+				if cmd != nil {
+					// TODO: 执行 Cmd（需要实现 Cmd 执行系统）
+					if os.Getenv("TUI_DEBUG_UI") == "true" {
+						fmt.Fprintf(os.Stderr, "[APP] Component returned Cmd: %v\n", cmd)
+					}
+				}
+
+				// 标记需要重新渲染
+				a.dirty = true
+				return true // 消息已处理
+			}
+
+			if os.Getenv("TUI_DEBUG_UI") == "true" {
+				fmt.Fprintf(os.Stderr, "[APP] Component not found: %s\n", mouseMsg.TargetID)
+			}
+		}
+	}
+
+	// Phase 3: 处理键盘消息（通过焦点管理器路由）
+	if keyMsg, ok := message.(*runtimemsg.KeyMsg); ok {
+		if a.focusManager != nil {
+			// 获取当前焦点组件
+			focused := a.focusManager.GetCurrent()
+			if focused != nil {
+				// 检查焦点组件是否实现 Updater 接口
+				if updater, ok := focused.(component.Updater); ok {
+					if os.Getenv("TUI_DEBUG_UI") == "true" {
+						focusID := focused.GetFocusID()
+						fmt.Fprintf(os.Stderr, "[APP] Direct routing: KeyMsg → focused component %s\n", focusID)
+					}
+
+					// 调用焦点组件的 Update 方法
+					cmd := updater.Update(keyMsg)
+					if cmd != nil {
+						// TODO: 执行 Cmd
+						if os.Getenv("TUI_DEBUG_UI") == "true" {
+							fmt.Fprintf(os.Stderr, "[APP] Focused component returned Cmd: %v\n", cmd)
+						}
+					}
+
+					// 标记需要重新渲染
+					a.dirty = true
+					return true // 消息已处理
+				}
+			}
+		}
+	}
+
+	// 其他情况回退到 Event 系统
+	return false
+}
+
+// buildComponentRegistry 从布局树构建组件注册表（Phase 2）
+//
+// 遍历布局树，注册所有实现 Updater 接口的组件
+func (a *App) buildComponentRegistry(root layout.Node) {
+	if a.componentReg == nil {
+		return
+	}
+
+	// 清空旧的注册表
+	a.componentReg.Clear()
+
+	// 递归遍历布局树
+	var traverse func(node layout.Node)
+	traverse = func(node layout.Node) {
+		if node == nil {
+			return
+		}
+
+		// 获取节点的 ID
+		nodeID := node.ID()
+		if nodeID != "" {
+			// 检查是否实现了 Updater 接口
+			if updater, ok := node.(component.Updater); ok {
+				a.componentReg.Register(nodeID, updater)
+
+				if os.Getenv("TUI_DEBUG_UI") == "true" {
+					fmt.Fprintf(os.Stderr, "[APP] Registered component: %s\n", nodeID)
+				}
+			}
+		}
+
+		// 递归处理子节点
+		children := node.Children()
+		for _, child := range children {
+			traverse(child)
+		}
+	}
+
+	traverse(root)
+
+	if os.Getenv("TUI_DEBUG_UI") == "true" {
+		fmt.Fprintf(os.Stderr, "[APP] Component registry built: %d components\n", a.componentReg.Size())
+	}
+}
+
+// updateFocusManager 从布局树更新焦点管理器（Phase 3）
+//
+// 遍历布局树，收集所有实现 FocusableVNode 接口的组件
+func (a *App) updateFocusManager(root layout.Node) {
+	if a.focusManager == nil {
+		return
+	}
+
+	// 收集所有 focusable 节点
+	var focusableNodes []rtui.FocusableVNode
+
+	var traverse func(node layout.Node)
+	traverse = func(node layout.Node) {
+		if node == nil {
+			return
+		}
+
+		// 检查是否实现 FocusableVNode 接口
+		if focusable, ok := node.(rtui.FocusableVNode); ok {
+			focusableNodes = append(focusableNodes, focusable)
+		}
+
+		// 递归处理子节点
+		children := node.Children()
+		for _, child := range children {
+			traverse(child)
+		}
+	}
+
+	traverse(root)
+
+	// 更新焦点管理器
+	a.focusManager.SetFocusable(focusableNodes)
+
+	if os.Getenv("TUI_DEBUG_UI") == "true" {
+		fmt.Fprintf(os.Stderr, "[APP] Focus manager updated: %d focusable nodes\n", len(focusableNodes))
+	}
 }
 
 // handleEvent 处理事件
@@ -1018,8 +1192,12 @@ func (a *App) render() {
 	// 在渲染完成后，从布局树构建 HitMap
 	// HitMap 用于下一帧的鼠标事件命中测试
 	if a.root != nil {
-		// 尝试从根节点构建 HitMap
-		// 注意：需要根节点实现 layout.Node 接口
+		// DEBUG: 输出 root 类型
+		if os.Getenv("TUI_DEBUG_HITMAP") == "true" {
+			fmt.Fprintf(os.Stderr, "[APP] root type: %T\n", a.root)
+		}
+
+		// 方法1：尝试从 layout.Node 构建
 		if layoutRoot, ok := a.root.(layout.Node); ok {
 			a.hitMap = runtimeevent.BuildHitMap(layoutRoot)
 
@@ -1028,9 +1206,41 @@ func (a *App) render() {
 				a.pump.SetHitMap(a.hitMap)
 			}
 
+			// Phase 2: 构建组件注册表（从布局树提取 Updater 组件）
+			a.buildComponentRegistry(layoutRoot)
+
+			// Phase 3: 更新焦点管理器（从布局树提取 Focusable 组件）
+			a.updateFocusManager(layoutRoot)
+
 			// DEBUG: 输出 HitMap 统计信息
 			if os.Getenv("TUI_DEBUG_HITMAP") == "true" {
-				fmt.Fprintf(os.Stderr, "[APP] HitMap built: %d entries\n", a.hitMap.Size())
+				fmt.Fprintf(os.Stderr, "[APP] HitMap built from layout.Node: %d entries\n", a.hitMap.Size())
+			}
+		} else if vnodeRoot, ok := a.root.(rtui.VNode); ok {
+			// 方法2：从 VNode 构建（支持 Inspector overlay）
+			// 通过 VNodeAdapter 将 VNode 转换为 layout.Node
+			layoutAdapter := rtui.AsLayoutNode(vnodeRoot)
+			a.hitMap = runtimeevent.BuildHitMap(layoutAdapter)
+
+			// Phase 1-6: 将 HitMap 传递给 Pump 用于鼠标事件命中测试
+			if a.pump != nil {
+				a.pump.SetHitMap(a.hitMap)
+			}
+
+			// Phase 2: 构建组件注册表（从 VNode 树提取 Updater 组件）
+			a.buildComponentRegistry(layoutAdapter)
+
+			// Phase 3: 更新焦点管理器（从 VNode 树提取 Focusable 组件）
+			a.updateFocusManager(layoutAdapter)
+
+			// DEBUG: 输出 HitMap 统计信息
+			if os.Getenv("TUI_DEBUG_HITMAP") == "true" {
+				fmt.Fprintf(os.Stderr, "[APP] HitMap built from VNode: %d entries\n", a.hitMap.Size())
+			}
+		} else {
+			// DEBUG: root 不是 layout.Node 也不是 VNode
+			if os.Getenv("TUI_DEBUG_HITMAP") == "true" {
+				fmt.Fprintf(os.Stderr, "[APP] root is neither layout.Node nor VNode, type=%T\n", a.root)
 			}
 		}
 	}

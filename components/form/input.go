@@ -4,14 +4,22 @@ import (
 	"unicode/utf8"
 
 	"github.com/wwsheng009/mint/framework/action"
+	"github.com/wwsheng009/mint/framework/cmd"
+	"github.com/wwsheng009/mint/framework/component"
 	"github.com/wwsheng009/mint/runtime/dimension"
-	"github.com/wwsheng009/mint/framework/event"
+	frameworkevent "github.com/wwsheng009/mint/framework/event"
 	"github.com/wwsheng009/mint/framework/theme"
+	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
+	runtimeplatform "github.com/wwsheng009/mint/runtime/platform"
 	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
 	"github.com/wwsheng009/mint/ui"
 )
+
+// Interface implementation assertions
+var _ frameworkevent.Component = (*InputVNode)(nil)
+var _ component.Updater = (*InputVNode)(nil) // Phase 3: Msg/Cmd support
 
 // InputType represents the type of input
 type InputType int
@@ -395,13 +403,13 @@ func (i *InputVNode) ContainsPoint(x, y int) bool {
 }
 
 // HandleEvent processes mouse and keyboard events for the input
-func (i *InputVNode) HandleEvent(e event.Event) bool {
+func (i *InputVNode) HandleEvent(e frameworkevent.Event) bool {
 	if i.disabled || i.readOnly {
 		return false
 	}
 
 	// Handle keyboard events (character input)
-	keyEvent, ok := e.(*event.KeyEvent)
+	keyEvent, ok := e.(*frameworkevent.KeyEvent)
 	if ok {
 		// Only process keyboard input when focused
 		if !i.isFocused {
@@ -409,7 +417,7 @@ func (i *InputVNode) HandleEvent(e event.Event) bool {
 		}
 
 		// Handle special keys
-		if keyEvent.Special == event.KeyBackspace || keyEvent.Special == event.KeyDelete {
+		if keyEvent.Special == frameworkevent.KeyBackspace || keyEvent.Special == frameworkevent.KeyDelete {
 			// Delete last character
 			if len(i.value) > 0 {
 				runes := []rune(i.value)
@@ -421,7 +429,7 @@ func (i *InputVNode) HandleEvent(e event.Event) bool {
 			return true
 		}
 
-		if keyEvent.Special == event.KeyEnter {
+		if keyEvent.Special == frameworkevent.KeyEnter {
 			// Submit (if handler exists)
 			if i.onSubmit != nil {
 				i.onSubmit()
@@ -447,26 +455,26 @@ func (i *InputVNode) HandleEvent(e event.Event) bool {
 		return false
 	}
 
-	mouseEvent, ok := e.(*event.MouseEvent)
+	mouseEvent, ok := e.(*frameworkevent.MouseEvent)
 	if !ok {
 		return false
 	}
 
 	switch mouseEvent.Type() {
-	case event.EventMouseEnter:
+	case frameworkevent.EventMouseEnter:
 		if !i.isHovered {
 			i.isHovered = true
 		}
 		return true
 
-	case event.EventMouseLeave:
+	case frameworkevent.EventMouseLeave:
 		if i.isHovered {
 			i.isHovered = false
 		}
 		return true
 
-	case event.EventMousePress, event.EventClick:
-		if i.isHovered && mouseEvent.Button == event.MouseLeft {
+	case frameworkevent.EventMousePress, frameworkevent.EventClick:
+		if i.isHovered && mouseEvent.Button == frameworkevent.MouseLeft {
 			// Focus the input - the actual focus is managed by the framework
 			// Return true to indicate the event was handled
 			return true
@@ -474,6 +482,97 @@ func (i *InputVNode) HandleEvent(e event.Event) bool {
 	}
 
 	return false
+}
+
+// =============================================================================
+// Msg/Cmd Architecture Support (Phase 3)
+// =============================================================================
+
+// Update implements component.Updater interface for Msg/Cmd architecture
+//
+// Handles:
+// - KeyMsg: Text input, deletion, cursor movement
+// - MouseMsg: Focus handling
+func (i *InputVNode) Update(message runtimemsg.Msg) cmd.Cmd {
+	if i.disabled || i.readOnly {
+		return nil
+	}
+
+	switch msg := message.(type) {
+	case *runtimemsg.KeyMsg:
+		// Only process keyboard input when focused
+		if !i.isFocused {
+			return nil
+		}
+		return i.updateKey(msg)
+
+	case *runtimemsg.MouseMsg:
+		return i.updateMouse(msg)
+	}
+
+	return nil
+}
+
+// updateKey handles keyboard messages for text input
+func (i *InputVNode) updateKey(keyMsg *runtimemsg.KeyMsg) cmd.Cmd {
+	// Handle special keys
+	if keyMsg.Special == runtimeplatform.KeyBackspace || keyMsg.Special == runtimeplatform.KeyDelete {
+		// Delete last character
+		if len(i.value) > 0 {
+			runes := []rune(i.value)
+			i.value = string(runes[:len(runes)-1])
+			if i.onChange != nil {
+				i.onChange(i.value)
+			}
+		}
+		return nil
+	}
+
+	if keyMsg.Special == runtimeplatform.KeyEnter {
+		// Submit (if handler exists)
+		if i.onSubmit != nil {
+			i.onSubmit()
+		}
+		return nil
+	}
+
+	// Handle character input
+	if keyMsg.Rune > 0 && keyMsg.Rune >= 32 && keyMsg.Rune <= 126 {
+		// Check max length
+		if i.maxLength > 0 && utf8.RuneCountInString(i.value) >= i.maxLength {
+			return nil // Reached max length
+		}
+
+		// Append character
+		i.value += string(keyMsg.Rune)
+		if i.onChange != nil {
+			i.onChange(i.value)
+		}
+		return nil
+	}
+
+	return nil
+}
+
+// updateMouse handles mouse messages for focus handling
+func (i *InputVNode) updateMouse(mouseMsg *runtimemsg.MouseMsg) cmd.Cmd {
+	switch mouseMsg.Action {
+	case runtimemsg.MouseActionMove:
+		// Update hover state
+		// TODO: Need proper hover tracking in Pump
+		i.isHovered = true
+		return nil
+
+	case runtimemsg.MouseActionPress:
+		if mouseMsg.Button == runtimemsg.MouseLeft {
+			// Focus the input - the actual focus is managed by the framework
+			// Just mark as hovered, focus manager handles the rest
+			i.isHovered = true
+			return nil
+		}
+	}
+
+	return nil
 }
 
 // =============================================================================

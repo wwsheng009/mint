@@ -1,6 +1,7 @@
 package ui
 
 import (
+	frameworkevent "github.com/wwsheng009/mint/framework/event"
 	"strings"
 
 	"github.com/wwsheng009/mint/runtime"
@@ -260,6 +261,25 @@ func (l *LayoutNode) Padding() [4]int {
 // StretchCross returns whether children stretch to fill cross axis
 func (l *LayoutNode) StretchCross() bool {
 	return l.stretchCross
+}
+
+// HandleEvent implements frameworkevent.Component interface
+// Forwards events to child components that implement Component interface
+// Each child component should already have accurate bounds set by the layout engine
+func (l *LayoutNode) HandleEvent(ev frameworkevent.Event) bool {
+	children := l.Children()
+
+	// Try to forward event to each child component
+	// Children should have accurate bounds from layout engine
+	for _, child := range children {
+		if childComponent, ok := child.(frameworkevent.Component); ok {
+			if childComponent.HandleEvent(ev) {
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 // =============================================================================
@@ -824,6 +844,7 @@ type BorderedNode struct {
 	borderStyle BorderStyle
 	borderColor string
 	borderLabel string // Optional title shown on top border
+	component   frameworkevent.Component // Optional component for event forwarding
 }
 
 // Bordered creates a container with auto-rendered border
@@ -872,6 +893,12 @@ func (b *BorderedBuilder) Color(c string) *BorderedBuilder {
 // Label sets a title shown on the top border
 func (b *BorderedBuilder) Label(label string) *BorderedBuilder {
 	b.node.borderLabel = label
+	return b
+}
+
+// Component sets a component for event forwarding
+func (b *BorderedBuilder) Component(c frameworkevent.Component) *BorderedBuilder {
+	b.node.component = c
 	return b
 }
 
@@ -929,6 +956,28 @@ func (bn *BorderedNode) GetBorderColor() string {
 // GetBorderLabel returns the border label
 func (bn *BorderedNode) GetBorderLabel() string {
 	return bn.borderLabel
+}
+
+// HandleEvent implements frameworkevent.Component interface
+// Forwards events to the attached component if available
+func (bn *BorderedNode) HandleEvent(ev frameworkevent.Event) bool {
+	if bn.component != nil {
+		return bn.component.HandleEvent(ev)
+	}
+	return false
+}
+
+// SetBounds sets the bounds on both BorderedNode and the attached component
+func (bn *BorderedNode) SetBounds(x, y, w, h int) {
+	if bn.ElementVNode != nil {
+		bn.ElementVNode.SetBounds(x, y, w, h)
+	}
+	// Also set bounds on the component if it implements SetBounds
+	if bn.component != nil {
+		if boundedComponent, ok := bn.component.(interface{ SetBounds(x, y, w, h int) }); ok {
+			boundedComponent.SetBounds(x, y, w, h)
+		}
+	}
 }
 
 // SetLayer sets the rendering layer for this BorderedNode

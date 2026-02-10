@@ -74,7 +74,7 @@ const (
 // BaseMsg 提供了 Msg 接口的基础实现
 // 其他 Msg 类型可以嵌入 BaseMsg 来自动实现通用方法
 type BaseMsg struct {
-	TypeValue   MsgType
+	TypeValue     MsgType
 	TimestampValue time.Time
 }
 
@@ -97,7 +97,7 @@ func (m *BaseMsg) String() string {
 // NewBaseMsg 创建一个新的基础消息
 func NewBaseMsg(msgType MsgType) *BaseMsg {
 	return &BaseMsg{
-		TypeValue:   msgType,
+		TypeValue:      msgType,
 		TimestampValue: time.Now(),
 	}
 }
