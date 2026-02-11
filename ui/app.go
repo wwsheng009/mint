@@ -1,10 +1,10 @@
 package ui
 
 import (
-	"fmt"
 	"os"
 
 	"github.com/wwsheng009/mint/framework"
+	"github.com/wwsheng009/mint/internal/log"
 	"github.com/wwsheng009/mint/internal/render"
 )
 
@@ -87,7 +87,7 @@ func Run(app ComponentFunc, opts ...Option) error {
 	}
 
 	if os.Getenv("TUI_DEBUG_UI") == "true" {
-		fmt.Fprintf(os.Stderr, "ui.Run: Starting\n")
+		log.UILogger.Debug("ui.Run: Starting")
 	}
 
 	for _, opt := range opts {
@@ -104,7 +104,7 @@ func Run(app ComponentFunc, opts ...Option) error {
 
 	// Create the framework app
 	if os.Getenv("TUI_DEBUG_UI") == "true" {
-		fmt.Fprintf(os.Stderr, "ui.Run: Creating framework app\n")
+		log.UILogger.Debug("ui.Run: Creating framework app")
 	}
 	fwApp := framework.NewApp()
 	// IMPORTANT: SetConfigSize sets the LAYOUT constraints (user's intended size)
@@ -115,11 +115,11 @@ func Run(app ComponentFunc, opts ...Option) error {
 
 	// Initialize theme
 	if os.Getenv("TUI_DEBUG_UI") == "true" {
-		fmt.Fprintf(os.Stderr, "ui.Run: Initializing theme\n")
+		log.UILogger.Debug("ui.Run: Initializing theme")
 	}
 	if err := fwApp.InitTheme("dark"); err != nil {
 		if os.Getenv("TUI_DEBUG_UI") == "true" {
-			fmt.Fprintf(os.Stderr, "Failed to initialize theme: %v\n", err)
+			log.UILogger.Debug("Failed to initialize theme: %v", err)
 		}
 	}
 
@@ -131,7 +131,7 @@ func Run(app ComponentFunc, opts ...Option) error {
 	var declarativeRoot *render.DeclarativeNode
 	if enableFiber {
 		if os.Getenv("TUI_DEBUG_UI") == "true" {
-			fmt.Fprintf(os.Stderr, "ui.Run: Fiber mode enabled\n")
+			log.UILogger.Debug("ui.Run: Fiber mode enabled")
 		}
 		declarativeRoot = render.NewDeclarativeNodeFromFuncWithFiber(app, fwApp)
 	} else {
@@ -143,12 +143,12 @@ func Run(app ComponentFunc, opts ...Option) error {
 	fwApp.SetRoot(declarativeRoot)
 
 	if os.Getenv("TUI_DEBUG_UI") == "true" {
-		fmt.Fprintf(os.Stderr, "ui.Run: declarative root set to %T\n", declarativeRoot)
+		log.UILogger.Debug("ui.Run: declarative root set to %T", declarativeRoot)
 	}
 
 	// Run the app
 	if os.Getenv("TUI_DEBUG_UI") == "true" {
-		fmt.Fprintf(os.Stderr, "ui.Run: Calling fwApp.Run()\n")
+		log.UILogger.Debug("ui.Run: Calling fwApp.Run()")
 	}
 	return fwApp.Run()
 }

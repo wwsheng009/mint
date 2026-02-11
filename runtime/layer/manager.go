@@ -7,7 +7,6 @@ import (
 	"sort"
 
 	"github.com/wwsheng009/mint/internal/log"
-	"github.com/wwsheng009/mint/internal/logger"
 	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/compute"
 	"github.com/wwsheng009/mint/runtime/event"
@@ -202,8 +201,6 @@ func (m *Manager) centerModal(root *compute.ComputedBox, constraints runtime.Box
 		return
 	}
 
-	log := logger.Get()
-
 	// Calculate centering offset
 	modalWidth := root.Box.Width
 	modalHeight := root.Box.Height
@@ -232,13 +229,13 @@ func (m *Manager) centerModal(root *compute.ComputedBox, constraints runtime.Box
 		offsetY = 0
 	}
 
-	log.Info("LAYER", "[centerModal] modal=(%d,%d) size=%dx%d container=%dx%d offset=(%d,%d)",
+	log.RenderLogger.Debug("[centerModal] modal=(%d,%d) size=%dx%d container=%dx%d offset=(%d,%d)",
 		originalX, originalY, modalWidth, modalHeight, containerWidth, containerHeight, offsetX, offsetY)
 
 	// Shift the entire layout tree
 	m.shiftPositions(root, offsetX, offsetY)
 
-	log.Info("LAYER", "[centerModal] after shift: modal=(%d,%d)",
+	log.RenderLogger.Debug("[centerModal] after shift: modal=(%d,%d)",
 		root.Box.X, root.Box.Y)
 }
 
@@ -365,7 +362,6 @@ func (m *Manager) GetTooltipNodes() []*LayerNode {
 // The merged HitMap respects layer Z-order (upper layers have higher Z-order)
 func (m *Manager) GetMergedHitMap() *event.HitMap {
 	var entries []event.HitMapEntryInternal
-	log := logger.Get()
 
 	// Render order: from lowest (base) to highest (inspector)
 	renderOrder := []rtui.Layer{
@@ -380,22 +376,22 @@ func (m *Manager) GetMergedHitMap() *event.HitMap {
 	for _, layer := range renderOrder {
 		layout, ok := m.layouts[layer]
 		if !ok || layout.HitMap == nil {
-			if !ok {
-				log.Debug("LAYER", "[GetMergedHitMap] Layer %d: no layout", layer)
-			} else {
-				log.Debug("LAYER", "[GetMergedHitMap] Layer %d: layout has nil HitMap", layer)
-			}
+		if !ok {
+			log.RenderLogger.Debug("[GetMergedHitMap] Layer %d: no layout", layer)
+		} else {
+			log.RenderLogger.Debug("[GetMergedHitMap] Layer %d: layout has nil HitMap", layer)
+		}
 			continue
 		}
 
-		log.Debug("LAYER", "[GetMergedHitMap] Layer %d: HitMap has %d entries", layer, layout.HitMap.Size())
+		log.RenderLogger.Debug("[GetMergedHitMap] Layer %d: HitMap has %d entries", layer, layout.HitMap.Size())
 
 		// Append all entries from this layer's HitMap
 		// Update their Z-order to reflect the layer hierarchy
 		for _, entry := range layout.HitMap.AllEntries() {
 			// Log modal button positions
 			if layer == rtui.LayerModal {
-				log.Debug("LAYER", "[GetMergedHitMap] Modal entry: ID=%s, Bounds=(%d,%d,%dx%d)",
+				log.RenderLogger.Debug("[GetMergedHitMap] Modal entry: ID=%s, Bounds=(%d,%d,%dx%d)",
 					entry.NodeID, entry.Bounds.X, entry.Bounds.Y, entry.Bounds.Width, entry.Bounds.Height)
 			}
 
@@ -418,7 +414,7 @@ func (m *Manager) GetMergedHitMap() *event.HitMap {
 		return entries[i].ZOrder < entries[j].ZOrder
 	})
 
-	log.Info("LAYER", "[GetMergedHitMap] Merged HitMap: %d entries from %d layers",
+	log.RenderLogger.Debug("[GetMergedHitMap] Merged HitMap: %d entries from %d layers",
 		len(entries), len(m.layouts))
 
 	// Build HitMap from entries
@@ -433,7 +429,6 @@ func (m *Manager) buildHitMapFromComputedBox(root *compute.ComputedBox) *event.H
 	}
 
 	var entries []event.HitMapEntryInternal
-	log := logger.Get()
 
 	// Recursively walk the ComputedBox tree
 	var walk func(box *compute.ComputedBox, zOrder int)
@@ -482,7 +477,7 @@ func (m *Manager) buildHitMapFromComputedBox(root *compute.ComputedBox) *event.H
 
 		// Log entry positions for debugging
 		if entry.NodeID != "" {
-			log.Debug("HITMAP", "[buildHitMapFromComputedBox] Entry: ID=%s, Bounds=(%d,%d,%dx%d)",
+			log.RenderLogger.Debug("[buildHitMapFromComputedBox] Entry: ID=%s, Bounds=(%d,%d,%dx%d)",
 				entry.NodeID, entry.Bounds.X, entry.Bounds.Y, entry.Bounds.Width, entry.Bounds.Height)
 		}
 
@@ -499,7 +494,7 @@ func (m *Manager) buildHitMapFromComputedBox(root *compute.ComputedBox) *event.H
 		return entries[i].ZOrder < entries[j].ZOrder
 	})
 
-	log.Info("HITMAP", "[LayerManager] Built HitMap: %d entries", len(entries))
+	log.RenderLogger.Debug("[LayerManager] Built HitMap: %d entries", len(entries))
 
 	return event.BuildHitMapFromEntries(entries)
 }

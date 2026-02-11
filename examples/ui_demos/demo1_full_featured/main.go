@@ -25,7 +25,7 @@ import (
 
 	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/framework/theme"
-	"github.com/wwsheng009/mint/internal/logger"
+	"github.com/wwsheng009/mint/internal/log"
 	"github.com/wwsheng009/mint/runtime/style"
 	"github.com/wwsheng009/mint/ui"
 )
@@ -62,13 +62,12 @@ func main() {
 	}
 
 	// 运行结束后提示日志位置
-	log := logger.Get()
-	log.Info("APP", "=== Debug session ended ===")
-	log.Info("APP", "Log file: demo1_debug.log")
-	log.Info("APP", "Check for:")
-	log.Info("APP", "  - [MOUSE] mouse position and HitTest results")
-	log.Info("APP", "  - [LAYER] modal centering and position")
-	log.Info("APP", "  - [HITMAP] button bounds entries")
+	log.UILogger.Debug("=== Debug session ended ===")
+	log.UILogger.Debug("Log file: demo1_debug.log")
+	log.UILogger.Debug("Check for:")
+	log.UILogger.Debug("  - [MOUSE] mouse position and HitTest results")
+	log.UILogger.Debug("  - [LAYER] modal centering and position")
+	log.UILogger.Debug("  - [HITMAP] button bounds entries")
 }
 
 // App is the root component

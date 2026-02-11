@@ -14,6 +14,7 @@ import (
 	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/border"
 	"github.com/wwsheng009/mint/runtime/event"
+	"github.com/wwsheng009/mint/runtime/layer"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/render"
 	"github.com/wwsheng009/mint/runtime/style"
@@ -39,6 +40,9 @@ type DeclarativeNode struct {
 	reconciler rtui.Reconciler       // Fiber reconciler (if enabled) - use interface to avoid import cycle
 	renderer   rtui.VNodeRenderer    // VNode renderer (implements VNodeRenderer interface)
 	useFiber   bool                // Whether Fiber mode is enabled
+
+	// Layer Manager for modal/overlay/tooltip support
+	layerMgr  *layer.Manager        // Layer manager for handling layered VNodes (modals, etc.)
 }
 
 // NewDeclarativeNode creates a new declarative node from a VNode
@@ -81,6 +85,13 @@ func (n *DeclarativeNode) SetFrameworkApp(app *framework.App) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	n.fwApp = app
+}
+
+// SetLayerManager sets the layer manager for handling layered VNodes (modals, overlays, etc.)
+func (n *DeclarativeNode) SetLayerManager(mgr *layer.Manager) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.layerMgr = mgr
 }
 
 // NewDeclarativeNodeFromFuncWithFiber creates a new declarative node with Fiber reconciler enabled
@@ -230,11 +241,19 @@ func (n *DeclarativeNode) Paint(ctx component.PaintContext, buf *paint.Buffer) {
 				fmt.Fprintf(os.Stderr, "[DeclarativeNode.Paint] Layout constraints: %dx%d (buffer: %dx%d)\n",
 					ctx.AvailableWidth, ctx.AvailableHeight, buf.Width, buf.Height)
 			}
+			// Capture the layer manager from PipelineRenderer for event handling
+			pipeline := adapter.GetPipeline()
+			if pipeline != nil && pipeline.layerMgr != nil {
+				n.layerMgr = pipeline.layerMgr
+				if os.Getenv("TUI_DEBUG_UI") == "true" {
+					log.UILogger.Debug("[DeclarativeNode.Paint] Set layerMgr from PipelineRenderer")
+				}
+			}
 			// Call RenderWithConstraints which will:
 			// 1. Use PaintContext dimensions as BoxConstraints (user's configured layout size)
 			// 2. Detect layer nodes and call RenderLayers() if needed
 			// 3. Apply modal centering for LayerModal nodes using the correct layout size
-			if err := adapter.GetPipeline().RenderWithConstraints(n.root, ctx.AvailableWidth, ctx.AvailableHeight, buf); err != nil {
+			if err := pipeline.RenderWithConstraints(n.root, ctx.AvailableWidth, ctx.AvailableHeight, buf); err != nil {
 				// Fallback to legacy rendering if pipeline fails
 				fmt.Fprintf(os.Stderr, "[DeclarativeNode.Paint] ❌ Pipeline render FAILED: %v, falling back to legacy\n", err)
 				n.PaintVNode(n.root, ctx.Bounds.X, ctx.Bounds.Y, buf)
@@ -1113,6 +1132,37 @@ func (n *DeclarativeNode) HandleEvent(ev frameworkevent.Event) bool {
 	}
 
 	// 3. Fall back to global event distribution
+	// First, try to distribute to modal/overlay layers (they have higher Z-order priority)
+	if os.Getenv("TUI_DEBUG_UI") == "true" {
+		log.UILogger.Debug("[HandleEvent] layerMgr=%v (nil check: %v)", n.layerMgr, n.layerMgr != nil)
+	}
+	if n.layerMgr != nil {
+		modalNodes := n.layerMgr.GetModalNodes()
+		if os.Getenv("TUI_DEBUG_UI") == "true" {
+			log.UILogger.Debug("[HandleEvent] Found %d modal nodes", len(modalNodes))
+		}
+		for _, modalNode := range modalNodes {
+			if modalNode.Content != nil {
+				if os.Getenv("TUI_DEBUG_UI") == "true" {
+					log.UILogger.Debug("[HandleEvent] Distributing event to modal layer: ID=%s, type=%T", modalNode.ID, modalNode.Content)
+				}
+				if n.distributeEventToVNode(modalNode.Content, ev) {
+					// Event was handled by modal component
+					if os.Getenv("TUI_DEBUG_UI") == "true" {
+						log.UILogger.Debug("[HandleEvent] Modal handled event")
+					}
+					n.requestRender(useFiber, reconciler)
+					return true
+				}
+			}
+		}
+	} else {
+		if os.Getenv("TUI_DEBUG_UI") == "true" {
+			log.UILogger.Debug("[HandleEvent] layerMgr is nil, modal events will not work")
+		}
+	}
+
+	// Then, try to distribute to root tree
 	handled := n.distributeEventToVNode(root, ev)
 	if handled {
 		// Event was handled by a component (e.g., button click)

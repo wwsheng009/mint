@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/wwsheng009/mint/framework/theme"
-	"github.com/wwsheng009/mint/internal/logger"
+	"github.com/wwsheng009/mint/internal/log"
 	runtimeevent "github.com/wwsheng009/mint/runtime/event"
 	"github.com/wwsheng009/mint/runtime/platform"
 	"github.com/wwsheng009/mint/ui"
@@ -19,10 +19,7 @@ func TestModalMouseClick(t *testing.T) {
 	os.Setenv("TUI_DEBUG_LOG", "modal_mouse_test.log")
 
 	// 初始化 logger
-	log := logger.InitFromEnv()
-	if log != nil {
-		log.Info("TEST", "=== Modal Mouse Click Test Started ===")
-	}
+	log.UILogger.Debug("=== Modal Mouse Click Test Started ===")
 
 	// 确保主题加载
 	_ = theme.SetTheme("nord")

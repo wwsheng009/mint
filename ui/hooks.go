@@ -198,16 +198,16 @@ func UseStateBool(initial bool) (bool, func(bool)) {
 func scheduleRender(componentID string) {
 	// Access the global app instance to mark it dirty
 	if os.Getenv("TUI_DEBUG_UI") == "true" {
-		fmt.Fprintf(os.Stderr, "scheduleRender: componentID=%s, appInstance=%v\n", componentID, appInstance != nil)
+		log.UILogger.Debug("scheduleRender: componentID=%s, appInstance=%v", componentID, appInstance != nil)
 	}
 	if appInstance != nil {
 		appInstance.MarkDirty()
 		if os.Getenv("TUI_DEBUG_UI") == "true" {
-			fmt.Fprintf(os.Stderr, "scheduleRender: MarkDirty() called, state=%v\n", appInstance.GetState())
+			log.UILogger.Debug("scheduleRender: MarkDirty() called, state=%v", appInstance.GetState())
 		}
 	} else {
 		if os.Getenv("TUI_DEBUG_UI") == "true" {
-			fmt.Fprintf(os.Stderr, "scheduleRender: appInstance is nil, cannot MarkDirty()\n")
+			log.UILogger.Debug("scheduleRender: appInstance is nil, cannot MarkDirty()")
 		}
 	}
 }
@@ -455,7 +455,7 @@ func UseStateIntWithDebug(initial int) (int, func(interface{}), func() int, int)
 	hookIndex := ctx.HookIndex // Capture index before useState increments it
 
 	if os.Getenv("TUI_DEBUG_UI") == "true" {
-		fmt.Fprintf(os.Stderr, "[DEBUG] UseStateIntWithDebug: initial=%d, hookIndex=%d\n", initial, hookIndex)
+		log.UILogger.Debug("[DEBUG] UseStateIntWithDebug: initial=%d, hookIndex=%d", initial, hookIndex)
 	}
 
 	value, setValue := useState(initial)
@@ -465,7 +465,7 @@ func UseStateIntWithDebug(initial int) (int, func(interface{}), func() int, int)
 		if hookIndex < len(ctx.Hooks) {
 			if v, ok := ctx.Hooks[hookIndex].Value.(int); ok {
 				if os.Getenv("TUI_DEBUG_UI") == "true" {
-					fmt.Fprintf(os.Stderr, "[DEBUG] getValue: hookIndex=%d, value=%d, hook=%p\n",
+					log.UILogger.Debug("[DEBUG] getValue: hookIndex=%d, value=%d, hook=%p",
 						hookIndex, v, &ctx.Hooks[hookIndex])
 				}
 				return v
@@ -478,7 +478,7 @@ func UseStateIntWithDebug(initial int) (int, func(interface{}), func() int, int)
 		switch v := newValue.(type) {
 		case int:
 			if os.Getenv("TUI_DEBUG_UI") == "true" {
-				fmt.Fprintf(os.Stderr, "[DEBUG] setInt: hookIndex=%d, oldValue=%v, newValue=%d\n",
+				log.UILogger.Debug("[DEBUG] setInt: hookIndex=%d, oldValue=%v, newValue=%d",
 					hookIndex, value, v)
 			}
 			setValue(v)
@@ -487,7 +487,7 @@ func UseStateIntWithDebug(initial int) (int, func(interface{}), func() int, int)
 			current := getValue()
 			newVal := v(current)
 			if os.Getenv("TUI_DEBUG_UI") == "true" {
-				fmt.Fprintf(os.Stderr, "[DEBUG] setInt(fn): hookIndex=%d, oldValue=%d, newValue=%d\n",
+				log.UILogger.Debug("[DEBUG] setInt(fn): hookIndex=%d, oldValue=%d, newValue=%d",
 					hookIndex, current, newVal)
 			}
 			setValue(newVal)
@@ -498,7 +498,7 @@ func UseStateIntWithDebug(initial int) (int, func(interface{}), func() int, int)
 
 	intValue := value.(int)
 	if os.Getenv("TUI_DEBUG_UI") == "true" {
-		fmt.Fprintf(os.Stderr, "[DEBUG] UseStateIntWithDebug RETURN: hookIndex=%d, returning value=%d, ptr=%p\n", hookIndex, intValue, &intValue)
+		log.UILogger.Debug("[DEBUG] UseStateIntWithDebug RETURN: hookIndex=%d, returning value=%d, ptr=%p", hookIndex, intValue, &intValue)
 	}
 	return intValue, setInt, getValue, hookIndex
 }

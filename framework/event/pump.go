@@ -7,7 +7,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/wwsheng009/mint/internal/logger"
+	"github.com/wwsheng009/mint/internal/log"
 	"github.com/wwsheng009/mint/runtime/event"
 	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
 	"github.com/wwsheng009/mint/runtime/platform"
@@ -209,8 +209,7 @@ func (p *Pump) convertToMouseMsg(raw platform.RawInput) runtimemsg.Msg {
 	p.hitMapMu.RUnlock()
 
 	// Log mouse position using logger
-	log := logger.Get()
-	log.Debug("MOUSE", "Raw position: (%d, %d) | Action: %v", raw.MouseX, raw.MouseY, raw.MouseAction)
+	log.UILogger.Debug("Raw position: (%d, %d) | Action: %v", raw.MouseX, raw.MouseY, raw.MouseAction)
 
 	if hitMap != nil {
 		// Perform hit testing
@@ -223,26 +222,26 @@ func (p *Pump) convertToMouseMsg(raw platform.RawInput) runtimemsg.Msg {
 			mouseMsg.LocalY = localY
 
 			// Log successful hit test
-			log.Debug("MOUSE", "HitTest: Found '%s' at Bounds=(%d,%d,%dx%d) Local=(%d,%d)",
+			log.UILogger.Debug("HitTest: Found '%s' at Bounds=(%d,%d,%dx%d) Local=(%d,%d)",
 				entry.NodeID, entry.Bounds.X, entry.Bounds.Y,
 				entry.Bounds.Width, entry.Bounds.Height, localX, localY)
 
 			// Also log all entries at this position for debugging overlapping buttons
 			allEntries := hitMap.FindAllAt(raw.MouseX, raw.MouseY)
 			if len(allEntries) > 1 {
-				log.Debug("MOUSE", "Multiple hits at (%d,%d):", raw.MouseX, raw.MouseY)
+				log.UILogger.Debug("Multiple hits at (%d,%d):", raw.MouseX, raw.MouseY)
 				for i, e := range allEntries {
-					log.Debug("MOUSE", "  [%d] ID='%s' Bounds=(%d,%d,%dx%d) ZOrder=%d",
+					log.UILogger.Debug("  [%d] ID='%s' Bounds=(%d,%d,%dx%d) ZOrder=%d",
 						i, e.NodeID, e.Bounds.X, e.Bounds.Y, e.Bounds.Width, e.Bounds.Height, e.ZOrder)
 				}
 			}
 		} else {
 			// No hit
-			log.Debug("MOUSE", "HitTest: No hit at (%d,%d)", raw.MouseX, raw.MouseY)
+			log.UILogger.Debug("HitTest: No hit at (%d,%d)", raw.MouseX, raw.MouseY)
 		}
 	} else {
 		// HitMap is nil
-		log.Warn("MOUSE", "HitMap is nil!")
+		log.UILogger.Debug("HitMap is nil!")
 	}
 
 	// Calculate Delta for wheel events

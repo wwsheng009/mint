@@ -877,11 +877,11 @@ func (b *ButtonVNode) Paint(x, y int) []paint.DrawCmd {
 
 	// Debug logging for paint calculations
 	if os.Getenv("TUI_UI_DEBUG_PAINT") == "true" || os.Getenv("TUI_PAINT_DEBUG") == "true" {
-		fmt.Fprintf(os.Stderr, "[DEBUG-PAINT] label=%q, bounds=[%d %d %d %d], x=%d, y=%d\n",
+		log.RenderLogger.Debug("[DEBUG-PAINT] label=%q, bounds=[%d %d %d %d], x=%d, y=%d",
 			b.label, b.bounds[0], b.bounds[1], b.bounds[2], b.bounds[3], x, y)
-		fmt.Fprintf(os.Stderr, "[DEBUG-PAINT]   buttonText=\"%s\", contentWidth=%d, naturalWidth=%d, layoutWidth=%d\n",
+		log.RenderLogger.Debug("[DEBUG-PAINT]   buttonText=\"%s\", contentWidth=%d, naturalWidth=%d, layoutWidth=%d",
 			buttonText, contentWidth, naturalWidth, layoutWidth)
-		fmt.Fprintf(os.Stderr, "[DEBUG-PAINT]   paddingLeft=%d, paddingRight=%d, willStretch=%v\n",
+		log.RenderLogger.Debug("[DEBUG-PAINT]   paddingLeft=%d, paddingRight=%d, willStretch=%v",
 			paddingLeft, paddingRight, layoutWidth > naturalWidth)
 	}
 
@@ -928,7 +928,7 @@ func (b *ButtonVNode) Paint(x, y int) []paint.DrawCmd {
 
 	// Return draw commands: focus indicator + button label
 	if os.Getenv("TUI_UI_DEBUG_PAINT") == "true" || os.Getenv("TUI_PAINT_DEBUG") == "true" {
-		fmt.Fprintf(os.Stderr, "[DEBUG-PAINT]   final buttonText length=%d, text=\"%s\"\n",
+		log.RenderLogger.Debug("[DEBUG-PAINT]   final buttonText length=%d, text=\"%s\"",
 			len(buttonText), buttonText)
 	}
 	return []paint.DrawCmd{
