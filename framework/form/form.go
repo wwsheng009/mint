@@ -10,6 +10,7 @@ import (
 	"github.com/wwsheng009/mint/framework/event"
 	"github.com/wwsheng009/mint/framework/input"
 	"github.com/wwsheng009/mint/framework/validation"
+	"github.com/wwsheng009/mint/internal/log"
 	"github.com/wwsheng009/mint/runtime/action"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
@@ -23,7 +24,7 @@ func formDebugLog(format string, args ...interface{}) {
 	if debugForm {
 		timestamp := time.Now().Format("15:04:05.000")
 		fullFormat := fmt.Sprintf("[%s] [Form] %s\n", timestamp, format)
-		fmt.Fprintf(os.Stderr, fullFormat, args...)
+		log.UILogger.Debug(fullFormat, args...)
 	}
 }
 

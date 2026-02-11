@@ -10,6 +10,7 @@ import (
 	"github.com/wwsheng009/mint/framework/component"
 	"github.com/wwsheng009/mint/framework/cursor"
 	"github.com/wwsheng009/mint/framework/event"
+	"github.com/wwsheng009/mint/internal/log"
 	"github.com/wwsheng009/mint/runtime/action"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
@@ -44,12 +45,12 @@ func initDebugFile() {
 	var err error
 	debugFile, err = os.Create(filename)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to create debug file: %v\n", err)
+		log.UILogger.Debug("Failed to create debug file: %v\n", err)
 		debugInput = false
 		return
 	}
 
-	fmt.Fprintf(os.Stderr, "[TextInput] Debug logging enabled, writing to: %s\n", filename)
+	log.UILogger.Debug("[TextInput] Debug logging enabled, writing to: %s\n", filename)
 }
 
 // debugLog 调试日志输出到文件

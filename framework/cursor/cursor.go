@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/wwsheng009/mint/framework/component"
+	"github.com/wwsheng009/mint/internal/log"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
 )
@@ -20,7 +21,7 @@ func cursorDebugLog(format string, args ...interface{}) {
 	if debugCursor {
 		timestamp := time.Now().Format("15:04:05.000")
 		fullFormat := fmt.Sprintf("[%s] [Cursor] %s\n", timestamp, format)
-		fmt.Fprintf(os.Stderr, fullFormat, args...)
+		log.EngineLogger.Debug(fullFormat, args...)
 		// fmt.Printf(fullFormat, args...)
 	}
 }
