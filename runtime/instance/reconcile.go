@@ -1,6 +1,9 @@
 package instance
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/wwsheng009/mint/framework/cmd"
 	"github.com/wwsheng009/mint/internal/log"
 	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
@@ -184,6 +187,35 @@ func extractHandlers(vnode ui.VNode) Handlers {
 }
 
 // getVNodeType 获取 VNode 类型
+// 使用反射获取实际的类型名称，而不是 Type().String()
+// 这样可以自动支持所有新组件，无需维护硬编码的类型列表
 func getVNodeType(vnode ui.VNode) string {
-	return vnode.Type().String()
+	// 使用反射获取实际的类型名称
+	// 例如：*ui.ButtonVNode -> "ButtonVNode"
+	typeName := ""
+
+	// 获取完整的类型名称
+	fullType := ""
+	switch v := vnode.(type) {
+	case nil:
+		return ""
+	default:
+		// 使用 fmt.Sprintf 或反射获取类型名称
+		// 但更简单的方法是：使用指针解引用获取实际类型
+		fullType = fmt.Sprintf("%T", v)
+	}
+
+	// 从完整类型名称中提取类型名
+	// 例如： "*ui.ButtonVNode" -> "ButtonVNode"
+	parts := strings.Split(fullType, ".")
+	if len(parts) > 0 {
+		typeName = parts[len(parts)-1]
+	}
+
+	// 如果类型名称为空或只有指针符号，使用 Type().String() 作为后备
+	if typeName == "" || typeName == "*" {
+		typeName = vnode.Type().String()
+	}
+
+	return typeName
 }
