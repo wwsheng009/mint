@@ -1767,6 +1767,7 @@ func (a *App) enrichHitMapWithInstances() {
 		}
 		if inst.ID != "" {
 			instanceMap[inst.ID] = inst
+			log.UILogger.Debug("[enrichHitMap] Collected instance: ID=%s Type=%s", inst.ID, inst.Type)
 		}
 		for _, child := range inst.Children {
 			collectInstances(child)
@@ -1778,8 +1779,18 @@ func (a *App) enrichHitMapWithInstances() {
 		collectInstances(child)
 	}
 
+	log.UILogger.Debug("[enrichHitMap] Collected %d instances from Instance Tree", len(instanceMap))
+
 	// Step 2 & 3: 遍历 HitMap 条目，添加 Instance 引用
 	entries := a.hitMap.AllEntries()
+	log.UILogger.Debug("[enrichHitMap] HitMap has %d entries", len(entries))
+
+	// Debug: log all HitMap entry NodeIDs
+	for i, entry := range entries {
+		log.UILogger.Debug("[enrichHitMap] HitMap entry[%d]: NodeID=%s", i, entry.NodeID)
+	}
+
+	matchedCount := 0
 	for i := range entries {
 		nodeID := entries[i].NodeID
 		if inst, ok := instanceMap[nodeID]; ok {
@@ -1791,6 +1802,12 @@ func (a *App) enrichHitMapWithInstances() {
 				msgHandler = &instanceHandlerAdapter{inst: inst}
 			}
 			entries[i].Instance = msgHandler
+			matchedCount++
+			log.UILogger.Debug("[enrichHitMap] ✅ Matched: NodeID=%s → Instance=%v", nodeID, inst.ID)
+		} else {
+			log.UILogger.Debug("[enrichHitMap] ❌ No match for NodeID=%s", nodeID)
 		}
 	}
+
+	log.UILogger.Debug("[enrichHitMap] Enriched %d/%d HitMap entries with Instance references", matchedCount, len(entries))
 }
