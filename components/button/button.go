@@ -535,46 +535,50 @@ func (b *ButtonVNode) HandleEvent(e frameworkevent.Event) bool {
 		return true
 
 	case frameworkevent.EventMousePress:
-		// Debug: log bounds check
-		log.UILogger.Debug("Button EventMousePress: label=%q, mouse=(%d,%d), bounds=[%d,%d,%dx%d], ContainsPoint=%v, Button=%v",
-			b.label, mouseEvent.X, mouseEvent.Y, b.bounds[0], b.bounds[1], b.bounds[2], b.bounds[3],
-			b.ContainsPoint(mouseEvent.X, mouseEvent.Y), mouseEvent.Button == frameworkevent.MouseLeft)
-		// Check if mouse is within button bounds
-		if b.ContainsPoint(mouseEvent.X, mouseEvent.Y) && mouseEvent.Button == frameworkevent.MouseLeft {
-			log.UILogger.Debug("Button HandleEvent: mouse press within bounds for label=%q, x=%d, y=%d, bounds=%v",
-				b.label, mouseEvent.X, mouseEvent.Y, b.bounds)
-			if b.onMousePress != nil {
-				b.onMousePress()
-			}
-			// Trigger click on press for better responsiveness
-			if b.onClick != nil {
-				log.UILogger.Debug("Button HandleEvent: triggering onClick for label=%q", b.label)
-				b.onClick()
-			}
-			return true
-		}
+		// TargetBounds contains the final rendered position after all transforms (modal centering, etc.)
+		if mouseEvent.TargetBounds.Width > 0 && mouseEvent.TargetBounds.Height > 0 {
+			// NEW: Use TargetBounds for hit testing (post-transform position from HitMap)
+			inBounds := mouseEvent.X >= mouseEvent.TargetBounds.X &&
+				mouseEvent.X < mouseEvent.TargetBounds.X+mouseEvent.TargetBounds.Width &&
+				mouseEvent.Y >= mouseEvent.TargetBounds.Y &&
+				mouseEvent.Y < mouseEvent.TargetBounds.Y+mouseEvent.TargetBounds.Height
 
+			log.UILogger.Debug("Button EventMousePress: label=%q, mouse=(%d,%d), TargetBounds=[%d,%d,%dx%d], inBounds=%v, Button=%v",
+				b.label, mouseEvent.X, mouseEvent.Y,
+				mouseEvent.TargetBounds.X, mouseEvent.TargetBounds.Y,
+				mouseEvent.TargetBounds.Width, mouseEvent.TargetBounds.Height,
+				inBounds, mouseEvent.Button == frameworkevent.MouseLeft)
 
-	case frameworkevent.EventMouseRelease:
-		if b.isHovered && mouseEvent.Button == frameworkevent.MouseLeft {
-			if b.onMouseRelease != nil {
-				b.onMouseRelease()
+			if inBounds && mouseEvent.Button == frameworkevent.MouseLeft {
+				log.UILogger.Debug("Button HandleEvent: mouse press within TargetBounds for label=%q, x=%d, y=%d",
+					b.label, mouseEvent.X, mouseEvent.Y)
+				if b.onMousePress != nil {
+					b.onMousePress()
+				}
+				// Trigger click on press for better responsiveness
+				if b.onClick != nil {
+					log.UILogger.Debug("Button HandleEvent: triggering onClick for label=%q", b.label)
+					b.onClick()
+				}
+				return true
 			}
-			// Trigger click on mouse release when still hovered
-			if b.onClick != nil {
-				log.UILogger.Debug("Button HandleEvent: mouse click for label=%q", b.label)
-				b.onClick()
+		} else {
+			// FALLBACK: Use internal bounds if TargetBounds not available (legacy path)
+			// This should only happen if HitMap is not properly populated
+			log.UILogger.Debug("Button EventMousePress: TargetBounds empty, using legacy bounds check for label=%q", b.label)
+			if b.ContainsPoint(mouseEvent.X, mouseEvent.Y) && mouseEvent.Button == frameworkevent.MouseLeft {
+				log.UILogger.Debug("Button HandleEvent: mouse press within legacy bounds for label=%q, x=%d, y=%d, bounds=%v",
+					b.label, mouseEvent.X, mouseEvent.Y, b.bounds)
+				if b.onMousePress != nil {
+					b.onMousePress()
+				}
+				// Trigger click on press for better responsiveness
+				if b.onClick != nil {
+					log.UILogger.Debug("Button HandleEvent: triggering onClick for label=%q", b.label)
+					b.onClick()
+				}
+				return true
 			}
-			return true
-		}
-
-	case frameworkevent.EventClick:
-		if b.isHovered && mouseEvent.Button == frameworkevent.MouseLeft {
-			if b.onClick != nil {
-				log.UILogger.Debug("Button HandleEvent: click event for label=%q", b.label)
-				b.onClick()
-			}
-			return true
 		}
 	}
 
