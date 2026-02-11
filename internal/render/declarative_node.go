@@ -1189,6 +1189,41 @@ func (n *DeclarativeNode) distributeEventToVNode(vnode rtui.VNode, ev frameworke
 		return false
 	}
 
+	// Phase 3: Event-centric distribution
+	// If this is a MouseEvent with TargetID, only distribute to the target component
+	if mouseEv, ok := ev.(*frameworkevent.MouseEvent); ok && mouseEv.TargetID != "" {
+		targetKey := mouseEv.TargetID
+		nodeKey := vnode.Key()
+
+		// Check if this node is the target
+		if nodeKey == targetKey {
+			// This is the target component, call HandleEvent
+			if component, ok := vnode.(frameworkevent.Component); ok {
+				// Debug: check if this is a button and print its label and pointer
+				if button, ok := vnode.(interface{ Label() string }); ok {
+					log.UILogger.Debug("distributeEventToVNode: Found target button key='%s', label='%s', pointer=%p, calling HandleEvent", targetKey, button.Label(), vnode)
+				} else {
+					log.UILogger.Debug("distributeEventToVNode: Found target component with key='%s' (not a button), calling HandleEvent", targetKey)
+				}
+				if component.HandleEvent(ev) {
+					return true
+				}
+			}
+		}
+
+		// Not the target, but children might be - recursively check children
+		children := vnode.Children()
+		for _, child := range children {
+			if n.distributeEventToVNode(child, ev) {
+				return true
+			}
+		}
+
+		// This branch doesn't contain the target
+		return false
+	}
+
+	// Legacy behavior: broadcast to all components (for KeyEvent or MouseEvent without TargetID)
 	// Check if this VNode implements the Component interface
 	if component, ok := vnode.(frameworkevent.Component); ok {
 		if os.Getenv("TUI_DEBUG_UI") == "true" {

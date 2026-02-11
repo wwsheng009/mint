@@ -20,8 +20,8 @@ import (
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/platform"
 	"github.com/wwsheng009/mint/runtime/render"
-	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
+	"github.com/wwsheng009/mint/runtime/style"
 )
 
 // AppState 应用状态
@@ -840,8 +840,11 @@ func (a *App) handleMsg(message runtimemsg.Msg) bool {
 // 遍历布局树，注册所有实现 Updater 接口的组件
 func (a *App) buildComponentRegistry(root layout.Node) {
 	if a.componentReg == nil {
+		log.UILogger.Debug("buildComponentRegistry: componentReg is nil, skipping")
 		return
 	}
+
+	log.UILogger.Debug("buildComponentRegistry: starting to build registry")
 
 	// 清空旧的注册表
 	a.componentReg.Clear()
@@ -855,9 +858,30 @@ func (a *App) buildComponentRegistry(root layout.Node) {
 
 		// 获取节点的 ID
 		nodeID := node.ID()
+		log.UILogger.Debug("buildComponentRegistry: checking node ID=%s, type=%T", nodeID, node)
+
 		if nodeID != "" {
 			// 检查节点是否实现 Updater 接口
-			if updater, ok := node.(component.Updater); ok {
+			// 特殊处理：如果是 VNodeAdapter，检查其内部的 VNode
+			var updater component.Updater
+			if adapter, ok := node.(*rtui.VNodeAdapter); ok {
+				log.UILogger.Debug("buildComponentRegistry: node is VNodeAdapter, checking inner VNode type=%T", adapter.VNode)
+				// VNodeAdapter: 检查内部的 VNode
+				if vnodeUpdater, ok := adapter.VNode.(component.Updater); ok {
+					updater = vnodeUpdater
+					log.UILogger.Debug("buildComponentRegistry: inner VNode implements Updater")
+				} else {
+					log.UILogger.Debug("buildComponentRegistry: inner VNode does NOT implement Updater")
+				}
+			} else if nodeUpdater, ok := node.(component.Updater); ok {
+				// 其他 layout.Node: 直接检查
+				updater = nodeUpdater
+				log.UILogger.Debug("buildComponentRegistry: node directly implements Updater")
+			} else {
+				log.UILogger.Debug("buildComponentRegistry: node does NOT implement Updater (type=%T)", node)
+			}
+
+			if updater != nil {
 				a.componentReg.Register(nodeID, updater)
 				log.UILogger.Debug("Registered component: %s", nodeID)
 			}
@@ -1248,12 +1272,24 @@ func (a *App) render() {
 			a.pump.SetHitMap(a.hitMap)
 		}
 
+		log.UILogger.Debug("[APP] Phase 2: Building component registry, a.root type=%T", a.root)
+
 		// Phase 2: 构建组件注册表（从布局树提取 Updater 组件）
-		if layoutRoot, ok := a.root.(layout.Node); ok {
-			a.buildComponentRegistry(layoutRoot)
-		} else if vnodeRoot, ok := a.root.(rtui.VNode); ok {
+		// 特殊处理 DeclarativeNode：从其 Root() 获取 VNode
+		if declNode, ok := a.root.(interface{ Root() rtui.VNode }); ok {
+			vnodeRoot := declNode.Root()
+			log.UILogger.Debug("[APP] a.root is DeclarativeNode, got Root() VNode type=%T", vnodeRoot)
 			layoutAdapter := rtui.AsLayoutNode(vnodeRoot)
 			a.buildComponentRegistry(layoutAdapter)
+		} else if layoutRoot, ok := a.root.(layout.Node); ok {
+			log.UILogger.Debug("[APP] a.root is layout.Node, calling buildComponentRegistry")
+			a.buildComponentRegistry(layoutRoot)
+		} else if vnodeRoot, ok := a.root.(rtui.VNode); ok {
+			log.UILogger.Debug("[APP] a.root is rtui.VNode, calling buildComponentRegistry with adapter")
+			layoutAdapter := rtui.AsLayoutNode(vnodeRoot)
+			a.buildComponentRegistry(layoutAdapter)
+		} else {
+			log.UILogger.Debug("[APP] a.root is neither layout.Node nor rtui.VNode, skipping component registry")
 		}
 
 		// Phase 3: 更新焦点管理器（从布局树提取 Focusable 组件）

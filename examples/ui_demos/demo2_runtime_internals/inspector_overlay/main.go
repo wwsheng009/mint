@@ -289,6 +289,7 @@ func ControlPanel(
 ) ui.VNode {
 	allButtons := []ui.VNode{
 		app.ButtonBuilder("[1] Event").
+			Key("btn-event").
 			Variant(app.ButtonVariantDanger).
 			OnClick(func() {
 				setCurrentPhase("Event")
@@ -297,6 +298,7 @@ func ControlPanel(
 			FocusStyle(app.FocusStyleBracket).
 			Build(),
 		app.ButtonBuilder("[2]setState").
+			Key("btn-setstate").
 			Variant(app.ButtonVariantSecondary).
 			OnClick(func() {
 				setCurrentPhase("setState")
@@ -304,6 +306,7 @@ func ControlPanel(
 			FocusStyle(app.FocusStyleBracket).
 			Build(),
 		app.ButtonBuilder("[3]Scheduler").
+			Key("btn-scheduler").
 			Variant(app.ButtonVariantSuccess).
 			OnClick(func() {
 				setCurrentPhase("Scheduler")
@@ -312,6 +315,7 @@ func ControlPanel(
 			FocusStyle(app.FocusStyleBracket).
 			Build(),
 		app.ButtonBuilder("[4] Render").
+			Key("btn-render").
 			Variant(app.ButtonVariantPrimary).
 			OnClick(func() {
 				setCurrentPhase("Render")
@@ -319,18 +323,21 @@ func ControlPanel(
 			FocusStyle(app.FocusStyleBracket).
 			Build(),
 		app.ButtonBuilder("[5]Reconcile").
+			Key("btn-reconcile").
 			OnClick(func() {
 				setCurrentPhase("Reconcile")
 			}).
 			FocusStyle(app.FocusStyleBracket).
 			Build(),
 		app.ButtonBuilder("[6] Layout").
+			Key("btn-layout").
 			OnClick(func() {
 				setCurrentPhase("Layout")
 			}).
 			FocusStyle(app.FocusStyleBracket).
 			Build(),
 		app.ButtonBuilder("[7] Paint").
+			Key("btn-paint").
 			OnClick(func() {
 				setCurrentPhase("Paint")
 				setBufferUpdates(func(c int) int { return c + 1 })
@@ -338,6 +345,7 @@ func ControlPanel(
 			FocusStyle(app.FocusStyleBracket).
 			Build(),
 		app.ButtonBuilder("[0] Idle").
+			Key("btn-idle").
 			OnClick(func() {
 				setCurrentPhase("idle")
 			}).
@@ -345,6 +353,7 @@ func ControlPanel(
 			Build(),
 		// Toggle Inspector button - works with framework-level overlay
 		app.ButtonBuilder("[I] Inspector").
+			Key("btn-inspector").
 			Variant(app.ButtonVariantSecondary).
 			OnClick(func() {
 				// Debug output

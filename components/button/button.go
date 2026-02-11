@@ -474,8 +474,8 @@ func (b *ButtonVNode) SetOnMouseRelease(fn func()) *ButtonVNode {
 
 // HandleEvent processes mouse and keyboard events for the button
 func (b *ButtonVNode) HandleEvent(e frameworkevent.Event) bool {
-	log.UILogger.Debug("Button HandleEvent called: label=%q, disabled=%v, hasFocus=%v, event type=%T",
-		b.label, b.disabled, b.hasFocus, e)
+	log.UILogger.Debug("Button HandleEvent called: label=%q, key=%q, pointer=%p, disabled=%v, hasFocus=%v, event type=%T",
+		b.label, b.Key(), b, b.disabled, b.hasFocus, e)
 
 	if b.disabled {
 		return false
@@ -512,8 +512,10 @@ func (b *ButtonVNode) HandleEvent(e frameworkevent.Event) bool {
 
 	mouseEvent, ok := e.(*frameworkevent.MouseEvent)
 	if !ok {
+		log.UILogger.Debug("Button HandleEvent: MouseEvent type assertion FAILED! e type=%T", e)
 		return false
 	}
+	log.UILogger.Debug("Button HandleEvent: MouseEvent type assertion SUCCESS! Action=%d", mouseEvent.Action)
 
 	switch mouseEvent.Type() {
 	case frameworkevent.EventMouseEnter:
