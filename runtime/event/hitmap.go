@@ -229,6 +229,50 @@ func (hm *HitMap) GetBuildTime() time.Time {
 	return hm.buildTime
 }
 
+// AllEntries returns all HitMap entries
+// This is used for merging HitMaps from multiple layers
+func (hm *HitMap) AllEntries() []HitMapEntry {
+	return hm.entries
+}
+
+// NewHitMap creates a new empty HitMap
+func NewHitMap() *HitMap {
+	return &HitMap{
+		entries:   make([]HitMapEntry, 0),
+		buildTime: time.Now(),
+	}
+}
+
+// HitMapEntryInternal is an internal representation for building HitMap from external sources
+// This allows external packages to build HitMap without accessing unexported fields
+type HitMapEntryInternal struct {
+	NodeID  string
+	Node    layout.Node
+	Bounds  layout.Rect
+	LocalXY func(screenX, screenY int) (int, int)
+	ZOrder  int
+}
+
+// BuildHitMapFromEntries builds a HitMap from a list of internal entries
+// This is used by Engine.buildHitMapFromComputedBoxes to create HitMap from ComputedBox tree
+func BuildHitMapFromEntries(entries []HitMapEntryInternal) *HitMap {
+	hmEntries := make([]HitMapEntry, len(entries))
+	for i, e := range entries {
+		hmEntries[i] = HitMapEntry{
+			NodeID:  e.NodeID,
+			Node:    e.Node,
+			Bounds:  e.Bounds,
+			LocalXY: e.LocalXY,
+			ZOrder:  e.ZOrder,
+		}
+	}
+
+	return &HitMap{
+		entries:   hmEntries,
+		buildTime: time.Now(),
+	}
+}
+
 // Dump 调试输出
 // 返回 HitMap 的可读字符串表示，用于调试
 //

@@ -4,9 +4,14 @@ package layer
 import (
 	"fmt"
 	"os"
+	"sort"
 
+	"github.com/wwsheng009/mint/internal/log"
+	"github.com/wwsheng009/mint/internal/logger"
 	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/compute"
+	"github.com/wwsheng009/mint/runtime/event"
+	runtimelayout "github.com/wwsheng009/mint/runtime/layout"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
 
@@ -107,6 +112,13 @@ func (m *Manager) layoutLayer(
 	constraints runtime.BoxConstraints,
 	engine *compute.Engine,
 ) (*compute.ComputedLayout, error) {
+	debug := os.Getenv("TUI_LAYER_DEBUG") == "true" || os.Getenv("TUI_DEBUG_HITMAP") == "true"
+
+	if debug {
+		log.RenderLogger.Debug("[layoutLayer] Layer=%d, constraints.Max=%dx%d",
+			layer, constraints.MaxWidth, constraints.MaxHeight)
+	}
+
 	var layerConstraints runtime.BoxConstraints
 
 	// Different layers have different constraints
@@ -167,6 +179,20 @@ func (m *Manager) layoutLayer(
 		m.positionInspector(node, layout.Root)
 	}
 
+	// IMPORTANT: Rebuild HitMap AFTER post-processing (centering, etc.)
+	// The HitMap built in Engine.Layout() was before centering, so it has wrong positions
+	// We need to rebuild it now with the final transformed positions
+	if layout.Root != nil {
+		layout.HitMap = m.buildHitMapFromComputedBox(layout.Root)
+
+		// DEBUG: Output modal position after centering
+		if os.Getenv("TUI_DEBUG_HITMAP") == "true" {
+			log.RenderLogger.Debug("[layoutLayer] Layer=%d, Root pos=(%d,%d) size=%dx%d, HitMap entries=%d",
+				layer, layout.Root.Box.X, layout.Root.Box.Y, layout.Root.Box.Width, layout.Root.Box.Height,
+				layout.HitMap.Size())
+		}
+	}
+
 	return layout, nil
 }
 
@@ -176,7 +202,7 @@ func (m *Manager) centerModal(root *compute.ComputedBox, constraints runtime.Box
 		return
 	}
 
-	debug := os.Getenv("TUI_LAYER_DEBUG") == "true"
+	log := logger.Get()
 
 	// Calculate centering offset
 	modalWidth := root.Box.Width
@@ -206,18 +232,14 @@ func (m *Manager) centerModal(root *compute.ComputedBox, constraints runtime.Box
 		offsetY = 0
 	}
 
-	if debug {
-		fmt.Fprintf(os.Stderr, "[centerModal] modal=(%d,%d) size=%dx%d container=%dx%d offset=(%d,%d)\n",
-			originalX, originalY, modalWidth, modalHeight, containerWidth, containerHeight, offsetX, offsetY)
-	}
+	log.Info("LAYER", "[centerModal] modal=(%d,%d) size=%dx%d container=%dx%d offset=(%d,%d)",
+		originalX, originalY, modalWidth, modalHeight, containerWidth, containerHeight, offsetX, offsetY)
 
 	// Shift the entire layout tree
 	m.shiftPositions(root, offsetX, offsetY)
 
-	if debug {
-		fmt.Fprintf(os.Stderr, "[centerModal] after shift: modal=(%d,%d)\n",
-			root.Box.X, root.Box.Y)
-	}
+	log.Info("LAYER", "[centerModal] after shift: modal=(%d,%d)",
+		root.Box.X, root.Box.Y)
 }
 
 // shiftPositions shifts all boxes in a layout tree by the given offset
@@ -336,6 +358,150 @@ func (m *Manager) GetOverlayNodes() []*LayerNode {
 // GetTooltipNodes returns all tooltip layer nodes
 func (m *Manager) GetTooltipNodes() []*LayerNode {
 	return m.collector.GetTooltipNodes()
+}
+
+// GetMergedHitMap merges HitMaps from all layers into a single HitMap
+// This combines hit test information from base, modal, overlay, tooltip, and inspector layers
+// The merged HitMap respects layer Z-order (upper layers have higher Z-order)
+func (m *Manager) GetMergedHitMap() *event.HitMap {
+	var entries []event.HitMapEntryInternal
+	log := logger.Get()
+
+	// Render order: from lowest (base) to highest (inspector)
+	renderOrder := []rtui.Layer{
+		rtui.LayerBase,
+		rtui.LayerOverlay,
+		rtui.LayerModal,
+		rtui.LayerTooltip,
+		rtui.LayerInspector,
+	}
+
+	zOrder := 0
+	for _, layer := range renderOrder {
+		layout, ok := m.layouts[layer]
+		if !ok || layout.HitMap == nil {
+			if !ok {
+				log.Debug("LAYER", "[GetMergedHitMap] Layer %d: no layout", layer)
+			} else {
+				log.Debug("LAYER", "[GetMergedHitMap] Layer %d: layout has nil HitMap", layer)
+			}
+			continue
+		}
+
+		log.Debug("LAYER", "[GetMergedHitMap] Layer %d: HitMap has %d entries", layer, layout.HitMap.Size())
+
+		// Append all entries from this layer's HitMap
+		// Update their Z-order to reflect the layer hierarchy
+		for _, entry := range layout.HitMap.AllEntries() {
+			// Log modal button positions
+			if layer == rtui.LayerModal {
+				log.Debug("LAYER", "[GetMergedHitMap] Modal entry: ID=%s, Bounds=(%d,%d,%dx%d)",
+					entry.NodeID, entry.Bounds.X, entry.Bounds.Y, entry.Bounds.Width, entry.Bounds.Height)
+			}
+
+			// Create a new entry with updated Z-order
+			newEntry := event.HitMapEntryInternal{
+				NodeID:  entry.NodeID,
+				Node:    entry.Node,
+				Bounds:  entry.Bounds,
+				LocalXY: entry.LocalXY,
+				ZOrder:  zOrder,
+			}
+			entries = append(entries, newEntry)
+		}
+
+		zOrder++
+	}
+
+	// Sort by Z-order (ascending)
+	sort.Slice(entries, func(i, j int) bool {
+		return entries[i].ZOrder < entries[j].ZOrder
+	})
+
+	log.Info("LAYER", "[GetMergedHitMap] Merged HitMap: %d entries from %d layers",
+		len(entries), len(m.layouts))
+
+	// Build HitMap from entries
+	return event.BuildHitMapFromEntries(entries)
+}
+
+// buildHitMapFromComputedBox builds a HitMap from a ComputedBox tree
+// This is called AFTER layer transforms (centering, etc.) to capture the final positions
+func (m *Manager) buildHitMapFromComputedBox(root *compute.ComputedBox) *event.HitMap {
+	if root == nil {
+		return event.NewHitMap()
+	}
+
+	var entries []event.HitMapEntryInternal
+	log := logger.Get()
+
+	// Recursively walk the ComputedBox tree
+	var walk func(box *compute.ComputedBox, zOrder int)
+	walk = func(box *compute.ComputedBox, zOrder int) {
+		if box == nil {
+			return
+		}
+
+		// Skip nodes with zero size
+		if box.Box.Width <= 0 || box.Box.Height <= 0 {
+			for _, child := range box.Children {
+				walk(child, zOrder+1)
+			}
+			return
+		}
+
+		// Get node ID
+		nodeID := ""
+		if box.VNode != nil {
+			if key := box.VNode.Key(); key != "" {
+				nodeID = key
+			} else if tagger, ok := box.VNode.(interface{ Tag() string }); ok {
+				nodeID = tagger.Tag()
+			} else {
+				nodeID = box.VNode.Type().String()
+			}
+		}
+
+		// Create entry with FINAL positions (after layer transforms)
+		entry := event.HitMapEntryInternal{
+			NodeID: nodeID,
+			Node:   rtui.AsLayoutNode(box.VNode),
+			Bounds: runtimelayout.Rect{
+				X:      box.Box.X, // ✅ Final position AFTER centering
+				Y:      box.Box.Y,
+				Width:  box.Box.Width,
+				Height: box.Box.Height,
+			},
+			LocalXY: func(screenX, screenY int) (int, int) {
+				return screenX - box.Box.X, screenY - box.Box.Y
+			},
+			ZOrder: zOrder,
+		}
+
+		entries = append(entries, entry)
+
+		// Log entry positions for debugging
+		if entry.NodeID != "" {
+			log.Debug("HITMAP", "[buildHitMapFromComputedBox] Entry: ID=%s, Bounds=(%d,%d,%dx%d)",
+				entry.NodeID, entry.Bounds.X, entry.Bounds.Y, entry.Bounds.Width, entry.Bounds.Height)
+		}
+
+		// Recursively process children
+		for _, child := range box.Children {
+			walk(child, zOrder+1)
+		}
+	}
+
+	walk(root, 0)
+
+	// Sort by Z-order
+	sort.Slice(entries, func(i, j int) bool {
+		return entries[i].ZOrder < entries[j].ZOrder
+	})
+
+	log.Info("HITMAP", "[LayerManager] Built HitMap: %d entries", len(entries))
+
+	return event.BuildHitMapFromEntries(entries)
 }
 
 // GetInspectorNodes returns all inspector layer nodes
