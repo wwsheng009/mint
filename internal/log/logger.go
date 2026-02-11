@@ -1,11 +1,19 @@
 // Package log provides structured logging for the mint TUI framework.
 // It provides domain-specific loggers for focus, reconciler, and other components
 // with support for debug mode via environment variables.
+//
+// Log output destination is controlled by TUI_LOG_OUTPUT environment variable:
+// - "file" or "": output to file only (default)
+// - "console": output to console only
+// - "both": output to both file and console
+//
+// Default log file path: logs/application.log
 package log
 
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"sync"
 )
 
@@ -23,12 +31,25 @@ const (
 	LevelError
 )
 
-// Logger is a structured logger that writes to stderr
+// LogOutput represents the logging output destination
+type LogOutput int
+
+const (
+	// OutputFile logs only to file
+	OutputFile LogOutput = iota
+	// OutputConsole logs only to console (stderr)
+	OutputConsole
+	// OutputBoth logs to both file and console
+	OutputBoth
+)
+
+// Logger is a structured logger that can write to console and/or file
 type Logger struct {
 	mu       sync.Mutex
 	prefix   string
 	enabled  bool
 	category string
+	file     *os.File
 }
 
 // NewLogger creates a new logger with the given prefix and category.
@@ -98,7 +119,25 @@ func (l *Logger) log(level LogLevel, format string, args ...any) {
 	if l.prefix != "" {
 		msg = "[" + l.prefix + "] " + msg
 	}
-	fmt.Fprintln(os.Stderr, msg)
+
+	// Output based on configuration
+	switch getLogOutput() {
+	case OutputFile:
+		if logFile := getLogFile(); logFile != nil {
+			fmt.Fprintln(logFile, msg)
+			logFile.Sync()
+		}
+	case OutputConsole:
+		fmt.Fprintln(os.Stderr, msg)
+	case OutputBoth:
+		// Output to stderr
+		fmt.Fprintln(os.Stderr, msg)
+		// Output to file
+		if logFile := getLogFile(); logFile != nil {
+			fmt.Fprintln(logFile, msg)
+			logFile.Sync()
+		}
+	}
 }
 
 // Focus logs a focus-related debug message
@@ -161,4 +200,81 @@ func SetAllEnabled(enabled bool) {
 	KeyLogger.SetEnabled(enabled)
 	UILogger.SetEnabled(enabled)
 	ButtonLogger.SetEnabled(enabled)
+}
+
+// =============================================================================
+// Global Log File Initialization
+// =============================================================================
+
+var (
+	globalLogFile *os.File
+	logFileOnce   sync.Once
+	logOutput     LogOutput
+	outputOnce    sync.Once
+)
+
+// getLogOutput returns the configured log output destination
+// Controlled by TUI_LOG_OUTPUT environment variable:
+// - "file" or "": output to file only (default)
+// - "console": output to console only
+// - "both": output to both file and console
+func getLogOutput() LogOutput {
+	outputOnce.Do(func() {
+		switch os.Getenv("TUI_LOG_OUTPUT") {
+		case "console":
+			logOutput = OutputConsole
+		case "both":
+			logOutput = OutputBoth
+		case "file", "":
+			logOutput = OutputFile
+		default:
+			// Default to file output
+			logOutput = OutputFile
+		}
+	})
+	return logOutput
+}
+
+// initLogFile initializes the global log file
+func initLogFile() {
+	// Create logs directory if it doesn't exist
+	logDir := "logs"
+	if err := os.MkdirAll(logDir, 0755); err != nil {
+		fmt.Fprintf(os.Stderr, "[Logger] Failed to create logs directory: %v\n", err)
+		return
+	}
+
+	// Open log file in append mode
+	logPath := filepath.Join(logDir, "application.log")
+	file, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "[Logger] Failed to open log file: %v\n", err)
+		return
+	}
+
+	globalLogFile = file
+}
+
+// getLogFile returns the global log file, initializing it if necessary
+func getLogFile() *os.File {
+	logFileOnce.Do(initLogFile)
+	return globalLogFile
+}
+
+// CloseLogFile closes the global log file
+func CloseLogFile() error {
+	if globalLogFile != nil {
+		err := globalLogFile.Close()
+		globalLogFile = nil
+		return err
+	}
+	return nil
+}
+
+// FlushLogFile flushes the global log file to disk
+func FlushLogFile() error {
+	if globalLogFile != nil {
+		return globalLogFile.Sync()
+	}
+	return nil
 }
