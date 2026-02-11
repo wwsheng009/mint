@@ -25,6 +25,7 @@ import (
 
 	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/components/container"
+	"github.com/wwsheng009/mint/components/data"
 	"github.com/wwsheng009/mint/components/display"
 	"github.com/wwsheng009/mint/components/navigation"
 	"github.com/wwsheng009/mint/framework/action"
@@ -115,10 +116,10 @@ type StandaloneInspector struct {
 
 // HitTestEntry represents a single entry in the hit test display
 type HitTestEntry struct {
-	NodeID   string
-	Bounds   string // Formatted bounds string
-	ZOrder   int
-	HitTest  string // Hit test result at current mouse position
+	NodeID    string
+	Bounds    string // Formatted bounds string
+	ZOrder    int
+	HitTest   string // Hit test result at current mouse position
 	Clickable bool
 }
 
@@ -176,8 +177,8 @@ func NewStandaloneInspector() *StandaloneInspector {
 		floatY:         0, // Default Y position (top edge)
 		isDragging:     false,
 		updateInterval: 200 * time.Millisecond, // Throttle updates (5 FPS for tree/diagnostics)
-		screenWidth:    80, // Default terminal width
-		screenHeight:   25, // Default terminal height
+		screenWidth:    80,                     // Default terminal width
+		screenHeight:   25,                     // Default terminal height
 	}
 }
 
@@ -930,7 +931,7 @@ func (si *StandaloneInspector) buildScreenInfoTabContent() rtui.VNode {
 		app.NewTextBuilder(mouseInfo).
 			Style(style.Foreground(style.Cyan)).
 			Build(),
-		app.NewTextBuilder(boundsInfo + "  " + insideInfo).
+		app.NewTextBuilder(boundsInfo+"  "+insideInfo).
 			Style(func() style.Style {
 				if mouseInOverlay {
 					return style.Foreground(style.Green)
@@ -1032,80 +1033,95 @@ func formatMouseButtonName(btn frameworkevent.MouseButton) string {
 	}
 }
 
-// buildHitTestTabContent builds content for HitTest tab
-// Displays all hit test entries for debugging control bounds
+// buildHitTestTabContent builds content for HitTest tab using ListVNode component
 func (si *StandaloneInspector) buildHitTestTabContent() rtui.VNode {
 	// Update hit test entries from current app root
 	si.updateHitTestEntries()
 
-	// Build header
-	header := app.NewTextBuilder("🎯 Hit Test Data").
-		Style(style.FgBold(style.Green)).
-		Build()
+	// Prepare data for ListVNode
+	// The first row will be the column header
+	rows := make([]string, 0, len(si.hitMapEntries)+1)
 
-	// Build summary line
-	var summaryLines []string
-	summaryLines = append(summaryLines, fmt.Sprintf("Total Entries: %d", len(si.hitMapEntries)))
-	summaryLines = append(summaryLines, fmt.Sprintf("Mouse Position: (%d, %d)", si.lastMouseX, si.lastMouseY))
-	summaryLines = append(summaryLines, fmt.Sprintf("Hovered: %s", si.formatHovered()))
-	summaryLines = append(summaryLines, "")
+	// Add column header as first data row
+	colHeader := fmt.Sprintf("%-3s %-15s %-12s %-2s %-2s", "Z", "Node", "Bounds", "H", "C")
+	rows = append(rows, colHeader)
 
-	// Build column headers
-	colHeaders := fmt.Sprintf("%-4s %-20s %-12s %-6s %-8s",
-		"Z", "Node ID", "Bounds", "Hit", "Clickable")
-
-	// Build entry lines
-	var entryLines []string
+	// Add entry rows (in reverse order - highest Z first)
+	// Limit to 12 entries to demonstrate overflow handling
+	maxDisplayEntries := 12
+	displayed := 0
 	for i := range si.hitMapEntries {
-		// Show entries in reverse order (highest Z first)
+		if displayed >= maxDisplayEntries {
+			break
+		}
+
 		idx := len(si.hitMapEntries) - 1 - i
 		e := si.hitMapEntries[idx]
 
-		hitMark := " "
+		hitMark := "·"
 		if e.HitTest == "YES" {
 			hitMark = "✓"
 		}
-
-		clickable := "No"
+		clickMark := "·"
 		if e.Clickable {
-			clickable = "Yes"
+			clickMark = "Y"
 		}
 
-		// Truncate NodeID if too long
-		nodeID := e.NodeID
-		if len(nodeID) > 18 {
-			nodeID = nodeID[:15] + "..."
-		}
-
-		line := fmt.Sprintf("%-4d %-20s %-12s %-6s %-8s",
-			e.ZOrder, nodeID, e.Bounds, hitMark, clickable)
-		entryLines = append(entryLines, line)
-
-		// Limit display to avoid overflow
-		if i >= 15 {
-			entryLines = append(entryLines, fmt.Sprintf("... (%d more entries)", len(si.hitMapEntries)-15))
-			break
-		}
+		line := fmt.Sprintf("%-3d %-15s %-12s %-2s %-2s",
+			e.ZOrder, e.NodeID, e.Bounds, hitMark, clickMark)
+		rows = append(rows, line)
+		displayed++
 	}
 
-	// Combine all lines
-	allLines := append(summaryLines, colHeaders)
-	allLines = append(allLines, strings.Repeat("─", 60))
-	allLines = append(allLines, entryLines...)
+	// Add overflow indicator if there are more entries
+	if len(si.hitMapEntries) > maxDisplayEntries {
+		overflowText := fmt.Sprintf("... (%d more entries)", len(si.hitMapEntries)-maxDisplayEntries)
+		rows = append(rows, overflowText)
+	}
 
-	// Build VNodes
-	var nodes []ui.VNode
-	nodes = append(nodes, header)
-	nodes = append(nodes, ui.Text(strings.Join(allLines, "\n")))
+	// Build the list using ListVNode
+	list := data.ListBuilder().
+		Header("🎯 Hit Test Data").
+		Rows(rows).
+		HeaderStyle(style.Style{}.Bold(true).Foreground(style.Color("green"))).
+		RowStyleFn(func(index int, text string) style.Style {
+			// Style column header (first row)
+			if index == 0 {
+				return style.Style{}.Bold(true).Foreground(style.Color("cyan"))
+			}
+			// Skip styling for overflow indicator
+			if index == len(rows)-1 && strings.HasPrefix(text, "...") {
+				return style.Style{}.Foreground(style.Color("gray"))
+			}
+			// Highlight hit test rows with yellow bold
+			if strings.Contains(text, "✓") {
+				return style.Style{}.Bold(true).Foreground(style.Color("yellow"))
+			}
+			return style.Style{}
+		}).
+		EmptyText("(no entries)").
+		ShowSeparator(true).
+		MaxRows(17). // Header + separator + colHeader + 12 entries + overflow
+		Build()
 
-	return rtui.VStack(nodes...)
+	// Create summary line (separate from the list)
+	hoveredStr := si.formatHovered()
+	summaryText := fmt.Sprintf("Entries:%d  Mouse:(%d,%d)  %s",
+		len(si.hitMapEntries), si.lastMouseX, si.lastMouseY, hoveredStr)
+
+	// Wrap both summary and list in VStack
+	return rtui.VStack(
+		app.NewTextBuilder(summaryText).
+			Style(style.Foreground(style.White)).
+			Build(),
+		list,
+	)
 }
 
 // updateHitTestEntries updates the hit test entries from the current app root
+// NOTE: Caller must already hold si.mu lock (called from buildHitTestTabContent
+// -> buildOverlayContent -> RenderOverlay/RenderContent which hold the lock)
 func (si *StandaloneInspector) updateHitTestEntries() {
-	si.mu.Lock()
-	defer si.mu.Unlock()
-
 	si.hitMapEntries = []HitTestEntry{}
 
 	if si.appRoot == nil {
@@ -1156,10 +1172,10 @@ func (si *StandaloneInspector) collectHitTestEntries(node rtui.VNode, x, y, zOrd
 		}
 
 		entry := HitTestEntry{
-			NodeID:   node.Type().String(),
-			Bounds:   bounds,
-			ZOrder:   zOrder,
-			HitTest:  hitTest,
+			NodeID:    node.Type().String(),
+			Bounds:    bounds,
+			ZOrder:    zOrder,
+			HitTest:   hitTest,
 			Clickable: clickable,
 		}
 		si.hitMapEntries = append(si.hitMapEntries, entry)
