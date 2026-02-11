@@ -23,6 +23,7 @@ type Engine struct {
 	debug        bool
 	flexCache    map[string]*FlexDistributionInfo // Cache for flex distribution per parent
 	traceDepth   int                              // Current depth for layout tracing
+	validator    *BoundsValidator                  // Validates bounds consistency
 }
 
 func (e *Engine) getTraceDepth() int {
@@ -46,6 +47,7 @@ func NewEngine() *Engine {
 		cache:        NewLayoutCache(),
 		dirtyTracker: NewDirtyTracker(),
 		debug:        os.Getenv("TUI_LAYOUT_DEBUG") == "true",
+		validator:    NewBoundsValidator(),
 	}
 }
 
@@ -88,6 +90,13 @@ func (e *Engine) Layout(vnode VNode, constraints runtime.BoxConstraints) (*Compu
 
 	if e.debug || os.Getenv("TUI_DEBUG_HITMAP") == "true" {
 		log.RenderLogger.Debug("[Engine.Layout] Built HitMap with %d entries", hitMap.Size())
+	}
+
+	// Validate bounds consistency (only in debug mode)
+	if err := e.validator.ValidateLayout(layout); err != nil {
+		// Log validation error but don't fail the layout
+		// This helps catch bugs during development
+		log.RenderLogger.Debug("[Engine.Layout] ⚠️ Validation warning: %v", err)
 	}
 
 	return layout, nil
