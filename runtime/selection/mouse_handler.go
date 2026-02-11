@@ -61,7 +61,7 @@ func (h *MouseHandler) HandleMouseEvent(ev *event.MouseEvent) bool {
 
 // handlePress handles mouse button press events.
 func (h *MouseHandler) handlePress(ev *event.MouseEvent) bool {
-	if ev.Click != event.MouseLeft {
+	if ev.Button != event.MouseLeft {
 		return false
 	}
 
@@ -96,7 +96,7 @@ func (h *MouseHandler) handlePress(ev *event.MouseEvent) bool {
 
 // handleRelease handles mouse button release events.
 func (h *MouseHandler) handleRelease(ev *event.MouseEvent) bool {
-	if ev.Click != event.MouseLeft {
+	if ev.Button != event.MouseLeft {
 		return false
 	}
 

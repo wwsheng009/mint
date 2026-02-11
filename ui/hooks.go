@@ -5,6 +5,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/wwsheng009/mint/internal/log"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
 
@@ -92,7 +93,7 @@ func useState(initial interface{}) (interface{}, func(interface{})) {
 	currentValue := hook.Value
 
 	if os.Getenv("TUI_DEBUG_UI") == "true" {
-		fmt.Fprintf(os.Stderr, "useState: componentID=%s, hookIndex=%d, value=%v, hook=%p, &ctx.Hooks[%d]=%p, &ctx=%p\n",
+		log.UILogger.Debug("useState: componentID=%s, hookIndex=%d, value=%v, hook=%p, &ctx.Hooks[%d]=%p, &ctx=%p",
 			ctx.ComponentID, hookIndex, currentValue, hook, hookIndex, &ctx.Hooks[hookIndex], ctx)
 	}
 
@@ -100,14 +101,14 @@ func useState(initial interface{}) (interface{}, func(interface{})) {
 	// This ensures we always access the correct hook even if the slice is reallocated
 	setState := func(newValue interface{}) {
 		if os.Getenv("TUI_DEBUG_UI") == "true" {
-			fmt.Fprintf(os.Stderr, "setState BEFORE: componentID=%s, hookIndex=%d, value=%v, &ctx=%p, &ctx.Hooks=%p\n",
+			log.UILogger.Debug("setState BEFORE: componentID=%s, hookIndex=%d, value=%v, &ctx=%p, &ctx.Hooks=%p",
 				ctx.ComponentID, hookIndex, ctx.Hooks[hookIndex].Value, ctx, &ctx.Hooks)
 		}
 		// Use index to access hook - this is safe even if slice was reallocated
 		if hookIndex < len(ctx.Hooks) {
 			ctx.Hooks[hookIndex].Value = newValue
 			if os.Getenv("TUI_DEBUG_UI") == "true" {
-				fmt.Fprintf(os.Stderr, "setState AFTER: componentID=%s, hookIndex=%d, value=%v, &ctx=%p\n",
+				log.UILogger.Debug("setState AFTER: componentID=%s, hookIndex=%d, value=%v, &ctx=%p",
 					ctx.ComponentID, hookIndex, ctx.Hooks[hookIndex].Value, ctx)
 			}
 		}

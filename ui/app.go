@@ -107,7 +107,10 @@ func Run(app ComponentFunc, opts ...Option) error {
 		fmt.Fprintf(os.Stderr, "ui.Run: Creating framework app\n")
 	}
 	fwApp := framework.NewApp()
-	fwApp.Resize(options.Width, options.Height)
+	// IMPORTANT: SetConfigSize sets the LAYOUT constraints (user's intended size)
+	// Resize() only sets the BUFFER size (actual terminal size)
+	fwApp.SetConfigSize(options.Width, options.Height)
+	fwApp.Resize(options.Width, options.Height) // Initial terminal size
 	appInstance = fwApp
 
 	// Initialize theme

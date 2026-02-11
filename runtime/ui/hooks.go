@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"sync"
+
+	"github.com/wwsheng009/mint/internal/log"
 )
 
 // =============================================================================
@@ -139,14 +141,14 @@ func NewComponentContextForRoot() *ComponentContext {
 func (ctx *ComponentContext) ResetContext() {
 	if os.Getenv("TUI_DEBUG_UI") == "true" {
 		if len(ctx.Hooks) > 0 {
-			fmt.Fprintf(os.Stderr, "ResetContext: BEFORE reset, Hooks[0].Value=%v, &ctx=%p\n", ctx.Hooks[0].Value, ctx)
+			log.UILogger.Debug("ResetContext: BEFORE reset, Hooks[0].Value=%v, &ctx=%p", ctx.Hooks[0].Value, ctx)
 		}
 	}
 	ctx.HookIndex = 0
 	ctx.RenderCount++
 	if os.Getenv("TUI_DEBUG_UI") == "true" {
 		if len(ctx.Hooks) > 0 {
-			fmt.Fprintf(os.Stderr, "ResetContext: AFTER reset, Hooks[0].Value=%v, &ctx=%p\n", ctx.Hooks[0].Value, ctx)
+			log.UILogger.Debug("ResetContext: AFTER reset, Hooks[0].Value=%v, &ctx=%p", ctx.Hooks[0].Value, ctx)
 		}
 	}
 }
@@ -192,7 +194,7 @@ func (ctx *ComponentContext) GetOrCreateHook(hookType HookType) *Hook {
 	if ctx.HookIndex < len(ctx.Hooks) {
 		hook := &ctx.Hooks[ctx.HookIndex]
 		if os.Getenv("TUI_DEBUG_UI") == "true" {
-			fmt.Fprintf(os.Stderr, "GetOrCreateHook: returning existing hook[%d], Type=%s, Value=%v, Initialized=%v, hook=%p, &ctx=%p, &Hooks=%p\n",
+			log.UILogger.Debug("GetOrCreateHook: returning existing hook[%d], Type=%s, Value=%v, Initialized=%v, hook=%p, &ctx=%p, &Hooks=%p",
 				ctx.HookIndex, hook.Type, hook.Value, hook.Initialized, hook, ctx, &ctx.Hooks)
 		}
 		if hook.Type != hookType {
@@ -209,7 +211,7 @@ func (ctx *ComponentContext) GetOrCreateHook(hookType HookType) *Hook {
 	}
 	ctx.Hooks = append(ctx.Hooks, *hook)
 	if os.Getenv("TUI_DEBUG_UI") == "true" {
-		fmt.Fprintf(os.Stderr, "GetOrCreateHook: creating new hook[%d], Type=%s, &ctx=%p, &Hooks=%p\n",
+		log.UILogger.Debug("GetOrCreateHook: creating new hook[%d], Type=%s, &ctx=%p, &Hooks=%p",
 			ctx.HookIndex, hookType, ctx, &ctx.Hooks)
 	}
 	ctx.HookIndex++

@@ -3,10 +3,19 @@ package overlay
 import (
 	"strings"
 
+	"github.com/wwsheng009/mint/framework/cmd"
+	"github.com/wwsheng009/mint/framework/component"
+	frameworkevent "github.com/wwsheng009/mint/framework/event"
 	"github.com/wwsheng009/mint/runtime"
+	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
+	runtimeplatform "github.com/wwsheng009/mint/runtime/platform"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/ui"
 )
+
+// Interface implementation assertions
+var _ frameworkevent.Component = (*ModalVNode)(nil)
+var _ component.Updater = (*ModalVNode)(nil) // Msg/Cmd support
 
 // =============================================================================
 // Modal Component
@@ -22,6 +31,9 @@ type ModalVNode struct {
 	width    int
 	height   int
 	centered bool
+	onClose  func() // Callback when modal is closed
+	// Bounds for hit testing (x, y, width, height)
+	bounds [4]int
 }
 
 // NewModal creates a new modal
@@ -35,6 +47,8 @@ func NewModal() *ModalVNode {
 		width:        40,
 		height:       15,
 		centered:     true,
+		onClose:      nil,
+		bounds:       [4]int{0, 0, 0, 0},
 	}
 }
 
@@ -100,6 +114,12 @@ func (b *ModalBuilderType) Centered(centered bool) *ModalBuilderType {
 	return b
 }
 
+// OnClose sets the close callback
+func (b *ModalBuilderType) OnClose(onClose func()) *ModalBuilderType {
+	b.node.onClose = onClose
+	return b
+}
+
 // Key sets the key for diffing
 func (b *ModalBuilderType) Key(key string) *ModalBuilderType {
 	b.node.SetKey(key)
@@ -111,6 +131,30 @@ func (m *ModalVNode) Title() string    { return m.title }
 func (m *ModalVNode) Content() ui.VNode  { return m.content }
 func (m *ModalVNode) Footer() ui.VNode   { return m.footer }
 func (m *ModalVNode) IsOpen() bool        { return m.isOpen }
+
+// Children returns all child nodes for HitMap building
+// This is CRITICAL for Msg/Cmd routing to work with modal buttons
+func (m *ModalVNode) Children() []ui.VNode {
+	var children []ui.VNode
+
+	// Add content if present
+	if m.content != nil {
+		children = append(children, m.content)
+	}
+
+	// Add footer if present
+	if m.footer != nil {
+		children = append(children, m.footer)
+	}
+
+	// Also include any children set via ElementVNode
+	baseChildren := m.ElementVNode.Children()
+	if len(baseChildren) > 0 {
+		children = append(children, baseChildren...)
+	}
+
+	return children
+}
 func (m *ModalVNode) Width() int          { return m.width }
 func (m *ModalVNode) Height() int         { return m.height }
 func (m *ModalVNode) Centered() bool      { return m.centered }
@@ -123,6 +167,7 @@ func (m *ModalVNode) SetIsOpen(open bool)            { m.isOpen = open }
 func (m *ModalVNode) SetWidth(width int)             { m.width = width }
 func (m *ModalVNode) SetHeight(height int)            { m.height = height }
 func (m *ModalVNode) SetCentered(centered bool)       { m.centered = centered }
+func (m *ModalVNode) SetOnClose(onClose func())       { m.onClose = onClose }
 
 // Toggle opens/closes the modal and returns the new state
 func (m *ModalVNode) Toggle() bool {
@@ -177,6 +222,9 @@ func (m *ModalVNode) Paint(x, y int) []paint.DrawCmd {
 	width := measured.Width
 	height := measured.Height
 
+	// CRITICAL: Set bounds for mouse hit testing
+	m.bounds = [4]int{x, y, width, height}
+
 	var cmds []paint.DrawCmd
 
 	// Build top border
@@ -210,4 +258,116 @@ func (m *ModalVNode) Paint(x, y int) []paint.DrawCmd {
 	cmds = append(cmds, paint.NewTextCmd(x, y+height-1, bottomBorder, modalStyle))
 
 	return cmds
+}
+
+// =============================================================================
+// Event Handling (Msg/Cmd Architecture)
+// =============================================================================
+
+// HandleEvent processes events (legacy, for backward compatibility)
+func (m *ModalVNode) HandleEvent(e frameworkevent.Event) bool {
+	if !m.isOpen {
+		return false
+	}
+
+	// Handle ESC key to close
+	if keyEvent, ok := e.(*frameworkevent.KeyEvent); ok {
+		if keyEvent.Special == frameworkevent.KeyEscape {
+			m.isOpen = false
+			if m.onClose != nil {
+				m.onClose()
+			}
+			return true
+		}
+	}
+
+	// Handle click outside modal
+	if mouseEvent, ok := e.(*frameworkevent.MouseEvent); ok {
+		if mouseEvent.Type() == frameworkevent.EventMousePress {
+			// Check if click is outside modal bounds
+			if !m.containsPoint(mouseEvent.X, mouseEvent.Y) {
+				m.isOpen = false
+				if m.onClose != nil {
+					m.onClose()
+				}
+				return true
+			}
+			// Click is INSIDE modal - don't handle it here
+			// Let it be routed to child components via HitMap
+			return false
+		}
+	}
+
+	return false
+}
+
+// Update implements component.Updater interface for Msg/Cmd architecture
+func (m *ModalVNode) Update(message runtimemsg.Msg) cmd.Cmd {
+	if !m.isOpen {
+		return nil
+	}
+
+	switch msg := message.(type) {
+	case *runtimemsg.KeyMsg:
+		return m.updateKey(msg)
+	case *runtimemsg.MouseMsg:
+		return m.updateMouse(msg)
+	}
+
+	return nil
+}
+
+// updateKey handles keyboard messages (ESC to close)
+func (m *ModalVNode) updateKey(keyMsg *runtimemsg.KeyMsg) cmd.Cmd {
+	// ESC to close
+	if keyMsg.Special == runtimeplatform.KeyEscape {
+		m.isOpen = false
+		if m.onClose != nil {
+			m.onClose()
+		}
+		return nil
+	}
+
+	return nil
+}
+
+// updateMouse handles mouse messages (click outside to close)
+func (m *ModalVNode) updateMouse(mouseMsg *runtimemsg.MouseMsg) cmd.Cmd {
+	if mouseMsg.Action == runtimemsg.MouseActionPress {
+		// Check if click is outside modal bounds
+		if !m.containsPoint(mouseMsg.X, mouseMsg.Y) {
+			m.isOpen = false
+			if m.onClose != nil {
+				m.onClose()
+			}
+			return nil
+		}
+		// Click is INSIDE modal - don't handle it here
+		// Let it be routed to child components via HitMap
+	}
+
+	return nil
+}
+
+// containsPoint checks if a point is within the modal bounds
+func (m *ModalVNode) containsPoint(x, y int) bool {
+	if m.bounds[2] <= 0 || m.bounds[3] <= 0 {
+		return false
+	}
+	return x >= m.bounds[0] && x < m.bounds[0]+m.bounds[2] &&
+		y >= m.bounds[1] && y < m.bounds[1]+m.bounds[3]
+}
+
+// =============================================================================
+// Bounds and Hit Testing
+// =============================================================================
+
+// Bounds returns the modal bounds for hit testing
+func (m *ModalVNode) Bounds() [4]int {
+	return m.bounds
+}
+
+// SetBounds sets the modal bounds (typically called during layout)
+func (m *ModalVNode) SetBounds(x, y, width, height int) {
+	m.bounds = [4]int{x, y, width, height}
 }

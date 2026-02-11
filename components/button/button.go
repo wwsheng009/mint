@@ -535,6 +535,10 @@ func (b *ButtonVNode) HandleEvent(e frameworkevent.Event) bool {
 		return true
 
 	case frameworkevent.EventMousePress:
+		// Debug: log bounds check
+		log.UILogger.Debug("Button EventMousePress: label=%q, mouse=(%d,%d), bounds=[%d,%d,%dx%d], ContainsPoint=%v, Button=%v",
+			b.label, mouseEvent.X, mouseEvent.Y, b.bounds[0], b.bounds[1], b.bounds[2], b.bounds[3],
+			b.ContainsPoint(mouseEvent.X, mouseEvent.Y), mouseEvent.Button == frameworkevent.MouseLeft)
 		// Check if mouse is within button bounds
 		if b.ContainsPoint(mouseEvent.X, mouseEvent.Y) && mouseEvent.Button == frameworkevent.MouseLeft {
 			log.UILogger.Debug("Button HandleEvent: mouse press within bounds for label=%q, x=%d, y=%d, bounds=%v",

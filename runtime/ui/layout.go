@@ -2,6 +2,8 @@ package ui
 
 import (
 	frameworkevent "github.com/wwsheng009/mint/framework/event"
+	"github.com/wwsheng009/mint/framework/cmd"
+	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
 	"strings"
 
 	"github.com/wwsheng009/mint/runtime"
@@ -965,6 +967,18 @@ func (bn *BorderedNode) HandleEvent(ev frameworkevent.Event) bool {
 		return bn.component.HandleEvent(ev)
 	}
 	return false
+}
+
+// Update implements component.Updater interface for Msg/Cmd architecture
+// Forwards messages to the attached component if it implements Updater
+func (bn *BorderedNode) Update(message runtimemsg.Msg) cmd.Cmd {
+	if bn.component != nil {
+		// Try to type-assert to Updater interface
+		if updater, ok := bn.component.(interface{ Update(runtimemsg.Msg) cmd.Cmd }); ok {
+			return updater.Update(message)
+		}
+	}
+	return nil
 }
 
 // SetBounds sets the bounds on both BorderedNode and the attached component
