@@ -740,7 +740,7 @@ func (e *Engine) handleMouseEvent(ev *event.EventStruct) {
 	switch ev.Type() {
 	case event.EventMousePress:
 		// 左键按下：开始选择模式计时
-		if mouseEv.Click == event.MouseLeft {
+		if mouseEv.Button == event.MouseLeft {
 			// 检测双击/三击（500ms 内，相同位置）
 			timeSinceLastClick := time.Since(e.selectionState.lastClickTime)
 			dx := mouseEv.X - e.selectionState.lastClickX
@@ -813,7 +813,7 @@ func (e *Engine) handleMouseEvent(ev *event.EventStruct) {
 
 	case event.EventMouseRelease:
 		// 左键释放：结束拖拽，但保持选择区域
-		if mouseEv.Click == event.MouseLeft {
+		if mouseEv.Button == event.MouseLeft {
 			e.selectionState.isLeftButtonDown = false
 
 			// 检查是否移动过（用于区分点击和选择）
@@ -927,11 +927,11 @@ func (e *Engine) convertRawInput(raw platform.RawInput) *event.EventStruct {
 			return nil
 		}
 		ev.Mouse = &event.MouseEvent{
-			X:     raw.MouseX,
-			Y:     raw.MouseY,
-			Type:  mouseActionToEventType(raw.MouseAction),
-			Click: mouseButtonToClickType(raw.MouseButton),
-			Mod:   event.KeyModifier(raw.Modifiers),
+			X:      raw.MouseX,
+			Y:      raw.MouseY,
+			Type:   mouseActionToEventType(raw.MouseAction),
+			Button: mouseButtonToClickType(raw.MouseButton),
+			Mod:    event.KeyModifier(raw.Modifiers),
 		}
 
 	case platform.InputResize:

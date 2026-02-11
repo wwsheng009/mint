@@ -12,6 +12,8 @@ import (
 	"github.com/wwsheng009/mint/framework/debug"
 	frameworkevent "github.com/wwsheng009/mint/framework/event"
 	"github.com/wwsheng009/mint/framework/theme"
+	"github.com/wwsheng009/mint/internal/log"
+	"github.com/wwsheng009/mint/internal/logger"
 	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
 	"github.com/wwsheng009/mint/runtime/core"
 	"github.com/wwsheng009/mint/runtime/layout"
@@ -60,6 +62,11 @@ type App struct {
 	// 终端尺寸
 	terminalWidth  int
 	terminalHeight int
+
+	// 配置尺寸（用户通过 WithWidth/Height 设置的固定大小）
+	// 这个大小用于布局约束，不受终端实际大小影响
+	configWidth  int
+	configHeight int
 
 	// 首次渲染标记
 	firstRender bool
@@ -610,8 +617,10 @@ func (a *App) Init() error {
 
 	a.state = StateInitializing
 
-	if os.Getenv("TUI_DEBUG_UI") == "true" {
-		fmt.Fprintf(os.Stderr, "[APP] Init: Starting initialization\n")
+	// Initialize logger from environment
+	log := logger.InitFromEnv()
+	if log != nil && log.IsEnabled() {
+		log.Info("APP", "Init: Starting initialization")
 	}
 
 	// 设置默认终端尺寸
@@ -621,8 +630,8 @@ func (a *App) Init() error {
 	// 设置路由器
 	a.setupRouter()
 
-	if os.Getenv("TUI_DEBUG_UI") == "true" {
-		fmt.Fprintf(os.Stderr, "[APP] Init: Router setup complete\n")
+	if log != nil && log.IsEnabled() {
+		log.Info("APP", "Init: Router setup complete")
 	}
 
 	// 创建并启动事件泵
@@ -721,7 +730,7 @@ func (a *App) Run() error {
 				break
 			}
 			if os.Getenv("TUI_DEBUG_UI") == "true" {
-				fmt.Fprintf(os.Stderr, "[APP] Msg from channel: Type=%v\n", msg.Type())
+				log.UILogger.Debug("[APP] Msg from channel: Type=%v", msg.Type())
 			}
 
 			// Phase 2: Direct Msg routing for targeted mouse events
@@ -737,24 +746,24 @@ func (a *App) Run() error {
 
 		case <-ticker.C:
 			if os.Getenv("TUI_DEBUG_UI") == "true" {
-				fmt.Fprintf(os.Stderr, "[APP] Tick triggered\n")
+				log.UILogger.Debug("[APP] Tick triggered")
 			}
 			a.handleTick()
 
 			// 处理完 tick 后，如果需要渲染则渲染
 			needsRender := a.dirty && a.throttler.ShouldRender()
 			if os.Getenv("TUI_DEBUG_UI") == "true" {
-				fmt.Fprintf(os.Stderr, "[APP] needsRender=%v, dirty=%v\n", needsRender, a.dirty)
+				log.UILogger.Debug("[APP] needsRender=%v, dirty=%v", needsRender, a.dirty)
 			}
 			if needsRender {
 				if os.Getenv("TUI_DEBUG_UI") == "true" {
-					fmt.Fprintf(os.Stderr, "[APP] Calling render()\n")
+					log.UILogger.Debug("[APP] Calling render()")
 				}
 				renderStartTime = time.Now()
 				a.render()
 				a.throttler.RecordFrameTime(time.Since(renderStartTime))
 				if os.Getenv("TUI_DEBUG_UI") == "true" {
-					fmt.Fprintf(os.Stderr, "[APP] render() complete\n")
+					log.UILogger.Debug("[APP] render() complete")
 				}
 			}
 
@@ -781,20 +790,18 @@ func (a *App) handleMsg(message runtimemsg.Msg) bool {
 	// 处理带 TargetID 的鼠标消息（直接路由）
 	if mouseMsg, ok := message.(*runtimemsg.MouseMsg); ok {
 		if mouseMsg.TargetID != "" {
-			if os.Getenv("TUI_DEBUG_UI") == "true" {
-				fmt.Fprintf(os.Stderr, "[APP] Direct routing: MouseMsg → %s\n", mouseMsg.TargetID)
-			}
+			log := logger.Get()
+			log.Debug("APP", "Direct routing: MouseMsg → %s, Action=%v", mouseMsg.TargetID, mouseMsg.Action)
 
 			// 从组件注册表查找目标组件
 			component := a.componentReg.Lookup(mouseMsg.TargetID)
 			if component != nil {
+				log.Debug("APP", "Component found: %s, calling Update", mouseMsg.TargetID)
 				// 调用组件的 Update 方法
 				cmd := component.Update(mouseMsg)
 				if cmd != nil {
 					// TODO: 执行 Cmd（需要实现 Cmd 执行系统）
-					if os.Getenv("TUI_DEBUG_UI") == "true" {
-						fmt.Fprintf(os.Stderr, "[APP] Component returned Cmd: %v\n", cmd)
-					}
+					log.Debug("APP", "Component returned Cmd: %v", cmd)
 				}
 
 				// 标记需要重新渲染
@@ -802,9 +809,7 @@ func (a *App) handleMsg(message runtimemsg.Msg) bool {
 				return true // 消息已处理
 			}
 
-			if os.Getenv("TUI_DEBUG_UI") == "true" {
-				fmt.Fprintf(os.Stderr, "[APP] Component not found: %s\n", mouseMsg.TargetID)
-			}
+			log.Warn("APP", "Component not found in registry: %s", mouseMsg.TargetID)
 		}
 	}
 
@@ -853,6 +858,8 @@ func (a *App) buildComponentRegistry(root layout.Node) {
 	// 清空旧的注册表
 	a.componentReg.Clear()
 
+	log := logger.Get()
+
 	// 递归遍历布局树
 	var traverse func(node layout.Node)
 	traverse = func(node layout.Node) {
@@ -863,13 +870,10 @@ func (a *App) buildComponentRegistry(root layout.Node) {
 		// 获取节点的 ID
 		nodeID := node.ID()
 		if nodeID != "" {
-			// 检查是否实现了 Updater 接口
+			// 检查节点是否实现 Updater 接口
 			if updater, ok := node.(component.Updater); ok {
 				a.componentReg.Register(nodeID, updater)
-
-				if os.Getenv("TUI_DEBUG_UI") == "true" {
-					fmt.Fprintf(os.Stderr, "[APP] Registered component: %s\n", nodeID)
-				}
+				log.Debug("APP", "Registered component: %s", nodeID)
 			}
 		}
 
@@ -882,8 +886,8 @@ func (a *App) buildComponentRegistry(root layout.Node) {
 
 	traverse(root)
 
-	if os.Getenv("TUI_DEBUG_UI") == "true" {
-		fmt.Fprintf(os.Stderr, "[APP] Component registry built: %d components\n", a.componentReg.Size())
+	if log != nil && log.IsEnabled() {
+		log.Debug("APP", "Component registry built: %d components", a.componentReg.Size())
 	}
 }
 
@@ -961,14 +965,14 @@ func (a *App) handleEvent(ev frameworkevent.Event) {
 	if ev.Type() == frameworkevent.EventKeyPress {
 		// DEBUG: 调试键盘事件
 		if os.Getenv("TUI_DEBUG_UI") == "true" {
-			fmt.Fprintf(os.Stderr, "[APP] KeyPress event received\n")
+			log.UILogger.Debug("[APP] KeyPress event received")
 		}
 
 		// 首先检查快捷键映射
 		if keyEv, ok := ev.(*frameworkevent.KeyEvent); ok {
 			if handler, found := a.keyMap.Lookup(keyEv); found {
 				if os.Getenv("TUI_DEBUG_UI") == "true" || os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
-					fmt.Fprintf(os.Stderr, "[APP] KeyMap found handler for key '%s' (modifiers=%d)\n",
+					log.UILogger.Debug("[APP] KeyMap found handler for key '%s' (modifiers=%d)",
 						keyEv.Key.Name, keyEv.Modifiers)
 				}
 				if handler.HandleEvent(ev) {
@@ -977,7 +981,7 @@ func (a *App) handleEvent(ev frameworkevent.Event) {
 				}
 			} else {
 				if os.Getenv("TUI_DEBUG_UI") == "true" || os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
-					fmt.Fprintf(os.Stderr, "[APP] KeyMap: No handler found for key '%s' (modifiers=%d)\n",
+					log.UILogger.Debug("[APP] KeyMap: No handler found for key '%s' (modifiers=%d)",
 						keyEv.Key.Name, keyEv.Modifiers)
 				}
 			}
@@ -1031,20 +1035,20 @@ func (a *App) handleEvent(ev frameworkevent.Event) {
 		// 然后发送到根组件
 		if a.root != nil {
 			if os.Getenv("TUI_DEBUG_UI") == "true" {
-				fmt.Fprintf(os.Stderr, "[APP] Sending event to root, type=%T\n", a.root)
+				log.UILogger.Debug("[APP] Sending event to root, type=%T", a.root)
 			}
 			// 使用 event.Component 接口检查，而不是匿名接口
 			// 这样可以避免类型别名导致的类型断言失败
 			if handler, ok := a.root.(frameworkevent.Component); ok {
 				if os.Getenv("TUI_DEBUG_UI") == "true" {
-					fmt.Fprintf(os.Stderr, "[APP] root implements Component, calling HandleEvent\n")
+					log.UILogger.Debug("[APP] root implements Component, calling HandleEvent")
 				}
 				if handler.HandleEvent(ev) {
 					a.dirty = true
 				}
 			} else {
 				if os.Getenv("TUI_DEBUG_UI") == "true" {
-					fmt.Fprintf(os.Stderr, "[APP] root does NOT implement Component\n")
+					log.UILogger.Debug("[APP] root does NOT implement Component")
 				}
 			}
 		}
@@ -1056,9 +1060,7 @@ func (a *App) handleEvent(ev frameworkevent.Event) {
 	// EventMouseWheel, EventMouseEnter, EventMouseLeave
 	if ev.Type().IsMouse() {
 		// DEBUG: 打印鼠标事件
-		if a.debugMode {
-			fmt.Fprintf(os.Stderr, "[MOUSE] Event type: %d\n", ev.Type())
-		}
+		logger.Get().Debug("APP", "[handleEvent] Mouse event type=%d, sending to root Component", ev.Type())
 
 		// Route mouse events to Inspector first (for hover tracking, overlay hit test, etc.)
 		if a.inspector != nil && a.isInspectorVisible() {
@@ -1067,11 +1069,12 @@ func (a *App) handleEvent(ev frameworkevent.Event) {
 			}); ok {
 				if mouseEv, ok := ev.(*frameworkevent.MouseEvent); ok {
 					if os.Getenv("TUI_DEBUG_UI") == "true" || os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
-						fmt.Fprintf(os.Stderr, "[APP] Routing mouse (%d,%d) to Inspector (type=%v)\n", mouseEv.X, mouseEv.Y, ev.Type())
+						log.UILogger.Debug("[APP] Routing mouse (%d,%d) to Inspector (type=%v)", mouseEv.X, mouseEv.Y, ev.Type())
 					}
 					handled := inspectorObj.HandleMouseEvent(ev.Type(), mouseEv)
 					a.dirty = true // refresh overlay with latest mouse info
 					if handled {
+						logger.Get().Debug("APP", "[handleEvent] Inspector handled mouse event, returning")
 						return
 					}
 				}
@@ -1080,11 +1083,18 @@ func (a *App) handleEvent(ev frameworkevent.Event) {
 
 		// 发送到根组件处理，由根组件负责 hit testing 和分发
 		if a.root != nil {
+			logger.Get().Debug("APP", "[handleEvent] Calling root.HandleEvent for mouse event")
 			if handler, ok := a.root.(frameworkevent.Component); ok {
-				if handler.HandleEvent(ev) {
+				handled := handler.HandleEvent(ev)
+				logger.Get().Debug("APP", "[handleEvent] root.HandleEvent returned=%v", handled)
+				if handled {
 					a.dirty = true
 				}
+			} else {
+				logger.Get().Warn("APP", "[handleEvent] root does NOT implement Component interface!")
 			}
+		} else {
+			logger.Get().Warn("APP", "[handleEvent] root is nil!")
 		}
 		return
 	}
@@ -1135,13 +1145,24 @@ func (a *App) render() {
 		buf := a.renderer.GetBackBuffer()
 
 		// 清空并调整 buffer 大小（Renderer 复用 buffer）
+		// buffer 大小使用实际终端大小（用于渲染）
 		buf.Reset(a.terminalWidth, a.terminalHeight)
 
+		// 布局约束使用用户配置的尺寸（用于布局计算）
+		// 这样即使终端是 156x44，布局仍按用户配置的 80x24 计算
+		layoutWidth, layoutHeight := a.GetConfigSize()
+
 		ctx := component.PaintContext{
-			AvailableWidth:  a.terminalWidth,
-			AvailableHeight: a.terminalHeight,
+			AvailableWidth:  layoutWidth,
+			AvailableHeight: layoutHeight,
 			X:               0,
 			Y:               0,
+		}
+
+		log := logger.Get()
+		if log != nil && log.IsEnabled() {
+			log.Debug("APP", "Render: terminal=%dx%d, layout=%dx%d",
+				a.terminalWidth, a.terminalHeight, layoutWidth, layoutHeight)
 		}
 
 		paintable.Paint(ctx, buf)
@@ -1194,7 +1215,7 @@ func (a *App) render() {
 	if a.root != nil {
 		// DEBUG: 输出 root 类型
 		if os.Getenv("TUI_DEBUG_HITMAP") == "true" {
-			fmt.Fprintf(os.Stderr, "[APP] root type: %T\n", a.root)
+			log.RenderLogger.Debug("[APP] root type: %T", a.root)
 		}
 
 		// 方法1：尝试从 DeclarativeNode 获取 RenderingPipeline 的 HitMap（推荐）
@@ -1204,11 +1225,11 @@ func (a *App) render() {
 
 			if a.hitMap != nil {
 				if os.Getenv("TUI_DEBUG_HITMAP") == "true" {
-					fmt.Fprintf(os.Stderr, "[APP] ✅ Got HitMap from RenderingPipeline: %d entries (includes layer transforms)\n", a.hitMap.Size())
+					log.RenderLogger.Debug("[APP] ✅ Got HitMap from RenderingPipeline: %d entries (includes layer transforms)", a.hitMap.Size())
 				}
 			} else {
 				if os.Getenv("TUI_DEBUG_HITMAP") == "true" {
-					fmt.Fprintf(os.Stderr, "[APP] ⚠️  RenderingPipeline returned nil HitMap, falling back to BuildHitMap\n")
+					log.RenderLogger.Debug("[APP] ⚠️  RenderingPipeline returned nil HitMap, falling back to BuildHitMap")
 				}
 			}
 		}
@@ -1512,14 +1533,42 @@ func (a *App) GetSize() (width, height int) {
 	return a.terminalWidth, a.terminalHeight
 }
 
-// Resize 调整尺寸
+// SetConfigSize 设置用户配置的布局尺寸
+// 这个尺寸用于布局约束，不受终端实际大小影响
+func (a *App) SetConfigSize(width, height int) {
+	a.configWidth = width
+	a.configHeight = height
+
+	log := logger.Get()
+	if log != nil && log.IsEnabled() {
+		log.Info("APP", "SetConfigSize: config=%dx%d", width, height)
+	}
+}
+
+// GetConfigSize 获取用户配置的布局尺寸
+func (a *App) GetConfigSize() (width, height int) {
+	// 如果没有配置过，使用当前终端大小
+	if a.configWidth == 0 {
+		return a.terminalWidth, a.terminalHeight
+	}
+	return a.configWidth, a.configHeight
+}
+
+// Resize 调整终端尺寸（但不改变布局约束）
+// 注意：这只是更新 buffer 大小，不会改变用户配置的布局约束
 func (a *App) Resize(width, height int) {
 	sizeChanged := a.terminalWidth != width || a.terminalHeight != height
 	a.terminalWidth = width
 	a.terminalHeight = height
 	a.dirty = true
 
-	// 更新 Renderer 的尺寸
+	log := logger.Get()
+	if log != nil && log.IsEnabled() {
+		log.Info("APP", "Resize: terminal=%dx%d, config=%dx%d",
+			width, height, a.configWidth, a.configHeight)
+	}
+
+	// 更新 Renderer 的尺寸（buffer 大小）
 	a.renderer.Resize(width, height)
 
 	// 更新 Inspector 的屏幕大小

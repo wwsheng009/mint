@@ -9,9 +9,11 @@ import (
 	"github.com/wwsheng009/mint/framework"
 	"github.com/wwsheng009/mint/framework/component"
 	frameworkevent "github.com/wwsheng009/mint/framework/event"
+	"github.com/wwsheng009/mint/internal/log"
 	"github.com/wwsheng009/mint/internal/reconciler"
 	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/border"
+	"github.com/wwsheng009/mint/runtime/event"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/render"
 	"github.com/wwsheng009/mint/runtime/style"
@@ -186,7 +188,7 @@ func (n *DeclarativeNode) Paint(ctx component.PaintContext, buf *paint.Buffer) {
 
 	// Debug logging
 	if os.Getenv("TUI_DEBUG_UI") == "true" {
-		fmt.Fprintf(os.Stderr, "DeclarativeNode.Paint: ctx.X=%d, ctx.Y=%d, buf=%dx%d, useFiber=%v\n",
+		log.UILogger.Debug("DeclarativeNode.Paint: ctx.X=%d, ctx.Y=%d, buf=%dx%d, useFiber=%v",
 			ctx.Bounds.X, ctx.Bounds.Y, buf.Width, buf.Height, n.useFiber)
 	}
 
@@ -219,18 +221,20 @@ func (n *DeclarativeNode) Paint(ctx component.PaintContext, buf *paint.Buffer) {
 	}
 
 	if n.renderer != nil {
-		// Use the buffer's dimensions as layout constraints (not the x, y position)
-		// The PipelineRenderer will detect layer nodes (Modal, Overlay, Tooltip)
-		// and use RenderLayers() which includes centering logic for modals
+		// Use the PaintContext dimensions as layout constraints (not buffer size)
+		// The PaintContext.AvailableWidth/Height contains the user's configured layout size
+		// while the buffer size may be larger (actual terminal size)
 		if adapter, ok := n.renderer.(*PipelineRendererAdapter); ok {
 			if os.Getenv("TUI_DEBUG_RENDERING") == "true" {
 				fmt.Fprintf(os.Stderr, "[DeclarativeNode.Paint] ✅ Using PipelineRendererAdapter\n")
+				fmt.Fprintf(os.Stderr, "[DeclarativeNode.Paint] Layout constraints: %dx%d (buffer: %dx%d)\n",
+					ctx.AvailableWidth, ctx.AvailableHeight, buf.Width, buf.Height)
 			}
-			// Call PipelineRenderer which will:
-			// 1. Use buffer dimensions as BoxConstraints
+			// Call RenderWithConstraints which will:
+			// 1. Use PaintContext dimensions as BoxConstraints (user's configured layout size)
 			// 2. Detect layer nodes and call RenderLayers() if needed
-			// 3. Apply modal centering for LayerModal nodes
-			if err := adapter.GetPipeline().Render(n.root, 0, 0, buf); err != nil {
+			// 3. Apply modal centering for LayerModal nodes using the correct layout size
+			if err := adapter.GetPipeline().RenderWithConstraints(n.root, ctx.AvailableWidth, ctx.AvailableHeight, buf); err != nil {
 				// Fallback to legacy rendering if pipeline fails
 				fmt.Fprintf(os.Stderr, "[DeclarativeNode.Paint] ❌ Pipeline render FAILED: %v, falling back to legacy\n", err)
 				n.PaintVNode(n.root, ctx.Bounds.X, ctx.Bounds.Y, buf)
@@ -255,7 +259,7 @@ func (n *DeclarativeNode) Paint(ctx component.PaintContext, buf *paint.Buffer) {
 	}
 
 	if os.Getenv("TUI_DEBUG_UI") == "true" {
-		fmt.Fprintf(os.Stderr, "DeclarativeNode.Paint: painting complete\n")
+		log.UILogger.Debug("DeclarativeNode.Paint: painting complete")
 	}
 }
 
@@ -325,13 +329,13 @@ func (n *DeclarativeNode) applyFocusState() {
 		// Focus trap: only collect focusable elements from modal layer
 		focusable = rtui.CollectFocusableInLayer(n.root, rtui.LayerModal)
 		if os.Getenv("TUI_DEBUG_UI") == "true" {
-			fmt.Fprintf(os.Stderr, "DeclarativeNode.Paint: modal detected, collected %d modal focusable nodes\n", len(focusable))
+			log.UILogger.Debug("DeclarativeNode.Paint: modal detected, collected %d modal focusable nodes", len(focusable))
 		}
 	} else {
 		// No modal: collect all focusable elements
 		focusable = rtui.CollectFocusable(n.root)
 		if os.Getenv("TUI_DEBUG_UI") == "true" {
-			fmt.Fprintf(os.Stderr, "DeclarativeNode.Paint: no modal, collected %d focusable nodes\n", len(focusable))
+			log.UILogger.Debug("DeclarativeNode.Paint: no modal, collected %d focusable nodes", len(focusable))
 		}
 	}
 
@@ -372,20 +376,18 @@ func (n *DeclarativeNode) PaintVNode(vnode rtui.VNode, x, y int, buf *paint.Buff
 
 	// Set component bounds for mouse hit testing
 	// Check if vnode implements SetBounds method
-	if _, ok := vnode.(interface{ SetBounds(x, y, width, height int) }); ok {
-		// ⚠️ IMPORTANT: Don't Measure() here!
-		// If LayoutEngine already calculated flex widths, we should use those
-		// Instead of re-Measuring with empty constraints, skip SetBounds for now
-		// The Paint() method will use the constraints that were calculated during Layout
-
-		// TODO: We need to get the calculated layout size from somewhere
-		// For now, skip SetBounds to avoid overwriting flex widths with natural widths
+	if boundsSetter, ok := vnode.(interface{ SetBounds(x, y, width, height int) }); ok {
+		// Measure the node to get its width and height
+		width := n.MeasureVNodeWidth(vnode)
+		height := n.MeasureVNodeHeight(vnode)
+		boundsSetter.SetBounds(x, y, width, height)
 		if os.Getenv("TUI_DEBUG_UI") == "true" {
-			fmt.Fprintf(os.Stderr, "[PaintVNode] ⚠️ Skipping SetBounds to preserve flex widths\n")
+			log.UILogger.Debug("[PaintVNode] SetBounds: x=%d, y=%d, width=%d, height=%d, type=%T",
+				x, y, width, height, vnode)
 		}
 	} else {
 		if os.Getenv("TUI_DEBUG_UI") == "true" {
-			fmt.Fprintf(os.Stderr, "[PaintVNode] vnode does not implement SetBounds\n")
+			log.UILogger.Debug("[PaintVNode] vnode does not implement SetBounds: type=%T", vnode)
 		}
 	}
 
@@ -1021,7 +1023,7 @@ func (n *DeclarativeNode) UpdateRoot(vnode rtui.VNode) {
 // HandleEvent processes events by distributing them to child components
 func (n *DeclarativeNode) HandleEvent(ev frameworkevent.Event) bool {
 	if os.Getenv("TUI_DEBUG_UI") == "true" {
-		fmt.Fprintf(os.Stderr, "DeclarativeNode.HandleEvent: event type=%d\n", ev.Type())
+		log.UILogger.Debug("DeclarativeNode.HandleEvent: event type=%d", ev.Type())
 	}
 
 	n.mu.RLock()
@@ -1123,12 +1125,12 @@ func (n *DeclarativeNode) HandleEvent(ev frameworkevent.Event) bool {
 // distributeEventToVNode recursively distributes an event to VNode tree
 func (n *DeclarativeNode) distributeEventToVNode(vnode rtui.VNode, ev frameworkevent.Event) bool {
 	if os.Getenv("TUI_DEBUG_UI") == "true" {
-		fmt.Fprintf(os.Stderr, "distributeEventToVNode: called with vnode type=%d, actual type=%T\n", vnode.Type(), vnode)
+		log.UILogger.Debug("distributeEventToVNode: called with vnode type=%d, actual type=%T", vnode.Type(), vnode)
 	}
 
 	if vnode == nil {
 		if os.Getenv("TUI_DEBUG_UI") == "true" {
-			fmt.Fprintf(os.Stderr, "distributeEventToVNode: vnode is nil\n")
+			log.UILogger.Debug("distributeEventToVNode: vnode is nil")
 		}
 		return false
 	}
@@ -1136,7 +1138,7 @@ func (n *DeclarativeNode) distributeEventToVNode(vnode rtui.VNode, ev frameworke
 	// Check if this VNode implements the Component interface
 	if component, ok := vnode.(frameworkevent.Component); ok {
 		if os.Getenv("TUI_DEBUG_UI") == "true" {
-			fmt.Fprintf(os.Stderr, "distributeEventToVNode: VNode type=%d implements frameworkevent.Component, calling HandleEvent\n", vnode.Type())
+			log.UILogger.Debug("distributeEventToVNode: VNode type=%d implements frameworkevent.Component, calling HandleEvent", vnode.Type())
 		}
 		if component.HandleEvent(ev) {
 			// Event was handled by this component - stop propagation
@@ -1149,7 +1151,7 @@ func (n *DeclarativeNode) distributeEventToVNode(vnode rtui.VNode, ev frameworke
 	children := vnode.Children()
 	if len(children) > 0 {
 		if os.Getenv("TUI_DEBUG_UI") == "true" {
-			fmt.Fprintf(os.Stderr, "distributeEventToVNode: VNode type=%d has %d children, distributing...\n", vnode.Type(), len(children))
+			log.UILogger.Debug("distributeEventToVNode: VNode type=%d has %d children, distributing...", vnode.Type(), len(children))
 		}
 		for _, child := range children {
 			if n.distributeEventToVNode(child, ev) {
@@ -1258,6 +1260,33 @@ func (n *DeclarativeNode) GetRenderer() rtui.VNodeRenderer {
 	n.mu.RLock()
 	defer n.mu.RUnlock()
 	return n.renderer
+}
+
+// GetHitMap returns the HitMap from the most recent render
+// This HitMap contains the FINAL positions after all layout transforms (including layer centering)
+// Returns nil if the node hasn't been rendered yet or doesn't use the RenderingPipeline
+func (n *DeclarativeNode) GetHitMap() *event.HitMap {
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+
+	// Check if renderer is PipelineRendererAdapter
+	if adapter, ok := n.renderer.(*PipelineRendererAdapter); ok {
+		// Get the RenderingPipeline from the adapter
+		pipeline := adapter.GetRenderingPipeline()
+		if pipeline != nil {
+			hitMap := pipeline.GetHitMap()
+
+			// DEBUG
+			if os.Getenv("TUI_DEBUG_HITMAP") == "true" && hitMap != nil {
+				log.RenderLogger.Debug("[DeclarativeNode.GetHitMap] Returning HitMap with %d entries", hitMap.Size())
+			}
+
+			return hitMap
+		}
+	}
+
+	// No HitMap available (not using RenderingPipeline)
+	return nil
 }
 
 // GetFocusedIndex returns the index of the currently focused element

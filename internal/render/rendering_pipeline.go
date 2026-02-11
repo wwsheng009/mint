@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/wwsheng009/mint/internal/log"
 	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/compute"
+	"github.com/wwsheng009/mint/runtime/event"
 	"github.com/wwsheng009/mint/runtime/layer"
 	"github.com/wwsheng009/mint/runtime/paint"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
@@ -18,6 +20,7 @@ import (
 type RenderingPipeline struct {
 	layoutEngine *compute.Engine
 	paintEngine  *PaintEngine
+	lastHitMap   *event.HitMap // HitMap from the most recent RenderLayers call
 }
 
 // NewRenderingPipeline creates a new rendering pipeline
@@ -70,6 +73,18 @@ func (p *RenderingPipeline) Render(vnode rtui.VNode, constraints runtime.BoxCons
 
 	if os.Getenv("TUI_PIPELINE_DEBUG") == "true" || os.Getenv("TUI_PAINT_DEBUG") == "true" || os.Getenv("TUI_DEBUG_RENDERING") == "true" {
 		fmt.Fprintf(os.Stderr, "[RenderingPipeline] Paint complete, err=%v\n", err)
+	}
+
+	// Save HitMap for event routing (hit testing)
+	// This HitMap contains the FINAL positions from layout computation
+	p.lastHitMap = layout.HitMap
+
+	if os.Getenv("TUI_DEBUG_HITMAP") == "true" {
+		if p.lastHitMap != nil {
+			fmt.Fprintf(os.Stderr, "[RenderingPipeline] Saved HitMap: %d entries\n", p.lastHitMap.Size())
+		} else {
+			fmt.Fprintf(os.Stderr, "[RenderingPipeline] ⚠️ Layout.HitMap is nil\n")
+		}
 	}
 
 	return err
@@ -182,6 +197,16 @@ func (p *RenderingPipeline) RenderLayers(
 		return err
 	}
 
+	// Merge HitMaps from all layers and save it
+	// This HitMap contains the FINAL positions after all layer transforms (centering, etc.)
+	p.lastHitMap = layerMgr.GetMergedHitMap()
+
+	if os.Getenv("TUI_PIPELINE_DEBUG") == "true" || os.Getenv("TUI_DEBUG_HITMAP") == "true" {
+		if p.lastHitMap != nil {
+			log.RenderLogger.Debug("[RenderLayers] Merged HitMap: %d entries", p.lastHitMap.Size())
+		}
+	}
+
 	// 验证 buffer 内容
 	if os.Getenv("TUI_PIPELINE_DEBUG") == "true" || os.Getenv("TUI_DEBUG_RENDERING") == "true" {
 		contentCount := 0
@@ -211,4 +236,11 @@ func (p *RenderingPipeline) HasModalChecks(vnode rtui.VNode, constraints runtime
 	layerMgr := layer.NewManager()
 	layerMgr.CollectAndLayout(vnode, constraints, p.layoutEngine)
 	return layerMgr.HasModal()
+}
+
+// GetHitMap returns the HitMap from the most recent RenderLayers call
+// This HitMap contains the FINAL positions after all layer transforms (centering, etc.)
+// Returns nil if RenderLayers has not been called yet
+func (p *RenderingPipeline) GetHitMap() *event.HitMap {
+	return p.lastHitMap
 }

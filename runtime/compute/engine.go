@@ -4,9 +4,13 @@ package compute
 import (
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 
+	"github.com/wwsheng009/mint/internal/log"
 	"github.com/wwsheng009/mint/runtime"
+	"github.com/wwsheng009/mint/runtime/event"
+	runtimelayout "github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/paint"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
@@ -52,6 +56,7 @@ func (e *Engine) SetDebug(debug bool) {
 
 // Layout performs layout calculation on a VNode tree
 // Returns a ComputedLayout containing computed positions for all nodes
+// AND a HitMap built from the final ComputedBox positions (including layer transforms)
 func (e *Engine) Layout(vnode VNode, constraints runtime.BoxConstraints) (*ComputedLayout, error) {
 	if vnode == nil {
 		return nil, fmt.Errorf("cannot layout nil VNode")
@@ -63,7 +68,9 @@ func (e *Engine) Layout(vnode VNode, constraints runtime.BoxConstraints) (*Compu
 	// Build layout tree and measure
 	root := e.buildComputedBox(vnode, nil, constraints)
 	if root == nil {
-		return NewComputedLayout(nil), nil
+		layout := NewComputedLayout(nil)
+		layout.HitMap = event.NewHitMap()
+		return layout, nil
 	}
 
 	// Calculate positions (second pass)
@@ -72,7 +79,18 @@ func (e *Engine) Layout(vnode VNode, constraints runtime.BoxConstraints) (*Compu
 	// Clear dirty flags after layout
 	root.ClearDirty()
 
-	return NewComputedLayout(root), nil
+	// Build HitMap directly from ComputedBox tree
+	// This captures the FINAL positions after all transforms (including layer centering)
+	hitMap := e.buildHitMapFromComputedBoxes(root)
+
+	layout := NewComputedLayout(root)
+	layout.HitMap = hitMap
+
+	if e.debug || os.Getenv("TUI_DEBUG_HITMAP") == "true" {
+		log.RenderLogger.Debug("[Engine.Layout] Built HitMap with %d entries", hitMap.Size())
+	}
+
+	return layout, nil
 }
 
 // =============================================================================
@@ -1463,4 +1481,88 @@ func (e *Engine) InvalidateCacheByKey(vnodeKey string) {
 // CacheSize returns the number of entries in the cache
 func (e *Engine) CacheSize() int {
 	return e.cache.Size()
+}
+
+// =============================================================================
+// HitMap Building (Phase 1: Build HitMap during Layout)
+// =============================================================================
+
+// buildHitMapFromComputedBoxes builds a HitMap directly from the ComputedBox tree
+// This is called AFTER layout calculations, including layer transforms like centering.
+// The HitMap captures the FINAL positions that will be used for painting.
+func (e *Engine) buildHitMapFromComputedBoxes(root *ComputedBox) *event.HitMap {
+	if root == nil {
+		return event.NewHitMap() // Return empty HitMap for nil root
+	}
+
+	var entries []event.HitMapEntryInternal
+
+	// Recursively walk the ComputedBox tree and build HitMap entries
+	var walk func(box *ComputedBox, zOrder int)
+	walk = func(box *ComputedBox, zOrder int) {
+		if box == nil {
+			return
+		}
+
+		// Skip nodes with zero size (not rendered)
+		if box.Box.Width <= 0 || box.Box.Height <= 0 {
+			// Continue walking children (they might be visible)
+			for _, child := range box.Children {
+				walk(child, zOrder+1)
+			}
+			return
+		}
+
+		// Get node ID
+		nodeID := ""
+		if box.VNode != nil {
+			if key := box.VNode.Key(); key != "" {
+				nodeID = key
+			} else if tagger, ok := box.VNode.(interface{ Tag() string }); ok {
+				nodeID = tagger.Tag()
+			} else {
+				nodeID = box.VNode.Type().String()
+			}
+		}
+
+		// Create entry using ComputedBox positions
+		// ✅ These positions include ALL transforms (layout, layer centering, etc.)
+		entry := event.HitMapEntryInternal{
+			NodeID: nodeID,
+			Node:   rtui.AsLayoutNode(box.VNode),
+			Bounds: runtimelayout.Rect{
+				X:      box.Box.X,      // ✅ Final position after layer centering
+				Y:      box.Box.Y,
+				Width:  box.Box.Width,
+				Height: box.Box.Height,
+			},
+			LocalXY: func(screenX, screenY int) (int, int) {
+				// Convert screen coordinates to local coordinates relative to this node
+				return screenX - box.Box.X, screenY - box.Box.Y
+			},
+			ZOrder: zOrder,
+		}
+
+		entries = append(entries, entry)
+
+		// Recursively process children (higher Z-order)
+		for _, child := range box.Children {
+			walk(child, zOrder+1)
+		}
+	}
+
+	walk(root, 0)
+
+	// Sort by Z-order (ascending - lower Z first)
+	// HitTest will iterate backwards to find upper layers first
+	sort.Slice(entries, func(i, j int) bool {
+		return entries[i].ZOrder < entries[j].ZOrder
+	})
+
+	if os.Getenv("TUI_DEBUG_HITMAP") == "true" {
+		log.RenderLogger.Debug("[Engine.buildHitMap] Built HitMap with %d entries", len(entries))
+	}
+
+	// Build HitMap from entries using BuildFromEntries helper
+	return event.BuildHitMapFromEntries(entries)
 }
