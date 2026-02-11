@@ -2,6 +2,7 @@ package instance
 
 import (
 	"github.com/wwsheng009/mint/internal/log"
+	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
 	"github.com/wwsheng009/mint/runtime/ui"
 )
 

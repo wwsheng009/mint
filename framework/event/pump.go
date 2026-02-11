@@ -216,6 +216,9 @@ func (p *Pump) convertToMouseMsg(raw platform.RawInput) runtimemsg.Msg {
 		entry := hitMap.HitTest(raw.MouseX, raw.MouseY)
 		if entry != nil {
 			mouseMsg.TargetID = entry.NodeID
+			// ✨ 新架构：直接填充 Instance 引用
+			// 根据 fix1.md：事件链条 HitMap → LayoutNode → Instance → Handler
+			mouseMsg.TargetInstance = entry.Instance
 			// Calculate local coordinates using the entry's LocalXY function
 			localX, localY := entry.LocalXY(raw.MouseX, raw.MouseY)
 			mouseMsg.LocalX = localX
@@ -229,17 +232,17 @@ func (p *Pump) convertToMouseMsg(raw platform.RawInput) runtimemsg.Msg {
 			}
 
 			// Log successful hit test
-			log.UILogger.Debug("HitTest: Found '%s' at Bounds=(%d,%d,%dx%d) Local=(%d,%d)",
+			log.UILogger.Debug("HitTest: Found '%s' at Bounds=(%d,%d,%dx%d) Local=(%d,%d) Instance=%v",
 				entry.NodeID, entry.Bounds.X, entry.Bounds.Y,
-				entry.Bounds.Width, entry.Bounds.Height, localX, localY)
+				entry.Bounds.Width, entry.Bounds.Height, localX, localY, entry.Instance != nil)
 
 			// Also log all entries at this position for debugging overlapping buttons
 			allEntries := hitMap.FindAllAt(raw.MouseX, raw.MouseY)
 			if len(allEntries) > 1 {
 				log.UILogger.Debug("Multiple hits at (%d,%d):", raw.MouseX, raw.MouseY)
 				for i, e := range allEntries {
-					log.UILogger.Debug("  [%d] ID='%s' Bounds=(%d,%d,%dx%d) ZOrder=%d",
-						i, e.NodeID, e.Bounds.X, e.Bounds.Y, e.Bounds.Width, e.Bounds.Height, e.ZOrder)
+					log.UILogger.Debug("  [%d] ID='%s' Bounds=(%d,%d,%dx%d) ZOrder=%d Instance=%v",
+						i, e.NodeID, e.Bounds.X, e.Bounds.Y, e.Bounds.Width, e.Bounds.Height, e.ZOrder, e.Instance != nil)
 				}
 			}
 		} else {

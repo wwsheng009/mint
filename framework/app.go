@@ -15,6 +15,7 @@ import (
 	"github.com/wwsheng009/mint/internal/log"
 	"github.com/wwsheng009/mint/runtime/core"
 	runtimeevent "github.com/wwsheng009/mint/runtime/event"
+	"github.com/wwsheng009/mint/runtime/instance"
 	"github.com/wwsheng009/mint/runtime/layout"
 	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
 	"github.com/wwsheng009/mint/runtime/paint"
@@ -42,12 +43,19 @@ type App struct {
 	// 组件树
 	root component.Node
 
+	// ============================================================================
+	// Instance Tree - 新架构核心（根据 fix1.md）
+	// ============================================================================
+	// Instance 是持久化的组件实例，跨渲染保持状态
+	// VNode 只是临时的描述，每帧重建
+	// Instance 通过 Reconcile 从 VNode Tree 构建/更新
+	instanceRoot *instance.Instance // Instance Tree 根节点
+
 	// 事件
 	router        *frameworkevent.Router
 	keyMap        *frameworkevent.KeyMap
 	pump          *frameworkevent.Pump
 	eventFilter   func(frameworkevent.Event) bool // 事件过滤器回调，返回 false 表示拦截
-	componentReg  *component.Registry             // Component registry for direct Msg routing (Phase 2)
 	focusManager  *rtui.VNodeFocusManager         // Focus manager for KeyMsg routing (Phase 3)
 
 	// 自定义事件源（测试时使用，如 MockSandbox）
@@ -127,20 +135,19 @@ type App struct {
 // NewApp 创建新应用
 func NewApp() *App {
 	app := &App{
-		router:       frameworkevent.NewRouter(),
-		keyMap:       frameworkevent.NewKeyMap(),
-		componentReg: component.NewRegistry(), // Phase 2: Component registry for direct Msg routing
-		focusManager: rtui.NewVNodeFocusManager(), // Phase 3: Focus manager for KeyMsg routing
-		eventFilter:  func(ev frameworkevent.Event) bool { return true }, // 默认放行所有事件
-		quit:         make(chan struct{}, 1),
-		tickInterval: 16 * time.Millisecond, // ~60fps
-		firstRender:  true,
-		debugMode:    os.Getenv("TUI_DEBUG") == "true",
-		debugLogFile: os.Getenv("TUI_DEBUG_LOG"),
-		throttler:    render.NewThrottler(60), // 默认 60 FPS
-		contextMgr:   core.NewContextManager(context.Background()),
-		userData:     make(map[string]interface{}),
-		renderer:     paint.NewRenderer(80, 24), // 新增：初始化 Renderer
+		router:        frameworkevent.NewRouter(),
+		keyMap:        frameworkevent.NewKeyMap(),
+		focusManager:  rtui.NewVNodeFocusManager(), // Phase 3: Focus manager for KeyMsg routing
+		eventFilter:   func(ev frameworkevent.Event) bool { return true }, // 默认放行所有事件
+		quit:          make(chan struct{}, 1),
+		tickInterval:  16 * time.Millisecond, // ~60fps
+		firstRender:   true,
+		debugMode:     os.Getenv("TUI_DEBUG") == "true",
+		debugLogFile:  os.Getenv("TUI_DEBUG_LOG"),
+		throttler:     render.NewThrottler(60), // 默认 60 FPS
+		contextMgr:    core.NewContextManager(context.Background()),
+		userData:      make(map[string]interface{}),
+		renderer:      paint.NewRenderer(80, 24), // 新增：初始化 Renderer
 	}
 
 	return app
@@ -150,10 +157,9 @@ func NewApp() *App {
 // 允许测试时使用 MockSandbox 或其他事件源替代真实的平台输入
 func NewAppWithSource(source frameworkevent.EventSource) *App {
 	return &App{
-		router:       frameworkevent.NewRouter(),
-		keyMap:       frameworkevent.NewKeyMap(),
-		componentReg: component.NewRegistry(), // Phase 2: Component registry
-		focusManager: rtui.NewVNodeFocusManager(), // Phase 3: Focus manager
+		router:        frameworkevent.NewRouter(),
+		keyMap:        frameworkevent.NewKeyMap(),
+		focusManager:  rtui.NewVNodeFocusManager(), // Phase 3: Focus manager
 		eventFilter:  func(ev frameworkevent.Event) bool { return true },
 		quit:         make(chan struct{}, 1),
 		tickInterval: 16 * time.Millisecond,
@@ -770,26 +776,27 @@ func (a *App) Run() error {
 
 // handleMsg 直接处理 Msg（Phase 2/3: 绕过 Event 系统直接路由）
 //
+// 根据 fix1.md 设计文档：
+// - Instance 是"活的组件"（持久存在）
+// - 事件直接分发到 Instance.Handle()
+// - 不再需要 Component Registry
+//
 // 返回 true 表示消息已被处理，false 表示需要回退到 Event 系统
 func (a *App) handleMsg(message runtimemsg.Msg) bool {
-	if a.componentReg == nil {
-		return false
-	}
-
-	// 处理带 TargetID 的鼠标消息（直接路由）
+	// ✨ 新架构：优先使用 Instance 引用
+	// 根据 fix1.md：事件链条 HitMap → LayoutNode → Instance → Handler
 	if mouseMsg, ok := message.(*runtimemsg.MouseMsg); ok {
-		if mouseMsg.TargetID != "" {
-			log.UILogger.Debug("Direct routing: MouseMsg → %s, Action=%v", mouseMsg.TargetID, mouseMsg.Action)
+		if mouseMsg.TargetInstance != nil {
+			log.UILogger.Debug("Instance routing: MouseMsg → Instance, Action=%v", mouseMsg.Action)
 
-			// 从组件注册表查找目标组件
-			component := a.componentReg.Lookup(mouseMsg.TargetID)
-			if component != nil {
-				log.UILogger.Debug("Component found: %s, calling Update", mouseMsg.TargetID)
-				// 调用组件的 Update 方法
-				cmd := component.Update(mouseMsg)
+			// 尝试将 TargetInstance 转换为 Handler 接口
+			// EventHandler 定义在 event/hitmap.go 中，Instance 实现了这个接口
+			if handler, ok := mouseMsg.TargetInstance.(interface{ Handle(runtimemsg.Msg) interface{} }); ok {
+				log.UILogger.Debug("Calling Instance.Handle()")
+				cmd := handler.Handle(mouseMsg)
 				if cmd != nil {
 					// TODO: 执行 Cmd（需要实现 Cmd 执行系统）
-					log.UILogger.Debug("Component returned Cmd: %v", cmd)
+					log.UILogger.Debug("Instance returned Cmd: %v", cmd)
 				}
 
 				// 标记需要重新渲染
@@ -797,7 +804,7 @@ func (a *App) handleMsg(message runtimemsg.Msg) bool {
 				return true // 消息已处理
 			}
 
-			log.UILogger.Debug("Component not found in registry: %s", mouseMsg.TargetID)
+			log.UILogger.Debug("TargetInstance does not implement Handle interface")
 		}
 	}
 
@@ -837,7 +844,10 @@ func (a *App) handleMsg(message runtimemsg.Msg) bool {
 
 // buildComponentRegistry 从布局树构建组件注册表（Phase 2）
 //
-// 遍历布局树，注册所有实现 Updater 接口的组件
+// 已废弃：根据 fix1.md 重构，不再使用 Component Registry
+// 现在使用 Instance Tree 直接处理事件
+// 保留此方法仅供参考，将来会删除
+/*
 func (a *App) buildComponentRegistry(root layout.Node) {
 	if a.componentReg == nil {
 		log.UILogger.Debug("buildComponentRegistry: componentReg is nil, skipping")
@@ -900,6 +910,7 @@ func (a *App) buildComponentRegistry(root layout.Node) {
 		log.UILogger.Debug("Component registry built: %d components", a.componentReg.Size())
 	}
 }
+*/
 
 // updateFocusManager 从布局树更新焦点管理器（Phase 3）
 //
@@ -1272,30 +1283,64 @@ func (a *App) render() {
 			a.pump.SetHitMap(a.hitMap)
 		}
 
-		log.UILogger.Debug("[APP] Phase 2: Building component registry, a.root type=%T", a.root)
+		// ============================================================================
+		// Phase 2: Reconcile VNode → Instance（新架构核心）
+		// ============================================================================
+		// 根据 fix1.md 设计文档：
+		// > VNode 是"设计图"（每帧重建）
+		// > Instance 是"活的组件"（持久存在）
+		// >
+		// > render() 只产生描述树，然后系统做：
+		// > VNode Tree → diff → Instance Tree（持久） → Layout
 
-		// Phase 2: 构建组件注册表（从布局树提取 Updater 组件）
-		// 特殊处理 DeclarativeNode：从其 Root() 获取 VNode
+		log.UILogger.Debug("[APP] Phase 2: Reconciling VNode → Instance")
+
+		// 获取当前帧的 VNode Tree
+		var vnodeRoot rtui.VNode
 		if declNode, ok := a.root.(interface{ Root() rtui.VNode }); ok {
-			vnodeRoot := declNode.Root()
-			log.UILogger.Debug("[APP] a.root is DeclarativeNode, got Root() VNode type=%T", vnodeRoot)
-			layoutAdapter := rtui.AsLayoutNode(vnodeRoot)
-			a.buildComponentRegistry(layoutAdapter)
-		} else if layoutRoot, ok := a.root.(layout.Node); ok {
-			log.UILogger.Debug("[APP] a.root is layout.Node, calling buildComponentRegistry")
-			a.buildComponentRegistry(layoutRoot)
-		} else if vnodeRoot, ok := a.root.(rtui.VNode); ok {
-			log.UILogger.Debug("[APP] a.root is rtui.VNode, calling buildComponentRegistry with adapter")
-			layoutAdapter := rtui.AsLayoutNode(vnodeRoot)
-			a.buildComponentRegistry(layoutAdapter)
+			vnodeRoot = declNode.Root()
+			log.UILogger.Debug("[APP] Got VNode from DeclarativeNode.Root(), type=%T", vnodeRoot)
+		} else if vnode, ok := a.root.(rtui.VNode); ok {
+			vnodeRoot = vnode
+			log.UILogger.Debug("[APP] a.root is VNode, type=%T", vnodeRoot)
 		} else {
-			log.UILogger.Debug("[APP] a.root is neither layout.Node nor rtui.VNode, skipping component registry")
+			log.UILogger.Debug("[APP] Cannot get VNode from root, type=%T", a.root)
+		}
+
+		// Reconcile: 同步 VNode Tree → Instance Tree
+		if vnodeRoot != nil {
+			// 收集 VNode children
+			vnodeChildren := vnodeRoot.Children()
+
+			// Reconcile children
+			if a.instanceRoot == nil {
+				// 首次：创建 Instance Tree
+				instChildren := instance.ReconcileChildren(nil, vnodeChildren)
+				// 创建根 Instance（虚拟根节点）
+				a.instanceRoot = instance.NewInstance("root", "root", nil)
+				a.instanceRoot.Children = instChildren
+				a.instanceRoot.Mount()
+				log.UILogger.Debug("[APP] Created Instance Tree: %d top-level instances", len(instChildren))
+			} else {
+				// 更新：Reconcile Instance Tree
+				a.instanceRoot.Children = instance.ReconcileChildren(a.instanceRoot.Children, vnodeChildren)
+				log.UILogger.Debug("[APP] Reconciled Instance Tree: %d top-level instances", len(a.instanceRoot.Children))
+			}
+		}
+
+		// ✨ 新架构：Enrich HitMap with Instance references
+		// 根据 fix1.md：HitMap 应该包含 Instance 引用，用于直接事件路由
+		// 在 HitMap 构建完成后，我们通过 NodeID 匹配来添加 Instance 引用
+		// 这样既保留了正确的布局信息（包括层变换），又获得了 Instance 引用
+		if a.hitMap != nil && a.instanceRoot != nil {
+			a.enrichHitMapWithInstances()
+			log.UILogger.Debug("[APP] Enriched HitMap with Instance references")
 		}
 
 		// Phase 3: 更新焦点管理器（从布局树提取 Focusable 组件）
 		if layoutRoot, ok := a.root.(layout.Node); ok {
 			a.updateFocusManager(layoutRoot)
-		} else if vnodeRoot, ok := a.root.(rtui.VNode); ok {
+		} else if vnodeRoot != nil {
 			layoutAdapter := rtui.AsLayoutNode(vnodeRoot)
 			a.updateFocusManager(layoutAdapter)
 		}
@@ -1683,4 +1728,69 @@ func (a *App) InjectEvent(raw platform.RawInput) error {
 // 注意：此方法仅用于测试
 func (a *App) GetPump() *frameworkevent.Pump {
 	return a.pump
+}
+
+// instanceHandlerAdapter 适配器：将 instance.Instance 转换为 MsgHandler
+type instanceHandlerAdapter struct {
+	inst *instance.Instance
+}
+
+// Handle 实现 MsgHandler 接口
+func (a *instanceHandlerAdapter) Handle(msg interface{}) interface{} {
+	// 将 interface{} 转换为 runtimemsg.Msg
+	if runtimeMsg, ok := msg.(runtimemsg.Msg); ok {
+		return a.inst.Handle(runtimeMsg)
+	}
+	return nil
+}
+
+// enrichHitMapWithInstances 为 HitMap 条目添加 Instance 引用
+// 这是新架构的关键步骤：将持久化的 Instance 与 HitMap 关联起来
+//
+// 工作流程：
+// 1. 从 Instance Tree 构建 NodeID → Instance 映射
+// 2. 遍历 HitMap 条目，通过 NodeID 匹配 Instance
+// 3. 为每个匹配的条目添加 Instance 引用
+//
+// 注意：这个方法修改 HitMap 的内部状态（entries）
+func (a *App) enrichHitMapWithInstances() {
+	if a.hitMap == nil || a.instanceRoot == nil {
+		return
+	}
+
+	// Step 1: 构建 NodeID → Instance 映射
+	instanceMap := make(map[string]*instance.Instance)
+	var collectInstances func(inst *instance.Instance)
+	collectInstances = func(inst *instance.Instance) {
+		if inst == nil {
+			return
+		}
+		if inst.ID != "" {
+			instanceMap[inst.ID] = inst
+		}
+		for _, child := range inst.Children {
+			collectInstances(child)
+		}
+	}
+
+	// 从根节点的 children 开始收集（跳过根节点本身）
+	for _, child := range a.instanceRoot.Children {
+		collectInstances(child)
+	}
+
+	// Step 2 & 3: 遍历 HitMap 条目，添加 Instance 引用
+	entries := a.hitMap.AllEntries()
+	for i := range entries {
+		nodeID := entries[i].NodeID
+		if inst, ok := instanceMap[nodeID]; ok {
+			// 找到匹配的 Instance，创建适配器并添加引用
+			var msgHandler runtimeevent.MsgHandler
+			if handler, ok := interface{}(inst).(runtimeevent.MsgHandler); ok {
+				msgHandler = handler
+			} else {
+				msgHandler = &instanceHandlerAdapter{inst: inst}
+			}
+			entries[i].Instance = msgHandler
+		}
+	}
 }

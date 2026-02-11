@@ -26,6 +26,11 @@ type MouseMsg struct {
 	// TargetID 是目标组件的 ID（来自 HitMap）
 	TargetID string
 
+	// TargetInstance 是目标组件实例的直接引用（新架构）
+	// 根据 fix1.md：事件链条为 HitMap → LayoutNode → Instance → Handler
+	// 这个字段消除了通过 Registry 查找的需要
+	TargetInstance interface{}
+
 	// Button 是按下的鼠标按钮
 	Button MouseButton
 

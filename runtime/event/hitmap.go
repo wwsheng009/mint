@@ -21,9 +21,10 @@ import (
 // HitMap 提供了从屏幕坐标到布局节点的映射
 // 消除了各组件手动实现 containsPoint() 的需求
 
-// EventHandler 事件处理器接口
+// MsgHandler 消息处理器接口（新架构）
 // 用于解耦 HitMap 和 Instance，避免循环导入
-type EventHandler interface {
+// Instance 实现这个接口来处理消息
+type MsgHandler interface {
 	Handle(msg interface{}) interface{}
 }
 
@@ -55,7 +56,7 @@ type HitMapEntry struct {
 	//
 	// 事件分发流程变为：
 	// HitMap → LayoutNode → Instance → Handler
-	Instance EventHandler
+	Instance MsgHandler
 }
 
 // String 返回调试字符串
@@ -126,8 +127,14 @@ func BuildHitMap(root layout.Node) *HitMap {
 //
 // 这是新的主要入口点，用于新架构
 func BuildHitMapFromInstance(rootInstance interface{}) *HitMap {
-	// TODO: 实现 Instance Tree 遍历
-	// 当前先返回空的 HitMap，等 Instance 系统集成完成后再实现
+	// 导入 instance 包会导致循环依赖，所以我们通过反射或接口来处理
+	// 这里使用一个简化的方案：直接传入已经准备好的 entries
+
+	// 实际上，我们需要在 reconcile.go 中创建 entries
+	// 然后通过 BuildHitMapFromEntries 构建 HitMap
+
+	// 暂时返回空的 HitMap
+	// TODO: 在 App.render() 中实现从 Instance Tree 构建 entries 的逻辑
 	return &HitMap{
 		entries:   make([]HitMapEntry, 0),
 		buildTime: time.Now(),
@@ -293,6 +300,7 @@ type HitMapEntryInternal struct {
 	Bounds  layout.Rect
 	LocalXY func(screenX, screenY int) (int, int)
 	ZOrder  int
+	Instance MsgHandler // ✨ 新增：Instance 引用
 }
 
 // BuildHitMapFromEntries builds a HitMap from a list of internal entries
@@ -301,11 +309,12 @@ func BuildHitMapFromEntries(entries []HitMapEntryInternal) *HitMap {
 	hmEntries := make([]HitMapEntry, len(entries))
 	for i, e := range entries {
 		hmEntries[i] = HitMapEntry{
-			NodeID:  e.NodeID,
-			Node:    e.Node,
-			Bounds:  e.Bounds,
-			LocalXY: e.LocalXY,
-			ZOrder:  e.ZOrder,
+			NodeID:   e.NodeID,
+			Node:     e.Node,
+			Bounds:   e.Bounds,
+			LocalXY:  e.LocalXY,
+			ZOrder:   e.ZOrder,
+			Instance: e.Instance, // ✨ 复制 Instance 引用
 		}
 	}
 
