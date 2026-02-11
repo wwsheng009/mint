@@ -3,6 +3,7 @@ package event
 import (
 	"time"
 
+	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/event"
 )
 
@@ -278,6 +279,11 @@ type MouseEvent struct {
 	LocalX   int              // X coordinate relative to target
 	LocalY   int              // Y coordinate relative to target
 	Delta    int              // Scroll delta (+1 for up, -1 for down)
+
+	// TargetBounds is the final bounds of the target component (from HitMap)
+	// This contains the correct position after all transforms (modal centering, etc.)
+	// Components should use this for hit testing instead of internal bounds
+	TargetBounds runtime.Box // Final bounds from HitMap (post-transform)
 }
 
 // MouseButton represents a mouse button.

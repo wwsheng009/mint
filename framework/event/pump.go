@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/wwsheng009/mint/internal/log"
+	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/event"
 	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
 	"github.com/wwsheng009/mint/runtime/platform"
@@ -219,6 +220,13 @@ func (p *Pump) convertToMouseMsg(raw platform.RawInput) runtimemsg.Msg {
 			localX, localY := entry.LocalXY(raw.MouseX, raw.MouseY)
 			mouseMsg.LocalX = localX
 			mouseMsg.LocalY = localY
+			// Store the final bounds from HitMap (includes all transforms like modal centering)
+			mouseMsg.TargetBounds = runtime.Box{
+				X:      entry.Bounds.X,
+				Y:      entry.Bounds.Y,
+				Width:  entry.Bounds.Width,
+				Height: entry.Bounds.Height,
+			}
 
 			// Log successful hit test
 			log.UILogger.Debug("HitTest: Found '%s' at Bounds=(%d,%d,%dx%d) Local=(%d,%d)",

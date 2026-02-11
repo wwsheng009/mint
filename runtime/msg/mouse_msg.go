@@ -3,6 +3,8 @@ package msg
 import (
 	"fmt"
 	"time"
+
+	"github.com/wwsheng009/mint/runtime"
 )
 
 // MouseMsg 表示鼠标输入消息
@@ -32,6 +34,10 @@ type MouseMsg struct {
 
 	// Delta 是滚轮增量（+1/-1，仅当 Action = MouseActionWheel 时有效）
 	Delta int
+
+	// TargetBounds 是目标组件的最终边界（来自 HitMap）
+	// 包含所有变换（如modal居中）后的正确位置
+	TargetBounds runtime.Box // Final bounds from HitMap (post-transform)
 }
 
 // MouseButton 表示鼠标按钮

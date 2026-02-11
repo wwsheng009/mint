@@ -1,6 +1,7 @@
 package event
 
 import (
+	"github.com/wwsheng009/mint/runtime"
 	runtimeplatform "github.com/wwsheng009/mint/runtime/platform"
 	runtimeevent "github.com/wwsheng009/mint/runtime/event"
 	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
@@ -132,6 +133,12 @@ func mouseMsgToMouseEvent(mouseMsg *runtimemsg.MouseMsg) *MouseEvent {
 		LocalX:    mouseMsg.LocalX,
 		LocalY:    mouseMsg.LocalY,
 		Delta:     mouseMsg.Delta,
+		TargetBounds: runtime.Box{
+			X:      mouseMsg.TargetBounds.X,
+			Y:      mouseMsg.TargetBounds.Y,
+			Width:  mouseMsg.TargetBounds.Width,
+			Height: mouseMsg.TargetBounds.Height,
+		},
 	}
 
 	return ev
