@@ -241,18 +241,11 @@ func (n *DeclarativeNode) Paint(ctx component.PaintContext, buf *paint.Buffer) {
 				log.UILogger.Debug("[DeclarativeNode.Paint] Layout constraints: %dx%d (buffer: %dx%d)\n",
 					ctx.AvailableWidth, ctx.AvailableHeight, buf.Width, buf.Height)
 			}
-			// Capture the layer manager from PipelineRenderer for event handling
-			pipeline := adapter.GetPipeline()
-			if pipeline != nil && pipeline.layerMgr != nil {
-				n.layerMgr = pipeline.layerMgr
-				if os.Getenv("TUI_DEBUG_UI") == "true" {
-					log.UILogger.Debug("[DeclarativeNode.Paint] Set layerMgr from PipelineRenderer")
-				}
-			}
 			// Call RenderWithConstraints which will:
 			// 1. Use PaintContext dimensions as BoxConstraints (user's configured layout size)
 			// 2. Detect layer nodes and call RenderLayers() if needed
 			// 3. Apply modal centering for LayerModal nodes using the correct layout size
+			pipeline := adapter.GetPipeline()
 			if err := pipeline.RenderWithConstraints(n.root, ctx.AvailableWidth, ctx.AvailableHeight, buf); err != nil {
 				// Fallback to legacy rendering if pipeline fails
 				log.UILogger.Debug("[DeclarativeNode.Paint] ❌ Pipeline render FAILED: %v, falling back to legacy\n", err)
@@ -260,6 +253,17 @@ func (n *DeclarativeNode) Paint(ctx component.PaintContext, buf *paint.Buffer) {
 			} else {
 				if os.Getenv("TUI_DEBUG_RENDERING") == "true" {
 					log.UILogger.Debug("[DeclarativeNode.Paint] ✅ Pipeline render SUCCESS\n")
+				}
+				// After rendering, capture the layer manager from the pipeline for event handling
+				// The layer manager is set during RenderLayers and contains modal nodes
+				n.layerMgr = pipeline.GetPipeline().GetLayerMgr()
+				if os.Getenv("TUI_DEBUG_UI") == "true" {
+					if n.layerMgr != nil {
+						modalNodes := n.layerMgr.GetModalNodes()
+						log.UILogger.Debug("[DeclarativeNode.Paint] Set layerMgr from pipeline with %d modal nodes", len(modalNodes))
+					} else {
+						log.UILogger.Debug("[DeclarativeNode.Paint] layerMgr is nil after render")
+					}
 				}
 			}
 		} else {

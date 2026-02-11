@@ -554,6 +554,7 @@ func (b *ButtonVNode) HandleEvent(e frameworkevent.Event) bool {
 			return true
 		}
 
+
 	case frameworkevent.EventMouseRelease:
 		if b.isHovered && mouseEvent.Button == frameworkevent.MouseLeft {
 			if b.onMouseRelease != nil {

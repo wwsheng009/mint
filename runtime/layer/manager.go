@@ -247,6 +247,14 @@ func (m *Manager) shiftPositions(box *compute.ComputedBox, offsetX, offsetY int)
 	box.Box.X += offsetX
 	box.Box.Y += offsetY
 
+	// Update VNode bounds after position shift
+	// This ensures Button.bounds and other components have correct coordinates for hit testing
+	if box.VNode != nil {
+		if boundsAware, ok := box.VNode.(interface{ SetBounds(int, int, int, int) }); ok {
+			boundsAware.SetBounds(box.Box.X, box.Box.Y, box.Box.Width, box.Box.Height)
+		}
+	}
+
 	for _, child := range box.Children {
 		m.shiftPositions(child, offsetX, offsetY)
 	}

@@ -20,6 +20,7 @@ type RenderingPipeline struct {
 	layoutEngine *compute.Engine
 	paintEngine  *PaintEngine
 	lastHitMap   *event.HitMap // HitMap from the most recent RenderLayers call
+	layerMgr     *layer.Manager // LayerManager from the most recent RenderLayers call
 }
 
 // NewRenderingPipeline creates a new rendering pipeline
@@ -200,9 +201,17 @@ func (p *RenderingPipeline) RenderLayers(
 	// This HitMap contains the FINAL positions after all layer transforms (centering, etc.)
 	p.lastHitMap = layerMgr.GetMergedHitMap()
 
+	// Save layerMgr reference for event handling
+	// This allows DeclarativeNode to access modal nodes for mouse event distribution
+	p.layerMgr = layerMgr
+
 	if os.Getenv("TUI_PIPELINE_DEBUG") == "true" || os.Getenv("TUI_DEBUG_HITMAP") == "true" {
 		if p.lastHitMap != nil {
 			log.RenderLogger.Debug("[RenderLayers] Merged HitMap: %d entries", p.lastHitMap.Size())
+		}
+		if p.layerMgr != nil {
+			modalNodes := p.layerMgr.GetModalNodes()
+			log.RenderLogger.Debug("[RenderLayers] Saved layerMgr with %d modal nodes", len(modalNodes))
 		}
 	}
 
@@ -242,4 +251,11 @@ func (p *RenderingPipeline) HasModalChecks(vnode rtui.VNode, constraints runtime
 // Returns nil if RenderLayers has not been called yet
 func (p *RenderingPipeline) GetHitMap() *event.HitMap {
 	return p.lastHitMap
+}
+
+// GetLayerMgr returns the LayerManager from the most recent RenderLayers call
+// This LayerManager contains modal nodes for event distribution
+// Returns nil if RenderLayers has not been called yet
+func (p *RenderingPipeline) GetLayerMgr() *layer.Manager {
+	return p.layerMgr
 }
