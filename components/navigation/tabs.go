@@ -6,6 +6,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/wwsheng009/mint/components/layout"
 	"github.com/wwsheng009/mint/framework/action"
 	"github.com/wwsheng009/mint/framework/cmd"
 	"github.com/wwsheng009/mint/framework/component"
@@ -55,6 +56,8 @@ type TabsVNode struct {
 	onChange  func(string)        // Callback when tab changes
 	vertical  bool                // DEPRECATED: Use position instead
 	contents  map[string]ui.VNode // Tab content mapping
+	wrapTabs  bool                // Enable automatic tab bar wrapping
+	tabGap    int                 // Gap between tabs when wrapping
 
 	// ActionTarget support
 	supportedActions []action.ActionType // Supported action types
@@ -70,6 +73,8 @@ func NewTabs() *TabsVNode {
 		onChange:     nil,
 		vertical:     false, // DEPRECATED
 		contents:     make(map[string]ui.VNode),
+		wrapTabs:     false, // Default: no wrapping (single row)
+		tabGap:       1,     // Default gap when wrapping
 		supportedActions: []action.ActionType{
 			action.ActionNavigateNext,
 			action.ActionNavigatePrev,
@@ -180,6 +185,19 @@ func (b *TabsBuilderType) Key(key string) *TabsBuilderType {
 	return b
 }
 
+// WrapTabs enables automatic tab bar wrapping
+// When enabled, tabs will wrap to multiple rows if they don't fit in one line
+func (b *TabsBuilderType) WrapTabs(wrap bool) *TabsBuilderType {
+	b.node.wrapTabs = wrap
+	return b
+}
+
+// TabGap sets the gap between tabs when wrapping
+func (b *TabsBuilderType) TabGap(gap int) *TabsBuilderType {
+	b.node.tabGap = gap
+	return b
+}
+
 // Getters
 func (t *TabsVNode) Tabs() []TabItem               { return t.tabs }
 func (t *TabsVNode) ActiveTab() int                { return t.activeTab }
@@ -213,10 +231,39 @@ func (t *TabsVNode) HandleEvent(ev frameworkevent.Event) bool {
 	localX := me.LocalX
 	localY := me.LocalY
 
-	// Check if click is in tab bar (first row)
-	if localY == 0 {
+	// Calculate tab bar height (1 row for normal, multiple for wrap mode)
+	tabBarHeight := 1
+	if t.wrapTabs && !t.vertical {
+		// Estimate rows (same logic as in Measure)
+		containerWidth := 80
+		if props := t.Props(); props != nil {
+			if w, ok := props["width"].(int); ok && w > 0 {
+				containerWidth = w
+			}
+		}
+
+		currentRowWidth := 0
+		rowCount := 1
+		for i, tab := range t.tabs {
+			tabWidth := utf8.RuneCountInString(tab.Label) + 2
+			if i > 0 {
+				tabWidth += t.tabGap
+			}
+
+			if currentRowWidth+tabWidth > containerWidth && currentRowWidth > 0 {
+				rowCount++
+				currentRowWidth = tabWidth
+			} else {
+				currentRowWidth += tabWidth
+			}
+		}
+		tabBarHeight = rowCount
+	}
+
+	// Check if click is in tab bar area
+	if localY >= 0 && localY < tabBarHeight {
 		// Handle tab bar click - switch tabs
-		return t.handleTabBarClick(localX)
+		return t.handleTabBarClick(localX, localY)
 	}
 
 	// Click is below tab bar - forward to active tab content
@@ -270,7 +317,7 @@ func (t *TabsVNode) updateMouse(mouseMsg *runtimemsg.MouseMsg) cmd.Cmd {
 	// Check if click is in tab bar (first row)
 	if localY == 0 {
 		// Handle tab bar click - switch tabs
-		t.handleTabBarClick(localX)
+		t.handleTabBarClick(localX, localY)
 		return nil // TODO: Return Cmd to trigger re-render
 	}
 
@@ -308,8 +355,13 @@ func (t *TabsVNode) updateKey(keyMsg *runtimemsg.KeyMsg) cmd.Cmd {
 }
 
 // handleTabBarClick handles clicks on the tab bar
-func (t *TabsVNode) handleTabBarClick(localX int) bool {
-	// Reconstruct tab bar layout to map x → tab.
+func (t *TabsVNode) handleTabBarClick(localX, localY int) bool {
+	// For wrapping tabs, we need to calculate multi-row layout
+	if t.wrapTabs {
+		return t.handleWrappedTabBarClick(localX, localY)
+	}
+
+	// Single-line tab bar (original behavior)
 	cursor := 0
 	for i, tab := range t.tabs {
 		if i > 0 {
@@ -341,6 +393,65 @@ func (t *TabsVNode) handleTabBarClick(localX int) bool {
 	return false
 }
 
+// handleWrappedTabBarClick handles clicks on a wrapped (multi-row) tab bar
+func (t *TabsVNode) handleWrappedTabBarClick(localX, localY int) bool {
+	// Get container width
+	containerWidth := 80
+	if props := t.Props(); props != nil {
+		if w, ok := props["width"].(int); ok && w > 0 {
+			containerWidth = w
+		}
+	}
+
+	// Simulate wrap layout to find which row and tab was clicked
+	currentRowWidth := 0
+	currentRow := 0
+	rowStartX := make(map[int]int) // Starting X position for each row
+
+	for i, tab := range t.tabs {
+		tabWidth := utf8.RuneCountInString(tab.Label) + 2 // +2 for brackets
+		if i > 0 {
+			tabWidth += t.tabGap
+		}
+
+		// Check if we need to wrap
+		if currentRowWidth+tabWidth > containerWidth && currentRowWidth > 0 {
+			currentRow++
+			currentRowWidth = tabWidth
+			rowStartX[currentRow] = 0
+		} else {
+			if currentRow == 0 {
+				rowStartX[currentRow] = 0
+			}
+			currentRowWidth += tabWidth
+		}
+
+		// Check if click is in this row and matches this tab
+		if currentRow == localY {
+			tabStart := rowStartX[currentRow]
+			tabEnd := tabStart + tabWidth
+
+			if localX >= tabStart && localX < tabEnd {
+				if tab.Disabled {
+					return true // consume but no action
+				}
+				if i != t.activeTab {
+					t.SetActiveTab(i)
+					if t.onChange != nil {
+						t.onChange(tab.ID)
+					}
+				}
+				return true
+			}
+
+			// Update next tab's start position for this row
+			rowStartX[currentRow] = tabEnd
+		}
+	}
+
+	return false
+}
+
 // =============================================================================
 // Internal Helper Methods
 // =============================================================================
@@ -351,17 +462,48 @@ func (t *TabsVNode) updateActiveContent() {
 		return
 	}
 
-	// Create tab bar (label row)
-	var parts []string
-	for i, tab := range t.tabs {
-		if i == t.activeTab {
-			parts = append(parts, "["+tab.Label+"]")
-		} else {
-			parts = append(parts, tab.Label)
+	var tabBarNode ui.VNode
+
+	// Create tab bar with or without wrapping
+	if t.wrapTabs {
+		// Use Wrap component for automatic wrapping
+		var tabNodes []ui.VNode
+		for i, tab := range t.tabs {
+			var tabLabel string
+			if i == t.activeTab {
+				tabLabel = fmt.Sprintf("[%s]", tab.Label)
+			} else {
+				tabLabel = tab.Label
+			}
+			tabNodes = append(tabNodes, ui.Text(tabLabel))
 		}
+
+		// Get container width from props or default to 80
+		containerWidth := 80
+		if props := t.Props(); props != nil {
+			if w, ok := props["width"].(int); ok {
+				containerWidth = w
+			}
+		}
+
+		tabBarNode = layout.NewWrapBuilder(tabNodes...).
+			Gap(t.tabGap).
+			ScreenWidth(containerWidth).
+			Align(ui.AlignStart).
+			Build()
+	} else {
+		// Original single-line behavior
+		var parts []string
+		for i, tab := range t.tabs {
+			if i == t.activeTab {
+				parts = append(parts, "["+tab.Label+"]")
+			} else {
+				parts = append(parts, tab.Label)
+			}
+		}
+		tabLine := strings.Join(parts, " | ")
+		tabBarNode = ui.Text(tabLine)
 	}
-	tabLine := strings.Join(parts, " | ")
-	tabBarNode := ui.Text(tabLine)
 
 	// Get active tab content
 	activeTabID := t.tabs[t.activeTab].ID
@@ -392,7 +534,7 @@ func (t *TabsVNode) Measure(constraints runtime.BoxConstraints) runtime.Size {
 		totalWidth += 2 // Adjust for first/last formatting
 	}
 
-	height := 1 // Tab bar height
+	height := 1 // Tab bar height (default single line)
 
 	// For vertical tabs, width is the max tab width
 	if t.vertical {
@@ -405,6 +547,34 @@ func (t *TabsVNode) Measure(constraints runtime.BoxConstraints) runtime.Size {
 		}
 		totalWidth = maxWidth + 2 // +2 for padding
 		height = len(t.tabs)
+	}
+
+	// For wrapping tabs, estimate height based on container width
+	if t.wrapTabs && !t.vertical {
+		containerWidth := constraints.MaxWidth
+		if props := t.Props(); props != nil {
+			if w, ok := props["width"].(int); ok && w > 0 {
+				containerWidth = w
+			}
+		}
+
+		// Estimate rows by simulating wrap
+		currentRowWidth := 0
+		rowCount := 1
+		for i, tab := range t.tabs {
+			tabWidth := utf8.RuneCountInString(tab.Label) + 2 // +2 for brackets
+			if i > 0 {
+				tabWidth += t.tabGap // Add gap between tabs
+			}
+
+			if currentRowWidth+tabWidth > containerWidth && currentRowWidth > 0 {
+				rowCount++
+				currentRowWidth = tabWidth
+			} else {
+				currentRowWidth += tabWidth
+			}
+		}
+		height = rowCount
 	}
 
 	// ADDED: Check for explicit width/height props (like measureLayoutChildren does)
@@ -583,6 +753,11 @@ func (t *TabsVNode) GetActiveTabContent() ui.VNode {
 
 	// Fallback to Content field in TabItem
 	return t.tabs[t.activeTab].Content
+}
+
+// Bounds returns the tab's bounds for hit testing
+func (t *TabsVNode) Bounds() [4]int {
+	return t.ElementVNode.GetBounds()
 }
 
 // NextTab switches to the next enabled tab

@@ -396,6 +396,8 @@ func (si *StandaloneInspector) buildOverlayContent() rtui.VNode {
 			}
 		}
 	})
+	// Enable wrapping for tabs with 7 tabs
+	tabsBuilder.WrapTabs(true).TabGap(1)
 
 	// No manual height calculation needed!
 	// Panel + Flex layout handles this automatically.
