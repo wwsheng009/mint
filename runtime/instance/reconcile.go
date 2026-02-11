@@ -1,6 +1,7 @@
 package instance
 
 import (
+	"github.com/wwsheng009/mint/framework/cmd"
 	"github.com/wwsheng009/mint/internal/log"
 	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
 	"github.com/wwsheng009/mint/runtime/ui"
@@ -168,8 +169,9 @@ func extractHandlers(vnode ui.VNode) Handlers {
 	}
 
 	// 尝试提取 onUpdate (Msg/Cmd 架构)
+	// 修复：匹配实际的 Update 方法签名，返回 cmd.Cmd
 	if updater, ok := vnode.(interface {
-		Update(runtimemsg.Msg) interface{}
+		Update(runtimemsg.Msg) cmd.Cmd
 	}); ok {
 		handlers.OnUpdate = updater.Update
 	}

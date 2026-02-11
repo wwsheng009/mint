@@ -1,6 +1,7 @@
 package instance
 
 import (
+	"github.com/wwsheng009/mint/framework/cmd"
 	"github.com/wwsheng009/mint/runtime/layout"
 	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
 )
@@ -73,7 +74,7 @@ type Handlers struct {
 	OnMouseEnter func()
 	OnMouseLeave func()
 	OnKeyPress   func(key string)
-	OnUpdate     func(msg runtimemsg.Msg) interface{}
+	OnUpdate     func(msg runtimemsg.Msg) cmd.Cmd // 修复：使用 cmd.Cmd 而不是 interface{}
 }
 
 // NewInstance 创建新实例
@@ -111,7 +112,7 @@ func (inst *Instance) Unmount() {
 }
 
 // Handle 处理消息（事件入口）
-func (inst *Instance) Handle(msg runtimemsg.Msg) interface{} {
+func (inst *Instance) Handle(msg runtimemsg.Msg) cmd.Cmd {
 	// 根据消息类型调用对应的处理器
 	if inst.Handlers.OnUpdate != nil {
 		return inst.Handlers.OnUpdate(msg)
@@ -158,7 +159,7 @@ func (inst *Instance) SetHandler(name string, handler interface{}) {
 			inst.Handlers.OnKeyPress = h
 		}
 	case "onUpdate":
-		if h, ok := handler.(func(runtimemsg.Msg) interface{}); ok {
+		if h, ok := handler.(func(runtimemsg.Msg) cmd.Cmd); ok {
 			inst.Handlers.OnUpdate = h
 		}
 	}
