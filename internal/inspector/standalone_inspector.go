@@ -104,6 +104,10 @@ type StandaloneInspector struct {
 	// VNode change tracking (to avoid unnecessary tree rebuilds)
 	lastRootVNode       ui.VNode // Last root VNode that was attached
 	lastTreeChangeCount int64    // Track tree view changes to avoid regenerating lines
+
+	// Screen information
+	screenWidth  int // Screen width (terminal columns)
+	screenHeight int // Screen height (terminal rows)
 }
 
 // InspectorTab represents different inspector panels
@@ -116,6 +120,7 @@ const (
 	TabDiagnostics
 	TabLayout
 	TabNetwork
+	TabScreenInfo
 )
 
 // OverlayPosition defines where inspector overlay appears
@@ -136,6 +141,7 @@ var tabNames = map[InspectorTab]string{
 	TabDiagnostics: "Diagnostics",
 	TabLayout:      "Layout",
 	TabNetwork:     "Network",
+	TabScreenInfo:  "Screen",
 }
 
 // NewStandaloneInspector creates a new standalone inspector instance
@@ -156,6 +162,8 @@ func NewStandaloneInspector() *StandaloneInspector {
 		floatY:         0, // Default Y position (top edge)
 		isDragging:     false,
 		updateInterval: 200 * time.Millisecond, // Throttle updates (5 FPS for tree/diagnostics)
+		screenWidth:    80, // Default terminal width
+		screenHeight:   25, // Default terminal height
 	}
 }
 
@@ -369,6 +377,7 @@ func (si *StandaloneInspector) buildOverlayContent() rtui.VNode {
 		{ID: "diagnostics", Label: "Diagnostics(4)", Content: si.buildDiagnosticsTabContent()},
 		{ID: "layout", Label: "Layout(5)", Content: si.buildLayoutTabContent()},
 		{ID: "network", Label: "Network(6)", Content: si.buildNetworkTabContent()},
+		{ID: "screen", Label: "Screen(7)", Content: si.buildScreenInfoTabContent()},
 	}
 
 	// Build tabs with Tab component using Builder pattern
@@ -484,6 +493,7 @@ func (si *StandaloneInspector) buildTabBar() rtui.VNode {
 		{TabDiagnostics, "4", "Diagnostics"},
 		{TabLayout, "5", "Layout"},
 		{TabNetwork, "6", "Network"},
+		{TabScreenInfo, "7", "Screen"},
 	}
 
 	for _, item := range allTabs {
@@ -521,6 +531,8 @@ func (si *StandaloneInspector) buildActiveTabContent() rtui.VNode {
 		return si.buildLayoutTabContent()
 	case TabNetwork:
 		return si.buildNetworkTabContent()
+	case TabScreenInfo:
+		return si.buildScreenInfoTabContent()
 	default:
 		return ui.Text("Tab not implemented")
 	}
@@ -821,6 +833,230 @@ func (si *StandaloneInspector) buildNetworkTabContent() rtui.VNode {
 			Style(style.Foreground(theme.Muted())).
 			Build(),
 	)
+}
+
+// buildScreenInfoTabContent builds content for Screen Info tab
+// Shows real-time screen size, mouse position, and button detection
+func (si *StandaloneInspector) buildScreenInfoTabContent() rtui.VNode {
+	// Build screen size section
+	screenSizeInfo := fmt.Sprintf("Screen Size: %d cols × %d rows", si.screenWidth, si.screenHeight)
+
+	// Build overlay position section
+	overlayPosInfo := fmt.Sprintf("Overlay Position: (%d, %d)", si.floatX, si.floatY)
+
+	// Build overlay size section
+	overlaySizeInfo := fmt.Sprintf("Overlay Size: %d cols × %d rows", si.overlayWidth, si.overlayHeight)
+
+	// Build mouse position section
+	mousePosInfo := fmt.Sprintf("Mouse Position: (%d, %d)", si.lastMouseX, si.lastMouseY)
+
+	// Build mouse event info
+	mouseEventInfo := fmt.Sprintf("Mouse Event: %s (%s)",
+		formatMouseEventType(si.lastMouseEvent),
+		formatMouseButtonName(si.lastMouseButton))
+
+	// Build hovered element info
+	var hoveredInfo string
+	if si.hoveredVNode != nil {
+		hoveredInfo = fmt.Sprintf("Hovered: %s", si.formatHovered())
+	} else {
+		hoveredInfo = "Hovered: None"
+	}
+
+	// Build selected element info
+	var selectedInfo string
+	if si.selectedVNode != nil {
+		selectedInfo = fmt.Sprintf("Selected: %s (%s)", si.selectedVNode.Type().String(), si.selectedPath)
+	} else {
+		selectedInfo = "Selected: None"
+	}
+
+	// Build inspector state info
+	inspectorStateInfo := fmt.Sprintf("Inspector: %s | %s | Tab: %s",
+		formatBool(si.enabled, "Enabled", "Disabled"),
+		formatBool(si.visible, "Visible", "Hidden"),
+		tabNames[si.activeTab])
+
+	// Calculate overlay bounds relative to screen
+	minX, minY := si.floatX, si.floatY
+	maxX, maxY := si.floatX+si.overlayWidth, si.floatY+si.overlayHeight
+	overlayBoundsInfo := fmt.Sprintf("Overlay Bounds: (%d,%d) to (%d,%d)", minX, minY, maxX, maxY)
+
+	// Check if mouse is in overlay
+	mouseInOverlay := si.lastMouseX >= minX && si.lastMouseX < maxX && si.lastMouseY >= minY && si.lastMouseY < maxY
+	mouseInOverlayInfo := fmt.Sprintf("Mouse in Overlay: %s", formatBool(mouseInOverlay, "Yes", "No"))
+
+	// Build button detection info
+	buttonDetectionInfo := si.buildButtonDetectionInfo()
+
+	return rtui.VStack(
+		app.NewTextBuilder("📺 Screen Information").
+			Style(style.FgBold(style.Green)).
+			Build(),
+		app.NewTextBuilder("").
+			Build(),
+
+		// Screen Size Section
+		app.NewTextBuilder("─ Screen Size ─").
+			Style(style.FgBold(style.Cyan)).
+			Build(),
+		app.NewTextBuilder(screenSizeInfo).
+			Style(style.Foreground(style.White)).
+			Build(),
+
+		app.NewTextBuilder("").
+			Build(),
+
+		// Overlay Position Section
+		app.NewTextBuilder("─ Overlay Position ─").
+			Style(style.FgBold(style.Cyan)).
+			Build(),
+		app.NewTextBuilder(overlayPosInfo).
+			Style(style.Foreground(style.White)).
+			Build(),
+		app.NewTextBuilder(overlaySizeInfo).
+			Style(style.Foreground(style.White)).
+			Build(),
+		app.NewTextBuilder(overlayBoundsInfo).
+			Style(style.Foreground(style.White)).
+			Build(),
+
+		app.NewTextBuilder("").
+			Build(),
+
+		// Mouse Section
+		app.NewTextBuilder("─ Mouse Information ─").
+			Style(style.FgBold(style.Cyan)).
+			Build(),
+		app.NewTextBuilder(mousePosInfo).
+			Style(style.Foreground(style.White)).
+			Build(),
+		app.NewTextBuilder(mouseEventInfo).
+			Style(style.Foreground(style.White)).
+			Build(),
+		app.NewTextBuilder(mouseInOverlayInfo).
+			Style(func() style.Style {
+				if mouseInOverlay {
+					return style.Foreground(style.Green)
+				}
+				return style.Foreground(style.Red)
+			}()).
+			Build(),
+
+		app.NewTextBuilder("").
+			Build(),
+
+		// Element Detection Section
+		app.NewTextBuilder("─ Element Detection ─").
+			Style(style.FgBold(style.Cyan)).
+			Build(),
+		app.NewTextBuilder(hoveredInfo).
+			Style(style.Foreground(style.Yellow)).
+			Build(),
+		app.NewTextBuilder(selectedInfo).
+			Style(style.Foreground(style.Green)).
+			Build(),
+
+		app.NewTextBuilder("").
+			Build(),
+
+		// Button Detection Section
+		app.NewTextBuilder("─ Button Detection ─").
+			Style(style.FgBold(style.Cyan)).
+			Build(),
+		app.NewTextBuilder(buttonDetectionInfo).
+			Style(style.Foreground(style.White)).
+			Build(),
+
+		app.NewTextBuilder("").
+			Build(),
+
+		// Inspector State Section
+		app.NewTextBuilder("─ Inspector State ─").
+			Style(style.FgBold(style.Cyan)).
+			Build(),
+		app.NewTextBuilder(inspectorStateInfo).
+			Style(style.Foreground(style.White)).
+			Build(),
+
+		app.NewTextBuilder("").
+			Build(),
+
+		// Instructions
+		app.NewTextBuilder("─ Instructions ─").
+			Style(style.FgBold(style.Cyan)).
+			Build(),
+		app.NewTextBuilder("Alt+J/K/L/H: Move overlay").
+			Style(style.Foreground(theme.Muted())).
+			Build(),
+		app.NewTextBuilder("Move mouse to see real-time updates").
+			Style(style.Foreground(theme.Muted())).
+			Build(),
+	)
+}
+
+// buildButtonDetectionInfo returns info about buttons under mouse
+func (si *StandaloneInspector) buildButtonDetectionInfo() string {
+	if si.hoveredVNode == nil {
+		return "No element under mouse"
+	}
+
+	// Check if hovered element is a button
+	if tagger, ok := si.hoveredVNode.(interface{ Tag() string }); ok {
+		tag := tagger.Tag()
+		if tag == "button" {
+			return fmt.Sprintf("✓ Button detected: %s", tag)
+		}
+	}
+
+	// Check for onClick handler
+	props := si.hoveredVNode.Props()
+	if props != nil {
+		if _, hasOnClick := props["onClick"]; hasOnClick {
+			return "✓ Clickable element (has onClick)"
+		}
+	}
+
+	typeName := si.hoveredVNode.Type().String()
+	return fmt.Sprintf("Element: %s (not a button)", typeName)
+}
+
+// formatBool returns a formatted string based on boolean value
+func formatBool(cond bool, trueStr, falseStr string) string {
+	if cond {
+		return trueStr
+	}
+	return falseStr
+}
+
+// formatMouseEventType returns human-readable mouse event type
+func formatMouseEventType(eventType frameworkevent.EventType) string {
+	switch eventType {
+	case frameworkevent.EventMousePress:
+		return "Press"
+	case frameworkevent.EventMouseRelease:
+		return "Release"
+	case frameworkevent.EventMouseMove:
+		return "Move"
+	case frameworkevent.EventMouseWheel:
+		return "Wheel"
+	default:
+		return "None"
+	}
+}
+
+// formatMouseButtonName returns human-readable mouse button name
+func formatMouseButtonName(btn frameworkevent.MouseButton) string {
+	switch btn {
+	case frameworkevent.MouseLeft:
+		return "Left"
+	case frameworkevent.MouseMiddle:
+		return "Middle"
+	case frameworkevent.MouseRight:
+		return "Right"
+	default:
+		return "None"
+	}
 }
 
 // buildLayoutTabContent builds content for Layout Diagnostics tab
@@ -1300,6 +1536,21 @@ func (si *StandaloneInspector) SetOverlaySize(width, height int) {
 	si.overlayHeight = height
 }
 
+// SetScreenSize sets the screen (terminal) size
+func (si *StandaloneInspector) SetScreenSize(width, height int) {
+	si.mu.Lock()
+	defer si.mu.Unlock()
+	si.screenWidth = width
+	si.screenHeight = height
+}
+
+// GetScreenSize returns the screen (terminal) size
+func (si *StandaloneInspector) GetScreenSize() (width, height int) {
+	si.mu.RLock()
+	defer si.mu.RUnlock()
+	return si.screenWidth, si.screenHeight
+}
+
 // SetPosition sets the overlay position
 func (si *StandaloneInspector) SetPosition(pos OverlayPosition) {
 	si.mu.Lock()
@@ -1502,6 +1753,13 @@ func (si *StandaloneInspector) HandleKeyEvent(key string, alt bool, ctrl bool, s
 		}
 		return true
 	}
+	if key == "7" {
+		si.activeTab = TabScreenInfo
+		if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
+			fmt.Fprintf(os.Stderr, "[Inspector] Switched to Screen Info tab (key=7)\n")
+		}
+		return true
+	}
 
 	// Tab cycling - cycle through inspector tabs
 	if key == "tab" {
@@ -1509,12 +1767,12 @@ func (si *StandaloneInspector) HandleKeyEvent(key string, alt bool, ctrl bool, s
 			// Shift+Tab: cycle backward through tabs
 			si.activeTab--
 			if si.activeTab < TabElements {
-				si.activeTab = TabNetwork
+				si.activeTab = TabScreenInfo
 			}
 		} else {
 			// Tab (alone or with Ctrl/Alt): cycle forward through tabs
 			si.activeTab++
-			if si.activeTab > TabNetwork {
+			if si.activeTab > TabScreenInfo {
 				si.activeTab = TabElements
 			}
 		}

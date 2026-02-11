@@ -1187,61 +1187,75 @@ func (a *App) render() {
 	}
 
 	// ============================================================================
-	// Phase 1: 构建 HitMap（在每次渲染后）
+	// Phase 1: 获取 HitMap（在每次渲染后）
 	// ============================================================================
-	// 在渲染完成后，从布局树构建 HitMap
-	// HitMap 用于下一帧的鼠标事件命中测试
+	// 优先从 RenderingPipeline 获取 HitMap（包含 Layer centering 等变换）
+	// 如果不可用，回退到从布局树构建 HitMap
 	if a.root != nil {
 		// DEBUG: 输出 root 类型
 		if os.Getenv("TUI_DEBUG_HITMAP") == "true" {
 			fmt.Fprintf(os.Stderr, "[APP] root type: %T\n", a.root)
 		}
 
-		// 方法1：尝试从 layout.Node 构建
+		// 方法1：尝试从 DeclarativeNode 获取 RenderingPipeline 的 HitMap（推荐）
+		// 这个 HitMap 包含了所有布局变换后的最终位置（包括 Layer centering）
+		if declNode, ok := a.root.(interface{ GetHitMap() *runtimeevent.HitMap }); ok {
+			a.hitMap = declNode.GetHitMap()
+
+			if a.hitMap != nil {
+				if os.Getenv("TUI_DEBUG_HITMAP") == "true" {
+					fmt.Fprintf(os.Stderr, "[APP] ✅ Got HitMap from RenderingPipeline: %d entries (includes layer transforms)\n", a.hitMap.Size())
+				}
+			} else {
+				if os.Getenv("TUI_DEBUG_HITMAP") == "true" {
+					fmt.Fprintf(os.Stderr, "[APP] ⚠️  RenderingPipeline returned nil HitMap, falling back to BuildHitMap\n")
+				}
+			}
+		}
+
+		// 方法2：如果 RenderingPipeline 的 HitMap 不可用，回退到从 layout.Node 构建
+		if a.hitMap == nil {
+			if layoutRoot, ok := a.root.(layout.Node); ok {
+				a.hitMap = runtimeevent.BuildHitMap(layoutRoot)
+
+				if os.Getenv("TUI_DEBUG_HITMAP") == "true" {
+					fmt.Fprintf(os.Stderr, "[APP] ⚠️  HitMap built from layout.Node: %d entries (may not include layer transforms)\n", a.hitMap.Size())
+				}
+			} else if vnodeRoot, ok := a.root.(rtui.VNode); ok {
+				// 通过 VNodeAdapter 将 VNode 转换为 layout.Node
+				layoutAdapter := rtui.AsLayoutNode(vnodeRoot)
+				a.hitMap = runtimeevent.BuildHitMap(layoutAdapter)
+
+				if os.Getenv("TUI_DEBUG_HITMAP") == "true" {
+					fmt.Fprintf(os.Stderr, "[APP] ⚠️  HitMap built from VNode: %d entries (may not include layer transforms)\n", a.hitMap.Size())
+				}
+			} else {
+				// DEBUG: root 不是 layout.Node 也不是 VNode
+				if os.Getenv("TUI_DEBUG_HITMAP") == "true" {
+					fmt.Fprintf(os.Stderr, "[APP] root is neither layout.Node nor VNode, type=%T\n", a.root)
+				}
+			}
+		}
+
+		// Phase 1-6: 将 HitMap 传递给 Pump 用于鼠标事件命中测试
+		if a.pump != nil && a.hitMap != nil {
+			a.pump.SetHitMap(a.hitMap)
+		}
+
+		// Phase 2: 构建组件注册表（从布局树提取 Updater 组件）
 		if layoutRoot, ok := a.root.(layout.Node); ok {
-			a.hitMap = runtimeevent.BuildHitMap(layoutRoot)
-
-			// Phase 1-6: 将 HitMap 传递给 Pump 用于鼠标事件命中测试
-			if a.pump != nil {
-				a.pump.SetHitMap(a.hitMap)
-			}
-
-			// Phase 2: 构建组件注册表（从布局树提取 Updater 组件）
 			a.buildComponentRegistry(layoutRoot)
-
-			// Phase 3: 更新焦点管理器（从布局树提取 Focusable 组件）
-			a.updateFocusManager(layoutRoot)
-
-			// DEBUG: 输出 HitMap 统计信息
-			if os.Getenv("TUI_DEBUG_HITMAP") == "true" {
-				fmt.Fprintf(os.Stderr, "[APP] HitMap built from layout.Node: %d entries\n", a.hitMap.Size())
-			}
 		} else if vnodeRoot, ok := a.root.(rtui.VNode); ok {
-			// 方法2：从 VNode 构建（支持 Inspector overlay）
-			// 通过 VNodeAdapter 将 VNode 转换为 layout.Node
 			layoutAdapter := rtui.AsLayoutNode(vnodeRoot)
-			a.hitMap = runtimeevent.BuildHitMap(layoutAdapter)
-
-			// Phase 1-6: 将 HitMap 传递给 Pump 用于鼠标事件命中测试
-			if a.pump != nil {
-				a.pump.SetHitMap(a.hitMap)
-			}
-
-			// Phase 2: 构建组件注册表（从 VNode 树提取 Updater 组件）
 			a.buildComponentRegistry(layoutAdapter)
+		}
 
-			// Phase 3: 更新焦点管理器（从 VNode 树提取 Focusable 组件）
+		// Phase 3: 更新焦点管理器（从布局树提取 Focusable 组件）
+		if layoutRoot, ok := a.root.(layout.Node); ok {
+			a.updateFocusManager(layoutRoot)
+		} else if vnodeRoot, ok := a.root.(rtui.VNode); ok {
+			layoutAdapter := rtui.AsLayoutNode(vnodeRoot)
 			a.updateFocusManager(layoutAdapter)
-
-			// DEBUG: 输出 HitMap 统计信息
-			if os.Getenv("TUI_DEBUG_HITMAP") == "true" {
-				fmt.Fprintf(os.Stderr, "[APP] HitMap built from VNode: %d entries\n", a.hitMap.Size())
-			}
-		} else {
-			// DEBUG: root 不是 layout.Node 也不是 VNode
-			if os.Getenv("TUI_DEBUG_HITMAP") == "true" {
-				fmt.Fprintf(os.Stderr, "[APP] root is neither layout.Node nor VNode, type=%T\n", a.root)
-			}
 		}
 	}
 
@@ -1507,6 +1521,18 @@ func (a *App) Resize(width, height int) {
 
 	// 更新 Renderer 的尺寸
 	a.renderer.Resize(width, height)
+
+	// 更新 Inspector 的屏幕大小
+	if a.inspector != nil {
+		if inspectorObj, ok := a.inspector.(interface {
+			SetScreenSize(width, height int)
+		}); ok {
+			inspectorObj.SetScreenSize(width, height)
+			if os.Getenv("TUI_DEBUG_UI") == "true" || os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
+				fmt.Fprintf(os.Stderr, "[APP] Inspector screen size updated to %dx%d\n", width, height)
+			}
+		}
+	}
 
 	// 尺寸变化时清屏，避免残留内容
 	if sizeChanged && !a.firstRender {
