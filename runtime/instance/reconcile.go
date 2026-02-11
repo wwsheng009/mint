@@ -156,6 +156,7 @@ func extractHandlers(vnode ui.VNode) Handlers {
 	// 尝试提取 onClick
 	if clicker, ok := vnode.(interface{ OnClick() func() }); ok {
 		handlers.OnClick = clicker.OnClick()
+		log.UILogger.Debug("[extractHandlers] Found OnClick handler")
 	}
 
 	// 尝试提取 onMouseEnter
@@ -174,6 +175,9 @@ func extractHandlers(vnode ui.VNode) Handlers {
 		Update(runtimemsg.Msg) cmd.Cmd
 	}); ok {
 		handlers.OnUpdate = updater.Update
+		log.UILogger.Debug("[extractHandlers] ✅ Found Update handler for vnode type=%T", vnode)
+	} else {
+		log.UILogger.Debug("[extractHandlers] ❌ No Update handler for vnode type=%T", vnode)
 	}
 
 	return handlers

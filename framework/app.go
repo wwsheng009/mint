@@ -786,25 +786,29 @@ func (a *App) handleMsg(message runtimemsg.Msg) bool {
 	// ✨ 新架构：优先使用 Instance 引用
 	// 根据 fix1.md：事件链条 HitMap → LayoutNode → Instance → Handler
 	if mouseMsg, ok := message.(*runtimemsg.MouseMsg); ok {
+		log.UILogger.Debug("[handleMsg] MouseMsg received, TargetInstance=%v, TargetID=%s", mouseMsg.TargetInstance != nil, mouseMsg.TargetID)
 		if mouseMsg.TargetInstance != nil {
-			log.UILogger.Debug("Instance routing: MouseMsg → Instance, Action=%v", mouseMsg.Action)
+			log.UILogger.Debug("[handleMsg] ✅ Instance routing: MouseMsg → Instance, Action=%v", mouseMsg.Action)
 
 			// 尝试将 TargetInstance 转换为 Handler 接口
-			// EventHandler 定义在 event/hitmap.go 中，Instance 实现了这个接口
+			// MsgHandler 定义在 event/hitmap.go 中，Instance 实现了这个接口
 			if handler, ok := mouseMsg.TargetInstance.(interface{ Handle(runtimemsg.Msg) interface{} }); ok {
-				log.UILogger.Debug("Calling Instance.Handle()")
+				log.UILogger.Debug("[handleMsg] Calling handler.Handle()")
 				cmd := handler.Handle(mouseMsg)
 				if cmd != nil {
 					// TODO: 执行 Cmd（需要实现 Cmd 执行系统）
-					log.UILogger.Debug("Instance returned Cmd: %v", cmd)
+					log.UILogger.Debug("[handleMsg] Instance returned Cmd: %v", cmd)
 				}
 
 				// 标记需要重新渲染
 				a.dirty = true
+				log.UILogger.Debug("[handleMsg] Message handled, dirty=true")
 				return true // 消息已处理
 			}
 
-			log.UILogger.Debug("TargetInstance does not implement Handle interface")
+			log.UILogger.Debug("[handleMsg] ❌ TargetInstance does not implement Handle interface")
+		} else {
+			log.UILogger.Debug("[handleMsg] ❌ TargetInstance is nil")
 		}
 	}
 
@@ -1738,10 +1742,14 @@ type instanceHandlerAdapter struct {
 
 // Handle 实现 MsgHandler 接口
 func (a *instanceHandlerAdapter) Handle(msg interface{}) interface{} {
+	log.UILogger.Debug("[instanceHandlerAdapter.Handle] Called, inst=%v, inst.ID=%s", a.inst != nil, a.inst.ID)
 	// 将 interface{} 转换为 runtimemsg.Msg
 	if runtimeMsg, ok := msg.(runtimemsg.Msg); ok {
-		return a.inst.Handle(runtimeMsg)
+		result := a.inst.Handle(runtimeMsg)
+		log.UILogger.Debug("[instanceHandlerAdapter.Handle] Result=%v", result)
+		return result
 	}
+	log.UILogger.Debug("[instanceHandlerAdapter.Handle] Failed to convert msg to runtimemsg.Msg")
 	return nil
 }
 

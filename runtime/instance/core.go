@@ -2,6 +2,7 @@ package instance
 
 import (
 	"github.com/wwsheng009/mint/framework/cmd"
+	"github.com/wwsheng009/mint/internal/log"
 	"github.com/wwsheng009/mint/runtime/layout"
 	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
 )
@@ -113,10 +114,13 @@ func (inst *Instance) Unmount() {
 
 // Handle 处理消息（事件入口）
 func (inst *Instance) Handle(msg runtimemsg.Msg) cmd.Cmd {
+	log.UILogger.Debug("[Instance.Handle] Called for Instance ID=%s Type=%s, OnUpdate=%v", inst.ID, inst.Type, inst.Handlers.OnUpdate != nil)
 	// 根据消息类型调用对应的处理器
 	if inst.Handlers.OnUpdate != nil {
+		log.UILogger.Debug("[Instance.Handle] ✅ Calling OnUpdate for Instance ID=%s", inst.ID)
 		return inst.Handlers.OnUpdate(msg)
 	}
+	log.UILogger.Debug("[Instance.Handle] ❌ No OnUpdate handler for Instance ID=%s", inst.ID)
 	return nil
 }
 
