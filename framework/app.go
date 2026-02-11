@@ -1278,11 +1278,6 @@ func (a *App) render() {
 			}
 		}
 
-		// Phase 1-6: 将 HitMap 传递给 Pump 用于鼠标事件命中测试
-		if a.pump != nil && a.hitMap != nil {
-			a.pump.SetHitMap(a.hitMap)
-		}
-
 		// ============================================================================
 		// Phase 2: Reconcile VNode → Instance（新架构核心）
 		// ============================================================================
@@ -1335,6 +1330,12 @@ func (a *App) render() {
 		if a.hitMap != nil && a.instanceRoot != nil {
 			a.enrichHitMapWithInstances()
 			log.UILogger.Debug("[APP] Enriched HitMap with Instance references")
+		}
+
+		// Phase 1-6: 将 HitMap 传递给 Pump 用于鼠标事件命中测试
+		// 注意：必须在 enrichHitMapWithInstances 之后调用，这样 Pump 才能获得 Instance 引用
+		if a.pump != nil && a.hitMap != nil {
+			a.pump.SetHitMap(a.hitMap)
 		}
 
 		// Phase 3: 更新焦点管理器（从布局树提取 Focusable 组件）

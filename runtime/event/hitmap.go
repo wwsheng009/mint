@@ -284,6 +284,14 @@ func (hm *HitMap) AllEntries() []HitMapEntry {
 	return hm.entries
 }
 
+// SetEntryInstance sets the Instance field for an entry at the given index
+// This is used by App.enrichHitMapWithInstances to add Instance references
+func (hm *HitMap) SetEntryInstance(index int, handler MsgHandler) {
+	if index >= 0 && index < len(hm.entries) {
+		hm.entries[index].Instance = handler
+	}
+}
+
 // NewHitMap creates a new empty HitMap
 func NewHitMap() *HitMap {
 	return &HitMap{
