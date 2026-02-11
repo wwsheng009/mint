@@ -17,6 +17,7 @@ import (
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 	ui "github.com/wwsheng009/mint/ui"
+	"github.com/wwsheng009/mint/internal/log"
 )
 
 // Interface implementation assertions
