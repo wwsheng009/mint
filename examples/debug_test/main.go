@@ -112,12 +112,12 @@ func (b *Button) Paint(buf *paint.Buffer) {
 }
 
 func (b *Button) HandleMouse(ev *event.MouseEvent, localX, localY int) bool {
-	logMsg(fmt.Sprintf("Button %s HandleMouse: Type=%v Click=%v localX=%d localY=%d", b.id, ev.Type, ev.Click, localX, localY))
+	logMsg(fmt.Sprintf("Button %s HandleMouse: Type=%v Click=%v localX=%d localY=%d", b.id, ev.Type, ev.Button, localX, localY))
 	logger.LogMouseEvent(b.id, localX, localY, string(ev.Type), "left")
 
 	// 严格检查：必须是鼠标按下事件，且是左键
-	if ev.Type == event.MousePress && ev.Click == event.MouseLeft {
-		logMsg(fmt.Sprintf("Button %s CLICKED! (Type=%v, Click=%v)", b.id, ev.Type, ev.Click))
+	if ev.Type == event.MousePress && ev.Button == event.MouseLeft {
+		logMsg(fmt.Sprintf("Button %s CLICKED! (Type=%v, Click=%v)", b.id, ev.Type, ev.Button))
 		if b.onClick != nil {
 			b.onClick()
 		}

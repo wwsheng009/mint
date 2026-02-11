@@ -182,12 +182,12 @@ func (b *Button) Paint(buf *paint.Buffer) {
 // event.MouseEventHandler 接口
 func (b *Button) HandleMouse(ev *event.MouseEvent, localX, localY int) bool {
 	logEvent("Button %s received mouse event: Type=%v Click=%v Pos=(%d,%d)",
-		b.id, ev.Type, ev.Click, localX, localY)
+		b.id, ev.Type, ev.Button, localX, localY)
 
 	// 记录鼠标事件到日志文件
 	if logger != nil {
 		clickType := "none"
-		switch ev.Click {
+		switch ev.Button {
 		case event.MouseLeft:
 			clickType = "left"
 		case event.MouseMiddle:
@@ -198,7 +198,7 @@ func (b *Button) HandleMouse(ev *event.MouseEvent, localX, localY int) bool {
 		logger.LogMouseEvent(b.id, localX, localY, string(ev.Type), clickType)
 	}
 
-	if ev.Type == event.MousePress && ev.Click == event.MouseLeft {
+	if ev.Type == event.MousePress && ev.Button == event.MouseLeft {
 		logEvent("Button %s CLICKED! Triggering callback", b.id)
 		if b.onClick != nil {
 			b.onClick()

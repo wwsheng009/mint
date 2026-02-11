@@ -166,7 +166,7 @@ func (b *Button) Paint(buf *paint.Buffer) {
 func (b *Button) HandleMouse(ev *event.MouseEvent, localX, localY int) bool {
 	if dt.IsEnabled() {
 		clickType := "none"
-		switch ev.Click {
+		switch ev.Button {
 		case event.MouseLeft:
 			clickType = "left"
 		case event.MouseMiddle:
@@ -180,7 +180,7 @@ func (b *Button) HandleMouse(ev *event.MouseEvent, localX, localY int) bool {
 		})
 	}
 
-	if ev.Type == event.MousePress && ev.Click == event.MouseLeft {
+	if ev.Type == event.MousePress && ev.Button == event.MouseLeft {
 		logEvent("Button %s CLICKED!", b.id)
 		if b.onClick != nil {
 			b.onClick()

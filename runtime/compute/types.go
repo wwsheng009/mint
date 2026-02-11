@@ -3,6 +3,7 @@ package compute
 
 import (
 	"github.com/wwsheng009/mint/runtime"
+	"github.com/wwsheng009/mint/runtime/event"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
 
@@ -21,7 +22,8 @@ type VNode = rtui.VNode
 // ComputedLayout contains the computed layout information for a VNode tree
 // This is the output of the new Layout Engine and input to the Paint Engine
 type ComputedLayout struct {
-	Root *ComputedBox
+	Root   *ComputedBox
+	HitMap *event.HitMap // HitMap built from final ComputedBox positions
 }
 
 // ComputedBox represents the computed position and size of a single node

@@ -21,9 +21,11 @@ package main
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/framework/theme"
+	"github.com/wwsheng009/mint/internal/logger"
 	"github.com/wwsheng009/mint/runtime/style"
 	"github.com/wwsheng009/mint/ui"
 )
@@ -32,6 +34,24 @@ func main() {
 	// Ensure default theme is loaded
 	_ = theme.SetTheme("nord")
 
+	// ============================================================
+	// 调试环境变量 - 用于 HitTest 和 Modal 点击测试
+	// ============================================================
+	// 启用文件日志（记录 HitTest、鼠标位置、Modal 居中等）
+	os.Setenv("TUI_DEBUG_LOG", "demo1_debug.log")
+
+	// 自动打开 Modal，方便直接测试按钮点击
+	os.Setenv("AUTO_OPEN_MODAL", "true")
+
+	// 启用以下环境变量可获取更详细的调试信息：
+	os.Setenv("TUI_DEBUG_HITMAP", "true")   // HitMap 构建详情
+	// os.Setenv("TUI_LAYER_DEBUG", "true")    // Layer 系统调试
+	// os.Setenv("TUI_DEBUG_RENDERING", "true") // 渲染管线调试
+	os.Setenv("TUI_DEBUG_UI", "true")       // UI 通用调试
+
+	// ============================================================
+	// 运行应用
+	// ============================================================
 	err := ui.Run(App,
 		ui.WithWidth(80),
 		ui.WithHeight(24),
@@ -40,12 +60,25 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+
+	// 运行结束后提示日志位置
+	log := logger.Get()
+	log.Info("APP", "=== Debug session ended ===")
+	log.Info("APP", "Log file: demo1_debug.log")
+	log.Info("APP", "Check for:")
+	log.Info("APP", "  - [MOUSE] mouse position and HitTest results")
+	log.Info("APP", "  - [LAYER] modal centering and position")
+	log.Info("APP", "  - [HITMAP] button bounds entries")
 }
 
 // App is the root component
 func App() ui.VNode {
 	count, setCount, _ := ui.UseStateInt(0)
-	showModal, setShowModal := ui.UseStateBool(false)
+
+	// 环境变量控制：默认打开 modal 用于调试
+	autoOpenModal := os.Getenv("AUTO_OPEN_MODAL") == "true"
+	showModal, setShowModal := ui.UseStateBool(autoOpenModal)
+
 	input, setInput := ui.UseStateString("")
 
 	// Generate large list for VirtualList
@@ -59,18 +92,23 @@ func App() ui.VNode {
 	mainContent := ui.VStackBuilder(
 		Header(count, setShowModal, setCount),
 		MainBody(count, setCount, input, setInput, items),
+		DebugPanel(),
 	).Stretch().Build()
 
 	// If modal is open, render both main content and modal
 	// The LayerManager will separate them into different layers
 	if showModal {
-		return ui.VStack(
+		modalVNode := ConfirmModal(func() {
+			setShowModal(false)
+		})
+
+		result := ui.VStack(
 			mainContent,
 			// Modal layer - automatically centered and overlays main content
-			ConfirmModal(func() {
-				setShowModal(false)
-			}),
+			modalVNode,
 		)
+
+		return result
 	}
 
 	// Otherwise render just main content
@@ -218,6 +256,8 @@ func ConfirmModal(onClose func()) ui.VNode {
 		Child(
 			ui.VStackBuilder(
 				ui.Text(""),
+				// DEBUG: Line number to verify position
+				ui.Text("=== MODAL START ==="),
 				// Centered title - use HStack with AlignCenter
 				// Uses theme WARNING color for title
 				ui.HStackBuilder(
@@ -250,6 +290,8 @@ func ConfirmModal(onClose func()) ui.VNode {
 						Build(),
 				).Align(ui.AlignCenter).Build(),
 				ui.Text(""),
+				// DEBUG: End marker
+				ui.Text("=== MODAL END ==="),
 			).Build(),
 		).
 		Build()
@@ -258,5 +300,50 @@ func ConfirmModal(onClose func()) ui.VNode {
 		OnClose(onClose).
 		CloseOnESC(true).
 		CloseOnBackdropClick(true).
+		Build()
+}
+
+// =============================================================================
+// Debug Helper Functions
+// =============================================================================
+
+// DebugPanel 显示屏幕配置和调试信息
+func DebugPanel() ui.VNode {
+	infoLines := []string{
+		"┌─ SCREEN/INFO PANEL ─────────────────────────────────────────────┐",
+		"│ Buffer Size: 80x24 (configured via ui.WithWidth/Height)        │",
+		"│ Debug Log: demo1_debug.log (check for HitTest details)         │",
+		"│                                                                │",
+		"│ MODAL BUTTON HITEST VERIFICATION:                              │",
+		"│ 1. Modal opens automatically (AUTO_OPEN_MODAL=true)            │",
+		"│ 2. Click modal buttons - they increment the counter           │",
+		"│ 3. Check demo1_debug.log for:                                  │",
+		"│    - Mouse position (X, Y)                                     │",
+		"│    - HitTest results (button bounds)                           │",
+		"│    - Multiple button overlap detection                         │",
+		"│    - Modal centering calculations                              │",
+		"│                                                                │",
+		"│ EXPECTED BEHAVIOR:                                             │",
+		"│ - Modal centered in buffer: Y position depends on buffer size│",
+		"│ - If actual terminal > 24 lines, check logs for actual size   │",
+		"└────────────────────────────────────────────────────────────────┘",
+	}
+
+	return ui.VStackBuilder(
+		ui.Text(infoLines[0]),
+		ui.Text(infoLines[1]),
+		ui.Text(infoLines[2]),
+		ui.Text(infoLines[3]),
+		ui.Text(infoLines[4]),
+		ui.Text(infoLines[5]),
+		ui.Text(infoLines[6]),
+		ui.Text(infoLines[7]),
+		ui.Text(infoLines[8]),
+		ui.Text(infoLines[9]),
+		ui.Text(infoLines[10]),
+		ui.Text(infoLines[11]),
+		ui.Text(infoLines[12]),
+		ui.Text(infoLines[13]),
+	).
 		Build()
 }
