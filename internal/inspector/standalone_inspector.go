@@ -838,76 +838,79 @@ func (si *StandaloneInspector) buildNetworkTabContent() rtui.VNode {
 // buildScreenInfoTabContent builds content for Screen Info tab
 // Shows real-time screen size, mouse position, and button detection
 func (si *StandaloneInspector) buildScreenInfoTabContent() rtui.VNode {
-	// Compact single-line format to avoid overflow
-	// Each line combines multiple pieces of info
+	// Build screen size info
+	screenInfo := fmt.Sprintf("Terminal: %d cols × %d rows", si.screenWidth, si.screenHeight)
 
-	// Line 1: Screen & Overlay info
-	screenInfo := fmt.Sprintf("Screen:%d×%d  Overlay:%d×%d@(%d,%d)  Bounds:(%d,%d)-(%d,%d)",
-		si.screenWidth, si.screenHeight,
-		si.overlayWidth, si.overlayHeight, si.floatX, si.floatY,
-		si.floatX, si.floatY, si.floatX+si.overlayWidth, si.floatY+si.overlayHeight)
+	// Build overlay info
+	overlayInfo := fmt.Sprintf("Overlay: %d×%d at (%d,%d)", si.overlayWidth, si.overlayHeight, si.floatX, si.floatY)
 
-	// Line 2: Mouse info
-	mouseInfo := fmt.Sprintf("Mouse:(%d,%d)  Event:%s/%s",
+	// Build mouse info
+	mouseInfo := fmt.Sprintf("Mouse: (%d, %d)  %s  %s",
 		si.lastMouseX, si.lastMouseY,
 		formatMouseEventType(si.lastMouseEvent),
 		formatMouseButtonName(si.lastMouseButton))
 
-	// Line 3: Element detection (compact)
-	var hoverStr, selStr string
-	if si.hoveredVNode != nil {
-		h := si.formatHovered()
-		if len(h) > 35 {
-			h = h[:32] + "..."
-		}
-		hoverStr = fmt.Sprintf("Hover:%s", h)
-	} else {
-		hoverStr = "Hover:None"
-	}
-
-	if si.selectedVNode != nil {
-		selStr = fmt.Sprintf("Sel:%s", si.selectedVNode.Type().String())
-	} else {
-		selStr = "Sel:None"
-	}
-	elementInfo := fmt.Sprintf("%s  %s", hoverStr, selStr)
-
-	// Line 4: Button detection & overlay status
+	// Check if mouse is in overlay
 	minX, minY := si.floatX, si.floatY
 	maxX, maxY := si.floatX+si.overlayWidth, si.floatY+si.overlayHeight
 	mouseInOverlay := si.lastMouseX >= minX && si.lastMouseX < maxX && si.lastMouseY >= minY && si.lastMouseY < maxY
 
-	buttonStr := si.buildButtonDetectionInfo()
-	if len(buttonStr) > 25 {
-		buttonStr = buttonStr[:22] + "..."
-	}
-	overlayStatus := fmt.Sprintf("InOverlay:%s", formatBool(mouseInOverlay, "Y", "N"))
-	detectionInfo := fmt.Sprintf("Button:%s  %s", buttonStr, overlayStatus)
+	// Build overlay bounds info
+	boundsInfo := fmt.Sprintf("Bounds: (%d,%d) to (%d,%d)", minX, minY, maxX, maxY)
+	insideInfo := fmt.Sprintf("Mouse in overlay: %s", formatBool(mouseInOverlay, "Yes", "No"))
 
-	// Line 5: Inspector state
-	stateInfo := fmt.Sprintf("Inspector:%s %s Tab:%s",
-		formatBool(si.enabled, "On", "Off"),
-		formatBool(si.visible, "Vis", "Hid"),
+	// Build element detection info
+	var hoverInfo, selInfo string
+	if si.hoveredVNode != nil {
+		h := si.formatHovered()
+		if len(h) > 50 {
+			h = h[:47] + "..."
+		}
+		hoverInfo = fmt.Sprintf("Hovered: %s", h)
+	} else {
+		hoverInfo = "Hovered: None"
+	}
+
+	if si.selectedVNode != nil {
+		selInfo = fmt.Sprintf("Selected: %s (%s)", si.selectedVNode.Type().String(), si.selectedPath)
+		if len(selInfo) > 50 {
+			selInfo = fmt.Sprintf("Selected: %s", si.selectedVNode.Type().String())
+		}
+	} else {
+		selInfo = "Selected: None"
+	}
+
+	// Build button detection
+	buttonInfo := si.buildButtonDetectionInfo()
+
+	// Build inspector state
+	stateInfo := fmt.Sprintf("Inspector: %s | %s | Tab: %s",
+		formatBool(si.enabled, "Enabled", "Disabled"),
+		formatBool(si.visible, "Visible", "Hidden"),
 		tabNames[si.activeTab])
 
-	// Line 6: Instructions (muted)
-	instructions := "Alt+H/J/K/L: Move panel"
-
+	// Build all lines compactly but readable
 	return rtui.VStack(
-		app.NewTextBuilder("📺 Screen Info").
+		app.NewTextBuilder("📺 Screen Information").
 			Style(style.FgBold(style.Green)).
 			Build(),
 		ui.Text("─"),
+
+		// Screen & Overlay (2 lines)
 		app.NewTextBuilder(screenInfo).
 			Style(style.Foreground(style.White)).
 			Build(),
+		app.NewTextBuilder(overlayInfo).
+			Style(style.Foreground(style.White)).
+			Build(),
+
+		ui.Text(""),
+
+		// Mouse (2 lines)
 		app.NewTextBuilder(mouseInfo).
 			Style(style.Foreground(style.Cyan)).
 			Build(),
-		app.NewTextBuilder(elementInfo).
-			Style(style.Foreground(style.Yellow)).
-			Build(),
-		app.NewTextBuilder(detectionInfo).
+		app.NewTextBuilder(boundsInfo + "  " + insideInfo).
 			Style(func() style.Style {
 				if mouseInOverlay {
 					return style.Foreground(style.Green)
@@ -915,10 +918,31 @@ func (si *StandaloneInspector) buildScreenInfoTabContent() rtui.VNode {
 				return style.Foreground(style.Red)
 			}()).
 			Build(),
+
+		ui.Text(""),
+
+		// Elements (2 lines)
+		app.NewTextBuilder(hoverInfo).
+			Style(style.Foreground(style.Yellow)).
+			Build(),
+		app.NewTextBuilder(selInfo).
+			Style(style.Foreground(style.Green)).
+			Build(),
+
+		ui.Text(""),
+
+		// Button & State (2 lines)
+		app.NewTextBuilder(buttonInfo).
+			Style(style.Foreground(style.White)).
+			Build(),
 		app.NewTextBuilder(stateInfo).
 			Style(style.Foreground(style.Magenta)).
 			Build(),
-		app.NewTextBuilder(instructions).
+
+		ui.Text(""),
+
+		// Instructions
+		app.NewTextBuilder("Alt+H/J/K/L: Move overlay | Real-time updates").
 			Style(style.Foreground(theme.Muted())).
 			Build(),
 	)
