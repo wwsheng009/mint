@@ -790,10 +790,10 @@ func (a *App) handleMsg(message runtimemsg.Msg) bool {
 		if mouseMsg.TargetInstance != nil {
 			log.UILogger.Debug("[handleMsg] ✅ Instance routing: MouseMsg → Instance, Action=%v", mouseMsg.Action)
 
-			// 尝试将 TargetInstance 转换为 Handler 接口
-			// MsgHandler 定义在 event/hitmap.go 中，Instance 实现了这个接口
-			if handler, ok := mouseMsg.TargetInstance.(interface{ Handle(runtimemsg.Msg) interface{} }); ok {
-				log.UILogger.Debug("[handleMsg] Calling handler.Handle()")
+			// MsgHandler 接口定义: Handle(msg interface{}) interface{}
+			// 这是 instanceHandlerAdapter 实现的接口
+			if handler, ok := mouseMsg.TargetInstance.(interface{ Handle(msg interface{}) interface{} }); ok {
+				log.UILogger.Debug("[handleMsg] ✅ Calling handler.Handle()")
 				cmd := handler.Handle(mouseMsg)
 				if cmd != nil {
 					// TODO: 执行 Cmd（需要实现 Cmd 执行系统）
@@ -806,7 +806,7 @@ func (a *App) handleMsg(message runtimemsg.Msg) bool {
 				return true // 消息已处理
 			}
 
-			log.UILogger.Debug("[handleMsg] ❌ TargetInstance does not implement Handle interface")
+			log.UILogger.Debug("[handleMsg] ❌ TargetInstance does not implement Handle(interface{}) interface{}")
 		} else {
 			log.UILogger.Debug("[handleMsg] ❌ TargetInstance is nil")
 		}
