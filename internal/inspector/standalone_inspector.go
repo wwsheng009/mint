@@ -108,6 +108,18 @@ type StandaloneInspector struct {
 	// Screen information
 	screenWidth  int // Screen width (terminal columns)
 	screenHeight int // Screen height (terminal rows)
+
+	// HitTest data
+	hitMapEntries []HitTestEntry // Cached hit test entries for display
+}
+
+// HitTestEntry represents a single entry in the hit test display
+type HitTestEntry struct {
+	NodeID   string
+	Bounds   string // Formatted bounds string
+	ZOrder   int
+	HitTest  string // Hit test result at current mouse position
+	Clickable bool
 }
 
 // InspectorTab represents different inspector panels
@@ -121,6 +133,7 @@ const (
 	TabLayout
 	TabNetwork
 	TabScreenInfo
+	TabHitTest
 )
 
 // OverlayPosition defines where inspector overlay appears
@@ -142,6 +155,7 @@ var tabNames = map[InspectorTab]string{
 	TabLayout:      "Layout",
 	TabNetwork:     "Network",
 	TabScreenInfo:  "Screen",
+	TabHitTest:     "HitTest",
 }
 
 // NewStandaloneInspector creates a new standalone inspector instance
@@ -378,6 +392,7 @@ func (si *StandaloneInspector) buildOverlayContent() rtui.VNode {
 		{ID: "layout", Label: "Layout(5)", Content: si.buildLayoutTabContent()},
 		{ID: "network", Label: "Network(6)", Content: si.buildNetworkTabContent()},
 		{ID: "screen", Label: "Screen(7)", Content: si.buildScreenInfoTabContent()},
+		{ID: "hittest", Label: "HitTest(8)", Content: si.buildHitTestTabContent()},
 	}
 
 	// Build tabs with Tab component using Builder pattern
@@ -496,6 +511,7 @@ func (si *StandaloneInspector) buildTabBar() rtui.VNode {
 		{TabLayout, "5", "Layout"},
 		{TabNetwork, "6", "Network"},
 		{TabScreenInfo, "7", "Screen"},
+		{TabHitTest, "8", "HitTest"},
 	}
 
 	for _, item := range allTabs {
@@ -535,6 +551,8 @@ func (si *StandaloneInspector) buildActiveTabContent() rtui.VNode {
 		return si.buildNetworkTabContent()
 	case TabScreenInfo:
 		return si.buildScreenInfoTabContent()
+	case TabHitTest:
+		return si.buildHitTestTabContent()
 	default:
 		return ui.Text("Tab not implemented")
 	}
@@ -1011,6 +1029,147 @@ func formatMouseButtonName(btn frameworkevent.MouseButton) string {
 		return "Right"
 	default:
 		return "None"
+	}
+}
+
+// buildHitTestTabContent builds content for HitTest tab
+// Displays all hit test entries for debugging control bounds
+func (si *StandaloneInspector) buildHitTestTabContent() rtui.VNode {
+	// Update hit test entries from current app root
+	si.updateHitTestEntries()
+
+	// Build header
+	header := app.NewTextBuilder("🎯 Hit Test Data").
+		Style(style.FgBold(style.Green)).
+		Build()
+
+	// Build summary line
+	var summaryLines []string
+	summaryLines = append(summaryLines, fmt.Sprintf("Total Entries: %d", len(si.hitMapEntries)))
+	summaryLines = append(summaryLines, fmt.Sprintf("Mouse Position: (%d, %d)", si.lastMouseX, si.lastMouseY))
+	summaryLines = append(summaryLines, fmt.Sprintf("Hovered: %s", si.formatHovered()))
+	summaryLines = append(summaryLines, "")
+
+	// Build column headers
+	colHeaders := fmt.Sprintf("%-4s %-20s %-12s %-6s %-8s",
+		"Z", "Node ID", "Bounds", "Hit", "Clickable")
+
+	// Build entry lines
+	var entryLines []string
+	for i := range si.hitMapEntries {
+		// Show entries in reverse order (highest Z first)
+		idx := len(si.hitMapEntries) - 1 - i
+		e := si.hitMapEntries[idx]
+
+		hitMark := " "
+		if e.HitTest == "YES" {
+			hitMark = "✓"
+		}
+
+		clickable := "No"
+		if e.Clickable {
+			clickable = "Yes"
+		}
+
+		// Truncate NodeID if too long
+		nodeID := e.NodeID
+		if len(nodeID) > 18 {
+			nodeID = nodeID[:15] + "..."
+		}
+
+		line := fmt.Sprintf("%-4d %-20s %-12s %-6s %-8s",
+			e.ZOrder, nodeID, e.Bounds, hitMark, clickable)
+		entryLines = append(entryLines, line)
+
+		// Limit display to avoid overflow
+		if i >= 15 {
+			entryLines = append(entryLines, fmt.Sprintf("... (%d more entries)", len(si.hitMapEntries)-15))
+			break
+		}
+	}
+
+	// Combine all lines
+	allLines := append(summaryLines, colHeaders)
+	allLines = append(allLines, strings.Repeat("─", 60))
+	allLines = append(allLines, entryLines...)
+
+	// Build VNodes
+	var nodes []ui.VNode
+	nodes = append(nodes, header)
+	nodes = append(nodes, ui.Text(strings.Join(allLines, "\n")))
+
+	return rtui.VStack(nodes...)
+}
+
+// updateHitTestEntries updates the hit test entries from the current app root
+func (si *StandaloneInspector) updateHitTestEntries() {
+	si.mu.Lock()
+	defer si.mu.Unlock()
+
+	si.hitMapEntries = []HitTestEntry{}
+
+	if si.appRoot == nil {
+		return
+	}
+
+	// Traverse the VNode tree to collect hit test information
+	si.collectHitTestEntries(si.appRoot, 0, 0, 0)
+}
+
+// collectHitTestEntries recursively collects hit test entries from a VNode tree
+func (si *StandaloneInspector) collectHitTestEntries(node rtui.VNode, x, y, zOrder int) {
+	if node == nil {
+		return
+	}
+
+	// Get node bounds if available
+	var bounds string
+	var clickable bool
+
+	// Try to get bounds from various sources
+	if boundsProvider, ok := node.(interface{ GetBounds() (int, int, int, int) }); ok {
+		bx, by, bw, bh := boundsProvider.GetBounds()
+		bounds = fmt.Sprintf("%d,%d %dx%d", bx, by, bw, bh)
+
+		// Check if mouse is in bounds
+		mouseInBounds := si.lastMouseX >= bx && si.lastMouseX < bx+bw &&
+			si.lastMouseY >= by && si.lastMouseY < by+bh
+
+		// Check if clickable (has onClick handler)
+		props := node.Props()
+		if props != nil {
+			if _, hasOnClick := props["onClick"]; hasOnClick {
+				clickable = true
+			}
+		}
+
+		// Also check if it's a button
+		if tagger, ok := node.(interface{ Tag() string }); ok {
+			if tagger.Tag() == "button" {
+				clickable = true
+			}
+		}
+
+		hitTest := "NO"
+		if mouseInBounds {
+			hitTest = "YES"
+		}
+
+		entry := HitTestEntry{
+			NodeID:   node.Type().String(),
+			Bounds:   bounds,
+			ZOrder:   zOrder,
+			HitTest:  hitTest,
+			Clickable: clickable,
+		}
+		si.hitMapEntries = append(si.hitMapEntries, entry)
+	}
+
+	// Recurse into children - use Children() method directly
+	if node.Children() != nil {
+		for _, child := range node.Children() {
+			si.collectHitTestEntries(child, x, y, zOrder+1)
+		}
 	}
 }
 
@@ -1715,6 +1874,13 @@ func (si *StandaloneInspector) HandleKeyEvent(key string, alt bool, ctrl bool, s
 		}
 		return true
 	}
+	if key == "8" {
+		si.activeTab = TabHitTest
+		if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
+			fmt.Fprintf(os.Stderr, "[Inspector] Switched to HitTest tab (key=8)\n")
+		}
+		return true
+	}
 
 	// Tab cycling - cycle through inspector tabs
 	if key == "tab" {
@@ -1722,12 +1888,12 @@ func (si *StandaloneInspector) HandleKeyEvent(key string, alt bool, ctrl bool, s
 			// Shift+Tab: cycle backward through tabs
 			si.activeTab--
 			if si.activeTab < TabElements {
-				si.activeTab = TabScreenInfo
+				si.activeTab = TabHitTest
 			}
 		} else {
 			// Tab (alone or with Ctrl/Alt): cycle forward through tabs
 			si.activeTab++
-			if si.activeTab > TabScreenInfo {
+			if si.activeTab > TabHitTest {
 				si.activeTab = TabElements
 			}
 		}
