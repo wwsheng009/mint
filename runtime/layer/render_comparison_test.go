@@ -70,8 +70,9 @@ func TestMultiLayerRendering(t *testing.T) {
 		Label("INSPECTOR").
 		Child(rtui.NewElement("Inspector Content")).
 		Build()
-	inspectorOverlay.SetLayer(rtui.LayerInspector)
+	// SetProps 会替换整个 props，所以必须在 SetLayer 之前调用
 	inspectorOverlay.SetProps(rtui.Props{"x": 40, "y": 5})
+	inspectorOverlay.SetLayer(rtui.LayerInspector)
 
 	// 使用 Fragment 包裹
 	root := rtui.Fragment(appContent, inspectorOverlay)

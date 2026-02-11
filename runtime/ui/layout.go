@@ -540,6 +540,13 @@ func (l *LayoutNode) Measure(constraints runtime.BoxConstraints) runtime.Size {
 		}
 	}
 
+	// ⭐ IMPORTANT: Main-axis filling for HStack
+	// When HStack has bounded width and is smaller than the bound, it should expand to fill
+	// This ensures flex children properly distribute space in tight constraints
+	if l.direction == DirectionRow && constraints.HasBoundedWidth() && totalWidth < constraints.MaxWidth {
+		totalWidth = constraints.MaxWidth
+	}
+
 	// Apply MinWidth/MinHeight constraints
 	if totalWidth < constraints.MinWidth {
 		totalWidth = constraints.MinWidth
