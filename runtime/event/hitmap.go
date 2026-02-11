@@ -15,6 +15,18 @@ import (
 // HitMap 提供了从屏幕坐标到布局节点的映射
 // 消除了各组件手动实现 containsPoint() 的需求
 
+// =============================================================================
+// HitMap - 统一的命中测试系统
+// =============================================================================
+// HitMap 提供了从屏幕坐标到布局节点的映射
+// 消除了各组件手动实现 containsPoint() 的需求
+
+// EventHandler 事件处理器接口
+// 用于解耦 HitMap 和 Instance，避免循环导入
+type EventHandler interface {
+	Handle(msg interface{}) interface{}
+}
+
 // HitMapEntry 命中条目
 // 表示布局树中的一个节点及其边界信息
 type HitMapEntry struct {
@@ -32,6 +44,18 @@ type HitMapEntry struct {
 
 	// ZOrder 渲染层级（用于分层渲染和命中测试）
 	ZOrder int
+
+	// ✨ Instance 引用（新增）
+	// 根据 fix1.md 设计文档：
+	// > LayoutNode 加回指
+	// > type LayoutNode struct {
+	// >     Rect Rect
+	// >     Inst *Instance   // 关键
+	// > }
+	//
+	// 事件分发流程变为：
+	// HitMap → LayoutNode → Instance → Handler
+	Instance EventHandler
 }
 
 // String 返回调试字符串
@@ -71,8 +95,8 @@ type HitMap struct {
 func BuildHitMap(root layout.Node) *HitMap {
 	if root == nil {
 		return &HitMap{
-			entries: make([]HitMapEntry, 0),
-			root:    root,
+			entries:   make([]HitMapEntry, 0),
+			root:      root,
 			buildTime: time.Now(),
 		}
 	}
@@ -90,6 +114,24 @@ func BuildHitMap(root layout.Node) *HitMap {
 	hm.sortByZOrder()
 
 	return hm
+}
+
+// BuildHitMapFromInstance 从 Instance Tree 构建 HitMap（新架构）
+//
+// 根据 fix1.md 设计文档：
+// > 事件链条：HitMap → LayoutNode → Instance → Handler
+//
+// 参数：
+//   root - Instance 树的根节点
+//
+// 这是新的主要入口点，用于新架构
+func BuildHitMapFromInstance(rootInstance interface{}) *HitMap {
+	// TODO: 实现 Instance Tree 遍历
+	// 当前先返回空的 HitMap，等 Instance 系统集成完成后再实现
+	return &HitMap{
+		entries:   make([]HitMapEntry, 0),
+		buildTime: time.Now(),
+	}
 }
 
 // walkAndBuild 递归遍历布局树并构建命中条目
