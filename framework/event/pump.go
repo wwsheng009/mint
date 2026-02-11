@@ -7,8 +7,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
+	"github.com/wwsheng009/mint/internal/logger"
 	"github.com/wwsheng009/mint/runtime/event"
+	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
 	"github.com/wwsheng009/mint/runtime/platform"
 )
 
@@ -29,25 +30,25 @@ type EventSource interface {
 
 // Pump reads raw input from an EventSource and converts to Msg.
 type Pump struct {
-	source EventSource
+	source   EventSource
 	messages chan runtimemsg.Msg // Changed from events chan Event
-	quit   chan struct{}
-	running int32 // Use atomic for cross-goroutine visibility (0=stopped, 1=running)
-	mu     sync.RWMutex // Protects messages channel from close while sending
-	wg     sync.WaitGroup // Waits for convertLoop to exit
+	quit     chan struct{}
+	running  int32          // Use atomic for cross-goroutine visibility (0=stopped, 1=running)
+	mu       sync.RWMutex   // Protects messages channel from close while sending
+	wg       sync.WaitGroup // Waits for convertLoop to exit
 
 	// HitMap for mouse event hit testing (set by App after each render)
-	hitMap *event.HitMap
+	hitMap   *event.HitMap
 	hitMapMu sync.RWMutex // Protects hitMap from concurrent access
 }
 
 // NewPump creates a new event pump with a platform input reader.
 func NewPump(reader platform.InputReader) *Pump {
 	return &Pump{
-		source: &PlatformEventSource{reader: reader},
+		source:   &PlatformEventSource{reader: reader},
 		messages: make(chan runtimemsg.Msg, 100), // Changed from events
-		quit:   make(chan struct{}),
-		running: 0,
+		quit:     make(chan struct{}),
+		running:  0,
 	}
 }
 
@@ -55,10 +56,10 @@ func NewPump(reader platform.InputReader) *Pump {
 // This allows using MockSandbox or other test event sources.
 func NewPumpWithSource(source EventSource) *Pump {
 	return &Pump{
-		source: source,
+		source:   source,
 		messages: make(chan runtimemsg.Msg, 100), // Changed from events
-		quit:   make(chan struct{}),
-		running: 0,
+		quit:     make(chan struct{}),
+		running:  0,
 	}
 }
 
@@ -153,12 +154,13 @@ func (p *Pump) convertToKeyMsg(raw platform.RawInput) runtimemsg.Msg {
 
 // convertToResizeMsg converts resize raw input to ResizeMsg.
 func (p *Pump) convertToResizeMsg(raw platform.RawInput) runtimemsg.Msg {
-	// Create a simple resize message
-	return &runtimemsg.BaseMsg{
-		TypeValue:      runtimemsg.MsgTypeResize,
-		TimestampValue: time.Now(),
-	}
-	// Note: Width/Height info would need ResizeMsg struct, but for now just type is enough
+	// Get current terminal size from App (if available)
+	// For now, use 0,0 as old size since we don't track it
+	oldWidth := 0
+	oldHeight := 0
+
+	// Create ResizeMsg with proper width/height information
+	return runtimemsg.NewResizeMsg(oldWidth, oldHeight, raw.Width, raw.Height)
 }
 
 // convertToMouseMsg converts mouse raw input to MouseMsg.
@@ -206,6 +208,10 @@ func (p *Pump) convertToMouseMsg(raw platform.RawInput) runtimemsg.Msg {
 	hitMap := p.hitMap
 	p.hitMapMu.RUnlock()
 
+	// Log mouse position using logger
+	log := logger.Get()
+	log.Debug("MOUSE", "Raw position: (%d, %d) | Action: %v", raw.MouseX, raw.MouseY, raw.MouseAction)
+
 	if hitMap != nil {
 		// Perform hit testing
 		entry := hitMap.HitTest(raw.MouseX, raw.MouseY)
@@ -215,7 +221,28 @@ func (p *Pump) convertToMouseMsg(raw platform.RawInput) runtimemsg.Msg {
 			localX, localY := entry.LocalXY(raw.MouseX, raw.MouseY)
 			mouseMsg.LocalX = localX
 			mouseMsg.LocalY = localY
+
+			// Log successful hit test
+			log.Debug("MOUSE", "HitTest: Found '%s' at Bounds=(%d,%d,%dx%d) Local=(%d,%d)",
+				entry.NodeID, entry.Bounds.X, entry.Bounds.Y,
+				entry.Bounds.Width, entry.Bounds.Height, localX, localY)
+
+			// Also log all entries at this position for debugging overlapping buttons
+			allEntries := hitMap.FindAllAt(raw.MouseX, raw.MouseY)
+			if len(allEntries) > 1 {
+				log.Debug("MOUSE", "Multiple hits at (%d,%d):", raw.MouseX, raw.MouseY)
+				for i, e := range allEntries {
+					log.Debug("MOUSE", "  [%d] ID='%s' Bounds=(%d,%d,%dx%d) ZOrder=%d",
+						i, e.NodeID, e.Bounds.X, e.Bounds.Y, e.Bounds.Width, e.Bounds.Height, e.ZOrder)
+				}
+			}
+		} else {
+			// No hit
+			log.Debug("MOUSE", "HitTest: No hit at (%d,%d)", raw.MouseX, raw.MouseY)
 		}
+	} else {
+		// HitMap is nil
+		log.Warn("MOUSE", "HitMap is nil!")
 	}
 
 	// Calculate Delta for wheel events
@@ -279,8 +306,8 @@ func (p *Pump) PumpWithTimeout(timeout time.Duration) (runtimemsg.Msg, bool) {
 
 // PlatformEventSource 包装 platform.InputReader 为 EventSource
 type PlatformEventSource struct {
-	reader     platform.InputReader
-	rawInputs  chan platform.RawInput
+	reader    platform.InputReader
+	rawInputs chan platform.RawInput
 }
 
 // Start 启动平台输入源

@@ -1,9 +1,9 @@
 package event
 
 import (
-	"fmt"
 	"os"
 
+	"github.com/wwsheng009/mint/internal/log"
 	"github.com/wwsheng009/mint/runtime/event"
 )
 
@@ -116,7 +116,7 @@ func (k *KeyMap) Lookup(ev *KeyEvent) (EventHandler, bool) {
 
 	// Debug output
 	if os.Getenv("TUI_DEBUG_UI") == "true" || os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
-		fmt.Fprintf(os.Stderr, "[KeyMap] Lookup: Rune=%c Name=%q Modifiers=%d Combo=%q\n",
+		log.UILogger.Debug("[KeyMap] Lookup: Rune=%c Name=%q Modifiers=%d Combo=%q",
 			ev.Key.Rune, ev.Key.Name, ev.Modifiers, combo)
 	}
 
@@ -124,7 +124,7 @@ func (k *KeyMap) Lookup(ev *KeyEvent) (EventHandler, bool) {
 	if combo != "" {
 		if handler, ok := k.bindings[combo]; ok {
 			if os.Getenv("TUI_DEBUG_UI") == "true" || os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
-				fmt.Fprintf(os.Stderr, "[KeyMap] Found handler for combo '%s'\n", combo)
+				log.UILogger.Debug("[KeyMap] Found handler for combo '%s'", combo)
 			}
 			return handler, true
 		}

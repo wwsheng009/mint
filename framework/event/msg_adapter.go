@@ -20,9 +20,19 @@ func MsgToEvent(msg runtimemsg.Msg) Event {
 		return keyMsgToKeyEvent(m)
 	case *runtimemsg.MouseMsg:
 		return mouseMsgToMouseEvent(m)
+	case *runtimemsg.ResizeMsg:
+		// Handle resize messages with width/height information
+		return &ResizeEvent{
+			BaseEvent: NewBaseEvent(EventResize),
+			OldWidth:  m.OldWidth,
+			OldHeight: m.OldHeight,
+			NewWidth:  m.NewWidth,
+			NewHeight: m.NewHeight,
+		}
 	case *runtimemsg.BaseMsg:
-		// Handle generic messages like Resize
+		// Handle generic messages (fallback for backward compatibility)
 		if m.Type() == runtimemsg.MsgTypeResize {
+			// This shouldn't happen with new ResizeMsg, but handle it anyway
 			return &ResizeEvent{
 				BaseEvent: NewBaseEvent(EventResize),
 			}
