@@ -6,7 +6,6 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/wwsheng009/mint/components/layout"
 	"github.com/wwsheng009/mint/framework/action"
 	"github.com/wwsheng009/mint/framework/cmd"
 	"github.com/wwsheng009/mint/framework/component"
@@ -403,50 +402,47 @@ func (t *TabsVNode) handleWrappedTabBarClick(localX, localY int) bool {
 		}
 	}
 
-	// Simulate wrap layout to find which row and tab was clicked
-	currentRowWidth := 0
-	currentRow := 0
-	rowStartX := make(map[int]int) // Starting X position for each row
+	// Use the same row calculation logic as calculateWrappedRows
+	rows := t.calculateWrappedRows(containerWidth)
 
-	for i, tab := range t.tabs {
-		tabWidth := utf8.RuneCountInString(tab.Label) + 2 // +2 for brackets
-		if i > 0 {
-			tabWidth += t.tabGap
+	// Check if localY is within valid row range
+	if localY < 0 || localY >= len(rows) {
+		return false
+	}
+
+	// Get the clicked row
+	row := rows[localY]
+
+	// Reconstruct the row to find which tab was clicked
+	currentX := 0
+	for _, tabIdx := range row {
+		tab := t.tabs[tabIdx]
+
+		// Calculate display width of this tab
+		// In display: [Label] for active, Label for inactive
+		displayLabel := tab.Label
+		if tabIdx == t.activeTab {
+			displayLabel = "[" + tab.Label + "]"
 		}
 
-		// Check if we need to wrap
-		if currentRowWidth+tabWidth > containerWidth && currentRowWidth > 0 {
-			currentRow++
-			currentRowWidth = tabWidth
-			rowStartX[currentRow] = 0
-		} else {
-			if currentRow == 0 {
-				rowStartX[currentRow] = 0
+		tabWidth := utf8.RuneCountInString(displayLabel)
+
+		// Check if click is within this tab
+		if localX >= currentX && localX < currentX+tabWidth {
+			if tab.Disabled {
+				return true // consume but no action
 			}
-			currentRowWidth += tabWidth
-		}
-
-		// Check if click is in this row and matches this tab
-		if currentRow == localY {
-			tabStart := rowStartX[currentRow]
-			tabEnd := tabStart + tabWidth
-
-			if localX >= tabStart && localX < tabEnd {
-				if tab.Disabled {
-					return true // consume but no action
+			if tabIdx != t.activeTab {
+				t.SetActiveTab(tabIdx)
+				if t.onChange != nil {
+					t.onChange(tab.ID)
 				}
-				if i != t.activeTab {
-					t.SetActiveTab(i)
-					if t.onChange != nil {
-						t.onChange(tab.ID)
-					}
-				}
-				return true
 			}
-
-			// Update next tab's start position for this row
-			rowStartX[currentRow] = tabEnd
+			return true
 		}
+
+		// Move to next tab position (add space separator)
+		currentX += tabWidth + 1 // +1 for space between tabs
 	}
 
 	return false
@@ -466,31 +462,42 @@ func (t *TabsVNode) updateActiveContent() {
 
 	// Create tab bar with or without wrapping
 	if t.wrapTabs {
-		// Use Wrap component for automatic wrapping
-		var tabNodes []ui.VNode
-		for i, tab := range t.tabs {
-			var tabLabel string
-			if i == t.activeTab {
-				tabLabel = fmt.Sprintf("[%s]", tab.Label)
-			} else {
-				tabLabel = tab.Label
-			}
-			tabNodes = append(tabNodes, ui.Text(tabLabel))
-		}
-
+		// Build multi-row tab bar manually (without Wrap component)
 		// Get container width from props or default to 80
 		containerWidth := 80
 		if props := t.Props(); props != nil {
-			if w, ok := props["width"].(int); ok {
+			if w, ok := props["width"].(int); ok && w > 0 {
 				containerWidth = w
 			}
 		}
 
-		tabBarNode = layout.NewWrapBuilder(tabNodes...).
-			Gap(t.tabGap).
-			ScreenWidth(containerWidth).
-			Align(ui.AlignStart).
-			Build()
+		// Calculate rows by simulating wrap
+		rows := t.calculateWrappedRows(containerWidth)
+
+		// Build each row as a text line
+		var rowLines []string
+		for _, row := range rows {
+			var parts []string
+			for _, tabIdx := range row {
+				tab := t.tabs[tabIdx]
+				if tabIdx == t.activeTab {
+					parts = append(parts, "["+tab.Label+"]")
+				} else {
+					parts = append(parts, tab.Label)
+				}
+			}
+			rowLines = append(rowLines, strings.Join(parts, " "))
+		}
+
+		// Create VStack of text lines for multi-row tab bar
+		// Use a custom node that doesn't stretch vertically
+		var tabLineNodes []ui.VNode
+		for _, line := range rowLines {
+			tabLineNodes = append(tabLineNodes, ui.Text(line))
+		}
+
+		// Use VStack to combine rows
+		tabBarNode = ui.VStack(tabLineNodes...)
 	} else {
 		// Original single-line behavior
 		var parts []string
@@ -517,6 +524,38 @@ func (t *TabsVNode) updateActiveContent() {
 	// Set children as [tabBar, content]
 	// This allows the framework's layout engine to render both
 	t.SetChildren([]ui.VNode{tabBarNode, contentNode})
+}
+
+// calculateWrappedRows calculates which tabs go in each row when wrapping
+func (t *TabsVNode) calculateWrappedRows(containerWidth int) [][]int {
+	var rows [][]int
+	currentRow := []int{}
+	currentRowWidth := 0
+
+	for i, tab := range t.tabs {
+		// Calculate tab width (including brackets for active tab)
+		tabWidth := utf8.RuneCountInString(tab.Label) + 2 // +2 for brackets [] or padding
+		if i > 0 {
+			tabWidth += t.tabGap // gap between tabs
+		}
+
+		// Check if we need to start a new row
+		if len(currentRow) > 0 && currentRowWidth+tabWidth > containerWidth {
+			rows = append(rows, currentRow)
+			currentRow = []int{i}
+			currentRowWidth = tabWidth
+		} else {
+			currentRow = append(currentRow, i)
+			currentRowWidth += tabWidth
+		}
+	}
+
+	// Don't forget the last row
+	if len(currentRow) > 0 {
+		rows = append(rows, currentRow)
+	}
+
+	return rows
 }
 
 // Measure implements runtime.Measurable interface
