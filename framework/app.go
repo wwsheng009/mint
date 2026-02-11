@@ -1791,6 +1791,7 @@ func (a *App) enrichHitMapWithInstances() {
 	log.UILogger.Debug("[enrichHitMap] Collected %d instances from Instance Tree", len(instanceMap))
 
 	// Step 2 & 3: 遍历 HitMap 条目，添加 Instance 引用
+	// 注意：直接使用 SetEntryInstance 方法来确保正确修改 HitMap 的 entries
 	entries := a.hitMap.AllEntries()
 	log.UILogger.Debug("[enrichHitMap] HitMap has %d entries", len(entries))
 
@@ -1800,8 +1801,8 @@ func (a *App) enrichHitMapWithInstances() {
 	}
 
 	matchedCount := 0
-	for i := range entries {
-		nodeID := entries[i].NodeID
+	for i, entry := range entries {
+		nodeID := entry.NodeID
 		if inst, ok := instanceMap[nodeID]; ok {
 			// 找到匹配的 Instance，创建适配器并添加引用
 			var msgHandler runtimeevent.MsgHandler
@@ -1810,7 +1811,8 @@ func (a *App) enrichHitMapWithInstances() {
 			} else {
 				msgHandler = &instanceHandlerAdapter{inst: inst}
 			}
-			entries[i].Instance = msgHandler
+			// ✨ 使用 SetEntryInstance 方法来正确修改 HitMap
+			a.hitMap.SetEntryInstance(i, msgHandler)
 			matchedCount++
 			log.UILogger.Debug("[enrichHitMap] ✅ Matched: NodeID=%s → Instance=%v", nodeID, inst.ID)
 		} else {
