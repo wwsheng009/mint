@@ -1,9 +1,9 @@
 package layout
 
 import (
-	"fmt"
 	"os"
 
+	"github.com/wwsheng009/mint/internal/log"
 	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
@@ -266,7 +266,7 @@ func (l *LayoutNode) MeasureLayout(measurer runtime.ChildMeasurer, constraints r
 			// Override with explicit width
 			constraints.MaxWidth = explicitWidth
 			if os.Getenv("TUI_DEBUG_LAYOUT") == "true" {
-				fmt.Fprintf(os.Stderr, "[HStack.MeasureLayout] tag=%s, using explicit width=%d\n",
+				log.UILogger.Debug("[HStack.MeasureLayout] tag=%s, using explicit width=%d\n",
 					l.Tag(), explicitWidth)
 			}
 		}
@@ -274,7 +274,7 @@ func (l *LayoutNode) MeasureLayout(measurer runtime.ChildMeasurer, constraints r
 
 	// Debug: log constraints received
 	if os.Getenv("TUI_DEBUG_LAYOUT") == "true" {
-		fmt.Fprintf(os.Stderr, "[HStack.MeasureLayout] tag=%s, constraints.MinWidth=%d, MaxWidth=%d, gap=%d\n",
+		log.UILogger.Debug("[HStack.MeasureLayout] tag=%s, constraints.MinWidth=%d, MaxWidth=%d, gap=%d\n",
 			l.Tag(), constraints.MinWidth, constraints.MaxWidth, l.gap)
 	}
 
@@ -344,7 +344,7 @@ func (l *LayoutNode) MeasureLayout(measurer runtime.ChildMeasurer, constraints r
 			remainingSpace := availableWidth - fixedWidth
 
 			if os.Getenv("TUI_DEBUG_LAYOUT") == "true" {
-				fmt.Fprintf(os.Stderr, "[HStack] availableWidth=%d, fixedWidth=%d, remainingSpace=%d, flexChildren=%d\n",
+				log.UILogger.Debug("[HStack] availableWidth=%d, fixedWidth=%d, remainingSpace=%d, flexChildren=%d\n",
 					availableWidth, fixedWidth, remainingSpace, len(flexChildren))
 			}
 
@@ -354,7 +354,7 @@ func (l *LayoutNode) MeasureLayout(measurer runtime.ChildMeasurer, constraints r
 			remainder := remainingSpace % flexTotalFactor
 
 			if os.Getenv("TUI_DEBUG_LAYOUT") == "true" {
-				fmt.Fprintf(os.Stderr, "[HStack] baseFlexWidth=%d, remainder=%d\n", baseFlexWidth, remainder)
+				log.UILogger.Debug("[HStack] baseFlexWidth=%d, remainder=%d\n", baseFlexWidth, remainder)
 			}
 
 			// Distribute to flex children
@@ -376,7 +376,7 @@ func (l *LayoutNode) MeasureLayout(measurer runtime.ChildMeasurer, constraints r
 				}
 
 				if os.Getenv("TUI_DEBUG_LAYOUT") == "true" {
-					fmt.Fprintf(os.Stderr, "[HStack]   child[%d]: flexWidth=%d\n", fc.index, flexWidth)
+					log.UILogger.Debug("[HStack]   child[%d]: flexWidth=%d\n", fc.index, flexWidth)
 				}
 
 				cc := runtime.BoxConstraints{

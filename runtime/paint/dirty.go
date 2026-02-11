@@ -3,6 +3,8 @@ package paint
 import (
 	"fmt"
 	"os"
+
+	"github.com/wwsheng009/mint/internal/log"
 )
 
 // ==============================================================================
@@ -243,15 +245,15 @@ func (d *DirtyTracker) compareBuffersWithGrid(prev, curr *Buffer) *dirtyGrid {
 	}
 
 	if debugRender && d.changedCells > 0 {
-		fmt.Fprintf(os.Stderr, "[compareBuffersWithGrid] ChangedCells=%d, first=(%d,%d)\n",
+		log.RenderLogger.Debug("[compareBuffersWithGrid] ChangedCells=%d, first=(%d,%d)\n",
 			d.changedCells, firstChangedCell.x, firstChangedCell.y)
 		// 输出第一个变化单元格的详细信息
 		if curr.Height > firstChangedCell.y && curr.Width > firstChangedCell.x {
 			c := curr.Cells[firstChangedCell.y][firstChangedCell.x]
 			p := prev.Cells[firstChangedCell.y][firstChangedCell.x]
-			fmt.Fprintf(os.Stderr, "  curr: Cluster=%q, Width=%d, Style.Reverse=%v\n",
+			log.RenderLogger.Debug("  curr: Cluster=%q, Width=%d, Style.Reverse=%v\n",
 				c.Cluster, c.Width, c.Style.IsReverse())
-			fmt.Fprintf(os.Stderr, "  prev: Cluster=%q, Width=%d, Style.Reverse=%v\n",
+			log.RenderLogger.Debug("  prev: Cluster=%q, Width=%d, Style.Reverse=%v\n",
 				p.Cluster, p.Width, p.Style.IsReverse())
 		}
 	}
@@ -298,9 +300,9 @@ func (d *DirtyTracker) extractDirtyRegions(grid *dirtyGrid, width, height int) [
 
 	// DEBUG: 调试区域提取
 	if os.Getenv("TUI_RENDER_DEBUG") == "1" {
-		fmt.Fprintf(os.Stderr, "[extractDirtyRegions] found %d regions\n", len(regions))
+		log.RenderLogger.Debug("[extractDirtyRegions] found %d regions\n", len(regions))
 		for i, r := range regions {
-			fmt.Fprintf(os.Stderr, "  Region[%d]: X=%d, Y=%d, W=%d, H=%d\n", i, r.X, r.Y, r.Width, r.Height)
+			log.RenderLogger.Debug("  Region[%d]: X=%d, Y=%d, W=%d, H=%d\n", i, r.X, r.Y, r.Width, r.Height)
 		}
 	}
 
@@ -308,7 +310,7 @@ func (d *DirtyTracker) extractDirtyRegions(grid *dirtyGrid, width, height int) [
 	merged := d.mergeDirtyRegions(regions)
 
 	if os.Getenv("TUI_RENDER_DEBUG") == "1" && len(regions) != len(merged) {
-		fmt.Fprintf(os.Stderr, "[extractDirtyRegions] merged from %d to %d regions\n", len(regions), len(merged))
+		log.RenderLogger.Debug("[extractDirtyRegions] merged from %d to %d regions\n", len(regions), len(merged))
 	}
 
 	return merged

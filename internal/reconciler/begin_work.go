@@ -18,6 +18,7 @@ import (
 	"os"
 	"runtime/debug"
 
+	"github.com/wwsheng009/mint/internal/log"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
 
@@ -118,7 +119,7 @@ func beginWorkComponent(current, workInProgress *Fiber) *Fiber {
 
 	// Debug: verify context is set
 	if os.Getenv("TUI_DEBUG_UI") == "true" {
-		fmt.Fprintf(os.Stderr, "beginWorkComponent: SetCurrentContext(ctx=%p, ComponentID=%s), GetCurrentContext()=%p\n",
+		log.UILogger.Debug("beginWorkComponent: SetCurrentContext(ctx=%p, ComponentID=%s), GetCurrentContext()=%p\n",
 			ctx, ctx.ComponentID, rtui.GetCurrentContext())
 	}
 

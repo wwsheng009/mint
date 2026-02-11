@@ -65,7 +65,7 @@ func NewDeclarativeNodeFromFunc(fn rtui.ComponentFunc) *DeclarativeNode {
 	// This provides constraint-driven layout, caching, and better architecture
 	node.renderer = NewPipelineRendererAdapter()
 	if os.Getenv("TUI_DEBUG_UI") == "true" {
-		fmt.Fprintf(os.Stderr, "[DeclarativeNode] Using new PipelineRenderer (Layout/Paint separation)\n")
+		log.UILogger.Debug("[DeclarativeNode] Using new PipelineRenderer (Layout/Paint separation)\n")
 	}
 
 	// LEGACY RENDERER (commented out - kept for reference only)
@@ -73,7 +73,7 @@ func NewDeclarativeNodeFromFunc(fn rtui.ComponentFunc) *DeclarativeNode {
 	// if os.Getenv("MINT_USE_LEGACY_RENDERER") == "true" {
 	// 	node.renderer = NewNonFiberRenderer(node)
 	// 	if os.Getenv("TUI_DEBUG_UI") == "true" {
-	// 		fmt.Fprintf(os.Stderr, "[DeclarativeNode] Using LEGACY renderer\n")
+	// 		log.UILogger.Debug("[DeclarativeNode] Using LEGACY renderer\n")
 	// 	}
 	// }
 
@@ -215,7 +215,7 @@ func (n *DeclarativeNode) Paint(ctx component.PaintContext, buf *paint.Buffer) {
 
 	if n.root == nil {
 		if os.Getenv("TUI_DEBUG_UI") == "true" {
-			fmt.Fprintf(os.Stderr, "DeclarativeNode.Paint: root is nil, returning\n")
+			log.UILogger.Debug("DeclarativeNode.Paint: root is nil, returning\n")
 		}
 		return
 	}
@@ -225,9 +225,9 @@ func (n *DeclarativeNode) Paint(ctx component.PaintContext, buf *paint.Buffer) {
 
 	// Phase 3: UNIFIED RENDERING - use PipelineRenderer with constraint-based layout
 	if os.Getenv("TUI_DEBUG_RENDERING") == "true" {
-		fmt.Fprintf(os.Stderr, "[DeclarativeNode.Paint] n.renderer = %v\n", n.renderer)
+		log.UILogger.Debug("[DeclarativeNode.Paint] n.renderer = %v\n", n.renderer)
 		if n.renderer != nil {
-			fmt.Fprintf(os.Stderr, "[DeclarativeNode.Paint] renderer type = %T\n", n.renderer)
+			log.UILogger.Debug("[DeclarativeNode.Paint] renderer type = %T\n", n.renderer)
 		}
 	}
 
@@ -237,8 +237,8 @@ func (n *DeclarativeNode) Paint(ctx component.PaintContext, buf *paint.Buffer) {
 		// while the buffer size may be larger (actual terminal size)
 		if adapter, ok := n.renderer.(*PipelineRendererAdapter); ok {
 			if os.Getenv("TUI_DEBUG_RENDERING") == "true" {
-				fmt.Fprintf(os.Stderr, "[DeclarativeNode.Paint] ✅ Using PipelineRendererAdapter\n")
-				fmt.Fprintf(os.Stderr, "[DeclarativeNode.Paint] Layout constraints: %dx%d (buffer: %dx%d)\n",
+				log.UILogger.Debug("[DeclarativeNode.Paint] ✅ Using PipelineRendererAdapter\n")
+				log.UILogger.Debug("[DeclarativeNode.Paint] Layout constraints: %dx%d (buffer: %dx%d)\n",
 					ctx.AvailableWidth, ctx.AvailableHeight, buf.Width, buf.Height)
 			}
 			// Capture the layer manager from PipelineRenderer for event handling
@@ -255,24 +255,24 @@ func (n *DeclarativeNode) Paint(ctx component.PaintContext, buf *paint.Buffer) {
 			// 3. Apply modal centering for LayerModal nodes using the correct layout size
 			if err := pipeline.RenderWithConstraints(n.root, ctx.AvailableWidth, ctx.AvailableHeight, buf); err != nil {
 				// Fallback to legacy rendering if pipeline fails
-				fmt.Fprintf(os.Stderr, "[DeclarativeNode.Paint] ❌ Pipeline render FAILED: %v, falling back to legacy\n", err)
+				log.UILogger.Debug("[DeclarativeNode.Paint] ❌ Pipeline render FAILED: %v, falling back to legacy\n", err)
 				n.PaintVNode(n.root, ctx.Bounds.X, ctx.Bounds.Y, buf)
 			} else {
 				if os.Getenv("TUI_DEBUG_RENDERING") == "true" {
-					fmt.Fprintf(os.Stderr, "[DeclarativeNode.Paint] ✅ Pipeline render SUCCESS\n")
+					log.UILogger.Debug("[DeclarativeNode.Paint] ✅ Pipeline render SUCCESS\n")
 				}
 			}
 		} else {
 			// Use the generic renderer interface (old path)
 			if os.Getenv("TUI_DEBUG_RENDERING") == "true" {
-				fmt.Fprintf(os.Stderr, "[DeclarativeNode.Paint] ⚠️ Using generic renderer interface (old path)\n")
+				log.UILogger.Debug("[DeclarativeNode.Paint] ⚠️ Using generic renderer interface (old path)\n")
 			}
 			n.renderer.Render(n.root, ctx.Bounds.X, ctx.Bounds.Y, buf)
 		}
 	} else {
 		// Fallback to legacy painting
 		if os.Getenv("TUI_DEBUG_RENDERING") == "true" {
-			fmt.Fprintf(os.Stderr, "[DeclarativeNode.Paint] ⚠️ No renderer, using legacy PaintVNode\n")
+			log.UILogger.Debug("[DeclarativeNode.Paint] ⚠️ No renderer, using legacy PaintVNode\n")
 		}
 		n.PaintVNode(n.root, ctx.Bounds.X, ctx.Bounds.Y, buf)
 	}
@@ -389,7 +389,7 @@ func (n *DeclarativeNode) PaintVNode(vnode rtui.VNode, x, y int, buf *paint.Buff
 
 	// Debug logging
 	if os.Getenv("TUI_DEBUG_UI") == "true" {
-		fmt.Fprintf(os.Stderr, "[PaintVNode] vnode type=%d (%s), x=%d, y=%d, actual type=%T\n",
+		log.UILogger.Debug("[PaintVNode] vnode type=%d (%s), x=%d, y=%d, actual type=%T\n",
 			vnode.Type(), vnode.Type(), x, y, vnode)
 	}
 
@@ -470,7 +470,7 @@ func (n *DeclarativeNode) PaintVNode(vnode rtui.VNode, x, y int, buf *paint.Buff
 						if l, ok := child.(interface{ Tag() string }); ok {
 							label = fmt.Sprintf("tag=%s", l.Tag())
 						}
-						fmt.Fprintf(os.Stderr, "[HSTACK] child %d (%s): x=%d, width=%d, nextX=%d\n",
+						log.UILogger.Debug("[HSTACK] child %d (%s): x=%d, width=%d, nextX=%d\n",
 							i, label, childX, childWidth, childX+childWidth+gap)
 					}
 					n.PaintVNode(child, childX, y, buf)
@@ -612,9 +612,9 @@ func (n *DeclarativeNode) paintBordered(vnode rtui.VNode, _ interface{ RenderBor
 		if l, ok := child.(interface{ GetBorderLabel() string }); ok && l.GetBorderLabel() != "" {
 			label = l.GetBorderLabel()
 		}
-		fmt.Fprintf(os.Stderr, "[BORDER] %s: x=%d, y=%d, contentW=%d, contentH=%d, totalH=%d\n",
+		log.UILogger.Debug("[BORDER] %s: x=%d, y=%d, contentW=%d, contentH=%d, totalH=%d\n",
 			label, x, y, contentWidth, contentHeight, contentHeight+2)
-		fmt.Fprintf(os.Stderr, "[BORDER] Left border should be at col %d, rows %d-%d\n",
+		log.UILogger.Debug("[BORDER] Left border should be at col %d, rows %d-%d\n",
 			x, y, y+contentHeight+1)
 	}
 
@@ -642,7 +642,7 @@ func (n *DeclarativeNode) paintBordered(vnode rtui.VNode, _ interface{ RenderBor
 		if os.Getenv("TUI_BORDER_DEBUG") == "1" {
 			// Log first few border cells for debugging
 			if ch == '┌' || (px == x && py == y) {
-				fmt.Fprintf(os.Stderr, "[BORDER.Paint] cornerTL at (%d,%d): '%c'\n", px, py, ch)
+				log.UILogger.Debug("[BORDER.Paint] cornerTL at (%d,%d): '%c'\n", px, py, ch)
 			}
 		}
 		buf.SetCell(px, py, ch, s)
@@ -876,7 +876,7 @@ func (n *DeclarativeNode) applyFocus(focusable []rtui.FocusableVNode) {
 	for i, elem := range focusable {
 		if i == focusedIndex {
 			if os.Getenv("TUI_DEBUG_FOCUS") == "true" {
-				fmt.Fprintf(os.Stderr, "[applyFocus] setting focus=true on index %d (%s)\n", i, elem.GetFocusID())
+				log.UILogger.Debug("[applyFocus] setting focus=true on index %d (%s)\n", i, elem.GetFocusID())
 			}
 			elem.SetFocus(true)
 		} else {
@@ -1075,7 +1075,7 @@ func (n *DeclarativeNode) HandleEvent(ev frameworkevent.Event) bool {
 		handled, shouldRender := focusMgr.HandleEvent(ev)
 		if handled {
 			if os.Getenv("TUI_DEBUG_UI") == "true" {
-				fmt.Fprintf(os.Stderr, "DeclarativeNode.HandleEvent: focus manager handled event, shouldRender=%v\n", shouldRender)
+				log.UILogger.Debug("DeclarativeNode.HandleEvent: focus manager handled event, shouldRender=%v\n", shouldRender)
 			}
 			// Request a re-render when focus changes
 			// In Fiber mode, use the reconciler; in non-Fiber mode, mark as dirty
@@ -1099,7 +1099,7 @@ func (n *DeclarativeNode) HandleEvent(ev frameworkevent.Event) bool {
 		// 2. Try to dispatch to the focused element first
 		if focusMgr.DispatchToFocused(ev) {
 			if os.Getenv("TUI_DEBUG_UI") == "true" {
-				fmt.Fprintf(os.Stderr, "DeclarativeNode.HandleEvent: focused element handled event\n")
+				log.UILogger.Debug("DeclarativeNode.HandleEvent: focused element handled event\n")
 			}
 			return true
 		}
@@ -1113,7 +1113,7 @@ func (n *DeclarativeNode) HandleEvent(ev frameworkevent.Event) bool {
 			if ev.Type() == frameworkevent.EventMousePress || ev.Type() == frameworkevent.EventClick {
 				if n.handleMouseFocus(mouseEv) {
 					if os.Getenv("TUI_DEBUG_UI") == "true" {
-						fmt.Fprintf(os.Stderr, "DeclarativeNode.HandleEvent: mouse click switched focus\n")
+						log.UILogger.Debug("DeclarativeNode.HandleEvent: mouse click switched focus\n")
 					}
 					// Focus was switched, trigger re-render
 					if useFiber && reconciler != nil {
@@ -1248,7 +1248,7 @@ func (n *DeclarativeNode) handleMouseFocus(mouseEv *frameworkevent.MouseEvent) b
 			}
 
 			if os.Getenv("TUI_DEBUG_UI") == "true" {
-				fmt.Fprintf(os.Stderr, "handleMouseFocus: switching focus from index %d to %d\n",
+				log.UILogger.Debug("handleMouseFocus: switching focus from index %d to %d\n",
 					currentIndex, i)
 			}
 
@@ -1268,20 +1268,20 @@ func (n *DeclarativeNode) nodeWasClicked(node rtui.VNode, x, y int) bool {
 	if boundsAware, ok := node.(interface{ GetBounds() (x, y, width, height int) }); ok {
 		bx, by, bw, bh := boundsAware.GetBounds()
 		if os.Getenv("TUI_DEBUG_UI") == "true" {
-			fmt.Fprintf(os.Stderr, "nodeWasClicked: bounds=(%d,%d,%d,%d), mouse=(%d,%d)\n",
+			log.UILogger.Debug("nodeWasClicked: bounds=(%d,%d,%d,%d), mouse=(%d,%d)\n",
 				bx, by, bw, bh, x, y)
 		}
 
 		// Check if mouse click is within bounds
 		if x >= bx && x < bx+bw && y >= by && y < by+bh {
 			if os.Getenv("TUI_DEBUG_UI") == "true" {
-				fmt.Fprintf(os.Stderr, "nodeWasClicked: HIT!\n")
+				log.UILogger.Debug("nodeWasClicked: HIT!\n")
 			}
 			return true
 		}
 
 		if os.Getenv("TUI_DEBUG_UI") == "true" {
-			fmt.Fprintf(os.Stderr, "nodeWasClicked: MISS!\n")
+			log.UILogger.Debug("nodeWasClicked: MISS!\n")
 		}
 		return false
 	}
@@ -1656,12 +1656,12 @@ func renderVNodeToBuffer(vnode rtui.VNode, x, y int, buffer *paint.Buffer) {
 			if l, ok := vnode.(interface{ Label() string }); ok {
 				label = l.Label()
 			}
-			fmt.Fprintf(os.Stderr, "[renderVNodeToBuffer] BEFORE Paint, label=%q, x=%d, y=%d\n", label, x, y)
+			log.UILogger.Debug("[renderVNodeToBuffer] BEFORE Paint, label=%q, x=%d, y=%d\n", label, x, y)
 		}
 		commands := paintable.Paint(x, y)
 		for _, cmd := range commands {
 			if os.Getenv("TUI_DEBUG_FOCUS") == "true" {
-				fmt.Fprintf(os.Stderr, "[renderVNodeToBuffer] AFTER Paint, x=%d, y=%d, text=%q\n", cmd.X, cmd.Y, cmd.Text)
+				log.UILogger.Debug("[renderVNodeToBuffer] AFTER Paint, x=%d, y=%d, text=%q\n", cmd.X, cmd.Y, cmd.Text)
 			}
 			buffer.SetString(cmd.X, cmd.Y, cmd.Text, cmd.Style)
 		}

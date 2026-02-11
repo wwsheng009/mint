@@ -10,14 +10,14 @@ import (
 	"github.com/wwsheng009/mint/framework/cmd"
 	"github.com/wwsheng009/mint/framework/component"
 	frameworkevent "github.com/wwsheng009/mint/framework/event"
-	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
-	runtimeplatform "github.com/wwsheng009/mint/runtime/platform"
+	"github.com/wwsheng009/mint/internal/log"
 	"github.com/wwsheng009/mint/runtime"
+	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
 	"github.com/wwsheng009/mint/runtime/platform"
+	runtimeplatform "github.com/wwsheng009/mint/runtime/platform"
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 	ui "github.com/wwsheng009/mint/ui"
-	"github.com/wwsheng009/mint/internal/log"
 )
 
 // Interface implementation assertions
@@ -873,9 +873,9 @@ func (t *TreeView) GetLines() []TreeViewLine {
 func (t *TreeView) GetRender() ui.VNode {
 	if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
 		if t.currentRender == nil {
-			fmt.Fprintf(os.Stderr, "[TreeView] GetRender() returning nil!\n")
+			log.UILogger.Debug("[TreeView] GetRender() returning nil!\n")
 		} else {
-			fmt.Fprintf(os.Stderr, "[TreeView] GetRender() returning valid render, type=%T\n", t.currentRender)
+			log.UILogger.Debug("[TreeView] GetRender() returning valid render, type=%T\n", t.currentRender)
 		}
 	}
 	return t.currentRender
@@ -1247,12 +1247,12 @@ func (t *TreeView) Measure(constraints runtime.BoxConstraints) runtime.Size {
 		// Re-render if viewport height changed (to apply virtual scrolling)
 		if oldViewportHeight != viewportHeight && t.builder != nil {
 			if os.Getenv("TUI_LAYOUT_DEBUG") == "true" {
-				fmt.Fprintf(os.Stderr, "[TreeView.Measure] Bounded height: %d, triggering regenerateDisplay\n", viewportHeight)
+				log.UILogger.Debug("[TreeView.Measure] Bounded height: %d, triggering regenerateDisplay\n", viewportHeight)
 			}
 			t.regenerateDisplay()
 		} else {
 			if os.Getenv("TUI_LAYOUT_DEBUG") == "true" {
-				fmt.Fprintf(os.Stderr, "[TreeView.Measure] Viewport height unchanged: %d\n", viewportHeight)
+				log.UILogger.Debug("[TreeView.Measure] Viewport height unchanged: %d\n", viewportHeight)
 			}
 		}
 	} else {
@@ -1261,7 +1261,7 @@ func (t *TreeView) Measure(constraints runtime.BoxConstraints) runtime.Size {
 		height = totalLines
 
 		if os.Getenv("TUI_LAYOUT_DEBUG") == "true" {
-			fmt.Fprintf(os.Stderr, "[TreeView.Measure] No bounded height, rendering all %d lines\n", totalLines)
+			log.UILogger.Debug("[TreeView.Measure] No bounded height, rendering all %d lines\n", totalLines)
 		}
 	}
 

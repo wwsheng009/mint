@@ -8,9 +8,9 @@ package reconciler
 // =============================================================================
 
 import (
-	"fmt"
 	"os"
 
+	"github.com/wwsheng009/mint/internal/log"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
 
@@ -224,7 +224,7 @@ func markForDeletion(fiber *Fiber) {
 
 	// Debug logging
 	if os.Getenv("TUI_DEBUG_DELETION") == "true" {
-		fmt.Fprintf(os.Stderr, "[markForDeletion] Marking key=%q, current flags=%d\n",
+		log.UILogger.Debug("[markForDeletion] Marking key=%q, current flags=%d\n",
 			fiber.Key, fiber.Flags)
 	}
 

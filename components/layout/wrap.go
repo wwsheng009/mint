@@ -1,10 +1,10 @@
 package layout
 
 import (
-	"fmt"
 	"os"
 	"unicode/utf8"
 
+	"github.com/wwsheng009/mint/internal/log"
 	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/style"
 	"github.com/wwsheng009/mint/runtime/ui"
@@ -254,7 +254,7 @@ func (b *WrapBuilder) calculateRows() [][]ui.VNode {
 
 		// Debug logging (optional)
 		if os.Getenv("TUI_WRAP_DEBUG") == "true" {
-			fmt.Fprintf(os.Stderr, "[Wrap] child %d: width=%d, currentWidth=%d, shouldWrap=%v\n",
+			log.UILogger.Debug("[Wrap] child %d: width=%d, currentWidth=%d, shouldWrap=%v\n",
 				i, childWidth, currentWidth, shouldWrap)
 		}
 	}

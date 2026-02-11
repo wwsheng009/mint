@@ -1,13 +1,13 @@
 package layout
 
 import (
-	"fmt"
 	"os"
 	"strings"
 
+	"github.com/wwsheng009/mint/internal/log"
+	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 	ui "github.com/wwsheng009/mint/ui"
-	"github.com/wwsheng009/mint/runtime/style"
 )
 
 func min(a, b int) int {
@@ -114,11 +114,11 @@ func (b *ScrollViewBuilder) Build() ui.VNode {
 		if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
 			lineCount := strings.Count(contentText, "\n") + 1
 			if len(contentText) == 0 {
-				fmt.Fprintf(os.Stderr, "[ScrollView] Auto-height mode: NO CONTENT EXTRACTED!\n")
-				fmt.Fprintf(os.Stderr, "[ScrollView] Input type: %T\n", b.content)
+				log.UILogger.Debug("[ScrollView] Auto-height mode: NO CONTENT EXTRACTED!\n")
+				log.UILogger.Debug("[ScrollView] Input type: %T\n", b.content)
 			} else {
-				fmt.Fprintf(os.Stderr, "[ScrollView] Auto-height mode: extracted %d lines\n", lineCount)
-				fmt.Fprintf(os.Stderr, "[ScrollView] First 200 chars: %q\n", contentText[:min(200, len(contentText))])
+				log.UILogger.Debug("[ScrollView] Auto-height mode: extracted %d lines\n", lineCount)
+				log.UILogger.Debug("[ScrollView] First 200 chars: %q\n", contentText[:min(200, len(contentText))])
 			}
 		}
 

@@ -70,7 +70,7 @@ func (r *PipelineRenderer) Render(vnode rtui.VNode, x, y int, buffer interface{}
 
 	// Debug: Log buffer size
 	if os.Getenv("TUI_DEBUG_RENDERING") == "true" || os.Getenv("TUI_LAYER_DEBUG") == "true" {
-		fmt.Fprintf(os.Stderr, "[PipelineRenderer] Buffer size: %dx%d\n", buf.Width, buf.Height)
+		log.RenderLogger.Debug("[PipelineRenderer] Buffer size: %dx%d\n", buf.Width, buf.Height)
 	}
 
 	constraints := runtime.NewBoxConstraints(0, width, 0, height)
@@ -79,38 +79,38 @@ func (r *PipelineRenderer) Render(vnode rtui.VNode, x, y int, buffer interface{}
 	hasLayers := r.hasLayerNodes(vnode)
 
 	if r.debug || os.Getenv("TUI_LAYER_DEBUG") == "true" {
-		fmt.Fprintf(os.Stderr, "[PipelineRenderer] hasLayers=%v\n", hasLayers)
+		log.RenderLogger.Debug("[PipelineRenderer] hasLayers=%v\n", hasLayers)
 	}
 
 	var err error
 	if hasLayers {
 		// Use multi-layer rendering for modals, overlays, tooltips
 		if r.debug || os.Getenv("TUI_DEBUG_RENDERING") == "true" {
-			fmt.Fprintf(os.Stderr, "[PipelineRenderer] Using RenderLayers for multi-layer rendering\n")
+			log.RenderLogger.Debug("[PipelineRenderer] Using RenderLayers for multi-layer rendering\n")
 		}
 		err = r.pipeline.RenderLayers(vnode, constraints, buf)
 	} else {
 		// Use standard rendering for simple VNode trees
 		if r.debug || os.Getenv("TUI_DEBUG_RENDERING") == "true" {
-			fmt.Fprintf(os.Stderr, "[PipelineRenderer] Using standard Render\n")
+			log.RenderLogger.Debug("[PipelineRenderer] Using standard Render\n")
 		}
 		err = r.pipeline.Render(vnode, constraints, buf)
 	}
 
 	if err != nil {
 		if r.debug || os.Getenv("TUI_DEBUG_RENDERING") == "true" {
-			fmt.Fprintf(os.Stderr, "[PipelineRenderer] ❌ Render FAILED: %v, falling back to legacy\n", err)
+			log.RenderLogger.Debug("[PipelineRenderer] ❌ Render FAILED: %v, falling back to legacy\n", err)
 		}
 		// Fall back to legacy rendering if pipeline fails
 		return r.renderLegacy(vnode, x, y, buf)
 	}
 
 	if r.debug || os.Getenv("TUI_DEBUG_RENDERING") == "true" {
-		fmt.Fprintf(os.Stderr, "[PipelineRenderer] ✅ Render SUCCESS\n")
+		log.RenderLogger.Debug("[PipelineRenderer] ✅ Render SUCCESS\n")
 	}
 
 	if r.debug {
-		fmt.Fprintf(os.Stderr, "[PipelineRenderer] Render complete, cache stats: %s\n",
+		log.RenderLogger.Debug("[PipelineRenderer] Render complete, cache stats: %s\n",
 			r.pipeline.GetLayoutEngine().GetCacheStats().String())
 	}
 
@@ -167,7 +167,7 @@ func (r *PipelineRenderer) Measure(vnode rtui.VNode, maxWidth, maxHeight int) (w
 	layout, err := r.pipeline.GetLayoutEngine().Layout(vnode, constraints)
 	if err != nil {
 		if r.debug {
-			fmt.Fprintf(os.Stderr, "[PipelineRenderer] Layout failed: %v\n", err)
+			log.RenderLogger.Debug("[PipelineRenderer] Layout failed: %v\n", err)
 		}
 		return 0, 0
 	}
@@ -207,7 +207,7 @@ func (r *PipelineRenderer) RenderWithConstraints(vnode rtui.VNode, layoutWidth, 
 	constraints := runtime.NewBoxConstraints(0, layoutWidth, 0, layoutHeight)
 
 	if os.Getenv("TUI_DEBUG_RENDERING") == "true" || os.Getenv("TUI_LAYER_DEBUG") == "true" {
-		fmt.Fprintf(os.Stderr, "[PipelineRenderer] Layout constraints: %dx%d (buffer: %dx%d)\n",
+		log.RenderLogger.Debug("[PipelineRenderer] Layout constraints: %dx%d (buffer: %dx%d)\n",
 			layoutWidth, layoutHeight, buffer.Width, buffer.Height)
 	}
 
@@ -215,7 +215,7 @@ func (r *PipelineRenderer) RenderWithConstraints(vnode rtui.VNode, layoutWidth, 
 	hasLayers := r.hasLayerNodes(vnode)
 
 	if r.debug || os.Getenv("TUI_LAYER_DEBUG") == "true" {
-		fmt.Fprintf(os.Stderr, "[PipelineRenderer] hasLayers=%v\n", hasLayers)
+		log.RenderLogger.Debug("[PipelineRenderer] hasLayers=%v\n", hasLayers)
 	}
 
 	var err error
@@ -227,13 +227,13 @@ func (r *PipelineRenderer) RenderWithConstraints(vnode rtui.VNode, layoutWidth, 
 
 	if err != nil {
 		if r.debug || os.Getenv("TUI_DEBUG_RENDERING") == "true" {
-			fmt.Fprintf(os.Stderr, "[PipelineRenderer] ❌ Render FAILED: %v\n", err)
+			log.RenderLogger.Debug("[PipelineRenderer] ❌ Render FAILED: %v\n", err)
 		}
 		return err
 	}
 
 	if r.debug || os.Getenv("TUI_DEBUG_RENDERING") == "true" {
-		fmt.Fprintf(os.Stderr, "[PipelineRenderer] ✅ Render SUCCESS\n")
+		log.RenderLogger.Debug("[PipelineRenderer] ✅ Render SUCCESS\n")
 	}
 
 	return nil

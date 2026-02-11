@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/wwsheng009/mint/app"
+	"github.com/wwsheng009/mint/internal/log"
 	"github.com/wwsheng009/mint/ui"
 )
 
@@ -15,13 +16,13 @@ func DebugCounter() ui.VNode {
 
 	// Debug: log what value we got
 	if os.Getenv("TUI_DEBUG_UI") == "true" {
-		fmt.Fprintf(os.Stderr, "[DebugCounter] Using count=%d, hookIndex=%d\n", count, hookIndex)
+		log.UILogger.Debug( "[DebugCounter] Using count=%d, hookIndex=%d\n", count, hookIndex)
 	}
 
 	// Create the count text with logging
 	countTextStr := fmt.Sprintf("Count: %d (hookIndex=%d)", count, hookIndex)
 	if os.Getenv("TUI_DEBUG_UI") == "true" {
-		fmt.Fprintf(os.Stderr, "[DebugCounter] Creating TextVNode with content: %s\n", countTextStr)
+		log.UILogger.Debug("[DebugCounter] Creating TextVNode with content: %s\n", countTextStr)
 	}
 	countText := app.NewTextBuilder(countTextStr).
 		FgColor("green").
@@ -33,7 +34,7 @@ func DebugCounter() ui.VNode {
 		if countText.Props() != nil {
 			content = countText.Props().GetString("content")
 		}
-		fmt.Fprintf(os.Stderr, "[DebugCounter] Created TextVNode ptr=%p, content=%s\n", countText, content)
+		log.UILogger.Debug("[DebugCounter] Created TextVNode ptr=%p, content=%s\n", countText, content)
 	}
 
 	return ui.VStack(
@@ -47,10 +48,10 @@ func DebugCounter() ui.VNode {
 		ui.HStack(
 			app.ButtonBuilder("  -  ").
 				OnClick(func() {
-					fmt.Fprintf(os.Stderr, "[DEBUG] onClick: decrement called, current count=%d\n", count)
+					log.UILogger.Debug("[DEBUG] onClick: decrement called, current count=%d\n", count)
 					setCount(func(c int) int {
 						newVal := c - 1
-						fmt.Fprintf(os.Stderr, "[DEBUG] setState: %d -> %d\n", c, newVal)
+						log.UILogger.Debug("[DEBUG] setState: %d -> %d\n", c, newVal)
 						return newVal
 					})
 				}).
@@ -58,10 +59,10 @@ func DebugCounter() ui.VNode {
 			ui.Text("   "),
 			app.ButtonBuilder("  +  ").
 				OnClick(func() {
-					fmt.Fprintf(os.Stderr, "[DEBUG] onClick: increment called, current count=%d\n", count)
+					log.UILogger.Debug("[DEBUG] onClick: increment called, current count=%d\n", count)
 					setCount(func(c int) int {
 						newVal := c + 1
-						fmt.Fprintf(os.Stderr, "[DEBUG] setState: %d -> %d\n", c, newVal)
+						log.UILogger.Debug("[DEBUG] setState: %d -> %d\n", c, newVal)
 						return newVal
 					})
 				}).
@@ -99,15 +100,15 @@ func main() {
 	useFiber := os.Getenv("MINT_USE_FIBER") == "true"
 	debugUI := os.Getenv("TUI_DEBUG_UI") == "true"
 
-	fmt.Fprintf(os.Stderr, "=== Fiber Counter Debug Info ===\n")
-	fmt.Fprintf(os.Stderr, "MINT_USE_FIBER: %v\n", useFiber)
-	fmt.Fprintf(os.Stderr, "TUI_DEBUG_UI: %v\n", debugUI)
-	fmt.Fprintf(os.Stderr, "==============================\n\n")
+	log.UILogger.Debug("=== Fiber Counter Debug Info ===\n")
+	log.UILogger.Debug("MINT_USE_FIBER: %v\n", useFiber)
+	log.UILogger.Debug("TUI_DEBUG_UI: %v\n", debugUI)
+	log.UILogger.Debug("==============================\n\n")
 
 	if useFiber {
-		fmt.Fprintf(os.Stderr, "Running in FIBER mode\n")
+		log.UILogger.Debug("Running in FIBER mode\n")
 	} else {
-		fmt.Fprintf(os.Stderr, "Running in LEGACY mode\n")
+		log.UILogger.Debug("Running in LEGACY mode\n")
 	}
 
 	var app ui.ComponentFunc

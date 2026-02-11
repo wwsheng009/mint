@@ -2,9 +2,9 @@
 package inspector
 
 import (
-	"fmt"
 	"os"
 
+	"github.com/wwsheng009/mint/internal/log"
 	"github.com/wwsheng009/mint/runtime/render"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
@@ -23,20 +23,20 @@ func CreateInspectorHook(inspector *StandaloneInspector) render.VNodeHook {
 		// If Inspector is not visible, return original VNode unchanged
 		if !inspector.IsVisible() {
 			if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
-				fmt.Fprintf(os.Stderr, "[InspectorHook] Inspector not visible, skipping injection\n")
+				log.InspectorLogger.Debug("[InspectorHook] Inspector not visible, skipping injection\n")
 			}
 			return vnode
 		}
 
 		if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
-			fmt.Fprintf(os.Stderr, "[InspectorHook] Injecting Inspector overlay\n")
+			log.InspectorLogger.Debug("[InspectorHook] Injecting Inspector overlay\n")
 		}
 
 		// Get Inspector content (UI only, no Layer set)
 		inspectorContent := inspector.RenderContent()
 		if inspectorContent == nil {
 			if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
-				fmt.Fprintf(os.Stderr, "[InspectorHook] RenderContent() returned nil\n")
+				log.InspectorLogger.Debug("[InspectorHook] RenderContent() returned nil\n")
 			}
 			return vnode
 		}
@@ -62,7 +62,7 @@ func CreateInspectorHook(inspector *StandaloneInspector) render.VNodeHook {
 		inspectorContent.SetLayer(rtui.LayerInspector)
 
 		if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
-			fmt.Fprintf(os.Stderr, "[InspectorHook] Inspector overlay: layer=%d, pos=(%d,%d), size=%dx%d\n",
+			log.InspectorLogger.Debug("[InspectorHook] Inspector overlay: layer=%d, pos=(%d,%d), size=%dx%d\n",
 				rtui.LayerInspector, x, y, width, height)
 		}
 
@@ -89,7 +89,7 @@ func RegisterInspector(inspector *StandaloneInspector, hookManager interface{}) 
 		hm.RegisterVNodeHook(hook)
 
 		if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
-			fmt.Fprintf(os.Stderr, "[Inspector] Registered with render hook system\n")
+			log.InspectorLogger.Debug("[Inspector] Registered with render hook system\n")
 		}
 	}
 }

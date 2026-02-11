@@ -2,9 +2,9 @@
 package layer
 
 import (
-	"fmt"
 	"os"
 
+	"github.com/wwsheng009/mint/internal/log"
 	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/compute"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
@@ -30,7 +30,7 @@ func NewEventHandler(manager *Manager) *EventHandler {
 // HandleKeyEvent processes a key event and returns true if handled
 func (h *EventHandler) HandleKeyEvent(keyName string, keyRune rune) bool {
 	if os.Getenv("TUI_LAYER_DEBUG") == "true" {
-		fmt.Fprintf(os.Stderr, "[LayerEventHandler] HandleKeyEvent: keyName=%q keyRune=%c\n", keyName, keyRune)
+		log.EventLogger.Debug("[LayerEventHandler] HandleKeyEvent: keyName=%q keyRune=%c\n", keyName, keyRune)
 	}
 
 	// Check if there's an active modal
@@ -50,7 +50,7 @@ func (h *EventHandler) HandleKeyEvent(keyName string, keyRune rune) bool {
 	if keyName == "esc" {
 		if h.shouldCloseOnESC(modalNode) {
 			if os.Getenv("TUI_LAYER_DEBUG") == "true" {
-				fmt.Fprintf(os.Stderr, "[LayerEventHandler] ESC pressed, closing modal\n")
+				log.EventLogger.Debug("[LayerEventHandler] ESC pressed, closing modal\n")
 			}
 			h.triggerOnClose(modalNode)
 			return true
@@ -63,7 +63,7 @@ func (h *EventHandler) HandleKeyEvent(keyName string, keyRune rune) bool {
 // HandleMouseEvent processes a mouse event and returns true if handled
 func (h *EventHandler) HandleMouseEvent(x, y int) bool {
 	if os.Getenv("TUI_LAYER_DEBUG") == "true" {
-		fmt.Fprintf(os.Stderr, "[LayerEventHandler] HandleMouseEvent: x=%d y=%d\n", x, y)
+		log.EventLogger.Debug("[LayerEventHandler] HandleMouseEvent: x=%d y=%d\n", x, y)
 	}
 
 	// Check if there's an active modal
@@ -84,7 +84,7 @@ func (h *EventHandler) HandleMouseEvent(x, y int) bool {
 			modalNode := modalNodes[0]
 			if h.shouldCloseOnBackdrop(modalNode) {
 				if os.Getenv("TUI_LAYER_DEBUG") == "true" {
-					fmt.Fprintf(os.Stderr, "[LayerEventHandler] Click outside modal, closing\n")
+					log.EventLogger.Debug("[LayerEventHandler] Click outside modal, closing\n")
 				}
 				h.triggerOnClose(modalNode)
 				return true

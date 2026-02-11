@@ -13,10 +13,10 @@ import (
 	frameworkevent "github.com/wwsheng009/mint/framework/event"
 	"github.com/wwsheng009/mint/framework/theme"
 	"github.com/wwsheng009/mint/internal/log"
-	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
 	"github.com/wwsheng009/mint/runtime/core"
-	"github.com/wwsheng009/mint/runtime/layout"
 	runtimeevent "github.com/wwsheng009/mint/runtime/event"
+	"github.com/wwsheng009/mint/runtime/layout"
+	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/platform"
 	"github.com/wwsheng009/mint/runtime/render"
@@ -178,11 +178,11 @@ func (a *App) SetDebugMode(enabled bool) {
 		}
 		recorder, err := debug.NewRecorder(logFile)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to create debug recorder: %v\n", err)
+			log.UILogger.Debug("Failed to create debug recorder: %v\n", err)
 			return
 		}
 		a.debugRecorder = recorder
-		fmt.Fprintf(os.Stderr, "Debug mode enabled, logging to: %s\n", logFile)
+		log.UILogger.Debug("Debug mode enabled, logging to: %s\n", logFile)
 	}
 }
 
@@ -920,7 +920,7 @@ func (a *App) updateFocusManager(root layout.Node) {
 func (a *App) handleEvent(ev frameworkevent.Event) {
 	// 调试模式：记录所有事件类型
 	if a.debugMode {
-		fmt.Fprintf(os.Stderr, "[EVENT] Type: %d (%s), IsMouse: %v\n",
+		log.UILogger.Debug("[EVENT] Type: %d (%s), IsMouse: %v\n",
 			ev.Type(), ev.Type(), ev.Type().IsMouse())
 	}
 	// 调试模式：记录事件
@@ -1088,7 +1088,7 @@ func (a *App) handleEvent(ev frameworkevent.Event) {
 	// Click 事件（已包含目标信息）
 	if ev.Type() == frameworkevent.EventClick {
 		if a.debugMode {
-			fmt.Fprintf(os.Stderr, "[CLICK] Target: %v\n", ev.Target())
+			log.UILogger.Debug("[CLICK] Target: %v\n", ev.Target())
 		}
 		// 直接分发到目标组件
 		if target := ev.Target(); target != nil {
@@ -1293,7 +1293,7 @@ func (a *App) outputBuffer(buf *paint.Buffer) {
 
 	// 调试模式：记录输出
 	if a.debugMode && a.debugRecorder != nil && os.Getenv("TUI_OUTPUT_DEBUG") == "1" {
-		fmt.Fprintf(os.Stderr, "[OUTPUT] %d changes detected\n", len(diffResult.Changes))
+		log.UILogger.Debug("[OUTPUT] %d changes detected\n", len(diffResult.Changes))
 	}
 
 	// 排序变化（从上到下，从左到右）
@@ -1339,7 +1339,7 @@ func (a *App) outputBufferDirect(buf *paint.Buffer) {
 
 	// 调试模式：记录输出
 	if a.debugMode && a.debugRecorder != nil && os.Getenv("TUI_OUTPUT_DEBUG") == "1" {
-		fmt.Fprintf(os.Stderr, "[OUTPUT DIRECT] about to write %d cells to terminal\n", buf.Height*buf.Width)
+		log.UILogger.Debug("[OUTPUT DIRECT] about to write %d cells to terminal\n", buf.Height*buf.Width)
 	}
 
 	// 移动光标到左上角
@@ -1440,9 +1440,9 @@ func (a *App) Close() error {
 	// 调试模式：保存日志
 	if a.debugMode && a.debugRecorder != nil {
 		if err := a.debugRecorder.DumpToFile(); err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to save debug log: %v\n", err)
+			log.UILogger.Debug("Failed to save debug log: %v\n", err)
 		} else {
-			fmt.Fprintf(os.Stderr, "Debug log saved\n")
+			log.UILogger.Debug("Debug log saved\n")
 		}
 	}
 

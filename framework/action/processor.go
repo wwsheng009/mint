@@ -73,27 +73,30 @@ func (p *InputProcessor) processKeyMsg(keyMsg *runtimemsg.KeyMsg) *Action {
 
 // processMouseMsg 处理鼠标消息
 func (p *InputProcessor) processMouseMsg(mouseMsg *runtimemsg.MouseMsg) *Action {
+	// 如果没有目标，不处理
+	if mouseMsg.TargetID == "" {
+		return nil
+	}
+
 	// 鼠标事件转换为 Action 语义
 	switch mouseMsg.Action {
 	case runtimemsg.MouseActionPress:
 		if mouseMsg.Button == runtimemsg.MouseLeft {
-			return NewAction(ActionClick).
-				WithTarget(mouseMsg.TargetID).
-				WithPayload(struct{ X, Y int }{mouseMsg.LocalX, mouseMsg.LocalY})
+			return NewActionFromMouse(ActionClick, mouseMsg.TargetID, mouseMsg.LocalX, mouseMsg.LocalY)
 		} else if mouseMsg.Button == runtimemsg.MouseRight {
-			return NewAction(ActionRightClick).
-				WithTarget(mouseMsg.TargetID)
+			return NewActionFromMouse(ActionRightClick, mouseMsg.TargetID, mouseMsg.LocalX, mouseMsg.LocalY)
+		} else if mouseMsg.Button == runtimemsg.MouseMiddle {
+			return NewActionFromMouse(ActionMiddleClick, mouseMsg.TargetID, mouseMsg.LocalX, mouseMsg.LocalY)
 		}
 
 	case runtimemsg.MouseActionWheel:
 		return NewAction(ActionScroll).
 			WithTarget(mouseMsg.TargetID).
+			WithSource("mouse").
 			WithPayload(mouseMsg.Delta)
 
 	case runtimemsg.MouseActionMove:
-		return NewAction(ActionHover).
-			WithTarget(mouseMsg.TargetID).
-			WithPayload(struct{ X, Y int }{mouseMsg.LocalX, mouseMsg.LocalY})
+		return NewActionFromMouse(ActionHover, mouseMsg.TargetID, mouseMsg.LocalX, mouseMsg.LocalY)
 	}
 
 	return nil
@@ -173,6 +176,10 @@ func (p *InputProcessor) applyDefaultKeyMapping(keyMsg *runtimemsg.KeyMsg) *Acti
 				return NewActionFromKey(ActionQuit, "keyboard")
 			case 's', 'S':
 				return NewActionFromKey(ActionSubmit, "keyboard")
+			case 'a', 'A':
+				return NewActionFromKey(ActionNavigateHome, "keyboard")
+			case 'e', 'E':
+				return NewActionFromKey(ActionNavigateEnd, "keyboard")
 			}
 		}
 	}

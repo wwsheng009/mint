@@ -12,6 +12,7 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/wwsheng009/mint/internal/log"
 	"golang.org/x/sys/windows"
 )
 
@@ -52,18 +53,18 @@ func (r *windowsInputReader) Start(events chan<- RawInput) error {
 
 	// DEBUG: 打印启动信息
 	if os.Getenv("TUI_DEBUG_WINDOWS") == "true" {
-		fmt.Fprintf(os.Stderr, "[WIN INPUT] Starting...\n")
+		log.WinLogger.Debug("[WIN INPUT] Starting...\n")
 	}
 
 	handle, _, err := procGetStdHandle.Call(STD_INPUT_HANDLE)
 	if handle == 0 {
 		if os.Getenv("TUI_DEBUG_WINDOWS") == "true" {
-			fmt.Fprintf(os.Stderr, "[WIN INPUT] Failed to get stdin handle: %v\n", err)
+			log.WinLogger.Debug("[WIN INPUT] Failed to get stdin handle: %v\n", err)
 		}
 		return err
 	}
 	if os.Getenv("TUI_DEBUG_WINDOWS") == "true" {
-		fmt.Fprintf(os.Stderr, "[WIN INPUT] Got handle: 0x%x\n", handle)
+		log.WinLogger.Debug("[WIN INPUT] Got handle: 0x%x\n", handle)
 	}
 
 	// 🔥 关键修复：先重置控制台到安全模式，防止上次崩溃遗毒
@@ -90,9 +91,9 @@ func (r *windowsInputReader) Start(events chan<- RawInput) error {
 
 	// DEBUG: 打印控制台模式
 	if os.Getenv("TUI_DEBUG_WINDOWS") == "true" {
-		fmt.Fprintf(os.Stderr, "[WIN] Setting console mode: 0x%08X (original: 0x%08X)\n",
+		log.WinLogger.Debug("[WIN] Setting console mode: 0x%08X (original: 0x%08X)\n",
 			mode, r.originalMode)
-		fmt.Fprintf(os.Stderr, "[WIN] ENABLE_MOUSE_INPUT=0x%04X, ENABLE_WINDOW_INPUT=0x%04X\n",
+		log.WinLogger.Debug("[WIN] ENABLE_MOUSE_INPUT=0x%04X, ENABLE_WINDOW_INPUT=0x%04X\n",
 			ENABLE_MOUSE_INPUT, ENABLE_WINDOW_INPUT)
 	}
 	r.setConsoleMode(handle, mode)
@@ -100,7 +101,7 @@ func (r *windowsInputReader) Start(events chan<- RawInput) error {
 	// Verify the mode was set
 	actualMode := r.getConsoleMode(handle)
 	if os.Getenv("TUI_DEBUG_WINDOWS") == "true" {
-		fmt.Fprintf(os.Stderr, "[WIN] Actual console mode after set: 0x%08X\n", actualMode)
+		log.WinLogger.Debug("[WIN] Actual console mode after set: 0x%08X\n", actualMode)
 	}
 
 	// 清空所有待处理的输入事件
@@ -112,11 +113,11 @@ func (r *windowsInputReader) Start(events chan<- RawInput) error {
 
 	// DEBUG: 确认即将启动 readLoop
 	if os.Getenv("TUI_DEBUG_WINDOWS") == "true" {
-		fmt.Fprintf(os.Stderr, "[WIN] About to start readLoop...\n")
+		log.WinLogger.Debug("[WIN] About to start readLoop...\n")
 	}
 	go r.readLoop(handle)
 	if os.Getenv("TUI_DEBUG_WINDOWS") == "true" {
-		fmt.Fprintf(os.Stderr, "[WIN] readLoop goroutine started (async)\n")
+		log.WinLogger.Debug("[WIN] readLoop goroutine started (async)\n")
 	}
 
 	return nil
@@ -199,7 +200,7 @@ func (r *windowsInputReader) readLoop(handle uintptr) {
 			record, err := r.readSingleRecord(handle)
 			if err != nil {
 				if os.Getenv("TUI_DEBUG_EVENTS") == "true" {
-					fmt.Fprintf(os.Stderr, "[WIN] Error reading record: %v\n", err)
+					log.WinLogger.Debug("[WIN] Error reading record: %v\n", err)
 				}
 				continue
 			}
@@ -239,7 +240,7 @@ func (r *windowsInputReader) readSingleRecord(handle uintptr) (*INPUT_RECORD, er
 func (r *windowsInputReader) parseRecord(record *INPUT_RECORD) RawInput {
 	// DEBUG: 打印所有事件类型（启用时）
 	if os.Getenv("TUI_DEBUG_EVENTS") == "true" {
-		fmt.Fprintf(os.Stderr, "[WIN] Event type: %d (KEY=%d, MOUSE=%d, RESIZE=%d)\n",
+		log.WinLogger.Debug("[WIN] Event type: %d (KEY=%d, MOUSE=%d, RESIZE=%d)\n",
 			record.EventType, KEY_EVENT, MOUSE_EVENT, WINDOW_BUFFER_SIZE_EVENT)
 	}
 	now := time.Now()
@@ -349,7 +350,7 @@ func (r *windowsInputReader) parseKeyEvent(record *INPUT_RECORD, now time.Time) 
 		if modStr == "" {
 			modStr = "none"
 		}
-		fmt.Fprintf(os.Stderr, "[WIN INPUT] VK=0x%02X UChar=0x%02X Special=%d Key=%c ControlKeyState=0x%04X Modifiers=%s\n",
+		log.WinLogger.Debug("[WIN INPUT] VK=0x%02X UChar=0x%02X Special=%d Key=%c ControlKeyState=0x%04X Modifiers=%s\n",
 			keyEvent.VirtualKeyCode, keyEvent.UChar, input.Special, input.Key,
 			keyEvent.ControlKeyState, modStr)
 	}
@@ -370,7 +371,7 @@ func (r *windowsInputReader) parseMouseEvent(record *INPUT_RECORD, now time.Time
 
 	// DEBUG: 打印鼠标事件（可以通过环境变量启用）
 	if os.Getenv("TUI_DEBUG_MOUSE") == "true" {
-		fmt.Fprintf(os.Stderr, "[WIN MOUSE] X=%d Y=%d ButtonState=%d Flags=%d\n",
+		log.WinLogger.Debug("[WIN MOUSE] X=%d Y=%d ButtonState=%d Flags=%d\n",
 			input.MouseX, input.MouseY, mouseEvent.ButtonState, mouseEvent.EventFlags)
 	}
 
@@ -489,12 +490,12 @@ func (r *windowsInputReader) setConsoleMode(handle uintptr, mode uint32) {
 	ret, _, err := procSetConsoleMode.Call(handle, uintptr(mode))
 	if ret == 0 {
 		if os.Getenv("TUI_DEBUG_WINDOWS") == "true" {
-			fmt.Fprintf(os.Stderr, "[WIN] SetConsoleMode FAILED! handle=0x%x mode=0x%x err=%v\n", handle, mode, err)
+			log.WinLogger.Debug("[WIN] SetConsoleMode FAILED! handle=0x%x mode=0x%x err=%v\n", handle, mode, err)
 		}
 	} else {
 		// Success - optionally log
 		if os.Getenv("TUI_DEBUG_WINDOWS") == "true" {
-			fmt.Fprintf(os.Stderr, "[WIN] SetConsoleMode success: 0x%x\n", mode)
+			log.WinLogger.Debug("[WIN] SetConsoleMode success: 0x%x\n", mode)
 		}
 	}
 }

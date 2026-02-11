@@ -1,10 +1,10 @@
 package inspector
 
 import (
-	"fmt"
 	"os"
 
 	frameworkevent "github.com/wwsheng009/mint/framework/event"
+	"github.com/wwsheng009/mint/internal/log"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
 
@@ -46,7 +46,7 @@ func (ih *IntegrationHelper) CreateEventFilter() func(frameworkevent.Event) bool
 			if ih.inspector.HandleKeyEvent(inspectorEvent) {
 				// Event was handled by inspector, don't propagate
 				if os.Getenv("TUI_INSPECTOR_DEBUG") == "true" {
-					fmt.Fprintf(os.Stderr, "[Inspector] Handled key event: %s (ctrl=%v)\n",
+					log.UILogger.Debug("[Inspector] Handled key event: %s (ctrl=%v)\n",
 						inspectorEvent.Key, inspectorEvent.Ctrl)
 				}
 				return false // Block event from normal routing
@@ -76,7 +76,7 @@ func (ih *IntegrationHelper) CreateMouseHandler() func(x, y int) bool {
 
 			if os.Getenv("TUI_INSPECTOR_DEBUG") == "true" && hovered != nil {
 				info := ExtractElementInfo(hovered)
-				fmt.Fprintf(os.Stderr, "[Inspector] Hovered: %s (%s)\n", info.Type, info.Label)
+				log.UILogger.Debug("[Inspector] Hovered: %s (%s)\n", info.Type, info.Label)
 			}
 		}
 
@@ -106,7 +106,7 @@ func (ih *IntegrationHelper) RegisterWithApp(app interface{}) bool {
 	// 3. app.AddInspector(inspector)
 
 	if os.Getenv("TUI_INSPECTOR_DEBUG") == "true" {
-		fmt.Fprintf(os.Stderr, "[Inspector] RegisterWithApp called (integration pending)\n")
+		log.UILogger.Debug("[Inspector] RegisterWithApp called (integration pending)\n")
 	}
 
 	return false
@@ -118,16 +118,16 @@ func (ih *IntegrationHelper) EnableFromEnvironment() bool {
 	// Check for TUI_INSPECTOR environment variable
 	if os.Getenv("TUI_INSPECTOR") == "true" {
 		ih.inspector.Enable()
-		fmt.Fprintf(os.Stderr, "[Inspector] Enabled via TUI_INSPECTOR=true\n")
-		fmt.Fprintf(os.Stderr, "[Inspector] Press F12 or Ctrl+I to toggle, Tab to navigate, Esc to close\n")
+		log.UILogger.Debug("[Inspector] Enabled via TUI_INSPECTOR=true\n")
+		log.UILogger.Debug("[Inspector] Press F12 or Ctrl+I to toggle, Tab to navigate, Esc to close\n")
 		return true
 	}
 
 	// Check for TUI_INSPECTOR_AUTO environment variable (enable with auto-start)
 	if os.Getenv("TUI_INSPECTOR_AUTO") == "true" {
 		ih.inspector.Enable()
-		fmt.Fprintf(os.Stderr, "[Inspector] Auto-enabled via TUI_INSPECTOR_AUTO=true\n")
-		fmt.Fprintf(os.Stderr, "[Inspector] Press F12 or Ctrl+I to toggle, Tab to navigate, Esc to close\n")
+		log.UILogger.Debug("[Inspector] Auto-enabled via TUI_INSPECTOR_AUTO=true\n")
+		log.UILogger.Debug("[Inspector] Press F12 or Ctrl+I to toggle, Tab to navigate, Esc to close\n")
 		return true
 	}
 

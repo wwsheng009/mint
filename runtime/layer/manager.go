@@ -2,7 +2,6 @@
 package layer
 
 import (
-	"fmt"
 	"os"
 	"sort"
 
@@ -56,7 +55,7 @@ func (m *Manager) CollectAndLayout(
 	m.collector.Collect(vnode)
 
 	if debug {
-		fmt.Fprintf(os.Stderr, "[CollectAndLayout] collected %d modal nodes\n", len(m.collector.GetModalNodes()))
+		log.RenderLogger.Debug("[CollectAndLayout] collected %d modal nodes\n", len(m.collector.GetModalNodes()))
 	}
 
 	// 2. Strip layer nodes from the main tree to get clean base content
@@ -64,9 +63,9 @@ func (m *Manager) CollectAndLayout(
 
 	if debug {
 		baseChildren := baseTree.Children()
-		fmt.Fprintf(os.Stderr, "[CollectAndLayout] baseTree has %d children (after stripping)\n", len(baseChildren))
+		log.RenderLogger.Debug("[CollectAndLayout] baseTree has %d children (after stripping)\n", len(baseChildren))
 		for i, child := range baseChildren {
-			fmt.Fprintf(os.Stderr, "[CollectAndLayout]   child %d: layer=%d type=%s\n", i, child.GetLayer(), child.Type().String())
+			log.RenderLogger.Debug("[CollectAndLayout]   child %d: layer=%d type=%s\n", i, child.GetLayer(), child.Type().String())
 		}
 	}
 
@@ -290,7 +289,7 @@ func (m *Manager) positionInspector(node *LayerNode, root *compute.ComputedBox) 
 	originalY := root.Box.Y
 
 	if debug {
-		fmt.Fprintf(os.Stderr, "[positionInspector] original=(%d,%d) target=(%d,%d)\n",
+		log.RenderLogger.Debug("[positionInspector] original=(%d,%d) target=(%d,%d)\n",
 			originalX, originalY, targetX, targetY)
 	}
 
@@ -302,7 +301,7 @@ func (m *Manager) positionInspector(node *LayerNode, root *compute.ComputedBox) 
 	m.shiftPositions(root, offsetX, offsetY)
 
 	if debug {
-		fmt.Fprintf(os.Stderr, "[positionInspector] after shift: inspector=(%d,%d) size=%dx%d\n",
+		log.RenderLogger.Debug("[positionInspector] after shift: inspector=(%d,%d) size=%dx%d\n",
 			root.Box.X, root.Box.Y, root.Box.Width, root.Box.Height)
 	}
 }

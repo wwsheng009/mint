@@ -1,9 +1,10 @@
 package state
 
 import (
-	"fmt"
 	"os"
 	"sync"
+
+	"github.com/wwsheng009/mint/internal/log"
 )
 
 // InteractionType represents the type of interaction state
@@ -217,14 +218,14 @@ func (v *KeyValidator) warnAboutMissingKeys(parent VNode, children []VNode, miss
 		parentName = parent.Type().String()
 	}
 
-	fmt.Fprintf(os.Stderr, "[Mint Warning] Missing keys in %s with %d children\n", parentName, len(children))
-	fmt.Fprintf(os.Stderr, "  Positions without keys: %v\n", missing)
-	fmt.Fprintf(os.Stderr, "  This may cause issues with:\n")
-	fmt.Fprintf(os.Stderr, "    - Component state preservation\n")
-	fmt.Fprintf(os.Stderr, "    - Hover/focus state in dynamic lists\n")
-	fmt.Fprintf(os.Stderr, "    - Performance (unnecessary re-renders)\n")
-	fmt.Fprintf(os.Stderr, "  Fix: Add unique keys to each child:\n")
-	fmt.Fprintf(os.Stderr, "    ui.ComponentBuilder(\"Item\").Key(fmt.Sprintf(\"item-%%d\", id)).Build()\n")
+	log.EngineLogger.Debug("[Mint Warning] Missing keys in %s with %d children\n", parentName, len(children))
+	log.EngineLogger.Debug("  Positions without keys: %v\n", missing)
+	log.EngineLogger.Debug("  This may cause issues with:\n")
+	log.EngineLogger.Debug("    - Component state preservation\n")
+	log.EngineLogger.Debug("    - Hover/focus state in dynamic lists\n")
+	log.EngineLogger.Debug("    - Performance (unnecessary re-renders)\n")
+	log.EngineLogger.Debug("  Fix: Add unique keys to each child:\n")
+	log.EngineLogger.Debug("    ui.ComponentBuilder(\"Item\").Key(fmt.Sprintf(\"item-%%d\", id)).Build()\n")
 }
 
 // warnAboutDuplicateKeys prints a warning about duplicate keys
@@ -234,9 +235,9 @@ func (v *KeyValidator) warnAboutDuplicateKeys(parent VNode, duplicates map[strin
 		parentName = parent.Type().String()
 	}
 
-	fmt.Fprintf(os.Stderr, "[Mint Warning] Duplicate keys in %s\n", parentName)
+	log.EngineLogger.Debug("[Mint Warning] Duplicate keys in %s\n", parentName)
 	for key, count := range duplicates {
-		fmt.Fprintf(os.Stderr, "  Key %q appears %d times\n", key, count)
+		log.EngineLogger.Debug("  Key %q appears %d times\n", key, count)
 	}
-	fmt.Fprintf(os.Stderr, "  Keys must be unique among siblings\n")
+	log.EngineLogger.Debug("  Keys must be unique among siblings\n")
 }

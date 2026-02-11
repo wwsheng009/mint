@@ -2,7 +2,6 @@
 package render
 
 import (
-	"fmt"
 	"os"
 
 	"github.com/wwsheng009/mint/internal/log"
@@ -50,29 +49,29 @@ func (p *RenderingPipeline) Render(vnode rtui.VNode, constraints runtime.BoxCons
 	}
 
 	if os.Getenv("TUI_PIPELINE_DEBUG") == "true" || os.Getenv("TUI_DEBUG_RENDERING") == "true" {
-		fmt.Fprintf(os.Stderr, "[RenderingPipeline] Render started\n")
+		log.RenderLogger.Debug("[RenderingPipeline] Render started\n")
 	}
 
 	// Phase 1: Layout - calculate all positions
 	layout, err := p.layoutEngine.Layout(vnode, constraints)
 	if err != nil {
 		// Fallback to legacy rendering if layout fails
-		fmt.Fprintf(os.Stderr, "[RenderingPipeline] ❌ Layout FAILED: %v, falling back to legacy\n", err)
+		log.RenderLogger.Debug("[RenderingPipeline] ❌ Layout FAILED: %v, falling back to legacy\n", err)
 		return p.renderLegacy(vnode, 0, 0, buffer)
 	}
 
 	if os.Getenv("TUI_PIPELINE_DEBUG") == "true" || os.Getenv("TUI_DEBUG_RENDERING") == "true" {
-		fmt.Fprintf(os.Stderr, "[RenderingPipeline] ✅ Layout complete, starting Paint phase\n")
+		log.RenderLogger.Debug("[RenderingPipeline] ✅ Layout complete, starting Paint phase\n")
 	}
 
 	// Phase 2: Paint - render using computed positions
 	if os.Getenv("TUI_DEBUG_RENDERING") == "true" {
-		fmt.Fprintf(os.Stderr, "[RenderingPipeline] Starting Paint phase...\n")
+		log.RenderLogger.Debug("[RenderingPipeline] Starting Paint phase...\n")
 	}
 	err = p.paintEngine.Paint(layout, buffer)
 
 	if os.Getenv("TUI_PIPELINE_DEBUG") == "true" || os.Getenv("TUI_PAINT_DEBUG") == "true" || os.Getenv("TUI_DEBUG_RENDERING") == "true" {
-		fmt.Fprintf(os.Stderr, "[RenderingPipeline] Paint complete, err=%v\n", err)
+		log.RenderLogger.Debug("[RenderingPipeline] Paint complete, err=%v\n", err)
 	}
 
 	// Save HitMap for event routing (hit testing)
@@ -81,9 +80,9 @@ func (p *RenderingPipeline) Render(vnode rtui.VNode, constraints runtime.BoxCons
 
 	if os.Getenv("TUI_DEBUG_HITMAP") == "true" {
 		if p.lastHitMap != nil {
-			fmt.Fprintf(os.Stderr, "[RenderingPipeline] Saved HitMap: %d entries\n", p.lastHitMap.Size())
+			log.RenderLogger.Debug("[RenderingPipeline] Saved HitMap: %d entries\n", p.lastHitMap.Size())
 		} else {
-			fmt.Fprintf(os.Stderr, "[RenderingPipeline] ⚠️ Layout.HitMap is nil\n")
+			log.RenderLogger.Debug("[RenderingPipeline] ⚠️ Layout.HitMap is nil\n")
 		}
 	}
 
@@ -167,7 +166,7 @@ func (p *RenderingPipeline) RenderLayers(
 	}
 
 	if os.Getenv("TUI_PIPELINE_DEBUG") == "true" {
-		fmt.Fprintf(os.Stderr, "[RenderingPipeline] RenderLayers started\n")
+		log.RenderLogger.Debug("[RenderingPipeline] RenderLayers started\n")
 	}
 
 	// Create a layer manager for this render pass
@@ -176,7 +175,7 @@ func (p *RenderingPipeline) RenderLayers(
 	// Collect and layout all layers
 	if err := layerMgr.CollectAndLayout(vnode, constraints, p.layoutEngine); err != nil {
 		if os.Getenv("TUI_PIPELINE_DEBUG") == "true" {
-			fmt.Fprintf(os.Stderr, "[RenderingPipeline] Layer layout failed: %v\n", err)
+			log.RenderLogger.Debug("[RenderingPipeline] Layer layout failed: %v\n", err)
 		}
 		// Fallback to regular rendering
 		return p.Render(vnode, constraints, buffer)
@@ -186,13 +185,13 @@ func (p *RenderingPipeline) RenderLayers(
 	layouts := layerMgr.GetLayouts()
 
 	if os.Getenv("TUI_PIPELINE_DEBUG") == "true" {
-		fmt.Fprintf(os.Stderr, "[RenderingPipeline] Layer layouts complete, rendering %d layers\n", len(layouts))
+		log.RenderLogger.Debug("[RenderingPipeline] Layer layouts complete, rendering %d layers\n", len(layouts))
 	}
 
 	// Paint all layers
 	if err := p.paintEngine.PaintLayers(layouts, buffer); err != nil {
 		if os.Getenv("TUI_PIPELINE_DEBUG") == "true" {
-			fmt.Fprintf(os.Stderr, "[RenderingPipeline] PaintLayers failed: %v\n", err)
+			log.RenderLogger.Debug("[RenderingPipeline] PaintLayers failed: %v\n", err)
 		}
 		return err
 	}
@@ -217,13 +216,13 @@ func (p *RenderingPipeline) RenderLayers(
 				}
 			}
 		}
-		fmt.Fprintf(os.Stderr, "[RenderLayers] Buffer content after PaintLayers: %d cells (buffer size: %dx%d)\n",
+		log.RenderLogger.Debug("[RenderLayers] Buffer content after PaintLayers: %d cells (buffer size: %dx%d)\n",
 			contentCount, buffer.Width, buffer.Height)
 
 		if contentCount == 0 {
-			fmt.Fprintf(os.Stderr, "[RenderLayers] ⚠️  WARNING: Buffer is empty!\n")
+			log.RenderLogger.Debug("[RenderLayers] ⚠️  WARNING: Buffer is empty!\n")
 		} else {
-			fmt.Fprintf(os.Stderr, "[RenderLayers] ✅ Buffer has content\n")
+			log.RenderLogger.Debug("[RenderLayers] ✅ Buffer has content\n")
 		}
 	}
 

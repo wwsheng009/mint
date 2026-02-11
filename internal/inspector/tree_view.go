@@ -5,6 +5,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/wwsheng009/mint/internal/log"
 	"github.com/wwsheng009/mint/ui"
 )
 
@@ -59,7 +60,7 @@ func (tv *TreeView) SetRoot(root ui.VNode) error {
 	// This avoids expensive tree rebuilding when the same VNode is passed multiple times
 	if tv.lastRootVNode == root {
 		if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
-			fmt.Fprintf(os.Stderr, "[TreeView] SetRoot: VNode unchanged, skipping rebuild\n")
+			log.UILogger.Debug("[TreeView] SetRoot: VNode unchanged, skipping rebuild\n")
 		}
 		return nil
 	}
@@ -70,7 +71,7 @@ func (tv *TreeView) SetRoot(root ui.VNode) error {
 	tv.changeCount++
 
 	if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
-		fmt.Fprintf(os.Stderr, "[TreeView] SetRoot: VNode changed, rebuilding tree (changeCount=%d)\n", tv.changeCount)
+		log.UILogger.Debug("[TreeView] SetRoot: VNode changed, rebuilding tree (changeCount=%d)\n", tv.changeCount)
 	}
 
 	return nil
@@ -326,7 +327,7 @@ func (tv *TreeView) ToggleNode(uniqueID string) {
 	tv.expanded[uniqueID] = newState
 
 	if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
-		fmt.Fprintf(os.Stderr, "[TreeView] ToggleNode: uniqueID=%s, %v -> %v\n", uniqueID, currentState, newState)
+		log.UILogger.Debug("[TreeView] ToggleNode: uniqueID=%s, %v -> %v\n", uniqueID, currentState, newState)
 	}
 
 	// Update tree if we have a root

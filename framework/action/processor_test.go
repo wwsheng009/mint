@@ -3,8 +3,8 @@ package action
 import (
 	"testing"
 
-	frameworkevent "github.com/wwsheng009/mint/framework/event"
-	runtimeevent "github.com/wwsheng009/mint/runtime/event"
+	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
+	runtimeplatform "github.com/wwsheng009/mint/runtime/platform"
 )
 
 // ============================================================================
@@ -42,32 +42,30 @@ func TestInputProcessor_ProcessKeyEvent_Navigation(t *testing.T) {
 
 	tests := []struct {
 		name        string
-		special     frameworkevent.SpecialKey
+		special     runtimeplatform.SpecialKey
 		expected    ActionType
 	}{
-		{"Up", frameworkevent.KeyUp, ActionNavigateUp},
-		{"Down", frameworkevent.KeyDown, ActionNavigateDown},
-		{"Left", frameworkevent.KeyLeft, ActionNavigateLeft},
-		{"Right", frameworkevent.KeyRight, ActionNavigateRight},
-		{"PageUp", frameworkevent.KeyPageUp, ActionNavigatePageUp},
-		{"PageDown", frameworkevent.KeyPageDown, ActionNavigatePageDown},
-		{"Home", frameworkevent.KeyHome, ActionNavigateHome},
-		{"End", frameworkevent.KeyEnd, ActionNavigateEnd},
+		{"Up", runtimeplatform.KeyUp, ActionNavigateUp},
+		{"Down", runtimeplatform.KeyDown, ActionNavigateDown},
+		{"Left", runtimeplatform.KeyLeft, ActionNavigateLeft},
+		{"Right", runtimeplatform.KeyRight, ActionNavigateRight},
+		{"PageUp", runtimeplatform.KeyPageUp, ActionNavigatePageUp},
+		{"PageDown", runtimeplatform.KeyPageDown, ActionNavigatePageDown},
+		{"Home", runtimeplatform.KeyHome, ActionNavigateHome},
+		{"End", runtimeplatform.KeyEnd, ActionNavigateEnd},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ev := &frameworkevent.KeyEvent{
-				Special: tt.special,
-			}
+			keyMsg := runtimemsg.NewKeyMsg(0, tt.special, runtimemsg.Modifiers{})
 
-			action := processor.Process(ev)
+			action := processor.ProcessMsg(keyMsg)
 			if action == nil {
-				t.Fatalf("Process() returned nil for %v", tt.special)
+				t.Fatalf("ProcessMsg() returned nil for %v", tt.special)
 			}
 
 			if action.Type != tt.expected {
-				t.Errorf("Process() = %v, want %v", action.Type, tt.expected)
+				t.Errorf("ProcessMsg() = %v, want %v", action.Type, tt.expected)
 			}
 
 			if action.Source != "keyboard" {
@@ -83,29 +81,27 @@ func TestInputProcessor_ProcessKeyEvent_Editing(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		special  frameworkevent.SpecialKey
+		special  runtimeplatform.SpecialKey
 		expected ActionType
 	}{
-		{"Enter", frameworkevent.KeyEnter, ActionEnter},
-		{"Tab", frameworkevent.KeyTab, ActionNavigateNext},
-		{"Backspace", frameworkevent.KeyBackspace, ActionBackspace},
-		{"Delete", frameworkevent.KeyDelete, ActionDeleteChar},
-		{"Escape", frameworkevent.KeyEscape, ActionCancel},
+		{"Enter", runtimeplatform.KeyEnter, ActionEnter},
+		{"Tab", runtimeplatform.KeyTab, ActionNavigateNext},
+		{"Backspace", runtimeplatform.KeyBackspace, ActionBackspace},
+		{"Delete", runtimeplatform.KeyDelete, ActionDeleteChar},
+		{"Escape", runtimeplatform.KeyEscape, ActionCancel},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ev := &frameworkevent.KeyEvent{
-				Special: tt.special,
-			}
+			keyMsg := runtimemsg.NewKeyMsg(0, tt.special, runtimemsg.Modifiers{})
 
-			action := processor.Process(ev)
+			action := processor.ProcessMsg(keyMsg)
 			if action == nil {
-				t.Fatalf("Process() returned nil for %v", tt.special)
+				t.Fatalf("ProcessMsg() returned nil for %v", tt.special)
 			}
 
 			if action.Type != tt.expected {
-				t.Errorf("Process() = %v, want %v", action.Type, tt.expected)
+				t.Errorf("ProcessMsg() = %v, want %v", action.Type, tt.expected)
 			}
 		})
 	}
@@ -117,27 +113,25 @@ func TestInputProcessor_ProcessKeyEvent_FunctionKeys(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		special  frameworkevent.SpecialKey
+		special  runtimeplatform.SpecialKey
 		expected ActionType
 	}{
-		{"F1", frameworkevent.KeyF1, ActionInspect},
-		{"F5", frameworkevent.KeyF5, ActionRefresh},
-		{"F10", frameworkevent.KeyF10, ActionQuit},
+		{"F1", runtimeplatform.KeyF1, ActionInspect},
+		{"F5", runtimeplatform.KeyF5, ActionRefresh},
+		{"F10", runtimeplatform.KeyF10, ActionQuit},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ev := &frameworkevent.KeyEvent{
-				Special: tt.special,
-			}
+			keyMsg := runtimemsg.NewKeyMsg(0, tt.special, runtimemsg.Modifiers{})
 
-			action := processor.Process(ev)
+			action := processor.ProcessMsg(keyMsg)
 			if action == nil {
-				t.Fatalf("Process() returned nil for %v", tt.special)
+				t.Fatalf("ProcessMsg() returned nil for %v", tt.special)
 			}
 
 			if action.Type != tt.expected {
-				t.Errorf("Process() = %v, want %v", action.Type, tt.expected)
+				t.Errorf("ProcessMsg() = %v, want %v", action.Type, tt.expected)
 			}
 		})
 	}
@@ -151,13 +145,11 @@ func TestInputProcessor_ProcessKeyEvent_TextInput(t *testing.T) {
 
 	for _, r := range tests {
 		t.Run(string(r), func(t *testing.T) {
-			ev := &frameworkevent.KeyEvent{
-				Key: frameworkevent.Key{Rune: r},
-			}
+			keyMsg := runtimemsg.NewKeyMsg(r, runtimeplatform.KeyUnknown, runtimemsg.Modifiers{})
 
-			action := processor.Process(ev)
+			action := processor.ProcessMsg(keyMsg)
 			if action == nil {
-				t.Fatalf("Process() returned nil for rune %v", r)
+				t.Fatalf("ProcessMsg() returned nil for rune %v", r)
 			}
 
 			if action.Type != ActionInputText {
@@ -198,21 +190,18 @@ func TestInputProcessor_ProcessKeyEvent_Modifiers(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ev := &frameworkevent.KeyEvent{
-				Key: frameworkevent.Key{
-					Rune: tt.key,
-					Ctrl: tt.ctrl,
-					Alt:  tt.alt,
-				},
-			}
+			keyMsg := runtimemsg.NewKeyMsg(tt.key, runtimeplatform.KeyUnknown, runtimemsg.Modifiers{
+				Ctrl: tt.ctrl,
+				Alt:  tt.alt,
+			})
 
-			action := processor.Process(ev)
+			action := processor.ProcessMsg(keyMsg)
 			if action == nil {
-				t.Fatalf("Process() returned nil for %v", tt.name)
+				t.Fatalf("ProcessMsg() returned nil for %v", tt.name)
 			}
 
 			if action.Type != tt.expected {
-				t.Errorf("Process() = %v, want %v", action.Type, tt.expected)
+				t.Errorf("ProcessMsg() = %v, want %v", action.Type, tt.expected)
 			}
 		})
 	}
@@ -224,27 +213,27 @@ func TestInputProcessor_ProcessMouseEvent_Click(t *testing.T) {
 
 	tests := []struct {
 		name        string
-		button      frameworkevent.MouseButton
+		button      runtimemsg.MouseButton
 		expected    ActionType
 	}{
-		{"LeftClick", frameworkevent.MouseLeft, ActionClick},
-		{"RightClick", frameworkevent.MouseRight, ActionRightClick},
-		{"MiddleClick", frameworkevent.MouseMiddle, ActionMiddleClick},
+		{"LeftClick", runtimemsg.MouseLeft, ActionClick},
+		{"RightClick", runtimemsg.MouseRight, ActionRightClick},
+		{"MiddleClick", runtimemsg.MouseMiddle, ActionMiddleClick},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ev := &frameworkevent.MouseEvent{
-				Action:   runtimeevent.MouseActionPress, // 使用正确的常量
-				Button:   tt.button,
-				TargetID: "button-1",
-				LocalX:   10,
-				LocalY:   20,
-			}
+			mouseMsg := runtimemsg.NewMouseMsgWithTarget(
+				10, 20, // 全局坐标
+				10, 20, // 本地坐标
+				"button-1",
+				tt.button,
+				runtimemsg.MouseActionPress,
+			)
 
-			action := processor.Process(ev)
+			action := processor.ProcessMsg(mouseMsg)
 			if action == nil {
-				t.Fatal("Process() returned nil")
+				t.Fatal("ProcessMsg() returned nil")
 			}
 
 			if action.Type != tt.expected {
@@ -275,16 +264,17 @@ func TestInputProcessor_ProcessMouseEvent_Click(t *testing.T) {
 func TestInputProcessor_ProcessMouseEvent_Hover(t *testing.T) {
 	processor := NewInputProcessor()
 
-	ev := &frameworkevent.MouseEvent{
-		Action:   runtimeevent.MouseActionMove, // 使用正确的常量
-		TargetID: "list-item",
-		LocalX:   5,
-		LocalY:   15,
-	}
+	mouseMsg := runtimemsg.NewMouseMsgWithTarget(
+		5, 15, // 全局坐标
+		5, 15, // 本地坐标
+		"list-item",
+		runtimemsg.MouseButtonUnknown,
+		runtimemsg.MouseActionMove,
+	)
 
-	action := processor.Process(ev)
+	action := processor.ProcessMsg(mouseMsg)
 	if action == nil {
-		t.Fatal("Process() returned nil")
+		t.Fatal("ProcessMsg() returned nil")
 	}
 
 	if action.Type != ActionHover {
@@ -301,8 +291,8 @@ func TestInputProcessor_ProcessMouseEvent_Scroll(t *testing.T) {
 	processor := NewInputProcessor()
 
 	tests := []struct {
-		name        string
-		delta       int
+		name  string
+		delta int
 	}{
 		{"ScrollUp", 1},
 		{"ScrollDown", -1},
@@ -310,15 +300,16 @@ func TestInputProcessor_ProcessMouseEvent_Scroll(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ev := &frameworkevent.MouseEvent{
-				Action:   runtimeevent.MouseActionWheel, // 使用正确的常量
-				TargetID: "list-1",
-				Delta:    tt.delta,
-			}
+			mouseMsg := runtimemsg.NewMouseMsgWithDelta(
+				0, 0, // 全局坐标
+				tt.delta,
+				runtimemsg.MouseActionWheel,
+			)
+			mouseMsg.TargetID = "list-1"
 
-			action := processor.Process(ev)
+			action := processor.ProcessMsg(mouseMsg)
 			if action == nil {
-				t.Fatal("Process() returned nil")
+				t.Fatal("ProcessMsg() returned nil")
 			}
 
 			if action.Type != ActionScroll {
@@ -341,17 +332,17 @@ func TestInputProcessor_ProcessMouseEvent_Scroll(t *testing.T) {
 func TestInputProcessor_ProcessMouseEvent_NoTarget(t *testing.T) {
 	processor := NewInputProcessor()
 
-	ev := &frameworkevent.MouseEvent{
-		Action:   runtimeevent.MouseActionPress, // 使用正确的常量
-		Button:   frameworkevent.MouseLeft,
-		TargetID: "", // 空目标
-		LocalX:   10,
-		LocalY:   20,
-	}
+	mouseMsg := runtimemsg.NewMouseMsgWithTarget(
+		10, 20, // 全局坐标
+		10, 20, // 本地坐标
+		"", // 空目标
+		runtimemsg.MouseLeft,
+		runtimemsg.MouseActionPress,
+	)
 
-	action := processor.Process(ev)
+	action := processor.ProcessMsg(mouseMsg)
 	if action != nil {
-		t.Errorf("Process() should return nil for event without target, got %v", action)
+		t.Errorf("ProcessMsg() should return nil for event without target, got %v", action)
 	}
 }
 
@@ -359,14 +350,17 @@ func TestInputProcessor_ProcessMouseEvent_NoTarget(t *testing.T) {
 func TestInputProcessor_ProcessBatch(t *testing.T) {
 	processor := NewInputProcessor()
 
-	events := []frameworkevent.Event{
-		&frameworkevent.KeyEvent{Special: frameworkevent.KeyUp},
-		&frameworkevent.KeyEvent{Special: frameworkevent.KeyDown},
-		&frameworkevent.KeyEvent{Special: frameworkevent.KeyLeft},
-		&frameworkevent.KeyEvent{Special: frameworkevent.KeyRight},
+	events := []runtimemsg.Msg{
+		runtimemsg.NewKeyMsg(0, runtimeplatform.KeyUp, runtimemsg.Modifiers{}),
+		runtimemsg.NewKeyMsg(0, runtimeplatform.KeyDown, runtimemsg.Modifiers{}),
+		runtimemsg.NewKeyMsg(0, runtimeplatform.KeyLeft, runtimemsg.Modifiers{}),
+		runtimemsg.NewKeyMsg(0, runtimeplatform.KeyRight, runtimemsg.Modifiers{}),
 	}
 
-	actions := processor.ProcessBatch(events)
+	var actions []*Action
+	for _, ev := range events {
+		actions = append(actions, processor.ProcessMsg(ev))
+	}
 
 	if len(actions) != len(events) {
 		t.Errorf("ProcessBatch() returned %d actions, want %d", len(actions), len(events))
@@ -525,20 +519,15 @@ func TestKeyMap_Context(t *testing.T) {
 	km.SetCurrentContext("input")
 
 	// 查找应该返回上下文特定映射
-	ev := &frameworkevent.KeyEvent{
-		Key: frameworkevent.Key{
-			Rune: 'v',
-			Ctrl: true,
-		},
-	}
+	keyMsg := runtimemsg.NewKeyMsg('v', runtimeplatform.KeyUnknown, runtimemsg.Modifiers{Ctrl: true})
 
-	foundAction := km.LookupKeyEvent(ev)
+	foundAction := km.LookupKeyMsg(keyMsg)
 	if foundAction == nil {
-		t.Fatal("LookupKeyEvent() returned nil")
+		t.Fatal("LookupKeyMsg() returned nil")
 	}
 
 	if foundAction.Type != ActionPaste {
-		t.Errorf("LookupKeyEvent() = %v, want %v", foundAction.Type, ActionPaste)
+		t.Errorf("LookupKeyMsg() = %v, want %v", foundAction.Type, ActionPaste)
 	}
 }
 
@@ -564,27 +553,22 @@ func TestKeyMap_ContextStack(t *testing.T) {
 	}
 }
 
-// TestKeyMap_LookupKeyEvent 测试从 KeyEvent 查找
+// TestKeyMap_LookupKeyEvent 测试从 KeyMsg 查找
 func TestKeyMap_LookupKeyEvent(t *testing.T) {
 	km := NewKeyMap()
 	action := NewAction(ActionCopy)
 
 	km.Bind("ctrl+c", action)
 
-	ev := &frameworkevent.KeyEvent{
-		Key: frameworkevent.Key{
-			Rune: 'c',
-			Ctrl: true,
-		},
-	}
+	keyMsg := runtimemsg.NewKeyMsg('c', runtimeplatform.KeyUnknown, runtimemsg.Modifiers{Ctrl: true})
 
-	foundAction := km.LookupKeyEvent(ev)
+	foundAction := km.LookupKeyMsg(keyMsg)
 	if foundAction == nil {
-		t.Fatal("LookupKeyEvent() returned nil")
+		t.Fatal("LookupKeyMsg() returned nil")
 	}
 
 	if foundAction.Type != ActionCopy {
-		t.Errorf("LookupKeyEvent() = %v, want %v", foundAction.Type, ActionCopy)
+		t.Errorf("LookupKeyMsg() = %v, want %v", foundAction.Type, ActionCopy)
 	}
 
 	if foundAction.Source != "keymap" {

@@ -2,10 +2,10 @@ package paint
 
 import (
 	"bytes"
-	"fmt"
 	"os"
 	"sync"
 
+	"github.com/wwsheng009/mint/internal/log"
 	"github.com/wwsheng009/mint/runtime/style"
 )
 
@@ -80,7 +80,7 @@ func (r *Renderer) Render() string {
 
 	// DEBUG: 输出 diff 信息
 	if os.Getenv("TUI_RENDER_DEBUG") == "1" {
-		fmt.Fprintf(os.Stderr, "[RENDER] HasChanges=%v, ChangedCells=%d, Regions=%d\n",
+		log.RenderLogger.Debug("[RENDER] HasChanges=%v, ChangedCells=%d, Regions=%d\n",
 			diff.HasChanges, diff.ChangedCells, len(diff.DirtyRegions))
 	}
 
@@ -108,14 +108,14 @@ func (r *Renderer) Render() string {
 // renderRegion 渲染单个脏区域
 func (r *Renderer) renderRegion(region Rect) {
 	if os.Getenv("TUI_RENDER_DEBUG") == "1" {
-		fmt.Fprintf(os.Stderr, "[renderRegion] region={X:%d, Y:%d, W:%d, H:%d}, back.H=%d\n",
+		log.RenderLogger.Debug("[renderRegion] region={X:%d, Y:%d, W:%d, H:%d}, back.H=%d\n",
 			region.X, region.Y, region.Width, region.Height, r.back.Height)
 	}
 
 	for y := region.Y; y < region.Y+region.Height; y++ {
 		if y >= r.back.Height {
 			if os.Getenv("TUI_RENDER_DEBUG") == "1" {
-				fmt.Fprintf(os.Stderr, "[renderRegion] y=%d >= back.Height=%d, break\n", y, r.back.Height)
+				log.RenderLogger.Debug("[renderRegion] y=%d >= back.Height=%d, break\n", y, r.back.Height)
 			}
 			break
 		}
@@ -128,7 +128,7 @@ func (r *Renderer) renderLine(y int, region Rect) {
 	debugRender := os.Getenv("TUI_RENDER_DEBUG") == "1"
 
 	if debugRender {
-		fmt.Fprintf(os.Stderr, "[renderLine] y=%d, region.X=%d, region.W=%d, back.W=%d\n",
+		log.RenderLogger.Debug("[renderLine] y=%d, region.X=%d, region.W=%d, back.W=%d\n",
 			y, region.X, region.Width, r.back.Width)
 	}
 
@@ -142,7 +142,7 @@ func (r *Renderer) renderLine(y int, region Rect) {
 	// 确保 x 不超出范围
 	if x >= endX || x < 0 {
 		if debugRender {
-			fmt.Fprintf(os.Stderr, "[renderLine] x=%d >= endX=%d or x<0, no render!\n", x, endX)
+			log.RenderLogger.Debug("[renderLine] x=%d >= endX=%d or x<0, no render!\n", x, endX)
 		}
 		return
 	}
@@ -150,7 +150,7 @@ func (r *Renderer) renderLine(y int, region Rect) {
 	// 确保 y 在有效范围内
 	if y >= len(r.back.Cells) || (r.front != nil && y >= len(r.front.Cells)) {
 		if debugRender {
-			fmt.Fprintf(os.Stderr, "[renderLine] y=%d out of bounds, no render!\n", y)
+			log.RenderLogger.Debug("[renderLine] y=%d out of bounds, no render!\n", y)
 		}
 		return
 	}
@@ -160,7 +160,7 @@ func (r *Renderer) renderLine(y int, region Rect) {
 		// 边界检查
 		if x >= len(r.back.Cells[y]) || (r.front != nil && x >= len(r.front.Cells[y])) {
 			if debugRender {
-				fmt.Fprintf(os.Stderr, "[renderLine] x=%d out of row bounds, break\n", x)
+				log.RenderLogger.Debug("[renderLine] x=%d out of row bounds, break\n", x)
 			}
 			break
 		}
@@ -175,7 +175,7 @@ func (r *Renderer) renderLine(y int, region Rect) {
 		}
 
 		if debugRender {
-			fmt.Fprintf(os.Stderr, "[renderLine] changed at x=%d: cell.Cluster=%q, prev.Cluster=%q, IsContinuation=%v\n",
+			log.RenderLogger.Debug("[renderLine] changed at x=%d: cell.Cluster=%q, prev.Cluster=%q, IsContinuation=%v\n",
 				x, cell.Cluster, prevCell.Cluster, cell.IsContinuation)
 		}
 
@@ -211,7 +211,7 @@ func (r *Renderer) renderLine(y int, region Rect) {
 	}
 
 	if debugRender {
-		fmt.Fprintf(os.Stderr, "[renderLine] emitted %d runs\n", runCount)
+		log.RenderLogger.Debug("[renderLine] emitted %d runs\n", runCount)
 	}
 }
 

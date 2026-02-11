@@ -6,6 +6,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/wwsheng009/mint/internal/log"
 )
 
 // EventLogger 记录和可视化事件流
@@ -298,13 +300,13 @@ func (l *EventLogger) GetByType(eventType string) []*EventLogEntry {
 // PrintStats 打印统计信息到 stderr
 func (l *EventLogger) PrintStats() {
 	stats := l.GetStats()
-	fmt.Fprintf(os.Stderr, "Event Logger Stats:\n")
-	fmt.Fprintf(os.Stderr, "  Total Events: %v\n", stats["total"])
-	fmt.Fprintf(os.Stderr, "  By Phase: %v\n", stats["by_phase"])
-	fmt.Fprintf(os.Stderr, "  By Type: %v\n", stats["by_type"])
-	fmt.Fprintf(os.Stderr, "  By Target: %v\n", stats["by_target"])
+	log.UILogger.Debug("Event Logger Stats:\n")
+	log.UILogger.Debug("  Total Events: %v\n", stats["total"])
+	log.UILogger.Debug("  By Phase: %v\n", stats["by_phase"])
+	log.UILogger.Debug("  By Type: %v\n", stats["by_type"])
+	log.UILogger.Debug("  By Target: %v\n", stats["by_target"])
 	if avgDuration, ok := stats["avg_duration"]; ok {
-		fmt.Fprintf(os.Stderr, "  Avg Duration: %v\n", avgDuration)
+		log.UILogger.Debug("  Avg Duration: %v\n", avgDuration)
 	}
 }
 

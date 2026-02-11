@@ -141,7 +141,7 @@ func (e *Engine) buildComputedBoxWithSize(vnode VNode, parent *ComputedBox, cons
 			// Cache hit - use cached size
 			box.Box = cached.Box
 			if e.debug {
-				fmt.Fprintf(os.Stderr, "[Layout.CacheHit] %s (key=%s): %v\n",
+				log.EngineLogger.Debug("[Layout.CacheHit] %s (key=%s): %v\n",
 					vnode.Type().String(), vnode.Key(), cached.Box)
 			}
 			// For leaf nodes, we're done
@@ -162,7 +162,7 @@ func (e *Engine) buildComputedBoxWithSize(vnode VNode, parent *ComputedBox, cons
 		if tagger, ok := vnode.(interface{ Tag() string }); ok {
 			tag = tagger.Tag()
 		}
-		fmt.Fprintf(os.Stderr, "[buildComputedBox] tag=%s, childConstraints=%d, using single-pass=%v\n",
+		log.EngineLogger.Debug("[buildComputedBox] tag=%s, childConstraints=%d, using single-pass=%v\n",
 			tag, len(measurement.ChildConstraints), len(measurement.ChildConstraints) > 0)
 	}
 	// Check if we got a valid measurement (has child constraints)
@@ -194,7 +194,7 @@ func (e *Engine) buildComputedBoxWithSize(vnode VNode, parent *ComputedBox, cons
 				VNodeID: vnode.Key(),
 			})
 			if e.debug {
-				fmt.Fprintf(os.Stderr, "[Layout.CacheSet] %s: %v\n",
+				log.EngineLogger.Debug("[Layout.CacheSet] %s: %v\n",
 					vnode.Type().String(), box.Box)
 			}
 		}
@@ -234,7 +234,7 @@ func (e *Engine) buildComputedBoxWithSize(vnode VNode, parent *ComputedBox, cons
 			VNodeID: vnode.Key(),
 		})
 		if e.debug {
-			fmt.Fprintf(os.Stderr, "[Layout.CacheSet] %s: %v\n",
+			log.EngineLogger.Debug("[Layout.CacheSet] %s: %v\n",
 				vnode.Type().String(), box.Box)
 		}
 	}
@@ -257,12 +257,12 @@ func (e *Engine) measureVNode(vnode VNode, constraints runtime.BoxConstraints) r
 		defer e.decrementTraceDepth()
 
 		indent := strings.Repeat("  ", depth)
-		fmt.Fprintf(os.Stderr, "%s[Layout.ENTER] Type=%T %s Props:%v Constraints:%v\n",
+		log.EngineLogger.Debug("%s[Layout.ENTER] Type=%T %s Props:%v Constraints:%v\n",
 			indent, vnode, vnode.Type().String(), vnode.Props(), constraints)
 
 		size := e.doMeasureVNode(vnode, constraints)
 
-		fmt.Fprintf(os.Stderr, "%s[Layout.LEAVE] %s Size:%v\n",
+		log.EngineLogger.Debug("%s[Layout.LEAVE] %s Size:%v\n",
 			indent, vnode.Type().String(), size)
 		return size
 	}
@@ -344,7 +344,7 @@ func (e *Engine) measureLayoutChildren(vnode VNode, constraints runtime.BoxConst
 		}
 
 		if e.debug {
-			fmt.Fprintf(os.Stderr, "[measureLayoutChildren.HStack] constraints=%v, paddingWidth=%d, paddingHeight=%d\n",
+			log.EngineLogger.Debug("[measureLayoutChildren.HStack] constraints=%v, paddingWidth=%d, paddingHeight=%d\n",
 				constraints, paddingWidth, paddingHeight)
 		}
 
@@ -452,7 +452,7 @@ func (e *Engine) measureLayoutChildren(vnode VNode, constraints runtime.BoxConst
 		}
 
 		if e.debug {
-			fmt.Fprintf(os.Stderr, "[measureLayoutChildren.HStack] RETURN: Width=%d, Height=%d\n",
+			log.EngineLogger.Debug("[measureLayoutChildren.HStack] RETURN: Width=%d, Height=%d\n",
 				totalWidth, maxHeight)
 		}
 
@@ -478,7 +478,7 @@ func (e *Engine) measureLayoutChildren(vnode VNode, constraints runtime.BoxConst
 		}
 
 		if e.debug {
-			fmt.Fprintf(os.Stderr, "[measureLayoutChildren.VStack] constraints=%v, innerMaxWidth=%d\n",
+			log.EngineLogger.Debug("[measureLayoutChildren.VStack] constraints=%v, innerMaxWidth=%d\n",
 				constraints, innerMaxWidth)
 		}
 
@@ -536,7 +536,7 @@ func (e *Engine) measureLayoutChildren(vnode VNode, constraints runtime.BoxConst
 			remainingSpace := availableHeight - fixedHeight
 
 			if e.debug && remainingSpace > 0 {
-				fmt.Fprintf(os.Stderr, "[measureLayoutChildren.VStack] flex distribution: available=%d, fixed=%d, remaining=%d, factors=%d\n",
+				log.EngineLogger.Debug("[measureLayoutChildren.VStack] flex distribution: available=%d, fixed=%d, remaining=%d, factors=%d\n",
 					availableHeight, fixedHeight, remainingSpace, flexTotalFactor)
 			}
 
@@ -611,7 +611,7 @@ func (e *Engine) measureLayoutChildren(vnode VNode, constraints runtime.BoxConst
 		}
 
 		if e.debug {
-			fmt.Fprintf(os.Stderr, "[measureLayoutChildren.VStack] RETURN: Width=%d, Height=%d\n",
+			log.EngineLogger.Debug("[measureLayoutChildren.VStack] RETURN: Width=%d, Height=%d\n",
 				maxWidth, totalHeight)
 		}
 
@@ -945,7 +945,7 @@ func (e *Engine) calculatePositions(box *ComputedBox, x, y int) {
 	}
 
 	if e.debug {
-		fmt.Fprintf(os.Stderr, "[Layout.Position] %s at %s\n",
+		log.EngineLogger.Debug("[Layout.Position] %s at %s\n",
 			box.VNode.Type(), box.Box.String())
 	}
 

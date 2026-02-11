@@ -138,6 +138,14 @@ var (
 	// KeyLogger logs key event messages (enabled via TUI_DEBUG_KEYS)
 	KeyLogger = NewLogger("KeyEvent", "KEYS")
 
+	// EventLogger logs event-related messages (enabled via TUI_DEBUG_EVENTS)
+	EventLogger = NewLogger("Event", "EVENTS")
+
+	WinLogger = NewLogger("Windows", "WIN")
+
+	InspectorLogger = NewLogger("Inspector", "INSPECTOR")
+
+	EngineLogger = NewLogger("Engine", "ENGINE")
 	// UILogger logs UI-related messages (enabled via TUI_DEBUG_UI)
 	UILogger = NewLogger("UI", "UI")
 

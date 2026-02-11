@@ -24,6 +24,7 @@ import (
 	"github.com/wwsheng009/mint/framework"
 	"github.com/wwsheng009/mint/framework/theme"
 	"github.com/wwsheng009/mint/internal/inspector"
+	"github.com/wwsheng009/mint/internal/log"
 	"github.com/wwsheng009/mint/internal/render"
 	"github.com/wwsheng009/mint/runtime/style"
 	ui "github.com/wwsheng009/mint/ui"
@@ -71,7 +72,7 @@ func main() {
 
 	// Initialize theme
 	if err := fwApp.InitTheme("nord"); err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to initialize theme: %v\n", err)
+		log.UILogger.Debug("Failed to initialize theme: %v\n", err)
 	}
 
 	// Run the app
@@ -79,8 +80,8 @@ func main() {
 
 	// Debug info
 	if os.Getenv("TUI_DEBUG") == "true" || os.Getenv("TUI_DEBUG_UI") == "true" {
-		fmt.Fprintf(os.Stderr, "[DEMO2] Inspector enabled: %v\n", globalInspector.IsEnabled())
-		fmt.Fprintf(os.Stderr, "[DEMO2] Inspector visible: %v\n", globalInspector.IsVisible())
+		log.UILogger.Debug("[DEMO2] Inspector enabled: %v\n", globalInspector.IsEnabled())
+		log.UILogger.Debug("[DEMO2] Inspector visible: %v\n", globalInspector.IsVisible())
 	}
 
 	if err := fwApp.Run(); err != nil {
@@ -97,14 +98,14 @@ func RuntimeDemoWithInspectorOverlay() ui.VNode {
 
 	// Debug: check inspector visibility before hook
 	if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
-		fmt.Fprintf(os.Stderr, "[DEMO] globalInspector.IsVisible() = %v\n", globalInspector.IsVisible())
+		log.UILogger.Debug("[DEMO] globalInspector.IsVisible() = %v\n", globalInspector.IsVisible())
 	}
 
 	showInspector, setShowInspector := ui.UseStateBool(globalInspector.IsVisible())
 
 	// Debug: log state
 	if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
-		fmt.Fprintf(os.Stderr, "[DEMO] showInspector (from hook) = %v\n", showInspector)
+		log.UILogger.Debug("[DEMO] showInspector (from hook) = %v\n", showInspector)
 	}
 
 	// Track performance
@@ -128,7 +129,7 @@ func RuntimeDemoWithInspectorOverlay() ui.VNode {
 
 	// Debug: log visibility check
 	if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
-		fmt.Fprintf(os.Stderr, "[DEMO] Inspector visible: %v (showInspector state: %v)\n",
+		log.UILogger.Debug("[DEMO] Inspector visible: %v (showInspector state: %v)\n",
 			inspectorVisible, showInspector)
 	}
 
@@ -348,7 +349,7 @@ func ControlPanel(
 			OnClick(func() {
 				// Debug output
 				if os.Getenv("TUI_DEBUG") == "true" || os.Getenv("TUI_DEBUG_UI") == "true" {
-					fmt.Fprintf(os.Stderr, "[DEMO2] [I] button clicked, Inspector enabled=%v, visible=%v\n",
+					log.UILogger.Debug("[DEMO2] [I] button clicked, Inspector enabled=%v, visible=%v\n",
 						globalInspector.IsEnabled(), globalInspector.IsVisible())
 				}
 
@@ -357,7 +358,7 @@ func ControlPanel(
 
 				// Debug output after toggle
 				if os.Getenv("TUI_DEBUG") == "true" || os.Getenv("TUI_DEBUG_UI") == "true" {
-					fmt.Fprintf(os.Stderr, "[DEMO2] After toggle, Inspector visible=%v\n",
+					log.UILogger.Debug("[DEMO2] After toggle, Inspector visible=%v\n",
 						globalInspector.IsVisible())
 				}
 

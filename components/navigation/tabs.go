@@ -1,7 +1,6 @@
 package navigation
 
 import (
-	"fmt"
 	"os"
 	"strings"
 	"unicode/utf8"
@@ -11,10 +10,12 @@ import (
 	"github.com/wwsheng009/mint/framework/cmd"
 	"github.com/wwsheng009/mint/framework/component"
 	frameworkevent "github.com/wwsheng009/mint/framework/event"
+	"github.com/wwsheng009/mint/runtime"
 	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
 	runtimeplatform "github.com/wwsheng009/mint/runtime/platform"
-	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/ui"
+
+	"github.com/wwsheng009/mint/internal/log"
 )
 
 // Interface implementation assertions
@@ -231,7 +232,7 @@ func (t *TabsVNode) HandleEvent(ev frameworkevent.Event) bool {
 	}
 
 	if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
-		fmt.Fprintf(os.Stderr, "[Tabs] HandleEvent: LocalX=%d, LocalY=%d\n", me.LocalX, me.LocalY)
+		log.UILogger.Debug("[Tabs] HandleEvent: LocalX=%d, LocalY=%d\n", me.LocalX, me.LocalY)
 	}
 
 	// Use LocalX/LocalY directly (pre-calculated by HitMap)
