@@ -6,6 +6,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/wwsheng009/mint/components/button"
 	"github.com/wwsheng009/mint/framework/action"
 	"github.com/wwsheng009/mint/framework/cmd"
 	"github.com/wwsheng009/mint/framework/component"
@@ -216,7 +217,14 @@ func (t *TabsVNode) SetVertical(v bool) { t.vertical = v }
 
 // HandleEvent enables mouse tab switching using LocalX/LocalY from HitMap.
 // The Inspector's HitMap-based event routing delivers events directly to target components.
+// Note: When wrapTabs is enabled, Button components handle clicks automatically.
+// This method only handles non-wrapping mode for backward compatibility.
 func (t *TabsVNode) HandleEvent(ev frameworkevent.Event) bool {
+	// When wrapTabs is enabled, buttons handle their own clicks
+	if t.wrapTabs {
+		return false // Let buttons handle the event
+	}
+
 	me, ok := ev.(*frameworkevent.MouseEvent)
 	if !ok || ev.Type() != frameworkevent.EventMousePress {
 		return false
@@ -230,37 +238,8 @@ func (t *TabsVNode) HandleEvent(ev frameworkevent.Event) bool {
 	localX := me.LocalX
 	localY := me.LocalY
 
-	// Calculate tab bar height (1 row for normal, multiple for wrap mode)
-	tabBarHeight := 1
-	if t.wrapTabs && !t.vertical {
-		// Estimate rows (same logic as in Measure)
-		containerWidth := 80
-		if props := t.Props(); props != nil {
-			if w, ok := props["width"].(int); ok && w > 0 {
-				containerWidth = w
-			}
-		}
-
-		currentRowWidth := 0
-		rowCount := 1
-		for i, tab := range t.tabs {
-			tabWidth := utf8.RuneCountInString(tab.Label) + 2
-			if i > 0 {
-				tabWidth += t.tabGap
-			}
-
-			if currentRowWidth+tabWidth > containerWidth && currentRowWidth > 0 {
-				rowCount++
-				currentRowWidth = tabWidth
-			} else {
-				currentRowWidth += tabWidth
-			}
-		}
-		tabBarHeight = rowCount
-	}
-
-	// Check if click is in tab bar area
-	if localY >= 0 && localY < tabBarHeight {
+	// Check if click is in tab bar (first row only for non-wrap mode)
+	if localY == 0 {
 		// Handle tab bar click - switch tabs
 		return t.handleTabBarClick(localX, localY)
 	}
@@ -353,13 +332,9 @@ func (t *TabsVNode) updateKey(keyMsg *runtimemsg.KeyMsg) cmd.Cmd {
 	return nil
 }
 
-// handleTabBarClick handles clicks on the tab bar
+// handleTabBarClick handles clicks on the tab bar (single-line mode only)
+// This is only used when wrapTabs is disabled for backward compatibility
 func (t *TabsVNode) handleTabBarClick(localX, localY int) bool {
-	// For wrapping tabs, we need to calculate multi-row layout
-	if t.wrapTabs {
-		return t.handleWrappedTabBarClick(localX, localY)
-	}
-
 	// Single-line tab bar (original behavior)
 	cursor := 0
 	for i, tab := range t.tabs {
@@ -392,62 +367,6 @@ func (t *TabsVNode) handleTabBarClick(localX, localY int) bool {
 	return false
 }
 
-// handleWrappedTabBarClick handles clicks on a wrapped (multi-row) tab bar
-func (t *TabsVNode) handleWrappedTabBarClick(localX, localY int) bool {
-	// Get container width
-	containerWidth := 80
-	if props := t.Props(); props != nil {
-		if w, ok := props["width"].(int); ok && w > 0 {
-			containerWidth = w
-		}
-	}
-
-	// Use the same row calculation logic as calculateWrappedRows
-	rows := t.calculateWrappedRows(containerWidth)
-
-	// Check if localY is within valid row range
-	if localY < 0 || localY >= len(rows) {
-		return false
-	}
-
-	// Get the clicked row
-	row := rows[localY]
-
-	// Reconstruct the row to find which tab was clicked
-	currentX := 0
-	for _, tabIdx := range row {
-		tab := t.tabs[tabIdx]
-
-		// Calculate display width of this tab
-		// In display: [Label] for active, Label for inactive
-		displayLabel := tab.Label
-		if tabIdx == t.activeTab {
-			displayLabel = "[" + tab.Label + "]"
-		}
-
-		tabWidth := utf8.RuneCountInString(displayLabel)
-
-		// Check if click is within this tab
-		if localX >= currentX && localX < currentX+tabWidth {
-			if tab.Disabled {
-				return true // consume but no action
-			}
-			if tabIdx != t.activeTab {
-				t.SetActiveTab(tabIdx)
-				if t.onChange != nil {
-					t.onChange(tab.ID)
-				}
-			}
-			return true
-		}
-
-		// Move to next tab position (add space separator)
-		currentX += tabWidth + 1 // +1 for space between tabs
-	}
-
-	return false
-}
-
 // =============================================================================
 // Internal Helper Methods
 // =============================================================================
@@ -462,7 +381,7 @@ func (t *TabsVNode) updateActiveContent() {
 
 	// Create tab bar with or without wrapping
 	if t.wrapTabs {
-		// Build multi-row tab bar manually (without Wrap component)
+		// Build multi-row tab bar using Button components
 		// Get container width from props or default to 80
 		containerWidth := 80
 		if props := t.Props(); props != nil {
@@ -474,30 +393,53 @@ func (t *TabsVNode) updateActiveContent() {
 		// Calculate rows by simulating wrap
 		rows := t.calculateWrappedRows(containerWidth)
 
-		// Build each row as a text line
-		var rowLines []string
+		// Build each row as HStack of Buttons
+		var rowNodes []ui.VNode
 		for _, row := range rows {
-			var parts []string
+			var tabButtons []ui.VNode
 			for _, tabIdx := range row {
 				tab := t.tabs[tabIdx]
-				if tabIdx == t.activeTab {
-					parts = append(parts, "["+tab.Label+"]")
+				isActive := (tabIdx == t.activeTab)
+
+				// Create label with or without brackets
+				var label string
+				if isActive {
+					label = "[" + tab.Label + "]"
 				} else {
-					parts = append(parts, tab.Label)
+					label = tab.Label
 				}
+
+				// Create button with click handler
+				tabIdx := tabIdx // capture for closure
+				builder := button.ButtonBuilder(label).
+					OnClick(func() {
+						if !tab.Disabled {
+							if tabIdx != t.activeTab {
+								t.SetActiveTab(tabIdx)
+								if t.onChange != nil {
+									t.onChange(tab.ID)
+								}
+							}
+						}
+					})
+
+				// Set disabled state via builder if needed
+				if tab.Disabled {
+					// Note: Button component doesn't have a Disabled() builder method
+					// So we check inside the click handler instead
+					_ = builder // Will handle in click handler
+				}
+
+				btn := builder.Build()
+				tabButtons = append(tabButtons, btn)
 			}
-			rowLines = append(rowLines, strings.Join(parts, " "))
+
+			// Combine buttons in row with HStack
+			rowNodes = append(rowNodes, ui.HStack(tabButtons...))
 		}
 
-		// Create VStack of text lines for multi-row tab bar
-		// Use a custom node that doesn't stretch vertically
-		var tabLineNodes []ui.VNode
-		for _, line := range rowLines {
-			tabLineNodes = append(tabLineNodes, ui.Text(line))
-		}
-
-		// Use VStack to combine rows
-		tabBarNode = ui.VStack(tabLineNodes...)
+		// Combine rows with VStack
+		tabBarNode = ui.VStack(rowNodes...)
 	} else {
 		// Original single-line behavior
 		var parts []string
