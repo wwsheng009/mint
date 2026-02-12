@@ -423,7 +423,7 @@ func TestCreateChildFiber(t *testing.T) {
 
 	childVNode := rtui.Element("text").Prop("content", "Hello").Build()
 
-	childFiber := createChildFiber(parent, childVNode, 0)
+	childFiber := createChildFiber(parent, childVNode, LaneSyncLane, 0)
 
 	if childFiber == nil {
 		t.Fatal("createChildFiber should return a fiber")
@@ -450,8 +450,8 @@ func TestCloneExistingFiber(t *testing.T) {
 
 	newVNode := rtui.Element("div").Prop("id", "test").Build()
 
-	// cloneExistingFiber requires (returnFiber, currentFiber, newVNode)
-	cloned := cloneExistingFiber(nil, existing, newVNode)
+	// cloneExistingFiber requires (returnFiber, currentFiber, newVNode, siblingIndex)
+	cloned := cloneExistingFiber(nil, existing, newVNode, 0)
 
 	if cloned == nil {
 		t.Fatal("cloneExistingFiber should return a fiber")
@@ -1162,7 +1162,7 @@ func TestCreateChildFiber_WithLanes(t *testing.T) {
 	childVNode := rtui.Element("text").Prop("content", "Test").Build()
 
 	// Create with specific lanes
-	childFiber := createChildFiber(parent, childVNode, rtui.LaneInputContinuousLane)
+	childFiber := createChildFiber(parent, childVNode, rtui.LaneInputContinuousLane, 0)
 
 	if childFiber == nil {
 		t.Fatal("createChildFiber should return a fiber")
@@ -1486,7 +1486,7 @@ func TestCloneExistingFiber_WithProps(t *testing.T) {
 
 	newVNode := rtui.Element("div").Prop("id", "new").Build()
 
-	cloned := cloneExistingFiber(nil, existing, newVNode)
+	cloned := cloneExistingFiber(nil, existing, newVNode, 0)
 
 	if cloned == nil {
 		t.Fatal("cloneExistingFiber should return a fiber")

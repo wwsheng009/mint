@@ -44,12 +44,14 @@ func isDynamicList(parent *Fiber) bool {
 	}
 
 	// 检查2: VNode类型检查（通过接口）
-	if vnode, ok := parent.VNode.(interface{ IsDynamicList() bool }); ok {
-		return vnode.IsDynamicList()
+	if parent.VNode != nil {
+		if vnode, ok := parent.VNode.(interface{ IsDynamicList() bool }); ok {
+			return vnode.IsDynamicList()
+		}
 	}
 
 	// 检查3: Props标记
-	if parent.VNode.Props() != nil {
+	if parent.VNode != nil && parent.VNode.Props() != nil {
 		if isDynamic, ok := parent.VNode.Props()["_dynamicList"].(bool); ok {
 			return isDynamic
 		}
@@ -74,8 +76,14 @@ func requireKeyPanic(parent *Fiber, vnode rtui.VNode, siblingIndex int) {
 		childType = fmt.Sprintf("%T", vnode)
 	}
 
+	// 获取父节点标签（安全访问）
+	parentTag := "unknown"
+	if parent != nil {
+		parentTag = parent.Tag
+	}
+
 	// 构建详细的panic消息
-	panicMsg := buildKeyPanicMessage(parent.Tag, childType, childTag, siblingIndex)
+	panicMsg := buildKeyPanicMessage(parentTag, childType, childTag, siblingIndex)
 
 	if os.Getenv("TUI_DEBUG_KEY") == "true" || os.Getenv("TUI_DEBUG") == "true" {
 		// 调试模式：详细信息和调用栈
