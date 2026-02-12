@@ -55,24 +55,24 @@ func main() {
 	_ = theme.SetTheme("nord")
 
 	// Create framework app to enable F12 shortcut
-	fwApp := framework.NewApp()
+	FwApp := framework.NewApp()
 
 	// Create declarative root WITH FIBER RECONCILER
 	// This enables VNodeComponentInstance for persistent event handlers
-	declarativeRoot := render.NewDeclarativeNodeFromFuncWithFiber(RuntimeDemoWithInspectorOverlay, fwApp)
-	declarativeRoot.SetFrameworkApp(fwApp)
+	declarativeRoot := render.NewDeclarativeNodeFromFuncWithFiber(RuntimeDemoWithInspectorOverlay, FwApp)
+	declarativeRoot.SetFrameworkApp(FwApp)
 
 	// Set as root FIRST (before registering Inspector)
-	fwApp.SetRoot(declarativeRoot)
+	FwApp.SetRoot(declarativeRoot)
 
 	// THEN register Inspector (after root is set, so hooks can be registered)
-	fwApp.SetInspector(globalInspector)
-	fwApp.SetupInspectorShortcut() // Enable F12 and Ctrl+D shortcuts
+	FwApp.SetInspector(globalInspector)
+	FwApp.SetupInspectorShortcut() // Enable F12 and Ctrl+D shortcuts
 
-	fwApp.Resize(120, 40)
+	FwApp.Resize(120, 40)
 
 	// Initialize theme
-	if err := fwApp.InitTheme("nord"); err != nil {
+	if err := FwApp.InitTheme("nord"); err != nil {
 		log.UILogger.Debug("Failed to initialize theme: %v\n", err)
 	}
 
@@ -85,7 +85,7 @@ func main() {
 		log.UILogger.Debug("[DEMO2] Inspector visible: %v\n", globalInspector.IsVisible())
 	}
 
-	if err := fwApp.Run(); err != nil {
+	if err := FwApp.Run(); err != nil {
 		panic(err)
 	}
 }
@@ -113,12 +113,21 @@ func RuntimeDemoWithInspectorOverlay() ui.VNode {
 	globalInspector.StartFrame()
 	defer globalInspector.EndFrame()
 
-	// Build main application content
-	appContent := buildDemoContent(
-		currentPhase, eventCount, renderCount, bufferUpdates,
-		setCurrentPhase, setEventCount, setRenderCount, setBufferUpdates,
-		setShowInspector,
-	)
+	// Get rendered tree from Reconciler (VNodes have Fiber keys)
+	// This ensures Inspector displays correct path-based keys
+	var appContent ui.VNode
+	if reconciler := FwApp.GetReconciler(); reconciler != nil {
+		// Get the tree AFTER Fiber reconciliation
+		// This tree has VNodes with proper Fiber keys like /root/base[0]/vstack[0]/panel[0]
+		appContent = reconciler.GetRenderedRoot()
+	} else {
+		// Fallback: build original tree if reconciler not available
+		appContent = buildDemoContent(
+			currentPhase, eventCount, renderCount, bufferUpdates,
+			setCurrentPhase, setEventCount, setRenderCount, setBufferUpdates,
+			setShowInspector,
+		)
+	}
 
 	// Attach inspector to app (for analysis)
 	globalInspector.AttachToApp(appContent)
