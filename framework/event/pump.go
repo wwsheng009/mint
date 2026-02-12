@@ -145,6 +145,13 @@ func (p *Pump) convertToKeyMsg(raw platform.RawInput) runtimemsg.Msg {
 		modifiers.Shift = true
 	}
 
+	// 检查 Ctrl+C 组合键 - 触发退出
+	if raw.Modifiers&platform.ModCtrl != 0 && raw.Key == 'c' {
+		// Ctrl+C 被按下，触发退出
+		p.Stop()
+		// 仍然返回消息让上层处理
+	}
+
 	return runtimemsg.NewKeyMsg(
 		raw.Key,
 		raw.Special,

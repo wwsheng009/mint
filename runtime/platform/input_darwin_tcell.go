@@ -6,17 +6,23 @@ package platform
 import (
 	"os"
 	"os/signal"
+	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
 	"github.com/gdamore/tcell/v2"
 )
 
+// 全局退出标志，用于 Ctrl+C 处理
+var exitFlag int32 = 0
+
 // tcellInputReader implements inputReader using tcell
 type tcellInputReader struct {
 	events     chan<- RawInput
 	quit       chan struct{}
 	screen     tcell.Screen
+	quitOnce   sync.Once
 }
 
 func newInputReaderImpl() inputReaderImpl {
@@ -49,6 +55,11 @@ func (r *tcellInputReader) Start(events chan<- RawInput) error {
 
 func (r *tcellInputReader) readLoop() {
 	for {
+		// 检查是否收到退出信号
+		if atomic.LoadInt32(&exitFlag) != 0 {
+			return
+		}
+
 		select {
 		case <-r.quit:
 			return
@@ -116,8 +127,11 @@ func (r *tcellInputReader) parseKeyEvent(ev *tcell.EventKey, now time.Time) RawI
 		input.Key = 'b'
 		input.Modifiers |= ModCtrl
 	case tcell.KeyCtrlC:
+		// Ctrl+C 是特殊的退出组合键
 		input.Key = 'c'
 		input.Modifiers |= ModCtrl
+		// 设置退出标志，让应用能够退出
+		atomic.StoreInt32(&exitFlag, 1)
 	case tcell.KeyCtrlD:
 		input.Key = 'd'
 		input.Modifiers |= ModCtrl
@@ -338,14 +352,16 @@ func restoreTerminalImpl() {
 //
 // 🔥 工业级保护：即使程序 panic、强制关闭，也会恢复终端
 //
-// 这是最后一道防线，确保终端永远不会被永久污染。
+// 注意：tcell 会捕获 SIGINT 信号，所以我们需要在 tcell 初始化之前注册信号处理
 func init() {
-	go func() {
-		// 监听中断信号 (SIGINT = Ctrl+C)
-		ch := make(chan os.Signal, 1)
-		signal.Notify(ch, os.Interrupt, syscall.SIGTERM)
+	// 监听中断信号 (SIGINT = Ctrl+C)
+	ch := make(chan os.Signal, 1)
+	signal.Notify(ch, os.Interrupt, syscall.SIGTERM)
 
+	go func() {
 		_ = <-ch
+		// 设置退出标志，让 readLoop 能够退出
+		atomic.StoreInt32(&exitFlag, 1)
 		// 强制恢复终端
 		restoreTerminalImpl()
 		os.Exit(0)
