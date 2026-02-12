@@ -33,6 +33,12 @@ import (
 // Global inspector instance
 var globalInspector *inspector.StandaloneInspector
 
+// Global framework app instance
+var FwApp *framework.App
+
+// Global declarative root (to access reconciler)
+var declarativeRoot *render.DeclarativeNode
+
 func main() {
 	// Initialize standalone inspector
 	globalInspector = inspector.NewStandaloneInspector()
@@ -55,11 +61,11 @@ func main() {
 	_ = theme.SetTheme("nord")
 
 	// Create framework app to enable F12 shortcut
-	FwApp := framework.NewApp()
+	FwApp = framework.NewApp()
 
 	// Create declarative root WITH FIBER RECONCILER
 	// This enables VNodeComponentInstance for persistent event handlers
-	declarativeRoot := render.NewDeclarativeNodeFromFuncWithFiber(RuntimeDemoWithInspectorOverlay, FwApp)
+	declarativeRoot = render.NewDeclarativeNodeFromFuncWithFiber(RuntimeDemoWithInspectorOverlay, FwApp)
 	declarativeRoot.SetFrameworkApp(FwApp)
 
 	// Set as root FIRST (before registering Inspector)
@@ -116,7 +122,7 @@ func RuntimeDemoWithInspectorOverlay() ui.VNode {
 	// Get rendered tree from Reconciler (VNodes have Fiber keys)
 	// This ensures Inspector displays correct path-based keys
 	var appContent ui.VNode
-	if reconciler := FwApp.GetReconciler(); reconciler != nil {
+	if reconciler := declarativeRoot.GetReconciler(); reconciler != nil {
 		// Get the tree AFTER Fiber reconciliation
 		// This tree has VNodes with proper Fiber keys like /root/base[0]/vstack[0]/panel[0]
 		appContent = reconciler.GetRenderedRoot()

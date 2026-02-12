@@ -282,6 +282,8 @@ func createChildFiberWithIndex(returnFiber *Fiber, vnode rtui.VNode, lanes Lane,
 		} else {
 			fiber.Path = "/" + userKey
 		}
+		// Note: Keep VNode.Key() as userKey for reconciliation
+		// Fiber.Path is available for debugging but not exposed to VNode
 	} else if isDynamicList(returnFiber) {
 		// Priority 2: Dynamic list → require key (panic if missing)
 		requireKeyPanic(returnFiber, vnode, siblingIndex)
@@ -325,10 +327,18 @@ func cloneExistingFiber(returnFiber *Fiber, current *Fiber, vnode rtui.VNode, si
 		} else {
 			fiber.Path = "/" + userKey
 		}
+		// VNode.Key() already has userKey, no need to update
 	} else {
 		// Keep original path and key (critical for Instance reuse)
 		fiber.Path = current.Path
 		fiber.Key = current.Key
+		// ✨ If current has auto-generated path key, sync it to the new VNode instance
+		// This ensures that when VNode is re-rendered, it keeps the path key for Inspector
+		if current.Path != "" && strings.HasPrefix(current.Path, "/root/") {
+			// Only sync if it's an auto-generated path key (not a user key)
+			// User keys don't start with "/root/"
+			vnode.SetKey(current.Path)
+		}
 	}
 	fiber.PathSegment = current.PathSegment
 	fiber.SiblingIndex = siblingIndex

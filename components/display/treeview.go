@@ -183,6 +183,23 @@ func (b *TreeViewBuilder) generateFromNode(node rtui.VNode, depth int, isLast bo
 	// Get node description
 	description := b.getNodeDescription(node)
 
+	// ✨ Generate path from VNode's Fiber Key (if available)
+	// Fiber reconciliation sets VNode keys to path-based keys
+	var nodePath string
+	if keyer, ok := node.(interface{ Key() string }); ok {
+		vnodeKey := keyer.Key()
+		// Check if this is a path-based key (set by Fiber reconciliation)
+		if vnodeKey != "" && strings.HasPrefix(vnodeKey, "/root/") {
+			// Remove "/root/" prefix for cleaner display
+			// /root/base[0]/vstack[0]/panel[0] → base[0]/vstack[0]/panel[0]
+			if len(vnodeKey) > 6 {
+				nodePath = vnodeKey[6:]
+			} else {
+				nodePath = vnodeKey
+			}
+		}
+	}
+
 	// Build tree prefix
 	prefix := "├── "
 	if isLast {
@@ -196,6 +213,7 @@ func (b *TreeViewBuilder) generateFromNode(node rtui.VNode, depth int, isLast bo
 		Prefix:   prefix,
 		NodeType: fmt.Sprintf("%d", node.Type()), // Convert int type to string for icon lookup
 		NodeID:   len(b.node.lines),
+		Path:     nodePath, // ✨ Set path from Fiber Key
 	}
 
 	b.node.lines = append(b.node.lines, treeLine)

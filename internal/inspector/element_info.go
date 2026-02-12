@@ -3,6 +3,7 @@ package inspector
 import (
 	"fmt"
 	"reflect"
+	"strings"
 	"unicode/utf8"
 
 	rtui "github.com/wwsheng009/mint/runtime/ui"
@@ -74,6 +75,7 @@ func ExtractElementInfo(vnode rtui.VNode) ElementInfo {
 	info.Tag = getTag(vnode)
 	info.Key = getKey(vnode)
 	info.Label = getLabel(vnode)
+	info.Path = getPath(vnode)
 
 	// Extract bounds if available
 	if boundsAware, ok := vnode.(interface{ GetBounds() [4]int }); ok {
@@ -117,6 +119,25 @@ func getTag(vnode rtui.VNode) string {
 func getKey(vnode rtui.VNode) string {
 	if keyer, ok := vnode.(interface{ Key() string }); ok {
 		return keyer.Key()
+	}
+	return ""
+}
+
+// getPath extracts the hierarchical path from a VNode's Fiber Key
+// Fiber reconciliation sets VNode keys to path-based keys like /root/base[0]/vstack[0]/panel[0]
+func getPath(vnode rtui.VNode) string {
+	if keyer, ok := vnode.(interface{ Key() string }); ok {
+		vnodeKey := keyer.Key()
+		// Check if this is a path-based key (set by Fiber reconciliation)
+		if vnodeKey != "" && strings.HasPrefix(vnodeKey, "/root/") {
+			// Use the Fiber-generated path as our display path
+			// Remove the "/root/" prefix for cleaner display
+			// /root/base[0]/vstack[0]/panel[0] → base[0]/vstack[0]/panel[0]
+			if len(vnodeKey) > 6 { // "/root/" is 6 characters
+				return vnodeKey[6:] // Skip "/root/" prefix
+			}
+			return vnodeKey
+		}
 	}
 	return ""
 }

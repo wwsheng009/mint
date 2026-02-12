@@ -136,6 +136,13 @@ func (n *DeclarativeNode) SetReconciler(r rtui.Reconciler) {
 	n.useFiber = r != nil
 }
 
+// GetReconciler returns the Fiber reconciler for this node
+func (n *DeclarativeNode) GetReconciler() rtui.Reconciler {
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+	return n.reconciler
+}
+
 // =============================================================================
 // framework.Node interface implementation
 // =============================================================================
