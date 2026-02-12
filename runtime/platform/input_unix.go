@@ -6,6 +6,7 @@ package platform
 import (
 	"fmt"
 	"os"
+	"os/signal"
 	"syscall"
 	"time"
 	"unsafe"
@@ -16,6 +17,7 @@ type unixInputReader struct {
 	quit       chan struct{}
 	original   *syscall.Termios
 	parseBuffer []byte // 解析缓冲区，用于多字节序列
+	lastPressedButton MouseButton // Track which button was pressed for release events
 }
 
 func newInputReaderImpl() inputReaderImpl {
@@ -333,6 +335,12 @@ func (r *unixInputReader) parseSGRMouseEvent(buf []byte, now time.Time) (RawInpu
 	buttonCode := cb & 0x43
 	release := buf[end] == 'm'
 
+	// DEBUG: 打印鼠标事件（可以通过环境变量启用）
+	if os.Getenv("TUI_DEBUG_MOUSE") == "true" {
+		fmt.Printf("[UNIX MOUSE] X=%d Y=%d ButtonCode=%d Release=%v\n",
+			input.MouseX, input.MouseY, buttonCode, release)
+	}
+
 	switch buttonCode {
 	case 0:
 		input.MouseButton = MouseLeft
@@ -367,8 +375,24 @@ func (r *unixInputReader) parseSGRMouseEvent(buf []byte, now time.Time) (RawInpu
 		}
 	case release:
 		input.MouseAction = MouseRelease
+		// Button released - use last pressed button
+		if r.lastPressedButton != MouseNone {
+			input.MouseButton = r.lastPressedButton
+		} else {
+			// No known button was pressed, use current button
+			input.MouseButton = input.MouseButton
+		}
+		r.lastPressedButton = MouseNone // Reset after release
 	default:
 		input.MouseAction = MousePress
+		// Track pressed button for future release
+		if buttonCode&0x01 != 0 {
+			r.lastPressedButton = MouseLeft
+		} else if buttonCode&0x02 != 0 {
+			r.lastPressedButton = MouseMiddle
+		} else if buttonCode&0x04 != 0 {
+			r.lastPressedButton = MouseRight
+		}
 	}
 
 	return input, buf[end+1:]
@@ -494,4 +518,26 @@ func (r *unixInputReader) parseCSISquence(buf []byte, now time.Time) RawInput {
 	}
 
 	return RawInput{Timestamp: now}
+}
+
+// ==============================================================================
+// 进程级终端恢复保护
+// ==============================================================================
+
+// init 安装进程级终端恢复保险丝
+//
+// 🔥 关键保护：即使程序 panic、强制关闭，也会恢复终端
+//
+// 这是最后一道防线，确保终端永远不会被永久污染。
+func init() {
+	go func() {
+		// 监听中断信号
+		ch := make(chan os.Signal, 1)
+		signal.Notify(ch, os.Interrupt, syscall.SIGTERM)
+
+		_ = <-ch
+		// 强制恢复终端
+		restoreTerminalImpl()
+		os.Exit(0)
+	}()
 }
