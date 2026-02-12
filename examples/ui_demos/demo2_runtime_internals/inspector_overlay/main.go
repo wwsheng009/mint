@@ -119,23 +119,16 @@ func RuntimeDemoWithInspectorOverlay() ui.VNode {
 	globalInspector.StartFrame()
 	defer globalInspector.EndFrame()
 
-	// Get rendered tree from Reconciler (VNodes have Fiber keys)
-	// This ensures Inspector displays correct path-based keys
-	var appContent ui.VNode
-	if reconciler := declarativeRoot.GetReconciler(); reconciler != nil {
-		// Get the tree AFTER Fiber reconciliation
-		// This tree has VNodes with proper Fiber keys like /root/base[0]/vstack[0]/panel[0]
-		appContent = reconciler.GetRenderedRoot()
-	} else {
-		// Fallback: build original tree if reconciler not available
-		appContent = buildDemoContent(
-			currentPhase, eventCount, renderCount, bufferUpdates,
-			setCurrentPhase, setEventCount, setRenderCount, setBufferUpdates,
-			setShowInspector,
-		)
-	}
+	// Build main application content
+	// NOTE: The reconciler will add Fiber keys to these VNodes during reconciliation
+	appContent := buildDemoContent(
+		currentPhase, eventCount, renderCount, bufferUpdates,
+		setCurrentPhase, setEventCount, setRenderCount, setBufferUpdates,
+		setShowInspector,
+	)
 
 	// Attach inspector to app (for analysis)
+	// The inspector will analyze the tree after reconciliation completes
 	globalInspector.AttachToApp(appContent)
 
 	// IMPORTANT: Check inspector visibility on every render
