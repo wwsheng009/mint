@@ -1904,5 +1904,14 @@ func (a *App) enrichHitMapWithInstances() {
 		}
 	}
 
+	// Debug: Log all instance keys before enrichment
+	if os.Getenv("TUI_DEBUG_HITMAP") == "true" {
+		var keys []string
+		for k := range allInstances {
+			keys = append(keys, k)
+		}
+		log.UILogger.Debug("[enrichHitMap] All InstanceManager keys (%d): %v", len(keys), keys)
+	}
+
 	log.UILogger.Debug("[enrichHitMap] Enriched %d/%d HitMap entries with ComponentInstance references", matchedCount, len(entries))
 }
