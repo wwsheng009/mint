@@ -88,13 +88,25 @@ func createAllNewChildren(returnFiber *Fiber, children []rtui.VNode, lanes Lane)
 	var firstChild *Fiber
 	var previousChild *Fiber
 
+	// ✨ Track type counts for correct indexing
+	typeCounts := make(map[string]int)
+
 	if os.Getenv("TUI_DEBUG_HITMAP") == "true" {
 		log.UILogger.Debug("[createAllNewChildren] Creating %d children for parent Key=%q, Tag=%q",
 			len(children), returnFiber.Key, returnFiber.Tag)
 	}
 
 	for i, childVNode := range children {
-		child := createChildFiber(returnFiber, childVNode, lanes, i)
+		// Determine type index BEFORE creating the node
+		var typeIndex int
+		if pathGenerator != nil {
+			typeID := pathGenerator.getTypeIdentifier(childVNode)
+			typeIndex = typeCounts[typeID]
+			typeCounts[typeID]++
+		}
+
+		// Create child with the pre-calculated index
+		child := createChildFiberWithIndex(returnFiber, childVNode, lanes, i, typeIndex)
 
 		if os.Getenv("TUI_DEBUG_HITMAP") == "true" {
 			typeName := "UNKNOWN"
@@ -245,6 +257,14 @@ func shouldUpdate(current *Fiber, vnode rtui.VNode) bool {
 // 2. Dynamic list → require key (panic if missing)
 // 3. Static UI → auto-generate path key
 func createChildFiber(returnFiber *Fiber, vnode rtui.VNode, lanes Lane, siblingIndex int) *Fiber {
+	// Delegate to createChildFiberWithIndex with typeIndex=-1 (auto-calculate)
+	return createChildFiberWithIndex(returnFiber, vnode, lanes, siblingIndex, -1)
+}
+
+// createChildFiberWithIndex creates a new Fiber with a pre-calculated type index
+// Used by createAllNewChildren where type index is tracked externally
+// If typeIndex is -1, it will be auto-calculated from parent's children
+func createChildFiberWithIndex(returnFiber *Fiber, vnode rtui.VNode, lanes Lane, siblingIndex int, typeIndex int) *Fiber {
 	fiber := CreateFiberFromVNode(vnode)
 	fiber.Return = returnFiber
 	fiber.Lanes = lanes
@@ -268,10 +288,14 @@ func createChildFiber(returnFiber *Fiber, vnode rtui.VNode, lanes Lane, siblingI
 	} else {
 		// Priority 3: Static UI → auto-generate path key
 		if pathGenerator == nil {
-			// Fallback: create temporary path generator
 			pathGenerator = NewPathGenerator()
 		}
-		fiber.Path = pathGenerator.GeneratePath(returnFiber, vnode, siblingIndex)
+		// Use provided typeIndex if available, otherwise auto-calculate
+		if typeIndex >= 0 {
+			fiber.Path = pathGenerator.GeneratePathWithIndex(returnFiber, vnode, siblingIndex, typeIndex)
+		} else {
+			fiber.Path = pathGenerator.GeneratePath(returnFiber, vnode, siblingIndex)
+		}
 		fiber.Key = fiber.Path
 		vnode.SetKey(fiber.Path)
 	}
