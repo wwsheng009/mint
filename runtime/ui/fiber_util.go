@@ -6,6 +6,8 @@ package ui
 
 import (
 	"os"
+
+	"github.com/wwsheng009/mint/internal/log"
 )
 
 // CreateFiber creates a new fiber from a VNode
@@ -35,7 +37,7 @@ func CreateFiber(vnode VNode) *Fiber {
 				actualType = "ComponentWithElement"
 			}
 		}
-		os.Stdout.Write([]byte("[DEBUG CREATEFIBER] Type=" + vnodeType.String() + " Key=" + vnode.Key() + " actualType=" + actualType + "\n"))
+		log.RenderLogger.Debug("[CREATEFIBER] Type=%s Key=%s actualType=%s", vnodeType.String(), vnode.Key(), actualType)
 	}
 
 	fiber := &Fiber{
