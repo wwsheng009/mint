@@ -33,6 +33,7 @@ type Pump struct {
 	source   EventSource
 	messages chan runtimemsg.Msg // Changed from events chan Event
 	quit     chan struct{}
+	quitApp  chan struct{} // 用于 Ctrl+C 退出通知
 	running  int32          // Use atomic for cross-goroutine visibility (0=stopped, 1=running)
 	mu       sync.RWMutex   // Protects messages channel from close while sending
 	wg       sync.WaitGroup // Waits for convertLoop to exit
@@ -48,6 +49,7 @@ func NewPump(reader platform.InputReader) *Pump {
 		source:   &PlatformEventSource{reader: reader},
 		messages: make(chan runtimemsg.Msg, 100), // Changed from events
 		quit:     make(chan struct{}),
+		quitApp:  make(chan struct{}), // 用于通知应用退出
 		running:  0,
 	}
 }
@@ -59,6 +61,7 @@ func NewPumpWithSource(source EventSource) *Pump {
 		source:   source,
 		messages: make(chan runtimemsg.Msg, 100), // Changed from events
 		quit:     make(chan struct{}),
+		quitApp:  make(chan struct{}), // 用于通知应用退出
 		running:  0,
 	}
 }
@@ -147,9 +150,9 @@ func (p *Pump) convertToKeyMsg(raw platform.RawInput) runtimemsg.Msg {
 
 	// 检查 Ctrl+C 组合键 - 触发退出
 	if raw.Modifiers&platform.ModCtrl != 0 && raw.Key == 'c' {
-		// Ctrl+C 被按下，触发退出
-		p.Stop()
-		// 仍然返回消息让上层处理
+		// Ctrl+C 被按下，通知应用退出
+		close(p.quitApp)
+		// 仍然返回消息让上层处理（如果需要）
 	}
 
 	return runtimemsg.NewKeyMsg(
@@ -304,6 +307,12 @@ func (p *Pump) Events() <-chan runtimemsg.Msg {
 // IsRunning checks if the pump is running.
 func (p *Pump) IsRunning() bool {
 	return atomic.LoadInt32(&p.running) != 0
+}
+
+// QuitAppRequested returns a channel that is closed when Ctrl+C is pressed.
+// This allows the application to detect Ctrl+C and exit gracefully.
+func (p *Pump) QuitAppRequested() <-chan struct{} {
+	return p.quitApp
 }
 
 // PumpWithTimeout gets a message with timeout.

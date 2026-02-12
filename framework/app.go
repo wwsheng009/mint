@@ -712,6 +712,7 @@ func (a *App) Run() error {
 
 	// 使用事件泵的通道
 	eventChan := a.pump.Events()
+	quitAppChan := a.pump.QuitAppRequested()
 	renderStartTime := time.Now()
 
 	// DEBUG 主循环状态
@@ -781,6 +782,10 @@ func (a *App) Run() error {
 				}
 			}
 
+		case <-quitAppChan:
+			// Ctrl+C 退出
+			a.state = StateStopping
+			return nil
 		case <-a.quit:
 			a.state = StateStopping
 			return nil
