@@ -5,6 +5,7 @@ package platform
 
 import (
 	"fmt"
+	mintlog "github.com/wwsheng009/mint/internal/log"
 	"os"
 	"os/signal"
 	"syscall"
@@ -337,7 +338,7 @@ func (r *unixInputReader) parseSGRMouseEvent(buf []byte, now time.Time) (RawInpu
 
 	// DEBUG: 打印鼠标事件（可以通过环境变量启用）
 	if os.Getenv("TUI_DEBUG_MOUSE") == "true" {
-		fmt.Printf("[UNIX MOUSE] X=%d Y=%d ButtonCode=%d Release=%v\n",
+		mintlog.LinuxLogger.Debug("[UNIX MOUSE] X=%d Y=%d ButtonCode=%d Release=%v\n",
 			input.MouseX, input.MouseY, buttonCode, release)
 	}
 

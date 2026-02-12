@@ -189,6 +189,8 @@ var (
 	EventLogger = NewLogger("Event", "EVENTS")
 
 	WinLogger = NewLogger("Windows", "WIN")
+	// LinuxLogger logs Linux-specific messages (enabled via TUI_DEBUG_LINUX)
+	LinuxLogger = NewLogger("Linux", "LINUX")
 
 	InspectorLogger = NewLogger("Inspector", "INSPECTOR")
 
