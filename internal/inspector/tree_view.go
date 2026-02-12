@@ -91,10 +91,10 @@ func (tv *TreeView) buildTree(vnode ui.VNode, parent *TreeNode, level int, path 
 		// Check if this is a path-based key (set by Fiber reconciliation)
 		if vnodeKey != "" && strings.HasPrefix(vnodeKey, "/root/") {
 			// Use the Fiber-generated path as our display path
-			// Extract just the last segment for cleaner display: panel[0] instead of full path
-			segments := strings.Split(vnodeKey, "/")
-			if len(segments) > 0 {
-				nodePath = segments[len(segments)-1]
+			// Remove the "/root/" prefix for cleaner display
+			// /root/base[0]/vstack[0]/panel[0] → base[0]/vstack[0]/panel[0]
+			if len(vnodeKey) > 6 { // "/root/" is 6 characters
+				nodePath = vnodeKey[6:] // Skip "/root/" prefix
 			} else {
 				nodePath = vnodeKey
 			}
