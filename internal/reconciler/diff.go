@@ -9,10 +9,48 @@ package reconciler
 
 import (
 	"os"
+	"strings"
 
 	"github.com/wwsheng009/mint/internal/log"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
+
+// =============================================================================
+// Path Generator (Global Instance)
+// =============================================================================
+// Global path generator instance for automatic key generation
+// Will be initialized by the reconciler
+var pathGenerator *PathGenerator
+
+// =============================================================================
+// Path Helper Functions
+// =============================================================================
+
+// extractPathSegment extracts the last segment from a full path
+// For example: "/root/base[0]/vstack[0]/panel[1]" → "panel[1]"
+func extractPathSegment(path string) string {
+	if path == "" {
+		return ""
+	}
+
+	parts := strings.Split(path, "/")
+	if len(parts) == 0 {
+		return ""
+	}
+
+	return parts[len(parts)-1]
+}
+
+// getTypeIDFromSegment extracts the type ID from a path segment
+// For example: "button[2]" → "button"
+func getTypeIDFromSegment(segment string) string {
+	idx := strings.Index(segment, "[")
+	if idx == -1 {
+		return segment
+	}
+	return segment[:idx]
+}
+
 
 // reconcileChildren reconciles the current children with new children
 // Returns the first child of the reconciled Fiber tree
@@ -56,7 +94,7 @@ func createAllNewChildren(returnFiber *Fiber, children []rtui.VNode, lanes Lane)
 	}
 
 	for i, childVNode := range children {
-		child := createChildFiber(returnFiber, childVNode, lanes)
+		child := createChildFiber(returnFiber, childVNode, lanes, i)
 
 		if os.Getenv("TUI_DEBUG_HITMAP") == "true" {
 			typeName := "UNKNOWN"
@@ -70,8 +108,8 @@ func createAllNewChildren(returnFiber *Fiber, children []rtui.VNode, lanes Lane)
 			case rtui.VNodeFragment:
 				typeName = "VNodeFragment"
 			}
-			log.UILogger.Debug("[createAllNewChildren] Created child %d: Type=%d(%s), Key=%q, Tag=%q",
-				i, child.Type, typeName, child.Key, child.Tag)
+			log.UILogger.Debug("[createAllNewChildren] Created child %d: Type=%d(%s), Key=%q, Tag=%q, Path=%q",
+				i, child.Type, typeName, child.Key, child.Tag, child.Path)
 		}
 
 		if firstChild == nil {
@@ -98,7 +136,7 @@ func reconcileExistingChildren(
 	var previousChild *Fiber
 	currentChild := currentFirstChild
 
-	for _, childVNode := range newChildren {
+	for i, childVNode := range newChildren {
 		var child *Fiber
 
 		// Try to match with current child or any of its siblings
@@ -107,7 +145,7 @@ func reconcileExistingChildren(
 
 		if matchedChild != nil {
 			// Found a match - reuse existing fiber
-			child = cloneExistingFiber(returnFiber, matchedChild, childVNode)
+			child = cloneExistingFiber(returnFiber, matchedChild, childVNode, i)
 
 			// Mark all children between currentChild and matchedChild for deletion
 			// (they were skipped over and are no longer in the tree)
@@ -120,7 +158,7 @@ func reconcileExistingChildren(
 			currentChild = matchedChild.Sibling
 		} else {
 			// No match found - create new fiber
-			child = createChildFiber(returnFiber, childVNode, lanes)
+			child = createChildFiber(returnFiber, childVNode, lanes, i)
 			// The currentChild remains unchanged (will be processed in next iteration or deleted)
 		}
 
@@ -202,22 +240,74 @@ func shouldUpdate(current *Fiber, vnode rtui.VNode) bool {
 }
 
 // createChildFiber creates a new Fiber for a child VNode
-func createChildFiber(returnFiber *Fiber, vnode rtui.VNode, lanes Lane) *Fiber {
+// Implements the mixed key strategy:
+// 1. User-provided key (highest priority)
+// 2. Dynamic list → require key (panic if missing)
+// 3. Static UI → auto-generate path key
+func createChildFiber(returnFiber *Fiber, vnode rtui.VNode, lanes Lane, siblingIndex int) *Fiber {
 	fiber := CreateFiberFromVNode(vnode)
 	fiber.Return = returnFiber
 	fiber.Lanes = lanes
 	fiber.Props = vnode.Props()
+	fiber.SiblingIndex = siblingIndex
+
+	// ✨ Mixed Key Strategy
+	userKey := vnode.Key()
+
+	if userKey != "" {
+		// Priority 1: User provided a key → use it directly
+		fiber.Key = userKey
+		if returnFiber != nil && returnFiber.Path != "" {
+			fiber.Path = returnFiber.Path + "/" + userKey
+		} else {
+			fiber.Path = "/" + userKey
+		}
+	} else if isDynamicList(returnFiber) {
+		// Priority 2: Dynamic list → require key (panic if missing)
+		requireKeyPanic(returnFiber, vnode, siblingIndex)
+	} else {
+		// Priority 3: Static UI → auto-generate path key
+		if pathGenerator == nil {
+			// Fallback: create temporary path generator
+			pathGenerator = NewPathGenerator()
+		}
+		fiber.Path = pathGenerator.GeneratePath(returnFiber, vnode, siblingIndex)
+		fiber.Key = fiber.Path
+		vnode.SetKey(fiber.Path)
+	}
+
+	// Extract path segment (last part of path)
+	fiber.PathSegment = extractPathSegment(fiber.Path)
+
 	return fiber
 }
 
 // cloneExistingFiber clones an existing fiber with new VNode data
-func cloneExistingFiber(returnFiber *Fiber, current *Fiber, vnode rtui.VNode) *Fiber {
+func cloneExistingFiber(returnFiber *Fiber, current *Fiber, vnode rtui.VNode, siblingIndex int) *Fiber {
 	fiber := CloneFiber(current)
 	fiber.Return = returnFiber
 	fiber.VNode = vnode
 	fiber.Props = vnode.Props()
 	fiber.Lanes = LaneNoLane
 	fiber.Flags = EffectNoEffect
+
+	// ✨ Keep path and key for Instance reuse
+	userKey := vnode.Key()
+	if userKey != "" && userKey != current.Key {
+		// User changed the key, regenerate path
+		fiber.Key = userKey
+		if returnFiber != nil && returnFiber.Path != "" {
+			fiber.Path = returnFiber.Path + "/" + userKey
+		} else {
+			fiber.Path = "/" + userKey
+		}
+	} else {
+		// Keep original path and key (critical for Instance reuse)
+		fiber.Path = current.Path
+		fiber.Key = current.Key
+	}
+	fiber.PathSegment = current.PathSegment
+	fiber.SiblingIndex = siblingIndex
 
 	// Link to alternate
 	fiber.Alternate = current

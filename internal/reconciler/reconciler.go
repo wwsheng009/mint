@@ -57,6 +57,9 @@ type Reconciler struct {
 	layoutRoot     *runtime.LayoutNode    // Root of the layout tree
 	layoutBoxes    []runtime.LayoutBox     // Layout boxes for hit testing
 
+	// === Path Generation ===
+	pathGenerator *PathGenerator // Automatic path key generator for static UI
+
 	// === Configuration ===
 	enableFiber bool // Use Fiber reconciliation (env controlled)
 }
@@ -85,6 +88,7 @@ func NewReconciler(app *framework.App, rootComponent rtui.ComponentFunc, config 
 		ctx:                 rtui.NewComponentContextForRoot(),
 		enableFiber:         config.EnableFiber,
 		vnodeConverter:      NewVNodeConverter(),
+		pathGenerator:       NewPathGenerator(), // ✨ Initialize path generator
 	}
 }
 
@@ -177,6 +181,9 @@ func (r *Reconciler) workLoopSync() {
 	// This ensures BeginWork can access InstanceManager for all fibers
 	currentReconciler = r
 	defer func() { currentReconciler = nil }()
+
+	// ✨ Set path generator for automatic key generation
+	pathGenerator = r.pathGenerator
 
 	if os.Getenv("TUI_DEBUG_HITMAP") == "true" {
 		log.UILogger.Debug("[workLoopSync] Starting work loop...")

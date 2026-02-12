@@ -121,6 +121,19 @@ type Fiber struct {
 	// Key for reconciling lists
 	Key string
 
+	// ✨ Path for automatic key generation (Mixed Strategy)
+	// Full path from root: /root/base[0]/vstack[0]/panel[0]
+	// Used for generating automatic keys for static UI components
+	Path string
+
+	// ✨ PathSegment is the last segment of the path: panel[0]
+	// Used for debugging and quick type identification
+	PathSegment string
+
+	// ✨ SiblingIndex is the position in the parent's children list
+	// Used for calculating the path index
+	SiblingIndex int
+
 	// === Type ===
 	// The type of this fiber (cached from VNode)
 	Type VNodeType
