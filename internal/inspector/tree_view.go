@@ -83,13 +83,31 @@ func (tv *TreeView) buildTree(vnode ui.VNode, parent *TreeNode, level int, path 
 		return nil
 	}
 
-	// Generate path for this node
-	// Include parent's index in path to ensure uniqueness
+	// ✨ NEW: Use VNode's Key if it's a path-based key from Fiber reconciliation
+	// Fiber reconciliation sets VNode keys to path-based keys like /root/base[0]/vstack[0]/panel[0]
 	var nodePath string
-	if path == "" {
-		nodePath = getSimpleType(vnode)
-	} else {
-		nodePath = fmt.Sprintf("%s[%d].%s", path, index, getSimpleType(vnode))
+	if keyer, ok := vnode.(interface{ Key() string }); ok {
+		vnodeKey := keyer.Key()
+		// Check if this is a path-based key (set by Fiber reconciliation)
+		if vnodeKey != "" && strings.HasPrefix(vnodeKey, "/root/") {
+			// Use the Fiber-generated path as our display path
+			// Extract just the last segment for cleaner display: panel[0] instead of full path
+			segments := strings.Split(vnodeKey, "/")
+			if len(segments) > 0 {
+				nodePath = segments[len(segments)-1]
+			} else {
+				nodePath = vnodeKey
+			}
+		}
+	}
+
+	// Fallback: Generate path using old logic if no path-based key available
+	if nodePath == "" {
+		if path == "" {
+			nodePath = getSimpleType(vnode)
+		} else {
+			nodePath = fmt.Sprintf("%s[%d].%s", path, index, getSimpleType(vnode))
+		}
 	}
 
 	// Extract element info
