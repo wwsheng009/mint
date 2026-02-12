@@ -207,11 +207,22 @@ func beginWorkElement(current, workInProgress *Fiber) *Fiber {
 	// This enables persistent event handlers and state for Button, Text, etc.
 
 	if currentReconciler != nil && currentReconciler.instanceMgr != nil && workInProgress.Key != "" {
-		// Generate instance key from fiber key
-		instanceKey := "vnode:" + workInProgress.Key
+		// ✨ IMPORTANT: Use Fiber.Path instead of Fiber.Key for instance key generation
+		// This ensures instance keys match HitMap NodeIDs which use full paths.
+		// For user-keyed elements (e.g., button with key="btn-event"):
+		//   - Fiber.Key = "btn-event" (user's original key)
+		//   - Fiber.Path = "/root/base[0]/.../button[0]/key[btn-event]" (full path)
+		// HitMap stores NodeID = Fiber.Path, so instance key must use Path too!
+		lookupKey := workInProgress.Path
+		if lookupKey == "" {
+			// Fallback to Key if Path is not set (shouldn't happen with proper path generation)
+			lookupKey = workInProgress.Key
+		}
+		instanceKey := "vnode:" + lookupKey
 
 		if os.Getenv("TUI_DEBUG_INSTANCE") == "true" || os.Getenv("TUI_DEBUG_HITMAP") == "true" {
-			log.UILogger.Debug("[beginWorkElement] Creating instance for key=%s", instanceKey)
+			log.UILogger.Debug("[beginWorkElement] Creating instance for key=%s (fiber.Key=%q, fiber.Path=%q)",
+				instanceKey, workInProgress.Key, workInProgress.Path)
 		}
 
 		// Get or create VNode component instance
@@ -228,8 +239,8 @@ func beginWorkElement(current, workInProgress *Fiber) *Fiber {
 		workInProgress.ComponentInstance = instance
 
 		if os.Getenv("TUI_DEBUG_INSTANCE") == "true" || os.Getenv("TUI_DEBUG_HITMAP") == "true" {
-			log.UILogger.Debug("[beginWorkElement] ✅ Created/Updated instance: key=%s, type=%d",
-				workInProgress.Key, workInProgress.Type)
+			log.UILogger.Debug("[beginWorkElement] ✅ Created/Updated instance: key=%s, fiber.Key=%q, type=%d",
+				instanceKey, workInProgress.Key, workInProgress.Type)
 		}
 	}
 
