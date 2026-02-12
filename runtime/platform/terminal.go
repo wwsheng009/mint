@@ -67,13 +67,17 @@ func (t *DefaultTerminal) ExitAlternateScreen() error {
 // EnableRawMode 启用原始模式
 func (t *DefaultTerminal) EnableRawMode() error {
 	// Unix raw mode 将在后续实现
-	fmt.Print("\x1b[?7l") // 禁用自动换行
+	// 注意：需要真正设置原始模式，不能只是打印控制序列
+	// 使用适当的 ioctl 系统调用来设置终端属性
+	// 参考 unixInputReader.enableRawMode() 的实现
 	return nil
 }
 
 // DisableRawMode 禁用原始模式
 func (t *DefaultTerminal) DisableRawMode() error {
-	fmt.Print("\x1b[?7h") // 启用自动换行
+	// 注意：需要真正恢复终端模式，不能只是打印控制序列
+	// 使用适当的 ioctl 系统调用来恢复终端属性
+	// 参考 unixInputReader.disableRawMode() 的实现
 	return nil
 }
 

@@ -204,7 +204,10 @@ func (r *unixInputReader) enableRawMode() error {
 
 	var termios syscall.Termios
 	if err := ioctl(uintptr(fd), syscall.TCGETS, uintptr(unsafe.Pointer(&termios))); err != nil {
-		return err
+		// Non-terminal environment (e.g., IDE debugger, pipe without TTY)
+		// Return nil to allow app to run in degraded mode
+		// This is useful for development and testing
+		return nil
 	}
 
 	r.original = &termios
@@ -249,6 +252,7 @@ func restoreTerminalImpl() {
 
 	var termios syscall.Termios
 	if err := ioctl(uintptr(fd), syscall.TCGETS, uintptr(unsafe.Pointer(&termios))); err != nil {
+		// Non-terminal environment - ignore error
 		return
 	}
 
