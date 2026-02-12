@@ -159,8 +159,30 @@ func (r *unixInputReader) parseSequence(buf []byte) (RawInput, []byte) {
 		return RawInput{Type: InputKeyPress, Special: KeyEscape, Timestamp: now}, buf[1:]
 	}
 
-	// 可打印字符
+	// 可打印字符 - 只处理非 CSI 序列字符
+	// CSI 序列字符 (<, ;, 数字等) 只在完整序列中处理
 	if b >= 32 && b <= 126 {
+		// 检查缓冲区是否有未完成的 CSI 序列
+		// 如果缓冲区以 '[' 开头且后面跟着数字、';'、'<'、'='、'?' 等，说明正在接收 CSI 序列
+		hasUnfinishedCSI := false
+		if len(r.parseBuffer) >= 1 && r.parseBuffer[0] == '[' {
+			// 检查下一个字符是否像 CSI 序列
+			nextIsCSI := false
+			if len(r.parseBuffer) >= 2 {
+				next := r.parseBuffer[1]
+				nextIsCSI = (next == '[' || next == '<' || next == '=' || next == '?' ||
+					(next >= '0' && next <= '9'))
+			}
+			if nextIsCSI {
+				hasUnfinishedCSI = true
+			}
+		}
+
+		if hasUnfinishedCSI {
+			// 正在接收 CSI 序列的一部分，不处理
+			return RawInput{Type: -2, Timestamp: now}, nil
+		}
+
 		return RawInput{
 			Type:      InputKeyPress,
 			Key:       rune(b),

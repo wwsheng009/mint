@@ -4,6 +4,9 @@
 package platform
 
 import (
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/gdamore/tcell/v2"
@@ -329,4 +332,22 @@ func (r *tcellInputReader) ReadEvent() (RawInput, error) {
 func restoreTerminalImpl() {
 	// Terminal restoration is handled by Stop() calling restoreTerminal()
 	// via the screen.Fini() call
+}
+
+// init 安装进程级终端恢复保险丝
+//
+// 🔥 工业级保护：即使程序 panic、强制关闭，也会恢复终端
+//
+// 这是最后一道防线，确保终端永远不会被永久污染。
+func init() {
+	go func() {
+		// 监听中断信号 (SIGINT = Ctrl+C)
+		ch := make(chan os.Signal, 1)
+		signal.Notify(ch, os.Interrupt, syscall.SIGTERM)
+
+		_ = <-ch
+		// 强制恢复终端
+		restoreTerminalImpl()
+		os.Exit(0)
+	}()
 }
