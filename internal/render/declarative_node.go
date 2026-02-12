@@ -53,6 +53,10 @@ func NewDeclarativeNode(vnode rtui.VNode) *DeclarativeNode {
 }
 
 // NewDeclarativeNodeFromFunc creates a new declarative node from a render function
+//
+// Deprecated: Fiber mode is now the default and required for persistent component
+// instances and event handlers. Use NewDeclarativeNodeFromFuncWithFiber instead.
+// This function is kept for backward compatibility but should not be used in new code.
 func NewDeclarativeNodeFromFunc(fn rtui.ComponentFunc) *DeclarativeNode {
 	node := &DeclarativeNode{
 		renderFn: fn,
@@ -198,7 +202,7 @@ func (n *DeclarativeNode) Paint(ctx component.PaintContext, buf *paint.Buffer) {
 	defer n.mu.Unlock()
 
 	// Debug logging
-	if os.Getenv("TUI_DEBUG_UI") == "true" {
+	if os.Getenv("TUI_DEBUG_UI") == "true" || os.Getenv("TUI_DEBUG_HITMAP") == "true" {
 		log.UILogger.Debug("DeclarativeNode.Paint: ctx.X=%d, ctx.Y=%d, buf=%dx%d, useFiber=%v",
 			ctx.Bounds.X, ctx.Bounds.Y, buf.Width, buf.Height, n.useFiber)
 	}
@@ -207,9 +211,17 @@ func (n *DeclarativeNode) Paint(ctx component.PaintContext, buf *paint.Buffer) {
 	if n.useFiber && n.reconciler != nil {
 		// Fiber mode: just call render function directly for now
 		// The reconciler's state management still happens through hooks
+		if os.Getenv("TUI_DEBUG_UI") == "true" || os.Getenv("TUI_DEBUG_HITMAP") == "true" {
+			log.UILogger.Debug("[DeclarativeNode.Paint] ✅ Calling renderWithFiberContext (useFiber=%v, reconciler=%v)",
+				n.useFiber, n.reconciler != nil)
+		}
 		n.root = n.renderWithFiberContext()
 	} else {
 		// Non-Fiber mode
+		if os.Getenv("TUI_DEBUG_UI") == "true" || os.Getenv("TUI_DEBUG_HITMAP") == "true" {
+			log.UILogger.Debug("[DeclarativeNode.Paint] ⚠️  Using nonFiberRender (useFiber=%v, reconciler=%v)",
+				n.useFiber, n.reconciler != nil)
+		}
 		n.root = n.nonFiberRender()
 	}
 
@@ -291,6 +303,10 @@ func (n *DeclarativeNode) Paint(ctx component.PaintContext, buf *paint.Buffer) {
 func (n *DeclarativeNode) renderWithFiberContext() rtui.VNode {
 	if n.renderFn == nil {
 		return n.root
+	}
+
+	if os.Getenv("TUI_DEBUG_HITMAP") == "true" {
+		log.UILogger.Debug("[renderWithFiberContext] reconciler=%v", n.reconciler != nil)
 	}
 
 	// The reconciler manages hook context through its render cycle
@@ -1663,6 +1679,12 @@ func (a *fiberReconcilerAdapter) GetRenderedRoot() rtui.VNode {
 	return a.r.GetRenderedRoot()
 }
 
+// GetInstanceMgr returns the InstanceManager from the Fiber reconciler
+func (a *fiberReconcilerAdapter) GetInstanceMgr() interface{} {
+	return a.r.GetInstanceManager()
+}
+
+
 // newFiberReconciler creates a new Fiber reconciler for the given app and render function
 func newFiberReconciler(fwApp *framework.App, fn rtui.ComponentFunc) rtui.Reconciler {
 	// Create the actual reconciler from internal/reconciler
@@ -1817,6 +1839,23 @@ func (n *DeclarativeNode) GetHooks() *render.HookManager {
 	// Get the renderer (should be PipelineRendererAdapter)
 	if adapter, ok := n.renderer.(*PipelineRendererAdapter); ok {
 		return adapter.GetHooks()
+	}
+
+	return nil
+}
+
+// GetInstanceManager returns the Fiber Reconciler's InstanceManager
+// This allows external code (like App.enrichHitMapWithInstances) to access
+// ComponentInstances managed by the Fiber Reconciler
+func (n *DeclarativeNode) GetInstanceManager() interface{} {
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+
+	// The reconciler is a rtui.Reconciler interface
+	// We need to access the underlying *reconciler.Reconciler to get InstanceManager
+	// This is a bit of a hack to avoid import cycles
+	if adapter, ok := n.reconciler.(*fiberReconcilerAdapter); ok {
+		return adapter.r.GetInstanceManager()
 	}
 
 	return nil

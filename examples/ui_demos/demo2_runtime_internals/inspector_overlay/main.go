@@ -57,8 +57,9 @@ func main() {
 	// Create framework app to enable F12 shortcut
 	fwApp := framework.NewApp()
 
-	// Create declarative root
-	declarativeRoot := render.NewDeclarativeNodeFromFunc(RuntimeDemoWithInspectorOverlay)
+	// Create declarative root WITH FIBER RECONCILER
+	// This enables VNodeComponentInstance for persistent event handlers
+	declarativeRoot := render.NewDeclarativeNodeFromFuncWithFiber(RuntimeDemoWithInspectorOverlay, fwApp)
 	declarativeRoot.SetFrameworkApp(fwApp)
 
 	// Set as root FIRST (before registering Inspector)

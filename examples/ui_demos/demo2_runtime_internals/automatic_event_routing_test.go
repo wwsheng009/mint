@@ -195,9 +195,8 @@ func TestAutomaticEventRoutingWithDemo2(t *testing.T) {
 			fwApp.SetInspector(globalInspector)
 			fwApp.SetupInspectorShortcut()
 
-			// Set root
-			declarativeRoot := render.NewDeclarativeNodeFromFunc(RuntimeDemo)
-			declarativeRoot.SetFrameworkApp(fwApp)
+			// Set root with Fiber reconciler enabled
+			declarativeRoot := render.NewDeclarativeNodeFromFuncWithFiber(RuntimeDemo, fwApp)
 			fwApp.SetRoot(declarativeRoot)
 
 			// Run

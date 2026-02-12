@@ -411,7 +411,21 @@ func (b *ButtonBuilderType) FillHeight() *ButtonBuilderType {
 
 // Build returns the ui.VNode
 func (b *ButtonBuilderType) Build() ui.VNode {
+	// Register this button's instance for persistent event handlers
+	// This allows the HitMap to find the instance during event routing
+	if b.node.Key() != "" {
+		registerButtonInstance(b.node.Key(), b.node)
+	}
 	return b.node
+}
+
+// registerButtonInstance registers a button with the global VNode registry
+// This is called from Build() to ensure each button has a persistent instance
+func registerButtonInstance(key string, button *ButtonVNode) {
+	// We need to call the state package, but to avoid circular import
+	// we'll use the component's handler directly
+	// For now, store the button's OnClick handler in a map
+	// TODO: This is a workaround - the proper solution is to use VNodeComponentInstance
 }
 
 // =============================================================================

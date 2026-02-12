@@ -30,6 +30,10 @@ import (
 // Step 1: 建旧节点哈希表
 // Step 2: 单次遍历新 VNode 列表
 // Step 3: 回收未使用旧节点
+//
+// 根据 react_key.md：
+// > 身份 = (层级 + type + key)
+// > 不同父节点下的子节点可能有相同的 key，需要用层级路径区分
 func ReconcileChildren(oldChildren []*Instance, newVChildren []ui.VNode) []*Instance {
 	// Step 1 — 旧 Instance 建索引
 	oldMap := make(map[string]*Instance, len(oldChildren))
@@ -41,25 +45,30 @@ func ReconcileChildren(oldChildren []*Instance, newVChildren []ui.VNode) []*Inst
 	// Step 2 — 遍历新 VNode（核心 O(n)）
 	var newChildren []*Instance
 
-	for _, vnode := range newVChildren {
-		vnodeID := vnode.Key()
-		if vnodeID == "" {
-			// Fallback: 使用 Tag 作为 ID
-			if tagger, ok := vnode.(interface{ Tag() string }); ok {
-				vnodeID = tagger.Tag()
-			}
-		}
-
+	for index, vnode := range newVChildren {
+		// 构建层级路径 ID：parentPath[index].type.key
 		vnodeType := getVNodeType(vnode)
+		vnodeKey := vnode.Key()
+		vnodeID := buildChildID("", index, vnodeType, vnodeKey)
+		log.UILogger.Debug("[buildChildID] index=%d, type=%s, key=%s -> ID=%s", index, vnodeType, vnodeKey, vnodeID)
 
 		if oldInst, ok := oldMap[vnodeID]; ok && oldInst.Type == vnodeType {
 			// 🔁 复用
+			log.UILogger.Debug("Reconcile: Attempting reuse ID=%s oldType=%s newType=%s", vnodeID, oldInst.Type, vnodeType)
 			reuseInstance(oldInst, vnode)
 			oldInst._used = true
 			newChildren = append(newChildren, oldInst)
+			log.UILogger.Debug("Reconcile: ✅ Reused instance ID=%s", vnodeID)
 		} else {
 			// 🆕 创建
-			newInst := createInstance(vnode)
+			reason := ""
+			if _, ok := oldMap[vnodeID]; !ok {
+				reason = "not in oldMap"
+			} else if oldInst.Type != vnodeType {
+				reason = fmt.Sprintf("type mismatch: old=%s new=%s", oldInst.Type, vnodeType)
+			}
+			log.UILogger.Debug("Reconcile: Creating new instance ID=%s Type=%s (%s)", vnodeID, vnodeType, reason)
+			newInst := createInstance(vnode, vnodeID)
 			newInst.Mount()
 			newChildren = append(newChildren, newInst)
 		}
@@ -75,6 +84,31 @@ func ReconcileChildren(oldChildren []*Instance, newVChildren []ui.VNode) []*Inst
 	return newChildren
 }
 
+// buildChildID 构建子节点的层级路径 ID
+//
+// 格式：parentPath[index].type.key
+// 例如：
+//   - ""[0].ButtonVNode.btn-event  （根节点的第一个按钮）
+//   - ""[0][1].TextVNode            （第一个节点的第二个子节点）
+//
+// 根据 react_key.md：
+// > 身份 = (层级 + type + key)
+// > React 在同一层级的兄弟节点之间，用 key 做"局部身份标识"
+func buildChildID(parentPath string, index int, vnodeType, vnodeKey string) string {
+	if parentPath == "" {
+		// 根级别子节点：[index].type.key
+		if vnodeKey != "" {
+			return fmt.Sprintf("[%d].%s.%s", index, vnodeType, vnodeKey)
+		}
+		return fmt.Sprintf("[%d].%s", index, vnodeType)
+	}
+	// 嵌套子节点：parentPath[index].type.key
+	if vnodeKey != "" {
+		return fmt.Sprintf("%s[%d].%s.%s", parentPath, index, vnodeType, vnodeKey)
+	}
+	return fmt.Sprintf("%s[%d].%s", parentPath, index, vnodeType)
+}
+
 // reuseInstance 复用现有实例
 func reuseInstance(inst *Instance, vnode ui.VNode) {
 	// 提取 Props
@@ -87,21 +121,14 @@ func reuseInstance(inst *Instance, vnode ui.VNode) {
 	handlers := extractHandlers(vnode)
 	inst.Handlers = handlers
 
-	// 递归处理子节点
-	inst.Children = ReconcileChildren(inst.Children, vnode.Children())
+	// 递归处理子节点，传递当前实例的路径作为父路径
+	inst.Children = reconcileChildrenWithPath(inst.Children, vnode.Children(), inst.ID)
 
-	log.UILogger.Debug("Reconcile: Reused instance ID=%s Type=%s", inst.ID, inst.Type)
+	log.UILogger.Debug("Reconcile: ✅ Reused instance ID=%s Type=%s", inst.ID, inst.Type)
 }
 
 // createInstance 从 VNode 创建新实例
-func createInstance(vnode ui.VNode) *Instance {
-	id := vnode.Key()
-	if id == "" {
-		if tagger, ok := vnode.(interface{ Tag() string }); ok {
-			id = tagger.Tag()
-		}
-	}
-
+func createInstance(vnode ui.VNode, id string) *Instance {
 	vnodeType := getVNodeType(vnode)
 	props := extractProps(vnode)
 	handlers := extractHandlers(vnode)
@@ -109,11 +136,61 @@ func createInstance(vnode ui.VNode) *Instance {
 	inst := NewInstance(id, vnodeType, props)
 	inst.Handlers = handlers
 
-	// 递归处理子节点
-	inst.Children = ReconcileChildren(nil, vnode.Children())
+	// 递归处理子节点，传递当前实例的路径作为父路径
+	inst.Children = reconcileChildrenWithPath(nil, vnode.Children(), id)
 
 	log.UILogger.Debug("Reconcile: Created instance ID=%s Type=%s", id, vnodeType)
 	return inst
+}
+
+// reconcileChildrenWithPath 带路径的递归协调
+// 用于在递归时传递父节点路径，构建层级 ID
+func reconcileChildrenWithPath(oldChildren []*Instance, newVChildren []ui.VNode, parentPath string) []*Instance {
+	// Step 1 — 旧 Instance 建索引
+	oldMap := make(map[string]*Instance, len(oldChildren))
+	for _, inst := range oldChildren {
+		oldMap[inst.ID] = inst
+		inst._used = false // 临时标记
+	}
+
+	// Step 2 — 遍历新 VNode（核心 O(n)）
+	var newChildren []*Instance
+
+	for index, vnode := range newVChildren {
+		vnodeType := getVNodeType(vnode)
+		vnodeKey := vnode.Key()
+		vnodeID := buildChildID(parentPath, index, vnodeType, vnodeKey)
+
+		if oldInst, ok := oldMap[vnodeID]; ok && oldInst.Type == vnodeType {
+			// 🔁 复用
+			log.UILogger.Debug("Reconcile: Attempting reuse ID=%s oldType=%s newType=%s", vnodeID, oldInst.Type, vnodeType)
+			reuseInstance(oldInst, vnode)
+			oldInst._used = true
+			newChildren = append(newChildren, oldInst)
+			log.UILogger.Debug("Reconcile: ✅ Reused instance ID=%s", vnodeID)
+		} else {
+			// 🆕 创建
+			reason := ""
+			if _, ok := oldMap[vnodeID]; !ok {
+				reason = "not in oldMap"
+			} else if oldInst.Type != vnodeType {
+				reason = fmt.Sprintf("type mismatch: old=%s new=%s", oldInst.Type, vnodeType)
+			}
+			log.UILogger.Debug("Reconcile: Creating new instance ID=%s Type=%s (%s)", vnodeID, vnodeType, reason)
+			newInst := createInstance(vnode, vnodeID)
+			newInst.Mount()
+			newChildren = append(newChildren, newInst)
+		}
+	}
+
+	// Step 3 — 卸载多余旧节点
+	for _, inst := range oldChildren {
+		if !inst._used {
+			unmount(inst)
+		}
+	}
+
+	return newChildren
 }
 
 // unmount 卸载实例

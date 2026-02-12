@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"reflect"
 	"time"
 
 	"github.com/wwsheng009/mint/framework/component"
@@ -1290,48 +1291,19 @@ func (a *App) render() {
 		// > Instance 是"活的组件"（持久存在）
 		// >
 		// > render() 只产生描述树，然后系统做：
-		// > VNode Tree → diff → Instance Tree（持久） → Layout
+		// > VNode Tree → Fiber Reconciler → Instance Tree（持久） → Layout
+		//
+		// NOTE: Fiber Reconciler handles reconciliation internally in DeclarativeNode.Paint()
+		// ComponentInstances are managed by reconciler.InstanceMgr
 
-		log.UILogger.Debug("[APP] Phase 2: Reconciling VNode → Instance")
+		log.UILogger.Debug("[APP] Phase 2: Fiber Reconciler handles VNode → Instance reconciliation")
 
-		// 获取当前帧的 VNode Tree
-		var vnodeRoot rtui.VNode
-		if declNode, ok := a.root.(interface{ Root() rtui.VNode }); ok {
-			vnodeRoot = declNode.Root()
-			log.UILogger.Debug("[APP] Got VNode from DeclarativeNode.Root(), type=%T", vnodeRoot)
-		} else if vnode, ok := a.root.(rtui.VNode); ok {
-			vnodeRoot = vnode
-			log.UILogger.Debug("[APP] a.root is VNode, type=%T", vnodeRoot)
-		} else {
-			log.UILogger.Debug("[APP] Cannot get VNode from root, type=%T", a.root)
-		}
-
-		// Reconcile: 同步 VNode Tree → Instance Tree
-		if vnodeRoot != nil {
-			// 收集 VNode children
-			vnodeChildren := vnodeRoot.Children()
-
-			// Reconcile children
-			if a.instanceRoot == nil {
-				// 首次：创建 Instance Tree
-				instChildren := instance.ReconcileChildren(nil, vnodeChildren)
-				// 创建根 Instance（虚拟根节点）
-				a.instanceRoot = instance.NewInstance("root", "root", nil)
-				a.instanceRoot.Children = instChildren
-				a.instanceRoot.Mount()
-				log.UILogger.Debug("[APP] Created Instance Tree: %d top-level instances", len(instChildren))
-			} else {
-				// 更新：Reconcile Instance Tree
-				a.instanceRoot.Children = instance.ReconcileChildren(a.instanceRoot.Children, vnodeChildren)
-				log.UILogger.Debug("[APP] Reconciled Instance Tree: %d top-level instances", len(a.instanceRoot.Children))
-			}
-		}
 
 		// ✨ 新架构：Enrich HitMap with Instance references
 		// 根据 fix1.md：HitMap 应该包含 Instance 引用，用于直接事件路由
 		// 在 HitMap 构建完成后，我们通过 NodeID 匹配来添加 Instance 引用
 		// 这样既保留了正确的布局信息（包括层变换），又获得了 Instance 引用
-		if a.hitMap != nil && a.instanceRoot != nil {
+		if a.hitMap != nil {
 			a.enrichHitMapWithInstances()
 			log.UILogger.Debug("[APP] Enriched HitMap with Instance references")
 		}
@@ -1345,9 +1317,6 @@ func (a *App) render() {
 		// Phase 3: 更新焦点管理器（从布局树提取 Focusable 组件）
 		if layoutRoot, ok := a.root.(layout.Node); ok {
 			a.updateFocusManager(layoutRoot)
-		} else if vnodeRoot != nil {
-			layoutAdapter := rtui.AsLayoutNode(vnodeRoot)
-			a.updateFocusManager(layoutAdapter)
 		}
 	}
 
@@ -1753,72 +1722,169 @@ func (a *instanceHandlerAdapter) Handle(msg interface{}) interface{} {
 	return nil
 }
 
+// componentInstanceAdapter adapts ComponentInstance to MsgHandler interface
+// This is used for Fiber Reconciler's ComponentInstances (VNodeComponentInstance)
+type componentInstanceAdapter struct {
+	compInst rtui.ComponentInstance
+}
+
+// Handle 实现 MsgHandler 接口
+func (a *componentInstanceAdapter) Handle(msg interface{}) interface{} {
+	if a.compInst == nil {
+		log.UILogger.Debug("[componentInstanceAdapter.Handle] compInst is nil")
+		return nil
+	}
+
+	log.UILogger.Debug("[componentInstanceAdapter.Handle] Called, key=%s, msg type=%T", a.compInst.Key(), msg)
+
+	// Use reflection to access VNodeComponentInstance fields without import cycle
+	// We need to call the appropriate event handler based on msg type
+	v := reflect.ValueOf(a.compInst)
+	if v.IsNil() {
+		log.UILogger.Debug("[componentInstanceAdapter.Handle] compInst is nil after reflection")
+		return nil
+	}
+
+	// Get the underlying element (since compInst is an interface)
+	elem := v.Elem()
+
+	// Check for OnClick handler
+	onClickField := elem.FieldByName("OnClick")
+	if onClickField.IsValid() && !onClickField.IsNil() {
+		// Check if msg is a click event (MouseMsg with Press action)
+		if mouseMsg, ok := msg.(*runtimemsg.MouseMsg); ok && mouseMsg.IsPress() && mouseMsg.Button == runtimemsg.MouseLeft {
+			onClickFunc := onClickField.Interface().(func())
+			log.UILogger.Debug("[componentInstanceAdapter.Handle] Calling OnClick for key=%s", a.compInst.Key())
+			onClickFunc()
+			return nil
+		}
+	}
+
+	// Check for OnKeyPress handler
+	onKeyPressField := elem.FieldByName("OnKeyPress")
+	if onKeyPressField.IsValid() && !onKeyPressField.IsNil() {
+		// Check if msg is a key event
+		if keyMsg, ok := msg.(*runtimemsg.KeyMsg); ok {
+			keyPressFunc := onKeyPressField.Interface().(func(string))
+			// Use the string representation of the key
+			keyStr := keyMsg.String()
+			log.UILogger.Debug("[componentInstanceAdapter.Handle] Calling OnKeyPress for key=%s, key=%s", a.compInst.Key(), keyStr)
+			keyPressFunc(keyStr)
+			return nil
+		}
+	}
+
+	// Check for OnMouseEnter handler
+	onMouseEnterField := elem.FieldByName("OnMouseEnter")
+	if onMouseEnterField.IsValid() && !onMouseEnterField.IsNil() {
+		if mouseMsg, ok := msg.(*runtimemsg.MouseMsg); ok && mouseMsg.Action == runtimemsg.MouseActionMove {
+			onMouseEnterFunc := onMouseEnterField.Interface().(func())
+			log.UILogger.Debug("[componentInstanceAdapter.Handle] Calling OnMouseEnter for key=%s", a.compInst.Key())
+			onMouseEnterFunc()
+			return nil
+		}
+	}
+
+	// Check for OnMouseLeave handler
+	onMouseLeaveField := elem.FieldByName("OnMouseLeave")
+	if onMouseLeaveField.IsValid() && !onMouseLeaveField.IsNil() {
+		// For simplicity, we can't easily detect mouse leave without tracking
+		// This would require more sophisticated tracking
+		if mouseMsg, ok := msg.(*runtimemsg.MouseMsg); ok && mouseMsg.Action == runtimemsg.MouseActionMove {
+			onMouseLeaveFunc := onMouseLeaveField.Interface().(func())
+			log.UILogger.Debug("[componentInstanceAdapter.Handle] Calling OnMouseLeave for key=%s", a.compInst.Key())
+			onMouseLeaveFunc()
+			return nil
+		}
+	}
+
+	log.UILogger.Debug("[componentInstanceAdapter.Handle] No handler found for msg type=%T", msg)
+	return nil
+}
+
 // enrichHitMapWithInstances 为 HitMap 条目添加 Instance 引用
-// 这是新架构的关键步骤：将持久化的 Instance 与 HitMap 关联起来
+// 这是新架构的关键步骤：将 Fiber Reconciler 的 ComponentInstance 与 HitMap 关联
 //
 // 工作流程：
-// 1. 从 Instance Tree 构建 NodeID → Instance 映射
-// 2. 遍历 HitMap 条目，通过 NodeID 匹配 Instance
+// 1. 从 Fiber Reconciler 的 InstanceManager 获取所有 ComponentInstance
+// 2. 遍历 HitMap 条目，通过 Key 匹配 ComponentInstance
 // 3. 为每个匹配的条目添加 Instance 引用
-//
-// 注意：这个方法修改 HitMap 的内部状态（entries）
 func (a *App) enrichHitMapWithInstances() {
-	if a.hitMap == nil || a.instanceRoot == nil {
+	if a.hitMap == nil {
 		return
 	}
 
-	// Step 1: 构建 NodeID → Instance 映射
-	instanceMap := make(map[string]*instance.Instance)
-	var collectInstances func(inst *instance.Instance)
-	collectInstances = func(inst *instance.Instance) {
-		if inst == nil {
-			return
-		}
-		if inst.ID != "" {
-			instanceMap[inst.ID] = inst
-			log.UILogger.Debug("[enrichHitMap] Collected instance: ID=%s Type=%s", inst.ID, inst.Type)
-		}
-		for _, child := range inst.Children {
-			collectInstances(child)
+	// Get InstanceManager from Fiber Reconciler (via DeclarativeNode)
+	// Use reflection to avoid import cycle with internal/render
+	var instanceMgr interface{}
+	rootValue := reflect.ValueOf(a.root)
+	getInstanceMgrMethod := rootValue.MethodByName("GetInstanceManager")
+	if getInstanceMgrMethod.IsValid() {
+		results := getInstanceMgrMethod.Call(nil)
+		if len(results) > 0 && !results[0].IsNil() {
+			instanceMgr = results[0].Interface()
 		}
 	}
 
-	// 从根节点的 children 开始收集（跳过根节点本身）
-	for _, child := range a.instanceRoot.Children {
-		collectInstances(child)
+	if instanceMgr == nil {
+		log.UILogger.Debug("[enrichHitMap] No InstanceManager found")
+		return
 	}
 
-	log.UILogger.Debug("[enrichHitMap] Collected %d instances from Instance Tree", len(instanceMap))
+	log.UILogger.Debug("[enrichHitMap] Found InstanceManager, type=%T", instanceMgr)
 
-	// Step 2 & 3: 遍历 HitMap 条目，添加 Instance 引用
-	// 注意：直接使用 SetEntryInstance 方法来确保正确修改 HitMap 的 entries
+	// Use reflection to access GetAllInstances() method since we don't import internal/state
+	// The InstanceManager has a method to get all instances
+ mgrValue := reflect.ValueOf(instanceMgr)
+	getAllMethod := mgrValue.MethodByName("GetAllInstances")
+	if !getAllMethod.IsValid() {
+		log.UILogger.Debug("[enrichHitMap] No GetAllInstances method found on InstanceManager")
+		return
+	}
+
+	// Call GetAllInstances()
+	instancesResult := getAllMethod.Call(nil)
+	if len(instancesResult) == 0 {
+		log.UILogger.Debug("[enrichHitMap] GetAllInstances returned no results")
+		return
+	}
+
+	// Convert result to map[string]ComponentInstance
+	instancesMap := instancesResult[0].Interface()
+	allInstances, ok := instancesMap.(map[string]rtui.ComponentInstance)
+	if !ok {
+		log.UILogger.Debug("[enrichHitMap] GetAllInstances result is not map[string]ComponentInstance, got %T", instancesMap)
+		return
+	}
+
+	log.UILogger.Debug("[enrichHitMap] Collected %d ComponentInstances from Fiber Reconciler", len(allInstances))
+
+	// 遍历 HitMap 条目，添加 Instance 引用
 	entries := a.hitMap.AllEntries()
 	log.UILogger.Debug("[enrichHitMap] HitMap has %d entries", len(entries))
-
-	// Debug: log all HitMap entry NodeIDs
-	for i, entry := range entries {
-		log.UILogger.Debug("[enrichHitMap] HitMap entry[%d]: NodeID=%s", i, entry.NodeID)
-	}
 
 	matchedCount := 0
 	for i, entry := range entries {
 		nodeID := entry.NodeID
-		if inst, ok := instanceMap[nodeID]; ok {
-			// 找到匹配的 Instance，创建适配器并添加引用
-			var msgHandler runtimeevent.MsgHandler
-			if handler, ok := interface{}(inst).(runtimeevent.MsgHandler); ok {
-				msgHandler = handler
-			} else {
-				msgHandler = &instanceHandlerAdapter{inst: inst}
-			}
-			// ✨ 使用 SetEntryInstance 方法来正确修改 HitMap
+		// Build instance key: "vnode:" + nodeID
+		instanceKey := "vnode:" + nodeID
+
+		if compInst, exists := allInstances[instanceKey]; exists {
+			// Found matching ComponentInstance
+			// Create MsgHandler adapter
+			var msgHandler runtimeevent.MsgHandler = &componentInstanceAdapter{compInst: compInst}
+
 			a.hitMap.SetEntryInstance(i, msgHandler)
 			matchedCount++
-			log.UILogger.Debug("[enrichHitMap] ✅ Matched: NodeID=%s → Instance=%v", nodeID, inst.ID)
+			if os.Getenv("TUI_DEBUG_HITMAP") == "true" {
+				log.UILogger.Debug("[enrichHitMap] ✅ Matched: NodeID=%s → Instance key=%s", nodeID, instanceKey)
+			}
 		} else {
-			log.UILogger.Debug("[enrichHitMap] ❌ No match for NodeID=%s", nodeID)
+			if os.Getenv("TUI_DEBUG_HITMAP") == "true" {
+				log.UILogger.Debug("[enrichHitMap] ❌ No ComponentInstance found for NodeID=%s (tried key=%s)", nodeID, instanceKey)
+			}
 		}
 	}
 
-	log.UILogger.Debug("[enrichHitMap] Enriched %d/%d HitMap entries with Instance references", matchedCount, len(entries))
+	log.UILogger.Debug("[enrichHitMap] Enriched %d/%d HitMap entries with ComponentInstance references", matchedCount, len(entries))
 }

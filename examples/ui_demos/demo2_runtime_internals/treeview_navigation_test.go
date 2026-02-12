@@ -98,7 +98,7 @@ func TestTreeViewNavigation(t *testing.T) {
 			t.Errorf("Failed to inject KeyDown: %v", err)
 		}
 		// Manually trigger Inspector's HandleKeyEvent
-		insp.HandleKeyEvent("down", false, false)
+		insp.HandleKeyEvent("down", false, false, false)
 		// Re-render overlay
 		overlay = insp.RenderOverlay()
 		testApp.ForceRender()
@@ -124,7 +124,7 @@ func TestTreeViewNavigation(t *testing.T) {
 			t.Errorf("Failed to inject KeyUp: %v", err)
 		}
 		// Manually trigger Inspector's HandleKeyEvent
-		insp.HandleKeyEvent("up", false, false)
+		insp.HandleKeyEvent("up", false, false, false)
 		// Re-render overlay
 		overlay = insp.RenderOverlay()
 		testApp.ForceRender()
@@ -149,7 +149,7 @@ func TestTreeViewNavigation(t *testing.T) {
 		t.Errorf("Failed to inject PageDown: %v", err)
 	}
 	// Manually trigger Inspector's HandleKeyEvent
-	insp.HandleKeyEvent("pgdn", false, false)
+	insp.HandleKeyEvent("pgdn", false, false, false)
 	// Re-render overlay
 	overlay = insp.RenderOverlay()
 	testApp.ForceRender()
@@ -173,7 +173,7 @@ func TestTreeViewNavigation(t *testing.T) {
 		t.Errorf("Failed to inject Home: %v", err)
 	}
 	// Manually trigger Inspector's HandleKeyEvent
-	insp.HandleKeyEvent("home", false, false)
+	insp.HandleKeyEvent("home", false, false, false)
 	// Re-render overlay
 	overlay = insp.RenderOverlay()
 	testApp.ForceRender()
@@ -197,7 +197,7 @@ func TestTreeViewNavigation(t *testing.T) {
 		t.Errorf("Failed to inject End: %v", err)
 	}
 	// Manually trigger Inspector's HandleKeyEvent
-	insp.HandleKeyEvent("end", false, false)
+	insp.HandleKeyEvent("end", false, false, false)
 	// Re-render overlay
 	overlay = insp.RenderOverlay()
 	testApp.ForceRender()

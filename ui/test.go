@@ -207,17 +207,9 @@ func RunTest(app ComponentFunc, opts ...Option) (*TestableApp, error) {
 	// Set global appInstance
 	appInstance = fwApp
 
-	// Check if Fiber mode is enabled via environment variable
-	enableFiber := os.Getenv("MINT_USE_FIBER") == "true"
-
-	// Create the declarative root component using internal/render
-	var declarativeNode *render.DeclarativeNode
-	if enableFiber {
-		declarativeNode = render.NewDeclarativeNodeFromFuncWithFiber(app, fwApp)
-	} else {
-		declarativeNode = render.NewDeclarativeNodeFromFunc(app)
-		declarativeNode.SetFrameworkApp(fwApp) // Set framework app for non-Fiber mode re-renders
-	}
+	// Create the declarative root component with Fiber reconciler enabled
+	// Fiber is now the default and required for persistent component instances and event handlers
+	declarativeNode := render.NewDeclarativeNodeFromFuncWithFiber(app, fwApp)
 
 	// Set as root
 	fwApp.SetRoot(declarativeNode)
@@ -272,17 +264,9 @@ func RunTestWithSandbox(app ComponentFunc, opts ...Option) (*TestableApp, error)
 	// Set global appInstance
 	appInstance = fwApp
 
-	// Check if Fiber mode is enabled via environment variable
-	enableFiber := os.Getenv("MINT_USE_FIBER") == "true"
-
-	// Create the declarative root component using internal/render
-	var declarativeNode *render.DeclarativeNode
-	if enableFiber {
-		declarativeNode = render.NewDeclarativeNodeFromFuncWithFiber(app, fwApp)
-	} else {
-		declarativeNode = render.NewDeclarativeNodeFromFunc(app)
-		declarativeNode.SetFrameworkApp(fwApp) // Set framework app for non-Fiber mode re-renders
-	}
+	// Create the declarative root component with Fiber reconciler enabled
+	// Fiber is now the default and required for persistent component instances and event handlers
+	declarativeNode := render.NewDeclarativeNodeFromFuncWithFiber(app, fwApp)
 
 	// Set as root
 	fwApp.SetRoot(declarativeNode)

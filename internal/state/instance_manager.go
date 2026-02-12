@@ -266,3 +266,17 @@ func (m *InstanceManager) MarkAllDirty() {
 		inst.MarkDirty()
 	}
 }
+
+// GetAllInstances returns all instances managed by this InstanceManager
+// This is used by HitMap enrichment to connect ComponentInstances with layout nodes
+func (m *InstanceManager) GetAllInstances() map[string]ComponentInstance {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	// Return a copy to avoid concurrent modification
+	result := make(map[string]ComponentInstance, len(m.instances))
+	for key, inst := range m.instances {
+		result[key] = inst
+	}
+	return result
+}

@@ -4,15 +4,43 @@ package ui
 // Fiber Creation
 // =============================================================================
 
+import (
+	"os"
+)
+
 // CreateFiber creates a new fiber from a VNode
 func CreateFiber(vnode VNode) *Fiber {
 	if vnode == nil {
 		return nil
 	}
 
+	vnodeType := vnode.Type()
+
+	// Debug logging to understand VNode types
+	if os.Getenv("TUI_DEBUG_HITMAP") == "true" {
+		// Get actual type name for debugging
+		actualType := "unknown"
+		switch n := vnode.(type) {
+		case *ElementVNode:
+			actualType = "ElementVNode"
+		case *ComponentVNode:
+			actualType = "ComponentVNode"
+		case *TextVNode:
+			actualType = "TextVNode"
+		case *LayoutNode:
+			actualType = "LayoutNode"
+		default:
+			// Check if it's a component type (like ButtonVNode)
+			if _, ok := n.(interface{ Tag() string }); ok {
+				actualType = "ComponentWithElement"
+			}
+		}
+		os.Stdout.Write([]byte("[DEBUG CREATEFIBER] Type=" + vnodeType.String() + " Key=" + vnode.Key() + " actualType=" + actualType + "\n"))
+	}
+
 	fiber := &Fiber{
 		VNode:         vnode,
-		Type:          vnode.Type(),
+		Type:          vnodeType,
 		Props:         vnode.Props(),
 		MemoizedProps: vnode.Props(),
 		Key:           vnode.Key(),

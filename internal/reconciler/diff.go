@@ -50,8 +50,29 @@ func createAllNewChildren(returnFiber *Fiber, children []rtui.VNode, lanes Lane)
 	var firstChild *Fiber
 	var previousChild *Fiber
 
-	for _, childVNode := range children {
+	if os.Getenv("TUI_DEBUG_HITMAP") == "true" {
+		log.UILogger.Debug("[createAllNewChildren] Creating %d children for parent Key=%q, Tag=%q",
+			len(children), returnFiber.Key, returnFiber.Tag)
+	}
+
+	for i, childVNode := range children {
 		child := createChildFiber(returnFiber, childVNode, lanes)
+
+		if os.Getenv("TUI_DEBUG_HITMAP") == "true" {
+			typeName := "UNKNOWN"
+			switch child.Type {
+			case rtui.VNodeComponent:
+				typeName = "VNodeComponent"
+			case rtui.VNodeText:
+				typeName = "VNodeText"
+			case rtui.VNodeElement:
+				typeName = "VNodeElement"
+			case rtui.VNodeFragment:
+				typeName = "VNodeFragment"
+			}
+			log.UILogger.Debug("[createAllNewChildren] Created child %d: Type=%d(%s), Key=%q, Tag=%q",
+				i, child.Type, typeName, child.Key, child.Tag)
+		}
 
 		if firstChild == nil {
 			firstChild = child

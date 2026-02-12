@@ -12,6 +12,7 @@ package reconciler
 // =============================================================================
 
 import (
+	"os"
 	"time"
 
 	"github.com/wwsheng009/mint/framework"
@@ -97,7 +98,14 @@ func (r *Reconciler) Render(ctx component.PaintContext, buffer *paint.Buffer, re
 	// Note: renderFunc returns ui.VNode (VNode interface is from ui package)
 	// This is correct as VNode implementations are in ui package
 	if !r.enableFiber {
+		if os.Getenv("TUI_DEBUG_HITMAP") == "true" {
+			log.UILogger.Debug("[Reconciler.Render] ⚠️  Fiber NOT enabled! enableFiber=%v", r.enableFiber)
+		}
 		return // Fiber not enabled, use legacy rendering
+	}
+
+	if os.Getenv("TUI_DEBUG_HITMAP") == "true" {
+		log.UILogger.Debug("[Reconciler.Render] ✅ Fiber enabled, starting render...")
 	}
 
 	r.buffer = buffer
@@ -159,15 +167,24 @@ func (r *Reconciler) prepareFreshStack(renderFunc func() rtui.VNode) {
 // Phase 3 will add time slicing
 func (r *Reconciler) workLoopSync() {
 	if r.workInProgress == nil {
+		if os.Getenv("TUI_DEBUG_HITMAP") == "true" {
+			log.UILogger.Debug("[workLoopSync] ⚠️  workInProgress is nil!")
+		}
 		return
 	}
 
-	// Set current reconciler for BeginWork to access InstanceManager
+	// Set current reconciler BEFORE processing work units
+	// This ensures BeginWork can access InstanceManager for all fibers
 	currentReconciler = r
 	defer func() { currentReconciler = nil }()
 
+	if os.Getenv("TUI_DEBUG_HITMAP") == "true" {
+		log.UILogger.Debug("[workLoopSync] Starting work loop...")
+	}
+
 	// Process all work units using correct Fiber traversal
 	// The traversal follows: BeginWork down the tree, then CompleteWork back up
+	// performUnitOfWork recursively processes the entire tree
 	r.performUnitOfWork(r.workInProgress)
 
 	// CRITICAL: Swap workInProgress tree with root tree (double buffering)
@@ -183,8 +200,29 @@ func (r *Reconciler) performUnitOfWork(unitOfWork *Fiber) {
 		return
 	}
 
+	if os.Getenv("TUI_DEBUG_HITMAP") == "true" {
+		typeName := "UNKNOWN"
+		switch unitOfWork.Type {
+		case rtui.VNodeComponent:
+			typeName = "VNodeComponent"
+		case rtui.VNodeText:
+			typeName = "VNodeText"
+		case rtui.VNodeElement:
+			typeName = "VNodeElement"
+		case rtui.VNodeFragment:
+			typeName = "VNodeFragment"
+		}
+		log.UILogger.Debug("[performUnitOfWork] Processing: Type=%d(%s), Key=%q, Tag=%q, hasChild=%v",
+			unitOfWork.Type, typeName, unitOfWork.Key, unitOfWork.Tag, unitOfWork.Child != nil)
+	}
+
 	// BeginWork: process this fiber and create children
 	next := BeginWork(unitOfWork.Alternate, unitOfWork)
+
+	if os.Getenv("TUI_DEBUG_HITMAP") == "true" && next != nil {
+		log.UILogger.Debug("[performUnitOfWork] After BeginWork: next.Child=%v, next.Sibling=%v",
+			next.Child != nil, next.Sibling != nil)
+	}
 
 	// If BeginWork returned a child, process it first (depth-first)
 	if next != nil && next.Child != nil {

@@ -19,6 +19,7 @@ import (
 	"runtime/debug"
 
 	"github.com/wwsheng009/mint/internal/log"
+	"github.com/wwsheng009/mint/internal/state"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
 
@@ -27,6 +28,25 @@ import (
 func BeginWork(current, workInProgress *Fiber) *Fiber {
 	if workInProgress == nil {
 		return nil
+	}
+
+	// Debug: log all BeginWork calls to understand the Fiber tree
+	if os.Getenv("TUI_DEBUG_HITMAP") == "true" {
+		typeName := "UNKNOWN"
+		switch workInProgress.Type {
+		case rtui.VNodeComponent:
+			typeName = "VNodeComponent"
+		case rtui.VNodeText:
+			typeName = "VNodeText"
+		case rtui.VNodeElement:
+			typeName = "VNodeElement"
+		case rtui.VNodeFragment:
+			typeName = "VNodeFragment"
+		}
+		if workInProgress.Key != "" {
+			log.UILogger.Debug("[BeginWork] Called: Type=%d(%s), Key=%q, Tag=%q",
+				workInProgress.Type, typeName, workInProgress.Key, workInProgress.Tag)
+		}
 	}
 
 	// Process updates in the queue
@@ -179,17 +199,38 @@ func beginWorkText(current, workInProgress *Fiber) *Fiber {
 
 // beginWorkElement processes an element Fiber
 func beginWorkElement(current, workInProgress *Fiber) *Fiber {
-	var children []rtui.VNode
+	// Get children using the VNode interface (works for any VNode type)
+	// This handles ButtonVNode, TextVNode, and other custom VNode types
+	children := workInProgress.VNode.Children()
 
-	// Handle both ElementVNode and LayoutNode (which embeds ElementVNode)
-	switch v := workInProgress.VNode.(type) {
-	case *rtui.ElementVNode:
-		children = v.Children()
-	case *rtui.LayoutNode:
-		// LayoutNode embeds ElementVNode, so Children() works
-		children = v.Children()
-	default:
-		return workInProgress
+	// ✨ NEW: Create/reuse VNodeComponentInstance for VNode struct components
+	// This enables persistent event handlers and state for Button, Text, etc.
+
+	if currentReconciler != nil && currentReconciler.instanceMgr != nil && workInProgress.Key != "" {
+		// Generate instance key from fiber key
+		instanceKey := "vnode:" + workInProgress.Key
+
+		if os.Getenv("TUI_DEBUG_INSTANCE") == "true" || os.Getenv("TUI_DEBUG_HITMAP") == "true" {
+			log.UILogger.Debug("[beginWorkElement] Creating instance for key=%s", instanceKey)
+		}
+
+		// Get or create VNode component instance
+		instance := currentReconciler.instanceMgr.GetOrCreate(instanceKey, func() rtui.ComponentInstance {
+			return createVNodeComponentInstance(instanceKey, workInProgress.VNode)
+		})
+
+		// Update the instance with the new VNode
+		if vnodeInst, ok := instance.(*state.VNodeComponentInstance); ok {
+			vnodeInst.UpdateVNode(workInProgress.VNode)
+		}
+
+		// Store the instance in the fiber
+		workInProgress.ComponentInstance = instance
+
+		if os.Getenv("TUI_DEBUG_INSTANCE") == "true" || os.Getenv("TUI_DEBUG_HITMAP") == "true" {
+			log.UILogger.Debug("[beginWorkElement] ✅ Created/Updated instance: key=%s, type=%d",
+				workInProgress.Key, workInProgress.Type)
+		}
 	}
 
 	// Get current child for reconciliation
@@ -398,4 +439,14 @@ func beginWorkMemo(current, workInProgress *Fiber, memo *rtui.MemoVNode) *Fiber 
 	)
 
 	return workInProgress
+}
+
+// =============================================================================
+// VNode Component Instance Support
+// =============================================================================
+
+// createVNodeComponentInstance creates a new VNode component instance
+// This is a factory function called by InstanceManager.GetOrCreate
+func createVNodeComponentInstance(key string, vnode rtui.VNode) rtui.ComponentInstance {
+	return state.NewVNodeComponentInstance(key, vnode)
 }
