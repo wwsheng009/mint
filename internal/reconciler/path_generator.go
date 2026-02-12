@@ -70,17 +70,38 @@ func (pg *PathGenerator) generateRootPath(vnode rtui.VNode) string {
 // getTypeIdentifier 获取组件的类型标识
 // 用于路径段，如 "button", "panel", "vstack"
 func (pg *PathGenerator) getTypeIdentifier(vnode rtui.VNode) string {
-	switch v := vnode.(type) {
-	case *rtui.ComponentVNode:
-		return v.Name()
-	case *rtui.ElementVNode:
-		return v.Tag()
-	case *rtui.TextVNode:
+	// First try using VNode.Type() and interface methods (works for all VNode implementations)
+	switch vnode.Type() {
+	case rtui.VNodeComponent:
+		// ComponentVNode: use component name
+		if namer, ok := vnode.(interface{ Name() string }); ok {
+			return namer.Name()
+		}
+		return "component"
+	case rtui.VNodeElement:
+		// ElementVNode: use tag name
+		if tagger, ok := vnode.(interface{ Tag() string }); ok {
+			return tagger.Tag()
+		}
+		return "element"
+	case rtui.VNodeText:
 		return "text"
-	case *rtui.FragmentVNode:
+	case rtui.VNodeFragment:
 		return "fragment"
 	default:
-		return "unknown"
+		// Fallback: try type switch for concrete types
+		switch v := vnode.(type) {
+		case *rtui.ComponentVNode:
+			return v.Name()
+		case *rtui.ElementVNode:
+			return v.Tag()
+		case *rtui.TextVNode:
+			return "text"
+		case *rtui.FragmentVNode:
+			return "fragment"
+		default:
+			return "unknown"
+		}
 	}
 }
 
