@@ -283,13 +283,26 @@ func (tv *TreeView) formatNode(node *TreeNode, lines []string, isLast bool) []st
 		sizeInfo = fmt.Sprintf(" %dx%d", node.Info.Size.Width, node.Info.Size.Height)
 	}
 
-	// Add path if enabled
+	// Add Key info (show path-based keys from Fiber reconciliation)
+	keyInfo := ""
+	if node.Info.Key != "" {
+		// Format key differently based on whether it's user-provided or auto-generated
+		if strings.HasPrefix(node.Info.Key, "/root/") {
+			// Auto-generated path key - show shorter version
+			keyInfo = fmt.Sprintf(" key:%s", node.Info.Key)
+		} else {
+			// User-provided key
+			keyInfo = fmt.Sprintf(" key:'%s'", node.Info.Key)
+		}
+	}
+
+	// Add path if enabled (for backward compatibility)
 	pathInfo := ""
 	if tv.showPaths && node.Path != "" {
 		pathInfo = fmt.Sprintf(" [%s]", node.Path)
 	}
 
-	line := prefix + connector + label + sizeInfo + pathInfo
+	line := prefix + connector + label + sizeInfo + keyInfo + pathInfo
 	lines = append(lines, line)
 
 	// Format children if expanded
