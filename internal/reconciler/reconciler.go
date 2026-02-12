@@ -159,10 +159,16 @@ func (r *Reconciler) prepareFreshStack(renderFunc func() rtui.VNode) {
 	if r.root == nil {
 		// First render - create new tree from the wrapped component
 		r.root = CreateFiberFromVNode(rootComponentVNode)
+		// ✨ Set root Fiber's Path for proper path generation in children
+		// Children will inherit this path: /root + /segment = /root/segment
+		r.root.Path = "/root"
+		r.root.Key = "root"
 		r.workInProgress = r.root
 	} else {
 		// Subsequent render - create work-in-progress tree
 		r.workInProgress = r.createWorkInProgress(r.root, rootComponentVNode)
+		// Ensure workInProgress also has the correct Path
+		r.workInProgress.Path = "/root"
 	}
 }
 
@@ -890,30 +896,16 @@ func (r *Reconciler) expandVNodeTree(vnode rtui.VNode, fiber *Fiber) rtui.VNode 
 			return vnode
 		}
 
-		// Find the first child fiber and expand each child
-		childFiber := fiber.Child
-		expandedChildren := make([]rtui.VNode, 0, len(originalChildren))
-		for _, child := range originalChildren {
-			expandedChild := r.expandVNodeTree(child, childFiber)
-			if expandedChild != nil {
-				expandedChildren = append(expandedChildren, expandedChild)
-			}
-			// Move to next sibling fiber
-			if childFiber != nil {
-				childFiber = childFiber.Sibling
-			}
-		}
-
-		// Create a new VNode with expanded children
+		// ✨ IMPORTANT: Build children from Fiber tree, not from VNode.Children()
+		// Fiber.VNode has the correct Key set by reconciliation, but VNode.Children()
+		// returns the original children which may have outdated keys.
+		// We use Fiber to get the correct child VNodes with proper Keys.
+		expandedChildren := r.buildVNodeList(fiber.Child)
 		if len(expandedChildren) == 0 {
 			return vnode
 		}
-		if len(expandedChildren) == 1 && expandedChildren[0] == originalChildren[0] {
-			// No expansion happened, return original
-			return vnode
-		}
 
-		// Clone the VNode with expanded children
+		// Clone the VNode with expanded children (which now have correct Keys from Fiber)
 		cloned := r.cloneVNodeWithChildren(vnode, expandedChildren)
 		return cloned
 	}

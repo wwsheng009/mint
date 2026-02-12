@@ -582,6 +582,7 @@ func (tv *TreeView) GetFlatList() []*TreeNode {
 }
 
 // flattenRecursive recursively flattens the tree
+// IMPORTANT: Only includes children of expanded nodes to match GetTreeLines() behavior
 func (tv *TreeView) flattenRecursive(node *TreeNode, nodes *[]*TreeNode) {
 	if node == nil {
 		return
@@ -589,8 +590,11 @@ func (tv *TreeView) flattenRecursive(node *TreeNode, nodes *[]*TreeNode) {
 
 	*nodes = append(*nodes, node)
 
-	for _, child := range node.Children {
-		tv.flattenRecursive(child, nodes)
+	// Only add children if node is expanded (matches formatNode behavior)
+	if node.Expanded {
+		for _, child := range node.Children {
+			tv.flattenRecursive(child, nodes)
+		}
 	}
 }
 

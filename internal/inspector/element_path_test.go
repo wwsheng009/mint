@@ -126,23 +126,27 @@ func TestExtractElementInfo_NoPath(t *testing.T) {
 	}
 }
 
-// TestExtractElementInfo_UserKey verifies behavior with user-provided (non-path) key
+// TestExtractElementInfo_UserKey verifies behavior with user-provided key (now with full path)
 func TestExtractElementInfo_UserKey(t *testing.T) {
+	// After the fix, user keys are stored with full path in VNode.Key()
+	// e.g., "/root/base[0]/vstack[0]/key[my-custom-button]"
+	userKeyPath := "/root/base[0]/vstack[0]/key[my-custom-button]"
 	vnode := &TestVNodeWithPathKey{
 		ElementVNode: rtui.NewElement("button"),
-		key:          "my-custom-button", // User key, not a Fiber path
+		key:          userKeyPath, // Full path with user key suffix
 	}
 
 	info := ExtractElementInfo(vnode)
 
-	// Path should be empty (user key is not a path)
-	if info.Path != "" {
-		t.Errorf("ExtractElementInfo().Path = %q, expected empty for user key", info.Path)
+	// Path should now show the full path (minus /root/ prefix)
+	expectedPath := "base[0]/vstack[0]/key[my-custom-button]"
+	if info.Path != expectedPath {
+		t.Errorf("ExtractElementInfo().Path = %q, expected %q", info.Path, expectedPath)
 	}
 
-	// Key should have the user key
-	if info.Key != "my-custom-button" {
-		t.Errorf("ExtractElementInfo().Key = %q, expected %q", info.Key, "my-custom-button")
+	// Key should have the full path
+	if info.Key != userKeyPath {
+		t.Errorf("ExtractElementInfo().Key = %q, expected %q", info.Key, userKeyPath)
 	}
 }
 

@@ -323,8 +323,39 @@ func (b *TreeViewBuilder) getNodeDescription(node ui.VNode) string {
 		return content
 	}
 
-	// Use node type (convert int to string properly)
-	return fmt.Sprintf("%d", node.Type())
+	// Build description based on node type
+	var parts []string
+
+	// Add type name
+	switch node.Type() {
+	case rtui.VNodeElement:
+		// ElementVNode: get tag name
+		if tagger, ok := node.(interface{ Tag() string }); ok && tagger.Tag() != "" {
+			parts = append(parts, tagger.Tag())
+		} else {
+			parts = append(parts, "Element")
+		}
+	case rtui.VNodeComponent:
+		// ComponentVNode: get component name
+		if namer, ok := node.(interface{ Name() string }); ok && namer.Name() != "" {
+			parts = append(parts, namer.Name())
+		} else {
+			parts = append(parts, "Component")
+		}
+	case rtui.VNodeText:
+		parts = append(parts, "Text")
+	case rtui.VNodeFragment:
+		parts = append(parts, "Fragment")
+	default:
+		parts = append(parts, fmt.Sprintf("Type%d", node.Type()))
+	}
+
+	// Try to get label or other identifying info
+	if labeler, ok := node.(interface{ Label() string }); ok && labeler.Label() != "" {
+		parts = append(parts, fmt.Sprintf("(%s)", labeler.Label()))
+	}
+
+	return strings.Join(parts, " ")
 }
 
 // formatLineNumber formats a line number

@@ -612,10 +612,11 @@ func (si *StandaloneInspector) buildElementsTabContent() rtui.VNode {
 	}
 
 	// Create or update TreeView component with navigation support
+	// Use FromLines to preserve expansion state from inspector.TreeView
 	if si.treeViewComponent == nil {
 		si.treeViewComponent = display.NewTreeView().
 			FromLines(si.treeLines).
-			ExpandLevel(1).
+			ExpandLevel(-1).  // Expand all, expansion controlled by si.treeView
 			ShowIcons(true).
 			Compact(false).
 			Build().(*display.TreeView)
@@ -642,11 +643,23 @@ func (si *StandaloneInspector) buildElementsTabContent() rtui.VNode {
 		targetPath = si.selectedPath
 		displayType = "Selected"
 	} else if focusIndex >= 0 {
-		// Show focused item - use focusIndex to find node by index
-		// The tree lines match 1-to-1 with the flattened tree nodes
+		// ✨ Map focusIndex to flatNodes index
+		// treeLines structure: [0]=header, [1..n-1]=nodes, [n]=footer
+		// flatNodes structure: [0..m-1]=nodes (same nodes as treeLines[1..n-1])
+		//
+		// focusIndex is in treeLines coordinates
+		// We need to convert to flatNodes coordinates:
+		// - Skip header line (index 0)
+		// - Check we're not on footer line
 		flatNodes := si.treeView.GetFlatList()
-		if focusIndex < len(flatNodes) {
-			node := flatNodes[focusIndex]
+
+		// Adjust for header line offset
+		nodeIndex := focusIndex - 1
+
+		// Verify we're within valid range (not header, not footer)
+		// footer is at index len(treeLines)-1
+		if nodeIndex >= 0 && nodeIndex < len(flatNodes) && focusIndex < len(si.treeLines)-1 {
+			node := flatNodes[nodeIndex]
 			targetVNode = node.VNode
 			targetPath = node.Path
 			displayType = "Focused"

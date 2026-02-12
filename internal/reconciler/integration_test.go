@@ -1607,7 +1607,7 @@ func TestUserKeyPriority_Integration(t *testing.T) {
 	if button1.Key != "save-btn" {
 		t.Errorf("First button key should be 'save-btn', got %q", button1.Key)
 	}
-	if button1.Path != "/root/base[0]/vstack[0]/save-btn" {
+	if button1.Path != "/root/base[0]/vstack[0]/button[0]/key[save-btn]" {
 		t.Errorf("First button path should include user key, got %q", button1.Path)
 	}
 
@@ -1616,7 +1616,7 @@ func TestUserKeyPriority_Integration(t *testing.T) {
 	if button2.Key != "cancel-btn" {
 		t.Errorf("Second button key should be 'cancel-btn', got %q", button2.Key)
 	}
-	if button2.Path != "/root/base[0]/vstack[0]/cancel-btn" {
+	if button2.Path != "/root/base[0]/vstack[0]/button[0]/key[cancel-btn]" {
 		t.Errorf("Second button path should include user key, got %q", button2.Path)
 	}
 

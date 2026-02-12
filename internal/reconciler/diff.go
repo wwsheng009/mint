@@ -274,6 +274,10 @@ func createChildFiberWithIndex(returnFiber *Fiber, vnode rtui.VNode, lanes Lane,
 	// ✨ Mixed Key Strategy
 	userKey := vnode.Key()
 
+	// ✨ Special case: If parent is the root ComponentVNode (Key="root"),
+	// this child is the actual app content and should get a layer-based path
+	isRootChild := returnFiber != nil && returnFiber.Key == "root" && returnFiber.Path == "/root"
+
 	if userKey != "" {
 		// Priority 1: User provided a key
 		// Use user key for reconciliation, but generate full path with type for Inspector
@@ -283,12 +287,18 @@ func createChildFiberWithIndex(returnFiber *Fiber, vnode rtui.VNode, lanes Lane,
 		if pathGenerator == nil {
 			pathGenerator = NewPathGenerator()
 		}
-		// Generate base path with type (e.g., /root/base[0]/vstack[0]/bordered[0]/hstack[0])
-		typePath := pathGenerator.GeneratePath(returnFiber, vnode, siblingIndex)
+		// Generate base path with type
+		var typePath string
+		if isRootChild {
+			// Root's child gets layer-based path (e.g., /root/base[0])
+			typePath = pathGenerator.generateRootPath(vnode)
+		} else {
+			typePath = pathGenerator.GeneratePath(returnFiber, vnode, siblingIndex)
+		}
 		// Append user key to make it unique (e.g., .../hstack[0]/key[btn-event])
 		fiber.Path = typePath + "/key[" + userKey + "]"
-		// Note: VNode.Key() remains userKey for reconciliation
-		// Fiber.Path contains full path for Inspector debugging
+		// ✨ Sync full path to VNode so Inspector can access it
+		vnode.SetKey(fiber.Path)
 	} else if isDynamicList(returnFiber) {
 		// Priority 2: Dynamic list → require key (panic if missing)
 		requireKeyPanic(returnFiber, vnode, siblingIndex)
@@ -298,7 +308,10 @@ func createChildFiberWithIndex(returnFiber *Fiber, vnode rtui.VNode, lanes Lane,
 			pathGenerator = NewPathGenerator()
 		}
 		// Use provided typeIndex if available, otherwise auto-calculate
-		if typeIndex >= 0 {
+		if isRootChild {
+			// Root's child gets layer-based path (e.g., /root/base[0])
+			fiber.Path = pathGenerator.generateRootPath(vnode)
+		} else if typeIndex >= 0 {
 			fiber.Path = pathGenerator.GeneratePathWithIndex(returnFiber, vnode, siblingIndex, typeIndex)
 		} else {
 			fiber.Path = pathGenerator.GeneratePath(returnFiber, vnode, siblingIndex)
@@ -334,16 +347,15 @@ func cloneExistingFiber(returnFiber *Fiber, current *Fiber, vnode rtui.VNode, si
 		}
 		typePath := pathGenerator.GeneratePath(returnFiber, vnode, siblingIndex)
 		fiber.Path = typePath + "/key[" + userKey + "]"
-		// VNode.Key() already has userKey, no need to update
+		// ✨ Sync full path to VNode so Inspector can access it
+		vnode.SetKey(fiber.Path)
 	} else {
 		// Keep original path and key (critical for Instance reuse)
 		fiber.Path = current.Path
 		fiber.Key = current.Key
-		// ✨ If current has auto-generated path key, sync it to the new VNode instance
-		// This ensures that when VNode is re-rendered, it keeps the path key for Inspector
+		// ✨ Sync path to VNode so Inspector can access it
+		// This works for both auto-generated path keys and user keys with paths
 		if current.Path != "" && strings.HasPrefix(current.Path, "/root/") {
-			// Only sync if it's an auto-generated path key (not a user key)
-			// User keys don't start with "/root/"
 			vnode.SetKey(current.Path)
 		}
 	}
