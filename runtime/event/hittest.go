@@ -282,13 +282,15 @@ const (
 )
 
 // KeyModifier represents key modifiers (Ctrl, Alt, Shift).
+// 使用位掩码以支持组合键
 type KeyModifier int
 
 const (
-	ModNone KeyModifier = iota
-	ModShift
-	ModCtrl
-	ModAlt
+	ModNone KeyModifier = 0
+	ModShift      KeyModifier = 1 << iota // 1 (二进制: 0001)
+	ModCtrl                               // 2 (二进制: 0010)
+	ModAlt                                // 4 (二进制: 0100)
+	ModMeta                        // 8 (二进制: 1000)
 )
 
 // LegacyHitTestResult contains information about a hit test (deprecated).

@@ -1,0 +1,332 @@
+//go:build darwin
+// +build darwin
+
+package platform
+
+import (
+	"time"
+
+	"github.com/gdamore/tcell/v2"
+)
+
+// tcellInputReader implements inputReader using tcell
+type tcellInputReader struct {
+	events     chan<- RawInput
+	quit       chan struct{}
+	screen     tcell.Screen
+}
+
+func newInputReaderImpl() inputReaderImpl {
+	return &tcellInputReader{
+		quit: make(chan struct{}),
+	}
+}
+
+func (r *tcellInputReader) Start(events chan<- RawInput) error {
+	r.events = events
+
+	screen, err := tcell.NewScreen()
+	if err != nil {
+		return err
+	}
+	r.screen = screen
+
+	if err := screen.Init(); err != nil {
+		return err
+	}
+
+	// Enable mouse events
+	screen.EnableMouse(tcell.MouseButtonEvents, tcell.MouseMotionEvents, tcell.MouseDragEvents)
+	screen.HideCursor()
+
+	go r.readLoop()
+
+	return nil
+}
+
+func (r *tcellInputReader) readLoop() {
+	for {
+		select {
+		case <-r.quit:
+			return
+		default:
+		}
+
+		ev := r.screen.PollEvent()
+		if ev == nil {
+			continue
+		}
+
+		now := time.Now()
+
+		switch e := ev.(type) {
+		case *tcell.EventKey:
+			r.events <- r.parseKeyEvent(e, now)
+		case *tcell.EventMouse:
+			r.events <- r.parseMouseEvent(e, now)
+		case *tcell.EventResize:
+			// Ignore resize events initially
+			// The framework will query terminal size separately
+		case *tcell.EventError:
+			// Ignore error events
+		}
+	}
+}
+
+func (r *tcellInputReader) parseKeyEvent(ev *tcell.EventKey, now time.Time) RawInput {
+	input := RawInput{
+		Type:      InputKeyPress,
+		Timestamp: now,
+	}
+
+	// Map modifiers
+	if ev.Modifiers() != tcell.ModNone {
+		mod := KeyModifier(0)
+		if ev.Modifiers()&tcell.ModShift != 0 {
+			mod |= ModShift
+		}
+		if ev.Modifiers()&tcell.ModCtrl != 0 {
+			mod |= ModCtrl
+		}
+		if ev.Modifiers()&tcell.ModAlt != 0 {
+			mod |= ModAlt
+		}
+		if ev.Modifiers()&tcell.ModMeta != 0 {
+			mod |= ModMeta
+		}
+		input.Modifiers = mod
+	}
+
+	// Handle character keys
+	if ev.Key() == tcell.KeyRune {
+		// Regular character (no modifiers, or only Shift)
+		input.Key = ev.Rune()
+	}
+
+	// Map Ctrl+letter combinations (tcell returns special KeyCtrlA-Z keys)
+	// These need to be mapped to the letter character with Ctrl modifier
+	switch ev.Key() {
+	case tcell.KeyCtrlA:
+		input.Key = 'a'
+		input.Modifiers |= ModCtrl
+	case tcell.KeyCtrlB:
+		input.Key = 'b'
+		input.Modifiers |= ModCtrl
+	case tcell.KeyCtrlC:
+		input.Key = 'c'
+		input.Modifiers |= ModCtrl
+	case tcell.KeyCtrlD:
+		input.Key = 'd'
+		input.Modifiers |= ModCtrl
+	case tcell.KeyCtrlE:
+		input.Key = 'e'
+		input.Modifiers |= ModCtrl
+	case tcell.KeyCtrlF:
+		input.Key = 'f'
+		input.Modifiers |= ModCtrl
+	case tcell.KeyCtrlG:
+		input.Key = 'g'
+		input.Modifiers |= ModCtrl
+	case tcell.KeyCtrlH:
+		input.Key = 'h'
+		input.Modifiers |= ModCtrl
+	case tcell.KeyCtrlI:
+		input.Key = 'i'
+		input.Modifiers |= ModCtrl
+	case tcell.KeyCtrlJ:
+		input.Key = 'j'
+		input.Modifiers |= ModCtrl
+	case tcell.KeyCtrlK:
+		input.Key = 'k'
+		input.Modifiers |= ModCtrl
+	case tcell.KeyCtrlL:
+		input.Key = 'l'
+		input.Modifiers |= ModCtrl
+	case tcell.KeyCtrlM:
+		input.Key = 'm'
+		input.Modifiers |= ModCtrl
+	case tcell.KeyCtrlN:
+		input.Key = 'n'
+		input.Modifiers |= ModCtrl
+	case tcell.KeyCtrlO:
+		input.Key = 'o'
+		input.Modifiers |= ModCtrl
+	case tcell.KeyCtrlP:
+		input.Key = 'p'
+		input.Modifiers |= ModCtrl
+	case tcell.KeyCtrlQ:
+		input.Key = 'q'
+		input.Modifiers |= ModCtrl
+	case tcell.KeyCtrlR:
+		input.Key = 'r'
+		input.Modifiers |= ModCtrl
+	case tcell.KeyCtrlS:
+		input.Key = 's'
+		input.Modifiers |= ModCtrl
+	case tcell.KeyCtrlT:
+		input.Key = 't'
+		input.Modifiers |= ModCtrl
+	case tcell.KeyCtrlU:
+		input.Key = 'u'
+		input.Modifiers |= ModCtrl
+	case tcell.KeyCtrlV:
+		input.Key = 'v'
+		input.Modifiers |= ModCtrl
+	case tcell.KeyCtrlW:
+		input.Key = 'w'
+		input.Modifiers |= ModCtrl
+	case tcell.KeyCtrlX:
+		input.Key = 'x'
+		input.Modifiers |= ModCtrl
+	case tcell.KeyCtrlY:
+		input.Key = 'y'
+		input.Modifiers |= ModCtrl
+	case tcell.KeyCtrlZ:
+		input.Key = 'z'
+		input.Modifiers |= ModCtrl
+	}
+
+	// Map function keys (only if not already handled as Ctrl+letter)
+	if input.Key == 0 {
+		switch ev.Key() {
+	case tcell.KeyUp:
+		input.Special = KeyUp
+	case tcell.KeyDown:
+		input.Special = KeyDown
+	case tcell.KeyLeft:
+		input.Special = KeyLeft
+	case tcell.KeyRight:
+		input.Special = KeyRight
+	case tcell.KeyHome:
+		input.Special = KeyHome
+	case tcell.KeyEnd:
+		input.Special = KeyEnd
+	case tcell.KeyPgUp:
+		input.Special = KeyPageUp
+	case tcell.KeyPgDn:
+		input.Special = KeyPageDown
+	case tcell.KeyBackspace:
+		input.Special = KeyBackspace
+	case tcell.KeyBackspace2:
+		input.Special = KeyBackspace
+	case tcell.KeyDelete:
+		input.Special = KeyDelete
+	case tcell.KeyInsert:
+		input.Special = KeyInsert
+	case tcell.KeyEscape:
+		input.Special = KeyEscape
+	case tcell.KeyTab:
+		input.Special = KeyTab
+	case tcell.KeyF1:
+		input.Special = KeyF1
+	case tcell.KeyF2:
+		input.Special = KeyF2
+	case tcell.KeyF3:
+		input.Special = KeyF3
+	case tcell.KeyF4:
+		input.Special = KeyF4
+	case tcell.KeyF5:
+		input.Special = KeyF5
+	case tcell.KeyF6:
+		input.Special = KeyF6
+	case tcell.KeyF7:
+		input.Special = KeyF7
+	case tcell.KeyF8:
+		input.Special = KeyF8
+	case tcell.KeyF9:
+		input.Special = KeyF9
+	case tcell.KeyF10:
+		input.Special = KeyF10
+	case tcell.KeyF11:
+		input.Special = KeyF11
+	case tcell.KeyF12:
+		input.Special = KeyF12
+	default:
+		input.Special = KeyUnknown
+	}
+	}
+
+	return input
+}
+
+func (r *tcellInputReader) parseMouseEvent(ev *tcell.EventMouse, now time.Time) RawInput {
+	input := RawInput{
+		Type:      InputMouse,
+		Timestamp: now,
+	}
+
+	button := ev.Buttons()
+
+	// Get position
+	x, y := ev.Position()
+	input.MouseX = int(x)
+	input.MouseY = int(y)
+
+	// Map mouse buttons and actions
+	if button == tcell.WheelUp {
+		input.MouseAction = MouseWheelUp
+		return input
+	}
+	if button == tcell.WheelDown {
+		input.MouseAction = MouseWheelDown
+		return input
+	}
+
+	// Handle regular mouse buttons
+	if button&tcell.ButtonPrimary != 0 {
+		input.MouseButton = MouseLeft
+		input.MouseAction = MousePress
+	} else if button&tcell.ButtonSecondary != 0 {
+		input.MouseButton = MouseRight
+		input.MouseAction = MousePress
+	} else if button&tcell.ButtonMiddle != 0 {
+		input.MouseButton = MouseMiddle
+		input.MouseAction = MousePress
+	} else {
+		input.MouseButton = MouseNone
+		input.MouseAction = MouseRelease
+	}
+
+	return input
+}
+
+func (r *tcellInputReader) restoreTerminal() {
+	if r.screen != nil {
+		r.screen.Fini()
+	}
+}
+
+func (r *tcellInputReader) Stop() error {
+	close(r.quit)
+	r.restoreTerminal()
+	return nil
+}
+
+func (r *tcellInputReader) ReadEvent() (RawInput, error) {
+	ev := r.screen.PollEvent()
+	if ev == nil {
+		return RawInput{}, nil
+	}
+
+	now := time.Now()
+
+	switch e := ev.(type) {
+	case *tcell.EventKey:
+		return r.parseKeyEvent(e, now), nil
+	case *tcell.EventMouse:
+		return r.parseMouseEvent(e, now), nil
+	case *tcell.EventResize:
+		// Ignore resize events initially
+		return RawInput{}, nil
+	case *tcell.EventError:
+		// tcell EventError has no exported error field
+		return RawInput{}, nil
+	}
+
+	return RawInput{}, nil
+}
+
+func restoreTerminalImpl() {
+	// Terminal restoration is handled by Stop() calling restoreTerminal()
+	// via the screen.Fini() call
+}

@@ -68,6 +68,10 @@ const (
 	KeyBackspace
 	KeyDelete
 	KeyInsert
+	KeyAlt
+	KeyCtrl
+	KeyShift
+	KeyMeta
 
 	// 光标键
 	KeyUp
@@ -120,6 +124,14 @@ func (k SpecialKey) String() string {
 		return "Delete"
 	case KeyInsert:
 		return "Insert"
+	case KeyAlt:
+		return "Alt"
+	case KeyCtrl:
+		return "Ctrl"
+	case KeyShift:
+		return "Shift"
+	case KeyMeta:
+		return "Meta"
 	case KeyUp:
 		return "Up"
 	case KeyDown:
@@ -179,10 +191,10 @@ func (k SpecialKey) String() string {
 type KeyModifier uint8
 
 const (
-	ModShift KeyModifier = 1 << iota
-	ModAlt
-	ModCtrl
-	ModMeta
+	ModShift      KeyModifier = 1 << iota // 1 (二进制: 0001)
+	ModCtrl                               // 2 (二进制: 0010)
+	ModAlt                                // 4 (二进制: 0100)
+	ModMeta                         // 8 (二进制: 1000)
 )
 
 // MouseButton 鼠标按钮
@@ -213,8 +225,7 @@ func NewInputReader() (InputReader, error) {
 
 // newPlatformInputReader 根据平台创建输入读取器
 func newPlatformInputReader() (InputReader, error) {
-	// 使用 build tags 来选择正确的实现
-	return &defaultInputReaderWrapper{}, nil
+	return &defaultInputReaderWrapper{impl: newInputReaderImpl()}, nil
 }
 
 // defaultInputReaderWrapper 默认包装器，使用平台特定实现
