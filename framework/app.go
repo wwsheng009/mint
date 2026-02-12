@@ -454,6 +454,11 @@ func (a *App) SetInspector(inspector interface{}) {
 	a.registerInspectorHook(inspector)
 }
 
+// GetInspector 返回当前的 Inspector 实例
+func (a *App) GetInspector() interface{} {
+	return a.inspector
+}
+
 // isInspectorVisible checks if the Inspector overlay is currently visible
 // This is used to determine if keyboard events should be routed to the Inspector
 func (a *App) isInspectorVisible() bool {
@@ -760,6 +765,19 @@ func (a *App) Run() error {
 				a.throttler.RecordFrameTime(time.Since(renderStartTime))
 				if os.Getenv("TUI_DEBUG_UI") == "true" {
 					log.UILogger.Debug("[APP] render() complete")
+				}
+
+				// Pull pattern: Inspector pulls rendered tree from App after reconciliation
+				// App provides GetRenderedRoot() interface, Inspector calls AttachToApp()
+				if a.inspector != nil {
+					if provider, ok := a.root.(interface{ GetRenderedRoot() rtui.VNode }); ok {
+						if renderedRoot := provider.GetRenderedRoot(); renderedRoot != nil {
+							// Inspector pulls the tree via AttachToApp
+							if inspector, ok := a.inspector.(interface{ AttachToApp(rtui.VNode) }); ok {
+								inspector.AttachToApp(renderedRoot)
+							}
+						}
+					}
 				}
 			}
 

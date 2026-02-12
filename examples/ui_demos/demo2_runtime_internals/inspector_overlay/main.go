@@ -121,15 +121,13 @@ func RuntimeDemoWithInspectorOverlay() ui.VNode {
 
 	// Build main application content
 	// NOTE: The reconciler will add Fiber keys to these VNodes during reconciliation
+	// NOTE: Inspector is already attached in main() to declarativeRoot
+	// declarativeRoot will be updated by reconciliation with Fiber keys
 	appContent := buildDemoContent(
 		currentPhase, eventCount, renderCount, bufferUpdates,
 		setCurrentPhase, setEventCount, setRenderCount, setBufferUpdates,
 		setShowInspector,
 	)
-
-	// Attach inspector to app (for analysis)
-	// The inspector will analyze the tree after reconciliation completes
-	globalInspector.AttachToApp(appContent)
 
 	// IMPORTANT: Check inspector visibility on every render
 	// This fixes the state synchronization issue between imperative Inspector API
@@ -229,7 +227,11 @@ func PipelineVisualization(currentPhase string) ui.VNode {
 }
 
 // buildPipelineLine creates the phase boxes
-func buildPipelineLine(phases []struct{ name string; color string; position int }, activeIndex int) ui.VNode {
+func buildPipelineLine(phases []struct {
+	name     string
+	color    string
+	position int
+}, activeIndex int) ui.VNode {
 	var result string
 	for _, p := range phases {
 		spaces := p.position - len(result)
@@ -245,7 +247,11 @@ func buildPipelineLine(phases []struct{ name string; color string; position int 
 }
 
 // buildPipelineArrows creates the flow arrows
-func buildPipelineArrows(phases []struct{ name string; color string; position int }, activeIndex int) ui.VNode {
+func buildPipelineArrows(phases []struct {
+	name     string
+	color    string
+	position int
+}, activeIndex int) ui.VNode {
 	var result string
 	for i := range phases {
 		if i > 0 {

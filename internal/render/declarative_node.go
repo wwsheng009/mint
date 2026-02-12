@@ -284,6 +284,10 @@ func (n *DeclarativeNode) Paint(ctx component.PaintContext, buf *paint.Buffer) {
 						log.UILogger.Debug("[DeclarativeNode.Paint] layerMgr is nil after render")
 					}
 				}
+
+				// NOTE: Inspector attachment is now handled by application layer
+				// The demo calls inspector.AttachToApp() after reconciliation completes
+				// This avoids circular dependency between render and framework packages
 			}
 		} else {
 			// Use the generic renderer interface (old path)
