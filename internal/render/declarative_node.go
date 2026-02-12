@@ -143,6 +143,23 @@ func (n *DeclarativeNode) GetReconciler() rtui.Reconciler {
 	return n.reconciler
 }
 
+// GetRenderedRoot returns the rendered VNode tree from the Fiber reconciler
+// This is called by Framework to get the tree after reconciliation for Inspector
+func (n *DeclarativeNode) GetRenderedRoot() rtui.VNode {
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+
+	// If using Fiber reconciler, get the rendered tree from reconciler
+	if n.reconciler != nil {
+		if provider, ok := n.reconciler.(interface{ GetRenderedRoot() rtui.VNode }); ok {
+			return provider.GetRenderedRoot()
+		}
+	}
+
+	// Fallback: return the current root
+	return n.root
+}
+
 // =============================================================================
 // framework.Node interface implementation
 // =============================================================================
