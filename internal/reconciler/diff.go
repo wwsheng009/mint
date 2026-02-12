@@ -275,15 +275,20 @@ func createChildFiberWithIndex(returnFiber *Fiber, vnode rtui.VNode, lanes Lane,
 	userKey := vnode.Key()
 
 	if userKey != "" {
-		// Priority 1: User provided a key → use it directly
+		// Priority 1: User provided a key
+		// Use user key for reconciliation, but generate full path with type for Inspector
 		fiber.Key = userKey
-		if returnFiber != nil && returnFiber.Path != "" {
-			fiber.Path = returnFiber.Path + "/" + userKey
-		} else {
-			fiber.Path = "/" + userKey
+
+		// Generate path with type, then append user key for unique identification
+		if pathGenerator == nil {
+			pathGenerator = NewPathGenerator()
 		}
-		// Note: Keep VNode.Key() as userKey for reconciliation
-		// Fiber.Path is available for debugging but not exposed to VNode
+		// Generate base path with type (e.g., /root/base[0]/vstack[0]/bordered[0]/hstack[0])
+		typePath := pathGenerator.GeneratePath(returnFiber, vnode, siblingIndex)
+		// Append user key to make it unique (e.g., .../hstack[0]/key[btn-event])
+		fiber.Path = typePath + "/key[" + userKey + "]"
+		// Note: VNode.Key() remains userKey for reconciliation
+		// Fiber.Path contains full path for Inspector debugging
 	} else if isDynamicList(returnFiber) {
 		// Priority 2: Dynamic list → require key (panic if missing)
 		requireKeyPanic(returnFiber, vnode, siblingIndex)
@@ -320,13 +325,15 @@ func cloneExistingFiber(returnFiber *Fiber, current *Fiber, vnode rtui.VNode, si
 	// ✨ Keep path and key for Instance reuse
 	userKey := vnode.Key()
 	if userKey != "" && userKey != current.Key {
-		// User changed the key, regenerate path
+		// User changed the key, regenerate path with user key
 		fiber.Key = userKey
-		if returnFiber != nil && returnFiber.Path != "" {
-			fiber.Path = returnFiber.Path + "/" + userKey
-		} else {
-			fiber.Path = "/" + userKey
+
+		// Generate path with type, then append user key
+		if pathGenerator == nil {
+			pathGenerator = NewPathGenerator()
 		}
+		typePath := pathGenerator.GeneratePath(returnFiber, vnode, siblingIndex)
+		fiber.Path = typePath + "/key[" + userKey + "]"
 		// VNode.Key() already has userKey, no need to update
 	} else {
 		// Keep original path and key (critical for Instance reuse)
