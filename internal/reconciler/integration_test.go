@@ -1497,3 +1497,130 @@ func TestCloneExistingFiber_WithProps(t *testing.T) {
 		t.Errorf("Cloned props should be updated, got %v", cloned.Props)
 	}
 }
+
+// =============================================================================
+// Mixed Key Strategy Integration Tests
+// =============================================================================
+
+// TestPathBasedKeyStrategy_Integration tests the full path-based key strategy
+// with instance management and reconciliation
+func TestPathBasedKeyStrategy_Integration(t *testing.T) {
+	// Initialize path generator
+	pg := NewPathGenerator()
+
+	// Create parent fiber (simulating a vstack)
+	parent := &Fiber{
+		Key:  "/root/base[0]/vstack[0]",
+		Path: "/root/base[0]/vstack[0]",
+		Tag:  "vstack",
+		Type: rtui.VNodeElement,
+	}
+
+	// Create children VNodes (static UI, no user keys)
+	children := []rtui.VNode{
+		rtui.Element("panel").Build(),
+		rtui.Element("panel").Build(),
+		rtui.Element("button").Build(),
+	}
+
+	// Use createAllNewChildren to generate paths
+	pathGenerator = pg
+	firstChild := createAllNewChildren(parent, children, LaneSyncLane)
+
+	// Collect all children
+	var allChildren []*Fiber
+	for child := firstChild; child != nil; child = child.Sibling {
+		allChildren = append(allChildren, child)
+	}
+
+	// Verify we have 3 children
+	if len(allChildren) != 3 {
+		t.Fatalf("Expected 3 children, got %d", len(allChildren))
+	}
+
+	// Verify first panel
+	panel1 := allChildren[0]
+	expectedPanel1Key := "/root/base[0]/vstack[0]/panel[0]"
+	if panel1.Key != expectedPanel1Key {
+		t.Errorf("First panel key should be %q, got %q", expectedPanel1Key, panel1.Key)
+	}
+	if panel1.Path != expectedPanel1Key {
+		t.Errorf("First panel path should be %q, got %q", expectedPanel1Key, panel1.Path)
+	}
+
+	// Verify second panel (index should increment)
+	panel2 := allChildren[1]
+	expectedPanel2Key := "/root/base[0]/vstack[0]/panel[1]"
+	if panel2.Key != expectedPanel2Key {
+		t.Errorf("Second panel key should be %q, got %q", expectedPanel2Key, panel2.Key)
+	}
+
+	// Verify button (different type, index resets to 0)
+	button := allChildren[2]
+	expectedButtonKey := "/root/base[0]/vstack[0]/button[0]"
+	if button.Key != expectedButtonKey {
+		t.Errorf("Button key should be %q, got %q", expectedButtonKey, button.Key)
+	}
+
+	t.Logf("✅ Path-based key strategy integration test passed")
+	t.Logf("   Panel1: Key=%s, Path=%s", panel1.Key, panel1.Path)
+	t.Logf("   Panel2: Key=%s, Path=%s", panel2.Key, panel2.Path)
+	t.Logf("   Button: Key=%s, Path=%s", button.Key, button.Path)
+}
+
+// TestUserKeyPriority_Integration tests that user keys override path-based keys
+func TestUserKeyPriority_Integration(t *testing.T) {
+	// Initialize path generator
+	pg := NewPathGenerator()
+
+	// Create parent fiber (simulating a vstack)
+	parent := &Fiber{
+		Key:  "/root/base[0]/vstack[0]",
+		Path: "/root/base[0]/vstack[0]",
+		Tag:  "vstack",
+		Type: rtui.VNodeElement,
+	}
+
+	// Create children VNodes WITH user keys
+	button1VNode := rtui.Element("button").Key("save-btn").Build()
+	button2VNode := rtui.Element("button").Key("cancel-btn").Build()
+
+	children := []rtui.VNode{button1VNode, button2VNode}
+
+	// Use createAllNewChildren to generate paths
+	pathGenerator = pg
+	firstChild := createAllNewChildren(parent, children, LaneSyncLane)
+
+	// Collect all children
+	var allChildren []*Fiber
+	for child := firstChild; child != nil; child = child.Sibling {
+		allChildren = append(allChildren, child)
+	}
+
+	// Verify we have 2 children
+	if len(allChildren) != 2 {
+		t.Fatalf("Expected 2 children, got %d", len(allChildren))
+	}
+
+	// Verify first button uses user key
+	button1 := allChildren[0]
+	if button1.Key != "save-btn" {
+		t.Errorf("First button key should be 'save-btn', got %q", button1.Key)
+	}
+	if button1.Path != "/root/base[0]/vstack[0]/save-btn" {
+		t.Errorf("First button path should include user key, got %q", button1.Path)
+	}
+
+	// Verify second button uses user key
+	button2 := allChildren[1]
+	if button2.Key != "cancel-btn" {
+		t.Errorf("Second button key should be 'cancel-btn', got %q", button2.Key)
+	}
+	if button2.Path != "/root/base[0]/vstack[0]/cancel-btn" {
+		t.Errorf("Second button path should include user key, got %q", button2.Path)
+	}
+
+	t.Logf("✅ User key priority integration test passed")
+	t.Logf("   Button1: Key=%s, Path=%s", button1.Key, button1.Path)
+	t.Logf("   Button2: Key=%s, Path=%s", button2.Key, button2.Path)
+}
