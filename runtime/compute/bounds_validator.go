@@ -2,25 +2,22 @@ package compute
 
 import (
 	"fmt"
-	"os"
+
+	"github.com/wwsheng009/mint/internal/log"
 )
 
 // BoundsValidator validates consistency between ComputedBox.Box and component bounds
-type BoundsValidator struct {
-	enabled bool
-}
+type BoundsValidator struct{}
 
 // NewBoundsValidator creates a new bounds validator
 func NewBoundsValidator() *BoundsValidator {
-	return &BoundsValidator{
-		enabled: os.Getenv("TUI_DEBUG_VALIDATION") == "true",
-	}
+	return &BoundsValidator{}
 }
 
 // ValidateComputedBox checks if a ComputedBox's bounds are consistent with its VNode's bounds
 // Returns an error if inconsistency is detected, nil otherwise
 func (v *BoundsValidator) ValidateComputedBox(box *ComputedBox) error {
-	if !v.enabled || box == nil {
+	if !log.ValidationLogger.Enabled() || box == nil {
 		return nil
 	}
 
