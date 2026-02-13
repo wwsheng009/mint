@@ -6,10 +6,10 @@ import (
 	"github.com/wwsheng009/mint/framework/cmd"
 	"github.com/wwsheng009/mint/framework/component"
 	frameworkevent "github.com/wwsheng009/mint/framework/event"
-	"github.com/wwsheng009/mint/runtime/dimension"
-	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
 	"github.com/wwsheng009/mint/framework/theme"
 	"github.com/wwsheng009/mint/runtime"
+	"github.com/wwsheng009/mint/runtime/dimension"
+	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
 	"github.com/wwsheng009/mint/ui"
@@ -484,9 +484,9 @@ func (c *CheckboxVNode) Paint(x, y int) []paint.DrawCmd {
 		checkboxStyle = checkboxStyle.Background(theme.Surface())
 	}
 
-	// Checked state: BG=PRIMARY, FG=BG
+	// Checked state: BG=PRIMARY, FG=TEXT for readability
 	if c.checked && !c.disabled {
-		checkboxStyle = checkboxStyle.Foreground(theme.BG()).Background(theme.Primary()).Bold(true)
+		checkboxStyle = checkboxStyle.Foreground(theme.Text()).Bold(true)
 	}
 
 	// State priority: Focused > Hovered > Normal > Checked

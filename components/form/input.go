@@ -6,13 +6,13 @@ import (
 	"github.com/wwsheng009/mint/framework/action"
 	"github.com/wwsheng009/mint/framework/cmd"
 	"github.com/wwsheng009/mint/framework/component"
-	"github.com/wwsheng009/mint/runtime/dimension"
 	frameworkevent "github.com/wwsheng009/mint/framework/event"
 	"github.com/wwsheng009/mint/framework/theme"
-	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
-	runtimeplatform "github.com/wwsheng009/mint/runtime/platform"
 	"github.com/wwsheng009/mint/runtime"
+	"github.com/wwsheng009/mint/runtime/dimension"
+	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
 	"github.com/wwsheng009/mint/runtime/paint"
+	runtimeplatform "github.com/wwsheng009/mint/runtime/platform"
 	"github.com/wwsheng009/mint/runtime/style"
 	"github.com/wwsheng009/mint/ui"
 )
@@ -671,7 +671,7 @@ func (i *InputVNode) Paint(x, y int) []paint.DrawCmd {
 	}
 
 	// Build input display with brackets
-	inputLabel := ":" + displayText + ":"
+	inputLabel :=  displayText
 
 	// If explicit width is set, pad to fill the width
 	// Width includes the brackets, so content area is Width - 2
@@ -751,6 +751,18 @@ func (i *InputVNode) GetFocusID() string {
 		id = "input"
 	}
 	return "input:" + id
+}
+
+// Label returns a text label for this focusable element.
+// Used for testing and debugging to identify elements.
+func (i *InputVNode) Label() string {
+	if i.placeholder != "" {
+		return i.placeholder
+	}
+	if i.value != "" {
+		return i.value
+	}
+	return "input"
 }
 
 

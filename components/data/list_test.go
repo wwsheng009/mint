@@ -411,3 +411,284 @@ func TestListBuilder_MeasureConstraints(t *testing.T) {
 		t.Errorf("Height should respect MaxHeight: got %d, expected <= 3", size.Height)
 	}
 }
+
+// =============================================================================
+// Event Handling Tests
+// =============================================================================
+
+func TestListVNode_FocusIndex(t *testing.T) {
+	list := ListBuilder().
+		Rows([]string{"A", "B", "C"}).
+		Build()
+
+	listVNode := list.(*ListVNode)
+
+	// Initially no focus
+	if listVNode.FocusIndex() != -1 {
+		t.Errorf("Expected initial focus index -1, got %d", listVNode.FocusIndex())
+	}
+
+	// Set focus
+	listVNode.SetFocusIndex(1)
+	if listVNode.FocusIndex() != 1 {
+		t.Errorf("Expected focus index 1, got %d", listVNode.FocusIndex())
+	}
+
+	// Out of range should be ignored
+	listVNode.SetFocusIndex(10)
+	if listVNode.FocusIndex() != 1 {
+		t.Errorf("Focus index should not change on out of range, got %d", listVNode.FocusIndex())
+	}
+}
+
+func TestListVNode_SelectedIndex(t *testing.T) {
+	list := ListBuilder().
+		Rows([]string{"A", "B", "C"}).
+		Build()
+
+	listVNode := list.(*ListVNode)
+
+	// Initially no selection
+	if listVNode.SelectedIndex() != -1 {
+		t.Errorf("Expected initial selected index -1, got %d", listVNode.SelectedIndex())
+	}
+
+	// Set selection
+	listVNode.SetSelectedIndex(1)
+	if listVNode.SelectedIndex() != 1 {
+		t.Errorf("Expected selected index 1, got %d", listVNode.SelectedIndex())
+	}
+}
+
+func TestListVNode_ScrollOffset(t *testing.T) {
+	list := ListBuilder().
+		Rows([]string{"A", "B", "C", "D", "E"}).
+		Build()
+
+	listVNode := list.(*ListVNode)
+
+	// Set viewport height
+	listVNode.viewportHeight = 3
+
+	// Initially no scroll
+	if listVNode.ScrollOffset() != 0 {
+		t.Errorf("Expected initial scroll offset 0, got %d", listVNode.ScrollOffset())
+	}
+
+	// Scroll within range
+	listVNode.SetScrollOffset(2)
+	if listVNode.ScrollOffset() != 2 {
+		t.Errorf("Expected scroll offset 2, got %d", listVNode.ScrollOffset())
+	}
+
+	// Clamp to max offset
+	maxOffset := 5 - 3 // total rows - viewport
+	listVNode.SetScrollOffset(10)
+	if listVNode.ScrollOffset() != maxOffset {
+		t.Errorf("Expected scroll offset clamped to %d, got %d", maxOffset, listVNode.ScrollOffset())
+	}
+
+	// Negative offset clamped to 0
+	listVNode.SetScrollOffset(-5)
+	if listVNode.ScrollOffset() != 0 {
+		t.Errorf("Expected scroll offset clamped to 0, got %d", listVNode.ScrollOffset())
+	}
+}
+
+func TestListVNode_MoveUp(t *testing.T) {
+	list := ListBuilder().
+		Rows([]string{"A", "B", "C"}).
+		Build()
+
+	listVNode := list.(*ListVNode)
+
+	// Focus on last item
+	listVNode.SetFocusIndex(2)
+	listVNode.MoveUp()
+	if listVNode.FocusIndex() != 1 {
+		t.Errorf("Expected focus index 1 after MoveUp, got %d", listVNode.FocusIndex())
+	}
+
+	// Move from first item should stay at first
+	listVNode.SetFocusIndex(0)
+	listVNode.MoveUp()
+	if listVNode.FocusIndex() != 0 {
+		t.Errorf("Expected focus index 0 after MoveUp from first, got %d", listVNode.FocusIndex())
+	}
+}
+
+func TestListVNode_MoveDown(t *testing.T) {
+	list := ListBuilder().
+		Rows([]string{"A", "B", "C"}).
+		Build()
+
+	listVNode := list.(*ListVNode)
+
+	// Focus on first item
+	listVNode.SetFocusIndex(0)
+	listVNode.MoveDown()
+	if listVNode.FocusIndex() != 1 {
+		t.Errorf("Expected focus index 1 after MoveDown, got %d", listVNode.FocusIndex())
+	}
+
+	// Move from last item should stay at last
+	listVNode.SetFocusIndex(2)
+	listVNode.MoveDown()
+	if listVNode.FocusIndex() != 2 {
+		t.Errorf("Expected focus index 2 after MoveDown from last, got %d", listVNode.FocusIndex())
+	}
+}
+
+func TestListVNode_Home(t *testing.T) {
+	list := ListBuilder().
+		Rows([]string{"A", "B", "C"}).
+		Build()
+
+	listVNode := list.(*ListVNode)
+
+	listVNode.SetFocusIndex(2)
+	listVNode.Home()
+	if listVNode.FocusIndex() != 0 {
+		t.Errorf("Expected focus index 0 after Home, got %d", listVNode.FocusIndex())
+	}
+}
+
+func TestListVNode_End(t *testing.T) {
+	list := ListBuilder().
+		Rows([]string{"A", "B", "C"}).
+		Build()
+
+	listVNode := list.(*ListVNode)
+
+	listVNode.SetFocusIndex(0)
+	listVNode.End()
+	if listVNode.FocusIndex() != 2 {
+		t.Errorf("Expected focus index 2 after End, got %d", listVNode.FocusIndex())
+	}
+}
+
+func TestListVNode_CanScroll(t *testing.T) {
+	list := ListBuilder().
+		Rows([]string{"A", "B", "C", "D", "E"}).
+		Build()
+
+	listVNode := list.(*ListVNode)
+	listVNode.viewportHeight = 3
+
+	// Initially can scroll down
+	if !listVNode.CanScrollDown() {
+		t.Error("Should be able to scroll down initially")
+	}
+
+	// Cannot scroll up at top
+	if listVNode.CanScrollUp() {
+		t.Error("Should not be able to scroll up at offset 0")
+	}
+
+	// Scroll to bottom
+	listVNode.SetScrollOffset(2) // Max offset for 3 viewport
+	if listVNode.CanScrollDown() {
+		t.Error("Should not be able to scroll down at max offset")
+	}
+}
+
+func TestListVNode_Bounds(t *testing.T) {
+	list := ListBuilder().
+		Rows([]string{"A", "B"}).
+		Build()
+
+	listVNode := list.(*ListVNode)
+	listVNode.SetBounds(10, 20, 50, 10)
+
+	x, y, w, h := listVNode.GetBounds()
+	if x != 10 || y != 20 || w != 50 || h != 10 {
+		t.Errorf("Bounds not stored correctly: got (%d,%d,%d,%d)", x, y, w, h)
+	}
+
+	bounds := listVNode.Bounds()
+	if bounds[0] != 10 || bounds[1] != 20 || bounds[2] != 50 || bounds[3] != 10 {
+		t.Errorf("Bounds array not correct: got %v", bounds)
+	}
+}
+
+func TestListVNode_containsPoint(t *testing.T) {
+	list := ListBuilder().
+		Rows([]string{"A", "B"}).
+		Build()
+
+	listVNode := list.(*ListVNode)
+	listVNode.SetBounds(10, 20, 50, 10)
+
+	// Point inside bounds
+	if !listVNode.containsPoint(30, 25) {
+		t.Error("Point (30, 25) should be inside bounds")
+	}
+
+	if !listVNode.containsPoint(10, 20) {
+		t.Error("Point (10, 20) should be inside bounds (top-left corner)")
+	}
+
+	if !listVNode.containsPoint(59, 29) {
+		t.Error("Point (59, 29) should be inside bounds (bottom-right corner)")
+	}
+
+	// Points outside bounds
+	if listVNode.containsPoint(9, 20) {
+		t.Error("Point (9, 20) should be outside bounds (left)")
+	}
+	if listVNode.containsPoint(60, 20) {
+		t.Error("Point (60, 20) should be outside bounds (right)")
+	}
+	if listVNode.containsPoint(30, 19) {
+		t.Error("Point (30, 19) should be outside bounds (above)")
+	}
+	if listVNode.containsPoint(30, 30) {
+		t.Error("Point (30, 30) should be outside bounds (below)")
+	}
+}
+
+func TestListVNode_Callbacks(t *testing.T) {
+	changeCalled1 := false
+	changeCalled2 := false
+
+	list := ListBuilder().
+		Rows([]string{"A", "B", "C"}).
+		OnChange(func(idx int) {
+			if idx == 1 {
+				changeCalled1 = true
+			}
+			if idx == 2 {
+				changeCalled2 = true
+			}
+		}).
+		OnSelect(func(idx int) {
+			// onSelect is called when a row is selected via click/enter
+		}).
+		OnScroll(func(offset int) {
+			// Track scroll calls
+			t.Logf("onScroll called with offset: %d", offset)
+		}).
+		Build()
+
+	listVNode := list.(*ListVNode)
+
+	// Set viewport height for scroll testing
+	listVNode.viewportHeight = 3
+
+	// Trigger onChange via SetSelectedIndex
+	listVNode.SetSelectedIndex(1)
+	if !changeCalled1 {
+		t.Error("OnChange callback not called for index 1")
+	}
+
+	// Trigger onChange again with index 2
+	listVNode.SetSelectedIndex(2)
+	if !changeCalled2 {
+		t.Error("OnChange callback not called for index 2")
+	}
+
+	// Trigger onScroll (needs viewportHeight > 0)
+	// Note: SetScrollOffset now always calls onScroll
+	listVNode.SetScrollOffset(1)
+	listVNode.SetScrollOffset(3)
+}

@@ -3,28 +3,27 @@ package overlay
 import (
 	"testing"
 
-	"github.com/wwsheng009/mint/components/basic"
-	"github.com/wwsheng009/mint/components/form"
+	"github.com/wwsheng009/mint/components/button"
 	"github.com/wwsheng009/mint/framework/component"
-	"github.com/wwsheng009/mint/ui"
 	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
 	runtimeplatform "github.com/wwsheng009/mint/runtime/platform"
+	"github.com/wwsheng009/mint/ui"
 )
 
 // TestModalButtonEventRouting tests that buttons inside modal receive mouse events
 func TestModalButtonEventRouting(t *testing.T) {
 	// Create a button
-	button := form.Button().Label("Click Me").Build()
+	btn := button.ButtonBuilder("Click Me").Build()
 
 	// Verify button implements Updater interface
-	if _, ok := button.(component.Updater); !ok {
+	if _, ok := btn.(component.Updater); !ok {
 		t.Error("Button should implement component.Updater interface")
 	}
 
 	// Create modal with button in content
 	modal := ModalBuilder().
 		Title("Test Modal").
-		Content(button).
+		Content(btn).
 		Open(true).
 		Width(40).
 		Height(10).
@@ -49,7 +48,7 @@ func TestModalButtonEventRouting(t *testing.T) {
 	// Verify the button is in the children
 	found := false
 	for _, child := range children {
-		if child == button {
+		if child == btn {
 			found = true
 			break
 		}
@@ -64,8 +63,7 @@ func TestModalButtonEventRouting(t *testing.T) {
 // TestModalWithMultipleButtons tests modal with multiple interactive elements
 func TestModalWithMultipleButtons(t *testing.T) {
 	// Create multiple buttons
-	confirmBtn := form.Button().Label("Confirm").Build()
-	cancelBtn := form.Button().Label("Cancel").Build()
+	confirmBtn := button.ButtonBuilder("Confirm").Build()
 
 	// Create modal with both buttons in footer
 	modal := ModalBuilder().
