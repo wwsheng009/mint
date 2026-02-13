@@ -151,16 +151,47 @@ if r.renderer != nil {
 
 **Updated methods:**
 
+- `NewDeclarativeNodeFromFuncWithFiber()` - Calls `adapter.SetRenderer(renderer)`
+- Added `fiberReconcilerAdapter.SetRenderer()` method
 - Added `GetFiberRoot() *reconciler.Fiber` method
 - Added `RenderWithFiber(buffer *paint.Buffer)` method
+- `SetReconciler()` - Also calls `SetRenderer()` when reconciler is set
+
+**Key changes:**
+```go
+// In NewDeclarativeNodeFromFuncWithFiber():
+renderer := NewPipelineRendererAdapter()
+
+// Phase 8: Set renderer on reconciler for NodeID propagation
+if adapter, ok := r.(*fiberReconcilerAdapter); ok {
+	adapter.SetRenderer(renderer)
+}
+
+// In fiberReconcilerAdapter:
+func (a *fiberReconcilerAdapter) SetRenderer(renderer rtui.VNodeRenderer) {
+	a.r.SetRenderer(renderer)
+}
+```
 
 ## Integration Point
 
-The framework integration requires calling `renderer.SetFiber(fiberRoot)` after `reconciler.Render()` completes:
+The framework integration requires two connections:
 
+1. **Reconciler to Renderer** - In `NewDeclarativeNodeFromFuncWithFiber()`:
 ```go
-// In framework (e.g., DeclarativeNode)
-r.renderer.SetFiber(r.root)
+renderer := NewPipelineRendererAdapter()
+if adapter, ok := r.(*fiberReconcilerAdapter); ok {
+	adapter.SetRenderer(renderer)
+}
+```
+
+2. **Reconciler to Renderer (Fiber propagation)** - In `Reconciler.CommitRoot()`:
+```go
+if r.renderer != nil {
+	if adapter, ok := r.renderer.(interface{ SetFiber(*Fiber) }); ok {
+		adapter.SetFiber(r.root)
+	}
+}
 ```
 
 This ensures the rendering pipeline has access to the Fiber tree before layout computation begins.
@@ -191,6 +222,8 @@ go test ./runtime/event/... -run TestNodeID
 - [x] `SetFiber()` method on `PipelineRendererAdapter`
 - [x] `Reconciler.SetRenderer()` for renderer registration
 - [x] `Reconciler.CommitRoot()` calls `SetFiber()` after reconciliation
+- [x] `fiberReconcilerAdapter.SetRenderer()` adapter method
+- [x] `NewDeclarativeNodeFromFuncWithFiber()` calls `SetRenderer()`
 - [x] `RenderingPipeline.Render()` passes fiber to LayoutEngine
 - [x] `RenderingPipeline.RenderLayers()` passes fiber to LayerManager
 - [x] `LayerManager.CollectAndLayout()` passes fiber to LayoutEngine
