@@ -237,6 +237,9 @@ var (
 
 	// RenderingLogger logs rendering debugging messages (enabled via TUI_DEBUG_RENDERING)
 	RenderingLogger = NewLogger("Rendering", "RENDERING")
+
+	// ValidationLogger logs validation debugging messages (enabled via TUI_DEBUG_VALIDATION)
+	ValidationLogger = NewLogger("Validation", "VALIDATION")
 )
 
 // SetAllEnabled sets the enabled state for all global loggers
