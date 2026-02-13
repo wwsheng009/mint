@@ -362,11 +362,10 @@ func ConfirmInfo(label, value string) ui.VNode {
 	labelWidth := 10
 
 	return ui.HStackBuilder(
-		app.NewTextBuilder(label).
+		app.NewTextBuilder(fmt.Sprintf("%-*s", labelWidth, label)).
 			Style(style.Style{}.
 				Foreground(theme.Muted()).  // Label 使用 MUTED
 				Bold(true)).
-			Width(labelWidth).
 			Build(),
 		app.NewTextBuilder(value).
 			Style(style.Style{}.
@@ -424,7 +423,7 @@ func ActionButtons(step int, setStep func(int), setShowModal func(bool)) ui.VNod
 			Build(),
 	)
 
-	return ui.HStack(buttons...).Gap(2).Build()
+	return ui.HStackBuilder(buttons...).Gap(2).Build()
 }
 
 // Footer - 页脚

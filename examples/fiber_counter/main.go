@@ -15,20 +15,20 @@ func DebugCounter() ui.VNode {
 	count, setCount, _, hookIndex := ui.UseStateIntWithDebug(0)
 
 	// Debug: log what value we got
-	if os.Getenv("TUI_DEBUG_UI") == "true" {
+	if log.UILogger.Enabled() {
 		log.UILogger.Debug( "[DebugCounter] Using count=%d, hookIndex=%d\n", count, hookIndex)
 	}
 
 	// Create the count text with logging
 	countTextStr := fmt.Sprintf("Count: %d (hookIndex=%d)", count, hookIndex)
-	if os.Getenv("TUI_DEBUG_UI") == "true" {
+	if log.UILogger.Enabled() {
 		log.UILogger.Debug("[DebugCounter] Creating TextVNode with content: %s\n", countTextStr)
 	}
 	countText := app.NewTextBuilder(countTextStr).
 		FgColor("green").
 		Build()
 
-	if os.Getenv("TUI_DEBUG_UI") == "true" {
+	if log.UILogger.Enabled() {
 		// Use Props() to get content without type assertion
 		content := ""
 		if countText.Props() != nil {
@@ -98,7 +98,7 @@ func SimpleCounter() ui.VNode {
 func main() {
 	// 检查环境变量
 	useFiber := os.Getenv("MINT_USE_FIBER") == "true"
-	debugUI := os.Getenv("TUI_DEBUG_UI") == "true"
+	debugUI := log.UILogger.Enabled()
 
 	log.UILogger.Debug("=== Fiber Counter Debug Info ===\n")
 	log.UILogger.Debug("MINT_USE_FIBER: %v\n", useFiber)

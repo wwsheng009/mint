@@ -45,7 +45,7 @@ func main() {
 	globalInspector.Enable() // ALWAYS enable inspector (so F12 and buttons work)
 
 	// Enable verbose inspector output from environment
-	if os.Getenv("TUI_DEBUG_INSPECTOR") == "true" {
+	if log.InspectorLogger.Enabled() {
 		fmt.Println("UI Inspector verbose mode enabled")
 	}
 
@@ -86,7 +86,7 @@ func main() {
 	fmt.Println("Starting Mint TUI Demo - Press F12 or Ctrl+D to toggle Inspector")
 
 	// Debug info
-	if os.Getenv("TUI_DEBUG") == "true" || os.Getenv("TUI_DEBUG_UI") == "true" {
+	if log.UILogger.Enabled() {
 		log.UILogger.Debug("[DEMO2] Inspector enabled: %v\n", globalInspector.IsEnabled())
 		log.UILogger.Debug("[DEMO2] Inspector visible: %v\n", globalInspector.IsVisible())
 	}
