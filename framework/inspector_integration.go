@@ -23,7 +23,7 @@ func (a *App) registerInspectorHook(inspector interface{}) {
 
 	// Get the root's renderer (which should be a PipelineRendererAdapter)
 	if a.root == nil {
-		if os.Getenv("TUI_DEBUG_UI") == "true" {
+		if log.UILogger.Enabled() {
 			log.UILogger.Debug("[APP] Cannot register Inspector hook: root not set")
 		}
 		return
@@ -32,7 +32,7 @@ func (a *App) registerInspectorHook(inspector interface{}) {
 	// Try to get HookManager from the root node
 	hookManager := a.getHookManager()
 	if hookManager == nil {
-		if os.Getenv("TUI_DEBUG_UI") == "true" {
+		if log.UILogger.Enabled() {
 			log.UILogger.Debug("[APP] Cannot register Inspector hook: no HookManager found")
 		}
 		return
@@ -41,11 +41,11 @@ func (a *App) registerInspectorHook(inspector interface{}) {
 	// Register hook using interface to avoid import cycle
 	if registrar, ok := inspector.(HookRegistrar); ok {
 		registrar.RegisterWithHookManager(hookManager)
-		if os.Getenv("TUI_DEBUG_UI") == "true" {
+		if log.UILogger.Enabled() {
 			log.UILogger.Debug("[APP] Inspector hook registered via HookRegistrar interface")
 		}
 	} else {
-		if os.Getenv("TUI_DEBUG_UI") == "true" {
+		if log.UILogger.Enabled() {
 			log.UILogger.Debug("[APP] Inspector does not implement HookRegistrar interface")
 			log.UILogger.Debug("[APP] Inspector will not be automatically injected into render tree")
 		}

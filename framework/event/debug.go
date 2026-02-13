@@ -32,7 +32,7 @@ type EventLogEntry struct {
 func NewEventLogger() *EventLogger {
 	return &EventLogger{
 		entries: make([]*EventLogEntry, 0),
-		enabled: os.Getenv("TUI_DEBUG_EVENT") == "1",
+		enabled: log.EventLogger.Enabled(),
 		maxSize: 1000, // 最多保存 1000 条日志
 	}
 }

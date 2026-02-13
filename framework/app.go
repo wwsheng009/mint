@@ -535,7 +535,7 @@ func (a *App) SetupInspectorShortcut() {
 	// The routing logic at the end of handleEvent() will forward any unhandled keys
 	// to the Inspector if it is visible.
 
-	if os.Getenv("TUI_DEBUG_UI") == "true" {
+	if log.UILogger.Enabled() {
 		log.UILogger.Debug("[APP] Inspector shortcuts registered: F12, Ctrl+D (toggle)")
 		log.UILogger.Debug("[APP] Panel movement: Alt+H/J/K/L or Alt+Arrow keys")
 		log.UILogger.Debug("[APP] Tab switching: 1-6 (handled dynamically)")
@@ -547,7 +547,7 @@ func (a *App) SetupInspectorShortcut() {
 // 这个方法会被快捷键触发
 func (a *App) toggleInspector() {
 	if a.inspector == nil {
-		if os.Getenv("TUI_DEBUG_UI") == "true" {
+		if log.UILogger.Enabled() {
 			log.UILogger.Debug("[APP] Inspector not initialized, ignoring toggle")
 		}
 		return
@@ -563,7 +563,7 @@ func (a *App) toggleInspector() {
 		a.inspectorVisible = inspectorObj.IsVisible()
 		a.dirty = true // 触发重绘
 
-		if os.Getenv("TUI_DEBUG_UI") == "true" {
+		if log.UILogger.Enabled() {
 			log.UILogger.Debug("[APP] Inspector toggled: now visible=%v", a.inspectorVisible)
 		}
 	}
