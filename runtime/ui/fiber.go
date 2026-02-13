@@ -121,6 +121,10 @@ type Fiber struct {
 	// Key for reconciling lists
 	Key string
 
+	// ✨ NodeID for stable runtime identity
+	// See: docs/render/fiber/IDENTITY_REFACTORING_PLAN.md
+	NodeID uint64
+
 	// ✨ Path for automatic key generation (Mixed Strategy)
 	// Full path from root: /root/base[0]/vstack[0]/panel[0]
 	// Used for generating automatic keys for static UI components
@@ -230,7 +234,7 @@ func (f *Fiber) String() string {
 		return "nil"
 	}
 
-	return fmt.Sprintf("Fiber{Tag: %s, Key: %s, Flags: %d, Lanes: %d}",
+	return fmt.Sprintf("Fiber{Tag: %s, Key: %s, NodeID: %d, Flags: %d, Lanes: %d}",
 		f.Tag, f.Key, f.Flags, f.Lanes)
 }
 

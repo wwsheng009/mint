@@ -14,7 +14,7 @@ type IncrementalUpdater struct {
 	hitMap    *HitMap
 	root      layout.Node
 	version   uint32
-	dirtyNodes map[string]bool // 脏节点标记
+	dirtyNodes map[uint64]bool // 脏节点标记
 }
 
 // NewIncrementalUpdater 创建增量更新器
@@ -23,12 +23,12 @@ func NewIncrementalUpdater(hitMap *HitMap, root layout.Node) *IncrementalUpdater
 		hitMap:     hitMap,
 		root:       root,
 		version:    0,
-		dirtyNodes: make(map[string]bool),
+		dirtyNodes: make(map[uint64]bool),
 	}
 }
 
 // MarkDirty 标记节点为脏（需要重建）
-func (iu *IncrementalUpdater) MarkDirty(nodeID string) {
+func (iu *IncrementalUpdater) MarkDirty(nodeID uint64) {
 	iu.dirtyNodes[nodeID] = true
 }
 
@@ -42,7 +42,7 @@ func (iu *IncrementalUpdater) MarkSubtreeDirty(node layout.Node) {
 
 	// 标记当前节点
 	if node.ID() != "" {
-		iu.MarkDirty(node.ID())
+		iu.MarkDirty(stringToNodeID(node.ID()))
 	}
 
 	// 递归标记子节点
@@ -68,7 +68,7 @@ func (iu *IncrementalUpdater) IncrementalUpdate() error {
 	iu.rebuildDirtyEntries()
 
 	// 3. 清空脏节点标记
-	iu.dirtyNodes = make(map[string]bool)
+	iu.dirtyNodes = make(map[uint64]bool)
 
 	// 4. 增加版本号
 	iu.version++
@@ -79,7 +79,7 @@ func (iu *IncrementalUpdater) IncrementalUpdate() error {
 // removeDirtyEntries 移除脏节点的旧条目
 func (iu *IncrementalUpdater) removeDirtyEntries() {
 	// 收集要移除的 ID
-	dirtyIDs := make(map[string]bool)
+	dirtyIDs := make(map[uint64]bool)
 	for id := range iu.dirtyNodes {
 		dirtyIDs[id] = true
 	}
@@ -110,12 +110,12 @@ func (iu *IncrementalUpdater) rebuildDirtyEntries() {
 }
 
 // findNode 在组件树中查找节点
-func (iu *IncrementalUpdater) findNode(root layout.Node, nodeID string) layout.Node {
+func (iu *IncrementalUpdater) findNode(root layout.Node, nodeID uint64) layout.Node {
 	if root == nil {
 		return nil
 	}
 
-	if root.ID() == nodeID {
+	if stringToNodeID(root.ID()) == nodeID {
 		return root
 	}
 
@@ -144,7 +144,7 @@ func (iu *IncrementalUpdater) buildNodeEntry(node layout.Node, zOrder int) {
 
 	// 创建条目
 	entry := HitMapEntry{
-		NodeID: node.ID(),
+		NodeID: stringToNodeID(node.ID()),
 		Node:   node,
 		Bounds: layout.Rect{
 			X:      x,
@@ -184,7 +184,7 @@ func (iu *IncrementalUpdater) GetDirtyCount() int {
 
 // ClearDirty 清空脏节点标记
 func (iu *IncrementalUpdater) ClearDirty() {
-	iu.dirtyNodes = make(map[string]bool)
+	iu.dirtyNodes = make(map[uint64]bool)
 }
 
 // UpdateAll 标记所有节点为脏并执行更新
@@ -205,7 +205,7 @@ func (iu *IncrementalUpdater) markAllDirty(node layout.Node) {
 	}
 
 	if node.ID() != "" {
-		iu.MarkDirty(node.ID())
+		iu.MarkDirty(stringToNodeID(node.ID()))
 	}
 
 	for _, child := range node.Children() {

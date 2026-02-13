@@ -239,7 +239,7 @@ func (p *Pump) convertToMouseMsg(raw platform.RawInput) runtimemsg.Msg {
 			}
 
 			// Log successful hit test
-			log.UILogger.Debug("HitTest: Found '%s' at Bounds=(%d,%d,%dx%d) Local=(%d,%d) Instance=%v",
+			log.UILogger.Debug("HitTest: Found '%d' at Bounds=(%d,%d,%dx%d) Local=(%d,%d) Instance=%v",
 				entry.NodeID, entry.Bounds.X, entry.Bounds.Y,
 				entry.Bounds.Width, entry.Bounds.Height, localX, localY, entry.Instance != nil)
 

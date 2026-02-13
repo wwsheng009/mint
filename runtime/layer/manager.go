@@ -469,8 +469,8 @@ func (m *Manager) buildHitMapFromComputedBox(root *compute.ComputedBox) *event.H
 		entries = append(entries, entry)
 
 		// Log entry positions for debugging
-		if entry.NodeID != "" {
-			log.RenderLogger.Debug("[buildHitMapFromComputedBox] Entry: ID=%s, Bounds=(%d,%d,%dx%d)",
+		if entry.NodeID != 0 {
+			log.RenderLogger.Debug("[buildHitMapFromComputedBox] Entry: ID=%d, Bounds=(%d,%d,%dx%d)",
 				entry.NodeID, entry.Bounds.X, entry.Bounds.Y, entry.Bounds.Width, entry.Bounds.Height)
 		}
 

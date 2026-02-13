@@ -150,7 +150,7 @@ func TestRouter_CapturePhase(t *testing.T) {
 	router.AddCaptureHandler(handler2, "handler2")
 
 	act := NewAction(ActionClick)
-	act.TargetID = "root"
+	act.TargetID = router.stringToNodeID("root")
 
 	result := router.Dispatch(act)
 
@@ -189,7 +189,7 @@ func TestRouter_CapturePhase_NoStop(t *testing.T) {
 	router.AddCaptureHandler(handler2, "handler2")
 
 	act := NewAction(ActionClick)
-	act.TargetID = "root"
+	act.TargetID = router.stringToNodeID("root")
 
 	result := router.Dispatch(act)
 
@@ -231,10 +231,10 @@ func TestRouter_TargetPhase(t *testing.T) {
 		HandledValue: true,
 		SupportedActions: []ActionType{ActionClick},
 	}
-	router.RegisterTarget("target1", targetHandler)
+	router.RegisterTarget(router.stringToNodeID("target1"), targetHandler)
 
 	act := NewAction(ActionClick)
-	act.TargetID = "target1"
+	act.TargetID = router.stringToNodeID("target1")
 
 	result := router.Dispatch(act)
 
@@ -273,10 +273,10 @@ func TestRouter_TargetPhase_CannotHandle(t *testing.T) {
 		HandledValue: true,
 		SupportedActions: []ActionType{},
 	}
-	router.RegisterTarget("target1", targetHandler)
+	router.RegisterTarget(router.stringToNodeID("target1"), targetHandler)
 
 	act := NewAction(ActionClick)
-	act.TargetID = "target1"
+	act.TargetID = router.stringToNodeID("target1")
 
 	result := router.Dispatch(act)
 
@@ -311,7 +311,7 @@ func TestRouter_BubblePhase(t *testing.T) {
 	router.AddBubbleHandler(bubbleHandler, "bubble1")
 
 	act := NewAction(ActionClick)
-	act.TargetID = "target1"
+	act.TargetID = router.stringToNodeID("target1")
 
 	result := router.Dispatch(act)
 
@@ -349,7 +349,7 @@ func TestRouter_StopPropagation(t *testing.T) {
 	router.AddBubbleHandler(bubbleHandler, "bubble1")
 
 	act := NewAction(ActionClick)
-	act.TargetID = "root"
+	act.TargetID = router.stringToNodeID("root")
 
 	result := router.Dispatch(act)
 
@@ -413,7 +413,8 @@ func TestRouter_FindNodeByID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.id, func(t *testing.T) {
-			node := router.findNodeByID(tt.id)
+			nodeID := router.stringToNodeID(tt.id)
+			node := router.findNodeByID(nodeID)
 			found := (node != nil)
 			if found != tt.want {
 				t.Errorf("findNodeByID(%s) found = %v, want %v", tt.id, found, tt.want)
@@ -472,13 +473,17 @@ func TestRouter_BuildTargetRegistry(t *testing.T) {
 	}
 
 	// 检查是否注册了正确的目标
-	if _, exists := router.TargetHandlers["node1"]; !exists {
+	node1ID := router.stringToNodeID("node1")
+	node2ID := router.stringToNodeID("node2")
+	nonTargetID := router.stringToNodeID("nonTarget")
+
+	if _, exists := router.TargetHandlers[node1ID]; !exists {
 		t.Error("node1 should be registered")
 	}
-	if _, exists := router.TargetHandlers["node2"]; !exists {
+	if _, exists := router.TargetHandlers[node2ID]; !exists {
 		t.Error("node2 should be registered")
 	}
-	if _, exists := router.TargetHandlers["nonTarget"]; exists {
+	if _, exists := router.TargetHandlers[nonTargetID]; exists {
 		t.Error("nonTarget should not be registered (not an ActionTarget)")
 	}
 }
@@ -542,16 +547,17 @@ func TestRouter_RegisterAndUnregister(t *testing.T) {
 	}
 
 	// 注册
-	router.RegisterTarget("test", target)
+	testID := router.stringToNodeID("test")
+	router.RegisterTarget(testID, target)
 
-	if _, exists := router.TargetHandlers["test"]; !exists {
+	if _, exists := router.TargetHandlers[testID]; !exists {
 		t.Error("Target should be registered")
 	}
 
 	// 注销
-	router.UnregisterTarget("test")
+	router.UnregisterTarget(testID)
 
-	if _, exists := router.TargetHandlers["test"]; exists {
+	if _, exists := router.TargetHandlers[testID]; exists {
 		t.Error("Target should be unregistered")
 	}
 }

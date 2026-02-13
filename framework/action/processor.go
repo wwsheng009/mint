@@ -74,7 +74,7 @@ func (p *InputProcessor) processKeyMsg(keyMsg *runtimemsg.KeyMsg) *Action {
 // processMouseMsg 处理鼠标消息
 func (p *InputProcessor) processMouseMsg(mouseMsg *runtimemsg.MouseMsg) *Action {
 	// 如果没有目标，不处理
-	if mouseMsg.TargetID == "" {
+	if mouseMsg.TargetID == 0 {
 		return nil
 	}
 

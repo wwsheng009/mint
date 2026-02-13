@@ -193,12 +193,12 @@ func TestActionTarget_HandleAction(t *testing.T) {
 		BaseActionTarget: NewBaseActionTarget(ActionClick),
 		id:                "button-1",
 		handleFunc: func(action *Action) bool {
-			return action.Type == ActionClick && action.TargetID == "button-1"
+			return action.Type == ActionClick && action.TargetID == 12345
 		},
 	}
 
 	// 测试匹配的 Action
-	action1 := NewActionFromMouse(ActionClick, "button-1", 10, 20)
+	action1 := NewActionFromMouse(ActionClick, 12345, 10, 20)
 	if !target.HandleAction(action1) {
 		t.Error("HandleAction() should return true for matching action")
 	}
@@ -668,26 +668,26 @@ func TestCompositeActionTarget(t *testing.T) {
 	target1 := &mockActionTarget{
 		BaseActionTarget: NewBaseActionTarget(ActionClick),
 		handleFunc: func(action *Action) bool {
-			return action.Type == ActionClick && action.TargetID == "target-1"
+			return action.Type == ActionClick && action.TargetID == 11111
 		},
 	}
 	target2 := &mockActionTarget{
 		BaseActionTarget: NewBaseActionTarget(ActionClick),
 		handleFunc: func(action *Action) bool {
-			return action.Type == ActionClick && action.TargetID == "target-2"
+			return action.Type == ActionClick && action.TargetID == 22222
 		},
 	}
 
 	composite := NewCompositeActionTarget(target1, target2)
 
 	// 测试第一个目标处理
-	action1 := NewActionFromMouse(ActionClick, "target-1", 10, 20)
+	action1 := NewActionFromMouse(ActionClick, 11111, 10, 20)
 	if !composite.HandleAction(action1) {
 		t.Error("HandleAction() should return true for first target")
 	}
 
 	// 测试第二个目标处理
-	action2 := NewActionFromMouse(ActionClick, "target-2", 10, 20)
+	action2 := NewActionFromMouse(ActionClick, 22222, 10, 20)
 	if !composite.HandleAction(action2) {
 		t.Error("HandleAction() should return true for second target")
 	}

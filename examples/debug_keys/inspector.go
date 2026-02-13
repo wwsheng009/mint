@@ -1,4 +1,4 @@
-package main
+package debug_keys
 
 import (
 	"fmt"
@@ -398,59 +398,4 @@ func getLayerName(layer rtui.Layer) string {
 	default:
 		return fmt.Sprintf("UNKNOWN(%d)", layer)
 	}
-}
-
-// 示例使用
-func main() {
-	fmt.Println("\n" + strings.Repeat("█", 80))
-	fmt.Println("🔑 DEBUG KEY INSPECTOR - 使用示例")
-	fmt.Println(strings.Repeat("█", 80))
-
-	fmt.Println("\n💡 这个工具可以在你的应用中这样使用：")
-	fmt.Println(`
-// 1. 导入工具
-import "github.com/wwsheng009/mint/examples/debug_keys"
-
-// 2. 创建 inspector 实例
-inspector := debug_keys.NewDebugKeyInspector()
-
-// 3. 在渲染完成后调用
-// 检查 VNode 树
-inspector.InspectVNodes(rootVNode)
-
-// 检查 Fiber 树
-inspector.InspectFibers(rootFiber)
-
-// 比较 VNode 和 Fiber 的一致性
-inspector.CompareTrees(rootVNode, rootFiber)
-
-// 显示统计信息
-inspector.PrintStatistics(rootVNode, rootFiber)
-`)
-
-	fmt.Println("\n" + strings.Repeat("─", 80))
-	fmt.Println("配置选项：")
-	fmt.Println(strings.Repeat("─", 80))
-	fmt.Println(`
-inspector.MaxDepth = 20        // 最大遍历深度
-inspector.ShowKeys = true      // 显示 Key 信息
-inspector.ShowPaths = true     // 显示 Path 信息
-inspector.ShowLayers = true    // 显示 Layer 信息
-`)
-
-	fmt.Println("\n" + strings.Repeat("─", 80))
-	fmt.Println("输出说明：")
-	fmt.Println(strings.Repeat("─", 80))
-	fmt.Println(`
-🟡 黄色文字: Key 值
-🔵 蓝色文字: Path 值
-🟣 紫色文字: PathSegment 值
-🔴 红色警告: Key ≠ Path (不一致)
-⚠️  灰色警告: 无 Key 或无 Path
-`)
-
-	fmt.Println("\n" + strings.Repeat("█", 80))
-	fmt.Println("现在你可以将此工具集成到你的应用中进行调试！")
-	fmt.Println(strings.Repeat("█", 80))
-	fmt.Println()
 }

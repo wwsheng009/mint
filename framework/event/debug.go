@@ -23,7 +23,7 @@ type EventLogEntry struct {
 	Timestamp time.Time
 	Phase     string
 	EventType string
-	TargetID  string
+	TargetID  uint64
 	Details   string
 	Duration  time.Duration
 }
@@ -38,7 +38,7 @@ func NewEventLogger() *EventLogger {
 }
 
 // Log 记录一个事件
-func (l *EventLogger) Log(phase, eventType, targetID, details string) {
+func (l *EventLogger) Log(phase, eventType string, targetID uint64, details string) {
 	if !l.enabled {
 		return
 	}
@@ -63,7 +63,7 @@ func (l *EventLogger) Log(phase, eventType, targetID, details string) {
 }
 
 // LogWithDuration 记录一个事件及其持续时间
-func (l *EventLogger) LogWithDuration(phase, eventType, targetID, details string, duration time.Duration) {
+func (l *EventLogger) LogWithDuration(phase, eventType string, targetID uint64, details string, duration time.Duration) {
 	if !l.enabled {
 		return
 	}
@@ -140,8 +140,8 @@ func (l *EventLogger) Dump() string {
 		builder.WriteString(fmt.Sprintf("[%d] %s\n", i, entry.Timestamp.Format("15:04:05.000")))
 		builder.WriteString(fmt.Sprintf("    Phase: %s\n", entry.Phase))
 		builder.WriteString(fmt.Sprintf("    Type: %s\n", entry.EventType))
-		if entry.TargetID != "" {
-			builder.WriteString(fmt.Sprintf("    Target: %s\n", entry.TargetID))
+		if entry.TargetID != 0 {
+			builder.WriteString(fmt.Sprintf("    Target: %d\n", entry.TargetID))
 		}
 		if entry.Details != "" {
 			builder.WriteString(fmt.Sprintf("    Details: %s\n", entry.Details))
@@ -177,8 +177,8 @@ func (l *EventLogger) Visualize() string {
 			entry.Phase,
 			entry.EventType))
 
-		if entry.TargetID != "" {
-			builder.WriteString(fmt.Sprintf(" (%s)", entry.TargetID))
+		if entry.TargetID != 0 {
+			builder.WriteString(fmt.Sprintf(" (%d)", entry.TargetID))
 		}
 
 		if entry.Duration > 0 {
@@ -215,9 +215,9 @@ func (l *EventLogger) GetStats() map[string]interface{} {
 	stats["by_type"] = typeCounts
 
 	// 按目标统计
-	targetCounts := make(map[string]int)
+	targetCounts := make(map[uint64]int)
 	for _, entry := range l.entries {
-		if entry.TargetID != "" {
+		if entry.TargetID != 0 {
 			targetCounts[entry.TargetID]++
 		}
 	}
@@ -284,7 +284,7 @@ func (l *EventLogger) GetByPhase(phase string) []*EventLogEntry {
 }
 
 // GetByTarget 获取特定目标的日志
-func (l *EventLogger) GetByTarget(targetID string) []*EventLogEntry {
+func (l *EventLogger) GetByTarget(targetID uint64) []*EventLogEntry {
 	return l.Filter(func(entry *EventLogEntry) bool {
 		return entry.TargetID == targetID
 	})
@@ -319,11 +319,11 @@ func GetGlobalLogger() *EventLogger {
 }
 
 // LogEvent 是全局日志记录辅助函数
-func LogEvent(phase, eventType, targetID, details string) {
+func LogEvent(phase, eventType string, targetID uint64, details string) {
 	globalEventLogger.Log(phase, eventType, targetID, details)
 }
 
 // LogEventWithDuration 是全局日志记录辅助函数（带持续时间）
-func LogEventWithDuration(phase, eventType, targetID, details string, duration time.Duration) {
+func LogEventWithDuration(phase, eventType string, targetID uint64, details string, duration time.Duration) {
 	globalEventLogger.LogWithDuration(phase, eventType, targetID, details, duration)
 }

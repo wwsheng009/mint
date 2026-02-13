@@ -339,17 +339,17 @@ func TestAction_RequiresTarget(t *testing.T) {
 	}{
 		{
 			name:     "Click with target",
-			action:   &Action{Type: ActionClick, TargetID: "button-1"},
+			action:   &Action{Type: ActionClick, TargetID: 12345},
 			expected: true,
 		},
 		{
 			name:     "Click without target",
-			action:   &Action{Type: ActionClick, TargetID: ""},
+			action:   &Action{Type: ActionClick, TargetID: 0},
 			expected: false,
 		},
 		{
 			name:     "Scroll with target",
-			action:   &Action{Type: ActionScroll, TargetID: "list-1"},
+			action:   &Action{Type: ActionScroll, TargetID: 67890},
 			expected: true,
 		},
 		{
@@ -543,8 +543,8 @@ func TestAction_String(t *testing.T) {
 		},
 		{
 			name:     "Action with target",
-			action:   &Action{Type: ActionClick, TargetID: "button-1"},
-			expected: "click@button-1",
+			action:   &Action{Type: ActionClick, TargetID: 12345},
+			expected: "click@12345",
 		},
 		{
 			name:     "Action with payload",
@@ -553,8 +553,8 @@ func TestAction_String(t *testing.T) {
 		},
 		{
 			name:     "Action with target and payload",
-			action:   &Action{Type: ActionScroll, TargetID: "list-1", Payload: 1},
-			expected: "scroll@list-1(1)",
+			action:   &Action{Type: ActionScroll, TargetID: 67890, Payload: 1},
+			expected: "scroll@67890(1)",
 		},
 		{
 			name:     "Action with source",
@@ -563,8 +563,8 @@ func TestAction_String(t *testing.T) {
 		},
 		{
 			name:     "Complete action",
-			action:   &Action{Type: ActionClick, TargetID: "btn", Payload: struct{ X, Y int }{10, 20}, Source: "mouse"},
-			expected: "click@btn({10 20}) [mouse]",
+			action:   &Action{Type: ActionClick, TargetID: 99999, Payload: struct{ X, Y int }{10, 20}, Source: "mouse"},
+			expected: "click@99999({10 20}) [mouse]",
 		},
 	}
 
@@ -591,8 +591,8 @@ func TestAction_NewAction(t *testing.T) {
 		if act.Source != "" {
 			t.Errorf("Source should be empty, got %q", act.Source)
 		}
-		if act.TargetID != "" {
-			t.Errorf("TargetID should be empty, got %q", act.TargetID)
+		if act.TargetID != 0 {
+			t.Errorf("TargetID should be 0, got %d", act.TargetID)
 		}
 	})
 
@@ -607,12 +607,12 @@ func TestAction_NewAction(t *testing.T) {
 	})
 
 	t.Run("NewActionFromMouse", func(t *testing.T) {
-		act := NewActionFromMouse(ActionClick, "button-1", 10, 20)
+		act := NewActionFromMouse(ActionClick, 12345, 10, 20)
 		if act.Type != ActionClick {
 			t.Errorf("Type = %v, want %v", act.Type, ActionClick)
 		}
-		if act.TargetID != "button-1" {
-			t.Errorf("TargetID = %q, want %q", act.TargetID, "button-1")
+		if act.TargetID != 12345 {
+			t.Errorf("TargetID = %d, want %d", act.TargetID, 12345)
 		}
 		if act.Source != "mouse" {
 			t.Errorf("Source = %q, want %q", act.Source, "mouse")
@@ -643,7 +643,7 @@ func TestAction_Clone(t *testing.T) {
 		Type:     ActionClick,
 		Payload:  struct{ X, Y int }{X: 10, Y: 20},
 		Source:   "mouse",
-		TargetID: "button-1",
+		TargetID: 12345,
 	}
 
 	cloned := original.Clone()
@@ -653,7 +653,7 @@ func TestAction_Clone(t *testing.T) {
 		t.Errorf("Cloned Type = %v, want %v", cloned.Type, original.Type)
 	}
 	if cloned.TargetID != original.TargetID {
-		t.Errorf("Cloned TargetID = %q, want %q", cloned.TargetID, original.TargetID)
+		t.Errorf("Cloned TargetID = %d, want %d", cloned.TargetID, original.TargetID)
 	}
 	if cloned.Source != original.Source {
 		t.Errorf("Cloned Source = %q, want %q", cloned.Source, original.Source)
@@ -661,12 +661,12 @@ func TestAction_Clone(t *testing.T) {
 
 	// 修改原始对象，确保克隆是深拷贝
 	original.Type = ActionNavigateDown
-	original.TargetID = "modified"
+	original.TargetID = 67890
 
 	if cloned.Type != ActionClick {
 		t.Errorf("Cloned Type should not be affected by original modification")
 	}
-	if cloned.TargetID != "button-1" {
+	if cloned.TargetID != 12345 {
 		t.Errorf("Cloned TargetID should not be affected by original modification")
 	}
 }
@@ -676,13 +676,13 @@ func TestAction_WithModifiers(t *testing.T) {
 	base := NewAction(ActionClick)
 
 	t.Run("WithTarget", func(t *testing.T) {
-		modified := base.WithTarget("button-1")
-		if modified.TargetID != "button-1" {
-			t.Errorf("TargetID = %q, want %q", modified.TargetID, "button-1")
+		modified := base.WithTarget(12345)
+		if modified.TargetID != 12345 {
+			t.Errorf("TargetID = %d, want %d", modified.TargetID, 12345)
 		}
 		// 原对象不应该被修改
-		if base.TargetID != "" {
-			t.Errorf("Original TargetID should remain empty")
+		if base.TargetID != 0 {
+			t.Errorf("Original TargetID should remain 0")
 		}
 	})
 
@@ -710,12 +710,12 @@ func TestAction_WithModifiers(t *testing.T) {
 
 	t.Run("Chained", func(t *testing.T) {
 		modified := base.
-			WithTarget("btn").
+			WithTarget(54321).
 			WithPayload(struct{ X, Y int }{10, 20}).
 			WithSource("mouse")
 
-		if modified.TargetID != "btn" {
-			t.Errorf("TargetID = %q, want %q", modified.TargetID, "btn")
+		if modified.TargetID != 54321 {
+			t.Errorf("TargetID = %d, want %d", modified.TargetID, 54321)
 		}
 		if modified.Source != "mouse" {
 			t.Errorf("Source = %q, want %q", modified.Source, "mouse")

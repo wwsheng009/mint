@@ -16,11 +16,11 @@ type FlexDistributionInfo struct {
 	Valid           bool // Whether the cache is valid
 }
 
-// VNode is an alias for the VNode type from runtime/ui
+// VNode is an alias for VNode type from runtime/ui
 type VNode = rtui.VNode
 
-// ComputedLayout contains the computed layout information for a VNode tree
-// This is the output of the new Layout Engine and input to the Paint Engine
+// ComputedLayout contains computed layout information for a VNode tree
+// This is the output of the new Layout Engine and input to Paint Engine
 type ComputedLayout struct {
 	Root   *ComputedBox
 	HitMap *event.HitMap // HitMap built from final ComputedBox positions
@@ -43,16 +43,21 @@ type ComputedBox struct {
 
 	// Layout state
 	LayoutDirty bool
-	LayoutHash  uint64
+	LayoutHash uint64
 
 	// RenderedText contains the final text to render (with padding if needed)
 	// This is calculated during layout phase to avoid modifying content during paint
 	RenderedText string
 
-	// NaturalWidth stores the natural (unconstrained) width of the element
-	// This is used for alignment calculations (center, end) when the element
+	// NaturalWidth stores the natural (unconstrained) width of an element
+	// This is used for alignment calculations (center, end) when element
 	// is stretched to fill available space (flex layout)
 	NaturalWidth int
+
+	// NodeID associates this layout box with a Fiber node
+	// This provides stable runtime identity independent of VNode keys and paths
+	// See: docs/render/fiber/IDENTITY_REFACTORING_PLAN.md
+	NodeID uint64
 }
 
 // =============================================================================
@@ -64,7 +69,7 @@ func NewComputedLayout(root *ComputedBox) *ComputedLayout {
 	return &ComputedLayout{Root: root}
 }
 
-// FindByPosition finds the innermost layout box containing the given position
+// FindByPosition finds innermost layout box containing given position
 func (cl *ComputedLayout) FindByPosition(x, y int) *ComputedBox {
 	if cl.Root == nil {
 		return nil
@@ -80,7 +85,7 @@ func (cl *ComputedLayout) FindByID(id string) *ComputedBox {
 	return cl.Root.FindByID(id)
 }
 
-// FindByPosition finds the innermost layout box containing the position
+// FindByPosition finds the innermost layout box containing position
 func (cb *ComputedBox) FindByPosition(x, y int) *ComputedBox {
 	// Check if point is in this box
 	if !cb.Box.Contains(x, y) {

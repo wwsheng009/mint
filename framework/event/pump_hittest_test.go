@@ -159,9 +159,10 @@ func TestPump_HitMapIntegration(t *testing.T) {
 			}
 
 			// 验证 TargetID
-			if mouseEv.TargetID != tt.expectedTarget {
-				t.Errorf("TargetID mismatch: got %s, want %s",
-					mouseEv.TargetID, tt.expectedTarget)
+			expectedTargetID := runtimeevent.StringToNodeID(tt.expectedTarget)
+			if mouseEv.TargetID != expectedTargetID {
+				t.Errorf("TargetID mismatch: got %d, want %s (hash=%d)",
+					mouseEv.TargetID, tt.expectedTarget, expectedTargetID)
 			}
 
 			// 如果预期命中了目标，验证局部坐标
@@ -273,9 +274,9 @@ func TestPump_NilHitMap(t *testing.T) {
 		t.Fatalf("Event is not *MouseEvent, got %T", ev)
 	}
 
-	// HitMap 为 nil 时，TargetID 应该为空
-	if mouseEv.TargetID != "" {
-		t.Errorf("TargetID should be empty when HitMap is nil, got %s",
+	// HitMap 为 nil 时，TargetID 应该为 0
+	if mouseEv.TargetID != 0 {
+		t.Errorf("TargetID should be 0 when HitMap is nil, got %d",
 			mouseEv.TargetID)
 	}
 
@@ -351,7 +352,8 @@ func TestPump_ConcurrentHitMapAccess(t *testing.T) {
 	}
 
 	// 应该成功命中
-	if mouseEv.TargetID != "test" {
-		t.Errorf("TargetID mismatch: got %s, want test", mouseEv.TargetID)
+	expectedTargetID := runtimeevent.StringToNodeID("test")
+	if mouseEv.TargetID != expectedTargetID {
+		t.Errorf("TargetID mismatch: got %d, want %d (test)", mouseEv.TargetID, expectedTargetID)
 	}
 }

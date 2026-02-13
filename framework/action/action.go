@@ -11,7 +11,7 @@ type Action struct {
 	Type     ActionType
 	Payload  interface{} // 操作附带的数据
 	Source   string      // 触发源（如 "keyboard", "mouse", "system"）
-	TargetID string      // 目标节点 ID（对于鼠标事件）
+	TargetID uint64      // 目标节点 ID（对于鼠标事件，现在使用 uint64）
 }
 
 // ActionType Action 类型（语义化操作）
@@ -210,7 +210,7 @@ func (a *Action) IsView() bool {
 // RequiresTarget 是否需要目标节点
 func (a *Action) RequiresTarget() bool {
 	// 鼠标 Action 通常需要目标
-	return a.IsMouse() && a.TargetID != ""
+	return a.IsMouse() && a.TargetID != 0
 }
 
 // GetPayloadString 获取字符串类型的 Payload
@@ -250,8 +250,8 @@ func (a *Action) String() string {
 	var sb strings.Builder
 	sb.WriteString(string(a.Type))
 
-	if a.TargetID != "" {
-		fmt.Fprintf(&sb, "@%s", a.TargetID)
+	if a.TargetID != 0 {
+		fmt.Fprintf(&sb, "@%d", a.TargetID)
 	}
 
 	if a.Payload != nil {
@@ -268,25 +268,25 @@ func (a *Action) String() string {
 // NewAction 创建一个新的 Action
 func NewAction(actionType ActionType) *Action {
 	return &Action{
-		Type:    actionType,
-		Payload: nil,
-		Source:  "",
-		TargetID: "",
+		Type:     actionType,
+		Payload:  nil,
+		Source:   "",
+		TargetID: 0,
 	}
 }
 
 // NewActionWithPayload 创建带 Payload 的 Action
 func NewActionWithPayload(actionType ActionType, payload interface{}) *Action {
 	return &Action{
-		Type:    actionType,
-		Payload: payload,
-		Source:  "",
-		TargetID: "",
+		Type:     actionType,
+		Payload:  payload,
+		Source:   "",
+		TargetID: 0,
 	}
 }
 
 // NewActionFromMouse 创建鼠标 Action
-func NewActionFromMouse(actionType ActionType, targetID string, localX, localY int) *Action {
+func NewActionFromMouse(actionType ActionType, targetID uint64, localX, localY int) *Action {
 	return &Action{
 		Type:     actionType,
 		Payload:  struct{ X, Y int }{X: localX, Y: localY},
@@ -298,10 +298,10 @@ func NewActionFromMouse(actionType ActionType, targetID string, localX, localY i
 // NewActionFromKey 创建键盘 Action
 func NewActionFromKey(actionType ActionType, source string) *Action {
 	return &Action{
-		Type:    actionType,
-		Payload: nil,
-		Source:  source,
-		TargetID: "",
+		Type:     actionType,
+		Payload:  nil,
+		Source:   source,
+		TargetID: 0,
 	}
 }
 
@@ -316,7 +316,7 @@ func (a *Action) Clone() *Action {
 }
 
 // WithTarget 设置目标节点 ID，返回新的 Action
-func (a *Action) WithTarget(targetID string) *Action {
+func (a *Action) WithTarget(targetID uint64) *Action {
 	cloned := a.Clone()
 	cloned.TargetID = targetID
 	return cloned

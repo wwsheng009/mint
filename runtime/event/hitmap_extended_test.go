@@ -86,7 +86,7 @@ func TestHitMap_Performance_FindByID(t *testing.T) {
 	// 测试 ID 查找性能（大量查找操作）
 	for i := 0; i < 10000; i++ {
 		nodeID := fmt.Sprintf("node-%d", i%nodeCount)
-		hitMap.FindByID(nodeID)
+		hitMap.FindByID(stringToNodeID(nodeID))
 	}
 }
 
@@ -281,7 +281,7 @@ func TestHitMap_ConcurrentAccess(t *testing.T) {
 				case 1:
 					// FindByID
 					nodeID := fmt.Sprintf("node-%d", j%100)
-					hitMap.FindByID(nodeID)
+					hitMap.FindByID(stringToNodeID(nodeID))
 
 				case 2:
 					// FindAllAt
@@ -351,7 +351,7 @@ func TestHitMap_DeepNesting(t *testing.T) {
 	// 验证每一层都能找到
 	for i := 0; i <= depth; i++ {
 		nodeID := fmt.Sprintf("level-%d", i)
-		entry := hitMap.FindByID(nodeID)
+		entry := hitMap.FindByID(stringToNodeID(nodeID))
 		if entry == nil {
 			t.Errorf("Level %d not found in HitMap", i)
 		}
@@ -363,8 +363,8 @@ func TestHitMap_DeepNesting(t *testing.T) {
 		t.Error("Expected to hit something in deeply nested structure")
 	} else {
 		// 应该命中最内层的节点（最高 Z-order）
-		if entry.NodeID != fmt.Sprintf("level-%d", depth) {
-			t.Errorf("Expected to hit innermost node, got %s", entry.NodeID)
+		if entry.NodeID != stringToNodeID(fmt.Sprintf("level-%d", depth)) {
+			t.Errorf("Expected to hit innermost node, got %d", entry.NodeID)
 		}
 	}
 }
@@ -419,8 +419,8 @@ func TestHitMap_OverlappingNodes(t *testing.T) {
 			t.Fatal("Expected to hit something")
 		}
 		// 应该命中 node2（更高 Z-order）
-		if entry.NodeID != "node2" {
-			t.Errorf("Expected node2 (higher Z-order), got %s", entry.NodeID)
+		if entry.NodeID != stringToNodeID("node2") {
+			t.Errorf("Expected node2 (higher Z-order), got %d", entry.NodeID)
 		}
 	})
 
@@ -431,8 +431,8 @@ func TestHitMap_OverlappingNodes(t *testing.T) {
 			t.Fatal("Expected to hit something")
 		}
 		// 应该命中 node3（更高 Z-order）
-		if entry.NodeID != "node3" {
-			t.Errorf("Expected node3 (higher Z-order), got %s", entry.NodeID)
+		if entry.NodeID != stringToNodeID("node3") {
+			t.Errorf("Expected node3 (higher Z-order), got %d", entry.NodeID)
 		}
 	})
 
@@ -443,8 +443,8 @@ func TestHitMap_OverlappingNodes(t *testing.T) {
 			t.Fatal("Expected to hit something")
 		}
 		// 应该命中 node3（最高 Z-order）
-		if entry.NodeID != "node3" {
-			t.Errorf("Expected node3 (highest Z-order), got %s", entry.NodeID)
+		if entry.NodeID != stringToNodeID("node3") {
+			t.Errorf("Expected node3 (highest Z-order), got %d", entry.NodeID)
 		}
 	})
 
@@ -454,8 +454,8 @@ func TestHitMap_OverlappingNodes(t *testing.T) {
 		if entry == nil {
 			t.Fatal("Expected to hit something")
 		}
-		if entry.NodeID != "node1" {
-			t.Errorf("Expected node1, got %s", entry.NodeID)
+		if entry.NodeID != stringToNodeID("node1") {
+			t.Errorf("Expected node1, got %d", entry.NodeID)
 		}
 	})
 }
@@ -529,7 +529,7 @@ func TestHitMap_EmptyChildren(t *testing.T) {
 	}
 
 	entry := hitMap.HitTest(25, 25)
-	if entry == nil || entry.NodeID != "leaf" {
+	if entry == nil || entry.NodeID != stringToNodeID("leaf") {
 		t.Error("Should hit leaf node")
 	}
 }
@@ -568,11 +568,11 @@ func TestHitMap_MultipleRoots(t *testing.T) {
 	}
 
 	// 验证各自的范围
-	if entry := hitMap1.HitTest(50, 50); entry == nil || entry.NodeID != "root1" {
+	if entry := hitMap1.HitTest(50, 50); entry == nil || entry.NodeID != stringToNodeID("root1") {
 		t.Error("hitMap1 should find root1")
 	}
 
-	if entry := hitMap2.HitTest(150, 50); entry == nil || entry.NodeID != "root2" {
+	if entry := hitMap2.HitTest(150, 50); entry == nil || entry.NodeID != stringToNodeID("root2") {
 		t.Error("hitMap2 should find root2")
 	}
 
@@ -651,7 +651,7 @@ func TestHitMap_LocalXY_EdgeCases(t *testing.T) {
 			}
 
 			hitMap := BuildHitMap(node)
-			entry := hitMap.FindByID("test")
+			entry := hitMap.FindByID(stringToNodeID("test"))
 
 			if entry == nil {
 				t.Fatal("Node not found in HitMap")
@@ -707,15 +707,15 @@ func TestHitMap_FindAllAt_SeveralOverlaps(t *testing.T) {
 
 	// 验证结果按 Z-order 排序（从低到高）
 	// root 的 Z-order 是 0（最低），所以应该在最前面
-	if results[0].NodeID != "root" {
-		t.Errorf("Result[0] should be root (lowest Z-order), got %s", results[0].NodeID)
+	if results[0].NodeID != stringToNodeID("root") {
+		t.Errorf("Result[0] should be root (lowest Z-order), got %d", results[0].NodeID)
 	}
 
 	// 其余节点按照添加顺序（Z-order 递增）
 	for i := 0; i < overlapCount; i++ {
 		expectedID := fmt.Sprintf("node-%d", i)
-		if results[i+1].NodeID != expectedID {
-			t.Errorf("Result[%d] should be %s, got %s", i+1, expectedID, results[i+1].NodeID)
+		if results[i+1].NodeID != stringToNodeID(expectedID) {
+			t.Errorf("Result[%d] should be %s, got %d", i+1, expectedID, results[i+1].NodeID)
 		}
 	}
 }
@@ -806,8 +806,8 @@ func TestHitMap_HitTestDetailed_Comprehensive(t *testing.T) {
 					t.Fatal("Expected non-nil Entry when Found=true")
 				}
 
-				if result.Entry.NodeID != tt.expectedTarget {
-					t.Errorf("Target: got %s, want %s", result.Entry.NodeID, tt.expectedTarget)
+				if result.Entry.NodeID != stringToNodeID(tt.expectedTarget) {
+					t.Errorf("Target: got %d, want %s", result.Entry.NodeID, tt.expectedTarget)
 				}
 
 				if result.LocalX != tt.expectedLocalX || result.LocalY != tt.expectedLocalY {

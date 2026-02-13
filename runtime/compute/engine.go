@@ -1511,15 +1511,13 @@ func (e *Engine) buildHitMapFromComputedBoxes(root *ComputedBox) *event.HitMap {
 			return
 		}
 
-		// Get node ID
-		nodeID := ""
-		if box.VNode != nil {
+		// Get NodeID from ComputedBox (now has uint64 NodeID field)
+		// Fallback to string key conversion for compatibility during transition
+		nodeID := box.NodeID
+		if nodeID == 0 && box.VNode != nil {
+			// Convert VNode key to NodeID using hash for compatibility
 			if key := box.VNode.Key(); key != "" {
-				nodeID = key
-			} else if tagger, ok := box.VNode.(interface{ Tag() string }); ok {
-				nodeID = tagger.Tag()
-			} else {
-				nodeID = box.VNode.Type().String()
+				nodeID = event.StringToNodeID(key)
 			}
 		}
 

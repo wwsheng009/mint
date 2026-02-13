@@ -1859,7 +1859,7 @@ func (a *App) enrichHitMapWithInstances() {
 
 	// Convert result to map[string]ComponentInstance
 	instancesMap := instancesResult[0].Interface()
-	allInstances, ok := instancesMap.(map[string]rtui.ComponentInstance)
+	allInstances, ok := instancesMap.(map[uint64]rtui.ComponentInstance)
 	if !ok {
 		log.UILogger.Debug("[enrichHitMap] GetAllInstances result is not map[string]ComponentInstance, got %T", instancesMap)
 		return
@@ -1875,7 +1875,7 @@ func (a *App) enrichHitMapWithInstances() {
 	for i, entry := range entries {
 		nodeID := entry.NodeID
 		// Build instance key: "vnode:" + nodeID
-		instanceKey := "vnode:" + nodeID
+		instanceKey := nodeID
 
 		if compInst, exists := allInstances[instanceKey]; exists {
 			// Found matching ComponentInstance
@@ -1896,7 +1896,7 @@ func (a *App) enrichHitMapWithInstances() {
 
 	// Debug: Log all instance keys before enrichment
 	if os.Getenv("TUI_DEBUG_HITMAP") == "true" {
-		var keys []string
+		var keys []uint64
 		for k := range allInstances {
 			keys = append(keys, k)
 		}

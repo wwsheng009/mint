@@ -60,7 +60,7 @@ func (h *HitMap) Compact() {
 		if entry.Bounds.Width <= 0 || entry.Bounds.Height <= 0 {
 			continue
 		}
-		if entry.NodeID == "" {
+		if entry.NodeID == 0 {
 			continue
 		}
 		validEntries = append(validEntries, entry)

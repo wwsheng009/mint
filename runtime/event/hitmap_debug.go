@@ -36,7 +36,7 @@ func (d *DebugHitMap) Dump() string {
 	builder.WriteString("\n")
 
 	for i, entry := range d.hitMap.entries {
-		builder.WriteString(fmt.Sprintf("[%d] ID: %s\n", i, entry.NodeID))
+		builder.WriteString(fmt.Sprintf("[%d] ID: %d\n", i, entry.NodeID))
 		builder.WriteString(fmt.Sprintf("     Bounds: (%d, %d) - (%d, %d)\n",
 			entry.Bounds.X, entry.Bounds.Y,
 			entry.Bounds.X+entry.Bounds.Width,
@@ -74,10 +74,12 @@ func (d *DebugHitMap) Visualize() string {
 
 	// 在网格上绘制 HitMapEntry
 	for _, entry := range d.hitMap.entries {
-		// 使用 ID 的首字符作为标记
+		// 使用 ID 的数字的最后一位作为标记
 		marker := "?"
-		if len(entry.NodeID) > 0 {
-			marker = string(entry.NodeID[0])
+		if entry.NodeID > 0 {
+			// 使用 ID 的最后一位数字 (0-9) 作为标记
+			lastDigit := entry.NodeID % 10
+			marker = string('0' + rune(lastDigit))
 		}
 
 		// 绘制矩形边界
@@ -118,10 +120,12 @@ func (d *DebugHitMap) Visualize() string {
 	builder.WriteString("  ? - Unknown component\n")
 	seen := make(map[rune]bool)
 	for _, entry := range d.hitMap.entries {
-		if len(entry.NodeID) > 0 {
-			marker := rune(entry.NodeID[0])
+		if entry.NodeID > 0 {
+			// 使用 ID 的最后一位数字作为标记
+			lastDigit := entry.NodeID % 10
+			marker := rune('0' + lastDigit)
 			if !seen[marker] {
-				builder.WriteString(fmt.Sprintf("  %c - %s\n", marker, entry.NodeID))
+				builder.WriteString(fmt.Sprintf("  %c - %d\n", marker, entry.NodeID))
 				seen[marker] = true
 			}
 		}
@@ -224,13 +228,13 @@ func (d *DebugHitMap) Validate() []string {
 	for i, entry := range d.hitMap.entries {
 		// 检查零大小
 		if entry.Bounds.Width <= 0 || entry.Bounds.Height <= 0 {
-			issues = append(issues, fmt.Sprintf("[%d] %s has zero or negative size: %dx%d",
+			issues = append(issues, fmt.Sprintf("[%d] %d has zero or negative size: %dx%d",
 				i, entry.NodeID, entry.Bounds.Width, entry.Bounds.Height))
 		}
 
 		// 检查负坐标
 		if entry.Bounds.X < 0 || entry.Bounds.Y < 0 {
-			issues = append(issues, fmt.Sprintf("[%d] %s has negative coordinates: (%d, %d)",
+			issues = append(issues, fmt.Sprintf("[%d] %d has negative coordinates: (%d, %d)",
 				i, entry.NodeID, entry.Bounds.X, entry.Bounds.Y))
 		}
 
@@ -239,7 +243,7 @@ func (d *DebugHitMap) Validate() []string {
 			other := d.hitMap.entries[j]
 			if entry.ZOrder == other.ZOrder {
 				if d.entriesOverlap(entry, other) {
-					issues = append(issues, fmt.Sprintf("[%d] %s overlaps with [%d] %s at Z-order %d",
+					issues = append(issues, fmt.Sprintf("[%d] %d overlaps with [%d] %d at Z-order %d",
 						i, entry.NodeID, j, other.NodeID, entry.ZOrder))
 				}
 			}

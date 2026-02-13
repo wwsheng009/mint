@@ -4,6 +4,7 @@ import (
 	"sort"
 
 	"github.com/wwsheng009/mint/runtime"
+	"github.com/wwsheng009/mint/runtime/event"
 )
 
 // Router 实现 Action 的三阶段分发系统
@@ -28,7 +29,7 @@ type Router struct {
 	BubbleHandlers []*BubbleHandlerEntry
 
 	// TargetHandlers 是特定目标的处理器映射（按 targetID 索引）
-	TargetHandlers map[string]*TargetHandlerEntry
+	TargetHandlers map[uint64]*TargetHandlerEntry
 }
 
 // CaptureHandlerEntry 表示一个捕获阶段的处理器
@@ -47,7 +48,7 @@ type BubbleHandlerEntry struct {
 // TargetHandlerEntry 表示一个目标处理器
 type TargetHandlerEntry struct {
 	Handler ActionTarget // 目标组件
-	TargetID string      // 目标 ID
+	TargetID uint64      // 目标 ID（现在使用 uint64）
 }
 
 // CaptureActionHandler 是捕获阶段的处理器接口
@@ -121,7 +122,7 @@ func NewRouter(root *runtime.LayoutNode) *Router {
 		Root:            root,
 		CaptureHandlers: make([]*CaptureHandlerEntry, 0),
 		BubbleHandlers:  make([]*BubbleHandlerEntry, 0),
-		TargetHandlers:  make(map[string]*TargetHandlerEntry),
+		TargetHandlers:  make(map[uint64]*TargetHandlerEntry),
 	}
 }
 
@@ -151,7 +152,7 @@ func (r *Router) AddBubbleHandler(handler BubbleActionHandler, id string) {
 
 // RegisterTarget 注册目标处理器
 // 通常由组件树遍历时自动调用
-func (r *Router) RegisterTarget(targetID string, handler ActionTarget) {
+func (r *Router) RegisterTarget(targetID uint64, handler ActionTarget) {
 	r.TargetHandlers[targetID] = &TargetHandlerEntry{
 		Handler:  handler,
 		TargetID: targetID,
@@ -159,7 +160,7 @@ func (r *Router) RegisterTarget(targetID string, handler ActionTarget) {
 }
 
 // UnregisterTarget 注销目标处理器
-func (r *Router) UnregisterTarget(targetID string) {
+func (r *Router) UnregisterTarget(targetID uint64) {
 	delete(r.TargetHandlers, targetID)
 }
 
@@ -212,7 +213,7 @@ func (r *Router) GetBubbleHandlers() []*BubbleHandlerEntry {
 }
 
 // GetTargetHandlers 获取所有目标处理器
-func (r *Router) GetTargetHandlers() map[string]*TargetHandlerEntry {
+func (r *Router) GetTargetHandlers() map[uint64]*TargetHandlerEntry {
 	return r.TargetHandlers
 }
 
@@ -232,7 +233,7 @@ func (r *Router) Dispatch(act *Action) *RouterResult {
 
 	// 如果有 TargetID，先找到目标节点
 	var targetNode *runtime.LayoutNode
-	if act.TargetID != "" {
+	if act.TargetID != 0 {
 		targetNode = r.findNodeByID(act.TargetID)
 		if targetNode == nil {
 			// 目标不存在，仍然执行 Capture 和 Bubble
@@ -290,7 +291,7 @@ func (r *Router) targetPhase(act *Action, target *runtime.LayoutNode, result *Ro
 	result.Phase = ActionPhaseTarget
 
 	// 如果没有 TargetID，跳过目标阶段
-	if act.TargetID == "" {
+	if act.TargetID == 0 {
 		return false
 	}
 
@@ -359,7 +360,7 @@ func (r *Router) bubblePhase(act *Action, target *runtime.LayoutNode, result *Ro
 }
 
 // findNodeByID 根据 ID 查找节点
-func (r *Router) findNodeByID(id string) *runtime.LayoutNode {
+func (r *Router) findNodeByID(id uint64) *runtime.LayoutNode {
 	if r.Root == nil {
 		return nil
 	}
@@ -368,13 +369,14 @@ func (r *Router) findNodeByID(id string) *runtime.LayoutNode {
 }
 
 // findNodeRecursive 递归查找节点
-func (r *Router) findNodeRecursive(node *runtime.LayoutNode, id string) *runtime.LayoutNode {
+func (r *Router) findNodeRecursive(node *runtime.LayoutNode, id uint64) *runtime.LayoutNode {
 	if node == nil {
 		return nil
 	}
 
-	// 检查当前节点
-	if node.ID == id {
+	// 将节点 ID 字符串转换为 uint64 进行比较
+	nodeID := r.stringToNodeID(node.ID)
+	if nodeID == id {
 		return node
 	}
 
@@ -396,7 +398,7 @@ func (r *Router) BuildTargetRegistry() {
 	}
 
 	// 清空现有注册表
-	r.TargetHandlers = make(map[string]*TargetHandlerEntry)
+	r.TargetHandlers = make(map[uint64]*TargetHandlerEntry)
 
 	// 递归注册所有节点
 	r.registerNodeRecursive(r.Root)
@@ -412,7 +414,8 @@ func (r *Router) registerNodeRecursive(node *runtime.LayoutNode) {
 	if node.Component != nil && node.Component.Instance != nil {
 		if target, ok := node.Component.Instance.(ActionTarget); ok {
 			if node.ID != "" {
-				r.RegisterTarget(node.ID, target)
+				nodeID := r.stringToNodeID(node.ID)
+				r.RegisterTarget(nodeID, target)
 			}
 		}
 	}
@@ -421,4 +424,14 @@ func (r *Router) registerNodeRecursive(node *runtime.LayoutNode) {
 	for _, child := range node.Children {
 		r.registerNodeRecursive(child)
 	}
+}
+
+// stringToNodeID 将字符串 ID 转换为 uint64 NodeID
+// 使用与 runtime/event 包相同的 FNV-1a 哈希算法
+func (r *Router) stringToNodeID(id string) uint64 {
+	if id == "" {
+		return 0
+	}
+	// 使用 runtime/event 包的转换函数以确保一致性
+	return event.StringToNodeID(id)
 }

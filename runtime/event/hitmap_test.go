@@ -1,6 +1,7 @@
 package event
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/wwsheng009/mint/runtime/layout"
@@ -95,7 +96,7 @@ func TestHitMap_Build(t *testing.T) {
 	}
 
 	// 验证根节点
-	rootEntry := hitMap.FindByID("root")
+	rootEntry := hitMap.FindByID(stringToNodeID("root"))
 	if rootEntry == nil {
 		t.Fatal("root entry not found")
 	}
@@ -116,7 +117,7 @@ func TestHitMap_Build(t *testing.T) {
 	}
 
 	// 验证子节点
-	child1Entry := hitMap.FindByID("child1")
+	child1Entry := hitMap.FindByID(stringToNodeID("child1"))
 	if child1Entry == nil {
 		t.Fatal("child1 entry not found")
 	}
@@ -125,7 +126,7 @@ func TestHitMap_Build(t *testing.T) {
 		t.Errorf("child1 ZOrder should be 1, got %d", child1Entry.ZOrder)
 	}
 
-	grandchild1Entry := hitMap.FindByID("grandchild1")
+	grandchild1Entry := hitMap.FindByID(stringToNodeID("grandchild1"))
 	if grandchild1Entry == nil {
 		t.Fatal("grandchild1 entry not found")
 	}
@@ -169,8 +170,8 @@ func TestHitMap_HitTest(t *testing.T) {
 
 		// 由于 child 的 Z-order 更高，会命中 child 而不是 root
 		// 这才是正确的行为
-		if entry.NodeID != "child" {
-			t.Errorf("Expected child (higher Z-order), got %s", entry.NodeID)
+		if entry.NodeID != stringToNodeID("child") {
+			t.Errorf("Expected child (higher Z-order), got %d", entry.NodeID)
 		}
 	})
 
@@ -182,8 +183,8 @@ func TestHitMap_HitTest(t *testing.T) {
 			return
 		}
 
-		if entry.NodeID != "child" {
-			t.Errorf("Expected child, got %s", entry.NodeID)
+		if entry.NodeID != stringToNodeID("child") {
+			t.Errorf("Expected child, got %d", entry.NodeID)
 		}
 	})
 
@@ -191,7 +192,7 @@ func TestHitMap_HitTest(t *testing.T) {
 	t.Run("Miss", func(t *testing.T) {
 		entry := hitMap.HitTest(100, 100)
 		if entry != nil {
-			t.Errorf("Expected nil (miss), got %s", entry.NodeID)
+			t.Errorf("Expected nil (miss), got %d", entry.NodeID)
 		}
 	})
 
@@ -200,13 +201,13 @@ func TestHitMap_HitTest(t *testing.T) {
 		// child 的边界是 (10,10) 到 (40,30)
 		// 测试左上角
 		entry := hitMap.HitTest(10, 10)
-		if entry == nil || entry.NodeID != "child" {
+		if entry == nil || entry.NodeID != stringToNodeID("child") {
 			t.Error("Boundary point (10,10) should hit child")
 		}
 
 		// 测试右下角
 		entry = hitMap.HitTest(39, 29)
-		if entry == nil || entry.NodeID != "child" {
+		if entry == nil || entry.NodeID != stringToNodeID("child") {
 			t.Error("Boundary point (39,29) should hit child")
 		}
 	})
@@ -254,8 +255,8 @@ func TestHitMap_ZOrder(t *testing.T) {
 			t.Fatal("Expected to hit something, but got nil")
 		}
 
-		if entry.NodeID != "child2" {
-			t.Errorf("Expected child2 (higher Z-order), got %s", entry.NodeID)
+		if entry.NodeID != stringToNodeID("child2") {
+			t.Errorf("Expected child2 (higher Z-order), got %d", entry.NodeID)
 		}
 	})
 }
@@ -275,7 +276,7 @@ func TestHitMap_FindByID(t *testing.T) {
 
 	// 测试查找存在的节点
 	t.Run("Found", func(t *testing.T) {
-		entry := hitMap.FindByID("test-node")
+		entry := hitMap.FindByID(stringToNodeID("test-node"))
 		if entry == nil {
 			t.Fatal("Expected to find test-node")
 		}
@@ -288,7 +289,7 @@ func TestHitMap_FindByID(t *testing.T) {
 
 	// 测试查找不存在的节点
 	t.Run("NotFound", func(t *testing.T) {
-		entry := hitMap.FindByID("non-existent")
+		entry := hitMap.FindByID(stringToNodeID("non-existent"))
 		if entry != nil {
 			t.Errorf("Expected nil for non-existent node, got %v", entry)
 		}
@@ -308,7 +309,7 @@ func TestHitMap_LocalXY(t *testing.T) {
 	}
 
 	hitMap := BuildHitMap(node)
-	entry := hitMap.FindByID("test-node")
+	entry := hitMap.FindByID(stringToNodeID("test-node"))
 
 	if entry == nil {
 		t.Fatal("test-node not found in HitMap")
@@ -372,12 +373,12 @@ func TestHitMap_FindAllAt(t *testing.T) {
 		}
 
 		// 结果应该按 Z-order 排序
-		if results[0].NodeID != "outer" {
-			t.Errorf("First result should be outer, got %s", results[0].NodeID)
+		if results[0].NodeID != stringToNodeID("outer") {
+			t.Errorf("First result should be outer, got %d", results[0].NodeID)
 		}
 
-		if results[1].NodeID != "inner" {
-			t.Errorf("Second result should be inner, got %s", results[1].NodeID)
+		if results[1].NodeID != stringToNodeID("inner") {
+			t.Errorf("Second result should be inner, got %d", results[1].NodeID)
 		}
 	})
 }
@@ -407,8 +408,8 @@ func TestHitMap_DetailedHitTest(t *testing.T) {
 			t.Fatal("Expected non-nil Entry")
 		}
 
-		if result.Entry.NodeID != "test-node" {
-			t.Errorf("Expected test-node, got %s", result.Entry.NodeID)
+		if result.Entry.NodeID != stringToNodeID("test-node") {
+			t.Errorf("Expected test-node, got %d", result.Entry.NodeID)
 		}
 
 		// 验证局部坐标
@@ -467,12 +468,12 @@ func TestHitMap_InvalidNodes(t *testing.T) {
 	hitMap := BuildHitMap(root)
 
 	// 无效节点不应该被包含在 HitMap 中
-	if entry := hitMap.FindByID("invalid-child"); entry != nil {
+	if entry := hitMap.FindByID(stringToNodeID("invalid-child")); entry != nil {
 		t.Error("Invalid node should not be in HitMap")
 	}
 
 	// 有效节点应该被包含
-	if entry := hitMap.FindByID("valid-child"); entry == nil {
+	if entry := hitMap.FindByID(stringToNodeID("valid-child")); entry == nil {
 		t.Error("Valid node should be in HitMap")
 	}
 
@@ -517,10 +518,13 @@ func TestHitMap_Dump(t *testing.T) {
 		t.Error("Dump should not be empty")
 	}
 
+	// 计算预期的 NodeID (hash of "test-node")
+	expectedNodeID := stringToNodeID("test-node")
+
 	// 验证关键信息存在
 	requiredStrings := []string{
 		"=== HitMap ===",
-		"test-node",
+		fmt.Sprintf("%d", expectedNodeID), // NodeID 现在是数字
 		"{5 10 20 15}",  // Rect 格式: {X Y Width Height}
 		"Z:0",
 	}

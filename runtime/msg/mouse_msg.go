@@ -24,7 +24,7 @@ type MouseMsg struct {
 	LocalX, LocalY int
 
 	// TargetID 是目标组件的 ID（来自 HitMap）
-	TargetID string
+	TargetID uint64
 
 	// TargetInstance 是目标组件实例的直接引用（新架构）
 	// 根据 fix1.md：事件链条为 HitMap → LayoutNode → Instance → Handler
@@ -81,7 +81,7 @@ func NewMouseMsg(x, y int, button MouseButton, action MouseAction) *MouseMsg {
 }
 
 // NewMouseMsgWithTarget 创建带有目标信息的鼠标消息
-func NewMouseMsgWithTarget(x, y, localX, localY int, targetID string, button MouseButton, action MouseAction) *MouseMsg {
+func NewMouseMsgWithTarget(x, y, localX, localY int, targetID uint64, button MouseButton, action MouseAction) *MouseMsg {
 	return &MouseMsg{
 		BaseMsg: BaseMsg{
 			TypeValue:      MsgTypeMouse,
@@ -148,7 +148,7 @@ func (m *MouseMsg) IsRelease() bool {
 
 // HasTarget 检查是否有目标组件（通过 HitMap 命中）
 func (m *MouseMsg) HasTarget() bool {
-	return m.TargetID != ""
+	return m.TargetID != 0
 }
 
 // GetPosition 返回鼠标的全局位置

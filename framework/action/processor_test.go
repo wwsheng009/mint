@@ -226,7 +226,7 @@ func TestInputProcessor_ProcessMouseEvent_Click(t *testing.T) {
 			mouseMsg := runtimemsg.NewMouseMsgWithTarget(
 				10, 20, // 全局坐标
 				10, 20, // 本地坐标
-				"button-1",
+				12345, // targetID as uint64
 				tt.button,
 				runtimemsg.MouseActionPress,
 			)
@@ -240,8 +240,8 @@ func TestInputProcessor_ProcessMouseEvent_Click(t *testing.T) {
 				t.Errorf("Type = %v, want %v", action.Type, tt.expected)
 			}
 
-			if action.TargetID != "button-1" {
-				t.Errorf("TargetID = %q, want %q", action.TargetID, "button-1")
+			if action.TargetID != 12345 {
+				t.Errorf("TargetID = %d, want %d", action.TargetID, 12345)
 			}
 
 			x, y, ok := action.GetPayloadPoint()
@@ -267,7 +267,7 @@ func TestInputProcessor_ProcessMouseEvent_Hover(t *testing.T) {
 	mouseMsg := runtimemsg.NewMouseMsgWithTarget(
 		5, 15, // 全局坐标
 		5, 15, // 本地坐标
-		"list-item",
+		54321, // targetID as uint64
 		runtimemsg.MouseButtonUnknown,
 		runtimemsg.MouseActionMove,
 	)
@@ -281,8 +281,8 @@ func TestInputProcessor_ProcessMouseEvent_Hover(t *testing.T) {
 		t.Errorf("Type = %v, want %v", action.Type, ActionHover)
 	}
 
-	if action.TargetID != "list-item" {
-		t.Errorf("TargetID = %q, want %q", action.TargetID, "list-item")
+	if action.TargetID != 54321 {
+		t.Errorf("TargetID = %d, want %d", action.TargetID, 54321)
 	}
 }
 
@@ -305,7 +305,7 @@ func TestInputProcessor_ProcessMouseEvent_Scroll(t *testing.T) {
 				tt.delta,
 				runtimemsg.MouseActionWheel,
 			)
-			mouseMsg.TargetID = "list-1"
+			mouseMsg.TargetID = 99999 // targetID as uint64
 
 			action := processor.ProcessMsg(mouseMsg)
 			if action == nil {
@@ -335,7 +335,7 @@ func TestInputProcessor_ProcessMouseEvent_NoTarget(t *testing.T) {
 	mouseMsg := runtimemsg.NewMouseMsgWithTarget(
 		10, 20, // 全局坐标
 		10, 20, // 本地坐标
-		"", // 空目标
+		0, // 空目标 (uint64 0)
 		runtimemsg.MouseLeft,
 		runtimemsg.MouseActionPress,
 	)

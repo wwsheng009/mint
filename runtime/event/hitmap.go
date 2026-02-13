@@ -2,6 +2,7 @@ package event
 
 import (
 	"fmt"
+	"hash/fnv"
 	"sort"
 	"strings"
 	"time"
@@ -28,11 +29,30 @@ type MsgHandler interface {
 	Handle(msg interface{}) interface{}
 }
 
+// StringToNodeID 将字符串 ID 转换为 uint64 NodeID
+// 使用 FNV-1a 哈希算法确保字符串 ID 能稳定映射到 uint64
+// 导出的版本供外部包使用
+func StringToNodeID(id string) uint64 {
+	if id == "" {
+		return 0
+	}
+	h := fnv.New64a()
+	h.Write([]byte(id))
+	return h.Sum64()
+}
+
+// stringToNodeID 将字符串 ID 转换为 uint64 NodeID
+// 使用 FNV-1a 哈希算法确保字符串 ID 能稳定映射到 uint64
+// 内部使用的版本（调用导出版本）
+func stringToNodeID(id string) uint64 {
+	return StringToNodeID(id)
+}
+
 // HitMapEntry 命中条目
 // 表示布局树中的一个节点及其边界信息
 type HitMapEntry struct {
-	// NodeID 节点唯一标识
-	NodeID string
+	// NodeID 节点唯一标识（新架构）
+	NodeID uint64
 
 	// Node 布局节点引用
 	Node layout.Node
@@ -61,7 +81,7 @@ type HitMapEntry struct {
 
 // String 返回调试字符串
 func (e *HitMapEntry) String() string {
-	return fmt.Sprintf("HitMapEntry{ID:%s, Bounds:%v, Z:%d}",
+	return fmt.Sprintf("HitMapEntry{ID:%d, Bounds:%v, Z:%d}",
 		e.NodeID, e.Bounds, e.ZOrder)
 }
 
@@ -167,7 +187,7 @@ func (hm *HitMap) walkAndBuild(node layout.Node, zOrder int) {
 
 	// 创建命中条目
 	entry := HitMapEntry{
-		NodeID: node.ID(),
+		NodeID: stringToNodeID(node.ID()),
 		Node:   node,
 		Bounds: layout.Rect{
 			X:      x,
@@ -233,7 +253,7 @@ func (hm *HitMap) HitTest(x, y int) *HitMapEntry {
 //
 // 返回：
 //   *HitMapEntry - 找到的条目，如果未找到返回 nil
-func (hm *HitMap) FindByID(id string) *HitMapEntry {
+func (hm *HitMap) FindByID(id uint64) *HitMapEntry {
 	for i := range hm.entries {
 		if hm.entries[i].NodeID == id {
 			return &hm.entries[i]
@@ -303,7 +323,7 @@ func NewHitMap() *HitMap {
 // HitMapEntryInternal is an internal representation for building HitMap from external sources
 // This allows external packages to build HitMap without accessing unexported fields
 type HitMapEntryInternal struct {
-	NodeID  string
+	NodeID  uint64   // ✨ NodeID for stable runtime identity
 	Node    layout.Node
 	Bounds  layout.Rect
 	LocalXY func(screenX, screenY int) (int, int)
@@ -347,7 +367,7 @@ func (hm *HitMap) Dump() string {
 	buf.WriteString(fmt.Sprintf("Entries: %d\n\n", len(hm.entries)))
 
 	for _, entry := range hm.entries {
-		buf.WriteString(fmt.Sprintf("[%s] %v (Z:%d)\n",
+		buf.WriteString(fmt.Sprintf("[%d] %v (Z:%d)\n",
 			entry.NodeID, entry.Bounds, entry.ZOrder))
 	}
 

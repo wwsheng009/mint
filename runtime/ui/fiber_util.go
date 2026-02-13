@@ -1,12 +1,26 @@
 package ui
 
-// =============================================================================
-// Fiber Creation
-// =============================================================================
-
 import (
 	"github.com/wwsheng009/mint/internal/log"
 )
+
+// =============================================================================
+// NodeID Generation
+// =============================================================================
+// Global ID allocator for NodeID generation
+var nodeIDGenerator uint64 = 0
+
+// generateNodeID generates a new unique NodeID
+// This provides stable runtime identity for Fiber nodes
+// See: docs/render/fiber/IDENTITY_REFACTORING_PLAN.md
+func generateNodeID() uint64 {
+	nodeIDGenerator++
+	return nodeIDGenerator
+}
+
+// =============================================================================
+// Fiber Creation
+// =============================================================================
 
 // CreateFiber creates a new fiber from a VNode
 func CreateFiber(vnode VNode) *Fiber {
@@ -35,7 +49,7 @@ func CreateFiber(vnode VNode) *Fiber {
 				actualType = "ComponentWithElement"
 			}
 		}
-		log.RenderLogger.Debug("[CREATEFIBER] Type=%s Key=%s actualType=%s", vnodeType.String(), vnode.Key(), actualType)
+		log.HitMapLogger.Debug("[CREATEFIBER] Type=%s Key=%s actualType=%s", vnodeType.String(), vnode.Key(), actualType)
 	}
 
 	fiber := &Fiber{
@@ -44,10 +58,11 @@ func CreateFiber(vnode VNode) *Fiber {
 		Props:         vnode.Props(),
 		MemoizedProps: vnode.Props(),
 		Key:           vnode.Key(),
+		NodeID:         generateNodeID(), // ✨ Allocate unique NodeID
 		Lanes:         LaneNoLane,
 		ChildLanes:    LaneNoLane,
 		Flags:         EffectNoEffect,
-		SubtreeFlags:  EffectNoEffect,
+		SubtreeFlags: EffectNoEffect,
 	}
 
 	// Set tag based on type
@@ -115,7 +130,7 @@ func buildFiberTree(parentFiber *Fiber, parentVNode VNode) {
 // Fiber Tree Traversal
 // =============================================================================
 
-// WalkFiberDepthFirst walks the fiber tree in depth-first order
+// WalkFiberDepthFirst walks fiber tree in depth-first order
 // Uses iterative approach to avoid stack overflow on very deep trees
 func WalkFiberDepthFirst(root *Fiber, callback func(*Fiber) bool) bool {
 	if root == nil {
@@ -170,7 +185,7 @@ func WalkFiberDepthFirst(root *Fiber, callback func(*Fiber) bool) bool {
 	return true
 }
 
-// WalkFiberBreadthFirst walks the fiber tree in breadth-first order
+// WalkFiberBreadthFirst walks fiber tree in breadth-first order
 // Optimized to avoid slice allocation on each dequeue operation
 func WalkFiberBreadthFirst(root *Fiber, callback func(*Fiber) bool) bool {
 	if root == nil {
@@ -204,6 +219,7 @@ func WalkFiberBreadthFirst(root *Fiber, callback func(*Fiber) bool) bool {
 // =============================================================================
 
 // CloneFiber creates a shallow copy of a fiber
+// ✨ Preserves NodeID for stable runtime identity
 func CloneFiber(fiber *Fiber) *Fiber {
 	if fiber == nil {
 		return nil
@@ -214,6 +230,7 @@ func CloneFiber(fiber *Fiber) *Fiber {
 		Type:          fiber.Type,
 		Tag:           fiber.Tag,
 		Key:           fiber.Key,
+		NodeID:         fiber.NodeID, // ✨ Preserve NodeID for stable identity
 		Props:         fiber.Props,
 		MemoizedProps: fiber.MemoizedProps,
 		MemoizedState: fiber.MemoizedState,
@@ -222,7 +239,7 @@ func CloneFiber(fiber *Fiber) *Fiber {
 		Sibling:       fiber.Sibling,
 		Alternate:     fiber.Alternate,
 		// Don't share UpdateQueue - cloned fiber gets its own empty queue
-		// This prevents updates to the clone from affecting the original
+		// This prevents updates to clone from affecting original
 		UpdateQueue:   nil,
 		Flags:         fiber.Flags,
 		SubtreeFlags:  fiber.SubtreeFlags,
@@ -235,10 +252,9 @@ func CloneFiber(fiber *Fiber) *Fiber {
 // Fiber Tree Utilities
 // =============================================================================
 
-// FindFiberByKey searches for a fiber with the given key in the subtree
+// FindFiberByKey searches for a fiber with a given key in subtree
 func FindFiberByKey(root *Fiber, key string) *Fiber {
 	var result *Fiber
-
 	WalkFiberDepthFirst(root, func(fiber *Fiber) bool {
 		if fiber.Key == key {
 			result = fiber
@@ -246,23 +262,20 @@ func FindFiberByKey(root *Fiber, key string) *Fiber {
 		}
 		return true
 	})
-
 	return result
 }
 
-// CountFibers counts all fibers in the tree
+// CountFibers counts all fibers in tree
 func CountFibers(root *Fiber) int {
 	count := 0
-
 	WalkFiberDepthFirst(root, func(_ *Fiber) bool {
 		count++
 		return true
 	})
-
 	return count
 }
 
-// GetFiberDepth returns the depth of a fiber in the tree
+// GetFiberDepth returns depth of a fiber in tree
 func GetFiberDepth(fiber *Fiber) int {
 	depth := 0
 	for p := fiber.Return; p != nil; p = p.Return {
@@ -274,13 +287,11 @@ func GetFiberDepth(fiber *Fiber) int {
 // CollectFibersWithFlags collects all fibers with specific flags
 func CollectFibersWithFlags(root *Fiber, flags EffectFlag) []*Fiber {
 	var result []*Fiber
-
 	WalkFiberDepthFirst(root, func(fiber *Fiber) bool {
 		if (fiber.Flags & flags) != 0 {
 			result = append(result, fiber)
 		}
 		return true
 	})
-
 	return result
 }

@@ -81,7 +81,7 @@ func BenchmarkHitMap_FindByID_100(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		nodeID := fmt.Sprintf("node-%d", i%100)
-		hitMap.FindByID(nodeID)
+		hitMap.FindByID(stringToNodeID(nodeID))
 	}
 }
 
@@ -94,7 +94,7 @@ func BenchmarkHitMap_FindByID_1000(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		nodeID := fmt.Sprintf("node-%d", i%1000)
-		hitMap.FindByID(nodeID)
+		hitMap.FindByID(stringToNodeID(nodeID))
 	}
 }
 
@@ -138,7 +138,7 @@ func BenchmarkHitMap_LocalXY(b *testing.B) {
 	}
 
 	hitMap := BuildHitMap(node)
-	entry := hitMap.FindByID("test")
+	entry := hitMap.FindByID(stringToNodeID("test"))
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
