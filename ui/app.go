@@ -86,7 +86,7 @@ func Run(app ComponentFunc, opts ...Option) error {
 		FPS:    60,
 	}
 
-	if os.Getenv("TUI_DEBUG_UI") == "true" {
+	if log.UILogger.Enabled() {
 		log.UILogger.Debug("ui.Run: Starting")
 	}
 
@@ -103,7 +103,7 @@ func Run(app ComponentFunc, opts ...Option) error {
 	}
 
 	// Create the framework app
-	if os.Getenv("TUI_DEBUG_UI") == "true" {
+	if log.UILogger.Enabled() {
 		log.UILogger.Debug("ui.Run: Creating framework app")
 	}
 	fwApp := framework.NewApp()
@@ -114,11 +114,11 @@ func Run(app ComponentFunc, opts ...Option) error {
 	appInstance = fwApp
 
 	// Initialize theme
-	if os.Getenv("TUI_DEBUG_UI") == "true" {
+	if log.UILogger.Enabled() {
 		log.UILogger.Debug("ui.Run: Initializing theme")
 	}
 	if err := fwApp.InitTheme("dark"); err != nil {
-		if os.Getenv("TUI_DEBUG_UI") == "true" {
+		if log.UILogger.Enabled() {
 			log.UILogger.Debug("Failed to initialize theme: %v", err)
 		}
 	}

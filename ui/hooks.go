@@ -92,7 +92,7 @@ func useState(initial interface{}) (interface{}, func(interface{})) {
 	// Get the current value to return
 	currentValue := hook.Value
 
-	if os.Getenv("TUI_DEBUG_UI") == "true" {
+	if log.UILogger.Enabled() {
 		log.UILogger.Debug("useState: componentID=%s, hookIndex=%d, value=%v, hook=%p, &ctx.Hooks[%d]=%p, &ctx=%p",
 			ctx.ComponentID, hookIndex, currentValue, hook, hookIndex, &ctx.Hooks[hookIndex], ctx)
 	}
@@ -100,14 +100,14 @@ func useState(initial interface{}) (interface{}, func(interface{})) {
 	// Create setter function that captures ctx and hookIndex (not the hook pointer)
 	// This ensures we always access the correct hook even if the slice is reallocated
 	setState := func(newValue interface{}) {
-		if os.Getenv("TUI_DEBUG_UI") == "true" {
+		if log.UILogger.Enabled() {
 			log.UILogger.Debug("setState BEFORE: componentID=%s, hookIndex=%d, value=%v, &ctx=%p, &ctx.Hooks=%p",
 				ctx.ComponentID, hookIndex, ctx.Hooks[hookIndex].Value, ctx, &ctx.Hooks)
 		}
 		// Use index to access hook - this is safe even if slice was reallocated
 		if hookIndex < len(ctx.Hooks) {
 			ctx.Hooks[hookIndex].Value = newValue
-			if os.Getenv("TUI_DEBUG_UI") == "true" {
+			if log.UILogger.Enabled() {
 				log.UILogger.Debug("setState AFTER: componentID=%s, hookIndex=%d, value=%v, &ctx=%p",
 					ctx.ComponentID, hookIndex, ctx.Hooks[hookIndex].Value, ctx)
 			}
@@ -197,12 +197,12 @@ func UseStateBool(initial bool) (bool, func(bool)) {
 // scheduleRender schedules a re-render by marking the app as dirty
 func scheduleRender(componentID string) {
 	// Access the global app instance to mark it dirty
-	if os.Getenv("TUI_DEBUG_UI") == "true" {
+	if log.UILogger.Enabled() {
 		log.UILogger.Debug("scheduleRender: componentID=%s, appInstance=%v", componentID, appInstance != nil)
 	}
 	if appInstance != nil {
 		appInstance.MarkDirty()
-		if os.Getenv("TUI_DEBUG_UI") == "true" {
+		if log.UILogger.Enabled() {
 			log.UILogger.Debug("scheduleRender: MarkDirty() called, state=%v", appInstance.GetState())
 		}
 	} else {
@@ -557,21 +557,6 @@ func DebugHooksState() string {
 	}
 
 	return sb.String()
-}
-
-// SetDebugLogger sets a function to receive debug callbacks
-var debugLogger func(string)
-
-// SetDebugLogger sets a debug logger function
-func SetDebugLogger(logger func(string)) {
-	debugLogger = logger
-}
-
-// logDebug sends a message to the debug logger if set
-func logDebug(format string, args ...interface{}) {
-	if debugLogger != nil {
-		debugLogger(fmt.Sprintf(format, args...))
-	}
 }
 
 // depsEqual compares two dependency arrays
