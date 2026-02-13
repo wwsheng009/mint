@@ -45,7 +45,7 @@ func main() {
 	globalInspector.Enable() // ALWAYS enable inspector (so F12 and buttons work)
 
 	// Enable verbose inspector output from environment
-	if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
+	if os.Getenv("TUI_DEBUG_INSPECTOR") == "true" {
 		fmt.Println("UI Inspector verbose mode enabled")
 	}
 
@@ -104,14 +104,14 @@ func RuntimeDemoWithInspectorOverlay() ui.VNode {
 	bufferUpdates, setBufferUpdates, _ := ui.UseStateInt(0)
 
 	// Debug: check inspector visibility before hook
-	if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
+	if os.Getenv("TUI_DEBUG_INSPECTOR") == "true" {
 		log.UILogger.Debug("[DEMO] globalInspector.IsVisible() = %v\n", globalInspector.IsVisible())
 	}
 
 	showInspector, setShowInspector := ui.UseStateBool(globalInspector.IsVisible())
 
 	// Debug: log state
-	if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
+	if os.Getenv("TUI_DEBUG_INSPECTOR") == "true" {
 		log.UILogger.Debug("[DEMO] showInspector (from hook) = %v\n", showInspector)
 	}
 
@@ -135,7 +135,7 @@ func RuntimeDemoWithInspectorOverlay() ui.VNode {
 	inspectorVisible := globalInspector.IsVisible()
 
 	// Debug: log visibility check
-	if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
+	if os.Getenv("TUI_DEBUG_INSPECTOR") == "true" {
 		log.UILogger.Debug("[DEMO] Inspector visible: %v (showInspector state: %v)\n",
 			inspectorVisible, showInspector)
 	}

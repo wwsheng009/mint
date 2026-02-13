@@ -402,7 +402,7 @@ func main() {
 export TUI_INSPECTOR=true
 
 # 启用详细日志
-export TUI_INSPECTOR_VERBOSE=true
+export TUI_DEBUG_INSPECTOR=true
 ```
 
 ### 代码配置

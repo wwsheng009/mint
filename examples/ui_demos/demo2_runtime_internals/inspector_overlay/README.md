@@ -103,7 +103,7 @@ go build -o demo2_inspector.exe main.go
 
 ```bash
 # 启用 Inspector 详细输出
-TUI_INSPECTOR_VERBOSE=true ./demo2_inspector.exe
+TUI_DEBUG_INSPECTOR=true ./demo2_inspector.exe
 
 # 移动面板时会看到：
 # [Inspector] Moved by (-2, 0) to (78, 5)
@@ -122,7 +122,7 @@ test.bat
 # 选择 5 - 完整诊断
 
 # 或手动命令
-TUI_DEBUG=true TUI_DEBUG_UI=true TUI_INSPECTOR_VERBOSE=true \
+TUI_DEBUG=true TUI_DEBUG_UI=true TUI_DEBUG_INSPECTOR=true \
 TUI_LAYER_DEBUG=true TUI_DEBUG_RENDERING=true \
 ./demo2_inspector.exe 2>&1 | tee demo2_debug.log
 ```
@@ -135,7 +135,7 @@ TUI_LAYER_DEBUG=true TUI_DEBUG_RENDERING=true \
 
 **诊断**:
 ```bash
-TUI_DEBUG=true TUI_INSPECTOR_VERBOSE=true ./demo2_inspector.exe
+TUI_DEBUG=true TUI_DEBUG_INSPECTOR=true ./demo2_inspector.exe
 ```
 
 **检查**: `[DEMO2] Inspector enabled: true`
@@ -147,7 +147,7 @@ TUI_DEBUG=true TUI_INSPECTOR_VERBOSE=true ./demo2_inspector.exe
 2. 确认使用 Alt+组合键（不是单独按 H/J/K/L）
 3. 查看调试输出：
    ```bash
-   TUI_INSPECTOR_VERBOSE=true ./demo2_inspector.exe
+   TUI_DEBUG_INSPECTOR=true ./demo2_inspector.exe
    ```
    应该看到：`[Inspector] Moved by (...) to (...)`
 
