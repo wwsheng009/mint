@@ -2,6 +2,7 @@
 package render
 
 import (
+	"github.com/wwsheng009/mint/internal/reconciler"
 	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/render"
@@ -266,5 +267,12 @@ func (r *PipelineRendererAdapter) GetRenderingPipeline() *RenderingPipeline {
 // This allows framework to register Inspector and other overlay hooks.
 func (r *PipelineRendererAdapter) GetHooks() *render.HookManager {
 	return r.pipeline.GetHooks()
+}
+
+// SetFiber sets the Fiber tree for NodeID propagation
+// Phase 8: Fiber to Layout Engine NodeID propagation
+// This method allows the reconciler to update the fiber reference in PipelineRenderer
+func (r *PipelineRendererAdapter) SetFiber(fiber *reconciler.Fiber) {
+	r.pipeline.fiber = fiber
 }
 

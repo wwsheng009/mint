@@ -1705,6 +1705,12 @@ func (a *fiberReconcilerAdapter) GetInstanceMgr() interface{} {
 	return a.r.GetInstanceManager()
 }
 
+// GetFiberRoot returns Fiber root from the underlying reconciler
+// Phase 8: Fiber to Layout Engine NodeID propagation
+func (a *fiberReconcilerAdapter) GetFiberRoot() *reconciler.Fiber {
+	return a.r.GetFiberRoot()
+}
+
 // newFiberReconciler creates a new Fiber reconciler for the given app and render function
 func newFiberReconciler(fwApp *framework.App, fn rtui.ComponentFunc) rtui.Reconciler {
 	// Create the actual reconciler from internal/reconciler
@@ -1862,6 +1868,48 @@ func (n *DeclarativeNode) GetHooks() *render.HookManager {
 	}
 
 	return nil
+}
+
+// GetFiberRoot returns the Fiber root from the Fiber reconciler
+// This allows the rendering pipeline to access the Fiber tree for NodeID propagation
+// Phase 8: Fiber to Layout Engine NodeID propagation
+func (n *DeclarativeNode) GetFiberRoot() *reconciler.Fiber {
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+
+	// Access the underlying reconciler to get Fiber root
+	if adapter, ok := n.reconciler.(*fiberReconcilerAdapter); ok {
+		return adapter.GetFiberRoot()
+	}
+
+	return nil
+}
+
+// RenderWithFiber renders with explicit Fiber tree for NodeID propagation
+// Phase 8: Entry point for DeclarativeNode Fiber-based rendering
+// This method wraps the renderer's RenderWithFiber, providing access to the Fiber tree
+//
+// Parameters:
+//   buffer: Paint buffer for rendering
+func (n *DeclarativeNode) RenderWithFiber(buffer *paint.Buffer) error {
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+
+	if n.reconciler == nil || n.renderer == nil {
+		// No reconciler or renderer - can't use Fiber-based rendering
+		log.RenderLogger.Debug("[RenderWithFiber] No reconciler or renderer available")
+		return fmt.Errorf("no reconciler or renderer for Fiber-based rendering")
+	}
+
+	// Get the renderer and call its RenderWithFiber method
+	// This allows NodeID propagation from Fiber tree to ComputedBox
+	if adapter, ok := n.renderer.(*PipelineRendererAdapter); ok {
+		return adapter.RenderWithFiber(n.root, buffer)
+	}
+
+	// Fallback for non-PipelineRenderer types
+	log.RenderLogger.Debug("[RenderWithFiber] No PipelineRendererAdapter available")
+	return fmt.Errorf("no PipelineRendererAdapter for Fiber-based rendering")
 }
 
 // GetInstanceManager returns the Fiber Reconciler's InstanceManager

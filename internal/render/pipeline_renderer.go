@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/wwsheng009/mint/internal/log"
+	"github.com/wwsheng009/mint/internal/reconciler"
 	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/layer"
 	"github.com/wwsheng009/mint/runtime/paint"
@@ -27,6 +28,7 @@ type PipelineRenderer struct {
 	layerMgr    *layer.Manager
 	layerEvents *layer.EventHandler
 	hooks       *render.HookManager
+	fiber       *reconciler.Fiber // Fiber tree for NodeID propagation
 	debug       bool
 }
 
@@ -82,15 +84,15 @@ func (r *PipelineRenderer) Render(vnode rtui.VNode, x, y int, buffer interface{}
 	if hasLayers {
 		// Use multi-layer rendering for modals, overlays, tooltips
 		log.RenderLogger.Debug("Using RenderLayers for multi-layer rendering")
-		err = r.pipeline.RenderLayers(vnode, constraints, buf)
+		err = r.pipeline.RenderLayers(vnode, r.fiber, constraints, buf)
 	} else {
 		// Use standard rendering for simple VNode trees
 		log.RenderLogger.Debug("Using standard Render")
-		err = r.pipeline.Render(vnode, constraints, buf)
+		err = r.pipeline.Render(vnode, r.fiber, constraints, buf)
 	}
 
 	if err != nil {
-		log.RenderLogger.Debug("❌ Render FAILED: %v, falling back to legacy", err)
+		log.RenderLogger.Debug("X[Render FAILED: %v, falling back to legacy", err)
 		// Fall back to legacy rendering if pipeline fails
 		return r.renderLegacy(vnode, x, y, buf)
 	}
@@ -203,9 +205,9 @@ func (r *PipelineRenderer) RenderWithConstraints(vnode rtui.VNode, layoutWidth, 
 
 	var err error
 	if hasLayers {
-		err = r.pipeline.RenderLayers(vnode, constraints, buffer)
+		err = r.pipeline.RenderLayers(vnode, r.fiber, constraints, buffer)
 	} else {
-		err = r.pipeline.Render(vnode, constraints, buffer)
+		err = r.pipeline.Render(vnode, r.fiber, constraints, buffer)
 	}
 
 	if err != nil {
@@ -253,6 +255,70 @@ func UsePipelineRendererOption() func(*DeclarativeNode) {
 		// For now, this is a placeholder for future enhancement
 		_ = node
 	}
+}
+
+// RenderWithFiber renders with explicit Fiber tree for NodeID propagation
+// Phase 8: This method allows passing Fiber tree directly to layout engine
+// so that NodeIDs can be propagated to ComputedBox for proper identity tracking
+//
+// Parameters:
+//   vnode: The rendered VNode tree
+//   fiber: The actual Fiber tree with NodeIDs (nil for non-Fiber mode)
+//   buffer: Paint buffer for rendering
+func (r *PipelineRenderer) RenderWithFiber(vnode rtui.VNode, fiber *reconciler.Fiber, buffer *paint.Buffer) error {
+	if buffer == nil {
+		return nil
+	}
+
+	// Apply VNode hooks (e.g., Inspector injection)
+	vnode = r.hooks.ApplyVNodeHooks(vnode)
+
+	// Get buffer dimensions for layout constraints
+	width := buffer.Width
+	height := buffer.Height
+
+	log.RenderLogger.Debug("RenderWithFiber: Buffer size: %dx%d", width, height)
+	log.LayerLogger.Debug("RenderWithFiber: Buffer size: %dx%d", width, height)
+
+	constraints := runtime.NewBoxConstraints(0, width, 0, height)
+
+	// Get Fiber from DeclarativeNode if available
+	// This allows NodeID propagation when DeclarativeNode has Fiber reconciler
+	if fiber == nil {
+		// Try to get Fiber from VNode tree's source
+		// Check if vnode came from a FiberReconciler-aware DeclarativeNode
+		if declNode, ok := vnode.(interface{ GetFiberRoot() *reconciler.Fiber }); ok {
+			fiber = declNode.GetFiberRoot()
+		}
+	}
+
+	// Check if VNode tree contains any layer nodes (Modal, Overlay, Tooltip)
+	hasLayers := r.hasLayerNodes(vnode)
+
+	log.LayerLogger.Debug("RenderWithFiber: hasLayers=%v, fiber=%v", hasLayers, fiber != nil)
+
+	var err error
+	if hasLayers {
+		// Use multi-layer rendering for modals, overlays, tooltips
+		log.RenderLogger.Debug("RenderWithFiber: Using RenderLayers for multi-layer rendering")
+		err = r.pipeline.RenderLayers(vnode, fiber, constraints, buffer)
+	} else {
+		// Use standard rendering for simple VNode trees
+		log.RenderLogger.Debug("RenderWithFiber: Using standard Render")
+		err = r.pipeline.Render(vnode, fiber, constraints, buffer)
+	}
+
+	if err != nil {
+		log.RenderLogger.Debug("X[RenderWithFiber] FAILED: %v", err)
+	}
+
+	return err
+}
+
+// RenderWithFiber renders with explicit Fiber tree for NodeID propagation
+// Phase 8: Adapter method that delegates to pipeline.RenderWithFiber
+func (a *PipelineRendererAdapter) RenderWithFiber(vnode rtui.VNode, buffer *paint.Buffer) error {
+	return a.pipeline.RenderWithFiber(vnode, a.pipeline.fiber, buffer)
 }
 
 // =============================================================================

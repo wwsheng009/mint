@@ -18,6 +18,7 @@ import (
 	"github.com/wwsheng009/mint/framework"
 	"github.com/wwsheng009/mint/framework/component"
 	"github.com/wwsheng009/mint/internal/log"
+	"github.com/wwsheng009/mint/internal/reconciler"
 	"github.com/wwsheng009/mint/internal/state"
 	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/paint"
@@ -59,6 +60,9 @@ type Reconciler struct {
 
 	// === Path Generation ===
 	pathGenerator *PathGenerator // Automatic path key generator for static UI
+
+	// === Renderer ===
+	renderer rtui.VNodeRenderer // Renderer for SetFiber call
 
 	// === Configuration ===
 	enableFiber bool // Use Fiber reconciliation (env controlled)
@@ -313,6 +317,14 @@ func (r *Reconciler) CommitRoot() {
 	// IMPORTANT: We must collect the focusable elements from the NEW Fiber tree first
 	// then apply the focus manager's current index to set focus on the right element
 	r.applyFocusStateToFiber(r.root)
+
+	// Phase 8: Set Fiber on renderer for NodeID propagation before layout
+	// This ensures layout engine has access to Fiber tree for NodeID propagation
+	if r.renderer != nil {
+		if adapter, ok := r.renderer.(interface{ SetFiber(*reconciler.Fiber) }); ok {
+			adapter.SetFiber(r.root)
+		}
+	}
 
 	// Phase 1: Build layout tree from Fiber tree
 	// Convert VNode tree to runtime.LayoutNode tree
@@ -1160,6 +1172,16 @@ func (r *Reconciler) Stats() map[string]interface{} {
 
 // currentReconciler holds the currently executing reconciler
 var currentReconciler *Reconciler
+
+// SetRenderer sets the VNode renderer for SetFiber call
+func (r *Reconciler) SetRenderer(renderer rtui.VNodeRenderer) {
+	r.renderer = renderer
+}
+
+// SetRenderer sets VNode renderer for SetFiber call
+func (r *Reconciler) SetRenderer(renderer rtui.VNodeRenderer) {
+	r.renderer = renderer
+}
 
 // GetCurrentReconciler returns the current reconciler
 func GetCurrentReconciler() *Reconciler {

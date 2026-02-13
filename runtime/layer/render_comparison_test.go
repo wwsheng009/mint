@@ -22,7 +22,7 @@ func TestSingleLayerRendering(t *testing.T) {
 
 	engine := compute.NewEngine()
 	constraints := runtime.BoxConstraints{
-		MinWidth:  0, MaxWidth: 120,
+		MinWidth: 0, MaxWidth: 120,
 		MinHeight: 0, MaxHeight: 40,
 	}
 
@@ -81,11 +81,11 @@ func TestMultiLayerRendering(t *testing.T) {
 	manager := NewManager()
 	engine := compute.NewEngine()
 	constraints := runtime.BoxConstraints{
-		MinWidth:  0, MaxWidth: 120,
+		MinWidth: 0, MaxWidth: 120,
 		MinHeight: 0, MaxHeight: 40,
 	}
 
-	if err := manager.CollectAndLayout(root, constraints, engine); err != nil {
+	if err := manager.CollectAndLayout(root, nil, constraints, engine); err != nil {
 		t.Fatalf("CollectAndLayout failed: %v", err)
 	}
 
@@ -158,4 +158,3 @@ func countBufferContent(buffer *paint.Buffer) int {
 	}
 	return count
 }
-

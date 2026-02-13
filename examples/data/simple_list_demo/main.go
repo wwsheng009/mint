@@ -87,7 +87,7 @@ func (d *SimpleListDemo) Run() {
 		ShowSeparator(true).
 		Build()
 
-	d.list = *list.(*data.ListVNode)
+	d.list = list
 
 	// 4. 分析和输出
 	d.analyzeList()

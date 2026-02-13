@@ -5,6 +5,7 @@ import (
 	"sort"
 
 	"github.com/wwsheng009/mint/internal/log"
+	"github.com/wwsheng009/mint/internal/reconciler"
 	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/compute"
 	"github.com/wwsheng009/mint/runtime/event"
@@ -40,8 +41,11 @@ func NewManager() *Manager {
 
 // CollectAndLayout collects layer nodes and performs layout for all layers
 // This is the main entry point for layer-based rendering
+//
+// Phase 8: Added optional fiber parameter for NodeID propagation
 func (m *Manager) CollectAndLayout(
 	vnode rtui.VNode,
+	fiber *reconciler.Fiber,
 	constraints runtime.BoxConstraints,
 	engine *compute.Engine,
 ) error {
@@ -63,8 +67,8 @@ func (m *Manager) CollectAndLayout(
 	}
 
 	// 3. Layout the base layer
-	// Phase 3: Pass nil for Fiber (non-Fiber mode, backward compatible)
-	baseLayout, err := engine.Layout(baseTree, nil, constraints)
+	// Phase 8: Pass Fiber to layout engine for NodeID propagation
+	baseLayout, err := engine.Layout(baseTree, fiber, constraints)
 	if err != nil {
 		return err
 	}

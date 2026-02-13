@@ -18,7 +18,7 @@ func TestListBuilder_Basic(t *testing.T) {
 		t.Fatal("List should not be nil")
 	}
 
-	listVNode := list.(*ListVNode)
+	listVNode := list
 	if listVNode == nil {
 		t.Fatal("ListVNode should not be nil")
 	}
@@ -46,7 +46,7 @@ func TestListBuilder_HeaderAndSeparator(t *testing.T) {
 		ShowSeparator(true).
 		Build()
 
-	listVNode := list.(*ListVNode)
+	listVNode := list
 
 	// Test measurement with unbounded constraints (natural width)
 	constraints := runtime.BoxConstraints{
@@ -94,7 +94,7 @@ func TestListBuilder_EmptyList(t *testing.T) {
 		EmptyText("No data available").
 		Build()
 
-	listVNode := list.(*ListVNode)
+	listVNode := list
 	size := listVNode.Measure(runtime.BoxConstraints{
 		MinWidth:  0,
 		MaxWidth:  runtime.Infinity,
@@ -122,7 +122,7 @@ func TestListBuilder_MaxRows(t *testing.T) {
 		MaxRows(3).
 		Build()
 
-	listVNode := list.(*ListVNode)
+	listVNode := list
 	size := listVNode.Measure(runtime.BoxConstraints{
 		MinWidth:  0,
 		MaxWidth:  runtime.Infinity,
@@ -161,7 +161,7 @@ func TestListBuilder_Styles(t *testing.T) {
 		RowStyle(rowStyle).
 		Build()
 
-	listVNode := list.(*ListVNode)
+	listVNode := list
 	cmds := listVNode.Paint(0, 0)
 
 	// Header should use headerStyle
@@ -187,7 +187,7 @@ func TestListBuilder_PerRowStyle(t *testing.T) {
 		}).
 		Build()
 
-	listVNode := list.(*ListVNode)
+	listVNode := list
 	cmds := listVNode.Paint(0, 0)
 
 	// Even index rows should be bold
@@ -211,7 +211,7 @@ func TestListBuilder_Truncation(t *testing.T) {
 		Rows([]string{"VeryLongRowThatExceedsTheWidth"}).
 		Build()
 
-	listVNode := list.(*ListVNode)
+	listVNode := list
 	// Set a tight constraint
 	constraints := runtime.BoxConstraints{
 		MinWidth:  0,
@@ -245,7 +245,7 @@ func TestListBuilder_NoSeparator(t *testing.T) {
 		ShowSeparator(false).
 		Build()
 
-	listVNode := list.(*ListVNode)
+	listVNode := list
 	cmds := listVNode.Paint(0, 0)
 	if len(cmds) != 2 { // Only header + row, no separator
 		t.Errorf("Expected 2 draw commands, got %d", len(cmds))
@@ -264,7 +264,7 @@ func TestListBuilder_SeparatorCharacter(t *testing.T) {
 		SepChar('=').
 		Build()
 
-	listVNode := list.(*ListVNode)
+	listVNode := list
 	// Measure first to get the width
 	size := listVNode.Measure(runtime.BoxConstraints{
 		MinWidth:  0,
@@ -285,7 +285,7 @@ func TestListBuilder_WidthProperty(t *testing.T) {
 		Width(50).
 		Build()
 
-	listVNode := list.(*ListVNode)
+	listVNode := list
 	// Explicit width should override natural width
 	constraints := runtime.BoxConstraints{
 		MinWidth:  10,
@@ -309,7 +309,7 @@ func TestListBuilder_Chaining(t *testing.T) {
 		AddRow("Row5").
 		Build()
 
-	listVNode := list.(*ListVNode)
+	listVNode := list
 	rows := listVNode.Rows()
 	if len(rows) != 3 {
 		t.Errorf("Expected 3 rows (Rows() sets rows, AddRow appends), got %d", len(rows))
@@ -325,7 +325,7 @@ func TestListVNode_Getters(t *testing.T) {
 		Rows([]string{"A", "B"}).
 		Build()
 
-	listVNode := list.(*ListVNode)
+	listVNode := list
 
 	// Test getters
 	if listVNode.Header() != "Test" {
@@ -378,7 +378,7 @@ func TestListBuilder_MeasureConstraints(t *testing.T) {
 		Rows([]string{"A bit longer row"}).
 		Build()
 
-	listVNode := list.(*ListVNode)
+	listVNode := list
 
 	// Test minimum width constraint
 	minConstraints := runtime.BoxConstraints{
@@ -421,7 +421,7 @@ func TestListVNode_FocusIndex(t *testing.T) {
 		Rows([]string{"A", "B", "C"}).
 		Build()
 
-	listVNode := list.(*ListVNode)
+	listVNode := list
 
 	// Initially no focus
 	if listVNode.FocusIndex() != -1 {
@@ -446,7 +446,7 @@ func TestListVNode_SelectedIndex(t *testing.T) {
 		Rows([]string{"A", "B", "C"}).
 		Build()
 
-	listVNode := list.(*ListVNode)
+	listVNode := list
 
 	// Initially no selection
 	if listVNode.SelectedIndex() != -1 {
@@ -465,7 +465,7 @@ func TestListVNode_ScrollOffset(t *testing.T) {
 		Rows([]string{"A", "B", "C", "D", "E"}).
 		Build()
 
-	listVNode := list.(*ListVNode)
+	listVNode := list
 
 	// Set viewport height
 	listVNode.viewportHeight = 3
@@ -500,7 +500,7 @@ func TestListVNode_MoveUp(t *testing.T) {
 		Rows([]string{"A", "B", "C"}).
 		Build()
 
-	listVNode := list.(*ListVNode)
+	listVNode := list
 
 	// Focus on last item
 	listVNode.SetFocusIndex(2)
@@ -522,7 +522,7 @@ func TestListVNode_MoveDown(t *testing.T) {
 		Rows([]string{"A", "B", "C"}).
 		Build()
 
-	listVNode := list.(*ListVNode)
+	listVNode := list
 
 	// Focus on first item
 	listVNode.SetFocusIndex(0)
@@ -544,7 +544,7 @@ func TestListVNode_Home(t *testing.T) {
 		Rows([]string{"A", "B", "C"}).
 		Build()
 
-	listVNode := list.(*ListVNode)
+	listVNode := list
 
 	listVNode.SetFocusIndex(2)
 	listVNode.Home()
@@ -558,7 +558,7 @@ func TestListVNode_End(t *testing.T) {
 		Rows([]string{"A", "B", "C"}).
 		Build()
 
-	listVNode := list.(*ListVNode)
+	listVNode := list
 
 	listVNode.SetFocusIndex(0)
 	listVNode.End()
@@ -572,7 +572,7 @@ func TestListVNode_CanScroll(t *testing.T) {
 		Rows([]string{"A", "B", "C", "D", "E"}).
 		Build()
 
-	listVNode := list.(*ListVNode)
+	listVNode := list
 	listVNode.viewportHeight = 3
 
 	// Initially can scroll down
@@ -597,7 +597,7 @@ func TestListVNode_Bounds(t *testing.T) {
 		Rows([]string{"A", "B"}).
 		Build()
 
-	listVNode := list.(*ListVNode)
+	listVNode := list
 	listVNode.SetBounds(10, 20, 50, 10)
 
 	x, y, w, h := listVNode.GetBounds()
@@ -616,7 +616,7 @@ func TestListVNode_containsPoint(t *testing.T) {
 		Rows([]string{"A", "B"}).
 		Build()
 
-	listVNode := list.(*ListVNode)
+	listVNode := list
 	listVNode.SetBounds(10, 20, 50, 10)
 
 	// Point inside bounds
@@ -670,7 +670,7 @@ func TestListVNode_Callbacks(t *testing.T) {
 		}).
 		Build()
 
-	listVNode := list.(*ListVNode)
+	listVNode := list
 
 	// Set viewport height for scroll testing
 	listVNode.viewportHeight = 3

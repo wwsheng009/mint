@@ -3,6 +3,7 @@ package render
 
 import (
 	"github.com/wwsheng009/mint/internal/log"
+	"github.com/wwsheng009/mint/internal/reconciler"
 	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/compute"
 	"github.com/wwsheng009/mint/runtime/event"
@@ -42,7 +43,9 @@ func (p *RenderingPipeline) SetPaintDebug(debug bool) {
 // Render performs the complete rendering pipeline:
 // 1. Layout phase: calculate positions for all nodes
 // 2. Paint phase: render using computed positions
-func (p *RenderingPipeline) Render(vnode rtui.VNode, constraints runtime.BoxConstraints, buffer *paint.Buffer) error {
+//
+// Phase 8: Added optional fiber parameter for NodeID propagation
+func (p *RenderingPipeline) Render(vnode rtui.VNode, fiber *reconciler.Fiber, constraints runtime.BoxConstraints, buffer *paint.Buffer) error {
 	if vnode == nil {
 		return nil
 	}
@@ -50,8 +53,8 @@ func (p *RenderingPipeline) Render(vnode rtui.VNode, constraints runtime.BoxCons
 	log.PipelineLogger.Debug("Render started")
 
 	// Phase 1: Layout - calculate all positions
-	// Phase 3: Pass nil for Fiber (non-Fiber mode, backward compatible)
-	layout, err := p.layoutEngine.Layout(vnode, nil, constraints)
+	// Phase 8: Pass Fiber to layout engine for NodeID propagation
+	layout, err := p.layoutEngine.Layout(vnode, fiber, constraints)
 	if err != nil {
 		// Fallback to legacy rendering if layout fails
 		log.PipelineLogger.Debug("❌ Layout FAILED: %v, falling back to legacy", err)
@@ -82,7 +85,7 @@ func (p *RenderingPipeline) Render(vnode rtui.VNode, constraints runtime.BoxCons
 // RenderToSize renders with specific window size constraints
 func (p *RenderingPipeline) RenderToSize(vnode rtui.VNode, width, height int, buffer *paint.Buffer) error {
 	constraints := runtime.NewBoxConstraints(0, width, 0, height)
-	return p.Render(vnode, constraints, buffer)
+	return p.Render(vnode, nil, constraints, buffer)
 }
 
 // renderLegacy fallback rendering for when the new pipeline fails
@@ -142,13 +145,66 @@ func (p *RenderingPipeline) InvalidateCacheByKey(vnodeKey string) {
 }
 
 // =============================================================================
+// RenderWithFiber renders with explicit Fiber tree for NodeID propagation
+// =============================================================================
+// Phase 8: This method allows passing the Fiber tree directly to the layout engine
+// so that NodeIDs can be propagated to ComputedBox for proper identity tracking
+//
+// This is the primary entry point for Fiber-based rendering, where:
+// - vnode: The rendered VNode tree (may differ from Fiber tree structure)
+// - fiber: The actual Fiber tree with NodeIDs assigned during reconciliation
+func (p *RenderingPipeline) RenderWithFiber(
+	vnode rtui.VNode,
+	fiber *reconciler.Fiber,
+	constraints runtime.BoxConstraints,
+	buffer *paint.Buffer,
+) error {
+	if vnode == nil {
+		return nil
+	}
+
+	log.PipelineLogger.Debug("RenderWithFiber started")
+
+	// Phase 1: Layout - calculate all positions with Fiber
+	layout, err := p.layoutEngine.Layout(vnode, fiber, constraints)
+	if err != nil {
+		// Fallback to legacy rendering if layout fails
+		log.PipelineLogger.Debug("❌ Layout FAILED: %v, falling back to legacy", err)
+		return p.renderLegacy(vnode, 0, 0, buffer)
+	}
+
+	log.PipelineLogger.Debug("✅ Layout complete, starting Paint phase")
+
+	// Phase 2: Paint - render using computed positions
+	log.PipelineLogger.Debug("Starting Paint phase...")
+	err = p.paintEngine.Paint(layout, buffer)
+
+	log.PipelineLogger.Debug("Paint complete, err=%v", err)
+
+	// Save HitMap for event routing (hit testing)
+	// This HitMap contains FINAL positions from layout computation
+	p.lastHitMap = layout.HitMap
+
+	if p.lastHitMap != nil {
+		log.PipelineLogger.Debug("Saved HitMap: %d entries", p.lastHitMap.Size())
+	} else {
+		log.PipelineLogger.Debug("⚠️  Layout.HitMap is nil")
+	}
+
+	return err
+}
+
+// =============================================================================
 // Multi-Layer Rendering
 // =============================================================================
 
 // RenderLayers renders a VNode tree with multi-layer support
 // This is the main entry point for layer-based rendering
+//
+// Phase 8: Added optional fiber parameter for NodeID propagation
 func (p *RenderingPipeline) RenderLayers(
 	vnode rtui.VNode,
+	fiber *reconciler.Fiber,
 	constraints runtime.BoxConstraints,
 	buffer *paint.Buffer,
 ) error {
@@ -162,10 +218,11 @@ func (p *RenderingPipeline) RenderLayers(
 	layerMgr := layer.NewManager()
 
 	// Collect and layout all layers
-	if err := layerMgr.CollectAndLayout(vnode, constraints, p.layoutEngine); err != nil {
+	// Phase 8: Pass Fiber to layout engine for NodeID propagation
+	if err := layerMgr.CollectAndLayout(vnode, fiber, constraints, p.layoutEngine); err != nil {
 		log.PipelineLogger.Debug("Layer layout failed: %v", err)
 		// Fallback to regular rendering
-		return p.Render(vnode, constraints, buffer)
+		return p.Render(vnode, fiber, constraints, buffer)
 	}
 
 	// Get all layer layouts
@@ -220,9 +277,10 @@ func (p *RenderingPipeline) RenderLayers(
 
 // HasModalChecks returns whether the rendering pipeline detected any modal content
 // This can be used to determine if events should be blocked
+// Phase 8: Pass nil for Fiber (non-Fiber mode for modal check)
 func (p *RenderingPipeline) HasModalChecks(vnode rtui.VNode, constraints runtime.BoxConstraints) bool {
 	layerMgr := layer.NewManager()
-	layerMgr.CollectAndLayout(vnode, constraints, p.layoutEngine)
+	layerMgr.CollectAndLayout(vnode, nil, constraints, p.layoutEngine)
 	return layerMgr.HasModal()
 }
 
