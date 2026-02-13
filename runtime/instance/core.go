@@ -40,7 +40,8 @@ const (
 // > VNode 会死很多次，Instance 只在"真的被移除"时才死。
 type Instance struct {
 	// === Identity ===
-	ID   string // 稳定标识（不再依赖内存地址）
+	ID   string   // VNode key 标识（向后兼容）
+	NodeID uint64 // 唯一运行时标识 ⭐⭐⭐
 	Type string // 组件类型
 
 	// === Props & State ===
@@ -82,6 +83,7 @@ type Handlers struct {
 func NewInstance(id, typ string, props map[string]interface{}) *Instance {
 	return &Instance{
 		ID:         id,
+		NodeID:     0, // Will be set when registered via InstanceRegistry
 		Type:       typ,
 		Props:      props,
 		State2:     StateCreated,

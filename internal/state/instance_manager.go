@@ -1,6 +1,7 @@
 package state
 
 import (
+	"fmt"
 	"sync"
 	"time"
 )
@@ -11,9 +12,12 @@ import (
 // - Reusing existing instances when keys match
 // - Cleaning up instances that are no longer needed
 // - Enforcing max instance limits to prevent memory leaks
+//
+// Phase 4: Added NodeID indexing for stable runtime identity
 type InstanceManager struct {
 	mu            sync.RWMutex
-	instances     map[string]ComponentInstance // key -> instance
+	instances     map[string]ComponentInstance // key -> instance (legacy, for backward compatibility)
+	instancesByID map[uint64]ComponentInstance // NodeID -> instance (NEW: primary lookup)
 	instanceOrder []string                      // Order of instance creation (for LRU)
 	lastAccess    map[string]time.Time          // Last access time for each instance
 	maxInstances  int                            // Maximum number of instances to keep
@@ -23,7 +27,8 @@ type InstanceManager struct {
 func NewInstanceManager() *InstanceManager {
 	return &InstanceManager{
 		instances:     make(map[string]ComponentInstance),
-		instanceOrder: make([]string, 0),
+		instancesByID: make(map[uint64]ComponentInstance),
+		instanceOrder:  make([]string, 0),
 		lastAccess:    make(map[string]time.Time),
 		maxInstances:  1000, // Default limit
 	}
@@ -36,6 +41,50 @@ func (m *InstanceManager) SetMaxInstances(max int) {
 	defer m.mu.Unlock()
 	m.maxInstances = max
 	m.cleanupLRU()
+}
+
+// GetOrCreateByID finds an existing instance by NodeID or creates a new one.
+// This is the preferred method for Phase 4+ using NodeID-based identity.
+func (m *InstanceManager) GetOrCreateByID(nodeID uint64, creator func() ComponentInstance) ComponentInstance {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// Try to find existing instance by NodeID
+	if inst, exists := m.instancesByID[nodeID]; exists {
+		// Update last access time (use string key for tracking)
+		key := fmt.Sprintf("%d", nodeID)
+		m.lastAccess[key] = time.Now()
+		return inst
+	}
+
+	// Create new instance
+	inst := creator()
+
+	// Store in both indexes
+	m.instancesByID[nodeID] = inst
+
+	// Generate a string key for compatibility
+	key := fmt.Sprintf("%d", nodeID)
+	m.instances[key] = inst
+	m.instanceOrder = append(m.instanceOrder, key)
+	m.lastAccess[key] = time.Now()
+
+	// Call OnMount for new instances
+	inst.OnMount()
+
+	// Enforce instance limit
+	m.cleanupLRU()
+
+	return inst
+}
+
+// GetByID retrieves an instance by NodeID without creating a new one
+// Returns nil if instance doesn't exist
+func (m *InstanceManager) GetByID(nodeID uint64) ComponentInstance {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	return m.instancesByID[nodeID]
 }
 
 // GetOrCreate finds an existing instance by key or creates a new one.
@@ -117,11 +166,62 @@ func (m *InstanceManager) Remove(key string) ComponentInstance {
 	delete(m.instances, key)
 	delete(m.lastAccess, key)
 
+	// Also remove from NodeID index if this instance has one
+	// We need to find the NodeID by checking instancesByID
+	for nodeID, instCheck := range m.instancesByID {
+		if instCheck == inst {
+			delete(m.instancesByID, nodeID)
+			break
+		}
+	}
+
 	// Remove from order slice
 	for i, k := range m.instanceOrder {
 		if k == key {
 			m.instanceOrder = append(m.instanceOrder[:i], m.instanceOrder[i+1:]...)
 			break
+		}
+	}
+
+	return inst
+}
+
+// RemoveByID removes an instance by NodeID
+// Returns the removed instance or nil if not found
+func (m *InstanceManager) RemoveByID(nodeID uint64) ComponentInstance {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	inst, exists := m.instancesByID[nodeID]
+	if !exists {
+		return nil
+	}
+
+	// Call OnUnmount before removing
+	inst.OnUnmount()
+
+	// Remove from NodeID index
+	delete(m.instancesByID, nodeID)
+
+	// Also remove from string key index if present
+	// We need to find the key by looking through instances
+	var foundKey string
+	for key, instCheck := range m.instances {
+		if instCheck == inst {
+			foundKey = key
+			break
+		}
+	}
+	if foundKey != "" {
+		delete(m.instances, foundKey)
+		delete(m.lastAccess, foundKey)
+
+		// Remove from order
+		for i, k := range m.instanceOrder {
+			if k == foundKey {
+				m.instanceOrder = append(m.instanceOrder[:i], m.instanceOrder[i+1:]...)
+				break
+			}
 		}
 	}
 
@@ -177,6 +277,14 @@ func (m *InstanceManager) Cleanup(activeKeys []string) {
 		delete(m.instances, key)
 		delete(m.lastAccess, key)
 
+		// Also remove from NodeID index
+		for nodeID, instCheck := range m.instancesByID {
+			if instCheck == inst {
+				delete(m.instancesByID, nodeID)
+				break
+			}
+		}
+
 		// Remove from order
 		for i, k := range m.instanceOrder {
 			if k == key {
@@ -198,6 +306,7 @@ func (m *InstanceManager) Clear() {
 	}
 
 	m.instances = make(map[string]ComponentInstance)
+	m.instancesByID = make(map[uint64]ComponentInstance)
 	m.instanceOrder = make([]string, 0)
 	m.lastAccess = make(map[string]time.Time)
 }
@@ -216,13 +325,25 @@ func (m *InstanceManager) cleanupLRU() {
 		oldestKey := m.instanceOrder[0]
 
 		// Unmount the instance
+		var instToRemove ComponentInstance
 		if inst, exists := m.instances[oldestKey]; exists {
 			inst.OnUnmount()
+			instToRemove = inst
 		}
 
 		// Remove from maps
 		delete(m.instances, oldestKey)
 		delete(m.lastAccess, oldestKey)
+
+		// Also remove from NodeID index
+		if instToRemove != nil {
+			for nodeID, instCheck := range m.instancesByID {
+				if instCheck == instToRemove {
+					delete(m.instancesByID, nodeID)
+					break
+				}
+			}
+		}
 
 		// Remove from order
 		m.instanceOrder = m.instanceOrder[1:]
@@ -277,6 +398,20 @@ func (m *InstanceManager) GetAllInstances() map[string]ComponentInstance {
 	result := make(map[string]ComponentInstance, len(m.instances))
 	for key, inst := range m.instances {
 		result[key] = inst
+	}
+	return result
+}
+
+// GetAllInstancesByID returns all instances indexed by NodeID
+// This is used for NodeID-based lookup in Phase 4+
+func (m *InstanceManager) GetAllInstancesByID() map[uint64]ComponentInstance {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	// Return a copy to avoid concurrent modification
+	result := make(map[uint64]ComponentInstance, len(m.instancesByID))
+	for nodeID, inst := range m.instancesByID {
+		result[nodeID] = inst
 	}
 	return result
 }

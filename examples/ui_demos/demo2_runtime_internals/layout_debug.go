@@ -20,7 +20,7 @@ func GetLayoutTree(root ui.VNode, constraints runtime.BoxConstraints) (*debug.La
 	engine := compute.NewEngine()
 
 	// 执行布局计算
-	layout, err := engine.Layout(root, constraints)
+	layout, err := engine.Layout(root, nil,constraints)
 	if err != nil {
 		return nil, err
 	}

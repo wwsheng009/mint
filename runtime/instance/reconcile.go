@@ -50,15 +50,15 @@ func ReconcileChildren(oldChildren []*Instance, newVChildren []ui.VNode) []*Inst
 		vnodeType := getVNodeType(vnode)
 		vnodeKey := vnode.Key()
 		vnodeID := buildChildID("", index, vnodeType, vnodeKey)
-		log.UILogger.Debug("[buildChildID] index=%d, type=%s, key=%s -> ID=%s", index, vnodeType, vnodeKey, vnodeID)
+		log.FiberLogger.Debug("[buildChildID] index=%d, type=%s, key=%s -> ID=%s", index, vnodeType, vnodeKey, vnodeID)
 
 		if oldInst, ok := oldMap[vnodeID]; ok && oldInst.Type == vnodeType {
 			// 🔁 复用
-			log.UILogger.Debug("Reconcile: Attempting reuse ID=%s oldType=%s newType=%s", vnodeID, oldInst.Type, vnodeType)
+			log.FiberLogger.Debug("Reconcile: Attempting reuse ID=%s oldType=%s newType=%s", vnodeID, oldInst.Type, vnodeType)
 			reuseInstance(oldInst, vnode)
 			oldInst._used = true
 			newChildren = append(newChildren, oldInst)
-			log.UILogger.Debug("Reconcile: ✅ Reused instance ID=%s", vnodeID)
+			log.FiberLogger.Debug("Reconcile: ✅ Reused instance ID=%s", vnodeID)
 		} else {
 			// 🆕 创建
 			reason := ""
@@ -67,8 +67,8 @@ func ReconcileChildren(oldChildren []*Instance, newVChildren []ui.VNode) []*Inst
 			} else if oldInst.Type != vnodeType {
 				reason = fmt.Sprintf("type mismatch: old=%s new=%s", oldInst.Type, vnodeType)
 			}
-			log.UILogger.Debug("Reconcile: Creating new instance ID=%s Type=%s (%s)", vnodeID, vnodeType, reason)
-			newInst := createInstance(vnode, vnodeID)
+			log.FiberLogger.Debug("Reconcile: Creating new instance ID=%s Type=%s (%s)", vnodeID, vnodeType, reason)
+			newInst := createInstance(vnode, vnodeID, 0) // NodeID will be set by registry
 			newInst.Mount()
 			newChildren = append(newChildren, newInst)
 		}
@@ -124,22 +124,23 @@ func reuseInstance(inst *Instance, vnode ui.VNode) {
 	// 递归处理子节点，传递当前实例的路径作为父路径
 	inst.Children = reconcileChildrenWithPath(inst.Children, vnode.Children(), inst.ID)
 
-	log.UILogger.Debug("Reconcile: ✅ Reused instance ID=%s Type=%s", inst.ID, inst.Type)
+	log.FiberLogger.Debug("Reconcile: ✅ Reused instance ID=%s Type=%s", inst.ID, inst.Type)
 }
 
 // createInstance 从 VNode 创建新实例
-func createInstance(vnode ui.VNode, id string) *Instance {
+func createInstance(vnode ui.VNode, id string, nodeID uint64) *Instance {
 	vnodeType := getVNodeType(vnode)
 	props := extractProps(vnode)
 	handlers := extractHandlers(vnode)
 
 	inst := NewInstance(id, vnodeType, props)
+	inst.NodeID = nodeID // Set NodeID from Fiber
 	inst.Handlers = handlers
 
 	// 递归处理子节点，传递当前实例的路径作为父路径
 	inst.Children = reconcileChildrenWithPath(nil, vnode.Children(), id)
 
-	log.UILogger.Debug("Reconcile: Created instance ID=%s Type=%s", id, vnodeType)
+	log.FiberLogger.Debug("Reconcile: Created instance ID=%s NodeID=%d Type=%s", id, nodeID, vnodeType)
 	return inst
 }
 
@@ -163,11 +164,11 @@ func reconcileChildrenWithPath(oldChildren []*Instance, newVChildren []ui.VNode,
 
 		if oldInst, ok := oldMap[vnodeID]; ok && oldInst.Type == vnodeType {
 			// 🔁 复用
-			log.UILogger.Debug("Reconcile: Attempting reuse ID=%s oldType=%s newType=%s", vnodeID, oldInst.Type, vnodeType)
+			log.FiberLogger.Debug("Reconcile: Attempting reuse ID=%s oldType=%s newType=%s", vnodeID, oldInst.Type, vnodeType)
 			reuseInstance(oldInst, vnode)
 			oldInst._used = true
 			newChildren = append(newChildren, oldInst)
-			log.UILogger.Debug("Reconcile: ✅ Reused instance ID=%s", vnodeID)
+			log.FiberLogger.Debug("Reconcile: ✅ Reused instance ID=%s", vnodeID)
 		} else {
 			// 🆕 创建
 			reason := ""
@@ -176,8 +177,8 @@ func reconcileChildrenWithPath(oldChildren []*Instance, newVChildren []ui.VNode,
 			} else if oldInst.Type != vnodeType {
 				reason = fmt.Sprintf("type mismatch: old=%s new=%s", oldInst.Type, vnodeType)
 			}
-			log.UILogger.Debug("Reconcile: Creating new instance ID=%s Type=%s (%s)", vnodeID, vnodeType, reason)
-			newInst := createInstance(vnode, vnodeID)
+			log.FiberLogger.Debug("Reconcile: Creating new instance ID=%s Type=%s (%s)", vnodeID, vnodeType, reason)
+			newInst := createInstance(vnode, vnodeID, 0) // NodeID will be set by registry
 			newInst.Mount()
 			newChildren = append(newChildren, newInst)
 		}
@@ -203,7 +204,7 @@ func unmount(inst *Instance) {
 	// 调用生命周期
 	inst.Unmount()
 
-	log.UILogger.Debug("Reconcile: Unmounted instance ID=%s Type=%s", inst.ID, inst.Type)
+	log.FiberLogger.Debug("Reconcile: Unmounted instance ID=%s Type=%s", inst.ID, inst.Type)
 }
 
 // extractProps 从 VNode 提取 Props
@@ -236,7 +237,7 @@ func extractHandlers(vnode ui.VNode) Handlers {
 	// 尝试提取 onClick
 	if clicker, ok := vnode.(interface{ OnClick() func() }); ok {
 		handlers.OnClick = clicker.OnClick()
-		log.UILogger.Debug("[extractHandlers] Found OnClick handler")
+		log.FiberLogger.Debug("[extractHandlers] Found OnClick handler")
 	}
 
 	// 尝试提取 onMouseEnter
@@ -255,9 +256,9 @@ func extractHandlers(vnode ui.VNode) Handlers {
 		Update(runtimemsg.Msg) cmd.Cmd
 	}); ok {
 		handlers.OnUpdate = updater.Update
-		log.UILogger.Debug("[extractHandlers] ✅ Found Update handler for vnode type=%T", vnode)
+		log.FiberLogger.Debug("[extractHandlers] ✅ Found Update handler for vnode type=%T", vnode)
 	} else {
-		log.UILogger.Debug("[extractHandlers] ❌ No Update handler for vnode type=%T", vnode)
+		log.FiberLogger.Debug("[extractHandlers] ❌ No Update handler for vnode type=%T", vnode)
 	}
 
 	return handlers

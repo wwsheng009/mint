@@ -168,7 +168,7 @@ func main() {
 		ShowSeparator(true).
 		Build()
 
-	listVNode := list.(*data.ListVNode)
+	listVNode := list
 
 	// 4. 测量列表
 	MeasureAndPrint(list, "HitTest List")
