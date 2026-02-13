@@ -116,6 +116,12 @@ func NewDeclarativeNodeFromFuncWithFiber(fn rtui.ComponentFunc, fwApp *framework
 	// while PipelineRenderer handles the actual rendering
 	renderer := NewPipelineRendererAdapter()
 
+	// Phase 8: Set renderer on reconciler for NodeID propagation
+	// This enables SetFiber() to be called after reconciliation completes
+	if adapter, ok := r.(*fiberReconcilerAdapter); ok {
+		adapter.SetRenderer(renderer)
+	}
+
 	return &DeclarativeNode{
 		renderFn:   fn,
 		instance:   rtui.NewComponentContextForRoot(),
@@ -129,11 +135,18 @@ func NewDeclarativeNodeFromFuncWithFiber(fn rtui.ComponentFunc, fwApp *framework
 
 // SetReconciler sets the Fiber reconciler for this node
 // This is called by ui.Run when Fiber mode is enabled
+// Phase 8: Set renderer on reconciler for NodeID propagation
 func (n *DeclarativeNode) SetReconciler(r rtui.Reconciler) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	n.reconciler = r
 	n.useFiber = r != nil
+
+	// Phase 8: Set renderer on reconciler so it can call SetFiber after reconciliation
+	// This enables NodeID propagation from Fiber tree to LayoutEngine
+	if setter, ok := r.(interface{ SetRenderer(rtui.VNodeRenderer) }); ok {
+		setter.SetRenderer(n.renderer)
+	}
 }
 
 // GetReconciler returns the Fiber reconciler for this node
@@ -1693,6 +1706,12 @@ func (a *fiberReconcilerAdapter) SetApp(app interface{}) {
 // SetFocusManager sets the focus manager (adapter method)
 func (a *fiberReconcilerAdapter) SetFocusManager(mgr *rtui.VNodeFocusManager) {
 	a.r.SetFocusManager(mgr)
+}
+
+// SetRenderer sets the VNode renderer (adapter method)
+// Phase 8: This allows reconciler to call SetFiber for NodeID propagation
+func (a *fiberReconcilerAdapter) SetRenderer(renderer rtui.VNodeRenderer) {
+	a.r.SetRenderer(renderer)
 }
 
 // GetRenderedRoot returns the rendered VNode tree (adapter method)
