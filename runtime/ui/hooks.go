@@ -139,14 +139,14 @@ func NewComponentContextForRoot() *ComponentContext {
 
 // ResetContext resets the hook index for re-rendering
 func (ctx *ComponentContext) ResetContext() {
-	if os.Getenv("TUI_DEBUG_UI") == "true" {
+	if log.UILogger.Enabled() {
 		if len(ctx.Hooks) > 0 {
 			log.UILogger.Debug("ResetContext: BEFORE reset, Hooks[0].Value=%v, &ctx=%p", ctx.Hooks[0].Value, ctx)
 		}
 	}
 	ctx.HookIndex = 0
 	ctx.RenderCount++
-	if os.Getenv("TUI_DEBUG_UI") == "true" {
+	if log.UILogger.Enabled() {
 		if len(ctx.Hooks) > 0 {
 			log.UILogger.Debug("ResetContext: AFTER reset, Hooks[0].Value=%v, &ctx=%p", ctx.Hooks[0].Value, ctx)
 		}
@@ -193,7 +193,7 @@ func (ctx *ComponentContext) CleanupAll() {
 func (ctx *ComponentContext) GetOrCreateHook(hookType HookType) *Hook {
 	if ctx.HookIndex < len(ctx.Hooks) {
 		hook := &ctx.Hooks[ctx.HookIndex]
-		if os.Getenv("TUI_DEBUG_UI") == "true" {
+		if log.UILogger.Enabled() {
 			log.UILogger.Debug("GetOrCreateHook: returning existing hook[%d], Type=%s, Value=%v, Initialized=%v, hook=%p, &ctx=%p, &Hooks=%p",
 				ctx.HookIndex, hook.Type, hook.Value, hook.Initialized, hook, ctx, &ctx.Hooks)
 		}

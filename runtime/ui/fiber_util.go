@@ -5,8 +5,6 @@ package ui
 // =============================================================================
 
 import (
-	"os"
-
 	"github.com/wwsheng009/mint/internal/log"
 )
 
@@ -19,7 +17,7 @@ func CreateFiber(vnode VNode) *Fiber {
 	vnodeType := vnode.Type()
 
 	// Debug logging to understand VNode types
-	if os.Getenv("TUI_DEBUG_HITMAP") == "true" {
+	if log.HitMapLogger.Enabled() {
 		// Get actual type name for debugging
 		actualType := "unknown"
 		switch n := vnode.(type) {

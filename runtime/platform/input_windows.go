@@ -52,18 +52,18 @@ func (r *windowsInputReader) Start(events chan<- RawInput) error {
 	r.events = events
 
 	// DEBUG: 打印启动信息
-	if os.Getenv("TUI_DEBUG_WINDOWS") == "true" {
+	if log.WinLogger.Enabled() {
 		log.WinLogger.Debug("[WIN INPUT] Starting...\n")
 	}
 
 	handle, _, err := procGetStdHandle.Call(STD_INPUT_HANDLE)
 	if handle == 0 {
-		if os.Getenv("TUI_DEBUG_WINDOWS") == "true" {
+		if log.WinLogger.Enabled() {
 			log.WinLogger.Debug("[WIN INPUT] Failed to get stdin handle: %v\n", err)
 		}
 		return err
 	}
-	if os.Getenv("TUI_DEBUG_WINDOWS") == "true" {
+	if log.WinLogger.Enabled() {
 		log.WinLogger.Debug("[WIN INPUT] Got handle: 0x%x\n", handle)
 	}
 
@@ -90,7 +90,7 @@ func (r *windowsInputReader) Start(events chan<- RawInput) error {
 	mode &^= ENABLE_VIRTUAL_TERMINAL_INPUT
 
 	// DEBUG: 打印控制台模式
-	if os.Getenv("TUI_DEBUG_WINDOWS") == "true" {
+	if log.WinLogger.Enabled() {
 		log.WinLogger.Debug("[WIN] Setting console mode: 0x%08X (original: 0x%08X)\n",
 			mode, r.originalMode)
 		log.WinLogger.Debug("[WIN] ENABLE_MOUSE_INPUT=0x%04X, ENABLE_WINDOW_INPUT=0x%04X\n",
