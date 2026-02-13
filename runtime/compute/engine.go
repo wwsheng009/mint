@@ -138,6 +138,7 @@ func (e *Engine) buildComputedBoxWithSize(vnode VNode, fiber *reconciler.Fiber, 
 		Box:          runtime.Box{X: 0, Y: 0, Width: 0, Height: 0},
 		NaturalWidth:  0, // Will be measured below
 		NodeID:       0, // Will be set from Fiber if provided
+		ChildFiber:   nil, // Placeholder for child's Fiber (will be set before building children)
 	}
 
 	// Phase 3: Set NodeID from Fiber for stable identity
