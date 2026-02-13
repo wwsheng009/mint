@@ -117,7 +117,7 @@ type StandaloneInspector struct {
 
 // HitTestEntry represents a single entry in the hit test display
 type HitTestEntry struct {
-	NodeID    string
+	Type      string
 	Bounds    string // Formatted bounds string
 	ZOrder    int
 	HitTest   string // Hit test result at current mouse position
@@ -1070,7 +1070,7 @@ func (si *StandaloneInspector) buildHitTestTabContent() rtui.VNode {
 		}
 
 		line := fmt.Sprintf("%-3d %-25s %-10s %-2s",
-			e.ZOrder, formatNodeInfo(e.NodeID, e.Tag, e.Key, e.Label), hitMark, clickMark)
+			e.ZOrder, formatNodeInfo(e.Type, e.Tag, e.Key, e.Label), hitMark, clickMark)
 		rows = append(rows, line)
 		displayed++
 	}
@@ -1183,13 +1183,12 @@ func (si *StandaloneInspector) collectHitTestEntries(node rtui.VNode, x, y, zOrd
 
 	// Skip nodes without valid bounds (but still recurse into children)
 	if bounds == "" {
-		// Still recurse into children
+		// Still recurse into children to collect their info
 		if node.Children() != nil {
 			for _, child := range node.Children() {
 				si.collectHitTestEntries(child, x, y, zOrder+1, entries)
 			}
 		}
-		return
 	}
 
 	// Parse bounds for hit testing
@@ -1230,27 +1229,47 @@ func (si *StandaloneInspector) collectHitTestEntries(node rtui.VNode, x, y, zOrd
 		tag = tagger.Tag()
 	}
 
-	// Get key from props
+	// Get key from Props (not from VNode.Key() which may be overridden by Fiber)
 	if props != nil {
-		if k, ok := props["key"]; ok {
-			if ks, ok := k.(string); ok {
-				key = ks
-			}
+		// Try _componentKey first
+		if k, ok := props["_componentKey"].(string); ok {
+			key = k
 		}
-		// Get label/text content
-		if l, ok := props["content"]; ok {
-			if ls, ok := l.(string); ok {
-				label = ls
-				// Truncate long labels
-				if len(label) > 12 {
-					label = label[:9] + "..."
-				}
+		// If no _componentKey, try "key" prop
+		if key == "" {
+			if k, ok := props["key"].(string); ok {
+				key = k
 			}
 		}
 	}
+	// If no key in props, fall back to VNode.Key() method
+	if key == "" {
+		if keyer, ok := node.(interface{ Key() string }); ok {
+			key = keyer.Key()
+		}
+	}
+	// Get label/text content from various sources
+	// Try Label() method first (for buttons)
+	if labeler, ok := node.(interface{ Label() string }); ok {
+		label = labeler.Label()
+	}
+	// Try Content() method (for TextVNode)
+	if label == "" {
+		if contenter, ok := node.(interface{ Content() string }); ok {
+			label = contenter.Content()
+		}
+	}
+	// Fall back to GetTextContent utility
+	if label == "" {
+		label = rtui.GetTextContent(node)
+	}
+	// Truncate long labels
+	if len(label) > 12 {
+		label = label[:9] + "..."
+	}
 
 	entry := HitTestEntry{
-		NodeID:    node.Type().String(),
+		Type:      node.Type().String(),
 		Bounds:    bounds,
 		ZOrder:    zOrder,
 		HitTest:   hitTest,
@@ -2265,19 +2284,19 @@ func (si *StandaloneInspector) formatHovered() string {
 
 // formatNodeInfo formats node information for display
 // Parameters are organized as: (id, tag, key, label) to match call signature
-func formatNodeInfo(id, tag, key, label string) string {
+func formatNodeInfo(nodeType, tag, key, label string) string {
 	info := ""
 
 	// Debug logging to trace the issue
-	log.InspectorLogger.Debug("formatNodeInfo: id=%q tag=%q key=%q label=%q", id, tag, key, label)
+	log.InspectorLogger.Debug("formatNodeInfo: type=%q tag=%q key=%q label=%q", nodeType, tag, key, label)
 
 	// Use id as node type (Element, Text, etc.) - this is what we have from HitTestEntry.NodeID
-	if id != "" {
-		info += id
+	if nodeType != "" {
+		info += nodeType
 	}
 
 	// Add tag in parentheses if available
-	if tag != "" && tag != id {
+	if tag != "" && tag != nodeType {
 		if info != "" {
 			info += "/"
 		}
