@@ -8,7 +8,6 @@ package reconciler
 // =============================================================================
 
 import (
-	"os"
 	"strings"
 
 	"github.com/wwsheng009/mint/internal/log"
@@ -91,7 +90,7 @@ func createAllNewChildren(returnFiber *Fiber, children []rtui.VNode, lanes Lane)
 	// ✨ Track type counts for correct indexing
 	typeCounts := make(map[string]int)
 
-	if os.Getenv("TUI_DEBUG_HITMAP") == "true" {
+	if log.HitMapLogger.Enabled() {
 		log.UILogger.Debug("[createAllNewChildren] Creating %d children for parent Key=%q, Tag=%q",
 			len(children), returnFiber.Key, returnFiber.Tag)
 	}
@@ -108,7 +107,7 @@ func createAllNewChildren(returnFiber *Fiber, children []rtui.VNode, lanes Lane)
 		// Create child with the pre-calculated index
 		child := createChildFiberWithIndex(returnFiber, childVNode, lanes, i, typeIndex)
 
-		if os.Getenv("TUI_DEBUG_HITMAP") == "true" {
+		if log.HitMapLogger.Enabled() {
 			typeName := "UNKNOWN"
 			switch child.Type {
 			case rtui.VNodeComponent:
@@ -387,7 +386,7 @@ func markForDeletion(fiber *Fiber) {
 	}
 
 	// Debug logging
-	if os.Getenv("TUI_DEBUG_DELETION") == "true" {
+	if log.ReconcilerLogger.Enabled() {
 		log.UILogger.Debug("[markForDeletion] Marking key=%q, current flags=%d\n",
 			fiber.Key, fiber.Flags)
 	}

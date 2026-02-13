@@ -102,13 +102,13 @@ func (r *Reconciler) Render(ctx component.PaintContext, buffer *paint.Buffer, re
 	// Note: renderFunc returns ui.VNode (VNode interface is from ui package)
 	// This is correct as VNode implementations are in ui package
 	if !r.enableFiber {
-		if os.Getenv("TUI_DEBUG_HITMAP") == "true" {
+		if log.HitMapLogger.Enabled() {
 			log.UILogger.Debug("[Reconciler.Render] ⚠️  Fiber NOT enabled! enableFiber=%v", r.enableFiber)
 		}
 		return // Fiber not enabled, use legacy rendering
 	}
 
-	if os.Getenv("TUI_DEBUG_HITMAP") == "true" {
+	if log.HitMapLogger.Enabled() {
 		log.UILogger.Debug("[Reconciler.Render] ✅ Fiber enabled, starting render...")
 	}
 
@@ -177,7 +177,7 @@ func (r *Reconciler) prepareFreshStack(renderFunc func() rtui.VNode) {
 // Phase 3 will add time slicing
 func (r *Reconciler) workLoopSync() {
 	if r.workInProgress == nil {
-		if os.Getenv("TUI_DEBUG_HITMAP") == "true" {
+		if log.HitMapLogger.Enabled() {
 			log.UILogger.Debug("[workLoopSync] ⚠️  workInProgress is nil!")
 		}
 		return

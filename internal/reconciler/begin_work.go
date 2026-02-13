@@ -31,7 +31,7 @@ func BeginWork(current, workInProgress *Fiber) *Fiber {
 	}
 
 	// Debug: log all BeginWork calls to understand the Fiber tree
-	if os.Getenv("TUI_DEBUG_HITMAP") == "true" {
+	if log.HitMapLogger.Enabled() {
 		typeName := "UNKNOWN"
 		switch workInProgress.Type {
 		case rtui.VNodeComponent:
@@ -138,7 +138,7 @@ func beginWorkComponent(current, workInProgress *Fiber) *Fiber {
 	rtui.SetCurrentContext(ctx)
 
 	// Debug: verify context is set
-	if os.Getenv("TUI_DEBUG_UI") == "true" {
+	if log.UILogger.Enabled() {
 		log.UILogger.Debug("beginWorkComponent: SetCurrentContext(ctx=%p, ComponentID=%s), GetCurrentContext()=%p\n",
 			ctx, ctx.ComponentID, rtui.GetCurrentContext())
 	}
