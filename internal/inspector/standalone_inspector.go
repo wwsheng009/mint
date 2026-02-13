@@ -191,9 +191,7 @@ func (si *StandaloneInspector) Enable() {
 	si.enabled = true
 	si.perf.Enable()
 
-	if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
-		log.UILogger.Debug("[Inspector] Enabled (F12 to toggle)\n")
-	}
+	log.InspectorLogger.Debug("Enabled (F12 to toggle)")
 }
 
 // Disable disables the inspector
@@ -205,9 +203,7 @@ func (si *StandaloneInspector) Disable() {
 	si.visible = false
 	si.perf.Disable()
 
-	if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
-		log.UILogger.Debug("[Inspector] Disabled\n")
-	}
+	log.InspectorLogger.Debug("Disabled")
 }
 
 // IsEnabled returns whether inspector is enabled
@@ -229,13 +225,11 @@ func (si *StandaloneInspector) ToggleVisibility() {
 
 	si.visible = !si.visible
 
-	if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
-		state := "hidden"
-		if si.visible {
-			state = "visible"
-		}
-		log.UILogger.Debug("[Inspector] Toggled: %s\n", state)
+	state := "hidden"
+	if si.visible {
+		state = "visible"
 	}
+	log.InspectorLogger.Debug("Toggled: %s", state)
 }
 
 // IsVisible returns whether inspector overlay is currently visible
@@ -262,9 +256,7 @@ func (si *StandaloneInspector) AttachToApp(root rtui.VNode) {
 	// Check if VNode has actually changed (by pointer comparison)
 	// This avoids expensive tree rebuilding when the same VNode is passed multiple times
 	if si.lastRootVNode == root {
-		if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
-			log.UILogger.Debug("[Inspector] AttachToApp: VNode unchanged, skipping SetRoot\n")
-		}
+		log.InspectorLogger.Debug("AttachToApp: VNode unchanged, skipping SetRoot")
 		return
 	}
 
@@ -272,9 +264,7 @@ func (si *StandaloneInspector) AttachToApp(root rtui.VNode) {
 	si.treeView.SetRoot(root)
 	si.lastRootVNode = root
 
-	if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
-		log.UILogger.Debug("[Inspector] AttachToApp: VNode changed, SetRoot called\n")
-	}
+	log.InspectorLogger.Debug("AttachToApp: VNode changed, SetRoot called")
 
 	// Run diagnostics if visible AND on diagnostics tab
 	// Analyze is very expensive (full tree traversal + rule checking)
@@ -586,9 +576,7 @@ func (si *StandaloneInspector) buildElementsTabContent() rtui.VNode {
 			uniqueID := si.treeView.GetUniqueIDForLineIndex(lineIndex)
 			if uniqueID != "" {
 				si.treeView.ToggleNode(uniqueID)
-				if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
-					log.UILogger.Debug("[Inspector] Toggled node: %s (line %d)\n", uniqueID, lineIndex)
-				}
+				log.InspectorLogger.Debug("Toggled node: %s (line %d)", uniqueID, lineIndex)
 			}
 		}
 		// Clear the flag
@@ -602,12 +590,10 @@ func (si *StandaloneInspector) buildElementsTabContent() rtui.VNode {
 		si.treeLines, si.treeTotalLines = si.treeView.GetTreeLines()
 		si.lastTreeChangeCount = currentChangeCount
 
-		if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
-			log.UILogger.Debug("[Inspector] Tree lines regenerated (count: %d)\n", len(si.treeLines))
-			// Log first few lines to debug
-			for i := 0; i < min(5, len(si.treeLines)); i++ {
-				log.UILogger.Debug("[Inspector] Tree line %d: %q\n", i, si.treeLines[i])
-			}
+		log.InspectorLogger.Debug("Tree lines regenerated (count: %d)", len(si.treeLines))
+		// Log first few lines to debug
+		for i := 0; i < min(5, len(si.treeLines)); i++ {
+			log.InspectorLogger.Debug("Tree line %d: %q", i, si.treeLines[i])
 		}
 	}
 
@@ -623,9 +609,7 @@ func (si *StandaloneInspector) buildElementsTabContent() rtui.VNode {
 	} else {
 		// Update existing TreeView with new lines WITHOUT creating a new instance
 		// This preserves the viewportHeight that was set by the layout engine
-		if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
-			log.UILogger.Debug("[Inspector] Updating TreeViewComponent with %d lines\n", len(si.treeLines))
-		}
+		log.InspectorLogger.Debug("Updating TreeViewComponent with %d lines", len(si.treeLines))
 		si.treeViewComponent.UpdateLines(si.treeLines)
 	}
 	// Get focused line index to display above tree
@@ -1050,11 +1034,11 @@ func formatMouseButtonName(btn frameworkevent.MouseButton) string {
 // buildHitTestTabContent builds content for HitTest tab using ListVNode component
 func (si *StandaloneInspector) buildHitTestTabContent() rtui.VNode {
 	// Update hit test entries from current app root
-	si.updateHitTestEntries()
+	entries := si.updateHitTestEntries()
 
 	// Prepare data for ListVNode
 	// The first row will be the column header
-	rows := make([]string, 0, len(si.hitMapEntries)+1)
+	rows := make([]string, 0, len(entries)+1)
 
 	// Add column header as first data row
 	colHeader := fmt.Sprintf("%-3s %-15s %-12s %-2s %-2s", "Z", "Node", "Bounds", "H", "C")
@@ -1135,70 +1119,116 @@ func (si *StandaloneInspector) buildHitTestTabContent() rtui.VNode {
 // updateHitTestEntries updates the hit test entries from the current app root
 // NOTE: Caller must already hold si.mu lock (called from buildHitTestTabContent
 // -> buildOverlayContent -> RenderOverlay/RenderContent which hold the lock)
-func (si *StandaloneInspector) updateHitTestEntries() {
-	si.hitMapEntries = []HitTestEntry{}
+// updateHitTestEntries collects and returns hit test entries from current app root
+// NOTE: Returns entries slice (does not modify si.hitMapEntries directly)
+// This avoidsktlock issues when called from RenderContent which holds RLock
+func (si *StandaloneInspector) updateHitTestEntries() []HitTestEntry {
+	var entries []HitTestEntry
 
 	if si.appRoot == nil {
-		return
+		log.InspectorLogger.Debug("updateHitTestEntries: appRoot is nil")
+		return entries
 	}
 
+	log.InspectorLogger.Debug("updateHitTestEntries: appRoot type=%d, nil=%v",
+		si.appRoot.Type(), si.appRoot == nil)
+
 	// Traverse the VNode tree to collect hit test information
-	si.collectHitTestEntries(si.appRoot, 0, 0, 0)
+	si.collectHitTestEntries(si.appRoot, 0, 0, 0, &entries)
+
+	log.InspectorLogger.Debug("update: collected %d entries", len(entries))
+	return entries
 }
 
 // collectHitTestEntries recursively collects hit test entries from a VNode tree
-func (si *StandaloneInspector) collectHitTestEntries(node rtui.VNode, x, y, zOrder int) {
+// entries is an accumulator slice to append collected entries to
+func (si *StandaloneInspector) collectHitTestEntries(node rtui.VNode, x, y, zOrder int, entries *[]HitTestEntry) {
 	if node == nil {
 		return
 	}
+
+	// Debug logging
+	log.InspectorLogger.Debug("collect: node type=%d, zOrder=%d", node.Type(), zOrder)
 
 	// Get node bounds if available
 	var bounds string
 	var clickable bool
 
 	// Try to get bounds from various sources
-	if boundsProvider, ok := node.(interface{ GetBounds() (int, int, int, int) }); ok {
+	// Signature 1: GetBounds() [4]int (array return) - used by ElementVNode
+	if boundsProvider, ok := node.(interface{ GetBounds() [4]int }); ok {
+		arr := boundsProvider.GetBounds()
+		bx, by, bw, bh := arr[0], arr[1], arr[2], arr[3]
+		log.InspectorLogger.Debug("  [4]int GetBounds: %v", arr)
+		// Only consider nodes with positive size
+		if bw > 0 && bh > 0 {
+			bounds = fmt.Sprintf("%d,%d %dx%d", bx, by, bw, bh)
+		}
+	} else if boundsProvider, ok := node.(interface{ GetBounds() (int, int, int, int) }); ok {
+		// Signature 2: GetBounds() (int, int, int, int) (tuple return)
 		bx, by, bw, bh := boundsProvider.GetBounds()
-		bounds = fmt.Sprintf("%d,%d %dx%d", bx, by, bw, bh)
-
-		// Check if mouse is in bounds
-		mouseInBounds := si.lastMouseX >= bx && si.lastMouseX < bx+bw &&
-			si.lastMouseY >= by && si.lastMouseY < by+bh
-
-		// Check if clickable (has onClick handler)
-		props := node.Props()
-		if props != nil {
-			if _, hasOnClick := props["onClick"]; hasOnClick {
-				clickable = true
-			}
+		log.InspectorLogger.Debug("  (int,int,int,int) GetBounds: %d,%d,%d,%d", bx, by, bw, bh)
+		// Only consider nodes with positive size
+		if bw > 0 && bh > 0 {
+			bounds = fmt.Sprintf("%d,%d %dx%d", bx, by, bw, bh)
 		}
-
-		// Also check if it's a button
-		if tagger, ok := node.(interface{ Tag() string }); ok {
-			if tagger.Tag() == "button" {
-				clickable = true
-			}
-		}
-
-		hitTest := "NO"
-		if mouseInBounds {
-			hitTest = "YES"
-		}
-
-		entry := HitTestEntry{
-			NodeID:    node.Type().String(),
-			Bounds:    bounds,
-			ZOrder:    zOrder,
-			HitTest:   hitTest,
-			Clickable: clickable,
-		}
-		si.hitMapEntries = append(si.hitMapEntries, entry)
+	} else {
+		// No GetBounds method
+		log.InspectorLogger.Debug("  No GetBounds method on node type=%d", node.Type())
 	}
 
-	// Recurse into children - use Children() method directly
+	// Skip nodes without valid bounds (but still recurse into children)
+	if bounds == "" {
+		// Still recurse into children
+		if node.Children() != nil {
+			for _, child := range node.Children() {
+				si.collectHitTestEntries(child, x, y, zOrder+1, entries)
+			}
+		}
+		return
+	}
+
+	// Parse bounds for hit testing
+	bx, by, bw, bh := 0, 0, 0, 0
+	fmt.Sscanf(bounds, "%d,%d %dx%d", &bx, &by, &bw, &bh)
+
+	// Check if mouse is in bounds
+	mouseInBounds := si.lastMouseX >= bx && si.lastMouseX < bx+bw &&
+		si.lastMouseY >= by && si.lastMouseY < by+bh
+
+	// Check if clickable (has onClick handler)
+	props := node.Props()
+	if props != nil {
+		if _, hasOnClick := props["onClick"]; hasOnClick {
+			clickable = true
+		}
+	}
+
+	// Also check if it's a button
+	if tagger, ok := node.(interface{ Tag() string }); ok {
+		if tagger.Tag() == "button" {
+			clickable = true
+		}
+	}
+
+	hitTest := "NO"
+	if mouseInBounds {
+		hitTest = "YES"
+	}
+
+	entry := HitTestEntry{
+		NodeID:    node.Type().String(),
+		Bounds:    bounds,
+		ZOrder:    zOrder,
+		HitTest:   hitTest,
+		Clickable: clickable,
+	}
+	*entries = append(*entries, entry)
+
+	// Recurse into children
 	if node.Children() != nil {
 		for _, child := range node.Children() {
-			si.collectHitTestEntries(child, x, y, zOrder+1)
+			si.collectHitTestEntries(child, x, y, zOrder+1, entries)
 		}
 	}
 }
@@ -1246,7 +1276,7 @@ func (si *StandaloneInspector) buildLayoutTabContent() rtui.VNode {
 	formattedResult := diagnostic.FormatSingleResult(result)
 
 	// Split into lines for display
-	lines := strings.Split(formattedResult, "\n")
+	lines := strings.Split(formattedResult, "")
 
 	// Limit lines to fit in overlay
 	maxLines := si.overlayHeight - 8
@@ -1715,9 +1745,7 @@ func (si *StandaloneInspector) EndFrame() {
 // Log adds a message to the inspector console
 func (si *StandaloneInspector) Log(message string) {
 	// TODO: Implement console logging
-	if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
-		log.UILogger.Debug("[Inspector] %s\n", message)
-	}
+	log.InspectorLogger.Debug("%s", message)
 }
 
 // =============================================================================
@@ -1737,9 +1765,7 @@ func (si *StandaloneInspector) SetFloatingPosition(x, y int) {
 	defer si.mu.Unlock()
 	si.floatX = x
 	si.floatY = y
-	if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
-		log.UILogger.Debug("[Inspector] Position set to (%d, %d)\n", x, y)
-	}
+	log.InspectorLogger.Debug("Position set to (%d, %d)", x, y)
 }
 
 // Move moves the inspector by the specified offset
@@ -1755,9 +1781,7 @@ func (si *StandaloneInspector) Move(dx, dy int) {
 	if si.floatY < 0 {
 		si.floatY = 0
 	}
-	if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
-		log.UILogger.Debug("[Inspector] Moved by (%d, %d) to (%d, %d)\n", dx, dy, si.floatX, si.floatY)
-	}
+	log.InspectorLogger.Debug("Moved by (%d, %d) to (%d, %d)", dx, dy, si.floatX, si.floatY)
 }
 
 // =============================================================================
@@ -1781,28 +1805,26 @@ func (si *StandaloneInspector) HandleKeyEvent(key string, alt bool, ctrl bool, s
 	si.lastShift = shift
 
 	// Debug output for key detection
-	if os.Getenv("TUI_DEBUG_UI") == "true" || os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
-		modifiers := ""
-		if alt {
-			modifiers += "Alt+"
-		}
-		if ctrl {
-			modifiers += "Ctrl+"
-		}
-		if shift {
-			modifiers += "Shift+"
-		}
-		if modifiers == "" {
-			modifiers = "none"
-		}
-		log.UILogger.Debug("[Inspector] Key received: key='%s' modifiers=%s showKeyDebug=%v\n",
-			key, modifiers, si.showKeyDebug)
+	modifiers := ""
+	if alt {
+		modifiers += "Alt+"
 	}
+	if ctrl {
+		modifiers += "Ctrl+"
+	}
+	if shift {
+		modifiers += "Shift+"
+	}
+	if modifiers == "" {
+		modifiers = "none"
+	}
+	log.InspectorLogger.Debug("Key received: key='%s' modifiers=%s showKeyDebug=%v",
+		key, modifiers, si.showKeyDebug)
 
 	// Debug mode: toggle with Ctrl+D (when Inspector is visible)
 	if key == "d" && ctrl {
 		si.showKeyDebug = !si.showKeyDebug
-		log.UILogger.Debug("[Inspector] showKeyDebug toggled to %v\n", si.showKeyDebug)
+		log.InspectorLogger.Debug("showKeyDebug toggled to %v", si.showKeyDebug)
 		return true
 	}
 
@@ -1813,7 +1835,7 @@ func (si *StandaloneInspector) HandleKeyEvent(key string, alt bool, ctrl bool, s
 			snapshot := analyzer.Capture(si.appRoot, 0)
 			treeStr := analyzer.FormatTree(snapshot)
 			_ = os.WriteFile("layout_dump.txt", []byte(treeStr), 0644)
-			log.UILogger.Debug("[Inspector] Layout dump saved to layout_dump.txt\n")
+			log.InspectorLogger.Debug("Layout dump saved to layout_dump.txt")
 		}
 		return true
 	}
@@ -1826,30 +1848,22 @@ func (si *StandaloneInspector) HandleKeyEvent(key string, alt bool, ctrl bool, s
 			if si.floatX < 0 {
 				si.floatX = 0
 			}
-			if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
-				log.UILogger.Debug("[Inspector] Moved left to x=%d\n", si.floatX)
-			}
+			log.InspectorLogger.Debug("Moved left to x=%d", si.floatX)
 			return true
 		case "l", "right":
 			si.floatX += 2
-			if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
-				log.UILogger.Debug("[Inspector] Moved right to x=%d\n", si.floatX)
-			}
+			log.InspectorLogger.Debug("Moved right to x=%d", si.floatX)
 			return true
 		case "k", "up":
 			si.floatY -= 1
 			if si.floatY < 0 {
 				si.floatY = 0
 			}
-			if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
-				log.UILogger.Debug("[Inspector] Moved up to y=%d\n", si.floatY)
-			}
+			log.InspectorLogger.Debug("Moved up to y=%d", si.floatY)
 			return true
 		case "j", "down":
 			si.floatY += 1
-			if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
-				log.UILogger.Debug("[Inspector] Moved down to y=%d\n", si.floatY)
-			}
+			log.InspectorLogger.Debug("Moved down to y=%d", si.floatY)
 			return true
 		}
 	}
@@ -1857,58 +1871,42 @@ func (si *StandaloneInspector) HandleKeyEvent(key string, alt bool, ctrl bool, s
 	// Tab switching
 	if key == "1" {
 		si.activeTab = TabElements
-		if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
-			log.UILogger.Debug("[Inspector] Switched to Elements tab (key=1)\n")
-		}
+		log.InspectorLogger.Debug("Switched to Elements tab (key=1)")
 		return true
 	}
 	if key == "2" {
 		si.activeTab = TabConsole
-		if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
-			log.UILogger.Debug("[Inspector] Switched to Console tab (key=2)\n")
-		}
+		log.InspectorLogger.Debug("Switched to Console tab (key=2)")
 		return true
 	}
 	if key == "3" {
 		si.activeTab = TabPerformance
-		if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
-			log.UILogger.Debug("[Inspector] Switched to Performance tab (key=3)\n")
-		}
+		log.InspectorLogger.Debug("Switched to Performance tab (key=3)")
 		return true
 	}
 	if key == "4" {
 		si.activeTab = TabDiagnostics
-		if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
-			log.UILogger.Debug("[Inspector] Switched to Diagnostics tab (key=4)\n")
-		}
+		log.InspectorLogger.Debug("Switched to Diagnostics tab (key=4)")
 		return true
 	}
 	if key == "5" {
 		si.activeTab = TabLayout
-		if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
-			log.UILogger.Debug("[Inspector] Switched to Layout tab (key=5)\n")
-		}
+		log.InspectorLogger.Debug("Switched to Layout tab (key=5)")
 		return true
 	}
 	if key == "6" {
 		si.activeTab = TabNetwork
-		if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
-			log.UILogger.Debug("[Inspector] Switched to Network tab (key=6)\n")
-		}
+		log.InspectorLogger.Debug("Switched to Network tab (key=6)")
 		return true
 	}
 	if key == "7" {
 		si.activeTab = TabScreenInfo
-		if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
-			log.UILogger.Debug("[Inspector] Switched to Screen Info tab (key=7)\n")
-		}
+		log.InspectorLogger.Debug("Switched to Screen Info tab (key=7)")
 		return true
 	}
 	if key == "8" {
 		si.activeTab = TabHitTest
-		if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
-			log.UILogger.Debug("[Inspector] Switched to HitTest tab (key=8)\n")
-		}
+		log.InspectorLogger.Debug("Switched to HitTest tab (key=8)")
 		return true
 	}
 
@@ -1928,13 +1926,11 @@ func (si *StandaloneInspector) HandleKeyEvent(key string, alt bool, ctrl bool, s
 			}
 		}
 
-		if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
-			direction := "forward"
-			if shift {
-				direction = "backward"
-			}
-			log.UILogger.Debug("[Inspector] Tab cycled %s to tab %d\n", direction, si.activeTab)
+		direction := "forward"
+		if shift {
+			direction = "backward"
 		}
+		log.InspectorLogger.Debug("Tab cycled %s to tab %d", direction, si.activeTab)
 		return true
 	}
 
@@ -1992,10 +1988,8 @@ func (si *StandaloneInspector) HandleKeyEvent(key string, alt bool, ctrl bool, s
 						if node != nil {
 							si.selectedVNode = node.VNode
 							si.selectedPath = selectedLine.Path
-							if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
-								log.UILogger.Debug("[Inspector] Selected node: %s (path: %s)\n",
-									node.Info.Type, selectedLine.Path)
-							}
+							log.InspectorLogger.Debug("Selected node: %s (path: %s)",
+								node.Info.Type, selectedLine.Path)
 						}
 					}
 				}
@@ -2004,13 +1998,11 @@ func (si *StandaloneInspector) HandleKeyEvent(key string, alt bool, ctrl bool, s
 			if handled {
 				// Sync scroll offset back to Inspector
 				si.treeScrollOffset = si.treeViewComponent.GetScrollOffset()
-				if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
-					focusedLine := si.treeViewComponent.GetFocusedLine()
-					log.UILogger.Debug("[Inspector] Tree navigation: focus=%d, scroll=%d, line=%q\n",
-						si.treeViewComponent.GetFocusIndex(),
-						si.treeScrollOffset,
-						focusedLine.Content)
-				}
+				focusedLine := si.treeViewComponent.GetFocusedLine()
+				log.InspectorLogger.Debug("Tree navigation: focus=%d, scroll=%d, line=%q",
+					si.treeViewComponent.GetFocusIndex(),
+					si.treeScrollOffset,
+					focusedLine.Content)
 				return true
 			}
 		}
@@ -2033,9 +2025,7 @@ func (si *StandaloneInspector) HandleKeyEvent(key string, alt bool, ctrl bool, s
 			if si.treeScrollOffset < 0 {
 				si.treeScrollOffset = 0
 			}
-			if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
-				log.UILogger.Debug("[Inspector] Tree scrolled up to offset %d\n", si.treeScrollOffset)
-			}
+			log.InspectorLogger.Debug("Tree scrolled up to offset %d", si.treeScrollOffset)
 			return true
 		case "pagedown", "pgdn": // Accept both for compatibility
 			// Scroll down by one page
@@ -2043,23 +2033,17 @@ func (si *StandaloneInspector) HandleKeyEvent(key string, alt bool, ctrl bool, s
 			if si.treeScrollOffset > maxOffset {
 				si.treeScrollOffset = maxOffset
 			}
-			if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
-				log.UILogger.Debug("[Inspector] Tree scrolled down to offset %d\n", si.treeScrollOffset)
-			}
+			log.InspectorLogger.Debug("Tree scrolled down to offset %d", si.treeScrollOffset)
 			return true
 		case "home":
 			// Scroll to top
 			si.treeScrollOffset = 0
-			if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
-				log.UILogger.Debug("[Inspector] Tree scrolled to top\n")
-			}
+			log.InspectorLogger.Debug("Tree scrolled to top")
 			return true
 		case "end":
 			// Scroll to bottom
 			si.treeScrollOffset = maxOffset
-			if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
-				log.UILogger.Debug("[Inspector] Tree scrolled to bottom\n")
-			}
+			log.InspectorLogger.Debug("Tree scrolled to bottom")
 			return true
 		}
 	}
@@ -2067,10 +2051,8 @@ func (si *StandaloneInspector) HandleKeyEvent(key string, alt bool, ctrl bool, s
 	// When Inspector is visible, it's modal - capture ALL keyboard input
 	// This prevents keys from falling through to the background app
 	// (F12 and Ctrl+D are handled earlier by keyMap shortcuts)
-	if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
-		log.UILogger.Debug("[Inspector] Visible mode: capturing key '%s' (alt=%v, ctrl=%v)\n",
-			key, alt, ctrl)
-	}
+	log.InspectorLogger.Debug("Visible mode: capturing key '%s' (alt=%v, ctrl=%v)",
+		key, alt, ctrl)
 	return true
 }
 
@@ -2091,10 +2073,8 @@ func (si *StandaloneInspector) HandleMouseEvent(eventType frameworkevent.EventTy
 	si.lastMouseEvent = eventType
 
 	// Debug logging for all mouse events
-	if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
-		log.UILogger.Debug("[Inspector] HandleMouseEvent: type=%v, pos=(%d,%d), button=%d, visible=%v\n",
-			eventType, ev.X, ev.Y, ev.Button, si.visible)
-	}
+	log.InspectorLogger.Debug("HandleMouseEvent: type=%v, pos=(%d,%d), button=%d, visible=%v",
+		eventType, ev.X, ev.Y, ev.Button, si.visible)
 
 	// Update hovered VNode by hit testing current app root
 	if si.appRoot != nil {
@@ -2114,12 +2094,10 @@ func (si *StandaloneInspector) HandleMouseEvent(eventType frameworkevent.EventTy
 		maxX := si.floatX + si.overlayWidth
 		maxY := si.floatY + si.overlayHeight
 
-		if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
-			log.UILogger.Debug("[Inspector] Overlay bounds: minX=%d, minY=%d, maxX=%d, maxY=%d\n",
-				minX, minY, maxX, maxY)
-			log.UILogger.Debug("[Inspector] Mouse pos: (%d,%d), in overlay: %v\n",
-				ev.X, ev.Y, ev.X >= minX && ev.X < maxX && ev.Y >= minY && ev.Y < maxY)
-		}
+		log.InspectorLogger.Debug("Overlay bounds: minX=%d, minY=%d, maxX=%d, maxY=%d",
+			minX, minY, maxX, maxY)
+		log.InspectorLogger.Debug("Mouse pos: (%d,%d), in overlay: %v",
+			ev.X, ev.Y, ev.X >= minX && ev.X < maxX && ev.Y >= minY && ev.Y < maxY)
 
 		if ev.X >= minX && ev.X < maxX && ev.Y >= minY && ev.Y < maxY {
 			// Convert to overlay coordinates
@@ -2144,9 +2122,7 @@ func (si *StandaloneInspector) HandleMouseEvent(eventType frameworkevent.EventTy
 				if component, ok := si.cachedOverlayContent.(frameworkevent.Component); ok {
 					handled := component.HandleEvent(localEv)
 					if handled {
-						if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
-							log.UILogger.Debug("[Inspector] Event handled by overlay component\n")
-						}
+						log.InspectorLogger.Debug("Event handled by overlay component")
 						return true
 					}
 				}
@@ -2154,8 +2130,8 @@ func (si *StandaloneInspector) HandleMouseEvent(eventType frameworkevent.EventTy
 
 			// Fallback: manual handling for tab bar
 			handled := si.handleOverlayMouse(localX, localY, eventType, ev.Button)
-			if handled && os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
-				log.UILogger.Debug("[Inspector] Event handled by manual fallback\n")
+			if handled {
+				log.InspectorLogger.Debug("Event handled by manual fallback")
 			}
 			return handled
 		}
@@ -2212,9 +2188,7 @@ func (si *StandaloneInspector) handleOverlayMouse(localX, localY int, eventType 
 				width = len(label) + 2 // leading/trailing spaces
 				if localX >= cursor && localX < cursor+width {
 					si.activeTab = InspectorTab(idx)
-					if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
-						log.UILogger.Debug("[Inspector] Tab clicked: %s (row %d, col %d)\n", label, localY, localX)
-					}
+					log.InspectorLogger.Debug("Tab clicked: %s (row %d, col %d)", label, localY, localX)
 					return true // tab switched, consume event
 				}
 				cursor += width

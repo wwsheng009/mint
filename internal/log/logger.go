@@ -194,6 +194,8 @@ var (
 
 	InspectorLogger = NewLogger("Inspector", "INSPECTOR")
 
+	LayoutLogger = NewLogger("Layout", "LAYOUT")
+
 	EngineLogger = NewLogger("Engine", "ENGINE")
 	// UILogger logs UI-related messages (enabled via TUI_DEBUG_UI)
 	UILogger = NewLogger("UI", "UI")
@@ -229,10 +231,10 @@ var (
 
 // RotationConfig holds log rotation settings
 type RotationConfig struct {
-	MaxSize   int64  // Maximum size in bytes before rotation
-	MaxFiles  int    // Maximum number of log files to keep
-	Compress  bool   // Whether to compress old log files
-	Enable    bool   // Whether rotation is enabled
+	MaxSize  int64 // Maximum size in bytes before rotation
+	MaxFiles int   // Maximum number of log files to keep
+	Compress bool  // Whether to compress old log files
+	Enable   bool  // Whether rotation is enabled
 }
 
 // parseSize parses a size string like "100M", "50K", "1G" into bytes

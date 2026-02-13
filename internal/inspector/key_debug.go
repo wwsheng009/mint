@@ -10,7 +10,7 @@ import (
 func (si *StandaloneInspector) DebugKeyEvent() func(key string, alt bool, ctrl bool, shift bool) bool {
 	return func(key string, alt bool, ctrl bool, shift bool) bool {
 		// 调试输出
-		if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" || os.Getenv("TUI_DEBUG") == "true" {
+		if os.Getenv("TUI_DEBUG_INSPECTOR") == "true" || os.Getenv("TUI_DEBUG") == "true" {
 			log.UILogger.Debug("\n=== Inspector KeyEvent Debug ===\n")
 			log.UILogger.Debug("Key: '%s'\n", key)
 			log.UILogger.Debug("Alt: %v, Ctrl: %v, Shift: %v\n", alt, ctrl, shift)
@@ -22,7 +22,7 @@ func (si *StandaloneInspector) DebugKeyEvent() func(key string, alt bool, ctrl b
 		// 调用原始 HandleKeyEvent
 		result := si.HandleKeyEvent(key, alt, ctrl, shift)
 
-		if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" || os.Getenv("TUI_DEBUG") == "true" {
+		if os.Getenv("TUI_DEBUG_INSPECTOR") == "true" || os.Getenv("TUI_DEBUG") == "true" {
 			log.UILogger.Debug("HandleKeyEvent returned: %v\n", result)
 			log.UILogger.Debug("Current tab after: %v\n", si.activeTab)
 			log.UILogger.Debug("===========================\n")
@@ -54,7 +54,7 @@ func (si *StandaloneInspector) DebugKeyEvent() func(key string, alt bool, ctrl b
 // 诊断步骤：
 //
 // 1. 启用调试模式：
-//    export TUI_INSPECTOR_VERBOSE=true
+//    export TUI_DEBUG_INSPECTOR=true
 //    export TUI_DEBUG=true
 //
 // 2. 运行程序，按数字键

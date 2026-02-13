@@ -2,8 +2,6 @@
 package inspector
 
 import (
-	"os"
-
 	"github.com/wwsheng009/mint/internal/log"
 	"github.com/wwsheng009/mint/runtime/render"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
@@ -22,22 +20,16 @@ func CreateInspectorHook(inspector *StandaloneInspector) render.VNodeHook {
 	return func(vnode rtui.VNode) rtui.VNode {
 		// If Inspector is not visible, return original VNode unchanged
 		if !inspector.IsVisible() {
-			if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
-				log.InspectorLogger.Debug("[InspectorHook] Inspector not visible, skipping injection\n")
-			}
+			log.InspectorLogger.Debug("[InspectorHook] Inspector not visible, skipping injection")
 			return vnode
 		}
 
-		if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
-			log.InspectorLogger.Debug("[InspectorHook] Injecting Inspector overlay\n")
-		}
+		log.InspectorLogger.Debug("[InspectorHook] Injecting Inspector overlay")
 
 		// Get Inspector content (UI only, no Layer set)
 		inspectorContent := inspector.RenderContent()
 		if inspectorContent == nil {
-			if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
-				log.InspectorLogger.Debug("[InspectorHook] RenderContent() returned nil\n")
-			}
+			log.InspectorLogger.Debug("[InspectorHook] RenderContent() returned nil")
 			return vnode
 		}
 
@@ -59,14 +51,12 @@ func CreateInspectorHook(inspector *StandaloneInspector) render.VNodeHook {
 
 		// Set the layer - this is the ONLY place where SetLayer is called
 		// Application code and Inspector itself don't need to know about Layer
-		inspectorContent.SetLayer(rtui.LayerInspector)
+	inspectorContent.SetLayer(rtui.LayerInspector)
 
-		if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
-			log.InspectorLogger.Debug("[InspectorHook] Inspector overlay: layer=%d, pos=(%d,%d), size=%dx%d\n",
-				rtui.LayerInspector, x, y, width, height)
-		}
+	log.InspectorLogger.Debug("[InspectorHook] Inspector overlay: layer=%d, pos=(%d,%d), size=%dx%d",
+		rtui.LayerInspector, x, y, width, height)
 
-		// Wrap base VNode and Inspector in Fragment
+	// Wrap base VNode and Inspector in Fragment
 		// PipelineRenderer will detect the LayerInspector and use multi-layer rendering
 		return rtui.Fragment(vnode, inspectorContent)
 	}
@@ -88,9 +78,7 @@ func RegisterInspector(inspector *StandaloneInspector, hookManager interface{}) 
 	if hm, ok := hookManager.(hookManagerWrapper); ok {
 		hm.RegisterVNodeHook(hook)
 
-		if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
-			log.InspectorLogger.Debug("[Inspector] Registered with render hook system\n")
-		}
+		log.InspectorLogger.Debug("[Inspector] Registered with render hook system")
 	}
 }
 

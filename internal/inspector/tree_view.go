@@ -59,7 +59,7 @@ func (tv *TreeView) SetRoot(root ui.VNode) error {
 	// Check if VNode has actually changed (by pointer comparison)
 	// This avoids expensive tree rebuilding when the same VNode is passed multiple times
 	if tv.lastRootVNode == root {
-		if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
+		if os.Getenv("TUI_DEBUG_INSPECTOR") == "true" {
 			log.UILogger.Debug("[TreeView] SetRoot: VNode unchanged, skipping rebuild\n")
 		}
 		return nil
@@ -70,7 +70,7 @@ func (tv *TreeView) SetRoot(root ui.VNode) error {
 	tv.lastRootVNode = root
 	tv.changeCount++
 
-	if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
+	if os.Getenv("TUI_DEBUG_INSPECTOR") == "true" {
 		log.UILogger.Debug("[TreeView] SetRoot: VNode changed, rebuilding tree (changeCount=%d)\n", tv.changeCount)
 	}
 
@@ -357,7 +357,7 @@ func (tv *TreeView) ToggleNode(uniqueID string) {
 	newState := !currentState
 	tv.expanded[uniqueID] = newState
 
-	if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
+	if os.Getenv("TUI_DEBUG_INSPECTOR") == "true" {
 		log.UILogger.Debug("[TreeView] ToggleNode: uniqueID=%s, %v -> %v\n", uniqueID, currentState, newState)
 	}
 
