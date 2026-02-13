@@ -123,7 +123,7 @@ func TestFormatElementInfo(t *testing.T) {
 	button := app.ButtonBuilder("Test Button").Build()
 
 	info := ExtractElementInfo(button)
-	formatted := FormatElementInfo(info)
+	formatted := formatNodeInfo(info.Type, info.Tag, info.Key, info.Label)
 
 	if formatted == "" {
 		t.Error("Formatted output should not be empty")

@@ -17,7 +17,7 @@ import (
 type RenderingPipeline struct {
 	layoutEngine *compute.Engine
 	paintEngine  *PaintEngine
-	lastHitMap   *event.HitMap // HitMap from the most recent RenderLayers call
+	lastHitMap   *event.HitMap  // HitMap from the most recent RenderLayers call
 	layerMgr     *layer.Manager // LayerManager from the most recent RenderLayers call
 }
 
@@ -63,20 +63,16 @@ func (p *RenderingPipeline) Render(vnode rtui.VNode, constraints runtime.BoxCons
 	log.PipelineLogger.Debug("Starting Paint phase...")
 	err = p.paintEngine.Paint(layout, buffer)
 
-	if log.PipelineLogger.Enabled() || log.PaintLogger.Enabled() || log.PipelineLogger.Enabled() {
-		log.PipelineLogger.Debug("Paint complete, err=%v", err)
-	}
+	log.PipelineLogger.Debug("Paint complete, err=%v", err)
 
 	// Save HitMap for event routing (hit testing)
 	// This HitMap contains the FINAL positions from layout computation
 	p.lastHitMap = layout.HitMap
 
-	if log.HitMapLogger.Enabled() {
-		if p.lastHitMap != nil {
-			log.PipelineLogger.Debug("Saved HitMap: %d entries", p.lastHitMap.Size())
-		} else {
-			log.PipelineLogger.Debug("⚠️ Layout.HitMap is nil")
-		}
+	if p.lastHitMap != nil {
+		log.PipelineLogger.Debug("Saved HitMap: %d entries", p.lastHitMap.Size())
+	} else {
+		log.PipelineLogger.Debug("⚠️ Layout.HitMap is nil")
 	}
 
 	return err
@@ -177,15 +173,11 @@ func (p *RenderingPipeline) RenderLayers(
 	// Get all layer layouts
 	layouts := layerMgr.GetLayouts()
 
-	if log.PipelineLogger.Enabled() {
-		log.PipelineLogger.Debug("Layer layouts complete, rendering %d layers", len(layouts))
-	}
+	log.PipelineLogger.Debug("Layer layouts complete, rendering %d layers", len(layouts))
 
 	// Paint all layers
 	if err := p.paintEngine.PaintLayers(layouts, buffer); err != nil {
-		if log.PipelineLogger.Enabled() {
-			log.PipelineLogger.Debug("PaintLayers failed: %v", err)
-		}
+		log.PipelineLogger.Debug("PaintLayers failed: %v", err)
 		return err
 	}
 
@@ -197,14 +189,12 @@ func (p *RenderingPipeline) RenderLayers(
 	// This allows DeclarativeNode to access modal nodes for mouse event distribution
 	p.layerMgr = layerMgr
 
-	if log.PipelineLogger.Enabled() {
-		if p.lastHitMap != nil {
-			log.PipelineLogger.Debug("[RenderLayers] Merged HitMap: %d entries", p.lastHitMap.Size())
-		}
-		if p.layerMgr != nil {
-			modalNodes := p.layerMgr.GetModalNodes()
-			log.PipelineLogger.Debug("[RenderLayers] Saved layerMgr with %d modal nodes", len(modalNodes))
-		}
+	if p.lastHitMap != nil {
+		log.PipelineLogger.Debug("[RenderLayers] Merged HitMap: %d entries", p.lastHitMap.Size())
+	}
+	if p.layerMgr != nil {
+		modalNodes := p.layerMgr.GetModalNodes()
+		log.PipelineLogger.Debug("[RenderLayers] Saved layerMgr with %d modal nodes", len(modalNodes))
 	}
 
 	// 验证 buffer 内容

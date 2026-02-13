@@ -123,7 +123,7 @@ test.bat
 
 # 或手动命令
 TUI_DEBUG=true TUI_DEBUG_UI=true TUI_DEBUG_INSPECTOR=true \
-TUI_LAYER_DEBUG=true TUI_DEBUG_RENDERING=true \
+TUI_LAYER_DEBUG=true TUI_DEBUG_RENDER=true \
 ./demo2_inspector.exe 2>&1 | tee demo2_debug.log
 ```
 
