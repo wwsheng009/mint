@@ -147,6 +147,7 @@ func (e *Engine) buildComputedBoxWithSize(vnode VNode, fiber *reconciler.Fiber, 
 	// Priority: Use own Fiber.NodeID first, then inherit from parent
 	if fiber != nil {
 		box.NodeID = fiber.NodeID
+		box.ChildFiber = fiber // Set ChildFiber for NodeID propagation to children
 		if e.debug {
 			log.EngineLogger.Debug("[buildComputedBoxWithSize] Set NodeID=%d from Fiber (type=%s key=%s)",
 				box.NodeID, vnode.Type().String(), vnode.Key())
@@ -208,7 +209,7 @@ func (e *Engine) buildComputedBoxWithSize(vnode VNode, fiber *reconciler.Fiber, 
 		if tagger, ok := vnode.(interface{ Tag() string }); ok {
 			tag = tagger.Tag()
 		}
-		log.LayoutLogger.Debug("[buildComputedBox] tag=%s, childConstraints=%d, using single-pass=%v",
+		fmt.Printf("[buildComputedBoxWithSize] tag=%s, childConstraints=%d, using single-pass=%v\n",
 			tag, len(measurement.ChildConstraints), len(measurement.ChildConstraints) > 0)
 	}
 	// Check if we got a valid measurement (has child constraints)
@@ -260,6 +261,12 @@ func (e *Engine) buildComputedBoxWithSize(vnode VNode, fiber *reconciler.Fiber, 
 			childBox := e.buildComputedBox(child, childFiber, box, childConstraints)
 			if childBox != nil {
 				box.Children = append(box.Children, childBox)
+
+				// Debug: Verify childFiber was passed
+				if e.debug && childBox.ChildFiber != nil {
+					log.EngineLogger.Debug("[buildComputedBoxWithSize] childBox[%d] ChildFiber.NodeID=%d (parent Fiber.NodeID=%d)",
+						i, childBox.ChildFiber.NodeID, box.ChildFiber.NodeID)
+				}
 			}
 		}
 
