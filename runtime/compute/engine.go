@@ -137,15 +137,30 @@ func (e *Engine) buildComputedBoxWithSize(vnode VNode, fiber *reconciler.Fiber, 
 		Parent:       parent,
 		Box:          runtime.Box{X: 0, Y: 0, Width: 0, Height: 0},
 		NaturalWidth:  0, // Will be measured below
-		NodeID:       parent.NodeID, // Inherit NodeID from parent
+		NodeID:       0, // Will be set below
 		ChildFiber:   nil, // Placeholder for child's Fiber (will be set before building children)
 	}
 
 	// Phase 3: Set NodeID from Fiber for stable identity
 	// This provides runtime identity independent of VNode keys and paths
 	// See: docs/render/fiber/IDENTITY_REFACTORING_PLAN.md
+	// Priority: Use own Fiber.NodeID first, then inherit from parent
 	if fiber != nil {
 		box.NodeID = fiber.NodeID
+		if e.debug {
+			log.EngineLogger.Debug("[buildComputedBoxWithSize] Set NodeID=%d from Fiber (type=%s key=%s)",
+				box.NodeID, vnode.Type().String(), vnode.Key())
+		}
+	} else if parent != nil && parent.NodeID != 0 {
+		box.NodeID = parent.NodeID
+		if e.debug {
+			log.EngineLogger.Debug("[buildComputedBoxWithSize] Inherited NodeID=%d from parent (type=%s key=%s)",
+				box.NodeID, vnode.Type().String(), vnode.Key())
+		}
+	} else {
+		if e.debug {
+			log.EngineLogger.Debug("[buildComputedBoxWithSize] ⚠️  NodeID=0 (no fiber, no parent with NodeID)")
+		}
 	}
 
 	// Measure natural width (unconstrained) for alignment calculations
@@ -209,10 +224,40 @@ func (e *Engine) buildComputedBoxWithSize(vnode VNode, fiber *reconciler.Fiber, 
 		box.Children = make([]*ComputedBox, 0, len(vnodeChildren))
 		for i, child := range vnode.Children() {
 			childConstraints := measurement.ChildConstraints[i]
-			// Note: We don't have Fiber for children in this phase
-			// Phase 3 only passes Fiber for the root node
-			// For children, NodeID will remain 0 (backward compatible)
-			childBox := e.buildComputedBox(child, nil, box, childConstraints)
+
+			// Set childFiber before building child box
+			// Find the Fiber node that corresponds to this child VNode
+			var childFiber *rtui.Fiber
+			if fiber != nil {
+				// Debug: Check if fiber.Child exists
+				if e.debug && fiber.Child == nil {
+					log.EngineLogger.Debug("[buildComputedBoxWithSize] ⚠️  fiber.Child is NIL! fiber.NodeID=%d Type=%s",
+						fiber.NodeID, fiber.Type.String())
+				}
+
+				// Match by index position (since VNode objects may be cloned)
+				// Walk through fiber children and find the i-th child
+				childIndex := 0
+				for f := fiber.Child; f != nil; f = f.Sibling {
+					if childIndex == i {
+						childFiber = f
+						if e.debug {
+							log.EngineLogger.Debug("[buildComputedBoxWithSize] ✅ Matched child %d by index: childFiber.NodeID=%d Type=%s",
+								i, f.NodeID, f.Type.String())
+						}
+						break
+					}
+					childIndex++
+				}
+
+				// Debug: Log when childFiber is nil
+				if e.debug && childFiber == nil {
+					log.EngineLogger.Debug("[buildComputedBoxWithSize] ⚠️  No matching Fiber for child %d: Type=%s Key=%s (fiber.Child=%p, iterated %d children)",
+						i, child.Type().String(), child.Key(), fiber.Child, childIndex)
+				}
+			}
+
+			childBox := e.buildComputedBox(child, childFiber, box, childConstraints)
 			if childBox != nil {
 				box.Children = append(box.Children, childBox)
 			}
@@ -247,14 +292,32 @@ func (e *Engine) buildComputedBoxWithSize(vnode VNode, fiber *reconciler.Fiber, 
 	// Build children layout boxes
 	box.Children = make([]*ComputedBox, 0, len(vnodeChildren))
 
-	for _, child := range vnodeChildren {
+	for i, child := range vnodeChildren {
 		// Calculate child constraints based on layout type
 		childConstraints := e.getChildConstraints(vnode, child, constraints, size)
 
-		// Note: We don't have Fiber for children in this phase
-		// Phase 3 only passes Fiber for the root node
-		// For children, NodeID will remain 0 (backward compatible)
-		childBox := e.buildComputedBox(child, nil, box, childConstraints)
+		// Set childFiber before building child box
+		// Find the Fiber node that corresponds to this child VNode
+		var childFiber *rtui.Fiber
+		if fiber != nil {
+			// Match by index position (since VNode objects may be cloned)
+			childIndex := 0
+			for f := fiber.Child; f != nil; f = f.Sibling {
+				if childIndex == i {
+					childFiber = f
+					break
+				}
+				childIndex++
+			}
+
+			// Debug: Log when childFiber is nil
+			if e.debug && childFiber == nil {
+				log.EngineLogger.Debug("[buildComputedBoxWithSize.FALLBACK] ⚠️  No matching Fiber for child %d: Type=%s Key=%s",
+					i, child.Type().String(), child.Key())
+			}
+		}
+
+		childBox := e.buildComputedBox(child, childFiber, box, childConstraints)
 		if childBox != nil {
 			box.Children = append(box.Children, childBox)
 		}
@@ -1557,6 +1620,18 @@ func (e *Engine) buildHitMapFromComputedBoxes(root *ComputedBox) *event.HitMap {
 			if key := box.VNode.Key(); key != "" {
 				nodeID = event.StringToNodeID(key)
 			}
+		}
+
+		// Debug: Log NodeID collection
+		if e.debug {
+			var nodeInfo string
+			if box.VNode != nil {
+				nodeInfo = fmt.Sprintf("type=%s key=%s", box.VNode.Type().String(), box.VNode.Key())
+			} else {
+				nodeInfo = "VNode=nil"
+			}
+			log.EngineLogger.Debug("[buildHitMapFromComputedBoxes] Adding entry: NodeID=%d %s bounds=(%d,%d,%dx%d)",
+				nodeID, nodeInfo, box.Box.X, box.Box.Y, box.Box.Width, box.Box.Height)
 		}
 
 		// Create entry using ComputedBox positions
