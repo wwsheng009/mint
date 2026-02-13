@@ -1,7 +1,6 @@
 package navigation
 
 import (
-	"os"
 	"strings"
 	"unicode/utf8"
 
@@ -231,9 +230,7 @@ func (t *TabsVNode) HandleEvent(ev frameworkevent.Event) bool {
 		return false
 	}
 
-	if os.Getenv("TUI_DEBUG_INSPECTOR") == "true" {
-		log.UILogger.Debug("[Tabs] HandleEvent: LocalX=%d, LocalY=%d\n", me.LocalX, me.LocalY)
-	}
+	log.InspectorLogger.Debug("[Tabs] HandleEvent: LocalX=%d, LocalY=%d\n", me.LocalX, me.LocalY)
 
 	// Use LocalX/LocalY directly (pre-calculated by HitMap)
 	localX := me.LocalX

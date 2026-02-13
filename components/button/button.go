@@ -2,7 +2,6 @@ package button
 
 import (
 	"fmt"
-	"os"
 	"strings"
 	"unicode/utf8"
 
@@ -11,11 +10,11 @@ import (
 	"github.com/wwsheng009/mint/framework/component"
 	frameworkevent "github.com/wwsheng009/mint/framework/event"
 	"github.com/wwsheng009/mint/framework/theme"
-	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
-	runtimeplatform "github.com/wwsheng009/mint/runtime/platform"
 	"github.com/wwsheng009/mint/internal/log"
 	"github.com/wwsheng009/mint/runtime"
+	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
 	"github.com/wwsheng009/mint/runtime/paint"
+	runtimeplatform "github.com/wwsheng009/mint/runtime/platform"
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/ui"
@@ -897,7 +896,7 @@ func (b *ButtonVNode) Paint(x, y int) []paint.DrawCmd {
 	}
 
 	// Debug logging for paint calculations
-	if os.Getenv("TUI_UI_DEBUG_PAINT") == "true" || os.Getenv("TUI_PAINT_DEBUG") == "true" {
+	if log.PaintLogger.Enabled() || log.RenderLogger.Enabled() {
 		log.RenderLogger.Debug("[DEBUG-PAINT] label=%q, bounds=[%d %d %d %d], x=%d, y=%d",
 			b.label, b.bounds[0], b.bounds[1], b.bounds[2], b.bounds[3], x, y)
 		log.RenderLogger.Debug("[DEBUG-PAINT]   buttonText=\"%s\", contentWidth=%d, naturalWidth=%d, layoutWidth=%d",

@@ -2,7 +2,6 @@ package form
 
 import (
 	"fmt"
-	"os"
 	"sync"
 	"time"
 
@@ -16,16 +15,10 @@ import (
 	"github.com/wwsheng009/mint/runtime/style"
 )
 
-var (
-	debugForm = os.Getenv("TUI_FORM_DEBUG") == "1"
-)
-
 func formDebugLog(format string, args ...interface{}) {
-	if debugForm {
-		timestamp := time.Now().Format("15:04:05.000")
-		fullFormat := fmt.Sprintf("[%s] [Form] %s\n", timestamp, format)
-		log.UILogger.Debug(fullFormat, args...)
-	}
+	timestamp := time.Now().Format("15:04:05.000")
+	fullFormat := fmt.Sprintf("[%s] [Form] %s\n", timestamp, format)
+	log.FormLogger.Debug(fullFormat, args...)
 }
 
 // ==============================================================================

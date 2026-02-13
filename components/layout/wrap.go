@@ -1,7 +1,6 @@
 package layout
 
 import (
-	"os"
 	"unicode/utf8"
 
 	"github.com/wwsheng009/mint/internal/log"
@@ -252,11 +251,8 @@ func (b *WrapBuilder) calculateRows() [][]ui.VNode {
 			currentWidth += childWidth
 		}
 
-		// Debug logging (optional)
-		if os.Getenv("TUI_WRAP_DEBUG") == "true" {
-			log.UILogger.Debug("[Wrap] child %d: width=%d, currentWidth=%d, shouldWrap=%v\n",
-				i, childWidth, currentWidth, shouldWrap)
-		}
+		log.WrapLogger.Debug("[Wrap] child %d: width=%d, currentWidth=%d, shouldWrap=%v\n",
+			i, childWidth, currentWidth, shouldWrap)
 	}
 
 	// Don't forget the last row

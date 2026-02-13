@@ -1,7 +1,6 @@
 package layout
 
 import (
-	"os"
 	"strings"
 
 	"github.com/wwsheng009/mint/internal/log"
@@ -111,15 +110,10 @@ func (b *ScrollViewBuilder) Build() ui.VNode {
 		visibleText := contentText
 
 		// DEBUG: Log what we extracted
-		if os.Getenv("TUI_DEBUG_INSPECTOR") == "true" {
-			lineCount := strings.Count(contentText, "\n") + 1
-			if len(contentText) == 0 {
-				log.UILogger.Debug("[ScrollView] Auto-height mode: NO CONTENT EXTRACTED!\n")
-				log.UILogger.Debug("[ScrollView] Input type: %T\n", b.content)
-			} else {
-				log.UILogger.Debug("[ScrollView] Auto-height mode: extracted %d lines\n", lineCount)
-				log.UILogger.Debug("[ScrollView] First 200 chars: %q\n", contentText[:min(200, len(contentText))])
-			}
+		log.InspectorLogger.Debug("[ScrollView] Auto-height mode: extracted %d lines, first 200 chars: %q\n",
+			strings.Count(contentText, "\n")+1, contentText[:min(200, len(contentText))])
+		if len(contentText) == 0 {
+			log.InspectorLogger.Debug("[ScrollView] Auto-height mode: NO CONTENT EXTRACTED! Input type: %T\n", b.content)
 		}
 
 		// Create text node for all content

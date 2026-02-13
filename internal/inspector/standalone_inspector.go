@@ -122,6 +122,10 @@ type HitTestEntry struct {
 	ZOrder    int
 	HitTest   string // Hit test result at current mouse position
 	Clickable bool
+	// Debug fields - additional info to distinguish widgets
+	Tag       string // Component tag (button, text, box, etc.)
+	Key       string // Component key (if available)
+	Label      string // Component label (text content, etc.)
 }
 
 // InspectorTab represents different inspector panels
@@ -1041,7 +1045,7 @@ func (si *StandaloneInspector) buildHitTestTabContent() rtui.VNode {
 	rows := make([]string, 0, len(entries)+1)
 
 	// Add column header as first data row
-	colHeader := fmt.Sprintf("%-3s %-15s %-12s %-2s %-2s", "Z", "Node", "Bounds", "H", "C")
+	colHeader := fmt.Sprintf("%-3s %-25s %-10s %-2s %-2s", "Z", "Node (Type/Tag/Key/Label)", "Bounds", "H", "C")
 	rows = append(rows, colHeader)
 
 	// Add entry rows (in reverse order - highest Z first)
@@ -1065,8 +1069,8 @@ func (si *StandaloneInspector) buildHitTestTabContent() rtui.VNode {
 			clickMark = "Y"
 		}
 
-		line := fmt.Sprintf("%-3d %-15s %-12s %-2s %-2s",
-			e.ZOrder, e.NodeID, e.Bounds, hitMark, clickMark)
+		line := fmt.Sprintf("%-3d %-25s %-10s %-2s %-2s",
+			e.ZOrder, formatNodeInfo(e.NodeID, e.Tag, e.Key, e.Label), hitMark, clickMark)
 		rows = append(rows, line)
 		displayed++
 	}
@@ -1216,12 +1220,44 @@ func (si *StandaloneInspector) collectHitTestEntries(node rtui.VNode, x, y, zOrd
 		hitTest = "YES"
 	}
 
+	// Collect extra debug info: tag, key, label
+	var tag string
+	var key string
+	var label string
+
+	// Get tag if available
+	if tagger, ok := node.(interface{ Tag() string }); ok {
+		tag = tagger.Tag()
+	}
+
+	// Get key from props
+	if props != nil {
+		if k, ok := props["key"]; ok {
+			if ks, ok := k.(string); ok {
+				key = ks
+			}
+		}
+		// Get label/text content
+		if l, ok := props["content"]; ok {
+			if ls, ok := l.(string); ok {
+				label = ls
+				// Truncate long labels
+				if len(label) > 12 {
+					label = label[:9] + "..."
+				}
+			}
+		}
+	}
+
 	entry := HitTestEntry{
 		NodeID:    node.Type().String(),
 		Bounds:    bounds,
 		ZOrder:    zOrder,
 		HitTest:   hitTest,
 		Clickable: clickable,
+		Tag:       tag,
+		Key:       key,
+		Label:      label,
 	}
 	*entries = append(*entries, entry)
 
@@ -2225,6 +2261,61 @@ func (si *StandaloneInspector) formatHovered() string {
 		return fmt.Sprintf("%s (%s)", name, si.hoveredPath)
 	}
 	return name
+}
+
+// formatNodeInfo formats node information for display
+// Parameters are organized as: (id, tag, key, label) to match call signature
+func formatNodeInfo(id, tag, key, label string) string {
+	info := ""
+
+	// Debug logging to trace the issue
+	if os.Getenv("TUI_DEBUG_INSPECTOR") == "true" {
+		log.UILogger.Debug("[Inspector] formatNodeInfo: id=%q tag=%q key=%q label=%q\n", id, tag, key, label)
+	}
+
+	// Use id as node type (Element, Text, etc.) - this is what we have from HitTestEntry.NodeID
+	if id != "" {
+		info += id
+	}
+
+	// Add tag in parentheses if available
+	if tag != "" && tag != id {
+		if info != "" {
+			info += "/"
+		}
+		info += "(" + tag + ")"
+	}
+
+	// Add key in brackets if available
+	if key != "" {
+		if info != "" {
+			info += " "
+		}
+		// Truncate long keys
+		if len(key) > 8 {
+			key = key[:8] + "~"
+		}
+		info += "[" + key + "]"
+	}
+
+	// Add label in quotes if available (优先显示label)
+	if label != "" {
+		if info != "" {
+			info += " "
+		}
+		// Truncate long labels
+		if len(label) > 15 {
+			label = label[:15] + "..."
+		}
+		info += "'" + label + "'"
+	}
+
+	// Fallback if empty
+	if info == "" {
+		info = "Unknown"
+	}
+
+	return info
 }
 
 // lookupPathForVNode tries to find the path of a VNode in the current tree.

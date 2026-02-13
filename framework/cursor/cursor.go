@@ -2,7 +2,6 @@ package cursor
 
 import (
 	"fmt"
-	"os"
 	"sync"
 	"time"
 
@@ -12,18 +11,11 @@ import (
 	"github.com/wwsheng009/mint/runtime/style"
 )
 
-var (
-	debugCursor = os.Getenv("TUI_CURSOR_DEBUG") == "1"
-)
-
 // cursorDebugLog 调试日志输出
 func cursorDebugLog(format string, args ...interface{}) {
-	if debugCursor {
-		timestamp := time.Now().Format("15:04:05.000")
-		fullFormat := fmt.Sprintf("[%s] [Cursor] %s\n", timestamp, format)
-		log.EngineLogger.Debug(fullFormat, args...)
-		// fmt.Printf(fullFormat, args...)
-	}
+	timestamp := time.Now().Format("15:04:05.000")
+	fullFormat := fmt.Sprintf("[%s] [Cursor] %s\n", timestamp, format)
+	log.CursorLogger.Debug(fullFormat, args...)
 }
 
 // ==============================================================================

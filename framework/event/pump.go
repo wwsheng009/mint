@@ -1,7 +1,6 @@
 package event
 
 import (
-	"os"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -81,9 +80,7 @@ func (p *Pump) Start() error {
 	atomic.StoreInt32(&p.running, 1)
 
 	// DEBUG: 打印启动信息
-	if os.Getenv("TUI_DEBUG_PUMP") == "true" {
-		log.UILogger.Debug("[PUMP] Started, convertLoop running...\n")
-	}
+	log.PumpLogger.Debug("[PUMP] Started, convertLoop running...\n")
 
 	// Start conversion loop
 	p.wg.Add(1)
@@ -385,22 +382,16 @@ func (p *Pump) SetHitMap(hitMap *event.HitMap) {
 // 注意：此方法仅用于测试，不应用于生产代码
 func (p *Pump) Inject(raw platform.RawInput) {
 	if atomic.LoadInt32(&p.running) == 0 {
-		if os.Getenv("TUI_DEBUG_UI") == "true" {
-			log.UILogger.Debug("[PUMP] Inject: pump not running!\n")
-		}
+		log.PumpLogger.Debug("[PUMP] Inject: pump not running!\n")
 		return
 	}
 	message := p.convertToMsg(raw)
 	if message != nil {
-		if os.Getenv("TUI_DEBUG_UI") == "true" {
-			log.UILogger.Debug("[PUMP] Injecting message: Type=%v\n", message.Type())
-		}
+		log.PumpLogger.Debug("[PUMP] Injecting message: Type=%v\n", message.Type())
 		// Safe to send because Stop() waits for all goroutines to exit first
 		select {
 		case p.messages <- message:
-			if os.Getenv("TUI_DEBUG_UI") == "true" {
-				log.UILogger.Debug("[PUMP] Message sent to channel\n")
-			}
+			log.PumpLogger.Debug("[PUMP] Message sent to channel\n")
 		case <-p.quit:
 		}
 	}
