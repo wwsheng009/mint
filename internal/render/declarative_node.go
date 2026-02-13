@@ -68,7 +68,7 @@ func NewDeclarativeNodeFromFunc(fn rtui.ComponentFunc) *DeclarativeNode {
 	// Use the new PipelineRenderer with Layout/Paint separation by default
 	// This provides constraint-driven layout, caching, and better architecture
 	node.renderer = NewPipelineRendererAdapter()
-	if os.Getenv("TUI_DEBUG_UI") == "true" {
+	if log.UILogger.Enabled() {
 		log.UILogger.Debug("[DeclarativeNode] Using new PipelineRenderer (Layout/Paint separation)\n")
 	}
 
