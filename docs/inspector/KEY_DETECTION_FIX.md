@@ -72,7 +72,7 @@ handled := inspectorObj.HandleKeyEvent(keyName, alt, ctrl, shift)
 // 始终触发重新渲染，无论事件是否被处理
 a.dirty = true  // ← 关键修复！
 
-if os.Getenv("TUI_DEBUG_UI") == "true" || os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
+if os.Getenv("TUI_DEBUG_UI") == "true" || os.Getenv("TUI_DEBUG_INSPECTOR") == "true" {
     fmt.Fprintf(os.Stderr, "[APP] Inspector processed key '%s' (handled=%v)\n", keyName, handled)
 }
 
@@ -106,7 +106,7 @@ if handled {
 
 1. 启用调试模式:
    ```bash
-   export TUI_INSPECTOR_VERBOSE=true
+   export TUI_DEBUG_INSPECTOR=true
    export TUI_DEBUG=true
    ```
 
@@ -133,7 +133,7 @@ go test ./internal/inspector -v -run TestLayoutTabKey5
 
 # 运行 demo
 cd examples/ui_demos/demo2_runtime_internals/inspector_overlay
-TUI_INSPECTOR_VERBOSE=true go run main.go
+TUI_DEBUG_INSPECTOR=true go run main.go
 ```
 
 ## 相关文件

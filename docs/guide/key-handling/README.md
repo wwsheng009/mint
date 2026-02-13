@@ -100,7 +100,7 @@ set TUI_DEBUG_INPUT=true
 set TUI_DEBUG_UI=true
 
 # Inspector debug (shows key handling)
-set TUI_INSPECTOR_VERBOSE=true
+set TUI_DEBUG_INSPECTOR=true
 
 go run main.go
 ```

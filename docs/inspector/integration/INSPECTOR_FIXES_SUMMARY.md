@@ -168,7 +168,7 @@ go test -run TestTreeView -v
 ### 2. 测试虚拟滚动
 ```bash
 cd internal/inspector
-TUI_INSPECTOR_VERBOSE=true go test -run TestTreeView -v
+TUI_DEBUG_INSPECTOR=true go test -run TestTreeView -v
 ```
 
 ### 3. 运行demo

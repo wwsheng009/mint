@@ -62,7 +62,7 @@ go build -o demo2_inspector.exe main.go
 
 ```bash
 # 查看移动过程
-TUI_INSPECTOR_VERBOSE=true ./demo2_inspector.exe
+TUI_DEBUG_INSPECTOR=true ./demo2_inspector.exe
 
 # 输出：
 # [Inspector] Moved by (-2, 0) to (78, 5)

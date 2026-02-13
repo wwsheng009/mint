@@ -427,7 +427,7 @@ func (si *StandaloneInspector) buildElementsTabFull() ui.VNode {
 export TUI_INSPECTOR_MODE=switch
 
 # 启用详细日志
-export TUI_INSPECTOR_VERBOSE=true
+export TUI_DEBUG_INSPECTOR=true
 ```
 
 ### 代码配置

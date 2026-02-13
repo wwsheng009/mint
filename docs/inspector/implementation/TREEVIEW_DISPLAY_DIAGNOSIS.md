@@ -73,7 +73,7 @@ viewportHeight = 11
 4. **或者运行这个命令**：
    ```bash
    cd examples/ui_demos/demo2_runtime_internals/inspector_overlay
-   TUI_INSPECTOR_VERBOSE=true go run main.go
+   TUI_DEBUG_INSPECTOR=true go run main.go
    ```
 
    然后查看日志中的 "Virtual scroll" 和 "Rendered" 行。

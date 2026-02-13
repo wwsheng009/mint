@@ -70,7 +70,7 @@ if len(lineNodes) == 0 && totalLines > 0 {
 ### 4. 调试日志
 
 ```go
-if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
+if os.Getenv("TUI_DEBUG_INSPECTOR") == "true" {
     fmt.Fprintf(os.Stderr, "[TreeView] Virtual scroll: rendering lines [%d:%d] of %d total lines\n",
         startLine, endLine, totalLines)
     fmt.Fprintf(os.Stderr, "[TreeView] regenerateDisplay: Rendered %d lines (visible range [%d:%d])\n",

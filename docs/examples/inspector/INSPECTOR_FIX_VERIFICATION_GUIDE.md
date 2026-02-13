@@ -124,7 +124,7 @@ Enable verbose logging to see event routing:
 
 ```bash
 export TUI_DEBUG_UI=true
-export TUI_INSPECTOR_VERBOSE=true
+export TUI_DEBUG_INSPECTOR=true
 go test -v ./examples/ui_demos/demo2_runtime_internals -run TestAutomaticEventRouting
 ```
 

@@ -271,10 +271,10 @@ Auto-show Inspector on startup
 TUI_INSPECTOR=true go run main.go
 ```
 
-### TUI_INSPECTOR_VERBOSE
+### TUI_DEBUG_INSPECTOR
 Enable verbose Inspector logging
 ```bash
-TUI_INSPECTOR_VERBOSE=true go run main.go
+TUI_DEBUG_INSPECTOR=true go run main.go
 ```
 
 ### TUI_DEBUG_UI

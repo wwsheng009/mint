@@ -7,7 +7,7 @@ import (
 
 // DebugKeyResponse 添加调试输出来追踪数字键响应
 func (si *StandaloneInspector) DebugKeyResponse(key string, alt, ctrl, shift bool) bool {
-	if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" || os.Getenv("TUI_DEBUG") == "true" {
+	if os.Getenv("TUI_DEBUG_INSPECTOR") == "true" || os.Getenv("TUI_DEBUG") == "true" {
 		modifiers := ""
 		if alt {
 			modifiers += "Alt+"
@@ -26,7 +26,7 @@ func (si *StandaloneInspector) DebugKeyResponse(key string, alt, ctrl, shift boo
 	// 调用原始的 HandleKeyEvent
 	handled := si.HandleKeyEvent(key, alt, ctrl, shift)
 
-	if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" || os.Getenv("TUI_DEBUG") == "true" {
+	if os.Getenv("TUI_DEBUG_INSPECTOR") == "true" || os.Getenv("TUI_DEBUG") == "true" {
 		fmt.Fprintf(os.Stderr, "[Inspector] After: activeTab=%v, handled=%v\n", si.activeTab, handled)
 
 		// 检查内容是否可以渲染

@@ -401,7 +401,7 @@ TUI_DEBUG_LAYOUT=true ./demo2_fixed.exe
 
 ```go
 // 在 buildOverlayContent() 中
-if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
+if os.Getenv("TUI_DEBUG_INSPECTOR") == "true" {
     fmt.Fprintf(os.Stderr, "[Inspector] overlayWidth=%d, overlayHeight=%d\n",
         si.overlayWidth, si.overlayHeight)
     fmt.Fprintf(os.Stderr, "[Inspector] Bordered size: %d x %d (content) + 2 (border) = %d x %d (total)\n",

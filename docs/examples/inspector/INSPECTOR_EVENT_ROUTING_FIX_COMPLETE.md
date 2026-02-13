@@ -45,14 +45,14 @@ if a.inspector != nil && a.isInspectorVisible() {
 			alt := keyEv.Key.Alt
 			ctrl := keyEv.Key.Ctrl
 
-			if os.Getenv("TUI_DEBUG_UI") == "true" || os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
+			if os.Getenv("TUI_DEBUG_UI") == "true" || os.Getenv("TUI_DEBUG_INSPECTOR") == "true" {
 				fmt.Fprintf(os.Stderr, "[APP] Routing key '%s' to Inspector (visible=%v)\n",
 					keyName, a.isInspectorVisible())
 			}
 
 			if inspectorObj.HandleKeyEvent(keyName, alt, ctrl) {
 				a.dirty = true
-				if os.Getenv("TUI_DEBUG_UI") == "true" || os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
+				if os.Getenv("TUI_DEBUG_UI") == "true" || os.Getenv("TUI_DEBUG_INSPECTOR") == "true" {
 					fmt.Fprintf(os.Stderr, "[APP] Inspector handled key '%s'\n", keyName)
 				}
 				return // Inspector handled it, don't send to VNode tree
@@ -162,7 +162,7 @@ time.Sleep(100 * time.Millisecond)
 
 ### 4. Debug Output Added ✅
 
-With `TUI_DEBUG_UI=true` or `TUI_INSPECTOR_VERBOSE=true`:
+With `TUI_DEBUG_UI=true` or `TUI_DEBUG_INSPECTOR=true`:
 ```
 [APP] Routing key 'down' to Inspector (visible=true)
 [APP] Inspector handled key 'down'
@@ -234,7 +234,7 @@ func TestTreeViewNavigationAutomatic(t *testing.T) {
 export TUI_DEBUG_UI=true
 
 # Enable inspector verbose logging
-export TUI_INSPECTOR_VERBOSE=true
+export TUI_DEBUG_INSPECTOR=true
 
 # Run demo2
 go run examples/ui_demos/demo2_runtime_internals/main.go

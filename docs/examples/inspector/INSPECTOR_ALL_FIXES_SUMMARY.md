@@ -269,7 +269,7 @@ go run main.go
 ### Debug Mode:
 ```bash
 export TUI_DEBUG_UI=true
-export TUI_INSPECTOR_VERBOSE=true
+export TUI_DEBUG_INSPECTOR=true
 go run main.go
 ```
 

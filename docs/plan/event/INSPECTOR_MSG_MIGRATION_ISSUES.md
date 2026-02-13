@@ -192,7 +192,7 @@ The layer should be rendered LAST (on top of everything). If the layer order is 
 ### Step 1: Enable Inspector Verbose Logging
 
 ```bash
-TUI_INSPECTOR_VERBOSE=true TUI_DEBUG_UI=true go run main.go
+TUI_DEBUG_INSPECTOR=true TUI_DEBUG_UI=true go run main.go
 ```
 
 Look for:
@@ -248,7 +248,7 @@ func (si *StandaloneInspector) ToggleVisibility() {
 
     // NEW: Initialize inspector state on first show
     if si.visible && si.appRoot == nil {
-        if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
+        if os.Getenv("TUI_DEBUG_INSPECTOR") == "true" {
             fmt.Fprintf(os.Stderr, "[Inspector] First show - initializing\n")
         }
         // Trigger initialization via AttachToApp if app root available
@@ -295,7 +295,7 @@ func CreateInspectorHook(inspector *StandaloneInspector) render.VNodeHook {
         inspector.mu.RUnlock()
 
         if !hasRoot {
-            if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
+            if os.Getenv("TUI_DEBUG_INSPECTOR") == "true" {
                 fmt.Fprintf(os.Stderr, "[InspectorHook] Inspector not ready (no appRoot)\n")
             }
             return vnode

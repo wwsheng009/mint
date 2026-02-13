@@ -12,10 +12,10 @@
 
 ```bash
 # Bash/Linux/Mac
-TUI_INSPECTOR_VERBOSE=true TUI_TREEVIEW_OFFSET=0 go run ./examples/ui_demos/demo2_runtime_internals/inspector_overlay/main.go
+TUI_DEBUG_INSPECTOR=true TUI_TREEVIEW_OFFSET=0 go run ./examples/ui_demos/demo2_runtime_internals/inspector_overlay/main.go
 
 # Windows PowerShell
-$env:TUI_INSPECTOR_VERBOSE="true"
+$env:TUI_DEBUG_INSPECTOR="true"
 $env:TUI_TREEVIEW_OFFSET="0"
 go run ./examples/ui_demos/demo2_runtime_internals/inspector_overlay/main.go
 ```
@@ -24,7 +24,7 @@ go run ./examples/ui_demos/demo2_runtime_internals/inspector_overlay/main.go
 
 1. 启用verbose输出来查看当前的点击位置：
    ```bash
-   TUI_INSPECTOR_VERBOSE=true go run ./examples/ui_demos/demo2_runtime_internals/inspector_overlay/main.go
+   TUI_DEBUG_INSPECTOR=true go run ./examples/ui_demos/demo2_runtime_internals/inspector_overlay/main.go
    ```
 
 2. 按F12打开Inspector，点击Elements标签

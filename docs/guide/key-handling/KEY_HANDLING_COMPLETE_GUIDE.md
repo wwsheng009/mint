@@ -391,7 +391,7 @@ set TUI_DEBUG_INPUT=true
 set TUI_DEBUG_UI=true
 
 # Inspector debug
-set TUI_INSPECTOR_VERBOSE=true
+set TUI_DEBUG_INSPECTOR=true
 
 # Run the app
 go run main.go

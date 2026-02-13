@@ -36,7 +36,7 @@ F12:关闭 | Alt+H/J/K/L:移动 | Ctrl+D:按键调试
 ### With Debug Logs
 ```bash
 set TUI_DEBUG_UI=true
-set TUI_INSPECTOR_VERBOSE=true
+set TUI_DEBUG_INSPECTOR=true
 go run main.go
 ```
 

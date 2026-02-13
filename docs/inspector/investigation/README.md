@@ -156,7 +156,7 @@ Additional investigation findings and question resolution.
 ### 1. Environment Variable Logging
 ```bash
 TUI_DEBUG_UI=true              # Framework-level logging
-TUI_INSPECTOR_VERBOSE=true     # Inspector logging
+TUI_DEBUG_INSPECTOR=true     # Inspector logging
 ```
 
 ### 2. Selective Test Execution

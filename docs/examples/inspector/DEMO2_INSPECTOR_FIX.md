@@ -82,7 +82,7 @@ globalInspector = inspector.NewStandaloneInspector()
 globalInspector.Enable() // ALWAYS enable inspector (so F12 and buttons work)
 
 // Enable verbose inspector output from environment
-if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
+if os.Getenv("TUI_DEBUG_INSPECTOR") == "true" {
     fmt.Println("UI Inspector verbose mode enabled")
 }
 
@@ -174,7 +174,7 @@ Starting Mint TUI Demo - Press F12 or Ctrl+D to toggle Inspector
 ### 方法 2: Inspector 详细调试
 
 ```bash
-TUI_INSPECTOR_VERBOSE=true ./demo2_inspector.exe
+TUI_DEBUG_INSPECTOR=true ./demo2_inspector.exe
 # 点击 [I] Inspector 按钮
 ```
 
@@ -211,7 +211,7 @@ TUI_LAYER_DEBUG=true ./demo2_inspector.exe
 ### 方法 4: 完整诊断
 
 ```bash
-TUI_DEBUG=true TUI_DEBUG_UI=true TUI_INSPECTOR_VERBOSE=true \
+TUI_DEBUG=true TUI_DEBUG_UI=true TUI_DEBUG_INSPECTOR=true \
 TUI_LAYER_DEBUG=true TUI_DEBUG_RENDERING=true \
 ./demo2_inspector.exe 2>&1 | tee demo2_debug.log
 ```
@@ -341,7 +341,7 @@ UI Inspector ready - Press [I] button or F12/Ctrl+D to toggle
 
 1. **问题根源**: `Enable()` 未被调用导致 `ToggleVisibility()` 直接返回
 2. **修复方法**: 无条件调用 `Enable()`
-3. **调试工具**: 使用 `TUI_DEBUG` 和 `TUI_INSPECTOR_VERBOSE`
+3. **调试工具**: 使用 `TUI_DEBUG` 和 `TUI_DEBUG_INSPECTOR`
 4. **验证方法**: 检查 `[DEMO2] Inspector enabled: true`
 
 ---
@@ -358,10 +358,10 @@ UI Inspector ready - Press [I] button or F12/Ctrl+D to toggle
 TUI_DEBUG=true ./demo2_inspector.exe
 
 # 详细模式
-TUI_INSPECTOR_VERBOSE=true ./demo2_inspector.exe
+TUI_DEBUG_INSPECTOR=true ./demo2_inspector.exe
 
 # 完整诊断
-TUI_DEBUG=true TUI_INSPECTOR_VERBOSE=true TUI_LAYER_DEBUG=true ./demo2_inspector.exe
+TUI_DEBUG=true TUI_DEBUG_INSPECTOR=true TUI_LAYER_DEBUG=true ./demo2_inspector.exe
 ```
 
 ### 环境变量
@@ -370,7 +370,7 @@ TUI_DEBUG=true TUI_INSPECTOR_VERBOSE=true TUI_LAYER_DEBUG=true ./demo2_inspector
 |------|------|
 | `TUI_DEBUG=true` | 基础调试 |
 | `TUI_DEBUG_UI=true` | UI 调试 |
-| `TUI_INSPECTOR_VERBOSE=true` | Inspector 详细 |
+| `TUI_DEBUG_INSPECTOR=true` | Inspector 详细 |
 | `TUI_LAYER_DEBUG=true` | Layer 系统 |
 | `TUI_DEBUG_RENDERING=true` | 渲染流程 |
 

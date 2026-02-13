@@ -143,7 +143,7 @@ Enable verbose logging to see event routing in action:
 export TUI_DEBUG_UI=true
 
 # Enable Inspector verbose logging
-export TUI_INSPECTOR_VERBOSE=true
+export TUI_DEBUG_INSPECTOR=true
 
 # Run the example
 go run main.go

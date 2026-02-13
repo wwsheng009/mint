@@ -132,7 +132,7 @@ func (t *TreeView) UpdateLines(lines []string) {
 ### 手动测试
 ```bash
 cd examples/ui_demos/demo2_runtime_internals/inspector_overlay
-TUI_INSPECTOR=true TUI_INSPECTOR_VERBOSE=true go run main.go
+TUI_INSPECTOR=true TUI_DEBUG_INSPECTOR=true go run main.go
 ```
 
 检查:

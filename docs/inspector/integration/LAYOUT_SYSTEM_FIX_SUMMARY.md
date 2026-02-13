@@ -71,7 +71,7 @@ if hasHeightProp {
 **Finding**: The Inspector overlay **was already working correctly**!
 
 **Verification**:
-- Ran demo2 with `TUI_INSPECTOR=true TUI_INSPECTOR_VERBOSE=true`
+- Ran demo2 with `TUI_INSPECTOR=true TUI_DEBUG_INSPECTOR=true`
 - Inspector overlay displays correctly with proper layer (4)
 - Hook system properly wraps app content with Inspector
 - Layer rendering pipeline correctly multi-layer renders

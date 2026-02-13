@@ -242,7 +242,7 @@ TUI_LAYOUT_DEBUG=true go run main.go
 TUI_LAYOUT_WARNINGS=true go run main.go
 
 # Inspector 详细日志
-TUI_INSPECTOR_VERBOSE=true go run main.go
+TUI_DEBUG_INSPECTOR=true go run main.go
 ```
 
 ## 性能对比

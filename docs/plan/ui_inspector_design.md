@@ -26,7 +26,7 @@
 TUI_INSPECTOR=true go run myapp.go
 
 // 或在代码中启用
-os.Setenv("TUI_INSPECTOR", "true")
+os.Setenv("TUI_DEBUG_INSPECTOR", "true")
 ```
 
 ---
@@ -388,7 +388,7 @@ TUI_INSPECTOR=true
 TUI_INSPECTOR_MODE=hover|click|keyboard
 
 # 显示详细程度
-TUI_INSPECTOR_VERBOSE=1|2|3
+TUI_DEBUG_INSPECTOR=1|2|3
 
 # 边框样式
 TUI_INSPECTOR_BORDER=single|double|dashed

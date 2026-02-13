@@ -101,7 +101,7 @@ This shows exactly what key was received, making it easy to diagnose issues.
 See what's happening under the hood:
 ```bash
 export TUI_DEBUG_UI=true
-export TUI_INSPECTOR_VERBOSE=true
+export TUI_DEBUG_INSPECTOR=true
 go run main.go
 ```
 

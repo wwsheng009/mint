@@ -347,10 +347,10 @@ Shows:
 - HookManager retrieval via reflection
 - Type assertion results
 
-### TUI_INSPECTOR_VERBOSE
+### TUI_DEBUG_INSPECTOR
 Enable Inspector hook logging:
 ```
-export TUI_INSPECTOR_VERBOSE=true
+export TUI_DEBUG_INSPECTOR=true
 ```
 
 Shows:
@@ -362,7 +362,7 @@ Shows:
 
 ### Enable All Debug Output
 ```bash
-TUI_DEBUG_UI=true TUI_INSPECTOR_VERBOSE=true go run main.go
+TUI_DEBUG_UI=true TUI_DEBUG_INSPECTOR=true go run main.go
 ```
 
 ### Check Hook Registration

@@ -31,7 +31,7 @@ func (si *StandaloneInspector) HandleKeyEvent(...) bool {
     // ...
 
     // When visible, capture ALL keyboard input (modal)
-    if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
+    if os.Getenv("TUI_DEBUG_INSPECTOR") == "true" {
         fmt.Fprintf(os.Stderr, "[Inspector] Visible mode: capturing key '%s'\n", key)
     }
     return true  // ✅ Capture everything, don't fall through!
@@ -104,7 +104,7 @@ go run main.go
 
 ### Debug Output:
 ```bash
-export TUI_INSPECTOR_VERBOSE=true
+export TUI_DEBUG_INSPECTOR=true
 go run main.go
 ```
 

@@ -251,7 +251,7 @@ go build -o demo2_inspector.exe main.go
 
 ```bash
 # 查看面板移动
-TUI_INSPECTOR_VERBOSE=true ./demo2_inspector.exe
+TUI_DEBUG_INSPECTOR=true ./demo2_inspector.exe
 
 # 输出示例：
 # [Inspector] Moved by (2, 0) to (82, 5)
@@ -432,7 +432,7 @@ TUI_DEBUG_UI=true ./demo2_inspector.exe
 
 | 变量 | 作用 |
 |------|------|
-| `TUI_INSPECTOR_VERBOSE=true` | 显示 Inspector 详细输出 |
+| `TUI_DEBUG_INSPECTOR=true` | 显示 Inspector 详细输出 |
 | `TUI_DEBUG_UI=true` | 显示框架调试信息 |
 
 ---
@@ -458,7 +458,7 @@ TUI_DEBUG_UI=true ./demo2_inspector.exe
 
 ```bash
 # 启用详细输出查看位置变化
-TUI_INSPECTOR_VERBOSE=true ./demo2_inspector.exe
+TUI_DEBUG_INSPECTOR=true ./demo2_inspector.exe
 
 # 移动面板时观察输出
 # [Inspector] Moved by (-2, 0) to (78, 5)

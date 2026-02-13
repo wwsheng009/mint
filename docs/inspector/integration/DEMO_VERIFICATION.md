@@ -168,7 +168,7 @@ go run main.go
 ### Option 3: Enable Verbose Logging
 
 ```bash
-TUI_INSPECTOR=true TUI_INSPECTOR_VERBOSE=true TUI_LAYER_DEBUG=true go run main.go
+TUI_INSPECTOR=true TUI_DEBUG_INSPECTOR=true TUI_LAYER_DEBUG=true go run main.go
 ```
 
 This will show detailed logs:
@@ -234,7 +234,7 @@ If the Inspector doesn't appear when running the demo:
 
 2. **Check verbose logs**:
    ```bash
-   TUI_INSPECTOR_VERBOSE=true go run main.go 2>&1 | grep -i inspector
+   TUI_DEBUG_INSPECTOR=true go run main.go 2>&1 | grep -i inspector
    ```
 
 3. **Verify layer system is working**:

@@ -366,7 +366,7 @@ go build ./internal/inspector ./framework
 启用详细日志：
 
 ```bash
-TUI_INSPECTOR_VERBOSE=true ./demo2.exe
+TUI_DEBUG_INSPECTOR=true ./demo2.exe
 ```
 
 会输出滚动操作日志：

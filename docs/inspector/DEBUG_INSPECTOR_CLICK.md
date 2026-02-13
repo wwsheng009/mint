@@ -7,7 +7,7 @@ TreeView clicks in Inspector overlay are not working.
 
 ### 1. Enable Verbose Output
 ```bash
-export TUI_INSPECTOR_VERBOSE=true
+export TUI_DEBUG_INSPECTOR=true
 export TUI_DEBUG_UI=true
 go run ./examples/ui_demos/demo2_runtime_internals/inspector_overlay/main.go
 ```

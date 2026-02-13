@@ -81,7 +81,7 @@ If Alt+K doesn't work in your terminal:
 cd examples/ui_demos/demo2_runtime_internals/inspector_overlay
 set TUI_DEBUG_INPUT=true
 set TUI_DEBUG_UI=true
-set TUI_INSPECTOR_VERBOSE=true
+set TUI_DEBUG_INSPECTOR=true
 go run main.go
 ```
 

@@ -60,7 +60,7 @@ docs/inspector/
 ## Environment Variables
 
 - `TUI_INSPECTOR=true` - Auto-show Inspector on startup
-- `TUI_INSPECTOR_VERBOSE=true` - Enable verbose Inspector logging
+- `TUI_DEBUG_INSPECTOR=true` - Enable verbose Inspector logging
 - `TUI_DEBUG_UI=true` - Enable framework-level debug logging
 
 ## Testing
