@@ -235,7 +235,7 @@ func (f *Fiber) String() string {
 	}
 
 	return fmt.Sprintf("Fiber{Tag: %s, Key: %s, NodeID: %d, Flags: %d, Lanes: %d}",
-		f.Tag, f.Key, f.Flags, f.Lanes)
+		f.Tag, f.Key, f.NodeID, f.Flags, f.Lanes)
 }
 
 // =============================================================================
