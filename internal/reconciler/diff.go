@@ -8,7 +8,6 @@ package reconciler
 // =============================================================================
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/wwsheng009/mint/internal/log"
@@ -282,9 +281,6 @@ func createChildFiberWithIndex(returnFiber *Fiber, vnode rtui.VNode, lanes Lane,
 	isLayerNode := vnode.GetLayer() != rtui.LayerBase && vnode.GetLayer().IsValid()
 	useLayerBasedPath := isRootChild || isLayerNode
 	
-	if !isLayerNode{
-		fmt.Printf("layer s%\n", vnode.GetLayer().String())
-	}
 
 	if userKey != "" {
 		// Priority 1: User provided a key
