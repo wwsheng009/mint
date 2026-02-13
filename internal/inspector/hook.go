@@ -51,12 +51,12 @@ func CreateInspectorHook(inspector *StandaloneInspector) render.VNodeHook {
 
 		// Set the layer - this is the ONLY place where SetLayer is called
 		// Application code and Inspector itself don't need to know about Layer
-	inspectorContent.SetLayer(rtui.LayerInspector)
+		inspectorContent.SetLayer(rtui.LayerInspector)
 
-	log.InspectorLogger.Debug("[InspectorHook] Inspector overlay: layer=%d, pos=(%d,%d), size=%dx%d",
-		rtui.LayerInspector, x, y, width, height)
+		log.InspectorLogger.Debug("[InspectorHook] Inspector overlay: layer=%d, pos=(%d,%d), size=%dx%d",
+			rtui.LayerInspector, x, y, width, height)
 
-	// Wrap base VNode and Inspector in Fragment
+		// Wrap base VNode and Inspector in Fragment
 		// PipelineRenderer will detect the LayerInspector and use multi-layer rendering
 		return rtui.Fragment(vnode, inspectorContent)
 	}
@@ -66,7 +66,8 @@ func CreateInspectorHook(inspector *StandaloneInspector) render.VNodeHook {
 // This is typically called by framework.App.SetInspector()
 //
 // Example:
-//   app.SetInspector(inspector) // Internally calls RegisterInspector
+//
+//	app.SetInspector(inspector) // Internally calls RegisterInspector
 func RegisterInspector(inspector *StandaloneInspector, hookManager interface{}) {
 	hook := CreateInspectorHook(inspector)
 

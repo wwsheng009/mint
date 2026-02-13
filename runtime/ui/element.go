@@ -56,6 +56,7 @@ func (e *ElementVNode) Key() string {
 }
 
 // SetKey implements VNode
+// 由用户设置或是fiber回调更新
 func (e *ElementVNode) SetKey(key string) {
 	e.key = key
 }

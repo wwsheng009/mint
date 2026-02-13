@@ -1104,6 +1104,7 @@ func (si *StandaloneInspector) buildHitTestTabContent() rtui.VNode {
 		EmptyText("(no entries)").
 		ShowSeparator(true).
 		MaxRows(17). // Header + separator + colHeader + 12 entries + overflow
+		Key("inspector-hittest-list"). // CRITICAL: Set key so Fiber Reconciler can create persistent ComponentInstance
 		Build()
 
 	// Create summary line (separate from the list)

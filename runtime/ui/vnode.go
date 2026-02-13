@@ -86,6 +86,8 @@ type VNode interface {
 
 	// Key returns the key for list diffing
 	Key() string
+	// SetKey sets the key for Component
+	// fiber reconciler 调用 vnode.SetKey(fiber.Path)
 	SetKey(key string)
 
 	// Style returns the visual style

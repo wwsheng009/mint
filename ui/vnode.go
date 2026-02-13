@@ -52,4 +52,6 @@ const (
 
 	// LayerTooltip is for tooltips and hints
 	LayerTooltip = rtui.LayerTooltip
+
+	LayerInspector = rtui.LayerInspector
 )

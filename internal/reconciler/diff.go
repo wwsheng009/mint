@@ -297,6 +297,7 @@ func createChildFiberWithIndex(returnFiber *Fiber, vnode rtui.VNode, lanes Lane,
 		// Append user key to make it unique (e.g., .../hstack[0]/key[btn-event])
 		fiber.Path = typePath + "/key[" + userKey + "]"
 		// ✨ Sync full path to VNode so Inspector can access it
+		fiber.Key = fiber.Path
 		vnode.SetKey(fiber.Path)
 	} else if isDynamicList(returnFiber) {
 		// Priority 2: Dynamic list → require key (panic if missing)

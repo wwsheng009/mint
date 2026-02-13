@@ -259,3 +259,6 @@ func IsTooltip(vnode VNode) bool {
 func IsBaseLayer(vnode VNode) bool {
 	return vnode == nil || vnode.GetLayer() == LayerBase
 }
+func IsInspectorLayer(vnode VNode) bool {
+	return vnode == nil || vnode.GetLayer() == LayerInspector
+}
