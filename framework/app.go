@@ -1813,17 +1813,20 @@ func (a *componentInstanceAdapter) Handle(msg interface{}) interface{} {
 // enrichHitMapWithInstances 为 HitMap 条目添加 Instance 引用
 // 这是新架构的关键步骤：将 Fiber Reconciler 的 ComponentInstance 与 HitMap 关联
 //
+// Phase 5: NodeID 优先查找策略
 // 工作流程：
-// 1. 从 Fiber Reconciler 的 InstanceManager 获取所有 ComponentInstance
-// 2. 遍历 HitMap 条目，通过 Key 匹配 ComponentInstance
-// 3. 为每个匹配的条目添加 Instance 引用
+// 1. 从 Fiber Reconciler 的 InstanceManager 获取所有 ComponentInstance（按 NodeID 索引）
+// 2. 遍历 HitMap 条目，优先通过 NodeID 匹配 ComponentInstance
+// 3. 如果 NodeID 匹配失败，回退到 Key 匹配（向后兼容）
+// 4. 为每个匹配的条目添加 Instance 引用
 func (a *App) enrichHitMapWithInstances() {
 	if a.hitMap == nil {
 		return
 	}
 
 	// Get InstanceManager from Fiber Reconciler (via DeclarativeNode)
-	// Use reflection to avoid import cycle with internal/render
+	// Use reflection to avoid import cycle with internal/state
+	// Phase 5: Use NodeID as primary lookup with key-based fallback
 	var instanceMgr interface{}
 	rootValue := reflect.ValueOf(a.root)
 	getInstanceMgrMethod := rootValue.MethodByName("GetInstanceManager")
@@ -1841,31 +1844,45 @@ func (a *App) enrichHitMapWithInstances() {
 
 	log.UILogger.Debug("[enrichHitMap] Found InstanceManager, type=%T", instanceMgr)
 
-	// Use reflection to access GetAllInstances() method since we don't import internal/state
-	// The InstanceManager has a method to get all instances
+	// Use reflection to access GetAllInstancesByID() method
+	// Phase 5: Use NodeID as primary lookup with key-based fallback
  mgrValue := reflect.ValueOf(instanceMgr)
-	getAllMethod := mgrValue.MethodByName("GetAllInstances")
-	if !getAllMethod.IsValid() {
-		log.UILogger.Debug("[enrichHitMap] No GetAllInstances method found on InstanceManager")
+	getAllByIDMethod := mgrValue.MethodByName("GetAllInstancesByID")
+	if !getAllByIDMethod.IsValid() {
+		log.UILogger.Debug("[enrichHitMap] No GetAllInstancesByID method found on InstanceManager")
 		return
 	}
 
-	// Call GetAllInstances()
-	instancesResult := getAllMethod.Call(nil)
-	if len(instancesResult) == 0 {
-		log.UILogger.Debug("[enrichHitMap] GetAllInstances returned no results")
+	// Call GetAllInstancesByID() to get NodeID-indexed map
+	instancesByIDResult := getAllByIDMethod.Call(nil)
+	if len(instancesByIDResult) == 0 {
+		log.UILogger.Debug("[enrichHitMap] GetAllInstancesByID returned no results")
 		return
 	}
 
-	// Convert result to map[string]ComponentInstance
-	instancesMap := instancesResult[0].Interface()
-	allInstances, ok := instancesMap.(map[uint64]rtui.ComponentInstance)
+	// Convert result to map[uint64]ComponentInstance
+	instancesByIDMap := instancesByIDResult[0].Interface()
+	allInstancesByID, ok := instancesByIDMap.(map[uint64]rtui.ComponentInstance)
 	if !ok {
-		log.UILogger.Debug("[enrichHitMap] GetAllInstances result is not map[string]ComponentInstance, got %T", instancesMap)
+		log.UILogger.Debug("[enrichHitMap] GetAllInstancesByID result is not map[uint64]ComponentInstance, got %T", instancesByIDMap)
 		return
 	}
 
-	log.UILogger.Debug("[enrichHitMap] Collected %d ComponentInstances from Fiber Reconciler", len(allInstances))
+	// Also get the legacy key-based map for fallback
+	getAllMethod := mgrValue.MethodByName("GetAllInstances")
+	var allInstancesByKey map[string]rtui.ComponentInstance
+	if getAllMethod.IsValid() {
+		instancesResult := getAllMethod.Call(nil)
+		if len(instancesResult) > 0 {
+			instancesMap := instancesResult[0].Interface()
+			allInstancesByKey, _ = instancesMap.(map[string]rtui.ComponentInstance)
+		}
+	}
+
+	log.UILogger.Debug("[enrichHitMap] Collected %d ComponentInstances by NodeID from Fiber Reconciler", len(allInstancesByID))
+	if allInstancesByKey != nil {
+		log.UILogger.Debug("[enrichHitMap] Collected %d ComponentInstances by Key for fallback", len(allInstancesByKey))
+	}
 
 	// 遍历 HitMap 条目，添加 Instance 引用
 	entries := a.hitMap.AllEntries()
@@ -1873,34 +1890,49 @@ func (a *App) enrichHitMapWithInstances() {
 
 	matchedCount := 0
 	for i, entry := range entries {
-		nodeID := entry.NodeID
-		// Build instance key: "vnode:" + nodeID
-		instanceKey := nodeID
+		nodeID := entry.NodeID // uint64 from HitMapEntry
 
-		if compInst, exists := allInstances[instanceKey]; exists {
-			// Found matching ComponentInstance
-			// Create MsgHandler adapter
+		// ✅ NEW: Primary lookup by NodeID
+		if compInst, exists := allInstancesByID[nodeID]; exists {
+			// Found matching ComponentInstance by NodeID
 			var msgHandler runtimeevent.MsgHandler = &componentInstanceAdapter{compInst: compInst}
-
 			a.hitMap.SetEntryInstance(i, msgHandler)
 			matchedCount++
 			if os.Getenv("TUI_DEBUG_HITMAP") == "true" {
-				log.UILogger.Debug("[enrichHitMap] ✅ Matched: NodeID=%s → Instance key=%s", nodeID, instanceKey)
+				log.UILogger.Debug("[enrichHitMap] ✅ Matched: NodeID=%d → Instance", nodeID)
 			}
-		} else {
-			if os.Getenv("TUI_DEBUG_HITMAP") == "true" {
-				log.UILogger.Debug("[enrichHitMap] ❌ No ComponentInstance found for NodeID=%s (tried key=%s)", nodeID, instanceKey)
+			continue
+		}
+
+		// Fallback: Try key-based lookup for backward compatibility
+		if allInstancesByKey != nil {
+			instanceKey := fmt.Sprintf("vnode:%d", nodeID)
+			if compInst, exists := allInstancesByKey[instanceKey]; exists {
+				// Found matching ComponentInstance by key
+				var msgHandler runtimeevent.MsgHandler = &componentInstanceAdapter{compInst: compInst}
+				a.hitMap.SetEntryInstance(i, msgHandler)
+				matchedCount++
+				if os.Getenv("TUI_DEBUG_HITMAP") == "true" {
+					log.UILogger.Debug("[enrichHitMap] ✅ Matched: Key=%s → Instance (fallback)", instanceKey)
+				}
 			}
 		}
 	}
 
 	// Debug: Log all instance keys before enrichment
 	if os.Getenv("TUI_DEBUG_HITMAP") == "true" {
-		var keys []uint64
-		for k := range allInstances {
-			keys = append(keys, k)
+		var nodeIDs []uint64
+		for k := range allInstancesByID {
+			nodeIDs = append(nodeIDs, k)
 		}
-		log.UILogger.Debug("[enrichHitMap] All InstanceManager keys (%d): %v", len(keys), keys)
+		log.UILogger.Debug("[enrichHitMap] All InstanceManager NodeIDs (%d): %v", len(nodeIDs), nodeIDs)
+		if allInstancesByKey != nil {
+			var keys []string
+			for k := range allInstancesByKey {
+				keys = append(keys, k)
+			}
+			log.UILogger.Debug("[enrichHitMap] All InstanceManager Keys (%d): %v", len(keys), keys)
+		}
 	}
 
 	log.UILogger.Debug("[enrichHitMap] Enriched %d/%d HitMap entries with ComponentInstance references", matchedCount, len(entries))

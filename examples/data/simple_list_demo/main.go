@@ -12,7 +12,7 @@ import (
 
 // SimpleListDemo 简化的ListVNode演示程序
 type SimpleListDemo struct {
-	list data.ListVNode
+	list *data.ListVNode
 }
 
 // NewSimpleListDemo 创建演示实例

@@ -252,3 +252,59 @@ func SetAllEnabled(enabled bool) {
 	RenderingLogger.SetEnabled(enabled)
 	InputLogger.SetEnabled(enabled)
 }
+
+// =============================================================================
+// Default Package-Level Functions
+// =============================================================================
+
+// defaultLogger is the default logger package-level functions use
+var defaultLogger = NewLogger("", "DEFAULT")
+
+// SetDefaultPrefix sets the prefix for the default logger
+func SetDefaultPrefix(prefix string) {
+	defaultLogger.mu.Lock()
+	defer defaultLogger.mu.Unlock()
+	defaultLogger.prefix = prefix
+}
+
+// Debug logs a debug message using the default logger
+func Debug(format string, args ...any) {
+	defaultLogger.Debug(format, args...)
+}
+
+// Info logs an info message using the default logger
+func Info(format string, args ...any) {
+	defaultLogger.Info(format, args...)
+}
+
+// Warn logs a warning message using the default logger
+func Warn(format string, args ...any) {
+	defaultLogger.Warn(format, args...)
+}
+
+// Error logs an error message using the default logger
+func Error(format string, args ...any) {
+	defaultLogger.Error(format, args...)
+}
+
+// Fatal logs a fatal message and exits the program
+func Fatal(format string, args ...any) {
+	defaultLogger.Error(format, args...)
+	os.Exit(1)
+}
+
+// Print logs a message at Info level using the default logger
+func Print(format string, args ...any) {
+	defaultLogger.Info(format, args...)
+}
+
+// Printf is an alias for Info for compatibility with standard library
+func Printf(format string, args ...any) {
+	defaultLogger.Info(format, args...)
+}
+
+// Println logs a message at Info level with a newline using the default logger
+func Println(args ...any) {
+	msg := fmt.Sprint(args...)
+	defaultLogger.Info("%s", msg)
+}
