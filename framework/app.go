@@ -1268,21 +1268,16 @@ func (a *App) render() {
 			if layoutRoot, ok := a.root.(layout.Node); ok {
 				a.hitMap = runtimeevent.BuildHitMap(layoutRoot)
 
-				log.RenderLogger.Debug("[APP] HitMap built from layout.Node: %d entries (may not include layer transforms)", a.hitMap.Size())
+				log.HitMapLogger.Debug("[APP] HitMap built from layout.Node: %d entries (may not include layer transforms)", a.hitMap.Size())
 
 			} else if vnodeRoot, ok := a.root.(rtui.VNode); ok {
 				// 通过 VNodeAdapter 将 VNode 转换为 layout.Node
 				layoutAdapter := rtui.AsLayoutNode(vnodeRoot)
 				a.hitMap = runtimeevent.BuildHitMap(layoutAdapter)
-
-				if os.Getenv("TUI_DEBUG_HITMAP") == "true" {
-					log.RenderLogger.Debug("[APP] HitMap built from VNode: %d entries (may not include layer transforms)", a.hitMap.Size())
-				}
+				log.HitMapLogger.Debug("[APP] HitMap built from VNode: %d entries (may not include layer transforms)", a.hitMap.Size())
 			} else {
 				// DEBUG: root 不是 layout.Node 也不是 VNode
-				if os.Getenv("TUI_DEBUG_HITMAP") == "true" {
-					log.RenderLogger.Debug("[APP] root is neither layout.Node nor VNode, type=%T", a.root)
-				}
+				log.HitMapLogger.Debug("[APP] root is neither layout.Node nor VNode, type=%T", a.root)
 			}
 		}
 
@@ -1299,7 +1294,7 @@ func (a *App) render() {
 		// NOTE: Fiber Reconciler handles reconciliation internally in DeclarativeNode.Paint()
 		// ComponentInstances are managed by reconciler.InstanceMgr
 
-		log.UILogger.Debug("[APP] Phase 2: Fiber Reconciler handles VNode → Instance reconciliation")
+		log.HitMapLogger.Debug("[APP] Phase 2: Fiber Reconciler handles VNode → Instance reconciliation")
 
 		// ✨ 新架构：Enrich HitMap with Instance references
 		// 根据 fix1.md：HitMap 应该包含 Instance 引用，用于直接事件路由
@@ -1307,7 +1302,7 @@ func (a *App) render() {
 		// 这样既保留了正确的布局信息（包括层变换），又获得了 Instance 引用
 		if a.hitMap != nil {
 			a.enrichHitMapWithInstances()
-			log.UILogger.Debug("[APP] Enriched HitMap with Instance references")
+			log.HitMapLogger.Debug("[APP] Enriched HitMap with Instance references")
 		}
 
 		// Phase 1-6: 将 HitMap 传递给 Pump 用于鼠标事件命中测试
