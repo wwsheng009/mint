@@ -304,7 +304,9 @@ func createChildFiberWithIndex(returnFiber *Fiber, vnode rtui.VNode, lanes Lane,
 		fiber.Path = typePath + "/key[" + userKey + "]"
 		// ✨ Sync full path to VNode so Inspector can access it
 		fiber.Key = fiber.Path
-		vnode.SetKey(fiber.Path)
+		// ❌ REMOVE: VNodeKey sync - NodeID system provides stable identity
+		// Phase 7: No longer sync Fiber.Path to VNode.Key
+		// node.SetKey(fiber.Path)
 	} else if isDynamicList(returnFiber) {
 		// Priority 2: Dynamic list → require key (panic if missing)
 		requireKeyPanic(returnFiber, vnode, siblingIndex)
@@ -324,7 +326,9 @@ func createChildFiberWithIndex(returnFiber *Fiber, vnode rtui.VNode, lanes Lane,
 			fiber.Path = pathGenerator.GeneratePath(returnFiber, vnode, siblingIndex)
 		}
 		fiber.Key = fiber.Path
-		vnode.SetKey(fiber.Path)
+		// ❌ REMOVE: VNodeKey sync - NodeID system provides stable identity
+		// Phase 7: No longer sync Fiber.Path to VNode.Key
+		// vnode.SetKey(fiber.Path)
 	}
 
 	// Extract path segment (last part of path)
