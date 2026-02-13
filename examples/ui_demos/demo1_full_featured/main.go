@@ -46,7 +46,7 @@ func main() {
 	// 启用以下环境变量可获取更详细的调试信息：
 	os.Setenv("TUI_DEBUG_HITMAP", "true")   // HitMap 构建详情
 	// os.Setenv("TUI_DEBUG_LAYER", "true")    // Layer 系统调试
-	// os.Setenv("TUI_DEBUG_RENDERING", "true") // 渲染管线调试
+	// os.Setenv("TUI_DEBUG_RENDER", "true") // 渲染管线调试
 	os.Setenv("TUI_DEBUG_UI", "true")       // UI 通用调试
 
 	// ============================================================

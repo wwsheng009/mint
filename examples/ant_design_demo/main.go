@@ -34,17 +34,20 @@ func main() {
 
 // App - 主应用组件
 func App() ui.VNode {
-	// 状态管理
-	formData, setFormData := ui.UseStatePtr(&FormData{
-		Username: "",
-		Email:    "",
-		Password: "",
-		Age:      "",
-		Agreed:   false,
-	})
-
+	// 状态管理 - 分别管理每个字段
+	username, setUsername := ui.UseStateString("")
+	email, setEmail := ui.UseStateString("")
+	password, setPassword := ui.UseStateString("")
+	age, setAge := ui.UseStateString("")
+	agreed, setAgreed := ui.UseStateBool(false)
 	showModal, setShowModal := ui.UseStateBool(false)
-	step, setStep := ui.UseStateInt(1)
+	step, setStepRaw, _ := ui.UseStateInt(1)
+
+	// 包装setStep以匹配func(int)类型
+	setStep := func(v int) { setStepRaw(v) }
+
+	// 避免未使用变量警告
+	_ = showModal
 
 	return ui.VStack(
 		Header(),
@@ -53,7 +56,7 @@ func App() ui.VNode {
 		ui.Text(""),
 		ProgressBar(step),
 		ui.Text(""),
-		FormContent(formData, setFormData, step, setStep, setShowModal),
+		FormContent(username, setUsername, email, setEmail, password, setPassword, age, setAge, agreed, setAgreed, step, setStep, setShowModal),
 		ui.Text(""),
 		ActionButtons(step, setStep, setShowModal),
 		ui.Text(""),
@@ -61,13 +64,24 @@ func App() ui.VNode {
 	)
 }
 
-// FormData - 表单数据结构
+// FormData - 表单数据结构（仅用于组织数据，状态由Hook单独管理）
 type FormData struct {
 	Username string
 	Email    string
 	Password string
 	Age      string
 	Agreed   bool
+}
+
+// getFormData 从各个状态组合成FormData
+func getFormData(username, email, password, age string, agreed bool) *FormData {
+	return &FormData{
+		Username: username,
+		Email:    email,
+		Password: password,
+		Age:      age,
+		Agreed:   agreed,
+	}
 }
 
 // Header - 页面头部
@@ -117,7 +131,7 @@ func StepIndicator(step int) ui.VNode {
 		).Align(ui.AlignCenter).Build()
 	}
 
-	return ui.HStack(items...).Gap(4).Build()
+	return ui.HStackBuilder(items...).Gap(4).Build()
 }
 
 // ProgressBar - 进度条（Ant Design Progress 组件）
@@ -145,7 +159,14 @@ func ProgressBar(step int) ui.VNode {
 }
 
 // FormContent - 表单内容
-func FormContent(data *FormData, setData func(*FormData), step int, setStep func(int), setShowModal func(bool)) ui.VNode {
+func FormContent(
+	username string, setUsername func(string),
+	email string, setEmail func(string),
+	password string, setPassword func(string),
+	age string, setAge func(string),
+	agreed bool, setAgreed func(bool),
+	step int, setStep func(int), setShowModal func(bool),
+) ui.VNode {
 
 	if step == 1 {
 		// Step 1: Account Information
@@ -159,8 +180,8 @@ func FormContent(data *FormData, setData func(*FormData), step int, setStep func
 						"Username:",
 						"Enter your username",
 						24,
-						data.Username,
-						func(s string) { data.Username = s; setData(data) },
+						username,
+						setUsername,
 						"",
 						true,
 					),
@@ -170,8 +191,8 @@ func FormContent(data *FormData, setData func(*FormData), step int, setStep func
 						"Email:",
 						"example@domain.com",
 						24,
-						data.Email,
-						func(s string) { data.Email = s; setData(data) },
+						email,
+						setEmail,
 						"We'll never share your email",
 						true,
 					),
@@ -181,8 +202,8 @@ func FormContent(data *FormData, setData func(*FormData), step int, setStep func
 						"Password:",
 						"Enter your password",
 						24,
-						data.Password,
-						func(s string) { data.Password = s; setData(data) },
+						password,
+						setPassword,
 						"At least 8 characters",
 					),
 				).Gap(1).Build(),
@@ -199,8 +220,8 @@ func FormContent(data *FormData, setData func(*FormData), step int, setStep func
 						"Age:",
 						"Your age",
 						10,
-						data.Age,
-						func(s string) { data.Age = s; setData(data) },
+						age,
+						setAge,
 						"",
 						true,
 					),
@@ -216,18 +237,17 @@ func FormContent(data *FormData, setData func(*FormData), step int, setStep func
 			Child(
 				ui.VStackBuilder(
 					ui.Text(""),
-					ConfirmInfo("Username:", data.Username),
-					ConfirmInfo("Email:", data.Email),
-					ConfirmInfo("Age:", data.Age),
+					ConfirmInfo("Username:", username),
+					ConfirmInfo("Email:", email),
+					ConfirmInfo("Age:", age),
 					ui.Text(""),
 					ui.HStackBuilder(
-						ui.Text("").Width(11).Build(),
+						ui.Text("           "), // 使用空格代替Width
 						app.CheckboxBuilder().
-							Checked(data.Agreed).
+							Checked(agreed).
 							Label("I agree to the Terms and Conditions").
 							OnChange(func(checked bool) {
-								data.Agreed = checked
-								setData(data)
+								setAgreed(checked)
 							}).
 							Build(),
 					).Build(),
@@ -249,33 +269,47 @@ func FormItem(
 ) ui.VNode {
 	labelWidth := 10
 
+	// Required 标记
+	var requiredMark ui.VNode
+	if required {
+		requiredMark = app.NewTextBuilder("*").
+			Style(style.Style{}.Foreground(theme.Error())).
+			Build()
+	} else {
+		requiredMark = ui.Text("")
+	}
+
+	// Help/Error 文本行
+	var helpNode ui.VNode
+	if helpText != "" {
+		helpNode = app.NewTextBuilder(helpText).
+			Style(style.Style{}.Foreground(theme.Muted())).
+			Build()
+	} else {
+		helpNode = ui.Text("")
+	}
+
 	return ui.VStackBuilder(
 		// Label 行
 		ui.HStackBuilder(
-			app.NewTextBuilder(label).
+			app.NewTextBuilder(fmt.Sprintf("%-*s", labelWidth, label)).
 				Style(style.Style{}.
-					Foreground(theme.Text()).  // Ant Design: Label 使用 TEXT
+					Foreground(theme.Text()). // Ant Design: Label 使用 TEXT
 					Bold(true)).
-				Width(labelWidth).
 				Build(),
 			ui.Text(" "),
 			app.InputBuilder().
 				Value(value).
 				Placeholder(placeholder).
-				Width(width).
+				Type(form.InputTypeText).
 				OnChange(onChange).
 				Build(),
-			// Required 标记
-			app.NewTextBuilder("*").
-				Style(style.Style{}.Foreground(theme.Error())).
-				BuildCondition(required),
+			requiredMark,
 		).Build(),
 		// Help/Error 文本行
 		ui.HStackBuilder(
-			ui.Text("").Width(labelWidth + 1).Build(),
-			app.NewTextBuilder(helpText).
-				Style(style.Style{}.Foreground(theme.Muted())).  // Ant Design: Help 使用 MUTED
-				BuildCondition(helpText != ""),
+			ui.Text(strings.Repeat(" ", labelWidth+1)),
+			helpNode,
 		).Build(),
 	).Gap(1).Build()
 }
@@ -291,28 +325,34 @@ func FormItemPassword(
 ) ui.VNode {
 	labelWidth := 10
 
+	// Help/Error 文本行
+	var helpNode ui.VNode
+	if helpText != "" {
+		helpNode = app.NewTextBuilder(helpText).
+			Style(style.Style{}.Foreground(theme.Muted())).
+			Build()
+	} else {
+		helpNode = ui.Text("")
+	}
+
 	return ui.VStackBuilder(
 		ui.HStackBuilder(
-			app.NewTextBuilder(label).
+			app.NewTextBuilder(fmt.Sprintf("%-*s", labelWidth, label)).
 				Style(style.Style{}.
 					Foreground(theme.Text()).
 					Bold(true)).
-				Width(labelWidth).
 				Build(),
 			ui.Text(" "),
 			app.InputBuilder().
 				Value(value).
-				InputType(form.InputTypePassword).
+				Password().
 				Placeholder(placeholder).
-				Width(width).
 				OnChange(onChange).
 				Build(),
 		).Build(),
 		ui.HStackBuilder(
-			ui.Text("").Width(labelWidth + 1).Build(),
-			app.NewTextBuilder(helpText).
-				Style(style.Style{}.Foreground(theme.Muted())).
-				BuildCondition(helpText != ""),
+			ui.Text(strings.Repeat(" ", labelWidth+1)),
+			helpNode,
 		).Build(),
 	).Gap(1).Build()
 }
