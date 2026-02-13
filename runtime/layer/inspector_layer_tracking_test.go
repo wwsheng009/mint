@@ -10,7 +10,7 @@ import (
 
 // TestInspectorLayerTracking 追踪 Inspector layer 的问题
 func TestInspectorLayerTracking(t *testing.T) {
-	os.Setenv("TUI_LAYER_DEBUG", "true")
+	os.Setenv("TUI_DEBUG_LAYER", "true")
 
 	// 创建 appContent
 	appContent := rtui.NewElement("app")

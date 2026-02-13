@@ -14,7 +14,7 @@ import (
 func main() {
 	// Enable debug output
 	os.Setenv("TUI_DEBUG_HITMAP", "true")
-	os.Setenv("TUI_LAYER_DEBUG", "true")
+	os.Setenv("TUI_DEBUG_LAYER", "true")
 
 	// Create a simple modal with buttons
 	modalContent := ui.VStack(

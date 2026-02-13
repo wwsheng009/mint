@@ -12,7 +12,7 @@ import (
 
 // TestFinalRenderingVerification 完整验证渲染流程的所有关键点
 func TestFinalRenderingVerification(t *testing.T) {
-	os.Setenv("TUI_LAYER_DEBUG", "true")
+	os.Setenv("TUI_DEBUG_LAYER", "true")
 
 	// 1. 创建真实的 appContent 结构
 	appContent := rtui.VStack(

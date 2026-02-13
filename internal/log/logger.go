@@ -196,6 +196,9 @@ var (
 
 	LayoutLogger = NewLogger("Layout", "LAYOUT")
 
+	//Layer debug
+	LayerLogger = NewLogger("Layer", "LAYER")
+
 	EngineLogger = NewLogger("Engine", "ENGINE")
 	// UILogger logs UI-related messages (enabled via TUI_DEBUG_UI)
 	UILogger = NewLogger("UI", "UI")

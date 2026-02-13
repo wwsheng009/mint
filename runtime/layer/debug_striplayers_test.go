@@ -10,7 +10,7 @@ import (
 
 // TestStripLayersDebug 调试 StripLayers 的执行过程
 func TestStripLayersDebug(t *testing.T) {
-	os.Setenv("TUI_LAYER_DEBUG", "true")
+	os.Setenv("TUI_DEBUG_LAYER", "true")
 
 	// 创建 appContent (使用 VStack，模拟真实的应用)
 	appContent := rtui.VStack(

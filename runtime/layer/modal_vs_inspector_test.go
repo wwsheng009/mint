@@ -12,7 +12,7 @@ import (
 
 // TestModalVsInspector 对比 modal 和 inspector 的渲染
 func TestModalVsInspector(t *testing.T) {
-	os.Setenv("TUI_LAYER_DEBUG", "true")
+	os.Setenv("TUI_DEBUG_LAYER", "true")
 
 	// 创建 appContent (简单版本)
 	appContent := rtui.Bordered().

@@ -12,7 +12,7 @@ import (
 
 // TestRenderingDebug 完整追踪渲染流程，找出为什么没有显示
 func TestRenderingDebug(t *testing.T) {
-	os.Setenv("TUI_LAYER_DEBUG", "true")
+	os.Setenv("TUI_DEBUG_LAYER", "true")
 
 	// 创建简化版的应用内容
 	appContent := rtui.VStack(
