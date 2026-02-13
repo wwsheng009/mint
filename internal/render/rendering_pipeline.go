@@ -2,8 +2,6 @@
 package render
 
 import (
-	"os"
-
 	"github.com/wwsheng009/mint/internal/log"
 	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/compute"
@@ -49,41 +47,35 @@ func (p *RenderingPipeline) Render(vnode rtui.VNode, constraints runtime.BoxCons
 		return nil
 	}
 
-	if os.Getenv("TUI_PIPELINE_DEBUG") == "true" || os.Getenv("TUI_DEBUG_RENDERING") == "true" {
-		log.RenderLogger.Debug("[RenderingPipeline] Render started\n")
-	}
+	log.PipelineLogger.Debug("Render started")
 
 	// Phase 1: Layout - calculate all positions
 	layout, err := p.layoutEngine.Layout(vnode, constraints)
 	if err != nil {
 		// Fallback to legacy rendering if layout fails
-		log.RenderLogger.Debug("[RenderingPipeline] ❌ Layout FAILED: %v, falling back to legacy\n", err)
+		log.PipelineLogger.Debug("❌ Layout FAILED: %v, falling back to legacy", err)
 		return p.renderLegacy(vnode, 0, 0, buffer)
 	}
 
-	if os.Getenv("TUI_PIPELINE_DEBUG") == "true" || os.Getenv("TUI_DEBUG_RENDERING") == "true" {
-		log.RenderLogger.Debug("[RenderingPipeline] ✅ Layout complete, starting Paint phase\n")
-	}
+	log.PipelineLogger.Debug("✅ Layout complete, starting Paint phase")
 
 	// Phase 2: Paint - render using computed positions
-	if os.Getenv("TUI_DEBUG_RENDERING") == "true" {
-		log.RenderLogger.Debug("[RenderingPipeline] Starting Paint phase...\n")
-	}
+	log.PipelineLogger.Debug("Starting Paint phase...")
 	err = p.paintEngine.Paint(layout, buffer)
 
-	if os.Getenv("TUI_PIPELINE_DEBUG") == "true" || os.Getenv("TUI_PAINT_DEBUG") == "true" || os.Getenv("TUI_DEBUG_RENDERING") == "true" {
-		log.RenderLogger.Debug("[RenderingPipeline] Paint complete, err=%v\n", err)
+	if log.PipelineLogger.Enabled() || log.PaintLogger.Enabled() || log.PipelineLogger.Enabled() {
+		log.PipelineLogger.Debug("Paint complete, err=%v", err)
 	}
 
 	// Save HitMap for event routing (hit testing)
 	// This HitMap contains the FINAL positions from layout computation
 	p.lastHitMap = layout.HitMap
 
-	if os.Getenv("TUI_DEBUG_HITMAP") == "true" {
+	if log.HitMapLogger.Enabled() {
 		if p.lastHitMap != nil {
-			log.RenderLogger.Debug("[RenderingPipeline] Saved HitMap: %d entries\n", p.lastHitMap.Size())
+			log.PipelineLogger.Debug("Saved HitMap: %d entries", p.lastHitMap.Size())
 		} else {
-			log.RenderLogger.Debug("[RenderingPipeline] ⚠️ Layout.HitMap is nil\n")
+			log.PipelineLogger.Debug("⚠️ Layout.HitMap is nil")
 		}
 	}
 
@@ -166,8 +158,8 @@ func (p *RenderingPipeline) RenderLayers(
 		return nil
 	}
 
-	if os.Getenv("TUI_PIPELINE_DEBUG") == "true" {
-		log.RenderLogger.Debug("[RenderingPipeline] RenderLayers started\n")
+	if log.PipelineLogger.Enabled() {
+		log.PipelineLogger.Debug("RenderLayers started")
 	}
 
 	// Create a layer manager for this render pass
@@ -175,8 +167,8 @@ func (p *RenderingPipeline) RenderLayers(
 
 	// Collect and layout all layers
 	if err := layerMgr.CollectAndLayout(vnode, constraints, p.layoutEngine); err != nil {
-		if os.Getenv("TUI_PIPELINE_DEBUG") == "true" {
-			log.RenderLogger.Debug("[RenderingPipeline] Layer layout failed: %v\n", err)
+		if log.PipelineLogger.Enabled() {
+			log.PipelineLogger.Debug("Layer layout failed: %v", err)
 		}
 		// Fallback to regular rendering
 		return p.Render(vnode, constraints, buffer)
@@ -185,14 +177,14 @@ func (p *RenderingPipeline) RenderLayers(
 	// Get all layer layouts
 	layouts := layerMgr.GetLayouts()
 
-	if os.Getenv("TUI_PIPELINE_DEBUG") == "true" {
-		log.RenderLogger.Debug("[RenderingPipeline] Layer layouts complete, rendering %d layers\n", len(layouts))
+	if log.PipelineLogger.Enabled() {
+		log.PipelineLogger.Debug("Layer layouts complete, rendering %d layers", len(layouts))
 	}
 
 	// Paint all layers
 	if err := p.paintEngine.PaintLayers(layouts, buffer); err != nil {
-		if os.Getenv("TUI_PIPELINE_DEBUG") == "true" {
-			log.RenderLogger.Debug("[RenderingPipeline] PaintLayers failed: %v\n", err)
+		if log.PipelineLogger.Enabled() {
+			log.PipelineLogger.Debug("PaintLayers failed: %v", err)
 		}
 		return err
 	}
@@ -205,18 +197,18 @@ func (p *RenderingPipeline) RenderLayers(
 	// This allows DeclarativeNode to access modal nodes for mouse event distribution
 	p.layerMgr = layerMgr
 
-	if os.Getenv("TUI_PIPELINE_DEBUG") == "true" || os.Getenv("TUI_DEBUG_HITMAP") == "true" {
+	if log.PipelineLogger.Enabled() {
 		if p.lastHitMap != nil {
-			log.RenderLogger.Debug("[RenderLayers] Merged HitMap: %d entries", p.lastHitMap.Size())
+			log.PipelineLogger.Debug("[RenderLayers] Merged HitMap: %d entries", p.lastHitMap.Size())
 		}
 		if p.layerMgr != nil {
 			modalNodes := p.layerMgr.GetModalNodes()
-			log.RenderLogger.Debug("[RenderLayers] Saved layerMgr with %d modal nodes", len(modalNodes))
+			log.PipelineLogger.Debug("[RenderLayers] Saved layerMgr with %d modal nodes", len(modalNodes))
 		}
 	}
 
 	// 验证 buffer 内容
-	if os.Getenv("TUI_PIPELINE_DEBUG") == "true" || os.Getenv("TUI_DEBUG_RENDERING") == "true" {
+	if log.PipelineLogger.Enabled() {
 		contentCount := 0
 		for y := 0; y < buffer.Height; y++ {
 			for x := 0; x < buffer.Width; x++ {
@@ -225,13 +217,13 @@ func (p *RenderingPipeline) RenderLayers(
 				}
 			}
 		}
-		log.RenderLogger.Debug("[RenderLayers] Buffer content after PaintLayers: %d cells (buffer size: %dx%d)\n",
+		log.PipelineLogger.Debug("[RenderLayers] Buffer content after PaintLayers: %d cells (buffer size: %dx%d)",
 			contentCount, buffer.Width, buffer.Height)
 
 		if contentCount == 0 {
-			log.RenderLogger.Debug("[RenderLayers] ⚠️  WARNING: Buffer is empty!\n")
+			log.PipelineLogger.Debug("[RenderLayers] ⚠️  WARNING: Buffer is empty!")
 		} else {
-			log.RenderLogger.Debug("[RenderLayers] ✅ Buffer has content\n")
+			log.PipelineLogger.Debug("[RenderLayers] ✅ Buffer has content")
 		}
 	}
 

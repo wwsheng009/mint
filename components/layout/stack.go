@@ -1,8 +1,6 @@
 package layout
 
 import (
-	"os"
-
 	"github.com/wwsheng009/mint/internal/log"
 	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/paint"
@@ -265,18 +263,15 @@ func (l *LayoutNode) MeasureLayout(measurer runtime.ChildMeasurer, constraints r
 		if explicitWidth := props.GetInt("width"); explicitWidth > 0 {
 			// Override with explicit width
 			constraints.MaxWidth = explicitWidth
-			if os.Getenv("TUI_DEBUG_LAYOUT") == "true" {
-				log.UILogger.Debug("[HStack.MeasureLayout] tag=%s, using explicit width=%d\n",
-					l.Tag(), explicitWidth)
-			}
+			log.LayoutLogger.Debug("[HStack.MeasureLayout] tag=%s, using explicit width=%d\n",
+				l.Tag(), explicitWidth)
+
 		}
 	}
 
 	// Debug: log constraints received
-	if os.Getenv("TUI_DEBUG_LAYOUT") == "true" {
-		log.UILogger.Debug("[HStack.MeasureLayout] tag=%s, constraints.MinWidth=%d, MaxWidth=%d, gap=%d\n",
-			l.Tag(), constraints.MinWidth, constraints.MaxWidth, l.gap)
-	}
+	log.LayoutLogger.Debug("[HStack.MeasureLayout] tag=%s, constraints.MinWidth=%d, MaxWidth=%d, gap=%d\n",
+		l.Tag(), constraints.MinWidth, constraints.MaxWidth, l.gap)
 
 	// Add padding to content size
 	paddingWidth := l.padding[1] + l.padding[3]  // left + right
@@ -343,19 +338,15 @@ func (l *LayoutNode) MeasureLayout(measurer runtime.ChildMeasurer, constraints r
 			availableWidth := constraints.MaxWidth - paddingWidth - (len(children)-1)*l.gap
 			remainingSpace := availableWidth - fixedWidth
 
-			if os.Getenv("TUI_DEBUG_LAYOUT") == "true" {
-				log.UILogger.Debug("[HStack] availableWidth=%d, fixedWidth=%d, remainingSpace=%d, flexChildren=%d\n",
-					availableWidth, fixedWidth, remainingSpace, len(flexChildren))
-			}
+			log.LayoutLogger.Debug("[HStack] availableWidth=%d, fixedWidth=%d, remainingSpace=%d, flexChildren=%d\n",
+				availableWidth, fixedWidth, remainingSpace, len(flexChildren))
 
 			// ✅ IMPROVED: Distribute remaining space with remainder handling
 			// This ensures all available space is used (no wasted pixels)
 			baseFlexWidth := remainingSpace / flexTotalFactor
 			remainder := remainingSpace % flexTotalFactor
 
-			if os.Getenv("TUI_DEBUG_LAYOUT") == "true" {
-				log.UILogger.Debug("[HStack] baseFlexWidth=%d, remainder=%d\n", baseFlexWidth, remainder)
-			}
+			log.LayoutLogger.Debug("[HStack] baseFlexWidth=%d, remainder=%d\n", baseFlexWidth, remainder)
 
 			// Distribute to flex children
 			for _, fc := range flexChildren {
@@ -375,9 +366,8 @@ func (l *LayoutNode) MeasureLayout(measurer runtime.ChildMeasurer, constraints r
 					flexWidth = 0
 				}
 
-				if os.Getenv("TUI_DEBUG_LAYOUT") == "true" {
-					log.UILogger.Debug("[HStack]   child[%d]: flexWidth=%d\n", fc.index, flexWidth)
-				}
+				log.LayoutLogger.Debug("[HStack]   child[%d]: flexWidth=%d", fc.index, flexWidth)
+				
 
 				cc := runtime.BoxConstraints{
 					MinWidth:  flexWidth,

@@ -9,9 +9,9 @@ package reconciler
 
 import (
 	"fmt"
-	"os"
 	"strings"
 
+	"github.com/wwsheng009/mint/internal/log"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
 
@@ -85,7 +85,7 @@ func requireKeyPanic(parent *Fiber, vnode rtui.VNode, siblingIndex int) {
 	// 构建详细的panic消息
 	panicMsg := buildKeyPanicMessage(parentTag, childType, childTag, siblingIndex)
 
-	if os.Getenv("TUI_DEBUG_KEY") == "true" || os.Getenv("TUI_DEBUG") == "true" {
+	if log.KeyLogger.Enabled() {
 		// 调试模式：详细信息和调用栈
 		panic(fmt.Sprintf(
 			"%s\n\nParent Path: %s\nChild Type: %s\nChild Tag: %s\nSibling Index: %d",

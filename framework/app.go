@@ -95,11 +95,6 @@ type App struct {
 	// 配置
 	tickInterval time.Duration
 
-	// 调试模式
-	debugMode     bool
-	debugRecorder *debug.Recorder
-	debugLogFile  string
-
 	// Panic 恢复管理器
 	recovery *core.Recovery
 
@@ -131,6 +126,13 @@ type App struct {
 	// hitMap 存储从布局树构建的命中映射表
 	// 在每次渲染后构建，用于鼠标事件的快速命中测试
 	hitMap *runtimeevent.HitMap
+
+	// ============================================================================
+	// 调试支持
+	// ============================================================================
+	debugMode     bool              // 调试模式开关
+	debugLogFile  string            // 调试日志文件路径
+	debugRecorder *debug.Recorder   // 调试记录器
 }
 
 // NewApp 创建新应用
@@ -143,8 +145,6 @@ func NewApp() *App {
 		quit:          make(chan struct{}, 1),
 		tickInterval:  16 * time.Millisecond, // ~60fps
 		firstRender:   true,
-		debugMode:     os.Getenv("TUI_DEBUG") == "true",
-		debugLogFile:  os.Getenv("TUI_DEBUG_LOG"),
 		throttler:     render.NewThrottler(60), // 默认 60 FPS
 		contextMgr:    core.NewContextManager(context.Background()),
 		userData:      make(map[string]interface{}),
@@ -165,8 +165,6 @@ func NewAppWithSource(source frameworkevent.EventSource) *App {
 		quit:         make(chan struct{}, 1),
 		tickInterval: 16 * time.Millisecond,
 		firstRender:  true,
-		debugMode:    os.Getenv("TUI_DEBUG") == "true",
-		debugLogFile: os.Getenv("TUI_DEBUG_LOG"),
 		throttler:    render.NewThrottler(60),
 		contextMgr:   core.NewContextManager(context.Background()),
 		userData:     make(map[string]interface{}),
@@ -481,10 +479,8 @@ func (a *App) isInspectorVisible() bool {
 //	app.SetupInspectorShortcut() // 启用 F12 切换 Inspector
 func (a *App) SetupInspectorShortcut() {
 	if a.inspector == nil {
-		if os.Getenv("TUI_DEBUG_UI") == "true" {
-			log.UILogger.Debug("[APP] Warning: SetupInspectorShortcut() called but no Inspector set")
-			log.UILogger.Debug("[APP] Call SetInspector() first")
-		}
+		log.UILogger.Debug("[APP] Warning: SetupInspectorShortcut() called but no Inspector set")
+		log.UILogger.Debug("[APP] Call SetInspector() first")
 		return
 	}
 
@@ -641,27 +637,18 @@ func (a *App) Init() error {
 		a.pump = frameworkevent.NewPumpWithSource(a.customSource)
 	} else {
 		// 使用默认的平台输入源（生产模式）
-		if os.Getenv("TUI_DEBUG_UI") == "true" {
-			log.UILogger.Debug("[APP] Init: Creating input reader")
-		}
+		log.UILogger.Debug("[APP] Init: Creating input reader")
 		inputReader, err := platform.NewInputReader()
 		if err != nil {
 			return err
 		}
-		if os.Getenv("TUI_DEBUG_UI") == "true" {
-			log.UILogger.Debug("[APP] Init: Input reader created")
-		}
+		log.UILogger.Debug("[APP] Init: Input reader created")
 		a.pump = frameworkevent.NewPump(inputReader)
 	}
 
-	if os.Getenv("TUI_DEBUG_UI") == "true" {
-		log.UILogger.Debug("[APP] Init: Starting pump")
-	}
+	log.UILogger.Debug("[APP] Init: Starting pump")
 	if err := a.pump.Start(); err != nil {
 		return err
-	}
-	if os.Getenv("TUI_DEBUG_UI") == "true" {
-		log.UILogger.Debug("[APP] Init: Pump started")
 	}
 
 	// 让根组件获得焦点
@@ -674,9 +661,7 @@ func (a *App) Init() error {
 	a.state = StateRunning
 	a.dirty = true
 
-	if os.Getenv("TUI_DEBUG_UI") == "true" {
-		log.UILogger.Debug("[APP] Init: Complete, state=StateRunning")
-	}
+	log.UILogger.Debug("[APP] Init: Complete, state=StateRunning")
 
 	return nil
 }
@@ -1370,7 +1355,7 @@ func (a *App) outputBuffer(buf *paint.Buffer) {
 	}
 
 	// 调试模式：记录输出
-	if a.debugMode && a.debugRecorder != nil && os.Getenv("TUI_OUTPUT_DEBUG") == "1" {
+	if a.debugMode && a.debugRecorder != nil {
 		log.UILogger.Debug("[OUTPUT] %d changes detected\n", len(diffResult.Changes))
 	}
 
@@ -1416,7 +1401,7 @@ func (a *App) outputBufferDirect(buf *paint.Buffer) {
 	output.WriteString("\x1b[?25l")
 
 	// 调试模式：记录输出
-	if a.debugMode && a.debugRecorder != nil && os.Getenv("TUI_OUTPUT_DEBUG") == "1" {
+	if a.debugMode && a.debugRecorder != nil {
 		log.UILogger.Debug("[OUTPUT DIRECT] about to write %d cells to terminal\n", buf.Height*buf.Width)
 	}
 

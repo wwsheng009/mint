@@ -123,9 +123,9 @@ type HitTestEntry struct {
 	HitTest   string // Hit test result at current mouse position
 	Clickable bool
 	// Debug fields - additional info to distinguish widgets
-	Tag       string // Component tag (button, text, box, etc.)
-	Key       string // Component key (if available)
-	Label      string // Component label (text content, etc.)
+	Tag   string // Component tag (button, text, box, etc.)
+	Key   string // Component key (if available)
+	Label string // Component label (text content, etc.)
 }
 
 // InspectorTab represents different inspector panels
@@ -606,7 +606,7 @@ func (si *StandaloneInspector) buildElementsTabContent() rtui.VNode {
 	if si.treeViewComponent == nil {
 		si.treeViewComponent = display.NewTreeView().
 			FromLines(si.treeLines).
-			ExpandLevel(-1).  // Expand all, expansion controlled by si.treeView
+			ExpandLevel(-1). // Expand all, expansion controlled by si.treeView
 			ShowIcons(true).
 			Compact(false).
 			Build().(*display.TreeView)
@@ -1069,7 +1069,7 @@ func (si *StandaloneInspector) buildHitTestTabContent() rtui.VNode {
 			clickMark = "Y"
 		}
 
-		line := fmt.Sprintf("%-3d %-25s %-10s %-2s %-2s",
+		line := fmt.Sprintf("%-3d %-25s %-10s %-2s",
 			e.ZOrder, formatNodeInfo(e.NodeID, e.Tag, e.Key, e.Label), hitMark, clickMark)
 		rows = append(rows, line)
 		displayed++
@@ -1257,7 +1257,7 @@ func (si *StandaloneInspector) collectHitTestEntries(node rtui.VNode, x, y, zOrd
 		Clickable: clickable,
 		Tag:       tag,
 		Key:       key,
-		Label:      label,
+		Label:     label,
 	}
 	*entries = append(*entries, entry)
 
@@ -2269,9 +2269,7 @@ func formatNodeInfo(id, tag, key, label string) string {
 	info := ""
 
 	// Debug logging to trace the issue
-	if os.Getenv("TUI_DEBUG_INSPECTOR") == "true" {
-		log.UILogger.Debug("[Inspector] formatNodeInfo: id=%q tag=%q key=%q label=%q\n", id, tag, key, label)
-	}
+	log.InspectorLogger.Debug("formatNodeInfo: id=%q tag=%q key=%q label=%q", id, tag, key, label)
 
 	// Use id as node type (Element, Text, etc.) - this is what we have from HitTestEntry.NodeID
 	if id != "" {

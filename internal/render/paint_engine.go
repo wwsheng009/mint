@@ -3,7 +3,6 @@ package render
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/wwsheng009/mint/internal/log"
 	"github.com/wwsheng009/mint/runtime"
@@ -29,7 +28,7 @@ type PaintEngine struct {
 // NewPaintEngine creates a new paint engine
 func NewPaintEngine() *PaintEngine {
 	return &PaintEngine{
-		debug:             os.Getenv("TUI_PAINT_DEBUG") == "true",
+		debug:             log.PaintLogger.Enabled(),
 		lastLayersPresent: make(map[rtui.Layer]bool),
 		lastLayerBounds:   make(map[rtui.Layer]runtime.Box),
 	}
@@ -46,8 +45,8 @@ func (e *PaintEngine) Paint(layout *compute.ComputedLayout, buffer *paint.Buffer
 		return nil
 	}
 
-	if os.Getenv("TUI_DEBUG_RENDERING") == "true" {
-		log.UILogger.Debug("[PaintEngine.Paint] START: layout.Root=%T, box=(%d,%d,%dx%d)\n",
+	if log.PaintLogger.Enabled() {
+		log.PaintLogger.Debug("[PaintEngine.Paint] START: layout.Root=%T, box=(%d,%d,%dx%d)",
 			layout.Root.VNode, layout.Root.Box.X, layout.Root.Box.Y, layout.Root.Box.Width, layout.Root.Box.Height)
 	}
 
@@ -67,8 +66,8 @@ func (e *PaintEngine) Paint(layout *compute.ComputedLayout, buffer *paint.Buffer
 	}
 
 	err := e.paintNode(layout.Root, buffer)
-	if os.Getenv("TUI_DEBUG_RENDERING") == "true" {
-		log.UILogger.Debug("[PaintEngine.Paint] END: err=%v\n", err)
+	if log.PaintLogger.Enabled() {
+		log.PaintLogger.Debug("[PaintEngine.Paint] END: err=%v", err)
 	}
 	return err
 }
@@ -79,8 +78,8 @@ func (e *PaintEngine) paintNode(box *compute.ComputedBox, buffer *paint.Buffer) 
 		return nil
 	}
 
-	if e.debug || os.Getenv("TUI_PAINT_DEBUG") == "true" || os.Getenv("TUI_DEBUG_RENDERING") == "true" {
-		log.UILogger.Debug("[Paint.paintNode] %s at (%d,%d) size %dx%d, vnode_type=%T\n",
+	if e.debug || log.PaintLogger.Enabled() || log.PaintLogger.Enabled() {
+		log.PaintLogger.Debug("[Paint.paintNode] %s at (%d,%d) size %dx%d, vnode_type=%T",
 			box.VNode.Type().String(), box.Box.X, box.Box.Y, box.Box.Width, box.Box.Height, box.VNode)
 	}
 
@@ -99,8 +98,8 @@ func (e *PaintEngine) paintNode(box *compute.ComputedBox, buffer *paint.Buffer) 
 		Paint(int, int) []paint.DrawCmd
 	})
 	if ok {
-		if e.debug || os.Getenv("TUI_PAINT_DEBUG") == "true" || os.Getenv("TUI_DEBUG_RENDERING") == "true" {
-			log.UILogger.Debug("[Paint.paintNode]   ✅ Paintable: YES, calling Paint(%d, %d)\n", box.Box.X, box.Box.Y)
+		if e.debug || log.PaintLogger.Enabled() || log.PaintLogger.Enabled() {
+			log.PaintLogger.Debug("[Paint.paintNode]   ✅ Paintable: YES, calling Paint(%d, %d)", box.Box.X, box.Box.Y)
 		}
 		// Component has custom paint logic - use it
 		commands := paintable.Paint(box.Box.X, box.Box.Y)
@@ -111,8 +110,8 @@ func (e *PaintEngine) paintNode(box *compute.ComputedBox, buffer *paint.Buffer) 
 			// If command has no background and parent has one, inherit it
 			if parentBG != "" && (styleToApply.BG == "" || styleToApply.BG == style.NoColor) {
 				styleToApply.BG = parentBG
-				if e.debug || os.Getenv("TUI_PAINT_DEBUG") == "true" {
-					log.UILogger.Debug("[Paint.paintNode]   🎨 Paintable inherited parent BG=%s\n", parentBG)
+				if e.debug || log.PaintLogger.Enabled() {
+					log.PaintLogger.Debug("[Paint.paintNode]   🎨 Paintable inherited parent BG=%s", parentBG)
 				}
 			}
 			buffer.SetString(cmd.X, cmd.Y, cmd.Text, styleToApply)
@@ -126,8 +125,8 @@ func (e *PaintEngine) paintNode(box *compute.ComputedBox, buffer *paint.Buffer) 
 		// Paintable components handle their own rendering, including children
 		return nil
 	} else {
-		if e.debug || os.Getenv("TUI_PAINT_DEBUG") == "true" || os.Getenv("TUI_DEBUG_RENDERING") == "true" {
-			log.UILogger.Debug("[Paint.paintNode]   ❌ Paintable: NO (type assertion failed)\n")
+		if e.debug || log.PaintLogger.Enabled() || log.PaintLogger.Enabled() {
+			log.PaintLogger.Debug("[Paint.paintNode]   ❌ Paintable: NO (type assertion failed)")
 		}
 	}
 
@@ -142,8 +141,8 @@ func (e *PaintEngine) paintNode(box *compute.ComputedBox, buffer *paint.Buffer) 
 			inheritedStyle.BG = parentBG
 			box.VNode.SetStyle(inheritedStyle)
 
-			if e.debug || os.Getenv("TUI_PAINT_DEBUG") == "true" {
-				log.UILogger.Debug("[Paint.paintNode]   🎨 Inherited parent BG=%s\n", parentBG)
+			if e.debug || log.PaintLogger.Enabled() {
+				log.PaintLogger.Debug("[Paint.paintNode]   🎨 Inherited parent BG=%s", parentBG)
 			}
 		}
 	}
@@ -199,7 +198,7 @@ func (e *PaintEngine) paintText(box *compute.ComputedBox, buffer *paint.Buffer) 
 		text = rtui.GetTextContent(box.VNode)
 	}
 	if e.debug {
-		log.UILogger.Debug("[Paint.paintText] box=(%d,%d,%dx%d) renderedText=%q text=%q\n",
+		log.PaintLogger.Debug("[Paint.paintText] box=(%d,%d,%dx%d) renderedText=%q text=%q",
 			box.Box.X, box.Box.Y, box.Box.Width, box.Box.Height, box.RenderedText, text)
 	}
 	if text != "" {
@@ -262,8 +261,8 @@ func (e *PaintEngine) paintContainerBackground(box *compute.ComputedBox, buffer 
 		}
 	}
 
-	if e.debug || os.Getenv("TUI_PAINT_DEBUG") == "true" {
-		log.UILogger.Debug("[Paint.paintContainerBackground] Occluded %dx%d area at (%d,%d) with BG=%s\n",
+	if e.debug || log.PaintLogger.Enabled() {
+		log.PaintLogger.Debug("[Paint.paintContainerBackground] Occluded %dx%d area at (%d,%d) with BG=%s",
 			box.Box.Width, box.Box.Height, box.Box.X, box.Box.Y, bgStyle.BG)
 	}
 }
@@ -285,8 +284,8 @@ func (e *PaintEngine) clearRegion(bounds runtime.Box, buffer *paint.Buffer) {
 		}
 	}
 
-	if e.debug || os.Getenv("TUI_PAINT_DEBUG") == "true" {
-		log.UILogger.Debug("[Paint.clearRegion] Cleared %dx%d region at (%d,%d)\n",
+	if e.debug || log.PaintLogger.Enabled() {
+		log.PaintLogger.Debug("[Paint.clearRegion] Cleared %dx%d region at (%d,%d)",
 			bounds.Width, bounds.Height, bounds.X, bounds.Y)
 	}
 }
@@ -345,7 +344,7 @@ func (e *PaintEngine) paintBordered(box *compute.ComputedBox, buffer *paint.Buff
 	// Paint children (content inside border)
 	for _, childBox := range box.Children {
 		if err := e.paintNode(childBox, buffer); err != nil && e.debug {
-			log.UILogger.Debug("[PaintBordered] error: %v\n", err)
+			log.PaintLogger.Debug("[PaintBordered] error: %v", err)
 		}
 	}
 }
@@ -400,10 +399,9 @@ func (e *PaintEngine) PaintLayers(
 
 		// If layer disappeared, clear its previous region
 		if hadLayer && !hasLayer {
-			if os.Getenv("TUI_PAINT_DEBUG") == "true" {
-				log.UILogger.Debug("[PaintLayers] Layer %s disappeared, clearing region: (%d,%d) %dx%d\n",
-					l.String(), prevBounds.X, prevBounds.Y, prevBounds.Width, prevBounds.Height)
-			}
+			log.PaintLogger.Debug("[PaintLayers] Layer %s disappeared, clearing region: (%d,%d) %dx%d",
+				l.String(), prevBounds.X, prevBounds.Y, prevBounds.Width, prevBounds.Height)
+
 			// Clear the region that was previously occupied by this layer
 			e.clearRegion(prevBounds, buffer)
 			e.forceFullRender = true // Force full render to ensure proper repaint
@@ -411,11 +409,10 @@ func (e *PaintEngine) PaintLayers(
 
 		// If layer layer bounds changed significantly, also force full render
 		if hasLayer && hadLayer && currentBounds != prevBounds {
-			if os.Getenv("TUI_PAINT_DEBUG") == "true" {
-				log.UILogger.Debug("[PaintLayers] Layer %s bounds changed: (%d,%d) %dx%d -> (%d,%d) %dx%d\n",
-					l.String(), prevBounds.X, prevBounds.Y, prevBounds.Width, prevBounds.Height,
-					currentBounds.X, currentBounds.Y, currentBounds.Width, currentBounds.Height)
-			}
+			log.PaintLogger.Debug("[PaintLayers] Layer %s bounds changed: (%d,%d) %dx%d -> (%d,%d) %dx%d",
+				l.String(), prevBounds.X, prevBounds.Y, prevBounds.Width, prevBounds.Height,
+				currentBounds.X, currentBounds.Y, currentBounds.Width, currentBounds.Height)
+
 			e.forceFullRender = true
 		}
 
@@ -437,7 +434,7 @@ func (e *PaintEngine) PaintLayers(
 		}
 
 		if e.debug {
-			log.UILogger.Debug("[PaintLayers] Rendering layer: %s root=(%d,%d) size=%dx%d\n",
+			log.PaintLogger.Debug("[PaintLayers] Rendering layer: %s root=(%d,%d) size=%dx%d",
 				l.String(), layout.Root.Box.X, layout.Root.Box.Y, layout.Root.Box.Width, layout.Root.Box.Height)
 		}
 

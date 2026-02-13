@@ -1,11 +1,8 @@
 package input
 
 import (
-	"fmt"
-	"os"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/wwsheng009/mint/framework/component"
 	"github.com/wwsheng009/mint/framework/cursor"
@@ -16,64 +13,9 @@ import (
 	"github.com/wwsheng009/mint/runtime/style"
 )
 
-var (
-	debugInput   = os.Getenv("TUI_INPUT_DEBUG") == "1"
-	debugFile    *os.File
-	debugFileMu  sync.Mutex
-	debugStarted bool
-)
-
-// initDebugFile 初始化调试日志文件
-func initDebugFile() {
-	debugFileMu.Lock()
-	defer debugFileMu.Unlock()
-
-	if debugStarted {
-		return
-	}
-	debugStarted = true
-
-	if !debugInput {
-		return
-	}
-
-	filename := os.Getenv("TUI_INPUT_DEBUG_FILE")
-	if filename == "" {
-		filename = fmt.Sprintf("tui_input_debug_%s.log", time.Now().Format("20060102_150405"))
-	}
-
-	var err error
-	debugFile, err = os.Create(filename)
-	if err != nil {
-		log.UILogger.Debug("Failed to create debug file: %v\n", err)
-		debugInput = false
-		return
-	}
-
-	log.UILogger.Debug("[TextInput] Debug logging enabled, writing to: %s\n", filename)
-}
-
-// debugLog 调试日志输出到文件
+// debugLog 调试日志输出
 func debugLog(format string, args ...interface{}) {
-	
-	if !debugInput {
-		return
-	}
-
-	if debugFile == nil {
-		initDebugFile()
-		if debugFile == nil {
-			return
-		}
-	}
-
-	timestamp := time.Now().Format("15:04:05.000")
-	fullFormat := fmt.Sprintf("[%s] [TextInput] %s\n", timestamp, format)
-	msg := fmt.Sprintf(fullFormat, args...)
-	
-	debugFileMu.Lock()
-	defer debugFileMu.Unlock()
-	debugFile.WriteString(msg)
+	log.InputLogger.Debug(format, args...)
 }
 
 // ==============================================================================
@@ -474,7 +416,7 @@ func (t *TextInput) Paint(ctx component.PaintContext, buf *paint.Buffer) {
 	}
 
 	// 调试：可视化整行的反转状态
-	if debugInput {
+	if log.InputLogger.Enabled() {
 		t.visualizeReverseState(ctx, buf)
 	}
 }

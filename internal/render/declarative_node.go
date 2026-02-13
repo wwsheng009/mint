@@ -260,7 +260,7 @@ func (n *DeclarativeNode) Paint(ctx component.PaintContext, buf *paint.Buffer) {
 	n.applyFocusState()
 
 	// Phase 3: UNIFIED RENDERING - use PipelineRenderer with constraint-based layout
-	if os.Getenv("TUI_DEBUG_RENDERING") == "true" {
+	if os.Getenv("TUI_DEBUG_RENDER") == "true" {
 		log.UILogger.Debug("[DeclarativeNode.Paint] n.renderer = %v\n", n.renderer)
 		if n.renderer != nil {
 			log.UILogger.Debug("[DeclarativeNode.Paint] renderer type = %T\n", n.renderer)
@@ -272,7 +272,7 @@ func (n *DeclarativeNode) Paint(ctx component.PaintContext, buf *paint.Buffer) {
 		// The PaintContext.AvailableWidth/Height contains the user's configured layout size
 		// while the buffer size may be larger (actual terminal size)
 		if adapter, ok := n.renderer.(*PipelineRendererAdapter); ok {
-			if os.Getenv("TUI_DEBUG_RENDERING") == "true" {
+			if os.Getenv("TUI_DEBUG_RENDER") == "true" {
 				log.UILogger.Debug("[DeclarativeNode.Paint] ✅ Using PipelineRendererAdapter\n")
 				log.UILogger.Debug("[DeclarativeNode.Paint] Layout constraints: %dx%d (buffer: %dx%d)\n",
 					ctx.AvailableWidth, ctx.AvailableHeight, buf.Width, buf.Height)
@@ -287,7 +287,7 @@ func (n *DeclarativeNode) Paint(ctx component.PaintContext, buf *paint.Buffer) {
 				log.UILogger.Debug("[DeclarativeNode.Paint] ❌ Pipeline render FAILED: %v, falling back to legacy\n", err)
 				n.PaintVNode(n.root, ctx.Bounds.X, ctx.Bounds.Y, buf)
 			} else {
-				if os.Getenv("TUI_DEBUG_RENDERING") == "true" {
+				if os.Getenv("TUI_DEBUG_RENDER") == "true" {
 					log.UILogger.Debug("[DeclarativeNode.Paint] ✅ Pipeline render SUCCESS\n")
 				}
 				// After rendering, capture the layer manager from the pipeline for event handling
@@ -308,14 +308,14 @@ func (n *DeclarativeNode) Paint(ctx component.PaintContext, buf *paint.Buffer) {
 			}
 		} else {
 			// Use the generic renderer interface (old path)
-			if os.Getenv("TUI_DEBUG_RENDERING") == "true" {
+			if os.Getenv("TUI_DEBUG_RENDER") == "true" {
 				log.UILogger.Debug("[DeclarativeNode.Paint] ⚠️ Using generic renderer interface (old path)\n")
 			}
 			n.renderer.Render(n.root, ctx.Bounds.X, ctx.Bounds.Y, buf)
 		}
 	} else {
 		// Fallback to legacy painting
-		if os.Getenv("TUI_DEBUG_RENDERING") == "true" {
+		if os.Getenv("TUI_DEBUG_RENDER") == "true" {
 			log.UILogger.Debug("[DeclarativeNode.Paint] ⚠️ No renderer, using legacy PaintVNode\n")
 		}
 		n.PaintVNode(n.root, ctx.Bounds.X, ctx.Bounds.Y, buf)
@@ -513,7 +513,7 @@ func (n *DeclarativeNode) PaintVNode(vnode rtui.VNode, x, y int, buf *paint.Buff
 				childX := x
 				for i, child := range children {
 					childWidth := n.MeasureVNodeWidth(child)
-					if os.Getenv("TUI_BORDER_DEBUG") == "1" {
+					if log.BorderLogger.Enabled() {
 						label := "?"
 						if l, ok := child.(interface{ Tag() string }); ok {
 							label = fmt.Sprintf("tag=%s", l.Tag())
@@ -651,7 +651,7 @@ func (n *DeclarativeNode) paintBordered(vnode rtui.VNode, _ interface{ RenderBor
 	contentHeight := n.MeasureVNodeHeight(child)
 
 	// DEBUG: Log border painting info
-	if os.Getenv("TUI_BORDER_DEBUG") == "1" {
+	if log.BorderLogger.Enabled() {
 		// Try to get a label for debugging
 		label := "?"
 		if l, ok := child.(interface{ Tag() string }); ok {
@@ -687,7 +687,7 @@ func (n *DeclarativeNode) paintBordered(vnode rtui.VNode, _ interface{ RenderBor
 
 	// Paint border cells
 	renderer.Paint(x, y, contentWidth, contentHeight, func(px, py int, ch rune, s style.Style) {
-		if os.Getenv("TUI_BORDER_DEBUG") == "1" {
+		if log.BorderLogger.Enabled() {
 			// Log first few border cells for debugging
 			if ch == '┌' || (px == x && py == y) {
 				log.UILogger.Debug("[BORDER.Paint] cornerTL at (%d,%d): '%c'\n", px, py, ch)
