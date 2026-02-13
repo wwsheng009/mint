@@ -53,11 +53,11 @@ type App struct {
 	instanceRoot *instance.Instance // Instance Tree 根节点
 
 	// 事件
-	router        *frameworkevent.Router
-	keyMap        *frameworkevent.KeyMap
-	pump          *frameworkevent.Pump
-	eventFilter   func(frameworkevent.Event) bool // 事件过滤器回调，返回 false 表示拦截
-	focusManager  *rtui.VNodeFocusManager         // Focus manager for KeyMsg routing (Phase 3)
+	router       *frameworkevent.Router
+	keyMap       *frameworkevent.KeyMap
+	pump         *frameworkevent.Pump
+	eventFilter  func(frameworkevent.Event) bool // 事件过滤器回调，返回 false 表示拦截
+	focusManager *rtui.VNodeFocusManager         // Focus manager for KeyMsg routing (Phase 3)
 
 	// 自定义事件源（测试时使用，如 MockSandbox）
 	customSource frameworkevent.EventSource
@@ -130,25 +130,25 @@ type App struct {
 	// ============================================================================
 	// 调试支持
 	// ============================================================================
-	debugMode     bool              // 调试模式开关
-	debugLogFile  string            // 调试日志文件路径
-	debugRecorder *debug.Recorder   // 调试记录器
+	debugMode     bool            // 调试模式开关
+	debugLogFile  string          // 调试日志文件路径
+	debugRecorder *debug.Recorder // 调试记录器
 }
 
 // NewApp 创建新应用
 func NewApp() *App {
 	app := &App{
-		router:        frameworkevent.NewRouter(),
-		keyMap:        frameworkevent.NewKeyMap(),
-		focusManager:  rtui.NewVNodeFocusManager(), // Phase 3: Focus manager for KeyMsg routing
-		eventFilter:   func(ev frameworkevent.Event) bool { return true }, // 默认放行所有事件
-		quit:          make(chan struct{}, 1),
-		tickInterval:  16 * time.Millisecond, // ~60fps
-		firstRender:   true,
-		throttler:     render.NewThrottler(60), // 默认 60 FPS
-		contextMgr:    core.NewContextManager(context.Background()),
-		userData:      make(map[string]interface{}),
-		renderer:      paint.NewRenderer(80, 24), // 新增：初始化 Renderer
+		router:       frameworkevent.NewRouter(),
+		keyMap:       frameworkevent.NewKeyMap(),
+		focusManager: rtui.NewVNodeFocusManager(),                        // Phase 3: Focus manager for KeyMsg routing
+		eventFilter:  func(ev frameworkevent.Event) bool { return true }, // 默认放行所有事件
+		quit:         make(chan struct{}, 1),
+		tickInterval: 16 * time.Millisecond, // ~60fps
+		firstRender:  true,
+		throttler:    render.NewThrottler(60), // 默认 60 FPS
+		contextMgr:   core.NewContextManager(context.Background()),
+		userData:     make(map[string]interface{}),
+		renderer:     paint.NewRenderer(80, 24), // 新增：初始化 Renderer
 	}
 
 	return app
@@ -158,9 +158,9 @@ func NewApp() *App {
 // 允许测试时使用 MockSandbox 或其他事件源替代真实的平台输入
 func NewAppWithSource(source frameworkevent.EventSource) *App {
 	return &App{
-		router:        frameworkevent.NewRouter(),
-		keyMap:        frameworkevent.NewKeyMap(),
-		focusManager:  rtui.NewVNodeFocusManager(), // Phase 3: Focus manager
+		router:       frameworkevent.NewRouter(),
+		keyMap:       frameworkevent.NewKeyMap(),
+		focusManager: rtui.NewVNodeFocusManager(), // Phase 3: Focus manager
 		eventFilter:  func(ev frameworkevent.Event) bool { return true },
 		quit:         make(chan struct{}, 1),
 		tickInterval: 16 * time.Millisecond,
@@ -801,7 +801,9 @@ func (a *App) handleMsg(message runtimemsg.Msg) bool {
 
 			// MsgHandler 接口定义: Handle(msg interface{}) interface{}
 			// 这是 instanceHandlerAdapter 实现的接口
-			if handler, ok := mouseMsg.TargetInstance.(interface{ Handle(msg interface{}) interface{} }); ok {
+			if handler, ok := mouseMsg.TargetInstance.(interface {
+				Handle(msg interface{}) interface{}
+			}); ok {
 				log.UILogger.Debug("[handleMsg] ✅ Calling handler.Handle()")
 				cmd := handler.Handle(mouseMsg)
 				if cmd != nil {
@@ -1230,9 +1232,7 @@ func (a *App) render() {
 			output := a.renderer.Render()
 
 			// DEBUG: 输出渲染信息（每次）
-			if os.Getenv("TUI_OUTPUT_MODE") == "debug" {
-				log.RenderLogger.Debug("[APP] FirstRender=%v, OutputLen=%d, Dirty=%v", a.firstRender, len(output), a.dirty)
-			}
+			log.RenderLogger.Debug("[APP] FirstRender=%v, OutputLen=%d, Dirty=%v", a.firstRender, len(output), a.dirty)
 
 			if output != "" {
 				fmt.Print(output)
@@ -1247,9 +1247,7 @@ func (a *App) render() {
 	// 如果不可用，回退到从布局树构建 HitMap
 	if a.root != nil {
 		// DEBUG: 输出 root 类型
-		if os.Getenv("TUI_DEBUG_HITMAP") == "true" {
-			log.RenderLogger.Debug("[APP] root type: %T", a.root)
-		}
+		log.RenderLogger.Debug("[APP] root type: %T", a.root)
 
 		// 方法1：尝试从 DeclarativeNode 获取 RenderingPipeline 的 HitMap（推荐）
 		// 这个 HitMap 包含了所有布局变换后的最终位置（包括 Layer centering）
@@ -1257,13 +1255,11 @@ func (a *App) render() {
 			a.hitMap = declNode.GetHitMap()
 
 			if a.hitMap != nil {
-				if os.Getenv("TUI_DEBUG_HITMAP") == "true" {
-					log.RenderLogger.Debug("[APP] ✅ Got HitMap from RenderingPipeline: %d entries (includes layer transforms)", a.hitMap.Size())
-				}
+				log.RenderLogger.Debug("[APP] ✅ Got HitMap from RenderingPipeline: %d entries (includes layer transforms)", a.hitMap.Size())
+
 			} else {
-				if os.Getenv("TUI_DEBUG_HITMAP") == "true" {
-					log.RenderLogger.Debug("[APP] ⚠️  RenderingPipeline returned nil HitMap, falling back to BuildHitMap")
-				}
+				log.RenderLogger.Debug("[APP] ⚠️  RenderingPipeline returned nil HitMap, falling back to BuildHitMap")
+
 			}
 		}
 
@@ -1272,9 +1268,8 @@ func (a *App) render() {
 			if layoutRoot, ok := a.root.(layout.Node); ok {
 				a.hitMap = runtimeevent.BuildHitMap(layoutRoot)
 
-				if os.Getenv("TUI_DEBUG_HITMAP") == "true" {
-					log.RenderLogger.Debug("[APP] HitMap built from layout.Node: %d entries (may not include layer transforms)", a.hitMap.Size())
-				}
+				log.RenderLogger.Debug("[APP] HitMap built from layout.Node: %d entries (may not include layer transforms)", a.hitMap.Size())
+
 			} else if vnodeRoot, ok := a.root.(rtui.VNode); ok {
 				// 通过 VNodeAdapter 将 VNode 转换为 layout.Node
 				layoutAdapter := rtui.AsLayoutNode(vnodeRoot)
@@ -1305,7 +1300,6 @@ func (a *App) render() {
 		// ComponentInstances are managed by reconciler.InstanceMgr
 
 		log.UILogger.Debug("[APP] Phase 2: Fiber Reconciler handles VNode → Instance reconciliation")
-
 
 		// ✨ 新架构：Enrich HitMap with Instance references
 		// 根据 fix1.md：HitMap 应该包含 Instance 引用，用于直接事件路由
@@ -1654,16 +1648,18 @@ func (a *App) GetRenderer() *paint.Renderer {
 // 返回从最新渲染构建的 HitMap，用于鼠标事件命中测试
 //
 // 返回：
-//   *runtimeevent.HitMap - 当前的 HitMap，如果未渲染则返回 nil
+//
+//	*runtimeevent.HitMap - 当前的 HitMap，如果未渲染则返回 nil
 //
 // 示例：
-//   hitMap := app.GetHitMap()
-//   if hitMap != nil {
-//       entry := hitMap.HitTest(x, y)
-//       if entry != nil {
-//           fmt.Printf("Hit node: %s\n", entry.NodeID)
-//       }
-//   }
+//
+//	hitMap := app.GetHitMap()
+//	if hitMap != nil {
+//	    entry := hitMap.HitTest(x, y)
+//	    if entry != nil {
+//	        fmt.Printf("Hit node: %s\n", entry.NodeID)
+//	    }
+//	}
 func (a *App) GetHitMap() *runtimeevent.HitMap {
 	return a.hitMap
 }
@@ -1838,25 +1834,25 @@ func (a *App) enrichHitMapWithInstances() {
 	}
 
 	if instanceMgr == nil {
-		log.UILogger.Debug("[enrichHitMap] No InstanceManager found")
+		log.HitMapLogger.Debug("No InstanceManager found")
 		return
 	}
 
-	log.UILogger.Debug("[enrichHitMap] Found InstanceManager, type=%T", instanceMgr)
+	log.HitMapLogger.Debug("Found InstanceManager, type=%T", instanceMgr)
 
 	// Use reflection to access GetAllInstancesByID() method
 	// Phase 5: Use NodeID as primary lookup with key-based fallback
- mgrValue := reflect.ValueOf(instanceMgr)
+	mgrValue := reflect.ValueOf(instanceMgr)
 	getAllByIDMethod := mgrValue.MethodByName("GetAllInstancesByID")
 	if !getAllByIDMethod.IsValid() {
-		log.UILogger.Debug("[enrichHitMap] No GetAllInstancesByID method found on InstanceManager")
+		log.HitMapLogger.Debug("No GetAllInstancesByID method found on InstanceManager")
 		return
 	}
 
 	// Call GetAllInstancesByID() to get NodeID-indexed map
 	instancesByIDResult := getAllByIDMethod.Call(nil)
 	if len(instancesByIDResult) == 0 {
-		log.UILogger.Debug("[enrichHitMap] GetAllInstancesByID returned no results")
+		log.HitMapLogger.Debug("GetAllInstancesByID returned no results")
 		return
 	}
 
@@ -1864,7 +1860,7 @@ func (a *App) enrichHitMapWithInstances() {
 	instancesByIDMap := instancesByIDResult[0].Interface()
 	allInstancesByID, ok := instancesByIDMap.(map[uint64]rtui.ComponentInstance)
 	if !ok {
-		log.UILogger.Debug("[enrichHitMap] GetAllInstancesByID result is not map[uint64]ComponentInstance, got %T", instancesByIDMap)
+		log.HitMapLogger.Debug("GetAllInstancesByID result is not map[uint64]ComponentInstance, got %T", instancesByIDMap)
 		return
 	}
 
@@ -1879,14 +1875,14 @@ func (a *App) enrichHitMapWithInstances() {
 		}
 	}
 
-	log.UILogger.Debug("[enrichHitMap] Collected %d ComponentInstances by NodeID from Fiber Reconciler", len(allInstancesByID))
+	log.HitMapLogger.Debug("Collected %d ComponentInstances by NodeID from Fiber Reconciler", len(allInstancesByID))
 	if allInstancesByKey != nil {
-		log.UILogger.Debug("[enrichHitMap] Collected %d ComponentInstances by Key for fallback", len(allInstancesByKey))
+		log.HitMapLogger.Debug("Collected %d ComponentInstances by Key for fallback", len(allInstancesByKey))
 	}
 
 	// 遍历 HitMap 条目，添加 Instance 引用
 	entries := a.hitMap.AllEntries()
-	log.UILogger.Debug("[enrichHitMap] HitMap has %d entries", len(entries))
+	log.HitMapLogger.Debug("HitMap has %d entries", len(entries))
 
 	matchedCount := 0
 	for i, entry := range entries {
@@ -1898,9 +1894,8 @@ func (a *App) enrichHitMapWithInstances() {
 			var msgHandler runtimeevent.MsgHandler = &componentInstanceAdapter{compInst: compInst}
 			a.hitMap.SetEntryInstance(i, msgHandler)
 			matchedCount++
-			if os.Getenv("TUI_DEBUG_HITMAP") == "true" {
-				log.UILogger.Debug("[enrichHitMap] ✅ Matched: NodeID=%d → Instance", nodeID)
-			}
+			log.HitMapLogger.Debug("✅ Matched: NodeID=%d → Instance", nodeID)
+
 			continue
 		}
 
@@ -1912,28 +1907,34 @@ func (a *App) enrichHitMapWithInstances() {
 				var msgHandler runtimeevent.MsgHandler = &componentInstanceAdapter{compInst: compInst}
 				a.hitMap.SetEntryInstance(i, msgHandler)
 				matchedCount++
-				if os.Getenv("TUI_DEBUG_HITMAP") == "true" {
-					log.UILogger.Debug("[enrichHitMap] ✅ Matched: Key=%s → Instance (fallback)", instanceKey)
+				log.HitMapLogger.Debug("✅ Matched: Key=%s → Instance (fallback)", instanceKey)
+
+				// ✅ NEW: Assertion - verify NodeID lookup also succeeded
+				// If NodeID lookup failed but key lookup succeeded, log warning
+				// This indicates potential identity system inconsistency
+				if allInstancesByID[nodeID] == nil {
+					log.HitMapLogger.Debug("[enrichHitMapWithInstances] ⚠️  Identity mismatch: NodeID=%d found by key but not by NodeID lookup", nodeID)
+
 				}
 			}
 		}
 	}
 
 	// Debug: Log all instance keys before enrichment
-	if os.Getenv("TUI_DEBUG_HITMAP") == "true" {
+	if log.HitMapLogger.Enabled() {
 		var nodeIDs []uint64
 		for k := range allInstancesByID {
 			nodeIDs = append(nodeIDs, k)
 		}
-		log.UILogger.Debug("[enrichHitMap] All InstanceManager NodeIDs (%d): %v", len(nodeIDs), nodeIDs)
+		log.HitMapLogger.Debug("All InstanceManager NodeIDs (%d): %v", len(nodeIDs), nodeIDs)
 		if allInstancesByKey != nil {
 			var keys []string
 			for k := range allInstancesByKey {
 				keys = append(keys, k)
 			}
-			log.UILogger.Debug("[enrichHitMap] All InstanceManager Keys (%d): %v", len(keys), keys)
+			log.HitMapLogger.Debug("All InstanceManager Keys (%d): %v", len(keys), keys)
 		}
 	}
 
-	log.UILogger.Debug("[enrichHitMap] Enriched %d/%d HitMap entries with ComponentInstance references", matchedCount, len(entries))
+	log.UILogger.Debug("Enriched %d/%d HitMap entries with ComponentInstance references", matchedCount, len(entries))
 }
