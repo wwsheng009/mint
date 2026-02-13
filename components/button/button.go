@@ -948,22 +948,6 @@ func (b *ButtonVNode) Paint(x, y int) []paint.DrawCmd {
 	}
 
 	// Return draw commands: focus indicator + button label
-	if os.Getenv("TUI_UI_DEBUG_PAINT") == "true" || os.Getenv("TUI_PAINT_DEBUG") == "true" {
-		log.RenderLogger.Debug("[DEBUG-PAINT]   final buttonText length=%d, text=\"%s\"",
-			len(buttonText), buttonText)
-	}
-
-	// CRITICAL DEBUG: Check if buttonText length matches layoutWidth
-	// This is the key to understanding the background rendering issue
-	if len(buttonText) != layoutWidth {
-		log.RenderLogger.Debug("[DEBUG-PAINT] ⚠️  MISMATCH: buttonText len=%d != layoutWidth=%d, difference=%d",
-			len(buttonText), layoutWidth, layoutWidth-len(buttonText))
-	}
-
-	// IMPORTANT: Use SetStringAligned with maxWidth to ensure background covers entire button width
-	// This is critical for proper background rendering when button is stretched by flex layout
-	// The buttonText already contains padding spaces for alignment, so we render it directly
-	// The paint engine's SetStringAligned will pad any remaining cells to maxWidth
 	return []paint.DrawCmd{
 		paint.NewTextCmd(x, y, buttonText, buttonStyle),
 	}

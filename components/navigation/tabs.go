@@ -231,7 +231,7 @@ func (t *TabsVNode) HandleEvent(ev frameworkevent.Event) bool {
 		return false
 	}
 
-	if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
+	if os.Getenv("TUI_DEBUG_INSPECTOR") == "true" {
 		log.UILogger.Debug("[Tabs] HandleEvent: LocalX=%d, LocalY=%d\n", me.LocalX, me.LocalY)
 	}
 

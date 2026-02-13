@@ -16,10 +16,10 @@ type WrapNode struct {
 	*ui.ElementVNode
 
 	// Configuration
-	gap        int      // Spacing between items in the same row
-	rowGap     int      // Spacing between rows (0 = use gap)
-	align      ui.Align // Main-axis alignment for each row
-	screenWidth int     // Container width for wrapping calculation
+	gap         int      // Spacing between items in the same row
+	rowGap      int      // Spacing between rows (0 = use gap)
+	align       ui.Align // Main-axis alignment for each row
+	screenWidth int      // Container width for wrapping calculation
 
 	// Internal state (calculated during Build)
 	rows [][]ui.VNode // Pre-calculated rows (for debugging)
@@ -267,6 +267,31 @@ func (b *WrapBuilder) calculateRows() [][]ui.VNode {
 	return rows
 }
 
+// createRowHStack creates an HStack for a row with proper configuration
+func createRowHStack(row []ui.VNode, align ui.Align, gap int, stretchCross bool, width int) ui.VNode {
+	hstackBuilder := &LayoutBuilder{
+		node: &LayoutNode{
+			ElementVNode: ui.NewElement("hstack"),
+			direction:    DirectionRow,
+			align:        Align(align), // Convert ui.Align to layout.Align type
+			crossAlign:   AlignStart,
+			gap:          gap,
+			stretchCross: stretchCross,
+		},
+		children: row,
+	}
+	// Set props with ui.Align values (not layout.Align)
+	// GetLayoutInfo expects runtime/ui.Align values
+	hstackBuilder.node.SetProp("align", int(align))
+	hstackBuilder.node.SetProp("crossAlign", int(ui.AlignStart))
+	hstackBuilder.node.SetProp("gap", gap)
+	// Set explicit width if provided (width > 0)
+	if width > 0 {
+		hstackBuilder.node.SetProp("width", width)
+	}
+	return hstackBuilder.Build()
+}
+
 // Build converts the Wrap node into a VStack of HStacks
 // This is where the wrapping logic happens
 func (b *WrapBuilder) Build() ui.VNode {
@@ -295,72 +320,22 @@ func (b *WrapBuilder) Build() ui.VNode {
 
 	// Convert each row to an HStack using LayoutBuilder
 	var rowNodes []ui.VNode
+	numRows := len(rows)
+	if numRows == 0 {
+		numRows = 1 // Avoid division by zero
+	}
+
 	for _, row := range rows {
-		// When fillWidth is enabled, we need to add flex to each child
-		// so they will be stretched to fill the container width
 		if fillWidth {
-			// Create modified row with flex properties
-			flexRow := make([]ui.VNode, len(row))
-			for i, child := range row {
-				if child != nil {
-					// Get existing props
-					oldProps := child.Props()
-					newProps := make(ui.Props)
-					if oldProps != nil {
-						for k, v := range oldProps {
-							newProps[k] = v
-						}
-					}
-					// Add flex property
-					newProps["flex"] = 1
-					// Set new props
-					child.SetProps(newProps)
-				}
-				flexRow[i] = child
-			}
-			row = flexRow
+			// When fillWidth is enabled, set fixed width on each HStack
+			// Calculate width as screenWidth divided by number of rows
+			// This allows VStack's stretchCross to evenly distribute the HStacks
+			hstackWidth := b.node.screenWidth / numRows
+			rowNodes = append(rowNodes, createRowHStack(row, b.node.align, b.node.gap, false, hstackWidth))
+		} else {
+			// No fillWidth - use original row directly without fixed width
+			rowNodes = append(rowNodes, createRowHStack(row, b.node.align, b.node.gap, false, 0))
 		}
-
-		// Convert ui.Align to layout.Align
-		// IMPORTANT: Don't convert! Use ui.Align values directly
-		// because GetLayoutInfo expects runtime/ui.Align values
-		//
-		// layout.Align has different values (no AlignEnd):
-		//   Start=0, Center=1, SpaceBetween=2, SpaceAround=3
-		// runtime/ui.Align has:
-		//   Start=0, Center=1, End=2, SpaceBetween=3, SpaceAround=4
-
-		// Create HStack using LayoutBuilder
-		// Use ui.Align directly instead of converting to layout.Align
-		hstackBuilder := &LayoutBuilder{
-			node: &LayoutNode{
-				ElementVNode: ui.NewElement("hstack"),
-				direction:    DirectionRow,
-				align:        Align(b.node.align), // Convert ui.Align to layout.Align type
-				crossAlign:   AlignStart,
-				gap:          b.node.gap,
-			},
-			children: row,
-		}
-
-		// Set props with ui.Align values (not layout.Align)
-		// GetLayoutInfo expects runtime/ui.Align values
-		hstackBuilder.node.SetProp("align", int(b.node.align))
-		hstackBuilder.node.SetProp("crossAlign", int(ui.AlignStart))
-		hstackBuilder.node.SetProp("gap", b.node.gap)
-
-		// ⭐ CRITICAL: Set the HStack width to match the container
-		// This ensures flex children fill the entire available width
-		hstackBuilder.node.SetProp("width", b.node.screenWidth)
-
-		// If fillWidth is enabled, set stretchCross on each HStack so they stretch
-		// This is critical for the VStack's stretchCross to work properly
-		if fillWidth {
-			hstackBuilder.node.stretchCross = true
-			hstackBuilder.node.SetProp("stretchCross", true)
-		}
-
-		rowNodes = append(rowNodes, hstackBuilder.Build())
 	}
 
 	// Determine row gap

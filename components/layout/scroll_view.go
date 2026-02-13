@@ -111,7 +111,7 @@ func (b *ScrollViewBuilder) Build() ui.VNode {
 		visibleText := contentText
 
 		// DEBUG: Log what we extracted
-		if os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
+		if os.Getenv("TUI_DEBUG_INSPECTOR") == "true" {
 			lineCount := strings.Count(contentText, "\n") + 1
 			if len(contentText) == 0 {
 				log.UILogger.Debug("[ScrollView] Auto-height mode: NO CONTENT EXTRACTED!\n")
