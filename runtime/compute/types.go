@@ -58,6 +58,9 @@ type ComputedBox struct {
 	// This provides stable runtime identity independent of VNode keys and paths
 	// See: docs/render/fiber/IDENTITY_REFACTORING_PLAN.md
 	NodeID uint64
+	// ChildFiber stores the Fiber node for this box (used for NodeID propagation to children)
+	// See: docs/render/fiber/FIBER_ID.md - Option 2 implementation
+	ChildFiber *rtui.Fiber
 }
 
 // =============================================================================
