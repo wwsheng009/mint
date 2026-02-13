@@ -16,7 +16,7 @@ import (
 // properly propagates height constraints to the TreeView
 func TestInspectorElementsTabVStackConstraints(t *testing.T) {
 	// Enable debug logging
-	os.Setenv("TUI_LAYOUT_DEBUG", "true")
+	os.Setenv("TUI_DEBUG_LAYOUT", "true")
 
 	// Create Inspector
 	insp := NewStandaloneInspector()
@@ -121,7 +121,7 @@ func TestInspectorElementsTabVStackConstraints(t *testing.T) {
 // TestInspectorLayoutEngineIntegration tests the full layout engine pipeline
 func TestInspectorLayoutEngineIntegration(t *testing.T) {
 	// Enable debug logging
-	os.Setenv("TUI_LAYOUT_DEBUG", "true")
+	os.Setenv("TUI_DEBUG_LAYOUT", "true")
 
 	// Create Inspector
 	insp := NewStandaloneInspector()

@@ -3,8 +3,8 @@ package inspector
 import (
 	"testing"
 
-	frameworkevent "github.com/wwsheng009/mint/framework/event"
 	"github.com/wwsheng009/mint/components/display"
+	frameworkevent "github.com/wwsheng009/mint/framework/event"
 	"github.com/wwsheng009/mint/runtime/event"
 	"github.com/wwsheng009/mint/ui"
 )
@@ -42,7 +42,7 @@ func TestOverlayTabsMouse(t *testing.T) {
 // TestOverlayTreeViewClick ensures TreeView in Elements tab handles mouse clicks.
 func TestOverlayTreeViewClick(t *testing.T) {
 	// Enable verbose output for this test
-	t.Setenv("TUI_INSPECTOR_VERBOSE", "true")
+	t.Setenv("TUI_DEBUG_INSPECTOR", "true")
 
 	si := NewStandaloneInspector()
 	si.Enable()

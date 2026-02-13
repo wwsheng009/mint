@@ -54,8 +54,8 @@ func TestInspectorRenderOverlayPositioning(t *testing.T) {
 
 // TestInspectorDefaultPosition verifies default positioning
 func TestInspectorDefaultPosition(t *testing.T) {
-	os.Setenv("TUI_INSPECTOR_VERBOSE", "true")
-	defer os.Setenv("TUI_INSPECTOR_VERBOSE", "false")
+	os.Setenv("TUI_DEBUG_INSPECTOR", "true")
+	defer os.Setenv("TUI_DEBUG_INSPECTOR", "false")
 
 	inspector := NewStandaloneInspector()
 	inspector.Enable()

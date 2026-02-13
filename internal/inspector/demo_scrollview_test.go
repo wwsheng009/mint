@@ -12,8 +12,8 @@ import (
 // TestDemoScrollViewSimulation simulates the demo scenario with ScrollView
 func TestDemoScrollViewSimulation(t *testing.T) {
 	// Enable verbose logging for this test
-	os.Setenv("TUI_INSPECTOR_VERBOSE", "true")
-	defer os.Unsetenv("TUI_INSPECTOR_VERBOSE")
+	os.Setenv("TUI_DEBUG_INSPECTOR", "true")
+	defer os.Unsetenv("TUI_DEBUG_INSPECTOR")
 
 	t.Log("\n=== Simulating Demo with ScrollView ===\n")
 

@@ -12,7 +12,7 @@ import (
 // TestTreeViewChildrenConstraints tests that TreeView's internal VStack
 // receives proper height constraints
 func TestTreeViewChildrenConstraints(t *testing.T) {
-	os.Setenv("TUI_LAYOUT_DEBUG", "true")
+	os.Setenv("TUI_DEBUG_LAYOUT", "true")
 
 	// Create TreeView with many lines
 	lines := make([]string, 30)
@@ -77,7 +77,7 @@ func TestTreeViewChildrenConstraints(t *testing.T) {
 
 // TestTreeViewVirtualScrolling verifies that TreeView uses virtual scrolling
 func TestTreeViewVirtualScrolling(t *testing.T) {
-	os.Setenv("TUI_INSPECTOR_VERBOSE", "true")
+	os.Setenv("TUI_DEBUG_INSPECTOR", "true")
 
 	// Create TreeView with 100 lines
 	lines := make([]string, 100)

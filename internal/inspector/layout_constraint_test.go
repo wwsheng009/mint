@@ -5,16 +5,16 @@ import (
 	"os"
 	"testing"
 
+	"github.com/wwsheng009/mint/components/display"
+	"github.com/wwsheng009/mint/components/navigation"
 	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/compute"
-	"github.com/wwsheng009/mint/components/navigation"
-	"github.com/wwsheng009/mint/components/display"
 	"github.com/wwsheng009/mint/ui"
 )
 
 // TestInspectorLayoutConstraintChain tests the full constraint chain in Inspector
 func TestInspectorLayoutConstraintChain(t *testing.T) {
-	os.Setenv("TUI_LAYOUT_DEBUG", "true")
+	os.Setenv("TUI_DEBUG_LAYOUT", "true")
 
 	// Create Inspector with same dimensions as demo2
 	insp := NewStandaloneInspector()
@@ -110,7 +110,7 @@ func findAndCheckTreeView(box *compute.ComputedBox, depth int, maxHeight int, t 
 
 // TestTabsWithNestedVStackConstraints tests Tabs containing VStack with height constraint
 func TestTabsWithNestedVStackConstraints(t *testing.T) {
-	os.Setenv("TUI_LAYOUT_DEBUG", "true")
+	os.Setenv("TUI_DEBUG_LAYOUT", "true")
 
 	// Simulate Inspector's Elements tab structure
 	// Create a VStack with content that exceeds height constraint (like Inspector does)
@@ -225,7 +225,7 @@ func findVStackInLayout(box *compute.ComputedBox, depth int, maxHeight int, t *t
 
 // TestInspectorElementsTabDirectly tests the Elements tab content directly
 func TestInspectorElementsTabDirectly(t *testing.T) {
-	os.Setenv("TUI_LAYOUT_DEBUG", "true")
+	os.Setenv("TUI_DEBUG_LAYOUT", "true")
 
 	insp := NewStandaloneInspector()
 	insp.overlayWidth = 80
@@ -284,7 +284,7 @@ func TestInspectorElementsTabDirectly(t *testing.T) {
 
 // TestTreeViewInConstrainedVStack tests TreeView inside VStack with height constraint
 func TestTreeViewInConstrainedVStack(t *testing.T) {
-	os.Setenv("TUI_LAYOUT_DEBUG", "true")
+	os.Setenv("TUI_DEBUG_LAYOUT", "true")
 
 	// Create TreeView with many lines
 	treeLines := []string{

@@ -11,7 +11,7 @@ import (
 
 // TestScrollViewWithLayoutNode tests if ScrollView can extract content from LayoutNode
 func TestScrollViewWithLayoutNode(t *testing.T) {
-	os.Setenv("TUI_INSPECTOR_VERBOSE", "true")
+	os.Setenv("TUI_DEBUG_INSPECTOR", "true")
 
 	t.Log("\n=== Testing ScrollView with LayoutNode ===\n")
 

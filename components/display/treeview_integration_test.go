@@ -11,7 +11,7 @@ import (
 
 // TestTreeViewWithSimulatedInspectorFlow simulates the exact flow used by Inspector
 func TestTreeViewWithSimulatedInspectorFlow(t *testing.T) {
-	os.Setenv("TUI_LAYOUT_DEBUG", "true")
+	os.Setenv("TUI_DEBUG_LAYOUT", "true")
 
 	// Step 1: Create TreeView with many lines (like Inspector does)
 	lines := make([]string, 34)

@@ -261,8 +261,8 @@ func (ld *LayoutDiagnostic) printSummary() {
 }
 
 func main() {
-	os.Setenv("TUI_LAYOUT_DEBUG", "false")
-	os.Setenv("TUI_INSPECTOR_VERBOSE", "false")
+	os.Setenv("TUI_DEBUG_LAYOUT", "false")
+	os.Setenv("TUI_DEBUG_INSPECTOR", "false")
 
 	fmt.Println("Layout Diagnostic Tool")
 	fmt.Println("===================")
