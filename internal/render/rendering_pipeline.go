@@ -50,7 +50,8 @@ func (p *RenderingPipeline) Render(vnode rtui.VNode, constraints runtime.BoxCons
 	log.PipelineLogger.Debug("Render started")
 
 	// Phase 1: Layout - calculate all positions
-	layout, err := p.layoutEngine.Layout(vnode, constraints)
+	// Phase 3: Pass nil for Fiber (non-Fiber mode, backward compatible)
+	layout, err := p.layoutEngine.Layout(vnode, nil, constraints)
 	if err != nil {
 		// Fallback to legacy rendering if layout fails
 		log.PipelineLogger.Debug("❌ Layout FAILED: %v, falling back to legacy", err)
@@ -97,7 +98,8 @@ func (p *RenderingPipeline) renderLegacy(vnode rtui.VNode, x, y int, buffer *pai
 // ComputeLayout performs only the layout phase, returning computed positions
 // This can be useful for hit testing and other operations that need layout info without rendering
 func (p *RenderingPipeline) ComputeLayout(vnode rtui.VNode, constraints runtime.BoxConstraints) (*compute.ComputedLayout, error) {
-	return p.layoutEngine.Layout(vnode, constraints)
+	// Phase 3: Pass nil for Fiber (non-Fiber mode, backward compatible)
+	return p.layoutEngine.Layout(vnode, nil, constraints)
 }
 
 // GetLayoutEngine returns the layout engine for direct access

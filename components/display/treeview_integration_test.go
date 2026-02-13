@@ -108,7 +108,7 @@ func TestTreeViewWithSimulatedInspectorFlow(t *testing.T) {
 	// Step 8: Test with Layout engine (full integration)
 	fmt.Printf("\n[TEST] === Step 6: Layout Engine Integration ===\n")
 	engine := compute.NewEngine()
-	layout, err := engine.Layout(treeView, constraints1)
+	layout, err := engine.Layout(treeView, nil, constraints1)
 	if err != nil {
 		t.Fatalf("Layout failed: %v", err)
 	}
@@ -139,3 +139,4 @@ func TestTreeViewWithSimulatedInspectorFlow(t *testing.T) {
 	fmt.Printf("[TEST] - Virtual scrolling works: ✓\n")
 	fmt.Printf("[TEST] - Layout respects constraints: ✓\n")
 }
+

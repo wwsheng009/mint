@@ -39,7 +39,7 @@ func TestInspectorLayoutConstraintChain(t *testing.T) {
 		MaxHeight: 25,
 	}
 
-	layout, err := engine.Layout(overlayContent, constraints)
+	layout, err := engine.Layout(overlayContent, nil, constraints)
 	if err != nil {
 		t.Fatalf("Layout failed: %v", err)
 	}
@@ -165,7 +165,7 @@ func TestTabsWithNestedVStackConstraints(t *testing.T) {
 		MaxHeight: 21,
 	}
 
-	layout, err := engine.Layout(tabs, constraints)
+	layout, err := engine.Layout(tabs, nil, constraints)
 	if err != nil {
 		t.Fatalf("Layout failed: %v", err)
 	}
@@ -256,7 +256,7 @@ func TestInspectorElementsTabDirectly(t *testing.T) {
 
 	// Measure using compute engine
 	engine := compute.NewEngine()
-	layout, err := engine.Layout(elementsContent, constraints)
+	layout, err := engine.Layout(elementsContent, nil, constraints)
 	if err != nil {
 		t.Fatalf("Layout failed: %v", err)
 	}
@@ -332,7 +332,7 @@ func TestTreeViewInConstrainedVStack(t *testing.T) {
 		MaxHeight: 20,
 	}
 
-	layout, err := engine.Layout(vstack, constraints)
+	layout, err := engine.Layout(vstack, nil, constraints)
 	if err != nil {
 		t.Fatalf("Layout failed: %v", err)
 	}
@@ -376,3 +376,4 @@ func TestTreeViewInConstrainedVStack(t *testing.T) {
 		t.Error("TreeView not found in VStack children")
 	}
 }
+

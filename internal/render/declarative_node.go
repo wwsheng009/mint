@@ -1221,19 +1221,24 @@ func (n *DeclarativeNode) distributeEventToVNode(vnode rtui.VNode, ev frameworke
 
 	// Phase 3: Event-centric distribution
 	// If this is a MouseEvent with TargetID, only distribute to the target component
-	if mouseEv, ok := ev.(*frameworkevent.MouseEvent); ok && mouseEv.TargetID != "" {
-		targetKey := mouseEv.TargetID
-		nodeKey := vnode.Key()
+	if mouseEv, ok := ev.(*frameworkevent.MouseEvent); ok && mouseEv.TargetID != 0 {
+		targetID := mouseEv.TargetID
+		// Convert VNode key to uint64 for comparison
+		nodeID := uint64(0)
+		if key := vnode.Key(); key != "" {
+			// Use the same hash conversion as HitMap building
+			nodeID = event.StringToNodeID(key)
+		}
 
 		// Check if this node is the target
-		if nodeKey == targetKey {
+		if nodeID == targetID {
 			// This is the target component, call HandleEvent
 			if component, ok := vnode.(frameworkevent.Component); ok {
 				// Debug: check if this is a button and print its label and pointer
 				if button, ok := vnode.(interface{ Label() string }); ok {
-					log.RenderLogger.Debug("distributeEventToVNode: Found target button key='%s', label='%s', pointer=%p, calling HandleEvent", targetKey, button.Label(), vnode)
+					log.RenderLogger.Debug("distributeEventToVNode: Found target button key=%d, label='%s', pointer=%p, calling HandleEvent", targetID, button.Label(), vnode)
 				} else {
-					log.RenderLogger.Debug("distributeEventToVNode: Found target component with key='%s' (not a button), calling HandleEvent", targetKey)
+					log.RenderLogger.Debug("distributeEventToVNode: Found target component with key=%d (not a button), calling HandleEvent", targetID)
 				}
 				if component.HandleEvent(ev) {
 					return true

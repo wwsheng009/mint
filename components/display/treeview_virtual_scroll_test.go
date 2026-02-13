@@ -33,7 +33,7 @@ func TestTreeViewChildrenConstraints(t *testing.T) {
 	}
 
 	engine := compute.NewEngine()
-	layout, err := engine.Layout(treeView, constraints)
+	layout, err := engine.Layout(treeView, nil, constraints)
 	if err != nil {
 		t.Fatalf("Layout failed: %v", err)
 	}
@@ -124,3 +124,4 @@ func TestTreeViewVirtualScrolling(t *testing.T) {
 		fmt.Printf("[TEST] ✓ Virtual scrolling appears to be working (only %d children for 100 lines)\n", len(children))
 	}
 }
+

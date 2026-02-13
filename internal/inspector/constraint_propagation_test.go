@@ -144,7 +144,7 @@ func TestInspectorLayoutEngineIntegration(t *testing.T) {
 		MaxHeight: 25,
 	}
 
-	layout, err := engine.Layout(overlayContent, constraints)
+	layout, err := engine.Layout(overlayContent, nil, constraints)
 	if err != nil {
 		t.Fatalf("Layout failed: %v", err)
 	}
@@ -239,7 +239,7 @@ func TestVStackPropagatesConstraintsToTreeView(t *testing.T) {
 
 	// Now test with layout engine
 	engine := compute.NewEngine()
-	layout, err := engine.Layout(vstack, constraints)
+	layout, err := engine.Layout(vstack, nil, constraints)
 	if err != nil {
 		t.Fatalf("Layout failed: %v", err)
 	}
@@ -299,7 +299,7 @@ func TestTabsInVStackConstraints(t *testing.T) {
 	}
 
 	engine := compute.NewEngine()
-	layout, err := engine.Layout(vstack, constraints)
+	layout, err := engine.Layout(vstack, nil, constraints)
 	if err != nil {
 		t.Fatalf("Layout failed: %v", err)
 	}
@@ -328,3 +328,4 @@ func TestTabsInVStackConstraints(t *testing.T) {
 		}
 	}
 }
+

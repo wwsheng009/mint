@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/wwsheng009/mint/internal/log"
+	"github.com/wwsheng009/mint/internal/reconciler"
 	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/event"
 	runtimelayout "github.com/wwsheng009/mint/runtime/layout"
@@ -58,7 +59,14 @@ func (e *Engine) SetDebug(debug bool) {
 // Layout performs layout calculation on a VNode tree
 // Returns a ComputedLayout containing computed positions for all nodes
 // AND a HitMap built from the final ComputedBox positions (including layer transforms)
-func (e *Engine) Layout(vnode VNode, constraints runtime.BoxConstraints) (*ComputedLayout, error) {
+//
+// Parameters:
+//   vnode: The VNode tree to layout
+//   fiber: Optional Fiber node for passing NodeID to ComputedBox (Phase 3: Identity Refactoring)
+//          When provided, Fiber.NodeID is passed to ComputedBox for stable identity
+//          When nil, NodeID will be 0 (backward compatible with non-Fiber mode)
+//   constraints: Box constraints for layout
+func (e *Engine) Layout(vnode VNode, fiber *reconciler.Fiber, constraints runtime.BoxConstraints) (*ComputedLayout, error) {
 	if vnode == nil {
 		return nil, fmt.Errorf("cannot layout nil VNode")
 	}
@@ -67,7 +75,8 @@ func (e *Engine) Layout(vnode VNode, constraints runtime.BoxConstraints) (*Compu
 	e.flexCache = make(map[string]*FlexDistributionInfo)
 
 	// Build layout tree and measure
-	root := e.buildComputedBox(vnode, nil, constraints)
+	// Pass Fiber to buildComputedBox so it can extract NodeID
+	root := e.buildComputedBox(vnode, fiber, nil, constraints)
 	if root == nil {
 		layout := NewComputedLayout(nil)
 		layout.HitMap = event.NewHitMap()
@@ -110,7 +119,15 @@ func (e *Engine) Layout(vnode VNode, constraints runtime.BoxConstraints) (*Compu
 // Caching strategy: Only cache leaf nodes (nodes without vnode children).
 // This avoids the complexity of caching entire subtrees while still
 // providing performance benefits for simple nodes like text.
-func (e *Engine) buildComputedBoxWithSize(vnode VNode, parent *ComputedBox, constraints runtime.BoxConstraints, preMeasuredSize *runtime.Size) *ComputedBox {
+//
+// Parameters:
+//   vnode: The VNode to build ComputedBox for
+//   fiber: Optional Fiber node for passing NodeID (Phase 3: Identity Refactoring)
+//          When provided, Fiber.NodeID is set in ComputedBox for stable identity
+//   parent: Parent ComputedBox (for tree structure)
+//   constraints: Box constraints for layout
+//   preMeasuredSize: Optional pre-measured size to avoid re-measurement
+func (e *Engine) buildComputedBoxWithSize(vnode VNode, fiber *reconciler.Fiber, parent *ComputedBox, constraints runtime.BoxConstraints, preMeasuredSize *runtime.Size) *ComputedBox {
 	if vnode == nil {
 		return nil
 	}
@@ -119,7 +136,15 @@ func (e *Engine) buildComputedBoxWithSize(vnode VNode, parent *ComputedBox, cons
 		VNode:        vnode,
 		Parent:       parent,
 		Box:          runtime.Box{X: 0, Y: 0, Width: 0, Height: 0},
-		NaturalWidth: 0, // Will be measured below
+		NaturalWidth:  0, // Will be measured below
+		NodeID:       0, // Will be set from Fiber if provided
+	}
+
+	// Phase 3: Set NodeID from Fiber for stable identity
+	// This provides runtime identity independent of VNode keys and paths
+	// See: docs/render/fiber/IDENTITY_REFACTORING_PLAN.md
+	if fiber != nil {
+		box.NodeID = fiber.NodeID
 	}
 
 	// Measure natural width (unconstrained) for alignment calculations
@@ -183,7 +208,10 @@ func (e *Engine) buildComputedBoxWithSize(vnode VNode, parent *ComputedBox, cons
 		box.Children = make([]*ComputedBox, 0, len(vnodeChildren))
 		for i, child := range vnode.Children() {
 			childConstraints := measurement.ChildConstraints[i]
-			childBox := e.buildComputedBox(child, box, childConstraints)
+			// Note: We don't have Fiber for children in this phase
+			// Phase 3 only passes Fiber for the root node
+			// For children, NodeID will remain 0 (backward compatible)
+			childBox := e.buildComputedBox(child, nil, box, childConstraints)
 			if childBox != nil {
 				box.Children = append(box.Children, childBox)
 			}
@@ -222,7 +250,10 @@ func (e *Engine) buildComputedBoxWithSize(vnode VNode, parent *ComputedBox, cons
 		// Calculate child constraints based on layout type
 		childConstraints := e.getChildConstraints(vnode, child, constraints, size)
 
-		childBox := e.buildComputedBox(child, box, childConstraints)
+		// Note: We don't have Fiber for children in this phase
+		// Phase 3 only passes Fiber for the root node
+		// For children, NodeID will remain 0 (backward compatible)
+		childBox := e.buildComputedBox(child, nil, box, childConstraints)
 		if childBox != nil {
 			box.Children = append(box.Children, childBox)
 		}
@@ -249,8 +280,14 @@ func (e *Engine) buildComputedBoxWithSize(vnode VNode, parent *ComputedBox, cons
 
 // buildComputedBox creates a computed box for a VNode with its children.
 // This is a convenience wrapper for buildComputedBoxWithSize without pre-measurement.
-func (e *Engine) buildComputedBox(vnode VNode, parent *ComputedBox, constraints runtime.BoxConstraints) *ComputedBox {
-	return e.buildComputedBoxWithSize(vnode, parent, constraints, nil)
+//
+// Parameters:
+//   vnode: The VNode to build ComputedBox for
+//   fiber: Optional Fiber node for passing NodeID (Phase 3: Identity Refactoring)
+//   parent: Parent ComputedBox (for tree structure)
+//   constraints: Box constraints for layout
+func (e *Engine) buildComputedBox(vnode VNode, fiber *reconciler.Fiber, parent *ComputedBox, constraints runtime.BoxConstraints) *ComputedBox {
+	return e.buildComputedBoxWithSize(vnode, fiber, parent, constraints, nil)
 }
 
 // measureVNode measures a VNode's size using constraints

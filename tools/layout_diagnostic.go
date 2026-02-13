@@ -445,7 +445,8 @@ func main() {
 	fmt.Println("-------------------------------------------------------")
 
 	engine := compute.NewEngine()
-	layout, err := engine.Layout(inspTreeView, runtime.BoxConstraints{
+	// Phase 3: Pass nil for Fiber (non-Fiber mode, backward compatible)
+	layout, err := engine.Layout(inspTreeView, nil, runtime.BoxConstraints{
 		MinWidth:  0,
 		MaxWidth:  76,
 		MinHeight: 0,
@@ -508,7 +509,8 @@ func main() {
 
 		// Measure again with same constraints
 		engine2 := compute.NewEngine()
-		layout2, err := engine2.Layout(tvPtr, runtime.BoxConstraints{
+		// Phase 3: Pass nil for Fiber (non-Fiber mode, backward compatible)
+		layout2, err := engine2.Layout(tvPtr, nil, runtime.BoxConstraints{
 			MinWidth:  0,
 			MaxWidth:  76,
 			MinHeight: 0,

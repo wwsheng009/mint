@@ -27,7 +27,7 @@ func TestSingleLayerRendering(t *testing.T) {
 	}
 
 	// 单层布局
-	layout, err := engine.Layout(appContent, constraints)
+	layout, err := engine.Layout(appContent, nil, constraints)
 	if err != nil {
 		t.Fatalf("Layout failed: %v", err)
 	}
@@ -158,3 +158,4 @@ func countBufferContent(buffer *paint.Buffer) int {
 	}
 	return count
 }
+

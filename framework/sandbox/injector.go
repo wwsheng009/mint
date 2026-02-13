@@ -3,6 +3,7 @@ package sandbox
 import (
 	"github.com/wwsheng009/mint/framework/action"
 	"github.com/wwsheng009/mint/framework/msg"
+	"github.com/wwsheng009/mint/runtime/event"
 	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
 	"github.com/wwsheng009/mint/runtime/platform"
 )
@@ -146,21 +147,21 @@ func (i *Injector) InjectAltKey(key rune) *Injector {
 // 示例：
 //   injector.InjectMouseClick("button1", 10, 5)
 func (i *Injector) InjectMouseClick(targetID string, localX, localY int) *Injector {
-	act := action.NewActionFromMouse(action.ActionClick, targetID, localX, localY)
+	act := action.NewActionFromMouse(action.ActionClick, event.StringToNodeID(targetID), localX, localY)
 	i.actions = append(i.actions, act)
 	return i
 }
 
 // InjectMouseRightClick 注入右键点击
 func (i *Injector) InjectMouseRightClick(targetID string, localX, localY int) *Injector {
-	act := action.NewActionFromMouse(action.ActionRightClick, targetID, localX, localY)
+	act := action.NewActionFromMouse(action.ActionRightClick, event.StringToNodeID(targetID), localX, localY)
 	i.actions = append(i.actions, act)
 	return i
 }
 
 // InjectMouseMiddleClick 注入中键点击
 func (i *Injector) InjectMouseMiddleClick(targetID string, localX, localY int) *Injector {
-	act := action.NewActionFromMouse(action.ActionMiddleClick, targetID, localX, localY)
+	act := action.NewActionFromMouse(action.ActionMiddleClick, event.StringToNodeID(targetID), localX, localY)
 	i.actions = append(i.actions, act)
 	return i
 }

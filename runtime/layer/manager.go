@@ -63,7 +63,8 @@ func (m *Manager) CollectAndLayout(
 	}
 
 	// 3. Layout the base layer
-	baseLayout, err := engine.Layout(baseTree, constraints)
+	// Phase 3: Pass nil for Fiber (non-Fiber mode, backward compatible)
+	baseLayout, err := engine.Layout(baseTree, nil, constraints)
 	if err != nil {
 		return err
 	}
@@ -153,7 +154,8 @@ func (m *Manager) layoutLayer(
 	}
 
 	// Perform layout
-	layout, err := engine.Layout(node.Content, layerConstraints)
+	// Phase 3: Pass nil for Fiber (non-Fiber mode, backward compatible)
+	layout, err := engine.Layout(node.Content, nil, layerConstraints)
 	if err != nil {
 		return nil, err
 	}
@@ -384,7 +386,7 @@ func (m *Manager) GetMergedHitMap() *event.HitMap {
 		for _, entry := range layout.HitMap.AllEntries() {
 			// Log modal button positions
 			if layer == rtui.LayerModal {
-				log.RenderLogger.Debug("[GetMergedHitMap] Modal entry: ID=%s, Bounds=(%d,%d,%dx%d)",
+				log.RenderLogger.Debug("[GetMergedHitMap] Modal entry: ID=%d, Bounds=(%d,%d,%dx%d)",
 					entry.NodeID, entry.Bounds.X, entry.Bounds.Y, entry.Bounds.Width, entry.Bounds.Height)
 			}
 
@@ -438,15 +440,15 @@ func (m *Manager) buildHitMapFromComputedBox(root *compute.ComputedBox) *event.H
 			return
 		}
 
-		// Get node ID
-		nodeID := ""
-		if box.VNode != nil {
+		// Get NodeID from ComputedBox (now has uint64 NodeID field)
+		// Phase 3: Use box.NodeID directly for stable identity
+		// Fallback to converting string key to uint64 for compatibility during transition
+		nodeID := box.NodeID
+		if nodeID == 0 && box.VNode != nil {
+			// Convert VNode key to NodeID using hash for compatibility
+			// This maintains backward compatibility with non-Fiber mode
 			if key := box.VNode.Key(); key != "" {
-				nodeID = key
-			} else if tagger, ok := box.VNode.(interface{ Tag() string }); ok {
-				nodeID = tagger.Tag()
-			} else {
-				nodeID = box.VNode.Type().String()
+				nodeID = event.StringToNodeID(key)
 			}
 		}
 

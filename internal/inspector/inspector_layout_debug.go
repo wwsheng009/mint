@@ -30,7 +30,8 @@ func (si *StandaloneInspector) DumpInspectorLayout(filePath string) error {
 
 	// 执行测量 (这会递归测量所有子节点)
 	// 我们需要将 VNode 转换为 compute.VNode
-	engine.Layout(inspectorRoot, constraints)
+	// Phase 3: Pass nil for Fiber (non-Fiber mode, backward compatible)
+	engine.Layout(inspectorRoot, nil, constraints)
 
 	// 3. 使用 Analyzer 捕获并格式化
 	analyzer := NewLayoutAnalyzer()

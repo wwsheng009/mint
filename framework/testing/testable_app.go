@@ -7,6 +7,7 @@ import (
 	"github.com/wwsheng009/mint/framework/msg"
 	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
 	"github.com/wwsheng009/mint/runtime/platform"
+	"github.com/wwsheng009/mint/runtime/event"
 )
 
 // TestableApp 是可测试的应用包装器
@@ -82,13 +83,13 @@ func (t *TestableApp) InjectEscape() {
 // 示例：
 //   app.InjectMouseClickByID("button1")
 func (t *TestableApp) InjectMouseClickByID(targetID string, localX, localY int) {
-	act := action.NewActionFromMouse(action.ActionClick, targetID, localX, localY)
+	act := action.NewActionFromMouse(action.ActionClick, event.StringToNodeID(targetID), localX, localY)
 	t.router.Dispatch(act)
 }
 
 // InjectMouseRightClickByID 按 ID 注入右键点击
 func (t *TestableApp) InjectMouseRightClickByID(targetID string, localX, localY int) {
-	act := action.NewActionFromMouse(action.ActionRightClick, targetID, localX, localY)
+	act := action.NewActionFromMouse(action.ActionRightClick, event.StringToNodeID(targetID), localX, localY)
 	t.router.Dispatch(act)
 }
 
@@ -109,7 +110,7 @@ func (t *TestableApp) InjectAction(act *action.Action) {
 //   app.InjectText("input1", "hello world")
 func (t *TestableApp) InjectText(targetID string, text string) {
 	act := action.NewActionWithPayload(action.ActionInputText, text)
-	act.TargetID = targetID
+	act.TargetID = event.StringToNodeID(targetID)
 	t.router.Dispatch(act)
 }
 
