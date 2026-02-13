@@ -3,7 +3,6 @@ package compute
 
 import (
 	"fmt"
-	"os"
 	"sort"
 	"strings"
 
@@ -23,7 +22,7 @@ type Engine struct {
 	debug        bool
 	flexCache    map[string]*FlexDistributionInfo // Cache for flex distribution per parent
 	traceDepth   int                              // Current depth for layout tracing
-	validator    *BoundsValidator                  // Validates bounds consistency
+	validator    *BoundsValidator                 // Validates bounds consistency
 }
 
 func (e *Engine) getTraceDepth() int {
@@ -46,7 +45,7 @@ func NewEngine() *Engine {
 	return &Engine{
 		cache:        NewLayoutCache(),
 		dirtyTracker: NewDirtyTracker(),
-		debug:        os.Getenv("TUI_LAYOUT_DEBUG") == "true",
+		debug:        log.LayoutLogger.Enabled(),
 		validator:    NewBoundsValidator(),
 	}
 }
@@ -88,9 +87,7 @@ func (e *Engine) Layout(vnode VNode, constraints runtime.BoxConstraints) (*Compu
 	layout := NewComputedLayout(root)
 	layout.HitMap = hitMap
 
-	if e.debug || os.Getenv("TUI_DEBUG_HITMAP") == "true" {
-		log.RenderLogger.Debug("[Engine.Layout] Built HitMap with %d entries", hitMap.Size())
-	}
+	log.HitMapLogger.Debug("[Engine.Layout] Built HitMap with %d entries", hitMap.Size())
 
 	// Validate bounds consistency (only in debug mode)
 	if err := e.validator.ValidateLayout(layout); err != nil {
@@ -165,13 +162,12 @@ func (e *Engine) buildComputedBoxWithSize(vnode VNode, parent *ComputedBox, cons
 
 	// Try single-pass measurement if LayoutMeasurer is implemented
 	measurement := e.TryMeasureLayout(vnode, constraints)
-	debug := os.Getenv("TUI_LAYOUT_DEBUG") == "true"
-	if debug {
+	if e.debug {
 		tag := "none"
 		if tagger, ok := vnode.(interface{ Tag() string }); ok {
 			tag = tagger.Tag()
 		}
-		log.EngineLogger.Debug("[buildComputedBox] tag=%s, childConstraints=%d, using single-pass=%v\n",
+		log.LayoutLogger.Debug("[buildComputedBox] tag=%s, childConstraints=%d, using single-pass=%v",
 			tag, len(measurement.ChildConstraints), len(measurement.ChildConstraints) > 0)
 	}
 	// Check if we got a valid measurement (has child constraints)
@@ -260,18 +256,18 @@ func (e *Engine) buildComputedBox(vnode VNode, parent *ComputedBox, constraints 
 // measureVNode measures a VNode's size using constraints
 func (e *Engine) measureVNode(vnode VNode, constraints runtime.BoxConstraints) runtime.Size {
 	// Add layout tracing for debugging if enabled
-	if os.Getenv("TUI_LAYOUT_DEBUG") == "true" {
+	if e.debug {
 		depth := e.getTraceDepth()
 		e.incrementTraceDepth()
 		defer e.decrementTraceDepth()
 
 		indent := strings.Repeat("  ", depth)
-		log.EngineLogger.Debug("%s[Layout.ENTER] Type=%T %s Props:%v Constraints:%v\n",
+		log.LayoutLogger.Debug("%s[Layout.ENTER] Type=%T %s Props:%v Constraints:%v",
 			indent, vnode, vnode.Type().String(), vnode.Props(), constraints)
 
 		size := e.doMeasureVNode(vnode, constraints)
 
-		log.EngineLogger.Debug("%s[Layout.LEAVE] %s Size:%v\n",
+		log.LayoutLogger.Debug("%s[Layout.LEAVE] %s Size:%v",
 			indent, vnode.Type().String(), size)
 		return size
 	}
@@ -1540,7 +1536,7 @@ func (e *Engine) buildHitMapFromComputedBoxes(root *ComputedBox) *event.HitMap {
 			NodeID: nodeID,
 			Node:   rtui.AsLayoutNode(box.VNode),
 			Bounds: runtimelayout.Rect{
-				X:      box.Box.X,      // ✅ Final position after layer centering
+				X:      box.Box.X, // ✅ Final position after layer centering
 				Y:      box.Box.Y,
 				Width:  box.Box.Width,
 				Height: box.Box.Height,
@@ -1568,9 +1564,7 @@ func (e *Engine) buildHitMapFromComputedBoxes(root *ComputedBox) *event.HitMap {
 		return entries[i].ZOrder < entries[j].ZOrder
 	})
 
-	if os.Getenv("TUI_DEBUG_HITMAP") == "true" {
-		log.RenderLogger.Debug("[Engine.buildHitMap] Built HitMap with %d entries", len(entries))
-	}
+	log.HitMapLogger.Debug("[Engine.buildHitMap] Built HitMap with %d entries", len(entries))
 
 	// Build HitMap from entries using BuildFromEntries helper
 	return event.BuildHitMapFromEntries(entries)

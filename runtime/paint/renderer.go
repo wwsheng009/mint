@@ -2,7 +2,6 @@ package paint
 
 import (
 	"bytes"
-	"os"
 	"sync"
 
 	"github.com/wwsheng009/mint/internal/log"
@@ -51,6 +50,7 @@ func NewRenderer(width, height int) *Renderer {
 func (r *Renderer) GetBackBuffer() *Buffer {
 	return r.back
 }
+
 // ResetState resets the internal state machine (cursor, style)
 // This should be called before starting a new frame rendering
 func (r *Renderer) ResetState() {
@@ -79,10 +79,8 @@ func (r *Renderer) Render() string {
 	diff := r.dirtyTracker.Diff(r.front, r.back)
 
 	// DEBUG: 输出 diff 信息
-	if os.Getenv("TUI_RENDER_DEBUG") == "1" {
-		log.RenderLogger.Debug("[RENDER] HasChanges=%v, ChangedCells=%d, Regions=%d\n",
-			diff.HasChanges, diff.ChangedCells, len(diff.DirtyRegions))
-	}
+	log.RenderLogger.Debug("[RENDER] HasChanges=%v, ChangedCells=%d, Regions=%d",
+		diff.HasChanges, diff.ChangedCells, len(diff.DirtyRegions))
 
 	if !diff.HasChanges {
 		return "" // 无变化，不输出
@@ -107,16 +105,12 @@ func (r *Renderer) Render() string {
 
 // renderRegion 渲染单个脏区域
 func (r *Renderer) renderRegion(region Rect) {
-	if os.Getenv("TUI_RENDER_DEBUG") == "1" {
-		log.RenderLogger.Debug("[renderRegion] region={X:%d, Y:%d, W:%d, H:%d}, back.H=%d\n",
-			region.X, region.Y, region.Width, region.Height, r.back.Height)
-	}
+	log.RenderLogger.Debug("[renderRegion] region={X:%d, Y:%d, W:%d, H:%d}, back.H=%d",
+		region.X, region.Y, region.Width, region.Height, r.back.Height)
 
 	for y := region.Y; y < region.Y+region.Height; y++ {
 		if y >= r.back.Height {
-			if os.Getenv("TUI_RENDER_DEBUG") == "1" {
-				log.RenderLogger.Debug("[renderRegion] y=%d >= back.Height=%d, break\n", y, r.back.Height)
-			}
+			log.RenderLogger.Debug("[renderRegion] y=%d >= back.Height=%d, break", y, r.back.Height)
 			break
 		}
 		r.renderLine(y, region)
@@ -125,12 +119,8 @@ func (r *Renderer) renderRegion(region Rect) {
 
 // renderLine 渲染单行，使用 run merging 优化
 func (r *Renderer) renderLine(y int, region Rect) {
-	debugRender := os.Getenv("TUI_RENDER_DEBUG") == "1"
-
-	if debugRender {
-		log.RenderLogger.Debug("[renderLine] y=%d, region.X=%d, region.W=%d, back.W=%d\n",
-			y, region.X, region.Width, r.back.Width)
-	}
+	log.RenderLogger.Debug("[renderLine] y=%d, region.X=%d, region.W=%d, back.W=%d",
+		y, region.X, region.Width, r.back.Width)
 
 	x := region.X
 	// 确保 endX 不超过 back 和 front 缓冲区的宽度
@@ -141,17 +131,15 @@ func (r *Renderer) renderLine(y int, region Rect) {
 
 	// 确保 x 不超出范围
 	if x >= endX || x < 0 {
-		if debugRender {
-			log.RenderLogger.Debug("[renderLine] x=%d >= endX=%d or x<0, no render!\n", x, endX)
-		}
+		log.RenderLogger.Debug("[renderLine] x=%d >= endX=%d or x<0, no render!\n", x, endX)
+
 		return
 	}
 
 	// 确保 y 在有效范围内
 	if y >= len(r.back.Cells) || (r.front != nil && y >= len(r.front.Cells)) {
-		if debugRender {
-			log.RenderLogger.Debug("[renderLine] y=%d out of bounds, no render!\n", y)
-		}
+		log.RenderLogger.Debug("[renderLine] y=%d out of bounds, no render!\n", y)
+
 		return
 	}
 
@@ -159,9 +147,8 @@ func (r *Renderer) renderLine(y int, region Rect) {
 	for x < endX {
 		// 边界检查
 		if x >= len(r.back.Cells[y]) || (r.front != nil && x >= len(r.front.Cells[y])) {
-			if debugRender {
-				log.RenderLogger.Debug("[renderLine] x=%d out of row bounds, break\n", x)
-			}
+			log.RenderLogger.Debug("[renderLine] x=%d out of row bounds, break\n", x)
+
 			break
 		}
 
@@ -174,10 +161,8 @@ func (r *Renderer) renderLine(y int, region Rect) {
 			continue
 		}
 
-		if debugRender {
-			log.RenderLogger.Debug("[renderLine] changed at x=%d: cell.Cluster=%q, prev.Cluster=%q, IsContinuation=%v\n",
-				x, cell.Cluster, prevCell.Cluster, cell.IsContinuation)
-		}
+		log.RenderLogger.Debug("[renderLine] changed at x=%d: cell.Cluster=%q, prev.Cluster=%q, IsContinuation=%v\n",
+			x, cell.Cluster, prevCell.Cluster, cell.IsContinuation)
 
 		// 如果是延续单元格，跳过（由主单元格处理）
 		if cell.IsContinuation {
@@ -210,9 +195,8 @@ func (r *Renderer) renderLine(y int, region Rect) {
 		r.emitRunWithWidth(startX, y, runStyle, runText.String(), width)
 	}
 
-	if debugRender {
-		log.RenderLogger.Debug("[renderLine] emitted %d runs\n", runCount)
-	}
+	log.RenderLogger.Debug("[renderLine] emitted %d runs\n", runCount)
+
 }
 
 // emitRunWithWidth 输出一个渲染批次（带宽度参数，用于正确跟踪光标）

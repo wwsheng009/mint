@@ -2,7 +2,6 @@ package paint
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/wwsheng009/mint/internal/log"
 )
@@ -30,8 +29,8 @@ type DirtyTracker struct {
 	changedCells int
 
 	// 复用的 visited 数组（用于 extractDirtyRegions，避免频繁分配）
-	visited      [][]bool
-	visitedWidth int
+	visited       [][]bool
+	visitedWidth  int
 	visitedHeight int
 }
 
@@ -146,7 +145,7 @@ func (d *DirtyTracker) Diff(prev, curr *Buffer) DiffResult {
 	result := DiffResult{
 		DirtyRegions: []Rect{},
 		HasChanges:   false,
-			ChangedCells: 0,
+		ChangedCells: 0,
 	}
 
 	// 边界情况处理
@@ -224,7 +223,6 @@ func (d *DirtyTracker) compareBuffersWithGrid(prev, curr *Buffer) *dirtyGrid {
 	d.changedCells = 0
 
 	// DEBUG: 调试光标闪烁问题
-	debugRender := os.Getenv("TUI_RENDER_DEBUG") == "1"
 	var firstChangedCell struct{ x, y int }
 
 	for y := 0; y < curr.Height; y++ {
@@ -236,7 +234,7 @@ func (d *DirtyTracker) compareBuffersWithGrid(prev, curr *Buffer) *dirtyGrid {
 			if changed {
 				grid.Mark(x, y)
 				d.changedCells++
-				if debugRender && d.changedCells == 1 {
+				if d.changedCells == 1 {
 					firstChangedCell.x = x
 					firstChangedCell.y = y
 				}
@@ -244,16 +242,16 @@ func (d *DirtyTracker) compareBuffersWithGrid(prev, curr *Buffer) *dirtyGrid {
 		}
 	}
 
-	if debugRender && d.changedCells > 0 {
-		log.RenderLogger.Debug("[compareBuffersWithGrid] ChangedCells=%d, first=(%d,%d)\n",
+	if d.changedCells > 0 {
+		log.RenderLogger.Debug("[compareBuffersWithGrid] ChangedCells=%d, first=(%d,%d)",
 			d.changedCells, firstChangedCell.x, firstChangedCell.y)
 		// 输出第一个变化单元格的详细信息
 		if curr.Height > firstChangedCell.y && curr.Width > firstChangedCell.x {
 			c := curr.Cells[firstChangedCell.y][firstChangedCell.x]
 			p := prev.Cells[firstChangedCell.y][firstChangedCell.x]
-			log.RenderLogger.Debug("  curr: Cluster=%q, Width=%d, Style.Reverse=%v\n",
+			log.RenderLogger.Debug("  curr: Cluster=%q, Width=%d, Style.Reverse=%v",
 				c.Cluster, c.Width, c.Style.IsReverse())
-			log.RenderLogger.Debug("  prev: Cluster=%q, Width=%d, Style.Reverse=%v\n",
+			log.RenderLogger.Debug("  prev: Cluster=%q, Width=%d, Style.Reverse=%v",
 				p.Cluster, p.Width, p.Style.IsReverse())
 		}
 	}
@@ -299,18 +297,16 @@ func (d *DirtyTracker) extractDirtyRegions(grid *dirtyGrid, width, height int) [
 	}
 
 	// DEBUG: 调试区域提取
-	if os.Getenv("TUI_RENDER_DEBUG") == "1" {
-		log.RenderLogger.Debug("[extractDirtyRegions] found %d regions\n", len(regions))
-		for i, r := range regions {
-			log.RenderLogger.Debug("  Region[%d]: X=%d, Y=%d, W=%d, H=%d\n", i, r.X, r.Y, r.Width, r.Height)
-		}
+	log.RenderLogger.Debug("[extractDirtyRegions] found %d regions", len(regions))
+	for i, r := range regions {
+		log.RenderLogger.Debug("  Region[%d]: X=%d, Y=%d, W=%d, H=%d", i, r.X, r.Y, r.Width, r.Height)
 	}
 
 	// 合并重叠或相邻的区域
 	merged := d.mergeDirtyRegions(regions)
 
-	if os.Getenv("TUI_RENDER_DEBUG") == "1" && len(regions) != len(merged) {
-		log.RenderLogger.Debug("[extractDirtyRegions] merged from %d to %d regions\n", len(regions), len(merged))
+	if len(regions) != len(merged) {
+		log.RenderLogger.Debug("[extractDirtyRegions] merged from %d to %d regions", len(regions), len(merged))
 	}
 
 	return merged

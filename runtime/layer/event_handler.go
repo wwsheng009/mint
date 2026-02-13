@@ -2,8 +2,6 @@
 package layer
 
 import (
-	"os"
-
 	"github.com/wwsheng009/mint/internal/log"
 	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/compute"
@@ -29,9 +27,7 @@ func NewEventHandler(manager *Manager) *EventHandler {
 
 // HandleKeyEvent processes a key event and returns true if handled
 func (h *EventHandler) HandleKeyEvent(keyName string, keyRune rune) bool {
-	if os.Getenv("TUI_LAYER_DEBUG") == "true" {
-		log.EventLogger.Debug("[LayerEventHandler] HandleKeyEvent: keyName=%q keyRune=%c\n", keyName, keyRune)
-	}
+	log.LayerLogger.Debug("[LayerEventHandler] HandleKeyEvent: keyName=%q keyRune=%c", keyName, keyRune)
 
 	// Check if there's an active modal
 	if !h.manager.HasModal() {
@@ -49,9 +45,7 @@ func (h *EventHandler) HandleKeyEvent(keyName string, keyRune rune) bool {
 	// Handle ESC key to close modal
 	if keyName == "esc" {
 		if h.shouldCloseOnESC(modalNode) {
-			if os.Getenv("TUI_LAYER_DEBUG") == "true" {
-				log.EventLogger.Debug("[LayerEventHandler] ESC pressed, closing modal\n")
-			}
+			log.LayerLogger.Debug("[LayerEventHandler] ESC pressed, closing modal")
 			h.triggerOnClose(modalNode)
 			return true
 		}
@@ -62,9 +56,7 @@ func (h *EventHandler) HandleKeyEvent(keyName string, keyRune rune) bool {
 
 // HandleMouseEvent processes a mouse event and returns true if handled
 func (h *EventHandler) HandleMouseEvent(x, y int) bool {
-	if os.Getenv("TUI_LAYER_DEBUG") == "true" {
-		log.EventLogger.Debug("[LayerEventHandler] HandleMouseEvent: x=%d y=%d\n", x, y)
-	}
+	log.LayerLogger.Debug("[LayerEventHandler] HandleMouseEvent: x=%d y=%d", x, y)
 
 	// Check if there's an active modal
 	if !h.manager.HasModal() {
@@ -83,9 +75,7 @@ func (h *EventHandler) HandleMouseEvent(x, y int) bool {
 		if len(modalNodes) > 0 {
 			modalNode := modalNodes[0]
 			if h.shouldCloseOnBackdrop(modalNode) {
-				if os.Getenv("TUI_LAYER_DEBUG") == "true" {
-					log.EventLogger.Debug("[LayerEventHandler] Click outside modal, closing\n")
-				}
+				log.LayerLogger.Debug("[LayerEventHandler] Click outside modal, closing")
 				h.triggerOnClose(modalNode)
 				return true
 			}

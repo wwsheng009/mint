@@ -1048,13 +1048,13 @@ func (si *StandaloneInspector) buildHitTestTabContent() rtui.VNode {
 	// Limit to 12 entries to demonstrate overflow handling
 	maxDisplayEntries := 12
 	displayed := 0
-	for i := range si.hitMapEntries {
+	for i := range entries {
 		if displayed >= maxDisplayEntries {
 			break
 		}
 
-		idx := len(si.hitMapEntries) - 1 - i
-		e := si.hitMapEntries[idx]
+		idx := len(entries) - 1 - i
+		e := entries[idx]
 
 		hitMark := "·"
 		if e.HitTest == "YES" {
@@ -1072,8 +1072,8 @@ func (si *StandaloneInspector) buildHitTestTabContent() rtui.VNode {
 	}
 
 	// Add overflow indicator if there are more entries
-	if len(si.hitMapEntries) > maxDisplayEntries {
-		overflowText := fmt.Sprintf("... (%d more entries)", len(si.hitMapEntries)-maxDisplayEntries)
+	if len(entries) > maxDisplayEntries {
+		overflowText := fmt.Sprintf("... (%d more entries)", len(entries)-maxDisplayEntries)
 		rows = append(rows, overflowText)
 	}
 
@@ -1105,7 +1105,7 @@ func (si *StandaloneInspector) buildHitTestTabContent() rtui.VNode {
 	// Create summary line (separate from the list)
 	hoveredStr := si.formatHovered()
 	summaryText := fmt.Sprintf("Entries:%d  Mouse:(%d,%d)  %s",
-		len(si.hitMapEntries), si.lastMouseX, si.lastMouseY, hoveredStr)
+		len(entries), si.lastMouseX, si.lastMouseY, hoveredStr)
 
 	// Wrap both summary and list in VStack
 	return rtui.VStack(

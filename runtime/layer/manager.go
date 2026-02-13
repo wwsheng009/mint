@@ -46,27 +46,21 @@ func (m *Manager) CollectAndLayout(
 	constraints runtime.BoxConstraints,
 	engine *compute.Engine,
 ) error {
-	debug := os.Getenv("TUI_LAYER_DEBUG") == "true"
-
 	// Clear previous state
 	m.layouts = make(LayerLayouts)
 
 	// 1. Collect layer nodes from the VNode tree
 	m.collector.Collect(vnode)
 
-	if debug {
-		log.RenderLogger.Debug("[CollectAndLayout] collected %d modal nodes\n", len(m.collector.GetModalNodes()))
-	}
+	log.LayerLogger.Debug("[CollectAndLayout] collected %d modal nodes", len(m.collector.GetModalNodes()))
 
 	// 2. Strip layer nodes from the main tree to get clean base content
 	baseTree := m.collector.StripLayers(vnode)
 
-	if debug {
-		baseChildren := baseTree.Children()
-		log.RenderLogger.Debug("[CollectAndLayout] baseTree has %d children (after stripping)\n", len(baseChildren))
-		for i, child := range baseChildren {
-			log.RenderLogger.Debug("[CollectAndLayout]   child %d: layer=%d type=%s\n", i, child.GetLayer(), child.Type().String())
-		}
+	baseChildren := baseTree.Children()
+	log.LayerLogger.Debug("[CollectAndLayout] baseTree has %d children (after stripping)", len(baseChildren))
+	for i, child := range baseChildren {
+		log.LayerLogger.Debug("[CollectAndLayout]   child %d: layer=%d type=%s", i, child.GetLayer(), child.Type().String())
 	}
 
 	// 3. Layout the base layer
@@ -110,12 +104,10 @@ func (m *Manager) layoutLayer(
 	constraints runtime.BoxConstraints,
 	engine *compute.Engine,
 ) (*compute.ComputedLayout, error) {
-	debug := os.Getenv("TUI_LAYER_DEBUG") == "true" || os.Getenv("TUI_DEBUG_HITMAP") == "true"
-
-	if debug {
-		log.RenderLogger.Debug("[layoutLayer] Layer=%d, constraints.Max=%dx%d",
-			layer, constraints.MaxWidth, constraints.MaxHeight)
-	}
+	log.LayerLogger.Debug("[layoutLayer] Layer=%d, constraints.Max=%dx%d",
+		layer, constraints.MaxWidth, constraints.MaxHeight)
+	log.HitMapLogger.Debug("[layoutLayer] Layer=%d, constraints.Max=%dx%d",
+		layer, constraints.MaxWidth, constraints.MaxHeight)
 
 	var layerConstraints runtime.BoxConstraints
 
@@ -267,8 +259,6 @@ func (m *Manager) positionInspector(node *LayerNode, root *compute.ComputedBox) 
 		return
 	}
 
-	debug := os.Getenv("TUI_LAYER_DEBUG") == "true" || os.Getenv("TUI_DEBUG_INSPECTOR") == "true"
-
 	// Get the specified position from props
 	var targetX, targetY int
 	props := node.Content.Props()
@@ -296,10 +286,8 @@ func (m *Manager) positionInspector(node *LayerNode, root *compute.ComputedBox) 
 	originalX := root.Box.X
 	originalY := root.Box.Y
 
-	if debug {
-		log.RenderLogger.Debug("[positionInspector] original=(%d,%d) target=(%d,%d)\n",
-			originalX, originalY, targetX, targetY)
-	}
+	log.RenderLogger.Debug("[positionInspector] original=(%d,%d) target=(%d,%d)\n",
+		originalX, originalY, targetX, targetY)
 
 	// Calculate offset
 	offsetX := targetX - originalX
@@ -308,10 +296,9 @@ func (m *Manager) positionInspector(node *LayerNode, root *compute.ComputedBox) 
 	// Shift the entire layout tree
 	m.shiftPositions(root, offsetX, offsetY)
 
-	if debug {
-		log.RenderLogger.Debug("[positionInspector] after shift: inspector=(%d,%d) size=%dx%d\n",
-			root.Box.X, root.Box.Y, root.Box.Width, root.Box.Height)
-	}
+	log.RenderLogger.Debug("[positionInspector] after shift: inspector=(%d,%d) size=%dx%d\n",
+		root.Box.X, root.Box.Y, root.Box.Width, root.Box.Height)
+
 }
 
 // =============================================================================
@@ -383,11 +370,11 @@ func (m *Manager) GetMergedHitMap() *event.HitMap {
 	for _, layer := range renderOrder {
 		layout, ok := m.layouts[layer]
 		if !ok || layout.HitMap == nil {
-		if !ok {
-			log.RenderLogger.Debug("[GetMergedHitMap] Layer %d: no layout", layer)
-		} else {
-			log.RenderLogger.Debug("[GetMergedHitMap] Layer %d: layout has nil HitMap", layer)
-		}
+			if !ok {
+				log.RenderLogger.Debug("[GetMergedHitMap] Layer %d: no layout", layer)
+			} else {
+				log.RenderLogger.Debug("[GetMergedHitMap] Layer %d: layout has nil HitMap", layer)
+			}
 			continue
 		}
 

@@ -1,7 +1,6 @@
 package state
 
 import (
-	"os"
 	"sync"
 
 	"github.com/wwsheng009/mint/internal/log"
@@ -159,9 +158,9 @@ type KeyValidator struct {
 
 // NewKeyValidator creates a new key validator
 func NewKeyValidator() *KeyValidator {
-	// Check debug environment
+	// Check debug environment via Logger enabled state
 	return &KeyValidator{
-		enableWarnings: os.Getenv("TUI_DEBUG_KEYS") == "true" || os.Getenv("TUI_DEBUG_UI") == "true",
+		enableWarnings: log.KeyLogger.Enabled() || log.UILogger.Enabled(),
 	}
 }
 

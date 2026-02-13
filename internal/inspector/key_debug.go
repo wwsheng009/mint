@@ -1,8 +1,6 @@
 package inspector
 
 import (
-	"os"
-
 	"github.com/wwsheng009/mint/internal/log"
 )
 
@@ -10,23 +8,19 @@ import (
 func (si *StandaloneInspector) DebugKeyEvent() func(key string, alt bool, ctrl bool, shift bool) bool {
 	return func(key string, alt bool, ctrl bool, shift bool) bool {
 		// 调试输出
-		if os.Getenv("TUI_DEBUG_INSPECTOR") == "true" || os.Getenv("TUI_DEBUG") == "true" {
-			log.UILogger.Debug("\n=== Inspector KeyEvent Debug ===\n")
-			log.UILogger.Debug("Key: '%s'\n", key)
-			log.UILogger.Debug("Alt: %v, Ctrl: %v, Shift: %v\n", alt, ctrl, shift)
-			log.UILogger.Debug("Inspector visible: %v\n", si.visible)
-			log.UILogger.Debug("Inspector enabled: %v\n", si.enabled)
-			log.UILogger.Debug("Current tab before: %v\n", si.activeTab)
-		}
+		log.InspectorLogger.Debug("\n=== Inspector KeyEvent Debug ===")
+		log.InspectorLogger.Debug("Key: '%s'", key)
+		log.InspectorLogger.Debug("Alt: %v, Ctrl: %v, Shift: %v", alt, ctrl, shift)
+		log.InspectorLogger.Debug("Inspector visible: %v", si.visible)
+		log.InspectorLogger.Debug("Inspector enabled: %v", si.enabled)
+		log.InspectorLogger.Debug("Current tab before: %v", si.activeTab)
 
 		// 调用原始 HandleKeyEvent
 		result := si.HandleKeyEvent(key, alt, ctrl, shift)
 
-		if os.Getenv("TUI_DEBUG_INSPECTOR") == "true" || os.Getenv("TUI_DEBUG") == "true" {
-			log.UILogger.Debug("HandleKeyEvent returned: %v\n", result)
-			log.UILogger.Debug("Current tab after: %v\n", si.activeTab)
-			log.UILogger.Debug("===========================\n")
-		}
+		log.InspectorLogger.Debug("HandleKeyEvent returned: %v", result)
+		log.InspectorLogger.Debug("Current tab after: %v", si.activeTab)
+		log.InspectorLogger.Debug("===========================")
 
 		return result
 	}

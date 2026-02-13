@@ -1,8 +1,6 @@
 package inspector
 
 import (
-	"os"
-
 	frameworkevent "github.com/wwsheng009/mint/framework/event"
 	"github.com/wwsheng009/mint/internal/log"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
@@ -45,10 +43,8 @@ func (ih *IntegrationHelper) CreateEventFilter() func(frameworkevent.Event) bool
 			// Handle inspector shortcuts
 			if ih.inspector.HandleKeyEvent(inspectorEvent) {
 				// Event was handled by inspector, don't propagate
-				if os.Getenv("TUI_INSPECTOR_DEBUG") == "true" {
-					log.UILogger.Debug("[Inspector] Handled key event: %s (ctrl=%v)\n",
-						inspectorEvent.Key, inspectorEvent.Ctrl)
-				}
+				log.InspectorLogger.Debug("Handled key event: %s (ctrl=%v)",
+					inspectorEvent.Key, inspectorEvent.Ctrl)
 				return false // Block event from normal routing
 			}
 		}
@@ -74,9 +70,9 @@ func (ih *IntegrationHelper) CreateMouseHandler() func(x, y int) bool {
 			hovered := ih.inspector.FindVNodeAt(ih.rootVNode, x, y)
 			ih.inspector.hoveredVNode = hovered
 
-			if os.Getenv("TUI_INSPECTOR_DEBUG") == "true" && hovered != nil {
+			if hovered != nil {
 				info := ExtractElementInfo(hovered)
-				log.UILogger.Debug("[Inspector] Hovered: %s (%s)\n", info.Type, info.Label)
+				log.InspectorLogger.Debug("Hovered: %s (%s)", info.Type, info.Label)
 			}
 		}
 
@@ -105,9 +101,7 @@ func (ih *IntegrationHelper) RegisterWithApp(app interface{}) bool {
 	// 2. app.RegisterGlobalHandler(handler)
 	// 3. app.AddInspector(inspector)
 
-	if os.Getenv("TUI_INSPECTOR_DEBUG") == "true" {
-		log.UILogger.Debug("[Inspector] RegisterWithApp called (integration pending)\n")
-	}
+	log.InspectorLogger.Debug("RegisterWithApp called (integration pending)")
 
 	return false
 }
@@ -116,18 +110,18 @@ func (ih *IntegrationHelper) RegisterWithApp(app interface{}) bool {
 // Returns true if the inspector was enabled
 func (ih *IntegrationHelper) EnableFromEnvironment() bool {
 	// Check for TUI_INSPECTOR environment variable
-	if os.Getenv("TUI_INSPECTOR") == "true" {
+	if log.InspectorLogger.Enabled() {
 		ih.inspector.Enable()
-		log.UILogger.Debug("[Inspector] Enabled via TUI_INSPECTOR=true\n")
-		log.UILogger.Debug("[Inspector] Press F12 or Ctrl+I to toggle, Tab to navigate, Esc to close\n")
+		log.InspectorLogger.Debug("Enabled via TUI_INSPECTOR=true\n")
+		log.InspectorLogger.Debug("Press F12 or Ctrl+I to toggle, Tab to navigate, Esc to close\n")
 		return true
 	}
 
 	// Check for TUI_INSPECTOR_AUTO environment variable (enable with auto-start)
-	if os.Getenv("TUI_INSPECTOR_AUTO") == "true" {
+	if log.InspectorLogger.Enabled() {
 		ih.inspector.Enable()
-		log.UILogger.Debug("[Inspector] Auto-enabled via TUI_INSPECTOR_AUTO=true\n")
-		log.UILogger.Debug("[Inspector] Press F12 or Ctrl+I to toggle, Tab to navigate, Esc to close\n")
+		log.InspectorLogger.Debug("Auto-enabled via TUI_INSPECTOR_AUTO=true\n")
+		log.InspectorLogger.Debug("Press F12 or Ctrl+I to toggle, Tab to navigate, Esc to close\n")
 		return true
 	}
 

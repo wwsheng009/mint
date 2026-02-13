@@ -205,6 +205,18 @@ var (
 
 	// ButtonLogger logs button-specific messages (enabled via TUI_DEBUG_BUTTON)
 	ButtonLogger = NewLogger("Button", "BUTTON")
+
+	// HitMapLogger logs hit map debugging messages (enabled via TUI_DEBUG_HITMAP)
+	HitMapLogger = NewLogger("HitMap", "HITMAP")
+
+	// BorderLogger logs border debugging messages (enabled via TUI_BORDER_DEBUG)
+	BorderLogger = NewLogger("Border", "BORDER")
+
+	// PipelineLogger logs pipeline debugging messages (enabled via TUI_PIPELINE_DEBUG)
+	PipelineLogger = NewLogger("Pipeline", "PIPELINE")
+
+	// PaintLogger logs paint debugging messages (enabled via TUI_PAINT_DEBUG)
+	PaintLogger = NewLogger("Paint", "PAINT")
 )
 
 // SetAllEnabled sets the enabled state for all global loggers

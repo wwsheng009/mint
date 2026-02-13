@@ -3,7 +3,6 @@ package render
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/wwsheng009/mint/internal/log"
 	"github.com/wwsheng009/mint/runtime"
@@ -39,7 +38,7 @@ func NewPipelineRenderer() *PipelineRenderer {
 		layerMgr:    layerMgr,
 		layerEvents: layer.NewEventHandler(layerMgr),
 		hooks:       render.NewHookManager(),
-		debug:       os.Getenv("TUI_PIPELINE_DEBUG") == "true",
+		debug:       log.PipelineLogger.Enabled(),
 	}
 }
 
@@ -69,48 +68,37 @@ func (r *PipelineRenderer) Render(vnode rtui.VNode, x, y int, buffer interface{}
 	height := buf.Height
 
 	// Debug: Log buffer size
-	if os.Getenv("TUI_DEBUG_RENDERING") == "true" || os.Getenv("TUI_LAYER_DEBUG") == "true" {
-		log.RenderLogger.Debug("[PipelineRenderer] Buffer size: %dx%d\n", buf.Width, buf.Height)
-	}
+	log.RenderLogger.Debug("Buffer size: %dx%d", buf.Width, buf.Height)
+	log.LayerLogger.Debug("Buffer size: %dx%d", buf.Width, buf.Height)
 
 	constraints := runtime.NewBoxConstraints(0, width, 0, height)
 
 	// Check if VNode tree contains any layer nodes (Modal, Overlay, Tooltip)
 	hasLayers := r.hasLayerNodes(vnode)
 
-	if r.debug || os.Getenv("TUI_LAYER_DEBUG") == "true" {
-		log.RenderLogger.Debug("[PipelineRenderer] hasLayers=%v\n", hasLayers)
-	}
+	log.LayerLogger.Debug("hasLayers=%v", hasLayers)
 
 	var err error
 	if hasLayers {
 		// Use multi-layer rendering for modals, overlays, tooltips
-		if r.debug || os.Getenv("TUI_DEBUG_RENDERING") == "true" {
-			log.RenderLogger.Debug("[PipelineRenderer] Using RenderLayers for multi-layer rendering\n")
-		}
+		log.RenderLogger.Debug("Using RenderLayers for multi-layer rendering")
 		err = r.pipeline.RenderLayers(vnode, constraints, buf)
 	} else {
 		// Use standard rendering for simple VNode trees
-		if r.debug || os.Getenv("TUI_DEBUG_RENDERING") == "true" {
-			log.RenderLogger.Debug("[PipelineRenderer] Using standard Render\n")
-		}
+		log.RenderLogger.Debug("Using standard Render")
 		err = r.pipeline.Render(vnode, constraints, buf)
 	}
 
 	if err != nil {
-		if r.debug || os.Getenv("TUI_DEBUG_RENDERING") == "true" {
-			log.RenderLogger.Debug("[PipelineRenderer] ❌ Render FAILED: %v, falling back to legacy\n", err)
-		}
+		log.RenderLogger.Debug("❌ Render FAILED: %v, falling back to legacy", err)
 		// Fall back to legacy rendering if pipeline fails
 		return r.renderLegacy(vnode, x, y, buf)
 	}
 
-	if r.debug || os.Getenv("TUI_DEBUG_RENDERING") == "true" {
-		log.RenderLogger.Debug("[PipelineRenderer] ✅ Render SUCCESS\n")
-	}
+	log.RenderLogger.Debug("✅ Render SUCCESS")
 
 	if r.debug {
-		log.RenderLogger.Debug("[PipelineRenderer] Render complete, cache stats: %s\n",
+		log.RenderLogger.Debug("Render complete, cache stats: %s",
 			r.pipeline.GetLayoutEngine().GetCacheStats().String())
 	}
 
@@ -125,14 +113,10 @@ func (r *PipelineRenderer) hasLayerNodes(vnode rtui.VNode) bool {
 
 	// Check this node
 	layer := vnode.GetLayer()
-	if os.Getenv("TUI_DEBUG_HITMAP") == "true" {
-		log.RenderLogger.Debug("[hasLayerNodes] Node type=%T, Layer=%d, IsValid=%v",
-			vnode, layer, layer.IsValid())
-	}
+	log.HitMapLogger.Debug("[hasLayerNodes] Node type=%T, Layer=%d, IsValid=%v",
+		vnode, layer, layer.IsValid())
 	if layer != rtui.LayerBase && layer.IsValid() {
-		if os.Getenv("TUI_DEBUG_HITMAP") == "true" {
-			log.RenderLogger.Debug("[hasLayerNodes] ✅ Found layer node: Layer=%d", layer)
-		}
+		log.HitMapLogger.Debug("[hasLayerNodes] ✅ Found layer node: Layer=%d", layer)
 		return true
 	}
 
@@ -167,7 +151,7 @@ func (r *PipelineRenderer) Measure(vnode rtui.VNode, maxWidth, maxHeight int) (w
 	layout, err := r.pipeline.GetLayoutEngine().Layout(vnode, constraints)
 	if err != nil {
 		if r.debug {
-			log.RenderLogger.Debug("[PipelineRenderer] Layout failed: %v\n", err)
+			log.RenderLogger.Debug("Layout failed: %v\n", err)
 		}
 		return 0, 0
 	}
@@ -206,17 +190,15 @@ func (r *PipelineRenderer) RenderWithConstraints(vnode rtui.VNode, layoutWidth, 
 	// Use explicit layout constraints instead of buffer size
 	constraints := runtime.NewBoxConstraints(0, layoutWidth, 0, layoutHeight)
 
-	if os.Getenv("TUI_DEBUG_RENDERING") == "true" || os.Getenv("TUI_LAYER_DEBUG") == "true" {
-		log.RenderLogger.Debug("[PipelineRenderer] Layout constraints: %dx%d (buffer: %dx%d)\n",
-			layoutWidth, layoutHeight, buffer.Width, buffer.Height)
-	}
+	log.RenderLogger.Debug("Layout constraints: %dx%d (buffer: %dx%d)",
+		layoutWidth, layoutHeight, buffer.Width, buffer.Height)
+	log.LayerLogger.Debug("Layout constraints: %dx%d (buffer: %dx%d)",
+		layoutWidth, layoutHeight, buffer.Width, buffer.Height)
 
 	// Check if VNode tree contains any layer nodes (Modal, Overlay, Tooltip)
 	hasLayers := r.hasLayerNodes(vnode)
 
-	if r.debug || os.Getenv("TUI_LAYER_DEBUG") == "true" {
-		log.RenderLogger.Debug("[PipelineRenderer] hasLayers=%v\n", hasLayers)
-	}
+	log.LayerLogger.Debug("hasLayers=%v", hasLayers)
 
 	var err error
 	if hasLayers {
@@ -226,14 +208,15 @@ func (r *PipelineRenderer) RenderWithConstraints(vnode rtui.VNode, layoutWidth, 
 	}
 
 	if err != nil {
-		if r.debug || os.Getenv("TUI_DEBUG_RENDERING") == "true" {
-			log.RenderLogger.Debug("[PipelineRenderer] ❌ Render FAILED: %v\n", err)
-		}
+		log.RenderLogger.Debug("❌ Render FAILED: %v", err)
 		return err
 	}
 
-	if r.debug || os.Getenv("TUI_DEBUG_RENDERING") == "true" {
-		log.RenderLogger.Debug("[PipelineRenderer] ✅ Render SUCCESS\n")
+	log.RenderLogger.Debug("✅ Render SUCCESS")
+
+	if r.debug {
+		log.RenderLogger.Debug("Render complete, cache stats: %s",
+			r.pipeline.GetLayoutEngine().GetCacheStats().String())
 	}
 
 	return nil

@@ -2,8 +2,6 @@
 package ui
 
 import (
-	"os"
-
 	"github.com/wwsheng009/mint/internal/log"
 	"github.com/wwsheng009/mint/runtime"
 )
@@ -64,8 +62,6 @@ func (l *LayoutNode) measureHStackLayout(
 		innerMaxHeight = max(0, constraints.MaxHeight-paddingHeight)
 	}
 
-	debug := os.Getenv("TUI_LAYOUT_DEBUG") == "true"
-
 	// ⭐ Check for explicit width/height props and use them to constrain layout
 	// This allows HStack().Width(n).Height(n) to properly constrain children
 	if props := l.Props(); props != nil {
@@ -76,9 +72,7 @@ func (l *LayoutNode) measureHStackLayout(
 			if constraints.MinWidth > width {
 				constraints.MinWidth = width
 			}
-		if debug {
-			log.RenderLogger.Debug("[HStack.MeasureLayout] Using width prop: %d", width)
-		}
+			log.LayoutLogger.Debug("[HStack.MeasureLayout] Using width prop: %d", width)
 		}
 		// ⭐ CRITICAL FIX: Also check height prop for bounded height constraint
 		// This ensures flex children receive bounded constraints
@@ -91,9 +85,8 @@ func (l *LayoutNode) measureHStackLayout(
 			}
 			// Recalculate innerMaxHeight with new constraint
 			innerMaxHeight = max(0, height-paddingHeight)
-		if debug {
 			log.RenderLogger.Debug("[HStack.MeasureLayout] Using height prop: %d, innerMaxHeight=%d", height, innerMaxHeight)
-		}
+
 		}
 	}
 
@@ -112,10 +105,9 @@ func (l *LayoutNode) measureHStackLayout(
 
 	for i, child := range children {
 		childInfo := GetLayoutInfo(child)
-		if debug {
-			log.RenderLogger.Debug("[HStack.MeasureLayout] child %d: GetLayoutInfo.Flex=%d, tag=%s",
-				i, childInfo.Flex, child.Type().String())
-		}
+		log.RenderLogger.Debug("[HStack.MeasureLayout] child %d: GetLayoutInfo.Flex=%d, tag=%s",
+			i, childInfo.Flex, child.Type().String())
+
 		if childInfo.Flex > 0 {
 			flexChildren = append(flexChildren, flexChild{
 				child:  child,
@@ -134,10 +126,9 @@ func (l *LayoutNode) measureHStackLayout(
 			childSizes[i] = measurer.MeasureChild(child, childConstraints[i])
 			fixedWidth += childSizes[i].Width
 
-			if debug {
-				log.RenderLogger.Debug("[HStack.MeasureLayout] non-flex child %d: size=%v",
-					i, childSizes[i])
-			}
+			log.RenderLogger.Debug("[HStack.MeasureLayout] non-flex child %d: size=%v",
+				i, childSizes[i])
+
 		}
 	}
 
@@ -148,7 +139,7 @@ func (l *LayoutNode) measureHStackLayout(
 		availableWidth := constraints.MaxWidth - paddingWidth - (len(children)-1)*gap
 		remainingSpace := availableWidth - fixedWidth
 
-		if debug && remainingSpace > 0 {
+		if remainingSpace > 0 {
 			log.RenderLogger.Debug("[HStack.MeasureLayout] flex: available=%d, fixed=%d, remaining=%d",
 				availableWidth, fixedWidth, remainingSpace)
 		}
@@ -168,10 +159,9 @@ func (l *LayoutNode) measureHStackLayout(
 			childSizes[fc.index] = measurer.MeasureChild(fc.child, childConstraints[fc.index])
 			totalWidth += childSizes[fc.index].Width
 
-			if debug {
-				log.RenderLogger.Debug("[HStack.MeasureLayout] flex child %d: flexWidth=%d, size=%v",
-					fc.index, flexWidth, childSizes[fc.index])
-			}
+			log.RenderLogger.Debug("[HStack.MeasureLayout] flex child %d: flexWidth=%d, size=%v",
+				fc.index, flexWidth, childSizes[fc.index])
+
 		}
 	} else {
 		// No bounded width: measure flex children naturally
@@ -230,10 +220,8 @@ func (l *LayoutNode) measureHStackLayout(
 		maxHeight = constraints.MaxHeight
 	}
 
-	if debug {
-		log.RenderLogger.Debug("[HStack.MeasureLayout] RETURN: Size=%v",
-			runtime.Size{Width: totalWidth, Height: maxHeight})
-	}
+	log.RenderLogger.Debug("[HStack.MeasureLayout] RETURN: Size=%v",
+		runtime.Size{Width: totalWidth, Height: maxHeight})
 
 	return runtime.LayoutMeasurement{
 		Size:             runtime.Size{Width: totalWidth, Height: maxHeight},
@@ -273,8 +261,6 @@ func (l *LayoutNode) measureVStackLayout(
 		innerMaxWidth = max(0, constraints.MaxWidth-paddingWidth)
 	}
 
-	debug := os.Getenv("TUI_LAYOUT_DEBUG") == "true"
-
 	// ⭐ Check for explicit width/height props and use them to constrain layout
 	// This allows VStack().Width(n).Height(n) to properly constrain children
 	if props := l.Props(); props != nil {
@@ -287,9 +273,7 @@ func (l *LayoutNode) measureVStackLayout(
 			}
 			// Recalculate innerMaxWidth with new constraint
 			innerMaxWidth = max(0, width-paddingWidth)
-			if debug {
-				log.RenderLogger.Debug("[VStack.MeasureLayout] Using width prop: %d, innerMaxWidth=%d", width, innerMaxWidth)
-			}
+			log.LayoutLogger.Debug("[VStack.MeasureLayout] Using width prop: %d, innerMaxWidth=%d", width, innerMaxWidth)
 		}
 		// ⭐ CRITICAL FIX: Also check height prop for bounded height constraint
 		// This ensures flex children receive bounded constraints and can properly
@@ -302,9 +286,8 @@ func (l *LayoutNode) measureVStackLayout(
 			if constraints.MinHeight > height {
 				constraints.MinHeight = height
 			}
-			if debug {
-				log.RenderLogger.Debug("[VStack.MeasureLayout] Using height prop: %d", height)
-			}
+			log.RenderLogger.Debug("[VStack.MeasureLayout] Using height prop: %d", height)
+
 		}
 	}
 
@@ -351,10 +334,8 @@ func (l *LayoutNode) measureVStackLayout(
 			}
 			childSizes[i] = measurer.MeasureChild(child, childConstraints[i])
 
-			if debug {
-				log.RenderLogger.Debug("[VStack.MeasureLayout] non-flex child %d (tag=%s): constraints=%v, size=%v",
-					i, childTag, childConstraints[i], childSizes[i])
-			}
+			log.RenderLogger.Debug("[VStack.MeasureLayout] non-flex child %d (tag=%s): constraints=%v, size=%v",
+				i, childTag, childConstraints[i], childSizes[i])
 
 			if childSizes[i].Height < runtime.Infinity {
 				fixedHeight += childSizes[i].Height
@@ -369,7 +350,7 @@ func (l *LayoutNode) measureVStackLayout(
 		availableHeight := constraints.MaxHeight - paddingHeight - (len(children)-1)*gap
 		remainingSpace := availableHeight - fixedHeight
 
-		if debug && remainingSpace > 0 {
+		if remainingSpace > 0 {
 			log.RenderLogger.Debug("[VStack.MeasureLayout] flex: available=%d, fixed=%d, remaining=%d",
 				availableHeight, fixedHeight, remainingSpace)
 		}
@@ -389,10 +370,9 @@ func (l *LayoutNode) measureVStackLayout(
 			childSizes[fc.index] = measurer.MeasureChild(fc.child, childConstraints[fc.index])
 			totalHeight += childSizes[fc.index].Height
 
-			if debug {
-				log.RenderLogger.Debug("[VStack.MeasureLayout] flex child %d: flexHeight=%d, size=%v",
-					fc.index, flexHeight, childSizes[fc.index])
-			}
+			log.RenderLogger.Debug("[VStack.MeasureLayout] flex child %d: flexHeight=%d, size=%v",
+				fc.index, flexHeight, childSizes[fc.index])
+
 		}
 	} else {
 		// No bounded height: measure flex children naturally
@@ -437,10 +417,8 @@ func (l *LayoutNode) measureVStackLayout(
 		maxWidth = constraints.MaxWidth
 	}
 
-	if debug {
-		log.RenderLogger.Debug("[VStack.MeasureLayout] RETURN: Size=%v",
-			runtime.Size{Width: maxWidth, Height: totalHeight})
-	}
+	log.RenderLogger.Debug("[VStack.MeasureLayout] RETURN: Size=%v",
+		runtime.Size{Width: maxWidth, Height: totalHeight})
 
 	return runtime.LayoutMeasurement{
 		Size:             runtime.Size{Width: maxWidth, Height: totalHeight},
