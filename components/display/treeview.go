@@ -2,7 +2,6 @@ package display
 
 import (
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/wwsheng009/mint/app"
@@ -854,9 +853,7 @@ func (t *TreeView) ToggleExpandCurrent() {
 		// Mark that expand state changed (Inspector will rebuild tree)
 		t.expandStateChanged = true
 		t.expandStateLineIndex = t.focusIndex // Store which line was toggled
-		if os.Getenv("TUI_DEBUG_INSPECTOR") == "true" {
-			log.UILogger.Debug("[TreeView] Requesting expand toggle for line #%d (NodeID: %d)\n", t.focusIndex, line.NodeID)
-		}
+		log.LayoutLogger.Debug("[TreeView] Requesting expand toggle for line #%d (NodeID: %d)", t.focusIndex, line.NodeID)
 	}
 }
 
@@ -875,9 +872,7 @@ func (t *TreeView) rebuildTreeFromSource() {
 		return
 	}
 
-	if os.Getenv("TUI_DEBUG_INSPECTOR") == "true" {
-		log.UILogger.Debug("[TreeView] Rebuilding tree with %d source lines\n", len(t.builder.sourceLines))
-	}
+	log.LayoutLogger.Debug("[TreeView] Rebuilding tree with %d source lines", len(t.builder.sourceLines))
 
 	// Re-parse lines with current expand state
 	t.builder.parseLines(t.builder.sourceLines)
@@ -920,12 +915,10 @@ func (t *TreeView) GetLines() []TreeViewLine {
 // GetRender returns the current render result with latest focus/selection highlighting
 // This should be used instead of Children() to get the latest styled VNode tree
 func (t *TreeView) GetRender() ui.VNode {
-	if os.Getenv("TUI_DEBUG_INSPECTOR") == "true" {
-		if t.currentRender == nil {
-			log.UILogger.Debug("[TreeView] GetRender() returning nil!\n")
-		} else {
-			log.UILogger.Debug("[TreeView] GetRender() returning valid render, type=%T\n", t.currentRender)
-		}
+	if t.currentRender == nil {
+		log.LayoutLogger.Debug("[TreeView] GetRender() returning nil!")
+	} else {
+		log.LayoutLogger.Debug("[TreeView] GetRender() returning valid render, type=%T", t.currentRender)
 	}
 	return t.currentRender
 }
@@ -954,9 +947,7 @@ func (t *TreeView) UpdateLines(lines []string) {
 	t.lines = t.builder.node.lines
 	t.totalLines = len(t.lines)
 
-	if os.Getenv("TUI_DEBUG_INSPECTOR") == "true" {
-		log.UILogger.Debug("[TreeView] UpdateLines: updated %d lines\n", len(t.lines))
-	}
+	log.LayoutLogger.Debug("[TreeView] UpdateLines: updated %d lines", len(t.lines))
 
 	// Re-render with the new lines (preserving viewportHeight)
 	t.regenerateDisplay()
@@ -1055,20 +1046,14 @@ func (t *TreeView) HasSelection() bool {
 // Implements virtual scrolling: only renders visible lines based on viewportHeight
 func (t *TreeView) regenerateDisplay() {
 	if t.builder == nil {
-		if os.Getenv("TUI_DEBUG_INSPECTOR") == "true" {
-			log.UILogger.Debug("[TreeView] regenerateDisplay: builder is nil!\n")
-		}
+		log.LayoutLogger.Debug("[TreeView] regenerateDisplay: builder is nil!")
 		return
 	}
 
-	if os.Getenv("TUI_LAYOUT_DEBUG") == "true" {
-		log.UILogger.Debug("[TreeView.regenerateDisplay] viewportHeight=%d, totalLines=%d\n", t.viewportHeight, len(t.lines))
-	}
+	log.LayoutLogger.Debug("[TreeView.regenerateDisplay] viewportHeight=%d, totalLines=%d", t.viewportHeight, len(t.lines))
 
-	if os.Getenv("TUI_DEBUG_INSPECTOR") == "true" {
-		log.UILogger.Debug("[TreeView] regenerateDisplay: focus=%d, selected=%d, total lines=%d, viewportHeight=%d, scrollOffset=%d\n",
-			t.focusIndex, t.selectedIdx, len(t.lines), t.viewportHeight, t.scrollOffset)
-	}
+	log.LayoutLogger.Debug("[TreeView] regenerateDisplay: focus=%d, selected=%d, total lines=%d, viewportHeight=%d, scrollOffset=%d",
+		t.focusIndex, t.selectedIdx, len(t.lines), t.viewportHeight, t.scrollOffset)
 
 	// Calculate visible range for virtual scrolling
 	// Only render lines that are visible in the viewport
@@ -1077,10 +1062,8 @@ func (t *TreeView) regenerateDisplay() {
 
 	// If viewportHeight is not set (0 or negative), render all lines (fallback to old behavior)
 	if t.viewportHeight <= 0 {
-		if os.Getenv("TUI_DEBUG_INSPECTOR") == "true" {
-			log.UILogger.Debug("[TreeView] Viewport height not set (%d), rendering all %d lines\n",
-				t.viewportHeight, totalLines)
-		}
+		log.LayoutLogger.Debug("[TreeView] Viewport height not set (%d), rendering all %d lines",
+			t.viewportHeight, totalLines)
 		startLine = 0
 		endLine = totalLines
 	} else {
@@ -1100,10 +1083,8 @@ func (t *TreeView) regenerateDisplay() {
 			endLine = totalLines
 		}
 
-		if os.Getenv("TUI_DEBUG_INSPECTOR") == "true" {
-			log.UILogger.Debug("[TreeView] Virtual scroll: rendering lines [%d:%d] of %d total lines\n",
-				startLine, endLine, totalLines)
-		}
+		log.LayoutLogger.Debug("[TreeView] Virtual scroll: rendering lines [%d:%d] of %d total lines",
+			startLine, endLine, totalLines)
 	}
 
 	// Recreate text nodes for each VISIBLE line with current focus/selection state
@@ -1136,13 +1117,11 @@ func (t *TreeView) regenerateDisplay() {
 			fullLine = strings.Repeat(" ", line.Indent) + line.Prefix + line.Content
 		}
 
-		// Apply style based on focus/selection state using actual style attributes
-		// NOTE: We don't add prefixes (>, *, spaces) to avoid breaking tree connector alignment
-		if i == t.selectedIdx {
+	// Apply style based on focus/selection state using actual style attributes
+	// NOTE: We don't add prefixes (>, *, spaces) to avoid breaking tree connector alignment
+	if i == t.selectedIdx {
 			// Selected line - use REVERSE video + BOLD (most visible)
-			if os.Getenv("TUI_DEBUG_INSPECTOR") == "true" {
-				log.UILogger.Debug("[TreeView] Line %d: SELECTED (REVERSE + BOLD)\n", i)
-			}
+			log.LayoutLogger.Debug("[TreeView] Line %d: SELECTED (REVERSE + BOLD)", i)
 			lineNodes = append(lineNodes, app.NewTextBuilder(fullLine).
 				Style(style.NewStyle().
 					Reverse(true).
@@ -1150,9 +1129,7 @@ func (t *TreeView) regenerateDisplay() {
 				Build())
 		} else if i == t.focusIndex {
 			// Focused line - use REVERSE video + BOLD
-			if os.Getenv("TUI_DEBUG_INSPECTOR") == "true" {
-				log.UILogger.Debug("[TreeView] Line %d: FOCUSED (REVERSE + BOLD)\n", i)
-			}
+			log.LayoutLogger.Debug("[TreeView] Line %d: FOCUSED (REVERSE + BOLD)", i)
 			lineNodes = append(lineNodes, app.NewTextBuilder(fullLine).
 				Style(style.NewStyle().
 					Reverse(true).
@@ -1246,27 +1223,21 @@ func (t *TreeView) regenerateDisplay() {
 
 	t.SetChildren([]ui.VNode{result})
 
-	if os.Getenv("TUI_DEBUG_INSPECTOR") == "true" {
-		log.UILogger.Debug("[TreeView] regenerateDisplay: Rendered %d lines (visible range [%d:%d]), Set %d children\n",
-			len(lineNodes), startLine, endLine, len(result.Children()))
-	}
+	log.LayoutLogger.Debug("[TreeView] regenerateDisplay: Rendered %d lines (visible range [%d:%d]), Set %d children",
+		len(lineNodes), startLine, endLine, len(result.Children()))
 }
 
 // Measure implements runtime.Measurable interface
-// This allows TreeView to respond to layout constraints and adjust its viewport
+	// This allows TreeView to respond to layout constraints and adjust its viewport
 func (t *TreeView) Measure(constraints runtime.BoxConstraints) runtime.Size {
 	if t == nil {
 		return runtime.Size{Width: 0, Height: 0}
 	}
 
 	// FORCE PANIC TO VERIFY CALL
-	if os.Getenv("TUI_LAYOUT_DEBUG") == "true" {
-		log.UILogger.Debug("PANIC CHECK: TreeView.Measure called!\n")
-	}
+	log.LayoutLogger.Debug("PANIC CHECK: TreeView.Measure called!")
 
-	if os.Getenv("TUI_LAYOUT_DEBUG") == "true" {
-		log.UILogger.Debug("[TreeView.Measure] constraints=%v\n", constraints)
-	}
+	log.LayoutLogger.Debug("[TreeView.Measure] constraints=%v", constraints)
 
 	totalLines := len(t.lines)
 
@@ -1295,23 +1266,17 @@ func (t *TreeView) Measure(constraints runtime.BoxConstraints) runtime.Size {
 
 		// Re-render if viewport height changed (to apply virtual scrolling)
 		if oldViewportHeight != viewportHeight && t.builder != nil {
-			if os.Getenv("TUI_LAYOUT_DEBUG") == "true" {
-				log.UILogger.Debug("[TreeView.Measure] Bounded height: %d, triggering regenerateDisplay\n", viewportHeight)
-			}
+			log.LayoutLogger.Debug("[TreeView.Measure] Bounded height: %d, triggering regenerateDisplay", viewportHeight)
 			t.regenerateDisplay()
 		} else {
-			if os.Getenv("TUI_LAYOUT_DEBUG") == "true" {
-				log.UILogger.Debug("[TreeView.Measure] Viewport height unchanged: %d\n", viewportHeight)
-			}
+			log.LayoutLogger.Debug("[TreeView.Measure] Viewport height unchanged: %d", viewportHeight)
 		}
 	} else {
 		// No bounded height - render all lines
 		t.SetViewportHeight(0) // 0 means render all
 		height = totalLines
 
-		if os.Getenv("TUI_LAYOUT_DEBUG") == "true" {
-			log.UILogger.Debug("[TreeView.Measure] No bounded height, rendering all %d lines\n", totalLines)
-		}
+		log.LayoutLogger.Debug("[TreeView.Measure] No bounded height, rendering all %d lines", totalLines)
 	}
 
 	return runtime.Size{Width: width, Height: height}
