@@ -184,8 +184,8 @@ var (
 	// RenderLogger logs render-related messages (enabled via TUI_DEBUG_RENDER)
 	RenderLogger = NewLogger("Render", "RENDER")
 
-	// KeyLogger logs key event messages (enabled via TUI_DEBUG_KEYS)
-	KeyLogger = NewLogger("KeyEvent", "KEYS")
+	// KeyLogger logs key event messages (enabled via TUI_DEBUG_KEY)
+	KeyLogger = NewLogger("KeyEvent", "KEY")
 
 	// EventLogger logs event-related messages (enabled via TUI_DEBUG_EVENTS)
 	EventLogger = NewLogger("Event", "EVENTS")
@@ -211,26 +211,32 @@ var (
 	// HitMapLogger logs hit map debugging messages (enabled via TUI_DEBUG_HITMAP)
 	HitMapLogger = NewLogger("HitMap", "HITMAP")
 
-	// BorderLogger logs border debugging messages (enabled via TUI_BORDER_DEBUG)
-	BorderLogger = NewLoggerWithEnv("Border", "BORDER", "TUI_BORDER_DEBUG")
+	// BorderLogger logs border debugging messages (enabled via TUI_DEBUG_BORDER)
+	BorderLogger = NewLogger("Border", "BORDER")
 
-	// PipelineLogger logs pipeline debugging messages (enabled via TUI_PIPELINE_DEBUG)
-	PipelineLogger = NewLoggerWithEnv("Pipeline", "PIPELINE", "TUI_PIPELINE_DEBUG")
+	// PipelineLogger logs pipeline debugging messages (enabled via TUI_DEBUG_PIPELINE)
+	PipelineLogger = NewLogger("Pipeline", "PIPELINE")
 
-	// PaintLogger logs paint debugging messages (enabled via TUI_PAINT_DEBUG)
-	PaintLogger = NewLoggerWithEnv("Paint", "PAINT", "TUI_PAINT_DEBUG")
+	// PaintLogger logs paint debugging messages (enabled via TUI_DEBUG_PAINT)
+	PaintLogger = NewLogger("Paint", "PAINT")
 
-	// WrapLogger logs wrap layout debugging messages (enabled via TUI_WRAP_DEBUG)
-	WrapLogger = NewLoggerWithEnv("Wrap", "WRAP", "TUI_WRAP_DEBUG")
+	// WrapLogger logs wrap layout debugging messages (enabled via TUI_DEBUG_WRAP)
+	WrapLogger = NewLogger("Wrap", "WRAP")
 
 	// PumpLogger logs pump debugging messages (enabled via TUI_DEBUG_PUMP)
 	PumpLogger = NewLogger("Pump", "PUMP")
 
-	// FormLogger logs form debugging messages (enabled via TUI_FORM_DEBUG)
-	FormLogger = NewLoggerWithEnv("Form", "FORM", "TUI_FORM_DEBUG")
+	// FormLogger logs form debugging messages (enabled via TUI_DEBUG_FORM)
+	FormLogger = NewLogger("Form", "FORM")
 
-	// CursorLogger logs cursor debugging messages (enabled via TUI_CURSOR_DEBUG)
-	CursorLogger = NewLoggerWithEnv("Cursor", "CURSOR", "TUI_CURSOR_DEBUG")
+	// CursorLogger logs cursor debugging messages (enabled via TUI_DEBUG_CURSOR)
+	CursorLogger = NewLogger("Cursor", "CURSOR")
+
+	// InputLogger logs text input debugging messages (enabled via TUI_DEBUG_INPUT)
+	InputLogger = NewLogger("Input", "INPUT")
+
+	// RenderingLogger logs rendering debugging messages (enabled via TUI_DEBUG_RENDERING)
+	RenderingLogger = NewLogger("Rendering", "RENDERING")
 )
 
 // SetAllEnabled sets the enabled state for all global loggers
@@ -241,4 +247,6 @@ func SetAllEnabled(enabled bool) {
 	KeyLogger.SetEnabled(enabled)
 	UILogger.SetEnabled(enabled)
 	ButtonLogger.SetEnabled(enabled)
+	RenderingLogger.SetEnabled(enabled)
+	InputLogger.SetEnabled(enabled)
 }
