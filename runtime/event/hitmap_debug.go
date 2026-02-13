@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"strings"
+
+	"github.com/wwsheng009/mint/internal/log"
 )
 
 // DebugHitMap 提供 HitMap 调试和可视化功能
@@ -159,9 +161,9 @@ func (d *DebugHitMap) calculateBounds() (minX, minY, maxX, maxY int) {
 
 // EnableDebugOutput 启用 HitMap 调试输出
 //
-// 检查环境变量 TUI_DEBUG_HITMAP，如果设置为 "1" 则启用调试输出。
+// 检查 HitMapLogger 状态，启用调试输出。
 func (d *DebugHitMap) EnableDebugOutput() {
-	if os.Getenv("TUI_DEBUG_HITMAP") == "1" {
+	if log.HitMapLogger.Enabled() {
 		// 打印 HitMap 转储
 		fmt.Fprint(os.Stderr, d.Dump())
 		fmt.Fprint(os.Stderr, d.Visualize())

@@ -2,7 +2,6 @@
 package layer
 
 import (
-	"os"
 	"sort"
 
 	"github.com/wwsheng009/mint/internal/log"
@@ -176,7 +175,7 @@ func (m *Manager) layoutLayer(
 		layout.HitMap = m.buildHitMapFromComputedBox(layout.Root)
 
 		// DEBUG: Output modal position after centering
-		if os.Getenv("TUI_DEBUG_HITMAP") == "true" {
+		if log.HitMapLogger.Enabled() {
 			log.RenderLogger.Debug("[layoutLayer] Layer=%d, Root pos=(%d,%d) size=%dx%d, HitMap entries=%d",
 				layer, layout.Root.Box.X, layout.Root.Box.Y, layout.Root.Box.Width, layout.Root.Box.Height,
 				layout.HitMap.Size())
