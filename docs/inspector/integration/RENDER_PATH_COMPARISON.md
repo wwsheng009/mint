@@ -186,7 +186,7 @@ func (e *PaintEngine) PaintLayers(layouts LayerLayouts, buffer *paint.Buffer) er
     // ... existing code ...
 
     // 检查 buffer 内容
-    if os.Getenv("TUI_DEBUG_RENDERING") == "true" {
+    if os.Getenv("TUI_DEBUG_RENDER") == "true" {
         contentCount := 0
         for y := 0; y < buffer.Height; y++ {
             for x := 0; x < buffer.Width; x++ {

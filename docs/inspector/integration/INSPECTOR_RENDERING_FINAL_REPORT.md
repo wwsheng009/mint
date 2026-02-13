@@ -94,7 +94,7 @@ if err := adapter.GetPipeline().Render(n.root, 0, 0, buf); err != nil {
 func (n *DeclarativeNode) Paint(ctx *PaintContext) {
     // ... existing code ...
 
-    if os.Getenv("TUI_DEBUG_RENDERING") == "true" {
+    if os.Getenv("TUI_DEBUG_RENDER") == "true" {
         // 检查 buffer 是否有内容
         contentCount := 0
         for y := 0; y < buf.Height; y++ {

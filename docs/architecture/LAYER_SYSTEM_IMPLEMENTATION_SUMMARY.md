@@ -219,7 +219,7 @@ go build -o demo2.exe main.go
 ```bash
 # 启用调试输出
 export TUI_LAYER_DEBUG=true
-export TUI_DEBUG_RENDERING=true
+export TUI_DEBUG_RENDER=true
 
 # 运行 demo
 go run main.go

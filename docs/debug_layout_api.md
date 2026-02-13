@@ -273,7 +273,7 @@ func main() {
     // ... 原有代码 ...
 
     // 如果设置了 TUI_LAYOUT_DEBUG 环境变量，打印布局信息
-    if os.Getenv("TUI_LAYOUT_DEBUG") == "true" {
+    if os.Getenv("TUI_DEBUG_LAYOUT") == "true" {
         printLayoutInfo(RuntimeDemo)
     }
 

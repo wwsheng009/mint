@@ -249,7 +249,7 @@ func (si *StandaloneInspector) buildOverlayContent() rtui.VNode {
 
 ```bash
 # 查看完整渲染过程
-TUI_PAINT_DEBUG=true TUI_DEBUG_RENDERING=true ./demo2_inspector_inherit.exe
+TUI_PAINT_DEBUG=true TUI_DEBUG_RENDER=true ./demo2_inspector_inherit.exe
 ```
 
 ### 关键日志

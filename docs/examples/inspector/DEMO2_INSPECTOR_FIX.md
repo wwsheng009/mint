@@ -212,7 +212,7 @@ TUI_LAYER_DEBUG=true ./demo2_inspector.exe
 
 ```bash
 TUI_DEBUG=true TUI_DEBUG_UI=true TUI_DEBUG_INSPECTOR=true \
-TUI_LAYER_DEBUG=true TUI_DEBUG_RENDERING=true \
+TUI_LAYER_DEBUG=true TUI_DEBUG_RENDER=true \
 ./demo2_inspector.exe 2>&1 | tee demo2_debug.log
 ```
 
@@ -372,7 +372,7 @@ TUI_DEBUG=true TUI_DEBUG_INSPECTOR=true TUI_LAYER_DEBUG=true ./demo2_inspector.e
 | `TUI_DEBUG_UI=true` | UI 调试 |
 | `TUI_DEBUG_INSPECTOR=true` | Inspector 详细 |
 | `TUI_LAYER_DEBUG=true` | Layer 系统 |
-| `TUI_DEBUG_RENDERING=true` | 渲染流程 |
+| `TUI_DEBUG_RENDER=true` | 渲染流程 |
 
 ### 快捷键
 

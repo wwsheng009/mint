@@ -181,13 +181,13 @@ hasLayerNodes(appContent) 递归检查
 var err error
 if hasLayers {
     // TUI_INSPECTOR=true → hasLayers = true → 走这里
-    if r.debug || os.Getenv("TUI_DEBUG_RENDERING") == "true" {
+    if r.debug || os.Getenv("TUI_DEBUG_RENDER") == "true" {
         fmt.Fprintf(os.Stderr, "[PipelineRenderer] Using RenderLayers for multi-layer rendering\n")
     }
     err = r.pipeline.RenderLayers(vnode, constraints, buf)
 } else {
     // TUI_INSPECTOR=false → hasLayers = false → 走这里
-    if r.debug || os.Getenv("TUI_DEBUG_RENDERING") == "true" {
+    if r.debug || os.Getenv("TUI_DEBUG_RENDER") == "true" {
         fmt.Fprintf(os.Stderr, "[PipelineRenderer] Using standard Render\n")
     }
     err = r.pipeline.Render(vnode, constraints, buf)

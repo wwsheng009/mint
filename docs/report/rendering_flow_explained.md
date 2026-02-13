@@ -390,7 +390,7 @@ TUI_PAINT_DEBUG=true go run main.go
 ### 启用完整渲染流程调试
 
 ```bash
-TUI_DEBUG_RENDERING=true go run main.go
+TUI_DEBUG_RENDER=true go run main.go
 ```
 
 ### 常见调试命令

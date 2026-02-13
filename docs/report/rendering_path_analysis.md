@@ -198,7 +198,7 @@ Layout 阶段成功，但 Paint 阶段因某种原因失败或被跳过。
 
 ```bash
 cd examples/ui_demos/demo2_runtime_internals
-TUI_DEBUG_RENDERING=true go run .
+TUI_DEBUG_RENDER=true go run .
 ```
 
 ### 分步调试
@@ -214,7 +214,7 @@ TUI_LAYOUT_DEBUG=true
 TUI_PAINT_DEBUG=true
 
 # 全部
-TUI_DEBUG_RENDERING=true  # 推荐使用此选项
+TUI_DEBUG_RENDER=true  # 推荐使用此选项
 ```
 
 ---
@@ -269,7 +269,7 @@ TUI_DEBUG_RENDERING=true  # 推荐使用此选项
 
 1. **运行调试命令**
    ```bash
-   TUI_DEBUG_RENDERING=true go run examples/ui_demos/demo2_runtime_internals/main.go
+   TUI_DEBUG_RENDER=true go run examples/ui_demos/demo2_runtime_internals/main.go
    ```
 
 2. **分析日志输出**
@@ -329,4 +329,4 @@ if b.bounds[2] > 0 {
 - ✅ SetBounds 正确：被调用并传递 flex 宽度
 - ❓ Paint 未知：需要调试日志确认 Button.Paint() 是否被调用
 
-**下一步**: 运行 `TUI_DEBUG_RENDERING=true go run .` 并分析输出
+**下一步**: 运行 `TUI_DEBUG_RENDER=true go run .` 并分析输出

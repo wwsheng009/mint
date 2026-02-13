@@ -312,7 +312,7 @@ func myAppFunc() ui.VNode {
 ```bash
 # 启用 Layer 调试
 export TUI_LAYER_DEBUG=true
-export TUI_DEBUG_RENDERING=true
+export TUI_DEBUG_RENDER=true
 
 # 运行应用
 go run main.go

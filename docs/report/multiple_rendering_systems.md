@@ -284,7 +284,7 @@ if err := adapter.GetPipeline().Render(n.root, 0, 0, buf); err != nil {
 
 ```bash
 # 启用所有渲染调试
-TUI_DEBUG_RENDERING=true go run examples/ui_demos/demo2_runtime_internals/main.go
+TUI_DEBUG_RENDER=true go run examples/ui_demos/demo2_runtime_internals/main.go
 
 # 或分别启用
 TUI_PIPELINE_DEBUG=true
@@ -338,7 +338,7 @@ TUI_PAINT_DEBUG=true
 
 ```bash
 cd examples/ui_demos/demo2_runtime_internals
-TUI_DEBUG_RENDERING=true go run .
+TUI_DEBUG_RENDER=true go run .
 ```
 
 **根据输出判断**:

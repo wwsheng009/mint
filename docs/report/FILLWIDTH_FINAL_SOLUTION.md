@@ -194,22 +194,22 @@ LayoutNode.Paint() → setChildBounds() → SetBounds(natural width=14) ❌
    - 添加 bounds 检查，避免覆盖 flex 宽度
 
 2. **`internal/render/paint_engine.go`**
-   - 添加调试日志 `TUI_DEBUG_RENDERING`
+   - 添加调试日志 `TUI_DEBUG_RENDER`
 
 3. **`internal/render/declarative_node.go`**
-   - 添加调试日志 `TUI_DEBUG_RENDERING`
+   - 添加调试日志 `TUI_DEBUG_RENDER`
 
 4. **`internal/render/rendering_pipeline.go`**
-   - 添加调试日志 `TUI_DEBUG_RENDERING`
+   - 添加调试日志 `TUI_DEBUG_RENDER`
 
 5. **`internal/render/pipeline_renderer.go`**
-   - 添加调试日志 `TUI_DEBUG_RENDERING`
+   - 添加调试日志 `TUI_DEBUG_RENDER`
 
 ### 调试日志
 
 ```bash
 # 启用完整渲染调试
-TUI_DEBUG_RENDERING=true go run examples/ui_demos/demo2_runtime_internals/main.go
+TUI_DEBUG_RENDER=true go run examples/ui_demos/demo2_runtime_internals/main.go
 ```
 
 **关键日志**：
@@ -241,7 +241,7 @@ TUI_DEBUG_RENDERING=true go run examples/ui_demos/demo2_runtime_internals/main.g
 
 ```bash
 cd examples/ui_demos/demo2_runtime_internals
-TUI_DEBUG_RENDERING=true go run . 2>&1 | grep "Button.Paint"
+TUI_DEBUG_RENDER=true go run . 2>&1 | grep "Button.Paint"
 ```
 
 **预期输出**：
