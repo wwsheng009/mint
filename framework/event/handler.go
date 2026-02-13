@@ -115,7 +115,7 @@ func (k *KeyMap) Lookup(ev *KeyEvent) (EventHandler, bool) {
 	combo := k.buildComboString(ev.Key, ev.Modifiers)
 
 	// Debug output
-	if os.Getenv("TUI_DEBUG_UI") == "true" || os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
+	if os.Getenv("TUI_DEBUG_UI") == "true" || os.Getenv("TUI_DEBUG_INSPECTOR") == "true" {
 		log.UILogger.Debug("[KeyMap] Lookup: Rune=%c Name=%q Modifiers=%d Combo=%q",
 			ev.Key.Rune, ev.Key.Name, ev.Modifiers, combo)
 	}
@@ -123,7 +123,7 @@ func (k *KeyMap) Lookup(ev *KeyEvent) (EventHandler, bool) {
 	// Try combo with modifiers first (e.g., "alt+k", "ctrl+d")
 	if combo != "" {
 		if handler, ok := k.bindings[combo]; ok {
-			if os.Getenv("TUI_DEBUG_UI") == "true" || os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
+			if os.Getenv("TUI_DEBUG_UI") == "true" || os.Getenv("TUI_DEBUG_INSPECTOR") == "true" {
 				log.UILogger.Debug("[KeyMap] Found handler for combo '%s'", combo)
 			}
 			return handler, true

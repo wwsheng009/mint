@@ -22,8 +22,8 @@ import (
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/platform"
 	"github.com/wwsheng009/mint/runtime/render"
-	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/runtime/style"
+	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
 
 // AppState 应用状态
@@ -587,7 +587,7 @@ func (a *App) moveInspector(dx, dy int) {
 		inspectorObj.Move(dx, dy)
 		a.dirty = true // 触发重绘
 
-		if os.Getenv("TUI_DEBUG_UI") == "true" || os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
+		if os.Getenv("TUI_DEBUG_UI") == "true" || os.Getenv("TUI_DEBUG_INSPECTOR") == "true" {
 			x, y := inspectorObj.GetPosition()
 			log.UILogger.Debug("[APP] Inspector moved to (%d, %d)", x, y)
 		}
@@ -608,7 +608,7 @@ func (a *App) switchInspectorTab(tabNum int) {
 		if inspectorObj.HandleKeyEvent(key, false, false, false) {
 			a.dirty = true // 触发重绘
 
-			if os.Getenv("TUI_DEBUG_UI") == "true" || os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
+			if os.Getenv("TUI_DEBUG_UI") == "true" || os.Getenv("TUI_DEBUG_INSPECTOR") == "true" {
 				log.UILogger.Debug("[APP] Inspector switched to tab %d", tabNum)
 			}
 		}
@@ -1020,7 +1020,7 @@ func (a *App) handleEvent(ev frameworkevent.Event) {
 		// 首先检查快捷键映射
 		if keyEv, ok := ev.(*frameworkevent.KeyEvent); ok {
 			if handler, found := a.keyMap.Lookup(keyEv); found {
-				if os.Getenv("TUI_DEBUG_UI") == "true" || os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
+				if os.Getenv("TUI_DEBUG_UI") == "true" || os.Getenv("TUI_DEBUG_INSPECTOR") == "true" {
 					log.UILogger.Debug("[APP] KeyMap found handler for key '%s' (modifiers=%d)",
 						keyEv.Key.Name, keyEv.Modifiers)
 				}
@@ -1029,7 +1029,7 @@ func (a *App) handleEvent(ev frameworkevent.Event) {
 					return
 				}
 			} else {
-				if os.Getenv("TUI_DEBUG_UI") == "true" || os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
+				if os.Getenv("TUI_DEBUG_UI") == "true" || os.Getenv("TUI_DEBUG_INSPECTOR") == "true" {
 					log.UILogger.Debug("[APP] KeyMap: No handler found for key '%s' (modifiers=%d)",
 						keyEv.Key.Name, keyEv.Modifiers)
 				}
@@ -1056,7 +1056,7 @@ func (a *App) handleEvent(ev frameworkevent.Event) {
 					ctrl := keyEv.Key.Ctrl
 					shift := keyEv.Key.Shift
 
-					if os.Getenv("TUI_DEBUG_UI") == "true" || os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
+					if os.Getenv("TUI_DEBUG_UI") == "true" || os.Getenv("TUI_DEBUG_INSPECTOR") == "true" {
 						log.UILogger.Debug("[APP] Routing key '%s' to Inspector (visible=%v, alt=%v)",
 							keyName, a.isInspectorVisible(), alt)
 					}
@@ -1068,7 +1068,7 @@ func (a *App) handleEvent(ev frameworkevent.Event) {
 					// This ensures UI updates even when event propagates (handled=false)
 					a.dirty = true
 
-					if os.Getenv("TUI_DEBUG_UI") == "true" || os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
+					if os.Getenv("TUI_DEBUG_UI") == "true" || os.Getenv("TUI_DEBUG_INSPECTOR") == "true" {
 						log.UILogger.Debug("[APP] Inspector processed key '%s' (handled=%v)", keyName, handled)
 					}
 
@@ -1117,7 +1117,7 @@ func (a *App) handleEvent(ev frameworkevent.Event) {
 				HandleMouseEvent(frameworkevent.EventType, *frameworkevent.MouseEvent) bool
 			}); ok {
 				if mouseEv, ok := ev.(*frameworkevent.MouseEvent); ok {
-					if os.Getenv("TUI_DEBUG_UI") == "true" || os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
+					if os.Getenv("TUI_DEBUG_UI") == "true" || os.Getenv("TUI_DEBUG_INSPECTOR") == "true" {
 						log.UILogger.Debug("[APP] Routing mouse (%d,%d) to Inspector (type=%v)", mouseEv.X, mouseEv.Y, ev.Type())
 					}
 					handled := inspectorObj.HandleMouseEvent(ev.Type(), mouseEv)
@@ -1638,7 +1638,7 @@ func (a *App) Resize(width, height int) {
 			SetScreenSize(width, height int)
 		}); ok {
 			inspectorObj.SetScreenSize(width, height)
-			if os.Getenv("TUI_DEBUG_UI") == "true" || os.Getenv("TUI_INSPECTOR_VERBOSE") == "true" {
+			if os.Getenv("TUI_DEBUG_UI") == "true" || os.Getenv("TUI_DEBUG_INSPECTOR") == "true" {
 				log.UILogger.Debug("[APP] Inspector screen size updated to %dx%d", width, height)
 			}
 		}

@@ -267,7 +267,7 @@ func (m *Manager) positionInspector(node *LayerNode, root *compute.ComputedBox) 
 		return
 	}
 
-	debug := os.Getenv("TUI_LAYER_DEBUG") == "true" || os.Getenv("TUI_INSPECTOR_VERBOSE") == "true"
+	debug := os.Getenv("TUI_LAYER_DEBUG") == "true" || os.Getenv("TUI_DEBUG_INSPECTOR") == "true"
 
 	// Get the specified position from props
 	var targetX, targetY int
