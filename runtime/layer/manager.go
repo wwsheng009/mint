@@ -87,7 +87,8 @@ func (m *Manager) CollectAndLayout(
 				continue
 			}
 
-			layerLayout, err := m.layoutLayer(node, layer, constraints, engine)
+			// Phase 8: Pass fiber to layoutLayer for NodeID propagation
+			layerLayout, err := m.layoutLayer(node, layer, constraints, engine, fiber)
 			if err != nil {
 				return err
 			}
@@ -102,11 +103,13 @@ func (m *Manager) CollectAndLayout(
 }
 
 // layoutLayer performs layout for a single layer node
+// Phase 8: Added fiber parameter for NodeID propagation
 func (m *Manager) layoutLayer(
 	node *LayerNode,
 	layer rtui.Layer,
 	constraints runtime.BoxConstraints,
 	engine *compute.Engine,
+	fiber *reconciler.Fiber,
 ) (*compute.ComputedLayout, error) {
 	log.LayerLogger.Debug("[layoutLayer] Layer=%d, constraints.Max=%dx%d",
 		layer, constraints.MaxWidth, constraints.MaxHeight)
@@ -158,8 +161,8 @@ func (m *Manager) layoutLayer(
 	}
 
 	// Perform layout
-	// Phase 3: Pass nil for Fiber (non-Fiber mode, backward compatible)
-	layout, err := engine.Layout(node.Content, nil, layerConstraints)
+	// Phase 8: Pass Fiber for NodeID propagation to modal/overlay/tooltip layers
+	layout, err := engine.Layout(node.Content, fiber, layerConstraints)
 	if err != nil {
 		return nil, err
 	}

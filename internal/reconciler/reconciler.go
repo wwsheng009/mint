@@ -18,7 +18,6 @@ import (
 	"github.com/wwsheng009/mint/framework"
 	"github.com/wwsheng009/mint/framework/component"
 	"github.com/wwsheng009/mint/internal/log"
-	"github.com/wwsheng009/mint/internal/reconciler"
 	"github.com/wwsheng009/mint/internal/state"
 	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/paint"
@@ -321,7 +320,7 @@ func (r *Reconciler) CommitRoot() {
 	// Phase 8: Set Fiber on renderer for NodeID propagation before layout
 	// This ensures layout engine has access to Fiber tree for NodeID propagation
 	if r.renderer != nil {
-		if adapter, ok := r.renderer.(interface{ SetFiber(*reconciler.Fiber) }); ok {
+		if adapter, ok := r.renderer.(interface{ SetFiber(*Fiber) }); ok {
 			adapter.SetFiber(r.root)
 		}
 	}
@@ -1177,12 +1176,6 @@ var currentReconciler *Reconciler
 func (r *Reconciler) SetRenderer(renderer rtui.VNodeRenderer) {
 	r.renderer = renderer
 }
-
-// SetRenderer sets VNode renderer for SetFiber call
-func (r *Reconciler) SetRenderer(renderer rtui.VNodeRenderer) {
-	r.renderer = renderer
-}
-
 // GetCurrentReconciler returns the current reconciler
 func GetCurrentReconciler() *Reconciler {
 	return currentReconciler

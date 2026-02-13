@@ -150,8 +150,8 @@ func (r *PipelineRenderer) GetHooks() *render.HookManager {
 func (r *PipelineRenderer) Measure(vnode rtui.VNode, maxWidth, maxHeight int) (width, height int) {
 	// Use the compute engine to measure the VNode
 	constraints := runtime.NewBoxConstraints(0, maxWidth, 0, maxHeight)
-	// Phase 3: Pass nil for Fiber (non-Fiber mode, backward compatible)
-	layout, err := r.pipeline.GetLayoutEngine().Layout(vnode, nil, constraints)
+	// Phase 8: Pass r.fiber for NodeID propagation
+	layout, err := r.pipeline.GetLayoutEngine().Layout(vnode, r.fiber, constraints)
 	if err != nil {
 		if r.debug {
 			log.RenderLogger.Debug("Layout failed: %v\n", err)

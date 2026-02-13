@@ -100,9 +100,9 @@ func (p *RenderingPipeline) renderLegacy(vnode rtui.VNode, x, y int, buffer *pai
 
 // ComputeLayout performs only the layout phase, returning computed positions
 // This can be useful for hit testing and other operations that need layout info without rendering
-func (p *RenderingPipeline) ComputeLayout(vnode rtui.VNode, constraints runtime.BoxConstraints) (*compute.ComputedLayout, error) {
-	// Phase 3: Pass nil for Fiber (non-Fiber mode, backward compatible)
-	return p.layoutEngine.Layout(vnode, nil, constraints)
+// Phase 8: Accept fiber parameter for NodeID propagation
+func (p *RenderingPipeline) ComputeLayout(vnode rtui.VNode, fiber *reconciler.Fiber, constraints runtime.BoxConstraints) (*compute.ComputedLayout, error) {
+	return p.layoutEngine.Layout(vnode, fiber, constraints)
 }
 
 // GetLayoutEngine returns the layout engine for direct access
@@ -277,10 +277,10 @@ func (p *RenderingPipeline) RenderLayers(
 
 // HasModalChecks returns whether the rendering pipeline detected any modal content
 // This can be used to determine if events should be blocked
-// Phase 8: Pass nil for Fiber (non-Fiber mode for modal check)
-func (p *RenderingPipeline) HasModalChecks(vnode rtui.VNode, constraints runtime.BoxConstraints) bool {
+// Phase 8: Accept fiber parameter for NodeID propagation consistency
+func (p *RenderingPipeline) HasModalChecks(vnode rtui.VNode, fiber *reconciler.Fiber, constraints runtime.BoxConstraints) bool {
 	layerMgr := layer.NewManager()
-	layerMgr.CollectAndLayout(vnode, nil, constraints, p.layoutEngine)
+	layerMgr.CollectAndLayout(vnode, fiber, constraints, p.layoutEngine)
 	return layerMgr.HasModal()
 }
 
