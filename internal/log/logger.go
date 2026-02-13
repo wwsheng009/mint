@@ -178,9 +178,6 @@ var (
 	// FocusLogger logs focus-related messages (enabled via TUI_DEBUG_FOCUS)
 	FocusLogger = NewLogger("FocusManager", "FOCUS")
 
-	// ReconcilerLogger logs reconciler-related messages (enabled via TUI_DEBUG_RECONCILER)
-	ReconcilerLogger = NewLogger("Reconciler", "RECONCILER")
-
 	// RenderLogger logs render-related messages (enabled via TUI_DEBUG_RENDER)
 	RenderLogger = NewLogger("Render", "RENDER")
 
@@ -204,6 +201,8 @@ var (
 	EngineLogger = NewLogger("Engine", "ENGINE")
 	// UILogger logs UI-related messages (enabled via TUI_DEBUG_UI)
 	UILogger = NewLogger("UI", "UI")
+
+	FiberLogger = NewLogger("Fiber", "FIBER")
 
 	// ButtonLogger logs button-specific messages (enabled via TUI_DEBUG_BUTTON)
 	ButtonLogger = NewLogger("Button", "BUTTON")
@@ -245,7 +244,7 @@ var (
 // SetAllEnabled sets the enabled state for all global loggers
 func SetAllEnabled(enabled bool) {
 	FocusLogger.SetEnabled(enabled)
-	ReconcilerLogger.SetEnabled(enabled)
+	FiberLogger.SetEnabled(enabled)
 	RenderLogger.SetEnabled(enabled)
 	KeyLogger.SetEnabled(enabled)
 	UILogger.SetEnabled(enabled)

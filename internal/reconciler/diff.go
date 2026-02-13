@@ -8,6 +8,7 @@ package reconciler
 // =============================================================================
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/wwsheng009/mint/internal/log"
@@ -275,7 +276,15 @@ func createChildFiberWithIndex(returnFiber *Fiber, vnode rtui.VNode, lanes Lane,
 
 	// ✨ Special case: If parent is the root ComponentVNode (Key="root"),
 	// this child is the actual app content and should get a layer-based path
+	// FIX: Also check if vnode itself is a layer root node (modal, overlay, tooltip, inspector)
+	// This ensures layer nodes get layer-based paths even when they're nested
 	isRootChild := returnFiber != nil && returnFiber.Key == "root" && returnFiber.Path == "/root"
+	isLayerNode := vnode.GetLayer() != rtui.LayerBase && vnode.GetLayer().IsValid()
+	useLayerBasedPath := isRootChild || isLayerNode
+	
+	if !isLayerNode{
+		fmt.Printf("layer s%\n", vnode.GetLayer().String())
+	}
 
 	if userKey != "" {
 		// Priority 1: User provided a key
@@ -288,8 +297,9 @@ func createChildFiberWithIndex(returnFiber *Fiber, vnode rtui.VNode, lanes Lane,
 		}
 		// Generate base path with type
 		var typePath string
-		if isRootChild {
-			// Root's child gets layer-based path (e.g., /root/base[0])
+		if useLayerBasedPath {
+			// Layer root nodes get layer-based path (e.g., /root/modal[0])
+			// This is for the modal/tooltip/overlay itself, NOT its children
 			typePath = pathGenerator.generateRootPath(vnode)
 		} else {
 			typePath = pathGenerator.GeneratePath(returnFiber, vnode, siblingIndex)
@@ -308,8 +318,9 @@ func createChildFiberWithIndex(returnFiber *Fiber, vnode rtui.VNode, lanes Lane,
 			pathGenerator = NewPathGenerator()
 		}
 		// Use provided typeIndex if available, otherwise auto-calculate
-		if isRootChild {
-			// Root's child gets layer-based path (e.g., /root/base[0])
+		if useLayerBasedPath {
+			// Layer root nodes get layer-based path (e.g., /root/modal[0])
+			// This is for the modal/tooltip/overlay itself, NOT its children
 			fiber.Path = pathGenerator.generateRootPath(vnode)
 		} else if typeIndex >= 0 {
 			fiber.Path = pathGenerator.GeneratePathWithIndex(returnFiber, vnode, siblingIndex, typeIndex)
@@ -353,10 +364,14 @@ func cloneExistingFiber(returnFiber *Fiber, current *Fiber, vnode rtui.VNode, si
 		// Keep original path and key (critical for Instance reuse)
 		fiber.Path = current.Path
 		fiber.Key = current.Key
-		// ✨ Sync path to VNode so Inspector can access it
-		// This works for both auto-generated path keys and user keys with paths
-		if current.Path != "" && strings.HasPrefix(current.Path, "/root/") {
+		// ✨ Sync path to VNode so Inspector and HitMap can access it
+		// This ensures HitMap NodeID matches Instance key for event routing
+		// FIX: Remove "/root/" prefix restriction to sync all paths
+		if current.Path != "" {
 			vnode.SetKey(current.Path)
+		} else if current.Key != "" {
+			// Fallback: use Key if Path is empty
+			vnode.SetKey(current.Key)
 		}
 	}
 	fiber.PathSegment = current.PathSegment
@@ -387,7 +402,7 @@ func markForDeletion(fiber *Fiber) {
 	}
 
 	// Debug logging
-	if log.ReconcilerLogger.Enabled() {
+	if log.FiberLogger.Enabled() {
 		log.UILogger.Debug("[markForDeletion] Marking key=%q, current flags=%d\n",
 			fiber.Key, fiber.Flags)
 	}

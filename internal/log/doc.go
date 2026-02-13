@@ -34,7 +34,7 @@
 //
 //	// Use domain-specific loggers
 //	log.FocusLogger.Debug("Focus moved to index %d", index)
-//	log.ReconcilerLogger.Debug("Starting reconciliation")
+//	log.FiberLogger.Debug("Starting reconciliation")
 //	log.RenderLogger.Info("Render completed in %dms", duration)
 //
 //	// Close log file on application exit
@@ -74,7 +74,7 @@
 // The package provides pre-configured loggers for different domains:
 //
 //	log.FocusLogger      - Focus management events
-//	log.ReconcilerLogger - Reconciler operations
+//	log.FiberLogger - Reconciler operations
 //	log.RenderLogger     - Rendering operations
 //	log.KeyLogger        - Keyboard events
 //	log.EventLogger      - Event system events

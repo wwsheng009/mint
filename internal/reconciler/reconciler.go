@@ -38,24 +38,24 @@ type Reconciler struct {
 	timeBudget time.Duration // Time slice budget per frame
 
 	// === Integration ===
-	app                 *framework.App           // Framework app
+	app                 *framework.App                 // Framework app
 	instanceMgr         *state.InstanceManager         // Component instance manager
 	interactionStateMgr *state.InteractionStateManager // Interaction state (hover/focus/etc)
 	keyValidator        *state.KeyValidator            // Key validation
 	rootComponent       rtui.ComponentFunc             // Root component function
 	ctx                 *rtui.ComponentContext         // Root component context
-	focusMgr            *rtui.VNodeFocusManager         // Focus manager for keyboard navigation
+	focusMgr            *rtui.VNodeFocusManager        // Focus manager for keyboard navigation
 
 	// === Render State ===
 	buffer         *paint.Buffer // Render target
 	paintCtx       component.PaintContext
 	renderCallback RenderFunc // Callback for rendering VNodes
-	renderedRoot   rtui.VNode  // The rendered VNode tree (for focus management, etc.)
+	renderedRoot   rtui.VNode // The rendered VNode tree (for focus management, etc.)
 
 	// === Layout Integration ===
-	vnodeConverter *VNodeConverter         // VNode → runtime.LayoutNode converter
-	layoutRoot     *runtime.LayoutNode    // Root of the layout tree
-	layoutBoxes    []runtime.LayoutBox     // Layout boxes for hit testing
+	vnodeConverter *VNodeConverter     // VNode → runtime.LayoutNode converter
+	layoutRoot     *runtime.LayoutNode // Root of the layout tree
+	layoutBoxes    []runtime.LayoutBox // Layout boxes for hit testing
 
 	// === Path Generation ===
 	pathGenerator *PathGenerator // Automatic path key generator for static UI
@@ -102,16 +102,11 @@ func (r *Reconciler) Render(ctx component.PaintContext, buffer *paint.Buffer, re
 	// Note: renderFunc returns ui.VNode (VNode interface is from ui package)
 	// This is correct as VNode implementations are in ui package
 	if !r.enableFiber {
-		if log.HitMapLogger.Enabled() {
-			log.UILogger.Debug("[Reconciler.Render] ⚠️  Fiber NOT enabled! enableFiber=%v", r.enableFiber)
-		}
+		log.FiberLogger.Debug("[Reconciler.Render] ⚠️  Fiber NOT enabled! enableFiber=%v", r.enableFiber)
 		return // Fiber not enabled, use legacy rendering
 	}
 
-	if log.HitMapLogger.Enabled() {
-		log.UILogger.Debug("[Reconciler.Render] ✅ Fiber enabled, starting render...")
-	}
-
+	log.FiberLogger.Debug("[Reconciler.Render] ✅ Fiber enabled, starting render...")
 	r.buffer = buffer
 	r.paintCtx = ctx
 
@@ -178,7 +173,7 @@ func (r *Reconciler) prepareFreshStack(renderFunc func() rtui.VNode) {
 func (r *Reconciler) workLoopSync() {
 	if r.workInProgress == nil {
 		if log.HitMapLogger.Enabled() {
-			log.UILogger.Debug("[workLoopSync] ⚠️  workInProgress is nil!")
+			log.FiberLogger.Debug("[workLoopSync] ⚠️  workInProgress is nil!")
 		}
 		return
 	}
@@ -192,7 +187,7 @@ func (r *Reconciler) workLoopSync() {
 	pathGenerator = r.pathGenerator
 
 	if os.Getenv("TUI_DEBUG_HITMAP") == "true" {
-		log.UILogger.Debug("[workLoopSync] Starting work loop...")
+		log.FiberLogger.Debug("[workLoopSync] Starting work loop...")
 	}
 
 	// Process all work units using correct Fiber traversal
@@ -225,7 +220,7 @@ func (r *Reconciler) performUnitOfWork(unitOfWork *Fiber) {
 		case rtui.VNodeFragment:
 			typeName = "VNodeFragment"
 		}
-		log.UILogger.Debug("[performUnitOfWork] Processing: Type=%d(%s), Key=%q, Tag=%q, hasChild=%v",
+		log.FiberLogger.Debug("[performUnitOfWork] Processing: Type=%d(%s), Key=%q, Tag=%q, hasChild=%v",
 			unitOfWork.Type, typeName, unitOfWork.Key, unitOfWork.Tag, unitOfWork.Child != nil)
 	}
 
@@ -233,7 +228,7 @@ func (r *Reconciler) performUnitOfWork(unitOfWork *Fiber) {
 	next := BeginWork(unitOfWork.Alternate, unitOfWork)
 
 	if os.Getenv("TUI_DEBUG_HITMAP") == "true" && next != nil {
-		log.UILogger.Debug("[performUnitOfWork] After BeginWork: next.Child=%v, next.Sibling=%v",
+		log.FiberLogger.Debug("[performUnitOfWork] After BeginWork: next.Child=%v, next.Sibling=%v",
 			next.Child != nil, next.Sibling != nil)
 	}
 
@@ -477,7 +472,7 @@ func (r *Reconciler) renderFiber(fiber *Fiber, x, y int, buffer *paint.Buffer) {
 
 	// Skip ComponentVNode - its children are already expanded in the Fiber tree
 	// The renderCallback should only be called for rendered nodes, not component definitions
-	if fiber.VNode.Type() == 	rtui.VNodeComponent {
+	if fiber.VNode.Type() == rtui.VNodeComponent {
 		return
 	}
 
@@ -551,6 +546,7 @@ func (r *Reconciler) measureFiberHeight(fiber *Fiber) int {
 
 // RenderFunc is a function to render a VNode to the buffer
 type RenderFunc func(vnode rtui.VNode, x, y int, buffer *paint.Buffer)
+
 // Note: vnode is ui.VNode - VNode interface and implementations are from ui package
 
 // SetRenderCallback sets the render callback
@@ -1000,7 +996,7 @@ func (r *Reconciler) commitDeletions(fiber *Fiber) {
 	// Collect all fibers marked for deletion
 	deletedFibers := r.collectDeletedFibers(fiber)
 
-	log.ReconcilerLogger.Debug("commitDeletions found %d fibers to delete", len(deletedFibers))
+	log.FiberLogger.Debug("commitDeletions found %d fibers to delete", len(deletedFibers))
 
 	// Process each deleted fiber
 	for _, deleted := range deletedFibers {
@@ -1027,7 +1023,7 @@ func (r *Reconciler) collectDeletedFibers(fiber *Fiber) []*Fiber {
 		result = append(result, childDeletions...)
 	}
 
-	log.ReconcilerLogger.Debug("collectDeletedFibers found %d fibers to delete", len(result))
+	log.FiberLogger.Debug("collectDeletedFibers found %d fibers to delete", len(result))
 
 	return result
 }

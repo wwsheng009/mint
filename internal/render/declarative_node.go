@@ -29,20 +29,20 @@ import (
 
 // DeclarativeNode wraps a VNode function for use as a framework Component
 type DeclarativeNode struct {
-	mu        sync.RWMutex
-	root      rtui.VNode            // The root VNode of this tree
-	renderFn  rtui.ComponentFunc     // Function that renders the VNode
-	instance  *rtui.ComponentContext // Component instance for hooks
-	focusMgr  *rtui.VNodeFocusManager // Focus manager for keyboard navigation
+	mu       sync.RWMutex
+	root     rtui.VNode              // The root VNode of this tree
+	renderFn rtui.ComponentFunc      // Function that renders the VNode
+	instance *rtui.ComponentContext  // Component instance for hooks
+	focusMgr *rtui.VNodeFocusManager // Focus manager for keyboard navigation
 
 	// Framework integration
-	fwApp     *framework.App         // Framework app (for triggering re-renders in non-Fiber mode)
-	reconciler rtui.Reconciler       // Fiber reconciler (if enabled) - use interface to avoid import cycle
-	renderer   rtui.VNodeRenderer    // VNode renderer (implements VNodeRenderer interface)
-	useFiber   bool                // Whether Fiber mode is enabled
+	fwApp      *framework.App     // Framework app (for triggering re-renders in non-Fiber mode)
+	reconciler rtui.Reconciler    // Fiber reconciler (if enabled) - use interface to avoid import cycle
+	renderer   rtui.VNodeRenderer // VNode renderer (implements VNodeRenderer interface)
+	useFiber   bool               // Whether Fiber mode is enabled
 
 	// Layer Manager for modal/overlay/tooltip support
-	layerMgr  *layer.Manager        // Layer manager for handling layered VNodes (modals, etc.)
+	layerMgr *layer.Manager // Layer manager for handling layered VNodes (modals, etc.)
 }
 
 // NewDeclarativeNode creates a new declarative node from a VNode
@@ -62,14 +62,14 @@ func NewDeclarativeNodeFromFunc(fn rtui.ComponentFunc) *DeclarativeNode {
 		renderFn: fn,
 		instance: rtui.NewComponentContextForRoot(),
 		focusMgr: rtui.NewVNodeFocusManager(),
-		fwApp:    nil, // Will be set by SetFrameworkApp
+		fwApp:    nil,   // Will be set by SetFrameworkApp
 		useFiber: false, // Default to non-Fiber mode
 	}
 	// Use the new PipelineRenderer with Layout/Paint separation by default
 	// This provides constraint-driven layout, caching, and better architecture
 	node.renderer = NewPipelineRendererAdapter()
-	if log.UILogger.Enabled() {
-		log.UILogger.Debug("[DeclarativeNode] Using new PipelineRenderer (Layout/Paint separation)\n")
+	if log.RenderLogger.Enabled() {
+		log.RenderLogger.Debug("[DeclarativeNode] Using new PipelineRenderer (Layout/Paint separation)\n")
 	}
 
 	// LEGACY RENDERER (commented out - kept for reference only)
@@ -77,7 +77,7 @@ func NewDeclarativeNodeFromFunc(fn rtui.ComponentFunc) *DeclarativeNode {
 	// if os.Getenv("MINT_USE_LEGACY_RENDERER") == "true" {
 	// 	node.renderer = NewNonFiberRenderer(node)
 	// 	if os.Getenv("TUI_DEBUG_UI") == "true" {
-	// 		log.UILogger.Debug("[DeclarativeNode] Using LEGACY renderer\n")
+	// 		log.RenderLogger.Debug("[DeclarativeNode] Using LEGACY renderer\n")
 	// 	}
 	// }
 
@@ -117,13 +117,13 @@ func NewDeclarativeNodeFromFuncWithFiber(fn rtui.ComponentFunc, fwApp *framework
 	renderer := NewPipelineRendererAdapter()
 
 	return &DeclarativeNode{
-		renderFn:  fn,
-		instance:  rtui.NewComponentContextForRoot(),
-		focusMgr:  focusMgr,
-		fwApp:     fwApp,
+		renderFn:   fn,
+		instance:   rtui.NewComponentContextForRoot(),
+		focusMgr:   focusMgr,
+		fwApp:      fwApp,
 		reconciler: r,
 		renderer:   renderer,
-		useFiber:  true,
+		useFiber:   true,
 	}
 }
 
@@ -227,7 +227,7 @@ func (n *DeclarativeNode) Paint(ctx component.PaintContext, buf *paint.Buffer) {
 
 	// Debug logging
 	if os.Getenv("TUI_DEBUG_UI") == "true" || os.Getenv("TUI_DEBUG_HITMAP") == "true" {
-		log.UILogger.Debug("DeclarativeNode.Paint: ctx.X=%d, ctx.Y=%d, buf=%dx%d, useFiber=%v",
+		log.RenderLogger.Debug("DeclarativeNode.Paint: ctx.X=%d, ctx.Y=%d, buf=%dx%d, useFiber=%v",
 			ctx.Bounds.X, ctx.Bounds.Y, buf.Width, buf.Height, n.useFiber)
 	}
 
@@ -236,14 +236,14 @@ func (n *DeclarativeNode) Paint(ctx component.PaintContext, buf *paint.Buffer) {
 		// Fiber mode: just call render function directly for now
 		// The reconciler's state management still happens through hooks
 		if os.Getenv("TUI_DEBUG_UI") == "true" || os.Getenv("TUI_DEBUG_HITMAP") == "true" {
-			log.UILogger.Debug("[DeclarativeNode.Paint] ✅ Calling renderWithFiberContext (useFiber=%v, reconciler=%v)",
+			log.RenderLogger.Debug("[DeclarativeNode.Paint] ✅ Calling renderWithFiberContext (useFiber=%v, reconciler=%v)",
 				n.useFiber, n.reconciler != nil)
 		}
 		n.root = n.renderWithFiberContext()
 	} else {
 		// Non-Fiber mode
 		if os.Getenv("TUI_DEBUG_UI") == "true" || os.Getenv("TUI_DEBUG_HITMAP") == "true" {
-			log.UILogger.Debug("[DeclarativeNode.Paint] ⚠️  Using nonFiberRender (useFiber=%v, reconciler=%v)",
+			log.RenderLogger.Debug("[DeclarativeNode.Paint] ⚠️  Using nonFiberRender (useFiber=%v, reconciler=%v)",
 				n.useFiber, n.reconciler != nil)
 		}
 		n.root = n.nonFiberRender()
@@ -251,7 +251,7 @@ func (n *DeclarativeNode) Paint(ctx component.PaintContext, buf *paint.Buffer) {
 
 	if n.root == nil {
 		if os.Getenv("TUI_DEBUG_UI") == "true" {
-			log.UILogger.Debug("DeclarativeNode.Paint: root is nil, returning\n")
+			log.RenderLogger.Debug("DeclarativeNode.Paint: root is nil, returning\n")
 		}
 		return
 	}
@@ -260,11 +260,9 @@ func (n *DeclarativeNode) Paint(ctx component.PaintContext, buf *paint.Buffer) {
 	n.applyFocusState()
 
 	// Phase 3: UNIFIED RENDERING - use PipelineRenderer with constraint-based layout
-	if os.Getenv("TUI_DEBUG_RENDER") == "true" {
-		log.UILogger.Debug("[DeclarativeNode.Paint] n.renderer = %v\n", n.renderer)
-		if n.renderer != nil {
-			log.UILogger.Debug("[DeclarativeNode.Paint] renderer type = %T\n", n.renderer)
-		}
+	log.RenderLogger.Debug("[DeclarativeNode.Paint] n.renderer = %v\n", n.renderer)
+	if n.renderer != nil {
+		log.RenderLogger.Debug("[DeclarativeNode.Paint] renderer type = %T\n", n.renderer)
 	}
 
 	if n.renderer != nil {
@@ -272,11 +270,10 @@ func (n *DeclarativeNode) Paint(ctx component.PaintContext, buf *paint.Buffer) {
 		// The PaintContext.AvailableWidth/Height contains the user's configured layout size
 		// while the buffer size may be larger (actual terminal size)
 		if adapter, ok := n.renderer.(*PipelineRendererAdapter); ok {
-			if os.Getenv("TUI_DEBUG_RENDER") == "true" {
-				log.UILogger.Debug("[DeclarativeNode.Paint] ✅ Using PipelineRendererAdapter\n")
-				log.UILogger.Debug("[DeclarativeNode.Paint] Layout constraints: %dx%d (buffer: %dx%d)\n",
-					ctx.AvailableWidth, ctx.AvailableHeight, buf.Width, buf.Height)
-			}
+			log.RenderLogger.Debug("[DeclarativeNode.Paint] ✅ Using PipelineRendererAdapter\n")
+			log.RenderLogger.Debug("[DeclarativeNode.Paint] Layout constraints: %dx%d (buffer: %dx%d)\n",
+				ctx.AvailableWidth, ctx.AvailableHeight, buf.Width, buf.Height)
+
 			// Call RenderWithConstraints which will:
 			// 1. Use PaintContext dimensions as BoxConstraints (user's configured layout size)
 			// 2. Detect layer nodes and call RenderLayers() if needed
@@ -284,46 +281,41 @@ func (n *DeclarativeNode) Paint(ctx component.PaintContext, buf *paint.Buffer) {
 			pipeline := adapter.GetPipeline()
 			if err := pipeline.RenderWithConstraints(n.root, ctx.AvailableWidth, ctx.AvailableHeight, buf); err != nil {
 				// Fallback to legacy rendering if pipeline fails
-				log.UILogger.Debug("[DeclarativeNode.Paint] ❌ Pipeline render FAILED: %v, falling back to legacy\n", err)
+				log.RenderLogger.Debug("[DeclarativeNode.Paint] ❌ Pipeline render FAILED: %v, falling back to legacy\n", err)
 				n.PaintVNode(n.root, ctx.Bounds.X, ctx.Bounds.Y, buf)
 			} else {
-				if os.Getenv("TUI_DEBUG_RENDER") == "true" {
-					log.UILogger.Debug("[DeclarativeNode.Paint] ✅ Pipeline render SUCCESS\n")
-				}
+				log.RenderLogger.Debug("[DeclarativeNode.Paint] ✅ Pipeline render SUCCESS\n")
+
 				// After rendering, capture the layer manager from the pipeline for event handling
 				// The layer manager is set during RenderLayers and contains modal nodes
 				n.layerMgr = pipeline.GetPipeline().GetLayerMgr()
-				if os.Getenv("TUI_DEBUG_UI") == "true" {
+				if log.RenderLogger.Enabled() {
 					if n.layerMgr != nil {
 						modalNodes := n.layerMgr.GetModalNodes()
-						log.UILogger.Debug("[DeclarativeNode.Paint] Set layerMgr from pipeline with %d modal nodes", len(modalNodes))
+						log.RenderLogger.Debug("[DeclarativeNode.Paint] Set layerMgr from pipeline with %d modal nodes", len(modalNodes))
 					} else {
-						log.UILogger.Debug("[DeclarativeNode.Paint] layerMgr is nil after render")
+						log.RenderLogger.Debug("[DeclarativeNode.Paint] layerMgr is nil after render")
 					}
 				}
-
 				// NOTE: Inspector attachment is now handled by application layer
 				// The demo calls inspector.AttachToApp() after reconciliation completes
 				// This avoids circular dependency between render and framework packages
 			}
 		} else {
 			// Use the generic renderer interface (old path)
-			if os.Getenv("TUI_DEBUG_RENDER") == "true" {
-				log.UILogger.Debug("[DeclarativeNode.Paint] ⚠️ Using generic renderer interface (old path)\n")
-			}
+			log.RenderLogger.Debug("[DeclarativeNode.Paint] ⚠️ Using generic renderer interface (old path)\n")
+
 			n.renderer.Render(n.root, ctx.Bounds.X, ctx.Bounds.Y, buf)
 		}
 	} else {
 		// Fallback to legacy painting
-		if os.Getenv("TUI_DEBUG_RENDER") == "true" {
-			log.UILogger.Debug("[DeclarativeNode.Paint] ⚠️ No renderer, using legacy PaintVNode\n")
-		}
+		log.RenderLogger.Debug("[DeclarativeNode.Paint] ⚠️ No renderer, using legacy PaintVNode\n")
+
 		n.PaintVNode(n.root, ctx.Bounds.X, ctx.Bounds.Y, buf)
 	}
 
-	if os.Getenv("TUI_DEBUG_UI") == "true" {
-		log.UILogger.Debug("DeclarativeNode.Paint: painting complete")
-	}
+	log.RenderLogger.Debug("DeclarativeNode.Paint: painting complete")
+
 }
 
 // renderWithFiberContext renders the VNode tree with Fiber hook context
@@ -333,9 +325,7 @@ func (n *DeclarativeNode) renderWithFiberContext() rtui.VNode {
 		return n.root
 	}
 
-	if os.Getenv("TUI_DEBUG_HITMAP") == "true" {
-		log.UILogger.Debug("[renderWithFiberContext] reconciler=%v", n.reconciler != nil)
-	}
+	log.RenderLogger.Debug("[renderWithFiberContext] reconciler=%v", n.reconciler != nil)
 
 	// The reconciler manages hook context through its render cycle
 	// We capture the VNode tree during the render to avoid calling renderFn twice
@@ -395,15 +385,13 @@ func (n *DeclarativeNode) applyFocusState() {
 	if hasModal {
 		// Focus trap: only collect focusable elements from modal layer
 		focusable = rtui.CollectFocusableInLayer(n.root, rtui.LayerModal)
-		if os.Getenv("TUI_DEBUG_UI") == "true" {
-			log.UILogger.Debug("DeclarativeNode.Paint: modal detected, collected %d modal focusable nodes", len(focusable))
-		}
+		log.RenderLogger.Debug("DeclarativeNode.Paint: modal detected, collected %d modal focusable nodes", len(focusable))
+
 	} else {
 		// No modal: collect all focusable elements
 		focusable = rtui.CollectFocusable(n.root)
-		if os.Getenv("TUI_DEBUG_UI") == "true" {
-			log.UILogger.Debug("DeclarativeNode.Paint: no modal, collected %d focusable nodes", len(focusable))
-		}
+		log.RenderLogger.Debug("DeclarativeNode.Paint: no modal, collected %d focusable nodes", len(focusable))
+
 	}
 
 	n.focusMgr.UpdateFocusableList(focusable)
@@ -436,10 +424,8 @@ func (n *DeclarativeNode) PaintVNode(vnode rtui.VNode, x, y int, buf *paint.Buff
 	}
 
 	// Debug logging
-	if os.Getenv("TUI_DEBUG_UI") == "true" {
-		log.UILogger.Debug("[PaintVNode] vnode type=%d (%s), x=%d, y=%d, actual type=%T\n",
-			vnode.Type(), vnode.Type(), x, y, vnode)
-	}
+	log.RenderLogger.Debug("[PaintVNode] vnode type=%d (%s), x=%d, y=%d, actual type=%T\n",
+		vnode.Type(), vnode.Type(), x, y, vnode)
 
 	// Set component bounds for mouse hit testing
 	// Check if vnode implements SetBounds method
@@ -448,18 +434,18 @@ func (n *DeclarativeNode) PaintVNode(vnode rtui.VNode, x, y int, buf *paint.Buff
 		width := n.MeasureVNodeWidth(vnode)
 		height := n.MeasureVNodeHeight(vnode)
 		boundsSetter.SetBounds(x, y, width, height)
-		if os.Getenv("TUI_DEBUG_UI") == "true" {
-			log.UILogger.Debug("[PaintVNode] SetBounds: x=%d, y=%d, width=%d, height=%d, type=%T",
-				x, y, width, height, vnode)
-		}
+		log.RenderLogger.Debug("[PaintVNode] SetBounds: x=%d, y=%d, width=%d, height=%d, type=%T",
+			x, y, width, height, vnode)
+
 	} else {
-		if os.Getenv("TUI_DEBUG_UI") == "true" {
-			log.UILogger.Debug("[PaintVNode] vnode does not implement SetBounds: type=%T", vnode)
-		}
+		log.RenderLogger.Debug("[PaintVNode] vnode does not implement SetBounds: type=%T", vnode)
+
 	}
 
 	// Check if vnode implements Paintable interface (custom rendering)
-	if paintable, ok := vnode.(interface{ Paint(int, int) []paint.DrawCmd }); ok {
+	if paintable, ok := vnode.(interface {
+		Paint(int, int) []paint.DrawCmd
+	}); ok {
 		// Component has custom paint logic - use it
 		commands := paintable.Paint(x, y)
 		for _, cmd := range commands {
@@ -518,7 +504,7 @@ func (n *DeclarativeNode) PaintVNode(vnode rtui.VNode, x, y int, buf *paint.Buff
 						if l, ok := child.(interface{ Tag() string }); ok {
 							label = fmt.Sprintf("tag=%s", l.Tag())
 						}
-						log.UILogger.Debug("[HSTACK] child %d (%s): x=%d, width=%d, nextX=%d\n",
+						log.RenderLogger.Debug("[HSTACK] child %d (%s): x=%d, width=%d, nextX=%d\n",
 							i, label, childX, childWidth, childX+childWidth+gap)
 					}
 					n.PaintVNode(child, childX, y, buf)
@@ -660,9 +646,9 @@ func (n *DeclarativeNode) paintBordered(vnode rtui.VNode, _ interface{ RenderBor
 		if l, ok := child.(interface{ GetBorderLabel() string }); ok && l.GetBorderLabel() != "" {
 			label = l.GetBorderLabel()
 		}
-		log.UILogger.Debug("[BORDER] %s: x=%d, y=%d, contentW=%d, contentH=%d, totalH=%d\n",
+		log.RenderLogger.Debug("[BORDER] %s: x=%d, y=%d, contentW=%d, contentH=%d, totalH=%d\n",
 			label, x, y, contentWidth, contentHeight, contentHeight+2)
-		log.UILogger.Debug("[BORDER] Left border should be at col %d, rows %d-%d\n",
+		log.RenderLogger.Debug("[BORDER] Left border should be at col %d, rows %d-%d\n",
 			x, y, y+contentHeight+1)
 	}
 
@@ -690,7 +676,7 @@ func (n *DeclarativeNode) paintBordered(vnode rtui.VNode, _ interface{ RenderBor
 		if log.BorderLogger.Enabled() {
 			// Log first few border cells for debugging
 			if ch == '┌' || (px == x && py == y) {
-				log.UILogger.Debug("[BORDER.Paint] cornerTL at (%d,%d): '%c'\n", px, py, ch)
+				log.RenderLogger.Debug("[BORDER.Paint] cornerTL at (%d,%d): '%c'\n", px, py, ch)
 			}
 		}
 		buf.SetCell(px, py, ch, s)
@@ -924,7 +910,7 @@ func (n *DeclarativeNode) applyFocus(focusable []rtui.FocusableVNode) {
 	for i, elem := range focusable {
 		if i == focusedIndex {
 			if os.Getenv("TUI_DEBUG_FOCUS") == "true" {
-				log.UILogger.Debug("[applyFocus] setting focus=true on index %d (%s)\n", i, elem.GetFocusID())
+				log.RenderLogger.Debug("[applyFocus] setting focus=true on index %d (%s)\n", i, elem.GetFocusID())
 			}
 			elem.SetFocus(true)
 		} else {
@@ -971,7 +957,7 @@ func (n *DeclarativeNode) expandComponents(vnode rtui.VNode) rtui.VNode {
 		}
 		// Create a clone with expanded children AND layer info
 		cloned := rtui.NewElement(v.Tag())
-		cloned.SetProps(vnode.Props().Clone())  // Clone to preserve _layer
+		cloned.SetProps(vnode.Props().Clone()) // Clone to preserve _layer
 		cloned.SetKey(vnode.Key())
 		cloned.SetStyle(vnode.Style())
 		cloned.SetChildren(expandedChildren)
@@ -1090,7 +1076,7 @@ func (n *DeclarativeNode) UpdateRoot(vnode rtui.VNode) {
 // HandleEvent processes events by distributing them to child components
 func (n *DeclarativeNode) HandleEvent(ev frameworkevent.Event) bool {
 	if os.Getenv("TUI_DEBUG_UI") == "true" {
-		log.UILogger.Debug("DeclarativeNode.HandleEvent: event type=%d", ev.Type())
+		log.RenderLogger.Debug("DeclarativeNode.HandleEvent: event type=%d", ev.Type())
 	}
 
 	n.mu.RLock()
@@ -1123,7 +1109,7 @@ func (n *DeclarativeNode) HandleEvent(ev frameworkevent.Event) bool {
 		handled, shouldRender := focusMgr.HandleEvent(ev)
 		if handled {
 			if os.Getenv("TUI_DEBUG_UI") == "true" {
-				log.UILogger.Debug("DeclarativeNode.HandleEvent: focus manager handled event, shouldRender=%v\n", shouldRender)
+				log.RenderLogger.Debug("DeclarativeNode.HandleEvent: focus manager handled event, shouldRender=%v\n", shouldRender)
 			}
 			// Request a re-render when focus changes
 			// In Fiber mode, use the reconciler; in non-Fiber mode, mark as dirty
@@ -1147,7 +1133,7 @@ func (n *DeclarativeNode) HandleEvent(ev frameworkevent.Event) bool {
 		// 2. Try to dispatch to the focused element first
 		if focusMgr.DispatchToFocused(ev) {
 			if os.Getenv("TUI_DEBUG_UI") == "true" {
-				log.UILogger.Debug("DeclarativeNode.HandleEvent: focused element handled event\n")
+				log.RenderLogger.Debug("DeclarativeNode.HandleEvent: focused element handled event\n")
 			}
 			return true
 		}
@@ -1161,7 +1147,7 @@ func (n *DeclarativeNode) HandleEvent(ev frameworkevent.Event) bool {
 			if ev.Type() == frameworkevent.EventMousePress || ev.Type() == frameworkevent.EventClick {
 				if n.handleMouseFocus(mouseEv) {
 					if os.Getenv("TUI_DEBUG_UI") == "true" {
-						log.UILogger.Debug("DeclarativeNode.HandleEvent: mouse click switched focus\n")
+						log.RenderLogger.Debug("DeclarativeNode.HandleEvent: mouse click switched focus\n")
 					}
 					// Focus was switched, trigger re-render
 					if useFiber && reconciler != nil {
@@ -1182,22 +1168,22 @@ func (n *DeclarativeNode) HandleEvent(ev frameworkevent.Event) bool {
 	// 3. Fall back to global event distribution
 	// First, try to distribute to modal/overlay layers (they have higher Z-order priority)
 	if os.Getenv("TUI_DEBUG_UI") == "true" {
-		log.UILogger.Debug("[HandleEvent] layerMgr=%v (nil check: %v)", n.layerMgr, n.layerMgr != nil)
+		log.RenderLogger.Debug("[HandleEvent] layerMgr=%v (nil check: %v)", n.layerMgr, n.layerMgr != nil)
 	}
 	if n.layerMgr != nil {
 		modalNodes := n.layerMgr.GetModalNodes()
 		if os.Getenv("TUI_DEBUG_UI") == "true" {
-			log.UILogger.Debug("[HandleEvent] Found %d modal nodes", len(modalNodes))
+			log.RenderLogger.Debug("[HandleEvent] Found %d modal nodes", len(modalNodes))
 		}
 		for _, modalNode := range modalNodes {
 			if modalNode.Content != nil {
 				if os.Getenv("TUI_DEBUG_UI") == "true" {
-					log.UILogger.Debug("[HandleEvent] Distributing event to modal layer: ID=%s, type=%T", modalNode.ID, modalNode.Content)
+					log.RenderLogger.Debug("[HandleEvent] Distributing event to modal layer: ID=%s, type=%T", modalNode.ID, modalNode.Content)
 				}
 				if n.distributeEventToVNode(modalNode.Content, ev) {
 					// Event was handled by modal component
 					if os.Getenv("TUI_DEBUG_UI") == "true" {
-						log.UILogger.Debug("[HandleEvent] Modal handled event")
+						log.RenderLogger.Debug("[HandleEvent] Modal handled event")
 					}
 					n.requestRender(useFiber, reconciler)
 					return true
@@ -1206,7 +1192,7 @@ func (n *DeclarativeNode) HandleEvent(ev frameworkevent.Event) bool {
 		}
 	} else {
 		if os.Getenv("TUI_DEBUG_UI") == "true" {
-			log.UILogger.Debug("[HandleEvent] layerMgr is nil, modal events will not work")
+			log.RenderLogger.Debug("[HandleEvent] layerMgr is nil, modal events will not work")
 		}
 	}
 
@@ -1223,12 +1209,12 @@ func (n *DeclarativeNode) HandleEvent(ev frameworkevent.Event) bool {
 // distributeEventToVNode recursively distributes an event to VNode tree
 func (n *DeclarativeNode) distributeEventToVNode(vnode rtui.VNode, ev frameworkevent.Event) bool {
 	if os.Getenv("TUI_DEBUG_UI") == "true" {
-		log.UILogger.Debug("distributeEventToVNode: called with vnode type=%d, actual type=%T", vnode.Type(), vnode)
+		log.RenderLogger.Debug("distributeEventToVNode: called with vnode type=%d, actual type=%T", vnode.Type(), vnode)
 	}
 
 	if vnode == nil {
 		if os.Getenv("TUI_DEBUG_UI") == "true" {
-			log.UILogger.Debug("distributeEventToVNode: vnode is nil")
+			log.RenderLogger.Debug("distributeEventToVNode: vnode is nil")
 		}
 		return false
 	}
@@ -1245,9 +1231,9 @@ func (n *DeclarativeNode) distributeEventToVNode(vnode rtui.VNode, ev frameworke
 			if component, ok := vnode.(frameworkevent.Component); ok {
 				// Debug: check if this is a button and print its label and pointer
 				if button, ok := vnode.(interface{ Label() string }); ok {
-					log.UILogger.Debug("distributeEventToVNode: Found target button key='%s', label='%s', pointer=%p, calling HandleEvent", targetKey, button.Label(), vnode)
+					log.RenderLogger.Debug("distributeEventToVNode: Found target button key='%s', label='%s', pointer=%p, calling HandleEvent", targetKey, button.Label(), vnode)
 				} else {
-					log.UILogger.Debug("distributeEventToVNode: Found target component with key='%s' (not a button), calling HandleEvent", targetKey)
+					log.RenderLogger.Debug("distributeEventToVNode: Found target component with key='%s' (not a button), calling HandleEvent", targetKey)
 				}
 				if component.HandleEvent(ev) {
 					return true
@@ -1271,7 +1257,7 @@ func (n *DeclarativeNode) distributeEventToVNode(vnode rtui.VNode, ev frameworke
 	// Check if this VNode implements the Component interface
 	if component, ok := vnode.(frameworkevent.Component); ok {
 		if os.Getenv("TUI_DEBUG_UI") == "true" {
-			log.UILogger.Debug("distributeEventToVNode: VNode type=%d implements frameworkevent.Component, calling HandleEvent", vnode.Type())
+			log.RenderLogger.Debug("distributeEventToVNode: VNode type=%d implements frameworkevent.Component, calling HandleEvent", vnode.Type())
 		}
 		if component.HandleEvent(ev) {
 			// Event was handled by this component - stop propagation
@@ -1284,7 +1270,7 @@ func (n *DeclarativeNode) distributeEventToVNode(vnode rtui.VNode, ev frameworke
 	children := vnode.Children()
 	if len(children) > 0 {
 		if os.Getenv("TUI_DEBUG_UI") == "true" {
-			log.UILogger.Debug("distributeEventToVNode: VNode type=%d has %d children, distributing...", vnode.Type(), len(children))
+			log.RenderLogger.Debug("distributeEventToVNode: VNode type=%d has %d children, distributing...", vnode.Type(), len(children))
 		}
 		for _, child := range children {
 			if n.distributeEventToVNode(child, ev) {
@@ -1331,7 +1317,7 @@ func (n *DeclarativeNode) handleMouseFocus(mouseEv *frameworkevent.MouseEvent) b
 			}
 
 			if os.Getenv("TUI_DEBUG_UI") == "true" {
-				log.UILogger.Debug("handleMouseFocus: switching focus from index %d to %d\n",
+				log.RenderLogger.Debug("handleMouseFocus: switching focus from index %d to %d\n",
 					currentIndex, i)
 			}
 
@@ -1348,23 +1334,25 @@ func (n *DeclarativeNode) handleMouseFocus(mouseEv *frameworkevent.MouseEvent) b
 // This performs hit testing using the node's bounds if available.
 func (n *DeclarativeNode) nodeWasClicked(node rtui.VNode, x, y int) bool {
 	// Check if node has bounds information (from SetBounds during Paint)
-	if boundsAware, ok := node.(interface{ GetBounds() (x, y, width, height int) }); ok {
+	if boundsAware, ok := node.(interface {
+		GetBounds() (x, y, width, height int)
+	}); ok {
 		bx, by, bw, bh := boundsAware.GetBounds()
 		if os.Getenv("TUI_DEBUG_UI") == "true" {
-			log.UILogger.Debug("nodeWasClicked: bounds=(%d,%d,%d,%d), mouse=(%d,%d)\n",
+			log.RenderLogger.Debug("nodeWasClicked: bounds=(%d,%d,%d,%d), mouse=(%d,%d)\n",
 				bx, by, bw, bh, x, y)
 		}
 
 		// Check if mouse click is within bounds
 		if x >= bx && x < bx+bw && y >= by && y < by+bh {
 			if os.Getenv("TUI_DEBUG_UI") == "true" {
-				log.UILogger.Debug("nodeWasClicked: HIT!\n")
+				log.RenderLogger.Debug("nodeWasClicked: HIT!\n")
 			}
 			return true
 		}
 
 		if os.Getenv("TUI_DEBUG_UI") == "true" {
-			log.UILogger.Debug("nodeWasClicked: MISS!\n")
+			log.RenderLogger.Debug("nodeWasClicked: MISS!\n")
 		}
 		return false
 	}
@@ -1712,7 +1700,6 @@ func (a *fiberReconcilerAdapter) GetInstanceMgr() interface{} {
 	return a.r.GetInstanceManager()
 }
 
-
 // newFiberReconciler creates a new Fiber reconciler for the given app and render function
 func newFiberReconciler(fwApp *framework.App, fn rtui.ComponentFunc) rtui.Reconciler {
 	// Create the actual reconciler from internal/reconciler
@@ -1738,19 +1725,21 @@ func renderVNodeToBuffer(vnode rtui.VNode, x, y int, buffer *paint.Buffer) {
 	}
 
 	// Check if vnode implements Paintable interface (custom rendering)
-	if paintable, ok := vnode.(interface{ Paint(int, int) []paint.DrawCmd }); ok {
+	if paintable, ok := vnode.(interface {
+		Paint(int, int) []paint.DrawCmd
+	}); ok {
 		if os.Getenv("TUI_DEBUG_FOCUS") == "true" {
 			// Get label for debug
 			label := "?"
 			if l, ok := vnode.(interface{ Label() string }); ok {
 				label = l.Label()
 			}
-			log.UILogger.Debug("[renderVNodeToBuffer] BEFORE Paint, label=%q, x=%d, y=%d\n", label, x, y)
+			log.RenderLogger.Debug("[renderVNodeToBuffer] BEFORE Paint, label=%q, x=%d, y=%d\n", label, x, y)
 		}
 		commands := paintable.Paint(x, y)
 		for _, cmd := range commands {
 			if os.Getenv("TUI_DEBUG_FOCUS") == "true" {
-				log.UILogger.Debug("[renderVNodeToBuffer] AFTER Paint, x=%d, y=%d, text=%q\n", cmd.X, cmd.Y, cmd.Text)
+				log.RenderLogger.Debug("[renderVNodeToBuffer] AFTER Paint, x=%d, y=%d, text=%q\n", cmd.X, cmd.Y, cmd.Text)
 			}
 			buffer.SetString(cmd.X, cmd.Y, cmd.Text, cmd.Style)
 		}
@@ -1855,8 +1844,6 @@ func (n *DeclarativeNode) requestRender(useFiber bool, reconciler rtui.Reconcile
 		}
 	}
 }
-
-
 
 // GetHooks returns the HookManager for registering VNode transformation hooks.
 // This delegates to the underlying PipelineRendererAdapter.

@@ -154,18 +154,14 @@ func (p *RenderingPipeline) RenderLayers(
 		return nil
 	}
 
-	if log.PipelineLogger.Enabled() {
-		log.PipelineLogger.Debug("RenderLayers started")
-	}
+	log.PipelineLogger.Debug("RenderLayers started")
 
 	// Create a layer manager for this render pass
 	layerMgr := layer.NewManager()
 
 	// Collect and layout all layers
 	if err := layerMgr.CollectAndLayout(vnode, constraints, p.layoutEngine); err != nil {
-		if log.PipelineLogger.Enabled() {
-			log.PipelineLogger.Debug("Layer layout failed: %v", err)
-		}
+		log.PipelineLogger.Debug("Layer layout failed: %v", err)
 		// Fallback to regular rendering
 		return p.Render(vnode, constraints, buffer)
 	}
@@ -190,11 +186,11 @@ func (p *RenderingPipeline) RenderLayers(
 	p.layerMgr = layerMgr
 
 	if p.lastHitMap != nil {
-		log.PipelineLogger.Debug("[RenderLayers] Merged HitMap: %d entries", p.lastHitMap.Size())
+		log.PipelineLogger.Debug("Merged HitMap: %d entries", p.lastHitMap.Size())
 	}
 	if p.layerMgr != nil {
 		modalNodes := p.layerMgr.GetModalNodes()
-		log.PipelineLogger.Debug("[RenderLayers] Saved layerMgr with %d modal nodes", len(modalNodes))
+		log.PipelineLogger.Debug("Saved layerMgr with %d modal nodes", len(modalNodes))
 	}
 
 	// 验证 buffer 内容
@@ -207,13 +203,13 @@ func (p *RenderingPipeline) RenderLayers(
 				}
 			}
 		}
-		log.PipelineLogger.Debug("[RenderLayers] Buffer content after PaintLayers: %d cells (buffer size: %dx%d)",
+		log.PipelineLogger.Debug("Buffer content after PaintLayers: %d cells (buffer size: %dx%d)",
 			contentCount, buffer.Width, buffer.Height)
 
 		if contentCount == 0 {
-			log.PipelineLogger.Debug("[RenderLayers] ⚠️  WARNING: Buffer is empty!")
+			log.PipelineLogger.Debug("⚠️  WARNING: Buffer is empty!")
 		} else {
-			log.PipelineLogger.Debug("[RenderLayers] ✅ Buffer has content")
+			log.PipelineLogger.Debug("✅ Buffer has content")
 		}
 	}
 
