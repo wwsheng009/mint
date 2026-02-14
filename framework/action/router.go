@@ -61,6 +61,11 @@ func (c *MiddlewareChain) After(action *Action, result *RouterResult) {
 	}
 }
 
+// Middlewares 返回中间件列表（用于调试）
+func (c *MiddlewareChain) Middlewares() []ActionMiddleware {
+	return c.middlewares
+}
+
 // Add 添加中间件
 func (c *MiddlewareChain) Add(middleware ActionMiddleware) {
 	c.middlewares = append(c.middlewares, middleware)
