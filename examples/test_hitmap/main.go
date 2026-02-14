@@ -153,7 +153,7 @@ func main() {
 	// Phase 4.5: Also demonstrate new API usage
 	// Build RenderPlanes directly from Fiber (without using CollectAndLayout)
 	fmt.Fprintf(os.Stderr, "\n=== NEW API DEMO (Phase 3+) ===\n")
-	renderPlanes := manager.BuildRenderPlanes(fiber)
+	renderPlanes := layer.BuildFromFiber(fiber)
 	fmt.Fprintf(os.Stderr, "Built RenderPlanes with %d boxes\n", renderPlanes.CountBoxes())
 
 	// Build HitMap directly from Fiber (Phase 6 style)
@@ -174,7 +174,7 @@ func main() {
 	fmt.Fprintf(os.Stderr, "\nNOTE: Phase 4.5 - Using CollectAndLayout for modal centering transition.\n")
 	fmt.Fprintf(os.Stderr, "In Phase 5-7, modal centering will move to Layout Engine.\n")
 	fmt.Fprintf(os.Stderr, "Then we can fully migrate to the new API:\n")
-	fmt.Fprintf(os.Stderr, "  1. engine.Layout(vnode, fiber, constraints)\n")
+	fmt.Fprintf(os.Stderr, "  1. engine.LayoutFiber(fiber, constraints)\n")
 	fmt.Fprintf(os.Stderr, "  2. renderPlanes := layer.BuildFromFiber(fiber)\n")
 	fmt.Fprintf(os.Stderr, "  3. hitMap := ui.BuildHitMapFromFiber(fiber)  // Non-reflection version\n")
 }

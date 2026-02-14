@@ -214,6 +214,18 @@ func (p *RenderingPipeline) RenderLayers(
 
 	log.PipelineLogger.Debug("RenderLayers started")
 
+	// Phase 5.5: NEW - Call LayoutFiber() to populate fiber.ComputedBox
+	// This ensures BuildHitMapFromFiber() has complete data
+	// Note: This is experimental until Phase 5 completes (modal centering moves to Layout Engine)
+	if fiber != nil {
+		_, err := p.layoutEngine.LayoutFiber(fiber, constraints)
+		if err != nil {
+			log.PipelineLogger.Debug("LayoutFiber failed: %v", err)
+		} else {
+			log.PipelineLogger.Debug("LayoutFiber completed - fiber.ComputedBox should now be populated")
+		}
+	}
+
 	// Create a layer manager for this render pass
 	layerMgr := layer.NewManager()
 
@@ -237,11 +249,26 @@ func (p *RenderingPipeline) RenderLayers(
 		return err
 	}
 
-	// Phase 6: Get HitMap from LayerManager (already built by CollectAndLayout)
-	// DO NOT use BuildHitMapFromFiber - it has 0 entries because fiber.ComputedBox is nil
-	if layerMgr != nil {
-		p.lastHitMap = layerMgr.GetMergedHitMap()
-		log.PipelineLogger.Debug("Got HitMap from LayerManager")
+	// Phase 5.5: NEW - Try BuildHitMapFromFiber first (if LayoutFiber was called and fiber.ComputedBox is populated)
+	if fiber != nil {
+		fiberHitMap := rtui.BuildHitMapFromFiber(fiber)
+		if fiberHitMap.Size() > 0 {
+			p.lastHitMap = fiberHitMap
+			log.PipelineLogger.Debug("✅ BuildHitMapFromFiber succeeded: %d entries", fiberHitMap.Size())
+		} else {
+			log.PipelineLogger.Debug("⚠️ BuildHitMapFromFiber returned 0 entries, falling back to LayerManager")
+			// Fallback to LayerManager if BuildHitMapFromFiber fails
+			if layerMgr != nil {
+				p.lastHitMap = layerMgr.GetMergedHitMap()
+				log.PipelineLogger.Debug("Got HitMap from LayerManager: %d entries", p.lastHitMap.Size())
+			}
+		}
+	} else {
+		// No Fiber - use LayerManager fallback
+		if layerMgr != nil {
+			p.lastHitMap = layerMgr.GetMergedHitMap()
+			log.PipelineLogger.Debug("Got HitMap from LayerManager (no Fiber): %d entries", p.lastHitMap.Size())
+		}
 	}
 
 	// Save layerMgr reference for event handling

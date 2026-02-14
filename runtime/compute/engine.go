@@ -1805,6 +1805,135 @@ func (e *Engine) layoutFiber(fiber *rtui.Fiber, constraints runtime.BoxConstrain
 	return box
 }
 
+// LayoutFiber lays out the entire Fiber tree and populates each fiber.ComputedBox
+// This is the new public API for fiber-based layout that replaces VNode-based layout
+// It traverses the Fiber tree recursively and creates ComputedBox for each node
+//
+// IMPORTANT: This method sets fiber.ComputedBox for each Fiber node, which is required
+// for BuildHitMapFromFiber() to work correctly in the new unified architecture
+//
+// Parameters:
+//   root: The root Fiber node of the tree to layout
+//   constraints: Box constraints for the entire tree layout
+//
+// Returns:
+//   *ComputedLayout containing the root ComputedBox and HitMap
+//   error if layout fails
+//
+// Usage Phase 5+:
+//   layout := engine.LayoutFiber(fiberRoot, constraints)
+//   renderPlanes := layer.BuildFromFiber(fiberRoot)
+//   hitMap := ui.BuildHitMapFromFiber(fiberRoot)
+func (e *Engine) LayoutFiber(root *rtui.Fiber, constraints runtime.BoxConstraints) (*ComputedLayout, error) {
+	if root == nil {
+		return nil, fmt.Errorf("cannot layout nil Fiber tree")
+	}
+
+	// Reset flex cache for each layout pass
+	e.flexCache = make(map[string]*FlexDistributionInfo)
+
+	// Layout the root Fiber node
+	// layoutFiber() will recursively call buildComputedBox() which handles VNode children
+	// But it won't traverse the Fiber tree siblings, so we need to ensure all Fiber nodes are processed
+	rootBox := e.layoutFiber(root, constraints, 0)
+
+	if rootBox == nil {
+		layout := NewComputedLayout(nil)
+		layout.HitMap = event.NewHitMap()
+		return layout, nil
+	}
+
+	// Recursively ensure all Fiber nodes in the tree have ComputedBox set
+	// This is needed because buildComputedBox() only processes VNode tree,
+	// and Fiber tree might have different structure (e.g., unsorted siblings)
+	e.ensureFiberComputedBox(root, constraints, 0)
+
+	// Calculate positions (second pass)
+	e.calculatePositions(rootBox, 0, 0)
+
+	// Clear dirty flags after layout
+	rootBox.ClearDirty()
+
+	// Build HitMap directly from ComputedBox tree
+	hitMap := e.buildHitMapFromComputedBoxes(rootBox)
+
+	layout := NewComputedLayout(rootBox)
+	layout.HitMap = hitMap
+
+	log.HitMapLogger.Debug("[Engine.LayoutFiber] Built HitMap with %d entries", hitMap.Size())
+
+	return layout, nil
+}
+
+// ensureFiberComputedBox traverses the Fiber tree and ensures each node has ComputedBox set
+// This is a safety measure to ensure BuildHitMapFromFiber() has complete data
+//
+// Parameters:
+//   fiber: The current Fiber node
+//   constraints: Box constraints for this node
+//   depth: Tree depth for debugging
+func (e *Engine) ensureFiberComputedBox(fiber *rtui.Fiber, constraints runtime.BoxConstraints, depth int) {
+	if fiber == nil {
+		return
+	}
+
+	// If this Fiber doesn't have ComputedBox, create it
+	if fiber.ComputedBox == nil {
+		box := e.buildComputedBox(fiber.VNode, fiber, nil, constraints)
+		if box != nil {
+			box.NodeID = fiber.NodeID
+			box.Layer = fiber.Layer
+			fiber.ComputedBox = box
+		}
+	}
+
+	// Process all siblings at this level
+	for sibling := fiber.Sibling; sibling != nil; sibling = sibling.Sibling {
+		e.ensureFiberComputedBox(sibling, constraints, depth)
+	}
+
+	// Process children (next level)
+	if fiber.Child != nil {
+		e.ensureFiberComputedBox(fiber.Child, constraints, depth+1)
+	}
+}
+
+// layoutFiberTree recursively traverses the Fiber tree and creates ComputedBox for each node
+// This uses depth-first traversal following Child → Sibling chains
+//
+// Parameters:
+//   fiber: The current Fiber node to layout
+//   constraints: Box constraints for this node
+//   depth: Tree depth for debugging
+//
+// Returns:
+//   *ComputedBox containing layout result for this node and its children
+func (e *Engine) layoutFiberTree(fiber *rtui.Fiber, constraints runtime.BoxConstraints, depth int) *ComputedBox {
+	if fiber == nil {
+		return nil
+	}
+
+	// Layout current Fiber node
+	box := e.layoutFiber(fiber, constraints, depth)
+	if box == nil {
+		return nil
+	}
+
+	// Layout children (first child)
+	if fiber.Child != nil {
+		childBox := e.layoutFiberTree(fiber.Child, constraints, depth+1)
+		if childBox != nil {
+			box.Children = []*ComputedBox{childBox}
+		}
+	}
+
+	// Layout siblings (next sibling)
+	// NOTE: In Fiber tree, siblings are linked via Sibling field, not as children in ComputedBox
+	// We only layout this subtree, siblings will be handled by parent
+
+	return box
+}
+
 // measureFiber measures the size of a Fiber node
 // This is the new fiber-based measure implementation
 //
