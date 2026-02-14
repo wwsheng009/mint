@@ -89,7 +89,7 @@ func (m *VNodeFocusManager) SetFocusable(nodes []FocusableVNode) {
 // This is used internally (e.g., by the reconciler) when the list needs to be refreshed
 // but the focus index should be preserved as-is.
 func (m *VNodeFocusManager) UpdateFocusableList(nodes []FocusableVNode) {
-	m.focusable = nodes
+		m.focusable = nodes
 }
 
 // FocusNext moves focus to the next focusable node.

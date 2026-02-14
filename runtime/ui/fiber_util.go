@@ -1,7 +1,11 @@
 package ui
 
 import (
+	"sort"
+
 	"github.com/wwsheng009/mint/internal/log"
+	runtimelayout "github.com/wwsheng009/mint/runtime/layout"
+	rtuievent "github.com/wwsheng009/mint/runtime/event"
 )
 
 // =============================================================================
@@ -260,44 +264,99 @@ func CloneFiber(fiber *Fiber) *Fiber {
 }
 
 // =============================================================================
-// BuildHitMapFromFiber (Phase 2 - Complete Implementation)
+// BuildHitMapFromFiber (Non-Reflection Implementation)
 // =============================================================================
-// BuildHitMapFromFiber builds a HitMap from a Fiber tree
+// BuildHitMapFromFiber builds a HitMap from a Fiber tree without using reflection
 //
-// Phase 2 implementation:
-// 1. Traverse the Fiber tree (Child -> Sibling chain)
-// 2. Read ComputedBox from each Fiber (set during layout phase)
-// 3. Build HitMap entries with NodeID, Layer, Bounds, etc.
-// 4. Sort by Layer (Z-order): Base(0) < Overlay(1) < Modal(2) < Tooltip(3) < Inspector(4)
-// 5. Return *event.HitMap
+// This implementation:
+// 1. Uses WalkFiberDepthFirst to traverse the Fiber tree
+// 2. Reads ComputedBox from each Fiber (set during layout phase)
+// 3. Builds HitMap entries with NodeID, Layer, Bounds, etc.
+// 4. Sorts by Layer (Z-order): Base(0) < Overlay(1) < Modal(2) < Tooltip(3) < Inspector(4)
+// 5. Returns *event.HitMap
 //
 // NOTE: This function requires Fiber.ComputedBox to be populated by
 // Engine.layoutFiber() during the layout phase.
 //
-// Import cycle consideration: This function is in ui package to provide
-// a convenient API, but the actual work is delegated to compute.Engine
-// to avoid ui -> compute -> ui circular imports.
+// NO REFLECTION: Unlike the version in runtime/event/hitmap.go, this implementation
+// uses direct field access and WalkFiberDepthFirst for tree traversal.
 //
 // Usage: After layout phase, when Fiber.ComputedBox is populated
 //
 // See: docs/plan/fiber/TODO_LIST.md Phase 1.5, Phase 2.4
-func BuildHitMapFromFiber(root *Fiber) interface{} {
+func BuildHitMapFromFiber(root *Fiber) *rtuievent.HitMap {
 	if root == nil {
-		return nil
+		return rtuievent.NewHitMap()
 	}
 
-	// TODO Phase 2: Full implementation requires compute.Engine
-	// For now, return nil as Phase 2.4 is not complete
-	//
-	// The actual implementation would look like:
-	// var entries []event.HitMapEntryInternal
-	// walkAndBuild(root, 0, &entries)
-	// sort.Slice(entries, func(i, j int) bool {
-	//     return entries[i].ZOrder < entries[j].ZOrder
-	// })
-	// return event.BuildHitMapFromEntries(entries)
+	// Collect entries from Fiber tree
+	var entries []rtuievent.HitMapEntryInternal
 
-	return nil
+	WalkFiberDepthFirst(root, func(fiber *Fiber) bool {
+		// Skip fibers without ComputedBox
+		if fiber.ComputedBox == nil {
+			return true
+		}
+
+		// We need to access Box fields without importing compute package
+		// Use type assertion to access the underlying struct
+		// ComputedBox embeds runtime.Box which has X, Y, Width, Height fields
+		if box, ok := fiber.ComputedBox.(interface {
+			GetX() int
+			GetY() int
+			GetWidth() int
+			GetHeight() int
+		}); ok {
+			x := box.GetX()
+			y := box.GetY()
+			width := box.GetWidth()
+			height := box.GetHeight()
+
+			// Use Fiber.NodeID as the primary ID
+			nodeID := fiber.NodeID
+
+			// Get Layer from Fiber
+			layer := fiber.Layer
+
+			// Calculate tree depth for Z-order calculation
+			depth := 0
+			for p := fiber.Return; p != nil; p = p.Return {
+				depth++
+			}
+
+			// Calculate Z-order: Layer * 10000 + treeDepth
+			// This ensures higher layers are prioritized in HitTest
+			zOrder := int(layer)*10000 + depth
+
+			// Create HitMap entry
+			entry := rtuievent.HitMapEntryInternal{
+				NodeID: nodeID,
+				Node:   nil, // Node is nil because we can't create layout.Node without importing more types
+				Bounds: runtimelayout.Rect{
+					X:      x,
+					Y:      y,
+					Width:  width,
+					Height: height,
+				},
+				LocalXY: func(screenX, screenY int) (int, int) {
+					return screenX - x, screenY - y
+				},
+				ZOrder:   zOrder,
+				Instance: nil,
+			}
+
+			entries = append(entries, entry)
+		}
+
+		return true
+	})
+
+	// Sort by ZOrder descending (higher layers first)
+	sort.Slice(entries, func(i, j int) bool {
+		return entries[i].ZOrder > entries[j].ZOrder
+	})
+
+	return rtuievent.BuildHitMapFromEntries(entries)
 }
 
 // =============================================================================

@@ -202,13 +202,8 @@ func (p *Pump) convertToMouseMsg(raw platform.RawInput) runtimemsg.Msg {
 		action = runtimemsg.MouseActionUnknown
 	}
 
-	// Create MouseMsg with basic fields
-	mouseMsg := &runtimemsg.MouseMsg{
-		X:      raw.MouseX,
-		Y:      raw.MouseY,
-		Button: button,
-		Action: action,
-	}
+	// Create MouseMsg with proper BaseMsg initialization (including Type and Timestamp)
+	mouseMsg := runtimemsg.NewMouseMsg(raw.MouseX, raw.MouseY, button, action)
 
 	// Phase 1-6: Fill in hit testing information from HitMap
 	p.hitMapMu.RLock()
@@ -218,20 +213,23 @@ func (p *Pump) convertToMouseMsg(raw platform.RawInput) runtimemsg.Msg {
 	// Log mouse position using logger
 	log.UILogger.Debug("Raw position: (%d, %d) | Action: %v", raw.MouseX, raw.MouseY, raw.MouseAction)
 
+	var targetID uint64
+	var targetInstance interface{}
+	var localX, localY int
+	var targetBounds runtime.Box
+
 	if hitMap != nil {
 		// Perform hit testing
 		entry := hitMap.HitTest(raw.MouseX, raw.MouseY)
 		if entry != nil {
-			mouseMsg.TargetID = entry.NodeID
+			targetID = entry.NodeID
 			// ✨ 新架构：直接填充 Instance 引用
 			// 根据 fix1.md：事件链条 HitMap → LayoutNode → Instance → Handler
-			mouseMsg.TargetInstance = entry.Instance
+			targetInstance = entry.Instance
 			// Calculate local coordinates using the entry's LocalXY function
-			localX, localY := entry.LocalXY(raw.MouseX, raw.MouseY)
-			mouseMsg.LocalX = localX
-			mouseMsg.LocalY = localY
+			localX, localY = entry.LocalXY(raw.MouseX, raw.MouseY)
 			// Store the final bounds from HitMap (includes all transforms like modal centering)
-			mouseMsg.TargetBounds = runtime.Box{
+			targetBounds = runtime.Box{
 				X:      entry.Bounds.X,
 				Y:      entry.Bounds.Y,
 				Width:  entry.Bounds.Width,
@@ -267,6 +265,13 @@ func (p *Pump) convertToMouseMsg(raw platform.RawInput) runtimemsg.Msg {
 	} else if raw.MouseAction == platform.MouseWheelDown {
 		mouseMsg.Delta = -1
 	}
+
+	// Set the hit testing information
+	mouseMsg.TargetID = targetID
+	mouseMsg.TargetInstance = targetInstance
+	mouseMsg.LocalX = localX
+	mouseMsg.LocalY = localY
+	mouseMsg.TargetBounds = targetBounds
 
 	return mouseMsg
 }

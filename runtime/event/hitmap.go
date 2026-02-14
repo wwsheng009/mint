@@ -3,6 +3,7 @@ package event
 import (
 	"fmt"
 	"hash/fnv"
+	"reflect"
 	"sort"
 	"strings"
 	"time"
@@ -159,6 +160,145 @@ func BuildHitMapFromInstance(rootInstance interface{}) *HitMap {
 		entries:   make([]HitMapEntry, 0),
 		buildTime: time.Now(),
 	}
+}
+
+// BuildHitMapFromFiber builds a HitMap from a Fiber tree
+// This is the new unified API replacing BuildHitMap from multiple Layout sources
+//
+// The Fiber tree should already have ComputedBox attached after Layout
+// This walks the Fiber tree and creates HitMapEntry for each ComputedBox
+//
+// Parameters:
+//   root - Fiber tree root (passed as interface{} to avoid import cycle)
+//
+// Returns:
+//   *HitMap - HitMap with entries for all computed boxes in the Fiber tree
+//
+// Note: This function uses reflection to access Fiber fields because
+// runtime/event cannot import runtime/ui due to potential import cycles
+func BuildHitMapFromFiber(root interface{}) *HitMap {
+	if root == nil {
+		return &HitMap{
+			entries:   make([]HitMapEntry, 0),
+			buildTime: time.Now(),
+		}
+	}
+
+	hm := &HitMap{
+		entries:   make([]HitMapEntry, 0),
+		buildTime: time.Now(),
+	}
+
+	// Walk Fiber tree using reflection and collect entries
+	// Type-assert to a struct that has Child, Sibling, ComputedBox, NodeID, Layer fields
+	var walk func(fiber interface{}, treeDepth int)
+	walk = func(fiber interface{}, treeDepth int) {
+		if fiber == nil {
+			return
+		}
+
+		// We need to access fiber fields using reflection to avoid import cycle
+		// Expected fields:
+		// - Child: pointer to next fiber
+		// - Sibling: pointer to next sibling
+		// - NodeID: uint64
+		// - Layer: int or uint
+		// - ComputedBox: interface{} (pointer to compute.ComputedBox)
+
+		// Get value from interface
+		val := reflect.ValueOf(fiber)
+		if val.IsNil() {
+			return
+		}
+		val = val.Elem() // Dereference pointer
+
+		// Try to get ComputedBox field (named "ComputedBox")
+		computedBoxField := val.FieldByName("ComputedBox")
+		if computedBoxField.IsValid() && !computedBoxField.IsNil() {
+			// Use reflection to access ComputedBox fields
+			boxVal := reflect.ValueOf(computedBoxField.Interface())
+			if boxVal.IsNil() {
+				boxVal = boxVal.Elem()
+			}
+
+			// Get Box field and its bounds
+			boxVal = boxVal.Elem() // Dereference pointer
+			boxField := boxVal.FieldByName("Box")
+			if boxField.IsValid() {
+				x := int(boxField.FieldByName("X").Int())
+				y := int(boxField.FieldByName("Y").Int())
+				width := int(boxField.FieldByName("Width").Int())
+				height := int(boxField.FieldByName("Height").Int())
+
+				// Get NodeID from box
+				boxNodeIDField := boxVal.FieldByName("NodeID")
+				var boxNodeID uint64
+				if boxNodeIDField.IsValid() {
+					boxNodeID = uint64(boxNodeIDField.Uint())
+				}
+
+				// Get NodeID from fiber (prefer fiber's NodeID)
+				fiberNodeIDField := val.FieldByName("NodeID")
+				var nodeID uint64
+				if fiberNodeIDField.IsValid() {
+					nodeID = uint64(fiberNodeIDField.Uint())
+				} else {
+					nodeID = boxNodeID
+				}
+
+				// Get Layer from fiber
+				layerField := val.FieldByName("Layer")
+				layer := 0
+				if layerField.IsValid() {
+					layer = int(layerField.Int())
+				}
+
+				// Calculate Z-order: Layer * 10000 + treeDepth
+				// This ensures higher layers are prioritized in HitTest
+				zOrder := layer*10000 + treeDepth
+
+				// Note: Node field is nil because we can't import AsLayoutNode due to cycle
+				// TODO: Phase 6.1 - Find a way to populate Node field without import cycle
+				entry := HitMapEntry{
+					NodeID: nodeID,
+					Node:   nil,
+					Bounds: layout.Rect{
+						X:      x,
+						Y:      y,
+						Width:  width,
+						Height: height,
+					},
+					LocalXY: func(screenX, screenY int) (int, int) {
+						return screenX - x, screenY - y
+					},
+					ZOrder: zOrder,
+					Instance: nil,
+				}
+
+				hm.entries = append(hm.entries, entry)
+			}
+		}
+
+		// Walk children and siblings
+		childField := val.FieldByName("Child")
+		if childField.IsValid() {
+			walk(childField.Interface(), treeDepth+1)
+		}
+
+		siblingField := val.FieldByName("Sibling")
+		if siblingField.IsValid() {
+			walk(siblingField.Interface(), treeDepth) // Same depth for siblings
+		}
+	}
+
+	walk(root, 0)
+
+	// Sort by ZOrder descending (higher layers first)
+	sort.Slice(hm.entries, func(i, j int) bool {
+		return hm.entries[i].ZOrder > hm.entries[j].ZOrder
+	})
+
+	return hm
 }
 
 // walkAndBuild 递归遍历布局树并构建命中条目
