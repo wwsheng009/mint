@@ -16,6 +16,7 @@ import (
 	"github.com/wwsheng009/mint/framework/theme"
 	"github.com/wwsheng009/mint/internal/log"
 	"github.com/wwsheng009/mint/runtime/core"
+	rt "github.com/wwsheng009/mint/runtime"
 	runtimeevent "github.com/wwsheng009/mint/runtime/event"
 	"github.com/wwsheng009/mint/runtime/instance"
 	"github.com/wwsheng009/mint/runtime/layout"
@@ -1555,14 +1556,22 @@ func (a *App) render() {
 			a.updateFocusManager(layoutRoot)
 		}
 
-		// Phase 1: 更新 ActionTarget 注册表
+		// Phase 1: 更新 ActionTarget 注册表并构建 LayoutNode 树
 		a.buildActionRegistry()
 
 		// 同步到 ActionRouter 的 TargetHandlers（用于 Target 阶段）
-		// 注意：目前只使用 Target 阶段进行直接分发
-		// Capture/Bubble 阶段需要完整的 runtime.LayoutNode 树，暂时跳过
 		for id, target := range a.actionRegistry {
 			a.actionRouter.RegisterTarget(id, target)
+		}
+
+		// 构建 runtime.LayoutNode 树用于 Capture/Bubble 阶段
+		// 从 HitMap 的根节点构建完整的 LayoutNode 树
+		if a.hitMap != nil {
+			hitmapRoot := a.hitMap.GetRoot()
+			if hitmapRoot != nil {
+				layoutNodeTree := rt.BuildLayoutNodeTreeFromHitMap(hitmapRoot)
+				a.actionRouter.Root = layoutNodeTree
+			}
 		}
 	}
 

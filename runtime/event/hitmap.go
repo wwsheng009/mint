@@ -438,6 +438,12 @@ func (hm *HitMap) GetBuildTime() time.Time {
 	return hm.buildTime
 }
 
+// GetRoot 返回 HitMap 的根节点
+// 用于构建 runtime.LayoutNode 树以支持 ActionRouter 的 Capture/Bubble 阶段
+func (hm *HitMap) GetRoot() layout.Node {
+	return hm.root
+}
+
 // AllEntries returns all HitMap entries
 // This is used for merging HitMaps from multiple layers
 func (hm *HitMap) AllEntries() []HitMapEntry {
