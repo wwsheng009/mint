@@ -207,6 +207,56 @@ func BuildRenderPlanes(root *compute.ComputedBox) *RenderPlanes {
 	return rp
 }
 
+// BuildRenderPlanesFromLayouts 从 LayerLayouts 构建 RenderPlanes
+// 遍历每个 Layer 的 ComputedLayout，提取所有 ComputedBox 并按 Layer 分组
+//
+// 参数：
+//   layouts - LayerLayouts，包含每个 Layer 的完整布局信息
+//
+// 返回：
+//   *RenderPlanes - 包含所有分层 ComputedBox 的 RenderPlanes
+//
+// 注意：此方法使用 Layouts 中已经完成变换（居中、定位等）的最终位置
+func BuildRenderPlanesFromLayouts(layouts LayerLayouts) *RenderPlanes {
+	rp := NewRenderPlanes()
+
+	// 渲染顺序：从低层到高层
+	renderOrder := []rtui.Layer{
+		rtui.LayerBase,
+		rtui.LayerOverlay,
+		rtui.LayerModal,
+		rtui.LayerTooltip,
+		rtui.LayerInspector,
+	}
+
+	for _, layer := range renderOrder {
+		layout, ok := layouts[layer]
+		if !ok || layout.Root == nil {
+			continue
+		}
+
+		// 遍历该 Layout 的 ComputedBox 树
+		var walk func(box *compute.ComputedBox)
+		walk = func(box *compute.ComputedBox) {
+			if box == nil {
+				return
+			}
+
+			// 添加到对应层
+			rp.AddToLayer(layer, box)
+
+			// 递归处理子节点
+			for _, child := range box.Children {
+				walk(child)
+			}
+		}
+
+		walk(layout.Root)
+	}
+
+	return rp
+}
+
 // =============================================================================
 // Rendering Support
 // =============================================================================

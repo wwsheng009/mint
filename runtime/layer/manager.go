@@ -44,6 +44,15 @@ func NewManager() *Manager {
 // CollectAndLayout collects layer nodes and performs layout for all layers
 // This is the main entry point for layer-based rendering
 //
+// Workflow:
+//   1. Collect layer nodes from the VNode tree
+//   2. Strip layer nodes from the base tree
+//   3. Layout the base layer
+//   4. Layout each collected layer with appropriate constraints
+//   5. Apply transformations (modal centering, inspector positioning)
+//   6. Rebuild HitMaps with final transformed positions
+//   7. Build RenderPlanes from the finalized layouts
+//
 // Phase 8: Added optional fiber parameter for NodeID propagation
 // Phase 3: Build RenderPlanes from computed layouts for unified layer management
 func (m *Manager) CollectAndLayout(
@@ -102,13 +111,11 @@ func (m *Manager) CollectAndLayout(
 			break
 		}
 	}
-
 	// 5. Build RenderPlanes from computed layouts (Phase 3)
-	// RenderPlanes is built from the Fiber tree which contains computed box info
-	if fiber != nil {
-		m.renderPlanes = BuildFromFiber(fiber)
-		log.LayerLogger.Debug("[CollectAndLayout] Built RenderPlanes with %d boxes", m.renderPlanes.CountBoxes())
-	}
+	// RenderPlanes is built from the finalized layouts which have been transformed (centered, positioned)
+	// Using BuildRenderPlanesFromLayouts ensures we capture the FINAL positions after all transformations
+	m.renderPlanes = BuildRenderPlanesFromLayouts(m.layouts)
+	log.LayerLogger.Debug("[CollectAndLayout] Built RenderPlanes with %d boxes", m.renderPlanes.CountBoxes())
 
 	return nil
 }

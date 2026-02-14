@@ -211,6 +211,7 @@ func (c *Collector) GetHighestLayer() rtui.Layer {
 
 // StripLayers returns a new VNode tree with layer nodes removed
 // This creates a "clean" base tree for normal rendering
+// Used internally by CollectAndLayout to separate base content from overlays
 func (c *Collector) StripLayers(vnode rtui.VNode) rtui.VNode {
 	if vnode == nil {
 		return nil
@@ -228,6 +229,7 @@ func (c *Collector) StripLayers(vnode rtui.VNode) rtui.VNode {
 }
 
 // cloneWithoutLayers creates a copy of a VNode without layer children
+// Used internally by StripLayers for recursive filtering
 func (c *Collector) cloneWithoutLayers(vnode rtui.VNode) rtui.VNode {
 	if vnode == nil {
 		return nil
