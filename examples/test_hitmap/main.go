@@ -46,7 +46,12 @@ func main() {
 		MaxHeight: 30,
 	}
 
-	// Collect and layout
+	// Phase 4.5: Use CollectAndLayout with modal centering
+	// Note: This is still using the old API temporarily for modal centering.
+	// In Phase 5-7, modal centering will move to Layout Engine and we can use:
+	//  1. engine.Layout(vnode, fiber, constraints)
+	//  2. renderPlanes := layer.BuildFromFiber(fiber)
+	//  3. event.BuildHitMapFromFiber(fiber)
 	err := manager.CollectAndLayout(modal, fiber, constraints, engine)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "CollectAndLayout failed: %v\n", err)
@@ -145,5 +150,31 @@ func main() {
 		}
 	}
 
+	// Phase 4.5: Also demonstrate new API usage
+	// Build RenderPlanes directly from Fiber (without using CollectAndLayout)
+	fmt.Fprintf(os.Stderr, "\n=== NEW API DEMO (Phase 3+) ===\n")
+	renderPlanes := manager.BuildRenderPlanes(fiber)
+	fmt.Fprintf(os.Stderr, "Built RenderPlanes with %d boxes\n", renderPlanes.CountBoxes())
+
+	// Build HitMap directly from Fiber (Phase 6 style)
+	// Using non-reflection implementation from ui package
+	newHitMap := rtui.BuildHitMapFromFiber(fiber)
+	fmt.Fprintf(os.Stderr, "Built HitMap from Fiber with %d entries\n", newHitMap.Size())
+
+	// Note: The new API doesn't include modal centering yet (that's Phase 5-7)
+	// So the positions will be different (at 0,0 instead of centered)
+	newEntries := newHitMap.AllEntries()
+	for i, entry := range newEntries {
+		fmt.Fprintf(os.Stderr, "New API Entry %d: ID=%s, NodeID=%d, Bounds=(%d,%d,%dx%d)\n",
+			i, entry.Node.ID(), entry.NodeID, entry.Bounds.X, entry.Bounds.Y,
+			entry.Bounds.Width, entry.Bounds.Height)
+	}
+
 	fmt.Fprintf(os.Stderr, "\n=== TEST COMPLETE ===\n")
+	fmt.Fprintf(os.Stderr, "\nNOTE: Phase 4.5 - Using CollectAndLayout for modal centering transition.\n")
+	fmt.Fprintf(os.Stderr, "In Phase 5-7, modal centering will move to Layout Engine.\n")
+	fmt.Fprintf(os.Stderr, "Then we can fully migrate to the new API:\n")
+	fmt.Fprintf(os.Stderr, "  1. engine.Layout(vnode, fiber, constraints)\n")
+	fmt.Fprintf(os.Stderr, "  2. renderPlanes := layer.BuildFromFiber(fiber)\n")
+	fmt.Fprintf(os.Stderr, "  3. hitMap := ui.BuildHitMapFromFiber(fiber)  // Non-reflection version\n")
 }
