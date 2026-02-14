@@ -1540,26 +1540,36 @@ func TestPathBasedKeyStrategy_Integration(t *testing.T) {
 
 	// Verify first panel
 	panel1 := allChildren[0]
-	expectedPanel1Key := "/root/base[0]/vstack[0]/panel[0]"
-	if panel1.Key != expectedPanel1Key {
-		t.Errorf("First panel key should be %q, got %q", expectedPanel1Key, panel1.Key)
+	expectedPanel1Path := "/root/base[0]/vstack[0]/panel[0]"
+	// ✨ New Design: Key uses index fallback ("0"), Path is for debugging
+	if panel1.Key != "0" {
+		t.Errorf("First panel key should be %q (index fallback), got %q", "0", panel1.Key)
 	}
-	if panel1.Path != expectedPanel1Key {
-		t.Errorf("First panel path should be %q, got %q", expectedPanel1Key, panel1.Path)
+	if panel1.Path != expectedPanel1Path {
+		t.Errorf("First panel path should be %q, got %q", expectedPanel1Path, panel1.Path)
 	}
 
 	// Verify second panel (index should increment)
 	panel2 := allChildren[1]
-	expectedPanel2Key := "/root/base[0]/vstack[0]/panel[1]"
-	if panel2.Key != expectedPanel2Key {
-		t.Errorf("Second panel key should be %q, got %q", expectedPanel2Key, panel2.Key)
+	expectedPanel2Path := "/root/base[0]/vstack[0]/panel[1]"
+	// ✨ New Design: Key uses index fallback ("1"), Path is for debugging
+	if panel2.Key != "1" {
+		t.Errorf("Second panel key should be %q (index fallback), got %q", "1", panel2.Key)
+	}
+	if panel2.Path != expectedPanel2Path {
+		t.Errorf("Second panel path should be %q, got %q", expectedPanel2Path, panel2.Path)
 	}
 
 	// Verify button (different type, index resets to 0)
 	button := allChildren[2]
-	expectedButtonKey := "/root/base[0]/vstack[0]/button[0]"
-	if button.Key != expectedButtonKey {
-		t.Errorf("Button key should be %q, got %q", expectedButtonKey, button.Key)
+	expectedButtonPath := "/root/base[0]/vstack[0]/button[0]"
+	// ✨ New Design: Key uses index fallback ("2" for 3rd child), Path is for debugging
+	// The index fallback is based on sibling index, not type index
+	if button.Key != "2" {
+		t.Errorf("Button key should be %q (index fallback for 3rd child), got %q", "2", button.Key)
+	}
+	if button.Path != expectedButtonPath {
+		t.Errorf("Button path should be %q, got %q", expectedButtonPath, button.Path)
 	}
 
 	t.Logf("✅ Path-based key strategy integration test passed")
@@ -1616,7 +1626,8 @@ func TestUserKeyPriority_Integration(t *testing.T) {
 	if button2.Key != "cancel-btn" {
 		t.Errorf("Second button key should be 'cancel-btn', got %q", button2.Key)
 	}
-	if button2.Path != "/root/base[0]/vstack[0]/button[0]/key[cancel-btn]" {
+	// ✨ New Design: Path includes type index (button[1] for second button)
+	if button2.Path != "/root/base[0]/vstack[0]/button[1]/key[cancel-btn]" {
 		t.Errorf("Second button path should include user key, got %q", button2.Path)
 	}
 

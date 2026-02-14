@@ -51,6 +51,42 @@ func getTypeIDFromSegment(segment string) string {
 }
 
 
+// generateDebugPathForFiber generates a debug path for a fiber
+// The path is ONLY for debugging (inspector, hit map, logging)
+// It does NOT participate in diffing - DiffKey handles that
+func generateDebugPathForFiber(fiber *Fiber, returnFiber *Fiber, vnode rtui.VNode, siblingIndex int, typeIndex int) {
+	if pathGenerator == nil {
+		pathGenerator = NewPathGenerator()
+	}
+
+	userKey := vnode.Key()
+
+	// Check for layer-based path generation
+	isRootChild := returnFiber != nil && returnFiber.Key == "root" && returnFiber.Path == "/root"
+	isLayerNode := vnode.GetLayer() != rtui.LayerBase && vnode.GetLayer().IsValid()
+	useLayerBasedPath := isRootChild || isLayerNode
+
+	var typePath string
+	if useLayerBasedPath {
+		typePath = pathGenerator.generateRootPath(vnode)
+	} else if typeIndex >= 0 {
+		typePath = pathGenerator.GeneratePathWithIndex(returnFiber, vnode, siblingIndex, typeIndex)
+	} else {
+		typePath = pathGenerator.GeneratePath(returnFiber, vnode, siblingIndex)
+	}
+
+	// Append user key if present
+	if userKey != "" {
+		fiber.Path = typePath + "/key[" + userKey + "]"
+	} else {
+		fiber.Path = typePath
+	}
+
+	// Extract path segment from typePath (before user key append)
+	// This ensures PathSegment is always the type index (button[0]), not the user key
+	fiber.PathSegment = extractPathSegment(typePath)
+}
+
 // reconcileChildren reconciles the current children with new children
 // Returns the first child of the reconciled Fiber tree
 func reconcileChildren(
@@ -204,20 +240,23 @@ func findMatchingChild(currentChild *Fiber, vnode rtui.VNode) *Fiber {
 }
 
 // shouldUpdate checks if a current fiber can be updated with new VNode
+// ✨ Optimized: Uses DiffKey for comparison (not Path)
 // This follows React's reconciliation logic:
-// 1. Key is primary - different keys mean different elements
-// 2. Type is secondary - same key but different type means replace
+// 1. DiffKey is primary - different DiffKeys mean different elements
+// 2. Type is secondary - same DiffKey but different type means replace
+// 3. DiffKey is stable across renders - only changes if vnode.Key() changes
 func shouldUpdate(current *Fiber, vnode rtui.VNode) bool {
 	if current == nil || vnode == nil {
 		return false
 	}
 
-	// Get the keys for comparison
-	currentKey := current.Key
-	newKey := vnode.Key()
+	// ✨ CRITICAL: Use DiffKey for comparison (not Path or Key)
+	// DiffKey is the primary key used for diffing
+	currentDiffKey := current.DiffKey
+	newDiffKey := vnode.Key()
 
-	// If keys differ, this is definitely not the same element
-	if currentKey != newKey {
+	// If DiffKeys differ, this is definitely not the same element
+	if currentDiffKey != newDiffKey {
 		return false
 	}
 
@@ -232,7 +271,7 @@ func shouldUpdate(current *Fiber, vnode rtui.VNode) bool {
 		newComp, ok2 := vnode.(*rtui.ComponentVNode)
 		if ok1 && ok2 {
 			// Compare component names since functions cannot be directly compared
-			// Same key + same name = same component
+			// Same DiffKey + same name = same component
 			return currentComp.Name() == newComp.Name()
 		}
 	}
@@ -263,81 +302,53 @@ func createChildFiber(returnFiber *Fiber, vnode rtui.VNode, lanes Lane, siblingI
 // createChildFiberWithIndex creates a new Fiber with a pre-calculated type index
 // Used by createAllNewChildren where type index is tracked externally
 // If typeIndex is -1, it will be auto-calculated from parent's children
+//
+// ✨ Optimized: DiffKey is now set directly from vnode.Key() without Path modifications
+// This ensures stable diffing - Path is only for debugging (inspector, hit map)
 func createChildFiberWithIndex(returnFiber *Fiber, vnode rtui.VNode, lanes Lane, siblingIndex int, typeIndex int) *Fiber {
-	fiber := CreateFiberFromVNode(vnode)
+	// Use CreateFiber instead of CreateFiberFromVNode
+	// CreateFiber just creates this fiber without building the entire subtree
+	// The subtree will be built later by the reconciliation process
+	fiber := CreateFiber(vnode)
+	if fiber == nil {
+		return nil
+	}
+
 	fiber.Return = returnFiber
 	fiber.Lanes = lanes
 	fiber.Props = vnode.Props()
 	fiber.SiblingIndex = siblingIndex
 
-	// ✨ Mixed Key Strategy
+	// ✨ CRITICAL: DiffKey handling with index fallback
+	// Priority 1: User-provided key (most stable)
+	// Priority 2: Index fallback (for static UI without user keys)
+	// Priority 3: Dynamic list without key → panic (require key)
 	userKey := vnode.Key()
-
-	// ✨ Special case: If parent is the root ComponentVNode (Key="root"),
-	// this child is the actual app content and should get a layer-based path
-	// FIX: Also check if vnode itself is a layer root node (modal, overlay, tooltip, inspector)
-	// This ensures layer nodes get layer-based paths even when they're nested
-	isRootChild := returnFiber != nil && returnFiber.Key == "root" && returnFiber.Path == "/root"
-	isLayerNode := vnode.GetLayer() != rtui.LayerBase && vnode.GetLayer().IsValid()
-	useLayerBasedPath := isRootChild || isLayerNode
-	
-
 	if userKey != "" {
-		// Priority 1: User provided a key
-		// Use user key for reconciliation, but generate full path with type for Inspector
-		fiber.Key = userKey
-
-		// Generate path with type, then append user key for unique identification
-		if pathGenerator == nil {
-			pathGenerator = NewPathGenerator()
-		}
-		// Generate base path with type
-		var typePath string
-		if useLayerBasedPath {
-			// Layer root nodes get layer-based path (e.g., /root/modal[0])
-			// This is for the modal/tooltip/overlay itself, NOT its children
-			typePath = pathGenerator.generateRootPath(vnode)
-		} else {
-			typePath = pathGenerator.GeneratePath(returnFiber, vnode, siblingIndex)
-		}
-		// Append user key to make it unique (e.g., .../hstack[0]/key[btn-event])
-		fiber.Path = typePath + "/key[" + userKey + "]"
-		// ✨ Sync full path to VNode so Inspector can access it
-		fiber.Key = fiber.Path
-		// ❌ REMOVE: VNodeKey sync - NodeID system provides stable identity
-		// Phase 7: No longer sync Fiber.Path to VNode.Key
-		// node.SetKey(fiber.Path)
+		// Use user-provided key as DiffKey (most stable)
+		fiber.DiffKey = userKey
+		fiber.Key = userKey // Backward compatibility alias
 	} else if isDynamicList(returnFiber) {
-		// Priority 2: Dynamic list → require key (panic if missing)
+		// Dynamic list without user key → MUST panic
+		// This prevents incorrect reconciliation and state loss
 		requireKeyPanic(returnFiber, vnode, siblingIndex)
 	} else {
-		// Priority 3: Static UI → auto-generate path key
-		if pathGenerator == nil {
-			pathGenerator = NewPathGenerator()
-		}
-		// Use provided typeIndex if available, otherwise auto-calculate
-		if useLayerBasedPath {
-			// Layer root nodes get layer-based path (e.g., /root/modal[0])
-			// This is for the modal/tooltip/overlay itself, NOT its children
-			fiber.Path = pathGenerator.generateRootPath(vnode)
-		} else if typeIndex >= 0 {
-			fiber.Path = pathGenerator.GeneratePathWithIndex(returnFiber, vnode, siblingIndex, typeIndex)
-		} else {
-			fiber.Path = pathGenerator.GeneratePath(returnFiber, vnode, siblingIndex)
-		}
-		fiber.Key = fiber.Path
-		// ❌ REMOVE: VNodeKey sync - NodeID system provides stable identity
-		// Phase 7: No longer sync Fiber.Path to VNode.Key
-		// vnode.SetKey(fiber.Path)
+		// Use index as DiffKey fallback for static non-dynamic UI
+		// This matches React's default behavior and allows reconciliation
+		fiber.DiffKey = string(rune('0' + siblingIndex % 10))
+		fiber.Key = fiber.DiffKey // Backward compatibility alias
 	}
 
-	// Extract path segment (last part of path)
-	fiber.PathSegment = extractPathSegment(fiber.Path)
+	// Path is only for debugging (inspector, hit map)
+	// It does NOT participate in diffing
+	generateDebugPathForFiber(fiber, returnFiber, vnode, siblingIndex, typeIndex)
 
 	return fiber
 }
 
 // cloneExistingFiber clones an existing fiber with new VNode data
+// ✨ Optimized: Preserves DiffKey for stable diffing
+// Path is only updated for debugging (inspector, hit map)
 func cloneExistingFiber(returnFiber *Fiber, current *Fiber, vnode rtui.VNode, siblingIndex int) *Fiber {
 	fiber := CloneFiber(current)
 	fiber.Return = returnFiber
@@ -346,35 +357,13 @@ func cloneExistingFiber(returnFiber *Fiber, current *Fiber, vnode rtui.VNode, si
 	fiber.Lanes = LaneNoLane
 	fiber.Flags = EffectNoEffect
 
-	// ✨ Keep path and key for Instance reuse
-	userKey := vnode.Key()
-	if userKey != "" && userKey != current.Key {
-		// User changed the key, regenerate path with user key
-		fiber.Key = userKey
+	// ✨ CRITICAL: DiffKey is preserved by CloneFiber
+	// The DiffKey remains stable across renders as long as vnode.Key() doesn't change
+	// This ensures diffing works correctly
 
-		// Generate path with type, then append user key
-		if pathGenerator == nil {
-			pathGenerator = NewPathGenerator()
-		}
-		typePath := pathGenerator.GeneratePath(returnFiber, vnode, siblingIndex)
-		fiber.Path = typePath + "/key[" + userKey + "]"
-		// ✨ Sync full path to VNode so Inspector can access it
-		vnode.SetKey(fiber.Path)
-	} else {
-		// Keep original path and key (critical for Instance reuse)
-		fiber.Path = current.Path
-		fiber.Key = current.Key
-		// ✨ Sync path to VNode so Inspector and HitMap can access it
-		// This ensures HitMap NodeID matches Instance key for event routing
-		// FIX: Remove "/root/" prefix restriction to sync all paths
-		if current.Path != "" {
-			vnode.SetKey(current.Path)
-		} else if current.Key != "" {
-			// Fallback: use Key if Path is empty
-			vnode.SetKey(current.Key)
-		}
-	}
-	fiber.PathSegment = current.PathSegment
+	// Path is only for debugging - update it for inspector/hit map
+	generateDebugPathForFiber(fiber, returnFiber, vnode, siblingIndex, -1)
+
 	fiber.SiblingIndex = siblingIndex
 
 	// Link to alternate

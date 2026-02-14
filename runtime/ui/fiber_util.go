@@ -52,17 +52,23 @@ func CreateFiber(vnode VNode) *Fiber {
 		log.HitMapLogger.Debug("[CREATEFIBER] Type=%s Key=%s actualType=%s", vnodeType.String(), vnode.Key(), actualType)
 	}
 
+	// ✨ DiffKey: Copy from VNode.Key() without any modification
+	// This is the PRIMARY key used for diffing (reconciliation)
+	// It is NOT generated from Path - Path is only for debugging
+	diffKey := vnode.Key()
+
 	fiber := &Fiber{
 		VNode:         vnode,
 		Type:          vnodeType,
 		Props:         vnode.Props(),
 		MemoizedProps: vnode.Props(),
-		Key:           vnode.Key(),
-		NodeID:         generateNodeID(), // ✨ Allocate unique NodeID
+		DiffKey:       diffKey,  // ✨ Copy DiffKey directly
+		Key:           diffKey,  // Backward compatibility
+		NodeID:        generateNodeID(), // ✨ Allocate unique NodeID
 		Lanes:         LaneNoLane,
 		ChildLanes:    LaneNoLane,
 		Flags:         EffectNoEffect,
-		SubtreeFlags: EffectNoEffect,
+		SubtreeFlags:  EffectNoEffect,
 	}
 
 	// Set tag based on type
@@ -229,8 +235,9 @@ func CloneFiber(fiber *Fiber) *Fiber {
 		VNode:         fiber.VNode,
 		Type:          fiber.Type,
 		Tag:           fiber.Tag,
-		Key:           fiber.Key,
-		NodeID:         fiber.NodeID, // ✨ Preserve NodeID for stable identity
+		DiffKey:       fiber.DiffKey,  // ✨ Preserve DiffKey for diffing
+		Key:           fiber.Key,       // Backward compatibility
+		NodeID:        fiber.NodeID,   // ✨ Preserve NodeID for stable identity
 		Props:         fiber.Props,
 		MemoizedProps: fiber.MemoizedProps,
 		MemoizedState: fiber.MemoizedState,

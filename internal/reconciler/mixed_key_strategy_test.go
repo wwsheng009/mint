@@ -34,15 +34,15 @@ func TestMixedKeyStrategy_UserKeyPriority(t *testing.T) {
 		t.Errorf("Expected key 'my-button', got '%s'", fiber.Key)
 	}
 
-	// Verify path includes user key
-	expectedPath := "/root/base[0]/my-button"
+	// ✨ New Design: Path includes type index "/button[0]/key[my-button]"
+	expectedPath := "/root/base[0]/button[0]/key[my-button]"
 	if fiber.Path != expectedPath {
 		t.Errorf("Expected path '%s', got '%s'", expectedPath, fiber.Path)
 	}
 
-	// Verify path segment
-	if fiber.PathSegment != "my-button" {
-		t.Errorf("Expected path segment 'my-button', got '%s'", fiber.PathSegment)
+	// ✨ New Design: PathSegment is the last part of the type path
+	if fiber.PathSegment != "button[0]" {
+		t.Errorf("Expected path segment 'button[0]', got '%s'", fiber.PathSegment)
 	}
 
 	t.Logf("✅ User key priority test passed")
@@ -109,24 +109,37 @@ func TestMixedKeyStrategy_MultipleStaticChildren(t *testing.T) {
 		t.Fatalf("Expected 4 children, got %d", len(fibers))
 	}
 
-	// Verify first panel
-	if fibers[0].Key != "/root/base[0]/panel[0]" {
-		t.Errorf("Expected key '/root/base[0]/panel[0]', got '%s'", fibers[0].Key)
+	// ✨ New Design: Key uses index fallback, Path is for debugging
+	// Verify first panel (index 0)
+	if fibers[0].Key != "0" {
+		t.Errorf("Expected key '0' (index fallback), got '%s'", fibers[0].Key)
+	}
+	if fibers[0].Path != "/root/base[0]/panel[0]" {
+		t.Errorf("Expected path '/root/base[0]/panel[0]', got '%s'", fibers[0].Path)
 	}
 
-	// Verify second panel
-	if fibers[1].Key != "/root/base[0]/panel[1]" {
-		t.Errorf("Expected key '/root/base[0]/panel[1]', got '%s'", fibers[1].Key)
+	// Verify second panel (index 1)
+	if fibers[1].Key != "1" {
+		t.Errorf("Expected key '1' (index fallback), got '%s'", fibers[1].Key)
+	}
+	if fibers[1].Path != "/root/base[0]/panel[1]" {
+		t.Errorf("Expected path '/root/base[0]/panel[1]', got '%s'", fibers[1].Path)
 	}
 
-	// Verify first button
-	if fibers[2].Key != "/root/base[0]/button[0]" {
-		t.Errorf("Expected key '/root/base[0]/button[0]', got '%s'", fibers[2].Key)
+	// Verify first button (index 2)
+	if fibers[2].Key != "2" {
+		t.Errorf("Expected key '2' (index fallback), got '%s'", fibers[2].Key)
+	}
+	if fibers[2].Path != "/root/base[0]/button[0]" {
+		t.Errorf("Expected path '/root/base[0]/button[0]', got '%s'", fibers[2].Path)
 	}
 
-	// Verify second button
-	if fibers[3].Key != "/root/base[0]/button[1]" {
-		t.Errorf("Expected key '/root/base[0]/button[1]', got '%s'", fibers[3].Key)
+	// Verify second button (index 3)
+	if fibers[3].Key != "3" {
+		t.Errorf("Expected key '3' (index fallback), got '%s'", fibers[3].Key)
+	}
+	if fibers[3].Path != "/root/base[0]/button[1]" {
+		t.Errorf("Expected path '/root/base[0]/button[1]', got '%s'", fibers[3].Path)
 	}
 
 	t.Logf("✅ Multiple static children test passed")

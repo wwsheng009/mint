@@ -118,7 +118,12 @@ type Fiber struct {
 	ChildLanes Lane
 
 	// === Key for Diff ===
-	// Key for reconciling lists
+	// Key is the DiffKey used for reconciling lists - this is the primary key for diffing
+	// DiffKey is copied from VNode.Key() and should NOT be generated from Path
+	DiffKey string
+
+	// Key is an alias for DiffKey for backward compatibility
+	// TODO: Gradually migrate all code to use DiffKey
 	Key string
 
 	// ✨ NodeID for stable runtime identity

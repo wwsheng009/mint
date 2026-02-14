@@ -39,9 +39,10 @@ func TestUserKeyPathGeneration(t *testing.T) {
 		t.Errorf("Fiber.Path = %q, expected %q", childFiber.Path, expectedPath)
 	}
 
-	// Verify VNode.Key() now contains the full path (for Inspector)
-	if childVNode.Key() != expectedPath {
-		t.Errorf("VNode.Key() = %q, expected %q", childVNode.Key(), expectedPath)
+	// ✨ New Design: VNode is NOT modified
+	// VNode.Key() should remain the original user key, not the full path
+	if childVNode.Key() != "btn-event" {
+		t.Errorf("VNode.Key() = %q, expected %q (VNode should NOT be modified)", childVNode.Key(), "btn-event")
 	}
 }
 
@@ -50,13 +51,14 @@ func TestUserKeyPathReuse(t *testing.T) {
 	// Initialize path generator
 	pathGenerator = NewPathGenerator()
 
-	// Create existing fiber with user key path
+	// Create existing fiber - VNode has user key (not full path)
 	existingVNode := rtui.NewElement("button")
-	existingVNode.SetKey("/root/base[0]/button[0]/key[btn-event]")
+	existingVNode.SetKey("btn-event") // User key only
 
 	currentFiber := &Fiber{
 		Tag:     "button",
 		Key:     "btn-event",
+		DiffKey: "btn-event", // ✨ New Design: DiffKey is preserved
 		Path:    "/root/base[0]/button[0]/key[btn-event]",
 		Type:    rtui.VNodeElement,
 		VNode:   existingVNode,
@@ -84,14 +86,24 @@ func TestUserKeyPathReuse(t *testing.T) {
 		t.Errorf("Cloned Fiber.Key = %q, expected %q", clonedFiber.Key, "btn-event")
 	}
 
-	// Verify Fiber.Path is preserved
+	// Verify ✨ New Design: DiffKey is preserved across renders
+	if clonedFiber.DiffKey != "btn-event" {
+		t.Errorf("Cloned Fiber.DiffKey = %q, expected %q", clonedFiber.DiffKey, "btn-event")
+	}
+
+	// Verify Fiber.Path is regenerated for debugging
 	expectedPath := "/root/base[0]/button[0]/key[btn-event]"
 	if clonedFiber.Path != expectedPath {
 		t.Errorf("Cloned Fiber.Path = %q, expected %q", clonedFiber.Path, expectedPath)
 	}
 
-	// Verify new VNode.Key() is synced with full path
-	if newVNode.Key() != expectedPath {
-		t.Errorf("New VNode.Key() = %q, expected %q", newVNode.Key(), expectedPath)
+	// ✨ New Design: VNodes are NEVER modified
+	// Previous VNode key should remain as user key
+	if existingVNode.Key() != "btn-event" {
+		t.Errorf("Existing VNode.Key() = %q, expected %q (VNode should NOT be modified)", existingVNode.Key(), "btn-event")
+	}
+	// New VNode key should also remain as user key
+	if newVNode.Key() != "btn-event" {
+		t.Errorf("New VNode.Key() = %q, expected %q (VNode should NOT be modified)", newVNode.Key(), "btn-event")
 	}
 }

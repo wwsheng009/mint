@@ -91,14 +91,14 @@ func TestGlobalAllocator(t *testing.T) {
 	alloc1 := GetGlobalAllocator()
 	alloc2 := GetGlobalAllocator()
 
-	// Both should be different instances
-	assert.NotSame(t, alloc1, alloc2, "Global allocator should return same instance")
+	// Both should be the SAME instance (singleton)
+	assert.Same(t, alloc1, alloc2, "Global allocator should return same instance")
 
 	// IDs should be sequential across both
 	id1 := alloc1.Next()
 	id2 := alloc2.Next()
 
-	// The second allocator should continue from where the first left off
+	// The second call should continue from where the first left off
 	// This is expected behavior - they share the same underlying counter
 	assert.True(t, id2 > id1, "Second allocator ID should continue from first")
 }
