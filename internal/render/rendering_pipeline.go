@@ -217,28 +217,32 @@ func (p *RenderingPipeline) RenderLayers(
 	// Create a layer manager for this render pass
 	layerMgr := layer.NewManager()
 
-	// Collect and layout all layers
-	// Phase 8: Pass Fiber to layout engine for NodeID propagation
+	// Phase 5: New unified architecture - Build RenderPlanes directly from Fiber
+	// Note: Still using CollectAndLayout temporarily for modal centering until
+	// it moves to Layout Engine in Phase 5-7
 	if err := layerMgr.CollectAndLayout(vnode, fiber, constraints, p.layoutEngine); err != nil {
 		log.PipelineLogger.Debug("Layer layout failed: %v", err)
 		// Fallback to regular rendering
 		return p.Render(vnode, fiber, constraints, buffer)
 	}
 
-	// Get all layer layouts
-	layouts := layerMgr.GetLayouts()
+	// Phase 5: Get the RenderPlanes already built by CollectAndLayout
+	// DO NOT call BuildRenderPlanes(fiber) - it will overwrite the 58 boxes with 0 boxes
+	renderPlanes := layerMgr.GetRenderPlanes()
+	log.PipelineLogger.Debug("Got RenderPlanes: %d boxes", renderPlanes.CountBoxes())
 
-	log.PipelineLogger.Debug("Layer layouts complete, rendering %d layers", len(layouts))
-
-	// Paint all layers
-	if err := p.paintEngine.PaintLayers(layouts, buffer); err != nil {
-		log.PipelineLogger.Debug("PaintLayers failed: %v", err)
+	// Phase 5: Paint all layers from RenderPlanes (new PaintRenderPlanes method)
+	if err := p.paintEngine.PaintRenderPlanes(renderPlanes, buffer); err != nil {
+		log.PipelineLogger.Debug("PaintRenderPlanes failed: %v", err)
 		return err
 	}
 
-	// Merge HitMaps from all layers and save it
-	// This HitMap contains the FINAL positions after all layer transforms (centering, etc.)
-	p.lastHitMap = layerMgr.GetMergedHitMap()
+	// Phase 6: Get HitMap from LayerManager (already built by CollectAndLayout)
+	// DO NOT use BuildHitMapFromFiber - it has 0 entries because fiber.ComputedBox is nil
+	if layerMgr != nil {
+		p.lastHitMap = layerMgr.GetMergedHitMap()
+		log.PipelineLogger.Debug("Got HitMap from LayerManager")
+	}
 
 	// Save layerMgr reference for event handling
 	// This allows DeclarativeNode to access modal nodes for mouse event distribution

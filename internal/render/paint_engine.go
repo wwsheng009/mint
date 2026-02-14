@@ -452,6 +452,58 @@ func (e *PaintEngine) PaintLayers(
 	return nil
 }
 
+// PaintRenderPlanes paints RenderPlanes to buffer directly
+// This is the new unified API replacing PaintLayers for the Fiber architecture
+// It iterates through RenderPlanes by layer and paints each ComputedBox
+//
+// Parameters:
+//   renderPlanes - RenderPlanes containing all boxes organized by layer
+//   buffer - Paint buffer to render to
+//
+// Returns:
+//   error - Any painting error
+func (e *PaintEngine) PaintRenderPlanes(
+	renderPlanes *layer.RenderPlanes,
+	buffer *paint.Buffer,
+) error {
+	if renderPlanes == nil {
+		return nil
+	}
+
+	log.PaintLogger.Debug("[PaintEngine.PaintRenderPlanes] START: boxes=%d", renderPlanes.CountBoxes())
+
+	// Iterate through layers in render order (low to high)
+	for _, layer := range renderPlanes.GetRenderOrder() {
+		boxes := renderPlanes.GetLayer(layer)
+		if boxes == nil || len(boxes) == 0 {
+			continue
+		}
+
+		log.PaintLogger.Debug("[PaintEngine.PaintRenderPlanes] Layer %s: %d boxes", layer.String(), len(boxes))
+
+		// Paint each box in this layer
+		for _, box := range boxes {
+			// Create a temporary ComputedLayout for each box
+			// This allows us to reuse the existing Paint() method
+			layout := &compute.ComputedLayout{
+				Root: box,
+			}
+			if err := e.Paint(layout, buffer); err != nil {
+				log.PaintLogger.Debug("[PaintEngine.PaintRenderPlanes] Paint failed: %v", err)
+				return fmt.Errorf("error painting box in layer %s: %w", layer.String(), err)
+			}
+		}
+
+		// Special handling for modal layer - draw backdrop
+		if layer == rtui.LayerModal && len(boxes) > 0 {
+			e.paintModalBackdrop(boxes[0], buffer)
+		}
+	}
+
+	log.PaintLogger.Debug("[PaintEngine.PaintRenderPlanes] END")
+	return nil
+}
+
 // paintModalBackdrop draws a semi-transparent backdrop behind the modal
 // In TUI, we simulate this by:
 // 1. Setting a dimmed background color for all areas outside the modal
