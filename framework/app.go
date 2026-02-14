@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/wwsheng009/mint/framework/action"
 	"github.com/wwsheng009/mint/framework/component"
 	"github.com/wwsheng009/mint/framework/debug"
 	frameworkevent "github.com/wwsheng009/mint/framework/event"
@@ -58,6 +59,14 @@ type App struct {
 	pump         *frameworkevent.Pump
 	eventFilter  func(frameworkevent.Event) bool // 事件过滤器回调，返回 false 表示拦截
 	focusManager *rtui.VNodeFocusManager         // Focus manager for KeyMsg routing (Phase 3)
+
+	// ============================================================================
+	// Phase 1: Action 系统 - 统一消息传播机制
+	// ============================================================================
+	actionRouter   *action.Router           // Action 分发器
+	inputProcessor *action.InputProcessor   // Msg → Action 转换器
+	actionRegistry map[uint64]action.ActionTarget  // ActionTarget 注册表
+	legacyMode     bool                      // 是否启用兼容模式（默认 true）
 
 	// 自定义事件源（测试时使用，如 MockSandbox）
 	customSource frameworkevent.EventSource
@@ -135,7 +144,7 @@ type App struct {
 	debugRecorder *debug.Recorder // 调试记录器
 }
 
-// NewApp 创建新应用
+// NewApp 创建新应用 (Phase 1: 初始化 Action 系统)
 func NewApp() *App {
 	app := &App{
 		router:       frameworkevent.NewRouter(),
@@ -149,12 +158,21 @@ func NewApp() *App {
 		contextMgr:   core.NewContextManager(context.Background()),
 		userData:     make(map[string]interface{}),
 		renderer:     paint.NewRenderer(80, 24), // 新增：初始化 Renderer
+
+		// Phase 1: 初始化 Action 系统
+		actionRouter:   action.NewRouter(nil), // 根节点稍后设置
+		inputProcessor: action.NewInputProcessor(),
+		actionRegistry: make(map[uint64]action.ActionTarget),
+		legacyMode:     true, // 默认启用兼容模式
 	}
+
+	// 设置 InputProcessor 的 KeyMap
+	app.inputProcessor.SetKeyMap(action.NewKeyMap())
 
 	return app
 }
 
-// NewAppWithSource 创建使用自定义 EventSource 的应用
+// NewAppWithSource 创建使用自定义 EventSource 的应用 (Phase 1: 初始化 Action 系统)
 // 允许测试时使用 MockSandbox 或其他事件源替代真实的平台输入
 func NewAppWithSource(source frameworkevent.EventSource) *App {
 	return &App{
@@ -170,6 +188,12 @@ func NewAppWithSource(source frameworkevent.EventSource) *App {
 		userData:     make(map[string]interface{}),
 		renderer:     paint.NewRenderer(80, 24),
 		customSource: source, // 使用自定义事件源
+
+		// Phase 1: 初始化 Action 系统
+		actionRouter:   action.NewRouter(nil),
+		inputProcessor: action.NewInputProcessor(),
+		actionRegistry: make(map[uint64]action.ActionTarget),
+		legacyMode:     true,
 	}
 }
 
@@ -921,6 +945,156 @@ func (a *App) handleMsg(message runtimemsg.Msg) bool {
 // 现在使用 Instance Tree 直接处理事件
 // 保留此方法仅供参考，将来会删除
 /*
+*/
+
+// ============================================================================
+// Phase 1: Action 系统集成
+// ============================================================================
+
+// processMsg 统一的消息处理入口
+// 这是新的 Action 统一路径的核心入口
+func (a *App) processMsg(msg runtimemsg.Msg) {
+	if msg == nil {
+		return
+	}
+
+	// 1. 尝试转换为 Action
+	act := a.inputProcessor.ProcessMsg(msg)
+
+	// 2. 如果无法转换且兼容模式开启，回退到旧路径
+	if act == nil {
+		if a.legacyMode {
+			a.handleLegacyMsg(msg)
+		}
+		return
+	}
+
+	// 3. 设置默认目标（焦点组件）
+	if act.TargetID == 0 {
+		if focused := a.focusManager.GetCurrent(); focused != nil {
+			// 使用 GetFocusID 获取 ID，然后转换为 NodeID
+			focusID := focused.GetFocusID()
+			act.TargetID = runtimeevent.StringToNodeID(focusID)
+		}
+	}
+
+	// 4. 分发 Action
+	result := a.dispatchAction(act)
+
+	// 5. 处理结果
+	if result.Handled {
+		a.dirty = true
+	}
+}
+
+// dispatchAction 分发 Action 到 ActionRouter
+func (a *App) dispatchAction(act *action.Action) *action.RouterResult {
+	// 确保路由器有根节点
+	// 注意：由于 App.root 是 component.Node 接口，无法直接转换为 *runtime.LayoutNode
+	// ActionRouter 的 Root 设置将在 render() 中从渲染树获取
+
+	// 构建目标注册表
+	a.buildActionRegistry()
+
+	// 分发
+	return a.actionRouter.Dispatch(act)
+}
+
+// handleLegacyMsg 兼容模式：处理无法转换的消息
+func (a *App) handleLegacyMsg(msg runtimemsg.Msg) {
+	ev := frameworkevent.MsgToEvent(msg)
+	if ev == nil {
+		return
+	}
+
+	// 处理 Resize 事件
+	if ev.Type() == frameworkevent.EventResize {
+		if resizeEv, ok := ev.(*frameworkevent.ResizeEvent); ok {
+			a.Resize(resizeEv.NewWidth, resizeEv.NewHeight)
+		}
+		return
+	}
+
+	// 使用旧的事件处理路径
+	if a.router != nil {
+		a.router.Route(ev)
+	}
+
+	// 兼容：发送到根组件
+	if handler, ok := a.root.(frameworkevent.Component); ok {
+		if handler.HandleEvent(ev) {
+			a.dirty = true
+		}
+	}
+}
+
+// buildActionRegistry 从组件树构建 ActionTarget 注册表
+func (a *App) buildActionRegistry() {
+	if a.root == nil {
+		return
+	}
+
+	// 清空旧注册表
+	a.actionRegistry = make(map[uint64]action.ActionTarget)
+
+	// 递归注册
+	a.registerActionTargets(a.root)
+}
+
+// registerActionTargets 递归注册 ActionTarget
+func (a *App) registerActionTargets(node component.Node) {
+	if node == nil {
+		return
+	}
+
+	// 获取节点 ID
+	var nodeID uint64
+	if idProvider, ok := node.(interface{ GetNodeID() uint64 }); ok {
+		nodeID = idProvider.GetNodeID()
+	}
+
+	// 检查是否实现 ActionTarget
+	if nodeID != 0 {
+		if target, ok := node.(action.ActionTarget); ok {
+			a.actionRegistry[nodeID] = target
+		} else if updater, ok := node.(component.Updater); ok {
+			// 使用适配器包装旧接口
+			adapter := action.NewUpdaterAdapter(updater, nodeID)
+			a.actionRegistry[nodeID] = adapter
+		} else if handler, ok := node.(frameworkevent.EventHandler); ok {
+			// 使用适配器包装 EventHandler
+			adapter := action.NewEventHandlerAdapter(handler, nodeID)
+			a.actionRegistry[nodeID] = adapter
+		}
+	}
+
+	// 递归处理子节点
+	if container, ok := node.(interface{ Children() []component.Node }); ok {
+		for _, child := range container.Children() {
+			a.registerActionTargets(child)
+		}
+	}
+}
+
+// GetActionRegistry 获取 ActionTarget 注册表（用于测试）
+func (a *App) GetActionRegistry() map[uint64]action.ActionTarget {
+	return a.actionRegistry
+}
+
+// SetLegacyMode 设置兼容模式
+func (a *App) SetLegacyMode(enabled bool) {
+	a.legacyMode = enabled
+}
+
+// ============================================================================
+// 已废弃代码区域（仅供参考）
+// ============================================================================
+
+/* buildComponentRegistry 从布局树构建组件注册表（Phase 2）
+//
+// 已废弃：根据 fix1.md 重构，不再使用 Component Registry
+// 现在使用 Instance Tree 直接处理事件
+// 保留此方法仅供参考，将来会删除
 func (a *App) buildComponentRegistry(root layout.Node) {
 	if a.componentReg == nil {
 		log.UILogger.Debug("buildComponentRegistry: componentReg is nil, skipping")
@@ -1372,6 +1546,14 @@ func (a *App) render() {
 		// Phase 3: 更新焦点管理器（从布局树提取 Focusable 组件）
 		if layoutRoot, ok := a.root.(layout.Node); ok {
 			a.updateFocusManager(layoutRoot)
+		}
+
+		// Phase 1: 更新 ActionTarget 注册表
+		a.buildActionRegistry()
+
+		// 同步到 ActionRouter
+		for id, target := range a.actionRegistry {
+			a.actionRouter.RegisterTarget(id, target)
 		}
 	}
 
