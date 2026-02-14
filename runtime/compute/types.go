@@ -24,6 +24,10 @@ type VNode = rtui.VNode
 type ComputedLayout struct {
 	Root   *ComputedBox
 	HitMap *event.HitMap // HitMap built from final ComputedBox positions
+	// RenderPlanes stores layer-separated layout boxes (Phase 3: RenderPlane Introduction)
+	// Type: *layer.RenderPlanes (stored as interface{} to avoid import cycle)
+	// Cast: planes := layout.RenderPlanes.(*layer.RenderPlanes)
+	RenderPlanes interface{}
 }
 
 // ComputedBox represents the computed position and size of a single node
