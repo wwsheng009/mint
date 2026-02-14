@@ -199,6 +199,26 @@ func (b Box) String() string {
 	return fmt.Sprintf("(%d,%d,%d×%d)", b.X, b.Y, b.Width, b.Height)
 }
 
+// GetX returns the X coordinate
+func (b Box) GetX() int {
+	return b.X
+}
+
+// GetY returns the Y coordinate
+func (b Box) GetY() int {
+	return b.Y
+}
+
+// GetWidth returns the width
+func (b Box) GetWidth() int {
+	return b.Width
+}
+
+// GetHeight returns the height
+func (b Box) GetHeight() int {
+	return b.Height
+}
+
 // ConstraintsAlias is an alias for backward compatibility with legacy code
 // Legacy code uses Constraints with MaxW and MaxH fields
 type Constraints = BoxConstraints
