@@ -3,11 +3,17 @@ package data
 import (
 	"strings"
 
+	"github.com/wwsheng009/mint/framework/action"
 	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
 	"github.com/wwsheng009/mint/ui"
 )
+
+// Interface implementation assertions
+var _ action.ActionTarget = (*VirtualListVNode)(nil)
+var _ action.ScrollableActionTarget = (*VirtualListVNode)(nil)
+var _ action.SelectableActionTarget = (*VirtualListVNode)(nil)
 
 // VirtualListVNode represents a virtualized list component
 // Only renders visible items for better performance with large datasets
@@ -291,6 +297,256 @@ func (v *VirtualListVNode) GetItem(index int) interface{} {
 		return v.items[index]
 	}
 	return nil
+}
+
+// ============================================================================
+// ActionTarget 接口实现
+// ============================================================================
+
+// HandleAction implements ActionTarget interface
+func (v *VirtualListVNode) HandleAction(act *action.Action) bool {
+	if act == nil {
+		return false
+	}
+
+	switch act.Type {
+	case action.ActionScroll:
+		// Scroll by delta (from Payload)
+		if delta, ok := act.GetPayloadInt(); ok {
+			v.ScrollBy(delta)
+			// Trigger onScrollEnd if at bottom
+			if v.IsItemAtEnd() && v.onScrollEnd != nil {
+				v.onScrollEnd()
+			}
+			return true
+		}
+
+	case action.ActionNavigateUp:
+		// Select previous item
+		if v.selectedIndex > 0 {
+			v.selectedIndex--
+			if v.onItemSelect != nil {
+				v.onItemSelect(v.selectedIndex)
+			}
+			return true
+		}
+
+	case action.ActionNavigateDown:
+		// Select next item
+		if v.selectedIndex < v.itemCount-1 {
+			v.selectedIndex++
+			if v.onItemSelect != nil {
+				v.onItemSelect(v.selectedIndex)
+			}
+			return true
+		}
+
+	case action.ActionNavigatePageUp:
+		// Page up
+		v.ScrollBy(-v.visibleCount)
+		return true
+
+	case action.ActionNavigatePageDown:
+		// Page down
+		v.ScrollBy(v.visibleCount)
+		// Trigger onScrollEnd if at bottom
+		if v.IsItemAtEnd() && v.onScrollEnd != nil {
+			v.onScrollEnd()
+		}
+		return true
+
+	case action.ActionNavigateHome:
+		// Scroll to top
+		v.ScrollTop()
+		return true
+
+	case action.ActionNavigateEnd:
+		// Scroll to bottom
+		v.ScrollBottom()
+		if v.onScrollEnd != nil {
+			v.onScrollEnd()
+		}
+		return true
+
+	case action.ActionSelect:
+		// Trigger select callback (select current focused or first item)
+		targetIdx := v.selectedIndex
+		if targetIdx < 0 {
+			targetIdx = 0 // Select first item if none focused
+		}
+		if targetIdx < v.itemCount && v.onItemSelect != nil {
+			v.selectedIndex = targetIdx
+			v.onItemSelect(targetIdx)
+			return true
+		}
+		return v.Select()
+	}
+
+	return false
+}
+
+// GetSupportedActions implements ActionTarget interface
+func (v *VirtualListVNode) GetSupportedActions() []action.ActionType {
+	return []action.ActionType{
+		action.ActionScroll,
+		action.ActionNavigateUp,
+		action.ActionNavigateDown,
+		action.ActionNavigatePageUp,
+		action.ActionNavigatePageDown,
+		action.ActionNavigateHome,
+		action.ActionNavigateEnd,
+		action.ActionSelect,
+	}
+}
+
+// CanHandleAction implements ActionTarget interface
+func (v *VirtualListVNode) CanHandleAction(act *action.Action) bool {
+	if act == nil {
+		return false
+	}
+
+	switch act.Type {
+	case action.ActionScroll:
+		return v.allowScroll && v.IsScrollable()
+	case action.ActionNavigateUp:
+		return v.selectedIndex > 0
+	case action.ActionNavigateDown:
+		return v.selectedIndex < v.itemCount-1
+	case action.ActionNavigatePageUp:
+		return v.scrollOffset > 0
+	case action.ActionNavigatePageDown:
+		return !v.IsItemAtEnd()
+	case action.ActionNavigateHome:
+		return v.scrollOffset > 0
+	case action.ActionNavigateEnd:
+		return !v.IsItemAtEnd()
+	case action.ActionSelect:
+		return v.onItemSelect != nil && v.selectedIndex >= 0
+	}
+
+	return false
+}
+
+// ScrollTop scrolls to the top of the list
+func (v *VirtualListVNode) ScrollTop() {
+	v.scrollOffset = 0
+}
+
+// ScrollBottom scrolls to the bottom of the list
+func (v *VirtualListVNode) ScrollBottom() {
+	maxOffset := v.itemCount - v.visibleCount
+	if maxOffset < 0 {
+		v.scrollOffset = 0
+	} else {
+		v.scrollOffset = maxOffset
+	}
+}
+
+// PageUp scrolls up by one page
+func (v *VirtualListVNode) PageUp() int {
+	return v.ScrollBy(-v.visibleCount)
+}
+
+// PageDown scrolls down by one page
+func (v *VirtualListVNode) PageDown() int {
+	return v.ScrollBy(v.visibleCount)
+}
+
+// CanScrollUp returns true if can scroll up
+func (v *VirtualListVNode) CanScrollUp() bool {
+	return v.scrollOffset > 0
+}
+
+// CanScrollDown returns true if can scroll down
+func (v *VirtualListVNode) CanScrollDown() bool {
+	return !v.IsItemAtEnd()
+}
+
+// IsScrollable returns true if content is larger than viewport
+func (v *VirtualListVNode) IsScrollable() bool {
+	return v.itemCount > v.visibleCount
+}
+
+// ============================================================================
+// ScrollableActionTarget 接口实现
+// ============================================================================
+
+// CanScroll implements ScrollableActionTarget interface
+func (v *VirtualListVNode) CanScroll(delta int) bool {
+	if delta > 0 {
+		// 向上滚动（内容向下移动）
+		return v.scrollOffset > 0
+	} else if delta < 0 {
+		// 向下滚动（内容向上移动）
+		return !v.IsItemAtEnd()
+	}
+	return v.IsScrollable()
+}
+
+// Scroll implements ScrollableActionTarget interface
+func (v *VirtualListVNode) Scroll(delta int) bool {
+	newOffset := v.ScrollBy(delta)
+	changed := newOffset != v.scrollOffset
+	// Trigger onScrollEnd if at bottom
+	if changed && v.IsItemAtEnd() && v.onScrollEnd != nil {
+		v.onScrollEnd()
+	}
+	return changed
+}
+
+// GetScrollPosition implements ScrollableActionTarget interface
+func (v *VirtualListVNode) GetScrollPosition() (current, total, visible int) {
+	return v.scrollOffset, v.itemCount, v.visibleCount
+}
+
+// ============================================================================
+// SelectableActionTarget 接口实现
+// ============================================================================
+
+// Select implements SelectableActionTarget interface
+func (v *VirtualListVNode) Select() bool {
+	if v.itemCount > 0 {
+		if v.selectedIndex < 0 {
+			v.selectedIndex = 0 // Select first item if none selected
+		}
+		if v.onItemSelect != nil {
+			v.onItemSelect(v.selectedIndex)
+		}
+		return true
+	}
+	return false
+}
+
+// IsSelected implements SelectableActionTarget interface
+func (v *VirtualListVNode) IsSelected() bool {
+	return v.selectedIndex >= 0
+}
+
+// ToggleSelection implements SelectableActionTarget interface
+func (v *VirtualListVNode) ToggleSelection() bool {
+	if v.HasSelection() {
+		v.selectedIndex = -1 // Deselect
+		return false
+	}
+	// Select first item
+	v.selectedIndex = 0
+	if v.onItemSelect != nil {
+		v.onItemSelect(v.selectedIndex)
+	}
+	return true
+}
+
+// HasSelection returns true if there's a selection
+func (v *VirtualListVNode) HasSelection() bool {
+	return v.selectedIndex >= 0
+}
+
+// GetSelectedCount implements SelectableActionTarget interface
+func (v *VirtualListVNode) GetSelectedCount() int {
+	if v.selectedIndex >= 0 {
+		return 1
+	}
+	return 0
 }
 
 // =============================================================================

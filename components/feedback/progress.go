@@ -4,11 +4,16 @@ import (
 	"fmt"
 	"unicode/utf8"
 
+	"github.com/wwsheng009/mint/framework/action"
 	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
 	"github.com/wwsheng009/mint/ui"
 )
+
+// Interface implementation assertions
+var _ action.ActionTarget = (*ProgressVNode)(nil)
+var _ action.ActionTarget = (*SpinnerVNode)(nil)
 
 // ProgressVNode represents a progress bar component
 type ProgressVNode struct {
@@ -320,6 +325,46 @@ func (b *SpinnerBuilderType) FgColor(c interface{}) *SpinnerBuilderType {
 // Build returns the ui.VNode
 func (b *SpinnerBuilderType) Build() ui.VNode {
 	return b.node
+}
+
+// ============================================================================
+// ActionTarget 接口实现 - ProgressVNode
+// ============================================================================
+
+// HandleAction implements ActionTarget interface for ProgressVNode
+func (p *ProgressVNode) HandleAction(act *action.Action) bool {
+	// Progress is a display component - no action handling needed
+	return false
+}
+
+// GetSupportedActions implements ActionTarget interface for ProgressVNode
+func (p *ProgressVNode) GetSupportedActions() []action.ActionType {
+	return []action.ActionType{}
+}
+
+// CanHandleAction implements ActionTarget interface for ProgressVNode
+func (p *ProgressVNode) CanHandleAction(act *action.Action) bool {
+	return false
+}
+
+// ============================================================================
+// ActionTarget 接口实现 - SpinnerVNode
+// ============================================================================
+
+// HandleAction implements ActionTarget interface for SpinnerVNode
+func (s *SpinnerVNode) HandleAction(act *action.Action) bool {
+	// Spinner is a display component - no action handling needed
+	return false
+}
+
+// GetSupportedActions implements ActionTarget interface for SpinnerVNode
+func (s *SpinnerVNode) GetSupportedActions() []action.ActionType {
+	return []action.ActionType{}
+}
+
+// CanHandleAction implements ActionTarget interface for SpinnerVNode
+func (s *SpinnerVNode) CanHandleAction(act *action.Action) bool {
+	return false
 }
 
 // =============================================================================

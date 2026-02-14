@@ -3,9 +3,14 @@ package layout
 import (
 	"fmt"
 
+	"github.com/wwsheng009/mint/framework/action"
 	ui "github.com/wwsheng009/mint/ui"
 	"github.com/wwsheng009/mint/runtime/style"
 )
+
+// Interface implementation assertions
+var _ action.ActionTarget = (*VirtualList)(nil)
+var _ action.ScrollableActionTarget = (*VirtualList)(nil)
 
 // VirtualList is a virtualized list component that only renders visible items
 // This is similar to react-window or react-virtualized in web development
@@ -329,4 +334,140 @@ func (vl *VirtualList) GetScrollIndicator() string {
 	}
 
 	return fmt.Sprintf("[%d%% %s]", percent, arrow)
+}
+
+// ============================================================================
+// ActionTarget 接口实现
+// ============================================================================
+
+// HandleAction implements ActionTarget interface
+func (vl *VirtualList) HandleAction(act *action.Action) bool {
+	if act == nil {
+		return false
+	}
+
+	switch act.Type {
+	case action.ActionScroll:
+		// Scroll by delta (from Payload)
+		if delta, ok := act.GetPayloadInt(); ok {
+			vl.ScrollBy(delta)
+			return true
+		}
+
+	case action.ActionNavigateUp:
+		// Scroll up by line
+		vl.ScrollBy(-1)
+		return true
+
+	case action.ActionNavigateDown:
+		// Scroll down by line
+		vl.ScrollBy(1)
+		return true
+
+	case action.ActionNavigatePageUp:
+		// Page up
+		vl.PageUp()
+		return true
+
+	case action.ActionNavigatePageDown:
+		// Page down
+		vl.PageDown()
+		return true
+
+	case action.ActionNavigateHome:
+		// Scroll to top
+		vl.ScrollTop()
+		return true
+
+	case action.ActionNavigateEnd:
+		// Scroll to bottom
+		vl.ScrollBottom()
+		return true
+	}
+
+	return false
+}
+
+// GetSupportedActions implements ActionTarget interface
+func (vl *VirtualList) GetSupportedActions() []action.ActionType {
+	return []action.ActionType{
+		action.ActionScroll,
+		action.ActionNavigateUp,
+		action.ActionNavigateDown,
+		action.ActionNavigatePageUp,
+		action.ActionNavigatePageDown,
+		action.ActionNavigateHome,
+		action.ActionNavigateEnd,
+	}
+}
+
+// CanHandleAction implements ActionTarget interface
+func (vl *VirtualList) CanHandleAction(act *action.Action) bool {
+	if act == nil {
+		return false
+	}
+
+	switch act.Type {
+	case action.ActionScroll:
+		return vl.IsScrollable()
+
+	case action.ActionNavigateUp:
+		return vl.CanScrollUp()
+
+	case action.ActionNavigateDown:
+		return vl.CanScrollDown()
+
+	case action.ActionNavigatePageUp:
+		return vl.CanScrollUp()
+
+	case action.ActionNavigatePageDown:
+		return vl.CanScrollDown()
+
+	case action.ActionNavigateHome:
+		return vl.scrollOffset > 0
+
+	case action.ActionNavigateEnd:
+		itemsPerPage := vl.viewportHeight / vl.itemHeight
+		if itemsPerPage < 1 {
+			itemsPerPage = 1
+		}
+		maxOffset := vl.itemCount - itemsPerPage
+		return vl.scrollOffset < maxOffset
+	}
+
+	return false
+}
+
+// ============================================================================
+// ScrollableActionTarget 接口实现
+// ============================================================================
+
+// CanScroll implements ScrollableActionTarget interface
+// delta > 0 表示向上滚动，delta < 0 表示向下滚动
+func (vl *VirtualList) CanScroll(delta int) bool {
+	if delta > 0 {
+		// 向上滚动（内容向下移动）
+		return vl.scrollOffset > 0
+	} else if delta < 0 {
+		// 向下滚动（内容向上移动）
+		return vl.CanScrollDown()
+	}
+	return vl.IsScrollable()
+}
+
+// Scroll implements ScrollableActionTarget interface
+// delta > 0 表示向上滚动，delta < 0 表示向下滚动
+func (vl *VirtualList) Scroll(delta int) bool {
+	newOffset := vl.ScrollBy(delta)
+	return newOffset != vl.scrollOffset
+}
+
+// GetScrollPosition implements ScrollableActionTarget interface
+// 返回 (当前位置, 总范围, 可见范围)
+func (vl *VirtualList) GetScrollPosition() (current, total, visible int) {
+	itemsPerPage := vl.viewportHeight / vl.itemHeight
+	if itemsPerPage < 1 {
+		itemsPerPage = 1
+	}
+	return vl.scrollOffset, vl.itemCount, itemsPerPage
 }

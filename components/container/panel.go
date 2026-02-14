@@ -1,6 +1,7 @@
 package container
 
 import (
+	"github.com/wwsheng009/mint/framework/action"
 	"github.com/wwsheng009/mint/framework/cmd"
 	"github.com/wwsheng009/mint/framework/component"
 	frameworkevent "github.com/wwsheng009/mint/framework/event"
@@ -14,6 +15,7 @@ import (
 // Interface implementation assertions
 var _ frameworkevent.Component = (*Panel)(nil)
 var _ component.Updater = (*Panel)(nil) // Phase 3: Msg/Cmd support
+var _ action.ActionTarget = (*Panel)(nil) // Action unification
 
 // Panel is a high-level container component that manages borders, headers, and content layout.
 // It simplifies layout by automatically handling height calculations and flex distribution.
@@ -64,6 +66,34 @@ func (p *Panel) Update(message runtimemsg.Msg) cmd.Cmd {
 	// Panel is just a container - no direct message handling needed
 	// Child components receive messages directly via TargetID routing
 	return nil
+}
+
+// ============================================================================
+// ActionTarget 接口实现
+// ============================================================================
+
+// HandleAction implements ActionTarget interface
+//
+// Note: Panel is a container component. With direct routing via TargetID,
+// actions go directly to child components (Tabs, Button, etc.) through the
+// action registry. Panel doesn't need to handle or forward actions.
+func (p *Panel) HandleAction(act *action.Action) bool {
+	// Panel is just a container - no direct action handling needed
+	// Child components receive actions directly via TargetID routing
+	return false
+}
+
+// GetSupportedActions implements ActionTarget interface
+func (p *Panel) GetSupportedActions() []action.ActionType {
+	// Panel is a container - no specific actions supported
+	// Child components handle their own actions
+	return []action.ActionType{}
+}
+
+// CanHandleAction implements ActionTarget interface
+func (p *Panel) CanHandleAction(act *action.Action) bool {
+	// Panel is a container - doesn't handle actions directly
+	return false
 }
 
 // PanelBuilder creates a new Panel

@@ -8,11 +8,16 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/wwsheng009/mint/framework/action"
 	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
 	"github.com/wwsheng009/mint/ui"
 )
+
+// Interface implementation assertions
+var _ action.ActionTarget = (*TooltipVNode)(nil)
+var _ action.ActionTarget = (*ToastVNode)(nil)
 
 // =============================================================================
 // Tooltip Component
@@ -393,6 +398,78 @@ func (tm *ToastManager) Clear() {
 // GetToasts returns all active toasts
 func (tm *ToastManager) GetToasts() []ui.VNode {
 	return tm.toasts
+}
+
+// ============================================================================
+// ActionTarget 接口实现 - TooltipVNode
+// ============================================================================
+
+// HandleAction implements ActionTarget interface for TooltipVNode
+func (t *TooltipVNode) HandleAction(act *action.Action) bool {
+	// Tooltip is a display component - no action handling needed
+	return false
+}
+
+// GetSupportedActions implements ActionTarget interface for TooltipVNode
+func (t *TooltipVNode) GetSupportedActions() []action.ActionType {
+	return []action.ActionType{}
+}
+
+// CanHandleAction implements ActionTarget interface for TooltipVNode
+func (t *TooltipVNode) CanHandleAction(act *action.Action) bool {
+	return false
+}
+
+// ============================================================================
+// ActionTarget 接口实现 - ToastVNode
+// ============================================================================
+
+// HandleAction implements ActionTarget interface for ToastVNode
+func (t *ToastVNode) HandleAction(act *action.Action) bool {
+	switch act.Type {
+	case action.ActionCancel:
+		// Close toast on cancel (ESC key)
+		if t.visible {
+			t.visible = false
+			if t.onClose != nil {
+				t.onClose()
+			}
+			return true
+		}
+	case action.ActionClick:
+		// Dismiss toast on click
+		if t.visible {
+			t.visible = false
+			if t.onClose != nil {
+				t.onClose()
+			}
+			return true
+		}
+	}
+	return false
+}
+
+// GetSupportedActions implements ActionTarget interface for ToastVNode
+func (t *ToastVNode) GetSupportedActions() []action.ActionType {
+	if !t.visible {
+		return []action.ActionType{}
+	}
+	return []action.ActionType{
+		action.ActionCancel,
+		action.ActionClick,
+	}
+}
+
+// CanHandleAction implements ActionTarget interface for ToastVNode
+func (t *ToastVNode) CanHandleAction(act *action.Action) bool {
+	if !t.visible || act == nil {
+		return false
+	}
+	switch act.Type {
+	case action.ActionCancel, action.ActionClick:
+		return true
+	}
+	return false
 }
 
 // =============================================================================
