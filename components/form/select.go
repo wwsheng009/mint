@@ -3,6 +3,7 @@ package form
 import (
 	"unicode/utf8"
 
+	"github.com/wwsheng009/mint/framework/action"
 	"github.com/wwsheng009/mint/framework/cmd"
 	"github.com/wwsheng009/mint/framework/component"
 	frameworkevent "github.com/wwsheng009/mint/framework/event"
@@ -19,6 +20,9 @@ import (
 // Interface implementation assertions
 var _ frameworkevent.Component = (*SelectVNode)(nil)
 var _ component.Updater = (*SelectVNode)(nil) // Phase 3: Msg/Cmd support
+var _ action.ActionTarget = (*SelectVNode)(nil)
+var _ action.FocusableActionTarget = (*SelectVNode)(nil)
+var _ action.SelectableActionTarget = (*SelectVNode)(nil)
 
 // SelectOption represents a single option in a select
 type SelectOption struct {
@@ -584,4 +588,160 @@ func (s *SelectVNode) Label() string {
 		return s.options[0].Label
 	}
 	return "select"
+}
+
+// ============================================================================
+// ActionTarget 接口实现
+// ============================================================================
+
+// HandleAction implements ActionTarget interface
+func (s *SelectVNode) HandleAction(act *action.Action) bool {
+	if act == nil || s.disabled {
+		return false
+	}
+
+	switch act.Type {
+	case action.ActionClick, action.ActionEnter, action.ActionSelect:
+		// Cycle to next option
+		if len(s.options) > 0 {
+			nextIdx := s.selected + 1
+			if nextIdx >= len(s.options) {
+				nextIdx = 0
+			}
+			s.SetSelected(nextIdx)
+			if s.onChange != nil {
+				s.onChange(s.SelectedValue())
+			}
+			return true
+		}
+
+	case action.ActionNavigateUp:
+		// Select previous option
+		if len(s.options) > 0 {
+			nextIdx := s.selected - 1
+			if nextIdx < 0 {
+				nextIdx = len(s.options) - 1
+			}
+			s.SetSelected(nextIdx)
+			if s.onChange != nil {
+				s.onChange(s.SelectedValue())
+			}
+			return true
+		}
+
+	case action.ActionNavigateDown:
+		// Select next option
+		if len(s.options) > 0 {
+			nextIdx := s.selected + 1
+			if nextIdx >= len(s.options) {
+				nextIdx = 0
+			}
+			s.SetSelected(nextIdx)
+			if s.onChange != nil {
+				s.onChange(s.SelectedValue())
+			}
+			return true
+		}
+	}
+
+	return false
+}
+
+// GetSupportedActions implements ActionTarget interface
+func (s *SelectVNode) GetSupportedActions() []action.ActionType {
+	return []action.ActionType{
+		action.ActionClick,
+		action.ActionEnter,
+		action.ActionSelect,
+		action.ActionNavigateUp,
+		action.ActionNavigateDown,
+	}
+}
+
+// CanHandleAction implements ActionTarget interface
+func (s *SelectVNode) CanHandleAction(act *action.Action) bool {
+	if act == nil || s.disabled {
+		return false
+	}
+
+	switch act.Type {
+	case action.ActionClick, action.ActionEnter, action.ActionSelect:
+		return len(s.options) > 0
+	case action.ActionNavigateUp, action.ActionNavigateDown:
+		return len(s.options) > 0
+	}
+
+	return false
+}
+
+// ============================================================================
+// FocusableActionTarget 接口实现
+// ============================================================================
+
+// Focus implements FocusableActionTarget interface
+func (s *SelectVNode) Focus() bool {
+	if s.disabled || len(s.options) == 0 {
+		return false
+	}
+	s.SetFocus(true)
+	return true
+}
+
+// Blur implements FocusableActionTarget interface
+func (s *SelectVNode) Blur() {
+	s.SetFocus(false)
+}
+
+// ============================================================================
+// SelectableActionTarget 接口实现
+// ============================================================================
+
+// Select implements SelectableActionTarget interface
+// Selects an option by index (from Payload)
+func (s *SelectVNode) Select() bool {
+	if s.disabled || len(s.options) == 0 {
+		return false
+	}
+	// Cycle to next option
+	nextIdx := s.selected + 1
+	if nextIdx >= len(s.options) {
+		nextIdx = 0
+	}
+	s.SetSelected(nextIdx)
+	if s.onChange != nil {
+		s.onChange(s.SelectedValue())
+	}
+	return true
+}
+
+// IsSelected implements SelectableActionTarget interface
+// Returns true if an option is selected
+func (s *SelectVNode) IsSelected() bool {
+	return s.selected >= 0 && s.selected < len(s.options)
+}
+
+// ToggleSelection implements SelectableActionTarget interface
+// Cycles to the next option
+func (s *SelectVNode) ToggleSelection() bool {
+	if s.disabled || len(s.options) == 0 {
+		return false
+	}
+	nextIdx := s.selected + 1
+	if nextIdx >= len(s.options) {
+		nextIdx = 0
+	}
+	s.SetSelected(nextIdx)
+	if s.onChange != nil {
+		s.onChange(s.SelectedValue())
+	}
+	return true
+}
+
+// GetSelectedCount implements SelectableActionTarget interface
+// Returns 1 if an option is selected, 0 otherwise
+func (s *SelectVNode) GetSelectedCount() int {
+	if s.selected >= 0 && s.selected < len(s.options) {
+		return 1
+	}
+	return 0
 }
