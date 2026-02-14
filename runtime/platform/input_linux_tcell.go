@@ -23,6 +23,10 @@ type tcellInputReader struct {
 	quit       chan struct{}
 	screen     tcell.Screen
 	quitOnce   sync.Once
+
+	// Mouse button state tracking to distinguish Release from Motion
+	// Used when button==0 to determine if it's a release or just movement
+	lastPressedButton MouseButton // Track which button was pressed for release events
 }
 
 func newInputReaderImpl() inputReaderImpl {
@@ -291,17 +295,30 @@ func (r *tcellInputReader) parseMouseEvent(ev *tcell.EventMouse, now time.Time) 
 
 	// Handle regular mouse buttons
 	if button&tcell.ButtonPrimary != 0 {
+		// Button pressed or dragging - record which button
 		input.MouseButton = MouseLeft
 		input.MouseAction = MousePress
+		r.lastPressedButton = MouseLeft
 	} else if button&tcell.ButtonSecondary != 0 {
 		input.MouseButton = MouseRight
 		input.MouseAction = MousePress
+		r.lastPressedButton = MouseRight
 	} else if button&tcell.ButtonMiddle != 0 {
 		input.MouseButton = MouseMiddle
 		input.MouseAction = MousePress
+		r.lastPressedButton = MouseMiddle
 	} else {
-		input.MouseButton = MouseNone
-		input.MouseAction = MouseRelease
+		// No button pressed - check if it's a release or just motion
+		if r.lastPressedButton != MouseNone {
+			// Button was just released
+			input.MouseButton = r.lastPressedButton
+			input.MouseAction = MouseRelease
+			r.lastPressedButton = MouseNone // Reset after release
+		} else {
+			// Just moving without any button pressed
+			input.MouseButton = MouseNone
+			input.MouseAction = MouseMotion
+		}
 	}
 
 	return input
