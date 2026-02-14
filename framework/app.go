@@ -67,7 +67,9 @@ type App struct {
 	actionRouter   *action.Router           // Action 分发器
 	inputProcessor *action.InputProcessor   // Msg → Action 转换器
 	actionRegistry map[uint64]action.ActionTarget  // ActionTarget 注册表
-	legacyMode     bool                      // 是否启用兼容模式（默认 true）
+	// legacyMode is DEPRECATED - Action system is now the primary path
+	// Set to true only for debugging/fallback purposes
+	legacyMode     bool                      // 是否启用兼容模式（默认 false）
 
 	// 自定义事件源（测试时使用，如 MockSandbox）
 	customSource frameworkevent.EventSource
@@ -164,7 +166,7 @@ func NewApp() *App {
 		actionRouter:   action.NewRouter(nil), // 根节点稍后设置
 		inputProcessor: action.NewInputProcessor(),
 		actionRegistry: make(map[uint64]action.ActionTarget),
-		legacyMode:     true, // 默认启用兼容模式
+		legacyMode:     false, // Action 系统优先，legacy 仅用于调试
 	}
 
 	// 设置 InputProcessor 的 KeyMap
@@ -969,11 +971,9 @@ func (a *App) processMsg(msg runtimemsg.Msg) {
 	// 1. 尝试转换为 Action
 	act := a.inputProcessor.ProcessMsg(msg)
 
-	// 2. 如果无法转换且兼容模式开启，回退到旧路径
+	// 2. 处理无法转换的消息（系统事件）
 	if act == nil {
-		if a.legacyMode {
-			a.handleLegacyMsg(msg)
-		}
+		a.handleSystemMsg(msg)
 		return
 	}
 
@@ -995,6 +995,27 @@ func (a *App) processMsg(msg runtimemsg.Msg) {
 	}
 }
 
+// handleSystemMsg 处理无法转换为 Action 的系统消息
+// 例如：Resize, Quit 等系统级事件
+func (a *App) handleSystemMsg(msg runtimemsg.Msg) {
+	// 处理 Resize 事件
+	if resizeMsg, ok := msg.(*runtimemsg.ResizeMsg); ok {
+		a.Resize(resizeMsg.NewWidth, resizeMsg.NewHeight)
+		return
+	}
+
+	// 处理 Quit 事件
+	if msg.Type() == runtimemsg.MsgTypeQuit {
+		a.Quit()
+		return
+	}
+
+	// 其他系统事件...
+	if os.Getenv("TUI_DEBUG_UI") == "true" {
+		log.UILogger.Debug("[processMsg] Unhandled system message: Type=%v", msg.Type())
+	}
+}
+
 // dispatchAction 分发 Action 到 ActionRouter
 func (a *App) dispatchAction(act *action.Action) *action.RouterResult {
 	// 确保路由器有根节点
@@ -1008,7 +1029,8 @@ func (a *App) dispatchAction(act *action.Action) *action.RouterResult {
 	return a.actionRouter.Dispatch(act)
 }
 
-// handleLegacyMsg 兼容模式：处理无法转换的消息
+// handleLegacyMsg 兼容模式：处理无法转换的消息（已废弃）
+// DEPRECATED: Action 系统现在是主路径，此函数仅用于调试/回退
 func (a *App) handleLegacyMsg(msg runtimemsg.Msg) {
 	ev := frameworkevent.MsgToEvent(msg)
 	if ev == nil {
@@ -1089,9 +1111,13 @@ func (a *App) GetActionRegistry() map[uint64]action.ActionTarget {
 	return a.actionRegistry
 }
 
-// SetLegacyMode 设置兼容模式
+// SetLegacyMode 设置兼容模式（已废弃）
+// DEPRECATED: Action 系统现在是主路径，保留此方法仅用于调试
 func (a *App) SetLegacyMode(enabled bool) {
 	a.legacyMode = enabled
+	if enabled && os.Getenv("TUI_DEBUG_UI") == "true" {
+		log.UILogger.Debug("[App] ⚠️  Legacy mode enabled - Action system bypassed")
+	}
 }
 
 // ============================================================================
@@ -1206,7 +1232,8 @@ func (a *App) updateFocusManager(root layout.Node) {
 	}
 }
 
-// handleEvent 处理事件
+// handleEvent 处理事件（已废弃）
+// DEPRECATED: Action 系统现在是主路径，此函数仅用于调试/回退
 func (a *App) handleEvent(ev frameworkevent.Event) {
 	// 调试模式：记录所有事件类型
 	if a.debugMode {
