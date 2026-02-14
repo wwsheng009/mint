@@ -58,6 +58,9 @@ func completeWorkComponent(current, workInProgress *Fiber) *Fiber {
 	// Store the rendered result for later use during commit
 	workInProgress.MemoizedProps = workInProgress.Props
 
+	// ✨ Copy Layer from VNode (in case it changed)
+	workInProgress.Layer = workInProgress.VNode.GetLayer()
+
 	// Components don't directly render to buffer
 	// Their children are rendered recursively
 	_ = componentVNode

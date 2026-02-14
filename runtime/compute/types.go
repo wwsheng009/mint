@@ -58,6 +58,13 @@ type ComputedBox struct {
 	// This provides stable runtime identity independent of VNode keys and paths
 	// See: docs/render/fiber/IDENTITY_REFACTORING_PLAN.md
 	NodeID uint64
+
+	// Layer specifies rendering layer (Z-order) for this box
+	// Layers: Base(0) < Overlay(1) < Modal(2) < Tooltip(3) < Inspector(4)
+	// This is copied from Fiber.Layer during layout
+	// See: docs/render/fiber/diff_layer.md
+	Layer rtui.Layer
+
 	// ChildFiber stores the Fiber node for this box (used for NodeID propagation to children)
 	// See: docs/render/fiber/FIBER_ID.md - Option 2 implementation
 	ChildFiber *rtui.Fiber

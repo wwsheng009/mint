@@ -130,6 +130,12 @@ type Fiber struct {
 	// See: docs/render/fiber/IDENTITY_REFACTORING_PLAN.md
 	NodeID uint64
 
+	// ✨ Layer specifies rendering layer (Z-order) for this fiber
+	// Layers: Base(0) < Overlay(1) < Modal(2) < Tooltip(3) < Inspector(4)
+	// This is copied from VNode.GetLayer() during Fiber creation
+	// See: docs/render/fiber/diff_layer.md
+	Layer Layer
+
 	// ✨ Path for automatic key generation (Mixed Strategy)
 	// Full path from root: /root/base[0]/vstack[0]/panel[0]
 	// Used for generating automatic keys for static UI components
@@ -150,6 +156,12 @@ type Fiber struct {
 	// === Tag for debugging ===
 	// Component or element tag
 	Tag string
+
+	// ✨ ComputedBox for layout result (set during layout phase)
+	// This is nil initially and set by layoutFiber()
+	// Using interface{} to avoid import cycle with compute package
+	// TODO: After refactoring, use *compute.ComputedBox directly
+	ComputedBox interface{}
 
 	// === Component Instance ===
 	// Persistent component instance for state preservation

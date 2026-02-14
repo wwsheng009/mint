@@ -65,10 +65,12 @@ func CreateFiber(vnode VNode) *Fiber {
 		DiffKey:       diffKey,  // ✨ Copy DiffKey directly
 		Key:           diffKey,  // Backward compatibility
 		NodeID:        generateNodeID(), // ✨ Allocate unique NodeID
+		Layer:         vnode.GetLayer(), // ✨ Copy Layer from VNode
 		Lanes:         LaneNoLane,
 		ChildLanes:    LaneNoLane,
 		Flags:         EffectNoEffect,
 		SubtreeFlags:  EffectNoEffect,
+		ComputedBox:   nil, // ✨ ComputedBox is nil initially
 	}
 
 	// Set tag based on type
@@ -238,6 +240,7 @@ func CloneFiber(fiber *Fiber) *Fiber {
 		DiffKey:       fiber.DiffKey,  // ✨ Preserve DiffKey for diffing
 		Key:           fiber.Key,       // Backward compatibility
 		NodeID:        fiber.NodeID,   // ✨ Preserve NodeID for stable identity
+		Layer:         fiber.Layer,    // ✨ Preserve Layer
 		Props:         fiber.Props,
 		MemoizedProps: fiber.MemoizedProps,
 		MemoizedState: fiber.MemoizedState,
@@ -252,7 +255,29 @@ func CloneFiber(fiber *Fiber) *Fiber {
 		SubtreeFlags:  fiber.SubtreeFlags,
 		Lanes:         fiber.Lanes,
 		ChildLanes:    fiber.ChildLanes,
+		ComputedBox:   nil, // ✨ Reset ComputedBox (will be re-calculated)
 	}
+}
+
+// =============================================================================
+// BuildHitMapFromFiber (Phase 1.5 - Placeholder)
+// =============================================================================
+// BuildHitMapFromFiber builds a HitMap from a Fiber tree
+// This is a placeholder implementation for Phase 1
+// The full implementation will be provided in Phase 2 (Layout refactor)
+//
+// See: docs/plan/fiber/TODO_LIST.md Phase 1.5
+func BuildHitMapFromFiber(root *Fiber) interface{} {
+	// TODO: Implement full HitMap building from Fiber tree
+	// In Phase 2, this will:
+	// 1. Traverse the Fiber tree
+	// 2. Read ComputedBox from each Fiber (after layout)
+	// 3. Build HitMap entries with NodeID, Layer, Bounds, etc.
+	// 4. Sort by Layer (Z-order): Base < Overlay < Modal < Tooltip < Inspector
+	// 5. Return *event.HitMap
+
+	// Return nil for now - will be implemented in Phase 2
+	return nil
 }
 
 // =============================================================================
