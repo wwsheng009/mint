@@ -3,11 +3,16 @@ package layout
 import (
 	"strings"
 
+	"github.com/wwsheng009/mint/framework/action"
 	"github.com/wwsheng009/mint/internal/log"
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 	ui "github.com/wwsheng009/mint/ui"
 )
+
+// Interface implementation assertions
+var _ action.ActionTarget = (*ScrollView)(nil)
+var _ action.ScrollableActionTarget = (*ScrollView)(nil)
 
 func min(a, b int) int {
 	if a < b {
@@ -372,4 +377,133 @@ func (sv *ScrollView) GetViewportSize() int {
 // IsScrollable returns true if content is larger than viewport
 func (sv *ScrollView) IsScrollable() bool {
 	return sv.totalLines > sv.height
+}
+
+// ============================================================================
+// ActionTarget 接口实现
+// ============================================================================
+
+// HandleAction implements ActionTarget interface
+func (sv *ScrollView) HandleAction(act *action.Action) bool {
+	if act == nil {
+		return false
+	}
+
+	switch act.Type {
+	case action.ActionScroll:
+		// Scroll by delta (from Payload)
+		if delta, ok := act.GetPayloadInt(); ok {
+			sv.ScrollBy(delta)
+			return true
+		}
+
+	case action.ActionNavigateUp:
+		// Scroll up by line
+		sv.ScrollBy(-1)
+		return true
+
+	case action.ActionNavigateDown:
+		// Scroll down by line
+		sv.ScrollBy(1)
+		return true
+
+	case action.ActionNavigatePageUp:
+		// Page up
+		sv.PageUp()
+		return true
+
+	case action.ActionNavigatePageDown:
+		// Page down
+		sv.PageDown()
+		return true
+
+	case action.ActionNavigateHome:
+		// Scroll to top
+		sv.ScrollTop()
+		return true
+
+	case action.ActionNavigateEnd:
+		// Scroll to bottom
+		sv.ScrollBottom()
+		return true
+	}
+
+	return false
+}
+
+// GetSupportedActions implements ActionTarget interface
+func (sv *ScrollView) GetSupportedActions() []action.ActionType {
+	return []action.ActionType{
+		action.ActionScroll,
+		action.ActionNavigateUp,
+		action.ActionNavigateDown,
+		action.ActionNavigatePageUp,
+		action.ActionNavigatePageDown,
+		action.ActionNavigateHome,
+		action.ActionNavigateEnd,
+	}
+}
+
+// CanHandleAction implements ActionTarget interface
+func (sv *ScrollView) CanHandleAction(act *action.Action) bool {
+	if act == nil {
+		return false
+	}
+
+	switch act.Type {
+	case action.ActionScroll:
+		return sv.IsScrollable()
+
+	case action.ActionNavigateUp:
+		return sv.CanScrollUp()
+
+	case action.ActionNavigateDown:
+		return sv.CanScrollDown()
+
+	case action.ActionNavigatePageUp:
+		return sv.CanScrollUp()
+
+	case action.ActionNavigatePageDown:
+		return sv.CanScrollDown()
+
+	case action.ActionNavigateHome:
+		return sv.scrollOffset > 0
+
+	case action.ActionNavigateEnd:
+		maxOffset := sv.totalLines - sv.height
+		return sv.scrollOffset < maxOffset
+	}
+
+	return false
+}
+
+// ============================================================================
+// ScrollableActionTarget 接口实现
+// ============================================================================
+
+// CanScroll implements ScrollableActionTarget interface
+// delta > 0 表示向上滚动，delta < 0 表示向下滚动
+func (sv *ScrollView) CanScroll(delta int) bool {
+	if delta > 0 {
+		// 向上滚动（内容向下移动）
+		return sv.scrollOffset > 0
+	} else if delta < 0 {
+		// 向下滚动（内容向上移动）
+		maxOffset := sv.totalLines - sv.height
+		return sv.scrollOffset < maxOffset
+	}
+	return sv.IsScrollable()
+}
+
+// Scroll implements ScrollableActionTarget interface
+// delta > 0 表示向上滚动，delta < 0 表示向下滚动
+func (sv *ScrollView) Scroll(delta int) bool {
+	newOffset := sv.ScrollBy(delta)
+	return newOffset != sv.scrollOffset
+}
+
+// GetScrollPosition implements ScrollableActionTarget interface
+// 返回 (当前位置, 总范围, 可见范围)
+func (sv *ScrollView) GetScrollPosition() (current, total, visible int) {
+	return sv.scrollOffset, sv.totalLines, sv.height
 }
