@@ -4,11 +4,15 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/wwsheng009/mint/framework/action"
 	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
 	"github.com/wwsheng009/mint/ui"
 )
+
+// Interface implementation assertions
+var _ action.ActionTarget = (*TableVNode)(nil)
 
 // TableColumn represents a column in a table
 type TableColumn struct {
@@ -244,4 +248,72 @@ func (t *TableVNode) Paint(x, y int) []paint.DrawCmd {
 	}
 
 	return cmds
+}
+
+// ============================================================================
+// ActionTarget 接口实现
+// ============================================================================
+
+// HandleAction implements ActionTarget interface
+// Table is primarily a display component but handles some navigation actions
+func (t *TableVNode) HandleAction(act *action.Action) bool {
+	if act == nil {
+		return false
+	}
+
+	switch act.Type {
+	case action.ActionNavigateUp:
+		// Could be used for row navigation (if selectable)
+		return true
+
+	case action.ActionNavigateDown:
+		// Could be used for row navigation (if selectable)
+		return true
+
+	case action.ActionNavigatePageUp:
+		// Navigate up by page
+		return true
+
+	case action.ActionNavigatePageDown:
+		// Navigate down by page
+		return true
+
+	case action.ActionNavigateHome:
+		// Go to first row
+		return true
+
+	case action.ActionNavigateEnd:
+		// Go to last row
+		return true
+	}
+
+	return false
+}
+
+// GetSupportedActions implements ActionTarget interface
+func (t *TableVNode) GetSupportedActions() []action.ActionType {
+	return []action.ActionType{
+		action.ActionNavigateUp,
+		action.ActionNavigateDown,
+		action.ActionNavigatePageUp,
+		action.ActionNavigatePageDown,
+		action.ActionNavigateHome,
+		action.ActionNavigateEnd,
+	}
+}
+
+// CanHandleAction implements ActionTarget interface
+func (t *TableVNode) CanHandleAction(act *action.Action) bool {
+	if act == nil {
+		return false
+	}
+
+	switch act.Type {
+	case action.ActionNavigateUp, action.ActionNavigateDown,
+	     action.ActionNavigatePageUp, action.ActionNavigatePageDown,
+	     action.ActionNavigateHome, action.ActionNavigateEnd:
+		return true
+	}
+
+	return false
 }
