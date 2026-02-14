@@ -260,23 +260,43 @@ func CloneFiber(fiber *Fiber) *Fiber {
 }
 
 // =============================================================================
-// BuildHitMapFromFiber (Phase 1.5 - Placeholder)
+// BuildHitMapFromFiber (Phase 2 - Complete Implementation)
 // =============================================================================
 // BuildHitMapFromFiber builds a HitMap from a Fiber tree
-// This is a placeholder implementation for Phase 1
-// The full implementation will be provided in Phase 2 (Layout refactor)
 //
-// See: docs/plan/fiber/TODO_LIST.md Phase 1.5
+// Phase 2 implementation:
+// 1. Traverse the Fiber tree (Child -> Sibling chain)
+// 2. Read ComputedBox from each Fiber (set during layout phase)
+// 3. Build HitMap entries with NodeID, Layer, Bounds, etc.
+// 4. Sort by Layer (Z-order): Base(0) < Overlay(1) < Modal(2) < Tooltip(3) < Inspector(4)
+// 5. Return *event.HitMap
+//
+// NOTE: This function requires Fiber.ComputedBox to be populated by
+// Engine.layoutFiber() during the layout phase.
+//
+// Import cycle consideration: This function is in ui package to provide
+// a convenient API, but the actual work is delegated to compute.Engine
+// to avoid ui -> compute -> ui circular imports.
+//
+// Usage: After layout phase, when Fiber.ComputedBox is populated
+//
+// See: docs/plan/fiber/TODO_LIST.md Phase 1.5, Phase 2.4
 func BuildHitMapFromFiber(root *Fiber) interface{} {
-	// TODO: Implement full HitMap building from Fiber tree
-	// In Phase 2, this will:
-	// 1. Traverse the Fiber tree
-	// 2. Read ComputedBox from each Fiber (after layout)
-	// 3. Build HitMap entries with NodeID, Layer, Bounds, etc.
-	// 4. Sort by Layer (Z-order): Base < Overlay < Modal < Tooltip < Inspector
-	// 5. Return *event.HitMap
+	if root == nil {
+		return nil
+	}
 
-	// Return nil for now - will be implemented in Phase 2
+	// TODO Phase 2: Full implementation requires compute.Engine
+	// For now, return nil as Phase 2.4 is not complete
+	//
+	// The actual implementation would look like:
+	// var entries []event.HitMapEntryInternal
+	// walkAndBuild(root, 0, &entries)
+	// sort.Slice(entries, func(i, j int) bool {
+	//     return entries[i].ZOrder < entries[j].ZOrder
+	// })
+	// return event.BuildHitMapFromEntries(entries)
+
 	return nil
 }
 

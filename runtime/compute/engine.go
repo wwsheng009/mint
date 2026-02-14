@@ -1741,3 +1741,213 @@ func (e *Engine) buildHitMapFromComputedBoxes(root *ComputedBox) *event.HitMap {
 	// Build HitMap from entries using BuildFromEntries helper
 	return event.BuildHitMapFromEntries(entries)
 }
+
+// =============================================================================
+// Fiber-Based Layout (Phase 2: Layout 基于 Fiber)
+// =============================================================================
+
+// layoutFiber builds a ComputedBox for a Fiber node
+// This is the new fiber-based layout implementation that uses Fiber as the primary source
+// of layout information, with VNode only as backing data
+//
+// Parameters:
+//   fiber: The Fiber node to layout
+//   constraints: Box constraints for layout
+//   depth: Tree depth (for debug logging)
+//
+// Returns:
+//   *ComputedBox containing layout result
+func (e *Engine) layoutFiber(fiber *rtui.Fiber, constraints runtime.BoxConstraints, depth int) *ComputedBox {
+	if fiber == nil {
+		return nil
+	}
+
+	// Check if Fiber already has a cached ComputedBox from previous layout
+	// IMPORTANT: This cache is per-reconciliation cycle, not permanent cache
+	if fiber.ComputedBox != nil {
+		cachedBox, ok := fiber.ComputedBox.(*ComputedBox)
+		if ok && cachedBox != nil {
+			// Check if the cached box is still valid
+			if !cachedBox.LayoutDirty {
+				if e.debug {
+					log.EngineLogger.Debug("[layoutFiber] Using cached ComputedBox for NodeID=%d", fiber.NodeID)
+				}
+				return cachedBox
+			}
+		}
+	}
+
+	// Build ComputedBox using fiber.VNode (still needed for content)
+	// but associate it with fiber.NodeID and fiber.Layer
+	box := e.buildComputedBox(fiber.VNode, fiber, nil, constraints)
+
+	if box == nil {
+		if e.debug {
+			log.EngineLogger.Debug("[layoutFiber] ⚠️ nil ComputedBox for NodeID=%d", fiber.NodeID)
+		}
+		return nil
+	}
+
+	// Copy NodeID from Fiber
+	box.NodeID = fiber.NodeID
+
+	// Copy Layer from Fiber
+	box.Layer = fiber.Layer
+
+	// Store ComputedBox back in Fiber (for potential caching)
+	fiber.ComputedBox = box
+
+	if e.debug {
+		log.EngineLogger.Debug("[layoutFiber] Created ComputedBox: NodeID=%d Layer=%d bounds=(%d,%d,%dx%d)",
+			box.NodeID, box.Layer, box.Box.X, box.Box.Y, box.Box.Width, box.Box.Height)
+	}
+
+	return box
+}
+
+// measureFiber measures the size of a Fiber node
+// This is the new fiber-based measure implementation
+//
+// Parameters:
+//   fiber: The Fiber node to measure
+//   constraints: Box constraints for measurement
+//
+// Returns:
+//   runtime.Box containing measured size
+func (e *Engine) measureFiber(fiber *rtui.Fiber, constraints runtime.BoxConstraints) runtime.Box {
+	if fiber == nil {
+		return runtime.Box{}
+	}
+
+	// Measure using fiber.VNode (still needed for content)
+	size := e.measureVNode(fiber.VNode, constraints)
+
+	return runtime.Box{
+		X:      0,
+		Y:      0,
+		Width:  size.Width,
+		Height: size.Height,
+	}
+}
+
+// layoutFiberChildren builds ComputedBox children from Fiber children
+// This traverses the Fiber tree (Child -> Sibling) and builds ComputedBoxes for all children
+//
+// Parameters:
+//   fiber: The parent Fiber node
+//   constraints: Box constraints for layout
+//   depth: Tree depth (for debug logging)
+//
+// Returns:
+//   []*ComputedBox containing layout results for all children
+func (e *Engine) layoutFiberChildren(fiber *rtui.Fiber, constraints runtime.BoxConstraints, depth int) []*ComputedBox {
+	if fiber == nil || fiber.Child == nil {
+		return nil
+	}
+
+	var children []*ComputedBox
+
+	// Traverse Fiber children: Child -> Sibling chain
+	for childFiber := fiber.Child; childFiber != nil; childFiber = childFiber.Sibling {
+		childBox := e.layoutFiber(childFiber, constraints, depth+1)
+		if childBox != nil {
+			children = append(children, childBox)
+		}
+	}
+
+	if e.debug {
+		log.EngineLogger.Debug("[layoutFiberChildren] Processed %d children for NodeID=%d",
+			len(children), fiber.NodeID)
+	}
+
+	return children
+}
+
+// buildHitMapFromFiber builds a HitMap directly from the Fiber tree
+// This traverses the Fiber and collects ComputedBox entries from each Fiber
+//
+// Parameters:
+//   root: The root Fiber node
+//
+// Returns:
+//   *event.HitMap containing all hit test entries from the Fiber tree
+func (e *Engine) buildHitMapFromFiber(root *rtui.Fiber) *event.HitMap {
+	if root == nil {
+		return event.NewHitMap()
+	}
+
+	var entries []event.HitMapEntryInternal
+
+	// Recursively walk the Fiber tree and build HitMap entries
+	var walk func(fiber *rtui.Fiber, treeDepth int)
+	walk = func(fiber *rtui.Fiber, treeDepth int) {
+		if fiber == nil {
+			return
+		}
+
+		// Get ComputedBox from Fiber
+		box, ok := fiber.ComputedBox.(*ComputedBox)
+		if !ok || box == nil {
+			// No ComputedBox - continue walking children
+			for childFiber := fiber.Child; childFiber != nil; childFiber = childFiber.Sibling {
+				walk(childFiber, treeDepth+1)
+			}
+			return
+		}
+
+		// Skip nodes with zero size
+		if box.Box.Width <= 0 || box.Box.Height <= 0 {
+			for childFiber := fiber.Child; childFiber != nil; childFiber = childFiber.Sibling {
+				walk(childFiber, treeDepth+1)
+			}
+			return
+		}
+
+		// Calculate Z-order: int(fiber.Layer) * 10000 + treeDepth
+		// This ensures proper layer priority: Overlay > Base, Modal > Overlay, etc.
+		zOrder := int(fiber.Layer)*10000 + treeDepth
+
+		if e.debug {
+			log.EngineLogger.Debug("[buildHitMapFromFiber] Adding entry: NodeID=%d Layer=%d treeDepth=%d ZOrder=%d bounds=(%d,%d,%dx%d)",
+				box.NodeID, fiber.Layer, treeDepth, zOrder, box.Box.X, box.Box.Y, box.Box.Width, box.Box.Height)
+		}
+
+		// Create HitMap entry
+		entry := event.HitMapEntryInternal{
+			NodeID: box.NodeID,
+			Node:   rtui.AsLayoutNode(box.VNode),
+			Bounds: runtimelayout.Rect{
+				X:      box.Box.X,
+				Y:      box.Box.Y,
+				Width:  box.Box.Width,
+				Height: box.Box.Height,
+			},
+			LocalXY: func(screenX, screenY int) (int, int) {
+				return screenX - box.Box.X, screenY - box.Box.Y
+			},
+			ZOrder: zOrder,
+		}
+
+		entries = append(entries, entry)
+
+		// Recursively process children (via Fiber tree: Child -> Sibling chain)
+		for childFiber := fiber.Child; childFiber != nil; childFiber = childFiber.Sibling {
+			walk(childFiber, treeDepth+1)
+		}
+	}
+
+	walk(root, 0)
+
+	// Sort by Z-order (ascending - lower Z first)
+	// HitTest will iterate backwards to find upper layers first
+	sort.Slice(entries, func(i, j int) bool {
+		return entries[i].ZOrder < entries[j].ZOrder
+	})
+
+	if e.debug {
+		log.HitMapLogger.Debug("[buildHitMapFromFiber] Built HitMap with %d entries", len(entries))
+	}
+
+	// Build HitMap from entries
+	return event.BuildHitMapFromEntries(entries)
+}
