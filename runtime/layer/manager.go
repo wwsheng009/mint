@@ -20,8 +20,9 @@ import (
 // Manager manages multiple rendering layers
 // It handles collection, layout, and coordination of layer-based rendering
 type Manager struct {
-	collector *Collector
-	layouts   LayerLayouts
+	collector    *Collector
+	layouts      LayerLayouts
+	renderPlanes *RenderPlanes // Phase 3: RenderPlanes for unified layer management
 }
 
 // LayerLayouts maps each Layer to its computed layout
@@ -30,8 +31,9 @@ type LayerLayouts map[rtui.Layer]*compute.ComputedLayout
 // NewManager creates a new layer manager
 func NewManager() *Manager {
 	return &Manager{
-		collector: NewCollector(),
-		layouts:   make(LayerLayouts),
+		collector:    NewCollector(),
+		layouts:      make(LayerLayouts),
+		renderPlanes: NewRenderPlanes(), // Phase 3: Initialize RenderPlanes
 	}
 }
 
@@ -43,6 +45,7 @@ func NewManager() *Manager {
 // This is the main entry point for layer-based rendering
 //
 // Phase 8: Added optional fiber parameter for NodeID propagation
+// Phase 3: Build RenderPlanes from computed layouts for unified layer management
 func (m *Manager) CollectAndLayout(
 	vnode rtui.VNode,
 	fiber *reconciler.Fiber,
@@ -51,6 +54,7 @@ func (m *Manager) CollectAndLayout(
 ) error {
 	// Clear previous state
 	m.layouts = make(LayerLayouts)
+	m.renderPlanes = NewRenderPlanes() // Phase 3: Reset renderPlanes
 
 	// 1. Collect layer nodes from the VNode tree
 	m.collector.Collect(vnode)
@@ -97,6 +101,13 @@ func (m *Manager) CollectAndLayout(
 			// Only layout the first visible node per layer
 			break
 		}
+	}
+
+	// 5. Build RenderPlanes from computed layouts (Phase 3)
+	// RenderPlanes is built from the Fiber tree which contains computed box info
+	if fiber != nil {
+		m.renderPlanes = BuildFromFiber(fiber)
+		log.LayerLogger.Debug("[CollectAndLayout] Built RenderPlanes with %d boxes", m.renderPlanes.CountBoxes())
 	}
 
 	return nil
@@ -313,6 +324,12 @@ func (m *Manager) positionInspector(node *LayerNode, root *compute.ComputedBox) 
 // Query Methods
 // =============================================================================
 
+// GetRenderPlanes returns the RenderPlanes for unified layer management
+// Phase 3: Provides access to the new RenderPlanes-based layer system
+func (m *Manager) GetRenderPlanes() *RenderPlanes {
+	return m.renderPlanes
+}
+
 // GetLayouts returns all layer layouts
 func (m *Manager) GetLayouts() LayerLayouts {
 	return m.layouts
@@ -331,17 +348,20 @@ func (m *Manager) GetBaseLayout() *compute.ComputedLayout {
 
 // HasModal returns true if there is a modal layer
 func (m *Manager) HasModal() bool {
-	return m.collector.HasModal()
+	// Phase 3: Prefer RenderPlanes-based query
+	return m.renderPlanes.HasLayer(rtui.LayerModal)
 }
 
 // HasOverlay returns true if there is any overlay content
 func (m *Manager) HasOverlay() bool {
-	return m.collector.HasOverlay()
+	// Phase 3: Prefer RenderPlanes-based query
+	return m.renderPlanes.HasLayer(rtui.LayerOverlay)
 }
 
 // GetHighestLayer returns the highest layer with content
 func (m *Manager) GetHighestLayer() rtui.Layer {
-	return m.collector.GetHighestLayer()
+	// Phase 3: Use RenderPlanes-based query
+	return m.renderPlanes.GetHighestLayer()
 }
 
 // GetModalNodes returns all modal layer nodes

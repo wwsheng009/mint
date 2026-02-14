@@ -103,9 +103,69 @@ func (rp *RenderPlanes) CountBoxes() int {
 	return total
 }
 
+// HasLayer 检查是否有指定层级的节点
+func (rp *RenderPlanes) HasLayer(layer rtui.Layer) bool {
+	return !rp.IsLayerEmpty(layer)
+}
+
+// GetHighestLayer 返回有节点的最高层级
+func (rp *RenderPlanes) GetHighestLayer() rtui.Layer {
+	// 从高到低检查
+	for i := len(rp.renderOrder) - 1; i >= 0; i-- {
+		layer := rp.renderOrder[i]
+		if rp.HasLayer(layer) {
+			return layer
+		}
+	}
+	return rtui.LayerBase
+}
+
 // Clear 清空所有层
 func (rp *RenderPlanes) Clear() {
 	rp.planes = make(map[rtui.Layer][]*compute.ComputedBox)
+}
+
+// BuildFromFiber 从 Fiber 树构建 RenderPlanes
+// 遍历整个 Fiber 树，提取每个 Fiber 的 ComputedBox 并按 Layer 分组
+//
+// 参数：
+//   root - Fiber 树的根节点
+//
+// 返回：
+//   *RenderPlanes - 包含所有分层 ComputedBox 的 RenderPlanes
+//
+// 注意：此方法假设 Fiber 节点已经完成了布局（即 fiber.ComputedBox 已设置）
+func BuildFromFiber(root *rtui.Fiber) *RenderPlanes {
+	if root == nil {
+		return NewRenderPlanes()
+	}
+
+	rp := NewRenderPlanes()
+
+	// 遍历 Fiber 树并收集 ComputedBox
+	var walk func(fiber *rtui.Fiber)
+	walk = func(fiber *rtui.Fiber) {
+		if fiber == nil {
+			return
+		}
+
+		// 获取 ComputedBox
+		if fiber.ComputedBox != nil {
+			box, ok := fiber.ComputedBox.(*compute.ComputedBox)
+			if ok && box != nil {
+				// 添加到对应层
+				rp.AddToLayer(fiber.Layer, box)
+			}
+		}
+
+		// 递归处理子节点（Fiber 树：Child -> Sibling）
+		for childFiber := fiber.Child; childFiber != nil; childFiber = childFiber.Sibling {
+			walk(childFiber)
+		}
+	}
+
+	walk(root)
+	return rp
 }
 
 // =============================================================================
