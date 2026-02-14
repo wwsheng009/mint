@@ -43,7 +43,7 @@ func getLogOutput() LogOutput {
 // initLogFile initializes the global log file
 func initLogFile() {
 	// Create logs directory if it doesn't exist
-	logDir := "logs"
+	logDir, _ := filepath.Abs("./logs")
 	if err := os.MkdirAll(logDir, 0755); err != nil {
 		fmt.Fprintf(os.Stderr, "[Logger] Failed to create logs directory: %v\n", err)
 		return

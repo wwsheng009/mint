@@ -72,6 +72,10 @@ func NewLoggerWithEnv(prefix, category, customEnvVar string) *Logger {
 
 // checkEnabled checks if debug logging is enabled for this logger's category
 func (l *Logger) checkEnabled() {
+	if isEnvEnabled(os.Getenv("TUI_DEBUG_ALL")) {
+		l.enabled = true
+		return
+	}
 	if l.category == "" {
 		l.enabled = isEnvEnabled(os.Getenv("TUI_DEBUG"))
 		return
