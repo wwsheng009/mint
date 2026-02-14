@@ -798,7 +798,14 @@ if os.Getenv("TUI_DEBUG_UI") == "true" {
 					log.UILogger.Debug("[APP] Msg from channel: Type=%v", msg.Type())
 				}
 
-				// Phase 2: Direct Msg routing for targeted mouse events
+				// Phase 1: Try Action unified path (if enabled)
+				if a.actionRouter != nil && a.inputProcessor != nil {
+					a.processMsg(msg)
+					// Action path marks dirty internally if needed
+					continue
+				}
+
+				// Phase 2: Direct Msg routing for targeted mouse events (legacy path)
 				handled := a.handleMsg(msg)
 				// If not handled by direct routing, fall back to Event path
 				if !handled {
@@ -1551,7 +1558,9 @@ func (a *App) render() {
 		// Phase 1: 更新 ActionTarget 注册表
 		a.buildActionRegistry()
 
-		// 同步到 ActionRouter
+		// 同步到 ActionRouter 的 TargetHandlers（用于 Target 阶段）
+		// 注意：目前只使用 Target 阶段进行直接分发
+		// Capture/Bubble 阶段需要完整的 runtime.LayoutNode 树，暂时跳过
 		for id, target := range a.actionRegistry {
 			a.actionRouter.RegisterTarget(id, target)
 		}
