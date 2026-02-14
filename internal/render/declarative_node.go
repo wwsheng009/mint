@@ -104,7 +104,10 @@ func NewDeclarativeNodeFromFuncWithFiber(fn rtui.ComponentFunc, fwApp *framework
 	// Import the reconciler package here to avoid import cycles in ui package
 	// This is safe because internal/render can import internal/reconciler
 	r := newFiberReconciler(fwApp, fn)
-	focusMgr := rtui.NewVNodeFocusManager()
+
+	// IMPORTANT: Reuse framework.App's focusManager
+	// This ensures focus state is synchronized between the framework and declarative node
+	focusMgr := fwApp.GetFocusManager()
 
 	// Set the focus manager on the reconciler so it can apply focus state before rendering
 	if adapter, ok := r.(*fiberReconcilerAdapter); ok {
@@ -392,19 +395,35 @@ func (n *DeclarativeNode) applyFocusState() {
 
 	var focusable []rtui.FocusableVNode
 
-	// Check if there's a modal open - if so, trap focus in modal
-	hasModal := rtui.HasModalInTree(n.root)
-
-	if hasModal {
-		// Focus trap: only collect focusable elements from modal layer
-		focusable = rtui.CollectFocusableInLayer(n.root, rtui.LayerModal)
-		log.RenderLogger.Debug("DeclarativeNode.Paint: modal detected, collected %d modal focusable nodes", len(focusable))
-
+	// In Fiber mode, use Fiber tree for focus collection
+	if n.useFiber && n.reconciler != nil {
+		// Type assert to access GetFiberRoot method (avoid import cycle in rtui.Reconciler interface)
+		if fiberProvider, ok := n.reconciler.(interface { GetFiberRoot() *reconciler.Fiber }); ok {
+			fiberRoot := fiberProvider.GetFiberRoot()
+			if fiberRoot != nil {
+				focusable = n.collectFocusableFromFiber(fiberRoot)
+				log.RenderLogger.Debug("DeclarativeNode.applyFocusState: Fiber mode, collected %d focusable nodes from Fiber tree", len(focusable))
+			} else {
+				log.RenderLogger.Debug("DeclarativeNode.applyFocusState: Fiber mode but Fiber root is nil, falling back to VNode tree")
+				focusable = rtui.CollectFocusable(n.root)
+			}
+		} else {
+			log.RenderLogger.Debug("DeclarativeNode.applyFocusState: Fiber mode but reconciler doesn't support GetFiberRoot, falling back to VNode tree")
+			focusable = rtui.CollectFocusable(n.root)
+		}
 	} else {
-		// No modal: collect all focusable elements
-		focusable = rtui.CollectFocusable(n.root)
-		log.RenderLogger.Debug("DeclarativeNode.Paint: no modal, collected %d focusable nodes", len(focusable))
+		// Non-Fiber mode: check if there's a modal open - if so, trap focus in modal
+		hasModal := rtui.HasModalInTree(n.root)
 
+		if hasModal {
+			// Focus trap: only collect focusable elements from modal layer
+			focusable = rtui.CollectFocusableInLayer(n.root, rtui.LayerModal)
+			log.RenderLogger.Debug("DeclarativeNode.Paint: modal detected, collected %d modal focusable nodes", len(focusable))
+		} else {
+			// No modal: collect all focusable elements
+			focusable = rtui.CollectFocusable(n.root)
+			log.RenderLogger.Debug("DeclarativeNode.Paint: no modal, collected %d focusable nodes", len(focusable))
+		}
 	}
 
 	n.focusMgr.UpdateFocusableList(focusable)
