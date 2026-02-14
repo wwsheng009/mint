@@ -236,25 +236,56 @@ func (e *Engine) buildComputedBoxWithSize(vnode VNode, fiber *reconciler.Fiber, 
 						fiber.NodeID, fiber.Type.String())
 				}
 
-				// Match by index position (since VNode objects may be cloned)
-				// Walk through fiber children and find the i-th child
-				childIndex := 0
-				for f := fiber.Child; f != nil; f = f.Sibling {
-					if childIndex == i {
-						childFiber = f
-						if e.debug {
-							log.EngineLogger.Debug("[buildComputedBoxWithSize] ✅ Matched child %d by index: childFiber.NodeID=%d Type=%s",
-								i, f.NodeID, f.Type.String())
-						}
-						break
-					}
-					childIndex++
+				// IMPORTANT: Match by DiffKey (vnode.Key()), not by index
+				// This is critical because the Fiber tree maintains stable NodeIDs across renders
+				// while the VNode order may change (e.g., reordering, filtering)
+				childKey := child.Key()
+				if e.debug {
+					log.EngineLogger.Debug("[buildComputedBoxWithSize] Looking for child[%d] with key=%q",
+						i, childKey)
 				}
 
-				// Debug: Log when childFiber is nil
-				if e.debug && childFiber == nil {
-					log.EngineLogger.Debug("[buildComputedBoxWithSize] ⚠️  No matching Fiber for child %d: Type=%s Key=%s (fiber.Child=%p, iterated %d children)",
-						i, child.Type().String(), child.Key(), fiber.Child, childIndex)
+				// Strategy:
+				// 1. If child has an explicit key, match by DiffKey in the Fiber tree
+				// 2. If child has no key, fall back to index matching (for static UI)
+				if childKey != "" {
+					// Match by DiffKey - this ensures we find the correct Fiber node
+					// regardless of VNode order changes
+					for f := fiber.Child; f != nil; f = f.Sibling {
+						if f.DiffKey == childKey {
+							childFiber = f
+							if e.debug {
+								log.EngineLogger.Debug("[buildComputedBoxWithSize] ✅ Matched child %d by DiffKey: childKey=%q, childFiber.NodeID=%d Type=%s DiffKey=%q",
+									i, childKey, f.NodeID, f.Type.String(), f.DiffKey)
+							}
+							break
+						}
+					}
+
+					if e.debug && childFiber == nil {
+						log.EngineLogger.Debug("[buildComputedBoxWithSize] ⚠️  No Fiber with DiffKey=%q found (expected for newly inserted nodes)",
+							childKey)
+					}
+				} else {
+					// No key: fall back to index matching (for static UI components)
+					// This is less stable but is the fallback for components without keys
+					childIndex := 0
+					for f := fiber.Child; f != nil; f = f.Sibling {
+						if childIndex == i {
+							childFiber = f
+							if e.debug {
+								log.EngineLogger.Debug("[buildComputedBoxWithSize] ✅ Matched child %d by index (no key): childFiber.NodeID=%d Type=%s",
+									i, f.NodeID, f.Type.String())
+							}
+							break
+						}
+						childIndex++
+					}
+
+					if e.debug && childFiber == nil {
+						log.EngineLogger.Debug("[buildComputedBoxWithSize] ⚠️  No matching Fiber for index %d (child has no key)",
+							i)
+					}
 				}
 			}
 
@@ -307,20 +338,50 @@ func (e *Engine) buildComputedBoxWithSize(vnode VNode, fiber *reconciler.Fiber, 
 		// Find the Fiber node that corresponds to this child VNode
 		var childFiber *rtui.Fiber
 		if fiber != nil {
-			// Match by index position (since VNode objects may be cloned)
-			childIndex := 0
-			for f := fiber.Child; f != nil; f = f.Sibling {
-				if childIndex == i {
-					childFiber = f
-					break
-				}
-				childIndex++
+			// IMPORTANT: Match by DiffKey (vnode.Key()), not by index
+			// See comment in single-pass path above for rationale
+			childKey := child.Key()
+			if e.debug {
+				log.EngineLogger.Debug("[buildComputedBoxWithSize.FALLBACK] Looking for child[%d] with key=%q",
+					i, childKey)
 			}
 
-			// Debug: Log when childFiber is nil
-			if e.debug && childFiber == nil {
-				log.EngineLogger.Debug("[buildComputedBoxWithSize.FALLBACK] ⚠️  No matching Fiber for child %d: Type=%s Key=%s",
-					i, child.Type().String(), child.Key())
+			if childKey != "" {
+				// Match by DiffKey - ensures correct Fiber node regardless of VNode order
+				for f := fiber.Child; f != nil; f = f.Sibling {
+					if f.DiffKey == childKey {
+						childFiber = f
+						if e.debug {
+							log.EngineLogger.Debug("[buildComputedBoxWithSize.FALLBACK] ✅ Matched child %d by DiffKey: childKey=%q, childFiber.NodeID=%d",
+								i, childKey, f.NodeID)
+						}
+						break
+					}
+				}
+
+				if e.debug && childFiber == nil {
+					log.EngineLogger.Debug("[buildComputedBoxWithSize.FALLBACK] ⚠️  No Fiber with DiffKey=%q found (expected for newly inserted nodes)",
+						childKey)
+				}
+			} else {
+				// No key: fall back to index matching (for static UI)
+				childIndex := 0
+				for f := fiber.Child; f != nil; f = f.Sibling {
+					if childIndex == i {
+						childFiber = f
+						if e.debug {
+							log.EngineLogger.Debug("[buildComputedBoxWithSize.FALLBACK] ✅ Matched child %d by index (no key): childFiber.NodeID=%d",
+								i, f.NodeID)
+						}
+						break
+					}
+					childIndex++
+				}
+
+				if e.debug && childFiber == nil {
+					log.EngineLogger.Debug("[buildComputedBoxWithSize.FALLBACK] ⚠️  No matching Fiber for index %d (child has no key)",
+						i)
+				}
 			}
 		}
 
