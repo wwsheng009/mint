@@ -7,6 +7,67 @@ import (
 	"github.com/wwsheng009/mint/runtime/event"
 )
 
+// ============================================================================
+// Phase 0 新增：中间件和全局处理器
+// ============================================================================
+
+// ActionMiddleware 中间件接口
+type ActionMiddleware interface {
+	// Name 中间件名称
+	Name() string
+
+	// Before 在 Action 分发前调用
+	// 返回 nil 表示拦截该 Action
+	// 返回修改后的 Action 继续传播
+	Before(action *Action) *Action
+
+	// After 在 Action 分发后调用
+	After(action *Action, result *RouterResult)
+}
+
+// GlobalActionHandler 全局处理器接口 (Phase 0 新增)
+type GlobalActionHandler interface {
+	// HandleGlobalAction 处理无目标的 Action
+	HandleGlobalAction(action *Action) bool
+	Priority() int
+}
+
+// MiddlewareChain 中间件链 (Phase 0 新增)
+type MiddlewareChain struct {
+	middlewares []ActionMiddleware
+}
+
+// NewMiddlewareChain 创建中间件链
+func NewMiddlewareChain(middlewares ...ActionMiddleware) *MiddlewareChain {
+	return &MiddlewareChain{middlewares: middlewares}
+}
+
+// Before 依次调用所有中间件的 Before 方法
+func (c *MiddlewareChain) Before(action *Action) *Action {
+	for _, mw := range c.middlewares {
+		if action == nil {
+			return nil
+		}
+		action = mw.Before(action)
+	}
+	return action
+}
+
+// After 逆序调用所有中间件的 After 方法
+func (c *MiddlewareChain) After(action *Action, result *RouterResult) {
+	// 逆序调用
+	for i := len(c.middlewares) - 1; i >= 0; i-- {
+		c.middlewares[i].After(action, result)
+	}
+}
+
+// Add 添加中间件
+func (c *MiddlewareChain) Add(middleware ActionMiddleware) {
+	c.middlewares = append(c.middlewares, middleware)
+}
+
+// ============================================================================
+
 // Router 实现 Action 的三阶段分发系统
 //
 // Router 负责将语义化的 Action 分发给正确的组件：
@@ -17,6 +78,7 @@ import (
 // 使用示例：
 //   router := NewRouter(rootNode)
 //   router.AddCaptureHandler(inspector, PriorityHigh)
+//   router.SetMiddleware(NewMiddlewareChain(loggingMW))
 //   result := router.Dispatch(action)
 type Router struct {
 	// Root 是组件树的根节点
@@ -30,6 +92,13 @@ type Router struct {
 
 	// TargetHandlers 是特定目标的处理器映射（按 targetID 索引）
 	TargetHandlers map[uint64]*TargetHandlerEntry
+
+	// ===== Phase 0 新增 =====
+	// GlobalHandlers 全局处理器（无目标 Action）
+	GlobalHandlers []GlobalActionHandler
+
+	// Middleware 中间件链
+	Middleware *MiddlewareChain
 }
 
 // CaptureHandlerEntry 表示一个捕获阶段的处理器
@@ -116,14 +185,38 @@ func (p ActionPhase) String() string {
 	}
 }
 
-// NewRouter 创建新的 Router
+// NewRouter 创建新的 Router (Phase 0 增强: 初始化中间件链)
 func NewRouter(root *runtime.LayoutNode) *Router {
 	return &Router{
 		Root:            root,
 		CaptureHandlers: make([]*CaptureHandlerEntry, 0),
 		BubbleHandlers:  make([]*BubbleHandlerEntry, 0),
 		TargetHandlers:  make(map[uint64]*TargetHandlerEntry),
+		GlobalHandlers:  make([]GlobalActionHandler, 0),
+		Middleware:      NewMiddlewareChain(),
 	}
+}
+
+// SetMiddleware 设置中间件链 (Phase 0 新增)
+func (r *Router) SetMiddleware(chain *MiddlewareChain) {
+	r.Middleware = chain
+}
+
+// AddMiddleware 添加中间件 (Phase 0 新增)
+func (r *Router) AddMiddleware(middleware ActionMiddleware) {
+	if r.Middleware == nil {
+		r.Middleware = NewMiddlewareChain()
+	}
+	r.Middleware.Add(middleware)
+}
+
+// AddGlobalHandler 添加全局处理器 (Phase 0 新增)
+func (r *Router) AddGlobalHandler(handler GlobalActionHandler) {
+	r.GlobalHandlers = append(r.GlobalHandlers, handler)
+	// 按优先级排序
+	sort.Slice(r.GlobalHandlers, func(i, j int) bool {
+		return r.GlobalHandlers[i].Priority() > r.GlobalHandlers[j].Priority()
+	})
 }
 
 // AddCaptureHandler 添加捕获阶段处理器
@@ -218,7 +311,8 @@ func (r *Router) GetTargetHandlers() map[uint64]*TargetHandlerEntry {
 }
 
 // Dispatch 分发 Action 到正确的处理器
-// 实现完整的三阶段传播：Capture → Target → Bubble
+// 实现完整的三阶段传播：Middleware → Capture → Target → Bubble
+// (Phase 0 增强: 支持中间件和全局处理器)
 func (r *Router) Dispatch(act *Action) *RouterResult {
 	result := &RouterResult{
 		Handled: false,
@@ -229,6 +323,36 @@ func (r *Router) Dispatch(act *Action) *RouterResult {
 	// 如果没有 Action，直接返回
 	if act == nil {
 		return result
+	}
+
+	// Phase 0: 应用中间件（Before）
+	if r.Middleware != nil {
+		act = r.Middleware.Before(act)
+		if act == nil {
+			// 被中间件拦截
+			result.Handled = true
+			result.Stopped = true
+			return result
+		}
+	}
+
+	// 检查 Action 是否已停止传播
+	if act.IsStopped() {
+		result.Handled = true
+		result.Stopped = true
+		r.callMiddlewareAfter(act, result)
+		return result
+	}
+
+	// Phase 0: 全局处理器（无目标 Action）
+	if act.TargetID == 0 && len(r.GlobalHandlers) > 0 {
+		for _, handler := range r.GlobalHandlers {
+			if handler.HandleGlobalAction(act) {
+				result.Handled = true
+				r.callMiddlewareAfter(act, result)
+				return result
+			}
+		}
 	}
 
 	// 如果有 TargetID，先找到目标节点
@@ -246,20 +370,32 @@ func (r *Router) Dispatch(act *Action) *RouterResult {
 
 	// Phase 1: Capture（从根到目标）
 	if r.capturePhase(act, targetNode, result) {
+		r.callMiddlewareAfter(act, result)
 		return result
 	}
 
 	// Phase 2: Target（在目标组件）
 	if r.targetPhase(act, targetNode, result) {
+		r.callMiddlewareAfter(act, result)
 		return result
 	}
 
 	// Phase 3: Bubble（从目标到根）
 	if r.bubblePhase(act, targetNode, result) {
+		r.callMiddlewareAfter(act, result)
 		return result
 	}
 
+	// 调用中间件 After
+	r.callMiddlewareAfter(act, result)
 	return result
+}
+
+// callMiddlewareAfter 调用中间件的 After 方法 (Phase 0 新增)
+func (r *Router) callMiddlewareAfter(act *Action, result *RouterResult) {
+	if r.Middleware != nil {
+		r.Middleware.After(act, result)
+	}
 }
 
 // capturePhase 执行捕获阶段

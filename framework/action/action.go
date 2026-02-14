@@ -3,7 +3,11 @@ package action
 import (
 	"fmt"
 	"strings"
+	"sync/atomic"
+	"time"
 )
+
+var actionIDCounter uint64
 
 // Action 语义化操作
 // Action 是比原始 Event 更高层次的抽象，表示用户意图而非低级输入
@@ -12,6 +16,12 @@ type Action struct {
 	Payload  interface{} // 操作附带的数据
 	Source   string      // 触发源（如 "keyboard", "mouse", "system"）
 	TargetID uint64      // 目标节点 ID（对于鼠标事件，现在使用 uint64）
+
+	// ===== Phase 0 增强 =====
+	ID        uint64                 // 唯一标识符（用于追踪和调试）
+	Timestamp time.Time              // 创建时间
+	stopped   bool                   // 内部：是否停止传播
+	Meta      map[string]interface{} // 扩展元数据
 }
 
 // ActionType Action 类型（语义化操作）
@@ -107,6 +117,35 @@ const (
 	ActionMaximize   ActionType = "maximize"   // 最大化
 	ActionMinimize   ActionType = "minimize"   // 最小化
 	ActionFullscreen ActionType = "fullscreen" // 全屏
+
+	// ============================================================================
+	// Phase 0 新增：系统级 Action
+	// ============================================================================
+	ActionInit    ActionType = "init"    // 组件初始化
+	ActionMount   ActionType = "mount"   // 组件挂载
+	ActionUnmount ActionType = "unmount" // 组件卸载
+	ActionResize  ActionType = "resize"  // 窗口调整（Payload 为 Size{W, H}）
+
+	// ============================================================================
+	// Phase 0 新增：焦点 Action
+	// ============================================================================
+	ActionFocusGained ActionType = "focus_gained" // 获得焦点
+	ActionFocusLost   ActionType = "focus_lost"   // 失去焦点
+	ActionFocusNext   ActionType = "focus_next"   // 焦点后移
+	ActionFocusPrev   ActionType = "focus_prev"   // 焦点前移
+
+	// ============================================================================
+	// Phase 0 新增：数据 Action
+	// ============================================================================
+	ActionDataLoad   ActionType = "data_load"   // 数据加载
+	ActionDataUpdate ActionType = "data_update" // 数据更新
+	ActionDataError  ActionType = "data_error"  // 数据错误
+
+	// ============================================================================
+	// Phase 0 新增：撤销/重做
+	// ============================================================================
+	ActionUndo ActionType = "undo" // 撤销
+	ActionRedo ActionType = "redo" // 重做
 
 	// ============================================================================
 	// 自定义 Action - 扩展点
@@ -207,10 +246,39 @@ func (a *Action) IsView() bool {
 	return false
 }
 
+// IsData 是否为数据类 Action (Phase 0 新增)
+func (a *Action) IsData() bool {
+	switch a.Type {
+	case ActionDataLoad, ActionDataUpdate, ActionDataError:
+		return true
+	}
+	return false
+}
+
+// IsUndoRedo 是否为撤销/重做 Action (Phase 0 新增)
+func (a *Action) IsUndoRedo() bool {
+	return a.Type == ActionUndo || a.Type == ActionRedo
+}
+
 // RequiresTarget 是否需要目标节点
 func (a *Action) RequiresTarget() bool {
 	// 鼠标 Action 通常需要目标
 	return a.IsMouse() && a.TargetID != 0
+}
+
+// StopPropagation 停止 Action 传播 (Phase 0 新增)
+func (a *Action) StopPropagation() {
+	a.stopped = true
+}
+
+// IsStopped 检查是否停止传播 (Phase 0 新增)
+func (a *Action) IsStopped() bool {
+	return a.stopped
+}
+
+// Reset 停止传播标志 (Phase 0 新增)
+func (a *Action) resetStopped() {
+	a.stopped = false
 }
 
 // GetPayloadString 获取字符串类型的 Payload
@@ -245,6 +313,38 @@ func (a *Action) GetPayloadPoint() (x, y int, ok bool) {
 	return 0, 0, false
 }
 
+// GetPayloadSize 获取 Size 类型的 Payload (Phase 0 新增)
+func (a *Action) GetPayloadSize() (w, h int, ok bool) {
+	if s, ok := a.Payload.(struct{ W, H int }); ok {
+		return s.W, s.H, true
+	}
+	if s, ok := a.Payload.(map[string]int); ok {
+		w, hasW := s["w"]
+		h, hasH := s["h"]
+		if hasW && hasH {
+			return w, h, true
+		}
+	}
+	return 0, 0, false
+}
+
+// GetMeta 获取元数据 (Phase 0 新增)
+func (a *Action) GetMeta(key string) (interface{}, bool) {
+	if a.Meta == nil {
+		return nil, false
+	}
+	val, ok := a.Meta[key]
+	return val, ok
+}
+
+// SetMeta 设置元数据 (Phase 0 新增)
+func (a *Action) SetMeta(key string, value interface{}) {
+	if a.Meta == nil {
+		a.Meta = make(map[string]interface{})
+	}
+	a.Meta[key] = value
+}
+
 // String 返回 Action 的字符串表示
 func (a *Action) String() string {
 	var sb strings.Builder
@@ -265,43 +365,55 @@ func (a *Action) String() string {
 	return sb.String()
 }
 
-// NewAction 创建一个新的 Action
+// NewAction 创建一个新的 Action (Phase 0 增强: 自动分配 ID 和时间戳)
 func NewAction(actionType ActionType) *Action {
 	return &Action{
 		Type:     actionType,
 		Payload:  nil,
 		Source:   "",
 		TargetID: 0,
+		ID:       atomic.AddUint64(&actionIDCounter, 1),
+		Timestamp: time.Now(),
+		Meta:     make(map[string]interface{}),
 	}
 }
 
 // NewActionWithPayload 创建带 Payload 的 Action
 func NewActionWithPayload(actionType ActionType, payload interface{}) *Action {
 	return &Action{
-		Type:     actionType,
-		Payload:  payload,
-		Source:   "",
-		TargetID: 0,
+		Type:      actionType,
+		Payload:   payload,
+		Source:    "",
+		TargetID:  0,
+		ID:        atomic.AddUint64(&actionIDCounter, 1),
+		Timestamp: time.Now(),
+		Meta:      make(map[string]interface{}),
 	}
 }
 
-// NewActionFromMouse 创建鼠标 Action
+// NewActionFromMouse 创建鼠标 Action (Phase 0 增强: 自动分配 ID 和时间戳)
 func NewActionFromMouse(actionType ActionType, targetID uint64, localX, localY int) *Action {
 	return &Action{
-		Type:     actionType,
-		Payload:  struct{ X, Y int }{X: localX, Y: localY},
-		Source:   "mouse",
-		TargetID: targetID,
+		Type:      actionType,
+		Payload:   struct{ X, Y int }{X: localX, Y: localY},
+		Source:    "mouse",
+		TargetID:  targetID,
+		ID:        atomic.AddUint64(&actionIDCounter, 1),
+		Timestamp: time.Now(),
+		Meta:      make(map[string]interface{}),
 	}
 }
 
-// NewActionFromKey 创建键盘 Action
+// NewActionFromKey 创建键盘 Action (Phase 0 增强: 自动分配 ID 和时间戳)
 func NewActionFromKey(actionType ActionType, source string) *Action {
 	return &Action{
-		Type:     actionType,
-		Payload:  nil,
-		Source:   source,
-		TargetID: 0,
+		Type:      actionType,
+		Payload:   nil,
+		Source:    source,
+		TargetID:  0,
+		ID:        atomic.AddUint64(&actionIDCounter, 1),
+		Timestamp: time.Now(),
+		Meta:      make(map[string]interface{}),
 	}
 }
 
