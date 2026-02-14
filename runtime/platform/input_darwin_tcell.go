@@ -226,6 +226,8 @@ func (r *tcellInputReader) parseKeyEvent(ev *tcell.EventKey, now time.Time) RawI
 		input.Special = KeyPageUp
 	case tcell.KeyPgDn:
 		input.Special = KeyPageDown
+	case tcell.KeyEnter:
+		input.Special = KeyEnter
 	case tcell.KeyBackspace:
 		input.Special = KeyBackspace
 	case tcell.KeyBackspace2:

@@ -701,7 +701,7 @@ func (a *App) Run() error {
 	renderStartTime := time.Now()
 
 	// DEBUG 主循环状态
-	if os.Getenv("TUI_DEBUG_UI") == "true" {
+if os.Getenv("TUI_DEBUG_UI") == "true" {
 		log.UILogger.Debug("[APP] Starting main loop, state=%d, pump running=%v",
 			a.state, a.pump != nil && a.pump.IsRunning())
 		log.UILogger.Debug("[APP] eventChan=%p, pump.Events()=%p",
@@ -712,22 +712,76 @@ func (a *App) Run() error {
 		// 等待事件或定时器（优先处理事件）
 		select {
 		case msg := <-eventChan:
-			if msg == nil {
+				if msg == nil {
 				// 通道关闭，退出
 				break
 			}
-			if os.Getenv("TUI_DEBUG_UI") == "true" {
-				log.UILogger.Debug("[APP] Msg from channel: Type=%v", msg.Type())
+
+			// Drain all pending events to prevent backlog
+			// Process keyboard events immediately, coalesce mouse move events
+			var eventsToProcess []runtimemsg.Msg
+			var latestMouseMove *runtimemsg.MouseMsg
+
+			// Add the first event we got
+			eventsToProcess = append(eventsToProcess, msg)
+
+			// Drain the channel non-blockingly
+			for {
+				select {
+				case extraMsg := <-eventChan:
+					if extraMsg == nil {
+						break
+					}
+
+					// Keyboard events: always queue
+					if extraMsg.Type() == runtimemsg.MsgTypeKey {
+						eventsToProcess = append(eventsToProcess, extraMsg)
+						continue
+					}
+
+					// Mouse events: coalesce MouseMove
+					if extraMsg.Type() == runtimemsg.MsgTypeMouse {
+						if mouseMsg, ok := extraMsg.(*runtimemsg.MouseMsg); ok {
+							if mouseMsg.IsMove() {
+								// Keep only the latest mouse move event
+								latestMouseMove = mouseMsg
+								continue
+							}
+							// Other mouse events (Press, Release, Wheel) always queue
+							eventsToProcess = append(eventsToProcess, extraMsg)
+							continue
+						}
+					}
+
+					// Other events: always queue
+					eventsToProcess = append(eventsToProcess, extraMsg)
+
+				default:
+					// No more events to drain
+					goto DRAIN_COMPLETE
+				}
+			}
+		DRAIN_COMPLETE:
+
+			// If we have a coalesced mouse move, add it as the last event
+			if latestMouseMove != nil {
+				eventsToProcess = append(eventsToProcess, latestMouseMove)
 			}
 
-			// Phase 2: Direct Msg routing for targeted mouse events
-			handled := a.handleMsg(msg)
+			// Process all collected events
+			for _, msg := range eventsToProcess {
+				if os.Getenv("TUI_DEBUG_UI") == "true" {
+					log.UILogger.Debug("[APP] Msg from channel: Type=%v", msg.Type())
+				}
 
-			// If not handled by direct routing, fall back to Event path
-			if !handled {
-				ev := frameworkevent.MsgToEvent(msg)
-				if ev != nil {
-					a.handleEvent(ev)
+				// Phase 2: Direct Msg routing for targeted mouse events
+				handled := a.handleMsg(msg)
+				// If not handled by direct routing, fall back to Event path
+				if !handled {
+					ev := frameworkevent.MsgToEvent(msg)
+					if ev != nil {
+						a.handleEvent(ev)
+					}
 				}
 			}
 
@@ -843,11 +897,15 @@ func (a *App) handleMsg(message runtimemsg.Msg) bool {
 						if os.Getenv("TUI_DEBUG_UI") == "true" {
 							log.UILogger.Debug("[APP] Focused component returned Cmd: %v", cmd)
 						}
+						// 标记需要重新渲染
+						a.dirty = true
+						return true // 消息已处理
 					}
-
-					// 标记需要重新渲染
-					a.dirty = true
-					return true // 消息已处理
+					// 组件返回 nil，表示没有处理该事件
+					// 回退到 Event 系统处理（例如 Tab 键的导航）
+					if os.Getenv("TUI_DEBUG_UI") == "true" {
+						log.UILogger.Debug("[APP] Focused component didn't handle event, falling back to Event system")
+					}
 				}
 			}
 		}
@@ -1933,3 +1991,10 @@ func (a *App) enrichHitMapWithInstances() {
 
 	log.UILogger.Debug("Enriched %d/%d HitMap entries with ComponentInstance references", matchedCount, len(entries))
 }
+
+// GetFocusManager returns the focus manager for keyboard navigation
+// This is shared with DeclarativeNode to ensure focus state is synchronized
+func (a *App) GetFocusManager() *rtui.VNodeFocusManager {
+	return a.focusManager
+}
+
