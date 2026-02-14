@@ -47,7 +47,7 @@ func TestRenderingDebug(t *testing.T) {
 	}
 
 	fmt.Fprintf(os.Stderr, "\n=== Step 1: CollectAndLayout ===\n")
-	if err := manager.CollectAndLayout(root, constraints, engine); err != nil {
+	if err := manager.CollectAndLayout(root,nil, constraints, engine); err != nil {
 		t.Fatalf("CollectAndLayout failed: %v", err)
 	}
 

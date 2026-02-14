@@ -4,10 +4,12 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/wwsheng009/mint/internal/reconciler"
 	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/compute"
 	runtimeevent "github.com/wwsheng009/mint/runtime/event"
 	"github.com/wwsheng009/mint/runtime/layer"
+	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/ui"
 )
 
@@ -16,22 +18,25 @@ func main() {
 	os.Setenv("TUI_DEBUG_HITMAP", "true")
 	os.Setenv("TUI_DEBUG_LAYER", "true")
 
-	// Create a simple modal with buttons
+	// Create a simple modal with elements
 	modalContent := ui.VStack(
 		ui.Text("Modal Title"),
 		ui.HStack(
-			ui.Button("Cancel").Key("button-cancel"),
-			ui.Button("OK").Key("button-ok"),
+			ui.Element("button").Prop("label", "Cancel").Prop("key", "button-cancel").Build(),
+			ui.Element("button").Prop("label", "OK").Prop("key", "button-ok").Build(),
 		),
 	)
 
-	modal := ui.Modal(modalContent)
+	modal := ui.Modal(modalContent).Build()
 
 	// Create layer manager
 	manager := layer.NewManager()
 
 	// Create layout engine
 	engine := compute.NewEngine()
+
+	// Create fiber from vnode
+	fiber := reconciler.CreateFiber(modal)
 
 	// Define constraints (simulating a 100x30 screen)
 	constraints := runtime.BoxConstraints{
@@ -42,14 +47,14 @@ func main() {
 	}
 
 	// Collect and layout
-	err := manager.CollectAndLayout(modal, constraints, engine)
+	err := manager.CollectAndLayout(modal, fiber, constraints, engine)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "CollectAndLayout failed: %v\n", err)
 		os.Exit(1)
 	}
 
 	// Get modal layout
-	modalLayout, hasModal := manager.GetLayout(runtime.LayerModal)
+	modalLayout, hasModal := manager.GetLayout(rtui.LayerModal)
 	if !hasModal {
 		fmt.Fprintf(os.Stderr, "❌ No modal layout found!\n")
 		os.Exit(1)
@@ -73,8 +78,8 @@ func main() {
 	// Output all entries
 	entries := hitMap.AllEntries()
 	for i, entry := range entries {
-		fmt.Fprintf(os.Stderr, "Entry %d: ID=%s, Bounds=(%d,%d,%dx%d)\n",
-			i, entry.NodeID, entry.Bounds.X, entry.Bounds.Y,
+		fmt.Fprintf(os.Stderr, "Entry %d: ID=%s, NodeID=%d, Bounds=(%d,%d,%dx%d)\n",
+			i, entry.Node.ID(), entry.NodeID, entry.Bounds.X, entry.Bounds.Y,
 			entry.Bounds.Width, entry.Bounds.Height)
 	}
 
@@ -91,8 +96,8 @@ func main() {
 	// Output all merged entries
 	mergedEntries := mergedHitMap.AllEntries()
 	for i, entry := range mergedEntries {
-		fmt.Fprintf(os.Stderr, "Merged Entry %d: ID=%s, Bounds=(%d,%d,%dx%d)\n",
-			i, entry.NodeID, entry.Bounds.X, entry.Bounds.Y,
+		fmt.Fprintf(os.Stderr, "Merged Entry %d: ID=%s, NodeID=%d, Bounds=(%d,%d,%dx%d)\n",
+			i, entry.Node.ID(), entry.NodeID, entry.Bounds.X, entry.Bounds.Y,
 			entry.Bounds.Width, entry.Bounds.Height)
 	}
 
@@ -102,10 +107,10 @@ func main() {
 	// Find button entries
 	var cancelBtn, okBtn *runtimeevent.HitMapEntry
 	for i := range entries {
-		if entries[i].NodeID == "button-cancel" {
+		if entries[i].Node.ID() == "button-cancel" {
 			cancelBtn = &entries[i]
 		}
-		if entries[i].NodeID == "button-ok" {
+		if entries[i].Node.ID() == "button-ok" {
 			okBtn = &entries[i]
 		}
 	}

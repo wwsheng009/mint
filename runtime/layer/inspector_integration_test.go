@@ -44,7 +44,7 @@ func TestInspectorOverlayFullFlow(t *testing.T) {
 	}
 
 	// Layout the layer (this is what LayerManager.layoutLayer does)
-	layout, err := manager.layoutLayer(layerNode, rtui.LayerInspector, constraints, engine)
+	layout, err := manager.layoutLayer(layerNode, rtui.LayerInspector, constraints, engine, nil)
 	if err != nil {
 		t.Fatalf("layoutLayer failed: %v", err)
 	}
@@ -127,7 +127,7 @@ func TestInspectorOverlayInVStack(t *testing.T) {
 		MaxHeight: 40,
 	}
 
-	layout, err := manager.layoutLayer(inspectorNodes[0], rtui.LayerInspector, constraints, engine)
+	layout, err := manager.layoutLayer(inspectorNodes[0], rtui.LayerInspector, constraints, engine, nil)
 	if err != nil {
 		t.Fatalf("layoutLayer failed: %v", err)
 	}
@@ -177,11 +177,11 @@ func TestInspectorOverlayZOrder(t *testing.T) {
 // TestInspectorPositionVariations tests different Inspector positions
 func TestInspectorPositionVariations(t *testing.T) {
 	positions := []struct {
-		name     string
-		x        int
-		y        int
-		width    int
-		height   int
+		name      string
+		x         int
+		y         int
+		width     int
+		height    int
 		expectedX int
 		expectedY int
 	}{
@@ -220,7 +220,7 @@ func TestInspectorPositionVariations(t *testing.T) {
 				MaxHeight: 40,
 			}
 
-			layout, err := manager.layoutLayer(layerNode, rtui.LayerInspector, constraints, engine)
+			layout, err := manager.layoutLayer(layerNode, rtui.LayerInspector, constraints, engine, nil)
 			if err != nil {
 				t.Fatalf("layoutLayer failed: %v", err)
 			}

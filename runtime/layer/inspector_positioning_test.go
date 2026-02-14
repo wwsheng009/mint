@@ -47,7 +47,7 @@ func TestInspectorPositioning(t *testing.T) {
 	}
 
 	// Layout the layer
-	layout, err := mgr.layoutLayer(layerNode, rtui.LayerInspector, constraints, engine)
+	layout, err := mgr.layoutLayer(layerNode, rtui.LayerInspector, constraints, engine, nil)
 	if err != nil {
 		t.Fatalf("layoutLayer failed: %v", err)
 	}
@@ -103,7 +103,7 @@ func TestInspectorPositioningWithoutProps(t *testing.T) {
 	}
 
 	// Layout the layer
-	layout, err := mgr.layoutLayer(layerNode, rtui.LayerInspector, constraints, engine)
+	layout, err := mgr.layoutLayer(layerNode, rtui.LayerInspector, constraints, engine, nil)
 	if err != nil {
 		t.Fatalf("layoutLayer failed: %v", err)
 	}
@@ -181,7 +181,7 @@ func TestInspectorPositioningEdgeCases(t *testing.T) {
 				MaxHeight: 40,
 			}
 
-			layout, err := mgr.layoutLayer(layerNode, rtui.LayerInspector, constraints, engine)
+			layout, err := mgr.layoutLayer(layerNode, rtui.LayerInspector, constraints, engine, nil)
 			if err != nil {
 				t.Fatalf("layoutLayer failed: %v", err)
 			}

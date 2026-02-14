@@ -49,7 +49,7 @@ func TestFinalRenderingVerification(t *testing.T) {
 		MaxHeight: 40,
 	}
 
-	if err := manager.CollectAndLayout(root, constraints, engine); err != nil {
+	if err := manager.CollectAndLayout(root, nil,constraints, engine); err != nil {
 		t.Fatalf("❌ CollectAndLayout failed: %v", err)
 	}
 

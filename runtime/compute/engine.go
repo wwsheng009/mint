@@ -209,7 +209,7 @@ func (e *Engine) buildComputedBoxWithSize(vnode VNode, fiber *reconciler.Fiber, 
 		if tagger, ok := vnode.(interface{ Tag() string }); ok {
 			tag = tagger.Tag()
 		}
-		fmt.Printf("[buildComputedBoxWithSize] tag=%s, childConstraints=%d, using single-pass=%v\n",
+		log.LayoutLogger.Debug("[buildComputedBox] tag=%s, childConstraints=%d, using single-pass=%v",
 			tag, len(measurement.ChildConstraints), len(measurement.ChildConstraints) > 0)
 	}
 	// Check if we got a valid measurement (has child constraints)

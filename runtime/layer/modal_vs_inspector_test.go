@@ -33,11 +33,11 @@ func TestModalVsInspector(t *testing.T) {
 	manager := NewManager()
 	engine := compute.NewEngine()
 	constraints := runtime.BoxConstraints{
-		MinWidth:  0, MaxWidth: 120,
+		MinWidth: 0, MaxWidth: 120,
 		MinHeight: 0, MaxHeight: 40,
 	}
 
-	if err := manager.CollectAndLayout(rootWithModal, constraints, engine); err != nil {
+	if err := manager.CollectAndLayout(rootWithModal, nil, constraints, engine); err != nil {
 		t.Fatalf("CollectAndLayout with modal failed: %v", err)
 	}
 
@@ -68,7 +68,7 @@ func TestModalVsInspector(t *testing.T) {
 	rootWithInspector := rtui.Fragment(appContent, inspectorOverlay)
 
 	manager2 := NewManager()
-	if err := manager2.CollectAndLayout(rootWithInspector, constraints, engine); err != nil {
+	if err := manager2.CollectAndLayout(rootWithInspector,nil, constraints, engine); err != nil {
 		t.Fatalf("CollectAndLayout with inspector failed: %v", err)
 	}
 

@@ -111,9 +111,17 @@ func TestApp_HitMapIntegration(t *testing.T) {
 
 		// 验证每个节点都在 HitMap 中
 		expectedIDs := []string{"root", "child-1", "child-2"}
-		for _, id := range expectedIDs {
-			if entry := hitMap.FindByID(id); entry == nil {
-				t.Errorf("Node %s not found in HitMap", id)
+		for _, expectedID := range expectedIDs {
+			found := false
+			entries := hitMap.AllEntries()
+			for _, entry := range entries {
+				if entry.Node.ID() == expectedID {
+					found = true
+					break
+				}
+			}
+			if !found {
+				t.Errorf("Node %s not found in HitMap", expectedID)
 			}
 		}
 	})
@@ -168,8 +176,8 @@ func TestApp_HitMapHitTest(t *testing.T) {
 			return
 		}
 
-		if entry.NodeID != "button" {
-			t.Errorf("Expected to hit 'button', got %s", entry.NodeID)
+		if entry.Node.ID() != "button" {
+			t.Errorf("Expected to hit 'button', got %s", entry.Node.ID())
 		}
 	})
 
@@ -186,8 +194,8 @@ func TestApp_HitMapHitTest(t *testing.T) {
 			return
 		}
 
-		if entry.NodeID != "container" {
-			t.Errorf("Expected to hit 'container', got %s", entry.NodeID)
+		if entry.Node.ID() != "container" {
+			t.Errorf("Expected to hit 'container', got %s", entry.Node.ID())
 		}
 	})
 
@@ -200,7 +208,7 @@ func TestApp_HitMapHitTest(t *testing.T) {
 		// 测试命中范围外的点
 		entry := hitMap.HitTest(100, 100)
 		if entry != nil {
-			t.Errorf("Expected nil (miss), got %s", entry.NodeID)
+			t.Errorf("Expected nil (miss), got %s", entry.Node.ID())
 		}
 	})
 }
