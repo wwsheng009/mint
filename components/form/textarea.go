@@ -4,6 +4,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/wwsheng009/mint/framework/action"
 	"github.com/wwsheng009/mint/framework/cmd"
 	"github.com/wwsheng009/mint/framework/component"
 	frameworkevent "github.com/wwsheng009/mint/framework/event"
@@ -19,6 +20,8 @@ import (
 // Interface implementation assertions
 var _ frameworkevent.Component = (*TextareaVNode)(nil)
 var _ component.Updater = (*TextareaVNode)(nil) // Phase 3: Msg/Cmd support
+var _ action.ActionTarget = (*TextareaVNode)(nil)
+var _ action.FocusableActionTarget = (*TextareaVNode)(nil)
 
 // =============================================================================
 // Textarea component
@@ -671,4 +674,95 @@ func (t *TextareaVNode) Label() string {
 		return t.value
 	}
 	return "textarea"
+}
+
+// ============================================================================
+// ActionTarget 接口实现
+// ============================================================================
+
+// HandleAction implements ActionTarget interface
+func (t *TextareaVNode) HandleAction(act *action.Action) bool {
+	if act == nil || t.disabled {
+		return false
+	}
+
+	switch act.Type {
+	case action.ActionClick:
+		// Handle click - textarea can be clicked to focus
+		return true
+
+	case action.ActionFocus:
+		// Handle focus action
+		t.SetFocus(true)
+		return true
+
+	case action.ActionBlur:
+		// Handle blur action
+		t.SetFocus(false)
+		return true
+
+	case action.ActionFocusGained:
+		// Focus gained event
+		t.SetFocus(true)
+		return true
+
+	case action.ActionFocusLost:
+		// Focus lost event
+		t.SetFocus(false)
+		return true
+
+	case action.ActionEnter:
+		// Handle Enter key - may trigger submit
+		if t.onSubmit != nil {
+			t.onSubmit()
+		}
+		return true
+	}
+
+	return false
+}
+
+// GetSupportedActions implements ActionTarget interface
+func (t *TextareaVNode) GetSupportedActions() []action.ActionType {
+	return []action.ActionType{
+		action.ActionClick,
+		action.ActionFocus,
+		action.ActionBlur,
+		action.ActionFocusGained,
+		action.ActionFocusLost,
+		action.ActionEnter,
+	}
+}
+
+// CanHandleAction implements ActionTarget interface
+func (t *TextareaVNode) CanHandleAction(act *action.Action) bool {
+	if act == nil || t.disabled {
+		return false
+	}
+
+	switch act.Type {
+	case action.ActionClick, action.ActionFocus, action.ActionBlur,
+	     action.ActionFocusGained, action.ActionFocusLost, action.ActionEnter:
+		return true
+	}
+
+	return false
+}
+
+// ============================================================================
+// FocusableActionTarget 接口实现
+// ============================================================================
+
+// Focus implements FocusableActionTarget interface
+func (t *TextareaVNode) Focus() bool {
+	if t.disabled {
+		return false
+	}
+	t.SetFocus(true)
+	return true
+}
+
+// Blur implements FocusableActionTarget interface
+func (t *TextareaVNode) Blur() {
+	t.SetFocus(false)
 }
