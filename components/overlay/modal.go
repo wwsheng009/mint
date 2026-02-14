@@ -3,6 +3,7 @@ package overlay
 import (
 	"strings"
 
+	"github.com/wwsheng009/mint/framework/action"
 	"github.com/wwsheng009/mint/framework/cmd"
 	"github.com/wwsheng009/mint/framework/component"
 	frameworkevent "github.com/wwsheng009/mint/framework/event"
@@ -16,6 +17,7 @@ import (
 // Interface implementation assertions
 var _ frameworkevent.Component = (*ModalVNode)(nil)
 var _ component.Updater = (*ModalVNode)(nil) // Msg/Cmd support
+var _ action.ActionTarget = (*ModalVNode)(nil)
 
 // =============================================================================
 // Modal Component
@@ -370,4 +372,72 @@ func (m *ModalVNode) Bounds() [4]int {
 // SetBounds sets the modal bounds (typically called during layout)
 func (m *ModalVNode) SetBounds(x, y, width, height int) {
 	m.bounds = [4]int{x, y, width, height}
+}
+
+// ============================================================================
+// ActionTarget 接口实现
+// ============================================================================
+
+// HandleAction implements ActionTarget interface
+func (m *ModalVNode) HandleAction(act *action.Action) bool {
+	if act == nil || !m.isOpen {
+		return false
+	}
+
+	switch act.Type {
+	case action.ActionCancel:
+		// Close modal (cancel action or ESC key)
+		m.isOpen = false
+		if m.onClose != nil {
+			m.onClose()
+		}
+		return true
+
+	case action.ActionClick:
+		// Check if click is outside modal (using Payload coordinates)
+		if x, y, ok := act.GetPayloadPoint(); ok {
+			if !m.containsPoint(x, y) {
+				m.isOpen = false
+				if m.onClose != nil {
+					m.onClose()
+				}
+				return true
+			}
+		}
+		// Click inside modal - let it be routed to children
+		return false
+
+	case action.ActionNavigateEnd:
+		// ESC key (mapped to ActionNavigateEnd in some contexts)
+		m.isOpen = false
+		if m.onClose != nil {
+			m.onClose()
+		}
+		return true
+	}
+
+	return false
+}
+
+// GetSupportedActions implements ActionTarget interface
+func (m *ModalVNode) GetSupportedActions() []action.ActionType {
+	return []action.ActionType{
+		action.ActionCancel,
+		action.ActionClick,
+		action.ActionNavigateEnd,
+	}
+}
+
+// CanHandleAction implements ActionTarget interface
+func (m *ModalVNode) CanHandleAction(act *action.Action) bool {
+	if act == nil || !m.isOpen {
+		return false
+	}
+
+	switch act.Type {
+	case action.ActionCancel, action.ActionClick, action.ActionNavigateEnd:
+		return true
+	}
+
+	return false
 }
