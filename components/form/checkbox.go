@@ -3,6 +3,7 @@ package form
 import (
 	"unicode/utf8"
 
+	"github.com/wwsheng009/mint/framework/action"
 	"github.com/wwsheng009/mint/framework/cmd"
 	"github.com/wwsheng009/mint/framework/component"
 	frameworkevent "github.com/wwsheng009/mint/framework/event"
@@ -18,6 +19,8 @@ import (
 // Interface implementation assertions
 var _ frameworkevent.Component = (*CheckboxVNode)(nil)
 var _ component.Updater = (*CheckboxVNode)(nil) // Phase 3: Msg/Cmd support
+var _ action.ActionTarget = (*CheckboxVNode)(nil)
+var _ action.FocusableActionTarget = (*CheckboxVNode)(nil)
 
 // CheckboxVNode represents a checkbox component
 type CheckboxVNode struct {
@@ -534,4 +537,69 @@ func (c *CheckboxVNode) GetFocusID() string {
 		id = "checkbox"
 	}
 	return "checkbox:" + id
+}
+
+// ============================================================================
+// ActionTarget 接口实现
+// ============================================================================
+
+// HandleAction implements ActionTarget interface
+func (c *CheckboxVNode) HandleAction(act *action.Action) bool {
+	if act == nil || c.disabled {
+		return false
+	}
+
+	switch act.Type {
+	case action.ActionToggle, action.ActionClick, action.ActionEnter, action.ActionSelect:
+		// Toggle the checkbox
+		newState := c.Toggle()
+		if c.onChange != nil {
+			c.onChange(newState)
+		}
+		return true
+	}
+
+	return false
+}
+
+// GetSupportedActions implements ActionTarget interface
+func (c *CheckboxVNode) GetSupportedActions() []action.ActionType {
+	return []action.ActionType{
+		action.ActionToggle,
+		action.ActionClick,
+		action.ActionEnter,
+		action.ActionSelect,
+	}
+}
+
+// CanHandleAction implements ActionTarget interface
+func (c *CheckboxVNode) CanHandleAction(act *action.Action) bool {
+	if act == nil || c.disabled {
+		return false
+	}
+
+	switch act.Type {
+	case action.ActionToggle, action.ActionClick, action.ActionEnter, action.ActionSelect:
+		return true
+	}
+
+	return false
+}
+
+// ============================================================================
+// FocusableActionTarget 接口实现
+// ============================================================================
+
+// Focus implements FocusableActionTarget interface
+func (c *CheckboxVNode) Focus() bool {
+	if c.disabled {
+		return false
+	}
+	c.SetFocus(true)
+	return true
+}
+
+// Blur implements FocusableActionTarget interface
+func (c *CheckboxVNode) Blur() {
+	c.SetFocus(false)
 }
