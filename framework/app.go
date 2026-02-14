@@ -172,6 +172,16 @@ func NewApp() *App {
 	// 设置 InputProcessor 的 KeyMap
 	app.inputProcessor.SetKeyMap(action.NewKeyMap())
 
+	// Phase 4: 设置默认中间件链
+	// 根据环境变量选择中间件链
+	if os.Getenv("ACTION_DEBUG") == "true" {
+		app.actionRouter.SetMiddleware(action.DebugMiddlewareChain())
+	} else if os.Getenv("ACTION_PROD") == "true" {
+		app.actionRouter.SetMiddleware(action.ProductionMiddlewareChain())
+	} else {
+		app.actionRouter.SetMiddleware(action.DefaultMiddlewareChain())
+	}
+
 	return app
 }
 
