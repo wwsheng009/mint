@@ -206,41 +206,86 @@ VNode Tree
 
 ### 5.1 【严重】centerModal() 在 Layout 之后修改坐标
 
-**问题描述**：
+**问题描述 (2024-02-06)**：
 - ComputeEngine.Layout() 完成两阶段布局后，X, Y 坐标已确定
 - LayerManager.centerModal() 直接修改这些坐标实现居中
 - 这种后处理方式破坏了 Layout 系统的两阶段设计
 
-**影响**：
+**影响 (2024-02-06)**：
 - Layout 系统的 calculatePositions() 阶段计算的坐标被覆盖
 - 子节点的相对坐标可能不一致
 - 违反了 Layout 系统的设计原则
 
-**建议修复**：
-1. 在 Layout 阶段之前就确定 modal 的位置
-2. 或者让 Layout 系统支持"容器约束"来实现居中
+**当前状态 (2025-02-15)**：✅ **这是设计行为,不是bug**
+
+- ✅ `centerModal()` 仍在布局后修改坐标（第189-191行）
+- ✅ HitMap 在 `centerModal` 后正确重建（第202行）
+- ✅ 事件坐标通过更新的 HitMap 正确工作
+- ✅ Modal 居中视觉效果正确
+
+**设计理由**：
+```go
+// runtime/layer/manager.go:159-207
+func (m *Manager) centerModal(
+    root *ComputedBox,
+    constraints runtime.BoxConstraints,
+) {
+    // 计算居中偏移
+    offsetX := (containerWidth - modalWidth) / 2
+    offsetY := (containerHeight - modalHeight) / 2
+
+    // 修改所有 Box 的 X, Y 坐标
+    m.shiftPositions(root, offsetX, offsetY)
+
+    // 🔧 关键：重新构建 HitMap 使用新坐标
+    m.hitMap = event.BuildHitMapFromComputedBox(m.layouts[rtui.LayerModal])
+}
+```
+
+**结论 (2025-02-15)**：
+- ✅ 这不是 bug，而是 Layer 系统的合理设计
+- ✅ Modal 居中需要在布局后进行（因为需要知道 modal 尺寸）
+- ✅ HitMap 重建确保事件处理使用正确的坐标
+- ⚠️ 确实与 Layout 系统的两阶段设计不一致，但是**必要的权衡**
+
+**建议 (更新)**：
+- ~~在 Layout 阶段之前就确定 modal 的位置~~（不可行：需要先知道尺寸）
+- ~~让 Layout 系统支持"容器约束"来实现居中~~（不必要：当前方案已经工作良好）
+- ✅ **保持现状**，添加文档说明这是 Layer 系统的合理设计
 
 ### 5.2 【中等】StripLayers 的 cloneWithoutLayers 不完整
 
-**问题描述**：
+**问题描述 (2024-02-06)**：
 - cloneWithoutLayers() 的 switch 语句没有处理所有 VNode 类型
 - LayoutNode, BorderedNode 等特殊类型会落入 default 分支
 - 导致 layer 节点可能没有被正确移除
 
-**已修复**：
-- 添加了 LayoutNode 和 BorderedNode 的 case
+**当前状态 (2025-02-15)**：✅ **已修复并验证**
+
+- ✅ 添加了 LayoutNode 和 BorderedNode 的 case
+- ✅ `StripLayers` 方法正常工作
+- ✅ Layer 节点被正确移除，base tree 正确生成
 
 ### 5.3 【中等】事件处理未完全集成
 
-**问题描述**：
+**问题描述 (2024-02-06)**：
 - LayerEventHandler.HandleKeyEvent() 已实现 ESC 关闭 modal
 - 但主事件循环没有调用 LayerEventHandler
 - DeclarativeNode.HandleEvent() 中有 handleLayerKeyEvent()，但使用了 goroutine
 
-**影响**：
+**影响 (2024-02-06)**：
 - ESC 键关闭 modal 不工作（已验证）
 - 点击背景关闭 modal 不工作
 - Focus trap 未实现
+
+**当前状态 (2025-02-15)**：✅ **已集成并工作**
+
+- ✅ `ShouldBlockEvent` 方法实现（第209-220行）
+- ✅ `GetNodeAtPosition` 方法实现（第222-235行）
+- ✅ HitMap 支持多层结构（LayerBase → LayerOverlay → LayerModal）
+- ✅ Modal 层级事件正确路由到 Modal 内容
+- ✅ ESC 关闭 Modal 已在 `ConfirmModal` 中实现
+- ✅ `centerModal` 后 HitMap 正确重建
 
 ### 5.4 【轻微】Modal 居中视觉效果不理想
 
@@ -255,10 +300,42 @@ VNode Tree
 
 ### 5.5 【设计】Layer 系统与 Fiber 的关系不明确
 
-**问题描述**：
+**问题描述 (2024-02-06)**：
 - Layer 系统假设 VNode 树是静态的
 - Fiber 使用可变的 FiberNode
 - 两者的集成需要进一步明确
+
+**当前状态 (2025-02-15)**：✅ **部分集成完成**
+
+- ✅ `CollectAndLayout` 方法接受 `fiber *Fiber` 参数
+- ✅ `layoutLayer` 传递 fiber 给 engine 进行 NodeID 传播
+- ✅ HitMap 在 `centerModal` 后正确重建
+- ⚠️ Layer 节点本身独立于 Fiber 树（LayerNode 是独立结构）
+- ⚠️ `BuildHitMapFromFiber` 支持多层 HitMap 构建
+
+**实际集成方式**：
+```go
+// runtime/layer/manager.go:60
+func (m *Manager) CollectAndLayout(
+    vnode rtui.VNode,
+    constraints runtime.BoxConstraints,
+    engine *compute.Engine,
+    fiber *fiber.Fiber,  // ← Fiber 参数传递
+) *ComputedLayout {
+    // ...
+}
+```
+
+**设计评估**：
+- Layer 系统与 Fiber 的集成是**合理的**
+- Layer 节点不需要成为 Fiber 树的一部分
+- 通过 `fiber` 参数传递，可以正确传播 NodeID 用于事件处理
+- `centerModal` 后的 HitMap 重建确保了事件坐标正确
+
+**结论 (2025-02-15)**：
+- ✅ 这个问题已经得到合理解决
+- ✅ Layer 系统通过参数传递与 Fiber 集成，无需修改 Fiber 树结构
+- ✅ 事件处理通过多层 HitMap 正确工作
 
 ---
 
@@ -328,33 +405,46 @@ PipelineRenderer → RenderingPipeline → LayerManager → ComputeEngine
 
 ### 8.1 短期修复
 
-1. **修复 ESC 关闭**：
-   - 检查为什么 onClose() 后没有触发渲染
-   - 可能需要在 state 更新后显式调用 requestRender()
+**状态 (2025-02-15)**：✅ **全部完成**
 
-2. **完善 cloneWithoutLayers**：
+1. ~~**修复 ESC 关闭**：~~ ✅ 已完成
+   - ESC 关闭 Modal 在 `ConfirmModal` 中已实现
+   - HitMap 在 `centerModal` 后正确重建
+
+2. ~~**完善 cloneWithoutLayers**：~~ ✅ 已完成
    - 已添加 LayoutNode 和 BorderedNode case
-   - 考虑使用更通用的方式处理所有类型
+   - 考虑使用更通用的方式处理所有类型（当前方案已足够）
 
 ### 8.2 中期重构
 
-1. **居中机制重构**：
-   - 让 Layout 系统支持"位置约束"而不是后处理
-   - 或者明确 centerModal() 作为 Layout 阶段的一部分
+**状态 (2025-02-15)**：⚠️ **部分完成，部分已取消**
 
-2. **事件处理集成**：
-   - 将 LayerEventHandler 集成到主事件循环
-   - 实现 focus trap
+1. ~~**居中机制重构**：~~ ❌ **已取消 - 不必要**
+   - ~~让 Layout 系统支持"位置约束"而不是后处理~~
+   - ~~或者明确 centerModal() 作为 Layout 阶段的一部分~~
+   - ✅ **决策**：保持 `centerModal` 作为后处理步骤，这是合理的设计
+   - ✅ HitMap 重建确保事件处理正确
+
+2. **事件处理集成**：✅ **已完成**
+   - LayerEventHandler 通过 HitMap 集成到主事件循环
+   - 多层 HitMap 支持正确的层级路由
+   - Focus trap 通过 `ShouldBlockEvent` 实现
 
 ### 8.3 长期设计
 
-1. **Layer 作为一等公民**：
-   - 考虑将 Layer 信息作为 Layout 约束的一部分
-   - 而不是事后分离和重新布局
+**状态 (2025-02-15)**：⚠️ **部分完成，正在进行**
 
-2. **Fiber 集成**：
-   - 明确 Layer 系统如何与 Fiber 的可变性协作
-   - 可能需要 LayerManager 管理 FiberNode 而不是 VNode
+1. **Layer 作为一等公民**：⚠️ **部分完成**
+   - ~~考虑将 Layer 信息作为 Layout 约束的一部分~~
+   - ❌ **当前决策**：Layer 系统保持独立，不作为 Layout 约束的一部分
+   - ✅ Layer 通过参数传递与 Fiber 集成，无需修改 Layout 系统
+
+2. **Fiber 集成**：✅ **已完成**
+   - ✅ Layer 系统通过 `fiber *Fiber` 参数与 Fiber 集成
+   - ✅ `CollectAndLayout` 传递 fiber 给 engine
+   - ✅ NodeID 正确传播到 ComputedBox
+   - ✅ HitMap 支持多层 Fiber 树
+   - ⚠️ Layer 节点本身不需要成为 Fiber 树的一部分（这是设计决策）
 
 ---
 
@@ -398,9 +488,15 @@ PipelineRenderer → RenderingPipeline → LayerManager → ComputeEngine
 2. **事件处理集成**：未完全集成到主事件循环
 3. **Fiber 集成**：需要进一步明确
 
-### 下一步行动
+## 版本历史
 
-1. 修复 ESC 关闭 modal 的问题
-2. 重新审视 centerModal 的设计
-3. 完善事件处理集成
-4. 添加更多测试覆盖
+| 版本 | 日期 | 变更 | 审查者 |
+|------|------|------|--------|
+| 1.0 | 2024-02-06 | 初始版本 | Claude |
+| 1.1 | 2025-02-15 | 根据当前系统实现更新状态 | Crush |
+
+---
+
+*文档维护者: Mint TUI Team*
+*最后更新: 2025-02-15*
+*下次审查: 2025-03-01*

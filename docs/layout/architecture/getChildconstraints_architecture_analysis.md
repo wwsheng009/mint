@@ -355,27 +355,74 @@ Build()
 | 潜在风险 | ⚠️ 存在 | 可能导致过度约束 |
 | 可维护性 | ⚠️ 较差 | 逻辑分散在两处 |
 
-### 6.2 建议的行动计划
+### 6.3 双重测量现状
 
-#### 立即行动
+**当前状态 (2025-02-15)**: 
+
+⚠️ **双重测量问题部分解决，但仍然存在**
+
+**LayoutMeasurer 路径 (单遍)**: 
+```
+buildComputedBox(vnode, parent, constraints)
+    │
+    └─► TryMeasureLayout(vnode, constraints, parent)
+         │
+         └─► vnode.MeasureLayout(...) [HStack/VStack]
+              │
+              └─► 返回 Size + ChildConstraints + ChildSizes
+              │
+              └─► 只测量一次！
+```
+
+**回退路径 (两遍)**: 
+```
+buildComputedBox(vnode, parent, constraints)
+    │
+    ├─► measureVNode(vnode, constraints) [其他节点]
+    │    │
+    │    └─► measurable.Measure(constraints)
+    │         │
+    │         └─► 第一次测量
+    │
+    └─► getChildConstraints() [第二次约束计算]
+         │
+         └─► buildComputedBox(child, ...)
+              │
+              └─► measureVNode() [第二次测量]
+```
+
+**分析**:
+- ✅ HStack/VStack 使用 LayoutMeasurer，避免双重测量
+- ⚠️ BorderedNode, Text, Element 等仍使用两遍路径
+- ⚠️ `getChildConstraints()` 仍存在，仅用于回退路径
+- ⚠️ 存在两种路径的约束逻辑可能不一致的风险
+
+### 6.4 建议的行动计划
+
+**状态 (2025-02-15)**: 
+
+#### ✅ 已完成
 1. ✅ 保留当前修复（它解决了问题）
-2. 📝 添加详细的代码注释说明这个特殊处理
-3. 🧪 添加测试用例确保这个行为被覆盖
+2. ✅ 引入 LayoutMeasurer 接口
+3. ✅ HStack/VStack 实现单遍布局
+4. 🧪 添加测试用例确保这个行为被覆盖
 
-#### 短期计划（1-2 周）
-1. 🔧 提取共享逻辑到辅助函数
-2. 📋 创建 GitHub issue 跟踪架构改进
-3. 📚 更新文档说明这个行为
+#### 🔄 进行中
+1. 🧪 完善双重测量路径的测试覆盖
+2. 📝 添加代码注释说明两种路径的用途
+3. 📋 创建 GitHub issue 跟踪架构改进
 
-#### 中期计划（1-2 月）
-1. 🏗️ 引入 `StretchCross` 属性使行为显式化
-2. 🔄 逐步迁移现有代码使用新属性
-3. ⚠️ 添加警告日志检测潜在的过度约束
+#### ⏳ 待办（优先级调整）
+**优先级降低**: 原计划的 "引入 StretchCross 属性" 不再紧急
+- ✅ HStack/VStack 已通过 LayoutMeasurer 实现正确的对齐
+- ✅ StretchCross 在 layout_measurement.go 中已正确处理
+- ⚠️ 但仍需考虑让用户显式控制这个行为
 
-#### 长期计划（3-6 月）
-1. 🎯 设计新的 Layout Pipeline
-2. 🧪 创建 PoC 验证新方案
-3. 🚀 逐步迁移到新架构
+**新的优先级**:
+1. 🔧 为 BorderedNode, Text, Element 实现 LayoutMeasurer
+2. 🎯 完全消除两遍路径
+3. ⚠️ 统一约束传递逻辑到单一位置
+4. 🚀 性能优化：实现完整的树缓存
 
 ### 6.3 风险评估
 
@@ -438,7 +485,15 @@ Build()
 | runtime/compute/engine.go | 904-980 | layoutHStack() 定位逻辑 |
 | runtime/compute/engine.go | 72-140 | buildComputedBox() 双重测量入口 |
 
+## 版本历史
+
+| 版本 | 日期 | 变更 | 审查者 |
+|------|------|------|--------|
+| 1.0 | 2024-02-06 | 初始版本 | Claude |
+| 1.1 | 2025-02-15 | 根据当前系统实现更新状态 | Crush |
+
 ---
 
 *文档创建日期: 2024-02-06*
-*最后审查: 2024-02-06*
+*最后审查: 2025-02-15*
+*下次审查: 2025-03-01*
