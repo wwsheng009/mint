@@ -1,6 +1,10 @@
 package ui
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/wwsheng009/mint/runtime/event"
+)
 
 // =============================================================================
 // Fiber Architecture
@@ -187,6 +191,12 @@ type Fiber struct {
 	// === Component Instance ===
 	// Persistent component instance for state preservation
 	ComponentInstance ComponentInstance
+
+	// === Event Handlers (Phase 3) ===
+	// Event handlers for this Fiber node
+	// Maps EventType to handler function
+	// These are extracted from VNode props during completeWork
+	EventHandlers map[event.EventType]func(event.Event) bool
 }
 
 // =============================================================================

@@ -1,6 +1,7 @@
 package reconciler
 
 import (
+	"github.com/wwsheng009/mint/runtime/event"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
 
@@ -101,6 +102,10 @@ func completeWorkElement(current, workInProgress *Fiber) *Fiber {
 	// This enables Fiber-first rendering by storing style info during completeWork
 	extractVisualStyleToFiber(workInProgress, elementVNode)
 
+	// === Phase 3: Extract event handlers to Fiber ===
+	// This enables Fiber-first event handling by storing handlers on Fiber
+	extractEventHandlersToFiber(workInProgress, elementVNode.Props())
+
 	return workInProgress
 }
 
@@ -113,6 +118,85 @@ func completeWorkFragment(current, workInProgress *Fiber) *Fiber {
 	// They just group children
 
 	return workInProgress
+}
+
+// =============================================================================
+// Event Handler Extraction (Phase 3)
+// =============================================================================
+// extractEventHandlers extracts event handlers from props and stores them on Fiber
+// This enables Fiber-first event handling by storing handlers on Fiber
+func extractEventHandlersToFiber(fiber *rtui.Fiber, props rtui.Props) {
+	if fiber == nil || props == nil {
+		return
+	}
+
+	// Common event handler keys in props
+	// These follow React-style naming: onClick, onKeyDown, onMouseEnter, etc.
+	eventKeys := []string{
+		"onClick", "onDoubleClick", "onContextMenu",
+		"onKeyDown", "onKeyUp", "onKeyPress", "onKeyRepeat",
+		"onMouseDown", "onMouseUp", "onMouseMove", "onMouseWheel",
+		"onMouseEnter", "onMouseLeave",
+		"onFocus", "onBlur", "onChange", "onSubmit", "onCancel",
+	}
+
+	handlers := make(map[event.EventType]func(event.Event) bool)
+
+	for _, key := range eventKeys {
+		if handler, ok := props[key]; ok {
+			// Determine event type based on prop name
+			var eventType event.EventType
+			switch key {
+			case "onClick":
+				eventType = event.EventClick
+			case "onDoubleClick":
+				eventType = event.EventDoubleClick
+			case "onContextMenu":
+				eventType = event.EventContextMenu
+			case "onKeyDown":
+				eventType = event.EventKeyPress
+			case "onKeyUp":
+				eventType = event.EventKeyRelease
+			case "onKeyPress":
+				eventType = event.EventKeyPress
+			case "onKeyRepeat":
+				eventType = event.EventKeyRepeat
+			case "onMouseDown":
+				eventType = event.EventMousePress
+			case "onMouseUp":
+				eventType = event.EventMouseRelease
+			case "onMouseMove":
+				eventType = event.EventMouseMove
+			case "onMouseWheel":
+				eventType = event.EventMouseWheel
+			case "onMouseEnter":
+				eventType = event.EventMouseEnter
+			case "onMouseLeave":
+				eventType = event.EventMouseLeave
+			case "onFocus":
+				eventType = event.EventFocus
+			case "onBlur":
+				eventType = event.EventBlur
+			case "onChange":
+				eventType = event.EventChange
+			case "onSubmit":
+				eventType = event.EventSubmit
+			case "onCancel":
+				eventType = event.EventCancel
+			default:
+				continue
+			}
+
+			// Type assert handler to func(event.Event) bool
+			if handlerFunc, ok := handler.(func(event.Event) bool); ok {
+				handlers[eventType] = handlerFunc
+			}
+		}
+	}
+
+	if len(handlers) > 0 {
+		fiber.EventHandlers = handlers
+	}
 }
 
 // =============================================================================
