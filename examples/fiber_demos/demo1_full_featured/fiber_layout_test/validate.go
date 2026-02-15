@@ -381,7 +381,7 @@ func (v *Validator) IsSuccess() bool {
 // RunValidation is the main entry point for standalone validation
 func RunValidation() bool {
 	fmt.Println("=== Automated Layout Constraint Validation ===")
-	fmt.Println("This program validates layout constraints without manual inspection.\n")
+	fmt.Println("This program validates layout constraints without manual inspection.")
 
 	// Build test layout
 	vnode := component_fixtures.BuildDemo1App()
@@ -425,7 +425,7 @@ type BatchValidationResult struct {
 // RunBatchValidation validates all standard fixtures
 func RunBatchValidation() {
 	fmt.Println("=== Batch Layout Validation ===")
-	fmt.Println("Validating all standard fixtures...\n")
+	fmt.Println("Validating all standard fixtures...")
 
 	fixtures := component_fixtures.StandardFixtures()
 	constraints := runtime.BoxConstraints{
