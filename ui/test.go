@@ -435,7 +435,9 @@ func (ta *TestableApp) DumpBuffer() {
 
 // SaveBufferToFile 将渲染输出保存到文件
 func (ta *TestableApp) SaveBufferToFile(path string) error {
-	return os.WriteFile(path, []byte(ta.GetRenderString()), 0644)
+	// Get render string and write directly
+	content := ta.GetRenderString()
+	return os.WriteFile(path, []byte(content), 0644)
 }
 
 // Close 关闭测试应用

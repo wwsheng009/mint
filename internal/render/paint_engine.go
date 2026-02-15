@@ -47,7 +47,7 @@ func (e *PaintEngine) Paint(layout *compute.ComputedLayout, buffer *paint.Buffer
 
 	if log.PaintLogger.Enabled() {
 		log.PaintLogger.Debug("[PaintEngine.Paint] START: layout.Root=%T, box=(%d,%d,%dx%d)",
-			layout.Root.VNode, layout.Root.Box.X, layout.Root.Box.Y, layout.Root.Box.Width, layout.Root.Box.Height)
+			layout.Root.GetVNode(), layout.Root.Box.X, layout.Root.Box.Y, layout.Root.Box.Width, layout.Root.Box.Height)
 	}
 
 	// Clear parent background map at the start of each frame
@@ -79,8 +79,13 @@ func (e *PaintEngine) paintNode(box *compute.ComputedBox, buffer *paint.Buffer) 
 	}
 
 	if e.debug || log.PaintLogger.Enabled() || log.PaintLogger.Enabled() {
+		vnode := box.GetVNode()
+		var vnodeType string
+		if vnode != nil {
+			vnodeType = vnode.Type().String()
+		}
 		log.PaintLogger.Debug("[Paint.paintNode] %s at (%d,%d) size %dx%d, vnode_type=%T",
-			box.VNode.Type().String(), box.Box.X, box.Box.Y, box.Box.Width, box.Box.Height, box.VNode)
+			vnodeType, box.Box.X, box.Box.Y, box.Box.Width, box.Box.Height, vnode)
 	}
 
 	// Check if we have a parent background to inherit
@@ -94,7 +99,7 @@ func (e *PaintEngine) paintNode(box *compute.ComputedBox, buffer *paint.Buffer) 
 	}
 
 	// FIRST: Check if vnode implements Paintable interface (custom rendering like buttons)
-	paintable, ok := box.VNode.(interface {
+	paintable, ok := box.GetVNode().(interface {
 		Paint(int, int) []paint.DrawCmd
 	})
 	if ok {
@@ -133,13 +138,13 @@ func (e *PaintEngine) paintNode(box *compute.ComputedBox, buffer *paint.Buffer) 
 	// ENHANCEMENT: Inherit parent background for non-Paintable nodes
 	// This ensures child controls blend with parent container's background
 	if parentBG != "" {
-		nodeStyle := box.VNode.Style()
+		nodeStyle := box.GetVNode().Style()
 		// Only inherit if node doesn't have its own background
 		if nodeStyle.BG == "" || nodeStyle.BG == style.NoColor {
 			// Inherit parent background
 			inheritedStyle := nodeStyle
 			inheritedStyle.BG = parentBG
-			box.VNode.SetStyle(inheritedStyle)
+			box.GetVNode().SetStyle(inheritedStyle)
 
 			if e.debug || log.PaintLogger.Enabled() {
 				log.PaintLogger.Debug("[Paint.paintNode]   🎨 Inherited parent BG=%s", parentBG)
@@ -153,7 +158,7 @@ func (e *PaintEngine) paintNode(box *compute.ComputedBox, buffer *paint.Buffer) 
 	}
 
 	// Paint the node based on its type
-	switch box.VNode.Type() {
+	switch box.GetVNode().Type() {
 	case rtui.VNodeText:
 		e.paintText(box, buffer)
 
@@ -171,16 +176,16 @@ func (e *PaintEngine) paintNode(box *compute.ComputedBox, buffer *paint.Buffer) 
 	}
 
 	// Handle bordered elements - paint border decoration
-	if _, ok := box.VNode.(interface{ GetBorderLabel() string }); ok {
+	if _, ok := box.GetVNode().(interface{ GetBorderLabel() string }); ok {
 		e.paintBordered(box, buffer)
 		return nil
 	}
 
 	// For non-bordered elements, paint children after self-rendering
-	children := box.VNode.Children()
+	children := box.GetVNode().Children()
 	if len(children) > 0 {
 		// Check if this is a table element
-		if tagger, ok := box.VNode.(interface{ Tag() string }); ok && tagger.Tag() == "table" {
+		if tagger, ok := box.GetVNode().(interface{ Tag() string }); ok && tagger.Tag() == "table" {
 			e.paintTable(box, buffer)
 			return nil
 		}
@@ -195,7 +200,7 @@ func (e *PaintEngine) paintText(box *compute.ComputedBox, buffer *paint.Buffer) 
 	// Use RenderedText calculated during layout phase if available
 	text := box.RenderedText
 	if text == "" {
-		text = rtui.GetTextContent(box.VNode)
+		text = rtui.GetTextContent(box.GetVNode())
 	}
 	if e.debug {
 		log.PaintLogger.Debug("[Paint.paintText] box=(%d,%d,%dx%d) renderedText=%q text=%q",
@@ -205,7 +210,7 @@ func (e *PaintEngine) paintText(box *compute.ComputedBox, buffer *paint.Buffer) 
 		// Use SetStringAligned to pad row and prevent leftover characters (TUI_BUFFER_FIX2.md)
 		// Pad to box.Box.X + box.Box.Width to fill entire row within component boundary
 		maxX := box.Box.X + box.Box.Width
-		buffer.SetStringAligned(box.Box.X, box.Box.Y, text, box.VNode.Style(), maxX)
+		buffer.SetStringAligned(box.Box.X, box.Box.Y, text, box.GetVNode().Style(), maxX)
 	}
 }
 
@@ -214,19 +219,19 @@ func (e *PaintEngine) paintElement(box *compute.ComputedBox, buffer *paint.Buffe
 	// Use RenderedText calculated during layout phase if available
 	content := box.RenderedText
 	if content == "" {
-		content = rtui.GetTextContent(box.VNode)
+		content = rtui.GetTextContent(box.GetVNode())
 	}
 	if content != "" {
 		// Use SetStringAligned to pad row and prevent leftover characters (TUI_BUFFER_FIX2.md)
 		// Pad to box.Box.X + box.Box.Width to fill entire row within component boundary
 		maxX := box.Box.X + box.Box.Width
-		buffer.SetStringAligned(box.Box.X, box.Box.Y, content, box.VNode.Style(), maxX)
+		buffer.SetStringAligned(box.Box.X, box.Box.Y, content, box.GetVNode().Style(), maxX)
 		return // Don't paint children for text elements
 	}
 
 	// ENHANCEMENT: Paint container background if set
 	// This allows elements like Inspector panels to have solid backgrounds
-	nodeStyle := box.VNode.Style()
+	nodeStyle := box.GetVNode().Style()
 	if nodeStyle.BG != "" && nodeStyle.BG != style.NoColor {
 		e.paintContainerBackground(box, buffer, nodeStyle)
 
@@ -304,15 +309,15 @@ func (e *PaintEngine) paintChildren(box *compute.ComputedBox, buffer *paint.Buff
 func (e *PaintEngine) paintBordered(box *compute.ComputedBox, buffer *paint.Buffer) {
 	// Get border configuration
 	borderStyle := border.StyleSingle
-	if labeled, ok := box.VNode.(interface{ GetBorderStyle() rtui.BorderStyle }); ok {
+	if labeled, ok := box.GetVNode().(interface{ GetBorderStyle() rtui.BorderStyle }); ok {
 		borderStyle = border.Style(labeled.GetBorderStyle())
 	}
 	borderColor := "blue"
-	if colored, ok := box.VNode.(interface{ GetBorderColor() string }); ok {
+	if colored, ok := box.GetVNode().(interface{ GetBorderColor() string }); ok {
 		borderColor = colored.GetBorderColor()
 	}
 	borderLabel := ""
-	if labeled, ok := box.VNode.(interface{ GetBorderLabel() string }); ok {
+	if labeled, ok := box.GetVNode().(interface{ GetBorderLabel() string }); ok {
 		borderLabel = labeled.GetBorderLabel()
 	}
 
