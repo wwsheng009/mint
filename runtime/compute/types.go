@@ -71,6 +71,7 @@ type ComputedBox struct {
 
 	// ChildFiber stores the Fiber node for this box (used for NodeID propagation to children)
 	// See: docs/render/fiber/FIBER_ID.md - Option 2 implementation
+	// This is set during buildComputedBox when a Fiber is provided
 	ChildFiber *rtui.Fiber
 }
 
@@ -171,3 +172,72 @@ func (cb *ComputedBox) Count() int {
 	}
 	return count
 }
+
+// =============================================================================
+// Fiber Access Methods (Phase 4: Fiber-First Transition)
+// =============================================================================
+// These methods provide Fiber-first access to ComputedBox data.
+// During transition, they prioritize Fiber fields and fall back to VNode.
+// This allows gradual migration without breaking existing code.
+
+// GetFiber returns the associated Fiber node if available
+func (cb *ComputedBox) GetFiber() *rtui.Fiber {
+	// Try to get Fiber from ChildFiber first
+	if cb.ChildFiber != nil {
+		return cb.ChildFiber
+	}
+	// Fallback: no Fiber associated
+	return nil
+}
+
+// GetVNode returns the associated VNode (deprecated during Phase 4)
+// Note: This method will be removed in Phase 6 when VNode dependency is fully eliminated
+func (cb *ComputedBox) GetVNode() rtui.VNode {
+	return cb.VNode
+}
+
+// GetNodeType returns the VNode type if VNode is available
+func (cb *ComputedBox) GetNodeType() rtui.VNodeType {
+	if vnode := cb.GetVNode(); vnode != nil {
+		return vnode.Type()
+	}
+	return 0
+}
+
+// GetNodeTag returns the tag of the associated VNode
+func (cb *ComputedBox) GetNodeTag() string {
+	if tagger, ok := cb.GetVNode().(interface{ Tag() string }); ok {
+		return tagger.Tag()
+	}
+	return ""
+}
+
+// GetNodeKey returns the key of the associated VNode
+func (cb *ComputedBox) GetNodeKey() string {
+	if keyGetter, ok := cb.GetVNode().(interface{ Key() string }); ok {
+		return keyGetter.Key()
+	}
+	return ""
+}
+
+// GetLayoutInfoFromFiber retrieves layout info from associated Fiber
+// This is the preferred method for Fiber-first layout
+func (cb *ComputedBox) GetLayoutInfoFromFiber() rtui.LayoutInfo {
+	if fiber := cb.GetFiber(); fiber != nil {
+		// Use Fiber's layout info (set during completeWork)
+		return rtui.LayoutInfo{
+			IsHorizontal: fiber.GetDirection() == rtui.DirectionRow,
+			Gap:         fiber.GetGap(),
+			Flex:        fiber.GetFlex(),
+			Align:       fiber.GetAlign(),
+			CrossAlign:   fiber.GetCrossAlign(),
+			Padding:     fiber.GetPadding(),
+		}
+	}
+	// Fallback to VNode (during transition)
+	if vnode := cb.GetVNode(); vnode != nil {
+		return rtui.GetLayoutInfo(vnode)
+	}
+	return rtui.LayoutInfo{}
+}
+

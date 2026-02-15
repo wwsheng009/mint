@@ -138,7 +138,7 @@ func (e *Engine) buildComputedBoxWithSize(vnode VNode, fiber *reconciler.Fiber, 
 		Box:          runtime.Box{X: 0, Y: 0, Width: 0, Height: 0},
 		NaturalWidth:  0, // Will be measured below
 		NodeID:       0, // Will be set below
-		ChildFiber:   nil, // Placeholder for child's Fiber (will be set before building children)
+		ChildFiber:   fiber, // Set Fiber if provided (for NodeID propagation)
 	}
 
 	// Phase 3: Set NodeID from Fiber for stable identity
@@ -420,6 +420,126 @@ func (e *Engine) buildComputedBoxWithSize(vnode VNode, fiber *reconciler.Fiber, 
 //   constraints: Box constraints for layout
 func (e *Engine) buildComputedBox(vnode VNode, fiber *reconciler.Fiber, parent *ComputedBox, constraints runtime.BoxConstraints) *ComputedBox {
 	return e.buildComputedBoxWithSize(vnode, fiber, parent, constraints, nil)
+}
+
+// =============================================================================
+// Fiber-First Layout (Phase 2)
+// =============================================================================
+// buildComputedBoxFromFiber creates ComputedBox from Fiber tree only
+// This is Phase 6 implementation that removes VNode dependency
+//
+// Parameters:
+//   fiber: The Fiber node to build ComputedBox for
+//   parent: Parent ComputedBox (for tree structure)
+//   constraints: Box constraints for layout
+//
+// Returns:
+//   *ComputedBox for this Fiber node
+func (e *Engine) buildComputedBoxFromFiber(fiber *rtui.Fiber, parent *ComputedBox, constraints runtime.BoxConstraints) *ComputedBox {
+	if fiber == nil {
+		return nil
+	}
+
+	// Get layout info from Fiber (Phase 1: stored in completeWork)
+	info := e.getLayoutInfoFromFiber(fiber)
+
+	// Create base box using Fiber properties
+	box := &ComputedBox{
+		Parent:  parent,
+		NodeID:  fiber.NodeID,
+		Layer:   fiber.Layer,
+		Box: runtime.Box{
+			X:      0,
+			Y:      0,
+			Width:  0,
+			Height: 0,
+		},
+		// Note: VNode field kept during transition, removed in Phase 4
+	}
+
+	// Measure layout using Fiber layout info
+	measurement := e.measureFiberLayout(fiber, info, constraints)
+	box.Box.Width = measurement.Size.Width
+	box.Box.Height = measurement.Size.Height
+
+	// Build children using Fiber tree traversal (Child->Sibling)
+	children := e.getChildFibers(fiber)
+	box.Children = make([]*ComputedBox, 0, len(children))
+
+	for i, childFiber := range children {
+		var childConstraints runtime.BoxConstraints
+		if i < len(measurement.ChildConstraints) {
+			childConstraints = measurement.ChildConstraints[i]
+		} else {
+			childConstraints = constraints
+		}
+
+		childBox := e.buildComputedBoxFromFiber(childFiber, box, childConstraints)
+		if childBox != nil {
+			box.Children = append(box.Children, childBox)
+		}
+	}
+
+	return box
+}
+
+// getLayoutInfoFromFiber extracts layout info from Fiber using Fiber-first methods
+func (e *Engine) getLayoutInfoFromFiber(fiber *rtui.Fiber) rtui.LayoutInfo {
+	return rtui.LayoutInfo{
+		IsHorizontal: fiber.GetDirection() == rtui.DirectionRow,
+		Gap:         fiber.GetGap(),
+		Flex:        fiber.GetFlex(),
+		Align:        fiber.GetAlign(),
+		CrossAlign:   fiber.GetCrossAlign(),
+		Padding:      fiber.GetPadding(),
+	}
+}
+
+// measureFiberLayout measures layout size from Fiber
+func (e *Engine) measureFiberLayout(fiber *rtui.Fiber, info rtui.LayoutInfo, constraints runtime.BoxConstraints) runtime.LayoutMeasurement {
+	// Try single-pass measurement via LayoutMeasurer interface
+	if lm, ok := fiber.VNode.(runtime.LayoutMeasurer); ok {
+		// Create a ChildMeasurer that uses Fiber children
+		measurer := &fiberChildMeasurer{
+			engine: e,
+			fiber:  fiber,
+		}
+		return lm.MeasureLayout(measurer, constraints)
+	}
+	// Fallback to two-pass
+	return runtime.LayoutMeasurement{
+		Size: runtime.Size{Width: 0, Height: 0},
+	}
+}
+
+// getChildFibers returns all child fibers as a slice
+func (e *Engine) getChildFibers(fiber *rtui.Fiber) []*rtui.Fiber {
+	return fiber.GetChildFibers()
+}
+
+// fiberChildMeasurer implements runtime.ChildMeasurer for Fiber-based layout
+type fiberChildMeasurer struct {
+	engine *Engine
+	fiber  *rtui.Fiber
+}
+
+// MeasureChild measures a child Fiber's size with given constraints
+func (m *fiberChildMeasurer) MeasureChild(child interface{}, constraints runtime.BoxConstraints) runtime.Size {
+	childFiber, ok := child.(*rtui.Fiber)
+	if !ok || childFiber == nil {
+		return runtime.Size{Width: 0, Height: 0}
+	}
+
+	// Build child's ComputedBox to get its size
+	box := m.engine.buildComputedBoxFromFiber(childFiber, nil, constraints)
+	if box == nil {
+		return runtime.Size{Width: 0, Height: 0}
+	}
+
+	return runtime.Size{
+		Width:  box.Box.Width,
+		Height: box.Box.Height,
+	}
 }
 
 // measureVNode measures a VNode's size using constraints

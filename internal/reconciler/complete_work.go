@@ -102,6 +102,11 @@ func completeWorkElement(current, workInProgress *Fiber) *Fiber {
 	// Store tag/component name for reference
 	_ = elementVNode.Tag()
 
+	// === Phase 1: Extract layout info to Fiber ===
+	// This enables Fiber-first layout by avoiding VNode delegation
+	// Use safe interface methods to check for layout properties
+	extractLayoutInfoToFiber(workInProgress, elementVNode)
+
 	return workInProgress
 }
 
@@ -158,5 +163,43 @@ func collectChildEffects(workInProgress *Fiber) {
 		workInProgress.SubtreeFlags |= child.SubtreeFlags
 
 		child = child.Sibling
+	}
+}
+
+// =============================================================================
+// Layout Info Extraction (Phase 1)
+// =============================================================================
+
+// extractLayoutInfoToFiber extracts layout properties from VNode to Fiber
+// This enables Fiber-first layout by storing layout info during completeWork
+func extractLayoutInfoToFiber(fiber *Fiber, vnode rtui.VNode) {
+	if fiber == nil || vnode == nil {
+		return
+	}
+
+	// Use safe interface methods to extract layout info
+	// Check for Direction method
+	if dirGetter, ok := vnode.(interface{ Direction() rtui.Direction }); ok {
+		fiber.LayoutDirection = dirGetter.Direction()
+	}
+	// Check for Align method
+	if alignGetter, ok := vnode.(interface{ Align() rtui.Align }); ok {
+		fiber.LayoutAlign = alignGetter.Align()
+	}
+	// Check for CrossAlign method
+	if crossAlignGetter, ok := vnode.(interface{ CrossAlign() rtui.Align }); ok {
+		fiber.LayoutCrossAlign = crossAlignGetter.CrossAlign()
+	}
+	// Check for Gap method
+	if gapGetter, ok := vnode.(interface{ Gap() int }); ok {
+		fiber.LayoutGap = gapGetter.Gap()
+	}
+	// Check for Padding method
+	if paddingGetter, ok := vnode.(interface{ Padding() [4]int }); ok {
+		fiber.LayoutPadding = paddingGetter.Padding()
+	}
+	// Check for Flex method
+	if flexGetter, ok := vnode.(interface{ Flex() int }); ok {
+		fiber.LayoutFlex = flexGetter.Flex()
 	}
 }

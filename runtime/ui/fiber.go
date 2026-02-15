@@ -5,7 +5,7 @@ import "fmt"
 // =============================================================================
 // Fiber Architecture
 // =============================================================================
-// Fiber is the reconciliation algorithm, breaking rendering work into small units.
+// Fiber is a reconciliation algorithm, breaking rendering work into small units.
 // Each Fiber node represents a component in the UI and forms a tree.
 // =============================================================================
 
@@ -163,6 +163,16 @@ type Fiber struct {
 	// TODO: After refactoring, use *compute.ComputedBox directly
 	ComputedBox interface{}
 
+	// === Layout Style (Phase 1) ===
+	// These fields are populated in completeWork from VNode props
+	// This enables Fiber-first layout by avoiding VNode delegation
+	LayoutDirection Direction
+	LayoutAlign     Align
+	LayoutCrossAlign Align
+	LayoutGap       int
+	LayoutPadding    [4]int
+	LayoutFlex      int
+
 	// === Component Instance ===
 	// Persistent component instance for state preservation
 	ComponentInstance ComponentInstance
@@ -315,7 +325,7 @@ func (f *Fiber) EnqueueUpdate(update *Update) {
 // =============================================================================
 // Reconciler Interface
 // =============================================================================
-// This interface allows internal/render to use Fiber reconciler without
+// This interface allows internal/render to use the Fiber reconciler without
 // importing internal/reconciler directly (which would cause a cycle).
 
 // Reconciler is the interface for Fiber reconciliation

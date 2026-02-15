@@ -406,3 +406,109 @@ func CollectFibersWithFlags(root *Fiber, flags EffectFlag) []*Fiber {
 	})
 	return result
 }
+
+// =============================================================================
+// Fiber Layout Helper Methods (Phase 1)
+// =============================================================================
+// These methods enable Fiber-first layout by providing access to child fibers
+// and layout properties directly from the Fiber struct.
+
+// GetChildFibers returns all child fibers as a slice
+// Converts the Child → Sibling linked list to an array for easier iteration
+func (f *Fiber) GetChildFibers() []*Fiber {
+	var children []*Fiber
+	for child := f.Child; child != nil; child = child.Sibling {
+		children = append(children, child)
+	}
+	return children
+}
+
+// GetChildCount returns the number of children
+func (f *Fiber) GetChildCount() int {
+	count := 0
+	for child := f.Child; child != nil; child = child.Sibling {
+		count++
+	}
+	return count
+}
+
+// GetDirection returns the layout direction
+// Prioritizes Fiber.LayoutDirection field, falls back to VNode
+func (f *Fiber) GetDirection() Direction {
+	if f.LayoutDirection != 0 {
+		return f.LayoutDirection
+	}
+	// Fallback to VNode during transition
+	if f.VNode != nil {
+		if ln, ok := f.VNode.(*LayoutNode); ok {
+			return ln.direction
+		}
+	}
+	return DirectionRow // default
+}
+
+// GetAlign returns the main axis alignment
+// Prioritizes Fiber.LayoutAlign field, falls back to VNode
+func (f *Fiber) GetAlign() Align {
+	if f.LayoutAlign != 0 {
+		return f.LayoutAlign
+	}
+	if f.VNode != nil {
+		if ln, ok := f.VNode.(*LayoutNode); ok {
+			return ln.align
+		}
+	}
+	return AlignStart // default
+}
+
+// GetCrossAlign returns the cross axis alignment
+// Prioritizes Fiber.LayoutCrossAlign field, falls back to VNode
+func (f *Fiber) GetCrossAlign() Align {
+	if f.LayoutCrossAlign != 0 {
+		return f.LayoutCrossAlign
+	}
+	if f.VNode != nil {
+		if ln, ok := f.VNode.(*LayoutNode); ok {
+			return ln.crossAlign
+		}
+	}
+	return AlignStart // default
+}
+
+// GetGap returns the gap spacing between children
+// Prioritizes Fiber.LayoutGap field, falls back to VNode
+func (f *Fiber) GetGap() int {
+	if f.LayoutGap != 0 || f.VNode == nil {
+		return f.LayoutGap
+	}
+	if ln, ok := f.VNode.(*LayoutNode); ok {
+		return ln.gap
+	}
+	return 0 // default
+}
+
+// GetPadding returns the padding [top, right, bottom, left]
+// Prioritizes Fiber.LayoutPadding field, falls back to VNode
+func (f *Fiber) GetPadding() [4]int {
+	// Check if any padding value is non-zero
+	if f.LayoutPadding[0] != 0 || f.LayoutPadding[1] != 0 ||
+		f.LayoutPadding[2] != 0 || f.LayoutPadding[3] != 0 || f.VNode == nil {
+		return f.LayoutPadding
+	}
+	if ln, ok := f.VNode.(*LayoutNode); ok {
+		return ln.padding
+	}
+	return [4]int{0, 0, 0, 0} // default
+}
+
+// GetFlex returns the flex factor
+// Prioritizes Fiber.LayoutFlex field, falls back to VNode
+func (f *Fiber) GetFlex() int {
+	if f.LayoutFlex != 0 || f.VNode == nil {
+		return f.LayoutFlex
+	}
+	if ln, ok := f.VNode.(*LayoutNode); ok {
+		return ln.flex
+	}
+	return 0 // default
+}
