@@ -276,6 +276,20 @@ func (a *Action) IsStopped() bool {
 	return a.stopped
 }
 
+// IsNavigationAction 检查是否是导航 Action
+// 导航 Action 由全局处理器处理，不需要 TargetID
+func (a *Action) IsNavigationAction() bool {
+	switch a.Type {
+	case ActionNavigateNext, ActionNavigatePrev,
+		ActionNavigateUp, ActionNavigateDown,
+		ActionNavigateLeft, ActionNavigateRight,
+		ActionNavigatePageUp, ActionNavigatePageDown,
+		ActionNavigateHome, ActionNavigateEnd:
+		return true
+	}
+	return false
+}
+
 // Reset 停止传播标志 (Phase 0 新增)
 func (a *Action) resetStopped() {
 	a.stopped = false

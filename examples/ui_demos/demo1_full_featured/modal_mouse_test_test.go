@@ -3,7 +3,9 @@
 package main
 
 import (
+	"fmt"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/wwsheng009/mint/framework/theme"
@@ -35,7 +37,7 @@ func TestModalMouseClick(t *testing.T) {
 	}
 	defer testApp.Close()
 
-	log.Info("TEST", "TestableApp created and initialized")
+	log.Info("[TEST] TestableApp created and initialized")
 
 	// 强制进行一次渲染以确保 HitMap 被设置
 	fwApp := testApp.GetFrameworkApp()
@@ -46,51 +48,54 @@ func TestModalMouseClick(t *testing.T) {
 
 	if hitMap == nil {
 		// 如果还是 nil，打印调试信息
-		log.Info("TEST", "ERROR: HitMap is nil after ForceRenderNow")
-		log.Info("TEST", "Framework App State: %v", fwApp.GetState())
+		log.Info("[TEST] ERROR: HitMap is nil after ForceRenderNow")
+		log.Info("[TEST] Framework App State: %v", fwApp.GetState())
 		t.Fatal("ERROR: HitMap is nil after render")
 	}
 
-	log.Info("TEST", "=== HitMap Info ===")
-	log.Info("TEST", "HitMap Size: %d entries", hitMap.Size())
+	log.Info("[TEST] === HitMap Info ===")
+	log.Info("[TEST] HitMap Size: %d entries", hitMap.Size())
 
 	// 收集所有 modal 按钮的 Bounds
-	log.Info("TEST", "=== Collecting Modal Button Bounds ===")
+	log.Info("[TEST] === Collecting Modal Button Bounds ===")
 	var modalButtons []ButtonInfo
 	allEntries := hitMap.AllEntries()
 	for _, entry := range allEntries {
-		if entry.NodeID == "button" {
+		// Convert NodeID to string for comparison (hash-based IDs are uint64)
+		nodeIDStr := fmt.Sprintf("%d", entry.NodeID)
+		// Look for entries that might be buttons (by type or bounds)
+		if entry.Bounds.Width > 0 && entry.Bounds.Height > 0 {
 			info := ButtonInfo{
-				ID:     entry.NodeID,
+				ID:     nodeIDStr,
 				X:      entry.Bounds.X,
 				Y:      entry.Bounds.Y,
 				Width:  entry.Bounds.Width,
 				Height: entry.Bounds.Height,
 			}
 			modalButtons = append(modalButtons, info)
-			log.Info("TEST", "Found button: Bounds=(%d,%d,%dx%d)",
-				info.X, info.Y, info.Width, info.Height)
+			log.Info("[TEST] Found entry: ID=%s Bounds=(%d,%d,%dx%d)",
+				info.ID, info.X, info.Y, info.Width, info.Height)
 
 			// 打印按钮的中心点（用于点击测试）
 			centerX := info.X + info.Width/2
 			centerY := info.Y + info.Height/2
-			log.Info("TEST", "  Center point for click: (%d, %d)", centerX, centerY)
+			log.Info("[TEST]   Center point for click: (%d, %d)", centerX, centerY)
 		}
 	}
 
 	if len(modalButtons) == 0 {
-		log.Info("TEST", "WARNING: No modal buttons found!")
+		log.Info("[TEST] WARNING: No modal buttons found!")
 	} else {
-		log.Info("TEST", "Found %d modal button(s)", len(modalButtons))
+		log.Info("[TEST] Found %d modal button(s)", len(modalButtons))
 	}
 
 	// 对每个按钮执行点击测试
-	log.Info("TEST", "")
-	log.Info("TEST", "=== Performing Click Tests ===")
+	log.Info("[TEST]")
+	log.Info("[TEST] === Performing Click Tests ===")
 
 	for i, btn := range modalButtons {
-		log.Info("TEST", "")
-		log.Info("TEST", "--- Test Button %d ---", i+1)
+		log.Info("[TEST]")
+		log.Info("[TEST] --- Test Button %d ---", i+1)
 
 		// 测试点击按钮的左上角
 		testClick(t, testApp, hitMap, btn.X, btn.Y, "Top-Left")
@@ -113,25 +118,26 @@ func TestModalMouseClick(t *testing.T) {
 	}
 
 	// 收集并打印所有 HitMap 条目用于完整分析
-	log.Info("TEST", "")
-	log.Info("TEST", "=== Complete HitMap Dump ===")
+	log.Info("[TEST]")
+	log.Info("[TEST] === Complete HitMap Dump ===")
 	allEntries = hitMap.AllEntries()
 	for i, entry := range allEntries {
-		log.Info("TEST", "[%d] ID='%s' Bounds=(%d,%d,%dx%d) ZOrder=%d",
+		log.Info("[TEST] [%d] ID='%d' Bounds=(%d,%d,%dx%d) ZOrder=%d",
 			i, entry.NodeID, entry.Bounds.X, entry.Bounds.Y,
 			entry.Bounds.Width, entry.Bounds.Height, entry.ZOrder)
 	}
 
 	// 打印 buffer 内容用于验证视觉位置
-	log.Info("TEST", "")
-	log.Info("TEST", "=== Buffer Content (Modal Region) ===")
+	log.Info("[TEST]")
+	log.Info("[TEST] === Buffer Content (Modal Region) ===")
 	buffer := testApp.GetBuffer()
 
 	// 找出 modal 所在的区域
 	modalY := 0
 	modalHeight := 0
 	for _, entry := range allEntries {
-		if entry.NodeID == "bordered" && entry.Bounds.Height > 5 {
+		nodeIDStr := fmt.Sprintf("%d", entry.NodeID)
+		if (strings.Contains(nodeIDStr, "bordered") || entry.Bounds.Height > 10) && entry.Bounds.Height > 5 {
 			// 这应该是 modal 的 bordered 容器
 			modalY = entry.Bounds.Y
 			modalHeight = entry.Bounds.Height
@@ -159,46 +165,45 @@ func TestModalMouseClick(t *testing.T) {
 				line += " "
 			}
 		}
-		log.Info("TEST", "Buffer[%d]: %q", y, line)
+		log.Info("[TEST] Buffer[%d]: %q", y, line)
 	}
 
-	log.Info("TEST", "")
-	log.Info("TEST", "=== Test Complete ===")
-	log.Info("TEST", "Log file: modal_mouse_test.log")
+	log.Info("[TEST]")
+	log.Info("[TEST] === Test Complete ===")
+	log.Info("[TEST] Log file: modal_mouse_test.log")
 }
 
 func testClick(t *testing.T, testApp *ui.TestableApp, hitMap *runtimeevent.HitMap, x, y int, label string) {
-	log := logger.Get()
-	log.Info("TEST", "Click at (%d,%d) - %s", x, y, label)
+	log.Info("[TEST] Click at (%d,%d) - %s", x, y, label)
 
 	// 执行 HitTest
 	entry := hitMap.HitTest(x, y)
 
 	if entry != nil {
-		log.Info("TEST", "  -> HIT: ID='%s' Bounds=(%d,%d,%dx%d)",
+		log.Info("[TEST]   -> HIT: ID='%d' Bounds=(%d,%d,%dx%d)",
 			entry.NodeID, entry.Bounds.X, entry.Bounds.Y,
 			entry.Bounds.Width, entry.Bounds.Height)
 
 		// 模拟鼠标点击事件
 		err := testApp.InjectMouse(x, y, platform.MouseLeft, platform.MousePress)
 		if err != nil {
-			log.Info("TEST", "  -> Inject ERROR: %v", err)
+			log.Info("[TEST]   -> Inject ERROR: %v", err)
 		} else {
-			log.Info("TEST", "  -> Inject SUCCESS")
+			log.Info("[TEST]   -> Inject SUCCESS")
 		}
 
 		// 检查是否有多个重叠的条目
 		allEntries := hitMap.FindAllAt(x, y)
 		if len(allEntries) > 1 {
-			log.Info("TEST", "  -> WARNING: %d entries at this position!", len(allEntries))
+			log.Info("[TEST]   -> WARNING: %d entries at this position!", len(allEntries))
 			for j, e := range allEntries {
-				log.Info("TEST", "     [%d] ID='%s' Bounds=(%d,%d,%dx%d) ZOrder=%d",
+				log.Info("[TEST]      [%d] ID='%d' Bounds=(%d,%d,%dx%d) ZOrder=%d",
 					j, e.NodeID, e.Bounds.X, e.Bounds.Y,
 					e.Bounds.Width, e.Bounds.Height, e.ZOrder)
 			}
 		}
 	} else {
-		log.Info("TEST", "  -> MISS: No hit at (%d,%d)", x, y)
+		log.Info("[TEST]   -> MISS: No hit at (%d,%d)", x, y)
 	}
 }
 

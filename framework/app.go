@@ -67,6 +67,7 @@ type App struct {
 	actionRouter   *action.Router           // Action 分发器
 	inputProcessor *action.InputProcessor   // Msg → Action 转换器
 	actionRegistry map[uint64]action.ActionTarget  // ActionTarget 注册表
+	focusIDToNodeID map[string]uint64            // FocusID -> NodeID 映射表（内部使用）
 	// legacyMode is DEPRECATED - Action system is now the primary path
 	// Set to true only for debugging/fallback purposes
 	legacyMode     bool                      // 是否启用兼容模式（默认 false）
@@ -165,8 +166,9 @@ func NewApp() *App {
 		// Phase 1: 初始化 Action 系统
 		actionRouter:   action.NewRouter(nil), // 根节点稍后设置
 		inputProcessor: action.NewInputProcessor(),
-		actionRegistry: make(map[uint64]action.ActionTarget),
-		legacyMode:     false, // Action 系统优先，legacy 仅用于调试
+		actionRegistry:   make(map[uint64]action.ActionTarget),
+		focusIDToNodeID:   make(map[string]uint64),
+		legacyMode:       false, // Action 系统优先，legacy 仅用于调试
 	}
 
 	// 设置 InputProcessor 的 KeyMap
@@ -205,8 +207,9 @@ func NewAppWithSource(source frameworkevent.EventSource) *App {
 		// Phase 1: 初始化 Action 系统
 		actionRouter:   action.NewRouter(nil),
 		inputProcessor: action.NewInputProcessor(),
-		actionRegistry: make(map[uint64]action.ActionTarget),
-		legacyMode:     true,
+		actionRegistry:   make(map[uint64]action.ActionTarget),
+		focusIDToNodeID:   make(map[string]uint64),
+		legacyMode:       true,
 	}
 }
 
@@ -987,7 +990,13 @@ func (a *App) processMsg(msg runtimemsg.Msg) {
 		return
 	}
 
-	// 3. 设置默认目标（焦点组件）
+	// 3. 导航 Action 由焦点管理器直接处理（不经过 ActionRouter）
+	if act.IsNavigationAction() {
+		a.handleNavigationAction(act)
+		return
+	}
+
+	// 4. 其他 Action：设置默认目标（焦点组件）并分发
 	if act.TargetID == 0 {
 		if focused := a.focusManager.GetCurrent(); focused != nil {
 			// 使用 GetFocusID 获取 ID，然后转换为 NodeID
@@ -996,11 +1005,40 @@ func (a *App) processMsg(msg runtimemsg.Msg) {
 		}
 	}
 
-	// 4. 分发 Action
+	// 5. 分发 Action
 	result := a.dispatchAction(act)
 
-	// 5. 处理结果
+	// 6. 处理结果
 	if result.Handled {
+		a.dirty = true
+	}
+}
+
+// handleNavigationAction 处理导航 Action（Tab, 方向键等）
+// 导航由焦点管理器处理，不经过 ActionRouter
+func (a *App) handleNavigationAction(act *action.Action) {
+	if a.focusManager == nil {
+		return
+	}
+
+	// 根据导航类型调用焦点管理器
+	var handled bool
+	switch act.Type {
+	case action.ActionNavigateNext:
+		handled = a.focusManager.FocusNext()
+	case action.ActionNavigatePrev:
+		handled = a.focusManager.FocusPrev()
+	case action.ActionNavigateHome:
+		handled = a.focusManager.FocusFirst()
+	case action.ActionNavigateEnd:
+		handled = a.focusManager.FocusLast()
+	// 方向键暂时不支持（VNodeFocusManager 没有对应方法）
+	case action.ActionNavigateUp, action.ActionNavigateDown,
+		action.ActionNavigateLeft, action.ActionNavigateRight:
+		handled = false
+	}
+
+	if handled {
 		a.dirty = true
 	}
 }
@@ -1028,14 +1066,7 @@ func (a *App) handleSystemMsg(msg runtimemsg.Msg) {
 
 // dispatchAction 分发 Action 到 ActionRouter
 func (a *App) dispatchAction(act *action.Action) *action.RouterResult {
-	// 确保路由器有根节点
-	// 注意：由于 App.root 是 component.Node 接口，无法直接转换为 *runtime.LayoutNode
-	// ActionRouter 的 Root 设置将在 render() 中从渲染树获取
-
-	// 构建目标注册表
-	a.buildActionRegistry()
-
-	// 分发
+	// 直接分发，注册表已在 render() 中构建
 	return a.actionRouter.Dispatch(act)
 }
 
@@ -1069,16 +1100,116 @@ func (a *App) handleLegacyMsg(msg runtimemsg.Msg) {
 }
 
 // buildActionRegistry 从组件树构建 ActionTarget 注册表
+// Phase 3 增强：从焦点管理器收集 ActionTarget，因为焦点管理器已经有正确的组件引用
 func (a *App) buildActionRegistry() {
 	if a.root == nil {
 		return
 	}
 
-	// 清空旧注册表
+	// 清空旧注册表和映射表
 	a.actionRegistry = make(map[uint64]action.ActionTarget)
+	a.focusIDToNodeID = make(map[string]uint64)
 
-	// 递归注册
+	// 尝试从 DeclarativeNode 获取焦点管理器
+	if declNode, ok := a.root.(interface {
+		GetFocusManager() *rtui.VNodeFocusManager
+	}); ok {
+		focusMgr := declNode.GetFocusManager()
+		if focusMgr != nil {
+			// 从焦点管理器的可聚焦列表中收集 ActionTarget
+			focusable := focusMgr.GetFocusable()
+			for _, elem := range focusable {
+				// 检查是否实现 ActionTarget
+				if target, ok := elem.(action.ActionTarget); ok {
+					// 使用 GetFocusID 获取焦点 ID，然后转换为 NodeID
+					focusID := elem.GetFocusID()
+					if focusID != "" {
+						nodeID := runtimeevent.StringToNodeID(focusID)
+						// 维护 FocusID -> NodeID 映射
+						a.focusIDToNodeID[focusID] = nodeID
+						// 注册到 actionRegistry
+						a.actionRegistry[nodeID] = target
+					}
+				}
+			}
+		}
+	}
+
+	// 回退：从 component.Node 树收集（用于非 Fiber 模式）
 	a.registerActionTargets(a.root)
+}
+
+// collectActionTargetsFromFiber 从 Fiber 树收集 ActionTarget
+// 使用反射来避免导入 internal/reconciler 包
+func (a *App) collectActionTargetsFromFiber(mgr interface{}) {
+	// 使用反射获取 FiberRoot
+	val := reflect.ValueOf(mgr)
+	method := val.MethodByName("GetFiberRoot")
+	if !method.IsValid() {
+		return
+	}
+
+	fiberResult := method.Call(nil)
+	if len(fiberResult) == 0 || fiberResult[0].IsNil() {
+		return
+	}
+
+	fiberRoot := fiberResult[0].Interface()
+
+	// 遍历 Fiber 树收集 ActionTarget
+	a.traverseFiberForActionTargets(fiberRoot)
+}
+
+// traverseFiberForActionTargets 遍历 Fiber 树收集 ActionTarget
+// 使用反射来避免直接依赖 Fiber 类型
+func (a *App) traverseFiberForActionTargets(fiber interface{}) {
+	if fiber == nil {
+		return
+	}
+
+	val := reflect.ValueOf(fiber)
+
+	// 检查 nil
+	if val.IsNil() {
+		return
+	}
+
+	// 获取 VNode 字段
+	vnodeField := val.Elem().FieldByName("VNode")
+	if !vnodeField.IsValid() || vnodeField.IsNil() {
+		// 尝试直接访问（如果 fiber 是指针）
+		if val.Kind() == reflect.Ptr {
+			vnodeField = val.Elem().FieldByName("VNode")
+		}
+	}
+
+	if vnodeField.IsValid() && !vnodeField.IsNil() {
+		vnode := vnodeField.Interface()
+
+		// 检查 VNode 是否实现 ActionTarget 接口
+		if target, ok := vnode.(action.ActionTarget); ok {
+			// 检查是否实现了 GetNodeID
+			if nodeIDProvider, ok := vnode.(interface{ GetNodeID() uint64 }); ok {
+				nodeID := nodeIDProvider.GetNodeID()
+				if nodeID != 0 {
+					a.actionRegistry[nodeID] = target
+				}
+			}
+		}
+
+		// 同时检查是否实现 FocusableVNode，用于焦点管理
+		// 这在 updateFocusManagerFromActionRegistry 中使用
+	}
+
+	// 递归遍历 Child 和 Sibling
+	for _, fieldName := range []string{"Child", "Sibling"} {
+		field := val.Elem().FieldByName(fieldName)
+		if field.IsValid() && !field.IsNil() {
+			if field.Kind() == reflect.Ptr {
+				a.traverseFiberForActionTargets(field.Interface())
+			}
+		}
+	}
 }
 
 // registerActionTargets 递归注册 ActionTarget
@@ -1239,6 +1370,76 @@ func (a *App) updateFocusManager(root layout.Node) {
 
 	if os.Getenv("TUI_DEBUG_UI") == "true" {
 		log.UILogger.Debug("[APP] Focus manager updated: %d focusable nodes", len(focusableNodes))
+	}
+}
+
+// updateFocusManagerFromActionRegistry 从 ActionRegistry 更新焦点管理器
+// ActionRegistry 包含所有实现了 ActionTarget 接口的组件
+// 其中许多组件（如 Button、Input）也实现了 FocusableVNode
+func (a *App) updateFocusManagerFromActionRegistry() {
+	if a.focusManager == nil || len(a.actionRegistry) == 0 {
+		return
+	}
+
+	// 从 ActionRegistry 中收集实现了 FocusableVNode 的组件
+	var focusableNodes []rtui.FocusableVNode
+
+	for _, target := range a.actionRegistry {
+		if focusable, ok := target.(rtui.FocusableVNode); ok {
+			// 检查是否可聚焦
+			if focusable.IsFocusable() {
+				focusableNodes = append(focusableNodes, focusable)
+			}
+		}
+	}
+
+	// 使用 SetFocusable 而不是 UpdateFocusableList，以保持焦点状态
+	a.focusManager.SetFocusable(focusableNodes)
+
+	if os.Getenv("TUI_DEBUG_UI") == "true" {
+		log.UILogger.Debug("[APP] Focus manager updated from ActionRegistry: %d focusable nodes", len(focusableNodes))
+	}
+}
+
+// updateFocusManagerFromLayoutNode 从 LayoutNode 树更新焦点管理器
+// LayoutNode 树是渲染后的树，包含了所有组件实例
+func (a *App) updateFocusManagerFromLayoutNode(root *rt.LayoutNode) {
+	if a.focusManager == nil || root == nil {
+		return
+	}
+
+	// 收集所有 focusable 节点
+	var focusableNodes []rtui.FocusableVNode
+
+	var traverse func(node *rt.LayoutNode)
+	traverse = func(node *rt.LayoutNode) {
+		if node == nil {
+			return
+		}
+
+		// 检查 Component.Instance 是否实现 FocusableVNode 接口
+		if node.Component != nil && node.Component.Instance != nil {
+			if focusable, ok := node.Component.Instance.(rtui.FocusableVNode); ok {
+				// 检查是否可聚焦
+				if focusable.IsFocusable() {
+					focusableNodes = append(focusableNodes, focusable)
+				}
+			}
+		}
+
+		// 递归处理子节点
+		for _, child := range node.Children {
+			traverse(child)
+		}
+	}
+
+	traverse(root)
+
+	// 更新焦点管理器
+	a.focusManager.UpdateFocusableList(focusableNodes)
+
+	if os.Getenv("TUI_DEBUG_UI") == "true" {
+		log.UILogger.Debug("[APP] Focus manager updated from LayoutNode: %d focusable nodes", len(focusableNodes))
 	}
 }
 
@@ -1588,12 +1789,7 @@ func (a *App) render() {
 			a.pump.SetHitMap(a.hitMap)
 		}
 
-		// Phase 3: 更新焦点管理器（从布局树提取 Focusable 组件）
-		if layoutRoot, ok := a.root.(layout.Node); ok {
-			a.updateFocusManager(layoutRoot)
-		}
-
-		// Phase 1: 更新 ActionTarget 注册表并构建 LayoutNode 树
+		// Phase 1: 更新 ActionTarget 注册表
 		a.buildActionRegistry()
 
 		// 同步到 ActionRouter 的 TargetHandlers（用于 Target 阶段）
@@ -1610,6 +1806,10 @@ func (a *App) render() {
 				a.actionRouter.Root = layoutNodeTree
 			}
 		}
+
+		// Phase 3: 更新焦点管理器（从 DeclarativeNode 的 Fiber 树收集）
+		// DeclarativeNode 在 applyFocusState 中会更新焦点列表
+		// 这里我们不需要重复更新，因为 DeclarativeNode 和 framework.App 共享同一个焦点管理器
 	}
 
 	a.dirty = false
@@ -2234,4 +2434,5 @@ func (a *App) enrichHitMapWithInstances() {
 func (a *App) GetFocusManager() *rtui.VNodeFocusManager {
 	return a.focusManager
 }
+
 
