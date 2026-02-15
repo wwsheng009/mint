@@ -133,8 +133,7 @@ func (e *Engine) buildComputedBoxWithSize(vnode VNode, fiber *reconciler.Fiber, 
 	}
 
 	box := &ComputedBox{
-		VNode:        vnode,
-		Parent:       parent,
+			Parent:       parent,
 		Box:          runtime.Box{X: 0, Y: 0, Width: 0, Height: 0},
 		NaturalWidth:  0, // Will be measured below
 		NodeID:       0, // Will be set below
@@ -1238,20 +1237,24 @@ func (e *Engine) calculatePositions(box *ComputedBox, x, y int) {
 		// _ = box.VNode // TODO: Remove VNode dependency
 
 	if e.debug {
+		var tagStr string
+		if fiber := box.GetFiber(); fiber != nil {
+			tagStr = fiber.Tag
+		} else {
+			tagStr = "no-fiber"
+		}
 		log.EngineLogger.Debug("[Layout.Position] %T at %s\n",
-			box.GetNodeType(), box.Box.String())
+			tagStr, box.Box.String())
 	}
 
 	// Layout children based on parent type
-	// Fiber-first: Use ChildFiber.Tag() instead of VNode
+	// Fiber-first: Use ChildFiber.Tag() - VNode dependency removed
 	var tag string
 	if fiber := box.GetFiber(); fiber != nil {
 		tag = fiber.Tag
-	} else if box.VNode != nil {
-		// Fallback during transition
-		if tagger, ok := box.VNode.(interface{ Tag() string }); ok {
-			tag = tagger.Tag()
-		}
+	} else {
+		// No Fiber - use default layout
+		tag = ""
 	}
 
 	switch tag {
@@ -1325,8 +1328,9 @@ func (e *Engine) layoutHStack(box *ComputedBox, x, y int) {
 	}
 
 	for i, child := range box.Children {
-	// Fiber-first: Get layout info from Fiber
-		childInfo := rtui.GetLayoutInfo(child.GetVNode())
+		// Fiber-first: Get layout info from Fiber
+		// Use GetLayoutInfoFromFiber which accesses Fiber fields directly
+		childInfo := child.GetLayoutInfoFromFiber()
 
 		// Calculate child X position with individual alignment
 		// If child was stretched by flex (allocated width > natural width),
@@ -1387,7 +1391,7 @@ func (e *Engine) layoutHStack(box *ComputedBox, x, y int) {
 // layoutVStack positions children vertically
 func (e *Engine) layoutVStack(box *ComputedBox, x, y int) {
 	// Fiber-first: Get layout info from Fiber
-	layoutInfo := rtui.GetLayoutInfo(box.GetVNode())
+	layoutInfo := box.GetLayoutInfoFromFiber()
 	gap := layoutInfo.Gap
 	crossAlign := layoutInfo.CrossAlign
 	stretchCross := layoutInfo.StretchCross
@@ -1486,14 +1490,20 @@ func (e *Engine) layoutTable(box *ComputedBox, x, y int) {
 
 	rowY := y
 	for _, child := range box.Children {
-		if child.GetVNode() != nil {
-			if tagger, ok := child.VNode.(interface{ Tag() string }); ok && tagger.Tag() == "tr" {
+		// Fiber-first: Use ChildFiber to determine type
+		// VNode has been removed from ComputedBox
+		if fiber := child.GetFiber(); fiber != nil {
+			if fiber.Tag == "tr" {
 				e.layoutTableRow(child, x, rowY, colWidths)
 				rowY += child.Box.Height
 			} else {
 				e.calculatePositions(child, x, rowY)
 				rowY += child.Box.Height
 			}
+		} else {
+			// No Fiber - calculate positions anyway
+			e.calculatePositions(child, x, rowY)
+			rowY += child.Box.Height
 		}
 	}
 }
@@ -1525,8 +1535,9 @@ func (e *Engine) calculateColumnWidthsFromBoxes(box *ComputedBox) []int {
 	// Find max columns
 	maxCols := 0
 	for _, child := range box.Children {
-		if child.GetVNode() != nil {
-			if tagger, ok := child.VNode.(interface{ Tag() string }); ok && tagger.Tag() == "tr" {
+		// Fiber-first: Use ChildFiber to check type
+		if fiber := child.GetFiber(); fiber != nil {
+			if fiber.Tag == "tr" {
 				if len(child.Children) > maxCols {
 					maxCols = len(child.Children)
 				}
@@ -1815,15 +1826,13 @@ func (e *Engine) buildHitMapFromComputedBoxes(root *ComputedBox) *event.HitMap {
 		nodeID := box.NodeID
 
 		// Debug: Log NodeID collection
+		// Fiber-first: VNode removed, only use Fiber info
 		if e.debug {
 			var nodeInfo string
 			if fiber := box.GetFiber(); fiber != nil {
 				nodeInfo = fmt.Sprintf("tag=%s nodeID=%d", fiber.Tag, fiber.NodeID)
-			} else if box.VNode != nil {
-				// Fallback during transition
-				nodeInfo = fmt.Sprintf("type=%s key=%s", box.VNode.Type().String(), box.VNode.Key())
 			} else {
-				nodeInfo = fmt.Sprintf("no-fiber no-vnode boxNodeID=%d", box.NodeID)
+				nodeInfo = fmt.Sprintf("no-fiber boxNodeID=%d", box.NodeID)
 			}
 			log.EngineLogger.Debug("[buildHitMapFromComputedBoxes] Adding entry: NodeID=%d %s bounds=(%d,%d,%dx%d)",
 				nodeID, nodeInfo, box.Box.X, box.Box.Y, box.Box.Width, box.Box.Height)
@@ -1835,9 +1844,8 @@ func (e *Engine) buildHitMapFromComputedBoxes(root *ComputedBox) *event.HitMap {
 		var node runtimelayout.Node
 		if fiber := box.GetFiber(); fiber != nil {
 			node = rtui.AsLayoutNode(fiber.VNode)
-		} else if box.VNode != nil {
-			node = rtui.AsLayoutNode(box.VNode)
 		}
+
 
 		entry := event.HitMapEntryInternal{
 			NodeID: nodeID,

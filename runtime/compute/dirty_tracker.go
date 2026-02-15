@@ -101,8 +101,10 @@ func (t *DirtyTracker) MarkSubtreeDirty(box *ComputedBox) {
 
 func (t *DirtyTracker) markDescendantsDirty(box *ComputedBox) {
 	box.LayoutDirty = true
-	if box.VNode != nil {
-		if key := box.VNode.Key(); key != "" {
+	// Fiber-first: Use ChildFiber to access key for dirty tracking
+	// VNode has been removed from ComputedBox
+	if fiber := box.GetFiber(); fiber != nil {
+		if key := fiber.DiffKey; key != "" {
 			t.MarkLayoutDirty(key)
 		}
 	}

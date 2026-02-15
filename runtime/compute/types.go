@@ -32,10 +32,9 @@ type ComputedLayout struct {
 
 // ComputedBox represents the computed position and size of a single node
 // This is NOT a VNode - it's the result of layout calculation
+//
+// Phase 6: VNode field removed - all access now goes through Fiber
 type ComputedBox struct {
-	// VNode reference
-	VNode VNode
-
 	// Computed position and size (embedded from runtime.Box)
 	runtime.Box
 
@@ -118,16 +117,11 @@ func (cb *ComputedBox) FindByPosition(x, y int) *ComputedBox {
 }
 
 // FindByID finds a layout box by ID
-// Fiber-first: Try Fiber.DiffKey first, fallback to VNode.Key
+// Fiber-first: Try Fiber.DiffKey first (VNode removed)
 func (cb *ComputedBox) FindByID(id string) *ComputedBox {
 	// Try Fiber.DiffKey first (fiber-first approach)
 	if fiber := cb.GetFiber(); fiber != nil {
 		if fiber.DiffKey == id {
-			return cb
-		}
-	} else if cb.VNode != nil {
-		// Fallback to VNode key
-		if key := cb.VNode.Key(); key == id {
 			return cb
 		}
 	}
@@ -198,34 +192,6 @@ func (cb *ComputedBox) GetFiber() *rtui.Fiber {
 }
 
 // GetVNode returns the associated VNode (deprecated during Phase 4)
-// Note: This method will be removed in Phase 6 when VNode dependency is fully eliminated
-func (cb *ComputedBox) GetVNode() rtui.VNode {
-	return cb.VNode
-}
-
-// GetNodeType returns the VNode type if VNode is available
-func (cb *ComputedBox) GetNodeType() rtui.VNodeType {
-	if vnode := cb.GetVNode(); vnode != nil {
-		return vnode.Type()
-	}
-	return 0
-}
-
-// GetNodeTag returns the tag of the associated VNode
-func (cb *ComputedBox) GetNodeTag() string {
-	if tagger, ok := cb.GetVNode().(interface{ Tag() string }); ok {
-		return tagger.Tag()
-	}
-	return ""
-}
-
-// GetNodeKey returns the key of the associated VNode
-func (cb *ComputedBox) GetNodeKey() string {
-	if keyGetter, ok := cb.GetVNode().(interface{ Key() string }); ok {
-		return keyGetter.Key()
-	}
-	return ""
-}
 
 // GetLayoutInfoFromFiber retrieves layout info from associated Fiber
 // This is the preferred method for Fiber-first layout
@@ -241,10 +207,19 @@ func (cb *ComputedBox) GetLayoutInfoFromFiber() rtui.LayoutInfo {
 			Padding:     fiber.GetPadding(),
 		}
 	}
-	// Fallback to VNode (during transition)
-	if vnode := cb.GetVNode(); vnode != nil {
-		return rtui.GetLayoutInfo(vnode)
-	}
+	// No VNode fallback - VNode field removed from ComputedBox
 	return rtui.LayoutInfo{}
 }
+
+// GetVNode returns the associated VNode from Fiber (temporary for text content access)
+// In Fiber-first architecture, Fiber still holds reference to VNode
+// This is a transitional method for accessing text content during layout phase
+// TODO: Remove this when text content is moved to Fiber
+func (cb *ComputedBox) GetVNode() rtui.VNode {
+	if fiber := cb.GetFiber(); fiber != nil {
+		return fiber.VNode
+	}
+	return nil
+}
+
 
