@@ -23,6 +23,7 @@ type Engine struct {
 	debug        bool
 	flexCache    map[string]*FlexDistributionInfo // Cache for flex distribution per parent
 	traceDepth   int                              // Current depth for layout tracing
+	measureDepth int                              // Recursion depth for measureFiberElement
 	validator    *BoundsValidator                 // Validates bounds consistency
 }
 
@@ -1716,10 +1717,14 @@ func (e *Engine) measureFiber(fiber *rtui.Fiber, constraints runtime.BoxConstrai
 		return runtime.Size{}
 	}
 
+	// Check for text nodes - can be either VNodeText type OR Element with tag="text"
+	// This handles both cases: explicit TextVNode and Element("text")
+	if fiber.Type == rtui.VNodeText || fiber.Tag == "text" {
+		return e.measureFiberText(fiber, constraints)
+	}
+
 	// Measure based on Fiber.Type
 	switch fiber.Type {
-	case rtui.VNodeText:
-		return e.measureFiberText(fiber, constraints)
 	case rtui.VNodeElement:
 		// For containers, size depends on layout
 		return e.measureFiberElement(fiber, constraints)
@@ -1730,9 +1735,24 @@ func (e *Engine) measureFiber(fiber *rtui.Fiber, constraints runtime.BoxConstrai
 
 // measureFiberText measures text Fiber content.
 func (e *Engine) measureFiberText(fiber *rtui.Fiber, constraints runtime.BoxConstraints) runtime.Size {
-	// Get text from MemoizedState
-	text, ok := fiber.MemoizedState.(string)
-	if !ok || text == "" {
+	// Try to get text from Props["content"] first (for Element("text") nodes)
+	var text string
+	if fiber.Props != nil {
+		if content, ok := fiber.Props["content"]; ok {
+			if s, ok := content.(string); ok {
+				text = s
+			}
+		}
+	}
+
+	// Fallback: Get text from MemoizedState (for explicit TextVNode)
+	if text == "" {
+		if t, ok := fiber.MemoizedState.(string); ok {
+			text = t
+		}
+	}
+
+	if text == "" {
 		return runtime.Size{Width: 0, Height: 1}
 	}
 
@@ -1753,23 +1773,81 @@ func (e *Engine) measureFiberText(fiber *rtui.Fiber, constraints runtime.BoxCons
 }
 
 // measureFiberElement measures element Fiber content.
+// For containers, it recursively measures children to determine size.
 func (e *Engine) measureFiberElement(fiber *rtui.Fiber, constraints runtime.BoxConstraints) runtime.Size {
 	padding := fiber.GetPadding()
 
-	size := runtime.Size{
-		Width:  padding[1] + padding[3],
-		Height: padding[0] + padding[2],
+	// Check for recursion depth to prevent infinite loops
+	e.measureDepth++
+	defer func() { e.measureDepth-- }()
+
+	// If depth is too high, return padding only to break recursion
+	if e.measureDepth > 20 {
+		return runtime.Size{
+			Width:  padding[1] + padding[3],
+			Height: padding[0] + padding[2],
+		}
 	}
 
-	// Apply constraints
-	if size.Width < constraints.MinWidth {
-		size.Width = constraints.MinWidth
-	}
-	if size.Height < constraints.MinHeight {
-		size.Height = constraints.MinHeight
+	// For bordered, add 2 for border lines
+	borderExtra := 0
+	if fiber.Tag == "bordered" {
+		borderExtra = 2
 	}
 
-	return size
+	// For container elements, measure children to determine size
+	switch fiber.Tag {
+	case "vstack", "hstack", "row", "column":
+		// Use MeasureLayout for containers
+		measurement := fiber.MeasureLayout(e, constraints)
+		size := measurement.Size
+		size.Width += padding[1] + padding[3]
+		size.Height += padding[0] + padding[2]
+		return size
+
+	case "bordered":
+		// Bordered has one child, measure it and add border
+		children := fiber.GetChildFibers()
+		if len(children) > 0 {
+			// Bordered uses 2 characters for border (left+right or top+bottom)
+			innerConstraints := runtime.BoxConstraints{
+				MinWidth:  0,
+				MaxWidth:  runtime.Infinity,
+				MinHeight: 0,
+				MaxHeight: runtime.Infinity,
+			}
+			if constraints.HasBoundedWidth() {
+				innerConstraints.MaxWidth = max(0, constraints.MaxWidth-2)
+			}
+			if constraints.HasBoundedHeight() {
+				innerConstraints.MaxHeight = max(0, constraints.MaxHeight-2)
+			}
+
+			childSize := e.MeasureChild(children[0], innerConstraints)
+			return runtime.Size{
+				Width:  childSize.Width + 2,
+				Height: childSize.Height + 2,
+			}
+		}
+		return runtime.Size{Width: 2, Height: 2}
+
+	default:
+		// For other elements, return padding size
+		size := runtime.Size{
+			Width:  padding[1] + padding[3] + borderExtra,
+			Height: padding[0] + padding[2] + borderExtra,
+		}
+
+		// Apply constraints
+		if size.Width < constraints.MinWidth {
+			size.Width = constraints.MinWidth
+		}
+		if size.Height < constraints.MinHeight {
+			size.Height = constraints.MinHeight
+		}
+
+		return size
+	}
 }
 
 // TryMeasureLayout attempts to use the new LayoutMeasurer interface if available.

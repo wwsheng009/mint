@@ -263,28 +263,3 @@ func PrintSummary(result *ComparisonResult) {
 	fmt.Printf("CONCLUSION: %s\n", conclusion)
 	fmt.Println()
 }
-
-// runComparisonMode executes the VNode vs Fiber comparison
-func runComparisonMode() {
-	fmt.Println("=== VNode vs Fiber Tree Comparison Mode ===")
-	fmt.Println()
-
-	// Build the demo app's VNode tree
-	vnode := App()
-
-	// Convert to Fiber tree
-	fiber := rtui.CreateFiberFromVNode(vnode)
-
-	// Run comparison
-	result := CompareTrees(vnode, fiber)
-
-	// Print results
-	PrintComparisonResult(result)
-
-	// Check information preservation
-	fmt.Println("=== Fiber Information Preservation ===")
-	CheckFiberPreservation(fiber, 0)
-
-	// Print summary
-	PrintSummary(result)
-}
