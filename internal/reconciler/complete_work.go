@@ -1,24 +1,24 @@
 package reconciler
 
-// =============================================================================
-// CompleteWork Phase
-// =============================================================================
-// CompleteWork is where we finalize the work on a Fiber node.
-// For each Fiber, we:
-// 1. Create/Update the DOM node (or prepare for rendering)
-// 2. Collect child effects
-// 3. Return the next Fiber to process
-//
-// This is the "completion" of processing a work unit.
-// After CompleteWork, we move to the next work unit in the traversal.
-// =============================================================================
-
 import (
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
 
-// CompleteWork completes processing of a Fiber node during the render phase
-// Returns the next Fiber to process (usually nil, since we traverse in workLoop)
+// =============================================================================
+// CompleteWork Phase
+// =============================================================================
+// CompleteWork is where we finalize work on a Fiber node.
+// For each Fiber, we:
+// 1. Create/Update DOM node (or prepare for rendering)
+// 2. Collect child effects
+// 3. Return next Fiber to process
+//
+// This is the "completion" of processing a work unit.
+// After CompleteWork, we move to the next work unit in traversal.
+// =============================================================================
+
+// CompleteWork completes processing of a Fiber node during render phase
+// Returns next Fiber to process (usually nil, since we traverse in workLoop)
 func CompleteWork(current, workInProgress *Fiber) *Fiber {
 	if workInProgress == nil {
 		return nil
@@ -47,23 +47,15 @@ func CompleteWork(current, workInProgress *Fiber) *Fiber {
 // =============================================================================
 // Component CompleteWork
 // =============================================================================
-
 // completeWorkComponent finalizes a component Fiber
 func completeWorkComponent(current, workInProgress *Fiber) *Fiber {
-	componentVNode, ok := workInProgress.VNode.(*rtui.ComponentVNode)
+	_, ok := workInProgress.VNode.(*rtui.ComponentVNode)
 	if !ok {
 		return workInProgress
 	}
 
-	// Store the rendered result for later use during commit
+	// Store element properties for rendering during commit
 	workInProgress.MemoizedProps = workInProgress.Props
-
-	// ✨ Copy Layer from VNode (in case it changed)
-	workInProgress.Layer = workInProgress.VNode.GetLayer()
-
-	// Components don't directly render to buffer
-	// Their children are rendered recursively
-	_ = componentVNode
 
 	return workInProgress
 }
@@ -71,7 +63,6 @@ func completeWorkComponent(current, workInProgress *Fiber) *Fiber {
 // =============================================================================
 // Text CompleteWork
 // =============================================================================
-
 // completeWorkText finalizes a text Fiber
 func completeWorkText(current, workInProgress *Fiber) *Fiber {
 	textVNode, ok := workInProgress.VNode.(*rtui.TextVNode)
@@ -79,7 +70,7 @@ func completeWorkText(current, workInProgress *Fiber) *Fiber {
 		return workInProgress
 	}
 
-	// Store the text content for rendering during commit
+	// Store text content for rendering during commit
 	workInProgress.MemoizedState = textVNode.Content()
 
 	return workInProgress
@@ -88,7 +79,6 @@ func completeWorkText(current, workInProgress *Fiber) *Fiber {
 // =============================================================================
 // Element CompleteWork
 // =============================================================================
-
 // completeWorkElement finalizes an element Fiber
 func completeWorkElement(current, workInProgress *Fiber) *Fiber {
 	elementVNode, ok := workInProgress.VNode.(*rtui.ElementVNode)
@@ -107,13 +97,16 @@ func completeWorkElement(current, workInProgress *Fiber) *Fiber {
 	// Use safe interface methods to check for layout properties
 	extractLayoutInfoToFiber(workInProgress, elementVNode)
 
+	// === Phase 2: Extract visual style to Fiber ===
+	// This enables Fiber-first rendering by storing style info during completeWork
+	extractVisualStyleToFiber(workInProgress, elementVNode)
+
 	return workInProgress
 }
 
 // =============================================================================
 // Fragment CompleteWork
 // =============================================================================
-
 // completeWorkFragment finalizes a fragment Fiber
 func completeWorkFragment(current, workInProgress *Fiber) *Fiber {
 	// Fragments don't render anything themselves
@@ -125,14 +118,8 @@ func completeWorkFragment(current, workInProgress *Fiber) *Fiber {
 // =============================================================================
 // Effect Collection
 // =============================================================================
-
 // collectChildEffects collects effect flags from children
 // This bubbles up effect flags from descendant fibers
-//
-// SubtreeFlags Propagation Algorithm:
-// - Bottom-up aggregation: child flags propagate to parent during render
-// - For each child, we OR both child.Flags and child.SubtreeFlags into parent
-// - This creates a complete picture of all effects in the subtree
 //
 // When called:
 // - During performUnitOfWork, after CompleteWork for each fiber
@@ -144,12 +131,8 @@ func completeWorkFragment(current, workInProgress *Fiber) *Fiber {
 //       ├── ChildA (Flags: 2, SubtreeFlags: 4)
 //       └── ChildB (Flags: 8, SubtreeFlags: 0)
 //
-//   After collection (Parent.SubtreeFlags = 2 | 4 | 8 = 14):
+// After collection (Parent.SubtreeFlags = 2 | 4 | 8 = 14):
 //     Parent (SubtreeFlags: 14) ← OR of all descendant flags
-//
-// Note: SubtreeFlags is NOT automatically propagated upward when flags change.
-// The entire tree must be re-rendered to update SubtreeFlags. This is acceptable
-// because flag changes trigger re-renders anyway.
 func collectChildEffects(workInProgress *Fiber) {
 	if workInProgress == nil {
 		return
@@ -169,7 +152,6 @@ func collectChildEffects(workInProgress *Fiber) {
 // =============================================================================
 // Layout Info Extraction (Phase 1)
 // =============================================================================
-
 // extractLayoutInfoToFiber extracts layout properties from VNode to Fiber
 // This enables Fiber-first layout by storing layout info during completeWork
 func extractLayoutInfoToFiber(fiber *Fiber, vnode rtui.VNode) {
@@ -201,5 +183,98 @@ func extractLayoutInfoToFiber(fiber *Fiber, vnode rtui.VNode) {
 	// Check for Flex method
 	if flexGetter, ok := vnode.(interface{ Flex() int }); ok {
 		fiber.LayoutFlex = flexGetter.Flex()
+	}
+
+	// === Visual Style Extraction (Phase 2) ===
+	// This enables Fiber-first rendering by storing style info during completeWork
+	extractVisualStyleToFiber(fiber, vnode)
+}
+
+// =============================================================================
+// Visual Style Extraction (Phase 2)
+// =============================================================================
+// extractVisualStyleToFiber extracts visual styling properties from VNode to Fiber
+// This enables Fiber-first rendering by storing style info during completeWork
+func extractVisualStyleToFiber(fiber *Fiber, vnode rtui.VNode) {
+	if fiber == nil || vnode == nil {
+		return
+	}
+
+	// Get props to extract style from
+	props := fiber.MemoizedProps
+	if props == nil {
+		// Try to get props from VNode
+		if propsGetter, ok := vnode.(interface{ Props() rtui.Props }); ok {
+			props = propsGetter.Props()
+		}
+		if props == nil {
+			return
+		}
+	}
+
+	// StyleWidth from "width" prop (pixels or percentage)
+	if w, ok := props["width"].(int); ok {
+		fiber.StyleWidth = w
+	} else if wStr, ok := props["width"].(string); ok {
+		// Handle percentage values like "100%", "50%"
+		switch wStr {
+		case "100%":
+			fiber.StyleWidth = -1 // Special marker for 100%
+		case "50%":
+			fiber.StyleWidth = -2 // Special marker for 50%
+		}
+	}
+
+	// StyleHeight from "height" prop (pixels or percentage)
+	if h, ok := props["height"].(int); ok {
+		fiber.StyleHeight = h
+	} else if hStr, ok := props["height"].(string); ok {
+		switch hStr {
+		case "100%":
+			fiber.StyleHeight = -1
+		case "50%":
+			fiber.StyleHeight = -2
+		}
+	}
+
+	// StyleMargin from "margin" prop (array [top, right, bottom, left])
+	if m, ok := props["margin"].([4]interface{}); ok && len(m) >= 4 {
+		if top, ok := m[0].(int); ok {
+			fiber.StyleMargin[0] = top
+		}
+		if right, ok := m[1].(int); ok {
+			fiber.StyleMargin[1] = right
+		}
+		if bottom, ok := m[2].(int); ok {
+			fiber.StyleMargin[2] = bottom
+		}
+		if left, ok := m[3].(int); ok {
+			fiber.StyleMargin[3] = left
+		}
+	}
+
+	// StyleBorder from "border" prop (int or bool)
+	// For bool true, set all sides to 1; for int, set all sides to that value
+	if b, ok := props["border"].(bool); ok && b {
+		fiber.StyleBorder = [4]int{1, 1, 1, 1}
+	} else if bInt, ok := props["border"].(int); ok && bInt > 0 {
+		fiber.StyleBorder = [4]int{bInt, bInt, bInt, bInt}
+	}
+
+	// StyleDisplay from "display" prop
+	if d, ok := props["display"].(string); ok {
+		fiber.StyleDisplay = d
+	}
+
+	// StylePosition from "position" prop
+	if p, ok := props["position"].(string); ok {
+		fiber.StylePosition = p
+	}
+
+	// StyleZIndex from "z-index" or "zIndex" prop
+	if z, ok := props["z-index"].(int); ok {
+		fiber.StyleZIndex = z
+	} else if z, ok := props["zIndex"].(int); ok {
+		fiber.StyleZIndex = z
 	}
 }

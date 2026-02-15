@@ -1,8 +1,6 @@
 package compute
 
 import (
-	"fmt"
-
 	"github.com/wwsheng009/mint/internal/log"
 )
 

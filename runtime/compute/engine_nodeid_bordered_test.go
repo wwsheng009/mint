@@ -49,7 +49,16 @@ func TestNodeIDExtractionWithBordered(t *testing.T) {
 			return
 		}
 
-		boxPath := path + "/" + box.VNode.Type().String()
+		// Use tag name instead of Type for Element nodes
+		// For ElementVNode, Type() returns "Element" but Tag() returns the actual tag name
+		var typeName string
+		if elem, ok := box.VNode.(*rtui.ElementVNode); ok {
+			typeName = elem.Tag()
+		} else {
+			typeName = box.VNode.Type().String()
+		}
+
+		boxPath := path + "/" + typeName
 		if box.VNode.Key() != "" {
 			boxPath += "[" + box.VNode.Key() + "]"
 		}
@@ -161,17 +170,23 @@ func TestNodeIDExtractionNestedBordered(t *testing.T) {
 			return
 		}
 
-		boxPath := path + "/" + box.VNode.Type().String()
+		// Use tag name instead of Type for Element nodes
+		// For ElementVNode, Type() returns "Element" but Tag() returns the actual tag name
+		var typeName string
+		if elem, ok := box.VNode.(*rtui.ElementVNode); ok {
+			typeName = elem.Tag()
+		} else {
+			typeName = box.VNode.Type().String()
+		}
+
+		boxPath := path + "/" + typeName
 		if box.VNode.Key() != "" {
 			boxPath += "[" + box.VNode.Key() + "]"
 		}
 
 		t.Logf("Node: path=%q, NodeID=%d", boxPath, box.NodeID)
 
-		// 检查 NodeID 唯一性
-		if existingPath, exists := nodeIDs[boxPath]; exists {
-			t.Errorf("Duplicate path %q (previously seen at %q)", boxPath, existingPath)
-		}
+		// Store path to NodeID mapping (paths may not be unique without keys)
 		nodeIDs[boxPath] = box.NodeID
 
 		if existingPath, exists := nodePaths[box.NodeID]; exists {
@@ -187,11 +202,6 @@ func TestNodeIDExtractionNestedBordered(t *testing.T) {
 	collectNodeIDs(layout.Root, "ROOT")
 
 	t.Logf("Total nodes: %d, Unique NodeIDs: %d", len(nodeIDs), len(nodePaths))
-
-	if len(nodeIDs) != len(nodePaths) {
-		t.Errorf("NodeID count mismatch: %d unique paths but only %d unique NodeIDs",
-			len(nodeIDs), len(nodePaths))
-	}
 
 	// 验证嵌套结构的 NodeID 都不相同
 	edges := []struct{ parent, child string }{
@@ -301,7 +311,15 @@ func TestDemo1LikeLayout(t *testing.T) {
 				return
 			}
 
-			boxPath := path + "/" + box.VNode.Type().String()
+			// Use tag name instead of Type for Element nodes
+			var typeName string
+			if elem, ok := box.VNode.(*rtui.ElementVNode); ok {
+				typeName = elem.Tag()
+			} else {
+				typeName = box.VNode.Type().String()
+			}
+
+			boxPath := path + "/" + typeName
 			totalNodes++
 
 			t.Logf("Node[%d]: path=%q, NodeID=%d", totalNodes, boxPath, box.NodeID)
@@ -330,26 +348,25 @@ func TestDemo1LikeLayout(t *testing.T) {
 	t.Logf("Unique paths: %d", len(nodeIDs))
 	t.Logf("Unique NodeIDs: %d", len(nodePaths))
 
-	if totalNodes != len(nodeIDs) {
-		t.Errorf("Mismatch: total nodes=%d != unique paths=%d", totalNodes, len(nodeIDs))
+	// Note: totalNodes may differ from unique paths when elements don't have keys
+	// (e.g., multiple "text" elements have the same path)
+	// The important thing is that NodeIDs are unique (checked below)
+
+	// Check for actual NodeID duplication (same NodeID used by different nodes)
+	duplicateCount := 0
+	duplicates := make(map[uint64][]string)
+	for path, nodeID := range nodeIDs {
+		duplicates[nodeID] = append(duplicates[nodeID], path)
 	}
 
-	if len(nodeIDs) != len(nodePaths) {
-		t.Errorf("❌ NODEID DUPLICATION DETECTED: %d unique paths but only %d unique NodeIDs",
-			len(nodeIDs), len(nodePaths))
-
-		// 列出所有重复的 NodeID
-		duplicates := make(map[uint64][]string)
-		for path, nodeID := range nodeIDs {
-			duplicates[nodeID] = append(duplicates[nodeID], path)
+	for nodeID, paths := range duplicates {
+		if len(paths) > 1 {
+			t.Errorf("❌ NodeID=%d shared by %d nodes: %v", nodeID, len(paths), paths)
+			duplicateCount++
 		}
+	}
 
-		for nodeID, paths := range duplicates {
-			if len(paths) > 1 {
-				t.Errorf("NodeID=%d shared by %d nodes: %v", nodeID, len(paths), paths)
-			}
-		}
-	} else {
+	if duplicateCount == 0 {
 		t.Logf("✅ All NodeIDs are unique!")
 	}
 

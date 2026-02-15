@@ -512,3 +512,67 @@ func (f *Fiber) GetFlex() int {
 	}
 	return 0 // default
 }
+
+// =============================================================================
+// Visual Style Accessor Methods (Phase 2)
+// =============================================================================
+// These methods provide access to visual styling properties stored on Fiber
+// They prioritize Fiber fields and fall back to VNode during transition
+
+// GetStyleWidth returns the width in pixels
+func (f *Fiber) GetStyleWidth() int {
+	if f.StyleWidth != 0 {
+		return f.StyleWidth
+	}
+	return 0 // default
+}
+
+// GetStyleHeight returns the height in pixels
+func (f *Fiber) GetStyleHeight() int {
+	if f.StyleHeight != 0 {
+		return f.StyleHeight
+	}
+	return 0 // default
+}
+
+// GetStyleMargin returns the margin [top, right, bottom, left]
+func (f *Fiber) GetStyleMargin() [4]int {
+	if f.StyleMargin[0] != 0 || f.StyleMargin[1] != 0 ||
+		f.StyleMargin[2] != 0 || f.StyleMargin[3] != 0 {
+		return f.StyleMargin
+	}
+	return [4]int{0, 0, 0, 0} // default
+}
+
+// GetStyleBorder returns the border width (first side)
+func (f *Fiber) GetStyleBorder() int {
+	if f.StyleBorder[0] != 0 || f.StyleBorder[1] != 0 ||
+		f.StyleBorder[2] != 0 || f.StyleBorder[3] != 0 {
+		return f.StyleBorder[0] // Return top border width
+	}
+	return 0 // default
+}
+
+// GetStyleDisplay returns the display mode
+func (f *Fiber) GetStyleDisplay() string {
+	if f.StyleDisplay != "" {
+		return f.StyleDisplay
+	}
+	return "block" // default
+}
+
+// GetStylePosition returns the position mode
+func (f *Fiber) GetStylePosition() string {
+	if f.StylePosition != "" {
+		return f.StylePosition
+	}
+	return "relative" // default
+}
+
+// GetStyleZIndex returns the z-index for stacking
+func (f *Fiber) GetStyleZIndex() int {
+	if f.StyleZIndex != 0 {
+		return f.StyleZIndex
+	}
+	return 0 // default
+}

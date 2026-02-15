@@ -32,18 +32,9 @@ func TestBuildHitMapFromFiber_CreatesEntries(t *testing.T) {
 
 	// Set ComputedBox on each Fiber node
 	// In a real scenario, this would be set by LayoutFiber()
-	mockBox := struct {
-		GetX, GetY, GetWidth, GetHeight int
-	}{
-		GetX:      10,
-		GetY:      20,
-		GetWidth:  100,
-		GetHeight: 50,
-	}
-
-	root.ComputedBox = &mockBox
-	child1.ComputedBox = &mockBox
-	child2.ComputedBox = &mockBox
+	root.ComputedBox = &mockComputedBox{X: 10, Y: 20, Width: 100, Height: 50}
+	child1.ComputedBox = &mockComputedBox{X: 10, Y: 20, Width: 100, Height: 50}
+	child2.ComputedBox = &mockComputedBox{X: 10, Y: 20, Width: 100, Height: 50}
 
 	// Build HitMap from Fiber
 	hitMap := BuildHitMapFromFiber(root)
@@ -58,20 +49,18 @@ func TestBuildHitMapFromFiber_CreatesEntries(t *testing.T) {
 		t.Fatalf("Expected 3 entries, got %d", len(entries))
 	}
 
-	// Verify NodeIDs match Fiber NodeIDs
-	expectedIDs := []uint64{1, 2, 3}
-	for i, entry := range entries {
-		if entry.NodeID != expectedIDs[i] {
-			t.Errorf("Entry %d: expected NodeID=%d, got %d", i, expectedIDs[i], entry.NodeID)
+	// Verify NodeIDs match Fiber NodeIDs (order may vary due to ZOrder sorting)
+	expectedIDs := map[uint64]bool{1: true, 2: true, 3: true}
+	for _, entry := range entries {
+		if !expectedIDs[entry.NodeID] {
+			t.Errorf("Unexpected NodeID=%d (expected 1, 2, or 3)", entry.NodeID)
 		}
+		delete(expectedIDs, entry.NodeID)
+	}
 
-		// Verify layer is Base (0)
-		expectedLayer := int(LayerBase)
-		expectedZOrder := expectedLayer * 10000
-		if entry.ZOrder != expectedZOrder && entry.ZOrder != expectedZOrder+1 {
-			// Allow for tree depth variation
-			t.Logf("Entry %d: ZOrder=%d (NodeID=%d) - acceptable variation", i, entry.ZOrder, entry.NodeID)
-		}
+	// Make sure all expected IDs were found
+	if len(expectedIDs) > 0 {
+		t.Errorf("Missing NodeIDs: %v", expectedIDs)
 	}
 
 	t.Logf("✅ BuildHitMapFromFiber created %d entries", len(entries))
