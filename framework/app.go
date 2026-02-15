@@ -15,8 +15,8 @@ import (
 	frameworkevent "github.com/wwsheng009/mint/framework/event"
 	"github.com/wwsheng009/mint/framework/theme"
 	"github.com/wwsheng009/mint/internal/log"
-	"github.com/wwsheng009/mint/runtime/core"
 	rt "github.com/wwsheng009/mint/runtime"
+	"github.com/wwsheng009/mint/runtime/core"
 	runtimeevent "github.com/wwsheng009/mint/runtime/event"
 	"github.com/wwsheng009/mint/runtime/instance"
 	"github.com/wwsheng009/mint/runtime/layout"
@@ -1187,80 +1187,7 @@ func (a *App) SetLegacyMode(enabled bool) {
 		log.UILogger.Debug("[App] ⚠️  Legacy mode enabled - Action system bypassed")
 	}
 }
-
-// ============================================================================
-// 已废弃代码区域（仅供参考）
-// ============================================================================
-
-/* buildComponentRegistry 从布局树构建组件注册表（Phase 2）
-//
-// 已废弃：根据 fix1.md 重构，不再使用 Component Registry
-// 现在使用 Instance Tree 直接处理事件
-// 保留此方法仅供参考，将来会删除
-func (a *App) buildComponentRegistry(root layout.Node) {
-	if a.componentReg == nil {
-		log.UILogger.Debug("buildComponentRegistry: componentReg is nil, skipping")
-		return
-	}
-
-	log.UILogger.Debug("buildComponentRegistry: starting to build registry")
-
-	// 清空旧的注册表
-	a.componentReg.Clear()
-
-	// 递归遍历布局树
-	var traverse func(node layout.Node)
-	traverse = func(node layout.Node) {
-		if node == nil {
-			return
-		}
-
-		// 获取节点的 ID
-		nodeID := node.ID()
-		log.UILogger.Debug("buildComponentRegistry: checking node ID=%s, type=%T", nodeID, node)
-
-		if nodeID != "" {
-			// 检查节点是否实现 Updater 接口
-			// 特殊处理：如果是 VNodeAdapter，检查其内部的 VNode
-			var updater component.Updater
-			if adapter, ok := node.(*rtui.VNodeAdapter); ok {
-				log.UILogger.Debug("buildComponentRegistry: node is VNodeAdapter, checking inner VNode type=%T", adapter.VNode)
-				// VNodeAdapter: 检查内部的 VNode
-				if vnodeUpdater, ok := adapter.VNode.(component.Updater); ok {
-					updater = vnodeUpdater
-					log.UILogger.Debug("buildComponentRegistry: inner VNode implements Updater")
-				} else {
-					log.UILogger.Debug("buildComponentRegistry: inner VNode does NOT implement Updater")
-				}
-			} else if nodeUpdater, ok := node.(component.Updater); ok {
-				// 其他 layout.Node: 直接检查
-				updater = nodeUpdater
-				log.UILogger.Debug("buildComponentRegistry: node directly implements Updater")
-			} else {
-				log.UILogger.Debug("buildComponentRegistry: node does NOT implement Updater (type=%T)", node)
-			}
-
-			if updater != nil {
-				a.componentReg.Register(nodeID, updater)
-				log.UILogger.Debug("Registered component: %s", nodeID)
-			}
-		}
-
-		// 递归处理子节点
-		children := node.Children()
-		for _, child := range children {
-			traverse(child)
-		}
-	}
-
-	traverse(root)
-
-	if log.UILogger.Enabled() {
-		log.UILogger.Debug("Component registry built: %d components", a.componentReg.Size())
-	}
-}
-*/
-
+	
 // handleEvent 处理事件（已废弃）
 // DEPRECATED: Action 系统现在是主路径，此函数仅用于调试/回退
 func (a *App) handleEvent(ev frameworkevent.Event) {
