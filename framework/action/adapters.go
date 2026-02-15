@@ -139,9 +139,70 @@ func ActionToMsg(act *Action) runtimemsg.Msg {
 
 // ActionToEvent 将 Action 转换为 Event
 // 这是 EventHandlerAdapter 的辅助函数
+//
+// Action 到 Event 的映射：
+// - ActionClick → EventClick
+// - ActionDoubleClick → EventDoubleClick
+// - ActionRightClick → EventContextMenu
+// - ActionHover → EventMouseEnter (鼠标悬停)
+// - ActionScroll → EventMouseWheel
+// - ActionDragStart/DragMove/DragEnd → 不直接映射（需要特殊处理）
+// - ActionInputText → EventChange (内容改变)
+// - ActionEnter → EventSubmit (提交)
+// - ActionBackspace → EventChange (删除字符)
+// - ActionNavigateUp/Down → 无直接映射（导航由 FocusManager 处理）
 func ActionToEvent(act *Action) frameworkevent.Event {
-	// 注意：这里需要创建 Event 接口的实现
-	// 由于 Event 接口的具体实现可能在 event 包中，这里返回 nil
-	// 实际使用时可能需要根据具体的 Event 类型进行转换
-	return nil
+	if act == nil {
+		return nil
+	}
+
+	// 根据 Action 类型创建对应的 Event
+	var eventType frameworkevent.EventType
+
+	switch act.Type {
+	case ActionClick:
+		eventType = frameworkevent.EventClick
+	case ActionDoubleClick:
+		eventType = frameworkevent.EventDoubleClick
+	case ActionRightClick:
+		eventType = frameworkevent.EventContextMenu
+	case ActionHover:
+		eventType = frameworkevent.EventMouseEnter
+	case ActionScroll:
+		eventType = frameworkevent.EventMouseWheel
+	case ActionInputText, ActionDeleteChar, ActionDeleteWord,
+	     ActionDeleteLine, ActionBackspace:
+		// 文本输入/删除操作对应 Change 事件
+		eventType = frameworkevent.EventChange
+	case ActionEnter:
+		// 回车键可能表示提交
+		eventType = frameworkevent.EventSubmit
+	case ActionToggle:
+		// 切换状态
+		eventType = frameworkevent.EventChange
+	case ActionSelect:
+		eventType = frameworkevent.EventSelect
+	case ActionExpand:
+		eventType = frameworkevent.EventExpand
+	case ActionCollapse:
+		eventType = frameworkevent.EventCollapse
+	case ActionSubmit:
+		eventType = frameworkevent.EventSubmit
+	case ActionCancel:
+		eventType = frameworkevent.EventCancel
+	case ActionFocus:
+		eventType = frameworkevent.EventFocus
+	case ActionBlur:
+		eventType = frameworkevent.EventBlur
+	default:
+		// 不支持的 Action 类型，返回 nil
+		return nil
+	}
+
+	// 创建并返回 Framework Event
+	// 注意：由于 Action 不包含 Component 目标信息，
+	// 调用者需要设置适当的 Target
+	evt := frameworkevent.NewBaseEvent(eventType)
+
+	return evt
 }
