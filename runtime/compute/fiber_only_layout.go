@@ -185,7 +185,7 @@ func (e *Engine) buildFiberOnlyBox(
 		defer e.decrementTraceDepth()
 
 		indent := strings.Repeat("  ", depth)
-		log.EngineLogger.Debug("[FiberOnly.LEAVE] NodeID=%d Size=%dx%d Children=%d",
+		log.EngineLogger.Debug("%s[FiberOnly.LEAVE] NodeID=%d Size=%dx%d Children=%d",
 			indent, fiber.NodeID, box.Box.Width, box.Box.Height, len(box.Children))
 	}
 
