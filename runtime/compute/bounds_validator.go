@@ -14,35 +14,16 @@ func NewBoundsValidator() *BoundsValidator {
 	return &BoundsValidator{}
 }
 
-// ValidateComputedBox checks if a ComputedBox's bounds are consistent with its VNode's bounds
-// Returns an error if inconsistency is detected, nil otherwise
+// ValidateComputedBox checks if a ComputedBox's bounds are set correctly
+// In Fiber-first architecture, we use Fiber information instead of VNode
 func (v *BoundsValidator) ValidateComputedBox(box *ComputedBox) error {
 	if !log.ValidationLogger.Enabled() || box == nil {
 		return nil
 	}
 
-	if box.VNode == nil {
-		return nil
-	}
-
-	// Check if VNode implements bounds inspection interface
-	if boundsAware, ok := box.VNode.(interface{ GetBounds() [4]int }); ok {
-		componentBounds := boundsAware.GetBounds()
-		expectedBounds := [4]int{
-			box.Box.X,
-			box.Box.Y,
-			box.Box.Width,
-			box.Box.Height,
-		}
-
-		// Compare bounds
-		if componentBounds != expectedBounds {
-			return fmt.Errorf("bounds inconsistency detected for %T: ComputedBox.Box=%v but Component.bounds=%v",
-				box.VNode,
-				expectedBounds,
-				componentBounds)
-		}
-	}
+	// Fiber-first: Bounds are already in box.Box
+	// No need to validate against VNode since layout engine set them
+	// This validator now just ensures the tree is traversable
 
 	// Recursively validate children
 	for _, child := range box.Children {

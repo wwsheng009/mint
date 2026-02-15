@@ -2,6 +2,7 @@
 package compute
 
 import (
+	"fmt"
 	"sync"
 )
 
@@ -46,12 +47,11 @@ func (t *DirtyTracker) NeedLayoutBox(box *ComputedBox) bool {
 	if box.LayoutDirty {
 		return true
 	}
-	// Check by VNode key
-	if box.VNode != nil {
-		key := box.VNode.Key()
-		if key != "" {
-			return t.NeedLayout(key)
-		}
+	// Fiber-first: Use NodeID for dirty tracking
+	// NodeID provides stable identity independent of VNode keys
+	if box.NodeID != 0 {
+		key := fmt.Sprintf("%d", box.NodeID)
+		return t.NeedLayout(key)
 	}
 	return false
 }

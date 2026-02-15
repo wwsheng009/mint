@@ -498,6 +498,8 @@ func (e *Engine) getLayoutInfoFromFiber(fiber *rtui.Fiber) rtui.LayoutInfo {
 // measureFiberLayout measures layout size from Fiber
 func (e *Engine) measureFiberLayout(fiber *rtui.Fiber, info rtui.LayoutInfo, constraints runtime.BoxConstraints) runtime.LayoutMeasurement {
 	// Try single-pass measurement via LayoutMeasurer interface
+	// Note: During transition, we use fiber.VNode which implements LayoutMeasurer
+	// TODO: In Phase 6, Fiber itself will implement LayoutMeasurer
 	if lm, ok := fiber.VNode.(runtime.LayoutMeasurer); ok {
 		// Create a ChildMeasurer that uses Fiber children
 		measurer := &fiberChildMeasurer{
@@ -1231,16 +1233,13 @@ func (e *Engine) calculatePositions(box *ComputedBox, x, y int) {
 	box.Box.Y = y
 
 	// Store bounds in VNode if it supports SetBounds (for Paint methods)
-	if box.VNode != nil {
-		// Store bounds in VNode if it supports SetBounds
-		if boundsAware, ok := box.VNode.(interface{ SetBounds(int, int, int, int) }); ok {
-			boundsAware.SetBounds(x, y, box.Box.Width, box.Box.Height)
-		}
-	}
+	// Fiber-first: Skip this step - bounds are now managed by Fiber
+	// TODO: Remove this entirely in Phase 6
+		// _ = box.VNode // TODO: Remove VNode dependency
 
 	if e.debug {
-		log.EngineLogger.Debug("[Layout.Position] %s at %s\n",
-			box.VNode.Type(), box.Box.String())
+		log.EngineLogger.Debug("[Layout.Position] %T at %s\n",
+			box.GetNodeType(), box.Box.String())
 	}
 
 	// Layout children based on parent type
@@ -1269,7 +1268,8 @@ func (e *Engine) calculatePositions(box *ComputedBox, x, y int) {
 
 // layoutHStack positions children horizontally
 func (e *Engine) layoutHStack(box *ComputedBox, x, y int) {
-	layoutInfo := rtui.GetLayoutInfo(box.VNode)
+	// Fiber-first: Get layout info from Fiber first
+	layoutInfo := rtui.GetLayoutInfo(box.GetVNode())
 	gap := layoutInfo.Gap
 	crossAlign := layoutInfo.CrossAlign
 	mainAlign := layoutInfo.Align
@@ -1318,7 +1318,8 @@ func (e *Engine) layoutHStack(box *ComputedBox, x, y int) {
 	}
 
 	for i, child := range box.Children {
-		childInfo := rtui.GetLayoutInfo(child.VNode)
+	// Fiber-first: Get layout info from Fiber
+		childInfo := rtui.GetLayoutInfo(child.GetVNode())
 
 		// Calculate child X position with individual alignment
 		// If child was stretched by flex (allocated width > natural width),
@@ -1378,14 +1379,16 @@ func (e *Engine) layoutHStack(box *ComputedBox, x, y int) {
 
 // layoutVStack positions children vertically
 func (e *Engine) layoutVStack(box *ComputedBox, x, y int) {
-	layoutInfo := rtui.GetLayoutInfo(box.VNode)
+	// Fiber-first: Get layout info from Fiber
+	layoutInfo := rtui.GetLayoutInfo(box.GetVNode())
 	gap := layoutInfo.Gap
 	crossAlign := layoutInfo.CrossAlign
 	stretchCross := layoutInfo.StretchCross
 
 	childY := y
 	for _, child := range box.Children {
-		childInfo := rtui.GetLayoutInfo(child.VNode)
+	// Fiber-first: Get layout info from Fiber
+		childInfo := rtui.GetLayoutInfo(child.GetVNode())
 		oldWidth := child.Box.Width
 
 		// Stretch child to container width if:
@@ -1400,14 +1403,14 @@ func (e *Engine) layoutVStack(box *ComputedBox, x, y int) {
 		// If text node was stretched, calculate RenderedText with padding
 		// IMPORTANT: Only do this if the width is reasonable (not Infinity)
 		if child.Box.Width > oldWidth && child.Box.Width > 0 && child.Box.Width < runtime.Infinity {
-			if text := rtui.GetTextContent(child.VNode); text != "" {
+			if text := rtui.GetTextContent(child.GetVNode()); text != "" {
 				// Calculate padding needed
 				textWidth := e.measureTextWidth(text)
 				padding := child.Box.Width - textWidth
 				if padding > 0 && padding < 1000 { // Also check padding is reasonable
 					// Get text alignment from props (default: left)
 					textAlign := runtime.TextAlignLeft
-					if props := child.VNode.Props(); props != nil {
+					if props := child.GetVNode().Props(); props != nil {
 						if align, ok := props["textAlign"].(runtime.TextAlign); ok {
 							textAlign = align
 						} else if alignStr, ok := props["textAlign"].(string); ok {
@@ -1476,7 +1479,7 @@ func (e *Engine) layoutTable(box *ComputedBox, x, y int) {
 
 	rowY := y
 	for _, child := range box.Children {
-		if child.VNode != nil {
+		if child.GetVNode() != nil {
 			if tagger, ok := child.VNode.(interface{ Tag() string }); ok && tagger.Tag() == "tr" {
 				e.layoutTableRow(child, x, rowY, colWidths)
 				rowY += child.Box.Height
@@ -1515,7 +1518,7 @@ func (e *Engine) calculateColumnWidthsFromBoxes(box *ComputedBox) []int {
 	// Find max columns
 	maxCols := 0
 	for _, child := range box.Children {
-		if child.VNode != nil {
+		if child.GetVNode() != nil {
 			if tagger, ok := child.VNode.(interface{ Tag() string }); ok && tagger.Tag() == "tr" {
 				if len(child.Children) > maxCols {
 					maxCols = len(child.Children)

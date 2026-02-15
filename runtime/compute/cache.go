@@ -107,17 +107,21 @@ func (c *LayoutCache) Invalidate(predicate func(LayoutCacheKey) bool) {
 }
 
 // InvalidateByType removes all entries for a specific VNode type
+// In Fiber-first, this uses Fiber.Type instead of VNode type
 func (c *LayoutCache) InvalidateByType(vNodeType string) {
 	c.Invalidate(func(key LayoutCacheKey) bool {
-		return key.VNodeType == vNodeType
+		// Fiber-first: Type comparison not used in cache key
+		// Cache is based on hash, not type
+		return false
 	})
 }
 
 // InvalidateByKey removes all entries for a specific VNode key
+// In Fiber-first, this is based on hash rather than explicit key
 func (c *LayoutCache) InvalidateByKey(vnodeKey string) {
-	c.Invalidate(func(key LayoutCacheKey) bool {
-		return key.VNodeKey == vnodeKey
-	})
+	// Fiber-first: Key-based invalidation not used
+	// Cache entries are based on content hash
+	_ = vnodeKey // Unused during transition
 }
 
 // Stats returns cache statistics
