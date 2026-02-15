@@ -15,7 +15,7 @@
 | Phase 3: completeWork 提取 | ✅ | 布局信息在 completeWork 复制到 Fiber |
 | Phase 4: ComputedBox 访问 | ✅ | Fiber 优先访问方法已添加 |
 | Phase 5: 测试和基准 | ✅ | 单元/集成/基准测试全部通过 |
-| Phase 6: 双树稳定 | ✅ | current/workInProgress 正常工作 |
+| Phase 6: 双树稳定 | 🔄 | engine.go 迁移到使用 Fiber 访问器 |
 
 #### 📊 性能测试结果
 
@@ -46,16 +46,10 @@ BenchmarkFiberLayout-16            7,103 ns/op
 
 #### 2. 添加 Style 字段到 Fiber
 
-当前状态：布局相关字段已添加（Direction, Align, Gap, Padding, Flex）
-
-待添加的视觉样式字段：
-- `StyleWidth` int
-- `StyleHeight` int
-- `StyleMargin [4]int`
-- `StyleBorder [4]int`
-- `StyleDisplay string`
-- `StylePosition string`
-- `StyleZIndex int`
+**状态**: ✅ 已完成 (2025-02-15)
+- 布局字段已添加（Direction, Align, Gap, Padding, Flex）
+- 视觉样式字段已添加（StyleWidth, StyleHeight, StyleMargin, StyleBorder, StyleDisplay, StylePosition, StyleZIndex）
+- `complete_work.go` 中已添加 `extractVisualStyleToFiber` 函数
 
 #### 3. 实现 Event Handlers on Fiber
 
