@@ -1261,45 +1261,6 @@ func (a *App) buildComponentRegistry(root layout.Node) {
 }
 */
 
-// updateFocusManager 从布局树更新焦点管理器（Phase 3）
-//
-// 遍历布局树，收集所有实现 FocusableVNode 接口的组件
-func (a *App) updateFocusManager(root layout.Node) {
-	if a.focusManager == nil {
-		return
-	}
-
-	// 收集所有 focusable 节点
-	var focusableNodes []rtui.FocusableVNode
-
-	var traverse func(node layout.Node)
-	traverse = func(node layout.Node) {
-		if node == nil {
-			return
-		}
-
-		// 检查是否实现 FocusableVNode 接口
-		if focusable, ok := node.(rtui.FocusableVNode); ok {
-			focusableNodes = append(focusableNodes, focusable)
-		}
-
-		// 递归处理子节点
-		children := node.Children()
-		for _, child := range children {
-			traverse(child)
-		}
-	}
-
-	traverse(root)
-
-	// 更新焦点管理器
-	a.focusManager.SetFocusable(focusableNodes)
-
-	if os.Getenv("TUI_DEBUG_UI") == "true" {
-		log.UILogger.Debug("[APP] Focus manager updated: %d focusable nodes", len(focusableNodes))
-	}
-}
-
 // handleEvent 处理事件（已废弃）
 // DEPRECATED: Action 系统现在是主路径，此函数仅用于调试/回退
 func (a *App) handleEvent(ev frameworkevent.Event) {
