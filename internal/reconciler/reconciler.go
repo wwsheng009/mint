@@ -1055,6 +1055,14 @@ func (r *Reconciler) cleanupDeletedFiber(fiber *Fiber) {
 		}
 	}
 
+	// Call Ref callback with nil value (component unmount)
+	// This follows React pattern: ref callback is called with null on unmount
+	if fiber.Ref != nil {
+		if refFunc, ok := fiber.Ref.(func(interface{})); ok {
+			refFunc(nil)
+		}
+	}
+
 	// Recursively cleanup children
 	if fiber.Child != nil {
 		r.cleanupDeletedFiber(fiber.Child)

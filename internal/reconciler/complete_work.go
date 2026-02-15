@@ -106,6 +106,10 @@ func completeWorkElement(current, workInProgress *Fiber) *Fiber {
 	// This enables Fiber-first event handling by storing handlers on Fiber
 	extractEventHandlersToFiber(workInProgress, elementVNode.Props())
 
+	// === Phase 4: Extract ref to Fiber ===
+	// This enables Fiber-first ref handling by storing ref on Fiber
+	extractRefToFiber(workInProgress, elementVNode.Props())
+
 	return workInProgress
 }
 
@@ -196,6 +200,30 @@ func extractEventHandlersToFiber(fiber *rtui.Fiber, props rtui.Props) {
 
 	if len(handlers) > 0 {
 		fiber.EventHandlers = handlers
+	}
+}
+
+// extractRefToFiber extracts ref callback from props and stores it on Fiber
+// This enables Fiber-first ref handling by storing ref on Fiber
+func extractRefToFiber(fiber *rtui.Fiber, props rtui.Props) {
+	if fiber == nil || props == nil {
+		return
+	}
+
+	// Common ref keys in props
+	// Ref can be: "ref" (function ref) or a callback function
+	var ref interface{}
+
+	if refValue, ok := props["ref"]; ok {
+		if refFunc, ok := refValue.(func(interface{})); ok {
+			ref = refFunc
+		} else if refValue, ok := refValue.(interface{}); ok {
+			ref = refValue
+		}
+	}
+
+	if ref != nil {
+		fiber.Ref = ref
 	}
 }
 

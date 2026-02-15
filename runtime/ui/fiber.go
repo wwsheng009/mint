@@ -197,6 +197,11 @@ type Fiber struct {
 	// Maps EventType to handler function
 	// These are extracted from VNode props during completeWork
 	EventHandlers map[event.EventType]func(event.Event) bool
+
+	// === Ref (Phase 4) ===
+	// Ref callback for accessing DOM nodes or component instances
+	// Stored from VNode props during completeWork, called during commit
+	Ref interface{}
 }
 
 // =============================================================================
