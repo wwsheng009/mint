@@ -80,18 +80,16 @@ func compareStructure(vnode rtui.VNode, fiber *rtui.Fiber, result *ComparisonRes
 	return allMatch && tagMatch
 }
 
-// compareTag compares VNode type with Fiber tag
+// compareTag compares VNode tag with Fiber tag
 func compareTag(vnode rtui.VNode, fiber *rtui.Fiber) bool {
 	vnodeType := vnode.Type()
 	fiberTag := fiber.Tag
 
 	switch vnodeType {
 	case rtui.VNodeElement:
-		// Element nodes can have various tags including "text" for TextVNode elements
-		return fiberTag == "vstack" || fiberTag == "hstack" ||
-			fiberTag == "bordered" || fiberTag == "modal" ||
-			fiberTag == "row" || fiberTag == "column" ||
-			fiberTag == "text" // TextVNode elements have tag="text"
+		// Get VNode's actual tag and compare with Fiber tag
+		vnodeTag := getVNodeTag(vnode)
+		return vnodeTag == fiberTag
 	case rtui.VNodeText:
 		return fiberTag == "text"
 	case rtui.VNodeComponent:
@@ -100,6 +98,23 @@ func compareTag(vnode rtui.VNode, fiber *rtui.Fiber) bool {
 		return fiberTag == "fragment" || fiberTag == ""
 	default:
 		return fiberTag != ""
+	}
+}
+
+// getVNodeTag extracts the tag from a VNode
+// Handles ElementVNode, LayoutNode, and other element types
+func getVNodeTag(vnode rtui.VNode) string {
+	if vnode == nil {
+		return ""
+	}
+
+	// Try to get tag from types that have Tag() method
+	switch n := vnode.(type) {
+	case interface{ Tag() string }:
+		return n.Tag()
+	default:
+		// Fallback: return empty string for unknown types
+		return ""
 	}
 }
 

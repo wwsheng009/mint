@@ -34,26 +34,28 @@ func CreateFiber(vnode VNode) *Fiber {
 
 	vnodeType := vnode.Type()
 
+	// Determine tag from VNode
+	// Priority: Tag() method > Name() method > type-specific fallback
+	var tag string
+	switch n := vnode.(type) {
+	case interface{ Tag() string }:
+		// All element types (ElementVNode, LayoutNode, BorderedNode, etc.) have Tag()
+		tag = n.Tag()
+	case interface{ Name() string }:
+		// ComponentVNode has Name() instead of Tag()
+		tag = n.Name()
+	default:
+		// Fallback for types without Tag() or Name()
+		if vnodeType == VNodeText {
+			tag = "text"
+		} else {
+			tag = "unknown"
+		}
+	}
+
 	// Debug logging to understand VNode types
 	if log.HitMapLogger.Enabled() {
-		// Get actual type name for debugging
-		actualType := "unknown"
-		switch n := vnode.(type) {
-		case *ElementVNode:
-			actualType = "ElementVNode"
-		case *ComponentVNode:
-			actualType = "ComponentVNode"
-		case *TextVNode:
-			actualType = "TextVNode"
-		case *LayoutNode:
-			actualType = "LayoutNode"
-		default:
-			// Check if it's a component type (like ButtonVNode)
-			if _, ok := n.(interface{ Tag() string }); ok {
-				actualType = "ComponentWithElement"
-			}
-		}
-		log.HitMapLogger.Debug("[CREATEFIBER] Type=%s Key=%s actualType=%s", vnodeType.String(), vnode.Key(), actualType)
+		log.HitMapLogger.Debug("[CREATEFIBER] Type=%s Key=%s Tag=%s", vnodeType.String(), vnode.Key(), tag)
 	}
 
 	// ✨ DiffKey: Copy from VNode.Key() without any modification
@@ -61,9 +63,10 @@ func CreateFiber(vnode VNode) *Fiber {
 	// It is NOT generated from Path - Path is only for debugging
 	diffKey := vnode.Key()
 
-	fiber := &Fiber{
+	return &Fiber{
 		VNode:         vnode,
 		Type:          vnodeType,
+		Tag:           tag,
 		Props:         vnode.Props(),
 		MemoizedProps: vnode.Props(),
 		DiffKey:       diffKey,  // ✨ Copy DiffKey directly
@@ -76,26 +79,6 @@ func CreateFiber(vnode VNode) *Fiber {
 		SubtreeFlags:  EffectNoEffect,
 		ComputedBox:   nil, // ✨ ComputedBox is nil initially
 	}
-
-	// Set tag based on type
-	switch n := vnode.(type) {
-	case *ElementVNode:
-		fiber.Tag = n.Tag()
-	case *ComponentVNode:
-		fiber.Tag = n.Name()
-	case *LayoutNode:
-		fiber.Tag = "layout"
-	default:
-		// For component types like TextVNode (from components package)
-		// They implement VNode but aren't core types
-		if t := vnode.Type(); t == VNodeText {
-			fiber.Tag = "text"
-		} else {
-			fiber.Tag = "unknown"
-		}
-	}
-
-	return fiber
 }
 
 // CreateFiberFromVNode creates a fiber tree from a VNode tree
