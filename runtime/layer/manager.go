@@ -265,10 +265,11 @@ func (m *Manager) shiftPositions(box *compute.ComputedBox, offsetX, offsetY int)
 	box.Box.X += offsetX
 	box.Box.Y += offsetY
 
-	// Update VNode bounds after position shift
+	// Update bounds after position shift
 	// This ensures Button.bounds and other components have correct coordinates for hit testing
-	if box.VNode != nil {
-		if boundsAware, ok := box.VNode.(interface{ SetBounds(int, int, int, int) }); ok {
+	// Fiber-first: Use Fiber.VNode reference via GetVNode()
+	if vnode := box.GetVNode(); vnode != nil {
+		if boundsAware, ok := vnode.(interface{ SetBounds(int, int, int, int) }); ok {
 			boundsAware.SetBounds(box.Box.X, box.Box.Y, box.Box.Width, box.Box.Height)
 		}
 	}
@@ -477,19 +478,23 @@ func (m *Manager) buildHitMapFromComputedBox(root *compute.ComputedBox) *event.H
 		// Get NodeID from ComputedBox (now has uint64 NodeID field)
 		// Phase 3: Use box.NodeID directly for stable identity
 		// Fallback to converting string key to uint64 for compatibility during transition
+		// Fiber-first: Use GetVNode() which accesses Fiber.VNode
 		nodeID := box.NodeID
-		if nodeID == 0 && box.VNode != nil {
-			// Convert VNode key to NodeID using hash for compatibility
-			// This maintains backward compatibility with non-Fiber mode
-			if key := box.VNode.Key(); key != "" {
-				nodeID = event.StringToNodeID(key)
+		if nodeID == 0 {
+			if vnode := box.GetVNode(); vnode != nil {
+				// Convert VNode key to NodeID using hash for compatibility
+				// This maintains backward compatibility with non-fiber mode
+				if key := vnode.Key(); key != "" {
+					nodeID = event.StringToNodeID(key)
+				}
 			}
 		}
 
 		// Create entry with FINAL positions (after layer transforms)
+		// Fiber-first: Use GetVNode() to access VNode via Fiber
 		entry := event.HitMapEntryInternal{
 			NodeID: nodeID,
-			Node:   rtui.AsLayoutNode(box.VNode),
+			Node:   rtui.AsLayoutNode(box.GetVNode()),
 			Bounds: runtimelayout.Rect{
 				X:      box.Box.X, // ✅ Final position AFTER centering
 				Y:      box.Box.Y,
