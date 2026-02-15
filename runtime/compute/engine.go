@@ -1276,7 +1276,7 @@ func (e *Engine) calculatePositions(box *ComputedBox, x, y int) {
 // layoutHStack positions children horizontally
 func (e *Engine) layoutHStack(box *ComputedBox, x, y int) {
 	// Fiber-first: Get layout info from Fiber first
-	layoutInfo := rtui.GetLayoutInfo(box.GetVNode())
+	layoutInfo := box.GetLayoutInfoFromFiber()
 	gap := layoutInfo.Gap
 	crossAlign := layoutInfo.CrossAlign
 	mainAlign := layoutInfo.Align
