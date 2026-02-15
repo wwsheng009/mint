@@ -49,6 +49,12 @@ func (f *Fiber) MeasureLayout(
 			f.NodeID, f.Tag, constraints)
 	}
 
+	// Special handling for bordered container
+	// Bordered adds 2 to width and height for the border characters
+	if f.Tag == "bordered" {
+		return f.measureBorderedLayout(measurer, constraints)
+	}
+
 	// Get layout properties from Fiber fields (NOT from VNode)
 	direction := f.GetDirection()
 	gap := f.GetGap()
@@ -376,6 +382,91 @@ func (f *Fiber) measureVStackLayoutFiber(
 		Size:           runtime.Size{Width: totalWidth, Height: totalHeight},
 		ChildConstraints: childConstraints,
 		ChildSizes:      childSizes,
+	}
+}
+
+// measureBorderedLayout measures a bordered container.
+// Bordered adds 2 to both width and height for the border characters.
+func (f *Fiber) measureBorderedLayout(
+	measurer runtime.ChildMeasurer,
+	constraints runtime.BoxConstraints,
+) runtime.LayoutMeasurement {
+	children := f.GetChildFibers()
+
+	// Check for explicit width/height props
+	explicitWidth := 0
+	explicitHeight := 0
+	hasWidthConstraint := false
+	hasHeightConstraint := false
+
+	if f.Props != nil {
+		if w, ok := f.Props["width"].(int); ok && w > 0 {
+			explicitWidth = w
+			hasWidthConstraint = true
+		}
+		if h, ok := f.Props["height"].(int); ok && h > 0 {
+			explicitHeight = h
+			hasHeightConstraint = true
+		}
+	}
+
+	// Calculate inner constraints (subtract 2 for border)
+	innerConstraints := runtime.BoxConstraints{
+		MinWidth:  0,
+		MaxWidth:  runtime.Infinity,
+		MinHeight: 0,
+		MaxHeight: runtime.Infinity,
+	}
+	if constraints.HasBoundedWidth() {
+		innerConstraints.MaxWidth = max(0, constraints.MaxWidth-2)
+	}
+	if constraints.HasBoundedHeight() {
+		innerConstraints.MaxHeight = max(0, constraints.MaxHeight-2)
+	}
+
+	// If explicit width/height, create tight constraints
+	if hasWidthConstraint {
+		innerConstraints.MinWidth = explicitWidth - 2
+		innerConstraints.MaxWidth = explicitWidth - 2
+	}
+	if hasHeightConstraint {
+		innerConstraints.MinHeight = explicitHeight - 2
+		innerConstraints.MaxHeight = explicitHeight - 2
+	}
+
+	// Measure child (bordered has single child)
+	var childSizes []runtime.Size
+	var childConstraints []runtime.BoxConstraints
+
+	if len(children) > 0 {
+		childConstraints = []runtime.BoxConstraints{innerConstraints}
+		childSize := measurer.MeasureChild(children[0], innerConstraints)
+		childSizes = []runtime.Size{childSize}
+
+		// Calculate final size: child size + 2 for border
+		contentWidth := childSize.Width
+		contentHeight := childSize.Height
+
+		// Use explicit constraints if set
+		if hasWidthConstraint {
+			contentWidth = explicitWidth - 2
+		}
+		if hasHeightConstraint {
+			contentHeight = explicitHeight - 2
+		}
+
+		return runtime.LayoutMeasurement{
+			Size:             runtime.Size{Width: contentWidth + 2, Height: contentHeight + 2},
+			ChildConstraints: childConstraints,
+			ChildSizes:       childSizes,
+		}
+	}
+
+	// Empty border - minimum size
+	return runtime.LayoutMeasurement{
+		Size:             runtime.Size{Width: 2, Height: 2},
+		ChildConstraints: []runtime.BoxConstraints{},
+		ChildSizes:       []runtime.Size{},
 	}
 }
 
