@@ -1243,23 +1243,30 @@ func (e *Engine) calculatePositions(box *ComputedBox, x, y int) {
 	}
 
 	// Layout children based on parent type
-	if box.VNode != nil {
+	// Fiber-first: Use ChildFiber.Tag() instead of VNode
+	var tag string
+	if fiber := box.GetFiber(); fiber != nil {
+		tag = fiber.Tag
+	} else if box.VNode != nil {
+		// Fallback during transition
 		if tagger, ok := box.VNode.(interface{ Tag() string }); ok {
-			switch tagger.Tag() {
-			case "hstack":
-				e.layoutHStack(box, x, y)
-				return
-			case "vstack":
-				e.layoutVStack(box, x, y)
-				return
-			case "bordered":
-				e.layoutBordered(box, x, y)
-				return
-			case "table":
-				e.layoutTable(box, x, y)
-				return
-			}
+			tag = tagger.Tag()
 		}
+	}
+
+	switch tag {
+	case "hstack":
+		e.layoutHStack(box, x, y)
+		return
+	case "vstack":
+		e.layoutVStack(box, x, y)
+		return
+	case "bordered":
+		e.layoutBordered(box, x, y)
+		return
+	case "table":
+		e.layoutTable(box, x, y)
+		return
 	}
 
 	// Default: stack children vertically
@@ -1804,22 +1811,19 @@ func (e *Engine) buildHitMapFromComputedBoxes(root *ComputedBox) *event.HitMap {
 		}
 
 		// Get NodeID from ComputedBox (now has uint64 NodeID field)
-		// Fallback to string key conversion for compatibility during transition
+		// Fiber-first: NodeID should already be set from Fiber.NodeID
 		nodeID := box.NodeID
-		if nodeID == 0 && box.VNode != nil {
-			// Convert VNode key to NodeID using hash for compatibility
-			if key := box.VNode.Key(); key != "" {
-				nodeID = event.StringToNodeID(key)
-			}
-		}
 
 		// Debug: Log NodeID collection
 		if e.debug {
 			var nodeInfo string
-			if box.VNode != nil {
+			if fiber := box.GetFiber(); fiber != nil {
+				nodeInfo = fmt.Sprintf("tag=%s nodeID=%d", fiber.Tag, fiber.NodeID)
+			} else if box.VNode != nil {
+				// Fallback during transition
 				nodeInfo = fmt.Sprintf("type=%s key=%s", box.VNode.Type().String(), box.VNode.Key())
 			} else {
-				nodeInfo = "VNode=nil"
+				nodeInfo = fmt.Sprintf("no-fiber no-vnode boxNodeID=%d", box.NodeID)
 			}
 			log.EngineLogger.Debug("[buildHitMapFromComputedBoxes] Adding entry: NodeID=%d %s bounds=(%d,%d,%dx%d)",
 				nodeID, nodeInfo, box.Box.X, box.Box.Y, box.Box.Width, box.Box.Height)
@@ -1827,9 +1831,17 @@ func (e *Engine) buildHitMapFromComputedBoxes(root *ComputedBox) *event.HitMap {
 
 		// Create entry using ComputedBox positions
 		// ✅ These positions include ALL transforms (layout, layer centering, etc.)
+		// Fiber-first: Node comes from Fiber if available, nil otherwise
+		var node runtimelayout.Node
+		if fiber := box.GetFiber(); fiber != nil {
+			node = rtui.AsLayoutNode(fiber.VNode)
+		} else if box.VNode != nil {
+			node = rtui.AsLayoutNode(box.VNode)
+		}
+
 		entry := event.HitMapEntryInternal{
 			NodeID: nodeID,
-			Node:   rtui.AsLayoutNode(box.VNode),
+			Node:   node,
 			Bounds: runtimelayout.Rect{
 				X:      box.Box.X, // ✅ Final position after layer centering
 				Y:      box.Box.Y,
@@ -2165,9 +2177,10 @@ func (e *Engine) buildHitMapFromFiber(root *rtui.Fiber) *event.HitMap {
 		}
 
 		// Create HitMap entry
+	// Fiber-first: Node comes from Fiber.VNode if available
 		entry := event.HitMapEntryInternal{
 			NodeID: box.NodeID,
-			Node:   rtui.AsLayoutNode(box.VNode),
+			Node:   rtui.AsLayoutNode(fiber.VNode),
 			Bounds: runtimelayout.Rect{
 				X:      box.Box.X,
 				Y:      box.Box.Y,

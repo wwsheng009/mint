@@ -117,9 +117,16 @@ func (cb *ComputedBox) FindByPosition(x, y int) *ComputedBox {
 	return cb
 }
 
-// FindByID finds a layout box by VNode key
+// FindByID finds a layout box by ID
+// Fiber-first: Try Fiber.DiffKey first, fallback to VNode.Key
 func (cb *ComputedBox) FindByID(id string) *ComputedBox {
-	if cb.VNode != nil {
+	// Try Fiber.DiffKey first (fiber-first approach)
+	if fiber := cb.GetFiber(); fiber != nil {
+		if fiber.DiffKey == id {
+			return cb
+		}
+	} else if cb.VNode != nil {
+		// Fallback to VNode key
 		if key := cb.VNode.Key(); key == id {
 			return cb
 		}
