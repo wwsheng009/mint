@@ -91,7 +91,12 @@ func CreateFiber(vnode VNode) *Fiber {
 		if t := vnode.Type(); t == VNodeText {
 			fiber.Tag = "text"
 		} else {
-			fiber.Tag = "unknown"
+			// Check for BorderedNode type (embeds *ElementVNode)
+			if bordered, ok := vnode.(*BorderedNode); ok {
+				fiber.Tag = bordered.ElementVNode.Tag()
+			} else {
+				fiber.Tag = "unknown"
+			}
 		}
 	}
 

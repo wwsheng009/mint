@@ -1234,7 +1234,7 @@ func (e *Engine) calculatePositions(box *ComputedBox, x, y int) {
 	// Store bounds in VNode if it supports SetBounds (for Paint methods)
 	// Fiber-first: Skip this step - bounds are now managed by Fiber
 	// TODO: Remove this entirely in Phase 6
-		// _ = box.VNode // TODO: Remove VNode dependency
+		// _ = box.GetVNode() // TODO: Remove VNode dependency
 
 	if e.debug {
 		var tagStr string
@@ -1253,8 +1253,12 @@ func (e *Engine) calculatePositions(box *ComputedBox, x, y int) {
 	if fiber := box.GetFiber(); fiber != nil {
 		tag = fiber.Tag
 	} else {
-		// No Fiber - use default layout
-		tag = ""
+		// No Fiber - try to get Tag from VNode
+		if vnode := box.GetVNode(); vnode != nil {
+			if tagger, ok := vnode.(interface{ Tag() string }); ok {
+				tag = tagger.Tag()
+			}
+		}
 	}
 
 	switch tag {

@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"testing"
 
-	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/internal/reconciler"
 	"github.com/wwsheng009/mint/runtime"
+	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
 
 // TestNodeIDExtractionWithKeys 测试使用 key 正确提取 NodeID
@@ -161,10 +161,10 @@ func findBoxNodeID(layout *ComputedLayout, key string) uint64 {
 }
 
 func findBoxNodeIDRecursive(box *ComputedBox, key string) uint64 {
-	if box == nil || box.VNode == nil {
+	if box == nil || box.GetVNode() == nil {
 		return 0
 	}
-	if box.VNode.Key() == key {
+	if box.GetVNode().Key() == key {
 		return box.NodeID
 	}
 	for _, child := range box.Children {
@@ -278,10 +278,10 @@ func TestNodeIDExtractionMultiLevel(t *testing.T) {
 	firstPassNodeIDs := make(map[string]uint64)
 	var collectFromLayout func(box *ComputedBox)
 	collectFromLayout = func(box *ComputedBox) {
-		if box == nil || box.VNode == nil {
+		if box == nil || box.GetVNode() == nil {
 			return
 		}
-		key := box.VNode.Key()
+		key := box.GetVNode().Key()
 		if key != "" {
 			firstPassNodeIDs[key] = box.NodeID
 			t.Logf("Layout1: key=%q => NodeID=%d", key, box.NodeID)
@@ -327,10 +327,10 @@ func TestNodeIDExtractionMultiLevel(t *testing.T) {
 	secondPassNodeIDs := make(map[string]uint64)
 	var collectFromLayout2 func(box *ComputedBox)
 	collectFromLayout2 = func(box *ComputedBox) {
-		if box == nil || box.VNode == nil {
+		if box == nil || box.GetVNode() == nil {
 			return
 		}
-		key := box.VNode.Key()
+		key := box.GetVNode().Key()
 		if key != "" {
 			secondPassNodeIDs[key] = box.NodeID
 			t.Logf("Layout2: key=%q => NodeID=%d", key, box.NodeID)
@@ -615,10 +615,10 @@ func TestNodeIDExtractionWithInsertionAndDeletion(t *testing.T) {
 
 // findBoxByKey 在 ComputedBox 树中查找指定 key 的 box
 func findBoxByKey(box *ComputedBox, key string) *ComputedBox {
-	if box == nil || box.VNode == nil {
+	if box == nil || box.GetVNode() == nil {
 		return nil
 	}
-	if box.VNode.Key() == key {
+	if box.GetVNode().Key() == key {
 		return box
 	}
 	for _, child := range box.Children {
@@ -799,10 +799,10 @@ func TestNodeIDExtractionLargeTree(t *testing.T) {
 	nodeIDs := make(map[string]uint64)
 	var collectFromLayout func(box *ComputedBox)
 	collectFromLayout = func(box *ComputedBox) {
-		if box == nil || box.VNode == nil {
+		if box == nil || box.GetVNode() == nil {
 			return
 		}
-		key := box.VNode.Key()
+		key := box.GetVNode().Key()
 		if key != "" {
 			nodeIDs[key] = box.NodeID
 		}
@@ -870,10 +870,10 @@ func TestNodeIDExtractionLargeTree(t *testing.T) {
 	nodeIDs2 := make(map[string]uint64)
 	var collectFromLayout2 func(box *ComputedBox)
 	collectFromLayout2 = func(box *ComputedBox) {
-		if box == nil || box.VNode == nil {
+		if box == nil || box.GetVNode() == nil {
 			return
 		}
-		key := box.VNode.Key()
+		key := box.GetVNode().Key()
 		if key != "" {
 			nodeIDs2[key] = box.NodeID
 		}

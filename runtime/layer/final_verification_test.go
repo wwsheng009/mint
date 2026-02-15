@@ -61,7 +61,7 @@ func TestFinalRenderingVerification(t *testing.T) {
 		t.Fatal("❌ No base layout!")
 	}
 
-	fmt.Fprintf(os.Stderr, "baseLayout.Root.VNode type: %s\n", baseLayout.Root.VNode.Type().String())
+	fmt.Fprintf(os.Stderr, "baseLayout.Root.VNode type: %s\n", baseLayout.Root.GetVNode().Type().String())
 	fmt.Fprintf(os.Stderr, "baseLayout.Root.Box: (%d, %d, %dx%d)\n",
 		baseLayout.Root.Box.X,
 		baseLayout.Root.Box.Y,

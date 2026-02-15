@@ -61,9 +61,9 @@ func findAndCheckTreeView(box *compute.ComputedBox, depth int, maxHeight int, t 
 
 	// Check if this node is a TreeView
 	isTreeView := false
-	if box.VNode.Type().String() == "element" {
+	if box.GetVNode().Type().String() == "element" {
 		// TreeView is an element, check by type assertion or props
-		if tv, ok := box.VNode.(*display.TreeView); ok {
+		if tv, ok := box.GetVNode().(*display.TreeView); ok {
 			isTreeView = true
 			fmt.Printf("[TEST]%s✓ FOUND TreeView at depth %d\n", indent, depth)
 			fmt.Printf("[TEST]%s  Size: %dx%d\n", indent, box.Box.Width, box.Box.Height)
@@ -92,7 +92,7 @@ func findAndCheckTreeView(box *compute.ComputedBox, depth int, maxHeight int, t 
 		// Log non-treeview nodes at shallow depth
 		if depth < 5 {
 			fmt.Printf("[TEST]%sNode: type=%-15s size=%dx%d pos=(%d,%d)\n",
-				indent, box.VNode.Type(), box.Box.Width, box.Box.Height, box.Box.X, box.Box.Y)
+				indent, box.GetVNode().Type(), box.Box.Width, box.Box.Height, box.Box.X, box.Box.Y)
 		}
 	}
 
@@ -191,8 +191,8 @@ func findVStackInLayout(box *compute.ComputedBox, depth int, maxHeight int, t *t
 	}
 
 	// Check if this is a VStack
-	if box.VNode.Type().String() == "vstack" || box.VNode.Type().String() == "element" {
-		props := box.VNode.Props()
+	if box.GetVNode().Type().String() == "vstack" || box.GetVNode().Type().String() == "element" {
+		props := box.GetVNode().Props()
 		if props != nil {
 			if h, ok := props["height"].(int); ok {
 				fmt.Printf("[TEST]%s✓ Found VStack with Height(%d) prop at depth %d\n",
@@ -273,7 +273,7 @@ func TestInspectorElementsTabDirectly(t *testing.T) {
 	fmt.Printf("[TEST] Traversing Elements content children:\n")
 	for i, child := range layout.Root.Children {
 		fmt.Printf("[TEST]   Child %d: type=%-15s size=%dx%d\n",
-			i, child.VNode.Type(), child.Box.Width, child.Box.Height)
+			i, child.GetVNode().Type(), child.Box.Width, child.Box.Height)
 
 		// No child should exceed parent height
 		if child.Box.Height > 20 {
@@ -348,8 +348,8 @@ func TestTreeViewInConstrainedVStack(t *testing.T) {
 	fmt.Printf("[TEST] Checking TreeView size...\n")
 	treeViewFound := false
 	for i, child := range layout.Root.Children {
-		if child.VNode.Type().String() == "element" {
-			if _, ok := child.VNode.(*display.TreeView); ok {
+		if child.GetVNode().Type().String() == "element" {
+			if _, ok := child.GetVNode().(*display.TreeView); ok {
 				treeViewFound = true
 				fmt.Printf("[TEST]   Child %d (TreeView): size=%dx%d\n",
 					i, child.Box.Width, child.Box.Height)

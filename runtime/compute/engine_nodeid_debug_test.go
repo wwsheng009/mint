@@ -3,9 +3,9 @@ package compute
 import (
 	"testing"
 
-	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/internal/reconciler"
 	"github.com/wwsheng009/mint/runtime"
+	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
 
 // TestDebugFiberTreeStructure 调试 Fiber 树结构
@@ -53,12 +53,12 @@ func TestDebugFiberTreeStructure(t *testing.T) {
 	t.Log("\n=== NodeID Verification ===")
 	var verifyNodeIDs func(box *ComputedBox, parentBox *ComputedBox)
 	verifyNodeIDs = func(box *ComputedBox, parentBox *ComputedBox) {
-		if box == nil || box.VNode == nil {
+		if box == nil || box.GetVNode() == nil {
 			return
 		}
 
-		tag := getVNodeTag(box.VNode)
-		key := box.VNode.Key()
+		tag := getVNodeTag(box.GetVNode())
+		key := box.GetVNode().Key()
 
 		t.Logf("Box: tag=%q, key=%q, NodeID=%d", tag, key, box.NodeID)
 
@@ -71,7 +71,7 @@ func TestDebugFiberTreeStructure(t *testing.T) {
 		if parentBox != nil {
 			if box.NodeID == parentBox.NodeID {
 				t.Errorf("ERROR: Child (tag=%q) has same NodeID as parent (tag=%q): %d",
-					tag, getVNodeTag(parentBox.VNode), box.NodeID)
+					tag, getVNodeTag(parentBox.GetVNode()), box.NodeID)
 			}
 		}
 
@@ -107,7 +107,7 @@ func printFiberTree(fiber *rtui.Fiber, depth int, t *testing.T) {
 }
 
 func printComputedBoxTree(box *ComputedBox, depth int, t *testing.T) {
-	if box == nil || box.VNode == nil {
+	if box == nil || box.GetVNode() == nil {
 		return
 	}
 
@@ -116,8 +116,8 @@ func printComputedBoxTree(box *ComputedBox, depth int, t *testing.T) {
 		indent += "  "
 	}
 
-	tag := getVNodeTag(box.VNode)
-	key := box.VNode.Key()
+	tag := getVNodeTag(box.GetVNode())
+	key := box.GetVNode().Key()
 	childFiberNodeID := uint64(0)
 	if box.ChildFiber != nil {
 		childFiberNodeID = box.ChildFiber.NodeID

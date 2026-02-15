@@ -66,7 +66,7 @@ func TestBuildRenderPlanesFromLayouts_VerifyTransformedPositions(t *testing.T) {
 	// 找到 modal 的 root box（通常是第一个，或者有最大的 children 数量）
 	var modalRootBox *compute.ComputedBox
 	for _, box := range modalBoxes {
-		if box.VNode == modalLayout.Root.VNode {
+		if box.GetVNode() == modalLayout.Root.GetVNode() {
 			modalRootBox = box
 			break
 		}

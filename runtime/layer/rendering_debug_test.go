@@ -74,11 +74,11 @@ func TestRenderingDebug(t *testing.T) {
 
 	// 验证 baseLayout 存在且VNode类型正确
 	// 由于原始root是Fragment，stripping后仍然返回Fragment，只是移除了inspector孩子
-	if baseLayout.Root.VNode.Type() == rtui.VNodeFragment {
+	if baseLayout.Root.GetVNode().Type() == rtui.VNodeFragment {
 		t.Logf("✅ baseLayout.Root.VNode type: Fragment (expected, since root was Fragment)")
 		// Fragment应该有1个孩子（appContent的VStack）
-		if len(baseLayout.Root.VNode.Children()) > 0 {
-			t.Logf("✅ baseLayout.Root.VNode has %d children", len(baseLayout.Root.VNode.Children()))
+		if len(baseLayout.Root.GetVNode().Children()) > 0 {
+			t.Logf("✅ baseLayout.Root.VNode has %d children", len(baseLayout.Root.GetVNode().Children()))
 		}
 	}
 

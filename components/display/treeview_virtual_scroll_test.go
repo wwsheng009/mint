@@ -50,7 +50,7 @@ func TestTreeViewChildrenConstraints(t *testing.T) {
 	fmt.Printf("[TEST] TreeView has %d children:\n", len(layout.Root.Children))
 	for i, child := range layout.Root.Children {
 		fmt.Printf("[TEST]   Child %d: type=%-15s size=%dx%d\n",
-			i, child.VNode.Type(), child.Box.Width, child.Box.Height)
+			i, child.GetVNode().Type(), child.Box.Width, child.Box.Height)
 
 		// The child is a VStack containing all lines
 		// It should NOT exceed the parent's height

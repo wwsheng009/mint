@@ -3,9 +3,9 @@ package compute
 import (
 	"testing"
 
-	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/internal/reconciler"
 	"github.com/wwsheng009/mint/runtime"
+	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
 
 // TestNodeIDExtractionWithBordered 测试 Bordered 组件的 NodeID 提取
@@ -45,22 +45,22 @@ func TestNodeIDExtractionWithBordered(t *testing.T) {
 
 	var collectNodeIDs func(box *ComputedBox, path string)
 	collectNodeIDs = func(box *ComputedBox, path string) {
-		if box == nil || box.VNode == nil {
+		if box == nil || box.GetVNode() == nil {
 			return
 		}
 
 		// Use tag name instead of Type for Element nodes
 		// For ElementVNode, Type() returns "Element" but Tag() returns the actual tag name
 		var typeName string
-		if elem, ok := box.VNode.(*rtui.ElementVNode); ok {
+		if elem, ok := box.GetVNode().(*rtui.ElementVNode); ok {
 			typeName = elem.Tag()
 		} else {
-			typeName = box.VNode.Type().String()
+			typeName = box.GetVNode().Type().String()
 		}
 
 		boxPath := path + "/" + typeName
-		if box.VNode.Key() != "" {
-			boxPath += "[" + box.VNode.Key() + "]"
+		if box.GetVNode().Key() != "" {
+			boxPath += "[" + box.GetVNode().Key() + "]"
 		}
 
 		t.Logf("Node: path=%q, NodeID=%d", boxPath, box.NodeID)
@@ -166,22 +166,22 @@ func TestNodeIDExtractionNestedBordered(t *testing.T) {
 
 	var collectNodeIDs func(box *ComputedBox, path string)
 	collectNodeIDs = func(box *ComputedBox, path string) {
-		if box == nil || box.VNode == nil {
+		if box == nil || box.GetVNode() == nil {
 			return
 		}
 
 		// Use tag name instead of Type for Element nodes
 		// For ElementVNode, Type() returns "Element" but Tag() returns the actual tag name
 		var typeName string
-		if elem, ok := box.VNode.(*rtui.ElementVNode); ok {
+		if elem, ok := box.GetVNode().(*rtui.ElementVNode); ok {
 			typeName = elem.Tag()
 		} else {
-			typeName = box.VNode.Type().String()
+			typeName = box.GetVNode().Type().String()
 		}
 
 		boxPath := path + "/" + typeName
-		if box.VNode.Key() != "" {
-			boxPath += "[" + box.VNode.Key() + "]"
+		if box.GetVNode().Key() != "" {
+			boxPath += "[" + box.GetVNode().Key() + "]"
 		}
 
 		t.Logf("Node: path=%q, NodeID=%d", boxPath, box.NodeID)
@@ -307,16 +307,16 @@ func TestDemo1LikeLayout(t *testing.T) {
 
 		var traverse func(box *ComputedBox, path string)
 		traverse = func(box *ComputedBox, path string) {
-			if box == nil || box.VNode == nil {
+			if box == nil || box.GetVNode() == nil {
 				return
 			}
 
 			// Use tag name instead of Type for Element nodes
 			var typeName string
-			if elem, ok := box.VNode.(*rtui.ElementVNode); ok {
+			if elem, ok := box.GetVNode().(*rtui.ElementVNode); ok {
 				typeName = elem.Tag()
 			} else {
-				typeName = box.VNode.Type().String()
+				typeName = box.GetVNode().Type().String()
 			}
 
 			boxPath := path + "/" + typeName
@@ -373,17 +373,17 @@ func TestDemo1LikeLayout(t *testing.T) {
 	// 验证所有父子节点 NodeID 不同
 	var verifyParentChild func(box *ComputedBox) int
 	verifyParentChild = func(box *ComputedBox) int {
-		if box == nil || box.VNode == nil {
+		if box == nil || box.GetVNode() == nil {
 			return 0
 		}
 
 		errorCount := 0
 		for _, child := range box.Children {
-			if child != nil && child.VNode != nil {
+			if child != nil && child.GetVNode() != nil {
 				if box.NodeID == child.NodeID {
 					t.Errorf("❌ PARENT-CHILD NODEID CONFLICT: parent %s (NodeID=%d) = child %s (NodeID=%d)",
-						box.VNode.Type().String(), box.NodeID,
-						child.VNode.Type().String(), child.NodeID)
+						box.GetVNode().Type().String(), box.NodeID,
+						child.GetVNode().Type().String(), child.NodeID)
 					errorCount++
 				}
 				errorCount += verifyParentChild(child)

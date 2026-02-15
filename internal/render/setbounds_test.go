@@ -1,3 +1,4 @@
+//go:build integration
 // +build integration
 
 package render
@@ -56,7 +57,7 @@ func TestSetBoundsCalledForButtons(t *testing.T) {
 		}
 
 		// Check if VNode's internal bounds field is set
-		if btn, ok := box.VNode.(interface{ Bounds() [4]int }); ok {
+		if btn, ok := box.GetVNode().(interface{ Bounds() [4]int }); ok {
 			vnodeBounds := btn.Bounds()
 			t.Logf("Button %d: VNode bounds = %v", i, vnodeBounds)
 
@@ -76,8 +77,8 @@ func findButtons(box *runtime.ComputedBox, buttons *[]*runtime.ComputedBox) {
 	}
 
 	// Check if this box is a button
-	if box.VNode != nil {
-		if tagger, ok := box.VNode.(interface{ Tag() string }); ok {
+	if box.GetVNode() != nil {
+		if tagger, ok := box.GetVNode().(interface{ Tag() string }); ok {
 			if tagger.Tag() == "button" {
 				*buttons = append(*buttons, box)
 				return // Don't recurse into buttons - they handle their own children

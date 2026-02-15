@@ -72,36 +72,36 @@ func extractLayoutInfo(box *compute.ComputedBox, path string) LayoutInfo {
 	}
 
 	// Extract VNode information
-	if box.VNode != nil {
-		info.Type = box.VNode.Type().String()
+	if box.GetVNode() != nil {
+		info.Type = box.GetVNode().Type().String()
 
 		// Get tag
-		if tagger, ok := box.VNode.(interface{ Tag() string }); ok {
+		if tagger, ok := box.GetVNode().(interface{ Tag() string }); ok {
 			info.Tag = tagger.Tag()
 		}
 
 		// Get key
-		info.Key = box.VNode.Key()
+		info.Key = box.GetVNode().Key()
 
 		// Get label (for buttons)
-		if labeler, ok := box.VNode.(interface{ Label() string }); ok {
+		if labeler, ok := box.GetVNode().(interface{ Label() string }); ok {
 			info.Label = labeler.Label()
 		}
 
 		// Get layout properties
-		if layoutInfo := rtui.GetLayoutInfo(box.VNode); layoutInfo.Flex > 0 {
+		if layoutInfo := rtui.GetLayoutInfo(box.GetVNode()); layoutInfo.Flex > 0 {
 			info.Flex = layoutInfo.Flex
 		}
-		if layoutInfo := rtui.GetLayoutInfo(box.VNode); layoutInfo.Gap > 0 {
+		if layoutInfo := rtui.GetLayoutInfo(box.GetVNode()); layoutInfo.Gap > 0 {
 			info.Gap = layoutInfo.Gap
 		}
-		if layoutInfo := rtui.GetLayoutInfo(box.VNode); layoutInfo.Align != rtui.AlignStart {
+		if layoutInfo := rtui.GetLayoutInfo(box.GetVNode()); layoutInfo.Align != rtui.AlignStart {
 			info.Align = alignToString(layoutInfo.Align)
 		}
-		if layoutInfo := rtui.GetLayoutInfo(box.VNode); layoutInfo.CrossAlign != rtui.AlignStart {
+		if layoutInfo := rtui.GetLayoutInfo(box.GetVNode()); layoutInfo.CrossAlign != rtui.AlignStart {
 			info.CrossAlign = alignToString(layoutInfo.CrossAlign)
 		}
-		if boxModel, ok := box.VNode.(interface {
+		if boxModel, ok := box.GetVNode().(interface {
 			Padding() [4]int
 			Margin() [4]int
 		}); ok {
@@ -110,11 +110,11 @@ func extractLayoutInfo(box *compute.ComputedBox, path string) LayoutInfo {
 		}
 
 		// Check if this is a container
-		if _, ok := box.VNode.(*rtui.LayoutNode); ok {
+		if _, ok := box.GetVNode().(*rtui.LayoutNode); ok {
 			info.IsContainer = true
 		}
-		if _, ok := box.VNode.(interface{ Tag() string }); ok {
-			tag := box.VNode.(interface{ Tag() string }).Tag()
+		if _, ok := box.GetVNode().(interface{ Tag() string }); ok {
+			tag := box.GetVNode().(interface{ Tag() string }).Tag()
 			if tag == "hstack" || tag == "vstack" || tag == "wrap" {
 				info.IsContainer = true
 			}

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/wwsheng009/mint/ui"
+	"github.com/wwsheng009/mint/internal/log"
 )
 
 // outputDir is where we save the rendered output files
@@ -202,6 +203,9 @@ func TestSaveAllBordersToFile(t *testing.T) {
 // TestViewSingleBorder saves and displays a single border for quick viewing
 func TestViewSingleBorder(t *testing.T) {
 	os.MkdirAll(outputDir, 0755)
+
+	// Enable debug logging
+	log.PaintLogger.SetEnabled(true)
 
 	app, err := ui.RunTestWithSandbox(
 		func() ui.VNode {

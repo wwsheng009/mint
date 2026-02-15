@@ -151,6 +151,8 @@ func (l *Logger) log(level LogLevel, format string, args ...any) {
 		if getLogFile() != nil {
 			writeToFile(msg)
 		}
+	default:
+		fmt.Fprintln(os.Stderr, msg)
 	}
 }
 

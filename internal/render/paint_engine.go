@@ -99,7 +99,12 @@ func (e *PaintEngine) paintNode(box *compute.ComputedBox, buffer *paint.Buffer) 
 	}
 
 	// FIRST: Check if vnode implements Paintable interface (custom rendering like buttons)
-	paintable, ok := box.GetVNode().(interface {
+	vnode := box.GetVNode()
+	if vnode == nil {
+		// No VNode - skip paintable handling
+		return e.paintChildren(box, buffer)
+	}
+	paintable, ok := vnode.(interface {
 		Paint(int, int) []paint.DrawCmd
 	})
 	if ok {
@@ -138,13 +143,18 @@ func (e *PaintEngine) paintNode(box *compute.ComputedBox, buffer *paint.Buffer) 
 	// ENHANCEMENT: Inherit parent background for non-Paintable nodes
 	// This ensures child controls blend with parent container's background
 	if parentBG != "" {
-		nodeStyle := box.GetVNode().Style()
+		vnode := box.GetVNode()
+		if vnode == nil {
+			// No VNode to inherit from
+			return nil
+		}
+		nodeStyle := vnode.Style()
 		// Only inherit if node doesn't have its own background
 		if nodeStyle.BG == "" || nodeStyle.BG == style.NoColor {
 			// Inherit parent background
 			inheritedStyle := nodeStyle
 			inheritedStyle.BG = parentBG
-			box.GetVNode().SetStyle(inheritedStyle)
+			vnode.SetStyle(inheritedStyle)
 
 			if e.debug || log.PaintLogger.Enabled() {
 				log.PaintLogger.Debug("[Paint.paintNode]   🎨 Inherited parent BG=%s", parentBG)
@@ -158,7 +168,13 @@ func (e *PaintEngine) paintNode(box *compute.ComputedBox, buffer *paint.Buffer) 
 	}
 
 	// Paint the node based on its type
-	switch box.GetVNode().Type() {
+	// Reuse vnode from earlier (line 102) - it's already in scope
+	if vnode == nil {
+		// No VNode associated - this can happen when Fiber is nil
+		// Just paint children without special handling
+		return e.paintChildren(box, buffer)
+	}
+	switch vnode.Type() {
 	case rtui.VNodeText:
 		e.paintText(box, buffer)
 
@@ -176,16 +192,21 @@ func (e *PaintEngine) paintNode(box *compute.ComputedBox, buffer *paint.Buffer) 
 	}
 
 	// Handle bordered elements - paint border decoration
-	if _, ok := box.GetVNode().(interface{ GetBorderLabel() string }); ok {
+	// Reuse vnode from earlier (line 102) - it's already in scope
+	if vnode == nil {
+		// No VNode - skip border decoration
+		return e.paintChildren(box, buffer)
+	}
+	if _, ok := vnode.(interface{ GetBorderLabel() string }); ok {
 		e.paintBordered(box, buffer)
 		return nil
 	}
 
 	// For non-bordered elements, paint children after self-rendering
-	children := box.GetVNode().Children()
+	children := vnode.Children()
 	if len(children) > 0 {
 		// Check if this is a table element
-		if tagger, ok := box.GetVNode().(interface{ Tag() string }); ok && tagger.Tag() == "table" {
+		if tagger, ok := vnode.(interface{ Tag() string }); ok && tagger.Tag() == "table" {
 			e.paintTable(box, buffer)
 			return nil
 		}
@@ -199,8 +220,13 @@ func (e *PaintEngine) paintNode(box *compute.ComputedBox, buffer *paint.Buffer) 
 func (e *PaintEngine) paintText(box *compute.ComputedBox, buffer *paint.Buffer) {
 	// Use RenderedText calculated during layout phase if available
 	text := box.RenderedText
+	var vnode rtui.VNode
 	if text == "" {
-		text = rtui.GetTextContent(box.GetVNode())
+		vnode = box.GetVNode()
+		if vnode == nil {
+			return
+		}
+		text = rtui.GetTextContent(vnode)
 	}
 	if e.debug {
 		log.PaintLogger.Debug("[Paint.paintText] box=(%d,%d,%dx%d) renderedText=%q text=%q",
@@ -210,7 +236,7 @@ func (e *PaintEngine) paintText(box *compute.ComputedBox, buffer *paint.Buffer) 
 		// Use SetStringAligned to pad row and prevent leftover characters (TUI_BUFFER_FIX2.md)
 		// Pad to box.Box.X + box.Box.Width to fill entire row within component boundary
 		maxX := box.Box.X + box.Box.Width
-		buffer.SetStringAligned(box.Box.X, box.Box.Y, text, box.GetVNode().Style(), maxX)
+		buffer.SetStringAligned(box.Box.X, box.Box.Y, text, vnode.Style(), maxX)
 	}
 }
 
@@ -218,20 +244,31 @@ func (e *PaintEngine) paintText(box *compute.ComputedBox, buffer *paint.Buffer) 
 func (e *PaintEngine) paintElement(box *compute.ComputedBox, buffer *paint.Buffer) {
 	// Use RenderedText calculated during layout phase if available
 	content := box.RenderedText
+	var vnode rtui.VNode
 	if content == "" {
-		content = rtui.GetTextContent(box.GetVNode())
+		vnode = box.GetVNode()
+		if vnode == nil {
+			return
+		}
+		content = rtui.GetTextContent(vnode)
 	}
 	if content != "" {
 		// Use SetStringAligned to pad row and prevent leftover characters (TUI_BUFFER_FIX2.md)
 		// Pad to box.Box.X + box.Box.Width to fill entire row within component boundary
 		maxX := box.Box.X + box.Box.Width
-		buffer.SetStringAligned(box.Box.X, box.Box.Y, content, box.GetVNode().Style(), maxX)
+		buffer.SetStringAligned(box.Box.X, box.Box.Y, content, vnode.Style(), maxX)
 		return // Don't paint children for text elements
 	}
 
 	// ENHANCEMENT: Paint container background if set
 	// This allows elements like Inspector panels to have solid backgrounds
-	nodeStyle := box.GetVNode().Style()
+	if vnode == nil {
+		vnode = box.GetVNode()
+		if vnode == nil {
+			return
+		}
+	}
+	nodeStyle := vnode.Style()
 	if nodeStyle.BG != "" && nodeStyle.BG != style.NoColor {
 		e.paintContainerBackground(box, buffer, nodeStyle)
 
@@ -307,17 +344,30 @@ func (e *PaintEngine) paintChildren(box *compute.ComputedBox, buffer *paint.Buff
 
 // paintBordered paints a bordered node with border decoration
 func (e *PaintEngine) paintBordered(box *compute.ComputedBox, buffer *paint.Buffer) {
-	// Get border configuration
+	// Debug: print box info
+	log.PaintLogger.Debug("[PaintBordered] START: box.Box.X=%d, box.Box.Y=%d, box.Box.Width=%d, box.Box.Height=%d",
+		box.Box.X, box.Box.Y, box.Box.Width, box.Box.Height)
+	log.PaintLogger.Debug("[PaintBordered] box.Children count = %d", len(box.Children))
+
+	// Get VNode for border configuration
+	vnode := box.GetVNode()
+	if vnode == nil {
+		// No VNode - cannot get border config, just paint children
+		log.PaintLogger.Debug("[PaintBordered] vnode is nil, painting children only")
+		e.paintChildren(box, buffer)
+		return
+	}
+	log.PaintLogger.Debug("[PaintBordered] vnode.Type=%v", vnode.Type())
 	borderStyle := border.StyleSingle
-	if labeled, ok := box.GetVNode().(interface{ GetBorderStyle() rtui.BorderStyle }); ok {
+	if labeled, ok := vnode.(interface{ GetBorderStyle() rtui.BorderStyle }); ok {
 		borderStyle = border.Style(labeled.GetBorderStyle())
 	}
 	borderColor := "blue"
-	if colored, ok := box.GetVNode().(interface{ GetBorderColor() string }); ok {
+	if colored, ok := vnode.(interface{ GetBorderColor() string }); ok {
 		borderColor = colored.GetBorderColor()
 	}
 	borderLabel := ""
-	if labeled, ok := box.GetVNode().(interface{ GetBorderLabel() string }); ok {
+	if labeled, ok := vnode.(interface{ GetBorderLabel() string }); ok {
 		borderLabel = labeled.GetBorderLabel()
 	}
 
@@ -347,7 +397,16 @@ func (e *PaintEngine) paintBordered(box *compute.ComputedBox, buffer *paint.Buff
 		})
 
 	// Paint children (content inside border)
+	childCount := len(box.Children)
+	if e.debug || log.PaintLogger.Enabled() {
+		log.PaintLogger.Debug("[PaintBordered] box.Children count = %d", childCount)
+	}
+	if childCount == 0 {
+		log.PaintLogger.Debug("[PaintBordered] WARNING: No children to paint!")
+	}
 	for _, childBox := range box.Children {
+		log.PaintLogger.Debug("[PaintBordered] Painting child: X=%d Y=%d W=%d H=%d",
+			childBox.Box.X, childBox.Box.Y, childBox.Box.Width, childBox.Box.Height)
 		if err := e.paintNode(childBox, buffer); err != nil && e.debug {
 			log.PaintLogger.Debug("[PaintBordered] error: %v", err)
 		}

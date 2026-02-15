@@ -459,7 +459,7 @@ func main() {
 		fmt.Printf("\n✅ Layout complete: TreeView size = %dx%d\n", layout.Root.Box.Width, layout.Root.Box.Height)
 
 		// Check how many children are rendered
-		tvChildren := layout.Root.VNode.Children()
+		tvChildren := layout.Root.GetVNode().Children()
 		fmt.Printf("   Total lines in TreeView: %d\n", len(inspLines))
 		fmt.Printf("   Direct children of TreeView: %d\n", len(tvChildren))
 
@@ -564,15 +564,15 @@ func (ld *LayoutDiagnostic) analyzeComputedBox(box *compute.ComputedBox, constra
 	result := &DiagnosticResult{
 		Indent:      indent,
 		Depth:       depth,
-		NodeType:    box.VNode.Type().String(),
+		NodeType:    box.GetVNode().Type().String(),
 		Constraints: ld.formatConstraints(constraints),
-		Props:       box.VNode.Props(),
+		Props:       box.GetVNode().Props(),
 		Size:        fmt.Sprintf("%dx%d", box.Box.Width, box.Box.Height),
 		Children:    len(box.Children),
 	}
 
 	// Get Tag
-	if tagger, ok := box.VNode.(interface{ Tag() string }); ok {
+	if tagger, ok := box.GetVNode().(interface{ Tag() string }); ok {
 		result.Tag = tagger.Tag()
 	}
 
@@ -672,7 +672,7 @@ func (ld *LayoutDiagnostic) checkComputedIssues(box *compute.ComputedBox, constr
 	if result.Tag == "vstack" && len(box.Children) > 0 {
 		for _, child := range box.Children {
 			// Check if child has TreeView
-			if childProps := child.VNode.Props(); childProps != nil {
+			if childProps := child.GetVNode().Props(); childProps != nil {
 				if _, hasTreeView := childProps["treeView"]; hasTreeView {
 					childHeight := child.Box.Height
 					if childHeight > 15 {

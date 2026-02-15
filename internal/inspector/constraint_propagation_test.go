@@ -172,11 +172,11 @@ func findTreeViewInLayout(box *compute.ComputedBox, depth int, t *testing.T) boo
 	}
 
 	fmt.Printf("[TEST]%sBox: type=%s size=%dx%d pos=(%d,%d)\n",
-		indent, box.VNode.Type(), box.Box.Width, box.Box.Height, box.Box.X, box.Box.Y)
+		indent, box.GetVNode().Type(), box.Box.Width, box.Box.Height, box.Box.X, box.Box.Y)
 
 	// Check if this is a TreeView by type or props
-	if box.VNode.Type().String() == "element" {
-		props := box.VNode.Props()
+	if box.GetVNode().Type().String() == "element" {
+		props := box.GetVNode().Props()
 		if props != nil {
 			if _, hasTreeView := props["treeView"]; hasTreeView {
 				fmt.Printf("[TEST]%s→ Found TreeView! size=%dx%d\n", indent, box.Box.Width, box.Box.Height)
@@ -313,7 +313,7 @@ func TestTabsInVStackConstraints(t *testing.T) {
 
 	// Find Tabs in layout
 	for i, child := range layout.Root.Children {
-		if child.VNode.Type().String() == "tabs" {
+		if child.GetVNode().Type().String() == "tabs" {
 			fmt.Printf("[TEST] Found Tabs at child %d: size=%dx%d\n", i, child.Box.Width, child.Box.Height)
 
 			// Tabs should be constrained by VStack
