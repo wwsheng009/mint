@@ -78,13 +78,15 @@ func CreateFiber(vnode VNode) *Fiber {
 	}
 
 	// Set tag based on type
+	// IMPORTANT: Tag must be set correctly for layout algorithm to work
 	switch n := vnode.(type) {
 	case *ElementVNode:
 		fiber.Tag = n.Tag()
 	case *ComponentVNode:
 		fiber.Tag = n.Name()
 	case *LayoutNode:
-		fiber.Tag = "layout"
+		// Runtime LayoutNode embeds *ElementVNode, use its tag
+		fiber.Tag = n.ElementVNode.Tag()
 	default:
 		// For component types like TextVNode (from components package)
 		// They implement VNode but aren't core types
@@ -95,12 +97,38 @@ func CreateFiber(vnode VNode) *Fiber {
 			if bordered, ok := vnode.(*BorderedNode); ok {
 				fiber.Tag = bordered.ElementVNode.Tag()
 			} else {
-				fiber.Tag = "unknown"
+				// Check for components/layout.LayoutNode (embeds *ui.ElementVNode)
+				// We can identify it by checking for layout-related methods
+				if hasLayoutMethods(vnode) {
+					// Try to get tag via interface
+					if tagger, ok := vnode.(interface{ Tag() string }); ok {
+						fiber.Tag = tagger.Tag()
+					} else {
+						fiber.Tag = "unknown"
+					}
+				} else {
+					fiber.Tag = "unknown"
+				}
 			}
 		}
 	}
 
 	return fiber
+}
+
+// hasLayoutMethods checks if VNode has layout-related methods
+// This is used to identify components/layout.LayoutNode without importing the package
+func hasLayoutMethods(vnode VNode) bool {
+	if vnode == nil {
+		return false
+	}
+	// Use interface check for layout methods
+	// Check for Gap() int method which is unique to layout nodes
+	type hasGap interface {
+		Gap() int
+	}
+	_, hasGapMethod := vnode.(hasGap)
+	return hasGapMethod
 }
 
 // CreateFiberFromVNode creates a fiber tree from a VNode tree
@@ -445,8 +473,21 @@ func (f *Fiber) GetDirection() Direction {
 	}
 	// Fallback to VNode during transition
 	if f.VNode != nil {
+		// Try runtime/ui.LayoutNode first
 		if ln, ok := f.VNode.(*LayoutNode); ok {
 			return ln.direction
+		}
+		// Try components/layout.LayoutNode via interface
+		// Direction is an int type, so we use int in interface
+		type hasDirection interface {
+			Direction() int
+		}
+		if hd, ok := f.VNode.(hasDirection); ok {
+			d := hd.Direction()
+			// Convert to Direction type (0=Row, 1=Column)
+			if d == 0 || d == 1 {
+				return Direction(d)
+			}
 		}
 	}
 	return DirectionRow // default
@@ -486,8 +527,16 @@ func (f *Fiber) GetGap() int {
 	if f.LayoutGap != 0 || f.VNode == nil {
 		return f.LayoutGap
 	}
+	// Try runtime/ui.LayoutNode first
 	if ln, ok := f.VNode.(*LayoutNode); ok {
 		return ln.gap
+	}
+	// Try components/layout.LayoutNode via interface
+	type hasGap interface {
+		Gap() int
+	}
+	if hg, ok := f.VNode.(hasGap); ok {
+		return hg.Gap()
 	}
 	return 0 // default
 }
@@ -495,13 +544,19 @@ func (f *Fiber) GetGap() int {
 // GetPadding returns the padding [top, right, bottom, left]
 // Prioritizes Fiber.LayoutPadding field, falls back to VNode
 func (f *Fiber) GetPadding() [4]int {
-	// Check if any padding value is non-zero
-	if f.LayoutPadding[0] != 0 || f.LayoutPadding[1] != 0 ||
-		f.LayoutPadding[2] != 0 || f.LayoutPadding[3] != 0 || f.VNode == nil {
+	if f.LayoutPadding[0] != 0 || f.LayoutPadding[1] != 0 || f.LayoutPadding[2] != 0 || f.LayoutPadding[3] != 0 || f.VNode == nil {
 		return f.LayoutPadding
 	}
+	// Try runtime/ui.LayoutNode first
 	if ln, ok := f.VNode.(*LayoutNode); ok {
 		return ln.padding
+	}
+	// Try components/layout.LayoutNode via interface
+	type hasPadding interface {
+		Padding() [4]int
+	}
+	if hp, ok := f.VNode.(hasPadding); ok {
+		return hp.Padding()
 	}
 	return [4]int{0, 0, 0, 0} // default
 }

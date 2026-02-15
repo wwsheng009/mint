@@ -1699,8 +1699,77 @@ func (e *Engine) MeasureChild(child interface{}, constraints runtime.BoxConstrai
 	if vnode, ok := child.(VNode); ok {
 		return e.measureVNode(vnode, constraints)
 	}
-	// Fallback for non-VNode types
+
+	// Fiber-First: Support Fiber nodes
+	if fiber, ok := child.(*rtui.Fiber); ok {
+		return e.measureFiber(fiber, constraints)
+	}
+
+	// Fallback for non-VNode/Fiber types
 	return runtime.Size{Width: 0, Height: 0}
+}
+
+// measureFiber measures a Fiber node with given constraints.
+// Fiber-First: Reads ONLY from Fiber fields
+func (e *Engine) measureFiber(fiber *rtui.Fiber, constraints runtime.BoxConstraints) runtime.Size {
+	if fiber == nil {
+		return runtime.Size{}
+	}
+
+	// Measure based on Fiber.Type
+	switch fiber.Type {
+	case rtui.VNodeText:
+		return e.measureFiberText(fiber, constraints)
+	case rtui.VNodeElement:
+		// For containers, size depends on layout
+		return e.measureFiberElement(fiber, constraints)
+	default:
+		return runtime.Size{}
+	}
+}
+
+// measureFiberText measures text Fiber content.
+func (e *Engine) measureFiberText(fiber *rtui.Fiber, constraints runtime.BoxConstraints) runtime.Size {
+	// Get text from MemoizedState
+	text, ok := fiber.MemoizedState.(string)
+	if !ok || text == "" {
+		return runtime.Size{Width: 0, Height: 1}
+	}
+
+	// Calculate width from rune count
+	runes := []rune(text)
+	width := len(runes)
+	height := 1
+
+	// Apply constraints
+	if width > constraints.MaxWidth && constraints.HasBoundedWidth() {
+		width = constraints.MaxWidth
+	}
+	if height > constraints.MaxHeight && constraints.HasBoundedHeight() {
+		height = constraints.MaxHeight
+	}
+
+	return runtime.Size{Width: width, Height: height}
+}
+
+// measureFiberElement measures element Fiber content.
+func (e *Engine) measureFiberElement(fiber *rtui.Fiber, constraints runtime.BoxConstraints) runtime.Size {
+	padding := fiber.GetPadding()
+
+	size := runtime.Size{
+		Width:  padding[1] + padding[3],
+		Height: padding[0] + padding[2],
+	}
+
+	// Apply constraints
+	if size.Width < constraints.MinWidth {
+		size.Width = constraints.MinWidth
+	}
+	if size.Height < constraints.MinHeight {
+		size.Height = constraints.MinHeight
+	}
+
+	return size
 }
 
 // TryMeasureLayout attempts to use the new LayoutMeasurer interface if available.
@@ -2081,30 +2150,6 @@ func (e *Engine) layoutFiberTree(fiber *rtui.Fiber, constraints runtime.BoxConst
 	return box
 }
 
-// measureFiber measures the size of a Fiber node
-// This is the new fiber-based measure implementation
-//
-// Parameters:
-//   fiber: The Fiber node to measure
-//   constraints: Box constraints for measurement
-//
-// Returns:
-//   runtime.Box containing measured size
-func (e *Engine) measureFiber(fiber *rtui.Fiber, constraints runtime.BoxConstraints) runtime.Box {
-	if fiber == nil {
-		return runtime.Box{}
-	}
-
-	// Measure using fiber.VNode (still needed for content)
-	size := e.measureVNode(fiber.VNode, constraints)
-
-	return runtime.Box{
-		X:      0,
-		Y:      0,
-		Width:  size.Width,
-		Height: size.Height,
-	}
-}
 
 // layoutFiberChildren builds ComputedBox children from Fiber children
 // This traverses the Fiber tree (Child -> Sibling) and builds ComputedBoxes for all children
