@@ -173,6 +173,17 @@ type Fiber struct {
 	LayoutPadding    [4]int
 	LayoutFlex      int
 
+	// === Visual Style (Phase 2) ===
+	// Visual styling properties for rendering
+	// These are populated in completeWork from VNode props
+	StyleWidth   int
+	StyleHeight  int
+	StyleMargin  [4]int
+	StyleBorder  [4]int
+	StyleDisplay string
+	StylePosition string
+	StyleZIndex   int
+
 	// === Component Instance ===
 	// Persistent component instance for state preservation
 	ComponentInstance ComponentInstance
