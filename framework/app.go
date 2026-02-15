@@ -1401,48 +1401,6 @@ func (a *App) updateFocusManagerFromActionRegistry() {
 	}
 }
 
-// updateFocusManagerFromLayoutNode 从 LayoutNode 树更新焦点管理器
-// LayoutNode 树是渲染后的树，包含了所有组件实例
-func (a *App) updateFocusManagerFromLayoutNode(root *rt.LayoutNode) {
-	if a.focusManager == nil || root == nil {
-		return
-	}
-
-	// 收集所有 focusable 节点
-	var focusableNodes []rtui.FocusableVNode
-
-	var traverse func(node *rt.LayoutNode)
-	traverse = func(node *rt.LayoutNode) {
-		if node == nil {
-			return
-		}
-
-		// 检查 Component.Instance 是否实现 FocusableVNode 接口
-		if node.Component != nil && node.Component.Instance != nil {
-			if focusable, ok := node.Component.Instance.(rtui.FocusableVNode); ok {
-				// 检查是否可聚焦
-				if focusable.IsFocusable() {
-					focusableNodes = append(focusableNodes, focusable)
-				}
-			}
-		}
-
-		// 递归处理子节点
-		for _, child := range node.Children {
-			traverse(child)
-		}
-	}
-
-	traverse(root)
-
-	// 更新焦点管理器
-	a.focusManager.UpdateFocusableList(focusableNodes)
-
-	if os.Getenv("TUI_DEBUG_UI") == "true" {
-		log.UILogger.Debug("[APP] Focus manager updated from LayoutNode: %d focusable nodes", len(focusableNodes))
-	}
-}
-
 // handleEvent 处理事件（已废弃）
 // DEPRECATED: Action 系统现在是主路径，此函数仅用于调试/回退
 func (a *App) handleEvent(ev frameworkevent.Event) {
