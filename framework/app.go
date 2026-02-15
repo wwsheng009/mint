@@ -1139,79 +1139,6 @@ func (a *App) buildActionRegistry() {
 	a.registerActionTargets(a.root)
 }
 
-// collectActionTargetsFromFiber 从 Fiber 树收集 ActionTarget
-// 使用反射来避免导入 internal/reconciler 包
-func (a *App) collectActionTargetsFromFiber(mgr interface{}) {
-	// 使用反射获取 FiberRoot
-	val := reflect.ValueOf(mgr)
-	method := val.MethodByName("GetFiberRoot")
-	if !method.IsValid() {
-		return
-	}
-
-	fiberResult := method.Call(nil)
-	if len(fiberResult) == 0 || fiberResult[0].IsNil() {
-		return
-	}
-
-	fiberRoot := fiberResult[0].Interface()
-
-	// 遍历 Fiber 树收集 ActionTarget
-	a.traverseFiberForActionTargets(fiberRoot)
-}
-
-// traverseFiberForActionTargets 遍历 Fiber 树收集 ActionTarget
-// 使用反射来避免直接依赖 Fiber 类型
-func (a *App) traverseFiberForActionTargets(fiber interface{}) {
-	if fiber == nil {
-		return
-	}
-
-	val := reflect.ValueOf(fiber)
-
-	// 检查 nil
-	if val.IsNil() {
-		return
-	}
-
-	// 获取 VNode 字段
-	vnodeField := val.Elem().FieldByName("VNode")
-	if !vnodeField.IsValid() || vnodeField.IsNil() {
-		// 尝试直接访问（如果 fiber 是指针）
-		if val.Kind() == reflect.Ptr {
-			vnodeField = val.Elem().FieldByName("VNode")
-		}
-	}
-
-	if vnodeField.IsValid() && !vnodeField.IsNil() {
-		vnode := vnodeField.Interface()
-
-		// 检查 VNode 是否实现 ActionTarget 接口
-		if target, ok := vnode.(action.ActionTarget); ok {
-			// 检查是否实现了 GetNodeID
-			if nodeIDProvider, ok := vnode.(interface{ GetNodeID() uint64 }); ok {
-				nodeID := nodeIDProvider.GetNodeID()
-				if nodeID != 0 {
-					a.actionRegistry[nodeID] = target
-				}
-			}
-		}
-
-		// 同时检查是否实现 FocusableVNode，用于焦点管理
-		// 这在 updateFocusManagerFromActionRegistry 中使用
-	}
-
-	// 递归遍历 Child 和 Sibling
-	for _, fieldName := range []string{"Child", "Sibling"} {
-		field := val.Elem().FieldByName(fieldName)
-		if field.IsValid() && !field.IsNil() {
-			if field.Kind() == reflect.Ptr {
-				a.traverseFiberForActionTargets(field.Interface())
-			}
-		}
-	}
-}
-
 // registerActionTargets 递归注册 ActionTarget
 func (a *App) registerActionTargets(node component.Node) {
 	if node == nil {
@@ -1370,34 +1297,6 @@ func (a *App) updateFocusManager(root layout.Node) {
 
 	if os.Getenv("TUI_DEBUG_UI") == "true" {
 		log.UILogger.Debug("[APP] Focus manager updated: %d focusable nodes", len(focusableNodes))
-	}
-}
-
-// updateFocusManagerFromActionRegistry 从 ActionRegistry 更新焦点管理器
-// ActionRegistry 包含所有实现了 ActionTarget 接口的组件
-// 其中许多组件（如 Button、Input）也实现了 FocusableVNode
-func (a *App) updateFocusManagerFromActionRegistry() {
-	if a.focusManager == nil || len(a.actionRegistry) == 0 {
-		return
-	}
-
-	// 从 ActionRegistry 中收集实现了 FocusableVNode 的组件
-	var focusableNodes []rtui.FocusableVNode
-
-	for _, target := range a.actionRegistry {
-		if focusable, ok := target.(rtui.FocusableVNode); ok {
-			// 检查是否可聚焦
-			if focusable.IsFocusable() {
-				focusableNodes = append(focusableNodes, focusable)
-			}
-		}
-	}
-
-	// 使用 SetFocusable 而不是 UpdateFocusableList，以保持焦点状态
-	a.focusManager.SetFocusable(focusableNodes)
-
-	if os.Getenv("TUI_DEBUG_UI") == "true" {
-		log.UILogger.Debug("[APP] Focus manager updated from ActionRegistry: %d focusable nodes", len(focusableNodes))
 	}
 }
 
