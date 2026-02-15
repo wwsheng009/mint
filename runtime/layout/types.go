@@ -277,36 +277,40 @@ type Dirtyable interface {
 // Engine 布局引擎
 // 负责计算节点树中所有节点的位置和尺寸
 type Engine struct {
-	// dirtyNodes 脏节点集合
-	dirtyNodes map[string]bool
+	// dirty 脏标记跟踪器
+	dirty *DirtyTracker
 
 	// stats 布局统计
 	stats LayoutStats
 
 	// cache 布局缓存
 	cache *Cache
+
+	// flexCache Flex 分布缓存
+	flexCache *FlexCache
 }
 
 // NewEngine 创建新的布局引擎
 func NewEngine() *Engine {
 	return &Engine{
-		dirtyNodes: make(map[string]bool),
-		stats:      LayoutStats{},
+		dirty: NewDirtyTracker(),
+		stats: LayoutStats{},
 		cache: &Cache{
 			entries: make(map[string]*CachedLayout),
 			maxSize: 1000,
 		},
+		flexCache: NewFlexCache(),
 	}
 }
 
 // Invalidate 使整个布局树失效
 func (e *Engine) Invalidate() {
-	e.dirtyNodes = make(map[string]bool)
+	e.dirty.Clear()
 }
 
 // InvalidateNode 使单个节点失效
 func (e *Engine) InvalidateNode(id string) {
-	e.dirtyNodes[id] = true
+	e.dirty.MarkLayoutDirty(id)
 }
 
 // Layout 执行布局计算

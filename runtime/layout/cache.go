@@ -3,6 +3,7 @@ package layout
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"hash"
 	"time"
 )
@@ -12,11 +13,7 @@ import (
 // ==============================================================================
 // 布局结果缓存，避免重复计算
 
-// cacheKey 缓存键
-type cacheKey struct {
-	nodesHash string
-	constraintsKey string
-}
+
 
 // Cache 布局缓存
 type Cache struct {
@@ -33,6 +30,11 @@ type CachedLayout struct {
 
 // Get 获取缓存
 func (c *Cache) Get(node Node, constraints Constraints) *LayoutResult {
+	// 叶子节点优先使用缓存
+	if !c.isLeafNode(node) {
+		return nil
+	}
+
 	key := c.makeKey(node, constraints)
 	if entry, ok := c.entries[key]; ok {
 		entry.HitCount++
@@ -40,6 +42,14 @@ func (c *Cache) Get(node Node, constraints Constraints) *LayoutResult {
 		return c.cloneResult(entry.Result)
 	}
 	return nil
+}
+
+// isLeafNode 检查是否为叶子节点
+func (c *Cache) isLeafNode(node Node) bool {
+	if node == nil {
+		return false
+	}
+	return len(node.Children()) == 0
 }
 
 // Put 存入缓存
@@ -64,9 +74,10 @@ func (c *Cache) Clear() {
 }
 
 // RemoveByNode 删除特定节点的缓存
+// 注意：由于缓存键使用节点树哈希（SHA256），无法精确匹配特定节点
+// 此方法会清空所有缓存作为暂时的解决方案
+// TODO: 改进缓存策略，使用节点 ID 作为键的一部分
 func (c *Cache) RemoveByNode(id string) {
-	// 需要检查每个缓存条目是否包含该节点
-	// 简化实现：清空所有缓存
 	c.Clear()
 }
 
@@ -98,10 +109,9 @@ func (c *Cache) makeKey(node Node, constraints Constraints) string {
 
 // constraintsKey 约束键
 func (c *Cache) constraintsKey(constraints Constraints) string {
-	return string(rune(constraints.MinWidth)) + "," +
-		string(rune(constraints.MaxWidth)) + "," +
-		string(rune(constraints.MinHeight)) + "," +
-		string(rune(constraints.MaxHeight))
+	return fmt.Sprintf("%d,%d,%d,%d",
+		constraints.MinWidth, constraints.MaxWidth,
+		constraints.MinHeight, constraints.MaxHeight)
 }
 
 // nodesHash 节点哈希

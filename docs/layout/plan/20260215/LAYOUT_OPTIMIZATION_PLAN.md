@@ -2,1154 +2,1338 @@
 
 ## 执行摘要
 
-本方案旨在将 `runtime/compute` 的高级功能移植到 `runtime/layout`，创建一个**独立于 VNode/Fiber** 的通用布局引擎，同时保留现有 `runtime/layout` 的完整 Flexbox 特性。
+本方案旨在基于 `runtime/layout/` 的现有实现（V3），吸收 `runtime/compute/` 中的通用布局优化策略，增强布局引擎的性能和功能，同时保持其独立性（不依赖 VNode/Fiber）。
 
-**核心目标**：
-1. 创建抽象接口层，解耦对 VNode/Fiber 的依赖
-2. 移植 `compute/` 的性能优化（单次测量、缓存、Dirty Tracking）
-3. 增强 `layout/` 的 Flexbox 实现，保持其标准性
-4. 保持向后兼容，不影响现有使用
+**当前状态（V3）**：
+- ✅ 标准的 Flexbox 实现（flex-grow、flex-shrink、flex-basis）
+- ✅ 支持反向排列（RowReverse、ColumnReverse）
+- ✅ 支持主轴/交叉轴对齐（6 种主轴 + 4 种交叉轴）
+- ✅ 基础缓存系统（基于 SHA256 树哈希）
+- ✅ 简单的脏标记机制（Dirtyable 接口和 Engine.dirtyNodes）
+- ✅ 清晰的接口设计（Node、Measurable、Dirtyable）
 
----
-
-## 1. 调研总结
-
-### 1.1 当前架构分析
-
-#### runtime/compute/engine.go - 生产系统
-```
-优势：
-✅ 单次测量优化 (LayoutMeasurer 接口)
-✅ 智能缓存策略（叶子节点缓存）
-✅ Dirty Tracking（增量布局）
-✅ Fiber 集成（NodeID、Layer、DiffKey 匹配）
-✅ HitMap 构建（事件处理）
-✅ Bounds Validator（一致性检查）
-
-不足：
-❌ 紧密依赖 VNode/Fiber 架构
-❌ 缺少完整的 Flexbox 支持（无 flex-shrink、flex-basis、反向排列）
-❌ 代码复杂度高（2000+ 行）
-```
-
-#### runtime/layout/ - 通用库
-```
-优势：
-✅ 标准的 Flexbox 实现
-✅ 支持 flex-grow、flex-shrink、flex-basis
-✅ 支持反向排列（RowReverse、ColumnReverse）
-✅ 支持交叉轴间距（CrossGap）
-✅ 零依赖（纯 Go，可独立使用）
-✅ 清晰的接口设计
-
-不足：
-❌ 缺少单次测量优化
-❌ 缓存策略简单（完整树哈希）
-❌ 无 Dirty Tracking
-❌ 无增量更新支持
-❌ 未与实际系统集成
-```
-
-### 1.2 关键功能对比矩阵
-
-| 功能类别 | compute/ | layout/ | 优化后 |
-|---------|----------|---------|---------|
-| **核心算法** |
-| Flexbox 布局 | ⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
-| Flex-grow | ✅ | ✅ | ✅ |
-| Flex-shrink | ❌ | ✅ | ✅ |
-| Flex-basis | ❌ | ✅ | ✅ |
-| 反向排列 | ❌ | ✅ | ✅ |
-| 主轴对齐 | ✅ | ✅ | ✅ |
-| 交叉轴对齐 | ✅ | ✅ | ✅ |
-| **性能优化** |
-| 单次测量 | ✅ | ❌ | ✅ |
-| 叶子缓存 | ✅ | ❌ | ✅ |
-| Dirty Tracking | ✅ | ❌ | ✅ |
-| 增量布局 | ✅ | ❌ | ✅ |
-| Flex 分布缓存 | ✅ | ❌ | ✅ |
-| **集成特性** |
-| 抽象接口 | ❌ (VNode) | ✅ | ✅ |
-| 稳定标识 | ✅ (NodeID) | ❌ | ✅ |
-| 事件处理 | ✅ (HitMap) | ❌ | ✅ |
-| 边界验证 | ✅ | ❌ | ✅ |
-| **特殊布局** |
-| 文本对齐 | ✅ | ❌ | ✅ |
-| 边框处理 | ✅ | ❌ | ✅ |
-| 表格布局 | ✅ | ❌ | ✅ |
+**优化目标**：
+1. **增强缓存策略** - 实现 Flex 分布缓存、优化叶子节点缓存
+2. **完善 Dirty Tracking** - 基于 Dirtyable 接口实现增量布局
+3. **优化测量算法** - 减少重复测量，提升性能
+4. **扩展布局功能** - 添加 HitMap、边界验证、文本对齐等
+5. **提升可维护性** - 改进代码结构，增强可测试性
 
 ---
 
-## 2. 抽象接口设计
+## 1. 当前架构分析
 
-### 2.1 核心抽象层
+### 1.1 代码结构
 
-为解耦对 VNode/Fiber 的依赖，设计以下抽象接口：
+```
+runtime/layout/
+├── types.go          # 核心类型定义 (Node、Engine、Constraints 等)
+├── flex.go           # Flexbox 布局算法实现
+├── cache.go          # 布局缓存系统（基于 SHA256）
+├── README.md         # 使用文档
+├── *_test.go         # 测试文件
+```
+
+### 1.2 核心功能现状
+
+#### 核心类型（types.go）
 
 ```go
-package layout
-
-// =============================================================================
-// Core Abstraction Layer
-// =============================================================================
-
-// LayoutNode represents any node that can be laid out
-// This replaces the VNode dependency from compute/
-type LayoutNode interface {
-    // Identity
+// Node - 布局节点接口
+type Node interface {
     ID() string
-    Type() NodeType
+    Type() string
+    Children() []Node
+    GetPosition/SetPosition
+    GetSize/SetSize
+    GetWidth/GetHeight
+}
 
-    // Tree structure
-    Children() []LayoutNode
-    Parent() LayoutNode
-
-    // Layout info
-    GetLayoutInfo() LayoutInfo
-    GetProps() Props
-    GetStyle() Style
-
-    // Optional: measurement
+// Measurable - 可测量节点
+type Measurable interface {
+    Node
     Measure(constraints Constraints) Size
 }
 
-// LayoutableNode extends LayoutNode with layout capabilities
-type LayoutableNode interface {
-    LayoutNode
-
-    // Layout children
-    LayoutChildren(constraints Constraints, width, height int) []LayoutBox
+// Dirtyable - 脏标记节点
+type Dirtyable interface {
+    IsLayoutDirty() bool
+    ClearLayoutDirty()
+    MarkLayoutDirty()
 }
 
-// MeasurableNode extends LayoutNode with measurement
-type MeasurableNode interface {
-    LayoutNode
-    Measurable
+// Engine - 布局引擎
+type Engine struct {
+    dirtyNodes map[string]bool  // 脏节点集合
+    stats      LayoutStats      // 统计信息
+    cache      *Cache           // 缓存实例
 }
 
-// NodeIDProvider provides stable identity (like Fiber.NodeID)
-type NodeIDProvider interface {
-    LayoutNode
-    NodeID() uint64
-}
-
-// LayeredNode provides rendering layer information
-type LayeredNode interface {
-    LayoutNode
-    Layer() Layer
-}
-
-// ========================================================================
-// Layout Information (extracted from compute/LayoutInfo)
-// ========================================================================
-
-// LayoutInfo contains layout configuration for a node
-// This abstracts rtui.LayoutInfo from compute/
-type LayoutInfo struct {
-    // Flexbox properties
-    Direction     FlexDirection
-    MainAxis      MainAxisAlignment
-    CrossAxis     CrossAxisAlignment
-    Flex          int
-    StretchCross  bool
-
-    // Spacing
-    Gap       int
-    CrossGap  int
-    Padding   [4]int // top, right, bottom, left
-
-    // Fill behavior
-    FillWidth  bool
-    FillHeight bool
-}
-
-// Props represents node properties
-type Props interface {
-    Get(key string) interface{}
-    GetInt(key string, defaultVal int) int
-    GetString(key string, defaultVal string) string
-    GetBool(key string, defaultVal bool) bool
-    Has(key string) bool
-}
-
-// Style represents visual style
-type Style struct {
-    FG    Color
-    BG    Color
-    Bold  bool
-    Italic bool
-}
-
-// =============================================================================
-// Layout Results (independent of compute/)
-// =============================================================================
-
-// LayoutBox represents a laid out box
+// LayoutBox - 布局结果盒子
 type LayoutBox struct {
-    // Identity
     ID      string
-    NodeID  uint64  // Stable identifier
-    Layer   Layer   // Rendering layer
-
-    // Position and size
-    Box    Rect
-    Bounds Rect
-
-    // Layout state
-    LayoutDirty bool
-    NaturalSize Size  // For alignment calculations
-
-    // Tree structure
-    Parent   *LayoutBox
+    X, Y    int
+    Width, Height int
+    Baseline int
     Children []*LayoutBox
-
-    // Content
-    Content    string  // Rendered text (with padding)
-    Props      Props
-    Style      Style
 }
-
-// LayoutResult represents complete layout output
-type LayoutResult struct {
-    Root      *LayoutBox
-    Boxes     []LayoutBox
-    HitMap    *HitMap     // For event handling
-    Dirty     bool
-    Version   uint64      // For cache invalidation
-}
-
-// =============================================================================
-// Hit Map (event handling)
-// =============================================================================
-
-// HitMap maps screen positions to nodes
-type HitMap struct {
-    entries map[string]*HitMapEntry
-    version uint64
-}
-
-// HitMapEntry represents a hit-able region
-type HitMapEntry struct {
-    NodeID   uint64
-    Bounds   Rect
-    LocalXY  func(screenX, screenY int) (int, int)
-    ZOrder   int
-}
-
-// =============================================================================
-// Constraints (enhanced from layout/)
-// =============================================================================
-
-// Constraints defines layout space constraints
-type Constraints struct {
-    MinWidth, MaxWidth   int
-    MinHeight, MaxHeight int
-}
-
-// Enhanced methods
-func (c Constraints) IsTight() bool
-func (c Constraints) IsBounded() bool
-func (c Constraints) HasBoundedWidth() bool
-func (c Constraints) HasBoundedHeight() bool
-func (c Constraints) Constrain(width, height int) (int, int)
-func (c Constraints) SubtractPadding(h, v int) Constraints
-func (c Constraints) WithWidth(min, max int) Constraints
-func (c Constraints) WithHeight(min, max int) Constraints
 ```
 
-### 2.2 适配器设计
+**优势**：
+- ✅ 接口设计清晰，职责分离
+- ✅ 支持可选接口扩展（Measurable、Dirtyable）
+- ✅ 内置缓存和统计功能
+- ✅ LayoutBox 支持树形结构
 
-为了兼容现有 VNode/Fiber，提供适配器：
+#### Flexbox 实现（flex.go）
+
+**完整支持**：
+- ✅ `FlexDirection`：Row, Column, RowReverse, ColumnReverse
+- ✅ `MainAxisAlignment`：Start, End, Center, SpaceBetween, SpaceAround, SpaceEvenly
+- ✅ `CrossAxisAlignment`：Start, End, Center, Stretch
+- ✅ `Flex` 配置：Grow, Shrink, Basis
+- ✅ `Padding` 和 `Gap` 支持
+- ✅ `LayoutChildren` 方法实现子节点布局（带位置和尺寸分配）
+
+**测量流程（`Measure` 方法）**：
+```
+Phase 1: 测量所有子节点
+  ↓
+Phase 2: 计算固定尺寸总和和可伸缩因子
+  ↓
+Phase 3: 添加间距（Gap）
+  ↓
+Phase 4: 计算总尺寸（包含 Padding）
+```
+
+**布局流程（`LayoutChildren` 方法）**：
+```
+Phase 1: 测量所有子节点并识别 flex/fixed
+  ↓
+Phase 2: 计算剩余空间
+  ↓
+Phase 3: 分配剩余空间给可伸缩节点（根据 flex grow）
+  ↓
+Phase 4: 根据对齐方式计算主轴位置
+  ↓
+Phase 5: 根据对齐方式计算交叉轴位置（含 Stretch）
+  ↓
+Phase 6: 处理 SpaceBetween/Around/Evenly 的额外间距
+  ↓
+Phase 7: 布局每个子节点（处理 reverse、间距、stretch）
+```
+
+**问题**：
+- ⚠️ `childConstraints` 方法的 `index` 参数未使用
+- ⚠️ 未利用 Flex 分布缓存优化
+- ⚠️ 可伸缩节点的 `shrink` 和 `basis` 在测量时未完全利用
+
+#### 缓存系统（cache.go）
+
+**当前实现**：
+```go
+type Cache struct {
+    entries map[string]*CachedLayout
+    maxSize int
+}
+
+type CachedLayout struct {
+    Result     *LayoutResult
+    Timestamp  time.Time
+    HitCount   int
+}
+```
+
+**缓存键生成**：
+- 节点树 SHA256 哈希（递归所有子节点）
+- 约束条件转字符串（当前实现有 bug）
+
+**问题**：
+- ❌ `constraintsKey` 使用 `string(rune())` 转换错误（会截断）
+- ❌ 完整树哈希计算成本高
+- ❌ 未利用 `Dirtyable` 接口的脏标记
+- ❌ 未优化叶子节点缓存
+- ❌ `cacheKey` 类型定义但未使用
+- ❌ 缺少按节点 ID 失效的功能
+
+### 1.3 当前缺失功能
+
+| 功能 | 状态 | 优先级 | 来源参考 |
+|-----|------|--------|---------|
+| **性能优化** |
+| Flex 分布缓存 | ❌ 缺失 | 高 | compute/types.go |
+| 叶子节点优化缓存 | ❌ 缺失 | 高 | compute/cache.go |
+| 增量布局（Dirty Tracking） | ⚠️ 基础支持 | 高 | compute/dirty_tracker.go |
+| 单次测量优化 | ⚠️ 部分实现 | 中 | compute/engine.go |
+| **布局功能** |
+| HitMap（事件处理） | ❌ 缺失 | 中 | compute/engine.go |
+| 边界验证 | ❌ 缺失 | 低 | compute/bounds_validator.go |
+| 表格布局 | ❌ 缺失 | 中 | compute/engine.go |
+| 文本对齐增强 | ❌ 缺失 | 中 | compute/engine.go |
+| **接口设计** |
+| 稳定标识符 | ❌ 缺失 | 中 | 抽象设计 |
+
+---
+
+## 2. 可移植的通用功能
+
+### 2.1 从 compute/ 可移植的功能
+
+基于 `runtime/compute/` 的代码分析，以下功能可以移植到 `runtime/layout/`，因为它们不依赖 VNode/Fiber：
+
+| 模块 | 可移植内容 | 适配代价 |
+|-----|-----------|---------|
+| **缓存优化** |
+| Flex 分布缓存 | `FlexDistributionInfo` 结构和缓存逻辑 | 低 |
+| 叶子节点缓存 | 只缓存叶子节点和有 key 的节点策略 | 中 |
+| 约束键优化 | 正确的约束键生成（避免 rune 转换） | 低 |
+| **Dirty Tracking** |
+| DirtyTracker 结构 | `dirty map[string]bool` + 并发保护 | 低 |
+| 脏标记传播 | 向上传播到父节点的逻辑 | 中 |
+| 增量布局 | 仅重新布局脏子树 | 中 |
+| **布局算法** |
+| HStack/VStack 参考 | 纯布局算法（去除 VNode 绑定） | 低 |
+| Flex 分布算法 | 智能分配剩余空间的逻辑 | 低 |
+| **验证和调试** |
+| 边界验证 | BoundsValidator（抽象化） | 低 |
+| 统计信息 | 扩展 LayoutStats | 低 |
+| **事件处理** |
+| HitMap | 将 LayoutBox 映射到可交互区域 | 中 |
+
+### 2.2 不可移植的功能
+
+以下功能**不应移植**，因为它们紧密依赖 VNode/Fiber：
+
+- ❌ VNode 相关接口（直接使用 VNode 类型）
+- ❌ Fiber 相关功能（NodeID、Layer、DiffKey）
+- ❌ 组件特定的测量（文本、边框、表格等）
+- ❌ rtui 特定的约束系统
+
+**替代方案**：
+- 通过适配器模式接入 VNode/Fiber（在应用层实现）
+- 保留纯布局引擎职责
+- 提供通用接口供应用层扩展
+
+---
+
+## 3. 优化方案
+
+### 3.1 缓存系统增强
+
+#### 目标
+- 修复约束键生成的 bug
+- 添加 Flex 分布缓存
+- 实现叶子节点优化策略
+- 支持按节点 ID 失效
+
+#### 实现计划
+
+**1. 修复 constraintsKey**
 
 ```go
-// =============================================================================
-// Adapters for VNode/Fiber compatibility
-// =============================================================================
-
-// VNodeAdapter wraps rtui.VNode to implement LayoutNode
-type VNodeAdapter struct {
-    vnode rtui.VNode
-    fiber *rtui.Fiber
+// 当前（错误）
+func (c *Cache) constraintsKey(constraints Constraints) string {
+    return string(rune(constraints.MinWidth)) + "," +
+           string(rune(constraints.MaxWidth)) + "," +
+           string(rune(constraints.MinHeight)) + "," +
+           string(rune(constraints.MaxHeight))
 }
 
-func (a *VNodeAdapter) ID() string {
-    if a.vnode != nil {
-        return a.vnode.Key()
+// 优化后
+func (c *Cache) constraintsKey(constraints Constraints) string {
+    return fmt.Sprintf("%d,%d,%d,%d",
+        constraints.MinWidth, constraints.MaxWidth,
+        constraints.MinHeight, constraints.MaxHeight)
+}
+```
+
+**2. 添加 Flex 分布缓存**
+
+```go
+// FlexDistributionInfo 记录 Flex 布局的分布信息
+type FlexDistributionInfo struct {
+    TotalFlexFactor int       // flex-grow 总和
+    FixedSize       int       // 固定尺寸子节点总尺寸
+    ChildCount      int       // 子节点数量
+    Valid           bool      // 是否有效
+    Version         uint64    // 版本号（用于失效）
+}
+
+// FlexCache Flex 分布缓存
+type FlexCache struct {
+    entries map[string]*FlexDistributionInfo
+    mu      sync.RWMutex
+}
+
+// Get 获取或计算 Flex 分布信息
+func (fc *FlexCache) Get(
+    nodeID string,
+    children []Node,
+    flexibleIndices []int,
+    isRow bool,
+    computeFunc func() *FlexDistributionInfo,
+) *FlexDistributionInfo {
+    key := fmt.Sprintf("%s:%d:%v", nodeID, len(children), isRow)
+
+    fc.mu.RLock()
+    if info, ok := fc.entries[key]; ok && info.Valid {
+        fc.mu.RUnlock()
+        return info
     }
-    return ""
+    fc.mu.RUnlock()
+
+    fc.mu.Lock()
+    defer fc.mu.Unlock()
+
+    info := computeFunc()
+    fc.entries[key] = info
+    return info
 }
 
-func (a *VNodeAdapter) Type() NodeType {
-    // Convert VNodeType to layout.NodeType
-    return NodeType(a.vnode.Type().String())
-}
+// Invalidate 失效指定节点的缓存
+func (fc *FlexCache) Invalidate(nodeID string) {
+    fc.mu.Lock()
+    defer fc.mu.Unlock()
 
-func (a *VNodeAdapter) Children() []LayoutNode {
-    children := a.vnode.Children()
-    result := make([]LayoutNode, len(children))
-    for i, child := range children {
-        result[i] = &VNodeAdapter{vnode: child}
-    }
-    return result
-}
-
-func (a *VNodeAdapter) GetLayoutInfo() LayoutInfo {
-    // Extract from VNode props or rtui.GetLayoutInfo
-    return LayoutInfo{
-        Direction:    a.directionFromVNode(),
-        MainAxis:     a.alignFromVNode(),
-        CrossAxis:    a.crossAlignFromVNode(),
-        Flex:         a.flexFromVNode(),
-        Gap:          a.gapFromVNode(),
-        Padding:      a.paddingFromVNode(),
-        StretchCross: a.stretchFromVNode(),
+    for key, info := range fc.entries {
+        if strings.HasPrefix(key, nodeID+":") {
+            info.Valid = false
+            delete(fc.entries, key)
+        }
     }
 }
+```
 
-func (a *VNodeAdapter) NodeID() uint64 {
-    if a.fiber != nil {
-        return a.fiber.NodeID
+**3. 实现叶子节点优化缓存**
+
+```go
+// Cache 添加叶子节点检测
+func (c *Cache) isLeafNode(node Node) bool {
+    return len(node.Children()) == 0
+}
+
+// Get 添加叶子节点优先逻辑
+func (c *Cache) Get(node Node, constraints Constraints) *LayoutResult {
+    // 叶子节点或实现了特定接口（如缓存键）的节点才使用缓存
+    if !c.isLeafNode(node) {
+        return nil
     }
-    return 0
-}
 
-func (a *VNodeAdapter) Layer() Layer {
-    if a.fiber != nil {
-        return a.fiber.Layer
+    key := c.makeKey(node, constraints)
+    if entry, ok := c.entries[key]; ok {
+        entry.HitCount++
+        return c.cloneResult(entry.Result)
     }
-    return LayerBase
+    return nil
+}
+```
+
+**4. 支持按节点 ID 失效**
+
+```go
+// RemoveByNode 删除特定节点的缓存（优化实现）
+func (c *Cache) RemoveByNode(id string) {
+    nodeIDs := c.extractNodeIDs(id)
+
+    for key := range c.entries {
+        keyNodeID := c.extractNodeIDFromKey(key)
+        for _, nid := range nodeIDs {
+            if keyNodeID == nid {
+                delete(c.entries, key)
+                break
+            }
+        }
+    }
 }
 
-// ... other methods
-
-// =============================================================================
-// FiberAdapter wraps rtui.Fiber to provide NodeID/Layer
-// =============================================================================
-
-type FiberAdapter struct {
-    fiber *rtui.Fiber
+// extractNodeIDs 从节点 ID 提取相关 ID（包括子节点）
+func (c *Cache) extractNodeIDs(nodeID string) []string {
+    // 实现：返回该节点及其所有祖先/子节点的 ID
+    // 这里简化处理，实际需要配合树结构
+    return []string{nodeID}
 }
+```
 
-func (a *FiberAdapter) NodeID() uint64 {
-    return a.fiber.NodeID
-}
+#### 文件变更
 
-func (a *FiberAdapter) Layer() Layer {
-    return a.fiber.Layer
-}
+```
+runtime/layout/
+├── cache.go              # 修改：修复缓存键、添加叶子节点优化
+├── flex_cache.go         # 新增：Flex 分布缓存
+└── types.go              # 修改：Engine 添加 FlexCache 字段
 ```
 
 ---
 
-## 3. 功能增强方案
+### 3.2 Dirty Tracking 完善
 
-### 3.1 单次测量优化（Single-Pass Layout）
+#### 目标
+- 完善 Dirtyable 接口的集成
+- 实现脏标记传播
+- 支持增量布局（仅重新布局脏子树）
+- 添加子树脏标记功能
 
-移植 `compute/` 的 `LayoutMeasurer` 接口：
+#### 实现计划
 
-```go
-// =============================================================================
-// Single-Pass Layout Measurement
-// =============================================================================
-
-// LayoutMeasurer enables single-pass layout measurement
-// This avoids O(N²) re-measurement by returning child constraints
-type LayoutMeasurer interface {
-    // IsLayoutMeasurer is a marker method
-    IsLayoutMeasurer()
-
-    // MeasureLayout performs single-pass measurement
-    // Returns:
-    //   - Size: total size of this node
-    //   - ChildConstraints: constraints for each child (in order)
-    //   - ChildSizes: measured size of each child
-    MeasureLayout(
-        measurer ChildMeasurer,
-        constraints Constraints,
-    ) LayoutMeasurement
-}
-
-// LayoutMeasurement contains measurement results
-type LayoutMeasurement struct {
-    Size             Size
-    ChildConstraints []Constraints
-    ChildSizes       []Size
-}
-
-// ChildMeasurer measures a child with constraints
-type ChildMeasurer interface {
-    MeasureChild(child interface{}, constraints Constraints) Size
-}
-
-// =============================================================================
-// Enhanced FlexLayout with Single-Pass
-// =============================================================================
-
-// MeasureLayout implements LayoutMeasurer for FlexLayout
-func (f *FlexLayout) IsLayoutMeasurer() {}
-
-func (f *FlexLayout) MeasureLayout(
-    measurer ChildMeasurer,
-    constraints Constraints,
-) LayoutMeasurement {
-    children := f.children
-    if len(children) == 0 {
-        return LayoutMeasurement{
-            Size: Size{
-                Width:  constraints.MinWidth,
-                Height: constraints.MinHeight,
-            },
-        }
-    }
-
-    // Calculate padding
-    paddingWidth := f.style.Padding.Left + f.style.Padding.Right
-    paddingHeight := f.style.Padding.Top + f.style.Padding.Bottom
-
-    // Determine main/cross axis
-    isRow := f.style.Direction == FlexRow ||
-              f.style.Direction == FlexRowReverse
-
-    // Phase 1: Identify flex vs fixed children
-    var flexChildren []int
-    var fixedSize int
-    flexTotalFactor := 0
-
-    childConstraints := make([]Constraints, len(children))
-    childSizes := make([]Size, len(children))
-
-    for i, child := range children {
-        childInfo := f.getChildLayoutInfo(child)
-
-        if childInfo.Flex > 0 {
-            flexChildren = append(flexChildren, i)
-            flexTotalFactor += childInfo.Flex
-        } else {
-            // Fixed child: measure with natural size
-            childConstraints[i] = f.getChildConstraints(
-                constraints, childInfo, isRow)
-            childSizes[i] = measurer.MeasureChild(
-                child, childConstraints[i])
-            if isRow {
-                fixedSize += childSizes[i].Width
-            } else {
-                fixedSize += childSizes[i].Height
-            }
-        }
-    }
-
-    // Phase 2: Distribute space to flex children
-    if len(flexChildren) > 0 && isRow && constraints.HasBoundedWidth() {
-        available := constraints.MaxWidth - paddingWidth
-        if isRow {
-            available -= (len(children) - 1) * f.style.Gap
-        }
-        remaining := available - fixedSize
-
-        for _, idx := range flexChildren {
-            flexSize := (remaining * f.style.FlexibleChildren[idx].Grow) /
-                       flexTotalFactor
-            if flexSize < 0 {
-                flexSize = 0
-            }
-            childConstraints[idx] = Constraints{
-                MinWidth: flexSize,
-                MaxWidth: flexSize,
-                MinHeight: 0,
-                MaxHeight: constraints.MaxHeight - paddingHeight,
-            }
-            childSizes[idx] = measurer.MeasureChild(
-                f.children[idx], childConstraints[idx])
-        }
-    } else if len(flexChildren) > 0 && !isRow &&
-              constraints.HasBoundedHeight() {
-        // Similar logic for VStack
-        available := constraints.MaxHeight - paddingHeight
-        if !isRow {
-            available -= (len(children) - 1) * f.style.Gap
-        }
-        remaining := available - fixedSize
-
-        for _, idx := range flexChildren {
-            flexSize := (remaining * f.style.FlexibleChildren[idx].Grow) /
-                       flexTotalFactor
-            if flexSize < 0 {
-                flexSize = 0
-            }
-            childConstraints[idx] = Constraints{
-                MinWidth: 0,
-                MaxWidth: constraints.MaxWidth - paddingWidth,
-                MinHeight: flexSize,
-                MaxHeight: flexSize,
-            }
-            childSizes[idx] = measurer.MeasureChild(
-                f.children[idx], childConstraints[idx])
-        }
-    }
-
-    // Phase 3: Calculate total size
-    var totalMainSize, maxCrossSize int
-
-    if isRow {
-        totalMainSize = fixedSize
-        maxCrossSize = 0
-        for _, size := range childSizes {
-            if size.Height > maxCrossSize {
-                maxCrossSize = size.Height
-            }
-        }
-        totalMainSize += (len(children) - 1) * f.style.Gap
-    } else {
-        totalMainSize = fixedSize
-        maxCrossSize = 0
-        for _, size := range childSizes {
-            if size.Width > maxCrossSize {
-                maxCrossSize = size.Width
-            }
-        }
-        totalMainSize += (len(children) - 1) * f.style.Gap
-    }
-
-    totalWidth := totalMainSize
-    totalHeight := maxCrossSize
-
-    if isRow {
-        totalWidth += paddingWidth
-        totalHeight += paddingHeight
-    } else {
-        totalWidth += paddingWidth
-        totalHeight += paddingHeight
-    }
-
-    // Cross-axis filling
-    if isRow && constraints.HasBoundedHeight() &&
-       totalHeight < constraints.MaxHeight {
-        totalHeight = constraints.MaxHeight
-    } else if !isRow && constraints.HasBoundedWidth() &&
-              totalWidth < constraints.MaxWidth {
-        totalWidth = constraints.MaxWidth
-    }
-
-    return LayoutMeasurement{
-        Size:             Size{Width: totalWidth, Height: totalHeight},
-        ChildConstraints: childConstraints,
-        ChildSizes:       childSizes,
-    }
-}
-```
-
-### 3.2 增强缓存策略
-
-移植 `compute/` 的智能缓存：
+**1. 扩展 DirtyTracker**
 
 ```go
-// =============================================================================
-// Enhanced Layout Cache
-// =============================================================================
-
-// CacheStrategy defines cache strategy
-type CacheStrategy int
-
-const (
-    CacheLeafOnly CacheStrategy = iota  // Only cache leaf nodes
-    CacheFullTree                  // Cache entire tree
-    CacheHybrid                    // Hybrid approach
-)
-
-// LayoutCache provides intelligent caching
-type LayoutCache struct {
-    mu           sync.RWMutex
-    entries      map[CacheKey]*CacheEntry
-    strategy     CacheStrategy
-    maxSize      int
-    evictPolicy  EvictionPolicy
-
-    // Statistics
-    hits     int64
-    misses   int64
-    evictions int64
-}
-
-// CacheKey combines multiple factors for precise caching
-type CacheKey struct {
-    NodeID      uint64
-    NodeType    string
-    Constraints Constraints
-    PropsHash   uint64
-    ContentHash uint64
-    Version     uint64  // For cache invalidation
-}
-
-// CacheEntry represents a cached layout result
-type CacheEntry struct {
-    Box         LayoutBox
-    Size        Size
-    Timestamp   time.Time
-    HitCount    int
-    IsLeaf      bool
-    Valid       bool
-}
-
-// EvictionPolicy defines how to evict entries
-type EvictionPolicy int
-
-const (
-    EvictLRU EvictionPolicy = iota
-    EvictLFU
-    EvictFIFO
-)
-
-// NewLayoutCache creates a new cache
-func NewLayoutCache(strategy CacheStrategy) *LayoutCache {
-    return &LayoutCache{
-        entries:     make(map[CacheKey]*CacheEntry),
-        strategy:    strategy,
-        maxSize:     1000,
-        evictPolicy: EvictLRU,
-    }
-}
-
-// Get retrieves a cached entry
-func (c *LayoutCache) Get(key CacheKey) (*CacheEntry, bool) {
-    c.mu.RLock()
-    defer c.mu.RUnlock()
-
-    entry, ok := c.entries[key]
-    if ok {
-        // Check validity
-        if !entry.Valid {
-            c.misses++
-            return nil, false
-        }
-        entry.HitCount++
-        c.hits++
-        return entry, true
-    }
-    c.misses++
-    return nil, false
-}
-
-// Set stores a cache entry
-func (c *LayoutCache) Set(key CacheKey, entry *CacheEntry) {
-    c.mu.Lock()
-    defer c.mu.Unlock()
-
-    // Check if we need to evict
-    if len(c.entries) >= c.maxSize {
-        c.evict()
-    }
-
-    c.entries[key] = entry
-}
-
-// evict removes entries based on policy
-func (c *LayoutCache) evict() {
-    switch c.evictPolicy {
-    case EvictLRU:
-        c.evictLRU()
-    case EvictLFU:
-        c.evictLFU()
-    case EvictFIFO:
-        c.evictFIFO()
-    }
-}
-
-func (c *LayoutCache) evictLRU() {
-    var oldestKey *CacheKey
-    var oldestTime time.Time
-
-    for key, entry := range c.entries {
-        if oldestKey == nil || entry.Timestamp.Before(oldestTime) {
-            oldestKey = &key
-            oldestTime = entry.Timestamp
-        }
-    }
-
-    if oldestKey != nil {
-        delete(c.entries, *oldestKey)
-        c.evictions++
-    }
-}
-
-// Invalidate marks entries as invalid
-func (c *LayoutCache) Invalidate(predicate func(CacheKey) bool) {
-    c.mu.Lock()
-    defer c.mu.Unlock()
-
-    for key, entry := range c.entries {
-        if predicate(key) {
-            entry.Valid = false
-        }
-    }
-}
-
-// InvalidateByNodeID invalidates entries for a node
-func (c *LayoutCache) InvalidateByNodeID(nodeID uint64) {
-    c.Invalidate(func(key CacheKey) bool {
-        return key.NodeID == nodeID
-    })
-}
-
-// Stats returns cache statistics
-func (c *LayoutCache) Stats() CacheStats {
-    c.mu.RLock()
-    defer c.mu.RUnlock()
-
-    total := c.hits + c.misses
-    hitRate := 0.0
-    if total > 0 {
-        hitRate = float64(c.hits) / float64(total)
-    }
-
-    return CacheStats{
-        Size:      len(c.entries),
-        Hits:      c.hits,
-        Misses:    c.misses,
-        Evictions: c.evictions,
-        HitRate:   hitRate,
-    }
-}
-```
-
-### 3.3 Dirty Tracking
-
-移植 `compute/` 的 Dirty Tracking：
-
-```go
-// =============================================================================
-// Dirty Tracking
-// =============================================================================
-
-// DirtyTracker tracks which nodes need to be re-laid out
+// DirtyTracker 脏标记跟踪器
 type DirtyTracker struct {
-    mu     sync.RWMutex
-    dirty   map[uint64]bool  // NodeID -> dirty flag
-    version uint64           // Current version for invalidation
+    mu    sync.RWMutex
+    dirty map[string]bool
 }
 
-// NewDirtyTracker creates a new dirty tracker
+// NewDirtyTracker 创建新的脏标记跟踪器
 func NewDirtyTracker() *DirtyTracker {
     return &DirtyTracker{
-        dirty:   make(map[uint64]bool),
-        version: 1,
+        dirty: make(map[string]bool),
     }
 }
 
-// MarkDirty marks a node as needing layout
-func (t *DirtyTracker) MarkDirty(nodeID uint64) {
-    t.mu.Lock()
-    defer t.mu.Unlock()
-    t.dirty[nodeID] = true
+// MarkLayoutDirty 标记节点为脏
+func (dt *DirtyTracker) MarkLayoutDirty(id string) {
+    dt.mu.Lock()
+    defer dt.mu.Unlock()
+    dt.dirty[id] = true
 }
 
-// MarkSubtreeDirty marks a subtree as needing layout
-func (t *DirtyTracker) MarkSubtreeDirty(box *LayoutBox) {
+// MarkSubtreeDirty 标记整个子树为脏
+func (dt *DirtyTracker) MarkSubtreeDirty(node Node) {
+    dt.markRecursive(node)
+}
+
+func (dt *DirtyTracker) markRecursive(node Node) {
+    if node == nil {
+        return
+    }
+    dt.MarkLayoutDirty(node.ID())
+    for _, child := range node.Children() {
+        dt.markRecursive(child)
+    }
+}
+
+// IsLayoutDirty 检查节点是否需要布局
+func (dt *DirtyTracker) IsLayoutDirty(id string) bool {
+    dt.mu.RLock()
+    defer dt.mu.RUnlock()
+    return dt.dirty[id]
+}
+
+// Clear 清除所有脏标记
+func (dt *DirtyTracker) Clear() {
+    dt.mu.Lock()
+    defer dt.mu.Unlock()
+    dt.dirty = make(map[string]bool)
+}
+
+// ClearKey 清除特定节点的脏标记
+func (dt *DirtyTracker) ClearKey(id string) {
+    dt.mu.Lock()
+    defer dt.mu.Unlock()
+    delete(dt.dirty, id)
+}
+```
+
+**2. 增强 LayoutBox 支持脏标记传播**
+
+```go
+// LayoutBox 添加脏标记传播
+func (lb *LayoutBox) PropagateDirtyUpwards() {
+    lb.LayoutDirty = true
+    // 向上传播逻辑在 Engine 中实现
+}
+```
+
+**3. Engine 实现增量布局**
+
+```go
+// Layout 增量布局实现
+func (e *Engine) Layout(root Node, constraints Constraints) *LayoutResult {
+    if root == nil {
+        return &LayoutResult{}
+    }
+
+    result := &LayoutResult{
+        Boxes: make([]LayoutBox, 0),
+        Dirty: true,
+    }
+
+    // 检查是否需要增量布局
+    if e.needsIncrementalLayout(root) {
+        box := e.layoutIncremental(root, constraints, 0, 0)
+        result.Root = box
+    } else {
+        // 完整布局（同现有实现）
+        box := e.layoutNode(root, constraints, 0, 0)
+        result.Root = box
+    }
+
+    result.Boxes = e.collectBoxes(result.Root)
+
+    // 清除脏标记
+    e.clearDirtyMarkers(result.Root)
+
+    return result
+}
+
+// needsIncrementalLayout 检查是否需要增量布局
+func (e *Engine) needsIncrementalLayout(root Node) bool {
+    // 检查根节点是否有脏标记
+    if dirtyable, ok := root.(Dirtyable); ok && dirtyable.IsLayoutDirty() {
+        return true
+    }
+    // 检查引擎中是否有脏节点
+    if len(e.dirtyNodes) > 0 {
+        return true
+    }
+    return false
+}
+
+// layoutIncremental 增量布局
+func (e *Engine) layoutIncremental(node Node, constraints Constraints, x, y int) *LayoutBox {
+    box := &LayoutBox{
+        ID:      node.ID(),
+        X:       x,
+        Y:       y,
+        Children: make([]*LayoutBox, 0),
+    }
+
+    // 检查节点是否脏
+    needsLayout := false
+    if dirtyable, ok := node.(Dirtyable); ok {
+        needsLayout = dirtyable.IsLayoutDirty()
+    } else if e.dirtyNodes[node.ID()] {
+        needsLayout = true
+    }
+
+    if needsLayout {
+        // 重新测量和布局
+        width, height := node.GetSize()
+        if measurable, ok := node.(Measurable); ok {
+            size := measurable.Measure(constraints)
+            width, height = size.Width, size.Height
+        }
+        box.Width = width
+        box.Height = height
+
+        node.SetPosition(x, y)
+        node.SetSize(width, height)
+
+        // 递归布局子节点
+        childX, childY := x, y
+        for _, child := range node.Children() {
+            childBox := e.layoutIncremental(child, constraints, childX, childY)
+            if childBox != nil {
+                box.Children = append(box.Children, childBox)
+                childY += childBox.Height
+            }
+        }
+    } else {
+        // 复用缓存或仅更新位置
+        // 这里简化处理，实际需要缓存支持
+        e.layoutIncrementalReuse(box, node, constraints, x, y)
+    }
+
+    return box
+}
+
+// clearDirtyMarkers 清除脏标记
+func (e *Engine) clearDirtyMarkers(box *LayoutBox) {
     if box == nil {
         return
     }
-    box.LayoutDirty = true
-    t.markDescendantsDirty(box)
-}
+    box.LayoutDirty = false
 
-func (t *DirtyTracker) markDescendantsDirty(box *LayoutBox) {
-    box.LayoutDirty = true
-    if box.NodeID != 0 {
-        t.MarkDirty(box.NodeID)
-    }
     for _, child := range box.Children {
-        t.markDescendantsDirty(child)
+        e.clearDirtyMarkers(child)
     }
-}
 
-// IsDirty checks if a node needs layout
-func (t *DirtyTracker) IsDirty(nodeID uint64) bool {
-    t.mu.RLock()
-    defer t.mu.RUnlock()
-    return t.dirty[nodeID]
-}
-
-// Clear clears all dirty flags
-func (t *DirtyTracker) Clear() {
-    t.mu.Lock()
-    defer t.mu.Unlock()
-    t.dirty = make(map[uint64]bool)
-    t.version++
-}
-
-// BumpVersion increments version for cache invalidation
-func (t *DirtyTracker) BumpVersion() uint64 {
-    t.mu.Lock()
-    defer t.mu.Unlock()
-    t.version++
-    return t.version
-}
-
-// Version returns current version
-func (t *DirtyTracker) Version() uint64 {
-    t.mu.RLock()
-    defer t.mu.RUnlock()
-    return t.version
+    // 清除引擎中的脏标记
+    if dirtyable, ok := box; ok {
+        if d, k := dirtyable.(interface{ ClearLayoutDirty() }); k {
+            d.ClearLayoutDirty()
+        }
+    }
 }
 ```
 
-### 3.4 Flexbox 增强
+#### 文件变更
 
-保留 `layout/` 的完整 Flexbox 支持并优化：
+```
+runtime/layout/
+├── dirty.go              # 新增：DirtyTracker 完整实现
+├── engine.go             # 修改（types.go）：添加增量布局逻辑
+└── types.go              # 修改：LayoutBox 添加 LayoutDirty 字段
+```
+
+---
+
+### 3.3 测量算法优化
+
+#### 目标
+- 减少 Flex 布局中的重复测量
+- 利用 Flex 分布缓存
+- 优化 childConstraints 计算
+- 改进反向排列的实现
+
+#### 实现计划
+
+**1. 优化 FlexLayout.Measure**
 
 ```go
-// =============================================================================
-// Enhanced FlexLayout with shrink/basis/reverse
-// =============================================================================
-
-// FlexLayout implements standard Flexbox with all features
-type FlexLayout struct {
-    id       string
-    children []LayoutNode
-    style    *FlexStyle
-    size     Size
-    position Point
-}
-
-// FlexStyle contains complete Flexbox configuration
-type FlexStyle struct {
-    // Direction
-    Direction FlexDirection
-
-    // Alignment
-    MainAxis   MainAxisAlignment
-    CrossAxis  CrossAxisAlignment
-
-    // Spacing
-    Gap       int
-    CrossGap  int
-    Padding   [4]int
-
-    // Flex properties
-    FlexibleChildren map[int]*Flex
-    StretchCross    bool
-
-    // Fill behavior
-    FillWidth  bool  // Children fill width
-    FillHeight bool  // Children fill height
-}
-
-// Flex contains complete flex configuration
-type Flex struct {
-    Grow   int  // Grow factor (default 0)
-    Shrink int  // Shrink factor (default 1)
-    Basis  int  // Basis size (default 0 = auto)
-}
-
-// FlexDirection with reverse support
-type FlexDirection int
-
-const (
-    FlexRow FlexDirection = iota
-    FlexColumn
-    FlexRowReverse
-    FlexColumnReverse
-)
-
-// Measure with shrink/basis support
+// Measure 优化版本
 func (f *FlexLayout) Measure(constraints Constraints) Size {
     if len(f.children) == 0 {
-        return Size{
-            Width:  constraints.MinWidth + f.style.Padding.Left + f.style.Padding.Right,
-            Height: constraints.MinHeight + f.style.Padding.Top + f.style.Padding.Bottom,
-        }
+        width := constraints.ConstrainWidth(f.style.Padding.Left + f.style.Padding.Right)
+        height := constraints.ConstrainHeight(f.style.Padding.Top + f.style.Padding.Bottom)
+        return Size{Width: width, Height: height}
     }
 
-    isRow := f.style.Direction == FlexRow ||
-              f.style.Direction == FlexRowReverse
-    isReverse := f.style.Direction == FlexRowReverse ||
-                 f.style.Direction == FlexColumnReverse
+    isRow := f.style.Direction == FlexRow || f.style.Direction == FlexRowReverse
 
-    // Phase 1: Measure all children
-    childSizes := make([]Size, len(f.children))
-    var flexChildren []struct {
-        index  int
-        config *Flex
+    // 使用 Flex 分布缓存
+    flexIndices := f.getFlexibleIndices()
+    flexInfo := f.engine.flexCache.Get(
+        f.id, f.children, flexIndices, isRow,
+        func() *FlexDistributionInfo {
+            return f.computeFlexDistribution(constraints, isRow)
+        },
+    )
+
+    // Phase 2: 添加间距
+    gapCount := len(f.children) - 1
+    if gapCount > 0 {
+        flexInfo.FixedSize += f.style.Gap * gapCount
     }
 
-    totalMainSize := 0
-    maxCrossSize := 0
-    totalGrow := 0
-    totalBasis := 0
-
-    for i, child := range f.children {
-        // Measure child with initial constraints
-        childConstraints := f.getChildConstraints(constraints, child, isRow)
-        childSizes[i] = f.measureChild(child, childConstraints)
-
-        // Check flex configuration
-        if config, ok := f.style.FlexibleChildren[i]; ok {
-            flexChildren = append(flexChildren, struct {
-                index  int
-                config *Flex
-            }{i, config})
-
-            totalGrow += config.Grow
-            if config.Basis > 0 {
-                totalBasis += config.Basis
-            } else {
-                // Auto basis = natural size
-                if isRow {
-                    totalBasis += childSizes[i].Width
-                } else {
-                    totalBasis += childSizes[i].Height
-                }
-            }
-        } else {
-            // Fixed child
-            if isRow {
-                totalMainSize += childSizes[i].Width
-                if childSizes[i].Height > maxCrossSize {
-                    maxCrossSize = childSizes[i].Height
-                }
-            } else {
-                totalMainSize += childSizes[i].Height
-                if childSizes[i].Width > maxCrossSize {
-                    maxCrossSize = childSizes[i].Width
-                }
-            }
-        }
-
-        // Add gap (except after last)
-        if i < len(f.children)-1 {
-            if isRow {
-                totalMainSize += f.style.Gap
-            } else {
-                totalMainSize += f.style.Gap
-            }
-        }
-    }
-
-    // Phase 2: Handle shrinking if needed
-    if isRow && constraints.HasBoundedWidth() {
-        available := constraints.MaxWidth - f.style.Padding.Left - f.style.Padding.Right
-        if totalMainSize > available {
-            // Need to shrink flex children
-            f.shrinkChildren(childSizes, flexChildren,
-                available, isRow, totalGrow, totalBasis)
-        }
-    } else if !isRow && constraints.HasBoundedHeight() {
-        available := constraints.MaxHeight - f.style.Padding.Top - f.style.Padding.Bottom
-        if totalMainSize > available {
-            f.shrinkChildren(childSizes, flexChildren,
-                available, isRow, totalGrow, totalBasis)
-        }
-    }
-
-    // Phase 3: Calculate final size
+    // 计算总尺寸
     var width, height int
     if isRow {
-        width = totalMainSize + f.style.Padding.Left + f.style.Padding.Right
-        height = maxCrossSize + f.style.Padding.Top + f.style.Padding.Bottom
+        width = f.style.Padding.Left + flexInfo.FixedSize + f.style.Padding.Right
+        height = f.style.Padding.Top + flexInfo.MaxCrossSize + f.style.Padding.Bottom
     } else {
-        width = maxCrossSize + f.style.Padding.Left + f.style.Padding.Right
-        height = totalMainSize + f.style.Padding.Top + f.style.Padding.Bottom
+        width = f.style.Padding.Left + flexInfo.MaxCrossSize + f.style.Padding.Right
+        height = f.style.Padding.Top + flexInfo.FixedSize + f.style.Padding.Bottom
     }
 
-    // Apply constraints
-    width = max(constraints.MinWidth, width)
-    height = max(constraints.MinHeight, height)
-
-    if constraints.HasBoundedWidth() && width > constraints.MaxWidth {
-        width = constraints.MaxWidth
+    return Size{
+        Width:  constraints.ConstrainWidth(width),
+        Height: constraints.ConstrainHeight(height),
     }
-    if constraints.HasBoundedHeight() && height > constraints.MaxHeight {
-        height = constraints.MaxHeight
-    }
-
-    return Size{Width: width, Height: height}
 }
 
-// shrinkChildren shrinks flex children to fit available space
-func (f *FlexLayout) shrinkChildren(
-    childSizes []Size,
-    flexChildren []struct { index int; config *Flex },
-    available int,
-    isRow bool,
-    totalGrow int,
-    totalBasis int,
-) {
-    // Calculate shrink factor
-    totalShrink := 0
-    for _, fc := range flexChildren {
-        totalShrink += fc.config.Shrink
+// getFlexibleIndices 获取可伸缩子节点索引
+func (f *FlexLayout) getFlexibleIndices() []int {
+    indices := make([]int, 0)
+    for i := range f.children {
+        if flex, ok := f.style.FlexibleChildren[i]; ok && flex.Grow > 0 {
+            indices = append(indices, i)
+        }
     }
+    return indices
+}
 
-    if totalShrink == 0 {
-        // No shrinking possible
-        return
-    }
+// computeFlexDistribution 计算 Flex 分布（缓存的核心逻辑）
+func (f *FlexLayout) computeFlexDistribution(constraints Constraints, isRow bool) *FlexDistributionInfo {
+    childSizes := make([]Size, len(f.children))
+    totalMainSize := 0
+    maxCrossSize := 0
+    flexTotalFactor := 0
 
-    // Distribute shrinkage
-    overflow := 0
-    if isRow {
-        for _, fc := range flexChildren {
+    for i, child := range f.children {
+        childConstraints := f.childConstraints(constraints, i)
+        if measurable, ok := child.(Measurable); ok {
+            childSizes[i] = measurable.Measure(childConstraints)
+        } else {
+            childSizes[i] = Size{Width: childConstraints.MinWidth, Height: childConstraints.MinHeight}
+        }
+
+        if flex, ok := f.style.FlexibleChildren[i]; ok && flex.Grow > 0 {
+            flexTotalFactor += flex.Grow
+            basis := flex.Basis
+            if basis == 0 {
+                basis = childSizes[i].Width
+            }
+            totalMainSize += basis
+        } else {
             if isRow {
-                overflow += childSizes[fc.index].Width
+                totalMainSize += childSizes[i].Width
             } else {
-                overflow += childSizes[fc.index].Height
+                totalMainSize += childSizes[i].Height
             }
         }
-        overflow -= available
-    } else {
-        for _, fc := range flexChildren {
-            if isRow {
-                overflow += childSizes[fc.index].Width
-            } else {
-                overflow += childSizes[fc.index].Height
-            }
-        }
-        overflow -= available
-    }
 
-    for _, fc := range flexChildren {
-        shrinkAmount := (overflow * fc.config.Shrink) / totalShrink
         if isRow {
-            childSizes[fc.index].Width -= shrinkAmount
-            if childSizes[fc.index].Width < 0 {
-                childSizes[fc.index].Width = 0
+            if childSizes[i].Height > maxCrossSize {
+                maxCrossSize = childSizes[i].Height
             }
         } else {
-            childSizes[fc.index].Height -= shrinkAmount
-            if childSizes[fc.index].Height < 0 {
-                childSizes[fc.index].Height = 0
+            if childSizes[i].Width > maxCrossSize {
+                maxCrossSize = childSizes[i].Width
             }
         }
     }
-}
 
-// LayoutChildren with reverse support
+    return &FlexDistributionInfo{
+        TotalFlexFactor: flexTotalFactor,
+        FixedSize:       totalMainSize,
+        ChildCount:      len(f.children),
+        MaxCrossSize:    maxCrossSize,
+        Valid:           true,
+        Version:         f.version,
+    }
+}
+```
+
+**2. 优化 childConstraints**
+
+```go
+// childConstraints 移除未使用的 index 参数并优化
+func (f *FlexLayout) childConstraints(constraints Constraints) Constraints {
+    isRow := f.style.Direction == FlexRow || f.style.Direction == FlexRowReverse
+
+    // 减去内边距
+    availableMain := constraints.MaxWidth - f.style.Padding.Left - f.style.Padding.Right
+    availableCross := constraints.MaxHeight - f.style.Padding.Top - f.style.Padding.Bottom
+
+    // 可用空间非负保证
+    if availableMain < 0 {
+        availableMain = 0
+    }
+    if availableCross < 0 {
+        availableCross = 0
+    }
+
+    if isRow {
+        return NewConstraints(0, availableMain, 0, availableCross)
+    }
+    return NewConstraints(0, availableCross, 0, availableMain)
+}
+```
+
+**3. 改进反向排列的实现**
+
+当前 `LayoutChildren` 中的反向排列逻辑有重复代码，可优化：
+
+```go
+// LayoutChildren 优化：提取布局逻辑
 func (f *FlexLayout) LayoutChildren(width, height int) []LayoutBox {
     if len(f.children) == 0 {
         return nil
     }
 
-    isRow := f.style.Direction == FlexRow ||
-              f.style.Direction == FlexRowReverse
-    isReverse := f.style.Direction == FlexRowReverse ||
-                 f.style.Direction == FlexColumnReverse
+    isRow := f.style.Direction == FlexRow || f.style.Direction == FlexRowReverse
 
-    // Calculate available space
-    availableWidth := width - f.style.Padding.Left - f.style.Padding.Right
-    availableHeight := height - f.style.Padding.Top - f.style.Padding.Bottom
+    // ... Phase 1-3: 计算尺寸和 Flex 分布同现有实现 ...
 
-    // Measure children
-    childSizes := make([]Size, len(f.children))
-    for i, child := range f.children {
-        constraints := Constraints{
-            MinWidth:  0,
-            MaxWidth:  availableWidth,
-            MinHeight: 0,
-            MaxHeight: availableHeight,
-        }
-        childSizes[i] = f.measureChild(child, constraints)
-    }
-
-    // Calculate flex distribution
-    fixedSize := 0
-    totalFlex := 0
-    for i, child := range f.children {
-        if config, ok := f.style.FlexibleChildren[i]; ok {
-            totalFlex += config.Grow
-        } else {
-            if isRow {
-                fixedSize += childSizes[i].Width
-            } else {
-                fixedSize += childSizes[i].Height
-            }
-        }
-    }
-
-    // Distribute remaining space
-    remainingSpace := 0
-    if isRow {
-        remainingSpace = availableWidth - fixedSize - (len(f.children)-1)*f.style.Gap
-    } else {
-        remainingSpace = availableHeight - fixedSize - (len(f.children)-1)*f.style.Gap
-    }
-
-    finalSizes := make([]Size, len(f.children))
-    for i := range f.children {
-        if config, ok := f.style.FlexibleChildren[i]; ok && config.Grow > 0 {
-            extra := (remainingSpace * config.Grow) / totalFlex
-            if isRow {
-                finalSizes[i] = Size{
-                    Width:  childSizes[i].Width + extra,
-                    Height: childSizes[i].Height,
-                }
-            } else {
-                finalSizes[i] = Size{
-                    Width:  childSizes[i].Width,
-                    Height: childSizes[i].Height + extra,
-                }
-            }
-        } else {
-            finalSizes[i] = childSizes[i]
-        }
-    }
-
-    // Calculate positions with reverse support
+    // Phase 4+: 统一处理位置计算
     boxes := make([]LayoutBox, len(f.children))
-    mainPos := 0
+    mainPos, crossPos := f.calculateStartPositions(availableWidth, availableHeight, finalSizes, isRow)
+    extraGap := f.calculateSpaceAround(remainingSpace, len(f.children), availableWidth, availableHeight, isRow)
 
-    // Handle reverse direction
-    if isReverse {
-        if isRow {
-            mainPos = availableWidth
-        } else {
-            mainPos = availableHeight
-        }
-    }
-
+    // 布局每个子节点
     for i := range f.children {
-        var x, y int
-
-        // Calculate cross-axis position
-        if isRow {
-            y = f.style.Padding.Top
-            if f.style.CrossAxis == CrossCenter {
-                y = f.style.Padding.Top + (availableHeight-finalSizes[i].Height)/2
-            } else if f.style.CrossAxis == CrossEnd {
-                y = f.style.Padding.Top + availableHeight - finalSizes[i].Height
-            }
-        } else {
-            x = f.style.Padding.Left
-            if f.style.CrossAxis == CrossCenter {
-                x = f.style.Padding.Left + (availableWidth-finalSizes[i].Width)/2
-            } else if f.style.CrossAxis == CrossEnd {
-                x = f.style.Padding.Left + availableWidth - finalSizes[i].Width
-            }
+        actualIndex := i
+        if f.isReverse() {
+            actualIndex = len(f.children) - 1 - i
         }
 
-        // Calculate main-axis position
-        if isRow {
-            x = mainPos
-            if isReverse {
-                x -= finalSizes[i].Width
-            }
-            mainPos += finalSizes[i].Width
-        } else {
-            y = mainPos
-            if isReverse {
-                y -= finalSizes[i].Height
-            }
-            mainPos += finalSizes[i].Height
+        x, y := f.calculateChildPosition(actualIndex, mainPos, crossPos, isRow, finalSizes[actualIndex])
+
+        // 应用 stretch
+        if f.style.CrossAxis == Stretch {
+            f.applyStretch(&finalSizes[actualIndex], availableWidth, availableHeight, isRow)
         }
 
         boxes[i] = LayoutBox{
-            ID:      f.getChildID(i),
-            Box:     Rect{X: x, Y: y, Width: finalSizes[i].Width, Height: finalSizes[i].Height},
-            Size:    finalSizes[i],
-            Props:   f.getChildProps(i),
+            ID:     f.children[actualIndex].ID(),
+            X:      x,
+            Y:      y,
+            Width:  finalSizes[actualIndex].Width,
+            Height: finalSizes[actualIndex].Height,
+        }
+
+        f.children[actualIndex].SetPosition(x, y)
+        f.children[actualIndex].SetSize(finalSizes[actualIndex].Width, finalSizes[actualIndex].Height)
+
+        // 更新主轴位置
+        if isRow {
+            mainPos += finalSizes[actualIndex].Width + f.style.Gap
+        } else {
+            mainPos += finalSizes[actualIndex].Height + f.style.Gap
+        }
+
+        if extraGap > 0 && i < len(f.children)-1 {
+            mainPos += extraGap
         }
     }
 
     return boxes
 }
+
+// isReverse 检查是否为反向排列
+func (f *FlexLayout) isReverse() bool {
+    return f.style.Direction == FlexRowReverse || f.style.Direction == FlexColumnReverse
+}
+
+// calculateStartPositions 计算起始位置
+func (f *FlexLayout) calculateStartPositions(availW, availH int, sizes []Size, isRow bool) (int, int) {
+    fixedTotal, maxCross := f.calculateFixedCross(sizes, isRow)
+    gapTotal := f.style.Gap * (len(sizes) - 1)
+
+    var mainPos, crossPos int
+
+    switch f.style.MainAxis {
+    case MainStart:
+        mainPos = 0
+    case MainEnd:
+        if isRow {
+            mainPos = availW - fixedTotal - gapTotal
+        } else {
+            mainPos = availH - fixedTotal - gapTotal
+        }
+    case Center:
+        if isRow {
+            mainPos = (availW - fixedTotal - gapTotal) / 2
+        } else {
+            mainPos = (availH - fixedTotal - gapTotal) / 2
+        }
+    case SpaceBetween, SpaceAround, SpaceEvenly:
+        mainPos = 0
+    }
+
+    switch f.style.CrossAxis {
+    case CrossStart:
+        crossPos = 0
+    case CrossEnd:
+        if isRow {
+            crossPos = availH - maxCross
+        } else {
+            crossPos = availW - maxCross
+        }
+    case CrossCenter:
+        if isRow {
+            crossPos = (availH - maxCross) / 2
+        } else {
+            crossPos = (availW - maxCross) / 2
+        }
+    case Stretch:
+        crossPos = 0
+    }
+
+    return mainPos, crossPos
+}
+
+// calculateSpaceAround 计算间距分布
+func (f *FlexLayout) calculateSpaceAround(remaining, childCount, availW, availH int, isRow bool) int {
+    if len(f.children) <= 1 {
+        return 0
+    }
+
+    gapCount := len(f.children) - 1
+    switch f.style.MainAxis {
+    case SpaceBetween:
+        return remaining / gapCount
+    case SpaceAround:
+        return remaining / len(f.children)
+    case SpaceEvenly:
+        return remaining / (len(f.children) + 1)
+    default:
+        return 0
+    }
+}
+
+// calculateChildPosition 计算子节点位置
+func (f *FlexLayout) calculateChildPosition(index int, mainPos, crossPos int, isRow bool, size Size) (int, int) {
+    if isRow {
+        return f.style.Padding.Left + mainPos, f.style.Padding.Top + crossPos
+    }
+    return f.style.Padding.Left + crossPos, f.style.Padding.Top + mainPos
+}
+
+// applyStretch 应用拉伸
+func (f *FlexLayout) applyStretch(size *Size, availW, availH int, isRow bool) {
+    if isRow {
+        size.Height = availH
+    } else {
+        size.Width = availW
+    }
+}
+```
+
+#### 文件变更
+
+```
+runtime/layout/
+├── flex.go               # 修改：优化 Measure 和 LayoutChildren
+├── flex_cache.go         # 新增：Flex 分布缓存
+└── types.go              # 修改：Engine 添加 FlexCache
+```
+
+---
+
+### 3.4 HitMap 与事件处理
+
+#### 目标
+- 实现通用 HitMap 功能
+- 支持将 LayoutBox 映射到交互区域
+- 为应用层提供坐标转换能力
+- 支持多层 Z-order
+
+#### 实现计划
+
+```go
+// hitmap.go
+package layout
+
+import (
+    "sort"
+)
+
+// HitMapEntry HitMap 条目
+type HitMapEntry struct {
+    NodeID  uint64    // 稳定节点标识（由应用层提供）
+    ID      string    // 节点 ID
+    Bounds  Rect      // 边界矩形
+    ZOrder  int       // Z 轴顺序
+}
+
+// HitMap 命中映射
+type HitMap struct {
+    entries    []*HitMapEntry
+    version    uint64
+}
+
+// NewHitMap 创建新的 HitMap
+func NewHitMap() *HitMap {
+    return &HitMap{
+        entries: make([]*HitMapEntry, 0),
+    }
+}
+
+// BuildFromLayoutBox 从 LayoutBox 构建 HitMap
+func (hm *HitMap) BuildFromLayoutBox(root *LayoutBox) {
+    entries := hm.collectEntries(root, 0, 0, 0)
+
+    // 按 Z-order 排序
+    sort.Slice(entries, func(i, j int) bool {
+        return entries[i].ZOrder < entries[j].ZOrder
+    })
+
+    hm.entries = entries
+    hm.version++
+}
+
+// collectEntries 递归收集条目
+func (hm *HitMap) collectEntries(box *LayoutBox, x, y, zOrder int) []*HitMapEntry {
+    entries := make([]*HitMapEntry, 0)
+
+    entry := &HitMapEntry{
+        ID:     box.ID,
+        Bounds: Rect{X: x + box.X, Y: y + box.Y, Width: box.Width, Height: box.Height},
+        ZOrder: zOrder,
+    }
+    entries = append(entries, entry)
+
+    for _, child := range box.Children {
+        childEntries := hm.collectEntries(child, x, y, zOrder)
+        entries = append(entries, childEntries...)
+    }
+
+    return entries
+}
+
+// HitTest 命中测试（返回最上层的匹配）
+func (hm *HitMap) HitTest(x, y int) *HitMapEntry {
+    // 从后向前查找（Z-order 最大的最上层）
+    for i := len(hm.entries) - 1; i >= 0; i-- {
+        entry := hm.entries[i]
+        if entry.Bounds.Contains(x, y) {
+            return entry
+        }
+    }
+    return nil
+}
+
+// HitTestAll 命中测试（返回所有匹配，按 Z-order 排序）
+func (hm *HitMap) HitTestAll(x, y int) []*HitMapEntry {
+    results := make([]*HitMapEntry, 0)
+    for _, entry := range hm.entries {
+        if entry.Bounds.Contains(x, y) {
+            results = append(results, entry)
+        }
+    }
+    return results
+}
+
+// GetVersion 获取版本号
+func (hm *HitMap) GetVersion() uint64 {
+    return hm.version
+}
+
+// LocalCoordinateTransformer 坐标转换器接口
+type LocalCoordinateTransformer interface {
+    // ScreenToLocal 屏幕坐标转局部坐标
+    ScreenToLocal(screenX, screenY int) (localX, localY int)
+
+    // LocalToScreen 局部坐标转屏幕坐标
+    LocalToScreen(localX, localY int) (screenX, screenY int)
+}
+
+// LocalTransformer 局部坐标转换器实现
+type LocalTransformer struct {
+    origin Point
+}
+
+// NewLocalTransformer 创建局部坐标转换器
+func NewLocalTransformer(originX, originY int) *LocalTransformer {
+    return &LocalTransformer{
+        origin: Point{X: originX, Y: originY},
+    }
+}
+
+// ScreenToLocal 屏幕坐标转局部坐标
+func (lt *LocalTransformer) ScreenToLocal(screenX, screenY int) (int, int) {
+    return screenX - lt.origin.X, screenY - lt.origin.Y
+}
+
+// LocalToScreen 局部坐标转屏幕坐标
+func (lt *LocalTransformer) LocalToScreen(localX, localY int) (int, int) {
+    return localX + lt.origin.X, localY + lt.origin.Y
+}
+```
+
+**Engine 集成 HitMap**：
+
+```go
+// types.go
+type LayoutResult struct {
+    Boxes       []LayoutBox
+    Root        *LayoutBox
+    ContentSize Size
+    Dirty       bool
+    HitMap      *HitMap  // 新增
+}
+
+// engine.go
+func (e *Engine) Layout(root Node, constraints Constraints) *LayoutResult {
+    // ... 现有布局逻辑 ...
+
+    result := &LayoutResult{
+        Boxes: make([]LayoutBox, 0),
+        Dirty: true,
+        HitMap: NewHitMap(),  // 新增
+    }
+
+    box := e.layoutNode(root, constraints, 0, 0)
+    result.Root = box
+    result.Boxes = e.collectBoxes(box)
+
+    // 构建 HitMap
+    result.HitMap.BuildFromLayoutBox(box)
+
+    return result
+}
+```
+
+#### 文件变更
+
+```
+runtime/layout/
+├── hitmap.go             # 新增：HitMap 和坐标转换
+└── types.go              # 修改：LayoutResult 添加 HitMap 字段
+```
+
+---
+
+### 3.5 边界验证
+
+#### 目标
+- 检测布局计算与组件声明的一致性
+- 提供调试和诊断工具
+- 支持 Bounds 感知接口（应用层实现）
+
+#### 实现计划
+
+```go
+// validator.go
+package layout
+
+import (
+    "fmt"
+)
+
+// BoundsProvider 提供边界声明（由应用层实现）
+type BoundsProvider interface {
+    // GetBounds 返回组件声明的边界
+    GetBounds() [4]int
+}
+
+// BoundsValidator 边界验证器
+type BoundsValidator struct {
+    enabled bool
+}
+
+// NewBoundsValidator 创建边界验证器
+func NewBoundsValidator() *BoundsValidator {
+    return &BoundsValidator{
+        enabled: true,
+    }
+}
+
+// Enable 启用验证
+func (v *BoundsValidator) Enable() {
+    v.enabled = true
+}
+
+// Disable 禁用验证
+func (v *BoundsValidator) Disable() {
+    v.enabled = false
+}
+
+// ValidateBox 验证单个盒子的边界
+func (v *BoundsValidator) ValidateBox(box *LayoutBox, node Node) error {
+    if !v.enabled {
+        return nil
+    }
+
+    if node == nil {
+        return fmt.Errorf("node is nil for box %s", box.ID)
+    }
+
+    // 检查节点是否实现了 BoundsProvider
+    if provider, ok := node.(BoundsProvider); ok {
+        declaredBounds := provider.GetBounds()
+        expectedBounds := [4]int{box.X, box.Y, box.Width, box.Height}
+
+        if declaredBounds != expectedBounds {
+            return fmt.Errorf(
+                "bounds inconsistency for node %s: declared %v, computed %v",
+                box.ID, declaredBounds, expectedBounds,
+            )
+        }
+    }
+
+    return nil
+}
+
+// ValidateTree 递归验证整个树
+func (v *BoundsValidator) ValidateTree(root *LayoutBox, rootNode Node) []error {
+    return v.validateRecursive(root, rootNode)
+}
+
+func (v *BoundsValidator) validateRecursive(box *LayoutBox, node Node) []error {
+    errors := make([]error, 0)
+
+    // 验证当前节点
+    if err := v.ValidateBox(box, node); err != nil {
+        errors = append(errors, err)
+    }
+
+    // 递归验证子节点
+    children := node.Children()
+    for i, childBox := range box.Children {
+        if i < len(children) {
+            childErrors := v.validateRecursive(childBox, children[i])
+            errors = append(errors, childErrors...)
+        }
+    }
+
+    return errors
+}
+```
+
+**Engine 集成验证**：
+
+```go
+// types.go
+type Engine struct {
+    dirtyNodes map[string]bool
+    stats      LayoutStats
+    cache      *Cache
+    validator  *BoundsValidator  // 新增
+}
+
+// NewEngine 创建引擎（可选启用验证）
+func NewEngine(options ...EngineOption) *Engine {
+    engine := &Engine{
+        dirtyNodes: make(map[string]bool),
+        stats:      LayoutStats{},
+        cache: &Cache{
+            entries: make(map[string]*CachedLayout),
+            maxSize: 1000,
+        },
+        validator: NewBoundsValidator(),
+    }
+
+    for _, opt := range options {
+        opt(engine)
+    }
+
+    return engine
+}
+
+// EngineOption 引擎选项
+type EngineOption func(*Engine)
+
+// WithValidation 启用边界验证
+func WithValidation() EngineOption {
+    return func(e *Engine) {
+        if e.validator != nil {
+            e.validator.Enable()
+        }
+    }
+}
+
+// WithoutValidation 禁用边界验证
+func WithoutValidation() EngineOption {
+    return func(e *Engine) {
+        if e.validator != nil {
+            e.validator.Disable()
+        }
+    }
+}
+
+// Layout 带验证的布局
+func (e *Engine) Layout(root Node, constraints Constraints) *LayoutResult {
+    if root == nil {
+        return &LayoutResult{}
+    }
+
+    // ... 现有布局逻辑 ...
+
+    result := &LayoutResult{
+        Boxes: make([]LayoutBox, 0),
+        Dirty: true,
+    }
+
+    box := e.layoutNode(root, constraints, 0, 0)
+    result.Root = box
+    result.Boxes = e.collectBoxes(box)
+
+    // 边界验证（如果启用）
+    if e.validator != nil && e.validator.enabled {
+        if errors := e.validator.ValidateTree(box, root); len(errors) > 0 {
+            // 可以选择记录日志、panic 或返回错误
+            fmt.Printf("Layout validation errors: %v\n", errors)
+        }
+    }
+
+    return result
+}
+```
+
+#### 文件变更
+
+```
+runtime/layout/
+├── validator.go          # 新增：边界验证器
+└── types.go              # 修改：Engine 添加验证器
+```
+
+---
+
+### 3.6 接口扩展
+
+#### 目标
+- 提供稳定标识符接口（用于缓存失效）
+- 支持版本跟踪（更智能的缓存）
+- 添加布局信息接口（Flexbox 配置）
+
+#### 实现计划
+
+```go
+// types.go 添加新接口
+
+// Identifiable 可标识节点
+type Identifiable interface {
+    Node
+    // GetStableID 返回稳定的节点标识（跨渲染周期保持不变）
+    GetStableID() uint64
+}
+
+// Versioned 版本化节点
+type Versioned interface {
+    Node
+    // GetVersion 返回节点版本号（内容变化时递增）
+    GetVersion() uint64
+}
+
+// LayoutInfoProvider 布局信息提供者
+type LayoutInfoProvider interface {
+    Node
+    // GetLayoutInfo 返回布局配置
+    GetLayoutInfo() *LayoutInfo
+}
+
+// LayoutInfo 布局信息
+type LayoutInfo struct {
+    // Flexbox 配置
+    Direction     FlexDirection
+    MainAxis      MainAxisAlignment
+    CrossAxis     CrossAxisAlignment
+    Gap           int
+    CrossGap      int
+    Padding       Padding
+
+    // 弹性配置映射
+    FlexibleChildren map[int]*Flex
+
+    // 填充行为
+    FillWidth  bool
+    FillHeight bool
+}
+```
+
+**适配器模式示例（应用层实现）**：
+
+```go
+// 示例：应用层适配 VNode 到 layout.Node
+
+// VNodeAdapter VNode 适配器（示例）
+type VNodeAdapter struct {
+    vnode     interface{}  // rtui.VNode
+    fiber     interface{}  // *rtui.Fiber
+    layoutInfo *layout.LayoutInfo
+}
+
+func (a *VNodeAdapter) ID() string {
+    // 从 VNode 获取
+    return ""
+}
+
+func (a *VNodeAdapter) Type() string {
+    return ""
+}
+
+func (a *VNodeAdapter) Children() []layout.Node {
+    // 递归适配子节点
+    return nil
+}
+
+func (a *VNodeAdapter) GetStableID() uint64 {
+    // 从 Fiber.NodeID 获取
+    return 0
+}
+
+func (a *VNodeAdapter) GetVersion() uint64 {
+    // 从 Fiber 版本获取
+    return 0
+}
+
+func (a *VNodeAdapter) GetLayoutInfo() *layout.LayoutInfo {
+    return a.layoutInfo
+}
+
+// ... 其他接口实现
+```
+
+#### 文件变更
+
+```
+runtime/layout/
+└── types.go              # 修改：添加新接口
 ```
 
 ---
@@ -1158,650 +1342,136 @@ func (f *FlexLayout) LayoutChildren(width, height int) []LayoutBox {
 
 ### 4.1 阶段划分
 
+| 阶段 | 任务 | 优先级 | 预计时间 |
+|-----|------|-------|---------|
+| **阶段 1：缓存优化** |
+| - 修复 constraintsKey bug | P0 | 0.5 天 |
+| - 实现 FlexCache | P0 | 1 天 |
+| - 实现叶子节点优化缓存 | P1 | 1 天 |
+| - 添加按节点 ID 失效 | P1 | 0.5 天 |
+| **阶段 2：Dirty Tracking** |
+| - 完善 DirtyTracker | P0 | 1 天 |
+| - 实现增量布局 | P0 | 2 天 |
+| - 脏标记传播优化 | P1 | 1 天 |
+| **阶段 3：测量优化** |
+| - 优化 FlexLayout.Measure | P1 | 1 天 |
+| - 重构 LayoutChildren | P1 | 1.5 天 |
+| - 优化 childConstraints | P2 | 0.5 天 |
+| **阶段 4：高级功能** |
+| - 实现 HitMap | P1 | 1.5 天 |
+| - 实现边界验证器 | P2 | 1 天 |
+| - 扩展接口定义 | P2 | 1 天 |
+| **阶段 5：测试与文档** |
+| - 单元测试补充 | P0 | 2 天 |
+| - 集成测试编写 | P1 | 1.5 天 |
+| - 更新使用文档 | P2 | 1 天 |
+| - 性能基准测试 | P1 | 1 天 |
+
+**总计**：约 17 天（3-4 周）
+
+### 4.2 任务依赖关系
+
 ```
-阶段 0：准备工作（1-2天）
-├── 创建新的包结构
-├── 设置测试框架
-└── 编写接口设计文档
-
-阶段 1：抽象接口层（3-5天）
-├── 实现 LayoutNode 接口
-├── 实现 LayoutInfo 结构
-├── 实现 Constraints 增强
-├── 实现适配器（VNodeAdapter, FiberAdapter）
-└── 编写单元测试
-
-阶段 2：核心算法增强（5-7天）
-├── 移植单次测量（LayoutMeasurer）
-├── 增强 FlexLayout（shrink/basis/reverse）
-├── 优化布局算法性能
-└── 编写集成测试
-
-阶段 3：缓存优化（3-4天）
-├── 实现智能缓存策略
-├── 实现 Dirty Tracking
-├── 集成到 Engine
-└── 性能基准测试
-
-阶段 4：高级功能（4-5天）
-├── 实现 HitMap
-├── 实现 Bounds Validator
-├── 添加文本对齐支持
-├── 添加边框处理
-└── 添加表格布局
-
-阶段 5：集成与测试（3-4天）
-├── 与现有系统集成
-├── 端到端测试
-├── 性能测试
-└── 文档编写
-
-阶段 6：迁移与优化（5-7天）
-├── 逐步迁移现有代码
-├── 性能调优
-├── 修复发现的问题
-└── 最终验证
+修复缓存 bug ────────┐
+                    ├──→ 实现 FlexCache ──→ FlexLayout 优化 ──→ 测试
+实现叶子节点缓存 ────┤
+                    │
+完善 DirtyTracker ───┴──→ 增量布局 ──────────────────────→ 集成测试
+                    │
+HitMap 实现 ────────┼──→ 边界验证 ──────────────────────────→ 文档更新
+                    │
+接口扩展 ────────────┘
 ```
 
-### 4.2 详细任务清单
+### 4.3 测试策略
 
-#### 阶段 0：准备工作
-- [ ] 创建 `runtime/layout/v2/` 目录
-- [ ] 设计接口文档（Markdown）
-- [ ] 设置测试框架（`layout/v2_test.go`）
-- [ ] 准备基准测试套件
+**单元测试**：
+- FlexCache 缓存失效逻辑
+- DirtyTracker 脏标记传播
+- HitMap 命中测试
+- Validator 边界检测
 
-#### 阶段 1：抽象接口层
-- [ ] 实现 `LayoutNode` 接口（`node.go`）
-- [ ] 实现 `LayoutInfo` 结构（`layout_info.go`）
-- [ ] 增强 `Constraints` 方法（`constraints.go`）
-- [ ] 实现 `VNodeAdapter`（`adapter_vnode.go`）
-- [ ] 实现 `FiberAdapter`（`adapter_fiber.go`）
-- [ ] 编写接口测试（`node_test.go`, `adapter_test.go`）
+**集成测试**：
+- 带缓存的完整布局流程
+- 增量布局场景
+- HitMap 与布局结果对应
 
-#### 阶段 2：核心算法增强
-- [ ] 实现 `LayoutMeasurer` 接口（`measurer.go`）
-- [ ] 增强 `FlexLayout.Measure()`（`flex_measure.go`）
-  - [ ] 添加 shrink 支持
-  - [ ] 添加 basis 支持
-  - [ ] 添加 reverse 支持
-- [ ] 实现 `FlexLayout.MeasureLayout()`（`flex_single_pass.go`）
-- [ ] 优化布局计算性能
-- [ ] 编写 Flexbox 测试（`flex_enhanced_test.go`）
-
-#### 阶段 3：缓存优化
-- [ ] 实现 `LayoutCache`（`cache.go`）
-  - [ ] 支持叶子节点缓存
-  - [ ] 支持 LRU 驱逐
-  - [ ] 支持按 NodeID 失效
-- [ ] 实现 `DirtyTracker`（`dirty_tracker.go`）
-- [ ] 集成到 `Engine`（`engine.go`）
-- [ ] 编写缓存测试（`cache_test.go`）
-- [ ] 编写性能基准测试（`cache_bench_test.go`）
-
-#### 阶段 4：高级功能
-- [ ] 实现 `HitMap`（`hitmap.go`）
-- [ ] 实现 `BoundsValidator`（`validator.go`）
-- [ ] 添加文本对齐支持（`text_align.go`）
-- [ ] 添加边框处理（`border.go`）
-- [ ] 添加表格布局（`table.go`）
-- [ ] 编写功能测试
-
-#### 阶段 5：集成与测试
-- [ ] 创建集成测试套件（`integration_test.go`）
-- [ ] 端到端场景测试
-- [ ] 性能对比测试（vs compute/）
-- [ ] 编写使用文档（`README_v2.md`）
-- [ ] 编写 API 文档（`godoc`）
-
-#### 阶段 6：迁移与优化
-- [ ] 迁移 `runtime/compute` 用户到新 API
-- [ ] 性能调优和瓶颈分析
-- [ ] 修复发现的问题
-- [ ] 代码审查和重构
-- [ ] 最终验证和发布准备
+**性能测试**：
+- 缓存命中率对比
+- 增量布局 vs 完整布局
+- Flex 分布缓存效果
 
 ---
 
-## 5. 文件结构设计
-
-```
-runtime/layout/v2/
-├── README.md                    # 新 API 文档
-├── node.go                     # 核心抽象接口
-├── constraints.go              # 约束系统增强
-├── layout_info.go            # 布局信息
-├── flex.go                   # Flexbox 算法
-├── flex_enhanced.go         # 增强 Flexbox
-├── flex_single_pass.go       # 单次测量
-├── table.go                 # 表格布局
-├── border.go                # 边框处理
-├── text_align.go            # 文本对齐
-├── cache.go                 # 缓存系统
-├── dirty_tracker.go         # Dirty Tracking
-├── hitmap.go               # HitMap
-├── validator.go             # 边界验证
-├── engine.go                # 布局引擎
-├── adapter_vnode.go        # VNode 适配器
-├── adapter_fiber.go        # Fiber 适配器
-├── adapters.go             # 通用适配器
-├── result.go                # 布局结果
-│
-├── node_test.go            # 接口测试
-├── flex_test.go            # Flexbox 测试
-├── cache_test.go           # 缓存测试
-├── integration_test.go      # 集成测试
-└── benchmark_test.go        # 性能基准
-```
-
----
-
-## 6. 向后兼容性
-
-### 6.1 兼容策略
-
-**目标**：现有代码可以无缝迁移到新 API
-
-```go
-// 策略 1：保留旧 API，添加新 API
-package layout
-
-// 旧 API（保持不变）
-type Node interface { ... }
-type Engine struct { ... }
-
-// 新 API（v2）
-package layout/v2
-
-type LayoutNode interface { ... }
-type EngineV2 struct { ... }
-
-// 提供迁移辅助
-package layout/migrate
-
-// Convert VNode to LayoutNode
-func FromVNode(vnode rtui.VNode) v2.LayoutNode {
-    return &v2.VNodeAdapter{vnode: vnode}
-}
-
-// Convert Fiber to LayoutNode
-func FromFiber(fiber *rtui.Fiber) v2.LayoutNode {
-    return &v2.FiberAdapter{fiber: fiber}
-}
-```
-
-**策略 2：提供桥接层**
-
-```go
-// runtime/compute 提供 Bridge API
-package compute
-
-// 使用新的 layout/v2 引擎
-type EngineV2 struct {
-    v2Engine *layoutv2.Engine
-}
-
-func (e *EngineV2) Layout(
-    vnode VNode,
-    fiber *reconciler.Fiber,
-    constraints runtime.BoxConstraints,
-) (*ComputedLayout, error) {
-    // 转换到 v2 接口
-    layoutNode := layoutmigrate.FromVNode(vnode)
-
-    // 使用 v2 引擎
-    result := e.v2Engine.Layout(layoutNode, constraints)
-
-    // 转换回 compute/ 类型
-    return e.convertToComputeLayout(result), nil
-}
-```
-
-### 6.2 渐进式迁移路径
-
-```
-阶段 1：并存（当前）
-├── runtime/compute 继续使用
-├── runtime/layout/v2 可选使用
-└── 两者互不干扰
-
-阶段 2：迁移（1-2个月）
-├── 新功能使用 v2 API
-├── 旧功能逐步迁移
-└── 性能对比验证
-
-阶段 3：切换（2-3个月）
-├── 默认使用 v2 API
-├── 保留旧 API 作为兼容层
-└── 文档更新
-
-阶段 4：弃用（3-6个月）
-├── 标记旧 API 为 deprecated
-├── 提供迁移指南
-└── 计划移除时间表
-```
-
----
-
-## 7. 测试策略
-
-### 7.1 测试金字塔
-
-```
-        /\
-       /  \
-      / E2E \       ← 集成测试（真实场景）
-     /--------\
-    /  单元测试  \   ← 单元测试（快速反馈）
-   /------------\
-  /   性能基准测试   \  ← 性能测试（对比验证）
- /------------------\
-```
-
-### 7.2 测试覆盖目标
-
-| 测试类型 | 当前覆盖率 | 目标覆盖率 |
-|---------|-----------|------------|
-| 单元测试 | 40% | 85% |
-| 集成测试 | 20% | 70% |
-| 性能测试 | 10% | 60% |
-| 边界测试 | 30% | 80% |
-
-### 7.3 关键测试场景
-
-#### Flexbox 测试
-```go
-func TestFlexLayout_CompleteFeatures(t *testing.T) {
-    tests := []struct {
-        name    string
-        setup   func() *FlexLayout
-        expect  Size
-    }{
-        {
-            name: "flex-grow with reverse",
-            setup: func() *FlexLayout {
-                container := NewFlexLayout("test", children)
-                container.SetDirection(FlexRowReverse)
-                container.SetFlex(0, 2, 0)  // grow=2
-                return container
-            },
-            expect: Size{Width: 200, Height: 50},
-        },
-        {
-            name: "flex-shrink with basis",
-            setup: func() *FlexLayout {
-                container := NewFlexLayout("test", children)
-                container.SetFlex(0, 0, 1)  // shrink=1
-                container.SetFlexBasis(0, 100)  // basis=100
-                return container
-            },
-            expect: Size{Width: 100, Height: 50},
-        },
-        // ... 更多场景
-    }
-
-    for _, tt := range tests {
-        t.Run(tt.name, func(t *testing.T) {
-            flex := tt.setup()
-            result := flex.Measure(UnboundedConstraints())
-            assert.Equal(t, tt.expect, result)
-        })
-    }
-}
-```
-
-#### 缓存测试
-```go
-func TestCache_LeafNodeOptimization(t *testing.T) {
-    engine := NewEngineV2()
-    engine.SetCacheStrategy(CacheLeafOnly)
-
-    // First layout - cache miss
-    result1 := engine.Layout(node, constraints)
-    assert.Equal(t, 0, engine.CacheStats().Hits)
-
-    // Second layout - cache hit
-    result2 := engine.Layout(node, constraints)
-    assert.Equal(t, 1, engine.CacheStats().Hits)
-
-    // Verify results are identical
-    assert.Equal(t, result1.Root.Box, result2.Root.Box)
-}
-```
-
-#### Dirty Tracking 测试
-```go
-func TestDirtyTracking_IncrementalLayout(t *testing.T) {
-    engine := NewEngineV2()
-
-    // Initial layout
-    result1 := engine.Layout(root, constraints)
-
-    // Mark single child as dirty
-    engine.MarkDirty(childNodeID)
-
-    // Incremental layout - should only re-layout dirty subtree
-    result2 := engine.Layout(root, constraints)
-
-    // Verify only dirty subtree changed
-    assertLayoutBoxEquals(t, result1.FindByNodeID(childNodeID),
-        result2.FindByNodeID(childNodeID))
-    assertLayoutBoxEquals(t, result1.FindByNodeID(otherNodeID),
-        result2.FindByNodeID(otherNodeID))
-}
-```
-
-### 7.4 性能基准测试
-
-```go
-func BenchmarkLayoutV2_SimpleFlex(b *testing.B) {
-    engine := NewEngineV2()
-    node := createSimpleFlexTree()
-
-    b.ResetTimer()
-    for i := 0; i < b.N; i++ {
-        _ = engine.Layout(node, UnboundedConstraints())
-    }
-}
-
-func BenchmarkLayoutV2_ComplexNested(b *testing.B) {
-    engine := NewEngineV2()
-    node := createComplexNestedTree(depth=10)
-
-    b.ResetTimer()
-    for i := 0; i < b.N; i++ {
-        _ = engine.Layout(node, UnboundedConstraints())
-    }
-}
-
-func BenchmarkLayoutV2_WithCache(b *testing.B) {
-    engine := NewEngineV2()
-    engine.SetCacheStrategy(CacheLeafOnly)
-    node := createSimpleFlexTree()
-
-    // Warm up cache
-    _ = engine.Layout(node, UnboundedConstraints())
-
-    b.ResetTimer()
-    for i := 0; i < b.N; i++ {
-        _ = engine.Layout(node, UnboundedConstraints())
-    }
-}
-
-// 对比测试
-func BenchmarkLayout_ComputeVsV2(b *testing.B) {
-    // 运行两个引擎的基准测试
-    b.Run("compute", func(b *testing.B) {
-        // ... runtime/compute 引擎
-    })
-
-    b.Run("v2", func(b *testing.B) {
-        // ... runtime/layout/v2 引擎
-    })
-}
-```
-
----
-
-## 8. 风险评估与缓解
-
-### 8.1 技术风险
+## 5. 风险评估与缓解
 
 | 风险 | 影响 | 概率 | 缓解措施 |
-|------|------|------|---------|
-| 接口设计不当 | 高 | 中 | 早期原型验证、迭代设计 |
-| 性能回归 | 高 | 中 | 性能基准对比、渐进式迁移 |
-| 兼容性问题 | 中 | 高 | 保留旧 API、提供适配器 |
-| 缓存失效bug | 中 | 中 | 完善测试、版本控制 |
-| 单次测量bug | 高 | 低 | 详细单元测试、边界用例 |
-
-### 8.2 项目风险
-
-| 风险 | 影响 | 概率 | 缓解措施 |
-|------|------|------|---------|
-| 时间超期 | 中 | 中 | 分阶段实施、优先级管理 |
-| 资源不足 | 高 | 低 | 明确资源需求、提前协调 |
-| 需求变更 | 中 | 中 | 灵活架构设计 |
-| 知识传承 | 低 | 中 | 详细文档、代码审查 |
-
-### 8.3 回滚计划
-
-```
-回滚触发条件：
-❌ 性能下降 > 20%
-❌ 功能缺失 > 10%
-❌ 严重 bug > 5 个/周
-❌ 用户反馈负面
-
-回滚步骤：
-1. 切换回 runtime/compute 引擎
-2. 禁用 runtime/layout/v2
-3. 修复发现的问题
-4. 重新评估方案
-
-回滚时间：< 2 小时
-回滚影响：< 5% 用户
-```
+|-----|------|------|---------|
+| 缓存失效不正确 | 高 | 中 | 详细测试、逐步替换 |
+| 增量布局状态不一致 | 高 | 中 | 版本号跟踪、全量回退 |
+| 性能回归 | 中 | 低 | 性能基准对比 |
+| API 变更影响现有代码 | 中 | 低 | 向后兼容、废弃警告 |
 
 ---
 
-## 9. 成功指标
+## 6. 成功指标
 
-### 9.1 功能指标
+### 6.1 功能指标
+- ✅ 缓存约束键正确生成
+- ✅ Flex 分布缓存生效
+- ✅ Dirty Tracking 支持增量布局
+- ✅ HitMap 正确映射布局结果
+- ✅ 边界验证检测不一致
 
-- [ ] ✅ 支持完整的 Flexbox（grow/shrink/basis/reverse）
-- [ ] ✅ 单次测量优化减少 50% 测量次数
-- [ ] ✅ 缓存命中率 > 60%
-- [ ] ✅ Dirty Tracking 减少计算量 > 70%
-- [ ] ✅ 独立于 VNode/Fiber 架构
+### 6.2 性能指标
+- 缓存命中率 > 50%
+- 增量布局性能提升 > 60%
+- Flex 测量时间减少 > 30%
 
-### 9.2 性能指标
-
-```
-基准测试目标：
-├── 简单布局：< 5ms (vs compute/: 8ms)
-├── 复杂嵌套：< 20ms (vs compute/: 30ms)
-├── 大型树（1000 节点）：< 100ms (vs compute/: 150ms)
-└── 增量更新（单个脏节点）：< 2ms (vs compute/: 10ms)
-
-内存使用：
-├── 布局内存：< 80% of compute/
-├── 缓存内存：< 60% of compute/ (叶子节点优化)
-└── 峰值内存：< 90% of compute/
-```
-
-### 9.3 质量指标
-
-- [ ] ✅ 单元测试覆盖率 > 85%
-- [ ] ✅ 集成测试覆盖率 > 70%
-- [ ] ✅ 无严重 bug（critical/高）
-- [ ] ✅ 文档完整性 > 95%
-- [ ] ✅ API 易用性评分 > 4/5
+### 6.3 质量指标
+- 单元测试覆盖率 > 80%
+- 集成场景覆盖率 > 70%
+- 无严重 bug
 
 ---
 
-## 10. 后续优化方向
+## 7. 后续优化方向
 
-### 10.1 短期优化（3-6个月）
+### 7.1 短期（3-6 个月）
+- 表格布局算法
+- 绝对定位支持
+- 文本对齐增强
 
-1. **Grid 布局**
-   - 实现标准 CSS Grid 算法
-   - 支持网格模板和区域
+### 7.2 中期（6-12 个月）
+- Grid 布局
+- 动画布局插值
+- 多线程布局计算
 
-2. **绝对定位**
-   - 支持绝对定位布局
-   - 与 Flexbox 混合使用
-
-3. **动画支持**
-   - 布局动画插值
-   - 过渡效果
-
-4. **响应式布局**
-   - 媒体查询支持
-   - 断点系统
-
-### 10.2 长期优化（6-12个月）
-
-1. **异步布局**
-   - Web Worker 支持
-   - 非阻塞布局计算
-
-2. **GPU 加速**
-   - WebGL 渲染集成
-   - 硬件加速布局
-
-3. **AI 优化**
-   - 机器学习预测布局
-   - 自动布局建议
-
-4. **跨平台一致性**
-   - 统一的布局行为
-   - 平台特定优化
+### 7.3 长期（12+ 个月）
+- 自适应布局优化
+- AI 辅助布局预测
 
 ---
 
-## 11. 总结
+## 8. 总结
 
-### 11.1 核心价值
+本方案基于 `runtime/layout/` 的现有 V3 实现，吸收 `runtime/compute/` 的通用布局优化策略，在保持独立性的前提下，从缓存、Dirty Tracking、测量算法、HitMap、边界验证等方面进行全面增强。
 
-**本方案的核心价值**：
+**核心原则**：
+1. **保持独立性** - 不依赖 VNode/Fiber，提供通用接口供应用层适配
+2. **渐进式增强** - 基于现有代码优化，避免大规模重写
+3. **性能优先** - 复制 compute/ 的成功经验，重点优化缓存和增量布局
+4. **可测试性** - 完善测试覆盖，确保质量
 
-1. **架构解耦**
-   - 创建独立于 VNode/Fiber 的抽象层
-   - 提高可维护性和可测试性
-   - 支持多平台复用
-
-2. **性能提升**
-   - 单次测量减少 O(N²) 问题
-   - 智能缓存提高命中率
-   - Dirty Tracking 减少计算量
-
-3. **功能完整**
-   - 保留 `layout/` 的标准 Flexbox
-   - 添加 `compute/` 的高级功能
-   - 支持更复杂的布局场景
-
-4. **平滑迁移**
-   - 向后兼容现有代码
-   - 渐进式迁移路径
-   - 降低迁移风险
-
-### 11.2 实施建议
-
-**推荐实施方式**：
-
-1. **快速原型**（1周）
-   - 实现核心抽象接口
-   - 验证设计可行性
-   - 获取早期反馈
-
-2. **迭代开发**（4-6周）
-   - 按阶段逐步实施
-   - 每个阶段验证测试
-   - 及时调整方向
-
-3. **灰度发布**（2-4周）
-   - 部分功能灰度
-   - 收集真实用户反馈
-   - 监控性能指标
-
-4. **全量发布**（1-2周）
-   - 功能完整发布
-   - 文档和培训
-   - 监控和调优
-
-### 11.3 关键成功因素
-
-**成功的关键因素**：
-
-1. **设计质量**
-   - 抽象接口设计合理
-   - API 易用且一致
-   - 扩展性强
-
-2. **性能表现**
-   - 达到或超过性能目标
-   - 内存使用合理
-   - 无性能回归
-
-3. **测试覆盖**
-   - 单元测试完善
-   - 集成测试全面
-   - 性能基准可靠
-
-4. **文档和培训**
-   - 文档清晰完整
-   - 使用示例丰富
-   - 迁移指南详细
+**预期收益**：
+- 缓存优化减少重复计算 > 40%
+- Dirty Tracking 支持高效增量更新
+- HitMap 支持事件系统集成
+- 边界验证提升调试能力
 
 ---
 
-## 附录
-
-### A. 接口映射表
-
-| compute/ 类型 | layout/v2 类型 | 说明 |
-|-------------|---------------|------|
-| VNode | LayoutNode | 节点抽象 |
-| BoxConstraints | Constraints | 约束系统 |
-| ComputedBox | LayoutBox | 布局结果 |
-| ComputedLayout | LayoutResult | 完整结果 |
-| LayoutMeasurer | LayoutMeasurer | 单次测量接口 |
-| ChildMeasurer | ChildMeasurer | 子节点测量 |
-| LayoutCache | LayoutCache | 缓存系统 |
-| DirtyTracker | DirtyTracker | 脏跟踪 |
-
-### B. API 对比示例
-
-```go
-// compute/ API
-func (e *Engine) Layout(
-    vnode VNode,
-    fiber *reconciler.Fiber,
-    constraints runtime.BoxConstraints,
-) (*ComputedLayout, error)
-
-// layout/v2 API
-func (e *EngineV2) Layout(
-    node LayoutNode,
-    constraints Constraints,
-) *LayoutResult
-
-// 迁移示例
-func MigrateToV2(oldEngine *compute.Engine, vnode VNode) *LayoutResult {
-    v2Engine := layoutv2.NewEngine()
-    layoutNode := layoutmigrate.FromVNode(vnode)
-    return v2Engine.Layout(layoutNode, convertConstraints(constraints))
-}
-```
-
-### C. 性能基准目标
-
-```
-场景 1：简单 Flexbox（10个节点）
-├── compute/: 8ms
-├── layout/v2: < 5ms  ← 目标
-└── 改进: > 37%
-
-场景 2：深度嵌套（10层）
-├── compute/: 30ms
-├── layout/v2: < 20ms  ← 目标
-└── 改进: > 33%
-
-场景 3：大型树（1000节点）
-├── compute/: 150ms
-├── layout/v2: < 100ms  ← 目标
-└── 改进: > 33%
-
-场景 4：增量更新（1个脏节点）
-├── compute/: 10ms
-├── layout/v2: < 2ms  ← 目标
-└── 改进: > 80%
-```
-
----
-
-**文档版本**: v1.0
-**创建日期**: 2025-02-15
+**文档版本**: v2.0
+**更新日期**: 2026-02-15
 **作者**: AI Assistant (Crush)
 **状态**: 待审核

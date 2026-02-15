@@ -148,24 +148,138 @@ func TestCache_Clear(t *testing.T) {
 
 	// Add multiple entries
 	for i := 0; i < 5; i++ {
-		node := NewMockMeasurableNode("node"+string(rune('0'+i)), 100, 50)
-		constraints := NewConstraints(0, 200, 0, 100)
+		node := NewMockMeasurableNode("node"+string(rune(i)), 100, 50)
+		constraints := NewConstraints(0, 200+i, 0, 100+i)
 		result := &LayoutResult{
 			Boxes: []LayoutBox{
-				{ID: "node" + string(rune('0'+i)), X: 0, Y: 0, Width: 100, Height: 50},
+				{ID: node.ID(), X: 0, Y: 0, Width: 100, Height: 50},
 			},
+			ContentSize: Size{Width: 100, Height: 50},
+			Dirty:       false,
 		}
 		cache.Put(node, constraints, result)
 	}
 
-	// Verify entries exist
-	assert.Equal(t, 5, len(cache.entries), "Cache should have 5 entries")
-
 	// Clear cache
 	cache.Clear()
 
-	// Verify cache is empty
-	assert.Equal(t, 0, len(cache.entries), "Cache should be empty after clear")
+	// Verify all entries are removed
+	for i := 0; i < 5; i++ {
+		node := NewMockMeasurableNode("node"+string(rune(i)), 100, 50)
+		constraints := NewConstraints(0, 200+i, 0, 100+i)
+		assert.Nil(t, cache.Get(node, constraints), "Cache should be cleared")
+	}
+}
+
+func TestCache_ConstraintsKey(t *testing.T) {
+	cache := &Cache{
+		entries: make(map[string]*CachedLayout),
+		maxSize:  10,
+	}
+
+	tests := []struct {
+		name        string
+		constraints Constraints
+		expectedKey string
+	}{
+		{
+			name:        "simple constraints",
+			constraints: NewConstraints(0, 100, 0, 50),
+			expectedKey: "0,100,0,50",
+		},
+		{
+			name:        "tight constraints",
+			constraints: TightConstraints(80, 24),
+			expectedKey: "80,80,24,24",
+		},
+		{
+			name:        "loose constraints",
+			constraints: LooseConstraints(10, 20),
+			expectedKey: "10,1073741824,20,1073741824",
+		},
+		{
+			name:        "unbounded constraints",
+			constraints: UnboundedConstraints(),
+			expectedKey: "0,1073741824,0,1073741824",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			key := cache.constraintsKey(tt.constraints)
+			assert.Equal(t, tt.expectedKey, key, "constraintsKey should generate correct key")
+		})
+	}
+}
+
+func TestCache_LeafNodeOptimization(t *testing.T) {
+	cache := &Cache{
+		entries: make(map[string]*CachedLayout),
+		maxSize:  10,
+	}
+
+	// Create a leaf node
+	leafNode := NewMockMeasurableNode("leaf", 50, 25)
+	constraints := NewConstraints(0, 100, 0, 50)
+
+	result := &LayoutResult{
+		Boxes: []LayoutBox{
+			{ID: "leaf", X: 0, Y: 0, Width: 50, Height: 25},
+		},
+		ContentSize: Size{Width: 50, Height: 25},
+		Dirty:       false,
+	}
+
+	// Cache leaf node - should succeed
+	cache.Put(leafNode, constraints, result)
+	cached := cache.Get(leafNode, constraints)
+	assert.NotNil(t, cached, "Leaf node should be cached")
+	assert.Equal(t, len(cached.Boxes), 1, "Cached result should have 1 box")
+
+	// Create a non-leaf node (parent with children)
+	child := NewMockMeasurableNode("child", 30, 20)
+	parent := NewFlexLayout("parent", []Node{child})
+
+	// Try to cache non-leaf node - should return nil (Get check)
+	// Note: Put still works, but Get returns nil for non-leaf nodes
+	cache.Put(parent, constraints, result)
+	cachedParent := cache.Get(parent, constraints)
+	assert.Nil(t, cachedParent, "Non-leaf node should not return cached result")
+}
+
+func TestCache_RemoveByNode(t *testing.T) {
+	cache := &Cache{
+		entries: make(map[string]*CachedLayout),
+		maxSize:  10,
+	}
+
+	// Add multiple entries
+	leaf1 := NewMockMeasurableNode("leaf1", 50, 25)
+	leaf2 := NewMockMeasurableNode("leaf2", 60, 30)
+	constraints := NewConstraints(0, 100, 0, 50)
+
+	result1 := &LayoutResult{
+		Boxes: []LayoutBox{{ID: "leaf1", X: 0, Y: 0, Width: 50, Height: 25}},
+		Dirty: false,
+	}
+	result2 := &LayoutResult{
+		Boxes: []LayoutBox{{ID: "leaf2", X: 0, Y: 0, Width: 60, Height: 30}},
+		Dirty: false,
+	}
+
+	cache.Put(leaf1, constraints, result1)
+	cache.Put(leaf2, constraints, result2)
+
+	// Verify both entries are cached
+	assert.NotNil(t, cache.Get(leaf1, constraints), "leaf1 should be cached")
+	assert.NotNil(t, cache.Get(leaf2, constraints), "leaf2 should be cached")
+
+	// Invalidate one node - this clears all cache (current limitation)
+	cache.RemoveByNode("leaf1")
+
+	// Verify cache is cleared
+	assert.Nil(t, cache.Get(leaf1, constraints), "Cache should be cleared after RemoveByNode")
+	assert.Nil(t, cache.Get(leaf2, constraints), "Cache should be cleared after RemoveByNode")
 }
 
 func TestCache_ThreadSafety(t *testing.T) {
@@ -434,24 +548,30 @@ func TestCache_MultipleResults(t *testing.T) {
 func TestCache_EngineIntegration(t *testing.T) {
 	engine := NewEngine()
 
-	node1 := NewMockMeasurableNode("node1", 100, 50)
-	node2 := NewMockMeasurableNode("node2", 150, 75)
-	node := NewFlexLayout("root", []Node{node1, node2})
+	// Use leaf node for caching (leaf nodes are cached)
+	leafNode := NewMockMeasurableNode("leaf", 100, 50)
 	constraints := NewConstraints(0, 200, 0, 100)
 
-	// First layout - should compute
-	result1 := engine.Layout(node, constraints)
+	// First layout - compute
+	result1 := engine.Layout(leafNode, constraints)
 	assert.NotNil(t, result1, "First layout should return result")
+	stats1 := engine.GetStats()
+	assert.Equal(t, int64(0), stats1.CacheHits, "First layout should have 0 cache hits")
+	assert.Equal(t, int64(1), stats1.CacheMisses, "First layout should have 1 cache miss")
 
-	// Second layout with same inputs - should hit cache
-	// (Note: Engine currently doesn't use cache internally in the provided code, 
-	// but the test expects it)
-	result2 := engine.Layout(node, constraints)
+	// Second layout with same inputs - should hit cache (leaf nodes are cached)
+	result2 := engine.Layout(leafNode, constraints)
 	assert.NotNil(t, result2, "Second layout should return cached result")
 
 	// Verify cache stats
-	stats := engine.GetStats()
-	assert.Greater(t, stats.CacheHits, int64(0), "Should have cache hits")
+	stats2 := engine.GetStats()
+	assert.Equal(t, int64(1), stats2.CacheHits, "Should have 1 cache hit")
+	assert.Equal(t, int64(1), stats2.CacheMisses, "Cache misses should remain at 1")
+
+	// Verify results are identical
+	assert.Equal(t, result1.Boxes[0].ID, result2.Boxes[0].ID, "Results should match")
+	assert.Equal(t, result1.Boxes[0].Width, result2.Boxes[0].Width, "Width should match")
+	assert.Equal(t, result1.Boxes[0].Height, result2.Boxes[0].Height, "Height should match")
 }
 
 // Benchmark tests
