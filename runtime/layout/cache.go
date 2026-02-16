@@ -117,22 +117,33 @@ func (c *Cache) constraintsKey(constraints Constraints) string {
 // nodesHash 节点哈希
 func (c *Cache) nodesHash(node Node) string {
 	h := sha256.New()
-	c.nodesHashRecursive(node, h)
+	visited := make(map[string]bool)
+	c.nodesHashRecursive(node, h, visited)
 	return hex.EncodeToString(h.Sum(nil))[:16]
 }
 
 // nodesHashRecursive 递归计算节点哈希
-func (c *Cache) nodesHashRecursive(node Node, h hash.Hash) {
+func (c *Cache) nodesHashRecursive(node Node, h hash.Hash, visited map[string]bool) {
 	if node == nil {
 		return
 	}
+
+	// 循环检测
+	nodeID := node.ID()
+	if nodeID != "" {
+		if visited[nodeID] {
+			return // 避免无限循环
+		}
+		visited[nodeID] = true
+	}
+
 	h.Write([]byte(node.ID()))
 	h.Write([]byte(node.Type()))
 
 	// 如果实现了 Measurable，可能需要包含其属性（这里简化）
 
 	for _, child := range node.Children() {
-		c.nodesHashRecursive(child, h)
+		c.nodesHashRecursive(child, h, visited)
 	}
 }
 

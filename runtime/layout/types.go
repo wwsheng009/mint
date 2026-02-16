@@ -36,6 +36,42 @@ type Node interface {
 	GetHeight() int
 }
 
+// Identifiable 可标识接口
+// 节点可以实现此接口以提供稳定的标识符
+type Identifiable interface {
+	// GetStableID 返回节点的稳定标识符
+	// 该标识符应该在节点的整个生命周期中保持不变
+	GetStableID() uint64
+}
+
+// Versioned 可版本接口
+// 节点可以实现此接口以跟踪版本信息
+type Versioned interface {
+	// GetVersion 返回节点的版本号
+	// 版本号应该在节点内容发生变化时递增
+	GetVersion() uint64
+}
+
+// LayoutInfoProvider 布局信息提供者接口
+// 节点可以实现此接口以提供布局信息
+type LayoutInfoProvider interface {
+	// GetLayoutInfo 返回节点的布局信息
+	GetLayoutInfo() *LayoutInfo
+}
+
+// LayoutInfo 布局信息
+// 包含节点的标识符、版本和布局结果
+type LayoutInfo struct {
+	// ID 节点的稳定标识符
+	ID uint64
+
+	// Version 节点的版本号
+	Version uint64
+
+	// LayoutBox 布局结果盒子
+	LayoutBox *LayoutBox
+}
+
 // Size 尺寸
 type Size struct {
 	Width  int
@@ -87,6 +123,12 @@ type LayoutBox struct {
 	// Baseline 基线（用于文本对齐）
 	Baseline int
 
+	// Layer 渲染层（用于多层渲染）
+	Layer Layer
+
+	// ZIndex 层内排序索引
+	ZIndex int
+
 	// Children 子节点布局结果
 	Children []*LayoutBox
 }
@@ -100,11 +142,14 @@ type LayoutResult struct {
 	// Root 根节点
 	Root *LayoutBox
 
-	//ContentSize 内容尺寸
+	// ContentSize 内容尺寸
 	ContentSize Size
 
 	// Dirty 脏标记
 	Dirty bool
+
+	// HitMap 命中映射表（可选）
+	HitMap *HitMap
 }
 
 // Constraints 布局约束
@@ -270,6 +315,42 @@ type Dirtyable interface {
 	MarkLayoutDirty()
 }
 
+// Marginal 外边距节点（可选接口）
+// 节点可以实现此接口以提供外边距信息
+type Marginal interface {
+	Node
+	// GetMargin 返回节点的外边距
+	GetMargin() Margin
+}
+
+// MarginBox 带外边距的盒子信息
+// 用于布局计算时跟踪外边距
+type MarginBox struct {
+	// Box 基础布局盒子
+	Box *LayoutBox
+	// Margin 外边距
+	Margin Margin
+}
+
+// ContentBox 返回内容区域（去除 margin 后的区域）
+func (mb *MarginBox) ContentBox() *LayoutBox {
+	if mb.Box == nil {
+		return nil
+	}
+	return &LayoutBox{
+		ID:      mb.Box.ID,
+		X:       mb.Box.X + mb.Margin.Left,
+		Y:       mb.Box.Y + mb.Margin.Top,
+		Width:   mb.Box.Width - mb.Margin.Horizontal(),
+		Height:  mb.Box.Height - mb.Margin.Vertical(),
+	}
+}
+
+// BorderBox 返回边框盒（包含 margin 的完整区域）
+func (mb *MarginBox) BorderBox() *LayoutBox {
+	return mb.Box
+}
+
 // =============================================================================
 // Layout Engine (V3)
 // =============================================================================
@@ -288,6 +369,9 @@ type Engine struct {
 
 	// flexCache Flex 分布缓存
 	flexCache *FlexCache
+
+	// hitMap 命中映射表
+	hitMap *HitMap
 }
 
 // NewEngine 创建新的布局引擎
@@ -300,6 +384,7 @@ func NewEngine() *Engine {
 			maxSize: 1000,
 		},
 		flexCache: NewFlexCache(),
+		hitMap:   NewHitMap(),
 	}
 }
 
@@ -339,6 +424,12 @@ func (e *Engine) Layout(root Node, constraints Constraints) *LayoutResult {
 	result.Root = box
 	result.Boxes = e.collectBoxes(box)
 
+	// 构建命中映射表
+	if e.hitMap != nil {
+		result.HitMap = e.hitMap
+		e.hitMap.BuildFromLayoutBox(box)
+	}
+
 	// 存入缓存
 	if e.cache != nil {
 		e.cache.Put(root, constraints, result)
@@ -347,10 +438,92 @@ func (e *Engine) Layout(root Node, constraints Constraints) *LayoutResult {
 	return result
 }
 
+// LayoutIncremental 执行增量布局计算
+// 使用脏标记跳过干净的节点
+func (e *Engine) LayoutIncremental(root Node, constraints Constraints) *LayoutResult {
+	if root == nil {
+		return &LayoutResult{}
+	}
+
+	// 检查缓存
+	if e.cache != nil {
+		if cached := e.cache.Get(root, constraints); cached != nil {
+			e.stats.CacheHits++
+			return cached
+		}
+		e.stats.CacheMisses++
+	}
+
+	result := &LayoutResult{
+		Boxes: make([]LayoutBox, 0),
+		Dirty: true,
+	}
+
+	// 使用增量布局
+	box := e.layoutNodeIncremental(root, constraints, 0, 0)
+	result.Root = box
+	result.Boxes = e.collectBoxes(box)
+
+	// 构建命中映射表
+	if e.hitMap != nil {
+		result.HitMap = e.hitMap
+		e.hitMap.BuildFromLayoutBox(box)
+	}
+
+	// 存入缓存
+	if e.cache != nil {
+		e.cache.Put(root, constraints, result)
+	}
+
+	// 清除脏标记
+	e.clearDirtyMarkers(root)
+
+	return result
+}
+
+// MaxLayoutDepth is the maximum depth for layout recursion
+const MaxLayoutDepth = 500
+
 // layoutNode 递归布局单个节点
 func (e *Engine) layoutNode(node Node, constraints Constraints, x, y int) *LayoutBox {
+	return e.layoutNodeWithDepth(node, constraints, x, y, 0, make(map[string]bool))
+}
+
+// layoutNodeWithDepth 递归布局单个节点，带深度限制和循环检测
+func (e *Engine) layoutNodeWithDepth(node Node, constraints Constraints, x, y int, depth int, visited map[string]bool) *LayoutBox {
 	if node == nil {
 		return nil
+	}
+
+	// 深度限制检查
+	if depth > MaxLayoutDepth {
+		// 达到最大深度，返回最小尺寸的盒子
+		return &LayoutBox{
+			ID:      node.ID(),
+			X:       x,
+			Y:       y,
+			Width:   0,
+			Height:  0,
+			Children: make([]*LayoutBox, 0),
+		}
+	}
+
+	// 循环检测
+	nodeID := node.ID()
+	if nodeID != "" {
+		if visited[nodeID] {
+			// 检测到循环，返回空盒子避免无限递归
+			return &LayoutBox{
+				ID:      node.ID() + "_cycle",
+				X:       x,
+				Y:       y,
+				Width:   0,
+				Height:  0,
+				Children: make([]*LayoutBox, 0),
+			}
+		}
+		visited[nodeID] = true
+		defer delete(visited, nodeID) // 离开时清除标记
 	}
 
 	// 获取节点尺寸
@@ -379,7 +552,7 @@ func (e *Engine) layoutNode(node Node, constraints Constraints, x, y int) *Layou
 	childX := x
 	childY := y
 	for _, child := range node.Children() {
-		childBox := e.layoutNode(child, constraints, childX, childY)
+		childBox := e.layoutNodeWithDepth(child, constraints, childX, childY, depth+1, visited)
 		if childBox != nil {
 			box.Children = append(box.Children, childBox)
 			childY += childBox.Height
@@ -405,6 +578,126 @@ func (e *Engine) collectBoxesRecursive(box *LayoutBox, boxes *[]LayoutBox) {
 	*boxes = append(*boxes, *box)
 	for _, child := range box.Children {
 		e.collectBoxesRecursive(child, boxes)
+	}
+}
+
+// layoutNodeIncremental 递归布局单个节点（使用脏标记）
+func (e *Engine) layoutNodeIncremental(node Node, constraints Constraints, x, y int) *LayoutBox {
+	return e.layoutNodeIncrementalWithDepth(node, constraints, x, y, 0, make(map[string]bool))
+}
+
+// layoutNodeIncrementalWithDepth 递归布局单个节点，带深度限制和循环检测
+func (e *Engine) layoutNodeIncrementalWithDepth(node Node, constraints Constraints, x, y int, depth int, visited map[string]bool) *LayoutBox {
+	if node == nil {
+		return nil
+	}
+
+	// 深度限制检查
+	if depth > MaxLayoutDepth {
+		return &LayoutBox{
+			ID:      node.ID(),
+			X:       x,
+			Y:       y,
+			Width:   0,
+			Height:  0,
+			Children: make([]*LayoutBox, 0),
+		}
+	}
+
+	// 循环检测
+	nodeID := node.ID()
+	if nodeID != "" {
+		if visited[nodeID] {
+			return &LayoutBox{
+				ID:      node.ID() + "_cycle",
+				X:       x,
+				Y:       y,
+				Width:   0,
+				Height:  0,
+				Children: make([]*LayoutBox, 0),
+			}
+		}
+		visited[nodeID] = true
+		defer delete(visited, nodeID)
+	}
+
+	// 检查节点是否是脏的
+	if !e.dirty.IsLayoutDirty(node.ID()) {
+		// 节点是干净的，使用当前尺寸和位置
+		width, height := node.GetSize()
+		curX, curY := node.GetPosition()
+
+		box := &LayoutBox{
+			ID:       node.ID(),
+			X:        curX,
+			Y:        curY,
+			Width:    width,
+			Height:   height,
+			Children: make([]*LayoutBox, 0),
+		}
+
+		// 递归处理子节点（仍然检查脏标记）
+		childX := curX
+		childY := curY
+		for _, child := range node.Children() {
+			childBox := e.layoutNodeIncrementalWithDepth(child, constraints, childX, childY, depth+1, visited)
+			if childBox != nil {
+				box.Children = append(box.Children, childBox)
+				childY += childBox.Height
+			}
+		}
+
+		return box
+	}
+
+	// 节点是脏的，需要重新布局
+	width, height := node.GetSize()
+
+	// 如果节点实现了 Measurable 接口，测量其尺寸
+	if measurable, ok := node.(Measurable); ok {
+		size := measurable.Measure(constraints)
+		width, height = size.Width, size.Height
+	}
+
+	box := &LayoutBox{
+		ID:      node.ID(),
+		X:       x,
+		Y:       y,
+		Width:   width,
+		Height:  height,
+		Children: make([]*LayoutBox, 0),
+	}
+
+	// 设置节点位置和尺寸
+	node.SetPosition(x, y)
+	node.SetSize(width, height)
+
+	// 递归布局子节点
+	childX := x
+	childY := y
+	for _, child := range node.Children() {
+		childBox := e.layoutNodeIncrementalWithDepth(child, constraints, childX, childY, depth+1, visited)
+		if childBox != nil {
+			box.Children = append(box.Children, childBox)
+			childY += childBox.Height
+		}
+	}
+
+	return box
+}
+
+// clearDirtyMarkers 清除节点树的脏标记
+func (e *Engine) clearDirtyMarkers(node Node) {
+	if node == nil {
+		return
+	}
+
+	// 清除当前节点的脏标记
+	e.dirty.ClearKey(node.ID())
+
+	// 递归清除子节点的脏标记
+	for _, child := range node.Children() {
+		e.clearDirtyMarkers(child)
 	}
 }
 
@@ -435,4 +728,57 @@ func (e *Engine) Measure(node Node, constraints Constraints) Size {
 	w = constraints.ConstrainWidth(w)
 	h = constraints.ConstrainHeight(h)
 	return Size{Width: w, Height: h}
+}
+
+// =============================================================================
+// Baseline Alignment Interface
+// =============================================================================
+
+// HasBaseline nodes can provide a baseline offset for alignment
+type HasBaseline interface {
+	Node
+
+	// GetBaseline returns the baseline offset from the top of the node
+	// For text nodes, this is typically the distance from top to the text baseline
+	GetBaseline() int
+}
+
+// BaselineLayoutBox extends LayoutBox with baseline information
+type BaselineLayoutBox struct {
+	*LayoutBox
+
+	// Baseline is the offset from top to the baseline
+	Baseline int
+
+	// HasBaselineInfo indicates if this box has valid baseline info
+	HasBaselineInfo bool
+}
+
+// GetEffectiveBaseline returns the baseline, or estimated if not available
+func (b *BaselineLayoutBox) GetEffectiveBaseline() int {
+	if b.HasBaselineInfo {
+		return b.Baseline
+	}
+	// Default baseline is 2/3 of height (typical for text)
+	if b.Height > 0 {
+		return b.Height * 2 / 3
+	}
+	return 0
+}
+
+// GetBaselineFromNode safely gets baseline from a node
+func GetBaselineFromNode(node Node) int {
+	if node == nil {
+		return 0
+	}
+	if hasBaseline, ok := node.(HasBaseline); ok {
+		return hasBaseline.GetBaseline()
+	}
+	// Default: estimate baseline as 2/3 of height
+	w, h := node.GetSize()
+	_ = w // unused
+	if h > 0 {
+		return h * 2 / 3
+	}
+	return 0
 }

@@ -45,7 +45,27 @@ const (
 	CrossCenter
 	// Stretch 拉伸填满交叉轴
 	Stretch
+	// Baseline 基线对齐（仅用于 Row 布局）
+	Baseline
 )
+
+// String returns the string representation
+func (a CrossAxisAlignment) String() string {
+	switch a {
+	case CrossStart:
+		return "CrossStart"
+	case CrossEnd:
+		return "CrossEnd"
+	case CrossCenter:
+		return "CrossCenter"
+	case Stretch:
+		return "Stretch"
+	case Baseline:
+		return "Baseline"
+	default:
+		return "Unknown"
+	}
+}
 
 // FlexStyle 弹性布局样式
 type FlexStyle struct {
@@ -67,6 +87,9 @@ type FlexStyle struct {
 	// Padding 内边距
 	Padding Padding
 
+	// Margin 外边距
+	Margin Margin
+
 	// FlexibleChildren 可伸缩子节点索引和配置
 	FlexibleChildren map[int]*Flex
 }
@@ -77,6 +100,25 @@ type Padding struct {
 	Right  int
 	Top    int
 	Bottom int
+}
+
+// Margin 外边距
+// 外边距定义了节点与其兄弟节点或父容器之间的间距
+type Margin struct {
+	Left   int
+	Right  int
+	Top    int
+	Bottom int
+}
+
+// Horizontal 返回水平方向总外边距
+func (m Margin) Horizontal() int {
+	return m.Left + m.Right
+}
+
+// Vertical 返回垂直方向总外边距
+func (m Margin) Vertical() int {
+	return m.Top + m.Bottom
 }
 
 // Flex 弹性配置
@@ -232,12 +274,27 @@ func (f *FlexLayout) Measure(constraints Constraints) Size {
 	maxCrossSize := 0
 
 	for i, child := range f.children {
+		// 跳过 nil 子节点
+		if child == nil {
+			childSizes[i] = Size{Width: 0, Height: 0}
+			continue
+		}
+
 		childConstraints := f.childConstraints(constraints, i)
 		if measurable, ok := child.(Measurable); ok {
 			childSizes[i] = measurable.Measure(childConstraints)
 		} else {
-			// 默认尺寸
-			childSizes[i] = Size{Width: childConstraints.MinWidth, Height: childConstraints.MinHeight}
+			// 尝试从 GetSize 获取尺寸
+			w, h := child.GetSize()
+			if w > 0 || h > 0 {
+				childSizes[i] = Size{Width: w, Height: h}
+			} else {
+				// 最后使用约束的最大值作为默认
+				childSizes[i] = Size{
+					Width:  childConstraints.MaxWidth,
+					Height: childConstraints.MaxHeight,
+				}
+			}
 		}
 
 		if isRow {
@@ -373,7 +430,17 @@ func (f *FlexLayout) LayoutChildren(width, height int) []LayoutBox {
 		if measurable, ok := child.(Measurable); ok {
 			childSizes[i] = measurable.Measure(constraints)
 		} else {
-			childSizes[i] = Size{Width: 0, Height: 0}
+			// 尝试从 GetSize 获取尺寸
+			w, h := child.GetSize()
+			if w > 0 || h > 0 {
+				childSizes[i] = Size{Width: w, Height: h}
+			} else {
+				// 最后使用约束的最大值
+				childSizes[i] = Size{
+					Width:  constraints.MaxWidth,
+					Height: constraints.MaxHeight,
+				}
+			}
 		}
 
 		if flex, ok := f.style.FlexibleChildren[i]; ok && flex.Grow > 0 {
@@ -485,6 +552,25 @@ func (f *FlexLayout) LayoutChildren(width, height int) []LayoutBox {
 		}
 	case Stretch:
 		crossPos = 0
+	case Baseline:
+		// Baseline alignment - will be handled per child
+		crossPos = 0
+	}
+
+	// For baseline alignment, calculate max baseline
+	maxBaseline := 0
+	if f.style.CrossAxis == Baseline && isRow {
+		for i, child := range f.children {
+			if child == nil {
+				continue
+			}
+			baseline := GetBaselineFromNode(child)
+			// The position is based on baseline, need to account for content below baseline
+			contentBelowBaseline := finalSizes[i].Height - baseline
+			if contentBelowBaseline > maxBaseline {
+				maxBaseline = contentBelowBaseline
+			}
+		}
 	}
 
 	// SpaceBetween/Around/Evenly 的额外间距
@@ -508,10 +594,20 @@ func (f *FlexLayout) LayoutChildren(width, height int) []LayoutBox {
 
 	// 布局每个子节点
 	for i, child := range f.children {
+		// Skip nil children
+		if child == nil {
+			continue
+		}
+
 		var x, y int
+		var childIdx int // 实际的子节点索引
+		if isReverse {
+			childIdx = len(f.children) - 1 - i
+		} else {
+			childIdx = i
+		}
 
 		if isReverse {
-			idx := len(f.children) - 1 - i
 			if isRow {
 				x = f.style.Padding.Left + mainPos
 				y = f.style.Padding.Top + crossPos
@@ -521,9 +617,9 @@ func (f *FlexLayout) LayoutChildren(width, height int) []LayoutBox {
 			}
 			// 根据方向增加 mainPos
 			if isRow {
-				mainPos += finalSizes[idx].Width + f.style.Gap
+				mainPos += finalSizes[childIdx].Width + f.style.Gap
 			} else {
-				mainPos += finalSizes[idx].Height + f.style.Gap
+				mainPos += finalSizes[childIdx].Height + f.style.Gap
 			}
 			if extraGap > 0 && i < len(f.children)-1 {
 				mainPos += extraGap
@@ -538,35 +634,44 @@ func (f *FlexLayout) LayoutChildren(width, height int) []LayoutBox {
 			}
 			// 根据方向增加 mainPos
 			if isRow {
-				mainPos += finalSizes[i].Width + f.style.Gap
+				mainPos += finalSizes[childIdx].Width + f.style.Gap
 			} else {
-				mainPos += finalSizes[i].Height + f.style.Gap
+				mainPos += finalSizes[childIdx].Height + f.style.Gap
 			}
 			if extraGap > 0 && i < len(f.children)-1 {
 				mainPos += extraGap
 			}
 		}
 
-		// Stretch 处理
+		// Stretch 处理 - 使用正确的索引
 		if f.style.CrossAxis == Stretch {
 			if isRow {
-				finalSizes[i].Height = availableHeight
+				finalSizes[childIdx].Height = availableHeight
 			} else {
-				finalSizes[i].Width = availableWidth
+				finalSizes[childIdx].Width = availableWidth
 			}
+		}
+
+		// Baseline 处理 - 调整 Y 位置以对齐基线
+		if f.style.CrossAxis == Baseline && isRow {
+			baseline := GetBaselineFromNode(child)
+			// 计算基线偏移: 最大基线下方内容 - 当前节点的基线下方内容
+			contentBelowBaseline := finalSizes[childIdx].Height - baseline
+			yOffset := maxBaseline - contentBelowBaseline
+			y += yOffset
 		}
 
 		boxes[i] = LayoutBox{
 			ID:     child.ID(),
 			X:      x,
 			Y:      y,
-			Width:  finalSizes[i].Width,
-			Height: finalSizes[i].Height,
+			Width:  finalSizes[childIdx].Width,
+			Height: finalSizes[childIdx].Height,
 		}
 
 		// 设置子节点位置和尺寸
 		child.SetPosition(x, y)
-		child.SetSize(finalSizes[i].Width, finalSizes[i].Height)
+		child.SetSize(finalSizes[childIdx].Width, finalSizes[childIdx].Height)
 	}
 
 	return boxes
@@ -588,4 +693,163 @@ func (f *FlexLayout) getMaxCrossSize(sizes []Size) int {
 		}
 	}
 	return maxSize
+}
+
+// =============================================================================
+// FlexShrink Calculation
+// =============================================================================
+
+// ShrinkInfo contains information needed for shrink calculation
+type ShrinkInfo struct {
+	// Index of the child
+	Index int
+
+	// Original size before shrink
+	OriginalSize int
+
+	// Shrink factor (from Flex.Shrink)
+	ShrinkFactor int
+
+	// Minimum size the child can shrink to
+	MinSize int
+}
+
+// CalculateShrinkDistribution calculates how to distribute shrink among children
+// when the container is smaller than the total natural size of children.
+//
+// Parameters:
+//   - deficit: How much space needs to be removed (positive value)
+//   - children: Shrink information for each shrinkable child
+//
+// Returns:
+//   - Map of child index to amount to shrink (positive values)
+func CalculateShrinkDistribution(deficit int, children []ShrinkInfo) map[int]int {
+	result := make(map[int]int)
+
+	if deficit <= 0 || len(children) == 0 {
+		return result
+	}
+
+	// Calculate total shrink factor (weighted by original size)
+	totalShrinkWeight := 0
+	for _, child := range children {
+		if child.ShrinkFactor > 0 {
+			// Weight = shrink factor * original size (CSS flex-shrink behavior)
+			totalShrinkWeight += child.ShrinkFactor * child.OriginalSize
+		}
+	}
+
+	if totalShrinkWeight == 0 {
+		return result
+	}
+
+	remainingDeficit := deficit
+
+	// Distribute shrink proportionally
+	for _, child := range children {
+		if child.ShrinkFactor <= 0 {
+			continue
+		}
+
+		// Calculate this child's share of the shrink
+		weight := child.ShrinkFactor * child.OriginalSize
+		share := (deficit * weight) / totalShrinkWeight
+
+		// Don't shrink below minimum size
+		maxShrink := child.OriginalSize - child.MinSize
+		if share > maxShrink {
+			share = maxShrink
+		}
+
+		if share > 0 {
+			result[child.Index] = share
+			remainingDeficit -= share
+		}
+	}
+
+	// If there's still deficit, distribute it among children that can still shrink
+	for remainingDeficit > 0 {
+		distributed := false
+		for _, child := range children {
+			if child.ShrinkFactor <= 0 {
+				continue
+			}
+
+			currentShrink := result[child.Index]
+			maxShrink := child.OriginalSize - child.MinSize
+
+			if currentShrink < maxShrink {
+				// Can still shrink more
+				extra := 1
+				if currentShrink+extra > maxShrink {
+					extra = maxShrink - currentShrink
+				}
+				if extra > 0 {
+					result[child.Index] += extra
+					remainingDeficit -= extra
+					distributed = true
+					if remainingDeficit <= 0 {
+						break
+					}
+				}
+			}
+		}
+		if !distributed {
+			break
+		}
+	}
+
+	return result
+}
+
+// ApplyShrinkToSizes applies shrink amounts to a slice of sizes
+// isRow: true for horizontal layout (shrink width), false for vertical (shrink height)
+func ApplyShrinkToSizes(sizes []Size, shrinkAmounts map[int]int, isRow bool) {
+	for idx, shrink := range shrinkAmounts {
+		if idx < len(sizes) {
+			if isRow {
+				sizes[idx].Width -= shrink
+				if sizes[idx].Width < 0 {
+					sizes[idx].Width = 0
+				}
+			} else {
+				sizes[idx].Height -= shrink
+				if sizes[idx].Height < 0 {
+					sizes[idx].Height = 0
+				}
+			}
+		}
+	}
+}
+
+// GetShrinkableChildren extracts shrink information from flex children
+func GetShrinkableChildren(children []Node, flexConfig map[int]*Flex, sizes []Size, isRow bool) []ShrinkInfo {
+	var shrinkable []ShrinkInfo
+
+	for i, child := range children {
+		if child == nil {
+			continue
+		}
+
+		flex, ok := flexConfig[i]
+		if !ok || flex.Shrink <= 0 {
+			continue
+		}
+
+		originalSize := 0
+		if isRow {
+			originalSize = sizes[i].Width
+		} else {
+			originalSize = sizes[i].Height
+		}
+
+		shrinkable = append(shrinkable, ShrinkInfo{
+			Index:        i,
+			OriginalSize: originalSize,
+			ShrinkFactor: flex.Shrink,
+			MinSize:      0, // Default minimum
+		})
+	}
+
+	return shrinkable
 }
