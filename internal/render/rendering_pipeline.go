@@ -2,6 +2,8 @@
 package render
 
 import (
+	"os"
+
 	"github.com/wwsheng009/mint/internal/log"
 	"github.com/wwsheng009/mint/internal/reconciler"
 	"github.com/wwsheng009/mint/runtime"
@@ -13,26 +15,44 @@ import (
 )
 
 // RenderingPipeline is the new rendering pipeline with separated Layout and Paint phases
-// Layout phase: compute.Engine calculates all positions
+// Layout phase: LayoutSwitcher (can use compute.Engine or layout.Engine)
 // Paint phase: PaintEngine renders using computed positions
 type RenderingPipeline struct {
-	layoutEngine *compute.Engine
+	layoutEngine *compute.Engine    // Legacy: direct compute engine (kept for compatibility)
+	switcher     *LayoutSwitcher    // New: switchable layout engine
 	paintEngine  *PaintEngine
 	lastHitMap   *event.HitMap  // HitMap from the most recent RenderLayers call
 	layerMgr     *layer.Manager // LayerManager from the most recent RenderLayers call
+	useSwitcher  bool           // Whether to use the switcher (based on MINT_LAYOUT_ENGINE)
 }
 
 // NewRenderingPipeline creates a new rendering pipeline
 func NewRenderingPipeline() *RenderingPipeline {
-	return &RenderingPipeline{
+	pipeline := &RenderingPipeline{
 		layoutEngine: compute.NewEngine(),
 		paintEngine:  NewPaintEngine(),
 	}
+
+	// Check if we should use the switcher (new layout engine)
+	envEngine := os.Getenv("MINT_LAYOUT_ENGINE")
+	if envEngine != "" && envEngine != "compute" {
+		pipeline.switcher = NewLayoutSwitcher()
+		pipeline.useSwitcher = true
+		log.PipelineLogger.Debug("[RenderingPipeline] Using LayoutSwitcher with engine: %s", pipeline.switcher.GetEngineType())
+	} else {
+		pipeline.useSwitcher = false
+		log.PipelineLogger.Debug("[RenderingPipeline] Using legacy compute.Engine")
+	}
+
+	return pipeline
 }
 
 // SetLayoutDebug enables/disables layout debug output
 func (p *RenderingPipeline) SetLayoutDebug(debug bool) {
 	p.layoutEngine.SetDebug(debug)
+	if p.switcher != nil {
+		p.switcher.SetDebug(debug)
+	}
 }
 
 // SetPaintDebug enables/disables paint debug output
@@ -52,13 +72,39 @@ func (p *RenderingPipeline) Render(vnode rtui.VNode, fiber *reconciler.Fiber, co
 
 	log.PipelineLogger.Debug("Render started")
 
+	var layout *compute.ComputedLayout
+	var err error
+
 	// Phase 1: Layout - calculate all positions
-	// Phase 8: Pass Fiber to layout engine for NodeID propagation
-	layout, err := p.layoutEngine.Layout(vnode, fiber, constraints)
-	if err != nil {
-		// Fallback to legacy rendering if layout fails
-		log.PipelineLogger.Debug("❌ Layout FAILED: %v, falling back to legacy", err)
-		return p.renderLegacy(vnode, 0, 0, buffer)
+	if p.useSwitcher && p.switcher != nil {
+		// Use the switcher (supports new layout engine)
+		log.PipelineLogger.Debug("Using LayoutSwitcher with engine: %s", p.switcher.GetEngineType())
+		result, layoutErr := p.switcher.Layout(vnode, fiber, constraints)
+		if layoutErr != nil {
+			log.PipelineLogger.Debug("❌ Layout FAILED: %v, falling back to legacy", layoutErr)
+			return p.renderLegacy(vnode, 0, 0, buffer)
+		}
+
+		// Convert LayoutResult to ComputedLayout for PaintEngine
+		if adapter, ok := result.(*computeLayoutResultAdapter); ok {
+			layout = adapter.ComputedLayout
+		} else {
+			// For new layout engine, we need different handling
+			log.PipelineLogger.Debug("New layout engine result - converting for paint")
+			// For now, use the legacy engine as fallback for painting
+			layout, err = p.layoutEngine.Layout(vnode, fiber, constraints)
+			if err != nil {
+				return p.renderLegacy(vnode, 0, 0, buffer)
+			}
+		}
+	} else {
+		// Use legacy compute engine
+		log.PipelineLogger.Debug("Using legacy compute.Engine")
+		layout, err = p.layoutEngine.Layout(vnode, fiber, constraints)
+		if err != nil {
+			log.PipelineLogger.Debug("❌ Layout FAILED: %v, falling back to legacy", err)
+			return p.renderLegacy(vnode, 0, 0, buffer)
+		}
 	}
 
 	log.PipelineLogger.Debug("✅ Layout complete, starting Paint phase")
@@ -71,7 +117,9 @@ func (p *RenderingPipeline) Render(vnode rtui.VNode, fiber *reconciler.Fiber, co
 
 	// Save HitMap for event routing (hit testing)
 	// This HitMap contains the FINAL positions from layout computation
-	p.lastHitMap = layout.HitMap
+	if layout != nil {
+		p.lastHitMap = layout.HitMap
+	}
 
 	if p.lastHitMap != nil {
 		log.PipelineLogger.Debug("Saved HitMap: %d entries", p.lastHitMap.Size())
@@ -122,6 +170,20 @@ func (p *RenderingPipeline) GetPaintEngine() *PaintEngine {
 // GetCacheStats returns statistics about the layout cache
 func (p *RenderingPipeline) GetCacheStats() compute.CacheStats {
 	return p.layoutEngine.GetCacheStats()
+}
+
+// GetLayoutEngineType returns the current layout engine type
+// Returns "compute" for legacy engine, "layout" for new engine, "both" for comparison mode
+func (p *RenderingPipeline) GetLayoutEngineType() string {
+	if p.useSwitcher && p.switcher != nil {
+		return p.switcher.GetEngineType().String()
+	}
+	return "compute"
+}
+
+// GetSwitcher returns the LayoutSwitcher if available, nil otherwise
+func (p *RenderingPipeline) GetSwitcher() *LayoutSwitcher {
+	return p.switcher
 }
 
 // ResetCacheStats resets cache hit/miss counters
