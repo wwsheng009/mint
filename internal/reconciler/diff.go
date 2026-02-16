@@ -50,11 +50,44 @@ func getTypeIDFromSegment(segment string) string {
 	return segment[:idx]
 }
 
-
 // generateDebugPathForFiber generates a debug path for a fiber
 // The path is ONLY for debugging (inspector, hit map, logging)
 // It does NOT participate in diffing - DiffKey handles that
-func generateDebugPathForFiber(fiber *Fiber, returnFiber *Fiber, vnode rtui.VNode, siblingIndex int, typeIndex int) {
+// Fiber-first version: uses Fiber fields instead of VNode
+func generateDebugPathForFiber(fiber *Fiber, returnFiber *Fiber, siblingIndex int, typeIndex int) {
+	if pathGenerator == nil {
+		pathGenerator = NewPathGenerator()
+	}
+
+	userKey := fiber.Key
+
+	// Check for layer-based path generation
+	isRootChild := returnFiber != nil && returnFiber.Key == "root" && returnFiber.Path == "/root"
+	isLayerNode := fiber.Layer != rtui.LayerBase && fiber.Layer.IsValid()
+	useLayerBasedPath := isRootChild || isLayerNode
+
+	var typePath string
+	if useLayerBasedPath {
+		typePath = pathGenerator.generateRootPathFromFiber(fiber)
+	} else if typeIndex >= 0 {
+		typePath = pathGenerator.GeneratePathWithIndexFromFiber(returnFiber, fiber, siblingIndex, typeIndex)
+	} else {
+		typePath = pathGenerator.GeneratePathFromFiber(returnFiber, fiber, siblingIndex)
+	}
+
+	// Append user key if present
+	if userKey != "" {
+		fiber.Path = typePath + "/key[" + userKey + "]"
+	} else {
+		fiber.Path = typePath
+	}
+
+	// Extract path segment from typePath (before user key append)
+	fiber.PathSegment = extractPathSegment(typePath)
+}
+
+// generateDebugPathForFiberFromVNode generates path from VNode (used during initial creation)
+func generateDebugPathForFiberFromVNode(fiber *Fiber, returnFiber *Fiber, vnode rtui.VNode, siblingIndex int, typeIndex int) {
 	if pathGenerator == nil {
 		pathGenerator = NewPathGenerator()
 	}
@@ -82,8 +115,7 @@ func generateDebugPathForFiber(fiber *Fiber, returnFiber *Fiber, vnode rtui.VNod
 		fiber.Path = typePath
 	}
 
-	// Extract path segment from typePath (before user key append)
-	// This ensures PathSegment is always the type index (button[0]), not the user key
+	// Extract path segment from typePath
 	fiber.PathSegment = extractPathSegment(typePath)
 }
 
@@ -96,12 +128,9 @@ func reconcileChildren(
 	lanes Lane,
 ) *Fiber {
 	// Validate keys for list children (React-style warning)
+	// Note: In Fiber-first, we pass nil for parentVNode since we don't store VNode
 	if currentReconciler != nil && currentReconciler.keyValidator != nil {
-		var parentVNode rtui.VNode
-		if returnFiber != nil {
-			parentVNode = returnFiber.VNode
-		}
-		currentReconciler.keyValidator.ValidateChildren(parentVNode, newChildren)
+		currentReconciler.keyValidator.ValidateChildren(nil, newChildren)
 	}
 
 	// If no new children, delete all existing children
@@ -267,21 +296,20 @@ func shouldUpdate(current *Fiber, vnode rtui.VNode) bool {
 
 	// For components, check if the component function is the same
 	if current.Type == rtui.VNodeComponent {
-		currentComp, ok1 := current.VNode.(*rtui.ComponentVNode)
-		newComp, ok2 := vnode.(*rtui.ComponentVNode)
-		if ok1 && ok2 {
-			// Compare component names since functions cannot be directly compared
-			// Same DiffKey + same name = same component
-			return currentComp.Name() == newComp.Name()
+		// Compare component names since functions cannot be directly compared
+		// Same DiffKey + same name = same component
+		newComp, ok := vnode.(*rtui.ComponentVNode)
+		if ok {
+			return current.ComponentName == newComp.Name()
 		}
+		// If vnode is not ComponentVNode, compare by Tag
+		return current.Tag == vnode.(interface{ Tag() string }).Tag()
 	}
 
 	// For elements, check if tag is the same
 	if current.Type == rtui.VNodeElement {
-		currentElem, ok1 := current.VNode.(*rtui.ElementVNode)
-		newElem, ok2 := vnode.(*rtui.ElementVNode)
-		if ok1 && ok2 {
-			return currentElem.Tag() == newElem.Tag()
+		if tagger, ok := vnode.(interface{ Tag() string }); ok {
+			return current.Tag == tagger.Tag()
 		}
 	}
 
@@ -335,13 +363,13 @@ func createChildFiberWithIndex(returnFiber *Fiber, vnode rtui.VNode, lanes Lane,
 	} else {
 		// Use index as DiffKey fallback for static non-dynamic UI
 		// This matches React's default behavior and allows reconciliation
-		fiber.DiffKey = string(rune('0' + siblingIndex % 10))
+		fiber.DiffKey = string(rune('0' + siblingIndex%10))
 		fiber.Key = fiber.DiffKey // Backward compatibility alias
 	}
 
 	// Path is only for debugging (inspector, hit map)
 	// It does NOT participate in diffing
-	generateDebugPathForFiber(fiber, returnFiber, vnode, siblingIndex, typeIndex)
+	generateDebugPathForFiberFromVNode(fiber, returnFiber, vnode, siblingIndex, typeIndex)
 
 	return fiber
 }
@@ -349,11 +377,18 @@ func createChildFiberWithIndex(returnFiber *Fiber, vnode rtui.VNode, lanes Lane,
 // cloneExistingFiber clones an existing fiber with new VNode data
 // ✨ Optimized: Preserves DiffKey for stable diffing
 // Path is only updated for debugging (inspector, hit map)
+// ✨ Fiber-first: Extracts data from VNode without storing reference
 func cloneExistingFiber(returnFiber *Fiber, current *Fiber, vnode rtui.VNode, siblingIndex int) *Fiber {
 	fiber := CloneFiber(current)
 	fiber.Return = returnFiber
-	fiber.VNode = vnode
+	// Extract data from vnode instead of storing reference
 	fiber.Props = vnode.Props()
+	fiber.Style = vnode.Style()
+	fiber.Layer = vnode.GetLayer()
+	// Update tag if available
+	if tagger, ok := vnode.(interface{ Tag() string }); ok {
+		fiber.Tag = tagger.Tag()
+	}
 	fiber.Lanes = LaneNoLane
 	fiber.Flags = EffectNoEffect
 
@@ -362,7 +397,7 @@ func cloneExistingFiber(returnFiber *Fiber, current *Fiber, vnode rtui.VNode, si
 	// This ensures diffing works correctly
 
 	// Path is only for debugging - update it for inspector/hit map
-	generateDebugPathForFiber(fiber, returnFiber, vnode, siblingIndex, -1)
+	generateDebugPathForFiber(fiber, returnFiber, siblingIndex, -1)
 
 	fiber.SiblingIndex = siblingIndex
 

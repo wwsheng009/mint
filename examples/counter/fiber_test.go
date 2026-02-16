@@ -22,6 +22,9 @@ func TestFiberCounterInitial(t *testing.T) {
 
 	time.Sleep(50 * time.Millisecond)
 
+	// Force render to ensure buffer is populated
+	testApp.ForceRender()
+
 	rendered := testApp.GetRenderString()
 
 	t.Logf("=== Initial Render Output ===")

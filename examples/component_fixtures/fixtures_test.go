@@ -283,8 +283,8 @@ func collectKeys(fiber *ui.Fiber) []string {
 		if f == nil {
 			return
 		}
-		if f.VNode != nil && f.VNode.Key() != "" {
-			keys = append(keys, f.VNode.Key())
+		if f.Key != "" {
+			keys = append(keys, f.Key)
 		}
 		traverse(f.Child)
 		traverse(f.Sibling)

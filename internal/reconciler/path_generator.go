@@ -1,85 +1,92 @@
 package reconciler
 
-// =============================================================================
-// Path Generator - 自动路径Key生成器
-// =============================================================================
-// 为静态UI组件自动生成基于路径的唯一Key
-// 格式: /root/{layer}[{index}]/{type}[{index}]/...
-// =============================================================================
-
 import (
 	"fmt"
 
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
 
-// PathGenerator 生成组件的路径Key
-type PathGenerator struct {
-	// 预留：未来可以添加缓存
-	// segmentCache map[string]int
-}
+type PathGenerator struct{}
 
-// NewPathGenerator 创建路径生成器
 func NewPathGenerator() *PathGenerator {
-	return &PathGenerator{
-		// segmentCache: make(map[string]int),
-	}
+	return &PathGenerator{}
 }
 
-// GeneratePath 生成组件的Key（基于路径）
-// 返回: 完整的路径字符串，如 /root/base[0]/vstack[0]/panel[0]
-//
-// 参数:
-//   parent - 父Fiber节点
-//   vnode - 当前VNode
-//   siblingIndex - 当前节点在兄弟节点中的索引
-//
-// 示例:
-//   GeneratePath(nil, vnode, 0) → "/root/base[0]"
-//   GeneratePath(parent, vnode, 1) → "/root/base[0]/vstack[0]/panel[1]"
 func (pg *PathGenerator) GeneratePath(
 	parent *Fiber,
 	vnode rtui.VNode,
 	siblingIndex int,
 ) string {
-	// 1. 检查是否是根节点
 	if parent == nil {
 		return pg.generateRootPath(vnode)
 	}
-
-	// 2. 获取组件类型标识
 	typeID := pg.getTypeIdentifier(vnode)
-
-	// 3. 获取该类型的索引
 	index := pg.getTypeIndex(parent, typeID, siblingIndex)
-
-	// 4. 生成路径段
 	segment := fmt.Sprintf("%s[%d]", typeID, index)
-
-	// 5. 拼接完整路径
 	return parent.Path + "/" + segment
 }
 
-// generateRootPath 生成根节点路径
+func (pg *PathGenerator) GeneratePathFromFiber(
+	parent *Fiber,
+	fiber *rtui.Fiber,
+	siblingIndex int,
+) string {
+	if parent == nil {
+		return pg.generateRootPathFromFiber(fiber)
+	}
+	typeID := pg.getTypeIdentifierFromFiber(fiber)
+	index := pg.getTypeIndexFromFiber(parent, typeID, siblingIndex)
+	segment := fmt.Sprintf("%s[%d]", typeID, index)
+	return parent.Path + "/" + segment
+}
+
+func (pg *PathGenerator) GeneratePathWithIndex(
+	parent *Fiber,
+	vnode rtui.VNode,
+	siblingIndex int,
+	typeIndex int,
+) string {
+	if parent == nil {
+		return pg.generateRootPath(vnode)
+	}
+	typeID := pg.getTypeIdentifier(vnode)
+	segment := fmt.Sprintf("%s[%d]", typeID, typeIndex)
+	return parent.Path + "/" + segment
+}
+
+func (pg *PathGenerator) GeneratePathWithIndexFromFiber(
+	parent *Fiber,
+	fiber *rtui.Fiber,
+	siblingIndex int,
+	typeIndex int,
+) string {
+	if parent == nil {
+		return pg.generateRootPathFromFiber(fiber)
+	}
+	typeID := pg.getTypeIdentifierFromFiber(fiber)
+	segment := fmt.Sprintf("%s[%d]", typeID, typeIndex)
+	return parent.Path + "/" + segment
+}
+
 func (pg *PathGenerator) generateRootPath(vnode rtui.VNode) string {
 	layer := vnode.GetLayer()
 	layerName := getLayerName(layer)
 	return fmt.Sprintf("/root/%s[0]", layerName)
 }
 
-// getTypeIdentifier 获取组件的类型标识
-// 用于路径段，如 "button", "panel", "vstack"
+func (pg *PathGenerator) generateRootPathFromFiber(fiber *rtui.Fiber) string {
+	layerName := getLayerName(fiber.Layer)
+	return fmt.Sprintf("/root/%s[0]", layerName)
+}
+
 func (pg *PathGenerator) getTypeIdentifier(vnode rtui.VNode) string {
-	// First try using VNode.Type() and interface methods (works for all VNode implementations)
 	switch vnode.Type() {
 	case rtui.VNodeComponent:
-		// ComponentVNode: use component name
 		if namer, ok := vnode.(interface{ Name() string }); ok {
 			return namer.Name()
 		}
 		return "component"
 	case rtui.VNodeElement:
-		// ElementVNode: use tag name
 		if tagger, ok := vnode.(interface{ Tag() string }); ok {
 			return tagger.Tag()
 		}
@@ -89,24 +96,34 @@ func (pg *PathGenerator) getTypeIdentifier(vnode rtui.VNode) string {
 	case rtui.VNodeFragment:
 		return "fragment"
 	default:
-		// Fallback: try type switch for concrete types
-		switch v := vnode.(type) {
-		case *rtui.ComponentVNode:
-			return v.Name()
-		case *rtui.ElementVNode:
-			return v.Tag()
-		case *rtui.TextVNode:
-			return "text"
-		case *rtui.FragmentVNode:
-			return "fragment"
-		default:
-			return "unknown"
-		}
+		return "unknown"
 	}
 }
 
-// getTypeIndex 获取组件类型在父节点中的索引
-// 统计在siblingIndex之前有多少同类型的兄弟节点
+func (pg *PathGenerator) getTypeIdentifierFromFiber(fiber *rtui.Fiber) string {
+	switch fiber.Type {
+	case rtui.VNodeComponent:
+		if fiber.ComponentName != "" {
+			return fiber.ComponentName
+		}
+		if fiber.Tag != "" {
+			return fiber.Tag
+		}
+		return "component"
+	case rtui.VNodeElement:
+		if fiber.Tag != "" {
+			return fiber.Tag
+		}
+		return "element"
+	case rtui.VNodeText:
+		return "text"
+	case rtui.VNodeFragment:
+		return "fragment"
+	default:
+		return "unknown"
+	}
+}
+
 func (pg *PathGenerator) getTypeIndex(
 	parent *Fiber,
 	typeID string,
@@ -115,27 +132,26 @@ func (pg *PathGenerator) getTypeIndex(
 	if parent == nil {
 		return 0
 	}
-
-	// 统计在当前索引之前有多少同类型的兄弟节点
 	count := 0
 	child := parent.Child
-
 	for i := 0; i < siblingIndex && child != nil; i++ {
-		if child.VNode != nil {
-			childTypeID := pg.getTypeIdentifier(child.VNode)
-			if childTypeID == typeID {
-				count++
-			}
+		childTypeID := pg.getTypeIdentifierFromFiber(child)
+		if childTypeID == typeID {
+			count++
 		}
 		child = child.Sibling
 	}
-
 	return count
 }
 
-// getTypeIndexFromVNodes 获取组件类型在VNode数组中的索引
-// 统计在siblingIndex之前有多少同类型的VNode
-// 当Fiber节点还未链接时使用此方法
+func (pg *PathGenerator) getTypeIndexFromFiber(
+	parent *Fiber,
+	typeID string,
+	siblingIndex int,
+) int {
+	return pg.getTypeIndex(parent, typeID, siblingIndex)
+}
+
 func (pg *PathGenerator) getTypeIndexFromVNodes(
 	children []rtui.VNode,
 	typeID string,
@@ -144,8 +160,6 @@ func (pg *PathGenerator) getTypeIndexFromVNodes(
 	if siblingIndex <= 0 {
 		return 0
 	}
-
-	// 统计在当前索引之前有多少同类型的VNode
 	count := 0
 	for i := 0; i < siblingIndex && i < len(children); i++ {
 		childTypeID := pg.getTypeIdentifier(children[i])
@@ -153,11 +167,9 @@ func (pg *PathGenerator) getTypeIndexFromVNodes(
 			count++
 		}
 	}
-
 	return count
 }
 
-// getLayerName 获取Layer的名称
 func getLayerName(layer rtui.Layer) string {
 	switch layer {
 	case rtui.LayerBase:
@@ -173,53 +185,4 @@ func getLayerName(layer rtui.Layer) string {
 	default:
 		return "unknown"
 	}
-}
-
-// GeneratePathWithIndex generates a path using a pre-calculated type index
-// This is used by createAllNewChildren where type indices are tracked externally
-func (pg *PathGenerator) GeneratePathWithIndex(
-	parent *Fiber,
-	vnode rtui.VNode,
-	siblingIndex int,
-	typeIndex int,
-) string {
-	// 1. Check if it's root node
-	if parent == nil {
-		return pg.generateRootPath(vnode)
-	}
-
-	// 2. Get component type identifier
-	typeID := pg.getTypeIdentifier(vnode)
-
-	// 3. Use the provided type index
-	segment := fmt.Sprintf("%s[%d]", typeID, typeIndex)
-
-	// 4. Concatenate full path
-	return parent.Path + "/" + segment
-}
-
-// GeneratePathFromVNodes generates a path using VNode array for type counting
-// This is used when fibers are not yet linked to parent
-func (pg *PathGenerator) GeneratePathFromVNodes(
-	parent *Fiber,
-	vnode rtui.VNode,
-	siblingIndex int,
-	children []rtui.VNode,
-) string {
-	// 1. Check if it's root node
-	if parent == nil {
-		return pg.generateRootPath(vnode)
-	}
-
-	// 2. Get component type identifier
-	typeID := pg.getTypeIdentifier(vnode)
-
-	// 3. Get type index from VNode array
-	typeIndex := pg.getTypeIndexFromVNodes(children, typeID, siblingIndex)
-
-	// 4. Generate path segment
-	segment := fmt.Sprintf("%s[%d]", typeID, typeIndex)
-
-	// 5. Concatenate full path
-	return parent.Path + "/" + segment
 }

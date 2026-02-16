@@ -3,6 +3,7 @@ package render
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/wwsheng009/mint/internal/log"
 	"github.com/wwsheng009/mint/runtime"
@@ -42,7 +43,15 @@ func (e *PaintEngine) SetDebug(debug bool) {
 // Paint renders a computed layout to a buffer
 func (e *PaintEngine) Paint(layout *compute.ComputedLayout, buffer *paint.Buffer) error {
 	if layout == nil || layout.Root == nil {
+		if os.Getenv("MINT_DEBUG_TEST") == "true" {
+			fmt.Printf("[PaintEngine.Paint] layout or layout.Root is nil\n")
+		}
 		return nil
+	}
+
+	if os.Getenv("MINT_DEBUG_TEST") == "true" {
+		fmt.Printf("[PaintEngine.Paint] START: layout.Root.Box=(%d,%d,%dx%d), VNode=%T\n",
+			layout.Root.Box.X, layout.Root.Box.Y, layout.Root.Box.Width, layout.Root.Box.Height, layout.Root.VNode)
 	}
 
 	if log.PaintLogger.Enabled() {
@@ -78,6 +87,11 @@ func (e *PaintEngine) paintNode(box *compute.ComputedBox, buffer *paint.Buffer) 
 		return nil
 	}
 
+	if os.Getenv("MINT_DEBUG_TEST") == "true" {
+		fmt.Printf("[PaintEngine.paintNode] ENTER type=%s tag=%s at (%d,%d) size %dx%d, children=%d\n",
+			box.VNode.Type().String(), box.VNode.Tag(), box.Box.X, box.Box.Y, box.Box.Width, box.Box.Height, len(box.Children))
+	}
+
 	if e.debug || log.PaintLogger.Enabled() || log.PaintLogger.Enabled() {
 		log.PaintLogger.Debug("[Paint.paintNode] %s at (%d,%d) size %dx%d, vnode_type=%T",
 			box.VNode.Type().String(), box.Box.X, box.Box.Y, box.Box.Width, box.Box.Height, box.VNode)
@@ -97,15 +111,28 @@ func (e *PaintEngine) paintNode(box *compute.ComputedBox, buffer *paint.Buffer) 
 	paintable, ok := box.VNode.(interface {
 		Paint(int, int) []paint.DrawCmd
 	})
+	if os.Getenv("MINT_DEBUG_TEST") == "true" {
+		fmt.Printf("[PaintEngine.paintNode] Paintable check: ok=%v, tag=%s\n", ok, box.VNode.Tag())
+	}
 	if ok {
+		if os.Getenv("MINT_DEBUG_TEST") == "true" {
+			fmt.Printf("[PaintEngine.paintNode] Paintable: YES, tag=%s, calling Paint(%d, %d)\n", box.VNode.Tag(), box.Box.X, box.Box.Y)
+		}
 		if e.debug || log.PaintLogger.Enabled() || log.PaintLogger.Enabled() {
 			log.PaintLogger.Debug("[Paint.paintNode]   ✅ Paintable: YES, calling Paint(%d, %d)", box.Box.X, box.Box.Y)
 		}
 		// Component has custom paint logic - use it
 		commands := paintable.Paint(box.Box.X, box.Box.Y)
 
+		if os.Getenv("MINT_DEBUG_TEST") == "true" {
+			fmt.Printf("[PaintEngine.paintNode] Paint returned %d commands\n", len(commands))
+			for i, cmd := range commands {
+				fmt.Printf("  cmd[%d]: x=%d y=%d text=%q\n", i, cmd.X, cmd.Y, cmd.Text)
+			}
+		}
+
 		// Apply commands with potential background inheritance
-		for _, cmd := range commands {
+		for i, cmd := range commands {
 			styleToApply := cmd.Style
 			// If command has no background and parent has one, inherit it
 			if parentBG != "" && (styleToApply.BG == "" || styleToApply.BG == style.NoColor) {
@@ -114,7 +141,17 @@ func (e *PaintEngine) paintNode(box *compute.ComputedBox, buffer *paint.Buffer) 
 					log.PaintLogger.Debug("[Paint.paintNode]   🎨 Paintable inherited parent BG=%s", parentBG)
 				}
 			}
+			if os.Getenv("MINT_DEBUG_TEST") == "true" {
+				fmt.Printf("[PaintEngine.paintNode] buffer.SetString(%d, %d, %q)\n", cmd.X, cmd.Y, cmd.Text)
+			}
 			buffer.SetString(cmd.X, cmd.Y, cmd.Text, styleToApply)
+			if os.Getenv("MINT_DEBUG_TEST") == "true" && i == 0 {
+				// Check if the cell was written
+				if cmd.Y < buffer.Height && cmd.X < buffer.Width {
+					cell := buffer.Cells[cmd.Y][cmd.X]
+					fmt.Printf("[PaintEngine.paintNode] After SetString, cell[0,%d].Cluster=%q\n", cmd.Y, cell.Cluster)
+				}
+			}
 		}
 
 		// Clean up parent background entry
@@ -153,8 +190,15 @@ func (e *PaintEngine) paintNode(box *compute.ComputedBox, buffer *paint.Buffer) 
 	}
 
 	// Paint the node based on its type
-	switch box.VNode.Type() {
+	vnodeType := box.VNode.Type()
+	if os.Getenv("MINT_DEBUG_TEST") == "true" {
+		fmt.Printf("[PaintEngine.paintNode] vnodeType=%d, VNodeText=%d, VNodeElement=%d, equal to Text=%v\n", vnodeType, rtui.VNodeText, rtui.VNodeElement, vnodeType == rtui.VNodeText)
+	}
+	switch vnodeType {
 	case rtui.VNodeText:
+		if os.Getenv("MINT_DEBUG_TEST") == "true" {
+			fmt.Printf("[PaintEngine.paintNode] MATCHED VNodeText, calling paintText for tag=%s\n", box.VNode.Tag())
+		}
 		e.paintText(box, buffer)
 
 	case rtui.VNodeElement:
@@ -197,6 +241,10 @@ func (e *PaintEngine) paintText(box *compute.ComputedBox, buffer *paint.Buffer) 
 	if text == "" {
 		text = rtui.GetTextContent(box.VNode)
 	}
+	if os.Getenv("MINT_DEBUG_TEST") == "true" {
+		fmt.Printf("[PaintEngine.paintText] box=(%d,%d,%dx%d) renderedText=%q text=%q\n",
+			box.Box.X, box.Box.Y, box.Box.Width, box.Box.Height, box.RenderedText, text)
+	}
 	if e.debug {
 		log.PaintLogger.Debug("[Paint.paintText] box=(%d,%d,%dx%d) renderedText=%q text=%q",
 			box.Box.X, box.Box.Y, box.Box.Width, box.Box.Height, box.RenderedText, text)
@@ -206,6 +254,9 @@ func (e *PaintEngine) paintText(box *compute.ComputedBox, buffer *paint.Buffer) 
 		// Pad to box.Box.X + box.Box.Width to fill entire row within component boundary
 		maxX := box.Box.X + box.Box.Width
 		buffer.SetStringAligned(box.Box.X, box.Box.Y, text, box.VNode.Style(), maxX)
+		if os.Getenv("MINT_DEBUG_TEST") == "true" {
+			fmt.Printf("[PaintEngine.paintText] Wrote text to buffer at (%d,%d): %q\n", box.Box.X, box.Box.Y, text)
+		}
 	}
 }
 
@@ -292,7 +343,17 @@ func (e *PaintEngine) clearRegion(bounds runtime.Box, buffer *paint.Buffer) {
 
 // paintChildren paints children of a node using their computed positions
 func (e *PaintEngine) paintChildren(box *compute.ComputedBox, buffer *paint.Buffer) error {
-	for _, childBox := range box.Children {
+	if os.Getenv("MINT_DEBUG_TEST") == "true" {
+		fmt.Printf("[PaintEngine.paintChildren] box has %d children\n", len(box.Children))
+	}
+	for i, childBox := range box.Children {
+		if os.Getenv("MINT_DEBUG_TEST") == "true" {
+			if childBox != nil && childBox.VNode != nil {
+				fmt.Printf("[PaintEngine.paintChildren] child %d: type=%d tag=%s\n", i, childBox.VNode.Type(), childBox.VNode.Tag())
+			} else {
+				fmt.Printf("[PaintEngine.paintChildren] child %d is nil\n", i)
+			}
+		}
 		if err := e.paintNode(childBox, buffer); err != nil {
 			return err
 		}
@@ -457,11 +518,13 @@ func (e *PaintEngine) PaintLayers(
 // It iterates through RenderPlanes by layer and paints each ComputedBox
 //
 // Parameters:
-//   renderPlanes - RenderPlanes containing all boxes organized by layer
-//   buffer - Paint buffer to render to
+//
+//	renderPlanes - RenderPlanes containing all boxes organized by layer
+//	buffer - Paint buffer to render to
 //
 // Returns:
-//   error - Any painting error
+//
+//	error - Any painting error
 func (e *PaintEngine) PaintRenderPlanes(
 	renderPlanes *layer.RenderPlanes,
 	buffer *paint.Buffer,

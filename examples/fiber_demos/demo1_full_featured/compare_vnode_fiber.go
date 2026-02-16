@@ -191,12 +191,8 @@ func CheckFiberPreservation(fiber *rtui.Fiber, depth int) {
 	// Check what's preserved
 	fmt.Printf("%sNodeID=%d Tag=%s Type=%v\n", indentStr, fiber.NodeID, fiber.Tag, fiber.Type)
 
-	// Check VNode reference
-	if fiber.VNode != nil {
-		fmt.Printf("%s  [OK] VNode reference preserved\n", indentStr)
-	} else {
-		fmt.Printf("%s  [WARN] VNode reference is nil\n", indentStr)
-	}
+	// Fiber-first: VNode reference is no longer stored
+	fmt.Printf("%s  [INFO] Fiber-first: VNode reference not stored (data extracted)\n", indentStr)
 
 	// Check Props
 	if fiber.Props != nil {

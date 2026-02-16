@@ -14,9 +14,7 @@ package reconciler
 // =============================================================================
 
 import (
-	"fmt"
 	"os"
-	"runtime/debug"
 
 	"github.com/wwsheng009/mint/internal/log"
 	"github.com/wwsheng009/mint/internal/state"
@@ -53,13 +51,13 @@ func BeginWork(current, workInProgress *Fiber) *Fiber {
 	processUpdateQueue(workInProgress)
 
 	// Check for ErrorBoundary - handle before regular component processing
-	if boundary, ok := workInProgress.VNode.(*rtui.ErrorBoundaryVNode); ok {
-		return beginWorkErrorBoundary(current, workInProgress, boundary)
+	if workInProgress.ErrorBoundaryFunc != nil {
+		return beginWorkErrorBoundary(current, workInProgress)
 	}
 
 	// Check for Memo - handle memoization to skip unnecessary renders
-	if memo, ok := workInProgress.VNode.(*rtui.MemoVNode); ok {
-		return beginWorkMemo(current, workInProgress, memo)
+	if workInProgress.MemoCompare != nil {
+		return beginWorkMemo(current, workInProgress)
 	}
 
 	// Dispatch based on Fiber type
@@ -88,16 +86,11 @@ func BeginWork(current, workInProgress *Fiber) *Fiber {
 
 // beginWorkComponent processes a component Fiber
 func beginWorkComponent(current, workInProgress *Fiber) *Fiber {
-	componentVNode, ok := workInProgress.VNode.(*rtui.ComponentVNode)
-	if !ok {
-		return workInProgress
-	}
-
 	// Generate or get the component key for instance management
 	componentKey := workInProgress.Key
 	if componentKey == "" {
 		// Use component name as key for single-instance components
-		componentKey = "component:" + componentVNode.Name()
+		componentKey = "component:" + workInProgress.ComponentName
 	}
 
 	// Get or create component instance from InstanceManager
@@ -107,10 +100,10 @@ func beginWorkComponent(current, workInProgress *Fiber) *Fiber {
 
 	if currentReconciler != nil && currentReconciler.instanceMgr != nil {
 		instance = currentReconciler.instanceMgr.GetOrCreate(componentKey, func() rtui.ComponentInstance {
-			if componentVNode.FnWithProps() != nil {
-				return rtui.NewBaseComponentInstanceWithProps(componentKey, componentVNode.FnWithProps(), workInProgress.Props)
+			if workInProgress.ComponentFuncWithProps != nil {
+				return rtui.NewBaseComponentInstanceWithProps(componentKey, workInProgress.ComponentFuncWithProps, workInProgress.Props)
 			}
-			return rtui.NewBaseComponentInstance(componentKey, componentVNode.Fn())
+			return rtui.NewBaseComponentInstance(componentKey, workInProgress.ComponentFunc)
 		})
 
 		// Update props if they changed
@@ -126,40 +119,27 @@ func beginWorkComponent(current, workInProgress *Fiber) *Fiber {
 	} else {
 		// Fallback: create a temporary context if no reconciler
 		// This should not happen in normal Fiber mode, but provides safety
-		ctx = rtui.NewComponentContextForRoot() // Use root context as fallback
+		ctx = rtui.NewComponentContextForRoot()
 	}
 
 	// CRITICAL: Reset hook index before re-rendering
-	// This ensures hooks are called in the same order each render
 	ctx.ResetContext()
 
 	// Use the context for hooks
 	oldContext := rtui.GetCurrentContext()
 	rtui.SetCurrentContext(ctx)
 
-	// Debug: verify context is set
-	if log.UILogger.Enabled() {
-		log.UILogger.Debug("beginWorkComponent: SetCurrentContext(ctx=%p, ComponentID=%s), GetCurrentContext()=%p\n",
-			ctx, ctx.ComponentID, rtui.GetCurrentContext())
-	}
-
 	// Get children by calling the component function
 	var children []rtui.VNode
 
-	if componentVNode.Fn() != nil {
+	if workInProgress.ComponentFunc != nil {
 		// Simple component function
-		vnode := componentVNode.Fn()()
+		vnode := workInProgress.ComponentFunc()
 		children = []rtui.VNode{vnode}
-	} else if componentVNode.FnWithProps() != nil {
+	} else if workInProgress.ComponentFuncWithProps != nil {
 		// Component function with props
-		vnode := componentVNode.FnWithProps()(workInProgress.Props)
+		vnode := workInProgress.ComponentFuncWithProps(workInProgress.Props)
 		children = []rtui.VNode{vnode}
-	} else {
-		// No function - use rendered value from VNode
-		rendered := componentVNode.Render()
-		if rendered != nil {
-			children = []rtui.VNode{rendered}
-		}
 	}
 
 	// Restore old context
@@ -199,23 +179,21 @@ func beginWorkText(current, workInProgress *Fiber) *Fiber {
 
 // beginWorkElement processes an element Fiber
 func beginWorkElement(current, workInProgress *Fiber) *Fiber {
-	// Get children using the VNode interface (works for any VNode type)
-	// This handles ButtonVNode, TextVNode, and other custom VNode types
-	children := workInProgress.VNode.Children()
+	// Get children from Props (stored during Fiber creation)
+	// Children are stored in Props["children"] for element nodes
+	var children []rtui.VNode
+	if workInProgress.Props != nil {
+		if c, ok := workInProgress.Props["children"].([]rtui.VNode); ok {
+			children = c
+		}
+	}
 
 	// ✨ NEW: Create/reuse VNodeComponentInstance for VNode struct components
 	// This enables persistent event handlers and state for Button, Text, etc.
 
 	if currentReconciler != nil && currentReconciler.instanceMgr != nil && workInProgress.Key != "" {
-		// ✨ IMPORTANT: Use Fiber.Path instead of Fiber.Key for instance key generation
-		// This ensures instance keys match HitMap NodeIDs which use full paths.
-		// For user-keyed elements (e.g., button with key="btn-event"):
-		//   - Fiber.Key = "btn-event" (user's original key)
-		//   - Fiber.Path = "/root/base[0]/.../button[0]/key[btn-event]" (full path)
-		// HitMap stores NodeID = Fiber.Path, so instance key must use Path too!
 		lookupKey := workInProgress.Path
 		if lookupKey == "" {
-			// Fallback to Key if Path is not set (shouldn't happen with proper path generation)
 			lookupKey = workInProgress.Key
 		}
 		instanceKey := "vnode:" + lookupKey
@@ -227,13 +205,8 @@ func beginWorkElement(current, workInProgress *Fiber) *Fiber {
 
 		// Get or create VNode component instance
 		instance := currentReconciler.instanceMgr.GetOrCreate(instanceKey, func() rtui.ComponentInstance {
-			return createVNodeComponentInstance(instanceKey, workInProgress.VNode)
+			return createVNodeComponentInstanceFromFiber(instanceKey, workInProgress)
 		})
-
-		// Update the instance with the new VNode
-		if vnodeInst, ok := instance.(*state.VNodeComponentInstance); ok {
-			vnodeInst.UpdateVNode(workInProgress.VNode)
-		}
 
 		// Store the instance in the fiber
 		workInProgress.ComponentInstance = instance
@@ -267,13 +240,13 @@ func beginWorkElement(current, workInProgress *Fiber) *Fiber {
 
 // beginWorkFragment processes a fragment Fiber
 func beginWorkFragment(current, workInProgress *Fiber) *Fiber {
-	fragmentVNode, ok := workInProgress.VNode.(*rtui.FragmentVNode)
-	if !ok {
-		return workInProgress
+	// Get children from Props (stored during Fiber creation)
+	var children []rtui.VNode
+	if workInProgress.Props != nil {
+		if c, ok := workInProgress.Props["children"].([]rtui.VNode); ok {
+			children = c
+		}
 	}
-
-	// Get children from fragment
-	children := fragmentVNode.Children()
 
 	// Get current child for reconciliation
 	var currentChild *Fiber
@@ -332,13 +305,11 @@ func processUpdateQueue(workInProgress *Fiber) {
 // =============================================================================
 
 // beginWorkErrorBoundary processes an error boundary Fiber
-// Error boundaries catch panics from their child components and render a fallback UI
-func beginWorkErrorBoundary(current, workInProgress *Fiber, boundary *rtui.ErrorBoundaryVNode) *Fiber {
+func beginWorkErrorBoundary(current, workInProgress *Fiber) *Fiber {
 	// The error boundary wraps a component that might panic
 	// We need to call the component's function with panic recovery
 
-	// Get the component function from the boundary
-	componentFn := boundary.Component()
+	componentFn := workInProgress.ErrorBoundaryFunc
 
 	// Try to render the component with panic recovery
 	var children []rtui.VNode
@@ -348,9 +319,6 @@ func beginWorkErrorBoundary(current, workInProgress *Fiber, boundary *rtui.Error
 		defer func() {
 			if r := recover(); r != nil {
 				hadPanic = true
-
-				// Update the boundary's error state
-				boundary.SetError(r.(error), fmt.Sprintf("panic in %s: %v", boundary.Name(), r), string(debug.Stack()))
 			}
 		}()
 
@@ -363,13 +331,13 @@ func beginWorkErrorBoundary(current, workInProgress *Fiber, boundary *rtui.Error
 
 	// If panic occurred, render the fallback instead
 	if hadPanic {
-		fallback := boundary.Fallback()
-		if fallback != nil {
-			children = []rtui.VNode{fallback}
-		} else {
-			// No fallback, render empty fragment
-			children = []rtui.VNode{rtui.Fragment()}
+		if workInProgress.ErrorBoundaryFallbackFiber != nil {
+			// Use the fallback fiber as the child
+			workInProgress.Child = workInProgress.ErrorBoundaryFallbackFiber
+			return workInProgress
 		}
+		// No fallback, render empty fragment
+		children = []rtui.VNode{rtui.Fragment()}
 	}
 
 	// Get current child for reconciliation
@@ -395,7 +363,7 @@ func beginWorkErrorBoundary(current, workInProgress *Fiber, boundary *rtui.Error
 
 // beginWorkMemo processes a memoized component Fiber
 // Memo components skip re-rendering if their props haven't changed
-func beginWorkMemo(current, workInProgress *Fiber, memo *rtui.MemoVNode) *Fiber {
+func beginWorkMemo(current, workInProgress *Fiber) *Fiber {
 	// Get current props
 	newProps := workInProgress.GetProps()
 
@@ -407,11 +375,10 @@ func beginWorkMemo(current, workInProgress *Fiber, memo *rtui.MemoVNode) *Fiber 
 	} else {
 		// Use memo's comparison function
 		oldProps := current.GetProps()
-		compare := memo.GetCompare()
-		if compare != nil {
+		if workInProgress.MemoCompare != nil {
 			// Use custom comparison from memo
 			// Note: compare returns true if props are equal (no update needed)
-			propsEqual := compare(oldProps, newProps)
+			propsEqual := workInProgress.MemoCompare(oldProps, newProps)
 			shouldUpdate = !propsEqual
 		} else {
 			// Default shallow comparison
@@ -432,7 +399,15 @@ func beginWorkMemo(current, workInProgress *Fiber, memo *rtui.MemoVNode) *Fiber 
 	}
 
 	// Props changed or have pending updates - process the wrapped component
-	wrappedComponent := memo.GetComponent()
+	// For memo, the wrapped component function is stored in ComponentFunc
+	var children []rtui.VNode
+	if workInProgress.ComponentFunc != nil {
+		vnode := workInProgress.ComponentFunc()
+		children = []rtui.VNode{vnode}
+	} else if workInProgress.ComponentFuncWithProps != nil {
+		vnode := workInProgress.ComponentFuncWithProps(workInProgress.Props)
+		children = []rtui.VNode{vnode}
+	}
 
 	// Get current child for reconciliation
 	var currentChild *Fiber
@@ -441,7 +416,6 @@ func beginWorkMemo(current, workInProgress *Fiber, memo *rtui.MemoVNode) *Fiber 
 	}
 
 	// Reconcile the wrapped component as a single child
-	children := []rtui.VNode{wrappedComponent}
 	workInProgress.Child = reconcileChildren(
 		workInProgress,
 		currentChild,
@@ -456,8 +430,8 @@ func beginWorkMemo(current, workInProgress *Fiber, memo *rtui.MemoVNode) *Fiber 
 // VNode Component Instance Support
 // =============================================================================
 
-// createVNodeComponentInstance creates a new VNode component instance
+// createVNodeComponentInstanceFromFiber creates a new VNode component instance from Fiber
 // This is a factory function called by InstanceManager.GetOrCreate
-func createVNodeComponentInstance(key string, vnode rtui.VNode) rtui.ComponentInstance {
-	return state.NewVNodeComponentInstance(key, vnode)
+func createVNodeComponentInstanceFromFiber(key string, fiber *rtui.Fiber) rtui.ComponentInstance {
+	return state.NewVNodeComponentInstanceFromFiber(key, fiber)
 }

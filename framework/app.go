@@ -64,13 +64,13 @@ type App struct {
 	// ============================================================================
 	// Phase 1: Action 系统 - 统一消息传播机制
 	// ============================================================================
-	actionRouter   *action.Router           // Action 分发器
-	inputProcessor *action.InputProcessor   // Msg → Action 转换器
-	actionRegistry map[uint64]action.ActionTarget  // ActionTarget 注册表
-	focusIDToNodeID map[string]uint64            // FocusID -> NodeID 映射表（内部使用）
+	actionRouter    *action.Router                 // Action 分发器
+	inputProcessor  *action.InputProcessor         // Msg → Action 转换器
+	actionRegistry  map[uint64]action.ActionTarget // ActionTarget 注册表
+	focusIDToNodeID map[string]uint64              // FocusID -> NodeID 映射表（内部使用）
 	// legacyMode is DEPRECATED - Action system is now the primary path
 	// Set to true only for debugging/fallback purposes
-	legacyMode     bool                      // 是否启用兼容模式（默认 false）
+	legacyMode bool // 是否启用兼容模式（默认 false）
 
 	// 自定义事件源（测试时使用，如 MockSandbox）
 	customSource frameworkevent.EventSource
@@ -164,11 +164,11 @@ func NewApp() *App {
 		renderer:     paint.NewRenderer(80, 24), // 新增：初始化 Renderer
 
 		// Phase 1: 初始化 Action 系统
-		actionRouter:   action.NewRouter(nil), // 根节点稍后设置
-		inputProcessor: action.NewInputProcessor(),
-		actionRegistry:   make(map[uint64]action.ActionTarget),
-		focusIDToNodeID:   make(map[string]uint64),
-		legacyMode:       false, // Action 系统优先，legacy 仅用于调试
+		actionRouter:    action.NewRouter(nil), // 根节点稍后设置
+		inputProcessor:  action.NewInputProcessor(),
+		actionRegistry:  make(map[uint64]action.ActionTarget),
+		focusIDToNodeID: make(map[string]uint64),
+		legacyMode:      false, // Action 系统优先，legacy 仅用于调试
 	}
 
 	// 设置 InputProcessor 的 KeyMap
@@ -205,11 +205,11 @@ func NewAppWithSource(source frameworkevent.EventSource) *App {
 		customSource: source, // 使用自定义事件源
 
 		// Phase 1: 初始化 Action 系统
-		actionRouter:   action.NewRouter(nil),
-		inputProcessor: action.NewInputProcessor(),
-		actionRegistry:   make(map[uint64]action.ActionTarget),
-		focusIDToNodeID:   make(map[string]uint64),
-		legacyMode:       true,
+		actionRouter:    action.NewRouter(nil),
+		inputProcessor:  action.NewInputProcessor(),
+		actionRegistry:  make(map[uint64]action.ActionTarget),
+		focusIDToNodeID: make(map[string]uint64),
+		legacyMode:      true,
 	}
 }
 
@@ -741,7 +741,7 @@ func (a *App) Run() error {
 	renderStartTime := time.Now()
 
 	// DEBUG 主循环状态
-if os.Getenv("TUI_DEBUG_UI") == "true" {
+	if os.Getenv("TUI_DEBUG_UI") == "true" {
 		log.UILogger.Debug("[APP] Starting main loop, state=%d, pump running=%v",
 			a.state, a.pump != nil && a.pump.IsRunning())
 		log.UILogger.Debug("[APP] eventChan=%p, pump.Events()=%p",
@@ -752,7 +752,7 @@ if os.Getenv("TUI_DEBUG_UI") == "true" {
 		// 等待事件或定时器（优先处理事件）
 		select {
 		case msg := <-eventChan:
-				if msg == nil {
+			if msg == nil {
 				// 通道关闭，退出
 				break
 			}
@@ -968,7 +968,7 @@ func (a *App) handleMsg(message runtimemsg.Msg) bool {
 // 现在使用 Instance Tree 直接处理事件
 // 保留此方法仅供参考，将来会删除
 /*
-*/
+ */
 
 // ============================================================================
 // Phase 1: Action 系统集成
@@ -1187,7 +1187,7 @@ func (a *App) SetLegacyMode(enabled bool) {
 		log.UILogger.Debug("[App] ⚠️  Legacy mode enabled - Action system bypassed")
 	}
 }
-	
+
 // handleEvent 处理事件（已废弃）
 // DEPRECATED: Action 系统现在是主路径，此函数仅用于调试/回退
 func (a *App) handleEvent(ev frameworkevent.Event) {
@@ -1403,6 +1403,20 @@ func (a *App) render() {
 		// 使用 Renderer 的 back buffer
 		buf := a.renderer.GetBackBuffer()
 
+		if os.Getenv("MINT_DEBUG_TEST") == "true" {
+			fmt.Printf("[App.render] BEFORE Reset: back buffer has content\n")
+			// Count non-empty cells
+			count := 0
+			for y := 0; y < buf.Height; y++ {
+				for x := 0; x < buf.Width; x++ {
+					if buf.Cells[y][x].Cluster != "" && buf.Cells[y][x].Cluster != " " {
+						count++
+					}
+				}
+			}
+			fmt.Printf("[App.render] Back buffer non-empty cells BEFORE Reset: %d\n", count)
+		}
+
 		// 清空并调整 buffer 大小（Renderer 复用 buffer）
 		// buffer 大小使用实际终端大小（用于渲染）
 		buf.Reset(a.terminalWidth, a.terminalHeight)
@@ -1424,6 +1438,19 @@ func (a *App) render() {
 		}
 
 		paintable.Paint(ctx, buf)
+
+		if os.Getenv("MINT_DEBUG_TEST") == "true" {
+			// Count non-empty cells after Paint
+			count := 0
+			for y := 0; y < buf.Height; y++ {
+				for x := 0; x < buf.Width; x++ {
+					if buf.Cells[y][x].Cluster != "" && buf.Cells[y][x].Cluster != " " {
+						count++
+					}
+				}
+			}
+			fmt.Printf("[App.render] AFTER Paint: back buffer non-empty cells: %d\n", count)
+		}
 
 		// 调试模式：记录渲染状态
 		if a.debugMode && a.debugRecorder != nil {
@@ -1453,6 +1480,25 @@ func (a *App) render() {
 
 			// 使用新的 Renderer 输出（自动 diff + run merging + 光标优化）
 			output := a.renderer.Render()
+
+			if os.Getenv("MINT_DEBUG_TEST") == "true" {
+				// Count non-empty cells after Render (which swaps buffers)
+				back := a.renderer.GetBackBuffer()
+				front := a.renderer.GetFrontBuffer()
+				backCount := 0
+				frontCount := 0
+				for y := 0; y < back.Height; y++ {
+					for x := 0; x < back.Width; x++ {
+						if back.Cells[y][x].Cluster != "" && back.Cells[y][x].Cluster != " " {
+							backCount++
+						}
+						if front.Cells[y][x].Cluster != "" && front.Cells[y][x].Cluster != " " {
+							frontCount++
+						}
+					}
+				}
+				fmt.Printf("[App.render] AFTER renderer.Render(): back=%d cells, front=%d cells\n", backCount, frontCount)
+			}
 
 			// DEBUG: 输出渲染信息（每次）
 			log.RenderLogger.Debug("[APP] FirstRender=%v, OutputLen=%d, Dirty=%v", a.firstRender, len(output), a.dirty)
@@ -2179,5 +2225,3 @@ func (a *App) enrichHitMapWithInstances() {
 func (a *App) GetFocusManager() *rtui.VNodeFocusManager {
 	return a.focusManager
 }
-
-

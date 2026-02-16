@@ -2,6 +2,7 @@
 package render
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/wwsheng009/mint/internal/log"
@@ -18,8 +19,8 @@ import (
 // Layout phase: LayoutSwitcher (can use compute.Engine or layout.Engine)
 // Paint phase: PaintEngine renders using computed positions
 type RenderingPipeline struct {
-	layoutEngine *compute.Engine    // Legacy: direct compute engine (kept for compatibility)
-	switcher     *LayoutSwitcher    // New: switchable layout engine
+	layoutEngine *compute.Engine // Legacy: direct compute engine (kept for compatibility)
+	switcher     *LayoutSwitcher // New: switchable layout engine
 	paintEngine  *PaintEngine
 	lastHitMap   *event.HitMap  // HitMap from the most recent RenderLayers call
 	layerMgr     *layer.Manager // LayerManager from the most recent RenderLayers call
@@ -67,7 +68,15 @@ func (p *RenderingPipeline) SetPaintDebug(debug bool) {
 // Phase 8: Added optional fiber parameter for NodeID propagation
 func (p *RenderingPipeline) Render(vnode rtui.VNode, fiber *reconciler.Fiber, constraints runtime.BoxConstraints, buffer *paint.Buffer) error {
 	if vnode == nil {
+		if os.Getenv("MINT_DEBUG_TEST") == "true" {
+			fmt.Printf("[RenderingPipeline.Render] vnode is nil, returning\n")
+		}
 		return nil
+	}
+
+	if os.Getenv("MINT_DEBUG_TEST") == "true" {
+		fmt.Printf("[RenderingPipeline.Render] START: vnode type=%d, tag=%s, buffer=%dx%d\n", vnode.Type(), vnode.Tag(), buffer.Width, buffer.Height)
+		fmt.Printf("[RenderingPipeline.Render] useSwitcher=%v, switcher=%v\n", p.useSwitcher, p.switcher != nil)
 	}
 
 	log.PipelineLogger.Debug("Render started")
@@ -82,19 +91,46 @@ func (p *RenderingPipeline) Render(vnode rtui.VNode, fiber *reconciler.Fiber, co
 		result, layoutErr := p.switcher.Layout(vnode, fiber, constraints)
 		if layoutErr != nil {
 			log.PipelineLogger.Debug("❌ Layout FAILED: %v, falling back to legacy", layoutErr)
+			if os.Getenv("MINT_DEBUG_TEST") == "true" {
+				fmt.Printf("[RenderingPipeline.Render] Layout FAILED: %v\n", layoutErr)
+			}
 			return p.renderLegacy(vnode, 0, 0, buffer)
+		}
+
+		if os.Getenv("MINT_DEBUG_TEST") == "true" {
+			fmt.Printf("[RenderingPipeline.Render] Layout result type=%T\n", result)
 		}
 
 		// Convert LayoutResult to ComputedLayout for PaintEngine
 		if adapter, ok := result.(*computeLayoutResultAdapter); ok {
 			layout = adapter.ComputedLayout
+			if os.Getenv("MINT_DEBUG_TEST") == "true" {
+				if layout != nil && layout.Root != nil {
+					fmt.Printf("[RenderingPipeline.Render] computeLayoutResultAdapter: Root.Box=%dx%d\n", layout.Root.Box.Width, layout.Root.Box.Height)
+				} else {
+					fmt.Printf("[RenderingPipeline.Render] computeLayoutResultAdapter: layout.Root is nil\n")
+				}
+			}
 		} else {
 			// For new layout engine, we need different handling
 			log.PipelineLogger.Debug("New layout engine result - converting for paint")
+			if os.Getenv("MINT_DEBUG_TEST") == "true" {
+				fmt.Printf("[RenderingPipeline.Render] NOT computeLayoutResultAdapter, using legacy fallback\n")
+			}
 			// For now, use the legacy engine as fallback for painting
 			layout, err = p.layoutEngine.Layout(vnode, fiber, constraints)
 			if err != nil {
+				if os.Getenv("MINT_DEBUG_TEST") == "true" {
+					fmt.Printf("[RenderingPipeline.Render] Legacy layout FAILED: %v\n", err)
+				}
 				return p.renderLegacy(vnode, 0, 0, buffer)
+			}
+			if os.Getenv("MINT_DEBUG_TEST") == "true" {
+				if layout != nil && layout.Root != nil {
+					fmt.Printf("[RenderingPipeline.Render] Legacy layout: Root.Box=%dx%d, Root.VNode=%T\n", layout.Root.Box.Width, layout.Root.Box.Height, layout.Root.VNode)
+				} else {
+					fmt.Printf("[RenderingPipeline.Render] Legacy layout: layout or Root is nil\n")
+				}
 			}
 		}
 	} else {
@@ -111,6 +147,14 @@ func (p *RenderingPipeline) Render(vnode rtui.VNode, fiber *reconciler.Fiber, co
 
 	// Phase 2: Paint - render using computed positions
 	log.PipelineLogger.Debug("Starting Paint phase...")
+	if os.Getenv("MINT_DEBUG_TEST") == "true" {
+		if layout != nil && layout.Root != nil {
+			fmt.Printf("[RenderingPipeline.Render] Calling paintEngine.Paint, layout.Root.Box=%dx%d, buffer=%dx%d\n",
+				layout.Root.Box.Width, layout.Root.Box.Height, buffer.Width, buffer.Height)
+		} else {
+			fmt.Printf("[RenderingPipeline.Render] layout or layout.Root is nil, NOT painting\n")
+		}
+	}
 	err = p.paintEngine.Paint(layout, buffer)
 
 	log.PipelineLogger.Debug("Paint complete, err=%v", err)

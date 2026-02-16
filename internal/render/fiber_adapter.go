@@ -12,47 +12,47 @@ import (
 )
 
 // =============================================================================
-// FiberToNodeAdapter - Adapts Fiber/VNode to layout.Node interface
+// FiberToNodeAdapter - Adapts Fiber to layout.Node interface (Fiber-first)
 // =============================================================================
 
 // FiberToNodeAdapter wraps a Fiber tree to implement layout.Node interface
 // This allows the new layout engine to work with Fiber trees
+// Fiber-first: All data comes from Fiber fields, no VNode dependency
 type FiberToNodeAdapter struct {
 	fiber    *reconciler.Fiber
-	vnode    rtui.VNode
 	children []layout.Node
 }
 
-// NewFiberToNodeAdapter creates a new adapter for a Fiber/VNode tree
-func NewFiberToNodeAdapter(fiber *reconciler.Fiber, vnode rtui.VNode) *FiberToNodeAdapter {
+// NewFiberToNodeAdapter creates a new adapter for a Fiber tree (Fiber-first)
+func NewFiberToNodeAdapter(fiber *reconciler.Fiber, _ rtui.VNode) *FiberToNodeAdapter {
 	adapter := &FiberToNodeAdapter{
 		fiber: fiber,
-		vnode: vnode,
 	}
 	adapter.initChildren()
 	return adapter
 }
 
-// initChildren initializes children adapters
+// NewFiberToNodeAdapterPure creates a new adapter for a Fiber tree without VNode
+func NewFiberToNodeAdapterPure(fiber *reconciler.Fiber) *FiberToNodeAdapter {
+	adapter := &FiberToNodeAdapter{
+		fiber: fiber,
+	}
+	adapter.initChildren()
+	return adapter
+}
+
+// initChildren initializes children adapters from Fiber tree
 func (a *FiberToNodeAdapter) initChildren() {
 	if a.fiber == nil {
 		return
 	}
 
-	// Build children from Fiber tree
+	// Build children from Fiber tree (Child -> Sibling linked list)
 	childFibers := getFiberChildren(a.fiber)
 	a.children = make([]layout.Node, len(childFibers))
 
 	for i, childFiber := range childFibers {
-		// Try to get corresponding VNode if available
-		var childVNode rtui.VNode
-		if a.vnode != nil {
-			childVNodes := a.vnode.Children()
-			if i < len(childVNodes) {
-				childVNode = childVNodes[i]
-			}
-		}
-		a.children[i] = NewFiberToNodeAdapter(childFiber, childVNode)
+		a.children[i] = NewFiberToNodeAdapterPure(childFiber)
 	}
 }
 
@@ -74,26 +74,20 @@ func getFiberChildren(fiber *rtui.Fiber) []*rtui.Fiber {
 	return children
 }
 
-// ID returns the node identifier
+// ID returns the node identifier (from Fiber.NodeID)
 func (a *FiberToNodeAdapter) ID() string {
 	if a.fiber == nil {
-		if a.vnode != nil {
-			return a.vnode.Key()
-		}
 		return ""
 	}
 	return fmt.Sprintf("%d", a.fiber.NodeID)
 }
 
-// Type returns the node type
+// Type returns the node type (from Fiber.Tag)
 func (a *FiberToNodeAdapter) Type() string {
-	if a.fiber != nil {
-		return string(a.fiber.Tag)
+	if a.fiber == nil {
+		return "unknown"
 	}
-	if a.vnode != nil {
-		return fmt.Sprintf("%d", a.vnode.Type())
-	}
-	return "unknown"
+	return string(a.fiber.Tag)
 }
 
 // Children returns child nodes
@@ -101,10 +95,13 @@ func (a *FiberToNodeAdapter) Children() []layout.Node {
 	return a.children
 }
 
-// GetPosition returns the current position
+// GetPosition returns the current position (from Fiber.ComputedBox)
 func (a *FiberToNodeAdapter) GetPosition() (x, y int) {
+	if a.fiber == nil {
+		return 0, 0
+	}
 	// Try to get from computed box
-	if a.fiber != nil && a.fiber.ComputedBox != nil {
+	if a.fiber.ComputedBox != nil {
 		if computedBox, ok := a.fiber.ComputedBox.(*compute.ComputedBox); ok {
 			return computedBox.Box.X, computedBox.Box.Y
 		}
@@ -112,11 +109,13 @@ func (a *FiberToNodeAdapter) GetPosition() (x, y int) {
 	return 0, 0
 }
 
-// SetPosition sets the position (stores in adapter for later retrieval)
+// SetPosition sets the position (stores in Fiber.ComputedBox)
 func (a *FiberToNodeAdapter) SetPosition(x, y int) {
-	// Position is computed by layout engine
+	if a.fiber == nil {
+		return
+	}
 	// Store in fiber.ComputedBox if available
-	if a.fiber != nil && a.fiber.ComputedBox != nil {
+	if a.fiber.ComputedBox != nil {
 		if computedBox, ok := a.fiber.ComputedBox.(*compute.ComputedBox); ok {
 			computedBox.Box.X = x
 			computedBox.Box.Y = y
@@ -124,23 +123,29 @@ func (a *FiberToNodeAdapter) SetPosition(x, y int) {
 	}
 }
 
-// GetSize returns the current size
+// GetSize returns the current size (from Fiber fields)
 func (a *FiberToNodeAdapter) GetSize() (width, height int) {
+	if a.fiber == nil {
+		return 0, 0
+	}
+
 	// Try computed box first
-	if a.fiber != nil && a.fiber.ComputedBox != nil {
+	if a.fiber.ComputedBox != nil {
 		if computedBox, ok := a.fiber.ComputedBox.(*compute.ComputedBox); ok {
 			return computedBox.Box.Width, computedBox.Box.Height
 		}
 	}
 
-	// Try from VNode props
-	if a.vnode != nil {
-		props := a.vnode.Props()
-		if props != nil {
-			if w, ok := props["width"].(int); ok && w > 0 {
-				if h, ok := props["height"].(int); ok && h > 0 {
-					return w, h
-				}
+	// Try from Fiber.Style
+	if a.fiber.Style.Width > 0 && a.fiber.Style.Height > 0 {
+		return a.fiber.Style.Width, a.fiber.Style.Height
+	}
+
+	// Try from Fiber.Props
+	if a.fiber.Props != nil {
+		if w, ok := a.fiber.Props["width"].(int); ok && w > 0 {
+			if h, ok := a.fiber.Props["height"].(int); ok && h > 0 {
+				return w, h
 			}
 		}
 	}
@@ -148,9 +153,12 @@ func (a *FiberToNodeAdapter) GetSize() (width, height int) {
 	return 0, 0
 }
 
-// SetSize sets the size (stores in adapter for later retrieval)
+// SetSize sets the size (stores in Fiber.ComputedBox)
 func (a *FiberToNodeAdapter) SetSize(width, height int) {
-	if a.fiber != nil && a.fiber.ComputedBox != nil {
+	if a.fiber == nil {
+		return
+	}
+	if a.fiber.ComputedBox != nil {
 		if computedBox, ok := a.fiber.ComputedBox.(*compute.ComputedBox); ok {
 			computedBox.Box.Width = width
 			computedBox.Box.Height = height
@@ -170,67 +178,208 @@ func (a *FiberToNodeAdapter) GetHeight() int {
 	return h
 }
 
-// GetMargin returns the margin from Fiber/VNode
+// GetMargin returns the margin from Fiber fields
 // Implements layout.Marginal interface
 func (a *FiberToNodeAdapter) GetMargin() layout.Margin {
-	// Try VNode props first
-	if a.vnode != nil {
-		if props := a.vnode.Props(); props != nil {
-			if m, ok := props["margin"].([4]int); ok {
-				return layout.Margin{
-					Top:    m[0],
-					Right:  m[1],
-					Bottom: m[2],
-					Left:   m[3],
-				}
-			}
-		}
+	if a.fiber == nil {
+		return layout.Margin{}
 	}
 
-	// Try VNode layout info
-	if a.vnode != nil {
-		layoutInfo := rtui.GetLayoutInfo(a.vnode)
-		return layout.Margin{
-			Top:    layoutInfo.Margin[0],
-			Right:  layoutInfo.Margin[1],
-			Bottom: layoutInfo.Margin[2],
-			Left:   layoutInfo.Margin[3],
+	// Try Fiber.Props first
+	if a.fiber.Props != nil {
+		if m, ok := a.fiber.Props["margin"].([4]int); ok {
+			return layout.Margin{
+				Top:    m[0],
+				Right:  m[1],
+				Bottom: m[2],
+				Left:   m[3],
+			}
 		}
 	}
 
 	return layout.Margin{}
 }
 
-// GetPositionType returns the position type from Fiber/VNode
+// GetPositionType returns the position type from Fiber fields
 // Implements layout.Positionable interface
 func (a *FiberToNodeAdapter) GetPositionType() layout.Position {
-	// Try VNode props first
-	if a.vnode != nil {
-		if props := a.vnode.Props(); props != nil {
-			// Check for position type
-			if posType, ok := props["position"].(string); ok {
-				switch posType {
-				case "absolute":
-					pos := layout.NewAbsolutePosition()
-					if top, ok := props["top"].(int); ok {
-						pos.Top = &top
-					}
-					if left, ok := props["left"].(int); ok {
-						pos.Left = &left
-					}
-					if right, ok := props["right"].(int); ok {
-						pos.Right = &right
-					}
-					if bottom, ok := props["bottom"].(int); ok {
-						pos.Bottom = &bottom
-					}
-					return pos
+	if a.fiber == nil {
+		return layout.NewRelativePosition()
+	}
+
+	// Try Fiber.Props
+	if a.fiber.Props != nil {
+		if posType, ok := a.fiber.Props["position"].(string); ok {
+			switch posType {
+			case "absolute":
+				pos := layout.NewAbsolutePosition()
+				if top, ok := a.fiber.Props["top"].(int); ok {
+					pos.Top = &top
 				}
+				if left, ok := a.fiber.Props["left"].(int); ok {
+					pos.Left = &left
+				}
+				if right, ok := a.fiber.Props["right"].(int); ok {
+					pos.Right = &right
+				}
+				if bottom, ok := a.fiber.Props["bottom"].(int); ok {
+					pos.Bottom = &bottom
+				}
+				return pos
 			}
 		}
 	}
 
 	return layout.NewRelativePosition()
+}
+
+// GetFlexStyle returns the flex style from Fiber fields
+// This implements FlexLayoutInfo interface for flex containers
+func (a *FiberToNodeAdapter) GetFlexStyle() *layout.FlexStyle {
+	if a.fiber == nil {
+		return layout.DefaultFlexStyle()
+	}
+
+	style := layout.DefaultFlexStyle()
+
+	// Map direction from Fiber.LayoutDirection
+	switch a.fiber.LayoutDirection {
+	case rtui.DirectionRow:
+		style.Direction = layout.FlexRow
+	case rtui.DirectionColumn:
+		style.Direction = layout.FlexColumn
+	}
+
+	// Map alignment from Fiber.LayoutAlign
+	switch a.fiber.LayoutAlign {
+	case rtui.AlignStart:
+		style.MainAxis = layout.MainStart
+	case rtui.AlignCenter:
+		style.MainAxis = layout.Center
+	case rtui.AlignEnd:
+		style.MainAxis = layout.MainEnd
+	case rtui.AlignSpaceBetween:
+		style.MainAxis = layout.SpaceBetween
+	case rtui.AlignSpaceAround:
+		style.MainAxis = layout.SpaceAround
+	}
+
+	// Map cross alignment from Fiber.LayoutCrossAlign
+	switch a.fiber.LayoutCrossAlign {
+	case rtui.AlignStart:
+		style.CrossAxis = layout.CrossStart
+	case rtui.AlignCenter:
+		style.CrossAxis = layout.CrossCenter
+	case rtui.AlignEnd:
+		style.CrossAxis = layout.CrossEnd
+	}
+
+	// Gap from Fiber.LayoutGap
+	style.Gap = a.fiber.LayoutGap
+
+	// Padding from Fiber.LayoutPadding
+	style.Padding = layout.Padding{
+		Top:    a.fiber.LayoutPadding[0],
+		Right:  a.fiber.LayoutPadding[1],
+		Bottom: a.fiber.LayoutPadding[2],
+		Left:   a.fiber.LayoutPadding[3],
+	}
+
+	return style
+}
+
+// GetBorder returns the border from Fiber fields
+// Implements layout.Bordered interface
+func (a *FiberToNodeAdapter) GetBorder() layout.Border {
+	if a.fiber == nil {
+		return layout.Border{Style: layout.BorderNone}
+	}
+
+	// Check tag for bordered container
+	tag := a.fiber.Tag
+	if tag == "bordered" || tag == "Bordered" || tag == "border" {
+		// Extract border style from Fiber.Props
+		if a.fiber.Props == nil {
+			return layout.NewBorder(layout.BorderSingle)
+		}
+
+		borderStyle := layout.BorderSingle
+		if s, ok := a.fiber.Props["borderStyle"].(string); ok {
+			switch s {
+			case "none":
+				borderStyle = layout.BorderNone
+			case "single":
+				borderStyle = layout.BorderSingle
+			case "double":
+				borderStyle = layout.BorderDouble
+			case "rounded":
+				borderStyle = layout.BorderRounded
+			case "dashed":
+				borderStyle = layout.BorderDashed
+			}
+		}
+
+		border := layout.NewBorder(borderStyle)
+
+		// Extract label if present
+		if label, ok := a.fiber.Props["borderLabel"].(string); ok {
+			border.Label = label
+		}
+
+		return border
+	}
+
+	return layout.Border{Style: layout.BorderNone}
+}
+
+// GetStableID returns the stable node ID (from Fiber.NodeID)
+// Implements layout.Identifiable interface
+func (a *FiberToNodeAdapter) GetStableID() uint64 {
+	if a.fiber == nil {
+		return 0
+	}
+	return a.fiber.NodeID
+}
+
+// GetTextContent returns text content from Fiber (for text nodes)
+func (a *FiberToNodeAdapter) GetTextContent() string {
+	if a.fiber == nil {
+		return ""
+	}
+
+	// Text content is stored in MemoizedState for text nodes
+	if a.fiber.Type == rtui.VNodeText {
+		if content, ok := a.fiber.MemoizedState.(string); ok {
+			return content
+		}
+		// Fallback to Props
+		if a.fiber.Props != nil {
+			if content, ok := a.fiber.Props["content"].(string); ok {
+				return content
+			}
+		}
+	}
+	return ""
+}
+
+// GetLayer returns the layer from Fiber
+func (a *FiberToNodeAdapter) GetLayer() layout.Layer {
+	if a.fiber == nil {
+		return layout.LayerBase
+	}
+
+	switch a.fiber.Layer {
+	case rtui.LayerBase:
+		return layout.LayerBase
+	case rtui.LayerOverlay:
+		return layout.LayerDropdown
+	case rtui.LayerModal:
+		return layout.LayerModal
+	case rtui.LayerTooltip:
+		return layout.LayerTooltip
+	default:
+		return layout.LayerBase
+	}
 }
 
 // =============================================================================
@@ -569,57 +718,6 @@ func ConvertLayoutConstraints(c layout.Constraints) runtime.BoxConstraints {
 		MinHeight: c.MinHeight,
 		MaxHeight: c.MaxHeight,
 	}
-}
-
-// =============================================================================
-// Border Extraction
-// =============================================================================
-
-// GetBorder returns the border from VNode
-// Implements layout.Bordered interface for FiberToNodeAdapter
-func (a *FiberToNodeAdapter) GetBorder() layout.Border {
-	if a.vnode == nil {
-		return layout.Border{Style: layout.BorderNone}
-	}
-
-	// Check tag for bordered container
-	if a.vnode.Type() == rtui.VNodeElement {
-		tag := a.vnode.Tag()
-		if tag == "bordered" || tag == "Bordered" || tag == "border" {
-			// Extract border style from props
-			props := a.vnode.Props()
-			if props == nil {
-				return layout.NewBorder(layout.BorderSingle)
-			}
-
-			style := layout.BorderSingle
-			if s, ok := props["borderStyle"].(string); ok {
-				switch s {
-				case "none":
-					style = layout.BorderNone
-				case "single":
-					style = layout.BorderSingle
-				case "double":
-					style = layout.BorderDouble
-				case "rounded":
-					style = layout.BorderRounded
-				case "dashed":
-					style = layout.BorderDashed
-				}
-			}
-
-			border := layout.NewBorder(style)
-
-			// Extract label if present
-			if label, ok := props["borderLabel"].(string); ok {
-				border.Label = label
-			}
-
-			return border
-		}
-	}
-
-	return layout.Border{Style: layout.BorderNone}
 }
 
 // GetBorder returns the border from VNode

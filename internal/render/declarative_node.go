@@ -242,8 +242,8 @@ func (n *DeclarativeNode) Paint(ctx component.PaintContext, buf *paint.Buffer) {
 	defer n.mu.Unlock()
 
 	// Debug logging
-	if os.Getenv("TUI_DEBUG_UI") == "true" || os.Getenv("TUI_DEBUG_HITMAP") == "true" {
-		log.RenderLogger.Debug("DeclarativeNode.Paint: ctx.X=%d, ctx.Y=%d, buf=%dx%d, useFiber=%v",
+	if os.Getenv("MINT_DEBUG_TEST") == "true" {
+		fmt.Printf("[DeclarativeNode.Paint] START: ctx.X=%d, ctx.Y=%d, buf=%dx%d, useFiber=%v\n",
 			ctx.Bounds.X, ctx.Bounds.Y, buf.Width, buf.Height, n.useFiber)
 	}
 
@@ -251,11 +251,21 @@ func (n *DeclarativeNode) Paint(ctx component.PaintContext, buf *paint.Buffer) {
 	if n.useFiber && n.reconciler != nil {
 		// Fiber mode: just call render function directly for now
 		// The reconciler's state management still happens through hooks
-		if os.Getenv("TUI_DEBUG_UI") == "true" || os.Getenv("TUI_DEBUG_HITMAP") == "true" {
-			log.RenderLogger.Debug("[DeclarativeNode.Paint] ✅ Calling renderWithFiberContext (useFiber=%v, reconciler=%v)",
+		if os.Getenv("MINT_DEBUG_TEST") == "true" {
+			fmt.Printf("[DeclarativeNode.Paint] ✅ Calling renderWithFiberContext (useFiber=%v, reconciler=%v)\n",
 				n.useFiber, n.reconciler != nil)
 		}
 		n.root = n.renderWithFiberContext()
+
+		// Debug: Check if root is valid
+		if os.Getenv("MINT_DEBUG_TEST") == "true" {
+			if n.root != nil {
+				fmt.Printf("[DeclarativeNode.Paint] n.root type=%d, tag=%s, children=%d\n",
+					n.root.Type(), n.root.Tag(), len(n.root.Children()))
+			} else {
+				fmt.Printf("[DeclarativeNode.Paint] n.root is NIL after renderWithFiberContext\n")
+			}
+		}
 	} else {
 		// Non-Fiber mode
 		if os.Getenv("TUI_DEBUG_UI") == "true" || os.Getenv("TUI_DEBUG_HITMAP") == "true" {
@@ -279,6 +289,10 @@ func (n *DeclarativeNode) Paint(ctx component.PaintContext, buf *paint.Buffer) {
 	log.RenderLogger.Debug("[DeclarativeNode.Paint] n.renderer = %v\n", n.renderer)
 	if n.renderer != nil {
 		log.RenderLogger.Debug("[DeclarativeNode.Paint] renderer type = %T\n", n.renderer)
+	}
+
+	if os.Getenv("MINT_DEBUG_TEST") == "true" {
+		fmt.Printf("[DeclarativeNode.Paint] n.renderer=%v, isAdapter=%v\n", n.renderer != nil, n.renderer != nil && fmt.Sprintf("%T", n.renderer) == "*render.PipelineRendererAdapter")
 	}
 
 	if n.renderer != nil {
@@ -346,15 +360,32 @@ func (n *DeclarativeNode) renderWithFiberContext() rtui.VNode {
 	// The reconciler manages hook context through its render cycle
 	// We capture the VNode tree during the render to avoid calling renderFn twice
 	var capturedVNode rtui.VNode
+	callCount := 0
 
 	nullBuf := paint.NewBuffer(1, 1)
 	n.reconciler.Render(component.PaintContext{
 		Bounds: paint.Rect{X: 0, Y: 0, Width: 1, Height: 1},
 	}, nullBuf, func() rtui.VNode {
+		callCount++
 		vnode := n.renderFn()
 		capturedVNode = vnode // Capture for PipelineRenderer
+		if os.Getenv("MINT_DEBUG_TEST") == "true" {
+			if vnode != nil {
+				fmt.Printf("[renderWithFiberContext] renderFn call #%d: returned type=%d tag=%s children=%d\n", callCount, vnode.Type(), vnode.Tag(), len(vnode.Children()))
+			} else {
+				fmt.Printf("[renderWithFiberContext] renderFn call #%d: returned nil\n", callCount)
+			}
+		}
 		return vnode
 	})
+
+	if os.Getenv("MINT_DEBUG_TEST") == "true" {
+		if capturedVNode != nil {
+			fmt.Printf("[renderWithFiberContext] FINAL capturedVNode type=%d tag=%s children=%d (total calls: %d)\n", capturedVNode.Type(), capturedVNode.Tag(), len(capturedVNode.Children()), callCount)
+		} else {
+			fmt.Printf("[renderWithFiberContext] FINAL capturedVNode is nil (total calls: %d)\n", callCount)
+		}
+	}
 
 	// Return the captured VNode tree for PipelineRenderer
 	return capturedVNode
@@ -398,7 +429,7 @@ func (n *DeclarativeNode) applyFocusState() {
 	// In Fiber mode, use Fiber tree for focus collection
 	if n.useFiber && n.reconciler != nil {
 		// Type assert to access GetFiberRoot method (avoid import cycle in rtui.Reconciler interface)
-		if fiberProvider, ok := n.reconciler.(interface { GetFiberRoot() *reconciler.Fiber }); ok {
+		if fiberProvider, ok := n.reconciler.(interface{ GetFiberRoot() *reconciler.Fiber }); ok {
 			fiberRoot := fiberProvider.GetFiberRoot()
 			if fiberRoot != nil {
 				focusable = n.collectFocusableFromFiber(fiberRoot)
@@ -1509,23 +1540,25 @@ func (n *DeclarativeNode) GetButtons() []rtui.FocusableVNode {
 }
 
 // collectButtonsFromFiber traverses the Fiber tree to collect button VNodes
-// This preserves the original button objects with their layout bounds
 func (n *DeclarativeNode) collectButtonsFromFiber(fiber *reconciler.Fiber) []rtui.FocusableVNode {
 	var result []rtui.FocusableVNode
 
-	if fiber == nil || fiber.VNode == nil {
+	if fiber == nil {
 		return result
 	}
 
 	// Skip the root ComponentVNode wrapper
-	if fiber.Key == "root" && fiber.VNode.Type() == rtui.VNodeComponent {
+	if fiber.Key == "root" && fiber.Type == rtui.VNodeComponent {
 		return n.collectButtonsFromFiber(fiber.Child)
 	}
 
-	// Check if current VNode is a button
-	if n.isButtonVNode(fiber.VNode) {
-		if focusable, ok := fiber.VNode.(rtui.FocusableVNode); ok && focusable.IsFocusable() {
-			result = append(result, focusable)
+	// Check if current Fiber is a button and has focusable props
+	if fiber.Tag == "button" {
+		// Check if this Fiber has focusable state (via Props or other means)
+		if fiber.Props != nil {
+			if focusable, ok := fiber.Props["_focusable"].(rtui.FocusableVNode); ok && focusable.IsFocusable() {
+				result = append(result, focusable)
+			}
 		}
 	}
 
@@ -1547,7 +1580,6 @@ func (n *DeclarativeNode) isButtonVNode(vnode rtui.VNode) bool {
 	if vnode == nil {
 		return false
 	}
-	// Check if this is a button by checking if it has a Tag() method that returns "button"
 	if tag, hasTag := vnode.(interface{ Tag() string }); hasTag && tag.Tag() == "button" {
 		return true
 	}
@@ -1555,27 +1587,24 @@ func (n *DeclarativeNode) isButtonVNode(vnode rtui.VNode) bool {
 }
 
 // collectFocusableFromFiber collects all focusable elements from the Fiber tree
-// This includes buttons, inputs, checkboxes, textareas, and selects
 func (n *DeclarativeNode) collectFocusableFromFiber(fiber *reconciler.Fiber) []rtui.FocusableVNode {
 	var result []rtui.FocusableVNode
 
-	if fiber == nil || fiber.VNode == nil {
+	if fiber == nil {
 		return result
 	}
 
 	// Skip the root ComponentVNode wrapper
-	if fiber.Key == "root" && fiber.VNode.Type() == rtui.VNodeComponent {
+	if fiber.Key == "root" && fiber.Type == rtui.VNodeComponent {
 		return n.collectFocusableFromFiber(fiber.Child)
 	}
 
-	// Check if current VNode is focusable
-	if focusable, ok := fiber.VNode.(rtui.FocusableVNode); ok {
-		if focusable.IsFocusable() {
-			// Set focusIndex for buttons to ensure unique FocusID
-			if btn, ok := fiber.VNode.(interface{ SetFocusIndex(int) }); ok {
-				btn.SetFocusIndex(len(result))
+	// Check if current Fiber's Props contain a focusable reference
+	if fiber.Props != nil {
+		if focusable, ok := fiber.Props["_focusable"].(rtui.FocusableVNode); ok {
+			if focusable.IsFocusable() {
+				result = append(result, focusable)
 			}
-			result = append(result, focusable)
 		}
 	}
 
@@ -1756,70 +1785,41 @@ func newFiberReconciler(fwApp *framework.App, fn rtui.ComponentFunc) rtui.Reconc
 		EnableFiber: true,
 	})
 
-	// Set up the render callback to actually render VNodes to the buffer
-	// This callback is called by renderFiber for each non-component VNode
-	r.SetRenderCallback(func(vnode rtui.VNode, x, y int, buffer *paint.Buffer) {
-		renderVNodeToBuffer(vnode, x, y, buffer)
+	// Set up the render callback to render Fibers to the buffer
+	r.SetRenderCallback(func(fiber *reconciler.Fiber, x, y int, buffer *paint.Buffer) {
+		renderFiberToBuffer(fiber, x, y, buffer)
 	})
 
 	// Wrap in adapter to satisfy rtui.Reconciler interface
 	return &fiberReconcilerAdapter{r: r}
 }
 
-// renderVNodeToBuffer renders a single VNode to the buffer
-// This is used as the render callback for the Fiber reconciler
-func renderVNodeToBuffer(vnode rtui.VNode, x, y int, buffer *paint.Buffer) {
-	if vnode == nil {
+// renderFiberToBuffer renders a single Fiber to the buffer (Fiber-first)
+func renderFiberToBuffer(fiber *reconciler.Fiber, x, y int, buffer *paint.Buffer) {
+	if fiber == nil {
 		return
 	}
 
-	// Check if vnode implements Paintable interface (custom rendering)
-	if paintable, ok := vnode.(interface {
-		Paint(int, int) []paint.DrawCmd
-	}); ok {
-		if os.Getenv("TUI_DEBUG_FOCUS") == "true" {
-			// Get label for debug
-			label := "?"
-			if l, ok := vnode.(interface{ Label() string }); ok {
-				label = l.Label()
+	// For text nodes, render text content
+	if fiber.Type == rtui.VNodeText {
+		content := ""
+		if fiber.MemoizedState != nil {
+			if s, ok := fiber.MemoizedState.(string); ok {
+				content = s
 			}
-			log.RenderLogger.Debug("[renderVNodeToBuffer] BEFORE Paint, label=%q, x=%d, y=%d\n", label, x, y)
+		} else if fiber.Props != nil {
+			if s, ok := fiber.Props["content"].(string); ok {
+				content = s
+			}
 		}
-		commands := paintable.Paint(x, y)
-		for _, cmd := range commands {
-			if os.Getenv("TUI_DEBUG_FOCUS") == "true" {
-				log.RenderLogger.Debug("[renderVNodeToBuffer] AFTER Paint, x=%d, y=%d, text=%q\n", cmd.X, cmd.Y, cmd.Text)
-			}
-			buffer.SetString(cmd.X, cmd.Y, cmd.Text, cmd.Style)
+		if content != "" {
+			buffer.SetString(x, y, content, fiber.Style)
 		}
 		return
 	}
 
-	// Handle built-in VNode types
-	switch vnode.Type() {
-	case rtui.VNodeText:
-		if text := rtui.GetTextContent(vnode); text != "" {
-			buffer.SetString(x, y, text, vnode.Style())
-		}
-
-	case rtui.VNodeElement:
-		// Check for table cell (td) - render its content directly
-		if tagger, ok := vnode.(interface{ Tag() string }); ok && tagger.Tag() == "td" {
-			children := vnode.Children()
-			if len(children) > 0 {
-				renderVNodeToBuffer(children[0], x, y, buffer)
-			}
-			return
-		}
-
-		// Check if element has text content
-		if content := rtui.GetTextContent(vnode); content != "" {
-			buffer.SetString(x, y, content, vnode.Style())
-			return
-		}
-		// Elements that don't have text content are containers (buttons, etc.)
-		// They should implement Paintable interface for custom rendering
-	}
+	// For elements with children, render would be handled by the reconciler
+	// This callback is for leaf nodes mainly
 }
 
 // =============================================================================
@@ -1928,7 +1928,8 @@ func (n *DeclarativeNode) GetFiberRoot() *reconciler.Fiber {
 // This method wraps the renderer's RenderWithFiber, providing access to the Fiber tree
 //
 // Parameters:
-//   buffer: Paint buffer for rendering
+//
+//	buffer: Paint buffer for rendering
 func (n *DeclarativeNode) RenderWithFiber(buffer *paint.Buffer) error {
 	n.mu.RLock()
 	defer n.mu.RUnlock()

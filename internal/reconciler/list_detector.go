@@ -43,16 +43,9 @@ func isDynamicList(parent *Fiber) bool {
 		return true
 	}
 
-	// 检查2: VNode类型检查（通过接口）
-	if parent.VNode != nil {
-		if vnode, ok := parent.VNode.(interface{ IsDynamicList() bool }); ok {
-			return vnode.IsDynamicList()
-		}
-	}
-
-	// 检查3: Props标记
-	if parent.VNode != nil && parent.VNode.Props() != nil {
-		if isDynamic, ok := parent.VNode.Props()["_dynamicList"].(bool); ok {
+	// 检查2: Props标记 (Fiber-first)
+	if parent.Props != nil {
+		if isDynamic, ok := parent.Props["_dynamicList"].(bool); ok {
 			return isDynamic
 		}
 	}

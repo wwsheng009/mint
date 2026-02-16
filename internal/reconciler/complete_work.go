@@ -50,20 +50,11 @@ func CompleteWork(current, workInProgress *Fiber) *Fiber {
 
 // completeWorkComponent finalizes a component Fiber
 func completeWorkComponent(current, workInProgress *Fiber) *Fiber {
-	componentVNode, ok := workInProgress.VNode.(*rtui.ComponentVNode)
-	if !ok {
-		return workInProgress
-	}
-
 	// Store the rendered result for later use during commit
 	workInProgress.MemoizedProps = workInProgress.Props
 
-	// ✨ Copy Layer from VNode (in case it changed)
-	workInProgress.Layer = workInProgress.VNode.GetLayer()
-
 	// Components don't directly render to buffer
 	// Their children are rendered recursively
-	_ = componentVNode
 
 	return workInProgress
 }
@@ -74,13 +65,14 @@ func completeWorkComponent(current, workInProgress *Fiber) *Fiber {
 
 // completeWorkText finalizes a text Fiber
 func completeWorkText(current, workInProgress *Fiber) *Fiber {
-	textVNode, ok := workInProgress.VNode.(*rtui.TextVNode)
-	if !ok {
-		return workInProgress
-	}
-
 	// Store the text content for rendering during commit
-	workInProgress.MemoizedState = textVNode.Content()
+	// Text content is stored in MemoizedState
+	// If not already set, try to get from Props["content"]
+	if workInProgress.MemoizedState == nil && workInProgress.Props != nil {
+		if content, ok := workInProgress.Props["content"].(string); ok {
+			workInProgress.MemoizedState = content
+		}
+	}
 
 	return workInProgress
 }
@@ -91,21 +83,12 @@ func completeWorkText(current, workInProgress *Fiber) *Fiber {
 
 // completeWorkElement finalizes an element Fiber
 func completeWorkElement(current, workInProgress *Fiber) *Fiber {
-	elementVNode, ok := workInProgress.VNode.(*rtui.ElementVNode)
-	if !ok {
-		return workInProgress
-	}
-
 	// Store element properties for rendering during commit
 	workInProgress.MemoizedProps = workInProgress.Props
 
-	// Store tag/component name for reference
-	_ = elementVNode.Tag()
-
 	// === Phase 1: Extract layout info to Fiber ===
-	// This enables Fiber-first layout by avoiding VNode delegation
-	// Use safe interface methods to check for layout properties
-	extractLayoutInfoToFiber(workInProgress, elementVNode)
+	// Layout info is already extracted during Fiber creation in CreateFiber
+	// No need to re-extract from VNode
 
 	return workInProgress
 }
@@ -139,13 +122,14 @@ func completeWorkFragment(current, workInProgress *Fiber) *Fiber {
 // - Ensures parents know about all descendant effects before commit
 //
 // Example propagation:
-//   Tree before collection:
-//     Parent (SubtreeFlags: 0)
-//       ├── ChildA (Flags: 2, SubtreeFlags: 4)
-//       └── ChildB (Flags: 8, SubtreeFlags: 0)
 //
-//   After collection (Parent.SubtreeFlags = 2 | 4 | 8 = 14):
-//     Parent (SubtreeFlags: 14) ← OR of all descendant flags
+//	Tree before collection:
+//	  Parent (SubtreeFlags: 0)
+//	    ├── ChildA (Flags: 2, SubtreeFlags: 4)
+//	    └── ChildB (Flags: 8, SubtreeFlags: 0)
+//
+//	After collection (Parent.SubtreeFlags = 2 | 4 | 8 = 14):
+//	  Parent (SubtreeFlags: 14) ← OR of all descendant flags
 //
 // Note: SubtreeFlags is NOT automatically propagated upward when flags change.
 // The entire tree must be re-rendered to update SubtreeFlags. This is acceptable
@@ -163,43 +147,5 @@ func collectChildEffects(workInProgress *Fiber) {
 		workInProgress.SubtreeFlags |= child.SubtreeFlags
 
 		child = child.Sibling
-	}
-}
-
-// =============================================================================
-// Layout Info Extraction (Phase 1)
-// =============================================================================
-
-// extractLayoutInfoToFiber extracts layout properties from VNode to Fiber
-// This enables Fiber-first layout by storing layout info during completeWork
-func extractLayoutInfoToFiber(fiber *Fiber, vnode rtui.VNode) {
-	if fiber == nil || vnode == nil {
-		return
-	}
-
-	// Use safe interface methods to extract layout info
-	// Check for Direction method
-	if dirGetter, ok := vnode.(interface{ Direction() rtui.Direction }); ok {
-		fiber.LayoutDirection = dirGetter.Direction()
-	}
-	// Check for Align method
-	if alignGetter, ok := vnode.(interface{ Align() rtui.Align }); ok {
-		fiber.LayoutAlign = alignGetter.Align()
-	}
-	// Check for CrossAlign method
-	if crossAlignGetter, ok := vnode.(interface{ CrossAlign() rtui.Align }); ok {
-		fiber.LayoutCrossAlign = crossAlignGetter.CrossAlign()
-	}
-	// Check for Gap method
-	if gapGetter, ok := vnode.(interface{ Gap() int }); ok {
-		fiber.LayoutGap = gapGetter.Gap()
-	}
-	// Check for Padding method
-	if paddingGetter, ok := vnode.(interface{ Padding() [4]int }); ok {
-		fiber.LayoutPadding = paddingGetter.Padding()
-	}
-	// Check for Flex method
-	if flexGetter, ok := vnode.(interface{ Flex() int }); ok {
-		fiber.LayoutFlex = flexGetter.Flex()
 	}
 }

@@ -4,8 +4,8 @@ import (
 	"sort"
 
 	"github.com/wwsheng009/mint/internal/log"
-	runtimelayout "github.com/wwsheng009/mint/runtime/layout"
 	rtuievent "github.com/wwsheng009/mint/runtime/event"
+	runtimelayout "github.com/wwsheng009/mint/runtime/layout"
 )
 
 // =============================================================================
@@ -27,6 +27,7 @@ func generateNodeID() uint64 {
 // =============================================================================
 
 // CreateFiber creates a new fiber from a VNode
+// This function extracts ALL data from VNode during creation - NO VNode reference is kept
 func CreateFiber(vnode VNode) *Fiber {
 	if vnode == nil {
 		return nil
@@ -37,20 +38,42 @@ func CreateFiber(vnode VNode) *Fiber {
 	// Determine tag from VNode
 	// Priority: Tag() method > Name() method > type-specific fallback
 	var tag string
+	var componentName string
+	var componentFunc ComponentFunc
+	var componentFuncWithProps ComponentFuncWithProps
+	var errorBoundaryFunc ComponentFunc
+	var errorBoundaryFallback *Fiber
+	var memoCompare PropsEqual
+
 	switch n := vnode.(type) {
 	case interface{ Tag() string }:
-		// All element types (ElementVNode, LayoutNode, BorderedNode, etc.) have Tag()
 		tag = n.Tag()
 	case interface{ Name() string }:
-		// ComponentVNode has Name() instead of Tag()
 		tag = n.Name()
+		componentName = n.Name()
 	default:
-		// Fallback for types without Tag() or Name()
 		if vnodeType == VNodeText {
 			tag = "text"
 		} else {
 			tag = "unknown"
 		}
+	}
+
+	// Extract special VNode type data
+	switch n := vnode.(type) {
+	case *ComponentVNode:
+		componentFunc = n.Fn()
+		componentFuncWithProps = n.FnWithProps()
+		if componentName == "" {
+			componentName = n.Name()
+		}
+	case *ErrorBoundaryVNode:
+		errorBoundaryFunc = n.Component()
+		if fallback := n.Fallback(); fallback != nil {
+			errorBoundaryFallback = CreateFiber(fallback)
+		}
+	case *MemoVNode:
+		memoCompare = n.GetCompare()
 	}
 
 	// Debug logging to understand VNode types
@@ -59,25 +82,60 @@ func CreateFiber(vnode VNode) *Fiber {
 	}
 
 	// ✨ DiffKey: Copy from VNode.Key() without any modification
-	// This is the PRIMARY key used for diffing (reconciliation)
-	// It is NOT generated from Path - Path is only for debugging
 	diffKey := vnode.Key()
 
+	// Get props and ensure children are stored for elements/fragments
+	props := vnode.Props()
+	if props == nil {
+		props = make(Props)
+	}
+	// For elements and fragments, store children in Props so beginWork can access them
+	children := vnode.Children()
+	if vnodeType == VNodeElement || vnodeType == VNodeFragment {
+		if len(children) > 0 {
+			// Copy props to avoid mutating the original
+			newProps := make(Props)
+			for k, v := range props {
+				newProps[k] = v
+			}
+			newProps["children"] = children
+			props = newProps
+		}
+	}
+
+	// For text nodes, store content in MemoizedState for easier access
+	var memoizedState interface{}
+	if vnodeType == VNodeText {
+		// Try Content() method first (TextVNode stores content in struct field)
+		if contentProvider, ok := vnode.(interface{ Content() string }); ok {
+			memoizedState = contentProvider.Content()
+		} else if content, ok := props["content"]; ok {
+			memoizedState = content
+		}
+	}
+
 	return &Fiber{
-		VNode:         vnode,
-		Type:          vnodeType,
-		Tag:           tag,
-		Props:         vnode.Props(),
-		MemoizedProps: vnode.Props(),
-		DiffKey:       diffKey,  // ✨ Copy DiffKey directly
-		Key:           diffKey,  // Backward compatibility
-		NodeID:        generateNodeID(), // ✨ Allocate unique NodeID
-		Layer:         vnode.GetLayer(), // ✨ Copy Layer from VNode
-		Lanes:         LaneNoLane,
-		ChildLanes:    LaneNoLane,
-		Flags:         EffectNoEffect,
-		SubtreeFlags:  EffectNoEffect,
-		ComputedBox:   nil, // ✨ ComputedBox is nil initially
+		Type:                       vnodeType,
+		Tag:                        tag,
+		Props:                      props,
+		MemoizedProps:              props,
+		MemoizedState:              memoizedState,
+		DiffKey:                    diffKey,
+		Key:                        diffKey,
+		NodeID:                     generateNodeID(),
+		Layer:                      vnode.GetLayer(),
+		Style:                      vnode.Style(),
+		Lanes:                      LaneNoLane,
+		ChildLanes:                 LaneNoLane,
+		Flags:                      EffectNoEffect,
+		SubtreeFlags:               EffectNoEffect,
+		ComputedBox:                nil,
+		ComponentFunc:              componentFunc,
+		ComponentFuncWithProps:     componentFuncWithProps,
+		ComponentName:              componentName,
+		ErrorBoundaryFunc:          errorBoundaryFunc,
+		ErrorBoundaryFallbackFiber: errorBoundaryFallback,
+		MemoCompare:                memoCompare,
 	}
 }
 
@@ -136,7 +194,7 @@ func WalkFiberDepthFirst(root *Fiber, callback func(*Fiber) bool) bool {
 	// This avoids stack overflow for very deep trees (e.g., deeply nested lists)
 	type frame struct {
 		fiber    *Fiber
-		state    int // 0 = visit self, 1 = visit children, 2 = visit siblings, 3 = done
+		state    int  // 0 = visit self, 1 = visit children, 2 = visit siblings, 3 = done
 		children bool // whether children were visited
 		siblings bool // whether siblings were visited
 	}
@@ -221,13 +279,13 @@ func CloneFiber(fiber *Fiber) *Fiber {
 	}
 
 	return &Fiber{
-		VNode:         fiber.VNode,
 		Type:          fiber.Type,
 		Tag:           fiber.Tag,
-		DiffKey:       fiber.DiffKey,  // ✨ Preserve DiffKey for diffing
-		Key:           fiber.Key,       // Backward compatibility
-		NodeID:        fiber.NodeID,   // ✨ Preserve NodeID for stable identity
-		Layer:         fiber.Layer,    // ✨ Preserve Layer
+		DiffKey:       fiber.DiffKey, // ✨ Preserve DiffKey for diffing
+		Key:           fiber.Key,     // Backward compatibility
+		NodeID:        fiber.NodeID,  // ✨ Preserve NodeID for stable identity
+		Layer:         fiber.Layer,   // ✨ Preserve Layer
+		Style:         fiber.Style,   // ✨ Preserve Style (Fiber-first)
 		Props:         fiber.Props,
 		MemoizedProps: fiber.MemoizedProps,
 		MemoizedState: fiber.MemoizedState,
@@ -237,12 +295,27 @@ func CloneFiber(fiber *Fiber) *Fiber {
 		Alternate:     fiber.Alternate,
 		// Don't share UpdateQueue - cloned fiber gets its own empty queue
 		// This prevents updates to clone from affecting original
-		UpdateQueue:   nil,
-		Flags:         fiber.Flags,
-		SubtreeFlags:  fiber.SubtreeFlags,
-		Lanes:         fiber.Lanes,
-		ChildLanes:    fiber.ChildLanes,
-		ComputedBox:   nil, // ✨ Reset ComputedBox (will be re-calculated)
+		UpdateQueue:  nil,
+		Flags:        fiber.Flags,
+		SubtreeFlags: fiber.SubtreeFlags,
+		Lanes:        fiber.Lanes,
+		ChildLanes:   fiber.ChildLanes,
+		ComputedBox:  nil, // ✨ Reset ComputedBox (will be re-calculated)
+		// Layout fields
+		LayoutDirection:  fiber.LayoutDirection,
+		LayoutAlign:      fiber.LayoutAlign,
+		LayoutCrossAlign: fiber.LayoutCrossAlign,
+		LayoutGap:        fiber.LayoutGap,
+		LayoutPadding:    fiber.LayoutPadding,
+		LayoutFlex:       fiber.LayoutFlex,
+		// Special VNode types support
+		ComponentFunc:              fiber.ComponentFunc,
+		ComponentFuncWithProps:     fiber.ComponentFuncWithProps,
+		ComponentName:              fiber.ComponentName,
+		ErrorBoundaryFunc:          fiber.ErrorBoundaryFunc,
+		ErrorBoundaryFallbackFiber: fiber.ErrorBoundaryFallbackFiber,
+		MemoCompare:                fiber.MemoCompare,
+		MemoShouldUpdate:           fiber.MemoShouldUpdate,
 	}
 }
 
@@ -416,82 +489,46 @@ func (f *Fiber) GetChildCount() int {
 }
 
 // GetDirection returns the layout direction
-// Prioritizes Fiber.LayoutDirection field, falls back to VNode
+// Returns Fiber.LayoutDirection field (Fiber-first, no VNode fallback)
 func (f *Fiber) GetDirection() Direction {
 	if f.LayoutDirection != 0 {
 		return f.LayoutDirection
-	}
-	// Fallback to VNode during transition
-	if f.VNode != nil {
-		if ln, ok := f.VNode.(*LayoutNode); ok {
-			return ln.direction
-		}
 	}
 	return DirectionRow // default
 }
 
 // GetAlign returns the main axis alignment
-// Prioritizes Fiber.LayoutAlign field, falls back to VNode
+// Returns Fiber.LayoutAlign field (Fiber-first, no VNode fallback)
 func (f *Fiber) GetAlign() Align {
 	if f.LayoutAlign != 0 {
 		return f.LayoutAlign
-	}
-	if f.VNode != nil {
-		if ln, ok := f.VNode.(*LayoutNode); ok {
-			return ln.align
-		}
 	}
 	return AlignStart // default
 }
 
 // GetCrossAlign returns the cross axis alignment
-// Prioritizes Fiber.LayoutCrossAlign field, falls back to VNode
+// Returns Fiber.LayoutCrossAlign field (Fiber-first, no VNode fallback)
 func (f *Fiber) GetCrossAlign() Align {
 	if f.LayoutCrossAlign != 0 {
 		return f.LayoutCrossAlign
-	}
-	if f.VNode != nil {
-		if ln, ok := f.VNode.(*LayoutNode); ok {
-			return ln.crossAlign
-		}
 	}
 	return AlignStart // default
 }
 
 // GetGap returns the gap spacing between children
-// Prioritizes Fiber.LayoutGap field, falls back to VNode
+// Returns Fiber.LayoutGap field (Fiber-first, no VNode fallback)
 func (f *Fiber) GetGap() int {
-	if f.LayoutGap != 0 || f.VNode == nil {
-		return f.LayoutGap
-	}
-	if ln, ok := f.VNode.(*LayoutNode); ok {
-		return ln.gap
-	}
-	return 0 // default
+	return f.LayoutGap
 }
 
 // GetPadding returns the padding [top, right, bottom, left]
-// Prioritizes Fiber.LayoutPadding field, falls back to VNode
+// Returns Fiber.LayoutPadding field (Fiber-first, no VNode fallback)
 func (f *Fiber) GetPadding() [4]int {
-	// Check if any padding value is non-zero
-	if f.LayoutPadding[0] != 0 || f.LayoutPadding[1] != 0 ||
-		f.LayoutPadding[2] != 0 || f.LayoutPadding[3] != 0 || f.VNode == nil {
-		return f.LayoutPadding
-	}
-	if ln, ok := f.VNode.(*LayoutNode); ok {
-		return ln.padding
-	}
-	return [4]int{0, 0, 0, 0} // default
+	return f.LayoutPadding
 }
 
 // GetFlex returns the flex factor
-// Prioritizes Fiber.LayoutFlex field, falls back to VNode
+// Returns Fiber.LayoutFlex field (Fiber-first, no VNode fallback)
 func (f *Fiber) GetFlex() int {
-	if f.LayoutFlex != 0 || f.VNode == nil {
-		return f.LayoutFlex
-	}
-	if ln, ok := f.VNode.(*LayoutNode); ok {
-		return ln.flex
-	}
-	return 0 // default
+	return f.LayoutFlex
 }

@@ -61,11 +61,12 @@ func (e *Engine) SetDebug(debug bool) {
 // AND a HitMap built from the final ComputedBox positions (including layer transforms)
 //
 // Parameters:
-//   vnode: The VNode tree to layout
-//   fiber: Optional Fiber node for passing NodeID to ComputedBox (Phase 3: Identity Refactoring)
-//          When provided, Fiber.NodeID is passed to ComputedBox for stable identity
-//          When nil, NodeID will be 0 (backward compatible with non-Fiber mode)
-//   constraints: Box constraints for layout
+//
+//	vnode: The VNode tree to layout
+//	fiber: Optional Fiber node for passing NodeID to ComputedBox (Phase 3: Identity Refactoring)
+//	       When provided, Fiber.NodeID is passed to ComputedBox for stable identity
+//	       When nil, NodeID will be 0 (backward compatible with non-Fiber mode)
+//	constraints: Box constraints for layout
 func (e *Engine) Layout(vnode VNode, fiber *reconciler.Fiber, constraints runtime.BoxConstraints) (*ComputedLayout, error) {
 	if vnode == nil {
 		return nil, fmt.Errorf("cannot layout nil VNode")
@@ -121,12 +122,13 @@ func (e *Engine) Layout(vnode VNode, fiber *reconciler.Fiber, constraints runtim
 // providing performance benefits for simple nodes like text.
 //
 // Parameters:
-//   vnode: The VNode to build ComputedBox for
-//   fiber: Optional Fiber node for passing NodeID (Phase 3: Identity Refactoring)
-//          When provided, Fiber.NodeID is set in ComputedBox for stable identity
-//   parent: Parent ComputedBox (for tree structure)
-//   constraints: Box constraints for layout
-//   preMeasuredSize: Optional pre-measured size to avoid re-measurement
+//
+//	vnode: The VNode to build ComputedBox for
+//	fiber: Optional Fiber node for passing NodeID (Phase 3: Identity Refactoring)
+//	       When provided, Fiber.NodeID is set in ComputedBox for stable identity
+//	parent: Parent ComputedBox (for tree structure)
+//	constraints: Box constraints for layout
+//	preMeasuredSize: Optional pre-measured size to avoid re-measurement
 func (e *Engine) buildComputedBoxWithSize(vnode VNode, fiber *reconciler.Fiber, parent *ComputedBox, constraints runtime.BoxConstraints, preMeasuredSize *runtime.Size) *ComputedBox {
 	if vnode == nil {
 		return nil
@@ -136,8 +138,8 @@ func (e *Engine) buildComputedBoxWithSize(vnode VNode, fiber *reconciler.Fiber, 
 		VNode:        vnode,
 		Parent:       parent,
 		Box:          runtime.Box{X: 0, Y: 0, Width: 0, Height: 0},
-		NaturalWidth:  0, // Will be measured below
-		NodeID:       0, // Will be set below
+		NaturalWidth: 0,     // Will be measured below
+		NodeID:       0,     // Will be set below
 		ChildFiber:   fiber, // Set Fiber if provided (for NodeID propagation)
 	}
 
@@ -414,10 +416,11 @@ func (e *Engine) buildComputedBoxWithSize(vnode VNode, fiber *reconciler.Fiber, 
 // This is a convenience wrapper for buildComputedBoxWithSize without pre-measurement.
 //
 // Parameters:
-//   vnode: The VNode to build ComputedBox for
-//   fiber: Optional Fiber node for passing NodeID (Phase 3: Identity Refactoring)
-//   parent: Parent ComputedBox (for tree structure)
-//   constraints: Box constraints for layout
+//
+//	vnode: The VNode to build ComputedBox for
+//	fiber: Optional Fiber node for passing NodeID (Phase 3: Identity Refactoring)
+//	parent: Parent ComputedBox (for tree structure)
+//	constraints: Box constraints for layout
 func (e *Engine) buildComputedBox(vnode VNode, fiber *reconciler.Fiber, parent *ComputedBox, constraints runtime.BoxConstraints) *ComputedBox {
 	return e.buildComputedBoxWithSize(vnode, fiber, parent, constraints, nil)
 }
@@ -429,12 +432,14 @@ func (e *Engine) buildComputedBox(vnode VNode, fiber *reconciler.Fiber, parent *
 // This is Phase 6 implementation that removes VNode dependency
 //
 // Parameters:
-//   fiber: The Fiber node to build ComputedBox for
-//   parent: Parent ComputedBox (for tree structure)
-//   constraints: Box constraints for layout
+//
+//	fiber: The Fiber node to build ComputedBox for
+//	parent: Parent ComputedBox (for tree structure)
+//	constraints: Box constraints for layout
 //
 // Returns:
-//   *ComputedBox for this Fiber node
+//
+//	*ComputedBox for this Fiber node
 func (e *Engine) buildComputedBoxFromFiber(fiber *rtui.Fiber, parent *ComputedBox, constraints runtime.BoxConstraints) *ComputedBox {
 	if fiber == nil {
 		return nil
@@ -445,9 +450,9 @@ func (e *Engine) buildComputedBoxFromFiber(fiber *rtui.Fiber, parent *ComputedBo
 
 	// Create base box using Fiber properties
 	box := &ComputedBox{
-		Parent:  parent,
-		NodeID:  fiber.NodeID,
-		Layer:   fiber.Layer,
+		Parent: parent,
+		NodeID: fiber.NodeID,
+		Layer:  fiber.Layer,
 		Box: runtime.Box{
 			X:      0,
 			Y:      0,
@@ -487,8 +492,8 @@ func (e *Engine) buildComputedBoxFromFiber(fiber *rtui.Fiber, parent *ComputedBo
 func (e *Engine) getLayoutInfoFromFiber(fiber *rtui.Fiber) rtui.LayoutInfo {
 	return rtui.LayoutInfo{
 		IsHorizontal: fiber.GetDirection() == rtui.DirectionRow,
-		Gap:         fiber.GetGap(),
-		Flex:        fiber.GetFlex(),
+		Gap:          fiber.GetGap(),
+		Flex:         fiber.GetFlex(),
 		Align:        fiber.GetAlign(),
 		CrossAlign:   fiber.GetCrossAlign(),
 		Padding:      fiber.GetPadding(),
@@ -496,20 +501,15 @@ func (e *Engine) getLayoutInfoFromFiber(fiber *rtui.Fiber) rtui.LayoutInfo {
 }
 
 // measureFiberLayout measures layout size from Fiber
+// Fiber-first: Fiber itself implements LayoutMeasurer interface
 func (e *Engine) measureFiberLayout(fiber *rtui.Fiber, info rtui.LayoutInfo, constraints runtime.BoxConstraints) runtime.LayoutMeasurement {
-	// Try single-pass measurement via LayoutMeasurer interface
-	if lm, ok := fiber.VNode.(runtime.LayoutMeasurer); ok {
-		// Create a ChildMeasurer that uses Fiber children
-		measurer := &fiberChildMeasurer{
-			engine: e,
-			fiber:  fiber,
-		}
-		return lm.MeasureLayout(measurer, constraints)
+	// Fiber itself implements LayoutMeasurer (see fiber_layout_support.go)
+	// Create a ChildMeasurer that uses Fiber children
+	measurer := &fiberChildMeasurer{
+		engine: e,
+		fiber:  fiber,
 	}
-	// Fallback to two-pass
-	return runtime.LayoutMeasurement{
-		Size: runtime.Size{Width: 0, Height: 0},
-	}
+	return fiber.MeasureLayout(measurer, constraints)
 }
 
 // getChildFibers returns all child fibers as a slice
@@ -1871,12 +1871,14 @@ func (e *Engine) buildHitMapFromComputedBoxes(root *ComputedBox) *event.HitMap {
 // of layout information, with VNode only as backing data
 //
 // Parameters:
-//   fiber: The Fiber node to layout
-//   constraints: Box constraints for layout
-//   depth: Tree depth (for debug logging)
+//
+//	fiber: The Fiber node to layout
+//	constraints: Box constraints for layout
+//	depth: Tree depth (for debug logging)
 //
 // Returns:
-//   *ComputedBox containing layout result
+//
+//	*ComputedBox containing layout result
 func (e *Engine) layoutFiber(fiber *rtui.Fiber, constraints runtime.BoxConstraints, depth int) *ComputedBox {
 	if fiber == nil {
 		return nil
@@ -1897,9 +1899,8 @@ func (e *Engine) layoutFiber(fiber *rtui.Fiber, constraints runtime.BoxConstrain
 		}
 	}
 
-	// Build ComputedBox using fiber.VNode (still needed for content)
-	// but associate it with fiber.NodeID and fiber.Layer
-	box := e.buildComputedBox(fiber.VNode, fiber, nil, constraints)
+	// Build ComputedBox from Fiber only (Fiber-first architecture)
+	box := e.buildComputedBoxFromFiber(fiber, nil, constraints)
 
 	if box == nil {
 		if e.debug {
@@ -1933,17 +1934,20 @@ func (e *Engine) layoutFiber(fiber *rtui.Fiber, constraints runtime.BoxConstrain
 // for BuildHitMapFromFiber() to work correctly in the new unified architecture
 //
 // Parameters:
-//   root: The root Fiber node of the tree to layout
-//   constraints: Box constraints for the entire tree layout
+//
+//	root: The root Fiber node of the tree to layout
+//	constraints: Box constraints for the entire tree layout
 //
 // Returns:
-//   *ComputedLayout containing the root ComputedBox and HitMap
-//   error if layout fails
+//
+//	*ComputedLayout containing the root ComputedBox and HitMap
+//	error if layout fails
 //
 // Usage Phase 5+:
-//   layout := engine.LayoutFiber(fiberRoot, constraints)
-//   renderPlanes := layer.BuildFromFiber(fiberRoot)
-//   hitMap := ui.BuildHitMapFromFiber(fiberRoot)
+//
+//	layout := engine.LayoutFiber(fiberRoot, constraints)
+//	renderPlanes := layer.BuildFromFiber(fiberRoot)
+//	hitMap := ui.BuildHitMapFromFiber(fiberRoot)
 func (e *Engine) LayoutFiber(root *rtui.Fiber, constraints runtime.BoxConstraints) (*ComputedLayout, error) {
 	if root == nil {
 		return nil, fmt.Errorf("cannot layout nil Fiber tree")
@@ -1989,9 +1993,10 @@ func (e *Engine) LayoutFiber(root *rtui.Fiber, constraints runtime.BoxConstraint
 // This is a safety measure to ensure BuildHitMapFromFiber() has complete data
 //
 // Parameters:
-//   fiber: The current Fiber node
-//   constraints: Box constraints for this node
-//   depth: Tree depth for debugging
+//
+//	fiber: The current Fiber node
+//	constraints: Box constraints for this node
+//	depth: Tree depth for debugging
 func (e *Engine) ensureFiberComputedBox(fiber *rtui.Fiber, constraints runtime.BoxConstraints, depth int) {
 	if fiber == nil {
 		return
@@ -1999,7 +2004,7 @@ func (e *Engine) ensureFiberComputedBox(fiber *rtui.Fiber, constraints runtime.B
 
 	// If this Fiber doesn't have ComputedBox, create it
 	if fiber.ComputedBox == nil {
-		box := e.buildComputedBox(fiber.VNode, fiber, nil, constraints)
+		box := e.buildComputedBoxFromFiber(fiber, nil, constraints)
 		if box != nil {
 			box.NodeID = fiber.NodeID
 			box.Layer = fiber.Layer
@@ -2022,12 +2027,14 @@ func (e *Engine) ensureFiberComputedBox(fiber *rtui.Fiber, constraints runtime.B
 // This uses depth-first traversal following Child → Sibling chains
 //
 // Parameters:
-//   fiber: The current Fiber node to layout
-//   constraints: Box constraints for this node
-//   depth: Tree depth for debugging
+//
+//	fiber: The current Fiber node to layout
+//	constraints: Box constraints for this node
+//	depth: Tree depth for debugging
 //
 // Returns:
-//   *ComputedBox containing layout result for this node and its children
+//
+//	*ComputedBox containing layout result for this node and its children
 func (e *Engine) layoutFiberTree(fiber *rtui.Fiber, constraints runtime.BoxConstraints, depth int) *ComputedBox {
 	if fiber == nil {
 		return nil
@@ -2058,24 +2065,27 @@ func (e *Engine) layoutFiberTree(fiber *rtui.Fiber, constraints runtime.BoxConst
 // This is the new fiber-based measure implementation
 //
 // Parameters:
-//   fiber: The Fiber node to measure
-//   constraints: Box constraints for measurement
+//
+//	fiber: The Fiber node to measure
+//	constraints: Box constraints for measurement
 //
 // Returns:
-//   runtime.Box containing measured size
+//
+//	runtime.Box containing measured size
 func (e *Engine) measureFiber(fiber *rtui.Fiber, constraints runtime.BoxConstraints) runtime.Box {
 	if fiber == nil {
 		return runtime.Box{}
 	}
 
-	// Measure using fiber.VNode (still needed for content)
-	size := e.measureVNode(fiber.VNode, constraints)
+	// Measure using Fiber layout info (Fiber-first)
+	info := e.getLayoutInfoFromFiber(fiber)
+	measurement := e.measureFiberLayout(fiber, info, constraints)
 
 	return runtime.Box{
 		X:      0,
 		Y:      0,
-		Width:  size.Width,
-		Height: size.Height,
+		Width:  measurement.Size.Width,
+		Height: measurement.Size.Height,
 	}
 }
 
@@ -2083,12 +2093,14 @@ func (e *Engine) measureFiber(fiber *rtui.Fiber, constraints runtime.BoxConstrai
 // This traverses the Fiber tree (Child -> Sibling) and builds ComputedBoxes for all children
 //
 // Parameters:
-//   fiber: The parent Fiber node
-//   constraints: Box constraints for layout
-//   depth: Tree depth (for debug logging)
+//
+//	fiber: The parent Fiber node
+//	constraints: Box constraints for layout
+//	depth: Tree depth (for debug logging)
 //
 // Returns:
-//   []*ComputedBox containing layout results for all children
+//
+//	[]*ComputedBox containing layout results for all children
 func (e *Engine) layoutFiberChildren(fiber *rtui.Fiber, constraints runtime.BoxConstraints, depth int) []*ComputedBox {
 	if fiber == nil || fiber.Child == nil {
 		return nil
@@ -2116,10 +2128,12 @@ func (e *Engine) layoutFiberChildren(fiber *rtui.Fiber, constraints runtime.BoxC
 // This traverses the Fiber and collects ComputedBox entries from each Fiber
 //
 // Parameters:
-//   root: The root Fiber node
+//
+//	root: The root Fiber node
 //
 // Returns:
-//   *event.HitMap containing all hit test entries from the Fiber tree
+//
+//	*event.HitMap containing all hit test entries from the Fiber tree
 func (e *Engine) buildHitMapFromFiber(root *rtui.Fiber) *event.HitMap {
 	if root == nil {
 		return event.NewHitMap()

@@ -255,9 +255,19 @@ func NewNewLayoutEngineAdapter() *NewLayoutEngineAdapter {
 }
 
 // Layout performs layout using the new layout engine
+// Fiber-first: Uses Fiber data when available, falls back to VNode
 func (a *NewLayoutEngineAdapter) Layout(vnode rtui.VNode, fiber *reconciler.Fiber, constraints runtime.BoxConstraints) (LayoutResult, error) {
-	// Convert VNode/Fiber to layout.Node via adapter
-	node := NewFiberToNodeAdapter(fiber, vnode)
+	// Fiber-first: Prefer Fiber over VNode
+	var node layout.Node
+	if fiber != nil {
+		// Use Fiber-only adapter (no VNode dependency)
+		node = NewFiberToNodeAdapterPure(fiber)
+	} else if vnode != nil {
+		// Fallback to VNode adapter for legacy support
+		node = NewVNodeToNodeAdapter(vnode)
+	} else {
+		return nil, fmt.Errorf("both fiber and vnode are nil")
+	}
 
 	// Convert constraints
 	layoutConstraints := layout.Constraints{
@@ -276,10 +286,14 @@ func (a *NewLayoutEngineAdapter) Layout(vnode rtui.VNode, fiber *reconciler.Fibe
 	}, nil
 }
 
-// LayoutFiber performs layout on a Fiber tree using the new layout engine
+// LayoutFiber performs layout on a Fiber tree using the new layout engine (Fiber-first)
 func (a *NewLayoutEngineAdapter) LayoutFiber(fiber *reconciler.Fiber, constraints runtime.BoxConstraints) (LayoutResult, error) {
-	// Convert Fiber to layout.Node
-	node := NewFiberToNodeAdapter(fiber, nil)
+	if fiber == nil {
+		return nil, fmt.Errorf("fiber is nil")
+	}
+
+	// Use Fiber-only adapter (no VNode dependency)
+	node := NewFiberToNodeAdapterPure(fiber)
 
 	// Convert constraints
 	layoutConstraints := layout.Constraints{
@@ -420,13 +434,13 @@ type LayoutSwitcher struct {
 
 // SwitcherStats tracks switching statistics
 type SwitcherStats struct {
-	mu              sync.RWMutex
-	TotalRenders    int64
-	ComputeRenders  int64
+	mu               sync.RWMutex
+	TotalRenders     int64
+	ComputeRenders   int64
 	NewEngineRenders int64
-	BothRenders     int64
-	Differences     int64
-	Errors          int64
+	BothRenders      int64
+	Differences      int64
+	Errors           int64
 }
 
 // NewLayoutSwitcher creates a new layout switcher
@@ -577,7 +591,7 @@ func (s *LayoutSwitcher) compareLayoutResults(computeResult, newResult LayoutRes
 	nx, ny, nw, nh := newBox.GetBounds()
 
 	if cx != nx || cy != ny {
-		differences = append(differences, 
+		differences = append(differences,
 			fmt.Sprintf("position differs: compute=(%d,%d) new=(%d,%d)", cx, cy, nx, ny))
 	}
 

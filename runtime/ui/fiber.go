@@ -1,6 +1,10 @@
 package ui
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/wwsheng009/mint/runtime/style"
+)
 
 // =============================================================================
 // Fiber Architecture
@@ -60,9 +64,10 @@ const LaneRoot Lane = LaneSyncLane | LaneInputContinuousLane | LaneDefaultLane |
 // Fiber represents a unit of work in the reconciler
 // Each Fiber corresponds to a VNode and contains work-in-progress state
 type Fiber struct {
-	// === VNode Reference ===
-	// The virtual node this fiber represents
-	VNode VNode
+	// === VNode Reference (DEPRECATED - Phase 4 removal) ===
+	// The VNode field is being removed as part of Fiber-first architecture.
+	// All data needed for layout/render should be copied to Fiber fields.
+	// VNode VNode
 
 	// === Tree Structure ===
 	// Pointer to parent fiber
@@ -166,33 +171,52 @@ type Fiber struct {
 	// === Layout Style (Phase 1) ===
 	// These fields are populated in completeWork from VNode props
 	// This enables Fiber-first layout by avoiding VNode delegation
-	LayoutDirection Direction
-	LayoutAlign     Align
+	LayoutDirection  Direction
+	LayoutAlign      Align
 	LayoutCrossAlign Align
-	LayoutGap       int
+	LayoutGap        int
 	LayoutPadding    [4]int
-	LayoutFlex      int
+	LayoutFlex       int
+
+	// === Visual Style (Phase 1 - Fiber-first) ===
+	// Copied from VNode.Style() during Fiber creation
+	// This enables Layout/Render to access style without VNode dependency
+	Style style.Style
 
 	// === Component Instance ===
 	// Persistent component instance for state preservation
 	ComponentInstance ComponentInstance
+
+	// === Special VNode Types Support ===
+	// These fields store data from special VNode types (ErrorBoundary, Memo, Component)
+	// They are populated during Fiber creation to avoid VNode dependency in reconciler
+
+	// ComponentFunc for function components (from ComponentVNode)
+	ComponentFunc ComponentFunc
+	// ComponentFuncWithProps for components with props (from ComponentVNode)
+	ComponentFuncWithProps ComponentFuncWithProps
+	// ComponentName for component identification (from ComponentVNode.Name())
+	ComponentName string
+
+	// ErrorBoundaryFunc for error boundary component
+	ErrorBoundaryFunc ComponentFunc
+	// ErrorBoundaryFallbackFiber for fallback UI on error (converted to Fiber)
+	ErrorBoundaryFallbackFiber *Fiber
+
+	// MemoCompare for custom comparison function (from MemoVNode)
+	MemoCompare PropsEqual
+	// MemoShouldUpdate flag to indicate if memo should re-render
+	MemoShouldUpdate bool
 }
 
 // =============================================================================
 // Fiber Methods
 // =============================================================================
 
-// GetProps returns the current props from the VNode.
-// This method should be used instead of accessing the Props field directly,
-// as the Props field is only a snapshot taken when the Fiber was created.
-//
-// The Props field may become stale if the VNode's props are updated after
-// the Fiber is created. Use GetProps() to always get the current props.
+// GetProps returns the props from the Fiber.
+// Fiber-first: returns Fiber.Props directly without VNode dependency.
 func (f *Fiber) GetProps() Props {
-	if f.VNode == nil {
-		return nil
-	}
-	return f.VNode.Props()
+	return f.Props
 }
 
 // GetMemoizedProps returns the memoized props for comparison during reconciliation.

@@ -262,8 +262,49 @@ func (r *Reconciler) createWorkInProgress(current *Fiber, vnode rtui.VNode) *Fib
 
 	// Clone the current fiber for work-in-progress
 	work := CloneFiber(current)
-	work.VNode = vnode
-	work.Props = vnode.Props()
+
+	// Extract props and ensure children are stored for elements/fragments
+	props := vnode.Props()
+	if props == nil {
+		props = make(rtui.Props)
+	}
+	children := vnode.Children()
+	vnodeType := vnode.Type()
+	if vnodeType == rtui.VNodeElement || vnodeType == rtui.VNodeFragment {
+		if len(children) > 0 {
+			newProps := make(rtui.Props)
+			for k, v := range props {
+				newProps[k] = v
+			}
+			newProps["children"] = children
+			props = newProps
+		}
+	}
+
+	work.Props = props
+	work.Style = vnode.Style()
+	work.Layer = vnode.GetLayer()
+	if tagger, ok := vnode.(interface{ Tag() string }); ok {
+		work.Tag = tagger.Tag()
+	}
+
+	// CRITICAL: Update ComponentFunc from new VNode for component types
+	// This ensures the latest render function is used
+	if vnodeType == rtui.VNodeComponent {
+		switch n := vnode.(type) {
+		case *rtui.ComponentVNode:
+			if n.Fn() != nil {
+				work.ComponentFunc = n.Fn()
+			}
+			if n.FnWithProps() != nil {
+				work.ComponentFuncWithProps = n.FnWithProps()
+			}
+			if n.Name() != "" {
+				work.ComponentName = n.Name()
+			}
+		}
+	}
+
 	work.Lanes = LaneNoLane
 	work.Flags = EffectNoEffect
 
@@ -365,9 +406,7 @@ func (r *Reconciler) renderFiberToBuffer(fiber *Fiber, x, y int, buffer *paint.B
 	}
 
 	// Skip ComponentVNode nodes - render their children directly
-	// ComponentVNodes are just wrappers for their rendered content
-	if fiber.VNode != nil && fiber.VNode.Type() == rtui.VNodeComponent {
-		// Render the single child at the same position
+	if fiber.Type == rtui.VNodeComponent {
 		if fiber.Child != nil {
 			r.renderFiberToBuffer(fiber.Child, x, y, buffer)
 		}
@@ -375,12 +414,8 @@ func (r *Reconciler) renderFiberToBuffer(fiber *Fiber, x, y int, buffer *paint.B
 	}
 
 	// Debug: log fiber traversal
-	var tag string
-	if t, ok := fiber.VNode.(interface{ Tag() string }); ok {
-		tag = t.Tag()
-	}
-	layoutInfo := rtui.GetLayoutInfo(fiber.VNode)
-	log.RenderLogger.Debug("renderFiberToBuffer tag=%q, x=%d, y=%d, isHStack=%v", tag, x, y, layoutInfo.IsHorizontal)
+	tag := fiber.Tag
+	log.RenderLogger.Debug("renderFiberToBuffer tag=%q, x=%d, y=%d", tag, x, y)
 
 	// Render this fiber based on its type
 	r.renderFiber(fiber, x, y, buffer)
@@ -389,19 +424,17 @@ func (r *Reconciler) renderFiberToBuffer(fiber *Fiber, x, y int, buffer *paint.B
 	childX := x
 	childY := y
 
-	isHStack := layoutInfo.IsHorizontal
-	gap := layoutInfo.Gap
+	isHStack := fiber.GetDirection() == rtui.DirectionRow
+	gap := fiber.GetGap()
 
 	for child := fiber.Child; child != nil; child = child.Sibling {
 		r.renderFiberToBuffer(child, childX, childY, buffer)
 
 		// Move position for next sibling
 		if isHStack {
-			// Horizontal layout: move X, keep Y
 			width := r.measureFiberWidth(child)
 			childX += width + gap
 		} else {
-			// Vertical layout: move Y, keep X
 			offsetY := r.measureFiberHeight(child)
 			childY += offsetY
 		}
@@ -410,127 +443,123 @@ func (r *Reconciler) renderFiberToBuffer(fiber *Fiber, x, y int, buffer *paint.B
 
 // measureFiberWidth measures the width of a fiber node
 func (r *Reconciler) measureFiberWidth(fiber *Fiber) int {
-	if fiber == nil || fiber.VNode == nil {
+	if fiber == nil {
 		return 0
 	}
 
 	// ComponentVNode - measure the child instead
-	if fiber.VNode.Type() == rtui.VNodeComponent {
+	if fiber.Type == rtui.VNodeComponent {
 		if fiber.Child != nil {
 			return r.measureFiberWidth(fiber.Child)
 		}
 		return 0
 	}
 
-	// For text nodes, get content from Props or Content() method
-	if fiber.VNode.Type() == rtui.VNodeText {
-		// Try to get content from Props first (works for both ui.TextVNode and basic.TextVNode)
-		if props := fiber.VNode.Props(); props != nil {
-			if content, ok := props["content"].(string); ok {
+	// For text nodes, get content from MemoizedState or Props
+	if fiber.Type == rtui.VNodeText {
+		// Try to get content from MemoizedState first
+		if content, ok := fiber.MemoizedState.(string); ok {
+			return paint.StringWidth(content)
+		}
+		// Fall back to Props
+		if fiber.Props != nil {
+			if content, ok := fiber.Props["content"].(string); ok {
 				return paint.StringWidth(content)
 			}
-		}
-		// Try Content() method for types that implement it
-		if contenter, ok := fiber.VNode.(interface{ Content() string }); ok {
-			return paint.StringWidth(contenter.Content())
 		}
 		return 10
 	}
 
-	switch v := fiber.VNode.(type) {
-	case *rtui.ButtonVNode:
-		return paint.StringWidth(v.Label()) + 2 // [label]
-	case *rtui.InputVNode:
-		return 22 // [ + 20 chars + ]
-	case *rtui.SelectVNode:
-		maxLen := 10
-		for _, opt := range v.Options() {
-			w := paint.StringWidth(opt.Label)
-			if w > maxLen {
-				maxLen = w
+	// Get width from ComputedBox if available
+	if fiber.ComputedBox != nil {
+		if box, ok := fiber.ComputedBox.(interface{ GetWidth() int }); ok {
+			return box.GetWidth()
+		}
+	}
+
+	// Get width from Props
+	if fiber.Props != nil {
+		if w, ok := fiber.Props["width"].(int); ok && w > 0 {
+			return w
+		}
+	}
+
+	// Default width based on tag
+	switch fiber.Tag {
+	case "button":
+		label := ""
+		if fiber.Props != nil {
+			if l, ok := fiber.Props["label"].(string); ok {
+				label = l
 			}
 		}
-		return maxLen + 4 // [label + ▼]
-	case *rtui.CheckboxVNode:
-		width := 4 // [X] or [ ]
-		if v.Label() != "" {
-			width += 1 + paint.StringWidth(v.Label())
-		}
-		return width
-	case *rtui.ElementVNode, *rtui.LayoutNode, *rtui.FragmentVNode:
-		// Containers - sum up children widths
+		return paint.StringWidth(label) + 2
+	case "input":
+		return 22
+	case "checkbox":
+		return 4
+	default:
+		// Sum children widths
 		width := 0
 		for child := fiber.Child; child != nil; child = child.Sibling {
 			width += r.measureFiberWidth(child)
 		}
 		return width
-	default:
-		// For any other type, try to get content from Props
-		if props := fiber.VNode.Props(); props != nil {
-			if content, ok := props["content"].(string); ok {
-				return paint.StringWidth(content)
-			}
-		}
-		return 10
 	}
 }
 
 // renderFiber renders a single Fiber to the buffer
 func (r *Reconciler) renderFiber(fiber *Fiber, x, y int, buffer *paint.Buffer) {
-	if fiber == nil || fiber.VNode == nil {
+	if fiber == nil {
 		return
 	}
 
 	// Skip ComponentVNode - its children are already expanded in the Fiber tree
-	// The renderCallback should only be called for rendered nodes, not component definitions
-	if fiber.VNode.Type() == rtui.VNodeComponent {
+	if fiber.Type == rtui.VNodeComponent {
 		return
 	}
 
 	// Use the render callback if set
 	if r.renderCallback != nil {
-		r.renderCallback(fiber.VNode, x, y, buffer)
+		r.renderCallback(fiber, x, y, buffer)
 	}
 }
 
 // measureFiberHeight measures the height of a fiber
 func (r *Reconciler) measureFiberHeight(fiber *Fiber) int {
-	if fiber == nil || fiber.VNode == nil {
+	if fiber == nil {
 		return 0
 	}
 
 	// ComponentVNode - measure the child instead
-	if fiber.VNode.Type() == rtui.VNodeComponent {
+	if fiber.Type == rtui.VNodeComponent {
 		if fiber.Child != nil {
 			return r.measureFiberHeight(fiber.Child)
 		}
 		return 0
 	}
 
-	// Check if VNode has explicit height prop
-	if props := fiber.VNode.Props(); props != nil {
-		if h, ok := props["height"].(int); ok && h > 0 {
+	// Check if Fiber has explicit height prop
+	if fiber.Props != nil {
+		if h, ok := fiber.Props["height"].(int); ok && h > 0 {
 			return h
 		}
 	}
 
-	// Get layout info to determine if this is a vertical or horizontal container
-	layoutInfo := rtui.GetLayoutInfo(fiber.VNode)
+	// Get layout info from Fiber
+	isHStack := fiber.GetDirection() == rtui.DirectionRow
 
-	switch fiber.VNode.(type) {
-	case *rtui.ButtonVNode, *rtui.InputVNode, *rtui.CheckboxVNode:
-		return 1 // Single-line controls
-	case *rtui.SelectVNode:
-		return 1 // Single-line dropdown
-	case *rtui.TextVNode, *rtui.ElementVNode:
+	switch fiber.Type {
+	case rtui.VNodeText, rtui.VNodeElement:
 		// Text elements are single line
-		if rtui.GetTextContent(fiber.VNode) != "" {
+		if fiber.Type == rtui.VNodeText {
 			return 1
 		}
 		// Fall through to container handling
-	case *rtui.LayoutNode, *rtui.FragmentVNode:
+		fallthrough
+	case rtui.VNodeFragment:
 		// For containers, calculate height based on layout direction
-		if layoutInfo.IsHorizontal {
+		if isHStack {
 			// HStack: height is the maximum of children's heights
 			maxHeight := 0
 			for child := fiber.Child; child != nil; child = child.Sibling {
@@ -549,16 +578,12 @@ func (r *Reconciler) measureFiberHeight(fiber *Fiber) int {
 			return totalHeight
 		}
 	default:
-		// For any other type, default to 1
 		return 1
 	}
-	return 1 // Should never reach here, but needed for Go's type switch
 }
 
-// RenderFunc is a function to render a VNode to the buffer
-type RenderFunc func(vnode rtui.VNode, x, y int, buffer *paint.Buffer)
-
-// Note: vnode is ui.VNode - VNode interface and implementations are from ui package
+// RenderFunc is a function to render a Fiber to the buffer
+type RenderFunc func(fiber *Fiber, x, y int, buffer *paint.Buffer)
 
 // SetRenderCallback sets the render callback
 func (r *Reconciler) SetRenderCallback(cb RenderFunc) {
@@ -576,46 +601,51 @@ func (r *Reconciler) buildLayoutTree(fiber *Fiber) *runtime.LayoutNode {
 	}
 
 	// Skip the root ComponentVNode wrapper (key="root")
-	// The actual content is in the Fiber's children, not in VNode.Children()
-	// This is because ComponentVNode.Children() returns nil, but the Fiber tree
-	// has the expanded children via beginWorkComponent
-	if fiber.Key == "root" && fiber.VNode.Type() == rtui.VNodeComponent {
+	if fiber.Key == "root" && fiber.Type == rtui.VNodeComponent {
 		if fiber.Child != nil {
 			return r.buildLayoutTreeFromFiber(fiber.Child)
 		}
 		return nil
 	}
 
-	// For non-root nodes, try to convert via VNodeConverter
-	// But use Fiber children instead of VNode children for ComponentVNode
 	return r.buildLayoutTreeFromFiber(fiber)
 }
 
 // buildLayoutTreeFromFiber builds a layout tree by traversing the Fiber tree
-// This ensures we use the expanded children from the Fiber tree, not VNode.Children()
 func (r *Reconciler) buildLayoutTreeFromFiber(fiber *Fiber) *runtime.LayoutNode {
-	if fiber == nil || fiber.VNode == nil {
+	if fiber == nil {
 		return nil
 	}
 
 	// Skip ComponentVNode nodes and process their children directly
-	if fiber.VNode.Type() == rtui.VNodeComponent {
-		// Process children instead
+	if fiber.Type == rtui.VNodeComponent {
 		if child := fiber.Child; child != nil {
 			return r.buildLayoutTreeFromFiber(child)
 		}
 		return nil
 	}
 
-	// Convert this VNode to LayoutNode
-	node := r.vnodeConverter.Convert(fiber.VNode)
-	if node == nil {
-		// Try to build from children if conversion failed
-		if child := fiber.Child; child != nil {
-			return r.buildLayoutTreeFromFiber(child)
-		}
-		return nil
+	// Determine NodeType from Fiber
+	var nodeType runtime.NodeType
+	switch fiber.Tag {
+	case "text":
+		nodeType = runtime.NodeTypeText
+	case "hstack", "row":
+		nodeType = runtime.NodeTypeRow
+	case "vstack", "column":
+		nodeType = runtime.NodeTypeColumn
+	default:
+		nodeType = runtime.NodeTypeCustom
 	}
+
+	// Convert style.Style to runtime.Style
+	style := runtime.Style{
+		Width:  fiber.Style.Width,
+		Height: fiber.Style.Height,
+	}
+
+	// Create a LayoutNode from Fiber data
+	node := runtime.NewLayoutNode(fiber.Tag, nodeType, style)
 
 	// Process children from the Fiber tree
 	child := fiber.Child
@@ -805,178 +835,13 @@ func (r *Reconciler) GetFiberRoot() *Fiber {
 	return r.root
 }
 
-// updateRenderedRoot extracts and stores the rendered VNode tree from the Fiber tree
-// The root Fiber is a ComponentVNode wrapper, its children contain the actual content
+// updateRenderedRoot extracts and stores the rendered content from the Fiber tree
+// In Fiber-first architecture, we don't need to build a VNode tree
 func (r *Reconciler) updateRenderedRoot() {
 	log.FocusLogger.Debug("updateRenderedRoot called, r.root=%v", r.root != nil)
-	if r.root != nil && r.root.VNode != nil {
-		log.FocusLogger.Debug("updateRenderedRoot r.root.VNode type=%d", r.root.VNode.Type())
-	}
-
-	if r.root == nil || r.root.VNode == nil {
-		r.renderedRoot = nil
-		log.FocusLogger.Debug("updateRenderedRoot root or VNode is nil, setting renderedRoot=nil")
-		return
-	}
-
-	// The root is a ComponentVNode wrapper
-	// Its children contain the actual rendered VNode tree
-	// We need to reconstruct the VNode tree from the Fiber tree
-	r.renderedRoot = r.buildVNodeTree(r.root)
-
-	if r.renderedRoot == nil {
-		log.FocusLogger.Debug("updateRenderedRoot buildVNodeTree returned nil!")
-	} else {
-		log.FocusLogger.Debug("updateRenderedRoot buildVNodeTree returned type=%d, children=%d",
-			r.renderedRoot.Type(), len(r.renderedRoot.Children()))
-	}
-}
-
-// buildVNodeTree reconstructs a VNode tree from a Fiber tree
-func (r *Reconciler) buildVNodeTree(fiber *Fiber) rtui.VNode {
-	if fiber == nil || fiber.VNode == nil {
-		return nil
-	}
-
-	// Skip the root ComponentVNode wrapper and return its children
-	// This is the actual rendered content
-	if fiber.VNode.Type() == rtui.VNodeComponent && fiber.Key == "root" {
-		// Return the children as a Fragment
-		children := r.buildVNodeList(fiber.Child)
-		if len(children) == 0 {
-			return nil
-		}
-		if len(children) == 1 {
-			// For single child, still need to expand any ComponentVNodes in its subtree
-			return r.expandVNodeTree(children[0], fiber.Child)
-		}
-		return rtui.Fragment(children...)
-	}
-
-	// For ComponentVNode (other than root), we need to recursively rebuild
-	// because the VNode's children might have changed during reconciliation
-	if fiber.VNode.Type() == rtui.VNodeComponent {
-		// Get the component instance's rendered children from the Fiber tree
-		children := r.buildVNodeList(fiber.Child)
-		if len(children) == 0 {
-			return fiber.VNode
-		}
-		if len(children) == 1 {
-			return children[0]
-		}
-		return rtui.Fragment(children...)
-	}
-
-	// For other fibers, return the VNode
-	return fiber.VNode
-}
-
-// expandVNodeTree recursively expands ComponentVNodes in a VNode tree
-// This is needed because ComponentVNode.Children() returns nil, so we need
-// to use the Fiber tree to get the actual rendered children
-func (r *Reconciler) expandVNodeTree(vnode rtui.VNode, fiber *Fiber) rtui.VNode {
-	if vnode == nil {
-		return nil
-	}
-
-	// If this is a ComponentVNode and we have the corresponding Fiber, expand it
-	if vnode.Type() == rtui.VNodeComponent && fiber != nil {
-		children := r.buildVNodeList(fiber.Child)
-		if len(children) == 0 {
-			return vnode
-		}
-		if len(children) == 1 {
-			return r.expandVNodeTree(children[0], fiber.Child)
-		}
-		return rtui.Fragment(children...)
-	}
-
-	// For other VNodes, recursively expand children
-	if vnode.Type() == rtui.VNodeElement || vnode.Type() == rtui.VNodeFragment {
-		originalChildren := vnode.Children()
-		if len(originalChildren) == 0 {
-			return vnode
-		}
-
-		// If fiber is nil, we can't expand children - return original vnode
-		if fiber == nil {
-			return vnode
-		}
-
-		// ✨ IMPORTANT: Build children from Fiber tree, not from VNode.Children()
-		// Fiber.VNode has the correct Key set by reconciliation, but VNode.Children()
-		// returns the original children which may have outdated keys.
-		// We use Fiber to get the correct child VNodes with proper Keys.
-		expandedChildren := r.buildVNodeList(fiber.Child)
-		if len(expandedChildren) == 0 {
-			return vnode
-		}
-
-		// Clone the VNode with expanded children (which now have correct Keys from Fiber)
-		cloned := r.cloneVNodeWithChildren(vnode, expandedChildren)
-		return cloned
-	}
-
-	return vnode
-}
-
-// cloneVNodeWithChildren creates a new VNode with the same properties but different children
-func (r *Reconciler) cloneVNodeWithChildren(vnode rtui.VNode, children []rtui.VNode) rtui.VNode {
-	// For ElementVNode (including LayoutNode which embeds ElementVNode)
-	if vnode.Type() == rtui.VNodeElement {
-		// Get the tag - check for Tag() method
-		var tag string
-		if tagger, ok := vnode.(interface{ Tag() string }); ok {
-			tag = tagger.Tag()
-		}
-
-		// Create new element and copy properties
-		cloned := rtui.NewElement(tag)
-
-		// Copy props
-		if props := vnode.Props(); props != nil && len(props) > 0 {
-			cloned.SetProps(props)
-		}
-
-		// Copy key
-		if key := vnode.Key(); key != "" {
-			cloned.SetKey(key)
-		}
-
-		// Set the new children
-		cloned.SetChildren(children)
-
-		return cloned
-	}
-
-	// Handle FragmentVNode
-	if vnode.Type() == rtui.VNodeFragment {
-		cloned := rtui.NewFragment(children...)
-		if key := vnode.Key(); key != "" {
-			cloned.SetKey(key)
-		}
-		return cloned
-	}
-
-	// For other types, return as-is
-	return vnode
-}
-
-// buildVNodeList builds a list of VNodes from sibling Fibers
-func (r *Reconciler) buildVNodeList(fiber *Fiber) []rtui.VNode {
-	var result []rtui.VNode
-	for fiber != nil {
-		if vnode := r.buildVNodeTree(fiber); vnode != nil {
-			result = append(result, vnode)
-		}
-		fiber = fiber.Sibling
-	}
-	return result
-}
-
-// SetInstanceManager sets the instance manager (shared with declarativeRoot)
-func (r *Reconciler) SetInstanceManager(mgr *state.InstanceManager) {
-	r.instanceMgr = mgr
+	// In Fiber-first, we don't maintain a VNode tree
+	// The Fiber tree itself is the source of truth
+	r.renderedRoot = nil
 }
 
 // SetApp sets the framework app for the reconciler
@@ -1096,14 +961,17 @@ func (r *Reconciler) applyFocusStateToFiber(fiber *Fiber) {
 	}
 }
 
-// clearFocusOnFiber recursively clears focus from all VNodes
+// clearFocusOnFiber recursively clears focus from all Fibers
 func (r *Reconciler) clearFocusOnFiber(fiber *Fiber) {
-	if fiber == nil || fiber.VNode == nil {
+	if fiber == nil {
 		return
 	}
 
-	if focusable, ok := fiber.VNode.(rtui.FocusableVNode); ok {
-		focusable.SetFocus(false)
+	// Clear focus via ComponentInstance if available
+	if fiber.ComponentInstance != nil {
+		if focusable, ok := fiber.ComponentInstance.(interface{ SetFocus(bool) }); ok {
+			focusable.SetFocus(false)
+		}
 	}
 
 	if fiber.Child != nil {
@@ -1176,6 +1044,7 @@ var currentReconciler *Reconciler
 func (r *Reconciler) SetRenderer(renderer rtui.VNodeRenderer) {
 	r.renderer = renderer
 }
+
 // GetCurrentReconciler returns the current reconciler
 func GetCurrentReconciler() *Reconciler {
 	return currentReconciler

@@ -4,15 +4,16 @@ import (
 	"fmt"
 	"strings"
 
-	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/internal/reconciler"
+	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
 
 // DebugKeyInspector 调试工具，用于显示所有层次的 KEY 信息
 // 使用方法：
-//   inspector := DebugKeyInspector{}
-//   inspector.InspectVNodes(rootVNode)
-//   inspector.InspectFibers(rootFiber)
+//
+//	inspector := DebugKeyInspector{}
+//	inspector.InspectVNodes(rootVNode)
+//	inspector.InspectFibers(rootFiber)
 type DebugKeyInspector struct {
 	MaxDepth   int
 	ShowKeys   bool
@@ -125,13 +126,14 @@ func (dki *DebugKeyInspector) walkFiber(fiber *reconciler.Fiber, depth int) int 
 
 	indent := strings.Repeat("  ", depth)
 
-	// 获取节点信息
 	var typeName string
 	if fiber.Type == rtui.VNodeElement {
 		typeName = fiber.Tag
 	} else if fiber.Type == rtui.VNodeComponent {
-		if nameable, ok := fiber.VNode.(interface{ Name() string }); ok {
-			typeName = nameable.Name()
+		if fiber.ComponentName != "" {
+			typeName = fiber.ComponentName
+		} else if fiber.Tag != "" {
+			typeName = fiber.Tag
 		} else {
 			typeName = "component"
 		}
@@ -143,13 +145,8 @@ func (dki *DebugKeyInspector) walkFiber(fiber *reconciler.Fiber, depth int) int 
 		typeName = fmt.Sprintf("type(%d)", fiber.Type)
 	}
 
-	// 获取 Layer 信息
-	var layer rtui.Layer
-	if fiber.VNode != nil {
-		layer = fiber.VNode.GetLayer()
-	}
+	layer := fiber.Layer
 
-	// 构建显示信息
 	info := fmt.Sprintf("%s│─ %s", indent, typeName)
 
 	if dki.ShowLayers && layer != rtui.LayerBase {
@@ -311,10 +308,10 @@ func (dki *DebugKeyInspector) PrintStatistics(vnode rtui.VNode, fiber *reconcile
 }
 
 type VNodeAnalysis struct {
-	total       int
-	withKey     int
-	withoutKey  int
-	layerNodes  int
+	total      int
+	withKey    int
+	withoutKey int
+	layerNodes int
 }
 
 func (dki *DebugKeyInspector) analyzeVNodes(vnode rtui.VNode) *VNodeAnalysis {
@@ -372,7 +369,7 @@ func (dki *DebugKeyInspector) walkFiberAnalysis(fiber *reconciler.Fiber, stats *
 	if fiber.Path != "" {
 		stats.withPath++
 	}
-	if fiber.VNode != nil && fiber.VNode.GetLayer() != rtui.LayerBase {
+	if fiber.Layer != rtui.LayerBase {
 		stats.layerNodes++
 	}
 
