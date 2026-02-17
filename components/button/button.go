@@ -6,7 +6,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/wwsheng009/mint/framework/action"
-		"github.com/wwsheng009/mint/framework/theme"
+	"github.com/wwsheng009/mint/framework/theme"
 	"github.com/wwsheng009/mint/internal/log"
 	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/paint"
@@ -73,7 +73,6 @@ const (
 type ButtonVNode struct {
 	*ui.ElementVNode
 	label    string
-	onClick  func()
 	variant  ButtonVariant
 	size     ButtonSize
 	disabled bool
@@ -90,8 +89,10 @@ type ButtonVNode struct {
 	bounds [4]int
 	// ⭐ NEW: Embed BoxModelMixin for automatic box model support
 	rtui.BoxModelMixin
-	// ActionTarget support
-	supportedActions []action.ActionType // Supported action types
+	// ActionTarget support (Fiber-first Action Architecture)
+	clickAction      action.ActionType // Semantic action ID (e.g., "open_modal", "save_form")
+	onClick          func()            // Legacy: closure handler (for backward compatibility)
+	supportedActions []action.ActionType
 }
 
 // NewButton creates a new button
@@ -122,12 +123,32 @@ func (b *ButtonVNode) SetLabel(label string) *ButtonVNode {
 	return b
 }
 
-// OnClick returns the click handler
+// ClickAction returns the semantic action for click events.
+func (b *ButtonVNode) ClickAction() action.ActionType {
+	return b.clickAction
+}
+
+// SetClickAction sets the semantic action for click events (Fiber-first Action Architecture).
+// Usage: button.SetClickAction("open_modal")
+// The action handler should be registered in Dispatcher.
+func (b *ButtonVNode) SetClickAction(act action.ActionType) *ButtonVNode {
+	b.clickAction = act
+	b.SetProp("clickAction", act)
+	return b
+}
+
+// OnClickAction is an alias for SetClickAction (builder style).
+func (b *ButtonVNode) OnClickAction(act action.ActionType) *ButtonVNode {
+	return b.SetClickAction(act)
+}
+
+// OnClick returns the click handler (legacy compatibility).
 func (b *ButtonVNode) OnClick() func() {
 	return b.onClick
 }
 
-// SetOnClick sets the click handler
+// SetOnClick sets the click handler (legacy compatibility).
+// Note: Prefer SetClickAction for Fiber-first Action Architecture.
 func (b *ButtonVNode) SetOnClick(fn func()) *ButtonVNode {
 	b.onClick = fn
 	b.SetProp("onClick", fn)
@@ -205,7 +226,15 @@ func (b *ButtonBuilderType) Label(label string) *ButtonBuilderType {
 	return b
 }
 
-// OnClick sets the click handler
+// OnClickAction sets the semantic action for click events (Fiber-first Action Architecture).
+// Usage: ButtonBuilder("[Save]").OnClickAction(action.ActionClick)
+func (b *ButtonBuilderType) OnClickAction(act action.ActionType) *ButtonBuilderType {
+	b.node.SetClickAction(act)
+	return b
+}
+
+// OnClick sets the click handler (legacy compatibility).
+// Note: Prefer OnClickAction for Fiber-first Action Architecture.
 func (b *ButtonBuilderType) OnClick(fn func()) *ButtonBuilderType {
 	b.node.SetOnClick(fn)
 	return b
@@ -807,22 +836,30 @@ func (b *ButtonVNode) GetFocusID() string {
 // =============================================================================
 // HandleAction is the only entry point for event handling.
 // Event flow: Input → HitTest → Fiber.ActionTargetID → ActionBridge → HandleAction
-
+//
+// Fiber-first Action Architecture:
+// - Primary: Button stores clickAction (semantic action ID)
+// - Fallback: Button stores onClick closure (legacy compatibility)
 func (b *ButtonVNode) HandleAction(act *action.Action) bool {
 	if act == nil || b.disabled {
 		return false
 	}
 
-	switch act.Type {
-	case action.ActionClick, action.ActionEnter:
+	// Handle click/enter actions
+	if act.Type == action.ActionClick || act.Type == action.ActionEnter {
+		// Primary: semantic action (handler registered in Dispatcher)
+		if b.clickAction != "" {
+			return true // Dispatcher will call the registered handler
+		}
+		// Fallback: legacy closure (for backward compatibility)
 		if b.onClick != nil {
 			b.onClick()
 			return true
 		}
 	}
+
 	return false
 }
-
 
 // GetSupportedActions returns supported action types.
 func (b *ButtonVNode) GetSupportedActions() []action.ActionType {

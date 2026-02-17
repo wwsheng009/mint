@@ -188,26 +188,46 @@ type ActionTarget interface {
 
 ### Button 示例
 
-```go
-// 用户声明
-button.SetOnClick(func() { ... })  // 存入 Props
+#### 方式一：语义 Action（推荐）
 
-// 组件实现
-func (b *ButtonVNode) HandleAction(act *action.Action) bool {
-    if b.disabled {
-        return false  // 组件级别的 disabled 检查
-    }
-    
-    switch act.Type {
-    case action.ActionClick, action.ActionEnter:
-        if b.onClick != nil {
-            b.onClick()
+```go
+// 1. 定义语义 Action
+const ActionOpenModal action.ActionType = "open_modal"
+
+// 2. 组件声明
+button.SetClickAction(ActionOpenModal)
+// 或 Builder 模式
+ButtonBuilder("[Open Modal]").OnClickAction(ActionOpenModal).Build()
+
+// 3. 在 Dispatcher 注册处理器
+router.RegisterTarget(nodeID, &ActionHandler{
+    HandleAction: func(act *action.Action) bool {
+        if act.Type == ActionOpenModal {
+            // 执行业务逻辑
             return true
         }
-    }
-    return false
-}
+        return false
+    },
+})
 ```
+
+#### 方式二：闭包回调（兼容模式）
+
+```go
+// 直接使用闭包（内部会生成 ActionID 并注册）
+button.SetOnClick(func() {
+    // 业务逻辑
+})
+// 或 Builder 模式
+ButtonBuilder("[Save]").OnClick(func() {
+    // 业务逻辑
+}).Build()
+```
+
+**推荐使用方式一**，原因：
+- UI 纯声明，不包含业务逻辑
+- 可序列化、可 replay
+- 并发安全
 
 ## 七、实施 Checklist
 
