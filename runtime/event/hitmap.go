@@ -67,17 +67,14 @@ type HitMapEntry struct {
 	// ZOrder 渲染层级（用于分层渲染和命中测试）
 	ZOrder int
 
-	// ✨ Instance 引用（新增）
-	// 根据 fix1.md 设计文档：
-	// > LayoutNode 加回指
-	// > type LayoutNode struct {
-	// >     Rect Rect
-	// >     Inst *Instance   // 关键
-	// > }
-	//
-	// 事件分发流程变为：
-	// HitMap → LayoutNode → Instance → Handler
+	// Instance 引用 (Legacy - 将弃用)
 	Instance MsgHandler
+
+	// TargetFiber Fiber 引用 (Fiber-first Action Architecture)
+	// 用于通过 ActionBridge 路由事件到组件
+	TargetFiber interface {
+		GetActionTargetID() string
+	}
 }
 
 // String 返回调试字符串
@@ -103,17 +100,20 @@ type HitMap struct {
 // 这是 HitMap 的主要入口点，在每次布局计算后调用
 //
 // 参数：
-//   root - 布局树的根节点
+//
+//	root - 布局树的根节点
 //
 // 返回：
-//   *HitMap - 构建好的命中映射表
+//
+//	*HitMap - 构建好的命中映射表
 //
 // 示例：
-//   hitMap := event.BuildHitMap(layoutRoot)
-//   entry := hitMap.HitTest(x, y)
-//   if entry != nil {
-//       fmt.Printf("Hit node: %s\n", entry.NodeID)
-//   }
+//
+//	hitMap := event.BuildHitMap(layoutRoot)
+//	entry := hitMap.HitTest(x, y)
+//	if entry != nil {
+//	    fmt.Printf("Hit node: %s\n", entry.NodeID)
+//	}
 func BuildHitMap(root layout.Node) *HitMap {
 	if root == nil {
 		return &HitMap{
@@ -144,7 +144,8 @@ func BuildHitMap(root layout.Node) *HitMap {
 // > 事件链条：HitMap → LayoutNode → Instance → Handler
 //
 // 参数：
-//   root - Instance 树的根节点
+//
+//	root - Instance 树的根节点
 //
 // 这是新的主要入口点，用于新架构
 func BuildHitMapFromInstance(rootInstance interface{}) *HitMap {
@@ -169,10 +170,12 @@ func BuildHitMapFromInstance(rootInstance interface{}) *HitMap {
 // This walks the Fiber tree and creates HitMapEntry for each ComputedBox
 //
 // Parameters:
-//   root - Fiber tree root (passed as interface{} to avoid import cycle)
+//
+//	root - Fiber tree root (passed as interface{} to avoid import cycle)
 //
 // Returns:
-//   *HitMap - HitMap with entries for all computed boxes in the Fiber tree
+//
+//	*HitMap - HitMap with entries for all computed boxes in the Fiber tree
 //
 // Note: This function uses reflection to access Fiber fields because
 // runtime/event cannot import runtime/ui due to potential import cycles
@@ -271,7 +274,7 @@ func BuildHitMapFromFiber(root interface{}) *HitMap {
 					LocalXY: func(screenX, screenY int) (int, int) {
 						return screenX - x, screenY - y
 					},
-					ZOrder: zOrder,
+					ZOrder:   zOrder,
 					Instance: nil,
 				}
 
@@ -304,8 +307,9 @@ func BuildHitMapFromFiber(root interface{}) *HitMap {
 // walkAndBuild 递归遍历布局树并构建命中条目
 //
 // 参数：
-//   node - 当前节点
-//   zOrder - 当前节点的 Z 轴层级
+//
+//	node - 当前节点
+//	zOrder - 当前节点的 Z 轴层级
 func (hm *HitMap) walkAndBuild(node layout.Node, zOrder int) {
 	if node == nil {
 		return
@@ -363,17 +367,20 @@ func (hm *HitMap) sortByZOrder() {
 // 返回最上层（Z-order 最大）包含该点的节点
 //
 // 参数：
-//   x, y - 屏幕坐标
+//
+//	x, y - 屏幕坐标
 //
 // 返回：
-//   *HitMapEntry - 命中的节点条目，如果未命中返回 nil
+//
+//	*HitMapEntry - 命中的节点条目，如果未命中返回 nil
 //
 // 示例：
-//   entry := hitMap.HitTest(100, 50)
-//   if entry != nil {
-//       localX, localY := entry.LocalXY(100, 50)
-//       fmt.Printf("Hit %s at local (%d, %d)\n", entry.NodeID, localX, localY)
-//   }
+//
+//	entry := hitMap.HitTest(100, 50)
+//	if entry != nil {
+//	    localX, localY := entry.LocalXY(100, 50)
+//	    fmt.Printf("Hit %s at local (%d, %d)\n", entry.NodeID, localX, localY)
+//	}
 func (hm *HitMap) HitTest(x, y int) *HitMapEntry {
 	// 从后向前遍历（Z-index 降序，上层优先）
 	for i := len(hm.entries) - 1; i >= 0; i-- {
@@ -389,10 +396,12 @@ func (hm *HitMap) HitTest(x, y int) *HitMapEntry {
 // 主要用于测试和调试
 //
 // 参数：
-//   id - 节点 ID
+//
+//	id - 节点 ID
 //
 // 返回：
-//   *HitMapEntry - 找到的条目，如果未找到返回 nil
+//
+//	*HitMapEntry - 找到的条目，如果未找到返回 nil
 func (hm *HitMap) FindByID(id uint64) *HitMapEntry {
 	for i := range hm.entries {
 		if hm.entries[i].NodeID == id {
@@ -406,10 +415,12 @@ func (hm *HitMap) FindByID(id uint64) *HitMapEntry {
 // 返回按 Z-order 升序排列（从下到上）
 //
 // 参数：
-//   x, y - 屏幕坐标
+//
+//	x, y - 屏幕坐标
 //
 // 返回：
-//   []*HitMapEntry - 所有包含该点的节点条目
+//
+//	[]*HitMapEntry - 所有包含该点的节点条目
 func (hm *HitMap) FindAllAt(x, y int) []*HitMapEntry {
 	var results []*HitMapEntry
 
@@ -469,12 +480,15 @@ func NewHitMap() *HitMap {
 // HitMapEntryInternal is an internal representation for building HitMap from external sources
 // This allows external packages to build HitMap without accessing unexported fields
 type HitMapEntryInternal struct {
-	NodeID  uint64   // ✨ NodeID for stable runtime identity
-	Node    layout.Node
-	Bounds  layout.Rect
-	LocalXY func(screenX, screenY int) (int, int)
-	ZOrder  int
-	Instance MsgHandler // ✨ 新增：Instance 引用
+	NodeID      uint64 // ✨ NodeID for stable runtime identity
+	Node        layout.Node
+	Bounds      layout.Rect
+	LocalXY     func(screenX, screenY int) (int, int)
+	ZOrder      int
+	Instance    MsgHandler // Legacy - 将弃用
+	TargetFiber interface {
+		GetActionTargetID() string
+	} // Fiber-first Action Architecture
 }
 
 // BuildHitMapFromEntries builds a HitMap from a list of internal entries
@@ -483,12 +497,13 @@ func BuildHitMapFromEntries(entries []HitMapEntryInternal) *HitMap {
 	hmEntries := make([]HitMapEntry, len(entries))
 	for i, e := range entries {
 		hmEntries[i] = HitMapEntry{
-			NodeID:   e.NodeID,
-			Node:     e.Node,
-			Bounds:   e.Bounds,
-			LocalXY:  e.LocalXY,
-			ZOrder:   e.ZOrder,
-			Instance: e.Instance, // ✨ 复制 Instance 引用
+			NodeID:      e.NodeID,
+			Node:        e.Node,
+			Bounds:      e.Bounds,
+			LocalXY:     e.LocalXY,
+			ZOrder:      e.ZOrder,
+			Instance:    e.Instance,
+			TargetFiber: e.TargetFiber,
 		}
 	}
 
@@ -502,10 +517,11 @@ func BuildHitMapFromEntries(entries []HitMapEntryInternal) *HitMap {
 // 返回 HitMap 的可读字符串表示，用于调试
 //
 // 输出格式：
-//   === HitMap ===
-//   [node1] {X:0, Y:0, W:100, H:50} (Z:0)
-//   [node2] {X:10, Y:10, W:80, H:30} (Z:1)
-//   ...
+//
+//	=== HitMap ===
+//	[node1] {X:0, Y:0, W:100, H:50} (Z:0)
+//	[node2] {X:10, Y:10, W:80, H:30} (Z:1)
+//	...
 func (hm *HitMap) Dump() string {
 	var buf strings.Builder
 	buf.WriteString("=== HitMap ===\n")
@@ -540,10 +556,12 @@ type DetailedHitTestResult struct {
 // 返回包含坐标转换信息的完整结果
 //
 // 参数：
-//   x, y - 屏幕坐标
+//
+//	x, y - 屏幕坐标
 //
 // 返回：
-//   *DetailedHitTestResult - 详细的命中测试结果
+//
+//	*DetailedHitTestResult - 详细的命中测试结果
 func (hm *HitMap) HitTestDetailed(x, y int) *DetailedHitTestResult {
 	entry := hm.HitTest(x, y)
 

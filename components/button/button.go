@@ -6,23 +6,25 @@ import (
 	"unicode/utf8"
 
 	"github.com/wwsheng009/mint/framework/action"
-	"github.com/wwsheng009/mint/framework/cmd"
-	"github.com/wwsheng009/mint/framework/component"
-	frameworkevent "github.com/wwsheng009/mint/framework/event"
-	"github.com/wwsheng009/mint/framework/theme"
+		"github.com/wwsheng009/mint/framework/theme"
 	"github.com/wwsheng009/mint/internal/log"
 	"github.com/wwsheng009/mint/runtime"
-	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
 	"github.com/wwsheng009/mint/runtime/paint"
-	runtimeplatform "github.com/wwsheng009/mint/runtime/platform"
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/ui"
 )
 
-// Interface implementation assertions
-var _ frameworkevent.Component = (*ButtonVNode)(nil)
-var _ component.Updater = (*ButtonVNode)(nil) // Phase 3: Msg/Cmd support
+// =============================================================================
+// Fiber-first Action Architecture
+// =============================================================================
+// Event flow (from fiber_action.md):
+//   Input → HitTest → Fiber.ActionTargetID → ActionBridge → Dispatcher → HandleAction
+//
+// Button only needs to implement ActionTarget.HandleAction().
+// Fiber stores ActionTargetID for routing, not callback functions.
+// =============================================================================
+
 var _ action.ActionTarget = (*ButtonVNode)(nil)
 
 // ButtonVariant represents button style variants
@@ -70,22 +72,22 @@ const (
 // ButtonVNode represents a button component
 type ButtonVNode struct {
 	*ui.ElementVNode
-	label         string
-	onClick       func()
-	variant       ButtonVariant
-	size          ButtonSize
-	disabled      bool
+	label    string
+	onClick  func()
+	variant  ButtonVariant
+	size     ButtonSize
+	disabled bool
 	// Focus state
-	hasFocus      bool // Whether this button currently has keyboard focus
-	focusStyle    ButtonFocusStyle // How to display focus state
+	hasFocus   bool             // Whether this button currently has keyboard focus
+	focusStyle ButtonFocusStyle // How to display focus state
 	// Mouse interaction state
-	isHovered     bool
-	onMouseEnter  func()
-	onMouseLeave  func()
-	onMousePress  func()
+	isHovered      bool
+	onMouseEnter   func()
+	onMouseLeave   func()
+	onMousePress   func()
 	onMouseRelease func()
 	// Bounds for hit testing (x, y, width, height)
-	bounds        [4]int
+	bounds [4]int
 	// ⭐ NEW: Embed BoxModelMixin for automatic box model support
 	rtui.BoxModelMixin
 	// ActionTarget support
@@ -485,187 +487,6 @@ func (b *ButtonVNode) SetOnMouseRelease(fn func()) *ButtonVNode {
 	return b
 }
 
-// HandleEvent processes mouse and keyboard events for the button
-func (b *ButtonVNode) HandleEvent(e frameworkevent.Event) bool {
-	log.UILogger.Debug("Button HandleEvent called: label=%q, key=%q, pointer=%p, disabled=%v, hasFocus=%v, event type=%T",
-		b.label, b.Key(), b, b.disabled, b.hasFocus, e)
-
-	if b.disabled {
-		return false
-	}
-
-	// Handle keyboard events (Enter/Space to click)
-	keyEvent, ok := e.(*frameworkevent.KeyEvent)
-	log.UILogger.Debug("Button HandleEvent: type assertion ok=%v, event type=%T", ok, e)
-	if ok {
-		// Only respond to keyboard events when focused
-		if !b.hasFocus {
-			log.UILogger.Debug("Button HandleEvent: ignoring key event, button not focused (label=%q)", b.label)
-			return false
-		}
-
-		log.UILogger.Debug("Button HandleEvent: KeyEvent, Special=%d (%v), Rune=%c, KeyEnter=%d",
-			keyEvent.Special, keyEvent.Special, keyEvent.Key.Rune, frameworkevent.KeyEnter)
-		// Check for Enter key or Space key
-		if keyEvent.Special == frameworkevent.KeyEnter || keyEvent.Key.Rune == ' ' {
-			// Space or Enter triggers click
-			if b.onClick != nil {
-				log.UILogger.Debug("Button HandleEvent: triggering onClick for label=%q (Special=%d)", b.label, keyEvent.Special)
-				b.onClick()
-				return true
-			} else {
-				log.UILogger.Debug("Button HandleEvent: onClick is nil for label=%q", b.label)
-			}
-		} else {
-			log.UILogger.Debug("Button HandleEvent: key not matched (Special=%d vs KeyEnter=%d)",
-				keyEvent.Special, frameworkevent.KeyEnter)
-		}
-		return false
-	}
-
-	mouseEvent, ok := e.(*frameworkevent.MouseEvent)
-	if !ok {
-		log.UILogger.Debug("Button HandleEvent: MouseEvent type assertion FAILED! e type=%T", e)
-		return false
-	}
-	log.UILogger.Debug("Button HandleEvent: MouseEvent type assertion SUCCESS! Action=%d", mouseEvent.Action)
-
-	switch mouseEvent.Type() {
-	case frameworkevent.EventMouseEnter:
-		if !b.isHovered {
-			b.isHovered = true
-			if b.onMouseEnter != nil {
-				b.onMouseEnter()
-			}
-		}
-		return true
-
-	case frameworkevent.EventMouseLeave:
-		if b.isHovered {
-			b.isHovered = false
-			if b.onMouseLeave != nil {
-				b.onMouseLeave()
-			}
-		}
-		return true
-
-	case frameworkevent.EventMousePress:
-		// TargetBounds contains the final rendered position after all transforms (modal centering, etc.)
-		if mouseEvent.TargetBounds.Width > 0 && mouseEvent.TargetBounds.Height > 0 {
-			// NEW: Use TargetBounds for hit testing (post-transform position from HitMap)
-			inBounds := mouseEvent.X >= mouseEvent.TargetBounds.X &&
-				mouseEvent.X < mouseEvent.TargetBounds.X+mouseEvent.TargetBounds.Width &&
-				mouseEvent.Y >= mouseEvent.TargetBounds.Y &&
-				mouseEvent.Y < mouseEvent.TargetBounds.Y+mouseEvent.TargetBounds.Height
-
-			log.UILogger.Debug("Button EventMousePress: label=%q, mouse=(%d,%d), TargetBounds=[%d,%d,%dx%d], inBounds=%v, Button=%v",
-				b.label, mouseEvent.X, mouseEvent.Y,
-				mouseEvent.TargetBounds.X, mouseEvent.TargetBounds.Y,
-				mouseEvent.TargetBounds.Width, mouseEvent.TargetBounds.Height,
-				inBounds, mouseEvent.Button == frameworkevent.MouseLeft)
-
-			if inBounds && mouseEvent.Button == frameworkevent.MouseLeft {
-				log.UILogger.Debug("Button HandleEvent: mouse press within TargetBounds for label=%q, x=%d, y=%d",
-					b.label, mouseEvent.X, mouseEvent.Y)
-				if b.onMousePress != nil {
-					b.onMousePress()
-				}
-				// Trigger click on press for better responsiveness
-				if b.onClick != nil {
-					log.UILogger.Debug("Button HandleEvent: triggering onClick for label=%q", b.label)
-					b.onClick()
-				}
-				return true
-			}
-		} else {
-			// FALLBACK: Use internal bounds if TargetBounds not available (legacy path)
-			// This should only happen if HitMap is not properly populated
-			log.UILogger.Debug("Button EventMousePress: TargetBounds empty, using legacy bounds check for label=%q", b.label)
-			if b.ContainsPoint(mouseEvent.X, mouseEvent.Y) && mouseEvent.Button == frameworkevent.MouseLeft {
-				log.UILogger.Debug("Button HandleEvent: mouse press within legacy bounds for label=%q, x=%d, y=%d, bounds=%v",
-					b.label, mouseEvent.X, mouseEvent.Y, b.bounds)
-				if b.onMousePress != nil {
-					b.onMousePress()
-				}
-				// Trigger click on press for better responsiveness
-				if b.onClick != nil {
-					log.UILogger.Debug("Button HandleEvent: triggering onClick for label=%q", b.label)
-					b.onClick()
-				}
-				return true
-			}
-		}
-	}
-
-	return false
-}
-
-// =============================================================================
-// Msg/Cmd Architecture Support (Phase 3)
-// =============================================================================
-
-// Update implements component.Updater interface for Msg/Cmd architecture
-//
-// This method is called by the App when the button receives a Msg directly via
-// the component registry (bypassing the Event system).
-//
-// Handles:
-// - MouseMsg with TargetID: Direct routing from Pump via HitMap
-// - KeyMsg: When button has focus (Enter/Space to trigger click)
-func (b *ButtonVNode) Update(message runtimemsg.Msg) cmd.Cmd {
-	if b.disabled {
-		return nil
-	}
-
-	switch msg := message.(type) {
-	case *runtimemsg.MouseMsg:
-		// Phase 2: Direct routing for targeted mouse events
-		return b.updateMouse(msg)
-
-	case *runtimemsg.KeyMsg:
-		// Handle keyboard events when focused
-		if !b.hasFocus {
-			return nil
-		}
-		return b.updateKey(msg)
-	}
-
-	return nil
-}
-
-// updateMouse handles mouse messages (direct routing via TargetID)
-func (b *ButtonVNode) updateMouse(mouseMsg *runtimemsg.MouseMsg) cmd.Cmd {
-	switch mouseMsg.Action {
-	case runtimemsg.MouseActionPress:
-		if mouseMsg.Button == runtimemsg.MouseLeft {
-			if b.onMousePress != nil {
-				b.onMousePress()
-			}
-			if b.onClick != nil {
-				log.UILogger.Debug("[Update] Button click: label=%q via MouseMsg", b.label)
-				b.onClick()
-			}
-			return nil // TODO: Return Cmd to trigger re-render
-		}
-	}
-
-	return nil
-}
-
-// updateKey handles keyboard messages (when focused)
-func (b *ButtonVNode) updateKey(keyMsg *runtimemsg.KeyMsg) cmd.Cmd {
-	// Check for Enter key or Space key
-	if keyMsg.Special == runtimeplatform.KeyEnter || keyMsg.Rune == ' ' {
-		if b.onClick != nil {
-			log.UILogger.Debug("[Update] Button click: label=%q via KeyMsg", b.label)
-			b.onClick()
-		}
-		return nil
-	}
-
-	return nil
-}
-
 // =============================================================================
 // Mouse Event Builder Methods
 // =============================================================================
@@ -892,7 +713,7 @@ func (b *ButtonVNode) Paint(x, y int) []paint.DrawCmd {
 	// Get layout width from bounds (set by layout engine)
 	layoutWidth := naturalWidth
 	if b.bounds[2] > 0 {
-		layoutWidth = b.bounds[2]  // Allocated width from flex
+		layoutWidth = b.bounds[2] // Allocated width from flex
 	}
 
 	// Debug logging for paint calculations
@@ -907,7 +728,7 @@ func (b *ButtonVNode) Paint(x, y int) []paint.DrawCmd {
 
 	// Apply text alignment if button is stretched by flex layout
 	if layoutWidth > naturalWidth {
-		textAlign := b.TextAlign()  // ⭐ Use interface method
+		textAlign := b.TextAlign() // ⭐ Use interface method
 		availableSpace := layoutWidth - naturalWidth
 
 		switch textAlign {
@@ -974,78 +795,61 @@ func (b *ButtonVNode) IsFocusable() bool {
 }
 
 // GetFocusID returns a unique identifier for focus persistence.
-// Uses the button's Key if set, otherwise generates a unique ID using
-// the button's memory address. This ensures uniqueness without requiring
-// a separate focusIndex field that would need to be managed during collection.
 func (b *ButtonVNode) GetFocusID() string {
 	if key := b.Key(); key != "" {
 		return "button:" + key
 	}
-	// Use the button's pointer address for uniqueness when no key is set.
-	// This works because each button component is a distinct instance.
-	// The %p format gives us a stable unique identifier for the lifetime of the button.
 	return fmt.Sprintf("button:%s@%p", b.label, b)
 }
 
-// ============================================================================
-// ActionTarget 接口实现
-// ============================================================================
+// =============================================================================
+// ActionTarget Interface (Single Entry Point)
+// =============================================================================
+// HandleAction is the only entry point for event handling.
+// Event flow: Input → HitTest → Fiber.ActionTargetID → ActionBridge → HandleAction
 
-// HandleAction implements ActionTarget interface
 func (b *ButtonVNode) HandleAction(act *action.Action) bool {
 	if act == nil || b.disabled {
 		return false
 	}
 
-	// Handle action based on type
 	switch act.Type {
-	// Click action (mouse or keyboard)
 	case action.ActionClick, action.ActionEnter:
 		if b.onClick != nil {
-			log.UILogger.Debug("Button HandleAction: triggering onClick for label=%q, actionType=%s", b.label, act.Type)
 			b.onClick()
 			return true
 		}
-		log.UILogger.Debug("Button HandleAction: onClick is nil for label=%q", b.label)
-		return false
 	}
-
 	return false
 }
 
-// GetSupportedActions implements ActionTarget interface
+
+// GetSupportedActions returns supported action types.
 func (b *ButtonVNode) GetSupportedActions() []action.ActionType {
 	if b.supportedActions == nil {
-		return []action.ActionType{
-			action.ActionClick,
-			action.ActionEnter,
-		}
+		return []action.ActionType{action.ActionClick, action.ActionEnter}
 	}
 	return b.supportedActions
 }
 
-// CanHandleAction implements ActionTarget interface
+// CanHandleAction checks if action can be handled.
 func (b *ButtonVNode) CanHandleAction(act *action.Action) bool {
 	if act == nil || b.disabled {
 		return false
 	}
-
-	// Check if action type is supported
-	supported := b.GetSupportedActions()
-	for _, supportedType := range supported {
-		if supportedType == act.Type {
+	for _, t := range b.GetSupportedActions() {
+		if t == act.Type {
 			return true
 		}
 	}
-
 	return false
 }
 
-// ============================================================================
-// FocusableActionTarget 接口实现
-// ============================================================================
+// =============================================================================
+// FocusableActionTarget Interface
+// =============================================================================
 
-// Focus implements FocusableActionTarget interface
+// Focus sets focus on this button.
 func (b *ButtonVNode) Focus() bool {
 	if b.disabled {
 		return false
@@ -1054,12 +858,12 @@ func (b *ButtonVNode) Focus() bool {
 	return true
 }
 
-// Blur implements FocusableActionTarget interface
+// Blur removes focus from this button.
 func (b *ButtonVNode) Blur() {
 	b.SetFocus(false)
 }
 
-// IsFocused implements FocusableActionTarget interface
+// IsFocused returns whether this button is focused.
 func (b *ButtonVNode) IsFocused() bool {
 	return b.HasFocus()
 }

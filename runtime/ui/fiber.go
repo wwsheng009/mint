@@ -207,11 +207,35 @@ type Fiber struct {
 	MemoCompare PropsEqual
 	// MemoShouldUpdate flag to indicate if memo should re-render
 	MemoShouldUpdate bool
+
+	// === Focusable Support (Fiber-first) ===
+	// FocusableVNode stores the focusable interface for focusable elements (buttons, inputs, etc.)
+	// This is set during Fiber creation from VNode that implements FocusableVNode
+	// DEPRECATED: Use FocusableMeta instead for Fiber-first approach
+	FocusableVNode FocusableVNode
+
+	// === ActionTargetID (Fiber-first Action Architecture) ===
+	// Fiber only stores ActionTargetID for routing to component.
+	// ActionBridge uses this to generate Action and dispatch to Target.
+	// Design: Fiber stores "who I am", not "what to do".
+	ActionTargetID string
+
+	// === Focusable Metadata (Fiber-first) ===
+	// FocusableMeta stores focusable runtime capability.
+	// This is extracted from VNode props during completeWork.
+	// FocusManager should only access Fiber.FocusableMeta, never VNode.
+	FocusableMeta *FocusableMeta
 }
 
 // =============================================================================
 // Fiber Methods
 // =============================================================================
+
+// GetActionTargetID returns the ActionTargetID for ActionBridge routing.
+// Implements the interface required by HitMapEntry.TargetFiber.
+func (f *Fiber) GetActionTargetID() string {
+	return f.ActionTargetID
+}
 
 // GetProps returns the props from the Fiber.
 // Fiber-first: returns Fiber.Props directly without VNode dependency.

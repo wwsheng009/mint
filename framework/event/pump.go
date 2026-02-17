@@ -32,7 +32,7 @@ type Pump struct {
 	source   EventSource
 	messages chan runtimemsg.Msg // Changed from events chan Event
 	quit     chan struct{}
-	quitApp  chan struct{} // 用于 Ctrl+C 退出通知
+	quitApp  chan struct{}  // 用于 Ctrl+C 退出通知
 	running  int32          // Use atomic for cross-goroutine visibility (0=stopped, 1=running)
 	mu       sync.RWMutex   // Protects messages channel from close while sending
 	wg       sync.WaitGroup // Waits for convertLoop to exit
@@ -215,6 +215,9 @@ func (p *Pump) convertToMouseMsg(raw platform.RawInput) runtimemsg.Msg {
 
 	var targetID uint64
 	var targetInstance interface{}
+	var targetFiber interface {
+		GetActionTargetID() string
+	}
 	var localX, localY int
 	var targetBounds runtime.Box
 
@@ -223,9 +226,10 @@ func (p *Pump) convertToMouseMsg(raw platform.RawInput) runtimemsg.Msg {
 		entry := hitMap.HitTest(raw.MouseX, raw.MouseY)
 		if entry != nil {
 			targetID = entry.NodeID
-			// ✨ 新架构：直接填充 Instance 引用
-			// 根据 fix1.md：事件链条 HitMap → LayoutNode → Instance → Handler
+			// Legacy: Instance 引用
 			targetInstance = entry.Instance
+			// Fiber-first: TargetFiber 引用
+			targetFiber = entry.TargetFiber
 			// Calculate local coordinates using the entry's LocalXY function
 			localX, localY = entry.LocalXY(raw.MouseX, raw.MouseY)
 			// Store the final bounds from HitMap (includes all transforms like modal centering)
@@ -237,9 +241,9 @@ func (p *Pump) convertToMouseMsg(raw platform.RawInput) runtimemsg.Msg {
 			}
 
 			// Log successful hit test
-			log.UILogger.Debug("HitTest: Found '%d' at Bounds=(%d,%d,%dx%d) Local=(%d,%d) Instance=%v",
+			log.UILogger.Debug("HitTest: Found '%d' at Bounds=(%d,%d,%dx%d) Local=(%d,%d) TargetFiber=%v",
 				entry.NodeID, entry.Bounds.X, entry.Bounds.Y,
-				entry.Bounds.Width, entry.Bounds.Height, localX, localY, entry.Instance != nil)
+				entry.Bounds.Width, entry.Bounds.Height, localX, localY, entry.TargetFiber != nil)
 
 			// Also log all entries at this position for debugging overlapping buttons
 			allEntries := hitMap.FindAllAt(raw.MouseX, raw.MouseY)
@@ -269,6 +273,7 @@ func (p *Pump) convertToMouseMsg(raw platform.RawInput) runtimemsg.Msg {
 	// Set the hit testing information
 	mouseMsg.TargetID = targetID
 	mouseMsg.TargetInstance = targetInstance
+	mouseMsg.TargetFiber = targetFiber
 	mouseMsg.LocalX = localX
 	mouseMsg.LocalY = localY
 	mouseMsg.TargetBounds = targetBounds

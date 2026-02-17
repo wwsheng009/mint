@@ -16,6 +16,7 @@ import (
 	"github.com/wwsheng009/mint/framework/theme"
 	"github.com/wwsheng009/mint/internal/log"
 	rt "github.com/wwsheng009/mint/runtime"
+	"github.com/wwsheng009/mint/runtime/bridge/actionbridge"
 	"github.com/wwsheng009/mint/runtime/core"
 	runtimeevent "github.com/wwsheng009/mint/runtime/event"
 	"github.com/wwsheng009/mint/runtime/instance"
@@ -59,12 +60,13 @@ type App struct {
 	keyMap       *frameworkevent.KeyMap
 	pump         *frameworkevent.Pump
 	eventFilter  func(frameworkevent.Event) bool // 事件过滤器回调，返回 false 表示拦截
-	focusManager *rtui.VNodeFocusManager         // Focus manager for KeyMsg routing (Phase 3)
+	focusManager *rtui.FiberFocusManager         // Focus manager for KeyMsg routing (Fiber-first)
 
 	// ============================================================================
 	// Phase 1: Action 系统 - 统一消息传播机制
 	// ============================================================================
 	actionRouter    *action.Router                 // Action 分发器
+	actionBridge    *actionbridge.Bridge           // Fiber → Action 桥接器
 	inputProcessor  *action.InputProcessor         // Msg → Action 转换器
 	actionRegistry  map[uint64]action.ActionTarget // ActionTarget 注册表
 	focusIDToNodeID map[string]uint64              // FocusID -> NodeID 映射表（内部使用）
@@ -153,7 +155,7 @@ func NewApp() *App {
 	app := &App{
 		router:       frameworkevent.NewRouter(),
 		keyMap:       frameworkevent.NewKeyMap(),
-		focusManager: rtui.NewVNodeFocusManager(),                        // Phase 3: Focus manager for KeyMsg routing
+		focusManager: rtui.NewFiberFocusManager(),                        // Fiber-first: Focus manager
 		eventFilter:  func(ev frameworkevent.Event) bool { return true }, // 默认放行所有事件
 		quit:         make(chan struct{}, 1),
 		tickInterval: 16 * time.Millisecond, // ~60fps
@@ -170,6 +172,9 @@ func NewApp() *App {
 		focusIDToNodeID: make(map[string]uint64),
 		legacyMode:      false, // Action 系统优先，legacy 仅用于调试
 	}
+
+	// 初始化 ActionBridge (Fiber → Action 桥接器)
+	app.actionBridge = actionbridge.New(app.actionRouter)
 
 	// 设置 InputProcessor 的 KeyMap
 	app.inputProcessor.SetKeyMap(action.NewKeyMap())
@@ -190,10 +195,10 @@ func NewApp() *App {
 // NewAppWithSource 创建使用自定义 EventSource 的应用 (Phase 1: 初始化 Action 系统)
 // 允许测试时使用 MockSandbox 或其他事件源替代真实的平台输入
 func NewAppWithSource(source frameworkevent.EventSource) *App {
-	return &App{
+	app := &App{
 		router:       frameworkevent.NewRouter(),
 		keyMap:       frameworkevent.NewKeyMap(),
-		focusManager: rtui.NewVNodeFocusManager(), // Phase 3: Focus manager
+		focusManager: rtui.NewFiberFocusManager(), // Fiber-first: Focus manager
 		eventFilter:  func(ev frameworkevent.Event) bool { return true },
 		quit:         make(chan struct{}, 1),
 		tickInterval: 16 * time.Millisecond,
@@ -211,6 +216,11 @@ func NewAppWithSource(source frameworkevent.EventSource) *App {
 		focusIDToNodeID: make(map[string]uint64),
 		legacyMode:      true,
 	}
+
+	// 初始化 ActionBridge
+	app.actionBridge = actionbridge.New(app.actionRouter)
+
+	return app
 }
 
 // SetDebugMode 设置调试模式
@@ -884,82 +894,88 @@ func (a *App) Run() error {
 	return nil
 }
 
-// handleMsg 直接处理 Msg（Phase 2/3: 绕过 Event 系统直接路由）
+// handleMsg 处理 Msg，通过 ActionBridge 路由到组件
 //
-// 根据 fix1.md 设计文档：
-// - Instance 是"活的组件"（持久存在）
-// - 事件直接分发到 Instance.Handle()
-// - 不再需要 Component Registry
+// Fiber-first Action Architecture:
+// - MouseMsg: HitTest → Fiber.ActionTargetID → ActionBridge → HandleAction
+// - KeyMsg: FocusManager → Fiber.ActionTargetID → ActionBridge → HandleAction
 //
 // 返回 true 表示消息已被处理，false 表示需要回退到 Event 系统
 func (a *App) handleMsg(message runtimemsg.Msg) bool {
-	// ✨ 新架构：优先使用 Instance 引用
-	// 根据 fix1.md：事件链条 HitMap → LayoutNode → Instance → Handler
+	// 鼠标事件：通过 HitMap 找到的 TargetFiber 路由
 	if mouseMsg, ok := message.(*runtimemsg.MouseMsg); ok {
-		log.UILogger.Debug("[handleMsg] MouseMsg received, TargetInstance=%v, TargetID=%s", mouseMsg.TargetInstance != nil, mouseMsg.TargetID)
-		if mouseMsg.TargetInstance != nil {
-			log.UILogger.Debug("[handleMsg] ✅ Instance routing: MouseMsg → Instance, Action=%v", mouseMsg.Action)
-
-			// MsgHandler 接口定义: Handle(msg interface{}) interface{}
-			// 这是 instanceHandlerAdapter 实现的接口
-			if handler, ok := mouseMsg.TargetInstance.(interface {
-				Handle(msg interface{}) interface{}
-			}); ok {
-				log.UILogger.Debug("[handleMsg] ✅ Calling handler.Handle()")
-				cmd := handler.Handle(mouseMsg)
-				if cmd != nil {
-					// TODO: 执行 Cmd（需要实现 Cmd 执行系统）
-					log.UILogger.Debug("[handleMsg] Instance returned Cmd: %v", cmd)
+		if mouseMsg.TargetFiber != nil && mouseMsg.TargetFiber.GetActionTargetID() != "" {
+			actionType := a.mouseActionToActionType(mouseMsg.Action)
+			if actionType != "" {
+				// 类型断言获取 *Fiber
+				if fiber, ok := mouseMsg.TargetFiber.(*rtui.Fiber); ok {
+					handled := a.actionBridge.DispatchFromFiber(
+						fiber,
+						actionType,
+						mouseMsg,
+					)
+					if handled {
+						a.dirty = true
+						return true
+					}
 				}
-
-				// 标记需要重新渲染
-				a.dirty = true
-				log.UILogger.Debug("[handleMsg] Message handled, dirty=true")
-				return true // 消息已处理
 			}
-
-			log.UILogger.Debug("[handleMsg] ❌ TargetInstance does not implement Handle(interface{}) interface{}")
-		} else {
-			log.UILogger.Debug("[handleMsg] ❌ TargetInstance is nil")
 		}
 	}
 
-	// Phase 3: 处理键盘消息（通过焦点管理器路由）
+	// 键盘事件：通过 FocusManager 路由到焦点组件
 	if keyMsg, ok := message.(*runtimemsg.KeyMsg); ok {
 		if a.focusManager != nil {
-			// 获取当前焦点组件
 			focused := a.focusManager.GetCurrent()
-			if focused != nil {
-				// 检查焦点组件是否实现 Updater 接口
-				if updater, ok := focused.(component.Updater); ok {
-					if os.Getenv("TUI_DEBUG_UI") == "true" {
-						focusID := focused.GetFocusID()
-						log.UILogger.Debug("[APP] Direct routing: KeyMsg → focused component %s", focusID)
-					}
-
-					// 调用焦点组件的 Update 方法
-					cmd := updater.Update(keyMsg)
-					if cmd != nil {
-						// TODO: 执行 Cmd
-						if os.Getenv("TUI_DEBUG_UI") == "true" {
-							log.UILogger.Debug("[APP] Focused component returned Cmd: %v", cmd)
-						}
-						// 标记需要重新渲染
+			if focused != nil && focused.ActionTargetID != "" {
+				actionType := a.keyMsgToActionType(keyMsg)
+				if actionType != "" {
+					handled := a.actionBridge.DispatchFromFiber(
+						focused,
+						actionType,
+						keyMsg,
+					)
+					if handled {
 						a.dirty = true
-						return true // 消息已处理
-					}
-					// 组件返回 nil，表示没有处理该事件
-					// 回退到 Event 系统处理（例如 Tab 键的导航）
-					if os.Getenv("TUI_DEBUG_UI") == "true" {
-						log.UILogger.Debug("[APP] Focused component didn't handle event, falling back to Event system")
+						return true
 					}
 				}
 			}
 		}
 	}
 
-	// 其他情况回退到 Event 系统
 	return false
+}
+
+// mouseActionToActionType 转换鼠标动作到 ActionType
+func (a *App) mouseActionToActionType(mouseAction runtimemsg.MouseAction) action.ActionType {
+	switch mouseAction {
+	case runtimemsg.MouseActionPress:
+		return action.ActionClick
+	case runtimemsg.MouseActionRelease:
+		return action.ActionSelect
+	default:
+		return ""
+	}
+}
+
+// keyMsgToActionType 转换键盘消息到 ActionType
+func (a *App) keyMsgToActionType(keyMsg *runtimemsg.KeyMsg) action.ActionType {
+	switch {
+	case keyMsg.IsEnter():
+		return action.ActionEnter
+	case keyMsg.IsTab():
+		if keyMsg.HasShift() {
+			return action.ActionNavigatePrev
+		}
+		return action.ActionNavigateNext
+	case keyMsg.IsEscape():
+		return action.ActionCancel
+	case keyMsg.Rune == ' ':
+		return action.ActionClick
+	default:
+		return action.ActionInputText
+	}
 }
 
 // buildComponentRegistry 从布局树构建组件注册表（Phase 2）
@@ -999,9 +1015,11 @@ func (a *App) processMsg(msg runtimemsg.Msg) {
 	// 4. 其他 Action：设置默认目标（焦点组件）并分发
 	if act.TargetID == 0 {
 		if focused := a.focusManager.GetCurrent(); focused != nil {
-			// 使用 GetFocusID 获取 ID，然后转换为 NodeID
-			focusID := focused.GetFocusID()
-			act.TargetID = runtimeevent.StringToNodeID(focusID)
+			// 使用 FocusableMeta.FocusID 获取 ID，然后转换为 NodeID
+			if focused.FocusableMeta != nil {
+				focusID := focused.FocusableMeta.FocusID
+				act.TargetID = runtimeevent.StringToNodeID(focusID)
+			}
 		}
 	}
 
@@ -1032,7 +1050,7 @@ func (a *App) handleNavigationAction(act *action.Action) {
 		handled = a.focusManager.FocusFirst()
 	case action.ActionNavigateEnd:
 		handled = a.focusManager.FocusLast()
-	// 方向键暂时不支持（VNodeFocusManager 没有对应方法）
+	// 方向键暂时不支持（FiberFocusManager 没有对应方法）
 	case action.ActionNavigateUp, action.ActionNavigateDown,
 		action.ActionNavigateLeft, action.ActionNavigateRight:
 		handled = false
@@ -1110,33 +1128,37 @@ func (a *App) buildActionRegistry() {
 	a.actionRegistry = make(map[uint64]action.ActionTarget)
 	a.focusIDToNodeID = make(map[string]uint64)
 
-	// 尝试从 DeclarativeNode 获取焦点管理器
+	// 尝试从 DeclarativeNode 获取焦点管理器 (Fiber-first)
 	if declNode, ok := a.root.(interface {
-		GetFocusManager() *rtui.VNodeFocusManager
+		GetFocusManager() *rtui.FiberFocusManager
 	}); ok {
 		focusMgr := declNode.GetFocusManager()
 		if focusMgr != nil {
+			// 同步到 App 的 focusManager (关键！)
+			a.focusManager = focusMgr
+
 			// 从焦点管理器的可聚焦列表中收集 ActionTarget
 			focusable := focusMgr.GetFocusable()
-			for _, elem := range focusable {
-				// 检查是否实现 ActionTarget
-				if target, ok := elem.(action.ActionTarget); ok {
-					// 使用 GetFocusID 获取焦点 ID，然后转换为 NodeID
-					focusID := elem.GetFocusID()
-					if focusID != "" {
-						nodeID := runtimeevent.StringToNodeID(focusID)
-						// 维护 FocusID -> NodeID 映射
-						a.focusIDToNodeID[focusID] = nodeID
-						// 注册到 actionRegistry
-						a.actionRegistry[nodeID] = target
+			for _, fiber := range focusable {
+				// 检查 Fiber 的 ComponentInstance 是否实现 ActionTarget
+				if fiber.ComponentInstance != nil {
+					if target, ok := fiber.ComponentInstance.(action.ActionTarget); ok {
+						// 使用 FocusableMeta.FocusID 获取焦点 ID
+						if fiber.FocusableMeta != nil {
+							focusID := fiber.FocusableMeta.FocusID
+							if focusID != "" {
+								nodeID := runtimeevent.StringToNodeID(focusID)
+								// 维护 FocusID -> NodeID 映射
+								a.focusIDToNodeID[focusID] = nodeID
+								// 注册到 actionRegistry
+								a.actionRegistry[nodeID] = target
+							}
+						}
 					}
 				}
 			}
 		}
 	}
-
-	// 回退：从 component.Node 树收集（用于非 Fiber 模式）
-	a.registerActionTargets(a.root)
 }
 
 // registerActionTargets 递归注册 ActionTarget
@@ -2220,8 +2242,14 @@ func (a *App) enrichHitMapWithInstances() {
 	log.UILogger.Debug("Enriched %d/%d HitMap entries with ComponentInstance references", matchedCount, len(entries))
 }
 
-// GetFocusManager returns the focus manager for keyboard navigation
+// GetFocusManager returns the focus manager for keyboard navigation (Fiber-first)
 // This is shared with DeclarativeNode to ensure focus state is synchronized
-func (a *App) GetFocusManager() *rtui.VNodeFocusManager {
+func (a *App) GetFocusManager() *rtui.FiberFocusManager {
 	return a.focusManager
+}
+
+// SetFocusManagerFromDeclarativeNode syncs focusManager from DeclarativeNode
+// This is called during render to ensure event routing uses the correct focus state
+func (a *App) SetFocusManagerFromDeclarativeNode(fm *rtui.FiberFocusManager) {
+	a.focusManager = fm
 }

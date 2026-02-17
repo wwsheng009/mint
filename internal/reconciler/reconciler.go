@@ -44,7 +44,7 @@ type Reconciler struct {
 	keyValidator        *state.KeyValidator            // Key validation
 	rootComponent       rtui.ComponentFunc             // Root component function
 	ctx                 *rtui.ComponentContext         // Root component context
-	focusMgr            *rtui.VNodeFocusManager        // Focus manager for keyboard navigation
+	focusMgr            *rtui.FiberFocusManager        // Focus manager for keyboard navigation (Fiber-first)
 
 	// === Render State ===
 	buffer         *paint.Buffer // Render target
@@ -286,6 +286,13 @@ func (r *Reconciler) createWorkInProgress(current *Fiber, vnode rtui.VNode) *Fib
 	work.Layer = vnode.GetLayer()
 	if tagger, ok := vnode.(interface{ Tag() string }); ok {
 		work.Tag = tagger.Tag()
+	}
+
+	// Update FocusableVNode from new VNode (Fiber-first)
+	if f, ok := vnode.(rtui.FocusableVNode); ok && f.IsFocusable() {
+		work.FocusableVNode = f
+	} else {
+		work.FocusableVNode = nil
 	}
 
 	// CRITICAL: Update ComponentFunc from new VNode for component types
@@ -849,8 +856,8 @@ func (r *Reconciler) SetApp(app *framework.App) {
 	r.app = app
 }
 
-// SetFocusManager sets the focus manager for keyboard navigation
-func (r *Reconciler) SetFocusManager(mgr *rtui.VNodeFocusManager) {
+// SetFocusManager sets the focus manager for keyboard navigation (Fiber-first)
+func (r *Reconciler) SetFocusManager(mgr *rtui.FiberFocusManager) {
 	r.focusMgr = mgr
 }
 
@@ -930,8 +937,9 @@ func (r *Reconciler) cleanupDeletedFiber(fiber *Fiber) {
 // Focus Management
 // =============================================================================
 
-// applyFocusStateToFiber applies focus state from the focus manager to Fiber tree VNodes
+// applyFocusStateToFiber applies focus state from the focus manager to Fiber tree
 // This must be called before rendering to ensure focused elements are rendered correctly
+// Uses Fiber-first approach: operates on Fiber nodes directly
 func (r *Reconciler) applyFocusStateToFiber(fiber *Fiber) {
 	if r.focusMgr == nil || fiber == nil {
 		return
@@ -945,18 +953,25 @@ func (r *Reconciler) applyFocusStateToFiber(fiber *Fiber) {
 		return
 	}
 
-	// Collect all focusable VNodes in order
-	focusable := CollectFocusableFromFiber(fiber)
+	// Collect all focusable Fibers (Fiber-first)
+	r.focusMgr.CollectFromFiber(fiber)
+	focusable := r.focusMgr.GetFocusable()
 
 	log.FocusLogger.Debug("applyFocus focusedIndex=%d, totalFocusable=%d", focusedIndex, len(focusable))
 
-	// Set focus by index (not by ID, because multiple elements may have the same ID)
-	for i, elem := range focusable {
+	// Set focus by index on Fiber nodes (Fiber-first)
+	for i, f := range focusable {
 		if i == focusedIndex {
-			log.FocusLogger.Debug("applyFocus setting focus=true on index %d (%s)", i, elem.GetFocusID())
-			elem.SetFocus(true)
+			log.FocusLogger.Debug("applyFocus setting focus=true on index %d (%s)", i, f.FocusableMeta.FocusID)
+			// Update FocusableVNode focus state
+			if f.FocusableVNode != nil {
+				f.FocusableVNode.SetFocus(true)
+			}
 		} else {
-			elem.SetFocus(false)
+			// Update FocusableVNode focus state
+			if f.FocusableVNode != nil {
+				f.FocusableVNode.SetFocus(false)
+			}
 		}
 	}
 }
@@ -984,34 +999,28 @@ func (r *Reconciler) clearFocusOnFiber(fiber *Fiber) {
 
 // updateFocusManagerFromFiber updates the focus manager with the new Fiber tree's focusable elements
 // This should be called AFTER rendering to ensure the next render has the correct focus state
+// Uses Fiber-first approach: collects Fiber nodes, not VNodes
 func (r *Reconciler) updateFocusManagerFromFiber(fiber *Fiber) {
 	if r.focusMgr == nil || fiber == nil {
-		return
-	}
-
-	// Collect all focusable VNodes from the Fiber tree
-	focusable := CollectFocusableFromFiber(fiber)
-	if len(focusable) == 0 {
 		return
 	}
 
 	// Get the current focus index BEFORE updating the list
 	currentIndex := r.focusMgr.CurrentIndex()
 
-	// Directly update the focusable list in the focus manager
-	// We do this directly instead of calling SetFocusable to avoid the ID-based focus reset
-	// that happens when multiple elements have the same ID
-	r.focusMgr.UpdateFocusableList(focusable)
+	// Collect all focusable Fibers from the Fiber tree (Fiber-first)
+	r.focusMgr.CollectFromFiber(fiber)
 
 	// Preserve the current focus index by clamping it to the new list size
+	focusableCount := r.focusMgr.Count()
 	if currentIndex >= 0 {
-		if currentIndex >= len(focusable) {
-			currentIndex = len(focusable) - 1
+		if currentIndex >= focusableCount {
+			currentIndex = focusableCount - 1
 		}
 		if currentIndex >= 0 {
 			r.focusMgr.SetFocusByIndex(currentIndex)
 		}
-	} else if len(focusable) > 0 {
+	} else if focusableCount > 0 {
 		// If no current focus and there are focusable nodes, focus the first one
 		// This ensures that in a new render, the first element gets focus
 		r.focusMgr.SetFocusByIndex(0)

@@ -114,6 +114,16 @@ func CreateFiber(vnode VNode) *Fiber {
 		}
 	}
 
+	// Extract FocusableVNode if the VNode implements it (for buttons, inputs, etc.)
+	var focusableVNode FocusableVNode
+	if f, ok := vnode.(FocusableVNode); ok && f.IsFocusable() {
+		focusableVNode = f
+	}
+
+	// Extract ActionTargetID (Fiber-first Action Architecture)
+	// Fiber stores "who I am", not "what to do"
+	actionTargetID := extractActionTargetID(vnode)
+
 	return &Fiber{
 		Type:                       vnodeType,
 		Tag:                        tag,
@@ -136,7 +146,33 @@ func CreateFiber(vnode VNode) *Fiber {
 		ErrorBoundaryFunc:          errorBoundaryFunc,
 		ErrorBoundaryFallbackFiber: errorBoundaryFallback,
 		MemoCompare:                memoCompare,
+		FocusableVNode:             focusableVNode,
+		ActionTargetID:             actionTargetID,
 	}
+}
+
+// extractActionTargetID extracts ActionTargetID from VNode.
+// This is used by ActionBridge to route Actions to the component.
+func extractActionTargetID(vnode VNode) string {
+	if vnode == nil {
+		return ""
+	}
+
+	// 1. Check for explicit actionTarget prop
+	props := vnode.Props()
+	if props != nil {
+		if id, ok := props["actionTarget"].(string); ok && id != "" {
+			return id
+		}
+	}
+
+	// 2. Use Key if available
+	if key := vnode.Key(); key != "" {
+		return key
+	}
+
+	// 3. Use NodeID as fallback (will be generated)
+	return ""
 }
 
 // CreateFiberFromVNode creates a fiber tree from a VNode tree
@@ -316,6 +352,12 @@ func CloneFiber(fiber *Fiber) *Fiber {
 		ErrorBoundaryFallbackFiber: fiber.ErrorBoundaryFallbackFiber,
 		MemoCompare:                fiber.MemoCompare,
 		MemoShouldUpdate:           fiber.MemoShouldUpdate,
+		// Focusable support
+		FocusableVNode: fiber.FocusableVNode,
+		// ActionTargetID (Fiber-first Action Architecture)
+		ActionTargetID: fiber.ActionTargetID,
+		// Focusable metadata (Fiber-first)
+		FocusableMeta: fiber.FocusableMeta,
 	}
 }
 
@@ -384,10 +426,11 @@ func BuildHitMapFromFiber(root *Fiber) *rtuievent.HitMap {
 			// This ensures higher layers are prioritized in HitTest
 			zOrder := int(layer)*10000 + depth
 
-			// Create HitMap entry
+			// Create HitMap entry (Fiber-first Action Architecture)
+			// TargetFiber 用于 ActionBridge 路由
 			entry := rtuievent.HitMapEntryInternal{
 				NodeID: nodeID,
-				Node:   nil, // Node is nil because we can't create layout.Node without importing more types
+				Node:   nil,
 				Bounds: runtimelayout.Rect{
 					X:      x,
 					Y:      y,
@@ -397,8 +440,9 @@ func BuildHitMapFromFiber(root *Fiber) *rtuievent.HitMap {
 				LocalXY: func(screenX, screenY int) (int, int) {
 					return screenX - x, screenY - y
 				},
-				ZOrder:   zOrder,
-				Instance: nil,
+				ZOrder:      zOrder,
+				Instance:    nil,
+				TargetFiber: fiber,
 			}
 
 			entries = append(entries, entry)

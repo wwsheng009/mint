@@ -7,10 +7,16 @@ package reconciler
 // For each Fiber, we:
 // 1. Create/Update the DOM node (or prepare for rendering)
 // 2. Collect child effects
-// 3. Return the next Fiber to process
+// 3. Extract event handlers and focusable metadata (Fiber-first)
+// 4. Return the next Fiber to process
 //
 // This is the "completion" of processing a work unit.
 // After CompleteWork, we move to the next work unit in the traversal.
+//
+// IMPORTANT: In Fiber-first architecture:
+// - VNode only declares "what I want" (intent)
+// - Fiber holds "what I am now" (runtime state)
+// - Events and focus are runtime state, so they are extracted here
 // =============================================================================
 
 import (
@@ -90,7 +96,74 @@ func completeWorkElement(current, workInProgress *Fiber) *Fiber {
 	// Layout info is already extracted during Fiber creation in CreateFiber
 	// No need to re-extract from VNode
 
+	// === Phase 2: Event handlers are already extracted in CreateFiber ===
+	// EventHandlers are extracted via interface detection during Fiber creation
+	// This is the clean API - no Props-based extraction needed
+
+	// === Phase 3: Extract focusable metadata to Fiber (Fiber-first) ===
+	// Focusable is runtime capability, not declaration
+	workInProgress.FocusableMeta = extractFocusableMeta(workInProgress)
+
 	return workInProgress
+}
+
+// =============================================================================
+// Focusable Metadata Extraction
+// =============================================================================
+
+// extractFocusableMeta extracts focusable metadata from Fiber
+// This determines if the Fiber can receive focus at runtime
+func extractFocusableMeta(fiber *Fiber) *rtui.FocusableMeta {
+	if fiber == nil {
+		return nil
+	}
+
+	props := fiber.Props
+	if props == nil {
+		props = make(rtui.Props)
+	}
+
+	// Check for explicit disabled state
+	disabled := false
+	if d, ok := props["disabled"].(bool); ok {
+		disabled = d
+	}
+
+	// Check for explicit tabIndex
+	tabIndex := -1
+	if ti, ok := props["tabIndex"].(int); ok {
+		tabIndex = ti
+	}
+
+	// Determine if focusable
+	// Priority: explicit tabIndex > disabled check > tag-based defaults
+	var focusableMeta *rtui.FocusableMeta
+
+	// If explicitly set tabIndex, use it
+	if tabIndex >= 0 {
+		focusableMeta = &rtui.FocusableMeta{
+			TabIndex: tabIndex,
+			Disabled: disabled,
+			FocusID:  fiber.Key,
+		}
+	} else if !disabled {
+		// Check tag-based defaults for focusable elements
+		switch fiber.Tag {
+		case "button", "input", "textarea", "select", "checkbox":
+			focusableMeta = &rtui.FocusableMeta{
+				TabIndex: 0,
+				Disabled: disabled,
+				FocusID:  fiber.Key,
+			}
+		}
+	}
+
+	// If FocusableVNode is set, use it to get FocusID
+	if focusableMeta != nil && fiber.FocusableVNode != nil {
+		focusableMeta.FocusID = fiber.FocusableVNode.GetFocusID()
+	}
+
+	return focusableMeta
 }
 
 // =============================================================================
@@ -99,9 +172,8 @@ func completeWorkElement(current, workInProgress *Fiber) *Fiber {
 
 // completeWorkFragment finalizes a fragment Fiber
 func completeWorkFragment(current, workInProgress *Fiber) *Fiber {
-	// Fragments don't render anything themselves
-	// They just group children
-
+	// Fragments don't have their own properties
+	// They just pass through their children
 	return workInProgress
 }
 
