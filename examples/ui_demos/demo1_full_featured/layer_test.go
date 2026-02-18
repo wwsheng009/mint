@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/wwsheng009/mint/ui"
 	"github.com/wwsheng009/mint/runtime/platform"
+	"github.com/wwsheng009/mint/ui"
 )
 
 // TestModalOpenClick verifies modal opens when clicking the "Open Modal" button
@@ -274,14 +274,19 @@ func TestClickCount(t *testing.T) {
 	if !contains(rendered, "Clicks: 0") {
 		t.Logf("Initial count not 0: %s", rendered)
 	}
+	t.Logf("Initial render (looking for focus indicator):\n%s", rendered)
+
+	// Check initial focus position - the ">" indicates focused button
+	// From output: >[ Quit ] means Quit has focus
+	// We need to navigate to "Add Count" button
 
 	// Navigate to "Add Count" button and click it a few times
+	// Focus order: [Open Modal] -> Input -> Add Count -> Quit
+	// Since Quit has focus, Shift+Tab goes to Add Count
 	for iteration := 0; iteration < 3; iteration++ {
-		// Tab to Add Count button (should be a few tabs away)
-		for i := 0; i < 10; i++ {
-			testApp.InjectSpecialKey(platform.KeyTab)
-			time.Sleep(30 * time.Millisecond)
-		}
+		// Shift+Tab to go backwards from Quit to Add Count
+		testApp.InjectSpecialKeyWithMod(platform.KeyTab, platform.ModShift)
+		time.Sleep(30 * time.Millisecond)
 		testApp.InjectSpecialKey(platform.KeyEnter)
 		time.Sleep(100 * time.Millisecond)
 		testApp.ForceRender()

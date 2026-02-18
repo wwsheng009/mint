@@ -14,18 +14,45 @@ import (
 // - VNode declares "what I want" (intent)
 // - Fiber holds "what I am now" (runtime state)
 // - Focus is runtime state, so it belongs to Fiber
+// - Layer-aware: when a Modal is open, focus is trapped within the Modal layer
 type FiberFocusManager struct {
-	focusable  []*Fiber              // All focusable Fiber nodes in the tree
-	current    int                   // Index of currently focused Fiber, -1 if none
-	onNavigate func(from, to *Fiber) // Callback when focus changes
+	focusable   []*Fiber              // All focusable Fiber nodes in the tree
+	current     int                   // Index of currently focused Fiber, -1 if none
+	onNavigate  func(from, to *Fiber) // Callback when focus changes
+	activeLayer Layer                 // Current active layer (highest layer with content)
 }
 
 // NewFiberFocusManager creates a new Fiber-based focus manager.
 func NewFiberFocusManager() *FiberFocusManager {
 	return &FiberFocusManager{
-		focusable: []*Fiber{},
-		current:   -1,
+		focusable:   []*Fiber{},
+		current:     -1,
+		activeLayer: LayerBase,
 	}
+}
+
+// SetActiveLayer sets the active layer for focus trapping.
+// When a Modal is open, only Modal layer fibers are focusable.
+// This also automatically focuses the first item in the new active layer.
+func (m *FiberFocusManager) SetActiveLayer(layer Layer) {
+	oldLayer := m.activeLayer
+	m.activeLayer = layer
+	log.FocusLogger.Debug("SetActiveLayer: %d -> %d", oldLayer, layer)
+
+	// If switching to a higher layer, focus first item in that layer
+	if layer > oldLayer && layer > LayerBase {
+		m.FocusFirst()
+	}
+}
+
+// GetActiveLayer returns the current active layer.
+func (m *FiberFocusManager) GetActiveLayer() Layer {
+	return m.activeLayer
+}
+
+// HasActiveLayer returns true if there's a modal or overlay layer active.
+func (m *FiberFocusManager) HasActiveLayer() bool {
+	return m.activeLayer > LayerBase
 }
 
 // CollectFromFiber collects all focusable Fiber nodes from a Fiber tree.
@@ -131,14 +158,26 @@ func (m *FiberFocusManager) SetFocusable(fibers []*Fiber) {
 }
 
 // FocusNext moves focus to the next focusable Fiber.
+// If activeLayer is set (e.g., Modal), only cycles within that layer.
 func (m *FiberFocusManager) FocusNext() bool {
-	log.FocusLogger.Debug("FocusNext current=%d, len(focusable)=%d", m.current, len(m.focusable))
+	log.FocusLogger.Debug("FocusNext current=%d, len(focusable)=%d, activeLayer=%d", m.current, len(m.focusable), m.activeLayer)
 	if len(m.focusable) == 0 {
 		return false
 	}
 
 	old := m.current
-	m.current = (m.current + 1) % len(m.focusable)
+
+	// If we have an active layer (e.g., Modal), only navigate within that layer
+	if m.activeLayer > LayerBase {
+		newIndex := m.findNextInLayer(m.current, m.activeLayer)
+		if newIndex == -1 {
+			return false // No focusable items in active layer
+		}
+		m.current = newIndex
+	} else {
+		// Normal navigation: cycle through all focusable items
+		m.current = (m.current + 1) % len(m.focusable)
+	}
 
 	log.FocusLogger.Debug("FocusNext old=%d, new=%d", old, m.current)
 
@@ -152,15 +191,27 @@ func (m *FiberFocusManager) FocusNext() bool {
 }
 
 // FocusPrev moves focus to the previous focusable Fiber.
+// If activeLayer is set (e.g., Modal), only cycles within that layer.
 func (m *FiberFocusManager) FocusPrev() bool {
 	if len(m.focusable) == 0 {
 		return false
 	}
 
 	old := m.current
-	m.current = m.current - 1
-	if m.current < 0 {
-		m.current = len(m.focusable) - 1
+
+	// If we have an active layer (e.g., Modal), only navigate within that layer
+	if m.activeLayer > LayerBase {
+		newIndex := m.findPrevInLayer(m.current, m.activeLayer)
+		if newIndex == -1 {
+			return false // No focusable items in active layer
+		}
+		m.current = newIndex
+	} else {
+		// Normal navigation: cycle through all focusable items
+		m.current = m.current - 1
+		if m.current < 0 {
+			m.current = len(m.focusable) - 1
+		}
 	}
 
 	m.updateFocusState(old, m.current)
@@ -172,12 +223,64 @@ func (m *FiberFocusManager) FocusPrev() bool {
 	return true
 }
 
+// findNextInLayer finds the next focusable fiber in the specified layer.
+func (m *FiberFocusManager) findNextInLayer(current int, layer Layer) int {
+	if len(m.focusable) == 0 {
+		return -1
+	}
+
+	// Start from the next item and wrap around
+	for i := 1; i <= len(m.focusable); i++ {
+		idx := (current + i) % len(m.focusable)
+		if m.focusable[idx].Layer == layer {
+			return idx
+		}
+	}
+	return -1
+}
+
+// findPrevInLayer finds the previous focusable fiber in the specified layer.
+func (m *FiberFocusManager) findPrevInLayer(current int, layer Layer) int {
+	if len(m.focusable) == 0 {
+		return -1
+	}
+
+	// Start from the previous item and wrap around
+	for i := 1; i <= len(m.focusable); i++ {
+		idx := current - i
+		if idx < 0 {
+			idx = len(m.focusable) + idx
+		}
+		if m.focusable[idx].Layer == layer {
+			return idx
+		}
+	}
+	return -1
+}
+
 // FocusFirst focuses the first focusable Fiber.
+// If activeLayer is set, focuses the first fiber in that layer.
 func (m *FiberFocusManager) FocusFirst() bool {
 	if len(m.focusable) == 0 {
 		return false
 	}
 
+	// If we have an active layer, find first in that layer
+	if m.activeLayer > LayerBase {
+		for i, fiber := range m.focusable {
+			if fiber.Layer == m.activeLayer {
+				m.current = i
+				m.applyFocusState(m.current, true)
+				if m.onNavigate != nil {
+					m.onNavigate(nil, fiber)
+				}
+				return true
+			}
+		}
+		return false // No items in active layer
+	}
+
+	// Normal: focus first
 	m.current = 0
 	m.applyFocusState(m.current, true)
 
@@ -189,11 +292,28 @@ func (m *FiberFocusManager) FocusFirst() bool {
 }
 
 // FocusLast focuses the last focusable Fiber.
+// If activeLayer is set, focuses the last fiber in that layer.
 func (m *FiberFocusManager) FocusLast() bool {
 	if len(m.focusable) == 0 {
 		return false
 	}
 
+	// If we have an active layer, find last in that layer
+	if m.activeLayer > LayerBase {
+		for i := len(m.focusable) - 1; i >= 0; i-- {
+			if m.focusable[i].Layer == m.activeLayer {
+				m.current = i
+				m.applyFocusState(m.current, true)
+				if m.onNavigate != nil {
+					m.onNavigate(nil, m.focusable[i])
+				}
+				return true
+			}
+		}
+		return false // No items in active layer
+	}
+
+	// Normal: focus last
 	m.current = len(m.focusable) - 1
 	m.applyFocusState(m.current, true)
 
@@ -228,41 +348,6 @@ func (m *FiberFocusManager) HandleEvent(ev event.Event) (handled bool, shouldRen
 	}
 
 	return false, false
-}
-
-// DispatchToFocused dispatches an event to the currently focused Fiber.
-// Uses ActionTarget interface for component-level handling.
-//
-// Fiber-first Action Architecture:
-// - Fiber only stores ActionTargetID for routing
-// - Component (FocusableVNode) implements ActionTarget for handling
-func (m *FiberFocusManager) DispatchToFocused(ev event.Event) bool {
-	if m.current < 0 || m.current >= len(m.focusable) {
-		return false
-	}
-
-	fiber := m.focusable[m.current]
-
-	// Check for keyboard events
-	if keyEvent, ok := ev.(*event.KeyEvent); ok {
-		// Route to FocusableVNode's ActionTarget interface
-		if fiber.FocusableVNode != nil {
-			if actionTarget, ok := fiber.FocusableVNode.(interface {
-				HandleAction(interface{}) bool
-			}); ok {
-				action := map[string]interface{}{
-					"type":    m.keyEventToActionType(keyEvent),
-					"key":     string(keyEvent.Key.Rune),
-					"special": keyEvent.Special,
-				}
-				if actionTarget.HandleAction(action) {
-					return true
-				}
-			}
-		}
-	}
-
-	return false
 }
 
 // keyEventToActionType converts a keyboard event to an action type string

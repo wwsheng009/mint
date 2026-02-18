@@ -1000,31 +1000,70 @@ func (r *Reconciler) clearFocusOnFiber(fiber *Fiber) {
 // updateFocusManagerFromFiber updates the focus manager with the new Fiber tree's focusable elements
 // This should be called AFTER rendering to ensure the next render has the correct focus state
 // Uses Fiber-first approach: collects Fiber nodes, not VNodes
+// Also handles Layer-aware focus trapping: when Modal is open, focus is trapped in Modal layer
 func (r *Reconciler) updateFocusManagerFromFiber(fiber *Fiber) {
 	if r.focusMgr == nil || fiber == nil {
 		return
 	}
 
-	// Get the current focus index BEFORE updating the list
-	currentIndex := r.focusMgr.CurrentIndex()
+	// Check for Modal layer presence before updating
+	hasModal := r.hasLayerFibers(fiber, rtui.LayerModal)
+	hasOverlay := r.hasLayerFibers(fiber, rtui.LayerOverlay)
+
+	// Determine the highest active layer
+	activeLayer := rtui.LayerBase
+	if hasModal {
+		activeLayer = rtui.LayerModal
+	} else if hasOverlay {
+		activeLayer = rtui.LayerOverlay
+	}
+
+	// Update active layer (this will auto-focus first item in layer if needed)
+	r.focusMgr.SetActiveLayer(activeLayer)
 
 	// Collect all focusable Fibers from the Fiber tree (Fiber-first)
 	r.focusMgr.CollectFromFiber(fiber)
 
-	// Preserve the current focus index by clamping it to the new list size
-	focusableCount := r.focusMgr.Count()
-	if currentIndex >= 0 {
-		if currentIndex >= focusableCount {
-			currentIndex = focusableCount - 1
-		}
+	// If we have an active layer (Modal/Overlay), focus is already set by SetActiveLayer
+	// Otherwise, preserve focus index
+	if activeLayer == rtui.LayerBase {
+		currentIndex := r.focusMgr.CurrentIndex()
+		focusableCount := r.focusMgr.Count()
 		if currentIndex >= 0 {
-			r.focusMgr.SetFocusByIndex(currentIndex)
+			if currentIndex >= focusableCount {
+				currentIndex = focusableCount - 1
+			}
+			if currentIndex >= 0 {
+				r.focusMgr.SetFocusByIndex(currentIndex)
+			}
+		} else if focusableCount > 0 {
+			r.focusMgr.SetFocusByIndex(0)
 		}
-	} else if focusableCount > 0 {
-		// If no current focus and there are focusable nodes, focus the first one
-		// This ensures that in a new render, the first element gets focus
-		r.focusMgr.SetFocusByIndex(0)
 	}
+}
+
+// hasLayerFibers checks if there are any fibers in the specified layer
+func (r *Reconciler) hasLayerFibers(fiber *rtui.Fiber, layer rtui.Layer) bool {
+	if fiber == nil {
+		return false
+	}
+
+	// Check current fiber
+	if fiber.Layer == layer && fiber.FocusableMeta != nil && fiber.FocusableMeta.IsFocusable() {
+		return true
+	}
+
+	// Check children
+	if r.hasLayerFibers(fiber.Child, layer) {
+		return true
+	}
+
+	// Check siblings
+	if r.hasLayerFibers(fiber.Sibling, layer) {
+		return true
+	}
+
+	return false
 }
 
 // =============================================================================

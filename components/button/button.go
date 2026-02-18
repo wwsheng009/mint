@@ -87,12 +87,13 @@ type ButtonVNode struct {
 	onMouseRelease func()
 	// Bounds for hit testing (x, y, width, height)
 	bounds [4]int
-	// ⭐ NEW: Embed BoxModelMixin for automatic box model support
+	// BoxModelMixin for automatic box model support
 	rtui.BoxModelMixin
-	// ActionTarget support (Fiber-first Action Architecture)
-	clickAction      action.ActionType // Semantic action ID (e.g., "open_modal", "save_form")
-	onClick          func()            // Legacy: closure handler (for backward compatibility)
+	// ActionTarget (Fiber-first Action Architecture)
+	clickAction      action.ActionType // Semantic action ID (optional)
+	onClick          func()            // Click handler (for simple cases)
 	supportedActions []action.ActionType
+	actionTargetID   string // ActionTargetID for ScopeDispatcher routing
 }
 
 // NewButton creates a new button
@@ -142,17 +143,29 @@ func (b *ButtonVNode) OnClickAction(act action.ActionType) *ButtonVNode {
 	return b.SetClickAction(act)
 }
 
-// OnClick returns the click handler (legacy compatibility).
+// OnClick returns the click handler.
 func (b *ButtonVNode) OnClick() func() {
 	return b.onClick
 }
 
-// SetOnClick sets the click handler (legacy compatibility).
-// Note: Prefer SetClickAction for Fiber-first Action Architecture.
+// SetOnClick sets the click handler (for simple cases).
+// For decoupled architecture, prefer SetClickAction.
 func (b *ButtonVNode) SetOnClick(fn func()) *ButtonVNode {
 	b.onClick = fn
-	b.SetProp("onClick", fn)
 	return b
+}
+
+// SetActionTargetID sets the ActionTargetID for this button.
+// This is used by the Fiber-first Action Architecture to route actions.
+func (b *ButtonVNode) SetActionTargetID(id string) *ButtonVNode {
+	b.actionTargetID = id
+	b.SetProp("actionTarget", id)
+	return b
+}
+
+// GetActionTargetID returns the ActionTargetID for this button.
+func (b *ButtonVNode) GetActionTargetID() string {
+	return b.actionTargetID
 }
 
 // Variant returns the button variant
@@ -233,9 +246,20 @@ func (b *ButtonBuilderType) OnClickAction(act action.ActionType) *ButtonBuilderT
 	return b
 }
 
-// OnClick sets the click handler (legacy compatibility).
-// Note: Prefer OnClickAction for Fiber-first Action Architecture.
+// OnClick sets the click handler (closure mode, for simple cases).
+// Usage: ButtonBuilder("[Save]").OnClick(func(){ ... })
+//
+// Fiber-first Action Architecture:
+// This method automatically registers the closure to ScopeDispatcher
+// and sets the ActionTargetID on the Fiber for proper routing.
 func (b *ButtonBuilderType) OnClick(fn func()) *ButtonBuilderType {
+	// Register closure to ScopeDispatcher (if available)
+	actionID := action.RegisterScopeClosure(fn)
+	if actionID != "" {
+		// Set the ActionTargetID on the button for routing
+		b.node.SetActionTargetID(actionID)
+	}
+	// Also keep the onClick for legacy FocusableVNode.HandleAction path
 	b.node.SetOnClick(fn)
 	return b
 }
@@ -835,11 +859,11 @@ func (b *ButtonVNode) GetFocusID() string {
 // ActionTarget Interface (Single Entry Point)
 // =============================================================================
 // HandleAction is the only entry point for event handling.
-// Event flow: Input → HitTest → Fiber.ActionTargetID → ActionBridge → HandleAction
+// Supports two modes:
+// 1. Closure mode: onClick callback is called directly (for simple cases)
+// 2. Semantic Action: clickAction returns true, Router calls registered handler
 //
-// Fiber-first Action Architecture:
-// - Primary: Button stores clickAction (semantic action ID)
-// - Fallback: Button stores onClick closure (legacy compatibility)
+// Event flow: Input → HitTest → Fiber → ActionBridge → HandleAction
 func (b *ButtonVNode) HandleAction(act *action.Action) bool {
 	if act == nil || b.disabled {
 		return false
@@ -847,13 +871,13 @@ func (b *ButtonVNode) HandleAction(act *action.Action) bool {
 
 	// Handle click/enter actions
 	if act.Type == action.ActionClick || act.Type == action.ActionEnter {
-		// Primary: semantic action (handler registered in Dispatcher)
-		if b.clickAction != "" {
-			return true // Dispatcher will call the registered handler
-		}
-		// Fallback: legacy closure (for backward compatibility)
+		// Mode 1: Closure - call onClick directly
 		if b.onClick != nil {
 			b.onClick()
+			return true
+		}
+		// Mode 2: Semantic Action - return true, Router will call registered handler
+		if b.clickAction != "" {
 			return true
 		}
 	}

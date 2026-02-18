@@ -382,6 +382,17 @@ func (a *FiberToNodeAdapter) GetLayer() layout.Layer {
 	}
 }
 
+// GetZIndex returns the z-index from Fiber
+// Implements layout.Layered interface
+func (a *FiberToNodeAdapter) GetZIndex() int {
+	if a.fiber == nil {
+		return 0
+	}
+	// ZIndex could be stored in Fiber.Props or Fiber.Style
+	// For now, return 0 as default
+	return 0
+}
+
 // =============================================================================
 // VNodeToNodeAdapter - Adapts VNode to layout.Node interface
 // =============================================================================

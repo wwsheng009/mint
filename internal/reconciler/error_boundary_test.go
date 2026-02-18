@@ -210,9 +210,8 @@ func TestErrorBoundary_SiblingErrorBoundaries(t *testing.T) {
 
 	// Create parent with both boundaries as children
 	parent := &Fiber{
-		Type:  rtui.VNodeElement,
-		Tag:   "div",
-		VNode: rtui.Element("div").Build(),
+		Type: rtui.VNodeElement,
+		Tag:  "div",
 	}
 
 	children := []rtui.VNode{firstBoundary, secondBoundary}
@@ -237,8 +236,8 @@ func TestErrorBoundary_SiblingErrorBoundaries(t *testing.T) {
 
 	// Process each child through BeginWork to trigger error handling
 	for child := parent.Child; child != nil; child = child.Sibling {
-		if boundary, ok := child.VNode.(*rtui.ErrorBoundaryVNode); ok {
-			current := CreateFiber(boundary)
+		if child.Type == rtui.VNodeComponent {
+			current := CreateFiber(firstBoundary)
 			workInProgress := CloneFiber(current)
 			_ = BeginWork(current, workInProgress)
 		}

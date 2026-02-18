@@ -150,9 +150,11 @@ func (e *Engine) buildComputedBoxWithSize(vnode VNode, fiber *reconciler.Fiber, 
 	if fiber != nil {
 		box.NodeID = fiber.NodeID
 		box.ChildFiber = fiber // Set ChildFiber for NodeID propagation to children
+		// Copy Layer from Fiber for multi-layer rendering (Modal, Tooltip, etc.)
+		box.Layer = fiber.Layer
 		if e.debug {
-			log.EngineLogger.Debug("[buildComputedBoxWithSize] Set NodeID=%d from Fiber (type=%s key=%s)",
-				box.NodeID, vnode.Type().String(), vnode.Key())
+			log.EngineLogger.Debug("[buildComputedBoxWithSize] Set NodeID=%d Layer=%d from Fiber (type=%s key=%s)",
+				box.NodeID, box.Layer, vnode.Type().String(), vnode.Key())
 		}
 	} else if parent != nil && parent.NodeID != 0 {
 		box.NodeID = parent.NodeID
@@ -1669,8 +1671,25 @@ func hashString(s string) uint64 {
 
 // MeasureChild implements runtime.ChildMeasurer interface.
 // This allows LayoutNode to call this without importing compute package.
+//
+// IMPORTANT: This method handles BOTH VNode and Fiber types:
+// - VNode: Used by legacy VNode-based layout
+// - *Fiber: Used by Fiber-first layout (fiber_layout_support.go)
 func (e *Engine) MeasureChild(child interface{}, constraints runtime.BoxConstraints) runtime.Size {
-	// Type assert to VNode
+	// Fiber-first: Check for *Fiber type first
+	if fiber, ok := child.(*rtui.Fiber); ok && fiber != nil {
+		// Use estimateBoxSize for leaf nodes (text, etc.)
+		// This is consistent with buildFiberOnlyBox logic
+		size := estimateBoxSize(fiber, constraints)
+		if size.Width > 0 && size.Height > 0 {
+			return size
+		}
+		// For container nodes, measure using Fiber.MeasureLayout recursively
+		measurement := fiber.MeasureLayout(e, constraints)
+		return measurement.Size
+	}
+
+	// Legacy: Type assert to VNode
 	if vnode, ok := child.(VNode); ok {
 		return e.measureVNode(vnode, constraints)
 	}

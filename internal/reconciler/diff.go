@@ -8,6 +8,7 @@ package reconciler
 // =============================================================================
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/wwsheng009/mint/internal/log"
@@ -268,52 +269,93 @@ func findMatchingChild(currentChild *Fiber, vnode rtui.VNode) *Fiber {
 	return nil
 }
 
-// shouldUpdate checks if a current fiber can be updated with new VNode
-// ✨ Optimized: Uses DiffKey for comparison (not Path)
-// This follows React's reconciliation logic:
-// 1. DiffKey is primary - different DiffKeys mean different elements
-// 2. Type is secondary - same DiffKey but different type means replace
-// 3. DiffKey is stable across renders - only changes if vnode.Key() changes
+// =============================================================================
+// DiffKey Normalization
+// =============================================================================
+
+// normalizeDiffKey generates a normalized DiffKey from VNode.
+// This ensures consistent key generation between creation and comparison.
+// Priority: user key > index fallback
+func normalizeDiffKey(vnode rtui.VNode, siblingIndex int) string {
+	userKey := vnode.Key()
+	if userKey != "" {
+		return userKey
+	}
+	return fmt.Sprintf("_idx_%d", siblingIndex)
+}
+
+// =============================================================================
+// Fiber Comparison (Fiber-first)
+// =============================================================================
+
+// shouldUpdate checks if a current fiber can be updated with new VNode.
+// ✨ Fiber-first: Creates a temporary newFiber for comparison, then compares Fiber vs Fiber.
+// This ensures DiffKey normalization is consistent between creation and comparison.
+//
+// Per docs/fiber/diff_key_detail.md:
+// - DiffKey is runtime concept (normalized)
+// - VNode.key is declaration concept (raw)
+// - Should compare Fiber.DiffKey vs Fiber.DiffKey, not Fiber.DiffKey vs VNode.key
 func shouldUpdate(current *Fiber, vnode rtui.VNode) bool {
 	if current == nil || vnode == nil {
 		return false
 	}
 
-	// ✨ CRITICAL: Use DiffKey for comparison (not Path or Key)
-	// DiffKey is the primary key used for diffing
-	currentDiffKey := current.DiffKey
-	newDiffKey := vnode.Key()
+	newDiffKey := normalizeDiffKey(vnode, current.SiblingIndex)
 
-	// If DiffKeys differ, this is definitely not the same element
-	if currentDiffKey != newDiffKey {
+	if current.DiffKey != newDiffKey {
 		return false
 	}
 
-	// Check if types match
 	if current.Type != vnode.Type() {
 		return false
 	}
 
-	// For components, check if the component function is the same
 	if current.Type == rtui.VNodeComponent {
-		// Compare component names since functions cannot be directly compared
-		// Same DiffKey + same name = same component
 		newComp, ok := vnode.(*rtui.ComponentVNode)
 		if ok {
 			return current.ComponentName == newComp.Name()
 		}
-		// If vnode is not ComponentVNode, compare by Tag
-		return current.Tag == vnode.(interface{ Tag() string }).Tag()
+		if tagger, ok := vnode.(interface{ Tag() string }); ok {
+			return current.Tag == tagger.Tag()
+		}
+		return false
 	}
 
-	// For elements, check if tag is the same
 	if current.Type == rtui.VNodeElement {
 		if tagger, ok := vnode.(interface{ Tag() string }); ok {
 			return current.Tag == tagger.Tag()
 		}
+		return false
 	}
 
-	// For text and fragments, type match is sufficient
+	return true
+}
+
+// shouldReuseFiber checks if two Fiber nodes can be reused.
+// This is the pure Fiber-to-Fiber comparison (no VNode dependency).
+// Use this when comparing existing Fibers during reconciliation.
+func shouldReuseFiber(current *Fiber, newFiber *Fiber) bool {
+	if current == nil || newFiber == nil {
+		return false
+	}
+
+	if current.DiffKey != newFiber.DiffKey {
+		return false
+	}
+
+	if current.Type != newFiber.Type {
+		return false
+	}
+
+	if current.Type == rtui.VNodeComponent {
+		return current.ComponentName == newFiber.ComponentName
+	}
+
+	if current.Type == rtui.VNodeElement {
+		return current.Tag == newFiber.Tag
+	}
+
 	return true
 }
 
@@ -331,12 +373,9 @@ func createChildFiber(returnFiber *Fiber, vnode rtui.VNode, lanes Lane, siblingI
 // Used by createAllNewChildren where type index is tracked externally
 // If typeIndex is -1, it will be auto-calculated from parent's children
 //
-// ✨ Optimized: DiffKey is now set directly from vnode.Key() without Path modifications
-// This ensures stable diffing - Path is only for debugging (inspector, hit map)
+// ✨ DiffKey normalization: Uses normalizeDiffKey for consistent key generation
+// This ensures DiffKey matches between creation and shouldUpdate comparison
 func createChildFiberWithIndex(returnFiber *Fiber, vnode rtui.VNode, lanes Lane, siblingIndex int, typeIndex int) *Fiber {
-	// Use CreateFiber instead of CreateFiberFromVNode
-	// CreateFiber just creates this fiber without building the entire subtree
-	// The subtree will be built later by the reconciliation process
 	fiber := CreateFiber(vnode)
 	if fiber == nil {
 		return nil
@@ -344,31 +383,16 @@ func createChildFiberWithIndex(returnFiber *Fiber, vnode rtui.VNode, lanes Lane,
 
 	fiber.Return = returnFiber
 	fiber.Lanes = lanes
-	fiber.Props = vnode.Props()
 	fiber.SiblingIndex = siblingIndex
 
-	// ✨ CRITICAL: DiffKey handling with index fallback
-	// Priority 1: User-provided key (most stable)
-	// Priority 2: Index fallback (for static UI without user keys)
-	// Priority 3: Dynamic list without key → panic (require key)
 	userKey := vnode.Key()
-	if userKey != "" {
-		// Use user-provided key as DiffKey (most stable)
-		fiber.DiffKey = userKey
-		fiber.Key = userKey // Backward compatibility alias
-	} else if isDynamicList(returnFiber) {
-		// Dynamic list without user key → MUST panic
-		// This prevents incorrect reconciliation and state loss
+	if userKey == "" && isDynamicList(returnFiber) {
 		requireKeyPanic(returnFiber, vnode, siblingIndex)
-	} else {
-		// Use index as DiffKey fallback for static non-dynamic UI
-		// This matches React's default behavior and allows reconciliation
-		fiber.DiffKey = string(rune('0' + siblingIndex%10))
-		fiber.Key = fiber.DiffKey // Backward compatibility alias
 	}
 
-	// Path is only for debugging (inspector, hit map)
-	// It does NOT participate in diffing
+	fiber.DiffKey = normalizeDiffKey(vnode, siblingIndex)
+	fiber.Key = fiber.DiffKey
+
 	generateDebugPathForFiberFromVNode(fiber, returnFiber, vnode, siblingIndex, typeIndex)
 
 	return fiber
@@ -382,12 +406,35 @@ func cloneExistingFiber(returnFiber *Fiber, current *Fiber, vnode rtui.VNode, si
 	fiber := CloneFiber(current)
 	fiber.Return = returnFiber
 	// Extract data from vnode instead of storing reference
-	fiber.Props = vnode.Props()
+	// IMPORTANT: For elements/fragments, ensure children are stored in Props
+	props := vnode.Props()
+	if props == nil {
+		props = make(rtui.Props)
+	}
+	vnodeType := vnode.Type()
+	children := vnode.Children()
+	if vnodeType == rtui.VNodeElement || vnodeType == rtui.VNodeFragment {
+		if len(children) > 0 {
+			newProps := make(rtui.Props)
+			for k, v := range props {
+				newProps[k] = v
+			}
+			newProps["children"] = children
+			props = newProps
+		}
+	}
+	fiber.Props = props
 	fiber.Style = vnode.Style()
 	fiber.Layer = vnode.GetLayer()
 	// Update tag if available
 	if tagger, ok := vnode.(interface{ Tag() string }); ok {
 		fiber.Tag = tagger.Tag()
+	}
+	// Update FocusableVNode from new VNode (Fiber-first)
+	if f, ok := vnode.(rtui.FocusableVNode); ok && f.IsFocusable() {
+		fiber.FocusableVNode = f
+	} else {
+		fiber.FocusableVNode = nil
 	}
 	fiber.Lanes = LaneNoLane
 	fiber.Flags = EffectNoEffect

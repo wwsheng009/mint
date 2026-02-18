@@ -39,10 +39,12 @@ func (w *TreeWalker) CollectFocusable() []rtui.FocusableVNode {
 		if fiber.Type == rtui.VNodeComponent {
 			return true
 		}
-		// Check if ComponentInstance is focusable
+		// Check if ComponentInstance is focusable via interface check
 		if fiber.ComponentInstance != nil {
-			if focusable, ok := fiber.ComponentInstance.(rtui.FocusableVNode); ok && focusable.IsFocusable() {
-				result = append(result, focusable)
+			if focusable, ok := fiber.ComponentInstance.(interface{ IsFocusable() bool }); ok && focusable.IsFocusable() {
+				if vnode, ok := focusable.(rtui.FocusableVNode); ok {
+					result = append(result, vnode)
+				}
 			}
 		}
 		return true

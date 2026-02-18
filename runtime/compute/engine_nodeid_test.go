@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"testing"
 
-	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/internal/reconciler"
 	"github.com/wwsheng009/mint/runtime"
+	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
 
 // TestNodeIDExtractionWithKeys 测试使用 key 正确提取 NodeID
@@ -240,7 +240,7 @@ func TestNodeIDExtractionMultiLevel(t *testing.T) {
 		if fiber == nil {
 			return
 		}
-		key := fiber.VNode.Key()
+		key := fiber.DiffKey
 		if key != "" {
 			initialNodeIDs[key] = fiber.NodeID
 			t.Logf("Initial: key=%q => NodeID=%d", key, fiber.NodeID)

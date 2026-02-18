@@ -70,6 +70,7 @@ type App struct {
 	inputProcessor  *action.InputProcessor         // Msg → Action 转换器
 	actionRegistry  map[uint64]action.ActionTarget // ActionTarget 注册表
 	focusIDToNodeID map[string]uint64              // FocusID -> NodeID 映射表（内部使用）
+	scopeDispatcher *action.ScopeDispatcher        // Scope-based action dispatcher (Closure → ActionID)
 	// legacyMode is DEPRECATED - Action system is now the primary path
 	// Set to true only for debugging/fallback purposes
 	legacyMode bool // 是否启用兼容模式（默认 false）
@@ -170,11 +171,18 @@ func NewApp() *App {
 		inputProcessor:  action.NewInputProcessor(),
 		actionRegistry:  make(map[uint64]action.ActionTarget),
 		focusIDToNodeID: make(map[string]uint64),
-		legacyMode:      false, // Action 系统优先，legacy 仅用于调试
+		scopeDispatcher: action.NewScopeDispatcherWithName(nil, "root"), // Scope-based dispatcher
+		legacyMode:      false,                                          // Action 系统优先，legacy 仅用于调试
 	}
 
 	// 初始化 ActionBridge (Fiber → Action 桥接器)
 	app.actionBridge = actionbridge.New(app.actionRouter)
+
+	// 设置当前 ScopeDispatcher (用于 Builder 注册 closure)
+	action.SetCurrentScopeDispatcher(app.scopeDispatcher)
+
+	// 设置 ActionBridge 的 ScopeDispatcher
+	app.actionBridge.SetScopeDispatcher(app.scopeDispatcher)
 
 	// 设置 InputProcessor 的 KeyMap
 	app.inputProcessor.SetKeyMap(action.NewKeyMap())
@@ -214,11 +222,18 @@ func NewAppWithSource(source frameworkevent.EventSource) *App {
 		inputProcessor:  action.NewInputProcessor(),
 		actionRegistry:  make(map[uint64]action.ActionTarget),
 		focusIDToNodeID: make(map[string]uint64),
+		scopeDispatcher: action.NewScopeDispatcherWithName(nil, "root"), // Scope-based dispatcher
 		legacyMode:      true,
 	}
 
 	// 初始化 ActionBridge
 	app.actionBridge = actionbridge.New(app.actionRouter)
+
+	// 设置当前 ScopeDispatcher (用于 Builder 注册 closure)
+	action.SetCurrentScopeDispatcher(app.scopeDispatcher)
+
+	// 设置 ActionBridge 的 ScopeDispatcher
+	app.actionBridge.SetScopeDispatcher(app.scopeDispatcher)
 
 	return app
 }
@@ -894,27 +909,22 @@ func (a *App) Run() error {
 	return nil
 }
 
-// handleMsg 处理 Msg，通过 ActionBridge 路由到组件
+// handleMsg 处理 Msg，通过 ActionBridge 路由
 //
 // Fiber-first Action Architecture:
-// - MouseMsg: HitTest → Fiber.ActionTargetID → ActionBridge → HandleAction
-// - KeyMsg: FocusManager → Fiber.ActionTargetID → ActionBridge → HandleAction
+// - App 只调用 ActionBridge，不直接访问 Fiber 内部
+// - ActionBridge 是唯一知道 Fiber 和 Router 的模块
+// - 支持语义 Action 和闭包两种模式
 //
-// 返回 true 表示消息已被处理，false 表示需要回退到 Event 系统
+// 返回 true 表示消息已被处理
 func (a *App) handleMsg(message runtimemsg.Msg) bool {
 	// 鼠标事件：通过 HitMap 找到的 TargetFiber 路由
 	if mouseMsg, ok := message.(*runtimemsg.MouseMsg); ok {
-		if mouseMsg.TargetFiber != nil && mouseMsg.TargetFiber.GetActionTargetID() != "" {
-			actionType := a.mouseActionToActionType(mouseMsg.Action)
-			if actionType != "" {
-				// 类型断言获取 *Fiber
-				if fiber, ok := mouseMsg.TargetFiber.(*rtui.Fiber); ok {
-					handled := a.actionBridge.DispatchFromFiber(
-						fiber,
-						actionType,
-						mouseMsg,
-					)
-					if handled {
+		if mouseMsg.TargetFiber != nil {
+			if fiber, ok := mouseMsg.TargetFiber.(*rtui.Fiber); ok {
+				actionType := a.mouseActionToActionType(mouseMsg.Action)
+				if actionType != "" {
+					if a.actionBridge.DispatchFromFiber(fiber, actionType, mouseMsg) {
 						a.dirty = true
 						return true
 					}
@@ -927,15 +937,10 @@ func (a *App) handleMsg(message runtimemsg.Msg) bool {
 	if keyMsg, ok := message.(*runtimemsg.KeyMsg); ok {
 		if a.focusManager != nil {
 			focused := a.focusManager.GetCurrent()
-			if focused != nil && focused.ActionTargetID != "" {
+			if focused != nil {
 				actionType := a.keyMsgToActionType(keyMsg)
 				if actionType != "" {
-					handled := a.actionBridge.DispatchFromFiber(
-						focused,
-						actionType,
-						keyMsg,
-					)
-					if handled {
+					if a.actionBridge.DispatchFromFiber(focused, actionType, keyMsg) {
 						a.dirty = true
 						return true
 					}
@@ -992,6 +997,7 @@ func (a *App) keyMsgToActionType(keyMsg *runtimemsg.KeyMsg) action.ActionType {
 
 // processMsg 统一的消息处理入口
 // 这是新的 Action 统一路径的核心入口
+// 根据 fiber_confict.md：统一 Action Runtime
 func (a *App) processMsg(msg runtimemsg.Msg) {
 	if msg == nil {
 		return
@@ -1000,35 +1006,43 @@ func (a *App) processMsg(msg runtimemsg.Msg) {
 	// 1. 尝试转换为 Action
 	act := a.inputProcessor.ProcessMsg(msg)
 
-	// 2. 处理无法转换的消息（系统事件）
+	// 2. 处理无法转换的消息（系统消息）
 	if act == nil {
 		a.handleSystemMsg(msg)
 		return
 	}
 
-	// 3. 导航 Action 由焦点管理器直接处理（不经过 ActionRouter）
+	// 3. 导航 Action 由焦点管理器直接处理
 	if act.IsNavigationAction() {
 		a.handleNavigationAction(act)
 		return
 	}
 
-	// 4. 其他 Action：设置默认目标（焦点组件）并分发
-	if act.TargetID == 0 {
-		if focused := a.focusManager.GetCurrent(); focused != nil {
-			// 使用 FocusableMeta.FocusID 获取 ID，然后转换为 NodeID
-			if focused.FocusableMeta != nil {
-				focusID := focused.FocusableMeta.FocusID
-				act.TargetID = runtimeevent.StringToNodeID(focusID)
+	// 4. 统一 Action 路由：通过 ActionBridge 分发
+	// 4.1 鼠标事件：使用 MouseMsg 中的 TargetFiber
+	if mouseMsg, ok := act.Payload.(*runtimemsg.MouseMsg); ok && mouseMsg.TargetFiber != nil {
+		if fiber, ok := mouseMsg.TargetFiber.(*rtui.Fiber); ok {
+			if a.actionBridge.DispatchFromFiber(fiber, act.Type, act) {
+				a.dirty = true
+				return
 			}
 		}
 	}
 
-	// 5. 分发 Action
-	result := a.dispatchAction(act)
+	// 4.2 键盘事件（如 Enter）：使用焦点 Fiber
+	if focused := a.focusManager.GetCurrent(); focused != nil {
+		if a.actionBridge.DispatchFromFiber(focused, act.Type, act) {
+			a.dirty = true
+			return
+		}
+	}
 
-	// 6. 处理结果
-	if result.Handled {
-		a.dirty = true
+	// 4.3 回退：通过 ActionRouter 分发（语义 Action 模式）
+	if act.TargetID != 0 {
+		result := a.dispatchAction(act)
+		if result.Handled {
+			a.dirty = true
+		}
 	}
 }
 

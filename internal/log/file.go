@@ -30,11 +30,11 @@ func getLogOutput() LogOutput {
 			logOutput = OutputConsole
 		case "both":
 			logOutput = OutputBoth
-		case "file", "":
+		case "file":
 			logOutput = OutputFile
 		default:
 			// Default to file output
-			logOutput = OutputFile
+			logOutput = OutputBoth
 		}
 	})
 	return logOutput

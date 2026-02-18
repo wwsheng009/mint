@@ -33,7 +33,7 @@ type DeclarativeNode struct {
 	root     rtui.VNode              // The root VNode of this tree
 	renderFn rtui.ComponentFunc      // Function that renders the VNode
 	instance *rtui.ComponentContext  // Component instance for hooks
-	focusMgr *rtui.VNodeFocusManager // Focus manager for keyboard navigation
+	focusMgr *rtui.FiberFocusManager // Focus manager for keyboard navigation (Fiber-first)
 
 	// Framework integration
 	fwApp      *framework.App     // Framework app (for triggering re-renders in non-Fiber mode)
@@ -61,7 +61,7 @@ func NewDeclarativeNodeFromFunc(fn rtui.ComponentFunc) *DeclarativeNode {
 	node := &DeclarativeNode{
 		renderFn: fn,
 		instance: rtui.NewComponentContextForRoot(),
-		focusMgr: rtui.NewVNodeFocusManager(),
+		focusMgr: rtui.NewFiberFocusManager(),
 		fwApp:    nil,   // Will be set by SetFrameworkApp
 		useFiber: false, // Default to non-Fiber mode
 	}
@@ -105,9 +105,9 @@ func NewDeclarativeNodeFromFuncWithFiber(fn rtui.ComponentFunc, fwApp *framework
 	// This is safe because internal/render can import internal/reconciler
 	r := newFiberReconciler(fwApp, fn)
 
-	// IMPORTANT: Reuse framework.App's focusManager
-	// This ensures focus state is synchronized between the framework and declarative node
-	focusMgr := fwApp.GetFocusManager()
+	// Create a new FiberFocusManager (Fiber-first architecture)
+	// This replaces the VNodeFocusManager to ensure focus state is managed on Fiber nodes
+	focusMgr := rtui.NewFiberFocusManager()
 
 	// Set the focus manager on the reconciler so it can apply focus state before rendering
 	if adapter, ok := r.(*fiberReconcilerAdapter); ok {
@@ -419,60 +419,75 @@ func (n *DeclarativeNode) nonFiberRender() rtui.VNode {
 }
 
 // applyFocusState applies focus state to the VNode tree
+// In Fiber mode, focus is managed by the reconciler's FiberFocusManager
+// IMPORTANT: Also syncs focusManager to framework.App for event routing
 func (n *DeclarativeNode) applyFocusState() {
-	if n.focusMgr == nil || n.root == nil {
+	if n.focusMgr == nil {
+		return
+	}
+
+	// In Fiber mode, focus is managed by reconciler during commit phase
+	// The FiberFocusManager is updated by reconciler.updateFocusManagerFromFiber()
+	if n.useFiber {
+		log.RenderLogger.Debug("DeclarativeNode.applyFocusState: Fiber mode, focus managed by reconciler")
+
+		// CRITICAL: Sync focusManager to framework.App for event routing
+		// This ensures Tab/Shift+Tab navigation works correctly
+		if n.fwApp != nil {
+			if appSetter, ok := interface{}(n.fwApp).(interface{ SetFocusManagerFromDeclarativeNode(*rtui.FiberFocusManager) }); ok {
+				appSetter.SetFocusManagerFromDeclarativeNode(n.focusMgr)
+			}
+		}
+		return
+	}
+
+	// Non-Fiber mode: legacy focus management via VNode tree
+	if n.root == nil {
 		return
 	}
 
 	var focusable []rtui.FocusableVNode
 
-	// In Fiber mode, use Fiber tree for focus collection
-	if n.useFiber && n.reconciler != nil {
-		// Type assert to access GetFiberRoot method (avoid import cycle in rtui.Reconciler interface)
-		if fiberProvider, ok := n.reconciler.(interface{ GetFiberRoot() *reconciler.Fiber }); ok {
-			fiberRoot := fiberProvider.GetFiberRoot()
-			if fiberRoot != nil {
-				focusable = n.collectFocusableFromFiber(fiberRoot)
-				log.RenderLogger.Debug("DeclarativeNode.applyFocusState: Fiber mode, collected %d focusable nodes from Fiber tree", len(focusable))
-			} else {
-				log.RenderLogger.Debug("DeclarativeNode.applyFocusState: Fiber mode but Fiber root is nil, falling back to VNode tree")
-				focusable = rtui.CollectFocusable(n.root)
-			}
-		} else {
-			log.RenderLogger.Debug("DeclarativeNode.applyFocusState: Fiber mode but reconciler doesn't support GetFiberRoot, falling back to VNode tree")
-			focusable = rtui.CollectFocusable(n.root)
-		}
+	// Check if there's a modal open - if so, trap focus in modal
+	hasModal := rtui.HasModalInTree(n.root)
+
+	if hasModal {
+		// Focus trap: only collect focusable elements from modal layer
+		focusable = rtui.CollectFocusableInLayer(n.root, rtui.LayerModal)
+		log.RenderLogger.Debug("DeclarativeNode.Paint: modal detected, collected %d modal focusable nodes", len(focusable))
 	} else {
-		// Non-Fiber mode: check if there's a modal open - if so, trap focus in modal
-		hasModal := rtui.HasModalInTree(n.root)
+		// No modal: collect all focusable elements
+		focusable = rtui.CollectFocusable(n.root)
+		log.RenderLogger.Debug("DeclarativeNode.Paint: no modal, collected %d focusable nodes", len(focusable))
+	}
 
-		if hasModal {
-			// Focus trap: only collect focusable elements from modal layer
-			focusable = rtui.CollectFocusableInLayer(n.root, rtui.LayerModal)
-			log.RenderLogger.Debug("DeclarativeNode.Paint: modal detected, collected %d modal focusable nodes", len(focusable))
-		} else {
-			// No modal: collect all focusable elements
-			focusable = rtui.CollectFocusable(n.root)
-			log.RenderLogger.Debug("DeclarativeNode.Paint: no modal, collected %d focusable nodes", len(focusable))
+	// Legacy: This path is only for non-Fiber mode
+	// For Fiber mode, focus is managed by FiberFocusManager which stores []*Fiber
+	// We skip this update in Fiber mode
+	if !n.useFiber {
+		// Cast to VNodeFocusManager for legacy mode
+		type legacyFocusManager interface {
+			UpdateFocusableList([]rtui.FocusableVNode)
 		}
-	}
+		if legacyMgr, ok := interface{}(n.focusMgr).(legacyFocusManager); ok {
+			legacyMgr.UpdateFocusableList(focusable)
 
-	n.focusMgr.UpdateFocusableList(focusable)
+			// Clamp focus index
+			currentIndex := n.focusMgr.CurrentIndex()
+			if currentIndex >= len(focusable) {
+				currentIndex = len(focusable) - 1
+			}
+			if currentIndex < 0 && len(focusable) > 0 {
+				currentIndex = 0
+			}
+			if currentIndex >= 0 {
+				n.focusMgr.SetFocusByIndex(currentIndex)
+			}
+		}
 
-	// Clamp focus index
-	currentIndex := n.focusMgr.CurrentIndex()
-	if currentIndex >= len(focusable) {
-		currentIndex = len(focusable) - 1
+		// Apply focus state
+		n.applyFocus(focusable)
 	}
-	if currentIndex < 0 && len(focusable) > 0 {
-		currentIndex = 0
-	}
-	if currentIndex >= 0 {
-		n.focusMgr.SetFocusByIndex(currentIndex)
-	}
-
-	// Apply focus state
-	n.applyFocus(focusable)
 }
 
 // PaintVNode recursively paints a VNode and its children.
@@ -1193,13 +1208,8 @@ func (n *DeclarativeNode) HandleEvent(ev frameworkevent.Event) bool {
 			return true
 		}
 
-		// 2. Try to dispatch to the focused element first
-		if focusMgr.DispatchToFocused(ev) {
-			if os.Getenv("TUI_DEBUG_UI") == "true" {
-				log.RenderLogger.Debug("DeclarativeNode.HandleEvent: focused element handled event\n")
-			}
-			return true
-		}
+		// 2. Keyboard events are handled by App.handleMsg via ActionBridge
+		// Focus navigation (Tab/Shift+Tab) is handled above
 	}
 
 	// 1.5. Handle mouse clicks - switch focus before dispatching event
@@ -1438,7 +1448,8 @@ func (n *DeclarativeNode) nodeWasClicked(node rtui.VNode, x, y int) bool {
 // =============================================================================
 
 // GetFocusManager returns the focus manager for this declarative node
-func (n *DeclarativeNode) GetFocusManager() *rtui.VNodeFocusManager {
+// Returns *FiberFocusManager in Fiber mode, interface{} for compatibility
+func (n *DeclarativeNode) GetFocusManager() *rtui.FiberFocusManager {
 	n.mu.RLock()
 	defer n.mu.RUnlock()
 	return n.focusMgr
@@ -1499,8 +1510,8 @@ func (n *DeclarativeNode) GetFocusedType() int {
 	if current == nil {
 		return 0
 	}
-	// Return VNodeType as int
-	return int(current.Type())
+	// Return VNodeType as int (Fiber-first: current is *Fiber)
+	return int(current.Type)
 }
 
 // getFrameworkApp returns the framework app (for triggering re-renders)
@@ -1540,6 +1551,7 @@ func (n *DeclarativeNode) GetButtons() []rtui.FocusableVNode {
 }
 
 // collectButtonsFromFiber traverses the Fiber tree to collect button VNodes
+// Uses Fiber.FocusableMeta for Fiber-first architecture
 func (n *DeclarativeNode) collectButtonsFromFiber(fiber *reconciler.Fiber) []rtui.FocusableVNode {
 	var result []rtui.FocusableVNode
 
@@ -1552,13 +1564,11 @@ func (n *DeclarativeNode) collectButtonsFromFiber(fiber *reconciler.Fiber) []rtu
 		return n.collectButtonsFromFiber(fiber.Child)
 	}
 
-	// Check if current Fiber is a button and has focusable props
-	if fiber.Tag == "button" {
-		// Check if this Fiber has focusable state (via Props or other means)
-		if fiber.Props != nil {
-			if focusable, ok := fiber.Props["_focusable"].(rtui.FocusableVNode); ok && focusable.IsFocusable() {
-				result = append(result, focusable)
-			}
+	// Check if current Fiber is a button with focusable metadata (Fiber-first)
+	if fiber.Tag == "button" && fiber.FocusableMeta != nil && fiber.FocusableMeta.IsFocusable() {
+		// For backward compatibility, still use FocusableVNode if available
+		if fiber.FocusableVNode != nil {
+			result = append(result, fiber.FocusableVNode)
 		}
 	}
 
@@ -1587,6 +1597,7 @@ func (n *DeclarativeNode) isButtonVNode(vnode rtui.VNode) bool {
 }
 
 // collectFocusableFromFiber collects all focusable elements from the Fiber tree
+// Uses Fiber.FocusableMeta for Fiber-first architecture
 func (n *DeclarativeNode) collectFocusableFromFiber(fiber *reconciler.Fiber) []rtui.FocusableVNode {
 	var result []rtui.FocusableVNode
 
@@ -1599,12 +1610,11 @@ func (n *DeclarativeNode) collectFocusableFromFiber(fiber *reconciler.Fiber) []r
 		return n.collectFocusableFromFiber(fiber.Child)
 	}
 
-	// Check if current Fiber's Props contain a focusable reference
-	if fiber.Props != nil {
-		if focusable, ok := fiber.Props["_focusable"].(rtui.FocusableVNode); ok {
-			if focusable.IsFocusable() {
-				result = append(result, focusable)
-			}
+	// Check if current Fiber has focusable metadata (Fiber-first)
+	if fiber.FocusableMeta != nil && fiber.FocusableMeta.IsFocusable() {
+		// For backward compatibility, still use FocusableVNode if available
+		if fiber.FocusableVNode != nil {
+			result = append(result, fiber.FocusableVNode)
 		}
 	}
 
@@ -1752,8 +1762,15 @@ func (a *fiberReconcilerAdapter) SetApp(app interface{}) {
 }
 
 // SetFocusManager sets the focus manager (adapter method)
-func (a *fiberReconcilerAdapter) SetFocusManager(mgr *rtui.VNodeFocusManager) {
-	a.r.SetFocusManager(mgr)
+// Supports both FiberFocusManager (Fiber-first) and VNodeFocusManager (legacy)
+func (a *fiberReconcilerAdapter) SetFocusManager(mgr interface{}) {
+	switch m := mgr.(type) {
+	case *rtui.FiberFocusManager:
+		a.r.SetFocusManager(m)
+	case *rtui.VNodeFocusManager:
+		// Legacy: convert to FiberFocusManager is not possible, so we skip
+		// This should not happen in normal Fiber mode
+	}
 }
 
 // SetRenderer sets the VNode renderer (adapter method)

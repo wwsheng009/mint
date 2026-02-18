@@ -41,83 +41,320 @@ func NewManager() *Manager {
 // Main API
 // =============================================================================
 
-// CollectAndLayout collects layer nodes and performs layout for all layers
-// This is the main entry point for layer-based rendering
+// CollectAndLayout performs Fiber-first single-pass layout with layer grouping.
+// This is the main entry point for layer-based rendering.
+//
+// Fiber-First Architecture (per docs/fiber/diff_layer.md):
+// 1. Single layout pass on entire Fiber tree (NO StripLayers, NO VNode clone)
+// 2. Layer is just a grouping attribute on ComputedBox
+// 3. Build RenderPlanes by grouping ComputedBoxes by Layer
+// 4. Apply layer-specific transforms (modal centering) as post-processing
 //
 // Workflow:
-//   1. Collect layer nodes from the VNode tree
-//   2. Strip layer nodes from the base tree
-//   3. Layout the base layer
-//   4. Layout each collected layer with appropriate constraints
-//   5. Apply transformations (modal centering, inspector positioning)
-//   6. Rebuild HitMaps with final transformed positions
-//   7. Build RenderPlanes from the finalized layouts
+//  1. Single layout pass on Fiber tree (BuildComputedBoxFiberOnly)
+//  2. Build RenderPlanes by grouping ComputedBoxes by their Layer field
+//  3. Apply layer-specific transforms (modal centering, inspector positioning)
+//  4. Build merged HitMap from transformed positions
 //
-// Phase 8: Added optional fiber parameter for NodeID propagation
-// Phase 3: Build RenderPlanes from computed layouts for unified layer management
+// Parameters:
+//
+//	vnode: The VNode tree (used when Fiber is nil for backward compatibility)
+//	fiber: The Fiber tree with NodeID and Layer info (PREFERRED)
+//	constraints: Box constraints for layout
+//	engine: Layout engine for computation
 func (m *Manager) CollectAndLayout(
 	vnode rtui.VNode,
 	fiber *reconciler.Fiber,
 	constraints runtime.BoxConstraints,
 	engine *compute.Engine,
 ) error {
-	// Clear previous state
 	m.layouts = make(LayerLayouts)
-	m.renderPlanes = NewRenderPlanes() // Phase 3: Reset renderPlanes
+	m.renderPlanes = NewRenderPlanes()
 
-	// 1. Collect layer nodes from the VNode tree
-	m.collector.Collect(vnode)
-
-	log.LayerLogger.Debug("[CollectAndLayout] collected %d modal nodes", len(m.collector.GetModalNodes()))
-
-	// 2. Strip layer nodes from the main tree to get clean base content
-	baseTree := m.collector.StripLayers(vnode)
-
-	baseChildren := baseTree.Children()
-	log.LayerLogger.Debug("[CollectAndLayout] baseTree has %d children (after stripping)", len(baseChildren))
-	for i, child := range baseChildren {
-		log.LayerLogger.Debug("[CollectAndLayout]   child %d: layer=%d type=%s", i, child.GetLayer(), child.Type().String())
+	if fiber != nil {
+		log.LayerLogger.Debug("[CollectAndLayout] ✅ Using Fiber-first single-pass layout")
+		return m.collectAndLayoutFiberFirst(fiber, constraints, engine)
 	}
 
-	// 3. Layout the base layer
-	// Phase 8: Pass Fiber to layout engine for NodeID propagation
-	baseLayout, err := engine.Layout(baseTree, fiber, constraints)
+	log.LayerLogger.Debug("[CollectAndLayout] ⚠️ Using legacy VNode-based layout (no Fiber)")
+	return m.collectAndLayoutLegacy(vnode, constraints, engine)
+}
+
+// collectAndLayoutFiberFirst implements Fiber-first layout with proper layer handling.
+//
+// Fiber-First Architecture (per docs/fiber/diff_layer.md):
+// 1. Single layout pass on entire tree (using engine.Layout with Fiber for NodeID propagation)
+// 2. Build RenderPlanes by grouping ComputedBoxes by their Layer field
+// 3. Apply layer-specific transforms (modal centering) as post-processing
+// 4. Build merged HitMap from transformed positions
+//
+// Key Principle: Layer is just a grouping attribute, not a structural change.
+// Modal nodes stay in the Fiber tree but need centering transform applied.
+func (m *Manager) collectAndLayoutFiberFirst(
+	fiber *reconciler.Fiber,
+	constraints runtime.BoxConstraints,
+	engine *compute.Engine,
+) error {
+	// Use engine.Layout with Fiber for NodeID propagation
+	// This is the stable path that correctly handles all node types
+	// BuildComputedBoxFiberOnly is still experimental and has issues with child measurement
+	
+	// Get VNode from Fiber for layout
+	vnode := rtui.NewFiberVNode(fiber)
+	
+	layout, err := engine.Layout(vnode, fiber, constraints)
+	if err != nil {
+		log.LayerLogger.Debug("[CollectAndLayoutFiberFirst] Layout failed: %v", err)
+		return err
+	}
+
+	if layout.Root == nil {
+		log.LayerLogger.Debug("[CollectAndLayoutFiberFirst] Empty layout result")
+		return nil
+	}
+
+	log.LayerLogger.Debug("[CollectAndLayoutFiberFirst] Layout complete, root size=%dx%d",
+		layout.Root.Box.Width, layout.Root.Box.Height)
+
+	m.layouts[rtui.LayerBase] = layout
+
+	// Build RenderPlanes from the computed layout
+	m.renderPlanes = BuildRenderPlane(layout.Root)
+	boxCount := m.renderPlanes.CountBoxes()
+	log.LayerLogger.Debug("[CollectAndLayoutFiberFirst] Built RenderPlanes with %d boxes", boxCount)
+
+	// Apply layer-specific transforms (modal centering)
+	m.applyLayerTransforms(layout.Root, constraints)
+
+	// Rebuild HitMap with final transformed positions
+	if layout.HitMap != nil {
+		layout.HitMap = m.buildMergedHitMapFromRenderPlanes()
+	}
+
+	return nil
+}
+
+// collectAndLayoutLegacy implements legacy VNode-based layout for backward compatibility.
+// This path uses StripLayers and is DEPRECATED - only used when Fiber is nil.
+func (m *Manager) collectAndLayoutLegacy(
+	vnode rtui.VNode,
+	constraints runtime.BoxConstraints,
+	engine *compute.Engine,
+) error {
+	m.collector.Collect(vnode)
+	log.LayerLogger.Debug("[CollectAndLayoutLegacy] collected %d modal nodes", len(m.collector.GetModalNodes()))
+
+	baseTree := m.collector.StripLayers(vnode)
+	baseChildren := baseTree.Children()
+	log.LayerLogger.Debug("[CollectAndLayoutLegacy] baseTree has %d children (after stripping)", len(baseChildren))
+
+	baseLayout, err := engine.Layout(baseTree, nil, constraints)
 	if err != nil {
 		return err
 	}
 	m.layouts[rtui.LayerBase] = baseLayout
 
-	// 4. Layout each collected layer
 	for layer, nodes := range m.collector.GetLayers() {
 		if len(nodes) == 0 {
 			continue
 		}
-
-		// Layout nodes for this layer
-		// For now, we only support the first visible node per layer
 		for _, node := range nodes {
 			if !node.Visible {
 				continue
 			}
-
-			// Phase 8: Pass fiber to layoutLayer for NodeID propagation
-			layerLayout, err := m.layoutLayer(node, layer, constraints, engine, fiber)
+			layerLayout, err := m.layoutLayer(node, layer, constraints, engine, nil)
 			if err != nil {
 				return err
 			}
 			m.layouts[layer] = layerLayout
-
-			// Only layout the first visible node per layer
 			break
 		}
 	}
-	// 5. Build RenderPlanes from computed layouts (Phase 3)
-	// RenderPlanes is built from the finalized layouts which have been transformed (centered, positioned)
-	// Using BuildRenderPlanesFromLayouts ensures we capture the FINAL positions after all transformations
+
 	m.renderPlanes = BuildRenderPlanesFromLayouts(m.layouts)
-	log.LayerLogger.Debug("[CollectAndLayout] Built RenderPlanes with %d boxes", m.renderPlanes.CountBoxes())
+	log.LayerLogger.Debug("[CollectAndLayoutLegacy] Built RenderPlanes with %d boxes", m.renderPlanes.CountBoxes())
 
 	return nil
+}
+
+// applyLayerTransforms applies layer-specific transformations after layout.
+// Modal: centered in viewport
+// Inspector: positioned at specified coordinates
+//
+// Fiber-First Architecture (per docs/fiber/diff_layer.md):
+// Layer is just a grouping attribute, not a structural change.
+// Modal nodes stay in the Fiber tree but need centering transform applied.
+func (m *Manager) applyLayerTransforms(root *compute.ComputedBox, constraints runtime.BoxConstraints) {
+	// Use RenderPlanes to find layer root nodes for centering
+	// Modal centering: find the TOP-MOST modal node (first one added to LayerModal plane)
+	// This node and all its children should be shifted together
+	modalBoxes := m.renderPlanes.GetLayer(rtui.LayerModal)
+	if len(modalBoxes) > 0 {
+		// Find the modal root (the bordered box that contains the modal content)
+		// It's the one that has no parent with LayerModal
+		for _, box := range modalBoxes {
+			if m.isLayerRoot(box, rtui.LayerModal) {
+				m.centerModalBox(box, constraints)
+				break // Only center the first modal root
+			}
+		}
+	}
+
+	// Inspector positioning
+	inspectorBoxes := m.renderPlanes.GetLayer(rtui.LayerInspector)
+	if len(inspectorBoxes) > 0 {
+		for _, box := range inspectorBoxes {
+			if m.isLayerRoot(box, rtui.LayerInspector) {
+				// Position at specified coordinates (from props)
+				// TODO: Implement inspector positioning
+				break
+			}
+		}
+	}
+}
+
+// isLayerRoot checks if a box is the root of its layer.
+// A layer root is a box whose parent is either nil or in a different layer.
+func (m *Manager) isLayerRoot(box *compute.ComputedBox, layer rtui.Layer) bool {
+	if box == nil {
+		return false
+	}
+	if box.Parent == nil {
+		return true
+	}
+	// Parent exists but is in a different layer
+	return box.Parent.Layer != layer
+}
+
+// transformBoxesByLayer recursively applies transforms based on Layer type.
+func (m *Manager) transformBoxesByLayer(box *compute.ComputedBox, constraints runtime.BoxConstraints, offsetX, offsetY int) {
+	if box == nil {
+		return
+	}
+
+	box.Box.X += offsetX
+	box.Box.Y += offsetY
+
+	if box.Layer == rtui.LayerModal && box.Parent == nil {
+		m.centerModalBox(box, constraints)
+	}
+
+	for _, child := range box.Children {
+		m.transformBoxesByLayer(child, constraints, offsetX, offsetY)
+	}
+}
+
+// centerModalBox centers a modal box in the viewport.
+func (m *Manager) centerModalBox(box *compute.ComputedBox, constraints runtime.BoxConstraints) {
+	if box == nil {
+		return
+	}
+
+	modalWidth := box.Box.Width
+	modalHeight := box.Box.Height
+	containerWidth := constraints.MaxWidth
+	containerHeight := constraints.MaxHeight
+
+	if containerWidth == runtime.Infinity {
+		containerWidth = modalWidth
+	}
+	if containerHeight == runtime.Infinity {
+		containerHeight = modalHeight
+	}
+
+	offsetX := (containerWidth - modalWidth) / 2
+	offsetY := (containerHeight - modalHeight) / 2
+
+	if offsetX < 0 {
+		offsetX = 0
+	}
+	if offsetY < 0 {
+		offsetY = 0
+	}
+
+	log.LayerLogger.Debug("[centerModalBox] modal=%dx%d container=%dx%d offset=(%d,%d)",
+		modalWidth, modalHeight, containerWidth, containerHeight, offsetX, offsetY)
+
+	m.shiftBoxTree(box, offsetX, offsetY)
+}
+
+// shiftBoxTree shifts all boxes in a ComputedBox tree by the given offset.
+func (m *Manager) shiftBoxTree(box *compute.ComputedBox, offsetX, offsetY int) {
+	if box == nil {
+		return
+	}
+
+	box.Box.X += offsetX
+	box.Box.Y += offsetY
+
+	if box.VNode != nil {
+		if boundsAware, ok := box.VNode.(interface{ SetBounds(int, int, int, int) }); ok {
+			boundsAware.SetBounds(box.Box.X, box.Box.Y, box.Box.Width, box.Box.Height)
+		}
+	}
+
+	for _, child := range box.Children {
+		m.shiftBoxTree(child, offsetX, offsetY)
+	}
+}
+
+// buildMergedHitMapFromRenderPlanes builds HitMap from RenderPlanes.
+func (m *Manager) buildMergedHitMapFromRenderPlanes() *event.HitMap {
+	var entries []event.HitMapEntryInternal
+
+	renderOrder := []rtui.Layer{
+		rtui.LayerBase,
+		rtui.LayerOverlay,
+		rtui.LayerModal,
+		rtui.LayerTooltip,
+		rtui.LayerInspector,
+	}
+
+	zOrder := 0
+	for _, layer := range renderOrder {
+		boxes := m.renderPlanes.GetLayer(layer)
+		for _, box := range boxes {
+			if box.NodeID == 0 {
+				continue
+			}
+			entries = append(entries, event.HitMapEntryInternal{
+				NodeID:  box.NodeID,
+				Node:    rtui.AsLayoutNode(box.VNode),
+				Bounds:  runtimelayout.Rect{X: box.Box.X, Y: box.Box.Y, Width: box.Box.Width, Height: box.Box.Height},
+				LocalXY: func(screenX, screenY int) (int, int) { return screenX - box.Box.X, screenY - box.Box.Y },
+				ZOrder:  zOrder,
+			})
+		}
+		if len(boxes) > 0 {
+			zOrder++
+		}
+	}
+
+	sort.Slice(entries, func(i, j int) bool {
+		return entries[i].ZOrder < entries[j].ZOrder
+	})
+
+	log.LayerLogger.Debug("[buildMergedHitMapFromRenderPlanes] Built HitMap with %d entries", len(entries))
+	return event.BuildHitMapFromEntries(entries)
+}
+
+// BuildRenderPlane creates RenderPlanes from a single ComputedBox tree.
+func BuildRenderPlane(root *compute.ComputedBox) *RenderPlanes {
+	rp := NewRenderPlanes()
+
+	var walk func(box *compute.ComputedBox)
+	walk = func(box *compute.ComputedBox) {
+		if box == nil {
+			return
+		}
+		rp.AddToLayer(box.Layer, box)
+		for _, child := range box.Children {
+			walk(child)
+		}
+	}
+
+	walk(root)
+	return rp
 }
 
 // layoutLayer performs layout for a single layer node

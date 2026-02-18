@@ -82,11 +82,21 @@ action := action.NewAction(action.ActionInputChar).
 
 ```go
 type Dispatcher struct {
-    targets        map[string]Target          // 注册的目标组件
-    globalHandlers map[ActionType][]Handler   // 全局处理器
-    defaultHandler Handler                    // 默认处理器
-    log            bool                       // 日志开关
-    logEntries     []LogEntry                 // 日志历史
+    mu             sync.RWMutex            // 读写锁，保证并发安全
+    targets        map[string]Target       // 注册的目标组件
+    globalHandlers map[ActionType][]Handler // 全局处理器
+    defaultHandler Handler                 // 默认处理器
+    log            bool                    // 日志开关
+    logEntries     []LogEntry              // 日志历史
+    logMaxSize     int                     // 日志最大条数（默认 1000）
+}
+
+// LogEntry 日志条目
+type LogEntry struct {
+    Action   *Action
+    Target   string
+    Handled  bool
+    Duration int64 // 纳秒
 }
 ```
 
@@ -226,7 +236,6 @@ sequence := action.Sequence(
 )
 
 result := sequence.Execute(context.Background())
-``}
 ```
 
 ### 带回调的复合 Action
@@ -313,15 +322,24 @@ d.ClearLog()
 | `ActionType` | Action 类型枚举（string） |
 | `Dispatcher` | Action 分发器 |
 | `Handler` | Action 处理器函数类型：`func(*Action) bool` |
+| `LogEntry` | 日志条目 |
 | `Target` | Action 处理目标接口 |
+| `TargetFunc` | 函数式 Target 适配器 |
+| `TargetChain` | 链式 Target（责任链模式） |
+| `NoOpTarget` | 空操作 Target（用于测试或占位） |
 | `CompositeAction` | 复合 Action（并发/顺序） |
 | `ActionResult` | Action 执行结果 |
 | `ActionHandler` | 可执行的 Action 接口 |
+| `ActionFunc` | 函数式 Action（实现 ActionHandler） |
+| `CallbackFunc` | 完成回调函数类型 |
 | `Mode` | 执行模式（并发/顺序） |
 | `WorkerPool` | 工作池 |
 | `RetryAction` | 带重试的 Action |
 | `TimeoutAction` | 带超时的 Action |
 | `FallbackAction` | 带回退的 Action |
+| `LazyAction` | 延迟执行的 Action |
+| `Error` | Action 处理错误 |
+| `ErrorType` | 错误类型枚举 |
 
 ## 文件结构
 

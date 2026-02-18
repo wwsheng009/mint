@@ -13,9 +13,10 @@ import (
 // 3. 返回语义化的 Action
 //
 // 使用示例：
-//   processor := NewInputProcessor()
-//   processor.SetKeyMap(defaultKeyMap)  // 可选
-//   action := processor.ProcessMsg(mouseMsg)
+//
+//	processor := NewInputProcessor()
+//	processor.SetKeyMap(defaultKeyMap)  // 可选
+//	action := processor.ProcessMsg(mouseMsg)
 type InputProcessor struct {
 	keyMap *KeyMap // 键盘映射（可以为 nil，使用默认规则）
 }
@@ -72,31 +73,55 @@ func (p *InputProcessor) processKeyMsg(keyMsg *runtimemsg.KeyMsg) *Action {
 }
 
 // processMouseMsg 处理鼠标消息
+// 根据 fiber_confict.md 方案 B：InputProcessor 不再拒绝 TargetID==0
+// 所有鼠标事件都生成 Action，TargetID 由 ActionBridge 决定
 func (p *InputProcessor) processMouseMsg(mouseMsg *runtimemsg.MouseMsg) *Action {
-	// 如果没有目标，不处理
-	if mouseMsg.TargetID == 0 {
-		return nil
-	}
-
 	// 鼠标事件转换为 Action 语义
 	switch mouseMsg.Action {
 	case runtimemsg.MouseActionPress:
 		if mouseMsg.Button == runtimemsg.MouseLeft {
-			return NewActionFromMouse(ActionClick, mouseMsg.TargetID, mouseMsg.LocalX, mouseMsg.LocalY)
+			act := NewAction(ActionClick).
+				WithSource("mouse").
+				WithPayload(mouseMsg)
+			if mouseMsg.TargetID != 0 {
+				act.WithTarget(mouseMsg.TargetID)
+			}
+			return act
 		} else if mouseMsg.Button == runtimemsg.MouseRight {
-			return NewActionFromMouse(ActionRightClick, mouseMsg.TargetID, mouseMsg.LocalX, mouseMsg.LocalY)
+			act := NewAction(ActionRightClick).
+				WithSource("mouse").
+				WithPayload(mouseMsg)
+			if mouseMsg.TargetID != 0 {
+				act.WithTarget(mouseMsg.TargetID)
+			}
+			return act
 		} else if mouseMsg.Button == runtimemsg.MouseMiddle {
-			return NewActionFromMouse(ActionMiddleClick, mouseMsg.TargetID, mouseMsg.LocalX, mouseMsg.LocalY)
+			act := NewAction(ActionMiddleClick).
+				WithSource("mouse").
+				WithPayload(mouseMsg)
+			if mouseMsg.TargetID != 0 {
+				act.WithTarget(mouseMsg.TargetID)
+			}
+			return act
 		}
 
 	case runtimemsg.MouseActionWheel:
-		return NewAction(ActionScroll).
-			WithTarget(mouseMsg.TargetID).
+		act := NewAction(ActionScroll).
 			WithSource("mouse").
-			WithPayload(mouseMsg.Delta)
+			WithPayload(mouseMsg)
+		if mouseMsg.TargetID != 0 {
+			act.WithTarget(mouseMsg.TargetID)
+		}
+		return act
 
 	case runtimemsg.MouseActionMove:
-		return NewActionFromMouse(ActionHover, mouseMsg.TargetID, mouseMsg.LocalX, mouseMsg.LocalY)
+		act := NewAction(ActionHover).
+			WithSource("mouse").
+			WithPayload(mouseMsg)
+		if mouseMsg.TargetID != 0 {
+			act.WithTarget(mouseMsg.TargetID)
+		}
+		return act
 	}
 
 	return nil

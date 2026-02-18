@@ -18,9 +18,8 @@ func TestFiberSync_DeleteAndReinsertSameKey(t *testing.T) {
 	child1.SetKey("item1")
 
 	parent := &Fiber{
-		Type:  rtui.VNodeElement,
-		Tag:   "div",
-		VNode: rtui.Element("div").Build(),
+		Type: rtui.VNodeElement,
+		Tag:  "div",
 	}
 
 	// Initial render with child
@@ -127,9 +126,8 @@ func TestFiberSync_MixedKeyedAndNonKeyed(t *testing.T) {
 	oldChildren := []rtui.VNode{keyed1, nonKeyed, keyed2}
 
 	parent := &Fiber{
-		Type:  rtui.VNodeElement,
-		Tag:   "div",
-		VNode: rtui.Element("div").Build(),
+		Type: rtui.VNodeElement,
+		Tag:  "div",
 	}
 
 	parent.Child = reconcileChildren(parent, nil, oldChildren, rtui.LaneSyncLane)
@@ -218,9 +216,8 @@ func TestFiberSync_DeepNesting(t *testing.T) {
 // TestFiberSync_RapidAddRemoveCycles tests rapid addition and removal
 func TestFiberSync_RapidAddRemoveCycles(t *testing.T) {
 	parent := &Fiber{
-		Type:  rtui.VNodeElement,
-		Tag:   "div",
-		VNode: rtui.Element("div").Build(),
+		Type: rtui.VNodeElement,
+		Tag:  "div",
 	}
 
 	// Cycle: add child, remove child, add child, remove child
@@ -253,9 +250,8 @@ func TestFiberSync_KeyTypeChange(t *testing.T) {
 	elem.SetKey("interactive")
 
 	parent := &Fiber{
-		Type:  rtui.VNodeElement,
-		Tag:   "div",
-		VNode: rtui.Element("div").Build(),
+		Type: rtui.VNodeElement,
+		Tag:  "div",
 	}
 
 	// Initial render
@@ -298,9 +294,8 @@ func TestFiberSync_SiblingChainIntegrity(t *testing.T) {
 	}
 
 	parent := &Fiber{
-		Type:  rtui.VNodeElement,
-		Tag:   "div",
-		VNode: rtui.Element("div").Build(),
+		Type: rtui.VNodeElement,
+		Tag:  "div",
 	}
 
 	parent.Child = reconcileChildren(parent, nil, children, rtui.LaneSyncLane)
@@ -353,9 +348,8 @@ func TestFiberSync_SiblingChainIntegrity(t *testing.T) {
 // TestFiberSync_EmptyToFullToEmpty tests empty -> full -> empty transitions
 func TestFiberSync_EmptyToFullToEmpty(t *testing.T) {
 	parent := &Fiber{
-		Type:  rtui.VNodeElement,
-		Tag:   "div",
-		VNode: rtui.Element("div").Build(),
+		Type: rtui.VNodeElement,
+		Tag:  "div",
 	}
 
 	// Start empty

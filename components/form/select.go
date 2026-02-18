@@ -7,12 +7,12 @@ import (
 	"github.com/wwsheng009/mint/framework/cmd"
 	"github.com/wwsheng009/mint/framework/component"
 	frameworkevent "github.com/wwsheng009/mint/framework/event"
-	"github.com/wwsheng009/mint/runtime/dimension"
-	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
-	runtimeplatform "github.com/wwsheng009/mint/runtime/platform"
 	"github.com/wwsheng009/mint/framework/theme"
 	"github.com/wwsheng009/mint/runtime"
+	"github.com/wwsheng009/mint/runtime/dimension"
+	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
 	"github.com/wwsheng009/mint/runtime/paint"
+	runtimeplatform "github.com/wwsheng009/mint/runtime/platform"
 	"github.com/wwsheng009/mint/runtime/style"
 	"github.com/wwsheng009/mint/ui"
 )
@@ -33,12 +33,12 @@ type SelectOption struct {
 // SelectVNode represents a select dropdown component
 type SelectVNode struct {
 	*ui.ElementVNode
-	options    []SelectOption
-	selected   int    // Index of selected option
-	disabled   bool
-	isFocused  bool
-	isOpen     bool // Whether dropdown is open
-	onChange   func(string)
+	options   []SelectOption
+	selected  int // Index of selected option
+	disabled  bool
+	isFocused bool
+	isOpen    bool // Whether dropdown is open
+	onChange  func(string)
 	// Mouse interaction state
 	isHovered bool
 	// Bounds for hit testing (x, y, width, height)
@@ -157,6 +157,11 @@ func (s *SelectVNode) SetOpen(open bool) *SelectVNode {
 
 // OnChange returns the change handler
 func (s *SelectVNode) OnChange() func(string) {
+	return s.onChange
+}
+
+// GetOnChange returns the change handler (implements ChangeHandlerProvider)
+func (s *SelectVNode) GetOnChange() interface{} {
 	return s.onChange
 }
 

@@ -535,12 +535,18 @@ func (e *Engine) layoutNodeWithDepth(node Node, constraints Constraints, x, y in
 		width, height = size.Width, size.Height
 	}
 
+	// Get Layer and ZIndex from node if it implements Layered interface
+	layer := GetLayerFromNode(node)
+	zIndex := GetZIndexFromNode(node)
+
 	box := &LayoutBox{
-		ID:      node.ID(),
-		X:       x,
-		Y:       y,
-		Width:   width,
-		Height:  height,
+		ID:       node.ID(),
+		X:        x,
+		Y:        y,
+		Width:    width,
+		Height:   height,
+		Layer:    layer,
+		ZIndex:   zIndex,
 		Children: make([]*LayoutBox, 0),
 	}
 

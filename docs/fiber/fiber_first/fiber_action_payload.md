@@ -740,3 +740,394 @@ UI 只描述：
 🔥 推导“Action 冒泡 + 捕获 + 优先级抢占”
 
 🔥 或给你画一张完整 Runtime 交互图
+
+很好，这一题我们直接做一套**工业级完整模型**，一次把 4 件事打通：
+
+1. ✅ 参数如何安全传递
+2. 🔥 组件作用域 Action 自动注册系统
+3. 🔥 局部 Dispatcher（子树隔离）
+4. 🔥 Action 冒泡 + 捕获 + 优先级抢占
+5. 🔥 完整 Runtime 交互图
+
+你现在做的是引擎级 runtime，这一层设计必须非常干净。
+
+---
+
+# 一、参数如何传递（最终工业解）
+
+核心原则：
+
+> Action 传数据
+> Dispatcher 持闭包
+> Fiber 不持函数
+> Payload 不可变
+
+---
+
+## 1️⃣ Action 结构
+
+```go
+type Action struct {
+    Type     ActionType
+    TargetID string
+    Payload  any
+    Lane     Lane
+}
+```
+
+---
+
+## 2️⃣ 参数通过 Payload 传递
+
+例如按钮点击携带值：
+
+```go
+type ClickPayload struct {
+    Value string
+}
+```
+
+EventSystem：
+
+```go
+bridge.DispatchFromFiber(
+    fiber,
+    ActionClick,
+    ClickPayload{Value: "abc"},
+)
+```
+
+组件接收：
+
+```go
+func (b *Button) HandleAction(a *Action) bool {
+    if a.Type == ActionClick {
+        p := a.Payload.(ClickPayload)
+        runtime.Update(func() {
+            b.value = p.Value
+        })
+        return true
+    }
+    return false
+}
+```
+
+⚠ Payload 必须：
+
+* 不含可变引用
+* 不引用组件内部状态
+* 不传闭包
+
+---
+
+# 二、🔥 组件作用域 Action 自动注册系统
+
+目标：
+
+```go
+Button().
+    OnClick(func() {
+        setShowModal(true)
+    })
+```
+
+内部自动：
+
+* 生成 ActionID
+* 注册到当前组件 scope
+* Fiber 只存 ID
+
+---
+
+## 1️⃣ ComponentScope 设计
+
+```go
+type ComponentScope struct {
+    id        string
+    actions   map[string]ActionHandler
+}
+```
+
+---
+
+## 2️⃣ Builder 阶段自动注册
+
+```go
+func (b *ButtonBuilder) OnClick(handler func()) *ButtonBuilder {
+
+    actionID := runtime.GenerateActionID()
+
+    runtime.CurrentScope().Register(actionID, func(a *Action) {
+        handler()
+    })
+
+    b.actionID = actionID
+    return b
+}
+```
+
+---
+
+## 3️⃣ Fiber 保存
+
+```go
+fiber.ActionTargetID = b.actionID
+```
+
+Fiber 不知道函数。
+
+---
+
+## 4️⃣ Scope 生命周期
+
+Scope 跟随 Component Fiber：
+
+```go
+Fiber {
+    Scope *ComponentScope
+}
+```
+
+卸载 Fiber 时自动清理 Scope。
+
+---
+
+# 三、🔥 局部 Dispatcher（子树隔离）
+
+目标：
+
+> 不同子树拥有独立 Action 空间
+> Modal 不影响主树
+> 支持 Portal
+
+---
+
+## 1️⃣ Dispatcher 分层结构
+
+```go
+type Dispatcher struct {
+    parent   *Dispatcher
+    handlers map[string]ActionHandler
+}
+```
+
+---
+
+## 2️⃣ 局部查找逻辑
+
+```go
+func (d *Dispatcher) Dispatch(a *Action) bool {
+
+    if handler, ok := d.handlers[a.TargetID]; ok {
+        handler(a)
+        return true
+    }
+
+    if d.parent != nil {
+        return d.parent.Dispatch(a)
+    }
+
+    return false
+}
+```
+
+---
+
+## 3️⃣ Fiber 挂载 Dispatcher
+
+```go
+Fiber {
+    Dispatcher *Dispatcher
+}
+```
+
+Root 有全局 Dispatcher
+Modal 有局部 Dispatcher
+
+形成：
+
+```text
+RootDispatcher
+    ├── AppDispatcher
+    │     ├── ModalDispatcher
+    │     └── SidebarDispatcher
+```
+
+实现子树隔离。
+
+---
+
+# 四、🔥 Action 冒泡 + 捕获 + 优先级抢占
+
+我们做完整模型。
+
+---
+
+## 1️⃣ 三阶段模型
+
+```text
+Capture → Target → Bubble
+```
+
+---
+
+## 2️⃣ Fiber 冒泡路径构建
+
+```go
+func BuildPath(f *Fiber) []*Fiber {
+    var path []*Fiber
+    for p := f; p != nil; p = p.Parent {
+        path = append(path, p)
+    }
+    return path
+}
+```
+
+---
+
+## 3️⃣ 捕获阶段（自上而下）
+
+```go
+for i := len(path)-1; i >= 0; i-- {
+    path[i].Dispatcher.DispatchCapture(action)
+}
+```
+
+---
+
+## 4️⃣ 目标阶段
+
+```go
+target.Dispatcher.Dispatch(action)
+```
+
+---
+
+## 5️⃣ 冒泡阶段
+
+```go
+for i := 1; i < len(path); i++ {
+    path[i].Dispatcher.DispatchBubble(action)
+}
+```
+
+---
+
+# 优先级抢占
+
+Action 带 Lane：
+
+```go
+Action{
+    Lane: LaneSync
+}
+```
+
+Scheduler 永远执行：
+
+```go
+highestPriorityLane()
+```
+
+如果：
+
+* 正在执行 Transition
+* 来了 Sync
+
+立即中断。
+
+---
+
+# 五、🔥 完整 Runtime 交互图
+
+```text
+                ┌─────────────────────┐
+                │       Input         │
+                └──────────┬──────────┘
+                           ▼
+                ┌─────────────────────┐
+                │    EventSystem      │
+                └──────────┬──────────┘
+                           ▼
+                ┌─────────────────────┐
+                │      HitTest        │
+                └──────────┬──────────┘
+                           ▼
+                ┌─────────────────────┐
+                │   Fiber Path Build  │
+                └──────────┬──────────┘
+                           ▼
+                ┌─────────────────────┐
+                │   ActionBridge      │
+                │  (Lane mapping)     │
+                └──────────┬──────────┘
+                           ▼
+                ┌─────────────────────┐
+                │     Scheduler       │
+                │  (Lane Queue)       │
+                └──────────┬──────────┘
+                           ▼
+                ┌─────────────────────┐
+                │   Capture Phase     │
+                └──────────┬──────────┘
+                           ▼
+                ┌─────────────────────┐
+                │   Target Phase      │
+                └──────────┬──────────┘
+                           ▼
+                ┌─────────────────────┐
+                │   Bubble Phase      │
+                └──────────┬──────────┘
+                           ▼
+                ┌─────────────────────┐
+                │   runtime.Update    │
+                └──────────┬──────────┘
+                           ▼
+                ┌─────────────────────┐
+                │    Reconcile WIP    │
+                └──────────┬──────────┘
+                           ▼
+                ┌─────────────────────┐
+                │      Commit         │
+                └─────────────────────┘
+```
+
+---
+
+# 六、你现在的架构成熟度评估
+
+如果你实现：
+
+* Fiber-first
+* Scope 自动注册
+* 子树 Dispatcher
+* Lane 抢占
+* Capture/Bubble
+* Immutable Payload
+
+那你的 TUI Runtime 已经具备：
+
+* 类 React 18 并发模型
+* 可扩展插件架构
+* Portal 支持
+* Modal 隔离
+* 可实现 Suspense
+
+这已经是 UI 引擎级核心。
+
+---
+
+# 七、下一步建议
+
+如果继续深入，我们可以做：
+
+* 🔥 无锁 Scheduler
+* 🔥 双缓冲 Fiber 内存模型优化
+* 🔥 Action replay + 时间旅行调试
+* 🔥 多 Root + Portal 完整隔离模型
+
+你现在已经不在做“框架”，而是在做一个真正的 UI runtime 内核。
+
+如果你愿意，我可以下一步给你：
+
+👉 一套“最小可运行工业级 Runtime 核心代码骨架”。

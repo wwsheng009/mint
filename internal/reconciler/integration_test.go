@@ -161,9 +161,8 @@ func TestCompleteWork_Component(t *testing.T) {
 func TestReconcileChildren(t *testing.T) {
 	// Create parent fiber
 	parent := &rtui.Fiber{
-		Type:  rtui.VNodeElement,
-		Tag:   "div",
-		VNode: rtui.Element("div").Build(),
+		Type: rtui.VNodeElement,
+		Tag:  "div",
 	}
 
 	// Create new children
@@ -200,9 +199,8 @@ func TestReconcileChildren_Update(t *testing.T) {
 	}
 
 	parent := &rtui.Fiber{
-		Type:  rtui.VNodeElement,
-		Tag:   "div",
-		VNode: rtui.Element("div").Build(),
+		Type: rtui.VNodeElement,
+		Tag:  "div",
 	}
 
 	// Set up existing children
@@ -236,9 +234,8 @@ func TestReconcileChildren_Reduce(t *testing.T) {
 	}
 
 	parent := &rtui.Fiber{
-		Type:  rtui.VNodeElement,
-		Tag:   "div",
-		VNode: rtui.Element("div").Build(),
+		Type: rtui.VNodeElement,
+		Tag:  "div",
 	}
 
 	reconcileChildren(parent, nil, oldChildren, rtui.LaneSyncLane)
@@ -272,9 +269,8 @@ func TestReconcileChildren_Keys(t *testing.T) {
 	oldChildren := []rtui.VNode{child1, child2}
 
 	parent := &rtui.Fiber{
-		Type:  rtui.VNodeElement,
-		Tag:   "div",
-		VNode: rtui.Element("div").Build(),
+		Type: rtui.VNodeElement,
+		Tag:  "div",
 	}
 
 	parent.Child = reconcileChildren(parent, nil, oldChildren, rtui.LaneSyncLane)
@@ -392,21 +388,19 @@ func TestShouldUpdate(t *testing.T) {
 	newVNode := rtui.Element("div").Prop("id", "test").Build()
 
 	oldFiber := &rtui.Fiber{
-		VNode:         oldVNode,
 		Type:          rtui.VNodeElement,
 		Tag:           "div",
+		DiffKey:       "_idx_0",
+		SiblingIndex:  0,
 		MemoizedProps: oldVNode.Props(),
 	}
 
-	// Same props, should update
 	if !shouldUpdate(oldFiber, newVNode) {
 		t.Error("shouldUpdate should return true for same props")
 	}
 
-	// Different props
 	newVNodeDiff := rtui.Element("div").Prop("id", "different").Build()
 
-	// Should still update (we always update for now)
 	if !shouldUpdate(oldFiber, newVNodeDiff) {
 		t.Error("shouldUpdate should return true for different props")
 	}
@@ -415,10 +409,9 @@ func TestShouldUpdate(t *testing.T) {
 // TestCreateChildFiber tests creating child fibers
 func TestCreateChildFiber(t *testing.T) {
 	parent := &rtui.Fiber{
-		Type:  rtui.VNodeElement,
-		Tag:   "div",
-		VNode: rtui.Element("div").Build(),
-		Key:   "parent",
+		Type: rtui.VNodeElement,
+		Tag:  "div",
+		Key:  "parent",
 	}
 
 	childVNode := rtui.Element("text").Prop("content", "Hello").Build()
@@ -433,8 +426,8 @@ func TestCreateChildFiber(t *testing.T) {
 		t.Error("childFiber.Return should be parent")
 	}
 
-	if childFiber.VNode != childVNode {
-		t.Error("childFiber.VNode should match childVNode")
+	if childFiber.DiffKey == "" {
+		t.Error("childFiber.DiffKey should not be empty")
 	}
 }
 
@@ -445,7 +438,6 @@ func TestCloneExistingFiber(t *testing.T) {
 		Tag:   "div",
 		Key:   "test",
 		Props: rtui.Props{"id": "test"},
-		VNode: rtui.Element("div").Prop("id", "test").Build(),
 	}
 
 	newVNode := rtui.Element("div").Prop("id", "test").Build()
@@ -470,17 +462,13 @@ func TestCloneExistingFiber(t *testing.T) {
 func TestCompleteWork_TextNode(t *testing.T) {
 	// Create a fiber with VNodeText type directly
 	// This tests the code path even though no current VNode impl returns this type
-	textElem := rtui.Element("text").Prop("content", "Hello").Build()
-
 	current := &rtui.Fiber{
-		Type:  rtui.VNodeText,
-		Tag:   "text",
-		VNode: textElem,
+		Type: rtui.VNodeText,
+		Tag:  "text",
 	}
 	workInProgress := &rtui.Fiber{
-		Type:  rtui.VNodeText,
-		Tag:   "text",
-		VNode: textElem,
+		Type: rtui.VNodeText,
+		Tag:  "text",
 	}
 
 	result := CompleteWork(current, workInProgress)
@@ -524,18 +512,18 @@ func TestCollectChildEffects(t *testing.T) {
 
 	// Create children with effect flags
 	child1 := &rtui.Fiber{
-		Type:        rtui.VNodeElement,
-		Tag:         "span",
-		Return:      parent,
-		Flags:       rtui.EffectUpdate,
+		Type:         rtui.VNodeElement,
+		Tag:          "span",
+		Return:       parent,
+		Flags:        rtui.EffectUpdate,
 		SubtreeFlags: rtui.EffectPlacement,
 	}
 
 	child2 := &rtui.Fiber{
-		Type:        rtui.VNodeElement,
-		Tag:         "div",
-		Return:      parent,
-		Flags:       rtui.EffectRef,
+		Type:         rtui.VNodeElement,
+		Tag:          "div",
+		Return:       parent,
+		Flags:        rtui.EffectRef,
 		SubtreeFlags: rtui.EffectDeletion,
 	}
 
@@ -581,17 +569,13 @@ func TestCollectChildEffects_NoChildren(t *testing.T) {
 // TestBeginWork_VNodeText tests beginWork with VNodeText type fiber
 func TestBeginWork_VNodeText(t *testing.T) {
 	// Create a fiber with VNodeText type directly
-	textElem := rtui.Element("text").Prop("content", "Hello").Build()
-
 	current := &rtui.Fiber{
-		Type:  rtui.VNodeText,
-		Tag:   "text",
-		VNode: textElem,
+		Type: rtui.VNodeText,
+		Tag:  "text",
 	}
 	workInProgress := &rtui.Fiber{
-		Type:  rtui.VNodeText,
-		Tag:   "text",
-		VNode: textElem,
+		Type: rtui.VNodeText,
+		Tag:  "text",
 	}
 
 	result := BeginWork(current, workInProgress)
@@ -623,8 +607,7 @@ func TestReconciler_SetInstanceManager(t *testing.T) {
 	config := ReconcilerConfig{EnableFiber: true}
 	reconciler := NewReconciler(nil, nil, config)
 
-	// Just verify the method exists and doesn't panic with nil
-	reconciler.SetInstanceManager(nil)
+	_ = reconciler
 }
 
 // TestReconciler_SetRenderCallback tests setting render callback
@@ -632,14 +615,11 @@ func TestReconciler_SetRenderCallback(t *testing.T) {
 	config := ReconcilerConfig{EnableFiber: true}
 	reconciler := NewReconciler(nil, nil, config)
 
-	// Set a render callback with correct signature
-	callback := func(vnode rtui.VNode, x, y int, buffer *paint.Buffer) {
-		// Dummy render callback
+	callback := func(fiber *Fiber, x, y int, buffer *paint.Buffer) {
 	}
 
 	reconciler.SetRenderCallback(callback)
 
-	// Verify callback was set (we can't directly access it, but this should not panic)
 }
 
 // TestReconciler_GetLayoutBoxes tests getting layout boxes
@@ -766,8 +746,8 @@ func TestCreateWorkInProgress(t *testing.T) {
 		t.Fatal("createWorkInProgress should return a fiber")
 	}
 
-	if work.VNode != vnode {
-		t.Error("work.VNode should match vnode")
+	if work.Tag != vnode.Tag() {
+		t.Error("work.Tag should match vnode.Tag()")
 	}
 
 	if work.Lanes != rtui.LaneNoLane {
@@ -796,8 +776,8 @@ func TestCreateWorkInProgress_New(t *testing.T) {
 		t.Fatal("createWorkInProgress should return a fiber for nil current")
 	}
 
-	if work.VNode != vnode {
-		t.Error("work.VNode should match vnode")
+	if work.Tag != vnode.Tag() {
+		t.Error("work.Tag should match vnode.Tag()")
 	}
 
 	if work.Type != rtui.VNodeElement {
@@ -1138,9 +1118,8 @@ func TestCompleteWork_NilFiber(t *testing.T) {
 // TestReconcileChildren_EmptyList tests reconciling empty children list
 func TestReconcileChildren_EmptyList(t *testing.T) {
 	parent := &rtui.Fiber{
-		Type:  rtui.VNodeElement,
-		Tag:   "div",
-		VNode: rtui.Element("div").Build(),
+		Type: rtui.VNodeElement,
+		Tag:  "div",
 	}
 
 	// Empty children list
@@ -1154,9 +1133,9 @@ func TestReconcileChildren_EmptyList(t *testing.T) {
 // TestCreateChildFiber_WithLanes tests creating child fiber with lanes
 func TestCreateChildFiber_WithLanes(t *testing.T) {
 	parent := &rtui.Fiber{
-		Type:  rtui.VNodeElement,
-		Tag:   "div",
-		Key:   "parent",
+		Type: rtui.VNodeElement,
+		Tag:  "div",
+		Key:  "parent",
 	}
 
 	childVNode := rtui.Element("text").Prop("content", "Test").Build()
@@ -1285,15 +1264,11 @@ func TestCreateFiberFromVNode_ComponentWithKey(t *testing.T) {
 // TestBeginWork_UnknownType tests BeginWork with unknown type
 func TestBeginWork_UnknownType(t *testing.T) {
 	// Create a fiber with unknown type (not one of the standard types)
-	unknownElem := rtui.Element("div").Build()
-
 	current := &rtui.Fiber{
-		Type:  rtui.VNodeType(99), // Unknown type
-		VNode: unknownElem,
+		Type: rtui.VNodeType(99), // Unknown type
 	}
 	workInProgress := &rtui.Fiber{
-		Type:  rtui.VNodeType(99), // Unknown type
-		VNode: unknownElem,
+		Type: rtui.VNodeType(99), // Unknown type
 	}
 
 	// Should not panic, return workInProgress
@@ -1306,15 +1281,11 @@ func TestBeginWork_UnknownType(t *testing.T) {
 
 // TestCompleteWork_UnknownType tests CompleteWork with unknown type
 func TestCompleteWork_UnknownType(t *testing.T) {
-	unknownElem := rtui.Element("div").Build()
-
 	current := &rtui.Fiber{
-		Type:  rtui.VNodeType(99), // Unknown type
-		VNode: unknownElem,
+		Type: rtui.VNodeType(99), // Unknown type
 	}
 	workInProgress := &rtui.Fiber{
-		Type:  rtui.VNodeType(99), // Unknown type
-		VNode: unknownElem,
+		Type: rtui.VNodeType(99), // Unknown type
 	}
 
 	result := CompleteWork(current, workInProgress)
@@ -1475,12 +1446,10 @@ func TestFiber_ReturnLink(t *testing.T) {
 
 // TestCloneExistingFiber_WithProps tests cloning with different props
 func TestCloneExistingFiber_WithProps(t *testing.T) {
-	oldVNode := rtui.Element("div").Prop("id", "old").Build()
 	existing := &rtui.Fiber{
 		Type:  rtui.VNodeElement,
 		Tag:   "div",
 		Key:   "test",
-		VNode: oldVNode,
 		Props: rtui.Props{"id": "old"},
 	}
 
@@ -1538,35 +1507,28 @@ func TestPathBasedKeyStrategy_Integration(t *testing.T) {
 		t.Fatalf("Expected 3 children, got %d", len(allChildren))
 	}
 
-	// Verify first panel
 	panel1 := allChildren[0]
 	expectedPanel1Path := "/root/base[0]/vstack[0]/panel[0]"
-	// ✨ New Design: Key uses index fallback ("0"), Path is for debugging
-	if panel1.Key != "0" {
-		t.Errorf("First panel key should be %q (index fallback), got %q", "0", panel1.Key)
+	if panel1.Key != "_idx_0" {
+		t.Errorf("First panel key should be %q (index fallback), got %q", "_idx_0", panel1.Key)
 	}
 	if panel1.Path != expectedPanel1Path {
 		t.Errorf("First panel path should be %q, got %q", expectedPanel1Path, panel1.Path)
 	}
 
-	// Verify second panel (index should increment)
 	panel2 := allChildren[1]
 	expectedPanel2Path := "/root/base[0]/vstack[0]/panel[1]"
-	// ✨ New Design: Key uses index fallback ("1"), Path is for debugging
-	if panel2.Key != "1" {
-		t.Errorf("Second panel key should be %q (index fallback), got %q", "1", panel2.Key)
+	if panel2.Key != "_idx_1" {
+		t.Errorf("Second panel key should be %q (index fallback), got %q", "_idx_1", panel2.Key)
 	}
 	if panel2.Path != expectedPanel2Path {
 		t.Errorf("Second panel path should be %q, got %q", expectedPanel2Path, panel2.Path)
 	}
 
-	// Verify button (different type, index resets to 0)
 	button := allChildren[2]
 	expectedButtonPath := "/root/base[0]/vstack[0]/button[0]"
-	// ✨ New Design: Key uses index fallback ("2" for 3rd child), Path is for debugging
-	// The index fallback is based on sibling index, not type index
-	if button.Key != "2" {
-		t.Errorf("Button key should be %q (index fallback for 3rd child), got %q", "2", button.Key)
+	if button.Key != "_idx_2" {
+		t.Errorf("Button key should be %q (index fallback for 3rd child), got %q", "_idx_2", button.Key)
 	}
 	if button.Path != expectedButtonPath {
 		t.Errorf("Button path should be %q, got %q", expectedButtonPath, button.Path)

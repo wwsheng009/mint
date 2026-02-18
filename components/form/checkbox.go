@@ -25,11 +25,11 @@ var _ action.FocusableActionTarget = (*CheckboxVNode)(nil)
 // CheckboxVNode represents a checkbox component
 type CheckboxVNode struct {
 	*ui.ElementVNode
-	checked      bool
-	disabled     bool
-	label        string
-	onChange     func(bool)
-	isFocused    bool // Internal focus state
+	checked   bool
+	disabled  bool
+	label     string
+	onChange  func(bool)
+	isFocused bool // Internal focus state
 	// Mouse interaction state
 	isHovered    bool
 	onMouseEnter func()
@@ -110,6 +110,11 @@ func (c *CheckboxVNode) SetLabel(text string) *CheckboxVNode {
 
 // OnChange returns the change handler
 func (c *CheckboxVNode) OnChange() func(bool) {
+	return c.onChange
+}
+
+// GetOnChange returns the change handler (implements ChangeHandlerProvider)
+func (c *CheckboxVNode) GetOnChange() interface{} {
 	return c.onChange
 }
 
@@ -256,10 +261,20 @@ func (c *CheckboxVNode) SetOnMouseEnter(fn func()) *CheckboxVNode {
 	return c
 }
 
+// GetOnMouseEnter returns the mouse enter handler (implements MouseHandlerProvider)
+func (c *CheckboxVNode) GetOnMouseEnter() func() {
+	return c.onMouseEnter
+}
+
 // SetOnMouseLeave sets the mouse leave handler
 func (c *CheckboxVNode) SetOnMouseLeave(fn func()) *CheckboxVNode {
 	c.onMouseLeave = fn
 	return c
+}
+
+// GetOnMouseLeave returns the mouse leave handler (implements MouseHandlerProvider)
+func (c *CheckboxVNode) GetOnMouseLeave() func() {
+	return c.onMouseLeave
 }
 
 // HandleEvent processes mouse and keyboard events for the checkbox

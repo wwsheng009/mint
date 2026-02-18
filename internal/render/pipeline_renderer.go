@@ -108,23 +108,67 @@ func (r *PipelineRenderer) Render(vnode rtui.VNode, x, y int, buffer interface{}
 }
 
 // hasLayerNodes checks if the VNode tree contains any non-base layer nodes
+// In Fiber mode, Layer is stored on Fiber nodes, not VNodes
+// So we check the Fiber tree if available, otherwise fall back to VNode.GetLayer()
 func (r *PipelineRenderer) hasLayerNodes(vnode rtui.VNode) bool {
+	if vnode == nil {
+		return false
+	}
+
+	// First, try to check from Fiber tree (more accurate in Fiber mode)
+	if r.fiber != nil {
+		return r.hasLayerNodesFromFiber(r.fiber)
+	}
+
+	// Fallback: Check from VNode tree (for non-Fiber mode)
+	return r.hasLayerNodesFromVNode(vnode)
+}
+
+// hasLayerNodesFromFiber checks if the Fiber tree contains any non-base layer nodes
+// This is the preferred method in Fiber mode
+func (r *PipelineRenderer) hasLayerNodesFromFiber(fiber *rtui.Fiber) bool {
+	if fiber == nil {
+		return false
+	}
+
+	// Check this node
+	layer := fiber.Layer
+	log.HitMapLogger.Debug("[hasLayerNodes] Node type=%T, Layer=%d, IsValid=%v",
+		fiber, layer, layer.IsValid())
+	if layer != rtui.LayerBase && layer.IsValid() {
+		log.HitMapLogger.Debug("[hasLayerNodes] ✅ Found layer node: Layer=%d", layer)
+		return true
+	}
+
+	// Recursively check children (Fiber tree: Child -> Sibling)
+	for child := fiber.Child; child != nil; child = child.Sibling {
+		if r.hasLayerNodesFromFiber(child) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// hasLayerNodesFromVNode checks if the VNode tree contains any non-base layer nodes
+// This is used as fallback for non-Fiber mode
+func (r *PipelineRenderer) hasLayerNodesFromVNode(vnode rtui.VNode) bool {
 	if vnode == nil {
 		return false
 	}
 
 	// Check this node
 	layer := vnode.GetLayer()
-	log.HitMapLogger.Debug("[hasLayerNodes] Node type=%T, Layer=%d, IsValid=%v",
+	log.HitMapLogger.Debug("[hasLayerNodes] VNode type=%T, Layer=%d, IsValid=%v",
 		vnode, layer, layer.IsValid())
 	if layer != rtui.LayerBase && layer.IsValid() {
-		log.HitMapLogger.Debug("[hasLayerNodes] ✅ Found layer node: Layer=%d", layer)
+		log.HitMapLogger.Debug("[hasLayerNodes] ✅ Found layer VNode: Layer=%d", layer)
 		return true
 	}
 
 	// Recursively check children
 	for _, child := range vnode.Children() {
-		if r.hasLayerNodes(child) {
+		if r.hasLayerNodesFromVNode(child) {
 			return true
 		}
 	}

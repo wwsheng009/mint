@@ -209,51 +209,53 @@ func (c *Collector) GetHighestLayer() rtui.Layer {
 	return c.layers.GetHighestLayer()
 }
 
-// Deprecated: Use BuildRenderPlanes instead. This method will be removed in a future version.
-// StripLayers returns a new VNode tree with layer nodes removed
-// This creates a "clean" base tree for normal rendering
-// Used internally by CollectAndLayout to separate base content from overlays
+// =============================================================================
+// DEPRECATED: StripLayers and cloneWithoutLayers
+// =============================================================================
+// These methods violate Fiber-first architecture by cloning VNode and separating
+// the tree structure based on Layer. They are kept for backward compatibility only.
+//
+// Per docs/fiber/diff_layer.md:
+// - Layer is a RENDERING dimension, NOT a STRUCTURE dimension
+// - Layer should NOT cause VNode cloning or tree splitting
+// - Use RenderPlanes grouping instead
+//
+// DO NOT USE IN NEW CODE. Use BuildRenderPlanes or BuildFromFiber instead.
+
+// StripLayers returns a new VNode tree with layer nodes removed.
+// DEPRECATED: Use Fiber-first layout with RenderPlanes grouping instead.
+// This method clones VNode which violates identity stability.
 func (c *Collector) StripLayers(vnode rtui.VNode) rtui.VNode {
 	if vnode == nil {
 		return nil
 	}
 
-	// If this node itself is a layer node, return nil
-	// (it will be rendered separately)
 	if vnode.GetLayer() != rtui.LayerBase {
 		return nil
 	}
 
-	// Clone the node and filter out layer children
 	cloned := c.cloneWithoutLayers(vnode)
 	return cloned
 }
 
-// Deprecated: This method will be removed in a future version.
-// Use BuildRenderPlanes instead to access layer-manipulated rendering data.
-// cloneWithoutLayers creates a copy of a VNode without layer children
-// Used internally by StripLayers for recursive filtering
+// cloneWithoutLayers creates a copy of a VNode without layer children.
+// DEPRECATED: This method clones VNode which violates identity stability.
 func (c *Collector) cloneWithoutLayers(vnode rtui.VNode) rtui.VNode {
 	if vnode == nil {
 		return nil
 	}
 
-	// Get non-layer children
 	var nonLayerChildren []rtui.VNode
 	for _, child := range vnode.Children() {
 		if child.GetLayer() == rtui.LayerBase {
-			// Recursively filter this child's children
 			nonLayerChildren = append(nonLayerChildren, c.cloneWithoutLayers(child))
 		}
-		// Layer children are simply omitted
 	}
 
-	// If no children changed, return original
 	if len(nonLayerChildren) == len(vnode.Children()) {
 		return vnode
 	}
 
-	// Create a new node with filtered children
 	switch n := vnode.(type) {
 	case *rtui.ElementVNode:
 		cloned := rtui.NewElement(n.Tag())
@@ -263,7 +265,6 @@ func (c *Collector) cloneWithoutLayers(vnode rtui.VNode) rtui.VNode {
 		cloned.SetChildren(nonLayerChildren)
 		return cloned
 	case *rtui.LayoutNode:
-		// LayoutNode embeds ElementVNode, handle specially to preserve layout properties
 		cloned := rtui.NewElement(n.Tag())
 		cloned.SetProps(n.Props().Clone())
 		cloned.SetStyle(n.Style())
@@ -271,7 +272,6 @@ func (c *Collector) cloneWithoutLayers(vnode rtui.VNode) rtui.VNode {
 		cloned.SetChildren(nonLayerChildren)
 		return cloned
 	case *rtui.BorderedNode:
-		// BorderedNode embeds ElementVNode, handle specially
 		cloned := rtui.NewElement(n.Tag())
 		cloned.SetProps(n.Props().Clone())
 		cloned.SetStyle(n.Style())
@@ -289,10 +289,8 @@ func (c *Collector) cloneWithoutLayers(vnode rtui.VNode) rtui.VNode {
 		cloned.SetChildren(nonLayerChildren)
 		return cloned
 	case *rtui.TextVNode:
-		// Text nodes don't have children
 		return vnode
 	default:
-		// For unknown types, try to set children if the interface supports it
 		if len(nonLayerChildren) != len(vnode.Children()) {
 			vnode.SetChildren(nonLayerChildren)
 		}

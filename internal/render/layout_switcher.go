@@ -365,10 +365,20 @@ func (a *newLayoutResultAdapter) GetHitMap() *event.HitMap {
 	return convertLayoutHitMap(a.result.HitMap)
 }
 
-// GetRenderPlanes returns render planes (not supported yet)
+// GetRenderPlanes returns render planes built from layout.LayoutBox tree
+// NOTE: Currently returns nil because layout.LayoutBox doesn't contain VNode references
+// needed for painting. The RenderLayers will fallback to Render() method which works correctly.
 func (a *newLayoutResultAdapter) GetRenderPlanes() *layer.RenderPlanes {
-	// Not yet supported in new layout engine
+	// Return nil to force fallback to Render() method
+	// The Render() method handles Modal centering via applyLayerTransforms
+	// TODO: In future, we could build proper RenderPlanes if we store VNode references in LayoutBox
 	return nil
+}
+
+// GetLayoutResult returns the underlying layout.LayoutResult
+// This is needed for applying layer transforms (Modal centering)
+func (a *newLayoutResultAdapter) GetLayoutResult() *layout.LayoutResult {
+	return a.result
 }
 
 // layoutBoxAdapter adapts layout.LayoutBox to PaintableBox

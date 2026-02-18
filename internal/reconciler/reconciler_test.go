@@ -8,16 +8,11 @@ import (
 
 // TestNewFiberFromVNode tests Fiber creation from VNodes
 func TestNewFiberFromVNode(t *testing.T) {
-	// Test ElementVNode
 	elem := rtui.Element("div").Prop("id", "test").Build()
 	fiber := CreateFiberFromVNode(elem)
 
 	if fiber == nil {
 		t.Fatal("CreateFiberFromVNode returned nil for ElementVNode")
-	}
-
-	if fiber.VNode != elem {
-		t.Errorf("Fiber.VNode not set, got %+v", fiber.VNode)
 	}
 
 	if fiber.Type != rtui.VNodeElement {
@@ -26,6 +21,10 @@ func TestNewFiberFromVNode(t *testing.T) {
 
 	if fiber.Tag != "div" {
 		t.Errorf("Fiber.Tag = %v, want 'div'", fiber.Tag)
+	}
+
+	if fiber.Props["id"] != "test" {
+		t.Errorf("Fiber.Props['id'] = %v, want 'test'", fiber.Props["id"])
 	}
 }
 
@@ -99,15 +98,14 @@ func TestNewFiberFromVNode_nil(t *testing.T) {
 
 // TestCloneFiber tests Fiber cloning
 func TestCloneFiber(t *testing.T) {
-	// Create a fiber with various properties
 	original := &rtui.Fiber{
-		VNode: rtui.Element("div").Prop("id", "test").Build(),
-		Type:  rtui.VNodeElement,
-		Tag:   "div",
-		Key:   "test-key",
-		Props: rtui.Props{"custom": "value"},
-		Lanes: rtui.LaneSyncLane,
-		Flags: rtui.EffectUpdate,
+		Type:    rtui.VNodeElement,
+		Tag:     "div",
+		Key:     "test-key",
+		DiffKey: "test-key",
+		Props:   rtui.Props{"custom": "value"},
+		Lanes:   rtui.LaneSyncLane,
+		Flags:   rtui.EffectUpdate,
 	}
 
 	cloned := CloneFiber(original)
@@ -411,10 +409,10 @@ func TestEffectFlagConstants(t *testing.T) {
 		value int
 	}{
 		{"EffectNoEffect", rtui.EffectNoEffect, 0},
-		{"EffectPlacement", rtui.EffectPlacement, 2},   // Changed to actual value
-		{"EffectUpdate", rtui.EffectUpdate, 4},          // Changed to actual value
-		{"EffectDeletion", rtui.EffectDeletion, 8},      // Changed to actual value
-		{"EffectRef", rtui.EffectRef, 16},               // Changed to actual value
+		{"EffectPlacement", rtui.EffectPlacement, 2}, // Changed to actual value
+		{"EffectUpdate", rtui.EffectUpdate, 4},       // Changed to actual value
+		{"EffectDeletion", rtui.EffectDeletion, 8},   // Changed to actual value
+		{"EffectRef", rtui.EffectRef, 16},            // Changed to actual value
 	}
 
 	for _, tt := range tests {

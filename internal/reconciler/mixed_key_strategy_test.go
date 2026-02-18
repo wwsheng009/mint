@@ -98,45 +98,38 @@ func TestMixedKeyStrategy_MultipleStaticChildren(t *testing.T) {
 	// Create fibers using createAllNewChildren (which properly handles type indexing)
 	firstChild := createAllNewChildren(parent, children, LaneSyncLane)
 
-	// Collect fibers into slice
 	fibers := []*Fiber{}
 	for child := firstChild; child != nil; child = child.Sibling {
 		fibers = append(fibers, child)
 	}
 
-	// Verify we have 4 children
 	if len(fibers) != 4 {
 		t.Fatalf("Expected 4 children, got %d", len(fibers))
 	}
 
-	// ✨ New Design: Key uses index fallback, Path is for debugging
-	// Verify first panel (index 0)
-	if fibers[0].Key != "0" {
-		t.Errorf("Expected key '0' (index fallback), got '%s'", fibers[0].Key)
+	if fibers[0].Key != "_idx_0" {
+		t.Errorf("Expected key '_idx_0' (index fallback), got '%s'", fibers[0].Key)
 	}
 	if fibers[0].Path != "/root/base[0]/panel[0]" {
 		t.Errorf("Expected path '/root/base[0]/panel[0]', got '%s'", fibers[0].Path)
 	}
 
-	// Verify second panel (index 1)
-	if fibers[1].Key != "1" {
-		t.Errorf("Expected key '1' (index fallback), got '%s'", fibers[1].Key)
+	if fibers[1].Key != "_idx_1" {
+		t.Errorf("Expected key '_idx_1' (index fallback), got '%s'", fibers[1].Key)
 	}
 	if fibers[1].Path != "/root/base[0]/panel[1]" {
 		t.Errorf("Expected path '/root/base[0]/panel[1]', got '%s'", fibers[1].Path)
 	}
 
-	// Verify first button (index 2)
-	if fibers[2].Key != "2" {
-		t.Errorf("Expected key '2' (index fallback), got '%s'", fibers[2].Key)
+	if fibers[2].Key != "_idx_2" {
+		t.Errorf("Expected key '_idx_2' (index fallback), got '%s'", fibers[2].Key)
 	}
 	if fibers[2].Path != "/root/base[0]/button[0]" {
 		t.Errorf("Expected path '/root/base[0]/button[0]', got '%s'", fibers[2].Path)
 	}
 
-	// Verify second button (index 3)
-	if fibers[3].Key != "3" {
-		t.Errorf("Expected key '3' (index fallback), got '%s'", fibers[3].Key)
+	if fibers[3].Key != "_idx_3" {
+		t.Errorf("Expected key '_idx_3' (index fallback), got '%s'", fibers[3].Key)
 	}
 	if fibers[3].Path != "/root/base[0]/button[1]" {
 		t.Errorf("Expected path '/root/base[0]/button[1]', got '%s'", fibers[3].Path)

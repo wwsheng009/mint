@@ -49,7 +49,7 @@ type InputVNode struct {
 	onBlur      func()
 	onSubmit    func()
 	isFocused   bool // Internal focus state
-	cursorPos   int // Cursor position for editing
+	cursorPos   int  // Cursor position for editing
 	// Mouse interaction state
 	isHovered bool
 	// Bounds for hit testing (x, y, width, height)
@@ -63,7 +63,7 @@ func NewInput() *InputVNode {
 	return &InputVNode{
 		ElementVNode: ui.NewElement("input"),
 		value:        "",
-		placeholder: "",
+		placeholder:  "",
 		inputType:    InputTypeText,
 		maxLength:    0, // 0 = no limit
 		disabled:     false,
@@ -173,6 +173,11 @@ func (i *InputVNode) OnChange() func(string) {
 	return i.onChange
 }
 
+// GetOnChange returns the change handler (implements ChangeHandlerProvider)
+func (i *InputVNode) GetOnChange() interface{} {
+	return i.onChange
+}
+
 // SetOnChange sets the change handler
 func (i *InputVNode) SetOnChange(fn func(string)) *InputVNode {
 	i.onChange = fn
@@ -182,6 +187,11 @@ func (i *InputVNode) SetOnChange(fn func(string)) *InputVNode {
 
 // OnFocusFunc returns the focus handler
 func (i *InputVNode) OnFocusFunc() func() {
+	return i.onFocus
+}
+
+// GetOnFocus returns the focus handler (implements FocusHandlerProvider)
+func (i *InputVNode) GetOnFocus() func() {
 	return i.onFocus
 }
 
@@ -197,6 +207,11 @@ func (i *InputVNode) OnBlurFunc() func() {
 	return i.onBlur
 }
 
+// GetOnBlur returns the blur handler (implements FocusHandlerProvider)
+func (i *InputVNode) GetOnBlur() func() {
+	return i.onBlur
+}
+
 // SetOnBlur sets the blur handler
 func (i *InputVNode) SetOnBlur(fn func()) *InputVNode {
 	i.onBlur = fn
@@ -206,6 +221,11 @@ func (i *InputVNode) SetOnBlur(fn func()) *InputVNode {
 
 // OnSubmitFunc returns the submit handler
 func (i *InputVNode) OnSubmitFunc() func() {
+	return i.onSubmit
+}
+
+// GetOnSubmit returns the submit handler (implements SubmitHandlerProvider)
+func (i *InputVNode) GetOnSubmit() func() {
 	return i.onSubmit
 }
 
@@ -671,7 +691,7 @@ func (i *InputVNode) Paint(x, y int) []paint.DrawCmd {
 	}
 
 	// Build input display with brackets
-	inputLabel :=  displayText
+	inputLabel := displayText
 
 	// If explicit width is set, pad to fill the width
 	// Width includes the brackets, so content area is Width - 2
@@ -765,7 +785,6 @@ func (i *InputVNode) Label() string {
 	return "input"
 }
 
-
 // ============================================================================
 // ActionTarget 接口实现
 // ============================================================================
@@ -852,8 +871,6 @@ func (i *InputVNode) Focus() bool {
 func (i *InputVNode) Blur() {
 	i.SetFocus(false)
 }
-
-
 
 // ============================================================================
 // EditableActionTarget 接口实现

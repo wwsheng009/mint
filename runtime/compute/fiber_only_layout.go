@@ -123,10 +123,11 @@ func (e *Engine) buildFiberOnlyBox(
 
 	// Create base ComputedBox using ONLY Fiber properties
 	box := &ComputedBox{
+		VNode:      rtui.NewFiberVNode(fiber),
 		Parent:     parent,
 		NodeID:     fiber.NodeID,
 		Layer:      fiber.Layer,
-		ChildFiber: fiber, // Store Fiber reference for NodeID propagation
+		ChildFiber: fiber,
 		Box: runtime.Box{
 			X:      0,
 			Y:      0,
@@ -202,10 +203,15 @@ func estimateBoxSize(fiber *rtui.Fiber, constraints runtime.BoxConstraints) runt
 	tag := fiber.Tag
 	if tag == "text" || tag == "unknown" {
 		// Text node - estimate based on content
-		// Try to get content from MemoizedState or Props
+		// Priority: MemoizedState (set by CreateFiber) > Props["content"]
 		content := ""
-		if props := fiber.Props; props != nil {
-			if c, ok := props["content"]; ok {
+		if fiber.MemoizedState != nil {
+			if s, ok := fiber.MemoizedState.(string); ok {
+				content = s
+			}
+		}
+		if content == "" && fiber.Props != nil {
+			if c, ok := fiber.Props["content"]; ok {
 				if s, ok := c.(string); ok {
 					content = s
 				}
@@ -213,15 +219,20 @@ func estimateBoxSize(fiber *rtui.Fiber, constraints runtime.BoxConstraints) runt
 		}
 		// Each character is approximately 1 column wide in terminal
 		width := len([]rune(content))
-		if width > constraints.MaxWidth {
+		if constraints.MaxWidth != runtime.Infinity && width > constraints.MaxWidth {
 			width = constraints.MaxWidth
 		}
 		if width < constraints.MinWidth {
 			width = constraints.MinWidth
 		}
 		height := 1
-		if height > constraints.MaxHeight {
+		// IMPORTANT: Only clamp height if MaxHeight is bounded AND positive
+		// Don't clamp if MaxHeight is 0 (uninitialized/invalid)
+		if constraints.MaxHeight > 0 && constraints.MaxHeight != runtime.Infinity && height > constraints.MaxHeight {
 			height = constraints.MaxHeight
+		}
+		if height < constraints.MinHeight {
+			height = constraints.MinHeight
 		}
 		return runtime.Size{Width: width, Height: height}
 	}

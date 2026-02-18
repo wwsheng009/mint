@@ -68,7 +68,7 @@ func TestFiberCloneUpdateQueueSharing(t *testing.T) {
 		UpdateQueue: &UpdateQueue{
 			First: &Update{
 				Payload: "update1",
-				Lane:   LaneSyncLane,
+				Lane:    LaneSyncLane,
 			},
 		},
 	}
@@ -91,7 +91,7 @@ func TestFiberCloneUpdateQueueSharing(t *testing.T) {
 	// Add an update to fiber2
 	newUpdate := &Update{
 		Payload: "update2",
-		Lane:   LaneDefaultLane,
+		Lane:    LaneDefaultLane,
 	}
 	fiber2.EnqueueUpdate(newUpdate)
 
@@ -132,13 +132,11 @@ func TestStateRedundancy(t *testing.T) {
 	componentFunc := func() rtui.VNode {
 		return rtui.Element("text").Prop("content", "test").Build()
 	}
-	compVNode := rtui.NewComponent("TestComponent", componentFunc)
 
 	fiber := &Fiber{
-		VNode: compVNode,
-		Type:  rtui.VNodeComponent,
-		Tag:   "TestComponent",
-		Key:   "test-comp",
+		Type: rtui.VNodeComponent,
+		Tag:  "TestComponent",
+		Key:  "test-comp",
 	}
 
 	instance := rtui.NewBaseComponentInstance("test-comp", componentFunc)

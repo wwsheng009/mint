@@ -167,7 +167,7 @@ func (m *MouseMsg) GetLocalPosition() (x, y int) {
 
 // String 返回 MouseMsg 的字符串表示
 func (m *MouseMsg) String() string {
-	return fmt.Sprintf("MouseMsg{%s %s at (%d,%d) local(%d,%d) target=%s}",
+	return fmt.Sprintf("MouseMsg{%s %s at (%d,%d) local(%d,%d) target=%d}",
 		m.buttonString(),
 		m.actionString(),
 		m.X, m.Y,
