@@ -33,7 +33,8 @@ type ComputedLayout struct {
 // ComputedBox represents the computed position and size of a single node
 // This is NOT a VNode - it's the result of layout calculation
 type ComputedBox struct {
-	// VNode reference
+	// VNode reference (DEPRECATED - will be removed in Fiber-first migration)
+	// Use ChildFiber, NodeID, DiffKey instead
 	VNode VNode
 
 	// Computed position and size (embedded from runtime.Box)
@@ -62,6 +63,11 @@ type ComputedBox struct {
 	// This provides stable runtime identity independent of VNode keys and paths
 	// See: docs/render/fiber/IDENTITY_REFACTORING_PLAN.md
 	NodeID uint64
+
+	// DiffKey stores the key for dirty tracking (Fiber-first)
+	// Copied from Fiber.DiffKey during layout
+	// This replaces VNode.Key() for dirty tracking
+	DiffKey string
 
 	// Layer specifies rendering layer (Z-order) for this box
 	// Layers: Base(0) < Overlay(1) < Modal(2) < Tooltip(3) < Inspector(4)

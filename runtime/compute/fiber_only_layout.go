@@ -126,6 +126,7 @@ func (e *Engine) buildFiberOnlyBox(
 		VNode:      rtui.NewFiberVNode(fiber),
 		Parent:     parent,
 		NodeID:     fiber.NodeID,
+		DiffKey:    fiber.DiffKey, // Fiber-first: copy DiffKey for dirty tracking
 		Layer:      fiber.Layer,
 		ChildFiber: fiber,
 		Box: runtime.Box{

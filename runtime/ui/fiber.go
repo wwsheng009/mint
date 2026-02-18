@@ -225,6 +225,15 @@ type Fiber struct {
 	// This is extracted from VNode props during completeWork.
 	// FocusManager should only access Fiber.FocusableMeta, never VNode.
 	FocusableMeta *FocusableMeta
+
+	// === Paint Function (Fiber-first) ===
+	// PaintFunc stores the paint function extracted from VNode.Paint().
+	// This enables Render to call Paint without VNode dependency.
+	// Type: func(x, y int) []paint.DrawCmd
+	// Stored as interface{} to avoid import cycle with runtime/paint.
+	// See: docs/fiber/fiber_first/FIBER_FIRST_CHECKLIST.md
+	// Set during completeWork phase in reconciler.
+	PaintFunc interface{}
 }
 
 // =============================================================================

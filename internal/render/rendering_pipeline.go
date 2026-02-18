@@ -114,7 +114,7 @@ func (p *RenderingPipeline) Render(vnode rtui.VNode, fiber *reconciler.Fiber, co
 			}
 		} else if newAdapter, ok := result.(*newLayoutResultAdapter); ok {
 			// Handle runtime/layout engine result - Fiber-First path
-			log.PipelineLogger.Debug("New layout engine result - Fiber-First path")
+			log.PipelineLogger.Debug("New layout engine result - Fiber-First path (simplified)")
 			
 			// Get the LayoutBox tree from runtime/layout engine
 			layoutResult := newAdapter.GetLayoutResult()
@@ -124,21 +124,36 @@ func (p *RenderingPipeline) Render(vnode rtui.VNode, fiber *reconciler.Fiber, co
 			}
 			
 			// Apply Modal centering to the LayoutBox tree
-			// This is done BEFORE converting to ComputedLayout
 			p.applyModalCenteringToLayoutBox(layoutResult, constraints)
 			
-			// Convert LayoutBox tree to ComputedLayout for PaintEngine
-			// The conversion uses Fiber tree to get VNode references via NodeID
-			layout = p.convertLayoutBoxToComputedLayout(layoutResult, fiber, constraints)
-			if layout == nil {
-				log.PipelineLogger.Debug("Failed to convert LayoutBox to ComputedLayout")
+			// === NEW SIMPLIFIED PATH ===
+			// Convert LayoutBox directly to PaintableLayout (skip ComputedBox)
+			converter := NewFiberToPaintableConverter(fiber)
+			paintableLayout := converter.ConvertToLayout(layoutResult.Root)
+			if paintableLayout == nil || paintableLayout.Root == nil {
+				log.PipelineLogger.Debug("Failed to convert LayoutBox to PaintableLayout")
 				return p.renderLegacy(vnode, 0, 0, buffer)
 			}
 			
-			// Update HitMap from the transformed LayoutBox positions
+			// Build HitMap from layout result
 			if layoutResult.HitMap != nil {
-				layout.HitMap = p.buildHitMapFromLayoutResult(layoutResult)
+				paintableLayout.HitMap = p.buildHitMapFromLayoutResult(layoutResult)
 			}
+			
+			log.PipelineLogger.Debug("✅ Simplified layout complete, starting Paint phase")
+			
+			// Paint directly using PaintableLayout
+			err = p.paintEngine.PaintLayout(paintableLayout, buffer)
+			
+			// Save HitMap
+			if paintableLayout.HitMap != nil {
+				if hitMap, ok := paintableLayout.HitMap.(*event.HitMap); ok {
+					p.lastHitMap = hitMap
+				}
+			}
+			
+			log.PipelineLogger.Debug("Paint complete, err=%v", err)
+			return err
 		} else {
 			// For new layout engine, we need different handling
 			log.PipelineLogger.Debug("New layout engine result - converting for paint")
@@ -697,19 +712,29 @@ func (p *RenderingPipeline) convertLayoutBoxToComputedLayout(
 	collectBoxes(result.Root)
 
 	// Build a map from Fiber key to Fiber for matching
+	// We use multiple keys for matching:
+	// 1. DiffKey (primary)
+	// 2. Key (alias for DiffKey)
+	// 3. NodeID as string (for matching with LayoutBox.ID from FiberToNodeAdapter)
 	fiberMap := make(map[string]*reconciler.Fiber)
 	var collectFibers func(f *reconciler.Fiber)
 	collectFibers = func(f *reconciler.Fiber) {
 		if f == nil {
 			return
 		}
-		key := f.DiffKey
-		if key == "" {
-			key = f.Key
+		// Add by DiffKey
+		if f.DiffKey != "" {
+			fiberMap[f.DiffKey] = f
 		}
-		if key != "" {
-			fiberMap[key] = f
+		// Add by Key (if different from DiffKey)
+		if f.Key != "" && f.Key != f.DiffKey {
+			fiberMap[f.Key] = f
 		}
+		// Add by NodeID string (for matching with FiberToNodeAdapter.ID())
+		nodeIDKey := fmt.Sprintf("%d", f.NodeID)
+		fiberMap[nodeIDKey] = f
+		
+		// Recursively collect children
 		for child := f.Child; child != nil; child = child.Sibling {
 			collectFibers(child)
 		}
@@ -751,10 +776,28 @@ func (p *RenderingPipeline) convertLayoutBoxToComputedBox(
 		LayoutDirty: false,
 	}
 
-	// Try to find the Fiber node and get VNode
-	// First try by ID match
-	if matchingFiber, ok := fiberMap[lbox.ID]; ok {
+	// Try to find the Fiber node by multiple matching strategies
+	// Strategy 1: Direct ID match (lbox.ID == fiber.DiffKey/Key)
+	// Strategy 2: NodeID match (lbox.ID == fmt.Sprintf("%d", fiber.NodeID))
+	var matchingFiber *reconciler.Fiber
+	
+	// First try direct ID match
+	if f, ok := fiberMap[lbox.ID]; ok {
+		matchingFiber = f
+	} else {
+		// Fallback: search by NodeID
+		// LayoutBox.ID may be NodeID format ("95") while fiberMap uses DiffKey
+		for _, f := range fiberMap {
+			if fmt.Sprintf("%d", f.NodeID) == lbox.ID {
+				matchingFiber = f
+				break
+			}
+		}
+	}
+
+	if matchingFiber != nil {
 		cbox.NodeID = matchingFiber.NodeID
+		cbox.DiffKey = matchingFiber.DiffKey // Fiber-first: copy DiffKey
 		cbox.ChildFiber = matchingFiber
 		// Wrap Fiber as VNode using FiberVNode (transitional approach)
 		// Fiber-first: VNode reference is not stored in Fiber, we wrap it
@@ -786,6 +829,34 @@ func convertLayoutLayerToRTUI(l layout.Layer) rtui.Layer {
 	default:
 		return rtui.LayerBase
 	}
+}
+
+// =============================================================================
+// New Simplified Conversion: LayoutBox → PaintableBox
+// =============================================================================
+
+// convertLayoutBoxToPaintableLayout converts a layout.LayoutResult directly to PaintableLayout.
+// This is the NEW simplified path that bypasses ComputedBox entirely.
+//
+// Data Flow:
+//
+//	Fiber → LayoutBox → PaintableBox → Paint
+//	        (layout)    (paint)
+//
+// This method uses FiberToPaintableConverter for the conversion.
+func (p *RenderingPipeline) convertLayoutBoxToPaintableLayout(
+	result *layout.LayoutResult,
+	fiber *reconciler.Fiber,
+) *paint.PaintableLayout {
+	if result == nil || result.Root == nil {
+		return nil
+	}
+
+	// Create converter with Fiber index
+	converter := NewFiberToPaintableConverter(fiber)
+
+	// Convert LayoutBox tree to PaintableBox tree
+	return converter.ConvertToLayout(result.Root)
 }
 
 // buildHitMapFromLayoutResult builds an event.HitMap from layout.LayoutResult.

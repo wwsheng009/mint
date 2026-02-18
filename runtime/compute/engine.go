@@ -143,13 +143,14 @@ func (e *Engine) buildComputedBoxWithSize(vnode VNode, fiber *reconciler.Fiber, 
 		ChildFiber:   fiber, // Set Fiber if provided (for NodeID propagation)
 	}
 
-	// Phase 3: Set NodeID from Fiber for stable identity
+	// Phase 3: Set NodeID and DiffKey from Fiber for stable identity
 	// This provides runtime identity independent of VNode keys and paths
 	// See: docs/render/fiber/IDENTITY_REFACTORING_PLAN.md
 	// Priority: Use own Fiber.NodeID first, then inherit from parent
 	if fiber != nil {
 		box.NodeID = fiber.NodeID
-		box.ChildFiber = fiber // Set ChildFiber for NodeID propagation to children
+		box.DiffKey = fiber.DiffKey // Fiber-first: copy DiffKey for dirty tracking
+		box.ChildFiber = fiber      // Set ChildFiber for NodeID propagation to children
 		// Copy Layer from Fiber for multi-layer rendering (Modal, Tooltip, etc.)
 		box.Layer = fiber.Layer
 		if e.debug {

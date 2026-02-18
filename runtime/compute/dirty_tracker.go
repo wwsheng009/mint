@@ -46,7 +46,11 @@ func (t *DirtyTracker) NeedLayoutBox(box *ComputedBox) bool {
 	if box.LayoutDirty {
 		return true
 	}
-	// Check by VNode key
+	// Check by DiffKey (Fiber-first)
+	if box.DiffKey != "" {
+		return t.NeedLayout(box.DiffKey)
+	}
+	// Fallback: Check by VNode key (deprecated, will be removed)
 	if box.VNode != nil {
 		key := box.VNode.Key()
 		if key != "" {
@@ -101,7 +105,11 @@ func (t *DirtyTracker) MarkSubtreeDirty(box *ComputedBox) {
 
 func (t *DirtyTracker) markDescendantsDirty(box *ComputedBox) {
 	box.LayoutDirty = true
-	if box.VNode != nil {
+	// Use DiffKey (Fiber-first)
+	if box.DiffKey != "" {
+		t.MarkLayoutDirty(box.DiffKey)
+	} else if box.VNode != nil {
+		// Fallback: VNode.Key() (deprecated)
 		if key := box.VNode.Key(); key != "" {
 			t.MarkLayoutDirty(key)
 		}

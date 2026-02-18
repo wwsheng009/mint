@@ -124,6 +124,17 @@ func CreateFiber(vnode VNode) *Fiber {
 	// Fiber stores "who I am", not "what to do"
 	actionTargetID := extractActionTargetID(vnode)
 
+	// Extract PaintFunc (Fiber-first Paint Architecture)
+	// Paint function is extracted from VNode.Paint() method
+	// This enables Render to call Paint without VNode dependency
+	// We store the VNode itself - the adapter will type-assert at call site
+	// This avoids import cycle with runtime/paint
+	var paintFunc interface{}
+	// Check if VNode has Paint method by trying a generic interface
+	// Most components implement Paint() []paint.DrawCmd
+	// We store the VNode and let the adapter handle the type assertion
+	paintFunc = vnode
+
 	return &Fiber{
 		Type:                       vnodeType,
 		Tag:                        tag,
@@ -148,6 +159,7 @@ func CreateFiber(vnode VNode) *Fiber {
 		MemoCompare:                memoCompare,
 		FocusableVNode:             focusableVNode,
 		ActionTargetID:             actionTargetID,
+		PaintFunc:                  paintFunc,
 	}
 }
 

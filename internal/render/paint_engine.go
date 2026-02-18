@@ -15,15 +15,16 @@ import (
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
 
-// PaintEngine renders VNode trees using pre-computed layout information
+// PaintEngine renders layout trees using pre-computed layout information
 // This is the paint-only phase of the new rendering pipeline
 type PaintEngine struct {
 	debug             bool
-	lastHadModal      bool                                 // Track if modal was present in last frame (for backdrop restoration)
-	forceFullRender   bool                                 // Flag to force full buffer render on next frame
-	parentBackground  map[*compute.ComputedBox]style.Color // Track parent background for inheritance
-	lastLayersPresent map[rtui.Layer]bool                  // Track which layers were present in last frame
-	lastLayerBounds   map[rtui.Layer]runtime.Box           // Track last bounds of each layer for cleanup
+	lastHadModal      bool                               // Track if modal was present in last frame (for backdrop restoration)
+	forceFullRender   bool                               // Flag to force full buffer render on next frame
+	parentBackground  map[*paint.PaintableBox]style.Color // Track parent background for inheritance (refactored)
+	parentBackgroundLegacy map[*compute.ComputedBox]style.Color // Legacy: for backward compatibility
+	lastLayersPresent map[rtui.Layer]bool                // Track which layers were present in last frame
+	lastLayerBounds   map[rtui.Layer]runtime.Box         // Track last bounds of each layer for cleanup
 }
 
 // NewPaintEngine creates a new paint engine
@@ -40,7 +41,255 @@ func (e *PaintEngine) SetDebug(debug bool) {
 	e.debug = debug
 }
 
+// =============================================================================
+// New API: PaintableLayout (Decoupled from VNode/Fiber)
+// =============================================================================
+
+// PaintLayout renders a PaintableLayout to a buffer.
+// This is the new decoupled API that operates on paint.PaintableLayout.
+func (e *PaintEngine) PaintLayout(layout *paint.PaintableLayout, buffer *paint.Buffer) error {
+	if layout == nil || layout.Root == nil {
+		return nil
+	}
+
+	// Clear parent background map at the start of each frame
+	e.parentBackground = make(map[*paint.PaintableBox]style.Color)
+
+	if e.forceFullRender {
+		e.forceFullRender = false
+		for y := 0; y < buffer.Height; y++ {
+			for x := 0; x < buffer.Width; x++ {
+				buffer.Cells[y][x] = paint.Cell{}
+			}
+		}
+	}
+
+	return e.paintBox(layout.Root, buffer)
+}
+
+// paintBox recursively paints a PaintableBox and its children
+func (e *PaintEngine) paintBox(box *paint.PaintableBox, buffer *paint.Buffer) error {
+	if box == nil || box.Node == nil {
+		return nil
+	}
+
+	if e.debug || log.PaintLogger.Enabled() {
+		log.PaintLogger.Debug("[Paint.paintBox] %s at (%d,%d) size %dx%d",
+			box.Node.Tag(), box.X, box.Y, box.Width, box.Height)
+	}
+
+	// Check if we have a parent background to inherit
+	var parentBG style.Color
+	if e.parentBackground != nil {
+		if inheritedBG, ok := e.parentBackground[box]; ok && inheritedBG != "" {
+			parentBG = inheritedBG
+		}
+	}
+
+	// FIRST: Check if node has custom paint logic
+	commands := box.Node.Paint(box.X, box.Y)
+	if len(commands) > 0 {
+		// Apply commands with potential background inheritance
+		for _, cmd := range commands {
+			styleToApply := cmd.Style
+			if parentBG != "" && (styleToApply.BG == "" || styleToApply.BG == style.NoColor) {
+				styleToApply.BG = parentBG
+			}
+			buffer.SetString(cmd.X, cmd.Y, cmd.Text, styleToApply)
+		}
+		// Paintable components handle their own rendering, including children
+		return nil
+	}
+
+	// Inherit parent background for non-Paintable nodes
+	if parentBG != "" {
+		nodeStyle := box.Node.Style()
+		if nodeStyle.BG == "" || nodeStyle.BG == style.NoColor {
+			nodeStyle.BG = parentBG
+			box.Node.SetStyle(nodeStyle)
+		}
+	}
+
+	// Paint based on node type
+	switch box.Node.NodeType() {
+	case paint.NodeTypeText:
+		e.paintTextBox(box, buffer)
+	case paint.NodeTypeElement:
+		e.paintElementBox(box, buffer)
+	case paint.NodeTypeFragment:
+		return e.paintBoxChildren(box, buffer)
+	}
+
+	// Handle bordered elements
+	if bs, bc, bl := box.GetBorderInfo(); bs != paint.BorderStyleNone {
+		e.paintBorderedBox(box, buffer, bs, bc, bl)
+		return nil
+	}
+
+	// Paint children
+	return e.paintBoxChildren(box, buffer)
+}
+
+// paintTextBox paints a text node (PaintableBox version)
+func (e *PaintEngine) paintTextBox(box *paint.PaintableBox, buffer *paint.Buffer) {
+	text := box.RenderedText
+	if text == "" {
+		text = box.Node.TextContent()
+	}
+	if text != "" {
+		maxX := box.X + box.Width
+		buffer.SetStringAligned(box.X, box.Y, text, box.Node.Style(), maxX)
+	}
+}
+
+// paintElementBox paints an element node (PaintableBox version)
+func (e *PaintEngine) paintElementBox(box *paint.PaintableBox, buffer *paint.Buffer) {
+	content := box.RenderedText
+	if content == "" {
+		content = box.Node.TextContent()
+	}
+	if content != "" {
+		maxX := box.X + box.Width
+		buffer.SetStringAligned(box.X, box.Y, content, box.Node.Style(), maxX)
+		return
+	}
+
+	// Paint container background if set
+	nodeStyle := box.Node.Style()
+	if nodeStyle.BG != "" && nodeStyle.BG != style.NoColor {
+		e.paintBoxContainerBackground(box, buffer, nodeStyle)
+		
+		// Store parent background for child inheritance
+		if e.parentBackground == nil {
+			e.parentBackground = make(map[*paint.PaintableBox]style.Color)
+		}
+		for _, childBox := range box.Children {
+			e.parentBackground[childBox] = nodeStyle.BG
+		}
+	}
+}
+
+// paintBoxContainerBackground fills the container area with background color
+func (e *PaintEngine) paintBoxContainerBackground(box *paint.PaintableBox, buffer *paint.Buffer, bgStyle style.Style) {
+	backgroundStyle := style.Style{}.Background(bgStyle.BG)
+	for y := 0; y < box.Height; y++ {
+		for x := 0; x < box.Width; x++ {
+			buffer.SetCell(box.X+x, box.Y+y, ' ', backgroundStyle)
+		}
+	}
+}
+
+// paintBoxChildren paints children of a PaintableBox
+func (e *PaintEngine) paintBoxChildren(box *paint.PaintableBox, buffer *paint.Buffer) error {
+	for _, childBox := range box.Children {
+		if err := e.paintBox(childBox, buffer); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// paintBorderedBox paints a bordered PaintableBox
+func (e *PaintEngine) paintBorderedBox(box *paint.PaintableBox, buffer *paint.Buffer, bs paint.BorderStyle, bc, bl string) {
+	// Convert border style
+	var borderStyle border.Style
+	switch bs {
+	case paint.BorderStyleDouble:
+		borderStyle = border.StyleDouble
+	case paint.BorderStyleRounded:
+		borderStyle = border.StyleRounded
+	default:
+		borderStyle = border.StyleSingle
+	}
+
+	config := border.Config{
+		Style: borderStyle,
+		Color: bc,
+		Label: bl,
+	}
+	renderer := border.WithConfig(config)
+
+	contentWidth := box.Width - 2
+	contentHeight := box.Height - 2
+	if contentWidth < 0 {
+		contentWidth = 0
+	}
+	if contentHeight < 0 {
+		contentHeight = 0
+	}
+
+	renderer.Paint(box.X, box.Y, contentWidth, contentHeight,
+		func(px, py int, ch rune, s style.Style) {
+			buffer.SetCell(px, py, ch, s)
+		})
+
+	for _, childBox := range box.Children {
+		if err := e.paintBox(childBox, buffer); err != nil && e.debug {
+			log.PaintLogger.Debug("[paintBorderedBox] error: %v", err)
+		}
+	}
+}
+
+// paintModalBackdropBox draws modal backdrop (PaintableBox version)
+func (e *PaintEngine) paintModalBackdropBox(root *paint.PaintableBox, buffer *paint.Buffer) {
+	if root == nil {
+		return
+	}
+
+	width, height := buffer.Width, buffer.Height
+	modalX := root.X
+	modalY := root.Y
+	modalWidth := root.Width
+	modalHeight := root.Height
+
+	dimmedFG := style.Color("bright-black")
+	dimmedBG := style.Color("#1e2028")
+
+	applyDimmed := func(x, y int) {
+		cell := buffer.GetContent(x, y)
+		if cell.Cluster == "" || cell.Cluster == " " {
+			buffer.SetCell(x, y, ' ', style.Style{BG: dimmedBG})
+		} else {
+			dimmedStyle := style.Style{FG: dimmedFG, BG: dimmedBG}
+			runeStr := cell.Cluster
+			if len(runeStr) > 0 {
+				buffer.SetCell(x, y, []rune(runeStr)[0], dimmedStyle)
+			}
+		}
+	}
+
+	// Area above modal
+	for y := 0; y < modalY && y < height; y++ {
+		for x := 0; x < width; x++ {
+			applyDimmed(x, y)
+		}
+	}
+	// Area below modal
+	for y := modalY + modalHeight; y < height; y++ {
+		for x := 0; x < width; x++ {
+			applyDimmed(x, y)
+		}
+	}
+	// Area left of modal
+	for y := modalY; y < modalY+modalHeight && y < height; y++ {
+		for x := 0; x < modalX; x++ {
+			applyDimmed(x, y)
+		}
+	}
+	// Area right of modal
+	for y := modalY; y < modalY+modalHeight && y < height; y++ {
+		for x := modalX + modalWidth; x < width; x++ {
+			applyDimmed(x, y)
+		}
+	}
+}
+
+// =============================================================================
+// Legacy API: ComputedLayout (Backward Compatibility)
+// =============================================================================
+
 // Paint renders a computed layout to a buffer
+// Deprecated: Use PaintLayout for decoupled API
 func (e *PaintEngine) Paint(layout *compute.ComputedLayout, buffer *paint.Buffer) error {
 	if layout == nil || layout.Root == nil {
 		if os.Getenv("MINT_DEBUG_TEST") == "true" {
@@ -50,287 +299,88 @@ func (e *PaintEngine) Paint(layout *compute.ComputedLayout, buffer *paint.Buffer
 	}
 
 	if os.Getenv("MINT_DEBUG_TEST") == "true" {
-		fmt.Printf("[PaintEngine.Paint] START: layout.Root.Box=(%d,%d,%dx%d), VNode=%T\n",
-			layout.Root.Box.X, layout.Root.Box.Y, layout.Root.Box.Width, layout.Root.Box.Height, layout.Root.VNode)
+		fmt.Printf("[PaintEngine.Paint] START: layout.Root.Box=(%d,%d,%dx%d)\n",
+			layout.Root.Box.X, layout.Root.Box.Y, layout.Root.Box.Width, layout.Root.Box.Height)
 	}
 
 	if log.PaintLogger.Enabled() {
-		log.PaintLogger.Debug("[PaintEngine.Paint] START: layout.Root=%T, box=(%d,%d,%dx%d)",
-			layout.Root.VNode, layout.Root.Box.X, layout.Root.Box.Y, layout.Root.Box.Width, layout.Root.Box.Height)
+		log.PaintLogger.Debug("[PaintEngine.Paint] START: box=(%d,%d,%dx%d)",
+			layout.Root.Box.X, layout.Root.Box.Y, layout.Root.Box.Width, layout.Root.Box.Height)
 	}
 
-	// Clear parent background map at the start of each frame
-	// This prevents stale background inheritance from previous frames
-	e.parentBackground = make(map[*compute.ComputedBox]style.Color)
-
-	// If force full render is set (e.g., modal appeared/disappeared), clear buffer
-	if e.forceFullRender {
-		e.forceFullRender = false
-		// Clear the entire buffer to force re-render of all cells
-		for y := 0; y < buffer.Height; y++ {
-			for x := 0; x < buffer.Width; x++ {
-				buffer.Cells[y][x] = paint.Cell{}
-			}
-		}
-	}
-
-	err := e.paintNode(layout.Root, buffer)
-	if log.PaintLogger.Enabled() {
-		log.PaintLogger.Debug("[PaintEngine.Paint] END: err=%v", err)
-	}
-	return err
+	// Convert to PaintableLayout and use new API
+	paintableLayout := layout.AsPaintableLayout()
+	return e.PaintLayout(paintableLayout, buffer)
 }
 
-// paintNode recursively paints a computed box and its children
+// paintNode recursively paints a computed box and its children (Legacy)
+// This method is kept for backward compatibility and delegates to paintBox.
 func (e *PaintEngine) paintNode(box *compute.ComputedBox, buffer *paint.Buffer) error {
 	if box == nil {
 		return nil
 	}
 
-	if os.Getenv("MINT_DEBUG_TEST") == "true" {
-		fmt.Printf("[PaintEngine.paintNode] ENTER type=%s tag=%s at (%d,%d) size %dx%d, children=%d\n",
-			box.VNode.Type().String(), box.VNode.Tag(), box.Box.X, box.Box.Y, box.Box.Width, box.Box.Height, len(box.Children))
+	// Convert to PaintableBox and use new paintBox method
+	paintableBox := box.AsPaintable()
+	return e.paintBox(paintableBox, buffer)
+}
+
+// paintText paints a text node (Legacy)
+// Deprecated: Use paintTextBox
+func (e *PaintEngine) paintText(box *compute.ComputedBox, buffer *paint.Buffer) {
+	paintableBox := box.AsPaintable()
+	e.paintTextBox(paintableBox, buffer)
+}
+
+// paintElement paints an element node (Legacy)
+// Deprecated: Use paintElementBox
+func (e *PaintEngine) paintElement(box *compute.ComputedBox, buffer *paint.Buffer) {
+	paintableBox := box.AsPaintable()
+	e.paintElementBox(paintableBox, buffer)
+}
+
+// paintContainerBackground fills the container area with background color (Legacy)
+func (e *PaintEngine) paintContainerBackground(box *compute.ComputedBox, buffer *paint.Buffer, bgStyle style.Style) {
+	paintableBox := box.AsPaintable()
+	e.paintBoxContainerBackground(paintableBox, buffer, bgStyle)
+}
+
+// paintChildren paints children of a node (Legacy)
+// Deprecated: Use paintBoxChildren
+func (e *PaintEngine) paintChildren(box *compute.ComputedBox, buffer *paint.Buffer) error {
+	paintableBox := box.AsPaintable()
+	return e.paintBoxChildren(paintableBox, buffer)
+}
+
+// paintBordered paints a bordered node (Legacy)
+// Deprecated: Use paintBorderedBox
+func (e *PaintEngine) paintBordered(box *compute.ComputedBox, buffer *paint.Buffer) {
+	bs, bc, bl := box.AsPaintable().GetBorderInfo()
+	if bs != paint.BorderStyleNone {
+		paintableBox := box.AsPaintable()
+		e.paintBorderedBox(paintableBox, buffer, bs, bc, bl)
 	}
+}
 
-	if e.debug || log.PaintLogger.Enabled() || log.PaintLogger.Enabled() {
-		log.PaintLogger.Debug("[Paint.paintNode] %s at (%d,%d) size %dx%d, vnode_type=%T",
-			box.VNode.Type().String(), box.Box.X, box.Box.Y, box.Box.Width, box.Box.Height, box.VNode)
-	}
-
-	// Check if we have a parent background to inherit
-	var parentBG style.Color
-	cleanUpParentBG := false
-	if e.parentBackground != nil {
-		if inheritedBG, ok := e.parentBackground[box]; ok && inheritedBG != "" {
-			parentBG = inheritedBG
-			cleanUpParentBG = true
-		}
-	}
-
-	// FIRST: Check if vnode implements Paintable interface (custom rendering like buttons)
-	paintable, ok := box.VNode.(interface {
-		Paint(int, int) []paint.DrawCmd
-	})
-	if os.Getenv("MINT_DEBUG_TEST") == "true" {
-		fmt.Printf("[PaintEngine.paintNode] Paintable check: ok=%v, tag=%s\n", ok, box.VNode.Tag())
-	}
-	if ok {
-		if os.Getenv("MINT_DEBUG_TEST") == "true" {
-			fmt.Printf("[PaintEngine.paintNode] Paintable: YES, tag=%s, calling Paint(%d, %d)\n", box.VNode.Tag(), box.Box.X, box.Box.Y)
-		}
-		if e.debug || log.PaintLogger.Enabled() || log.PaintLogger.Enabled() {
-			log.PaintLogger.Debug("[Paint.paintNode]   ✅ Paintable: YES, calling Paint(%d, %d)", box.Box.X, box.Box.Y)
-		}
-		// Component has custom paint logic - use it
-		commands := paintable.Paint(box.Box.X, box.Box.Y)
-
-		if os.Getenv("MINT_DEBUG_TEST") == "true" {
-			fmt.Printf("[PaintEngine.paintNode] Paint returned %d commands\n", len(commands))
-			for i, cmd := range commands {
-				fmt.Printf("  cmd[%d]: x=%d y=%d text=%q\n", i, cmd.X, cmd.Y, cmd.Text)
-			}
-		}
-
-		// Apply commands with potential background inheritance
-		for i, cmd := range commands {
-			styleToApply := cmd.Style
-			// If command has no background and parent has one, inherit it
-			if parentBG != "" && (styleToApply.BG == "" || styleToApply.BG == style.NoColor) {
-				styleToApply.BG = parentBG
-				if e.debug || log.PaintLogger.Enabled() {
-					log.PaintLogger.Debug("[Paint.paintNode]   🎨 Paintable inherited parent BG=%s", parentBG)
-				}
-			}
-			if os.Getenv("MINT_DEBUG_TEST") == "true" {
-				fmt.Printf("[PaintEngine.paintNode] buffer.SetString(%d, %d, %q)\n", cmd.X, cmd.Y, cmd.Text)
-			}
-			buffer.SetString(cmd.X, cmd.Y, cmd.Text, styleToApply)
-			if os.Getenv("MINT_DEBUG_TEST") == "true" && i == 0 {
-				// Check if the cell was written
-				if cmd.Y < buffer.Height && cmd.X < buffer.Width {
-					cell := buffer.Cells[cmd.Y][cmd.X]
-					fmt.Printf("[PaintEngine.paintNode] After SetString, cell[0,%d].Cluster=%q\n", cmd.Y, cell.Cluster)
-				}
-			}
-		}
-
-		// Clean up parent background entry
-		if cleanUpParentBG {
-			delete(e.parentBackground, box)
-		}
-
-		// Paintable components handle their own rendering, including children
-		return nil
-	} else {
-		if e.debug || log.PaintLogger.Enabled() || log.PaintLogger.Enabled() {
-			log.PaintLogger.Debug("[Paint.paintNode]   ❌ Paintable: NO (type assertion failed)")
-		}
-	}
-
-	// ENHANCEMENT: Inherit parent background for non-Paintable nodes
-	// This ensures child controls blend with parent container's background
-	if parentBG != "" {
-		nodeStyle := box.VNode.Style()
-		// Only inherit if node doesn't have its own background
-		if nodeStyle.BG == "" || nodeStyle.BG == style.NoColor {
-			// Inherit parent background
-			inheritedStyle := nodeStyle
-			inheritedStyle.BG = parentBG
-			box.VNode.SetStyle(inheritedStyle)
-
-			if e.debug || log.PaintLogger.Enabled() {
-				log.PaintLogger.Debug("[Paint.paintNode]   🎨 Inherited parent BG=%s", parentBG)
-			}
-		}
-	}
-
-	// Clean up parent background entry
-	if cleanUpParentBG {
-		delete(e.parentBackground, box)
-	}
-
-	// Paint the node based on its type
-	vnodeType := box.VNode.Type()
-	if os.Getenv("MINT_DEBUG_TEST") == "true" {
-		fmt.Printf("[PaintEngine.paintNode] vnodeType=%d, VNodeText=%d, VNodeElement=%d, equal to Text=%v\n", vnodeType, rtui.VNodeText, rtui.VNodeElement, vnodeType == rtui.VNodeText)
-	}
-	switch vnodeType {
-	case rtui.VNodeText:
-		if os.Getenv("MINT_DEBUG_TEST") == "true" {
-			fmt.Printf("[PaintEngine.paintNode] MATCHED VNodeText, calling paintText for tag=%s\n", box.VNode.Tag())
-		}
-		e.paintText(box, buffer)
-
-	case rtui.VNodeElement:
-		e.paintElement(box, buffer)
-
-	case rtui.VNodeComponent:
-		// Component nodes should be expanded before painting
-		// In non-Fiber mode, expandComponents() handles this
-		// In Fiber mode, components are already expanded in the Fiber tree
-
-	case rtui.VNodeFragment:
-		// Fragment - just paint children, no self-rendering
-		return e.paintChildren(box, buffer)
-	}
-
-	// Handle bordered elements - paint border decoration
-	if _, ok := box.VNode.(interface{ GetBorderLabel() string }); ok {
-		e.paintBordered(box, buffer)
-		return nil
-	}
-
-	// For non-bordered elements, paint children after self-rendering
-	children := box.VNode.Children()
-	if len(children) > 0 {
-		// Check if this is a table element
-		if tagger, ok := box.VNode.(interface{ Tag() string }); ok && tagger.Tag() == "table" {
-			e.paintTable(box, buffer)
-			return nil
-		}
-	}
-
-	// Paint children using their computed positions
+// paintTable paints a table element (Legacy)
+func (e *PaintEngine) paintTable(box *compute.ComputedBox, buffer *paint.Buffer) error {
 	return e.paintChildren(box, buffer)
 }
 
-// paintText paints a text node
-func (e *PaintEngine) paintText(box *compute.ComputedBox, buffer *paint.Buffer) {
-	// Use RenderedText calculated during layout phase if available
-	text := box.RenderedText
-	if text == "" {
-		text = rtui.GetTextContent(box.VNode)
-	}
-	if os.Getenv("MINT_DEBUG_TEST") == "true" {
-		fmt.Printf("[PaintEngine.paintText] box=(%d,%d,%dx%d) renderedText=%q text=%q\n",
-			box.Box.X, box.Box.Y, box.Box.Width, box.Box.Height, box.RenderedText, text)
-	}
-	if e.debug {
-		log.PaintLogger.Debug("[Paint.paintText] box=(%d,%d,%dx%d) renderedText=%q text=%q",
-			box.Box.X, box.Box.Y, box.Box.Width, box.Box.Height, box.RenderedText, text)
-	}
-	if text != "" {
-		// Use SetStringAligned to pad row and prevent leftover characters (TUI_BUFFER_FIX2.md)
-		// Pad to box.Box.X + box.Box.Width to fill entire row within component boundary
-		maxX := box.Box.X + box.Box.Width
-		buffer.SetStringAligned(box.Box.X, box.Box.Y, text, box.VNode.Style(), maxX)
-		if os.Getenv("MINT_DEBUG_TEST") == "true" {
-			fmt.Printf("[PaintEngine.paintText] Wrote text to buffer at (%d,%d): %q\n", box.Box.X, box.Box.Y, text)
-		}
-	}
-}
-
-// paintElement paints an element node
-func (e *PaintEngine) paintElement(box *compute.ComputedBox, buffer *paint.Buffer) {
-	// Use RenderedText calculated during layout phase if available
-	content := box.RenderedText
-	if content == "" {
-		content = rtui.GetTextContent(box.VNode)
-	}
-	if content != "" {
-		// Use SetStringAligned to pad row and prevent leftover characters (TUI_BUFFER_FIX2.md)
-		// Pad to box.Box.X + box.Box.Width to fill entire row within component boundary
-		maxX := box.Box.X + box.Box.Width
-		buffer.SetStringAligned(box.Box.X, box.Box.Y, content, box.VNode.Style(), maxX)
-		return // Don't paint children for text elements
-	}
-
-	// ENHANCEMENT: Paint container background if set
-	// This allows elements like Inspector panels to have solid backgrounds
-	nodeStyle := box.VNode.Style()
-	if nodeStyle.BG != "" && nodeStyle.BG != style.NoColor {
-		e.paintContainerBackground(box, buffer, nodeStyle)
-
-		// IMPORTANT: Store parent background for child inheritance
-		// Children without explicit background will inherit this background
-		if e.parentBackground == nil {
-			e.parentBackground = make(map[*compute.ComputedBox]style.Color)
-		}
-		for _, childBox := range box.Children {
-			e.parentBackground[childBox] = nodeStyle.BG
-		}
-	}
-
-	// For non-text elements, children will be painted after the switch
-}
-
-// paintContainerBackground fills the entire container area with background color
-// This is used to create solid backgrounds for panels like Inspector
-// IMPORTANT: This must be called BEFORE painting children to occlude underlying content
-func (e *PaintEngine) paintContainerBackground(box *compute.ComputedBox, buffer *paint.Buffer, bgStyle style.Style) {
-	// Create background style (only BG, no foreground)
-	backgroundStyle := style.Style{}.Background(bgStyle.BG)
-
-	// CRITICAL: Unconditionally fill entire container area with background color
-	// This occludes any content rendered underneath (e.g., from lower layers)
-	// Children will be painted on top of this background
-	for y := 0; y < box.Box.Height; y++ {
-		for x := 0; x < box.Box.Width; x++ {
-			// Unconditionally set background to occlude underlying content
-			// Use space character ' ' to clear any existing content
-			buffer.SetCell(box.Box.X+x, box.Box.Y+y, ' ', backgroundStyle)
-		}
-	}
-
-	if e.debug || log.PaintLogger.Enabled() {
-		log.PaintLogger.Debug("[Paint.paintContainerBackground] Occluded %dx%d area at (%d,%d) with BG=%s",
-			box.Box.Width, box.Box.Height, box.Box.X, box.Box.Y, bgStyle.BG)
-	}
+// paintModalBackdrop draws modal backdrop (Legacy)
+// Deprecated: Use paintModalBackdropBox
+func (e *PaintEngine) paintModalBackdrop(root *compute.ComputedBox, buffer *paint.Buffer) {
+	paintableBox := root.AsPaintable()
+	e.paintModalBackdropBox(paintableBox, buffer)
 }
 
 // clearRegion clears a rectangular region of the buffer
-// This is used to clean up areas that were previously occupied by disappeared layers
 func (e *PaintEngine) clearRegion(bounds runtime.Box, buffer *paint.Buffer) {
-	// Clamp bounds to buffer size
 	maxX := buffer.Width
 	maxY := buffer.Height
 
 	for y := bounds.Y; y < bounds.Y+bounds.Height && y < maxY; y++ {
-		// CRITICAL: Clear from right to left to properly handle wide characters
-		// If we clear from left to right, when we hit a continuation cell,
-		// it will clear the head at (x-1), which might already have been processed
 		for x := bounds.X + bounds.Width - 1; x >= bounds.X && x < maxX; x-- {
-			// Clear the cell by setting to empty
 			buffer.SetCell(x, y, ' ', style.Style{})
 		}
 	}
@@ -341,105 +391,23 @@ func (e *PaintEngine) clearRegion(bounds runtime.Box, buffer *paint.Buffer) {
 	}
 }
 
-// paintChildren paints children of a node using their computed positions
-func (e *PaintEngine) paintChildren(box *compute.ComputedBox, buffer *paint.Buffer) error {
-	if os.Getenv("MINT_DEBUG_TEST") == "true" {
-		fmt.Printf("[PaintEngine.paintChildren] box has %d children\n", len(box.Children))
-	}
-	for i, childBox := range box.Children {
-		if os.Getenv("MINT_DEBUG_TEST") == "true" {
-			if childBox != nil && childBox.VNode != nil {
-				fmt.Printf("[PaintEngine.paintChildren] child %d: type=%d tag=%s\n", i, childBox.VNode.Type(), childBox.VNode.Tag())
-			} else {
-				fmt.Printf("[PaintEngine.paintChildren] child %d is nil\n", i)
-			}
-		}
-		if err := e.paintNode(childBox, buffer); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// paintBordered paints a bordered node with border decoration
-func (e *PaintEngine) paintBordered(box *compute.ComputedBox, buffer *paint.Buffer) {
-	// Get border configuration
-	borderStyle := border.StyleSingle
-	if labeled, ok := box.VNode.(interface{ GetBorderStyle() rtui.BorderStyle }); ok {
-		borderStyle = border.Style(labeled.GetBorderStyle())
-	}
-	borderColor := "blue"
-	if colored, ok := box.VNode.(interface{ GetBorderColor() string }); ok {
-		borderColor = colored.GetBorderColor()
-	}
-	borderLabel := ""
-	if labeled, ok := box.VNode.(interface{ GetBorderLabel() string }); ok {
-		borderLabel = labeled.GetBorderLabel()
-	}
-
-	// Create border renderer
-	config := border.Config{
-		Style: borderStyle,
-		Color: borderColor,
-		Label: borderLabel,
-	}
-
-	renderer := border.WithConfig(config)
-
-	// Content dimensions (without border)
-	contentWidth := box.Box.Width - 2
-	contentHeight := box.Box.Height - 2
-	if contentWidth < 0 {
-		contentWidth = 0
-	}
-	if contentHeight < 0 {
-		contentHeight = 0
-	}
-
-	// Paint border
-	renderer.Paint(box.Box.X, box.Box.Y, contentWidth, contentHeight,
-		func(px, py int, ch rune, s style.Style) {
-			buffer.SetCell(px, py, ch, s)
-		})
-
-	// Paint children (content inside border)
-	for _, childBox := range box.Children {
-		if err := e.paintNode(childBox, buffer); err != nil && e.debug {
-			log.PaintLogger.Debug("[PaintBordered] error: %v", err)
-		}
-	}
-}
-
-// paintTable paints a table element
-func (e *PaintEngine) paintTable(box *compute.ComputedBox, buffer *paint.Buffer) error {
-	// Tables use the computed positions for their cells
-	// Just need to paint children at their computed positions
-	return e.paintChildren(box, buffer)
-}
-
 // =============================================================================
 // Multi-Layer Rendering
 // =============================================================================
 
 // PaintLayers renders multiple layers in order (from lowest to highest)
-// This is the main entry point for layer-based rendering
 func (e *PaintEngine) PaintLayers(
 	layouts layer.LayerLayouts,
 	buffer *paint.Buffer,
 ) error {
-	// Check if modal layer exists (for backdrop restoration)
 	_, hasModal := layouts[rtui.LayerModal]
 	hadModal := e.lastHadModal
 
-	// If modal state changed, force full render to restore/clear backdrop
 	if hasModal != hadModal {
 		e.forceFullRender = true
 	}
 	e.lastHadModal = hasModal
 
-	// Check if any layer's presence changed
-	// This is important for clearing inspector content when it's hidden
-	// Also track layer bounds to clear specific regions when layers disappear
 	renderOrder := []rtui.Layer{
 		rtui.LayerBase,
 		rtui.LayerOverlay,
@@ -458,22 +426,13 @@ func (e *PaintEngine) PaintLayers(
 		hadLayer := e.lastLayersPresent[l]
 		prevBounds := e.lastLayerBounds[l]
 
-		// If layer disappeared, clear its previous region
 		if hadLayer && !hasLayer {
-			log.PaintLogger.Debug("[PaintLayers] Layer %s disappeared, clearing region: (%d,%d) %dx%d",
-				l.String(), prevBounds.X, prevBounds.Y, prevBounds.Width, prevBounds.Height)
-
-			// Clear the region that was previously occupied by this layer
+			log.PaintLogger.Debug("[PaintLayers] Layer %s disappeared, clearing region", l.String())
 			e.clearRegion(prevBounds, buffer)
-			e.forceFullRender = true // Force full render to ensure proper repaint
+			e.forceFullRender = true
 		}
 
-		// If layer layer bounds changed significantly, also force full render
 		if hasLayer && hadLayer && currentBounds != prevBounds {
-			log.PaintLogger.Debug("[PaintLayers] Layer %s bounds changed: (%d,%d) %dx%d -> (%d,%d) %dx%d",
-				l.String(), prevBounds.X, prevBounds.Y, prevBounds.Width, prevBounds.Height,
-				currentBounds.X, currentBounds.Y, currentBounds.Width, currentBounds.Height)
-
 			e.forceFullRender = true
 		}
 
@@ -485,9 +444,6 @@ func (e *PaintEngine) PaintLayers(
 		}
 	}
 
-	// Render layers in order from lowest (base) to highest (inspector)
-	// This ensures proper z-ordering
-
 	for _, l := range renderOrder {
 		layout, ok := layouts[l]
 		if !ok || layout.Root == nil {
@@ -495,16 +451,13 @@ func (e *PaintEngine) PaintLayers(
 		}
 
 		if e.debug {
-			log.PaintLogger.Debug("[PaintLayers] Rendering layer: %s root=(%d,%d) size=%dx%d",
-				l.String(), layout.Root.Box.X, layout.Root.Box.Y, layout.Root.Box.Width, layout.Root.Box.Height)
+			log.PaintLogger.Debug("[PaintLayers] Rendering layer: %s", l.String())
 		}
 
-		// Paint this layer
 		if err := e.Paint(layout, buffer); err != nil {
 			return fmt.Errorf("error painting layer %s: %w", l.String(), err)
 		}
 
-		// Special handling for modal layer - draw backdrop
 		if l == rtui.LayerModal {
 			e.paintModalBackdrop(layout.Root, buffer)
 		}
@@ -514,17 +467,6 @@ func (e *PaintEngine) PaintLayers(
 }
 
 // PaintRenderPlanes paints RenderPlanes to buffer directly
-// This is the new unified API replacing PaintLayers for the Fiber architecture
-// It iterates through RenderPlanes by layer and paints each ComputedBox
-//
-// Parameters:
-//
-//	renderPlanes - RenderPlanes containing all boxes organized by layer
-//	buffer - Paint buffer to render to
-//
-// Returns:
-//
-//	error - Any painting error
 func (e *PaintEngine) PaintRenderPlanes(
 	renderPlanes *layer.RenderPlanes,
 	buffer *paint.Buffer,
@@ -535,7 +477,6 @@ func (e *PaintEngine) PaintRenderPlanes(
 
 	log.PaintLogger.Debug("[PaintEngine.PaintRenderPlanes] START: boxes=%d", renderPlanes.CountBoxes())
 
-	// Iterate through layers in render order (low to high)
 	for _, layer := range renderPlanes.GetRenderOrder() {
 		boxes := renderPlanes.GetLayer(layer)
 		if boxes == nil || len(boxes) == 0 {
@@ -544,97 +485,21 @@ func (e *PaintEngine) PaintRenderPlanes(
 
 		log.PaintLogger.Debug("[PaintEngine.PaintRenderPlanes] Layer %s: %d boxes", layer.String(), len(boxes))
 
-		// Paint each box in this layer
 		for _, box := range boxes {
-			// Create a temporary ComputedLayout for each box
-			// This allows us to reuse the existing Paint() method
-			layout := &compute.ComputedLayout{
-				Root: box,
-			}
-			if err := e.Paint(layout, buffer); err != nil {
-				log.PaintLogger.Debug("[PaintEngine.PaintRenderPlanes] Paint failed: %v", err)
+			// Convert ComputedBox to PaintableBox and use new API
+			paintableBox := box.AsPaintable()
+			layout := paint.NewPaintableLayout(paintableBox)
+			if err := e.PaintLayout(layout, buffer); err != nil {
 				return fmt.Errorf("error painting box in layer %s: %w", layer.String(), err)
 			}
 		}
 
-		// Special handling for modal layer - draw backdrop
 		if layer == rtui.LayerModal && len(boxes) > 0 {
-			e.paintModalBackdrop(boxes[0], buffer)
+			paintableBox := boxes[0].AsPaintable()
+			e.paintModalBackdropBox(paintableBox, buffer)
 		}
 	}
 
 	log.PaintLogger.Debug("[PaintEngine.PaintRenderPlanes] END")
 	return nil
-}
-
-// paintModalBackdrop draws a semi-transparent backdrop behind the modal
-// In TUI, we simulate this by:
-// 1. Setting a dimmed background color for all areas outside the modal
-// 2. Dimming the foreground text to gray
-func (e *PaintEngine) paintModalBackdrop(root *compute.ComputedBox, buffer *paint.Buffer) {
-	if root == nil {
-		return
-	}
-
-	// Get buffer dimensions
-	width, height := buffer.Width, buffer.Height
-
-	// Modal bounds
-	modalX := root.Box.X
-	modalY := root.Box.Y
-	modalWidth := root.Box.Width
-	modalHeight := root.Box.Height
-
-	// Dimmed style: gray foreground on dark background (simulates transparency)
-	dimmedFG := style.Color("bright-black") // Dimmed text color
-	dimmedBG := style.Color("#1e2028")      // Dark overlay background (nord0 darker)
-
-	// Helper function to apply dimmed effect to a cell
-	applyDimmed := func(x, y int) {
-		cell := buffer.GetContent(x, y)
-
-		if cell.Cluster == "" || cell.Cluster == " " {
-			// Empty cell: just set dimmed background
-			buffer.SetCell(x, y, ' ', style.Style{BG: dimmedBG})
-		} else {
-			// Cell with content: dimmed foreground + dimmed background
-			dimmedStyle := style.Style{
-				FG: dimmedFG,
-				BG: dimmedBG,
-			}
-			runeStr := cell.Cluster
-			if len(runeStr) > 0 {
-				buffer.SetCell(x, y, []rune(runeStr)[0], dimmedStyle)
-			}
-		}
-	}
-
-	// Apply dimmed effect to all areas outside the modal
-	// Area above modal
-	for y := 0; y < modalY && y < height; y++ {
-		for x := 0; x < width; x++ {
-			applyDimmed(x, y)
-		}
-	}
-
-	// Area below modal
-	for y := modalY + modalHeight; y < height; y++ {
-		for x := 0; x < width; x++ {
-			applyDimmed(x, y)
-		}
-	}
-
-	// Area left of modal
-	for y := modalY; y < modalY+modalHeight && y < height; y++ {
-		for x := 0; x < modalX; x++ {
-			applyDimmed(x, y)
-		}
-	}
-
-	// Area right of modal
-	for y := modalY; y < modalY+modalHeight && y < height; y++ {
-		for x := modalX + modalWidth; x < width; x++ {
-			applyDimmed(x, y)
-		}
-	}
 }
