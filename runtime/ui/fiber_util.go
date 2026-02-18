@@ -134,12 +134,7 @@ func CreateFiber(vnode VNode) *Fiber {
 		instance = factory.CreateInstance()
 	}
 
-	// Extract PaintFunc (DEPRECATED - Use Instance instead)
-	// Kept for backward compatibility during migration
-	var paintFunc interface{}
-	paintFunc = vnode
-
-	return &Fiber{
+		return &Fiber{
 		Type:                       vnodeType,
 		Tag:                        tag,
 		Props:                      props,
@@ -163,7 +158,6 @@ func CreateFiber(vnode VNode) *Fiber {
 		MemoCompare:                memoCompare,
 		FocusableVNode:             focusableVNode,
 		ActionTargetID:             actionTargetID,
-		PaintFunc:                  paintFunc,
 		// Fiber-first Architecture
 		Instance: instance,
 	}

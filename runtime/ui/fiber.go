@@ -11,6 +11,12 @@ import (
 // =============================================================================
 // Fiber is a reconciliation algorithm, breaking rendering work into small units.
 // Each Fiber node represents a component in the UI and forms a tree.
+//
+// Fiber-first Architecture:
+//   - VNode is used only during Fiber creation, then discarded
+//   - Fiber.Instance holds the runtime entity (persists across renders)
+//   - All runtime state is in Instance, not in Fiber
+//   - Paint phase uses Instance.Paint(), never accesses VNode
 // =============================================================================
 
 // EffectFlag represents the side effects of a fiber
@@ -62,13 +68,13 @@ const (
 const LaneRoot Lane = LaneSyncLane | LaneInputContinuousLane | LaneDefaultLane | LaneIdleLane
 
 // Fiber represents a unit of work in the reconciler
-// Each Fiber corresponds to a VNode and contains work-in-progress state
+// Each Fiber corresponds to a VNode during creation, then holds Instance for runtime.
+//
+// Fiber-first Architecture (from FIBER_PAINT_ARCHITECTURE.md):
+//   - VNode = Description (created every render, then discarded)
+//   - Fiber = Tree structure, scheduling (runtime persistent)
+//   - Instance = Behavior + State (runtime persistent)
 type Fiber struct {
-	// === VNode Reference (DEPRECATED - Phase 4 removal) ===
-	// The VNode field is being removed as part of Fiber-first architecture.
-	// All data needed for layout/render should be copied to Fiber fields.
-	// VNode VNode
-
 	// === Tree Structure ===
 	// Pointer to parent fiber
 	Return *Fiber
@@ -81,14 +87,12 @@ type Fiber struct {
 
 	// === Props & State ===
 	// Props for this fiber (snapshot taken when Fiber was created).
-	// NOTE: This field may become stale if VNode props are updated.
-	// Use GetProps() method to get current props from VNode.
 	Props Props
 	// Memoized props (previous props for diffing)
 	MemoizedProps Props
 	// Memoized state serves different purposes based on VNode type:
 	// - TextVNode: stores text content (set by completeWorkText)
-	// - ComponentVNode with UpdateQueue: stores state for functional updates (beginWork)
+	// - ComponentVNode with UpdateQueue: stores state for functional updates
 	// - ComponentVNode with hooks: NOT used (state is in ComponentContext.Hooks)
 	MemoizedState interface{}
 	// Update queue
@@ -98,22 +102,6 @@ type Fiber struct {
 	// Flags indicating what side effects this fiber has
 	Flags EffectFlag
 	// SubtreeFlags indicating effects in descendants
-	//
-	// This field aggregates all effect flags from the entire subtree below this fiber.
-	// It is computed during the render phase by collectChildEffects() which:
-	// 1. ORs each child's Flags into the parent's SubtreeFlags
-	// 2. ORs each child's SubtreeFlags into the parent's SubtreeFlags
-	//
-	// This allows ancestors to efficiently know if any descendant has effects
-	// without traversing the entire subtree during commit.
-	//
-	// Propagation is bottom-up: when a child's flags change, all ancestors
-	// are updated during the next render cycle.
-	//
-	// Example:
-	//   Parent (Flags: 0, SubtreeFlags: EffectUpdate | EffectDeletion)
-	//     ├── Child1 (Flags: EffectUpdate, SubtreeFlags: 0)
-	//     └── Child2 (Flags: 0, SubtreeFlags: EffectDeletion)
 	SubtreeFlags EffectFlag
 
 	// === Priority ===
@@ -128,30 +116,22 @@ type Fiber struct {
 	DiffKey string
 
 	// Key is an alias for DiffKey for backward compatibility
-	// TODO: Gradually migrate all code to use DiffKey
 	Key string
 
 	// ✨ NodeID for stable runtime identity
-	// See: docs/render/fiber/IDENTITY_REFACTORING_PLAN.md
 	NodeID uint64
 
 	// ✨ Layer specifies rendering layer (Z-order) for this fiber
 	// Layers: Base(0) < Overlay(1) < Modal(2) < Tooltip(3) < Inspector(4)
-	// This is copied from VNode.GetLayer() during Fiber creation
-	// See: docs/render/fiber/diff_layer.md
 	Layer Layer
 
 	// ✨ Path for automatic key generation (Mixed Strategy)
-	// Full path from root: /root/base[0]/vstack[0]/panel[0]
-	// Used for generating automatic keys for static UI components
 	Path string
 
-	// ✨ PathSegment is the last segment of the path: panel[0]
-	// Used for debugging and quick type identification
+	// ✨ PathSegment is the last segment of the path
 	PathSegment string
 
 	// ✨ SiblingIndex is the position in the parent's children list
-	// Used for calculating the path index
 	SiblingIndex int
 
 	// === Type ===
@@ -163,14 +143,10 @@ type Fiber struct {
 	Tag string
 
 	// ✨ ComputedBox for layout result (set during layout phase)
-	// This is nil initially and set by layoutFiber()
-	// Using interface{} to avoid import cycle with compute package
-	// TODO: After refactoring, use *compute.ComputedBox directly
 	ComputedBox interface{}
 
 	// === Layout Style (Phase 1) ===
 	// These fields are populated in completeWork from VNode props
-	// This enables Fiber-first layout by avoiding VNode delegation
 	LayoutDirection  Direction
 	LayoutAlign      Align
 	LayoutCrossAlign Align
@@ -178,67 +154,53 @@ type Fiber struct {
 	LayoutPadding    [4]int
 	LayoutFlex       int
 
-	// === Visual Style (Phase 1 - Fiber-first) ===
+	// === Visual Style (Fiber-first) ===
 	// Copied from VNode.Style() during Fiber creation
-	// This enables Layout/Render to access style without VNode dependency
 	Style style.Style
 
-	// === Component Instance ===
-	// Persistent component instance for state preservation
-	ComponentInstance ComponentInstance
+	// === Component Instance (Fiber-first Architecture) ===
+	// Instance is the runtime entity for this Fiber.
+	// It persists across renders and holds all state (focus, hover, disabled, etc.)
+	// VNode is used only during creation, then discarded.
+	// During commit/paint phase, Instance.Paint() is called.
+	//
+	// Key Design Points:
+	// 1. Fiber.Instance holds the persistent runtime entity
+	// 2. Instance is created ONCE during Fiber creation via InstanceFactory
+	// 3. CloneFiber REUSES Instance (Instance is NEVER cloned)
+	// 4. Paint phase uses Instance.Paint() - NO VNode access
+	// 5. Instance holds all runtime state (focus, hover, pressed, etc.)
+	//
+	// See: docs/fiber/fiber_first/FIBER_PAINT_ARCHITECTURE.md
+	Instance ComponentInstance
 
 	// === Special VNode Types Support ===
-	// These fields store data from special VNode types (ErrorBoundary, Memo, Component)
-	// They are populated during Fiber creation to avoid VNode dependency in reconciler
-
-	// ComponentFunc for function components (from ComponentVNode)
-	ComponentFunc ComponentFunc
-	// ComponentFuncWithProps for components with props (from ComponentVNode)
+	// These fields store data from special VNode types
+	ComponentFunc          ComponentFunc
 	ComponentFuncWithProps ComponentFuncWithProps
-	// ComponentName for component identification (from ComponentVNode.Name())
-	ComponentName string
-
-	// ErrorBoundaryFunc for error boundary component
-	ErrorBoundaryFunc ComponentFunc
-	// ErrorBoundaryFallbackFiber for fallback UI on error (converted to Fiber)
+	ComponentName          string
+	ErrorBoundaryFunc      ComponentFunc
 	ErrorBoundaryFallbackFiber *Fiber
+	MemoCompare            PropsEqual
+	MemoShouldUpdate       bool
 
-	// MemoCompare for custom comparison function (from MemoVNode)
-	MemoCompare PropsEqual
-	// MemoShouldUpdate flag to indicate if memo should re-render
-	MemoShouldUpdate bool
-
-	// === Focusable Support (Fiber-first) ===
-	// FocusableVNode stores the focusable interface for focusable elements (buttons, inputs, etc.)
-	// This is set during Fiber creation from VNode that implements FocusableVNode
-	// DEPRECATED: Use FocusableMeta instead for Fiber-first approach
+	// === Focusable Support (DEPRECATED - Use Instance.FocusableInstance instead) ===
+	// FocusableVNode stores the focusable interface for focusable elements
+	// DEPRECATED: Use Instance.(FocusableInstance) instead
 	FocusableVNode FocusableVNode
 
 	// === ActionTargetID (Fiber-first Action Architecture) ===
 	// Fiber only stores ActionTargetID for routing to component.
-	// ActionBridge uses this to generate Action and dispatch to Target.
-	// Design: Fiber stores "who I am", not "what to do".
 	ActionTargetID string
 
 	// === Focusable Metadata (Fiber-first) ===
-	// FocusableMeta stores focusable runtime capability.
-	// This is extracted from VNode props during completeWork.
-	// FocusManager should only access Fiber.FocusableMeta, never VNode.
+	// DEPRECATED: Use Instance.(FocusableInstance) instead
 	FocusableMeta *FocusableMeta
 
-	// === ComponentInstance (Fiber-first Architecture) ===
-	// Instance is the runtime entity for this Fiber.
-	// It persists across renders and holds all state.
-	// VNode is used only during creation, then discarded.
-	// During commit/paint phase, Instance.Paint() is called.
-	// See: docs/fiber/fiber_first/fiber_paint.md
-	Instance ComponentInstance
-
-	// === Paint Function (DEPRECATED - Use Instance instead) ===
-	// PaintFunc stores the paint function extracted from VNode.Paint().
-	// This is kept for backward compatibility during migration.
-	// New code should use Instance.Paint() instead.
-	PaintFunc interface{}
+	// === ComponentInstance (Legacy - Use Instance field instead) ===
+	// DEPRECATED: This field is kept for backward compatibility during migration.
+	// Use Instance field instead.
+	ComponentInstance ComponentInstance
 }
 
 // =============================================================================
@@ -246,41 +208,68 @@ type Fiber struct {
 // =============================================================================
 
 // GetActionTargetID returns the ActionTargetID for ActionBridge routing.
-// Implements the interface required by HitMapEntry.TargetFiber.
 func (f *Fiber) GetActionTargetID() string {
 	return f.ActionTargetID
 }
 
 // GetProps returns the props from the Fiber.
-// Fiber-first: returns Fiber.Props directly without VNode dependency.
 func (f *Fiber) GetProps() Props {
 	return f.Props
 }
 
 // GetMemoizedProps returns the memoized props for comparison during reconciliation.
-// These are the props from the previous render.
 func (f *Fiber) GetMemoizedProps() Props {
 	return f.MemoizedProps
 }
 
+// GetInstance returns the ComponentInstance for this Fiber.
+// Returns nil if no instance is attached.
+func (f *Fiber) GetInstance() ComponentInstance {
+	// Priority: Instance field (new) > ComponentInstance field (legacy)
+	if f.Instance != nil {
+		return f.Instance
+	}
+	return f.ComponentInstance
+}
+
+// GetPaintableInstance returns the PaintableInstance if available.
+// Returns nil if the instance doesn't implement PaintableInstance.
+func (f *Fiber) GetPaintableInstance() PaintableInstance {
+	inst := f.GetInstance()
+	if inst == nil {
+		return nil
+	}
+	if pi, ok := inst.(PaintableInstance); ok {
+		return pi
+	}
+	return nil
+}
+
+// GetFocusableInstance returns the FocusableInstance if available.
+// Returns nil if the instance doesn't implement FocusableInstance.
+func (f *Fiber) GetFocusableInstance() FocusableInstance {
+	inst := f.GetInstance()
+	if inst == nil {
+		return nil
+	}
+	if fi, ok := inst.(FocusableInstance); ok {
+		return fi
+	}
+	return nil
+}
+
 // Update represents a state update
 type Update struct {
-	// The new state or updater function
 	Payload interface{}
-	// The next update in the queue
-	Next *Update
-	// Lane for this update
-	Lane Lane
-	// Callback after update is committed
+	Next    *Update
+	Lane    Lane
 	Callback func()
 }
 
 // UpdateQueue holds pending updates
 type UpdateQueue struct {
-	// First pending update
 	First *Update
-	// Last pending update
-	Last *Update
+	Last  *Update
 }
 
 // =============================================================================
@@ -309,7 +298,6 @@ func IsSubsetLanes(a, b Lane) bool {
 
 // GetHighestPriorityLane returns the highest priority lane set
 func GetHighestPriorityLane(lanes Lane) Lane {
-	// Find the least significant bit (highest priority)
 	return lanes & (-lanes)
 }
 
@@ -323,8 +311,8 @@ func (f *Fiber) String() string {
 		return "nil"
 	}
 
-	return fmt.Sprintf("Fiber{Tag: %s, Key: %s, NodeID: %d, Flags: %d, Lanes: %d}",
-		f.Tag, f.Key, f.NodeID, f.Flags, f.Lanes)
+	return fmt.Sprintf("Fiber{Tag: %s, Key: %s, NodeID: %d, Flags: %d, Lanes: %d, HasInstance: %v}",
+		f.Tag, f.Key, f.NodeID, f.Flags, f.Lanes, f.Instance != nil)
 }
 
 // =============================================================================
@@ -376,7 +364,6 @@ func (f *Fiber) EnqueueUpdate(update *Update) {
 		f.UpdateQueue.Last = update
 	}
 
-	// Mark fiber as having work - use update's lane if specified, otherwise default to SyncLane
 	lane := update.Lane
 	if lane == LaneNoLane {
 		lane = LaneSyncLane
@@ -387,16 +374,10 @@ func (f *Fiber) EnqueueUpdate(update *Update) {
 // =============================================================================
 // Reconciler Interface
 // =============================================================================
-// This interface allows internal/render to use the Fiber reconciler without
-// importing internal/reconciler directly (which would cause a cycle).
 
 // Reconciler is the interface for Fiber reconciliation
 type Reconciler interface {
-	// Render executes the rendering process
-	// ctx and buffer are passed as interface{} to avoid import cycles
 	Render(ctx interface{}, buffer interface{}, renderFunc func() VNode)
-	// SetApp sets the framework app for scheduling
 	SetApp(app interface{})
-	// GetRenderedRoot returns the rendered VNode tree for focus management
 	GetRenderedRoot() VNode
 }

@@ -98,41 +98,36 @@ func (a *FiberPaintableAdapter) TextContent() string {
 	return ""
 }
 
-// Paint delegates to the Fiber's Paint method.
+// Paint delegates to the Fiber's Instance.Paint() method.
 // Fiber-first Architecture (priority order):
-// 1. Fiber.Instance.Paint() (PaintableInstance)
-// 2. PaintRegistry by Tag (simple components)
-// 3. Fiber.PaintFunc (legacy transition path)
+// 1. Fiber.Instance.Paint() (PaintableInstance) - PRIMARY
+// 2. PaintRegistry by Tag (simple stateless components)
+// 3. Fiber.FocusableVNode (legacy - deprecated)
 func (a *FiberPaintableAdapter) Paint(x, y int) []paint.DrawCmd {
 	if a.Fiber == nil {
 		return nil
 	}
 
 	// Primary Path: Use Fiber.Instance (Fiber-first)
-	// The Instance persists across renders and holds state
+	// The Instance persists across renders and holds all state.
+	// This is the ONLY way to paint for Fiber-first components.
 	if a.Fiber.Instance != nil {
 		if inst, ok := rtui.AsPaintableInstance(a.Fiber.Instance); ok {
 			return inst.Paint(x, y)
 		}
 	}
 
-	// Fallback Path 1: Use PaintRegistry (simple components)
+	// Fallback Path 1: Use PaintRegistry (simple stateless components)
+	// For components that don't need state (text, divs, etc.)
 	if fn := rtui.GetPaint(a.Fiber.Tag); fn != nil {
 		return fn(a.Fiber.Props, a.Fiber.Style, x, y)
 	}
 
-	// Fallback Path 2: Use Fiber.FocusableVNode (legacy)
+	// Fallback Path 2: Use Fiber.FocusableVNode (Legacy)
+	// DEPRECATED: This path exists for backward compatibility.
+	// New components should implement InstanceFactory and PaintableInstance.
 	if a.Fiber.FocusableVNode != nil {
 		if paintable, ok := a.Fiber.FocusableVNode.(interface {
-			Paint(int, int) []paint.DrawCmd
-		}); ok {
-			return paintable.Paint(x, y)
-		}
-	}
-
-	// Fallback Path 3: Use Fiber.PaintFunc (Legacy)
-	if a.Fiber.PaintFunc != nil {
-		if paintable, ok := a.Fiber.PaintFunc.(interface {
 			Paint(int, int) []paint.DrawCmd
 		}); ok {
 			return paintable.Paint(x, y)

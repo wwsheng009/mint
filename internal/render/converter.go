@@ -28,18 +28,15 @@ import (
 // by combining layout data with Fiber runtime data.
 type FiberToPaintableConverter struct {
 	// fiberMap provides quick Fiber lookup by key
-	// Key: Fiber.DiffKey or Fiber.Key
 	fiberMap map[string]*reconciler.Fiber
 }
 
 // NewFiberToPaintableConverter creates a new converter.
-// It builds an index of all Fibers for efficient lookup during conversion.
 func NewFiberToPaintableConverter(rootFiber *reconciler.Fiber) *FiberToPaintableConverter {
 	c := &FiberToPaintableConverter{
 		fiberMap: make(map[string]*reconciler.Fiber),
 	}
 	
-	// Build fiber index
 	if rootFiber != nil {
 		c.buildFiberMap(rootFiber)
 	}
@@ -48,10 +45,6 @@ func NewFiberToPaintableConverter(rootFiber *reconciler.Fiber) *FiberToPaintable
 }
 
 // buildFiberMap recursively indexes all Fibers by multiple keys
-// Keys used:
-// 1. DiffKey (primary)
-// 2. Key (alias for DiffKey)
-// 3. NodeID as string (for matching with LayoutBox.ID from FiberToNodeAdapter)
 func (c *FiberToPaintableConverter) buildFiberMap(fiber *reconciler.Fiber) {
 	if fiber == nil {
 		return
@@ -65,7 +58,7 @@ func (c *FiberToPaintableConverter) buildFiberMap(fiber *reconciler.Fiber) {
 	if fiber.Key != "" && fiber.Key != fiber.DiffKey {
 		c.fiberMap[fiber.Key] = fiber
 	}
-	// Index by NodeID string (for matching with FiberToNodeAdapter.ID())
+	// Index by NodeID string
 	nodeIDKey := fmt.Sprintf("%d", fiber.NodeID)
 	c.fiberMap[nodeIDKey] = fiber
 	
@@ -76,7 +69,6 @@ func (c *FiberToPaintableConverter) buildFiberMap(fiber *reconciler.Fiber) {
 }
 
 // Convert converts a LayoutBox tree to a PaintableBox tree.
-// This is the main entry point for the converter.
 func (c *FiberToPaintableConverter) Convert(
 	lbox *layout.LayoutBox,
 	parent *paint.PaintableBox,
@@ -85,15 +77,14 @@ func (c *FiberToPaintableConverter) Convert(
 		return nil
 	}
 	
-	// Create PaintableBox with layout data
 	pbox := &paint.PaintableBox{
-		X:       lbox.X,
-		Y:       lbox.Y,
-		Width:   lbox.Width,
-		Height:  lbox.Height,
-		Layer:   convertLayoutLayerToInt(lbox.Layer),
-		ZIndex:  lbox.ZIndex,
-		Parent:  parent,
+		X:        lbox.X,
+		Y:        lbox.Y,
+		Width:    lbox.Width,
+		Height:   lbox.Height,
+		Layer:    convertLayoutLayerToInt(lbox.Layer),
+		ZIndex:   lbox.ZIndex,
+		Parent:   parent,
 		Children: make([]*paint.PaintableBox, 0, len(lbox.Children)),
 	}
 	
@@ -119,7 +110,7 @@ func (c *FiberToPaintableConverter) ConvertToLayout(lbox *layout.LayoutBox) *pai
 	return paint.NewPaintableLayout(root)
 }
 
-// findFiber finds a Fiber by ID, supporting both DiffKey and NodeID formats
+// findFiber finds a Fiber by ID
 func (c *FiberToPaintableConverter) findFiber(id string) *reconciler.Fiber {
 	if id == "" {
 		return nil
@@ -130,7 +121,7 @@ func (c *FiberToPaintableConverter) findFiber(id string) *reconciler.Fiber {
 		return f
 	}
 	
-	// Strategy 2: Match by NodeID format (e.g., "95")
+	// Strategy 2: Match by NodeID format
 	for _, f := range c.fiberMap {
 		if fmt.Sprintf("%d", f.NodeID) == id {
 			return f
@@ -142,7 +133,6 @@ func (c *FiberToPaintableConverter) findFiber(id string) *reconciler.Fiber {
 
 // fillFromFiber populates PaintableBox with data from Fiber
 func (c *FiberToPaintableConverter) fillFromFiber(pbox *paint.PaintableBox, fiber *reconciler.Fiber) {
-	// Identity
 	pbox.NodeID = fiber.NodeID
 	pbox.DiffKey = fiber.DiffKey
 	
@@ -215,7 +205,7 @@ func (n *FiberPaintableNode) Style() style.Style {
 	return n.fiber.Style
 }
 
-// SetStyle sets the Fiber's style (for background inheritance)
+// SetStyle sets the Fiber's style
 func (n *FiberPaintableNode) SetStyle(s style.Style) {
 	if n.fiber != nil {
 		n.fiber.Style = s
@@ -227,11 +217,9 @@ func (n *FiberPaintableNode) TextContent() string {
 	if n.fiber == nil {
 		return ""
 	}
-	// Check MemoizedState first (set for text nodes)
 	if content, ok := n.fiber.MemoizedState.(string); ok {
 		return content
 	}
-	// Fallback to Props
 	if n.fiber.Props != nil {
 		if content, ok := n.fiber.Props["content"].(string); ok {
 			return content
@@ -240,20 +228,36 @@ func (n *FiberPaintableNode) TextContent() string {
 	return ""
 }
 
-// Paint delegates to the Fiber's PaintFunc or returns nil
+// Paint delegates to the Fiber's Instance.Paint() method.
+// Fiber-first Architecture: Uses Instance ONLY, no VNode access.
 func (n *FiberPaintableNode) Paint(x, y int) []paint.DrawCmd {
-	if n.fiber == nil || n.fiber.PaintFunc == nil {
+	if n.fiber == nil {
 		return nil
 	}
-	
-	// PaintFunc stores the VNode reference (transitional approach)
-	// Type assert to Paintable interface
-	if paintable, ok := n.fiber.PaintFunc.(interface {
-		Paint(int, int) []paint.DrawCmd
-	}); ok {
-		return paintable.Paint(x, y)
+
+	// Primary Path: Use Fiber.Instance (Fiber-first)
+	// The Instance persists across renders and holds all state.
+	if n.fiber.Instance != nil {
+		if inst, ok := n.fiber.Instance.(rtui.PaintableInstance); ok {
+			return inst.Paint(x, y)
+		}
 	}
-	
+
+	// Fallback Path 1: Use PaintRegistry (simple stateless components)
+	if fn := rtui.GetPaint(n.fiber.Tag); fn != nil {
+		return fn(n.fiber.Props, n.fiber.Style, x, y)
+	}
+
+	// Fallback Path 2: Use Fiber.FocusableVNode (Legacy)
+	// DEPRECATED: For backward compatibility only.
+	if n.fiber.FocusableVNode != nil {
+		if paintable, ok := n.fiber.FocusableVNode.(interface {
+			Paint(int, int) []paint.DrawCmd
+		}); ok {
+			return paintable.Paint(x, y)
+		}
+	}
+
 	return nil
 }
 
@@ -261,29 +265,26 @@ func (n *FiberPaintableNode) Paint(x, y int) []paint.DrawCmd {
 // Helper Functions
 // =============================================================================
 
-// convertLayoutLayerToInt converts layout.Layer to int
 func convertLayoutLayerToInt(l layout.Layer) int {
 	switch l {
 	case layout.LayerBase:
 		return 0
 	case layout.LayerDropdown, layout.LayerSticky, layout.LayerFixed:
-		return 1 // Overlay
+		return 1
 	case layout.LayerModalBackdrop, layout.LayerModal:
-		return 2 // Modal
+		return 2
 	case layout.LayerPopover, layout.LayerTooltip:
-		return 3 // Tooltip
+		return 3
 	default:
 		return 0
 	}
 }
 
-// getBorderStyleFromProps extracts border style from Props
 func getBorderStyleFromProps(props rtui.Props) paint.BorderStyle {
 	if props == nil {
 		return paint.BorderStyleNone
 	}
 	
-	// Try string format
 	if s, ok := props["borderStyle"].(string); ok {
 		switch s {
 		case "single":
@@ -295,7 +296,6 @@ func getBorderStyleFromProps(props rtui.Props) paint.BorderStyle {
 		}
 	}
 	
-	// Try rtui.BorderStyle format
 	if bs, ok := props["borderStyle"].(rtui.BorderStyle); ok {
 		switch bs {
 		case rtui.BorderSingle:
@@ -310,7 +310,6 @@ func getBorderStyleFromProps(props rtui.Props) paint.BorderStyle {
 	return paint.BorderStyleNone
 }
 
-// getBorderProp extracts a border property from Props
 func getBorderProp(props rtui.Props, key string) string {
 	if props == nil {
 		return ""
