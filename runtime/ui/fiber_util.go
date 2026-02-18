@@ -115,6 +115,7 @@ func CreateFiber(vnode VNode) *Fiber {
 	}
 
 	// Extract FocusableVNode if the VNode implements it (for buttons, inputs, etc.)
+	// DEPRECATED: Use Instance instead for Fiber-first approach
 	var focusableVNode FocusableVNode
 	if f, ok := vnode.(FocusableVNode); ok && f.IsFocusable() {
 		focusableVNode = f
@@ -124,15 +125,18 @@ func CreateFiber(vnode VNode) *Fiber {
 	// Fiber stores "who I am", not "what to do"
 	actionTargetID := extractActionTargetID(vnode)
 
-	// Extract PaintFunc (Fiber-first Paint Architecture)
-	// Paint function is extracted from VNode.Paint() method
-	// This enables Render to call Paint without VNode dependency
-	// We store the VNode itself - the adapter will type-assert at call site
-	// This avoids import cycle with runtime/paint
+	// === Fiber-first: Create Instance from VNode ===
+	// If VNode implements InstanceFactory, create the runtime instance.
+	// The instance persists across renders and holds all state.
+	// VNode is only used during creation, then discarded.
+	var instance ComponentInstance
+	if factory, ok := vnode.(InstanceFactory); ok {
+		instance = factory.CreateInstance()
+	}
+
+	// Extract PaintFunc (DEPRECATED - Use Instance instead)
+	// Kept for backward compatibility during migration
 	var paintFunc interface{}
-	// Check if VNode has Paint method by trying a generic interface
-	// Most components implement Paint() []paint.DrawCmd
-	// We store the VNode and let the adapter handle the type assertion
 	paintFunc = vnode
 
 	return &Fiber{
@@ -160,6 +164,8 @@ func CreateFiber(vnode VNode) *Fiber {
 		FocusableVNode:             focusableVNode,
 		ActionTargetID:             actionTargetID,
 		PaintFunc:                  paintFunc,
+		// Fiber-first Architecture
+		Instance: instance,
 	}
 }
 
@@ -321,6 +327,7 @@ func WalkFiberBreadthFirst(root *Fiber, callback func(*Fiber) bool) bool {
 
 // CloneFiber creates a shallow copy of a fiber
 // ✨ Preserves NodeID for stable runtime identity
+// ✨ Reuses Instance (Instance is NEVER cloned - it persists across renders)
 func CloneFiber(fiber *Fiber) *Fiber {
 	if fiber == nil {
 		return nil
@@ -342,7 +349,6 @@ func CloneFiber(fiber *Fiber) *Fiber {
 		Sibling:       fiber.Sibling,
 		Alternate:     fiber.Alternate,
 		// Don't share UpdateQueue - cloned fiber gets its own empty queue
-		// This prevents updates to clone from affecting original
 		UpdateQueue:  nil,
 		Flags:        fiber.Flags,
 		SubtreeFlags: fiber.SubtreeFlags,
@@ -364,12 +370,15 @@ func CloneFiber(fiber *Fiber) *Fiber {
 		ErrorBoundaryFallbackFiber: fiber.ErrorBoundaryFallbackFiber,
 		MemoCompare:                fiber.MemoCompare,
 		MemoShouldUpdate:           fiber.MemoShouldUpdate,
-		// Focusable support
+		// Focusable support (DEPRECATED - use Instance instead)
 		FocusableVNode: fiber.FocusableVNode,
 		// ActionTargetID (Fiber-first Action Architecture)
 		ActionTargetID: fiber.ActionTargetID,
 		// Focusable metadata (Fiber-first)
 		FocusableMeta: fiber.FocusableMeta,
+		// ComponentInstance (Fiber-first) - REUSE, NEVER CLONE
+		// Instance persists across renders
+		Instance: fiber.Instance,
 	}
 }
 

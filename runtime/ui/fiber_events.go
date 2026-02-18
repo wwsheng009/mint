@@ -94,16 +94,36 @@ type EventMap struct {
 	handlers map[string]interface{}
 }
 
-// FocusableMeta holds focusable metadata for a Fiber node.
+// FocusableMeta holds focusable metadata and runtime state for a Fiber node.
+// This is the Fiber-first approach: all runtime state is in Fiber, not VNode.
 type FocusableMeta struct {
+	// Configuration (set during Fiber creation)
 	TabIndex int
 	Disabled bool
 	FocusID  string
+
+	// Runtime State (managed by FocusManager/HitTestManager)
+	HasFocus  bool // Set by FocusManager during keyboard navigation
+	IsHovered bool // Set by HitTestManager during mouse interaction
 }
 
 // IsFocusable returns true if the Fiber can receive focus
 func (f *FocusableMeta) IsFocusable() bool {
 	return f != nil && !f.Disabled && f.TabIndex >= 0
+}
+
+// SetFocus sets the focus state
+func (f *FocusableMeta) SetFocus(focused bool) {
+	if f != nil {
+		f.HasFocus = focused
+	}
+}
+
+// SetHover sets the hover state
+func (f *FocusableMeta) SetHover(hovered bool) {
+	if f != nil {
+		f.IsHovered = hovered
+	}
 }
 
 // NewEventMap creates a new EventMap

@@ -1,80 +1,71 @@
 package ui
 
-import "fmt"
+import (
+	"github.com/wwsheng009/mint/runtime/paint"
+	"github.com/wwsheng009/mint/runtime/style"
+)
 
-// ComponentInstance represents a persistent component instance that maintains
-// state across renders.
+// =============================================================================
+// ComponentInstance - Fiber-first Runtime Instance
+// =============================================================================
+// ComponentInstance is the runtime entity for components.
+// It persists across renders and holds all state.
 //
-// Architecture:
+// Architecture (from fiber_paint.md):
 //
-//	VNode (created each render)  →  ComponentInstance (persists across renders)
-//	                                    ├─ state: { isHovered, value, ... }
-//	                                    ├─ props: { label, onClick, ... }
-//	                                    ├─ hooks: [ useState, useEffect, ... ]
-//	                                    └─ key: string (for matching)
+//	VNode (描述) ──创建──→ Instance (运行期实体)
+//	                       ↓
+//	                 Fiber.Instance = instance
+//	                       ↓
+//	                 生命周期: Mount → Update* → Unmount
 //
-// The instance is created on first render and reused on subsequent renders
-// when a VNode with the same key is encountered.
+// Key Points:
+//   - VNode is created every render (description only)
+//   - Instance is created once and persists (stateful)
+//   - Fiber holds Instance reference, NOT VNode reference
+//   - Instance.Paint() is called during commit phase
+
+// ComponentInstance is the core runtime interface for all components.
+// This matches the design in fiber_paint.md.
 type ComponentInstance interface {
-	// Key returns the unique identifier for this instance
-	// Used to match VNodes to instances across renders
+	// === Identification ===
 	Key() string
-
-	// SetKey sets the instance key
 	SetKey(key string)
 
-	// SetProps updates the component properties
-	// Returns true if props changed (may trigger re-render)
-	SetProps(props Props) bool
-
-	// GetProps returns the current properties
-	GetProps() Props
-
-	// GetState returns the component's state map
-	// This includes all state from useState hooks
-	GetState() map[string]interface{}
-
-	// SetState updates a specific state value and triggers re-render
-	SetState(key string, value interface{})
-
-	// GetContext returns the component's hook context
-	// This persists hooks across renders
-	GetContext() *ComponentContext
-
-	// Render calls the component function and returns the new VNode
-	// This is called each render cycle with the persistent context
-	Render() VNode
-
-	// OnMount is called when the instance is first created
+	// === Lifecycle ===
+	Init(props Props)
+	Destroy()
 	OnMount()
-
-	// OnUpdate is called before rendering with new props
-	// Returns false to cancel the update
-	OnUpdate(newProps, oldProps Props) bool
-
-	// OnUnmount is called when the instance is being destroyed
 	OnUnmount()
 
-	// MarkDirty marks the instance as needing a re-render
-	MarkDirty()
+	// === Props Management ===
+	SetProps(props Props) bool
+	GetProps() Props
 
-	// IsDirty returns whether the instance needs re-rendering
+	// === State ===
+	MarkDirty()
 	IsDirty() bool
+
+	// === Context (for hooks) ===
+	GetContext() *ComponentContext
 }
+
+// =============================================================================
+// BaseComponentInstance - Base implementation
+// =============================================================================
 
 // BaseComponentInstance provides a base implementation of ComponentInstance
-// that can be embedded by specific component instances.
 type BaseComponentInstance struct {
-	key        string
-	props      Props
-	context    *ComponentContext
-	fn         ComponentFunc
+	key         string
+	props       Props
+	context     *ComponentContext
+	fn          ComponentFunc
 	fnWithProps ComponentFuncWithProps
-	dirty      bool
-	mounted    bool
+	dirty       bool
+	mounted     bool
 }
 
-// NewBaseComponentInstance creates a new base component instance
+// NewBaseComponentInstance creates a new base instance
 func NewBaseComponentInstance(key string, fn ComponentFunc) *BaseComponentInstance {
 	return &BaseComponentInstance{
 		key:     key,
@@ -82,11 +73,10 @@ func NewBaseComponentInstance(key string, fn ComponentFunc) *BaseComponentInstan
 		props:   make(Props),
 		context: NewComponentContext(key),
 		dirty:   true,
-		mounted: false,
 	}
 }
 
-// NewBaseComponentInstanceWithProps creates a new base component instance with props
+// NewBaseComponentInstanceWithProps creates a new base instance with props
 func NewBaseComponentInstanceWithProps(key string, fn ComponentFuncWithProps, props Props) *BaseComponentInstance {
 	return &BaseComponentInstance{
 		key:         key,
@@ -94,7 +84,6 @@ func NewBaseComponentInstanceWithProps(key string, fn ComponentFuncWithProps, pr
 		props:       props,
 		context:     NewComponentContext(key),
 		dirty:       true,
-		mounted:     false,
 	}
 }
 
@@ -108,71 +97,16 @@ func (b *BaseComponentInstance) SetKey(key string) {
 	b.key = key
 }
 
-// SetProps implements ComponentInstance
-func (b *BaseComponentInstance) SetProps(props Props) bool {
-	// Check if props actually changed
-	if propsEqual(b.props, props) {
-		return false
-	}
-	oldProps := b.props
+// Init implements ComponentInstance
+func (b *BaseComponentInstance) Init(props Props) {
 	b.props = props
-	// Call OnUpdate if implemented by embedded type
-	if b.OnUpdate(props, oldProps) {
-		b.MarkDirty()
-		return true
-	}
-	return false
+	b.dirty = true
 }
 
-// GetProps implements ComponentInstance
-func (b *BaseComponentInstance) GetProps() Props {
-	return b.props
-}
-
-// GetState implements ComponentInstance
-func (b *BaseComponentInstance) GetState() map[string]interface{} {
-	state := make(map[string]interface{})
-	// Collect state from hooks
-	for i, hook := range b.context.Hooks {
-		if hook.Type == HookState {
-			state[fmt.Sprintf("hook_%d", i)] = hook.Value
-		}
-	}
-	return state
-}
-
-// SetState implements ComponentInstance
-func (b *BaseComponentInstance) SetState(key string, value interface{}) {
-	// This is a low-level API - normally users use useState
-	// But it allows direct state manipulation if needed
-	b.MarkDirty()
-}
-
-// GetContext implements ComponentInstance
-func (b *BaseComponentInstance) GetContext() *ComponentContext {
-	return b.context
-}
-
-// Render implements ComponentInstance
-func (b *BaseComponentInstance) Render() VNode {
-	// Reset hook index for re-render
-	b.context.ResetContext()
-
-	// Set this instance's context as current
-	SetCurrentContext(b.context)
-
-	// Call the component function
-	var vnode VNode
-	if b.fn != nil {
-		vnode = b.fn()
-	} else if b.fnWithProps != nil {
-		vnode = b.fnWithProps(b.props)
-	}
-
-	// Clear current context
-	SetCurrentContext(nil)
-
-	return vnode
+// Destroy implements ComponentInstance
+func (b *BaseComponentInstance) Destroy() {
+	b.context.CleanupAll()
+	b.mounted = false
 }
 
 // OnMount implements ComponentInstance
@@ -180,17 +114,24 @@ func (b *BaseComponentInstance) OnMount() {
 	b.mounted = true
 }
 
-// OnUpdate implements ComponentInstance
-// Returns true to allow the update, false to cancel
-func (b *BaseComponentInstance) OnUpdate(newProps, oldProps Props) bool {
-	return true // Allow update by default
-}
-
 // OnUnmount implements ComponentInstance
 func (b *BaseComponentInstance) OnUnmount() {
-	// Run cleanup functions
-	b.context.CleanupAll()
 	b.mounted = false
+}
+
+// SetProps implements ComponentInstance
+func (b *BaseComponentInstance) SetProps(props Props) bool {
+	if propsEqual(b.props, props) {
+		return false
+	}
+	b.props = props
+	b.dirty = true
+	return true
+}
+
+// GetProps implements ComponentInstance
+func (b *BaseComponentInstance) GetProps() Props {
+	return b.props
 }
 
 // MarkDirty implements ComponentInstance
@@ -203,6 +144,11 @@ func (b *BaseComponentInstance) IsDirty() bool {
 	return b.dirty
 }
 
+// GetContext implements ComponentInstance
+func (b *BaseComponentInstance) GetContext() *ComponentContext {
+	return b.context
+}
+
 // ClearDirty clears the dirty flag
 func (b *BaseComponentInstance) ClearDirty() {
 	b.dirty = false
@@ -213,7 +159,22 @@ func (b *BaseComponentInstance) IsMounted() bool {
 	return b.mounted
 }
 
-// propsEqual compares two Props for equality
+// Render calls the component function
+func (b *BaseComponentInstance) Render() VNode {
+	b.context.ResetContext()
+	SetCurrentContext(b.context)
+
+	var vnode VNode
+	if b.fn != nil {
+		vnode = b.fn()
+	} else if b.fnWithProps != nil {
+		vnode = b.fnWithProps(b.props)
+	}
+
+	SetCurrentContext(nil)
+	return vnode
+}
+
 func propsEqual(a, b Props) bool {
 	if len(a) != len(b) {
 		return false
@@ -224,4 +185,159 @@ func propsEqual(a, b Props) bool {
 		}
 	}
 	return true
+}
+
+// =============================================================================
+// PaintableInstance - Instance with Paint capability
+// =============================================================================
+
+// PaintableInstance is implemented by native components that can paint themselves.
+type PaintableInstance interface {
+	ComponentInstance
+	Paint(x, y int) []paint.DrawCmd
+}
+
+// =============================================================================
+// FocusableInstance - Instance with Focus capability
+// =============================================================================
+
+// FocusableInstance is implemented by components that can receive focus.
+type FocusableInstance interface {
+	ComponentInstance
+	SetFocus(focused bool)
+	HasFocus() bool
+	IsDisabled() bool
+}
+
+// =============================================================================
+// ActionHandlerInstance - Instance that handles actions
+// =============================================================================
+
+// ActionHandlerInstance is implemented by components that handle actions.
+type ActionHandlerInstance interface {
+	ComponentInstance
+	CanHandleAction(actionType string) bool
+	HandleAction(actionType string, payload interface{}) bool
+}
+
+// =============================================================================
+// InstanceFactory - Creates instances from VNodes
+// =============================================================================
+
+// InstanceFactory is implemented by VNode types that can create instances.
+type InstanceFactory interface {
+	CreateInstance() ComponentInstance
+}
+
+// =============================================================================
+// Helper Functions
+// =============================================================================
+
+// AsPaintableInstance attempts to cast to PaintableInstance
+func AsPaintableInstance(inst ComponentInstance) (PaintableInstance, bool) {
+	p, ok := inst.(PaintableInstance)
+	return p, ok
+}
+
+// AsFocusableInstance attempts to cast to FocusableInstance
+func AsFocusableInstance(inst ComponentInstance) (FocusableInstance, bool) {
+	f, ok := inst.(FocusableInstance)
+	return f, ok
+}
+
+// AsActionHandler attempts to cast to ActionHandlerInstance
+func AsActionHandler(inst ComponentInstance) (ActionHandlerInstance, bool) {
+	a, ok := inst.(ActionHandlerInstance)
+	return a, ok
+}
+
+// TryInstancePaint attempts to paint an instance
+func TryInstancePaint(inst ComponentInstance, x, y int) []paint.DrawCmd {
+	if p, ok := AsPaintableInstance(inst); ok {
+		return p.Paint(x, y)
+	}
+	return nil
+}
+
+// IsInstanceFactory checks if a VNode implements InstanceFactory
+func IsInstanceFactory(vnode VNode) bool {
+	_, ok := vnode.(InstanceFactory)
+	return ok
+}
+
+// =============================================================================
+// Simple Paint Registry (for simple components without state)
+// =============================================================================
+
+// PaintFunc is a simple paint function for stateless components
+type PaintFunc func(props Props, st style.Style, x, y int) []paint.DrawCmd
+
+var paintRegistry = make(map[string]PaintFunc)
+
+// RegisterPaint registers a paint function for a tag
+func RegisterPaint(tag string, fn PaintFunc) {
+	paintRegistry[tag] = fn
+}
+
+// GetPaint returns the paint function for a tag
+func GetPaint(tag string) PaintFunc {
+	return paintRegistry[tag]
+}
+
+// =============================================================================
+// State Map (for simple state storage)
+// =============================================================================
+
+// StateMap is a simple string-keyed state container
+type StateMap map[string]interface{}
+
+// Get retrieves a value from the state map
+func (s StateMap) Get(key string) interface{} {
+	if s == nil {
+		return nil
+	}
+	return s[key]
+}
+
+// Set stores a value in the state map
+func (s StateMap) Set(key string, value interface{}) {
+	s[key] = value
+}
+
+// GetString retrieves a string value
+func (s StateMap) GetString(key string) string {
+	if v, ok := s[key].(string); ok {
+		return v
+	}
+	return ""
+}
+
+// GetInt retrieves an int value
+func (s StateMap) GetInt(key string) int {
+	switch v := s[key].(type) {
+	case int:
+		return v
+	case int32:
+		return int(v)
+	case int64:
+		return int(v)
+	}
+	return 0
+}
+
+// GetBool retrieves a bool value
+func (s StateMap) GetBool(key string) bool {
+	if v, ok := s[key].(bool); ok {
+		return v
+	}
+	return false
+}
+
+// Clone creates a shallow copy of the state map
+func (s StateMap) Clone() StateMap {
+	result := make(StateMap, len(s))
+	for k, v := range s {
+		result[k] = v
+	}
+	return result
 }

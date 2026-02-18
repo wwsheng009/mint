@@ -113,6 +113,30 @@ func NewButton(label string) *ButtonVNode {
 	}
 }
 
+// =============================================================================
+// InstanceFactory Implementation (Fiber-first Architecture)
+// =============================================================================
+
+// CreateInstance implements InstanceFactory.
+// Creates a new ButtonInstance from this VNode description.
+// The instance persists across renders and holds all runtime state.
+func (b *ButtonVNode) CreateInstance() rtui.ComponentInstance {
+	props := rtui.Props{
+		"key":        b.Key(),
+		"label":      b.label,
+		"variant":    b.variant,
+		"size":       b.size,
+		"focusStyle": b.focusStyle,
+		"style":      b.Style(),
+		"onClick":    b.onClick,
+		"clickAction": b.clickAction,
+		"disabled":   b.disabled,
+		"padding":    b.Padding(),
+		"textAlign":  b.TextAlign(),
+	}
+	return NewButtonInstance(props)
+}
+
 // Label returns the button label
 func (b *ButtonVNode) Label() string {
 	return b.label

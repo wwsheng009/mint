@@ -99,31 +99,29 @@ func (a *FiberPaintableAdapter) TextContent() string {
 }
 
 // Paint delegates to the Fiber's Paint method.
-// Fiber-first Architecture:
-// 1. Primary: Use Fiber.PaintFunc (the recommended Fiber-first approach)
-// 2. Fallback: Use Fiber.FocusableVNode (deprecated, transition only)
-// 3. Last resort: Check Fiber.ComponentInstance
+// Fiber-first Architecture (priority order):
+// 1. Fiber.Instance.Paint() (PaintableInstance)
+// 2. PaintRegistry by Tag (simple components)
+// 3. Fiber.PaintFunc (legacy transition path)
 func (a *FiberPaintableAdapter) Paint(x, y int) []paint.DrawCmd {
 	if a.Fiber == nil {
 		return nil
 	}
 
-	// Primary Path: Use Fiber.PaintFunc (Fiber-first)
-	// PaintFunc stores the VNode reference that has Paint method
-	// This is extracted during CreateFiber from VNode
-	if a.Fiber.PaintFunc != nil {
-		// PaintFunc stores the VNode itself (transition approach)
-		// Type assert to Paintable interface
-		if paintable, ok := a.Fiber.PaintFunc.(interface {
-			Paint(int, int) []paint.DrawCmd
-		}); ok {
-			return paintable.Paint(x, y)
+	// Primary Path: Use Fiber.Instance (Fiber-first)
+	// The Instance persists across renders and holds state
+	if a.Fiber.Instance != nil {
+		if inst, ok := rtui.AsPaintableInstance(a.Fiber.Instance); ok {
+			return inst.Paint(x, y)
 		}
 	}
 
-	// Fallback Path 1: Check if FocusableVNode has Paint method
-	// DEPRECATED: This field is marked deprecated in Fiber struct
-	// Will be removed once Fiber-first migration is complete
+	// Fallback Path 1: Use PaintRegistry (simple components)
+	if fn := rtui.GetPaint(a.Fiber.Tag); fn != nil {
+		return fn(a.Fiber.Props, a.Fiber.Style, x, y)
+	}
+
+	// Fallback Path 2: Use Fiber.FocusableVNode (legacy)
 	if a.Fiber.FocusableVNode != nil {
 		if paintable, ok := a.Fiber.FocusableVNode.(interface {
 			Paint(int, int) []paint.DrawCmd
@@ -132,17 +130,15 @@ func (a *FiberPaintableAdapter) Paint(x, y int) []paint.DrawCmd {
 		}
 	}
 
-	// Fallback Path 2: Check if ComponentInstance has Paint method
-	// Future path for components with state
-	if a.Fiber.ComponentInstance != nil {
-		if paintable, ok := a.Fiber.ComponentInstance.(interface {
+	// Fallback Path 3: Use Fiber.PaintFunc (Legacy)
+	if a.Fiber.PaintFunc != nil {
+		if paintable, ok := a.Fiber.PaintFunc.(interface {
 			Paint(int, int) []paint.DrawCmd
 		}); ok {
 			return paintable.Paint(x, y)
 		}
 	}
 
-	// No paint logic available for this Fiber node
 	return nil
 }
 
