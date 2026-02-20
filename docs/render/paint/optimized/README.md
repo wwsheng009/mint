@@ -122,6 +122,66 @@ func Paint(vnode VNode, computedBox ComputedBox, buf *Buffer)
 func PaintLayout(layoutResult *LayoutResult, buf *paint.Buffer)
 ```
 
+
+## 多层渲染支持
+
+### Layer 类型
+
+Fiber-First 架构支持 8 种渲染层，按优先级从低到高：
+
+| Layer | 用途 | Z-Index 范围 |
+|-------|------|-------------|
+| LayerBase | 默认层 | 0-999 |
+| LayerDropdown | 下拉菜单 | 1000-1999 |
+| LayerSticky | 粘性定位 | 2000-2999 |
+| LayerFixed | 固定定位 | 3000-3999 |
+| LayerModalBackdrop | 模态背景 | 4000-4999 |
+| LayerModal | 模态对话框 | 5000-5999 |
+| LayerPopover | 弹出框 | 6000-6999 |
+| LayerTooltip | 工具提示 | 7000-7999 |
+
+### 渲染方式
+
+```go
+// 单层渲染 (性能更优)
+layoutResult := layoutEngine.LayoutFiber(root, constraints)
+paintEngine.PaintSingleLayer(layoutResult, buf)
+
+// 多层渲染 (支持 Modal、Dropdown 等)
+layeredResult := layoutEngine.LayoutFiberLayered(root, constraints)
+paintEngine.PaintMultiLayer(layeredResult, buf)
+```
+
+## 接口集成设计
+
+### FiberToNodeAdapter（适配器位置）
+
+> **重要架构约束**：适配器位于 `internal/render/fiber_adapter.go`，而非 `runtime/layout`
+> 
+> `runtime/layout` 是纯布局引擎，不依赖 Fiber/VNode，只定义抽象接口。
+
+通过适配器模式将 Fiber 与 runtime/layout 解耦：
+
+```
+Fiber (internal/render)
+    ↓
+FiberToNodeAdapter (internal/render/fiber_adapter.go)
+    ↓ 实现
+layout.Node (runtime/layout 接口)
+layout.Layered
+layout.Measurable
+layout.Dirtyable
+```
+
+### 接口映射
+
+| Fiber 字段 | layout 接口 | 用途 |
+|-----------|------------|------|
+| Style.Layer | GetLayer() | 渲染层 |
+| Style.ZIndex | GetZIndex() | 层内排序 |
+| Instance.GetSize() | Measure() | 尺寸测量 |
+| Flags | IsLayoutDirty() | 增量布局 |
+
 ## 性能提升预期
 
 | 指标 | 旧架构 | 新架构 | 提升 |

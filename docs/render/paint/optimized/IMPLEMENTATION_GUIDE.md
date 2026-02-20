@@ -46,36 +46,43 @@ const (
 
 ### 1.2 LayoutResult 结构
 
+> **注意**：使用现有的 `layout.LayoutBox` 和 `layout.LayoutResult`，而非自定义结构。
+
 ```go
 package layout
 
-// LayoutResult 表示布局结果
+// LayoutBox 表示单个节点的布局信息（已存在于 runtime/layout/types.go）
+type LayoutBox struct {
+    ID       string
+    X, Y     int
+    Width    int
+    Height   int
+    Baseline int
+    Layer    Layer
+    ZIndex   int
+    Children []*LayoutBox
+}
+
+// LayoutResult 表示布局结果（已存在于 runtime/layout/types.go）
 type LayoutResult struct {
-    Root *LayoutNode
+    Boxes       []LayoutBox
+    Root        *LayoutBox
+    ContentSize Size
+    Dirty       bool
+    HitMap      *HitMap
 }
 
-// LayoutNode 表示单个节点的布局信息
-type LayoutNode struct {
-    Fiber    *Fiber              // 关联的 Fiber 节点
-    Instance paint.PaintableBox  // 关联的实例
-    Box      Box                 // 布局盒子
-    Children []*LayoutNode       // 子节点
-}
-
-// Box 表示布局盒子
+// Box 表示布局盒子（已存在于 runtime/layout/types.go）
 type Box struct {
     X, Y      int
     Width     int
     Height    int
-    Direction Direction // 布局方向
 }
 
-type Direction int
-
-const (
-    DirectionHorizontal Direction = iota
-    DirectionVertical
-)
+type Size struct {
+    Width  int
+    Height int
+}
 ```
 
 ---
@@ -155,91 +162,80 @@ func CloneFiber(old *Fiber) *Fiber {
 
 ## 3. Layout 引擎实现
 
-### 3.1 Fiber-based Layout 引擎
+> **架构约束**：
+> - Layout 引擎使用 `runtime/layout.Engine`，位于 `runtime/layout` 包
+> - 适配器 `FiberToNodeAdapter` 位于 `internal/render/fiber_adapter.go`
+> - `runtime/layout` 不依赖 Fiber/VNode
+
+### 3.1 使用现有 layout.Engine
 
 ```go
-package layout
+package render
 
+import (
+    "github.com/wwsheng009/mint/runtime"
+    "github.com/wwsheng009/mint/runtime/layout"
+    rtui "github.com/wwsheng009/mint/runtime/ui"
+)
+
+// FiberLayoutEngine 封装 layout.Engine，提供 Fiber-first 布局
 type FiberLayoutEngine struct {
-    // 可配置的布局算法
+    engine *layout.Engine
+}
+
+// NewFiberLayoutEngine 创建 Fiber 布局引擎
+func NewFiberLayoutEngine() *FiberLayoutEngine {
+    return &FiberLayoutEngine{
+        engine: layout.NewEngine(),
+    }
 }
 
 // LayoutFiber 对 Fiber 树进行布局
-func (e *FiberLayoutEngine) LayoutFiber(root *Fiber, constraints Constraints) *LayoutResult {
-    layoutRoot := e.layoutNode(root, constraints)
-    return &LayoutResult{Root: layoutRoot}
-}
-
-// layoutNode 递归布局单个节点
-func (e *FiberLayoutEngine) layoutNode(fiber *Fiber, constraints Constraints) *LayoutNode {
-    if fiber == nil {
+// 输入：Fiber 根节点和运行时约束
+// 输出：layout.LayoutResult，包含 LayoutBox 树
+func (e *FiberLayoutEngine) LayoutFiber(root *rtui.Fiber, constraints runtime.BoxConstraints) *layout.LayoutResult {
+    if root == nil {
         return nil
     }
-    
-    // 1. 创建布局节点
-    node := &LayoutNode{
-        Fiber:    fiber,
-        Instance: fiber.Instance,
+
+    // 1. 将 Fiber 适配为 layout.Node（使用 internal/render 中的适配器）
+    adapter := NewFiberToNodeAdapterPure(root)
+
+    // 2. 转换约束类型
+    layoutConstraints := layout.Constraints{
+        MinWidth:  constraints.MinWidth,
+        MaxWidth:  constraints.MaxWidth,
+        MinHeight: constraints.MinHeight,
+        MaxHeight: constraints.MaxHeight,
     }
-    
-    // 2. 计算当前节点大小
-    node.Box = e.calculateBox(fiber.Style, constraints)
-    
-    // 3. 布局子节点
-    if fiber.Child != nil {
-        childConstraints := e.getChildConstraints(node.Box, fiber.Style)
-        
-        var prevChild *LayoutNode
-        for childFiber := fiber.Child; childFiber != nil; childFiber = childFiber.Sibling {
-            childNode := e.layoutNode(childFiber, childConstraints)
-            
-            if prevChild == nil {
-                node.Children = []*LayoutNode{childNode}
-            } else {
-                node.Children = append(node.Children, childNode)
-            }
-            prevChild = childNode
-            
-            // 更新约束（根据布局方向）
-            childConstraints = e.updateConstraints(childConstraints, childNode.Box, fiber.Style)
-        }
-    }
-    
-    return node
+
+    // 3. 使用 runtime/layout.Engine 进行布局
+    result := e.engine.Layout(adapter, layoutConstraints)
+
+    return result
 }
 
-// calculateBox 计算节点的布局盒子
-func (e *FiberLayoutEngine) calculateBox(style Style, constraints Constraints) Box {
-    // 固有大小
-    width := style.Width
-    height := style.Height
-    
-    // Flex 布局
-    if style.FlexGrow > 0 {
-        if style.FlexDirection == DirectionHorizontal {
-            width = constraints.MaxWidth * style.FlexGrow
-        } else {
-            height = constraints.MaxHeight * style.FlexGrow
-        }
-    }
-    
-    // 应用约束
-    if width > constraints.MaxWidth {
-        width = constraints.MaxWidth
-    }
-    if height > constraints.MaxHeight {
-        height = constraints.MaxHeight
-    }
-    
-    return Box{
-        Width:     width,
-        Height:    height,
-        Direction: style.FlexDirection,
-    }
+// GetEngine 返回底层布局引擎
+func (e *FiberLayoutEngine) GetEngine() *layout.Engine {
+    return e.engine
 }
 ```
 
----
+### 3.2 FiberToNodeAdapter 使用示例
+
+适配器已在 `internal/render/fiber_adapter.go` 实现：
+
+```go
+// 创建适配器（无需 VNode）
+adapter := render.NewFiberToNodeAdapterPure(fiber)
+
+// 适配器实现了以下接口：
+// - layout.Node       (ID, Type, Children, GetPosition, SetPosition, GetSize, SetSize)
+// - layout.Layered    (GetLayer, GetZIndex)
+// - layout.Measurable (Measure)
+// - layout.Marginal   (GetMargin)
+// - layout.Positionable (GetPositionType)
+```
 
 ## 4. Paint 引擎实现
 

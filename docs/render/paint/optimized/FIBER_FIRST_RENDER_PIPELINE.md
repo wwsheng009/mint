@@ -223,6 +223,124 @@ func (n *DeclarativeNode) Paint(ctx PaintContext, buf *Buffer) {
 
 ---
 
+
+### 多层渲染架构
+
+Fiber-First 架构通过 Layer 系统支持多层渲染：
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                    多层渲染架构                                   │
+├──────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  Fiber 树 (持久化)                                               │
+│       ↓                                                          │
+│  FiberToNodeAdapter (接口适配，位于 internal/render)             │
+│       ↓                                                          │
+│  runtime/layout.Engine                                           │
+│       ↓                                                          │
+│  ┌─────────────────────────────────────────────────────────────┐ │
+│  │              layout.LayeredLayoutResult                     │ │
+│  ├─────────────────────────────────────────────────────────────┤ │
+│  │  LayerBase     → Box1, Box2, Box3    (z-index: 0-999)      │ │
+│  │  LayerDropdown → Box4                 (z-index: 1000-1999)  │ │
+│  │  LayerFixed    → Box5                 (z-index: 3000-3999)  │ │
+│  │  LayerModal    → Box6, Box7           (z-index: 5000-5999)  │ │
+│  │  LayerTooltip  → Box8                 (z-index: 7000-7999)  │ │
+│  └─────────────────────────────────────────────────────────────┘ │
+│       ↓                                                          │
+│  SortByZIndex() 排序                                             │
+│       ↓                                                          │
+│  PaintMultiLayer (从低到高绘制)                                   │
+│       ↓                                                          │
+│  Buffer (屏幕缓冲)                                               │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+#### Layer 类型定义
+
+| Layer | 用途 | Z-Index 范围 |
+|-------|------|-------------|
+| LayerBase | 默认层，普通内容 | 0-999 |
+| LayerDropdown | 下拉菜单 | 1000-1999 |
+| LayerSticky | 粘性定位 | 2000-2999 |
+| LayerFixed | 固定定位 | 3000-3999 |
+| LayerModalBackdrop | 模态背景 | 4000-4999 |
+| LayerModal | 模态对话框 | 5000-5999 |
+| LayerPopover | 弹出框 | 6000-6999 |
+| LayerTooltip | 工具提示 | 7000-7999 |
+
+#### 单层 vs 多层渲染
+
+```go
+// 单层渲染 (所有内容在 LayerBase):
+layoutResult := layoutEngine.Layout(node, constraints)
+paintEngine.PaintSingleLayer(layoutResult, buf)
+
+// 多层渲染 (包含 Modal、Dropdown 等):
+layoutResult := layoutEngine.Layout(node, constraints)
+layeredResult := layoutEngine.BuildLayeredResult(layoutResult)
+paintEngine.PaintMultiLayer(layeredResult, buf)
+```
+
+### 与 runtime/layout 接口集成
+
+> **架构约束**：`runtime/layout` 不依赖 Fiber/VNode，只定义抽象接口。
+> 
+> 适配器 `FiberToNodeAdapter` 位于 `internal/render/fiber_adapter.go`。
+
+Fiber 通过适配器模式与 runtime/layout 解耦集成：
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    接口适配架构                                   │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │              Fiber (运行时实体)                          │   │
+│  │  - Style (布局输入)                                      │   │
+│  │  - Instance (paint.PaintableBox)                        │   │
+│  │  - Props, State                                         │   │
+│  └────────────────────────┬────────────────────────────────┘   │
+│                           │                                     │
+│                           ↓                                     │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │     FiberToNodeAdapter (internal/render/fiber_adapter.go)│   │
+│  │  ┌─────────────────────────────────────────────────────┐ │   │
+│  │  │  实现 layout.Node      - ID(), Type(), Children()   │ │   │
+│  │  │  实现 layout.Layered   - GetLayer(), GetZIndex()    │ │   │
+│  │  │  实现 layout.Measurable - Measure(constraints)      │ │   │
+│  │  │  实现 layout.Dirtyable  - IsLayoutDirty()           │ │   │
+│  │  └─────────────────────────────────────────────────────┘ │   │
+│  └────────────────────────┬────────────────────────────────┘   │
+│                           │                                     │
+│                           ↓                                     │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │          runtime/layout.Engine                           │   │
+│  │  - Layout(node, constraints) → LayoutResult             │   │
+│  │  - 支持增量布局 (Dirtyable)                              │   │
+│  │  - 支持多层布局 (Layered)                                │   │
+│  │  - ❌ 不依赖 Fiber/VNode                                 │   │
+│  └─────────────────────────────────────────────────────────┘   │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+> **注意**：`FiberToNodeAdapter` 已在 `internal/render/fiber_adapter.go` 中实现，
+> 而非 `runtime/layout/adapter_fiber.go`。这确保了 `runtime/layout` 保持为纯布局引擎。
+
+#### 核心接口映射
+
+| Fiber 字段 | layout 接口 | 说明 |
+|-----------|------------|------|
+| fiber.ActionTargetID / fiber.Key | Node.ID() | 节点唯一标识 |
+| fiber.Style.Layer | Layered.GetLayer() | 渲染层 |
+| fiber.Style.ZIndex | Layered.GetZIndex() | 层内排序 |
+| fiber.Instance.GetSize() | Measurable.Measure() | 尺寸计算 |
+| fiber.Flags & FlagLayoutDirty | Dirtyable.IsLayoutDirty() | 增量布局 |
+
+---
+
 ## 核心架构变更
 
 ### 1. Fiber 结构变更
@@ -616,6 +734,86 @@ func (n *DeclarativeNode) Paint(ctx PaintContext, buf *Buffer) {
 - [ ] 无循环依赖
 - [ ] 代码可维护性提高
 - [ ] 支持未来并发特性
+
+---
+
+
+## 组件模板参考
+
+### ui/components/button 目录结构
+
+Button 组件是 Fiber-first 架构的完整参考实现：
+
+```
+ui/components/button/
+├── vnode.go        # VNode 描述（纯声明）
+├── instance.go     # Instance 运行期实体（状态 + 渲染）
+├── builder.go      # Builder 流式 API
+├── button_test.go  # 单元测试
+└── README.md       # 组件文档
+```
+
+### 核心设计模式
+
+#### 1. VNode = 纯描述
+
+```go
+type VNode struct {
+    // Props only - 无状态、无闭包、无 Paint
+    label       string
+    variant     Variant
+    size        Size
+    pressIntent intent.Intent  // 替代 func()
+}
+```
+
+#### 2. Instance = 运行期实体
+
+```go
+type Instance struct {
+    // Props from VNode
+    label   string
+    
+    // Runtime State
+    state  control.InteractionState
+    
+    // Behaviors
+    behaviors *control.BehaviorList
+}
+```
+
+#### 3. Behavior 组合
+
+```go
+inst.behaviors = control.NewBehaviorList(
+    &control.FocusableBehavior{},
+    &control.PressableBehavior{},
+    &control.HoverableBehavior{},
+    &control.DisableableBehavior{},
+)
+```
+
+#### 4. Intent 替代闭包
+
+```go
+// ❌ 旧方式
+button.OnClick(func() { showModal() })
+
+// ✅ 新方式
+button.B("Open").OnPress(intent.OpenModal("settings")).Build()
+```
+
+### 组件迁移目标
+
+所有组件应迁移到 `ui/components/` 目录：
+
+| 组件 | 状态 | 说明 |
+|------|------|------|
+| button | ✅ 完成 | 参考模板 |
+| text | 待迁移 | 基础组件 |
+| stack | 待迁移 | VStack/HStack |
+| input | 待迁移 | 交互组件 |
+| table | 待迁移 | 复杂组件 |
 
 ---
 
