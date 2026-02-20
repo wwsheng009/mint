@@ -71,7 +71,7 @@ func TestVNodeRenderer_MeasureConsistency(t *testing.T) {
 	nonFiberNode := NewDeclarativeNodeFromFunc(func() rtui.VNode {
 		return rtui.Element("text").Prop("content", "test").Build()
 	})
-	nonFiberRenderer := nonFiberNode.GetRenderer().(*NonFiberRenderer)
+	nonFiberRenderer := nonFiberNode.GetRenderer()
 
 	fiberRenderer := NewFiberRenderer(nil)
 
