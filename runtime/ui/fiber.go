@@ -33,6 +33,17 @@ const (
 	EffectDeletion
 	// EffectRef indicates a ref changed
 	EffectRef
+
+	// === Layout and Paint Dirty Flags (Fiber-first Architecture) ===
+	// These flags support incremental layout and paint optimization
+
+	// FlagLayoutDirty indicates the fiber needs layout recalculation
+	// Used by layout.Dirtyable interface for incremental layout
+	FlagLayoutDirty EffectFlag = 1 << 10
+
+	// FlagPaintDirty indicates the fiber needs repaint
+	// Used for incremental paint optimization
+	FlagPaintDirty EffectFlag = 1 << 11
 )
 
 // Lane represents the priority of work (lanes model)
@@ -256,6 +267,50 @@ func (f *Fiber) GetFocusableInstance() FocusableInstance {
 		return fi
 	}
 	return nil
+}
+
+// HasInstance returns true if fiber has a runtime instance.
+// This is useful for checking if the fiber has been fully initialized.
+func (f *Fiber) HasInstance() bool {
+	return f.Instance != nil || f.ComponentInstance != nil
+}
+
+// HasStyle returns true if fiber has explicit width/height style defined.
+// This is used by the layout engine to determine if explicit sizing is set.
+func (f *Fiber) HasStyle() bool {
+	// Check if explicit dimensions are set in style
+	return f.Style.Width > 0 || f.Style.Height > 0
+}
+
+// IsLayoutDirty returns true if the fiber needs layout recalculation.
+// This implements part of the layout.Dirtyable interface contract.
+func (f *Fiber) IsLayoutDirty() bool {
+	return f.Flags&FlagLayoutDirty != 0
+}
+
+// MarkLayoutDirty marks the fiber as needing layout recalculation.
+func (f *Fiber) MarkLayoutDirty() {
+	f.Flags |= FlagLayoutDirty
+}
+
+// ClearLayoutDirty clears the layout dirty flag.
+func (f *Fiber) ClearLayoutDirty() {
+	f.Flags &^= FlagLayoutDirty
+}
+
+// IsPaintDirty returns true if the fiber needs repaint.
+func (f *Fiber) IsPaintDirty() bool {
+	return f.Flags&FlagPaintDirty != 0
+}
+
+// MarkPaintDirty marks the fiber as needing repaint.
+func (f *Fiber) MarkPaintDirty() {
+	f.Flags |= FlagPaintDirty
+}
+
+// ClearPaintDirty clears the paint dirty flag.
+func (f *Fiber) ClearPaintDirty() {
+	f.Flags &^= FlagPaintDirty
 }
 
 // Update represents a state update
