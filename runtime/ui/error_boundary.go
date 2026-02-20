@@ -61,9 +61,10 @@ func (e *ErrorBoundaryVNode) Props() Props {
 	return make(Props)
 }
 
-// SetProps implements VNode
-func (e *ErrorBoundaryVNode) SetProps(p Props) {
+// SetProps implements VNode - returns VNode for chaining
+func (e *ErrorBoundaryVNode) SetProps(p Props) VNode {
 	// Error boundary doesn't use props
+	return e
 }
 
 // Children implements VNode
@@ -72,9 +73,10 @@ func (e *ErrorBoundaryVNode) Children() []VNode {
 	return nil
 }
 
-// SetChildren implements VNode
-func (e *ErrorBoundaryVNode) SetChildren(children []VNode) {
+// SetChildren implements VNode - returns VNode for chaining
+func (e *ErrorBoundaryVNode) SetChildren(children []VNode) VNode {
 	// Error boundary doesn't have direct children
+	return e
 }
 
 // Key implements VNode
@@ -82,9 +84,10 @@ func (e *ErrorBoundaryVNode) Key() string {
 	return e.key
 }
 
-// SetKey implements VNode
-func (e *ErrorBoundaryVNode) SetKey(key string) {
+// SetKey implements VNode - returns VNode for chaining
+func (e *ErrorBoundaryVNode) SetKey(key string) VNode {
 	e.key = key
+	return e
 }
 
 // Style implements VNode
@@ -92,9 +95,10 @@ func (e *ErrorBoundaryVNode) Style() style.Style {
 	return style.Style{}
 }
 
-// SetStyle implements VNode
-func (e *ErrorBoundaryVNode) SetStyle(s style.Style) {
+// SetStyle implements VNode - returns VNode for chaining
+func (e *ErrorBoundaryVNode) SetStyle(s style.Style) VNode {
 	// Error boundary doesn't use style directly
+	return e
 }
 
 // Tag implements VNode

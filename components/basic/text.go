@@ -37,9 +37,10 @@ func (t *TextVNode) Props() ui.Props {
 	return t.props
 }
 
-// SetProps implements ui.VNode
-func (t *TextVNode) SetProps(p ui.Props) {
+// SetProps implements ui.VNode - returns VNode for chaining
+func (t *TextVNode) SetProps(p ui.Props) ui.VNode {
 	t.props = p
+	return t
 }
 
 // Children implements ui.VNode (text nodes have no children)
@@ -47,9 +48,10 @@ func (t *TextVNode) Children() []ui.VNode {
 	return nil
 }
 
-// SetChildren implements ui.VNode (text nodes have no children)
-func (t *TextVNode) SetChildren(children []ui.VNode) {
+// SetChildren implements ui.VNode (text nodes have no children) - returns VNode for chaining
+func (t *TextVNode) SetChildren(children []ui.VNode) ui.VNode {
 	// Text nodes don't have children
+	return t
 }
 
 // Key implements ui.VNode
@@ -57,9 +59,10 @@ func (t *TextVNode) Key() string {
 	return t.key
 }
 
-// SetKey implements ui.VNode
-func (t *TextVNode) SetKey(key string) {
+// SetKey implements ui.VNode - returns VNode for chaining
+func (t *TextVNode) SetKey(key string) ui.VNode {
 	t.key = key
+	return t
 }
 
 // Style implements ui.VNode
@@ -67,9 +70,10 @@ func (t *TextVNode) Style() style.Style {
 	return t.style
 }
 
-// SetStyle implements ui.VNode
-func (t *TextVNode) SetStyle(s style.Style) {
+// SetStyle implements ui.VNode - returns VNode for chaining
+func (t *TextVNode) SetStyle(s style.Style) ui.VNode {
 	t.style = s
+	return t
 }
 
 // Tag implements ui.VNode - returns "text"

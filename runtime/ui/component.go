@@ -42,9 +42,10 @@ func (c *ComponentVNode) Props() Props {
 	return c.props
 }
 
-// SetProps implements VNode
-func (c *ComponentVNode) SetProps(p Props) {
+// SetProps implements VNode - returns VNode for chaining
+func (c *ComponentVNode) SetProps(p Props) VNode {
 	c.props = p
+	return c
 }
 
 // Children implements VNode (component children are rendered by the function)
@@ -53,9 +54,10 @@ func (c *ComponentVNode) Children() []VNode {
 	return nil
 }
 
-// SetChildren implements VNode
-func (c *ComponentVNode) SetChildren(children []VNode) {
+// SetChildren implements VNode - returns VNode for chaining
+func (c *ComponentVNode) SetChildren(children []VNode) VNode {
 	// Components don't have static children
+	return c
 }
 
 // Key implements VNode
@@ -63,9 +65,10 @@ func (c *ComponentVNode) Key() string {
 	return c.key
 }
 
-// SetKey implements VNode
-func (c *ComponentVNode) SetKey(key string) {
+// SetKey implements VNode - returns VNode for chaining
+func (c *ComponentVNode) SetKey(key string) VNode {
 	c.key = key
+	return c
 }
 
 // Style implements VNode
@@ -73,9 +76,10 @@ func (c *ComponentVNode) Style() style.Style {
 	return c.style
 }
 
-// SetStyle implements VNode
-func (c *ComponentVNode) SetStyle(s style.Style) {
+// SetStyle implements VNode - returns VNode for chaining
+func (c *ComponentVNode) SetStyle(s style.Style) VNode {
 	c.style = s
+	return c
 }
 
 // Name returns the component name
