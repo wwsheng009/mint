@@ -1,6 +1,9 @@
 package paint
 
-import "github.com/wwsheng009/mint/runtime/style"
+import (
+	"github.com/wwsheng009/mint/runtime/layout"
+	"github.com/wwsheng009/mint/runtime/style"
+)
 
 // =============================================================================
 // PaintableNode - Abstract Node Interface for Paint Engine
@@ -76,17 +79,17 @@ type PaintableNode interface {
 // =============================================================================
 
 // BorderStyle represents the style of a border.
-type BorderStyle int
+// BorderStyle is an alias to layout.BorderStyle for unified type definition.
+// See runtime/layout/border.go for the canonical definition.
+type BorderStyle = layout.BorderStyle
 
+// BorderStyle constants - aliases to layout package
 const (
-	// BorderStyleNone means no border
-	BorderStyleNone BorderStyle = iota
-	// BorderStyleSingle is a single-line border
-	BorderStyleSingle
-	// BorderStyleDouble is a double-line border
-	BorderStyleDouble
-	// BorderStyleRounded is a rounded-corner border
-	BorderStyleRounded
+	BorderStyleNone    = layout.BorderNone
+	BorderStyleSingle  = layout.BorderSingle
+	BorderStyleDouble  = layout.BorderDouble
+	BorderStyleRounded = layout.BorderRounded
+	BorderStyleDashed  = layout.BorderDashed
 )
 
 // BorderInfo is an optional interface that nodes can implement

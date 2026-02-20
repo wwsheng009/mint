@@ -134,7 +134,58 @@ func CreateFiber(vnode VNode) *Fiber {
 		instance = factory.CreateInstance()
 	}
 
-		return &Fiber{
+	// === Extract Layout Properties from VNode ===
+	// These are used by the layout engine to determine how to position children.
+	var layoutDirection Direction
+	var layoutAlign Align
+	var layoutCrossAlign Align
+	var layoutGap int
+	var layoutPadding [4]int
+	var layoutFlex int
+
+	// Determine direction from tag (hstack = Row, vstack = Column)
+	// This works for any VNode that has Tag() method returning "hstack"/"vstack"
+	switch tag {
+	case "hstack", "row":
+		layoutDirection = DirectionRow
+	case "vstack", "column":
+		layoutDirection = DirectionColumn
+	}
+
+	// Extract other layout properties from Props
+	if props != nil {
+		// direction may be stored as int (rtui.Direction) or custom type
+		if dir, ok := props["direction"].(int); ok {
+			layoutDirection = Direction(dir)
+		}
+		// Also check for rtui.Direction type
+		if dir, ok := props["direction"].(Direction); ok {
+			layoutDirection = dir
+		}
+		// Extract align - rtui.Align type (or int for backward compatibility)
+		if a, ok := props["align"].(Align); ok {
+			layoutAlign = a
+		} else if a, ok := props["align"].(int); ok {
+			layoutAlign = Align(a)
+		}
+		// Extract crossAlign - rtui.Align type (or int for backward compatibility)
+		if ca, ok := props["crossAlign"].(Align); ok {
+			layoutCrossAlign = ca
+		} else if ca, ok := props["crossAlign"].(int); ok {
+			layoutCrossAlign = Align(ca)
+		}
+		if g, ok := props["gap"].(int); ok {
+			layoutGap = g
+		}
+		if p, ok := props["padding"].([4]int); ok {
+			layoutPadding = p
+		}
+		if f, ok := props["flex"].(int); ok {
+			layoutFlex = f
+		}
+	}
+
+	return &Fiber{
 		Type:                       vnodeType,
 		Tag:                        tag,
 		Props:                      props,
@@ -160,6 +211,13 @@ func CreateFiber(vnode VNode) *Fiber {
 		ActionTargetID:             actionTargetID,
 		// Fiber-first Architecture
 		Instance: instance,
+		// Layout Properties (extracted from VNode)
+		LayoutDirection:  layoutDirection,
+		LayoutAlign:      layoutAlign,
+		LayoutCrossAlign: layoutCrossAlign,
+		LayoutGap:        layoutGap,
+		LayoutPadding:    layoutPadding,
+		LayoutFlex:       layoutFlex,
 	}
 }
 

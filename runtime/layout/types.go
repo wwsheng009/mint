@@ -554,7 +554,52 @@ func (e *Engine) layoutNodeWithDepth(node Node, constraints Constraints, x, y in
 	node.SetPosition(x, y)
 	node.SetSize(width, height)
 
-	// 递归布局子节点
+	// 检查节点是否实现了 FlexStyleProvider 接口
+	// 如果是，使用 FlexLayout 进行子节点布局
+	if flexProvider, ok := node.(FlexStyleProvider); ok {
+		flexStyle := flexProvider.GetFlexStyle()
+		if flexStyle != nil && len(node.Children()) > 0 {
+			// 使用 FlexLayout 进行布局
+			flex := NewFlexLayout(node.ID(), node.Children())
+			flex.SetDirection(flexStyle.Direction)
+			flex.SetMainAxis(flexStyle.MainAxis)
+			flex.SetCrossAxis(flexStyle.CrossAxis)
+			flex.SetGap(flexStyle.Gap)
+			flex.SetPadding(flexStyle.Padding.Left, flexStyle.Padding.Right, flexStyle.Padding.Top, flexStyle.Padding.Bottom)
+
+			// 设置子节点的 flex 属性
+			children := node.Children()
+			for i, child := range children {
+				if flexChild, ok := child.(FlexChildProvider); ok {
+					childFlex := flexChild.GetFlex()
+					if childFlex > 0 {
+						flex.SetFlex(i, childFlex, 0, 0)
+					}
+				}
+			}
+
+			// 布局子节点
+			childBoxes := flex.LayoutChildren(width, height)
+			for i, childBox := range childBoxes {
+				// 递归布局子节点的子节点
+				child := node.Children()[i]
+				if child != nil {
+					// 子节点的位置相对于父节点
+					childConstraints := constraints
+					subBox := e.layoutNodeWithDepth(child, childConstraints, x+childBox.X, y+childBox.Y, depth+1, visited)
+					if subBox != nil {
+						// 使用 FlexLayout 计算的位置和尺寸
+						subBox.X = x + childBox.X
+						subBox.Y = y + childBox.Y
+						box.Children = append(box.Children, subBox)
+					}
+				}
+			}
+			return box
+		}
+	}
+
+	// 默认布局：递归布局子节点（垂直方向）
 	childX := x
 	childY := y
 	for _, child := range node.Children() {

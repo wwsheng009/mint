@@ -250,9 +250,7 @@ func (b *MemoBuilder) Key(key string) *MemoBuilder {
 
 // Style sets the visual style
 func (b *MemoBuilder) Style(s style.Style) *MemoBuilder {
-	if vnode, ok := b.component.(interface{ SetStyle(style.Style) }); ok {
-		vnode.SetStyle(s)
-	}
+	// VNode's SetStyle always returns VNode, so we can call it directly
 	b.component.SetStyle(s)
 	return b
 }

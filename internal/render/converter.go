@@ -284,7 +284,8 @@ func getBorderStyleFromProps(props rtui.Props) paint.BorderStyle {
 	if props == nil {
 		return paint.BorderStyleNone
 	}
-	
+
+	// Handle string style
 	if s, ok := props["borderStyle"].(string); ok {
 		switch s {
 		case "single":
@@ -293,20 +294,17 @@ func getBorderStyleFromProps(props rtui.Props) paint.BorderStyle {
 			return paint.BorderStyleDouble
 		case "rounded":
 			return paint.BorderStyleRounded
+		case "dashed":
+			return paint.BorderStyleDashed
 		}
+		return paint.BorderStyleNone
 	}
-	
-	if bs, ok := props["borderStyle"].(rtui.BorderStyle); ok {
-		switch bs {
-		case rtui.BorderSingle:
-			return paint.BorderStyleSingle
-		case rtui.BorderDouble:
-			return paint.BorderStyleDouble
-		case rtui.BorderRounded:
-			return paint.BorderStyleRounded
-		}
+
+	// Handle layout.BorderStyle (unified type used by all packages)
+	if bs, ok := props["borderStyle"].(layout.BorderStyle); ok {
+		return paint.BorderStyle(bs)
 	}
-	
+
 	return paint.BorderStyleNone
 }
 

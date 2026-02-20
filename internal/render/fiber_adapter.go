@@ -301,7 +301,7 @@ func (a *FiberToNodeAdapter) GetPositionType() layout.Position {
 }
 
 // GetFlexStyle returns the flex style from Fiber fields
-// This implements FlexLayoutInfo interface for flex containers
+// This implements FlexStyleProvider interface for flex containers
 func (a *FiberToNodeAdapter) GetFlexStyle() *layout.FlexStyle {
 	if a.fiber == nil {
 		return layout.DefaultFlexStyle()
@@ -353,6 +353,15 @@ func (a *FiberToNodeAdapter) GetFlexStyle() *layout.FlexStyle {
 	}
 
 	return style
+}
+
+// GetFlex returns the flex factor from Fiber.LayoutFlex
+// Implements layout.FlexChildProvider interface
+func (a *FiberToNodeAdapter) GetFlex() int {
+	if a.fiber == nil {
+		return 0
+	}
+	return a.fiber.LayoutFlex
 }
 
 // GetBorder returns the border from Fiber fields

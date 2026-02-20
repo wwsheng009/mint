@@ -1,10 +1,12 @@
 package ui
 
 import (
-	frameworkevent "github.com/wwsheng009/mint/framework/event"
-	"github.com/wwsheng009/mint/framework/cmd"
-	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
 	"strings"
+
+	"github.com/wwsheng009/mint/framework/cmd"
+	frameworkevent "github.com/wwsheng009/mint/framework/event"
+	"github.com/wwsheng009/mint/runtime/layout"
+	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
 
 	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/style"
@@ -835,15 +837,17 @@ func (td *TableCell) GetCellContent() VNode {
 // Bordered Container - Auto-rendered borders (don't occupy content space)
 // =============================================================================
 
-// BorderStyle defines the visual style of borders
-type BorderStyle int
+// BorderStyle is an alias to layout.BorderStyle for unified type definition.
+// See runtime/layout/border.go for the canonical definition.
+type BorderStyle = layout.BorderStyle
 
+// BorderStyle constants - aliases to layout package
 const (
-	BorderSingle  BorderStyle = iota // Single line: ┌───┐
-	BorderDouble                     // Double line: ╔═══╗
-	BorderRounded                    // Rounded: ╭───╮
-	BorderDashed                     // Dashed: +---+
-	BorderNone                       // No border
+	BorderSingle  = layout.BorderSingle  // Single line: ┌───┐
+	BorderDouble  = layout.BorderDouble  // Double line: ╔═══╗
+	BorderRounded = layout.BorderRounded // Rounded: ╭───╮
+	BorderDashed  = layout.BorderDashed  // Dashed: +---+
+	BorderNone    = layout.BorderNone    // No border
 )
 
 // BorderedNode represents a container with auto-rendered border
@@ -1274,11 +1278,4 @@ func (bn *BorderedNode) Measure(constraints runtime.BoxConstraints) runtime.Size
 	}
 
 	return runtime.Size{Width: totalWidth, Height: totalHeight}
-}
-
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
 }

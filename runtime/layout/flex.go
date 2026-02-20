@@ -133,6 +133,18 @@ type Flex struct {
 	Basis int
 }
 
+// FlexStyleProvider 定义获取弹性布局样式的接口
+// 实现 this 接口的节点将被 Engine 使用 FlexLayout 进行布局
+type FlexStyleProvider interface {
+	GetFlexStyle() *FlexStyle
+}
+
+// FlexChildProvider 定义获取子节点 flex 属性的接口
+// 子节点可以实现此接口以告诉父容器它的 flex 值
+type FlexChildProvider interface {
+	GetFlex() int
+}
+
 // DefaultFlexStyle 默认弹性样式
 func DefaultFlexStyle() *FlexStyle {
 	return &FlexStyle{

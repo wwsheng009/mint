@@ -87,8 +87,13 @@ func (e *PaintEngine) paintBox(box *paint.PaintableBox, buffer *paint.Buffer) er
 	}
 
 	// FIRST: Check if node has custom paint logic
+	// For container components (with children), we skip Paint and use LayoutBox coordinates
+	// For leaf components (no children), we use Paint method
 	commands := box.Node.Paint(box.X, box.Y)
-	if len(commands) > 0 {
+
+	// Only use Paint method for leaf nodes (no children)
+	// Container nodes use LayoutBox coordinates for children
+	if len(commands) > 0 && len(box.Children) == 0 {
 		// Apply commands with potential background inheritance
 		for _, cmd := range commands {
 			styleToApply := cmd.Style
@@ -97,7 +102,7 @@ func (e *PaintEngine) paintBox(box *paint.PaintableBox, buffer *paint.Buffer) er
 			}
 			buffer.SetString(cmd.X, cmd.Y, cmd.Text, styleToApply)
 		}
-		// Paintable components handle their own rendering, including children
+		// Leaf component rendered, no children to process
 		return nil
 	}
 
@@ -137,8 +142,8 @@ func (e *PaintEngine) paintTextBox(box *paint.PaintableBox, buffer *paint.Buffer
 		text = box.Node.TextContent()
 	}
 	if text != "" {
-		maxX := box.X + box.Width
-		buffer.SetStringAligned(box.X, box.Y, text, box.Node.Style(), maxX)
+		// Use box.Width as the max width (relative), not absolute maxX
+		buffer.SetStringAligned(box.X, box.Y, text, box.Node.Style(), box.Width)
 	}
 }
 
@@ -149,8 +154,8 @@ func (e *PaintEngine) paintElementBox(box *paint.PaintableBox, buffer *paint.Buf
 		content = box.Node.TextContent()
 	}
 	if content != "" {
-		maxX := box.X + box.Width
-		buffer.SetStringAligned(box.X, box.Y, content, box.Node.Style(), maxX)
+		// Use box.Width as the max width (relative), not absolute maxX
+		buffer.SetStringAligned(box.X, box.Y, content, box.Node.Style(), box.Width)
 		return
 	}
 
