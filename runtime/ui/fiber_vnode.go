@@ -50,10 +50,11 @@ func (f *FiberVNode) Props() Props {
 	return f.fiber.Props
 }
 
-func (f *FiberVNode) SetProps(props Props) {
+func (f *FiberVNode) SetProps(props Props) VNode {
 	if f.fiber != nil {
 		f.fiber.Props = props
 	}
+	return f
 }
 
 func (f *FiberVNode) Style() style.Style {
@@ -63,17 +64,19 @@ func (f *FiberVNode) Style() style.Style {
 	return f.fiber.Style
 }
 
-func (f *FiberVNode) SetStyle(s style.Style) {
+func (f *FiberVNode) SetStyle(s style.Style) VNode {
 	if f.fiber != nil {
 		f.fiber.Style = s
 	}
+	return f
 }
 
-func (f *FiberVNode) SetKey(key string) {
+func (f *FiberVNode) SetKey(key string) VNode {
 	if f.fiber != nil {
 		f.fiber.DiffKey = key
 		f.fiber.Key = key
 	}
+	return f
 }
 
 func (f *FiberVNode) Children() []VNode {
@@ -83,7 +86,8 @@ func (f *FiberVNode) Children() []VNode {
 	return GetFiberChildrenAsVNodes(f.fiber)
 }
 
-func (f *FiberVNode) SetChildren(children []VNode) {
+func (f *FiberVNode) SetChildren(children []VNode) VNode {
+	return f
 }
 
 func (f *FiberVNode) GetLayer() Layer {

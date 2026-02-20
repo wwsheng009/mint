@@ -29,9 +29,10 @@ func (f *FragmentVNode) Props() Props {
 	return f.props
 }
 
-// SetProps implements VNode
-func (f *FragmentVNode) SetProps(p Props) {
+// SetProps implements VNode - returns VNode for chaining
+func (f *FragmentVNode) SetProps(p Props) VNode {
 	f.props = p
+	return f
 }
 
 // Children implements VNode
@@ -39,9 +40,10 @@ func (f *FragmentVNode) Children() []VNode {
 	return f.children
 }
 
-// SetChildren implements VNode
-func (f *FragmentVNode) SetChildren(children []VNode) {
+// SetChildren implements VNode - returns VNode for chaining
+func (f *FragmentVNode) SetChildren(children []VNode) VNode {
 	f.children = children
+	return f
 }
 
 // Key implements VNode
@@ -49,9 +51,10 @@ func (f *FragmentVNode) Key() string {
 	return f.key
 }
 
-// SetKey implements VNode
-func (f *FragmentVNode) SetKey(key string) {
+// SetKey implements VNode - returns VNode for chaining
+func (f *FragmentVNode) SetKey(key string) VNode {
 	f.key = key
+	return f
 }
 
 // Style implements VNode
@@ -59,14 +62,25 @@ func (f *FragmentVNode) Style() style.Style {
 	return f.style
 }
 
-// SetStyle implements VNode
-func (f *FragmentVNode) SetStyle(s style.Style) {
+// SetStyle implements VNode - returns VNode for chaining
+func (f *FragmentVNode) SetStyle(s style.Style) VNode {
 	f.style = s
+	return f
 }
 
 // Tag returns "fragment" (implements VNode interface)
 func (f *FragmentVNode) Tag() string {
 	return "fragment"
+}
+
+// GetLayer returns the rendering layer
+func (f *FragmentVNode) GetLayer() Layer {
+	return LayerBase
+}
+
+// SetLayer sets the rendering layer - returns VNode for chaining
+func (f *FragmentVNode) SetLayer(l Layer) VNode {
+	return f
 }
 
 // AddChild adds a single child

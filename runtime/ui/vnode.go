@@ -78,21 +78,23 @@ type VNode interface {
 
 	// Props returns the node properties
 	Props() Props
-	SetProps(p Props)
+	// SetProps sets the node properties and returns the VNode for chaining
+	SetProps(p Props) VNode
 
 	// Children returns the child nodes
 	Children() []VNode
-	SetChildren(children []VNode)
+	// SetChildren sets child nodes and returns the VNode for chaining
+	SetChildren(children []VNode) VNode
 
 	// Key returns the key for list diffing
 	Key() string
-	// SetKey sets the key for Component
-	// fiber reconciler 调用 vnode.SetKey(fiber.Path)
-	SetKey(key string)
+	// SetKey sets the key for diffing and returns the VNode for chaining
+	SetKey(key string) VNode
 
 	// Style returns the visual style
 	Style() style.Style
-	SetStyle(s style.Style)
+	// SetStyle sets the visual style and returns the VNode for chaining
+	SetStyle(s style.Style) VNode
 
 	// Tag returns the tag/name of this node for identification
 	// For elements: the HTML-like tag (e.g., "div", "button")
@@ -105,7 +107,7 @@ type VNode interface {
 	// Returns LayerBase if no layer is explicitly set
 	GetLayer() Layer
 
-	// SetLayer sets the rendering layer for this node
+	// SetLayer sets the rendering layer for this node and returns the VNode for chaining
 	SetLayer(l Layer) VNode
 }
 
@@ -253,16 +255,6 @@ func setNodeLayer(vnode VNode, l Layer) VNode {
 	return vnode
 }
 
-// GetLayer for ElementVNode
-func (n *ElementVNode) GetLayer() Layer {
-	return getNodeLayer(n)
-}
-
-// SetLayer for ElementVNode
-func (n *ElementVNode) SetLayer(l Layer) VNode {
-	return setNodeLayer(n, l)
-}
-
 // GetLayer for TextVNode
 func (n *TextVNode) GetLayer() Layer {
 	return getNodeLayer(n)
@@ -280,15 +272,5 @@ func (n *ComponentVNode) GetLayer() Layer {
 
 // SetLayer for ComponentVNode
 func (n *ComponentVNode) SetLayer(l Layer) VNode {
-	return setNodeLayer(n, l)
-}
-
-// GetLayer for FragmentVNode
-func (n *FragmentVNode) GetLayer() Layer {
-	return getNodeLayer(n)
-}
-
-// SetLayer for FragmentVNode
-func (n *FragmentVNode) SetLayer(l Layer) VNode {
 	return setNodeLayer(n, l)
 }

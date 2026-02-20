@@ -42,11 +42,11 @@ type VNode struct {
 	key string
 
 	// === Visual Props ===
-	label       string      // optional centered label
+	label        string      // optional centered label
 	dividerStyle Style       // line style
-	orientation Orientation // horizontal or vertical
-	thickness   int         // line thickness (default 1)
-	style       style.Style // visual style
+	orientation  Orientation // horizontal or vertical
+	thickness    int         // line thickness (default 1)
+	style        style.Style // visual style
 
 	// === Layout Props ===
 	fillWidth bool // whether to fill available width
@@ -82,9 +82,10 @@ func (d *VNode) Key() string {
 	return d.key
 }
 
-// SetKey sets the component key.
-func (d *VNode) SetKey(key string) {
+// SetKey sets the component key - returns VNode for chaining.
+func (d *VNode) SetKey(key string) rtui.VNode {
 	d.key = key
+	return d
 }
 
 // Tag returns the tag name.
@@ -97,9 +98,10 @@ func (d *VNode) Style() style.Style {
 	return d.style
 }
 
-// SetStyle sets the visual style.
-func (d *VNode) SetStyle(s style.Style) {
+// SetStyle sets the visual style - returns VNode for chaining.
+func (d *VNode) SetStyle(s style.Style) rtui.VNode {
 	d.style = s
+	return d
 }
 
 // Children returns child nodes (divider has no children).
@@ -107,9 +109,10 @@ func (d *VNode) Children() []rtui.VNode {
 	return nil
 }
 
-// SetChildren is a no-op for divider.
-func (d *VNode) SetChildren(children []rtui.VNode) {
+// SetChildren is a no-op for divider - returns VNode for chaining.
+func (d *VNode) SetChildren(children []rtui.VNode) rtui.VNode {
 	// Divider has no children
+	return d
 }
 
 // GetLayer returns the rendering layer.
@@ -117,7 +120,7 @@ func (d *VNode) GetLayer() rtui.Layer {
 	return rtui.LayerBase
 }
 
-// SetLayer sets the rendering layer.
+// SetLayer sets the rendering layer - returns VNode for chaining.
 func (d *VNode) SetLayer(l rtui.Layer) rtui.VNode {
 	return d
 }
@@ -125,18 +128,18 @@ func (d *VNode) SetLayer(l rtui.Layer) rtui.VNode {
 // Props returns the node properties.
 func (d *VNode) Props() rtui.Props {
 	return rtui.Props{
-		"key":         d.key,
-		"label":       d.label,
+		"key":          d.key,
+		"label":        d.label,
 		"dividerStyle": d.dividerStyle,
-		"orientation": d.orientation,
-		"thickness":   d.thickness,
-		"style":       d.style,
-		"fillWidth":   d.fillWidth,
+		"orientation":  d.orientation,
+		"thickness":    d.thickness,
+		"style":        d.style,
+		"fillWidth":    d.fillWidth,
 	}
 }
 
-// SetProps sets the node properties.
-func (d *VNode) SetProps(p rtui.Props) {
+// SetProps sets the node properties - returns VNode for chaining.
+func (d *VNode) SetProps(p rtui.Props) rtui.VNode {
 	if v, ok := p["key"].(string); ok {
 		d.key = v
 	}
@@ -158,6 +161,7 @@ func (d *VNode) SetProps(p rtui.Props) {
 	if v, ok := p["fillWidth"].(bool); ok {
 		d.fillWidth = v
 	}
+	return d
 }
 
 // =============================================================================

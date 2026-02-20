@@ -35,9 +35,10 @@ func (e *ElementVNode) Props() Props {
 	return e.props
 }
 
-// SetProps implements VNode
-func (e *ElementVNode) SetProps(p Props) {
+// SetProps implements VNode - returns VNode for chaining
+func (e *ElementVNode) SetProps(p Props) VNode {
 	e.props = p
+	return e
 }
 
 // Children implements VNode
@@ -45,9 +46,10 @@ func (e *ElementVNode) Children() []VNode {
 	return e.children
 }
 
-// SetChildren implements VNode
-func (e *ElementVNode) SetChildren(children []VNode) {
+// SetChildren implements VNode - returns VNode for chaining
+func (e *ElementVNode) SetChildren(children []VNode) VNode {
 	e.children = children
+	return e
 }
 
 // Key implements VNode
@@ -55,10 +57,10 @@ func (e *ElementVNode) Key() string {
 	return e.key
 }
 
-// SetKey implements VNode
-// 由用户设置或是fiber回调更新
-func (e *ElementVNode) SetKey(key string) {
+// SetKey implements VNode - returns VNode for chaining
+func (e *ElementVNode) SetKey(key string) VNode {
 	e.key = key
+	return e
 }
 
 // Style implements VNode
@@ -66,9 +68,20 @@ func (e *ElementVNode) Style() style.Style {
 	return e.style
 }
 
-// SetStyle implements VNode
-func (e *ElementVNode) SetStyle(s style.Style) {
+// SetStyle implements VNode - returns VNode for chaining
+func (e *ElementVNode) SetStyle(s style.Style) VNode {
 	e.style = s
+	return e
+}
+
+// GetLayer returns the rendering layer
+func (e *ElementVNode) GetLayer() Layer {
+	return LayerBase
+}
+
+// SetLayer sets the rendering layer - returns VNode for chaining
+func (e *ElementVNode) SetLayer(l Layer) VNode {
+	return e
 }
 
 // Tag returns the element tag name

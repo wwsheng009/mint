@@ -65,9 +65,10 @@ func (t *VNode) Key() string {
 	return t.key
 }
 
-// SetKey sets the component key.
-func (t *VNode) SetKey(key string) {
+// SetKey sets the component key - returns VNode for chaining.
+func (t *VNode) SetKey(key string) rtui.VNode {
 	t.key = key
+	return t
 }
 
 // Tag returns the tag name.
@@ -80,9 +81,10 @@ func (t *VNode) Style() style.Style {
 	return t.style
 }
 
-// SetStyle sets the visual style.
-func (t *VNode) SetStyle(s style.Style) {
+// SetStyle sets the visual style - returns VNode for chaining.
+func (t *VNode) SetStyle(s style.Style) rtui.VNode {
 	t.style = s
+	return t
 }
 
 // Children returns child nodes (text has no children).
@@ -90,9 +92,10 @@ func (t *VNode) Children() []rtui.VNode {
 	return nil
 }
 
-// SetChildren is a no-op for text.
-func (t *VNode) SetChildren(children []rtui.VNode) {
+// SetChildren is a no-op for text - returns VNode for chaining.
+func (t *VNode) SetChildren(children []rtui.VNode) rtui.VNode {
 	// Text has no children
+	return t
 }
 
 // GetLayer returns the rendering layer.
@@ -100,7 +103,7 @@ func (t *VNode) GetLayer() rtui.Layer {
 	return rtui.LayerBase
 }
 
-// SetLayer sets the rendering layer.
+// SetLayer sets the rendering layer - returns VNode for chaining.
 func (t *VNode) SetLayer(l rtui.Layer) rtui.VNode {
 	return t
 }
@@ -117,8 +120,8 @@ func (t *VNode) Props() rtui.Props {
 	}
 }
 
-// SetProps sets the node properties.
-func (t *VNode) SetProps(p rtui.Props) {
+// SetProps sets the node properties - returns VNode for chaining.
+func (t *VNode) SetProps(p rtui.Props) rtui.VNode {
 	if v, ok := p["key"].(string); ok {
 		t.key = v
 	}
@@ -137,6 +140,7 @@ func (t *VNode) SetProps(p rtui.Props) {
 	if v, ok := p["maxWidth"].(int); ok {
 		t.maxWidth = v
 	}
+	return t
 }
 
 // =============================================================================

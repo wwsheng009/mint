@@ -63,9 +63,10 @@ func (m *MemoVNode) Props() Props {
 	return m.component.Props()
 }
 
-// SetProps implements VNode
-func (m *MemoVNode) SetProps(p Props) {
+// SetProps implements VNode - returns VNode for chaining
+func (m *MemoVNode) SetProps(p Props) VNode {
 	m.component.SetProps(p)
+	return m
 }
 
 // Children implements VNode
@@ -73,9 +74,10 @@ func (m *MemoVNode) Children() []VNode {
 	return m.component.Children()
 }
 
-// SetChildren implements VNode
-func (m *MemoVNode) SetChildren(children []VNode) {
+// SetChildren implements VNode - returns VNode for chaining
+func (m *MemoVNode) SetChildren(children []VNode) VNode {
 	m.component.SetChildren(children)
+	return m
 }
 
 // Key implements VNode
@@ -86,9 +88,10 @@ func (m *MemoVNode) Key() string {
 	return m.component.Key()
 }
 
-// SetKey implements VNode
-func (m *MemoVNode) SetKey(key string) {
+// SetKey implements VNode - returns VNode for chaining
+func (m *MemoVNode) SetKey(key string) VNode {
 	m.key = key
+	return m
 }
 
 // Style implements VNode
@@ -96,9 +99,10 @@ func (m *MemoVNode) Style() style.Style {
 	return m.style
 }
 
-// SetStyle implements VNode
-func (m *MemoVNode) SetStyle(s style.Style) {
+// SetStyle implements VNode - returns VNode for chaining
+func (m *MemoVNode) SetStyle(s style.Style) VNode {
 	m.style = s
+	return m
 }
 
 // Tag implements VNode

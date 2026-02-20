@@ -112,9 +112,10 @@ func (b *VNode) Key() string {
 	return b.key
 }
 
-// SetKey sets the component key.
-func (b *VNode) SetKey(key string) {
+// SetKey sets the component key - returns VNode for chaining.
+func (b *VNode) SetKey(key string) rtui.VNode {
 	b.key = key
+	return b
 }
 
 // Tag returns the tag name.
@@ -127,9 +128,10 @@ func (b *VNode) Style() style.Style {
 	return b.style
 }
 
-// SetStyle sets the visual style.
-func (b *VNode) SetStyle(s style.Style) {
+// SetStyle sets the visual style - returns VNode for chaining.
+func (b *VNode) SetStyle(s style.Style) rtui.VNode {
 	b.style = s
+	return b
 }
 
 // Children returns child nodes (button has no children).
@@ -137,9 +139,10 @@ func (b *VNode) Children() []rtui.VNode {
 	return nil
 }
 
-// SetChildren is a no-op for button.
-func (b *VNode) SetChildren(children []rtui.VNode) {
+// SetChildren is a no-op for button - returns VNode for chaining.
+func (b *VNode) SetChildren(children []rtui.VNode) rtui.VNode {
 	// Button has no children
+	return b
 }
 
 // GetLayer returns the rendering layer.
@@ -147,7 +150,7 @@ func (b *VNode) GetLayer() rtui.Layer {
 	return rtui.LayerBase
 }
 
-// SetLayer sets the rendering layer.
+// SetLayer sets the rendering layer - returns VNode for chaining.
 func (b *VNode) SetLayer(l rtui.Layer) rtui.VNode {
 	return b
 }
@@ -168,8 +171,8 @@ func (b *VNode) Props() rtui.Props {
 	}
 }
 
-// SetProps sets the node properties.
-func (b *VNode) SetProps(p rtui.Props) {
+// SetProps sets the node properties - returns VNode for chaining.
+func (b *VNode) SetProps(p rtui.Props) rtui.VNode {
 	if v, ok := p["key"].(string); ok {
 		b.key = v
 	}
@@ -194,6 +197,7 @@ func (b *VNode) SetProps(p rtui.Props) {
 	if v, ok := p["disabled"].(bool); ok {
 		b.disabled = v
 	}
+	return b
 }
 
 // =============================================================================
