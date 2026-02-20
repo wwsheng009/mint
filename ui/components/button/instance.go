@@ -6,6 +6,7 @@ import (
 
 	"github.com/wwsheng009/mint/framework/theme"
 	"github.com/wwsheng009/mint/runtime/intent"
+	"github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
@@ -59,6 +60,9 @@ var (
 	_ rtui.FocusableInstance     = (*Instance)(nil)
 	_ rtui.ActionHandlerInstance = (*Instance)(nil)
 	_ control.Instance           = (*Instance)(nil)
+	_ interface {
+		Measure(layout.Constraints) layout.Size
+	} = (*Instance)(nil)
 )
 
 // =============================================================================
@@ -474,6 +478,87 @@ func (inst *Instance) SetIntentEmitter(fn func(intent.Intent)) {
 // ClearDirty clears the dirty flag.
 func (inst *Instance) ClearDirty() {
 	inst.dirty = false
+}
+
+// =============================================================================
+// Measurable Interface (Two-Pass Layout)
+// =============================================================================
+
+// Measure implements layout.Measurable interface.
+// Calculates the button's ideal size given the constraints.
+// This is Phase 1 of two-pass layout: measure natural size without position.
+func (inst *Instance) Measure(constraints layout.Constraints) layout.Size {
+	if inst == nil {
+		return layout.Size{}
+	}
+
+	// Calculate button content width: label + brackets + focus indicator
+	label := inst.label
+	if label == "" {
+		label = " " // Empty button still has minimal width
+	}
+
+	// Width: label length + 2 for brackets "[]" + 1 for focus indicator
+	contentWidth := utf8.RuneCountInString(label) + 3
+
+	// Height is always 1 for single-line button
+	contentHeight := 1
+
+	// Apply size modifiers
+	switch inst.size {
+	case SizeSmall:
+		// Small button: no extra padding
+	case SizeMedium:
+		// Medium button: +1 padding on each side
+		contentWidth += 2
+	case SizeLarge:
+		// Large button: +2 padding on each side
+		contentWidth += 4
+	}
+
+	// Apply user-specified padding
+	horizontalPadding := inst.padding[1] + inst.padding[3] // right + left
+	verticalPadding := inst.padding[0] + inst.padding[2]   // top + bottom
+
+	width := contentWidth + horizontalPadding
+	height := contentHeight + verticalPadding
+
+	// Apply constraints
+	width = constraints.ConstrainWidth(width)
+	height = constraints.ConstrainHeight(height)
+
+	// Apply explicit style dimensions if set
+	if inst.buttonStyle.Width > 0 {
+		width = constraints.ConstrainWidth(inst.buttonStyle.Width)
+	}
+	if inst.buttonStyle.Height > 0 {
+		height = constraints.ConstrainHeight(inst.buttonStyle.Height)
+	}
+
+	return layout.Size{Width: width, Height: height}
+}
+
+// GetNaturalSize returns the natural (unconstrained) size of the button.
+// This is used for alignment calculations when the button is stretched.
+func (inst *Instance) GetNaturalSize() (width, height int) {
+	label := inst.label
+	if label == "" {
+		label = " "
+	}
+
+	width = utf8.RuneCountInString(label) + 3 // label + brackets + focus
+	height = 1
+
+	switch inst.size {
+	case SizeSmall:
+		// no extra padding
+	case SizeMedium:
+		width += 2
+	case SizeLarge:
+		width += 4
+	}
+
+	return width, height
 }
 
 // =============================================================================

@@ -1,9 +1,9 @@
 package button
 
 import (
-	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/runtime/style"
+	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
 
 // =============================================================================
