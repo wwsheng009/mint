@@ -372,9 +372,9 @@ func (inst *Instance) resolveBorderColor() style.Color {
 		return theme.Focus()
 	}
 	if inst.state.Hovered {
-		return theme.Text()
+		return theme.Select()
 	}
-	return style.Color("blue")
+	return theme.Border()
 }
 
 // padText pads or truncates text to fit the specified width.
