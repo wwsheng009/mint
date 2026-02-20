@@ -15,6 +15,7 @@ import (
 	"github.com/wwsheng009/mint/runtime/border"
 	"github.com/wwsheng009/mint/runtime/event"
 	"github.com/wwsheng009/mint/runtime/layer"
+	"github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/render"
 	"github.com/wwsheng009/mint/runtime/style"
@@ -27,10 +28,22 @@ import (
 // DeclarativeNode allows a VNode tree to be used as a framework Component.
 // This enables mixing declarative UI (VNode) with imperative Components.
 
+// RenderMode specifies which rendering path to use
+type RenderMode int
+
+const (
+	// RenderModeLegacy uses the old VNode-based rendering
+	RenderModeLegacy RenderMode = iota
+	// RenderModeFiberFirst uses the new Fiber-first rendering pipeline
+	RenderModeFiberFirst
+	// RenderModeBoth runs both paths and compares results (for testing)
+	RenderModeBoth
+)
+
 // DeclarativeNode wraps a VNode function for use as a framework Component
 type DeclarativeNode struct {
 	mu       sync.RWMutex
-	root     rtui.VNode              // The root VNode of this tree
+	root     rtui.VNode              // The root VNode of this tree (legacy, will be removed)
 	renderFn rtui.ComponentFunc      // Function that renders the VNode
 	instance *rtui.ComponentContext  // Component instance for hooks
 	focusMgr *rtui.FiberFocusManager // Focus manager for keyboard navigation (Fiber-first)
@@ -43,6 +56,14 @@ type DeclarativeNode struct {
 
 	// Layer Manager for modal/overlay/tooltip support
 	layerMgr *layer.Manager // Layer manager for handling layered VNodes (modals, etc.)
+
+	// === Fiber-first Rendering Pipeline (Phase 4) ===
+	renderMode             RenderMode                 // Current rendering mode
+	layoutSwitcher         *LayoutSwitcher            // Layout engine switcher (legacy, for compare mode)
+	newLayoutEngine        *NewLayoutEngineAdapter    // New layout engine (Fiber-first only)
+	paintEngine            *PaintEngine               // Paint engine for Fiber-first
+	converter              *FiberToPaintableConverter // Fiber to Paintable converter
+	fiberFirstEnabled      bool                       // Whether Fiber-first mode is enabled
 }
 
 // NewDeclarativeNode creates a new declarative node from a VNode
@@ -125,7 +146,7 @@ func NewDeclarativeNodeFromFuncWithFiber(fn rtui.ComponentFunc, fwApp *framework
 		adapter.SetRenderer(renderer)
 	}
 
-	return &DeclarativeNode{
+	node := &DeclarativeNode{
 		renderFn:   fn,
 		instance:   rtui.NewComponentContextForRoot(),
 		focusMgr:   focusMgr,
@@ -134,6 +155,63 @@ func NewDeclarativeNodeFromFuncWithFiber(fn rtui.ComponentFunc, fwApp *framework
 		renderer:   renderer,
 		useFiber:   true,
 	}
+
+	// Initialize Fiber-first pipeline components
+	node.initFiberFirstPipeline()
+
+	return node
+}
+
+// initFiberFirstPipeline initializes the Fiber-first rendering pipeline components
+func (n *DeclarativeNode) initFiberFirstPipeline() {
+	// Check if Fiber-first mode is enabled via environment variable
+	fiberFirstEnv := os.Getenv("MINT_FIBER_FIRST")
+	n.fiberFirstEnabled = fiberFirstEnv == "true" || fiberFirstEnv == "1"
+
+	if n.fiberFirstEnabled {
+		log.RenderLogger.Debug("[DeclarativeNode] Fiber-first mode ENABLED")
+		n.renderMode = RenderModeFiberFirst
+		// Use the new layout engine directly (runtime/layout), bypassing LayoutSwitcher
+		// This ensures we never go through the compute path
+		n.newLayoutEngine = NewNewLayoutEngineAdapter()
+		n.paintEngine = NewPaintEngine()
+		// converter will be created with Fiber root during render
+	} else {
+		// Default to legacy mode for now
+		n.renderMode = RenderModeLegacy
+		log.RenderLogger.Debug("[DeclarativeNode] Using legacy render mode (MINT_FIBER_FIRST not set)")
+	}
+}
+
+// SetRenderMode sets the rendering mode
+func (n *DeclarativeNode) SetRenderMode(mode RenderMode) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.renderMode = mode
+	if mode == RenderModeFiberFirst {
+		n.fiberFirstEnabled = true
+		// Use the new layout engine directly (runtime/layout), bypassing LayoutSwitcher
+		if n.newLayoutEngine == nil {
+			n.newLayoutEngine = NewNewLayoutEngineAdapter()
+		}
+		if n.paintEngine == nil {
+			n.paintEngine = NewPaintEngine()
+		}
+	}
+}
+
+// GetRenderMode returns the current rendering mode
+func (n *DeclarativeNode) GetRenderMode() RenderMode {
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+	return n.renderMode
+}
+
+// IsFiberFirstEnabled returns whether Fiber-first mode is enabled
+func (n *DeclarativeNode) IsFiberFirstEnabled() bool {
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+	return n.fiberFirstEnabled
 }
 
 // SetReconciler sets the Fiber reconciler for this node
@@ -236,15 +314,219 @@ func (n *DeclarativeNode) Measure(maxWidth, maxHeight int) (width, height int) {
 // =============================================================================
 
 // Paint renders the VNode tree to the buffer
-// UNIFIED RENDERING: Both Fiber and non-Fiber modes use the PipelineRenderer
+// UNIFIED RENDERING: Supports both Legacy and Fiber-first rendering paths
 func (n *DeclarativeNode) Paint(ctx component.PaintContext, buf *paint.Buffer) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 
 	// Debug logging
 	if os.Getenv("MINT_DEBUG_TEST") == "true" {
-		fmt.Printf("[DeclarativeNode.Paint] START: ctx.X=%d, ctx.Y=%d, buf=%dx%d, useFiber=%v\n",
-			ctx.Bounds.X, ctx.Bounds.Y, buf.Width, buf.Height, n.useFiber)
+		fmt.Printf("[DeclarativeNode.Paint] START: ctx.X=%d, ctx.Y=%d, buf=%dx%d, useFiber=%v, renderMode=%v, fiberFirstEnabled=%v\n",
+			ctx.Bounds.X, ctx.Bounds.Y, buf.Width, buf.Height, n.useFiber, n.renderMode, n.fiberFirstEnabled)
+	}
+
+	// Check if Fiber-first mode is enabled
+	if n.fiberFirstEnabled && n.useFiber && n.reconciler != nil {
+		switch n.renderMode {
+		case RenderModeFiberFirst:
+			n.fiberFirstPaint(ctx, buf)
+			return
+		case RenderModeBoth:
+			n.comparePaint(ctx, buf)
+			return
+		default:
+			// Fall through to legacy path
+		}
+	}
+
+	// === Legacy Rendering Path ===
+	n.legacyPaint(ctx, buf)
+}
+
+// fiberFirstPaint renders using the new Fiber-first pipeline
+// Phase 1: Reconcile (VNode -> Fiber, VNode discarded)
+// Phase 2: Layout (Fiber -> LayoutBox, no VNode access)
+// Phase 3: Paint (LayoutBox -> PaintableBox -> Buffer)
+func (n *DeclarativeNode) fiberFirstPaint(ctx component.PaintContext, buf *paint.Buffer) {
+	debug := os.Getenv("MINT_DEBUG_TEST") == "true"
+	if debug {
+		fmt.Println("[DeclarativeNode.fiberFirstPaint] === STARTING Fiber-first render ===")
+	}
+
+	// Phase 1: Fiber Reconciliation
+	// The reconciler updates the Fiber tree, VNode is discarded after this
+	// Use a minimal buffer for reconciliation (actual painting happens later)
+	nullBuf := paint.NewBuffer(1, 1)
+	n.reconciler.Render(component.PaintContext{
+		Bounds: paint.Rect{X: 0, Y: 0, Width: 1, Height: 1},
+	}, nullBuf, n.renderFn)
+
+	// Get the Fiber root from reconciler
+	fiberRoot := n.getFiberRoot()
+	if fiberRoot == nil {
+		if debug {
+			fmt.Println("[DeclarativeNode.fiberFirstPaint] Fiber root is nil, falling back to legacy")
+		}
+		n.legacyPaint(ctx, buf)
+		return
+	}
+
+	if debug {
+		fmt.Printf("[DeclarativeNode.fiberFirstPaint] Fiber root OK: type=%d, tag=%s, children=%d\n",
+			fiberRoot.Type, fiberRoot.Tag, countFiberChildren(fiberRoot))
+	}
+
+	// Phase 2: Fiber-based Layout
+	// Use the new layout engine directly (runtime/layout), bypassing LayoutSwitcher
+	// This ensures we never go through the compute path
+	constraints := runtime.BoxConstraints{
+		MinWidth:  0,
+		MaxWidth:  ctx.AvailableWidth,
+		MinHeight: 0,
+		MaxHeight: ctx.AvailableHeight,
+	}
+
+	// Ensure the new layout engine is initialized
+	if n.newLayoutEngine == nil {
+		n.newLayoutEngine = NewNewLayoutEngineAdapter()
+	}
+
+	// Perform layout using the new runtime/layout engine
+	layoutResult, err := n.newLayoutEngine.LayoutFiber(fiberRoot, constraints)
+	if err != nil {
+		log.RenderLogger.Debug("[DeclarativeNode.fiberFirstPaint] Layout FAILED: %v, falling back to legacy", err)
+		n.legacyPaint(ctx, buf)
+		return
+	}
+
+	log.RenderLogger.Debug("[DeclarativeNode.fiberFirstPaint] Layout complete")
+
+	// Phase 3: Paint using PaintableLayout
+	// Convert LayoutResult to PaintableLayout and use PaintEngine
+	if layoutResult != nil {
+		log.RenderLogger.Debug("[DeclarativeNode.fiberFirstPaint] Paint phase starting")
+
+		// Get LayoutBox from adapter
+		var layoutBoxRoot *layout.LayoutBox
+		if adapter, ok := layoutResult.(*newLayoutResultAdapter); ok {
+			layoutResultInner := adapter.GetLayoutResult()
+			if layoutResultInner != nil {
+				layoutBoxRoot = layoutResultInner.Root
+				if debug {
+					fmt.Printf("[DeclarativeNode.fiberFirstPaint] LayoutBox root: %v, children=%d\n",
+						layoutBoxRoot != nil, len(layoutBoxRoot.Children))
+					if layoutBoxRoot != nil {
+						fmt.Printf("[DeclarativeNode.fiberFirstPaint] LayoutBox root bounds: (%d,%d) %dx%d\n",
+							layoutBoxRoot.X, layoutBoxRoot.Y, layoutBoxRoot.Width, layoutBoxRoot.Height)
+						printLayoutBoxTree(layoutBoxRoot, 0)
+					}
+				}
+			}
+		}
+
+		if layoutBoxRoot != nil {
+			// Convert LayoutBox to PaintableLayout using Fiber data
+			converter := NewFiberToPaintableConverter(fiberRoot)
+			paintableLayout := converter.ConvertToLayout(layoutBoxRoot)
+
+			if debug && paintableLayout != nil && paintableLayout.Root != nil {
+				fmt.Printf("[DeclarativeNode.fiberFirstPaint] PaintableLayout root: Node=%v, children=%d\n",
+					paintableLayout.Root.Node != nil, len(paintableLayout.Root.Children))
+				printPaintableBoxTree(paintableLayout.Root, 0)
+			}
+
+			if paintableLayout != nil && paintableLayout.Root != nil {
+				// Use PaintEngine to render the PaintableLayout
+				if err := n.paintEngine.PaintLayout(paintableLayout, buf); err != nil {
+					log.RenderLogger.Debug("[DeclarativeNode.fiberFirstPaint] PaintLayout FAILED: %v, falling back", err)
+					n.legacyPaint(ctx, buf)
+					return
+				}
+				log.RenderLogger.Debug("[DeclarativeNode.fiberFirstPaint] ✅ PaintLayout complete")
+				return
+			}
+		}
+
+		// Fallback to legacy if conversion failed
+		log.RenderLogger.Debug("[DeclarativeNode.fiberFirstPaint] PaintableLayout conversion failed, using legacy")
+	}
+
+	n.legacyPaint(ctx, buf)
+}
+
+// countFiberChildren counts the number of children in a Fiber tree
+func countFiberChildren(fiber *rtui.Fiber) int {
+	count := 0
+	for child := fiber.Child; child != nil; child = child.Sibling {
+		count++
+	}
+	return count
+}
+
+// printLayoutBoxTree prints the LayoutBox tree for debugging
+func printLayoutBoxTree(box *layout.LayoutBox, indent int) {
+	if box == nil {
+		return
+	}
+	prefix := ""
+	for i := 0; i < indent; i++ {
+		prefix += "  "
+	}
+	fmt.Printf("%sLayoutBox[%s] at (%d,%d) size %dx%d, children=%d\n",
+		prefix, box.ID, box.X, box.Y, box.Width, box.Height, len(box.Children))
+	for _, child := range box.Children {
+		printLayoutBoxTree(child, indent+1)
+	}
+}
+
+// printPaintableBoxTree prints the PaintableBox tree for debugging
+func printPaintableBoxTree(box *paint.PaintableBox, indent int) {
+	if box == nil {
+		return
+	}
+	prefix := ""
+	for i := 0; i < indent; i++ {
+		prefix += "  "
+	}
+	nodeTag := ""
+	if box.Node != nil {
+		nodeTag = box.Node.Tag()
+	}
+	fmt.Printf("%sPaintableBox at (%d,%d) size %dx%d, tag=%s, children=%d\n",
+		prefix, box.X, box.Y, box.Width, box.Height, nodeTag, len(box.Children))
+	for _, child := range box.Children {
+		printPaintableBoxTree(child, indent+1)
+	}
+}
+
+// comparePaint runs both legacy and Fiber-first paths and compares results
+// Used for testing and validation during migration
+func (n *DeclarativeNode) comparePaint(ctx component.PaintContext, buf *paint.Buffer) {
+	log.RenderLogger.Debug("[DeclarativeNode.comparePaint] Running both paths for comparison")
+
+	// Create separate buffers for each path
+	legacyBuf := paint.NewBuffer(buf.Width, buf.Height)
+	fiberFirstBuf := paint.NewBuffer(buf.Width, buf.Height)
+
+	// Run legacy path
+	n.legacyPaint(ctx, legacyBuf)
+
+	// Run Fiber-first path
+	n.fiberFirstPaint(ctx, fiberFirstBuf)
+
+	// TODO: Compare buffers and log differences
+	// For now, use the Fiber-first result
+	copyBuffer(buf, fiberFirstBuf)
+
+	log.RenderLogger.Debug("[DeclarativeNode.comparePaint] Comparison complete, using Fiber-first result")
+}
+
+// legacyPaint is the original VNode-based rendering path
+func (n *DeclarativeNode) legacyPaint(ctx component.PaintContext, buf *paint.Buffer) {
+	// Debug logging
+	if os.Getenv("MINT_DEBUG_TEST") == "true" {
+		fmt.Printf("[DeclarativeNode.legacyPaint] START: useFiber=%v, reconciler=%v\n",
+			n.useFiber, n.reconciler != nil)
 	}
 
 	// Phase 1: Get the VNode tree
@@ -252,7 +534,7 @@ func (n *DeclarativeNode) Paint(ctx component.PaintContext, buf *paint.Buffer) {
 		// Fiber mode: just call render function directly for now
 		// The reconciler's state management still happens through hooks
 		if os.Getenv("MINT_DEBUG_TEST") == "true" {
-			fmt.Printf("[DeclarativeNode.Paint] ✅ Calling renderWithFiberContext (useFiber=%v, reconciler=%v)\n",
+			fmt.Printf("[DeclarativeNode.legacyPaint] ✅ Calling renderWithFiberContext (useFiber=%v, reconciler=%v)\n",
 				n.useFiber, n.reconciler != nil)
 		}
 		n.root = n.renderWithFiberContext()
@@ -492,6 +774,17 @@ func (n *DeclarativeNode) applyFocusState() {
 
 // PaintVNode recursively paints a VNode and its children.
 //
+// DEPRECATED: This method accesses VNode during the Paint phase, which violates
+// the Fiber-first architecture. Use PaintLayout with PaintableLayout instead.
+//
+// Migration path:
+//  1. Use LayoutEngine.LayoutFiber() to get LayoutResult
+//  2. Use FiberToPaintableConverter to convert to PaintableLayout
+//  3. Use PaintEngine.PaintLayout() to render
+//
+// This method is kept for backward compatibility during migration.
+// Set MINT_WARN_LEGACY=true environment variable to see deprecation warnings.
+//
 // Rendering strategy:
 // 1. If node implements Paintable: use Paint(x, y) → []DrawCmd → write to buffer
 // 2. Otherwise: handle by node type (Text/Element/Fragment)
@@ -499,6 +792,11 @@ func (n *DeclarativeNode) applyFocusState() {
 func (n *DeclarativeNode) PaintVNode(vnode rtui.VNode, x, y int, buf *paint.Buffer) {
 	if vnode == nil {
 		return
+	}
+
+	// Deprecation warning (can be enabled via environment variable)
+	if os.Getenv("MINT_WARN_LEGACY") == "true" {
+		log.RenderLogger.Warn("[DEPRECATED] PaintVNode is deprecated, use PaintLayout instead. VNode type=%d", vnode.Type())
 	}
 
 	// Debug logging
@@ -1983,4 +2281,35 @@ func (n *DeclarativeNode) GetInstanceManager() interface{} {
 	}
 
 	return nil
+}
+
+// getFiberRoot returns the Fiber root from the reconciler (internal, no lock)
+// This is used by fiberFirstPaint which already holds the lock
+func (n *DeclarativeNode) getFiberRoot() *reconciler.Fiber {
+	if adapter, ok := n.reconciler.(*fiberReconcilerAdapter); ok {
+		return adapter.GetFiberRoot()
+	}
+	return nil
+}
+
+// copyBuffer copies content from source buffer to destination buffer
+func copyBuffer(dst, src *paint.Buffer) {
+	if dst == nil || src == nil {
+		return
+	}
+	// Copy cell by cell
+	for y := 0; y < minInt(dst.Height, src.Height); y++ {
+		for x := 0; x < minInt(dst.Width, src.Width); x++ {
+			cell := src.GetContent(x, y)
+			// SetCell takes rune, but Cell.Cluster is a string
+			// Use first rune of cluster, or space if empty
+			var char rune
+			if len(cell.Cluster) > 0 {
+				char = []rune(cell.Cluster)[0]
+			} else {
+				char = ' '
+			}
+			dst.SetCell(x, y, char, cell.Style)
+		}
+	}
 }

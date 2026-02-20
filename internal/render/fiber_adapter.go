@@ -124,24 +124,32 @@ func (a *FiberToNodeAdapter) SetPosition(x, y int) {
 }
 
 // GetSize returns the current size (from Fiber fields)
+// Fiber-first: All size data comes from Fiber.Instance or Fiber.Style
 func (a *FiberToNodeAdapter) GetSize() (width, height int) {
 	if a.fiber == nil {
 		return 0, 0
 	}
 
-	// Try computed box first
+	// 1. Try Instance (preferred for migrated components)
+	if a.fiber.Instance != nil {
+		if sizable, ok := a.fiber.Instance.(interface{ GetSize() (int, int) }); ok {
+			return sizable.GetSize()
+		}
+	}
+
+	// 2. Try computed box (legacy compatibility)
 	if a.fiber.ComputedBox != nil {
 		if computedBox, ok := a.fiber.ComputedBox.(*compute.ComputedBox); ok {
 			return computedBox.Box.Width, computedBox.Box.Height
 		}
 	}
 
-	// Try from Fiber.Style
+	// 3. Try from Fiber.Style
 	if a.fiber.Style.Width > 0 && a.fiber.Style.Height > 0 {
 		return a.fiber.Style.Width, a.fiber.Style.Height
 	}
 
-	// Try from Fiber.Props
+	// 4. Try from Fiber.Props
 	if a.fiber.Props != nil {
 		if w, ok := a.fiber.Props["width"].(int); ok && w > 0 {
 			if h, ok := a.fiber.Props["height"].(int); ok && h > 0 {
@@ -176,6 +184,65 @@ func (a *FiberToNodeAdapter) GetWidth() int {
 func (a *FiberToNodeAdapter) GetHeight() int {
 	_, h := a.GetSize()
 	return h
+}
+
+// Measure 实现 layout.Measurable 接口
+// Fiber-first: 测量节点在给定约束下的理想尺寸
+// 所有测量数据来自 Fiber.Instance（已迁移组件）或 Fiber.Style/Props
+func (a *FiberToNodeAdapter) Measure(constraints layout.Constraints) layout.Size {
+	if a.fiber == nil {
+		return layout.Size{}
+	}
+
+	// 1. 从 Instance 获取尺寸（优先，用于已迁移组件）
+	if a.fiber.Instance != nil {
+		// 检查 Instance 是否实现 Measurable 接口
+		if measurable, ok := a.fiber.Instance.(interface {
+			Measure(layout.Constraints) layout.Size
+		}); ok {
+			return measurable.Measure(constraints)
+		}
+
+		// 检查 Instance 是否实现 Sizable 接口
+		if sizable, ok := a.fiber.Instance.(interface {
+			GetSize() (int, int)
+		}); ok {
+			w, h := sizable.GetSize()
+			if w > 0 || h > 0 {
+				return layout.Size{
+					Width:  constraints.ConstrainWidth(w),
+					Height: constraints.ConstrainHeight(h),
+				}
+			}
+		}
+	}
+
+	// 2. 从 Style 获取固定尺寸
+	if a.fiber.Style.Width > 0 || a.fiber.Style.Height > 0 {
+		return layout.Size{
+			Width:  constraints.ConstrainWidth(a.fiber.Style.Width),
+			Height: constraints.ConstrainHeight(a.fiber.Style.Height),
+		}
+	}
+
+	// 3. 从 Props 获取尺寸配置
+	if a.fiber.Props != nil {
+		if w, ok := a.fiber.Props["width"].(int); ok && w > 0 {
+			if h, ok := a.fiber.Props["height"].(int); ok && h > 0 {
+				return layout.Size{
+					Width:  constraints.ConstrainWidth(w),
+					Height: constraints.ConstrainHeight(h),
+				}
+			}
+			return layout.Size{
+				Width:  constraints.ConstrainWidth(w),
+				Height: constraints.ConstrainHeight(0),
+			}
+		}
+	}
+
+	// 4. 默认值
+	return layout.Size{Width: 0, Height: 0}
 }
 
 // GetMargin returns the margin from Fiber fields
@@ -391,6 +458,35 @@ func (a *FiberToNodeAdapter) GetZIndex() int {
 	// ZIndex could be stored in Fiber.Props or Fiber.Style
 	// For now, return 0 as default
 	return 0
+}
+
+// ========== layout.Dirtyable 接口实现 ==========
+
+// IsLayoutDirty 检查是否需要重新布局
+// 实现 layout.Dirtyable 接口
+func (a *FiberToNodeAdapter) IsLayoutDirty() bool {
+	if a.fiber == nil {
+		return false
+	}
+	return a.fiber.IsLayoutDirty()
+}
+
+// ClearLayoutDirty 清除布局脏标记
+// 实现 layout.Dirtyable 接口
+func (a *FiberToNodeAdapter) ClearLayoutDirty() {
+	if a.fiber == nil {
+		return
+	}
+	a.fiber.ClearLayoutDirty()
+}
+
+// MarkLayoutDirty 标记需要重新布局
+// 实现 layout.Dirtyable 接口
+func (a *FiberToNodeAdapter) MarkLayoutDirty() {
+	if a.fiber == nil {
+		return
+	}
+	a.fiber.MarkLayoutDirty()
 }
 
 // =============================================================================
