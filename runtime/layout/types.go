@@ -129,6 +129,9 @@ type LayoutBox struct {
 	// ZIndex 层内排序索引
 	ZIndex int
 
+	// Border 边框信息（如果有）
+	Border Border
+
 	// Children 子节点布局结果
 	Children []*LayoutBox
 }
@@ -539,6 +542,9 @@ func (e *Engine) layoutNodeWithDepth(node Node, constraints Constraints, x, y in
 	layer := GetLayerFromNode(node)
 	zIndex := GetZIndexFromNode(node)
 
+	// Get Border from node if it implements Bordered interface
+	nodeBorder := GetBorderFromNode(node)
+
 	box := &LayoutBox{
 		ID:       node.ID(),
 		X:        x,
@@ -547,12 +553,16 @@ func (e *Engine) layoutNodeWithDepth(node Node, constraints Constraints, x, y in
 		Height:   height,
 		Layer:    layer,
 		ZIndex:   zIndex,
+		Border:   nodeBorder,
 		Children: make([]*LayoutBox, 0),
 	}
 
 	// 设置节点位置和尺寸
 	node.SetPosition(x, y)
 	node.SetSize(width, height)
+
+	// 计算边框偏移（用于布局子节点）
+	borderOffsetX, borderOffsetY := nodeBorder.ContentOffset()
 
 	// 检查节点是否实现了 FlexStyleProvider 接口
 	// 如果是，使用 FlexLayout 进行子节点布局
@@ -584,13 +594,16 @@ func (e *Engine) layoutNodeWithDepth(node Node, constraints Constraints, x, y in
 				// 递归布局子节点的子节点
 				child := node.Children()[i]
 				if child != nil {
-					// 子节点的位置相对于父节点
+					// 子节点的位置相对于父节点，并考虑边框偏移
 					childConstraints := constraints
-					subBox := e.layoutNodeWithDepth(child, childConstraints, x+childBox.X, y+childBox.Y, depth+1, visited)
+					// 应用边框偏移
+					childX := x + childBox.X + borderOffsetX
+					childY := y + childBox.Y + borderOffsetY
+					subBox := e.layoutNodeWithDepth(child, childConstraints, childX, childY, depth+1, visited)
 					if subBox != nil {
-						// 使用 FlexLayout 计算的位置和尺寸
-						subBox.X = x + childBox.X
-						subBox.Y = y + childBox.Y
+						// 使用 FlexLayout 计算的位置和尺寸，加上边框偏移
+						subBox.X = childX
+						subBox.Y = childY
 						box.Children = append(box.Children, subBox)
 					}
 				}
@@ -599,9 +612,9 @@ func (e *Engine) layoutNodeWithDepth(node Node, constraints Constraints, x, y in
 		}
 	}
 
-	// 默认布局：递归布局子节点（垂直方向）
-	childX := x
-	childY := y
+	// 默认布局：递归布局子节点（垂直方向），考虑边框偏移
+	childX := x + borderOffsetX
+	childY := y + borderOffsetY
 	for _, child := range node.Children() {
 		childBox := e.layoutNodeWithDepth(child, constraints, childX, childY, depth+1, visited)
 		if childBox != nil {

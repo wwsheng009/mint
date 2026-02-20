@@ -76,7 +76,7 @@ func (c *FiberToPaintableConverter) Convert(
 	if lbox == nil {
 		return nil
 	}
-	
+
 	pbox := &paint.PaintableBox{
 		X:        lbox.X,
 		Y:        lbox.Y,
@@ -87,12 +87,12 @@ func (c *FiberToPaintableConverter) Convert(
 		Parent:   parent,
 		Children: make([]*paint.PaintableBox, 0, len(lbox.Children)),
 	}
-	
+
 	// Find matching Fiber and fill paint-specific data
 	if fiber := c.findFiber(lbox.ID); fiber != nil {
 		c.fillFromFiber(pbox, fiber)
 	}
-	
+
 	// Recursively convert children
 	for _, childLBox := range lbox.Children {
 		childPBox := c.Convert(childLBox, pbox)
@@ -100,7 +100,7 @@ func (c *FiberToPaintableConverter) Convert(
 			pbox.Children = append(pbox.Children, childPBox)
 		}
 	}
-	
+
 	return pbox
 }
 

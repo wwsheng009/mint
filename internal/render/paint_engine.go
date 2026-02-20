@@ -203,8 +203,16 @@ func (e *PaintEngine) paintBorderedBox(box *paint.PaintableBox, buffer *paint.Bu
 		borderStyle = border.StyleDouble
 	case paint.BorderStyleRounded:
 		borderStyle = border.StyleRounded
+	case paint.BorderStyleDashed:
+		borderStyle = border.StyleDashed
 	default:
 		borderStyle = border.StyleSingle
+	}
+
+	// Get border width (1 for single/rounded/dashed, 2 for double)
+	borderWidth := 1
+	if bs == paint.BorderStyleDouble {
+		borderWidth = 2
 	}
 
 	config := border.Config{
@@ -214,8 +222,8 @@ func (e *PaintEngine) paintBorderedBox(box *paint.PaintableBox, buffer *paint.Bu
 	}
 	renderer := border.WithConfig(config)
 
-	contentWidth := box.Width - 2
-	contentHeight := box.Height - 2
+	contentWidth := box.Width - (borderWidth * 2)
+	contentHeight := box.Height - (borderWidth * 2)
 	if contentWidth < 0 {
 		contentWidth = 0
 	}

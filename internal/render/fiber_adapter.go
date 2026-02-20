@@ -380,6 +380,8 @@ func (a *FiberToNodeAdapter) GetBorder() layout.Border {
 		}
 
 		borderStyle := layout.BorderSingle
+
+		// Handle string type
 		if s, ok := a.fiber.Props["borderStyle"].(string); ok {
 			switch s {
 			case "none":
@@ -393,6 +395,9 @@ func (a *FiberToNodeAdapter) GetBorder() layout.Border {
 			case "dashed":
 				borderStyle = layout.BorderDashed
 			}
+		} else if bs, ok := a.fiber.Props["borderStyle"].(layout.BorderStyle); ok {
+			// Handle layout.BorderStyle type (used by ui/components/border)
+			borderStyle = bs
 		}
 
 		border := layout.NewBorder(borderStyle)
