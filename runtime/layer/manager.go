@@ -10,6 +10,7 @@ import (
 	"github.com/wwsheng009/mint/runtime/compute"
 	"github.com/wwsheng009/mint/runtime/event"
 	runtimelayout "github.com/wwsheng009/mint/runtime/layout"
+	"github.com/wwsheng009/mint/runtime/paint"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
 
@@ -572,6 +573,15 @@ func (m *Manager) positionInspector(node *LayerNode, root *compute.ComputedBox) 
 // Phase 3: Provides access to the new RenderPlanes-based layer system
 func (m *Manager) GetRenderPlanes() *RenderPlanes {
 	return m.renderPlanes
+}
+
+// GetPaintablePlanes returns the PaintablePlanes for decoupled rendering.
+// This is the preferred API for PaintEngine.PaintPaintablePlanes().
+func (m *Manager) GetPaintablePlanes() *paint.PaintablePlanes {
+	if m.renderPlanes == nil {
+		return paint.NewPaintablePlanes()
+	}
+	return m.renderPlanes.AsPaintablePlanes()
 }
 
 // GetLayouts returns all layer layouts

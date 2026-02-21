@@ -246,11 +246,12 @@ func (p *RenderingPipeline) RenderLayers(
 		return p.Render(vnode, fiber, constraints, buffer)
 	}
 
-	renderPlanes := layerMgr.GetRenderPlanes()
-	log.PipelineLogger.Debug("RenderPlanes: %d boxes", renderPlanes.CountBoxes())
+	// 使用新的 PaintablePlanes API（解耦版本）
+	paintablePlanes := layerMgr.GetPaintablePlanes()
+	log.PipelineLogger.Debug("PaintablePlanes: %d boxes", paintablePlanes.CountBoxes())
 
-	if err := p.paintEngine.PaintRenderPlanes(renderPlanes, buffer); err != nil {
-		log.PipelineLogger.Debug("PaintRenderPlanes failed: %v", err)
+	if err := p.paintEngine.PaintPaintablePlanes(paintablePlanes, buffer); err != nil {
+		log.PipelineLogger.Debug("PaintPaintablePlanes failed: %v", err)
 		return err
 	}
 

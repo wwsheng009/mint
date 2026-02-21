@@ -200,3 +200,58 @@ func TestBuildPaintablePlanesFromComputedBox_Nil(t *testing.T) {
 		t.Errorf("BuildPaintablePlanesFromComputedBox(nil) should have 0 boxes, got %d", pp.CountBoxes())
 	}
 }
+
+// =============================================================================
+// Manager.GetPaintablePlanes Tests
+// =============================================================================
+
+func TestManager_GetPaintablePlanes(t *testing.T) {
+	// Test with nil RenderPlanes
+	m := &Manager{renderPlanes: nil}
+	pp := m.GetPaintablePlanes()
+
+	if pp == nil {
+		t.Fatal("GetPaintablePlanes() returned nil for nil RenderPlanes")
+	}
+
+	if pp.CountBoxes() != 0 {
+		t.Errorf("GetPaintablePlanes() should have 0 boxes for nil RenderPlanes, got %d", pp.CountBoxes())
+	}
+}
+
+func TestManager_GetPaintablePlanes_WithData(t *testing.T) {
+	m := NewManager()
+	rp := m.GetRenderPlanes()
+
+	// Add some boxes
+	rp.AddToLayer(rtui.LayerBase, &compute.ComputedBox{
+		Box:    runtime.Box{X: 0, Y: 0, Width: 10, Height: 5},
+		NodeID: 1,
+		Layer:  rtui.LayerBase,
+	})
+	rp.AddToLayer(rtui.LayerModal, &compute.ComputedBox{
+		Box:    runtime.Box{X: 5, Y: 5, Width: 20, Height: 10},
+		NodeID: 2,
+		Layer:  rtui.LayerModal,
+	})
+
+	pp := m.GetPaintablePlanes()
+
+	if pp == nil {
+		t.Fatal("GetPaintablePlanes() returned nil")
+	}
+
+	if pp.CountBoxes() != 2 {
+		t.Errorf("PaintablePlanes.CountBoxes() = %d, want 2", pp.CountBoxes())
+	}
+
+	baseBoxes := pp.GetLayer(paint.RenderLayerBase)
+	if len(baseBoxes) != 1 {
+		t.Errorf("Base layer has %d boxes, want 1", len(baseBoxes))
+	}
+
+	modalBoxes := pp.GetLayer(paint.RenderLayerModal)
+	if len(modalBoxes) != 1 {
+		t.Errorf("Modal layer has %d boxes, want 1", len(modalBoxes))
+	}
+}
