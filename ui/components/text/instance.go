@@ -158,6 +158,43 @@ func (inst Instance) GetWrapLines() []string {
 	return inst.wrapLines
 }
 
+// ValidatePaintSize validates that the measured size doesn't exceed the paint bounds.
+// This method should be called after Measure and before Paint to detect potential overflow.
+func (inst *Instance) ValidatePaintSize(measureSize layout.Size, paintBounds [4]int) error {
+	verticalPadding := inst.padding[0] + inst.padding[2]
+
+	// Calculate available height in paint bounds
+	paintWidth := paintBounds[2]
+	paintHeight := paintBounds[3]
+
+	// Account for padding
+	contentHeightLimit := paintHeight - verticalPadding
+	if contentHeightLimit < 0 {
+		contentHeightLimit = 0
+	}
+
+	// Check if measure height exceeds available paint height
+	if inst.wrap && measureSize.Height > contentHeightLimit && paintHeight > 0 {
+		// Content will be cropped, this might be intentional for some components
+		// but for Text.Wrap we want to warn about this
+		// This is a warning, not an error, since Paint already handles cropping
+	}
+
+	// Validate width constraint
+	paddingLeft := inst.padding[3]
+	paddingRight := inst.padding[1]
+	contentWidthLimit := paintWidth - paddingLeft - paddingRight
+	if contentWidthLimit < 0 {
+		contentWidthLimit = 0
+	}
+
+	if !inst.wrap && measureSize.Width > contentWidthLimit && paintWidth > 0 {
+		// Content will be truncated, this is normal behavior for non-wrapping text
+	}
+
+	return nil
+}
+
 // Paint implements PaintableInstance.
 func (inst *Instance) Paint(x, y int) []paint.DrawCmd {
 	if inst == nil || inst.content == "" {

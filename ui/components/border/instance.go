@@ -1,6 +1,7 @@
 package border
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/wwsheng009/mint/runtime/layout"
@@ -39,6 +40,7 @@ type Instance struct {
 	bounds            [4]int // x, y, w, h
 	measuredChildSize layout.Size // cached child measurement
 	dirty             bool
+	path              string // 用于约束追踪的路径
 }
 
 // Ensure Instance implements required interfaces
@@ -176,6 +178,58 @@ func (inst *Instance) GetContext() *rtui.ComponentContext {
 // =============================================================================
 // Measurable Interface
 // =============================================================================
+
+// computeChildConstraints computes the constraints to pass to the child element.
+// This method implements the constraint priority: explicit dimensions > parent constraints.
+func (inst *Instance) computeChildConstraints(parentConstraints layout.Constraints) layout.Constraints {
+	borderWidth := GetBorderWidth(inst.borderStyle)
+	borderPadding := 2 * borderWidth
+
+	cc := layout.Constraints{
+		MinWidth:  parentConstraints.MinWidth,
+		MaxWidth:  parentConstraints.MaxWidth,
+		MinHeight: parentConstraints.MinHeight,
+		MaxHeight: parentConstraints.MaxHeight,
+	}
+
+	// Rule: Explicit dimension takes priority over parent constraint
+	// Width
+	if inst.width > 0 {
+		cc.MinWidth = inst.width
+		cc.MaxWidth = inst.width
+	}
+
+	// Height
+	if inst.height > 0 {
+		cc.MinHeight = inst.height
+		cc.MaxHeight = inst.height
+	}
+
+	// Rule: Apply border inner padding
+	// Subtract border padding from both min and max dimensions
+	cc.MinWidth = max(0, cc.MinWidth-borderPadding)
+	cc.MaxWidth = max(0, cc.MaxWidth-borderPadding)
+	cc.MinHeight = max(0, cc.MinHeight-borderPadding)
+	cc.MaxHeight = max(0, cc.MaxHeight-borderPadding)
+
+	// Ensure MinWidth <= MaxWidth and MinHeight <= MaxHeight
+	// If parent constraint is smaller than explicit dimension, constraint wins (layout protect)
+	if cc.MinWidth > cc.MaxWidth {
+		cc.MinWidth = cc.MaxWidth
+	}
+	if cc.MinHeight > cc.MaxHeight {
+		cc.MinHeight = cc.MaxHeight
+	}
+
+	if cc.MinWidth == layout.MaxInt {
+		cc.MinWidth = 0
+	}
+	if cc.MinHeight == layout.MaxInt {
+		cc.MinHeight = 0
+	}
+
+	return cc
+}
 
 // measureChild measures a single child VNode by creating a temporary instance.
 func (inst *Instance) measureChild(child rtui.VNode, constraints layout.Constraints) layout.Size {
@@ -343,28 +397,26 @@ func (inst *Instance) Measure(constraints layout.Constraints) layout.Size {
 	needMeasureHeight := inst.height == 0
 
 	if (needMeasureWidth || needMeasureHeight) && inst.child != nil {
-		// Calculate inner constraints (subtract border width)
-		innerConstraints := layout.Constraints{
-			MinWidth:  0,
-			MaxWidth:  constraints.MaxWidth - 2*borderWidth,
-			MinHeight: 0,
-			MaxHeight: constraints.MaxHeight - 2*borderWidth,
-		}
-		if innerConstraints.MaxWidth < 0 {
-			innerConstraints.MaxWidth = layout.MaxInt
-		}
-		if innerConstraints.MaxHeight < 0 {
-			innerConstraints.MaxHeight = layout.MaxInt
+		// Use computeChildConstraints to unify constraint passing logic
+		innerConstraints := inst.computeChildConstraints(constraints)
+
+		// Trace constraint propagation (before measurement)
+		childPath := fmt.Sprintf("%s/%s", inst.path, "border")
+		childTag := "border"
+		if tagger, ok := inst.child.(interface{ Tag() string }); ok {
+			childTag = tagger.Tag()
 		}
 
-		// If we have an explicit innerWidth from explicit width prop, use it as constraint
-		// This ensures child elements measure correctly with the proper width limit
-		if needMeasureHeight && innerWidth > 0 {
-			innerConstraints.MaxWidth = innerWidth
-			if innerConstraints.MaxWidth < innerConstraints.MinWidth {
-				innerConstraints.MaxWidth = innerConstraints.MinWidth
-			}
-		}
+		layout.TraceMeasuring(
+			"border("+inst.key+")",
+			childTag,
+			childPath,
+			constraints,          // 输入约束
+			innerConstraints,     // 输出约束（传递给子元素）
+			layout.Size{},        // 尺寸将在测量后更新
+			fmt.Sprintf("Applied border padding (%dx%d), explicit width=%d, height=%d",
+				borderWidth, borderWidth, inst.width, inst.height),
+		)
 
 		// Measure child and cache result
 		inst.measuredChildSize = inst.measureChild(inst.child, innerConstraints)
@@ -521,6 +573,17 @@ func (inst *Instance) SetStyle(s style.Style) {
 // ClearDirty clears the dirty flag.
 func (inst *Instance) ClearDirty() {
 	inst.dirty = false
+}
+
+// SetPath sets the constraint tracing path for this instance.
+func (inst *Instance) SetPath(path string) *Instance {
+	inst.path = path
+	return inst
+}
+
+// GetPath returns the constraint tracing path.
+func (inst *Instance) GetPath() string {
+	return inst.path
 }
 
 // =============================================================================
