@@ -26,10 +26,12 @@ type Instance struct {
 	padding   [4]int
 	textAlign rtui.Align
 	maxWidth  int
+	wrap      bool // enable word wrapping
 
 	// === Runtime State ===
-	bounds [4]int // x, y, w, h
-	dirty  bool
+	bounds    [4]int // x, y, w, h
+	dirty     bool
+	wrapLines []string // cached wrapped lines
 }
 
 // Ensure Instance implements required interfaces
@@ -54,6 +56,7 @@ func NewInstance(props rtui.Props) *Instance {
 		padding:   getPaddingProp(props),
 		textAlign: getTextAlignProp(props, rtui.AlignStart),
 		maxWidth:  getIntProp(props, "maxWidth", 0),
+		wrap:      getBoolProp(props, "wrap", false),
 		dirty:     true,
 	}
 
@@ -98,18 +101,21 @@ func (inst *Instance) OnUnmount() {
 func (inst *Instance) SetProps(props rtui.Props) bool {
 	oldContent := inst.content
 	oldMaxWidth := inst.maxWidth
+	oldWrap := inst.wrap
 
 	inst.content = getStringProp(props, "content", inst.content)
 	inst.textStyle = getStyleProp(props)
 	inst.padding = getPaddingProp(props)
 	inst.textAlign = getTextAlignProp(props, inst.textAlign)
 	inst.maxWidth = getIntProp(props, "maxWidth", inst.maxWidth)
+	inst.wrap = getBoolProp(props, "wrap", inst.wrap)
 
 	// Check if props changed
-	changed := oldContent != inst.content || oldMaxWidth != inst.maxWidth
+	changed := oldContent != inst.content || oldMaxWidth != inst.maxWidth || oldWrap != inst.wrap
 
 	if changed {
 		inst.dirty = true
+		inst.wrapLines = nil // Clear cached wrap lines when content or wrap changes
 	}
 	return changed
 }
@@ -123,6 +129,7 @@ func (inst *Instance) GetProps() rtui.Props {
 		"padding":   inst.padding,
 		"textAlign": inst.textAlign,
 		"maxWidth":  inst.maxWidth,
+		"wrap":      inst.wrap,
 	}
 }
 
@@ -145,6 +152,12 @@ func (inst *Instance) GetContext() *rtui.ComponentContext {
 // PaintableInstance Interface
 // =============================================================================
 
+// GetWrapLines returns the wrapped lines (for debugging)
+// This is a debug helper to expose internal state for troubleshooting
+func (inst Instance) GetWrapLines() []string {
+	return inst.wrapLines
+}
+
 // Paint implements PaintableInstance.
 func (inst *Instance) Paint(x, y int) []paint.DrawCmd {
 	if inst == nil || inst.content == "" {
@@ -152,19 +165,107 @@ func (inst *Instance) Paint(x, y int) []paint.DrawCmd {
 	}
 
 	// Get padding
-	paddingLeft := inst.padding[3] // left
-	paddingRight := inst.padding[1] // right
+	paddingTop := inst.padding[0]    // top
+	paddingLeft := inst.padding[3]   // left
+	paddingRight := inst.padding[1]  // right
 
 	// Build the text with padding
 	text := inst.content
-	contentWidth := utf8.RuneCountInString(text)
+	runes := []rune(text)
+	contentWidth := len(runes)
 
+	var cmds []paint.DrawCmd
+
+	// Handle wrap mode
+	if inst.wrap && len(inst.wrapLines) > 0 {
+		// Multi-line rendering
+		layoutWidth := inst.bounds[2]
+		if layoutWidth <= 0 {
+			layoutWidth = contentWidth + paddingLeft + paddingRight
+		}
+
+		// Calculate available height from bounds (content area excluding padding)
+		availableHeight := 0
+		if inst.bounds[3] > 0 {
+			availableHeight = inst.bounds[3] - paddingTop
+			if availableHeight < 0 {
+				availableHeight = 0
+			}
+		} else {
+			// No bounds height, allow all lines
+			availableHeight = len(inst.wrapLines)
+		}
+
+		// Clamp to available height
+		maxLines := len(inst.wrapLines)
+		if availableHeight < maxLines {
+			maxLines = availableHeight
+		}
+
+		for i := 0; i < maxLines; i++ {
+			line := inst.wrapLines[i]
+			lineText := line
+			lineRunes := []rune(line)
+			lineWidth := len(lineRunes)
+
+			// Apply padding and alignment
+		 paddedWidth := paddingLeft + lineWidth + paddingRight
+			if layoutWidth > paddedWidth {
+				availableSpace := layoutWidth - paddedWidth
+				switch inst.textAlign {
+				case rtui.AlignCenter:
+					leftSpace := paddingLeft + availableSpace/2
+					rightSpace := paddingRight + (availableSpace - availableSpace/2)
+					lineText = strings.Repeat(" ", leftSpace) + lineText + strings.Repeat(" ", rightSpace)
+				case rtui.AlignEnd:
+					leftSpace := paddingLeft + availableSpace
+					lineText = strings.Repeat(" ", leftSpace) + lineText + strings.Repeat(" ", paddingRight)
+				default:
+					lineText = strings.Repeat(" ", paddingLeft) + lineText + strings.Repeat(" ", paddingRight+availableSpace)
+				}
+			} else {
+				lineText = strings.Repeat(" ", paddingLeft) + lineText + strings.Repeat(" ", paddingRight)
+			}
+
+			cmds = append(cmds, paint.DrawCmd{
+				X:     x,
+				Y:     y + paddingTop + i,
+				Text:  lineText,
+				Style: inst.textStyle,
+			})
+		}
+		return cmds
+	}
+
+	// Single-line rendering (original code with truncation)
 	// Calculate natural width and layout width
 	naturalWidth := contentWidth + paddingLeft + paddingRight
 	layoutWidth := naturalWidth
-	if inst.bounds[2] > 0 && inst.bounds[2] > naturalWidth {
+
+	// Use bounds width if available (from layout engine)
+	if inst.bounds[2] > 0 {
 		layoutWidth = inst.bounds[2]
 	}
+
+	// Truncate text if it exceeds layout width
+	maxContentWidth := layoutWidth - paddingLeft - paddingRight
+	if maxContentWidth < 0 {
+		maxContentWidth = 0
+	}
+	if contentWidth > maxContentWidth {
+		// Truncate runes to fit
+		if maxContentWidth > 0 {
+			runes = runes[:maxContentWidth]
+			text = string(runes)
+			contentWidth = maxContentWidth
+		} else {
+			text = ""
+			contentWidth = 0
+		}
+	}
+
+	// Recalculate natural width after truncation
+	naturalWidth = contentWidth + paddingLeft + paddingRight
 
 	// Apply text alignment if text container is stretched
 	if layoutWidth > naturalWidth {
@@ -186,7 +287,7 @@ func (inst *Instance) Paint(x, y int) []paint.DrawCmd {
 
 	return []paint.DrawCmd{{
 		X:     x,
-		Y:     y,
+		Y:     y + paddingTop,
 		Text:  text,
 		Style: inst.textStyle,
 	}}
@@ -224,21 +325,51 @@ func (inst *Instance) Measure(constraints layout.Constraints) layout.Size {
 		content = " " // Empty text still has minimal width
 	}
 
-	// Width: count rune width
-	contentWidth := utf8.RuneCountInString(content)
-
-	// Height is always 1 for single-line text
-	contentHeight := 1
-
 	// Apply user-specified padding
 	horizontalPadding := inst.padding[1] + inst.padding[3] // right + left
 	verticalPadding := inst.padding[0] + inst.padding[2]   // top + bottom
 
+	var contentWidth, contentHeight int
+
+	// Handle wrap mode
+	if inst.wrap {
+		// Determine available width for content
+		availableWidth := constraints.MaxWidth
+		if inst.maxWidth > 0 && (availableWidth == 0 || inst.maxWidth < availableWidth) {
+			availableWidth = inst.maxWidth
+		}
+		availableWidth -= horizontalPadding
+		if availableWidth < 1 {
+			availableWidth = 1
+		}
+
+		// Wrap text and calculate dimensions
+		inst.wrapLines = wordWrap(content, availableWidth)
+		contentHeight = len(inst.wrapLines)
+		if contentHeight == 0 {
+			contentHeight = 1
+		}
+
+		// Find the maximum line width
+		maxLineWidth := 0
+		for _, line := range inst.wrapLines {
+			lineWidth := utf8.RuneCountInString(line)
+			if lineWidth > maxLineWidth {
+				maxLineWidth = lineWidth
+			}
+		}
+		contentWidth = maxLineWidth
+	} else {
+		// Single-line mode
+		contentWidth = utf8.RuneCountInString(content)
+		contentHeight = 1
+	}
+
 	width := contentWidth + horizontalPadding
 	height := contentHeight + verticalPadding
 
-	// Apply maxWidth constraint if set
-	if inst.maxWidth > 0 && width > inst.maxWidth {
+	// Apply maxWidth constraint (for truncate mode)
+	if !inst.wrap && inst.maxWidth > 0 && width > inst.maxWidth {
 		width = inst.maxWidth
 	}
 
@@ -307,6 +438,15 @@ func getIntProp(props rtui.Props, key string, def int) int {
 	return def
 }
 
+func getBoolProp(props rtui.Props, key string, def bool) bool {
+	if v, ok := props[key]; ok {
+		if b, ok := v.(bool); ok {
+			return b
+		}
+	}
+	return def
+}
+
 func getStyleProp(props rtui.Props) style.Style {
 	if v, ok := props["style"]; ok {
 		if s, ok := v.(style.Style); ok {
@@ -333,3 +473,66 @@ func getTextAlignProp(props rtui.Props, def rtui.Align) rtui.Align {
 	}
 	return def
 }
+
+// =============================================================================
+// Word Wrapping
+// =============================================================================
+
+// wordWrap breaks text into lines at word boundaries to fit the given max width.
+// It tries to break at spaces/punctuation first, then falls back to hard breaks.
+func wordWrap(text string, maxWidth int) []string {
+	if maxWidth <= 0 {
+		return []string{text}
+	}
+
+	runes := []rune(text)
+	if len(runes) == 0 {
+		return []string{}
+	}
+
+	// Simple implementation: break by space, then fit lines
+	words := strings.Fields(text)
+	if len(words) == 0 {
+		return []string{}
+	}
+
+	var lines []string
+	var currentLine string
+
+	for _, word := range words {
+		// Check if we can add this word to the current line
+		testLine := currentLine
+		if testLine != "" {
+			testLine += " "
+		}
+		testLine += word
+
+		if utf8.RuneCountInString(testLine) <= maxWidth {
+			currentLine = testLine
+		} else {
+			// Can't fit in current line
+			if currentLine != "" {
+				lines = append(lines, currentLine)
+			}
+			// If a single word is too long, break it
+			if utf8.RuneCountInString(word) <= maxWidth {
+				currentLine = word
+			} else {
+				// Break long word
+				wordRunes := []rune(word)
+				for len(wordRunes) > maxWidth {
+					lines = append(lines, string(wordRunes[:maxWidth]))
+					wordRunes = wordRunes[maxWidth:]
+				}
+				currentLine = string(wordRunes)
+			}
+		}
+	}
+
+	if currentLine != "" {
+		lines = append(lines, currentLine)
+	}
+
+	return lines
+}
+

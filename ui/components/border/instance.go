@@ -402,7 +402,7 @@ func (inst *Instance) Paint(x, y int) []paint.DrawCmd {
 	borderWidth := GetBorderWidth(inst.borderStyle)
 
 	// Determine content dimensions (width/height inside the border)
-	// Priority: explicit props > bounds (from layout engine) > measured child > defaults
+	// Priority: explicit props > bounds (from layout engine) > defaults
 	var contentWidth, contentHeight int
 
 	// 1. Use explicit dimensions if set
@@ -416,15 +416,15 @@ func (inst *Instance) Paint(x, y int) []paint.DrawCmd {
 	// 2. If not set, try bounds from layout engine (total size minus border)
 	if contentWidth == 0 || contentHeight == 0 {
 		_, _, boundsW, boundsH := inst.GetBounds()
-		if boundsW > 0 && boundsH > 0 {
+		if boundsW > 0 || boundsH > 0 {
 			// Bounds contains total size, subtract border to get content size
-			if contentWidth == 0 {
+			if contentWidth == 0 && boundsW > 0 {
 				contentWidth = boundsW - 2*borderWidth
 				if contentWidth < 0 {
 					contentWidth = 0
 				}
 			}
-			if contentHeight == 0 {
+			if contentHeight == 0 && boundsH > 0 {
 				contentHeight = boundsH - 2*borderWidth
 				if contentHeight < 0 {
 					contentHeight = 0
@@ -433,15 +433,7 @@ func (inst *Instance) Paint(x, y int) []paint.DrawCmd {
 		}
 	}
 
-	// 3. If still not set, use measured child size
-	if contentWidth == 0 && inst.measuredChildSize.Width > 0 {
-		contentWidth = inst.measuredChildSize.Width
-	}
-	if contentHeight == 0 && inst.measuredChildSize.Height > 0 {
-		contentHeight = inst.measuredChildSize.Height
-	}
-
-	// 4. Fallback to defaults
+	// 3. Fallback to defaults (when no bounds or explicit props)
 	if contentWidth == 0 {
 		contentWidth = 10
 	}
