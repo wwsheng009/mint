@@ -3,6 +3,7 @@ package render
 
 import (
 	"fmt"
+	"reflect"
 
 	"github.com/wwsheng009/mint/internal/reconciler"
 	"github.com/wwsheng009/mint/runtime"
@@ -194,6 +195,25 @@ func (a *FiberToNodeAdapter) Measure(constraints layout.Constraints) layout.Size
 		return layout.Size{}
 	}
 
+	// 特殊处理：absolute 组件应该填充父容器的可用空间
+	// 因为 absolute 是一个定位容器，它的子元素相对于它定位
+	// 所以它应该使用约束的最大尺寸，但考虑父容器的边框
+	if a.fiber.Tag == "absolute" {
+		// 使用约束的最大尺寸，但要确保是非负值
+		w := constraints.MaxWidth
+		h := constraints.MaxHeight
+		if w < 0 {
+			w = 0
+		}
+		if h < 0 {
+			h = 0
+		}
+		return layout.Size{
+			Width:  w,
+			Height: h,
+		}
+	}
+
 	// 1. 从 Instance 获取尺寸（优先，用于已迁移组件）
 	if a.fiber.Instance != nil {
 		// 检查 Instance 是否实现 Measurable 接口
@@ -302,9 +322,15 @@ func (a *FiberToNodeAdapter) GetPositionType() layout.Position {
 
 // GetFlexStyle returns the flex style from Fiber fields
 // This implements FlexStyleProvider interface for flex containers
+// Returns nil for non-flex containers (grid, absolute, etc.)
 func (a *FiberToNodeAdapter) GetFlexStyle() *layout.FlexStyle {
 	if a.fiber == nil {
-		return layout.DefaultFlexStyle()
+		return nil
+	}
+
+	// Only return flex style for flex containers (vstack, hstack)
+	if a.fiber.Tag != "vstack" && a.fiber.Tag != "hstack" {
+		return nil
 	}
 
 	style := layout.DefaultFlexStyle()
@@ -362,6 +388,96 @@ func (a *FiberToNodeAdapter) GetFlex() int {
 		return 0
 	}
 	return a.fiber.LayoutFlex
+}
+
+// GetGridStyle returns the grid style from Fiber fields
+// Implements layout.GridStyleProvider interface
+func (a *FiberToNodeAdapter) GetGridStyle() *layout.GridStyle {
+	if a.fiber == nil {
+		return nil
+	}
+
+	// Only for grid containers
+	if a.fiber.Tag != "grid" {
+		return nil
+	}
+
+	style := layout.DefaultGridStyle()
+
+	// Extract from Props
+	if a.fiber.Props != nil {
+		// Columns - convert from component types to layout types
+		style.Columns = convertGridDimensions(a.fiber.Props["columns"])
+		// Rows
+		style.Rows = convertGridDimensions(a.fiber.Props["rows"])
+		// Cells - convert from component types to layout types
+		style.Cells = convertGridCells(a.fiber.Props["cells"], a.children)
+
+		// Gaps
+		if gap, ok := a.fiber.Props["columnGap"].(int); ok {
+			style.ColumnGap = gap
+		}
+		if gap, ok := a.fiber.Props["rowGap"].(int); ok {
+			style.RowGap = gap
+		}
+		// Padding
+		if pad, ok := a.fiber.Props["padding"].([4]int); ok {
+			style.Padding = layout.Padding{
+				Top:    pad[0],
+				Right:  pad[1],
+				Bottom: pad[2],
+				Left:   pad[3],
+			}
+		}
+		// Explicit size
+		if w, ok := a.fiber.Props["width"].(int); ok {
+			style.Width = w
+		}
+		if h, ok := a.fiber.Props["height"].(int); ok {
+			style.Height = h
+		}
+	}
+
+	return style
+}
+
+// GetAbsoluteStyle returns the absolute positioning style from Fiber fields
+// Implements layout.AbsoluteStyleProvider interface
+func (a *FiberToNodeAdapter) GetAbsoluteStyle() *layout.AbsoluteStyle {
+	if a.fiber == nil {
+		return nil
+	}
+
+	// Only for absolute positioned nodes
+	if a.fiber.Tag != "absolute" {
+		return nil
+	}
+
+	style := layout.NewAbsoluteStyle()
+
+	// Extract from Props
+	if a.fiber.Props != nil {
+		// Position values - convert from component types to layout types
+		style.Left = convertPositionValue(a.fiber.Props["left"])
+		style.Top = convertPositionValue(a.fiber.Props["top"])
+		style.Right = convertPositionValue(a.fiber.Props["right"])
+		style.Bottom = convertPositionValue(a.fiber.Props["bottom"])
+		// Anchor - handle both int and component-specific Anchor types
+		style.Anchor = convertAnchorValue(a.fiber.Props["anchor"])
+		// Explicit size
+		if w, ok := a.fiber.Props["width"].(int); ok {
+			style.Width = w
+		}
+		if h, ok := a.fiber.Props["height"].(int); ok {
+			style.Height = h
+		}
+		// ZIndex
+		if z, ok := a.fiber.Props["zIndex"].(int); ok {
+			style.ZIndex = z
+		}
+	}
+
+	return style
 }
 
 // GetBorder returns the border from Fiber fields
@@ -883,4 +999,277 @@ func (a *VNodeToNodeAdapter) GetBorder() layout.Border {
 	}
 
 	return layout.Border{Style: layout.BorderNone}
+}
+
+// =============================================================================
+// Type Conversion Helpers
+// =============================================================================
+
+// convertGridDimensions converts component dimension slice to layout dimension slice
+func convertGridDimensions(val any) []layout.GridDimension {
+	if val == nil {
+		return nil
+	}
+
+	// Try as []layout.GridDimension first (direct layout type)
+	if dims, ok := val.([]layout.GridDimension); ok {
+		return dims
+	}
+
+	// Use reflection to handle different slice types
+	rv := reflect.ValueOf(val)
+	if rv.Kind() != reflect.Slice {
+		return nil
+	}
+
+	result := make([]layout.GridDimension, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		result[i] = convertSingleDimension(rv.Index(i).Interface())
+	}
+	return result
+}
+
+// convertSingleDimension converts a single dimension value using reflection
+func convertSingleDimension(val any) layout.GridDimension {
+	if val == nil {
+		return layout.GridFlex{Factor: 1}
+	}
+
+	// First check for layout types directly
+	switch v := val.(type) {
+	case layout.GridDimension:
+		return v
+	case int:
+		return layout.GridFixed(v)
+	}
+
+	// Use reflection to detect type by name
+	rv := reflect.ValueOf(val)
+	rt := rv.Type()
+
+	// Check for Fixed type (int-based)
+	if rt.Name() == "Fixed" || rt.Name() == "GridFixed" {
+		return layout.GridFixed(int(rv.Int()))
+	}
+
+	// Check for Flex type (struct with Factor field)
+	if rt.Name() == "Flex" || rt.Name() == "GridFlex" {
+		factor := 1
+		if f := rv.FieldByName("Factor"); f.IsValid() {
+			factor = int(f.Int())
+		}
+		return layout.GridFlex{Factor: factor}
+	}
+
+	// Check for Auto type
+	if rt.Name() == "Auto" || rt.Name() == "GridAuto" {
+		return layout.GridAuto{}
+	}
+
+	// Check for Min type
+	if rt.Name() == "Min" || rt.Name() == "GridMin" {
+		minVal := 0
+		if m := rv.FieldByName("Min"); m.IsValid() {
+			minVal = int(m.Int())
+		}
+		return layout.GridMin{Min: minVal}
+	}
+
+	// Check for Max type
+	if rt.Name() == "Max" || rt.Name() == "GridMax" {
+		maxVal := 0
+		if m := rv.FieldByName("Max"); m.IsValid() {
+			maxVal = int(m.Int())
+		}
+		return layout.GridMax{Max: maxVal}
+	}
+
+	// Default to flex
+	return layout.GridFlex{Factor: 1}
+}
+
+// tryConvertFixed attempts to convert to GridFixed
+func tryConvertFixed(val any) (layout.GridFixed, bool) {
+	switch v := val.(type) {
+	case layout.GridFixed:
+		return v, true
+	case int:
+		return layout.GridFixed(v), true
+	default:
+		return 0, false
+	}
+}
+
+// tryConvertFlex attempts to convert to GridFlex
+func tryConvertFlex(val any) (layout.GridFlex, bool) {
+	switch v := val.(type) {
+	case layout.GridFlex:
+		return v, true
+	default:
+		return layout.GridFlex{Factor: 1}, false
+	}
+}
+
+// convertGridCells converts component cell slice to layout cell slice
+func convertGridCells(val any, children []layout.Node) []layout.GridCell {
+	if val == nil {
+		// Auto-generate cells from children
+		if len(children) > 0 {
+			cells := make([]layout.GridCell, len(children))
+			for i, child := range children {
+				cells[i] = layout.GridCell{
+					Child:   child,
+					Row:     0,
+					Col:     i,
+					RowSpan: 1,
+					ColSpan: 1,
+				}
+			}
+			return cells
+		}
+		return nil
+	}
+
+	// Try as []layout.GridCell first
+	if cells, ok := val.([]layout.GridCell); ok {
+		return cells
+	}
+
+	// Use reflection to handle different slice types
+	rv := reflect.ValueOf(val)
+	if rv.Kind() != reflect.Slice {
+		return nil
+	}
+
+	result := make([]layout.GridCell, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		result[i] = convertSingleCell(rv.Index(i).Interface(), i, children)
+	}
+	return result
+}
+
+// convertSingleCell converts a single cell value using reflection
+func convertSingleCell(val any, index int, children []layout.Node) layout.GridCell {
+	if val == nil {
+		if index < len(children) {
+			return layout.GridCell{
+				Child:   children[index],
+				Row:     0,
+				Col:     index,
+				RowSpan: 1,
+				ColSpan: 1,
+			}
+		}
+		return layout.GridCell{}
+	}
+
+	// Try as layout.GridCell
+	if cell, ok := val.(layout.GridCell); ok {
+		return cell
+	}
+
+	// Use reflection to extract cell fields
+	rv := reflect.ValueOf(val)
+	if rv.Kind() == reflect.Struct {
+		cell := layout.GridCell{
+			Child:   nil, // Will be set below
+			Row:     0,
+			Col:     index,
+			RowSpan: 1,
+			ColSpan: 1,
+		}
+
+		// Extract Row
+		if f := rv.FieldByName("Row"); f.IsValid() {
+			cell.Row = int(f.Int())
+		}
+		// Extract Col
+		if f := rv.FieldByName("Col"); f.IsValid() {
+			cell.Col = int(f.Int())
+		}
+		// Extract RowSpan
+		if f := rv.FieldByName("RowSpan"); f.IsValid() {
+			cell.RowSpan = int(f.Int())
+		}
+		// Extract ColSpan
+		if f := rv.FieldByName("ColSpan"); f.IsValid() {
+			cell.ColSpan = int(f.Int())
+		}
+
+		// IMPORTANT: cells[i].Child (VNode) corresponds to children[i] (layout.Node adapter)
+		// The children array is built from Fiber's child chain, which is populated
+		// from VNode.Children() - and grid cells are populated in the same order
+		if index < len(children) {
+			cell.Child = children[index]
+		}
+
+		return cell
+	}
+
+	// Create default cell
+	cell := layout.GridCell{
+		Row:     0,
+		Col:     index,
+		RowSpan: 1,
+		ColSpan: 1,
+	}
+
+	// Use index for child if available
+	if index < len(children) {
+		cell.Child = children[index]
+	}
+
+	return cell
+}
+
+// convertPositionValue converts component position value to layout position value
+func convertPositionValue(val any) layout.PositionValue {
+	if val == nil {
+		return nil
+	}
+
+	// Direct type checks
+	switch v := val.(type) {
+	case layout.PositionValue:
+		return v
+	case int:
+		return layout.AbsolutePos(v)
+	case layout.AbsolutePos:
+		return v
+	case layout.RelativePos:
+		return v
+	}
+
+	// Use reflection for component types
+	rv := reflect.ValueOf(val)
+	rt := rv.Type()
+
+	// Check for AbsolutePos type (int-based)
+	if rt.Name() == "AbsolutePos" {
+		return layout.AbsolutePos(int(rv.Int()))
+	}
+
+	// Check for RelativePos type (int-based)
+	if rt.Name() == "RelativePos" {
+		return layout.RelativePos(int(rv.Int()))
+	}
+
+	return nil
+}
+
+// convertAnchorValue converts anchor value to layout.Anchor
+// Since absolute.Anchor is now an alias for layout.Anchor, direct type assertion works
+func convertAnchorValue(val any) layout.Anchor {
+	if val == nil {
+		return layout.AnchorTopLeft // default
+	}
+
+	switch v := val.(type) {
+	case layout.Anchor:
+		return v
+	case int:
+		return layout.Anchor(v)
+	}
+
+	return layout.AnchorTopLeft // default
 }
