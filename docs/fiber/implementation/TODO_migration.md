@@ -86,7 +86,7 @@ n.PaintVNode(n.root, x, y, buf)  // 仍访问 VNode
 | 文件 | 组件 | 状态 | 说明 |
 |------|------|------|------|
 | text.go | Text | ✅ 已迁移 | `ui/components/text/` |
-| divider.go | Divider | ⬜ 待迁移 | 分隔线 |
+| divider.go | Divider | ✅ 已迁移 | `ui/components/divider/` |
 
 #### button/ (P0 - ✅ 已完成)
 
@@ -191,12 +191,20 @@ ui/components/{component}/
 - [x] 创建示例渲染代码 (`examples/fiber_firsts/text_demo/`)
 - [x] 验证 Fiber-first 渲染管线 (`runtime/ui/fiber_adapter_measure_test.go`)
 
-### 4.3 Divider (P0 - 待迁移)
+### 4.3 Divider (P0 - ✅ 已完成)
 
 - **源位置**：`components/basic/divider.go`
 - **目标位置**：`ui/components/divider/`
 - **优先级**：P0
-- **状态**：⬜ 待迁移
+- **状态**：✅ 已完成
+
+**已完成任务**：
+- [x] 创建 `ui/components/divider/` 目录
+- [x] 实现 `vnode.go` (VNode, Props, Style, Orientation)
+- [x] 实现 `instance.go` (Instance, Measure, Paint)
+- [x] 实现 `builder.go` (流畅 API)
+- [x] 编写单元测试 (`ui/components/divider/divider_test.go`) - 17 tests PASS
+- [x] 创建示例渲染代码 (`examples/fiber_firsts/divider_demo/`)
 
 ### 4.4 VStack/HStack (P0 - 待迁移)
 
@@ -385,7 +393,7 @@ var (
 |------|------|------|--------|
 | Phase 1 | Button 迁移 | ✅ 完成 | 1 |
 | Phase 2 | Text 迁移 | ✅ 完成 | 1 |
-| Phase 3 | Divider 迁移 | ⬜ 待开始 | 1 |
+| Phase 3 | Divider 迁移 | ✅ 完成 | 1 |
 | Phase 4 | Stack + Grid + ScrollView + Wrap (layout) | ⬜ 待开始 | 4 |
 | Phase 5 | Panel + TreeView | ⬜ 待开始 | 2 |
 | Phase 6 | Checkbox + Input + Select + TextArea (form) | ⬜ 待开始 | 4 |
@@ -393,7 +401,7 @@ var (
 | Phase 8 | Progress + Tabs + Modal + Tooltip | ⬜ 待开始 | 4 |
 | Phase 9 | Legacy 代码清理 | ⬜ 待开始 | - |
 
-**总计**：20 个组件待迁移，2 个已完成
+**总计**：20 个组件待迁移，3 个已完成
 
 ---
 

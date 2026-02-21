@@ -1,5 +1,13 @@
 # CSS-like Layout System Design
 
+> ✅ **已实现** - 此设计已在 `runtime/layout/` 中实现
+> 
+> 实现位置：
+> - `runtime/layout/flex.go` - Padding/Margin 结构体和 FlexLayout 支持
+> - `runtime/layout/border.go` - Border 支持 Padding
+> - `runtime/layout/grid.go` - Grid 支持 Padding
+> - `runtime/layout/types.go` - Marginal 接口
+
 **Date**: 2025-01-07
 **Goal**: Implement padding, margin, and text alignment similar to CSS box model
 

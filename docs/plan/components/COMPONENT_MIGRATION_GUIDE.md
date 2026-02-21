@@ -1,6 +1,16 @@
 # 组件迁移指南
 
-> **目标**: 将 `ui/` 中的组件迁移到 `components/` 各分类目录
+> ⚠️ **过时警告**: 本文档描述的是旧的迁移方向（`ui/` → `components/`）。
+> 
+> 当前的迁移方向是 **Fiber-first 架构**：`components/` → `ui/components/`
+> 
+> 请参考最新的迁移文档：
+> - [MIGRATION_ANALYSIS.md](./MIGRATION_ANALYSIS.md) - 组件迁移分析报告
+> - [MIGRATION_TODO.md](./MIGRATION_TODO.md) - 组件迁移执行清单
+
+---
+
+> **历史目标**: 将 `ui/` 中的组件迁移到 `components/` 各分类目录
 > **原则**: 保持功能一致，改进组织结构
 > **日期**: 2026-02-01
 
