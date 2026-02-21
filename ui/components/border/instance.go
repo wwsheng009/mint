@@ -178,36 +178,18 @@ func (inst *Instance) GetContext() *rtui.ComponentContext {
 
 // Measure calculates the natural size of the bordered container.
 // Border adds 2 * borderWidth to each dimension.
+//
+// IMPORTANT: In Fiber-first architecture, Measure should NOT measure child VNodes.
+// Child measurement is handled by the layout engine through Fiber tree recursion:
+//   - Layout engine calls Measure() on Border.Instance (this method)
+//   - Layout engine separately measures Fiber.Child → childFiber.Instance.Measure()
+//   - This method only reports Border's explicit size or minimum size
 func (inst *Instance) Measure(constraints layout.Constraints) layout.Size {
 	borderWidth := GetBorderWidth(inst.borderStyle)
 
-	// Calculate inner constraints (reduced by border)
-	innerMinWidth := max(0, constraints.MinWidth-borderWidth*2)
-	innerMaxWidth := max(0, constraints.MaxWidth-borderWidth*2)
-	innerMinHeight := max(0, constraints.MinHeight-borderWidth*2)
-	innerMaxHeight := max(0, constraints.MaxHeight-borderWidth*2)
-
-	innerConstraints := layout.Constraints{
-		MinWidth:  innerMinWidth,
-		MaxWidth:  innerMaxWidth,
-		MinHeight: innerMinHeight,
-		MaxHeight: innerMaxHeight,
-	}
-
 	var innerWidth, innerHeight int
 
-	// Measure child if present
-	if inst.child != nil {
-		if measurable, ok := inst.child.(interface {
-			Measure(layout.Constraints) layout.Size
-		}); ok {
-			innerSize := measurable.Measure(innerConstraints)
-			innerWidth = innerSize.Width
-			innerHeight = innerSize.Height
-		}
-	}
-
-	// Use explicit dimensions if set
+	// Use explicit dimensions only (child measurement is handled by layout engine via Fiber tree)
 	if inst.width > 0 {
 		innerWidth = inst.width
 	}
