@@ -6,6 +6,7 @@ import (
 	"github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
+	newborder "github.com/wwsheng009/mint/ui/components/border"
 	newtext "github.com/wwsheng009/mint/ui/components/text"
 )
 
@@ -254,12 +255,12 @@ func TestVNode_GetBorder(t *testing.T) {
 
 	border := vnode.GetBorder()
 
-	if border.Style != layout.BorderRounded {
-		t.Error("Expected rounded border style")
+	// Panel is a composition container that delegates to Border component
+	// GetBorder() returns BorderNone to avoid double border calculation
+	if border.Style != layout.BorderNone {
+		t.Error("Expected BorderNone style (Panel delegates to internal Border)")
 	}
-	if border.Label != " Test " {
-		t.Error("Expected border label ' Test '")
-	}
+	// Label is not exposed through GetBorder() - it's set on the internal Border
 }
 
 func TestVNode_GetPadding(t *testing.T) {
@@ -312,17 +313,32 @@ func TestVNode_CompositionPassesDimensions(t *testing.T) {
 		SetFlex(2).
 		SetContent(newtext.New("Content"))
 
-	composed := vnode.getComposed()
-	props := composed.Props()
+	// Test Panel's own props (not composed Border's props)
+	panelProps := vnode.Props()
 
-	if props["width"] != 40 {
-		t.Errorf("Width should be 40, got %v", props["width"])
+	if panelProps["width"] != 40 {
+		t.Errorf("Panel width should be 40, got %v", panelProps["width"])
 	}
-	if props["height"] != 10 {
-		t.Errorf("Height should be 10, got %v", props["height"])
+	if panelProps["height"] != 10 {
+		t.Errorf("Panel height should be 10, got %v", panelProps["height"])
 	}
-	if props["flex"] != 2 {
-		t.Errorf("Flex should be 2, got %v", props["flex"])
+	if panelProps["flex"] != 2 {
+		t.Errorf("Panel flex should be 2, got %v", panelProps["flex"])
+	}
+
+	// Composed Border gets inner dimensions (minus border padding)
+	composed := vnode.getComposed()
+	borderProps := composed.Props()
+
+	borderPadding := 2 * newborder.GetBorderWidth(vnode.borderStyle)
+	expectedInnerWidth := 40 - borderPadding // 40 - 2 = 38 for single border
+	expectedInnerHeight := 10 - borderPadding // 10 - 2 = 8 for single border
+
+	if borderProps["width"] != expectedInnerWidth {
+		t.Errorf("Border inner width should be %d (40 - %d), got %v", expectedInnerWidth, borderPadding, borderProps["width"])
+	}
+	if borderProps["height"] != expectedInnerHeight {
+		t.Errorf("Border inner height should be %d (10 - %d), got %v", expectedInnerHeight, borderPadding, borderProps["height"])
 	}
 }
 
