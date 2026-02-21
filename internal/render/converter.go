@@ -228,6 +228,20 @@ func (n *FiberPaintableNode) TextContent() string {
 	return ""
 }
 
+// SetBounds sets the layout bounds for the Fiber's Instance.
+// This is called by PaintEngine before Paint() to provide layout dimensions.
+// Fiber-first Architecture: Passes layout-computed dimensions to Instance.
+func (n *FiberPaintableNode) SetBounds(x, y, w, h int) {
+	if n.fiber == nil || n.fiber.Instance == nil {
+		return
+	}
+
+	// Pass bounds to Instance if it supports SetBounds
+	if boundsSetter, ok := n.fiber.Instance.(interface{ SetBounds(int, int, int, int) }); ok {
+		boundsSetter.SetBounds(x, y, w, h)
+	}
+}
+
 // Paint delegates to the Fiber's Instance.Paint() method.
 // Fiber-first Architecture: Uses Instance ONLY, no VNode access.
 func (n *FiberPaintableNode) Paint(x, y int) []paint.DrawCmd {

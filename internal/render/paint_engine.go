@@ -86,15 +86,18 @@ func (e *PaintEngine) paintBox(box *paint.PaintableBox, buffer *paint.Buffer) er
 		}
 	}
 
+	// IMPORTANT: Set bounds before Paint (Fiber-first architecture)
+	// This allows Instance to access layout-computed dimensions
+	if boundsSetter, ok := box.Node.(interface{ SetBounds(x, y, w, h int) }); ok {
+		boundsSetter.SetBounds(box.X, box.Y, box.Width, box.Height)
+	}
+
 	// FIRST: Check if node has custom paint logic
-	// For container components (with children), we skip Paint and use LayoutBox coordinates
-	// For leaf components (no children), we use Paint method
 	commands := box.Node.Paint(box.X, box.Y)
 
-	// Only use Paint method for leaf nodes (no children)
-	// Container nodes use LayoutBox coordinates for children
-	if len(commands) > 0 && len(box.Children) == 0 {
-		// Apply commands with potential background inheritance
+	// Apply custom paint commands if present (for both leaf and container nodes)
+	// Container components like Border return border drawing commands
+	if len(commands) > 0 {
 		for _, cmd := range commands {
 			styleToApply := cmd.Style
 			if parentBG != "" && (styleToApply.BG == "" || styleToApply.BG == style.NoColor) {
@@ -102,8 +105,11 @@ func (e *PaintEngine) paintBox(box *paint.PaintableBox, buffer *paint.Buffer) er
 			}
 			buffer.SetString(cmd.X, cmd.Y, cmd.Text, styleToApply)
 		}
-		// Leaf component rendered, no children to process
-		return nil
+		// For leaf nodes (no children), we're done
+		if len(box.Children) == 0 {
+			return nil
+		}
+		// For container nodes, continue to paint children
 	}
 
 	// Inherit parent background for non-Paintable nodes
@@ -125,8 +131,8 @@ func (e *PaintEngine) paintBox(box *paint.PaintableBox, buffer *paint.Buffer) er
 		return e.paintBoxChildren(box, buffer)
 	}
 
-	// Handle bordered elements
-	if bs, bc, bl := box.GetBorderInfo(); bs != paint.BorderStyleNone {
+	// Handle bordered elements (legacy path - for nodes without custom Paint)
+	if bs, bc, bl := box.GetBorderInfo(); bs != paint.BorderStyleNone && len(commands) == 0 {
 		e.paintBorderedBox(box, buffer, bs, bc, bl)
 		return nil
 	}

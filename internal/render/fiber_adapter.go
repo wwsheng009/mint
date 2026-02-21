@@ -480,6 +480,67 @@ func (a *FiberToNodeAdapter) GetAbsoluteStyle() *layout.AbsoluteStyle {
 	return style
 }
 
+// GetWrapStyle returns the wrap layout style from Fiber fields
+// Implements layout.WrapStyleProvider interface
+func (a *FiberToNodeAdapter) GetWrapStyle() *layout.WrapStyle {
+	if a.fiber == nil {
+		return nil
+	}
+
+	// Only for wrap containers
+	if a.fiber.Tag != "wrap" {
+		return nil
+	}
+
+	style := layout.DefaultWrapStyle()
+
+	// Extract from Props
+	if a.fiber.Props != nil {
+		// Width - container width for wrap calculation
+		if w, ok := a.fiber.Props["width"].(int); ok {
+			style.Width = w
+		}
+		// Gap - spacing between items in the same row
+		if gap, ok := a.fiber.Props["gap"].(int); ok {
+			style.Gap = gap
+		}
+		// RowGap - spacing between rows (0 = use gap)
+		if rowGap, ok := a.fiber.Props["rowGap"].(int); ok {
+			style.RowGap = rowGap
+		}
+		// Align - row alignment
+		if align, ok := a.fiber.Props["align"].(rtui.Align); ok {
+			switch align {
+			case rtui.AlignStart:
+				style.Align = layout.WrapAlignStart
+			case rtui.AlignCenter:
+				style.Align = layout.WrapAlignCenter
+			case rtui.AlignEnd:
+				style.Align = layout.WrapAlignEnd
+			}
+		}
+		// Padding
+		if pad, ok := a.fiber.Props["padding"].([4]int); ok {
+			style.Padding = layout.Padding{
+				Top:    pad[0],
+				Right:  pad[1],
+				Bottom: pad[2],
+				Left:   pad[3],
+			}
+		}
+		// FillWidth
+		if fill, ok := a.fiber.Props["fillWidth"].(bool); ok {
+			style.FillWidth = fill
+		}
+		// FillHeight
+		if fill, ok := a.fiber.Props["fillHeight"].(bool); ok {
+			style.FillHeight = fill
+		}
+	}
+
+	return style
+}
+
 // GetBorder returns the border from Fiber fields
 // Implements layout.Bordered interface
 func (a *FiberToNodeAdapter) GetBorder() layout.Border {
@@ -624,12 +685,18 @@ func (a *FiberToNodeAdapter) MarkLayoutDirty() {
 // =============================================================================
 
 // VNodeToNodeAdapter wraps a VNode tree to implement layout.Node interface
+//
+// Deprecated: Use FiberToNodeAdapterPure with Fiber-first architecture instead.
+// In Fiber-first architecture, VNode is discarded after Fiber creation.
+// This adapter is only kept for legacy compatibility.
 type VNodeToNodeAdapter struct {
 	vnode    rtui.VNode
 	children []layout.Node
 }
 
 // NewVNodeToNodeAdapter creates a new adapter for a VNode tree
+//
+// Deprecated: Use NewFiberToNodeAdapterPure with Fiber-first architecture instead.
 func NewVNodeToNodeAdapter(vnode rtui.VNode) *VNodeToNodeAdapter {
 	adapter := &VNodeToNodeAdapter{
 		vnode: vnode,
@@ -792,12 +859,17 @@ func (a *VNodeToNodeAdapter) GetPositionType() layout.Position {
 
 // FlexLayoutAdapter creates layout.FlexLayout nodes from Fiber/VNode trees
 // This handles the conversion of flex properties
+//
+// Deprecated: Use FiberToNodeAdapterPure with Fiber-first architecture instead.
+// This adapter mixes VNode and Fiber data, which is against Fiber-first principles.
 type FlexLayoutAdapter struct {
 	*FiberToNodeAdapter
 	style *layout.FlexStyle
 }
 
 // NewFlexLayoutAdapter creates a flex layout adapter
+//
+// Deprecated: Use NewFiberToNodeAdapterPure with Fiber-first architecture instead.
 func NewFlexLayoutAdapter(fiber *rtui.Fiber, vnode rtui.VNode) *FlexLayoutAdapter {
 	adapter := &FlexLayoutAdapter{
 		FiberToNodeAdapter: NewFiberToNodeAdapter(fiber, vnode),
@@ -812,6 +884,8 @@ func (a *FlexLayoutAdapter) GetFlexStyle() *layout.FlexStyle {
 }
 
 // extractFlexStyle extracts flex style from Fiber/VNode
+//
+// Deprecated: This function mixes Fiber and VNode data. Use Fiber-only data extraction.
 func extractFlexStyle(fiber *rtui.Fiber, vnode rtui.VNode) *layout.FlexStyle {
 	style := layout.DefaultFlexStyle()
 

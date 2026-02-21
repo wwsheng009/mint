@@ -59,7 +59,6 @@ type DeclarativeNode struct {
 
 	// === Fiber-first Rendering Pipeline (Phase 4) ===
 	renderMode             RenderMode                 // Current rendering mode
-	layoutSwitcher         *LayoutSwitcher            // Layout engine switcher (legacy, for compare mode)
 	newLayoutEngine        *NewLayoutEngineAdapter    // New layout engine (Fiber-first only)
 	paintEngine            *PaintEngine               // Paint engine for Fiber-first
 	converter              *FiberToPaintableConverter // Fiber to Paintable converter
@@ -501,6 +500,9 @@ func printPaintableBoxTree(box *paint.PaintableBox, indent int) {
 
 // comparePaint runs both legacy and Fiber-first paths and compares results
 // Used for testing and validation during migration
+//
+// Deprecated: This method is only for testing purposes during migration to Fiber-first.
+// It will be removed once migration is complete. Use fiberFirstPaint instead.
 func (n *DeclarativeNode) comparePaint(ctx component.PaintContext, buf *paint.Buffer) {
 	log.RenderLogger.Debug("[DeclarativeNode.comparePaint] Running both paths for comparison")
 
@@ -522,6 +524,15 @@ func (n *DeclarativeNode) comparePaint(ctx component.PaintContext, buf *paint.Bu
 }
 
 // legacyPaint is the original VNode-based rendering path
+//
+// Deprecated: Use fiberFirstPaint with Fiber-first architecture instead.
+// This method is kept for backward compatibility but should not be used in new code.
+// The legacy path has the following issues:
+//   - VNode is kept in memory during rendering (not discarded after Fiber reconciliation)
+//   - Uses LayoutSwitcher which is deprecated
+//   - Does not follow Fiber-first architecture where VNode is discarded after Fiber creation
+//
+// Migration: Set MINT_FIBER_FIRST=true and use NewDeclarativeNodeFromFuncWithFiber
 func (n *DeclarativeNode) legacyPaint(ctx component.PaintContext, buf *paint.Buffer) {
 	// Debug logging
 	if os.Getenv("MINT_DEBUG_TEST") == "true" {

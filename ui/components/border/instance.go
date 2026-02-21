@@ -36,8 +36,9 @@ type Instance struct {
 	instStyle style.Style
 
 	// === Runtime State ===
-	bounds [4]int // x, y, w, h
-	dirty  bool
+	bounds            [4]int // x, y, w, h
+	measuredChildSize layout.Size // cached child measurement
+	dirty             bool
 }
 
 // Ensure Instance implements required interfaces
@@ -176,20 +177,160 @@ func (inst *Instance) GetContext() *rtui.ComponentContext {
 // Measurable Interface
 // =============================================================================
 
+// measureChild measures a single child VNode by creating a temporary instance.
+func (inst *Instance) measureChild(child rtui.VNode, constraints layout.Constraints) layout.Size {
+	if child == nil {
+		return layout.Size{}
+	}
+
+	// Try InstanceFactory -> CreateInstance -> Measure
+	if factory, ok := child.(rtui.InstanceFactory); ok {
+		tempInst := factory.CreateInstance()
+		if measurable, ok := tempInst.(interface{ Measure(layout.Constraints) layout.Size }); ok {
+			return measurable.Measure(constraints)
+		}
+	}
+
+	// Try direct Measurable interface
+	if measurable, ok := child.(interface{ Measure(layout.Constraints) layout.Size }); ok {
+		return measurable.Measure(constraints)
+	}
+
+	// Fallback: estimate from content
+	return inst.estimateChildSize(child, constraints)
+}
+
+// estimateChildSize estimates child size when Measure is not available.
+func (inst *Instance) estimateChildSize(child rtui.VNode, constraints layout.Constraints) layout.Size {
+	w := 10 // default width
+	h := 1  // default height
+
+	if props := child.Props(); props != nil {
+		if pw := props.GetInt("width"); pw > 0 {
+			w = pw
+		}
+		if ph := props.GetInt("height"); ph > 0 {
+			h = ph
+		}
+		if content := props.GetString("content"); content != "" {
+			w = len([]rune(content))
+		}
+	}
+
+	// Handle LayoutNode (VStack/HStack/Wrap) with children
+	if nodeWithChildren, ok := child.(interface{ Children() []rtui.VNode }); ok {
+		children := nodeWithChildren.Children()
+		if len(children) > 0 {
+			// Check if this is a VStack (vertical layout) or HStack (horizontal layout)
+			isVertical := true // default to VStack
+			if tagger, ok := child.(interface{ Tag() string }); ok {
+				tag := tagger.Tag()
+				isVertical = (tag == "vstack" || tag == "VStack")
+			}
+
+			if isVertical {
+				// VStack: width = max child width, height = sum of child heights
+				maxWidth := 0
+				totalHeight := 0
+				for _, c := range children {
+					cw, ch := inst.estimateSingleChildSize(c, constraints)
+					if cw > maxWidth {
+						maxWidth = cw
+					}
+					totalHeight += ch
+				}
+				w = maxWidth
+				h = totalHeight
+			} else {
+				// HStack: width = sum of child widths, height = max child height
+				totalWidth := 0
+				maxHeight := 0
+				for _, c := range children {
+					cw, ch := inst.estimateSingleChildSize(c, constraints)
+					totalWidth += cw
+					if ch > maxHeight {
+						maxHeight = ch
+					}
+				}
+				w = totalWidth
+				h = maxHeight
+			}
+		}
+	}
+
+	return layout.Size{
+		Width:  constraints.ConstrainWidth(w),
+		Height: constraints.ConstrainHeight(h),
+	}
+}
+
+// estimateSingleChildSize estimates size for a single child node.
+func (inst *Instance) estimateSingleChildSize(child rtui.VNode, constraints layout.Constraints) (w, h int) {
+	w = 10 // default width
+	h = 1  // default height
+
+	if props := child.Props(); props != nil {
+		if pw := props.GetInt("width"); pw > 0 {
+			w = pw
+		}
+		if ph := props.GetInt("height"); ph > 0 {
+			h = ph
+		}
+		if content := props.GetString("content"); content != "" {
+			w = len([]rune(content))
+		}
+	}
+
+	// Recursively handle LayoutNode children
+	if nodeWithChildren, ok := child.(interface{ Children() []rtui.VNode }); ok {
+		children := nodeWithChildren.Children()
+		if len(children) > 0 {
+			isVertical := true
+			if tagger, ok := child.(interface{ Tag() string }); ok {
+				tag := tagger.Tag()
+				isVertical = (tag == "vstack" || tag == "VStack")
+			}
+
+			if isVertical {
+				maxWidth := 0
+				totalHeight := 0
+				for _, c := range children {
+					cw, ch := inst.estimateSingleChildSize(c, constraints)
+					if cw > maxWidth {
+						maxWidth = cw
+					}
+					totalHeight += ch
+				}
+				w = maxWidth
+				h = totalHeight
+			} else {
+				totalWidth := 0
+				maxHeight := 0
+				for _, c := range children {
+					cw, ch := inst.estimateSingleChildSize(c, constraints)
+					totalWidth += cw
+					if ch > maxHeight {
+						maxHeight = ch
+					}
+				}
+				w = totalWidth
+				h = maxHeight
+			}
+		}
+	}
+
+	return w, h
+}
+
 // Measure calculates the natural size of the bordered container.
+// If width or height is not explicitly set, it automatically measures the child.
 // Border adds 2 * borderWidth to each dimension.
-//
-// IMPORTANT: In Fiber-first architecture, Measure should NOT measure child VNodes.
-// Child measurement is handled by the layout engine through Fiber tree recursion:
-//   - Layout engine calls Measure() on Border.Instance (this method)
-//   - Layout engine separately measures Fiber.Child → childFiber.Instance.Measure()
-//   - This method only reports Border's explicit size or minimum size
 func (inst *Instance) Measure(constraints layout.Constraints) layout.Size {
 	borderWidth := GetBorderWidth(inst.borderStyle)
 
 	var innerWidth, innerHeight int
 
-	// Use explicit dimensions only (child measurement is handled by layout engine via Fiber tree)
+	// Use explicit dimensions if set
 	if inst.width > 0 {
 		innerWidth = inst.width
 	}
@@ -197,11 +338,51 @@ func (inst *Instance) Measure(constraints layout.Constraints) layout.Size {
 		innerHeight = inst.height
 	}
 
+	// Auto-measure child if dimensions not explicitly set
+	needMeasureWidth := inst.width == 0
+	needMeasureHeight := inst.height == 0
+
+	if (needMeasureWidth || needMeasureHeight) && inst.child != nil {
+		// Calculate inner constraints (subtract border width)
+		innerConstraints := layout.Constraints{
+			MinWidth:  0,
+			MaxWidth:  constraints.MaxWidth - 2*borderWidth,
+			MinHeight: 0,
+			MaxHeight: constraints.MaxHeight - 2*borderWidth,
+		}
+		if innerConstraints.MaxWidth < 0 {
+			innerConstraints.MaxWidth = layout.MaxInt
+		}
+		if innerConstraints.MaxHeight < 0 {
+			innerConstraints.MaxHeight = layout.MaxInt
+		}
+
+		// Measure child and cache result
+		inst.measuredChildSize = inst.measureChild(inst.child, innerConstraints)
+
+		if needMeasureWidth {
+			innerWidth = inst.measuredChildSize.Width
+		}
+		if needMeasureHeight {
+			innerHeight = inst.measuredChildSize.Height
+		}
+	}
+
+	// Consider label width - label may be wider than child
+	if inst.borderLabel != "" {
+		// Label format: "┌─ Label ─┐" = corner + dash + space + label + space + dash + corner
+		// Minimum: 1 + 1 + 1 + len(label) + 1 + 1 + 1 = len(label) + 6
+		labelWidth := len(inst.borderLabel) + 6
+		if labelWidth > innerWidth {
+			innerWidth = labelWidth
+		}
+	}
+
 	// Add border
 	totalWidth := innerWidth + borderWidth*2
 	totalHeight := innerHeight + borderWidth*2
 
-	// Apply constraints using Constrain method
+	// Apply constraints
 	totalWidth, totalHeight = constraints.Constrain(totalWidth, totalHeight)
 
 	return layout.Size{Width: totalWidth, Height: totalHeight}
@@ -218,18 +399,55 @@ func (inst *Instance) Paint(x, y int) []paint.DrawCmd {
 		return nil
 	}
 
-	// Get border dimensions
-	width := inst.width
-	height := inst.height
-	if width == 0 {
-		width = 10 // Default minimum
+	borderWidth := GetBorderWidth(inst.borderStyle)
+
+	// Determine content dimensions (width/height inside the border)
+	// Priority: explicit props > bounds (from layout engine) > measured child > defaults
+	var contentWidth, contentHeight int
+
+	// 1. Use explicit dimensions if set
+	if inst.width > 0 {
+		contentWidth = inst.width
 	}
-	if height == 0 {
-		height = 3 // Default minimum
+	if inst.height > 0 {
+		contentHeight = inst.height
 	}
 
-	// Calculate total size including border
-	borderWidth := GetBorderWidth(inst.borderStyle)
+	// 2. If not set, try bounds from layout engine (total size minus border)
+	if contentWidth == 0 || contentHeight == 0 {
+		_, _, boundsW, boundsH := inst.GetBounds()
+		if boundsW > 0 && boundsH > 0 {
+			// Bounds contains total size, subtract border to get content size
+			if contentWidth == 0 {
+				contentWidth = boundsW - 2*borderWidth
+				if contentWidth < 0 {
+					contentWidth = 0
+				}
+			}
+			if contentHeight == 0 {
+				contentHeight = boundsH - 2*borderWidth
+				if contentHeight < 0 {
+					contentHeight = 0
+				}
+			}
+		}
+	}
+
+	// 3. If still not set, use measured child size
+	if contentWidth == 0 && inst.measuredChildSize.Width > 0 {
+		contentWidth = inst.measuredChildSize.Width
+	}
+	if contentHeight == 0 && inst.measuredChildSize.Height > 0 {
+		contentHeight = inst.measuredChildSize.Height
+	}
+
+	// 4. Fallback to defaults
+	if contentWidth == 0 {
+		contentWidth = 10
+	}
+	if contentHeight == 0 {
+		contentHeight = 3
+	}
 
 	// Get border characters
 	cornerTL, cornerTR, cornerBL, cornerBR, horizontal, vertical := inst.getBorderChars()
@@ -238,21 +456,21 @@ func (inst *Instance) Paint(x, y int) []paint.DrawCmd {
 	borderStyle := style.Style{FG: inst.borderColor}
 
 	// Top border
-	topBorder := inst.buildTopBorder(cornerTL, cornerTR, horizontal, width)
+	topBorder := inst.buildTopBorder(cornerTL, cornerTR, horizontal, contentWidth)
 	cmds = append(cmds, paint.NewTextCmd(x, y, topBorder, borderStyle))
 
 	// Middle rows (vertical borders)
 	contentY := y + borderWidth
-	for i := 0; i < height; i++ {
+	for i := 0; i < contentHeight; i++ {
 		// Left border
 		cmds = append(cmds, paint.NewTextCmd(x, contentY+i, string(vertical), borderStyle))
 		// Right border
-		cmds = append(cmds, paint.NewTextCmd(x+width+borderWidth, contentY+i, string(vertical), borderStyle))
+		cmds = append(cmds, paint.NewTextCmd(x+contentWidth+borderWidth, contentY+i, string(vertical), borderStyle))
 	}
 
 	// Bottom border
-	bottomY := y + height + borderWidth
-	bottomBorder := inst.buildBottomBorder(cornerBL, cornerBR, horizontal, width)
+	bottomY := y + contentHeight + borderWidth
+	bottomBorder := inst.buildBottomBorder(cornerBL, cornerBR, horizontal, contentWidth)
 	cmds = append(cmds, paint.NewTextCmd(x, bottomY, bottomBorder, borderStyle))
 
 	return cmds
@@ -332,17 +550,25 @@ func (inst *Instance) buildTopBorder(cornerTL, cornerTR, horizontal rune, conten
 
 	// Top border with label: "┌─ Label ─┐"
 	label := inst.borderLabel
-	labelWidth := len(label) + 2 // +1 for space on each side
-	availableWidth := contentWidth
-	if availableWidth < labelWidth {
-		availableWidth = labelWidth
+	labelSpace := len(label) + 2 // label + space on each side
+
+	// If contentWidth is too small for label, truncate label
+	if contentWidth < labelSpace {
+		maxLabelLen := contentWidth - 2
+		if maxLabelLen < 0 {
+			maxLabelLen = 0
+		}
+		if maxLabelLen < len(label) {
+			label = label[:maxLabelLen]
+			labelSpace = len(label) + 2
+		}
 	}
 
-	leftPadding := (availableWidth - labelWidth) / 2
-	rightPadding := availableWidth - labelWidth - leftPadding
+	leftPadding := (contentWidth - labelSpace) / 2
+	rightPadding := contentWidth - labelSpace - leftPadding
 
-	left := string(cornerTL) + strings.Repeat(string(horizontal), leftPadding+1)
-	right := strings.Repeat(string(horizontal), rightPadding+1) + string(cornerTR)
+	left := string(cornerTL) + strings.Repeat(string(horizontal), leftPadding)
+	right := strings.Repeat(string(horizontal), rightPadding) + string(cornerTR)
 
 	return left + " " + label + " " + right
 }

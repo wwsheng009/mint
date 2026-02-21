@@ -51,7 +51,7 @@ func TestNewBorder(t *testing.T) {
 	}{
 		{"none", BorderNone, 0, false},
 		{"single", BorderSingle, 1, true},
-		{"double", BorderDouble, 2, true},
+		{"double", BorderDouble, 1, true}, // All borders use 1-char glyphs
 		{"rounded", BorderRounded, 1, true},
 	}
 
@@ -86,7 +86,7 @@ func TestBorder_Padding(t *testing.T) {
 	}{
 		{
 			name:             "none",
-			border:           Border{Style: BorderNone, Width: 1},
+			border:           Border{Style: BorderNone, Width: 0},
 			expectHorizontal: 0,
 			expectVertical:   0,
 		},
@@ -97,10 +97,10 @@ func TestBorder_Padding(t *testing.T) {
 			expectVertical:   2,
 		},
 		{
-			name:             "double width 2",
-			border:           Border{Style: BorderDouble, Width: 2},
-			expectHorizontal: 4,
-			expectVertical:   4,
+			name:             "double (still 1-char glyphs)",
+			border:           Border{Style: BorderDouble, Width: 1},
+			expectHorizontal: 2,
+			expectVertical:   2,
 		},
 	}
 
@@ -119,16 +119,17 @@ func TestBorder_ContentOffset(t *testing.T) {
 	assert.Equal(t, 0, x)
 	assert.Equal(t, 0, y)
 
-	// With border
+	// Single border - offset is 1 (border glyph occupies 1 char)
 	single := Border{Style: BorderSingle, Width: 1}
 	x, y = single.ContentOffset()
 	assert.Equal(t, 1, x)
 	assert.Equal(t, 1, y)
 
-	double := Border{Style: BorderDouble, Width: 2}
+	// Double border - offset is also 1 (double-line glyphs are still 1-char wide)
+	double := Border{Style: BorderDouble, Width: 1}
 	x, y = double.ContentOffset()
-	assert.Equal(t, 2, x)
-	assert.Equal(t, 2, y)
+	assert.Equal(t, 1, x)
+	assert.Equal(t, 1, y)
 }
 
 // =============================================================================
@@ -175,11 +176,11 @@ func TestBorderedNode_GetSize(t *testing.T) {
 	assert.Equal(t, 52, w) // 50 + 2
 	assert.Equal(t, 32, h) // 30 + 2
 
-	// Double border (adds 4 to each dimension)
+	// Double border (also adds 2 - all border glyphs are 1-char wide)
 	doubleNode := NewBorderedNode("double", child, NewBorder(BorderDouble))
 	w, h = doubleNode.GetSize()
-	assert.Equal(t, 54, w) // 50 + 4
-	assert.Equal(t, 34, h) // 30 + 4
+	assert.Equal(t, 52, w) // 50 + 2
+	assert.Equal(t, 32, h) // 30 + 2
 }
 
 func TestBorderedNode_MeasureInner(t *testing.T) {
@@ -265,10 +266,10 @@ func TestCalculateBorderConstraints(t *testing.T) {
 	assert.Equal(t, 98, result.MaxWidth)
 	assert.Equal(t, 48, result.MaxHeight)
 
-	// Double border (width 2)
+	// Double border (still width 1 for layout)
 	result = CalculateBorderConstraints(constraints, NewBorder(BorderDouble))
-	assert.Equal(t, 96, result.MaxWidth)
-	assert.Equal(t, 46, result.MaxHeight)
+	assert.Equal(t, 98, result.MaxWidth)
+	assert.Equal(t, 48, result.MaxHeight)
 }
 
 func TestCalculateBorderBoxSize(t *testing.T) {
@@ -282,10 +283,10 @@ func TestCalculateBorderBoxSize(t *testing.T) {
 	assert.Equal(t, 52, w)
 	assert.Equal(t, 32, h)
 
-	// Double border
+	// Double border (same padding as single)
 	w, h = CalculateBorderBoxSize(50, 30, NewBorder(BorderDouble))
-	assert.Equal(t, 54, w)
-	assert.Equal(t, 34, h)
+	assert.Equal(t, 52, w)
+	assert.Equal(t, 32, h)
 }
 
 // =============================================================================
@@ -311,17 +312,17 @@ func TestBordered_Interface(t *testing.T) {
 
 func TestBorder_ZeroWidth(t *testing.T) {
 	border := Border{Style: BorderSingle, Width: 0}
-	// Width 0 with style should still work
+	// Width 0 with style - padding is based on HasBorder(), not Width field
 	assert.True(t, border.HasBorder())
-	assert.Equal(t, 0, border.HorizontalPadding())
-	assert.Equal(t, 0, border.VerticalPadding())
+	assert.Equal(t, 2, border.HorizontalPadding()) // 1 + 1 for visible border
+	assert.Equal(t, 2, border.VerticalPadding())
 }
 
 func TestBorder_NegativeWidth(t *testing.T) {
 	border := Border{Style: BorderSingle, Width: -1}
-	// Implementation doesn't prevent negative, but padding calc should work
+	// Padding is based on HasBorder(), always returns 2 for visible borders
 	assert.True(t, border.HasBorder())
-	assert.Equal(t, -2, border.HorizontalPadding())
+	assert.Equal(t, 2, border.HorizontalPadding())
 }
 
 func TestBorderedNode_NilChild(t *testing.T) {

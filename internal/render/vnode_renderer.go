@@ -41,6 +41,9 @@ func measureExplicitDimensions(vnode rtui.VNode) (width, height int) {
 
 // NonFiberRenderer implements VNodeRenderer for traditional (non-Fiber) rendering.
 // It walks the VNode tree directly and renders each node to the buffer.
+//
+// Deprecated: Use FiberRenderer with Fiber-first architecture instead.
+// NonFiber mode does not support persistent component instances or hooks.
 type NonFiberRenderer struct {
 	// owner is the DeclarativeNode that owns this renderer
 	// This allows access to methods like measureVNodeWidth
@@ -48,6 +51,8 @@ type NonFiberRenderer struct {
 }
 
 // NewNonFiberRenderer creates a new NonFiberRenderer.
+//
+// Deprecated: Use NewFiberRenderer with Fiber-first architecture instead.
 func NewNonFiberRenderer(owner *DeclarativeNode) *NonFiberRenderer {
 	return &NonFiberRenderer{owner: owner}
 }

@@ -66,13 +66,12 @@ type Border struct {
 }
 
 // NewBorder creates a new border with the specified style
+// Note: Width is always 1 for visible borders because all border glyphs
+// occupy a single character cell.
 func NewBorder(style BorderStyle) Border {
 	width := 0
 	if style != BorderNone {
 		width = 1
-		if style == BorderDouble {
-			width = 2
-		}
 	}
 	return Border{
 		Style: style,
@@ -93,27 +92,34 @@ func (b Border) HasBorder() bool {
 }
 
 // HorizontalPadding returns the horizontal space taken by border (left + right)
+// Note: Each border side uses 1 character cell, regardless of visual "width"
 func (b Border) HorizontalPadding() int {
 	if !b.HasBorder() {
 		return 0
 	}
-	return b.Width * 2
+	// Left border (1) + Right border (1) = 2
+	return 2
 }
 
 // VerticalPadding returns the vertical space taken by border (top + bottom)
+// Note: Each border side uses 1 character cell, regardless of visual "width"
 func (b Border) VerticalPadding() int {
 	if !b.HasBorder() {
 		return 0
 	}
-	return b.Width * 2
+	// Top border (1) + Bottom border (1) = 2
+	return 2
 }
 
 // ContentOffset returns the x,y offset for content inside the border
+// Note: Border characters (┌─┐│└┘ or ╔═╗║╚╝) each occupy 1 character cell,
+// so content offset is always 1 for bordered containers, regardless of visual "width"
 func (b Border) ContentOffset() (x, y int) {
 	if !b.HasBorder() {
 		return 0, 0
 	}
-	return b.Width, b.Width
+	// All border styles use 1-char-wide glyphs, so offset is always 1
+	return 1, 1
 }
 
 // =============================================================================

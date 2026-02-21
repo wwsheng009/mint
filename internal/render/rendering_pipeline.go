@@ -16,45 +16,35 @@ import (
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
 
-// RenderingPipeline is the new rendering pipeline with separated Layout and Paint phases
-// Layout phase: LayoutSwitcher (can use compute.Engine or layout.Engine)
-// Paint phase: PaintEngine renders using computed positions
+// RenderingPipeline is the rendering pipeline with separated Layout and Paint phases.
+//
+// Architecture:
+//   - Layout phase: compute.Engine calculates positions
+//   - Paint phase: PaintEngine renders using computed positions
+//
+// For Fiber-first rendering, use fiberFirstPaint() in DeclarativeNode which
+// uses NewLayoutEngineAdapter directly for better performance.
 type RenderingPipeline struct {
-	layoutEngine *compute.Engine // Legacy: direct compute engine (kept for compatibility)
-	switcher     *LayoutSwitcher // New: switchable layout engine
+	layoutEngine *compute.Engine // Layout engine (compute)
 	paintEngine  *PaintEngine
 	lastHitMap   *event.HitMap  // HitMap from the most recent RenderLayers call
 	layerMgr     *layer.Manager // LayerManager from the most recent RenderLayers call
-	useSwitcher  bool           // Whether to use the switcher (based on MINT_LAYOUT_ENGINE)
 }
 
-// NewRenderingPipeline creates a new rendering pipeline
+// NewRenderingPipeline creates a new rendering pipeline.
 func NewRenderingPipeline() *RenderingPipeline {
 	pipeline := &RenderingPipeline{
 		layoutEngine: compute.NewEngine(),
 		paintEngine:  NewPaintEngine(),
 	}
 
-	// Check if we should use the switcher (new layout engine)
-	envEngine := os.Getenv("MINT_LAYOUT_ENGINE")
-	if envEngine != "" && envEngine != "compute" {
-		pipeline.switcher = NewLayoutSwitcher()
-		pipeline.useSwitcher = true
-		log.PipelineLogger.Debug("[RenderingPipeline] Using LayoutSwitcher with engine: %s", pipeline.switcher.GetEngineType())
-	} else {
-		pipeline.useSwitcher = false
-		log.PipelineLogger.Debug("[RenderingPipeline] Using legacy compute.Engine")
-	}
-
+	log.PipelineLogger.Debug("[RenderingPipeline] Initialized with compute.Engine")
 	return pipeline
 }
 
 // SetLayoutDebug enables/disables layout debug output
 func (p *RenderingPipeline) SetLayoutDebug(debug bool) {
 	p.layoutEngine.SetDebug(debug)
-	if p.switcher != nil {
-		p.switcher.SetDebug(debug)
-	}
 }
 
 // SetPaintDebug enables/disables paint debug output
@@ -65,8 +55,6 @@ func (p *RenderingPipeline) SetPaintDebug(debug bool) {
 // Render performs the complete rendering pipeline:
 // 1. Layout phase: calculate positions for all nodes
 // 2. Paint phase: render using computed positions
-//
-// Phase 8: Added optional fiber parameter for NodeID propagation
 func (p *RenderingPipeline) Render(vnode rtui.VNode, fiber *reconciler.Fiber, constraints runtime.BoxConstraints, buffer *paint.Buffer) error {
 	if vnode == nil {
 		if os.Getenv("MINT_DEBUG_TEST") == "true" {
@@ -77,112 +65,25 @@ func (p *RenderingPipeline) Render(vnode rtui.VNode, fiber *reconciler.Fiber, co
 
 	if os.Getenv("MINT_DEBUG_TEST") == "true" {
 		fmt.Printf("[RenderingPipeline.Render] START: vnode type=%d, tag=%s, buffer=%dx%d\n", vnode.Type(), vnode.Tag(), buffer.Width, buffer.Height)
-		fmt.Printf("[RenderingPipeline.Render] useSwitcher=%v, switcher=%v\n", p.useSwitcher, p.switcher != nil)
 	}
 
 	log.PipelineLogger.Debug("Render started")
 
-	var layout *compute.ComputedLayout
-	var err error
-
-	// Phase 1: Layout - calculate all positions
-	if p.useSwitcher && p.switcher != nil {
-		// Use the switcher (supports new layout engine)
-		log.PipelineLogger.Debug("Using LayoutSwitcher with engine: %s", p.switcher.GetEngineType())
-		result, layoutErr := p.switcher.Layout(vnode, fiber, constraints)
-		if layoutErr != nil {
-			log.PipelineLogger.Debug("❌ Layout FAILED: %v, falling back to legacy", layoutErr)
-			if os.Getenv("MINT_DEBUG_TEST") == "true" {
-				fmt.Printf("[RenderingPipeline.Render] Layout FAILED: %v\n", layoutErr)
-			}
-			return p.renderLegacy(vnode, 0, 0, buffer)
-		}
-
+	// Phase 1: Layout - calculate all positions using compute.Engine
+	layout, err := p.layoutEngine.Layout(vnode, fiber, constraints)
+	if err != nil {
+		log.PipelineLogger.Debug("❌ Layout FAILED: %v, falling back to legacy", err)
 		if os.Getenv("MINT_DEBUG_TEST") == "true" {
-			fmt.Printf("[RenderingPipeline.Render] Layout result type=%T\n", result)
+			fmt.Printf("[RenderingPipeline.Render] Layout FAILED: %v\n", err)
 		}
+		return p.renderLegacy(vnode, 0, 0, buffer)
+	}
 
-		// Convert LayoutResult to ComputedLayout for PaintEngine
-		if adapter, ok := result.(*computeLayoutResultAdapter); ok {
-			layout = adapter.ComputedLayout
-			if os.Getenv("MINT_DEBUG_TEST") == "true" {
-				if layout != nil && layout.Root != nil {
-					fmt.Printf("[RenderingPipeline.Render] computeLayoutResultAdapter: Root.Box=%dx%d\n", layout.Root.Box.Width, layout.Root.Box.Height)
-				} else {
-					fmt.Printf("[RenderingPipeline.Render] computeLayoutResultAdapter: layout.Root is nil\n")
-				}
-			}
-		} else if newAdapter, ok := result.(*newLayoutResultAdapter); ok {
-			// Handle runtime/layout engine result - Fiber-First path
-			log.PipelineLogger.Debug("New layout engine result - Fiber-First path (simplified)")
-			
-			// Get the LayoutBox tree from runtime/layout engine
-			layoutResult := newAdapter.GetLayoutResult()
-			if layoutResult == nil || layoutResult.Root == nil {
-				log.PipelineLogger.Debug("runtime/layout result is nil, falling back")
-				return p.renderLegacy(vnode, 0, 0, buffer)
-			}
-			
-			// Apply Modal centering to the LayoutBox tree
-			p.applyModalCenteringToLayoutBox(layoutResult, constraints)
-			
-			// === NEW SIMPLIFIED PATH ===
-			// Convert LayoutBox directly to PaintableLayout (skip ComputedBox)
-			converter := NewFiberToPaintableConverter(fiber)
-			paintableLayout := converter.ConvertToLayout(layoutResult.Root)
-			if paintableLayout == nil || paintableLayout.Root == nil {
-				log.PipelineLogger.Debug("Failed to convert LayoutBox to PaintableLayout")
-				return p.renderLegacy(vnode, 0, 0, buffer)
-			}
-			
-			// Build HitMap from layout result
-			if layoutResult.HitMap != nil {
-				paintableLayout.HitMap = p.buildHitMapFromLayoutResult(layoutResult)
-			}
-			
-			log.PipelineLogger.Debug("✅ Simplified layout complete, starting Paint phase")
-			
-			// Paint directly using PaintableLayout
-			err = p.paintEngine.PaintLayout(paintableLayout, buffer)
-			
-			// Save HitMap
-			if paintableLayout.HitMap != nil {
-				if hitMap, ok := paintableLayout.HitMap.(*event.HitMap); ok {
-					p.lastHitMap = hitMap
-				}
-			}
-			
-			log.PipelineLogger.Debug("Paint complete, err=%v", err)
-			return err
+	if os.Getenv("MINT_DEBUG_TEST") == "true" {
+		if layout != nil && layout.Root != nil {
+			fmt.Printf("[RenderingPipeline.Render] Layout: Root.Box=%dx%d, Root.VNode=%T\n", layout.Root.Box.Width, layout.Root.Box.Height, layout.Root.VNode)
 		} else {
-			// For new layout engine, we need different handling
-			log.PipelineLogger.Debug("New layout engine result - converting for paint")
-			if os.Getenv("MINT_DEBUG_TEST") == "true" {
-				fmt.Printf("[RenderingPipeline.Render] NOT computeLayoutResultAdapter, using legacy fallback\n")
-			}
-			// For now, use the legacy engine as fallback for painting
-			layout, err = p.layoutEngine.Layout(vnode, fiber, constraints)
-			if err != nil {
-				if os.Getenv("MINT_DEBUG_TEST") == "true" {
-					fmt.Printf("[RenderingPipeline.Render] Legacy layout FAILED: %v\n", err)
-				}
-				return p.renderLegacy(vnode, 0, 0, buffer)
-			}
-			if os.Getenv("MINT_DEBUG_TEST") == "true" {
-				if layout != nil && layout.Root != nil {
-					fmt.Printf("[RenderingPipeline.Render] Legacy layout: Root.Box=%dx%d, Root.VNode=%T\n", layout.Root.Box.Width, layout.Root.Box.Height, layout.Root.VNode)
-				} else {
-					fmt.Printf("[RenderingPipeline.Render] Legacy layout: layout or Root is nil\n")
-				}
-			}
-		}
-	} else {
-		// Use legacy compute engine
-		log.PipelineLogger.Debug("Using legacy compute.Engine")
-		layout, err = p.layoutEngine.Layout(vnode, fiber, constraints)
-		if err != nil {
-			log.PipelineLogger.Debug("❌ Layout FAILED: %v, falling back to legacy", err)
-			return p.renderLegacy(vnode, 0, 0, buffer)
+			fmt.Printf("[RenderingPipeline.Render] Layout: layout or Root is nil\n")
 		}
 	}
 
@@ -190,20 +91,11 @@ func (p *RenderingPipeline) Render(vnode rtui.VNode, fiber *reconciler.Fiber, co
 
 	// Phase 2: Paint - render using computed positions
 	log.PipelineLogger.Debug("Starting Paint phase...")
-	if os.Getenv("MINT_DEBUG_TEST") == "true" {
-		if layout != nil && layout.Root != nil {
-			fmt.Printf("[RenderingPipeline.Render] Calling paintEngine.Paint, layout.Root.Box=%dx%d, buffer=%dx%d\n",
-				layout.Root.Box.Width, layout.Root.Box.Height, buffer.Width, buffer.Height)
-		} else {
-			fmt.Printf("[RenderingPipeline.Render] layout or layout.Root is nil, NOT painting\n")
-		}
-	}
 	err = p.paintEngine.Paint(layout, buffer)
 
 	log.PipelineLogger.Debug("Paint complete, err=%v", err)
 
 	// Save HitMap for event routing (hit testing)
-	// This HitMap contains the FINAL positions from layout computation
 	if layout != nil {
 		p.lastHitMap = layout.HitMap
 	}
@@ -257,20 +149,6 @@ func (p *RenderingPipeline) GetPaintEngine() *PaintEngine {
 // GetCacheStats returns statistics about the layout cache
 func (p *RenderingPipeline) GetCacheStats() compute.CacheStats {
 	return p.layoutEngine.GetCacheStats()
-}
-
-// GetLayoutEngineType returns the current layout engine type
-// Returns "compute" for legacy engine, "layout" for new engine, "both" for comparison mode
-func (p *RenderingPipeline) GetLayoutEngineType() string {
-	if p.useSwitcher && p.switcher != nil {
-		return p.switcher.GetEngineType().String()
-	}
-	return "compute"
-}
-
-// GetSwitcher returns the LayoutSwitcher if available, nil otherwise
-func (p *RenderingPipeline) GetSwitcher() *LayoutSwitcher {
-	return p.switcher
 }
 
 // ResetCacheStats resets cache hit/miss counters
@@ -347,14 +225,8 @@ func (p *RenderingPipeline) RenderWithFiber(
 // Multi-Layer Rendering
 // =============================================================================
 
-// RenderLayers renders a VNode tree with multi-layer support
-// This is the main entry point for layer-based rendering
-//
-// Fiber-First Architecture:
-// 1. Single layout pass on entire Fiber tree using LayoutSwitcher (supports runtime/layout)
-// 2. Build RenderPlanes from layout result, grouped by Layer
-// 3. Apply layer-specific transforms (Modal centering) as post-processing
-// 4. Paint using RenderPlanes
+// RenderLayers renders a VNode tree with multi-layer support.
+// This is the main entry point for layer-based rendering.
 func (p *RenderingPipeline) RenderLayers(
 	vnode rtui.VNode,
 	fiber *reconciler.Fiber,
@@ -365,98 +237,9 @@ func (p *RenderingPipeline) RenderLayers(
 		return nil
 	}
 
-	log.PipelineLogger.Debug("RenderLayers started (Fiber-first with LayoutSwitcher)")
+	log.PipelineLogger.Debug("RenderLayers started")
 
-	// Use LayoutSwitcher if available (supports runtime/layout engine)
-	if p.useSwitcher && p.switcher != nil {
-		log.PipelineLogger.Debug("RenderLayers: Using LayoutSwitcher with engine: %s", p.switcher.GetEngineType())
-		
-		// Perform layout using switcher
-		result, err := p.switcher.Layout(vnode, fiber, constraints)
-		if err != nil {
-			log.PipelineLogger.Debug("RenderLayers: Layout FAILED: %v, falling back to single-layer render", err)
-			return p.Render(vnode, fiber, constraints, buffer)
-		}
-
-		// Debug: Check result type
-		log.PipelineLogger.Debug("RenderLayers: result type=%T", result)
-
-		// Get RenderPlanes from result
-		renderPlanes := result.GetRenderPlanes()
-		if renderPlanes != nil {
-			log.PipelineLogger.Debug("RenderLayers: Got RenderPlanes from result, boxes=%d", renderPlanes.CountBoxes())
-		} else {
-			log.PipelineLogger.Debug("RenderLayers: result.GetRenderPlanes() returned nil")
-		}
-		
-		// If no RenderPlanes from result, try building from adapter types
-		if renderPlanes == nil || renderPlanes.CountBoxes() == 0 {
-			// Try computeLayoutResultAdapter (compute.Engine path)
-			if adapter, ok := result.(*computeLayoutResultAdapter); ok {
-				log.PipelineLogger.Debug("RenderLayers: Result is computeLayoutResultAdapter")
-				if adapter.ComputedLayout != nil && adapter.Root != nil {
-					log.PipelineLogger.Debug("RenderLayers: Building RenderPlanes from ComputedLayout.Root, NodeID=%d, Layer=%d",
-						adapter.Root.NodeID, adapter.Root.Layer)
-					
-					// Build RenderPlanes from ComputedBox tree
-					renderPlanes = layer.BuildRenderPlane(adapter.Root)
-					log.PipelineLogger.Debug("RenderLayers: Built RenderPlanes with %d boxes", renderPlanes.CountBoxes())
-					
-					// Apply layer transforms (Modal centering) to the ComputedBox tree
-					// This is critical for proper Modal positioning
-					p.applyLayerTransforms(adapter.Root, constraints)
-					
-					// Rebuild RenderPlanes after transforms (positions changed)
-					renderPlanes = layer.BuildRenderPlane(adapter.Root)
-					log.PipelineLogger.Debug("RenderLayers: Rebuilt RenderPlanes after transforms, boxes=%d", renderPlanes.CountBoxes())
-				} else {
-					log.PipelineLogger.Debug("RenderLayers: adapter.ComputedLayout or adapter.Root is nil")
-				}
-			}
-		}
-
-		// Apply Modal centering to RenderPlanes (for both adapter types)
-		if renderPlanes != nil && renderPlanes.HasLayer(rtui.LayerModal) {
-			log.PipelineLogger.Debug("RenderLayers: Applying Modal centering to RenderPlanes")
-			p.applyModalCenteringToRenderPlanes(renderPlanes, constraints)
-		}
-
-		if renderPlanes == nil || renderPlanes.CountBoxes() == 0 {
-			log.PipelineLogger.Debug("RenderLayers: Failed to build RenderPlanes, falling back to Render()")
-			
-			// Before falling back, check if we need to apply Modal centering
-			// The result might be a computeLayoutResultAdapter which needs transform applied
-			if adapter, ok := result.(*computeLayoutResultAdapter); ok {
-				if adapter.Root != nil {
-					log.PipelineLogger.Debug("RenderLayers: Applying Modal centering before fallback")
-					p.applyLayerTransforms(adapter.Root, constraints)
-				}
-			}
-			
-			return p.Render(vnode, fiber, constraints, buffer)
-		}
-
-		log.PipelineLogger.Debug("RenderLayers: Final RenderPlanes: %d boxes", renderPlanes.CountBoxes())
-
-		// Paint using RenderPlanes
-		if err := p.paintEngine.PaintRenderPlanes(renderPlanes, buffer); err != nil {
-			log.PipelineLogger.Debug("PaintRenderPlanes failed: %v", err)
-			return err
-		}
-
-		// Get HitMap from result
-		p.lastHitMap = result.GetHitMap()
-
-		if p.lastHitMap != nil {
-			log.PipelineLogger.Debug("HitMap: %d entries", p.lastHitMap.Size())
-		}
-
-		return nil
-	}
-
-	// Fallback: Use legacy compute.Engine path via LayerManager
-	log.PipelineLogger.Debug("RenderLayers: Using legacy compute.Engine path")
-	
+	// Use legacy compute.Engine path via LayerManager
 	layerMgr := layer.NewManager()
 	if err := layerMgr.CollectAndLayout(vnode, fiber, constraints, p.layoutEngine); err != nil {
 		log.PipelineLogger.Debug("Layer layout failed: %v, falling back to single-layer render", err)

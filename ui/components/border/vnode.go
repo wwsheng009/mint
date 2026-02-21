@@ -349,16 +349,17 @@ func (v *VNode) GetBorder() layout.Border {
 	}
 }
 
-// GetBorderWidth returns the visual width of a border style.
-// This is a shared helper function.
+// GetBorderWidth returns the layout width of a border style.
+// All border styles use single-cell characters (┌─┐│└┘ or ╔═╗║╚╝),
+// so the layout width is always 1 character cell per side.
+// The "double" visual effect is achieved with different glyphs, not wider cells.
 func GetBorderWidth(s BorderStyle) int {
 	switch s {
-	case BorderDouble:
-		return 2
-	case BorderSingle, BorderRounded, BorderDashed:
-		return 1
-	default:
+	case BorderNone:
 		return 0
+	default:
+		// All visible borders occupy 1 character cell per side
+		return 1
 	}
 }
 

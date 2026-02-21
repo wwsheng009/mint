@@ -647,6 +647,34 @@ func (e *Engine) layoutNodeWithDepth(node Node, constraints Constraints, x, y in
 		}
 	}
 
+	// 检查节点是否实现了 WrapStyleProvider 接口
+	// 如果是，使用 WrapLayout 进行子节点布局（换行布局）
+	if wrapProvider, ok := node.(WrapStyleProvider); ok {
+		wrapStyle := wrapProvider.GetWrapStyle()
+		if wrapStyle != nil && len(node.Children()) > 0 {
+			// 使用 WrapLayout 进行布局
+			wrap := NewWrapLayout(node.ID(), wrapStyle)
+			wrap.SetChildren(node.Children())
+
+			// 布局子节点
+			childBoxes := wrap.LayoutChildren(width, height)
+			for i, childBox := range childBoxes {
+				child := node.Children()[i]
+				if child != nil {
+					childX := x + childBox.X + borderOffsetX
+					childY := y + childBox.Y + borderOffsetY
+					subBox := e.layoutNodeWithDepth(child, constraints, childX, childY, depth+1, visited)
+					if subBox != nil {
+						subBox.X = childX
+						subBox.Y = childY
+						box.Children = append(box.Children, subBox)
+					}
+				}
+			}
+			return box
+		}
+	}
+
 	// 检查节点是否实现了 AbsoluteStyleProvider 接口
 	// 如果是，使用绝对定位进行子节点布局
 	if absProvider, ok := node.(AbsoluteStyleProvider); ok {
