@@ -1,0 +1,135 @@
+╔══════════════════════════════════════════════════════════════════╗
+║   Fiber-First Panel Component Demo                               ║
+╚══════════════════════════════════════════════════════════════════╝
+
+Configuration:
+  Render Mode: 1
+
+======================================================================
+Rendering Panel components...
+======================================================================
+
+┌──────────────────────────────────────────────────────────────────────┐
+│Panel Component Demo                                                  │
+│                                                                      │
+│                                                                      │
+│                                                                      │
+│  1. Basic Panel with Rounded Border                                  │
+│                                                                      │
+│╭───────────  Basic Panel  ────────────╮                              │
+││This is the main content area of the p│                              │
+││                                      │                              │
+││                                      │                              │
+│╰──────────────────────────────────────╯                              │
+│                                                                      │
+│                                                                      │
+│                                                                      │
+│  2. Panel with Header and Footer                                     │
+│                                                                      │
+│┌───────────────  Complete Panel  ───────────────┐                    │
+││━ Header Line ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━    │                    │
+││Content goes here.Multiple lines are supported. │                    │
+││━ Footer Line ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━    │                    │
+││                                                │                    │
+││                                                │                    │
+││                                                │                    │
+│└────────────────────────────────────────────────┘                    │
+│                                                                      │
+│                                                                      │
+│                                                                      │
+│  3. Border Styles (Double, Single, Rounded)                          │
+│                                                                      │
+│╔════  Double  ════╗  ┌────  Single  ────┐  ╭───  Rounded  ────╮      │
+│║═══ Double Border ║  │Single-line border│  │Rounded cornersUs │      │
+│║                  ║  │                  │  │                  │      │
+│║                  ║  │                  │  │                  │      │
+│╚══════════════════╝  └──────────────────┘  ╰──────────────────╯      │
+│                                                                      │
+│                                                                      │
+│                                                                      │
+│  4. No Border Mode                                                   │
+│                                                                      │
+│This panel has no border.Just pure cont                               │
+│                                                                      │
+│                                                                      │
+│                                                                      │
+│                                                                      │
+│                                                                      │
+│                                                                      │
+│                                                                      │
+│  5. Custom Border Label                                              │
+│                                                                      │
+│╭─────────  ⚡  Custom Label ⚡   ──────────╮                           │
+││The label appears in the top border.You ca │                         │
+││                                           │                         │
+││                                           │                         │
+│╰───────────────────────────────────────────╯                         │
+│                                                                      │
+│                                                                      │
+│                                                                      │
+│  6. Flex Panel (expands to fill space)                               │
+│                                                                      │
+│┌─────────────────  Flex Panel  ─────────────────┐                    │
+││This panel has flex=1.It will expand to fill av │                    │
+│└────────────────────────────────────────────────┘                    │
+│                                                                      │
+│                                                                      │
+│                                                                      │
+│  7. Text Wrapping in Panel                                           │
+│                                                                      │
+│┌──────────  Text Wrap Demo  ──────────┐                              │
+││This is a very long text that should  │                              │
+││wrap to multiple lines when displayed │                              │
+││inside a panel. The wrap feature      │                              │
+││automatically breaks text at word     │                              │
+││boundaries while preserving           │                              │
+││readability.                          │                              │
+│└──────────────────────────────────────┘                              │
+│                                                                      │
+│                                                                      │
+│                                                                      │
+│┌───  No Wrap  ────┐   ┌──  With Wrap  ───┐                           │
+││This text is too l│   │This text is too  │                           │
+│└──────────────────┘   └──────────────────┘                           │
+│                                                                      │
+│                                                                      │
+│                                                                      │
+│  >>> Panel: borders, headers, footers, flexible layout, multiple bord│
+│                                                                      │
+│                                                                      │
+│                                                                      │
+│                                                                      │
+│                                                                      │
+└──────────────────────────────────────────────────────────────────────┘
+
+======================================================================
+Panel Component Features:
+======================================================================
+  Layout Options:
+    - Width/Height: Fixed dimensions
+    - Height=0: Auto height based on content
+    - Flex: Flex factor for expansion
+    - Padding: Inner padding
+
+  Border Styles:
+    - Rounded: ╭╮╰╯ (default for titled panels)
+    - Single:  ┌┐└┘
+    - Double:  ╔╗╚╝
+    - None:    No border
+
+  Content Areas:
+    - Header: Optional header component
+    - Content: Main content (required)
+    - Footer: Optional footer component
+
+  Styling:
+    - BorderColor: Color of the border
+    - Title: Sets title (appears in border label)
+    - Label: Custom border label
+
+  Convenience Functions:
+    - panel.Of(content)
+    - panel.OfSize(content, w, h)
+    - panel.Titled(title, content)
+    - panel.Bordered(content, w, h)
+======================================================================

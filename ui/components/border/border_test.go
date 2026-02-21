@@ -1,6 +1,7 @@
 package border
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/wwsheng009/mint/runtime/layout"
@@ -205,5 +206,54 @@ func TestBorderStyles(t *testing.T) {
 			t.Errorf("BorderStyle %v: expected %dx%d, got %dx%d",
 				tt.style, tt.expectedW, tt.expectedH, size.Width, size.Height)
 		}
+	}
+}
+
+// TestBorderLabel tests that border label is correctly rendered
+func TestBorderLabel(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"width":       30,
+		"height":      5,
+		"borderStyle": BorderSingle,
+		"borderLabel": " Test ",
+	})
+
+	inst.SetBounds(0, 0, 32, 7)
+	constraints := layout.Constraints{MaxWidth: 1000, MaxHeight: 100}
+	inst.Measure(constraints)
+
+	cmds := inst.Paint(0, 0)
+
+	if len(cmds) == 0 {
+		t.Fatal("Expected border commands")
+	}
+
+	// First command should be top border with label
+	topBorder := cmds[0]
+	if topBorder.Y != 0 {
+		t.Errorf("Top border should be at y=0, got y=%d", topBorder.Y)
+	}
+
+	// Check that label appears in top border
+	if !strings.Contains(topBorder.Text, "Test") {
+		t.Errorf("Top border should contain 'Test', got: %s", topBorder.Text)
+	}
+}
+
+// TestBorderLabelFromVNode tests that label is passed from VNode to Instance
+func TestBorderLabelFromVNode(t *testing.T) {
+	vnode := New().
+		SetBorderLabel(" My Label ").
+		SetWidth(30).
+		SetHeight(5)
+
+	inst := vnode.CreateInstance()
+	borderInst, ok := inst.(*Instance)
+	if !ok {
+		t.Fatal("Expected *Instance")
+	}
+
+	if borderInst.borderLabel != " My Label " {
+		t.Errorf("Expected borderLabel ' My Label ', got '%s'", borderInst.borderLabel)
 	}
 }

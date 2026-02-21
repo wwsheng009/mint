@@ -588,8 +588,18 @@ func (e *Engine) layoutNodeWithDepth(node Node, constraints Constraints, x, y in
 				}
 			}
 
+			// 计算子节点可用的内部空间（减去边框占用）
+			innerWidth := width - nodeBorder.HorizontalPadding()
+			innerHeight := height - nodeBorder.VerticalPadding()
+			if innerWidth < 0 {
+				innerWidth = 0
+			}
+			if innerHeight < 0 {
+				innerHeight = 0
+			}
+
 			// 布局子节点
-			childBoxes := flex.LayoutChildren(width, height)
+			childBoxes := flex.LayoutChildren(innerWidth, innerHeight)
 			for i, childBox := range childBoxes {
 				// 递归布局子节点的子节点
 				child := node.Children()[i]
@@ -621,8 +631,18 @@ func (e *Engine) layoutNodeWithDepth(node Node, constraints Constraints, x, y in
 			grid := NewGridLayout(node.ID(), gridStyle)
 			grid.SetChildren(node.Children())
 
+			// 计算子节点可用的内部空间（减去边框占用）
+			innerWidth := width - nodeBorder.HorizontalPadding()
+			innerHeight := height - nodeBorder.VerticalPadding()
+			if innerWidth < 0 {
+				innerWidth = 0
+			}
+			if innerHeight < 0 {
+				innerHeight = 0
+			}
+
 			// 布局子节点
-			childBoxes := grid.LayoutChildren(width, height)
+			childBoxes := grid.LayoutChildren(innerWidth, innerHeight)
 			for i, childBox := range childBoxes {
 				// 递归布局子节点的子节点
 				// 需要找到对应的 child 节点

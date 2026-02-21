@@ -357,6 +357,15 @@ func (inst *Instance) Measure(constraints layout.Constraints) layout.Size {
 			innerConstraints.MaxHeight = layout.MaxInt
 		}
 
+		// If we have an explicit innerWidth from explicit width prop, use it as constraint
+		// This ensures child elements measure correctly with the proper width limit
+		if needMeasureHeight && innerWidth > 0 {
+			innerConstraints.MaxWidth = innerWidth
+			if innerConstraints.MaxWidth < innerConstraints.MinWidth {
+				innerConstraints.MaxWidth = innerConstraints.MinWidth
+			}
+		}
+
 		// Measure child and cache result
 		inst.measuredChildSize = inst.measureChild(inst.child, innerConstraints)
 

@@ -322,3 +322,240 @@ func getBorderProp(props rtui.Props, key string) string {
 	}
 	return ""
 }
+
+// =============================================================================
+// VNodeToPaintableConverter - Converts LayoutBox + VNode to PaintableBox
+// =============================================================================
+// This converter is used for Legacy VNode-based rendering path.
+// It converts LayoutBox tree to PaintableBox tree by combining
+// layout data with VNode runtime data.
+
+// VNodeToPaintableConverter converts LayoutBox tree to PaintableBox tree
+// by combining layout data with VNode runtime data.
+type VNodeToPaintableConverter struct {
+	// vnodeMap provides quick VNode lookup by key
+	vnodeMap map[string]rtui.VNode
+}
+
+// NewVNodeToPaintableConverter creates a new converter for VNode tree.
+func NewVNodeToPaintableConverter(rootVNode rtui.VNode) *VNodeToPaintableConverter {
+	c := &VNodeToPaintableConverter{
+		vnodeMap: make(map[string]rtui.VNode),
+	}
+
+	if rootVNode != nil {
+		c.buildVNodeMap(rootVNode)
+	}
+
+	return c
+}
+
+// buildVNodeMap recursively indexes all VNodes by multiple keys
+func (c *VNodeToPaintableConverter) buildVNodeMap(vnode rtui.VNode) {
+	if vnode == nil {
+		return
+	}
+
+	// Index by Key
+	if key := vnode.Key(); key != "" {
+		c.vnodeMap[key] = vnode
+	}
+
+	// Index by Tag (for elements)
+	if vnode.Type() == rtui.VNodeElement {
+		tagKey := "#" + vnode.Tag()
+		c.vnodeMap[tagKey] = vnode
+	}
+
+	// Recursively index children
+	for _, child := range vnode.Children() {
+		c.buildVNodeMap(child)
+	}
+}
+
+// Convert converts a LayoutBox tree to a PaintableBox tree.
+func (c *VNodeToPaintableConverter) Convert(
+	lbox *layout.LayoutBox,
+	parent *paint.PaintableBox,
+) *paint.PaintableBox {
+	if lbox == nil {
+		return nil
+	}
+
+	pbox := &paint.PaintableBox{
+		X:        lbox.X,
+		Y:        lbox.Y,
+		Width:    lbox.Width,
+		Height:   lbox.Height,
+		Layer:    convertLayoutLayerToInt(lbox.Layer),
+		ZIndex:   lbox.ZIndex,
+		Parent:   parent,
+		Children: make([]*paint.PaintableBox, 0, len(lbox.Children)),
+	}
+
+	// Find matching VNode and fill paint-specific data
+	if vnode := c.findVNode(lbox.ID); vnode != nil {
+		c.fillFromVNode(pbox, vnode)
+	}
+
+	// Recursively convert children
+	for _, childLBox := range lbox.Children {
+		childPBox := c.Convert(childLBox, pbox)
+		if childPBox != nil {
+			pbox.Children = append(pbox.Children, childPBox)
+		}
+	}
+
+	return pbox
+}
+
+// ConvertToLayout wraps the result in a PaintableLayout
+func (c *VNodeToPaintableConverter) ConvertToLayout(lbox *layout.LayoutBox) *paint.PaintableLayout {
+	root := c.Convert(lbox, nil)
+	return paint.NewPaintableLayout(root)
+}
+
+// findVNode finds a VNode by ID
+func (c *VNodeToPaintableConverter) findVNode(id string) rtui.VNode {
+	if id == "" {
+		return nil
+	}
+
+	// Direct match
+	if vnode, ok := c.vnodeMap[id]; ok {
+		return vnode
+	}
+
+	return nil
+}
+
+// fillFromVNode populates PaintableBox with data from VNode
+func (c *VNodeToPaintableConverter) fillFromVNode(pbox *paint.PaintableBox, vnode rtui.VNode) {
+	// Create VNodePaintableNode wrapper
+	// Style is accessed via PaintableNode.Style() interface method
+	pbox.Node = NewVNodePaintableNode(vnode)
+}
+
+// =============================================================================
+// VNodePaintableNode - Wraps VNode to implement PaintableNode
+// =============================================================================
+
+// VNodePaintableNode wraps a VNode to implement paint.PaintableNode interface
+type VNodePaintableNode struct {
+	vnode rtui.VNode
+}
+
+// NewVNodePaintableNode creates a new PaintableNode wrapper for a VNode
+func NewVNodePaintableNode(vnode rtui.VNode) *VNodePaintableNode {
+	return &VNodePaintableNode{vnode: vnode}
+}
+
+// Ensure interface implementation
+var _ paint.PaintableNode = (*VNodePaintableNode)(nil)
+
+// ID returns the VNode's key
+func (n *VNodePaintableNode) ID() string {
+	if n.vnode == nil {
+		return ""
+	}
+	return n.vnode.Key()
+}
+
+// NodeType returns the paint node type based on VNode type
+func (n *VNodePaintableNode) NodeType() paint.NodeType {
+	if n.vnode == nil {
+		return paint.NodeTypeFragment
+	}
+	switch n.vnode.Type() {
+	case rtui.VNodeText:
+		return paint.NodeTypeText
+	case rtui.VNodeElement:
+		return paint.NodeTypeElement
+	case rtui.VNodeComponent:
+		return paint.NodeTypeComponent
+	default:
+		return paint.NodeTypeFragment
+	}
+}
+
+// Tag returns the VNode's tag
+func (n *VNodePaintableNode) Tag() string {
+	if n.vnode == nil {
+		return ""
+	}
+	return n.vnode.Tag()
+}
+
+// Style returns the VNode's style
+func (n *VNodePaintableNode) Style() style.Style {
+	if n.vnode == nil {
+		return style.Style{}
+	}
+	return n.vnode.Style()
+}
+
+// SetStyle sets the VNode's style
+// Note: VNode style is typically immutable, so this is a no-op
+func (n *VNodePaintableNode) SetStyle(s style.Style) {
+	// VNode style is typically immutable, no-op
+}
+
+// TextContent returns text content from the VNode
+func (n *VNodePaintableNode) TextContent() string {
+	if n.vnode == nil {
+		return ""
+	}
+
+	// For text nodes, the content is the text itself
+	if n.vnode.Type() == rtui.VNodeText {
+		if textNode, ok := n.vnode.(interface{ Text() string }); ok {
+			return textNode.Text()
+		}
+	}
+
+	// For element nodes, check props
+	props := n.vnode.Props()
+	if props != nil {
+		if content, ok := props["content"].(string); ok {
+			return content
+		}
+		if content, ok := props["text"].(string); ok {
+			return content
+		}
+	}
+
+	return ""
+}
+
+// SetBounds sets the layout bounds for the VNode.
+func (n *VNodePaintableNode) SetBounds(x, y, w, h int) {
+	if n.vnode == nil {
+		return
+	}
+
+	// Pass bounds to VNode if it supports SetBounds
+	if boundsSetter, ok := n.vnode.(interface{ SetBounds(int, int, int, int) }); ok {
+		boundsSetter.SetBounds(x, y, w, h)
+	}
+}
+
+// Paint delegates to the VNode's Paint() method.
+func (n *VNodePaintableNode) Paint(x, y int) []paint.DrawCmd {
+	if n.vnode == nil {
+		return nil
+	}
+
+	// Primary Path: Use VNode.Paint() if available
+	if paintable, ok := n.vnode.(interface {
+		Paint(int, int) []paint.DrawCmd
+	}); ok {
+		return paintable.Paint(x, y)
+	}
+
+	// Fallback Path: Use PaintRegistry
+	if fn := rtui.GetPaint(n.vnode.Tag()); fn != nil {
+		return fn(n.vnode.Props(), n.vnode.Style(), x, y)
+	}
+
+	return nil
+}

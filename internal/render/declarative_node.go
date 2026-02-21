@@ -14,7 +14,6 @@ import (
 	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/border"
 	"github.com/wwsheng009/mint/runtime/event"
-	"github.com/wwsheng009/mint/runtime/layer"
 	"github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/render"
@@ -53,9 +52,6 @@ type DeclarativeNode struct {
 	reconciler rtui.Reconciler    // Fiber reconciler (if enabled) - use interface to avoid import cycle
 	renderer   rtui.VNodeRenderer // VNode renderer (implements VNodeRenderer interface)
 	useFiber   bool               // Whether Fiber mode is enabled
-
-	// Layer Manager for modal/overlay/tooltip support
-	layerMgr *layer.Manager // Layer manager for handling layered VNodes (modals, etc.)
 
 	// === Fiber-first Rendering Pipeline (Phase 4) ===
 	renderMode             RenderMode                 // Current rendering mode
@@ -109,13 +105,6 @@ func (n *DeclarativeNode) SetFrameworkApp(app *framework.App) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	n.fwApp = app
-}
-
-// SetLayerManager sets the layer manager for handling layered VNodes (modals, overlays, etc.)
-func (n *DeclarativeNode) SetLayerManager(mgr *layer.Manager) {
-	n.mu.Lock()
-	defer n.mu.Unlock()
-	n.layerMgr = mgr
 }
 
 // NewDeclarativeNodeFromFuncWithFiber creates a new declarative node with Fiber reconciler enabled
@@ -608,18 +597,6 @@ func (n *DeclarativeNode) legacyPaint(ctx component.PaintContext, buf *paint.Buf
 				n.PaintVNode(n.root, ctx.Bounds.X, ctx.Bounds.Y, buf)
 			} else {
 				log.RenderLogger.Debug("[DeclarativeNode.Paint] ✅ Pipeline render SUCCESS\n")
-
-				// After rendering, capture the layer manager from the pipeline for event handling
-				// The layer manager is set during RenderLayers and contains modal nodes
-				n.layerMgr = pipeline.GetPipeline().GetLayerMgr()
-				if log.RenderLogger.Enabled() {
-					if n.layerMgr != nil {
-						modalNodes := n.layerMgr.GetModalNodes()
-						log.RenderLogger.Debug("[DeclarativeNode.Paint] Set layerMgr from pipeline with %d modal nodes", len(modalNodes))
-					} else {
-						log.RenderLogger.Debug("[DeclarativeNode.Paint] layerMgr is nil after render")
-					}
-				}
 				// NOTE: Inspector attachment is now handled by application layer
 				// The demo calls inspector.AttachToApp() after reconciliation completes
 				// This avoids circular dependency between render and framework packages
@@ -1548,37 +1525,7 @@ func (n *DeclarativeNode) HandleEvent(ev frameworkevent.Event) bool {
 	}
 
 	// 3. Fall back to global event distribution
-	// First, try to distribute to modal/overlay layers (they have higher Z-order priority)
-	if os.Getenv("TUI_DEBUG_UI") == "true" {
-		log.RenderLogger.Debug("[HandleEvent] layerMgr=%v (nil check: %v)", n.layerMgr, n.layerMgr != nil)
-	}
-	if n.layerMgr != nil {
-		modalNodes := n.layerMgr.GetModalNodes()
-		if os.Getenv("TUI_DEBUG_UI") == "true" {
-			log.RenderLogger.Debug("[HandleEvent] Found %d modal nodes", len(modalNodes))
-		}
-		for _, modalNode := range modalNodes {
-			if modalNode.Content != nil {
-				if os.Getenv("TUI_DEBUG_UI") == "true" {
-					log.RenderLogger.Debug("[HandleEvent] Distributing event to modal layer: ID=%s, type=%T", modalNode.ID, modalNode.Content)
-				}
-				if n.distributeEventToVNode(modalNode.Content, ev) {
-					// Event was handled by modal component
-					if os.Getenv("TUI_DEBUG_UI") == "true" {
-						log.RenderLogger.Debug("[HandleEvent] Modal handled event")
-					}
-					n.requestRender(useFiber, reconciler)
-					return true
-				}
-			}
-		}
-	} else {
-		if os.Getenv("TUI_DEBUG_UI") == "true" {
-			log.RenderLogger.Debug("[HandleEvent] layerMgr is nil, modal events will not work")
-		}
-	}
-
-	// Then, try to distribute to root tree
+	// Try to distribute to root tree
 	handled := n.distributeEventToVNode(root, ev)
 	if handled {
 		// Event was handled by a component (e.g., button click)

@@ -1,6 +1,9 @@
 package stack
 
 import (
+	"fmt"
+	"os"
+
 	"github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
@@ -267,11 +270,19 @@ func (inst *Instance) Measure(constraints layout.Constraints) layout.Size {
 				flexTotal += childInfo.Flex
 			} else {
 				// Measure non-flex child
+				// When Stack itself is auto-height (no explicit height), use MaxInt to allow children
+				// to measure their natural height without constraint
+				childMaxH := innerMaxH
+				if inst.height == 0 && childMaxH == layout.MaxInt {
+					// Pass MaxInt to allow unhindered measurement
+					childMaxH = layout.MaxInt
+				}
+
 				cc := layout.Constraints{
 					MinWidth:  0,
 					MaxWidth:  layout.MaxInt,
 					MinHeight: 0,
-					MaxHeight: innerMaxH,
+					MaxHeight: childMaxH,
 				}
 				size := inst.measureChild(child, cc)
 				inst.childMeasure[i] = size
@@ -392,21 +403,43 @@ func (inst *Instance) measureChild(child rtui.VNode, constraints layout.Constrai
 		return layout.Size{}
 	}
 
+	// Debug log child measurement
+	debugMeas := os.Getenv("MINT_DEBUG_STACK_MEASURE") == "true"
+	var childTag string
+	if child != nil {
+		childTag = child.Tag()
+	}
+	if debugMeas {
+		fmt.Printf("[Stack.measureChild] child=%s MaxW=%d MaxH=%d\n", childTag, constraints.MaxWidth, constraints.MaxHeight)
+	}
+
 	// Try InstanceFactory -> Measure
 	if factory, ok := child.(rtui.InstanceFactory); ok {
 		inst := factory.CreateInstance()
 		if measurable, ok := inst.(interface{ Measure(layout.Constraints) layout.Size }); ok {
-			return measurable.Measure(constraints)
+			size := measurable.Measure(constraints)
+			if debugMeas {
+				fmt.Printf("[Stack.measureChild]   -> measured: %dx%d\n", size.Width, size.Height)
+			}
+			return size
 		}
 	}
 
 	// Try direct Measurable
 	if measurable, ok := child.(interface{ Measure(layout.Constraints) layout.Size }); ok {
-		return measurable.Measure(constraints)
+		size := measurable.Measure(constraints)
+		if debugMeas {
+			fmt.Printf("[Stack.measureChild]   -> measured: %dx%d\n", size.Width, size.Height)
+		}
+		return size
 	}
 
 	// Fallback: estimate from content
-	return inst.estimateChildSize(child, constraints)
+	size := inst.estimateChildSize(child, constraints)
+	if debugMeas {
+		fmt.Printf("[Stack.measureChild]   -> estimated: %dx%d\n", size.Width, size.Height)
+	}
+	return size
 }
 
 // estimateChildSize estimates child size when Measure is not available.

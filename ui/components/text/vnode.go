@@ -1,5 +1,5 @@
 // Package text provides a Fiber-first Text component.
-// Text displays a single line of text with optional styling.
+// Text displays text with optional styling and word wrapping.
 package text
 
 import (
@@ -28,7 +28,8 @@ type VNode struct {
 	// === Layout Props ===
 	padding   [4]int // top, right, bottom, left
 	textAlign rtui.Align
-	maxWidth  int // optional max width for wrapping
+	maxWidth  int  // optional max width for wrapping (deprecated: use Wrap() instead)
+	wrap      bool // enable word wrapping
 
 	// === Box Model (via interface) ===
 	rtui.BoxModelMixin
@@ -117,6 +118,7 @@ func (t *VNode) Props() rtui.Props {
 		"padding":   t.padding,
 		"textAlign": t.textAlign,
 		"maxWidth":  t.maxWidth,
+		"wrap":      t.wrap,
 	}
 }
 
@@ -140,6 +142,9 @@ func (t *VNode) SetProps(p rtui.Props) rtui.VNode {
 	if v, ok := p["maxWidth"].(int); ok {
 		t.maxWidth = v
 	}
+	if v, ok := p["wrap"].(bool); ok {
+		t.wrap = v
+	}
 	return t
 }
 
@@ -156,6 +161,7 @@ func (t *VNode) CreateInstance() rtui.ComponentInstance {
 		"padding":   t.Padding(),
 		"textAlign": t.TextAlign(),
 		"maxWidth":  t.maxWidth,
+		"wrap":      t.wrap,
 	}
 	return NewInstance(props)
 }
@@ -191,6 +197,12 @@ func (t *VNode) SetTextAlignProps(align rtui.Align) *VNode {
 // SetMaxWidth sets the maximum width.
 func (t *VNode) SetMaxWidth(maxWidth int) *VNode {
 	t.maxWidth = maxWidth
+	return t
+}
+
+// SetWrap enables or disables word wrapping.
+func (t *VNode) SetWrap(wrap bool) *VNode {
+	t.wrap = wrap
 	return t
 }
 

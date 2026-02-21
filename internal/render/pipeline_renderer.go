@@ -7,7 +7,7 @@ import (
 	"github.com/wwsheng009/mint/internal/log"
 	"github.com/wwsheng009/mint/internal/reconciler"
 	"github.com/wwsheng009/mint/runtime"
-	"github.com/wwsheng009/mint/runtime/layer"
+	"github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/render"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
@@ -24,23 +24,18 @@ import (
 // - Better separation of concerns
 // - Hook system for VNode transformation (e.g., Inspector injection)
 type PipelineRenderer struct {
-	pipeline    *RenderingPipeline
-	layerMgr    *layer.Manager
-	layerEvents *layer.EventHandler
-	hooks       *render.HookManager
-	fiber       *reconciler.Fiber // Fiber tree for NodeID propagation
-	debug       bool
+	pipeline *RenderingPipeline
+	hooks    *render.HookManager
+	fiber    *reconciler.Fiber // Fiber tree for NodeID propagation
+	debug    bool
 }
 
 // NewPipelineRenderer creates a new pipeline-based VNodeRenderer
 func NewPipelineRenderer() *PipelineRenderer {
-	layerMgr := layer.NewManager()
 	return &PipelineRenderer{
-		pipeline:    NewRenderingPipeline(),
-		layerMgr:    layerMgr,
-		layerEvents: layer.NewEventHandler(layerMgr),
-		hooks:       render.NewHookManager(),
-		debug:       log.PipelineLogger.Enabled(),
+		pipeline: NewRenderingPipeline(),
+		hooks:    render.NewHookManager(),
+		debug:    log.PipelineLogger.Enabled(),
 	}
 }
 
@@ -100,8 +95,7 @@ func (r *PipelineRenderer) Render(vnode rtui.VNode, x, y int, buffer interface{}
 	log.RenderLogger.Debug("✅ Render SUCCESS")
 
 	if r.debug {
-		log.RenderLogger.Debug("Render complete, cache stats: %s",
-			r.pipeline.GetLayoutEngine().GetCacheStats().String())
+		log.RenderLogger.Debug("Render complete, cache stats: %s", r.GetCacheStats())
 	}
 
 	return nil
@@ -192,22 +186,28 @@ func (r *PipelineRenderer) GetHooks() *render.HookManager {
 // Measure implements the VNodeRenderer Measure interface
 // This allows the renderer to be used for size calculation
 func (r *PipelineRenderer) Measure(vnode rtui.VNode, maxWidth, maxHeight int) (width, height int) {
-	// Use the compute engine to measure the VNode
-	constraints := runtime.NewBoxConstraints(0, maxWidth, 0, maxHeight)
-	// Phase 8: Pass r.fiber for NodeID propagation
-	layout, err := r.pipeline.GetLayoutEngine().Layout(vnode, r.fiber, constraints)
-	if err != nil {
-		if r.debug {
-			log.RenderLogger.Debug("Layout failed: %v\n", err)
-		}
+	// Use the new layout engine to measure the VNode
+	constraints := layout.Constraints{
+		MinWidth:  0,
+		MaxWidth:  maxWidth,
+		MinHeight: 0,
+		MaxHeight: maxHeight,
+	}
+
+	// Choose adapter based on whether we have Fiber or VNode
+	var node layout.Node
+	if r.fiber != nil {
+		node = NewFiberToNodeAdapterPure(r.fiber)
+	} else {
+		node = NewVNodeToNodeAdapter(vnode)
+	}
+
+	result := r.pipeline.GetLayoutEngine().Layout(node, constraints)
+	if result == nil || result.Root == nil {
 		return 0, 0
 	}
 
-	if layout.Root == nil {
-		return 0, 0
-	}
-
-	return layout.Root.Box.Width, layout.Root.Box.Height
+	return result.Root.Width, result.Root.Height
 }
 
 // renderLegacy provides fallback rendering using the legacy PaintVNode approach
@@ -262,8 +262,7 @@ func (r *PipelineRenderer) RenderWithConstraints(vnode rtui.VNode, layoutWidth, 
 	log.RenderLogger.Debug("✅ Render SUCCESS")
 
 	if r.debug {
-		log.RenderLogger.Debug("Render complete, cache stats: %s",
-			r.pipeline.GetLayoutEngine().GetCacheStats().String())
+		log.RenderLogger.Debug("Render complete, cache stats: %s", r.GetCacheStats())
 	}
 
 	return nil
@@ -278,8 +277,8 @@ func (r *PipelineRenderer) SetDebug(debug bool) {
 
 // GetCacheStats returns cache statistics from the layout engine
 func (r *PipelineRenderer) GetCacheStats() string {
-	stats := r.pipeline.GetLayoutEngine().GetCacheStats()
-	return stats.String()
+	stats := r.pipeline.GetCacheStats()
+	return fmt.Sprintf("hits=%d, misses=%d", stats.Hits, stats.Misses)
 }
 
 // ClearCache clears the layout cache

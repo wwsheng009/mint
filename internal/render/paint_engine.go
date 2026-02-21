@@ -3,13 +3,10 @@ package render
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/wwsheng009/mint/internal/log"
 	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/border"
-	"github.com/wwsheng009/mint/runtime/compute"
-	"github.com/wwsheng009/mint/runtime/layer"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
@@ -18,13 +15,12 @@ import (
 // PaintEngine renders layout trees using pre-computed layout information
 // This is the paint-only phase of the new rendering pipeline
 type PaintEngine struct {
-	debug             bool
-	lastHadModal      bool                               // Track if modal was present in last frame (for backdrop restoration)
-	forceFullRender   bool                               // Flag to force full buffer render on next frame
-	parentBackground  map[*paint.PaintableBox]style.Color // Track parent background for inheritance (refactored)
-	parentBackgroundLegacy map[*compute.ComputedBox]style.Color // Legacy: for backward compatibility
-	lastLayersPresent map[rtui.Layer]bool                // Track which layers were present in last frame
-	lastLayerBounds   map[rtui.Layer]runtime.Box         // Track last bounds of each layer for cleanup
+	debug            bool
+	lastHadModal     bool                               // Track if modal was present in last frame (for backdrop restoration)
+	forceFullRender  bool                               // Flag to force full buffer render on next frame
+	parentBackground map[*paint.PaintableBox]style.Color // Track parent background for inheritance
+	lastLayersPresent map[rtui.Layer]bool               // Track which layers were present in last frame
+	lastLayerBounds  map[rtui.Layer]runtime.Box         // Track last bounds of each layer for cleanup
 }
 
 // NewPaintEngine creates a new paint engine
@@ -169,7 +165,7 @@ func (e *PaintEngine) paintElementBox(box *paint.PaintableBox, buffer *paint.Buf
 	nodeStyle := box.Node.Style()
 	if nodeStyle.BG != "" && nodeStyle.BG != style.NoColor {
 		e.paintBoxContainerBackground(box, buffer, nodeStyle)
-		
+
 		// Store parent background for child inheritance
 		if e.parentBackground == nil {
 			e.parentBackground = make(map[*paint.PaintableBox]style.Color)
@@ -303,96 +299,6 @@ func (e *PaintEngine) paintModalBackdropBox(root *paint.PaintableBox, buffer *pa
 	}
 }
 
-// =============================================================================
-// Legacy API: ComputedLayout (Backward Compatibility)
-// =============================================================================
-
-// Paint renders a computed layout to a buffer
-// Deprecated: Use PaintLayout for decoupled API
-func (e *PaintEngine) Paint(layout *compute.ComputedLayout, buffer *paint.Buffer) error {
-	if layout == nil || layout.Root == nil {
-		if os.Getenv("MINT_DEBUG_TEST") == "true" {
-			fmt.Printf("[PaintEngine.Paint] layout or layout.Root is nil\n")
-		}
-		return nil
-	}
-
-	if os.Getenv("MINT_DEBUG_TEST") == "true" {
-		fmt.Printf("[PaintEngine.Paint] START: layout.Root.Box=(%d,%d,%dx%d)\n",
-			layout.Root.Box.X, layout.Root.Box.Y, layout.Root.Box.Width, layout.Root.Box.Height)
-	}
-
-	if log.PaintLogger.Enabled() {
-		log.PaintLogger.Debug("[PaintEngine.Paint] START: box=(%d,%d,%dx%d)",
-			layout.Root.Box.X, layout.Root.Box.Y, layout.Root.Box.Width, layout.Root.Box.Height)
-	}
-
-	// Convert to PaintableLayout and use new API
-	paintableLayout := layout.AsPaintableLayout()
-	return e.PaintLayout(paintableLayout, buffer)
-}
-
-// paintNode recursively paints a computed box and its children (Legacy)
-// This method is kept for backward compatibility and delegates to paintBox.
-func (e *PaintEngine) paintNode(box *compute.ComputedBox, buffer *paint.Buffer) error {
-	if box == nil {
-		return nil
-	}
-
-	// Convert to PaintableBox and use new paintBox method
-	paintableBox := box.AsPaintable()
-	return e.paintBox(paintableBox, buffer)
-}
-
-// paintText paints a text node (Legacy)
-// Deprecated: Use paintTextBox
-func (e *PaintEngine) paintText(box *compute.ComputedBox, buffer *paint.Buffer) {
-	paintableBox := box.AsPaintable()
-	e.paintTextBox(paintableBox, buffer)
-}
-
-// paintElement paints an element node (Legacy)
-// Deprecated: Use paintElementBox
-func (e *PaintEngine) paintElement(box *compute.ComputedBox, buffer *paint.Buffer) {
-	paintableBox := box.AsPaintable()
-	e.paintElementBox(paintableBox, buffer)
-}
-
-// paintContainerBackground fills the container area with background color (Legacy)
-func (e *PaintEngine) paintContainerBackground(box *compute.ComputedBox, buffer *paint.Buffer, bgStyle style.Style) {
-	paintableBox := box.AsPaintable()
-	e.paintBoxContainerBackground(paintableBox, buffer, bgStyle)
-}
-
-// paintChildren paints children of a node (Legacy)
-// Deprecated: Use paintBoxChildren
-func (e *PaintEngine) paintChildren(box *compute.ComputedBox, buffer *paint.Buffer) error {
-	paintableBox := box.AsPaintable()
-	return e.paintBoxChildren(paintableBox, buffer)
-}
-
-// paintBordered paints a bordered node (Legacy)
-// Deprecated: Use paintBorderedBox
-func (e *PaintEngine) paintBordered(box *compute.ComputedBox, buffer *paint.Buffer) {
-	bs, bc, bl := box.AsPaintable().GetBorderInfo()
-	if bs != paint.BorderStyleNone {
-		paintableBox := box.AsPaintable()
-		e.paintBorderedBox(paintableBox, buffer, bs, bc, bl)
-	}
-}
-
-// paintTable paints a table element (Legacy)
-func (e *PaintEngine) paintTable(box *compute.ComputedBox, buffer *paint.Buffer) error {
-	return e.paintChildren(box, buffer)
-}
-
-// paintModalBackdrop draws modal backdrop (Legacy)
-// Deprecated: Use paintModalBackdropBox
-func (e *PaintEngine) paintModalBackdrop(root *compute.ComputedBox, buffer *paint.Buffer) {
-	paintableBox := root.AsPaintable()
-	e.paintModalBackdropBox(paintableBox, buffer)
-}
-
 // clearRegion clears a rectangular region of the buffer
 func (e *PaintEngine) clearRegion(bounds runtime.Box, buffer *paint.Buffer) {
 	maxX := buffer.Width
@@ -524,119 +430,5 @@ func (e *PaintEngine) PaintPaintablePlanes(
 	}
 
 	log.PaintLogger.Debug("[PaintEngine.PaintPaintablePlanes] END")
-	return nil
-}
-
-// =============================================================================
-// Multi-Layer Rendering (Legacy API - ComputedBox based)
-// =============================================================================
-
-// PaintLayers renders multiple layers in order (from lowest to highest)
-// Deprecated: Use PaintPaintableLayouts for decoupled API
-func (e *PaintEngine) PaintLayers(
-	layouts layer.LayerLayouts,
-	buffer *paint.Buffer,
-) error {
-	_, hasModal := layouts[rtui.LayerModal]
-	hadModal := e.lastHadModal
-
-	if hasModal != hadModal {
-		e.forceFullRender = true
-	}
-	e.lastHadModal = hasModal
-
-	renderOrder := []rtui.Layer{
-		rtui.LayerBase,
-		rtui.LayerOverlay,
-		rtui.LayerModal,
-		rtui.LayerTooltip,
-		rtui.LayerInspector,
-	}
-
-	for _, l := range renderOrder {
-		hasLayer := false
-		var currentBounds runtime.Box = runtime.Box{}
-		if layout, ok := layouts[l]; ok && layout.Root != nil {
-			hasLayer = true
-			currentBounds = layout.Root.Box
-		}
-		hadLayer := e.lastLayersPresent[l]
-		prevBounds := e.lastLayerBounds[l]
-
-		if hadLayer && !hasLayer {
-			log.PaintLogger.Debug("[PaintLayers] Layer %s disappeared, clearing region", l.String())
-			e.clearRegion(prevBounds, buffer)
-			e.forceFullRender = true
-		}
-
-		if hasLayer && hadLayer && currentBounds != prevBounds {
-			e.forceFullRender = true
-		}
-
-		e.lastLayersPresent[l] = hasLayer
-		if hasLayer {
-			e.lastLayerBounds[l] = currentBounds
-		} else {
-			delete(e.lastLayerBounds, l)
-		}
-	}
-
-	for _, l := range renderOrder {
-		layout, ok := layouts[l]
-		if !ok || layout.Root == nil {
-			continue
-		}
-
-		if e.debug {
-			log.PaintLogger.Debug("[PaintLayers] Rendering layer: %s", l.String())
-		}
-
-		if err := e.Paint(layout, buffer); err != nil {
-			return fmt.Errorf("error painting layer %s: %w", l.String(), err)
-		}
-
-		if l == rtui.LayerModal {
-			e.paintModalBackdrop(layout.Root, buffer)
-		}
-	}
-
-	return nil
-}
-
-// PaintRenderPlanes paints RenderPlanes to buffer directly
-func (e *PaintEngine) PaintRenderPlanes(
-	renderPlanes *layer.RenderPlanes,
-	buffer *paint.Buffer,
-) error {
-	if renderPlanes == nil {
-		return nil
-	}
-
-	log.PaintLogger.Debug("[PaintEngine.PaintRenderPlanes] START: boxes=%d", renderPlanes.CountBoxes())
-
-	for _, layer := range renderPlanes.GetRenderOrder() {
-		boxes := renderPlanes.GetLayer(layer)
-		if boxes == nil || len(boxes) == 0 {
-			continue
-		}
-
-		log.PaintLogger.Debug("[PaintEngine.PaintRenderPlanes] Layer %s: %d boxes", layer.String(), len(boxes))
-
-		for _, box := range boxes {
-			// Convert ComputedBox to PaintableBox and use new API
-			paintableBox := box.AsPaintable()
-			layout := paint.NewPaintableLayout(paintableBox)
-			if err := e.PaintLayout(layout, buffer); err != nil {
-				return fmt.Errorf("error painting box in layer %s: %w", layer.String(), err)
-			}
-		}
-
-		if layer == rtui.LayerModal && len(boxes) > 0 {
-			paintableBox := boxes[0].AsPaintable()
-			e.paintModalBackdropBox(paintableBox, buffer)
-		}
-	}
-
-	log.PaintLogger.Debug("[PaintEngine.PaintRenderPlanes] END")
 	return nil
 }

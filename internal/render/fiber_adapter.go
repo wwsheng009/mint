@@ -103,6 +103,11 @@ func (a *FiberToNodeAdapter) GetPosition() (x, y int) {
 	}
 	// Try to get from computed box
 	if a.fiber.ComputedBox != nil {
+		// Try layout.LayoutBox first (new architecture)
+		if layoutBox, ok := a.fiber.ComputedBox.(*layout.LayoutBox); ok {
+			return layoutBox.X, layoutBox.Y
+		}
+		// Fallback to compute.ComputedBox (legacy)
 		if computedBox, ok := a.fiber.ComputedBox.(*compute.ComputedBox); ok {
 			return computedBox.Box.X, computedBox.Box.Y
 		}
@@ -117,6 +122,13 @@ func (a *FiberToNodeAdapter) SetPosition(x, y int) {
 	}
 	// Store in fiber.ComputedBox if available
 	if a.fiber.ComputedBox != nil {
+		// Try layout.LayoutBox first (new architecture)
+		if layoutBox, ok := a.fiber.ComputedBox.(*layout.LayoutBox); ok {
+			layoutBox.X = x
+			layoutBox.Y = y
+			return
+		}
+		// Fallback to compute.ComputedBox (legacy)
 		if computedBox, ok := a.fiber.ComputedBox.(*compute.ComputedBox); ok {
 			computedBox.Box.X = x
 			computedBox.Box.Y = y
@@ -140,6 +152,11 @@ func (a *FiberToNodeAdapter) GetSize() (width, height int) {
 
 	// 2. Try computed box (legacy compatibility)
 	if a.fiber.ComputedBox != nil {
+		// Try layout.LayoutBox first (new architecture)
+		if layoutBox, ok := a.fiber.ComputedBox.(*layout.LayoutBox); ok {
+			return layoutBox.Width, layoutBox.Height
+		}
+		// Fallback to compute.ComputedBox (legacy)
 		if computedBox, ok := a.fiber.ComputedBox.(*compute.ComputedBox); ok {
 			return computedBox.Box.Width, computedBox.Box.Height
 		}
@@ -168,6 +185,13 @@ func (a *FiberToNodeAdapter) SetSize(width, height int) {
 		return
 	}
 	if a.fiber.ComputedBox != nil {
+		// Try layout.LayoutBox first (new architecture)
+		if layoutBox, ok := a.fiber.ComputedBox.(*layout.LayoutBox); ok {
+			layoutBox.Width = width
+			layoutBox.Height = height
+			return
+		}
+		// Fallback to compute.ComputedBox (legacy)
 		if computedBox, ok := a.fiber.ComputedBox.(*compute.ComputedBox); ok {
 			computedBox.Box.Width = width
 			computedBox.Box.Height = height
@@ -681,6 +705,9 @@ func (a *FiberToNodeAdapter) MarkLayoutDirty() {
 type VNodeToNodeAdapter struct {
 	vnode    rtui.VNode
 	children []layout.Node
+	// Layout result storage (set by layout.Engine)
+	x, y          int
+	width, height int
 }
 
 // NewVNodeToNodeAdapter creates a new adapter for a VNode tree
@@ -736,36 +763,39 @@ func (a *VNodeToNodeAdapter) Children() []layout.Node {
 
 // GetPosition returns the current position
 func (a *VNodeToNodeAdapter) GetPosition() (x, y int) {
-	return 0, 0
+	return a.x, a.y
 }
 
 // SetPosition sets the position
 func (a *VNodeToNodeAdapter) SetPosition(x, y int) {
-	// VNode doesn't have position storage
+	a.x, a.y = x, y
 }
 
 // GetSize returns the current size
 func (a *VNodeToNodeAdapter) GetSize() (width, height int) {
-	if a.vnode == nil {
-		return 0, 0
+	// First check if we have layout-computed size
+	if a.width > 0 && a.height > 0 {
+		return a.width, a.height
 	}
 
-	// Try to get from props
-	props := a.vnode.Props()
-	if props != nil {
-		if w, ok := props["width"].(int); ok {
-			if h, ok := props["height"].(int); ok {
-				return w, h
+	// Try to get from props as fallback
+	if a.vnode != nil {
+		props := a.vnode.Props()
+		if props != nil {
+			if w, ok := props["width"].(int); ok && w > 0 {
+				if h, ok := props["height"].(int); ok && h > 0 {
+					return w, h
+				}
 			}
 		}
 	}
 
-	return 0, 0
+	return a.width, a.height
 }
 
 // SetSize sets the size
 func (a *VNodeToNodeAdapter) SetSize(width, height int) {
-	// VNode doesn't have size storage
+	a.width, a.height = width, height
 }
 
 // GetWidth returns the width

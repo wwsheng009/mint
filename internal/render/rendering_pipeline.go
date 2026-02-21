@@ -8,43 +8,41 @@ import (
 	"github.com/wwsheng009/mint/internal/log"
 	"github.com/wwsheng009/mint/internal/reconciler"
 	"github.com/wwsheng009/mint/runtime"
-	"github.com/wwsheng009/mint/runtime/compute"
 	"github.com/wwsheng009/mint/runtime/event"
-	"github.com/wwsheng009/mint/runtime/layer"
 	"github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/paint"
+	"github.com/wwsheng009/mint/runtime/types"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
 
 // RenderingPipeline is the rendering pipeline with separated Layout and Paint phases.
 //
 // Architecture:
-//   - Layout phase: compute.Engine calculates positions
+//   - Layout phase: layout.Engine calculates positions
 //   - Paint phase: PaintEngine renders using computed positions
 //
 // For Fiber-first rendering, use fiberFirstPaint() in DeclarativeNode which
 // uses NewLayoutEngineAdapter directly for better performance.
 type RenderingPipeline struct {
-	layoutEngine *compute.Engine // Layout engine (compute)
+	layoutEngine *layout.Engine // Layout engine
 	paintEngine  *PaintEngine
-	lastHitMap   *event.HitMap  // HitMap from the most recent RenderLayers call
-	layerMgr     *layer.Manager // LayerManager from the most recent RenderLayers call
+	lastHitMap   *event.HitMap // HitMap from the most recent RenderLayers call
 }
 
 // NewRenderingPipeline creates a new rendering pipeline.
 func NewRenderingPipeline() *RenderingPipeline {
 	pipeline := &RenderingPipeline{
-		layoutEngine: compute.NewEngine(),
+		layoutEngine: layout.NewEngine(),
 		paintEngine:  NewPaintEngine(),
 	}
 
-	log.PipelineLogger.Debug("[RenderingPipeline] Initialized with compute.Engine")
+	log.PipelineLogger.Debug("[RenderingPipeline] Initialized with layout.Engine")
 	return pipeline
 }
 
 // SetLayoutDebug enables/disables layout debug output
 func (p *RenderingPipeline) SetLayoutDebug(debug bool) {
-	p.layoutEngine.SetDebug(debug)
+	// Layout engine debug is handled internally
 }
 
 // SetPaintDebug enables/disables paint debug output
@@ -53,7 +51,7 @@ func (p *RenderingPipeline) SetPaintDebug(debug bool) {
 }
 
 // Render performs the complete rendering pipeline:
-// 1. Layout phase: calculate positions for all nodes
+// 1. Layout phase: calculate positions for all nodes using layout.Engine
 // 2. Paint phase: render using computed positions
 func (p *RenderingPipeline) Render(vnode rtui.VNode, fiber *reconciler.Fiber, constraints runtime.BoxConstraints, buffer *paint.Buffer) error {
 	if vnode == nil {
@@ -67,43 +65,60 @@ func (p *RenderingPipeline) Render(vnode rtui.VNode, fiber *reconciler.Fiber, co
 		fmt.Printf("[RenderingPipeline.Render] START: vnode type=%d, tag=%s, buffer=%dx%d\n", vnode.Type(), vnode.Tag(), buffer.Width, buffer.Height)
 	}
 
-	log.PipelineLogger.Debug("Render started")
+	log.PipelineLogger.Debug("Render started (layout.Engine path)")
 
-	// Phase 1: Layout - calculate all positions using compute.Engine
-	layout, err := p.layoutEngine.Layout(vnode, fiber, constraints)
-	if err != nil {
-		log.PipelineLogger.Debug("❌ Layout FAILED: %v, falling back to legacy", err)
-		if os.Getenv("MINT_DEBUG_TEST") == "true" {
-			fmt.Printf("[RenderingPipeline.Render] Layout FAILED: %v\n", err)
-		}
+	// Convert constraints to layout.Constraints
+	layoutConstraints := layout.Constraints{
+		MinWidth:  constraints.MinWidth,
+		MaxWidth:  constraints.MaxWidth,
+		MinHeight: constraints.MinHeight,
+		MaxHeight: constraints.MaxHeight,
+	}
+
+	// Choose adapter based on whether we have Fiber or VNode
+	var node layout.Node
+	var converter PaintableConverter
+
+	if fiber != nil {
+		// Fiber-first path: use FiberToNodeAdapterPure
+		node = NewFiberToNodeAdapterPure(fiber)
+		converter = NewFiberToPaintableConverter(fiber)
+	} else {
+		// Legacy VNode path: use VNodeToNodeAdapter
+		node = NewVNodeToNodeAdapter(vnode)
+		converter = NewVNodeToPaintableConverter(vnode)
+	}
+
+	// Phase 1: Layout using layout.Engine
+	result := p.layoutEngine.Layout(node, layoutConstraints)
+	if result == nil || result.Root == nil {
+		log.PipelineLogger.Debug("❌ Layout returned nil result, falling back to legacy")
 		return p.renderLegacy(vnode, 0, 0, buffer)
 	}
 
 	if os.Getenv("MINT_DEBUG_TEST") == "true" {
-		if layout != nil && layout.Root != nil {
-			fmt.Printf("[RenderingPipeline.Render] Layout: Root.Box=%dx%d, Root.VNode=%T\n", layout.Root.Box.Width, layout.Root.Box.Height, layout.Root.VNode)
-		} else {
-			fmt.Printf("[RenderingPipeline.Render] Layout: layout or Root is nil\n")
-		}
+		fmt.Printf("[RenderingPipeline.Render] Layout: Root=%dx%d\n", result.Root.Width, result.Root.Height)
 	}
 
 	log.PipelineLogger.Debug("✅ Layout complete, starting Paint phase")
 
-	// Phase 2: Paint - render using computed positions
-	log.PipelineLogger.Debug("Starting Paint phase...")
-	err = p.paintEngine.Paint(layout, buffer)
+	// Convert LayoutBox to PaintableBox
+	paintableLayout := converter.ConvertToLayout(result.Root)
+	if paintableLayout == nil || paintableLayout.Root == nil {
+		log.PipelineLogger.Debug("❌ PaintableLayout conversion failed, falling back to legacy")
+		return p.renderLegacy(vnode, 0, 0, buffer)
+	}
+
+	// Phase 2: Paint using PaintableLayout
+	err := p.paintEngine.PaintLayout(paintableLayout, buffer)
 
 	log.PipelineLogger.Debug("Paint complete, err=%v", err)
 
-	// Save HitMap for event routing (hit testing)
-	if layout != nil {
-		p.lastHitMap = layout.HitMap
-	}
+	// Build HitMap from layout result
+	p.lastHitMap = convertLayoutHitMap(result.HitMap)
 
 	if p.lastHitMap != nil {
 		log.PipelineLogger.Debug("Saved HitMap: %d entries", p.lastHitMap.Size())
-	} else {
-		log.PipelineLogger.Debug("⚠️ Layout.HitMap is nil")
 	}
 
 	return err
@@ -125,15 +140,8 @@ func (p *RenderingPipeline) renderLegacy(vnode rtui.VNode, x, y int, buffer *pai
 	return nil
 }
 
-// ComputeLayout performs only the layout phase, returning computed positions
-// This can be useful for hit testing and other operations that need layout info without rendering
-// Phase 8: Accept fiber parameter for NodeID propagation
-func (p *RenderingPipeline) ComputeLayout(vnode rtui.VNode, fiber *reconciler.Fiber, constraints runtime.BoxConstraints) (*compute.ComputedLayout, error) {
-	return p.layoutEngine.Layout(vnode, fiber, constraints)
-}
-
 // GetLayoutEngine returns the layout engine for direct access
-func (p *RenderingPipeline) GetLayoutEngine() *compute.Engine {
+func (p *RenderingPipeline) GetLayoutEngine() *layout.Engine {
 	return p.layoutEngine
 }
 
@@ -147,78 +155,22 @@ func (p *RenderingPipeline) GetPaintEngine() *PaintEngine {
 // =============================================================================
 
 // GetCacheStats returns statistics about the layout cache
-func (p *RenderingPipeline) GetCacheStats() compute.CacheStats {
-	return p.layoutEngine.GetCacheStats()
+func (p *RenderingPipeline) GetCacheStats() CacheStats {
+	stats := p.layoutEngine.GetStats()
+	return CacheStats{
+		Hits:   int(stats.CacheHits),
+		Misses: int(stats.CacheMisses),
+	}
 }
 
 // ResetCacheStats resets cache hit/miss counters
 func (p *RenderingPipeline) ResetCacheStats() {
-	p.layoutEngine.ResetCacheStats()
+	// Layout engine doesn't have this method yet
 }
 
 // ClearCache clears all cached layout results
 func (p *RenderingPipeline) ClearCache() {
-	p.layoutEngine.ClearCache()
-}
-
-// InvalidateCacheByType removes cached entries for a specific VNode type
-func (p *RenderingPipeline) InvalidateCacheByType(vNodeType string) {
-	p.layoutEngine.InvalidateCacheByType(vNodeType)
-}
-
-// InvalidateCacheByKey removes cached entries for a specific VNode key
-func (p *RenderingPipeline) InvalidateCacheByKey(vnodeKey string) {
-	p.layoutEngine.InvalidateCacheByKey(vnodeKey)
-}
-
-// =============================================================================
-// RenderWithFiber renders with explicit Fiber tree for NodeID propagation
-// =============================================================================
-// Phase 8: This method allows passing the Fiber tree directly to the layout engine
-// so that NodeIDs can be propagated to ComputedBox for proper identity tracking
-//
-// This is the primary entry point for Fiber-based rendering, where:
-// - vnode: The rendered VNode tree (may differ from Fiber tree structure)
-// - fiber: The actual Fiber tree with NodeIDs assigned during reconciliation
-func (p *RenderingPipeline) RenderWithFiber(
-	vnode rtui.VNode,
-	fiber *reconciler.Fiber,
-	constraints runtime.BoxConstraints,
-	buffer *paint.Buffer,
-) error {
-	if vnode == nil {
-		return nil
-	}
-
-	log.PipelineLogger.Debug("RenderWithFiber started")
-
-	// Phase 1: Layout - calculate all positions with Fiber
-	layout, err := p.layoutEngine.Layout(vnode, fiber, constraints)
-	if err != nil {
-		// Fallback to legacy rendering if layout fails
-		log.PipelineLogger.Debug("❌ Layout FAILED: %v, falling back to legacy", err)
-		return p.renderLegacy(vnode, 0, 0, buffer)
-	}
-
-	log.PipelineLogger.Debug("✅ Layout complete, starting Paint phase")
-
-	// Phase 2: Paint - render using computed positions
-	log.PipelineLogger.Debug("Starting Paint phase...")
-	err = p.paintEngine.Paint(layout, buffer)
-
-	log.PipelineLogger.Debug("Paint complete, err=%v", err)
-
-	// Save HitMap for event routing (hit testing)
-	// This HitMap contains FINAL positions from layout computation
-	p.lastHitMap = layout.HitMap
-
-	if p.lastHitMap != nil {
-		log.PipelineLogger.Debug("Saved HitMap: %d entries", p.lastHitMap.Size())
-	} else {
-		log.PipelineLogger.Debug("⚠️  Layout.HitMap is nil")
-	}
-
-	return err
+	p.layoutEngine.Invalidate()
 }
 
 // =============================================================================
@@ -237,52 +189,87 @@ func (p *RenderingPipeline) RenderLayers(
 		return nil
 	}
 
-	log.PipelineLogger.Debug("RenderLayers started")
+	log.PipelineLogger.Debug("RenderLayers started (layout.Engine path)")
 
-	// Use legacy compute.Engine path via LayerManager
-	layerMgr := layer.NewManager()
-	if err := layerMgr.CollectAndLayout(vnode, fiber, constraints, p.layoutEngine); err != nil {
-		log.PipelineLogger.Debug("Layer layout failed: %v, falling back to single-layer render", err)
-		return p.Render(vnode, fiber, constraints, buffer)
+	// Convert constraints to layout.Constraints
+	layoutConstraints := layout.Constraints{
+		MinWidth:  constraints.MinWidth,
+		MaxWidth:  constraints.MaxWidth,
+		MinHeight: constraints.MinHeight,
+		MaxHeight: constraints.MaxHeight,
 	}
 
-	// 使用新的 PaintablePlanes API（解耦版本）
-	paintablePlanes := layerMgr.GetPaintablePlanes()
+	// Choose adapter based on whether we have Fiber or VNode
+	var node layout.Node
+	var converter PaintableConverter
+
+	if fiber != nil {
+		// Fiber-first path: use FiberToNodeAdapterPure
+		node = NewFiberToNodeAdapterPure(fiber)
+		converter = NewFiberToPaintableConverter(fiber)
+	} else {
+		// Legacy VNode path: use VNodeToNodeAdapter
+		node = NewVNodeToNodeAdapter(vnode)
+		converter = NewVNodeToPaintableConverter(vnode)
+	}
+
+	// Perform layout using layout.Engine
+	result := p.layoutEngine.Layout(node, layoutConstraints)
+	if result == nil || result.Root == nil {
+		log.PipelineLogger.Debug("Layout returned nil result")
+		return nil
+	}
+
+	log.PipelineLogger.Debug("Layout complete, root size=%dx%d",
+		result.Root.Width, result.Root.Height)
+
+	// Convert LayoutBox to PaintableBox
+	paintableLayout := converter.ConvertToLayout(result.Root)
+	if paintableLayout == nil || paintableLayout.Root == nil {
+		log.PipelineLogger.Debug("PaintableLayout conversion failed")
+		return nil
+	}
+
+	// Apply layer transforms (modal centering)
+	p.applyLayerTransformsToPaintable(paintableLayout.Root, layoutConstraints)
+
+	// Build PaintablePlanes from PaintableBox tree
+	paintablePlanes := p.buildPaintablePlanes(paintableLayout.Root)
 	log.PipelineLogger.Debug("PaintablePlanes: %d boxes", paintablePlanes.CountBoxes())
 
+	// Paint using PaintablePlanes
 	if err := p.paintEngine.PaintPaintablePlanes(paintablePlanes, buffer); err != nil {
 		log.PipelineLogger.Debug("PaintPaintablePlanes failed: %v", err)
 		return err
 	}
 
-	p.lastHitMap = layerMgr.GetMergedHitMap()
-	p.layerMgr = layerMgr
+	// Build HitMap from PaintablePlanes
+	p.lastHitMap = p.buildHitMapFromPaintablePlanes(paintablePlanes)
 
-	if p.lastHitMap != nil {
-		log.PipelineLogger.Debug("Merged HitMap: %d entries", p.lastHitMap.Size())
-	}
-
+	log.PipelineLogger.Debug("RenderLayers complete")
 	return nil
 }
 
-// applyLayerTransforms applies layer-specific transforms to a ComputedBox tree.
-// This includes Modal centering and Inspector positioning.
-// Mirrors the logic in layer/manager.go applyLayerTransforms.
-func (p *RenderingPipeline) applyLayerTransforms(root *compute.ComputedBox, constraints runtime.BoxConstraints) {
+// PaintableConverter is the interface for converting LayoutBox to PaintableBox
+type PaintableConverter interface {
+	ConvertToLayout(lbox *layout.LayoutBox) *paint.PaintableLayout
+}
+
+// applyLayerTransformsToPaintable applies layer-specific transforms to PaintableBox tree
+func (p *RenderingPipeline) applyLayerTransformsToPaintable(root *paint.PaintableBox, constraints layout.Constraints) {
 	if root == nil {
 		return
 	}
 
-	// Walk the ComputedBox tree and apply transforms based on Layer
-	var walk func(box *compute.ComputedBox)
-	walk = func(box *compute.ComputedBox) {
+	var walk func(box *paint.PaintableBox)
+	walk = func(box *paint.PaintableBox) {
 		if box == nil {
 			return
 		}
 
 		// Apply Modal centering
-		if box.Layer == rtui.LayerModal {
-			p.centerModalBox(box, constraints)
+		if box.Layer == int(types.LayerModal) {
+			p.centerPaintableModalBox(box, constraints)
 		}
 
 		// Recursively process children
@@ -294,15 +281,14 @@ func (p *RenderingPipeline) applyLayerTransforms(root *compute.ComputedBox, cons
 	walk(root)
 }
 
-// centerModalBox centers a Modal box in the viewport.
-// This shifts the entire box tree by (offsetX, offsetY).
-func (p *RenderingPipeline) centerModalBox(box *compute.ComputedBox, constraints runtime.BoxConstraints) {
+// centerPaintableModalBox centers a Modal PaintableBox in the viewport
+func (p *RenderingPipeline) centerPaintableModalBox(box *paint.PaintableBox, constraints layout.Constraints) {
 	if box == nil {
 		return
 	}
 
-	modalWidth := box.Box.Width
-	modalHeight := box.Box.Height
+	modalWidth := box.Width
+	modalHeight := box.Height
 	containerWidth := constraints.MaxWidth
 	containerHeight := constraints.MaxHeight
 
@@ -323,375 +309,98 @@ func (p *RenderingPipeline) centerModalBox(box *compute.ComputedBox, constraints
 		offsetY = 0
 	}
 
-	log.PipelineLogger.Debug("centerModalBox: modal=%dx%d container=%dx%d offset=(%d,%d)",
-		modalWidth, modalHeight, containerWidth, containerHeight, offsetX, offsetY)
-
-	// Shift the entire box tree
-	p.shiftBoxTree(box, offsetX, offsetY)
+	// Shift the modal box tree
+	p.shiftPaintableBoxTree(box, offsetX, offsetY)
 }
 
-// shiftBoxTree shifts all boxes in a ComputedBox tree by the given offset.
-func (p *RenderingPipeline) shiftBoxTree(box *compute.ComputedBox, offsetX, offsetY int) {
+// shiftPaintableBoxTree shifts all boxes in a PaintableBox tree by the given offset
+func (p *RenderingPipeline) shiftPaintableBoxTree(box *paint.PaintableBox, offsetX, offsetY int) {
 	if box == nil {
 		return
 	}
 
-	box.Box.X += offsetX
-	box.Box.Y += offsetY
-
-	for _, child := range box.Children {
-		p.shiftBoxTree(child, offsetX, offsetY)
+	var walk func(b *paint.PaintableBox)
+	walk = func(b *paint.PaintableBox) {
+		if b == nil {
+			return
+		}
+		b.X += offsetX
+		b.Y += offsetY
+		for _, child := range b.Children {
+			walk(child)
+		}
 	}
+
+	walk(box)
 }
 
-// applyModalCenteringToRenderPlanes applies centering transform to Modal layer boxes in RenderPlanes.
-// This is used for runtime/layout engine results where we have RenderPlanes but not the original ComputedBox tree.
-func (p *RenderingPipeline) applyModalCenteringToRenderPlanes(renderPlanes *layer.RenderPlanes, constraints runtime.BoxConstraints) {
-	if renderPlanes == nil {
-		return
-	}
+// buildPaintablePlanes builds PaintablePlanes from PaintableBox tree
+func (p *RenderingPipeline) buildPaintablePlanes(root *paint.PaintableBox) *paint.PaintablePlanes {
+	pp := paint.NewPaintablePlanes()
 
-	// Get all Modal layer boxes
-	modalBoxes := renderPlanes.GetLayer(rtui.LayerModal)
-	if len(modalBoxes) == 0 {
-		return
-	}
-
-	// Calculate container dimensions
-	containerWidth := constraints.MaxWidth
-	containerHeight := constraints.MaxHeight
-
-	// Apply centering to each modal box
-	for _, box := range modalBoxes {
-		if box == nil {
-			continue
-		}
-
-		modalWidth := box.Box.Width
-		modalHeight := box.Box.Height
-
-		if containerWidth == runtime.Infinity {
-			containerWidth = modalWidth
-		}
-		if containerHeight == runtime.Infinity {
-			containerHeight = modalHeight
-		}
-
-		offsetX := (containerWidth - modalWidth) / 2
-		offsetY := (containerHeight - modalHeight) / 2
-
-		if offsetX < 0 {
-			offsetX = 0
-		}
-		if offsetY < 0 {
-			offsetY = 0
-		}
-
-		log.PipelineLogger.Debug("applyModalCenteringToRenderPlanes: modal=%dx%d container=%dx%d offset=(%d,%d)",
-			modalWidth, modalHeight, containerWidth, containerHeight, offsetX, offsetY)
-
-		// Apply offset to this box and all its children
-		p.shiftBoxTree(box, offsetX, offsetY)
-	}
-}
-
-// applyModalCenteringToLayoutBox applies Modal centering to the layout.LayoutBox tree.
-// This is used for runtime/layout engine results.
-func (p *RenderingPipeline) applyModalCenteringToLayoutBox(result *layout.LayoutResult, constraints runtime.BoxConstraints) {
-	if result == nil || result.Root == nil {
-		return
-	}
-
-	// Walk the LayoutBox tree and apply centering to Modal layer nodes
-	var walk func(box *layout.LayoutBox)
-	walk = func(box *layout.LayoutBox) {
+	var walk func(box *paint.PaintableBox)
+	walk = func(box *paint.PaintableBox) {
 		if box == nil {
 			return
 		}
 
-		// Check if this box is on Modal layer
-		if box.Layer == layout.LayerModal {
-			// Calculate centering offset
-			containerWidth := constraints.MaxWidth
-			containerHeight := constraints.MaxHeight
+		pp.AddToLayer(paint.RenderLayer(box.Layer), box)
 
-			if containerWidth == runtime.Infinity {
-				containerWidth = box.Width
-			}
-			if containerHeight == runtime.Infinity {
-				containerHeight = box.Height
-			}
-
-			offsetX := (containerWidth - box.Width) / 2
-			offsetY := (containerHeight - box.Height) / 2
-
-			if offsetX < 0 {
-				offsetX = 0
-			}
-			if offsetY < 0 {
-				offsetY = 0
-			}
-
-			log.PipelineLogger.Debug("applyModalCenteringToLayoutBox: modal=%dx%d container=%dx%d offset=(%d,%d)",
-				box.Width, box.Height, containerWidth, containerHeight, offsetX, offsetY)
-
-			// Shift this box and all its children
-			p.shiftLayoutBoxTree(box, offsetX, offsetY)
-		} else {
-			// Only recurse if not a Modal box (Modal children are shifted with parent)
-			for _, child := range box.Children {
-				walk(child)
-			}
-		}
-	}
-
-	walk(result.Root)
-}
-
-// shiftLayoutBoxTree shifts a layout.LayoutBox and all its children by the given offset.
-func (p *RenderingPipeline) shiftLayoutBoxTree(box *layout.LayoutBox, offsetX, offsetY int) {
-	if box == nil {
-		return
-	}
-
-	box.X += offsetX
-	box.Y += offsetY
-
-	for _, child := range box.Children {
-		p.shiftLayoutBoxTree(child, offsetX, offsetY)
-	}
-}
-
-// convertLayoutBoxToComputedLayout converts a layout.LayoutResult to compute.ComputedLayout.
-// This is the key bridge between runtime/layout engine and PaintEngine.
-//
-// Fiber-First Architecture:
-// - LayoutBox contains position and Layer info
-// - ComputedBox needs VNode reference for PaintEngine
-// - We traverse Fiber tree in parallel with LayoutBox tree to match positions with VNodes
-func (p *RenderingPipeline) convertLayoutBoxToComputedLayout(
-	result *layout.LayoutResult,
-	fiber *reconciler.Fiber,
-	constraints runtime.BoxConstraints,
-) *compute.ComputedLayout {
-	if result == nil || result.Root == nil {
-		return nil
-	}
-
-	// Build a map from LayoutBox ID to LayoutBox for quick lookup
-	// The ID in LayoutBox comes from FiberToNodeAdapter.ID() which uses Fiber.DiffKey
-	boxMap := make(map[string]*layout.LayoutBox)
-	var collectBoxes func(box *layout.LayoutBox)
-	collectBoxes = func(box *layout.LayoutBox) {
-		if box == nil {
-			return
-		}
-		if box.ID != "" {
-			boxMap[box.ID] = box
-		}
-		for _, child := range box.Children {
-			collectBoxes(child)
-		}
-	}
-	collectBoxes(result.Root)
-
-	// Build a map from Fiber key to Fiber for matching
-	// We use multiple keys for matching:
-	// 1. DiffKey (primary)
-	// 2. Key (alias for DiffKey)
-	// 3. NodeID as string (for matching with LayoutBox.ID from FiberToNodeAdapter)
-	fiberMap := make(map[string]*reconciler.Fiber)
-	var collectFibers func(f *reconciler.Fiber)
-	collectFibers = func(f *reconciler.Fiber) {
-		if f == nil {
-			return
-		}
-		// Add by DiffKey
-		if f.DiffKey != "" {
-			fiberMap[f.DiffKey] = f
-		}
-		// Add by Key (if different from DiffKey)
-		if f.Key != "" && f.Key != f.DiffKey {
-			fiberMap[f.Key] = f
-		}
-		// Add by NodeID string (for matching with FiberToNodeAdapter.ID())
-		nodeIDKey := fmt.Sprintf("%d", f.NodeID)
-		fiberMap[nodeIDKey] = f
-		
-		// Recursively collect children
-		for child := f.Child; child != nil; child = child.Sibling {
-			collectFibers(child)
-		}
-	}
-	collectFibers(fiber)
-
-	// Convert LayoutBox tree to ComputedBox tree
-	rootBox := p.convertLayoutBoxToComputedBox(result.Root, fiber, boxMap, fiberMap, nil)
-
-	return compute.NewComputedLayout(rootBox)
-}
-
-// convertLayoutBoxToComputedBox converts a single LayoutBox to ComputedBox with VNode reference.
-func (p *RenderingPipeline) convertLayoutBoxToComputedBox(
-	lbox *layout.LayoutBox,
-	fiber *reconciler.Fiber,
-	boxMap map[string]*layout.LayoutBox,
-	fiberMap map[string]*reconciler.Fiber,
-	parent *compute.ComputedBox,
-) *compute.ComputedBox {
-	if lbox == nil {
-		return nil
-	}
-
-	// Convert layout.Layer to rtui.Layer
-	rtuiLayer := convertLayoutLayerToRTUI(lbox.Layer)
-
-	// Create ComputedBox with position from LayoutBox
-	cbox := &compute.ComputedBox{
-		Box: runtime.Box{
-			X:      lbox.X,
-			Y:      lbox.Y,
-			Width:   lbox.Width,
-			Height:  lbox.Height,
-		},
-		Layer:      rtuiLayer,
-		Parent:     parent,
-		Children:   make([]*compute.ComputedBox, 0),
-		LayoutDirty: false,
-	}
-
-	// Try to find the Fiber node by multiple matching strategies
-	// Strategy 1: Direct ID match (lbox.ID == fiber.DiffKey/Key)
-	// Strategy 2: NodeID match (lbox.ID == fmt.Sprintf("%d", fiber.NodeID))
-	var matchingFiber *reconciler.Fiber
-	
-	// First try direct ID match
-	if f, ok := fiberMap[lbox.ID]; ok {
-		matchingFiber = f
-	} else {
-		// Fallback: search by NodeID
-		// LayoutBox.ID may be NodeID format ("95") while fiberMap uses DiffKey
-		for _, f := range fiberMap {
-			if fmt.Sprintf("%d", f.NodeID) == lbox.ID {
-				matchingFiber = f
-				break
-			}
-		}
-	}
-
-	if matchingFiber != nil {
-		cbox.NodeID = matchingFiber.NodeID
-		cbox.DiffKey = matchingFiber.DiffKey // Fiber-first: copy DiffKey
-		cbox.ChildFiber = matchingFiber
-		// Wrap Fiber as VNode using FiberVNode (transitional approach)
-		// Fiber-first: VNode reference is not stored in Fiber, we wrap it
-		cbox.VNode = rtui.NewFiberVNode(matchingFiber)
-	}
-
-	// Convert children
-	for _, childLBox := range lbox.Children {
-		childCBox := p.convertLayoutBoxToComputedBox(childLBox, fiber, boxMap, fiberMap, cbox)
-		if childCBox != nil {
-			cbox.Children = append(cbox.Children, childCBox)
-		}
-	}
-
-	return cbox
-}
-
-// convertLayoutLayerToRTUI converts layout.Layer to rtui.Layer.
-// 由于两者现在都是 runtime.Layer 的别名，直接返回即可。
-func convertLayoutLayerToRTUI(l layout.Layer) rtui.Layer {
-	return rtui.Layer(l)
-}
-
-// =============================================================================
-// New Simplified Conversion: LayoutBox → PaintableBox
-// =============================================================================
-
-// convertLayoutBoxToPaintableLayout converts a layout.LayoutResult directly to PaintableLayout.
-// This is the NEW simplified path that bypasses ComputedBox entirely.
-//
-// Data Flow:
-//
-//	Fiber → LayoutBox → PaintableBox → Paint
-//	        (layout)    (paint)
-//
-// This method uses FiberToPaintableConverter for the conversion.
-func (p *RenderingPipeline) convertLayoutBoxToPaintableLayout(
-	result *layout.LayoutResult,
-	fiber *reconciler.Fiber,
-) *paint.PaintableLayout {
-	if result == nil || result.Root == nil {
-		return nil
-	}
-
-	// Create converter with Fiber index
-	converter := NewFiberToPaintableConverter(fiber)
-
-	// Convert LayoutBox tree to PaintableBox tree
-	return converter.ConvertToLayout(result.Root)
-}
-
-// buildHitMapFromLayoutResult builds an event.HitMap from layout.LayoutResult.
-func (p *RenderingPipeline) buildHitMapFromLayoutResult(result *layout.LayoutResult) *event.HitMap {
-	if result == nil {
-		return nil
-	}
-
-	var entries []event.HitMapEntryInternal
-
-	// Build HitMap from LayoutBox tree
-	var walk func(box *layout.LayoutBox)
-	walk = func(box *layout.LayoutBox) {
-		if box == nil {
-			return
-		}
-
-		// Add entry for this box if it has valid bounds
-		if box.Width > 0 && box.Height > 0 {
-			// Convert layout.Layer to rtui.Layer for ZOrder calculation
-			rtuiLayer := convertLayoutLayerToRTUI(box.Layer)
-			zOrder := int(rtuiLayer) * 1000 + box.ZIndex
-
-			entry := event.HitMapEntryInternal{
-				NodeID: event.StringToNodeID(box.ID),
-				Bounds: layout.Rect{
-					X:      box.X,
-					Y:      box.Y,
-					Width:  box.Width,
-					Height: box.Height,
-				},
-				ZOrder: zOrder,
-				LocalXY: func(screenX, screenY int) (int, int) {
-					return screenX - box.X, screenY - box.Y
-				},
-			}
-			entries = append(entries, entry)
-		}
-
-		// Recurse into children
 		for _, child := range box.Children {
 			walk(child)
 		}
 	}
 
-	walk(result.Root)
-
-	hitMap := event.BuildHitMapFromEntries(entries)
-
-	log.PipelineLogger.Debug("buildHitMapFromLayoutResult: Built HitMap with %d entries", hitMap.Size())
-
-	return hitMap
+	walk(root)
+	return pp
 }
 
-// HasModalChecks returns whether the rendering pipeline detected any modal content
-// This can be used to determine if events should be blocked
-// Phase 8: Accept fiber parameter for NodeID propagation consistency
-func (p *RenderingPipeline) HasModalChecks(vnode rtui.VNode, fiber *reconciler.Fiber, constraints runtime.BoxConstraints) bool {
-	layerMgr := layer.NewManager()
-	layerMgr.CollectAndLayout(vnode, fiber, constraints, p.layoutEngine)
-	return layerMgr.HasModal()
+// buildHitMapFromPaintablePlanes builds HitMap from PaintablePlanes
+func (p *RenderingPipeline) buildHitMapFromPaintablePlanes(pp *paint.PaintablePlanes) *event.HitMap {
+	if pp == nil || pp.CountBoxes() == 0 {
+		return nil
+	}
+
+	entries := make([]event.HitMapEntryInternal, 0)
+	zOrder := 0
+
+	// Iterate from highest to lowest layer for event handling
+	pp.IterateReverse(func(layer paint.RenderLayer, box *paint.PaintableBox) bool {
+		if box == nil || box.Node == nil {
+			return true
+		}
+
+		// Get NodeID from PaintableNode
+		nodeID := uint64(0)
+		if id := box.Node.ID(); id != "" {
+			nodeID = event.StringToNodeID(id)
+		}
+
+		// Create entry
+		entries = append(entries, event.HitMapEntryInternal{
+			NodeID: nodeID,
+			Node:   nil, // PaintableBox doesn't have direct LayoutNode access
+			Bounds: layout.Rect{
+				X:      box.X,
+				Y:      box.Y,
+				Width:  box.Width,
+				Height: box.Height,
+			},
+			LocalXY: func(screenX, screenY int) (int, int) {
+				return screenX - box.X, screenY - box.Y
+			},
+			ZOrder: zOrder,
+		})
+		zOrder++
+
+		return true
+	})
+
+	if len(entries) == 0 {
+		return nil
+	}
+
+	return event.BuildHitMapFromEntries(entries)
 }
 
 // GetHitMap returns the HitMap from the most recent RenderLayers call
@@ -699,11 +408,4 @@ func (p *RenderingPipeline) HasModalChecks(vnode rtui.VNode, fiber *reconciler.F
 // Returns nil if RenderLayers has not been called yet
 func (p *RenderingPipeline) GetHitMap() *event.HitMap {
 	return p.lastHitMap
-}
-
-// GetLayerMgr returns the LayerManager from the most recent RenderLayers call
-// This LayerManager contains modal nodes for event distribution
-// Returns nil if RenderLayers has not been called yet
-func (p *RenderingPipeline) GetLayerMgr() *layer.Manager {
-	return p.layerMgr
 }
