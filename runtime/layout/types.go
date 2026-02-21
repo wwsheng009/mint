@@ -612,11 +612,110 @@ func (e *Engine) layoutNodeWithDepth(node Node, constraints Constraints, x, y in
 		}
 	}
 
+	// 检查节点是否实现了 GridStyleProvider 接口
+	// 如果是，使用 GridLayout 进行子节点布局
+	if gridProvider, ok := node.(GridStyleProvider); ok {
+		gridStyle := gridProvider.GetGridStyle()
+		if gridStyle != nil && (len(gridStyle.Cells) > 0 || len(node.Children()) > 0) {
+			// 使用 GridLayout 进行布局
+			grid := NewGridLayout(node.ID(), gridStyle)
+			grid.SetChildren(node.Children())
+
+			// 布局子节点
+			childBoxes := grid.LayoutChildren(width, height)
+			for i, childBox := range childBoxes {
+				// 递归布局子节点的子节点
+				// 需要找到对应的 child 节点
+				var child Node
+				if len(gridStyle.Cells) > 0 && i < len(gridStyle.Cells) {
+					child = gridStyle.Cells[i].Child
+				} else if i < len(node.Children()) {
+					child = node.Children()[i]
+				}
+				if child != nil {
+					childX := x + childBox.X + borderOffsetX
+					childY := y + childBox.Y + borderOffsetY
+					subBox := e.layoutNodeWithDepth(child, constraints, childX, childY, depth+1, visited)
+					if subBox != nil {
+						subBox.X = childX
+						subBox.Y = childY
+						box.Children = append(box.Children, subBox)
+					}
+				}
+			}
+			return box
+		}
+	}
+
+	// 检查节点是否实现了 AbsoluteStyleProvider 接口
+	// 如果是，使用绝对定位进行子节点布局
+	if absProvider, ok := node.(AbsoluteStyleProvider); ok {
+		absStyle := absProvider.GetAbsoluteStyle()
+		if absStyle != nil {
+			// 绝对定位容器：子元素相对于容器定位
+			// 使用 absolute 节点的尺寸作为容器尺寸
+			// 如果尺寸为 0，使用约束的最大值
+			containerWidth := width
+			containerHeight := height
+			if containerWidth <= 0 {
+				containerWidth = constraints.MaxWidth
+			}
+			if containerHeight <= 0 {
+				containerHeight = constraints.MaxHeight
+			}
+			for _, child := range node.Children() {
+				// 获取子元素尺寸
+				childWidth, childHeight := child.GetSize()
+
+				// 如果子元素实现了 Measurable，测量其尺寸
+				if measurable, ok := child.(Measurable); ok {
+					childConstraints := Constraints{
+						MinWidth:  0,
+						MaxWidth:  containerWidth,
+						MinHeight: 0,
+						MaxHeight: containerHeight,
+					}
+					size := measurable.Measure(childConstraints)
+					childWidth = size.Width
+					childHeight = size.Height
+				}
+
+				// 使用 AbsoluteStyle 计算子元素位置
+				childX, childY := absStyle.CalculatePosition(containerWidth, containerHeight, childWidth, childHeight)
+
+				// 递归布局子节点
+				subBox := e.layoutNodeWithDepth(child, constraints, x+childX+borderOffsetX, y+childY+borderOffsetY, depth+1, visited)
+				if subBox != nil {
+					subBox.X = x + childX + borderOffsetX
+					subBox.Y = y + childY + borderOffsetY
+					box.Children = append(box.Children, subBox)
+				}
+			}
+			return box
+		}
+	}
+
 	// 默认布局：递归布局子节点（垂直方向），考虑边框偏移
 	childX := x + borderOffsetX
 	childY := y + borderOffsetY
+	// 为子节点创建新的约束，使用节点的实际尺寸减去边框偏移
+	// 这样 absolute 子节点可以使用正确的内容区域尺寸
+	childConstraints := constraints
+	if width > 0 && height > 0 {
+		// 计算内容区域尺寸
+		contentWidth := width - 2*borderOffsetX
+		contentHeight := height - 2*borderOffsetY
+		if contentWidth > 0 && contentHeight > 0 {
+			childConstraints = Constraints{
+				MinWidth:  0,
+				MaxWidth:  min(constraints.MaxWidth, contentWidth),
+				MinHeight: 0,
+				MaxHeight: min(constraints.MaxHeight, contentHeight),
+			}
+		}
+	}
 	for _, child := range node.Children() {
-		childBox := e.layoutNodeWithDepth(child, constraints, childX, childY, depth+1, visited)
+		childBox := e.layoutNodeWithDepth(child, childConstraints, childX, childY, depth+1, visited)
 		if childBox != nil {
 			box.Children = append(box.Children, childBox)
 			childY += childBox.Height

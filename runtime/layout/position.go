@@ -33,6 +33,58 @@ func (p PositionType) String() string {
 	}
 }
 
+// =============================================================================
+// Anchor Types
+// =============================================================================
+
+// Anchor defines how a positioned element aligns to its position
+type Anchor int
+
+const (
+	// AnchorTopLeft element's top-left corner at position (default)
+	AnchorTopLeft Anchor = iota
+	// AnchorTop element's top-center at position
+	AnchorTop
+	// AnchorTopRight element's top-right corner at position
+	AnchorTopRight
+	// AnchorLeft element's center-left at position
+	AnchorLeft
+	// AnchorCenter element's center at position
+	AnchorCenter
+	// AnchorRight element's center-right at position
+	AnchorRight
+	// AnchorBottomLeft element's bottom-left corner at position
+	AnchorBottomLeft
+	// AnchorBottom element's bottom-center at position
+	AnchorBottom
+	// AnchorBottomRight element's bottom-right corner at position
+	AnchorBottomRight
+)
+
+// =============================================================================
+// Position Value Types (for percentage support)
+// =============================================================================
+
+// PositionValue represents either absolute or relative (percentage) position
+type PositionValue interface {
+	isPositionValue()
+	Resolve(containerSize int) int
+}
+
+// AbsolutePos is an absolute position in cells
+type AbsolutePos int
+
+func (p AbsolutePos) isPositionValue() {}
+func (p AbsolutePos) Resolve(_ int) int { return int(p) }
+
+// RelativePos is a relative position as percentage (0-100)
+type RelativePos int
+
+func (p RelativePos) isPositionValue() {}
+func (p RelativePos) Resolve(containerSize int) int {
+	return containerSize * int(p) / 100
+}
+
 // Position defines absolute positioning properties
 // For absolute positioning, offsets specify distance from edges of containing block
 type Position struct {
@@ -224,4 +276,250 @@ func GetPositionFromNode(node Node) Position {
 		return NewRelativePosition()
 	}
 	return getPositionType(node)
+}
+
+// =============================================================================
+// Absolute Style (for new absolute positioning)
+// =============================================================================
+
+// AbsoluteStyle defines absolute positioning style
+type AbsoluteStyle struct {
+	// Left position (absolute or percentage)
+	Left PositionValue
+
+	// Top position (absolute or percentage)
+	Top PositionValue
+
+	// Right position (absolute or percentage)
+	Right PositionValue
+
+	// Bottom position (absolute or percentage)
+	Bottom PositionValue
+
+	// Anchor alignment point
+	Anchor Anchor
+
+	// Width explicit width (0 = auto)
+	Width int
+
+	// Height explicit height (0 = auto)
+	Height int
+
+	// ZIndex stacking order
+	ZIndex int
+}
+
+// AbsoluteStyleProvider defines the interface for absolute positioned nodes
+type AbsoluteStyleProvider interface {
+	Node
+
+	// GetAbsoluteStyle returns the absolute positioning style
+	GetAbsoluteStyle() *AbsoluteStyle
+}
+
+// NewAbsoluteStyle creates default absolute style
+func NewAbsoluteStyle() *AbsoluteStyle {
+	return &AbsoluteStyle{
+		Anchor: AnchorTopLeft,
+	}
+}
+
+// CalculatePosition calculates absolute position based on container size
+func (s *AbsoluteStyle) CalculatePosition(containerWidth, containerHeight, nodeWidth, nodeHeight int) (x, y int) {
+	x = 0
+	y = 0
+
+	// Calculate X position
+	if s.Left != nil {
+		x = s.Left.Resolve(containerWidth)
+	} else if s.Right != nil {
+		rightPos := s.Right.Resolve(containerWidth)
+		x = containerWidth - rightPos - nodeWidth
+	}
+
+	// Calculate Y position
+	if s.Top != nil {
+		y = s.Top.Resolve(containerHeight)
+	} else if s.Bottom != nil {
+		bottomPos := s.Bottom.Resolve(containerHeight)
+		y = containerHeight - bottomPos - nodeHeight
+	}
+
+	// Apply anchor adjustment
+	w := nodeWidth
+	if s.Width > 0 {
+		w = s.Width
+	}
+	h := nodeHeight
+	if s.Height > 0 {
+		h = s.Height
+	}
+
+	switch s.Anchor {
+	case AnchorTopLeft:
+		// No adjustment
+	case AnchorTop:
+		x = x - w/2
+	case AnchorTopRight:
+		x = x - w
+	case AnchorLeft:
+		y = y - h/2
+	case AnchorCenter:
+		x = x - w/2
+		y = y - h/2
+	case AnchorRight:
+		x = x - w
+		y = y - h/2
+	case AnchorBottomLeft:
+		y = y - h
+	case AnchorBottom:
+		x = x - w/2
+		y = y - h
+	case AnchorBottomRight:
+		x = x - w
+		y = y - h
+	}
+
+	return x, y
+}
+
+// =============================================================================
+// Absolute Layout Implementation
+// =============================================================================
+
+// AbsoluteLayout handles absolute positioned children
+type AbsoluteLayout struct {
+	id       string
+	children []Node
+	styles   []*AbsoluteStyle
+	size     Size
+	position Point
+}
+
+// NewAbsoluteLayout creates a new absolute layout container
+func NewAbsoluteLayout(id string) *AbsoluteLayout {
+	return &AbsoluteLayout{
+		id:     id,
+		styles: make([]*AbsoluteStyle, 0),
+	}
+}
+
+// SetChildren sets children with their absolute styles
+func (a *AbsoluteLayout) SetChildren(children []Node, styles []*AbsoluteStyle) {
+	a.children = children
+	a.styles = styles
+}
+
+// ID returns the node identifier
+func (a *AbsoluteLayout) ID() string {
+	return a.id
+}
+
+// Type returns the node type
+func (a *AbsoluteLayout) Type() string {
+	return "absolute"
+}
+
+// Children returns child nodes
+func (a *AbsoluteLayout) Children() []Node {
+	return a.children
+}
+
+// GetPosition returns the current position
+func (a *AbsoluteLayout) GetPosition() (int, int) {
+	return a.position.X, a.position.Y
+}
+
+// SetPosition sets the position
+func (a *AbsoluteLayout) SetPosition(x, y int) {
+	a.position.X = x
+	a.position.Y = y
+}
+
+// GetSize returns the current size
+func (a *AbsoluteLayout) GetSize() (int, int) {
+	return a.size.Width, a.size.Height
+}
+
+// SetSize sets the size
+func (a *AbsoluteLayout) SetSize(width, height int) {
+	a.size.Width = width
+	a.size.Height = height
+}
+
+// GetWidth returns the width
+func (a *AbsoluteLayout) GetWidth() int {
+	return a.size.Width
+}
+
+// GetHeight returns the height
+func (a *AbsoluteLayout) GetHeight() int {
+	return a.size.Height
+}
+
+// Measure measures the layout (returns container size, children are absolute)
+func (a *AbsoluteLayout) Measure(constraints Constraints) Size {
+	// Absolute positioned children don't affect container size
+	// Return minimum size or explicit size
+	width := constraints.ConstrainWidth(0)
+	height := constraints.ConstrainHeight(0)
+	return Size{Width: width, Height: height}
+}
+
+// LayoutChildren positions absolute children and returns their LayoutBoxes
+func (a *AbsoluteLayout) LayoutChildren(containerWidth, containerHeight int) []LayoutBox {
+	if len(a.children) == 0 {
+		return nil
+	}
+
+	boxes := make([]LayoutBox, len(a.children))
+
+	for i, child := range a.children {
+		if child == nil {
+			continue
+		}
+
+		// Get style for this child
+		var style *AbsoluteStyle
+		if i < len(a.styles) && a.styles[i] != nil {
+			style = a.styles[i]
+		} else {
+			style = NewAbsoluteStyle()
+		}
+
+		// Measure child
+		var childW, childH int
+		if measurable, ok := child.(Measurable); ok {
+			size := measurable.Measure(UnboundedConstraints())
+			childW = size.Width
+			childH = size.Height
+		} else {
+			childW, childH = child.GetSize()
+		}
+
+		// Use explicit size if set
+		if style.Width > 0 {
+			childW = style.Width
+		}
+		if style.Height > 0 {
+			childH = style.Height
+		}
+
+		// Calculate position
+		x, y := style.CalculatePosition(containerWidth, containerHeight, childW, childH)
+
+		boxes[i] = LayoutBox{
+			ID:     child.ID(),
+			X:      x,
+			Y:      y,
+			Width:  childW,
+			Height: childH,
+			ZIndex: style.ZIndex,
+		}
+
+		child.SetPosition(x, y)
+		child.SetSize(childW, childH)
+	}
+
+	return boxes
 }
