@@ -2,69 +2,26 @@
 // These types are shared between the UI layer and the internal reconciler.
 package ui
 
-import "github.com/wwsheng009/mint/runtime/style"
-
-// =============================================================================
-// Layer Type
-// =============================================================================
-
-// Layer represents a visual rendering layer for overlay components
-type Layer int
-
-const (
-	// LayerBase is the default layer for normal UI content
-	LayerBase Layer = iota
-
-	// LayerOverlay is for dropdown menus, popovers, and similar components
-	LayerOverlay
-
-	// LayerModal is for modal dialogs that require user attention
-	LayerModal
-
-	// LayerTooltip is for tooltips and hints
-	LayerTooltip
-
-	// LayerInspector is for the UI Inspector debugging overlay
-	LayerInspector
+import (
+	"github.com/wwsheng009/mint/runtime/style"
+	"github.com/wwsheng009/mint/runtime/types"
 )
 
-// String returns the string representation of the layer
-func (l Layer) String() string {
-	switch l {
-	case LayerBase:
-		return "base"
-	case LayerOverlay:
-		return "overlay"
-	case LayerModal:
-		return "modal"
-	case LayerTooltip:
-		return "tooltip"
-	case LayerInspector:
-		return "inspector"
-	default:
-		return "unknown"
-	}
-}
+// =============================================================================
+// Layer Type - 使用 types.Layer 统一类型
+// =============================================================================
 
-// ZIndex returns the z-index value for this layer (higher = rendered on top)
-func (l Layer) ZIndex() int {
-	return int(l)
-}
+// Layer 是 types.Layer 的类型别名，保持向后兼容
+type Layer = types.Layer
 
-// IsValid checks if the layer value is valid
-func (l Layer) IsValid() bool {
-	return l >= LayerBase && l <= LayerInspector
-}
-
-// IsModal checks if this layer is the modal layer
-func (l Layer) IsModal() bool {
-	return l == LayerModal
-}
-
-// IsOverlay checks if this layer is any overlay type (Overlay, Modal, or Tooltip)
-func (l Layer) IsOverlay() bool {
-	return l >= LayerOverlay
-}
+// 层级常量 - 引用 types 包的统一常量
+const (
+	LayerBase      = types.LayerBase
+	LayerOverlay   = types.LayerOverlay
+	LayerModal     = types.LayerModal
+	LayerTooltip   = types.LayerTooltip
+	LayerInspector = types.LayerInspector
+)
 
 // =============================================================================
 // VNode Interface

@@ -621,23 +621,12 @@ func (a *FiberToNodeAdapter) GetTextContent() string {
 }
 
 // GetLayer returns the layer from Fiber
+// 由于 rtui.Layer 和 layout.Layer 都是 runtime.Layer 的别名，直接返回
 func (a *FiberToNodeAdapter) GetLayer() layout.Layer {
 	if a.fiber == nil {
 		return layout.LayerBase
 	}
-
-	switch a.fiber.Layer {
-	case rtui.LayerBase:
-		return layout.LayerBase
-	case rtui.LayerOverlay:
-		return layout.LayerDropdown
-	case rtui.LayerModal:
-		return layout.LayerModal
-	case rtui.LayerTooltip:
-		return layout.LayerTooltip
-	default:
-		return layout.LayerBase
-	}
+	return layout.Layer(a.fiber.Layer)
 }
 
 // GetZIndex returns the z-index from Fiber

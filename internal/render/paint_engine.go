@@ -411,10 +411,128 @@ func (e *PaintEngine) clearRegion(bounds runtime.Box, buffer *paint.Buffer) {
 }
 
 // =============================================================================
-// Multi-Layer Rendering
+// Multi-Layer Rendering (New API - PaintableBox based)
+// =============================================================================
+
+// PaintPaintableLayouts renders multiple PaintableLayouts in order (from lowest to highest).
+// This is the new decoupled API that operates on paint.PaintableLayouts.
+func (e *PaintEngine) PaintPaintableLayouts(
+	layouts paint.PaintableLayouts,
+	buffer *paint.Buffer,
+) error {
+	_, hasModal := layouts[paint.RenderLayerModal]
+	hadModal := e.lastHadModal
+
+	if hasModal != hadModal {
+		e.forceFullRender = true
+	}
+	e.lastHadModal = hasModal
+
+	renderOrder := []paint.RenderLayer{
+		paint.RenderLayerBase,
+		paint.RenderLayerOverlay,
+		paint.RenderLayerModal,
+		paint.RenderLayerTooltip,
+		paint.RenderLayerInspector,
+	}
+
+	for _, l := range renderOrder {
+		hasLayer := false
+		var currentBounds runtime.Box = runtime.Box{}
+		if layout, ok := layouts[l]; ok && layout.Root != nil {
+			hasLayer = true
+			currentBounds = runtime.Box{
+				X:      layout.Root.X,
+				Y:      layout.Root.Y,
+				Width:  layout.Root.Width,
+				Height: layout.Root.Height,
+			}
+		}
+		hadLayer := e.lastLayersPresent[rtui.Layer(l)]
+		prevBounds := e.lastLayerBounds[rtui.Layer(l)]
+
+		if hadLayer && !hasLayer {
+			log.PaintLogger.Debug("[PaintPaintableLayouts] Layer %s disappeared, clearing region", l.String())
+			e.clearRegion(prevBounds, buffer)
+			e.forceFullRender = true
+		}
+
+		if hasLayer && hadLayer && currentBounds != prevBounds {
+			e.forceFullRender = true
+		}
+
+		e.lastLayersPresent[rtui.Layer(l)] = hasLayer
+		if hasLayer {
+			e.lastLayerBounds[rtui.Layer(l)] = currentBounds
+		} else {
+			delete(e.lastLayerBounds, rtui.Layer(l))
+		}
+	}
+
+	for _, l := range renderOrder {
+		layout, ok := layouts[l]
+		if !ok || layout.Root == nil {
+			continue
+		}
+
+		if e.debug {
+			log.PaintLogger.Debug("[PaintPaintableLayouts] Rendering layer: %s", l.String())
+		}
+
+		if err := e.PaintLayout(layout, buffer); err != nil {
+			return fmt.Errorf("error painting layer %s: %w", l.String(), err)
+		}
+
+		if l == paint.RenderLayerModal {
+			e.paintModalBackdropBox(layout.Root, buffer)
+		}
+	}
+
+	return nil
+}
+
+// PaintPaintablePlanes paints PaintablePlanes to buffer directly.
+// This is the new decoupled API that operates on paint.PaintablePlanes.
+func (e *PaintEngine) PaintPaintablePlanes(
+	planes *paint.PaintablePlanes,
+	buffer *paint.Buffer,
+) error {
+	if planes == nil {
+		return nil
+	}
+
+	log.PaintLogger.Debug("[PaintEngine.PaintPaintablePlanes] START: boxes=%d", planes.CountBoxes())
+
+	for _, layer := range planes.GetRenderOrder() {
+		boxes := planes.GetLayer(layer)
+		if boxes == nil || len(boxes) == 0 {
+			continue
+		}
+
+		log.PaintLogger.Debug("[PaintEngine.PaintPaintablePlanes] Layer %s: %d boxes", layer.String(), len(boxes))
+
+		for _, box := range boxes {
+			layout := paint.NewPaintableLayout(box)
+			if err := e.PaintLayout(layout, buffer); err != nil {
+				return fmt.Errorf("error painting box in layer %s: %w", layer.String(), err)
+			}
+		}
+
+		if layer == paint.RenderLayerModal && len(boxes) > 0 {
+			e.paintModalBackdropBox(boxes[0], buffer)
+		}
+	}
+
+	log.PaintLogger.Debug("[PaintEngine.PaintPaintablePlanes] END")
+	return nil
+}
+
+// =============================================================================
+// Multi-Layer Rendering (Legacy API - ComputedBox based)
 // =============================================================================
 
 // PaintLayers renders multiple layers in order (from lowest to highest)
+// Deprecated: Use PaintPaintableLayouts for decoupled API
 func (e *PaintEngine) PaintLayers(
 	layouts layer.LayerLayouts,
 	buffer *paint.Buffer,

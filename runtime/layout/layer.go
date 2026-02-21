@@ -1,79 +1,25 @@
 // Package layout provides layer types for multi-layer rendering support
 package layout
 
-// =============================================================================
-// Layer Types
-// =============================================================================
-
-// Layer defines the rendering layer for a node
-// Higher layers are rendered on top of lower layers
-type Layer int
-
-const (
-	// LayerBase is the default layer for normal content
-	LayerBase Layer = iota
-
-	// LayerDropdown is for dropdown menus
-	LayerDropdown
-
-	// LayerSticky is for sticky positioned elements
-	LayerSticky
-
-	// LayerFixed is for fixed positioned elements
-	LayerFixed
-
-	// LayerModalBackdrop is for modal backdrop/overlay
-	LayerModalBackdrop
-
-	// LayerModal is for modal dialogs
-	LayerModal
-
-	// LayerPopover is for popover elements
-	LayerPopover
-
-	// LayerTooltip is for tooltips (highest layer)
-	LayerTooltip
+import (
+	"github.com/wwsheng009/mint/runtime/types"
 )
 
-// String returns the string representation of Layer
-func (l Layer) String() string {
-	switch l {
-	case LayerBase:
-		return "base"
-	case LayerDropdown:
-		return "dropdown"
-	case LayerSticky:
-		return "sticky"
-	case LayerFixed:
-		return "fixed"
-	case LayerModalBackdrop:
-		return "modalBackdrop"
-	case LayerModal:
-		return "modal"
-	case LayerPopover:
-		return "popover"
-	case LayerTooltip:
-		return "tooltip"
-	default:
-		return "unknown"
-	}
-}
+// =============================================================================
+// Layer Type - 使用 types.Layer 统一类型
+// =============================================================================
 
-// ZIndex returns the default z-index for this layer
-func (l Layer) ZIndex() int {
-	// Each layer gets a 1000-unit range
-	return int(l) * 1000
-}
+// Layer 是 types.Layer 的类型别名，保持向后兼容
+type Layer = types.Layer
 
-// IsHigher returns true if this layer is higher than the other
-func (l Layer) IsHigher(other Layer) bool {
-	return l > other
-}
-
-// IsLower returns true if this layer is lower than the other
-func (l Layer) IsLower(other Layer) bool {
-	return l < other
-}
+// 层级常量 - 引用 types 包的统一常量
+const (
+	LayerBase      = types.LayerBase
+	LayerOverlay   = types.LayerOverlay
+	LayerModal     = types.LayerModal
+	LayerTooltip   = types.LayerTooltip
+	LayerInspector = types.LayerInspector
+)
 
 // =============================================================================
 // Layered Interface
@@ -235,9 +181,9 @@ func (r *LayeredLayoutResult) GetLayers() []Layer {
 func (r *LayeredLayoutResult) SortByZIndex() []*LayoutBox {
 	// Create a flat list sorted by layer then z-index
 	result := make([]*LayoutBox, 0)
-	
-	// Process layers in order
-	for layer := LayerBase; layer <= LayerTooltip; layer++ {
+
+	// Process layers in order (LayerBase to LayerInspector)
+	for layer := LayerBase; layer <= LayerInspector; layer++ {
 		boxes := r.Layers[layer]
 		// Sort boxes within layer by z-index (simple insertion sort for small lists)
 		for i := 1; i < len(boxes); i++ {
@@ -249,7 +195,7 @@ func (r *LayeredLayoutResult) SortByZIndex() []*LayoutBox {
 		}
 		result = append(result, boxes...)
 	}
-	
+
 	return result
 }
 
@@ -322,20 +268,17 @@ func ParseLayer(s string) Layer {
 	switch s {
 	case "base", "":
 		return LayerBase
-	case "dropdown":
-		return LayerDropdown
-	case "sticky":
-		return LayerSticky
-	case "fixed":
-		return LayerFixed
-	case "modalBackdrop", "modal-backdrop":
-		return LayerModalBackdrop
-	case "modal":
+	case "overlay", "dropdown", "sticky", "fixed":
+		// dropdown, sticky, fixed 映射到 overlay
+		return LayerOverlay
+	case "modal", "modalBackdrop", "modal-backdrop":
+		// modalBackdrop 映射到 modal
 		return LayerModal
-	case "popover":
-		return LayerPopover
-	case "tooltip":
+	case "tooltip", "popover":
+		// popover 映射到 tooltip
 		return LayerTooltip
+	case "inspector":
+		return LayerInspector
 	default:
 		return LayerBase
 	}

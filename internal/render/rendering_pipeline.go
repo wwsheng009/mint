@@ -599,19 +599,9 @@ func (p *RenderingPipeline) convertLayoutBoxToComputedBox(
 }
 
 // convertLayoutLayerToRTUI converts layout.Layer to rtui.Layer.
+// 由于两者现在都是 runtime.Layer 的别名，直接返回即可。
 func convertLayoutLayerToRTUI(l layout.Layer) rtui.Layer {
-	switch l {
-	case layout.LayerBase:
-		return rtui.LayerBase
-	case layout.LayerDropdown, layout.LayerSticky, layout.LayerFixed:
-		return rtui.LayerOverlay
-	case layout.LayerModalBackdrop, layout.LayerModal:
-		return rtui.LayerModal
-	case layout.LayerPopover, layout.LayerTooltip:
-		return rtui.LayerTooltip
-	default:
-		return rtui.LayerBase
-	}
+	return rtui.Layer(l)
 }
 
 // =============================================================================

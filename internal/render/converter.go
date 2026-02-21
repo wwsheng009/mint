@@ -279,19 +279,10 @@ func (n *FiberPaintableNode) Paint(x, y int) []paint.DrawCmd {
 // Helper Functions
 // =============================================================================
 
+// convertLayoutLayerToInt 将 layout.Layer 转换为 int。
+// 由于 layout.Layer 现在是 runtime.Layer 的别名，直接返回 int 值即可。
 func convertLayoutLayerToInt(l layout.Layer) int {
-	switch l {
-	case layout.LayerBase:
-		return 0
-	case layout.LayerDropdown, layout.LayerSticky, layout.LayerFixed:
-		return 1
-	case layout.LayerModalBackdrop, layout.LayerModal:
-		return 2
-	case layout.LayerPopover, layout.LayerTooltip:
-		return 3
-	default:
-		return 0
-	}
+	return int(l)
 }
 
 func getBorderStyleFromProps(props rtui.Props) paint.BorderStyle {
