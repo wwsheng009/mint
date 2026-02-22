@@ -135,9 +135,9 @@ func TestDeclarativeNode_GetRenderer(t *testing.T) {
 			t.Fatal("GetRenderer() should not return nil")
 		}
 
-		_, ok := renderer.(*NonFiberRenderer)
+		_, ok := renderer.(*PipelineRendererAdapter)
 		if !ok {
-			t.Errorf("Expected *NonFiberRenderer in non-Fiber mode, got %T", renderer)
+			t.Errorf("Expected *PipelineRendererAdapter in non-Fiber mode, got %T", renderer)
 		}
 	})
 }

@@ -432,9 +432,9 @@ func TestDeclarativeNode_GetRenderer_Method(t *testing.T) {
 			t.Fatal("GetRenderer() should not return nil")
 		}
 
-		_, ok := renderer.(*NonFiberRenderer)
+		_, ok := renderer.(*PipelineRendererAdapter)
 		if !ok {
-			t.Errorf("Expected *NonFiberRenderer, got %T", renderer)
+			t.Errorf("Expected *PipelineRendererAdapter, got %T", renderer)
 		}
 	})
 
@@ -450,9 +450,9 @@ func TestDeclarativeNode_GetRenderer_Method(t *testing.T) {
 			t.Fatal("GetRenderer() should not return nil")
 		}
 
-		_, ok := renderer.(*FiberRenderer)
+		_, ok := renderer.(*PipelineRendererAdapter)
 		if !ok {
-			t.Errorf("Expected *FiberRenderer, got %T", renderer)
+			t.Errorf("Expected *PipelineRendererAdapter, got %T", renderer)
 		}
 	})
 }

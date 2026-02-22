@@ -1,6 +1,7 @@
 package paint
 
 import (
+	"bytes"
 	"strings"
 
 	"github.com/rivo/uniseg"
@@ -399,6 +400,138 @@ func (b *Buffer) String() string {
 	}
 
 	return strings.Join(lines, "\r\n")
+}
+
+// =============================================================================
+// Optimized Rendering Methods
+// =============================================================================
+
+// run represents a sequence of identical styles for optimization
+type run struct {
+	text  string
+	style style.Style
+	start int
+	width int
+}
+
+// StringOptimized returns the buffer as an optimized string with ANSI codes.
+// This version uses run-merging and style state machine to reduce output size.
+// Significant performance improvement for buffers with large continuous regions.
+func (b *Buffer) StringOptimized() string {
+	w, h := b.Width, b.Height
+	if h == 0 {
+		return ""
+	}
+
+	var output bytes.Buffer
+	styleMachine := NewStyleStateMachine()
+
+	for y := 0; y < h; y++ {
+		// Line tracking for newline handling
+		hasContent := false
+
+		// Emit runs with merge optimization
+		runs := b.encodeRuns(y, w)
+		for _, run := range runs {
+			hasContent = true
+			b.emitRunOptimized(&output, styleMachine, run)
+		}
+
+		// Add newline at end of each line
+		if hasContent {
+			output.WriteString("\r\n")
+		}
+	}
+
+	// Reset final style
+	output.WriteString("\x1b[0m")
+
+	return output.String()
+}
+
+// encodeRuns encodes a buffer row into runs of identical styles
+func (b *Buffer) encodeRuns(y int, width int) []run {
+	if y >= len(b.Cells) {
+		return nil
+	}
+
+	var runs []run
+	x := 0
+
+	for x < width {
+		cell := b.Cells[y][x]
+
+		// Skip continuation cells
+		if cell.IsContinuation {
+			x++
+			continue
+		}
+
+		// Start a new run
+		startX := x
+		runText := ""
+		runStyle := cell.Style
+
+		// Build the run
+		if cell.Cluster == "" || cell.Cluster == "\x00" {
+			runText = " "
+		} else {
+			runText = cell.Cluster
+		}
+
+		// Check if we should merge with next cells
+		for {
+			x++
+			if x >= width {
+				break
+			}
+
+			nextCell := b.Cells[y][x]
+
+			// Stop on continuation cells
+			if nextCell.IsContinuation {
+				break
+			}
+
+			// Stop if style differs
+			if nextCell.Style != runStyle {
+				break
+			}
+
+			// Add to run text
+			if nextCell.Cluster == "" || nextCell.Cluster == "\x00" {
+				runText += " "
+			} else {
+				runText += nextCell.Cluster
+			}
+		}
+
+		// Calculate run width for display
+		runWidth := StringWidth(runText)
+
+		runs = append(runs, run{
+			text:  runText,
+			style: runStyle,
+			start: startX,
+			width: runWidth,
+		})
+	}
+
+	return runs
+}
+
+// emitRunOptimized emits a run with style state machine optimization
+func (b *Buffer) emitRunOptimized(out *bytes.Buffer, styleMachine *StyleStateMachine, run run) {
+	// Set style only if it changed
+	if styleMachine.NeedsUpdate(run.style) {
+		out.WriteString(styleMachine.Update(run.style))
+	}
+
+	// Skip selected handling in optimized version for performance
+	// (selection is typically handled by Renderer with dirty tracking)
+
+	// Output text
+	out.WriteString(run.text)
 }
 
 // SetSelected sets the Selected flag for a cell at the given position.

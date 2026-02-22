@@ -5,8 +5,10 @@ import (
 	"fmt"
 
 	"github.com/wwsheng009/mint/internal/log"
+	cachepkg "github.com/wwsheng009/mint/internal/render/cache"
 	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/border"
+	"github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
@@ -21,6 +23,12 @@ type PaintEngine struct {
 	parentBackground map[*paint.PaintableBox]style.Color // Track parent background for inheritance
 	lastLayersPresent map[rtui.Layer]bool               // Track which layers were present in last frame
 	lastLayerBounds  map[rtui.Layer]runtime.Box         // Track last bounds of each layer for cleanup
+
+	// Performance optimization: Paint cache
+	cache        *cachepkg.PaintCache // Cache for rendered paintable boxes
+	enableCache  bool                 // Enable cache (true by default)
+	version      int                  // Current render version (for cache invalidation)
+	paintContext *cachepkg.PaintingContext // Context for cache-aware painting
 }
 
 // NewPaintEngine creates a new paint engine
@@ -29,7 +37,45 @@ func NewPaintEngine() *PaintEngine {
 		debug:             log.PaintLogger.Enabled(),
 		lastLayersPresent: make(map[rtui.Layer]bool),
 		lastLayerBounds:   make(map[rtui.Layer]runtime.Box),
+		enableCache:       true,
+		version:           0,
 	}
+}
+
+// InitCache initializes the paint cache with the given buffer
+func (e *PaintEngine) InitCache(buffer *paint.Buffer) {
+	if !e.enableCache {
+		return
+	}
+	if e.cache == nil {
+		e.cache = cachepkg.NewPaintCache()
+	}
+	e.version++
+	e.paintContext = cachepkg.NewPaintingContext(e.cache, buffer, e.version)
+}
+
+// EnableCache enables or disables the paint cache
+func (e *PaintEngine) EnableCache(enable bool) {
+	e.enableCache = enable
+	if !enable && e.cache != nil {
+		// Clear cache when disabling
+		e.cache.Clear()
+	}
+}
+
+// InvalidateCache invalidates all cached entries
+func (e *PaintEngine) InvalidateCache() {
+	if e.cache != nil {
+		e.cache.InvalidateAll()
+	}
+}
+
+// GetCacheStats returns paint cache statistics
+func (e *PaintEngine) GetCacheStats() cachepkg.CacheStats {
+	if e.cache == nil {
+		return cachepkg.CacheStats{}
+	}
+	return e.cache.Stats()
 }
 
 // SetDebug enables/disables debug output
@@ -48,6 +94,16 @@ func (e *PaintEngine) PaintLayout(layout *paint.PaintableLayout, buffer *paint.B
 		return nil
 	}
 
+	// Initialize or update paint context for caching
+	if e.enableCache {
+		e.InitCache(buffer)
+		e.version++
+		if e.paintContext == nil {
+			e.paintContext = cachepkg.NewPaintingContext(e.cache, buffer, e.version)
+		}
+		e.paintContext.UpdateBufferCopy(buffer)
+	}
+
 	// Clear parent background map at the start of each frame
 	e.parentBackground = make(map[*paint.PaintableBox]style.Color)
 
@@ -57,6 +113,10 @@ func (e *PaintEngine) PaintLayout(layout *paint.PaintableLayout, buffer *paint.B
 			for x := 0; x < buffer.Width; x++ {
 				buffer.Cells[y][x] = paint.Cell{}
 			}
+		}
+		// Invalidate cache on full render
+		if e.cache != nil {
+			e.cache.InvalidateAll()
 		}
 	}
 
@@ -74,18 +134,33 @@ func (e *PaintEngine) paintBox(box *paint.PaintableBox, buffer *paint.Buffer) er
 			box.Node.Tag(), box.X, box.Y, box.Width, box.Height)
 	}
 
+	// IMPORTANT: Set bounds before Paint (Fiber-first architecture)
+	// This allows Instance to access layout-computed dimensions
+	if boundsSetter, ok := box.Node.(interface{ SetBounds(x, y, w, h int) }); ok {
+		boundsSetter.SetBounds(box.X, box.Y, box.Width, box.Height)
+	}
+
+	// Check cache first (for leaf nodes without custom paint commands)
+	// Skip caching for nodes with dynamic content (like text inputs, animations)
+	boxID := box.Node.ID()
+	if e.enableCache && e.paintContext != nil && boxID != "" {
+		// Only try caching for nodes that are likely cacheable (simple layout nodes)
+		// Skip nodes with custom paint commands, children, or dynamic content
+		hasCustomPaint := box.Node.Paint(box.X, box.Y)
+		if len(box.Children) == 0 && len(hasCustomPaint) == 0 {
+			// Try to paint from cache
+			if e.paintContext.TryPaintFromCache(buffer, boxID, box.X, box.Y) {
+				return nil // Successfully painted from cache
+			}
+		}
+	}
+
 	// Check if we have a parent background to inherit
 	var parentBG style.Color
 	if e.parentBackground != nil {
 		if inheritedBG, ok := e.parentBackground[box]; ok && inheritedBG != "" {
 			parentBG = inheritedBG
 		}
-	}
-
-	// IMPORTANT: Set bounds before Paint (Fiber-first architecture)
-	// This allows Instance to access layout-computed dimensions
-	if boundsSetter, ok := box.Node.(interface{ SetBounds(x, y, w, h int) }); ok {
-		boundsSetter.SetBounds(box.X, box.Y, box.Width, box.Height)
 	}
 
 	// FIRST: Check if node has custom paint logic
@@ -103,6 +178,11 @@ func (e *PaintEngine) paintBox(box *paint.PaintableBox, buffer *paint.Buffer) er
 		}
 		// For leaf nodes (no children), we're done
 		if len(box.Children) == 0 {
+			// Update cache for leaf nodes with custom paint
+			if e.enableCache && e.paintContext != nil && boxID != "" {
+				rect := layout.Rect{X: box.X, Y: box.Y, Width: box.Width, Height: box.Height}
+				e.paintContext.UpdateCache(boxID, rect, buffer)
+			}
 			return nil
 		}
 		// For container nodes, continue to paint children
@@ -139,6 +219,7 @@ func (e *PaintEngine) paintBox(box *paint.PaintableBox, buffer *paint.Buffer) er
 
 // paintTextBox paints a text node (PaintableBox version)
 func (e *PaintEngine) paintTextBox(box *paint.PaintableBox, buffer *paint.Buffer) {
+	boxID := box.Node.ID()
 	text := box.RenderedText
 	if text == "" {
 		text = box.Node.TextContent()
@@ -146,11 +227,18 @@ func (e *PaintEngine) paintTextBox(box *paint.PaintableBox, buffer *paint.Buffer
 	if text != "" {
 		// Use box.Width as the max width (relative), not absolute maxX
 		buffer.SetStringAligned(box.X, box.Y, text, box.Node.Style(), box.Width)
+
+		// Update cache for text box (if cacheable)
+		if e.enableCache && e.paintContext != nil && boxID != "" {
+			rect := layout.Rect{X: box.X, Y: box.Y, Width: box.Width, Height: box.Height}
+			e.paintContext.UpdateCache(boxID, rect, buffer)
+		}
 	}
 }
 
 // paintElementBox paints an element node (PaintableBox version)
 func (e *PaintEngine) paintElementBox(box *paint.PaintableBox, buffer *paint.Buffer) {
+	boxID := box.Node.ID()
 	content := box.RenderedText
 	if content == "" {
 		content = box.Node.TextContent()
@@ -158,6 +246,12 @@ func (e *PaintEngine) paintElementBox(box *paint.PaintableBox, buffer *paint.Buf
 	if content != "" {
 		// Use box.Width as the max width (relative), not absolute maxX
 		buffer.SetStringAligned(box.X, box.Y, content, box.Node.Style(), box.Width)
+
+		// Update cache for element with content (if cacheable)
+		if e.enableCache && e.paintContext != nil && boxID != "" {
+			rect := layout.Rect{X: box.X, Y: box.Y, Width: box.Width, Height: box.Height}
+			e.paintContext.UpdateCache(boxID, rect, buffer)
+		}
 		return
 	}
 
@@ -431,4 +525,18 @@ func (e *PaintEngine) PaintPaintablePlanes(
 
 	log.PaintLogger.Debug("[PaintEngine.PaintPaintablePlanes] END")
 	return nil
+}
+
+// =============================================================================
+// Cache Helper Functions
+// =============================================================================
+
+// boxRect converts a PaintableBox bounds to a layout.Rect for caching
+func (e *PaintEngine) boxRect(box *paint.PaintableBox) layout.Rect {
+	return layout.Rect{
+		X:      box.X,
+		Y:      box.Y,
+		Width:  box.Width,
+		Height: box.Height,
+	}
 }

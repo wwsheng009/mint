@@ -16,13 +16,10 @@ func TestLayer_String(t *testing.T) {
 		expected string
 	}{
 		{LayerBase, "base"},
-		{LayerDropdown, "dropdown"},
-		{LayerSticky, "sticky"},
-		{LayerFixed, "fixed"},
-		{LayerModalBackdrop, "modalBackdrop"},
+		{LayerOverlay, "overlay"},
 		{LayerModal, "modal"},
-		{LayerPopover, "popover"},
 		{LayerTooltip, "tooltip"},
+		{LayerInspector, "inspector"},
 		{Layer(99), "unknown"},
 	}
 
@@ -39,13 +36,10 @@ func TestLayer_ZIndex(t *testing.T) {
 		expected int
 	}{
 		{LayerBase, 0},
-		{LayerDropdown, 1000},
-		{LayerSticky, 2000},
-		{LayerFixed, 3000},
-		{LayerModalBackdrop, 4000},
-		{LayerModal, 5000},
-		{LayerPopover, 6000},
-		{LayerTooltip, 7000},
+		{LayerOverlay, 1},
+		{LayerModal, 2},
+		{LayerTooltip, 3},
+		{LayerInspector, 4},
 	}
 
 	for _, tt := range tests {
@@ -56,10 +50,10 @@ func TestLayer_ZIndex(t *testing.T) {
 }
 
 func TestLayer_Comparison(t *testing.T) {
-	assert.True(t, LayerModal.IsHigher(LayerBase))
-	assert.True(t, LayerBase.IsLower(LayerModal))
-	assert.False(t, LayerBase.IsHigher(LayerBase))
-	assert.False(t, LayerBase.IsLower(LayerBase))
+	assert.True(t, LayerModal > LayerBase)
+	assert.True(t, LayerBase < LayerModal)
+	assert.False(t, LayerBase > LayerBase)
+	assert.False(t, LayerBase < LayerBase)
 }
 
 // =============================================================================
@@ -109,8 +103,8 @@ func TestLayeredNode_EffectiveZIndex(t *testing.T) {
 	child := NewMockNode("child", 50, 30)
 	node := NewLayeredNode("layered", child, LayerModal, 10)
 
-	// LayerModal = 5000 + 10 = 5010
-	assert.Equal(t, 5010, node.EffectiveZIndex())
+	// LayerModal = 2, so 2 + 10 = 12
+	assert.Equal(t, 12, node.EffectiveZIndex())
 
 	// Base layer
 	baseNode := NewLayeredNode("base", child, LayerBase, 5)
@@ -261,14 +255,16 @@ func TestParseLayer(t *testing.T) {
 	}{
 		{"base", LayerBase},
 		{"", LayerBase},
-		{"dropdown", LayerDropdown},
-		{"sticky", LayerSticky},
-		{"fixed", LayerFixed},
-		{"modalBackdrop", LayerModalBackdrop},
-		{"modal-backdrop", LayerModalBackdrop},
+		{"dropdown", LayerOverlay},
+		{"sticky", LayerOverlay},
+		{"fixed", LayerOverlay},
+		{"modalBackdrop", LayerModal},
+		{"modal-backdrop", LayerModal},
 		{"modal", LayerModal},
-		{"popover", LayerPopover},
+		{"popover", LayerTooltip},
 		{"tooltip", LayerTooltip},
+		{"overlay", LayerOverlay},
+		{"inspector", LayerInspector},
 		{"unknown", LayerBase},
 	}
 

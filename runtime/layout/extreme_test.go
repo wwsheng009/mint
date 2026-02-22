@@ -565,13 +565,10 @@ func TestExtreme_Layer_AllTypes(t *testing.T) {
 
 	layers := []Layer{
 		LayerBase,
-		LayerDropdown,
-		LayerSticky,
-		LayerFixed,
-		LayerModalBackdrop,
+		LayerOverlay,
 		LayerModal,
-		LayerPopover,
 		LayerTooltip,
+		LayerInspector,
 	}
 
 	for _, layer := range layers {
