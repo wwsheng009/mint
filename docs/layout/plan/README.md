@@ -12,6 +12,11 @@
 | [02-optimization.md](./02-optimization.md) | 优化实施方案，包含三个阶段的改进计划 | ✅ |
 | [03-testing.md](./03-testing.md) | 测试方案，涵盖单元测试、集成测试和性能测试 | ✅ |
 | [04-debug-tools.md](./04-debug-tools.md) | 调试工具开发方案，包含多种调试工具的设计 | ✅ |
+| [Phase 1 完成报告](../phase1_completion.md) | Phase 1 布局优化完成报告 | ✅ |
+| [Phase 2 完成报告](../phase2_completion.md) | Phase 2 API 改进完成报告 | ✅ |
+| [Phase 3 完成报告](../phase3_completion.md) | Phase 3 新布局引擎和可视化工具完成报告 | ✅ |
+| [总体完成报告](../completion_summary.md) | 所有阶段的总体完成总结 | ✅ |
+| [布局可视化工具使用指南](../visualizer_usage_guide.md) | 布局可视化工具详细使用方法 | ✅ |
 
 ---
 
@@ -55,30 +60,41 @@
 
 ## 优化计划概览
 
-### 短期优化（Phase 1）- Week 1-2
+> **🎉 所有阶段已完成！**
+>
+> Mint 布局系统优化计划（Phase 1-3）已全部完成并验证通过。
+> 查看 [总体完成报告](../completion_summary.md) 了解详情。
+
+### 短期优化（Phase 1）- Week 1-2 ✅ 已完成
 
 **目标**：修复已知 bug，完善约束传播逻辑
 
-- [ ] 统一约束传递规则
-- [ ] 完善 Text.Wrap 的高度约束验证
-- [ ] 实现约束追踪工具
-- [ ] 添加边界检查测试
+- [x] 统一约束传递规则
+- [x] 完善 Text.Wrap 的高度约束验证
+- [x] 实现约束追踪工具
+- [x] 添加边界检查测试
 
-### 中期优化（Phase 2）- Week 3-4
+**完成报告**：查看 [Phase 1 完成报告](../phase1_completion.md)
+
+### 中期优化（Phase 2）- Week 3-4 ✅ 已完成
 
 **目标**：改进 API 设计，降低使用复杂度
 
-- [ ] 实现 Panel API 增强（明确内部/外部维度语义）
-- [ ] 实现 Builder API 增强（方便的链式调用）
-- [ ] 更新文档和示例
+- [x] 实现 Panel API 增强（明确内部/外部维度语义）
+- [x] 实现 Builder API 增强（方便的链式调用）
+- [x] 更新文档和示例
 
-### 长期优化（Phase 3）- Week 5-6
+**完成报告**：查看 [Phase 2 完成报告](../phase2_completion.md)
+
+### 长期优化（Phase 3）- Week 5-6 ✅ 已完成
 
 **目标**：引入新的布局引擎和可视化工具
 
-- [ ] 设计并实现布局 DSL
-- [ ] 实现布局可视化工具
-- [ ] 性能优化（Measure 缓存、增量布局）
+- [x] 设计并实现布局 DSL
+- [x] 实现布局可视化工具
+- [x] 性能优化（Measure 缓存、增量布局）
+
+**完成报告**：查看 [Phase 3 完成报告](../phase3_completion.md)
 
 ---
 

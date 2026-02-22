@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/mattn/go-runewidth"
 	"github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/ui"
 )
@@ -70,15 +71,15 @@ func (v *Visualizer) AddNode(
 	parentID string,
 ) {
 	v.nodes[id] = &NodeState{
-		ID:               id,
-		Tag:              tag,
-		Bounds:           bounds,
-		InputConstraints: inputConstraints,
+		ID:                id,
+		Tag:               tag,
+		Bounds:            bounds,
+		InputConstraints:  inputConstraints,
 		OutputConstraints: outputConstraints,
-		Dimension:        dimension,
-		ParentID:         parentID,
-		Children:         []string{},
-		Props:            make(map[string]interface{}),
+		Dimension:         dimension,
+		ParentID:          parentID,
+		Children:          []string{},
+		Props:             make(map[string]interface{}),
 	}
 
 	// Set as root if no parent
@@ -284,6 +285,172 @@ func (v *Visualizer) Clear() {
 }
 
 // =============================================================================
+// Box Model Visualization (Chrome DevTools style)
+// =============================================================================
+
+// PrintBoxModel prints the layout tree in box model style (like Chrome DevTools)
+func (v *Visualizer) PrintBoxModel() string {
+	if v.rootID == "" {
+		return "Empty layout tree"
+	}
+
+	// 1. Calculate total dimensions (content width/height)
+	maxWidth := v.getContentWidth(v.rootID)
+	maxHeight := v.getContentHeight(v.rootID)
+
+	// 2. Create buffer
+	buffer := make([][]rune, maxHeight)
+	for y := 0; y < maxHeight; y++ {
+		buffer[y] = make([]rune, maxWidth)
+		for x := 0; x < maxWidth; x++ {
+			buffer[y][x] = ' '
+		}
+	}
+
+	// 3. Recursively fill buffer: first draw parent box complete borders, children drawn inside parent
+	v.fillBoxModelBuffer(buffer, v.rootID, 0, 0)
+
+	// 4. Output buffer
+	var buf strings.Builder
+	buf.WriteString("Layout Box Model (Chrome DevTools style)\n")
+	buf.WriteString(strings.Repeat("=", 50))
+	buf.WriteString("\n\n")
+	for y := 0; y < maxHeight; y++ {
+		for x := 0; x < maxWidth; x++ {
+			buf.WriteRune(buffer[y][x])
+		}
+		buf.WriteRune('\n')
+	}
+
+	buf.WriteString("\n" + strings.Repeat("=", 50) + "\n")
+	buf.WriteString("[BORDER] = Border component with padding\n")
+	buf.WriteString("[TEXT]   = Text content element\n")
+	return buf.String()
+}
+
+// generateInfoLines generates actual info lines for a node
+func (v *Visualizer) generateInfoLines(node *NodeState, lines *[]string) {
+	line := fmt.Sprintf(" %s (%dw x %dh)", node.Tag, node.Bounds.Width, node.Bounds.Height)
+	if node.Tag == "border" || node.Tag == "bordered" {
+		line += " [BORDER]"
+	} else if node.Tag == "text" {
+		line += " [TEXT]"
+	}
+	*lines = append(*lines, line)
+
+	line = fmt.Sprintf(" Pos: (%d,%d)", node.Bounds.X, node.Bounds.Y)
+	constStr := formatConstraints(node.InputConstraints)
+	if len(constStr)+len(line) < 60 {
+		line += fmt.Sprintf("  %s", constStr)
+	}
+	*lines = append(*lines, line)
+
+	if node.Dimension.Height > node.InputConstraints.MaxHeight &&
+		node.InputConstraints.MaxHeight > 0 &&
+		node.InputConstraints.MaxHeight < layout.MaxInt {
+		*lines = append(*lines, fmt.Sprintf(" ⚠️  Height %d > MaxHeight %d", node.Dimension.Height, node.InputConstraints.MaxHeight))
+	}
+	if node.Dimension.Width > node.InputConstraints.MaxWidth &&
+		node.InputConstraints.MaxWidth > 0 &&
+		node.InputConstraints.MaxWidth < layout.MaxInt {
+		*lines = append(*lines, fmt.Sprintf(" ⚠️  Width %d > MaxWidth %d", node.Dimension.Width, node.InputConstraints.MaxWidth))
+	}
+}
+
+// PrintGrid prints a 2D grid representation of the layout
+func (v *Visualizer) PrintGrid() string {
+	if v.rootID == "" {
+		return "Empty layout tree"
+	}
+
+	var buf strings.Builder
+	buf.WriteString("Layout Grid (2D Visualization)\n")
+	buf.WriteString(strings.Repeat("=", 50) + "\n\n")
+
+	// Find grid dimensions
+	maxX, maxY := 0, 0
+	for _, node := range v.nodes {
+		right := node.Bounds.X + node.Bounds.Width
+		bottom := node.Bounds.Y + node.Bounds.Height
+		if right > maxX {
+			maxX = right
+		}
+		if bottom > maxY {
+			maxY = bottom
+		}
+	}
+
+	// Cap grid size
+	if maxX > 40 {
+		maxX = 40
+	}
+	if maxY > 20 {
+		maxY = 20
+	}
+
+	// Create grid (2D array of node tags)
+	grid := make([][]string, maxY)
+	for y := 0; y < maxY; y++ {
+		grid[y] = make([]string, maxX)
+		for x := 0; x < maxX; x++ {
+			grid[y][x] = " "
+		}
+	}
+
+	nodeChars := map[string]string{
+		"panel":    "█",
+		"border":   "█",
+		"bordered": "▓",
+		"text":     "·",
+		"vstack":   "║",
+		"hstack":   "═",
+		"button":   "▒",
+	}
+
+	// Fill grid
+	for _, node := range v.nodes {
+		char := "░"
+		if c, ok := nodeChars[node.Tag]; ok {
+			char = c
+		}
+
+		for y := node.Bounds.Y; y < node.Bounds.Y+node.Bounds.Height && y < maxY; y++ {
+			for x := node.Bounds.X; x < node.Bounds.X+node.Bounds.Width && x < maxX; x++ {
+				if y >= 0 && y < maxY && x >= 0 && x < maxX {
+					// Prefer more specific characters
+					if grid[y][x] == " " || (grid[y][x] == "░" && char != "░") {
+						grid[y][x] = char
+					}
+				}
+			}
+		}
+	}
+
+	// Print grid with coordinates
+	buf.WriteString("  ")
+	for x := 0; x < maxX; x += 5 {
+		buf.WriteString(fmt.Sprintf("%5d", x))
+	}
+	buf.WriteString("\n  " + strings.Repeat("─", maxX) + "\n")
+
+	for y := 0; y < maxY; y++ {
+		buf.WriteString(fmt.Sprintf("%2d│", y))
+		for x := 0; x < maxX; x++ {
+			buf.WriteString(grid[y][x])
+		}
+		buf.WriteString("│\n")
+	}
+
+	buf.WriteString("  " + strings.Repeat("─", maxX) + "\n\n")
+	buf.WriteString("Legend:\n")
+	buf.WriteString("  █ = panel/border     ║ = vstack    ░ = unknown\n")
+	buf.WriteString("  ▓ = bordered         ═ = hstack    · = text\n")
+	buf.WriteString("  ▒ = button\n")
+
+	return buf.String()
+}
+
+// =============================================================================
 // Visualizer Builder
 // =============================================================================
 
@@ -397,3 +564,244 @@ func (v *Visualizer) calculateDepth(nodeID string, currentDepth int) int {
 
 	return maxChildDepth
 }
+
+// =============================================================================
+	// Box Model Visualization using Buffer
+// =============================================================================
+
+// fillBoxModelBuffer draws only borders into the buffer
+func (v *Visualizer) fillBoxModelBuffer(buffer [][]rune, nodeID string, x, y int) {
+	node := v.GetNode(nodeID)
+	if node == nil {
+		return
+	}
+
+	// Calculate box width
+	boxWidth := v.getContentWidth(nodeID)
+
+	// Calculate info lines count
+	infoLines := []string{}
+	v.generateInfoLines(node, &infoLines)
+	infoLinesCount := len(infoLines)
+
+	// Calculate box height: top border + info lines + empty line (if children) + children + bottom
+	boxHeight := 2 + infoLinesCount // top + info + bottom
+	if len(node.Children) > 0 {
+		boxHeight += 1 // empty line before children
+		for _, childID := range node.Children {
+			childHeight := v.getContentHeight(childID)
+			boxHeight += childHeight - 2 // Remove top/bottom borders of child
+		}
+	}
+
+	// Draw top border
+	if y < len(buffer) {
+		for i := x; i < x+boxWidth && i < len(buffer[y]); i++ {
+			if i == x {
+				buffer[y][i] = '┌'
+			} else if i == x+boxWidth-1 {
+				buffer[y][i] = '┐'
+			} else {
+				buffer[y][i] = '─'
+			}
+		}
+	}
+
+	// Draw info lines with borders
+	for i := 0; i < infoLinesCount; i++ {
+		lineY := y + 1 + i
+		if lineY >= len(buffer) {
+			break
+		}
+		if x < len(buffer[lineY]) {
+			buffer[lineY][x] = '│'
+		}
+		if x+boxWidth-1 < len(buffer[lineY]) {
+			buffer[lineY][x+boxWidth-1] = '│'
+		}
+		// Draw content using runewidth to handle multi-byte characters
+		cursor := x + 1
+		for _, r := range infoLines[i] {
+			if cursor < x+boxWidth-1 && cursor < len(buffer[lineY]) {
+				charWidth := runewidth.RuneWidth(r)
+				// Check if character fits
+				if cursor+charWidth <= x+boxWidth-1 {
+					buffer[lineY][cursor] = r
+					// For wide characters (2 cells), we need to account for next cell
+					if charWidth > 1 {
+						cursor += charWidth - 1
+					}
+				}
+				cursor++
+			}
+		}
+	}
+
+	// Draw children
+	contentY := y + 1 + infoLinesCount
+	if len(node.Children) > 0 {
+		// Empty line before children
+		if contentY < len(buffer) {
+			if x < len(buffer[contentY]) {
+				buffer[contentY][x] = '│'
+			}
+			if x+boxWidth-1 < len(buffer[contentY]) {
+				buffer[contentY][x+boxWidth-1] = '│'
+			}
+		}
+		contentY++
+
+		// Draw children INSIDE parent box
+		childX := x + 2 // Indent: │ then space
+
+		for _, childID := range node.Children {
+			// Recursively draw child box
+			v.fillBoxModelBuffer(buffer, childID, childX, contentY)
+
+			// Move to next child position
+			childHeight := v.getContentHeight(childID)
+			contentY += childHeight - 2 // Remove top/bottom borders
+		}
+
+		// Update boxHeight to match actual content
+		boxHeight = contentY - y
+	}
+
+	// Draw left and right borders for all lines
+	for lineY := y + 1; lineY < y+boxHeight-1; lineY++ {
+		if lineY >= len(buffer) {
+			break
+		}
+		if x < len(buffer[lineY]) {
+			buffer[lineY][x] = '│'
+		}
+		if x+boxWidth-1 < len(buffer[lineY]) {
+			buffer[lineY][x+boxWidth-1] = '│'
+		}
+	}
+
+	// Draw bottom border
+	bottomY := y + boxHeight - 1
+	if bottomY >= 0 && bottomY < len(buffer) {
+		for i := x; i < x+boxWidth && i < len(buffer[bottomY]); i++ {
+			if i == x {
+				buffer[bottomY][i] = '└'
+			} else if i == x+boxWidth-1 {
+				buffer[bottomY][i] = '┘'
+			} else {
+				buffer[bottomY][i] = '─'
+			}
+		}
+	}
+}
+
+
+// getContentWidth calculates the content width for a node (including borders)
+func (v *Visualizer) getContentWidth(nodeID string) int {
+	node := v.GetNode(nodeID)
+	if node == nil {
+		return 54
+	}
+
+	// Calculate content width
+	contentWidth := node.Bounds.Width
+	if contentWidth < 20 {
+		contentWidth = 20
+	}
+	if contentWidth > 60 {
+		contentWidth = 60
+	}
+
+	// Find max info line width using runewidth
+	infoLines := []string{}
+	v.generateInfoLines(node, &infoLines)
+
+	maxInfoWidth := 0
+	for _, line := range infoLines {
+		displayW := runewidth.StringWidth(line)
+		if displayW > maxInfoWidth {
+			maxInfoWidth = displayW
+		}
+	}
+
+	if maxInfoWidth > contentWidth {
+		contentWidth = maxInfoWidth
+	}
+
+	// Add border width (2 columns for left and right borders)
+	boxWidth := contentWidth + 2 // +2 for │ borders
+
+	// Check children - they need to fit inside with indentation
+	for _, childID := range node.Children {
+		childWidth := v.getContentWidth(childID)
+		// Child needs to be indented by 2 (│ )
+		childTotalWidth := childWidth + 2
+		if childTotalWidth > boxWidth {
+			boxWidth = childTotalWidth
+		}
+	}
+
+	// Cap at 80
+	if boxWidth > 80 {
+		boxWidth = 80
+	}
+
+	return boxWidth
+}
+
+// getContentHeight calculates the total content height for a node
+func (v *Visualizer) getContentHeight(nodeID string) int {
+	node := v.GetNode(nodeID)
+	if node == nil {
+		return 20
+	}
+
+	// Generate info lines
+	infoLines := []string{}
+	v.generateInfoLines(node, &infoLines)
+
+	// Base height: top border + empty + info lines + bottom border
+	infoLinesCount := len(infoLines)
+	baseHeight := 3 + infoLinesCount // top+info+bottom (no empty line for children yet)
+
+	// Add children height
+	if len(node.Children) > 0 {
+		// Empty line after info
+		baseHeight += 1
+
+		// For each child, get their height (minus top/bottom borders they would have)
+		for _, childID := range node.Children {
+			childHeight := v.getContentHeight(childID)
+			// Each child takes its total height
+			baseHeight += childHeight - 2 // Remove top/bottom borders
+		}
+
+		// Add separators between children (excluding first)
+		if len(node.Children) > 1 {
+			baseHeight += len(node.Children) - 1
+		}
+	}
+
+	// Add top and bottom borders
+	baseHeight += 2
+
+	// Cap at 100
+	if baseHeight > 100 {
+		baseHeight = 100
+	}
+
+	return baseHeight + 2 // +2 for top and bottom border
+}
+
+// createEmptyBuffer creates an empty buffer initialized with spaces
+func (v *Visualizer) createEmptyBuffer(width, height int) [][]rune {
+	buffer := make([][]rune, height)
+	for y := 0; y < height; y++ {
+		buffer[y] = make([]rune, width)
+		for x := 0; x < width; x++ {
+			buffer[y][x] = ' '
+		}
+	}
+	return buffer
+}
+

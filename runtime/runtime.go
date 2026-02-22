@@ -96,7 +96,7 @@ func (f Frame) String() string {
 	if f.Buffer == nil {
 		return ""
 	}
-	return f.Buffer.String()
+	return f.Buffer.StringOptimized()
 }
 
 // =============================================================================
