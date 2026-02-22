@@ -19,6 +19,7 @@ import (
 type Instance struct {
 	// === Identification ===
 	key string
+	path string // 用于约束追踪的路径
 
 	// === Layout Props ===
 	direction    Direction
@@ -44,6 +45,9 @@ type Instance struct {
 	bounds      [4]int // x, y, w, h
 	childBounds [][4]int
 	dirty       bool
+
+	// === Context (for component instance) ===
+	context *rtui.ComponentContext
 }
 
 // Ensure Instance implements required interfaces
@@ -172,7 +176,22 @@ func (inst *Instance) IsDirty() bool {
 
 // GetContext implements ComponentInstance (no hooks for Stack).
 func (inst *Instance) GetContext() *rtui.ComponentContext {
-	return nil
+	return inst.context
+}
+
+// =============================================================================
+// Constraint Tracing Support
+// =============================================================================
+
+// SetPath sets the constraint tracing path for this instance.
+func (inst *Instance) SetPath(path string) *Instance {
+	inst.path = path
+	return inst
+}
+
+// GetPath returns the constraint tracing path.
+func (inst *Instance) GetPath() string {
+	return inst.path
 }
 
 // =============================================================================

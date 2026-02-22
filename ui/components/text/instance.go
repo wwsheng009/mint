@@ -19,6 +19,7 @@ import (
 type Instance struct {
 	// === Identification ===
 	key string
+	path string // 用于约束追踪的路径
 
 	// === Props (from VNode, may change each render) ===
 	content   string

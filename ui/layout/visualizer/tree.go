@@ -2,6 +2,7 @@ package visualizer
 
 import (
 	"fmt"
+	"reflect"
 	"strings"
 
 	"github.com/mattn/go-runewidth"
@@ -455,10 +456,131 @@ func (v *Visualizer) PrintGrid() string {
 // =============================================================================
 
 // VisualizeVNode creates a visualization from a VNode tree.
+// Note: This only creates a structural visualization with estimated sizes.
+// For accurate layout data, use VisualizeFromLayoutEngine() instead.
 func VisualizeVNode(vnode ui.VNode, constraints layout.Constraints) *Visualizer {
 	vis := NewVisualizer()
 	vis.buildFromVNode(vnode, constraints, "", 0, 0)
 	return vis
+}
+
+// VisualizeFromLayoutEngine creates a visualization from a computed layout.
+// This captures actual position and size data from the layout engine.
+func VisualizeFromLayoutEngine(computedLayout interface{}) *Visualizer {
+	vis := NewVisualizer()
+	vis.buildFromComputedLayout(computedLayout)
+	return vis
+}
+
+// buildFromComputedLayout builds the visualizer from a computed layout.
+// Uses reflection to avoid import cycles between ui/layout and runtime/compute.
+func (v *Visualizer) buildFromComputedLayout(layout interface{}) {
+	// Use reflection to access ComputedLayout fields without direct import
+	// This avoids circular dependency: ui/layout/visualizer -> runtime/compute
+	if layout == nil {
+		return
+	}
+
+	// Get root box via reflection
+	rv := reflect.ValueOf(layout).Elem()
+	rootBox := rv.FieldByName("Root")
+	if !rootBox.IsValid() || rootBox.IsNil() {
+		return
+	}
+
+	// Recursively build from the computed box tree
+	v.buildFromComputedBox(rootBox.Interface(), "", 0)
+}
+
+// buildFromComputedBox builds a node from a ComputedBox
+func (v *Visualizer) buildFromComputedBox(box interface{}, parentID string, depth int) string {
+	// Use reflection to extract box data
+	rv := reflect.ValueOf(box).Elem()
+
+	// Extract tag/node type via VNode field
+	vnodeField := rv.FieldByName("VNode")
+	var tag string
+	var nodeID string
+	if vnodeField.IsValid() && !vnodeField.IsNil() {
+		vnodeRV := reflect.ValueOf(vnodeField.Interface())
+		// Try Tag() method
+		if tagMethod := vnodeRV.MethodByName("Tag"); tagMethod.IsValid() {
+			results := tagMethod.Call(nil)
+			if len(results) > 0 && results[0].Kind() == reflect.String {
+				tag = results[0].String()
+			}
+		}
+		// Try Key() method
+		if keyMethod := vnodeRV.MethodByName("Key"); keyMethod.IsValid() {
+			results := keyMethod.Call(nil)
+			if len(results) > 0 && results[0].Kind() == reflect.String {
+				nodeID = results[0].String()
+			}
+		}
+	}
+
+	if nodeID == "" {
+		nodeID = fmt.Sprintf("box_%d", len(v.nodes))
+	}
+	if tag == "" {
+		tag = "unknown"
+	}
+
+	// Extract Box fields (X, Y, Width, Height)
+	boxField := rv.FieldByName("Box")
+	x := int(boxField.FieldByName("X").Int())
+	y := int(boxField.FieldByName("Y").Int())
+	width := int(boxField.FieldByName("Width").Int())
+	height := int(boxField.FieldByName("Height").Int())
+
+	// Create NodeState
+	nodeState := &NodeState{
+		ID:     nodeID,
+		Tag:    tag,
+		Bounds: layout.Rect{X: x, Y: y, Width: width, Height: height},
+		// InputConstraints and OutputConstraints need more complex reflection
+		// For now, use placeholder values
+		InputConstraints:  layout.Constraints{MinWidth: 0, MaxWidth: layout.MaxInt, MinHeight: 0, MaxHeight: layout.MaxInt},
+		OutputConstraints: layout.Constraints{MinWidth: 0, MaxWidth: layout.MaxInt, MinHeight: 0, MaxHeight: layout.MaxInt},
+		Dimension:         layout.Size{Width: width, Height: height},
+		ParentID:          parentID,
+		Children:          []string{},
+		Props:             make(map[string]interface{}),
+	}
+
+	// Extract NodeID if available (from ComputedBox.NodeID)
+	nodeIDField := rv.FieldByName("NodeID")
+	if nodeIDField.IsValid() {
+		nodeState.Props["ComputedNodeID"] = uint64(nodeIDField.Uint())
+	}
+
+	// Add to visualizer
+	v.nodes[nodeID] = nodeState
+
+	// Set root
+	if parentID == "" && v.rootID == "" {
+		v.rootID = nodeID
+	}
+
+	// Add to parent's children
+	if parentID != "" {
+		if parent, exists := v.nodes[parentID]; exists {
+			parent.Children = append(parent.Children, nodeID)
+		}
+	}
+
+	// Process children
+	childrenField := rv.FieldByName("Children")
+	if childrenField.IsValid() && childrenField.Kind() == reflect.Slice {
+		for i := 0; i < childrenField.Len(); i++ {
+			childBox := childrenField.Index(i).Interface()
+			if !reflect.ValueOf(childBox).IsNil() {
+				v.buildFromComputedBox(childBox, nodeID, depth+1)
+			}
+		}
+	}
+
+	return nodeID
 }
 
 func (v *Visualizer) buildFromVNode(

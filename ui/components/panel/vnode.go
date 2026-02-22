@@ -205,15 +205,11 @@ func (v *VNode) TextContent() string {
 // InstanceFactory Interface - Delegates to composed Border
 // =============================================================================
 
-// CreateInstance creates a new Instance from the composed Border node.
+// CreateInstance creates a new PanelInstance that wraps the Border instance
+// and adds constraint tracing at the Panel level.
 func (v *VNode) CreateInstance() rtui.ComponentInstance {
-	composed := v.getComposed()
-	if composed != nil {
-		if factory, ok := composed.(rtui.InstanceFactory); ok {
-			return factory.CreateInstance()
-		}
-	}
-	return nil
+	// Create Panel instance with empty path (will be set by layout system)
+	return newPanelInstance(v, "")
 }
 
 // =============================================================================

@@ -6,6 +6,7 @@ import (
 	"github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/style"
 	"github.com/wwsheng009/mint/runtime/ui"
+	"github.com/wwsheng009/mint/ui/components/grid"
 	"github.com/wwsheng009/mint/ui/components/panel"
 	"github.com/wwsheng009/mint/ui/components/text"
 )
@@ -98,6 +99,47 @@ func (n *Node) ToVNode() ui.VNode {
 		return result
 	}
 
+	// Create Grid for grid nodes
+	if n.tag == "grid" {
+		g := grid.New()
+
+		// Set dimensions if specified
+		if columns, ok := n.props["columns"].([]grid.Dimension); ok {
+			g.SetColumns(columns...)
+		}
+		if rows, ok := n.props["rows"].([]grid.Dimension); ok {
+			g.SetRows(rows...)
+		}
+
+		// Set sizing props
+		if width, ok := n.props["width"].(int); ok {
+			g.SetWidth(width)
+		}
+		if height, ok := n.props["height"].(int); ok {
+			g.SetHeight(height)
+		}
+		if flex, ok := n.props["flex"].(int); ok {
+			g.SetFlex(flex)
+		}
+
+		// Set gap
+		if colGap, ok := n.props["columnGap"].(int); ok {
+			if rowGap, ok := n.props["rowGap"].(int); ok {
+				g.SetGap(colGap, rowGap)
+			}
+		}
+		if gap, ok := n.props["gap"].(int); ok {
+			g.SetGap(gap, gap)
+		}
+
+		// Set children - auto-position in row-major order
+		if len(vnodeChildren) > 0 {
+			g.SetChildrenAuto(vnodeChildren)
+		}
+
+		return g
+	}
+
 	// Default: return nil or create a placeholder
 	return nil
 }
@@ -147,6 +189,47 @@ func Column(props ui.Props, children ...Node) Node {
 		props:    props,
 		children: children,
 	}
+}
+
+// Grid creates a grid container node.
+func Grid(props ui.Props, children ...Node) Node {
+	if props == nil {
+		props = make(ui.Props)
+	}
+	return Node{
+		tag:      "grid",
+		props:    props,
+		children: children,
+	}
+}
+
+// =============================================================================
+// Grid Dimension Factory Functions (convenience helpers)
+// =============================================================================
+
+// FixedDim creates a fixed-size grid dimension.
+func FixedDim(size int) grid.Dimension {
+	return grid.Fixed(size)
+}
+
+// FlexDim creates a flexible grid dimension.
+func FlexDim(factor int) grid.Dimension {
+	return grid.Flex{Factor: factor}
+}
+
+// AutoDim creates an auto-sized grid dimension.
+func AutoDim() grid.Dimension {
+	return grid.Auto{}
+}
+
+// MinDim creates a dimension with minimum size.
+func MinDim(min int, content grid.Dimension) grid.Dimension {
+	return grid.Min{Min: min, Content: content}
+}
+
+// MaxDim creates a dimension with maximum size.
+func MaxDim(max int, content grid.Dimension) grid.Dimension {
+	return grid.Max{Max: max, Content: content}
 }
 
 // =============================================================================
@@ -216,6 +299,36 @@ func (pb *PropsBuilder) Color(c style.Color) *PropsBuilder {
 // Background sets background color.
 func (pb *PropsBuilder) Background(c style.Color) *PropsBuilder {
 	pb.props["background"] = c
+	return pb
+}
+
+// Columns sets grid column definitions.
+func (pb *PropsBuilder) Columns(cols ...grid.Dimension) *PropsBuilder {
+	pb.props["columns"] = cols
+	return pb
+}
+
+// Rows sets grid row definitions.
+func (pb *PropsBuilder) Rows(rows ...grid.Dimension) *PropsBuilder {
+	pb.props["rows"] = rows
+	return pb
+}
+
+// ColumnGap sets the gap between columns.
+func (pb *PropsBuilder) ColumnGap(gap int) *PropsBuilder {
+	pb.props["columnGap"] = gap
+	return pb
+}
+
+// RowGap sets the gap between rows.
+func (pb *PropsBuilder) RowGap(gap int) *PropsBuilder {
+	pb.props["rowGap"] = gap
+	return pb
+}
+
+// Gap sets both column and row gaps.
+func (pb *PropsBuilder) Gap(gap int) *PropsBuilder {
+	pb.props["gap"] = gap
 	return pb
 }
 
