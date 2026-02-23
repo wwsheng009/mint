@@ -31,8 +31,10 @@ func NewBuffer(width, height int) *Buffer {
 	for y := 0; y < height; y++ {
 		b.Cells[y] = make([]Cell, width)
 		// 初始化为空格（与 Reset 保持一致）
+		// IMPORTANT: 必须设置 Width=1，否则 Renderer 会跳过这些单元格
+		// 导致未渲染区域在终端上显示为"白色格子"
 		for x := 0; x < width; x++ {
-			b.Cells[y][x] = Cell{Cluster: " "}
+			b.Cells[y][x] = Cell{Cluster: " ", Width: 1}
 		}
 	}
 
