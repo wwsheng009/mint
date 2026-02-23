@@ -4,6 +4,8 @@ import (
 	"testing"
 
 	"github.com/wwsheng009/mint/runtime/intent"
+	"github.com/wwsheng009/mint/runtime/layout"
+	"github.com/wwsheng009/mint/runtime/paint"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/ui/components/control"
 )
@@ -192,7 +194,7 @@ func TestInstance_HandleAction_Disabled(t *testing.T) {
 
 func TestInstance_Paint(t *testing.T) {
 	inst := NewInstance(rtui.Props{
-		"label":  "Test",
+		"label":   "Test",
 		"variant": VariantDefault,
 		"size":    SizeMedium,
 	})
@@ -404,4 +406,75 @@ func TestInstance_ControlInterface(t *testing.T) {
 	if !ok || v != true {
 		t.Errorf("GetProp(disabled) = (%v, %v), want (true, true)", v, ok)
 	}
+}
+
+// =============================================================================
+// Chinese Character Width Tests
+// =============================================================================
+
+func TestInstance_Measure_ChineseWidth(t *testing.T) {
+	tests := []struct {
+		name      string
+		label     string
+		wantWidth int
+	}{
+		{"ASCII label", "OK", 7},         // 2 + 3 + 2 (SizeMedium padding)
+		{"Single Chinese char", "确定", 9}, // 4 + 3 + 2
+		{"Mixed content", "保存Save", 13},  // 8 + 3 + 2
+		{"Chinese only", "提交更改", 13},     // 8 + 3 + 2
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			inst := NewInstance(rtui.Props{"label": tt.label})
+			size := inst.Measure(layout.UnboundedConstraints())
+
+			// Calculate expected width: display width of label + 3 (brackets + focus indicator) + 2 (SizeMedium padding)
+			labelDisplayWidth := paint.StringWidth(tt.label)
+			expectedWidth := labelDisplayWidth + 5 // 3 for brackets/focus + 2 for SizeMedium
+
+			t.Logf("Label: %q, Display width: %d, Expected total: %d, Got: %d",
+				tt.label, labelDisplayWidth, expectedWidth, size.Width)
+
+			if size.Width != tt.wantWidth {
+				t.Errorf("Width = %d, want %d (label: %q)", size.Width, tt.wantWidth, tt.label)
+			}
+		})
+	}
+}
+
+func TestInstance_Paint_ChineseWidth(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"label": "确定",
+		"size":  SizeMedium,
+	})
+
+	cmds := inst.Paint(0, 0)
+	if len(cmds) == 0 {
+		t.Fatal("Paint() returned no commands")
+	}
+
+	t.Logf("Paint output: %q", cmds[0].Text)
+
+	// Verify the button text contains the Chinese label
+	if !containsChinese(cmds[0].Text, "确定") {
+		t.Errorf("Button text should contain '确定', got %q", cmds[0].Text)
+	}
+}
+
+func containsChinese(s, substr string) bool {
+	// Simple check if the string contains the expected Chinese characters
+	for _, r := range substr {
+		found := false
+		for _, sr := range s {
+			if sr == r {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+	return true
 }
