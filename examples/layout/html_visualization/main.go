@@ -156,10 +156,3 @@ func main() {
 	fmt.Println("  - 响应式布局")
 	fmt.Println("  - 节点索引导航")
 }
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}

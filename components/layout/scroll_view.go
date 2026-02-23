@@ -14,13 +14,6 @@ import (
 var _ action.ActionTarget = (*ScrollView)(nil)
 var _ action.ScrollableActionTarget = (*ScrollView)(nil)
 
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
 // ScrollView is a scrollable container that clips its content to the viewport size
 // It supports vertical scrolling and displays a scroll position indicator
 //

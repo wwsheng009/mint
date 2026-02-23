@@ -383,21 +383,6 @@ func measureFlexContainer(node *LayoutNode, innerC, outerC BoxConstraints) Size 
 	}
 }
 
-// min and max helpers
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
-}
-
 // Debug helper
 func debugMeasure(node *LayoutNode, msg string) {
 	if node == nil {

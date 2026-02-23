@@ -669,17 +669,3 @@ func (v *Visualizer) getTreeMapColor(tag string, depth int) string {
 
 	return "#666"
 }
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
-}

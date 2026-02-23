@@ -639,14 +639,6 @@ func (ctx *TestContext) GetOutput() string {
 func (ctx *TestContext) WriteTo(w io.Writer) (int64, error) {
 	return io.Copy(w, ctx.Output)
 }
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
 // =============================================================================
 // 辅助函数
 // =============================================================================

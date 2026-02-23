@@ -581,18 +581,3 @@ func (l *List) formatItem(item interface{}) string {
 		return fmt.Sprintf("%v", item)
 	}
 }
-
-// resetCursor 重置光标
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}

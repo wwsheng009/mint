@@ -211,10 +211,3 @@ type RemoteStats struct {
 	DeltaEncoding bool
 	FrameInterval time.Duration
 }
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}

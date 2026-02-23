@@ -439,11 +439,3 @@ func (pc *PaintingContext) GetStats() CacheStats {
 	}
 	return pc.cache.Stats()
 }
-
-// Helper function
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}

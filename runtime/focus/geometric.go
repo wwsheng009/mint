@@ -331,18 +331,3 @@ func (gn *GeometricNavigator) FindNearestInDirection(currentID string, direction
 	gn.RefreshBounds(focusableIDs)
 	return gn.FindNextInDirection(currentID, direction, focusableIDs)
 }
-
-// Helper functions
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
-}

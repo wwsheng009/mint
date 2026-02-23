@@ -395,10 +395,3 @@ func (iq *InputQueue) PopMultiple(n int) []*InputEvent {
 
  return events
 }
-
-func min(a, b int) int {
- if a < b {
-  return a
- }
- return b
-}
