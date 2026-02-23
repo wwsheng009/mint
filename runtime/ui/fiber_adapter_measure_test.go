@@ -143,10 +143,10 @@ func TestFiberToNodeAdapter_ButtonSizeCalculation(t *testing.T) {
 	}{
 		// Width = len(label) + 3 (brackets + focus) + size modifier
 		// Small: +0, Medium: +2, Large: +4
-		{"Small OK", "OK", newbutton.SizeSmall, 5, 1},     // 2 + 3 = 5
-		{"Medium OK", "OK", newbutton.SizeMedium, 7, 1},   // 2 + 3 + 2 = 7
-		{"Large OK", "OK", newbutton.SizeLarge, 9, 1},     // 2 + 3 + 4 = 9
-		{"Small Submit", "Submit", newbutton.SizeSmall, 9, 1},   // 6 + 3 = 9
+		{"Small OK", "OK", newbutton.SizeSmall, 5, 1},            // 2 + 3 = 5
+		{"Medium OK", "OK", newbutton.SizeMedium, 7, 1},          // 2 + 3 + 2 = 7
+		{"Large OK", "OK", newbutton.SizeLarge, 9, 1},            // 2 + 3 + 4 = 9
+		{"Small Submit", "Submit", newbutton.SizeSmall, 9, 1},    // 6 + 3 = 9
 		{"Medium Submit", "Submit", newbutton.SizeMedium, 11, 1}, // 6 + 3 + 2 = 11
 		{"Large Submit", "Submit", newbutton.SizeLarge, 13, 1},   // 6 + 3 + 4 = 13
 	}
@@ -370,9 +370,9 @@ func TestFiberToNodeAdapter_NewTextChinese(t *testing.T) {
 	inst := fiber.Instance.(*newtext.Instance)
 	size := inst.Measure(layout.UnboundedConstraints())
 
-	// "你好世界" = 4 runes
-	if size.Width != 4 {
-		t.Errorf("Width = %d, want 4", size.Width)
+	// "你好世界" = 4 Chinese chars, each with display width 2 = 8
+	if size.Width != 8 {
+		t.Errorf("Width = %d, want 8 (Chinese chars have display width 2)", size.Width)
 	}
 }
 

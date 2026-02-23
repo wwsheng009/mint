@@ -2,7 +2,6 @@ package text
 
 import (
 	"strings"
-	"unicode/utf8"
 
 	"github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/paint"
@@ -18,7 +17,7 @@ import (
 // It persists across renders and holds all state.
 type Instance struct {
 	// === Identification ===
-	key string
+	key  string
 	path string // 用于约束追踪的路径
 
 	// === Props (from VNode, may change each render) ===
@@ -203,14 +202,13 @@ func (inst *Instance) Paint(x, y int) []paint.DrawCmd {
 	}
 
 	// Get padding
-	paddingTop := inst.padding[0]    // top
-	paddingLeft := inst.padding[3]   // left
-	paddingRight := inst.padding[1]  // right
+	paddingTop := inst.padding[0]   // top
+	paddingLeft := inst.padding[3]  // left
+	paddingRight := inst.padding[1] // right
 
 	// Build the text with padding
 	text := inst.content
-	runes := []rune(text)
-	contentWidth := len(runes)
+	contentWidth := paint.StringWidth(text)
 
 	var cmds []paint.DrawCmd
 
@@ -243,11 +241,10 @@ func (inst *Instance) Paint(x, y int) []paint.DrawCmd {
 		for i := 0; i < maxLines; i++ {
 			line := inst.wrapLines[i]
 			lineText := line
-			lineRunes := []rune(line)
-			lineWidth := len(lineRunes)
+			lineWidth := paint.StringWidth(line)
 
 			// Apply padding and alignment
-		 paddedWidth := paddingLeft + lineWidth + paddingRight
+			paddedWidth := paddingLeft + lineWidth + paddingRight
 			if layoutWidth > paddedWidth {
 				availableSpace := layoutWidth - paddedWidth
 				switch inst.textAlign {
@@ -291,11 +288,10 @@ func (inst *Instance) Paint(x, y int) []paint.DrawCmd {
 		maxContentWidth = 0
 	}
 	if contentWidth > maxContentWidth {
-		// Truncate runes to fit
+		// Truncate by display width (correctly handles wide characters like Chinese)
 		if maxContentWidth > 0 {
-			runes = runes[:maxContentWidth]
-			text = string(runes)
-			contentWidth = maxContentWidth
+			text = truncateByDisplayWidth(text, maxContentWidth)
+			contentWidth = paint.StringWidth(text)
 		} else {
 			text = ""
 			contentWidth = 0
@@ -391,7 +387,7 @@ func (inst *Instance) Measure(constraints layout.Constraints) layout.Size {
 		// Find the maximum line width
 		maxLineWidth := 0
 		for _, line := range inst.wrapLines {
-			lineWidth := utf8.RuneCountInString(line)
+			lineWidth := paint.StringWidth(line)
 			if lineWidth > maxLineWidth {
 				maxLineWidth = lineWidth
 			}
@@ -399,7 +395,7 @@ func (inst *Instance) Measure(constraints layout.Constraints) layout.Size {
 		contentWidth = maxLineWidth
 	} else {
 		// Single-line mode
-		contentWidth = utf8.RuneCountInString(content)
+		contentWidth = paint.StringWidth(content)
 		contentHeight = 1
 	}
 
@@ -433,7 +429,7 @@ func (inst *Instance) GetNaturalSize() (width, height int) {
 		content = " "
 	}
 
-	width = utf8.RuneCountInString(content)
+	width = paint.StringWidth(content)
 	height = 1
 
 	return width, height
@@ -518,6 +514,7 @@ func getTextAlignProp(props rtui.Props, def rtui.Align) rtui.Align {
 
 // wordWrap breaks text into lines at word boundaries to fit the given max width.
 // It tries to break at spaces/punctuation first, then falls back to hard breaks.
+// maxWidth is measured in display width (correctly handles wide characters like Chinese).
 func wordWrap(text string, maxWidth int) []string {
 	if maxWidth <= 0 {
 		return []string{text}
@@ -545,24 +542,20 @@ func wordWrap(text string, maxWidth int) []string {
 		}
 		testLine += word
 
-		if utf8.RuneCountInString(testLine) <= maxWidth {
+		if paint.StringWidth(testLine) <= maxWidth {
 			currentLine = testLine
 		} else {
 			// Can't fit in current line
 			if currentLine != "" {
 				lines = append(lines, currentLine)
 			}
-			// If a single word is too long, break it
-			if utf8.RuneCountInString(word) <= maxWidth {
+			// If a single word is too long, break it by display width
+			if paint.StringWidth(word) <= maxWidth {
 				currentLine = word
 			} else {
-				// Break long word
-				wordRunes := []rune(word)
-				for len(wordRunes) > maxWidth {
-					lines = append(lines, string(wordRunes[:maxWidth]))
-					wordRunes = wordRunes[maxWidth:]
-				}
-				currentLine = string(wordRunes)
+				// Break long word by display width
+				lines = append(lines, breakByDisplayWidth(word, maxWidth)...)
+				currentLine = ""
 			}
 		}
 	}
@@ -574,3 +567,59 @@ func wordWrap(text string, maxWidth int) []string {
 	return lines
 }
 
+// truncateByDisplayWidth truncates text to fit within maxWidth display columns.
+// Correctly handles wide characters like Chinese (width=2).
+func truncateByDisplayWidth(text string, maxWidth int) string {
+	if maxWidth <= 0 {
+		return ""
+	}
+
+	runes := []rune(text)
+	var result []rune
+	currentWidth := 0
+
+	for _, r := range runes {
+		runeWidth := paint.RuneWidth(r)
+		if currentWidth+runeWidth > maxWidth {
+			break
+		}
+		result = append(result, r)
+		currentWidth += runeWidth
+	}
+
+	return string(result)
+}
+
+// breakByDisplayWidth breaks text into lines of maxWidth display columns.
+// Correctly handles wide characters like Chinese (width=2).
+func breakByDisplayWidth(text string, maxWidth int) []string {
+	if maxWidth <= 0 {
+		return []string{text}
+	}
+
+	var lines []string
+	runes := []rune(text)
+	var currentLine []rune
+	currentWidth := 0
+
+	for _, r := range runes {
+		runeWidth := paint.RuneWidth(r)
+		if currentWidth+runeWidth > maxWidth {
+			// Current line is full, start a new one
+			if len(currentLine) > 0 {
+				lines = append(lines, string(currentLine))
+			}
+			currentLine = []rune{r}
+			currentWidth = runeWidth
+		} else {
+			currentLine = append(currentLine, r)
+			currentWidth += runeWidth
+		}
+	}
+
+	if len(currentLine) > 0 {
+		lines = append(lines, string(currentLine))
+	}
+
+	return lines
+}

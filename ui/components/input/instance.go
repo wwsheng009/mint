@@ -24,19 +24,19 @@ type Instance struct {
 	key string
 
 	// === Props (from VNode, may change each render) ===
-	placeholder   string
-	inputType     Type
-	inputStyle    style.Style
-	width         int
-	borderStyle   layout.BorderStyle
-	changeIntent  intent.Intent
-	submitIntent  intent.Intent
-	maxLen        int
+	placeholder  string
+	inputType    Type
+	inputStyle   style.Style
+	width        int
+	borderStyle  layout.BorderStyle
+	changeIntent intent.Intent
+	submitIntent intent.Intent
+	maxLen       int
 
 	// === Runtime State (managed by instance) ===
 	state     control.InteractionState
 	value     string
-	cursorPos int // cursor position for editing
+	cursorPos int    // cursor position for editing
 	bounds    [4]int // x, y, w, h
 	dirty     bool
 
@@ -66,17 +66,17 @@ var (
 // NewInstance creates a new InputInstance from props.
 func NewInstance(props rtui.Props) *Instance {
 	inst := &Instance{
-		key:         getStringProp(props, "key", ""),
-		placeholder: getStringProp(props, "placeholder", ""),
-		inputType:   getTypeProp(props, TypeText),
-		inputStyle:  getStyleProp(props),
-		width:       getIntProp(props, "width", 0),
-		borderStyle: getBorderStyleProp(props, "borderStyle", layout.BorderSingle),
+		key:          getStringProp(props, "key", ""),
+		placeholder:  getStringProp(props, "placeholder", ""),
+		inputType:    getTypeProp(props, TypeText),
+		inputStyle:   getStyleProp(props),
+		width:        getIntProp(props, "width", 0),
+		borderStyle:  getBorderStyleProp(props, "borderStyle", layout.BorderSingle),
 		changeIntent: getIntentProp(props, "changeIntent"),
 		submitIntent: getIntentProp(props, "submitIntent"),
-		value:       getStringProp(props, "value", ""),
-		maxLen:      getIntProp(props, "maxLen", 0),
-		dirty:       true,
+		value:        getStringProp(props, "value", ""),
+		maxLen:       getIntProp(props, "maxLen", 0),
+		dirty:        true,
 	}
 
 	// Initialize cursor position at end of value
@@ -377,13 +377,40 @@ func (inst *Instance) resolveBorderColor() style.Color {
 	return theme.Border()
 }
 
-// padText pads or truncates text to fit the specified width.
+// padText pads or truncates text to fit the specified display width.
+// Correctly handles wide characters like Chinese (width=2).
 func (inst *Instance) padText(text string, width int) string {
-	runes := []rune(text)
-	if len(runes) > width {
-		return string(runes[:width])
+	textWidth := paint.StringWidth(text)
+	if textWidth > width {
+		// Truncate by display width
+		return truncateByDisplayWidth(text, width)
 	}
-	return text + strings.Repeat(" ", width-len(runes))
+	if textWidth < width {
+		return text + strings.Repeat(" ", width-textWidth)
+	}
+	return text
+}
+
+// truncateByDisplayWidth truncates text to fit within max display width.
+func truncateByDisplayWidth(text string, maxWidth int) string {
+	if maxWidth <= 0 {
+		return ""
+	}
+
+	runes := []rune(text)
+	var result []rune
+	currentWidth := 0
+
+	for _, r := range runes {
+		runeWidth := paint.RuneWidth(r)
+		if currentWidth+runeWidth > maxWidth {
+			break
+		}
+		result = append(result, r)
+		currentWidth += runeWidth
+	}
+
+	return string(result)
 }
 
 // resolveStyle resolves the visual style based on state.
@@ -498,13 +525,13 @@ func (inst *Instance) InsertText(text string) bool {
 	// Insert at cursor
 	runes := []rune(inst.value)
 	textRunes := []rune(text)
-	
+
 	// Create new slice with enough capacity to avoid shared array issues
 	newRunes := make([]rune, 0, len(runes)+len(textRunes))
 	newRunes = append(newRunes, runes[:inst.cursorPos]...)
 	newRunes = append(newRunes, textRunes...)
 	newRunes = append(newRunes, runes[inst.cursorPos:]...)
-	
+
 	inst.value = string(newRunes)
 	inst.cursorPos += len(textRunes)
 	inst.dirty = true
@@ -710,7 +737,7 @@ func (inst *Instance) Measure(constraints layout.Constraints) layout.Size {
 		content = " "
 	}
 
-	contentWidth := utf8.RuneCountInString(content)
+	contentWidth := paint.StringWidth(content)
 	contentHeight := 1
 
 	// Apply explicit width if set

@@ -2,7 +2,6 @@ package button
 
 import (
 	"strings"
-	"unicode/utf8"
 
 	"github.com/wwsheng009/mint/framework/theme"
 	"github.com/wwsheng009/mint/runtime/intent"
@@ -42,9 +41,9 @@ type Instance struct {
 	textAlign   rtui.Align
 
 	// === Runtime State (managed by instance) ===
-	state   control.InteractionState
-	bounds  [4]int // x, y, w, h
-	dirty   bool
+	state  control.InteractionState
+	bounds [4]int // x, y, w, h
+	dirty  bool
 
 	// === Intent Emitter ===
 	intentEmitter func(intent.Intent)
@@ -319,7 +318,7 @@ func (inst *Instance) buildButtonText(labelText string, buttonStyle style.Style)
 	}
 
 	buttonText := focusIndicator + labelText
-	contentWidth := utf8.RuneCountInString(buttonText)
+	contentWidth := paint.StringWidth(buttonText)
 
 	// Get padding
 	paddingLeft := inst.padding[3]
@@ -499,7 +498,7 @@ func (inst *Instance) Measure(constraints layout.Constraints) layout.Size {
 	}
 
 	// Width: label length + 2 for brackets "[]" + 1 for focus indicator
-	contentWidth := utf8.RuneCountInString(label) + 3
+	contentWidth := paint.StringWidth(label) + 3
 
 	// Height is always 1 for single-line button
 	contentHeight := 1
@@ -546,7 +545,7 @@ func (inst *Instance) GetNaturalSize() (width, height int) {
 		label = " "
 	}
 
-	width = utf8.RuneCountInString(label) + 3 // label + brackets + focus
+	width = paint.StringWidth(label) + 3 // label + brackets + focus
 	height = 1
 
 	switch inst.size {
