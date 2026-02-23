@@ -424,13 +424,32 @@ func (n *DeclarativeNode) fiberFirstPaint(ctx component.PaintContext, buf *paint
 			}
 
 			if paintableLayout != nil && paintableLayout.Root != nil {
-				// Use PaintEngine to render the PaintableLayout
-				if err := n.paintEngine.PaintLayout(paintableLayout, buf); err != nil {
-					log.RenderLogger.Debug("[DeclarativeNode.fiberFirstPaint] PaintLayout FAILED: %v, falling back", err)
+				// Build PaintablePlanes for multi-layer rendering
+				planes := paint.NewPaintablePlanes()
+				var buildPlanes func(box *paint.PaintableBox)
+				buildPlanes = func(box *paint.PaintableBox) {
+					if box == nil {
+						return
+					}
+					planes.AddToLayer(paint.RenderLayer(box.Layer), box)
+					for _, child := range box.Children {
+						buildPlanes(child)
+					}
+				}
+				buildPlanes(paintableLayout.Root)
+
+				log.RenderLogger.Debug("[DeclarativeNode.fiberFirstPaint] PaintablePlanes: %d boxes", planes.CountBoxes())
+				if debug {
+					fmt.Printf("[DeclarativeNode.fiberFirstPaint] PaintablePlanes: %d boxes\n", planes.CountBoxes())
+				}
+
+				// Paint using PaintablePlanes for proper layer Z-Ordering
+				if err := n.paintEngine.PaintPaintablePlanes(planes, buf); err != nil {
+					log.RenderLogger.Debug("[DeclarativeNode.fiberFirstPaint] PaintPaintablePlanes FAILED: %v, falling back", err)
 					n.legacyPaint(ctx, buf)
 					return
 				}
-				log.RenderLogger.Debug("[DeclarativeNode.fiberFirstPaint] ✅ PaintLayout complete")
+				log.RenderLogger.Debug("[DeclarativeNode.fiberFirstPaint] ✅ PaintPaintablePlanes complete")
 				return
 			}
 		}
