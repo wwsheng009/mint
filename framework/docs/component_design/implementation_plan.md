@@ -1227,13 +1227,6 @@ func (r *RemoteOptimizer) EncodeDelta(prev, curr []byte) []byte {
     return delta.Bytes()
 }
 
-func min(a, b int) int {
-    if a < b {
-        return a
-    }
-    return b
-}
-
 // SetFrameInterval sets the minimum interval between frames
 func (r *RemoteOptimizer) SetFrameInterval(interval time.Duration) {
     r.frameInterval = interval

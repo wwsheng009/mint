@@ -23,10 +23,10 @@ type CellChange struct {
 
 // BufferDiffResult 表示两个 buffer 比较的结果
 type BufferDiffResult struct {
-	Changes        []CellChange
-	CursorX        int // 当前光标位置（反转样式的单元格）
-	CursorY        int
-	HasChanges     bool
+	Changes    []CellChange
+	CursorX    int // 当前光标位置（反转样式的单元格）
+	CursorY    int
+	HasChanges bool
 }
 
 // CompareBuffers 比较新旧 buffer，返回变化列表
@@ -147,16 +147,6 @@ func FormatChangesAsANSI(buf *paint.Buffer, diffResult BufferDiffResult, firstRe
 			cursorX = x
 		}
 
-		// 设置字符 - extract first rune from cluster
-		char := rune(0)
-		for _, c := range newCell.Cluster {
-			char = c
-			break
-		}
-		if char == 0 {
-			char = ' '
-		}
-
 		// 应用样式（如果改变）
 		if newCell.Style != currentStyle {
 			if currentStyle != (style.Style{}) {
@@ -168,7 +158,12 @@ func FormatChangesAsANSI(buf *paint.Buffer, diffResult BufferDiffResult, firstRe
 			currentStyle = newCell.Style
 		}
 
-		output.WriteRune(char)
+		// 输出完整的 cluster（支持中文等多字节字符）
+		if newCell.Cluster != "" {
+			output.WriteString(newCell.Cluster)
+		} else {
+			output.WriteByte(' ')
+		}
 		// 更新光标位置（宽字符占据 2 列）
 		cursorX += newCell.Width
 		if cursorX == 0 {

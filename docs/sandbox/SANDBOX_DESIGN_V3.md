@@ -1092,13 +1092,6 @@ func estimateEventSize(event platform.RawInput) int64 {
 
     return size
 }
-
-func min(a, b int) int {
-    if a < b {
-        return a
-    }
-    return b
-}
 ```
 
 ## 6. 快照系统
