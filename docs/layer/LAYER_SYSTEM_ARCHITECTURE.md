@@ -1,158 +1,163 @@
 # Layer 系统架构说明
 
-**Mint TUI Layer 系统的实际工作原理**
+**Mint TUI Fiber-First 架构中的渲染层级系统**
 
 ---
 
-## 📊 架构澄清
+## 📋 文档导航
 
-本文档澄清了 `TWO_RENDERING_SYSTEMS_EXPLAINED.md` 中的误解。Mint TUI **只有一套完整的渲染系统**，而不是两套并存的系统。
-
-### 真实的架构
-
-```
-┌──────────────────────────────────────────────────────────────┐
-│                      framework/App                          │
-│                                                              │
-│  App.Run() → App.render() → root.Paint() → buffer           │
-│         (检查 Paintable)                                     │
-└────────────────────┬─────────────────────────────────────────┘
-                     │
-                     ▼
-┌──────────────────────────────────────────────────────────────┐
-│              DeclarativeNode (internal/render)              │
-│                                                              │
-│  Paint() → PipelineRenderer.Render()                        │
-│              │                                               │
-│              ├─→ hasLayerNodes() ?                          │
-│              │        ├─ Yes → RenderLayers()               │
-│              │        └─ No  → Render()                     │
-└────────────────────┬─────────────────────────────────────────┘
-                     │
-                     ▼
-┌──────────────────────────────────────────────────────────────┐
-│          RenderingPipeline (internal/render)                │
-│                                                              │
-│  RenderLayers():                                            │
-│    1. layerManager := layer.NewManager()                     │
-│    2. layerManager.CollectAndLayout(vnode, constraints)     │
-│    3. paintEngine.PaintLayers(layouts, buffer)              │
-│                                                              │
-│  Render():                                                  │
-│    1. layoutEngine.Layout(vnode, constraints)               │
-│    2. paintEngine.Paint(layout, buffer)                     │
-└──────────────────────────────────────────────────────────────┘
-```
-
-### 关键发现
-
-**不存在"两套并存系统"！**
-
-- ❌ ~~Framework Paintable (V2, 旧系统)~~ - 这是一个误解
-- ✅ **Framework Paintable** → 调用 → **DeclarativeNode** → 调用 → **PipelineRenderer** → 调用 → **RenderingPipeline**
-
-Framework 的 Paintable 接口**不是独立的渲染系统**，它只是渲染流程的入口点。真正的渲染逻辑都在 **internal/render** 包中。
+| 文档 | 说明 |
+|------|------|
+| **本文档** | Layer 系统高层架构概览 |
+| `FIBER_FIRST_LAYER_SYSTEM.md` | Fiber-First Layer 系统完整技术细节 |
+| `TW_RENDERING_SYSTEMS_EXPLAINED.md` | ~~历史分析（已过时）~~ |
 
 ---
 
-## 🎯 为什么会有误解？
+## 🎯 核心概念
 
-### 误解来源
+### 单一渲染架构
 
-`TWO_RENDERING_SYSTEMS_EXPLAINED.md` 中的分析基于以下假设：
+Mint TUI 使用**统一的渲染架构**，不是两套并存的系统：
 
-1. Framework 有自己的 `Paintable.Paint()` 方法
-2. Runtime 有 `LayerManager.CollectAndLayout()` 方法
-3. 这两套系统没有连接
+```
+framework/App
+    ↓
+DeclarativeNode (Paintable 接口)
+    ↓
+PipelineRenderer
+    ↓
+    ├─→ hasLayerNodes() 自动检测
+    │   ├─ Fiber 树检查 (优先)
+    │   └─ VNode 树检查 (回退)
+    │
+    └─→ RenderingPipeline
+            ├─→ RenderLayers() (多层级)
+            └─→ Render() (单层级)
+```
 
-### 实际情况
+### Fiber-First 架构
 
-**Framework 和 Runtime 通过 `DeclarativeNode` 桥接：**
+| 层级 | 说明 |
+|------|------|
+| **VNode** | 临时描述结构，每帧重建 |
+| **Fiber** | 持久化节点，存储状态跨帧保持 |
+| **Layer** | 存储在 Fiber.Layer 字段中 |
+
+---
+
+## 🏗️ 架构组件
+
+### 1. Layer 枚举
+
+**位置**: `runtime/types/layer.go`
 
 ```go
-// framework/app.go
-func (a *App) render() {
-    if paintable, ok := a.root.(component.Paintable); ok {
-        paintable.Paint(ctx, buf)  // ← 调用 DeclarativeNode.Paint()
-    }
-}
+type Layer int
 
-// internal/render/declarative_node.go
-func (dn *DeclarativeNode) Paint(ctx component.PaintContext, buf *paint.Buffer) {
+const (
+    LayerBase      Layer = iota  // 0
+    LayerOverlay                 // 1
+    LayerModal                   // 2
+    LayerTooltip                 // 3
+    LayerInspector               // 4
+)
+```
+
+**特性**:
+- `String()` - 字符串表示
+- `ZIndex()` - z-index 值
+- `IsValid()` - 有效性检查
+- `IsModal()` - 模态层判断
+- `IsOverlay()` - 覆盖层判断
+
+### 2. VNode 接口
+
+**位置**: `runtime/ui/vnode.go`
+
+```go
+type VNode interface {
     // ...
-    dn.renderer.Render(dn.root, 0, 0, buf)  // ← 调用 PipelineRenderer
+    GetLayer() Layer
+    SetLayer(Layer) VNode
 }
+```
 
-// internal/render/pipeline_renderer.go
-func (r *PipelineRenderer) Render(vnode VNode, x, y int, buf *Buffer) error {
+### 3. Fiber 结构
+
+**位置**: `runtime/ui/fiber.go`
+
+```go
+type Fiber struct {
+    // ...
+    NodeID uint64
+    Layer  Layer  // ← 持久化的 Layer 状态
+
+    // 布局结果 (缓存)
+    ComputedBox interface{}
+}
+```
+
+### 4. 渲染流程
+
+#### PipelineRenderer (Layer 检测)
+
+**位置**: `internal/render/pipeline_renderer.go`
+
+```go
+func (r *PipelineRenderer) Render(vnode rtui.VNode, x, y int, buffer interface{}) error {
+    // 应用 VNode 钩子
+    vnode = r.hooks.ApplyVNodeHooks(vnode)
+
+    // 检测是否有 Layer 节点
     hasLayers := r.hasLayerNodes(vnode)
 
     if hasLayers {
-        return r.pipeline.RenderLayers(vnode, constraints, buf)  // ← 使用 Layer 系统!
+        // 多层级渲染
+        log.RenderLogger.Debug("Using RenderLayers for multi-layer rendering")
+        err = r.pipeline.RenderLayers(vnode, r.fiber, constraints, buf)
     } else {
-        return r.pipeline.Render(vnode, constraints, buf)
+        // 单层级渲染
+        log.RenderLogger.Debug("Using standard Render")
+        err = r.pipeline.Render(vnode, r.fiber, constraints, buf)
     }
-}
 
-// internal/render/rendering_pipeline.go
-func (rp *RenderingPipeline) RenderLayers(...) error {
-    layerMgr := layer.NewManager()
-    layerMgr.CollectAndLayout(vnode, constraints, rp.layoutEngine)
-    layouts := layerMgr.GetLayouts()
-    return rp.paintEngine.PaintLayers(layouts, buffer)
+    return err
 }
 ```
 
-**结论：Framework 的 Paint() 路径最终调用 Runtime 的 Layer 系统！**
-
----
-
-## 🚀 Layer 系统如何工作
-
-### 完整渲染流程
-
-```
-用户调用 ui.Run(app)
-    ↓
-framework/App.Run()
-    ↓
-framework/App.render()
-    ↓
-DeclarativeNode.Paint()  [实现 Paintable 接口]
-    ↓
-PipelineRenderer.Render()
-    ↓
-    ├─→ hasLayerNodes(vnode)  ← 检查是否有 Layer 标记
-    │       ├─ 有 Layer 标记
-    │       │       ↓
-    │       │   RenderingPipeline.RenderLayers()
-    │       │       ├─ layer.NewManager()
-    │       │       ├─ layerManager.CollectAndLayout()
-    │       │       └─ paintEngine.PaintLayers()
-    │       │
-    │       └─ 无 Layer 标记
-    │               ↓
-    │           RenderingPipeline.Render()
-    │               ├─ layoutEngine.Layout()
-    │               └─ paintEngine.Paint()
-    ↓
-buffer → terminal
-```
-
-### Layer 检测机制
+#### hasLayerNodes() (检测逻辑)
 
 ```go
-// internal/render/pipeline_renderer.go
-func (r *PipelineRenderer) hasLayerNodes(vnode VNode) bool {
-    // 检查当前节点
-    layer := vnode.GetLayer()
-    if layer != LayerBase && layer.IsValid() {
-        return true  // ← 发现非 Base 层！
+func (r *PipelineRenderer) hasLayerNodes(vnode rtui.VNode) bool {
+    if vnode == nil {
+        return false
     }
 
-    // 递归检查子节点
-    for _, child := range vnode.Children() {
-        if r.hasLayerNodes(child) {
+    // Fiber 树检查 (优先 - 更准确)
+    if r.fiber != nil {
+        return r.hasLayerNodesFromFiber(r.fiber)
+    }
+
+    // VNode 树检查 (回退 - 兼容非 Fiber 模式)
+    return r.hasLayerNodesFromVNode(vnode)
+}
+
+func (r *PipelineRenderer) hasLayerNodesFromFiber(fiber *rtui.Fiber) bool {
+    if fiber == nil {
+        return false
+    }
+
+    // 检查此节点
+    layer := fiber.Layer
+    if layer != rtui.LayerBase && layer.IsValid() {
+        log.HitMapLogger.Debug("[hasLayerNodes] ✅ Found layer node: Layer=%d", layer)
+        return true
+    }
+
+    // 递归检查子节点 (Child → Sibling)
+    for child := fiber.Child; child != nil; child = child.Sibling {
+        if r.hasLayerNodesFromFiber(child) {
             return true
         }
     }
@@ -161,328 +166,408 @@ func (r *PipelineRenderer) hasLayerNodes(vnode VNode) bool {
 }
 ```
 
-### Inspector 的 Layer 标记
+#### RenderingPipeline.RenderLayers()
+
+**位置**: `internal/render/rendering_pipeline.go`
 
 ```go
-// internal/inspector/standalone_inspector.go
-func (si *StandaloneInspector) RenderOverlay() ui.VNode {
-    content := si.buildOverlayContent()
-    content.SetLayer(ui.LayerInspector)  // ← 关键：设置为 Inspector 层
+func (p *RenderingPipeline) RenderLayers(
+    vnode rtui.VNode,
+    fiber *reconciler.Fiber,
+    constraints runtime.BoxConstraints,
+    buffer *paint.Buffer,
+) error {
+    // 1. 选择适配器
+    var node layout.Node
+    var converter PaintableConverter
+
+    if fiber != nil {
+        // Fiber-first 路径
+        node = NewFiberToNodeAdapterPure(fiber)
+        converter = NewFiberToPaintableConverter(fiber)
+    } else {
+        // VNode 路径 (回退)
+        node = NewVNodeToNodeAdapter(vnode)
+        converter = NewVNodeToPaintableConverter(vnode)
+    }
+
+    // 2. 执行布局
+    result := p.layoutEngine.Layout(node, layoutConstraints)
+
+    // 3. 转换为 PaintableLayout
+    paintableLayout := converter.ConvertToLayout(result.Root)
+
+    // 4. 应用 Layer 变换 (Modal 居中等)
+    p.applyLayerTransformsToPaintable(paintableLayout.Root, layoutConstraints)
+
+    // 5. 构建 PaintablePlanes (按层级分组)
+    paintablePlanes := p.buildPaintablePlanes(paintableLayout.Root)
+
+    // 6. 绘制
+    if err := p.paintEngine.PaintPaintablePlanes(paintablePlanes, buffer); err != nil {
+        return err
+    }
+
+    // 7. 构建 HitMap (事件路由)
+    p.lastHitMap = p.buildHitMapFromPaintablePlanes(paintablePlanes)
+
+    return nil
+}
+```
+
+### 5. PaintablePlanes (层级平面)
+
+**位置**: `runtime/paint/paintable_planes.go`
+
+```go
+type PaintablePlanes struct {
+    planes map[int]*PaintablePlane  // key: layer index
+}
+
+type PaintablePlane struct {
+    layer int
+    boxes []*PaintableBox
+}
+```
+
+**构建过程**:
+```
+PaintableBox 树
+    ↓
+buildPaintablePlanes()
+    ↓
+按 Layer 字段分组
+    ↓
+PaintablePlanes
+    ├─ planes[0] (base):   [...]
+    ├─ planes[1] (overlay): [...]
+    ├─ planes[2] (modal):   [...]
+    ├─ planes[3] (tooltip): [...]
+    └─ planes[4] (inspector): [...]
+```
+
+**render 顺序** (低 → 高):
+```
+LayerBase (0) → LayerOverlay (1) → LayerModal (2) → LayerTooltip (3) → LayerInspector (4)
+```
+
+**HitMap 构建顺序** (高 → 低):
+```
+LayerInspector (4) → LayerTooltip (3) → LayerModal (2) → LayerOverlay (1) → LayerBase (0)
+```
+
+---
+
+## 🔗 Layer 传播路径
+
+### VNode → Fiber 创建
+
+**位置**: `runtime/ui/fiber_util.go:197`
+
+```go
+func NewFiber(...) *Fiber {
+    return &Fiber{
+        Type:    vnodeType,
+        Tag:     tag,
+        Props:   props,
+        NodeID:  generateNodeID(),
+        Layer:   vnode.GetLayer(),  // ← 初始化 Layer
+        // ...
+    }
+}
+```
+
+### FiberVNode 的 Layer 访问
+
+**位置**: `runtime/ui/fiber_vnode.go`
+
+```go
+type FiberVNode struct {
+    fiber *Fiber
+}
+
+func (f *FiberVNode) GetLayer() Layer {
+    if f.fiber == nil {
+        return LayerBase
+    }
+    return f.fiber.Layer  // ← 从 Fiber 读取
+}
+
+func (f *FiberVNode) SetLayer(l Layer) VNode {
+    if f.fiber != nil {
+        f.fiber.Layer = l  // ← 直接修改 Fiber.Layer
+    }
+    return f
+}
+```
+
+---
+
+## 🎨 组件 Layer API
+
+### Tooltip 组件
+
+**位置**: `ui/components/tooltip/vnode.go`
+
+```go
+type VNode struct {
+    content   rtui.VNode
+    text      string
+    layer     rtui.Layer  // ← 持久化字段
+}
+
+func (t *VNode) GetLayer() rtui.Layer {
+    return t.layer
+}
+
+func (t *VNode) SetLayer(l rtui.Layer) rtui.VNode {
+    t.layer = l
+    return t
+}
+
+func New(content rtui.VNode, text string) *VNode {
+    return &VNode{
+        content: content,
+        text:    text,
+        layer:   rtui.LayerTooltip,  // ← 默认 Tooltip 层
+    }
+}
+```
+
+### Tooltip Builder API
+
+**位置**: `ui/components/tooltip/builder.go`
+
+```go
+type Builder struct {
+    content  rtui.VNode
+    text     string
+    layer    rtui.Layer
+
+// Layer() 通用方法
+func Layer(l rtui.Layer) func(*Builder) {
+    return func(b *Builder) {
+        b.layer = l
+    }
+}
+
+// 便捷方法
+func BaseLayer() func(*Builder)       { return Layer(rtui.LayerBase) }
+func OverlayLayer() func(*Builder)    { return Layer(rtui.LayerOverlay) }
+func ModalLayer() func(*Builder)      { return Layer(rtui.LayerModal) }
+func TooltipLayer() func(*Builder)    { return Layer(rtui.LayerTooltip) }
+func InspectorLayer() func(*Builder)  { return Layer(rtui.LayerInspector) }
+
+// 使用示例
+tooltip.NewBuilder(content, "Help info").
+    TooltipLayer().
+    Build()
+
+tooltip.NewBuilder(content, "Important").
+    ModalLayer().
+    Build()
+```
+
+### Toast 组件 (类似)
+
+```go
+// ToastVNode 同样支持 GetLayer()/SetLayer()
+type ToastVNode struct {
+    text      string
+    toastType ToastType
+    layer     rtui.Layer  // ← 持久化
+}
+
+// ToastBuilder 同样支持 SetRenderLayer() 等
+type ToastBuilder struct {
+    text      string
+    toastType ToastType
+    layer     rtui.Layer  // ← 持久化
+}
+
+func (b *ToastBuilder) SetRenderLayer() *ToastBuilder {
+    b.layer = rtui.LayerOverlay
+    return b
+}
+```
+
+---
+
+## 🚀 使用示例
+
+### 示例 1: Modal 对话框
+
+```go
+func (s *AppState) App() ui.VNode {
+    content := ui.HStack(
+        ui.NewText("Welcome"),
+        UI.NewButton("Open Modal", func() {
+            s.showModal = true
+        }),
+    )
+
+    if s.showModal {
+        modalContent := modal.New(
+            ui.NewText("Are you sure?"),
+            modal.WithActions(...),
+        )
+        modalContent.SetLayer(ui.LayerModal)
+
+        return ui.VStack(content, modalContent)
+    }
+
     return content
 }
 ```
 
-**当 VNode 树中有 Inspector 时：**
-
-1. `hasLayerNodes()` 检测到 `LayerInspector` 标记
-2. 自动调用 `RenderLayers()` 而不是 `Render()`
-3. Layer 系统处理多层级渲染
-
----
-
-## ✅ 当前实现状态
-
-### 已完成 ✅
-
-1. **Layer 系统完整实现**
-   - `runtime/layer/manager.go` - Layer 管理
-   - `runtime/layer/collector.go` - Layer 收集
-   - `internal/render/paint_engine.go` - PaintEngine.PaintLayers()
-   - 支持 5 个层级：Base, Overlay, Modal, Tooltip, Inspector
-
-2. **自动 Layer 检测**
-   - `PipelineRenderer.hasLayerNodes()` 自动检测
-   - 无需手动启用 Layer 系统
-   - 检测到 Layer 标记就自动使用 Layer 渲染
-
-3. **Inspector 覆盖层**
-   - `StandaloneInspector.RenderOverlay()` 返回带 Layer 标记的 VNode
-   - 自动使用 `LayerInspector` (z-index: 4)
-   - 不影响应用布局
-
-4. **F12 快捷键支持** (NEW!)
-   - `framework/App.SetupInspectorShortcut()` - 启用 F12/Ctrl+D
-   - 自动切换 Inspector 显示/隐藏
-
-### 架构优势 ✅
-
-- ✅ **无需手动切换** - 自动检测 Layer 并使用正确的渲染路径
-- ✅ **无导入循环** - Framework → DeclarativeNode → PipelineRenderer
-- ✅ **向后兼容** - 没有 Layer 标记的 VNode 使用普通渲染
-- ✅ **性能优化** - 只在需要时使用 Layer 系统
-- ✅ **代码简洁** - 单一渲染路径，不是两套系统
-
----
-
-## 🎓 正确的使用方法
-
-### 方法 1: 使用 ui.Run() (推荐)
+### 示例 2: 多个 Tooltip 不同层级
 
 ```go
-package main
+func MultiTooltipExample() ui.VNode {
+    tooltip1 := tooltip.NewBuilder(btn1, "Normal").
+        TooltipLayer().Build()
 
-import (
-    "os"
-    "github.com/wwsheng009/mint/app"
-    "github.com/wwsheng009/mint/internal/inspector"
-    ui "github.com/wwsheng009/mint/ui"
-)
+    tooltip2 := tooltip.NewBuilder(btn2, "IMPORTANT!").
+        ModalLayer().Build()
 
-var globalInspector *inspector.StandaloneInspector
+    tooltip3 := tooltip.NewBuilder(btn3, "DEBUG: info").
+        InspectorLayer().Build()
 
-func main() {
-    // 初始化 Inspector
-    globalInspector = inspector.NewStandaloneInspector()
+    return ui.VStack(tooltip1, tooltip2, tooltip3)
+}
+```
 
-    if os.Getenv("TUI_INSPECTOR") == "true" {
-        globalInspector.Enable()
-        globalInspector.ToggleVisibility()
-    }
+### 示例 3: 动态 Layer
 
-    // 运行应用（ui.Run 会创建 DeclarativeNode）
-    err := ui.Run(MyApp,
-        ui.WithWidth(120),
-        ui.WithHeight(40),
+```go
+type DynamicLayer struct {
+    layer rtui.Layer
+}
+
+func (d *DynamicLayer) Render() ui.VNode {
+    content := ui.NewText("Content")
+    content.SetLayer(d.layer)
+
+    return ui.HStack(
+        content,
+        ui.NewButton("Change", func() {
+            d.layer = rtui.LayerOverlay
+        }),
     )
-    if err != nil {
-        panic(err)
-    }
-}
-
-func MyApp() ui.VNode {
-    // 构建应用内容
-    appContent := buildAppContent()
-
-    // 如果 Inspector 启用，添加覆盖层
-    if globalInspector.IsVisible() {
-        inspectorOverlay := globalInspector.RenderOverlay()
-        // 注意：这里不需要 VStack，只需要返回包含 Inspector 的树
-        // Inspector 会通过 Layer 系统自动渲染在顶层
-        return ui.VStack(appContent, inspectorOverlay)
-    }
-
-    return appContent
-}
-```
-
-### 方法 2: 使用 framework.App 直接控制
-
-```go
-package main
-
-import (
-    "github.com/wwsheng009/mint/framework"
-    "github.com/wwsheng009/mint/internal/inspector"
-    "github.com/wwsheng009/mint/internal/render"
-)
-
-func main() {
-    // 创建 framework app
-    fwApp := framework.NewApp()
-
-    // 初始化 Inspector
-    inspector := inspector.NewStandaloneInspector()
-    fwApp.SetInspector(inspector)
-
-    // 设置 F12 快捷键
-    fwApp.SetupInspectorShortcut()
-
-    // 创建声明式根节点
-    declarativeRoot := render.NewDeclarativeNodeFromFunc(myAppFunc)
-
-    // 设置为根组件
-    fwApp.SetRoot(declarativeRoot)
-
-    // 运行
-    fwApp.Run()
-}
-
-func myAppFunc() ui.VNode {
-    // Inspector 会自动通过 Layer 系统渲染
-    // ...
 }
 ```
 
 ---
 
-## 🔍 如何验证 Layer 系统在工作？
+## 🐛 调试与验证
 
-### 方法 1: 查看调试输出
+### 启用日志
 
 ```bash
-# 启用 Layer 调试
 export TUI_LAYER_DEBUG=true
 export TUI_DEBUG_RENDER=true
-
-# 运行应用
-go run main.go
-
-# 输出应该包含：
-# [PipelineRenderer] Using RenderLayers for multi-layer rendering
-# [RenderingPipeline] RenderLayers started
-# [RenderingPipeline] Layer layouts complete, rendering 5 layers
+export TUI_DEBUG_HITMAP=true
 ```
 
-### 方法 2: 检查 Inspector 位置
+### 预期日志输出
 
-```bash
-# 运行 demo2
-cd examples/ui_demos/demo2_runtime_internals/inspector_overlay
-go run main.go
-
-# 点击 [I] Inspector 按钮
-# Inspector 应该显示为覆盖层（不影响应用布局）
+```
+[PipelineRenderer] Buffer size: 120x40
+[PipelineRenderer] hasLayers=true
+[PipelineRenderer] Using RenderLayers for multi-layer rendering
+[RenderingPipeline] RenderLayers started
+[RenderingPipeline] Layout complete, root size=120x40
+[RenderingPipeline] Apply layer transforms
+[RenderingPipeline] PaintablePlanes: 5 planes, 42 boxes
+[PaintEngine] Painting 5 layers (low → high)
+[RenderingPipeline] RenderLayers complete
 ```
 
-### 方法 3: 使用环境变量
+### 手动验证 Layer 检测
 
-```bash
-# 不需要设置 TUI_USE_LAYERS！
-# Layer 系统会自动启用当检测到 Layer 标记
+```go
+func debugLayerDetection(root ui.VNode) {
+    fiber := root.(*rtui.FiberVNode).Fiber()
+    hasLayers := checkLayerNodes(fiber)
+    log.Printf("Has layer nodes: %v\n", hasLayers)
+}
 
-# 如果想禁用 Layer 系统（不推荐），可以设置：
-export TUI_USE_LAYERS=false
+func checkLayerNodes(fiber *rtui.Fiber) bool {
+    if fiber == nil {
+        return false
+    }
+    if fiber.Layer != rtui.LayerBase && fiber.Layer.IsValid() {
+        log.Printf("Found layer node: ID=%d, Layer=%v\n", fiber.NodeID, fiber.Layer)
+        return true
+    }
+    for child := fiber.Child; child != nil; child = fiber.Sibling {
+        if checkLayerNodes(child) {
+            return true
+        }
+    }
+    return false
+}
 ```
 
 ---
 
-## 🚧 常见问题
+## ❓ 常见问题
 
-### Q1: 为什么我的 Inspector 不显示？
+### Q1: 为什么我的 Tooltip 不显示在最上层？
 
-**A:** 检查以下几点：
+**检查清单**:
+1. Layer 是否为 `LayerTooltip`?
+2. 是否有 `LayerInspector` 元素遮挡?
+3. 检查日志: `[hasLayerNodes] Found layer node`
 
-1. **Inspector 是否初始化？**
-   ```go
-   globalInspector = inspector.NewStandaloneInspector()
-   ```
+### Q2: Modal 不居中？
 
-2. **Inspector 是否启用？**
-   ```go
-   globalInspector.Enable()
-   globalInspector.ToggleVisibility()
-   ```
+**确保**:
+1. Modal 在 `LayerModal` 层
+2. 容器有明确尺寸（非 Infinity）
+3. Modal 内容不自适应
 
-3. **Inspector 覆盖层是否添加到 VNode 树？**
-   ```go
-   if globalInspector.IsVisible() {
-       overlay := globalInspector.RenderOverlay()
-       // overlay 必须在 VNode 树中
-   }
-   ```
+### Q3: 如何动态改变 Layer?
 
-4. **VNode 是否包含在组件中？**
-   ```go
-   // 正确 ✅
-   return ui.VStack(appContent, inspectorOverlay)
+```go
+fiberVNode.SetLayer(rtui.LayerOverlay)
+// Fiber.Layer 直接修改，下一帧渲染生效
+```
 
-   // 错误 ❌
-   return appContent  // Inspector 没有添加到树中
-   ```
+### Q4: 为什么 hasLayerNodesFromFiber 检测失败?
 
-### Q2: F12 快捷键不工作？
-
-**A:** 确保：
-
-1. **调用了 SetupInspectorShortcut()**
-   ```go
-   fwApp.SetupInspectorShortcut()  // 必须调用！
-   ```
-
-2. **使用 ui.Run() 时，需要手动设置**
-   ```go
-   func main() {
-       err := ui.Run(MyApp, ...)
-       // ui.Run 内部创建的 app 需要手动访问
-   }
-   ```
-
-   **推荐使用自定义 App：**
-   ```go
-   func main() {
-       fwApp := framework.NewApp()
-       fwApp.SetupInspectorShortcut()
-       // ... 设置 root
-       fwApp.Run()
-   }
-   ```
-
-### Q3: Inspector 在应用下方而不是覆盖层？
-
-**A:** 这是已知的限制。当前实现中：
-
-- ✅ Inspector 有 `LayerInspector` 标记
-- ✅ PipelineRenderer 检测到 Layer 标记
-- ✅ 调用 `RenderLayers()` 进行多层级渲染
-
-但是：
-- ❌ 如果通过 VStack 组合，Inspector 还是会在树中
-- ⚠️ 这不影响 Layer 渲染，但可能影响布局
-
-**未来改进：**
-- 绝对定位（右上角）
-- 不占用应用空间
-
-### Q4: 需要设置 TUI_USE_LAYERS=true 吗？
-
-**A:** **不需要！**
-
-Layer 系统会**自动启用**当检测到 Layer 标记时。`TUI_USE_LAYERS` 环境变量主要用于调试和未来扩展。
+可能原因:
+1. Fiber 为 nil
+2. 所有节点都是 LayerBase
+3. 检查递归是否完整
 
 ---
 
-## 📈 性能影响
+## 📊 性能考虑
 
-### 测量结果
+| 操作 | 开销 |
+|------|------|
+| `hasLayerNodes()` | < 1ms |
+| `RenderLayers()` vs `Render()` | +5-15% |
+| PaintablePlanes 构建 | +2-5% |
+| HitMap 构建 | +3-8% |
 
-- **Layer 检测开销**: < 1ms (hasLayerNodes 递归检查)
-- **Layer 渲染开销**: +5-10% (仅当有 Layer 时)
-- **内存开销**: ~2MB (layer.Manager 实例)
-
-### 优化建议
-
-1. **按需使用** - 只在需要时添加 Layer 标记
-2. **避免过度嵌套** - 减少 VNode 树深度
-3. **缓存结果** - PipelineRenderer 自动缓存布局
+**优化建议**:
+- 避免过度使用 Layer
+- 限制 Modal 数量
+- 利用 Fiber 缓存
+- 生产环境禁用日志
 
 ---
 
 ## 📚 相关文档
 
-### 实现文档
-
-- `TWO_RENDERING_SYSTEMS_EXPLAINED.md` - 旧的架构分析（已过时）
-- `INSPECTOR_OVERLAY_IMPLEMENTATION_SUMMARY.md` - Inspector 实施总结
-- `docs/plan/inspector_framework_overlay.md` - Inspector 覆盖层计划
-
-### 源码文件
-
-- `internal/render/declarative_node.go` - DeclarativeNode 实现
-- `internal/render/pipeline_renderer.go` - PipelineRenderer 实现
-- `internal/render/rendering_pipeline.go` - RenderingPipeline 实现
-- `runtime/layer/manager.go` - LayerManager 实现
-- `internal/inspector/standalone_inspector.go` - Inspector 实现
-- `framework/app.go` - Framework App 实现
+- `docs/layer/FIBER_FIRST_LAYER_SYSTEM.md` - Fiber-First Layer 系统完整技术细节
+- `ui/components/tooltip/layer_demo.go` - Tooltip Layer 使用示例
+- `internal/render/` - 源码实现
 
 ---
 
-## ✨ 结论
-
-**Mint TUI 的 Layer 系统已经完整集成并自动工作！**
-
-- ✅ 不需要手动启用 Layer 系统
-- ✅ 检测到 Layer 标记就自动使用 Layer 渲染
-- ✅ Framework 通过 DeclarativeNode 桥接到 Runtime
-- ✅ 单一渲染路径，不是两套并存系统
-- ✅ F12 快捷键支持已添加
-
-**核心要点**：
-1. Layer 系统是**内部实现细节**，用户不需要关心
-2. 只需在 VNode 上设置 Layer 标记，系统会自动处理
-3. Framework 和 Runtime 通过 DeclarativeNode 无缝连接
-
----
-
-**创建日期**: 2025-02-08
-**状态**: ✅ 架构已澄清
-**推荐**: ✅ 当前实现已经可用
+**文档版本**: 2.0
+**最后更新**: 2026-02-23
+**状态**: ✅ Fiber-First 架构

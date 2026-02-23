@@ -1,21 +1,72 @@
-# 为什么 framework/app.go 使用 Paintable 而不是 Layer 系统？
+# ⚠️ [已过时] 为什么 framework/app.go 使用 Paintable 而不是 Layer 系统？
+
+**⚠️ 此文档已过时，包含不准确的架构分析！**
+
+**请参阅**: `docs/layer/FIBER_FIRST_LAYER_SYSTEM.md` - 正确的 Fiber-First Layer 系统说明
+
+---
+
+## 🚨 架构澄清
+
+### 错误假设
+
+本文档原始基于以下错误假设：
+- ❌ Framework Paintable (旧系统) 和 Runtime Layer (新系统) 是**两套并存的系统**
+- ❌ Framework/App 还没有完整集成 Layer 系统
+- ❌ 需要手动在 Framework 层添加 layerManager
+
+### 正确理解
+
+**Mint TUI 只有**一套**渲染系统！**
+
+架构路径是单一的：
+```
+framework/App.Run()
+    ↓
+DeclarativeNode.Paint() (Paintable 接口)
+    ↓
+PipelineRenderer.Render()
+    ↓
+    ├─→ hasLayerNodes(vnode) 检测
+    │       ├─ Fiber 树检查 (优先)
+    │       └─ VNode 树检查 (回退)
+    │
+    └─→ RenderingPipeline
+            ├─→ RenderLayers() (有 Layer 时)
+            └─→ Render() (无 Layer 时)
+```
+
+- **Framework Paintable 接口不是独立的渲染系统**，只是渲染流程的入口点
+- **Layer 系统已经完整集成**在 `internal/render` 包中
+- **PipelineRenderer 自动检测 Layer 标记**并调用 `RenderLayers()`
+- **Fiber 存储持久化的 Layer 状态**，跨帧保持
+
+**详细信息请参阅**: `docs/layer/FIBER_FIRST_LAYER_SYSTEM.md`
+
+---
+
+## 原文档内容（保留作为历史参考）
+
+以下内容基于错误的架构假设，仅作为历史参考。**请勿依赖此文档进行当前架构的理解。**
+
+---
 
 **架构解析：两套系统的历史原因与融合方案**
 
 ---
 
-## 📊 问题核心
+## 📊 问题核心 (历史分析)
 
-您发现了 Mint TUI 有**两套并存的渲染系统**：
+您发现了 Mint TUI 有**两套并存的渲染系统**（当时认为）：
 
 1. **Framework Paintable 系统** - framework/app.go 使用
 2. **Runtime Layer 系统** - runtime/layer/ 定义
 
-**为什么是这样？这是架构演进的历史遗留问题。**
+**当时认为这是架构演进的历史遗留问题。**
 
 ---
 
-## 🏛️ 两套系统对比
+## 🏛️ 两套系统对比 (历史分析)
 
 ### 系统1: Framework Paintable（旧系统）
 
@@ -28,7 +79,7 @@ type Paintable interface {
 }
 ```
 
-**使用路径**:
+**当时的使用路径**:
 ```
 Application (用户代码)
     ↓
@@ -43,7 +94,7 @@ framework/App.render()
 直接绘制到 buffer
 ```
 
-**特点**:
+**当时的特点**:
 - ✅ 简单直接
 - ✅ Framework 层控制
 - ❌ 不支持 Layer/ZIndex
@@ -51,7 +102,7 @@ framework/App.render()
 
 ### 系统2: Runtime Layer（新系统）
 
-**位置**: `runtime/layer/manager.go`
+**位置**: `runtime/layer/manager.go` (已废弃)
 
 ```go
 type Manager struct {
@@ -66,7 +117,7 @@ func (m *Manager) CollectAndLayout(vnode, constraints, engine) {
 }
 ```
 
-**使用路径**:
+**当时的使用路径**:
 ```
 Application (带 Layer 标记的 VNode)
     ↓
@@ -79,7 +130,7 @@ PaintEngine.PaintLayers(layouts, buffer)
 按 z-index 顺序渲染所有层
 ```
 
-**特点**:
+**当时的特点**:
 - ✅ 支持 Layer/ZIndex
 - ✅ 支持覆盖层
 - ✅ 支持多层级合成
@@ -87,7 +138,7 @@ PaintEngine.PaintLayers(layouts, buffer)
 
 ---
 
-## 📜 历史演进
+## 📜 历史演进 (当时认为)
 
 ### 阶段1: 初始架构（V1）
 
@@ -142,7 +193,7 @@ PaintEngine.PaintLayers()
 - ✅ Modal, Tooltip, Overlay 支持
 - ⚠️ 但 framework/app 还没集成
 
-### 当前状态（V3.5）- 两套并存
+### 当前状态（当时认为 V3.5）- 两套并存
 
 ```
 路径1: Framework Paintable (旧)
@@ -156,48 +207,9 @@ runtime/layer → LayerManager → PaintEngine.PaintLayers() → buffer
 
 ---
 
-## 🔍 为什么 framework/app 还没用 Layer 系统？
+## 🔧 当时的解决方案
 
-### 原因1: 历史包袱
-
-**Framework Paintable 先存在**
-- framework/app 是早期实现
-- 使用 Paintable 接口
-- 已经稳定运行
-
-**Runtime Layer 后来才加入**
-- runtime/layer 是后来添加的
-- 更现代的架构
-- 但 framework/app 还没迁移
-
-### 原因2: 架构边界（关键！）
-
-根据 `framework/docs/BOUNDARIES.md`：
-
-```
-Runtime 禁止依赖 Framework！
-但 Framework 可以依赖 Runtime。
-```
-
-**这意味着**:
-- ✅ Framework 可以使用 Runtime 的 Layer 系统
-- ❌ 但 Framework 还没完成迁移
-
-### 原因3: 迁移成本高
-
-**要集成 Layer 系统，需要**:
-1. 修改 framework/App.render() 逻辑
-2. 替换 Paintable 检查为 Layer 调用
-3. 添加 LayerManager 初始化
-4. 处理两套系统的兼容性
-
-**这是大工程！**
-
----
-
-## 🎯 如何统一两套系统？
-
-### 方案A: 在 App 中集成 Layer 系统（推荐）
+### 方案A: 在 App 中集成 Layer 系统（推荐，但实际不需要）
 
 **修改 framework/app.go**:
 
@@ -206,8 +218,8 @@ type App struct {
     // ... 现有字段
 
     // Layer 支持 (NEW)
-    layerManager *layer.Manager
-    useLayers    bool  // 启用 Layer 系统的开关
+    layerManager *layer.Manager  // ❌ 实际不需要！
+    useLayers    bool             // ❌ 实际不需要！
 }
 
 func (a *App) render() {
@@ -219,27 +231,9 @@ func (a *App) render() {
         a.renderWithPaintable()
     }
 }
-
-func (a *App) renderWithLayers() {
-    // 1. 收集层
-    a.layerManager.CollectAndLayout(a.root, constraints, engine)
-
-    // 2. 渲染所有层
-    a.paintEngine.PaintLayers(a.layerManager.GetLayouts(), buffer)
-}
-
-func (a *App) renderWithPaintable() {
-    // 当前的实现
-    if paintable, ok := a.root.(component.Paintable); ok {
-        paintable.Paint(ctx, buffer)
-    }
-}
 ```
 
-**优点**:
-- ✅ 平滑迁移（feature flag）
-- ✅ 向后兼容
-- ✅ 可以逐步迁移
+**实际上**: Layer 系统已经在 `internal/render` 包中完整实现，Framework 通过 DeclarativeNode 桥接。
 
 ### 方案B: 让 Paintable 组件支持 Layer
 
@@ -257,23 +251,13 @@ type Paintable interface {
 }
 ```
 
-**然后 framework/App 检查**:
-```go
-// 先尝试 Layer 系统
-if layerManager.HasLayers() {
-    renderWithLayers()
-} else if paintable, ok := root.(Paintable); ok {
-    paintable.Paint(ctx, buffer)
-}
-```
+**实际上**: VNode 接口已经有 `GetLayer()` 方法，不需要修改 Paintable。
 
 ---
 
-## 💡 当前的解决方案（临时方案）
+## 💡 当时的解决方案（临时方案）
 
-### 我们的 Inspector 实现做了什么？
-
-**我们做了"部分集成"**：
+### 我们当时做了"部分集成":
 
 ```go
 // 在 demo2 中
@@ -297,192 +281,114 @@ func RuntimeDemoWithInspectorOverlay() ui.VNode {
 **这是"伪 Layer"**:
 - ✅ Inspector 有 Layer 标记
 - ✅ PaintEngine 知道如何渲染
-- ❌ 但 framework/App 没有使用 LayerManager
-- ❌ 只是简单的 VStack 组合
+- ❌ 但通过 VStack 组合，不算真正的 Layer 系统
 
-### 为什么这样"不够"？
-
-1. **不是真正的 z-index**
-   - VStack 只是把内容垂直堆叠
-   - Inspector 在应用下方，不是"浮"在上方
-
-2. **框架层没有快捷键**
-   - 无法在 framework 层注册 F12
-   - 只能通过按钮控制
-
-3. **没有真正的层合成**
-   - LayerManager.CollectAndLayout() 没被调用
-   - PaintEngine.PaintLayers() 也没被调用
-   - 只是组件树组合
+**实际上**: 这是正确的 Fiber-first 架构，VStack 组合被 Fiber 树管理，Layer 属性存储在 Fiber 节点中。
 
 ---
 
-## 🚀 完整的解决方案
+## 🎯 实际的解决方案 (现在理解)
 
-### 要实现真正的框架级 Layer 支持，需要：
+### Fiber-First 架构下的 Layer 系统
 
-#### Step 1: 在 framework/App 中添加 Layer 支持
+1. **Layer 存储在 Fiber 节点**
+   ```go
+   type Fiber struct {
+       // ...
+       Layer Layer  // ← 持久化的 Layer 状态
+   }
+   ```
 
-```go
-type App struct {
-    // ... 现有字段
+2. **初始化时从 VNode 获取**
+   ```go
+   return &Fiber{
+       // ...
+       Layer: vnode.GetLayer(),  // 初始化
+   }
+   ```
 
-    layerManager *layer.Manager  // NEW
-    useLayers    bool              // NEW
-}
+3. **自动检测和渲染**
+   ```go
+   // PipelineRenderer
+   hasLayers := r.hasLayerNodes(vnode)
+   if hasLayers {
+       r.pipeline.RenderLayers(vnode, fiber, constraints, buf)
+   } else {
+       r.pipeline.Render(vnode, fiber, constraints, buf)
+   }
+   ```
 
-func (a *App) Init() error {
-    // ... 现有初始化
-
-    // NEW: 初始化 LayerManager
-    a.layerManager = layer.NewManager()
-    a.useLayers = os.Getenv("TUI_USE_LAYERS") == "true"
-
-    return nil
-}
-```
-
-#### Step 2: 修改 render() 方法
-
-```go
-func (a *App) render() {
-    if a.root == nil {
-        return
-    }
-
-    if a.useLayers {
-        a.renderWithLayers()
-    } else {
-        a.renderWithPaintable()  // 当前实现
-    }
-}
-
-func (a *App) renderWithLayers() error {
-    // 1. 收集和布局所有层
-    constraints := runtime.BoxConstraints{
-        MinWidth:  0,
-        MaxWidth:  a.terminalWidth,
-        MinHeight: 0,
-        MaxHeight: a.terminalHeight,
-    }
-
-    if err := a.layerManager.CollectAndLayout(
-        a.root,
-        constraints,
-        a.engine,  // 需要从 framework 暴露 engine
-    ); err != nil {
-        return err
-    }
-
-    // 2. 获取 buffer
-    buf := a.renderer.GetBackBuffer()
-    buf.Reset(a.terminalWidth, a.terminalHeight)
-
-    // 3. 渲染所有层
-    if err := a.paintEngine.PaintLayers(
-        a.layerManager.GetLayouts(),
-        buf,
-    ); err != nil {
-        return err
-    }
-
-    // 4. 输出
-    a.renderer.Render()
-
-    return nil
-}
-
-func (a *App) renderWithPaintable() {
-    // 当前的实现（保持不变）
-    if paintable, ok := a.root.(component.Paintable); ok {
-        buf := a.renderer.GetBackBuffer()
-        buf.Reset(a.terminalWidth, a.terminalHeight)
-
-        ctx := component.PaintContext{
-            AvailableWidth:  a.terminalWidth,
-            AvailableHeight: a.terminalHeight,
-            X:               0,
-            Y:               0,
-        }
-
-        paintable.Paint(ctx, buf)
-        a.renderer.Render()
-    }
-}
-```
-
-#### Step 3: 暴露必要的 Runtime 依赖
-
-Framework 需要访问 Runtime 的：
-- `layer.Manager`
-- `compute.Engine`
-- `render.PaintEngine`
-
-这些已经在 framework 中有别名或包装。
+4. **多层级渲染**
+   - `layout.Engine.Layout()` - 统一布局
+   - `applyLayerTransforms()` - Modal 居中等
+   - `buildPaintablePlanes()` - 按层级分组
+   - `PaintEngine.PaintPaintablePlanes()` - 绘制
 
 ---
 
-## 📊 总结
+## ✅ 更新建议
 
-### 问题根源
+### 对于开发者
 
-**Framework Paintable** 和 **Runtime Layer** 是**两套独立的渲染系统**，历史原因导致它们并存：
+1. **阅读新文档**
+   - `docs/layer/FIBER_FIRST_LAYER_SYSTEM.md` - 正确的架构说明
 
-1. **Framework Paintable** (V2)
-   - 早期实现
-   - 简单直接
-   - framework/app 使用
+2. **理解 Fiber-first 架构**
+   - Layer 存储在 Fiber，不在独立的管理器中
+   - 通过 DeclarativeNode 桥接，不是两套系统
 
-2. **Runtime Layer** (V3)
-   - 后来添加
-   - 功能强大
-   - 还没被 framework 集成
+3. **使用组件 Layer API**
+   - `VNode.GetLayer()` / `VNode.SetLayer()`
+   - Builder 便捷方法
 
-### 当前状态
+### 对于文档维护者
 
-- ✅ Layer 系统**完整实现**
-- ✅ PaintEngine **支持多层级渲染**
-- ❌ framework/App **还没集成**
-- ⚠️ 两套系统**并存**
+1. **归档此文档**
+   - 移动到 `docs/deprecated/` 目录
+   - 添加 "DEPRECATED" 前缀
 
-### 我们的实现
-
-- ✅ **部分 Layer 支持** - Inspector 有 Layer 标记
-- ✅ **演示可用** - 可以显示 Inspector
-- ❌ **不是真 Layer** - 只是 VStack 组合
-- ❌ **框架未集成** - framework/App 还没用上
+2. **更新交叉引用**
+   - 指向 `FIBER_FIRST_LAYER_SYSTEM.md`
+   - 更新相关文档的链接
 
 ---
 
-## 🎯 真正的解决方案
+## 🎓 经验教训
 
-### 需要在 framework/App 中：
+### 1. 架构理解的重要性
 
-1. **添加 LayerManager**
-2. **修改 render() 逻辑**
-3. **支持 Layer 系统**
-4. **保持向后兼容**（feature flag）
+- ❌ 错误: 认为有"两套并存系统"
+- ✅ 正确: Framework 通过 DeclarativeNode 桥接到 Runtime，Layer 系统已集成
 
-### 这是一个更大的工程
+### 2. 深入代码分析
 
-**预计时间**: 2-3 天
-**复杂度**: 中-高
-**风险**: 可能破坏现有功能
+- 需要仔细阅读 `internal/render/` 包的实现
+- 不应仅凭接口推测架构
+- Fiber-first 架构改变了状态管理方式
 
----
+### 3. 文档时效性
 
-**您想要我继续实现完整的 framework/App Layer 集成吗？**
-
-这将使 Inspector 成为**真正的覆盖层**，支持：
-- ✅ 真正的 z-index（浮在应用上方）
-- ✅ F12 快捷键支持
-- ✅ 不占用应用空间
-- ✅ 完整的 Layer 系统集成
-
-**或者当前的"部分集成"已经够用？**
+- 架构演进可能使文档过时
+- 需要定期验证文档是否与代码一致
+- 标记过时文档比删除更有价值（保留历史）
 
 ---
 
+## 📚 正确的文档
+
+### 推荐文档
+
+- ✅ `docs/layer/FIBER_FIRST_LAYER_SYSTEM.md` - Fiber-First Layer 系统完整说明
+- ✅ `internal/render/` - 源码实现是最好的文档
+
+### 过时文档
+
+- ❌ `docs/layer/TWO_RENDERING_SYSTEMS_EXPLAINED.md` - 本文档（已过时）
+
+---
+
+**文档版本**: 1.0 (DEPRECATED)
 **创建日期**: 2025-02-08
-**状态**: 架构分析完成
-**下一步**: 等待用户决定是否完整集成
+**归档日期**: 2026-02-23
+**状态**: ❌ **已过时 - 基于 Fiber-first 架构更新**
+**替代文档**: ✅ **`docs/layer/FIBER_FIRST_LAYER_SYSTEM.md`**
