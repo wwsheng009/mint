@@ -6,7 +6,7 @@ import (
 )
 
 var tuiWidthCondition = &runewidth.Condition{
-	EastAsianWidth: false,
+	EastAsianWidth: true,  // 修复：设置为 true 以正确处理中文字符宽度
 }
 
 // StringWidth calculates the display width of text for TUI rendering.

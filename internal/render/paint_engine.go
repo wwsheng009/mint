@@ -17,17 +17,17 @@ import (
 // PaintEngine renders layout trees using pre-computed layout information
 // This is the paint-only phase of the new rendering pipeline
 type PaintEngine struct {
-	debug            bool
-	lastHadModal     bool                               // Track if modal was present in last frame (for backdrop restoration)
-	forceFullRender  bool                               // Flag to force full buffer render on next frame
-	parentBackground map[*paint.PaintableBox]style.Color // Track parent background for inheritance
-	lastLayersPresent map[rtui.Layer]bool               // Track which layers were present in last frame
-	lastLayerBounds  map[rtui.Layer]runtime.Box         // Track last bounds of each layer for cleanup
+	debug             bool
+	lastHadModal      bool                                // Track if modal was present in last frame (for backdrop restoration)
+	forceFullRender   bool                                // Flag to force full buffer render on next frame
+	parentBackground  map[*paint.PaintableBox]style.Color // Track parent background for inheritance
+	lastLayersPresent map[rtui.Layer]bool                 // Track which layers were present in last frame
+	lastLayerBounds   map[rtui.Layer]runtime.Box          // Track last bounds of each layer for cleanup
 
 	// Performance optimization: Paint cache
-	cache        *cachepkg.PaintCache // Cache for rendered paintable boxes
-	enableCache  bool                 // Enable cache (true by default)
-	version      int                  // Current render version (for cache invalidation)
+	cache        *cachepkg.PaintCache      // Cache for rendered paintable boxes
+	enableCache  bool                      // Enable cache (true by default)
+	version      int                       // Current render version (for cache invalidation)
 	paintContext *cachepkg.PaintingContext // Context for cache-aware painting
 }
 
@@ -340,6 +340,8 @@ func (e *PaintEngine) paintBorderedBox(box *paint.PaintableBox, buffer *paint.Bu
 }
 
 // paintModalBackdropBox draws modal backdrop (PaintableBox version)
+// 智能版本：按行遍历，对空白区域用空格填充，对有内容区域用 SetString 灰染（保留内容并改色）
+// 关键优化：跨单元格时跳过延续单元格，避免破坏中文连续性
 func (e *PaintEngine) paintModalBackdropBox(root *paint.PaintableBox, buffer *paint.Buffer) {
 	if root == nil {
 		return
@@ -353,42 +355,76 @@ func (e *PaintEngine) paintModalBackdropBox(root *paint.PaintableBox, buffer *pa
 
 	dimmedFG := style.Color("bright-black")
 	dimmedBG := style.Color("#1e2028")
+	dimmedStyle := style.Style{FG: dimmedFG, BG: dimmedBG}
 
-	applyDimmed := func(x, y int) {
-		cell := buffer.GetContent(x, y)
-		if cell.Cluster == "" || cell.Cluster == " " {
-			buffer.SetCell(x, y, ' ', style.Style{BG: dimmedBG})
-		} else {
-			dimmedStyle := style.Style{FG: dimmedFG, BG: dimmedBG}
-			runeStr := cell.Cluster
-			if len(runeStr) > 0 {
-				buffer.SetCell(x, y, []rune(runeStr)[0], dimmedStyle)
+	// 对每个需要进行灰化的区域，按行处理
+	//
+	// ┌─────────────────────────────────────────────────────────────────────┐
+	// 1. 上方区域 (0, 0, width, modalY)                                    │
+	// │                    ↓                                                 │
+	// │              ┌────────────────────────────────────────────────────┐
+	// │              2.│          Modal 内容区域          │    │
+	// │              └────────────────────────────────────────────────────┘│
+	// │                    ↓                                                 │
+	// │ 3. 下方区域 (0, modalY+modalHeight, width, height-modalY-modalHeight)│
+	// └─────────────────────────────────────────────────────────────────────┘
+	// 4. 左侧区域 (0, modalY, modalX, modalHeight)
+	// 5. 右侧区域 (modalX+modalWidth, modalY, width-modalX-modalWidth, modalHeight)
+
+	// 辅助函数：对指定区域进行灰化处理
+	dimRegion := func(startX, startY, endX, endY int) {
+		if startX >= endX || startY >= endY {
+			return
+		}
+		for y := startY; y < endY; y++ {
+			x := startX
+			for x < endX {
+				cell := buffer.GetContent(x, y)
+				// 如果是延续单元格，跳过（属于主字符的一部分）
+				if cell.IsContinuation {
+					x++
+					continue
+				}
+				
+				// 空白或空格：用灰色空格填充
+				if cell.Cluster == "" || cell.Cluster == " " {
+					buffer.SetCell(x, y, ' ', dimmedStyle)
+					x++
+				} else {
+					// 有内容：用 SetString 保留内容并改色
+					buffer.SetString(x, y, cell.Cluster, dimmedStyle)
+					// 跳过字符的所有延续单元格
+					x += cell.Width
+				}
 			}
 		}
 	}
 
-	// Area above modal
-	for y := 0; y < modalY && y < height; y++ {
-		for x := 0; x < width; x++ {
-			applyDimmed(x, y)
-		}
+	// 矩形 1: 上方区域
+	dimRegion(0, 0, width, modalY)
+
+	// 矩形 2: 下方区域
+	bottomY := modalY + modalHeight
+	dimRegion(0, bottomY, width, height)
+
+	// 矩形 3: 左侧区域
+	dimRegion(0, modalY, modalX, modalY+modalHeight)
+
+	// 矩形 4: 右侧区域
+	rightX := modalX + modalWidth
+	dimRegion(rightX, modalY, width, modalY+modalHeight)
+}
+
+// Fill fills a rectangular region of the buffer with a specific character and style
+func (e *PaintEngine) Fill(buffer *paint.Buffer, bounds runtime.Box, ch rune, s style.Style) {
+	if bounds.Width <= 0 || bounds.Height <= 0 {
+		return
 	}
-	// Area below modal
-	for y := modalY + modalHeight; y < height; y++ {
-		for x := 0; x < width; x++ {
-			applyDimmed(x, y)
-		}
-	}
-	// Area left of modal
-	for y := modalY; y < modalY+modalHeight && y < height; y++ {
-		for x := 0; x < modalX; x++ {
-			applyDimmed(x, y)
-		}
-	}
-	// Area right of modal
-	for y := modalY; y < modalY+modalHeight && y < height; y++ {
-		for x := modalX + modalWidth; x < width; x++ {
-			applyDimmed(x, y)
+
+	// 填充矩形区域
+	for y := bounds.Y; y < bounds.Y+bounds.Height; y++ {
+		for x := bounds.X; x < bounds.X+bounds.Width; x++ {
+			buffer.SetCell(x, y, ch, s)
 		}
 	}
 }
