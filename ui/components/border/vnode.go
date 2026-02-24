@@ -147,6 +147,7 @@ func (v *VNode) Props() rtui.Props {
 		"borderStyle": v.borderStyle,
 		"borderColor": string(v.borderColor),
 		"borderLabel": v.borderLabel,
+		"label":       v.borderLabel, // ✨ 别名：label 映射到 borderLabel（边框标签）
 		"width":       v.width,
 		"height":      v.height,
 		"flex":        v.flex,
@@ -167,6 +168,10 @@ func (v *VNode) SetProps(p rtui.Props) rtui.VNode {
 		v.borderColor = style.Color(val)
 	}
 	if val, ok := p["borderLabel"].(string); ok {
+		v.borderLabel = val
+	}
+	// ✨ 从 "label" 属性读取边框标签
+	if val, ok := p["label"].(string); ok {
 		v.borderLabel = val
 	}
 	if val, ok := p["width"].(int); ok {
@@ -198,6 +203,7 @@ func (v *VNode) CreateInstance() rtui.ComponentInstance {
 		"borderStyle": v.borderStyle,
 		"borderColor": string(v.borderColor),
 		"borderLabel": v.borderLabel,
+		"label":       v.borderLabel, // ✨ 别名：label 映射到 borderLabel
 		"width":       v.width,
 		"height":      v.height,
 		"flex":        v.flex,

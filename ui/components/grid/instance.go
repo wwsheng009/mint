@@ -33,6 +33,10 @@ type Instance struct {
 	height int
 	flex   int
 
+	// ✨ Border Props (方案 A - 边框作为容器属性) ===
+	borderStyle  string // "none", "single", "double", "rounded", "dashed"
+	borderLabel  string // Optional label displayed on top border
+
 	// === Style ===
 	instStyle style.Style
 
@@ -70,6 +74,8 @@ func NewInstance(props rtui.Props) *Instance {
 		flex:         getIntProp(props, "flex", 0),
 		instStyle:    getStyleProp(props),
 		dirty:        true,
+		borderStyle:  getStringProp(props, "borderStyle", "none"), // ✨ 边框样式
+		borderLabel:  getStringProp(props, "label", ""),         // ✨ 边框标签
 	}
 
 	// Parse columns
@@ -296,6 +302,8 @@ func (inst *Instance) Measure(constraints layout.Constraints) layout.Size {
 	totalW = constraints.ConstrainWidth(totalW)
 	totalH = constraints.ConstrainHeight(totalH)
 
+	// ✨ 边框：永远返回内容尺寸（不含边框），边框由上层 FiberToNodeAdapter 添加
+	// 这样可以避免重复添加边框，并且保持逻辑的单一性
 	return layout.Size{Width: totalW, Height: totalH}
 }
 
@@ -416,6 +424,7 @@ func (inst *Instance) calculateRowHeights(availableHeight int, numCols, actualNu
 	fixedHeight := 0
 	flexCount := 0
 	flexTotalFactor := 0
+	autoCount := 0 // ✨ 统计 Auto 行的数量
 
 	// First pass: calculate fixed heights
 	for i := 0; i < numRows; i++ {
@@ -431,9 +440,10 @@ func (inst *Instance) calculateRowHeights(availableHeight int, numCols, actualNu
 				flexTotalFactor += 1
 			}
 		case Auto:
-			// Auto rows get minimum height (1 line per row)
+			// ✨ Auto rows get minimum height (1 line per row) initially
 			heights[i] = 1
 			fixedHeight += heights[i]
+			autoCount++
 		case Min:
 			heights[i] = r.Min
 			fixedHeight += heights[i]
@@ -454,7 +464,10 @@ func (inst *Instance) calculateRowHeights(availableHeight int, numCols, actualNu
 	}
 
 	// Second pass: distribute remaining height to flex rows
+	// ✨ Note: Auto rows keep their minimum height (1 line), they don't expand
+	//      This prevents Auto rows from taking up too much space
 	if flexCount > 0 && flexTotalFactor > 0 {
+		// Distribute to flex rows
 		for i := 0; i < numRows; i++ {
 			if _, ok := rows[i].(Flex); ok {
 				factor := 1

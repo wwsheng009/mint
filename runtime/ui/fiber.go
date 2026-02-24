@@ -165,6 +165,12 @@ type Fiber struct {
 	LayoutPadding    [4]int
 	LayoutFlex       int
 
+	// ✨ Border Style (方案 A - 边框作为容器属性)
+	// Populated in completeWork from VNode props
+	// All containers can now support borders natively
+	BorderStyle  string  // "none", "single", "double", "rounded", "dashed"
+	BorderLabel  string  // Optional label displayed on top border
+
 	// === Visual Style (Fiber-first) ===
 	// Copied from VNode.Style() during Fiber creation
 	Style style.Style

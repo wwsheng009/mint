@@ -78,6 +78,10 @@ type VNode struct {
 	zIndex int // stacking order
 	flex   int // flex factor
 
+	// === Border Props (方案 A - 边框作为容器属性) ===
+	borderStyle  string // "none", "single", "double", "rounded", "dashed"
+	borderLabel  string // Optional label displayed on top border
+
 	// === Style ===
 	style style.Style
 }
@@ -98,6 +102,8 @@ func New(child rtui.VNode) *VNode {
 		ElementVNode: rtui.NewElement("absolute"),
 		child:        child,
 		anchor:       AnchorTopLeft,
+		borderStyle:  "none", // 默认无边框
+		borderLabel:  "",
 	}
 }
 
@@ -161,17 +167,19 @@ func (a *VNode) SetLayer(l rtui.Layer) rtui.VNode {
 // Props returns the node properties.
 func (a *VNode) Props() rtui.Props {
 	return rtui.Props{
-		"key":    a.key,
-		"child":  a.child,
-		"left":   a.left,
-		"top":    a.top,
-		"right":  a.right,
-		"bottom": a.bottom,
-		"anchor": a.anchor,
-		"width":  a.width,
-		"height": a.height,
-		"zIndex": a.zIndex,
-		"flex":   a.flex,
+		"key":        a.key,
+		"child":      a.child,
+		"left":       a.left,
+		"top":        a.top,
+		"right":      a.right,
+		"bottom":     a.bottom,
+		"anchor":     a.anchor,
+		"width":      a.width,
+		"height":     a.height,
+		"zIndex":     a.zIndex,
+		"flex":       a.flex,
+		"borderStyle": a.borderStyle,  // ✨ 边框样式
+		"label":      a.borderLabel,  // ✨ 边框标签
 	}
 }
 
@@ -210,6 +218,13 @@ func (a *VNode) SetProps(p rtui.Props) rtui.VNode {
 	if v, ok := p["flex"].(int); ok {
 		a.flex = v
 	}
+	// ✨ 边框属性
+	if v, ok := p["borderStyle"].(string); ok {
+		a.borderStyle = v
+	}
+	if v, ok := p["label"].(string); ok {
+		a.borderLabel = v
+	}
 	return a
 }
 
@@ -220,18 +235,20 @@ func (a *VNode) SetProps(p rtui.Props) rtui.VNode {
 // CreateInstance creates a new AbsoluteInstance from this VNode description.
 func (a *VNode) CreateInstance() rtui.ComponentInstance {
 	return NewInstance(rtui.Props{
-		"key":    a.key,
-		"child":  a.child,
-		"left":   a.left,
-		"top":    a.top,
-		"right":  a.right,
-		"bottom": a.bottom,
-		"anchor": a.anchor,
-		"width":  a.width,
-		"height": a.height,
-		"zIndex": a.zIndex,
-		"flex":   a.flex,
-		"style":  a.style,
+		"key":        a.key,
+		"child":      a.child,
+		"left":       a.left,
+		"top":        a.top,
+		"right":      a.right,
+		"bottom":     a.bottom,
+		"anchor":     a.anchor,
+		"width":      a.width,
+		"height":     a.height,
+		"zIndex":     a.zIndex,
+		"flex":       a.flex,
+		"borderStyle": a.borderStyle,  // ✨ 边框样式
+		"label":      a.borderLabel,  // ✨ 边框标签
+		"style":      a.style,
 	})
 }
 
@@ -461,4 +478,67 @@ func (a *VNode) MeasureConstraints(c layout.Constraints) layout.Size {
 		return measurable.Measure(c)
 	}
 	return layout.Size{Width: c.MinWidth, Height: c.MinHeight}
+}
+
+// =============================================================================
+// ✨ Border Builder Methods (方案 A - 边框作为容器属性)
+// =============================================================================
+
+// Border sets the border style and label.
+func (a *VNode) Border(style string, label string) *VNode {
+	a.borderStyle = style
+	a.borderLabel = label
+	return a
+}
+
+// Bordered sets border with specified style (no label).
+func (a *VNode) Bordered(style string) *VNode {
+	return a.Border(style, "")
+}
+
+// NoBorder removes border.
+func (a *VNode) NoBorder() *VNode {
+	return a.Border("none", "")
+}
+
+// SingleBorder sets single line border with optional label.
+func (a *VNode) SingleBorder(label ...string) *VNode {
+	lbl := ""
+	if len(label) > 0 {
+		lbl = label[0]
+	}
+	return a.Border("single", lbl)
+}
+
+// DoubleBorder sets double line border with optional label.
+func (a *VNode) DoubleBorder(label ...string) *VNode {
+	lbl := ""
+	if len(label) > 0 {
+		lbl = label[0]
+	}
+	return a.Border("double", lbl)
+}
+
+// RoundedBorder sets rounded border with optional label.
+func (a *VNode) RoundedBorder(label ...string) *VNode {
+	lbl := ""
+	if len(label) > 0 {
+		lbl = label[0]
+	}
+	return a.Border("rounded", lbl)
+}
+
+// DashedBorder sets dashed border with optional label.
+func (a *VNode) DashedBorder(label ...string) *VNode {
+	lbl := ""
+	if len(label) > 0 {
+		lbl = label[0]
+	}
+	return a.Border("dashed", lbl)
+}
+
+// BorderLabel sets only the border label (keeps current style).
+func (a *VNode) BorderLabel(label string) *VNode {
+	a.borderLabel = label
+	return a
 }

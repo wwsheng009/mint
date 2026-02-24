@@ -305,11 +305,9 @@ func (e *PaintEngine) paintBorderedBox(box *paint.PaintableBox, buffer *paint.Bu
 		borderStyle = border.StyleSingle
 	}
 
-	// Get border width (1 for single/rounded/dashed, 2 for double)
+	// IMPORTANT: All border styles (including Double) occupy only 1 character cell width
+	// Double border lines (═, ║) are single characters, just styled differently
 	borderWidth := 1
-	if bs == paint.BorderStyleDouble {
-		borderWidth = 2
-	}
 
 	config := border.Config{
 		Style: borderStyle,
@@ -318,6 +316,7 @@ func (e *PaintEngine) paintBorderedBox(box *paint.PaintableBox, buffer *paint.Bu
 	}
 	renderer := border.WithConfig(config)
 
+	// Calculate content area: subtract border padding (1 on each side)
 	contentWidth := box.Width - (borderWidth * 2)
 	contentHeight := box.Height - (borderWidth * 2)
 	if contentWidth < 0 {

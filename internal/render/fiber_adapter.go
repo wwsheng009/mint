@@ -214,10 +214,17 @@ func (a *FiberToNodeAdapter) GetHeight() int {
 // Measure 实现 layout.Measurable 接口
 // Fiber-first: 测量节点在给定约束下的理想尺寸
 // 所有测量数据来自 Fiber.Instance（已迁移组件）或 Fiber.Style/Props
+//
+// 边框处理（方案 A）：
+// - width/height 是容器总尺寸（包含边框）
+// - 子节点可用空间 = 总尺寸 - 边框占用
 func (a *FiberToNodeAdapter) Measure(constraints layout.Constraints) layout.Size {
 	if a.fiber == nil {
 		return layout.Size{}
 	}
+
+	// ✨ 获取边框配置
+	border := a.GetBorder()
 
 	// 特殊处理：absolute 组件应该填充父容器的可用空间
 	// 因为 absolute 是一个定位容器，它的子元素相对于它定位
@@ -239,12 +246,23 @@ func (a *FiberToNodeAdapter) Measure(constraints layout.Constraints) layout.Size
 	}
 
 	// 1. 从 Instance 获取尺寸（优先，用于已迁移组件）
+	// Instance 的 Measure() 方法应该已经考虑边框并返回包含边框的总尺寸
 	if a.fiber.Instance != nil {
 		// 检查 Instance 是否实现 Measurable 接口
 		if measurable, ok := a.fiber.Instance.(interface {
 			Measure(layout.Constraints) layout.Size
 		}); ok {
-			return measurable.Measure(constraints)
+			size := measurable.Measure(constraints)
+			// ✨ 边框：如果有边框，确保尺寸包含边框
+			if border.HasBorder() {
+				// 假设 Instance.Measure() 返回的是内容尺寸
+				// 需要加上边框
+				return layout.Size{
+					Width:  size.Width + border.HorizontalPadding(),
+					Height: size.Height + border.VerticalPadding(),
+				}
+			}
+			return size
 		}
 
 		// 检查 Instance 是否实现 Sizable 接口
@@ -253,6 +271,13 @@ func (a *FiberToNodeAdapter) Measure(constraints layout.Constraints) layout.Size
 		}); ok {
 			w, h := sizable.GetSize()
 			if w > 0 || h > 0 {
+				// ✨ 边框：如果有边框，确保尺寸包含边框
+				if border.HasBorder() {
+					return layout.Size{
+						Width:  constraints.ConstrainWidth(w + border.HorizontalPadding()),
+						Height: constraints.ConstrainHeight(h + border.VerticalPadding()),
+					}
+				}
 				return layout.Size{
 					Width:  constraints.ConstrainWidth(w),
 					Height: constraints.ConstrainHeight(h),
@@ -262,10 +287,15 @@ func (a *FiberToNodeAdapter) Measure(constraints layout.Constraints) layout.Size
 	}
 
 	// 2. 从 Style 获取固定尺寸
+	// Style 的 width/height 是总尺寸（包含边框）
 	if a.fiber.Style.Width > 0 || a.fiber.Style.Height > 0 {
+		w := a.fiber.Style.Width
+		h := a.fiber.Style.Height
+		// ✨ 边框：如果有边框，尺寸已经是总尺寸（无需调整）
+		// 因为用户设置的是"容器总宽度"，不是"内容宽度"
 		return layout.Size{
-			Width:  constraints.ConstrainWidth(a.fiber.Style.Width),
-			Height: constraints.ConstrainHeight(a.fiber.Style.Height),
+			Width:  constraints.ConstrainWidth(w),
+			Height: constraints.ConstrainHeight(h),
 		}
 	}
 
@@ -273,6 +303,7 @@ func (a *FiberToNodeAdapter) Measure(constraints layout.Constraints) layout.Size
 	if a.fiber.Props != nil {
 		if w, ok := a.fiber.Props["width"].(int); ok && w > 0 {
 			if h, ok := a.fiber.Props["height"].(int); ok && h > 0 {
+				// ✨ 边框：Props 的 width/height 是总尺寸（包含边框）
 				return layout.Size{
 					Width:  constraints.ConstrainWidth(w),
 					Height: constraints.ConstrainHeight(h),
@@ -285,7 +316,44 @@ func (a *FiberToNodeAdapter) Measure(constraints layout.Constraints) layout.Size
 		}
 	}
 
-	// 4. 默认值
+	// 4. 测量子节点（自动尺寸）
+	// 对于有边框的容器，需要测量子节点尺寸，然后加上边框
+	children := a.children
+	if len(children) > 0 {
+		// 计算内部约束（减去边框）
+		innerConstraints := constraints
+		if border.HasBorder() {
+			innerConstraints = layout.Constraints{
+				MinWidth:  max(0, constraints.MinWidth-border.HorizontalPadding()),
+				MaxWidth:  max(0, constraints.MaxWidth-border.HorizontalPadding()),
+				MinHeight: max(0, constraints.MinHeight-border.VerticalPadding()),
+				MaxHeight: max(0, constraints.MaxHeight-border.VerticalPadding()),
+			}
+		}
+
+		// 测量子节点（假设是 flex 容器）
+		totalWidth := 0
+		totalHeight := 0
+
+		for _, child := range children {
+			if measurable, ok := child.(layout.Measurable); ok {
+				size := measurable.Measure(innerConstraints)
+				totalWidth = max(totalWidth, size.Width)
+				totalHeight = max(totalHeight, size.Height)
+			}
+		}
+
+		// ✨ 边框：加上边框占用
+		if border.HasBorder() {
+			return layout.Size{
+				Width:  totalWidth + border.HorizontalPadding(),
+				Height: totalHeight + border.VerticalPadding(),
+			}
+		}
+		return layout.Size{Width: totalWidth, Height: totalHeight}
+	}
+
+	// 5. 默认值
 	return layout.Size{Width: 0, Height: 0}
 }
 
@@ -572,46 +640,91 @@ func (a *FiberToNodeAdapter) GetBorder() layout.Border {
 		return layout.Border{Style: layout.BorderNone}
 	}
 
-	// Check tag for bordered container
-	tag := a.fiber.Tag
-	if tag == "bordered" || tag == "Bordered" || tag == "border" {
-		// Extract border style from Fiber.Props
-		if a.fiber.Props == nil {
-			return layout.NewBorder(layout.BorderSingle)
+	// ✨ 方案 A: 优先使用 Fiber.BorderStyle 字段（对所有容器有效）
+	if a.fiber.BorderStyle != "" && a.fiber.BorderStyle != "none" {
+		borderStyle := parseBorderStyleString(a.fiber.BorderStyle)
+		return layout.Border{
+			Style: borderStyle,
+			Label: a.fiber.BorderLabel,
 		}
+	}
 
+	// 向后兼容：使用旧的 Props 方式
+	props := a.fiber.Props
+	if props == nil {
+		return layout.Border{Style: layout.BorderNone}
+	}
+
+	tag := a.fiber.Tag
+
+	// 处理 bordered 容器（旧组件）
+	if tag == "bordered" || tag == "Bordered" || tag == "border" {
 		borderStyle := layout.BorderSingle
 
-		// Handle string type
-		if s, ok := a.fiber.Props["borderStyle"].(string); ok {
-			switch s {
-			case "none":
-				borderStyle = layout.BorderNone
-			case "single":
-				borderStyle = layout.BorderSingle
-			case "double":
-				borderStyle = layout.BorderDouble
-			case "rounded":
-				borderStyle = layout.BorderRounded
-			case "dashed":
-				borderStyle = layout.BorderDashed
-			}
-		} else if bs, ok := a.fiber.Props["borderStyle"].(layout.BorderStyle); ok {
-			// Handle layout.BorderStyle type (used by ui/components/border)
+		// 从 Props 中读取边框样式
+		if s, ok := props["borderStyle"].(string); ok {
+			borderStyle = parseBorderStyleString(s)
+		} else if bs, ok := props["borderStyle"].(layout.BorderStyle); ok {
 			borderStyle = bs
+		} else if s, ok := props["style"].(string); ok {
+			// 边框组件也可能使用 "style" 属性
+			borderStyle = parseBorderStyleString(s)
 		}
 
-		border := layout.NewBorder(borderStyle)
-
-		// Extract label if present
-		if label, ok := a.fiber.Props["borderLabel"].(string); ok {
-			border.Label = label
+		// 读取标签
+		label := ""
+		if l, ok := props["borderLabel"].(string); ok {
+			label = l
+		} else if l, ok := props["label"].(string); ok {
+			label = l
 		}
 
-		return border
+		return layout.Border{
+			Style: borderStyle,
+			Label: label,
+		}
+	}
+
+	// 处理 modal（旧组件的 props 方式）
+	if tag == "modal" {
+		borderStyle := layout.BorderDouble // Modal 默认双线边框
+
+		if s, ok := props["borderStyle"].(string); ok {
+			borderStyle = parseBorderStyleString(s)
+		}
+
+		label := ""
+		if l, ok := props["title"].(string); ok {
+			label = l
+		} else if l, ok := props["label"].(string); ok {
+			label = l
+		}
+
+		return layout.Border{
+			Style: borderStyle,
+			Label: label,
+		}
 	}
 
 	return layout.Border{Style: layout.BorderNone}
+}
+
+// parseBorderStyleString 将字符串边框样式转换为 layout.BorderStyle
+func parseBorderStyleString(s string) layout.BorderStyle {
+	switch s {
+	case "none":
+		return layout.BorderNone
+	case "single":
+		return layout.BorderSingle
+	case "double":
+		return layout.BorderDouble
+	case "rounded":
+		return layout.BorderRounded
+	case "dashed":
+		return layout.BorderDashed
+	default:
+		return layout.BorderSingle // 默认单线边框
+	}
 }
 
 // GetStableID returns the stable node ID (from Fiber.NodeID)

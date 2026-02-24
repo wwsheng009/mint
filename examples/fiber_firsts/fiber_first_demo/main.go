@@ -105,6 +105,10 @@ func printBuffer(buf *paint.Buffer) {
 		var line strings.Builder
 		for x := 0; x < buf.Width; x++ {
 			cell := buf.GetContent(x, y)
+			// 跳过宽字符的延续单元格
+			if cell.IsContinuation {
+				continue
+			}
 			if cell.Cluster != "" {
 				line.WriteString(cell.Cluster)
 			} else {

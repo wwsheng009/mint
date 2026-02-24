@@ -104,6 +104,10 @@ func completeWorkElement(current, workInProgress *Fiber) *Fiber {
 	// Focusable is runtime capability, not declaration
 	workInProgress.FocusableMeta = extractFocusableMeta(workInProgress)
 
+	// === Phase 4: Sync border properties from Props (方案 A - 边框作为容器属性) ===
+	// 边框是容器的视觉装饰属性，通过 Props 传递到 Fiber
+	syncBorderProperties(workInProgress)
+
 	return workInProgress
 }
 
@@ -164,6 +168,49 @@ func extractFocusableMeta(fiber *Fiber) *rtui.FocusableMeta {
 	}
 
 	return focusableMeta
+}
+
+// =============================================================================
+// Border Property Synchronization (方案 A - 边框作为容器属性)
+// =============================================================================
+
+// syncBorderProperties 同步边框属性从 Props 到 Fiber
+// 边框是容器的视觉装饰属性，所有容器组件都支持边框
+//
+// 方案 A 设计：
+// - 边框通过 Props["borderStyle"] 和 Props["label"] 传递
+// - Modal 使用 Props["title"] 作为边框标签（向后兼容）
+// - 属性同步到 Fiber.BorderStyle 和 Fiber.BorderLabel 字段
+func syncBorderProperties(fiber *Fiber) {
+	if fiber == nil {
+		return
+	}
+
+	props := fiber.Props
+	if props == nil {
+		return
+	}
+
+	// 从 Props 中读取边框样式
+	// 注意：当前实现使用 string 类型，未来可以迁移到 layout.BorderStyle
+	if styleProp, ok := props["borderStyle"].(string); ok {
+		fiber.BorderStyle = styleProp
+	}
+
+	// 从 Props 中读取边框标签
+	// 支持 "label" 和 "borderLabel" 两种属性名（为了向后兼容）
+	if labelProp, ok := props["label"].(string); ok {
+		fiber.BorderLabel = labelProp
+	} else if labelProp, ok := props["borderLabel"].(string); ok {
+		fiber.BorderLabel = labelProp
+	}
+
+	// 特殊处理：Modal 的 title 属性映射到边框标签（向后兼容）
+	if fiber.Tag == "modal" {
+		if titleProp, ok := props["title"].(string); ok && titleProp != "" {
+			fiber.BorderLabel = titleProp
+		}
+	}
 }
 
 // =============================================================================

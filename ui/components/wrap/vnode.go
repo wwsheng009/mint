@@ -46,6 +46,10 @@ type VNode struct {
 	fillWidth   bool  // stretch each row to fill container width
 	fillHeight  bool  // stretch wrap to fill parent height
 
+	// === Border Props (方案 A - 边框作为容器属性) ===
+	borderStyle  string // "none", "single", "double", "rounded", "dashed"
+	borderLabel  string // Optional label displayed on top border
+
 	// === Children ===
 	children []rtui.VNode
 
@@ -72,6 +76,8 @@ func New() *VNode {
 		align:        AlignStart,    // default alignment
 		width:        80,            // default width
 		padding:      [4]int{0, 0, 0, 0},
+		borderStyle:  "none",        // 默认无边框
+		borderLabel:  "",
 		children:     nil,
 	}
 }
@@ -139,6 +145,8 @@ func (w *VNode) Props() rtui.Props {
 		"padding":    w.padding,
 		"fillWidth":  w.fillWidth,
 		"fillHeight": w.fillHeight,
+		"borderStyle": w.borderStyle,  // ✨ 边框样式
+		"label":      w.borderLabel,  // ✨ 边框标签
 		"children":   w.children,
 		"style":      w.style,
 	}
@@ -170,6 +178,13 @@ func (w *VNode) SetProps(p rtui.Props) rtui.VNode {
 	if v, ok := p["fillHeight"].(bool); ok {
 		w.fillHeight = v
 	}
+	// ✨ 边框属性
+	if v, ok := p["borderStyle"].(string); ok {
+		w.borderStyle = v
+	}
+	if v, ok := p["label"].(string); ok {
+		w.borderLabel = v
+	}
 	if v, ok := p["children"].([]rtui.VNode); ok {
 		w.children = v
 	}
@@ -194,6 +209,8 @@ func (w *VNode) CreateInstance() rtui.ComponentInstance {
 		"padding":    w.padding,
 		"fillWidth":  w.fillWidth,
 		"fillHeight": w.fillHeight,
+		"borderStyle": w.borderStyle,  // ✨ 边框样式
+		"label":      w.borderLabel,  // ✨ 边框标签
 		"children":   w.children,
 		"style":      w.style,
 	})
@@ -324,4 +341,67 @@ func (w *VNode) MeasureConstraints(c layout.Constraints) layout.Size {
 		return measurable.Measure(c)
 	}
 	return layout.Size{Width: c.MinWidth, Height: c.MinHeight}
+}
+
+// =============================================================================
+// ✨ Border Builder Methods (方案 A - 边框作为容器属性)
+// =============================================================================
+
+// Border sets the border style and label.
+func (w *VNode) Border(style string, label string) *VNode {
+	w.borderStyle = style
+	w.borderLabel = label
+	return w
+}
+
+// Bordered sets border with specified style (no label).
+func (w *VNode) Bordered(style string) *VNode {
+	return w.Border(style, "")
+}
+
+// NoBorder removes border.
+func (w *VNode) NoBorder() *VNode {
+	return w.Border("none", "")
+}
+
+// SingleBorder sets single line border with optional label.
+func (w *VNode) SingleBorder(label ...string) *VNode {
+	lbl := ""
+	if len(label) > 0 {
+		lbl = label[0]
+	}
+	return w.Border("single", lbl)
+}
+
+// DoubleBorder sets double line border with optional label.
+func (w *VNode) DoubleBorder(label ...string) *VNode {
+	lbl := ""
+	if len(label) > 0 {
+		lbl = label[0]
+	}
+	return w.Border("double", lbl)
+}
+
+// RoundedBorder sets rounded border with optional label.
+func (w *VNode) RoundedBorder(label ...string) *VNode {
+	lbl := ""
+	if len(label) > 0 {
+		lbl = label[0]
+	}
+	return w.Border("rounded", lbl)
+}
+
+// DashedBorder sets dashed border with optional label.
+func (w *VNode) DashedBorder(label ...string) *VNode {
+	lbl := ""
+	if len(label) > 0 {
+		lbl = label[0]
+	}
+	return w.Border("dashed", lbl)
+}
+
+// BorderLabel sets only the border label (keeps current style).
+func (w *VNode) BorderLabel(label string) *VNode {
+	w.borderLabel = label
+	return w
 }

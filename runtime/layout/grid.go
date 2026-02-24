@@ -532,15 +532,22 @@ func (g *GridLayout) LayoutChildren(width, height int) []LayoutBox {
 	return boxes
 }
 
-// getCellPosition returns the x, y position of a cell
+// getCellPosition returns the x, y position of a cell relative to content area
+// ✨ 边框兼容：返回的内容空间内位置（不含 padding）
+// padding 和边框偏移由上层应用
 func (g *GridLayout) getCellPosition(row, col int) (x, y int) {
-	// Add padding
-	x = g.style.Padding.Left
-	y = g.style.Padding.Top
+	// ✨ 相对于内容空间起点（不包含 padding）
+	x = 0
+	y = 0
 
 	// Sum widths of columns before this one
 	for i := 0; i < col && i < len(g.colWidths); i++ {
 		x += g.colWidths[i]
+	}
+
+	// Add gaps between columns
+	if col > 0 {
+		x += g.style.ColumnGap * col
 	}
 
 	// Sum heights of rows before this one
@@ -548,10 +555,7 @@ func (g *GridLayout) getCellPosition(row, col int) (x, y int) {
 		y += g.rowHeights[i]
 	}
 
-	// Add gaps
-	if col > 0 {
-		x += g.style.ColumnGap * col
-	}
+	// Add gaps between rows
 	if row > 0 {
 		y += g.style.RowGap * row
 	}

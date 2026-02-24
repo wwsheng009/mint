@@ -143,6 +143,10 @@ func CreateFiber(vnode VNode) *Fiber {
 	var layoutPadding [4]int
 	var layoutFlex int
 
+	// ✨ Border Properties (方案 A - 边框作为容器属性)
+	var borderStyle string
+	var borderLabel string
+
 	// Determine direction from tag (hstack = Row, vstack = Column)
 	// This works for any VNode that has Tag() method returning "hstack"/"vstack"
 	switch tag {
@@ -150,6 +154,12 @@ func CreateFiber(vnode VNode) *Fiber {
 		layoutDirection = DirectionRow
 	case "vstack", "column":
 		layoutDirection = DirectionColumn
+	case "bordered":
+		// 边框组件默认无边框
+		borderStyle = "none"
+	case "modal":
+		// Modal 默认双线边框
+		borderStyle = "double"
 	}
 
 	// Extract other layout properties from Props
@@ -182,6 +192,27 @@ func CreateFiber(vnode VNode) *Fiber {
 		}
 		if f, ok := props["flex"].(int); ok {
 			layoutFlex = f
+		}
+
+		// ✨ Extract border properties from Props
+		// 支持多种边框样式名称
+		if bs, ok := props["borderStyle"].(string); ok {
+			borderStyle = bs
+		}
+		if label, ok := props["label"].(string); ok {
+			borderLabel = label
+		}
+		// Modal 的 title 属性映射到边框标签
+		if tag == "modal" {
+			if title, ok := props["title"].(string); ok {
+				borderLabel = title
+			}
+		}
+		// 边框组件的 style 属性映射到边框样式
+		if tag == "bordered" {
+			if style, ok := props["style"].(string); ok {
+				borderStyle = style
+			}
 		}
 	}
 
@@ -218,6 +249,9 @@ func CreateFiber(vnode VNode) *Fiber {
 		LayoutGap:        layoutGap,
 		LayoutPadding:    layoutPadding,
 		LayoutFlex:       layoutFlex,
+		// ✨ Border Properties (方案 A)
+		BorderStyle:      borderStyle,
+		BorderLabel:      borderLabel,
 	}
 }
 
