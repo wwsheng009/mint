@@ -1,0 +1,555 @@
+package treeview
+
+import (
+	"fmt"
+	"strings"
+
+	"github.com/wwsheng009/mint/runtime/layout"
+	"github.com/wwsheng009/mint/runtime/paint"
+	"github.com/wwsheng009/mint/runtime/style"
+	rtui "github.com/wwsheng009/mint/runtime/ui"
+)
+
+// =============================================================================
+// Instance - Runtime Entity
+// =============================================================================
+
+// Instance is the runtime entity for TreeView components
+type Instance struct {
+	// === Identification ===
+	key string
+
+	// === Props (from VNode, may change each render) ===
+	nodes         []TreeNode
+	expandLevel   int
+	showIcons     bool
+	showLineNums  bool
+	compact       bool
+	treeStyle     style.Style
+	selectedStyle style.Style
+	iconStyle     style.Style
+	scrollOffset  int
+	selectedIndex int
+	viewportHeight int
+	allowScroll   bool
+	allowExpand   bool
+
+	// === Runtime State ===
+	expandState map[int]bool // Expand/collapse state for each node
+	bounds      [4]int      // x, y, w, h
+	dirty       bool
+}
+
+// Ensure Instance implements required interfaces
+var (
+	_ rtui.ComponentInstance     = (*Instance)(nil)
+	_ rtui.PaintableInstance     = (*Instance)(nil)
+	_ rtui.ActionHandlerInstance = (*Instance)(nil)
+	_ interface {
+		Measure(layout.Constraints) layout.Size
+	} = (*Instance)(nil)
+)
+
+// =============================================================================
+// Constructor
+// =============================================================================
+
+// NewInstance creates a new TreeViewInstance from props
+func NewInstance(props rtui.Props) *Instance {
+	inst := &Instance{
+		key:            getStringProp(props, "key", ""),
+		nodes:          getNodesProp(props, []TreeNode{}),
+		expandLevel:    getIntProp(props, "expandLevel", 1),
+		showIcons:      getBoolProp(props, "showIcons", true),
+		showLineNums:   getBoolProp(props, "showLineNums", false),
+		compact:        getBoolProp(props, "compact", false),
+		treeStyle:      getStyleProp(props, "treeStyle"),
+		selectedStyle:  getStyleProp(props, "selectedStyle"),
+		iconStyle:      getStyleProp(props, "iconStyle"),
+		scrollOffset:   getIntProp(props, "scrollOffset", 0),
+		selectedIndex:  getIntProp(props, "selectedIndex", -1),
+		viewportHeight: getIntProp(props, "viewportHeight", 10),
+		allowScroll:    getBoolProp(props, "allowScroll", true),
+		allowExpand:    getBoolProp(props, "allowExpand", true),
+		expandState:    make(map[int]bool),
+		dirty:          true,
+	}
+
+	// Initialize expand state based on expandLevel
+	inst.initExpandState()
+
+	return inst
+}
+
+// initExpandState initializes expand states based on expandLevel
+func (inst *Instance) initExpandState() {
+	for i, node := range inst.nodes {
+		// Calculate node depth based on indent
+		depth := node.Indent / 4 // Assume 4 spaces per level
+
+		if inst.expandLevel < 0 {
+			// All expanded
+			inst.expandState[i] = true
+		} else if depth < inst.expandLevel {
+			inst.expandState[i] = true
+		}
+	}
+}
+
+// =============================================================================
+// ComponentInstance Interface
+// =============================================================================
+
+func (inst *Instance) Key() string           { return inst.key }
+func (inst *Instance) SetKey(key string)     { inst.key = key }
+func (inst *Instance) Init(props rtui.Props) { inst.SetProps(props) }
+func (inst *Instance) Destroy()             { inst.expandState = nil }
+func (inst *Instance) OnMount()             { inst.dirty = true }
+func (inst *Instance) OnUnmount()           {}
+
+func (inst *Instance) SetProps(props rtui.Props) bool {
+	oldSelected := inst.selectedIndex
+	oldScroll := inst.scrollOffset
+
+	inst.nodes = getNodesProp(props, inst.nodes)
+	inst.expandLevel = getIntProp(props, "expandLevel", inst.expandLevel)
+	inst.showIcons = getBoolProp(props, "showIcons", inst.showIcons)
+	inst.showLineNums = getBoolProp(props, "showLineNums", inst.showLineNums)
+	inst.compact = getBoolProp(props, "compact", inst.compact)
+	inst.treeStyle = getStyleProp(props, "treeStyle")
+	inst.selectedStyle = getStyleProp(props, "selectedStyle")
+	inst.iconStyle = getStyleProp(props, "iconStyle")
+	inst.scrollOffset = getIntProp(props, "scrollOffset", inst.scrollOffset)
+	inst.selectedIndex = getIntProp(props, "selectedIndex", inst.selectedIndex)
+	inst.viewportHeight = getIntProp(props, "viewportHeight", inst.viewportHeight)
+	inst.allowScroll = getBoolProp(props, "allowScroll", inst.allowScroll)
+	inst.allowExpand = getBoolProp(props, "allowExpand", inst.allowExpand)
+
+	inst.initExpandState()
+
+	changed := oldSelected != inst.selectedIndex || oldScroll != inst.scrollOffset
+	if changed {
+		inst.dirty = true
+	}
+	return changed
+}
+
+func (inst *Instance) GetProps() rtui.Props {
+	return rtui.Props{
+		"key":            inst.key,
+		"nodes":          inst.nodes,
+		"expandLevel":    inst.expandLevel,
+		"showIcons":      inst.showIcons,
+		"showLineNums":   inst.showLineNums,
+		"compact":        inst.compact,
+		"scrollOffset":   inst.scrollOffset,
+		"selectedIndex":  inst.selectedIndex,
+		"viewportHeight": inst.viewportHeight,
+		"allowScroll":    inst.allowScroll,
+		"allowExpand":    inst.allowExpand,
+	}
+}
+
+func (inst *Instance) MarkDirty()    { inst.dirty = true }
+func (inst *Instance) IsDirty() bool { return inst.dirty }
+func (inst *Instance) GetContext() *rtui.ComponentContext { return nil }
+func (inst *Instance) ClearDirty()   { inst.dirty = false }
+
+// =============================================================================
+// Measurable Interface
+// =============================================================================
+
+// Measure implements layout measurement
+func (inst *Instance) Measure(constraints layout.Constraints) layout.Size {
+	width := 60 // Default width
+	height := inst.calculateHeight()
+
+	// Apply constraints
+	if width < constraints.MinWidth {
+		width = constraints.MinWidth
+	}
+	if width > constraints.MaxWidth && constraints.MaxWidth > 0 {
+		width = constraints.MaxWidth
+	}
+	if height < constraints.MinHeight {
+		height = constraints.MinHeight
+	}
+	if height > constraints.MaxHeight && constraints.MaxHeight > 0 {
+		height = constraints.MaxHeight
+	}
+
+	return layout.Size{Width: width, Height: height}
+}
+
+// calculateHeight calculates the total height of the tree
+func (inst *Instance) calculateHeight() int {
+	visibleNodes := inst.getVisibleNodes()
+	return len(visibleNodes) + 2 // +2 for border
+}
+
+// =============================================================================
+// PaintableInstance Interface
+// =============================================================================
+
+// Paint implements drawing logic for the tree view
+func (inst *Instance) Paint(x, y int) []paint.DrawCmd {
+	var cmds []paint.DrawCmd
+	treeStyle := inst.treeStyle
+
+	// Get visible nodes based on expand state
+	visibleNodes := inst.getVisibleNodes()
+
+	// Calculate width
+	width := inst.calculateWidth()
+
+	// Draw top border
+	topBorder := "┌" + strings.Repeat("─", width-2) + "┐"
+	cmds = append(cmds, paint.NewTextCmd(x, y, topBorder, treeStyle))
+
+	// Draw visible tree nodes
+	startLine := inst.scrollOffset
+	for i := startLine; i < len(visibleNodes) && i-startLine < inst.viewportHeight; i++ {
+		node := visibleNodes[i]
+		rowY := y + 1 + (i - startLine)
+
+		// Build line
+		line := inst.buildTreeLine(node, i == inst.selectedIndex)
+
+		// Add padding
+		if len(line) < width-2 {
+			line += strings.Repeat(" ", width-2-len(line))
+		}
+		line = "│ " + line + " │"
+
+		// Determine style
+		style := treeStyle
+		if i == inst.selectedIndex {
+			style = inst.selectedStyle
+		}
+
+		cmds = append(cmds, paint.NewTextCmd(x, rowY, line, style))
+	}
+
+	// Fill remaining space
+	visibleCount := len(visibleNodes)
+	rowsShown := min(inst.viewportHeight, visibleCount-startLine)
+	for i := rowsShown; i < inst.viewportHeight; i++ {
+		rowY := y + 1 + i
+		emptyRow := "│" + strings.Repeat(" ", width-2) + "│"
+		cmds = append(cmds, paint.NewTextCmd(x, rowY, emptyRow, treeStyle))
+	}
+
+	// Draw bottom border
+	bottomBorder := "└" + strings.Repeat("─", width-2) + "┘"
+	cmds = append(cmds, paint.NewTextCmd(x, y+inst.viewportHeight+1, bottomBorder, treeStyle))
+
+	return cmds
+}
+
+// buildTreeLine builds a single tree line
+func (inst *Instance) buildTreeLine(node TreeNode, isSelected bool) string {
+	var line strings.Builder
+
+	// Add indentation
+	for i := 0; i < node.Indent; i += 4 {
+		line.WriteString("│   ")
+	}
+
+	// Add icon if enabled
+	if inst.showIcons {
+		icon := "  "
+		if node.NodeType == "folder" {
+			if inst.isExpanded(node.NodeID) {
+				icon = "📂 "
+			} else {
+				icon = "📁 "
+			}
+		} else {
+			icon = "📄 "
+		}
+		line.WriteString(icon)
+	} else {
+		line.WriteString("  ")
+	}
+
+	// Add content
+	line.WriteString(node.Content)
+
+	// Add line number if enabled
+	if inst.showLineNums {
+		line.WriteString(fmt.Sprintf(" [%d]", node.NodeID))
+	}
+
+	return line.String()
+}
+
+// =============================================================================
+// ActionHandlerInstance Interface
+// =============================================================================
+
+func (inst *Instance) CanHandleAction(actionType string) bool {
+	if !inst.allowScroll {
+		return false
+	}
+
+	switch actionType {
+	case "navigate_up":
+		return inst.selectedIndex > 0
+	case "navigate_down":
+		visibleNodes := inst.getVisibleNodes()
+		return inst.selectedIndex < len(visibleNodes)-1
+	case "navigate_home":
+		return inst.scrollOffset > 0
+	case "navigate_end":
+		visibleNodes := inst.getVisibleNodes()
+		return inst.scrollOffset < len(visibleNodes)-inst.viewportHeight
+	case "page_up":
+		return inst.scrollOffset > 0
+	case "page_down":
+		visibleNodes := inst.getVisibleNodes()
+		return inst.scrollOffset < len(visibleNodes)-inst.viewportHeight
+	case "toggle_expand":
+		return inst.allowExpand
+	case "select":
+		return inst.selectedIndex >= 0
+	}
+	return false
+}
+
+func (inst *Instance) HandleAction(actionType string, payload interface{}) bool {
+	if !inst.allowScroll {
+		return false
+	}
+
+	switch actionType {
+	case "navigate_up":
+		return inst.navigateUp()
+	case "navigate_down":
+		return inst.navigateDown()
+	case "navigate_home":
+		return inst.navigateHome()
+	case "navigate_end":
+		return inst.navigateEnd()
+	case "page_up":
+		_ = inst.pageUp()
+		return true
+	case "page_down":
+		_ = inst.pageDown()
+		return true
+	case "toggle_expand":
+		return inst.toggleExpand()
+	}
+	return false
+}
+
+// =============================================================================
+// Navigation Methods
+// =============================================================================
+
+func (inst *Instance) navigateUp() bool {
+	if inst.selectedIndex > 0 {
+		inst.selectedIndex--
+		inst.dirty = true
+		return true
+	}
+	return false
+}
+
+func (inst *Instance) navigateDown() bool {
+	visibleNodes := inst.getVisibleNodes()
+	if inst.selectedIndex < len(visibleNodes)-1 {
+		inst.selectedIndex++
+		inst.dirty = true
+		return true
+	}
+	return false
+}
+
+func (inst *Instance) navigateHome() bool {
+	inst.scrollOffset = 0
+	inst.selectedIndex = 0
+	inst.dirty = true
+	return true
+}
+
+func (inst *Instance) navigateEnd() bool {
+	visibleNodes := inst.getVisibleNodes()
+	inst.scrollOffset = max(0, len(visibleNodes)-inst.viewportHeight)
+	inst.selectedIndex = len(visibleNodes) - 1
+	inst.dirty = true
+	return true
+}
+
+func (inst *Instance) pageUp() int {
+	inst.scrollOffset = max(0, inst.scrollOffset-inst.viewportHeight)
+	inst.selectedIndex = max(0, inst.selectedIndex-inst.viewportHeight)
+	inst.dirty = true
+	return inst.scrollOffset
+}
+
+func (inst *Instance) pageDown() int {
+	visibleNodes := inst.getVisibleNodes()
+	maxOffset := max(0, len(visibleNodes)-inst.viewportHeight)
+	inst.scrollOffset = min(maxOffset, inst.scrollOffset+inst.viewportHeight)
+	inst.selectedIndex = min(len(visibleNodes)-1, inst.selectedIndex+inst.viewportHeight)
+	inst.dirty = true
+	return inst.scrollOffset
+}
+
+func (inst *Instance) toggleExpand() bool {
+	if inst.selectedIndex < 0 || inst.selectedIndex >= len(inst.nodes) {
+		return false
+	}
+
+	expanded := inst.expandState[inst.selectedIndex]
+	inst.expandState[inst.selectedIndex] = !expanded
+	inst.dirty = true
+	return !expanded
+}
+
+// =============================================================================
+// Helper Methods
+// =============================================================================
+
+// getVisibleNodes returns nodes that should be visible based on expand state
+func (inst *Instance) getVisibleNodes() []TreeNode {
+	visible := make([]TreeNode, 0, len(inst.nodes))
+
+	// Track parent depth to determine visibility
+	stack := []int{} // Stack of node indices
+
+	for i, node := range inst.nodes {
+		depth := node.Indent / 4
+
+		// Pop nodes from stack until we find parent
+		for len(stack) > 0 && stack[len(stack)-1] >= depth {
+			stack = stack[:len(stack)-1]
+		}
+
+		// Check if parent is expanded
+		isVisible := true
+		if len(stack) > 0 {
+			parentIndex := stack[len(stack)-1]
+			if !inst.expandState[parentIndex] {
+				isVisible = false
+			}
+		}
+
+		if isVisible {
+			visible = append(visible, node)
+		}
+
+		// Push current node to stack if it's a folder and visible
+		if node.NodeType == "folder" && isVisible {
+			stack = append(stack, i)
+		}
+	}
+
+	return visible
+}
+
+// isExpanded checks if a node is expanded
+func (inst *Instance) isExpanded(nodeID int) bool {
+	return inst.expandState[nodeID]
+}
+
+// calculateWidth calculates the maximum width needed
+func (inst *Instance) calculateWidth() int {
+	maxWidth := 40 // Minimum width
+
+	for _, node := range inst.nodes {
+		line := inst.buildTreeLine(node, false)
+		if len(line)+4 > maxWidth {
+			maxWidth = len(line) + 4
+		}
+	}
+
+	return maxWidth
+}
+
+// =============================================================================
+// Getters
+// =============================================================================
+
+func (inst *Instance) GetScrollOffset() int     { return inst.scrollOffset }
+func (inst *Instance) GetSelectedIndex() int   { return inst.selectedIndex }
+func (inst *Instance) GetViewportHeight() int  { return inst.viewportHeight }
+
+// =============================================================================
+// Bounds Support
+// =============================================================================
+
+func (inst *Instance) GetBounds() (x, y, w, h int) {
+	return inst.bounds[0], inst.bounds[1], inst.bounds[2], inst.bounds[3]
+}
+
+func (inst *Instance) SetBounds(x, y, w, h int) {
+	inst.bounds = [4]int{x, y, w, h}
+}
+
+// =============================================================================
+// Prop Extraction Helpers
+// =============================================================================
+
+func getStringProp(props rtui.Props, key, def string) string {
+	if v, ok := props[key]; ok {
+		if s, ok := v.(string); ok {
+			return s
+		}
+	}
+	return def
+}
+
+func getBoolProp(props rtui.Props, key string, def bool) bool {
+	if v, ok := props[key]; ok {
+		if b, ok := v.(bool); ok {
+			return b
+		}
+	}
+	return def
+}
+
+func getIntProp(props rtui.Props, key string, def int) int {
+	if v, ok := props[key]; ok {
+		if i, ok := v.(int); ok {
+			return i
+		}
+	}
+	return def
+}
+
+func getStyleProp(props rtui.Props, key string) style.Style {
+	v, ok := props[key]
+	if !ok {
+		return style.Style{}
+	}
+	if s, ok := v.(style.Style); ok {
+		return s
+	}
+	return style.Style{}
+}
+
+func getNodesProp(props rtui.Props, def []TreeNode) []TreeNode {
+	v, ok := props["nodes"]
+	if !ok {
+		return def
+	}
+	if nodes, ok := v.([]TreeNode); ok {
+		return nodes
+	}
+	return def
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}
