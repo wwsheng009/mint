@@ -3,6 +3,7 @@ package textarea
 import (
 	"testing"
 
+	"github.com/wwsheng009/mint/runtime/action"
 	"github.com/wwsheng009/mint/runtime/layout"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
@@ -165,7 +166,7 @@ func TestInstance_Disabled(t *testing.T) {
 		t.Error("Should be disabled")
 	}
 
-	if inst.CanHandleAction("input") {
+	if inst.HandleAction(action.NewAction(action.ActionInputText)) {
 		t.Error("Disabled instance should not handle input action")
 	}
 

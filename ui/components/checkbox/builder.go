@@ -103,3 +103,23 @@ func (b *Builder) Build() rtui.VNode {
 func (b *Builder) BuildTyped() *VNode {
 	return b.node
 }
+
+// =============================================================================
+// Backward Compatibility - Aliases for old API
+// =============================================================================
+
+// Checkbox creates a new Checkbox VNode (for backward compatibility).
+// This matches the old form.Checkbox() API.
+func Checkbox(label string) *VNode {
+	return New(label)
+}
+
+// NewCheckbox creates a new Checkbox VNode (alias for New, for backward compatibility).
+// This matches the old form.NewCheckbox() API.
+func NewCheckbox(label string) *VNode {
+	return New(label)
+}
+
+// CheckboxBuilder is an alias for Builder (for backward compatibility).
+// This matches the old form.CheckboxBuilder type.
+type CheckboxBuilder = Builder

@@ -3,7 +3,7 @@ package input
 import (
 	"testing"
 
-	"github.com/wwsheng009/mint/framework/action"
+	"github.com/wwsheng009/mint/runtime/action"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
 
@@ -27,21 +27,18 @@ func TestActionHandlerInstance_KeyInput(t *testing.T) {
 
 	// 测试插入文本
 	actions := []struct {
-		actionType string
+		actionType action.ActionType
 		payload    interface{}
 		expected   string
 	}{
-		{string(action.ActionInputText), "a", "a"},
-		{string(action.ActionInputText), "b", "ab"},
-		{string(action.ActionInputText), "c", "abc"},
+		{action.ActionInputText, "a", "a"},
+		{action.ActionInputText, "b", "ab"},
+		{action.ActionInputText, "c", "abc"},
 	}
 
 	for _, tc := range actions {
-		t.Run(tc.actionType+"_"+tc.payload.(string), func(t *testing.T) {
-			if !inputInst.CanHandleAction(tc.actionType) {
-				t.Errorf("CanHandleAction(%q) should return true", tc.actionType)
-			}
-			if !inputInst.HandleAction(tc.actionType, tc.payload) {
+		t.Run(string(tc.actionType)+"_"+tc.payload.(string), func(t *testing.T) {
+			if !inputInst.HandleAction(action.NewActionWithPayload(tc.actionType, tc.payload)) {
 				t.Errorf("HandleAction(%q, %v) should return true", tc.actionType, tc.payload)
 			}
 			if inputInst.GetValue() != tc.expected {
@@ -64,20 +61,17 @@ func TestActionHandlerInstance_Backspace(t *testing.T) {
 
 	// 测试 backspace
 	actions := []struct {
-		actionType string
+		actionType action.ActionType
 		expected   string
 	}{
-		{string(action.ActionBackspace), "hell"},
-		{string(action.ActionBackspace), "hel"},
-		{string(action.ActionBackspace), "he"},
+		{action.ActionBackspace, "hell"},
+		{action.ActionBackspace, "hel"},
+		{action.ActionBackspace, "he"},
 	}
 
 	for _, tc := range actions {
-		t.Run(tc.actionType, func(t *testing.T) {
-			if !inst.CanHandleAction(tc.actionType) {
-				t.Errorf("CanHandleAction(%q) should return true", tc.actionType)
-			}
-			if !inst.HandleAction(tc.actionType, nil) {
+		t.Run(string(tc.actionType), func(t *testing.T) {
+			if !inst.HandleAction(action.NewAction(tc.actionType)) {
 				t.Errorf("HandleAction(%q) should return true", tc.actionType)
 			}
 			if inst.GetValue() != tc.expected {
@@ -94,13 +88,8 @@ func TestActionHandlerInstance_Submit(t *testing.T) {
 	inst := factory.CreateInstance().(*Instance)
 
 	// Enter 不应该调用什么（没有 submitIntent）
-	if !inst.CanHandleAction(string(action.ActionEnter)) {
-		t.Error("CanHandleAction('enter') should return true")
-	}
-
-	// HandleAction(nil) 应该返回 true 表示已处理
-	if !inst.HandleAction(string(action.ActionEnter), nil) {
-		t.Error("HandleAction('enter', nil) should return true")
+	if !inst.HandleAction(action.NewAction(action.ActionEnter)) {
+		t.Error("HandleAction(action.Enter) should return true")
 	}
 }
 
@@ -111,11 +100,7 @@ func TestActionHandlerInstance_DisabledNotReceiveInput(t *testing.T) {
 	inst := factory.CreateInstance().(*Instance)
 
 	// 禁用状态下应该不处理输入
-	if inst.CanHandleAction(string(action.ActionInputText)) {
-		t.Error("CanHandleAction('input_text') should return false when disabled")
-	}
-
-	if inst.HandleAction(string(action.ActionInputText), "a") {
+	if inst.HandleAction(action.NewActionWithPayload(action.ActionInputText, "a")) {
 		t.Error("HandleAction should return false when disabled")
 	}
 
@@ -131,11 +116,7 @@ func TestActionHandlerInstance_ReadOnly(t *testing.T) {
 	inst := factory.CreateInstance().(*Instance)
 
 	// 只读状态下应该不处理输入
-	if inst.CanHandleAction(string(action.ActionInputText)) {
-		t.Error("CanHandleAction('input_text') should return false when readOnly")
-	}
-
-	if inst.HandleAction(string(action.ActionInputText), "a") {
+	if inst.HandleAction(action.NewActionWithPayload(action.ActionInputText, "a")) {
 		t.Error("HandleAction should return false when readOnly")
 	}
 

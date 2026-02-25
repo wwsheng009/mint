@@ -79,3 +79,27 @@ func (b *Builder) Build() rtui.VNode {
 func (b *Builder) BuildTyped() *VNode {
 	return b.node
 }
+
+// =============================================================================
+// Backward Compatibility - Aliases for old API
+// =============================================================================
+
+// Select creates a new Select VNode (for backward compatibility).
+// This matches the old form.Select() API.
+func Select() *VNode {
+	return New()
+}
+
+// NewSelect creates a new Select VNode (alias for New, for backward compatibility).
+// This matches the old form.NewSelect() API.
+func NewSelect() *VNode {
+	return New()
+}
+
+// SelectBuilder is an alias for Builder (for backward compatibility).
+// This matches the old form.SelectBuilder type.
+type SelectBuilder = Builder
+
+// SelectOption is an alias for Option (for backward compatibility).
+// This matches the old form.SelectOption type.
+type SelectOption = Option

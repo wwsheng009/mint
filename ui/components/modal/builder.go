@@ -207,3 +207,17 @@ func Confirm(title, message string) rtui.VNode {
 		Rounded().
 		Build()
 }
+
+// =============================================================================
+// Backward Compatibility - Aliases for old API
+// =============================================================================
+
+// NewModal creates a new Modal VNode (alias for New, for backward compatibility).
+// This matches the old overlay.NewModal() API.
+func NewModal() *VNode {
+	return New()
+}
+
+// ModalBuilder is an alias for Builder (for backward compatibility).
+// This matches the old overlay.ModalBuilder type.
+type ModalBuilder = Builder

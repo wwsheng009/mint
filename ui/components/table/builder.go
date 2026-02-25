@@ -127,3 +127,19 @@ func Table() *Builder {
 func WithHeaders(cols []TableColumn) *Builder {
 	return NewBuilder().Columns(cols)
 }
+
+// =============================================================================
+// Backward Compatibility - Aliases for old API
+// =============================================================================
+
+// NewTable creates a new Table VNode (alias for New, for backward compatibility).
+// This matches the old data.NewTable() API.
+func NewTable() *VNode {
+	return New()
+}
+
+// TableBuilder is an alias for Builder (for backward compatibility).
+// This matches the old data.TableBuilder type.
+type TableBuilder = Builder
+
+// TableColumn is already defined in vnode.go, re-exported for convenience.

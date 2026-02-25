@@ -179,3 +179,17 @@ func LeftPosition() *Builder {
 func RightPosition() *Builder {
 	return NewBuilder().Right()
 }
+
+// =============================================================================
+// Backward Compatibility - Aliases for old API
+// =============================================================================
+
+// NewTabs creates a new Tabs VNode (alias for New, for backward compatibility).
+// This matches the old navigation.NewTabs() API.
+func NewTabs() *VNode {
+	return New()
+}
+
+// TabsBuilder is an alias for Builder (for backward compatibility).
+// This matches the old navigation.TabsBuilder type.
+type TabsBuilder = Builder

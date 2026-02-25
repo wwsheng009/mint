@@ -185,3 +185,17 @@ func VirtualList() *Builder {
 func WithItems(items []string) *Builder {
 	return NewBuilder().Items(items)
 }
+
+// =============================================================================
+// Backward Compatibility - Aliases for old API
+// =============================================================================
+
+// NewVirtualList creates a new VirtualList VNode (alias for New, for backward compatibility).
+// This matches the old data.NewVirtualList() API.
+func NewVirtualList() *VNode {
+	return New()
+}
+
+// VirtualListBuilder is an alias for Builder (for backward compatibility).
+// This matches the old data.VirtualListBuilder type.
+type VirtualListBuilder = Builder

@@ -131,3 +131,23 @@ func (b *Builder) Build() rtui.VNode {
 func (b *Builder) BuildTyped() *VNode {
 	return b.node
 }
+
+// =============================================================================
+// Backward Compatibility - Aliases for old API
+// =============================================================================
+
+// Input creates a new Input VNode (for backward compatibility).
+// This matches the old form.Input() API.
+func Input() *VNode {
+	return New()
+}
+
+// NewInput creates a new Input VNode (alias for New, for backward compatibility).
+// This matches the old form.NewInput() API.
+func NewInput() *VNode {
+	return New()
+}
+
+// InputBuilder is an alias for Builder (for backward compatibility).
+// This matches the old form.InputBuilder type.
+type InputBuilder = Builder

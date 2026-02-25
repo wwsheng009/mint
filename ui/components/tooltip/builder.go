@@ -348,6 +348,16 @@ func Warning(message string) *ToastVNode {
 	return NewToastBuilder(message).Warning().Build().(*ToastVNode)
 }
 
+// =============================================================================
+// Backward Compatibility - Aliases for old API
+// =============================================================================
+
+// TooltipBuilder is an alias for Builder (for backward compatibility).
+// This matches the old overlay.TooltipBuilder type.
+type TooltipBuilder = Builder
+
+
+
 // Error creates an error toast using the builder.
 func Error(message string) *ToastVNode {
 	return NewToastBuilder(message).Error().Build().(*ToastVNode)

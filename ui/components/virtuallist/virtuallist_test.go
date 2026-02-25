@@ -3,6 +3,7 @@ package virtuallist
 import (
 	"testing"
 
+	"github.com/wwsheng009/mint/runtime/action"
 	"github.com/wwsheng009/mint/runtime/layout"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/runtime/style"
@@ -468,7 +469,7 @@ func TestInstance_HandleAction(t *testing.T) {
 
 	// Test navigate_up with item selected
 	inst.selectedIndex = 2
-	result := inst.HandleAction("navigate_up", nil)
+	result := inst.HandleAction(action.NewAction(action.ActionNavigateUp))
 	if !result {
 		t.Error("HandleAction navigate_up should return true")
 	}
@@ -477,31 +478,31 @@ func TestInstance_HandleAction(t *testing.T) {
 	}
 
 	// Test navigate_down
-	inst.HandleAction("navigate_down", nil)
+	inst.HandleAction(action.NewAction(action.ActionNavigateDown))
 	if inst.selectedIndex != 2 {
 		t.Errorf("Expected selectedIndex 2, got %d", inst.selectedIndex)
 	}
 
 	// Test scroll
-	result = inst.HandleAction("scroll", 5)
+	result = inst.HandleAction(action.NewActionWithPayload(action.ActionScroll, 5))
 	if !result {
 		t.Error("HandleAction scroll should return true")
 	}
 
 	// Test scroll_up
-	result = inst.HandleAction("page_up", nil)
+	result = inst.HandleAction(action.NewAction(action.ActionNavigatePageUp))
 	if !result {
 		t.Error("HandleAction page_up should return true")
 	}
 
 	// Test scroll_down
-	result = inst.HandleAction("page_down", nil)
+	result = inst.HandleAction(action.NewAction(action.ActionNavigatePageDown))
 	if !result {
 		t.Error("HandleAction page_down should return true")
 	}
 
 	// Test navigate_home
-	result = inst.HandleAction("navigate_home", nil)
+	result = inst.HandleAction(action.NewAction(action.ActionNavigateHome))
 	if !result {
 		t.Error("HandleAction navigate_home should return true")
 	}
@@ -510,7 +511,7 @@ func TestInstance_HandleAction(t *testing.T) {
 	}
 
 	// Test navigate_end
-	result = inst.HandleAction("navigate_end", nil)
+	result = inst.HandleAction(action.NewAction(action.ActionNavigateEnd))
 	if !result {
 		t.Error("HandleAction navigate_end should return true")
 	}
@@ -524,7 +525,7 @@ func TestInstance_HandleAction_DisabledScroll(t *testing.T) {
 	}
 	inst := NewInstance(props)
 
-	result := inst.HandleAction("navigate_up", nil)
+	result := inst.HandleAction(action.NewAction(action.ActionNavigateUp))
 	if result {
 		t.Error("HandleAction should return false when allowScroll is false")
 	}
@@ -538,7 +539,7 @@ func TestInstance_HandleAction_UnknownAction(t *testing.T) {
 	}
 	inst := NewInstance(props)
 
-	result := inst.HandleAction("unknown_action", nil)
+	result := inst.HandleAction(action.NewActionWithPayload("unknown_action", nil))
 	if result {
 		t.Error("HandleAction should return false for unknown action")
 	}

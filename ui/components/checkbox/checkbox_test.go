@@ -3,6 +3,7 @@ package checkbox
 import (
 	"testing"
 
+	"github.com/wwsheng009/mint/runtime/action"
 	"github.com/wwsheng009/mint/runtime/layout"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
@@ -202,7 +203,7 @@ func TestInstance_Disabled(t *testing.T) {
 	}
 
 	// Disabled instance should not handle actions
-	if inst.CanHandleAction("toggle") {
+	if inst.HandleAction(action.NewAction(action.ActionToggle)) {
 		t.Error("Disabled instance should not handle toggle action")
 	}
 }
@@ -214,7 +215,7 @@ func TestInstance_HandleAction(t *testing.T) {
 	})
 
 	// Toggle action
-	handled := inst.HandleAction("toggle", nil)
+	handled := inst.HandleAction(action.NewAction(action.ActionToggle))
 	if !handled {
 		t.Error("Toggle action should be handled")
 	}
@@ -223,7 +224,7 @@ func TestInstance_HandleAction(t *testing.T) {
 	}
 
 	// Click action
-	handled = inst.HandleAction("click", nil)
+	handled = inst.HandleAction(action.NewAction(action.ActionClick))
 	if !handled {
 		t.Error("Click action should be handled")
 	}
@@ -232,7 +233,7 @@ func TestInstance_HandleAction(t *testing.T) {
 	}
 
 	// Unknown action
-	handled = inst.HandleAction("unknown", nil)
+	handled = inst.HandleAction(action.NewActionWithPayload("unknown", nil))
 	if handled {
 		t.Error("Unknown action should not be handled")
 	}

@@ -189,3 +189,17 @@ func B(label string) *Builder {
 func Button(label string) *VNode {
 	return New(label)
 }
+
+// =============================================================================
+// Backward Compatibility - Aliases for old API
+// =============================================================================
+
+// NewButton creates a new Button VNode (alias for New, for backward compatibility).
+// This matches the old button.NewButton() API.
+func NewButton(label string) *VNode {
+	return New(label)
+}
+
+// ButtonBuilder is an alias for Builder (for backward compatibility).
+// This matches the old button.ButtonBuilder type.
+type ButtonBuilder = Builder

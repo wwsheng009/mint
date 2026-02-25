@@ -3,6 +3,7 @@ package modal
 import (
 	"testing"
 
+	"github.com/wwsheng009/mint/runtime/action"
 	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/style"
@@ -482,7 +483,7 @@ func TestInstance_HandleAction(t *testing.T) {
 	})
 
 	// Test close action
-	handled := inst.HandleAction("close", nil)
+	handled := inst.HandleAction(action.NewAction("close"))
 	if !handled {
 		t.Error("HandleAction should return true for close action")
 	}
@@ -492,23 +493,23 @@ func TestInstance_HandleAction(t *testing.T) {
 
 	// Test closed modal doesn't handle actions
 	inst.isOpen = true
-	inst.HandleAction("close", nil)
+	inst.HandleAction(action.NewAction("close"))
 	inst.isOpen = false
-	handled = inst.HandleAction("close", nil)
+	handled = inst.HandleAction(action.NewAction("close"))
 	if handled {
 		t.Error("Closed modal should not handle actions")
 	}
 }
 
-func TestInstance_CanHandleAction(t *testing.T) {
+func TestInstance_HandleAction_HandlableActions(t *testing.T) {
 	inst := NewInstance(rtui.Props{
 		"isOpen":    true,
 		"closeable": true,
 	})
 
 	tests := []struct {
-		action   string
-		handlable bool
+		actionType action.ActionType
+		handlable  bool
 	}{
 		{"close", true},
 		{"click_outside", true},
@@ -517,10 +518,10 @@ func TestInstance_CanHandleAction(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.action, func(t *testing.T) {
-			canHandle := inst.CanHandleAction(tt.action)
-			if canHandle != tt.handlable {
-				t.Errorf("Expected CanHandleAction('%s') to be %v, got %v", tt.action, tt.handlable, canHandle)
+		t.Run(string(tt.actionType), func(t *testing.T) {
+			handled := inst.HandleAction(action.NewAction(tt.actionType))
+			if handled != tt.handlable {
+				t.Errorf("Expected HandleAction('%s') to be %v, got %v", tt.actionType, tt.handlable, handled)
 			}
 		})
 	}

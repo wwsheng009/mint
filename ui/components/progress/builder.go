@@ -57,3 +57,23 @@ func (b *Builder) Build() rtui.VNode {
 func (b *Builder) BuildTyped() *VNode {
 	return b.node
 }
+
+// =============================================================================
+// Backward Compatibility - Aliases for old API
+// =============================================================================
+
+// Progress creates a new Progress VNode (for backward compatibility).
+// This matches the old feedback.Progress() API.
+func Progress() *VNode {
+	return New()
+}
+
+// NewProgress creates a new Progress VNode (alias for New, for backward compatibility).
+// This matches the old feedback.NewProgress() API.
+func NewProgress() *VNode {
+	return New()
+}
+
+// ProgressBuilder is an alias for Builder (for backward compatibility).
+// This matches the old feedback.ProgressBuilder type.
+type ProgressBuilder = Builder

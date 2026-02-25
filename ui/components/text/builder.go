@@ -130,3 +130,19 @@ func Bold(content string) rtui.VNode {
 func Colored(content string, fg style.Color) rtui.VNode {
 	return New(content).Foreground(fg)
 }
+
+// =============================================================================
+// Backward Compatibility - Aliases for old API
+// =============================================================================
+
+// Text creates a simple text node (alias for T, for backward compatibility).
+// This matches the old basic.Text() API.
+func Text(content string) rtui.VNode {
+	return New(content)
+}
+
+// NewText creates a new Text VNode (alias for New, for backward compatibility).
+// This matches the old basic.NewText() API.
+func NewText(content string) *VNode {
+	return New(content)
+}

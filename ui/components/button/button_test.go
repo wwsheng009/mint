@@ -3,6 +3,7 @@ package button
 import (
 	"testing"
 
+	"github.com/wwsheng009/mint/runtime/action"
 	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/paint"
@@ -136,7 +137,7 @@ func TestInstance_HandleAction(t *testing.T) {
 	inst := NewInstance(rtui.Props{"label": "Test"})
 
 	// Focus action
-	if !inst.HandleAction("Focus", nil) {
+	if !inst.HandleAction(action.NewActionWithPayload("Focus", nil)) {
 		t.Error("HandleAction(Focus) should return true")
 	}
 	if !inst.HasFocus() {
@@ -145,7 +146,7 @@ func TestInstance_HandleAction(t *testing.T) {
 
 	// Blur action
 	inst.dirty = false
-	if !inst.HandleAction("Blur", nil) {
+	if !inst.HandleAction(action.NewActionWithPayload("Blur", nil)) {
 		t.Error("HandleAction(Blur) should return true")
 	}
 	if inst.HasFocus() {
@@ -156,7 +157,7 @@ func TestInstance_HandleAction(t *testing.T) {
 func TestInstance_HandleAction_Disabled(t *testing.T) {
 	inst := NewInstance(rtui.Props{"label": "Test", "disabled": true})
 
-	if inst.HandleAction("Focus", nil) {
+	if inst.HandleAction(action.NewActionWithPayload("Focus", nil)) {
 		t.Error("HandleAction(Focus) on disabled should return false")
 	}
 }
@@ -301,13 +302,13 @@ func TestInstance_BehaviorComposition(t *testing.T) {
 	}
 
 	// Test focusable behavior
-	inst.HandleAction("Focus", nil)
+	inst.HandleAction(action.NewActionWithPayload("Focus", nil))
 	if !inst.HasFocus() {
 		t.Error("Focus action should set focus state")
 	}
 
 	// Test pressable behavior
-	inst.HandleAction("Press", nil)
+	inst.HandleAction(action.NewActionWithPayload("Press", nil))
 	if !inst.state.Pressed {
 		t.Error("Press action should set pressed state")
 	}
@@ -322,19 +323,19 @@ func TestInstance_StateTransitions(t *testing.T) {
 	}
 
 	// Focus
-	inst.HandleAction("Focus", nil)
+	inst.HandleAction(action.NewActionWithPayload("Focus", nil))
 	if inst.state.Focused != true {
 		t.Error("State should have Focused=true")
 	}
 
 	// Hover
-	inst.HandleAction("MouseEnter", nil)
+	inst.HandleAction(action.NewActionWithPayload("MouseEnter", nil))
 	if inst.state.Hovered != true {
 		t.Error("State should have Hovered=true")
 	}
 
 	// Press
-	inst.HandleAction("Press", nil)
+	inst.HandleAction(action.NewActionWithPayload("Press", nil))
 	if inst.state.Pressed != true {
 		t.Error("State should have Pressed=true")
 	}

@@ -1,6 +1,9 @@
 package ui
 
-import rtui "github.com/wwsheng009/mint/runtime/ui"
+import (
+	"github.com/wwsheng009/mint/ui/components/wrap"
+	rtui "github.com/wwsheng009/mint/runtime/ui"
+)
 
 // =============================================================================
 // Layout Types (re-exported from runtime/ui)
@@ -74,25 +77,20 @@ func Spacer() *rtui.SpacerBuilder {
 }
 
 // =============================================================================
-// Wrap Layout (re-exported from components/layout)
+// Wrap Layout (re-exported from ui/components/wrap)
 // =============================================================================
 
 // Wrap creates a wrapping layout container
 // Automatically wraps children to multiple rows based on width
-// This is a convenience re-export from components/layout
+// This is a convenience re-export from ui/components/wrap
 func Wrap(children ...VNode) VNode {
-	// Import layout package and use Wrap
-	// Note: This requires importing github.com/wwsheng009/mint/components/layout
-	// For now, users should use app.Wrap or layout.Wrap directly
-	panic("Wrap: use app.Wrap or layout.Wrap instead")
+	return wrap.Wrap(children...)
 }
 
 // WrapBuilder creates a wrapping layout container builder for method chaining
-// This is a convenience re-export from components/layout
-// Note: This requires importing github.com/wwsheng009/mint/components/layout
-// For now, users should use app.WrapBuilder or layout.WrapBuilder directly
-func WrapBuilder(children ...VNode) interface{} {
-	panic("WrapBuilder: use app.WrapBuilder or layout.WrapBuilder instead")
+// This is a convenience re-export from ui/components/wrap
+func WrapBuilder(children ...VNode) *wrap.Builder {
+	return wrap.NewBuilder().Children(children...)
 }
 
 // =============================================================================

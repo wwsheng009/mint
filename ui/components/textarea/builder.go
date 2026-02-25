@@ -73,3 +73,23 @@ func (b *Builder) Build() rtui.VNode {
 func (b *Builder) BuildTyped() *VNode {
 	return b.node
 }
+
+// =============================================================================
+// Backward Compatibility - Aliases for old API
+// =============================================================================
+
+// Textarea creates a new Textarea VNode (for backward compatibility).
+// This matches the old form.Textarea() API.
+func Textarea() *VNode {
+	return New()
+}
+
+// NewTextarea creates a new Textarea VNode (alias for New, for backward compatibility).
+// This matches the old form.NewTextarea() API.
+func NewTextarea() *VNode {
+	return New()
+}
+
+// TextareaBuilder is an alias for Builder (for backward compatibility).
+// This matches the old form.TextareaBuilder type.
+type TextareaBuilder = Builder

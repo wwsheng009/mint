@@ -160,3 +160,32 @@ func WithLabel(label string) rtui.VNode {
 func Section(title string) rtui.VNode {
 	return New().SetLabel(" " + title + " ").Double()
 }
+
+// =============================================================================
+// Backward Compatibility - Aliases for old API (basic package)
+// =============================================================================
+
+// Divider creates a new Divider VNode (for backward compatibility).
+// This matches the old basic.Divider() API.
+func Divider() *VNode {
+	return New()
+}
+
+// NewDivider creates a new Divider VNode (alias for New, for backward compatibility).
+// This matches the old basic.NewDivider() API.
+func NewDivider() *VNode {
+	return New()
+}
+
+// DividerBuilder is an alias for Builder (for backward compatibility).
+// This matches the old basic.DividerBuilder type.
+type DividerBuilder = Builder
+
+// DividerStyle type and constants (for backward compatibility with basic package)
+type DividerStyle = Style
+
+const (
+	DividerSolid   = StyleSolid
+	DividerDashed  = StyleDashed
+	DividerDotted  = StyleDotted
+)

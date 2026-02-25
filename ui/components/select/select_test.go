@@ -3,6 +3,7 @@ package selectcomp
 import (
 	"testing"
 
+	"github.com/wwsheng009/mint/runtime/action"
 	"github.com/wwsheng009/mint/runtime/layout"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
@@ -208,7 +209,7 @@ func TestInstance_Disabled(t *testing.T) {
 	}
 
 	// Disabled instance should not handle actions
-	if inst.CanHandleAction("select") {
+	if inst.HandleAction(action.NewAction(action.ActionSelect)) {
 		t.Error("Disabled instance should not handle select action")
 	}
 }
@@ -222,8 +223,8 @@ func TestInstance_HandleAction(t *testing.T) {
 		"selectedIndex": 0,
 	})
 
-	// Select/Click/Down action
-	handled := inst.HandleAction("select", nil)
+	// Select/Click/Enter/Down action
+	handled := inst.HandleAction(action.NewAction(action.ActionSelect))
 	if !handled {
 		t.Error("Select action should be handled")
 	}
@@ -232,7 +233,7 @@ func TestInstance_HandleAction(t *testing.T) {
 	}
 
 	// Up action
-	handled = inst.HandleAction("up", nil)
+	handled = inst.HandleAction(action.NewAction(action.ActionNavigateUp))
 	if !handled {
 		t.Error("Up action should be handled")
 	}
@@ -241,7 +242,7 @@ func TestInstance_HandleAction(t *testing.T) {
 	}
 
 	// Unknown action
-	handled = inst.HandleAction("unknown", nil)
+	handled = inst.HandleAction(action.NewActionWithPayload("unknown", nil))
 	if handled {
 		t.Error("Unknown action should not be handled")
 	}
