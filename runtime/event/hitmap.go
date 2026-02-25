@@ -5,6 +5,7 @@ import (
 	"hash/fnv"
 	"reflect"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -31,12 +32,28 @@ type MsgHandler interface {
 }
 
 // StringToNodeID 将字符串 ID 转换为 uint64 NodeID
-// 使用 FNV-1a 哈希算法确保字符串 ID 能稳定映射到 uint64
+//
+// 转换规则（按优先级）：
+// 1. 如果输入是数字字符串（如 "123"），直接解析为 uint64
+// 2. 否则使用 FNV-1a 哈希算法将字符串 ID 稳定映射到 uint64
+//
+// 优先解析数字字符串以确保与 Fiber.ActionTargetID 的一致性：
+//   - Fiber 创建：ActionTargetID = fmt.Sprintf("%d", NodeID)
+//   - Bridge 路由：targetID = StringToNodeID(ActionTargetID)
+//   - 通过 ParseUint 确保往返一致性
+//
 // 导出的版本供外部包使用
 func StringToNodeID(id string) uint64 {
 	if id == "" {
 		return 0
 	}
+
+	// 优先尝试解析为数字（适用于 Fiber.ActionTargetID）
+	if nodeID, err := strconv.ParseUint(id, 10, 64); err == nil {
+		return nodeID
+	}
+
+	// 如果不是数字，使用 FNV-1a 哈希（适用于 layout.Node.ID() 等场景）
 	h := fnv.New64a()
 	h.Write([]byte(id))
 	return h.Sum64()

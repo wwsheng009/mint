@@ -2,6 +2,7 @@ package event
 
 import (
 	"fmt"
+	"hash/fnv"
 	"testing"
 
 	"github.com/wwsheng009/mint/runtime/layout"
@@ -549,4 +550,77 @@ func indexOf(s, substr string) int {
 		}
 	}
 	return -1
+}
+
+// TestStringToNodeID 测试 StringToNodeID 函数的正确性
+func TestStringToNodeID(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected uint64
+	}{
+		{
+			name:     "空字符串",
+			input:    "",
+			expected: 0,
+		},
+		{
+			name:     "数字字符串_1",
+			input:    "1",
+			expected: 1,
+		},
+		{
+			name:     "数字字符串_123",
+			input:    "123",
+			expected: 123,
+		},
+		{
+			name:     "数字字符串_大数",
+			input:    "18446744073709551615",
+			expected: 18446744073709551615,
+		},
+		{
+			name:  "非数字字符串使用哈希",
+			input: "button1",
+			// 注意：FNV-1a 哈希值在运行时计算
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := StringToNodeID(tt.input)
+
+			// 测试用例指定了 expected
+			if tt.expected != 0 && result != tt.expected {
+				t.Errorf("StringToNodeID(%q) = %x, want %x", tt.input, result, tt.expected)
+				return
+			}
+
+			// 特殊测试：验证非数字字符串使用 FNV-1a 哈希
+			if tt.name == "非数字字符串使用哈希" {
+				h := fnv.New64a()
+				h.Write([]byte(tt.input))
+				expected := h.Sum64()
+				if result != expected {
+					t.Errorf("FNV-1a hash mismatch: %q -> got %x, want %x", tt.input, result, expected)
+				}
+				if result == 0 {
+					t.Errorf("非数字字符串的哈希值不应为零")
+				}
+			}
+		})
+	}
+}
+
+// TestStringToNodeID_RoundTrip 测试数字字符串的往返转换
+func TestStringToNodeID_RoundTrip(t *testing.T) {
+	t.Run("数字字符串往返转换", func(t *testing.T) {
+		original := uint64(42)
+		str := fmt.Sprintf("%d", original)
+		converted := StringToNodeID(str)
+
+		if converted != original {
+			t.Errorf("往返转换失败: %d -> %q -> %d", original, str, converted)
+		}
+	})
 }
