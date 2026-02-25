@@ -3,6 +3,7 @@ package action
 import (
 	"github.com/wwsheng009/mint/framework/component"
 	frameworkevent "github.com/wwsheng009/mint/framework/event"
+	runtimeaction "github.com/wwsheng009/mint/runtime/action"
 	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
 	runtimeplatform "github.com/wwsheng009/mint/runtime/platform"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
@@ -123,15 +124,17 @@ func NewActionHandlerInstanceAdapter(handler rtui.ActionHandlerInstance, id uint
 	}
 }
 
-// HandleAction 将 Action 转换为 actionType 和 payload 调用 HandleAction
+// HandleAction 将 Action 转换为 runtime/action.Action 调用 HandleAction
 func (a *ActionHandlerInstanceAdapter) HandleAction(act *Action) bool {
-	return a.handler.HandleAction(string(act.Type), act.Payload)
+	// Convert framework/action.Action to runtime/action.Action
+	rtAct := runtimeaction.NewAction(runtimeaction.ActionType(act.Type)).
+		WithPayload(act.Payload).
+		WithTargetID(a.id)
+	return a.handler.HandleAction(rtAct)
 }
 
 // GetSupportedActions 返回支持的 Action 类型
-// 创建一个适配方法，将 handler.CanHandleAction 检查的 string 类型转换为 ActionType
 func (a *ActionHandlerInstanceAdapter) GetSupportedActions() []ActionType {
-	// 返回常见支持的 Action 类型
 	return []ActionType{
 		ActionClick,
 		ActionInputText,
@@ -144,11 +147,6 @@ func (a *ActionHandlerInstanceAdapter) GetSupportedActions() []ActionType {
 		ActionNavigateLeft,
 		ActionNavigateRight,
 	}
-}
-
-// CanHandleAction 检查是否能处理该 Action
-func (a *ActionHandlerInstanceAdapter) CanHandleAction(act *Action) bool {
-	return a.handler.CanHandleAction(string(act.Type))
 }
 
 // ============================================================================

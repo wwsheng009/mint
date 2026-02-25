@@ -9,13 +9,12 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/wwsheng009/mint/framework/action"
 	"github.com/wwsheng009/mint/framework/component"
 	"github.com/wwsheng009/mint/framework/debug"
 	frameworkevent "github.com/wwsheng009/mint/framework/event"
 	"github.com/wwsheng009/mint/framework/theme"
 	"github.com/wwsheng009/mint/internal/log"
-	rt "github.com/wwsheng009/mint/runtime"
+	"github.com/wwsheng009/mint/runtime/action"
 	"github.com/wwsheng009/mint/runtime/bridge/actionbridge"
 	"github.com/wwsheng009/mint/runtime/core"
 	runtimeevent "github.com/wwsheng009/mint/runtime/event"
@@ -65,12 +64,10 @@ type App struct {
 	// ============================================================================
 	// Phase 1: Action 系统 - 统一消息传播机制
 	// ============================================================================
-	actionRouter    *action.Router                 // Action 分发器
-	actionBridge    *actionbridge.Bridge           // Fiber → Action 桥接器
-	inputProcessor  *action.InputProcessor         // Msg → Action 转换器
-	actionRegistry  map[uint64]action.ActionTarget // ActionTarget 注册表
-	focusIDToNodeID map[string]uint64              // FocusID -> NodeID 映射表（内部使用）
-	scopeDispatcher *action.ScopeDispatcher        // Scope-based action dispatcher (Closure → ActionID)
+	actionRouter    *action.Router           // Action 分发器
+	actionBridge    *actionbridge.Bridge      // Fiber → Action 桥接器
+	inputProcessor  *action.InputProcessor    // Msg → Action 转换器
+	scopeDispatcher *action.ScopeDispatcher     // Scope-based action dispatcher
 	// legacyMode is DEPRECATED - Action system is now the primary path
 	// Set to true only for debugging/fallback purposes
 	legacyMode bool // 是否启用兼容模式（默认 false）
@@ -169,8 +166,6 @@ func NewApp() *App {
 		// Phase 1: 初始化 Action 系统
 		actionRouter:    action.NewRouter(nil), // 根节点稍后设置
 		inputProcessor:  action.NewInputProcessor(),
-		actionRegistry:  make(map[uint64]action.ActionTarget),
-		focusIDToNodeID: make(map[string]uint64),
 		scopeDispatcher: action.NewScopeDispatcherWithName(nil, "root"), // Scope-based dispatcher
 		legacyMode:      false,                                          // Action 系统优先，legacy 仅用于调试
 	}
@@ -220,8 +215,6 @@ func NewAppWithSource(source frameworkevent.EventSource) *App {
 		// Phase 1: 初始化 Action 系统
 		actionRouter:    action.NewRouter(nil),
 		inputProcessor:  action.NewInputProcessor(),
-		actionRegistry:  make(map[uint64]action.ActionTarget),
-		focusIDToNodeID: make(map[string]uint64),
 		scopeDispatcher: action.NewScopeDispatcherWithName(nil, "root"), // Scope-based dispatcher
 		legacyMode:      true,
 	}
@@ -1013,7 +1006,7 @@ func (a *App) processMsg(msg runtimemsg.Msg) {
 	}
 
 	// 3. 导航 Action 由焦点管理器直接处理
-	if act.IsNavigationAction() {
+	if act.IsNavigation() {
 		a.handleNavigationAction(act)
 		return
 	}
@@ -1131,104 +1124,6 @@ func (a *App) handleLegacyMsg(msg runtimemsg.Msg) {
 			a.dirty = true
 		}
 	}
-}
-
-// buildActionRegistry 从组件树构建 ActionTarget 注册表
-// Phase 3 增强：从焦点管理器收集 ActionTarget，因为焦点管理器已经有正确的组件引用
-func (a *App) buildActionRegistry() {
-	if a.root == nil {
-		return
-	}
-
-	// 清空旧注册表和映射表
-	a.actionRegistry = make(map[uint64]action.ActionTarget)
-	a.focusIDToNodeID = make(map[string]uint64)
-
-	// 尝试从 DeclarativeNode 获取焦点管理器 (Fiber-first)
-	if declNode, ok := a.root.(interface {
-		GetFocusManager() *rtui.FiberFocusManager
-	}); ok {
-		focusMgr := declNode.GetFocusManager()
-		if focusMgr != nil {
-			// 同步到 App 的 focusManager (关键！)
-			a.focusManager = focusMgr
-
-			// 从焦点管理器的可聚焦列表中收集 ActionTarget
-			focusable := focusMgr.GetFocusable()
-			for _, fiber := range focusable {
-				// Fiber-first: Check Instance for action handling support
-				// 支持三种接口：
-				// 1. action.ActionTarget - 直接注册
-				// 2. rtui.ActionHandlerInstance - 使用适配器
-				// 3. rtui.ComponentInstance - 检查是否实现了以上接口
-				var target action.ActionTarget
-				var ok bool
-
-				if fiber.Instance != nil {
-					// 优先检查 action.ActionTarget
-					if target, ok = fiber.Instance.(action.ActionTarget); !ok {
-						// 其次检查 rtui.ActionHandlerInstance
-						if handler, handlerOk := fiber.Instance.(rtui.ActionHandlerInstance); handlerOk {
-							focusID := fmt.Sprintf("node-%d", fiber.NodeID)
-							nodeID := runtimeevent.StringToNodeID(focusID)
-							target = action.NewActionHandlerInstanceAdapter(handler, nodeID)
-							ok = true
-						}
-					}
-				}
-
-				if ok && target != nil {
-					// Fiber-first: Use NodeID to generate FocusID (consistent with FiberFocusManager)
-					focusID := fmt.Sprintf("node-%d", fiber.NodeID)
-					nodeID := runtimeevent.StringToNodeID(focusID)
-					// 维护 FocusID -> NodeID 映射
-					a.focusIDToNodeID[focusID] = nodeID
-					// 注册到 actionRegistry
-					a.actionRegistry[nodeID] = target
-				}
-			}
-		}
-	}
-}
-
-// registerActionTargets 递归注册 ActionTarget
-func (a *App) registerActionTargets(node component.Node) {
-	if node == nil {
-		return
-	}
-
-	// 获取节点 ID
-	var nodeID uint64
-	if idProvider, ok := node.(interface{ GetNodeID() uint64 }); ok {
-		nodeID = idProvider.GetNodeID()
-	}
-
-	// 检查是否实现 ActionTarget
-	if nodeID != 0 {
-		if target, ok := node.(action.ActionTarget); ok {
-			a.actionRegistry[nodeID] = target
-		} else if updater, ok := node.(component.Updater); ok {
-			// 使用适配器包装旧接口
-			adapter := action.NewUpdaterAdapter(updater, nodeID)
-			a.actionRegistry[nodeID] = adapter
-		} else if handler, ok := node.(frameworkevent.EventHandler); ok {
-			// 使用适配器包装 EventHandler
-			adapter := action.NewEventHandlerAdapter(handler, nodeID)
-			a.actionRegistry[nodeID] = adapter
-		}
-	}
-
-	// 递归处理子节点
-	if container, ok := node.(interface{ Children() []component.Node }); ok {
-		for _, child := range container.Children() {
-			a.registerActionTargets(child)
-		}
-	}
-}
-
-// GetActionRegistry 获取 ActionTarget 注册表（用于测试）
-func (a *App) GetActionRegistry() map[uint64]action.ActionTarget {
-	return a.actionRegistry
 }
 
 // SetLegacyMode 设置兼容模式（已废弃）
@@ -1632,25 +1527,7 @@ func (a *App) render() {
 			a.pump.SetHitMap(a.hitMap)
 		}
 
-		// Phase 1: 更新 ActionTarget 注册表
-		a.buildActionRegistry()
-
-		// 同步到 ActionRouter 的 TargetHandlers（用于 Target 阶段）
-		for id, target := range a.actionRegistry {
-			a.actionRouter.RegisterTarget(id, target)
-		}
-
-		// 构建 runtime.LayoutNode 树用于 Capture/Bubble 阶段
-		// 从 HitMap 的根节点构建完整的 LayoutNode 树
-		if a.hitMap != nil {
-			hitmapRoot := a.hitMap.GetRoot()
-			if hitmapRoot != nil {
-				layoutNodeTree := rt.BuildLayoutNodeTreeFromHitMap(hitmapRoot)
-				a.actionRouter.Root = layoutNodeTree
-			}
-		}
-
-		// Phase 3: 更新焦点管理器（从 DeclarativeNode 的 Fiber 树收集）
+		// Phase 2: 更新焦点管理器（从 DeclarativeNode 的 Fiber 树收集）
 		// DeclarativeNode 在 applyFocusState 中会更新焦点列表
 		// 这里我们不需要重复更新，因为 DeclarativeNode 和 framework.App 共享同一个焦点管理器
 	}
