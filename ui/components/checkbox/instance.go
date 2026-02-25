@@ -3,6 +3,7 @@ package checkbox
 import (
 	"unicode/utf8"
 
+	"github.com/wwsheng009/mint/framework/action"
 	"github.com/wwsheng009/mint/framework/theme"
 	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/runtime/layout"
@@ -272,7 +273,9 @@ func (inst *Instance) CanHandleAction(actionType string) bool {
 	if inst.state.Disabled {
 		return false
 	}
-	return actionType == "toggle" || actionType == "click" || actionType == "enter"
+	return actionType == string(action.ActionToggle) ||
+		actionType == string(action.ActionClick) ||
+		actionType == string(action.ActionEnter)
 }
 
 // HandleAction implements ActionHandlerInstance.
@@ -282,7 +285,7 @@ func (inst *Instance) HandleAction(actionType string, payload interface{}) bool 
 	}
 
 	switch actionType {
-	case "toggle", "click", "enter":
+	case string(action.ActionToggle), string(action.ActionClick), string(action.ActionEnter):
 		inst.Toggle()
 		return true
 	}

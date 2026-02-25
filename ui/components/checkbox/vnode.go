@@ -29,9 +29,6 @@ type VNode struct {
 	disabled bool
 	checked  bool
 
-	// === Focus state (transient, for rendering) ===
-	hasFocus bool
-
 	// === Box Model (via interface) ===
 	rtui.BoxModelMixin
 }
@@ -40,7 +37,6 @@ type VNode struct {
 var (
 	_ rtui.VNode           = (*VNode)(nil)
 	_ rtui.InstanceFactory = (*VNode)(nil)
-	_ rtui.FocusableVNode  = (*VNode)(nil)
 	_ rtui.BoxModel        = (*VNode)(nil)
 )
 
@@ -160,28 +156,6 @@ func (c *VNode) CreateInstance() rtui.ComponentInstance {
 }
 
 // =============================================================================
-// FocusableVNode Interface
-// =============================================================================
-
-// SetFocus sets the focus state for rendering purposes.
-func (c *VNode) SetFocus(hasFocus bool) {
-	c.hasFocus = hasFocus
-}
-
-// IsFocusable returns true if checkbox can receive focus.
-func (c *VNode) IsFocusable() bool {
-	return !c.disabled
-}
-
-// GetFocusID returns a unique identifier for focus.
-func (c *VNode) GetFocusID() string {
-	if c.key != "" {
-		return "checkbox:" + c.key
-	}
-	return "checkbox:" + c.label
-}
-
-// =============================================================================
 // Builder Methods - Fluent API (return *VNode for chaining)
 // =============================================================================
 
@@ -247,9 +221,4 @@ func (c *VNode) Checked() bool {
 // ToggleIntent returns the toggle intent.
 func (c *VNode) ToggleIntent() intent.Intent {
 	return c.toggleIntent
-}
-
-// HasFocus returns the focus state.
-func (c *VNode) HasFocus() bool {
-	return c.hasFocus
 }

@@ -302,36 +302,3 @@ func TestInstance_Paint_EmptyLabel(t *testing.T) {
 		t.Errorf("Text = %q, want %q", cmds[0].Text, "[X]")
 	}
 }
-
-// =============================================================================
-// FocusableVNode Tests
-// =============================================================================
-
-func TestVNode_IsFocusable(t *testing.T) {
-	// Enabled checkbox is focusable
-	cb := New("Test")
-	if !cb.IsFocusable() {
-		t.Error("Enabled checkbox should be focusable")
-	}
-
-	// Disabled checkbox is not focusable
-	cb = New("Test").SetDisabled(true)
-	if cb.IsFocusable() {
-		t.Error("Disabled checkbox should not be focusable")
-	}
-}
-
-func TestVNode_GetFocusID(t *testing.T) {
-	// With key
-	cb := New("Test")
-	cb.SetKey("mykey")
-	if cb.GetFocusID() != "checkbox:mykey" {
-		t.Errorf("FocusID = %q, want %q", cb.GetFocusID(), "checkbox:mykey")
-	}
-
-	// Without key
-	cb = New("Test")
-	if cb.GetFocusID() != "checkbox:Test" {
-		t.Errorf("FocusID = %q, want %q", cb.GetFocusID(), "checkbox:Test")
-	}
-}
