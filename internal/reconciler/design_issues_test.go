@@ -158,7 +158,6 @@ func TestStateRedundancy(t *testing.T) {
 	}
 
 	instance := rtui.NewBaseComponentInstance("test-comp", componentFunc)
-	fiber.ComponentInstance = instance
 
 	// MemoizedState is nil for hook-based components (unless using UpdateQueue)
 	t.Logf("fiber.MemoizedState: %v", fiber.MemoizedState)
