@@ -1,3 +1,16 @@
+// Package action provides action dispatching and routing.
+//
+// Action System Architecture:
+// - Framework-level (framework/action) ← Legacy framework usage
+// - Runtime-level (runtime/action) ← New Fiber-first components
+//
+// ⚠️ DEPRECATED: Action types and Action struct should eventually be migrated to use runtime/action.
+// This file maintains ActionType constants for backward compatibility.
+// New components (ui/components/*) should use runtime/action.ActionType directly.
+//
+// For now, both coexist:
+// - framework/action.ActionType = framework use (legacy components)
+// - runtime/action.ActionType = framework use (new ui/components)
 package action
 
 import (
