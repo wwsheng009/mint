@@ -62,9 +62,6 @@ func TestFiberToNodeAdapter_NewButton(t *testing.T) {
 	if buttonVNode.Tag() != "button" {
 		t.Errorf("ButtonVNode.Tag() = %q, want %q", buttonVNode.Tag(), "button")
 	}
-	if !buttonVNode.IsFocusable() {
-		t.Error("ButtonVNode should be focusable")
-	}
 
 	// Create Fiber from VNode
 	fiber := rtui.CreateFiberFromVNode(buttonVNode)

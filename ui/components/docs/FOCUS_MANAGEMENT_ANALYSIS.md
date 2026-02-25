@@ -26,37 +26,9 @@ This document analyzes the focus management implementation in the Mint UI framew
 
 ### Full Focusable Support
 
-The following components implement the `rtui.FocusableVNode` interface:
+The following components implement the `rtui.FocusableInstance` interface:
 
-#### 1. Button (`ui/components/button/vnode.go`)
-
-```go
-type VNode struct {
-    hasFocus bool      // Focus state for rendering
-    disabled bool      // Disabled state
-    key      string    // Component key
-    label    string    // Button label
-    // ... other fields
-}
-
-// FocusableVNode Implementation
-func (b *VNode) SetFocus(hasFocus bool) {
-    b.hasFocus = hasFocus
-}
-
-func (b *VNode) IsFocusable() bool {
-    return !b.disabled
-}
-
-func (b *VNode) GetFocusID() string {
-    if b.key != "" {
-        return "button:" + b.key
-    }
-    return "button:" + b.label
-}
-```
-
-**Focus ID Format**: `button:{key}` or `button:{label}`
+#### 1. Button (`ui/components/button/instance.go`)
 
 **Focusable Condition**: `!disabled`
 
@@ -66,7 +38,6 @@ func (b *VNode) GetFocusID() string {
 
 ```go
 type VNode struct {
-    hasFocus bool      // Focus state for rendering
     disabled bool      // Disabled state
     readOnly bool      // Read-only state
     key      string    // Component key
@@ -75,21 +46,6 @@ type VNode struct {
     // ... other fields
 }
 
-// FocusableVNode Implementation
-func (i *VNode) SetFocus(hasFocus bool) {
-    i.hasFocus = hasFocus
-}
-
-func (i *VNode) IsFocusable() bool {
-    return !i.disabled && !i.readOnly
-}
-
-func (i *VNode) GetFocusID() string {
-    if i.key != "" {
-        return "input:" + i.key
-    }
-    return "input:" + i.placeholder
-}
 ```
 
 **Focus ID Format**: `input:{key}` or `input:{placeholder}`
@@ -187,9 +143,9 @@ func (c *VNode) GetFocusID() string {
 
 ### Components Without Explicit Focusable Support
 
-The following component directories exist but do NOT focus explicitly implement `FocusableVNode`:
+The following component directories exist but do NOT focus explicitly implement `FocusableInstance`:
 
-| Component | Dir Exists | FocusableVNode | Notes |
+| Component | Dir Exists | FocusableInstance | Notes |
 |-----------|------------|----------------|-------|
 | `absolute` | ✅ | ❌ | Container component |
 | `border` | ✅ | ❌ | Visual decoration |
@@ -576,9 +532,11 @@ func extractFocusableMeta(fiber *Fiber) *rtui.FocusableMeta {
         }
     }
 
-    // Use FocusableVNode to get FocusID if available
-    if focusableMeta != nil && fiber.FocusableVNode != nil {
-        focusableMeta.FocusID = fiber.FocusableVNode.GetFocusID()
+    // Use FocusableInstance to get FocusID if available
+    if focusableMeta != nil && fiber.ComponentInstance != nil {
+        if focusableInst, ok := fiber.ComponentInstance.(rtui.FocusableInstance); ok {
+            focusableMeta.FocusID = focusableInst.GetFocusID()
+        }
     }
 
     return focusableMeta
@@ -589,7 +547,7 @@ func extractFocusableMeta(fiber *Fiber) *rtui.FocusableMeta {
 
 | Tag | `disabled` | `tabIndex` | Result | FocusID |
 |-----|------------|------------|--------|---------|
-| button/input/textarea/select/checkbox | false | -1 or 0 | ✅ Focusable | `fiber.Key` or `FocusableVNode.GetFocusID()` |
+| button/input/textarea/select/checkbox | false | -1 or 0 | ✅ Focusable | `fiber.Key` or `FocusableInstance.GetFocusID()` |
 | button/input/textarea/select/checkbox | true | -1 or 0 | ❌ Not Focusable | N/A |
 | any tag | false | >= 0 | ✅ Focusable | `fiber.Key` |
 | any tag | true | >= 0 | ❌ Not Focusable | N/A |
@@ -630,10 +588,10 @@ graph TD
 1. **Fiber-First Design**:
    - Focus state lives in `Fiber.FocusableMeta`
    - VNodes are declarative descriptions only
-   - `FocusableVNode` interface is still supported but `FocusableMeta` is primary
+   - `FocusableInstance` interface is still supported but `FocusableMeta` is primary
 
 2. **Component Support**:
-   - 5 components fully support `FocusableVNode`: Button, Input, Textarea, Select, Checkbox
+   - 5 components fully support `FocusableInstance`: Button, Input, Textarea, Select, Checkbox
    - All follow the same pattern: `SetFocus()`, `IsFocusable()`, `GetFocusID()`
 
 3. **Framework Integration**:
@@ -1019,17 +977,17 @@ func Run(app ComponentFunc, opts ...Option) error {
 | File | Purpose |
 |------|---------|
 | `ui/app.go` | ui.Run() entry point implementation |
-| `ui/components/button/vnode.go` | Button FocusableVNode implementation |
-| `ui/components/input/vnode.go` | Input FocusableVNode implementation |
-| `ui/components/textarea/vnode.go` | Textarea FocusableVNode implementation |
-| `ui/components/select/vnode.go` | Select FocusableVNode implementation |
-| `ui/components/checkbox/vnode.go` | Checkbox FocusableVNode implementation |
+| `ui/components/button/vnode.go` | Button FocusableInstance implementation |
+| `ui/components/input/vnode.go` | Input FocusableInstance implementation |
+| `ui/components/textarea/vnode.go` | Textarea FocusableInstance implementation |
+| `ui/components/select/vnode.go` | Select FocusableInstance implementation |
+| `ui/components/checkbox/vnode.go` | Checkbox FocusableInstance implementation |
 | `runtime/intent/builtin.go` | Built-in Intent types (Click, Toggle, SetState, etc.) |
 | `runtime/intent/example_test.go` | Intent usage examples |
 | `runtime/intent/types.go` | Intent interface and types definitions |
 | `runtime/ui/fiber_focus_manager.go` | FiberFocusManager implementation |
 | `runtime/ui/fiber_events.go` | FocusableMeta definition |
-| `runtime/ui/focusable.go` | FocusableVNode interface definition |
+| `runtime/ui/focusable.go` | FocusableInstance interface definition |
 | `internal/render/declarative_node.go` | DeclarativeNode with FocusManager |
 | `internal/reconciler/complete_work.go` | extractFocusableMeta() |
 | `internal/reconciler/reconciler.go` | Focus collection in CommitRoot |
