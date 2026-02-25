@@ -3,7 +3,7 @@ package scrollview
 import (
 	"strings"
 
-	"github.com/wwsheng009/mint/framework/action"
+	"github.com/wwsheng009/mint/runtime/action"
 	"github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
@@ -39,8 +39,6 @@ type Instance struct {
 var (
 	_ rtui.ComponentInstance        = (*Instance)(nil)
 	_ rtui.PaintableInstance        = (*Instance)(nil)
-	_ action.ActionTarget           = (*Instance)(nil)
-	_ action.ScrollableActionTarget = (*Instance)(nil)
 	// Note: control.Instance intentionally not implemented - ScrollView doesn't need behaviors
 	_ interface{ Measure(layout.Constraints) layout.Size } = (*Instance)(nil)
 )

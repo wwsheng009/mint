@@ -3,6 +3,7 @@ package input
 import (
 	"testing"
 
+	"github.com/wwsheng009/mint/runtime/action"
 	"github.com/wwsheng009/mint/runtime/layout"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
@@ -233,7 +234,7 @@ func TestInstance_Disabled(t *testing.T) {
 	}
 
 	// Disabled instance should not handle actions
-	if inst.CanHandleAction("input") {
+	if inst.HandleAction(action.NewActionWithPayload(action.ActionInputText, "a")) {
 		t.Error("Disabled instance should not handle input action")
 	}
 
@@ -258,7 +259,7 @@ func TestInstance_ReadOnly(t *testing.T) {
 	}
 
 	// ReadOnly instance should not handle editing actions
-	if inst.CanHandleAction("input") {
+	if inst.HandleAction(action.NewActionWithPayload(action.ActionInputText, "a")) {
 		t.Error("ReadOnly instance should not handle input action")
 	}
 }
@@ -269,7 +270,7 @@ func TestInstance_HandleAction(t *testing.T) {
 	})
 
 	// Input action
-	handled := inst.HandleAction("input", "x")
+	handled := inst.HandleAction(action.NewActionWithPayload(action.ActionInputText, "x"))
 	if !handled {
 		t.Error("Input action should be handled")
 	}
@@ -278,7 +279,7 @@ func TestInstance_HandleAction(t *testing.T) {
 	}
 
 	// Backspace action
-	handled = inst.HandleAction("backspace", nil)
+	handled = inst.HandleAction(action.NewAction(action.ActionBackspace))
 	if !handled {
 		t.Error("Backspace action should be handled")
 	}
@@ -287,7 +288,7 @@ func TestInstance_HandleAction(t *testing.T) {
 	}
 
 	// Unknown action
-	handled = inst.HandleAction("unknown", nil)
+	handled = inst.HandleAction(action.NewActionWithPayload("unknown", nil))
 	if handled {
 		t.Error("Unknown action should not be handled")
 	}

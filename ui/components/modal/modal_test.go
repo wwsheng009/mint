@@ -482,20 +482,20 @@ func TestInstance_HandleAction(t *testing.T) {
 		"closeable": true,
 	})
 
-	// Test close action
-	handled := inst.HandleAction(action.NewAction("close"))
+	// Test close action (using action.ActionCancel which is actually the close action)
+	handled := inst.HandleAction(action.NewAction(action.ActionCancel))
 	if !handled {
-		t.Error("HandleAction should return true for close action")
+		t.Error("HandleAction should return true for cancel/close action")
 	}
 	if inst.isOpen {
-		t.Error("Modal should be closed after close action")
+		t.Error("Modal should be closed after cancel/close action")
 	}
 
 	// Test closed modal doesn't handle actions
 	inst.isOpen = true
-	inst.HandleAction(action.NewAction("close"))
+	inst.HandleAction(action.NewAction(action.ActionCancel))
 	inst.isOpen = false
-	handled = inst.HandleAction(action.NewAction("close"))
+	handled = inst.HandleAction(action.NewAction(action.ActionCancel))
 	if handled {
 		t.Error("Closed modal should not handle actions")
 	}
@@ -511,9 +511,9 @@ func TestInstance_HandleAction_HandlableActions(t *testing.T) {
 		actionType action.ActionType
 		handlable  bool
 	}{
-		{"close", true},
-		{"click_outside", true},
-		{"escape", true},
+		{action.ActionCancel, true},  // Cancels a modal
+		{action.ActionQuit, true},    // Qui t also closes modal
+		{action.ActionScroll, false}, // Modal doesn't handle scroll
 		{"other", false},
 	}
 
