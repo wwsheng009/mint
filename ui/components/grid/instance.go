@@ -1,6 +1,8 @@
 package grid
 
 import (
+	"fmt"
+
 	"github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
@@ -16,6 +18,7 @@ import (
 type Instance struct {
 	// === Identification ===
 	key string
+	fiberId int // Fiber node ID for tracing
 
 	// === Grid Definition ===
 	columns []Dimension
@@ -36,6 +39,12 @@ type Instance struct {
 	// ✨ Border Props (方案 A - 边框作为容器属性) ===
 	borderStyle  string // "none", "single", "double", "rounded", "dashed"
 	borderLabel  string // Optional label displayed on top border
+
+	// === ✨ Cell Borders Props (格子间边框) ===
+	showCellBorders   bool   // 是否显示格子边框
+	cellBorderStyle   string // 边框样式: "none", "single", "double", "light"
+	cellBorderRounded bool   // cell 边框是否带圆角
+	cellBorderColor   string // 边框颜色
 
 	// === Style ===
 	instStyle style.Style
@@ -75,7 +84,12 @@ func NewInstance(props rtui.Props) *Instance {
 		instStyle:    getStyleProp(props),
 		dirty:        true,
 		borderStyle:  getStringProp(props, "borderStyle", "none"), // ✨ 边框样式
-		borderLabel:  getStringProp(props, "label", ""),         // ✨ 边框标签
+		borderLabel:  getStringProp(props, "label", ""),           // ✨ 边框标签
+		// ✨ Cell Borders 初始化
+		showCellBorders:   getBoolProp(props, "showCellBorders", false),
+		cellBorderStyle:   getStringProp(props, "cellBorderStyle", "single"),
+		cellBorderRounded: getBoolProp(props, "cellBorderRounded", false),
+		cellBorderColor:   getStringProp(props, "cellBorderColor", ""),
 	}
 
 	// Parse columns
@@ -149,6 +163,28 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	inst.flex = getIntProp(props, "flex", inst.flex)
 	inst.instStyle = getStyleProp(props)
 
+	// ✨ 容器边框属性
+	if v, ok := props["borderStyle"].(string); ok {
+		inst.borderStyle = v
+	}
+	if v, ok := props["label"].(string); ok {
+		inst.borderLabel = v
+	}
+
+	// ✨ Cell Borders 属性
+	if v, ok := props["showCellBorders"].(bool); ok {
+		inst.showCellBorders = v
+	}
+	if v, ok := props["cellBorderStyle"].(string); ok {
+		inst.cellBorderStyle = v
+	}
+	if v, ok := props["cellBorderRounded"].(bool); ok {
+		inst.cellBorderRounded = v
+	}
+	if v, ok := props["cellBorderColor"].(string); ok {
+		inst.cellBorderColor = v
+	}
+
 	if v, ok := props["columns"].([]Dimension); ok {
 		inst.columns = v
 	}
@@ -186,6 +222,14 @@ func (inst *Instance) GetProps() rtui.Props {
 		"width":        inst.width,
 		"height":       inst.height,
 		"flex":         inst.flex,
+		// ✨ 容器边框属性
+		"borderStyle": inst.borderStyle,
+		"label":       inst.borderLabel,
+		// ✨ Cell Borders 属性
+		"showCellBorders":   inst.showCellBorders,
+		"cellBorderStyle":   inst.cellBorderStyle,
+		"cellBorderRounded": inst.cellBorderRounded,
+		"cellBorderColor":   inst.cellBorderColor,
 	}
 }
 
@@ -216,6 +260,43 @@ func (inst *Instance) GetBounds() (x, y, w, h int) {
 // SetBounds sets the layout bounds.
 func (inst *Instance) SetBounds(x, y, w, h int) {
 	inst.bounds = [4]int{x, y, w, h}
+
+	// ✨ 调试打印 SetBounds 调用
+	if inst.showCellBorders {
+		fmt.Printf("[DEBUG GRID SETBOUNDS] x=%d, y=%d, w=%d, h=%d\n", x, y, w, h)
+	}
+
+	// ✨ 当 Layout Engine 设置 bounds 后，根据实际分配的 box 高度重新计算 rowHeights
+	// 这样可以确保边框绘制在正确的位置，不会超出 box 范围
+	if len(inst.columns) == 0 {
+		return
+	}
+
+	numCols := len(inst.columns)
+	numRows := inst.calculateRowCount(numCols)
+
+	// ✨ Cell Borders: 计算边框占用高度
+	cellBorderHeight := 0
+	if inst.showCellBorders {
+		cellBorderHeight = numRows + 1  // 上边框 + 中间分隔 + 下边框 = numRows + 1
+	}
+
+	// ✨ 计算实际可用的内容高度
+	availableH := h - inst.padding[0] - inst.padding[2] - cellBorderHeight
+	if availableH < 0 {
+		availableH = 0
+	}
+
+	// ✨ 重新计算 rowHeights 以适应实际分配的 box 高度
+	oldRowHeights := make([]int, len(inst.rowHeights))
+	copy(oldRowHeights, inst.rowHeights)
+	inst.rowHeights = inst.calculateRowHeights(availableH, numCols, numRows)
+
+	// ✨ 调试打印 rowHeights 计算结果
+	if inst.showCellBorders {
+		fmt.Printf("[DEBUG GRID SETBOUNDS] numRows=%d, cellBorderHeight=%d, availableH=%d, oldRowHeights=%v, newRowHeights=%v\n",
+			numRows, cellBorderHeight, availableH, oldRowHeights, inst.rowHeights)
+	}
 }
 
 // SetChildBounds sets bounds for a specific child.
@@ -254,57 +335,156 @@ func (inst *Instance) GetRowHeights() []int {
 
 // Measure implements layout.Measurable interface.
 // Calculates the grid's ideal size given the constraints.
+// ✨ 使用 runtime/layout.Grid 进行布局计算。
 func (inst *Instance) Measure(constraints layout.Constraints) layout.Size {
 	if inst == nil {
 		return layout.Size{}
 	}
 
-	numCols := len(inst.columns)
-	if numCols == 0 {
-		numCols = 1
+	// === 追踪集成：记录入口 ===
+	gridId := fmt.Sprintf("grid-%s", inst.key)
+	if layout.IsTracerEnabled() {
+		layout.TraceMeasuring(
+			"parent",
+			gridId,
+			fmt.Sprintf("root/grids/%s/measure", inst.key),
+			constraints,
+			layout.Constraints{},
+			layout.Size{},
+			"Grid.Measure entrance",
+		)
+
+		// 记录 Grid 配置
+		if len(inst.columns) > 0 || len(inst.rows) > 0 {
+			layout.TraceMeasuring(
+				gridId,
+				"grid-config",
+				fmt.Sprintf("root/grids/%s/config", inst.key),
+				constraints,
+				layout.Constraints{},
+				layout.Size{},
+				fmt.Sprintf(
+					"Config: cols=%d, rows=%d, cells=%d, gaps=%dx%d, padding=[%d,%d,%d,%d], width=%d, height=%d, flex=%d, showCellBorders=%v",
+					len(inst.columns), len(inst.rows), len(inst.cells),
+					inst.columnGap, inst.rowGap,
+					inst.padding[0], inst.padding[1], inst.padding[2], inst.padding[3],
+					inst.width, inst.height, inst.flex,
+					inst.showCellBorders,
+				),
+			)
+		}
 	}
 
-	// Calculate actual number of rows needed based on cells
-	actualNumRows := inst.calculateRowCount(numCols)
+	// ✨ 使用 runtime/layout.Grid 进行布局计算
+	gridStyle := inst.GetGridStyle()
+	gridLayout := layout.NewGridLayout("ui-grid", gridStyle)
 
-	// Calculate column widths and row heights
-	inst.colWidths = inst.calculateColumnWidths(constraints.MaxWidth - inst.padding[1] - inst.padding[3])
-	inst.rowHeights = inst.calculateRowHeights(constraints.MaxHeight - inst.padding[0] - inst.padding[2], numCols, actualNumRows)
+	// 调用 layout.Grid 的 Measure 方法
+	size := gridLayout.Measure(constraints)
 
-	// Calculate total size
-	totalW := inst.padding[1] + inst.padding[3]
-	totalH := inst.padding[0] + inst.padding[2]
+	// ✨ 从 layout.Grid 获取计算结果
+	inst.colWidths = gridLayout.GetColumnWidths()
+	inst.rowHeights = gridLayout.GetRowHeights()
 
-	for _, w := range inst.colWidths {
-		totalW += w
+	// === 追踪集成：记录列宽和行高 ===
+	if layout.IsTracerEnabled() && len(inst.colWidths) > 0 {
+		// 记录每列的计算结果
+		for colIdx, colWidth := range inst.colWidths {
+			colDescription := "Unknown"
+			if colIdx < len(inst.columns) {
+				colDescription = formatDimensionDescription(inst.columns[colIdx])
+			}
+			layout.TraceMeasuring(
+				gridId,
+				fmt.Sprintf("col-%d", colIdx),
+				fmt.Sprintf("root/grids/%s/col-%d", inst.key, colIdx),
+				layout.Constraints{MinWidth: colWidth, MaxWidth: colWidth},
+				layout.Constraints{MinWidth: colWidth, MaxWidth: colWidth},
+				layout.Size{Width: colWidth, Height: 0},
+				fmt.Sprintf("Column %d: %s, width=%d", colIdx, colDescription, colWidth),
+			)
+		}
+
+		// 记录每行的计算结果
+		for rowIdx, rowHeight := range inst.rowHeights {
+			rowDesc := "Auto"
+			if rowIdx < len(inst.rows) {
+				rowDesc = formatDimensionDescription(inst.rows[rowIdx])
+			}
+			layout.TraceMeasuring(
+				gridId,
+				fmt.Sprintf("row-%d", rowIdx),
+				fmt.Sprintf("root/grids/%s/row-%d", inst.key, rowIdx),
+				layout.Constraints{MinHeight: rowHeight, MaxHeight: rowHeight},
+				layout.Constraints{MinHeight: rowHeight, MaxHeight: rowHeight},
+				layout.Size{Width: 0, Height: rowHeight},
+				fmt.Sprintf("Row %d: %s, height=%d", rowIdx, rowDesc, rowHeight),
+			)
+		}
+
+		// 记录汇总信息
+		contentW := sumWithGaps(inst.colWidths, 0)
+		contentH := sumWithGaps(inst.rowHeights, 0)
+		layout.TraceMeasuring(
+			gridId,
+			"grid-summary",
+			fmt.Sprintf("root/grids/%s/summary", inst.key),
+			layout.Constraints{MinWidth: contentW, MaxWidth: contentW, MinHeight: contentH, MaxHeight: contentH},
+			layout.Constraints{MinWidth: size.Width, MaxWidth: size.Width, MinHeight: size.Height, MaxHeight: size.Height},
+			size,
+			fmt.Sprintf(
+				"Summary: content=%dx%d, result=%dx%d, cols=%d, rows=%d, colGap=%d, rowGap=%d",
+				contentW, contentH, size.Width, size.Height,
+				len(inst.colWidths), len(inst.rowHeights),
+				inst.columnGap, inst.rowGap,
+			),
+		)
 	}
-	for _, h := range inst.rowHeights {
-		totalH += h
+
+	// ✨ DEBUG: 打印布局结果
+	if len(inst.rowHeights) > 0 {
+		contentH := 0
+		for _, h := range inst.rowHeights {
+			contentH += h
+		}
+		borderCharsH := 0
+		if inst.showCellBorders {
+			borderCharsH = len(inst.rowHeights) + 1
+		}
+		rowGaps := 0
+		if len(inst.rowHeights) > 1 {
+			rowGaps = inst.rowGap * (len(inst.rowHeights) - 1)
+		}
+		fmt.Printf("[DEBUG GRID MEASURE] numRows=%d, contentH=%d, borderCharsH=%d, rowGaps=%d, totalH=%d\n",
+			len(inst.rowHeights), contentH, borderCharsH, rowGaps, size.Height)
 	}
 
-	// Add gaps
-	if numCols > 1 {
-		totalW += inst.columnGap * (numCols - 1)
+	// === 追踪集成：记录出口 ===
+	if layout.IsTracerEnabled() {
+		outputConstraints := layout.Constraints{
+			MinWidth:  size.Width,
+			MaxWidth:  size.Width,
+			MinHeight: size.Height,
+			MaxHeight: size.Height,
+		}
+		layout.TraceMeasuring(
+			gridId,
+			"parent",
+			fmt.Sprintf("root/grids/%s/measure", inst.key),
+			constraints,
+			outputConstraints,
+			size,
+			fmt.Sprintf(
+				"Grid.Measure complete: %dx%d (cols+gaps=%d, rows+gaps=%d, padding=[%d,%d,%d,%d], borders=%v)",
+				size.Width, size.Height,
+				sumWithGaps(inst.colWidths, inst.columnGap),
+				sumWithGaps(inst.rowHeights, inst.rowGap),
+				inst.padding[0], inst.padding[1], inst.padding[2], inst.padding[3],
+				inst.showCellBorders,
+			),
+		)
 	}
-	if actualNumRows > 1 {
-		totalH += inst.rowGap * (actualNumRows - 1)
-	}
-
-	// Apply explicit dimensions
-	if inst.width > 0 {
-		totalW = inst.width
-	}
-	if inst.height > 0 {
-		totalH = inst.height
-	}
-
-	// Apply constraints
-	totalW = constraints.ConstrainWidth(totalW)
-	totalH = constraints.ConstrainHeight(totalH)
-
-	// ✨ 边框：永远返回内容尺寸（不含边框），边框由上层 FiberToNodeAdapter 添加
-	// 这样可以避免重复添加边框，并且保持逻辑的单一性
-	return layout.Size{Width: totalW, Height: totalH}
+	return size
 }
 
 // calculateRowCount calculates the number of rows needed for the grid.
@@ -490,10 +670,16 @@ func (inst *Instance) calculateRowHeights(availableHeight int, numCols, actualNu
 // =============================================================================
 
 // Paint implements PaintableInstance.
-// Grid 是纯布局容器，布局由 LayoutBox 处理，子元素渲染由 PaintEngine 处理。
+// 绘制格子边框（如果启用）
 func (inst *Instance) Paint(x, y int) []paint.DrawCmd {
-	// 纯布局容器没有自身需要绘制的内容
-	return nil
+	// ✨ DEBUG: Paint 被调用
+	bx, by, bw, bh := inst.GetBounds()
+	fmt.Printf("[DEBUG GRID PAINT] Paint called at (%d, %d), bounds=(%d,%d,%d,%d), rowHeights=%v, colWidths=%v\n",
+		x, y, bx, by, bw, bh, inst.rowHeights, inst.colWidths)
+	// ✨ 绘制格子边框
+	cmds := inst.GenCellBorderDrawCmds(x, y)
+	fmt.Printf("[DEBUG GRID PAINT] Generated %d border draw commands\n", len(cmds))
+	return cmds
 }
 
 // =============================================================================
@@ -572,3 +758,120 @@ func getAlignContentProp(props rtui.Props) rtui.Align {
 	}
 	return rtui.AlignStart
 }
+
+// ✨ Cell Borders 辅助函数
+
+func getBoolProp(props rtui.Props, key string, def bool) bool {
+	if v, ok := props[key]; ok {
+		if b, ok := v.(bool); ok {
+			return b
+		}
+	}
+	return def
+}
+
+// =============================================================================
+// ✨ GridStyleProvider Interface Implementation
+// =============================================================================
+
+// GetGridStyle implements layout.GridStyleProvider interface
+// 返回 grid 的样式信息，包括 cell borders 配置
+func (inst *Instance) GetGridStyle() *layout.GridStyle {
+	// 转换 columns
+	gridCols := make([]layout.GridDimension, len(inst.columns))
+	for i, col := range inst.columns {
+		switch c := col.(type) {
+		case Fixed:
+			gridCols[i] = layout.GridFixed(c)
+		case Flex:
+			gridCols[i] = layout.GridFlex{Factor: c.Factor}
+		case Auto:
+			gridCols[i] = layout.GridAuto{}
+		case Min:
+			gridCols[i] = layout.GridMin{Min: c.Min, Content: layout.GridAuto{}}
+		case Max:
+			gridCols[i] = layout.GridMax{Max: c.Max, Content: layout.GridAuto{}}
+		}
+	}
+
+	// 转换 rows
+	gridRows := make([]layout.GridDimension, len(inst.rows))
+	for i, row := range inst.rows {
+		switch r := row.(type) {
+		case Fixed:
+			gridRows[i] = layout.GridFixed(r)
+		case Flex:
+			gridRows[i] = layout.GridFlex{Factor: r.Factor}
+		case Auto:
+			gridRows[i] = layout.GridAuto{}
+		case Min:
+			gridRows[i] = layout.GridMin{Min: r.Min, Content: layout.GridAuto{}}
+		case Max:
+			gridRows[i] = layout.GridMax{Max: r.Max, Content: layout.GridAuto{}}
+		}
+	}
+
+	// 转换 cells
+	gridCells := make([]layout.GridCell, len(inst.cells))
+	for i, cell := range inst.cells {
+		gridCells[i] = layout.GridCell{
+			Child:   nil, // layout.Node 由上层提供
+			Row:     cell.Row,
+			Col:     cell.Col,
+			RowSpan: cell.RowSpan,
+			ColSpan: cell.ColSpan,
+		}
+	}
+
+	return &layout.GridStyle{
+		Columns:           gridCols,
+		Rows:              gridRows,
+		Cells:             gridCells,
+		ColumnGap:         inst.columnGap,
+		RowGap:            inst.rowGap,
+		Padding:           layout.Padding{Top: inst.padding[0], Right: inst.padding[1], Bottom: inst.padding[2], Left: inst.padding[3]},
+		Width:             inst.width,
+		Height:            inst.height,
+		ShowCellBorders:   inst.showCellBorders,
+		CellBorderWidth:   1,
+		CellBorderHeight:  1,
+	}
+}
+
+// =============================================================================
+// Helper Functions for Tracing
+// =============================================================================
+
+// formatDimensionDescription 格式化维度描述（用于追踪）
+func formatDimensionDescription(d Dimension) string {
+	switch v := d.(type) {
+	case Fixed:
+		return fmt.Sprintf("Fixed(%d)", int(v))
+	case Flex:
+		return fmt.Sprintf("Flex(factor=%d)", v.Factor)
+	case Auto:
+		return "Auto"
+	case Min:
+		return fmt.Sprintf("Min(%d, %s)", v.Min, formatDimensionDescription(v.Content))
+	case Max:
+		return fmt.Sprintf("Max(%d, %s)", v.Max, formatDimensionDescription(v.Content))
+	default:
+		return "Unknown"
+	}
+}
+
+// sumWithGaps 计算数组之和加上间隙总和
+func sumWithGaps(arr []int, gap int) int {
+	if len(arr) == 0 {
+		return 0
+	}
+	total := 0
+	for _, v := range arr {
+		total += v
+	}
+	if len(arr) > 1 && gap > 0 {
+		total += gap * (len(arr) - 1)
+	}
+	return total
+}
+

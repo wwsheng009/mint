@@ -246,23 +246,41 @@ func (a *FiberToNodeAdapter) Measure(constraints layout.Constraints) layout.Size
 	}
 
 	// 1. 从 Instance 获取尺寸（优先，用于已迁移组件）
-	// Instance 的 Measure() 方法应该已经考虑边框并返回包含边框的总尺寸
+	// Instance 的 Measure() 方法返回的是内容尺寸（不含容器边框）
+	// ✨ 辅助函数：测量 Instance（内容尺寸），然后加上边框
+	measureInstanceWithBorder := func(measurable interface {
+		Measure(layout.Constraints) layout.Size
+	}) layout.Size {
+		// ✨ 调整约束：如果容器有边框， Instance 只能使用剩下空间
+		instanceConstraints := constraints
+		if border.HasBorder() {
+			instanceConstraints = layout.Constraints{
+				MinWidth:  max(0, constraints.MinWidth-border.HorizontalPadding()),
+				MaxWidth:  max(0, constraints.MaxWidth-border.HorizontalPadding()),
+				MinHeight: max(0, constraints.MinHeight-border.VerticalPadding()),
+				MaxHeight: max(0, constraints.MaxHeight-border.VerticalPadding()),
+			}
+		}
+
+		// 测量 Instance（返回内容尺寸）
+		size := measurable.Measure(instanceConstraints)
+
+		// ✨ 边框：加上容器边框，返回总尺寸
+		if border.HasBorder() {
+			return layout.Size{
+				Width:  size.Width + border.HorizontalPadding(),
+				Height: size.Height + border.VerticalPadding(),
+			}
+		}
+		return size
+	}
+
 	if a.fiber.Instance != nil {
 		// 检查 Instance 是否实现 Measurable 接口
 		if measurable, ok := a.fiber.Instance.(interface {
 			Measure(layout.Constraints) layout.Size
 		}); ok {
-			size := measurable.Measure(constraints)
-			// ✨ 边框：如果有边框，确保尺寸包含边框
-			if border.HasBorder() {
-				// 假设 Instance.Measure() 返回的是内容尺寸
-				// 需要加上边框
-				return layout.Size{
-					Width:  size.Width + border.HorizontalPadding(),
-					Height: size.Height + border.VerticalPadding(),
-				}
-			}
-			return size
+			return measureInstanceWithBorder(measurable)
 		}
 
 		// 检查 Instance 是否实现 Sizable 接口
@@ -527,6 +545,14 @@ func (a *FiberToNodeAdapter) GetGridStyle() *layout.GridStyle {
 		}
 		if h, ok := a.fiber.Props["height"].(int); ok {
 			style.Height = h
+		}
+		// ✨ Cell Borders
+		if showBorders, ok := a.fiber.Props["showCellBorders"].(bool); ok {
+			style.ShowCellBorders = showBorders
+		}
+		if style.ShowCellBorders {
+			style.CellBorderWidth = 1
+			style.CellBorderHeight = 1
 		}
 	}
 

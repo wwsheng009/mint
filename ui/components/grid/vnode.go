@@ -94,6 +94,12 @@ type VNode struct {
 	borderStyle  string // "none", "single", "double", "rounded", "dashed"
 	borderLabel  string // Optional label displayed on top border
 
+	// === ✨ Cell Borders Props (格子间边框) ===
+	showCellBorders   bool   // 是否显示格子边框
+	cellBorderStyle   string // 边框样式: "none", "single", "double", "light"
+	cellBorderRounded bool   // cell 边框是否带圆角
+	cellBorderColor   string // 边框颜色
+
 	// === Style ===
 	style style.Style
 }
@@ -121,6 +127,11 @@ func New() *VNode {
 		alignContent: rtui.AlignStart,
 		borderStyle:  "none", // 默认无边框
 		borderLabel:  "",
+		// ✨ Cell Borders 初始化
+		showCellBorders:   false,
+		cellBorderStyle:   "single",
+		cellBorderRounded: false,
+		cellBorderColor:   "",
 	}
 }
 
@@ -208,6 +219,11 @@ func (g *VNode) Props() rtui.Props {
 		"flex":         g.flex,
 		"borderStyle":  g.borderStyle,  // ✨ 边框样式
 		"label":        g.borderLabel,  // ✨ 边框标签
+		// ✨ Cell Borders 属性
+		"showCellBorders":   g.showCellBorders,
+		"cellBorderStyle":   g.cellBorderStyle,
+		"cellBorderRounded": g.cellBorderRounded,
+		"cellBorderColor":   g.cellBorderColor,
 	}
 }
 
@@ -253,6 +269,19 @@ func (g *VNode) SetProps(p rtui.Props) rtui.VNode {
 	if v, ok := p["label"].(string); ok {
 		g.borderLabel = v
 	}
+	// ✨ Cell Borders 属性
+	if v, ok := p["showCellBorders"].(bool); ok {
+		g.showCellBorders = v
+	}
+	if v, ok := p["cellBorderStyle"].(string); ok {
+		g.cellBorderStyle = v
+	}
+	if v, ok := p["cellBorderRounded"].(bool); ok {
+		g.cellBorderRounded = v
+	}
+	if v, ok := p["cellBorderColor"].(string); ok {
+		g.cellBorderColor = v
+	}
 	return g
 }
 
@@ -276,6 +305,11 @@ func (g *VNode) CreateInstance() rtui.ComponentInstance {
 		"flex":         g.flex,
 		"borderStyle":  g.borderStyle,  // ✨ 边框样式
 		"label":        g.borderLabel,  // ✨ 边框标签
+		// ✨ Cell Borders 属性
+		"showCellBorders":   g.showCellBorders,
+		"cellBorderStyle":   g.cellBorderStyle,
+		"cellBorderRounded": g.cellBorderRounded,
+		"cellBorderColor":   g.cellBorderColor,
 		"style":        g.style,
 	})
 }
@@ -514,6 +548,64 @@ func (g *VNode) DashedBorder(label ...string) *VNode {
 func (g *VNode) BorderLabel(label string) *VNode {
 	g.borderLabel = label
 	return g
+}
+
+// =============================================================================
+// ✨ Cell Borders Builder Methods (格子间边框)
+// =============================================================================
+
+// SetShowCellBorders sets whether to show cell borders.
+func (g *VNode) SetShowCellBorders(show bool) *VNode {
+	g.showCellBorders = show
+	return g
+}
+
+// SetCellBorderStyle sets the cell border style.
+func (g *VNode) SetCellBorderStyle(style string) *VNode {
+	g.cellBorderStyle = style
+	return g
+}
+
+// SetCellBorderRounded sets whether cell borders should be rounded.
+func (g *VNode) SetCellBorderRounded(rounded bool) *VNode {
+	g.cellBorderRounded = rounded
+	return g
+}
+
+// SetCellBorderColor sets the cell border color.
+func (g *VNode) SetCellBorderColor(color string) *VNode {
+	g.cellBorderColor = color
+	return g
+}
+
+// ShowCellBorders shows cell borders (single style by default).
+func (g *VNode) ShowCellBorders() *VNode {
+	return g.SetShowCellBorders(true)
+}
+
+// HideCellBorders hides cell borders.
+func (g *VNode) HideCellBorders() *VNode {
+	return g.SetShowCellBorders(false)
+}
+
+// SingleCellBorders shows cell borders with single line style.
+func (g *VNode) SingleCellBorders() *VNode {
+	return g.SetShowCellBorders(true).SetCellBorderStyle("single")
+}
+
+// DoubleCellBorders shows cell borders with double line style.
+func (g *VNode) DoubleCellBorders() *VNode {
+	return g.SetShowCellBorders(true).SetCellBorderStyle("double")
+}
+
+// LightCellBorders shows cell borders with light line style.
+func (g *VNode) LightCellBorders() *VNode {
+	return g.SetShowCellBorders(true).SetCellBorderStyle("light")
+}
+
+// RoundedCellBorders shows cell borders with rounded corners.
+func (g *VNode) RoundedCellBorders() *VNode {
+	return g.SetShowCellBorders(true).SetCellBorderRounded(true)
 }
 
 // =============================================================================

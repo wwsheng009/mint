@@ -655,7 +655,16 @@ func (e *Engine) layoutNodeWithDepth(node Node, constraints Constraints, x, y in
 				if child != nil {
 					childX := x + childBox.X + borderOffsetX
 					childY := y + childBox.Y + borderOffsetY
-					subBox := e.layoutNodeWithDepth(child, constraints, childX, childY, depth+1, visited)
+
+					// ✨ FIX: 为子节点创建正确的约束，基于分配的尺寸
+					childConstraints := Constraints{
+						MinWidth:  childBox.Width,
+						MaxWidth:  childBox.Width,
+						MinHeight: childBox.Height,
+						MaxHeight: childBox.Height,
+					}
+
+					subBox := e.layoutNodeWithDepth(child, childConstraints, childX, childY, depth+1, visited)
 					if subBox != nil {
 						subBox.X = childX
 						subBox.Y = childY
@@ -683,7 +692,16 @@ func (e *Engine) layoutNodeWithDepth(node Node, constraints Constraints, x, y in
 				if child != nil {
 					childX := x + childBox.X + borderOffsetX
 					childY := y + childBox.Y + borderOffsetY
-					subBox := e.layoutNodeWithDepth(child, constraints, childX, childY, depth+1, visited)
+
+					// ✨ FIX: 为子节点创建正确的约束，基于分配的尺寸
+					childConstraints := Constraints{
+						MinWidth:  childBox.Width,
+						MaxWidth:  childBox.Width,
+						MinHeight: childBox.Height,
+						MaxHeight: childBox.Height,
+					}
+
+					subBox := e.layoutNodeWithDepth(child, childConstraints, childX, childY, depth+1, visited)
 					if subBox != nil {
 						subBox.X = childX
 						subBox.Y = childY

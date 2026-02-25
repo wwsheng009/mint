@@ -1,6 +1,7 @@
 // Package layout provides grid layout types
 package layout
 
+
 // =============================================================================
 // Grid Dimension Types
 // =============================================================================
@@ -85,6 +86,11 @@ type GridStyle struct {
 
 	// Height explicit height (0 = auto)
 	Height int
+
+	// ✨ Cell Borders 格子边框
+	ShowCellBorders   bool   // 是否显示格子边框
+	CellBorderWidth   int    // 边框宽度（每条线 1 字符）
+	CellBorderHeight  int    // 边框高度（每条线 1 字符）
 }
 
 // GridStyleProvider defines the interface for grid containers
@@ -197,15 +203,37 @@ func (g *GridLayout) Measure(constraints Constraints) Size {
 
 	numRows := g.calculateRowCount()
 
-	// Calculate column widths
-	g.colWidths = g.calculateColumnWidths(constraints.MaxWidth - g.style.Padding.Left - g.style.Padding.Right)
+	// ✨ Cell Borders: 计算边框占用的空间
+	// 边框每条线占 1 字符
+	// Grid 宽/高度包含边框：左边框(1) + 中间(numCols-1) + 右边框(1) = numCols + 1
+	// 水平边框: 上(1) + 中间(numRows-1) + 下(1) = numRows + 1
+	// 垂直边框: 左(1) + 中间(numCols-1) + 右(1) = numCols + 1
+	cellBorderWidth := 0
+	cellBorderHeight := 0
+	if g.style.ShowCellBorders {
+		cellBorderWidth = numCols + 1
+		cellBorderHeight = numRows + 1
+	}
 
-	// Calculate row heights
-	g.rowHeights = g.calculateRowHeights(constraints.MaxHeight - g.style.Padding.Top - g.style.Padding.Bottom, numCols)
+	// ✨ 计算可用宽度（减去 padding 和边框）
+	availableWidth := constraints.MaxWidth - g.style.Padding.Left - g.style.Padding.Right - cellBorderWidth
+	if availableWidth < 0 {
+		availableWidth = 0
+	}
+
+	// ✨ 计算可用高度（减去 padding 和边框）
+	availableHeight := constraints.MaxHeight - g.style.Padding.Top - g.style.Padding.Bottom - cellBorderHeight
+	if availableHeight < 0 {
+		availableHeight = 0
+	}
+
+	// Calculate column widths and row heights（计算的是纯内容宽度）
+	g.colWidths = g.calculateColumnWidths(availableWidth)
+	g.rowHeights = g.calculateRowHeights(availableHeight, numCols)
 
 	// Calculate total size
-	totalW := g.style.Padding.Left + g.style.Padding.Right
-	totalH := g.style.Padding.Top + g.style.Padding.Bottom
+	totalW := g.style.Padding.Left + g.style.Padding.Right + cellBorderWidth
+	totalH := g.style.Padding.Top + g.style.Padding.Bottom + cellBorderHeight
 
 	for _, w := range g.colWidths {
 		totalW += w
@@ -250,13 +278,22 @@ func (g *GridLayout) calculateRowCount() int {
 		return maxRow
 	}
 
+	// ✨ Check if explicit rows are defined
+	if len(g.style.Rows) > 0 {
+		return len(g.style.Rows)
+	}
+
 	// Auto-calculate from children and columns
 	numCols := len(g.style.Columns)
 	if numCols == 0 {
 		numCols = 1
 	}
 	numChildren := len(g.children)
-	return (numChildren + numCols - 1) / numCols
+	result := (numChildren + numCols - 1) / numCols
+	if result < 1 {
+		result = 1
+	}
+	return result
 }
 
 // calculateColumnWidths calculates the actual width for each column
@@ -306,17 +343,27 @@ func (g *GridLayout) calculateColumnWidths(availableWidth int) []int {
 		remainingWidth = 0
 	}
 
-	// Second pass: distribute remaining width to flex columns
+	// ✨ FIX: 处理无限可用宽度的情况
+	// 如果 availableWidth 是 MaxInt（无限宽度），flex 列应该只分配最小宽度
+	// 而不是使用 (remainingWidth * factor) / flexTotalFactor 产生不合理的大值
 	if flexCount > 0 && flexTotalFactor > 0 {
 		for i, col := range g.style.Columns {
 			if _, ok := col.(GridFlex); ok {
-				factor := 1
-				if f, ok := col.(GridFlex); ok && f.Factor > 0 {
-					factor = f.Factor
-				}
-				widths[i] = (remainingWidth * factor) / flexTotalFactor
-				if widths[i] < 1 {
+				// 检测可用宽度是否无限
+				isInfinite := availableWidth >= MaxInt || availableWidth > 1000000
+				if isInfinite {
+					// 无限宽度：使用最小宽度 1（让后续 Measure 计算自然尺寸）
 					widths[i] = 1
+				} else {
+					// 有限宽度：按 flex factor 分配剩余空间
+					factor := 1
+					if f, ok := col.(GridFlex); ok && f.Factor > 0 {
+						factor = f.Factor
+					}
+					widths[i] = (remainingWidth * factor) / flexTotalFactor
+					if widths[i] < 1 {
+						widths[i] = 1
+					}
 				}
 			}
 		}
@@ -385,17 +432,27 @@ func (g *GridLayout) calculateRowHeights(availableHeight, numCols int) []int {
 		remainingHeight = 0
 	}
 
-	// Second pass: distribute remaining height to flex rows
+	// ✨ FIX: 处理无限可用高度的情况
+	// 如果 availableHeight 是 MaxInt（无限高度），flex 行应该只分配最小高度
+	// 而不是使用 (remainingHeight * factor) / flexTotalFactor 产生不合理的大值
 	if flexCount > 0 && flexTotalFactor > 0 {
 		for i := 0; i < numRows && i < len(rows); i++ {
 			if _, ok := rows[i].(GridFlex); ok {
-				factor := 1
-				if f, ok := rows[i].(GridFlex); ok && f.Factor > 0 {
-					factor = f.Factor
-				}
-				heights[i] = (remainingHeight * factor) / flexTotalFactor
-				if heights[i] < 1 {
+				// 检测可用高度是否无限
+				isInfinite := availableHeight >= MaxInt || availableHeight > 1000000
+				if isInfinite {
+					// 无限高度：使用最小高度 1（让后续 Measure 计算自然尺寸）
 					heights[i] = 1
+				} else {
+					// 有限高度：按 flex factor 分配剩余空间
+					factor := 1
+					if f, ok := rows[i].(GridFlex); ok && f.Factor > 0 {
+						factor = f.Factor
+					}
+					heights[i] = (remainingHeight * factor) / flexTotalFactor
+					if heights[i] < 1 {
+						heights[i] = 1
+					}
 				}
 			}
 		}
@@ -487,8 +544,12 @@ func (g *GridLayout) LayoutChildren(width, height int) []LayoutBox {
 				continue
 			}
 
-			x, y := g.getCellPosition(cell.Row, cell.Col)
+			contentX, contentY := g.getCellPosition(cell.Row, cell.Col)
 			w, h := g.getCellSize(cell.Row, cell.Col, cell.RowSpan, cell.ColSpan)
+
+			// Add padding to get absolute position (like flex.go and wrap.go)
+			x := g.style.Padding.Left + contentX
+			y := g.style.Padding.Top + contentY
 
 			box := LayoutBox{
 				ID:     cell.Child.ID(),
@@ -512,8 +573,12 @@ func (g *GridLayout) LayoutChildren(width, height int) []LayoutBox {
 			row := i / numCols
 			col := i % numCols
 
-			x, y := g.getCellPosition(row, col)
+			contentX, contentY := g.getCellPosition(row, col)
 			w, h := g.getCellSize(row, col, 1, 1)
+
+			// Add padding to get absolute position (like flex.go and wrap.go)
+			x := g.style.Padding.Left + contentX
+			y := g.style.Padding.Top + contentY
 
 			box := LayoutBox{
 				ID:     child.ID(),
@@ -533,31 +598,67 @@ func (g *GridLayout) LayoutChildren(width, height int) []LayoutBox {
 }
 
 // getCellPosition returns the x, y position of a cell relative to content area
-// ✨ 边框兼容：返回的内容空间内位置（不含 padding）
-// padding 和边框偏移由上层应用
+// ✨ 返回内容区域的起始位置（子节点的渲染起始位置）
+// 如果有边框，返回边框内内容区域的起始位置
 func (g *GridLayout) getCellPosition(row, col int) (x, y int) {
 	// ✨ 相对于内容空间起点（不包含 padding）
 	x = 0
 	y = 0
 
-	// Sum widths of columns before this one
-	for i := 0; i < col && i < len(g.colWidths); i++ {
-		x += g.colWidths[i]
+	// ✨ 添加 cell 边框的偏移（每条边框占 1 字符，位于格子之间）
+	// 格子内容需要跳过上边框和左边框
+	//
+	// 边框计算方式：
+	// - colWidths 和 rowHeights 是纯内容宽度/高度（不包含边框）
+	// - 每条边框占 1 字符
+	// - 垂直边框位于列之间：第 0 条在 x=0，第 1 条在 x=colWidths[0]+1，第 2 条在 x=colWidths[0]+1+colWidths[1]+1...
+	// - 水平边框位于行之间：第 0 条在 y=0，第 1 条在 y=rowHeights[0]+1，第 2 条在 y=rowHeights[0]+1+rowHeights[1]+1...
+	//
+	if g.style.ShowCellBorders {
+		// 第 col 条垂直线的位置 = 前面内容宽度累积 + 前面边框数量
+		// 内容起始位置 = 第 col 条垂直线位置 + 1（垂直线占 1 个字符）
+		for c := 0; c < col; c++ {
+			x += g.colWidths[c] + 1  // 内容宽度 + 右边框
+			if c < col-1 {
+				x += g.style.ColumnGap  // 列间距在格子之间
+			}
+		}
+		// 上边框位于 x=0，所以内容从 x+1 开始（跳过上边框）
+		x += 1
+	} else {
+		// Sum widths of columns before this one (无边框时)
+		for i := 0; i < col && i < len(g.colWidths); i++ {
+			x += g.colWidths[i]
+		}
+
+		// Add gaps between columns
+		if col > 0 {
+			x += g.style.ColumnGap * col
+		}
 	}
 
-	// Add gaps between columns
-	if col > 0 {
-		x += g.style.ColumnGap * col
-	}
+	// Y 坐标处理（与 X 对称）
+	if g.style.ShowCellBorders {
+		// 第 row 条水平线的位置 = 前面内容高度累积 + 前面边框高度
+		// 内容起始位置 = 第 row 条水平线位置 + 1（水平线占 1 个字符）
+		for r := 0; r < row; r++ {
+			y += g.rowHeights[r] + 1  // 内容高度 + 下边框
+			if r < row-1 {
+				y += g.style.RowGap  // 行间距在格子之间
+			}
+		}
+		// 上边框位于 y=0，所以内容从 y+1 开始（跳过上边框）
+		y += 1
+	} else {
+		// Sum heights of rows before this one (无边框时)
+		for i := 0; i < row && i < len(g.rowHeights); i++ {
+			y += g.rowHeights[i]
+		}
 
-	// Sum heights of rows before this one
-	for i := 0; i < row && i < len(g.rowHeights); i++ {
-		y += g.rowHeights[i]
-	}
-
-	// Add gaps between rows
-	if row > 0 {
-		y += g.style.RowGap * row
+		// Add gaps between rows
+		if row > 0 {
+			y += g.style.RowGap * row
+		}
 	}
 
 	return x, y
@@ -574,6 +675,20 @@ func (g *GridLayout) getCellSize(row, col, rowSpan, colSpan int) (width, height 
 	for i := row; i < row+rowSpan && i < len(g.rowHeights); i++ {
 		height += g.rowHeights[i]
 	}
+
+	// ✨ Cell 边框不包含在 getCellSize 中
+	// getCellSize 返回的是**纯内容区域**的大小
+	// 边框由 Paint 绘制，不影响内容区域的大小
+	//
+	// 关键：
+	// - getCellPosition 返回的是内容区域的起始位置（跳过左边框+上边框）
+	// - getCellSize 返回的是内容区域的大小（不包含边框）
+	// - 边框由 Grid.Paint() 单独绘制
+	//
+	// 示例：对于 cell (0,0)
+	//   - getCellPosition 返回 (1, 1)（跳过第0条左边框和上边框）
+	//   - getCellSize 返回 (10, 5)（纯内容大小）
+	//   - Cell 绘制范围：[1, 10] 在边框 [0, 11] 之间
 
 	// Add internal gaps for spans
 	if colSpan > 1 {
