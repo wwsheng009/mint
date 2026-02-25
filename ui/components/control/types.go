@@ -1,6 +1,7 @@
 package control
 
 import (
+	"github.com/wwsheng009/mint/runtime/action"
 	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
@@ -27,6 +28,33 @@ func (s *InteractionState) IsIdle() bool {
 
 // Reduce applies an action type to update the state.
 func (s *InteractionState) Reduce(actionType string) {
+	switch actionType {
+	case "Focus":
+		s.Focused = true
+	case "Blur":
+		s.Focused = false
+	case "MouseEnter":
+		s.Hovered = true
+	case "MouseLeave":
+		s.Hovered = false
+	case "PressStart":
+		s.Pressed = true
+	case "PressEnd":
+		s.Pressed = false
+	case "Enable":
+		s.Disabled = false
+	case "Disable":
+		s.Disabled = true
+	case "Activate":
+		s.Active = true
+	case "Deactivate":
+		s.Active = false
+	}
+}
+
+// ReduceByAction applies an action to update the state.
+func (s *InteractionState) ReduceByAction(act *action.Action) {
+	actionType := string(act.Type)
 	switch actionType {
 	case "Focus":
 		s.Focused = true
@@ -79,7 +107,7 @@ type Behavior interface {
 	OnUnmount(inst Instance)
 
 	// OnAction handles an action. Returns true if the action was consumed.
-	OnAction(inst Instance, actionType string, payload interface{}) bool
+	OnAction(inst Instance, act *action.Action) bool
 
 	// OnStateChange is called when interaction state changes.
 	OnStateChange(inst Instance, oldState, newState InteractionState)
@@ -136,12 +164,13 @@ func (b *FocusableBehavior) OnUnmount(inst Instance) {
 }
 
 // OnAction handles focus/blur actions.
-func (b *FocusableBehavior) OnAction(inst Instance, actionType string, payload interface{}) bool {
+func (b *FocusableBehavior) OnAction(inst Instance, act *action.Action) bool {
 	state := inst.GetState()
 	if state.Disabled {
 		return false
 	}
 
+	actionType := string(act.Type)
 	switch actionType {
 	case "Focus":
 		if !b.focused {
@@ -206,12 +235,13 @@ func (b *PressableBehavior) OnUnmount(inst Instance) {
 }
 
 // OnAction handles press actions.
-func (b *PressableBehavior) OnAction(inst Instance, actionType string, payload interface{}) bool {
+func (b *PressableBehavior) OnAction(inst Instance, act *action.Action) bool {
 	state := inst.GetState()
 	if state.Disabled {
 		return false
 	}
 
+	actionType := string(act.Type)
 	switch actionType {
 	case "Press", "Click", "Enter":
 		if !b.pressed {
@@ -276,9 +306,10 @@ func (b *HoverableBehavior) OnUnmount(inst Instance) {
 }
 
 // OnAction handles hover actions.
-func (b *HoverableBehavior) OnAction(inst Instance, actionType string, payload interface{}) bool {
+func (b *HoverableBehavior) OnAction(inst Instance, act *action.Action) bool {
 	state := inst.GetState()
 
+	actionType := string(act.Type)
 	switch actionType {
 	case "MouseEnter":
 		if !b.hovered {
@@ -339,7 +370,8 @@ func (b *DisableableBehavior) OnUnmount(inst Instance) {
 }
 
 // OnAction handles disable/enable actions.
-func (b *DisableableBehavior) OnAction(inst Instance, actionType string, payload interface{}) bool {
+func (b *DisableableBehavior) OnAction(inst Instance, act *action.Action) bool {
+	actionType := string(act.Type)
 	switch actionType {
 	case "Disable":
 		if !b.disabled {
@@ -403,9 +435,9 @@ func (bl *BehaviorList) OnUnmount(inst Instance) {
 }
 
 // OnAction dispatches action to behaviors until one consumes it.
-func (bl *BehaviorList) OnAction(inst Instance, actionType string, payload interface{}) bool {
+func (bl *BehaviorList) OnAction(inst Instance, act *action.Action) bool {
 	for _, b := range bl.behaviors {
-		if b.OnAction(inst, actionType, payload) {
+		if b.OnAction(inst, act) {
 			return true
 		}
 	}

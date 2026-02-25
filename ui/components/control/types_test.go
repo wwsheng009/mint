@@ -3,6 +3,7 @@ package control
 import (
 	"testing"
 
+	"github.com/wwsheng009/mint/runtime/action"
 	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/runtime/style"
 )
@@ -122,7 +123,8 @@ func TestFocusableBehavior_OnAction(t *testing.T) {
 	b := &FocusableBehavior{}
 
 	// Focus action
-	if !b.OnAction(inst, "Focus", nil) {
+	act := action.NewAction("Focus")
+	if !b.OnAction(inst, act) {
 		t.Error("Focus action should return true")
 	}
 	if !inst.state.Focused {
@@ -134,7 +136,8 @@ func TestFocusableBehavior_OnAction(t *testing.T) {
 
 	// Blur action
 	inst.dirty = false
-	if !b.OnAction(inst, "Blur", nil) {
+	act = action.NewAction("Blur")
+	if !b.OnAction(inst, act) {
 		t.Error("Blur action should return true")
 	}
 	if inst.state.Focused {
@@ -147,7 +150,8 @@ func TestFocusableBehavior_OnAction_Disabled(t *testing.T) {
 	inst.state.Disabled = true
 	b := &FocusableBehavior{}
 
-	if b.OnAction(inst, "Focus", nil) {
+	act := action.NewAction("Focus")
+	if b.OnAction(inst, act) {
 		t.Error("Focus action on disabled should return false")
 	}
 }
@@ -169,7 +173,8 @@ func TestPressableBehavior_OnAction(t *testing.T) {
 	b := NewPressableBehavior(testIntent)
 
 	// Press action
-	if !b.OnAction(inst, "Press", nil) {
+	act := action.NewAction("Press")
+	if !b.OnAction(inst, act) {
 		t.Error("Press action should return true")
 	}
 	if !inst.state.Pressed {
@@ -178,7 +183,8 @@ func TestPressableBehavior_OnAction(t *testing.T) {
 
 	// Release action
 	inst.dirty = false
-	if !b.OnAction(inst, "Release", nil) {
+	act = action.NewAction("Release")
+	if !b.OnAction(inst, act) {
 		t.Error("Release action should return true")
 	}
 	if inst.state.Pressed {
@@ -194,7 +200,8 @@ func TestPressableBehavior_OnAction_Disabled(t *testing.T) {
 	inst.state.Disabled = true
 	b := NewPressableBehavior(nil)
 
-	if b.OnAction(inst, "Press", nil) {
+	act := action.NewAction("Press")
+	if b.OnAction(inst, act) {
 		t.Error("Press action on disabled should return false")
 	}
 }
@@ -215,7 +222,8 @@ func TestHoverableBehavior_OnAction(t *testing.T) {
 	b := &HoverableBehavior{}
 
 	// MouseEnter action
-	if !b.OnAction(inst, "MouseEnter", nil) {
+	act := action.NewAction("MouseEnter")
+	if !b.OnAction(inst, act) {
 		t.Error("MouseEnter action should return true")
 	}
 	if !inst.state.Hovered {
@@ -224,7 +232,8 @@ func TestHoverableBehavior_OnAction(t *testing.T) {
 
 	// MouseLeave action
 	inst.dirty = false
-	if !b.OnAction(inst, "MouseLeave", nil) {
+	act = action.NewAction("MouseLeave")
+	if !b.OnAction(inst, act) {
 		t.Error("MouseLeave action should return true")
 	}
 	if inst.state.Hovered {
@@ -263,7 +272,8 @@ func TestDisableableBehavior_OnAction(t *testing.T) {
 	b := &DisableableBehavior{}
 
 	// Disable action
-	if !b.OnAction(inst, "Disable", nil) {
+	act := action.NewAction("Disable")
+	if !b.OnAction(inst, act) {
 		t.Error("Disable action should return true")
 	}
 	if !inst.state.Disabled {
@@ -272,7 +282,8 @@ func TestDisableableBehavior_OnAction(t *testing.T) {
 
 	// Enable action
 	inst.dirty = false
-	if !b.OnAction(inst, "Enable", nil) {
+	act = action.NewAction("Enable")
+	if !b.OnAction(inst, act) {
 		t.Error("Enable action should return true")
 	}
 	if inst.state.Disabled {
@@ -311,17 +322,20 @@ func TestBehaviorList_OnAction(t *testing.T) {
 	)
 
 	// First behavior should handle Focus
-	if !bl.OnAction(inst, "Focus", nil) {
+	act := action.NewAction("Focus")
+	if !bl.OnAction(inst, act) {
 		t.Error("BehaviorList should handle Focus")
 	}
 
 	// Second behavior should handle Press
-	if !bl.OnAction(inst, "Press", nil) {
+	act = action.NewAction("Press")
+	if !bl.OnAction(inst, act) {
 		t.Error("BehaviorList should handle Press")
 	}
 
 	// Unknown action should return false
-	if bl.OnAction(inst, "Unknown", nil) {
+	act = action.NewAction("Unknown")
+	if bl.OnAction(inst, act) {
 		t.Error("BehaviorList should not handle Unknown")
 	}
 }
