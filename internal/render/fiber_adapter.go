@@ -115,7 +115,7 @@ func (a *FiberToNodeAdapter) GetPosition() (x, y int) {
 	return 0, 0
 }
 
-// SetPosition sets the position (stores in Fiber.ComputedBox)
+// SetPosition sets the position (stores in Fiber.ComputedBox and Instance.bounds)
 func (a *FiberToNodeAdapter) SetPosition(x, y int) {
 	if a.fiber == nil {
 		return
@@ -126,12 +126,32 @@ func (a *FiberToNodeAdapter) SetPosition(x, y int) {
 		if layoutBox, ok := a.fiber.ComputedBox.(*layout.LayoutBox); ok {
 			layoutBox.X = x
 			layoutBox.Y = y
-			return
+		} else {
+			// Fallback to compute.ComputedBox (legacy)
+			if computedBox, ok := a.fiber.ComputedBox.(*compute.ComputedBox); ok {
+				computedBox.Box.X = x
+				computedBox.Box.Y = y
+			}
 		}
-		// Fallback to compute.ComputedBox (legacy)
-		if computedBox, ok := a.fiber.ComputedBox.(*compute.ComputedBox); ok {
-			computedBox.Box.X = x
-			computedBox.Box.Y = y
+	}
+
+	// ✨ FIX: Also sync to Instance.bounds (component expects bounds for painting)
+	if a.fiber.Instance != nil {
+		if positionable, ok := a.fiber.Instance.(interface{ SetPosition(x, y int) }); ok {
+			positionable.SetPosition(x, y)
+		}
+		// Try SetBounds for full bounds sync
+		// Get current size from ComputedBox
+		w, h := 0, 0
+		if a.fiber.ComputedBox != nil {
+			if layoutBox, ok := a.fiber.ComputedBox.(*layout.LayoutBox); ok {
+				w, h = layoutBox.Width, layoutBox.Height
+			} else if computedBox, ok := a.fiber.ComputedBox.(*compute.ComputedBox); ok {
+				w, h = computedBox.Box.Width, computedBox.Box.Height
+			}
+		}
+		if boundsHaver, ok := a.fiber.Instance.(interface{ SetBounds(x, y, w, h int) }); ok {
+			boundsHaver.SetBounds(x, y, w, h)
 		}
 	}
 }
@@ -179,7 +199,7 @@ func (a *FiberToNodeAdapter) GetSize() (width, height int) {
 	return 0, 0
 }
 
-// SetSize sets the size (stores in Fiber.ComputedBox)
+// SetSize sets the size (stores in Fiber.ComputedBox and Instance.bounds)
 func (a *FiberToNodeAdapter) SetSize(width, height int) {
 	if a.fiber == nil {
 		return
@@ -189,12 +209,33 @@ func (a *FiberToNodeAdapter) SetSize(width, height int) {
 		if layoutBox, ok := a.fiber.ComputedBox.(*layout.LayoutBox); ok {
 			layoutBox.Width = width
 			layoutBox.Height = height
-			return
+		} else {
+			// Fallback to compute.ComputedBox (legacy)
+			if computedBox, ok := a.fiber.ComputedBox.(*compute.ComputedBox); ok {
+				computedBox.Box.Width = width
+				computedBox.Box.Height = height
+			}
 		}
-		// Fallback to compute.ComputedBox (legacy)
-		if computedBox, ok := a.fiber.ComputedBox.(*compute.ComputedBox); ok {
-			computedBox.Box.Width = width
-			computedBox.Box.Height = height
+	}
+
+	// ✨ FIX: Also sync to Instance.bounds (component expects bounds for painting)
+	if a.fiber.Instance != nil {
+		// Get current position from ComputedBox
+		x, y := 0, 0
+		if a.fiber.ComputedBox != nil {
+			if layoutBox, ok := a.fiber.ComputedBox.(*layout.LayoutBox); ok {
+				x, y = layoutBox.X, layoutBox.Y
+			} else if computedBox, ok := a.fiber.ComputedBox.(*compute.ComputedBox); ok {
+				x, y = computedBox.Box.X, computedBox.Box.Y
+			}
+		}
+		// Try SetBounds for full bounds sync
+		if boundsHaver, ok := a.fiber.Instance.(interface{ SetBounds(x, y, w, h int) }); ok {
+			boundsHaver.SetBounds(x, y, width, height)
+		}
+		// Try SetSize for size-only sync
+		if sizable, ok := a.fiber.Instance.(interface{ SetSize(width, height int) }); ok {
+			sizable.SetSize(width, height)
 		}
 	}
 }

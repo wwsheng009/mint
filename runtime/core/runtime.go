@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -386,8 +387,14 @@ func (r *Runtime) paintNode(node layout.Node, x, y int) {
 
 	// 递归绘制子节点
 	for _, child := range node.Children() {
-		childX, childY := child.GetPosition()
-		r.paintNode(child, childX, childY)
+		childRelX, childRelY := child.GetPosition()
+		childAbsX, childAbsY := x + childRelX, y + childRelY
+		
+	// 🔍 临时调试：打印子节点坐标转换
+		fmt.Printf("[DEBUG] Child %s: rel=(%d,%d), abs=(%d,%d)\n", 
+			child.ID(), childRelX, childRelY, childAbsX, childAbsY)
+		
+		r.paintNode(child, childAbsX, childAbsY)
 	}
 }
 
