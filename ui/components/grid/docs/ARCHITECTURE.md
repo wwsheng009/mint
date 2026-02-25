@@ -576,6 +576,10 @@ func syncBorderProperties(fiber *Fiber) {
    ↓
 8. Instance.SetBounds(x, y, w, h)
    - 更新 inst.bounds = [x, y, w, h]
+   - 重新计算 rowHeights：根据实际分配的高度重新分配行高（考虑 cellBorders）
+   - 重新计算 colWidths：根据实际分配的宽度重新分配列宽（考虑 cellBorders）
+     这是关键步骤，确保当 layout engine 分配的宽度与 Measure 返回的结果不同时，
+     列宽能够正确重新分配，使得右边框始终位于 GridWidth - 1 的位置
    - 计算子节点位置（通过 runtime/layout.Grid.GetPosition()）
    - 设置子节点的 bounds
    ↓

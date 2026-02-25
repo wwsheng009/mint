@@ -253,6 +253,26 @@ B1 │ B2
 | `SetBounds(5, 10, 100, 50)` | bounds 准确设置 |
 | 后续 `GetBounds()` | 返回 (5, 10, 100, 50) |
 | 子节点位置 | 基于内内容区域正确计算 |
+| **colWidths 重新计算** | 根据 SetBounds 的宽度重新分配列宽（考虑 cellBorders） |
+| **右边框位置正确** | 最后边框位置 = GridWidth - 1 |
+
+**关键场景 - 宽度变化时 colWidths 重新分配**：
+```
+Grid 初始: width=79, cols=[Flex(1), Flex(1), Flex(1)], 启用 cellBorders
+Measure 返回: colWidths=[25, 25, 25]
+
+SetBounds(79, ...) ✅
+→ colWidths=[25, 25, 25] (与 Measure 相同)
+→ 最后边框 x=78 = GridWidth-1 ✓
+
+SetBounds(80, ...) ✅
+→ colWidths=[26, 26, 26] (重新分配: (80-4)/3 = 25.33 → 25+1=26, 25, 25)
+→ 最后边框 x=79 = GridWidth-1 ✓
+
+SetBounds(60, ...) ✅
+→ colWidths=[19, 19, 18] (重新分配: (60-4)/3 = 18.66 → 19, 19, 18)
+→ 最后边框 x=59 = GridWidth-1 ✓
+```
 
 ### 6.3 边框占位验收
 

@@ -2,6 +2,7 @@ package grid
 
 import (
 	"fmt"
+
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
 )
@@ -126,7 +127,7 @@ func (inst *Instance) GenCellBorderDrawCmds(originX, originY int) []paint.DrawCm
 		// 计算当前行的 y 坐标
 		y := contentY
 		for r := 0; r < row; r++ {
-			y += inst.rowHeights[r] + 1 // +1 是上边框宽度
+			y += inst.rowHeights[r] + 1 // +1 是边框宽度
 			if r < row-1 {
 				y += inst.rowGap
 			}

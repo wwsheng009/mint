@@ -559,6 +559,119 @@ availableWidth := constraints.MaxWidth - g.style.Padding.Left - g.style.Padding.
 - 如果 `ShowCellBorders=false` 但 `cellBorderWidth` 仍计算导致错误
 - 检查 `if g.style.ShowCellBorders` 条件是否生效
 
+### 4.6 Grid 右边框位置问题调试
+
+**问题场景**：
+```
+Grid 宽度: 79, 3 列, 启用 cellBorders
+最后边框位置: x=78  ✓ 正确
+---
+Grid 宽度: 78, 2 列, 启用 cellBorders
+最后边框位置: x=75  ❌ 应该是 x=77
+```
+
+**原因分析**：
+当 Layout Engine 调用 `SetBounds` 设置新的宽度时，如果该宽度与 `Measure` 返回的理想宽度不同，
+列宽 `colWidths` 没有重新计算，导致右边框位置不正确。
+
+**调试步骤**：
+
+1. 在 `SetBounds` 中添加详细日志：
+```go
+func (inst *Instance) SetBounds(x, y, w, h int) {
+    // 计算边框占用
+    cellBorderWidth := 0
+    if inst.showCellBorders {
+        cellBorderWidth = numCols + 1
+    }
+
+    // 计算可用宽度
+    availableW := w - inst.padding[3] - inst.padding[1] - cellBorderWidth
+    if availableW < 0 {
+        availableW = 0
+    }
+
+    // 打印调试信息
+    if inst.showCellBorders {
+        fmt.Printf("[DEBUG GRID SETBOUNDS] x=%d, y=%d, w=%d, h=%d\n", x, y, w, h)
+        fmt.Printf("[DEBUG GRID SETBOUNDS] numCols=%d, cellBorderWidth=%d, availableW=%d\n",
+            numCols, cellBorderWidth, availableW)
+        fmt.Printf("[DEBUG GRID SETBOUNDS] oldColWidths=%v\n", inst.colWidths)
+
+        // 重新计算列宽
+        inst.colWidths = inst.calculateColumnWidths(availableW)
+
+        fmt.Printf("[DEBUG GRID SETBOUNDS] newColWidths=%v\n", inst.colWidths)
+
+        // 验证最后边框位置
+        lastBorderX := 0
+        for _, cw := range inst.colWidths {
+            lastBorderX += cw + 1
+        }
+        fmt.Printf("[DEBUG GRID SETBOUNDS] lastBorderX=%d, expected=%d (GridWidth-1)\n",
+            lastBorderX, w-1)
+    }
+}
+```
+
+2. 检查边框位置计算：
+```go
+// 在边框绘制函数中计算边框位置
+func (inst *Instance) GenCellBorderDrawCmds(originX, originY int) []paint.DrawCmd {
+    numCols := len(inst.colWidths)
+    numRows := len(inst.rowHeights)
+
+    // 验证所有边框位置
+    fmt.Printf("[DEBUG BORDERS] Border positions:\n")
+    for col := 0; col <= numCols; col++ {
+        x := 0
+        for c := 0; c < col; c++ {
+            x += inst.colWidths[c] + 1
+        }
+        fmt.Printf("  col[%d]: x=%d\n", col, x)
+    }
+    lastBorderX := 0
+    for _, cw := range inst.colWidths {
+        lastBorderX += cw + 1
+    }
+    gridWidth := inst.bounds[2]
+    fmt.Printf("  last: x=%d, gridWidth=%d, expected=%d\n",
+        lastBorderX, gridWidth, gridWidth-1)
+
+    // ... 继续绘制边框
+}
+```
+
+3. 验证关键断言：
+```go
+// 在测试中添加强校验
+func TestGridRightBorderPosition(t *testing.T) {
+    gridWidth := 79
+    numCols := 3
+    expectedLastBorderX := gridWidth - 1  // 78
+
+    // ... 创建 Grid ...
+
+    // 计算最后边框
+    lastBorderX := 0
+    for _, cw := range grid.colWidths {
+        lastBorderX += cw + 1
+    }
+
+    assert.Equal(t, expectedLastBorderX, lastBorderX,
+        "最后边框必须位于 GridWidth-1 位置")
+}
+```
+
+**常见原因排查**：
+
+| 症状 | 可能原因 | 解决方案 |
+|------|---------|---------|
+| 最后边框位置 = 0 | colWidths 为空数组 | 检查 SetBounds 是否在 Measure 之后调用 |
+| 最后边框位置偏小 | colWidths 没有重新计算 | 在 SetBounds 中添加 calculateColumnWidths 调用 |
+| 最后一列内容溢出 | colWidths 计算错误 | 检查 cellBorderWidth 是否正确考虑边框 |
+| 边框与内容重叠 | getCellSize 返回值包含边框 | 确保返回纯内容尺寸（不含边框） |
+
 ---
 
 ## 5. 可视化调试

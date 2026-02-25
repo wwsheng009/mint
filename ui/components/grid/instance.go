@@ -2,6 +2,7 @@ package grid
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/paint"
@@ -636,15 +637,14 @@ func (inst *Instance) calculateRowHeights(availableHeight int, numCols, actualNu
 				flexTotalFactor += 1
 			}
 		case Auto:
-			// ✨ Auto rows get minimum height
-			// ✨ When ShowCellBorders is enabled, we need at least 2 lines:
-			//    line 0: top border
-			//    line 1: content
-			//    line 2: bottom border
-			//    horizontal borders between rows also take space
-			// So minimum heights[i] should be at least 1 (for content),
-			// but the actual border rendering happens separately
-			heights[i] = 1
+			// ✨ Auto rows: use the height from previous Measure calculation
+			// If inst.rowHeights is available (from Measure phase), use it as reference
+			// Otherwise, use minimum height 1
+			if i < len(inst.rowHeights) && inst.rowHeights[i] > 0 {
+				heights[i] = inst.rowHeights[i]
+			} else {
+				heights[i] = 1
+			}
 			fixedHeight += heights[i]
 			autoCount++
 		case Min:
@@ -669,6 +669,9 @@ func (inst *Instance) calculateRowHeights(availableHeight int, numCols, actualNu
 	// Second pass: distribute remaining height to flex rows
 	// ✨ Note: Auto rows keep their minimum height (1 line), they don't expand
 	//      This prevents Auto rows from taking up too much space
+	// ✨ FIX: Auto rows should also expand proportionally to fill available space
+	//      When availableHeight is larger than the original measured heights,
+	//      Auto rows should be scaled up proportionally
 	if flexCount > 0 && flexTotalFactor > 0 {
 		// Distribute to flex rows
 		for i := 0; i < numRows; i++ {
@@ -680,6 +683,45 @@ func (inst *Instance) calculateRowHeights(availableHeight int, numCols, actualNu
 				heights[i] = (remainingHeight * factor) / flexTotalFactor
 				if heights[i] < 1 {
 					heights[i] = 1
+				}
+			}
+		}
+	}
+
+	// ✨ Third pass: scale Auto rows proportionally if there's remaining space
+	// This allows Auto rows to use available space beyond their measured minimum
+	// ✨ DEBUG
+	if os.Getenv("MINT_DEBUG_GRID") == "true" {
+		fmt.Printf("[DEBUG SETBOUNDS] Before Third pass: autoCount=%d, remainingHeight=%d\n",
+			autoCount, remainingHeight)
+	}
+
+	// ✨ FIX: Auto rows may also need to be scaled down when content > available space
+	// or scaled up when content < available space
+	if autoCount > 0 {
+		// Calculate current total auto height
+		currentAutoHeight := 0
+		autoIndices := []int{}
+		for i := 0; i < numRows; i++ {
+			if _, ok := rows[i].(Auto); ok && i < len(inst.rowHeights) && inst.rowHeights[i] > 0 {
+				currentAutoHeight += heights[i]
+				autoIndices = append(autoIndices, i)
+			}
+		}
+
+		// Distribute remaining height proportionally to Auto rows
+		if currentAutoHeight > 0 && len(autoIndices) > 0 {
+			distributed := 0
+			for idx, i := range autoIndices {
+				// Proportional distribution based on original height
+				proportion := float64(heights[i]) / float64(currentAutoHeight)
+				extraHeight := int(proportion * float64(remainingHeight))
+				heights[i] += extraHeight
+				distributed += extraHeight
+				// Add remainder to first Auto row
+				if idx == len(autoIndices)-1 {
+					remainder := remainingHeight - distributed
+					heights[i] += remainder
 				}
 			}
 		}

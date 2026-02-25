@@ -1,8 +1,8 @@
 // Package layout provides grid layout types
 package layout
 
-
 // =============================================================================
+
 // Grid Dimension Types
 // =============================================================================
 
@@ -454,6 +454,52 @@ func (g *GridLayout) calculateRowHeights(availableHeight, numCols int) []int {
 						heights[i] = 1
 					}
 				}
+			}
+		}
+	}
+
+	// ✨ Third pass: expand Auto rows proportionally if there's remaining space
+	// This allows Auto rows to use available space beyond their measured minimum
+	// Recalculate remaining height after Flex distribution
+	autoCount := 0
+	for i := 0; i < numRows && i < len(rows); i++ {
+		if _, ok := rows[i].(GridAuto); ok {
+			autoCount++
+		}
+	}
+
+	// Recalculate fixed height (including Auto rows from first pass)
+	currentFixedHeight := 0
+	autoIndices := []int{}
+	for i := 0; i < numRows && i < len(rows); i++ {
+		if _, ok := rows[i].(GridAuto); ok {
+			currentFixedHeight += heights[i]
+			autoIndices = append(autoIndices, i)
+		} else if _, ok := rows[i].(GridFlex); !ok {
+			// Fixed, Min, Max rows
+			currentFixedHeight += heights[i]
+		}
+	}
+
+	remainingAfterFlex := availableHeight - currentFixedHeight - gapHeight
+	if remainingAfterFlex < 0 {
+		remainingAfterFlex = 0
+	}
+
+	// ✨ FIX: Don't expand Auto rows when availableHeight is infinite or unreasonably large
+	// This prevents Auto rows from taking MaxInt height when unconstrained
+	// Auto rows should only expand within reasonable constraints (< MaxInt)
+	isInfinite := availableHeight >= MaxInt || availableHeight > 1000000
+
+	// Distribute remaining height to Auto rows only if not infinite
+	if autoCount > 0 && remainingAfterFlex > 0 && !isInfinite {
+		for _, idx := range autoIndices {
+			// Distribute evenly for simplicity (can be made proportional if needed)
+			extraHeight := remainingAfterFlex / autoCount
+			heights[idx] += extraHeight
+			// Distribute remainder
+			if idx == autoIndices[len(autoIndices)-1] {
+				heights[idx] += remainingAfterFlex % autoCount
 			}
 		}
 	}

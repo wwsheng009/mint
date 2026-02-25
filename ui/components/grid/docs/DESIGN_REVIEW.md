@@ -270,6 +270,9 @@ AddCellSpan(0, 0, 2, 1, "Span 2 Cols")
        └→ 存储 colWidths, rowHeights
        
 2. Instance.SetBounds(x, y, w, h)
+   └→ 重新计算 rowHeights：根据实际高度重新分配行高（考虑 cellBorders）
+   └→ 重新计算 colWidths：根据实际宽度重新分配列宽（考虑 cellBorders）
+       └→ 关键步骤：确保右边框始终位于 GridWidth-1 位置
    └→ gridLayout.LayoutChildren(w, h)
        └→ 返回 LayoutBox[] (相对坐标)
        └→ child.SetPosition(relX, relY)
