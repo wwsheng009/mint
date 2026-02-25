@@ -123,16 +123,17 @@ func (a *FiberPaintableAdapter) Paint(x, y int) []paint.DrawCmd {
 		return fn(a.Fiber.Props, a.Fiber.Style, x, y)
 	}
 
-	// Fallback Path 2: Use Fiber.FocusableVNode (Legacy)
-	// DEPRECATED: This path exists for backward compatibility.
+	// Fallback Path 2: Use Fiber.FocusableVNode (Legacy - DEPRECATED)
+	// ⚠️ DEPRECATED: Fiber.FocusableVNode field will be removed in future versions.
 	// New components should implement InstanceFactory and PaintableInstance.
-	if a.Fiber.FocusableVNode != nil {
-		if paintable, ok := a.Fiber.FocusableVNode.(interface {
-			Paint(int, int) []paint.DrawCmd
-		}); ok {
-			return paintable.Paint(x, y)
-		}
-	}
+	// This fallback exists only for backward compatibility during migration.
+	// if a.Fiber.FocusableVNode != nil {
+	// 	if paintable, ok := a.Fiber.FocusableVNode.(interface {
+	// 		Paint(int, int) []paint.DrawCmd
+	// 	}); ok {
+	// 		return paintable.Paint(x, y)
+	// 	}
+	// }
 
 	return nil
 }

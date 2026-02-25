@@ -1022,7 +1022,8 @@ func (a *App) processMsg(msg runtimemsg.Msg) {
 	// 4.1 鼠标事件：使用 MouseMsg 中的 TargetFiber
 	if mouseMsg, ok := act.Payload.(*runtimemsg.MouseMsg); ok && mouseMsg.TargetFiber != nil {
 		if fiber, ok := mouseMsg.TargetFiber.(*rtui.Fiber); ok {
-			if a.actionBridge.DispatchFromFiber(fiber, act.Type, act) {
+			// 传入 act.Payload (MouseMsg) 而不是 act
+			if a.actionBridge.DispatchFromFiber(fiber, act.Type, act.Payload) {
 				a.dirty = true
 				return
 			}
@@ -1031,7 +1032,8 @@ func (a *App) processMsg(msg runtimemsg.Msg) {
 
 	// 4.2 键盘事件（如 Enter）：使用焦点 Fiber
 	if focused := a.focusManager.GetCurrent(); focused != nil {
-		if a.actionBridge.DispatchFromFiber(focused, act.Type, act) {
+		// 传入 act.Payload 而不是 act，因为 Instance.HandleAction 期望实际的 payload 值
+		if a.actionBridge.DispatchFromFiber(focused, act.Type, act.Payload) {
 			a.dirty = true
 			return
 		}
@@ -1154,21 +1156,35 @@ func (a *App) buildActionRegistry() {
 			// 从焦点管理器的可聚焦列表中收集 ActionTarget
 			focusable := focusMgr.GetFocusable()
 			for _, fiber := range focusable {
-				// 检查 Fiber 的 ComponentInstance 是否实现 ActionTarget
-				if fiber.ComponentInstance != nil {
-					if target, ok := fiber.ComponentInstance.(action.ActionTarget); ok {
-						// 使用 FocusableMeta.FocusID 获取焦点 ID
-						if fiber.FocusableMeta != nil {
-							focusID := fiber.FocusableMeta.FocusID
-							if focusID != "" {
-								nodeID := runtimeevent.StringToNodeID(focusID)
-								// 维护 FocusID -> NodeID 映射
-								a.focusIDToNodeID[focusID] = nodeID
-								// 注册到 actionRegistry
-								a.actionRegistry[nodeID] = target
-							}
+				// Fiber-first: Check Instance for action handling support
+				// 支持三种接口：
+				// 1. action.ActionTarget - 直接注册
+				// 2. rtui.ActionHandlerInstance - 使用适配器
+				// 3. rtui.ComponentInstance - 检查是否实现了以上接口
+				var target action.ActionTarget
+				var ok bool
+
+				if fiber.Instance != nil {
+					// 优先检查 action.ActionTarget
+					if target, ok = fiber.Instance.(action.ActionTarget); !ok {
+						// 其次检查 rtui.ActionHandlerInstance
+						if handler, handlerOk := fiber.Instance.(rtui.ActionHandlerInstance); handlerOk {
+							focusID := fmt.Sprintf("node-%d", fiber.NodeID)
+							nodeID := runtimeevent.StringToNodeID(focusID)
+							target = action.NewActionHandlerInstanceAdapter(handler, nodeID)
+							ok = true
 						}
 					}
+				}
+
+				if ok && target != nil {
+					// Fiber-first: Use NodeID to generate FocusID (consistent with FiberFocusManager)
+					focusID := fmt.Sprintf("node-%d", fiber.NodeID)
+					nodeID := runtimeevent.StringToNodeID(focusID)
+					// 维护 FocusID -> NodeID 映射
+					a.focusIDToNodeID[focusID] = nodeID
+					// 注册到 actionRegistry
+					a.actionRegistry[nodeID] = target
 				}
 			}
 		}

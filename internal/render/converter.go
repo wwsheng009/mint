@@ -262,16 +262,8 @@ func (n *FiberPaintableNode) Paint(x, y int) []paint.DrawCmd {
 		return fn(n.fiber.Props, n.fiber.Style, x, y)
 	}
 
-	// Fallback Path 2: Use Fiber.FocusableVNode (Legacy)
-	// DEPRECATED: For backward compatibility only.
-	if n.fiber.FocusableVNode != nil {
-		if paintable, ok := n.fiber.FocusableVNode.(interface {
-			Paint(int, int) []paint.DrawCmd
-		}); ok {
-			return paintable.Paint(x, y)
-		}
-	}
-
+	// ⚠️ DEPRECATED: Fiber.FocusableVNode fallback removed.
+	// Use Instance-based PaintableInstance interface instead.
 	return nil
 }
 

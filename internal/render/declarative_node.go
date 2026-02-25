@@ -1797,6 +1797,8 @@ func (n *DeclarativeNode) getFrameworkApp() *framework.App {
 }
 
 // GetButtons returns all button VNodes in the tree
+// ⚠️ DEPRECATED: Use FiberFocusManager.GetFocusable() or GetFocusableInstances() instead.
+// This method returns []rtui.FocusableVNode for backward compatibility with existing tests.
 func (n *DeclarativeNode) GetButtons() []rtui.FocusableVNode {
 	n.mu.RLock()
 	defer n.mu.RUnlock()
@@ -1825,39 +1827,13 @@ func (n *DeclarativeNode) GetButtons() []rtui.FocusableVNode {
 	})
 }
 
-// collectButtonsFromFiber traverses the Fiber tree to collect button VNodes
-// Uses Fiber.FocusableMeta for Fiber-first architecture
+// collectButtonsFromFiber collects buttons from the Fiber tree.
+// ⚠️ DEPRECATED: Uses Instance-based focus management instead.
+// Returns empty list for backward compatibility - use FiberFocusManager instead.
 func (n *DeclarativeNode) collectButtonsFromFiber(fiber *reconciler.Fiber) []rtui.FocusableVNode {
-	var result []rtui.FocusableVNode
-
-	if fiber == nil {
-		return result
-	}
-
-	// Skip the root ComponentVNode wrapper
-	if fiber.Key == "root" && fiber.Type == rtui.VNodeComponent {
-		return n.collectButtonsFromFiber(fiber.Child)
-	}
-
-	// Check if current Fiber is a button with focusable metadata (Fiber-first)
-	if fiber.Tag == "button" && fiber.FocusableMeta != nil && fiber.FocusableMeta.IsFocusable() {
-		// For backward compatibility, still use FocusableVNode if available
-		if fiber.FocusableVNode != nil {
-			result = append(result, fiber.FocusableVNode)
-		}
-	}
-
-	// Recursively check children
-	if child := fiber.Child; child != nil {
-		result = append(result, n.collectButtonsFromFiber(child)...)
-	}
-
-	// Recursively check siblings
-	if sibling := fiber.Sibling; sibling != nil {
-		result = append(result, n.collectButtonsFromFiber(sibling)...)
-	}
-
-	return result
+	// ⚠️ DEPRECATED: No longer collects FocusableVNode.
+	// Use FiberFocusManager for focus management instead.
+	return []rtui.FocusableVNode{}
 }
 
 // isButtonVNode checks if a VNode is a button element
@@ -1871,42 +1847,17 @@ func (n *DeclarativeNode) isButtonVNode(vnode rtui.VNode) bool {
 	return false
 }
 
-// collectFocusableFromFiber collects all focusable elements from the Fiber tree
-// Uses Fiber.FocusableMeta for Fiber-first architecture
+// collectFocusableFromFiber collects all focusable elements from the Fiber tree.
+// ⚠️ DEPRECATED: Uses Instance-based focus management instead.
+// Returns empty list for backward compatibility - use FiberFocusManager instead.
 func (n *DeclarativeNode) collectFocusableFromFiber(fiber *reconciler.Fiber) []rtui.FocusableVNode {
-	var result []rtui.FocusableVNode
-
-	if fiber == nil {
-		return result
-	}
-
-	// Skip the root ComponentVNode wrapper
-	if fiber.Key == "root" && fiber.Type == rtui.VNodeComponent {
-		return n.collectFocusableFromFiber(fiber.Child)
-	}
-
-	// Check if current Fiber has focusable metadata (Fiber-first)
-	if fiber.FocusableMeta != nil && fiber.FocusableMeta.IsFocusable() {
-		// For backward compatibility, still use FocusableVNode if available
-		if fiber.FocusableVNode != nil {
-			result = append(result, fiber.FocusableVNode)
-		}
-	}
-
-	// Recursively check children
-	if child := fiber.Child; child != nil {
-		result = append(result, n.collectFocusableFromFiber(child)...)
-	}
-
-	// Recursively check siblings
-	if sibling := fiber.Sibling; sibling != nil {
-		result = append(result, n.collectFocusableFromFiber(sibling)...)
-	}
-
-	return result
+	// ⚠️ DEPRECATED: No longer collects FocusableVNode.
+	// Use FiberFocusManager for focus management instead.
+	return []rtui.FocusableVNode{}
 }
 
 // GetInputs returns all input VNodes in the tree
+// ⚠️ DEPRECATED: Use FiberFocusManager.GetFocusable() instead.
 func (n *DeclarativeNode) GetInputs() []rtui.FocusableVNode {
 	n.mu.RLock()
 	defer n.mu.RUnlock()
@@ -1924,6 +1875,7 @@ func (n *DeclarativeNode) GetInputs() []rtui.FocusableVNode {
 }
 
 // GetTextareas returns all textarea VNodes in the tree
+// ⚠️ DEPRECATED: Use FiberFocusManager.GetFocusable() instead.
 func (n *DeclarativeNode) GetTextareas() []rtui.FocusableVNode {
 	n.mu.RLock()
 	defer n.mu.RUnlock()
@@ -1940,6 +1892,7 @@ func (n *DeclarativeNode) GetTextareas() []rtui.FocusableVNode {
 }
 
 // GetCheckboxes returns all checkbox VNodes in the tree
+// ⚠️ DEPRECATED: Use FiberFocusManager.GetFocusable() instead.
 func (n *DeclarativeNode) GetCheckboxes() []rtui.FocusableVNode {
 	n.mu.RLock()
 	defer n.mu.RUnlock()
@@ -1956,6 +1909,7 @@ func (n *DeclarativeNode) GetCheckboxes() []rtui.FocusableVNode {
 }
 
 // GetSelects returns all select VNodes in the tree
+// ⚠️ DEPRECATED: Use FiberFocusManager.GetFocusable() instead.
 func (n *DeclarativeNode) GetSelects() []rtui.FocusableVNode {
 	n.mu.RLock()
 	defer n.mu.RUnlock()

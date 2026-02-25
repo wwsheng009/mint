@@ -5,6 +5,7 @@ import (
 	frameworkevent "github.com/wwsheng009/mint/framework/event"
 	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
 	runtimeplatform "github.com/wwsheng009/mint/runtime/platform"
+	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
 
 // ============================================================================
@@ -101,6 +102,53 @@ func (a *EventHandlerAdapter) GetSupportedActions() []ActionType {
 // CanHandleAction 检查是否能处理该 Action
 func (a *EventHandlerAdapter) CanHandleAction(act *Action) bool {
 	return act.IsMouse()
+}
+
+// ========================================================================
+// ActionHandlerInstanceAdapter 将 runtime/ui.ActionHandlerInstance 适配为 ActionTarget
+// ========================================================================
+
+// ActionHandlerInstanceAdapter 适配器将 rtui.ActionHandlerInstance 转换为 action.ActionTarget
+// 这允许新的 Instance 组件（ui/components/*）与旧的 Action 系统兼容
+type ActionHandlerInstanceAdapter struct {
+	handler rtui.ActionHandlerInstance
+	id      uint64
+}
+
+// NewActionHandlerInstanceAdapter 创建 ActionHandlerInstance 适配器
+func NewActionHandlerInstanceAdapter(handler rtui.ActionHandlerInstance, id uint64) *ActionHandlerInstanceAdapter {
+	return &ActionHandlerInstanceAdapter{
+		handler: handler,
+		id:      id,
+	}
+}
+
+// HandleAction 将 Action 转换为 actionType 和 payload 调用 HandleAction
+func (a *ActionHandlerInstanceAdapter) HandleAction(act *Action) bool {
+	return a.handler.HandleAction(string(act.Type), act.Payload)
+}
+
+// GetSupportedActions 返回支持的 Action 类型
+// 创建一个适配方法，将 handler.CanHandleAction 检查的 string 类型转换为 ActionType
+func (a *ActionHandlerInstanceAdapter) GetSupportedActions() []ActionType {
+	// 返回常见支持的 Action 类型
+	return []ActionType{
+		ActionClick,
+		ActionInputText,
+		ActionBackspace,
+		ActionDeleteChar,
+		ActionEnter,
+		ActionSubmit,
+		ActionNavigateUp,
+		ActionNavigateDown,
+		ActionNavigateLeft,
+		ActionNavigateRight,
+	}
+}
+
+// CanHandleAction 检查是否能处理该 Action
+func (a *ActionHandlerInstanceAdapter) CanHandleAction(act *Action) bool {
+	return a.handler.CanHandleAction(string(act.Type))
 }
 
 // ============================================================================

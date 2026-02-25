@@ -44,20 +44,39 @@ func (b *Bridge) SetScopeDispatcher(d *action.ScopeDispatcher) {
 // It supports three modes:
 // 1. ScopeDispatcher mode: Fiber.ActionTargetID → ScopeDispatcher → registered closure
 // 2. Semantic Action: Fiber.ActionTargetID → Router → registered handler
-// 3. Closure mode (legacy): FocusableVNode.HandleAction → onClick callback
+// 3. ActionHandlerInstance mode: Fiber.Instance.HandleAction → Fiber-first components
 //
 // Flow (bubble path):
 //  1. Start from target Fiber
 //  2. For each Fiber, try modes in order
 //  3. Traverse up along Fiber.Return until handled
+//
+// Note: payload should be the raw payload value (e.g., string for text input), NOT the Action object.
+// The Action object is reconstructed for Mode 1 and Mode 2.
 func (b *Bridge) DispatchFromFiber(
 	start *ui.Fiber,
 	actionType action.ActionType,
 	payload interface{},
 ) bool {
 	for f := start; f != nil; f = f.Return {
+		// Mode 3: ActionHandlerInstance mode (Fiber-first components)
+		// New UI components (ui/components/*) implement rtui.ActionHandlerInstance
+		// This bypasses the Action system and directly calls Instance.HandleAction
+		// Pass the payload directly (e.g., string "a" for text input)
+		if f.Instance != nil {
+			if handler, ok := f.Instance.(ui.ActionHandlerInstance); ok {
+				// Check if this instance can handle the action
+				if handler.CanHandleAction(string(actionType)) {
+					if handler.HandleAction(string(actionType), payload) {
+						return true
+					}
+				}
+			}
+		}
+
 		// Mode 1: ScopeDispatcher mode (ActionTargetID → registered closure)
 		// This is the new unified mode where closures are converted to ActionIDs
+		// Reconstruct Action object with metadata for dispatch
 		if f.ActionTargetID != "" && b.scopeDispatcher != nil {
 			// Convert ActionTargetID to uint64 for dispatch
 			targetID := rtuievent.StringToNodeID(f.ActionTargetID)
@@ -71,6 +90,7 @@ func (b *Bridge) DispatchFromFiber(
 		}
 
 		// Mode 2: Semantic Action (ActionTargetID → Router)
+		// Reconstruct Action object with metadata for dispatch
 		if f.ActionTargetID != "" {
 			targetID := rtuievent.StringToNodeID(f.ActionTargetID)
 			a := action.NewAction(actionType).
@@ -80,17 +100,6 @@ func (b *Bridge) DispatchFromFiber(
 			result := b.router.Dispatch(a)
 			if result != nil && result.Handled {
 				return true
-			}
-		}
-
-		// Mode 3: Closure mode (FocusableVNode implements ActionTarget) - Legacy
-		// This will be deprecated once all closures are converted to ScopeDispatcher
-		if f.FocusableVNode != nil {
-			if target, ok := f.FocusableVNode.(action.ActionTarget); ok {
-				a := action.NewAction(actionType).WithPayload(payload)
-				if target.HandleAction(a) {
-					return true
-				}
 			}
 		}
 	}
