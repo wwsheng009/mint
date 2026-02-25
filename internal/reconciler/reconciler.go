@@ -12,6 +12,7 @@ package reconciler
 // =============================================================================
 
 import (
+	"fmt"
 	"os"
 	"time"
 
@@ -288,12 +289,9 @@ func (r *Reconciler) createWorkInProgress(current *Fiber, vnode rtui.VNode) *Fib
 		work.Tag = tagger.Tag()
 	}
 
-	// Update FocusableVNode from new VNode (Fiber-first)
-	if f, ok := vnode.(rtui.FocusableVNode); ok && f.IsFocusable() {
-		work.FocusableVNode = f
-	} else {
-		work.FocusableVNode = nil
-	}
+	// ⚠️ DEPRECATED: FocusableVNode field no longer updated.
+	// Focus management uses Instance.(FocusableInstance) instead.
+	// work.FocusableVNode = f
 
 	// CRITICAL: Update ComponentFunc from new VNode for component types
 	// This ensures the latest render function is used
@@ -961,16 +959,18 @@ func (r *Reconciler) applyFocusStateToFiber(fiber *Fiber) {
 
 	// Set focus by index on Fiber nodes (Fiber-first)
 	for i, f := range focusable {
-		if i == focusedIndex {
-			log.FocusLogger.Debug("applyFocus setting focus=true on index %d (%s)", i, f.FocusableMeta.FocusID)
-			// Update FocusableVNode focus state
-			if f.FocusableVNode != nil {
-				f.FocusableVNode.SetFocus(true)
-			}
-		} else {
-			// Update FocusableVNode focus state
-			if f.FocusableVNode != nil {
-				f.FocusableVNode.SetFocus(false)
+		focused := (i == focusedIndex)
+		if focused {
+			focusID := fmt.Sprintf("node-%d", f.NodeID)
+			log.FocusLogger.Debug("applyFocus setting focus=true on index %d (%s)", i, focusID)
+		}
+
+		// IMPORTANT: Use Instance.(FocusableInstance).SetFocus() instead of FocusableVNode.SetFocus()
+		// FocusableVNode is DEPRECATED and its hasFocus field is not used during rendering.
+		// Instance.state.Focused is the actual runtime state used by resolveStyle().
+		if f.Instance != nil {
+			if focusable, ok := f.Instance.(interface{ SetFocus(bool) }); ok {
+				focusable.SetFocus(focused)
 			}
 		}
 	}
@@ -983,8 +983,8 @@ func (r *Reconciler) clearFocusOnFiber(fiber *Fiber) {
 	}
 
 	// Clear focus via ComponentInstance if available
-	if fiber.ComponentInstance != nil {
-		if focusable, ok := fiber.ComponentInstance.(interface{ SetFocus(bool) }); ok {
+	if fiber.Instance != nil {
+		if focusable, ok := fiber.Instance.(interface{ SetFocus(bool) }); ok {
 			focusable.SetFocus(false)
 		}
 	}
@@ -1049,8 +1049,13 @@ func (r *Reconciler) hasLayerFibers(fiber *rtui.Fiber, layer rtui.Layer) bool {
 	}
 
 	// Check current fiber
-	if fiber.Layer == layer && fiber.FocusableMeta != nil && fiber.FocusableMeta.IsFocusable() {
-		return true
+	if fiber.Layer == layer {
+		// Fiber-first: use Instance.(FocusableInstance) to check if focusable
+		if fiber.Instance != nil {
+			if _, ok := fiber.Instance.(interface{ IsDisabled() bool }); ok {
+				return true
+			}
+		}
 	}
 
 	// Check children

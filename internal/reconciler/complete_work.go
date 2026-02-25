@@ -20,6 +20,8 @@ package reconciler
 // =============================================================================
 
 import (
+	"fmt"
+
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
 
@@ -102,7 +104,7 @@ func completeWorkElement(current, workInProgress *Fiber) *Fiber {
 
 	// === Phase 3: Extract focusable metadata to Fiber (Fiber-first) ===
 	// Focusable is runtime capability, not declaration
-	workInProgress.FocusableMeta = extractFocusableMeta(workInProgress)
+	// workInProgress.FocusableMeta = extractFocusableMeta(workInProgress)
 
 	// === Phase 4: Sync border properties from Props (方案 A - 边框作为容器属性) ===
 	// 边框是容器的视觉装饰属性，通过 Props 传递到 Fiber
@@ -162,9 +164,10 @@ func extractFocusableMeta(fiber *Fiber) *rtui.FocusableMeta {
 		}
 	}
 
-	// If FocusableVNode is set, use it to get FocusID
-	if focusableMeta != nil && fiber.FocusableVNode != nil {
-		focusableMeta.FocusID = fiber.FocusableVNode.GetFocusID()
+	// Use Fiber.NodeID as FocusID (Fiber-first approach)
+	// FocusableVNode is DEPRECATED, NodeID provides stable runtime identity
+	if focusableMeta != nil && focusableMeta.FocusID == "" {
+		focusableMeta.FocusID = fmt.Sprintf("node-%d", fiber.NodeID)
 	}
 
 	return focusableMeta

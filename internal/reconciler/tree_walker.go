@@ -21,35 +21,9 @@ func (w *TreeWalker) SetRoot(root *Fiber) {
 
 // CollectFocusable collects all focusable VNodes from the Fiber tree in order.
 func (w *TreeWalker) CollectFocusable() []rtui.FocusableVNode {
-	count := 0
-	w.walk(w.root, func(fiber *Fiber) bool {
-		if fiber != nil {
-			count++
-		}
-		return true
-	})
-
-	result := make([]rtui.FocusableVNode, 0, count/4+4)
-
-	w.walk(w.root, func(fiber *Fiber) bool {
-		if fiber == nil {
-			return true
-		}
-		// Skip ComponentVNode wrappers
-		if fiber.Type == rtui.VNodeComponent {
-			return true
-		}
-		// Check if ComponentInstance is focusable via interface check
-		if fiber.ComponentInstance != nil {
-			if focusable, ok := fiber.ComponentInstance.(interface{ IsFocusable() bool }); ok && focusable.IsFocusable() {
-				if vnode, ok := focusable.(rtui.FocusableVNode); ok {
-					result = append(result, vnode)
-				}
-			}
-		}
-		return true
-	})
-	return result
+	// ⚠️ DEPRECATED: This method returns []FocusableVNode for backward compatibility.
+	// Fiber.FocusableVNode field is no longer used. Focus management now uses Instance.
+	return []rtui.FocusableVNode{}
 }
 
 // FindByTag finds all Fibers with the given tag name.

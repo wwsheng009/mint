@@ -111,9 +111,6 @@ func beginWorkComponent(current, workInProgress *Fiber) *Fiber {
 			instance.SetProps(workInProgress.Props)
 		}
 
-		// Store the instance in the fiber for later use
-		workInProgress.ComponentInstance = instance
-
 		// Get context from instance
 		ctx = instance.GetContext()
 	} else {
@@ -204,12 +201,12 @@ func beginWorkElement(current, workInProgress *Fiber) *Fiber {
 		}
 
 		// Get or create VNode component instance
-		instance := currentReconciler.instanceMgr.GetOrCreate(instanceKey, func() rtui.ComponentInstance {
-			return createVNodeComponentInstanceFromFiber(instanceKey, workInProgress)
-		})
+		// instance := currentReconciler.instanceMgr.GetOrCreate(instanceKey, func() rtui.ComponentInstance {
+		// 	return createVNodeComponentInstanceFromFiber(instanceKey, workInProgress)
+		// })
 
 		// Store the instance in the fiber
-		workInProgress.ComponentInstance = instance
+		// workInProgress.ComponentInstance = instance
 
 		if os.Getenv("TUI_DEBUG_INSTANCE") == "true" || os.Getenv("TUI_DEBUG_HITMAP") == "true" {
 			log.UILogger.Debug("[beginWorkElement] ✅ Created/Updated instance: key=%s, fiber.Key=%q, type=%d",

@@ -431,11 +431,11 @@ func cloneExistingFiber(returnFiber *Fiber, current *Fiber, vnode rtui.VNode, si
 		fiber.Tag = tagger.Tag()
 	}
 	// Update FocusableVNode from new VNode (Fiber-first)
-	if f, ok := vnode.(rtui.FocusableVNode); ok && f.IsFocusable() {
-		fiber.FocusableVNode = f
-	} else {
-		fiber.FocusableVNode = nil
-	}
+	// if f, ok := vnode.(rtui.FocusableVNode); ok && f.IsFocusable() {
+	// 	fiber.FocusableVNode = f
+	// } else {
+	// 	fiber.FocusableVNode = nil
+	// }
 	fiber.Lanes = LaneNoLane
 	fiber.Flags = EffectNoEffect
 
