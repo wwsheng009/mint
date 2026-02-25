@@ -1,213 +1,587 @@
+// Package action provides unified action dispatching and routing.
+//
+// Unified Action System:
+// - Single Action struct supporting both string Target and uint64 TargetID
+// - Comprehensive ActionType constants (merged from both packages)
+// - Three-phase routing (Capture → Target → Bubble)
+// - Middleware system for cross-cutting concerns
+// - Input processing with KeyMap
+// - Composite actions for concurrent/sequential execution
+// - Scope-based dispatchers for action isolation
+//
+// This package is the result of merging framework/action and runtime/action.
+// All imports from framework/action should be changed to runtime/action.
 package action
 
-import "time"
+import (
+	"fmt"
+	"strings"
+	"sync/atomic"
+	"time"
 
-// ==============================================================================
-// Action 系统 (V3)
-// ==============================================================================
-// Action 是语义化事件，不是原始按键
-// Platform 只产生 RawInput，Runtime 负责转换 RawInput → Action
-// Component 只处理 Action，不处理原始按键
-
-// ActionType Action 类型
-// 命名规范：动词 + 名词，表示语义化的用户意图
-type ActionType string
-
-// ==============================================================================
-// 导航 Actions
-// ==============================================================================
-const (
-	ActionNavigateFirst   ActionType = "navigate_first" // 跳到开头
-	ActionNavigateLast    ActionType = "navigate_last"  // 跳到末尾
-	ActionNavigateNext    ActionType = "navigate_next"   // 下一个
-	ActionNavigatePrev    ActionType = "navigate_prev"   // 上一个
-	ActionNavigateUp      ActionType = "navigate_up"     // 向上
-	ActionNavigateDown    ActionType = "navigate_down"   // 向下
-	ActionNavigateLeft    ActionType = "navigate_left"   // 向左
-	ActionNavigateRight   ActionType = "navigate_right"  // 向右
-	ActionNavigatePageUp   ActionType = "navigate_page_up"   // 上一页
-	ActionNavigatePageDown ActionType = "navigate_page_down" // 下一页
+	"github.com/wwsheng009/mint/runtime/event"
 )
 
-// ==============================================================================
-// 编辑 Actions
-// ==============================================================================
-const (
-	ActionInputChar        ActionType = "input_char"         // 输入字符
-	ActionInputText        ActionType = "input_text"         // 输入文本
-	ActionDeleteChar       ActionType = "delete_char"        // 删除字符
-	ActionDeleteWord       ActionType = "delete_word"        // 删除单词
-	ActionDeleteLine       ActionType = "delete_line"        // 删除行
-	ActionBackspace        ActionType = "backspace"          // 退格
-	ActionCursorHome       ActionType = "cursor_home"        // 光标到行首
-	ActionCursorEnd        ActionType = "cursor_end"         // 光标到行尾
-	ActionCursorLeft       ActionType = "cursor_left"        // 光标左移
-	ActionCursorRight      ActionType = "cursor_right"       // 光标右移
-	ActionCursorWordLeft   ActionType = "cursor_word_left"   // 光标左移一词
-	ActionCursorWordRight  ActionType = "cursor_word_right"  // 光标右移一词
-	ActionSelectAll        ActionType = "select_all"         // 全选
-	ActionSelectWord       ActionType = "select_word"        // 选择单词
-	ActionSelectLine       ActionType = "select_line"        // 选择行
-)
+var actionIDCounter uint64
 
-// ==============================================================================
-// 表单 Actions
-// ==============================================================================
-const (
-	ActionSubmit    ActionType = "submit"     // 提交表单
-	ActionCancel    ActionType = "cancel"     // 取消
-	ActionValidate  ActionType = "validate"   // 验证
-	ActionReset     ActionType = "reset"      // 重置
-	ActionClear     ActionType = "clear"      // 清空
-)
-
-// ==============================================================================
-// 选择 Actions
-// ==============================================================================
-const (
-	ActionSelectItem      ActionType = "select_item"       // 选择项
-	ActionDeselectItem    ActionType = "deselect_item"     // 取消选择
-	ActionToggleSelect    ActionType = "toggle_select"    // 切换选择
-	ActionSelectRange     ActionType = "select_range"      // 范围选择
-)
-
-// ==============================================================================
-// 鼠标 Actions
-// ==============================================================================
-const (
-	ActionMouseClick       ActionType = "mouse_click"        // 鼠标点击
-	ActionMouseDoubleClick  ActionType = "mouse_double_click" // 鼠标双击
-	ActionMouseTripleClick  ActionType = "mouse_triple_click" // 鼠标三击
-	ActionMousePress        ActionType = "mouse_press"        // 鼠标按下
-	ActionMouseRelease      ActionType = "mouse_release"      // 鼠标释放
-	ActionMouseMotion       ActionType = "mouse_motion"       // 鼠标移动
-	ActionMouseDrag         ActionType = "mouse_drag"         // 鼠标拖动
-	ActionMouseWheel        ActionType = "mouse_wheel"        // 鼠标滚轮
-	ActionMouseWheelUp      ActionType = "mouse_wheel_up"     // 鼠标滚轮向上
-	ActionMouseWheelDown    ActionType = "mouse_wheel_down"   // 鼠标滚轮向下
-	ActionMouseRightClick   ActionType = "mouse_right_click"  // 鼠标右键点击
-	ActionMouseMiddleClick  ActionType = "mouse_middle_click" // 鼠标中键点击
-	ActionMouseHover       ActionType = "mouse_hover"        // 鼠标悬停
-)
-
-// ==============================================================================
-// 视图 Actions
-// ==============================================================================
-const (
-	ActionScroll      ActionType = "scroll"       // 滚动
-	ActionScrollUp    ActionType = "scroll_up"    // 向上滚动
-	ActionScrollDown  ActionType = "scroll_down"  // 向下滚动
-	ActionScrollLeft  ActionType = "scroll_left"  // 向左滚动
-	ActionScrollRight ActionType = "scroll_right" // 向右滚动
-	ActionZoomIn      ActionType = "zoom_in"      // 放大
-	ActionZoomOut     ActionType = "zoom_out"     // 缩小
-	ActionZoomReset   ActionType = "zoom_reset"   // 重置缩放
-)
-
-// ==============================================================================
-// 窗口 Actions
-// ==============================================================================
-const (
-	ActionQuit      ActionType = "quit"      // 退出
-	ActionClose     ActionType = "close"     // 关闭窗口
-	ActionMaximize  ActionType = "maximize"  // 最大化
-	ActionMinimize  ActionType = "minimize"  // 最小化
-	ActionFullscreen ActionType = "fullscreen" // 全屏
-)
-
-// ==============================================================================
-// 系统 Actions
-// ==============================================================================
-const (
-	ActionCopy     ActionType = "copy"     // 复制
-	ActionCut      ActionType = "cut"      // 剪切
-	ActionPaste    ActionType = "paste"    // 粘贴
-	ActionUndo     ActionType = "undo"     // 撤销
-	ActionRedo     ActionType = "redo"     // 重做
-	ActionSearch   ActionType = "search"   // 搜索
-	ActionHelp     ActionType = "help"     // 帮助
-	ActionRefresh  ActionType = "refresh"  // 刷新
-)
-
-// ==============================================================================
-// AI Actions (V3 新增)
-// ==============================================================================
-const (
-	ActionAIInspect     ActionType = "ai_inspect"      // AI 检查 UI 状态
-	ActionAIFind        ActionType = "ai_find"         // AI 查找组件
-	ActionAIQuery       ActionType = "ai_query"        // AI 查询状态
-	ActionAIDispatch    ActionType = "ai_dispatch"     // AI 分发 Action
-	ActionAIWait        ActionType = "ai_wait"         // AI 等待状态
-	ActionAIWatch       ActionType = "ai_watch"        // AI 监控状态
-)
-
-// ==============================================================================
-// Action 结构体
-// ==============================================================================
-
-// Action 语义化 Action
-// 所有状态变化必须能追溯到 Action
+// Action represents a semantic user action (not raw input events).
+// All state changes should be traceable to an Action for debugging and replay.
 type Action struct {
-	// Type Action 类型
+	// Type is the semantic type of the action
 	Type ActionType
 
-	// Payload Action 携带的数据
-	// 对于 ActionInputChar，Payload 是 rune
-	// 对于 ActionInputText，Payload 是 string
-	// 对于 ActionNavigate，Payload 可能是方向或步长
+	// Payload carries action-specific data
 	Payload interface{}
 
-	// Source Action 来源组件 ID
+	// Source identifies where the action originated (e.g., "keyboard", "mouse")
 	Source string
 
-	// Target Action 目标组件 ID
+	// Target is the semantic component ID (e.g., "button.submit", "form.login")
+	// This is the primary way to identify the target component.
 	Target string
 
-	// Timestamp Action 时间戳
+	// TargetID is the internal NodeID (uint64) for fast lookup
+	// Automatically computed from Target when set.
+	TargetID uint64
+
+	// ===== Enhanced features (from framework/action) =====
+
+	// ID is a unique identifier for this action (useful for tracking/debugging)
+	ID uint64
+
+	// Timestamp when the action was created
 	Timestamp time.Time
+
+	// Meta holds extensibility metadata
+	Meta map[string]interface{}
+
+	// stopped indicates whether action propagation should be stopped
+	stopped bool
 }
 
-// NewAction 创建 Action
-func NewAction(typ ActionType) *Action {
+// ActionType represents a semantic action type.
+// Naming convention: verb + noun (e.g., "navigate_next", "input_char")
+type ActionType string
+
+// ============================================================================
+// Navigation Actions
+// ============================================================================
+
+const (
+	ActionNavigateFirst   ActionType = "navigate_first"   // Jump to beginning
+	ActionNavigateLast    ActionType = "navigate_last"    // Jump to end
+	ActionNavigateNext    ActionType = "navigate_next"    // Next item
+	ActionNavigatePrev    ActionType = "navigate_prev"    // Previous item
+	ActionNavigateUp      ActionType = "navigate_up"      // Move up
+	ActionNavigateDown    ActionType = "navigate_down"    // Move down
+	ActionNavigateLeft    ActionType = "navigate_left"    // Move left
+	ActionNavigateRight   ActionType = "navigate_right"   // Move right
+	ActionNavigatePageUp   ActionType = "navigate_page_up"   // Page up
+	ActionNavigatePageDown ActionType = "navigate_page_down" // Page down
+	ActionNavigateHome     ActionType = "navigate_home"     // Jump to home
+	ActionNavigateEnd      ActionType = "navigate_end"      // Jump to end
+)
+
+// ============================================================================
+// Editing Actions
+// ============================================================================
+
+const (
+	ActionInputChar        ActionType = "input_char"         // Input single character
+	ActionInputText        ActionType = "input_text"         // Input text string
+	ActionDeleteChar       ActionType = "delete_char"        // Delete character
+	ActionDeleteWord       ActionType = "delete_word"        // Delete word
+	ActionDeleteLine       ActionType = "delete_line"        // Delete line
+	ActionBackspace        ActionType = "backspace"          // Backspace key
+	ActionCursorHome       ActionType = "cursor_home"        // Cursor to line start
+	ActionCursorEnd        ActionType = "cursor_end"         // Cursor to line end
+	ActionCursorLeft       ActionType = "cursor_left"        // Move cursor left
+	ActionCursorRight      ActionType = "cursor_right"       // Move cursor right
+	ActionCursorWordLeft   ActionType = "cursor_word_left"   // Move cursor left by word
+	ActionCursorWordRight  ActionType = "cursor_word_right"  // Move cursor right by word
+	ActionSelectAll        ActionType = "select_all"         // Select all
+	ActionSelectWord       ActionType = "select_word"        // Select word
+	ActionSelectLine       ActionType = "select_line"        // Select line
+	ActionEnter            ActionType = "enter"              // Enter key
+)
+
+// ============================================================================
+// Form Actions
+// ============================================================================
+
+const (
+	ActionSubmit    ActionType = "submit"    // Submit form
+	ActionCancel    ActionType = "cancel"    // Cancel operation
+	ActionValidate  ActionType = "validate"  // Validate input
+	ActionReset     ActionType = "reset"     // Reset form
+	ActionClear     ActionType = "clear"     // Clear input
+)
+
+// ============================================================================
+// Selection Actions
+// ============================================================================
+
+const (
+	ActionSelectItem      ActionType = "select_item"       // Select item
+	ActionDeselectItem    ActionType = "deselect_item"     // Deselect item
+	ActionToggleSelect    ActionType = "toggle_select"    // Toggle selection
+	ActionSelectRange     ActionType = "select_range"      // Select range
+	ActionSelect          ActionType = "select"            // Select current
+	ActionToggle          ActionType = "toggle"            // Toggle state
+	ActionExpand          ActionType = "expand"            // Expand
+	ActionCollapse        ActionType = "collapse"          // Collapse
+)
+
+// ============================================================================
+// Mouse Actions
+// ============================================================================
+
+const (
+	ActionClick        ActionType = "click"         // Mouse click
+	ActionDoubleClick   ActionType = "double_click"  // Double click
+	ActionTripleClick   ActionType = "triple_click"  // Triple click
+	ActionMousePress    ActionType = "mouse_press"   // Mouse press down
+	ActionMouseRelease  ActionType = "mouse_release" // Mouse release up
+	ActionMouseMotion   ActionType = "mouse_motion"  // Mouse move
+	ActionMouseDrag     ActionType = "mouse_drag"    // Mouse drag
+	ActionMouseWheel    ActionType = "mouse_wheel"   // Mouse wheel
+	ActionMouseWheelUp  ActionType = "mouse_wheel_up"   // Wheel up
+	ActionMouseWheelDown ActionType = "mouse_wheel_down" // Wheel down
+	ActionRightClick    ActionType = "right_click"   // Right click
+	ActionMiddleClick   ActionType = "middle_click"  // Middle click
+	ActionMiddlePress   ActionType = "middle_press"  // Middle press
+	ActionHover         ActionType = "hover"         // Mouse hover
+	ActionDragStart     ActionType = "drag_start"    // Start dragging
+	ActionDragMove      ActionType = "drag_move"     // Dragging moved
+	ActionDragEnd       ActionType = "drag_end"      // End dragging
+)
+
+// ============================================================================
+// View Actions
+// ============================================================================
+
+const (
+	ActionScroll      ActionType = "scroll"       // Scroll action
+	ActionScrollUp    ActionType = "scroll_up"    // Scroll up
+	ActionScrollDown  ActionType = "scroll_down"  // Scroll down
+	ActionScrollLeft  ActionType = "scroll_left"  // Scroll left
+	ActionScrollRight ActionType = "scroll_right" // Scroll right
+	ActionZoomIn      ActionType = "zoom_in"      // Zoom in
+	ActionZoomOut     ActionType = "zoom_out"     // Zoom out
+	ActionZoomReset   ActionType = "zoom_reset"   // Reset zoom
+	ActionResize      ActionType = "resize"       // Window resize (Payload: Size{W,H})
+)
+
+// ============================================================================
+// Window Actions
+// ============================================================================
+
+const (
+	ActionQuit       ActionType = "quit"       // Quit application
+	ActionClose      ActionType = "close"      // Close window
+	ActionMaximize   ActionType = "maximize"   // Maximize
+	ActionMinimize   ActionType = "minimize"   // Minimize
+	ActionFullscreen ActionType = "fullscreen" // Fullscreen
+)
+
+// ============================================================================
+// System Actions
+// ============================================================================
+
+const (
+	ActionCopy     ActionType = "copy"     // Copy
+	ActionCut      ActionType = "cut"      // Cut
+	ActionPaste    ActionType = "paste"    // Paste
+	ActionUndo     ActionType = "undo"     // Undo
+	ActionRedo     ActionType = "redo"     // Redo
+	ActionSearch   ActionType = "search"   // Search
+	ActionHelp     ActionType = "help"     // Help
+	ActionRefresh  ActionType = "refresh"  // Refresh
+	ActionInspect  ActionType = "inspect"  // Toggle inspector
+	ActionFocus    ActionType = "focus"    // Set focus
+	ActionBlur     ActionType = "blur"     // Lose focus
+)
+
+// ============================================================================
+// Focus Actions
+// ============================================================================
+
+const (
+	ActionFocusGained ActionType = "focus_gained" // Gained focus
+	ActionFocusLost   ActionType = "focus_lost"   // Lost focus
+	ActionFocusNext   ActionType = "focus_next"   // Move focus next
+	ActionFocusPrev   ActionType = "focus_prev"   // Move focus prev
+)
+
+// ============================================================================
+// Data Actions
+// ============================================================================
+
+const (
+	ActionDataLoad   ActionType = "data_load"   // Data loaded
+	ActionDataUpdate ActionType = "data_update" // Data updated
+	ActionDataError  ActionType = "data_error"  // Data error
+)
+
+// ============================================================================
+// Composite Actions (init/mount/unmount)
+// ============================================================================
+
+const (
+	ActionInit    ActionType = "init"    // Component initialization
+	ActionMount   ActionType = "mount"   // Component mounted
+	ActionUnmount ActionType = "unmount" // Component unmounted
+)
+
+// ============================================================================
+// AI Actions (V3 from runtime/action)
+// ============================================================================
+
+const (
+	ActionAIInspect  ActionType = "ai_inspect"  // AI inspect UI state
+	ActionAIFind     ActionType = "ai_find"     // AI find component
+	ActionAIQuery    ActionType = "ai_query"    // AI query state
+	ActionAIDispatch ActionType = "ai_dispatch" // AI dispatch action
+	ActionAIWait     ActionType = "ai_wait"     // AI wait for state
+	ActionAIWatch    ActionType = "ai_watch"    // AI monitor state
+)
+
+// ============================================================================
+// Action Classification Methods
+// ============================================================================
+
+// IsNavigation checks if this is a navigation action
+func (a *Action) IsNavigation() bool {
+	switch a.Type {
+	case ActionNavigateFirst, ActionNavigateLast, ActionNavigateNext,
+		ActionNavigatePrev, ActionNavigateUp, ActionNavigateDown,
+		ActionNavigateLeft, ActionNavigateRight, ActionNavigatePageUp,
+		ActionNavigatePageDown, ActionNavigateHome, ActionNavigateEnd,
+		ActionFocusNext, ActionFocusPrev:
+		return true
+	}
+	return false
+}
+
+// IsEditing checks if this is an editing action
+func (a *Action) IsEditing() bool {
+	switch a.Type {
+	case ActionInputChar, ActionInputText, ActionDeleteChar,
+		ActionDeleteWord, ActionDeleteLine, ActionBackspace,
+		ActionCursorHome, ActionCursorEnd, ActionCursorLeft,
+		ActionCursorRight, ActionCursorWordLeft, ActionCursorWordRight,
+		ActionSelectAll, ActionSelectWord, ActionSelectLine, ActionEnter:
+		return true
+	}
+	return false
+}
+
+// IsForm checks if this is a form action
+func (a *Action) IsForm() bool {
+	switch a.Type {
+	case ActionSubmit, ActionCancel, ActionValidate, ActionReset, ActionClear:
+		return true
+	}
+	return false
+}
+
+// IsSelection checks if this is a selection action
+func (a *Action) IsSelection() bool {
+	switch a.Type {
+	case ActionSelectItem, ActionDeselectItem, ActionToggleSelect,
+		ActionSelectRange, ActionSelect, ActionToggle:
+		return true
+	}
+	return false
+}
+
+// IsMouse checks if this is a mouse action
+func (a *Action) IsMouse() bool {
+	switch a.Type {
+	case ActionClick, ActionDoubleClick, ActionTripleClick,
+		ActionMousePress, ActionMouseRelease, ActionMouseMotion,
+		ActionMouseDrag, ActionMouseWheel, ActionMouseWheelUp,
+		ActionMouseWheelDown, ActionRightClick, ActionMiddleClick,
+		ActionMiddlePress, ActionHover, ActionDragStart, ActionDragMove,
+		ActionDragEnd:
+		return true
+	}
+	return false
+}
+
+// IsSystem checks if this is a system action
+func (a *Action) IsSystem() bool {
+	switch a.Type {
+	case ActionQuit, ActionClose, ActionMaximize, ActionMinimize,
+		ActionFullscreen, ActionCopy, ActionCut, ActionPaste,
+		ActionUndo, ActionRedo, ActionSearch, ActionHelp,
+		ActionRefresh, ActionInspect, ActionFocus, ActionBlur:
+		return true
+	}
+	return false
+}
+
+// IsView checks if this is a view action
+func (a *Action) IsView() bool {
+	switch a.Type {
+	case ActionScroll, ActionScrollUp, ActionScrollDown, ActionScrollLeft,
+		ActionScrollRight, ActionZoomIn, ActionZoomOut, ActionZoomReset,
+		ActionResize:
+		return true
+	}
+	return false
+}
+
+// IsData checks if this is a data action
+func (a *Action) IsData() bool {
+	switch a.Type {
+	case ActionDataLoad, ActionDataUpdate, ActionDataError:
+		return true
+	}
+	return false
+}
+
+// IsUndoRedo checks if this is an undo/redo action
+func (a *Action) IsUndoRedo() bool {
+	return a.Type == ActionUndo || a.Type == ActionRedo
+}
+
+// IsAIAction checks if this is an AI action
+func (a *Action) IsAIAction() bool {
+	switch a.Type {
+	case ActionAIInspect, ActionAIFind, ActionAIQuery,
+		ActionAIDispatch, ActionAIWait, ActionAIWatch:
+		return true
+	}
+	return false
+}
+
+// RequiresTarget checks if this action needs a target
+func (a *Action) RequiresTarget() bool {
+	return a.IsMouse() && (a.Target != "" || a.TargetID != 0)
+}
+
+// StopPropagation stops the action from propagating further
+func (a *Action) StopPropagation() {
+	a.stopped = true
+}
+
+// IsStopped checks if propagation has been stopped
+func (a *Action) IsStopped() bool {
+	return a.stopped
+}
+
+// NewAction creates a new action with auto-generated ID and timestamp
+func NewAction(actionType ActionType) *Action {
+	id := atomic.AddUint64(&actionIDCounter, 1)
 	return &Action{
-		Type:      typ,
+		Type:      actionType,
+		ID:        id,
 		Timestamp: time.Now(),
+		Meta:      make(map[string]interface{}),
 	}
 }
 
-// WithPayload 设置 Payload
+// NewActionWithPayload creates an action with payload
+func NewActionWithPayload(actionType ActionType, payload interface{}) *Action {
+	id := atomic.AddUint64(&actionIDCounter, 1)
+	return &Action{
+		Type:      actionType,
+		Payload:   payload,
+		ID:        id,
+		Timestamp: time.Now(),
+		Meta:      make(map[string]interface{}),
+	}
+}
+
+// NewActionFromKey creates an action from a key event
+func NewActionFromKey(actionType ActionType, source string) *Action {
+	id := atomic.AddUint64(&actionIDCounter, 1)
+	return &Action{
+		Type:      actionType,
+		Source:    source,
+		ID:        id,
+		Timestamp: time.Now(),
+		Meta:      make(map[string]interface{}),
+	}
+}
+
+// NewActionFromMouse creates a mouse action
+func NewActionFromMouse(actionType ActionType, localX, localY int) *Action {
+	id := atomic.AddUint64(&actionIDCounter, 1)
+	return &Action{
+		Type:      actionType,
+		Source:    "mouse",
+		Payload:   struct{ X, Y int }{X: localX, Y: localY},
+		ID:        id,
+		Timestamp: time.Now(),
+		Meta:      make(map[string]interface{}),
+	}
+}
+
+// WithTarget sets the semantic target ID and automatically computes TargetID
+func (a *Action) WithTarget(target string) *Action {
+	a.Target = target
+	a.TargetID = event.StringToNodeID(target)
+	return a
+}
+
+// WithTargetID sets the internal TargetID directly
+func (a *Action) WithTargetID(targetID uint64) *Action {
+	a.TargetID = targetID
+	// Note: We don't set Target string here to avoid reverse conversion
+	// Use WithTarget() for semantic IDs
+	return a
+}
+
+// WithPayload sets the action payload
 func (a *Action) WithPayload(payload interface{}) *Action {
 	a.Payload = payload
 	return a
 }
 
-// WithSource 设置 Source
+// WithSource sets the action source
 func (a *Action) WithSource(source string) *Action {
 	a.Source = source
 	return a
 }
 
-// WithTarget 设置 Target
-func (a *Action) WithTarget(target string) *Action {
-	a.Target = target
-	return a
-}
-
-// Clone 克隆 Action
+// Clone creates a shallow copy of the action
 func (a *Action) Clone() *Action {
+	metaCopy := make(map[string]interface{})
+	for k, v := range a.Meta {
+		metaCopy[k] = v
+	}
 	return &Action{
 		Type:      a.Type,
 		Payload:   a.Payload,
 		Source:    a.Source,
 		Target:    a.Target,
+		TargetID:  a.TargetID,
+		ID:        atomic.AddUint64(&actionIDCounter, 1),
 		Timestamp: a.Timestamp,
+		Meta:      metaCopy,
 	}
 }
 
-// String 返回 Action 的字符串表示
+// String returns a string representation of the action
 func (a *Action) String() string {
+	var sb strings.Builder
+	sb.WriteString(string(a.Type))
+
 	if a.Target != "" {
-		return string(a.Type) + "{" + a.Target + "}"
+		sb.WriteString("{")
+		sb.WriteString(a.Target)
+		sb.WriteString("}")
+	} else if a.TargetID != 0 {
+		fmt.Fprintf(&sb, "[%d]", a.TargetID)
 	}
-	return string(a.Type)
+
+	if a.Payload != nil {
+		fmt.Fprintf(&sb, "(%v)", a.Payload)
+	}
+
+	if a.Source != "" {
+		fmt.Fprintf(&sb, "[%s]", a.Source)
+	}
+
+	return sb.String()
 }
+
+// ============================================================================
+// Payload Helper Methods
+// ============================================================================
+
+// GetPayloadString returns the payload as a string
+func (a *Action) GetPayloadString() (string, bool) {
+	if s, ok := a.Payload.(string); ok {
+		return s, true
+	}
+	return "", false
+}
+
+// GetPayloadInt returns the payload as an int
+func (a *Action) GetPayloadInt() (int, bool) {
+	if i, ok := a.Payload.(int); ok {
+		return i, true
+	}
+	return 0, false
+}
+
+// GetPayloadPoint returns coordinates from payload
+func (a *Action) GetPayloadPoint() (x, y int, ok bool) {
+	if p, ok := a.Payload.(struct{ X, Y int }); ok {
+		return p.X, p.Y, true
+	}
+	if p, ok := a.Payload.(map[string]int); ok {
+		x, hasX := p["x"]
+		y, hasY := p["y"]
+		if hasX && hasY {
+			return x, y, true
+		}
+	}
+	return 0, 0, false
+}
+
+// GetPayloadSize returns size from payload
+func (a *Action) GetPayloadSize() (w, h int, ok bool) {
+	if s, ok := a.Payload.(struct{ W, H int }); ok {
+		return s.W, s.H, true
+	}
+	if s, ok := a.Payload.(map[string]int); ok {
+		w, hasW := s["w"]
+		h, hasH := s["h"]
+		if hasW && hasH {
+			return w, h, true
+		}
+	}
+	return 0, 0, false
+}
+
+// GetPayloadRune returns payload as rune
+func (a *Action) GetPayloadRune() (rune, bool) {
+	if r, ok := a.Payload.(rune); ok {
+		return r, true
+	}
+	return 0, false
+}
+
+// ============================================================================
+// Meta Helper Methods
+// ============================================================================
+
+// GetMeta retrieves a metadata value
+func (a *Action) GetMeta(key string) (interface{}, bool) {
+	if a.Meta == nil {
+		return nil, false
+	}
+	val, ok := a.Meta[key]
+	return val, ok
+}
+
+// SetMeta sets a metadata value
+func (a *Action) SetMeta(key string, value interface{}) {
+	if a.Meta == nil {
+		a.Meta = make(map[string]interface{})
+	}
+	a.Meta[key] = value
+}
+
+// DeleteMeta removes a metadata value
+func (a *Action) DeleteMeta(key string) {
+	if a.Meta != nil {
+		delete(a.Meta, key)
+	}
+}
+
+// ============================================================================
+// TargetID Conversion Helpers
+// ============================================================================
+
+// StringToTargetID converts a string ID to uint64 NodeID using FNV-1a hash
+func StringToTargetID(source string) uint64 {
+	return event.StringToNodeID(source)
+}
+
+// TargetIDToString (placeholder for potential reverse mapping)
+// Currently not used; direct string-to-target is preferred

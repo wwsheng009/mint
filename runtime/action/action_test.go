@@ -244,42 +244,42 @@ func TestErrorHelpers(t *testing.T) {
 func TestPayloadValidation(t *testing.T) {
 	t.Run("ValidateStringPayload", func(t *testing.T) {
 		validAction := NewAction(ActionInputText).WithPayload("hello")
-		s, ok := ValidateStringPayload(validAction)
-		if !ok || s != "hello" {
-			t.Errorf("failed to validate string payload")
+		s, err := ValidateStringPayload(validAction)
+		if err != nil || s != "hello" {
+			t.Errorf("failed to validate string payload: s=%s, err=%v", s, err)
 		}
 
 		invalidAction := NewAction(ActionInputText).WithPayload(123)
-		_, ok = ValidateStringPayload(invalidAction)
-		if ok {
+		_, err = ValidateStringPayload(invalidAction)
+		if err == nil {
 			t.Errorf("should not validate int as string")
 		}
 	})
 
 	t.Run("ValidateRunePayload", func(t *testing.T) {
 		validAction := NewAction(ActionInputChar).WithPayload('a')
-		r, ok := ValidateRunePayload(validAction)
-		if !ok || r != 'a' {
-			t.Errorf("failed to validate rune payload")
+		r, err := ValidateRunePayload(validAction)
+		if err != nil || r != 'a' {
+			t.Errorf("failed to validate rune payload: r=%c, err=%v", r, err)
 		}
 
 		invalidAction := NewAction(ActionInputChar).WithPayload("abc")
-		_, ok = ValidateRunePayload(invalidAction)
-		if ok {
+		_, err = ValidateRunePayload(invalidAction)
+		if err == nil {
 			t.Errorf("should not validate string as rune")
 		}
 	})
 
 	t.Run("ValidateIntPayload", func(t *testing.T) {
 		validAction := NewAction(ActionNavigateDown).WithPayload(1)
-		i, ok := ValidateIntPayload(validAction)
-		if !ok || i != 1 {
-			t.Errorf("failed to validate int payload")
+		i, err := ValidateIntPayload(validAction)
+		if err != nil || i != 1 {
+			t.Errorf("failed to validate int payload: i=%d, err=%v", i, err)
 		}
 
 		invalidAction := NewAction(ActionNavigateDown).WithPayload("1")
-		_, ok = ValidateIntPayload(invalidAction)
-		if ok {
+		_, err = ValidateIntPayload(invalidAction)
+		if err == nil {
 			t.Errorf("should not validate string as int")
 		}
 	})
