@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/wwsheng009/mint/framework/cmd"
 	"github.com/wwsheng009/mint/internal/log"
+	"github.com/wwsheng009/mint/runtime/cmd"
 	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
 	"github.com/wwsheng009/mint/runtime/ui"
 )

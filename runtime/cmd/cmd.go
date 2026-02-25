@@ -1,69 +1,72 @@
+// Package cmd provides command types for the Elm-style architecture.
+//
+// Cmd represents side effects or asynchronous operations, such as:
+// - I/O operations
+// - Delayed execution
+// - Timers
+// - Batch execution of multiple commands
+//
+// Cmd is lazy and only executes when returned.
 package cmd
 
 import (
 	"time"
 )
 
-// Cmd 是命令的接口
+// Cmd is the command interface.
 //
-// Cmd 表示可能产生的副作用或异步操作，例如：
-// - 执行 I/O 操作
-// - 延迟执行某个命令
-// - 定时器
-// - 批量执行多个命令
-//
-// Cmd 是惰性的，只有被返回时才会执行。
+// Cmd represents potential side effects or async operations.
 type Cmd interface {
-	// Type 返回命令的类型（用于调试）
+	// Type returns the command type (for debugging).
 	Type() CmdType
 }
 
-// CmdType 表示命令的类型
+// CmdType represents the command type.
 type CmdType string
 
 const (
-	// CmdTypeNone 空命令（什么都不做）
+	// CmdTypeNone is an empty command (does nothing).
 	CmdTypeNone CmdType = "none"
 
-	// CmdTypeBatch 批量命令
+	// CmdTypeBatch is a batch command.
 	CmdTypeBatch CmdType = "batch"
 
-	// CmdTypeAfter 延迟命令
+	// CmdTypeAfter is a delayed command.
 	CmdTypeAfter CmdType = "after"
 
-	// CmdTypeTick 定时器命令
+	// CmdTypeTick is a timer command.
 	CmdTypeTick CmdType = "tick"
 
-	// CmdTypeIO I/O 操作命令
+	// CmdTypeIO is an I/O operation command.
 	CmdTypeIO CmdType = "io"
 )
 
-// NoneCmd 表示空命令（什么都不做）
+// NoneCmd represents an empty command (does nothing).
 type NoneCmd struct{}
 
-// Type 返回命令类型
+// Type returns the command type.
 func (n *NoneCmd) Type() CmdType {
 	return CmdTypeNone
 }
 
-// None 返回一个空命令
+// None returns an empty command.
 func None() Cmd {
 	return &NoneCmd{}
 }
 
-// BatchCmd 表示批量执行多个命令
+// BatchCmd represents executing multiple commands in sequence.
 type BatchCmd struct {
 	cmds []Cmd
 }
 
-// Type 返回命令类型
+// Type returns the command type.
 func (b *BatchCmd) Type() CmdType {
 	return CmdTypeBatch
 }
 
-// Batch 创建一个批量命令，按顺序执行多个命令
+// Batch creates a batch command that executes multiple commands in sequence.
 func Batch(cmds ...Cmd) Cmd {
-	// 过滤掉 None 命令
+	// Filter out None commands
 	validCmds := make([]Cmd, 0, len(cmds))
 	for _, c := range cmds {
 		if c.Type() != CmdTypeNone {
@@ -81,18 +84,18 @@ func Batch(cmds ...Cmd) Cmd {
 	return &BatchCmd{cmds: validCmds}
 }
 
-// AfterCmd 表示延迟执行的命令
+// AfterCmd represents a delayed execution command.
 type AfterCmd struct {
 	Duration time.Duration
 	Cmd      Cmd
 }
 
-// Type 返回命令类型
+// Type returns the command type.
 func (a *AfterCmd) Type() CmdType {
 	return CmdTypeAfter
 }
 
-// After 创建一个延迟命令，在指定时间后执行
+// After creates a delayed command that executes after the specified time.
 func After(duration time.Duration, c Cmd) Cmd {
 	if c.Type() == CmdTypeNone {
 		return None()
@@ -103,18 +106,18 @@ func After(duration time.Duration, c Cmd) Cmd {
 	}
 }
 
-// TickCmd 表示定时器命令
+// TickCmd represents a timer command.
 type TickCmd struct {
 	Duration time.Duration
 	Msg      interface{} // msg.Msg
 }
 
-// Type 返回命令类型
+// Type returns the command type.
 func (t *TickCmd) Type() CmdType {
 	return CmdTypeTick
 }
 
-// Tick 创建一个定时器命令，每隔指定时间发送一条消息
+// Tick creates a timer command that sends a message every specified interval.
 func Tick(duration time.Duration, m interface{}) Cmd {
 	if m == nil {
 		return None()
@@ -125,17 +128,17 @@ func Tick(duration time.Duration, m interface{}) Cmd {
 	}
 }
 
-// IOCmd 表示 I/O 操作命令
+// IOCmd represents an I/O operation command.
 type IOCmd struct {
-	Operation func() interface{} // msg.Msg
+	Operation func() interface{} // (msg.Msg)
 }
 
-// Type 返回命令类型
+// Type returns the command type.
 func (i *IOCmd) Type() CmdType {
 	return CmdTypeIO
 }
 
-// IO 创建一个 I/O 操作命令
+// IO creates an I/O operation command.
 func IO(operation func() interface{}) Cmd {
 	if operation == nil {
 		return None()
@@ -145,8 +148,8 @@ func IO(operation func() interface{}) Cmd {
 	}
 }
 
-// Execute 执行命令并返回产生的消息（如果有的话）
-// 这是一个辅助函数，用于在运行时执行命令
+// Execute executes a command and returns any messages produced.
+// This is a helper function for executing commands at runtime.
 func Execute(c Cmd) []interface{} {
 	if c == nil {
 		return nil
@@ -165,8 +168,8 @@ func Execute(c Cmd) []interface{} {
 		return msgs
 
 	case *AfterCmd:
-		// 延迟命令需要异步执行
-		// 这里返回 nil，实际执行应该由运行时处理
+		// Delayed commands need async execution
+		// Returns nil here; actual execution should be handled by runtime
 		go func() {
 			time.Sleep(cmd.Duration)
 			Execute(cmd.Cmd)
@@ -174,14 +177,14 @@ func Execute(c Cmd) []interface{} {
 		return nil
 
 	case *TickCmd:
-		// 定时器命令需要异步执行
-		// 这里返回 nil，实际执行应该由运行时处理
+		// Timer commands need async execution
+		// Returns nil here; actual execution should be handled by runtime
 		go func() {
 			ticker := time.NewTicker(cmd.Duration)
 			defer ticker.Stop()
 			for range ticker.C {
-				// 将 cmd.Msg 发送到应用
-				// 实际实现需要通过消息通道
+				// Send cmd.Msg to app
+				// Actual implementation needs channel communication
 				_ = cmd.Msg
 			}
 		}()

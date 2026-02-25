@@ -1,8 +1,8 @@
 package instance
 
 import (
-	"github.com/wwsheng009/mint/framework/cmd"
 	"github.com/wwsheng009/mint/internal/log"
+	"github.com/wwsheng009/mint/runtime/cmd"
 	"github.com/wwsheng009/mint/runtime/layout"
 	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
 )

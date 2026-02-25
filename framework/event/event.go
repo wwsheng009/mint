@@ -44,25 +44,28 @@ const (
 )
 
 // Event is the interface for all framework events.
-// It embeds runtime.Event and adds framework-specific features.
+// Framework events have Component-level target/source, extending runtime events.
 type Event interface {
-	// Type returns the event type.
+	// Type returns the event type
 	Type() EventType
 
-	// Timestamp returns when the event occurred.
+	// Timestamp returns when the event occurred
 	Timestamp() time.Time
 
-	// Target returns the framework component target.
+	// Target returns the framework component target
 	Target() Component
 
-	// SetTarget sets the target component.
+	// SetTarget sets the target component
 	SetTarget(target Component)
 
-	// Source returns the event source (optional).
+	// Source returns the event source (optional)
 	Source() Component
 
-	// SetSource sets the source component.
+	// SetSource sets the source component
 	SetSource(source Component)
+
+	// RuntimeEvent returns the underlying runtime event
+	RuntimeEvent() event.Event
 }
 
 // =============================================================================
@@ -122,20 +125,33 @@ func (e *BaseEvent) RuntimeEvent() event.Event {
 // Framework-Specific Event Interface
 // =============================================================================
 
-// Component is the interface for event handling components.
+// =============================================================================
+// Framework-Specific Component Interface
+// =============================================================================
+
+// Component is the interface for framework event handling components.
+//
+// Framework events include Target() and Source() methods that are specific
+// to the framework layer. This interface differs from runtime/event.Component
+// which only has the basic HandleEvent method.
+//
+// Components implement this interface to handle framework events.
 type Component interface {
-	// HandleEvent processes an event.
-	// Returns true if the event was handled, false to continue propagation.
+	// HandleEvent processes a framework event.
+	//
+	// Framework events can be converted to runtime events via RuntimeEvent().
+	//
+	// Returns true if the event was handled (stops further propagation),
+	// false to continue propagation.
 	HandleEvent(Event) bool
 }
 
 // =============================================================================
-// Event Handler Interface
+// Event Component Marker
 // =============================================================================
 
 // EventComponent is the interface for components that handle framework events.
-// The Component interface already declares HandleEvent, this serves as a named
-// marker for type assertions instead of using anonymous interfaces.
+// This serves as a named marker for type assertions.
 type EventComponent interface {
 	Component
 }

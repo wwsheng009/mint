@@ -1,7 +1,7 @@
 package component
 
 import (
-	"github.com/wwsheng009/mint/framework/cmd"
+	"github.com/wwsheng009/mint/runtime/cmd"
 	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
 )
 
