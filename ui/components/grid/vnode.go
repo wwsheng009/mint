@@ -607,14 +607,3 @@ func (g *VNode) LightCellBorders() *VNode {
 func (g *VNode) RoundedCellBorders() *VNode {
 	return g.SetShowCellBorders(true).SetCellBorderRounded(true)
 }
-
-// =============================================================================
-// Helper Functions
-// =============================================================================
-
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
-}
