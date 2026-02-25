@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/wwsheng009/mint/framework/action"
+	"github.com/wwsheng009/mint/runtime/action"
 	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
 )
 

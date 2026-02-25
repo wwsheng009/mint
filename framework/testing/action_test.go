@@ -3,7 +3,7 @@ package testing
 import (
 	"testing"
 
-	"github.com/wwsheng009/mint/framework/action"
+	"github.com/wwsheng009/mint/runtime/action"
 	rt "github.com/wwsheng009/mint/runtime"
 	runtimeevent "github.com/wwsheng009/mint/runtime/event"
 )
