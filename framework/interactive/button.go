@@ -186,7 +186,7 @@ func (b *Button) Paint(ctx component.PaintContext, buf *paint.Buffer) {
 func (b *Button) HandleAction(a action.Action) bool {
 	switch a.Type {
 	// 提交/点击动作
-	case action.ActionSubmit, action.ActionSelectItem, action.ActionMouseClick:
+	case action.ActionSubmit, action.ActionSelectItem, action.ActionClick:
 		if b.onClick != nil && !b.IsDisabled() {
 			b.onClick()
 			b.MarkDirty()

@@ -270,7 +270,7 @@ func (r *Runtime) processMouseInput(input platform.RawInput) {
 	case platform.MouseWheelDown:
 		act = action.NewAction(action.ActionMouseWheelDown)
 	case platform.MousePress:
-		act = action.NewAction(action.ActionMouseClick)
+		act = action.NewAction(action.ActionMousePress)
 	case platform.MouseRelease:
 		act = action.NewAction(action.ActionMouseRelease)
 	case platform.MouseMotion:

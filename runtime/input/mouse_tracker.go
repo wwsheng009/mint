@@ -124,16 +124,16 @@ func (m *MouseTracker) handlePress(input platform.RawInput) *MouseEvent {
 	switch input.MouseButton {
 	case platform.MouseLeft:
 		if isTripleClick {
-			actionType = action.ActionMouseTripleClick
+			actionType = action.ActionTripleClick
 		} else if isDoubleClick {
-			actionType = action.ActionMouseDoubleClick
+			actionType = action.ActionDoubleClick
 		} else {
-			actionType = action.ActionMouseClick
+			actionType = action.ActionClick
 		}
 	case platform.MouseRight:
-		actionType = action.ActionMouseRightClick
+		actionType = action.ActionRightClick
 	case platform.MouseMiddle:
-		actionType = action.ActionMouseMiddleClick
+		actionType = action.ActionMiddleClick
 	default:
 		return nil
 	}

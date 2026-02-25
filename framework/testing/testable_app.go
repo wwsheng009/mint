@@ -3,7 +3,7 @@ package testing
 import (
 	"time"
 
-	"github.com/wwsheng009/mint/framework/action"
+	"github.com/wwsheng009/mint/runtime/action"
 	"github.com/wwsheng009/mint/framework/msg"
 	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
 	"github.com/wwsheng009/mint/runtime/platform"
@@ -83,13 +83,15 @@ func (t *TestableApp) InjectEscape() {
 // 示例：
 //   app.InjectMouseClickByID("button1")
 func (t *TestableApp) InjectMouseClickByID(targetID string, localX, localY int) {
-	act := action.NewActionFromMouse(action.ActionClick, event.StringToNodeID(targetID), localX, localY)
+	act := action.NewActionFromMouse(action.ActionClick, localX, localY).
+		WithTarget(targetID)
 	t.router.Dispatch(act)
 }
 
 // InjectMouseRightClickByID 按 ID 注入右键点击
 func (t *TestableApp) InjectMouseRightClickByID(targetID string, localX, localY int) {
-	act := action.NewActionFromMouse(action.ActionRightClick, event.StringToNodeID(targetID), localX, localY)
+	act := action.NewActionFromMouse(action.ActionRightClick, localX, localY).
+		WithTarget(targetID)
 	t.router.Dispatch(act)
 }
 
