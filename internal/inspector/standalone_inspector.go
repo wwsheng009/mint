@@ -28,7 +28,7 @@ import (
 	"github.com/wwsheng009/mint/components/data"
 	"github.com/wwsheng009/mint/components/display"
 	"github.com/wwsheng009/mint/components/navigation"
-	"github.com/wwsheng009/mint/framework/action"
+	"github.com/wwsheng009/mint/runtime/action"
 	frameworkevent "github.com/wwsheng009/mint/framework/event"
 	"github.com/wwsheng009/mint/framework/theme"
 	"github.com/wwsheng009/mint/internal/log"
