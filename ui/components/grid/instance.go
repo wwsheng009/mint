@@ -292,10 +292,26 @@ func (inst *Instance) SetBounds(x, y, w, h int) {
 	copy(oldRowHeights, inst.rowHeights)
 	inst.rowHeights = inst.calculateRowHeights(availableH, numCols, numRows)
 
-	// ✨ 调试打印 rowHeights 计算结果
+	// ✨ 重新计算 colWidths 以适应实际分配的 box 宽度
+	// Cell Borders: 垂直边框占用 numCols + 1 个字符
+	cellBorderWidth := 0
+	if inst.showCellBorders {
+		cellBorderWidth = numCols + 1
+	}
+	availableW := w - inst.padding[3] - inst.padding[1] - cellBorderWidth
+	if availableW < 0 {
+		availableW = 0
+	}
+	oldColWidths := make([]int, len(inst.colWidths))
+	copy(oldColWidths, inst.colWidths)
+	inst.colWidths = inst.calculateColumnWidths(availableW)
+
+	// ✨ 调试打印 rowHeights 和 colWidths 计算结果
 	if inst.showCellBorders {
 		fmt.Printf("[DEBUG GRID SETBOUNDS] numRows=%d, cellBorderHeight=%d, availableH=%d, oldRowHeights=%v, newRowHeights=%v\n",
 			numRows, cellBorderHeight, availableH, oldRowHeights, inst.rowHeights)
+		fmt.Printf("[DEBUG GRID SETBOUNDS] numCols=%d, cellBorderWidth=%d, availableW=%d, oldColWidths=%v, newColWidths=%v\n",
+			numCols, cellBorderWidth, availableW, oldColWidths, inst.colWidths)
 	}
 }
 
@@ -620,7 +636,14 @@ func (inst *Instance) calculateRowHeights(availableHeight int, numCols, actualNu
 				flexTotalFactor += 1
 			}
 		case Auto:
-			// ✨ Auto rows get minimum height (1 line per row) initially
+			// ✨ Auto rows get minimum height
+			// ✨ When ShowCellBorders is enabled, we need at least 2 lines:
+			//    line 0: top border
+			//    line 1: content
+			//    line 2: bottom border
+			//    horizontal borders between rows also take space
+			// So minimum heights[i] should be at least 1 (for content),
+			// but the actual border rendering happens separately
 			heights[i] = 1
 			fixedHeight += heights[i]
 			autoCount++
@@ -672,13 +695,8 @@ func (inst *Instance) calculateRowHeights(availableHeight int, numCols, actualNu
 // Paint implements PaintableInstance.
 // 绘制格子边框（如果启用）
 func (inst *Instance) Paint(x, y int) []paint.DrawCmd {
-	// ✨ DEBUG: Paint 被调用
-	bx, by, bw, bh := inst.GetBounds()
-	fmt.Printf("[DEBUG GRID PAINT] Paint called at (%d, %d), bounds=(%d,%d,%d,%d), rowHeights=%v, colWidths=%v\n",
-		x, y, bx, by, bw, bh, inst.rowHeights, inst.colWidths)
 	// ✨ 绘制格子边框
 	cmds := inst.GenCellBorderDrawCmds(x, y)
-	fmt.Printf("[DEBUG GRID PAINT] Generated %d border draw commands\n", len(cmds))
 	return cmds
 }
 
@@ -811,22 +829,16 @@ func (inst *Instance) GetGridStyle() *layout.GridStyle {
 		}
 	}
 
-	// 转换 cells
-	gridCells := make([]layout.GridCell, len(inst.cells))
-	for i, cell := range inst.cells {
-		gridCells[i] = layout.GridCell{
-			Child:   nil, // layout.Node 由上层提供
-			Row:     cell.Row,
-			Col:     cell.Col,
-			RowSpan: cell.RowSpan,
-			ColSpan: cell.ColSpan,
-		}
-	}
+	// ✨ 不再返回 Cells，因为：
+	// 1. Cells 的 Child 需要填入 layout.Node，但 GetGridStyle() 无法访问 layout.Node
+	// 2. layout.Node 由 layout.Node.Children() 通过 grid.SetChildren() 设置
+	// 3. LayoutChildren 会自动使用 g.children 进行布局（row-major 顺序）
+	// 4. 这样可以确保子节点的位置通过 gridLayout.LayoutChildren() 正确计算
 
 	return &layout.GridStyle{
 		Columns:           gridCols,
 		Rows:              gridRows,
-		Cells:             gridCells,
+		Cells:             nil, // 不返回 Cells，使用自动布局
 		ColumnGap:         inst.columnGap,
 		RowGap:            inst.rowGap,
 		Padding:           layout.Padding{Top: inst.padding[0], Right: inst.padding[1], Bottom: inst.padding[2], Left: inst.padding[3]},

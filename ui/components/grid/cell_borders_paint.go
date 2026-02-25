@@ -132,12 +132,6 @@ func (inst *Instance) GenCellBorderDrawCmds(originX, originY int) []paint.DrawCm
 			}
 		}
 
-		// ✨ DEBUG: 打印当前行边框绘制
-		if row <= 3 || row == numRows { // 打印前 3 行和最后一行
-			fmt.Printf("[DEBUG BORDERS] Drawing horizontal border for row=%d, y=%d (relative to originY=%d, abs=%d)\n",
-				row, y-contentY, originY, originY+y)
-		}
-
 		// 绘制每个格子水平线的起始和交点
 		for col := 0; col <= numCols; col++ {
 			// 计算当前位置的 x 坐标
@@ -213,16 +207,11 @@ func (inst *Instance) GenCellBorderDrawCmds(originX, originY int) []paint.DrawCm
 
 	// 绘制垂直线（不包括交点）
 	for col := 0; col <= numCols; col++ {
-		// ✨ 垂直线 x 坐标 = contentX + col (边框在 contentX, contentX+1, contentX+2...)
-		// 第 col 条垂直线x坐标 = contentX + col
+		// ✨ 垂直线 x 坐标 = contentX + sum(colWidths[0..col-1]) + col
+		// 每个格子都有右边框(1)，最后一条边框是 Grid 右边界
 		x := contentX
 		for c := 0; c < col; c++ {
-			// 对于最后一列（右边框），只加 colWidths，不加边框
-			if c == col-1 && col == numCols {
-				x += inst.colWidths[c]
-			} else {
-				x += inst.colWidths[c] + 1  // 格子内容宽度 + 右边框宽度(1)
-			}
+			x += inst.colWidths[c] + 1  // 格子内容宽度 + 右边框宽度(1)
 			if c < col-1 {
 				x += inst.columnGap
 			}
