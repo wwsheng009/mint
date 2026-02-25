@@ -4,6 +4,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/wwsheng009/mint/framework/action"
 	"github.com/wwsheng009/mint/framework/theme"
 	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/runtime/layout"
@@ -475,8 +476,12 @@ func (inst *Instance) CanHandleAction(actionType string) bool {
 	if inst.state.Disabled || inst.state.Active { // Active = readOnly
 		return false
 	}
-	return actionType == "input" || actionType == "backspace" ||
-		actionType == "delete" || actionType == "submit" || actionType == "enter"
+	// Use framework/action constants
+	return actionType == string(action.ActionInputText) ||
+		actionType == string(action.ActionBackspace) ||
+		actionType == string(action.ActionDeleteChar) ||
+		actionType == string(action.ActionSubmit) ||
+		actionType == string(action.ActionEnter)
 }
 
 // HandleAction implements ActionHandlerInstance.
@@ -486,15 +491,15 @@ func (inst *Instance) HandleAction(actionType string, payload interface{}) bool 
 	}
 
 	switch actionType {
-	case "input":
+	case string(action.ActionInputText):
 		if text, ok := payload.(string); ok {
 			return inst.InsertText(text)
 		}
-	case "backspace":
+	case string(action.ActionBackspace):
 		return inst.DeleteText(-1)
-	case "delete":
+	case string(action.ActionDeleteChar):
 		return inst.DeleteText(1)
-	case "submit", "enter":
+	case string(action.ActionSubmit), string(action.ActionEnter):
 		if inst.submitIntent != nil && inst.intentEmitter != nil {
 			inst.intentEmitter(inst.submitIntent)
 		}
