@@ -16,8 +16,7 @@ package actionbridge
 import (
 	"fmt"
 
-	"github.com/wwsheng009/mint/framework/action"
-	rtuievent "github.com/wwsheng009/mint/runtime/event"
+	"github.com/wwsheng009/mint/runtime/action"
 	"github.com/wwsheng009/mint/runtime/ui"
 )
 
@@ -62,14 +61,14 @@ func (b *Bridge) DispatchFromFiber(
 		// Mode 3: ActionHandlerInstance mode (Fiber-first components)
 		// New UI components (ui/components/*) implement rtui.ActionHandlerInstance
 		// This bypasses the Action system and directly calls Instance.HandleAction
-		// Pass the payload directly (e.g., string "a" for text input)
 		if f.Instance != nil {
 			if handler, ok := f.Instance.(ui.ActionHandlerInstance); ok {
-				// Check if this instance can handle the action
-				if handler.CanHandleAction(string(actionType)) {
-					if handler.HandleAction(string(actionType), payload) {
-						return true
-					}
+				// Create Action object and pass to handler
+				a := action.NewAction(actionType).
+					WithTargetID(f.NodeID).  // Use uint64 ID for performance
+					WithPayload(payload)
+				if handler.HandleAction(a) {
+					return true
 				}
 			}
 		}
@@ -78,10 +77,8 @@ func (b *Bridge) DispatchFromFiber(
 		// This is the new unified mode where closures are converted to ActionIDs
 		// Reconstruct Action object with metadata for dispatch
 		if f.ActionTargetID != "" && b.scopeDispatcher != nil {
-			// Convert ActionTargetID to uint64 for dispatch
-			targetID := rtuievent.StringToNodeID(f.ActionTargetID)
 			a := action.NewAction(actionType).
-				WithTarget(targetID).
+				WithTarget(f.ActionTargetID).
 				WithPayload(payload)
 
 			if b.scopeDispatcher.Dispatch(a) {
@@ -92,9 +89,8 @@ func (b *Bridge) DispatchFromFiber(
 		// Mode 2: Semantic Action (ActionTargetID → Router)
 		// Reconstruct Action object with metadata for dispatch
 		if f.ActionTargetID != "" {
-			targetID := rtuievent.StringToNodeID(f.ActionTargetID)
 			a := action.NewAction(actionType).
-				WithTarget(targetID).
+				WithTarget(f.ActionTargetID).
 				WithPayload(payload)
 
 			result := b.router.Dispatch(a)
@@ -116,10 +112,8 @@ func (b *Bridge) DispatchToTarget(
 		return false
 	}
 
-	nodeID := rtuievent.StringToNodeID(targetID)
-
 	a := action.NewAction(actionType).
-		WithTarget(nodeID).
+		WithTarget(targetID).
 		WithPayload(payload)
 
 	// Try ScopeDispatcher first
