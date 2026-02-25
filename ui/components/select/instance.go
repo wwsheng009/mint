@@ -3,6 +3,7 @@ package selectcomp
 import (
 	"unicode/utf8"
 
+	"github.com/wwsheng009/mint/framework/action"
 	"github.com/wwsheng009/mint/framework/theme"
 	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/runtime/layout"
@@ -257,8 +258,11 @@ func (inst *Instance) CanHandleAction(actionType string) bool {
 	if inst.state.Disabled || len(inst.options) == 0 {
 		return false
 	}
-	return actionType == "select" || actionType == "click" ||
-		actionType == "enter" || actionType == "up" || actionType == "down"
+	return actionType == string(action.ActionSelect) ||
+		actionType == string(action.ActionClick) ||
+		actionType == string(action.ActionEnter) ||
+		actionType == string(action.ActionNavigateDown) ||
+		actionType == string(action.ActionNavigateUp)
 }
 
 // HandleAction implements ActionHandlerInstance.
@@ -268,10 +272,11 @@ func (inst *Instance) HandleAction(actionType string, payload interface{}) bool 
 	}
 
 	switch actionType {
-	case "select", "click", "enter", "down":
+	case string(action.ActionSelect), string(action.ActionClick), string(action.ActionEnter),
+		string(action.ActionNavigateDown):
 		inst.SelectNext()
 		return true
-	case "up":
+	case string(action.ActionNavigateUp):
 		inst.SelectPrev()
 		return true
 	}

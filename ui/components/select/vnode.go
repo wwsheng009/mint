@@ -40,9 +40,6 @@ type VNode struct {
 	selectedIndex int
 	disabled      bool
 
-	// === Focus state (transient, for rendering) ===
-	hasFocus bool
-
 	// === Box Model (via interface) ===
 	rtui.BoxModelMixin
 }
@@ -51,7 +48,6 @@ type VNode struct {
 var (
 	_ rtui.VNode           = (*VNode)(nil)
 	_ rtui.InstanceFactory = (*VNode)(nil)
-	_ rtui.FocusableVNode  = (*VNode)(nil)
 	_ rtui.BoxModel        = (*VNode)(nil)
 )
 
@@ -177,36 +173,6 @@ func (s *VNode) CreateInstance() rtui.ComponentInstance {
 }
 
 // =============================================================================
-// FocusableVNode Interface
-// =============================================================================
-
-// SetFocus sets the focus state for rendering purposes.
-func (s *VNode) SetFocus(hasFocus bool) {
-	s.hasFocus = hasFocus
-}
-
-// IsFocusable returns true if select can receive focus.
-func (s *VNode) IsFocusable() bool {
-	return !s.disabled && len(s.options) > 0
-}
-
-// GetFocusID returns a unique identifier for focus.
-func (s *VNode) GetFocusID() string {
-	if s.key != "" {
-		return "select:" + s.key
-	}
-	return "select"
-}
-
-// Label returns a label for focusable element identification.
-func (s *VNode) Label() string {
-	if len(s.options) > 0 {
-		return s.options[0].Label
-	}
-	return "select"
-}
-
-// =============================================================================
 // Builder Methods - Fluent API (return *VNode for chaining)
 // =============================================================================
 
@@ -279,9 +245,4 @@ func (s *VNode) Width() int {
 // ChangeIntent returns the change intent.
 func (s *VNode) ChangeIntent() intent.Intent {
 	return s.changeIntent
-}
-
-// HasFocus returns the focus state.
-func (s *VNode) HasFocus() bool {
-	return s.hasFocus
 }

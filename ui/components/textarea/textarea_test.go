@@ -217,34 +217,3 @@ func TestInstance_Paint(t *testing.T) {
 		t.Errorf("Bottom border should start with '+', got %q", cmds[4].Text[0:1])
 	}
 }
-
-// =============================================================================
-// FocusableVNode Tests
-// =============================================================================
-
-func TestVNode_IsFocusable(t *testing.T) {
-	// Enabled textarea is focusable
-	ta := New()
-	if !ta.IsFocusable() {
-		t.Error("Enabled textarea should be focusable")
-	}
-
-	// Disabled textarea is not focusable
-	ta = New().SetDisabled(true)
-	if ta.IsFocusable() {
-		t.Error("Disabled textarea should not be focusable")
-	}
-}
-
-func TestVNode_GetFocusID(t *testing.T) {
-	ta := New()
-	ta.SetKey("mykey")
-	if ta.GetFocusID() != "textarea:mykey" {
-		t.Errorf("FocusID = %q, want %q", ta.GetFocusID(), "textarea:mykey")
-	}
-
-	ta = New().SetPlaceholder("Description")
-	if ta.GetFocusID() != "textarea:Description" {
-		t.Errorf("FocusID = %q, want %q", ta.GetFocusID(), "textarea:Description")
-	}
-}

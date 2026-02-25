@@ -329,23 +329,23 @@ func (inst *Instance) CanHandleAction(actionType string) bool {
 	}
 
 	switch actionType {
-	case "navigate_up":
+	case string(action.ActionNavigateUp):
 		return inst.selectedIndex > 0
-	case "navigate_down":
+	case string(action.ActionNavigateDown):
 		return inst.selectedIndex < len(inst.rows)-1
-	case "navigate_home":
+	case string(action.ActionNavigateHome):
 		return inst.scrollOffset > 0
-	case "navigate_end":
+	case string(action.ActionNavigateEnd):
 		return inst.scrollOffset < len(inst.rows)-inst.viewportHeight
-	case "page_up":
+	case string(action.ActionNavigatePageUp):
 		return inst.scrollOffset > 0
-	case "page_down":
+	case string(action.ActionNavigatePageDown):
 		visibleHeight := inst.viewportHeight
 		if inst.maxRows > 0 {
 			visibleHeight = inst.maxRows
 		}
 		return inst.scrollOffset < len(inst.rows)-visibleHeight
-	case "select":
+	case string(action.ActionSelect):
 		return inst.selectedIndex >= 0
 	}
 	return false
@@ -357,18 +357,20 @@ func (inst *Instance) HandleAction(actionType string, payload interface{}) bool 
 	}
 
 	switch actionType {
-	case "navigate_up":
+	case string(action.ActionNavigateUp):
 		return inst.navigateUp()
-	case "navigate_down":
+	case string(action.ActionNavigateDown):
 		return inst.navigateDown()
-	case "navigate_home":
+	case string(action.ActionNavigateHome):
 		return inst.navigateHome()
-	case "navigate_end":
+	case string(action.ActionNavigateEnd):
 		return inst.navigateEnd()
-	case "page_up":
+	case string(action.ActionNavigatePageUp):
 		return inst.pageUp()
-	case "page_down":
+	case string(action.ActionNavigatePageDown):
 		return inst.pageDown()
+	case string(action.ActionSelect):
+		return inst.selectItem()
 	}
 	return false
 }

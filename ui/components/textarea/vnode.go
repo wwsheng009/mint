@@ -34,9 +34,6 @@ type VNode struct {
 	maxLen   int
 	disabled bool
 
-	// === Focus state (transient) ===
-	hasFocus bool
-
 	// === Box Model ===
 	rtui.BoxModelMixin
 }
@@ -45,7 +42,6 @@ type VNode struct {
 var (
 	_ rtui.VNode           = (*VNode)(nil)
 	_ rtui.InstanceFactory = (*VNode)(nil)
-	_ rtui.FocusableVNode  = (*VNode)(nil)
 	_ rtui.BoxModel        = (*VNode)(nil)
 )
 
@@ -130,25 +126,6 @@ func (t *VNode) CreateInstance() rtui.ComponentInstance {
 }
 
 // =============================================================================
-// FocusableVNode Interface
-// =============================================================================
-
-func (t *VNode) SetFocus(hasFocus bool) { t.hasFocus = hasFocus }
-func (t *VNode) IsFocusable() bool      { return !t.disabled }
-func (t *VNode) GetFocusID() string {
-	if t.key != "" {
-		return "textarea:" + t.key
-	}
-	return "textarea:" + t.placeholder
-}
-func (t *VNode) Label() string {
-	if t.placeholder != "" {
-		return t.placeholder
-	}
-	return "textarea"
-}
-
-// =============================================================================
 // Builder Methods
 // =============================================================================
 
@@ -173,4 +150,3 @@ func (t *VNode) MaxLen() int           { return t.maxLen }
 func (t *VNode) Disabled() bool        { return t.disabled }
 func (t *VNode) ChangeIntent() intent.Intent { return t.changeIntent }
 func (t *VNode) SubmitIntent() intent.Intent { return t.submitIntent }
-func (t *VNode) HasFocus() bool        { return t.hasFocus }

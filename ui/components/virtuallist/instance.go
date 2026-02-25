@@ -3,6 +3,7 @@ package virtuallist
 import (
 	"strings"
 
+	"github.com/wwsheng009/mint/framework/action"
 	"github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
@@ -230,19 +231,19 @@ func (inst *Instance) CanHandleAction(actionType string) bool {
 	switch actionType {
 	case "scroll", "scroll_up", "scroll_down":
 		return inst.isScrollable()
-	case "navigate_up":
+	case string(action.ActionNavigateUp):
 		return inst.selectedIndex > 0
-	case "navigate_down":
+	case string(action.ActionNavigateDown):
 		return inst.selectedIndex < inst.itemCount-1
-	case "navigate_home":
+	case string(action.ActionNavigateHome):
 		return inst.scrollOffset > 0
-	case "navigate_end":
+	case string(action.ActionNavigateEnd):
 		return !inst.isAtEnd()
-	case "page_up":
+	case string(action.ActionNavigatePageUp):
 		return inst.canScrollUp()
-	case "page_down":
+	case string(action.ActionNavigatePageDown):
 		return inst.canScrollDown()
-	case "select":
+	case string(action.ActionSelect):
 		return inst.selectedIndex >= 0
 	}
 	return false
@@ -256,19 +257,19 @@ func (inst *Instance) HandleAction(actionType string, payload interface{}) bool 
 	switch actionType {
 	case "scroll":
 		return inst.handleScroll(payload)
-	case "navigate_up":
+	case string(action.ActionNavigateUp):
 		return inst.navigateUp()
-	case "navigate_down":
+	case string(action.ActionNavigateDown):
 		return inst.navigateDown()
-	case "navigate_home":
+	case string(action.ActionNavigateHome):
 		return inst.scrollTop()
-	case "navigate_end":
+	case string(action.ActionNavigateEnd):
 		return inst.scrollBottom()
-	case "page_up":
+	case string(action.ActionNavigatePageUp):
 		return inst.pageUp()
-	case "page_down":
+	case string(action.ActionNavigatePageDown):
 		return inst.pageDown()
-	case "select":
+	case string(action.ActionSelect):
 		return inst.selectItem()
 	}
 	return false

@@ -3,6 +3,7 @@ package tabs
 import (
 	"unicode/utf8"
 
+	"github.com/wwsheng009/mint/framework/action"
 	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/paint"
@@ -279,7 +280,7 @@ func (inst *Instance) paintTabBar(x, y int) []paint.DrawCmd {
 // =============================================================================
 
 func (inst *Instance) CanHandleAction(actionType string) bool {
-	return actionType == "click" ||
+	return actionType == string(action.ActionClick) ||
 		actionType == "tab_change" ||
 		actionType == "navigate" ||
 		actionType == "select"
@@ -287,7 +288,7 @@ func (inst *Instance) CanHandleAction(actionType string) bool {
 
 func (inst *Instance) HandleAction(actionType string, payload interface{}) bool {
 	switch actionType {
-	case "click":
+	case string(action.ActionClick):
 		return inst.handleClick(payload)
 	case "tab_change":
 		return inst.handleTabChange(payload)
