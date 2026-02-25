@@ -73,9 +73,6 @@ type VNode struct {
 	// === State Props ===
 	disabled bool
 
-	// === Focus state (transient, for rendering) ===
-	hasFocus bool
-
 	// === Box Model (via interface) ===
 	rtui.BoxModelMixin
 }
@@ -84,7 +81,6 @@ type VNode struct {
 var (
 	_ rtui.VNode           = (*VNode)(nil)
 	_ rtui.InstanceFactory = (*VNode)(nil)
-	_ rtui.FocusableVNode  = (*VNode)(nil)
 	_ rtui.BoxModel        = (*VNode)(nil)
 )
 
@@ -222,33 +218,7 @@ func (b *VNode) CreateInstance() rtui.ComponentInstance {
 }
 
 // =============================================================================
-// FocusableVNode Interface
-// =============================================================================
 
-// SetFocus sets the focus state for rendering purposes.
-func (b *VNode) SetFocus(hasFocus bool) {
-	b.hasFocus = hasFocus
-}
-
-// IsFocusable returns true if button can receive focus.
-func (b *VNode) IsFocusable() bool {
-	return !b.disabled
-}
-
-// GetFocusID returns a unique identifier for focus.
-func (b *VNode) GetFocusID() string {
-	if b.key != "" {
-		return "button:" + b.key
-	}
-	return "button:" + b.label
-}
-
-// Label returns the button label.
-func (b *VNode) Label() string {
-	return b.label
-}
-
-// =============================================================================
 // Builder Methods - Fluent API (return *VNode for chaining)
 // =============================================================================
 
@@ -347,9 +317,4 @@ func (b *VNode) Disabled() bool {
 // PressIntent returns the press intent.
 func (b *VNode) PressIntent() intent.Intent {
 	return b.pressIntent
-}
-
-// HasFocus returns the focus state.
-func (b *VNode) HasFocus() bool {
-	return b.hasFocus
 }

@@ -16,10 +16,6 @@ import (
 
 func TestVNode_New(t *testing.T) {
 	b := New("Click Me")
-
-	if b.Label() != "Click Me" {
-		t.Errorf("Label() = %q, want %q", b.Label(), "Click Me")
-	}
 	if b.Variant() != VariantDefault {
 		t.Errorf("Variant() = %v, want Default", b.Variant())
 	}
@@ -60,33 +56,6 @@ func TestVNode_FluentAPI(t *testing.T) {
 		t.Error("PressIntent() = nil, want intent")
 	}
 }
-
-func TestVNode_IsFocusable(t *testing.T) {
-	b := New("Test")
-
-	if !b.IsFocusable() {
-		t.Error("Button should be focusable by default")
-	}
-
-	b.SetDisabled(true)
-	if b.IsFocusable() {
-		t.Error("Disabled button should not be focusable")
-	}
-}
-
-func TestVNode_GetFocusID(t *testing.T) {
-	b1 := New("Test")
-	if b1.GetFocusID() != "button:Test" {
-		t.Errorf("GetFocusID() = %q, want %q", b1.GetFocusID(), "button:Test")
-	}
-
-	b2 := New("Test")
-	b2.SetKey("my-key")
-	if b2.GetFocusID() != "button:my-key" {
-		t.Errorf("GetFocusID() = %q, want %q", b2.GetFocusID(), "button:my-key")
-	}
-}
-
 func TestVNode_CreateInstance(t *testing.T) {
 	b := New("Test")
 	b.SetVariant(VariantPrimary)
