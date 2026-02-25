@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/wwsheng009/mint/framework/theme"
+	"github.com/wwsheng009/mint/runtime/action"
 	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/paint"
@@ -379,20 +380,12 @@ func (inst *Instance) IsDisabled() bool {
 // ActionHandlerInstance Interface
 // =============================================================================
 
-// CanHandleAction implements ActionHandlerInstance.
-func (inst *Instance) CanHandleAction(actionType string) bool {
-	if inst.state.Disabled {
-		return false
-	}
-	return inst.behaviors.OnAction(inst, actionType, nil)
-}
-
 // HandleAction implements ActionHandlerInstance.
-func (inst *Instance) HandleAction(actionType string, payload interface{}) bool {
+func (inst *Instance) HandleAction(act *action.Action) bool {
 	if inst.state.Disabled {
 		return false
 	}
-	return inst.behaviors.OnAction(inst, actionType, payload)
+	return inst.behaviors.OnAction(inst, act)
 }
 
 // =============================================================================

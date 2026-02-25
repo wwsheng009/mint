@@ -4,7 +4,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/wwsheng009/mint/framework/action"
+	"github.com/wwsheng009/mint/runtime/action"
 	"github.com/wwsheng009/mint/framework/theme"
 	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/runtime/layout"
@@ -471,35 +471,23 @@ func (inst *Instance) IsDisabled() bool {
 // ActionHandlerInstance Interface
 // =============================================================================
 
-// CanHandleAction implements ActionHandlerInstance.
-func (inst *Instance) CanHandleAction(actionType string) bool {
-	if inst.state.Disabled || inst.state.Active { // Active = readOnly
-		return false
-	}
-	// Use framework/action constants
-	return actionType == string(action.ActionInputText) ||
-		actionType == string(action.ActionBackspace) ||
-		actionType == string(action.ActionDeleteChar) ||
-		actionType == string(action.ActionSubmit) ||
-		actionType == string(action.ActionEnter)
-}
-
 // HandleAction implements ActionHandlerInstance.
-func (inst *Instance) HandleAction(actionType string, payload interface{}) bool {
+func (inst *Instance) HandleAction(act *action.Action) bool {
 	if inst.state.Disabled || inst.state.Active {
 		return false
 	}
 
-	switch actionType {
-	case string(action.ActionInputText):
-		if text, ok := payload.(string); ok {
+	switch act.Type {
+	case action.ActionInputText:
+		if text, ok := act.GetPayloadString(); ok {
 			return inst.InsertText(text)
 		}
-	case string(action.ActionBackspace):
+		return false
+	case action.ActionBackspace:
 		return inst.DeleteText(-1)
-	case string(action.ActionDeleteChar):
+	case action.ActionDeleteChar:
 		return inst.DeleteText(1)
-	case string(action.ActionSubmit), string(action.ActionEnter):
+	case action.ActionSubmit, action.ActionEnter:
 		if inst.submitIntent != nil && inst.intentEmitter != nil {
 			inst.intentEmitter(inst.submitIntent)
 		}

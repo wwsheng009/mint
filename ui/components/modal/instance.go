@@ -3,6 +3,7 @@ package modal
 import (
 	"strings"
 
+	"github.com/wwsheng009/mint/runtime/action"
 	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/paint"
@@ -346,24 +347,23 @@ type borderChars struct {
 // ActionHandlerInstance Interface
 // =============================================================================
 
-func (inst *Instance) CanHandleAction(actionType string) bool {
-	if !inst.isOpen || !inst.closeable {
-		return false
-	}
-	return actionType == "close" || actionType == "click_outside" || actionType == "escape"
-}
-
-func (inst *Instance) HandleAction(actionType string, payload interface{}) bool {
+func (inst *Instance) HandleAction(act *action.Action) bool {
 	if !inst.isOpen || !inst.closeable {
 		return false
 	}
 
-	switch actionType {
-	case "close", "click_outside", "escape":
+	switch act.Type {
+	case action.ActionCancel, action.ActionQuit:
+		// Cancel or quit to close modal
 		inst.isOpen = false
 		inst.dirty = true
 		inst.emitCloseIntent()
 		return true
+	case action.ActionScroll, action.ActionNavigateUp, action.ActionNavigateDown,
+		action.ActionNavigatePageUp, action.ActionNavigatePageDown,
+		action.ActionNavigateHome, action.ActionNavigateEnd:
+		// Modal doesn't handle navigation - return false to let parent handle it
+		return false
 	}
 
 	return false

@@ -4,6 +4,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/wwsheng009/mint/runtime/action"
 	"github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
@@ -211,15 +212,7 @@ func (inst *Instance) SetBounds(x, y, w, h int) {
 // ActionHandlerInstance Interface (Table is display-only)
 // =============================================================================
 
-func (inst *Instance) CanHandleAction(actionType string) bool {
-	// Table is display-only, but can handle navigation concepts
-	return actionType == "navigate_up" ||
-		actionType == "navigate_down" ||
-		actionType == "navigate_home" ||
-		actionType == "navigate_end"
-}
-
-func (inst *Instance) HandleAction(actionType string, payload interface{}) bool {
+func (inst *Instance) HandleAction(act *action.Action) bool {
 	// Table is primarily display-only
 	// Actions are handled for potential future row selection
 	return true

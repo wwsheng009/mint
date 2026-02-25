@@ -3,6 +3,7 @@ package list
 import (
 	"strings"
 
+	"github.com/wwsheng009/mint/runtime/action"
 	"github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
@@ -323,54 +324,57 @@ func (inst *Instance) paintWithoutBorder(x, y int) []paint.DrawCmd {
 // ActionHandlerInstance Interface
 // =============================================================================
 
-func (inst *Instance) CanHandleAction(actionType string) bool {
+func (inst *Instance) HandleAction(act *action.Action) bool {
 	if !inst.allowScroll {
 		return false
 	}
 
-	switch actionType {
-	case string(action.ActionNavigateUp):
-		return inst.selectedIndex > 0
-	case string(action.ActionNavigateDown):
-		return inst.selectedIndex < len(inst.rows)-1
-	case string(action.ActionNavigateHome):
-		return inst.scrollOffset > 0
-	case string(action.ActionNavigateEnd):
-		return inst.scrollOffset < len(inst.rows)-inst.viewportHeight
-	case string(action.ActionNavigatePageUp):
-		return inst.scrollOffset > 0
-	case string(action.ActionNavigatePageDown):
+	switch act.Type {
+	case action.ActionNavigateUp:
+		if inst.selectedIndex > 0 {
+			return inst.navigateUp()
+		}
+		return false
+	case action.ActionNavigateDown:
+		if inst.selectedIndex < len(inst.rows)-1 {
+			return inst.navigateDown()
+		}
+		return false
+	case action.ActionNavigateHome:
+		if inst.scrollOffset > 0 {
+			return inst.navigateHome()
+		}
+		return false
+	case action.ActionNavigateEnd:
 		visibleHeight := inst.viewportHeight
 		if inst.maxRows > 0 {
 			visibleHeight = inst.maxRows
 		}
-		return inst.scrollOffset < len(inst.rows)-visibleHeight
-	case string(action.ActionSelect):
-		return inst.selectedIndex >= 0
-	}
-	return false
-}
-
-func (inst *Instance) HandleAction(actionType string, payload interface{}) bool {
-	if !inst.allowScroll {
+		if inst.scrollOffset < len(inst.rows)-visibleHeight {
+			return inst.navigateEnd()
+		}
 		return false
-	}
-
-	switch actionType {
-	case string(action.ActionNavigateUp):
-		return inst.navigateUp()
-	case string(action.ActionNavigateDown):
-		return inst.navigateDown()
-	case string(action.ActionNavigateHome):
-		return inst.navigateHome()
-	case string(action.ActionNavigateEnd):
-		return inst.navigateEnd()
-	case string(action.ActionNavigatePageUp):
-		return inst.pageUp()
-	case string(action.ActionNavigatePageDown):
-		return inst.pageDown()
-	case string(action.ActionSelect):
-		return inst.selectItem()
+	case action.ActionNavigatePageUp:
+		if inst.scrollOffset > 0 {
+			return inst.pageUp()
+		}
+		return false
+	case action.ActionNavigatePageDown:
+		visibleHeight := inst.viewportHeight
+		if inst.maxRows > 0 {
+			visibleHeight = inst.maxRows
+		}
+		if inst.scrollOffset < len(inst.rows)-visibleHeight {
+			return inst.pageDown()
+		}
+		return false
+	case action.ActionSelect:
+		if inst.selectedIndex >= 0 {
+			return true
+		}
+		return false
+	// case string(action.ActionSelect):
+	// 	return inst.selectItem()
 	}
 	return false
 }

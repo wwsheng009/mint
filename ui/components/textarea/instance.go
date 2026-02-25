@@ -4,7 +4,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/wwsheng009/mint/framework/action"
+	"github.com/wwsheng009/mint/runtime/action"
 	"github.com/wwsheng009/mint/framework/theme"
 	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/runtime/layout"
@@ -228,25 +228,18 @@ func (inst *Instance) IsDisabled() bool { return inst.state.Disabled }
 // ActionHandlerInstance Interface
 // =============================================================================
 
-func (inst *Instance) CanHandleAction(actionType string) bool {
-	if inst.state.Disabled {
-		return false
-	}
-	// Use framework/action constants
-	return actionType == string(action.ActionInputText) || actionType == string(action.ActionSubmit)
-}
-
-func (inst *Instance) HandleAction(actionType string, payload interface{}) bool {
+func (inst *Instance) HandleAction(act *action.Action) bool {
 	if inst.state.Disabled {
 		return false
 	}
 
-	switch actionType {
-	case string(action.ActionInputText):
-		if text, ok := payload.(string); ok {
+	switch act.Type {
+	case action.ActionInputText:
+		if text, ok := act.GetPayloadString(); ok {
 			return inst.InsertText(text)
 		}
-	case string(action.ActionSubmit):
+		return false
+	case action.ActionSubmit:
 		if inst.submitIntent != nil && inst.intentEmitter != nil {
 			inst.intentEmitter(inst.submitIntent)
 		}

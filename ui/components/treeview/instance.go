@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/wwsheng009/mint/runtime/action"
 	"github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
@@ -287,56 +288,48 @@ func (inst *Instance) buildTreeLine(node TreeNode, isSelected bool) string {
 // ActionHandlerInstance Interface
 // =============================================================================
 
-func (inst *Instance) CanHandleAction(actionType string) bool {
+func (inst *Instance) HandleAction(act *action.Action) bool {
 	if !inst.allowScroll {
 		return false
 	}
 
-	switch actionType {
-	case "navigate_up":
-		return inst.selectedIndex > 0
-	case "navigate_down":
-		visibleNodes := inst.getVisibleNodes()
-		return inst.selectedIndex < len(visibleNodes)-1
-	case "navigate_home":
-		return inst.scrollOffset > 0
-	case "navigate_end":
-		visibleNodes := inst.getVisibleNodes()
-		return inst.scrollOffset < len(visibleNodes)-inst.viewportHeight
-	case "page_up":
-		return inst.scrollOffset > 0
-	case "page_down":
-		visibleNodes := inst.getVisibleNodes()
-		return inst.scrollOffset < len(visibleNodes)-inst.viewportHeight
-	case "toggle_expand":
-		return inst.allowExpand
-	case "select":
-		return inst.selectedIndex >= 0
-	}
-	return false
-}
-
-func (inst *Instance) HandleAction(actionType string, payload interface{}) bool {
-	if !inst.allowScroll {
+	switch act.Type {
+	case action.ActionNavigateUp:
+		if inst.selectedIndex > 0 {
+			return inst.navigateUp()
+		}
 		return false
-	}
-
-	switch actionType {
-	case "navigate_up":
-		return inst.navigateUp()
-	case "navigate_down":
-		return inst.navigateDown()
-	case "navigate_home":
-		return inst.navigateHome()
-	case "navigate_end":
-		return inst.navigateEnd()
-	case "page_up":
-		_ = inst.pageUp()
-		return true
-	case "page_down":
-		_ = inst.pageDown()
-		return true
-	case "toggle_expand":
+	case action.ActionNavigateDown:
+		visibleNodes := inst.getVisibleNodes()
+		if inst.selectedIndex < len(visibleNodes)-1 {
+			return inst.navigateDown()
+		}
+		return false
+	case action.ActionNavigateHome:
+		if inst.scrollOffset > 0 {
+			return inst.navigateHome()
+		}
+		return false
+	case action.ActionNavigateEnd:
+		visibleNodes := inst.getVisibleNodes()
+		if inst.scrollOffset < len(visibleNodes)-inst.viewportHeight {
+			return inst.navigateEnd()
+		}
+		return false
+	case action.ActionNavigatePageUp:
+		if inst.scrollOffset > 0 {
+			_ = inst.pageUp()
+			return true
+		}
+		return false
+	case action.ActionNavigatePageDown:
+		visibleNodes := inst.getVisibleNodes()
+		if inst.scrollOffset < len(visibleNodes)-inst.viewportHeight {
+			_ = inst.pageDown()
+			return true
+		}
+		return false
+	case action.ActionSelect:
 		return inst.toggleExpand()
 	}
 	return false

@@ -3,7 +3,7 @@ package virtuallist
 import (
 	"strings"
 
-	"github.com/wwsheng009/mint/framework/action"
+	"github.com/wwsheng009/mint/runtime/action"
 	"github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
@@ -223,53 +223,46 @@ func (inst *Instance) Paint(x, y int) []paint.DrawCmd {
 // ActionHandlerInstance Interface
 // =============================================================================
 
-func (inst *Instance) CanHandleAction(actionType string) bool {
+func (inst *Instance) HandleAction(act *action.Action) bool {
 	if !inst.allowScroll {
 		return false
 	}
 
-	switch actionType {
-	case "scroll", "scroll_up", "scroll_down":
-		return inst.isScrollable()
-	case string(action.ActionNavigateUp):
-		return inst.selectedIndex > 0
-	case string(action.ActionNavigateDown):
-		return inst.selectedIndex < inst.itemCount-1
-	case string(action.ActionNavigateHome):
-		return inst.scrollOffset > 0
-	case string(action.ActionNavigateEnd):
-		return !inst.isAtEnd()
-	case string(action.ActionNavigatePageUp):
-		return inst.canScrollUp()
-	case string(action.ActionNavigatePageDown):
-		return inst.canScrollDown()
-	case string(action.ActionSelect):
-		return inst.selectedIndex >= 0
-	}
-	return false
-}
-
-func (inst *Instance) HandleAction(actionType string, payload interface{}) bool {
-	if !inst.allowScroll {
+	switch act.Type {
+	case action.ActionNavigateUp:
+		if inst.selectedIndex > 0 {
+			return inst.navigateUp()
+		}
 		return false
-	}
-
-	switch actionType {
-	case "scroll":
-		return inst.handleScroll(payload)
-	case string(action.ActionNavigateUp):
-		return inst.navigateUp()
-	case string(action.ActionNavigateDown):
-		return inst.navigateDown()
-	case string(action.ActionNavigateHome):
-		return inst.scrollTop()
-	case string(action.ActionNavigateEnd):
-		return inst.scrollBottom()
-	case string(action.ActionNavigatePageUp):
-		return inst.pageUp()
-	case string(action.ActionNavigatePageDown):
-		return inst.pageDown()
-	case string(action.ActionSelect):
+	case action.ActionNavigateDown:
+		if inst.selectedIndex < inst.itemCount-1 {
+			return inst.navigateDown()
+		}
+		return false
+	case action.ActionNavigateHome:
+		if inst.scrollOffset > 0 {
+			return inst.scrollTop()
+		}
+		return false
+	case action.ActionNavigateEnd:
+		if !inst.isAtEnd() {
+			return inst.scrollBottom()
+		}
+		return false
+	case action.ActionNavigatePageUp:
+		if inst.canScrollUp() {
+			return inst.pageUp()
+		}
+		return false
+	case action.ActionNavigatePageDown:
+		if inst.canScrollDown() {
+			return inst.pageDown()
+		}
+		return false
+	case action.ActionSelect:
+		if inst.selectedIndex >= 0 {
+			return true
+		}
 		return inst.selectItem()
 	}
 	return false

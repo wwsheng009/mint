@@ -3,7 +3,7 @@ package selectcomp
 import (
 	"unicode/utf8"
 
-	"github.com/wwsheng009/mint/framework/action"
+	"github.com/wwsheng009/mint/runtime/action"
 	"github.com/wwsheng009/mint/framework/theme"
 	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/runtime/layout"
@@ -253,30 +253,18 @@ func (inst *Instance) IsDisabled() bool {
 // ActionHandlerInstance Interface
 // =============================================================================
 
-// CanHandleAction implements ActionHandlerInstance.
-func (inst *Instance) CanHandleAction(actionType string) bool {
-	if inst.state.Disabled || len(inst.options) == 0 {
-		return false
-	}
-	return actionType == string(action.ActionSelect) ||
-		actionType == string(action.ActionClick) ||
-		actionType == string(action.ActionEnter) ||
-		actionType == string(action.ActionNavigateDown) ||
-		actionType == string(action.ActionNavigateUp)
-}
-
 // HandleAction implements ActionHandlerInstance.
-func (inst *Instance) HandleAction(actionType string, payload interface{}) bool {
+func (inst *Instance) HandleAction(act *action.Action) bool {
 	if inst.state.Disabled || len(inst.options) == 0 {
 		return false
 	}
 
-	switch actionType {
-	case string(action.ActionSelect), string(action.ActionClick), string(action.ActionEnter),
-		string(action.ActionNavigateDown):
+	switch act.Type {
+	case action.ActionSelect, action.ActionClick, action.ActionEnter,
+		action.ActionNavigateDown:
 		inst.SelectNext()
 		return true
-	case string(action.ActionNavigateUp):
+	case action.ActionNavigateUp:
 		inst.SelectPrev()
 		return true
 	}
