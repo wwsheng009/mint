@@ -201,23 +201,28 @@ type Fiber struct {
 	MemoCompare            PropsEqual
 	MemoShouldUpdate       bool
 
-	// === Focusable Support (DEPRECATED - Use Instance.FocusableInstance instead) ===
-	// FocusableVNode stores the focusable interface for focusable elements
-	// DEPRECATED: Use Instance.(FocusableInstance) instead
-	FocusableVNode FocusableVNode
+	// === FocusableVNode (DEPRECATED - Use Instance.FocusableInstance instead) ===
+	// ⚠️ DEPRECATED: This field will be removed in future versions.
+	// In Fiber-first architecture, all state (focus, hover, disabled, etc.) is in ComponentInstance.
+	// This field is kept ONLY for backward compatibility during migration.
+	// New components should NOT use this field.
+	// FocusableVNode FocusableVNode
 
 	// === ActionTargetID (Fiber-first Action Architecture) ===
 	// Fiber only stores ActionTargetID for routing to component.
 	ActionTargetID string
 
-	// === Focusable Metadata (Fiber-first) ===
-	// DEPRECATED: Use Instance.(FocusableInstance) instead
-	FocusableMeta *FocusableMeta
+	// === FocusableMeta (DEPRECATED - Use Instance.FocusableInstance instead) ===
+	// ⚠️ DEPRECATED: This field will be removed in future versions.
+	// Focusable info (TabIndex, Disabled, FocusID) is now managed by ComponentInstance.
+	// This field is kept ONLY for backward compatibility during migration.
+	// New components should check Instance.(FocusableInstance) instead.
+	// FocusableMeta *FocusableMeta
 
 	// === ComponentInstance (Legacy - Use Instance field instead) ===
 	// DEPRECATED: This field is kept for backward compatibility during migration.
 	// Use Instance field instead.
-	ComponentInstance ComponentInstance
+	// ComponentInstance ComponentInstance
 }
 
 // =============================================================================
@@ -243,10 +248,7 @@ func (f *Fiber) GetMemoizedProps() Props {
 // Returns nil if no instance is attached.
 func (f *Fiber) GetInstance() ComponentInstance {
 	// Priority: Instance field (new) > ComponentInstance field (legacy)
-	if f.Instance != nil {
-		return f.Instance
-	}
-	return f.ComponentInstance
+	return f.Instance
 }
 
 // GetPaintableInstance returns the PaintableInstance if available.
@@ -278,7 +280,7 @@ func (f *Fiber) GetFocusableInstance() FocusableInstance {
 // HasInstance returns true if fiber has a runtime instance.
 // This is useful for checking if the fiber has been fully initialized.
 func (f *Fiber) HasInstance() bool {
-	return f.Instance != nil || f.ComponentInstance != nil
+	return f.Instance != nil
 }
 
 // HasStyle returns true if fiber has explicit width/height style defined.

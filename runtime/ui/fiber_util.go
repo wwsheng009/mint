@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"sort"
 
 	"github.com/wwsheng009/mint/internal/log"
@@ -116,14 +117,10 @@ func CreateFiber(vnode VNode) *Fiber {
 
 	// Extract FocusableVNode if the VNode implements it (for buttons, inputs, etc.)
 	// DEPRECATED: Use Instance instead for Fiber-first approach
-	var focusableVNode FocusableVNode
-	if f, ok := vnode.(FocusableVNode); ok && f.IsFocusable() {
-		focusableVNode = f
-	}
-
-	// Extract ActionTargetID (Fiber-first Action Architecture)
-	// Fiber stores "who I am", not "what to do"
-	actionTargetID := extractActionTargetID(vnode)
+	// var focusableVNode FocusableVNode
+	// if f, ok := vnode.(FocusableVNode); ok && f.IsFocusable() {
+	// 	focusableVNode = f
+	// }
 
 	// === Fiber-first: Create Instance from VNode ===
 	// If VNode implements InstanceFactory, create the runtime instance.
@@ -215,7 +212,7 @@ func CreateFiber(vnode VNode) *Fiber {
 			}
 		}
 	}
-
+	nodeId :=generateNodeID()
 	return &Fiber{
 		Type:                       vnodeType,
 		Tag:                        tag,
@@ -224,7 +221,7 @@ func CreateFiber(vnode VNode) *Fiber {
 		MemoizedState:              memoizedState,
 		DiffKey:                    diffKey,
 		Key:                        diffKey,
-		NodeID:                     generateNodeID(),
+		NodeID:                     nodeId,
 		Layer:                      vnode.GetLayer(),
 		Style:                      vnode.Style(),
 		Lanes:                      LaneNoLane,
@@ -238,8 +235,8 @@ func CreateFiber(vnode VNode) *Fiber {
 		ErrorBoundaryFunc:          errorBoundaryFunc,
 		ErrorBoundaryFallbackFiber: errorBoundaryFallback,
 		MemoCompare:                memoCompare,
-		FocusableVNode:             focusableVNode,
-		ActionTargetID:             actionTargetID,
+		// FocusableVNode:             focusableVNode,
+		ActionTargetID:             fmt.Sprintf("%d",nodeId),
 		// Fiber-first Architecture
 		Instance: instance,
 		// Layout Properties (extracted from VNode)
@@ -253,30 +250,6 @@ func CreateFiber(vnode VNode) *Fiber {
 		BorderStyle:      borderStyle,
 		BorderLabel:      borderLabel,
 	}
-}
-
-// extractActionTargetID extracts ActionTargetID from VNode.
-// This is used by ActionBridge to route Actions to the component.
-func extractActionTargetID(vnode VNode) string {
-	if vnode == nil {
-		return ""
-	}
-
-	// 1. Check for explicit actionTarget prop
-	props := vnode.Props()
-	if props != nil {
-		if id, ok := props["actionTarget"].(string); ok && id != "" {
-			return id
-		}
-	}
-
-	// 2. Use Key if available
-	if key := vnode.Key(); key != "" {
-		return key
-	}
-
-	// 3. Use NodeID as fallback (will be generated)
-	return ""
 }
 
 // CreateFiberFromVNode creates a fiber tree from a VNode tree
@@ -457,11 +430,11 @@ func CloneFiber(fiber *Fiber) *Fiber {
 		MemoCompare:                fiber.MemoCompare,
 		MemoShouldUpdate:           fiber.MemoShouldUpdate,
 		// Focusable support (DEPRECATED - use Instance instead)
-		FocusableVNode: fiber.FocusableVNode,
+		// FocusableVNode: fiber.FocusableVNode,
 		// ActionTargetID (Fiber-first Action Architecture)
 		ActionTargetID: fiber.ActionTargetID,
 		// Focusable metadata (Fiber-first)
-		FocusableMeta: fiber.FocusableMeta,
+		// FocusableMeta: fiber.FocusableMeta,
 		// ComponentInstance (Fiber-first) - REUSE, NEVER CLONE
 		// Instance persists across renders
 		Instance: fiber.Instance,

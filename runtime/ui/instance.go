@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"github.com/wwsheng009/mint/framework/action"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
 )
@@ -214,10 +215,11 @@ type FocusableInstance interface {
 // =============================================================================
 
 // ActionHandlerInstance is implemented by components that handle actions.
+// Fiber-first architecture: components receive concrete Action objects instead of split (type, payload).
 type ActionHandlerInstance interface {
 	ComponentInstance
-	CanHandleAction(actionType string) bool
-	HandleAction(actionType string, payload interface{}) bool
+	CanHandleAction(actionType Action) bool
+	HandleAction(action *Action) bool
 }
 
 // =============================================================================
