@@ -4,15 +4,15 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/wwsheng009/mint/components/data"
 	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
+	"github.com/wwsheng009/mint/ui/components/list"
 )
 
-// SimpleListDemo 简化的ListVNode演示程序
+// SimpleListDemo 简化的List VNode演示程序
 type SimpleListDemo struct {
-	list *data.ListVNode
+	list *list.VNode
 }
 
 // NewSimpleListDemo 创建演示实例
@@ -22,7 +22,7 @@ func NewSimpleListDemo() *SimpleListDemo {
 
 // Run 运行演示
 func (d *SimpleListDemo) Run() {
-	fmt.Println("=== ListVNode 组件渲染演示 ===")
+	fmt.Println("=== List VNode 组件渲染演示 ===")
 	fmt.Println("创建一个模拟的hittest数据列表并分析渲染结果")
 
 	// 1. 准备数据
@@ -40,7 +40,7 @@ func (d *SimpleListDemo) Run() {
 		{"root", "(0,0,120,40)", 1, "NO", false},
 	}
 
-	// 2. 准备ListVNode数据
+	// 2. 准备List数据
 	rows := make([]string, 0, len(entries)+1)
 
 	// 添加列标题
@@ -65,11 +65,11 @@ func (d *SimpleListDemo) Run() {
 		rows = append(rows, line)
 	}
 
-	// 3. 创建ListVNode
+	// 3. 创建List VNode (Fiber-first)
 	headerStyle := style.Style{}.Bold(true)
 	headerStyle.FG = style.Color("green")
 
-	list := data.ListBuilder().
+	listNode := list.NewBuilder().
 		Header("🎯 Hit Test Data").
 		Rows(rows).
 		HeaderStyle(headerStyle).
@@ -87,20 +87,19 @@ func (d *SimpleListDemo) Run() {
 		ShowSeparator(true).
 		Build()
 
-	d.list = list
+	d.list = listNode.(*list.VNode)
 
 	// 4. 分析和输出
 	d.analyzeList()
 	d.renderAndAnalyze()
 }
 
-// analyzeList 分析ListVNode的属性
+// analyzeList 分析List VNode的属性
 func (d *SimpleListDemo) analyzeList() {
-	fmt.Printf("\n=== ListVNode 属性分析 ===\n")
+	fmt.Printf("\n=== List VNode 属性分析 ===\n")
 
 	fmt.Printf("Header: %q\n", d.list.Header())
 	fmt.Printf("Rows count: %d\n", d.list.RowCount())
-	fmt.Printf("Has separator: %v\n", true) // 因为我们设置了ShowSeparator(true)
 
 	// 测量列表
 	constraints := runtime.BoxConstraints{
@@ -122,7 +121,6 @@ func (d *SimpleListDemo) analyzeList() {
 
 // getRowStyleInfo 获取行的样式信息
 func (d *SimpleListDemo) getRowStyleInfo(index int) string {
-	// 这里我们无法直接访问rowStyleFn，但可以基于文本内容推断样式
 	text := d.list.Rows()[index]
 
 	if index == 0 {
@@ -241,5 +239,5 @@ func main() {
 	demo.Run()
 
 	fmt.Printf("\n=== 演示完成 ===\n")
-	fmt.Println("ListVNode组件已成功演示并验证")
+	fmt.Println("List VNode组件已成功演示并验证 (Fiber-first 架构)")
 }

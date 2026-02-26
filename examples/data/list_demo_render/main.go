@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/wwsheng009/mint/components/data"
 	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
 	"github.com/wwsheng009/mint/ui"
+	"github.com/wwsheng009/mint/ui/components/list"
 )
 
 // SampleHitTestEntry 模拟hittest数据结构
@@ -61,7 +61,7 @@ func describeStyle(s style.Style) string {
 }
 
 // getRowStyleInfo 获取指定行的样式信息（基于文本推断）
-func getRowStyleInfo(listVNode *data.ListVNode, index int) string {
+func getRowStyleInfo(listVNode *list.VNode, index int) string {
 	rows := listVNode.Rows()
 	if index >= len(rows) {
 		return "未知"
@@ -85,11 +85,11 @@ func contains(s, substr string) bool {
 }
 
 // MeasureAndPrint 测量并打印列表的尺寸信息
-func MeasureAndPrint(list ui.VNode, title string) {
-	listVNode, ok := list.(*data.ListVNode)
+func MeasureAndPrint(listNode ui.VNode, title string) {
+	listVNode, ok := listNode.(*list.VNode)
 	if !ok {
 		fmt.Printf("\n=== %s 测量结果 ===\n", title)
-		fmt.Printf("无法转换为ListVNode类型\n")
+		fmt.Printf("无法转换为VNode类型\n")
 		return
 	}
 
@@ -150,28 +150,17 @@ func main() {
 	headerStyle := style.Style{}.Bold(true)
 	headerStyle.FG = style.Color("green")
 
-	list := data.ListBuilder().
+	listNode := list.NewBuilder().
 		Header("🎯 Hit Test Data").
 		Rows(rows).
 		HeaderStyle(headerStyle).
-		RowStyleFn(func(index int, text string) style.Style {
-			// 第一行（列标题）使用青色粗体
-			if index == 0 {
-				return style.Style{}.Bold(true).Foreground(style.Color("cyan"))
-			}
-			// 包含 ✓ 的行使用黄色高亮
-			if strings.Contains(text, "✓") {
-				return style.Style{}.Bold(true).Foreground(style.Color("yellow"))
-			}
-			return style.Style{}
-		}).
 		ShowSeparator(true).
 		Build()
 
-	listVNode := list
+	listVNode := listNode.(*list.VNode)
 
 	// 4. 测量列表
-	MeasureAndPrint(list, "HitTest List")
+	MeasureAndPrint(listNode, "HitTest List")
 
 	// 5. 渲染列表并输出详细信息
 	cmds := listVNode.Paint(0, 0)
