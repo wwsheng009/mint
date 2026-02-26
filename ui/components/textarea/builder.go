@@ -66,6 +66,22 @@ func (b *Builder) OnSubmit(i intent.Intent) *Builder {
 	return b
 }
 
+// ForField binds the textarea to a state field using FieldBinding.
+// When the textarea value changes, it emits a FieldChangeIntent with the current text.
+// Example:
+//
+//	var message = intent.StateKey[string]("message")
+//	textarea.NewBuilder().
+//	    ForField(intent.ForField(message)).
+//	    Build()
+func (b *Builder) ForField(binding intent.FieldBinding) *Builder {
+	// Set the FieldIntent as the changeIntentField for MVP mode
+	b.node.SetProps(rtui.Props{
+		"changeIntent": binding, // binding implements both FieldIntent and Intent
+	})
+	return b
+}
+
 func (b *Builder) Build() rtui.VNode {
 	return b.node
 }

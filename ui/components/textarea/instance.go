@@ -25,6 +25,7 @@ type Instance struct {
 	textareaStyle style.Style
 	rows, cols   int
 	changeIntent intent.Intent
+	changeIntentField intent.FieldIntent  // For FieldChangeIntent extraction
 	submitIntent intent.Intent
 	maxLen       int
 
@@ -49,16 +50,17 @@ var (
 // NewInstance creates a new TextareaInstance from props.
 func NewInstance(props rtui.Props) *Instance {
 	inst := &Instance{
-		key:          getStringProp(props, "key", ""),
-		placeholder:  getStringProp(props, "placeholder", ""),
-		textareaStyle: getStyleProp(props),
-		rows:         getIntProp(props, "rows", 3),
-		cols:         getIntProp(props, "cols", 40),
-		changeIntent: getIntentProp(props, "changeIntent"),
-		submitIntent: getIntentProp(props, "submitIntent"),
-		value:        getStringProp(props, "value", ""),
-		maxLen:       getIntProp(props, "maxLen", 0),
-		dirty:        true,
+		key:               getStringProp(props, "key", ""),
+		placeholder:       getStringProp(props, "placeholder", ""),
+		textareaStyle:     getStyleProp(props),
+		rows:              getIntProp(props, "rows", 3),
+		cols:              getIntProp(props, "cols", 40),
+		changeIntent:      getIntentProp(props, "changeIntent"),
+		changeIntentField: getChangeIntentFieldProp(props, "changeIntent"),
+		submitIntent:      getIntentProp(props, "submitIntent"),
+		value:             getStringProp(props, "value", ""),
+		maxLen:            getIntProp(props, "maxLen", 0),
+		dirty:             true,
 	}
 
 	inst.state = control.InteractionState{
@@ -94,6 +96,7 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	inst.rows = getIntProp(props, "rows", inst.rows)
 	inst.cols = getIntProp(props, "cols", inst.cols)
 	inst.changeIntent = getIntentProp(props, "changeIntent")
+	inst.changeIntentField = getChangeIntentFieldProp(props, "changeIntent")
 	inst.submitIntent = getIntentProp(props, "submitIntent")
 	inst.value = getStringProp(props, "value", inst.value)
 	inst.maxLen = getIntProp(props, "maxLen", inst.maxLen)
@@ -268,8 +271,19 @@ func (inst *Instance) InsertText(text string) bool {
 	inst.value += text
 	inst.dirty = true
 
-	if inst.changeIntent != nil && inst.intentEmitter != nil {
-		inst.intentEmitter(inst.changeIntent)
+	// Emit FieldChangeIntent with runtime value
+	if inst.intentEmitter != nil {
+		if inst.changeIntentField != nil {
+			// Use FieldChangeIntent mode
+			changeIntent := intent.FieldChangeIntent{
+				Field: inst.changeIntentField.GetField(),
+				Value: inst.value,
+			}
+			inst.intentEmitter(changeIntent)
+		} else if inst.changeIntent != nil {
+			// Fallback to original intent mode
+			inst.intentEmitter(inst.changeIntent)
+		}
 	}
 
 	return true
@@ -391,6 +405,15 @@ func getIntentProp(props rtui.Props, key string) intent.Intent {
 	if v, ok := props[key]; ok {
 		if i, ok := v.(intent.Intent); ok {
 			return i
+		}
+	}
+	return nil
+}
+
+func getChangeIntentFieldProp(props rtui.Props, key string) intent.FieldIntent {
+	if v, ok := props[key]; ok {
+		if fieldIntent, ok := v.(intent.FieldIntent); ok {
+			return fieldIntent
 		}
 	}
 	return nil

@@ -1,6 +1,7 @@
 package selectcomp
 
 import (
+	"fmt"
 	"unicode/utf8"
 
 	"github.com/wwsheng009/mint/runtime/action"
@@ -27,6 +28,7 @@ type Instance struct {
 	selectStyle  style.Style
 	width        int
 	changeIntent intent.Intent
+	changeIntentField intent.FieldIntent  // For FieldChangeIntent extraction
 
 	// === Runtime State ===
 	state        control.InteractionState
@@ -60,13 +62,14 @@ var (
 // NewInstance creates a new SelectInstance from props.
 func NewInstance(props rtui.Props) *Instance {
 	inst := &Instance{
-		key:          getStringProp(props, "key", ""),
-		options:      getOptionsProp(props),
-		selectStyle:  getStyleProp(props),
-		width:        getIntProp(props, "width", 0),
-		changeIntent: getIntentProp(props, "changeIntent"),
-		selectedIndex: getIntProp(props, "selectedIndex", -1),
-		dirty:        true,
+		key:                getStringProp(props, "key", ""),
+		options:            getOptionsProp(props),
+		selectStyle:        getStyleProp(props),
+		width:              getIntProp(props, "width", 0),
+		changeIntent:       getIntentProp(props, "changeIntent"),
+		changeIntentField:  getChangeIntentFieldProp(props, "changeIntent"),
+		selectedIndex:      getIntProp(props, "selectedIndex", -1),
+		dirty:              true,
 	}
 
 	// Initialize state
@@ -133,6 +136,7 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	inst.selectStyle = getStyleProp(props)
 	inst.width = getIntProp(props, "width", inst.width)
 	inst.changeIntent = getIntentProp(props, "changeIntent")
+	inst.changeIntentField = getChangeIntentFieldProp(props, "changeIntent")
 	inst.selectedIndex = getIntProp(props, "selectedIndex", inst.selectedIndex)
 
 	newDisabled := getBoolProp(props, "disabled", inst.state.Disabled)
@@ -329,8 +333,18 @@ func (inst *Instance) SelectedLabel() string {
 
 // emitChange emits the change intent.
 func (inst *Instance) emitChange() {
-	if inst.changeIntent != nil && inst.intentEmitter != nil {
-		inst.intentEmitter(inst.changeIntent)
+	if inst.intentEmitter != nil {
+		if inst.changeIntentField != nil {
+			// Use FieldChangeIntent mode with selected index as value
+			changeIntent := intent.FieldChangeIntent{
+				Field: inst.changeIntentField.GetField(),
+				Value: fmt.Sprintf("%d", inst.selectedIndex),
+			}
+			inst.intentEmitter(changeIntent)
+		} else if inst.changeIntent != nil {
+			// Fallback to original intent mode
+			inst.intentEmitter(inst.changeIntent)
+		}
 	}
 }
 
@@ -500,6 +514,15 @@ func getIntentProp(props rtui.Props, key string) intent.Intent {
 	if v, ok := props[key]; ok {
 		if i, ok := v.(intent.Intent); ok {
 			return i
+		}
+	}
+	return nil
+}
+
+func getChangeIntentFieldProp(props rtui.Props, key string) intent.FieldIntent {
+	if v, ok := props[key]; ok {
+		if fieldIntent, ok := v.(intent.FieldIntent); ok {
+			return fieldIntent
 		}
 	}
 	return nil

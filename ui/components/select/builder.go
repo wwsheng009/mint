@@ -70,6 +70,26 @@ func (b *Builder) OnChange(changeIntent intent.Intent) *Builder {
 	return b
 }
 
+// ForField binds the select to a state field using FieldBinding.
+// When the selected option changes, it emits a FieldChangeIntent with the index.
+// Example:
+//
+//	var country = intent.StateKey[int]("country")
+//	selectcomp.NewBuilder().
+//	    Options([]selectcomp.Option{
+//	        {Value: "us", Label: "United States"},
+//	        {Value: "cn", Label: "China"},
+//	    }).
+//	    ForField(intent.ForField(country)).
+//	    Build()
+func (b *Builder) ForField(binding intent.FieldBinding) *Builder {
+	// Set the FieldIntent as the changeIntentField for MVP mode
+	b.node.SetProps(rtui.Props{
+		"changeIntent": binding, // binding implements both FieldIntent and Intent
+	})
+	return b
+}
+
 // Build returns the VNode.
 func (b *Builder) Build() rtui.VNode {
 	return b.node

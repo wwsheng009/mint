@@ -1,6 +1,7 @@
 package tabs
 
 import (
+	"fmt"
 	"unicode/utf8"
 
 	"github.com/wwsheng009/mint/runtime/action"
@@ -31,6 +32,7 @@ type Instance struct {
 	tabStyle      style.Style
 	activeTabStyle style.Style
 	changeIntent intent.Intent
+	changeIntentField intent.FieldIntent  // For FieldChangeIntent extraction
 
 	// === Layout Props ===
 	width  int
@@ -75,19 +77,20 @@ var (
 // NewInstance creates a new TabsInstance from props.
 func NewInstance(props rtui.Props) *Instance {
 	inst := &Instance{
-		key:            getStringProp(props, "key", ""),
-		tabs:           getTabsProp(props, []TabItem{}),
-		position:       getTabPositionProp(props, TabPositionTop),
-		wrapTabs:       getBoolProp(props, "wrapTabs", false),
-		tabGap:         getIntProp(props, "tabGap", 1),
-		tabStyle:       getStyleProp(props, "tabStyle"),
-		activeTabStyle: getStyleProp(props, "activeTabStyle"),
-		changeIntent:   getIntentProp(props),
-		width:          getIntProp(props, "width", 0),
-		height:         getIntProp(props, "height", 0),
-		flex:           getIntProp(props, "flex", 1),
-		activeTab:      0,
-		dirty:          true,
+		key:                getStringProp(props, "key", ""),
+		tabs:               getTabsProp(props, []TabItem{}),
+		position:           getTabPositionProp(props, TabPositionTop),
+		wrapTabs:           getBoolProp(props, "wrapTabs", false),
+		tabGap:             getIntProp(props, "tabGap", 1),
+		tabStyle:           getStyleProp(props, "tabStyle"),
+		activeTabStyle:     getStyleProp(props, "activeTabStyle"),
+		changeIntent:       getIntentProp(props),
+		changeIntentField:  getChangeIntentFieldProp(props),
+		width:              getIntProp(props, "width", 0),
+		height:             getIntProp(props, "height", 0),
+		flex:               getIntProp(props, "flex", 1),
+		activeTab:          0,
+		dirty:              true,
 	}
 	return inst
 }
@@ -114,6 +117,7 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	inst.tabStyle = getStyleProp(props, "tabStyle")
 	inst.activeTabStyle = getStyleProp(props, "activeTabStyle")
 	inst.changeIntent = getIntentProp(props)
+	inst.changeIntentField = getChangeIntentFieldProp(props)
 	inst.width = getIntProp(props, "width", inst.width)
 	inst.height = getIntProp(props, "height", inst.height)
 	inst.flex = getIntProp(props, "flex", inst.flex)
@@ -452,8 +456,18 @@ func (inst *Instance) LastTab() bool {
 
 // emitChangeIntent emits the change intent
 func (inst *Instance) emitChangeIntent(tabID string) {
-	if inst.changeIntent != nil && inst.intentEmitter != nil {
-		inst.intentEmitter(inst.changeIntent)
+	if inst.intentEmitter != nil {
+		if inst.changeIntentField != nil {
+			// Use FieldChangeIntent mode with active tab index as value
+			changeIntent := intent.FieldChangeIntent{
+				Field: inst.changeIntentField.GetField(),
+				Value: fmt.Sprintf("%d", inst.activeTab),
+			}
+			inst.intentEmitter(changeIntent)
+		} else if inst.changeIntent != nil {
+			// Fallback to original intent mode
+			inst.intentEmitter(inst.changeIntent)
+		}
 	}
 }
 
@@ -536,6 +550,17 @@ func getIntentProp(props rtui.Props) intent.Intent {
 	}
 	if i, ok := v.(intent.Intent); ok {
 		return i
+	}
+	return nil
+}
+
+func getChangeIntentFieldProp(props rtui.Props) intent.FieldIntent {
+	v, ok := props["changeIntent"]
+	if !ok {
+		return nil
+	}
+	if fieldIntent, ok := v.(intent.FieldIntent); ok {
+		return fieldIntent
 	}
 	return nil
 }
