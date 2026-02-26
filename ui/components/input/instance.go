@@ -151,7 +151,14 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	inst.borderStyle = getBorderStyleProp(props, "borderStyle", inst.borderStyle)
 	inst.changeIntent = getIntentProp(props, "changeIntent")
 	inst.submitIntent = getIntentProp(props, "submitIntent")
-	inst.value = getStringProp(props, "value", inst.value)
+
+	// ✨ CRITICAL: When value changes, update cursorPos to prevent out-of-bounds
+	// This fixes panic in InsertText when cursorPos > len(value)
+	newValue := getStringProp(props, "value", inst.value)
+	if newValue != inst.value {
+		inst.value = newValue
+		inst.cursorPos = utf8.RuneCountInString(inst.value)
+	}
 	inst.maxLen = getIntProp(props, "maxLen", inst.maxLen)
 
 	newDisabled := getBoolProp(props, "disabled", inst.state.Disabled)
@@ -519,6 +526,15 @@ func (inst *Instance) InsertText(text string) bool {
 	runes := []rune(inst.value)
 	textRunes := []rune(text)
 
+	// ✨ CRITICAL: Clamp cursorPos to valid range to prevent panic
+	// This handles edge cases where cursorPos was set incorrectly
+	maxPos := len(runes)
+	if inst.cursorPos < 0 {
+		inst.cursorPos = 0
+	} else if inst.cursorPos > maxPos {
+		inst.cursorPos = maxPos
+	}
+
 	// Create new slice with enough capacity to avoid shared array issues
 	newRunes := make([]rune, 0, len(runes)+len(textRunes))
 	newRunes = append(newRunes, runes[:inst.cursorPos]...)
@@ -546,6 +562,14 @@ func (inst *Instance) DeleteText(direction int) bool {
 	runes := []rune(inst.value)
 	if len(runes) == 0 {
 		return false
+	}
+
+	// ✨ CRITICAL: Clamp cursorPos to valid range to prevent panic
+	maxPos := len(runes)
+	if inst.cursorPos < 0 {
+		inst.cursorPos = 0
+	} else if inst.cursorPos > maxPos {
+		inst.cursorPos = maxPos
 	}
 
 	if direction < 0 {
