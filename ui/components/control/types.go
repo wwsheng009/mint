@@ -27,54 +27,53 @@ func (s *InteractionState) IsIdle() bool {
 }
 
 // Reduce applies an action type to update the state.
-func (s *InteractionState) Reduce(actionType string) {
+func (s *InteractionState) Reduce(actionType action.ActionType) {
 	switch actionType {
-	case "Focus":
+	case action.ActionFocus:
 		s.Focused = true
-	case "Blur":
+	case action.ActionBlur:
 		s.Focused = false
-	case "MouseEnter":
+	case action.ActionMouseEnter:
 		s.Hovered = true
-	case "MouseLeave":
+	case action.ActionMouseLeave:
 		s.Hovered = false
-	case "PressStart":
+	case action.ActionPressStart:
 		s.Pressed = true
-	case "PressEnd":
+	case action.ActionPressEnd:
 		s.Pressed = false
-	case "Enable":
+	case action.ActionEnable:
 		s.Disabled = false
-	case "Disable":
+	case action.ActionDisable:
 		s.Disabled = true
-	case "Activate":
+	case action.ActionActivate:
 		s.Active = true
-	case "Deactivate":
+	case action.ActionDeactivate:
 		s.Active = false
 	}
 }
 
 // ReduceByAction applies an action to update the state.
 func (s *InteractionState) ReduceByAction(act *action.Action) {
-	actionType := string(act.Type)
-	switch actionType {
-	case "Focus":
+	switch act.Type {
+	case action.ActionFocus:
 		s.Focused = true
-	case "Blur":
+	case action.ActionBlur:
 		s.Focused = false
-	case "MouseEnter":
+	case action.ActionMouseEnter:
 		s.Hovered = true
-	case "MouseLeave":
+	case action.ActionMouseLeave:
 		s.Hovered = false
-	case "PressStart":
+	case action.ActionPressStart:
 		s.Pressed = true
-	case "PressEnd":
+	case action.ActionPressEnd:
 		s.Pressed = false
-	case "Enable":
+	case action.ActionEnable:
 		s.Disabled = false
-	case "Disable":
+	case action.ActionDisable:
 		s.Disabled = true
-	case "Activate":
+	case action.ActionActivate:
 		s.Active = true
-	case "Deactivate":
+	case action.ActionDeactivate:
 		s.Active = false
 	}
 }
@@ -170,9 +169,8 @@ func (b *FocusableBehavior) OnAction(inst Instance, act *action.Action) bool {
 		return false
 	}
 
-	actionType := string(act.Type)
-	switch actionType {
-	case "Focus":
+	switch act.Type {
+	case action.ActionFocus:
 		if !b.focused {
 			b.focused = true
 			state.Focused = true
@@ -180,7 +178,7 @@ func (b *FocusableBehavior) OnAction(inst Instance, act *action.Action) bool {
 			inst.EmitIntent(intent.Focus(inst.Key()))
 			return true
 		}
-	case "Blur":
+	case action.ActionBlur:
 		if b.focused {
 			b.focused = false
 			state.Focused = false
@@ -241,25 +239,28 @@ func (b *PressableBehavior) OnAction(inst Instance, act *action.Action) bool {
 		return false
 	}
 
-	actionType := string(act.Type)
-	switch actionType {
-	case "Press", "Click", "Enter":
+	switch act.Type {
+	case action.ActionPress, action.ActionClick, action.ActionEnter:
+		// For terminal UI, button press triggers intent immediately
+		// (no separate release phase like in GUI mouse interactions)
 		if !b.pressed {
 			b.pressed = true
 			state.Pressed = true
 			inst.MarkDirty()
+
+			// Emit intent on press (for keyboard Enter and mouse click)
+			if b.pressIntent != nil {
+				inst.EmitIntent(b.pressIntent)
+			}
 		}
 		return true
 
-	case "Release", "PressEnd":
+	case action.ActionRelease, action.ActionPressEnd:
+		// Handle explicit release actions for future GUI mouse support
 		if b.pressed {
 			b.pressed = false
 			state.Pressed = false
 			inst.MarkDirty()
-			// Emit the press intent
-			if b.pressIntent != nil {
-				inst.EmitIntent(b.pressIntent)
-			}
 		}
 		return true
 	}
@@ -309,16 +310,15 @@ func (b *HoverableBehavior) OnUnmount(inst Instance) {
 func (b *HoverableBehavior) OnAction(inst Instance, act *action.Action) bool {
 	state := inst.GetState()
 
-	actionType := string(act.Type)
-	switch actionType {
-	case "MouseEnter":
+	switch act.Type {
+	case action.ActionMouseEnter:
 		if !b.hovered {
 			b.hovered = true
 			state.Hovered = true
 			inst.MarkDirty()
 			return true
 		}
-	case "MouseLeave":
+	case action.ActionMouseLeave:
 		if b.hovered {
 			b.hovered = false
 			state.Hovered = false
@@ -371,16 +371,15 @@ func (b *DisableableBehavior) OnUnmount(inst Instance) {
 
 // OnAction handles disable/enable actions.
 func (b *DisableableBehavior) OnAction(inst Instance, act *action.Action) bool {
-	actionType := string(act.Type)
-	switch actionType {
-	case "Disable":
+	switch act.Type {
+	case action.ActionDisable:
 		if !b.disabled {
 			b.disabled = true
 			inst.GetState().Disabled = true
 			inst.MarkDirty()
 			return true
 		}
-	case "Enable":
+	case action.ActionEnable:
 		if b.disabled {
 			b.disabled = false
 			inst.GetState().Disabled = false
