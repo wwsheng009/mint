@@ -12,20 +12,95 @@ import (
 	"strings"
 
 	"github.com/wwsheng009/mint/app"
-	"github.com/wwsheng009/mint/components/form"
 	"github.com/wwsheng009/mint/framework/theme"
+	"github.com/wwsheng009/mint/internal/log"
+	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/runtime/style"
+	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/ui"
+	"github.com/wwsheng009/mint/ui/components/input"
 )
+
+// =============================================================================
+// Intent Definitions
+// =============================================================================
+
+// UpdateFieldIntent 更新表单字段
+type UpdateFieldIntent struct {
+	Field string // 字段名: username, email, password, age
+	Value string
+}
+
+func (UpdateFieldIntent) IntentType() string { return "UpdateField" }
+func (UpdateFieldIntent) StayPressed() bool  { return true } // 保持按下视觉反馈
+
+// UpdateStepIntent 更新步骤
+type UpdateStepIntent struct {
+	Step int
+}
+
+func (UpdateStepIntent) IntentType() string { return "UpdateStep" }
+func (UpdateStepIntent) StayPressed() bool  { return true } // 保持按下视觉反馈
+
+// UpdateAgreedIntent 更新同意状态
+type UpdateAgreedIntent struct {
+	Agreed bool
+}
+
+func (UpdateAgreedIntent) IntentType() string { return "UpdateAgreed" }
+func (UpdateAgreedIntent) StayPressed() bool  { return true } // 保持按下视觉反馈
+
+// ShowModalIntent 显示 Modal
+type ShowModalIntent struct{}
+
+func (ShowModalIntent) IntentType() string { return "ShowModal" }
+func (ShowModalIntent) StayPressed() bool  { return true } // 保持按下视觉反馈
+
+// QuitIntent 退出应用
+type QuitIntent struct{}
+
+func (QuitIntent) IntentType() string { return "Quit" }
+func (QuitIntent) StayPressed() bool  { return false } // 立即重置（应用即将退出）
 
 func main() {
 	// 设置主题为 Ant Design 推荐的配色
 	_ = theme.SetTheme("nord")
 
+	// 定义 App 并在 ui.Run 之后注册 Intent Handlers
+	// 因为 Intent Runtime 在 ui.Run 内部创建
 	err := ui.Run(App,
 		ui.WithWidth(80),
-		ui.WithHeight(25),
+		ui.WithHeight(30),
 		ui.WithTitle("Mint TUI - Ant Design Style"),
+		ui.WithInit(func() {
+			// 注册 Intent Handlers
+			ui.RegisterIntent(func(ctx *intent.ActionContext, i UpdateFieldIntent) intent.IntentResult {
+				ctx.SetState(i.Field, i.Value)
+				return intent.HandledResult()
+			})
+
+			ui.RegisterIntent(func(ctx *intent.ActionContext, i UpdateStepIntent) intent.IntentResult {
+				ctx.SetState("step", i.Step)
+				log.TempLogger.Debug("ctx.SetState:%d", i.Step)
+				return intent.HandledResult()
+			})
+
+			ui.RegisterIntent(func(ctx *intent.ActionContext, i UpdateAgreedIntent) intent.IntentResult {
+				ctx.SetState("agreed", i.Agreed)
+				return intent.HandledResult()
+			})
+
+			ui.RegisterIntent(func(ctx *intent.ActionContext, i ShowModalIntent) intent.IntentResult {
+				// Modal 显示逻辑（省略实现）
+				ctx.SetState("showModal", true)
+				return intent.HandledResult()
+			})
+
+			ui.RegisterIntent(func(ctx *intent.ActionContext, i QuitIntent) intent.IntentResult {
+				ui.Quit()
+				return intent.HandledResult()
+			})
+		}),
 	)
 	if err != nil {
 		panic(err)
@@ -34,34 +109,25 @@ func main() {
 
 // App - 主应用组件
 func App() ui.VNode {
-	// 状态管理 - 分别管理每个字段
-	username, setUsername := ui.UseStateString("")
-	email, setEmail := ui.UseStateString("")
-	password, setPassword := ui.UseStateString("")
-	age, setAge := ui.UseStateString("")
-	agreed, setAgreed := ui.UseStateBool(false)
-	showModal, setShowModal := ui.UseStateBool(false)
-	step, setStepRaw, _ := ui.UseStateInt(1)
+	// 状态管理 - 使用 ComponentContext 的状态管理（非闭包）
+	ctx := rtui.GetCurrentContext()
 
-	// 包装setStep以匹配func(int)类型
-	setStep := func(v int) { setStepRaw(v) }
-
-	// 避免未使用变量警告
-	_ = showModal
-
-	return ui.VStack(
+	// 从 State 中读取状态
+	username := ctx.GetStringState("username", "")
+	email := ctx.GetStringState("email", "")
+	password := ctx.GetStringState("password", "")
+	age := ctx.GetStringState("age", "")
+	step := ctx.GetIntState("step", 1)
+	agreed := ctx.GetBoolState("agreed", false)
+	log.TempLogger.Debug("ctx.GetIntState:%d", step)
+	return ui.VStackBuilder(
 		Header(),
-		ui.Text(""),
 		StepIndicator(step),
-		ui.Text(""),
 		ProgressBar(step),
-		ui.Text(""),
-		FormContent(username, setUsername, email, setEmail, password, setPassword, age, setAge, agreed, setAgreed, step, setStep, setShowModal),
-		ui.Text(""),
-		ActionButtons(step, setStep, setShowModal),
-		ui.Text(""),
+		FormContent(username, email, password, age, agreed, step),
+		ActionButtons(step),
 		Footer(),
-	)
+	).Gap(1).Build()
 }
 
 // FormData - 表单数据结构（仅用于组织数据，状态由Hook单独管理）
@@ -87,12 +153,12 @@ func getFormData(username, email, password, age string, agreed bool) *FormData {
 // Header - 页面头部
 func Header() ui.VNode {
 	return ui.Bordered().
-		Style(string(theme.Primary())).
+		Color(string(theme.Primary())).
 		Child(
 			ui.HStackBuilder(
 				app.NewTextBuilder("📝 User Registration Form").
 					Style(style.Style{}.
-						Foreground(theme.BG()).  // Ant Design: 主色背景用 BG 作为文字
+						Foreground(theme.BG()). // Ant Design: 主色背景用 BG 作为文字
 						Background(theme.Primary()).
 						Bold(true)).
 					Build(),
@@ -137,7 +203,7 @@ func StepIndicator(step int) ui.VNode {
 // ProgressBar - 进度条（Ant Design Progress 组件）
 func ProgressBar(step int) ui.VNode {
 	const totalSteps = 3
-	progress := step * 30 / totalSteps  // 每步 30%
+	progress := step * 30 / totalSteps // 每步 30%
 
 	// 轨道
 	track := app.NewTextBuilder("┌" + strings.Repeat("─", 30) + "┐").
@@ -152,7 +218,7 @@ func ProgressBar(step int) ui.VNode {
 	return ui.VStack(
 		track,
 		fill,
-		app.NewTextBuilder("└" + strings.Repeat("─", 30) + "┘").
+		app.NewTextBuilder("└"+strings.Repeat("─", 30)+"┘").
 			Style(style.Style{}.Foreground(theme.Border())).
 			Build(),
 	)
@@ -160,98 +226,85 @@ func ProgressBar(step int) ui.VNode {
 
 // FormContent - 表单内容
 func FormContent(
-	username string, setUsername func(string),
-	email string, setEmail func(string),
-	password string, setPassword func(string),
-	age string, setAge func(string),
-	agreed bool, setAgreed func(bool),
-	step int, setStep func(int), setShowModal func(bool),
+	username string,
+	email string,
+	password string,
+	age string,
+	agreed bool,
+	step int,
 ) ui.VNode {
 
 	if step == 1 {
 		// Step 1: Account Information
 		return ui.Bordered().
-			Style(string(theme.Border())).
 			Child(
 				ui.VStackBuilder(
-					ui.Text(""),
 					// Form Item: Username
 					FormItem(
 						"Username:",
 						"Enter your username",
 						24,
 						username,
-						setUsername,
+						"username", // field name
 						"",
 						true,
 					),
-					ui.Text(""),
 					// Form Item: Email
 					FormItem(
 						"Email:",
 						"example@domain.com",
 						24,
 						email,
-						setEmail,
+						"email", // field name
 						"We'll never share your email",
 						true,
 					),
-					ui.Text(""),
 					// Form Item: Password
 					FormItemPassword(
 						"Password:",
 						"Enter your password",
 						24,
 						password,
-						setPassword,
+						"password", // field name
 						"At least 8 characters",
 					),
-				).Gap(1).Build(),
+				).Gap(2).Build(),
 			).
 			Build()
 	} else if step == 2 {
 		// Step 2: Profile
 		return ui.Bordered().
-			Style(string(theme.Border())).
 			Child(
 				ui.VStackBuilder(
-					ui.Text(""),
 					FormItem(
 						"Age:",
 						"Your age",
 						10,
 						age,
-						setAge,
+						"age", // field name
 						"",
 						true,
 					),
-					ui.Text(""),
-					ui.Text(""),
 				).Gap(1).Build(),
 			).
 			Build()
 	} else {
 		// Step 3: Confirm
 		return ui.Bordered().
-			Style(string(theme.Border())).
 			Child(
 				ui.VStackBuilder(
-					ui.Text(""),
 					ConfirmInfo("Username:", username),
 					ConfirmInfo("Email:", email),
 					ConfirmInfo("Age:", age),
-					ui.Text(""),
 					ui.HStackBuilder(
-						ui.Text("           "), // 使用空格代替Width
 						app.CheckboxBuilder().
 							Checked(agreed).
 							Label("I agree to the Terms and Conditions").
-							OnChange(func(checked bool) {
-								setAgreed(checked)
-							}).
+							// 使用 Intent 模式
+							OnToggle(UpdateAgreedIntent{}).
 							Build(),
 					).Build(),
-				).Gap(1).Build(),
+				).Gap(2).Build(),
 			).
 			Build()
 	}
@@ -263,7 +316,7 @@ func FormItem(
 	placeholder string,
 	width int,
 	value string,
-	onChange func(string),
+	field string, // 字段名，用于创建 Intent
 	helpText string,
 	required bool,
 ) ui.VNode {
@@ -289,6 +342,11 @@ func FormItem(
 		helpNode = ui.Text("")
 	}
 
+	// 使用 Intent 模式
+	changeIntent := UpdateFieldIntent{
+		Field: field,
+	}
+
 	return ui.VStackBuilder(
 		// Label 行
 		ui.HStackBuilder(
@@ -301,8 +359,8 @@ func FormItem(
 			app.InputBuilder().
 				Value(value).
 				Placeholder(placeholder).
-				Type(form.InputTypeText).
-				OnChange(onChange).
+				Type(input.TypeText).
+				OnChange(changeIntent).
 				Build(),
 			requiredMark,
 		).Build(),
@@ -320,7 +378,7 @@ func FormItemPassword(
 	placeholder string,
 	width int,
 	value string,
-	onChange func(string),
+	field string, // 字段名，用于创建 Intent
 	helpText string,
 ) ui.VNode {
 	labelWidth := 10
@@ -335,6 +393,11 @@ func FormItemPassword(
 		helpNode = ui.Text("")
 	}
 
+	// 使用 Intent 模式
+	changeIntent := UpdateFieldIntent{
+		Field: field,
+	}
+
 	return ui.VStackBuilder(
 		ui.HStackBuilder(
 			app.NewTextBuilder(fmt.Sprintf("%-*s", labelWidth, label)).
@@ -347,7 +410,7 @@ func FormItemPassword(
 				Value(value).
 				Password().
 				Placeholder(placeholder).
-				OnChange(onChange).
+				OnChange(changeIntent).
 				Build(),
 		).Build(),
 		ui.HStackBuilder(
@@ -364,41 +427,43 @@ func ConfirmInfo(label, value string) ui.VNode {
 	return ui.HStackBuilder(
 		app.NewTextBuilder(fmt.Sprintf("%-*s", labelWidth, label)).
 			Style(style.Style{}.
-				Foreground(theme.Muted()).  // Label 使用 MUTED
+				Foreground(theme.Muted()). // Label 使用 MUTED
 				Bold(true)).
 			Build(),
 		app.NewTextBuilder(value).
 			Style(style.Style{}.
-				Foreground(theme.Text())).  // Value 使用 TEXT
+				Foreground(theme.Text())). // Value 使用 TEXT
 			Build(),
 	).Build()
 }
 
 // ActionButtons - 操作按钮组
-func ActionButtons(step int, setStep func(int), setShowModal func(bool)) ui.VNode {
+func ActionButtons(step int) ui.VNode {
 	const totalSteps = 3
-
+	log.TempLogger.Debug("ActionButtons Called step:%d", step)
 	var buttons []ui.VNode
 
-	// Previous 按钮
+	// Previous 按钮 - 使用 Intent
 	if step > 1 {
 		buttons = append(buttons,
 			app.ButtonBuilder("[ Previous ]").
-				Variant(app.ButtonVariantSecondary).  // Ant Design: 次要操作
-				OnClick(func() {
-					setStep(step - 1)
+				Variant(app.ButtonVariantSecondary). // Ant Design: 次要操作
+				// 使用 Intent 模式
+				OnPress(UpdateStepIntent{
+					Step: step - 1,
 				}).
 				Build(),
 		)
 	}
 
-	// Next / Submit 按钮
+	// Next / Submit 按钮 - 使用 Intent
 	if step < totalSteps {
 		buttons = append(buttons,
 			app.ButtonBuilder("[ Next ]").
-				Variant(app.ButtonVariantPrimary).  // Ant Design: 主要操作
-				OnClick(func() {
-					setStep(step + 1)
+				Variant(app.ButtonVariantPrimary). // Ant Design: 主要操作
+				// 使用 Intent 模式
+				OnPress(UpdateStepIntent{
+					Step: step + 1,
 				}).
 				Build(),
 		)
@@ -406,20 +471,18 @@ func ActionButtons(step int, setStep func(int), setShowModal func(bool)) ui.VNod
 		buttons = append(buttons,
 			app.ButtonBuilder("[ Submit ]").
 				Variant(app.ButtonVariantPrimary).
-				OnClick(func() {
-					setShowModal(true)
-				}).
+				// 使用 Intent 模式
+				OnPress(ShowModalIntent{}).
 				Build(),
 		)
 	}
 
-	// Cancel 按钮
+	// Cancel 按钮 - 使用 Intent
 	buttons = append(buttons,
 		app.ButtonBuilder("[ Cancel ]").
-			Variant(app.ButtonVariantDefault).  // Ant Design: 默认按钮
-			OnClick(func() {
-				ui.Quit()
-			}).
+			Variant(app.ButtonVariantDefault). // Ant Design: 默认按钮
+			// 使用 Intent 模式
+			OnPress(QuitIntent{}).
 			Build(),
 	)
 
