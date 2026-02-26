@@ -228,6 +228,22 @@ func (b *LayoutBuilder) Key(key string) *LayoutBuilder {
 func (b *LayoutBuilder) Build() VNode {
 	// Set children on the element
 	b.node.SetChildren(b.children)
+
+	// Sync layout properties to Props so CreateFiber can read them
+	// This fixes the component interference issue where layout config was lost
+	props := b.node.Props()
+	if props == nil {
+		props = make(Props)
+	}
+	props["direction"] = b.node.direction
+	props["align"] = b.node.align
+	props["crossAlign"] = b.node.crossAlign
+	props["gap"] = b.node.gap
+	props["padding"] = b.node.padding
+	props["flex"] = b.node.flex
+	props["stretchCross"] = b.node.stretchCross
+	b.node.SetProps(props)
+
 	return b.node
 }
 
@@ -926,6 +942,34 @@ func (b *BorderedBuilder) FillHeight() *BorderedBuilder {
 
 // Build returns the VNode
 func (b *BorderedBuilder) Build() VNode {
+	// Sync border properties to Props so CreateFiber can read them
+	props := b.node.Props()
+	if props == nil {
+		props = make(Props)
+	}
+	// Map borderStyle string value (e.g., "single", "double")
+	switch b.node.borderStyle {
+	case BorderDouble:
+		props["borderStyle"] = "double"
+	case BorderRounded:
+		props["borderStyle"] = "rounded"
+	case BorderDashed:
+		props["borderStyle"] = "dashed"
+	case BorderNone:
+		props["borderStyle"] = "none"
+	default:
+		props["borderStyle"] = "single"
+	}
+	if b.node.borderLabel != "" {
+		props["label"] = b.node.borderLabel
+		props["borderLabel"] = b.node.borderLabel
+	}
+	// Sync border color to Props so CreateFiber can read it
+	if b.node.borderColor != "" {
+		props["borderColor"] = b.node.borderColor
+	}
+	b.node.SetProps(props)
+
 	return b.node
 }
 

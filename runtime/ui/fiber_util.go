@@ -5,6 +5,7 @@ import (
 	"sort"
 
 	"github.com/wwsheng009/mint/internal/log"
+	"github.com/wwsheng009/mint/runtime/intent"
 	rtuievent "github.com/wwsheng009/mint/runtime/event"
 	runtimelayout "github.com/wwsheng009/mint/runtime/layout"
 )
@@ -129,6 +130,16 @@ func CreateFiber(vnode VNode) *Fiber {
 	var instance ComponentInstance
 	if factory, ok := vnode.(InstanceFactory); ok {
 		instance = factory.CreateInstance()
+
+		// === Bridge Instance to Intent Runtime ===
+		// If the instance supports Intent emission (e.g., Button, Checkbox, Input),
+		// set the intentEmitter to call the global Intent Runtime.
+		// This enables the flow: action(Action) → HandleAction() → EmitIntent() → Runtime.Emit()
+		if setter, ok := instance.(interface{ SetIntentEmitter(func(intent.Intent)) }); ok {
+			setter.SetIntentEmitter(func(i intent.Intent) {
+				GetGlobalIntentRuntime().Emit(i)
+			})
+		}
 	}
 
 	// === Extract Layout Properties from VNode ===
