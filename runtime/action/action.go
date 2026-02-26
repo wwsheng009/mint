@@ -214,6 +214,32 @@ const (
 )
 
 // ============================================================================
+// UI Interaction Actions
+// ============================================================================
+
+const (
+	// Mouse hover actions
+	ActionMouseEnter ActionType = "mouse_enter" // Mouse entered component
+	ActionMouseLeave ActionType = "mouse_leave" // Mouse left component
+
+	// Press actions
+	ActionPressStart ActionType = "press_start" // Press started (mouse down)
+	ActionPressEnd   ActionType = "press_end"   // Press ended (mouse up)
+	ActionPress      ActionType = "press"       // Generic press action
+
+	// Release actions
+	ActionRelease ActionType = "release" // Release action
+
+	// Enable/Disable actions
+	ActionEnable  ActionType = "enable"  // Enable component
+	ActionDisable ActionType = "disable" // Disable component
+
+	// Activation actions
+	ActionActivate   ActionType = "activate"   // Activate component
+	ActionDeactivate ActionType = "deactivate" // Deactivate component
+)
+
+// ============================================================================
 // Data Actions
 // ============================================================================
 
