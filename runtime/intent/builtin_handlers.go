@@ -1,0 +1,206 @@
+package intent
+
+import (
+	"fmt"
+)
+
+// =============================================================================
+// Built-in Handlers
+// =============================================================================
+
+// SetupBuiltinHandlers registers handlers for all built-in intent types.
+// This should be called during application initialization.
+//
+// Example:
+//
+//	rt := intent.NewRuntime()
+//	intent.SetupBuiltinHandlers(rt)
+func SetupBuiltinHandlers(rt *Runtime) {
+	// State handlers
+	RegisterTypedRuntime(rt, handleSetState)
+	RegisterTypedRuntime(rt, handleToggle)
+	RegisterTypedRuntime(rt, handleIncrement)
+
+	// Navigation handlers
+	RegisterTypedRuntime(rt, handleNavigate)
+
+	// Focus handlers
+	RegisterTypedRuntime(rt, handleFocus)
+	RegisterTypedRuntime(rt, handleBlur)
+
+	// Modal handlers
+	RegisterTypedRuntime(rt, handleOpenModal)
+	RegisterTypedRuntime(rt, handleCloseModal)
+
+	// Tooltip handlers
+	RegisterTypedRuntime(rt, handleShowTooltip)
+	RegisterTypedRuntime(rt, handleHideTooltip)
+
+	// Form handlers
+	RegisterTypedRuntime(rt, handleSubmitForm)
+	RegisterTypedRuntime(rt, handleValidateForm)
+
+	// Data handlers (async)
+	RegisterTypedRuntime(rt, handleLoadData)
+	RegisterTypedRuntime(rt, handleRefresh)
+}
+
+// =============================================================================
+// State Handlers
+// =============================================================================
+
+func handleSetState(ctx *ActionContext, i SetStateIntent) IntentResult {
+	ctx.SetState(i.Key, i.Value)
+	ctx.ScheduleUpdate()
+	return HandledResult()
+}
+
+func handleToggle(ctx *ActionContext, i ToggleIntent) IntentResult {
+	// Get current value
+	current, ok := ctx.GetState(i.Key)
+	if !ok {
+		ctx.SetState(i.Key, true)
+	} else {
+		if b, ok := current.(bool); ok {
+			ctx.SetState(i.Key, !b)
+		} else {
+			ctx.SetState(i.Key, true)
+		}
+	}
+	ctx.ScheduleUpdate()
+	return HandledResult()
+}
+
+func handleIncrement(ctx *ActionContext, i IncrementIntent) IntentResult {
+	// Get current value
+	current, ok := ctx.GetState(i.Key)
+	if !ok {
+		ctx.SetState(i.Key, i.Delta)
+	} else {
+		switch v := current.(type) {
+		case int:
+			ctx.SetState(i.Key, v+i.Delta)
+		case int64:
+			ctx.SetState(i.Key, v+int64(i.Delta))
+		case float64:
+			ctx.SetState(i.Key, v+float64(i.Delta))
+		default:
+			ctx.SetState(i.Key, i.Delta)
+		}
+	}
+	ctx.ScheduleUpdate()
+	return HandledResult()
+}
+
+// =============================================================================
+// Navigation Handlers
+// =============================================================================
+
+func handleNavigate(ctx *ActionContext, i NavigateIntent) IntentResult {
+	// Store navigation state
+	ctx.SetState("__navigation_path", i.Path)
+	if i.Params != nil {
+		ctx.SetState("__navigation_params", i.Params)
+	}
+	ctx.ScheduleUpdate()
+	return HandledResult()
+}
+
+// =============================================================================
+// Focus Handlers
+// =============================================================================
+
+func handleFocus(ctx *ActionContext, i FocusIntent) IntentResult {
+	ctx.SetState("__focus_target", i.TargetID)
+	ctx.ScheduleUpdate()
+	return HandledResult()
+}
+
+func handleBlur(ctx *ActionContext, i BlurIntent) IntentResult {
+	ctx.SetState("__focus_target", "")
+	ctx.ScheduleUpdate()
+	return HandledResult()
+}
+
+// =============================================================================
+// Modal Handlers
+// =============================================================================
+
+func handleOpenModal(ctx *ActionContext, i OpenModalIntent) IntentResult {
+	ctx.SetState("__modal_id", i.ModalID)
+	if i.Data != nil {
+		ctx.SetState("__modal_data", i.Data)
+	}
+	ctx.SetState("__modal_visible", true)
+	ctx.ScheduleUpdate()
+	return HandledResult()
+}
+
+func handleCloseModal(ctx *ActionContext, i CloseModalIntent) IntentResult {
+	ctx.SetState("__modal_visible", false)
+	if i.Result != nil {
+		ctx.SetState("__modal_result", i.Result)
+	}
+	ctx.ScheduleUpdate()
+	return HandledResult()
+}
+
+// =============================================================================
+// Tooltip Handlers
+// =============================================================================
+
+func handleShowTooltip(ctx *ActionContext, i ShowTooltipIntent) IntentResult {
+	ctx.SetState("__tooltip_content", i.Content)
+	ctx.SetState("__tooltip_target", i.TargetID)
+	ctx.SetState("__tooltip_visible", true)
+	ctx.ScheduleUpdate()
+	return HandledResult()
+}
+
+func handleHideTooltip(ctx *ActionContext, i HideTooltipIntent) IntentResult {
+	ctx.SetState("__tooltip_visible", false)
+	ctx.ScheduleUpdate()
+	return HandledResult()
+}
+
+// =============================================================================
+// Form Handlers
+// =============================================================================
+
+func handleSubmitForm(ctx *ActionContext, i SubmitFormIntent) IntentResult {
+	// Store form submission state
+	ctx.SetState(fmt.Sprintf("__form_%s_submitting", i.FormID), true)
+	ctx.SetState(fmt.Sprintf("__form_%s_data", i.FormID), i.Data)
+	ctx.ScheduleUpdate()
+	return HandledResult()
+}
+
+func handleValidateForm(ctx *ActionContext, i ValidateFormIntent) IntentResult {
+	// Trigger validation state
+	ctx.SetState(fmt.Sprintf("__form_%s_validating", i.FormID), true)
+	ctx.ScheduleUpdate()
+	return HandledResult()
+}
+
+// =============================================================================
+// Data Handlers (Transition)
+// =============================================================================
+
+func handleLoadData(ctx *ActionContext, i LoadDataIntent) IntentResult {
+	// Mark as loading
+	ctx.SetState(fmt.Sprintf("__data_%s_loading", i.Key), true)
+	ctx.ScheduleUpdate()
+
+	// Note: Actual data loading should be done by custom handlers
+	// This is just a placeholder that sets the loading state
+	return HandledResult()
+}
+
+func handleRefresh(ctx *ActionContext, i RefreshIntent) IntentResult {
+	// Mark keys as refreshing
+	for _, key := range i.Keys {
+		ctx.SetState(fmt.Sprintf("__data_%s_refreshing", key), true)
+	}
+	ctx.ScheduleUpdate()
+	return HandledResult()
+}

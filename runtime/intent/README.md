@@ -15,7 +15,7 @@ Intent 系统是一个类型安全的声明式 Action 系统，用于替代闭�
 
 ## 架构
 
-`
+```
 ┌─────────────────────────────────────────────────────────────┐
 │                    Component (声明)                          │
 │  Button("Open").Intent(OpenModal())                         │
@@ -42,7 +42,7 @@ Intent 系统是一个类型安全的声明式 Action 系统，用于替代闭�
 │  - Fiber Update                                             │
 │  - Render                                                   │
 └─────────────────────────────────────────────────────────────┘
-`
+```
 
 ## 核心概念
 
@@ -50,39 +50,39 @@ Intent 系统是一个类型安全的声明式 Action 系统，用于替代闭�
 
 所有 Intent 必须实现 Intent 接口：
 
-`go
+```go
 type Intent interface {
     IntentType() string
 }
-`
+```
 
 ### 2. PriorityAware 接口（可选）
 
 如果 Intent 需要声明优先级，实现 PriorityAware 接口：
 
-`go
+```go
 type PriorityAware interface {
     Intent
     Priority() ActionPriority
 }
-`
+```
 
 ### 3. TransitionIntent 接口（可选）
 
 如果 Intent 支持异步处理，实现 TransitionIntent 接口：
 
-`go
+```go
 type TransitionIntent interface {
     Intent
     IsTransition() bool
 }
-`
+```
 
 ## 优先级系统
 
 ### ActionPriority
 
-`go
+```go
 const (
     PriorityImmediate    // 紧急操作（焦点变更），同步处理
     PriorityUserBlocking // 用户操作（点击、输入），快速响应
@@ -90,7 +90,7 @@ const (
     PriorityTransition   // 异步操作，可延迟、可中断
     PriorityIdle         // 后台任务，空闲时处理
 )
-`
+```
 
 ### Priority → Lane 映射
 
@@ -106,16 +106,16 @@ const (
 
 ### 1. 创建 Runtime
 
-`go
+```go
 import "github.com/wwsheng009/mint/runtime/intent"
 
 // 创建完整的 Intent Runtime
 rt := intent.NewRuntime()
-`
+```
 
 ### 2. 定义自定义 Intent
 
-`go
+```go
 // 定义 Intent 类型
 type IncrementCounterIntent struct {
     Step int
@@ -130,13 +130,13 @@ func (IncrementCounterIntent) IntentType() string {
 func (IncrementCounterIntent) Priority() intent.ActionPriority {
     return intent.PriorityUserBlocking
 }
-`
+```
 
 ### 3. 注册 Handler
 
 #### 方式一：类型安全注册（推荐）
 
-`go
+```go
 // 泛型注册，编译期类型检查
 intent.RegisterTypedRuntime(rt, func(ctx *intent.ActionContext, i IncrementCounterIntent) intent.IntentResult {
     current, _ := ctx.GetState("counter")
@@ -148,20 +148,20 @@ intent.RegisterTypedRuntime(rt, func(ctx *intent.ActionContext, i IncrementCount
     ctx.SetState("counter", counter)
     return intent.HandledResult()
 })
-`
+```
 
 #### 方式二：通用注册
 
-`go
+```go
 rt.Register("IncrementCounter", intent.HandlerFunc(func(ctx *intent.ActionContext, i intent.Intent) intent.IntentResult {
     // 需要手动类型断言
     return intent.HandledResult()
 }))
-`
+```
 
 ### 4. 发送 Intent
 
-`go
+```go
 // 直接发送
 result := rt.Emit(IncrementCounterIntent{Step: 5})
 if !result.Handled {
@@ -177,11 +177,11 @@ result := intent.NewBuilder(IncrementCounterIntent{Step: 5}).
 // 使用 Emitter（组件内部）
 emitter := intent.NewEmitter(rt.Dispatcher, "component-1")
 result := emitter.Emit(IncrementCounterIntent{Step: 5})
-`
+```
 
 ### 5. 在组件中使用
 
-`go
+```go
 // ❌ 旧方式：闭包模式
 button.OnClick(func() {
     counter += 1
@@ -189,31 +189,31 @@ button.OnClick(func() {
 
 // ✅ 新方式：Intent 模式
 button.Intent(IncrementCounterIntent{Step: 1})
-`
+```
 
 ## 内置 Intent 类型
 
 ### 导航 Intent
 
-`go
+```go
 // 导航到路径
 intent.Navigate("/dashboard")
 intent.NavigateWithParams("/users", map[string]interface{}{"id": 123})
-`
+```
 
 ### 状态 Intent
 
-`go
+```go
 // 设置状态
 intent.SetState("key", value)
 
 // 切换布尔状态
 intent.Toggle("isExpanded")
-`
+```
 
 ### UI Intent
 
-`go
+```go
 // 打开/关闭 Modal
 intent.OpenModal("settings-modal")
 intent.OpenModalWithData("modal-1", data)
@@ -223,51 +223,51 @@ intent.CloseModalWithResult("modal-1", result)
 // 工具提示
 intent.ShowTooltip("Help text", "target-id")
 intent.HideTooltip()
-`
+```
 
 ### 焦点 Intent
 
-`go
+```go
 // 聚焦/失焦
 intent.Focus("username-input")
 intent.Blur("username-input")
-`
+```
 
 ### 数据 Intent（Transition）
 
-`go
+```go
 // 异步加载数据
 intent.LoadData("/api/users", "users")
 
 // 刷新数据
 intent.Refresh([]string{"users", "posts"})
-`
+```
 
 ### 表单 Intent
 
-`go
+```go
 // 表单提交
 intent.SubmitForm("login-form", formData)
 
 // 表单验证
 intent.ValidateForm("login-form")
-`
+```
 
 ### 动作 Intent
 
-`go
+```go
 // 点击
 intent.Click("button-1")
 
 // 按压（Enter键等）
 intent.Press("submit-button")
-`
+```
 
 ## Transition（异步）支持
 
 ### 定义 Transition Intent
 
-`go
+```go
 type LoadDataIntent struct {
     URL  string
     Key  string
@@ -281,30 +281,30 @@ func (LoadDataIntent) IntentType() string {
 func (LoadDataIntent) IsTransition() bool {
     return true
 }
-`
+```
 
 ### 处理 Transition Intent
 
 Transition Intent 会被自动加入队列，由 Scheduler 在空闲时处理：
 
-`go
+```go
 // 发送 Transition Intent（自动入队）
 result := rt.Emit(intent.LoadData("/api/data", "dataKey"))
 // result.Async == true
 
 // Scheduler 处理队列
 rt.Dispatcher.ProcessQueue(10 * time.Millisecond)
-`
+```
 
 ### Transition 包装器
 
 可以将任意 Intent 包装为 Transition：
 
-`go
+```go
 original := SaveDataIntent{Data: "test"}
 wrapped := intent.Transition(original)
 // wrapped.IsTransition() == true
-`
+```
 
 ## 中间件
 
@@ -312,7 +312,7 @@ wrapped := intent.Transition(original)
 
 ### 添加中间件
 
-`go
+```go
 // 日志中间件
 rt.Registry.Use(func(next intent.Handler) intent.Handler {
     return intent.HandlerFunc(func(ctx *intent.ActionContext, i intent.Intent) intent.IntentResult {
@@ -326,11 +326,11 @@ rt.Registry.Use(func(next intent.Handler) intent.Handler {
         return result
     })
 })
-`
+```
 
 ### 错误处理中间件
 
-`go
+```go
 rt.Registry.Use(func(next intent.Handler) intent.Handler {
     return intent.HandlerFunc(func(ctx *intent.ActionContext, i intent.Intent) intent.IntentResult {
         defer func() {
@@ -341,13 +341,13 @@ rt.Registry.Use(func(next intent.Handler) intent.Handler {
         return next.Handle(ctx, i)
     })
 })
-`
+```
 
 ## ActionContext
 
 ActionContext 提供了 Handler 执行时的上下文：
 
-`go
+```go
 type ActionContext struct {
     context.Context    // Go 标准上下文
     Source      string // 发送源
@@ -359,13 +359,13 @@ type ActionContext struct {
 ctx.SetState(key, value)      // 设置状态
 ctx.GetState(key)             // 获取状态
 ctx.ScheduleUpdate()          // 调度更新
-`
+```
 
 ## IntentResult
 
 Handler 返回 IntentResult 表示处理结果：
 
-`go
+```go
 type IntentResult struct {
     Handled bool          // 是否已处理
     Error   error         // 错误信息
@@ -377,13 +377,13 @@ type IntentResult struct {
 intent.HandledResult()                    // 成功处理
 intent.ErrorResult(err)                   // 处理失败
 intent.AsyncResult(done)                  // 异步处理
-`
+```
 
 ## 与现有 Action 系统集成
 
 ### Action → Intent 转换
 
-`go
+```go
 import "github.com/wwsheng009/mint/runtime/action"
 
 bridge := intent.NewActionBridge(dispatcher, registry)
@@ -394,21 +394,21 @@ intent := intent.IntentFromAction(a)
 
 // 从 Action 派发
 result := bridge.DispatchFromAction(a)
-`
+```
 
 ### Intent → Action 转换
 
-`go
+```go
 // 将 Intent 转换为 Action
 i := intent.OpenModal("settings")
 a := intent.ActionFromIntent(i)
-`
+```
 
 ## 完整示例
 
 ### 示例 1：计数器应用
 
-`go
+```go
 package main
 
 import (
@@ -451,11 +451,11 @@ func main() {
 // Output:
 // Count: 1
 // Count: 6
-`
+```
 
 ### 示例 2：Modal 管理
 
-`go
+```go
 package main
 
 import (
@@ -490,11 +490,11 @@ func main() {
 // Output:
 // Opening modal: settings
 // Closing modal: settings
-`
+```
 
 ### 示例 3：异步数据加载
 
-`go
+```go
 package main
 
 import (
@@ -526,19 +526,19 @@ func main() {
 // Output:
 // Async: true
 // Processed: 1
-`
+```
 
 ## 设计原则
 
 ### 1. Intent 是声明，不是行为
 
-`
+```
 ❌ 闭包模式：组件持有行为
 button.OnClick(func() { showModal() })
 
 ✅ Intent 模式：组件声明意图
 button.Intent(OpenModal())
-`
+```
 
 ### 2. Intent 可调度
 
@@ -588,36 +588,36 @@ button.Intent(OpenModal())
 
 1. **识别闭包使用**
 
-`go
+```go
 // 旧代码
 button.OnClick(func() {
     setShowModal(true)
 })
-`
+```
 
 2. **定义 Intent**
 
-`go
+```go
 type ShowModalIntent struct{}
 
 func (ShowModalIntent) IntentType() string { return "ShowModal" }
-`
+```
 
 3. **注册 Handler**
 
-`go
+```go
 intent.RegisterTypedRuntime(rt, func(ctx *intent.ActionContext, i ShowModalIntent) intent.IntentResult {
     ctx.SetState("showModal", true)
     return intent.HandledResult()
 })
-`
+```
 
 4. **更新组件**
 
-`go
+```go
 // 新代码
 button.Intent(ShowModalIntent{})
-`
+```
 
 ## 参考资料
 

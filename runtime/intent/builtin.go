@@ -62,6 +62,26 @@ func (ToggleIntent) Priority() ActionPriority {
 	return PriorityUserBlocking
 }
 
+// IncrementIntent increments a numeric state by a delta.
+// This is useful for counter-like operations without closures.
+type IncrementIntent struct {
+	// Key is the state key.
+	Key string
+
+	// Delta is the amount to add (can be negative for decrement).
+	Delta int
+}
+
+// IntentType implements Intent.
+func (IncrementIntent) IntentType() string {
+	return "Increment"
+}
+
+// Priority implements PriorityAware.
+func (IncrementIntent) Priority() ActionPriority {
+	return PriorityUserBlocking
+}
+
 // --- UI Intents ---
 
 // OpenModalIntent requests opening a modal.
@@ -294,6 +314,16 @@ func SetState(key string, value interface{}) SetStateIntent {
 // Toggle creates a ToggleIntent.
 func Toggle(key string) ToggleIntent {
 	return ToggleIntent{Key: key}
+}
+
+// Increment creates an IncrementIntent.
+func Increment(key string, delta int) IncrementIntent {
+	return IncrementIntent{Key: key, Delta: delta}
+}
+
+// Decrement creates an IncrementIntent with negative delta.
+func Decrement(key string, delta int) IncrementIntent {
+	return IncrementIntent{Key: key, Delta: -delta}
 }
 
 // OpenModal creates an OpenModalIntent.
