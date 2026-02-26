@@ -7,8 +7,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/wwsheng009/mint/components/display"
-	"github.com/wwsheng009/mint/components/navigation"
 	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/compute"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
