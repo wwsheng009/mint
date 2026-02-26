@@ -94,6 +94,18 @@ func (b *Builder) OnToggle(toggleIntent intent.Intent) *Builder {
 	return b
 }
 
+// ForField sets the field binding for MVP data flow.
+// This creates a FieldBinding intent that will be used by the Instance
+// to emit FieldChangeIntent when the user toggles the checkbox.
+//
+// Example:
+//
+//	checkbox.NewBuilder().ForField(intent.BindField("acceptTerms"))
+func (b *Builder) ForField(binding intent.FieldBinding) *Builder {
+	b.node.SetIntent(binding)
+	return b
+}
+
 // Build returns the VNode.
 func (b *Builder) Build() rtui.VNode {
 	return b.node

@@ -75,6 +75,15 @@ func main() {
 		ui.WithInit(func() {
 			// 注册 Intent Handlers
 			ui.RegisterIntent(func(ctx *intent.ActionContext, i UpdateFieldIntent) intent.IntentResult {
+				// If Value is empty, this is likely an intent emitted from Input component
+				// which doesn't know the new value yet. We need to get the value from the component.
+				// For now, skip updating state when value is empty to avoid clearing the state.
+				// The actual value will be synced through the re-render process.
+				if i.Value == "" {
+					// Don't clear state when value is empty
+					// The component's local state (instance.value) is the source of truth
+					return intent.HandledResult()
+				}
 				ctx.SetState(i.Field, i.Value)
 				return intent.HandledResult()
 			})

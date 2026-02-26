@@ -26,10 +26,14 @@ func (t *TextVNode) Tag() string {
 }
 
 // ButtonVNode represents a button component
+//
+// Deprecated: Use github.com/wwsheng009/mint/ui/components/button.Builder instead.
+// The Builder API provides typed intent-based event handling via OnPress().
+// Example: button.NewBuilder("Click Me").OnPress(someIntent).Build()
 type ButtonVNode struct {
 	*ElementVNode
 	label    string
-	onClick  func()
+	onClick  func() // Deprecated: Use button.Builder().OnPress() instead
 	disabled bool
 }
 
@@ -42,6 +46,10 @@ func (b *ButtonVNode) Label() string {
 }
 
 // OnClick returns the click handler
+//
+// Deprecated: Use button.Builder().OnPress() with intent.Intent instead.
+// Closure-based event handlers will be removed in v2.0.
+// Example: button.NewBuilder("Submit").OnPress(SubmitIntent{}).Build()
 func (b *ButtonVNode) OnClick() func() {
 	if b == nil {
 		return nil

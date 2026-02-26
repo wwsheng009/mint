@@ -116,6 +116,18 @@ func (b *Builder) OnChange(changeIntent intent.Intent) *Builder {
 	return b
 }
 
+// ForField sets the field binding for MVP data flow.
+// This creates a FieldBinding intent that will be used by the Instance
+// to emit FieldChangeIntent when the user types.
+//
+// Example:
+//
+//	input.NewBuilder().ForField(intent.BindField("username"))
+func (b *Builder) ForField(binding intent.FieldBinding) *Builder {
+	b.node.SetChangeIntent(binding)
+	return b
+}
+
 // OnSubmit sets the submit intent.
 func (b *Builder) OnSubmit(submitIntent intent.Intent) *Builder {
 	b.node.SetSubmitIntent(submitIntent)

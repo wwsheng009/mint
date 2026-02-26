@@ -40,6 +40,9 @@ func SetupBuiltinHandlers(rt *Runtime) {
 	RegisterTypedRuntime(rt, handleSubmitForm)
 	RegisterTypedRuntime(rt, handleValidateForm)
 
+	// ✨ MVP: Field Change handler
+	RegisterTypedRuntime(rt, handleFieldChange)
+
 	// Data handlers (async)
 	RegisterTypedRuntime(rt, handleLoadData)
 	RegisterTypedRuntime(rt, handleRefresh)
@@ -178,6 +181,23 @@ func handleSubmitForm(ctx *ActionContext, i SubmitFormIntent) IntentResult {
 func handleValidateForm(ctx *ActionContext, i ValidateFormIntent) IntentResult {
 	// Trigger validation state
 	ctx.SetState(fmt.Sprintf("__form_%s_validating", i.FormID), true)
+	ctx.ScheduleUpdate()
+	return HandledResult()
+}
+
+// =============================================================================
+// Field Change Handler (MVP)
+// =============================================================================
+
+// handleFieldChange handles FieldChangeIntent by updating the state with the runtime value.
+// This is the MVP handler that makes State the single source of truth.
+//
+// Data Flow:
+//   Instance (buffer) → FieldChangeIntent → State (authority) → VNode → Instance
+func handleFieldChange(ctx *ActionContext, i FieldChangeIntent) IntentResult {
+	// ✨ MVP: State is the single source of truth
+	// The value from Instance (user input) becomes the new state value
+	ctx.SetState(i.Field, i.Value)
 	ctx.ScheduleUpdate()
 	return HandledResult()
 }

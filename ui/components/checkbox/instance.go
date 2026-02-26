@@ -291,9 +291,25 @@ func (inst *Instance) Toggle() bool {
 	inst.checked = !inst.checked
 	inst.dirty = true
 
-	// Emit toggle intent if set
-	if inst.toggleIntent != nil && inst.intentEmitter != nil {
-		inst.intentEmitter(inst.toggleIntent)
+	// ✨ MVP: Emit FieldChangeIntent with runtime value
+	// State becomes the single source of truth
+	// Convert boolean to string for FieldChangeIntent
+	value := "false"
+	if inst.checked {
+		value = "true"
+	}
+
+	if inst.intentEmitter != nil {
+		if fieldIntent, ok := inst.toggleIntent.(intent.FieldIntent); ok {
+			changeIntent := intent.FieldChangeIntent{
+				Field: fieldIntent.GetField(),
+				Value: value,
+			}
+			inst.intentEmitter(changeIntent)
+		} else if inst.toggleIntent != nil {
+			// Fallback: emit the original intent for backward compatibility
+			inst.intentEmitter(inst.toggleIntent)
+		}
 	}
 
 	return inst.checked

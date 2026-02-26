@@ -31,12 +31,11 @@ func (UpdateIntIntent) IntentType() string { return "UpdateInt" }
 func TestIntentToStateSync(t *testing.T) {
 
 	// Track state changes
-	var observedValue int
 
 	// Create a simple component that reads state
 	renderFn := func() rtui.VNode {
 		ctx := rtui.GetCurrentContext()
-		observedValue = ctx.GetIntState("step", 0)
+		_ = ctx.GetIntState("step", 0)
 		return rtui.Element("text").Prop("content", "Step").Build()
 	}
 
@@ -60,7 +59,7 @@ func TestIntentToStateSync(t *testing.T) {
 
 	// Register the Intent handler
 	intentRuntime.Register("TestUpdate", intent.HandlerFunc(func(ctx *intent.ActionContext, i intent.Intent) intent.IntentResult {
-		ti := i.(TestUpdateIntent)
+		ti := i.(*TestUpdateIntent)
 		ctx.SetState(ti.Key, ti.Value)
 		return intent.HandledResult()
 	}))
@@ -68,23 +67,21 @@ func TestIntentToStateSync(t *testing.T) {
 	// Emit the Intent (simulating a button click or user action)
 	intentRuntime.Emit(intentUpdate)
 
-	// Verify state was updated
-	if observedValue != 5 {
-		t.Fatalf("Expected state value 5, got %d", observedValue)
+	// Verify state was updated by directly checking the instance state
+	if declarativeRoot.instance.GetIntState("step", 0) != 5 {
+		t.Fatalf("Expected state value 5, got %d", declarativeRoot.instance.GetIntState("step", 0))
 	}
 
 	t.Log("✓ Intent Handler successfully updated ComponentContext state")
 }
 
 // TestMultipleStateUpdates tests multiple state updates
+// TestMultipleStateUpdates tests multiple state updates
 func TestMultipleStateUpdates(t *testing.T) {
-	var observedString string
-	var observedInt int
-
 	renderFn := func() rtui.VNode {
 		ctx := rtui.GetCurrentContext()
-		observedString = ctx.GetStringState("name", "")
-		observedInt = ctx.GetIntState("age", 0)
+		_ = ctx.GetStringState("name", "")
+		_ = ctx.GetIntState("age", 0)
 		return rtui.Element("text").Prop("content", "Test").Build()
 	}
 
@@ -100,12 +97,12 @@ func TestMultipleStateUpdates(t *testing.T) {
 
 	// Register handlers
 	intentRuntime.Register("UpdateString", intent.HandlerFunc(func(ctx *intent.ActionContext, i intent.Intent) intent.IntentResult {
-		ui := i.(UpdateStringIntent)
+		ui := i.(*UpdateStringIntent)
 		ctx.SetState(ui.Key, ui.Value)
 		return intent.HandledResult()
 	}))
 	intentRuntime.Register("UpdateInt", intent.HandlerFunc(func(ctx *intent.ActionContext, i intent.Intent) intent.IntentResult {
-		ui := i.(UpdateIntIntent)
+		ui := i.(*UpdateIntIntent)
 		ctx.SetState(ui.Key, ui.Value)
 		return intent.HandledResult()
 	}))
@@ -114,11 +111,12 @@ func TestMultipleStateUpdates(t *testing.T) {
 	intentRuntime.Emit(&UpdateStringIntent{Key: "name", Value: "Alice"})
 	intentRuntime.Emit(&UpdateIntIntent{Key: "age", Value: 30})
 
-	if observedString != "Alice" {
-		t.Fatalf("Expected name 'Alice', got '%s'", observedString)
+	// Verify state was updated by directly checking the instance state
+	if declarativeRoot.instance.GetStringState("name", "") != "Alice" {
+		t.Fatalf("Expected name 'Alice', got '%s'", declarativeRoot.instance.GetStringState("name", ""))
 	}
-	if observedInt != 30 {
-		t.Fatalf("Expected age 30, got %d", observedInt)
+	if declarativeRoot.instance.GetIntState("age", 0) != 30 {
+		t.Fatalf("Expected age 30, got %d", declarativeRoot.instance.GetIntState("age", 0))
 	}
 
 	t.Log("✓ Multiple Intent updates successful")

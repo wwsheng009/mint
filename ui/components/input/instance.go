@@ -545,9 +545,19 @@ func (inst *Instance) InsertText(text string) bool {
 	inst.cursorPos += len(textRunes)
 	inst.dirty = true
 
-	// Emit change intent
-	if inst.changeIntent != nil && inst.intentEmitter != nil {
-		inst.intentEmitter(inst.changeIntent)
+	// ✨ MVP: Emit FieldChangeIntent with runtime value
+	// State becomes the single source of truth
+	if inst.intentEmitter != nil {
+		if fieldIntent, ok := inst.changeIntent.(intent.FieldIntent); ok {
+			changeIntent := intent.FieldChangeIntent{
+				Field: fieldIntent.GetField(),
+				Value: inst.value,
+			}
+			inst.intentEmitter(changeIntent)
+		} else if inst.changeIntent != nil {
+			// Fallback: emit the original intent for backward compatibility
+			inst.intentEmitter(inst.changeIntent)
+		}
 	}
 
 	return true
@@ -595,9 +605,19 @@ func (inst *Instance) DeleteText(direction int) bool {
 
 	inst.dirty = true
 
-	// Emit change intent
-	if inst.changeIntent != nil && inst.intentEmitter != nil {
-		inst.intentEmitter(inst.changeIntent)
+	// ✨ MVP: Emit FieldChangeIntent with runtime value
+	// State becomes the single source of truth
+	if inst.intentEmitter != nil {
+		if fieldIntent, ok := inst.changeIntent.(intent.FieldIntent); ok {
+			changeIntent := intent.FieldChangeIntent{
+				Field: fieldIntent.GetField(),
+				Value: inst.value,
+			}
+			inst.intentEmitter(changeIntent)
+		} else if inst.changeIntent != nil {
+			// Fallback: emit the original intent for backward compatibility
+			inst.intentEmitter(inst.changeIntent)
+		}
 	}
 
 	return true
