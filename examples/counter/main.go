@@ -5,12 +5,19 @@ import (
 	"os"
 
 	"github.com/wwsheng009/mint/app"
+	"github.com/wwsheng009/mint/internal/log"
+	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/ui"
 )
 
-// Counter is a dynamic counter component using useState
+// Counter is a dynamic counter component using ComponentContext and Intent
 func Counter() ui.VNode {
-	count, setCount, _ := ui.UseStateInt(0)
+	// Get current context (initialized by Fiber-first framework during render)
+	ctx := ui.GetCurrentContext()
+
+	// Read count from GlobalState (incremented by IncrementIntent)
+	// Using default value of 0 for first render
+	count := ctx.GetIntState("count", 0)
 
 	// Check if running in Fiber mode
 	isFiber := os.Getenv("MINT_USE_FIBER") == "true"
@@ -18,6 +25,8 @@ func Counter() ui.VNode {
 	if isFiber {
 		fiberStr = "ON"
 	}
+
+	log.TempLogger.Debug("[Counter] Render: count=%d, Fiber=%s", count, fiberStr)
 
 	return ui.VStack(
 		app.NewTextBuilder("Mint UI Counter Demo").
@@ -30,21 +39,21 @@ func Counter() ui.VNode {
 			Build(),
 		app.Text(""),
 		// Debug info line
-		app.NewTextBuilder(fmt.Sprintf("[Fiber: %s] Press Tab to test focus navigation", fiberStr)).
+		app.NewTextBuilder(fmt.Sprintf("[Fiber: %s] Using GlobalState + IncrementIntent", fiberStr)).
 			FgColor("yellow").
 			Build(),
 		app.Text(""),
 		app.HStack(
+			// Decrement button using Intent (Fiber-first)
+			// Intent created with fresh parameter values at render time
 			app.ButtonBuilder("  -  ").
-				OnClick(func() {
-					setCount(func(c int) int { return c - 1 })
-				}).
+				OnPress(intent.Decrement("count", 1)).
 				Build(),
 			app.Text("   "),
+			// Increment button using Intent (Fiber-first)
+			// Intent created with fresh parameter values at render time
 			app.ButtonBuilder("  +  ").
-				OnClick(func() {
-					setCount(func(c int) int { return c + 1 })
-				}).
+				OnPress(intent.Increment("count", 1)).
 				Build(),
 		),
 		app.Text(""),
