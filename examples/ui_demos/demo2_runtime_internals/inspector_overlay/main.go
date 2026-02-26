@@ -79,7 +79,7 @@ func main() {
 
 	// Initialize theme
 	if err := FwApp.InitTheme("nord"); err != nil {
-		log.UILogger.Debug("Failed to initialize theme: %v\n", err)
+		log.UILogger.Debug("Failed to initialize theme: %v", err)
 	}
 
 	// Run the app
@@ -87,8 +87,8 @@ func main() {
 
 	// Debug info
 	if log.UILogger.Enabled() {
-		log.UILogger.Debug("[DEMO2] Inspector enabled: %v\n", globalInspector.IsEnabled())
-		log.UILogger.Debug("[DEMO2] Inspector visible: %v\n", globalInspector.IsVisible())
+		log.UILogger.Debug("[DEMO2] Inspector enabled: %v", globalInspector.IsEnabled())
+		log.UILogger.Debug("[DEMO2] Inspector visible: %v", globalInspector.IsVisible())
 	}
 
 	if err := FwApp.Run(); err != nil {
@@ -105,14 +105,14 @@ func RuntimeDemoWithInspectorOverlay() ui.VNode {
 
 	// Debug: check inspector visibility before hook
 	if os.Getenv("TUI_DEBUG_INSPECTOR") == "true" {
-		log.UILogger.Debug("[DEMO] globalInspector.IsVisible() = %v\n", globalInspector.IsVisible())
+		log.UILogger.Debug("[DEMO] globalInspector.IsVisible() = %v", globalInspector.IsVisible())
 	}
 
 	showInspector, setShowInspector := ui.UseStateBool(globalInspector.IsVisible())
 
 	// Debug: log state
 	if os.Getenv("TUI_DEBUG_INSPECTOR") == "true" {
-		log.UILogger.Debug("[DEMO] showInspector (from hook) = %v\n", showInspector)
+		log.UILogger.Debug("[DEMO] showInspector (from hook) = %v", showInspector)
 	}
 
 	// Track performance
@@ -136,7 +136,7 @@ func RuntimeDemoWithInspectorOverlay() ui.VNode {
 
 	// Debug: log visibility check
 	if os.Getenv("TUI_DEBUG_INSPECTOR") == "true" {
-		log.UILogger.Debug("[DEMO] Inspector visible: %v (showInspector state: %v)\n",
+		log.UILogger.Debug("[DEMO] Inspector visible: %v (showInspector state: %v)",
 			inspectorVisible, showInspector)
 	}
 
@@ -373,7 +373,7 @@ func ControlPanel(
 			OnClick(func() {
 				// Debug output
 				if os.Getenv("TUI_DEBUG") == "true" || os.Getenv("TUI_DEBUG_UI") == "true" {
-					log.UILogger.Debug("[DEMO2] [I] button clicked, Inspector enabled=%v, visible=%v\n",
+					log.UILogger.Debug("[DEMO2] [I] button clicked, Inspector enabled=%v, visible=%v",
 						globalInspector.IsEnabled(), globalInspector.IsVisible())
 				}
 
@@ -382,7 +382,7 @@ func ControlPanel(
 
 				// Debug output after toggle
 				if os.Getenv("TUI_DEBUG") == "true" || os.Getenv("TUI_DEBUG_UI") == "true" {
-					log.UILogger.Debug("[DEMO2] After toggle, Inspector visible=%v\n",
+					log.UILogger.Debug("[DEMO2] After toggle, Inspector visible=%v",
 						globalInspector.IsVisible())
 				}
 

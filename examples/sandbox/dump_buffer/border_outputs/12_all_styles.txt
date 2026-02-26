@@ -1,8 +1,8 @@
 Border Style Showcase                                                           
                                                                                 
-┌ single ┐   ╔ double ╗   ╭ rounded ╮                                           
-│A       │   ╚B═══════╝   │C        │    D                                      
-└────────┘                ╰─────────╯                                           
+┌ si  l╔ do  l╭ ro  d+ dashed +                                                 
+│A     ║B│    │C║    |D │     |                                                 
+└──────╚══════╰──────+--------+                                                 
                                                                                 
                                                                                 
                                                                                 

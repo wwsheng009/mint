@@ -16,13 +16,13 @@ func DebugCounter() ui.VNode {
 
 	// Debug: log what value we got
 	if log.UILogger.Enabled() {
-		log.UILogger.Debug( "[DebugCounter] Using count=%d, hookIndex=%d\n", count, hookIndex)
+		log.UILogger.Debug( "[DebugCounter] Using count=%d, hookIndex=%d", count, hookIndex)
 	}
 
 	// Create the count text with logging
 	countTextStr := fmt.Sprintf("Count: %d (hookIndex=%d)", count, hookIndex)
 	if log.UILogger.Enabled() {
-		log.UILogger.Debug("[DebugCounter] Creating TextVNode with content: %s\n", countTextStr)
+		log.UILogger.Debug("[DebugCounter] Creating TextVNode with content: %s", countTextStr)
 	}
 	countText := app.NewTextBuilder(countTextStr).
 		FgColor("green").
@@ -34,7 +34,7 @@ func DebugCounter() ui.VNode {
 		if countText.Props() != nil {
 			content = countText.Props().GetString("content")
 		}
-		log.UILogger.Debug("[DebugCounter] Created TextVNode ptr=%p, content=%s\n", countText, content)
+		log.UILogger.Debug("[DebugCounter] Created TextVNode ptr=%p, content=%s", countText, content)
 	}
 
 	return ui.VStack(
@@ -48,10 +48,10 @@ func DebugCounter() ui.VNode {
 		ui.HStack(
 			app.ButtonBuilder("  -  ").
 				OnClick(func() {
-					log.UILogger.Debug("[DEBUG] onClick: decrement called, current count=%d\n", count)
+					log.UILogger.Debug("[DEBUG] onClick: decrement called, current count=%d", count)
 					setCount(func(c int) int {
 						newVal := c - 1
-						log.UILogger.Debug("[DEBUG] setState: %d -> %d\n", c, newVal)
+						log.UILogger.Debug("[DEBUG] setState: %d -> %d", c, newVal)
 						return newVal
 					})
 				}).
@@ -59,10 +59,10 @@ func DebugCounter() ui.VNode {
 			ui.Text("   "),
 			app.ButtonBuilder("  +  ").
 				OnClick(func() {
-					log.UILogger.Debug("[DEBUG] onClick: increment called, current count=%d\n", count)
+					log.UILogger.Debug("[DEBUG] onClick: increment called, current count=%d", count)
 					setCount(func(c int) int {
 						newVal := c + 1
-						log.UILogger.Debug("[DEBUG] setState: %d -> %d\n", c, newVal)
+						log.UILogger.Debug("[DEBUG] setState: %d -> %d", c, newVal)
 						return newVal
 					})
 				}).
@@ -100,15 +100,15 @@ func main() {
 	useFiber := os.Getenv("MINT_USE_FIBER") == "true"
 	debugUI := log.UILogger.Enabled()
 
-	log.UILogger.Debug("=== Fiber Counter Debug Info ===\n")
-	log.UILogger.Debug("MINT_USE_FIBER: %v\n", useFiber)
-	log.UILogger.Debug("TUI_DEBUG_UI: %v\n", debugUI)
-	log.UILogger.Debug("==============================\n\n")
+	log.UILogger.Debug("=== Fiber Counter Debug Info ===")
+	log.UILogger.Debug("MINT_USE_FIBER: %v", useFiber)
+	log.UILogger.Debug("TUI_DEBUG_UI: %v", debugUI)
+	log.UILogger.Debug("==============================")
 
 	if useFiber {
-		log.UILogger.Debug("Running in FIBER mode\n")
+		log.UILogger.Debug("Running in FIBER mode")
 	} else {
-		log.UILogger.Debug("Running in LEGACY mode\n")
+		log.UILogger.Debug("Running in LEGACY mode")
 	}
 
 	var app ui.ComponentFunc

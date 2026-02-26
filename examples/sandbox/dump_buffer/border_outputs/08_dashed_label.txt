@@ -1,6 +1,6 @@
-                                                                                
- Content                                                                        
-                                                                                
++ ASCII +                                                                       
+|Content|                                                                       
++-------+                                                                       
                                                                                 
                                                                                 
                                                                                 
