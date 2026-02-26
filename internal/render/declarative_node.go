@@ -14,6 +14,7 @@ import (
 	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/border"
 	"github.com/wwsheng009/mint/runtime/event"
+	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/render"
@@ -52,6 +53,9 @@ type DeclarativeNode struct {
 	reconciler rtui.Reconciler    // Fiber reconciler (if enabled) - use interface to avoid import cycle
 	renderer   rtui.VNodeRenderer // VNode renderer (implements VNodeRenderer interface)
 	useFiber   bool               // Whether Fiber mode is enabled
+
+	// === Intent Integration ===
+	intentRuntime *intent.Runtime // Intent runtime for dispatching intents
 
 	// === Fiber-first Rendering Pipeline (Phase 4) ===
 	renderMode             RenderMode                 // Current rendering mode
@@ -201,6 +205,49 @@ func (n *DeclarativeNode) IsFiberFirstEnabled() bool {
 	defer n.mu.RUnlock()
 	return n.fiberFirstEnabled
 }
+
+// =============================================================================
+// Intent Runtime Integration
+// =============================================================================
+
+// SetDeclarativeNodeIntentRuntime sets the Intent Runtime for this declarative node.
+// This is called from ui.Run() after creating the declarative node.
+func SetDeclarativeNodeIntentRuntime(node *DeclarativeNode, rt *intent.Runtime) {
+	node.mu.Lock()
+	defer node.mu.Unlock()
+	node.intentRuntime = rt
+
+	// Also set on reconciler if present (Fiber mode)
+	if node.reconciler != nil {
+		if adapter, ok := node.reconciler.(*fiberReconcilerAdapter); ok {
+			adapter.r.SetIntentRuntime(rt)
+		}
+	}
+
+	// Set StateSetter on dispatcher if instance already exists
+	// (instance is created during first render, may be nil here)
+	if node.instance != nil {
+		rt.Dispatcher.SetStateSetter(node.instance)
+		// Set schedule update callback
+		node.instance.SetScheduleUpdate(func() {
+			// Request re-render through framework app
+			if node.fwApp != nil {
+				node.fwApp.MarkDirty()
+			}
+		})
+	}
+}
+
+// GetIntentRuntime returns the Intent Runtime for this declarative node.
+func (n *DeclarativeNode) GetIntentRuntime() *intent.Runtime {
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+	return n.intentRuntime
+}
+
+// =============================================================================
+// SetReconciler
+// =============================================================================
 
 // SetReconciler sets the Fiber reconciler for this node
 // This is called by ui.Run when Fiber mode is enabled
@@ -683,12 +730,32 @@ func (n *DeclarativeNode) renderWithFiberContext() rtui.VNode {
 // nonFiberRender renders the VNode tree in non-Fiber mode
 func (n *DeclarativeNode) nonFiberRender() rtui.VNode {
 	// Initialize component context if needed
+	instanceCreated := false
 	if n.instance == nil && n.renderFn != nil {
 		n.instance = rtui.NewComponentContextForRoot()
+		instanceCreated = true
 	}
 
 	if n.renderFn == nil {
 		return n.root
+	}
+
+	// Set Intent Runtime to component context (enables intent.EmitIntents)
+	n.mu.RLock()
+	intentRuntime := n.intentRuntime
+	n.mu.RUnlock()
+	n.instance.SetIntentRuntime(intentRuntime)
+
+	// Set StateSetter on dispatcher if this is a new instance
+	if instanceCreated && intentRuntime != nil {
+		intentRuntime.Dispatcher.SetStateSetter(n.instance)
+		// Set schedule update callback
+		n.instance.SetScheduleUpdate(func() {
+			// Request re-render through framework app
+			if n.fwApp != nil {
+				n.fwApp.MarkDirty()
+			}
+		})
 	}
 
 	// Set component context for hooks

@@ -21,6 +21,7 @@ import (
 	"github.com/wwsheng009/mint/internal/log"
 	"github.com/wwsheng009/mint/internal/state"
 	"github.com/wwsheng009/mint/runtime"
+	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/runtime/paint"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
@@ -1096,6 +1097,23 @@ var currentReconciler *Reconciler
 // SetRenderer sets the VNode renderer for SetFiber call
 func (r *Reconciler) SetRenderer(renderer rtui.VNodeRenderer) {
 	r.renderer = renderer
+}
+
+// SetIntentRuntime sets the Intent Runtime for this reconciler.
+// This enables intent dispatching from component contexts.
+func (r *Reconciler) SetIntentRuntime(runtime *intent.Runtime) {
+	if r.ctx != nil {
+		r.ctx.SetIntentRuntime(runtime)
+
+		// Set StateSetter on dispatcher for intent handlers
+		runtime.Dispatcher.SetStateSetter(r.ctx)
+
+		// Set schedule update callback for state changes
+		r.ctx.SetScheduleUpdate(func() {
+			// Request schedule update through reconciler
+			r.ScheduleUpdate(rtui.LaneDefaultLane)
+		})
+	}
 }
 
 // GetCurrentReconciler returns the current reconciler

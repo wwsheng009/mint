@@ -24,10 +24,6 @@ import (
 	"time"
 
 	"github.com/wwsheng009/mint/app"
-	"github.com/wwsheng009/mint/components/container"
-	"github.com/wwsheng009/mint/components/data"
-	"github.com/wwsheng009/mint/components/display"
-	"github.com/wwsheng009/mint/components/navigation"
 	"github.com/wwsheng009/mint/runtime/action"
 	frameworkevent "github.com/wwsheng009/mint/framework/event"
 	"github.com/wwsheng009/mint/framework/theme"
@@ -37,6 +33,10 @@ import (
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/ui"
+	"github.com/wwsheng009/mint/ui/components/list"
+	"github.com/wwsheng009/mint/ui/components/panel"
+	"github.com/wwsheng009/mint/ui/components/tabs"
+	"github.com/wwsheng009/mint/ui/components/treeview"
 )
 
 // StandaloneInspector operates as an independent overlay
@@ -51,7 +51,7 @@ type StandaloneInspector struct {
 
 	// Data sources
 	treeView          *TreeView
-	treeViewComponent *display.TreeView // New: TreeView component with navigation
+	treeViewComponent *treeview.VNode // New: TreeView component with navigation
 	perf              *PerformanceAnalyzer
 	diagnostics       *LayoutDiagnostics
 	editor            *PropertyEditor
