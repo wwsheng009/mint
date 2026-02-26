@@ -4,6 +4,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -234,4 +235,65 @@ func TestViewSingleBorder(t *testing.T) {
 	// Print to console
 	app.DumpBuffer()
 	t.Logf("\nOutput saved to: %s\n", outputPath)
+}
+
+// TestAllStylesGrid runs the "All Styles Grid" test case independently
+// This test verifies that HStack with multiple Bordered elements renders correctly
+// without overlapping or truncation of labels
+func TestAllStylesGrid(t *testing.T) {
+	os.MkdirAll(outputDir, 0755)
+	os.Setenv("TUI_DEBUG_ALL", "true")
+	os.Setenv("TUI_LOG_OUTPUT", "both")
+	vnode := ui.VStack(
+		ui.Text("Border Style Showcase"),
+		ui.Text(""),
+		ui.HStack(
+			ui.Bordered().Label("single").Child(ui.Text("A")).Build(),
+			ui.Text("  "),
+			ui.Bordered().Style("double").Label("double").Child(ui.Text("B")).Build(),
+			ui.Text("  "),
+			ui.Bordered().Style("rounded").Label("rounded").Child(ui.Text("C")).Build(),
+			ui.Text("  "),
+			ui.Bordered().Style("dashed").Label("dashed").Child(ui.Text("D")).Build(),
+		),
+	)
+
+	app, err := ui.RunTestWithSandbox(
+		func() ui.VNode { return vnode },
+		ui.WithWidth(60),
+		ui.WithHeight(20),
+		ui.WithTitle("All Styles Grid"),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer app.Close()
+
+	time.Sleep(100 * time.Millisecond)
+
+	// Save to file
+	outputPath := filepath.Join(outputDir, "12_all_styles.txt")
+	err = app.SaveBufferToFile(outputPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Print to console
+	output := app.GetRenderString()
+	t.Logf("=== All Styles Grid ===\n%s\n=== End ===\n", output)
+	t.Logf("Output saved to: %s\n", outputPath)
+
+	// Verify output contains expected labels (not truncated)
+	if !strings.Contains(output, "single") {
+		t.Error("Expected output to contain 'single' label (might be truncated)")
+	}
+	if !strings.Contains(output, "double") {
+		t.Error("Expected output to contain 'double' label (might be truncated)")
+	}
+	if !strings.Contains(output, "rounded") {
+		t.Error("Expected output to contain 'rounded' label (might be truncated)")
+	}
+	if !strings.Contains(output, "dashed") {
+		t.Error("Expected output to contain 'dashed' label (might be truncated)")
+	}
 }

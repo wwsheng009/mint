@@ -1158,15 +1158,32 @@ func (bn *BorderedNode) renderTopBorder(cornerTL, cornerTR, horizontal rune, con
 	// Top border with label: "+-- Label ----+"
 	label := bn.borderLabel
 	labelWidth := len(label) + 2 // +1 for space on each side
-	padding := (contentWidth - labelWidth) / 2
-	if padding < 0 {
-		padding = 0
+
+	// Total width = border (2 chars) + contentWidth + padding
+	// The label should be centered with equal horizontal lines on both sides
+	// Total available space for horizontal lines = contentWidth
+	horizontalLineTotal := contentWidth - labelWidth
+	if horizontalLineTotal < 0 {
+		horizontalLineTotal = 0
+	}
+
+	// Split evenly: left line gets half (rounded down), right line gets the rest
+	leftLineLen := horizontalLineTotal / 2
+	rightLineLen := horizontalLineTotal - leftLineLen
+
+	// Build border parts
+	var leftLine, rightLine string
+	if leftLineLen > 0 {
+		leftLine = strings.Repeat(string(horizontal), leftLineLen)
+	}
+	if rightLineLen > 0 {
+		rightLine = strings.Repeat(string(horizontal), rightLineLen)
 	}
 
 	return []VNode{
-		Element("text").Prop("content", string(cornerTL)+strings.Repeat(string(horizontal), padding+1)).Style(textStyle).Build(),
+		Element("text").Prop("content", string(cornerTL)+leftLine).Style(textStyle).Build(),
 		Element("text").Prop("content", " "+label+" ").Style(textStyle.Bold(true)).Build(),
-		Element("text").Prop("content", strings.Repeat(string(horizontal), contentWidth-padding-labelWidth+2)+string(cornerTR)).Style(textStyle).Build(),
+		Element("text").Prop("content", rightLine+string(cornerTR)).Style(textStyle).Build(),
 	}
 }
 

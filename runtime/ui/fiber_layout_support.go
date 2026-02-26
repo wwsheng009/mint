@@ -438,13 +438,25 @@ func (f *Fiber) measureBorderedLayout(
 	var childSizes []runtime.Size
 	var childConstraints []runtime.BoxConstraints
 
+	// Calculate label width if present
+	labelWidth := 0
+	if f.Props != nil {
+		if label, ok := f.Props["label"].(string); ok && label != "" {
+			labelWidth = len(label) + 2 // +2 for spaces around label
+		}
+	}
+
 	if len(children) > 0 {
 		childConstraints = []runtime.BoxConstraints{innerConstraints}
 		childSize := measurer.MeasureChild(children[0], innerConstraints)
 		childSizes = []runtime.Size{childSize}
 
 		// Calculate final size: child size + 2 for border
+		// Inner width is max(content, label)
 		contentWidth := childSize.Width
+		if labelWidth > contentWidth {
+			contentWidth = labelWidth
+		}
 		contentHeight := childSize.Height
 
 		// Use explicit constraints if set

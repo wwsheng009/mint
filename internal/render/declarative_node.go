@@ -1094,8 +1094,41 @@ func (n *DeclarativeNode) paintBordered(vnode rtui.VNode, _ interface{ RenderBor
 	}
 
 	// Measure content size
-	contentWidth := n.MeasureVNodeWidth(child)
 	contentHeight := n.MeasureVNodeHeight(child)
+
+	// Get the measured total width of the BorderedNode (including border)
+	borderedNodeWidth := 0
+	if measurable, ok := vnode.(interface{ Measure(runtime.BoxConstraints) runtime.Size }); ok {
+		borderedNodeWidth = measurable.Measure(runtime.UnboundedConstraints()).Width
+	}
+
+	// Calculate inner content width
+	// BorderedNode.Measure uses: totalWidth = max(childWidth, labelWidth) + borderWidth + (labelPresent ? 2 : 0)
+	// So innerWidth = totalWidth - borderWidth - (labelPresent ? 2 : 0)
+	hasLabel := false
+	if l, ok := vnode.(interface{ GetBorderLabel() string }); ok && l.GetBorderLabel() != "" {
+		hasLabel = true
+	}
+
+	innerWidth := borderedNodeWidth - 2 // Subtract border (1 left + 1 right)
+	if hasLabel {
+		innerWidth -= 2 // Subtract the extra padding added when label is present
+	}
+	contentWidth := max(0, innerWidth)
+
+	// Also ensure contentWidth is at least the child width and label width
+	childWidth := n.MeasureVNodeWidth(child)
+	if childWidth > contentWidth {
+		contentWidth = childWidth
+	}
+	if hasLabel {
+		if l, ok := vnode.(interface{ GetBorderLabel() string }); ok {
+			labelWidth := len(" " + l.GetBorderLabel() + " ")
+			if labelWidth > contentWidth {
+				contentWidth = labelWidth
+			}
+		}
+	}
 
 	// DEBUG: Log border painting info
 	if log.BorderLogger.Enabled() {

@@ -122,6 +122,21 @@ func (b Border) ContentOffset() (x, y int) {
 	return 1, 1
 }
 
+// LabelPadding returns the extra horizontal padding needed for labels
+// Labels require an additional 2 characters of horizontal space for visual balance
+func (b Border) LabelPadding() int {
+	if !b.HasBorder() || b.Label == "" {
+		return 0
+	}
+	return 2
+}
+
+// TotalHorizontalPadding returns the total horizontal space taken by border including label
+// This = HorizontalPadding() + LabelPadding()
+func (b Border) TotalHorizontalPadding() int {
+	return b.HorizontalPadding() + b.LabelPadding()
+}
+
 // =============================================================================
 // Bordered Interface
 // =============================================================================

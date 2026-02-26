@@ -315,15 +315,32 @@ func (l *LayoutNode) measureVStackLayout(
 			flexTotalFactor += childInfo.Flex
 		} else {
 			// Non-flex child: measure with natural height
-			// SPECIAL CASE: HStack in VStack needs tight width for alignment
+			// SPECIAL CASE: HStack in VStack may fill width if needed for alignment
 			childMinWidth := 0
 			childTag := ""
 			if tagger, ok := child.(interface{ Tag() string }); ok {
 				childTag = tagger.Tag()
 			}
+			// Only force-stretch HStack if it needs width for alignment and doesn't have explicit width
 			if innerMaxWidth != runtime.Infinity && (childTag == "hstack" || childTag == "row") {
-				// HStack fills VStack width for main-axis alignment to work
-				childMinWidth = innerMaxWidth
+				// Check if child has explicit width constraint - if so, respect it
+				childInfo := GetLayoutInfo(child)
+				hasExplicitWidth := false
+				if props := child.Props(); props != nil {
+					if w, ok := props["width"].(int); ok && w > 0 {
+						hasExplicitWidth = true
+					}
+				}
+				// HStack only fills VStack width if:
+				// 1. It needs width for alignment (AlignCenter/AlignEnd/AlignSpace*)
+				// 2. AND doesn't have explicit width set by user
+				// 3. AND has flex or FillWidth enabled
+				mainAlign := childInfo.Align
+				needsAlignmentWidth := mainAlign == AlignCenter || mainAlign == AlignEnd ||
+					mainAlign == AlignSpaceBetween || mainAlign == AlignSpaceAround
+				if needsAlignmentWidth && !hasExplicitWidth && (childInfo.Flex > 0 || childInfo.FillWidth) {
+					childMinWidth = innerMaxWidth
+				}
 			}
 
 			childConstraints[i] = runtime.BoxConstraints{

@@ -316,8 +316,14 @@ func (e *PaintEngine) paintBorderedBox(box *paint.PaintableBox, buffer *paint.Bu
 	}
 	renderer := border.WithConfig(config)
 
-	// Calculate content area: subtract border padding (1 on each side)
-	contentWidth := box.Width - (borderWidth * 2)
+	// Calculate content area: subtract border padding
+	// When label is present, TotalHorizontalPadding = 2 (borders) + 2 (label padding) = 4
+	// When no label, TotalHorizontalPadding = 2 (borders only)
+	labelPadding := 0
+	if bl != "" {
+		labelPadding = 2
+	}
+	contentWidth := box.Width - (borderWidth*2) - labelPadding
 	contentHeight := box.Height - (borderWidth * 2)
 	if contentWidth < 0 {
 		contentWidth = 0

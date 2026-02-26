@@ -297,7 +297,7 @@ func (a *FiberToNodeAdapter) Measure(constraints layout.Constraints) layout.Size
 		if border.HasBorder() {
 			instanceConstraints = layout.Constraints{
 				MinWidth:  max(0, constraints.MinWidth-border.HorizontalPadding()),
-				MaxWidth:  max(0, constraints.MaxWidth-border.HorizontalPadding()),
+				MaxWidth:  max(0, constraints.MaxWidth-border.TotalHorizontalPadding()),
 				MinHeight: max(0, constraints.MinHeight-border.VerticalPadding()),
 				MaxHeight: max(0, constraints.MaxHeight-border.VerticalPadding()),
 			}
@@ -308,8 +308,16 @@ func (a *FiberToNodeAdapter) Measure(constraints layout.Constraints) layout.Size
 
 		// ✨ 边框：加上容器边框，返回总尺寸
 		if border.HasBorder() {
+			innerWidth := size.Width
+			// Handle label width - the border must be wide enough for the label
+			if border.Label != "" {
+				labelWidth := len(" " + border.Label + " ")
+				if labelWidth > innerWidth {
+					innerWidth = labelWidth
+				}
+			}
 			return layout.Size{
-				Width:  size.Width + border.HorizontalPadding(),
+				Width:  innerWidth + border.TotalHorizontalPadding(),
 				Height: size.Height + border.VerticalPadding(),
 			}
 		}
@@ -387,18 +395,32 @@ func (a *FiberToNodeAdapter) Measure(constraints layout.Constraints) layout.Size
 		isFlexColumn := flexStyle != nil && flexStyle.Direction == layout.FlexColumn
 
 		// 为子节点计算约束
-		// 关键修复：容器在测量自身尺寸时，子节点应该基于内容测量
-		// VStack: 高度方向无界，宽度方向尽可能大（允许子节点撑开宽度）
-		// HStack: 宽度方向无界，高度方向尽可能大（允许子节点撑开高度）
+		// 关键修复：容器应该将父容器的约束传递给子节点
+		// 特别是跨轴约束必须传递，以确保子节点正确响应约束
+		// HStack: 跨轴是高度，应该限制在父容器的高度内
+		// VStack: 跨轴是宽度，应该限制在父容器的宽度内
 		innerConstraints := layout.Constraints{
 			MinWidth:  0,
-			MaxWidth:  layout.MaxInt,  // 使用大值允许子节点自然宽度
+			MaxWidth:  layout.MaxInt,  // 主轴方向：暂时无界（内容由布局引擎分配）
 			MinHeight: 0,
-			MaxHeight: layout.MaxInt, // 使用大值允许子节点自然高度
+			MaxHeight: layout.MaxInt, // 主轴方向：暂时无界（内容由布局引擎分配）
 		}
 
-		// TODO: 如果需要支持跨轴约束（比如 VStack 父容器宽度约束传递），
-		// 可以在这里检查 fillWidth/fillHeight 属性，并相应设置约束
+		// ✅ 重要：传递跨轴约束
+		// 这确保子节点能够正确响应父容器的尺寸限制
+		if isFlexColumn {
+			// VStack: 传递宽度约束（跨轴）
+			if constraints.MaxWidth < layout.MaxInt {
+				innerConstraints.MinWidth = max(0, constraints.MinWidth-border.HorizontalPadding())
+				innerConstraints.MaxWidth = max(0, constraints.MaxWidth-border.HorizontalPadding())
+			}
+		} else if isFlexRow {
+			// HStack: 传递高度约束（跨轴）
+			if constraints.MaxHeight < layout.MaxInt {
+				innerConstraints.MinHeight = max(0, constraints.MinHeight-border.VerticalPadding())
+				innerConstraints.MaxHeight = max(0, constraints.MaxHeight-border.VerticalPadding())
+			}
+		}
 
 		// 测量子节点 - 根据布局方向确定累加方式
 		totalWidth := 0
@@ -444,8 +466,15 @@ func (a *FiberToNodeAdapter) Measure(constraints layout.Constraints) layout.Size
 
 		// ✨ 边框：加上边框占用
 		if border.HasBorder() {
+			// Handle label width - the border must be wide enough for the label
+			if border.Label != "" {
+				labelWidth := len(" " + border.Label + " ")
+				if labelWidth > totalWidth {
+					totalWidth = labelWidth
+				}
+			}
 			return layout.Size{
-				Width:  totalWidth + border.HorizontalPadding(),
+				Width:  totalWidth + border.TotalHorizontalPadding(),
 				Height: totalHeight + border.VerticalPadding(),
 			}
 		}
