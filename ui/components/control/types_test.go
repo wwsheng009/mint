@@ -54,7 +54,7 @@ func TestInteractionState_Reduce(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.action, func(t *testing.T) {
 			state := tt.before
-			state.Reduce(tt.action)
+			state.Reduce(action.ActionType(tt.action))
 			if state != tt.after {
 				t.Errorf("Reduce(%q) = %+v, want %+v", tt.action, state, tt.after)
 			}

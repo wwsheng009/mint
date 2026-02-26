@@ -147,9 +147,10 @@ func Run(app ComponentFunc, opts ...Option) error {
 
 	// Initialize Intent Runtime (declarative UI layer)
 	intentRuntime := intent.NewRuntime()
+	intent.SetupBuiltinHandlers(intentRuntime) // Register built-in intent handlers (Increment, Decrement, etc.)
 	rtui.SetGlobalIntentRuntime(intentRuntime)
 	if log.UILogger.Enabled() {
-		log.UILogger.Debug("ui.Run: Intent Runtime initialized")
+		log.UILogger.Debug("ui.Run: Intent Runtime initialized with built-in handlers")
 	}
 
 	// Call initialization function if provided (e.g., for registering Intent Handlers)

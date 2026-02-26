@@ -8,6 +8,36 @@ import (
 )
 
 // =============================================================================
+// StayPressedIntent - Intent Visual Feedback Control
+// =============================================================================
+
+// StayPressedIntent is an interface that intents can implement to control
+// whether the pressed visual state should be maintained after the intent is emitted.
+//
+// When a user triggers a button via keyboard (Enter/Submit), the terminal UI
+// doesn't send key release events. This interface allows authors to specify:
+//
+//   - StayPressed() == true:  Keep the pressed state so用户 can see visual feedback
+//                           Useful for navigation, state updates, etc.
+//   - StayPressed() == false: Immediately reset pressed state
+//                           Useful for Quit, Delete, etc.
+//
+// Example:
+//
+//	type UpdateStepIntent struct { Step int }
+//
+//	func (UpdateStepIntent) IntentType() string { return "UpdateStep" }
+//	func (UpdateStepIntent) StayPressed() bool  { return true }  // 保持按下视觉反馈
+type StayPressedIntent interface {
+	intent.Intent
+
+	// StayPressed returns true if the pressed visual state should be maintained
+	// after emitting this intent (e.g., for navigation/state changes).
+	// Returns false for immediate reset (e.g., for destructive actions).
+	StayPressed() bool
+}
+
+// =============================================================================
 // InteractionState - Unified Interaction State
 // =============================================================================
 
@@ -240,23 +270,53 @@ func (b *PressableBehavior) OnAction(inst Instance, act *action.Action) bool {
 	}
 
 	switch act.Type {
-	case action.ActionPress, action.ActionClick, action.ActionEnter:
+	case action.ActionPress, action.ActionClick, action.ActionEnter,
+		action.ActionSubmit, action.ActionMousePress:
 		// For terminal UI, button press triggers intent immediately
-		// (no separate release phase like in GUI mouse interactions)
 		if !b.pressed {
 			b.pressed = true
 			state.Pressed = true
 			inst.MarkDirty()
 
-			// Emit intent on press (for keyboard Enter and mouse click)
+			// Emit intent on press
 			if b.pressIntent != nil {
 				inst.EmitIntent(b.pressIntent)
+
+				// For keyboard (ActionEnter, ActionSubmit), check if we should keep pressed state
+				// Terminal UI doesn't send key release events, so we need to decide upfront
+				if act.Type == action.ActionEnter || act.Type == action.ActionSubmit {
+					// Check if intent implements StayPressedIntent for visual feedback preference
+					var shouldResetPressed bool
+					if sp, ok := b.pressIntent.(StayPressedIntent); ok {
+						// Intent author explicitly specified preference
+						shouldResetPressed = !sp.StayPressed()
+					} else {
+						// Default: reset immediately for backward compatibility
+						shouldResetPressed = true
+					}
+
+					if shouldResetPressed {
+						b.pressed = false
+						state.Pressed = false
+						inst.MarkDirty()
+					}
+					// If shouldResetPressed == false, keep pressed for visual feedback
+					// The next render cycle will naturally update the button with new state
+				}
+				// For mouse (ActionMousePress), wait for ActionMouseRelease to reset
+			} else {
+				// No intent: always reset pressed state immediately
+				if act.Type == action.ActionEnter || act.Type == action.ActionSubmit {
+					b.pressed = false
+					state.Pressed = false
+					inst.MarkDirty()
+				}
 			}
 		}
 		return true
 
-	case action.ActionRelease, action.ActionPressEnd:
-		// Handle explicit release actions for future GUI mouse support
+	case action.ActionRelease, action.ActionPressEnd, action.ActionMouseRelease:
+		// Handle release actions (mouse only, keyboard has no release events)
 		if b.pressed {
 			b.pressed = false
 			state.Pressed = false
