@@ -241,11 +241,11 @@ func (a *App) SetDebugMode(enabled bool) {
 		}
 		recorder, err := debug.NewRecorder(logFile)
 		if err != nil {
-			log.UILogger.Debug("Failed to create debug recorder: %v\n", err)
+			log.UILogger.Debug("Failed to create debug recorder: %v", err)
 			return
 		}
 		a.debugRecorder = recorder
-		log.UILogger.Debug("Debug mode enabled, logging to: %s\n", logFile)
+		log.UILogger.Debug("Debug mode enabled, logging to: %s", logFile)
 	}
 }
 
@@ -641,10 +641,8 @@ func (a *App) moveInspector(dx, dy int) {
 		inspectorObj.Move(dx, dy)
 		a.dirty = true // 触发重绘
 
-		if os.Getenv("TUI_DEBUG_UI") == "true" || os.Getenv("TUI_DEBUG_INSPECTOR") == "true" {
-			x, y := inspectorObj.GetPosition()
-			log.UILogger.Debug("[APP] Inspector moved to (%d, %d)", x, y)
-		}
+		x, y := inspectorObj.GetPosition()
+		log.UILogger.Debug("[APP] Inspector moved to (%d, %d)", x, y)
 	}
 }
 
@@ -662,9 +660,7 @@ func (a *App) switchInspectorTab(tabNum int) {
 		if inspectorObj.HandleKeyEvent(key, false, false, false) {
 			a.dirty = true // 触发重绘
 
-			if os.Getenv("TUI_DEBUG_UI") == "true" || os.Getenv("TUI_DEBUG_INSPECTOR") == "true" {
-				log.UILogger.Debug("[APP] Inspector switched to tab %d", tabNum)
-			}
+			log.UILogger.Debug("[APP] Inspector switched to tab %d", tabNum)
 		}
 	}
 }
@@ -759,12 +755,10 @@ func (a *App) Run() error {
 	renderStartTime := time.Now()
 
 	// DEBUG 主循环状态
-	if os.Getenv("TUI_DEBUG_UI") == "true" {
-		log.UILogger.Debug("[APP] Starting main loop, state=%d, pump running=%v",
-			a.state, a.pump != nil && a.pump.IsRunning())
-		log.UILogger.Debug("[APP] eventChan=%p, pump.Events()=%p",
-			eventChan, a.pump.Events())
-	}
+	log.UILogger.Debug("[APP] Starting main loop, state=%d, pump running=%v",
+		a.state, a.pump != nil && a.pump.IsRunning())
+	log.UILogger.Debug("[APP] eventChan=%p, pump.Events()=%p",
+		eventChan, a.pump.Events())
 
 	for a.state == StateRunning {
 		// 等待事件或定时器（优先处理事件）
@@ -828,9 +822,7 @@ func (a *App) Run() error {
 
 			// Process all collected events
 			for _, msg := range eventsToProcess {
-				if os.Getenv("TUI_DEBUG_UI") == "true" {
-					log.UILogger.Debug("[APP] Msg from channel: Type=%v", msg.Type())
-				}
+				log.UILogger.Debug("[APP] Msg from channel: Type=%v", msg.Type())
 
 				// Phase 1: Try Action unified path (if enabled)
 				if a.actionRouter != nil && a.inputProcessor != nil {
@@ -851,26 +843,18 @@ func (a *App) Run() error {
 			}
 
 		case <-ticker.C:
-			if os.Getenv("TUI_DEBUG_UI") == "true" {
-				log.UILogger.Debug("[APP] Tick triggered")
-			}
+			log.UILogger.Debug("[APP] Tick triggered")
 			a.handleTick()
 
 			// 处理完 tick 后，如果需要渲染则渲染
 			needsRender := a.dirty && a.throttler.ShouldRender()
-			if os.Getenv("TUI_DEBUG_UI") == "true" {
-				log.UILogger.Debug("[APP] needsRender=%v, dirty=%v", needsRender, a.dirty)
-			}
+			log.UILogger.Debug("[APP] needsRender=%v, dirty=%v", needsRender, a.dirty)
 			if needsRender {
-				if os.Getenv("TUI_DEBUG_UI") == "true" {
-					log.UILogger.Debug("[APP] Calling render()")
-				}
+				log.UILogger.Debug("[APP] Calling render()")
 				renderStartTime = time.Now()
 				a.render()
 				a.throttler.RecordFrameTime(time.Since(renderStartTime))
-				if os.Getenv("TUI_DEBUG_UI") == "true" {
-					log.UILogger.Debug("[APP] render() complete")
-				}
+				log.UILogger.Debug("[APP] render() complete")
 
 				// Pull pattern: Inspector pulls rendered tree from App after reconciliation
 				// App provides GetRenderedRoot() interface, Inspector calls AttachToApp()
@@ -1086,9 +1070,7 @@ func (a *App) handleSystemMsg(msg runtimemsg.Msg) {
 	}
 
 	// 其他系统事件...
-	if os.Getenv("TUI_DEBUG_UI") == "true" {
-		log.UILogger.Debug("[processMsg] Unhandled system message: Type=%v", msg.Type())
-	}
+	log.UILogger.Debug("[processMsg] Unhandled system message: Type=%v", msg.Type())
 }
 
 // dispatchAction 分发 Action 到 ActionRouter
@@ -1130,9 +1112,7 @@ func (a *App) handleLegacyMsg(msg runtimemsg.Msg) {
 // DEPRECATED: Action 系统现在是主路径，保留此方法仅用于调试
 func (a *App) SetLegacyMode(enabled bool) {
 	a.legacyMode = enabled
-	if enabled && os.Getenv("TUI_DEBUG_UI") == "true" {
-		log.UILogger.Debug("[App] ⚠️  Legacy mode enabled - Action system bypassed")
-	}
+	log.UILogger.Debug("[App] ⚠️  Legacy mode enabled - Action system bypassed")
 }
 
 // handleEvent 处理事件（已废弃）
@@ -1140,7 +1120,7 @@ func (a *App) SetLegacyMode(enabled bool) {
 func (a *App) handleEvent(ev frameworkevent.Event) {
 	// 调试模式：记录所有事件类型
 	if a.debugMode {
-		log.UILogger.Debug("[EVENT] Type: %d (%s), IsMouse: %v\n",
+		log.UILogger.Debug("[EVENT] Type: %d (%s), IsMouse: %v",
 			ev.Type(), ev.Type(), ev.Type().IsMouse())
 	}
 	// 调试模式：记录事件
@@ -1170,26 +1150,20 @@ func (a *App) handleEvent(ev frameworkevent.Event) {
 	// 键盘事件处理
 	if ev.Type() == frameworkevent.EventKeyPress {
 		// DEBUG: 调试键盘事件
-		if os.Getenv("TUI_DEBUG_UI") == "true" {
-			log.UILogger.Debug("[APP] KeyPress event received")
-		}
+		log.UILogger.Debug("[APP] KeyPress event received")
 
 		// 首先检查快捷键映射
 		if keyEv, ok := ev.(*frameworkevent.KeyEvent); ok {
 			if handler, found := a.keyMap.Lookup(keyEv); found {
-				if os.Getenv("TUI_DEBUG_UI") == "true" || os.Getenv("TUI_DEBUG_INSPECTOR") == "true" {
-					log.UILogger.Debug("[APP] KeyMap found handler for key '%s' (modifiers=%d)",
-						keyEv.Key.Name, keyEv.Modifiers)
-				}
+				log.UILogger.Debug("[APP] KeyMap found handler for key '%s' (modifiers=%d)",
+					keyEv.Key.Name, keyEv.Modifiers)
 				if handler.HandleEvent(ev) {
 					a.dirty = true
 					return
 				}
 			} else {
-				if os.Getenv("TUI_DEBUG_UI") == "true" || os.Getenv("TUI_DEBUG_INSPECTOR") == "true" {
-					log.UILogger.Debug("[APP] KeyMap: No handler found for key '%s' (modifiers=%d)",
-						keyEv.Key.Name, keyEv.Modifiers)
-				}
+				log.UILogger.Debug("[APP] KeyMap: No handler found for key '%s' (modifiers=%d)",
+					keyEv.Key.Name, keyEv.Modifiers)
 			}
 		}
 
@@ -1213,10 +1187,8 @@ func (a *App) handleEvent(ev frameworkevent.Event) {
 					ctrl := keyEv.Key.Ctrl
 					shift := keyEv.Key.Shift
 
-					if os.Getenv("TUI_DEBUG_UI") == "true" || os.Getenv("TUI_DEBUG_INSPECTOR") == "true" {
-						log.UILogger.Debug("[APP] Routing key '%s' to Inspector (visible=%v, alt=%v)",
-							keyName, a.isInspectorVisible(), alt)
-					}
+					log.UILogger.Debug("[APP] Routing key '%s' to Inspector (visible=%v, alt=%v)",
+						keyName, a.isInspectorVisible(), alt)
 
 					// Call HandleKeyEvent and check return value
 					handled := inspectorObj.HandleKeyEvent(keyName, alt, ctrl, shift)
@@ -1225,9 +1197,7 @@ func (a *App) handleEvent(ev frameworkevent.Event) {
 					// This ensures UI updates even when event propagates (handled=false)
 					a.dirty = true
 
-					if os.Getenv("TUI_DEBUG_UI") == "true" || os.Getenv("TUI_DEBUG_INSPECTOR") == "true" {
-						log.UILogger.Debug("[APP] Inspector processed key '%s' (handled=%v)", keyName, handled)
-					}
+					log.UILogger.Debug("[APP] Inspector processed key '%s' (handled=%v)", keyName, handled)
 
 					// If Inspector handled the event, don't send to VNode tree
 					if handled {
@@ -1240,22 +1210,16 @@ func (a *App) handleEvent(ev frameworkevent.Event) {
 
 		// 然后发送到根组件
 		if a.root != nil {
-			if os.Getenv("TUI_DEBUG_UI") == "true" {
-				log.UILogger.Debug("[APP] Sending event to root, type=%T", a.root)
-			}
+			log.UILogger.Debug("[APP] Sending event to root, type=%T", a.root)
 			// 使用 event.Component 接口检查，而不是匿名接口
 			// 这样可以避免类型别名导致的类型断言失败
 			if handler, ok := a.root.(frameworkevent.Component); ok {
-				if os.Getenv("TUI_DEBUG_UI") == "true" {
-					log.UILogger.Debug("[APP] root implements Component, calling HandleEvent")
-				}
+				log.UILogger.Debug("[APP] root implements Component, calling HandleEvent")
 				if handler.HandleEvent(ev) {
 					a.dirty = true
 				}
 			} else {
-				if os.Getenv("TUI_DEBUG_UI") == "true" {
-					log.UILogger.Debug("[APP] root does NOT implement Component")
-				}
+				log.UILogger.Debug("[APP] root does NOT implement Component")
 			}
 		}
 		return
@@ -1274,9 +1238,7 @@ func (a *App) handleEvent(ev frameworkevent.Event) {
 				HandleMouseEvent(frameworkevent.EventType, *frameworkevent.MouseEvent) bool
 			}); ok {
 				if mouseEv, ok := ev.(*frameworkevent.MouseEvent); ok {
-					if os.Getenv("TUI_DEBUG_UI") == "true" || os.Getenv("TUI_DEBUG_INSPECTOR") == "true" {
-						log.UILogger.Debug("[APP] Routing mouse (%d,%d) to Inspector (type=%v)", mouseEv.X, mouseEv.Y, ev.Type())
-					}
+					log.UILogger.Debug("[APP] Routing mouse (%d,%d) to Inspector (type=%v)", mouseEv.X, mouseEv.Y, ev.Type())
 					handled := inspectorObj.HandleMouseEvent(ev.Type(), mouseEv)
 					a.dirty = true // refresh overlay with latest mouse info
 					if handled {
@@ -1308,7 +1270,7 @@ func (a *App) handleEvent(ev frameworkevent.Event) {
 	// Click 事件（已包含目标信息）
 	if ev.Type() == frameworkevent.EventClick {
 		if a.debugMode {
-			log.UILogger.Debug("[CLICK] Target: %v\n", ev.Target())
+			log.UILogger.Debug("[CLICK] Target: %v", ev.Target())
 		}
 		// 直接分发到目标组件
 		if target := ev.Target(); target != nil {
@@ -1351,7 +1313,7 @@ func (a *App) render() {
 		buf := a.renderer.GetBackBuffer()
 
 		if os.Getenv("MINT_DEBUG_TEST") == "true" {
-			fmt.Printf("[App.render] BEFORE Reset: back buffer has content\n")
+			log.UILogger.Debug("[App.render] BEFORE Reset: back buffer has content")
 			// Count non-empty cells
 			count := 0
 			for y := 0; y < buf.Height; y++ {
@@ -1361,7 +1323,7 @@ func (a *App) render() {
 					}
 				}
 			}
-			fmt.Printf("[App.render] Back buffer non-empty cells BEFORE Reset: %d\n", count)
+			log.UILogger.Debug("[App.render] Back buffer non-empty cells BEFORE Reset: %d", count)
 		}
 
 		// 清空并调整 buffer 大小（Renderer 复用 buffer）
@@ -1396,7 +1358,7 @@ func (a *App) render() {
 					}
 				}
 			}
-			fmt.Printf("[App.render] AFTER Paint: back buffer non-empty cells: %d\n", count)
+			log.UILogger.Debug("[App.render] AFTER Paint: back buffer non-empty cells: %d", count)
 		}
 
 		// 调试模式：记录渲染状态
@@ -1444,7 +1406,7 @@ func (a *App) render() {
 						}
 					}
 				}
-				fmt.Printf("[App.render] AFTER renderer.Render(): back=%d cells, front=%d cells\n", backCount, frontCount)
+				log.UILogger.Debug("[App.render] AFTER renderer.Render(): back=%d cells, front=%d cells", backCount, frontCount)
 			}
 
 			// DEBUG: 输出渲染信息（每次）
@@ -1560,7 +1522,7 @@ func (a *App) outputBuffer(buf *paint.Buffer) {
 
 	// 调试模式：记录输出
 	if a.debugMode && a.debugRecorder != nil {
-		log.UILogger.Debug("[OUTPUT] %d changes detected\n", len(diffResult.Changes))
+		log.UILogger.Debug("[OUTPUT] %d changes detected", len(diffResult.Changes))
 	}
 
 	// 排序变化（从上到下，从左到右）
@@ -1606,7 +1568,7 @@ func (a *App) outputBufferDirect(buf *paint.Buffer) {
 
 	// 调试模式：记录输出
 	if a.debugMode && a.debugRecorder != nil {
-		log.UILogger.Debug("[OUTPUT DIRECT] about to write %d cells to terminal\n", buf.Height*buf.Width)
+		log.UILogger.Debug("[OUTPUT DIRECT] about to write %d cells to terminal", buf.Height*buf.Width)
 	}
 
 	// 移动光标到左上角
@@ -1707,9 +1669,9 @@ func (a *App) Close() error {
 	// 调试模式：保存日志
 	if a.debugMode && a.debugRecorder != nil {
 		if err := a.debugRecorder.DumpToFile(); err != nil {
-			log.UILogger.Debug("Failed to save debug log: %v\n", err)
+			log.UILogger.Debug("Failed to save debug log: %v", err)
 		} else {
-			log.UILogger.Debug("Debug log saved\n")
+			log.UILogger.Debug("Debug log saved")
 		}
 	}
 
@@ -1827,9 +1789,7 @@ func (a *App) Resize(width, height int) {
 			SetScreenSize(width, height int)
 		}); ok {
 			inspectorObj.SetScreenSize(width, height)
-			if os.Getenv("TUI_DEBUG_UI") == "true" || os.Getenv("TUI_DEBUG_INSPECTOR") == "true" {
-				log.UILogger.Debug("[APP] Inspector screen size updated to %dx%d", width, height)
-			}
+			log.UILogger.Debug("[APP] Inspector screen size updated to %dx%d", width, height)
 		}
 	}
 
@@ -1867,7 +1827,7 @@ func (a *App) GetRenderer() *paint.Renderer {
 //	if hitMap != nil {
 //	    entry := hitMap.HitTest(x, y)
 //	    if entry != nil {
-//	        fmt.Printf("Hit node: %s\n", entry.NodeID)
+//	        log.UILogger.Debug("Hit node: %s", entry.NodeID)
 //	    }
 //	}
 func (a *App) GetHitMap() *runtimeevent.HitMap {
@@ -1903,9 +1863,7 @@ func (a *App) InjectEvent(raw platform.RawInput) error {
 		return errors.New("event pump not initialized")
 	}
 	if !a.pump.IsRunning() {
-		if os.Getenv("TUI_DEBUG_UI") == "true" {
-			log.UILogger.Debug("[APP] InjectEvent: pump not running, state=%d, pump=%v", a.state, a.pump)
-		}
+		log.UILogger.Debug("[APP] InjectEvent: pump not running, state=%d, pump=%v", a.state, a.pump)
 		return errors.New("event pump not running")
 	}
 	a.pump.Inject(raw)

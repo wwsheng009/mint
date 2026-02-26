@@ -132,24 +132,24 @@ func (l *EventLogger) Dump() string {
 
 	var builder strings.Builder
 
-	builder.WriteString(fmt.Sprintf("Event Log (%d entries):\n", len(l.entries)))
+	builder.WriteString(fmt.Sprintf("Event Log (%d entries):", len(l.entries)))
 	builder.WriteString(strings.Repeat("=", 80))
-	builder.WriteString("\n")
+	builder.WriteString("")
 
 	for i, entry := range l.entries {
-		builder.WriteString(fmt.Sprintf("[%d] %s\n", i, entry.Timestamp.Format("15:04:05.000")))
-		builder.WriteString(fmt.Sprintf("    Phase: %s\n", entry.Phase))
-		builder.WriteString(fmt.Sprintf("    Type: %s\n", entry.EventType))
+		builder.WriteString(fmt.Sprintf("[%d] %s", i, entry.Timestamp.Format("15:04:05.000")))
+		builder.WriteString(fmt.Sprintf("    Phase: %s", entry.Phase))
+		builder.WriteString(fmt.Sprintf("    Type: %s", entry.EventType))
 		if entry.TargetID != 0 {
-			builder.WriteString(fmt.Sprintf("    Target: %d\n", entry.TargetID))
+			builder.WriteString(fmt.Sprintf("    Target: %d", entry.TargetID))
 		}
 		if entry.Details != "" {
-			builder.WriteString(fmt.Sprintf("    Details: %s\n", entry.Details))
+			builder.WriteString(fmt.Sprintf("    Details: %s", entry.Details))
 		}
 		if entry.Duration > 0 {
-			builder.WriteString(fmt.Sprintf("    Duration: %v\n", entry.Duration))
+			builder.WriteString(fmt.Sprintf("    Duration: %v", entry.Duration))
 		}
-		builder.WriteString("\n")
+		builder.WriteString("")
 	}
 
 	return builder.String()
@@ -166,9 +166,9 @@ func (l *EventLogger) Visualize() string {
 
 	var builder strings.Builder
 
-	builder.WriteString("Event Flow Visualization:\n")
+	builder.WriteString("Event Flow Visualization:")
 	builder.WriteString(strings.Repeat("=", 80))
-	builder.WriteString("\n")
+	builder.WriteString("")
 
 	for _, entry := range l.entries {
 		// 格式: [TIME] PHASE -> TYPE (TARGET)
@@ -185,7 +185,7 @@ func (l *EventLogger) Visualize() string {
 			builder.WriteString(fmt.Sprintf(" [%v]", entry.Duration))
 		}
 
-		builder.WriteString("\n")
+		builder.WriteString("")
 	}
 
 	return builder.String()
@@ -300,13 +300,13 @@ func (l *EventLogger) GetByType(eventType string) []*EventLogEntry {
 // PrintStats 打印统计信息到 stderr
 func (l *EventLogger) PrintStats() {
 	stats := l.GetStats()
-	log.UILogger.Debug("Event Logger Stats:\n")
-	log.UILogger.Debug("  Total Events: %v\n", stats["total"])
-	log.UILogger.Debug("  By Phase: %v\n", stats["by_phase"])
-	log.UILogger.Debug("  By Type: %v\n", stats["by_type"])
-	log.UILogger.Debug("  By Target: %v\n", stats["by_target"])
+	log.UILogger.Debug("Event Logger Stats:")
+	log.UILogger.Debug("  Total Events: %v", stats["total"])
+	log.UILogger.Debug("  By Phase: %v", stats["by_phase"])
+	log.UILogger.Debug("  By Type: %v", stats["by_type"])
+	log.UILogger.Debug("  By Target: %v", stats["by_target"])
 	if avgDuration, ok := stats["avg_duration"]; ok {
-		log.UILogger.Debug("  Avg Duration: %v\n", avgDuration)
+		log.UILogger.Debug("  Avg Duration: %v", avgDuration)
 	}
 }
 
