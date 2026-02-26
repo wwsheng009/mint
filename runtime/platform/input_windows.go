@@ -53,18 +53,18 @@ func (r *windowsInputReader) Start(events chan<- RawInput) error {
 
 	// DEBUG: 打印启动信息
 	if log.WinLogger.Enabled() {
-		log.WinLogger.Debug("[WIN INPUT] Starting...\n")
+		log.WinLogger.Debug("[WIN INPUT] Starting...")
 	}
 
 	handle, _, err := procGetStdHandle.Call(STD_INPUT_HANDLE)
 	if handle == 0 {
 		if log.WinLogger.Enabled() {
-			log.WinLogger.Debug("[WIN INPUT] Failed to get stdin handle: %v\n", err)
+			log.WinLogger.Debug("[WIN INPUT] Failed to get stdin handle: %v", err)
 		}
 		return err
 	}
 	if log.WinLogger.Enabled() {
-		log.WinLogger.Debug("[WIN INPUT] Got handle: 0x%x\n", handle)
+		log.WinLogger.Debug("[WIN INPUT] Got handle: 0x%x", handle)
 	}
 
 	// 🔥 关键修复：先重置控制台到安全模式，防止上次崩溃遗毒
@@ -91,9 +91,9 @@ func (r *windowsInputReader) Start(events chan<- RawInput) error {
 
 	// DEBUG: 打印控制台模式
 	if log.WinLogger.Enabled() {
-		log.WinLogger.Debug("[WIN] Setting console mode: 0x%08X (original: 0x%08X)\n",
+		log.WinLogger.Debug("[WIN] Setting console mode: 0x%08X (original: 0x%08X)",
 			mode, r.originalMode)
-		log.WinLogger.Debug("[WIN] ENABLE_MOUSE_INPUT=0x%04X, ENABLE_WINDOW_INPUT=0x%04X\n",
+		log.WinLogger.Debug("[WIN] ENABLE_MOUSE_INPUT=0x%04X, ENABLE_WINDOW_INPUT=0x%04X",
 			ENABLE_MOUSE_INPUT, ENABLE_WINDOW_INPUT)
 	}
 	r.setConsoleMode(handle, mode)
@@ -101,7 +101,7 @@ func (r *windowsInputReader) Start(events chan<- RawInput) error {
 	// Verify the mode was set
 	actualMode := r.getConsoleMode(handle)
 	if os.Getenv("TUI_DEBUG_WINDOWS") == "true" {
-		log.WinLogger.Debug("[WIN] Actual console mode after set: 0x%08X\n", actualMode)
+		log.WinLogger.Debug("[WIN] Actual console mode after set: 0x%08X", actualMode)
 	}
 
 	// 清空所有待处理的输入事件
@@ -112,13 +112,10 @@ func (r *windowsInputReader) Start(events chan<- RawInput) error {
 	r.updateWindowSize(handle)
 
 	// DEBUG: 确认即将启动 readLoop
-	if os.Getenv("TUI_DEBUG_WINDOWS") == "true" {
-		log.WinLogger.Debug("[WIN] About to start readLoop...\n")
-	}
+	log.PlatFormLogger.Debug("[WIN] About to start readLoop...")
+
 	go r.readLoop(handle)
-	if os.Getenv("TUI_DEBUG_WINDOWS") == "true" {
-		log.WinLogger.Debug("[WIN] readLoop goroutine started (async)\n")
-	}
+	log.PlatFormLogger.Debug("[WIN] readLoop goroutine started (async)")
 
 	return nil
 }
@@ -199,9 +196,7 @@ func (r *windowsInputReader) readLoop(handle uintptr) {
 
 			record, err := r.readSingleRecord(handle)
 			if err != nil {
-				if os.Getenv("TUI_DEBUG_EVENTS") == "true" {
-					log.WinLogger.Debug("[WIN] Error reading record: %v\n", err)
-				}
+				log.PlatFormLogger.Debug("[WIN] Error reading record: %v", err)
 				continue
 			}
 
@@ -239,10 +234,9 @@ func (r *windowsInputReader) readSingleRecord(handle uintptr) (*INPUT_RECORD, er
 
 func (r *windowsInputReader) parseRecord(record *INPUT_RECORD) RawInput {
 	// DEBUG: 打印所有事件类型（启用时）
-	if os.Getenv("TUI_DEBUG_EVENTS") == "true" {
-		log.WinLogger.Debug("[WIN] Event type: %d (KEY=%d, MOUSE=%d, RESIZE=%d)\n",
-			record.EventType, KEY_EVENT, MOUSE_EVENT, WINDOW_BUFFER_SIZE_EVENT)
-	}
+	log.EventLogger.Debug("[WIN] Event type: %d (KEY=%d, MOUSE=%d, RESIZE=%d)",
+		record.EventType, KEY_EVENT, MOUSE_EVENT, WINDOW_BUFFER_SIZE_EVENT)
+
 	now := time.Now()
 
 	switch record.EventType {
@@ -324,10 +318,10 @@ func (r *windowsInputReader) parseKeyEvent(record *INPUT_RECORD, now time.Time) 
 		// Preserve case: lowercase for ctrl+letter, uppercase for ctrl+shift+letter
 		if keyEvent.ControlKeyState&0x0010 != 0 {
 			// Shift is pressed - use uppercase (e.g., Ctrl+Shift+D → 'D')
-			input.Key = rune(keyEvent.VirtualKeyCode)  // 'A'-'Z'
+			input.Key = rune(keyEvent.VirtualKeyCode) // 'A'-'Z'
 		} else {
 			// No shift - use lowercase (e.g., Ctrl+d → 'd')
-			input.Key = rune(keyEvent.VirtualKeyCode + 32)  // 'a'-'z'
+			input.Key = rune(keyEvent.VirtualKeyCode + 32) // 'a'-'z'
 		}
 		input.Modifiers |= ModCtrl
 		input.Special = KeyUnknown
@@ -336,7 +330,7 @@ func (r *windowsInputReader) parseKeyEvent(record *INPUT_RECORD, now time.Time) 
 	}
 
 	// Debug: Print ALL key events (not just modifiers) to see what's happening
-	if os.Getenv("TUI_DEBUG_INPUT") == "true" {
+	if log.PlatFormLogger.Enabled() {
 		modStr := ""
 		if input.Modifiers&ModAlt != 0 {
 			modStr += "Alt+"
@@ -350,7 +344,7 @@ func (r *windowsInputReader) parseKeyEvent(record *INPUT_RECORD, now time.Time) 
 		if modStr == "" {
 			modStr = "none"
 		}
-		log.WinLogger.Debug("[WIN INPUT] VK=0x%02X UChar=0x%02X Special=%d Key=%c ControlKeyState=0x%04X Modifiers=%s\n",
+		log.PlatFormLogger.Debug("[WIN INPUT] VK=0x%02X UChar=0x%02X Special=%d Key=%c ControlKeyState=0x%04X Modifiers=%s",
 			keyEvent.VirtualKeyCode, keyEvent.UChar, input.Special, input.Key,
 			keyEvent.ControlKeyState, modStr)
 	}
@@ -371,7 +365,7 @@ func (r *windowsInputReader) parseMouseEvent(record *INPUT_RECORD, now time.Time
 
 	// DEBUG: 打印鼠标事件（可以通过环境变量启用）
 	if os.Getenv("TUI_DEBUG_MOUSE") == "true" {
-		log.WinLogger.Debug("[WIN MOUSE] X=%d Y=%d ButtonState=%d Flags=%d\n",
+		log.WinLogger.Debug("[WIN MOUSE] X=%d Y=%d ButtonState=%d Flags=%d",
 			input.MouseX, input.MouseY, mouseEvent.ButtonState, mouseEvent.EventFlags)
 	}
 
@@ -490,12 +484,12 @@ func (r *windowsInputReader) setConsoleMode(handle uintptr, mode uint32) {
 	ret, _, err := procSetConsoleMode.Call(handle, uintptr(mode))
 	if ret == 0 {
 		if os.Getenv("TUI_DEBUG_WINDOWS") == "true" {
-			log.WinLogger.Debug("[WIN] SetConsoleMode FAILED! handle=0x%x mode=0x%x err=%v\n", handle, mode, err)
+			log.WinLogger.Debug("[WIN] SetConsoleMode FAILED! handle=0x%x mode=0x%x err=%v", handle, mode, err)
 		}
 	} else {
 		// Success - optionally log
 		if os.Getenv("TUI_DEBUG_WINDOWS") == "true" {
-			log.WinLogger.Debug("[WIN] SetConsoleMode success: 0x%x\n", mode)
+			log.WinLogger.Debug("[WIN] SetConsoleMode success: 0x%x", mode)
 		}
 	}
 }
@@ -664,13 +658,13 @@ func enableVirtualTerminal() error {
 
 // restoreTerminalImpl Windows 终端恢复实现
 func restoreTerminalImpl() {
-// 先清屏和显示光标（在修改控制台模式之前，确保 ANSI 序列有效）
-	fmt.Print("\x1b[2J")   // 清屏
-	
+	// 先清屏和显示光标（在修改控制台模式之前，确保 ANSI 序列有效）
+	fmt.Print("\x1b[2J") // 清屏
+
 	if err := enableVirtualTerminal(); err != nil {
 		fmt.Println("无法开启 ANSI 支持:", err)
 	}
-	
+
 	fmt.Print("\x1b[H")    // 移动光标到左上角
 	fmt.Print("\x1b[?25h") // 显示光标（如果被隐藏了）
 	fmt.Print("\x1b[0m")   // 重置终端样式
@@ -689,7 +683,6 @@ func restoreTerminalImpl() {
 		procSetConsoleMode.Call(handle, uintptr(defaultMode))
 	}
 }
-
 
 // init 安装进程级终端恢复保险丝
 //

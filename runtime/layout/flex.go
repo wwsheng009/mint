@@ -258,6 +258,12 @@ func (f *FlexLayout) SetPadding(left, right, top, bottom int) {
 	}
 }
 
+// GetFlexStyle 返回 FlexLayout 的样式
+// 实现 FlexStyleProvider 接口，使 FlexLayout 可以被 Engine 正确布局
+func (f *FlexLayout) GetFlexStyle() *FlexStyle {
+	return f.style
+}
+
 // SetFlex 设置子节点的弹性配置
 func (f *FlexLayout) SetFlex(index int, grow, shrink, basis int) {
 	if f.style.FlexibleChildren == nil {
@@ -422,6 +428,12 @@ func (f *FlexLayout) LayoutChildren(width, height int) []LayoutBox {
 	flexGrowTotal := 0 // flex-grow 总和
 
 	for i, child := range f.children {
+		// 跳过 nil children
+		if child == nil {
+			childSizes[i] = Size{Width: 0, Height: 0}
+			continue
+		}
+
 		constraints := Constraints{}
 		if isRow {
 			constraints = Constraints{

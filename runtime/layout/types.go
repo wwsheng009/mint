@@ -568,7 +568,15 @@ func (e *Engine) layoutNodeWithDepth(node Node, constraints Constraints, x, y in
 	// 如果是，使用 FlexLayout 进行子节点布局
 	if flexProvider, ok := node.(FlexStyleProvider); ok {
 		flexStyle := flexProvider.GetFlexStyle()
-		if flexStyle != nil && len(node.Children()) > 0 {
+		// 检查是否有非 nil 的子节点
+		hasValidChildren := false
+		for _, child := range node.Children() {
+			if child != nil {
+				hasValidChildren = true
+				break
+			}
+		}
+		if flexStyle != nil && hasValidChildren {
 			// 使用 FlexLayout 进行布局
 			flex := NewFlexLayout(node.ID(), node.Children())
 			flex.SetDirection(flexStyle.Direction)
@@ -604,14 +612,22 @@ func (e *Engine) layoutNodeWithDepth(node Node, constraints Constraints, x, y in
 				// 递归布局子节点的子节点
 				child := node.Children()[i]
 				if child != nil {
-					// 子节点的位置相对于父节点，并考虑边框偏移
-					childConstraints := constraints
 					// 应用边框偏移
 					childX := x + childBox.X + borderOffsetX
 					childY := y + childBox.Y + borderOffsetY
+
+					// ✨ FIX: 为子节点创建正确的约束，基于 Flex 分配的尺寸
+					// 这样嵌套布局（如 VStack 内嵌 HStack）可以使用正确的约束
+					childConstraints := Constraints{
+						MinWidth:  childBox.Width,
+						MaxWidth:  childBox.Width,
+						MinHeight: childBox.Height,
+						MaxHeight: childBox.Height,
+					}
+
 					subBox := e.layoutNodeWithDepth(child, childConstraints, childX, childY, depth+1, visited)
 					if subBox != nil {
-						// 使用 FlexLayout 计算的位置和尺寸，加上边框偏移
+						// 使用 FlexLayout 计算的位置和尺寸
 						subBox.X = childX
 						subBox.Y = childY
 						box.Children = append(box.Children, subBox)

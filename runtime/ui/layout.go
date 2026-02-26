@@ -282,6 +282,68 @@ func (l *LayoutNode) StretchCross() bool {
 	return l.stretchCross
 }
 
+// GetFlexStyle returns the flex layout style for the node
+// This implements the layout.FlexStyleProvider interface, enabling Engine
+// to use FlexLayout for LayoutNode instead of the default vertical layout
+func (l *LayoutNode) GetFlexStyle() *layout.FlexStyle {
+	if l == nil {
+		return nil
+	}
+
+	flexStyle := &layout.FlexStyle{}
+
+	// Set direction
+	switch l.direction {
+	case DirectionRow:
+		flexStyle.Direction = layout.FlexRow
+	case DirectionColumn:
+		flexStyle.Direction = layout.FlexColumn
+	default:
+		flexStyle.Direction = layout.FlexColumn
+	}
+
+	// Set main axis alignment
+	switch l.align {
+	case AlignStart:
+		flexStyle.MainAxis = layout.MainStart
+	case AlignCenter:
+		flexStyle.MainAxis = layout.Center
+	case AlignEnd:
+		flexStyle.MainAxis = layout.MainEnd
+	default:
+		flexStyle.MainAxis = layout.MainStart
+	}
+
+	// Set cross axis alignment
+	switch l.crossAlign {
+	case AlignStart:
+		flexStyle.CrossAxis = layout.CrossStart
+	case AlignCenter:
+		flexStyle.CrossAxis = layout.CrossCenter
+	case AlignEnd:
+		flexStyle.CrossAxis = layout.CrossEnd
+	default:
+		flexStyle.CrossAxis = layout.CrossStart
+	}
+
+	// Set gap
+	flexStyle.Gap = l.gap
+	flexStyle.CrossGap = l.gap // LayoutNode uses the same gap for both axes
+
+	// Set padding
+	flexStyle.Padding = layout.Padding{
+		Left:   l.padding[3],
+		Right:  l.padding[1],
+		Top:    l.padding[0],
+		Bottom: l.padding[2],
+	}
+
+	// Flexible children are handled through FlexChildProvider on child nodes
+	flexStyle.FlexibleChildren = make(map[int]*layout.Flex)
+
+	return flexStyle
+}
+
 // =============================================================================
 // Flex Wrapper - elegant API for making VNodes flexible
 // =============================================================================

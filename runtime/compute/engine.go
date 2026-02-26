@@ -194,7 +194,7 @@ func (e *Engine) buildComputedBoxWithSize(vnode VNode, fiber *reconciler.Fiber, 
 			// Cache hit - use cached size
 			box.Box = cached.Box
 			if e.debug {
-				log.EngineLogger.Debug("[Layout.CacheHit] %s (key=%s): %v\n",
+				log.EngineLogger.Debug("[Layout.CacheHit] %s (key=%s): %v",
 					vnode.Type().String(), vnode.Key(), cached.Box)
 			}
 			// For leaf nodes, we're done
@@ -316,7 +316,7 @@ func (e *Engine) buildComputedBoxWithSize(vnode VNode, fiber *reconciler.Fiber, 
 				VNodeID: vnode.Key(),
 			})
 			if e.debug {
-				log.EngineLogger.Debug("[Layout.CacheSet] %s: %v\n",
+				log.EngineLogger.Debug("[Layout.CacheSet] %s: %v",
 					vnode.Type().String(), box.Box)
 			}
 		}
@@ -407,7 +407,7 @@ func (e *Engine) buildComputedBoxWithSize(vnode VNode, fiber *reconciler.Fiber, 
 			VNodeID: vnode.Key(),
 		})
 		if e.debug {
-			log.EngineLogger.Debug("[Layout.CacheSet] %s: %v\n",
+			log.EngineLogger.Debug("[Layout.CacheSet] %s: %v",
 				vnode.Type().String(), box.Box)
 		}
 	}
@@ -641,7 +641,7 @@ func (e *Engine) measureLayoutChildren(vnode VNode, constraints runtime.BoxConst
 		}
 
 		if e.debug {
-			log.EngineLogger.Debug("[measureLayoutChildren.HStack] constraints=%v, paddingWidth=%d, paddingHeight=%d\n",
+			log.EngineLogger.Debug("[measureLayoutChildren.HStack] constraints=%v, paddingWidth=%d, paddingHeight=%d",
 				constraints, paddingWidth, paddingHeight)
 		}
 
@@ -749,7 +749,7 @@ func (e *Engine) measureLayoutChildren(vnode VNode, constraints runtime.BoxConst
 		}
 
 		if e.debug {
-			log.EngineLogger.Debug("[measureLayoutChildren.HStack] RETURN: Width=%d, Height=%d\n",
+			log.EngineLogger.Debug("[measureLayoutChildren.HStack] RETURN: Width=%d, Height=%d",
 				totalWidth, maxHeight)
 		}
 
@@ -775,7 +775,7 @@ func (e *Engine) measureLayoutChildren(vnode VNode, constraints runtime.BoxConst
 		}
 
 		if e.debug {
-			log.EngineLogger.Debug("[measureLayoutChildren.VStack] constraints=%v, innerMaxWidth=%d\n",
+			log.EngineLogger.Debug("[measureLayoutChildren.VStack] constraints=%v, innerMaxWidth=%d",
 				constraints, innerMaxWidth)
 		}
 
@@ -833,7 +833,7 @@ func (e *Engine) measureLayoutChildren(vnode VNode, constraints runtime.BoxConst
 			remainingSpace := availableHeight - fixedHeight
 
 			if e.debug && remainingSpace > 0 {
-				log.EngineLogger.Debug("[measureLayoutChildren.VStack] flex distribution: available=%d, fixed=%d, remaining=%d, factors=%d\n",
+				log.EngineLogger.Debug("[measureLayoutChildren.VStack] flex distribution: available=%d, fixed=%d, remaining=%d, factors=%d",
 					availableHeight, fixedHeight, remainingSpace, flexTotalFactor)
 			}
 
@@ -908,7 +908,7 @@ func (e *Engine) measureLayoutChildren(vnode VNode, constraints runtime.BoxConst
 		}
 
 		if e.debug {
-			log.EngineLogger.Debug("[measureLayoutChildren.VStack] RETURN: Width=%d, Height=%d\n",
+			log.EngineLogger.Debug("[measureLayoutChildren.VStack] RETURN: Width=%d, Height=%d",
 				maxWidth, totalHeight)
 		}
 
@@ -1242,7 +1242,7 @@ func (e *Engine) calculatePositions(box *ComputedBox, x, y int) {
 	}
 
 	if e.debug {
-		log.EngineLogger.Debug("[Layout.Position] %s at %s\n",
+		log.EngineLogger.Debug("[Layout.Position] %s at %s",
 			box.VNode.Type(), box.Box.String())
 	}
 

@@ -69,16 +69,26 @@ type ComponentContext struct {
 	// Initialized by DeclarativeNode and shared across root component tree.
 	IntentRuntime *intent.Runtime
 
-	// State is the component's global state store, accessible via Intent handlers.
-	// This allows Intent handlers to update state without closures.
+	// GlobalState is the component's global state store, accessible via Intent handlers.
+	// This allows Intent handlers to update cross-component state without closures.
 	// Example: ctx.SetState("username", "john")
-	State map[string]interface{}
+	// Note: Renamed from State to GlobalState for clarity.
+	GlobalState map[string]interface{}
+
+	// PendingUpdates is a batch queue for state updates.
+	// This allows multiple SetState calls to be batched into a single re-render.
+	// Example: ctx.SetState("field1", v1); ctx.SetState("field2", v2); // Only one re-render
+	PendingUpdates map[string]interface{}
+
+	// UpdateScheduled indicates whether a re-render has been scheduled.
+	// Prevents multiple schedules for batches of updates.
+	UpdateScheduled bool
 
 	// scheduleUpdate is a callback to trigger Fiber re-render.
 	// Set by DeclarativeNode during initialization.
 	scheduleUpdate func()
 
-	// StateMu protects concurrent access to State.
+	// StateMu protects concurrent access to GlobalState and PendingUpdates.
 	StateMu sync.RWMutex
 }
 
@@ -141,12 +151,13 @@ type CleanupFunc func()
 // NewComponentContext creates a new component context
 func NewComponentContext(name string) *ComponentContext {
 	return &ComponentContext{
-		ComponentID: fmt.Sprintf("%s-%s", name, NextComponentID()),
-		Hooks:       make([]Hook, 0),
-		HookIndex:   0,
-		Validator:   NewHookValidator(name),
-		RenderCount: 0,
-		State:       make(map[string]interface{}),
+		ComponentID:    fmt.Sprintf("%s-%s", name, NextComponentID()),
+		Hooks:          make([]Hook, 0),
+		HookIndex:      0,
+		Validator:      NewHookValidator(name),
+		RenderCount:    0,
+		GlobalState:    make(map[string]interface{}),
+		PendingUpdates: make(map[string]interface{}),
 	}
 }
 
@@ -156,7 +167,14 @@ func NewComponentContextForRoot() *ComponentContext {
 }
 
 // ResetContext resets the hook index for re-rendering
+// IMPORTANT: This is called before each render, so we flush pending updates here.
 func (ctx *ComponentContext) ResetContext() {
+	// Flush any pending updates before re-rendering
+	count := ctx.FlushUpdates()
+	if count > 0 && log.UILogger.Enabled() {
+		log.UILogger.Debug("ResetContext: Flushed %d pending updates", count)
+	}
+
 	if log.UILogger.Enabled() {
 		if len(ctx.Hooks) > 0 {
 			log.UILogger.Debug("ResetContext: BEFORE reset, Hooks[0].Value=%v, &ctx=%p", ctx.Hooks[0].Value, ctx)
@@ -267,28 +285,31 @@ func (ctx *ComponentContext) EmitIntent(i intent.Intent) intent.IntentResult {
 // State Management (for Intent Handlers)
 // =============================================================================
 
-// SetState updates a state value by key.
+// SetState updates a state value by key with batch update support.
+// Multiple SetState calls within the same render cycle will be batched
+// into a single re-render for better performance.
 // This implements the StateSetter interface for use by ActionContext.
 // Example: ctx.SetState("username", "john")
 func (ctx *ComponentContext) SetState(key string, value interface{}) {
 	ctx.StateMu.Lock()
 	defer ctx.StateMu.Unlock()
 
-	changed := true
-	if existing, exists := ctx.State[key]; exists && existing == value {
-		changed = false
+	// Check if value actually changed
+	if existing, exists := ctx.GlobalState[key]; exists && existing == value {
+		return
 	}
 
-	if changed {
-		ctx.State[key] = value
-		if log.UILogger.Enabled() {
-			log.UILogger.Debug("[ComponentContext] SetState: %s = %v", key, value)
-		}
+	// Add to pending updates queue for batching
+	ctx.PendingUpdates[key] = value
 
-		// Trigger Fiber update if schedule callback is set
-		if ctx.scheduleUpdate != nil {
-			ctx.scheduleUpdate()
-		}
+	if log.UILogger.Enabled() {
+		log.UILogger.Debug("[ComponentContext] SetState: %s = %v (queued)", key, value)
+	}
+
+	// Schedule update only once per batch
+	if !ctx.UpdateScheduled && ctx.scheduleUpdate != nil {
+		ctx.UpdateScheduled = true
+		ctx.scheduleUpdate()
 	}
 }
 
@@ -298,8 +319,41 @@ func (ctx *ComponentContext) SetState(key string, value interface{}) {
 func (ctx *ComponentContext) GetState(key string) (interface{}, bool) {
 	ctx.StateMu.RLock()
 	defer ctx.StateMu.RUnlock()
-	value, exists := ctx.State[key]
+
+	// Check pending updates first (read-your-writes)
+	if value, exists := ctx.PendingUpdates[key]; exists {
+		return value, true
+	}
+
+	value, exists := ctx.GlobalState[key]
 	return value, exists
+}
+
+// FlushUpdates applies all pending updates to GlobalState.
+// This should be called before re-rendering to ensure the latest state is used.
+// After flushing, the pending updates queue is cleared.
+// Returns the number of updates applied.
+func (ctx *ComponentContext) FlushUpdates() int {
+	ctx.StateMu.Lock()
+	defer ctx.StateMu.Unlock()
+
+	if len(ctx.PendingUpdates) == 0 {
+		return 0
+	}
+
+	count := len(ctx.PendingUpdates)
+	for key, value := range ctx.PendingUpdates {
+		ctx.GlobalState[key] = value
+		if log.UILogger.Enabled() {
+			log.UILogger.Debug("[ComponentContext] FlushUpdates: %s = %v", key, value)
+		}
+	}
+
+	// Clear the pending queue
+	ctx.PendingUpdates = make(map[string]interface{})
+	ctx.UpdateScheduled = false
+
+	return count
 }
 
 // GetStringState retrieves a string state value with a default.
@@ -347,6 +401,41 @@ func (ctx *ComponentContext) ScheduleUpdate() {
 }
 
 // =============================================================================
+// Global State Accessors (Aliases for clarity)
+// =============================================================================
+
+// GetGlobalState retrieves a global state value by key.
+// This is an alias for GetState() that provides clearer semantic intent.
+func (ctx *ComponentContext) GetGlobalState(key string, defaultValue interface{}) interface{} {
+	if value, exists := ctx.GetState(key); exists {
+		return value
+	}
+	return defaultValue
+}
+
+// SetGlobalState updates a global state value.
+// This is an alias for SetState() that provides clearer semantic intent.
+func (ctx *ComponentContext) SetGlobalState(key string, value interface{}) {
+	ctx.SetState(key, value)
+}
+
+// GetGlobalString retrieves a global string state value with a default.
+func (ctx *ComponentContext) GetGlobalString(key string, defaultValue string) string {
+	return ctx.GetStringState(key, defaultValue)
+}
+
+// GetGlobalInt retrieves a global int state value with a default.
+func (ctx *ComponentContext) GetGlobalInt(key string, defaultValue int) int {
+	return ctx.GetIntState(key, defaultValue)
+}
+
+// GetGlobalBool retrieves a global boolean state value with a default.
+func (ctx *ComponentContext) GetGlobalBool(key string, defaultValue bool) bool {
+	return ctx.GetBoolState(key, defaultValue)
+}
+
+// =============================================================================
+
 // Global Intent Runtime Management
 // =============================================================================
 

@@ -550,7 +550,7 @@ func (m *Manager) positionInspector(node *LayerNode, root *compute.ComputedBox) 
 	originalX := root.Box.X
 	originalY := root.Box.Y
 
-	log.RenderLogger.Debug("[positionInspector] original=(%d,%d) target=(%d,%d)\n",
+	log.RenderLogger.Debug("[positionInspector] original=(%d,%d) target=(%d,%d)",
 		originalX, originalY, targetX, targetY)
 
 	// Calculate offset
@@ -560,7 +560,7 @@ func (m *Manager) positionInspector(node *LayerNode, root *compute.ComputedBox) 
 	// Shift the entire layout tree
 	m.shiftPositions(root, offsetX, offsetY)
 
-	log.RenderLogger.Debug("[positionInspector] after shift: inspector=(%d,%d) size=%dx%d\n",
+	log.RenderLogger.Debug("[positionInspector] after shift: inspector=(%d,%d) size=%dx%d",
 		root.Box.X, root.Box.Y, root.Box.Width, root.Box.Height)
 
 }

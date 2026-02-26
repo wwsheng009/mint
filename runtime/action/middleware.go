@@ -7,6 +7,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/wwsheng009/mint/internal/log"
 )
 
 // ============================================================================
@@ -50,7 +52,7 @@ func (m *LoggingMiddleware) Before(action *Action) *Action {
 		return action
 	}
 
-	fmt.Printf("[Action] ↓ Dispatch: Type=%s, Target=%s/%d, Source=%s\n",
+	log.PaintLogger.Debug("[Action] ↓ Dispatch: Type=%s, Target=%s/%d, Source=%s\n",
 		action.Type, action.Target, action.TargetID, action.Source)
 
 	// Record start time in Meta
@@ -80,7 +82,7 @@ func (m *LoggingMiddleware) After(action *Action, result *RouterResult) {
 	}
 
 	phaseStr := result.Phase.String()
-	fmt.Printf("[Action] ↑ Complete: Type=%s %s, Phase=%s, Duration=%v\n",
+	log.PaintLogger.Debug("[Action] ↑ Complete: Type=%s %s, Phase=%s, Duration=%v\n",
 		action.Type, handled, phaseStr, duration)
 }
 
@@ -126,10 +128,9 @@ func (m *ThrottleMiddleware) Before(action *Action) *Action {
 
 	// Check if triggered too frequently
 	if exists && now.Sub(last) < m.interval {
-		if os.Getenv("ACTION_DEBUG") == "true" {
-			fmt.Printf("[Action] ⚠ Throttled: Type=%s (last: %v ago)\n",
-				action.Type, now.Sub(last))
-		}
+		log.ActionLogger.Debug("[Action] ⚠ Throttled: Type=%s (last: %v ago)\n",
+			action.Type, now.Sub(last))
+
 		return nil
 	}
 
@@ -193,7 +194,7 @@ func (m *ValidationMiddleware) Before(action *Action) *Action {
 	}
 
 	if err := validator(action); err != nil {
-		fmt.Printf("[Action] ✗ Validation failed: Type=%s, Error=%v\n",
+		log.PaintLogger.Debug("[Action] ✗ Validation failed: Type=%s, Error=%v\n",
 			action.Type, err)
 		return nil // Validation failed, intercept
 	}
@@ -382,7 +383,7 @@ type RecoveryMiddleware struct {
 func NewRecoveryMiddleware() *RecoveryMiddleware {
 	return &RecoveryMiddleware{
 		onPanic: func(action *Action, recovered interface{}) {
-			fmt.Printf("[Action] ⚠ Panic recovered: Type=%s, Error=%v\n",
+			log.PaintLogger.Debug("[Action] ⚠ Panic recovered: Type=%s, Error=%v\n",
 				action.Type, recovered)
 		},
 	}
@@ -415,10 +416,10 @@ func (m *RecoveryMiddleware) After(action *Action, result *RouterResult) {
 
 // ProfilingMiddleware measures action processing performance with detailed metrics
 type ProfilingMiddleware struct {
-	enabled             bool
-	actionCall stacks    // Stack traces for each action type
-	cpuProfiled         bool
-	memProfiled         bool
+	enabled     bool
+	actionCall  stacks // Stack traces for each action type
+	cpuProfiled bool
+	memProfiled bool
 
 	mu sync.RWMutex
 }
@@ -427,15 +428,15 @@ type stacks map[ActionType][]SampledStack
 
 // SampledStack represents a sampled stack trace
 type SampledStack struct {
-	Stack   []uintptr
-	Count   int
+	Stack    []uintptr
+	Count    int
 	Duration time.Duration
 }
 
 // NewProfilingMiddleware creates a profiling middleware
 func NewProfilingMiddleware() *ProfilingMiddleware {
 	return &ProfilingMiddleware{
-		enabled:     true,
+		enabled:    true,
 		actionCall: make(stacks),
 	}
 }
@@ -507,8 +508,8 @@ func (m *ProfilingMiddleware) GetHotSpots(limit int) []ActionType {
 
 	type avgDuration struct {
 		actionType ActionType
-		duration    time.Duration
-		count       int
+		duration   time.Duration
+		count      int
 	}
 
 	avgs := make([]avgDuration, 0, len(m.actionCall))
@@ -554,11 +555,11 @@ func (m *ProfilingMiddleware) GetHotSpots(limit int) []ActionType {
 
 // CachingMiddleware caches action handler results for performance
 type CachingMiddleware struct {
-	enabled    bool
-	cache      map[cacheKey]interface{}
-	ttl        time.Duration
-	maxSize    int
-	mu         sync.RWMutex
+	enabled bool
+	cache   map[cacheKey]interface{}
+	ttl     time.Duration
+	maxSize int
+	mu      sync.RWMutex
 }
 
 type cacheKey struct {
