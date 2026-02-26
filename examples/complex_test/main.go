@@ -6,12 +6,12 @@ import (
 	"strings"
 
 	"github.com/wwsheng009/mint/app"
-	"github.com/wwsheng009/mint/components/basic"
-	"github.com/wwsheng009/mint/components/button"
-	"github.com/wwsheng009/mint/components/form"
-	"github.com/wwsheng009/mint/components/layout"
 	"github.com/wwsheng009/mint/runtime/style"
 	ui "github.com/wwsheng009/mint/ui"
+	"github.com/wwsheng009/mint/ui/components/checkbox"
+	"github.com/wwsheng009/mint/ui/components/divider"
+	"github.com/wwsheng009/mint/ui/components/progress"
+	"github.com/wwsheng009/mint/ui/components/text"
 )
 
 func main() {
@@ -35,37 +35,37 @@ var (
 	progressValue = 0
 
 	// Key event tracking for debugging
-	lastKeyName   = ""
-	lastKeyValue  = 0
-	isSpecialKey  = false
-	keyModifiers  = ""
+	lastKeyName  = ""
+	lastKeyValue = 0
+	isSpecialKey = false
+	keyModifiers = ""
 )
 
 // RootApp 根组件
 func RootApp() ui.VNode {
-	return layout.VStack(
+	return ui.VStack(
 		createText("=== Mint UI Complex Test ===", style.Color("cyan"), true),
-		basic.Divider(),
-		basic.Text(""),
+		divider.H(),
+		ui.Text(""),
 
 		// 标签页导航
-		layout.HStack(
+		ui.HStack(
 			tabButton("Form", "form"),
-			basic.Text(" "),
+			ui.Text(" "),
 			tabButton("List", "list"),
-			basic.Text(" "),
+			ui.Text(" "),
 			tabButton("Modal", "modal"),
-			basic.Text(" "),
+			ui.Text(" "),
 			tabButton("Progress", "progress"),
 		),
 
-		basic.Text(""),
-		basic.Divider(),
+		ui.Text(""),
+		divider.H(),
 
 		// Key event info display (for debugging)
 		renderKeyInfo(),
 
-		basic.Text(""),
+		ui.Text(""),
 
 		// 标签页内容
 		renderTabContent(),
@@ -97,15 +97,9 @@ func renderKeyInfo() ui.VNode {
 
 	infoText := strings.Join(infoParts, " | ")
 
-	text1 := basic.NewText(infoText)
-	text1.SetStyle(style.Style{}.Foreground(style.Color("yellow")))
-
-	text2 := basic.NewText(tabInfo)
-	text2.SetStyle(style.Style{}.Foreground(style.Color("gray")))
-
-	return layout.VStack(
-		text1,
-		text2,
+	return ui.VStack(
+		text.New(infoText).Foreground(style.Color("yellow")),
+		text.New(tabInfo).Foreground(style.Color("gray")),
 	)
 }
 
@@ -116,12 +110,10 @@ func createText(content string, color style.Color, bold bool) ui.VNode {
 
 // createStyledText 创建带样式的文本
 func createStyledText(content string, color style.Color, bold bool) ui.VNode {
-	s := style.Style{}.Foreground(color)
+	t := text.New(content).Foreground(color)
 	if bold {
-		s = s.Bold(true)
+		t = t.Bold()
 	}
-	t := basic.NewText(content)
-	t.SetStyle(s)
 	return t
 }
 
@@ -133,10 +125,7 @@ func tabButton(label, tabID string) ui.VNode {
 	} else {
 		fg = style.Color("white")
 	}
-	return button.ButtonBuilder(label).
-		OnClick(func() {
-			currentTab = tabID
-		}).
+	return app.ButtonBuilder(label).
 		FgColor(fg).
 		Build()
 }
@@ -153,63 +142,50 @@ func renderTabContent() ui.VNode {
 	case "progress":
 		return renderProgressTab()
 	default:
-		return basic.Text("Unknown tab")
+		return ui.Text("Unknown tab")
 	}
 }
 
 // renderFormTab 表单标签
 func renderFormTab() ui.VNode {
-	return layout.VStack(
+	return ui.VStack(
 		createText("--- Form Tab ---", style.Color("yellow"), true),
-		basic.Text(""),
+		ui.Text(""),
 
-		layout.HStack(
-			basic.Text("Name:  "),
-			basic.Text(fmt.Sprintf("[%30s]", formName)),
+		ui.HStack(
+			ui.Text("Name:  "),
+			ui.Text(fmt.Sprintf("[%30s]", formName)),
 		),
 
-		basic.Text(""),
-		layout.HStack(
-			basic.Text("Email: "),
-			basic.Text(fmt.Sprintf("[%30s]", formEmail)),
+		ui.Text(""),
+		ui.HStack(
+			ui.Text("Email: "),
+			ui.Text(fmt.Sprintf("[%30s]", formEmail)),
 		),
 
-		basic.Text(""),
-		layout.HStack(
-			form.CheckboxBuilder().
-				Label("I agree to terms").
+		ui.Text(""),
+		ui.HStack(
+			checkbox.New("I agree to terms").
 				Checked(formAgree).
-				OnChange(func(bool) {
-					formAgree = !formAgree
-				}).
 				Build(),
 		),
 
-		basic.Text(""),
-		basic.Text(""),
-		layout.HStack(
-			button.ButtonBuilder("Submit").
-				Variant(button.ButtonVariantPrimary).
+		ui.Text(""),
+		ui.Text(""),
+		ui.HStack(
+			app.ButtonBuilder("Submit").
+				Variant(app.ButtonVariantPrimary).
 				Disabled(!formAgree).
-				OnClick(func() {
-					fmt.Printf("Form: Name=%s, Email=%s, Agree=%v\n",
-						formName, formEmail, formAgree)
-				}).
 				Build(),
 
-			basic.Text("  "),
+			ui.Text("  "),
 
-			button.ButtonBuilder("Reset").
-				Variant(button.ButtonVariantSecondary).
-				OnClick(func() {
-					formName = ""
-					formEmail = ""
-					formAgree = false
-				}).
+			app.ButtonBuilder("Reset").
+				Variant(app.ButtonVariantSecondary).
 				Build(),
 		),
 
-		basic.Text(""),
+		ui.Text(""),
 		createText(fmt.Sprintf("Name: %s | Email: %s | Agree: %v",
 			formName, formEmail, formAgree), style.Color("gray"), false),
 	)
@@ -221,40 +197,29 @@ func renderListTab() ui.VNode {
 
 	children := []ui.VNode{
 		createText("--- List Tab ---", style.Color("yellow"), true),
-		basic.Text(""),
-		layout.HStack(
-			button.ButtonBuilder("Add Item").
-				Variant(button.ButtonVariantSuccess).
-				OnClick(func() {
-					listItems = append(listItems, fmt.Sprintf("Item %d", itemCount+1))
-				}).
+		ui.Text(""),
+		ui.HStack(
+			app.ButtonBuilder("Add Item").
+				Variant(app.ButtonVariantSuccess).
 				Build(),
-			basic.Text("  "),
-			button.ButtonBuilder("Remove Last").
-				Variant(button.ButtonVariantDanger).
-				OnClick(func() {
-					if len(listItems) > 0 {
-						listItems = listItems[:len(listItems)-1]
-					}
-				}).
+			ui.Text("  "),
+			app.ButtonBuilder("Remove Last").
+				Variant(app.ButtonVariantDanger).
 				Build(),
-			basic.Text("  "),
-			button.ButtonBuilder("Clear All").
-				Variant(button.ButtonVariantSecondary).
-				OnClick(func() {
-					listItems = []string{}
-				}).
+			ui.Text("  "),
+			app.ButtonBuilder("Clear All").
+				Variant(app.ButtonVariantSecondary).
 				Build(),
 		),
-		basic.Text(""),
+		ui.Text(""),
 		createStyledText(fmt.Sprintf("Items: %d", itemCount), style.Color("white"), true),
-		basic.Text(""),
+		ui.Text(""),
 	}
 
 	for i, item := range listItems {
-		children = append(children, layout.HStack(
-			basic.Text(fmt.Sprintf("%2d. ", i+1)),
-			basic.Text(item),
+		children = append(children, ui.HStack(
+			ui.Text(fmt.Sprintf("%2d. ", i+1)),
+			ui.Text(item),
 		))
 	}
 
@@ -262,80 +227,56 @@ func renderListTab() ui.VNode {
 		children = append(children, createStyledText("(empty)", style.Color("gray"), false))
 	}
 
-	return layout.VStack(children...)
+	return ui.VStack(children...)
 }
 
 // renderModalTab 模态框标签
 func renderModalTab() ui.VNode {
-	return layout.VStack(
+	return ui.VStack(
 		createText("--- Modal Tab ---", style.Color("yellow"), true),
-		basic.Text(""),
+		ui.Text(""),
 
-		button.ButtonBuilder("Show Modal").
-			Variant(button.ButtonVariantPrimary).
-			OnClick(func() {
-				showModal = true
-			}).
+		app.ButtonBuilder("Show Modal").
+			Variant(app.ButtonVariantPrimary).
 			Build(),
 
-		basic.Text(""),
+		ui.Text(""),
 		createStyledText(fmt.Sprintf("Modal Visible: %v", showModal), style.Color("gray"), false),
 	)
 }
 
 // renderProgressTab 进度条标签
 func renderProgressTab() ui.VNode {
-	return layout.VStack(
+	return ui.VStack(
 		createText("--- Progress Tab ---", style.Color("yellow"), true),
-		basic.Text(""),
+		ui.Text(""),
 
-		app.ProgressBuilder().
+		progress.New().
 			Value(progressValue).
 			Max(100).
 			Build(),
 
-		basic.Text(""),
-		basic.Text(fmt.Sprintf("Progress: %d%%", progressValue)),
-		basic.Text(""),
+		ui.Text(""),
+		ui.Text(fmt.Sprintf("Progress: %d%%", progressValue)),
+		ui.Text(""),
 
-		layout.HStack(
-			button.ButtonBuilder("0%").
-				OnClick(func() { progressValue = 0 }).
-				Size(button.ButtonSizeSmall).
-				Build(),
-			basic.Text(" "),
-			button.ButtonBuilder("25%").
-				OnClick(func() { progressValue = 25 }).
-				Size(button.ButtonSizeSmall).
-				Build(),
-			basic.Text(" "),
-			button.ButtonBuilder("50%").
-				OnClick(func() { progressValue = 50 }).
-				Size(button.ButtonSizeSmall).
-				Build(),
-			basic.Text(" "),
-			button.ButtonBuilder("75%").
-				OnClick(func() { progressValue = 75 }).
-				Size(button.ButtonSizeSmall).
-				Build(),
-			basic.Text(" "),
-			button.ButtonBuilder("100%").
-				OnClick(func() { progressValue = 100 }).
-				Size(button.ButtonSizeSmall).
-				Build(),
+		ui.HStack(
+			app.ButtonBuilder("0%").Build(),
+			ui.Text(" "),
+			app.ButtonBuilder("25%").Build(),
+			ui.Text(" "),
+			app.ButtonBuilder("50%").Build(),
+			ui.Text(" "),
+			app.ButtonBuilder("75%").Build(),
+			ui.Text(" "),
+			app.ButtonBuilder("100%").Build(),
 		),
 
-		basic.Text(""),
-		basic.Text(""),
+		ui.Text(""),
+		ui.Text(""),
 
-		button.ButtonBuilder("Auto Increment").
-			Variant(button.ButtonVariantSuccess).
-			OnClick(func() {
-				progressValue += 10
-				if progressValue > 100 {
-					progressValue = 0
-				}
-			}).
+		app.ButtonBuilder("Auto Increment").
+			Variant(app.ButtonVariantSuccess).
 			Build(),
 	)
 }
