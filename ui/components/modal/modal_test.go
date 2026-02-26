@@ -502,23 +502,23 @@ func TestInstance_HandleAction(t *testing.T) {
 }
 
 func TestInstance_HandleAction_HandlableActions(t *testing.T) {
-	inst := NewInstance(rtui.Props{
-		"isOpen":    true,
-		"closeable": true,
-	})
-
 	tests := []struct {
 		actionType action.ActionType
 		handlable  bool
 	}{
 		{action.ActionCancel, true},  // Cancels a modal
-		{action.ActionQuit, true},    // Qui t also closes modal
+		{action.ActionQuit, true},    // Quit also closes modal
 		{action.ActionScroll, false}, // Modal doesn't handle scroll
 		{"other", false},
 	}
 
 	for _, tt := range tests {
 		t.Run(string(tt.actionType), func(t *testing.T) {
+			// Create fresh instance for each test
+			inst := NewInstance(rtui.Props{
+				"isOpen":    true,
+				"closeable": true,
+			})
 			handled := inst.HandleAction(action.NewAction(tt.actionType))
 			if handled != tt.handlable {
 				t.Errorf("Expected HandleAction('%s') to be %v, got %v", tt.actionType, tt.handlable, handled)

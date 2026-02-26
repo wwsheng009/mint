@@ -6,6 +6,8 @@ import (
 	"github.com/wwsheng009/mint/framework"
 	"github.com/wwsheng009/mint/internal/log"
 	"github.com/wwsheng009/mint/internal/render"
+	"github.com/wwsheng009/mint/runtime/intent"
+	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
 
 // =============================================================================
@@ -25,6 +27,7 @@ type Options struct {
 	FPS               int
 	EnableDevTools    bool
 	NoAlternateScreen bool // Don't use alternate screen mode - allows copying/scrolling
+	InitFunc          func() // Initialization function called after Intent Runtime is created
 }
 
 // WithWidth sets the window width
@@ -71,6 +74,25 @@ func WithFPS(fps int) Option {
 func WithNoAlternateScreen() Option {
 	return func(o *Options) {
 		o.NoAlternateScreen = true
+	}
+}
+
+// WithInit sets an initialization function that will be called after the Intent Runtime is created
+// This is useful for registering Intent Handlers that depend on the Intent Runtime.
+//
+// Example:
+//
+//	ui.Run(App,
+//		ui.WithInit(func() {
+//			ui.RegisterIntent(func(ctx *intent.ActionContext, i MyIntent) intent.IntentResult {
+//				// Handle intent
+//				return intent.HandledResult()
+//			})
+//		}),
+//	)
+func WithInit(initFunc func()) Option {
+	return func(o *Options) {
+		o.InitFunc = initFunc
 	}
 }
 
@@ -123,9 +145,24 @@ func Run(app ComponentFunc, opts ...Option) error {
 		}
 	}
 
+	// Initialize Intent Runtime (declarative UI layer)
+	intentRuntime := intent.NewRuntime()
+	rtui.SetGlobalIntentRuntime(intentRuntime)
+	if log.UILogger.Enabled() {
+		log.UILogger.Debug("ui.Run: Intent Runtime initialized")
+	}
+
+	// Call initialization function if provided (e.g., for registering Intent Handlers)
+	if options.InitFunc != nil {
+		options.InitFunc()
+	}
+
 	// Create declarative node from the component function with Fiber reconciler enabled
 	// Fiber is now the default and required for persistent component instances and event handlers
 	declarativeRoot := render.NewDeclarativeNodeFromFuncWithFiber(app, fwApp)
+
+	// Pass Intent Runtime to declarative node for component context
+	render.SetDeclarativeNodeIntentRuntime(declarativeRoot, intentRuntime)
 
 	if os.Getenv("TUI_DEBUG_UI") == "true" {
 		log.UILogger.Debug("ui.Run: Fiber mode enabled (default)")

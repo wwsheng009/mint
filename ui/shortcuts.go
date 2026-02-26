@@ -1,127 +1,143 @@
 // Package ui provides convenient shortcuts for common UI components
 //
-// For full-featured components with Builder patterns, use the app package:
-//   - app.Text() / app.NewText()
-//   - app.Button() / app.NewButton()
-//   - app.Input() / app.NewInput()
-//   - app.HStack() / app.VStack()
+// These shortcuts redirect to Fiber-first components in ui/components/.
+// For full-featured Builder patterns, use the component packages directly:
+//   - ui/components/text.New(content)
+//   - ui/components/button.New(label)
+//   - ui/components/input.New()
 //
-// The shortcuts below are provided for convenience and basic use cases.
+// Or use the app package for convenience re-exports:
+//   - app.Text(content) / app.Button(label)
+//   - app.Input() / app.Checkbox(label)
 package ui
 
 import (
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/runtime/style"
+	"github.com/wwsheng009/mint/runtime/intent"
+	"github.com/wwsheng009/mint/ui/components/text"
+	"github.com/wwsheng009/mint/ui/components/button"
+	"github.com/wwsheng009/mint/ui/components/input"
+	"github.com/wwsheng009/mint/ui/components/textarea"
+	"github.com/wwsheng009/mint/ui/components/checkbox"
+	"github.com/wwsheng009/mint/ui/components/progress"
 )
 
 // =============================================================================
-// Basic Component Shortcuts
+// Text Shortcuts - Redirect to ui/components/text
 // =============================================================================
 
 // Text creates a simple text VNode
+// Shortcut for text.New(content) from ui/components/text
 func Text(content string) VNode {
-	return rtui.Element("text").Prop("content", content).Build()
+	return text.New(content)
 }
 
-// Textf creates a formatted text VNode (wrapper, use fmt.Sprintf for actual formatting)
+// Textf creates a formatted text VNode
+// Shortcut for text.New(fmt.Sprintf(format, args...))
 func Textf(format string, args ...interface{}) VNode {
-	return rtui.Element("text").Prop("content", format).Build()
+	// Note: actual formatting should be done by caller with fmt.Sprintf
+	return text.New(format)
 }
 
 // TextWithStyle creates a styled text VNode
+// Shortcut for text.New(content).SetStyle(s)
 func TextWithStyle(content string, s style.Style) VNode {
-	return rtui.Element("text").Prop("content", content).Style(s).Build()
+	return text.New(content).SetStyle(s)
 }
 
 // TextAlign creates a text VNode with horizontal alignment
-// Align is applied when text is stretched in a VStack with Stretch()
+// Shortcut for text.New(content).SetTextAlignProps(align)
 // Supported align values: "left", "center", "right"
 func TextAlign(content string, align string) VNode {
-	return rtui.Element("text").Prop("content", content).Prop("textAlign", align).Build()
+	var a rtui.Align
+	switch align {
+	case "center":
+		a = rtui.AlignCenter
+	case "right":
+		a = rtui.AlignEnd
+	default:
+		a = rtui.AlignStart
+	}
+	return text.New(content).SetTextAlignProps(a)
 }
 
 // TextCenter creates a centered text VNode
+// Shortcut for text.New(content).SetTextAlignProps(AlignCenter)
 func TextCenter(content string) VNode {
-	return rtui.Element("text").Prop("content", content).Prop("textAlign", "center").Build()
+	return text.New(content).SetTextAlignProps(rtui.AlignCenter)
 }
 
 // TextRight creates a right-aligned text VNode
+// Shortcut for text.New(content).SetTextAlignProps(AlignEnd)
 func TextRight(content string) VNode {
-	return rtui.Element("text").Prop("content", content).Prop("textAlign", "right").Build()
+	return text.New(content).SetTextAlignProps(rtui.AlignEnd)
 }
 
 // =============================================================================
-// Form Component Shortcuts
+// Form Component Shortcuts - Redirect to ui/components/*
 // =============================================================================
 
 // Input creates an input field
+// Shortcut for input.New().SetPlaceholder(placeholder) from ui/components/input
 func Input(placeholder string) VNode {
-	return rtui.Element("input").
-		Prop("placeholder", placeholder).
-		Prop("value", "").
-		Build()
+	return input.New().SetPlaceholder(placeholder)
 }
 
 // InputWithValue creates an input field with initial value
+// Shortcut for input.New().SetValue(value).SetPlaceholder(placeholder)
 func InputWithValue(placeholder, value string) VNode {
-	return rtui.Element("input").
-		Prop("placeholder", placeholder).
-		Prop("value", value).
-		Build()
+	return input.New().SetValue(value).SetPlaceholder(placeholder)
 }
 
 // Textarea creates a textarea field
+// Shortcut for textarea.New().SetPlaceholder(placeholder) from ui/components/textarea
 func Textarea(placeholder string) VNode {
-	return rtui.Element("textarea").
-		Prop("placeholder", placeholder).
-		Prop("value", "").
-		Build()
+	return textarea.New().SetPlaceholder(placeholder)
 }
 
 // Checkbox creates a checkbox
+// Shortcut for checkbox.New(label).SetChecked(checked) from ui/components/checkbox
 func Checkbox(label string, checked bool) VNode {
-	return rtui.Element("checkbox").
-		Prop("label", label).
-		Prop("checked", checked).
-		Build()
+	return checkbox.New(label).SetChecked(checked)
 }
 
 // =============================================================================
-// Button Component Shortcut
+// Button Shortcuts - Redirect to ui/components/button (Intent-based)
 // =============================================================================
 
-// Button creates a button with label and click handler
-// Note: For full button functionality (disabled state, styling), use app.Button()
-func Button(label string, onClick func()) VNode {
-	return rtui.Element("button").
-		Prop("label", label).
-		Prop("onClick", onClick).
-		Build()
+// Button creates a button with label (no click handler)
+// Shortcut for button.New(label) from ui/components/button
+// Note: This version does not support onClick. Use ButtonWithIntent for actions.
+func Button(label string) VNode {
+	return button.New(label)
+}
+
+// ButtonWithIntent creates a button with Intent (Fiber-first pattern)
+// Shortcut for button.New(label).SetIntent(intent)
+// This is the recommended way to create buttons with actions.
+func ButtonWithIntent(label string, pressIntent intent.Intent) VNode {
+	return button.New(label).SetIntent(pressIntent)
 }
 
 // =============================================================================
-// Feedback Component Shortcuts
+// Progress Shortcuts - Redirect to ui/components/progress
 // =============================================================================
 
 // Progress creates a progress bar
+// Shortcut for progress.New().SetValue(value).SetMax(max) from ui/components/progress
 func Progress(value, max int) VNode {
-	return rtui.Element("progress").
-		Prop("value", value).
-		Prop("max", max).
-		Build()
+	return progress.New().SetValue(value).SetMax(max)
 }
 
 // ProgressPercent creates a progress bar with percentage
+// Shortcut for progress.New().SetValue(percent).SetMax(100)
 func ProgressPercent(percent int) VNode {
-	return rtui.Element("progress").
-		Prop("percent", percent).
-		Prop("value", percent).
-		Prop("max", 100).
-		Build()
+	return progress.New().SetValue(percent).SetMax(100)
 }
 
 // =============================================================================
-// Style Helpers
+// Style Helpers - Still relevant for VNode manipulation
 // =============================================================================
 
 // Styled applies a style to a VNode (only works for ElementVNode)
@@ -188,13 +204,10 @@ func WithProps(props map[string]interface{}) func(VNode) VNode {
 }
 
 // =============================================================================
-// Error Boundary Shortcuts
+// Error Boundary Shortcuts - Runtime feature, still relevant
 // =============================================================================
 
 // ErrorBoundary creates a new error boundary wrapper
-//   - name: identifier for this boundary (for debugging)
-//   - component: the component function to wrap
-//   - fallback: the VNode to render when errors occur
 func ErrorBoundary(name string, component rtui.ComponentFunc, fallback rtui.VNode) rtui.VNode {
 	return rtui.ErrorBoundary(name, component, fallback)
 }
@@ -215,28 +228,25 @@ func FallbackBox(title, message string) rtui.VNode {
 }
 
 // =============================================================================
-// Memo Shortcuts
+// Memo Shortcuts - Runtime optimization, still relevant
 // =============================================================================
 
-// Memo wraps a component to memoize its output, skipping re-renders when props haven't changed
-// Similar to React.memo() - uses shallow comparison by default
+// Memo wraps a component to memoize its output
 func Memo(component VNode) VNode {
 	return rtui.NewMemo(component)
 }
 
 // MemoWithCompare wraps a component with a custom comparison function
-// The compare function should return true if props are equal (no update needed)
 func MemoWithCompare(component VNode, compare rtui.PropsEqual) VNode {
 	return rtui.NewMemoWithCompare(component, compare)
 }
 
-// MemoComponent wraps a component function with memoization (convenience wrapper)
+// MemoComponent wraps a component function with memoization
 func MemoizedComponent(name string, fn rtui.ComponentFunc) VNode {
 	return rtui.MemoComponent(name, fn)
 }
 
 // ShallowPropsEqual performs shallow comparison of two Props objects
-// Returns true if they are equal (no update needed)
 func ShallowPropsEqual(oldProps, newProps rtui.Props) bool {
 	return rtui.ShallowPropsEqual(oldProps, newProps)
 }
@@ -252,28 +262,11 @@ func PropsEqualOnly(keys ...string) rtui.PropsEqual {
 }
 
 // PureComponent creates a memoized component that only re-renders when props change
-// This is a convenience alias for MemoComponent, equivalent to React's PureComponent
-// Use this for components that render the same output given the same props
-//
-// Example:
-//
-//	pureExpensive := ui.PureComponent("ExpensiveCalculation", func() ui.VNode {
-//	    result := expensiveCalculation()
-//	    return app.Text(result)
-//	})
 func PureComponent(name string, fn rtui.ComponentFunc) VNode {
 	return rtui.MemoComponent(name, fn)
 }
 
 // PureComponentWithProps creates a memoized component with props
-// Only re-renders when props change (shallow comparison)
-//
-// Example:
-//
-//	pureItem := ui.PureComponentWithProps("ListItem", func(props rtui.Props) ui.VNode {
-//	    title := props.Get("title").(string)
-//	    return app.Text(title)
-//	})
 func PureComponentWithProps(name string, fn rtui.ComponentFuncWithProps) VNode {
 	component := rtui.NewComponentWithProps(name, fn)
 	return rtui.NewMemo(component)

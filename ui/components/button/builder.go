@@ -94,11 +94,11 @@ func (b *Builder) Disabled(disabled bool) *Builder {
 }
 
 // OnPress sets the intent to emit when pressed.
-// This replaces the old OnClick(func()) closure pattern.
+// This is the Fiber-first way to handle button press events.
 //
 // Example:
 //
-//	ButtonBuilder("Open").OnPress(intent.OpenModal("settings"))
+//	ButtonBuilder("Open").OnPress(intent.NewAction("open_modal", "settings"))
 func (b *Builder) OnPress(pressIntent intent.Intent) *Builder {
 	b.node.SetIntent(pressIntent)
 	return b
