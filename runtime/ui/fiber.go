@@ -129,6 +129,12 @@ type Fiber struct {
 	// Key is an alias for DiffKey for backward compatibility
 	Key string
 
+	// === Root Fiber Marker ===
+	// IsRoot indicates if this fiber is the root component
+	// Set during prepareFreshStack for the root component wrapper
+	// Used by beginWorkComponent to provide global state context
+	IsRoot bool
+
 	// ✨ NodeID for stable runtime identity
 	NodeID uint64
 

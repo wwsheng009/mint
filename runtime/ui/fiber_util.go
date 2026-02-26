@@ -408,8 +408,12 @@ func CloneFiber(fiber *Fiber) *Fiber {
 		Tag:           fiber.Tag,
 		DiffKey:       fiber.DiffKey, // ✨ Preserve DiffKey for diffing
 		Key:           fiber.Key,     // Backward compatibility
+		IsRoot:        fiber.IsRoot,  // ✨ Preserve IsRoot marker
 		NodeID:        fiber.NodeID,  // ✨ Preserve NodeID for stable identity
 		Layer:         fiber.Layer,   // ✨ Preserve Layer
+		Path:          fiber.Path,    // ✨ Preserve Path for key generation
+		PathSegment:   fiber.PathSegment, // ✨ Preserve PathSegment
+		SiblingIndex:  fiber.SiblingIndex, // ✨ Preserve SiblingIndex
 		Style:         fiber.Style,   // ✨ Preserve Style (Fiber-first)
 		Props:         fiber.Props,
 		MemoizedProps: fiber.MemoizedProps,

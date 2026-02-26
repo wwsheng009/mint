@@ -14,8 +14,6 @@ package reconciler
 // =============================================================================
 
 import (
-	"os"
-
 	"github.com/wwsheng009/mint/internal/log"
 	"github.com/wwsheng009/mint/internal/state"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
@@ -29,7 +27,7 @@ func BeginWork(current, workInProgress *Fiber) *Fiber {
 	}
 
 	// Debug: log all BeginWork calls to understand the Fiber tree
-	if log.HitMapLogger.Enabled() {
+	if log.FiberLogger.Enabled() {
 		typeName := "UNKNOWN"
 		switch workInProgress.Type {
 		case rtui.VNodeComponent:
@@ -42,7 +40,7 @@ func BeginWork(current, workInProgress *Fiber) *Fiber {
 			typeName = "VNodeFragment"
 		}
 		if workInProgress.Key != "" {
-			log.UILogger.Debug("[BeginWork] Called: Type=%d(%s), Key=%q, Tag=%q",
+			log.FiberLogger.Debug("[BeginWork] Called: Type=%d(%s), Key=%q, Tag=%q",
 				workInProgress.Type, typeName, workInProgress.Key, workInProgress.Tag)
 		}
 	}
@@ -93,24 +91,34 @@ func beginWorkComponent(current, workInProgress *Fiber) *Fiber {
 		componentKey = "component:" + workInProgress.ComponentName
 	}
 
-	// Get or create component instance from InstanceManager
-	// This ensures hooks state is preserved across renders for the same component
+	// CRITICAL: Root component uses the shared root context for global state management
+	// This ensures Intent Handlers (via Dispatcher.SetStateSetter) update the same state
+	// that the root component reads (via GetIntState/GetStringState/etc.).
 	var instance rtui.ComponentInstance
 	var ctx *rtui.ComponentContext
 
-	if currentReconciler != nil && currentReconciler.instanceMgr != nil {
+	// ✨ Use explicit IsRoot marker instead of string comparison
+	// This is more robust than checking componentKey == "root"
+	isRootComponent := workInProgress.IsRoot
+
+	if isRootComponent && currentReconciler != nil && currentReconciler.ctx != nil {
+		// Root component: use the shared root context for global state
+		ctx = currentReconciler.ctx
+		if log.UILogger.Enabled() {
+			log.UILogger.Debug("[beginWorkComponent] Using ROOT context for component %s", componentKey)
+		}
+	} else if currentReconciler != nil && currentReconciler.instanceMgr != nil {
+		// Child component: use InstanceManager for component instance
 		instance = currentReconciler.instanceMgr.GetOrCreate(componentKey, func() rtui.ComponentInstance {
 			if workInProgress.ComponentFuncWithProps != nil {
 				return rtui.NewBaseComponentInstanceWithProps(componentKey, workInProgress.ComponentFuncWithProps, workInProgress.Props)
 			}
 			return rtui.NewBaseComponentInstance(componentKey, workInProgress.ComponentFunc)
 		})
-
 		// Update props if they changed
 		if workInProgress.Props != nil {
 			instance.SetProps(workInProgress.Props)
 		}
-
 		// Get context from instance
 		ctx = instance.GetContext()
 	} else {
@@ -167,6 +175,14 @@ func beginWorkComponent(current, workInProgress *Fiber) *Fiber {
 // Text nodes have no children, so we just return
 func beginWorkText(current, workInProgress *Fiber) *Fiber {
 	// Text nodes are leaf nodes - no children to reconcile
+
+	// CRITICAL: Update Instance props if present
+	// Text VNode implements InstanceFactory and creates a TextInstance
+	// When Fiber is reused, props change but Instance needs explicit update
+	if workInProgress.Instance != nil && workInProgress.Props != nil {
+		workInProgress.Instance.SetProps(workInProgress.Props)
+	}
+
 	return workInProgress
 }
 
@@ -185,6 +201,13 @@ func beginWorkElement(current, workInProgress *Fiber) *Fiber {
 		}
 	}
 
+	// CRITICAL: Update Instance props if present
+	// Text, Button, etc. implement InstanceFactory and create instances
+	// When Fiber is reused, props change but Instance needs explicit update
+	if workInProgress.Instance != nil && workInProgress.Props != nil {
+		workInProgress.Instance.SetProps(workInProgress.Props)
+	}
+
 	// ✨ NEW: Create/reuse VNodeComponentInstance for VNode struct components
 	// This enables persistent event handlers and state for Button, Text, etc.
 
@@ -195,10 +218,8 @@ func beginWorkElement(current, workInProgress *Fiber) *Fiber {
 		}
 		instanceKey := "vnode:" + lookupKey
 
-		if os.Getenv("TUI_DEBUG_INSTANCE") == "true" || os.Getenv("TUI_DEBUG_HITMAP") == "true" {
-			log.UILogger.Debug("[beginWorkElement] Creating instance for key=%s (fiber.Key=%q, fiber.Path=%q)",
-				instanceKey, workInProgress.Key, workInProgress.Path)
-		}
+		log.UILogger.Debug("[beginWorkElement] Creating instance for key=%s (fiber.Key=%q, fiber.Path=%q)",
+			instanceKey, workInProgress.Key, workInProgress.Path)
 
 		// Get or create VNode component instance
 		// instance := currentReconciler.instanceMgr.GetOrCreate(instanceKey, func() rtui.ComponentInstance {
@@ -208,10 +229,9 @@ func beginWorkElement(current, workInProgress *Fiber) *Fiber {
 		// Store the instance in the fiber
 		// workInProgress.ComponentInstance = instance
 
-		if os.Getenv("TUI_DEBUG_INSTANCE") == "true" || os.Getenv("TUI_DEBUG_HITMAP") == "true" {
-			log.UILogger.Debug("[beginWorkElement] ✅ Created/Updated instance: key=%s, fiber.Key=%q, type=%d",
-				instanceKey, workInProgress.Key, workInProgress.Type)
-		}
+		log.UILogger.Debug("[beginWorkElement] ✅ Created/Updated instance: key=%s, fiber.Key=%q, type=%d",
+			instanceKey, workInProgress.Key, workInProgress.Type)
+
 	}
 
 	// Get current child for reconciliation

@@ -150,9 +150,15 @@ func (r *Reconciler) MarkDirty() {
 // will handle the actual component invocation with proper Context management.
 // This ensures all hooks use the same ComponentInstance's context.
 func (r *Reconciler) prepareFreshStack(renderFunc func() rtui.VNode) {
-	// Wrap the root component as a ComponentVNode
+	// Wrap the root component as a ComponentVNode with props support
 	// This ensures it goes through beginWorkComponent which manages Context properly
-	rootComponentVNode := rtui.NewComponent("RootComponent", renderFunc)
+	//
+	// NOTE: Using NewComponentWithProps to support future props passing to root.
+	// Currently props are not used (state is in global ctx), but this provides
+	// extensibility for features like theme, locale, etc.
+	rootComponentVNode := rtui.NewComponentWithProps("RootComponent", func(p rtui.Props) rtui.VNode {
+		return renderFunc()
+	})
 	rootComponentVNode.SetKey("root")
 
 	// Create or update Fiber tree
@@ -163,12 +169,14 @@ func (r *Reconciler) prepareFreshStack(renderFunc func() rtui.VNode) {
 		// Children will inherit this path: /root + /segment = /root/segment
 		r.root.Path = "/root"
 		r.root.Key = "root"
+		r.root.IsRoot = true // ✨ Mark as root fiber for explicit identification
 		r.workInProgress = r.root
 	} else {
 		// Subsequent render - create work-in-progress tree
 		r.workInProgress = r.createWorkInProgress(r.root, rootComponentVNode)
 		// Ensure workInProgress also has the correct Path
 		r.workInProgress.Path = "/root"
+		r.workInProgress.IsRoot = true // ✨ Preserve root marker on work-in-progress
 	}
 }
 
@@ -1114,6 +1122,13 @@ func (r *Reconciler) SetIntentRuntime(runtime *intent.Runtime) {
 			r.ScheduleUpdate(rtui.LaneDefaultLane)
 		})
 	}
+}
+
+// SetRootContext sets the root component context for this reconciler.
+// This is used for global state management in Fiber-first mode.
+// The root context is shared by all components for accessing global state.
+func (r *Reconciler) SetRootContext(ctx *rtui.ComponentContext) {
+	r.ctx = ctx
 }
 
 // GetCurrentReconciler returns the current reconciler
