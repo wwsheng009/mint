@@ -373,8 +373,6 @@ func (inst *Instance) HandleAction(act *action.Action) bool {
 			return true
 		}
 		return false
-	// case string(action.ActionSelect):
-	// 	return inst.selectItem()
 	}
 	return false
 }
