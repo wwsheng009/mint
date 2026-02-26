@@ -1,7 +1,6 @@
-// examples/fiber_counter/main.go - Fiber 模式计数器示例（带调试）
+// examples/fiber_counter/main.go - Fiber 模式计数器示例（修复版）
 //
-// 改进：使用简洁的 ui.On() API，避免手动保存 setter 到 GlobalState
-//
+// 使用 GlobalState + 内置 Intent 模式（与 examples/counter 相同）
 package main
 
 import (
@@ -9,64 +8,24 @@ import (
 	"os"
 
 	"github.com/wwsheng009/mint/app"
-	"github.com/wwsheng009/mint/internal/log"
 	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/ui"
 )
 
 // =============================================================================
-// 简单的 Intent 定义（仅用于类型标识）
+// 主组件
 // =============================================================================
 
-type IncrementIntent struct{}
-func (IncrementIntent) IntentType() string { return "Increment" }
-func (IncrementIntent) StayPressed() bool  { return true }
-
-type DecrementIntent struct{}
-func (DecrementIntent) IntentType() string { return "Decrement" }
-func (DecrementIntent) StayPressed() bool  { return true }
-
-// =============================================================================
-// 辅助函数：On() - 简洁的 Intent 处理器注册
-// =============================================================================
-
-// On 注册一个意图处理器，使用闭包直接访问局部变量
-// 使用标签确保只注册一次（避免每次渲染都注册）
-func On[T interface{ IntentType() string; StayPressed() bool }](intentType T, handler func()) {
-	ctx := ui.GetCurrentContext()
-	if ctx == nil {
-		return
-	}
-
-	// 使用标签确保只注册一次
-	registryKey := "__on_handler_registered_" + intentType.IntentType()
-	if _, exists := ctx.GlobalState[registryKey]; exists {
-		return
-	}
-
-	ctx.GlobalState[registryKey] = true
-	ui.RegisterIntent(func(ctx *intent.ActionContext, i T) intent.IntentResult {
-		handler()
-		return intent.HandledResult()
-	})
-}
-
-// =============================================================================
-// 组件
-// =============================================================================
-
-// SimpleCounter 简化的计数器
 func SimpleCounter() ui.VNode {
-	count, setCount, _ := ui.UseStateInt(0)
+	// 获取当前组件上下文
+	ctx := ui.GetCurrentContext()
 
-	// ✅ 简洁：直接使用 On 注册处理器，无需手动保存 setter
-	On(IncrementIntent{}, func() {
-		setCount(count + 1)
-	})
+	// ✅ 正确方式：直接从 GlobalState 读取值（不使用 UseStateInt）
+	// GlobalState 由 Intent Handler 更新
+	count := ctx.GetIntState("count", 0)
 
-	On(DecrementIntent{}, func() {
-		setCount(count - 1)
-	})
+	// 检查是否使用 Fiber 模式
+	isFiber := os.Getenv("MINT_USE_FIBER") == "true"
 
 	return ui.VStack(
 		app.NewTextBuilder(fmt.Sprintf("Count: %d", count)).
@@ -74,70 +33,18 @@ func SimpleCounter() ui.VNode {
 			Build(),
 		ui.HStack(
 			app.ButtonBuilder(" - ").
-				OnPress(DecrementIntent{}).
+				// ✅ 使用内置 Intent - 会自动注册 handler 处理
+				OnPress(intent.Decrement("count", 1)).
 				Build(),
 			ui.Text(" "),
+			ui.Text(" "), // ⚠️ 添加额外的空格作为临时解决方案
 			app.ButtonBuilder(" + ").
-				OnPress(IncrementIntent{}).
+				OnPress(intent.Increment("count", 1)).
 				Build(),
+
 		),
-	)
-}
-
-// DebugCounter 是带调试输出的计数器组件
-func DebugCounter() ui.VNode {
-	count, setCount, _, hookIndex := ui.UseStateIntWithDebug(0)
-
-	if log.UILogger.Enabled() {
-		log.UILogger.Debug("[DebugCounter] Using count=%d, hookIndex=%d", count, hookIndex)
-	}
-
-	// ✅ 使用 On 注册处理器
-	On(IncrementIntent{}, func() {
-		log.UILogger.Debug("[DebugCounter] Incrementing from %d", count)
-		setCount(count + 1)
-	})
-
-	On(DecrementIntent{}, func() {
-		log.UILogger.Debug("[DebugCounter] Decrementing from %d", count)
-		setCount(count - 1)
-	})
-
-	// Create the count text with logging
-	countTextStr := fmt.Sprintf("Count: %d (hookIndex=%d)", count, hookIndex)
-	log.UILogger.Debug("[DebugCounter] Creating TextVNode with content: %s", countTextStr)
-
-	countText := app.NewTextBuilder(countTextStr).
-		FgColor("green").
-		Build()
-
-	if log.UILogger.Enabled() {
-		content := ""
-		if countText.Props() != nil {
-			content = countText.Props().GetString("content")
-		}
-		log.UILogger.Debug("[DebugCounter] Created TextVNode ptr=%p, content=%s", countText, content)
-	}
-
-	return ui.VStack(
-		app.NewTextBuilder("=== Fiber Counter (Debug Mode) ===").
-			FgColor("cyan").
-			Bold(true).
-			Build(),
-		ui.Text(""),
-		countText,
-		ui.Text(""),
-		ui.HStack(
-			app.ButtonBuilder("  -  ").
-				OnPress(DecrementIntent{}).
-				Build(),
-			ui.Text("   "),
-			app.ButtonBuilder("  +  ").
-				OnPress(IncrementIntent{}).
-				Build(),
-		),
-		ui.Text(""),
-		app.NewTextBuilder("Tab: focus | Enter: click | q: quit").
+		app.Text(""),
+		app.NewTextBuilder(fmt.Sprintf("[Fiber: %v] Using GlobalState + Built-in Intent", isFiber)).
 			FgColor("bright-black").
 			Build(),
 	)
@@ -148,33 +55,11 @@ func DebugCounter() ui.VNode {
 // =============================================================================
 
 func main() {
-	// 检查环境变量
-	useFiber := os.Getenv("MINT_USE_FIBER") == "true"
-	debugUI := log.UILogger.Enabled()
-
-	log.UILogger.Debug("=== Fiber Counter Debug Info ===")
-	log.UILogger.Debug("MINT_USE_FIBER: %v", useFiber)
-	log.UILogger.Debug("TUI_DEBUG_UI: %v", debugUI)
-	log.UILogger.Debug("==============================")
-
-	if useFiber {
-		log.UILogger.Debug("Running in FIBER mode")
-	} else {
-		log.UILogger.Debug("Running in LEGACY mode")
-	}
-
-	var app ui.ComponentFunc
-	if debugUI {
-		app = DebugCounter
-	} else {
-		app = SimpleCounter
-	}
-
-	// ✅ 不需要 WithInit，意图处理器在组件内部通过 On() 注册
-	err := ui.Run(app,
+	// 不需要自定义 WithInit - 内置 Intent 已经自动注册
+	err := ui.Run(SimpleCounter,
 		ui.WithWidth(40),
 		ui.WithHeight(10),
-		ui.WithTitle("Fiber Counter (Improved API)"),
+		ui.WithTitle("Fiber Counter (Fixed - using Built-in Intent)"),
 	)
 
 	if err != nil {

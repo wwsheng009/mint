@@ -395,13 +395,13 @@ func TestShouldUpdate(t *testing.T) {
 		MemoizedProps: oldVNode.Props(),
 	}
 
-	if !shouldUpdate(oldFiber, newVNode) {
+	if !shouldUpdate(oldFiber, newVNode, 0) {
 		t.Error("shouldUpdate should return true for same props")
 	}
 
 	newVNodeDiff := rtui.Element("div").Prop("id", "different").Build()
 
-	if !shouldUpdate(oldFiber, newVNodeDiff) {
+	if !shouldUpdate(oldFiber, newVNodeDiff, 0) {
 		t.Error("shouldUpdate should return true for different props")
 	}
 }
@@ -800,7 +800,7 @@ func TestShouldUpdate_KeyMismatch(t *testing.T) {
 	fiber := CreateFiberFromVNode(elem1)
 
 	// Different keys should not update
-	if shouldUpdate(fiber, elem2) {
+	if shouldUpdate(fiber, elem2, 0) {
 		t.Error("shouldUpdate should return false for different keys")
 	}
 }
@@ -818,7 +818,7 @@ func TestShouldUpdate_TypeMismatch(t *testing.T) {
 	fiber := CreateFiberFromVNode(elem)
 
 	// Different types should not update even with same key
-	if shouldUpdate(fiber, comp) {
+	if shouldUpdate(fiber, comp, 0) {
 		t.Error("shouldUpdate should return false for different types")
 	}
 }
@@ -828,13 +828,13 @@ func TestShouldUpdate_NilValues(t *testing.T) {
 	elem := rtui.Element("div").Build()
 
 	// Nil current fiber
-	if shouldUpdate(nil, elem) {
+	if shouldUpdate(nil, elem, 0) {
 		t.Error("shouldUpdate should return false for nil current fiber")
 	}
 
 	// Create a fiber and test with nil VNode
 	fiber := CreateFiberFromVNode(elem)
-	if shouldUpdate(fiber, nil) {
+	if shouldUpdate(fiber, nil, 0) {
 		t.Error("shouldUpdate should return false for nil VNode")
 	}
 }
@@ -854,7 +854,7 @@ func TestShouldUpdate_SameComponent(t *testing.T) {
 	fiber := CreateFiberFromVNode(comp1)
 
 	// Same component name and key should update
-	if !shouldUpdate(fiber, comp2) {
+	if !shouldUpdate(fiber, comp2, 0) {
 		t.Error("shouldUpdate should return true for same component")
 	}
 }
@@ -874,7 +874,7 @@ func TestShouldUpdate_DifferentComponent(t *testing.T) {
 	fiber := CreateFiberFromVNode(comp1)
 
 	// Different component names should not update
-	if shouldUpdate(fiber, comp2) {
+	if shouldUpdate(fiber, comp2, 0) {
 		t.Error("shouldUpdate should return false for different components")
 	}
 }

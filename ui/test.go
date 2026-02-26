@@ -9,8 +9,10 @@ import (
 
 	"github.com/wwsheng009/mint/framework"
 	"github.com/wwsheng009/mint/internal/render"
+	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/platform"
+	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/sandbox"
 	"github.com/wwsheng009/mint/sandbox/mock"
 )
@@ -207,9 +209,22 @@ func RunTest(app ComponentFunc, opts ...Option) (*TestableApp, error) {
 	// Set global appInstance
 	appInstance = fwApp
 
+	// Initialize Intent Runtime (required for event handling)
+	intentRuntime := intent.NewRuntime()
+	intent.SetupBuiltinHandlers(intentRuntime) // Register built-in intent handlers
+	rtui.SetGlobalIntentRuntime(intentRuntime)
+
+	// Call initialization function if provided (e.g., for registering Intent Handlers)
+	if options.InitFunc != nil {
+		options.InitFunc()
+	}
+
 	// Create the declarative root component with Fiber reconciler enabled
 	// Fiber is now the default and required for persistent component instances and event handlers
 	declarativeNode := render.NewDeclarativeNodeFromFuncWithFiber(app, fwApp)
+
+	// Pass Intent Runtime to declarative node for component context
+	render.SetDeclarativeNodeIntentRuntime(declarativeNode, intentRuntime)
 
 	// Set as root
 	fwApp.SetRoot(declarativeNode)
@@ -264,9 +279,22 @@ func RunTestWithSandbox(app ComponentFunc, opts ...Option) (*TestableApp, error)
 	// Set global appInstance
 	appInstance = fwApp
 
+	// Initialize Intent Runtime (required for event handling)
+	intentRuntime := intent.NewRuntime()
+	intent.SetupBuiltinHandlers(intentRuntime) // Register built-in intent handlers
+	rtui.SetGlobalIntentRuntime(intentRuntime)
+
+	// Call initialization function if provided (e.g., for registering Intent Handlers)
+	if options.InitFunc != nil {
+		options.InitFunc()
+	}
+
 	// Create the declarative root component with Fiber reconciler enabled
 	// Fiber is now the default and required for persistent component instances and event handlers
 	declarativeNode := render.NewDeclarativeNodeFromFuncWithFiber(app, fwApp)
+
+	// Pass Intent Runtime to declarative node for component context
+	render.SetDeclarativeNodeIntentRuntime(declarativeNode, intentRuntime)
 
 	// Set as root
 	fwApp.SetRoot(declarativeNode)

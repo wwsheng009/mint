@@ -18,9 +18,9 @@ import (
 // doesn't send key release events. This interface allows authors to specify:
 //
 //   - StayPressed() == true:  Keep the pressed state so用户 can see visual feedback
-//                           Useful for navigation, state updates, etc.
+//     Useful for navigation, state updates, etc.
 //   - StayPressed() == false: Immediately reset pressed state
-//                           Useful for Quit, Delete, etc.
+//     Useful for Quit, Delete, etc.
 //
 // Example:
 //
@@ -273,45 +273,32 @@ func (b *PressableBehavior) OnAction(inst Instance, act *action.Action) bool {
 	case action.ActionPress, action.ActionClick, action.ActionEnter,
 		action.ActionSubmit, action.ActionMousePress:
 		// For terminal UI, button press triggers intent immediately
+		// Only handle if not already pressed (prevent double-trigger)
 		if !b.pressed {
 			b.pressed = true
 			state.Pressed = true
-			inst.MarkDirty()
 
 			// Emit intent on press
 			if b.pressIntent != nil {
 				inst.EmitIntent(b.pressIntent)
 
-				// For keyboard (ActionEnter, ActionSubmit), check if we should keep pressed state
+				// For keyboard (ActionEnter, ActionSubmit), check if we should reset pressed state
 				// Terminal UI doesn't send key release events, so we need to decide upfront
 				if act.Type == action.ActionEnter || act.Type == action.ActionSubmit {
-					// Check if intent implements StayPressedIntent for visual feedback preference
-					var shouldResetPressed bool
-					if sp, ok := b.pressIntent.(StayPressedIntent); ok {
-						// Intent author explicitly specified preference
-						shouldResetPressed = !sp.StayPressed()
-					} else {
-						// Default: reset immediately for backward compatibility
-						shouldResetPressed = true
-					}
-
-					if shouldResetPressed {
-						b.pressed = false
-						state.Pressed = false
-						inst.MarkDirty()
-					}
-					// If shouldResetPressed == false, keep pressed for visual feedback
-					// The next render cycle will naturally update the button with new state
+					b.pressed = false
+					state.Pressed = false
 				}
-				// For mouse (ActionMousePress), wait for ActionMouseRelease to reset
+				// For mouse (ActionMousePress), don't reset (will wait for release)
 			} else {
 				// No intent: always reset pressed state immediately
 				if act.Type == action.ActionEnter || act.Type == action.ActionSubmit {
 					b.pressed = false
 					state.Pressed = false
-					inst.MarkDirty()
 				}
 			}
+
+			// Mark dirty once at the end after all state changes
+			inst.MarkDirty()
 		}
 		return true
 

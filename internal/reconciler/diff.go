@@ -218,7 +218,7 @@ func reconcileExistingChildren(
 
 		// Try to match with current child or any of its siblings
 		// This handles cases where a child later in the list matches
-		matchedChild := findMatchingChild(currentChild, childVNode)
+		matchedChild := findMatchingChild(currentChild, childVNode, i)
 
 		if matchedChild != nil {
 			// Found a match - reuse existing fiber
@@ -260,9 +260,10 @@ func reconcileExistingChildren(
 
 // findMatchingChild searches for a child fiber that matches the given VNode
 // It checks currentChild and all its siblings for a match based on key and type
-func findMatchingChild(currentChild *Fiber, vnode rtui.VNode) *Fiber {
+// newSiblingIndex is the position this VNode should have in the new tree (for correct DiffKey calculation)
+func findMatchingChild(currentChild *Fiber, vnode rtui.VNode, newSiblingIndex int) *Fiber {
 	for child := currentChild; child != nil; child = child.Sibling {
-		if shouldUpdate(child, vnode) {
+		if shouldUpdate(child, vnode, newSiblingIndex) {
 			return child
 		}
 	}
@@ -292,16 +293,21 @@ func normalizeDiffKey(vnode rtui.VNode, siblingIndex int) string {
 // ✨ Fiber-first: Creates a temporary newFiber for comparison, then compares Fiber vs Fiber.
 // This ensures DiffKey normalization is consistent between creation and comparison.
 //
+// newSiblingIndex is the position the VNode should have in the new tree.
+// This is CRITICAL for correct DiffKey comparison when children are reordered/removed.
+//
 // Per docs/fiber/diff_key_detail.md:
 // - DiffKey is runtime concept (normalized)
 // - VNode.key is declaration concept (raw)
 // - Should compare Fiber.DiffKey vs Fiber.DiffKey, not Fiber.DiffKey vs VNode.key
-func shouldUpdate(current *Fiber, vnode rtui.VNode) bool {
+func shouldUpdate(current *Fiber, vnode rtui.VNode, newSiblingIndex int) bool {
 	if current == nil || vnode == nil {
 		return false
 	}
 
-	newDiffKey := normalizeDiffKey(vnode, current.SiblingIndex)
+	// ✨ BUG FIX: Use newSiblingIndex (position in new tree) instead of current.SiblingIndex
+	// This prevents incorrect matches when children are reordered or removed
+	newDiffKey := normalizeDiffKey(vnode, newSiblingIndex)
 
 	if current.DiffKey != newDiffKey {
 		return false

@@ -119,8 +119,20 @@ func beginWorkComponent(current, workInProgress *Fiber) *Fiber {
 		if workInProgress.Props != nil {
 			instance.SetProps(workInProgress.Props)
 		}
-		// Get context from instance
-		ctx = instance.GetContext()
+
+		// CRITICAL: For GlobalState sharing, share the root context's GlobalState and StateMu
+		// This ensures Intent Handlers (via Dispatcher.SetStateSetter) update the same state
+		// that the component reads (via GetState/SetState).
+		// Each component still has its own Hooks for component-local state.
+		sharedCtx := currentReconciler.ctx
+		instanceCtx := instance.GetContext()
+
+		// Share the GlobalState map and its mutex from root context
+		instanceCtx.GlobalState = sharedCtx.GlobalState
+		instanceCtx.StateMu = sharedCtx.StateMu
+
+		// Use the instance's context (which now has shared GlobalState)
+		ctx = instanceCtx
 	} else {
 		// Fallback: create a temporary context if no reconciler
 		// This should not happen in normal Fiber mode, but provides safety

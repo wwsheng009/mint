@@ -16,12 +16,19 @@ import (
 // Global ID allocator for NodeID generation
 var nodeIDGenerator uint64 = 0
 
-// generateNodeID generates a new unique NodeID
+// generateNodeID generates a new unique NodeID (internal use)
 // This provides stable runtime identity for Fiber nodes
 // See: docs/render/fiber/IDENTITY_REFACTORING_PLAN.md
 func generateNodeID() uint64 {
 	nodeIDGenerator++
 	return nodeIDGenerator
+}
+
+// AllocateNodeID generates a new unique NodeID (exported for external use)
+// This provides stable runtime identity for Fiber nodes
+// See: docs/render/fiber/IDENTITY_REFACTORING_PLAN.md
+func AllocateNodeID() uint64 {
+	return generateNodeID()
 }
 
 // =============================================================================
@@ -419,8 +426,8 @@ func CloneFiber(fiber *Fiber) *Fiber {
 		MemoizedProps: fiber.MemoizedProps,
 		MemoizedState: fiber.MemoizedState,
 		Return:        fiber.Return,
-		Child:         fiber.Child,
-		Sibling:       fiber.Sibling,
+		Child:         nil, // ✨ BUG FIX: Clear Child pointer - will be re-established by reconcileChildren
+		Sibling:       nil, // ✨ BUG FIX: Clear Sibling pointer - will be set by reconcileChildren
 		Alternate:     fiber.Alternate,
 		// Don't share UpdateQueue - cloned fiber gets its own empty queue
 		UpdateQueue:  nil,

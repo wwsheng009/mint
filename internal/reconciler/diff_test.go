@@ -86,7 +86,7 @@ func TestDiffKeyChange_UserChangesKey(t *testing.T) {
 	t.Logf("✅ Current DiffKey: %q", fiber.DiffKey)
 	t.Logf("✅ New DiffKey would be: %q", newVNode.Key())
 
-	if shouldUpdate(current, newVNode) {
+	if shouldUpdate(current, newVNode, 0) {
 		t.Errorf("✅ Correctly: shouldUpdate returns false when DiffKeys differ")
 	} else {
 		t.Log("✅ shouldUpdate correctly returns false when DiffKeys differ")
@@ -153,13 +153,13 @@ func TestShouldUpdate_UsesDiffKey(t *testing.T) {
 	}
 
 	newVNode1 := rtui.Element("button").Key("button-key").Build()
-	if !shouldUpdate(current, newVNode1) {
+	if !shouldUpdate(current, newVNode1, 0) {
 		t.Error("Expected shouldUpdate to return true when DiffKeys match")
 	}
 	t.Log("✅ Test 1: Same DiffKey → shouldUpdate = true")
 
 	newVNode2 := rtui.Element("button").Key("other-key").Build()
-	if shouldUpdate(current, newVNode2) {
+	if shouldUpdate(current, newVNode2, 0) {
 		t.Error("Expected shouldUpdate to return false when DiffKeys differ")
 	}
 	t.Log("✅ Test 2: Different DiffKey → shouldUpdate = false")
@@ -171,7 +171,7 @@ func TestShouldUpdate_UsesDiffKey(t *testing.T) {
 		Key:     "_idx_0",
 	}
 	newVNode3 := rtui.Element("button").Build()
-	if shouldUpdate(currentEmpty, newVNode3) {
+	if shouldUpdate(currentEmpty, newVNode3, 0) {
 		t.Log("✅ Test 3: Empty VNode key matches index fallback → shouldUpdate = true")
 	} else {
 		t.Log("Note: Empty VNode key with index fallback behavior")
