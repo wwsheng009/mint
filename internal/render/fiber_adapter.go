@@ -376,29 +376,69 @@ func (a *FiberToNodeAdapter) Measure(constraints layout.Constraints) layout.Size
 	}
 
 	// 4. 测量子节点（自动尺寸）
-	// 对于有边框的容器，需要测量子节点尺寸，然后加上边框
+	// 对于没有固定尺寸的容器，测量子节点以确定容器尺寸
 	children := a.children
 	if len(children) > 0 {
-		// 计算内部约束（减去边框）
-		innerConstraints := constraints
-		if border.HasBorder() {
-			innerConstraints = layout.Constraints{
-				MinWidth:  max(0, constraints.MinWidth-border.HorizontalPadding()),
-				MaxWidth:  max(0, constraints.MaxWidth-border.HorizontalPadding()),
-				MinHeight: max(0, constraints.MinHeight-border.VerticalPadding()),
-				MaxHeight: max(0, constraints.MaxHeight-border.VerticalPadding()),
-			}
+		// 获取 Flex 样式以判断布局方向
+		flexStyle := a.GetFlexStyle()
+
+		// 判断布局方向
+		isFlexRow := flexStyle != nil && flexStyle.Direction == layout.FlexRow
+		isFlexColumn := flexStyle != nil && flexStyle.Direction == layout.FlexColumn
+
+		// 为子节点计算约束
+		// 关键修复：容器在测量自身尺寸时，子节点应该基于内容测量
+		// VStack: 高度方向无界，宽度方向尽可能大（允许子节点撑开宽度）
+		// HStack: 宽度方向无界，高度方向尽可能大（允许子节点撑开高度）
+		innerConstraints := layout.Constraints{
+			MinWidth:  0,
+			MaxWidth:  layout.MaxInt,  // 使用大值允许子节点自然宽度
+			MinHeight: 0,
+			MaxHeight: layout.MaxInt, // 使用大值允许子节点自然高度
 		}
 
-		// 测量子节点（假设是 flex 容器）
+		// TODO: 如果需要支持跨轴约束（比如 VStack 父容器宽度约束传递），
+		// 可以在这里检查 fillWidth/fillHeight 属性，并相应设置约束
+
+		// 测量子节点 - 根据布局方向确定累加方式
 		totalWidth := 0
 		totalHeight := 0
 
 		for _, child := range children {
 			if measurable, ok := child.(layout.Measurable); ok {
 				size := measurable.Measure(innerConstraints)
-				totalWidth = max(totalWidth, size.Width)
-				totalHeight = max(totalHeight, size.Height)
+
+				if isFlexColumn {
+					// VStack (FlexColumn): 宽度取最大，高度累加
+					if size.Width > totalWidth {
+						totalWidth = size.Width
+					}
+					totalHeight += size.Height
+				} else if isFlexRow {
+					// HStack (FlexRow): 宽度累加，高度取最大
+					totalWidth += size.Width
+					if size.Height > totalHeight {
+						totalHeight = size.Height
+					}
+				} else {
+					// 其他布局：取最大（保守处理）
+					if size.Width > totalWidth {
+						totalWidth = size.Width
+					}
+					if size.Height > totalHeight {
+						totalHeight = size.Height
+					}
+				}
+			}
+		}
+
+		// 添加 Gap（Flex 布局）
+		if flexStyle != nil && flexStyle.Gap > 0 && len(children) > 1 {
+			gapCount := len(children) - 1
+			if isFlexRow {
+				totalWidth += flexStyle.Gap * gapCount
+			} else if isFlexColumn {
+				totalHeight += flexStyle.Gap * gapCount
 			}
 		}
 

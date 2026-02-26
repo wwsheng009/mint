@@ -474,7 +474,7 @@ func markForDeletion(fiber *Fiber) {
 
 	// Debug logging
 	if log.FiberLogger.Enabled() {
-		log.UILogger.Debug("[markForDeletion] Marking key=%q, current flags=%d\n",
+		log.UILogger.Debug("[markForDeletion] Marking key=%q, current flags=%d",
 			fiber.Key, fiber.Flags)
 	}
 

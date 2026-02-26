@@ -8,7 +8,7 @@ import (
 func (si *StandaloneInspector) DebugKeyEvent() func(key string, alt bool, ctrl bool, shift bool) bool {
 	return func(key string, alt bool, ctrl bool, shift bool) bool {
 		// 调试输出
-		log.InspectorLogger.Debug("\n=== Inspector KeyEvent Debug ===")
+		log.InspectorLogger.Debug("=== Inspector KeyEvent Debug ===")
 		log.InspectorLogger.Debug("Key: '%s'", key)
 		log.InspectorLogger.Debug("Alt: %v, Ctrl: %v, Shift: %v", alt, ctrl, shift)
 		log.InspectorLogger.Debug("Inspector visible: %v", si.visible)

@@ -58,11 +58,11 @@ type DeclarativeNode struct {
 	intentRuntime *intent.Runtime // Intent runtime for dispatching intents
 
 	// === Fiber-first Rendering Pipeline (Phase 4) ===
-	renderMode             RenderMode                 // Current rendering mode
-	newLayoutEngine        *NewLayoutEngineAdapter    // New layout engine (Fiber-first only)
-	paintEngine            *PaintEngine               // Paint engine for Fiber-first
-	converter              *FiberToPaintableConverter // Fiber to Paintable converter
-	fiberFirstEnabled      bool                       // Whether Fiber-first mode is enabled
+	renderMode        RenderMode                 // Current rendering mode
+	newLayoutEngine   *NewLayoutEngineAdapter    // New layout engine (Fiber-first only)
+	paintEngine       *PaintEngine               // Paint engine for Fiber-first
+	converter         *FiberToPaintableConverter // Fiber to Paintable converter
+	fiberFirstEnabled bool                       // Whether Fiber-first mode is enabled
 }
 
 // NewDeclarativeNode creates a new declarative node from a VNode
@@ -89,7 +89,7 @@ func NewDeclarativeNodeFromFunc(fn rtui.ComponentFunc) *DeclarativeNode {
 	// This provides constraint-driven layout, caching, and better architecture
 	node.renderer = NewPipelineRendererAdapter()
 	if log.RenderLogger.Enabled() {
-		log.RenderLogger.Debug("[DeclarativeNode] Using new PipelineRenderer (Layout/Paint separation)\n")
+		log.RenderLogger.Debug("[DeclarativeNode] Using new PipelineRenderer (Layout/Paint separation)")
 	}
 
 	// LEGACY RENDERER (commented out - kept for reference only)
@@ -97,7 +97,7 @@ func NewDeclarativeNodeFromFunc(fn rtui.ComponentFunc) *DeclarativeNode {
 	// if os.Getenv("MINT_USE_LEGACY_RENDERER") == "true" {
 	// 	node.renderer = NewNonFiberRenderer(node)
 	// 	if os.Getenv("TUI_DEBUG_UI") == "true" {
-	// 		log.RenderLogger.Debug("[DeclarativeNode] Using LEGACY renderer\n")
+	// 		log.RenderLogger.Debug("[DeclarativeNode] Using LEGACY renderer")
 	// 	}
 	// }
 
@@ -114,9 +114,12 @@ func (n *DeclarativeNode) SetFrameworkApp(app *framework.App) {
 // NewDeclarativeNodeFromFuncWithFiber creates a new declarative node with Fiber reconciler enabled
 // This function is called from ui.Run when MINT_USE_FIBER is set
 func NewDeclarativeNodeFromFuncWithFiber(fn rtui.ComponentFunc, fwApp *framework.App) *DeclarativeNode {
+	// Create root component context (shared global state)
+	rootCtx := rtui.NewComponentContextForRoot()
+
 	// Import the reconciler package here to avoid import cycles in ui package
 	// This is safe because internal/render can import internal/reconciler
-	r := newFiberReconciler(fwApp, fn)
+	r := newFiberReconciler(fwApp, fn, rootCtx)
 
 	// Create a new FiberFocusManager (Fiber-first architecture)
 	// This replaces the VNodeFocusManager to ensure focus state is managed on Fiber nodes
@@ -140,7 +143,7 @@ func NewDeclarativeNodeFromFuncWithFiber(fn rtui.ComponentFunc, fwApp *framework
 
 	node := &DeclarativeNode{
 		renderFn:   fn,
-		instance:   rtui.NewComponentContextForRoot(),
+		instance:   rootCtx, // Use the same context for global state
 		focusMgr:   focusMgr,
 		fwApp:      fwApp,
 		reconciler: r,
@@ -224,18 +227,25 @@ func SetDeclarativeNodeIntentRuntime(node *DeclarativeNode, rt *intent.Runtime) 
 		}
 	}
 
-	// Set StateSetter on dispatcher if instance already exists
-	// (instance is created during first render, may be nil here)
-	if node.instance != nil {
-		rt.Dispatcher.SetStateSetter(node.instance)
-		// Set schedule update callback
-		node.instance.SetScheduleUpdate(func() {
-			// Request re-render through framework app
-			if node.fwApp != nil {
-				node.fwApp.MarkDirty()
+	// CRITICAL: Set StateSetter on dispatcher to use node.instance (root ComponentContext)
+	// This enables Intent handlers to update the global component state.
+	// In Fiber mode, node.instance is the ComponentContextForRoot that acts as global state.
+	node.instance.SetIntentRuntime(rt)          // Set runtime for context
+	rt.Dispatcher.SetStateSetter(node.instance) // Use root context as state setter
+
+	// Set schedule update callback - trigger Fiber reconciler update in Fiber mode
+	node.instance.SetScheduleUpdate(func() {
+		if node.reconciler != nil {
+			// Fiber mode: schedule reconciler update
+			if adapter, ok := node.reconciler.(*fiberReconcilerAdapter); ok {
+				// Use LaneSyncLane for synchronous updating
+				adapter.r.ScheduleUpdate(rtui.LaneSyncLane)
 			}
-		})
-	}
+		} else if node.fwApp != nil {
+			// Non-Fiber mode: mark framework app as dirty
+			node.fwApp.MarkDirty()
+		}
+	})
 }
 
 // GetIntentRuntime returns the Intent Runtime for this declarative node.
@@ -356,7 +366,7 @@ func (n *DeclarativeNode) Paint(ctx component.PaintContext, buf *paint.Buffer) {
 
 	// Debug logging
 	if os.Getenv("MINT_DEBUG_TEST") == "true" {
-		fmt.Printf("[DeclarativeNode.Paint] START: ctx.X=%d, ctx.Y=%d, buf=%dx%d, useFiber=%v, renderMode=%v, fiberFirstEnabled=%v\n",
+		log.PaintLogger.Debug("[DeclarativeNode.Paint] START: ctx.X=%d, ctx.Y=%d, buf=%dx%d, useFiber=%v, renderMode=%v, fiberFirstEnabled=%v",
 			ctx.Bounds.X, ctx.Bounds.Y, buf.Width, buf.Height, n.useFiber, n.renderMode, n.fiberFirstEnabled)
 	}
 
@@ -407,8 +417,20 @@ func (n *DeclarativeNode) fiberFirstPaint(ctx component.PaintContext, buf *paint
 	}
 
 	if debug {
-		fmt.Printf("[DeclarativeNode.fiberFirstPaint] Fiber root OK: type=%d, tag=%s, children=%d\n",
+		log.PaintLogger.Debug("[DeclarativeNode.fiberFirstPaint] Fiber root OK: type=%d, tag=%s, children=%d",
 			fiberRoot.Type, fiberRoot.Tag, countFiberChildren(fiberRoot))
+	}
+
+	// Phase 1.5: Sync FocusManager to framework.App
+	// This is critical for Tab navigation to work in Fiber-first mode
+	// The reconciler updates n.focusMgr during Render() (via updateFocusManagerFromFiber)
+	// but we need to sync it to framework.App for event routing
+	if n.fwApp != nil && n.focusMgr != nil {
+		if appSetter, ok := interface{}(n.fwApp).(interface{ SetFocusManagerFromDeclarativeNode(*rtui.FiberFocusManager) }); ok {
+			appSetter.SetFocusManagerFromDeclarativeNode(n.focusMgr)
+			log.RenderLogger.Debug("[DeclarativeNode.fiberFirstPaint] ✅ Synced FocusManager to framework.App (%d focusable)",
+				n.focusMgr.Count())
+		}
 	}
 
 	// Phase 2: Fiber-based Layout
@@ -448,10 +470,10 @@ func (n *DeclarativeNode) fiberFirstPaint(ctx component.PaintContext, buf *paint
 			if layoutResultInner != nil {
 				layoutBoxRoot = layoutResultInner.Root
 				if debug {
-					fmt.Printf("[DeclarativeNode.fiberFirstPaint] LayoutBox root: %v, children=%d\n",
+					log.PaintLogger.Debug("[DeclarativeNode.fiberFirstPaint] LayoutBox root: %v, children=%d",
 						layoutBoxRoot != nil, len(layoutBoxRoot.Children))
 					if layoutBoxRoot != nil {
-						fmt.Printf("[DeclarativeNode.fiberFirstPaint] LayoutBox root bounds: (%d,%d) %dx%d\n",
+						log.PaintLogger.Debug("[DeclarativeNode.fiberFirstPaint] LayoutBox root bounds: (%d,%d) %dx%d",
 							layoutBoxRoot.X, layoutBoxRoot.Y, layoutBoxRoot.Width, layoutBoxRoot.Height)
 						printLayoutBoxTree(layoutBoxRoot, 0)
 					}
@@ -465,7 +487,7 @@ func (n *DeclarativeNode) fiberFirstPaint(ctx component.PaintContext, buf *paint
 			paintableLayout := converter.ConvertToLayout(layoutBoxRoot)
 
 			if debug && paintableLayout != nil && paintableLayout.Root != nil {
-				fmt.Printf("[DeclarativeNode.fiberFirstPaint] PaintableLayout root: Node=%v, children=%d\n",
+				log.PaintLogger.Debug("[DeclarativeNode.fiberFirstPaint] PaintableLayout root: Node=%v, children=%d",
 					paintableLayout.Root.Node != nil, len(paintableLayout.Root.Children))
 				printPaintableBoxTree(paintableLayout.Root, 0)
 			}
@@ -487,7 +509,7 @@ func (n *DeclarativeNode) fiberFirstPaint(ctx component.PaintContext, buf *paint
 
 				log.RenderLogger.Debug("[DeclarativeNode.fiberFirstPaint] PaintablePlanes: %d boxes", planes.CountBoxes())
 				if debug {
-					fmt.Printf("[DeclarativeNode.fiberFirstPaint] PaintablePlanes: %d boxes\n", planes.CountBoxes())
+					log.PaintLogger.Debug("[DeclarativeNode.fiberFirstPaint] PaintablePlanes: %d boxes", planes.CountBoxes())
 				}
 
 				// Paint using PaintablePlanes for proper layer Z-Ordering
@@ -526,7 +548,7 @@ func printLayoutBoxTree(box *layout.LayoutBox, indent int) {
 	for i := 0; i < indent; i++ {
 		prefix += "  "
 	}
-	fmt.Printf("%sLayoutBox[%s] at (%d,%d) size %dx%d, children=%d\n",
+	log.PaintLogger.Debug("%sLayoutBox[%s] at (%d,%d) size %dx%d, children=%d",
 		prefix, box.ID, box.X, box.Y, box.Width, box.Height, len(box.Children))
 	for _, child := range box.Children {
 		printLayoutBoxTree(child, indent+1)
@@ -546,7 +568,7 @@ func printPaintableBoxTree(box *paint.PaintableBox, indent int) {
 	if box.Node != nil {
 		nodeTag = box.Node.Tag()
 	}
-	fmt.Printf("%sPaintableBox at (%d,%d) size %dx%d, tag=%s, children=%d\n",
+	log.PaintLogger.Debug("%sPaintableBox at (%d,%d) size %dx%d, tag=%s, children=%d",
 		prefix, box.X, box.Y, box.Width, box.Height, nodeTag, len(box.Children))
 	for _, child := range box.Children {
 		printPaintableBoxTree(child, indent+1)
@@ -590,43 +612,37 @@ func (n *DeclarativeNode) comparePaint(ctx component.PaintContext, buf *paint.Bu
 // Migration: Set MINT_FIBER_FIRST=true and use NewDeclarativeNodeFromFuncWithFiber
 func (n *DeclarativeNode) legacyPaint(ctx component.PaintContext, buf *paint.Buffer) {
 	// Debug logging
-	if os.Getenv("MINT_DEBUG_TEST") == "true" {
-		fmt.Printf("[DeclarativeNode.legacyPaint] START: useFiber=%v, reconciler=%v\n",
-			n.useFiber, n.reconciler != nil)
-	}
+	log.PaintLogger.Debug("[DeclarativeNode.legacyPaint] START: useFiber=%v, reconciler=%v",
+		n.useFiber, n.reconciler != nil)
 
 	// Phase 1: Get the VNode tree
 	if n.useFiber && n.reconciler != nil {
 		// Fiber mode: just call render function directly for now
 		// The reconciler's state management still happens through hooks
-		if os.Getenv("MINT_DEBUG_TEST") == "true" {
-			fmt.Printf("[DeclarativeNode.legacyPaint] ✅ Calling renderWithFiberContext (useFiber=%v, reconciler=%v)\n",
-				n.useFiber, n.reconciler != nil)
-		}
+		log.PaintLogger.Debug("[DeclarativeNode.legacyPaint] ✅ Calling renderWithFiberContext (useFiber=%v, reconciler=%v)",
+			n.useFiber, n.reconciler != nil)
+
 		n.root = n.renderWithFiberContext()
 
 		// Debug: Check if root is valid
-		if os.Getenv("MINT_DEBUG_TEST") == "true" {
-			if n.root != nil {
-				fmt.Printf("[DeclarativeNode.Paint] n.root type=%d, tag=%s, children=%d\n",
-					n.root.Type(), n.root.Tag(), len(n.root.Children()))
-			} else {
-				fmt.Printf("[DeclarativeNode.Paint] n.root is NIL after renderWithFiberContext\n")
-			}
+		if n.root != nil {
+			log.PaintLogger.Debug("[DeclarativeNode.Paint] n.root type=%d, tag=%s, children=%d",
+				n.root.Type(), n.root.Tag(), len(n.root.Children()))
+		} else {
+			log.PaintLogger.Debug("[DeclarativeNode.Paint] n.root is NIL after renderWithFiberContext")
 		}
+
 	} else {
 		// Non-Fiber mode
-		if os.Getenv("TUI_DEBUG_UI") == "true" || os.Getenv("TUI_DEBUG_HITMAP") == "true" {
-			log.RenderLogger.Debug("[DeclarativeNode.Paint] ⚠️  Using nonFiberRender (useFiber=%v, reconciler=%v)",
-				n.useFiber, n.reconciler != nil)
-		}
+		log.RenderLogger.Debug("[DeclarativeNode.Paint] ⚠️  Using nonFiberRender (useFiber=%v, reconciler=%v)",
+			n.useFiber, n.reconciler != nil)
+
 		n.root = n.nonFiberRender()
 	}
 
 	if n.root == nil {
-		if os.Getenv("TUI_DEBUG_UI") == "true" {
-			log.RenderLogger.Debug("DeclarativeNode.Paint: root is nil, returning\n")
-		}
+		log.RenderLogger.Debug("DeclarativeNode.Paint: root is nil, returning")
+
 		return
 	}
 
@@ -634,13 +650,13 @@ func (n *DeclarativeNode) legacyPaint(ctx component.PaintContext, buf *paint.Buf
 	n.applyFocusState()
 
 	// Phase 3: UNIFIED RENDERING - use PipelineRenderer with constraint-based layout
-	log.RenderLogger.Debug("[DeclarativeNode.Paint] n.renderer = %v\n", n.renderer)
+	log.RenderLogger.Debug("[DeclarativeNode.Paint] n.renderer = %v", n.renderer)
 	if n.renderer != nil {
-		log.RenderLogger.Debug("[DeclarativeNode.Paint] renderer type = %T\n", n.renderer)
+		log.RenderLogger.Debug("[DeclarativeNode.Paint] renderer type = %T", n.renderer)
 	}
 
 	if os.Getenv("MINT_DEBUG_TEST") == "true" {
-		fmt.Printf("[DeclarativeNode.Paint] n.renderer=%v, isAdapter=%v\n", n.renderer != nil, n.renderer != nil && fmt.Sprintf("%T", n.renderer) == "*render.PipelineRendererAdapter")
+		log.PaintLogger.Debug("[DeclarativeNode.Paint] n.renderer=%v, isAdapter=%v", n.renderer != nil, n.renderer != nil && fmt.Sprintf("%T", n.renderer) == "*render.PipelineRendererAdapter")
 	}
 
 	if n.renderer != nil {
@@ -648,8 +664,8 @@ func (n *DeclarativeNode) legacyPaint(ctx component.PaintContext, buf *paint.Buf
 		// The PaintContext.AvailableWidth/Height contains the user's configured layout size
 		// while the buffer size may be larger (actual terminal size)
 		if adapter, ok := n.renderer.(*PipelineRendererAdapter); ok {
-			log.RenderLogger.Debug("[DeclarativeNode.Paint] ✅ Using PipelineRendererAdapter\n")
-			log.RenderLogger.Debug("[DeclarativeNode.Paint] Layout constraints: %dx%d (buffer: %dx%d)\n",
+			log.RenderLogger.Debug("[DeclarativeNode.Paint] ✅ Using PipelineRendererAdapter")
+			log.RenderLogger.Debug("[DeclarativeNode.Paint] Layout constraints: %dx%d (buffer: %dx%d)",
 				ctx.AvailableWidth, ctx.AvailableHeight, buf.Width, buf.Height)
 
 			// Call RenderWithConstraints which will:
@@ -659,23 +675,23 @@ func (n *DeclarativeNode) legacyPaint(ctx component.PaintContext, buf *paint.Buf
 			pipeline := adapter.GetPipeline()
 			if err := pipeline.RenderWithConstraints(n.root, ctx.AvailableWidth, ctx.AvailableHeight, buf); err != nil {
 				// Fallback to legacy rendering if pipeline fails
-				log.RenderLogger.Debug("[DeclarativeNode.Paint] ❌ Pipeline render FAILED: %v, falling back to legacy\n", err)
+				log.RenderLogger.Debug("[DeclarativeNode.Paint] ❌ Pipeline render FAILED: %v, falling back to legacy", err)
 				n.PaintVNode(n.root, ctx.Bounds.X, ctx.Bounds.Y, buf)
 			} else {
-				log.RenderLogger.Debug("[DeclarativeNode.Paint] ✅ Pipeline render SUCCESS\n")
+				log.RenderLogger.Debug("[DeclarativeNode.Paint] ✅ Pipeline render SUCCESS")
 				// NOTE: Inspector attachment is now handled by application layer
 				// The demo calls inspector.AttachToApp() after reconciliation completes
 				// This avoids circular dependency between render and framework packages
 			}
 		} else {
 			// Use the generic renderer interface (old path)
-			log.RenderLogger.Debug("[DeclarativeNode.Paint] ⚠️ Using generic renderer interface (old path)\n")
+			log.RenderLogger.Debug("[DeclarativeNode.Paint] ⚠️ Using generic renderer interface (old path)")
 
 			n.renderer.Render(n.root, ctx.Bounds.X, ctx.Bounds.Y, buf)
 		}
 	} else {
 		// Fallback to legacy painting
-		log.RenderLogger.Debug("[DeclarativeNode.Paint] ⚠️ No renderer, using legacy PaintVNode\n")
+		log.RenderLogger.Debug("[DeclarativeNode.Paint] ⚠️ No renderer, using legacy PaintVNode")
 
 		n.PaintVNode(n.root, ctx.Bounds.X, ctx.Bounds.Y, buf)
 	}
@@ -705,22 +721,19 @@ func (n *DeclarativeNode) renderWithFiberContext() rtui.VNode {
 		callCount++
 		vnode := n.renderFn()
 		capturedVNode = vnode // Capture for PipelineRenderer
-		if os.Getenv("MINT_DEBUG_TEST") == "true" {
-			if vnode != nil {
-				fmt.Printf("[renderWithFiberContext] renderFn call #%d: returned type=%d tag=%s children=%d\n", callCount, vnode.Type(), vnode.Tag(), len(vnode.Children()))
-			} else {
-				fmt.Printf("[renderWithFiberContext] renderFn call #%d: returned nil\n", callCount)
-			}
+		if vnode != nil {
+			log.PaintLogger.Debug("[renderWithFiberContext] renderFn call #%d: returned type=%d tag=%s children=%d", callCount, vnode.Type(), vnode.Tag(), len(vnode.Children()))
+		} else {
+			log.PaintLogger.Debug("[renderWithFiberContext] renderFn call #%d: returned nil", callCount)
 		}
+
 		return vnode
 	})
 
-	if os.Getenv("MINT_DEBUG_TEST") == "true" {
-		if capturedVNode != nil {
-			fmt.Printf("[renderWithFiberContext] FINAL capturedVNode type=%d tag=%s children=%d (total calls: %d)\n", capturedVNode.Type(), capturedVNode.Tag(), len(capturedVNode.Children()), callCount)
-		} else {
-			fmt.Printf("[renderWithFiberContext] FINAL capturedVNode is nil (total calls: %d)\n", callCount)
-		}
+	if capturedVNode != nil {
+		log.PaintLogger.Debug("[renderWithFiberContext] FINAL capturedVNode type=%d tag=%s children=%d (total calls: %d)", capturedVNode.Type(), capturedVNode.Tag(), len(capturedVNode.Children()), callCount)
+	} else {
+		log.PaintLogger.Debug("[renderWithFiberContext] FINAL capturedVNode is nil (total calls: %d)", callCount)
 	}
 
 	// Return the captured VNode tree for PipelineRenderer
@@ -869,12 +882,10 @@ func (n *DeclarativeNode) PaintVNode(vnode rtui.VNode, x, y int, buf *paint.Buff
 	}
 
 	// Deprecation warning (can be enabled via environment variable)
-	if os.Getenv("MINT_WARN_LEGACY") == "true" {
-		log.RenderLogger.Warn("[DEPRECATED] PaintVNode is deprecated, use PaintLayout instead. VNode type=%d", vnode.Type())
-	}
+	log.RenderLogger.Warn("[DEPRECATED] PaintVNode is deprecated, use PaintLayout instead. VNode type=%d", vnode.Type())
 
 	// Debug logging
-	log.RenderLogger.Debug("[PaintVNode] vnode type=%d (%s), x=%d, y=%d, actual type=%T\n",
+	log.RenderLogger.Debug("[PaintVNode] vnode type=%d (%s), x=%d, y=%d, actual type=%T",
 		vnode.Type(), vnode.Type(), x, y, vnode)
 
 	// Set component bounds for mouse hit testing
@@ -954,7 +965,7 @@ func (n *DeclarativeNode) PaintVNode(vnode rtui.VNode, x, y int, buf *paint.Buff
 						if l, ok := child.(interface{ Tag() string }); ok {
 							label = fmt.Sprintf("tag=%s", l.Tag())
 						}
-						log.RenderLogger.Debug("[HSTACK] child %d (%s): x=%d, width=%d, nextX=%d\n",
+						log.RenderLogger.Debug("[HSTACK] child %d (%s): x=%d, width=%d, nextX=%d",
 							i, label, childX, childWidth, childX+childWidth+gap)
 					}
 					n.PaintVNode(child, childX, y, buf)
@@ -1096,9 +1107,9 @@ func (n *DeclarativeNode) paintBordered(vnode rtui.VNode, _ interface{ RenderBor
 		if l, ok := child.(interface{ GetBorderLabel() string }); ok && l.GetBorderLabel() != "" {
 			label = l.GetBorderLabel()
 		}
-		log.RenderLogger.Debug("[BORDER] %s: x=%d, y=%d, contentW=%d, contentH=%d, totalH=%d\n",
+		log.RenderLogger.Debug("[BORDER] %s: x=%d, y=%d, contentW=%d, contentH=%d, totalH=%d",
 			label, x, y, contentWidth, contentHeight, contentHeight+2)
-		log.RenderLogger.Debug("[BORDER] Left border should be at col %d, rows %d-%d\n",
+		log.RenderLogger.Debug("[BORDER] Left border should be at col %d, rows %d-%d",
 			x, y, y+contentHeight+1)
 	}
 
@@ -1126,7 +1137,7 @@ func (n *DeclarativeNode) paintBordered(vnode rtui.VNode, _ interface{ RenderBor
 		if log.BorderLogger.Enabled() {
 			// Log first few border cells for debugging
 			if ch == '┌' || (px == x && py == y) {
-				log.RenderLogger.Debug("[BORDER.Paint] cornerTL at (%d,%d): '%c'\n", px, py, ch)
+				log.RenderLogger.Debug("[BORDER.Paint] cornerTL at (%d,%d): '%c'", px, py, ch)
 			}
 		}
 		buf.SetCell(px, py, ch, s)
@@ -1359,9 +1370,8 @@ func (n *DeclarativeNode) applyFocus(focusable []rtui.FocusableVNode) {
 	// Set focus by index
 	for i, elem := range focusable {
 		if i == focusedIndex {
-			if os.Getenv("TUI_DEBUG_FOCUS") == "true" {
-				log.RenderLogger.Debug("[applyFocus] setting focus=true on index %d (%s)\n", i, elem.GetFocusID())
-			}
+			log.RenderLogger.Debug("[applyFocus] setting focus=true on index %d (%s)", i, elem.GetFocusID())
+
 			elem.SetFocus(true)
 		} else {
 			elem.SetFocus(false)
@@ -1525,9 +1535,7 @@ func (n *DeclarativeNode) UpdateRoot(vnode rtui.VNode) {
 
 // HandleEvent processes events by distributing them to child components
 func (n *DeclarativeNode) HandleEvent(ev frameworkevent.Event) bool {
-	if os.Getenv("TUI_DEBUG_UI") == "true" {
-		log.RenderLogger.Debug("DeclarativeNode.HandleEvent: event type=%d", ev.Type())
-	}
+	log.RenderLogger.Debug("DeclarativeNode.HandleEvent: event type=%d", ev.Type())
 
 	n.mu.RLock()
 	root := n.root
@@ -1558,9 +1566,8 @@ func (n *DeclarativeNode) HandleEvent(ev frameworkevent.Event) bool {
 	if focusMgr != nil {
 		handled, shouldRender := focusMgr.HandleEvent(ev)
 		if handled {
-			if os.Getenv("TUI_DEBUG_UI") == "true" {
-				log.RenderLogger.Debug("DeclarativeNode.HandleEvent: focus manager handled event, shouldRender=%v\n", shouldRender)
-			}
+			log.RenderLogger.Debug("DeclarativeNode.HandleEvent: focus manager handled event, shouldRender=%v", shouldRender)
+
 			// Request a re-render when focus changes
 			// In Fiber mode, use the reconciler; in non-Fiber mode, mark as dirty
 			if shouldRender {
@@ -1591,9 +1598,8 @@ func (n *DeclarativeNode) HandleEvent(ev frameworkevent.Event) bool {
 			// Handle mouse press and click events
 			if ev.Type() == frameworkevent.EventMousePress || ev.Type() == frameworkevent.EventClick {
 				if n.handleMouseFocus(mouseEv) {
-					if os.Getenv("TUI_DEBUG_UI") == "true" {
-						log.RenderLogger.Debug("DeclarativeNode.HandleEvent: mouse click switched focus\n")
-					}
+					log.RenderLogger.Debug("DeclarativeNode.HandleEvent: mouse click switched focus")
+
 					// Focus was switched, trigger re-render
 					if useFiber && reconciler != nil {
 						if r, ok := reconciler.(*fiberReconcilerAdapter); ok {
@@ -1623,14 +1629,11 @@ func (n *DeclarativeNode) HandleEvent(ev frameworkevent.Event) bool {
 
 // distributeEventToVNode recursively distributes an event to VNode tree
 func (n *DeclarativeNode) distributeEventToVNode(vnode rtui.VNode, ev frameworkevent.Event) bool {
-	if os.Getenv("TUI_DEBUG_UI") == "true" {
-		log.RenderLogger.Debug("distributeEventToVNode: called with vnode type=%d, actual type=%T", vnode.Type(), vnode)
-	}
+	log.RenderLogger.Debug("distributeEventToVNode: called with vnode type=%d, actual type=%T", vnode.Type(), vnode)
 
 	if vnode == nil {
-		if os.Getenv("TUI_DEBUG_UI") == "true" {
-			log.RenderLogger.Debug("distributeEventToVNode: vnode is nil")
-		}
+		log.RenderLogger.Debug("distributeEventToVNode: vnode is nil")
+
 		return false
 	}
 
@@ -1676,9 +1679,8 @@ func (n *DeclarativeNode) distributeEventToVNode(vnode rtui.VNode, ev frameworke
 	// Legacy behavior: broadcast to all components (for KeyEvent or MouseEvent without TargetID)
 	// Check if this VNode implements the Component interface
 	if component, ok := vnode.(frameworkevent.Component); ok {
-		if os.Getenv("TUI_DEBUG_UI") == "true" {
-			log.RenderLogger.Debug("distributeEventToVNode: VNode type=%d implements frameworkevent.Component, calling HandleEvent", vnode.Type())
-		}
+		log.RenderLogger.Debug("distributeEventToVNode: VNode type=%d implements frameworkevent.Component, calling HandleEvent", vnode.Type())
+
 		if component.HandleEvent(ev) {
 			// Event was handled by this component - stop propagation
 			// This prevents keyboard events from triggering multiple buttons
@@ -1689,9 +1691,8 @@ func (n *DeclarativeNode) distributeEventToVNode(vnode rtui.VNode, ev frameworke
 	// Try to distribute to children
 	children := vnode.Children()
 	if len(children) > 0 {
-		if os.Getenv("TUI_DEBUG_UI") == "true" {
-			log.RenderLogger.Debug("distributeEventToVNode: VNode type=%d has %d children, distributing...", vnode.Type(), len(children))
-		}
+		log.RenderLogger.Debug("distributeEventToVNode: VNode type=%d has %d children, distributing...", vnode.Type(), len(children))
+
 		for _, child := range children {
 			if n.distributeEventToVNode(child, ev) {
 				// Event was handled by a child - stop propagation
@@ -1736,10 +1737,8 @@ func (n *DeclarativeNode) handleMouseFocus(mouseEv *frameworkevent.MouseEvent) b
 				return false
 			}
 
-			if os.Getenv("TUI_DEBUG_UI") == "true" {
-				log.RenderLogger.Debug("handleMouseFocus: switching focus from index %d to %d\n",
-					currentIndex, i)
-			}
+			log.RenderLogger.Debug("handleMouseFocus: switching focus from index %d to %d",
+				currentIndex, i)
 
 			// Switch focus to the clicked node
 			n.focusMgr.SetFocusByIndex(i)
@@ -1758,22 +1757,18 @@ func (n *DeclarativeNode) nodeWasClicked(node rtui.VNode, x, y int) bool {
 		GetBounds() (x, y, width, height int)
 	}); ok {
 		bx, by, bw, bh := boundsAware.GetBounds()
-		if os.Getenv("TUI_DEBUG_UI") == "true" {
-			log.RenderLogger.Debug("nodeWasClicked: bounds=(%d,%d,%d,%d), mouse=(%d,%d)\n",
-				bx, by, bw, bh, x, y)
-		}
+		log.RenderLogger.Debug("node Was Clicked: bounds=(%d,%d,%d,%d), mouse=(%d,%d)",
+			bx, by, bw, bh, x, y)
 
 		// Check if mouse click is within bounds
 		if x >= bx && x < bx+bw && y >= by && y < by+bh {
-			if os.Getenv("TUI_DEBUG_UI") == "true" {
-				log.RenderLogger.Debug("nodeWasClicked: HIT!\n")
-			}
+			log.RenderLogger.Debug("node Was Clicked: HIT!")
+
 			return true
 		}
 
-		if os.Getenv("TUI_DEBUG_UI") == "true" {
-			log.RenderLogger.Debug("nodeWasClicked: MISS!\n")
-		}
+		log.RenderLogger.Debug("node Was Clicked: MISS!")
+
 		return false
 	}
 
@@ -2091,12 +2086,16 @@ func (a *fiberReconcilerAdapter) GetFiberRoot() *reconciler.Fiber {
 	return a.r.GetFiberRoot()
 }
 
-// newFiberReconciler creates a new Fiber reconciler for the given app and render function
-func newFiberReconciler(fwApp *framework.App, fn rtui.ComponentFunc) rtui.Reconciler {
+// newFiberReconciler creates a new Fiber reconciler for the given app, render function and root context
+func newFiberReconciler(fwApp *framework.App, fn rtui.ComponentFunc, rootCtx *rtui.ComponentContext) rtui.Reconciler {
 	// Create the actual reconciler from internal/reconciler
 	r := reconciler.NewReconciler(fwApp, fn, reconciler.ReconcilerConfig{
 		EnableFiber: true,
 	})
+
+	// Set the root component context for global state management
+	// This ensures Intent Handlers update the same state that App() reads
+	r.SetRootContext(rootCtx)
 
 	// Set up the render callback to render Fibers to the buffer
 	r.SetRenderCallback(func(fiber *reconciler.Fiber, x, y int, buffer *paint.Buffer) {

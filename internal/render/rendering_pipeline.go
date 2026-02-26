@@ -2,9 +2,6 @@
 package render
 
 import (
-	"fmt"
-	"os"
-
 	"github.com/wwsheng009/mint/internal/log"
 	"github.com/wwsheng009/mint/internal/reconciler"
 	"github.com/wwsheng009/mint/runtime"
@@ -55,17 +52,12 @@ func (p *RenderingPipeline) SetPaintDebug(debug bool) {
 // 2. Paint phase: render using computed positions
 func (p *RenderingPipeline) Render(vnode rtui.VNode, fiber *reconciler.Fiber, constraints runtime.BoxConstraints, buffer *paint.Buffer) error {
 	if vnode == nil {
-		if os.Getenv("MINT_DEBUG_TEST") == "true" {
-			fmt.Printf("[RenderingPipeline.Render] vnode is nil, returning\n")
-		}
+		log.PaintLogger.Debug("[RenderingPipeline.Render] vnode is nil, returning\n")
+
 		return nil
 	}
 
-	if os.Getenv("MINT_DEBUG_TEST") == "true" {
-		fmt.Printf("[RenderingPipeline.Render] START: vnode type=%d, tag=%s, buffer=%dx%d\n", vnode.Type(), vnode.Tag(), buffer.Width, buffer.Height)
-	}
-
-	log.PipelineLogger.Debug("Render started (layout.Engine path)")
+	log.PaintLogger.Debug("[RenderingPipeline.Render] START: vnode type=%d, tag=%s, buffer=%dx%d\n", vnode.Type(), vnode.Tag(), buffer.Width, buffer.Height)
 
 	// Convert constraints to layout.Constraints
 	layoutConstraints := layout.Constraints{
@@ -96,10 +88,7 @@ func (p *RenderingPipeline) Render(vnode rtui.VNode, fiber *reconciler.Fiber, co
 		return p.renderLegacy(vnode, 0, 0, buffer)
 	}
 
-	if os.Getenv("MINT_DEBUG_TEST") == "true" {
-		fmt.Printf("[RenderingPipeline.Render] Layout: Root=%dx%d\n", result.Root.Width, result.Root.Height)
-	}
-
+	log.PaintLogger.Debug("[RenderingPipeline.Render] Layout: Root=%dx%d\n", result.Root.Width, result.Root.Height)
 	log.PipelineLogger.Debug("✅ Layout complete, starting Paint phase")
 
 	// Convert LayoutBox to PaintableBox

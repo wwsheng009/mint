@@ -60,7 +60,7 @@ func (tv *TreeView) SetRoot(root ui.VNode) error {
 	// This avoids expensive tree rebuilding when the same VNode is passed multiple times
 	if tv.lastRootVNode == root {
 		if log.InspectorLogger.Enabled() {
-			log.UILogger.Debug("[TreeView] SetRoot: VNode unchanged, skipping rebuild\n")
+			log.UILogger.Debug("[TreeView] SetRoot: VNode unchanged, skipping rebuild")
 		}
 		return nil
 	}
@@ -71,7 +71,7 @@ func (tv *TreeView) SetRoot(root ui.VNode) error {
 	tv.changeCount++
 
 	if log.InspectorLogger.Enabled() {
-		log.UILogger.Debug("[TreeView] SetRoot: VNode changed, rebuilding tree (changeCount=%d)\n", tv.changeCount)
+		log.UILogger.Debug("[TreeView] SetRoot: VNode changed, rebuilding tree (changeCount=%d)", tv.changeCount)
 	}
 
 	return nil
@@ -180,7 +180,7 @@ func (tv *TreeView) FormatTree() string {
 
 	lines = append(lines, "└─────────────────────────────────────────────┘")
 
-	return strings.Join(lines, "\n")
+	return strings.Join(lines, "")
 }
 
 // FormatTreePaginated formats the tree with pagination support
@@ -358,7 +358,7 @@ func (tv *TreeView) ToggleNode(uniqueID string) {
 	tv.expanded[uniqueID] = newState
 
 	if os.Getenv("TUI_DEBUG_INSPECTOR") == "true" {
-		log.UILogger.Debug("[TreeView] ToggleNode: uniqueID=%s, %v -> %v\n", uniqueID, currentState, newState)
+		log.UILogger.Debug("[TreeView] ToggleNode: uniqueID=%s, %v -> %v", uniqueID, currentState, newState)
 	}
 
 	// Update tree if we have a root

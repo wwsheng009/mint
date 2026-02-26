@@ -217,14 +217,14 @@ func (v *KeyValidator) warnAboutMissingKeys(parent VNode, children []VNode, miss
 		parentName = parent.Type().String()
 	}
 
-	log.EngineLogger.Debug("[Mint Warning] Missing keys in %s with %d children\n", parentName, len(children))
-	log.EngineLogger.Debug("  Positions without keys: %v\n", missing)
-	log.EngineLogger.Debug("  This may cause issues with:\n")
-	log.EngineLogger.Debug("    - Component state preservation\n")
-	log.EngineLogger.Debug("    - Hover/focus state in dynamic lists\n")
-	log.EngineLogger.Debug("    - Performance (unnecessary re-renders)\n")
-	log.EngineLogger.Debug("  Fix: Add unique keys to each child:\n")
-	log.EngineLogger.Debug("    ui.ComponentBuilder(\"Item\").Key(fmt.Sprintf(\"item-%%d\", id)).Build()\n")
+	log.EngineLogger.Debug("[Mint Warning] Missing keys in %s with %d children", parentName, len(children))
+	log.EngineLogger.Debug("  Positions without keys: %v", missing)
+	log.EngineLogger.Debug("  This may cause issues with:")
+	log.EngineLogger.Debug("    - Component state preservation")
+	log.EngineLogger.Debug("    - Hover/focus state in dynamic lists")
+	log.EngineLogger.Debug("    - Performance (unnecessary re-renders)")
+	log.EngineLogger.Debug("  Fix: Add unique keys to each child:")
+	log.EngineLogger.Debug("    ui.ComponentBuilder(\"Item\").Key(fmt.Sprintf(\"item-%%d\", id)).Build()")
 }
 
 // warnAboutDuplicateKeys prints a warning about duplicate keys
@@ -234,9 +234,9 @@ func (v *KeyValidator) warnAboutDuplicateKeys(parent VNode, duplicates map[strin
 		parentName = parent.Type().String()
 	}
 
-	log.EngineLogger.Debug("[Mint Warning] Duplicate keys in %s\n", parentName)
+	log.EngineLogger.Debug("[Mint Warning] Duplicate keys in %s", parentName)
 	for key, count := range duplicates {
-		log.EngineLogger.Debug("  Key %q appears %d times\n", key, count)
+		log.EngineLogger.Debug("  Key %q appears %d times", key, count)
 	}
-	log.EngineLogger.Debug("  Keys must be unique among siblings\n")
+	log.EngineLogger.Debug("  Keys must be unique among siblings")
 }

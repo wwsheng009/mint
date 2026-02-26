@@ -112,16 +112,16 @@ func (ih *IntegrationHelper) EnableFromEnvironment() bool {
 	// Check for TUI_INSPECTOR environment variable
 	if log.InspectorLogger.Enabled() {
 		ih.inspector.Enable()
-		log.InspectorLogger.Debug("Enabled via TUI_INSPECTOR=true\n")
-		log.InspectorLogger.Debug("Press F12 or Ctrl+I to toggle, Tab to navigate, Esc to close\n")
+		log.InspectorLogger.Debug("Enabled via TUI_INSPECTOR=true")
+		log.InspectorLogger.Debug("Press F12 or Ctrl+I to toggle, Tab to navigate, Esc to close")
 		return true
 	}
 
 	// Check for TUI_INSPECTOR_AUTO environment variable (enable with auto-start)
 	if log.InspectorLogger.Enabled() {
 		ih.inspector.Enable()
-		log.InspectorLogger.Debug("Auto-enabled via TUI_INSPECTOR_AUTO=true\n")
-		log.InspectorLogger.Debug("Press F12 or Ctrl+I to toggle, Tab to navigate, Esc to close\n")
+		log.InspectorLogger.Debug("Auto-enabled via TUI_INSPECTOR_AUTO=true")
+		log.InspectorLogger.Debug("Press F12 or Ctrl+I to toggle, Tab to navigate, Esc to close")
 		return true
 	}
 

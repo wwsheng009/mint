@@ -243,6 +243,13 @@ var (
 
 	// ValidationLogger logs validation debugging messages (enabled via TUI_DEBUG_VALIDATION)
 	ValidationLogger = NewLogger("Validation", "VALIDATION")
+
+	ActionLogger = NewLogger("Action", "ACTION")
+	IntentLogger = NewLogger("Intent", "INTENT")
+
+	PlatFormLogger = NewLogger("PlatForm", "PLATFORM")
+
+	TempLogger = NewLogger("Temp", "TEMP")
 )
 
 // SetAllEnabled sets the enabled state for all global loggers

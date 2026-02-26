@@ -75,8 +75,8 @@ func completeWorkComponent(current, workInProgress *Fiber) *Fiber {
 func completeWorkText(current, workInProgress *Fiber) *Fiber {
 	// Store the text content for rendering during commit
 	// Text content is stored in MemoizedState
-	// If not already set, try to get from Props["content"]
-	if workInProgress.MemoizedState == nil && workInProgress.Props != nil {
+	// ALWAYS update from Props["content"] to ensure latest content is used
+	if workInProgress.Props != nil {
 		if content, ok := workInProgress.Props["content"].(string); ok {
 			workInProgress.MemoizedState = content
 		}
