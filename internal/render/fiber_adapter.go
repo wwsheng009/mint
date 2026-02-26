@@ -411,8 +411,10 @@ func (a *FiberToNodeAdapter) Measure(constraints layout.Constraints) layout.Size
 		if isFlexColumn {
 			// VStack: 传递宽度约束（跨轴）
 			if constraints.MaxWidth < layout.MaxInt {
-				innerConstraints.MinWidth = max(0, constraints.MinWidth-border.HorizontalPadding())
-				innerConstraints.MaxWidth = max(0, constraints.MaxWidth-border.HorizontalPadding())
+				// 使用 TotalHorizontalPadding 而不是 HorizontalPadding
+				// 因为边框可能包含标签，需要考虑标签额外的 2 像素填充
+				innerConstraints.MinWidth = max(0, constraints.MinWidth-border.TotalHorizontalPadding())
+				innerConstraints.MaxWidth = max(0, constraints.MaxWidth-border.TotalHorizontalPadding())
 			}
 		} else if isFlexRow {
 			// HStack: 传递高度约束（跨轴）
@@ -473,15 +475,54 @@ func (a *FiberToNodeAdapter) Measure(constraints layout.Constraints) layout.Size
 					totalWidth = labelWidth
 				}
 			}
+			// 应用父容器的约束，确保不超出可用宽度
 			return layout.Size{
-				Width:  totalWidth + border.TotalHorizontalPadding(),
-				Height: totalHeight + border.VerticalPadding(),
+				Width:  constraints.ConstrainWidth(totalWidth + border.TotalHorizontalPadding()),
+				Height: constraints.ConstrainHeight(totalHeight + border.VerticalPadding()),
 			}
 		}
-		return layout.Size{Width: totalWidth, Height: totalHeight}
+		// 应用父容器的约束（无边框情况）
+		return layout.Size{
+			Width:  constraints.ConstrainWidth(totalWidth),
+			Height: constraints.ConstrainHeight(totalHeight),
+		}
 	}
 
-	// 5. 默认值
+	// 5. Text 元素特殊处理
+	// 对于 text 元素，从 Props["content"] 或 MemoizedState 读取文本内容
+	if a.fiber.Tag == "text" || a.fiber.Type == rtui.VNodeText {
+		// 优先从 MemoizedState 读取（运行时状态）
+		content := ""
+		if a.fiber.MemoizedState != nil {
+			if s, ok := a.fiber.MemoizedState.(string); ok {
+				content = s
+			}
+		}
+		// 回退到 Props
+		if content == "" && a.fiber.Props != nil {
+			if s, ok := a.fiber.Props["content"].(string); ok {
+				content = s
+			}
+		}
+		// 计算文本宽度（简单使用字符串长度）
+		textWidth := len([]rune(content)) // 使用 rune 数来支持 multibyte 字符
+		textHeight := 1 // 文本默认高度为 1
+
+		// 处理带有边框的 text 元素（不常见，但可能）
+		if border.HasBorder() {
+			return layout.Size{
+				Width:  constraints.ConstrainWidth(textWidth + border.TotalHorizontalPadding()),
+				Height: constraints.ConstrainHeight(textHeight + border.VerticalPadding()),
+			}
+		}
+		// 应用父容器的约束
+		return layout.Size{
+			Width:  constraints.ConstrainWidth(textWidth),
+			Height: constraints.ConstrainHeight(textHeight),
+		}
+	}
+
+	// 6. 默认值
 	return layout.Size{Width: 0, Height: 0}
 }
 

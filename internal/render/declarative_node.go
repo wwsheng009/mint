@@ -1662,13 +1662,12 @@ func (n *DeclarativeNode) HandleEvent(ev frameworkevent.Event) bool {
 
 // distributeEventToVNode recursively distributes an event to VNode tree
 func (n *DeclarativeNode) distributeEventToVNode(vnode rtui.VNode, ev frameworkevent.Event) bool {
-	log.RenderLogger.Debug("distributeEventToVNode: called with vnode type=%d, actual type=%T", vnode.Type(), vnode)
-
 	if vnode == nil {
 		log.RenderLogger.Debug("distributeEventToVNode: vnode is nil")
-
 		return false
 	}
+
+	log.RenderLogger.Debug("distributeEventToVNode: called with vnode type=%d, actual type=%T", vnode.Type(), vnode)
 
 	// Phase 3: Event-centric distribution
 	// If this is a MouseEvent with TargetID, only distribute to the target component

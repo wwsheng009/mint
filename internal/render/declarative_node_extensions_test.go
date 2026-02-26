@@ -9,6 +9,7 @@ import (
 	"github.com/wwsheng009/mint/framework/event"
 	"github.com/wwsheng009/mint/internal/reconciler"
 	"github.com/wwsheng009/mint/runtime/paint"
+	rtevent "github.com/wwsheng009/mint/runtime/event"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
 
@@ -358,6 +359,10 @@ func (m *mockKeyEvent) Source() event.Component {
 }
 
 func (m *mockKeyEvent) SetSource(source event.Component) {}
+
+func (m *mockKeyEvent) RuntimeEvent() rtevent.Event {
+	return rtevent.NewBaseEvent(rtevent.EventKeyPress)
+}
 
 // =============================================================================
 // DeclarativeNode.distributeEventToVNode Tests

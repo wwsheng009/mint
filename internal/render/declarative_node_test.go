@@ -372,9 +372,10 @@ func TestDeclarativeNode_SetReconciler(t *testing.T) {
 
 	// Create a mock reconciler
 	app := framework.NewApp()
+	rootCtx := rtui.NewComponentContext("test-context")
 	reconciler := newFiberReconciler(app, func() rtui.VNode {
 		return rtui.Element("div").Build()
-	})
+	}, rootCtx)
 
 	node.SetReconciler(reconciler)
 
@@ -397,9 +398,10 @@ func TestDeclarativeNode_SetReconciler_Nil(t *testing.T) {
 
 	// Set a reconciler first
 	app := framework.NewApp()
+	rootCtx := rtui.NewComponentContext("test-context")
 	reconciler := newFiberReconciler(app, func() rtui.VNode {
 		return rtui.Element("div").Build()
-	})
+	}, rootCtx)
 	node.SetReconciler(reconciler)
 
 	// Now clear it

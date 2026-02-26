@@ -37,7 +37,7 @@ func TestIntentToStateSync(t *testing.T) {
 	renderFn := func() rtui.VNode {
 		ctx := rtui.GetCurrentContext()
 		observedValue = ctx.GetIntState("step", 0)
-		return rtui.NewText("Step")
+		return rtui.Element("text").Prop("content", "Step").Build()
 	}
 
 	// Create an Intent handler
@@ -59,11 +59,11 @@ func TestIntentToStateSync(t *testing.T) {
 	SetDeclarativeNodeIntentRuntime(declarativeRoot, intentRuntime)
 
 	// Register the Intent handler
-	intentRuntime.Dispatcher.Register("TestUpdate", func(ctx *intent.ActionContext, i intent.Intent) intent.IntentResult {
+	intentRuntime.Register("TestUpdate", intent.HandlerFunc(func(ctx *intent.ActionContext, i intent.Intent) intent.IntentResult {
 		ti := i.(TestUpdateIntent)
 		ctx.SetState(ti.Key, ti.Value)
 		return intent.HandledResult()
-	})
+	}))
 
 	// Emit the Intent (simulating a button click or user action)
 	intentRuntime.Emit(intentUpdate)
@@ -85,7 +85,7 @@ func TestMultipleStateUpdates(t *testing.T) {
 		ctx := rtui.GetCurrentContext()
 		observedString = ctx.GetStringState("name", "")
 		observedInt = ctx.GetIntState("age", 0)
-		return rtui.NewText("Test")
+		return rtui.Element("text").Prop("content", "Test").Build()
 	}
 
 	fwApp := framework.NewApp()
@@ -99,16 +99,16 @@ func TestMultipleStateUpdates(t *testing.T) {
 	SetDeclarativeNodeIntentRuntime(declarativeRoot, intentRuntime)
 
 	// Register handlers
-	intentRuntime.Dispatcher.Register("UpdateString", func(ctx *intent.ActionContext, i intent.Intent) intent.IntentResult {
+	intentRuntime.Register("UpdateString", intent.HandlerFunc(func(ctx *intent.ActionContext, i intent.Intent) intent.IntentResult {
 		ui := i.(UpdateStringIntent)
 		ctx.SetState(ui.Key, ui.Value)
 		return intent.HandledResult()
-	})
-	intentRuntime.Dispatcher.Register("UpdateInt", func(ctx *intent.ActionContext, i intent.Intent) intent.IntentResult {
+	}))
+	intentRuntime.Register("UpdateInt", intent.HandlerFunc(func(ctx *intent.ActionContext, i intent.Intent) intent.IntentResult {
 		ui := i.(UpdateIntIntent)
 		ctx.SetState(ui.Key, ui.Value)
 		return intent.HandledResult()
-	})
+	}))
 
 	// Emit multiple Intents
 	intentRuntime.Emit(&UpdateStringIntent{Key: "name", Value: "Alice"})
