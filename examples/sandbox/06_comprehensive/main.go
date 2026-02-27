@@ -17,11 +17,48 @@ import (
 	"github.com/wwsheng009/mint/ui"
 )
 
+// Intent Types
+type NextStepIntent struct{}
+func (NextStepIntent) IntentType() string { return "NextStep" }
+func (NextStepIntent) StayPressed() bool  { return true }
+
+type BackStepIntent struct{}
+func (BackStepIntent) IntentType() string { return "BackStep" }
+func (BackStepIntent) StayPressed() bool  { return true }
+
+type DecrementComprehensiveIntent struct{}
+func (DecrementComprehensiveIntent) IntentType() string { return "Decrement" }
+func (DecrementComprehensiveIntent) StayPressed() bool  { return true }
+
+type IncrementComprehensiveIntent struct{}
+func (IncrementComprehensiveIntent) IntentType() string { return "Increment" }
+func (IncrementComprehensiveIntent) StayPressed() bool  { return true }
+
 // ComprehensiveApp 综合演示应用
 func ComprehensiveApp() ui.VNode {
 	count, setCount, _ := ui.UseStateInt(0)
-	name, setName := ui.UseStateString("Guest")
+	name, _ := ui.UseStateString("Guest")
 	step, setStep, _ := ui.UseStateInt(1)
+
+	// Register intent handlers
+	ui.On(NextStepIntent{}, func() {
+		if step < 3 {
+			setStep(step + 1)
+		}
+	})
+	ui.On(BackStepIntent{}, func() {
+		if step > 1 {
+			setStep(step - 1)
+		}
+	})
+	ui.On(DecrementComprehensiveIntent{}, func() {
+		if count > 0 {
+			setCount(count - 1)
+		}
+	})
+	ui.On(IncrementComprehensiveIntent{}, func() {
+		setCount(count + 1)
+	})
 
 	steps := []string{
 		"Step 1: Enter name",
@@ -61,9 +98,7 @@ func ComprehensiveApp() ui.VNode {
 					app.InputBuilder().
 						Value(name).
 						Placeholder("Your name").
-						MaxLength(15).
-						OnChange(setName).
-						Build(),
+						Build(), // TODO: integrate with FieldChangeIntent
 				)
 			}
 			return ui.Text("")
@@ -89,17 +124,11 @@ func ComprehensiveApp() ui.VNode {
 					ui.Text(""),
 					ui.HStack(
 						app.ButtonBuilder("  [ - ]  ").
-							OnClick(func() {
-								if count > 0 {
-									setCount(count - 1)
-								}
-							}).
+							OnPress(DecrementComprehensiveIntent{}).
 							Build(),
 						ui.Text(" "),
 						app.ButtonBuilder("  [ + ]  ").
-							OnClick(func() {
-								setCount(count + 1)
-							}).
+							OnPress(IncrementComprehensiveIntent{}).
 							Build(),
 					),
 				)
@@ -109,18 +138,10 @@ func ComprehensiveApp() ui.VNode {
 
 		ui.Text(""),
 		app.ButtonBuilder("  [ Next ]  ").
-			OnClick(func() {
-				if step < 3 {
-					setStep(step + 1)
-				}
-			}).
+			OnPress(NextStepIntent{}).
 			Build(),
 		app.ButtonBuilder("  [ Back ]  ").
-			OnClick(func() {
-				if step > 1 {
-					setStep(step - 1)
-				}
-			}).
+			OnPress(BackStepIntent{}).
 			Build(),
 	)
 }
