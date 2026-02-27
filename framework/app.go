@@ -812,7 +812,7 @@ func (a *App) Run() error {
 
 			// Process all collected events
 			for _, msg := range eventsToProcess {
-				
+
 				// Phase 1: Try Action unified path (if enabled)
 				if a.actionRouter != nil && a.inputProcessor != nil {
 					a.processMsg(msg)
@@ -1000,7 +1000,7 @@ func (a *App) processMsg(msg runtimemsg.Msg) {
 
 	// 4.2 键盘事件：使用焦点 Fiber
 	// 非 MouseMsg 的都是键盘事件（包括特殊键和可打印字符）
-	if _, ok := msg.(*runtimemsg.KeyMsg); ok && act.Payload != nil {
+	if _, ok := msg.(*runtimemsg.KeyMsg); ok {
 		if focused := a.focusManager.GetCurrent(); focused != nil {
 			if a.actionBridge.DispatchFromFiber(focused, act.Type, act.Payload) {
 				a.dirty = true
@@ -1309,7 +1309,7 @@ func (a *App) render() {
 			log.UILogger.Debug("Render: terminal=%dx%d, layout=%dx%d",
 				a.terminalWidth, a.terminalHeight, layoutWidth, layoutHeight)
 		}
-		
+
 		paintable.Paint(ctx, buf)
 
 		if os.Getenv("MINT_DEBUG_TEST") == "true" {
