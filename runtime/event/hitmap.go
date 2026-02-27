@@ -281,8 +281,7 @@ func BuildHitMapFromFiber(root interface{}) *HitMap {
 					LocalXY: func(screenX, screenY int) (int, int) {
 						return screenX - x, screenY - y
 					},
-					ZOrder:   zOrder,
-					Instance: nil,
+					ZOrder: zOrder,
 				}
 
 				hm.entries = append(hm.entries, entry)
