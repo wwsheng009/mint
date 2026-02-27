@@ -37,16 +37,14 @@ func BoxModelDemo() ui.VNode {
 
 		ui.Text(""),
 
-		// Example 3: Multiple buttons with margin
-		ui.Text("3. Buttons with MarginV(0, 1):"),
-		app.ButtonBuilder("Btn1").
-			MarginV(0, 1).  // Add margin below
-			Build(),
-		app.ButtonBuilder("Btn2").
-			MarginV(0, 1).
-			Build(),
-		app.ButtonBuilder("Btn3").
-			MarginV(0, 1).
+		// Example 3: Multiple buttons using VStack with Gap instead of margin
+		ui.Text("3. Buttons with VStack Gap(1):"),
+		ui.VStackBuilder(
+			app.ButtonBuilder("Btn1").Build(),
+			app.ButtonBuilder("Btn2").Build(),
+			app.ButtonBuilder("Btn3").Build(),
+		).
+			Gap(1).
 			Build(),
 
 		ui.Text(""),
