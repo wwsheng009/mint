@@ -13,11 +13,35 @@ import (
 	"github.com/wwsheng009/mint/ui"
 )
 
+// Intent Types
+type IncrementSnapshotIntent struct{}
+func (IncrementSnapshotIntent) IntentType() string { return "Increment" }
+func (IncrementSnapshotIntent) StayPressed() bool  { return true }
+
+type DecrementSnapshotIntent struct{}
+func (DecrementSnapshotIntent) IntentType() string { return "Decrement" }
+func (DecrementSnapshotIntent) StayPressed() bool  { return true }
+
+type ToggleModeIntent struct{}
+func (ToggleModeIntent) IntentType() string { return "ToggleMode" }
+func (ToggleModeIntent) StayPressed() bool  { return true }
+
 // StatefulApp 有状态的应用，用于演示快照功能
 func StatefulApp() ui.VNode {
 	count, setCount, _ := ui.UseStateInt(0)
-	text, setText := ui.UseStateString("")
+	text, _ := ui.UseStateString("")
 	mode, setMode, _ := ui.UseStateInt(0)
+
+	// Register intent handlers
+	ui.On(IncrementSnapshotIntent{}, func() {
+		setCount(count + 1)
+	})
+	ui.On(DecrementSnapshotIntent{}, func() {
+		setCount(count - 1)
+	})
+	ui.On(ToggleModeIntent{}, func() {
+		setMode(mode + 1)
+	})
 
 	// 模式显示
 	modeNames := []string{"正常", "编辑", "查看"}
@@ -55,19 +79,13 @@ func StatefulApp() ui.VNode {
 		),
 		ui.Text(""),
 		app.ButtonBuilder("  [ + ]  ").
-			OnClick(func() {
-				setCount(count + 1)
-			}).
+			OnPress(IncrementSnapshotIntent{}).
 			Build(),
 		app.ButtonBuilder("  [ - ]  ").
-			OnClick(func() {
-				setCount(count - 1)
-			}).
+			OnPress(DecrementSnapshotIntent{}).
 			Build(),
 		app.ButtonBuilder("  [ Mode ]  ").
-			OnClick(func() {
-				setMode(mode + 1)
-			}).
+			OnPress(ToggleModeIntent{}).
 			Build(),
 		ui.Text(""),
 		ui.HStack(
@@ -75,9 +93,7 @@ func StatefulApp() ui.VNode {
 			app.InputBuilder().
 				Value(text).
 				Placeholder("Type something...").
-				MaxLength(20).
-				OnChange(setText).
-				Build(),
+				Build(), // TODO: integrate with FieldChangeIntent
 		),
 		ui.Text(""),
 		app.NewTextBuilder("──────────────────────────────────").
