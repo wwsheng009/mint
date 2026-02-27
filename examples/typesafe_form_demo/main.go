@@ -59,51 +59,73 @@ func (SubmitIntent) StayPressed() bool  { return true }
 // =============================================================================
 
 func App() ui.VNode {
+	// 使用 UseState 管理表单状态
+	username, setUsername := ui.UseStateString("")
+	email, setEmail := ui.UseStateString("")
+	age, setAge, _ := ui.UseStateInt(0)
+	acceptTerms, setAcceptTerms := ui.UseStateBool(false)
+	subscribe, setSubscribe := ui.UseStateBool(false)
+
+	// 保存 setters 到 GlobalState 供 Intent Handler 使用
+	ctx := ui.GetCurrentContext()
+	if ctx != nil {
+		ctx.GlobalState[keyUsername.String()+"Setter"] = setUsername
+		ctx.GlobalState[keyEmail.String()+"Setter"] = setEmail
+		ctx.GlobalState[keyAge.String()+"Setter"] = setAge
+		ctx.GlobalState[keyAcceptTerms.String()+"Setter"] = setAcceptTerms
+		ctx.GlobalState[keySubscribe.String()+"Setter"] = setSubscribe
+	}
+
 	// Submit handler - use ui.On for simplified registration
 	ui.On(SubmitIntent{}, func() {
 		ctx := ui.GetCurrentContext()
-		username, _ := ctx.GetState(keyUsername.String())
-		email, _ := ctx.GetState(keyEmail.String())
-		age, _ := ctx.GetState(keyAge.String())
-		acceptTerms, _ := ctx.GetState(keyAcceptTerms.String())
-		subscribe, _ := ctx.GetState(keySubscribe.String())
+		usernameVal, _ := ctx.GetState(keyUsername.String())
+		emailVal, _ := ctx.GetState(keyEmail.String())
+		ageVal, _ := ctx.GetState(keyAge.String())
+		acceptTermsVal, _ := ctx.GetState(keyAcceptTerms.String())
+		subscribeVal, _ := ctx.GetState(keySubscribe.String())
 
 		fmt.Println("\n=== Form Submission ===")
-		fmt.Printf("Username:   %v\n", username)
-		fmt.Printf("Email:      %v\n", email)
-		fmt.Printf("Age:        %v\n", age)
-		fmt.Printf("Accept T&C: %v\n", acceptTerms)
-		fmt.Printf("Subscribe:  %v\n", subscribe)
+		fmt.Printf("Username:   %v\n", usernameVal)
+		fmt.Printf("Email:      %v\n", emailVal)
+		fmt.Printf("Age:        %v\n", ageVal)
+		fmt.Printf("Accept T&C: %v\n", acceptTermsVal)
+		fmt.Printf("Subscribe:  %v\n", subscribeVal)
 		fmt.Println("========================\n")
 	})
 
-	// Define form components using type-safe bindings
+	// Define form components with current values
 	usernameInput := input.NewBuilder().
 		Placeholder("Enter your username").
 		ForField(intent.ForField(keyUsername)).
+		Value(username).
 		Width(30).
 		Build()
 
 	emailInput := input.NewBuilder().
 		Placeholder("Enter your email").
 		ForField(intent.ForField(keyEmail)).
+		Value(email).
 		Width(30).
 		Build()
 
 	ageInput := input.NewBuilder().
 		Placeholder("Enter your age").
 		ForField(intent.ForField(keyAge)).
+		Value(fmt.Sprintf("%d", age)).
 		Width(10).
 		Build()
 
 	termsCheckbox := checkbox.NewBuilder().
 		Label("I accept the terms and conditions").
 		ForField(intent.ForField(keyAcceptTerms)).
+		Checked(acceptTerms).
 		Build()
 
 	subscribeCheckbox := checkbox.NewBuilder().
 		Label("Subscribe to newsletter").
 		ForField(intent.ForField(keySubscribe)).
+		Checked(subscribe).
 		Build()
 
 	submitButton := button.NewBuilder("Submit Form").
@@ -143,9 +165,38 @@ func main() {
 			ui.RegisterIntent(func(actx *intent.ActionContext, i intent.FieldChangeIntent) intent.IntentResult {
 				fmt.Printf("Intent Received: Field='%s', Value='%s'\n", i.Field, i.Value)
 
-				// State becomes the single source of truth
-				actx.SetState(i.Field, i.Value)
-				actx.ScheduleUpdate()
+				switch i.Field {
+				case keyUsername.String():
+					val, _ := actx.GetState(keyUsername.String() + "Setter")
+					if fn, ok := val.(func(string)); ok {
+						fn(i.Value)
+					}
+				case keyEmail.String():
+					val, _ := actx.GetState(keyEmail.String() + "Setter")
+					if fn, ok := val.(func(string)); ok {
+						fn(i.Value)
+					}
+				case keyAge.String():
+					val, _ := actx.GetState(keyAge.String() + "Setter")
+					if fn, ok := val.(func(interface{})); ok {
+						var ageVal int
+						if _, err := fmt.Sscanf(i.Value, "%d", &ageVal); err == nil {
+							fn(ageVal)
+						}
+					}
+				case keyAcceptTerms.String():
+					val, _ := actx.GetState(keyAcceptTerms.String() + "Setter")
+					if fn, ok := val.(func(bool)); ok {
+						agreeVal := i.Value == "true"
+						fn(agreeVal)
+					}
+				case keySubscribe.String():
+					val, _ := actx.GetState(keySubscribe.String() + "Setter")
+					if fn, ok := val.(func(bool)); ok {
+						subscribeVal := i.Value == "true"
+						fn(subscribeVal)
+					}
+				}
 				return intent.HandledResult()
 			})
 		}),
