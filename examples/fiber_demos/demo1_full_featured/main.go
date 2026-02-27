@@ -28,6 +28,11 @@ import (
 	"github.com/wwsheng009/mint/ui"
 )
 
+// Intent Types
+type CloseFiberDemoModalIntent struct{}
+func (CloseFiberDemoModalIntent) IntentType() string { return "CloseFiberDemoModal" }
+func (CloseFiberDemoModalIntent) StayPressed() bool  { return true }
+
 func main() {
 	// ============================================================
 	// 直接转换 Fiber 树并比较
@@ -219,14 +224,14 @@ func ConfirmModal(onClose func()) ui.VNode {
 				ui.HStackBuilder(
 					app.ButtonBuilder("[ Cancel ]").
 						Variant(app.ButtonVariantSecondary).
-						OnClick(onClose).
+						OnPress(CloseFiberDemoModalIntent{}).
 						FocusStyle(app.FocusStyleBracket).
 						Build(),
 					ui.Text(" "),
 					app.ButtonBuilder("[ OK ]").
 						Variant(app.ButtonVariantSuccess).
+						OnPress(CloseFiberDemoModalIntent{}).
 						FocusStyle(app.FocusStyleBracket).
-						OnClick(onClose).
 						Build(),
 				).Align(ui.AlignCenter).Build(),
 				ui.Text(""),
@@ -244,8 +249,15 @@ func ConfirmModal(onClose func()) ui.VNode {
 		).
 		Build()
 
+	// Register handler for CloseFiberDemoModalIntent (only when actually running)
+	// Note: This is a Fiber conversion test, not a real TUI app
+	ui.On(CloseFiberDemoModalIntent{}, func() {
+		if onClose != nil {
+			onClose()
+		}
+	})
+
 	return ui.Modal(modalBox).
-		OnClose(onClose).
 		CloseOnESC(true).
 		CloseOnBackdropClick(true).
 		Build()
