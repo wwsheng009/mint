@@ -39,7 +39,7 @@ func WrapDemo() ui.VNode {
 		app.WrapBuilder(buttons...).
 			Gap(1).
 			RowGap(0).
-			ScreenWidth(76). // 80 - border padding
+			Width(76). // 80 - border padding
 			Align(ui.AlignStart).
 			Build(),
 		app.Text(""),

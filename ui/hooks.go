@@ -9,7 +9,7 @@ import (
 )
 
 // =============================================================================
-// Hook Types (re-exported from runtime/types)
+// Hook Types (re-exported from runtime/ui)
 // =============================================================================
 
 // HookType represents the type of hook
@@ -35,13 +35,14 @@ type ComponentContext = rtui.ComponentContext
 type Ref = rtui.Ref
 
 // EffectCallback is the function passed to useEffect
+// It returns an optional cleanup function
 type EffectCallback = rtui.EffectCallback
 
 // CleanupFunc is the optional cleanup function returned by EffectCallback
 type CleanupFunc = rtui.CleanupFunc
 
 // =============================================================================
-// Context Management (forwarded to runtime/types)
+// Context Management (forwarded to runtime/ui)
 // =============================================================================
 
 // SetCurrentContext sets the current rendering context

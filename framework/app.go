@@ -64,10 +64,10 @@ type App struct {
 	// ============================================================================
 	// Phase 1: Action 系统 - 统一消息传播机制
 	// ============================================================================
-	actionRouter    *action.Router           // Action 分发器
-	actionBridge    *actionbridge.Bridge      // Fiber → Action 桥接器
-	inputProcessor  *action.InputProcessor    // Msg → Action 转换器
-	scopeDispatcher *action.ScopeDispatcher     // Scope-based action dispatcher
+	actionRouter    *action.Router          // Action 分发器
+	actionBridge    *actionbridge.Bridge    // Fiber → Action 桥接器
+	inputProcessor  *action.InputProcessor  // Msg → Action 转换器
+	scopeDispatcher *action.ScopeDispatcher // Scope-based action dispatcher
 	// legacyMode is DEPRECATED - Action system is now the primary path
 	// Set to true only for debugging/fallback purposes
 	legacyMode bool // 是否启用兼容模式（默认 false）
@@ -784,6 +784,7 @@ func (a *App) Run() error {
 					if extraMsg == nil {
 						break
 					}
+					log.MessageLogger.Debug("[APP] Msg from channel: Type=%v Message=%v", msg.Type(), msg)
 
 					// Keyboard events: always queue
 					if extraMsg.Type() == runtimemsg.MsgTypeKey {
@@ -822,8 +823,7 @@ func (a *App) Run() error {
 
 			// Process all collected events
 			for _, msg := range eventsToProcess {
-				log.UILogger.Debug("[APP] Msg from channel: Type=%v", msg.Type())
-
+				
 				// Phase 1: Try Action unified path (if enabled)
 				if a.actionRouter != nil && a.inputProcessor != nil {
 					a.processMsg(msg)

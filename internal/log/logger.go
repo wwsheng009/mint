@@ -189,7 +189,7 @@ var (
 	KeyLogger = NewLogger("KeyEvent", "KEY")
 
 	// EventLogger logs event-related messages (enabled via TUI_DEBUG_EVENTS)
-	EventLogger = NewLogger("Event", "EVENTS")
+	EventLogger = NewLogger("Event", "EVENT")
 
 	WinLogger = NewLogger("Windows", "WIN")
 	// LinuxLogger logs Linux-specific messages (enabled via TUI_DEBUG_LINUX)
@@ -204,7 +204,9 @@ var (
 
 	EngineLogger = NewLogger("Engine", "ENGINE")
 	// UILogger logs UI-related messages (enabled via TUI_DEBUG_UI)
-	UILogger = NewLogger("UI", "UI")
+	UILogger      = NewLogger("UI", "UI")
+	
+	MessageLogger = NewLogger("Message", "MESSAGE")
 
 	FiberLogger = NewLogger("Fiber", "FIBER")
 
