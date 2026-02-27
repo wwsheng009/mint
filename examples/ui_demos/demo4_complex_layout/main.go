@@ -18,6 +18,16 @@ import (
 	"github.com/wwsheng009/mint/ui"
 )
 
+// Intent Types
+type SetComplexLayoutTabIntent struct {
+	TabID string
+}
+func (SetComplexLayoutTabIntent) IntentType() string { return "SetComplexLayoutTab" }
+func (SetComplexLayoutTabIntent) StayPressed() bool  { return true }
+
+// Global setter for tab navigation
+var globalSetComplexLayoutTab func(string)
+
 func main() {
 	err := ui.Run(LayoutDemo,
 		ui.WithWidth(100),
@@ -33,9 +43,19 @@ func main() {
 func LayoutDemo() ui.VNode {
 	currentDemo, setCurrentDemo := ui.UseStateString("flex")
 
+	// Update global setter
+	globalSetComplexLayoutTab = setCurrentDemo
+
+	// Register tab change handler
+	ui.On(SetComplexLayoutTabIntent{TabID: currentDemo}, func() {
+		if globalSetComplexLayoutTab != nil {
+			globalSetComplexLayoutTab(currentDemo)
+		}
+	})
+
 	return ui.VStack(
 		HeaderPanel(),
-		TabNavigation(currentDemo, setCurrentDemo),
+		TabNavigation(currentDemo),
 		ui.Text(""),
 		renderDemoContent(currentDemo),
 	)
@@ -66,7 +86,7 @@ func HeaderPanel() ui.VNode {
 }
 
 // TabNavigation provides tab buttons
-func TabNavigation(currentDemo string, setCurrentDemo func(string)) ui.VNode {
+func TabNavigation(currentDemo string) ui.VNode {
 	tabs := []struct {
 		id    string
 		label string
@@ -86,12 +106,12 @@ func TabNavigation(currentDemo string, setCurrentDemo func(string)) ui.VNode {
 			btn = app.ButtonBuilder("[" + tab.label + "]").
 				BgColor("blue").
 				FgColor("white").
-				OnClick(func() { setCurrentDemo(tab.id) }).
+				OnPress(SetComplexLayoutTabIntent{TabID: tab.id}).
 				Build()
 		} else {
 			btn = app.ButtonBuilder(" " + tab.label + " ").
 				FgColor("blue").
-				OnClick(func() { setCurrentDemo(tab.id) }).
+				OnPress(SetComplexLayoutTabIntent{TabID: tab.id}).
 				Build()
 		}
 		children = append(children, btn, ui.Text(" "))
