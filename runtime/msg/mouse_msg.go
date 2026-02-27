@@ -26,9 +26,6 @@ type MouseMsg struct {
 	// TargetID 是目标组件的 ID（来自 HitMap）
 	TargetID uint64
 
-	// TargetInstance 是目标组件实例的直接引用（Legacy - 将弃用）
-	TargetInstance interface{}
-
 	// TargetFiber 目标 Fiber 引用 (Fiber-first Action Architecture)
 	// 用于通过 ActionBridge 路由事件到组件
 	TargetFiber interface {

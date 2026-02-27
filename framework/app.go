@@ -17,7 +17,6 @@ import (
 	"github.com/wwsheng009/mint/runtime/bridge/actionbridge"
 	"github.com/wwsheng009/mint/runtime/core"
 	runtimeevent "github.com/wwsheng009/mint/runtime/event"
-	"github.com/wwsheng009/mint/runtime/instance"
 	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/platform"
@@ -43,14 +42,6 @@ const (
 type App struct {
 	// 组件树
 	root component.Node
-
-	// ============================================================================
-	// Instance Tree - 新架构核心（根据 fix1.md）
-	// ============================================================================
-	// Instance 是持久化的组件实例，跨渲染保持状态
-	// VNode 只是临时的描述，每帧重建
-	// Instance 通过 Reconcile 从 VNode Tree 构建/更新
-	instanceRoot *instance.Instance // Instance Tree 根节点
 
 	// 事件
 	router       *frameworkevent.Router
@@ -1798,24 +1789,6 @@ func (a *App) InjectEvent(raw platform.RawInput) error {
 // 注意：此方法仅用于测试
 func (a *App) GetPump() *frameworkevent.Pump {
 	return a.pump
-}
-
-// instanceHandlerAdapter 适配器：将 instance.Instance 转换为 MsgHandler
-type instanceHandlerAdapter struct {
-	inst *instance.Instance
-}
-
-// Handle 实现 MsgHandler 接口
-func (a *instanceHandlerAdapter) Handle(msg interface{}) interface{} {
-	log.UILogger.Debug("[instanceHandlerAdapter.Handle] Called, inst=%v, inst.ID=%s", a.inst != nil, a.inst.ID)
-	// 将 interface{} 转换为 runtimemsg.Msg
-	if runtimeMsg, ok := msg.(runtimemsg.Msg); ok {
-		result := a.inst.Handle(runtimeMsg)
-		log.UILogger.Debug("[instanceHandlerAdapter.Handle] Result=%v", result)
-		return result
-	}
-	log.UILogger.Debug("[instanceHandlerAdapter.Handle] Failed to convert msg to runtimemsg.Msg")
-	return nil
 }
 
 // GetFocusManager returns the focus manager for keyboard navigation (Fiber-first)

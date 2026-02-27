@@ -214,7 +214,6 @@ func (p *Pump) convertToMouseMsg(raw platform.RawInput) runtimemsg.Msg {
 	log.UILogger.Debug("Raw position: (%d, %d) | Action: %v", raw.MouseX, raw.MouseY, raw.MouseAction)
 
 	var targetID uint64
-	var targetInstance interface{}
 	var targetFiber interface {
 		GetActionTargetID() string
 	}
@@ -226,8 +225,6 @@ func (p *Pump) convertToMouseMsg(raw platform.RawInput) runtimemsg.Msg {
 		entry := hitMap.HitTest(raw.MouseX, raw.MouseY)
 		if entry != nil {
 			targetID = entry.NodeID
-			// Legacy: Instance 引用
-			targetInstance = entry.Instance
 			// Fiber-first: TargetFiber 引用
 			targetFiber = entry.TargetFiber
 			// Calculate local coordinates using the entry's LocalXY function
@@ -250,8 +247,8 @@ func (p *Pump) convertToMouseMsg(raw platform.RawInput) runtimemsg.Msg {
 			if len(allEntries) > 1 {
 				log.UILogger.Debug("Multiple hits at (%d,%d):", raw.MouseX, raw.MouseY)
 				for i, e := range allEntries {
-					log.UILogger.Debug("  [%d] ID='%s' Bounds=(%d,%d,%dx%d) ZOrder=%d Instance=%v",
-						i, e.NodeID, e.Bounds.X, e.Bounds.Y, e.Bounds.Width, e.Bounds.Height, e.ZOrder, e.Instance != nil)
+					log.UILogger.Debug("  [%d] ID='%s' Bounds=(%d,%d,%dx%d) ZOrder=%d TargetFiber=%v",
+						i, e.NodeID, e.Bounds.X, e.Bounds.Y, e.Bounds.Width, e.Bounds.Height, e.ZOrder, e.TargetFiber != nil)
 				}
 			}
 		} else {
@@ -272,7 +269,6 @@ func (p *Pump) convertToMouseMsg(raw platform.RawInput) runtimemsg.Msg {
 
 	// Set the hit testing information
 	mouseMsg.TargetID = targetID
-	mouseMsg.TargetInstance = targetInstance
 	mouseMsg.TargetFiber = targetFiber
 	mouseMsg.LocalX = localX
 	mouseMsg.LocalY = localY

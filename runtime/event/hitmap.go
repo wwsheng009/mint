@@ -24,13 +24,6 @@ import (
 // HitMap 提供了从屏幕坐标到布局节点的映射
 // 消除了各组件手动实现 containsPoint() 的需求
 
-// MsgHandler 消息处理器接口（新架构）
-// 用于解耦 HitMap 和 Instance，避免循环导入
-// Instance 实现这个接口来处理消息
-type MsgHandler interface {
-	Handle(msg interface{}) interface{}
-}
-
 // StringToNodeID 将字符串 ID 转换为 uint64 NodeID
 //
 // 转换规则（按优先级）：
@@ -83,9 +76,6 @@ type HitMapEntry struct {
 
 	// ZOrder 渲染层级（用于分层渲染和命中测试）
 	ZOrder int
-
-	// Instance 引用 (Legacy - 将弃用)
-	Instance MsgHandler
 
 	// TargetFiber Fiber 引用 (Fiber-first Action Architecture)
 	// 用于通过 ActionBridge 路由事件到组件
@@ -478,14 +468,6 @@ func (hm *HitMap) AllEntries() []HitMapEntry {
 	return hm.entries
 }
 
-// SetEntryInstance sets the Instance field for an entry at the given index
-// This is used by App.enrichHitMapWithInstances to add Instance references
-func (hm *HitMap) SetEntryInstance(index int, handler MsgHandler) {
-	if index >= 0 && index < len(hm.entries) {
-		hm.entries[index].Instance = handler
-	}
-}
-
 // NewHitMap creates a new empty HitMap
 func NewHitMap() *HitMap {
 	return &HitMap{
@@ -502,7 +484,6 @@ type HitMapEntryInternal struct {
 	Bounds      layout.Rect
 	LocalXY     func(screenX, screenY int) (int, int)
 	ZOrder      int
-	Instance    MsgHandler // Legacy - 将弃用
 	TargetFiber interface {
 		GetActionTargetID() string
 	} // Fiber-first Action Architecture
@@ -519,7 +500,6 @@ func BuildHitMapFromEntries(entries []HitMapEntryInternal) *HitMap {
 			Bounds:      e.Bounds,
 			LocalXY:     e.LocalXY,
 			ZOrder:      e.ZOrder,
-			Instance:    e.Instance,
 			TargetFiber: e.TargetFiber,
 		}
 	}
