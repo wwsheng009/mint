@@ -2,7 +2,6 @@ package ui
 
 import (
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/wwsheng009/mint/internal/log"
@@ -198,18 +197,12 @@ func UseStateBool(initial bool) (bool, func(bool)) {
 // scheduleRender schedules a re-render by marking the app as dirty
 func scheduleRender(componentID string) {
 	// Access the global app instance to mark it dirty
-	if log.UILogger.Enabled() {
-		log.UILogger.Debug("scheduleRender: componentID=%s, appInstance=%v", componentID, appInstance != nil)
-	}
+	log.UILogger.Debug("scheduleRender: componentID=%s, appInstance=%v", componentID, appInstance != nil)
 	if appInstance != nil {
 		appInstance.MarkDirty()
-		if log.UILogger.Enabled() {
-			log.UILogger.Debug("scheduleRender: MarkDirty() called, state=%v", appInstance.GetState())
-		}
+		log.UILogger.Debug("scheduleRender: MarkDirty() called, state=%v", appInstance.GetState())
 	} else {
-		if os.Getenv("TUI_DEBUG_UI") == "true" {
-			log.UILogger.Debug("scheduleRender: appInstance is nil, cannot MarkDirty()")
-		}
+		log.UILogger.Debug("scheduleRender: appInstance is nil, cannot MarkDirty()")
 	}
 }
 
@@ -455,9 +448,7 @@ func UseStateIntWithDebug(initial int) (int, func(interface{}), func() int, int)
 	ctx := rtui.GetCurrentContext()
 	hookIndex := ctx.HookIndex // Capture index before useState increments it
 
-	if os.Getenv("TUI_DEBUG_UI") == "true" {
-		log.UILogger.Debug("[DEBUG] UseStateIntWithDebug: initial=%d, hookIndex=%d", initial, hookIndex)
-	}
+	log.UILogger.Debug("[DEBUG] UseStateIntWithDebug: initial=%d, hookIndex=%d", initial, hookIndex)
 
 	value, setValue := useState(initial)
 
@@ -465,10 +456,9 @@ func UseStateIntWithDebug(initial int) (int, func(interface{}), func() int, int)
 	getValue := func() int {
 		if hookIndex < len(ctx.Hooks) {
 			if v, ok := ctx.Hooks[hookIndex].Value.(int); ok {
-				if os.Getenv("TUI_DEBUG_UI") == "true" {
-					log.UILogger.Debug("[DEBUG] getValue: hookIndex=%d, value=%d, hook=%p",
-						hookIndex, v, &ctx.Hooks[hookIndex])
-				}
+				log.UILogger.Debug("[DEBUG] getValue: hookIndex=%d, value=%d, hook=%p",
+					hookIndex, v, &ctx.Hooks[hookIndex])
+
 				return v
 			}
 		}
@@ -478,19 +468,15 @@ func UseStateIntWithDebug(initial int) (int, func(interface{}), func() int, int)
 	setInt := func(newValue interface{}) {
 		switch v := newValue.(type) {
 		case int:
-			if os.Getenv("TUI_DEBUG_UI") == "true" {
-				log.UILogger.Debug("[DEBUG] setInt: hookIndex=%d, oldValue=%v, newValue=%d",
-					hookIndex, value, v)
-			}
+			log.UILogger.Debug("[DEBUG] setInt: hookIndex=%d, oldValue=%v, newValue=%d",
+				hookIndex, value, v)
 			setValue(v)
 		case func(int) int:
 			// Also support raw func(int) int
 			current := getValue()
 			newVal := v(current)
-			if os.Getenv("TUI_DEBUG_UI") == "true" {
-				log.UILogger.Debug("[DEBUG] setInt(fn): hookIndex=%d, oldValue=%d, newValue=%d",
-					hookIndex, current, newVal)
-			}
+			log.UILogger.Debug("[DEBUG] setInt(fn): hookIndex=%d, oldValue=%d, newValue=%d",
+				hookIndex, current, newVal)
 			setValue(newVal)
 		default:
 			setValue(newValue)
@@ -498,9 +484,8 @@ func UseStateIntWithDebug(initial int) (int, func(interface{}), func() int, int)
 	}
 
 	intValue := value.(int)
-	if os.Getenv("TUI_DEBUG_UI") == "true" {
-		log.UILogger.Debug("[DEBUG] UseStateIntWithDebug RETURN: hookIndex=%d, returning value=%d, ptr=%p", hookIndex, intValue, &intValue)
-	}
+	log.UILogger.Debug("[DEBUG] UseStateIntWithDebug RETURN: hookIndex=%d, returning value=%d, ptr=%p", hookIndex, intValue, &intValue)
+
 	return intValue, setInt, getValue, hookIndex
 }
 
@@ -521,8 +506,8 @@ func DebugContextInfo() map[string]interface{} {
 	hooksInfo := make([]map[string]interface{}, len(ctx.Hooks))
 	for i, hook := range ctx.Hooks {
 		hooksInfo[i] = map[string]interface{}{
-			"type":     hook.Type.String(),
-			"value":    hook.Value,
+			"type":    hook.Type.String(),
+			"value":   hook.Value,
 			"pointer": fmt.Sprintf("%p", &hook),
 		}
 	}

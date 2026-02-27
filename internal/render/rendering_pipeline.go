@@ -52,13 +52,10 @@ func (p *RenderingPipeline) SetPaintDebug(debug bool) {
 // 2. Paint phase: render using computed positions
 func (p *RenderingPipeline) Render(vnode rtui.VNode, fiber *reconciler.Fiber, constraints runtime.BoxConstraints, buffer *paint.Buffer) error {
 	if vnode == nil {
-		log.PaintLogger.Debug("[RenderingPipeline.Render] vnode is nil, returning\n")
-
+		log.PaintLogger.Debug("[RenderingPipeline.Render] vnode is nil, returning")
 		return nil
 	}
-
-	log.PaintLogger.Debug("[RenderingPipeline.Render] START: vnode type=%d, tag=%s, buffer=%dx%d\n", vnode.Type(), vnode.Tag(), buffer.Width, buffer.Height)
-
+	log.PaintLogger.Debug("[RenderingPipeline.Render] START: vnode type=%d, tag=%s, buffer=%dx%d", vnode.Type(), vnode.Tag(), buffer.Width, buffer.Height)
 	// Convert constraints to layout.Constraints
 	layoutConstraints := layout.Constraints{
 		MinWidth:  constraints.MinWidth,
@@ -88,7 +85,7 @@ func (p *RenderingPipeline) Render(vnode rtui.VNode, fiber *reconciler.Fiber, co
 		return p.renderLegacy(vnode, 0, 0, buffer)
 	}
 
-	log.PaintLogger.Debug("[RenderingPipeline.Render] Layout: Root=%dx%d\n", result.Root.Width, result.Root.Height)
+	log.PaintLogger.Debug("[RenderingPipeline.Render] Layout: Root=%dx%d", result.Root.Width, result.Root.Height)
 	log.PipelineLogger.Debug("✅ Layout complete, starting Paint phase")
 
 	// Convert LayoutBox to PaintableBox

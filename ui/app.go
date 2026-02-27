@@ -26,7 +26,7 @@ type Options struct {
 	Title             string
 	FPS               int
 	EnableDevTools    bool
-	NoAlternateScreen bool // Don't use alternate screen mode - allows copying/scrolling
+	NoAlternateScreen bool   // Don't use alternate screen mode - allows copying/scrolling
 	InitFunc          func() // Initialization function called after Intent Runtime is created
 }
 
@@ -165,21 +165,12 @@ func Run(app ComponentFunc, opts ...Option) error {
 	// Pass Intent Runtime to declarative node for component context
 	render.SetDeclarativeNodeIntentRuntime(declarativeRoot, intentRuntime)
 
-	if os.Getenv("TUI_DEBUG_UI") == "true" {
-		log.UILogger.Debug("ui.Run: Fiber mode enabled (default)")
-	}
-
+	log.UILogger.Debug("ui.Run: Fiber mode enabled (default)")
 	// Set as the root of the framework app
 	fwApp.SetRoot(declarativeRoot)
-
-	if os.Getenv("TUI_DEBUG_UI") == "true" {
-		log.UILogger.Debug("ui.Run: declarative root set to %T", declarativeRoot)
-	}
-
+	log.UILogger.Debug("ui.Run: declarative root set to %T", declarativeRoot)
 	// Run the app
-	if os.Getenv("TUI_DEBUG_UI") == "true" {
-		log.UILogger.Debug("ui.Run: Calling fwApp.Run()")
-	}
+	log.UILogger.Debug("ui.Run: Calling fwApp.Run()")
 	return fwApp.Run()
 }
 

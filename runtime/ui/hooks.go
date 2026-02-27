@@ -2,7 +2,6 @@ package ui
 
 import (
 	"fmt"
-	"os"
 	"sync"
 
 	"github.com/wwsheng009/mint/internal/log"
@@ -246,10 +245,9 @@ func (ctx *ComponentContext) GetOrCreateHook(hookType HookType) *Hook {
 		Type: hookType,
 	}
 	ctx.Hooks = append(ctx.Hooks, *hook)
-	if os.Getenv("TUI_DEBUG_UI") == "true" {
-		log.UILogger.Debug("GetOrCreateHook: creating new hook[%d], Type=%s, &ctx=%p, &Hooks=%p",
-			ctx.HookIndex, hookType, ctx, &ctx.Hooks)
-	}
+	log.UILogger.Debug("GetOrCreateHook: creating new hook[%d], Type=%s, &ctx=%p, &Hooks=%p",
+		ctx.HookIndex, hookType, ctx, &ctx.Hooks)
+
 	ctx.HookIndex++
 	return &ctx.Hooks[len(ctx.Hooks)-1]
 }

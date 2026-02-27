@@ -365,10 +365,8 @@ func (n *DeclarativeNode) Paint(ctx component.PaintContext, buf *paint.Buffer) {
 	defer n.mu.Unlock()
 
 	// Debug logging
-	if os.Getenv("MINT_DEBUG_TEST") == "true" {
-		log.PaintLogger.Debug("[DeclarativeNode.Paint] START: ctx.X=%d, ctx.Y=%d, buf=%dx%d, useFiber=%v, renderMode=%v, fiberFirstEnabled=%v",
-			ctx.Bounds.X, ctx.Bounds.Y, buf.Width, buf.Height, n.useFiber, n.renderMode, n.fiberFirstEnabled)
-	}
+	log.PaintLogger.Debug("[DeclarativeNode.Paint] START: ctx.X=%d, ctx.Y=%d, buf=%dx%d, useFiber=%v, renderMode=%v, fiberFirstEnabled=%v",
+		ctx.Bounds.X, ctx.Bounds.Y, buf.Width, buf.Height, n.useFiber, n.renderMode, n.fiberFirstEnabled)
 
 	// Check if Fiber-first mode is enabled
 	if n.fiberFirstEnabled && n.useFiber && n.reconciler != nil {
@@ -393,11 +391,7 @@ func (n *DeclarativeNode) Paint(ctx component.PaintContext, buf *paint.Buffer) {
 // Phase 2: Layout (Fiber -> LayoutBox, no VNode access)
 // Phase 3: Paint (LayoutBox -> PaintableBox -> Buffer)
 func (n *DeclarativeNode) fiberFirstPaint(ctx component.PaintContext, buf *paint.Buffer) {
-	debug := os.Getenv("MINT_DEBUG_TEST") == "true"
-	if debug {
-		fmt.Println("[DeclarativeNode.fiberFirstPaint] === STARTING Fiber-first render ===")
-	}
-
+	log.RenderLogger.Debug("[DeclarativeNode.fiberFirstPaint] === STARTING Fiber-first render ===")
 	// Phase 1: Fiber Reconciliation
 	// The reconciler updates the Fiber tree, VNode is discarded after this
 	// Use a minimal buffer for reconciliation (actual painting happens later)
@@ -409,17 +403,13 @@ func (n *DeclarativeNode) fiberFirstPaint(ctx component.PaintContext, buf *paint
 	// Get the Fiber root from reconciler
 	fiberRoot := n.getFiberRoot()
 	if fiberRoot == nil {
-		if debug {
-			fmt.Println("[DeclarativeNode.fiberFirstPaint] Fiber root is nil, falling back to legacy")
-		}
+		log.PaintLogger.Debug("[DeclarativeNode.fiberFirstPaint] Fiber root is nil, falling back to legacy")
 		n.legacyPaint(ctx, buf)
 		return
 	}
 
-	if debug {
-		log.PaintLogger.Debug("[DeclarativeNode.fiberFirstPaint] Fiber root OK: type=%d, tag=%s, children=%d",
-			fiberRoot.Type, fiberRoot.Tag, countFiberChildren(fiberRoot))
-	}
+	log.PaintLogger.Debug("[DeclarativeNode.fiberFirstPaint] Fiber root OK: type=%d, tag=%s, children=%d",
+		fiberRoot.Type, fiberRoot.Tag, countFiberChildren(fiberRoot))
 
 	// Phase 1.5: Sync FocusManager to framework.App
 	// This is critical for Tab navigation to work in Fiber-first mode
@@ -469,15 +459,15 @@ func (n *DeclarativeNode) fiberFirstPaint(ctx component.PaintContext, buf *paint
 			layoutResultInner := adapter.GetLayoutResult()
 			if layoutResultInner != nil {
 				layoutBoxRoot = layoutResultInner.Root
-				if debug {
-					log.PaintLogger.Debug("[DeclarativeNode.fiberFirstPaint] LayoutBox root: %v, children=%d",
-						layoutBoxRoot != nil, len(layoutBoxRoot.Children))
-					if layoutBoxRoot != nil {
-						log.PaintLogger.Debug("[DeclarativeNode.fiberFirstPaint] LayoutBox root bounds: (%d,%d) %dx%d",
-							layoutBoxRoot.X, layoutBoxRoot.Y, layoutBoxRoot.Width, layoutBoxRoot.Height)
-						printLayoutBoxTree(layoutBoxRoot, 0)
-					}
+
+				log.PaintLogger.Debug("[DeclarativeNode.fiberFirstPaint] LayoutBox root: %v, children=%d",
+					layoutBoxRoot != nil, len(layoutBoxRoot.Children))
+				if layoutBoxRoot != nil {
+					log.PaintLogger.Debug("[DeclarativeNode.fiberFirstPaint] LayoutBox root bounds: (%d,%d) %dx%d",
+						layoutBoxRoot.X, layoutBoxRoot.Y, layoutBoxRoot.Width, layoutBoxRoot.Height)
+					printLayoutBoxTree(layoutBoxRoot, 0)
 				}
+
 			}
 		}
 
@@ -486,7 +476,7 @@ func (n *DeclarativeNode) fiberFirstPaint(ctx component.PaintContext, buf *paint
 			converter := NewFiberToPaintableConverter(fiberRoot)
 			paintableLayout := converter.ConvertToLayout(layoutBoxRoot)
 
-			if debug && paintableLayout != nil && paintableLayout.Root != nil {
+			if paintableLayout != nil && paintableLayout.Root != nil {
 				log.PaintLogger.Debug("[DeclarativeNode.fiberFirstPaint] PaintableLayout root: Node=%v, children=%d",
 					paintableLayout.Root.Node != nil, len(paintableLayout.Root.Children))
 				printPaintableBoxTree(paintableLayout.Root, 0)
@@ -508,9 +498,7 @@ func (n *DeclarativeNode) fiberFirstPaint(ctx component.PaintContext, buf *paint
 				buildPlanes(paintableLayout.Root)
 
 				log.RenderLogger.Debug("[DeclarativeNode.fiberFirstPaint] PaintablePlanes: %d boxes", planes.CountBoxes())
-				if debug {
-					log.PaintLogger.Debug("[DeclarativeNode.fiberFirstPaint] PaintablePlanes: %d boxes", planes.CountBoxes())
-				}
+				log.RenderLogger.Debug("[DeclarativeNode.fiberFirstPaint] PaintablePlanes: %d boxes", planes.CountBoxes())
 
 				// Paint using PaintablePlanes for proper layer Z-Ordering
 				if err := n.paintEngine.PaintPaintablePlanes(planes, buf); err != nil {
@@ -655,9 +643,7 @@ func (n *DeclarativeNode) legacyPaint(ctx component.PaintContext, buf *paint.Buf
 		log.RenderLogger.Debug("[DeclarativeNode.Paint] renderer type = %T", n.renderer)
 	}
 
-	if os.Getenv("MINT_DEBUG_TEST") == "true" {
-		log.PaintLogger.Debug("[DeclarativeNode.Paint] n.renderer=%v, isAdapter=%v", n.renderer != nil, n.renderer != nil && fmt.Sprintf("%T", n.renderer) == "*render.PipelineRendererAdapter")
-	}
+	log.PaintLogger.Debug("[DeclarativeNode.Paint] n.renderer=%v, isAdapter=%v", n.renderer != nil, n.renderer != nil && fmt.Sprintf("%T", n.renderer) == "*render.PipelineRendererAdapter")
 
 	if n.renderer != nil {
 		// Use the PaintContext dimensions as layout constraints (not buffer size)
@@ -1098,7 +1084,9 @@ func (n *DeclarativeNode) paintBordered(vnode rtui.VNode, _ interface{ RenderBor
 
 	// Get the measured total width of the BorderedNode (including border)
 	borderedNodeWidth := 0
-	if measurable, ok := vnode.(interface{ Measure(runtime.BoxConstraints) runtime.Size }); ok {
+	if measurable, ok := vnode.(interface {
+		Measure(runtime.BoxConstraints) runtime.Size
+	}); ok {
 		borderedNodeWidth = measurable.Measure(runtime.UnboundedConstraints()).Width
 	}
 
@@ -1846,9 +1834,7 @@ func (n *DeclarativeNode) GetHitMap() *event.HitMap {
 			hitMap := pipeline.GetHitMap()
 
 			// DEBUG
-			if os.Getenv("TUI_DEBUG_HITMAP") == "true" && hitMap != nil {
-				log.RenderLogger.Debug("[DeclarativeNode.GetHitMap] Returning HitMap with %d entries", hitMap.Size())
-			}
+			log.RenderLogger.Debug("[DeclarativeNode.GetHitMap] Returning HitMap with %d entries", hitMap.Size())
 
 			return hitMap
 		}

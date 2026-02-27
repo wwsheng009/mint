@@ -2,8 +2,8 @@ package grid
 
 import (
 	"fmt"
-	"os"
 
+	"github.com/wwsheng009/mint/internal/log"
 	"github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
@@ -691,10 +691,9 @@ func (inst *Instance) calculateRowHeights(availableHeight int, numCols, actualNu
 	// ✨ Third pass: scale Auto rows proportionally if there's remaining space
 	// This allows Auto rows to use available space beyond their measured minimum
 	// ✨ DEBUG
-	if os.Getenv("MINT_DEBUG_GRID") == "true" {
-		fmt.Printf("[DEBUG SETBOUNDS] Before Third pass: autoCount=%d, remainingHeight=%d\n",
+		log.RenderLogger.Debug("[DEBUG SETBOUNDS] Before Third pass: autoCount=%d, remainingHeight=%d\n",
 			autoCount, remainingHeight)
-	}
+	
 
 	// ✨ FIX: Auto rows may also need to be scaled down when content > available space
 	// or scaled up when content < available space
