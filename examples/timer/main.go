@@ -38,9 +38,9 @@ func TimerDemo() ui.VNode {
 	running, setRunning := ui.UseStateBool(false)
 
 	// 2. 使用 Effect 实现定时器
-	ui.UseEffect(func() func() {
+	ui.UseEffect(func() ui.CleanupFunc {
 		if !running {
-			// 返回空清理函数
+			// 定时器未运行，返回空清理函数
 			return func() {}
 		}
 
@@ -61,7 +61,7 @@ func TimerDemo() ui.VNode {
 			}
 		}()
 
-		// 清理函数
+		// 清理函数：停止 ticker
 		return func() {
 			close(done)
 		}
