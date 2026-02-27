@@ -109,7 +109,7 @@ func (a *NewLayoutEngineAdapter) LayoutFiber(fiber *reconciler.Fiber, constraint
 	// Perform layout
 	result := a.engine.Layout(node, layoutConstraints)
 
-	return &newLayoutResultAdapter{result: result}, nil
+	return &newLayoutResultAdapter{result: result, fiberRoot: fiber}, nil
 }
 
 // GetStats returns cache statistics.
@@ -143,7 +143,8 @@ func (a *NewLayoutEngineAdapter) GetEngine() *layout.Engine {
 
 // newLayoutResultAdapter adapts layout.LayoutResult to LayoutResult.
 type newLayoutResultAdapter struct {
-	result *layout.LayoutResult
+	result    *layout.LayoutResult
+	fiberRoot *rtui.Fiber // For HitMap enrichment with TargetFiber
 }
 
 // GetRootBox returns the root box for painting.
@@ -159,8 +160,8 @@ func (a *newLayoutResultAdapter) GetHitMap() *event.HitMap {
 	if a.result == nil || a.result.HitMap == nil {
 		return nil
 	}
-	// Convert layout.HitMap to event.HitMap
-	return convertLayoutHitMap(a.result.HitMap)
+	// Convert layout.HitMap to event.HitMap with TargetFiber enrichment
+	return convertLayoutHitMap(a.result.HitMap, a.fiberRoot)
 }
 
 // GetRenderPlanes returns render planes built from layout.LayoutBox tree.
@@ -209,13 +210,44 @@ func (a *layoutBoxAdapter) GetChildren() []PaintableBox {
 }
 
 // convertLayoutHitMap converts layout.HitMap to event.HitMap.
-func convertLayoutHitMap(hm *layout.HitMap) *event.HitMap {
-	if hm == nil {
+// This converts from layout.HitMap (NodeID=string, ZIndex=int, Rect) to
+// event.HitMap (NodeID=uint64, ZOrder=int, LocalXY function, TargetFiber).
+//
+// The fiberRoot parameter is used to look up Fiber nodes by NodeID and set TargetFiber.
+func convertLayoutHitMap(hm *layout.HitMap, fiberRoot *rtui.Fiber) *event.HitMap {
+	if hm == nil || hm.Size() == 0 {
 		return nil
 	}
-	result := event.NewHitMap()
-	// Iterate through layout.HitMap entries and convert
-	// Note: This is a simplified conversion; full implementation would need
-	// to handle all entries properly
-	return result
+
+	allEntries := hm.GetAll()
+	if len(allEntries) == 0 {
+		return nil
+	}
+
+	// Build entries for event.HitMap
+	entries := make([]event.HitMapEntryInternal, 0, len(allEntries))
+	for _, layoutEntry := range allEntries {
+		// Convert NodeID string to uint64
+		// Since adapter_fiber.go now returns NodeID as plain string (e.g., "123"),
+		// StringToNodeID("123") will return 123 as uint64
+		nodeID := event.StringToNodeID(layoutEntry.NodeID)
+
+		// Look up the target Fiber by NodeID
+		var targetFiber *rtui.Fiber
+		if fiberRoot != nil {
+			targetFiber = rtui.FindFiberByID(fiberRoot, nodeID)
+		}
+
+		entries = append(entries, event.HitMapEntryInternal{
+			NodeID: nodeID,
+			Bounds: layoutEntry.Rect,
+			LocalXY: func(screenX, screenY int) (int, int) {
+				return screenX - layoutEntry.Rect.X, screenY - layoutEntry.Rect.Y
+			},
+			ZOrder:      layoutEntry.ZIndex,
+			TargetFiber: targetFiber, // Set TargetFiber for action routing
+		})
+	}
+
+	return event.BuildHitMapFromEntries(entries)
 }

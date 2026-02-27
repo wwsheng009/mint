@@ -63,6 +63,10 @@ type DeclarativeNode struct {
 	paintEngine       *PaintEngine               // Paint engine for Fiber-first
 	converter         *FiberToPaintableConverter // Fiber to Paintable converter
 	fiberFirstEnabled bool                       // Whether Fiber-first mode is enabled
+
+	// === HitMap Storage ===
+	// Fiber-first mode stores HitMap here (separate from RenderingPipeline)
+	fiberLastHitMap *event.HitMap // HitMap from fiberFirstPaint() path
 }
 
 // NewDeclarativeNode creates a new declarative node from a VNode
@@ -361,20 +365,27 @@ func (n *DeclarativeNode) Measure(maxWidth, maxHeight int) (width, height int) {
 // Paint renders the VNode tree to the buffer
 // UNIFIED RENDERING: Supports both Legacy and Fiber-first rendering paths
 func (n *DeclarativeNode) Paint(ctx component.PaintContext, buf *paint.Buffer) {
-	n.mu.Lock()
-	defer n.mu.Unlock()
+	// Acquire read lock to read state for determining render mode
+	n.mu.RLock()
+	fiberFirstEnabled := n.fiberFirstEnabled
+	useFiber := n.useFiber
+	renderMode := n.renderMode
+	hasReconciler := (n.reconciler != nil)
+	n.mu.RUnlock()
 
 	// Debug logging
 	log.PaintLogger.Debug("[DeclarativeNode.Paint] START: ctx.X=%d, ctx.Y=%d, buf=%dx%d, useFiber=%v, renderMode=%v, fiberFirstEnabled=%v",
-		ctx.Bounds.X, ctx.Bounds.Y, buf.Width, buf.Height, n.useFiber, n.renderMode, n.fiberFirstEnabled)
+		ctx.Bounds.X, ctx.Bounds.Y, buf.Width, buf.Height, useFiber, renderMode, fiberFirstEnabled)
 
 	// Check if Fiber-first mode is enabled
-	if n.fiberFirstEnabled && n.useFiber && n.reconciler != nil {
-		switch n.renderMode {
+	if fiberFirstEnabled && useFiber && hasReconciler {
+		switch renderMode {
 		case RenderModeFiberFirst:
+			// Release locks before calling fiberFirstPaint (it will acquire its own locks)
 			n.fiberFirstPaint(ctx, buf)
 			return
 		case RenderModeBoth:
+			// Release locks before calling comparePaint (it will acquire its own locks)
 			n.comparePaint(ctx, buf)
 			return
 		default:
@@ -382,7 +393,12 @@ func (n *DeclarativeNode) Paint(ctx component.PaintContext, buf *paint.Buffer) {
 		}
 	}
 
+	// Acquire write lock for legacy rendering mode
+	n.mu.Lock()
+	defer n.mu.Unlock()
+
 	// === Legacy Rendering Path ===
+	// NOT HITMAP
 	n.legacyPaint(ctx, buf)
 }
 
@@ -451,6 +467,7 @@ func (n *DeclarativeNode) fiberFirstPaint(ctx component.PaintContext, buf *paint
 	// Phase 3: Paint using PaintableLayout
 	// Convert LayoutResult to PaintableLayout and use PaintEngine
 	if layoutResult != nil {
+	
 		log.RenderLogger.Debug("[DeclarativeNode.fiberFirstPaint] Paint phase starting")
 
 		// Get LayoutBox from adapter
@@ -467,7 +484,6 @@ func (n *DeclarativeNode) fiberFirstPaint(ctx component.PaintContext, buf *paint
 						layoutBoxRoot.X, layoutBoxRoot.Y, layoutBoxRoot.Width, layoutBoxRoot.Height)
 					printLayoutBoxTree(layoutBoxRoot, 0)
 				}
-
 			}
 		}
 
@@ -476,10 +492,11 @@ func (n *DeclarativeNode) fiberFirstPaint(ctx component.PaintContext, buf *paint
 			converter := NewFiberToPaintableConverter(fiberRoot)
 			paintableLayout := converter.ConvertToLayout(layoutBoxRoot)
 
-			if paintableLayout != nil && paintableLayout.Root != nil {
+			if log.PaintLogger.Enabled() && paintableLayout != nil && paintableLayout.Root != nil {
 				log.PaintLogger.Debug("[DeclarativeNode.fiberFirstPaint] PaintableLayout root: Node=%v, children=%d",
 					paintableLayout.Root.Node != nil, len(paintableLayout.Root.Children))
-				printPaintableBoxTree(paintableLayout.Root, 0)
+				
+					printPaintableBoxTree(paintableLayout.Root, 0)
 			}
 
 			if paintableLayout != nil && paintableLayout.Root != nil {
@@ -506,6 +523,20 @@ func (n *DeclarativeNode) fiberFirstPaint(ctx component.PaintContext, buf *paint
 					n.legacyPaint(ctx, buf)
 					return
 				}
+
+				// Save HitMap for event routing
+				// Get HitMap from layoutResult (which contains the final positions after layout)
+				if hitMap := layoutResult.GetHitMap(); hitMap != nil {
+					// HitMap now has TargetFiber set (from convertLayoutHitMap)
+					// ActionBridge.DispatchFromFiber will use Fiber.Instance directly
+					// No need to enrich with Instance (Legacy field, not used in Fiber-first mode)
+					n.fiberLastHitMap = hitMap
+					log.RenderLogger.Debug("[DeclarativeNode.fiberFirstPaint] ✅ Saved HitMap with %d entries", hitMap.Size())
+				} else {
+					log.RenderLogger.Debug("[DeclarativeNode.fiberFirstPaint] ⚠️  HitMap is nil from layoutResult")
+					n.fiberLastHitMap = nil
+				}
+
 				log.RenderLogger.Debug("[DeclarativeNode.fiberFirstPaint] ✅ PaintPaintablePlanes complete")
 				return
 			}
@@ -1826,21 +1857,29 @@ func (n *DeclarativeNode) GetHitMap() *event.HitMap {
 	n.mu.RLock()
 	defer n.mu.RUnlock()
 
-	// Check if renderer is PipelineRendererAdapter
+	// Priority 1: Check fiberFirstPaint path (Fiber-first mode)
+	if n.fiberLastHitMap != nil {
+		log.RenderLogger.Debug("[DeclarativeNode.GetHitMap] Returning fiberFirstPaint HitMap with %d entries", n.fiberLastHitMap.Size())
+		return n.fiberLastHitMap
+	}
+
+	// Priority 2: Check if renderer is PipelineRendererAdapter (Legacy path)
 	if adapter, ok := n.renderer.(*PipelineRendererAdapter); ok {
 		// Get the RenderingPipeline from the adapter
 		pipeline := adapter.GetRenderingPipeline()
 		if pipeline != nil {
 			hitMap := pipeline.GetHitMap()
-
-			// DEBUG
-			log.RenderLogger.Debug("[DeclarativeNode.GetHitMap] Returning HitMap with %d entries", hitMap.Size())
-
+			if hitMap != nil {
+				log.RenderLogger.Debug("[DeclarativeNode.GetHitMap] Returning RenderingPipeline HitMap with %d entries", hitMap.Size())
+			} else {
+				log.RenderLogger.Debug("[DeclarativeNode.GetHitMap] RenderingPipeline returned nil HitMap")
+			}
 			return hitMap
 		}
 	}
 
-	// No HitMap available (not using RenderingPipeline)
+	// No HitMap available
+	log.RenderLogger.Debug("[DeclarativeNode.GetHitMap] No HitMap available (fiberFirstPaint=%v, renderer=%T)", n.fiberLastHitMap != nil, n.renderer)
 	return nil
 }
 
@@ -2282,17 +2321,34 @@ func (n *DeclarativeNode) RenderWithFiber(buffer *paint.Buffer) error {
 }
 
 // GetInstanceManager returns the Fiber Reconciler's InstanceManager
-// This allows external code (like App.enrichHitMapWithInstances) to access
-// ComponentInstances managed by the Fiber Reconciler
+// GetInstanceManager returns the InstanceManager (deprecated: use GetComponentInstances instead)
+// This allows external code to access ComponentInstances managed by the Fiber Reconciler
 func (n *DeclarativeNode) GetInstanceManager() interface{} {
 	n.mu.RLock()
 	defer n.mu.RUnlock()
 
 	// The reconciler is a rtui.Reconciler interface
 	// We need to access the underlying *reconciler.Reconciler to get InstanceManager
-	// This is a bit of a hack to avoid import cycles
 	if adapter, ok := n.reconciler.(*fiberReconcilerAdapter); ok {
 		return adapter.r.GetInstanceManager()
+	}
+
+	return nil
+}
+
+// GetComponentInstances returns a map of NodeID to ComponentInstance
+// This provides direct access to component instances for HitMap enrichment
+// without using reflection
+func (n *DeclarativeNode) GetComponentInstances() map[uint64]rtui.ComponentInstance {
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+
+	// Access the underlying reconciler to get InstanceManager
+	if adapter, ok := n.reconciler.(*fiberReconcilerAdapter); ok {
+		instanceMgr := adapter.r.GetInstanceManager()
+		if instanceMgr != nil {
+			return instanceMgr.GetAllInstancesByID()
+		}
 	}
 
 	return nil

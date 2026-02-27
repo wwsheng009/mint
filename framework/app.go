@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"reflect"
 	"time"
 
 	"github.com/wwsheng009/mint/framework/component"
@@ -19,7 +18,6 @@ import (
 	"github.com/wwsheng009/mint/runtime/core"
 	runtimeevent "github.com/wwsheng009/mint/runtime/event"
 	"github.com/wwsheng009/mint/runtime/instance"
-	"github.com/wwsheng009/mint/runtime/layout"
 	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/platform"
@@ -996,7 +994,9 @@ func (a *App) processMsg(msg runtimemsg.Msg) {
 	}
 
 	// 4. 统一 Action 路由：通过 ActionBridge 分发
+
 	// 4.1 鼠标事件：使用 MouseMsg 中的 TargetFiber
+	// 通过 Payload 类型识别鼠标事件（更可靠，因为 Source 可能为空）
 	if mouseMsg, ok := act.Payload.(*runtimemsg.MouseMsg); ok && mouseMsg.TargetFiber != nil {
 		if fiber, ok := mouseMsg.TargetFiber.(*rtui.Fiber); ok {
 			// 传入 act.Payload (MouseMsg) 而不是 act
@@ -1007,12 +1007,14 @@ func (a *App) processMsg(msg runtimemsg.Msg) {
 		}
 	}
 
-	// 4.2 键盘事件（如 Enter）：使用焦点 Fiber
-	if focused := a.focusManager.GetCurrent(); focused != nil {
-		// 传入 act.Payload 而不是 act，因为 Instance.HandleAction 期望实际的 payload 值
-		if a.actionBridge.DispatchFromFiber(focused, act.Type, act.Payload) {
-			a.dirty = true
-			return
+	// 4.2 键盘事件：使用焦点 Fiber
+	// 非 MouseMsg 的都是键盘事件（包括特殊键和可打印字符）
+	if _, ok := msg.(*runtimemsg.KeyMsg); ok && act.Payload != nil {
+		if focused := a.focusManager.GetCurrent(); focused != nil {
+			if a.actionBridge.DispatchFromFiber(focused, act.Type, act.Payload) {
+				a.dirty = true
+				return
+			}
 		}
 	}
 
@@ -1077,35 +1079,6 @@ func (a *App) handleSystemMsg(msg runtimemsg.Msg) {
 func (a *App) dispatchAction(act *action.Action) *action.RouterResult {
 	// 直接分发，注册表已在 render() 中构建
 	return a.actionRouter.Dispatch(act)
-}
-
-// handleLegacyMsg 兼容模式：处理无法转换的消息（已废弃）
-// DEPRECATED: Action 系统现在是主路径，此函数仅用于调试/回退
-func (a *App) handleLegacyMsg(msg runtimemsg.Msg) {
-	ev := frameworkevent.MsgToEvent(msg)
-	if ev == nil {
-		return
-	}
-
-	// 处理 Resize 事件
-	if ev.Type() == frameworkevent.EventResize {
-		if resizeEv, ok := ev.(*frameworkevent.ResizeEvent); ok {
-			a.Resize(resizeEv.NewWidth, resizeEv.NewHeight)
-		}
-		return
-	}
-
-	// 使用旧的事件处理路径
-	if a.router != nil {
-		a.router.Route(ev)
-	}
-
-	// 兼容：发送到根组件
-	if handler, ok := a.root.(frameworkevent.Component); ok {
-		if handler.HandleEvent(ev) {
-			a.dirty = true
-		}
-	}
 }
 
 // SetLegacyMode 设置兼容模式（已废弃）
@@ -1312,7 +1285,7 @@ func (a *App) render() {
 		// 使用 Renderer 的 back buffer
 		buf := a.renderer.GetBackBuffer()
 
-		if os.Getenv("MINT_DEBUG_TEST") == "true" {
+		if log.UILogger.Enabled() {
 			log.UILogger.Debug("[App.render] BEFORE Reset: back buffer has content")
 			// Count non-empty cells
 			count := 0
@@ -1345,7 +1318,7 @@ func (a *App) render() {
 			log.UILogger.Debug("Render: terminal=%dx%d, layout=%dx%d",
 				a.terminalWidth, a.terminalHeight, layoutWidth, layoutHeight)
 		}
-
+		
 		paintable.Paint(ctx, buf)
 
 		if os.Getenv("MINT_DEBUG_TEST") == "true" {
@@ -1437,65 +1410,16 @@ func (a *App) render() {
 
 			} else {
 				log.RenderLogger.Debug("[APP] ⚠️  RenderingPipeline returned nil HitMap, falling back to BuildHitMap")
-
 			}
 		}
-
-		// 方法2：如果 RenderingPipeline 的 HitMap 不可用，回退到从 layout.Node 构建
-		if a.hitMap == nil {
-			if layoutRoot, ok := a.root.(layout.Node); ok {
-				a.hitMap = runtimeevent.BuildHitMap(layoutRoot)
-
-				log.HitMapLogger.Debug("[APP] HitMap built from layout.Node: %d entries (may not include layer transforms)", a.hitMap.Size())
-
-			} else if vnodeRoot, ok := a.root.(rtui.VNode); ok {
-				// 通过 VNodeAdapter 将 VNode 转换为 layout.Node
-				layoutAdapter := rtui.AsLayoutNode(vnodeRoot)
-				a.hitMap = runtimeevent.BuildHitMap(layoutAdapter)
-				log.HitMapLogger.Debug("[APP] HitMap built from VNode: %d entries (may not include layer transforms)", a.hitMap.Size())
-			} else {
-				// DEBUG: root 不是 layout.Node 也不是 VNode
-				log.HitMapLogger.Debug("[APP] root is neither layout.Node nor VNode, type=%T", a.root)
-			}
-		}
-
-		// ============================================================================
-		// Phase 2: Reconcile VNode → Instance（新架构核心）
-		// ============================================================================
-		// 根据 fix1.md 设计文档：
-		// > VNode 是"设计图"（每帧重建）
-		// > Instance 是"活的组件"（持久存在）
-		// >
-		// > render() 只产生描述树，然后系统做：
-		// > VNode Tree → Fiber Reconciler → Instance Tree（持久） → Layout
-		//
-		// NOTE: Fiber Reconciler handles reconciliation internally in DeclarativeNode.Paint()
-		// ComponentInstances are managed by reconciler.InstanceMgr
-
 		log.HitMapLogger.Debug("[APP] Phase 2: Fiber Reconciler handles VNode → Instance reconciliation")
-
-		// ✨ 新架构：Enrich HitMap with Instance references
-		// 根据 fix1.md：HitMap 应该包含 Instance 引用，用于直接事件路由
-		// 在 HitMap 构建完成后，我们通过 NodeID 匹配来添加 Instance 引用
-		// 这样既保留了正确的布局信息（包括层变换），又获得了 Instance 引用
-		if a.hitMap != nil {
-			a.enrichHitMapWithInstances()
-			log.HitMapLogger.Debug("[APP] Enriched HitMap with Instance references")
-		}
-
 		// Phase 1-6: 将 HitMap 传递给 Pump 用于鼠标事件命中测试
-		// 注意：必须在 enrichHitMapWithInstances 之后调用，这样 Pump 才能获得 Instance 引用
+		// HitMap already contains Instance references (enriched in DeclarativeNode.fiberFirstPaint)
 		if a.pump != nil && a.hitMap != nil {
 			a.pump.SetHitMap(a.hitMap)
 		}
-
-		// Phase 2: 更新焦点管理器（从 DeclarativeNode 的 Fiber 树收集）
-		// DeclarativeNode 在 applyFocusState 中会更新焦点列表
-		// 这里我们不需要重复更新，因为 DeclarativeNode 和 framework.App 共享同一个焦点管理器
 	}
-
 	a.dirty = false
-
 	// 清除首次渲染标记
 	if a.firstRender {
 		a.firstRender = false
@@ -1892,219 +1816,6 @@ func (a *instanceHandlerAdapter) Handle(msg interface{}) interface{} {
 	}
 	log.UILogger.Debug("[instanceHandlerAdapter.Handle] Failed to convert msg to runtimemsg.Msg")
 	return nil
-}
-
-// componentInstanceAdapter adapts ComponentInstance to MsgHandler interface
-// This is used for Fiber Reconciler's ComponentInstances (VNodeComponentInstance)
-type componentInstanceAdapter struct {
-	compInst rtui.ComponentInstance
-}
-
-// Handle 实现 MsgHandler 接口
-func (a *componentInstanceAdapter) Handle(msg interface{}) interface{} {
-	if a.compInst == nil {
-		log.UILogger.Debug("[componentInstanceAdapter.Handle] compInst is nil")
-		return nil
-	}
-
-	log.UILogger.Debug("[componentInstanceAdapter.Handle] Called, key=%s, msg type=%T", a.compInst.Key(), msg)
-
-	// Use reflection to access VNodeComponentInstance fields without import cycle
-	// We need to call the appropriate event handler based on msg type
-	v := reflect.ValueOf(a.compInst)
-	if v.IsNil() {
-		log.UILogger.Debug("[componentInstanceAdapter.Handle] compInst is nil after reflection")
-		return nil
-	}
-
-	// Get the underlying element (since compInst is an interface)
-	elem := v.Elem()
-
-	// Check for OnClick handler
-	onClickField := elem.FieldByName("OnClick")
-	if onClickField.IsValid() && !onClickField.IsNil() {
-		// Check if msg is a click event (MouseMsg with Press action)
-		if mouseMsg, ok := msg.(*runtimemsg.MouseMsg); ok && mouseMsg.IsPress() && mouseMsg.Button == runtimemsg.MouseLeft {
-			onClickFunc := onClickField.Interface().(func())
-			log.UILogger.Debug("[componentInstanceAdapter.Handle] Calling OnClick for key=%s", a.compInst.Key())
-			onClickFunc()
-			return nil
-		}
-	}
-
-	// Check for OnKeyPress handler
-	onKeyPressField := elem.FieldByName("OnKeyPress")
-	if onKeyPressField.IsValid() && !onKeyPressField.IsNil() {
-		// Check if msg is a key event
-		if keyMsg, ok := msg.(*runtimemsg.KeyMsg); ok {
-			keyPressFunc := onKeyPressField.Interface().(func(string))
-			// Use the string representation of the key
-			keyStr := keyMsg.String()
-			log.UILogger.Debug("[componentInstanceAdapter.Handle] Calling OnKeyPress for key=%s, key=%s", a.compInst.Key(), keyStr)
-			keyPressFunc(keyStr)
-			return nil
-		}
-	}
-
-	// Check for OnMouseEnter handler
-	onMouseEnterField := elem.FieldByName("OnMouseEnter")
-	if onMouseEnterField.IsValid() && !onMouseEnterField.IsNil() {
-		if mouseMsg, ok := msg.(*runtimemsg.MouseMsg); ok && mouseMsg.Action == runtimemsg.MouseActionMove {
-			onMouseEnterFunc := onMouseEnterField.Interface().(func())
-			log.UILogger.Debug("[componentInstanceAdapter.Handle] Calling OnMouseEnter for key=%s", a.compInst.Key())
-			onMouseEnterFunc()
-			return nil
-		}
-	}
-
-	// Check for OnMouseLeave handler
-	onMouseLeaveField := elem.FieldByName("OnMouseLeave")
-	if onMouseLeaveField.IsValid() && !onMouseLeaveField.IsNil() {
-		// For simplicity, we can't easily detect mouse leave without tracking
-		// This would require more sophisticated tracking
-		if mouseMsg, ok := msg.(*runtimemsg.MouseMsg); ok && mouseMsg.Action == runtimemsg.MouseActionMove {
-			onMouseLeaveFunc := onMouseLeaveField.Interface().(func())
-			log.UILogger.Debug("[componentInstanceAdapter.Handle] Calling OnMouseLeave for key=%s", a.compInst.Key())
-			onMouseLeaveFunc()
-			return nil
-		}
-	}
-
-	log.UILogger.Debug("[componentInstanceAdapter.Handle] No handler found for msg type=%T", msg)
-	return nil
-}
-
-// enrichHitMapWithInstances 为 HitMap 条目添加 Instance 引用
-// 这是新架构的关键步骤：将 Fiber Reconciler 的 ComponentInstance 与 HitMap 关联
-//
-// Phase 5: NodeID 优先查找策略
-// 工作流程：
-// 1. 从 Fiber Reconciler 的 InstanceManager 获取所有 ComponentInstance（按 NodeID 索引）
-// 2. 遍历 HitMap 条目，优先通过 NodeID 匹配 ComponentInstance
-// 3. 如果 NodeID 匹配失败，回退到 Key 匹配（向后兼容）
-// 4. 为每个匹配的条目添加 Instance 引用
-func (a *App) enrichHitMapWithInstances() {
-	if a.hitMap == nil {
-		return
-	}
-
-	// Get InstanceManager from Fiber Reconciler (via DeclarativeNode)
-	// Use reflection to avoid import cycle with internal/state
-	// Phase 5: Use NodeID as primary lookup with key-based fallback
-	var instanceMgr interface{}
-	rootValue := reflect.ValueOf(a.root)
-	getInstanceMgrMethod := rootValue.MethodByName("GetInstanceManager")
-	if getInstanceMgrMethod.IsValid() {
-		results := getInstanceMgrMethod.Call(nil)
-		if len(results) > 0 && !results[0].IsNil() {
-			instanceMgr = results[0].Interface()
-		}
-	}
-
-	if instanceMgr == nil {
-		log.HitMapLogger.Debug("No InstanceManager found")
-		return
-	}
-
-	log.HitMapLogger.Debug("Found InstanceManager, type=%T", instanceMgr)
-
-	// Use reflection to access GetAllInstancesByID() method
-	// Phase 5: Use NodeID as primary lookup with key-based fallback
-	mgrValue := reflect.ValueOf(instanceMgr)
-	getAllByIDMethod := mgrValue.MethodByName("GetAllInstancesByID")
-	if !getAllByIDMethod.IsValid() {
-		log.HitMapLogger.Debug("No GetAllInstancesByID method found on InstanceManager")
-		return
-	}
-
-	// Call GetAllInstancesByID() to get NodeID-indexed map
-	instancesByIDResult := getAllByIDMethod.Call(nil)
-	if len(instancesByIDResult) == 0 {
-		log.HitMapLogger.Debug("GetAllInstancesByID returned no results")
-		return
-	}
-
-	// Convert result to map[uint64]ComponentInstance
-	instancesByIDMap := instancesByIDResult[0].Interface()
-	allInstancesByID, ok := instancesByIDMap.(map[uint64]rtui.ComponentInstance)
-	if !ok {
-		log.HitMapLogger.Debug("GetAllInstancesByID result is not map[uint64]ComponentInstance, got %T", instancesByIDMap)
-		return
-	}
-
-	// Also get the legacy key-based map for fallback
-	getAllMethod := mgrValue.MethodByName("GetAllInstances")
-	var allInstancesByKey map[string]rtui.ComponentInstance
-	if getAllMethod.IsValid() {
-		instancesResult := getAllMethod.Call(nil)
-		if len(instancesResult) > 0 {
-			instancesMap := instancesResult[0].Interface()
-			allInstancesByKey, _ = instancesMap.(map[string]rtui.ComponentInstance)
-		}
-	}
-
-	log.HitMapLogger.Debug("Collected %d ComponentInstances by NodeID from Fiber Reconciler", len(allInstancesByID))
-	if allInstancesByKey != nil {
-		log.HitMapLogger.Debug("Collected %d ComponentInstances by Key for fallback", len(allInstancesByKey))
-	}
-
-	// 遍历 HitMap 条目，添加 Instance 引用
-	entries := a.hitMap.AllEntries()
-	log.HitMapLogger.Debug("HitMap has %d entries", len(entries))
-
-	matchedCount := 0
-	for i, entry := range entries {
-		nodeID := entry.NodeID // uint64 from HitMapEntry
-
-		// ✅ NEW: Primary lookup by NodeID
-		if compInst, exists := allInstancesByID[nodeID]; exists {
-			// Found matching ComponentInstance by NodeID
-			var msgHandler runtimeevent.MsgHandler = &componentInstanceAdapter{compInst: compInst}
-			a.hitMap.SetEntryInstance(i, msgHandler)
-			matchedCount++
-			log.HitMapLogger.Debug("✅ Matched: NodeID=%d → Instance", nodeID)
-
-			continue
-		}
-
-		// Fallback: Try key-based lookup for backward compatibility
-		if allInstancesByKey != nil {
-			instanceKey := fmt.Sprintf("vnode:%d", nodeID)
-			if compInst, exists := allInstancesByKey[instanceKey]; exists {
-				// Found matching ComponentInstance by key
-				var msgHandler runtimeevent.MsgHandler = &componentInstanceAdapter{compInst: compInst}
-				a.hitMap.SetEntryInstance(i, msgHandler)
-				matchedCount++
-				log.HitMapLogger.Debug("✅ Matched: Key=%s → Instance (fallback)", instanceKey)
-
-				// ✅ NEW: Assertion - verify NodeID lookup also succeeded
-				// If NodeID lookup failed but key lookup succeeded, log warning
-				// This indicates potential identity system inconsistency
-				if allInstancesByID[nodeID] == nil {
-					log.HitMapLogger.Debug("[enrichHitMapWithInstances] ⚠️  Identity mismatch: NodeID=%d found by key but not by NodeID lookup", nodeID)
-
-				}
-			}
-		}
-	}
-
-	// Debug: Log all instance keys before enrichment
-	if log.HitMapLogger.Enabled() {
-		var nodeIDs []uint64
-		for k := range allInstancesByID {
-			nodeIDs = append(nodeIDs, k)
-		}
-		log.HitMapLogger.Debug("All InstanceManager NodeIDs (%d): %v", len(nodeIDs), nodeIDs)
-		if allInstancesByKey != nil {
-			var keys []string
-			for k := range allInstancesByKey {
-				keys = append(keys, k)
-			}
-			log.HitMapLogger.Debug("All InstanceManager Keys (%d): %v", len(keys), keys)
-		}
-	}
-
-	log.UILogger.Debug("Enriched %d/%d HitMap entries with ComponentInstance references", matchedCount, len(entries))
 }
 
 // GetFocusManager returns the focus manager for keyboard navigation (Fiber-first)

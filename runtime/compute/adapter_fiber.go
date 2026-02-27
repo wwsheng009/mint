@@ -26,18 +26,20 @@ func NewFiberPaintableAdapter(fiber *rtui.Fiber) *FiberPaintableAdapter {
 	return &FiberPaintableAdapter{Fiber: fiber}
 }
 
-// ID returns the Fiber's DiffKey (or Key for compatibility).
+// ID returns the Fiber's NodeID string (for HitMap consistency with ActionTargetID).
 func (a *FiberPaintableAdapter) ID() string {
 	if a.Fiber == nil {
 		return ""
 	}
+	// Return NodeID as string for HitMap consistency with ActionTargetID
+	// This ensures StringToNodeID() will return the original uint64 value
 	if a.Fiber.NodeID != 0 {
-		return fmt.Sprintf("fiber-node-%d",a.Fiber.NodeID) 
+		return fmt.Sprintf("%d", a.Fiber.NodeID)
 	}
 	if a.Fiber.DiffKey != "" {
 		return a.Fiber.DiffKey
 	}
-	return a.Fiber.Key;
+	return a.Fiber.Key
 }
 
 // NodeType returns the paint node type based on Fiber type.

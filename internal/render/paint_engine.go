@@ -544,7 +544,7 @@ func (e *PaintEngine) PaintPaintablePlanes(
 
 	for _, layer := range planes.GetRenderOrder() {
 		boxes := planes.GetLayer(layer)
-		if boxes == nil || len(boxes) == 0 {
+		if len(boxes) == 0 {
 			continue
 		}
 

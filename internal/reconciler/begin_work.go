@@ -109,7 +109,10 @@ func beginWorkComponent(current, workInProgress *Fiber) *Fiber {
 		}
 	} else if currentReconciler != nil && currentReconciler.instanceMgr != nil {
 		// Child component: use InstanceManager for component instance
-		instance = currentReconciler.instanceMgr.GetOrCreate(componentKey, func() rtui.ComponentInstance {
+		// ✅ CRITICAL FIX: Use NodeID instead of componentKey for unique identity
+		// NodeID is guaranteed to be unique for each Fiber node, while Key may be duplicated
+		// across multiple components of the same type (e.g., multiple Button instances with empty Key)
+		instance = currentReconciler.instanceMgr.GetOrCreateByID(workInProgress.NodeID, func() rtui.ComponentInstance {
 			if workInProgress.ComponentFuncWithProps != nil {
 				return rtui.NewBaseComponentInstanceWithProps(componentKey, workInProgress.ComponentFuncWithProps, workInProgress.Props)
 			}

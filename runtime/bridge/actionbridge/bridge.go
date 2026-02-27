@@ -16,6 +16,7 @@ package actionbridge
 import (
 	"fmt"
 
+	"github.com/wwsheng009/mint/internal/log"
 	"github.com/wwsheng009/mint/runtime/action"
 	"github.com/wwsheng009/mint/runtime/ui"
 )
@@ -65,12 +66,14 @@ func (b *Bridge) DispatchFromFiber(
 			if handler, ok := f.Instance.(ui.ActionHandlerInstance); ok {
 				// Create Action object and pass to handler
 				a := action.NewAction(actionType).
-					WithTargetID(f.NodeID).  // Use uint64 ID for performance
+					WithTargetID(f.NodeID). // Use uint64 ID for performance
 					WithPayload(payload)
 				if handler.HandleAction(a) {
 					return true
 				}
 			}
+		} else {
+			log.RenderLogger.Debug("[%s] %s ui.ComponentInstance is nil!", start.Tag, start.Key)
 		}
 
 		// Mode 1: ScopeDispatcher mode (ActionTargetID → registered closure)

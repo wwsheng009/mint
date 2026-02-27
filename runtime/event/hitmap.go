@@ -524,10 +524,15 @@ func BuildHitMapFromEntries(entries []HitMapEntryInternal) *HitMap {
 		}
 	}
 
-	return &HitMap{
+	hm := &HitMap{
 		entries:   hmEntries,
 		buildTime: time.Now(),
 	}
+
+	// Sort by Z-order descending (higher layers first) for correct HitTest behavior
+	hm.sortByZOrder()
+
+	return hm
 }
 
 // Dump 调试输出

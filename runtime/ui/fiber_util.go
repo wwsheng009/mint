@@ -578,6 +578,20 @@ func FindFiberByKey(root *Fiber, key string) *Fiber {
 	return result
 }
 
+// FindFiberByID searches for a fiber with a given NodeID in subtree
+// This is used for HitMap enrichment to set TargetFiber references
+func FindFiberByID(root *Fiber, nodeID uint64) *Fiber {
+	var result *Fiber
+	WalkFiberDepthFirst(root, func(fiber *Fiber) bool {
+		if fiber.NodeID == nodeID {
+			result = fiber
+			return false // Stop traversal
+		}
+		return true
+	})
+	return result
+}
+
 // CountFibers counts all fibers in tree
 func CountFibers(root *Fiber) int {
 	count := 0

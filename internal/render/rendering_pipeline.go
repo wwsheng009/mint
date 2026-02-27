@@ -100,8 +100,8 @@ func (p *RenderingPipeline) Render(vnode rtui.VNode, fiber *reconciler.Fiber, co
 
 	log.PipelineLogger.Debug("Paint complete, err=%v", err)
 
-	// Build HitMap from layout result
-	p.lastHitMap = convertLayoutHitMap(result.HitMap)
+	// Build HitMap from layout result with TargetFiber enrichment
+	p.lastHitMap = convertLayoutHitMap(result.HitMap, fiber)
 
 	if p.lastHitMap != nil {
 		log.PipelineLogger.Debug("Saved HitMap: %d entries", p.lastHitMap.Size())
