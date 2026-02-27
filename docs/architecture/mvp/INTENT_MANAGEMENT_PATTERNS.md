@@ -472,17 +472,19 @@ func TaskBoard() ui.VNode {
 
 ## 五、常见问题与陷阱
 
-### 5.1 闭包捕获陷阱
+### 5.1 闭包捕获陷阱（循环变量）
 
 #### 问题
 ```go
-// ❌ 错误：每次渲染捕获不同的 count 值
+// ❌ 错误：循环中捕获相同的变量引用
 for i := 0; i < 5; i++ {
     ui.On(ui.SimpleIncrementIntent{}, func() {
         fmt.Println(i)  // ❌ 永远打印 4
     })
 }
 ```
+
+**说明**：这与 5.5 节的问题是不同的。5.1 是循环变量捕获问题，5.5 是 RegisterIntent 在组件内注册导致的 handler 引用过期问题。
 
 #### 解决方案
 ```go
@@ -569,6 +571,86 @@ func Component() {
     setValue(123)  // ✅ 组件级状态
 }
 ```
+
+### 5.5 RegisterIntent 闭包引用失效
+
+#### 问题
+```go
+// ❌ 错误：在组件函数内注册 RegisterIntent
+func App() ui.VNode {
+    username, setUsername := ui.UseStateString("")  // 每次渲染都是新变量
+
+    // 问题：handler 持有的是首次渲染时的闭包引用
+    ui.RegisterIntent(func(ctx *intent.ActionContext, i intent.FieldChangeIntent) intent.IntentResult {
+        setUsername(i.Value)  // 闭包引用旧的 setter，状态更新后 UI 不刷新
+        return intent.HandledResult()
+    })
+
+    return app.InputBuilder().ForField(intent.BindField("username")).Value(username).Build()
+}
+```
+
+**为什么失效**：
+1. `RegisterIntent` 注册的 handler 持有的是**首次渲染时**的 `setUsername` 闭包引用
+2. 后续渲染时 `setUsername` 是新的引用
+3. 用户输入触发的是旧 handler，调用旧 setter，状态可能更新但 UI 不会正确刷新
+
+#### 解决方案
+
+**方案 1：WithInit + GlobalState 动态获取（推荐 FieldChangeIntent）**
+
+```go
+// ✅ 在 WithInit 中注册，通过 GlobalState 动态获取 setter
+func main() {
+    ui.Run(App, ui.WithInit(func() {
+        // 只注册一次，持久处理器
+        ui.RegisterIntent(func(ctx *intent.ActionContext, i intent.FieldChangeIntent) intent.IntentResult {
+            switch i.Field {
+            case "username":
+                setUsername, _ := ctx.GetState("usernameSetter")
+                if fn, ok := setUsername.(func(string)); ok {
+                    fn(i.Value)  // 动态获取最新 setter
+                }
+            }
+            return intent.HandledResult()
+        })
+    }))
+}
+
+func App() ui.VNode {
+    username, setUsername := ui.UseStateString("")
+    // 渲染时更新 GlobalState 中的 setter 引用
+    ctx := ui.GetCurrentContext()
+    if ctx != nil {
+        ctx.GlobalState["usernameSetter"] = setUsername
+    }
+    return app.InputBuilder().ForField(intent.BindField("username")).Value(username).Build()
+}
+```
+
+**方案 2：使用 ui.On（有去重机制，适合自定义业务 Intent）**
+
+```go
+// ✅ ui.On 有去重机制（sync.Map），多次渲染只注册一次
+func App() ui.VNode {
+    username, setUsername := ui.UseStateString("")
+
+    // ui.On 可以安全地在组件内使用，不会重复注册
+    ui.On(CustomUpdateIntent{}, func() {
+        setUsername("new value")
+    })
+
+    return app.InputBuilder().ForField(intent.BindField("username")).Value(username).Build()
+}
+```
+
+**最佳实践**：
+
+| 场景 | 注册位置 |
+|------|---------|
+| `FieldChangeIntent`（表单字段变更） | `WithInit` 中注册 |
+| 自定义业务 Intent（组件级状态） | `ui.On` 在组件内注册 |
+| `FieldChangeIntent`（自定义 Intent 替代） | `ui.On` 在组件内注册 |
 
 ---
 

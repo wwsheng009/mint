@@ -1,15 +1,19 @@
 // MVP Components Demo
 //
-// 这个示例展示所有核心表单组件的 ForField() + FieldChangeIntent 模式：
+// 采用【模式3：自定义 Intent】+ FieldChangeIntent + 类型安全 StateKey
+// 展示所有核心表单组件的 ForField() + FieldChangeIntent 模式：
 //   - Input: 用户名、电子邮件
 //   - Textarea: 个人简介
 //   - Select: 国家选择
 //   - Checkbox: 同意条款
 //
 // MVP 数据流：
-//   Instance (缓冲) → FieldChangeIntent → State (事实源) → Setter → VNode → Instance
+//   UI.Instance (缓冲) → FieldChangeIntent → State (事实源) → VNode → UI.Instance (渲染同步)
 //
-// 类型安全：使用 StateKey[T] 定义字段键
+// 三种 Intent 管理模式：
+//   1. 组件级状态 - ui.On + UseState + Simple* Intent（推荐组件内状态）
+//   2. 全局状态 - runtime/intent 内置函数
+//   3. 自定义 Intent + ui.On（本示例）
 //
 // 运行: go run main.go
 
@@ -17,7 +21,6 @@ package main
 
 import (
 	"fmt"
-	"reflect"
 	"strconv"
 
 	"github.com/wwsheng009/mint/app"
@@ -33,56 +36,63 @@ func main() {
 		ui.WithTitle("MVP Components Demo - FieldChangeIntent"),
 		ui.WithInit(func() {
 			// 注册 FieldChangeIntent handler - 统一处理所有字段变更
+			// 在 WithInit 中注册，通过 GlobalState 动态获取 setter
 			ui.RegisterIntent(func(ctx *intent.ActionContext, i intent.FieldChangeIntent) intent.IntentResult {
 				field := i.Field
 				value := i.Value
 
-				// 根据字段名获取对应的 setter
-				var setter interface{}
-
 				switch field {
 				case usernameKey.String():
-					setter, _ = ctx.GetState(usernameSetterKey.String())
-					callSetter(setter, value)
+					if val, _ := ctx.GetState(usernameSetterKey.String()); fn, ok := val.(func(string)); ok {
+						fn(value)
+					}
 				case emailKey.String():
-					setter, _ = ctx.GetState(emailSetterKey.String())
-					callSetter(setter, value)
+					if val, _ := ctx.GetState(emailSetterKey.String()); fn, ok := val.(func(string)); ok {
+						fn(value)
+					}
 				case bioKey.String():
-					setter, _ = ctx.GetState(bioSetterKey.String())
-					callSetter(setter, value)
+					if val, _ := ctx.GetState(bioSetterKey.String()); fn, ok := val.(func(string)); ok {
+						fn(value)
+					}
 				case countryKey.String():
 					// Select 的 value 是索引字符串，转换为 int
-					setter, _ = ctx.GetState(countrySetterKey.String())
-					if idx, err := strconv.Atoi(value); err == nil {
-						callSetter(setter, idx)
+					if val, _ := ctx.GetState(countrySetterKey.String()); fn, ok := val.(func(int)); ok {
+						if idx, err := strconv.Atoi(value); err == nil {
+							fn(idx)
+						}
 					}
 				case agreeKey.String():
-					setter, _ = ctx.GetState(agreeSetterKey.String())
-					agreeVal := value == "true"
-					callSetter(setter, agreeVal)
+					if val, _ := ctx.GetState(agreeSetterKey.String()); fn, ok := val.(func(bool)); ok {
+						agreeVal := value == "true"
+						fn(agreeVal)
+					}
 				}
-
 				return intent.HandledResult()
 			})
 
-			// 注册 Reset 意图
+			// 注册 Reset 意图 - 重置所有状态
 			ui.RegisterIntent(func(ctx *intent.ActionContext, i ResetIntent) intent.IntentResult {
-				// 重置所有状态
-				resetAllStates(ctx)
+				if val, _ := ctx.GetState(usernameSetterKey.String()); fn, ok := val.(func(string)); ok { fn("") }
+				if val, _ := ctx.GetState(emailSetterKey.String()); fn, ok := val.(func(string)); ok { fn("") }
+				if val, _ := ctx.GetState(bioSetterKey.String()); fn, ok := val.(func(string)); ok { fn("") }
+				if val, _ := ctx.GetState(countrySetterKey.String()); fn, ok := val.(func(int)); ok { fn(0) }
+				if val, _ := ctx.GetState(agreeSetterKey.String()); fn, ok := val.(func(bool)); ok { fn(false) }
 				return intent.HandledResult()
 			})
 
 			// 注册 Submit 意图
 			ui.RegisterIntent(func(ctx *intent.ActionContext, i SubmitFormIntent) intent.IntentResult {
-				setSubmitted, _ := ctx.GetState(submittedSetterKey.String())
-				callSetter(setSubmitted, true)
+				if val, _ := ctx.GetState(submittedSetterKey.String()); fn, ok := val.(func(bool)); ok {
+					fn(true)
+				}
 				return intent.HandledResult()
 			})
 
 			// 注册 Back 意图
 			ui.RegisterIntent(func(ctx *intent.ActionContext, i BackFormIntent) intent.IntentResult {
-				setSubmitted, _ := ctx.GetState(submittedSetterKey.String())
-				callSetter(setSubmitted, false)
+				if val, _ := ctx.GetState(submittedSetterKey.String()); fn, ok := val.(func(bool)); ok {
+					fn(false)
+				}
 				return intent.HandledResult()
 			})
 		}),
@@ -90,33 +100,6 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-}
-
-// callSetter 使用反射调用 setter 函数
-func callSetter(fn interface{}, arg interface{}) {
-	if fn == nil {
-		return
-	}
-	v := reflect.ValueOf(fn)
-	if v.Kind() != reflect.Func {
-		return
-	}
-	argV := reflect.ValueOf(arg)
-	v.Call([]reflect.Value{argV})
-}
-
-func resetAllStates(ctx *intent.ActionContext) {
-	setUsername, _ := ctx.GetState(usernameSetterKey.String())
-	setEmail, _ := ctx.GetState(emailSetterKey.String())
-	setBio, _ := ctx.GetState(bioSetterKey.String())
-	setCountry, _ := ctx.GetState(countrySetterKey.String())
-	setAgree, _ := ctx.GetState(agreeSetterKey.String())
-
-	callSetter(setUsername, "")
-	callSetter(setEmail, "")
-	callSetter(setBio, "")
-	callSetter(setCountry, 0)
-	callSetter(setAgree, false)
 }
 
 // =============================================================================

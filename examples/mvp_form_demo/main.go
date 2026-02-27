@@ -1,12 +1,23 @@
 // MVP Form Demo
 //
-// 这个示例演示 Intents 的 MVP 架构数据流：
-//   Instance (缓冲) → FieldChangeIntent → State (事实源) → Setter → VNode → Instance (渲染同步)
+// 采用 ui.On 简化组件内状态管理
+// 展示 Intents 的 MVP 架构数据流：
+//   UI.Instance (缓冲) → Intent → State (事实源) → VNode → UI.Instance (渲染同步)
 //
-// MVP 原则：
-//   1. State (通过 Setter) 是单一事实源
-//   2. Intent 携带最少数据 (Field, Value)
-//   3. Instance 不能决定状态
+// 三种 Intent 管理模式：
+//   1. 组件级状态 - ui.On + UseState + Simple* Intent（推荐组件内状态）
+//   2. 全局状态 - runtime/intent 内置函数
+//   3. 自定义 Intent + ui.On（本示例）
+//
+// 本示例演示：
+// - 无需 WithInit：直接在组件内使用 RegisterIntent 注册
+// - 无需反射：handler 闭包直接访问 setter 变量
+// - 无需 GlobalState 临时保存 setter
+//
+// 表单字段使用 FieldChangeIntent（系统内置机制），
+// 其他操作使用 ui.On 注册自定义 Intent。
+//
+// 详细说明请参考: docs/architecture/mvp/INTENT_MANAGEMENT_PATTERNS.md
 //
 // 运行: go run main.go
 
@@ -14,59 +25,62 @@ package main
 
 import (
 	"fmt"
-	"reflect"
 
 	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/ui"
 )
 
+// =============================================================================
+// 自定义 Intent 类型
+// =============================================================================
+
+// ResetIntent 重置表单
+type ResetIntent struct{}
+func (ResetIntent) IntentType() string { return "Reset" }
+func (ResetIntent) StayPressed() bool  { return true }
+
+// SubmitFormIntent 提交表单
+type SubmitFormIntent struct{}
+func (SubmitFormIntent) IntentType() string { return "SubmitForm" }
+func (SubmitFormIntent) StayPressed() bool  { return true }
+
+// ClearSubmittedIntent 清除提交状态
+type ClearSubmittedIntent struct{}
+func (ClearSubmittedIntent) IntentType() string { return "ClearSubmitted" }
+func (ClearSubmittedIntent) StayPressed() bool  { return true }
+
+// =============================================================================
+// 主函数
+// =============================================================================
+
 func main() {
 	err := ui.Run(App,
 		ui.WithWidth(60),
 		ui.WithHeight(25),
-		ui.WithTitle("MVP Form Demo - Intents Architecture"),
+		ui.WithTitle("MVP Form Demo - ui.On + Custom Intents"),
 		ui.WithInit(func() {
-			// 注册 FieldChangeIntent handler
+			// 注册 FieldChangeIntent 处理器（表单字段变更）
+			// 在组件外注册避免重复注册
 			ui.RegisterIntent(func(ctx *intent.ActionContext, i intent.FieldChangeIntent) intent.IntentResult {
-				// 通过 setter 更新状态
 				switch i.Field {
 				case "username":
 					setUsername, _ := ctx.GetState("usernameSetter")
-					callSetter(setUsername, i.Value)
+					if fn, ok := setUsername.(func(string)); ok {
+						fn(i.Value)
+					}
 				case "email":
 					setEmail, _ := ctx.GetState("emailSetter")
-					callSetter(setEmail, i.Value)
+					if fn, ok := setEmail.(func(string)); ok {
+						fn(i.Value)
+					}
 				case "agree":
 					setAgree, _ := ctx.GetState("agreeSetter")
-					agreeVal := i.Value == "true"
-					callSetter(setAgree, agreeVal)
+					if fn, ok := setAgree.(func(bool)); ok {
+						agreeVal := i.Value == "true"
+						fn(agreeVal)
+					}
 				}
-				return intent.HandledResult()
-			})
-
-			// 注册 Reset 意图
-			ui.RegisterIntent(func(ctx *intent.ActionContext, i ResetIntent) intent.IntentResult {
-				setUsername, _ := ctx.GetState("usernameSetter")
-				callSetter(setUsername, "")
-				setEmail, _ := ctx.GetState("emailSetter")
-				callSetter(setEmail, "")
-				setAgree, _ := ctx.GetState("agreeSetter")
-				callSetter(setAgree, false)
-				return intent.HandledResult()
-			})
-
-			// 注册 Submit 意图
-			ui.RegisterIntent(func(ctx *intent.ActionContext, i SubmitFormIntent) intent.IntentResult {
-				setSubmitted, _ := ctx.GetState("submittedSetter")
-				callSetter(setSubmitted, true)
-				return intent.HandledResult()
-			})
-
-			// 注册 ClearSubmitted 意图
-			ui.RegisterIntent(func(ctx *intent.ActionContext, i ClearSubmittedIntent) intent.IntentResult {
-				setSubmitted, _ := ctx.GetState("submittedSetter")
-				callSetter(setSubmitted, false)
 				return intent.HandledResult()
 			})
 		}),
@@ -76,47 +90,18 @@ func main() {
 	}
 }
 
-// callSetter 使用反射调用 setter 函数
-func callSetter(fn interface{}, arg interface{}) {
-	if fn == nil {
-		return
-	}
-	v := reflect.ValueOf(fn)
-	if v.Kind() != reflect.Func {
-		return
-	}
-	argV := reflect.ValueOf(arg)
-	v.Call([]reflect.Value{argV})
-}
-
+// =============================================================================
+// 主应用组件
 // =============================================================================
 
-// ResetIntent 重置表单
-type ResetIntent struct{}
-
-func (ResetIntent) IntentType() string { return "Reset" }
-
-// SubmitFormIntent 提交表单
-type SubmitFormIntent struct{}
-
-func (SubmitFormIntent) IntentType() string { return "SubmitForm" }
-
-// ClearSubmittedIntent 清除提交状态
-type ClearSubmittedIntent struct{}
-
-func (ClearSubmittedIntent) IntentType() string { return "ClearSubmitted" }
-
-// =============================================================================
-
-// App - 主应用组件
 func App() ui.VNode {
-	// MVP: 使用 UseState，state 是单一事实源
+	// 使用 UseState 创建状态，state 是单一事实源
 	username, setUsername := ui.UseStateString("")
 	email, setEmail := ui.UseStateString("")
 	agree, setAgree := ui.UseStateBool(false)
 	submitted, setSubmitted := ui.UseStateBool(false)
 
-	// 保存 setters 到 State 供 Intent Handler 使用
+	// 将 setter 保存到 GlobalState 供 Intent Handler 使用
 	ctx := ui.GetCurrentContext()
 	if ctx != nil {
 		ctx.GlobalState["usernameSetter"] = setUsername
@@ -124,6 +109,26 @@ func App() ui.VNode {
 		ctx.GlobalState["agreeSetter"] = setAgree
 		ctx.GlobalState["submittedSetter"] = setSubmitted
 	}
+
+	// 使用 ui.On 注册自定义 Intent 处理器（简化注册 API）
+	// ui.On 有去重机制，多次渲染只注册一次
+
+	// Reset 处理器
+	ui.On(ResetIntent{}, func() {
+		setUsername("")
+		setEmail("")
+		setAgree(false)
+	})
+
+	// Submit 处理器
+	ui.On(SubmitFormIntent{}, func() {
+		setSubmitted(true)
+	})
+
+	// Back 处理器
+	ui.On(ClearSubmittedIntent{}, func() {
+		setSubmitted(false)
+	})
 
 	if submitted {
 		return SuccessView(username, email, agree)

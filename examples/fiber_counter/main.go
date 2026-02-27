@@ -1,6 +1,15 @@
 // examples/fiber_counter/main.go - Fiber 模式计数器示例（修复版）
 //
-// 使用 GlobalState + 内置 Intent 模式（与 examples/counter 相同）
+// 采用【模式2：全局状态】runtime/intent 内置 Intent
+// 适用于跨组件共享的状态，使用 Key 标识状态位置
+//
+// 三种 Intent 管理模式：
+//   1. 组件级状态 - ui.On + UseState + Simple* Intent（推荐组件内状态）
+//   2. 全局状态 - runtime/intent 内置函数（本示例）
+//   3. 自定义 Intent - 自定义类型 + ui.On（复杂场景）
+//
+// 详细说明请参考: docs/architecture/mvp/INTENT_MANAGEMENT_PATTERNS.md
+
 package main
 
 import (
@@ -20,8 +29,8 @@ func SimpleCounter() ui.VNode {
 	// 获取当前组件上下文
 	ctx := ui.GetCurrentContext()
 
-	// ✅ 正确方式：直接从 GlobalState 读取值（不使用 UseStateInt）
-	// GlobalState 由 Intent Handler 更新
+	// 从 GlobalState 读取计数（通过 Key "count" 标识）
+	// Intent 内置 handler 会自动处理 Increment/Decrement 操作
 	count := ctx.GetIntState("count", 0)
 
 	// 检查是否使用 Fiber 模式
@@ -43,7 +52,7 @@ func SimpleCounter() ui.VNode {
 
 		),
 		app.Text(""),
-		app.NewTextBuilder(fmt.Sprintf("[Fiber: %v] Using GlobalState + Built-in Intent", isFiber)).
+		app.NewTextBuilder(fmt.Sprintf("[Fiber: %v] 全局状态模式", isFiber)).
 			FgColor("bright-black").
 			Build(),
 	)
@@ -54,11 +63,11 @@ func SimpleCounter() ui.VNode {
 // =============================================================================
 
 func main() {
-	// 不需要自定义 WithInit - 内置 Intent 已经自动注册
+	// 内置 Intent 已自动注册 handler，无需 WithInit
 	err := ui.Run(SimpleCounter,
 		ui.WithWidth(40),
 		ui.WithHeight(10),
-		ui.WithTitle("Fiber Counter (Fixed - using Built-in Intent)"),
+		ui.WithTitle("Fiber Counter - GlobalState 模式"),
 	)
 
 	if err != nil {

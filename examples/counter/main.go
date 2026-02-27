@@ -11,12 +11,22 @@ import (
 )
 
 // Counter is a dynamic counter component using ComponentContext and Intent
+// 采用【模式2：全局状态】runtime/intent 内置 Intent
+// 适用于跨组件共享的状态，使用 Key 标识状态位置
+//
+// 三种 Intent 管理模式：
+//   1. 组件级状态 - ui.On + UseState + Simple* Intent（推荐组件内状态）
+//   2. 全局状态 - runtime/intent 内置函数（本示例）
+//   3. 自定义 Intent - 自定义类型 + ui.On（复杂场景）
+//
+// 详细说明请参考: docs/architecture/mvp/INTENT_MANAGEMENT_PATTERNS.md
 func Counter() ui.VNode {
 	// Get current context (initialized by Fiber-first framework during render)
 	ctx := ui.GetCurrentContext()
 
 	// Read count from GlobalState (incremented by IncrementIntent)
-	// Using default value of 0 for first render
+	// 使用全局状态，通过 Key "count" 标识
+	// IncrementIntent 内置 handler 会自动处理
 	count := ctx.GetIntState("count", 0)
 
 	// Check if running in Fiber mode
