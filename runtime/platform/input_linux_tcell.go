@@ -269,6 +269,13 @@ func (r *tcellInputReader) parseKeyEvent(ev *tcell.EventKey, now time.Time) RawI
 	}
 	}
 
+	// 🔥 关键修复：过滤单独的修饰键
+	// 当单独按下修饰键时（Shift, Ctrl, Alt, Meta），不生成可见按键消息
+	if input.Special == KeyUnknown && input.Key == 0 {
+		// 只有修饰键没有实际字符或特殊键 - 忽略这个事件
+		return RawInput{Type: -1, Timestamp: now}
+	}
+
 	return input
 }
 

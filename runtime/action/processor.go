@@ -173,12 +173,6 @@ func (p *InputProcessor) applyDefaultKeyMapping(keyMsg *runtimemsg.KeyMsg) *Acti
 		return NewActionFromKey(ActionInspect, "keyboard")
 	}
 
-	// Printable characters → Input text
-	if keyMsg.IsPrintable() && !keyMsg.HasModifier() {
-		return NewAction(ActionInputText).
-			WithPayload(string(keyMsg.Rune))
-	}
-
 	// Ctrl combinations default handling
 	if keyMsg.HasCtrl() {
 		switch keyMsg.Special {
@@ -202,6 +196,13 @@ func (p *InputProcessor) applyDefaultKeyMapping(keyMsg *runtimemsg.KeyMsg) *Acti
 				return NewActionFromKey(ActionNavigateEnd, "keyboard")
 			}
 		}
+	}
+	// Printable characters → Input text
+	// Shift is allowed (it changes the character, e.g., a→A, 1→!)
+	// Ctrl and Alt are not allowed (they are shortcuts)
+	if keyMsg.IsPrintable() && !keyMsg.HasCtrl() && !keyMsg.HasAlt() {
+		return NewAction(ActionInputText).
+			WithPayload(string(keyMsg.Rune))
 	}
 
 	return nil

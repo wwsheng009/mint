@@ -192,7 +192,7 @@ func (m *VNodeFocusManager) HandleEvent(ev event.Event) (handled bool, shouldRen
 	if keyEvent.Key.Ctrl {
 		modStr += "Ctrl+"
 	}
-	if keyEvent.Modifiers == event.ModShift {
+	if keyEvent.Key.Shift {
 		modStr += "Shift+"
 	}
 	if keyEvent.Special != 0 { // 0 = KeyUnknown

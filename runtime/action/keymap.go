@@ -44,25 +44,26 @@ type KeySignature struct {
 type Modifier int
 
 const (
-	ModNone Modifier = iota
-	ModCtrl
-	ModAlt
-	ModShift
-	ModMeta
+	ModNone Modifier = 0
+	ModShift Modifier = 1 << iota // 1 (二进制: 0001)
+	ModCtrl                        // 2 (二进制: 0010)
+	ModAlt                         // 4 (二进制: 0100)
+	ModMeta                        // 8 (二进制: 1000)
 )
 
 // String returns modifier string representation
 func (m Modifier) String() string {
 	var parts []string
 
+	// 按照 platform 层的顺序：Shift, Ctrl, Alt, Meta
+	if m&ModShift != 0 {
+		parts = append(parts, "shift")
+	}
 	if m&ModCtrl != 0 {
 		parts = append(parts, "ctrl")
 	}
 	if m&ModAlt != 0 {
 		parts = append(parts, "alt")
-	}
-	if m&ModShift != 0 {
-		parts = append(parts, "shift")
 	}
 	if m&ModMeta != 0 {
 		parts = append(parts, "meta")

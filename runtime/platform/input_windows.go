@@ -52,19 +52,19 @@ func (r *windowsInputReader) Start(events chan<- RawInput) error {
 	r.events = events
 
 	// DEBUG: 打印启动信息
-	if log.WinLogger.Enabled() {
-		log.WinLogger.Debug("[WIN INPUT] Starting...")
+	if log.PlatFormLogger.Enabled() {
+		log.PlatFormLogger.Debug("[WIN INPUT] Starting...")
 	}
 
 	handle, _, err := procGetStdHandle.Call(STD_INPUT_HANDLE)
 	if handle == 0 {
-		if log.WinLogger.Enabled() {
-			log.WinLogger.Debug("[WIN INPUT] Failed to get stdin handle: %v", err)
+		if log.PlatFormLogger.Enabled() {
+			log.PlatFormLogger.Debug("[WIN INPUT] Failed to get stdin handle: %v", err)
 		}
 		return err
 	}
-	if log.WinLogger.Enabled() {
-		log.WinLogger.Debug("[WIN INPUT] Got handle: 0x%x", handle)
+	if log.PlatFormLogger.Enabled() {
+		log.PlatFormLogger.Debug("[WIN INPUT] Got handle: 0x%x", handle)
 	}
 
 	// 🔥 关键修复：先重置控制台到安全模式，防止上次崩溃遗毒
@@ -90,19 +90,17 @@ func (r *windowsInputReader) Start(events chan<- RawInput) error {
 	mode &^= ENABLE_VIRTUAL_TERMINAL_INPUT
 
 	// DEBUG: 打印控制台模式
-	if log.WinLogger.Enabled() {
-		log.WinLogger.Debug("[WIN] Setting console mode: 0x%08X (original: 0x%08X)",
+	if log.PlatFormLogger.Enabled() {
+		log.PlatFormLogger.Debug("[WIN] Setting console mode: 0x%08X (original: 0x%08X)",
 			mode, r.originalMode)
-		log.WinLogger.Debug("[WIN] ENABLE_MOUSE_INPUT=0x%04X, ENABLE_WINDOW_INPUT=0x%04X",
+		log.PlatFormLogger.Debug("[WIN] ENABLE_MOUSE_INPUT=0x%04X, ENABLE_WINDOW_INPUT=0x%04X",
 			ENABLE_MOUSE_INPUT, ENABLE_WINDOW_INPUT)
 	}
 	r.setConsoleMode(handle, mode)
 
 	// Verify the mode was set
 	actualMode := r.getConsoleMode(handle)
-	if os.Getenv("TUI_DEBUG_WINDOWS") == "true" {
-		log.WinLogger.Debug("[WIN] Actual console mode after set: 0x%08X", actualMode)
-	}
+	log.PlatFormLogger.Debug("[WIN] Actual console mode after set: 0x%08X", actualMode)
 
 	// 清空所有待处理的输入事件
 	// fmt.Scanln() 可能会留下一些待处理的事件，特别是 Enter 键
@@ -234,7 +232,7 @@ func (r *windowsInputReader) readSingleRecord(handle uintptr) (*INPUT_RECORD, er
 
 func (r *windowsInputReader) parseRecord(record *INPUT_RECORD) RawInput {
 	// DEBUG: 打印所有事件类型（启用时）
-	log.EventLogger.Debug("[WIN] Event type: %d (KEY=%d, MOUSE=%d, RESIZE=%d)",
+	log.PlatFormLogger.Debug("[WIN] Event type: %d (KEY=%d, MOUSE=%d, RESIZE=%d)",
 		record.EventType, KEY_EVENT, MOUSE_EVENT, WINDOW_BUFFER_SIZE_EVENT)
 
 	now := time.Now()
@@ -329,6 +327,14 @@ func (r *windowsInputReader) parseKeyEvent(record *INPUT_RECORD, now time.Time) 
 		input.Key = rune(keyEvent.UChar)
 	}
 
+	// 🔥 关键修复：过滤单独的修饰键
+	// Windows 虚拟键码：VK_SHIFT=0x10, VK_CONTROL=0x11, VK_MENU(Alt)=0x12
+	// 当单独按下修饰键时，不生成可见按键消息（它只是用来标记其他按键的）
+	if input.Special == KeyUnknown && input.Key == 0 {
+		// 只有修饰键没有实际字符或特殊键 - 忽略这个事件
+		return RawInput{Type: -1, Timestamp: now}
+	}
+
 	// Debug: Print ALL key events (not just modifiers) to see what's happening
 	if log.PlatFormLogger.Enabled() {
 		modStr := ""
@@ -364,10 +370,8 @@ func (r *windowsInputReader) parseMouseEvent(record *INPUT_RECORD, now time.Time
 	}
 
 	// DEBUG: 打印鼠标事件（可以通过环境变量启用）
-	if os.Getenv("TUI_DEBUG_MOUSE") == "true" {
-		log.WinLogger.Debug("[WIN MOUSE] X=%d Y=%d ButtonState=%d Flags=%d",
-			input.MouseX, input.MouseY, mouseEvent.ButtonState, mouseEvent.EventFlags)
-	}
+	log.PlatFormLogger.Debug("[WIN MOUSE] X=%d Y=%d ButtonState=%d Flags=%d",
+		input.MouseX, input.MouseY, mouseEvent.ButtonState, mouseEvent.EventFlags)
 
 	// 确定鼠标按钮
 	buttonState := mouseEvent.ButtonState
@@ -483,14 +487,12 @@ func (r *windowsInputReader) getConsoleMode(handle uintptr) uint32 {
 func (r *windowsInputReader) setConsoleMode(handle uintptr, mode uint32) {
 	ret, _, err := procSetConsoleMode.Call(handle, uintptr(mode))
 	if ret == 0 {
-		if os.Getenv("TUI_DEBUG_WINDOWS") == "true" {
-			log.WinLogger.Debug("[WIN] SetConsoleMode FAILED! handle=0x%x mode=0x%x err=%v", handle, mode, err)
-		}
+		log.PlatFormLogger.Debug("[WIN] SetConsoleMode FAILED! handle=0x%x mode=0x%x err=%v", handle, mode, err)
+
 	} else {
 		// Success - optionally log
-		if os.Getenv("TUI_DEBUG_WINDOWS") == "true" {
-			log.WinLogger.Debug("[WIN] SetConsoleMode success: 0x%x", mode)
-		}
+		log.PlatFormLogger.Debug("[WIN] SetConsoleMode success: 0x%x", mode)
+
 	}
 }
 
