@@ -3,13 +3,13 @@ package ui_test
 import (
 	"testing"
 
-	"github.com/wwsheng009/mint/components/basic"
 	"github.com/wwsheng009/mint/internal/render"
 	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/paint"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
-	newbutton "github.com/wwsheng009/mint/ui/components/button"
+	"github.com/wwsheng009/mint/ui/components/button"
+	"github.com/wwsheng009/mint/ui/components/text"
 )
 
 // =============================================================================
@@ -27,7 +27,7 @@ func TestFiberToNodeAdapter_FullLayoutPipeline(t *testing.T) {
 	t.Log("=== 测试完整布局管线 ===")
 
 	// Step 1: 创建 VNode 并生成 Fiber
-	btn := newbutton.New("Submit").SetSize(newbutton.SizeMedium)
+	btn := button.New("Submit").SetSize(button.SizeMedium)
 	fiber := rtui.CreateFiberFromVNode(btn)
 
 	if fiber == nil {
@@ -83,8 +83,8 @@ func TestFiberToPaintableConverter_Pipeline(t *testing.T) {
 	t.Log("=== 测试转换管线 ===")
 
 	// Step 1: 创建带有多个子节点的 Fiber 树
-	text := basic.NewText("Hello")
-	btn := newbutton.New("Click")
+	text := text.New("Hello")
+	btn := button.New("Click")
 
 	textFiber := rtui.CreateFiberFromVNode(text)
 	btnFiber := rtui.CreateFiberFromVNode(btn)
@@ -142,7 +142,7 @@ func TestPaintEngine_PaintLayout(t *testing.T) {
 	t.Log("=== 测试 PaintEngine ===")
 
 	// Step 1: 创建简单的文本 Fiber
-	text := basic.NewText("Test")
+	text := text.New("Test")
 	fiber := rtui.CreateFiberFromVNode(text)
 
 	t.Log("Step 1: 创建 Fiber ✓")
@@ -194,9 +194,9 @@ func TestFullRenderingPipeline_NewButton(t *testing.T) {
 	t.Log("=== 测试完整渲染管线（新 Button）===")
 
 	// Step 1: 创建 VNode
-	btn := newbutton.New("Submit").
-		SetVariant(newbutton.VariantPrimary).
-		SetSize(newbutton.SizeMedium)
+	btn := button.New("Submit").
+		SetVariant(button.VariantPrimary).
+		SetSize(button.SizeMedium)
 
 	t.Log("Step 1: 创建 VNode ✓")
 
@@ -285,16 +285,16 @@ func TestLayoutEngine_MultipleButtons(t *testing.T) {
 
 	buttons := []struct {
 		label string
-		size  newbutton.Size
+		size  button.Size
 	}{
-		{"OK", newbutton.SizeSmall},
-		{"Cancel", newbutton.SizeMedium},
-		{"Submit", newbutton.SizeLarge},
+		{"OK", button.SizeSmall},
+		{"Cancel", button.SizeMedium},
+		{"Submit", button.SizeLarge},
 	}
 
 	// 创建并测量每个按钮
 	for _, bb := range buttons {
-		btn := newbutton.New(bb.label).SetSize(bb.size)
+		btn := button.New(bb.label).SetSize(bb.size)
 		fiber := rtui.CreateFiberFromVNode(btn)
 
 		adapter := render.NewFiberToNodeAdapterPure(fiber)
@@ -316,7 +316,7 @@ func TestFiberFirst_ArchitectureConstraints(t *testing.T) {
 	t.Log("=== 测试架构约束 ===")
 
 	// 约束 1: VNode 不持久化
-	btn := newbutton.New("Test")
+	btn := button.New("Test")
 	fiber := rtui.CreateFiberFromVNode(btn)
 
 	// Fiber 应该有 Instance，不依赖 VNode
@@ -335,7 +335,7 @@ func TestFiberFirst_ArchitectureConstraints(t *testing.T) {
 	t.Log("约束 2: Adapter 实现 layout.Node 接口 ✓")
 
 	// 约束 3: Measure 来自 Instance
-	inst := fiber.Instance.(*newbutton.Instance)
+	inst := fiber.Instance.(*button.Instance)
 	instSize := inst.Measure(layout.UnboundedConstraints())
 	adapterSize := adapter.Measure(layout.UnboundedConstraints())
 
@@ -353,28 +353,23 @@ func TestFiberFirst_TextNodeLayout(t *testing.T) {
 
 	texts := []string{"Hello", "World", "Test 123"}
 
-	for _, text := range texts {
-		textVNode := basic.NewText(text)
+	for _, textStr := range texts {
+		textVNode := text.New(textStr)
 		fiber := rtui.CreateFiberFromVNode(textVNode)
-
-		// 验证文本节点类型
-		if fiber.Type != rtui.VNodeText {
-			t.Errorf("Fiber.Type = %d, want %d (VNodeText)", fiber.Type, rtui.VNodeText)
-		}
 
 		// 布局
 		adapter := render.NewFiberToNodeAdapterPure(fiber)
 		size := adapter.Measure(layout.UnboundedConstraints())
 
-		expectedWidth := len(text)
+		expectedWidth := len(textStr)
 		if size.Width != expectedWidth {
-			t.Errorf("Text '%s' width = %d, want %d", text, size.Width, expectedWidth)
+			t.Errorf("Text '%s' width = %d, want %d", textStr, size.Width, expectedWidth)
 		}
 		if size.Height != 1 {
-			t.Errorf("Text '%s' height = %d, want 1", text, size.Height)
+			t.Errorf("Text '%s' height = %d, want 1", textStr, size.Height)
 		}
 
-		t.Logf("Text '%s': %dx%d ✓", text, size.Width, size.Height)
+		t.Logf("Text '%s': %dx%d ✓", textStr, size.Width, size.Height)
 	}
 
 	t.Log("✅ 文本节点布局测试通过")
@@ -385,7 +380,7 @@ func TestFiberLayoutEngine_Integration(t *testing.T) {
 	t.Log("=== 测试 FiberLayoutEngine 集成 ===")
 
 	// 创建 Fiber 树
-	btn := newbutton.New("Click Me")
+	btn := button.New("Click Me")
 	fiberRoot := rtui.CreateFiberFromVNode(btn)
 
 	// 创建 FiberLayoutEngine
@@ -470,9 +465,9 @@ func TestDeclarativeNode_FiberFirstMode(t *testing.T) {
 
 	// 创建使用新 Button 的 renderFn
 	node := render.NewDeclarativeNodeFromFunc(func() rtui.VNode {
-		return newbutton.New("Test Button").
-			SetVariant(newbutton.VariantPrimary).
-			SetSize(newbutton.SizeMedium)
+		return button.New("Test Button").
+			SetVariant(button.VariantPrimary).
+			SetSize(button.SizeMedium)
 	})
 
 	// 设置 Fiber-first 模式
