@@ -5,10 +5,58 @@ import (
 	"strings"
 
 	"github.com/wwsheng009/mint/app"
+	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/ui"
 )
 
-// KeyInspectorUI - UI Inspector，在界面中显示所有层次的 KEY 信息
+// =============================================================================
+// Intent Types
+// =============================================================================
+
+type OpenModalIntent struct{}
+func (OpenModalIntent) IntentType() string { return "OpenModal" }
+func (OpenModalIntent) StayPressed() bool  { return true }
+
+type ShowOverlayIntent struct{}
+func (ShowOverlayIntent) IntentType() string { return "ShowOverlay" }
+func (ShowOverlayIntent) StayPressed() bool  { return true }
+
+type ToggleInspectorIntent struct{}
+func (ToggleInspectorIntent) IntentType() string { return "ToggleInspector" }
+func (ToggleInspectorIntent) StayPressed() bool  { return true }
+
+type CloseAllLayersIntent struct{}
+func (CloseAllLayersIntent) IntentType() string { return "CloseAllLayers" }
+func (CloseAllLayersIntent) StayPressed() bool  { return true }
+
+type ToggleShowKeysIntent struct{}
+func (ToggleShowKeysIntent) IntentType() string { return "ToggleShowKeys" }
+func (ToggleShowKeysIntent) StayPressed() bool  { return true }
+
+type ToggleShowPathsIntent struct{}
+func (ToggleShowPathsIntent) IntentType() string { return "ToggleShowPaths" }
+func (ToggleShowPathsIntent) StayPressed() bool  { return true }
+
+type ToggleShowLayersIntent struct{}
+func (ToggleShowLayersIntent) IntentType() string { return "ToggleShowLayers" }
+func (ToggleShowLayersIntent) StayPressed() bool  { return true }
+
+type ModalButtonClickIntent struct{}
+func (ModalButtonClickIntent) IntentType() string { return "ModalButtonClick" }
+func (ModalButtonClickIntent) StayPressed() bool  { return true }
+
+type CloseModalIntent struct{}
+func (CloseModalIntent) IntentType() string { return "CloseModal" }
+func (CloseModalIntent) StayPressed() bool  { return true }
+
+type OverlayButtonClickIntent struct{}
+func (OverlayButtonClickIntent) IntentType() string { return "OverlayButtonClick" }
+func (OverlayButtonClickIntent) StayPressed() bool  { return true }
+
+// =============================================================================
+// KeyInspectorUI - UI Inspector
+// =============================================================================
+
 func main() {
 	fmt.Println("\n" + strings.Repeat("=", 80))
 	fmt.Println("🔑 UI Key Inspector - 交互式调试工具")
@@ -17,15 +65,48 @@ func main() {
 	fmt.Println("按 'q' 退出应用")
 	fmt.Println("")
 
-	// 状态管理
-	var modalOpen bool
-	var overlayVisible bool
-	var inspectorEnabled bool = true
-	var showKeys bool = true
-	var showPaths bool = true
-	var showLayers bool = true
-
 	ui.Run(func() ui.VNode {
+		// 使用 UseState 管理状态
+		modalOpen, setModalOpen := ui.UseStateBool(false)
+		overlayVisible, setOverlayVisible := ui.UseStateBool(false)
+		inspectorEnabled, setInspectorEnabled := ui.UseStateBool(true)
+		showKeys, setShowKeys := ui.UseStateBool(true)
+		showPaths, setShowPaths := ui.UseStateBool(true)
+		showLayers, setShowLayers := ui.UseStateBool(true)
+
+		// 使用 ui.On 注册 Intent handler（闭包捕获最新状态值）
+		ui.On(OpenModalIntent{}, func() {
+			setModalOpen(true)
+		})
+		ui.On(ShowOverlayIntent{}, func() {
+			setOverlayVisible(true)
+		})
+		ui.On(ToggleInspectorIntent{}, func() {
+			setInspectorEnabled(!inspectorEnabled)
+		})
+		ui.On(CloseAllLayersIntent{}, func() {
+			setModalOpen(false)
+			setOverlayVisible(false)
+		})
+		ui.On(ToggleShowKeysIntent{}, func() {
+			setShowKeys(!showKeys)
+		})
+		ui.On(ToggleShowPathsIntent{}, func() {
+			setShowPaths(!showPaths)
+		})
+		ui.On(ToggleShowLayersIntent{}, func() {
+			setShowLayers(!showLayers)
+		})
+		ui.On(ModalButtonClickIntent{}, func() {
+			fmt.Println("Modal button clicked!")
+		})
+		ui.On(CloseModalIntent{}, func() {
+			setModalOpen(false)
+		})
+		ui.On(OverlayButtonClickIntent{}, func() {
+			fmt.Println("Overlay button clicked!")
+		})
+
 		// Base layer content
 		baseContent := app.VStack(
 			app.NewTextBuilder("🔑 UI Key Inspector 演示").Bold(true).FgColor("cyan").Build(),
@@ -33,39 +114,24 @@ func main() {
 			app.NewTextBuilder("点击按钮打开不同的 layer，观察 Inspector 中的 KEY 变化").FgColor("gray").Build(),
 			app.Text(""),
 			app.ButtonBuilder("打开 Modal").
-				OnClick(func() {
-					modalOpen = true
-				}).
+				OnPress(OpenModalIntent{}).
 				Build(),
 			app.ButtonBuilder("显示 Overlay").
-				OnClick(func() {
-					overlayVisible = true
-				}).
+				OnPress(ShowOverlayIntent{}).
 				Build(),
 			app.ButtonBuilder("切换 Inspector").
-				OnClick(func() {
-					inspectorEnabled = !inspectorEnabled
-				}).
+				OnPress(ToggleInspectorIntent{}).
 				Build(),
 			app.ButtonBuilder("关闭所有 Layers").
-				OnClick(func() {
-					modalOpen = false
-					overlayVisible = false
-				}).
+				OnPress(CloseAllLayersIntent{}).
 				Build(),
 			app.Text(""),
 			app.NewTextBuilder("─────────────────────────────────").FgColor("gray").Build(),
 			app.NewTextBuilder("显示选项:").FgColor("cyan").Build(),
 			app.Text(""),
-			buildCheckbox("显示 Keys", showKeys, func() {
-				showKeys = !showKeys
-			}),
-			buildCheckbox("显示 Paths", showPaths, func() {
-				showPaths = !showPaths
-			}),
-			buildCheckbox("显示 Layer 标记", showLayers, func() {
-				showLayers = !showLayers
-			}),
+			buildCheckbox("显示 Keys", showKeys, ToggleShowKeysIntent{}),
+			buildCheckbox("显示 Paths", showPaths, ToggleShowPathsIntent{}),
+			buildCheckbox("显示 Layer 标记", showLayers, ToggleShowLayersIntent{}),
 		)
 
 		var modalContent ui.VNode
@@ -75,14 +141,10 @@ func main() {
 				app.NewTextBuilder("观察 Inspector 中这个节点的 KEY").FgColor("gray").Build(),
 				app.Text(""),
 				app.ButtonBuilder("Modal 内部的按钮").
-					OnClick(func() {
-						fmt.Println("Modal button clicked!")
-					}).
+					OnPress(ModalButtonClickIntent{}).
 					Build(),
 				app.ButtonBuilder("关闭 Modal").
-					OnClick(func() {
-						modalOpen = false
-					}).
+					OnPress(CloseModalIntent{}).
 					Build(),
 			)
 		}
@@ -94,9 +156,7 @@ func main() {
 				app.NewTextBuilder("观察 Inspector 中这个节点的 KEY").FgColor("gray").Build(),
 				app.Text(""),
 				app.ButtonBuilder("Overlay 按钮").
-					OnClick(func() {
-						fmt.Println("Overlay button clicked!")
-					}).
+					OnPress(OverlayButtonClickIntent{}).
 					Build(),
 			)
 		}
@@ -128,7 +188,7 @@ func main() {
 }
 
 // buildCheckbox 创建一个简单的 checkbox (使用 text + button 模拟)
-func buildCheckbox(label string, checked bool, onClick func()) ui.VNode {
+func buildCheckbox(label string, checked bool, toggleIntent intent.Intent) ui.VNode {
 	var status string
 	if checked {
 		status = "[X] "
@@ -139,7 +199,7 @@ func buildCheckbox(label string, checked bool, onClick func()) ui.VNode {
 	return app.HStack(
 		app.NewTextBuilder(status+label).Build(),
 		app.ButtonBuilder("切换").
-			OnClick(onClick).
+			OnPress(toggleIntent).
 			Build(),
 	)
 }

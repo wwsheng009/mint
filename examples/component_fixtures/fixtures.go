@@ -14,6 +14,14 @@ import (
 	"github.com/wwsheng009/mint/ui"
 )
 
+// =============================================================================
+// Intent Types
+// =============================================================================
+
+type ModalCloseIntent struct{}
+func (ModalCloseIntent) IntentType() string { return "ModalClose" }
+func (ModalCloseIntent) StayPressed() bool  { return true }
+
 // ComponentFixture represents a testable UI component configuration
 type ComponentFixture struct {
 	Name        string
@@ -198,6 +206,11 @@ func buildContentArea(input string, items []string) ui.VNode {
 
 // BuildDemo1ConfirmModal builds a confirmation modal
 func BuildDemo1ConfirmModal(onClose func()) ui.VNode {
+	// 使用 ui.On 注册 Intent handler（简单场景）
+	ui.On(ModalCloseIntent{}, func() {
+		onClose()
+	})
+
 	modalBox := ui.Bordered().
 		Style(string(theme.Warning())).
 		Width(40).
@@ -214,14 +227,14 @@ func BuildDemo1ConfirmModal(onClose func()) ui.VNode {
 				ui.HStackBuilder(
 					app.ButtonBuilder("[ Cancel ]").
 						Variant(app.ButtonVariantSecondary).
-						OnClick(onClose).
+						OnPress(ModalCloseIntent{}).
 						FocusStyle(app.FocusStyleBracket).
 						Build(),
 					ui.Text(" "),
 					app.ButtonBuilder("[ OK ]").
 						Variant(app.ButtonVariantSuccess).
 						FocusStyle(app.FocusStyleBracket).
-						OnClick(onClose).
+						OnPress(ModalCloseIntent{}).
 						Build(),
 				).Align(ui.AlignCenter).Build(),
 				ui.Text(""),
