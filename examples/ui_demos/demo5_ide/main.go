@@ -19,7 +19,49 @@ import (
 	"github.com/wwsheng009/mint/ui"
 )
 
+// Intent Types
+type ShowCommandPaletteIntent struct{}
+func (ShowCommandPaletteIntent) IntentType() string { return "ShowCommandPalette" }
+func (ShowCommandPaletteIntent) StayPressed() bool  { return true }
+
+type HideCommandPaletteIntent struct{}
+func (HideCommandPaletteIntent) IntentType() string { return "HideCommandPalette" }
+func (HideCommandPaletteIntent) StayPressed() bool  { return true }
+
+type SetActiveFileIntent struct {
+	Name string
+}
+func (SetActiveFileIntent) IntentType() string { return "SetActiveFile" }
+func (SetActiveFileIntent) StayPressed() bool  { return true }
+
+type SetSelectedTabIntent struct {
+	TabID string
+}
+func (SetSelectedTabIntent) IntentType() string { return "SetSelectedTab" }
+func (SetSelectedTabIntent) StayPressed() bool  { return true }
+
+// Global setters for handling dynamic intents
+// Note: This pattern uses global variables to work around the ui.On deduplication issue
+// See docs/architecture/mvp/INTENT_MANAGEMENT_PATTERNS.md for details
+var (
+	globalSetShowCommandPalette func(bool)
+	globalSetActiveFile         func(string)
+	globalSetSelectedTab        func(string)
+)
+
 func main() {
+	// Register intent handlers once at application start
+	ui.On(ShowCommandPaletteIntent{}, func() {
+		if globalSetShowCommandPalette != nil {
+			globalSetShowCommandPalette(true)
+		}
+	})
+	ui.On(HideCommandPaletteIntent{}, func() {
+		if globalSetShowCommandPalette != nil {
+			globalSetShowCommandPalette(false)
+		}
+	})
+
 	err := ui.Run(IDEDemo,
 		ui.WithWidth(100),
 		ui.WithHeight(40),
@@ -35,7 +77,26 @@ func IDEDemo() ui.VNode {
 	activeFile, setActiveFile := ui.UseStateString("main.go")
 	showCommandPalette, setShowCommandPalette := ui.UseStateBool(false)
 	selectedTab, setSelectedTab := ui.UseStateString("editor")
-	editorContent, setEditorContent := ui.UseStateString("func main() {\n    ui.Run(App)\n}")
+	editorContent, setEditorContent := ui.UseStateString("func main() {\\n    ui.Run(App)\\n}")
+
+	// Update global setters
+	globalSetShowCommandPalette = setShowCommandPalette
+	globalSetActiveFile = setActiveFile
+	globalSetSelectedTab = setSelectedTab
+
+	// Register file selection handler
+	ui.On(SetActiveFileIntent{Name: activeFile}, func() {
+		if globalSetActiveFile != nil {
+			globalSetActiveFile(activeFile)
+		}
+	})
+
+	// Register tab selection handler
+	ui.On(SetSelectedTabIntent{TabID: selectedTab}, func() {
+		if globalSetSelectedTab != nil {
+			globalSetSelectedTab(selectedTab)
+		}
+	})
 
 	return ui.VStack(
 		MenuBar(setShowCommandPalette),
@@ -85,9 +146,7 @@ func MenuBar(setShowCommandPalette func(bool)) ui.VNode {
 			app.ButtonBuilder("[Ctrl+P] Command Palette").
 				BgColor("yellow").
 				FgColor("black").
-				OnClick(func() {
-					setShowCommandPalette(true)
-				}).
+				OnPress(ShowCommandPaletteIntent{}).
 				Build(),
 			app.NewTextBuilder("  ║").
 				FgColor("blue").
@@ -172,7 +231,7 @@ func FileExplorer(activeFile string, setActiveFile func(string)) ui.VNode {
 			item = ui.HStack(
 				item,
 				app.ButtonBuilder(" ").
-					OnClick(func() { setActiveFile(f.name) }).
+					OnPress(SetActiveFileIntent{Name: f.name}).
 					Build(),
 			)
 		}
@@ -233,11 +292,11 @@ func TabsBar(selectedTab string, setSelectedTab func(string), activeFile string)
 			tabBtn = app.ButtonBuilder(" "+tab.label+" ").
 				BgColor("white").
 				FgColor("black").
-				OnClick(func() { setSelectedTab(tab.id) }).
+				OnPress(SetSelectedTabIntent{TabID: tab.id}).
 				Build()
 		} else {
 			tabBtn = app.ButtonBuilder(" "+tab.label+" ").
-				OnClick(func() { setSelectedTab(tab.id) }).
+				OnPress(SetSelectedTabIntent{TabID: tab.id}).
 				Build()
 		}
 		children = append(children, tabBtn)
