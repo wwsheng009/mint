@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/wwsheng009/mint/internal/log"
-	"github.com/wwsheng009/mint/runtime/intent"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
 
@@ -556,20 +555,4 @@ func depsEqual(a, b []interface{}) bool {
 		}
 	}
 	return true
-}
-
-// =============================================================================
-// Intent API 导出 (from runtime/ui)
-// =============================================================================
-
-// RegisterIntent registers an intent handler for a specific intent type.
-// This is a wrapper around rtui.RegisterIntent for convenience.
-// Call this before ui.Run() to register global intent handlers.
-func RegisterIntent[T intent.Intent](handler intent.TypedHandler[T]) func() {
-	return rtui.RegisterIntent(handler)
-}
-
-// EmitIntentGlobal emits an intent through the global runtime.
-func EmitIntentGlobal(i intent.Intent) intent.IntentResult {
-	return rtui.EmitIntentGlobal(i)
 }
