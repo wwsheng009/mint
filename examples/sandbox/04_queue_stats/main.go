@@ -13,11 +13,38 @@ import (
 	"github.com/wwsheng009/mint/ui"
 )
 
+// Intent Types
+type IncrementStatsIntent struct{}
+func (IncrementStatsIntent) IntentType() string { return "IncrementStats" }
+func (IncrementStatsIntent) StayPressed() bool  { return true }
+
+type DecrementStatsIntent struct{}
+func (DecrementStatsIntent) IntentType() string { return "DecrementStats" }
+func (DecrementStatsIntent) StayPressed() bool  { return true }
+
 // StatsApp 显示队列统计的应用
 func StatsApp() ui.VNode {
 	count, setCount, _ := ui.UseStateInt(0)
 	events, setEvents, _ := ui.UseStateInt(0)
 	memory, setMemory, _ := ui.UseStateInt(0)
+
+	// Register intent handlers
+	ui.On(IncrementStatsIntent{}, func() {
+		setCount(count + 1)
+		setEvents(events + 1)
+		setMemory(memory + 128)
+	})
+	ui.On(DecrementStatsIntent{}, func() {
+		if count > 0 {
+			setCount(count - 1)
+		}
+		if events > 0 {
+			setEvents(events - 1)
+		}
+		if memory > 0 {
+			setMemory(memory - 128)
+		}
+	})
 
 	return ui.VStack(
 		app.NewTextBuilder("╔══════════════════════════════╗").
@@ -53,24 +80,10 @@ func StatsApp() ui.VNode {
 		),
 		ui.Text(""),
 		app.ButtonBuilder("  [ + ]  ").
-			OnClick(func() {
-				setCount(count + 1)
-				setEvents(events + 1)
-				setMemory(memory + 128)
-			}).
+			OnPress(IncrementStatsIntent{}).
 			Build(),
 		app.ButtonBuilder("  [ - ]  ").
-			OnClick(func() {
-				if count > 0 {
-					setCount(count - 1)
-				}
-				if events > 0 {
-					setEvents(events - 1)
-				}
-				if memory > 0 {
-					setMemory(memory - 128)
-				}
-			}).
+			OnPress(DecrementStatsIntent{}).
 			Build(),
 		ui.Text(""),
 		app.NewTextBuilder("──────────────────────────────────").
