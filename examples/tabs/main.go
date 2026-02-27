@@ -5,10 +5,34 @@ import (
 	"github.com/wwsheng009/mint/ui"
 )
 
+// Intent Types
+type SetHomeTabIntent struct{}
+func (SetHomeTabIntent) IntentType() string { return "SetHomeTab" }
+func (SetHomeTabIntent) StayPressed() bool  { return true }
+
+type SetProfileTabIntent struct{}
+func (SetProfileTabIntent) IntentType() string { return "SetProfileTab" }
+func (SetProfileTabIntent) StayPressed() bool  { return true }
+
+type SetSettingsTabIntent struct{}
+func (SetSettingsTabIntent) IntentType() string { return "SetSettingsTab" }
+func (SetSettingsTabIntent) StayPressed() bool  { return true }
+
 func main() {
 	ui.Run(func() ui.VNode {
 		// Use int for tab state: 0 = Home, 1 = Profile, 2 = Settings
 		activeTab, setActiveTab, _ := ui.UseStateInt(0)
+
+		// Register intent handlers
+		ui.On(SetHomeTabIntent{}, func() {
+			setActiveTab(0)
+		})
+		ui.On(SetProfileTabIntent{}, func() {
+			setActiveTab(1)
+		})
+		ui.On(SetSettingsTabIntent{}, func() {
+			setActiveTab(2)
+		})
 
 		// Tab content based on active tab
 		var content ui.VNode
@@ -48,23 +72,17 @@ func main() {
 			app.Text(""),
 			app.HStack(
 				app.ButtonBuilder(" Home ").
-					OnClick(func() {
-						setActiveTab(0)
-					}).
+					OnPress(SetHomeTabIntent{}).
 					Build(),
 				app.ButtonBuilder(" Profile ").
-					OnClick(func() {
-						setActiveTab(1)
-					}).
+					OnPress(SetProfileTabIntent{}).
 					Build(),
 				app.ButtonBuilder(" Settings ").
-					OnClick(func() {
-						setActiveTab(2)
-					}).
+					OnPress(SetSettingsTabIntent{}).
 					Build(),
 			),
 			app.Text(""),
-			app.DividerBuilder().Style(app.DividerDashed).Build(),
+			ui.Text("─────────────────────────────────────"),
 			app.Text(""),
 			content,
 		)
