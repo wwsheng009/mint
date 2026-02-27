@@ -15,10 +15,29 @@ import (
 	"github.com/wwsheng009/mint/ui"
 )
 
+// Intent Types
+type IncrementStrategyIntent struct{}
+func (IncrementStrategyIntent) IntentType() string { return "Increment" }
+func (IncrementStrategyIntent) StayPressed() bool  { return true }
+
+type DecrementStrategyIntent struct{}
+func (DecrementStrategyIntent) IntentType() string { return "Decrement" }
+func (DecrementStrategyIntent) StayPressed() bool  { return true }
+
 // StrategyApp 演示注入策略的应用
 func StrategyApp() ui.VNode {
 	count, setCount, _ := ui.UseStateInt(0)
 	strategy, _ := ui.UseStateString("Allowed")
+
+	// Register intent handlers
+	ui.On(IncrementStrategyIntent{}, func() {
+		setCount(count + 1)
+	})
+	ui.On(DecrementStrategyIntent{}, func() {
+		if count > 0 {
+			setCount(count - 1)
+		}
+	})
 
 	return ui.VStack(
 		app.NewTextBuilder("╔══════════════════════════════╗").
@@ -45,16 +64,10 @@ func StrategyApp() ui.VNode {
 			Build(),
 		ui.Text(""),
 		app.ButtonBuilder("  [ + ]  ").
-			OnClick(func() {
-				setCount(count + 1)
-			}).
+			OnPress(IncrementStrategyIntent{}).
 			Build(),
 		app.ButtonBuilder("  [ - ]  ").
-			OnClick(func() {
-				if count > 0 {
-					setCount(count - 1)
-				}
-			}).
+			OnPress(DecrementStrategyIntent{}).
 			Build(),
 		ui.Text(""),
 		app.NewTextBuilder("──────────────────────────────────").
