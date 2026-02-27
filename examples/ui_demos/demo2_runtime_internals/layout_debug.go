@@ -50,7 +50,7 @@ func TestControlPanelLayout() ui.VNode {
 	wrappedButtons := app.WrapBuilder(allButtons...).
 		Gap(1).
 		RowGap(0).
-		ScreenWidth(78).
+		Width(78). // ScreenWidth renamed to Width
 		Align(ui.AlignCenter).
 		FillWidth().
 		Build()

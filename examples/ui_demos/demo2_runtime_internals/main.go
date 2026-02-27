@@ -21,6 +21,47 @@ import (
 	"github.com/wwsheng009/mint/ui"
 )
 
+// Intent Types
+type SetEventPhaseIntent struct{}
+func (SetEventPhaseIntent) IntentType() string { return "SetEventPhase" }
+func (SetEventPhaseIntent) StayPressed() bool  { return true }
+
+type SetSetStatePhaseIntent struct{}
+func (SetSetStatePhaseIntent) IntentType() string { return "SetSetStatePhase" }
+func (SetSetStatePhaseIntent) StayPressed() bool  { return true }
+
+type SetSchedulerPhaseIntent struct{}
+func (SetSchedulerPhaseIntent) IntentType() string { return "SetSchedulerPhase" }
+func (SetSchedulerPhaseIntent) StayPressed() bool  { return true }
+
+type SetRenderPhaseIntent struct{}
+func (SetRenderPhaseIntent) IntentType() string { return "SetRenderPhase" }
+func (SetRenderPhaseIntent) StayPressed() bool  { return true }
+
+type SetReconcilePhaseIntent struct{}
+func (SetReconcilePhaseIntent) IntentType() string { return "SetReconcilePhase" }
+func (SetReconcilePhaseIntent) StayPressed() bool  { return true }
+
+type SetLayoutPhaseIntent struct{}
+func (SetLayoutPhaseIntent) IntentType() string { return "SetLayoutPhase" }
+func (SetLayoutPhaseIntent) StayPressed() bool  { return true }
+
+type SetPaintPhaseIntent struct{}
+func (SetPaintPhaseIntent) IntentType() string { return "SetPaintPhase" }
+func (SetPaintPhaseIntent) StayPressed() bool  { return true }
+
+type SetIdlePhaseIntent struct{}
+func (SetIdlePhaseIntent) IntentType() string { return "SetIdlePhase" }
+func (SetIdlePhaseIntent) StayPressed() bool  { return true }
+
+// Global setters for control panel
+var (
+	globalSetCurrentPhase       func(string)
+	globalSetEventCount         func(interface{})
+	globalSetRenderCount        func(interface{})
+	globalSetBufferUpdates      func(interface{})
+)
+
 func main() {
 	// Check if layout debug mode is enabled
 	if os.Getenv("TUI_UI_DEBUG_LAYOUT") == "true" || os.Getenv("TUI_LAYOUT_DEBUG") == "true" {
@@ -48,11 +89,68 @@ func RuntimeDemo() ui.VNode {
 	renderCount, setRenderCount, _ := ui.UseStateInt(0)
 	bufferUpdates, setBufferUpdates, _ := ui.UseStateInt(0)
 
+	// Update global setters
+	globalSetCurrentPhase = setCurrentPhase
+	globalSetEventCount = setEventCount
+	globalSetRenderCount = setRenderCount
+	globalSetBufferUpdates = setBufferUpdates
+
+	// Register intent handlers
+	ui.On(SetEventPhaseIntent{}, func() {
+		if globalSetCurrentPhase != nil {
+			globalSetCurrentPhase("Event")
+		}
+		if globalSetEventCount != nil {
+			globalSetEventCount(func(c int) int { return c + 1 })
+		}
+	})
+	ui.On(SetSetStatePhaseIntent{}, func() {
+		if globalSetCurrentPhase != nil {
+			globalSetCurrentPhase("setState")
+		}
+	})
+	ui.On(SetSchedulerPhaseIntent{}, func() {
+		if globalSetCurrentPhase != nil {
+			globalSetCurrentPhase("Scheduler")
+		}
+		if globalSetRenderCount != nil {
+			globalSetRenderCount(func(c int) int { return c + 1 })
+		}
+	})
+	ui.On(SetRenderPhaseIntent{}, func() {
+		if globalSetCurrentPhase != nil {
+			globalSetCurrentPhase("Render")
+		}
+	})
+	ui.On(SetReconcilePhaseIntent{}, func() {
+		if globalSetCurrentPhase != nil {
+			globalSetCurrentPhase("Reconcile")
+		}
+	})
+	ui.On(SetLayoutPhaseIntent{}, func() {
+		if globalSetCurrentPhase != nil {
+			globalSetCurrentPhase("Layout")
+		}
+	})
+	ui.On(SetPaintPhaseIntent{}, func() {
+		if globalSetCurrentPhase != nil {
+			globalSetCurrentPhase("Paint")
+		}
+		if globalSetBufferUpdates != nil {
+			globalSetBufferUpdates(func(c int) int { return c + 1 })
+		}
+	})
+	ui.On(SetIdlePhaseIntent{}, func() {
+		if globalSetCurrentPhase != nil {
+			globalSetCurrentPhase("idle")
+		}
+	})
+
 	return ui.VStack(
 		HeaderPanel(),
 		PipelineVisualization(currentPhase),
 		StatisticsPanel(eventCount, renderCount, bufferUpdates),
-		ControlPanel(setCurrentPhase, setEventCount, setRenderCount, setBufferUpdates),
+		ControlPanel(),
 		ExplanationPanel(currentPhase),
 	)
 }
@@ -177,67 +275,43 @@ func StatisticsPanel(eventCount, renderCount, bufferUpdates int) ui.VNode {
 
 // ControlPanel provides buttons to trigger each phase
 // Uses Wrap component for automatic wrapping based on screen width
-func ControlPanel(
-	setCurrentPhase func(string),
-	setEventCount func(interface{}),
-	setRenderCount func(interface{}),
-	setBufferUpdates func(interface{}),
-) ui.VNode {
+func ControlPanel() ui.VNode {
 	// Create all buttons as a slice
 	allButtons := []ui.VNode{
 		app.ButtonBuilder("[1] Event").
 			Variant(app.ButtonVariantDanger).
-			OnClick(func() {
-				setCurrentPhase("Event")
-				setEventCount(func(c int) int { return c + 1 })
-			}).
+			OnPress(SetEventPhaseIntent{}).
 			FocusStyle(app.FocusStyleBracket).
 			Build(),
 		app.ButtonBuilder("[2]setState").
 			Variant(app.ButtonVariantSecondary).
-			OnClick(func() {
-				setCurrentPhase("setState")
-			}).
+			OnPress(SetSetStatePhaseIntent{}).
 			FocusStyle(app.FocusStyleBracket).
 			Build(),
 		app.ButtonBuilder("[3]Scheduler").
 			Variant(app.ButtonVariantSuccess).
-			OnClick(func() {
-				setCurrentPhase("Scheduler")
-				setRenderCount(func(c int) int { return c + 1 })
-			}).
+			OnPress(SetSchedulerPhaseIntent{}).
 			FocusStyle(app.FocusStyleBracket).
 			Build(),
 		app.ButtonBuilder("[4] Render").
 			Variant(app.ButtonVariantPrimary).
-			OnClick(func() {
-				setCurrentPhase("Render")
-			}).
+			OnPress(SetRenderPhaseIntent{}).
 			FocusStyle(app.FocusStyleBracket).
 			Build(),
 		app.ButtonBuilder("[5]Reconcile").
-			OnClick(func() {
-				setCurrentPhase("Reconcile")
-			}).
+			OnPress(SetReconcilePhaseIntent{}).
 			FocusStyle(app.FocusStyleBracket).
 			Build(),
 		app.ButtonBuilder("[6] Layout").
-			OnClick(func() {
-				setCurrentPhase("Layout")
-			}).
+			OnPress(SetLayoutPhaseIntent{}).
 			FocusStyle(app.FocusStyleBracket).
 			Build(),
 		app.ButtonBuilder("[7] Paint").
-			OnClick(func() {
-				setCurrentPhase("Paint")
-				setBufferUpdates(func(c int) int { return c + 1 })
-			}).
+			OnPress(SetPaintPhaseIntent{}).
 			FocusStyle(app.FocusStyleBracket).
 			Build(),
 		app.ButtonBuilder("[0] Idle").
-			OnClick(func() {
-				setCurrentPhase("idle")
-			}).
+			OnPress(SetIdlePhaseIntent{}).
 			FocusStyle(app.FocusStyleBracket).
 			Build(),
 	}
@@ -248,7 +322,7 @@ func ControlPanel(
 	wrappedButtons := app.WrapBuilder(allButtons...).
 		Gap(1).                    // 1 space gap between buttons
 		RowGap(0).                 // No extra gap between rows
-		ScreenWidth(78).           // Container width (80) - borders (2) = 78
+		Width(78).                 // Container width (80) - borders (2) = 78 (ScreenWidth renamed to Width)
 		Align(ui.AlignCenter).     // Center each button within its allocated space
 		FillWidth().               // Stretch each row to fill width
 		Build()
