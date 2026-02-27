@@ -8,9 +8,26 @@ import (
 	"github.com/wwsheng009/mint/ui"
 )
 
+// Intent Types
+type DecrementIntent struct{}
+func (DecrementIntent) IntentType() string { return "Decrement" }
+func (DecrementIntent) StayPressed() bool  { return true }
+
+type IncrementIntent struct{}
+func (IncrementIntent) IntentType() string { return "Increment" }
+func (IncrementIntent) StayPressed() bool  { return true }
+
 // SimpleCounter is a counter component for Fiber testing
 func SimpleCounter() ui.VNode {
 	count, setCount, _ := ui.UseStateInt(0)
+
+	// Register intent handlers using ui.On
+	ui.On(DecrementIntent{}, func() {
+		setCount(func(c int) int { return c - 1 })
+	})
+	ui.On(IncrementIntent{}, func() {
+		setCount(func(c int) int { return c + 1 })
+	})
 
 	return ui.VStack(
 		app.NewTextBuilder("Fiber Reconciler Test").
@@ -24,15 +41,11 @@ func SimpleCounter() ui.VNode {
 		ui.Text(""),
 		ui.HStack(
 			app.ButtonBuilder("  -  ").
-				OnClick(func() {
-					setCount(func(c int) int { return c - 1 })
-				}).
+				OnPress(DecrementIntent{}).
 				Build(),
 			ui.Text("   "),
 			app.ButtonBuilder("  +  ").
-				OnClick(func() {
-					setCount(func(c int) int { return c + 1 })
-				}).
+				OnPress(IncrementIntent{}).
 				Build(),
 		),
 		ui.Text(""),
