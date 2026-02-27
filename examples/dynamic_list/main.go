@@ -8,6 +8,11 @@ import (
 	"github.com/wwsheng009/mint/ui"
 )
 
+// Intent Types
+type IncrementTodoItemIntent struct{}
+func (IncrementTodoItemIntent) IntentType() string { return "IncrementTodoItem" }
+func (IncrementTodoItemIntent) StayPressed() bool  { return true }
+
 // Todo represents a todo item
 type Todo struct {
 	ID   int
@@ -24,6 +29,11 @@ func TodoItem(props ui.Props) ui.VNode {
 
 	// Local state for this item - preserved across re-renders
 	count, setCount, _ := ui.UseStateInt(0)
+
+	// Register intent handler for increment
+	ui.On(IncrementTodoItemIntent{}, func() {
+		setCount(func(c int) int { return c + 1 })
+	})
 
 	// This simulates some local state that should be preserved
 	// when the item is re-rendered (due to parent update)
@@ -47,9 +57,7 @@ func TodoItem(props ui.Props) ui.VNode {
 			}()).
 			Build(),
 		app.ButtonBuilder(" +").
-			OnClick(func() {
-				setCount(func(c int) int { return c + 1 })
-			}).
+			OnPress(IncrementTodoItemIntent{}).
 			Build(),
 	)
 }
