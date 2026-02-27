@@ -543,7 +543,6 @@ func BuildHitMapFromFiber(root *Fiber) *rtuievent.HitMap {
 					return screenX - x, screenY - y
 				},
 				ZOrder:      zOrder,
-				Instance:    nil,
 				TargetFiber: fiber,
 			}
 
