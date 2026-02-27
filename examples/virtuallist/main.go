@@ -7,9 +7,18 @@ import (
 	"github.com/wwsheng009/mint/ui"
 )
 
+// Intent Types
+type ScrollUpIntent struct{}
+func (ScrollUpIntent) IntentType() string { return "ScrollUp" }
+func (ScrollUpIntent) StayPressed() bool  { return true }
+
+type ScrollDownIntent struct{}
+func (ScrollDownIntent) IntentType() string { return "ScrollDown" }
+func (ScrollDownIntent) StayPressed() bool  { return true }
+
 func main() {
 	// Generate a large list of items
-	items := make([]interface{}, 1000)
+	items := make([]string, 1000)
 	for i := 0; i < 1000; i++ {
 		items[i] = fmt.Sprintf("Item #%d - This is a long description text", i+1)
 	}
@@ -17,7 +26,27 @@ func main() {
 	ui.Run(func() ui.VNode {
 		// Track scroll position and selected item
 		offset, setOffset, _ := ui.UseStateInt(0)
-		selected, setSelected, _ := ui.UseStateInt(-1)
+		selected, _, _ := ui.UseStateInt(-1)
+
+		// Register intent handlers using ui.On (captures current state values)
+		ui.On(ScrollUpIntent{}, func() {
+			newOffset := offset - 5
+			if newOffset < 0 {
+				newOffset = 0
+			}
+			setOffset(newOffset)
+		})
+		ui.On(ScrollDownIntent{}, func() {
+			newOffset := offset + 5
+			maxOffset := len(items) - 10
+			if maxOffset < 0 {
+				maxOffset = 0
+			}
+			if newOffset > maxOffset {
+				newOffset = maxOffset
+			}
+			setOffset(newOffset)
+		})
 
 		return app.VStack(
 			app.NewTextBuilder("Virtual List Demo").Bold(true).FgColor("cyan").Build(),
@@ -27,26 +56,10 @@ func main() {
 			app.Text(""),
 			app.HStack(
 				app.ButtonBuilder(" Scroll Up ").
-					OnClick(func() {
-						newOffset := offset - 5
-						if newOffset < 0 {
-							newOffset = 0
-						}
-						setOffset(newOffset)
-					}).
+					OnPress(ScrollUpIntent{}).
 					Build(),
 				app.ButtonBuilder(" Scroll Down ").
-					OnClick(func() {
-						newOffset := offset + 5
-						maxOffset := len(items) - 10
-						if maxOffset < 0 {
-							maxOffset = 0
-						}
-						if newOffset > maxOffset {
-							newOffset = maxOffset
-						}
-						setOffset(newOffset)
-					}).
+					OnPress(ScrollDownIntent{}).
 					Build(),
 			),
 			app.Text(""),
@@ -55,21 +68,11 @@ func main() {
 			// Virtual list - only renders visible items
 			app.VirtualListBuilder().
 				Items(items).
-				RenderItem(func(item interface{}) ui.VNode {
-					text := item.(string)
-					return app.Text(text)
-				}).
 				ItemHeight(1).
 				VisibleCount(10).
 				Height(10).
 				ScrollOffset(offset).
 				SelectedIndex(selected).
-				OnItemSelect(func(index int) {
-					setSelected(index)
-				}).
-				PrimaryKey(func(item interface{}) string {
-					return fmt.Sprintf("%v", item)
-				}).
 				Build(),
 			app.Text(""),
 			app.NewTextBuilder("────────────────────────────").FgColor("blue").Build(),
