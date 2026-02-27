@@ -26,8 +26,45 @@ import (
 	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/framework/theme"
 	"github.com/wwsheng009/mint/internal/log"
+	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/runtime/style"
+	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/ui"
+)
+
+// =============================================================================
+// State Keys
+// =============================================================================
+
+var inputKey = intent.StateKey[string]("input")
+var inputSetterKey = "inputSetter"
+
+// =============================================================================
+// Intent Types
+// =============================================================================
+
+type OpenModalIntent struct{}
+func (OpenModalIntent) IntentType() string { return "OpenModal" }
+func (OpenModalIntent) StayPressed() bool  { return true }
+
+type AddCountIntent struct{}
+func (AddCountIntent) IntentType() string { return "AddCount" }
+func (AddCountIntent) StayPressed() bool  { return true }
+
+type QuitIntent struct{}
+func (QuitIntent) IntentType() string { return "Quit" }
+func (QuitIntent) StayPressed() bool  { return true }
+
+type CloseModalIntent struct{}
+func (CloseModalIntent) IntentType() string { return "CloseModal" }
+func (CloseModalIntent) StayPressed() bool  { return true }
+
+// Unregister functions to prevent memory leaks when handlers are re-registered
+var (
+	openModalUnregister  func()
+	addCountUnregister   func()
+	quitUnregister       func()
+	closeModalUnregister func()
 )
 
 func main() {
@@ -56,6 +93,20 @@ func main() {
 		ui.WithWidth(80),
 		ui.WithHeight(24),
 		ui.WithTitle("Mint TUI - Full Featured Demo"),
+		ui.WithInit(func() {
+			// Register FieldChangeIntent handler for input field
+			ui.RegisterIntent(func(ctx *intent.ActionContext, i intent.FieldChangeIntent) intent.IntentResult {
+				if i.Field == inputKey.String() {
+					setInputFn, ok := ctx.GetState(inputSetterKey)
+					if ok && setInputFn != nil {
+						if fn, ok := setInputFn.(func(string)); ok {
+							fn(i.Value)
+						}
+					}
+				}
+				return intent.HandledResult()
+			})
+		}),
 	)
 	if err != nil {
 		panic(err)
@@ -79,6 +130,47 @@ func App() ui.VNode {
 	showModal, setShowModal := ui.UseStateBool(autoOpenModal)
 
 	input, setInput := ui.UseStateString("")
+
+	// Save setInput to state for FieldChangeIntent handler
+	ctx := ui.GetCurrentContext()
+	if ctx != nil {
+		ctx.SetState(inputSetterKey, setInput)
+	}
+
+	// Unregister previous handlers to prevent memory leaks
+	if openModalUnregister != nil {
+		openModalUnregister()
+	}
+	if addCountUnregister != nil {
+		addCountUnregister()
+	}
+	if quitUnregister != nil {
+		quitUnregister()
+	}
+	if closeModalUnregister != nil {
+		closeModalUnregister()
+	}
+
+	// Register intent handlers - captures current state via closure
+	openModalUnregister = rtui.RegisterIntent(func(ctx *intent.ActionContext, i OpenModalIntent) intent.IntentResult {
+		setShowModal(true)
+		return intent.HandledResult()
+	})
+
+	addCountUnregister = rtui.RegisterIntent(func(ctx *intent.ActionContext, i AddCountIntent) intent.IntentResult {
+		setCount(func(c int) int { return c + 1 })
+		return intent.HandledResult()
+	})
+
+	quitUnregister = rtui.RegisterIntent(func(ctx *intent.ActionContext, i QuitIntent) intent.IntentResult {
+		ui.Quit()
+		return intent.HandledResult()
+	})
+
+	closeModalUnregister = rtui.RegisterIntent(func(ctx *intent.ActionContext, i CloseModalIntent) intent.IntentResult {
+		setShowModal(false)
+		return intent.HandledResult()
+	})
 
 	// Generate large list for VirtualList
 	items := make([]string, 100)
@@ -126,9 +218,7 @@ func Header(count int, setShowModal func(bool), setCount func(interface{})) ui.V
 			Build(),
 		app.ButtonBuilder("[Open Modal]").
 			Variant(app.ButtonVariantPrimary). // 使用 Primary variant，默认就有 PRIMARY 背景
-			OnClick(func() {
-				setShowModal(true)
-			}).
+			OnPress(OpenModalIntent{}).
 			FocusStyle(app.FocusStyleBracket). // 恢复 Bracket 样式
 			Build(),
 		app.NewTextBuilder(" ").
@@ -172,17 +262,13 @@ func MainBody(count int, setCount func(interface{}), input string, setInput func
 			Build(),
 		app.ButtonBuilder("Add Count").
 			Variant(app.ButtonVariantPrimary).
-			OnClick(func() {
-				setCount(func(c int) int { return c + 1 })
-			}).
+			OnPress(AddCountIntent{}).
 			FocusStyle(app.FocusStyleBracket).
 			Build(),
 		app.ButtonBuilder("Quit").
 			Variant(app.ButtonVariantDanger).
 			FocusStyle(app.FocusStyleBracket).
-			OnClick(func() {
-				ui.Quit()
-			}).
+			OnPress(QuitIntent{}).
 			Build(),
 	).Stretch().Build()
 
@@ -193,7 +279,7 @@ func MainBody(count int, setCount func(interface{}), input string, setInput func
 			Value(input).
 			Placeholder("Type something...").
 			Width(30). // Input width (less than panel width)
-			OnChange(setInput).
+			ForField(intent.ForField(inputKey)).
 			Build(),
 		app.NewTextBuilder("──────────────────────────────────────").
 			Style(style.Foreground(theme.Border())).
@@ -270,14 +356,14 @@ func ConfirmModal(onClose func()) ui.VNode {
 				ui.HStackBuilder(
 					app.ButtonBuilder("[ Cancel ]").
 						Variant(app.ButtonVariantSecondary).
-						OnClick(onClose).
+						OnPress(CloseModalIntent{}).
 						FocusStyle(app.FocusStyleBracket).
 						Build(),
 					ui.Text(" "),
 					app.ButtonBuilder("[ OK ]").
 						Variant(app.ButtonVariantSuccess).
 						FocusStyle(app.FocusStyleBracket).
-						OnClick(onClose).
+						OnPress(CloseModalIntent{}).
 						Build(),
 				).Align(ui.AlignCenter).Build(),
 				ui.Text(""),
