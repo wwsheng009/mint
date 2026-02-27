@@ -2,60 +2,118 @@ package main
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/ui"
 )
 
-// 自定义 Intent 类型 - 用于计数器控制
-type IncrementIntent struct{}
-func (IncrementIntent) IntentType() string { return "Increment" }
-func (IncrementIntent) StayPressed() bool  { return true }
+// 自定义 Intent 类型 - 用于计时器控制
+type StartTimerIntent struct{}
+func (StartTimerIntent) IntentType() string { return "StartTimer" }
+func (StartTimerIntent) StayPressed() bool  { return true }
 
-type DecrementIntent struct{}
-func (DecrementIntent) IntentType() string { return "Decrement" }
-func (DecrementIntent) StayPressed() bool  { return true }
+type StopTimerIntent struct{}
+func (StopTimerIntent) IntentType() string { return "StopTimer" }
+func (StopTimerIntent) StayPressed() bool  { return true }
 
-func RefDemo() ui.VNode {
+type ResetTimerIntent struct{}
+func (ResetTimerIntent) IntentType() string { return "ResetTimer" }
+func (ResetTimerIntent) StayPressed() bool  { return true }
+
+func formatDuration(d time.Duration) string {
+	hours := int(d.Hours())
+	minutes := int(d.Minutes()) % 60
+	seconds := int(d.Seconds()) % 60
+	
+	if hours > 0 {
+		return fmt.Sprintf("%02d:%02d:%02d", hours, minutes, seconds)
+	}
+	return fmt.Sprintf("%02d:%02d", minutes, seconds)
+}
+
+func TimerDemo() ui.VNode {
 	// 1. 定义状态（hooks 必须在顶部）
-	count, setCount, _ := ui.UseStateInt(0)
-
-	// 2. 注册 Intent handler（闭包捕获 setter）
-	ui.On(IncrementIntent{}, func() {
-		setCount(func(c int) int { return c + 1 })
+	elapsed, setElapsed, _ := ui.UseStateInt(0) // 经过的秒数
+	running, setRunning, _ := ui.UseStateBool(false)
+	
+	// 2. 使用 Effect 实现定时器
+	ui.UseEffect(func() func() {
+		if !running {
+			return nil // 不启动定时器
+		}
+		
+		// 启动 ticker
+		ticker := time.NewTicker(time.Second)
+		done := make(chan bool)
+		
+		go func() {
+			for {
+				select {
+				case <-ticker.C:
+					// 每秒更新 elapsed
+					setElapsed(func(e int) int { return e + 1 })
+				case <-done:
+					ticker.Stop()
+					return
+				}
+			}
+		}()
+		
+		// 清理函数
+		return func() {
+			done <- true
+		}
+	}, []interface{}{running}) // 依赖 running 状态
+	
+	// 3. 注册 Intent handler
+	ui.On(StartTimerIntent{}, func() {
+		setRunning(true)
 	})
-	ui.On(DecrementIntent{}, func() {
-		setCount(func(c int) int { return c - 1 })
+	ui.On(StopTimerIntent{}, func() {
+		setRunning(false)
 	})
-
-	// 3. 返回 VNode（使用 OnPress 绑定 Intent）
+	ui.On(ResetTimerIntent{}, func() {
+		setRunning(false)
+		setElapsed(0)
+	})
+	
+	// 4. 计算显示状态
+	elapsedDuration := time.Duration(elapsed) * time.Second
+	timeStr := formatDuration(elapsedDuration)
+	
+	statusText := "Stopped"
+	statusColor := "yellow"
+	if running {
+		statusText = "Running"
+		statusColor = "green"
+	}
+	
+	// 5. 返回 VNode
 	return ui.VStack(
-		app.NewTextBuilder("State Demo").
-			FgColor("cyan").
-			Bold(true).
-			Build(),
+		app.NewTextBuilder("⏱ Timer").Bold(true).FgColor("cyan").Build(),
 		app.Text(""),
-		app.NewTextBuilder(fmt.Sprintf("Count: %d", count)).
-			FgColor("green").
-			Build(),
+		app.NewTextBuilder(timeStr).Bold(true).FgColor("bright-white").Build(),
+		app.Text(""),
+		app.NewTextBuilder(fmt.Sprintf("Status: %s", statusText)).FgColor(statusColor).Build(),
 		app.Text(""),
 		ui.HStack(
-			app.ButtonBuilder("  -  ").OnPress(DecrementIntent{}).Build(),
-			app.Text("   "),
-			app.ButtonBuilder("  +  ").OnPress(IncrementIntent{}).Build(),
+			app.ButtonBuilder(" ▶ Start ").OnPress(StartTimerIntent{}).Build(),
+			app.Text(" "),
+			app.ButtonBuilder(" ⏹ Stop ").OnPress(StopTimerIntent{}).Build(),
+			app.Text(" "),
+			app.ButtonBuilder(" ↺ Reset ").OnPress(ResetTimerIntent{}).Build(),
 		),
 		app.Text(""),
-		app.NewTextBuilder("Tab: focus | Enter: click | q: quit").
-			FgColor("bright-black").
-			Build(),
+		app.NewTextBuilder("Tab: focus | Enter: click | q: quit").FgColor("bright-black").Build(),
 	)
 }
 
 func main() {
-	err := ui.Run(RefDemo,
-		ui.WithWidth(40),
-		ui.WithHeight(12),
-		ui.WithTitle("State Demo"),
+	err := ui.Run(TimerDemo,
+		ui.WithWidth(50),
+		ui.WithHeight(14),
+		ui.WithTitle("Timer Demo"),
 	)
 	if err != nil {
 		panic(err)
