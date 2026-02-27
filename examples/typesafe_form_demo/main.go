@@ -3,16 +3,16 @@
 // 采用【模式3：自定义 Intent】+ FieldChangeIntent + 类型安全 StateKey[T]
 //
 // 三种 Intent 管理模式：
-//   1. 组件级状态 - ui.On + UseState + Simple* Intent（推荐组件内状态）
-//   2. 全局状态 - runtime/intent 内置函数
-//   3. 自定义 Intent + ui.On（本示例）
+//  1. 组件级状态 - ui.On + UseState + Simple* Intent（推荐组件内状态）
+//  2. 全局状态 - runtime/intent 内置函数
+//  3. 自定义 Intent + ui.On（本示例）
 //
 // This example shows the full MVP data flow with compile-time type safety:
-//   1. Define StateKey[T] package-level keys (type-safe field identifiers)
-//   2. Use ForField() to bind components to StateKey[T]
-//   3. Register a FieldChangeIntent handler in WithInit
-//   4. Instances emit intents carrying values
-//   5. State updates become the single source of truth
+//  1. Define StateKey[T] package-level keys (type-safe field identifiers)
+//  2. Use ForField() to bind components to StateKey[T]
+//  3. Register a FieldChangeIntent handler in WithInit
+//  4. Instances emit intents carrying values
+//  5. State updates become the single source of truth
 //
 // Benefits:
 //   - No string key typos
@@ -166,8 +166,6 @@ func main() {
 		ui.WithInit(func() {
 			// FieldChangeIntent handler registered in WithInit as recommended
 			ui.RegisterIntent(func(actx *intent.ActionContext, i intent.FieldChangeIntent) intent.IntentResult {
-				fmt.Printf("Intent Received: Field='%s', Value='%s'\n", i.Field, i.Value)
-
 				switch i.Field {
 				case keyUsername.String():
 					val, _ := actx.GetState(keyUsername.String() + "Setter")

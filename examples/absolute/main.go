@@ -5,12 +5,24 @@ import (
 
 	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/ui"
+	"github.com/wwsheng009/mint/ui/components/absolute"
+	"github.com/wwsheng009/mint/ui/components/button"
 )
+
+// IncrementIntent - 自定义 Intent 用于增加计数
+type IncrementIntent struct{}
+func (IncrementIntent) IntentType() string { return "Increment" }
+func (IncrementIntent) StayPressed() bool  { return true }
 
 func main() {
 	ui.Run(func() ui.VNode {
-		// Simple badge example
+		// 使用 UseState 管理计数状态
 		count, setCount, _ := ui.UseStateInt(0)
+
+		// 使用 ui.On 注册 Intent 处理器（带 sync.Map 去重，每次渲染不会重复注册）
+		ui.On(IncrementIntent{}, func() {
+			setCount(count + 1)
+		})
 
 		return app.VStack(
 			app.NewTextBuilder("Absolute Positioning Demo").Bold(true).FgColor("cyan").Build(),
@@ -19,9 +31,8 @@ func main() {
 			app.Text(""),
 			app.HStack(
 				app.ButtonBuilder("  Messages  ").
-					OnClick(func() {
-						setCount(count + 1)
-					}).
+					OnPress(IncrementIntent{}).
+					Variant(button.VariantPrimary).
 					Build(),
 				// Badge positioned absolutely relative to parent
 				app.AbsoluteBuilder(
@@ -30,8 +41,8 @@ func main() {
 						Bold(true).
 						Build(),
 				).
-					Left(app.AbsolutePosition(15)).
-					Top(app.AbsolutePosition(0)).
+					Left(absolute.AbsolutePos(15)).
+					Top(absolute.AbsolutePos(0)).
 					Build(),
 			),
 			app.Text(""),
@@ -44,8 +55,8 @@ func main() {
 					app.AbsoluteBuilder(
 						app.NewTextBuilder("OVERLAY").FgColor("white").BgColor("red").Build(),
 					).
-						Left(app.AbsolutePosition(20)).
-						Top(app.AbsolutePosition(0)).
+						Left(absolute.AbsolutePos(20)).
+						Top(absolute.AbsolutePos(0)).
 						ZIndex(10).
 						Build(),
 				),
