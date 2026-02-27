@@ -37,7 +37,6 @@ func SimpleCounter() ui.VNode {
 				OnPress(intent.Decrement("count", 1)).
 				Build(),
 			ui.Text(" "),
-			ui.Text(" "), // ⚠️ 添加额外的空格作为临时解决方案
 			app.ButtonBuilder(" + ").
 				OnPress(intent.Increment("count", 1)).
 				Build(),

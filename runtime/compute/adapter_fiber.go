@@ -1,6 +1,8 @@
 package compute
 
 import (
+	"fmt"
+
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
@@ -29,10 +31,13 @@ func (a *FiberPaintableAdapter) ID() string {
 	if a.Fiber == nil {
 		return ""
 	}
+	if a.Fiber.NodeID != 0 {
+		return fmt.Sprintf("fiber-node-%d",a.Fiber.NodeID) 
+	}
 	if a.Fiber.DiffKey != "" {
 		return a.Fiber.DiffKey
 	}
-	return a.Fiber.Key
+	return a.Fiber.Key;
 }
 
 // NodeType returns the paint node type based on Fiber type.

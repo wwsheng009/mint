@@ -169,7 +169,14 @@ func (n *FiberPaintableNode) ID() string {
 	if n.fiber == nil {
 		return ""
 	}
-	return n.fiber.DiffKey
+	if n.fiber.NodeID != 0 {
+		return fmt.Sprintf("fiber-node-%d",n.fiber.NodeID) 
+	}
+	if n.fiber.DiffKey != "" {
+		return n.fiber.DiffKey
+	}
+	
+	return n.fiber.Key;
 }
 
 // NodeType returns the paint node type based on Fiber type

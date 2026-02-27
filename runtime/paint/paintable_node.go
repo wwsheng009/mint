@@ -48,6 +48,7 @@ func (t NodeType) String() string {
 // existing VNode/Fiber types to satisfy this interface.
 type PaintableNode interface {
 	// ID returns the unique identifier for this node.
+	// 重要，会使用在paint cache,需要注意ID要唯一
 	ID() string
 
 	// NodeType returns the type of this node.

@@ -129,10 +129,8 @@ func (e *PaintEngine) paintBox(box *paint.PaintableBox, buffer *paint.Buffer) er
 		return nil
 	}
 
-	if e.debug || log.PaintLogger.Enabled() {
-		log.PaintLogger.Debug("[Paint.paintBox] %s at (%d,%d) size %dx%d",
-			box.Node.Tag(), box.X, box.Y, box.Width, box.Height)
-	}
+	log.PaintLogger.Debug("[Paint.paintBox] paint element: [%s]%s at (%d,%d) size %dx%d",
+		box.Node.ID(), box.Node.Tag(), box.X, box.Y, box.Width, box.Height)
 
 	// IMPORTANT: Set bounds before Paint (Fiber-first architecture)
 	// This allows Instance to access layout-computed dimensions
@@ -323,7 +321,7 @@ func (e *PaintEngine) paintBorderedBox(box *paint.PaintableBox, buffer *paint.Bu
 	if bl != "" {
 		labelPadding = 2
 	}
-	contentWidth := box.Width - (borderWidth*2) - labelPadding
+	contentWidth := box.Width - (borderWidth * 2) - labelPadding
 	contentHeight := box.Height - (borderWidth * 2)
 	if contentWidth < 0 {
 		contentWidth = 0
@@ -390,7 +388,7 @@ func (e *PaintEngine) paintModalBackdropBox(root *paint.PaintableBox, buffer *pa
 					x++
 					continue
 				}
-				
+
 				// 空白或空格：用灰色空格填充
 				if cell.Cluster == "" || cell.Cluster == " " {
 					buffer.SetCell(x, y, ' ', dimmedStyle)

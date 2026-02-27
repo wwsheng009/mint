@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/wwsheng009/mint/internal/log"
 	"github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
@@ -279,7 +280,7 @@ func (pc *PaintingContext) TryPaintFromCache(buffer *paint.Buffer, boxID string,
 	if pc == nil || pc.cache == nil || buffer == nil {
 		return false
 	}
-
+	log.RenderLogger.Debug("[PaintingContext] boxID %s",boxID)
 	content, width, height, found := pc.cache.Get(boxID, pc.version)
 	if !found {
 		return false

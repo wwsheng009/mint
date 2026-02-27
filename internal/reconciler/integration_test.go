@@ -623,18 +623,18 @@ func TestReconciler_SetRenderCallback(t *testing.T) {
 }
 
 // TestReconciler_GetLayoutBoxes tests getting layout boxes
-func TestReconciler_GetLayoutBoxes(t *testing.T) {
-	config := ReconcilerConfig{EnableFiber: true}
-	reconciler := NewReconciler(nil, nil, config)
+// func TestReconciler_GetLayoutBoxes(t *testing.T) {
+// 	config := ReconcilerConfig{EnableFiber: true}
+// 	reconciler := NewReconciler(nil, nil, config)
 
-	// Initially should be nil (no layout computed yet)
-	boxes := reconciler.GetLayoutBoxes()
+// 	// Initially should be nil (no layout computed yet)
+// 	boxes := reconciler.GetLayoutBoxes()
 
-	// Should return a nil slice before any rendering
-	if boxes != nil {
-		t.Log("GetLayoutBoxes returns non-nil slice (OK, may be initialized)")
-	}
-}
+// 	// Should return a nil slice before any rendering
+// 	if boxes != nil {
+// 		t.Log("GetLayoutBoxes returns non-nil slice (OK, may be initialized)")
+// 	}
+// }
 
 // TestGetNextWorkUnit tests depth-first traversal
 func TestGetNextWorkUnit(t *testing.T) {

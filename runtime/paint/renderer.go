@@ -161,7 +161,7 @@ func (r *Renderer) renderLine(y int, region Rect) {
 			continue
 		}
 
-		log.RenderLogger.Debug("[renderLine] changed at x=%d: cell.Cluster=%q, prev.Cluster=%q, IsContinuation=%v",
+		log.RenderLogger.Debug("[renderLine] cell changed at x=%d: cell.Cluster=%q, prev.Cluster=%q, IsContinuation=%v",
 			x, cell.Cluster, prevCell.Cluster, cell.IsContinuation)
 
 		// 如果是延续单元格，跳过（由主单元格处理）
