@@ -13,9 +13,26 @@ import (
 	"github.com/wwsheng009/mint/ui"
 )
 
+// Intent Types
+type DecrementEventRecordingIntent struct{}
+func (DecrementEventRecordingIntent) IntentType() string { return "Decrement" }
+func (DecrementEventRecordingIntent) StayPressed() bool  { return true }
+
+type IncrementEventRecordingIntent struct{}
+func (IncrementEventRecordingIntent) IntentType() string { return "Increment" }
+func (IncrementEventRecordingIntent) StayPressed() bool  { return true }
+
 // SimpleCounter 简单的计数器应用
 func SimpleCounter() ui.VNode {
 	count, setCount, _ := ui.UseStateInt(0)
+
+	// Register intent handlers
+	ui.On(DecrementEventRecordingIntent{}, func() {
+		setCount(func(c int) int { return c - 1 })
+	})
+	ui.On(IncrementEventRecordingIntent{}, func() {
+		setCount(func(c int) int { return c + 1 })
+	})
 
 	return ui.VStack(
 		app.NewTextBuilder("╔══════════════════════════════╗").
@@ -35,15 +52,11 @@ func SimpleCounter() ui.VNode {
 		ui.Text(""),
 		ui.HStack(
 			app.ButtonBuilder("  [ - ]  ").
-				OnClick(func() {
-					setCount(func(c int) int { return c - 1 })
-				}).
+				OnPress(DecrementEventRecordingIntent{}).
 				Build(),
 			ui.Text(" "),
 			app.ButtonBuilder("  [ + ]  ").
-				OnClick(func() {
-					setCount(func(c int) int { return c + 1 })
-				}).
+				OnPress(IncrementEventRecordingIntent{}).
 				Build(),
 		),
 		ui.Text(""),
