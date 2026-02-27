@@ -25,6 +25,7 @@ import (
 	"fmt"
 
 	"github.com/wwsheng009/mint/runtime/intent"
+	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/ui"
 	"github.com/wwsheng009/mint/ui/components/button"
 	"github.com/wwsheng009/mint/ui/components/checkbox"
@@ -58,6 +59,8 @@ func (SubmitIntent) StayPressed() bool  { return true }
 // Form Component Builders
 // =============================================================================
 
+var submitHandlerUnregister func()
+
 func App() ui.VNode {
 	// 使用 UseState 管理表单状态
 	username, setUsername := ui.UseStateString("")
@@ -76,22 +79,22 @@ func App() ui.VNode {
 		ctx.GlobalState[keySubscribe.String()+"Setter"] = setSubscribe
 	}
 
-	// Submit handler - use ui.On for simplified registration
-	ui.On(SubmitIntent{}, func() {
-		ctx := ui.GetCurrentContext()
-		usernameVal, _ := ctx.GetState(keyUsername.String())
-		emailVal, _ := ctx.GetState(keyEmail.String())
-		ageVal, _ := ctx.GetState(keyAge.String())
-		acceptTermsVal, _ := ctx.GetState(keyAcceptTerms.String())
-		subscribeVal, _ := ctx.GetState(keySubscribe.String())
+	// Unregister previous handler (if exists) to avoid memory leak
+	if submitHandlerUnregister != nil {
+		submitHandlerUnregister()
+	}
 
+	// Register SubmitIntent handler - captures current values via closure
+	// Using rtui.RegisterIntent instead of ui.On to re-register on each render
+	submitHandlerUnregister = rtui.RegisterIntent(func(ctx *intent.ActionContext, i SubmitIntent) intent.IntentResult {
 		fmt.Println("\n=== Form Submission ===")
-		fmt.Printf("Username:   %v\n", usernameVal)
-		fmt.Printf("Email:      %v\n", emailVal)
-		fmt.Printf("Age:        %v\n", ageVal)
-		fmt.Printf("Accept T&C: %v\n", acceptTermsVal)
-		fmt.Printf("Subscribe:  %v\n", subscribeVal)
+		fmt.Printf("Username:   %v\n", username)
+		fmt.Printf("Email:      %v\n", email)
+		fmt.Printf("Age:        %v\n", age)
+		fmt.Printf("Accept T&C: %v\n", acceptTerms)
+		fmt.Printf("Subscribe:  %v\n", subscribe)
 		fmt.Println("========================\n")
+		return intent.HandledResult()
 	})
 
 	// Define form components with current values
