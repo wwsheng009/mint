@@ -19,6 +19,16 @@ import (
 	"github.com/wwsheng009/mint/ui"
 )
 
+// Intent Types
+type SetStylingTabIntent struct {
+	TabID string
+}
+func (SetStylingTabIntent) IntentType() string { return "SetStylingTab" }
+func (SetStylingTabIntent) StayPressed() bool  { return true }
+
+// Global setter for tab navigation
+var globalSetStylingTab func(string)
+
 func main() {
 	err := ui.Run(StylingDemo,
 		ui.WithWidth(100),
@@ -34,9 +44,19 @@ func main() {
 func StylingDemo() ui.VNode {
 	currentTab, setCurrentTab := ui.UseStateString("colors")
 
+	// Update global setter
+	globalSetStylingTab = setCurrentTab
+
+	// Register tab change handler
+	ui.On(SetStylingTabIntent{TabID: currentTab}, func() {
+		if globalSetStylingTab != nil {
+			globalSetStylingTab(currentTab)
+		}
+	})
+
 	return ui.VStack(
 		HeaderPanel(),
-		TabNavigation(currentTab, setCurrentTab),
+		TabNavigation(currentTab),
 		ui.Text(""),
 		renderTabContent(currentTab),
 	)
@@ -67,7 +87,7 @@ func HeaderPanel() ui.VNode {
 }
 
 // TabNavigation provides tab buttons
-func TabNavigation(currentTab string, setCurrentTab func(string)) ui.VNode {
+func TabNavigation(currentTab string) ui.VNode {
 	tabs := []struct {
 		id    string
 		label string
@@ -88,12 +108,12 @@ func TabNavigation(currentTab string, setCurrentTab func(string)) ui.VNode {
 			btn = app.ButtonBuilder("[" + tab.label + "]").
 				BgColor(tab.color).
 				FgColor("white").
-				OnClick(func() { setCurrentTab(tab.id) }).
+				OnPress(SetStylingTabIntent{TabID: tab.id}).
 				Build()
 		} else {
 			btn = app.ButtonBuilder(" " + tab.label + " ").
 				FgColor(tab.color).
-				OnClick(func() { setCurrentTab(tab.id) }).
+				OnPress(SetStylingTabIntent{TabID: tab.id}).
 				Build()
 		}
 		children = append(children, btn, ui.Text(" "))
