@@ -13,12 +13,35 @@ import (
 	"github.com/wwsheng009/mint/ui"
 )
 
+// Intent Types
+type SubmitFormIntent struct{}
+func (SubmitFormIntent) IntentType() string { return "SubmitForm" }
+func (SubmitFormIntent) StayPressed() bool  { return true }
+
+type ClearFormIntent struct{}
+func (ClearFormIntent) IntentType() string { return "ClearForm" }
+func (ClearFormIntent) StayPressed() bool  { return true }
+
 // FormApp 表单应用，用于演示 TestHelper
 func FormApp() ui.VNode {
-	username, setUsername := ui.UseStateString("")
-	password, setPassword := ui.UseStateString("")
+	username, _ := ui.UseStateString("")
+	password, _ := ui.UseStateString("")
 	submitted, setSubmitted := ui.UseStateBool(false)
 	message, setMessage := ui.UseStateString("")
+
+	// Register intent handlers
+	ui.On(SubmitFormIntent{}, func() {
+		setSubmitted(true)
+		if username != "" && password != "" {
+			setMessage(fmt.Sprintf("Welcome, %s!", username))
+		} else {
+			setMessage("Please fill all fields")
+		}
+	})
+	ui.On(ClearFormIntent{}, func() {
+		setSubmitted(false)
+		setMessage("")
+	})
 
 	return ui.VStack(
 		app.NewTextBuilder("╔══════════════════════════════╗").
@@ -36,9 +59,7 @@ func FormApp() ui.VNode {
 			app.InputBuilder().
 				Value(username).
 				Placeholder("Enter username").
-				MaxLength(15).
-				OnChange(setUsername).
-				Build(),
+				Build(), // TODO: integrate with FieldChangeIntent
 		),
 		ui.Text(""),
 		ui.HStack(
@@ -46,30 +67,16 @@ func FormApp() ui.VNode {
 			app.InputBuilder().
 				Value(password).
 				Placeholder("Enter password").
-				MaxLength(20).
 				Password().
-				OnChange(setPassword).
-				Build(),
+				Build(), // TODO: integrate with FieldChangeIntent
 		),
 		ui.Text(""),
 		app.ButtonBuilder("  [ Submit ]  ").
-			OnClick(func() {
-				setSubmitted(true)
-				if username != "" && password != "" {
-					setMessage(fmt.Sprintf("Welcome, %s!", username))
-				} else {
-					setMessage("Please fill all fields")
-				}
-			}).
+			OnPress(SubmitFormIntent{}).
 			Build(),
 		ui.Text(""),
 		app.ButtonBuilder("  [ Clear ]  ").
-			OnClick(func() {
-				setUsername("")
-				setPassword("")
-				setSubmitted(false)
-				setMessage("")
-			}).
+			OnPress(ClearFormIntent{}).
 			Build(),
 		ui.Text(""),
 		func() ui.VNode {
