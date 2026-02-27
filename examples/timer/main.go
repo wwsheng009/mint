@@ -25,7 +25,7 @@ func formatDuration(d time.Duration) string {
 	hours := int(d.Hours())
 	minutes := int(d.Minutes()) % 60
 	seconds := int(d.Seconds()) % 60
-	
+
 	if hours > 0 {
 		return fmt.Sprintf("%02d:%02d:%02d", hours, minutes, seconds)
 	}
@@ -35,18 +35,19 @@ func formatDuration(d time.Duration) string {
 func TimerDemo() ui.VNode {
 	// 1. 定义状态（hooks 必须在顶部）
 	elapsed, setElapsed, _ := ui.UseStateInt(0) // 经过的秒数
-	running, setRunning, _ := ui.UseStateBool(false)
-	
+	running, setRunning := ui.UseStateBool(false)
+
 	// 2. 使用 Effect 实现定时器
 	ui.UseEffect(func() func() {
 		if !running {
-			return nil // 不启动定时器
+			// 返回空清理函数
+			return func() {}
 		}
-		
+
 		// 启动 ticker
 		ticker := time.NewTicker(time.Second)
-		done := make(chan bool)
-		
+		done := make(chan struct{})
+
 		go func() {
 			for {
 				select {
@@ -59,13 +60,13 @@ func TimerDemo() ui.VNode {
 				}
 			}
 		}()
-		
+
 		// 清理函数
 		return func() {
-			done <- true
+			close(done)
 		}
 	}, []interface{}{running}) // 依赖 running 状态
-	
+
 	// 3. 注册 Intent handler
 	ui.On(StartTimerIntent{}, func() {
 		setRunning(true)
@@ -77,18 +78,18 @@ func TimerDemo() ui.VNode {
 		setRunning(false)
 		setElapsed(0)
 	})
-	
+
 	// 4. 计算显示状态
 	elapsedDuration := time.Duration(elapsed) * time.Second
 	timeStr := formatDuration(elapsedDuration)
-	
+
 	statusText := "Stopped"
 	statusColor := "yellow"
 	if running {
 		statusText = "Running"
 		statusColor = "green"
 	}
-	
+
 	// 5. 返回 VNode
 	return ui.VStack(
 		app.NewTextBuilder("⏱ Timer").Bold(true).FgColor("cyan").Build(),
