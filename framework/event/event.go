@@ -257,11 +257,11 @@ type Key struct {
 type Modifier int
 
 const (
-	ModNone Modifier = iota
-	ModAlt
-	ModCtrl
-	ModShift
-	ModMeta
+	ModNone Modifier = 0
+	ModAlt Modifier = 1 << iota // 1 (二进制: 0001)
+	ModCtrl                        // 2 (二进制: 0010)
+	ModShift                       // 4 (二进制: 0100)
+	ModMeta                        // 8 (二进制: 1000)
 )
 
 // NewKeyEvent creates a new keyboard event.
