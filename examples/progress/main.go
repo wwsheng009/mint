@@ -5,9 +5,22 @@ import (
 	"github.com/wwsheng009/mint/ui"
 )
 
+// Intent Types
+type IncrementProgressIntent struct{}
+func (IncrementProgressIntent) IntentType() string { return "IncrementProgress" }
+func (IncrementProgressIntent) StayPressed() bool  { return true }
+
 // ProgressDemo demonstrates the progress bar component
 func ProgressDemo() ui.VNode {
 	progress, setProgress, _ := ui.UseStateInt(0)
+
+	// Register intent handler
+	ui.On(IncrementProgressIntent{}, func() {
+		if progress >= 100 {
+			return
+		}
+		setProgress(progress + 10)
+	})
 
 	return app.VStack(
 		app.NewTextBuilder("Progress Bar Demo").
@@ -15,10 +28,12 @@ func ProgressDemo() ui.VNode {
 			Bold(true).
 			Build(),
 		app.Text(""),
-		app.SpinnerBuilder().
-			Message("Loading demo...").
-			FgColor("yellow").
-			Build(),
+		// TODO: SpinnerBuilder 暂时不可用
+		// app.SpinnerBuilder().
+		// 	Message("Loading demo...").
+		// 	FgColor("yellow").
+		// 	Build(),
+		app.NewTextBuilder("Spinner placeholder...").FgColor("yellow").Build(),
 		app.Text(""),
 		app.ProgressBuilder().
 			Label("Download:").
@@ -26,7 +41,6 @@ func ProgressDemo() ui.VNode {
 			Max(100).
 			Width(30).
 			ShowPercent(true).
-			FgColor("green").
 			Build(),
 		app.Text(""),
 		app.NewTextBuilder("Status:").
@@ -53,13 +67,7 @@ func ProgressDemo() ui.VNode {
 		}(),
 		app.Text(""),
 		app.ButtonBuilder("  +10%  ").
-			OnClick(func() {
-				if progress >= 100 {
-					return
-				}
-				setProgress(progress + 10)
-			}).
-			Disabled(progress >= 100).
+			OnPress(IncrementProgressIntent{}).
 			Build(),
 		app.Text(""),
 		app.NewTextBuilder("Press button to increase progress").
