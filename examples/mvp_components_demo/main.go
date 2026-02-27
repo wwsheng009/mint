@@ -60,7 +60,7 @@ func main() {
 				case countryKey.String():
 					// Select 的 value 是索引字符串，转换为 int
 					val, _ := ctx.GetState(countrySetterKey.String())
-					if fn, ok := val.(func(int)); ok {
+					if fn, ok := val.(func(interface{})); ok {
 						if idx, err := strconv.Atoi(value); err == nil {
 							fn(idx)
 						}
@@ -90,7 +90,7 @@ func main() {
 					fn("")
 				}
 				val, _ = ctx.GetState(countrySetterKey.String())
-				if fn, ok := val.(func(int)); ok {
+				if fn, ok := val.(func(interface{})); ok {
 					fn(0)
 				}
 				val, _ = ctx.GetState(agreeSetterKey.String())
