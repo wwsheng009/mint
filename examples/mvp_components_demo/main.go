@@ -43,26 +43,31 @@ func main() {
 
 				switch field {
 				case usernameKey.String():
-					if val, _ := ctx.GetState(usernameSetterKey.String()); fn, ok := val.(func(string)); ok {
+					val, _ := ctx.GetState(usernameSetterKey.String())
+					if fn, ok := val.(func(string)); ok {
 						fn(value)
 					}
 				case emailKey.String():
-					if val, _ := ctx.GetState(emailSetterKey.String()); fn, ok := val.(func(string)); ok {
+					val, _ := ctx.GetState(emailSetterKey.String())
+					if fn, ok := val.(func(string)); ok {
 						fn(value)
 					}
 				case bioKey.String():
-					if val, _ := ctx.GetState(bioSetterKey.String()); fn, ok := val.(func(string)); ok {
+					val, _ := ctx.GetState(bioSetterKey.String())
+					if fn, ok := val.(func(string)); ok {
 						fn(value)
 					}
 				case countryKey.String():
 					// Select 的 value 是索引字符串，转换为 int
-					if val, _ := ctx.GetState(countrySetterKey.String()); fn, ok := val.(func(int)); ok {
+					val, _ := ctx.GetState(countrySetterKey.String())
+					if fn, ok := val.(func(int)); ok {
 						if idx, err := strconv.Atoi(value); err == nil {
 							fn(idx)
 						}
 					}
 				case agreeKey.String():
-					if val, _ := ctx.GetState(agreeSetterKey.String()); fn, ok := val.(func(bool)); ok {
+					val, _ := ctx.GetState(agreeSetterKey.String())
+					if fn, ok := val.(func(bool)); ok {
 						agreeVal := value == "true"
 						fn(agreeVal)
 					}
@@ -72,17 +77,33 @@ func main() {
 
 			// 注册 Reset 意图 - 重置所有状态
 			ui.RegisterIntent(func(ctx *intent.ActionContext, i ResetIntent) intent.IntentResult {
-				if val, _ := ctx.GetState(usernameSetterKey.String()); fn, ok := val.(func(string)); ok { fn("") }
-				if val, _ := ctx.GetState(emailSetterKey.String()); fn, ok := val.(func(string)); ok { fn("") }
-				if val, _ := ctx.GetState(bioSetterKey.String()); fn, ok := val.(func(string)); ok { fn("") }
-				if val, _ := ctx.GetState(countrySetterKey.String()); fn, ok := val.(func(int)); ok { fn(0) }
-				if val, _ := ctx.GetState(agreeSetterKey.String()); fn, ok := val.(func(bool)); ok { fn(false) }
+				val, _ := ctx.GetState(usernameSetterKey.String())
+				if fn, ok := val.(func(string)); ok {
+					fn("")
+				}
+				val, _ = ctx.GetState(emailSetterKey.String())
+				if fn, ok := val.(func(string)); ok {
+					fn("")
+				}
+				val, _ = ctx.GetState(bioSetterKey.String())
+				if fn, ok := val.(func(string)); ok {
+					fn("")
+				}
+				val, _ = ctx.GetState(countrySetterKey.String())
+				if fn, ok := val.(func(int)); ok {
+					fn(0)
+				}
+				val, _ = ctx.GetState(agreeSetterKey.String())
+				if fn, ok := val.(func(bool)); ok {
+					fn(false)
+				}
 				return intent.HandledResult()
 			})
 
 			// 注册 Submit 意图
 			ui.RegisterIntent(func(ctx *intent.ActionContext, i SubmitFormIntent) intent.IntentResult {
-				if val, _ := ctx.GetState(submittedSetterKey.String()); fn, ok := val.(func(bool)); ok {
+				val, _ := ctx.GetState(submittedSetterKey.String())
+				if fn, ok := val.(func(bool)); ok {
 					fn(true)
 				}
 				return intent.HandledResult()
@@ -90,7 +111,8 @@ func main() {
 
 			// 注册 Back 意图
 			ui.RegisterIntent(func(ctx *intent.ActionContext, i BackFormIntent) intent.IntentResult {
-				if val, _ := ctx.GetState(submittedSetterKey.String()); fn, ok := val.(func(bool)); ok {
+				val, _ := ctx.GetState(submittedSetterKey.String())
+				if fn, ok := val.(func(bool)); ok {
 					fn(false)
 				}
 				return intent.HandledResult()
