@@ -7,14 +7,31 @@ import (
 	"github.com/wwsheng009/mint/ui"
 )
 
+// Intent Types
+type DecrementMouseIntent struct{}
+func (DecrementMouseIntent) IntentType() string { return "DecrementMouse" }
+func (DecrementMouseIntent) StayPressed() bool  { return true }
+
+type IncrementMouseIntent struct{}
+func (IncrementMouseIntent) IntentType() string { return "IncrementMouse" }
+func (IncrementMouseIntent) StayPressed() bool  { return true }
+
 // MouseInteractionDemo showcases all mouse-supported components
 func MouseInteractionDemo() ui.VNode {
 	// Track state for various components - must be inside component
 	count, setCount, _ := ui.UseStateInt(0)
-	text, setText := ui.UseStateString("")
-	checked1, setChecked1 := ui.UseStateBool(false)
-	checked2, setChecked2 := ui.UseStateBool(false)
-	selectedIndex, setSelectedIndex, _ := ui.UseStateInt(0)
+	text, _ := ui.UseStateString("")
+	checked1, _ := ui.UseStateBool(false)
+	checked2, _ := ui.UseStateBool(false)
+	selectedIndex, _, _ := ui.UseStateInt(0)
+
+	// Register intent handlers for buttons
+	ui.On(DecrementMouseIntent{}, func() {
+		setCount(count - 1)
+	})
+	ui.On(IncrementMouseIntent{}, func() {
+		setCount(count + 1)
+	})
 
 	return ui.VStack(
 		// Header
@@ -41,9 +58,7 @@ func MouseInteractionDemo() ui.VNode {
 		ui.Text(""),
 		ui.HStack(
 			app.ButtonBuilder(" [-] ").
-				OnClick(func() {
-					setCount(count - 1)
-				}).
+				OnPress(DecrementMouseIntent{}).
 				Build(),
 			ui.Text(" "),
 			app.NewTextBuilder(fmt.Sprintf(" Count: %d ", count)).
@@ -52,9 +67,7 @@ func MouseInteractionDemo() ui.VNode {
 				Build(),
 			ui.Text(" "),
 			app.ButtonBuilder(" [+] ").
-				OnClick(func() {
-					setCount(count + 1)
-				}).
+				OnPress(IncrementMouseIntent{}).
 				Build(),
 		),
 		ui.Text(""),
@@ -68,13 +81,11 @@ func MouseInteractionDemo() ui.VNode {
 		app.CheckboxBuilder().
 			Label("Enable notifications").
 			Checked(checked1).
-			OnChange(setChecked1).
-			Build(),
+			Build(), // TODO: integrate with FieldChangeIntent
 		app.CheckboxBuilder().
 			Label("Accept terms and conditions").
 			Checked(checked2).
-			OnChange(setChecked2).
-			Build(),
+			Build(), // TODO: integrate with FieldChangeIntent
 		ui.Text(""),
 
 		// Input Section
@@ -88,9 +99,7 @@ func MouseInteractionDemo() ui.VNode {
 			app.InputBuilder().
 				Value(text).
 				Placeholder("Hover and click here...").
-				MaxLength(20).
-				OnChange(setText).
-				Build(),
+				Build(), // TODO: integrate with FieldChangeIntent
 		),
 		ui.Text(""),
 
@@ -110,21 +119,7 @@ func MouseInteractionDemo() ui.VNode {
 					{Value: "green", Label: "Green"},
 				}).
 				Selected(selectedIndex).
-				OnChange(func(value string) {
-					// Find index by value
-					for i, opt := range []app.SelectOption{
-						{Value: "dark", Label: "Dark"},
-						{Value: "light", Label: "Light"},
-						{Value: "blue", Label: "Blue"},
-						{Value: "green", Label: "Green"},
-					} {
-						if opt.Value == value {
-							setSelectedIndex(i)
-							break
-						}
-					}
-				}).
-				Build(),
+				Build(), // TODO: integrate with FieldChangeIntent
 		),
 		ui.Text(""),
 
