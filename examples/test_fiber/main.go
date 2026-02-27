@@ -9,22 +9,35 @@ import (
 	"github.com/wwsheng009/mint/ui"
 )
 
+// Intent Types
+type DecrementIntent struct{}
+func (DecrementIntent) IntentType() string { return "Decrement" }
+func (DecrementIntent) StayPressed() bool  { return true }
+
+type IncrementIntent struct{}
+func (IncrementIntent) IntentType() string { return "Increment" }
+func (IncrementIntent) StayPressed() bool  { return true }
+
 func SimpleApp() ui.VNode {
 	count, setCount, _ := ui.UseStateInt(0)
+
+	// Register intent handlers
+	ui.On(DecrementIntent{}, func() {
+		setCount(func(c int) int { return c - 1 })
+	})
+	ui.On(IncrementIntent{}, func() {
+		setCount(func(c int) int { return c + 1 })
+	})
 
 	return ui.VStack(
 		ui.Text("Fiber Mode Test"),
 		ui.Text(fmt.Sprintf("Count: %d", count)),
 		app.HStack(
 			app.ButtonBuilder("[-]").
-				OnClick(func() {
-					setCount(func(c int) int { return c - 1 })
-				}).
+				OnPress(DecrementIntent{}).
 				Build(),
 			app.ButtonBuilder("[+]").
-				OnClick(func() {
-					setCount(func(c int) int { return c + 1 })
-				}).
+				OnPress(IncrementIntent{}).
 				Build(),
 		),
 	)
