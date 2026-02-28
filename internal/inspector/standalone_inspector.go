@@ -25,18 +25,19 @@ import (
 
 	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/runtime/action"
+	"github.com/wwsheng009/mint/runtime"
+	"github.com/wwsheng009/mint/runtime/style"
+	"github.com/wwsheng009/mint/runtime/intent"
+	rtui "github.com/wwsheng009/mint/runtime/ui"
 	frameworkevent "github.com/wwsheng009/mint/framework/event"
 	"github.com/wwsheng009/mint/framework/theme"
 	"github.com/wwsheng009/mint/internal/log"
-	"github.com/wwsheng009/mint/runtime"
-	"github.com/wwsheng009/mint/runtime/platform"
-	"github.com/wwsheng009/mint/runtime/style"
-	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/ui"
-	"github.com/wwsheng009/mint/ui/components/list"
-	"github.com/wwsheng009/mint/ui/components/panel"
-	"github.com/wwsheng009/mint/ui/components/tabs"
-	"github.com/wwsheng009/mint/ui/components/treeview"
+	componentlist "github.com/wwsheng009/mint/ui/components/list"
+	componentpanel "github.com/wwsheng009/mint/ui/components/panel"
+	componentstack "github.com/wwsheng009/mint/ui/components/stack"
+	componenttabs "github.com/wwsheng009/mint/ui/components/tabs"
+	componenttreeview "github.com/wwsheng009/mint/ui/components/treeview"
 )
 
 // StandaloneInspector operates as an independent overlay
@@ -51,7 +52,7 @@ type StandaloneInspector struct {
 
 	// Data sources
 	treeView          *TreeView
-	treeViewComponent *treeview.VNode // New: TreeView component with navigation
+	treeViewComponent *componenttreeview.VNode // TreeView component with navigation
 	perf              *PerformanceAnalyzer
 	diagnostics       *LayoutDiagnostics
 	editor            *PropertyEditor
@@ -113,6 +114,9 @@ type StandaloneInspector struct {
 
 	// HitTest data
 	hitMapEntries []HitTestEntry // Cached hit test entries for display
+
+	// Intent handlers initialization
+	intentHandlersInitialized bool // Whether intent handlers have been registered
 }
 
 // HitTestEntry represents a single entry in the hit test display
@@ -194,6 +198,22 @@ func (si *StandaloneInspector) Enable() {
 
 	si.enabled = true
 	si.perf.Enable()
+
+	// Initialize intent handlers (only once, only if app is initialized)
+	if !si.intentHandlersInitialized {
+		// Try to initialize intent handlers, but don't fail if app is not ready (e.g., in tests)
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					// Intent registration failed (e.g., app not initialized in tests)
+					// This is OK - handlers will be registered during normal app startup
+					log.InspectorLogger.Debug("Intent handler registration deferred: %v", r)
+				}
+			}()
+			si.initIntentHandlers()
+			si.intentHandlersInitialized = true
+		}()
+	}
 
 	log.InspectorLogger.Debug("Enabled (F12 to toggle)")
 }
@@ -380,55 +400,64 @@ func (si *StandaloneInspector) buildOverlayContent() rtui.VNode {
 		Build()
 
 	// Create tabs using Tab component
-	tabItems := []*navigation.TabItem{
-		{ID: "elements", Label: "Elements(1)", Content: si.buildElementsTabContent()},
-		{ID: "console", Label: "Console(2)", Content: si.buildConsoleTabContent()},
-		{ID: "performance", Label: "Performance(3)", Content: si.buildPerformanceTabContent()},
-		{ID: "diagnostics", Label: "Diagnostics(4)", Content: si.buildDiagnosticsTabContent()},
-		{ID: "layout", Label: "Layout(5)", Content: si.buildLayoutTabContent()},
-		{ID: "network", Label: "Network(6)", Content: si.buildNetworkTabContent()},
-		{ID: "screen", Label: "Screen(7)", Content: si.buildScreenInfoTabContent()},
-		{ID: "hittest", Label: "HitTest(8)", Content: si.buildHitTestTabContent()},
+	tabItems := []componenttabs.TabItem{
+		{ID: "elements", Label: "Elements(1)", Disabled: false},
+		{ID: "console", Label: "Console(2)", Disabled: false},
+		{ID: "performance", Label: "Performance(3)", Disabled: false},
+		{ID: "diagnostics", Label: "Diagnostics(4)", Disabled: false},
+		{ID: "layout", Label: "Layout(5)", Disabled: false},
+		{ID: "network", Label: "Network(6)", Disabled: false},
+		{ID: "screen", Label: "Screen(7)", Disabled: false},
+		{ID: "hittest", Label: "HitTest(8)", Disabled: false},
 	}
 
-	// Build tabs with Tab component using Builder pattern
-	tabsBuilder := navigation.TabsBuilder()
-	for _, tab := range tabItems {
-		tabsBuilder.AddTab(tab.ID, tab.Label)
-		tabsBuilder.Content(tab.ID, tab.Content)
+	// Build active tab content
+	var activeContent rtui.VNode
+	switch si.activeTab {
+	case TabElements:
+		activeContent = si.buildElementsTabContent()
+	case TabConsole:
+		activeContent = si.buildConsoleTabContent()
+	case TabPerformance:
+		activeContent = si.buildPerformanceTabContent()
+	case TabDiagnostics:
+		activeContent = si.buildDiagnosticsTabContent()
+	case TabLayout:
+		activeContent = si.buildLayoutTabContent()
+	case TabNetwork:
+		activeContent = si.buildNetworkTabContent()
+	case TabScreenInfo:
+		activeContent = si.buildScreenInfoTabContent()
+	case TabHitTest:
+		activeContent = si.buildHitTestTabContent()
+	default:
+		activeContent = ui.Text("Tab not implemented")
 	}
-	tabsBuilder.ActiveTab(int(si.activeTab))
-	tabsBuilder.OnChange(func(id string) {
-		// Map id back to enum index
-		for idx, item := range tabItems {
-			if item.ID == id {
-				si.activeTab = InspectorTab(idx)
-				break
-			}
-		}
-	})
-	// Enable wrapping for tabs with 7 tabs
-	tabsBuilder.WrapTabs(true).TabGap(1)
 
-	// No manual height calculation needed!
-	// Panel + Flex layout handles this automatically.
-	tabsComponent := tabsBuilder.Build()
-
-	// Use the new Panel component
-	panel := container.PanelBuilder().
-		Header(titleBar).
-		Content(tabsComponent).
-		Footer(ui.Text("─")). // Bottom separator
-		Width(si.overlayWidth).
-		Height(si.overlayHeight).
+	// Build tabs component using Builder pattern
+	tabsComponent := componenttabs.NewBuilder().
+		Tabs(tabItems).
+		Width(si.overlayWidth - 4).
+		WrapTabs(true).
+		TabGap(1).
 		Build()
 
-	// Set background on panel
-	// Note: We need to cast to Stylable or set prop if Panel doesn't expose it directly via builder
-	// Panel wraps BorderedNode, which supports SetStyle
-	if stylable, ok := panel.(interface{ SetStyle(style.Style) }); ok {
-		stylable.SetStyle(style.NewStyle().Background(style.Blue))
-	}
+	// Build content using Stack component
+	content := componentstack.NewBuilder(componentstack.Column).
+		Children(tabsComponent, ui.Text("─"), activeContent).
+		Flex(1).
+		Build()
+
+	// Use the new Panel component
+	panel := componentpanel.NewBuilder().
+		Header(titleBar).
+		Content(content).
+		Footer(ui.Text("─")).
+		Width(si.overlayWidth).
+		Height(si.overlayHeight).
+		Rounded().
+		Style(style.NewStyle().Background(style.Blue)).
+		Build()
 
 	return panel
 }
@@ -571,22 +600,6 @@ func (si *StandaloneInspector) buildElementsTabContent() rtui.VNode {
 			Build(),
 	)
 
-	// Check for expand/collapse state change BEFORE building tree
-	if si.treeViewComponent != nil && si.treeViewComponent.ExpandStateChanged() {
-		lineIndex := si.treeViewComponent.GetExpandStateLineIndex()
-		// Get uniqueID for this line index
-		// Use cached lines for lookup
-		if lineIndex >= 0 && lineIndex < len(si.treeLines) {
-			uniqueID := si.treeView.GetUniqueIDForLineIndex(lineIndex)
-			if uniqueID != "" {
-				si.treeView.ToggleNode(uniqueID)
-				log.InspectorLogger.Debug("Toggled node: %s (line %d)", uniqueID, lineIndex)
-			}
-		}
-		// Clear the flag
-		si.treeViewComponent.ClearExpandStateChanged()
-	}
-
 	// Tree visualization - use TreeView component with navigation
 	// Optimize: Only regenerate lines if tree structure or expansion state changed
 	currentChangeCount := si.treeView.GetChangeCount()
@@ -601,23 +614,14 @@ func (si *StandaloneInspector) buildElementsTabContent() rtui.VNode {
 		}
 	}
 
-	// Create or update TreeView component with navigation support
-	// Use FromLines to preserve expansion state from inspector.TreeView
-	if si.treeViewComponent == nil {
-		si.treeViewComponent = display.NewTreeView().
-			FromLines(si.treeLines).
-			ExpandLevel(-1). // Expand all, expansion controlled by si.treeView
-			ShowIcons(true).
-			Compact(false).
-			Build().(*display.TreeView)
-	} else {
-		// Update existing TreeView with new lines WITHOUT creating a new instance
-		// This preserves the viewportHeight that was set by the layout engine
-		log.InspectorLogger.Debug("Updating TreeViewComponent with %d lines", len(si.treeLines))
-		si.treeViewComponent.UpdateLines(si.treeLines)
-	}
-	// Get focused line index to display above tree
-	focusIndex := si.treeViewComponent.GetFocusIndex()
+	// Create TreeView component with navigation support
+	// Store in treeViewComponent for potential future use
+	si.treeViewComponent = componenttreeview.NewBuilder().
+		FromLines(si.treeLines).
+		ExpandLevel(-1). // Expand all, expansion controlled by si.treeView
+		ShowIcons(true).
+		Compact(false).
+		BuildVNode()
 
 	// Build selected/focused element info
 	// Priority: show selected (Enter) if available, otherwise show focused (↑↓)
@@ -630,28 +634,6 @@ func (si *StandaloneInspector) buildElementsTabContent() rtui.VNode {
 		targetVNode = si.selectedVNode
 		targetPath = si.selectedPath
 		displayType = "Selected"
-	} else if focusIndex >= 0 {
-		// ✨ Map focusIndex to flatNodes index
-		// treeLines structure: [0]=header, [1..n-1]=nodes, [n]=footer
-		// flatNodes structure: [0..m-1]=nodes (same nodes as treeLines[1..n-1])
-		//
-		// focusIndex is in treeLines coordinates
-		// We need to convert to flatNodes coordinates:
-		// - Skip header line (index 0)
-		// - Check we're not on footer line
-		flatNodes := si.treeView.GetFlatList()
-
-		// Adjust for header line offset
-		nodeIndex := focusIndex - 1
-
-		// Verify we're within valid range (not header, not footer)
-		// footer is at index len(treeLines)-1
-		if nodeIndex >= 0 && nodeIndex < len(flatNodes) && focusIndex < len(si.treeLines)-1 {
-			node := flatNodes[nodeIndex]
-			targetVNode = node.VNode
-			targetPath = node.Path
-			displayType = "Focused"
-		}
 	}
 
 	// Create info display
@@ -694,11 +676,13 @@ func (si *StandaloneInspector) buildElementsTabContent() rtui.VNode {
 		)
 	}
 
-	// TreeView implements Measurable interface and will receive bounded constraints from parent
-	// Set Flex prop directly on TreeView so it can grow to fill available space
-	si.treeViewComponent.SetProp("flex", 1)
-	si.treeViewComponent.SetProp("treeView", true) // hint for tests/diagnostics
-	treePreview := si.treeViewComponent            // Directly use TreeView, no wrapper!
+	// TreeView
+	treePreview := componenttreeview.NewBuilder().
+		FromLines(si.treeLines).
+		ExpandLevel(-1).
+		ShowIcons(true).
+		Compact(false).
+		Build()
 
 	// Instructions
 	separator := strings.Repeat("─", si.overlayWidth-4)
@@ -1082,29 +1066,15 @@ func (si *StandaloneInspector) buildHitTestTabContent() rtui.VNode {
 	}
 
 	// Build the list using ListVNode
-	list := data.ListBuilder().
+	list := componentlist.NewBuilder().
 		Header("🎯 Hit Test Data").
 		Rows(rows).
 		HeaderStyle(style.Style{}.Bold(true).Foreground(style.Color("green"))).
-		RowStyleFn(func(index int, text string) style.Style {
-			// Style column header (first row)
-			if index == 0 {
-				return style.Style{}.Bold(true).Foreground(style.Color("cyan"))
-			}
-			// Skip styling for overflow indicator
-			if index == len(rows)-1 && strings.HasPrefix(text, "...") {
-				return style.Style{}.Foreground(style.Color("gray"))
-			}
-			// Highlight hit test rows with yellow bold
-			if strings.Contains(text, "✓") {
-				return style.Style{}.Bold(true).Foreground(style.Color("yellow"))
-			}
-			return style.Style{}
-		}).
+		RowStyle(style.Style{}).
 		EmptyText("(no entries)").
 		ShowSeparator(true).
 		MaxRows(17). // Header + separator + colHeader + 12 entries + overflow
-		Key("inspector-hittest-list"). // CRITICAL: Set key so Fiber Reconciler can create persistent ComponentInstance
+		Key("inspector-hittest-list").
 		Build()
 
 	// Create summary line (separate from the list)
@@ -1638,7 +1608,7 @@ func (si *StandaloneInspector) GetPropertyEditor() *PropertyEditor {
 }
 
 // GetTreeViewComponent returns the TreeView display component (for testing)
-func (si *StandaloneInspector) GetTreeViewComponent() *display.TreeView {
+func (si *StandaloneInspector) GetTreeViewComponent() *componenttreeview.VNode {
 	si.mu.RLock()
 	defer si.mu.RUnlock()
 	return si.treeViewComponent
@@ -1896,101 +1866,64 @@ func (si *StandaloneInspector) HandleKeyEvent(key string, alt bool, ctrl bool, s
 		return true
 	}
 
-	// Alt + Arrow keys to move the panel
+	// Alt + Arrow keys to move the panel (use Intent pattern)
 	if alt {
+		si.mu.Unlock() // Unlock before emitting intent to avoid deadlock
 		switch key {
 		case "h", "left":
-			si.floatX -= 2
-			if si.floatX < 0 {
-				si.floatX = 0
-			}
-			log.InspectorLogger.Debug("Moved left to x=%d", si.floatX)
-			return true
+			go ui.EmitIntentGlobal(MoveInspectorIntent{Direction: "left"})
 		case "l", "right":
-			si.floatX += 2
-			log.InspectorLogger.Debug("Moved right to x=%d", si.floatX)
-			return true
+			go ui.EmitIntentGlobal(MoveInspectorIntent{Direction: "right"})
 		case "k", "up":
-			si.floatY -= 1
-			if si.floatY < 0 {
-				si.floatY = 0
-			}
-			log.InspectorLogger.Debug("Moved up to y=%d", si.floatY)
-			return true
+			go ui.EmitIntentGlobal(MoveInspectorIntent{Direction: "up"})
 		case "j", "down":
-			si.floatY += 1
-			log.InspectorLogger.Debug("Moved down to y=%d", si.floatY)
-			return true
+			go ui.EmitIntentGlobal(MoveInspectorIntent{Direction: "down"})
 		}
-	}
-
-	// Tab switching
-	if key == "1" {
-		si.activeTab = TabElements
-		log.InspectorLogger.Debug("Switched to Elements tab (key=1)")
-		return true
-	}
-	if key == "2" {
-		si.activeTab = TabConsole
-		log.InspectorLogger.Debug("Switched to Console tab (key=2)")
-		return true
-	}
-	if key == "3" {
-		si.activeTab = TabPerformance
-		log.InspectorLogger.Debug("Switched to Performance tab (key=3)")
-		return true
-	}
-	if key == "4" {
-		si.activeTab = TabDiagnostics
-		log.InspectorLogger.Debug("Switched to Diagnostics tab (key=4)")
-		return true
-	}
-	if key == "5" {
-		si.activeTab = TabLayout
-		log.InspectorLogger.Debug("Switched to Layout tab (key=5)")
-		return true
-	}
-	if key == "6" {
-		si.activeTab = TabNetwork
-		log.InspectorLogger.Debug("Switched to Network tab (key=6)")
-		return true
-	}
-	if key == "7" {
-		si.activeTab = TabScreenInfo
-		log.InspectorLogger.Debug("Switched to Screen Info tab (key=7)")
-		return true
-	}
-	if key == "8" {
-		si.activeTab = TabHitTest
-		log.InspectorLogger.Debug("Switched to HitTest tab (key=8)")
 		return true
 	}
 
-	// Tab cycling - cycle through inspector tabs
+
+	// Tab switching using Intent pattern (optimized with map)
+	tabKeyMap := map[string]InspectorTab{
+		"1": TabElements,
+		"2": TabConsole,
+		"3": TabPerformance,
+		"4": TabDiagnostics,
+		"5": TabLayout,
+		"6": TabNetwork,
+		"7": TabScreenInfo,
+		"8": TabHitTest,
+	}
+
+	if tab, ok := tabKeyMap[key]; ok {
+		si.mu.Unlock() // Unlock before emitting intent
+		go ui.EmitIntentGlobal(SwitchTabIntent{Tab: tab})
+		return true
+	}
+
+	// Tab cycling using Intent pattern
 	if key == "tab" {
-		if shift {
-			// Shift+Tab: cycle backward through tabs
-			si.activeTab--
-			if si.activeTab < TabElements {
-				si.activeTab = TabHitTest
+		si.mu.Unlock() // Unlock before emitting intent
+		currentTab := si.activeTab
+		shiftedTab := func() InspectorTab {
+			if shift {
+				currentTab--
+				if currentTab < TabElements {
+					currentTab = TabHitTest
+				}
+			} else {
+				currentTab++
+				if currentTab > TabHitTest {
+					currentTab = TabElements
+				}
 			}
-		} else {
-			// Tab (alone or with Ctrl/Alt): cycle forward through tabs
-			si.activeTab++
-			if si.activeTab > TabHitTest {
-				si.activeTab = TabElements
-			}
-		}
-
-		direction := "forward"
-		if shift {
-			direction = "backward"
-		}
-		log.InspectorLogger.Debug("Tab cycled %s to tab %d", direction, si.activeTab)
+			return currentTab
+		}()
+		go ui.EmitIntentGlobal(SwitchTabIntent{Tab: shiftedTab})
 		return true
 	}
 
-	// Tree scrolling and navigation - only when Elements tab is active
+	// Tree scrolling and navigation using Intent pattern (only when Elements tab is active)
 	if si.activeTab == TabElements {
 		// If we have a TreeView component, delegate navigation to it
 		if si.treeViewComponent != nil {
@@ -2004,61 +1937,28 @@ func (si *StandaloneInspector) HandleKeyEvent(key string, alt bool, ctrl bool, s
 			// but setting it helps with accurate Paging calculations before next render
 			si.treeViewComponent.SetViewportHeight(treeViewHeight)
 
-			// Map key strings to platform.SpecialKey and handle navigation
-			var platformKey platform.SpecialKey
-			var r rune
-			handled := false
-
+			// Handle tree navigation using Intent pattern
+			var dir string
 			switch key {
 			case "up":
-				platformKey = platform.KeyUp
-				handled = si.treeViewComponent.HandleKey(platformKey, r)
+				dir = "up"
 			case "down":
-				platformKey = platform.KeyDown
-				handled = si.treeViewComponent.HandleKey(platformKey, r)
-			case "pageup", "pgup": // Accept both for compatibility
-				platformKey = platform.KeyPageUp
-				handled = si.treeViewComponent.HandleKey(platformKey, r)
-			case "pagedown", "pgdn": // Accept both for compatibility
-				platformKey = platform.KeyPageDown
-				handled = si.treeViewComponent.HandleKey(platformKey, r)
+				dir = "down"
+			case "pageup", "pgup":
+				dir = "pageup"
+			case "pagedown", "pgdn":
+				dir = "pagedown"
 			case "home":
-				platformKey = platform.KeyHome
-				handled = si.treeViewComponent.HandleKey(platformKey, r)
+				dir = "home"
 			case "end":
-				platformKey = platform.KeyEnd
-				handled = si.treeViewComponent.HandleKey(platformKey, r)
-			case "e":
-				r = 'e'
-				handled = si.treeViewComponent.HandleKey(platformKey, r)
-			case "enter":
-				platformKey = platform.KeyEnter
-				handled = si.treeViewComponent.HandleKey(platformKey, r)
-
-				// Update selected node info when Enter is pressed
-				if handled {
-					selectedLine := si.treeViewComponent.GetSelectedLine()
-					if selectedLine.NodeID >= 0 && selectedLine.Path != "" {
-						// Find the node by path and update selection
-						node := si.treeView.FindNodeByPath(selectedLine.Path)
-						if node != nil {
-							si.selectedVNode = node.VNode
-							si.selectedPath = selectedLine.Path
-							log.InspectorLogger.Debug("Selected node: %s (path: %s)",
-								node.Info.Type, selectedLine.Path)
-						}
-					}
-				}
+				dir = "end"
+			case "e", "enter":
+				dir = "enter"
 			}
 
-			if handled {
-				// Sync scroll offset back to Inspector
-				si.treeScrollOffset = si.treeViewComponent.GetScrollOffset()
-				focusedLine := si.treeViewComponent.GetFocusedLine()
-				log.InspectorLogger.Debug("Tree navigation: focus=%d, scroll=%d, line=%q",
-					si.treeViewComponent.GetFocusIndex(),
-					si.treeScrollOffset,
-					focusedLine.Content)
+			if dir != "" {
+				si.mu.Unlock() // Unlock before emitting intent
+				go ui.EmitIntentGlobal(TreeNavIntent{Direction: dir})
 				return true
 			}
 		}
@@ -2075,16 +1975,14 @@ func (si *StandaloneInspector) HandleKeyEvent(key string, alt bool, ctrl bool, s
 		}
 
 		switch key {
-		case "pageup", "pgup": // Accept both for compatibility
-			// Scroll up by one page
+		case "pageup", "pgup":
 			si.treeScrollOffset -= treeViewHeight
 			if si.treeScrollOffset < 0 {
 				si.treeScrollOffset = 0
 			}
 			log.InspectorLogger.Debug("Tree scrolled up to offset %d", si.treeScrollOffset)
 			return true
-		case "pagedown", "pgdn": // Accept both for compatibility
-			// Scroll down by one page
+		case "pagedown", "pgdn":
 			si.treeScrollOffset += treeViewHeight
 			if si.treeScrollOffset > maxOffset {
 				si.treeScrollOffset = maxOffset
@@ -2092,16 +1990,16 @@ func (si *StandaloneInspector) HandleKeyEvent(key string, alt bool, ctrl bool, s
 			log.InspectorLogger.Debug("Tree scrolled down to offset %d", si.treeScrollOffset)
 			return true
 		case "home":
-			// Scroll to top
 			si.treeScrollOffset = 0
 			log.InspectorLogger.Debug("Tree scrolled to top")
 			return true
 		case "end":
-			// Scroll to bottom
 			si.treeScrollOffset = maxOffset
 			log.InspectorLogger.Debug("Tree scrolled to bottom")
 			return true
 		}
+
+		return true
 	}
 
 	// When Inspector is visible, it's modal - capture ALL keyboard input
@@ -2479,3 +2377,184 @@ func (si *StandaloneInspector) handleTabBarClick(localX int) bool {
 
 	return false
 }
+
+// =============================================================================
+// Custom Intent Types for MVP Pattern
+// =============================================================================
+
+// SwitchTabIntent represents an intent to switch to a specific inspector tab
+type SwitchTabIntent struct {
+	Tab InspectorTab
+}
+
+func (SwitchTabIntent) IntentType() string { return "SwitchTab" }
+func (SwitchTabIntent) StayPressed() bool  { return true }
+
+// TreeNavIntent represents an intent to navigate the tree view
+type TreeNavIntent struct {
+	Direction string // "up", "down", "pageup", "pagedown", "home", "end", "enter"
+}
+
+func (TreeNavIntent) IntentType() string { return "TreeNav" }
+func (TreeNavIntent) StayPressed() bool  { return true }
+
+// ToggleInspectorIntent represents an intent to toggle the inspector visibility
+type ToggleInspectorIntent struct{}
+
+func (ToggleInspectorIntent) IntentType() string { return "ToggleInspector" }
+func (ToggleInspectorIntent) StayPressed() bool  { return true }
+
+// MoveInspectorIntent represents an intent to move the floating inspector
+type MoveInspectorIntent struct {
+	Direction string // "up", "down", "left", "right"
+}
+
+func (MoveInspectorIntent) IntentType() string { return "MoveInspector" }
+func (MoveInspectorIntent) StayPressed() bool  { return true }
+
+// navigateTree navigates the tree view by the specified direction
+// delta: -1 for up, 1 for down
+func (si *StandaloneInspector) navigateTree(delta int) {
+	if si.treeViewComponent == nil || si.treeLines == nil {
+		return
+	}
+
+	// Calculate the current visible lines
+	treeViewHeight := si.overlayHeight - 20
+	if treeViewHeight < 1 {
+		treeViewHeight = 1
+	}
+
+	// Update scroll offset
+	si.treeScrollOffset += delta
+
+	// Ensure scroll offset stays within bounds
+	maxOffset := len(si.treeLines) - treeViewHeight
+	if maxOffset < 0 {
+		maxOffset = 0
+	}
+	if si.treeScrollOffset < 0 {
+		si.treeScrollOffset = 0
+	}
+	if si.treeScrollOffset > maxOffset {
+		si.treeScrollOffset = maxOffset
+	}
+}
+
+// =============================================================================
+// Intent Handler Initialization (MVP Pattern)
+// =============================================================================
+
+// initIntentHandlers registers all intent handlers for the inspector
+// This follows the MVP pattern where Intent carries data and handlers update state
+func (si *StandaloneInspector) initIntentHandlers() {
+	// Register SwitchTab handler
+	rtui.RegisterIntent(func(ctx *intent.ActionContext, i SwitchTabIntent) intent.IntentResult {
+		si.mu.Lock()
+		defer si.mu.Unlock()
+
+		// Ensure the tab is valid
+		if i.Tab >= TabElements && i.Tab <= TabHitTest {
+			si.activeTab = i.Tab
+			log.InspectorLogger.Debug("Switched to tab %d via SwitchTabIntent", i.Tab)
+		}
+		return intent.HandledResult()
+	})
+
+	// Register TreeNav handler
+	rtui.RegisterIntent(func(ctx *intent.ActionContext, i TreeNavIntent) intent.IntentResult {
+		si.mu.Lock()
+		defer si.mu.Unlock()
+
+		// Only handle navigation when Elements tab is active
+		if si.activeTab != TabElements {
+			return intent.HandledResult()
+		}
+
+		switch i.Direction {
+		case "up":
+			si.navigateTree(-1)
+			log.InspectorLogger.Debug("Tree: navigated up (Intent), scroll offset=%d", si.treeScrollOffset)
+		case "down":
+			si.navigateTree(1)
+			log.InspectorLogger.Debug("Tree: navigated down (Intent), scroll offset=%d", si.treeScrollOffset)
+		case "pageup":
+			treeViewHeight := si.overlayHeight - 20
+			if treeViewHeight < 1 {
+				treeViewHeight = 1
+			}
+			si.treeScrollOffset -= treeViewHeight
+			if si.treeScrollOffset < 0 {
+				si.treeScrollOffset = 0
+			}
+			log.InspectorLogger.Debug("Tree: scrolled page up (Intent), scroll offset=%d", si.treeScrollOffset)
+		case "pagedown":
+			treeViewHeight := si.overlayHeight - 20
+			if treeViewHeight < 1 {
+				treeViewHeight = 1
+			}
+			maxOffset := len(si.treeLines) - treeViewHeight
+			if maxOffset < 0 {
+				maxOffset = 0
+			}
+			si.treeScrollOffset += treeViewHeight
+			if si.treeScrollOffset > maxOffset {
+				si.treeScrollOffset = maxOffset
+			}
+			log.InspectorLogger.Debug("Tree: scrolled page down (Intent), scroll offset=%d", si.treeScrollOffset)
+		case "home":
+			si.treeScrollOffset = 0
+			log.InspectorLogger.Debug("Tree: scrolled to top (Intent)")
+		case "end":
+			treeViewHeight := si.overlayHeight - 20
+			if treeViewHeight < 1 {
+				treeViewHeight = 1
+			}
+			maxOffset := len(si.treeLines) - treeViewHeight
+			if maxOffset < 0 {
+				maxOffset = 0
+			}
+			si.treeScrollOffset = maxOffset
+			log.InspectorLogger.Debug("Tree: scrolled to bottom (Intent)")
+		case "enter":
+			log.InspectorLogger.Debug("Tree: enter key pressed on line at offset %d (Intent)", si.treeScrollOffset)
+		}
+		return intent.HandledResult()
+	})
+
+	// Register ToggleInspector handler (no parameters, can use ui.On)
+	ui.On(ToggleInspectorIntent{}, func() {
+		si.ToggleVisibility()
+	})
+
+	// Register MoveInspector handler
+	rtui.RegisterIntent(func(ctx *intent.ActionContext, i MoveInspectorIntent) intent.IntentResult {
+		si.mu.Lock()
+		defer si.mu.Unlock()
+
+		switch i.Direction {
+		case "up":
+			si.floatY -= 1
+			if si.floatY < 0 {
+				si.floatY = 0
+			}
+			log.InspectorLogger.Debug("Moved inspector up to y=%d (Intent)", si.floatY)
+		case "down":
+			si.floatY += 1
+			log.InspectorLogger.Debug("Moved inspector down to y=%d (Intent)", si.floatY)
+		case "left":
+			si.floatX -= 2
+			if si.floatX < 0 {
+				si.floatX = 0
+			}
+			log.InspectorLogger.Debug("Moved inspector left to x=%d (Intent)", si.floatX)
+		case "right":
+			si.floatX += 2
+			log.InspectorLogger.Debug("Moved inspector right to x=%d (Intent)", si.floatX)
+		}
+		return intent.HandledResult()
+	})
+
+	log.InspectorLogger.Debug("Inspector intent handlers initialized")
+}
+

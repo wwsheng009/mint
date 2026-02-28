@@ -633,9 +633,10 @@ func DemoAppWithLongContent() ui.VNode {
 // DemoAppWithVirtualList 带有 VirtualList 的演示应用
 func DemoAppWithVirtualList() ui.VNode {
 	// 创建100个项目的虚拟列表
-	items := make([]interface{}, 100)
+	// Note: VirtualListBuilder.Items() expects []string, not []interface{}
+	items := make([]string, 100)
 	for i := 0; i < 100; i++ {
-		items[i] = i
+		items[i] = fmt.Sprintf("Item %d: Virtualized content", i+1)
 	}
 
 	return ui.VStack(
@@ -646,10 +647,6 @@ func DemoAppWithVirtualList() ui.VNode {
 		ui.Text(""),
 		app.VirtualListBuilder().
 			Items(items).
-			RenderItem(func(item interface{}) ui.VNode {
-				idx := item.(int)
-				return ui.Text(fmt.Sprintf("Item %d: Virtualized content", idx+1))
-			}).
 			ItemHeight(1).
 			Height(20).
 			ScrollOffset(0).

@@ -3,7 +3,7 @@ package inspector
 import (
 	"testing"
 
-	"github.com/wwsheng009/mint/components/display"
+	componenttreeview "github.com/wwsheng009/mint/ui/components/treeview"
 	frameworkevent "github.com/wwsheng009/mint/framework/event"
 	"github.com/wwsheng009/mint/runtime/event"
 	"github.com/wwsheng009/mint/ui"
@@ -52,7 +52,7 @@ func TestOverlayTreeViewClick(t *testing.T) {
 	si.activeTab = TabElements
 
 	// Initialize inspector with test data to create TreeView component
-	// The inspector needs tree data to create the display.TreeView component
+	// The inspector needs tree data to create the TreeView component
 	testRoot := ui.VStack(
 		ui.Text("Item 1"),
 		ui.Text("Item 2"),
@@ -60,7 +60,7 @@ func TestOverlayTreeViewClick(t *testing.T) {
 	)
 	si.treeView.SetRoot(testRoot)
 
-	// Trigger tree line generation (this creates the display.TreeView component)
+	// Trigger tree line generation (this creates the TreeView component)
 	si.treeLines, _ = si.treeView.GetTreeLines()
 	if len(si.treeLines) == 0 {
 		t.Fatal("Failed to generate tree lines from test data")
@@ -70,17 +70,21 @@ func TestOverlayTreeViewClick(t *testing.T) {
 	tvComponent := si.GetTreeViewComponent()
 	if tvComponent == nil {
 		// Manually create TreeView component if it wasn't auto-created
-		si.treeViewComponent = display.NewTreeView().
+		// Use BuildVNode() to get *treeview.VNode directly
+		tvVNode := componenttreeview.NewBuilder().
 			FromLines(si.treeLines).
 			ExpandLevel(1).
 			ShowIcons(true).
 			Compact(false).
-			Build().(*display.TreeView)
+			BuildVNode()
+		si.treeViewComponent = tvVNode
 		tvComponent = si.treeViewComponent
 	}
 
-	t.Logf("TreeView state: lineCount=%d, focusIndex=%d",
-		tvComponent.GetLineCount(), tvComponent.GetFocusIndex())
+	// Note: treeview.VNode doesn't have GetLineCount() or GetFocusIndex() methods
+	// t.Logf("TreeView state: lineCount=%d, focusIndex=%d",
+	//	tvComponent.GetLineCount(), tvComponent.GetFocusIndex())
+	t.Logf("TreeView component created successfully")
 
 	// IMPORTANT: Call RenderOverlay to initialize cachedOverlayContent
 	// This ensures components have accurate bounds from the layout engine
@@ -121,8 +125,8 @@ func TestOverlayTreeViewClick(t *testing.T) {
 
 	handled := si.HandleMouseEvent(frameworkevent.EventMousePress, ev)
 
-	t.Logf("TreeView click test: handled=%v, lineCount=%d, focusIndex=%d",
-		handled, tvComponent.GetLineCount(), tvComponent.GetFocusIndex())
+	// Note: treeview.VNode doesn't have GetLineCount() or GetFocusIndex() methods
+	t.Logf("TreeView click test: handled=%v", handled)
 
 	// The click should reach TreeView's HandleEvent with proper bounds set
 	// Even if the line index is out of bounds, the event routing should work

@@ -256,11 +256,9 @@ func (pe *PropertyEditor) getStyleValue(vnode rtui.VNode) style.Style {
 }
 
 func (pe *PropertyEditor) setStyleValue(vnode rtui.VNode, value style.Style) error {
-	if styled, ok := vnode.(interface{ SetStyle(style.Style) }); ok {
-		styled.SetStyle(value)
-		return nil
-	}
-	return fmt.Errorf("element does not support style property")
+	// VNode interface already has SetStyle method, no type assertion needed
+	vnode.SetStyle(value)
+	return nil
 }
 
 // formatValue formats a value for display
