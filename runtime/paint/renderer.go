@@ -78,7 +78,6 @@ func (r *Renderer) Render() string {
 	// 执行 diff，找出变化区域
 	diff := r.dirtyTracker.Diff(r.front, r.back)
 
-	// DEBUG: 输出 diff 信息
 	log.RenderLogger.Debug("[RENDER] HasChanges=%v, ChangedCells=%d, Regions=%d",
 		diff.HasChanges, diff.ChangedCells, len(diff.DirtyRegions))
 
@@ -176,23 +175,40 @@ func (r *Renderer) renderLine(y int, region Rect) {
 			continue
 		}
 
-		// 开始一个 run
+		// 开始一个 run，尝试合并相邻的、同样式的单元格
 		startX := x
 		runStyle := cell.Style
 		var runText bytes.Buffer
+		totalWidth := 0
 
-		// 只收集当前单元格（因为 run merging 要求相邻单元格样式相同）
-		runText.WriteString(cell.Cluster)
-		// 确保 x 至少前进 1，避免 Width=0 导致无限循环
-		width := cell.Width
-		if width <= 0 {
-			width = 1
+		// 收集当前单元格以及后续相邻的、同样式的单元格
+		for ; x < endX; {
+			nextCell := r.back.Cells[y][x]
+			// 如果样式不同或是 continuation，停止合并
+			if nextCell.IsContinuation ||
+				nextCell.Style != runStyle ||
+				nextCell.Cluster == "" ||
+				nextCell.Cluster == "\\x00" {
+				break
+			}
+
+			// 收集单元格文本
+			runText.WriteString(nextCell.Cluster)
+
+			// 计算单元格宽度
+			width := nextCell.Width
+			if width <= 0 {
+				width = 1
+			}
+			totalWidth += width
+
+			// 前进到下一个单元格
+			x += width
 		}
-		x += width
 
 		runCount++
-		// 输出这个 run，传入实际的 cell width 用于光标跟踪
-		r.emitRunWithWidth(startX, y, runStyle, runText.String(), width)
+		// 输出合并后的 run，传入总宽度
+		r.emitRunWithWidth(startX, y, runStyle, runText.String(), totalWidth)
 	}
 
 	log.RenderLogger.Debug("[renderLine] emitted %d runs", runCount)
@@ -202,6 +218,11 @@ func (r *Renderer) renderLine(y int, region Rect) {
 // emitRunWithWidth 输出一个渲染批次（带宽度参数，用于正确跟踪光标）
 // 对于边框字符，使用 cell width 而非 runewidth.StringWidth，避免光标位置错误
 func (r *Renderer) emitRunWithWidth(x, y int, runStyle style.Style, text string, textWidth int) {
+	// 即使 text 为空，也要更新 cursorX 以保持光标同步
+	// 这对于处理空单元格或 continuation 单元格很重要
+	r.cursorX = x + textWidth
+	r.cursorY = y
+
 	if text == "" {
 		return
 	}
@@ -219,11 +240,6 @@ func (r *Renderer) emitRunWithWidth(x, y int, runStyle style.Style, text string,
 
 	// 输出文本
 	r.output.WriteString(text)
-
-	// 更新光标位置 - 使用实际的 cell width 而非 runewidth.StringWidth
-	// 这修复了边框字符被 runewidth 认为宽度 2 导致光标跳过的问题
-	r.cursorX = x + textWidth
-	r.cursorY = y
 }
 
 // emitRun 输出一个渲染批次

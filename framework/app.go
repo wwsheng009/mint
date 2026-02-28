@@ -990,6 +990,19 @@ func (a *App) processMsg(msg runtimemsg.Msg) {
 	// 通过 Payload 类型识别鼠标事件（更可靠，因为 Source 可能为空）
 	if mouseMsg, ok := act.Payload.(*runtimemsg.MouseMsg); ok && mouseMsg.TargetFiber != nil {
 		if fiber, ok := mouseMsg.TargetFiber.(*rtui.Fiber); ok {
+			// Mouse click: Check if target is focusable and transfer focus
+			if act.Type == action.ActionClick && fiber.Instance != nil {
+				if focusable, ok := fiber.Instance.(rtui.FocusableInstance); ok {
+					if !focusable.IsDisabled() && a.focusManager != nil {
+						// Transfer focus to clicked element by NodeID
+						focusID := fmt.Sprintf("%d", fiber.NodeID)
+						if a.focusManager.SetFocusByID(focusID) {
+							a.dirty = true
+						}
+					}
+				}
+			}
+
 			// 传入 act.Payload (MouseMsg) 而不是 act
 			if a.actionBridge.DispatchFromFiber(fiber, act.Type, act.Payload) {
 				a.dirty = true
@@ -1275,20 +1288,6 @@ func (a *App) render() {
 	if paintable, ok := a.root.(component.Paintable); ok {
 		// 使用 Renderer 的 back buffer
 		buf := a.renderer.GetBackBuffer()
-
-		if log.UILogger.Enabled() {
-			log.UILogger.Debug("[App.render] BEFORE Reset: back buffer has content")
-			// Count non-empty cells
-			count := 0
-			for y := 0; y < buf.Height; y++ {
-				for x := 0; x < buf.Width; x++ {
-					if buf.Cells[y][x].Cluster != "" && buf.Cells[y][x].Cluster != " " {
-						count++
-					}
-				}
-			}
-			log.UILogger.Debug("[App.render] Back buffer non-empty cells BEFORE Reset: %d", count)
-		}
 
 		// 清空并调整 buffer 大小（Renderer 复用 buffer）
 		// buffer 大小使用实际终端大小（用于渲染）

@@ -354,28 +354,6 @@ func (m *FiberFocusManager) HandleEvent(ev event.Event) (handled bool, shouldRen
 	return false, false
 }
 
-// keyEventToActionType converts a keyboard event to an action type string
-func (m *FiberFocusManager) keyEventToActionType(keyEvent *event.KeyEvent) string {
-	switch keyEvent.Special {
-	case event.KeyEnter:
-		return ActionTypeEnter
-	case event.KeyTab:
-		if keyEvent.Modifiers == event.ModShift {
-			return ActionTypeNavigatePrev
-		}
-		return ActionTypeNavigateNext
-	case event.KeyEscape:
-		return ActionTypeCancel
-	}
-
-	// Check for Space (often used as click)
-	if keyEvent.Key.Rune == ' ' {
-		return ActionTypeClick
-	}
-
-	return ""
-}
-
 // SetOnNavigate sets a callback for focus navigation changes.
 func (m *FiberFocusManager) SetOnNavigate(fn func(from, to *Fiber)) {
 	m.onNavigate = fn
@@ -420,7 +398,7 @@ func (m *FiberFocusManager) SetFocusByIndex(index int) bool {
 // NodeID-based focus ID format: "node-{NodeID}"
 func (m *FiberFocusManager) SetFocusByID(id string) bool {
 	for i, fiber := range m.focusable {
-		fiberID := fmt.Sprintf("node-%d", fiber.NodeID)
+		fiberID := fmt.Sprintf("%d", fiber.NodeID)
 		// Check NodeID-based FocusID (Fiber-first)
 		if fiberID == id {
 			old := m.current
