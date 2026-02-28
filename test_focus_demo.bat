@@ -1,3 +1,0 @@
-@echo off
-echo Testing focus switching demo...
-echo q | .\bin\focus_switching_demo.exe
