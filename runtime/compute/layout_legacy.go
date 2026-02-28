@@ -3,13 +3,94 @@ package compute
 import (
 	"fmt"
 
-	"github.com/wwsheng009/mint/internal/render"
+	"github.com/wwsheng009/mint/internal/log"
 	"github.com/wwsheng009/mint/internal/reconciler"
+	"github.com/wwsheng009/mint/internal/render"
 	"github.com/wwsheng009/mint/runtime"
-	"github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/event"
+	"github.com/wwsheng009/mint/runtime/layout"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
+
+// Engine performs constraint-driven layout calculation
+// It separates layout (position calculation) from paint (rendering)
+type Engine struct {
+	cache        *LayoutCache
+	dirtyTracker *DirtyTracker
+	debug        bool
+	flexCache    map[string]*FlexDistributionInfo // Cache for flex distribution per parent
+	traceDepth   int                              // Current depth for layout tracing
+	validator    *BoundsValidator                 // Validates bounds consistency
+}
+
+// NewEngine creates a new layout engine
+func NewEngine() *Engine {
+	return &Engine{
+		cache:        NewLayoutCache(),
+		dirtyTracker: NewDirtyTracker(),
+		debug:        log.LayoutLogger.Enabled(),
+		validator:    NewBoundsValidator(),
+	}
+}
+
+// SetDebug enables/disables debug output
+func (e *Engine) SetDebug(debug bool) {
+	e.debug = debug
+}
+
+// Layout performs layout calculation on a VNode tree
+// Returns a ComputedLayout containing computed positions for all nodes
+// AND a HitMap built from the final ComputedBox positions (including layer transforms)
+//
+// Parameters:
+//
+//	vnode: The VNode tree to layout
+//	fiber: Optional Fiber node for passing NodeID to ComputedBox (Phase 3: Identity Refactoring)
+//	       When provided, Fiber.NodeID is passed to ComputedBox for stable identity
+//	       When nil, NodeID will be 0 (backward compatible with non-Fiber mode)
+//	constraints: Box constraints for layout
+func (e *Engine) Layout(vnode VNode, fiber *reconciler.Fiber, constraints runtime.BoxConstraints) (*ComputedLayout, error) {
+	// Delegate to LayoutV3 (new layout engine)
+	return e.LayoutV3(vnode, fiber, constraints)
+}
+
+// LayoutFiber lays out the entire Fiber tree
+// This method now delegates to LayoutV3 which uses the new runtime/layout engine (fiber-first)
+//
+// Parameters:
+//
+//	root: The root Fiber node of the tree to layout
+//	constraints: Box constraints for the entire tree layout
+//
+// Returns:
+//
+//	*ComputedLayout containing the root ComputedBox and HitMap
+//	error if layout fails
+//
+// Note: This method now delegates to LayoutV3 (new layout engine with fiber-first support)
+func (e *Engine) LayoutFiber(root *rtui.Fiber, constraints runtime.BoxConstraints) (*ComputedLayout, error) {
+	// Delegate to LayoutV3 (new layout engine with fiber-first)
+	// rtui.Fiber and reconciler.Fiber are the same type (type alias)
+	return e.LayoutV3(nil, root, constraints)
+}
+// LayoutV3 performs layout calculation using the new layout engine (V3)
+// Fiber-first: Uses the new layout.Engine from runtime/layout package
+//
+// This method bridges the legacy compute.Engine API with the new layout system.
+// It converts inputs and outputs between the two systems while maintaining backward compatibility.
+//
+// Parameters:
+//   - vnode: The VNode tree to layout (optional, used as fallback if fiber is nil)
+//   - fiber: The Fiber tree for layout (Fiber-first: preferred over vnode)
+//   - constraints: Box constraints for layout
+//
+// Returns:
+//   - *ComputedLayout: Computed layout result with positions for all nodes
+//   - error: Error if layout calculation fails
+func (e *Engine) LayoutV3(vnode VNode, fiber *reconciler.Fiber, constraints runtime.BoxConstraints) (*ComputedLayout, error) {
+	// Import render package adapters
+	return layoutV3Impl(vnode, fiber, constraints)
+}
 
 // layoutV3Impl implements the LayoutV3 method using the new layout engine (V3)
 //
