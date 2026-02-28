@@ -25,13 +25,29 @@
 | 默认 Layer 错误 | `tooltip/vnode.go` | 返回硬编码值为 `LayerOverlay` |
 | Builder API 缺失 | `tooltip/builder.go` | 没有 Layer() 便捷方法 |
 
-### Fiber-First 架构
+### Fiber-First 架构 (当前实现)
 
 ```
-VNode.GetLayer()  → Fiber.Layer (初始化时)
-Fiber.Layer      → 持久化存储
-Fiber.Layer      → hasLayerNodes() 检测
-hasLayerNodes()  → RenderLayers() / Render()
+NewDeclarativeNodeFromFuncWithFiber(fn, fwApp)
+    ↓
+fiberFirstPaint(ctx, buf)
+    ├─ Phase 1: Fiber Reconciliation (VNode → Fiber)
+    │       └─ reconciler.Render(nullBuf, fn)
+    │
+    ├─ Phase 2: Layout (Fiber → LayoutBox)
+    │       └─ newLayoutEngine.LayoutFiber(fiber, constraints)
+    │           └─ FiberToNodeAdapterPure(fiber)
+    │               └─ GetLayer() → layout.Layer
+    │
+    └─ Phase 3: Paint (LayoutBox → PaintableBox → Buffer)
+        ├─ FiberToPaintableConverter.ConvertToLayout()
+        │       └─ layout.Layer → paintableBox.Layer (int)
+        │
+        ├─ buildPlanes() 遍历 PaintableBox 树
+        │       └─ planes.AddToLayer(RenderLayer(box.Layer), box)
+        │
+        └─ paintEngine.PaintPaintablePlanes(planes, buf)
+            └─ 按 renderOrder [0,1,2,3,4] 依次渲染各层
 ```
 
 ---
@@ -335,60 +351,77 @@ TestToastManagerCleanExpired        ✅
 
 ## 🚧 技术细节
 
-### Fiber-First Layer 传播
+### fiberFirstPaint() 核心代码位置
+
+| 步骤 | 位置 | 说明 |
+|------|------|------|
+| Phase 1: Reconciliation | `declarative_node.go:fiberFirstPaint()` | `reconciler.Render(nullBuf, fn)` |
+| Phase 2: Layout | `layout_switcher.go:LayoutFiber()` | `NewLayoutEngineAdapter.LayoutFiber()` |
+| Fiber→Node Adapter | `fiber_adapter.go:FiberToNodeAdapterPure` | `GetLayer()` 实现 |
+| Phase 3.1: Layout→Paintable | `converter.go:FiberToPaintableConverter` | `Convert()` 方法 |
+| Phase 3.2: Build Planes | `declarative_node.go:buildPlanes()` | 遍历树并分组 |
+| Phase 3.3: Paint Planes | `paint_engine.go:PaintPaintablePlanes()` | 按 renderOrder 渲染 |
+
+### Layer 传播流程 (零拷贝)
 
 ```
 VNode.GetLayer()
     ↓
-NewFiber() (runtime/ui/fiber_util.go:197)
+NewFiber() (runtime/ui/fiber_util.go)
     ↓
 Fiber.Layer = vnode.GetLayer()
+    ↓ (持久化存储在 Fiber)
+
+
+FiberToNodeAdapterPure.GetLayer()
     ↓
-hasLayerNodesFromFiber()
+layout.Layer(a.fiber.Layer)  // ← 零拷贝映射
     ↓
-RenderLayers()
+LayoutBox.Layer (从 layout.Node 获取)
+    ↓
+PaintableBox.Layer (int conversion)
+    ↓
+PaintablePlanes 分组
+    ↓
+PaintEngine.PaintPaintablePlanes()
 ```
 
-### 层级检测优先级
+### 统一类型体系
 
-1. **Fiber 树检查** (优先)
-   - `PipelineRenderer.hasLayerNodes()`
-   - `hasLayerNodesFromFiber(fiber)`
-   - 检查 `fiber.Layer` 字段
+```go
+// runtime/types/layer.go - 统一类型定义
+type Layer int
 
-2. **VNode 树检查** (回退)
-   - `hasLayerNodesFromVNode(vnode)`
-   - 检查 `VNode.GetLayer()`
-   - 用于非 Fiber 模式
+const (
+    LayerBase      Layer = iota  // 0
+    LayerOverlay                 // 1
+    LayerModal                   // 2
+    LayerTooltip                 // 3
+    LayerInspector               // 4
+)
+
+// runtime/layout/types.go - 类型别名
+type Layer = types.Layer
+
+// runtime/paint/paintable_planes.go - 类型别名
+type RenderLayer = types.Layer
+
+// runtime/ui/fiber.go - 类型别名
+type Layer = types.Layer
+```
 
 ### Modal 特殊处理
 
-**位置**: `internal/render/rendering_pipeline.go`
+**位置**: `paint_engine.go:paintModalBackdropBox()`
 
 ```go
-func (p *RenderingPipeline) applyLayerTransformsToPaintable(
-    root *paint.PaintableBox,
-    constraints layout.Constraints,
-) {
-    var walk func(box *paint.PaintableBox)
-    walk = func(box *paint.PaintableBox) {
-        if box == nil {
-            return
-        }
-
-        // Modal 居中
-        if box.Layer == int(types.LayerModal) {
-            p.centerPaintableModalBox(box, constraints)
-        }
-
-        // 递归
-        for _, child := range box.Children {
-            walk(child)
-        }
-    }
-    walk(root)
+// 在 PaintEngine.PaintPaintablePlanes() 中
+if layer == paint.RenderLayerModal && len(boxes) > 0 {
+    e.paintModalBackdropBox(boxes[0], buffer)
 }
 ```
+
+Modal 层会额外绘制背景遮罩（灰化非 Modal 区域）。
 
 ---
 
@@ -451,14 +484,20 @@ func (p *RenderingPipeline) applyLayerTransformsToPaintable(
 
 ### 关键要点
 
-- **Layer 存储在 VNode 字段中**，初始化后持久化
-- **Fiber 创建时从 VNode 复制 Layer**: `Fiber.Layer = VNode.GetLayer()`
-- **自动多层级渲染**: PipelineRenderer 自动检测 Layer 并调用 `RenderLayers()`
-- **向后兼容**: 没有 Layer 标记的 VNode 使用单层级渲染
+- **Layer 存储在 Fiber 节点中**，跨帧持久化
+- **fiberFirstPaint() 三阶段渲染**:
+  1. Phase 1: Fiber Reconciliation (VNode → Fiber)
+  2. Phase 2: Layout (Fiber → LayoutBox)
+  3. Phase 3: Paint (LayoutBox → PaintablePlanes → Buffer)
+- **零拷贝传递**: Fiber.Layer → layout.Layer → paintableBox.Layer
+- **统一类型体系**: 所有包使用 `types.Layer` 类型别名
+- **自动多层级渲染**: PaintEngine 按 renderOrder 渲染各层
+- **Modal 特殊处理**: 自动绘制背景遮罩（灰化非 Modal 区域）
 
 ---
 
 **实施日期**: 2026-02-23
-**状态**: ✅ 完成
-**版本**: 1.0
-**文档**: Fiber-First 架构
+**最后更新**: 2026-03-01
+**状态**: ✅ 完成 - Fiber-first 架构
+**版本**: 2.0
+**关键更新**: 添加 fiberFirstPaint 三阶段渲染流程分析

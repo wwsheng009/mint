@@ -16,33 +16,35 @@
 
 ## 🎯 核心概念
 
-### 单一渲染架构
+### Fiber-First 统一渲染架构
 
-Mint TUI 使用**统一的渲染架构**，不是两套并存的系统：
+Mint TUI 使用**统一的 Fiber-first 渲染架构**，通过 `NewDeclarativeNodeFromFuncWithFiber` 实现多层 layer 管理：
 
 ```
-framework/App
+NewDeclarativeNodeFromFuncWithFiber(fn, fwApp)
     ↓
-DeclarativeNode (Paintable 接口)
-    ↓
-PipelineRenderer
-    ↓
-    ├─→ hasLayerNodes() 自动检测
-    │   ├─ Fiber 树检查 (优先)
-    │   └─ VNode 树检查 (回退)
+    ├─ initFiberFirstPipeline()  [初始化]
+    │   ├─ newLayoutEngine = NewLayoutEngineAdapter()
+    │   └─ paintEngine = NewPaintEngine()
     │
-    └─→ RenderingPipeline
-            ├─→ RenderLayers() (多层级)
-            └─→ Render() (单层级)
+    ↓
+Paint(ctx, buf)  [每帧执行]
+    ↓
+fiberFirstPaint(ctx, buf)
+    ├─ Phase 1: Fiber Reconciliation (VNode → Fiber)
+    ├─ Phase 2: Layout (Fiber → LayoutBox)
+    └─ Phase 3: Paint (LayoutBox → PaintablePlanes → Buffer)
 ```
 
-### Fiber-First 架构
+### 架构分层
 
-| 层级 | 说明 |
-|------|------|
-| **VNode** | 临时描述结构，每帧重建 |
-| **Fiber** | 持久化节点，存储状态跨帧保持 |
-| **Layer** | 存储在 Fiber.Layer 字段中 |
+| 层级 | 说明 | 数据结构 |
+|------|------|---------|
+| **VNode** | 临时描述结构，每帧重建 | `rtui.VNode` (带 `GetLayer()` 接口) |
+| **Fiber** | 持久化节点，跨帧保持 | `rtui.Fiber` (含 `Layer` 字段) |
+| **LayoutBox** | 布局结果 | `layout.LayoutBox` (含 `Layer` 字段) |
+| **PaintableBox** | 渲染数据 | `paint.PaintableBox` (含 `Layer` 字段) |
+| **PaintablePlanes** | 分层容器 | `paint.PaintablePlanes` (按 Layer 分组) |
 
 ---
 
@@ -260,9 +262,106 @@ LayerInspector (4) → LayerTooltip (3) → LayerModal (2) → LayerOverlay (1) 
 
 ## 🔗 Layer 传播路径
 
+### 完整的数据流
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                           Fiber Tree                                │
+│  (通过 reconciler.Render() 生成，VNode 被丢弃)                       │
+│  ┌──────────────────────────────────────────────────────┐          │
+│  │ Fiber {                                              │          │
+│  │   NodeID: uint64                                      │          │
+│  │   Layer:   rtui.Layer  // ← 持久化的 Layer 状态      │          │
+│  │   ...                                                 │          │
+│  │ }                                                    │          │
+│  └──────────────────────────────────────────────────────┘          │
+└─────────────────────┬───────────────────────────────────────────────┘
+                      │
+                      ↓ NewFiberToNodeAdapterPure()
+┌─────────────────────────────────────────────────────────────────────┐
+│                    FiberToNodeAdapter (layout.Node)                 │
+│  GetLayer() → layout.Layer(a.fiber.Layer)  // ← 零拷贝映射         │
+└─────────────────────┬───────────────────────────────────────────────┘
+                      │
+                      ↓ layoutEngine.Layout()
+┌─────────────────────────────────────────────────────────────────────┐
+│                    LayoutBox Tree (runtime/layout)                 │
+│  ┌──────────────────────────────────────────────────────┐          │
+│  │ LayoutBox {                                          │          │
+│  │   Layer: layout.Layer  // ← 从 Fiber 继承            │          │
+│  │   X, Y: int                                          │          │
+│  │   Width, Height: int                                 │          │
+│  │   Children: []*LayoutBox                            │          │
+│  │ }                                                    │          │
+│  └──────────────────────────────────────────────────────┘          │
+└─────────────────────┬───────────────────────────────────────────────┘
+                      │
+                      ↓ FiberToPaintableConverter.Convert()
+┌─────────────────────────────────────────────────────────────────────┐
+│                  PaintableBox Tree (runtime/paint)                 │
+│  ┌──────────────────────────────────────────────────────┐          │
+│  │ PaintableBox {                                       │          │
+│  │   Layer: int  // ← int(layout.Layer)                 │          │
+│  │   X, Y, Width, Height: int                           │          │
+│  │   Node: PaintableNode (FiberPaintableNode)          │          │
+│  │   Children: []*PaintableBox                         │          │
+│  │ }                                                    │          │
+│  └──────────────────────────────────────────────────────┘          │
+└─────────────────────┬───────────────────────────────────────────────┘
+                      │
+                      ↓ buildPlanes() 遍历
+┌─────────────────────────────────────────────────────────────────────┐
+│                    PaintablePlanes (分层容器)                      │
+│  ┌──────────────────────────────────────────────────────┐          │
+│  │ planes map[int][]*PaintableBox:                     │          │
+│  │ ┌──────────────────────────────────────────────┐    │          │
+│  │ │ Layer 0 (Base):    [box1, box2, box3, ...]   │    │          │
+│  │ │ Layer 1 (Overlay): [box4, box5, ...]          │    │          │
+│  │ │ Layer 2 (Modal):   [box6]                    │    │          │
+│  │ │ Layer 3 (Tooltip): [box7]                    │    │          │
+│  │ │ Layer 4 (Inspector): [box8]                   │    │          │
+│  │ └──────────────────────────────────────────────┘    │          │
+│  │                                                     │          │
+│  │ renderOrder: [0, 1, 2, 3, 4]  ← Z-Order 渲染顺序   │          │
+│  └──────────────────────────────────────────────────────┘          │
+└─────────────────────┬───────────────────────────────────────────────┘
+                      │
+                      ↓ PaintEngine.PaintPaintablePlanes()
+┌─────────────────────────────────────────────────────────────────────┐
+│                        Buffer (最终渲染)                            │
+│  渲染顺序：0 → 1 → 2 → 3 → 4                                         │
+│  高层会覆盖低层的像素                                                │
+│  Modal 层额外绘制背景遮罩（灰化非 Modal 区域）                       │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### 类型体系（统一类型）
+
+```go
+// runtime/types/layer.go - 统一类型定义
+type Layer int
+
+const (
+    LayerBase      Layer = iota  // 0
+    LayerOverlay                 // 1
+    LayerModal                   // 2
+    LayerTooltip                 // 3
+    LayerInspector               // 4
+)
+
+// runtime/layout/types.go - 类型别名
+type Layer = types.Layer
+
+// runtime/paint/paintable_planes.go - 类型别名 (向后兼容)
+type RenderLayer = types.Layer
+
+// runtime/ui/fiber.go - 类型别名
+type Layer = types.Layer
+```
+
 ### VNode → Fiber 创建
 
-**位置**: `runtime/ui/fiber_util.go:197`
+**位置**: `runtime/ui/fiber_util.go`
 
 ```go
 func NewFiber(...) *Fiber {
@@ -568,6 +667,7 @@ fiberVNode.SetLayer(rtui.LayerOverlay)
 
 ---
 
-**文档版本**: 2.0
-**最后更新**: 2026-02-23
+**文档版本**: 3.0
+**最后更新**: 2026-03-01
 **状态**: ✅ Fiber-First 架构
+**关键更新**: 添加了 fiberFirstPaint 完整数据流和类型体系说明

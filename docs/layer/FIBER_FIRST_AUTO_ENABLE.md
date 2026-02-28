@@ -2,47 +2,74 @@
 
 ## 概述
 
-`framework.App` 和 `internal/render.DeclarativeNode` 已经改进，**自动启用 Fiber-first 渲染模式**，确保新的多层渲染路径（`PaintPaintablePlanes`）被正确使用。
+`NewDeclarativeNodeFromFuncWithFiber` 提供了 **Fiber-first 渲染模式的完整实现**，包括自动初始化、三阶段渲染流程（Reconciliation → Layout → Paint）以及多层 Layer 支持。
 
-## 关键改进
+## 初始化流程
 
-### 1. `App.SetRoot()` 自动检测并启用 Fiber-first
+### `NewDeclarativeNodeFromFuncWithFiber` 创建
+
+**位置**: `internal/render/declarative_node.go`
 
 ```go
-// framework/app.go
+func NewDeclarativeNodeFromFuncWithFiber(renderFn func() rtui.VNode, fwApp framework.ISystem) *DeclarativeNode {
+    n := &DeclarativeNode{
+        renderFn:        renderFn,
+        fwApp:           fwApp,
+        reconciler:      reconciler.NewReconciler(),
+        renderMode:      RenderModeFiberFirst,
+        fiberFirstEnabled: true,
+    }
+
+    // 初始化 Fiber-first pipeline 组件
+    n.initFiberFirstPipeline()
+
+    // 启动帧调度器
+    n.scheduler = NewFrameScheduler(n)
+
+    return n
+}
+
+func (n *DeclarativeNode) initFiberFirstPipeline() {
+    // 初始化 layout engine (runtime/layout)
+    if n.newLayoutEngine == nil {
+        n.newLayoutEngine = NewNewLayoutEngineAdapter()
+        log.RenderLogger.Debug("✅ NewLayoutEngineAdapter initialized")
+    }
+
+    // 初始化 paint engine (supporting PaintPaintablePlanes)
+    if n.paintEngine == nil {
+        n.paintEngine = NewPaintEngine()
+        log.RenderLogger.Debug("✅ PaintEngine initialized")
+    }
+
+    // Note: converter is created per-frame in fiberFirstPaint()
+}
+```
+
+### 自动启用条件
+
+创建 DeclarativeNode 时，使用以下任一方式会自动启用 Fiber-first 渲染模式：
+
+1. **使用 `NewDeclarativeNodeFromFuncWithFiber` 创建**
+2. **使用 `ui.RunTest()` 或 `ui.RunTestWithSandbox()` (内部使用此构造函数)**
+
+### 集成到 framework.App (可选)
+
+虽然 `NewDeclarativeNodeFromFuncWithFiber` 在创建时已自动启用，仍可与 framework.App 集成：
+
+```go
+// framework/app.go (向后兼容)
 func (a *App) SetRoot(comp component.Node) {
     a.root = comp
     a.dirty = true
 
     // 自动启用 Fiber-first 模式：如果 root 支持 SetRenderMode 接口
     if fiberFirstSetter, ok := comp.(interface{ SetRenderMode(int) }); ok {
-        // 设置 Fiber-first 渲染模式
         fiberFirstSetter.SetRenderMode(1) // RenderModeFiberFirst
-        log.UILogger.Debug("[App.SetRoot] ✅ Auto-enabled Fiber-first render mode (Multi-Layer Support)")
+        log.UILogger.Debug("[App.SetRoot] ✅ Auto-enabled Fiber-first render mode")
     }
 
     a.injectComponentContext(comp)
-}
-```
-
-### 2. `DeclarativeNode.SetRenderMode()` 实现
-
-```go
-// internal/render/declarative_node.go
-func (n *DeclarativeNode) SetRenderMode(mode RenderMode) {
-    n.mu.Lock()
-    defer n.mu.Unlock()
-    n.renderMode = mode
-    if mode == RenderModeFiberFirst {
-        n.fiberFirstEnabled = true
-        // 初始化新的 layout engine 和 paint engine
-        if n.newLayoutEngine == nil {
-            n.newLayoutEngine = NewNewLayoutEngineAdapter()
-        }
-        if n.paintEngine == nil {
-            n.paintEngine = NewPaintEngine()
-        }
-    }
 }
 ```
 
@@ -270,9 +297,13 @@ go run main.go
 
 | 文件 | 职责 |
 |-----|------|
-| `framework/app.go` | App.SetRoot() 自动启用 Fiber-first |
-| `internal/render/declarative_node.go` | fiberFirstPaint() 使用 PaintPaintablePlanes() |
-| `internal/render/paint_engine.go` | PaintPaintablePlanes() 执行逻辑 |
-| `runtime/paint/paintable_planes.go` | renderOrder 定义 |
+| `framework/app.go` | App.SetRoot() 自动启用 Fiber-first (向后兼容) |
+| `internal/render/declarative_node.go` | NewDeclarativeNodeFromFuncWithFiber, initFiberFirstPipeline(), fiberFirstPaint() |
+| `internal/render/layout_switcher.go` | NewLayoutEngineAdapter.LayoutFiber() |
+| `internal/render/fiber_adapter.go` | FiberToNodeAdapterPure.GetLayer() |
+| `internal/render/converter.go` | FiberToPaintableConverter.Convert() |
+| `internal/render/paint_engine.go` | PaintEngine.PaintPaintablePlanes() |
+| `runtime/paint/paintable_planes.go` | PaintablePlanes 定义, renderOrder |
 | `examples/fiber_firsts/layer_zorder_test/` | Layer Z-Order 验证 |
 | `examples/fiber_firsts/tooltip_demo/` | 真实组件 + Layer 演示 |
+
