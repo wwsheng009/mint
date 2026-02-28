@@ -64,8 +64,11 @@ type VNode struct {
 	style      style.Style
 
 	// === Layout Props ===
-	padding   [4]int // top, right, bottom, left
+	padding   [4]int   // top, right, bottom, left
 	textAlign rtui.Align
+
+	// === Flex Layout ===
+	flex int // flex grow factor
 
 	// === Intent Props (no closures!) ===
 	pressIntent intent.Intent // Structured intent instead of func()
@@ -164,6 +167,7 @@ func (b *VNode) Props() rtui.Props {
 		"disabled":    b.disabled,
 		"padding":     b.padding,
 		"textAlign":   b.textAlign,
+		"flex":        b.flex,
 	}
 }
 
@@ -193,6 +197,9 @@ func (b *VNode) SetProps(p rtui.Props) rtui.VNode {
 	if v, ok := p["disabled"].(bool); ok {
 		b.disabled = v
 	}
+	if v, ok := p["flex"].(int); ok {
+		b.flex = v
+	}
 	return b
 }
 
@@ -213,6 +220,7 @@ func (b *VNode) CreateInstance() rtui.ComponentInstance {
 		"disabled":    b.disabled,
 		"padding":     b.Padding(),
 		"textAlign":   b.TextAlign(),
+		"flex":        b.flex,
 	}
 	return NewInstance(props)
 }

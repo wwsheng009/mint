@@ -40,6 +40,7 @@ type Instance struct {
 	pressIntent intent.Intent
 	padding     [4]int
 	textAlign   rtui.Align
+	flex        int // flex grow factor
 
 	// === Runtime State (managed by instance) ===
 	state  control.InteractionState
@@ -81,6 +82,7 @@ func NewInstance(props rtui.Props) *Instance {
 		pressIntent: getIntentProp(props),
 		padding:     getPaddingProp(props),
 		textAlign:   getTextAlignProp(props, rtui.AlignStart),
+		flex:        getIntProp(props, "flex", 0),
 		dirty:       true,
 	}
 
@@ -163,6 +165,11 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	inst.padding = getPaddingProp(props)
 	inst.textAlign = getTextAlignProp(props, inst.textAlign)
 
+	newFlex := getIntProp(props, "flex", inst.flex)
+	if newFlex != inst.flex {
+		inst.flex = newFlex
+	}
+
 	newDisabled := getBoolProp(props, "disabled", inst.state.Disabled)
 	if newDisabled != inst.state.Disabled {
 		inst.state.Disabled = newDisabled
@@ -200,6 +207,7 @@ func (inst *Instance) GetProps() rtui.Props {
 		"size":       inst.size,
 		"focusStyle": inst.focusStyle,
 		"disabled":   inst.state.Disabled,
+		"flex":       inst.flex,
 	}
 }
 
@@ -580,6 +588,15 @@ func getBoolProp(props rtui.Props, key string, def bool) bool {
 	if v, ok := props[key]; ok {
 		if b, ok := v.(bool); ok {
 			return b
+		}
+	}
+	return def
+}
+
+func getIntProp(props rtui.Props, key string, def int) int {
+	if v, ok := props[key]; ok {
+		if i, ok := v.(int); ok {
+			return i
 		}
 	}
 	return def
