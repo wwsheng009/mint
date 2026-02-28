@@ -7,7 +7,6 @@ import (
 	"github.com/wwsheng009/mint/internal/reconciler"
 	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/event"
-	"github.com/wwsheng009/mint/runtime/layer"
 	"github.com/wwsheng009/mint/runtime/layout"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
@@ -23,9 +22,6 @@ type LayoutResult interface {
 
 	// GetHitMap returns the hit map for event routing
 	GetHitMap() *event.HitMap
-
-	// GetRenderPlanes returns layered boxes for multi-layer rendering
-	GetRenderPlanes() *layer.RenderPlanes
 }
 
 // PaintableBox represents a box that can be painted.
@@ -164,16 +160,6 @@ func (a *newLayoutResultAdapter) GetHitMap() *event.HitMap {
 	return convertLayoutHitMap(a.result.HitMap, a.fiberRoot)
 }
 
-// GetRenderPlanes returns render planes built from layout.LayoutBox tree.
-// NOTE: Currently returns nil because layout.LayoutBox doesn't contain VNode references
-// needed for painting. The RenderLayers will fallback to Render() method which works correctly.
-func (a *newLayoutResultAdapter) GetRenderPlanes() *layer.RenderPlanes {
-	// Return nil to force fallback to Render() method
-	// The Render() method handles Modal centering via applyLayerTransforms
-	// TODO: In future, we could build proper RenderPlanes if we store VNode references in LayoutBox
-	return nil
-}
-
 // GetLayoutResult returns the underlying layout.LayoutResult.
 // This is needed for applying layer transforms (Modal centering).
 func (a *newLayoutResultAdapter) GetLayoutResult() *layout.LayoutResult {
@@ -251,3 +237,54 @@ func convertLayoutHitMap(hm *layout.HitMap, fiberRoot *rtui.Fiber) *event.HitMap
 
 	return event.BuildHitMapFromEntries(entries)
 }
+
+// =============================================================================
+// LayoutResult to ComputedLayout Conversion Bridge
+// This lives here to avoid circular import: runtime/compute <-> internal/render
+// =============================================================================
+
+// LayoutV3 computes layout using the new layout engine and converts to ComputedLayout
+// This function bridges the new layout engine (runtime/layout) with the legacy compute.Engine API.
+//
+// Parameters:
+//   - vnode: The VNode tree to layout (optional, used as fallback if fiber is nil)
+//   - fiber: The Fiber tree for layout (Fiber-first: preferred over vnode)
+//   - constraints: Box constraints for layout
+//
+// Returns:
+//   - interface{}: The computed layout result (can be cast to *compute.ComputedLayout if needed)
+//   - error: Error if layout calculation fails
+//
+// Note: This function returns interface{} to avoid direct importing of runtime/compute in this package.
+//       Callers in runtime/compute can type-assert the result safely.
+func LayoutV3(vnode rtui.VNode, fiber *reconciler.Fiber, constraints runtime.BoxConstraints) (interface{}, error) {
+	// Validate inputs
+	if vnode == nil && fiber == nil {
+		return nil, fmt.Errorf("cannot layout: both vnode and fiber are nil")
+	}
+
+	// Step 1: Create new layout engine instance
+	layoutEngine := layout.NewEngine()
+
+	// Step 2: Use adapters to create layout.Node (Fiber-first preferred)
+	var rootNode layout.Node
+	if fiber != nil {
+		// Fiber-first: Use Fiber-only adapter (no VNode dependency)
+		rootNode = NewFiberToNodeAdapterPure(fiber)
+	} else {
+		// Fallback: Use VNode adapter for legacy compatibility
+		rootNode = NewVNodeToNodeAdapter(vnode)
+	}
+
+	// Step 3: Convert constraints
+	layoutConstraints := ConvertBoxConstraints(constraints)
+
+	// Step 4: Call the new layout engine
+	layoutResult := layoutEngine.Layout(rootNode, layoutConstraints)
+
+	// Step 5: Return raw layout result (conversion happens in compute package)
+	return layoutResult, nil
+}
+
+
+

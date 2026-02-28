@@ -7,7 +7,6 @@ import (
 
 	"github.com/wwsheng009/mint/internal/reconciler"
 	"github.com/wwsheng009/mint/runtime"
-	"github.com/wwsheng009/mint/runtime/compute"
 	"github.com/wwsheng009/mint/runtime/layout"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
@@ -101,15 +100,10 @@ func (a *FiberToNodeAdapter) GetPosition() (x, y int) {
 	if a.fiber == nil {
 		return 0, 0
 	}
-	// Try to get from computed box
+	// Try to get from computed box (new layout architecture)
 	if a.fiber.ComputedBox != nil {
-		// Try layout.LayoutBox first (new architecture)
 		if layoutBox, ok := a.fiber.ComputedBox.(*layout.LayoutBox); ok {
 			return layoutBox.X, layoutBox.Y
-		}
-		// Fallback to compute.ComputedBox (legacy)
-		if computedBox, ok := a.fiber.ComputedBox.(*compute.ComputedBox); ok {
-			return computedBox.Box.X, computedBox.Box.Y
 		}
 	}
 	return 0, 0
@@ -120,18 +114,11 @@ func (a *FiberToNodeAdapter) SetPosition(x, y int) {
 	if a.fiber == nil {
 		return
 	}
-	// Store in fiber.ComputedBox if available
+	// Store in fiber.ComputedBox if available (new layout architecture)
 	if a.fiber.ComputedBox != nil {
-		// Try layout.LayoutBox first (new architecture)
 		if layoutBox, ok := a.fiber.ComputedBox.(*layout.LayoutBox); ok {
 			layoutBox.X = x
 			layoutBox.Y = y
-		} else {
-			// Fallback to compute.ComputedBox (legacy)
-			if computedBox, ok := a.fiber.ComputedBox.(*compute.ComputedBox); ok {
-				computedBox.Box.X = x
-				computedBox.Box.Y = y
-			}
 		}
 	}
 
@@ -146,8 +133,6 @@ func (a *FiberToNodeAdapter) SetPosition(x, y int) {
 		if a.fiber.ComputedBox != nil {
 			if layoutBox, ok := a.fiber.ComputedBox.(*layout.LayoutBox); ok {
 				w, h = layoutBox.Width, layoutBox.Height
-			} else if computedBox, ok := a.fiber.ComputedBox.(*compute.ComputedBox); ok {
-				w, h = computedBox.Box.Width, computedBox.Box.Height
 			}
 		}
 		if boundsHaver, ok := a.fiber.Instance.(interface{ SetBounds(x, y, w, h int) }); ok {
@@ -170,15 +155,10 @@ func (a *FiberToNodeAdapter) GetSize() (width, height int) {
 		}
 	}
 
-	// 2. Try computed box (legacy compatibility)
+	// 2. Try computed box (new layout architecture)
 	if a.fiber.ComputedBox != nil {
-		// Try layout.LayoutBox first (new architecture)
 		if layoutBox, ok := a.fiber.ComputedBox.(*layout.LayoutBox); ok {
 			return layoutBox.Width, layoutBox.Height
-		}
-		// Fallback to compute.ComputedBox (legacy)
-		if computedBox, ok := a.fiber.ComputedBox.(*compute.ComputedBox); ok {
-			return computedBox.Box.Width, computedBox.Box.Height
 		}
 	}
 
@@ -205,16 +185,10 @@ func (a *FiberToNodeAdapter) SetSize(width, height int) {
 		return
 	}
 	if a.fiber.ComputedBox != nil {
-		// Try layout.LayoutBox first (new architecture)
+		// Store in ComputedBox (new layout architecture)
 		if layoutBox, ok := a.fiber.ComputedBox.(*layout.LayoutBox); ok {
 			layoutBox.Width = width
 			layoutBox.Height = height
-		} else {
-			// Fallback to compute.ComputedBox (legacy)
-			if computedBox, ok := a.fiber.ComputedBox.(*compute.ComputedBox); ok {
-				computedBox.Box.Width = width
-				computedBox.Box.Height = height
-			}
 		}
 	}
 
@@ -225,8 +199,6 @@ func (a *FiberToNodeAdapter) SetSize(width, height int) {
 		if a.fiber.ComputedBox != nil {
 			if layoutBox, ok := a.fiber.ComputedBox.(*layout.LayoutBox); ok {
 				x, y = layoutBox.X, layoutBox.Y
-			} else if computedBox, ok := a.fiber.ComputedBox.(*compute.ComputedBox); ok {
-				x, y = computedBox.Box.X, computedBox.Box.Y
 			}
 		}
 		// Try SetBounds for full bounds sync

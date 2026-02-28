@@ -24,23 +24,21 @@ func VisualDemo() ui.VNode {
 		ui.Text("│ Example 1: Three flex buttons with different alignments"),
 		ui.Text("│"),
 		ui.HStackBuilder(
-			app.ButtonBuilder("Left").
+			ui.Flex(app.ButtonBuilder("Left").
 				PaddingH(1, 2).
-				Flex(1).
-				SetTextAlign(rtui.AlignStart).
-				Build(),
-			app.ButtonBuilder("Center").
+				TextAlign(rtui.AlignStart).
+				Build(), 1),
+			ui.Flex(app.ButtonBuilder("Center").
 				PaddingH(1, 1).
-				Flex(1).
-				SetTextAlign(rtui.AlignCenter).
-				Build(),
-			app.ButtonBuilder("Right").
+				TextAlign(rtui.AlignCenter).
+				Build(), 1),
+			ui.Flex(app.ButtonBuilder("Right").
 				PaddingH(2, 1).
-				Flex(1).
-				SetTextAlign(rtui.AlignEnd).
-				Build(),
+				TextAlign(rtui.AlignEnd).
+				Build(), 1),
 		).
 			Gap(1).
+			// ⭐ 不再需要显式设置 Width，flex 容器会自动填充父容器宽度
 			Build(),
 		ui.Text("│"),
 		ui.Text("│ Expected: [  Left  ]    [ Center ]    [  Right  ]"),
@@ -48,10 +46,13 @@ func VisualDemo() ui.VNode {
 		ui.Text("│"),
 		ui.Text("│ Example 2: Button with padding and centering"),
 		ui.Text("│"),
-		app.ButtonBuilder("Padded & Centered").
-			PaddingAll(2).
-			Flex(1).
-			SetTextAlign(rtui.AlignCenter).
+		ui.HStackBuilder(
+			ui.Flex(app.ButtonBuilder("Padded & Centered").
+				PaddingAll(2).
+				TextAlign(rtui.AlignCenter).
+				Build(), 1),
+		).
+			// ⭐ 不再需要显式设置 Width，flex 容器会自动填充父容器宽度
 			Build(),
 		ui.Text("│"),
 		ui.Text("└────────────────────────────────────────────────────────────┘"),

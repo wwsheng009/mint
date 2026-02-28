@@ -109,6 +109,25 @@ func (e *Engine) Layout(vnode VNode, fiber *reconciler.Fiber, constraints runtim
 	return layout, nil
 }
 
+// LayoutV3 performs layout calculation using the new layout engine (V3)
+// Fiber-first: Uses the new layout.Engine from runtime/layout package
+//
+// This method bridges the legacy compute.Engine API with the new layout system.
+// It converts inputs and outputs between the two systems while maintaining backward compatibility.
+//
+// Parameters:
+//   - vnode: The VNode tree to layout (optional, used as fallback if fiber is nil)
+//   - fiber: The Fiber tree for layout (Fiber-first: preferred over vnode)
+//   - constraints: Box constraints for layout
+//
+// Returns:
+//   - *ComputedLayout: Computed layout result with positions for all nodes
+//   - error: Error if layout calculation fails
+func (e *Engine) LayoutV3(vnode VNode, fiber *reconciler.Fiber, constraints runtime.BoxConstraints) (*ComputedLayout, error) {
+	// Import render package adapters
+	return layoutV3Impl(vnode, fiber, constraints)
+}
+
 // =============================================================================
 // Layout Box Building (First Pass: Measurement)
 // =============================================================================
