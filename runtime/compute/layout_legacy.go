@@ -15,21 +15,14 @@ import (
 // Engine performs constraint-driven layout calculation
 // It separates layout (position calculation) from paint (rendering)
 type Engine struct {
-	cache        *LayoutCache
-	dirtyTracker *DirtyTracker
 	debug        bool
-	flexCache    map[string]*FlexDistributionInfo // Cache for flex distribution per parent
 	traceDepth   int                              // Current depth for layout tracing
-	validator    *BoundsValidator                 // Validates bounds consistency
 }
 
 // NewEngine creates a new layout engine
 func NewEngine() *Engine {
 	return &Engine{
-		cache:        NewLayoutCache(),
-		dirtyTracker: NewDirtyTracker(),
 		debug:        log.LayoutLogger.Enabled(),
-		validator:    NewBoundsValidator(),
 	}
 }
 
@@ -117,7 +110,7 @@ func layoutV3Impl(vnode VNode, fiber *reconciler.Fiber, constraints runtime.BoxC
 	}
 
 	// Convert to ComputedLayout (simplified, no Fiber references)
-	computedLayout := convertLayoutResultToComputedBox(layoutResult, vnode, fiber)
+	computedLayout := convertLayoutResultToComputedBox(layoutResult, fiber)
 
 	return computedLayout, nil
 }
@@ -129,7 +122,6 @@ func layoutV3Impl(vnode VNode, fiber *reconciler.Fiber, constraints runtime.BoxC
 // VNode and ChildFiber references are removed to reduce coupling.
 func convertLayoutResultToComputedBox(
 	layoutResult *layout.LayoutResult,
-	vnode VNode,
 	fiber *rtui.Fiber,
 ) *ComputedLayout {
 	if layoutResult == nil || layoutResult.Root == nil {

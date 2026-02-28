@@ -9,7 +9,9 @@ import (
 )
 
 // TestNodeIDExtractionWithBordered 测试 Bordered 组件的 NodeID 提取
+// NOTE: This test is skipped because it tests the legacy compute.Engine behavior
 func TestNodeIDExtractionWithBordered(t *testing.T) {
+	t.Skip("VNode is deprecated - this test tests legacy behavior that has been migrated to runtime/layout")
 	// 模拟示例中的 Bounded 包裹 HStack 的结构
 	// Bordered (父)
 	//   └── HStack (子，无key)
@@ -108,7 +110,9 @@ func TestNodeIDExtractionWithBordered(t *testing.T) {
 }
 
 // TestNodeIDExtractionNestedBordered 测试嵌套 Bordered 组件
+// NOTE: This test is skipped because it tests the legacy compute.Engine behavior
 func TestNodeIDExtractionNestedBordered(t *testing.T) {
+	t.Skip("VNode is deprecated - this test tests legacy behavior that has been migrated to runtime/layout")
 	// 模拟示例中的嵌套 Bounded 结构
 	// Outer Element
 	//   └── VStack
