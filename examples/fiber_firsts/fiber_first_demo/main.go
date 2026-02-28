@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/wwsheng009/mint/examples/utils"
 	"github.com/wwsheng009/mint/framework"
 	"github.com/wwsheng009/mint/framework/component"
 	"github.com/wwsheng009/mint/internal/render"
@@ -83,7 +84,7 @@ func main() {
 	node.Paint(ctx, buf)
 
 	// Output result
-	printBuffer(buf)
+	utils.PrintBuffer(buf, 50, 20)
 
 	fmt.Println("\nButton Size Reference:")
 	fmt.Println("  Small:  len(label) + 3 + 0")
@@ -97,25 +98,4 @@ func main() {
 	fmt.Println("  Save (Medium):    4 + 3 + 2 = 9")
 	fmt.Println("  Submit (Large):   6 + 3 + 4 = 13")
 	fmt.Println("  Disabled (Medium):8 + 3 + 2 = 13")
-}
-
-func printBuffer(buf *paint.Buffer) {
-	fmt.Println("┌──────────────────────────────────────────────────┐")
-	for y := 0; y < buf.Height; y++ {
-		var line strings.Builder
-		for x := 0; x < buf.Width; x++ {
-			cell := buf.GetContent(x, y)
-			// 跳过宽字符的延续单元格
-			if cell.IsContinuation {
-				continue
-			}
-			if cell.Cluster != "" {
-				line.WriteString(cell.Cluster)
-			} else {
-				line.WriteString(" ")
-			}
-		}
-		fmt.Printf("|%-50s|\n", strings.TrimRight(line.String(), " "))
-	}
-	fmt.Println("└──────────────────────────────────────────────────┘")
 }

@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/wwsheng009/mint/examples/utils"
 	"github.com/wwsheng009/mint/framework"
 	"github.com/wwsheng009/mint/framework/component"
 	"github.com/wwsheng009/mint/framework/theme"
@@ -335,7 +336,7 @@ func main() {
 	node.Paint(ctx, buf)
 
 	// Output result
-	printBuffer(buf, 60, 90)
+	utils.PrintBuffer(buf, 60, 90)
 
 	fmt.Println("\n" + strings.Repeat("=", 60))
 	fmt.Println("Border Component Features:")
@@ -359,28 +360,4 @@ func main() {
 	fmt.Println("    - Single/Rounded/Dashed: +2 width, +2 height")
 	fmt.Println("    - Double: +4 width, +4 height")
 	fmt.Println(strings.Repeat("=", 60))
-}
-
-func printBuffer(buf *paint.Buffer, width, height int) {
-	fmt.Printf("┌%s┐\n", strings.Repeat("─", width))
-	for y := 0; y < height; y++ {
-		var line strings.Builder
-		for x := 0; x < width; x++ {
-			cell := buf.GetContent(x, y)
-			// 跳过宽字符的延续单元格
-			if cell.IsContinuation {
-				continue
-			}
-			if cell.Cluster != "" {
-				line.WriteString(cell.Cluster)
-			} else {
-				line.WriteString(" ")
-			}
-		}
-		trimmed := strings.TrimRight(line.String(), " ")
-		if trimmed != "" {
-			fmt.Printf("|%-*s|\n", width, trimmed)
-		}
-	}
-	fmt.Printf("└%s┘\n", strings.Repeat("─", width))
 }

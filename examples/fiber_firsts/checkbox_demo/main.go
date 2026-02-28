@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/wwsheng009/mint/examples/utils"
 	"github.com/wwsheng009/mint/framework"
 	"github.com/wwsheng009/mint/framework/component"
 	"github.com/wwsheng009/mint/internal/render"
@@ -101,7 +102,7 @@ func main() {
 	node.Paint(ctx, buf)
 
 	// Output result
-	printBuffer(buf, 55, 20)
+	utils.PrintBuffer(buf, 55, 20)
 
 	fmt.Println("\n" + strings.Repeat("=", 55))
 	fmt.Println("Checkbox Component Features:")
@@ -116,30 +117,4 @@ func main() {
 	fmt.Println("  - Width: 4 + len(label)")
 	fmt.Println("  - Height: 1")
 	fmt.Println(strings.Repeat("=", 55))
-}
-
-func printBuffer(buf *paint.Buffer, width, height int) {
-	fmt.Printf("┌%s┐\n", strings.Repeat("─", width))
-	for y := 0; y < height; y++ {
-		var line strings.Builder
-		for x := 0; x < width; x++ {
-			cell := buf.GetContent(x, y)
-			// 跳过宽字符的延续单元格
-			if cell.IsContinuation {
-				continue
-			}
-			if cell.Cluster != "" {
-				line.WriteString(cell.Cluster)
-			} else {
-				line.WriteString(" ")
-			}
-		}
-		trimmed := strings.TrimRight(line.String(), " ")
-		if trimmed != "" {
-			fmt.Printf("|%-*s|\n", width, trimmed)
-		} else if y < height-1 {
-			fmt.Printf("|%s|\n", strings.Repeat(" ", width))
-		}
-	}
-	fmt.Printf("└%s┘\n", strings.Repeat("─", width))
 }

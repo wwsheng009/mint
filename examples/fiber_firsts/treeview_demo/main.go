@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/wwsheng009/mint/examples/utils"
 	"github.com/wwsheng009/mint/framework"
 	"github.com/wwsheng009/mint/framework/component"
 	"github.com/wwsheng009/mint/internal/render"
@@ -179,7 +180,7 @@ func main() {
 	node.Paint(ctx, buf)
 
 	// Output result
-	printBuffer(buf, 70, 65)
+	utils.PrintBuffer(buf, 70, 65)
 
 	// Feature summary
 	fmt.Println("\n" + strings.Repeat("=", 70))
@@ -195,28 +196,4 @@ func main() {
 	fmt.Println("  ✓ Builder: Fluent API with Nodes, FromLines, ExpandLevel, etc.")
 	fmt.Println("  ✓ Parsing: Auto-detect node structure from indentation")
 	fmt.Println(strings.Repeat("=", 70))
-}
-
-func printBuffer(buf *paint.Buffer, width, height int) {
-	fmt.Printf("┌%s┐\n", strings.Repeat("─", width))
-	for y := 0; y < height; y++ {
-		var line strings.Builder
-		for x := 0; x < width; x++ {
-			cell := buf.GetContent(x, y)
-			// 跳过宽字符的延续单元格
-			if cell.IsContinuation {
-				continue
-			}
-			if cell.Cluster != "" {
-				line.WriteString(cell.Cluster)
-			} else {
-				line.WriteString(" ")
-			}
-		}
-		trimmed := strings.TrimRight(line.String(), " ")
-		if trimmed != "" {
-			fmt.Printf("|%-*s|\n", width, trimmed)
-		}
-	}
-	fmt.Printf("└%s┘\n", strings.Repeat("─", width))
 }

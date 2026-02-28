@@ -4,8 +4,9 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/wwsheng009/mint/components/layout"
+	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/ui"
+	"github.com/wwsheng009/mint/ui/components/scrollview"
 )
 
 // TestScrollViewHeightClipping tests if ScrollView actually clips content to height
@@ -15,13 +16,14 @@ func TestScrollViewHeightClipping(t *testing.T) {
 	// Create content with 50 lines
 	var content []ui.VNode
 	for i := 0; i < 50; i++ {
-		content = append(content, ui.Text(fmt.Sprintf("Line %d", i+1)))
+		content = append(content, app.Text(fmt.Sprintf("Line %d", i+1)))
 	}
-	vstackContent := ui.VStack(content...)
+	vstackContent := app.VStack(content...)
 
 	// Wrap in ScrollView with height=10
 	viewportHeight := 10
-	scrollContainer := layout.NewScrollView(vstackContent).
+	scrollContainer := app.ScrollView().
+		Child(vstackContent).
 		Height(viewportHeight).
 		Width(80).
 		ScrollOffset(0).
@@ -30,41 +32,61 @@ func TestScrollViewHeightClipping(t *testing.T) {
 	t.Logf("ScrollView type: %T", scrollContainer)
 	t.Logf("ScrollView children: %d", len(scrollContainer.Children()))
 
-	// Get the rendered text content
-	if scrollContainer.Children() != nil && len(scrollContainer.Children()) > 0 {
-		firstChild := scrollContainer.Children()[0]
-		t.Logf("First child type: %T", firstChild)
+	// ScrollView handles its own painting, so Children() returns nil
+	// But we can access the VNode properties directly
+	if sv, ok := scrollContainer.(*scrollview.VNode); ok {
+		t.Logf("✅ Successfully identified ScrollView VNode")
+		t.Logf("   Width: %d, Height: %d, ScrollOffset: %d",
+			sv.Width(), sv.Height(), sv.ScrollOffset())
+		t.Logf("   ShowBorder: %v, ShowIndicator: %v",
+			sv.ShowBorder(), sv.ShowIndicator())
 
-		// Try to extract content
-		if props := firstChild.Props(); props != nil {
-			if content, ok := props["content"]; ok {
-				if contentStr, ok := content.(string); ok {
-					lines := countLines(contentStr)
-					t.Logf("✅ Rendered content has %d lines", lines)
+		// Create an instance to test rendering behavior
+		inst := sv.CreateInstance()
+		if svInst, ok := inst.(*scrollview.Instance); ok {
+			t.Logf("✅ Successfully created ScrollView Instance")
+			t.Logf("   Total Lines: %d", svInst.GetTotalLines())
+			t.Logf("   Is Scrollable: %v", svInst.IsScrollable())
 
-					// Should have at most viewportHeight lines
-					if lines <= viewportHeight+1 { // +1 for scroll indicator
-						t.Logf("✅ ScrollView correctly clips to %d lines (height=%d)", lines, viewportHeight)
-					} else {
-						t.Errorf("❌ ScrollView rendered %d lines, expected at most %d", lines, viewportHeight+1)
-					}
+			// Test that the viewport height is respected
+			viewportSize := svInst.GetViewportSize()
+			if viewportSize == viewportHeight {
+				t.Logf("✅ ScrollView viewport height correctly set to %d", viewportSize)
+			} else {
+				t.Errorf("❌ ScrollView viewport height is %d, expected %d", viewportSize, viewportHeight)
+			}
+
+			// Test that content can be scrolled
+			if svInst.IsScrollable() {
+				t.Logf("✅ ScrollView is scrollable (content > viewport)")
+
+				// Test scrolling doesn't allow going beyond bounds
+				initialOffset := svInst.GetScrollOffset()
+				svInst.ScrollBy(100) // Try to scroll way past end
+				finalOffset := svInst.GetScrollOffset()
+				maxOffset := svInst.GetTotalLines() - viewportHeight
+
+				if finalOffset <= maxOffset {
+					t.Logf("✅ ScrollView correctly clamps scroll offset to maximum %d", finalOffset)
+				} else {
+					t.Errorf("❌ Scroll offset %d exceeds maximum %d", finalOffset, maxOffset)
+				}
+
+				// Reset for next test
+				svInst.ScrollTo(initialOffset)
+				svInst.ScrollBy(-100) // Try to scroll way past top
+				finalOffset = svInst.GetScrollOffset()
+
+				if finalOffset >= 0 {
+					t.Logf("✅ ScrollView correctly clamps scroll offset to minimum %d", finalOffset)
+				} else {
+					t.Errorf("❌ Scroll offset %d is below minimum 0", finalOffset)
 				}
 			}
 		}
+	} else {
+		t.Errorf("❌ ScrollContainer is not *scrollview.VNode, got %T", scrollContainer)
 	}
 
 	t.Log("\n=== Test Complete ===")
-}
-
-func countLines(s string) int {
-	count := 0
-	for _, c := range s {
-		if c == '\n' {
-			count++
-		}
-	}
-	if len(s) > 0 {
-		count++ // Last line doesn't have trailing \n
-	}
-	return count
 }

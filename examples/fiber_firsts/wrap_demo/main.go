@@ -20,6 +20,7 @@ import (
 	newstack "github.com/wwsheng009/mint/ui/components/stack"
 	newtext "github.com/wwsheng009/mint/ui/components/text"
 	"github.com/wwsheng009/mint/ui/components/wrap"
+	"github.com/wwsheng009/mint/examples/utils"
 )
 
 // DemoApp renders Wrap layouts using the Fiber-first pipeline
@@ -431,7 +432,7 @@ func main() {
 	fmt.Printf("%s\n\n", strings.Repeat("=", 60))
 
 	node.Paint(ctx, buf)
-	printBuffer(buf, 60, 130)
+	utils.PrintBuffer(buf, 60, 130)
 
 	// Print layout analysis
 	printLayoutAnalysis()
@@ -454,30 +455,6 @@ func main() {
 	fmt.Println("  - WrapConfig(w, gap, align, children...): Full config")
 	fmt.Println("  - W(): Builder pattern")
 	fmt.Println(strings.Repeat("=", 60))
-}
-
-func printBuffer(buf *paint.Buffer, width, height int) {
-	fmt.Printf("┌%s┐\n", strings.Repeat("─", width))
-	for y := 0; y < height; y++ {
-		var line strings.Builder
-		for x := 0; x < width; x++ {
-			cell := buf.GetContent(x, y)
-			// 跳过宽字符的延续单元格
-			if cell.IsContinuation {
-				continue
-			}
-			if cell.Cluster != "" {
-				line.WriteString(cell.Cluster)
-			} else {
-				line.WriteString(" ")
-			}
-		}
-		trimmed := strings.TrimRight(line.String(), " ")
-		if trimmed != "" {
-			fmt.Printf("|%-*s|\n", width, trimmed)
-		}
-	}
-	fmt.Printf("└%s┘\n", strings.Repeat("─", width))
 }
 
 func printLayoutAnalysis() {
