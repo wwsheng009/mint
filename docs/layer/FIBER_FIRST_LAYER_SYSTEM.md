@@ -21,29 +21,36 @@
 
 ## 架构概述
 
-### 组件代码结构
+### 渲染流程概览
 
 ```
-ui.Run(app_func)
+NewDeclarativeNodeFromFuncWithFiber(fn, fwApp)
     ↓
-framework/App.Run()
-    ↓
-internal/render/DeclarativeNode.Paint()
-    ↓
-internal/render/PipelineRenderer.Render()
-    ↓
-    ├─→ hasLayerNodes() 检测
-    │       ├─ Fiber 树检查（优先）
-    │       └─ VNode 树检查（回退）
+    ├─ initFiberFirstPipeline()  // 初始化组件
+    │   ├─ newLayoutEngine = NewLayoutEngineAdapter()
+    │   ├─ paintEngine = NewPaintEngine()
+    │   └─ converter = NewFiberToPaintableConverter() (渲染时创建)
     │
-    ├─→ RenderLayers() / Render()
-    │       ↓
-    └─→ internal/render/RenderingPipeline
-            ↓
-            ├─→ layout.Engine.Layout()
-            ├─→ applyLayerTransforms()
-            ├─→ buildPaintablePlanes()
-            └─→ runtime/paint/PaintEngine.PaintPaintablePlanes()
+    ↓
+Paint(ctx, buf) [每次重绘调用]
+    ↓fiberFirstPaint(ctx, buf)
+    ├─ Phase 1: Fiber Reconciliation (VNode → Fiber)
+    │       └─ reconciler.Render(nullBuf, n.renderFn)
+    │
+    ├─ Phase 2: Layout (Fiber → LayoutBox)
+    │       └─ newLayoutEngine.LayoutFiber(fiberRoot, constraints)
+    │           └─ FiberToNodeAdapterPure(fiber)
+    │               └─ GetLayer() → layout.Layer
+    │
+    └─ Phase 3: Paint (LayoutBox → PaintableBox → Buffer)
+        ├─ FiberToPaintableConverter.ConvertToLayout()
+        │       └─ layout.Layer → paintableBox.Layer (int)
+        │
+        ├─ buildPlanes() 遍历 PaintableBox 树
+        │       └─ planes.AddToLayer(RenderLayer(box.Layer), box)
+        │
+        └─ paintEngine.PaintPaintablePlanes(planes, buf)
+            └─ 按 renderOrder [0,1,2,3,4] 依次渲染各层
 ```
 
 ### Fiber-First 核心要点
@@ -131,128 +138,315 @@ zOrder = int(Layer) * 10000 + Depth
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### Phase 1: Fiber 树创建/更新
+### Phase 1: Fiber Reconciliation
 
-**位置**: `internal/render/DeclarativeNode`
+**位置**: `internal/render/declarative_node.go:fiberFirstPaint()`
 
 ```go
-// NewDeclarativeNodeFromFuncWithFiber (入口点)
-// 创建 Fiber-first DeclarativeNode
-root := reconciler.NewDeclarativeNodeFromFuncWithFiber(appFunc)
+// Phase 1: Fiber Reconciliation (VNode → Fiber)
+// The reconciler updates the Fiber tree, VNode is discarded after this
+// Use a minimal buffer for reconciliation (actual painting happens later)
+nullBuf := paint.NewBuffer(1, 1)
+n.reconciler.Render(component.PaintContext{
+    Bounds: paint.Rect{X: 0, Y: 0, Width: 1, Height: 1},
+}, nullBuf, n.renderFn)
+
+// Get the Fiber root from reconciler
+fiberRoot := n.getFiberRoot()
 ```
 
-**Fiber 创建时的 Layer 初始化** (`runtime/ui/fiber_util.go:197`):
+**Fiber 节点的 Layer 字段初始化** (`runtime/ui/fiber_util.go`):
 
 ```go
-return &Fiber{
-    Type:          vnodeType,
-    Tag:           tag,
-    Props:         props,
-    NodeID:        generateNodeID(),
-    Layer:         vnode.GetLayer(),  // ← 从 VNode 获取初始 Layer
-    // ... 其他字段
+func NewFiber(...) *Fiber {
+    return &Fiber{
+        Type:    vnodeType,
+        Tag:     tag,
+        Props:   props,
+        NodeID:  generateNodeID(),
+        Layer:   vnode.GetLayer(),  // ← 从 VNode 获取初始 Layer
+        // ... 其他字段
+    }
 }
 ```
 
-### Phase 2: Layer 检测
-
-**位置**: `internal/render/pipeline_renderer.go`
+**Fiber.Layer 类型定义**:
 
 ```go
-// PipelineRenderer.Render()
-hasLayers := r.hasLayerNodes(vnode)  // 检测是否有 Layer 节点
+// runtime/ui/fiber.go
+type Fiber struct {
+    // ...
+    NodeID uint64
+    Layer  rtui.Layer  // ← 持久化的 Layer 状态
+    // ...
+}
 
-if hasLayers {
-    // 多层级渲染
-    err = r.pipeline.RenderLayers(vnode, r.fiber, constraints, buf)
-} else {
-    // 单层级渲染
-    err = r.pipeline.Render(vnode, r.fiber, constraints, buf)
+// Layer 是 types.Layer 的别名
+type Layer = types.Layer
+```
+
+### Phase 2: Layout (Fiber → LayoutBox)
+
+**位置**: `internal/render/declarative_node.go:fiberFirstPaint()`
+
+```go
+// Phase 2: Fiber-based Layout
+// Use the new layout engine directly (runtime/layout), bypassing LayoutSwitcher
+constraints := runtime.BoxConstraints{
+    MinWidth:  0,
+    MaxWidth:  ctx.AvailableWidth,
+    MinHeight: 0,
+    MaxHeight: ctx.AvailableHeight,
+}
+
+// Ensure the new layout engine is initialized
+if n.newLayoutEngine == nil {
+    n.newLayoutEngine = NewNewLayoutEngineAdapter()
+}
+
+// Perform layout using the new runtime/layout engine
+layoutResult, err := n.newLayoutEngine.LayoutFiber(fiberRoot, constraints)
+if err != nil {
+    log.RenderLogger.Debug("Layout FAILED: %v, falling back to legacy", err)
+    n.legacyPaint(ctx, buf)
+    return
 }
 ```
 
-#### Fiber 树优先检测
+**LayoutFiber 实现** (`internal/render/layout_switcher.go`):
 
 ```go
-func (r *PipelineRenderer) hasLayerNodes(vnode rtui.VNode) bool {
-    if vnode == nil {
-        return false
+func (a *NewLayoutEngineAdapter) LayoutFiber(
+    fiber *reconciler.Fiber,
+    constraints runtime.BoxConstraints,
+) (LayoutResult, error) {
+    // Use Fiber-only adapter (no VNode dependency)
+    node := NewFiberToNodeAdapterPure(fiber)
+
+    // Convert constraints
+    layoutConstraints := layout.Constraints{
+        MinWidth:  constraints.MinWidth,
+        MaxWidth:  constraints.MaxWidth,
+        MinHeight: constraints.MinHeight,
+        MaxHeight: constraints.MaxHeight,
     }
 
-    // Fiber 树检查 (优先 - 更准确)
-    if r.fiber != nil {
-        return r.hasLayerNodesFromFiber(r.fiber)
-    }
+    // Perform layout
+    result := a.engine.Layout(node, layoutConstraints)
 
-    // VNode 树检查 (回退 - 兼容非 Fiber 模式)
-    return r.hasLayerNodesFromVNode(vnode)
+    return &newLayoutResultAdapter{result: result, fiberRoot: fiber}, nil
 }
+```
 
-func (r *PipelineRenderer) hasLayerNodesFromFiber(fiber *rtui.Fiber) bool {
-    if fiber == nil {
-        return false
+**Fiber → LayoutBox 的 Layer 传递** (`internal/render/fiber_adapter.go`):
+
+```go
+// FiberToNodeAdapterPure 实现 layout.Node 接口
+func (a *FiberToNodeAdapter) GetLayer() layout.Layer {
+    if a.fiber == nil {
+        return layout.LayerBase
     }
+    return layout.Layer(a.fiber.Layer)  // ← Fiber.Layer → layout.Layer
+}
+```
 
-    // 检此节点
-    layer := fiber.Layer
-    if layer != rtui.LayerBase && layer.IsValid() {
-        return true
-    }
+**LayoutBox 结构** (`runtime/layout/types.go`):
 
-    // 递归检查子节点 (Fiber 树: Child -> Sibling)
-    for child := fiber.Child; child != nil; child = child.Sibling {
-        if r.hasLayerNodesFromFiber(child) {
-            return true
+```go
+type LayoutBox struct {
+    ID string
+
+    // X, Y 位置（相对于父节点）
+    X, Y int
+
+    // Width, Height 尺寸
+    Width, Height int
+
+    // Baseline 基线（用于文本对齐）
+    Baseline int
+
+    // Layer 渲染层（用于多层渲染）
+    Layer layout.Layer  // ← 从 Fiber 继承
+
+    // ZIndex 层内排序索引
+    ZIndex int
+
+    // Border 边框信息（如果有）
+    Border Border
+
+    // Children 子节点布局结果
+    Children []*LayoutBox
+}
+```
+
+### Phase 3: Paint (LayoutBox → PaintableBox → Buffer)
+
+**位置**: `internal/render/declarative_node.go:fiberFirstPaint()`
+
+```go
+// Phase 3: Paint using PaintableLayout
+// Convert LayoutResult to PaintableLayout and use PaintEngine
+if layoutResult != nil {
+    // Get LayoutBox from adapter
+    var layoutBoxRoot *layout.LayoutBox
+    if adapter, ok := layoutResult.(*newLayoutResultAdapter); ok {
+        layoutResultInner := adapter.GetLayoutResult()
+        if layoutResultInner != nil {
+            layoutBoxRoot = layoutResultInner.Root
         }
     }
 
-    return false
+    if layoutBoxRoot != nil {
+        // Convert LayoutBox to PaintableLayout using Fiber data
+        converter := NewFiberToPaintableConverter(fiberRoot)
+        paintableLayout := converter.ConvertToLayout(layoutBoxRoot)
+
+        if paintableLayout != nil && paintableLayout.Root != nil {
+            // Build PaintablePlanes for multi-layer rendering
+            planes := paint.NewPaintablePlanes()
+            var buildPlanes func(box *paint.PaintableBox)
+            buildPlanes = func(box *paint.PaintableBox) {
+                if box == nil {
+                    return
+                }
+                planes.AddToLayer(paint.RenderLayer(box.Layer), box)
+                for _, child := range box.Children {
+                    buildPlanes(child)
+                }
+            }
+            buildPlanes(paintableLayout.Root)
+
+            // Paint using PaintablePlanes for proper layer Z-Ordering
+            if err := n.paintEngine.PaintPaintablePlanes(planes, buf); err != nil {
+                log.RenderLogger.Debug("PaintPaintablePlanes FAILED: %v, falling back", err)
+                n.legacyPaint(ctx, buf)
+                return
+            }
+
+            // Save HitMap for event routing
+            if hitMap := layoutResult.GetHitMap(); hitMap != nil {
+                n.fiberLastHitMap = hitMap
+                log.RenderLogger.Debug("✅ Saved HitMap with %d entries", hitMap.Size())
+            }
+
+            log.RenderLogger.Debug("✅ PaintPaintablePlanes complete")
+            return
+        }
+    }
+}
+
+n.legacyPaint(ctx, buf)  // Fallback
+```
+
+#### Step 3.1: LayoutBox → PaintableBox 转换
+
+**FiberToPaintableConverter.Convert()** (`internal/render/converter.go`):
+
+```go
+func (c *FiberToPaintableConverter) Convert(
+    lbox *layout.LayoutBox,
+    parent *paint.PaintableBox,
+) *paint.PaintableBox {
+    if lbox == nil {
+        return nil
+    }
+
+    pbox := &paint.PaintableBox{
+        X:        lbox.X,
+        Y:        lbox.Y,
+        Width:    lbox.Width,
+        Height:   lbox.Height,
+        Layer:    convertLayoutLayerToInt(lbox.Layer),  // layout.Layer → int
+        ZIndex:   lbox.ZIndex,
+        Parent:   parent,
+        Children: make([]*paint.PaintableBox, 0, len(lbox.Children)),
+    }
+
+    // Find matching Fiber and fill paint-specific data
+    if fiber := c.findFiber(lbox.ID); fiber != nil {
+        c.fillFromFiber(pbox, fiber)
+    }
+
+    // Recursively convert children
+    for _, childLBox := range lbox.Children {
+        childPBox := c.Convert(childLBox, pbox)
+        if childPBox != nil {
+            pbox.Children = append(pbox.Children, childPBox)
+        }
+    }
+
+    return pbox
+}
+
+func convertLayoutLayerToInt(l layout.Layer) int {
+    return int(l)  // 由于 layout.Layer 是 types.Layer 的别名，直接返回即可
 }
 ```
 
-### Phase 3: 多层级渲染
+#### Step 3.2: 构建 PaintablePlanes
 
-**位置**: `internal/render/rendering_pipeline.go:RenderLayers()`
+**PaintablePlanes 结构** (`runtime/paint/paintable_planes.go`):
 
 ```go
-func (p *RenderingPipeline) RenderLayers(
-    vnode rtui.VNode,
-    fiber *reconciler.Fiber,
-    constraints runtime.BoxConstraints,
+type PaintablePlanes struct {
+    // planes 存储每层的 PaintableBox 集合
+    // LayerBase(0) < LayerOverlay(1) < LayerModal(2) < LayerTooltip(3) < LayerInspector(4)
+    planes map[RenderLayer][]*PaintableBox
+
+    // renderOrder 存储渲染顺序（从低层到高层）
+    renderOrder []RenderLayer
+}
+
+func NewPaintablePlanes() *PaintablePlanes {
+    return &PaintablePlanes{
+        planes: make(map[RenderLayer][]*PaintableBox),
+        renderOrder: []RenderLayer{
+            RenderLayerBase,
+            RenderLayerOverlay,
+            RenderLayerModal,
+            RenderLayerTooltip,
+            RenderLayerInspector,
+        },
+    }
+}
+
+// AddToLayer 添加一个 PaintableBox 到指定层
+func (pp *PaintablePlanes) AddToLayer(layer RenderLayer, box *paint.PaintableBox) {
+    if box == nil { return }
+
+    _, ok := pp.planes[layer]
+    if !ok {
+        pp.planes[layer] = make([]*PaintableBox, 0)
+    }
+    pp.planes[layer] = append(pp.planes[layer], box)
+}
+```
+
+#### Step 3.3: 按 Layer 顺序渲染
+
+**PaintEngine.PaintPaintablePlanes()** (`internal/render/paint_engine.go`):
+
+```go
+func (e *PaintEngine) PaintPaintablePlanes(
+    planes *paint.PaintablePlanes,
     buffer *paint.Buffer,
 ) error {
-    // Step 1: 创建布局节点适配器
-    var node layout.Node
-    var converter PaintableConverter
+    for _, layer := range planes.GetRenderOrder() {
+        boxes := planes.GetLayer(layer)
+        if len(boxes) == 0 { continue }
 
-    if fiber != nil {
-        // Fiber-first 路径
-        node = NewFiberToNodeAdapterPure(fiber)
-        converter = NewFiberToPaintableConverter(fiber)
-    } else {
-        // VNode 路径 (回退)
-        node = NewVNodeToNodeAdapter(vnode)
-        converter = NewVNodeToPaintableConverter(vnode)
+        for _, box := range boxes {
+            layout := paint.NewPaintableLayout(box)
+            if err := e.PaintLayout(layout, buffer); err != nil {
+                return fmt.Errorf("error painting box in layer %s: %w", layer.String(), err)
+            }
+        }
+
+        // Modal 层特殊处理：绘制背景遮罩
+        if layer == paint.RenderLayerModal && len(boxes) > 0 {
+            e.paintModalBackdropBox(boxes[0], buffer)
+        }
     }
-
-    // Step 2: 执行布局
-    result := p.layoutEngine.Layout(node, layoutConstraints)
-
-    // Step 3: 转换为 PaintableLayout
-    paintableLayout := converter.ConvertToLayout(result.Root)
-
-    // Step 4: 应用 Layer 变换 (Modal 居中等)
-    p.applyLayerTransformsToPaintable(paintableLayout.Root, layoutConstraints)
-
-    // Step 5: 构建 PaintablePlanes (按层级分组)
-    paintablePlanes := p.buildPaintablePlanes(paintableLayout.Root)
-
-    // Step 6: 绘制
-    p.paintEngine.PaintPaintablePlanes(paintablePlanes, buffer)
-
-    // Step 7: 构建 HitMap
-    p.lastHitMap = p.buildHitMapFromPaintablePlanes(paintablePlanes)
-
     return nil
 }
 ```
@@ -920,28 +1114,63 @@ fmt.Printf("Fiber Layer: %v (%d)\n", layer, layer.ZIndex())
 1. **Layer 存储在 Fiber 节点中**
    - 持久化存储，跨帧保持
    - 从 VNode 初始化: `Fiber.Layer = VNode.GetLayer()`
+   - 直接访问: `fiber.Layer` (types.Layer 类型)
 
-2. **检测优先使用 Fiber 树**
-   - `hasLayerNodesFromFiber()` > `hasLayerNodesFromVNode()`
+2. **完整的 Fiber-first 渲染流程**
+   - **Phase 1**: Fiber Reconciliation (VNode → Fiber，VNode 被丢弃)
+   - **Phase 2**: Layout (Fiber → LayoutBox，通过 FiberToNodeAdapterPure)
+   - **Phase 3**: Paint (LayoutBox → PaintableBox → Buffer，通过 PaintPaintablePlanes)
 
-3. **自动多层级渲染**
-   - 检测到 Layer 节点 → `RenderLayers()`
-   - 否则 → `Render()`
+3. **Layer 传播路径 (零拷贝传递)**
+   ```
+   VNode.GetLayer()
+       ↓
+   Fiber.Layer (持久化存储)
+       ↓
+   FiberToNodeAdapterPure.GetLayer() → layout.Layer
+       ↓
+   LayoutBox.Layer
+       ↓
+   PaintableBox.Layer (int)
+       ↓
+   PaintablePlanes 分组
+       ↓
+   PaintEngine.PaintPaintablePlanes() 按层序渲染
+   ```
 
-4. **层级绘制顺序**
-   - 渲染: Base → Overlay → Modal → Tooltip → Inspector
-   - HitMap: Inspector → Tooltip → Modal → Overlay → Base
+4. **统一类型体系**
+   - 所有包使用 `runtime/types.Layer` 统一类型
+   - `layout.Layer` 和 `paint.RenderLayer` 都是类型别名
+   - 零拷贝传递，无需转换
 
-5. **Modal 自动居中**
-   - `centerPaintableModalBox()` 自动处理
+5. **层级绘制顺序**
+   - 渲染: Base (0) → Overlay (1) → Modal (2) → Tooltip (3) → Inspector (4)
+   - HitMap: Inspector (4) → Tooltip (3) → Modal (2) → Overlay (1) → Base (0)
 
-6. **组件 Layer API**
+6. **Modal 特殊处理**
+   - 自动绘制背景遮罩（灰化非 Modal 区域）
+   - 由 `paintModalBackdropBox()` 处理
+
+7. **组件 Layer API**
    - `GetLayer()` / `SetLayer()`
-   - Builder 便捷方法
+   - Builder 便捷方法: `BaseLayer()`, `OverlayLayer()`, `ModalLayer()`, `TooltipLayer()`, `InspectorLayer()`
 
 ---
 
-**文档版本**: 1.0
-**最后更新**: 2026-02-23
-**状态**: ✅ 当前实现
-**适用架构**: ✅ Fiber-First
+### fiberFirstPaint() 关键代码位置
+
+| 步骤 | 位置 | 说明 |
+|------|------|------|
+| Phase 1: Reconciliation | `declarative_node.go:fiberFirstPaint()` | `reconciler.Render(nullBuf, fn)` |
+| Phase 2: Layout | `layout_switcher.go:LayoutFiber()` | `NewLayoutEngineAdapter.LayoutFiber()` |
+| Fiber→Node Adapter | `fiber_adapter.go:FiberToNodeAdapterPure` | `GetLayer()` 实现 |
+| Phase 3.1: Layout→Paintable | `converter.go:FiberToPaintableConverter` | `Convert()` 方法 |
+| Phase 3.2: Build Planes | `declarative_node.go:buildPlanes()` | 遍历树并分组 |
+| Phase 3.3: Paint Planes | `paint_engine.go:PaintPaintablePlanes()` | 按 renderOrder 渲染 |
+
+---
+
+**文档版本**: 2.0
+**最后更新**: 2026-03-01
+**状态**: ✅ 当前实现 - Fiber-first 渲染路径分析
+**关键更新**: 添加了 fiberFirstPaint() 三阶段详细流程分析
