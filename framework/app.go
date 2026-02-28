@@ -17,6 +17,8 @@ import (
 	"github.com/wwsheng009/mint/runtime/bridge/actionbridge"
 	"github.com/wwsheng009/mint/runtime/core"
 	runtimeevent "github.com/wwsheng009/mint/runtime/event"
+	"github.com/wwsheng009/mint/runtime/input"
+	"github.com/wwsheng009/mint/runtime/interaction"
 	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/platform"
@@ -130,6 +132,15 @@ type App struct {
 	hitMap *runtimeevent.HitMap
 
 	// ============================================================================
+	// InputTracker + InteractionFSM (Phase 1-3: Pressed State 解决方案)
+	// ============================================================================
+	// 根据 docs/event/PRESSED_STATE_COMPLETE_SOLUTION.md 的设计：
+	// - InputTracker: 追踪输入状态变化，推断边缘事件
+	// - InteractionContext: 全局交互状态管理，分配 Click/Cancel/ResetPressed
+	inputTracker     *input.InputTracker
+	interactionCtx   *interaction.InteractionContext
+
+	// ============================================================================
 	// 调试支持
 	// ============================================================================
 	debugMode     bool            // 调试模式开关
@@ -157,6 +168,10 @@ func NewApp() *App {
 		inputProcessor:  action.NewInputProcessor(),
 		scopeDispatcher: action.NewScopeDispatcherWithName(nil, "root"), // Scope-based dispatcher
 		legacyMode:      false,                                          // Action 系统优先，legacy 仅用于调试
+
+		// Phase 1-3: Pressed State 解决方案
+		inputTracker:   input.NewInputTracker(),
+		interactionCtx: interaction.NewInteractionContext(),
 	}
 
 	// 初始化 ActionBridge (Fiber → Action 桥接器)
@@ -969,6 +984,22 @@ func (a *App) processMsg(msg runtimemsg.Msg) {
 		return
 	}
 
+	// ========================================================================
+	// Phase 1-3: Pressed State 解决方案
+	// ========================================================================
+	// 根据 docs/event/PRESSED_STATE_COMPLETE_SOLUTION.md 的设计：
+	// 1. 将 Msg 转换为 InputSnapshot
+	// 2. 使用 InputTracker 推断边缘事件 (Press/Release/Move/Keyboard)
+	// 3. 使用 InteractionContext 更新交互状态，分发 Click/Cancel/ResetPressed
+	// ========================================================================
+	snapshot := a.msgToSnapshot(msg)
+	if snapshot != nil {
+		intents := a.inputTracker.Update(snapshot)
+		if len(intents) > 0 {
+			a.interactionCtx.Update(intents, a.hitTest)
+		}
+	}
+
 	// 1. 尝试转换为 Action
 	act := a.inputProcessor.ProcessMsg(msg)
 
@@ -1310,6 +1341,13 @@ func (a *App) render() {
 		}
 
 		paintable.Paint(ctx, buf)
+
+		// ========================================================================
+		// Phase 1-3: Pressed State 解决方案 - 更新组件注册表
+		// ========================================================================
+		// 在每次渲染后，更新 InteractionContext 的组件注册表
+		// 确保新创建的组件实例可以被 InteractionContext 访问
+		a.updateInteractionInstances()
 
 		if os.Getenv("MINT_DEBUG_TEST") == "true" {
 			// Count non-empty cells after Paint

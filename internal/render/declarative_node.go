@@ -12,6 +12,7 @@ import (
 	"github.com/wwsheng009/mint/internal/log"
 	"github.com/wwsheng009/mint/internal/reconciler"
 	"github.com/wwsheng009/mint/runtime"
+	"github.com/wwsheng009/mint/runtime/action"
 	"github.com/wwsheng009/mint/runtime/border"
 	"github.com/wwsheng009/mint/runtime/event"
 	"github.com/wwsheng009/mint/runtime/intent"
@@ -2137,7 +2138,39 @@ func (a *fiberReconcilerAdapter) GetInstanceMgr() interface{} {
 	return a.r.GetInstanceManager()
 }
 
+// GetAllInteractionInstances returns all instances that implement interaction interfaces
+// This is used by App to register instances with InteractionContext
+func (a *fiberReconcilerAdapter) GetAllInteractionInstances() map[int]interface{} {
+	instanceMgr := a.r.GetInstanceManager()
+	if instanceMgr == nil {
+		return nil
+	}
+
+	// Get all instances by ID
+	allInstances := instanceMgr.GetAllInstancesByID()
+
+	// Filter for instances that implement interaction interfaces
+	result := make(map[int]interface{})
+	for nodeID, inst := range allInstances {
+		// Check if instance implements ResetPressed() - this is the primary marker
+		// for controls that have pressed state (Button with PressableBehavior, etc.)
+		if _, ok := interface{}(inst).(interface{ ResetPressed() }); ok {
+			result[int(nodeID)] = inst
+			continue
+		}
+
+		// Check if instance implements HandleAction() - ActionHandlerInstance
+		// This includes all interactive components (Button, Checkbox, Input, Select, etc.)
+		if _, ok := interface{}(inst).(interface{ HandleAction(*action.Action) bool }); ok {
+			result[int(nodeID)] = inst
+		}
+	}
+
+	return result
+}
+
 // GetFiberRoot returns Fiber root from the underlying reconciler
+
 // Phase 8: Fiber to Layout Engine NodeID propagation
 func (a *fiberReconcilerAdapter) GetFiberRoot() *reconciler.Fiber {
 	return a.r.GetFiberRoot()
@@ -2349,6 +2382,20 @@ func (n *DeclarativeNode) GetComponentInstances() map[uint64]rtui.ComponentInsta
 		if instanceMgr != nil {
 			return instanceMgr.GetAllInstancesByID()
 		}
+	}
+
+	return nil
+}
+
+// GetAllInteractionInstances returns all instances that implement interaction interfaces
+// This is used by App to register instances with InteractionContext
+func (n *DeclarativeNode) GetAllInteractionInstances() map[int]interface{} {
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+
+	// Access the underlying reconciler to get instances
+	if adapter, ok := n.reconciler.(*fiberReconcilerAdapter); ok {
+		return adapter.GetAllInteractionInstances()
 	}
 
 	return nil

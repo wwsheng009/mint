@@ -87,6 +87,38 @@ func (m *InstanceManager) GetByID(nodeID uint64) ComponentInstance {
 	return m.instancesByID[nodeID]
 }
 
+// SetByID stores an instance by NodeID without creating a new one
+// This is used when an instance was created outside InstanceManager (e.g., in CreateFiber)
+// and needs to be registered for lifecycle management
+// If an instance already exists for this NodeID, it will be kept (no replacement)
+// Returns true if the instance was newly registered, false if it already existed
+func (m *InstanceManager) SetByID(nodeID uint64, inst ComponentInstance) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// Check if instance already exists
+	if existingInst, exists := m.instancesByID[nodeID]; exists {
+		// Instance already registered, keep the existing one
+		// This preserves state across renders
+		_ = existingInst // existing instance is intentionally kept
+		return false
+	}
+
+	// Store in NodeID index
+	m.instancesByID[nodeID] = inst
+
+	// Also store in string key index for compatibility
+	key := fmt.Sprintf("%d", nodeID)
+	if _, exists := m.instances[key]; !exists {
+		// Only add to order if this is a new entry
+		m.instanceOrder = append(m.instanceOrder, key)
+	}
+	m.instances[key] = inst
+	m.lastAccess[key] = time.Now()
+
+	return true
+}
+
 // GetOrCreate finds an existing instance by key or creates a new one.
 // The creator function is only called if no existing instance is found.
 //

@@ -148,8 +148,10 @@ const (
 	ActionMouseWheelUp  ActionType = "mouse_wheel_up"   // Wheel up
 	ActionMouseWheelDown ActionType = "mouse_wheel_down" // Wheel down
 	ActionRightClick    ActionType = "right_click"   // Right click
+	ActionRightRelease  ActionType = "right_release" // Right mouse release
 	ActionMiddleClick   ActionType = "middle_click"  // Middle click
 	ActionMiddlePress   ActionType = "middle_press"  // Middle press
+	ActionMiddleRelease ActionType = "middle_release"// Middle mouse release
 	ActionHover         ActionType = "hover"         // Mouse hover
 	ActionDragStart     ActionType = "drag_start"    // Start dragging
 	ActionDragMove      ActionType = "drag_move"     // Dragging moved

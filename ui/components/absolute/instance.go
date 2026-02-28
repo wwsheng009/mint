@@ -378,3 +378,85 @@ func getStyleProp(props rtui.Props) style.Style {
 	}
 	return style.Style{}
 }
+
+// =============================================================================
+// Layout Interfaces Implementation
+// =============================================================================
+
+// GetZIndex returns the z-index for this instance.
+// Implements layout.Layered interface.
+func (inst *Instance) GetZIndex() int {
+	return inst.zIndex
+}
+
+// GetAbsoluteStyle returns the absolute positioning style.
+// Implements layout.AbsoluteStyleProvider interface.
+func (inst *Instance) GetAbsoluteStyle() *layout.AbsoluteStyle {
+	return &layout.AbsoluteStyle{
+		Left:   inst.left,
+		Top:    inst.top,
+		Right:  inst.right,
+		Bottom: inst.bottom,
+		Anchor: inst.anchor,
+		Width:  inst.width,
+		Height: inst.height,
+		ZIndex: inst.zIndex,
+	}
+}
+
+// GetPositionType returns absolute positioning type.
+// Implements layout.Positionable interface.
+func (inst *Instance) GetPositionType() layout.Position {
+	// Build absolute position from component fields
+	p := layout.NewAbsolutePosition()
+
+	// Set left offset
+	if inst.left != nil {
+		var left int
+		if absPos, ok := inst.left.(layout.AbsolutePos); ok {
+			left = int(absPos)
+		} else if relPos, ok := inst.left.(layout.RelativePos); ok {
+			// Convert relative position to percentage representation
+			// Negative values represent percentages (-2 to -101 = 2% to 101%)
+			left = -int(relPos)
+		}
+		p.Left = &left
+	}
+
+	// Set top offset
+	if inst.top != nil {
+		var top int
+		if absPos, ok := inst.top.(layout.AbsolutePos); ok {
+			top = int(absPos)
+		} else if relPos, ok := inst.top.(layout.RelativePos); ok {
+			top = -int(relPos)
+		}
+		p.Top = &top
+	}
+
+	// Set right offset
+	if inst.right != nil {
+		var right int
+		if absPos, ok := inst.right.(layout.AbsolutePos); ok {
+			right = int(absPos)
+		} else if relPos, ok := inst.right.(layout.RelativePos); ok {
+			right = -int(relPos)
+		}
+		p.Right = &right
+	}
+
+	// Set bottom offset
+	if inst.bottom != nil {
+		var bottom int
+		if absPos, ok := inst.bottom.(layout.AbsolutePos); ok {
+			bottom = int(absPos)
+		} else if relPos, ok := inst.bottom.(layout.RelativePos); ok {
+			bottom = -int(relPos)
+		}
+		p.Bottom = &bottom
+	}
+
+	// Anchor is handled in GetAbsoluteStyle(), not in Position
+	return p
+}
+

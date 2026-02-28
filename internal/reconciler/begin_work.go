@@ -19,6 +19,75 @@ import (
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
 
+// =============================================================================
+// Unified Instance Management
+// =============================================================================
+
+// manageWorkInProgressInstance is the single source of truth for instance management.
+// This function ensures consistency across all Fiber types:
+// - Button, VStack, Text (with InstanceFactory) - instances from CreateFiber
+// - ComponentFunc (without InstanceFactory) - BaseComponentInstance
+// - Reused instances from CloneFiber - preserved
+//
+// This function is called from BeginWork BEFORE type-specific beginWorkX functions.
+// This ensures ALL instances are properly registered and managed through InstanceManager.
+func manageWorkInProgressInstance(current, workInProgress *Fiber) {
+	// Skip if no reconciler (shouldn't happen in normal operation)
+	if currentReconciler == nil || currentReconciler.instanceMgr == nil {
+		return
+	}
+
+	instanceMgr := currentReconciler.instanceMgr
+	var instance rtui.ComponentInstance
+
+	// Case 1: Instance already exists in Fiber
+	// - From CreateFiber (VNode with InstanceFactory: Button, Stack, Text)
+	// - From CloneFiber (reused from previous render)
+	if workInProgress.Instance != nil {
+		// Register to InstanceManager if not already present
+		if instanceMgr.GetByID(workInProgress.NodeID) == nil {
+			instanceMgr.SetByID(workInProgress.NodeID, workInProgress.Instance)
+		}
+		instance = workInProgress.Instance
+	} else if workInProgress.Type == rtui.VNodeComponent {
+		// Case 2: ComponentFunc - VNode doesn't implement InstanceFactory
+		// Create BaseComponentInstance
+		componentKey := workInProgress.Key
+		if componentKey == "" {
+			componentKey = "component:" + workInProgress.ComponentName
+		}
+
+		instance = instanceMgr.GetOrCreateByID(workInProgress.NodeID, func() rtui.ComponentInstance {
+			if workInProgress.ComponentFuncWithProps != nil {
+				return rtui.NewBaseComponentInstanceWithProps(componentKey, workInProgress.ComponentFuncWithProps, workInProgress.Props)
+			}
+			return rtui.NewBaseComponentInstance(componentKey, workInProgress.ComponentFunc)
+		})
+		workInProgress.Instance = instance
+	} else {
+		// Case 3: Text, Element, Fragment without InstanceFactory
+		// These types typically don't need instances (pure structural nodes)
+		// Fragment: definitely no instance
+		// Text/Element: if they have InstanceFactory implementation, case 1 handles it
+		//              if they don't, we don't create an instance
+		return
+	}
+
+	// Update props if they changed
+	if workInProgress.Props != nil {
+		instance.SetProps(workInProgress.Props)
+	}
+
+	// CRITICAL: For Component fibers, share GlobalState from root context
+	// This ensures Intent Handlers update the same state that components read
+	if workInProgress.Type == rtui.VNodeComponent {
+		sharedCtx := currentReconciler.ctx
+		instanceCtx := instance.GetContext()
+		instanceCtx.GlobalState = sharedCtx.GlobalState
+		instanceCtx.StateMu = sharedCtx.StateMu
+	}
+}
+
 // BeginWork processes a Fiber node during the render phase
 // Returns the next Fiber to process (usually nil, since we traverse in workLoop)
 func BeginWork(current, workInProgress *Fiber) *Fiber {
@@ -47,6 +116,17 @@ func BeginWork(current, workInProgress *Fiber) *Fiber {
 
 	// Process updates in the queue
 	processUpdateQueue(workInProgress)
+
+	// ✨ UNIFIED INSTANCE MANAGEMENT: Handle instance lifecycle before type-specific processing
+	// This ensures ALL instances (Button, Stack, Text, ComponentFunc) are properly managed
+	// through InstanceManager, regardless of Fiber type.
+	//
+	// Architecture:
+	// - VNode with InstanceFactory (Button, VStack, Text) → CreateFiber creates instance
+	// - VNode without InstanceFactory (ComponentFunc) → CreateFiber leaves instance as nil
+	// - BeginWork registers ALL instances to InstanceManager consistently
+	// - beginWorkX functions only handle type-specific logic (children, etc.)
+	manageWorkInProgressInstance(current, workInProgress)
 
 	// Check for ErrorBoundary - handle before regular component processing
 	if workInProgress.ErrorBoundaryFunc != nil {
@@ -84,61 +164,23 @@ func BeginWork(current, workInProgress *Fiber) *Fiber {
 
 // beginWorkComponent processes a component Fiber
 func beginWorkComponent(current, workInProgress *Fiber) *Fiber {
-	// Generate or get the component key for instance management
-	componentKey := workInProgress.Key
-	if componentKey == "" {
-		// Use component name as key for single-instance components
-		componentKey = "component:" + workInProgress.ComponentName
+	// ✨ Instance management is handled by manageWorkInProgressInstance in BeginWork
+	// This function only handles component-specific logic (rendering children)
+
+	// Get the instance (managed by BeginWork)
+	instance := workInProgress.Instance
+	if instance == nil {
+		// Should not happen - BeginWork should have created it
+		return workInProgress
 	}
 
-	// CRITICAL: Root component uses the shared root context for global state management
-	// This ensures Intent Handlers (via Dispatcher.SetStateSetter) update the same state
-	// that the root component reads (via GetIntState/GetStringState/etc.).
-	var instance rtui.ComponentInstance
-	var ctx *rtui.ComponentContext
-
-	// ✨ Use explicit IsRoot marker instead of string comparison
-	// This is more robust than checking componentKey == "root"
-	isRootComponent := workInProgress.IsRoot
-
-	if isRootComponent && currentReconciler != nil && currentReconciler.ctx != nil {
-		// Root component: use the shared root context for global state
+	// Get the component context for hooks execution
+	ctx := instance.GetContext()
+	if currentReconciler != nil {
+		// Use shared context from root if available
 		ctx = currentReconciler.ctx
-		if log.UILogger.Enabled() {
-			log.UILogger.Debug("[beginWorkComponent] Using ROOT context for component %s", componentKey)
-		}
-	} else if currentReconciler != nil && currentReconciler.instanceMgr != nil {
-		// Child component: use InstanceManager for component instance
-		// ✅ CRITICAL FIX: Use NodeID instead of componentKey for unique identity
-		// NodeID is guaranteed to be unique for each Fiber node, while Key may be duplicated
-		// across multiple components of the same type (e.g., multiple Button instances with empty Key)
-		instance = currentReconciler.instanceMgr.GetOrCreateByID(workInProgress.NodeID, func() rtui.ComponentInstance {
-			if workInProgress.ComponentFuncWithProps != nil {
-				return rtui.NewBaseComponentInstanceWithProps(componentKey, workInProgress.ComponentFuncWithProps, workInProgress.Props)
-			}
-			return rtui.NewBaseComponentInstance(componentKey, workInProgress.ComponentFunc)
-		})
-		// Update props if they changed
-		if workInProgress.Props != nil {
-			instance.SetProps(workInProgress.Props)
-		}
-
-		// CRITICAL: For GlobalState sharing, share the root context's GlobalState and StateMu
-		// This ensures Intent Handlers (via Dispatcher.SetStateSetter) update the same state
-		// that the component reads (via GetState/SetState).
-		// Each component still has its own Hooks for component-local state.
-		sharedCtx := currentReconciler.ctx
-		instanceCtx := instance.GetContext()
-
-		// Share the GlobalState map and its mutex from root context
-		instanceCtx.GlobalState = sharedCtx.GlobalState
-		instanceCtx.StateMu = sharedCtx.StateMu
-
-		// Use the instance's context (which now has shared GlobalState)
-		ctx = instanceCtx
 	} else {
-		// Fallback: create a temporary context if no reconciler
-		// This should not happen in normal Fiber mode, but provides safety
+		// Fallback: create temporary context
 		ctx = rtui.NewComponentContextForRoot()
 	}
 
@@ -189,15 +231,8 @@ func beginWorkComponent(current, workInProgress *Fiber) *Fiber {
 // beginWorkText processes a text Fiber
 // Text nodes have no children, so we just return
 func beginWorkText(current, workInProgress *Fiber) *Fiber {
+	// ✨ Instance management (including Props update) is handled by manageWorkInProgressInstance in BeginWork
 	// Text nodes are leaf nodes - no children to reconcile
-
-	// CRITICAL: Update Instance props if present
-	// Text VNode implements InstanceFactory and creates a TextInstance
-	// When Fiber is reused, props change but Instance needs explicit update
-	if workInProgress.Instance != nil && workInProgress.Props != nil {
-		workInProgress.Instance.SetProps(workInProgress.Props)
-	}
-
 	return workInProgress
 }
 
@@ -207,6 +242,8 @@ func beginWorkText(current, workInProgress *Fiber) *Fiber {
 
 // beginWorkElement processes an element Fiber
 func beginWorkElement(current, workInProgress *Fiber) *Fiber {
+	// ✨ Instance management (including Props update) is handled by manageWorkInProgressInstance in BeginWork
+
 	// Get children from Props (stored during Fiber creation)
 	// Children are stored in Props["children"] for element nodes
 	var children []rtui.VNode
@@ -214,39 +251,6 @@ func beginWorkElement(current, workInProgress *Fiber) *Fiber {
 		if c, ok := workInProgress.Props["children"].([]rtui.VNode); ok {
 			children = c
 		}
-	}
-
-	// CRITICAL: Update Instance props if present
-	// Text, Button, etc. implement InstanceFactory and create instances
-	// When Fiber is reused, props change but Instance needs explicit update
-	if workInProgress.Instance != nil && workInProgress.Props != nil {
-		workInProgress.Instance.SetProps(workInProgress.Props)
-	}
-
-	// ✨ NEW: Create/reuse VNodeComponentInstance for VNode struct components
-	// This enables persistent event handlers and state for Button, Text, etc.
-
-	if currentReconciler != nil && currentReconciler.instanceMgr != nil && workInProgress.Key != "" {
-		lookupKey := workInProgress.Path
-		if lookupKey == "" {
-			lookupKey = workInProgress.Key
-		}
-		instanceKey := "vnode:" + lookupKey
-
-		log.UILogger.Debug("[beginWorkElement] Creating instance for key=%s (fiber.Key=%q, fiber.Path=%q)",
-			instanceKey, workInProgress.Key, workInProgress.Path)
-
-		// Get or create VNode component instance
-		// instance := currentReconciler.instanceMgr.GetOrCreate(instanceKey, func() rtui.ComponentInstance {
-		// 	return createVNodeComponentInstanceFromFiber(instanceKey, workInProgress)
-		// })
-
-		// Store the instance in the fiber
-		// workInProgress.ComponentInstance = instance
-
-		log.UILogger.Debug("[beginWorkElement] ✅ Created/Updated instance: key=%s, fiber.Key=%q, type=%d",
-			instanceKey, workInProgress.Key, workInProgress.Type)
-
 	}
 
 	// Get current child for reconciliation

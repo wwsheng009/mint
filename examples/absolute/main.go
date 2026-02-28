@@ -20,8 +20,11 @@ func main() {
 		count, setCount, _ := ui.UseStateInt(0)
 
 		// 使用 ui.On 注册 Intent 处理器（带 sync.Map 去重，每次渲染不会重复注册）
+		// 重要：使用函数式更新 setCount(func(c int) int { return c + 1 }) 避免闭包捕获旧值
 		ui.On(IncrementIntent{}, func() {
-			setCount(count + 1)
+			setCount(func(c int) int {
+				return c + 1
+			})
 		})
 
 		return app.VStack(
@@ -38,11 +41,12 @@ func main() {
 				app.AbsoluteBuilder(
 					app.NewTextBuilder("New!").
 						FgColor("red").
+						BgColor("white").
 						Bold(true).
 						Build(),
 				).
-					Left(absolute.AbsolutePos(15)).
-					Top(absolute.AbsolutePos(0)).
+					Left(absolute.AbsolutePos(16)).
+					Top(absolute.AbsolutePos(10)).
 					Build(),
 			),
 			app.Text(""),
@@ -55,9 +59,9 @@ func main() {
 					app.AbsoluteBuilder(
 						app.NewTextBuilder("OVERLAY").FgColor("white").BgColor("red").Build(),
 					).
-						Left(absolute.AbsolutePos(20)).
-						Top(absolute.AbsolutePos(0)).
-						ZIndex(10).
+						Left(absolute.AbsolutePos(10)).
+						Top(absolute.AbsolutePos(5)).
+						// ZIndex(10).
 						Build(),
 				),
 			),
@@ -66,7 +70,7 @@ func main() {
 		)
 	},
 		ui.WithWidth(50),
-		ui.WithHeight(20),
+		ui.WithHeight(15),
 		ui.WithTitle("Absolute Demo"),
 	)
 }

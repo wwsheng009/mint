@@ -8,36 +8,22 @@ import (
 )
 
 // =============================================================================
-// Position Types (VNode layer - declarative only)
+// Type Aliases for layout package types
 // =============================================================================
 
-// PositionValue represents a position value (absolute or relative).
-type PositionValue interface {
-	isPositionValue()
-	Resolve(containerSize int) int
-}
+// Re-export PositionValue from layout package
+type PositionValue = layout.PositionValue
 
-// AbsolutePos is a fixed position in cells.
-type AbsolutePos int
+// Re-export AbsolutePos from layout package
+type AbsolutePos = layout.AbsolutePos
 
-func (a AbsolutePos) isPositionValue() {}
-func (a AbsolutePos) Resolve(_ int) int { return int(a) }
+// Re-export RelativePos from layout package
+type RelativePos = layout.RelativePos
 
-// RelativePos is a percentage (0-100).
-type RelativePos int
-
-func (r RelativePos) isPositionValue() {}
-func (r RelativePos) Resolve(containerSize int) int { return containerSize * int(r) / 100 }
-
-// =============================================================================
-// Anchor Types - Aliases for layout.Anchor
-// =============================================================================
-
-// Anchor is an alias for layout.Anchor for positioning alignment.
-// This ensures type compatibility across the layout engine.
+// Re-export Anchor from layout package
 type Anchor = layout.Anchor
 
-// Anchor constants - aliases for layout.Anchor values
+// Anchor constants - convenience aliases for layout.Anchor values
 const (
 	AnchorTopLeft     Anchor = layout.AnchorTopLeft
 	AnchorTop         Anchor = layout.AnchorTop

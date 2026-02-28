@@ -282,13 +282,22 @@ func (b *PressableBehavior) OnAction(inst Instance, act *action.Action) bool {
 			if b.pressIntent != nil {
 				inst.EmitIntent(b.pressIntent)
 
-				// For keyboard (ActionEnter, ActionSubmit), check if we should reset pressed state
-				// Terminal UI doesn't send key release events, so we need to decide upfront
-				if act.Type == action.ActionEnter || act.Type == action.ActionSubmit {
-					b.pressed = false
-					state.Pressed = false
+				// Check if intent implements StayPressedIntent
+				// If StayPressed() returns false, reset immediately
+				if stayPressed, ok := b.pressIntent.(StayPressedIntent); ok && !stayPressed.StayPressed() {
+					if act.Type == action.ActionEnter || act.Type == action.ActionSubmit {
+						b.pressed = false
+						state.Pressed = false
+					}
 				}
-				// For mouse (ActionMousePress), don't reset (will wait for release)
+
+				// If intent does NOT implement StayPressedIntent, reset immediately (for backward compatibility)
+				if _, ok := b.pressIntent.(StayPressedIntent); !ok {
+					if act.Type == action.ActionEnter || act.Type == action.ActionSubmit {
+						b.pressed = false
+						state.Pressed = false
+					}
+				}
 			} else {
 				// No intent: always reset pressed state immediately
 				if act.Type == action.ActionEnter || act.Type == action.ActionSubmit {
@@ -315,8 +324,44 @@ func (b *PressableBehavior) OnAction(inst Instance, act *action.Action) bool {
 }
 
 // OnStateChange handles state changes.
+//
+// Note: Pressed state management now follows the design from
+// docs/event/PRESSED_STATE_COMPLETE_SOLUTION.md:
+//
+// - OnAction manages press events (Enter/Submit/MousePress)
+// - OnAction manages release events (MouseRelease only)
+// - ResetPressed() is called by InteractionContext when new keyboard input is detected
+//
+// This approach works for both mouse and keyboard interactions, even in single-focus UIs.
 func (b *PressableBehavior) OnStateChange(inst Instance, oldState, newState InteractionState) {
-	b.pressed = newState.Pressed
+	// No-op: pressed state is managed by OnAction and ResetPressed() only
+	// Do NOT sync from newState.Pressed as it's managed externally
+}
+
+// ResetPressed implements the PressedResetHandler interface.
+//
+// Called by InteractionContext when new keyboard input is detected.
+// This ensures pressed state resets correctly even in single-focus UIs.
+//
+// Note: This method doesn't have access to Instance, so it only resets the
+// internal pressed flag. The component wrapper should call ResetPressedWithInstance
+// to also update the InteractionState.Pressed.
+func (b *PressableBehavior) ResetPressed() {
+	if b.pressed {
+		b.pressed = false
+	}
+}
+
+// ResetPressedWithInstance resets pressed state and also updates the InteractionState.
+//
+// This is the preferred method when the component has access to its Instance.
+func (b *PressableBehavior) ResetPressedWithInstance(inst Instance) {
+	if b.pressed {
+		b.pressed = false
+		state := inst.GetState()
+		state.Pressed = false
+		inst.MarkDirty()
+	}
 }
 
 // IsPressed returns the pressed state.

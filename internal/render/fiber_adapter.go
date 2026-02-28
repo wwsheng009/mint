@@ -949,8 +949,22 @@ func (a *FiberToNodeAdapter) GetZIndex() int {
 	if a.fiber == nil {
 		return 0
 	}
-	// ZIndex could be stored in Fiber.Props or Fiber.Style
-	// For now, return 0 as default
+
+	// Check Props["zIndex"] (for absolute components)
+	if a.fiber.Props != nil {
+		if z, ok := a.fiber.Props["zIndex"].(int); ok {
+			return z
+		}
+	}
+
+	// Check Instance for ZIndex (for absolute components)
+	if a.fiber.Instance != nil {
+		if layered, ok := a.fiber.Instance.(layout.Layered); ok {
+			return layered.GetZIndex()
+		}
+	}
+
+	// Default return 0
 	return 0
 }
 

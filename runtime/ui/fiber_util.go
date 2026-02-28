@@ -130,24 +130,39 @@ func CreateFiber(vnode VNode) *Fiber {
 	// 	focusableVNode = f
 	// }
 
-	// === Fiber-first: Create Instance from VNode ===
-	// If VNode implements InstanceFactory, create the runtime instance.
-	// The instance persists across renders and holds all state.
-	// VNode is only used during creation, then discarded.
+	// === Fiber-first: Instance Creation ===
+	// ✅ CORRECT APPROACH: Create instances here in CreateFiber from VNode.InstanceFactory
+	//
+	// Architecture:
+	// - VNode with InstanceFactory (Button, VStack, Text) → creates specific Instance
+	// - VNode without InstanceFactory (ComponentFunc, Element) → instance stays nil
+	// - beginWorkComponent() then:
+	//   1. Reuses existing instance from Fiber (from previous render via CloneFiber)
+	//   2. Or creates BaseComponentInstance via InstanceManager for nil instances
+	//
+	// This ensures:
+	// 1. Button gets ButtonInstance (with ResetPressed, Paint, etc.)
+	// 2. Stack gets StackInstance (with layout caching)
+	// 3. ComponentFunc gets BaseComponentInstance
+	// 4. Instance persists across renders (CloneFiber reuses Fiber.Instance)
 	var instance ComponentInstance
+
+	// Check if VNode implements InstanceFactory
 	if factory, ok := vnode.(InstanceFactory); ok {
+		// VNode defines its own instance type
 		instance = factory.CreateInstance()
 
-		// === Bridge Instance to Intent Runtime ===
-		// If the instance supports Intent emission (e.g., Button, Checkbox, Input),
-		// set the intentEmitter to call the global Intent Runtime.
-		// This enables the flow: action(Action) → HandleAction() → EmitIntent() → Runtime.Emit()
-		if setter, ok := instance.(interface{ SetIntentEmitter(func(intent.Intent)) }); ok {
-			setter.SetIntentEmitter(func(i intent.Intent) {
-				GetGlobalIntentRuntime().Emit(i)
+		// Set IntentEmitter if instance supports it
+		if setter, ok := instance.(interface{ SetIntentEmitter(func(i intent.Intent)) }); ok {
+			setter.SetIntentEmitter(func(intent intent.Intent) {
+				// Emit to global intent runtime
+				if runtime := GetGlobalIntentRuntime(); runtime != nil {
+					runtime.Emit(intent)
+				}
 			})
 		}
 	}
+	// Otherwise, instance stays nil (will be created in beginWorkComponent)
 
 	// === Extract Layout Properties from VNode ===
 	// These are used by the layout engine to determine how to position children.

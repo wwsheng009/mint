@@ -100,6 +100,35 @@ func (p *InputProcessor) processMouseMsg(mouseMsg *runtimemsg.MouseMsg) *Action 
 			return act
 		}
 
+	case runtimemsg.MouseActionRelease:
+		// ✅ 修复：添加 Release 处理，让 pressed 状态能够正确重置
+		// 根据 key_release.md 的设计思想，使用推断模式替代依赖事件
+		if mouseMsg.Button == runtimemsg.MouseLeft {
+			act := NewAction(ActionMouseRelease).
+				WithSource("mouse").
+				WithPayload(mouseMsg)
+			if mouseMsg.TargetID != 0 {
+				act.WithTargetID(mouseMsg.TargetID)
+			}
+			return act
+		} else if mouseMsg.Button == runtimemsg.MouseRight {
+			act := NewAction(ActionRightRelease).
+				WithSource("mouse").
+				WithPayload(mouseMsg)
+			if mouseMsg.TargetID != 0 {
+				act.WithTargetID(mouseMsg.TargetID)
+			}
+			return act
+		} else if mouseMsg.Button == runtimemsg.MouseMiddle {
+			act := NewAction(ActionMiddleRelease).
+				WithSource("mouse").
+				WithPayload(mouseMsg)
+			if mouseMsg.TargetID != 0 {
+				act.WithTargetID(mouseMsg.TargetID)
+			}
+			return act
+		}
+
 	case runtimemsg.MouseActionWheel:
 		act := NewAction(ActionScroll).
 			WithSource("mouse").

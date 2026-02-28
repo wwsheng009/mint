@@ -388,6 +388,16 @@ func (inst *Instance) HandleAction(act *action.Action) bool {
 	return inst.behaviors.OnAction(inst, act)
 }
 
+// ResetPressed resets the pressed state of the button.
+// Called by InteractionContext when new keyboard input is detected.
+func (inst *Instance) ResetPressed() {
+	if pressable := inst.behaviors.Get("Pressable"); pressable != nil {
+		if p, ok := pressable.(*control.PressableBehavior); ok {
+			p.ResetPressedWithInstance(inst)
+		}
+	}
+}
+
 // =============================================================================
 // control.Instance Interface (for Behaviors)
 // =============================================================================

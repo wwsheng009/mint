@@ -173,25 +173,30 @@ func TestPressableBehavior_OnAction(t *testing.T) {
 	b := NewPressableBehavior(testIntent)
 
 	// Press action
-	act := action.NewAction("Press")
+	act := action.NewAction(action.ActionPress)
 	if !b.OnAction(inst, act) {
 		t.Error("Press action should return true")
 	}
 	if !inst.state.Pressed {
 		t.Error("Press action should set Pressed state")
 	}
+	// Intent is emitted on press, not release
+	if len(inst.emitted) != 1 {
+		t.Errorf("Press should emit intent, got %d emitted", len(inst.emitted))
+	}
 
 	// Release action
 	inst.dirty = false
-	act = action.NewAction("Release")
+	act = action.NewAction(action.ActionRelease)
 	if !b.OnAction(inst, act) {
 		t.Error("Release action should return true")
 	}
 	if inst.state.Pressed {
 		t.Error("Release action should clear Pressed state")
 	}
+	// Intent is already emitted on press, no new intent on release
 	if len(inst.emitted) != 1 {
-		t.Errorf("Release should emit intent, got %d emitted", len(inst.emitted))
+		t.Errorf("No additional intent should be emitted on release, got %d emitted", len(inst.emitted))
 	}
 }
 
