@@ -95,54 +95,37 @@ func (a *FiberToNodeAdapter) Children() []layout.Node {
 	return a.children
 }
 
-// GetPosition returns the current position (from Fiber.ComputedBox)
+// GetPosition returns the current position
+// Note: In MINT_FIBER_FIRST architecture, position is stored in layout.LayoutBox tree,
+// not in Fiber. This method returns (0, 0) as Fiber doesn't track position.
+// Use DeclarativeNode.lastLayoutResult to get layout positions.
 func (a *FiberToNodeAdapter) GetPosition() (x, y int) {
-	if a.fiber == nil {
-		return 0, 0
-	}
-	// Try to get from computed box (new layout architecture)
-	if a.fiber.ComputedBox != nil {
-		if layoutBox, ok := a.fiber.ComputedBox.(*layout.LayoutBox); ok {
-			return layoutBox.X, layoutBox.Y
-		}
-	}
 	return 0, 0
 }
 
-// SetPosition sets the position (stores in Fiber.ComputedBox and Instance.bounds)
+// SetPosition sets the position
+// Note: In MINT_FIBER_FIRST architecture, position is set by layout.Engine on LayoutBox,
+// not on Fiber. This method syncs to Instance.bounds for component compatibility.
 func (a *FiberToNodeAdapter) SetPosition(x, y int) {
 	if a.fiber == nil {
 		return
 	}
-	// Store in fiber.ComputedBox if available (new layout architecture)
-	if a.fiber.ComputedBox != nil {
-		if layoutBox, ok := a.fiber.ComputedBox.(*layout.LayoutBox); ok {
-			layoutBox.X = x
-			layoutBox.Y = y
-		}
-	}
 
-	// ✨ FIX: Also sync to Instance.bounds (component expects bounds for painting)
+	// Sync to Instance.bounds (component expects bounds for painting)
 	if a.fiber.Instance != nil {
 		if positionable, ok := a.fiber.Instance.(interface{ SetPosition(x, y int) }); ok {
 			positionable.SetPosition(x, y)
 		}
 		// Try SetBounds for full bounds sync
-		// Get current size from ComputedBox
-		w, h := 0, 0
-		if a.fiber.ComputedBox != nil {
-			if layoutBox, ok := a.fiber.ComputedBox.(*layout.LayoutBox); ok {
-				w, h = layoutBox.Width, layoutBox.Height
-			}
-		}
 		if boundsHaver, ok := a.fiber.Instance.(interface{ SetBounds(x, y, w, h int) }); ok {
-			boundsHaver.SetBounds(x, y, w, h)
+			boundsHaver.SetBounds(x, y, 0, 0)
 		}
 	}
 }
 
-// GetSize returns the current size (from Fiber fields)
-// Fiber-first: All size data comes from Fiber.Instance or Fiber.Style
+// GetSize returns the current size
+// Fiber-first: Size data comes from Fiber.Instance, Fiber.Style, or Fibner.Props
+// Note: Layout size is stored in layout.LayoutBox, not in Fiber.
 func (a *FiberToNodeAdapter) GetSize() (width, height int) {
 	if a.fiber == nil {
 		return 0, 0
@@ -155,19 +138,12 @@ func (a *FiberToNodeAdapter) GetSize() (width, height int) {
 		}
 	}
 
-	// 2. Try computed box (new layout architecture)
-	if a.fiber.ComputedBox != nil {
-		if layoutBox, ok := a.fiber.ComputedBox.(*layout.LayoutBox); ok {
-			return layoutBox.Width, layoutBox.Height
-		}
-	}
-
-	// 3. Try from Fiber.Style
+	// 2. Try from Fiber.Style
 	if a.fiber.Style.Width > 0 && a.fiber.Style.Height > 0 {
 		return a.fiber.Style.Width, a.fiber.Style.Height
 	}
 
-	// 4. Try from Fiber.Props
+	// 3. Try from Fiber.Props
 	if a.fiber.Props != nil {
 		if w, ok := a.fiber.Props["width"].(int); ok && w > 0 {
 			if h, ok := a.fiber.Props["height"].(int); ok && h > 0 {
@@ -179,35 +155,22 @@ func (a *FiberToNodeAdapter) GetSize() (width, height int) {
 	return 0, 0
 }
 
-// SetSize sets the size (stores in Fiber.ComputedBox and Instance.bounds)
+// SetSize sets the size
+// Note: In MINT_FIBER_FIRST architecture, size is set by layout.Engine on LayoutBox,
+// not on Fiber. This method syncs to Instance.bounds for component compatibility.
 func (a *FiberToNodeAdapter) SetSize(width, height int) {
 	if a.fiber == nil {
 		return
 	}
-	if a.fiber.ComputedBox != nil {
-		// Store in ComputedBox (new layout architecture)
-		if layoutBox, ok := a.fiber.ComputedBox.(*layout.LayoutBox); ok {
-			layoutBox.Width = width
-			layoutBox.Height = height
-		}
-	}
 
-	// ✨ FIX: Also sync to Instance.bounds (component expects bounds for painting)
+	// Sync to Instance.bounds (component expects bounds for painting)
 	if a.fiber.Instance != nil {
-		// Get current position from ComputedBox
-		x, y := 0, 0
-		if a.fiber.ComputedBox != nil {
-			if layoutBox, ok := a.fiber.ComputedBox.(*layout.LayoutBox); ok {
-				x, y = layoutBox.X, layoutBox.Y
-			}
+		if sizable, ok := a.fiber.Instance.(interface{ SetSize(width, height int) }); ok {
+			sizable.SetSize(width, height)
 		}
 		// Try SetBounds for full bounds sync
 		if boundsHaver, ok := a.fiber.Instance.(interface{ SetBounds(x, y, w, h int) }); ok {
-			boundsHaver.SetBounds(x, y, width, height)
-		}
-		// Try SetSize for size-only sync
-		if sizable, ok := a.fiber.Instance.(interface{ SetSize(width, height int) }); ok {
-			sizable.SetSize(width, height)
+			boundsHaver.SetBounds(0, 0, width, height)
 		}
 	}
 }

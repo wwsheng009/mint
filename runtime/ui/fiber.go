@@ -158,10 +158,7 @@ type Fiber struct {
 	// === Tag for debugging ===
 	// Component or element tag
 	Tag string
-
-	// ✨ ComputedBox for layout result (set during layout phase)
-	ComputedBox interface{}
-
+	
 	// === Layout Style (Phase 1) ===
 	// These fields are populated in completeWork from VNode props
 	LayoutDirection  Direction
