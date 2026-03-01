@@ -394,6 +394,10 @@ type Engine struct {
 	// ✨ Phase 3.3: overlayManager 管理 Portal 跨树挂载
 	// 用于处理 Modal/Tooltip 等需要挂载到不同位置的组件
 	overlayManager *OverlayManager
+
+	// ✨ viewportConstraints 保存根节点的原始约束
+	// 用于 Fixed 定位节点计算正确的 viewport 参考系
+	viewportConstraints Constraints
 }
 
 // NewEngine 创建新的布局引擎
@@ -428,6 +432,10 @@ func (e *Engine) Layout(root Node, constraints Constraints) *LayoutResult {
 	if root == nil {
 		return &LayoutResult{}
 	}
+
+	// ✨ 保存 viewport 约束（根节点的原始约束）
+	// 这样 Fixed 定位节点可以使用完整的 viewport 尺寸进行定位计算
+	e.viewportConstraints = constraints
 
 	// 检查缓存
 	if e.cache != nil {
@@ -576,16 +584,20 @@ func (e *Engine) layoutNodeWithDepth(node Node, constraints Constraints, x, y in
 	position := PositionRelative
 	anchor := AnchorTopLeft
 
-	if posProvider, ok := node.(PositionProvider); ok {
+	posProvider, ok := node.(PositionProvider)
+	if ok {
 		position = posProvider.GetPositionType()
 		anchor = posProvider.GetAnchor()
 	}
 
+
 	// Fixed 定位：使用 viewport 约束重新计算坐标
 	if position == PositionFixed && width > 0 && height > 0 {
-		// 使用传入的 viewport 约束计算固定定位
-		rootW := constraints.MaxWidth
-		rootH := constraints.MaxHeight
+		// ✨ 使用保存的 viewport 约束而不是传入的约束
+		// Modal 等组件需要以完整的 viewport 尺寸作为参考系进行定位
+		// 而不是受父布局限制后的约束
+		rootW := e.viewportConstraints.MaxWidth
+		rootH := e.viewportConstraints.MaxHeight
 
 		// 根据 Anchor 计算固定定位坐标
 		switch anchor {
@@ -618,37 +630,6 @@ func (e *Engine) layoutNodeWithDepth(node Node, constraints Constraints, x, y in
 			y = rootH - height
 		default:
 			x, y = 0, 0
-		}
-	}
-
-	// ✨ Phase 1.1: Modal 居中逻辑
-	// 注意：不适用于 PositionFixed 定位（Phase 2.3 已处理）
-	if layer == LayerModal && width > 0 && height > 0 && position != PositionFixed {
-		// ✨ Phase 1.4: 优先检查 ModalCenteringProvider 接口
-		// Modal 组件通过此接口显式控制是否居中
-		if centeringProvider, ok := node.(ModalCenteringProvider); ok {
-			shouldCenter = centeringProvider.ShouldCenter()
-		} else {
-			// 如果没有实现 ModalCenteringProvider，检查 AbsoluteStyleProvider
-			// 保持向后兼容性
-			if absProvider, ok := node.(AbsoluteStyleProvider); ok {
-				absStyle := absProvider.GetAbsoluteStyle()
-				// 如果未设置明确的 left/top/right/bottom，则需要居中
-				if absStyle != nil {
-					shouldCenter = absStyle.ShouldCenter()
-				} else {
-					shouldCenter = true
-				}
-			} else {
-				// 默认 Modal 居中（向后兼容）
-				shouldCenter = true
-			}
-		}
-
-		// 计算居中坐标
-		if shouldCenter {
-			x = (constraints.MaxWidth - width) / 2
-			y = (constraints.MaxHeight - height) / 2
 		}
 	}
 
@@ -741,9 +722,21 @@ func (e *Engine) layoutNodeWithDepth(node Node, constraints Constraints, x, y in
 
 					subBox := e.layoutNodeWithDepth(child, childConstraints, childX, childY, depth+1, visited)
 					if subBox != nil {
-						// 使用 FlexLayout 计算的位置和尺寸
-						subBox.X = childX
-						subBox.Y = childY
+						// 🔴 BUG FIX: Fixed 定位的子节点不能被父容器覆盖位置
+						// Modal 等 Fixed 定位节点已经使用 viewportConstraints 计算了正确位置
+						// 只对非 Fixed 子节点使用 FlexLayout 计算的位置
+						childPosition := PositionRelative
+						if posProvider, ok := child.(PositionProvider); ok {
+							childPosition = posProvider.GetPositionType()
+						}
+						
+						if childPosition != PositionFixed {
+							// 使用 FlexLayout 计算的位置和尺寸
+							subBox.X = childX
+							subBox.Y = childY
+						}
+						// Fixed 定位节点：subBox.X 和 subBox.Y 保持不变（已在 layoutNodeWithDepth 中计算）
+						
 						box.Children = append(box.Children, subBox)
 					}
 				}
@@ -796,8 +789,17 @@ func (e *Engine) layoutNodeWithDepth(node Node, constraints Constraints, x, y in
 
 					subBox := e.layoutNodeWithDepth(child, childConstraints, childX, childY, depth+1, visited)
 					if subBox != nil {
-						subBox.X = childX
-						subBox.Y = childY
+						// 🔴 BUG FIX: Fixed 定位的子节点不能被父容器覆盖位置
+						childPosition := PositionRelative
+						if posProvider, ok := child.(PositionProvider); ok {
+							childPosition = posProvider.GetPositionType()
+						}
+						
+						if childPosition != PositionFixed {
+							subBox.X = childX
+							subBox.Y = childY
+						}
+						
 						box.Children = append(box.Children, subBox)
 					}
 				}
@@ -833,8 +835,17 @@ func (e *Engine) layoutNodeWithDepth(node Node, constraints Constraints, x, y in
 
 					subBox := e.layoutNodeWithDepth(child, childConstraints, childX, childY, depth+1, visited)
 					if subBox != nil {
-						subBox.X = childX
-						subBox.Y = childY
+						// 🔴 BUG FIX: Fixed 定位的子节点不能被父容器覆盖位置
+						childPosition := PositionRelative
+						if posProvider, ok := child.(PositionProvider); ok {
+							childPosition = posProvider.GetPositionType()
+						}
+						
+						if childPosition != PositionFixed {
+							subBox.X = childX
+							subBox.Y = childY
+						}
+						
 						box.Children = append(box.Children, subBox)
 					}
 				}
@@ -882,8 +893,16 @@ func (e *Engine) layoutNodeWithDepth(node Node, constraints Constraints, x, y in
 				// 递归布局子节点
 				subBox := e.layoutNodeWithDepth(child, constraints, x+childX+borderOffsetX, y+childY+borderOffsetY, depth+1, visited)
 				if subBox != nil {
-					subBox.X = x + childX + borderOffsetX
-					subBox.Y = y + childY + borderOffsetY
+					// 🔴 BUG FIX: Fixed 定位的子节点不能被父容器覆盖位置
+					childPosition := PositionRelative
+					if posProvider, ok := child.(PositionProvider); ok {
+						childPosition = posProvider.GetPositionType()
+					}
+					
+					if childPosition != PositionFixed {
+						subBox.X = x + childX + borderOffsetX
+						subBox.Y = y + childY + borderOffsetY
+					}
 					box.Children = append(box.Children, subBox)
 				}
 			}
@@ -986,9 +1005,59 @@ func (e *Engine) layoutNodeIncrementalWithDepth(node Node, constraints Constrain
 
 	// 检查节点是否是脏的
 	if !e.dirty.IsLayoutDirty(node.ID()) {
-		// 节点是干净的，使用当前尺寸和位置
+		// 🔴 BUG FIX: 节点是干净的，但 Fixed 定位不能直接返回 curX, curY
+		// 即使节点本身是干净的，Fixed 定位也需要使用 viewportConstraints 重新计算
+		
 		width, height := node.GetSize()
 		curX, curY := node.GetPosition()
+		
+		// 🐛 获取定位属性（PositionFixed 需要）
+		position := PositionRelative
+		anchor := AnchorTopLeft
+		if posProvider, ok := node.(PositionProvider); ok {
+			position = posProvider.GetPositionType()
+			anchor = posProvider.GetAnchor()
+		}
+		
+		// ✨ Phase 2.3: Fixed 定位处理（Clean 路径也需要）
+		// Fixed 定位必须重新计算，不能只使用 curX, curY
+		if position == PositionFixed && width > 0 && height > 0 {
+			// 使用保存的 viewport 约束
+			rootW := e.viewportConstraints.MaxWidth
+			rootH := e.viewportConstraints.MaxHeight
+			
+			// 根据 Anchor 计算固定定位坐标
+			switch anchor {
+			case AnchorTopLeft:
+				curX, curY = 0, 0
+			case AnchorTop:
+				curX = (rootW - width) / 2
+				curY = 0
+			case AnchorTopRight:
+				curX = rootW - width
+				curY = 0
+			case AnchorLeft:
+				curX = 0
+				curY = (rootH - height) / 2
+			case AnchorCenter:
+				curX = (rootW - width) / 2
+				curY = (rootH - height) / 2
+			case AnchorRight:
+				curX = rootW - width
+				curY = (rootH - height) / 2
+			case AnchorBottomLeft:
+				curX = 0
+				curY = rootH - height
+			case AnchorBottom:
+				curX = (rootW - width) / 2
+				curY = rootH - height
+			case AnchorBottomRight:
+				curX = rootW - width
+				curY = rootH - height
+			default:
+				curX, curY = 0, 0
+			}
+		}
 
 		// ✨ Phase 1.3: 设置全局坐标
 		absX, absY := curX, curY
@@ -1001,7 +1070,7 @@ func (e *Engine) layoutNodeIncrementalWithDepth(node Node, constraints Constrain
 			AbsY:     absY,
 			Width:    width,
 			Height:   height,
-			ShouldCenter: false,  // ✨ Phase 1.1: Clean 节点默认不居中
+			ShouldCenter: (anchor == AnchorCenter && position == PositionFixed),  // ✨ 修复 Dirty 状态
 			Children: make([]*LayoutBox, 0),
 		}
 
@@ -1044,9 +1113,11 @@ func (e *Engine) layoutNodeIncrementalWithDepth(node Node, constraints Constrain
 
 	// Fixed 定位：使用 viewport 约束重新计算坐标
 	if position == PositionFixed && width > 0 && height > 0 {
-		// 使用传入的 viewport 约束计算固定定位
-		rootW := constraints.MaxWidth
-		rootH := constraints.MaxHeight
+		// ✨ 使用保存的 viewport 约束而不是传入的约束
+		// Modal 等组件需要以完整的 viewport 尺寸作为参考系进行定位
+		// 而不是受父布局限制后的约束
+		rootW := e.viewportConstraints.MaxWidth
+		rootH := e.viewportConstraints.MaxHeight
 
 		// 根据 Anchor 计算固定定位坐标
 		switch anchor {

@@ -115,7 +115,7 @@ func completeWorkElement(current, workInProgress *Fiber) *Fiber {
 	syncCenteringProperties(workInProgress)
 
 	// ✨ Phase 2.2: Sync positioning properties from Props
-	syncPositioningProperties(workInProgress)
+	SyncPositioningProperties(workInProgress)
 
 	// ✨ Phase 3.4: Sync portal properties from Props
 	syncPortalProperties(workInProgress)
@@ -265,7 +265,7 @@ func syncCenteringProperties(fiber *Fiber) {
 // - fixed 定位使节点脱离父布局流，以 viewport 为参考系
 // - 支持 9 种 Anchor 定位：TopLeft, Top, TopRight, Left, Center, Right, BottomLeft, Bottom, BottomRight
 // - Modal 默认使用 fixed + center 定位
-func syncPositioningProperties(fiber *Fiber) {
+func SyncPositioningProperties(fiber *Fiber) {
 	if fiber == nil {
 		return
 	}
