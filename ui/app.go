@@ -28,6 +28,7 @@ type Options struct {
 	EnableDevTools    bool
 	NoAlternateScreen bool   // Don't use alternate screen mode - allows copying/scrolling
 	InitFunc          func() // Initialization function called after Intent Runtime is created
+	PluginSetupFunc   func(*framework.App)
 }
 
 // WithWidth sets the window width
@@ -96,6 +97,29 @@ func WithInit(initFunc func()) Option {
 	}
 }
 
+// WithPluginSetup sets a function that will be called after the framework app is created
+// This allows registering UI component plugins like modal's global handlers and middleware.
+//
+// Example:
+//
+//	import (
+//	    "github.com/wwsheng009/mint/framework"
+//	    "github.com/wwsheng009/mint/ui/components/modal"
+//	)
+//
+//	ui.Run(App,
+//	    ui.WithPluginSetup(func(app *framework.App) {
+//	        // Register modal support
+//	        app.RegisterGlobalHandler(modal.NewModalGlobalHandler())
+//	        app.AddMiddleware(modal.NewModalClickMiddleware())
+//	    }),
+//	)
+func WithPluginSetup(pluginSetup func(*framework.App)) Option {
+	return func(o *Options) {
+		o.PluginSetupFunc = pluginSetup
+	}
+}
+
 // appInstance holds the framework app for quit functionality
 var appInstance *framework.App
 
@@ -151,6 +175,11 @@ func Run(app ComponentFunc, opts ...Option) error {
 	rtui.SetGlobalIntentRuntime(intentRuntime)
 	if log.UILogger.Enabled() {
 		log.UILogger.Debug("ui.Run: Intent Runtime initialized with built-in handlers")
+	}
+
+	// Call plugin setup function if provided (e.g., for registering UI component extensions like Modal)
+	if options.PluginSetupFunc != nil {
+		options.PluginSetupFunc(fwApp)
 	}
 
 	// Call initialization function if provided (e.g., for registering Intent Handlers)

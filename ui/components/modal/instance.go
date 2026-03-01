@@ -2,16 +2,74 @@ package modal
 
 import (
 	"strings"
+	"sync"
 
 	"github.com/wwsheng009/mint/runtime/action"
 	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/runtime/layout"
-	"github.com/wwsheng009/mint/runtime/paint"
-	"github.com/wwsheng009/mint/runtime/style"
 	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
+	"github.com/wwsheng009/mint/runtime/paint"
 	runtimeplatform "github.com/wwsheng009/mint/runtime/platform"
+	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
+
+// =============================================================================
+// Global Modal Registry
+// =============================================================================
+
+// modalRegistry stores all open modal instances globally
+// This allows GlobalActionHandler to access modals without InstanceManager dependency
+type modalRegistry struct {
+	mu     sync.RWMutex
+	modals map[*Instance]bool
+}
+
+var (
+	globalRegistry = &modalRegistry{
+		modals: make(map[*Instance]bool),
+	}
+)
+
+// register adds a modal to the global registry
+func (r *modalRegistry) register(inst *Instance) {
+	if inst == nil {
+		return
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.modals[inst] = true
+}
+
+// unregister removes a modal from the global registry
+func (r *modalRegistry) unregister(inst *Instance) {
+	if inst == nil {
+		return
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	delete(r.modals, inst)
+}
+
+// getOpenModals returns all open modals
+// The returned slice is ordered from newest to oldest (last opened first)
+func (r *modalRegistry) getOpenModals() []*Instance {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	result := make([]*Instance, 0, len(r.modals))
+	for inst := range r.modals {
+		result = append(result, inst)
+	}
+	return result
+}
+
+// hasOpenModal checks if there are any open modals
+func (r *modalRegistry) hasOpenModal() bool {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return len(r.modals) > 0
+}
 
 // =============================================================================
 // Instance - Runtime Entity
@@ -24,8 +82,8 @@ type Instance struct {
 	key string
 
 	// === Props (from VNode, may change each render) ===
-	title      string
-	modalStyle style.Style
+	title       string
+	modalStyle  style.Style
 	borderStyle string
 	closeIntent intent.Intent
 
@@ -45,6 +103,9 @@ type Instance struct {
 	// === Runtime State ===
 	bounds [4]int // x, y, w, h
 	dirty  bool
+
+	// === Registration State ===
+	registered bool // Tracks if this instance is in the global registry
 
 	// === Intent Emitter ===
 	intentEmitter func(intent.Intent)
@@ -80,6 +141,7 @@ func NewInstance(props rtui.Props) *Instance {
 		content:     getChildProp(props, "content"),
 		footer:      getChildProp(props, "footer"),
 		dirty:       true,
+		registered:  false, // Not registered yet
 	}
 	return inst
 }
@@ -88,14 +150,22 @@ func NewInstance(props rtui.Props) *Instance {
 // ComponentInstance Interface
 // =============================================================================
 
-func (inst *Instance) Key() string           { return inst.key }
-func (inst *Instance) SetKey(key string)     { inst.key = key }
-func (inst *Instance) Init(props rtui.Props) { inst.SetProps(props) }
+func (inst *Instance) Key() string       { return inst.key }
+func (inst *Instance) SetKey(key string) { inst.key = key }
+func (inst *Instance) Init(props rtui.Props) {
+	inst.SetProps(props)
+}
 func (inst *Instance) Destroy() {
+	// Unregister from global registry if registered
+	if inst.registered {
+		globalRegistry.unregister(inst)
+		inst.registered = false
+	}
+
 	inst.content = nil
 	inst.footer = nil
 }
-func (inst *Instance) OnMount() {}
+func (inst *Instance) OnMount()   {}
 func (inst *Instance) OnUnmount() {}
 
 func (inst *Instance) SetProps(props rtui.Props) bool {
@@ -113,6 +183,19 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	inst.height = getIntProp(props, "height", inst.height)
 	inst.content = getChildProp(props, "content")
 	inst.footer = getChildProp(props, "footer")
+	// Track modal open/close state in global registry for GlobalActionHandler
+	// 1. If state changed from closed to open, register
+	if !oldOpen && inst.isOpen {
+		globalRegistry.register(inst)
+		inst.registered = true
+	} else if oldOpen && !inst.isOpen { // 2. If state changed from open to closed, unregister
+		globalRegistry.unregister(inst)
+		inst.registered = false
+	} else if inst.isOpen && !inst.registered {
+		// 3. If initially open and not yet registered, register (case: modal created with isOpen=true)
+		globalRegistry.register(inst)
+		inst.registered = true
+	}
 
 	changed := oldOpen != inst.isOpen || oldTitle != inst.title
 	if changed {
@@ -134,10 +217,10 @@ func (inst *Instance) GetProps() rtui.Props {
 	}
 }
 
-func (inst *Instance) MarkDirty()          { inst.dirty = true }
-func (inst *Instance) IsDirty() bool       { return inst.dirty }
+func (inst *Instance) MarkDirty()                         { inst.dirty = true }
+func (inst *Instance) IsDirty() bool                      { return inst.dirty }
 func (inst *Instance) GetContext() *rtui.ComponentContext { return nil }
-func (inst *Instance) ClearDirty()         { inst.dirty = false }
+func (inst *Instance) ClearDirty()                        { inst.dirty = false }
 
 // =============================================================================
 // Measurable Interface
@@ -287,47 +370,47 @@ func (inst *Instance) getBorderChars() borderChars {
 	switch inst.borderStyle {
 	case "double":
 		return borderChars{
-			horizontal: '═',
-			vertical:   '║',
-			topLeft:    '╔',
-			topRight:   '╗',
-			bottomLeft: '╚',
-			bottomRight:'╝',
-			leftT:      '╠',
-			rightT:     '╣',
+			horizontal:  '═',
+			vertical:    '║',
+			topLeft:     '╔',
+			topRight:    '╗',
+			bottomLeft:  '╚',
+			bottomRight: '╝',
+			leftT:       '╠',
+			rightT:      '╣',
 		}
 	case "rounded":
 		return borderChars{
-			horizontal: '─',
-			vertical:   '│',
-			topLeft:    '╭',
-			topRight:   '╮',
-			bottomLeft: '╰',
-			bottomRight:'╯',
-			leftT:      '├',
-			rightT:     '┤',
+			horizontal:  '─',
+			vertical:    '│',
+			topLeft:     '╭',
+			topRight:    '╮',
+			bottomLeft:  '╰',
+			bottomRight: '╯',
+			leftT:       '├',
+			rightT:      '┤',
 		}
 	case "dashed":
 		return borderChars{
-			horizontal: '─',
-			vertical:   '│',
-			topLeft:    '┌',
-			topRight:   '┐',
-			bottomLeft: '└',
-			bottomRight:'┘',
-			leftT:      '├',
-			rightT:     '┤',
+			horizontal:  '─',
+			vertical:    '│',
+			topLeft:     '┌',
+			topRight:    '┐',
+			bottomLeft:  '└',
+			bottomRight: '┘',
+			leftT:       '├',
+			rightT:      '┤',
 		}
 	default: // single
 		return borderChars{
-			horizontal: '─',
-			vertical:   '│',
-			topLeft:    '┌',
-			topRight:   '┐',
-			bottomLeft: '└',
-			bottomRight:'┘',
-			leftT:      '├',
-			rightT:     '┤',
+			horizontal:  '─',
+			vertical:    '│',
+			topLeft:     '┌',
+			topRight:    '┐',
+			bottomLeft:  '└',
+			bottomRight: '┘',
+			leftT:       '├',
+			rightT:      '┤',
 		}
 	}
 }

@@ -188,13 +188,16 @@ func NewApp() *App {
 
 	// Phase 4: 设置默认中间件链
 	// 根据环境变量选择中间件链
+	var middlewareChain *action.MiddlewareChain
 	if os.Getenv("ACTION_DEBUG") == "true" {
-		app.actionRouter.SetMiddleware(action.DebugMiddlewareChain())
+		middlewareChain = action.DebugMiddlewareChain()
 	} else if os.Getenv("ACTION_PROD") == "true" {
-		app.actionRouter.SetMiddleware(action.ProductionMiddlewareChain())
+		middlewareChain = action.ProductionMiddlewareChain()
 	} else {
-		app.actionRouter.SetMiddleware(action.DefaultMiddlewareChain())
+		middlewareChain = action.DefaultMiddlewareChain()
 	}
+
+	app.actionRouter.SetMiddleware(middlewareChain)
 
 	return app
 }
@@ -517,6 +520,24 @@ func (a *App) SetInspector(inspector interface{}) {
 // GetInspector 返回当前的 Inspector 实例
 func (a *App) GetInspector() interface{} {
 	return a.inspector
+}
+
+// RegisterGlobalHandler registers a global action handler with the action router.
+// Global handlers are called for actions without specific targets.
+// This allows UI components to register cross-cutting concerns (like Modal's ESC key handling).
+func (a *App) RegisterGlobalHandler(handler action.GlobalActionHandler) {
+	if a.actionRouter != nil {
+		a.actionRouter.AddGlobalHandler(handler)
+	}
+}
+
+// AddMiddleware adds a middleware to the action router's middleware chain.
+// Middleware are called before action dispatch and can intercept, modify, or observe actions.
+// This allows UI components to add behavior like click-outside-to-close handling.
+func (a *App) AddMiddleware(middleware action.ActionMiddleware) {
+	if a.actionRouter != nil {
+		a.actionRouter.AddMiddleware(middleware)
+	}
 }
 
 // isInspectorVisible checks if the Inspector overlay is currently visible
@@ -1045,6 +1066,17 @@ func (a *App) processMsg(msg runtimemsg.Msg) {
 	// 4.2 键盘事件：使用焦点 Fiber
 	// 非 MouseMsg 的都是键盘事件（包括特殊键和可打印字符）
 	if _, ok := msg.(*runtimemsg.KeyMsg); ok {
+		// 对于 ESC 键（ActionCancel），优先尝试通过 ActionRouter 的全局处理器处理
+		// 这样 Modal 的 GlobalActionHandler 可以拦截并关闭 modal
+		if act.Type == action.ActionCancel || act.Type == action.ActionQuit {
+			result := a.actionRouter.Dispatch(act)
+			if result.Handled {
+				a.dirty = true
+				return
+			}
+		}
+
+		// 否则正常路由到焦点元素
 		if focused := a.focusManager.GetCurrent(); focused != nil {
 			if a.actionBridge.DispatchFromFiber(focused, act.Type, act.Payload) {
 				a.dirty = true
@@ -1055,7 +1087,7 @@ func (a *App) processMsg(msg runtimemsg.Msg) {
 
 	// 4.3 回退：通过 ActionRouter 分发（语义 Action 模式）
 	if act.TargetID != 0 {
-		result := a.dispatchAction(act)
+		result := a.actionRouter.Dispatch(act)
 		if result.Handled {
 			a.dirty = true
 		}

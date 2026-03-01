@@ -1,247 +1,260 @@
-// Fiber-First Modal Component Demo
-// Demonstrates the new Modal component following the Fiber-first architecture
+// Fiber-First Modal Component Demo - Interactive
+// Demonstrates the new Modal component with full interactivity
 package main
 
 import (
-	"fmt"
-	"os"
-	"strings"
-
-	"github.com/wwsheng009/mint/examples/utils"
-	"github.com/wwsheng009/mint/framework"
-	"github.com/wwsheng009/mint/framework/component"
-	"github.com/wwsheng009/mint/framework/theme"
-	"github.com/wwsheng009/mint/internal/render"
-	"github.com/wwsheng009/mint/runtime/paint"
-	rtui "github.com/wwsheng009/mint/runtime/ui"
-	newstack "github.com/wwsheng009/mint/ui/components/stack"
 	newtext "github.com/wwsheng009/mint/ui/components/text"
 	"github.com/wwsheng009/mint/ui/components/modal"
+	"github.com/wwsheng009/mint/ui"
+	"github.com/wwsheng009/mint/app"
+	"github.com/wwsheng009/mint/framework"
+	"github.com/wwsheng009/mint/runtime/intent"
+	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
 
-// DemoApp creates the demo UI
-func DemoApp() rtui.VNode {
-	return newstack.New(newstack.Column).
-		SetWidth(70).
-		SetGap(1).
-		SetChildrenList([]rtui.VNode{
-			// Title
-			sectionTitle("Fiber-First Modal Component Demo"),
-			newtext.New(""),
-			newtext.New("Modal dialog with Fiber-first architecture:"),
-			newtext.New("  • Pure descriptive VNode"),
-			newtext.New("  • Intent-based event handling"),
-			newtext.New("  • Layer system integration"),
-			newtext.New("  • Multiple border styles"),
-			newtext.New("  • ESC key / click-outside to close"),
-			newtext.New(""),
-
-			// =====================================================
-			// Section 1: Basic Open Modal
-			// =====================================================
-			subTitle("1. Basic Open Modal with Title"),
-			modal.NewBuilder().
-				Title("Modal Dialog").
-				Content(newtext.New("This is a basic modal dialog.\nModal is rendered on LayerOverlay.\nClose with ESC or click outside.")).
-				Width(45).
-				Height(10).
-				Rounded().
-				Open(true).
-				Build(),
-			newtext.New(""),
-
-			// =====================================================
-			// Section 2: Border Styles
-			// =====================================================
-			subTitle("2. Border Styles (Rounded, Double, Single)"),
-			newstack.New(newstack.Row).
-				SetGap(2).
-				SetChildrenList([]rtui.VNode{
-					modal.NewBuilder().
-						Title("Rounded").
-						Content(newtext.New("╭╮╰╯ borders\nStyle uses rounded chars")).
-						Width(20).
-						Height(7).
-						Rounded().
-						Open(true).
-						Build(),
-					modal.NewBuilder().
-						Title("Double").
-						Content(newtext.New("╔╗╚╝ borders\nStyle uses double chars")).
-						Width(20).
-						Height(7).
-						Double().
-						Open(true).
-						Build(),
-					modal.NewBuilder().
-						Title("Single").
-						Content(newtext.New("┌┐└┘ borders\nStyle uses single chars")).
-						Width(20).
-						Height(7).
-						Single().
-						Open(true).
-						Build(),
-				}),
-			newtext.New(""),
-
-			// =====================================================
-			// Section 3: Modal with Footer
-			// =====================================================
-			subTitle("3. Modal with Custom Footer"),
-			modal.NewBuilder().
-				Title("Confirmation Dialog").
-				Content(newtext.New("Do you want to proceed?\nThis action cannot be undone.")).
-				Footer(newtext.New("  [Esc/C] Cancel     [Enter] Confirm  ")).
-				Width(40).
-				Height(8).
-				Rounded().
-				Open(true).
-				Build(),
-			newtext.New(""),
-
-			// =====================================================
-			// Section 4: Alert Modal
-			// =====================================================
-			subTitle("4. Alert Modal (Convenience Function)"),
-			modal.Alert("Alert", "Important notification\nPlease review this message."),
-			newtext.New(""),
-
-			// =====================================================
-			// Section 5: Different Sizes
-			// =====================================================
-			subTitle("5. Different Modal Sizes"),
-			newstack.New(newstack.Row).
-				SetGap(2).
-				SetChildrenList([]rtui.VNode{
-					modal.NewBuilder().
-						Title("Small").
-						Content(newtext.New("Small modal")).
-						Size(25, 6).
-						Rounded().
-						Open(true).
-						Build(),
-					modal.NewBuilder().
-						Title("Medium").
-						Content(newtext.New("Medium modal\nMore content\nAvailable.")).
-						Size(30, 8).
-						Rounded().
-						Open(true).
-						Build(),
-					modal.NewBuilder().
-						Title("Large").
-						Content(newtext.New("Large modal\nWith more content\nLines for display.\nCan show complex UI.")).
-						Size(35, 10).
-						Rounded().
-						Open(true).
-						Build(),
-				}),
-			newtext.New(""),
-
-			// =====================================================
-			// Section 6: Non-Closeable Modal
-			// =====================================================
-			subTitle("6. Non-Closeable Modal (modal lock)"),
-			modal.NewBuilder().
-				Title("Important Message").
-				Content(newtext.New("This modal cannot be closed.\nUsed for critical alerts.\nMust handle via application logic.")).
-				Width(45).
-				Height(7).
-				Rounded().
-				Closeable(false).
-				Open(true).
-				Build(),
-			newtext.New(""),
-
-			// =====================================================
-			// Section 7: Dashed Border Style
-			// =====================================================
-			subTitle("7. Dashed Border Style"),
-			modal.NewBuilder().
-				Title("Dashed Border").
-				Content(newtext.New("Modal with dashed border style.\nAlternative visual design.\nGood for information dialogs.")).
-				Width(40).
-				Height(8).
-				Dashed().
-				Open(true).
-				Build(),
-			newtext.New(""),
-
-			// Footer
-			highlight("Modal: Fiber-first, Layer system, Intent events, ESC/click-outside close"),
-		})
-}
-
-// sectionTitle creates a styled section title
-func sectionTitle(title string) rtui.VNode {
-	return newtext.New(title).
-		Foreground(theme.Primary()).
-		Bold(true)
-}
-
-// subTitle creates a subtitle
-func subTitle(title string) rtui.VNode {
-	return newtext.New("  " + title).Foreground("white")
-}
-
-// highlight creates a highlighted note
-func highlight(text string) rtui.VNode {
-	return newtext.New("  >>> " + text).Foreground("yellow")
-}
-
 func main() {
-	os.Setenv("MINT_USE_FIBER", "true")
-	os.Setenv("MINT_FIBER_FIRST", "true")
-	os.Setenv("MINT_DEBUG_TEST", "true")
-
-	fmt.Println("╔══════════════════════════════════════════════════════════╗")
-	fmt.Println("║   Fiber-First Modal Component Demo                      ║")
-	fmt.Println("╚══════════════════════════════════════════════════════════╝")
-
-	// Create framework app (required for Fiber reconciler)
-	fwApp := framework.NewApp()
-
-	// Create DeclarativeNode WITH Fiber reconciler
-	node := render.NewDeclarativeNodeFromFuncWithFiber(DemoApp, fwApp)
-
-	// Enable Fiber-first mode
-	node.SetRenderMode(render.RenderModeFiberFirst)
-
-	fmt.Printf("\nConfiguration:\n")
-	fmt.Printf("  Render Mode: %v\n", node.GetRenderMode())
-	fmt.Printf("  Fiber-First Enabled: %v\n", node.IsFiberFirstEnabled())
-
-	// Create buffer (increase height to fit all content)
-	buf := paint.NewBuffer(70, 120)
-
-	// Create paint context
-	ctx := component.PaintContext{
-		Bounds:          paint.Rect{X: 0, Y: 0, Width: 70, Height: 120},
-		AvailableWidth:  70,
-		AvailableHeight: 120,
+	err := ui.Run(App,
+		ui.WithWidth(70),
+		ui.WithHeight(40),
+		ui.WithTitle("Modal Demo - Interactive"),
+		ui.WithPluginSetup(func(app *framework.App) {
+			// Register modal support for ESC key and click-outside-to-close
+			app.AddMiddleware(modal.NewModalMiddleware())
+		}),
+	)
+	if err != nil {
+		panic(err)
 	}
+}
 
-	fmt.Printf("\n%s\n", strings.Repeat("=", 70))
-	fmt.Println("Rendering Modal with Fiber-first pipeline...")
-	fmt.Printf("%s\n\n", strings.Repeat("=", 70))
+// =============================================================================
+// Custom Intent Types
+// =============================================================================
 
-	// Render
-	node.Paint(ctx, buf)
+type OpenModalIntent struct {
+	ModalType string
+}
 
-	// Output result
-	utils.PrintBuffer(buf, 70, 120)
+func (OpenModalIntent) IntentType() string { return "OpenModal" }
 
-	// Feature summary
-	fmt.Println("\n" + strings.Repeat("=", 70))
-	fmt.Println("Modal Architecture:")
-	fmt.Println(strings.Repeat("=", 70))
-	fmt.Println("  ✓ VNode: Pure description (no state, no closures, no paint)")
-	fmt.Println("  ✓ Instance: Runtime state management")
-	fmt.Println("  ✓ Intent: Replaces closure-based callbacks")
-	fmt.Println("  ✓ Layer: Renders on LayerOverlay for z-ordering")
-	fmt.Println("  ✓ Events: ESC key and click-outside to close")
-	fmt.Println("  ✓ Styles: Single, Double, Rounded, Dashed borders")
-	fmt.Println("  ✓ Sizes: Configurable width and height")
-	fmt.Println("  ✓ Closeable: Can be set to non-closeable (modal lock)")
-	fmt.Println("  ✓ Builder: Fluent API with convenience methods")
-	fmt.Println(strings.Repeat("=", 70))
+type CloseModalIntent struct{}
+
+func (CloseModalIntent) IntentType() string { return "CloseModal" }
+
+// =============================================================================
+// Main App
+// =============================================================================
+
+func App() ui.VNode {
+	modalType, setModalType := ui.UseStateString("")
+
+	// Register Intent handlers in App function
+	rtui.RegisterIntent(func(ctx *intent.ActionContext, i OpenModalIntent) intent.IntentResult {
+		setModalType(i.ModalType)
+		return intent.HandledResult()
+	})
+
+	rtui.RegisterIntent(func(ctx *intent.ActionContext, i CloseModalIntent) intent.IntentResult {
+		setModalType("")
+		return intent.HandledResult()
+	})
+
+	return ui.VStack(
+		ui.VStack(
+			app.NewTextBuilder("🎨 Modal Component Demo").
+				Bold(true).
+				FgColor("cyan").
+				Build(),
+			app.Text(""),
+			app.NewTextBuilder("Interactive Modal Dialog System").
+				FgColor("gray").
+				Build(),
+			app.NewTextBuilder("ESCAPE key or click outside to close").
+				FgColor("gray").
+				Build(),
+			app.Text(""),
+		),
+
+		app.NewTextBuilder("─").FgColor("gray").Build(),
+		app.Text(""),
+
+		// Button Grid
+		ui.HStack(
+			app.Text("  "),
+			app.ButtonBuilder("  Basic  ").
+				Variant(app.ButtonVariantPrimary).
+				OnPress(OpenModalIntent{ModalType: "basic"}).
+				Disabled(modalType != "").
+				Build(),
+			app.Text(" "),
+			app.ButtonBuilder("  Border  ").
+				Variant(app.ButtonVariantSecondary).
+				OnPress(OpenModalIntent{ModalType: "border"}).
+				Disabled(modalType != "").
+				Build(),
+			app.Text(" "),
+			app.ButtonBuilder("  Footer  ").
+				Variant(app.ButtonVariantSecondary).
+				OnPress(OpenModalIntent{ModalType: "footer"}).
+				Disabled(modalType != "").
+				Build(),
+		),
+
+		app.Text(""),
+		ui.HStack(
+			app.Text("  "),
+			app.ButtonBuilder("  Alert  ").
+				Variant(app.ButtonVariantSecondary).
+				OnPress(OpenModalIntent{ModalType: "alert"}).
+				Disabled(modalType != "").
+				Build(),
+			app.Text(" "),
+			app.ButtonBuilder("  Sizes  ").
+				Variant(app.ButtonVariantSecondary).
+				OnPress(OpenModalIntent{ModalType: "sizes"}).
+				Disabled(modalType != "").
+				Build(),
+			app.Text(" "),
+			app.ButtonBuilder("  Locked  ").
+				Variant(app.ButtonVariantDanger).
+				OnPress(OpenModalIntent{ModalType: "locked"}).
+				Disabled(modalType != "").
+				Build(),
+		),
+
+		app.Text(""),
+		app.NewTextBuilder("─").FgColor("gray").Build(),
+		app.Text(""),
+
+		// Status Display
+		app.HStack(
+			app.Text("  "),
+			app.NewTextBuilder("Status: ").FgColor("blue").Build(),
+			app.NewTextBuilder(getStatusText(modalType)).
+				FgColor(getStatusColor(modalType)).
+				Build(),
+		),
+
+		app.Text(""),
+		app.NewTextBuilder("─").FgColor("gray").Build(),
+
+		// Only render the active modal
+		getModal(modalType),
+	)
+}
+
+func getStatusText(modalType string) string {
+	if modalType == "" {
+		return "No modal open"
+	}
+	return "Modal: " + modalType
+}
+
+func getStatusColor(modalType string) string {
+	if modalType == "" {
+		return "gray"
+	}
+	return "green"
+}
+
+// getModal returns the modal component for the given type
+func getModal(modalType string) ui.VNode {
+	switch modalType {
+	case "basic":
+		// Add a close button in the modal content
+		return modal.NewBuilder().
+			Key("modal-basic").
+			Title("Basic Modal").
+			Content(ui.VStack(
+				app.NewTextBuilder("This is a basic modal dialog.").
+					FgColor("white").
+					Build(),
+				app.Text(""),
+				app.NewTextBuilder("Try pressing ESC").
+					FgColor("gray").
+					Build(),
+				app.NewTextBuilder("or clicking outside").
+					FgColor("gray").
+					Build(),
+				app.NewTextBuilder("or the button below").
+					FgColor("gray").
+					Build(),
+				app.Text(""),
+				app.ButtonBuilder("  [Close]  ").
+					Variant(app.ButtonVariantPrimary).
+					OnPress(CloseModalIntent{}).
+					Build(),
+			)).
+			Width(45).
+			Height(12).
+			Rounded().
+			Open(true).
+			OnClose(CloseModalIntent{}).
+			Build()
+
+	case "border":
+		return modal.NewBuilder().
+			Key("modal-border").
+			Title("Border Styles Demo").
+			Content(newtext.New("Compare different border styles:\n\n• Single: clean and minimal\n• Double: bold and prominent\n• Rounded: friendly and modern\n• Dashed: subtle and light")).
+			Width(50).
+			Height(12).
+			Rounded().
+			Open(true).
+			OnClose(CloseModalIntent{}).
+			Build()
+
+	case "footer":
+		return modal.NewBuilder().
+			Key("modal-footer").
+			Title("Confirmation Dialog").
+			Content(newtext.New("Are you sure you want to proceed?\nThis action cannot be undone.")).
+			Footer(newtext.New("  [Esc] Cancel     [Enter] Confirm  ")).
+			Width(40).
+			Height(10).
+			Rounded().
+			Open(true).
+			OnClose(CloseModalIntent{}).
+			Build()
+
+	case "alert":
+		return modal.NewBuilder().
+			Key("modal-alert").
+			Title("Alert").
+			Content(newtext.New("⚠️  Important notification!\n\nPlease review this message before continuing.")).
+			Width(40).
+			Height(10).
+			Rounded().
+			Open(true).
+			OnClose(CloseModalIntent{}).
+			Build()
+
+	case "sizes":
+		return modal.NewBuilder().
+			Key("modal-sizes").
+			Title("Modal Sizes").
+			Content(newtext.New("Different modal sizes for different use cases:\n\n• Small: 25x6 - Quick messages\n• Medium: 30x8 - Standard dialogs\n• Large: 35x10 - Complex forms")).
+			Width(40).
+			Height(12).
+			Rounded().
+			Open(true).
+			OnClose(CloseModalIntent{}).
+			Build()
+
+	case "locked":
+		return modal.NewBuilder().
+			Key("modal-locked").
+			Title("⚠️  Critical Alert").
+			Content(newtext.New("This modal is locked and cannot be closed.\n\nUsed for critical alerts that require user attention.\n\nClick outside or press ESC to simulate a system dismiss.")).
+			Width(45).
+			Height(10).
+			Rounded().
+			Closeable(true).
+			Open(true).
+			OnClose(CloseModalIntent{}).
+			Build()
+
+	default:
+		return app.Text("")
+	}
 }
