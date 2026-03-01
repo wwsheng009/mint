@@ -108,18 +108,13 @@ func BenchmarkVNode_Fragment(b *testing.B) {
 // VNodeRenderer Measure Benchmarks
 // =============================================================================
 
-func setupRendererForBenchmark(b *testing.B) (*NonFiberRenderer, *FiberRenderer) {
-	node := NewDeclarativeNodeFromFunc(func() rtui.VNode {
-		return rtui.Element("text").Prop("content", "test").Build()
-	})
-	nonFiberRenderer := node.GetRenderer().(*NonFiberRenderer)
-	fiberRenderer := NewFiberRenderer(nil)
-	return nonFiberRenderer, fiberRenderer
+func setupRendererForBenchmark(b *testing.B) *PipelineRendererAdapter {
+	return NewPipelineRendererAdapter()
 }
 
-// BenchmarkMeasure_NonFiber_Text benchmarks NonFiberRenderer.Measure for text
-func BenchmarkMeasure_NonFiber_Text(b *testing.B) {
-	_, renderer := setupRendererForBenchmark(b)
+// BenchmarkMeasure_Pipeline_Text benchmarks PipelineRenderer.Measure for text
+func BenchmarkMeasure_Pipeline_Text(b *testing.B) {
+	renderer := setupRendererForBenchmark(b)
 	vnode := rtui.Element("text").Prop("content", "Hello, World!").Build()
 
 	b.ReportAllocs()
@@ -129,9 +124,9 @@ func BenchmarkMeasure_NonFiber_Text(b *testing.B) {
 	}
 }
 
-// BenchmarkMeasure_NonFiber_HStack benchmarks measuring HStack
-func BenchmarkMeasure_NonFiber_HStack(b *testing.B) {
-	_, renderer := setupRendererForBenchmark(b)
+// BenchmarkMeasure_Pipeline_HStack benchmarks measuring HStack
+func BenchmarkMeasure_Pipeline_HStack(b *testing.B) {
+	renderer := setupRendererForBenchmark(b)
 	vnode := rtui.HStack(
 		rtui.Element("text").Prop("content", "A").Build(),
 		rtui.Element("text").Prop("content", "B").Build(),
@@ -145,9 +140,9 @@ func BenchmarkMeasure_NonFiber_HStack(b *testing.B) {
 	}
 }
 
-// BenchmarkMeasure_NonFiber_VStack benchmarks measuring VStack
-func BenchmarkMeasure_NonFiber_VStack(b *testing.B) {
-	_, renderer := setupRendererForBenchmark(b)
+// BenchmarkMeasure_Pipeline_VStack benchmarks measuring VStack
+func BenchmarkMeasure_Pipeline_VStack(b *testing.B) {
+	renderer := setupRendererForBenchmark(b)
 	vnode := rtui.VStack(
 		rtui.Element("text").Prop("content", "A").Build(),
 		rtui.Element("text").Prop("content", "B").Build(),
@@ -161,9 +156,9 @@ func BenchmarkMeasure_NonFiber_VStack(b *testing.B) {
 	}
 }
 
-// BenchmarkMeasure_NonFiber_Fragment benchmarks measuring Fragment
-func BenchmarkMeasure_NonFiber_Fragment(b *testing.B) {
-	_, renderer := setupRendererForBenchmark(b)
+// BenchmarkMeasure_Pipeline_Fragment benchmarks measuring Fragment
+func BenchmarkMeasure_Pipeline_Fragment(b *testing.B) {
+	renderer := setupRendererForBenchmark(b)
 	vnode := rtui.Fragment(
 		rtui.Element("text").Prop("content", "A").Build(),
 		rtui.Element("text").Prop("content", "B").Build(),
@@ -174,57 +169,6 @@ func BenchmarkMeasure_NonFiber_Fragment(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		_, _ = renderer.Measure(vnode)
 	}
-}
-
-// BenchmarkMeasure_Fiber_Text benchmarks FiberRenderer.Measure for text
-func BenchmarkMeasure_Fiber_Text(b *testing.B) {
-	_, renderer := setupRendererForBenchmark(b)
-	vnode := rtui.Element("text").Prop("content", "Hello, World!").Build()
-
-	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		_, _ = renderer.Measure(vnode)
-	}
-}
-
-// BenchmarkMeasure_Fiber_HStack benchmarks FiberRenderer measuring HStack
-func BenchmarkMeasure_Fiber_HStack(b *testing.B) {
-	_, renderer := setupRendererForBenchmark(b)
-	vnode := rtui.HStack(
-		rtui.Element("text").Prop("content", "A").Build(),
-		rtui.Element("text").Prop("content", "B").Build(),
-		rtui.Element("text").Prop("content", "C").Build(),
-	)
-
-	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		_, _ = renderer.Measure(vnode)
-	}
-}
-
-// BenchmarkMeasure_Comparison_NonFiber_Vs_Fiber compares both renderers
-func BenchmarkMeasure_Comparison_NonFiber_Vs_Fiber(b *testing.B) {
-	vnode := rtui.Element("text").Prop("content", "Hello").Build()
-
-	b.Run("NonFiber", func(b *testing.B) {
-		_, renderer := setupRendererForBenchmark(b)
-		b.ReportAllocs()
-		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
-			_, _ = renderer.Measure(vnode)
-		}
-	})
-
-	b.Run("Fiber", func(b *testing.B) {
-		_, renderer := setupRendererForBenchmark(b)
-		b.ReportAllocs()
-		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
-			_, _ = renderer.Measure(vnode)
-		}
-	})
 }
 
 // =============================================================================
@@ -581,7 +525,7 @@ func (m *mockFocusableNode) Label() string {
 
 // BenchmarkParallel_Measure benchmarks parallel measurement
 func BenchmarkParallel_Measure(b *testing.B) {
-	_, renderer := setupRendererForBenchmark(b)
+	renderer := setupRendererForBenchmark(b)
 	vnode := rtui.Element("text").Prop("content", "Hello").Build()
 
 	b.ReportAllocs()

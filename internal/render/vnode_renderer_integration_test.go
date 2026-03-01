@@ -65,15 +65,10 @@ func TestVNodeRenderer_Integration(t *testing.T) {
 	}
 }
 
-// TestVNodeRenderer_MeasureConsistency tests that both renderers measure similarly
+// TestVNodeRenderer_MeasureConsistency tests renderer measurement consistency
 func TestVNodeRenderer_MeasureConsistency(t *testing.T) {
-	// Create both renderer types
-	nonFiberNode := NewDeclarativeNodeFromFunc(func() rtui.VNode {
-		return rtui.Element("text").Prop("content", "test").Build()
-	})
-	nonFiberRenderer := nonFiberNode.GetRenderer()
-
-	fiberRenderer := NewFiberRenderer(nil)
+	// Create PipelineRenderer
+	pipelineRenderer := NewPipelineRendererAdapter()
 
 	// Test common VNode types
 	testVNodes := []struct {
@@ -103,43 +98,17 @@ func TestVNodeRenderer_MeasureConsistency(t *testing.T) {
 
 	for _, tt := range testVNodes {
 		t.Run(tt.name, func(t *testing.T) {
-			w1, h1 := nonFiberRenderer.Measure(tt.vnode)
-			w2, h2 := fiberRenderer.Measure(tt.vnode)
-
-			// Width should be consistent for text content
-			if tt.name == "text element" || tt.name == "element with content prop" {
-				if w1 != w2 {
-					t.Logf("Note: Width differs - NonFiber=%d, Fiber=%d (this is expected if implementations differ)", w1, w2)
-				}
-			}
-
-			// Height should generally be consistent for simple nodes
-			if (tt.name == "text element" || tt.name == "element with content prop") && h1 != h2 {
-				t.Logf("Note: Height differs - NonFiber=%d, Fiber=%d", h1, h2)
-			}
-
-			t.Logf("%s: NonFiber=%dx%d, Fiber=%dx%d", tt.name, w1, h1, w2, h2)
+			w, h := pipelineRenderer.Measure(tt.vnode)
+			t.Logf("%s: Pipeline=%dx%d", tt.name, w, h)
 		})
 	}
 }
 
 // TestVNodeRenderer_NilVNode tests renderer behavior with nil input
 func TestVNodeRenderer_NilVNode(t *testing.T) {
-	node := NewDeclarativeNodeFromFunc(func() rtui.VNode {
-		return rtui.Element("text").Prop("content", "test").Build()
-	})
-	renderer := node.GetRenderer()
-
-	t.Run("NonFiberRenderer", func(t *testing.T) {
+	t.Run("PipelineRenderer", func(t *testing.T) {
+		renderer := NewPipelineRendererAdapter()
 		w, h := renderer.Measure(nil)
-		if w != 0 || h != 0 {
-			t.Errorf("Expected 0x0 for nil VNode, got %dx%d", w, h)
-		}
-	})
-
-	t.Run("FiberRenderer", func(t *testing.T) {
-		fiberRenderer := NewFiberRenderer(nil)
-		w, h := fiberRenderer.Measure(nil)
 		if w != 0 || h != 0 {
 			t.Errorf("Expected 0x0 for nil VNode, got %dx%d", w, h)
 		}
