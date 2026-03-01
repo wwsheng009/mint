@@ -255,6 +255,13 @@ func (inst *Instance) Measure(constraints layout.Constraints) layout.Size {
 
 // GetBorder implements layout.Bordered interface.
 // Provides border layout information for proper child node positioning.
+func (inst *Instance) ShouldCenter() bool {
+	// ✨ Phase 1.4: Modal 居中控制
+	// 如果 Modal 被显式地设置了 centered=false，或者没有设置（默认 true），
+	// 则返回是否使用居中布局
+	return inst.centered
+}
+
 func (inst *Instance) GetBorder() layout.Border {
 	if !inst.isOpen {
 		return layout.Border{Style: layout.BorderNone}
