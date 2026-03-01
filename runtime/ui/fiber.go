@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/wwsheng009/mint/runtime/style"
+	"github.com/wwsheng009/mint/runtime/types"
 )
 
 // =============================================================================
@@ -173,6 +174,21 @@ type Fiber struct {
 	// All containers can now support borders natively
 	BorderStyle  string  // "none", "single", "double", "rounded", "dashed"
 	BorderLabel  string  // Optional label displayed on top border
+
+	// ✨ Modal Centering (Phase 1.4)
+	// Populated in completeWork from VNode props
+	// Controls whether Modal should be centered in viewport
+	Centered bool
+
+	// ✨ Position Fixed (Phase 2.1)
+	// Populated in completeWork from VNode props
+	// Controls positioning scheme: Relative/Absolute/Fixed
+	Position types.PositionType
+
+	// ✨ Anchor (Phase 2.1)
+	// Populated in completeWork from VNode props
+	// Controls alignment for fixed/absolute positioning
+	Anchor types.Anchor
 
 	// === Visual Style (Fiber-first) ===
 	// Copied from VNode.Style() during Fiber creation

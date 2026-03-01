@@ -1,65 +1,68 @@
 // Package layout provides positioning types for absolute and relative layout
 package layout
 
+import "github.com/wwsheng009/mint/runtime/types"
+
 // =============================================================================
-// Position Types
+// Position Types - 统一使用 types.PositionType
 // =============================================================================
 
-// PositionType defines the positioning scheme
-type PositionType int
+// PositionType 是 types.PositionType 的类型别名，保持向后兼容
+type PositionType = types.PositionType
 
+// 层级常量 - 引用 types 包的统一常量
 const (
-	// PositionRelative normal flow positioning (default)
-	PositionRelative PositionType = iota
-
-	// PositionAbsolute positioned relative to nearest positioned ancestor
-	PositionAbsolute
-
-	// PositionFixed positioned relative to viewport (not yet implemented)
-	PositionFixed
+	PositionRelative = types.PositionRelative
+	PositionAbsolute = types.PositionAbsolute
+	PositionFixed    = types.PositionFixed
 )
 
-// String returns the string representation of PositionType
-func (p PositionType) String() string {
-	switch p {
-	case PositionRelative:
-		return "relative"
-	case PositionAbsolute:
-		return "absolute"
-	case PositionFixed:
-		return "fixed"
-	default:
-		return "unknown"
-	}
+// =============================================================================
+// Anchor Types - 统一使用 types.Anchor
+// =============================================================================
+
+// Anchor 是 types.Anchor 的类型别名，保持向后兼容
+type Anchor = types.Anchor
+
+// 层级常量 - 引用 types 包的统一常量
+const (
+	AnchorTopLeft     = types.AnchorTopLeft
+	AnchorTop         = types.AnchorTop
+	AnchorTopRight    = types.AnchorTopRight
+	AnchorLeft        = types.AnchorLeft
+	AnchorCenter      = types.AnchorCenter
+	AnchorRight       = types.AnchorRight
+	AnchorBottomLeft  = types.AnchorBottomLeft
+	AnchorBottom      = types.AnchorBottom
+	AnchorBottomRight = types.AnchorBottomRight
+)
+
+// =============================================================================
+// Position Provider Interface (Phase 2.3)
+// =============================================================================
+
+// PositionProvider defines the interface for nodes that specify positioning
+type PositionProvider interface {
+
+	// GetPositionType returns the positioning scheme (Relative/Absolute/Fixed)
+	GetPositionType() PositionType
+
+	// GetAnchor returns the anchor point for position calculation
+	GetAnchor() Anchor
 }
 
 // =============================================================================
-// Anchor Types
+// Positionable Interface
 // =============================================================================
 
-// Anchor defines how a positioned element aligns to its position
-type Anchor int
+// Positionable nodes can provide position type and offsets
+// This is an optional interface that nodes can implement
+type Positionable interface {
+	Node
 
-const (
-	// AnchorTopLeft element's top-left corner at position (default)
-	AnchorTopLeft Anchor = iota
-	// AnchorTop element's top-center at position
-	AnchorTop
-	// AnchorTopRight element's top-right corner at position
-	AnchorTopRight
-	// AnchorLeft element's center-left at position
-	AnchorLeft
-	// AnchorCenter element's center at position
-	AnchorCenter
-	// AnchorRight element's center-right at position
-	AnchorRight
-	// AnchorBottomLeft element's bottom-left corner at position
-	AnchorBottomLeft
-	// AnchorBottom element's bottom-center at position
-	AnchorBottom
-	// AnchorBottomRight element's bottom-right corner at position
-	AnchorBottomRight
-)
+	// GetAbsolutePosition returns the absolute position configuration (top/left/right/bottom)
+	GetAbsolutePosition() Position
+}
 
 // =============================================================================
 // Position Value Types (for percentage support)
@@ -156,19 +159,6 @@ func NewAbsolutePositionWithOffsets(top, left, right, bottom *int) Position {
 }
 
 // =============================================================================
-// Positionable Interface
-// =============================================================================
-
-// Positionable nodes can provide position type and offsets
-// This is an optional interface that nodes can implement
-type Positionable interface {
-	Node
-
-	// GetPositionType returns the position configuration
-	GetPositionType() Position
-}
-
-// =============================================================================
 // Absolute Layout Helpers
 // =============================================================================
 
@@ -260,7 +250,7 @@ func isPositionable(node Node) bool {
 // getPositionType returns the position of a node, or relative if not implemented
 func getPositionType(node Node) Position {
 	if p, ok := node.(Positionable); ok {
-		return p.GetPositionType()
+		return p.GetAbsolutePosition()
 	}
 	return NewRelativePosition()
 }
@@ -315,6 +305,15 @@ type AbsoluteStyleProvider interface {
 
 	// GetAbsoluteStyle returns the absolute positioning style
 	GetAbsoluteStyle() *AbsoluteStyle
+}
+
+// ✨ ModalCenteringProvider defines the interface for modal centering control (Phase 1.4)
+// This allows nodes (particularly Modals) to control whether they should be centered
+type ModalCenteringProvider interface {
+	Node
+
+	// ShouldCenter returns true if this node should be centered in its container
+	ShouldCenter() bool
 }
 
 // NewAbsoluteStyle creates default absolute style
@@ -381,6 +380,26 @@ func (s *AbsoluteStyle) CalculatePosition(containerWidth, containerHeight, nodeW
 	}
 
 	return x, y
+}
+
+// ✨ Phase 1.1: ShouldCenter checks if this absolute style should be centered
+// Used for Modal default centering behavior
+// Returns true if all positioning properties are at default values (0) and anchor is TopLeft
+func (s *AbsoluteStyle) ShouldCenter() bool {
+	// Check if any explicit positioning is set
+	if s.Left != nil || s.Right != nil || s.Top != nil || s.Bottom != nil {
+		return false
+	}
+	// Check if anchor is default (TopLeft means no anchor specified)
+	if s.Anchor != AnchorTopLeft {
+		return false
+	}
+	// Check if explicit size is set
+	if s.Width > 0 || s.Height > 0 {
+		return false
+	}
+	// All defaults - should be centered
+	return true
 }
 
 // =============================================================================

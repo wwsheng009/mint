@@ -116,6 +116,10 @@ type LayoutBox struct {
 	X int
 	Y int
 
+	// ✨ Phase 1.2: AbsX, AbsY 全局坐标（相对于屏幕/Root）
+	AbsX int
+	AbsY int
+
 	// Width, Height 尺寸
 	Width  int
 	Height int
@@ -128,6 +132,10 @@ type LayoutBox struct {
 
 	// ZIndex 层内排序索引
 	ZIndex int
+
+	// ✨ Phase 1.1: ShouldCenter 是否需要居中（用于 Modal）
+	// 检测到 Modal 且未设置明确位置时为 true
+	ShouldCenter bool
 
 	// Border 边框信息（如果有）
 	Border Border
@@ -513,6 +521,8 @@ func (e *Engine) layoutNodeWithDepth(node Node, constraints Constraints, x, y in
 			ID:      node.ID(),
 			X:       x,
 			Y:       y,
+			AbsX:    x,  // ✨ Phase 1.2: 保存全局坐标
+			AbsY:    y,
 			Width:   0,
 			Height:  0,
 			Children: make([]*LayoutBox, 0),
@@ -528,6 +538,8 @@ func (e *Engine) layoutNodeWithDepth(node Node, constraints Constraints, x, y in
 				ID:      node.ID() + "_cycle",
 				X:       x,
 				Y:       y,
+				AbsX:    x,  // ✨ Phase 1.2: 保存全局坐标
+				AbsY:    y,
 				Width:   0,
 				Height:  0,
 				Children: make([]*LayoutBox, 0),
@@ -548,19 +560,109 @@ func (e *Engine) layoutNodeWithDepth(node Node, constraints Constraints, x, y in
 
 	// Get Layer and ZIndex from node if it implements Layered interface
 	layer := GetLayerFromNode(node)
+	shouldCenter := false // ✨ 初始化居中标志（Phase 1.1 + Phase 2.3）
 	zIndex := GetZIndexFromNode(node)
 
 	// Get Border from node if it implements Bordered interface
 	nodeBorder := GetBorderFromNode(node)
 
+	// ✨ Phase 2.3: PositionFixed 处理
+	// 如果节点使用了 fixed 定位，以 Root 为参考系，不受父布局影响
+	position := PositionRelative
+	anchor := AnchorTopLeft
+
+	if posProvider, ok := node.(PositionProvider); ok {
+		position = posProvider.GetPositionType()
+		anchor = posProvider.GetAnchor()
+	}
+
+	// Fixed 定位：使用 viewport 约束重新计算坐标
+	if position == PositionFixed && width > 0 && height > 0 {
+		// TODO: 从 Engine 中获取真实的 viewport 尺寸
+		// 目前暂时使用 80x25 作为固定值
+		rootW := 80
+		rootH := 25
+
+		// 根据 Anchor 计算固定定位坐标
+		switch anchor {
+		case AnchorTopLeft:
+			x, y = 0, 0
+		case AnchorTop:
+			x = (rootW - width) / 2
+			y = 0
+		case AnchorTopRight:
+			x = rootW - width
+			y = 0
+		case AnchorLeft:
+			x = 0
+			y = (rootH - height) / 2
+		case AnchorCenter:
+			x = (rootW - width) / 2
+			y = (rootH - height) / 2
+			shouldCenter = true // ✨ 居中定位时设置标志
+		case AnchorRight:
+			x = rootW - width
+			y = (rootH - height) / 2
+		case AnchorBottomLeft:
+			x = 0
+			y = rootH - height
+		case AnchorBottom:
+			x = (rootW - width) / 2
+			y = rootH - height
+		case AnchorBottomRight:
+			x = rootW - width
+			y = rootH - height
+		default:
+			x, y = 0, 0
+		}
+	}
+
+	// ✨ Phase 1.1: Modal 居中逻辑
+	// 注意：不适用于 PositionFixed 定位（Phase 2.3 已处理）
+	if layer == LayerModal && width > 0 && height > 0 && position != PositionFixed {
+		// ✨ Phase 1.4: 优先检查 ModalCenteringProvider 接口
+		// Modal 组件通过此接口显式控制是否居中
+		if centeringProvider, ok := node.(ModalCenteringProvider); ok {
+			shouldCenter = centeringProvider.ShouldCenter()
+		} else {
+			// 如果没有实现 ModalCenteringProvider，检查 AbsoluteStyleProvider
+			// 保持向后兼容性
+			if absProvider, ok := node.(AbsoluteStyleProvider); ok {
+				absStyle := absProvider.GetAbsoluteStyle()
+				// 如果未设置明确的 left/top/right/bottom，则需要居中
+				if absStyle != nil {
+					shouldCenter = absStyle.ShouldCenter()
+				} else {
+					shouldCenter = true
+				}
+			} else {
+				// 默认 Modal 居中（向后兼容）
+				shouldCenter = true
+			}
+		}
+
+		// 计算居中坐标
+		if shouldCenter {
+			x = (constraints.MaxWidth - width) / 2
+			y = (constraints.MaxHeight - height) / 2
+		}
+	}
+
+	// ✨ Phase 1.3: 设置全局坐标
+	// x, y 已经是传入的全局坐标（由父节点累积）
+	absX, absY := x, y
+
 	box := &LayoutBox{
 		ID:       node.ID(),
 		X:        x,
 		Y:        y,
+		AbsX:     absX,  // ✨ Phase 1.2: 保存全局坐标
+		AbsY:     absY,
 		Width:    width,
 		Height:   height,
 		Layer:    layer,
 		ZIndex:   zIndex,
+		ShouldCenter: shouldCenter,  // ✨ Phase 1.1: 保存居中标记
 		Border:   nodeBorder,
 		Children: make([]*LayoutBox, 0),
 	}
@@ -851,6 +953,8 @@ func (e *Engine) layoutNodeIncrementalWithDepth(node Node, constraints Constrain
 			ID:      node.ID(),
 			X:       x,
 			Y:       y,
+			AbsX:    x,  // ✨ Phase 1.2: 保存全局坐标
+			AbsY:    y,
 			Width:   0,
 			Height:  0,
 			Children: make([]*LayoutBox, 0),
@@ -865,6 +969,8 @@ func (e *Engine) layoutNodeIncrementalWithDepth(node Node, constraints Constrain
 				ID:      node.ID() + "_cycle",
 				X:       x,
 				Y:       y,
+				AbsX:    x,  // ✨ Phase 1.2: 保存全局坐标
+				AbsY:    y,
 				Width:   0,
 				Height:  0,
 				Children: make([]*LayoutBox, 0),
@@ -880,12 +986,18 @@ func (e *Engine) layoutNodeIncrementalWithDepth(node Node, constraints Constrain
 		width, height := node.GetSize()
 		curX, curY := node.GetPosition()
 
+		// ✨ Phase 1.3: 设置全局坐标
+		absX, absY := curX, curY
+
 		box := &LayoutBox{
 			ID:       node.ID(),
 			X:        curX,
 			Y:        curY,
+			AbsX:     absX,  // ✨ Phase 1.2: 保存全局坐标
+			AbsY:     absY,
 			Width:    width,
 			Height:   height,
+			ShouldCenter: false,  // ✨ Phase 1.1: Clean 节点默认不居中
 			Children: make([]*LayoutBox, 0),
 		}
 
@@ -912,12 +1024,104 @@ func (e *Engine) layoutNodeIncrementalWithDepth(node Node, constraints Constrain
 		width, height = size.Width, size.Height
 	}
 
+	// Get Layer from node
+	layer := GetLayerFromNode(node)
+	shouldCenter := false // ✨ 初始化居中标志（Phase 1.1 + Phase 2.3）
+
+	// ✨ Phase 2.3: PositionFixed 处理 (incremental path)
+	// 如果节点使用了 fixed 定位，以 Root 为参考系，不受父布局影响
+	position := PositionRelative
+	anchor := AnchorTopLeft
+
+	if posProvider, ok := node.(PositionProvider); ok {
+		position = posProvider.GetPositionType()
+		anchor = posProvider.GetAnchor()
+	}
+
+	// Fixed 定位：使用 viewport 约束重新计算坐标
+	if position == PositionFixed && width > 0 && height > 0 {
+		// TODO: 从 Engine 中获取真实的 viewport 尺寸
+		// 目前暂时使用 80x25 作为固定值
+		rootW := 80
+		rootH := 25
+
+		// 根据 Anchor 计算固定定位坐标
+		switch anchor {
+		case AnchorTopLeft:
+			x, y = 0, 0
+		case AnchorTop:
+			x = (rootW - width) / 2
+			y = 0
+		case AnchorTopRight:
+			x = rootW - width
+			y = 0
+		case AnchorLeft:
+			x = 0
+			y = (rootH - height) / 2
+		case AnchorCenter:
+			x = (rootW - width) / 2
+			y = (rootH - height) / 2
+			shouldCenter = true // ✨ 居中定位时设置标志
+		case AnchorRight:
+			x = rootW - width
+			y = (rootH - height) / 2
+		case AnchorBottomLeft:
+			x = 0
+			y = rootH - height
+		case AnchorBottom:
+			x = (rootW - width) / 2
+			y = rootH - height
+		case AnchorBottomRight:
+			x = rootW - width
+			y = rootH - height
+		default:
+			x, y = 0, 0
+		}
+	}
+
+	// ✨ Phase 1.1: Modal 居中逻辑 (incremental path)
+	// 注意：不适用于 PositionFixed 定位（Phase 2.3 已处理）
+	if layer == LayerModal && width > 0 && height > 0 && position != PositionFixed {
+		// ✨ Phase 1.4: 优先检查 ModalCenteringProvider 接口
+		// Modal 组件通过此接口显式控制是否居中
+		if centeringProvider, ok := node.(ModalCenteringProvider); ok {
+			shouldCenter = centeringProvider.ShouldCenter()
+		} else {
+			// 如果没有实现 ModalCenteringProvider，检查 AbsoluteStyleProvider
+			// 保持向后兼容性
+			if absProvider, ok := node.(AbsoluteStyleProvider); ok {
+				absStyle := absProvider.GetAbsoluteStyle()
+				// 如果未设置明确的 left/top/right/bottom，则需要居中
+				if absStyle != nil {
+					shouldCenter = absStyle.ShouldCenter()
+				} else {
+					shouldCenter = true
+				}
+			} else {
+				// 默认 Modal 居中（向后兼容）
+				shouldCenter = true
+			}
+		}
+
+		// 计算居中坐标
+		if shouldCenter {
+			x = (constraints.MaxWidth - width) / 2
+			y = (constraints.MaxHeight - height) / 2
+		}
+	}
+
+	// ✨ Phase 1.3: 设置全局坐标
+	absX, absY := x, y
+
 	box := &LayoutBox{
 		ID:      node.ID(),
 		X:       x,
 		Y:       y,
+		AbsX:    absX,  // ✨ Phase 1.2: 保存全局坐标
+		AbsY:    absY,
 		Width:   width,
 		Height:  height,
+		ShouldCenter: shouldCenter,  // ✨ Phase 1.1: 保存居中标记
 		Children: make([]*LayoutBox, 0),
 	}
 

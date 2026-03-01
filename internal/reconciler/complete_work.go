@@ -22,6 +22,7 @@ package reconciler
 import (
 	"fmt"
 
+	"github.com/wwsheng009/mint/runtime/types"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
 
@@ -109,6 +110,12 @@ func completeWorkElement(current, workInProgress *Fiber) *Fiber {
 	// === Phase 4: Sync border properties from Props (方案 A - 边框作为容器属性) ===
 	// 边框是容器的视觉装饰属性，通过 Props 传递到 Fiber
 	syncBorderProperties(workInProgress)
+
+	// ✨ Phase 1.4: Sync modal centering property from Props
+	syncCenteringProperties(workInProgress)
+
+	// ✨ Phase 2.2: Sync positioning properties from Props
+	syncPositioningProperties(workInProgress)
 
 	return workInProgress
 }
@@ -213,6 +220,117 @@ func syncBorderProperties(fiber *Fiber) {
 		if titleProp, ok := props["title"].(string); ok && titleProp != "" {
 			fiber.BorderLabel = titleProp
 		}
+	}
+}
+
+// syncCenteringProperties 同步 Modal 居中属性从 Props 到 Fiber (Phase 1.4)
+// Modal 组件通过 Props["centered"] 控制是否居中显示
+//
+// 设计：
+// - Modal 通过 Props["centered"] 传递居中设置
+// - 属性同步到 Fiber.Centered 字段
+// - 默认值为 true（Modal 默认居中）
+func syncCenteringProperties(fiber *Fiber) {
+	if fiber == nil {
+		return
+	}
+
+	props := fiber.Props
+	if props == nil {
+		return
+	}
+
+	// 只对 Modal 组件应用居中属性
+	if fiber.Tag == "modal" {
+		// 从 Props 中读取 centered 属性
+		// 默认值为 true（Modal 默认居中）
+		if centeredProp, ok := props["centered"].(bool); ok {
+			fiber.Centered = centeredProp
+		} else {
+			// 未设置时默认居中
+			fiber.Centered = true
+		}
+	}
+}
+
+// syncPositioningProperties 同步定位属性从 Props 到 Fiber (Phase 2.2)
+//
+// Modal/Tooltip 等组件通过 Props["position"] 和 Props["anchor"] 控制定位
+//
+// 设计：
+// - 支持三种定位类型: relative (默认), absolute, fixed
+// - fixed 定位使节点脱离父布局流，以 viewport 为参考系
+// - 支持 9 种 Anchor 定位：TopLeft, Top, TopRight, Left, Center, Right, BottomLeft, Bottom, BottomRight
+// - Modal 默认使用 fixed + center 定位
+func syncPositioningProperties(fiber *Fiber) {
+	if fiber == nil {
+		return
+	}
+
+	props := fiber.Props
+	if props == nil {
+		return
+	}
+
+	// 从 Props 中读取 position 属性（优先级1）
+	// 默认为 relative
+	if posProp, ok := props["position"].(string); ok {
+		switch posProp {
+		case "absolute":
+			fiber.Position = types.PositionAbsolute
+		case "fixed":
+			fiber.Position = types.PositionFixed
+		default:
+			fiber.Position = types.PositionRelative
+		}
+		return  // 如果直接指定了 position，不使用 centered 逻辑
+	}
+
+	// Modal 的 centered 属性（优先级2）
+	if fiber.Tag == "modal" {
+		if centered, ok := props["centered"].(bool); ok && centered {
+			fiber.Position = types.PositionFixed
+			fiber.Anchor = types.AnchorCenter
+		} else {
+			fiber.Position = types.PositionRelative
+			fiber.Anchor = types.AnchorTopLeft
+		}
+		return
+	}
+
+	// 默认行为（优先级3）
+	fiber.Position = types.PositionRelative
+	fiber.Anchor = types.AnchorTopLeft
+
+	// 从 Props 中读取 anchor 属性（如果设置了）
+	if anchorProp, ok := props["anchor"].(string); ok {
+		fiber.Anchor = parseAnchorType(anchorProp)
+	}
+}
+
+// parseAnchorType 解析锚点类型字符串 (Phase 2.2)
+func parseAnchorType(s string) types.Anchor {
+	switch s {
+	case "top", "topleft":
+		return types.AnchorTopLeft
+	case "topcenter":
+		return types.AnchorTop
+	case "topright":
+		return types.AnchorTopRight
+	case "center", "centerleft":
+		return types.AnchorLeft
+	case "centercenter":
+		return types.AnchorCenter
+	case "centerright":
+		return types.AnchorRight
+	case "bottom", "bottomleft":
+		return types.AnchorBottomLeft
+	case "bottomcenter":
+		return types.AnchorBottom
+	case "bottomright":
+		return types.AnchorBottomRight
+	default:
+		return types.AnchorTopLeft
 	}
 }
 

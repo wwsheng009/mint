@@ -513,9 +513,9 @@ func (a *FiberToNodeAdapter) GetMargin() layout.Margin {
 	return layout.Margin{}
 }
 
-// GetPositionType returns the position type from Fiber fields
+// GetAbsolutePosition returns the absolute position from Fiber fields
 // Implements layout.Positionable interface
-func (a *FiberToNodeAdapter) GetPositionType() layout.Position {
+func (a *FiberToNodeAdapter) GetAbsolutePosition() layout.Position {
 	if a.fiber == nil {
 		return layout.NewRelativePosition()
 	}
@@ -931,6 +931,40 @@ func (a *FiberToNodeAdapter) GetZIndex() int {
 
 	// Default return 0
 	return 0
+}
+
+// ✨ ShouldCenter returns whether a Modal should be centered (Phase 1.4)
+// This is modal-specific centering logic controlled by Props["centered"]
+func (a *FiberToNodeAdapter) ShouldCenter() bool {
+	if a.fiber == nil {
+		return false
+	}
+
+	// Only Modal components support centering
+	if a.fiber.Tag != "modal" {
+		return false
+	}
+
+	// Return the centered property from Fiber (synced from VNode props)
+	return a.fiber.Centered
+}
+
+// GetPositionType returns the positioning scheme (Phase 2.3)
+// Implements layout.PositionProvider interface
+func (a *FiberToNodeAdapter) GetPositionType() layout.PositionType {
+	if a.fiber == nil {
+		return layout.PositionRelative
+	}
+	return a.fiber.Position
+}
+
+// GetAnchor returns the anchor point for position calculation (Phase 2.3)
+// Implements layout.PositionProvider interface
+func (a *FiberToNodeAdapter) GetAnchor() layout.Anchor {
+	if a.fiber == nil {
+		return layout.AnchorTopLeft
+	}
+	return a.fiber.Anchor
 }
 
 // ========== layout.Dirtyable 接口实现 ==========
