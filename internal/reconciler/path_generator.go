@@ -80,6 +80,9 @@ func (pg *PathGenerator) generateRootPathFromFiber(fiber *rtui.Fiber) string {
 }
 
 func (pg *PathGenerator) getTypeIdentifier(vnode rtui.VNode) string {
+	if vnode == nil {
+		return "nil"
+	}
 	switch vnode.Type() {
 	case rtui.VNodeComponent:
 		if namer, ok := vnode.(interface{ Name() string }); ok {

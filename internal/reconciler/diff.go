@@ -162,6 +162,14 @@ func createAllNewChildren(returnFiber *Fiber, children []rtui.VNode, lanes Lane)
 	}
 
 	for i, childVNode := range children {
+		// ⚠️ Skip nil VNodes - they should not be in the Fiber tree
+		if childVNode == nil {
+			if log.HitMapLogger.Enabled() {
+				log.UILogger.Debug("[createAllNewChildren] Skipping nil VNode at index %d", i)
+			}
+			continue
+		}
+
 		// Determine type index BEFORE creating the node
 		var typeIndex int
 		if pathGenerator != nil {
@@ -172,6 +180,13 @@ func createAllNewChildren(returnFiber *Fiber, children []rtui.VNode, lanes Lane)
 
 		// Create child with the pre-calculated index
 		child := createChildFiberWithIndex(returnFiber, childVNode, lanes, i, typeIndex)
+		if child == nil {
+			// CreateFiber may return nil for nil VNode (though we check above)
+			if log.HitMapLogger.Enabled() {
+				log.UILogger.Debug("[createAllNewChildren] Skipping nil Fiber at index %d", i)
+			}
+			continue
+		}
 
 		if log.HitMapLogger.Enabled() {
 			typeName := "UNKNOWN"

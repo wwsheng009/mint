@@ -33,7 +33,8 @@ func (CloseModalIntent) IntentType() string { return "CloseModal" }
 // ModalDialogPortal 使用 Portal 渲染到 app 顶层的 Modal
 func ModalDialogPortal(content string, show bool) rtui.VNode {
 	if !show || content == "" {
-		return nil
+		// 返回空文本而不是 nil，避免 reconciler 处理 nil
+		return app.Text("")
 	}
 
 	// 使用 Portal 将 Modal 渲染到 "modal-root" PortalRoot
@@ -104,10 +105,10 @@ func App() rtui.VNode {
 		return intent.HandledResult()
 	})
 
-	// 使用 Fragment 返回多个顶级节点
-	return rtui.NewFragment(
+	// 使用 VStack 包装所有内容（避免 Fragment 的复杂性）
+	return app.VStack(
 		// ========================================
-		// 🔑 PortalRoot - 定义在应用顶层
+		// 🔑 PortalRoot - 定义在应用顶层（通过 Stack 隐藏，但存在于树中）
 		// 这是所有 Portal 组件的挂载目标
 		// ========================================
 
@@ -121,9 +122,8 @@ func App() rtui.VNode {
 			}),
 
 		// ========================================
-		// 主内容区域
+		// 主内容区域 - 使用额外的 VStack 分隔
 		// ========================================
-
 		app.VStack(
 			// 标题
 			app.VStack(
