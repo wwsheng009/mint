@@ -21,7 +21,7 @@ const (
 	MinPercent = -2 // 2%
 	MaxPercent = -101 // 101% (allows >100%)
 )
-type Style struct {
+type NodeStyle struct {
 	// Width and Height. -1 means auto (determined by content)
 	Width  int
 	Height int
@@ -57,8 +57,8 @@ type Style struct {
 }
 
 // NewStyle creates a default Style
-func NewStyle() Style {
-	return Style{
+func NewStyle() NodeStyle {
+	return NodeStyle{
 		Width:      -1,
 		Height:     -1,
 		FlexGrow:   0,
@@ -74,80 +74,80 @@ func NewStyle() Style {
 }
 
 // WithWidth sets Width
-func (s Style) WithWidth(width int) Style {
+func (s NodeStyle) WithWidth(width int) NodeStyle {
 	s.Width = width
 	return s
 }
 
 // WithHeight sets Height
-func (s Style) WithHeight(height int) Style {
+func (s NodeStyle) WithHeight(height int) NodeStyle {
 	s.Height = height
 	return s
 }
 
 // WithFlexGrow sets FlexGrow
-func (s Style) WithFlexGrow(grow float64) Style {
+func (s NodeStyle) WithFlexGrow(grow float64) NodeStyle {
 	s.FlexGrow = grow
 	return s
 }
 
 // WithDirection sets Direction
-func (s Style) WithDirection(direction Direction) Style {
+func (s NodeStyle) WithDirection(direction Direction) NodeStyle {
 	s.Direction = direction
 	return s
 }
 
 // WithPadding sets Padding
-func (s Style) WithPadding(padding Insets) Style {
+func (s NodeStyle) WithPadding(padding Insets) NodeStyle {
 	s.Padding = padding
 	return s
 }
 
 // WithZIndex sets ZIndex
-func (s Style) WithZIndex(zIndex int) Style {
+func (s NodeStyle) WithZIndex(zIndex int) NodeStyle {
 	s.ZIndex = zIndex
 	return s
 }
 
 // WithOverflow sets Overflow
-func (s Style) WithOverflow(overflow Overflow) Style {
+func (s NodeStyle) WithOverflow(overflow Overflow) NodeStyle {
 	s.Overflow = overflow
 	return s
 }
 
 // WithAlignItems sets AlignItems
-func (s Style) WithAlignItems(align Align) Style {
+func (s NodeStyle) WithAlignItems(align Align) NodeStyle {
 	s.AlignItems = align
 	return s
 }
 
 // WithJustify sets Justify
-func (s Style) WithJustify(justify Justify) Style {
+func (s NodeStyle) WithJustify(justify Justify) NodeStyle {
 	s.Justify = justify
 	return s
 }
 
 // WithGap sets Gap
-func (s Style) WithGap(gap int) Style {
+func (s NodeStyle) WithGap(gap int) NodeStyle {
 	s.Gap = gap
 	return s
 }
 
 // WithBorder sets Border
-func (s Style) WithBorder(border Insets) Style {
+func (s NodeStyle) WithBorder(border Insets) NodeStyle {
 	s.Border = border
 	return s
 }
 
 // WithBorderWidth sets uniform border width on all sides
-func (s Style) WithBorderWidth(width int) Style {
+func (s NodeStyle) WithBorderWidth(width int) NodeStyle {
 	s.Border = Insets{Top: width, Right: width, Bottom: width, Left: width}
 	return s
 }
 
 // WithWidthPercent sets width as a percentage of parent width
 // percent: 50 means 50%, 100 means 100%
-func (s Style) WithWidthPercent(percent int) Style {
+func (s NodeStyle) WithWidthPercent(percent int) NodeStyle {
 	// Encode as negative value: -50 means 50%
 	if percent < 0 {
 		percent = 0
@@ -161,7 +161,7 @@ func (s Style) WithWidthPercent(percent int) Style {
 
 // WithHeightPercent sets height as a percentage of parent height
 // percent: 50 means 50%, 100 means 100%
-func (s Style) WithHeightPercent(percent int) Style {
+func (s NodeStyle) WithHeightPercent(percent int) NodeStyle {
 	// Encode as negative value: -50 means 50%
 	if percent < 0 {
 		percent = 0
