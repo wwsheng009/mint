@@ -421,7 +421,7 @@ func CloneFiber(fiber *Fiber) *Fiber {
 		return nil
 	}
 
-	return &Fiber{
+	clone := &Fiber{
 		Type:          fiber.Type,
 		Tag:           fiber.Tag,
 		DiffKey:       fiber.DiffKey, // ✨ Preserve DiffKey for diffing
@@ -453,6 +453,17 @@ func CloneFiber(fiber *Fiber) *Fiber {
 		LayoutGap:        fiber.LayoutGap,
 		LayoutPadding:    fiber.LayoutPadding,
 		LayoutFlex:       fiber.LayoutFlex,
+		// ✨ Border Style (Phase 1.3)
+		BorderStyle:      fiber.BorderStyle,
+		BorderLabel:      fiber.BorderLabel,
+		// ✨ Modal Centering (Phase 1.4)
+		Centered:         fiber.Centered,
+		// ✨ Position Fixed (Phase 2.1)
+		Position:         fiber.Position,
+		// ✨ Anchor (Phase 2.1)
+		Anchor:           fiber.Anchor,
+		// ✨ Portal Root (Phase 3.1) - Copy reference to target fiber
+		PortalRoot:       fiber.PortalRoot,
 		// Special VNode types support
 		ComponentFunc:              fiber.ComponentFunc,
 		ComponentFuncWithProps:     fiber.ComponentFuncWithProps,
@@ -471,6 +482,8 @@ func CloneFiber(fiber *Fiber) *Fiber {
 		// Instance persists across renders
 		Instance: fiber.Instance,
 	}
+
+	return clone
 }
 
 // =============================================================================

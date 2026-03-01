@@ -366,6 +366,10 @@ func (r *Reconciler) CommitRoot() {
 	// This ensures deleted nodes are cleaned up (hooks, refs, etc.) before rendering
 	r.commitDeletions(r.root)
 
+	// ✨ Phase 0.5: Link portals to their PortalRoot targets (Phase 3)
+	// Collect all PortalRoot nodes, then link Portal nodes to their targets
+	r.linkPortalsToRoots(r.root)
+
 	// Phase 0: Apply focus state to Fiber tree before rendering
 	// IMPORTANT: We must collect the focusable elements from the NEW Fiber tree first
 	// then apply the focus manager's current index to set focus on the right element
@@ -554,6 +558,64 @@ func (r *Reconciler) cleanupDeletedFiber(fiber *Fiber) {
 // =============================================================================
 // Focus Management
 // =============================================================================
+
+// linkPortalsToRoots links portal nodes to their PortalRoot targets (Phase 3)
+// This function:
+// 1. Collects all nodes with props["portalRootId"] as PortalRoot candidates
+// 2. Builds a mapping of portalRootId -> Fiber
+// 3. Links nodes with props["portalRoot"] to their target PortalRoot Fiber
+func (r *Reconciler) linkPortalsToRoots(root *Fiber) {
+	if root == nil {
+		return
+	}
+
+	// Step 1: Collect all PortalRoot nodes
+	// PortalRoot nodes have props["portalRootId"] non-empty string
+	portalRoots := make(map[string]*Fiber)
+
+	var collectPortalRoots func(fiber *Fiber)
+	collectPortalRoots = func(fiber *Fiber) {
+		if fiber == nil {
+			return
+		}
+
+		// Check if this fiber is a PortalRoot
+		if fiber.Props != nil {
+			if portalRootID, ok := fiber.Props["portalRootId"].(string); ok && portalRootID != "" {
+				portalRoots[portalRootID] = fiber
+			}
+		}
+
+		// Recurse to children and siblings
+		collectPortalRoots(fiber.Child)
+		collectPortalRoots(fiber.Sibling)
+	}
+	collectPortalRoots(root)
+
+	// Step 2: Link Portal nodes to their PortalRoot targets
+	// Portal nodes have props["portalRoot"] referencing a portalRootId
+	var linkPortalNodes func(fiber *Fiber)
+	linkPortalNodes = func(fiber *Fiber) {
+		if fiber == nil {
+			return
+		}
+
+		// Check if this fiber is a Portal
+		if fiber.Props != nil {
+			if portalRootID, ok := fiber.Props["portalRoot"].(string); ok && portalRootID != "" {
+				// Look up the target PortalRoot Fiber
+				if target, exists := portalRoots[portalRootID]; exists {
+					fiber.PortalRoot = target
+				}
+			}
+		}
+
+		// Recurse to children and siblings
+		linkPortalNodes(fiber.Child)
+		linkPortalNodes(fiber.Sibling)
+	}
+	linkPortalNodes(root)
+}
 
 // applyFocusStateToFiber applies focus state from the focus manager to Fiber tree
 // This must be called before rendering to ensure focused elements are rendered correctly

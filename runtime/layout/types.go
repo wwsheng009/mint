@@ -390,6 +390,10 @@ type Engine struct {
 
 	// layerManager 管理 layer 坐标和位置
 	layerManager *LayerManager
+
+	// ✨ Phase 3.3: overlayManager 管理 Portal 跨树挂载
+	// 用于处理 Modal/Tooltip 等需要挂载到不同位置的组件
+	overlayManager *OverlayManager
 }
 
 // NewEngine 创建新的布局引擎
@@ -401,9 +405,10 @@ func NewEngine() *Engine {
 			entries: make(map[string]*CachedLayout),
 			maxSize: 1000,
 		},
-		flexCache:    NewFlexCache(),
-		hitMap:       NewHitMap(),
-		layerManager: NewLayerManager(),
+		flexCache:      NewFlexCache(),
+		hitMap:         NewHitMap(),
+		layerManager:   NewLayerManager(),
+		overlayManager: NewOverlayManager(),
 	}
 }
 
@@ -1165,6 +1170,12 @@ type LayoutStats struct {
 // GetStats 获取布局统计
 func (e *Engine) GetStats() LayoutStats {
 	return e.stats
+}
+
+// GetOverlayManager returns the overlay manager for handling portal nodes
+// Phase 3.3: Portal 跨树挂载支持
+func (e *Engine) GetOverlayManager() *OverlayManager {
+	return e.overlayManager
 }
 
 // Engine.Measure method should check if the node is Measurable, and if so, call its Measure method. 

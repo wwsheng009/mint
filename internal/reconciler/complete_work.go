@@ -117,6 +117,9 @@ func completeWorkElement(current, workInProgress *Fiber) *Fiber {
 	// ✨ Phase 2.2: Sync positioning properties from Props
 	syncPositioningProperties(workInProgress)
 
+	// ✨ Phase 3.4: Sync portal properties from Props
+	syncPortalProperties(workInProgress)
+
 	return workInProgress
 }
 
@@ -332,6 +335,32 @@ func parseAnchorType(s string) types.Anchor {
 	default:
 		return types.AnchorTopLeft
 	}
+}
+
+// =============================================================================
+// Portal Property Synchronization (Phase 3.4)
+// =============================================================================
+
+// syncPortalProperties syncs portal properties from Props to Fiber
+// This handles components that need to mount to a different location (PortalRoot)
+//
+// Portal System Flow:
+// 1. Component declares props["portalRoot"] = "root-id" (Portal)
+// 2. Component declares props["portalRootId"] = "root-id" (PortalRoot)
+// 3. In CommitRoot: linkPortalsToRoots() collects PortalRoot and links Portal → PortalRoot
+// 4. Fiber.PortalRoot now points to target Fiber for layout/render
+func syncPortalProperties(fiber *Fiber) {
+	if fiber == nil || fiber.Props == nil {
+		return
+	}
+
+	// Note: Portal linking is handled by Reconciler.linkPortalsToRoots() during commit
+	// This function is kept for future property validation and processing
+
+	// Example future enhancements:
+	// - Validate that portalRoot references an existing portalRootId
+	// - Set default priority based on component type
+	// - Auto-generate unique portal IDs if not provided
 }
 
 // =============================================================================

@@ -190,6 +190,12 @@ type Fiber struct {
 	// Controls alignment for fixed/absolute positioning
 	Anchor types.Anchor
 
+	// ✨ Portal Root (Phase 3.1)
+	// Specifies the target fiber where this node should be mounted during layout/render
+	// Used by Portal components to mount children to a different location in the tree
+	// nil means normal mounting (follow parent tree structure)
+	PortalRoot *Fiber
+
 	// === Visual Style (Fiber-first) ===
 	// Copied from VNode.Style() during Fiber creation
 	Style style.Style
