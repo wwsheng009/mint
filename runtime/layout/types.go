@@ -578,10 +578,9 @@ func (e *Engine) layoutNodeWithDepth(node Node, constraints Constraints, x, y in
 
 	// Fixed 定位：使用 viewport 约束重新计算坐标
 	if position == PositionFixed && width > 0 && height > 0 {
-		// TODO: 从 Engine 中获取真实的 viewport 尺寸
-		// 目前暂时使用 80x25 作为固定值
-		rootW := 80
-		rootH := 25
+		// 使用传入的 viewport 约束计算固定定位
+		rootW := constraints.MaxWidth
+		rootH := constraints.MaxHeight
 
 		// 根据 Anchor 计算固定定位坐标
 		switch anchor {
@@ -1040,10 +1039,9 @@ func (e *Engine) layoutNodeIncrementalWithDepth(node Node, constraints Constrain
 
 	// Fixed 定位：使用 viewport 约束重新计算坐标
 	if position == PositionFixed && width > 0 && height > 0 {
-		// TODO: 从 Engine 中获取真实的 viewport 尺寸
-		// 目前暂时使用 80x25 作为固定值
-		rootW := 80
-		rootH := 25
+		// 使用传入的 viewport 约束计算固定定位
+		rootW := constraints.MaxWidth
+		rootH := constraints.MaxHeight
 
 		// 根据 Anchor 计算固定定位坐标
 		switch anchor {

@@ -201,7 +201,7 @@ func newMockPositionableNode(id string, width, height int, position Position) *m
 	}
 }
 
-func (n *mockPositionableNode) GetPositionType() Position {
+func (n *mockPositionableNode) GetAbsolutePosition() Position {
 	return n.position
 }
 
@@ -213,8 +213,8 @@ func TestPositionable_Interface(t *testing.T) {
 	// Test interface assertion
 	var _ Positionable = node
 
-	// Test GetPositionType
-	result := node.GetPositionType()
+	// Test GetAbsolutePosition
+	result := node.GetAbsolutePosition()
 	assert.True(t, result.IsAbsolute())
 	assert.True(t, result.HasTop())
 	assert.True(t, result.HasLeft())
