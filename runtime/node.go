@@ -15,7 +15,7 @@ type LayoutNode struct {
 	// Identification
 	ID    string
 	Type  NodeType
-	Style Style
+	Style NodeStyle
 	Props map[string]interface{}
 
 	// Position defines absolute/relative positioning
@@ -65,7 +65,7 @@ type LayoutNode struct {
 }
 
 // NewLayoutNode creates a new LayoutNode
-func NewLayoutNode(id string, nodeType NodeType, style Style) *LayoutNode {
+func NewLayoutNode(id string, nodeType NodeType, style NodeStyle) *LayoutNode {
 	return &LayoutNode{
 		ID:            id,
 		Type:          nodeType,

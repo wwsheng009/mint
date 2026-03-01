@@ -652,7 +652,7 @@ func (c *VNodeConverter) convertSpinner(spinner *rtui.SpinnerVNode, parent *runt
 // =============================================================================
 
 // convertStyleFromProps extracts layout properties from Props
-func (c *VNodeConverter) convertStyleFromProps(props rtui.Props) runtime.Style {
+func (c *VNodeConverter) convertStyleFromProps(props rtui.Props) runtime.NodeStyle {
 	rs := runtime.NewStyle()
 
 	// Extract width/height from props if present

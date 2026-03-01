@@ -64,7 +64,7 @@ var nodePool = sync.Pool{
 }
 
 // NewLayoutNodePooled creates a new LayoutNode, potentially from the pool.
-func NewLayoutNodePooled(id string, nodeType NodeType, style Style) *LayoutNode {
+func NewLayoutNodePooled(id string, nodeType NodeType, style NodeStyle) *LayoutNode {
 	node := nodePool.Get().(*LayoutNode)
 	node.ID = id
 	node.Type = nodeType
