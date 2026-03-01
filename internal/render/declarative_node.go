@@ -12,7 +12,6 @@ import (
 	"github.com/wwsheng009/mint/internal/log"
 	"github.com/wwsheng009/mint/internal/reconciler"
 	"github.com/wwsheng009/mint/runtime"
-	"github.com/wwsheng009/mint/runtime/action"
 	"github.com/wwsheng009/mint/runtime/border"
 	"github.com/wwsheng009/mint/runtime/event"
 	"github.com/wwsheng009/mint/runtime/intent"
@@ -68,6 +67,12 @@ type DeclarativeNode struct {
 	// === HitMap Storage ===
 	// Fiber-first mode stores HitMap here (separate from RenderingPipeline)
 	fiberLastHitMap *event.HitMap // HitMap from fiberFirstPaint() path
+
+	// === Layout Result Storage ===
+	lastLayoutResult *layout.LayoutResult // Last layout computation result (for GetLayoutBoxes)
+
+	// === Paintable Result Storage ===
+	lastPaintableRoot *paint.PaintableBox // Last paintable layout result (for GetPaintableBoxes)
 }
 
 // NewDeclarativeNode creates a new declarative node from a VNode
@@ -441,8 +446,14 @@ func (n *DeclarativeNode) fiberFirstPaint(ctx component.PaintContext, buf *paint
 	}
 
 	// Phase 2: Fiber-based Layout
-	// Use the new layout engine directly (runtime/layout), bypassing LayoutSwitcher
-	// This ensures we never go through the compute path
+	// 方案A: 单树共享布局 - 所有layer在一个布局树中计算
+	// 移除了LayerManager的坐标归一化，保留原始坐标用于正确渲染
+
+	// Ensure layout engine has adapter
+	if n.newLayoutEngine == nil {
+		n.newLayoutEngine = NewNewLayoutEngineAdapter()
+	}
+
 	constraints := runtime.BoxConstraints{
 		MinWidth:  0,
 		MaxWidth:  ctx.AvailableWidth,
@@ -450,12 +461,7 @@ func (n *DeclarativeNode) fiberFirstPaint(ctx component.PaintContext, buf *paint
 		MaxHeight: ctx.AvailableHeight,
 	}
 
-	// Ensure the new layout engine is initialized
-	if n.newLayoutEngine == nil {
-		n.newLayoutEngine = NewNewLayoutEngineAdapter()
-	}
-
-	// Perform layout using the new runtime/layout engine
+	// Perform layout using the layout engine
 	layoutResult, err := n.newLayoutEngine.LayoutFiber(fiberRoot, constraints)
 	if err != nil {
 		log.RenderLogger.Debug("[DeclarativeNode.fiberFirstPaint] Layout FAILED: %v, falling back to legacy", err)
@@ -465,89 +471,80 @@ func (n *DeclarativeNode) fiberFirstPaint(ctx component.PaintContext, buf *paint
 
 	log.RenderLogger.Debug("[DeclarativeNode.fiberFirstPaint] Layout complete")
 
-	// Phase 3: Paint using PaintableLayout
-	// Convert LayoutResult to PaintableLayout and use PaintEngine
-	if layoutResult != nil {
-	
-		log.RenderLogger.Debug("[DeclarativeNode.fiberFirstPaint] Paint phase starting")
+	// Get the layout result
+	if adapter, ok := layoutResult.(*newLayoutResultAdapter); ok {
+		// Save layout result for GetLayoutBoxes()
+		innerResult := adapter.result
+		n.mu.Lock()
+		n.lastLayoutResult = innerResult
+		n.mu.Unlock()
 
-		// Get LayoutBox from adapter
-		var layoutBoxRoot *layout.LayoutBox
-		if adapter, ok := layoutResult.(*newLayoutResultAdapter); ok {
-			layoutResultInner := adapter.GetLayoutResult()
-			if layoutResultInner != nil {
-				layoutBoxRoot = layoutResultInner.Root
-
-				log.PaintLogger.Debug("[DeclarativeNode.fiberFirstPaint] LayoutBox root: %v, children=%d",
-					layoutBoxRoot != nil, len(layoutBoxRoot.Children))
-				if layoutBoxRoot != nil {
-					log.PaintLogger.Debug("[DeclarativeNode.fiberFirstPaint] LayoutBox root bounds: (%d,%d) %dx%d",
-						layoutBoxRoot.X, layoutBoxRoot.Y, layoutBoxRoot.Width, layoutBoxRoot.Height)
-					printLayoutBoxTree(layoutBoxRoot, 0)
-				}
-			}
+		if innerResult == nil || innerResult.Root == nil {
+			log.RenderLogger.Debug("[DeclarativeNode.fiberFirstPaint] Layout root is nil")
+			n.legacyPaint(ctx, buf)
+			return
 		}
 
-		if layoutBoxRoot != nil {
-			// Convert LayoutBox to PaintableLayout using Fiber data
-			converter := NewFiberToPaintableConverter(fiberRoot)
-			paintableLayout := converter.ConvertToLayout(layoutBoxRoot)
+		log.RenderLogger.Debug("[DeclarativeNode.fiberFirstPaint] LayoutBox root: children=%d",
+			len(innerResult.Root.Children))
 
-			if log.PaintLogger.Enabled() && paintableLayout != nil && paintableLayout.Root != nil {
-				log.PaintLogger.Debug("[DeclarativeNode.fiberFirstPaint] PaintableLayout root: Node=%v, children=%d",
-					paintableLayout.Root.Node != nil, len(paintableLayout.Root.Children))
-				
-					printPaintableBoxTree(paintableLayout.Root, 0)
-			}
+		// Phase 3: Paint - Convert LayoutResult to PaintablePlanes
+		converter := NewFiberToPaintableConverter(fiberRoot)
+		paintableLayout := converter.ConvertToLayout(innerResult.Root)
 
-			if paintableLayout != nil && paintableLayout.Root != nil {
-				// Build PaintablePlanes for multi-layer rendering
-				planes := paint.NewPaintablePlanes()
-				var buildPlanes func(box *paint.PaintableBox)
-				buildPlanes = func(box *paint.PaintableBox) {
-					if box == nil {
-						return
-					}
-					planes.AddToLayer(paint.RenderLayer(box.Layer), box)
-					for _, child := range box.Children {
-						buildPlanes(child)
-					}
-				}
-				buildPlanes(paintableLayout.Root)
+		if paintableLayout == nil || paintableLayout.Root == nil {
+			log.RenderLogger.Debug("[DeclarativeNode.fiberFirstPaint] PaintableLayout result is nil")
+			n.legacyPaint(ctx, buf)
+			return
+		}
 
-				log.RenderLogger.Debug("[DeclarativeNode.fiberFirstPaint] PaintablePlanes: %d boxes", planes.CountBoxes())
-				log.RenderLogger.Debug("[DeclarativeNode.fiberFirstPaint] PaintablePlanes: %d boxes", planes.CountBoxes())
+		// Save paintable root for GetPaintableBoxes()
+		n.mu.Lock()
+		n.lastPaintableRoot = paintableLayout.Root
+		n.mu.Unlock()
 
-				// Paint using PaintablePlanes for proper layer Z-Ordering
-				if err := n.paintEngine.PaintPaintablePlanes(planes, buf); err != nil {
-					log.RenderLogger.Debug("[DeclarativeNode.fiberFirstPaint] PaintPaintablePlanes FAILED: %v, falling back", err)
-					n.legacyPaint(ctx, buf)
-					return
-				}
-
-				// Save HitMap for event routing
-				// Get HitMap from layoutResult (which contains the final positions after layout)
-				if hitMap := layoutResult.GetHitMap(); hitMap != nil {
-					// HitMap now has TargetFiber set (from convertLayoutHitMap)
-					// ActionBridge.DispatchFromFiber will use Fiber.Instance directly
-					// No need to enrich with Instance (Legacy field, not used in Fiber-first mode)
-					n.fiberLastHitMap = hitMap
-					log.RenderLogger.Debug("[DeclarativeNode.fiberFirstPaint] ✅ Saved HitMap with %d entries", hitMap.Size())
-				} else {
-					log.RenderLogger.Debug("[DeclarativeNode.fiberFirstPaint] ⚠️  HitMap is nil from layoutResult")
-					n.fiberLastHitMap = nil
-				}
-
-				log.RenderLogger.Debug("[DeclarativeNode.fiberFirstPaint] ✅ PaintPaintablePlanes complete")
+		// Build PaintablePlanes from PaintableLayout
+		planes := paint.NewPaintablePlanes()
+		var walkPaintable func(box *paint.PaintableBox)
+		walkPaintable = func(box *paint.PaintableBox) {
+			if box == nil {
 				return
 			}
+			planes.AddToLayer(paint.RenderLayer(box.Layer), box)
+			for _, child := range box.Children {
+				walkPaintable(child)
+			}
+		}
+		walkPaintable(paintableLayout.Root)
+
+		log.RenderLogger.Debug("[DeclarativeNode.fiberFirstPaint] PaintablePlanes: %d boxes", planes.CountBoxes())
+
+		// Paint using PaintablePlanes for proper layer Z-Ordering
+		if err := n.paintEngine.PaintPaintablePlanes(planes, buf); err != nil {
+			log.RenderLogger.Debug("[DeclarativeNode.fiberFirstPaint] Paint FAILED: %v, falling back", err)
+			n.legacyPaint(ctx, buf)
+			return
 		}
 
-		// Fallback to legacy if conversion failed
-		log.RenderLogger.Debug("[DeclarativeNode.fiberFirstPaint] PaintableLayout conversion failed, using legacy")
-	}
+		// Save HitMap for event routing
+		// GetHitMap() converts layout.HitMap to event.HitMap with TargetFiber enrichment
+		if hitMap := layoutResult.GetHitMap(); hitMap != nil {
+			n.mu.Lock()
+			n.fiberLastHitMap = hitMap
+			n.mu.Unlock()
+			log.RenderLogger.Debug("[DeclarativeNode.fiberFirstPaint] ✅ Saved HitMap with %d entries", hitMap.Size())
+		} else {
+			log.RenderLogger.Debug("[DeclarativeNode.fiberFirstPaint] ⚠️  HitMap is nil from layoutResult")
+			n.mu.Lock()
+			n.fiberLastHitMap = nil
+			n.mu.Unlock()
+		}
 
-	n.legacyPaint(ctx, buf)
+		log.RenderLogger.Debug("[DeclarativeNode.fiberFirstPaint] ✅ Render complete")
+	} else {
+		log.RenderLogger.Debug("[DeclarativeNode.fiberFirstPaint] Layout result type mismatch")
+		n.legacyPaint(ctx, buf)
+	}
 }
 
 // countFiberChildren counts the number of children in a Fiber tree
@@ -574,6 +571,7 @@ func printLayoutBoxTree(box *layout.LayoutBox, indent int) {
 		printLayoutBoxTree(child, indent+1)
 	}
 }
+
 
 // printPaintableBoxTree prints the PaintableBox tree for debugging
 func printPaintableBoxTree(box *paint.PaintableBox, indent int) {
@@ -2080,122 +2078,6 @@ func minInt(a, b int) int {
 	return b
 }
 
-// =============================================================================
-// Fiber Reconciler Integration
-// =============================================================================
-// These functions create and configure the Fiber reconciler.
-
-// fiberReconcilerAdapter adapts internal/reconciler.Reconciler to rtui.Reconciler interface
-type fiberReconcilerAdapter struct {
-	r *reconciler.Reconciler
-}
-
-// Render executes the rendering process (adapter method with interface{} parameters)
-func (a *fiberReconcilerAdapter) Render(ctx interface{}, buffer interface{}, renderFunc func() rtui.VNode) {
-	// Type assert to concrete types
-	paintCtx, ok := ctx.(component.PaintContext)
-	paintBuffer, ok := buffer.(*paint.Buffer)
-	if !ok || paintBuffer == nil {
-		return
-	}
-
-	// Call the actual reconciler's Render method
-	a.r.Render(paintCtx, paintBuffer, renderFunc)
-}
-
-// SetApp sets the framework app (adapter method)
-func (a *fiberReconcilerAdapter) SetApp(app interface{}) {
-	if fwApp, ok := app.(*framework.App); ok {
-		a.r.SetApp(fwApp)
-	}
-}
-
-// SetFocusManager sets the focus manager (adapter method)
-// Supports both FiberFocusManager (Fiber-first) and VNodeFocusManager (legacy)
-func (a *fiberReconcilerAdapter) SetFocusManager(mgr interface{}) {
-	switch m := mgr.(type) {
-	case *rtui.FiberFocusManager:
-		a.r.SetFocusManager(m)
-	case *rtui.VNodeFocusManager:
-		// Legacy: convert to FiberFocusManager is not possible, so we skip
-		// This should not happen in normal Fiber mode
-	}
-}
-
-// SetRenderer sets the VNode renderer (adapter method)
-// Phase 8: This allows reconciler to call SetFiber for NodeID propagation
-func (a *fiberReconcilerAdapter) SetRenderer(renderer rtui.VNodeRenderer) {
-	a.r.SetRenderer(renderer)
-}
-
-// GetRenderedRoot returns the rendered VNode tree (adapter method)
-func (a *fiberReconcilerAdapter) GetRenderedRoot() rtui.VNode {
-	return a.r.GetRenderedRoot()
-}
-
-// GetInstanceMgr returns the InstanceManager from the Fiber reconciler
-func (a *fiberReconcilerAdapter) GetInstanceMgr() interface{} {
-	return a.r.GetInstanceManager()
-}
-
-// GetAllInteractionInstances returns all instances that implement interaction interfaces
-// This is used by App to register instances with InteractionContext
-func (a *fiberReconcilerAdapter) GetAllInteractionInstances() map[int]interface{} {
-	instanceMgr := a.r.GetInstanceManager()
-	if instanceMgr == nil {
-		return nil
-	}
-
-	// Get all instances by ID
-	allInstances := instanceMgr.GetAllInstancesByID()
-
-	// Filter for instances that implement interaction interfaces
-	result := make(map[int]interface{})
-	for nodeID, inst := range allInstances {
-		// Check if instance implements ResetPressed() - this is the primary marker
-		// for controls that have pressed state (Button with PressableBehavior, etc.)
-		if _, ok := interface{}(inst).(interface{ ResetPressed() }); ok {
-			result[int(nodeID)] = inst
-			continue
-		}
-
-		// Check if instance implements HandleAction() - ActionHandlerInstance
-		// This includes all interactive components (Button, Checkbox, Input, Select, etc.)
-		if _, ok := interface{}(inst).(interface{ HandleAction(*action.Action) bool }); ok {
-			result[int(nodeID)] = inst
-		}
-	}
-
-	return result
-}
-
-// GetFiberRoot returns Fiber root from the underlying reconciler
-
-// Phase 8: Fiber to Layout Engine NodeID propagation
-func (a *fiberReconcilerAdapter) GetFiberRoot() *reconciler.Fiber {
-	return a.r.GetFiberRoot()
-}
-
-// newFiberReconciler creates a new Fiber reconciler for the given app, render function and root context
-func newFiberReconciler(fwApp *framework.App, fn rtui.ComponentFunc, rootCtx *rtui.ComponentContext) rtui.Reconciler {
-	// Create the actual reconciler from internal/reconciler
-	r := reconciler.NewReconciler(fwApp, fn, reconciler.ReconcilerConfig{
-		EnableFiber: true,
-	})
-
-	// Set the root component context for global state management
-	// This ensures Intent Handlers update the same state that App() reads
-	r.SetRootContext(rootCtx)
-
-	// Set up the render callback to render Fibers to the buffer
-	r.SetRenderCallback(func(fiber *reconciler.Fiber, x, y int, buffer *paint.Buffer) {
-		renderFiberToBuffer(fiber, x, y, buffer)
-	})
-
-	// Wrap in adapter to satisfy rtui.Reconciler interface
-	return &fiberReconcilerAdapter{r: r}
-}
-
 // renderFiberToBuffer renders a single Fiber to the buffer (Fiber-first)
 func renderFiberToBuffer(fiber *reconciler.Fiber, x, y int, buffer *paint.Buffer) {
 	if fiber == nil {
@@ -2430,4 +2312,47 @@ func copyBuffer(dst, src *paint.Buffer) {
 			dst.SetCell(x, y, char, cell.Style)
 		}
 	}
+}
+
+// GetLayoutBoxes returns the layout boxes from the last layout computation
+// This provides access to the computed positions and sizes for debugging and testing
+func (n *DeclarativeNode) GetLayoutBoxes() []*layout.LayoutBox {
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+
+	if n.lastLayoutResult != nil && n.lastLayoutResult.Boxes != nil {
+		// Convert []LayoutBox to []*LayoutBox
+		boxes := make([]*layout.LayoutBox, len(n.lastLayoutResult.Boxes))
+		for i := range n.lastLayoutResult.Boxes {
+			boxes[i] = &n.lastLayoutResult.Boxes[i]
+		}
+		return boxes
+	}
+	return make([]*layout.LayoutBox, 0)
+}
+
+// GetPaintableBoxes returns the paintable boxes from the last paint computation
+// This provides access to the computed paintable boxes for debugging and testing
+func (n *DeclarativeNode) GetPaintableBoxes() []*paint.PaintableBox {
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+
+	if n.lastPaintableRoot == nil {
+		return make([]*paint.PaintableBox, 0)
+	}
+
+	// Collect all paintable boxes recursively
+	boxes := make([]*paint.PaintableBox, 0)
+	var collect func(box *paint.PaintableBox)
+	collect = func(box *paint.PaintableBox) {
+		if box == nil {
+			return
+		}
+		boxes = append(boxes, box)
+		for _, child := range box.Children {
+			collect(child)
+		}
+	}
+	collect(n.lastPaintableRoot)
+	return boxes
 }

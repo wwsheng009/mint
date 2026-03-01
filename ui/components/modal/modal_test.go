@@ -147,8 +147,8 @@ func TestVNode_Props(t *testing.T) {
 
 func TestVNode_Layer(t *testing.T) {
 	vnode := New()
-	if vnode.GetLayer() != rtui.LayerOverlay {
-		t.Errorf("Expected LayerOverlay, got %v", vnode.GetLayer())
+	if vnode.GetLayer() != rtui.LayerModal {
+		t.Errorf("Expected LayerModal, got %v", vnode.GetLayer())
 	}
 }
 

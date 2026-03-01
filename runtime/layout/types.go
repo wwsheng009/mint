@@ -153,6 +153,10 @@ type LayoutResult struct {
 
 	// HitMap 命中映射表（可选）
 	HitMap *HitMap
+
+	// LayerManager 管理 layer 坐标和位置
+	// 负责收集各个layer的信息，统一把非base的layer的坐标对齐到0,0
+	LayerManager *LayerManager
 }
 
 // Constraints 布局约束
@@ -375,6 +379,9 @@ type Engine struct {
 
 	// hitMap 命中映射表
 	hitMap *HitMap
+
+	// layerManager 管理 layer 坐标和位置
+	layerManager *LayerManager
 }
 
 // NewEngine 创建新的布局引擎
@@ -386,8 +393,9 @@ func NewEngine() *Engine {
 			entries: make(map[string]*CachedLayout),
 			maxSize: 1000,
 		},
-		flexCache: NewFlexCache(),
-		hitMap:   NewHitMap(),
+		flexCache:    NewFlexCache(),
+		hitMap:       NewHitMap(),
+		layerManager: NewLayerManager(),
 	}
 }
 

@@ -94,7 +94,7 @@ func (v *VNode) SetChildren(children []rtui.VNode) rtui.VNode {
 	return v
 }
 
-func (v *VNode) GetLayer() rtui.Layer   { return rtui.LayerOverlay }
+func (v *VNode) GetLayer() rtui.Layer   { return rtui.LayerModal }
 func (v *VNode) SetLayer(l rtui.Layer) rtui.VNode { return v }
 
 func (v *VNode) Style() style.Style    { return v.modalStyle }
