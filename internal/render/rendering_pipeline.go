@@ -8,7 +8,6 @@ import (
 	"github.com/wwsheng009/mint/runtime/event"
 	"github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/paint"
-	"github.com/wwsheng009/mint/runtime/types"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
 
@@ -216,8 +215,9 @@ func (p *RenderingPipeline) RenderLayers(
 		return nil
 	}
 
-	// Apply layer transforms (modal centering)
-	p.applyLayerTransformsToPaintable(paintableLayout.Root, layoutConstraints)
+	// ✨ Phase 1.1: Modal 居中逻辑已移到 Layout 阶段
+	// applyLayerTransformsToPaintable 已不再需要，因为居中现在在 layoutNodeWithDepth() 中完成
+	// p.applyLayerTransformsToPaintable(paintableLayout.Root, layoutConstraints)
 
 	// Build PaintablePlanes from PaintableBox tree
 	paintablePlanes := p.buildPaintablePlanes(paintableLayout.Root)
@@ -241,30 +241,12 @@ type PaintableConverter interface {
 	ConvertToLayout(lbox *layout.LayoutBox) *paint.PaintableLayout
 }
 
-// applyLayerTransformsToPaintable applies layer-specific transforms to PaintableBox tree
+// ✨ Phase 1.1: applyLayerTransformsToPaintable 已废弃
+// Modal 居中逻辑已移到 Layout 阶段 (runtime/layout/types.go layoutNodeWithDepth)
+// 保留此函数仅用于向后兼容，当前实现为空操作
 func (p *RenderingPipeline) applyLayerTransformsToPaintable(root *paint.PaintableBox, constraints layout.Constraints) {
-	if root == nil {
-		return
-	}
-
-	var walk func(box *paint.PaintableBox)
-	walk = func(box *paint.PaintableBox) {
-		if box == nil {
-			return
-		}
-
-		// Apply Modal centering
-		if box.Layer == int(types.LayerModal) {
-			p.centerPaintableModalBox(box, constraints)
-		}
-
-		// Recursively process children
-		for _, child := range box.Children {
-			walk(child)
-		}
-	}
-
-	walk(root)
+	// 空操作：居中现在在 Layout 阶段完成
+	// 保留此函数用于向后兼容，未来版本可能会移除
 }
 
 // centerPaintableModalBox centers a Modal PaintableBox in the viewport
