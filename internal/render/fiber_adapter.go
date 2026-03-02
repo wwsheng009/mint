@@ -82,6 +82,15 @@ func (a *FiberToNodeAdapter) ID() string {
 	return fmt.Sprintf("%d", a.fiber.NodeID)
 }
 
+// GetPropsID returns the business identifier (from Fiber.ID)
+// Implements layout.PropsIDProvider interface
+func (a *FiberToNodeAdapter) GetPropsID() string {
+	if a.fiber == nil {
+		return ""
+	}
+	return a.fiber.ID
+}
+
 // Type returns the node type (from Fiber.Tag)
 func (a *FiberToNodeAdapter) Type() string {
 	if a.fiber == nil {

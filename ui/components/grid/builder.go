@@ -27,6 +27,13 @@ func (b *Builder) Key(key string) *Builder {
 	return b
 }
 
+// SetID sets the business identifier for positioning and Portal anchoring.
+// This is separate from Key() which is used for list diffing.
+func (b *Builder) SetID(id string) *Builder {
+	b.grid.SetID(id)
+	return b
+}
+
 // Columns sets the column definitions.
 func (b *Builder) Columns(dims ...Dimension) *Builder {
 	b.grid.SetColumns(dims...)

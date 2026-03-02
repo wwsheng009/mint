@@ -2,12 +2,14 @@ package ui
 
 import (
 	"github.com/wwsheng009/mint/runtime/style"
+	"github.com/wwsheng009/mint/runtime/types"
 )
 
 // FiberVNode wraps a Fiber to implement VNode interface.
 // This allows Fiber-first layout/render pipeline to work with existing PaintEngine.
 type FiberVNode struct {
 	fiber *Fiber
+	id    string // Business identifier for fiber reference/positioning
 }
 
 // NewFiberVNode creates a VNode wrapper around a Fiber.
@@ -79,6 +81,17 @@ func (f *FiberVNode) SetKey(key string) VNode {
 	return f
 }
 
+// ID implements VNode - returns the business identifier for fiber reference/positioning
+func (f *FiberVNode) ID() string {
+	return f.id
+}
+
+// SetID implements VNode - sets the business identifier and returns VNode for chaining
+func (f *FiberVNode) SetID(id string) VNode {
+	f.id = id
+	return f
+}
+
 func (f *FiberVNode) Children() []VNode {
 	if f.fiber == nil {
 		return nil
@@ -101,6 +114,71 @@ func (f *FiberVNode) SetLayer(layer Layer) VNode {
 	if f.fiber != nil {
 		f.fiber.Layer = layer
 	}
+	return f
+}
+
+// =============================================================================
+// Portal Methods - Chainable methods for Portal configuration
+// =============================================================================
+
+// SetPortalRoot implements VNode - sets the portalRoot property
+func (f *FiberVNode) SetPortalRoot(portalRootID string) VNode {
+	if f.fiber == nil {
+		return f
+	}
+	if f.fiber.Props == nil {
+		f.fiber.Props = make(Props)
+	}
+	f.fiber.Props["portalRoot"] = portalRootID
+	return f
+}
+
+// SetAnchorTo implements VNode - sets anchorId and anchor properties
+func (f *FiberVNode) SetAnchorTo(anchorID string, anchor types.Anchor) VNode {
+	if f.fiber == nil {
+		return f
+	}
+	if f.fiber.Props == nil {
+		f.fiber.Props = make(Props)
+	}
+	f.fiber.Props["anchorId"] = anchorID
+	f.fiber.Props["anchor"] = anchor
+	return f
+}
+
+// SetPortalPosition implements VNode - sets the position property
+func (f *FiberVNode) SetPortalPosition(position types.PositionType) VNode {
+	if f.fiber == nil {
+		return f
+	}
+	if f.fiber.Props == nil {
+		f.fiber.Props = make(Props)
+	}
+	f.fiber.Props["position"] = position
+	return f
+}
+
+// SetPortalPriority implements VNode - sets the priority property
+func (f *FiberVNode) SetPortalPriority(priority int) VNode {
+	if f.fiber == nil {
+		return f
+	}
+	if f.fiber.Props == nil {
+		f.fiber.Props = make(Props)
+	}
+	f.fiber.Props["priority"] = priority
+	return f
+}
+
+// SetPortalRootId implements VNode - sets the portalRootId property
+func (f *FiberVNode) SetPortalRootId(portalRootId string) VNode {
+	if f.fiber == nil {
+		return f
+	}
+	if f.fiber.Props == nil {
+		f.fiber.Props = make(Props)
+	}
+	f.fiber.Props["portalRootId"] = portalRootId
 	return f
 }
 

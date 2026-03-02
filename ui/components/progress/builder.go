@@ -45,6 +45,13 @@ func (b *Builder) Key(key string) *Builder {
 	return b
 }
 
+// SetID sets the business identifier for positioning and Portal anchoring.
+// This is separate from Key() which is used for list diffing.
+func (b *Builder) SetID(id string) *Builder {
+	b.node.SetID(id)
+	return b
+}
+
 func (b *Builder) Style(s style.Style) *Builder {
 	b.node.SetStyle(s)
 	return b

@@ -82,6 +82,13 @@ func (b *Builder) Key(key string) *Builder {
 	return b
 }
 
+// SetID sets the business identifier for positioning and Portal anchoring.
+// This is separate from Key() which is used for list diffing.
+func (b *Builder) SetID(id string) *Builder {
+	b.vnode.SetID(id)
+	return b
+}
+
 // Build returns the configured VNode.
 func (b *Builder) Build() rtui.VNode {
 	return b.vnode

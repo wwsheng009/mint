@@ -2,6 +2,7 @@ package stack
 
 import (
 	"github.com/wwsheng009/mint/runtime/style"
+	"github.com/wwsheng009/mint/runtime/types"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
 
@@ -24,6 +25,13 @@ func NewBuilder(dir Direction) *Builder {
 // Key sets the key for diffing.
 func (b *Builder) Key(key string) *Builder {
 	b.node.SetKey(key)
+	return b
+}
+
+// SetID sets the business identifier for positioning and Portal anchoring.
+// This is separate from Key() which is used for list diffing.
+func (b *Builder) SetID(id string) *Builder {
+	b.node.SetID(id)
 	return b
 }
 
@@ -227,11 +235,14 @@ func Spacer(flex int) *spacerVNode {
 // spacerVNode is a simple spacer component.
 type spacerVNode struct {
 	flex int
+	id   string
 }
 
 func (s *spacerVNode) Type() rtui.VNodeType                           { return rtui.VNodeElement }
 func (s *spacerVNode) Key() string                                    { return "" }
 func (s *spacerVNode) SetKey(string) rtui.VNode                       { return s }
+func (s *spacerVNode) ID() string                                     { return s.id }
+func (s *spacerVNode) SetID(id string) rtui.VNode                     { s.id = id; return s }
 func (s *spacerVNode) Tag() string                                    { return "spacer" }
 func (s *spacerVNode) Style() style.Style                             { return style.Style{} }
 func (s *spacerVNode) SetStyle(style.Style) rtui.VNode                { return s }
@@ -244,4 +255,25 @@ func (s *spacerVNode) SetLayer(rtui.Layer) rtui.VNode                 { return s
 func (s *spacerVNode) CreateInstance() rtui.ComponentInstance         { return nil }
 func (s *spacerVNode) GetLayoutInfo() rtui.LayoutInfo {
 	return rtui.LayoutInfo{Flex: s.flex}
+}
+
+// Portal methods - chainable methods for Portal configuration
+func (s *spacerVNode) SetPortalRoot(portalRootID string) rtui.VNode {
+	return s
+}
+
+func (s *spacerVNode) SetAnchorTo(anchorID string, anchor types.Anchor) rtui.VNode {
+	return s
+}
+
+func (s *spacerVNode) SetPortalPosition(position types.PositionType) rtui.VNode {
+	return s
+}
+
+func (s *spacerVNode) SetPortalPriority(priority int) rtui.VNode {
+	return s
+}
+
+func (s *spacerVNode) SetPortalRootId(portalRootId string) rtui.VNode {
+	return s
 }

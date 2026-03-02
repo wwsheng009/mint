@@ -2,6 +2,7 @@ package ui
 
 import (
 	"github.com/wwsheng009/mint/runtime/style"
+	"github.com/wwsheng009/mint/runtime/types"
 )
 
 // =============================================================================
@@ -32,6 +33,7 @@ type MemoVNode struct {
 	lastProps    Props      // Cached props from last render
 	memoizedVNode VNode     // Cached rendered result
 	key          string
+	id           string // Business identifier for memo reference/positioning
 	style        style.Style
 }
 
@@ -94,6 +96,17 @@ func (m *MemoVNode) SetKey(key string) VNode {
 	return m
 }
 
+// ID implements VNode - returns the business identifier for memo reference/positioning
+func (m *MemoVNode) ID() string {
+	return m.id
+}
+
+// SetID implements VNode - sets the business identifier and returns VNode for chaining
+func (m *MemoVNode) SetID(id string) VNode {
+	m.id = id
+	return m
+}
+
 // Style implements VNode
 func (m *MemoVNode) Style() style.Style {
 	return m.style
@@ -125,6 +138,51 @@ func (m *MemoVNode) GetLayer() Layer {
 func (m *MemoVNode) SetLayer(l Layer) VNode {
 	if m.component != nil {
 		m.component = m.component.SetLayer(l)
+	}
+	return m
+}
+
+// =============================================================================
+// Portal Methods - Chainable methods for Portal configuration
+// These delegate to the wrapped component
+// =============================================================================
+
+// SetPortalRoot implements VNode - delegates to wrapped component
+func (m *MemoVNode) SetPortalRoot(portalRootID string) VNode {
+	if m.component != nil {
+		m.component = m.component.SetPortalRoot(portalRootID)
+	}
+	return m
+}
+
+// SetAnchorTo implements VNode - delegates to wrapped component
+func (m *MemoVNode) SetAnchorTo(anchorID string, anchor types.Anchor) VNode {
+	if m.component != nil {
+		m.component = m.component.SetAnchorTo(anchorID, anchor)
+	}
+	return m
+}
+
+// SetPortalPosition implements VNode - delegates to wrapped component
+func (m *MemoVNode) SetPortalPosition(position types.PositionType) VNode {
+	if m.component != nil {
+		m.component = m.component.SetPortalPosition(position)
+	}
+	return m
+}
+
+// SetPortalPriority implements VNode - delegates to wrapped component
+func (m *MemoVNode) SetPortalPriority(priority int) VNode {
+	if m.component != nil {
+		m.component = m.component.SetPortalPriority(priority)
+	}
+	return m
+}
+
+// SetPortalRootId implements VNode - delegates to wrapped component
+func (m *MemoVNode) SetPortalRootId(portalRootId string) VNode {
+	if m.component != nil {
+		m.component = m.component.SetPortalRootId(portalRootId)
 	}
 	return m
 }

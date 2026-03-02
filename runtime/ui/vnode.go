@@ -48,6 +48,12 @@ type VNode interface {
 	// SetKey sets the key for diffing and returns the VNode for chaining
 	SetKey(key string) VNode
 
+	// ID returns the business identifier for element reference/positioning
+	// This is separate from Key which is used for diffing lists
+	ID() string
+	// SetID sets the business identifier and returns the VNode for chaining
+	SetID(id string) VNode
+
 	// Style returns the visual style
 	Style() style.Style
 	// SetStyle sets the visual style and returns the VNode for chaining
@@ -66,6 +72,32 @@ type VNode interface {
 
 	// SetLayer sets the rendering layer for this node and returns the VNode for chaining
 	SetLayer(l Layer) VNode
+
+	// =============================================================================
+	// Portal Methods - Chainable methods for Portal configuration
+	// =============================================================================
+
+	// SetPortalRoot sets the portalRoot property for Portal components
+	// portalRoot specifies which PortalRoot this Portal should be attached to
+	SetPortalRoot(portalRootID string) VNode
+
+	// SetAnchorTo sets the anchorId and anchor properties for Portal positioning
+	// anchorId: the ID of the element to anchor to (must use SetID() on the target element)
+	// anchor: how to align the portal relative to the anchor element
+	SetAnchorTo(anchorID string, anchor types.Anchor) VNode
+
+	// SetPortalPosition sets the position property for Portal positioning
+	// position: the positioning scheme (relative, absolute, fixed)
+	SetPortalPosition(position types.PositionType) VNode
+
+	// SetPortalPriority sets the portal priority (z-index offset)
+	// Higher priority Portals render above lower priority ones
+	// Portal Z-index = 1000 + priority
+	SetPortalPriority(priority int) VNode
+
+	// SetPortalRootId sets the portalRootId property
+	// This marks a node as a PortalRoot (a mounting target for Portals)
+	SetPortalRootId(portalRootId string) VNode
 }
 
 // VNodeType represents the type of VNode
@@ -219,15 +251,5 @@ func (n *TextVNode) GetLayer() Layer {
 
 // SetLayer for TextVNode
 func (n *TextVNode) SetLayer(l Layer) VNode {
-	return setNodeLayer(n, l)
-}
-
-// GetLayer for ComponentVNode
-func (n *ComponentVNode) GetLayer() Layer {
-	return getNodeLayer(n)
-}
-
-// SetLayer for ComponentVNode
-func (n *ComponentVNode) SetLayer(l Layer) VNode {
 	return setNodeLayer(n, l)
 }

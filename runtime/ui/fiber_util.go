@@ -90,6 +90,9 @@ func CreateFiber(vnode VNode) *Fiber {
 	// ✨ DiffKey: Copy from VNode.Key() without any modification
 	diffKey := vnode.Key()
 
+	// ✨ ID: Copy from VNode.ID() for business reference/positioning
+	businessID := vnode.ID()
+
 	// Get props and ensure children are stored for elements/fragments
 	props := vnode.Props()
 	if props == nil {
@@ -242,7 +245,7 @@ func CreateFiber(vnode VNode) *Fiber {
 			}
 		}
 	}
-	nodeId :=generateNodeID()
+	nodeId := generateNodeID()
 	return &Fiber{
 		Type:                       vnodeType,
 		Tag:                        tag,
@@ -251,6 +254,7 @@ func CreateFiber(vnode VNode) *Fiber {
 		MemoizedState:              memoizedState,
 		DiffKey:                    diffKey,
 		Key:                        diffKey,
+		ID:                         businessID,  // ✨ Business identifier for positioning/reference
 		NodeID:                     nodeId,
 		Layer:                      vnode.GetLayer(),
 		Style:                      vnode.Style(),

@@ -7,7 +7,7 @@
 //
 // Option 1 - Quick Edit (easiest):
 //   1. Open this file in an editor
-//   2. Find line ~107: "func DebugMain() {"
+//   2. Find line ~107: "func main() {"
 //   3. Change it to: "func main() {"
 //   4. Run: go run render_debug.go
 //   5. Revert change when done
@@ -49,9 +49,10 @@ func DebugApp() rtui.VNode {
 		rtui.VStack(
 			newtext.New("Hover over this button to see a tooltip:"),
 			rtui.NewElement("button").SetProps(rtui.Props{
-				"text": "Click Me",
-				"id":   "button-1",
-			}),
+				"text":   "Click Me",
+				"width":  15,
+				"height": 3,
+			}).SetID("button-1"),  // ✨ 使用 SetID() 业务标识
 		),
 
 		// Button 2 with another tooltip
@@ -59,9 +60,10 @@ func DebugApp() rtui.VNode {
 			newtext.New(""),
 			newtext.New("And this button:"),
 			rtui.NewElement("button").SetProps(rtui.Props{
-				"text": "Another Button",
-				"id":   "button-2",
-			}),
+				"text":   "Another Button",
+				"width":  20,
+				"height": 3,
+			}).SetID("button-2"),  // ✨ 使用 SetID() 业务标识
 		),
 
 		// Footer
@@ -83,12 +85,13 @@ func DebugApp() rtui.VNode {
 		mainContent,
 
 		// Tooltip 1: PositionFixed, anchored to bottom-left of button-1
+		// 使用新的SetID API，其余保持Props方式
 		rtui.NewElement("portal").SetProps(rtui.Props{
 			"portalRoot": "tooltip-root",
-			"position":   types.PositionFixed,
 			"anchorId":   "button-1",
 			"anchor":     types.AnchorBottomLeft,
-			"top":        5, // 5px offset below button
+			"position":   types.PositionFixed,
+			"top":        5,
 			"left":       0,
 			"priority":   5,
 		}).SetChildren([]rtui.VNode{
@@ -98,11 +101,11 @@ func DebugApp() rtui.VNode {
 		// Tooltip 2: PositionFixed, anchored to top-right of button-2
 		rtui.NewElement("portal").SetProps(rtui.Props{
 			"portalRoot": "tooltip-root",
-			"position":   types.PositionFixed,
 			"anchorId":   "button-2",
 			"anchor":     types.AnchorTopRight,
-			"top":        -10, // 10px offset above button
-			"priority":   10, // Higher priority
+			"position":   types.PositionFixed,
+			"top":        -10,
+			"priority":   10,
 		}).SetChildren([]rtui.VNode{
 			newtext.New("Tooltip 2: Above button"),
 		}),
@@ -110,10 +113,10 @@ func DebugApp() rtui.VNode {
 		// Modal: Centered using AnchorCenter with PositionFixed
 		rtui.NewElement("portal").SetProps(rtui.Props{
 			"portalRoot": "tooltip-root",
-			"position":   types.PositionFixed,
 			"anchor":     types.AnchorCenter,
+			"position":   types.PositionFixed,
 			"top":        0,
-			"priority":   1, // Lower priority than tooltips
+			"priority":   1,
 		}).SetChildren([]rtui.VNode{
 			newtext.New("Centered Modal (Fixed Position)"),
 		}),
@@ -123,7 +126,7 @@ func DebugApp() rtui.VNode {
 // DebugMain is the entry point for the portal render debug program
 // Run with: go run render_debug.go -- (using a build tag or renaming main)
 // For simplicity, rename main to DebugMain temporarily when running
-func DebugMain() {
+func main() {
 	os.Setenv("MINT_USE_FIBER", "true")
 	os.Setenv("MINT_FIBER_FIRST", "true")
 
@@ -243,11 +246,73 @@ func DebugMain() {
 	if portalBoxes != nil {
 		fmt.Printf("  Portal boxes count: %d\n", len(portalBoxes))
 		for i, box := range portalBoxes {
-			fmt.Printf("  [Portal %d] ID=%s, pos=(%d,%d), size=%dx%d, ZIndex=%d\n",
-				i, box.ID, box.X, box.Y, box.Width, box.Height, box.ZIndex)
+			fmt.Printf("  [Portal %d] ID=%s, PropsID='%s', pos=(%d,%d), size=%dx%d, ZIndex=%d\n",
+				i, box.ID, box.PropsID, box.X, box.Y, box.Width, box.Height, box.ZIndex)
 		}
 	} else {
 		fmt.Println("  No portal boxes found")
+	}
+	fmt.Println()
+
+	// ✨ Debug: Show all boxes with PropsID to verify SetID() is working
+	fmt.Println("=== Debug: Boxes with PropsID (SetID lookup table) ===")
+	var debugBoxes func(box *layout.LayoutBox, indent int)
+	debugBoxes = func(box *layout.LayoutBox, indent int) {
+		if box == nil {
+			return
+		}
+		if box.PropsID != "" {
+			tag := ""
+			if box.Border.Label != "" {
+				tag = fmt.Sprintf("[%s]", box.Border.Label)
+			}
+			fmt.Printf("  %sBox: ID=%s %s PropsID='%s', pos=(%d,%d), size=%dx%d, children=%d\n",
+				strings.Repeat("  ", indent), box.ID, tag, box.PropsID, box.X, box.Y, box.Width, box.Height, len(box.Children))
+		}
+		for _, child := range box.Children {
+			debugBoxes(child, indent+1)
+		}
+	}
+	debugBoxes(node.GetLayoutBoxes()[0], 0)
+	fmt.Println()
+
+	// ✨ Debug: Print all boxes in the layout tree to understand structure
+	fmt.Println("=== Debug: All Boxes (Full Tree) ===")
+	var printAllBoxes func(box *layout.LayoutBox, indent int)
+	printAllBoxes = func(box *layout.LayoutBox, indent int) {
+		if box == nil {
+			return
+		}
+		tag := ""
+		if box.Border.Label != "" {
+			tag = fmt.Sprintf("[%s]", box.Border.Label)
+		}
+		propsIDInfo := ""
+		if box.PropsID != "" {
+			propsIDInfo = fmt.Sprintf(", PropsID='%s'", box.PropsID)
+		}
+		typeStr := box.ID
+		if len(typeStr) > 4 {
+			typeStr = typeStr[:4]
+		}
+		fmt.Printf("  %sBox (ID=%s%s%s): pos=(%d,%d), size=%dx%d\n",
+			strings.Repeat("  ", indent), box.ID, tag, propsIDInfo, box.X, box.Y, box.Width, box.Height)
+		for _, child := range box.Children {
+			printAllBoxes(child, indent+1)
+		}
+	}
+	printAllBoxes(node.GetLayoutBoxes()[0], 0)
+	fmt.Println()
+
+	// ✨ Debug: Test FindAnchorPosition manually
+	fmt.Println("=== Debug: Test FindAnchorPosition ===")
+	boxes = node.GetLayoutBoxes()
+	if len(boxes) > 0 && boxes[0] != nil {
+		x1, y1, w1, h1, found1 := layout.FindAnchorPosition(boxes[0], "button-1")
+		fmt.Printf("  FindAnchorPosition('button-1'): found=%v, pos=(%d,%d), size=%dx%d\n", found1, x1, y1, w1, h1)
+
+		x2, y2, w2, h2, found2 := layout.FindAnchorPosition(boxes[0], "button-2")
+		fmt.Printf("  FindAnchorPosition('button-2'): found=%v, pos=(%d,%d), size=%dx%d\n", found2, x2, y2, w2, h2)
 	}
 	fmt.Println()
 

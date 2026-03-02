@@ -330,6 +330,10 @@ func (pc *PortalPositionCalculator) getValue(ptr *int, defaultValue int) int {
 
 // FindAnchorPosition finds the position (x, y, width, height) of an anchor element
 // in the layout tree by its ID
+//
+// Priority:
+//   1. PropsID (business identifier, from SetID) - recommended
+//   2. ID (NodeID as string, for backward compatibility) - legacy
 func FindAnchorPosition(root *LayoutBox, anchorID string) (x, y, width, height int, found bool) {
 	if root == nil || anchorID == "" {
 		return 0, 0, 0, 0, false
@@ -347,7 +351,19 @@ func FindAnchorPosition(root *LayoutBox, anchorID string) (x, y, width, height i
 			return
 		}
 
-		// Check if this is the anchor element
+		// ✨ Priority 1: Check PropsID (business identifier, from SetID)
+		// This is the new, recommended way to identify elements for Portal anchoring
+		if box.PropsID == anchorID {
+			result.X = box.X
+			result.Y = box.Y
+			result.Width = box.Width
+			result.Height = box.Height
+			result.Found = true
+			return
+		}
+
+		// ✨ Priority 2: Check ID (NodeID as string, for backward compatibility)
+		// This supports legacy code that uses NodeID-based anchoring
 		if box.ID == anchorID {
 			result.X = box.X
 			result.Y = box.Y

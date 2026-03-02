@@ -1,6 +1,9 @@
 package ui
 
-import "github.com/wwsheng009/mint/runtime/style"
+import (
+	"github.com/wwsheng009/mint/runtime/style"
+	"github.com/wwsheng009/mint/runtime/types"
+)
 
 // ComponentVNode represents a function component
 type ComponentVNode struct {
@@ -9,6 +12,7 @@ type ComponentVNode struct {
 	fnWithProps ComponentFuncWithProps
 	props      Props
 	key        string
+	id         string
 	style      style.Style
 }
 
@@ -71,6 +75,17 @@ func (c *ComponentVNode) SetKey(key string) VNode {
 	return c
 }
 
+// ID implements VNode - returns the business identifier for component reference/positioning
+func (c *ComponentVNode) ID() string {
+	return c.id
+}
+
+// SetID implements VNode - sets the business identifier and returns VNode for chaining
+func (c *ComponentVNode) SetID(id string) VNode {
+	c.id = id
+	return c
+}
+
 // Style implements VNode
 func (c *ComponentVNode) Style() style.Style {
 	return c.style
@@ -90,6 +105,66 @@ func (c *ComponentVNode) Name() string {
 // Tag returns the component name (implements VNode interface)
 func (c *ComponentVNode) Tag() string {
 	return c.name
+}
+
+// GetLayer returns the rendering layer from props
+func (c *ComponentVNode) GetLayer() Layer {
+	return getNodeLayer(c)
+}
+
+// SetLayer sets the rendering layer in props
+func (c *ComponentVNode) SetLayer(l Layer) VNode {
+	return setNodeLayer(c, l)
+}
+
+// =============================================================================
+// Portal Methods - Chainable methods for Portal configuration
+// =============================================================================
+
+// SetPortalRoot implements VNode - sets the portalRoot property
+func (c *ComponentVNode) SetPortalRoot(portalRootID string) VNode {
+	if c.props == nil {
+		c.props = make(Props)
+	}
+	c.props["portalRoot"] = portalRootID
+	return c
+}
+
+// SetAnchorTo implements VNode - sets anchorId and anchor properties
+func (c *ComponentVNode) SetAnchorTo(anchorID string, anchor types.Anchor) VNode {
+	if c.props == nil {
+		c.props = make(Props)
+	}
+	c.props["anchorId"] = anchorID
+	c.props["anchor"] = anchor
+	return c
+}
+
+// SetPortalPosition implements VNode - sets the position property
+func (c *ComponentVNode) SetPortalPosition(position types.PositionType) VNode {
+	if c.props == nil {
+		c.props = make(Props)
+	}
+	c.props["position"] = position
+	return c
+}
+
+// SetPortalPriority implements VNode - sets the priority property
+func (c *ComponentVNode) SetPortalPriority(priority int) VNode {
+	if c.props == nil {
+		c.props = make(Props)
+	}
+	c.props["priority"] = priority
+	return c
+}
+
+// SetPortalRootId implements VNode - sets the portalRootId property
+func (c *ComponentVNode) SetPortalRootId(portalRootId string) VNode {
+	if c.props == nil {
+		c.props = make(Props)
+	}
+	c.props["portalRootId"] = portalRootId
+	return c
 }
 
 // Render calls the component function to get the rendered VNode

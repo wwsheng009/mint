@@ -191,6 +191,15 @@ func (a *PortalAwareFiberToNodeAdapter) ID() string {
 	return fmt.Sprintf("%d", a.fiber.NodeID)
 }
 
+// GetPropsID returns the business identifier (from Fiber.ID)
+// Implements layout.PropsIDProvider interface
+func (a *PortalAwareFiberToNodeAdapter) GetPropsID() string {
+	if a.fiber == nil {
+		return ""
+	}
+	return a.fiber.ID
+}
+
 // Type returns the node type
 func (a *PortalAwareFiberToNodeAdapter) Type() string {
 	if a.fiber == nil {

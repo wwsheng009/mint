@@ -5,6 +5,7 @@ import (
 	"runtime/debug"
 
 	"github.com/wwsheng009/mint/runtime/style"
+	"github.com/wwsheng009/mint/runtime/types"
 )
 
 // =============================================================================
@@ -31,9 +32,11 @@ import (
 // ErrorBoundaryVNode represents an error boundary wrapper
 type ErrorBoundaryVNode struct {
 	key      string
+	id       string
 	name     string
 	component ComponentFunc
 	fallback VNode
+	props    Props
 	layer    Layer
 	// Error state
 	hadError bool
@@ -58,7 +61,7 @@ func (e *ErrorBoundaryVNode) Type() VNodeType {
 
 // Props implements VNode
 func (e *ErrorBoundaryVNode) Props() Props {
-	return make(Props)
+	return e.props
 }
 
 // SetProps implements VNode - returns VNode for chaining
@@ -90,6 +93,17 @@ func (e *ErrorBoundaryVNode) SetKey(key string) VNode {
 	return e
 }
 
+// ID implements VNode - returns the business identifier for error boundary reference/positioning
+func (e *ErrorBoundaryVNode) ID() string {
+	return e.id
+}
+
+// SetID implements VNode - sets the business identifier and returns VNode for chaining
+func (e *ErrorBoundaryVNode) SetID(id string) VNode {
+	e.id = id
+	return e
+}
+
 // Style implements VNode
 func (e *ErrorBoundaryVNode) Style() style.Style {
 	return style.Style{}
@@ -114,6 +128,56 @@ func (e *ErrorBoundaryVNode) GetLayer() Layer {
 // SetLayer sets the layer for this error boundary
 func (e *ErrorBoundaryVNode) SetLayer(l Layer) VNode {
 	e.layer = l
+	return e
+}
+
+// =============================================================================
+// Portal Methods - Chainable methods for Portal configuration
+// =============================================================================
+
+// SetPortalRoot implements VNode - sets the portalRoot property
+func (e *ErrorBoundaryVNode) SetPortalRoot(portalRootID string) VNode {
+	if e.props == nil {
+		e.props = make(Props)
+	}
+	e.props["portalRoot"] = portalRootID
+	return e
+}
+
+// SetAnchorTo implements VNode - sets anchorId and anchor properties
+func (e *ErrorBoundaryVNode) SetAnchorTo(anchorID string, anchor types.Anchor) VNode {
+	if e.props == nil {
+		e.props = make(Props)
+	}
+	e.props["anchorId"] = anchorID
+	e.props["anchor"] = anchor
+	return e
+}
+
+// SetPortalPosition implements VNode - sets the position property
+func (e *ErrorBoundaryVNode) SetPortalPosition(position types.PositionType) VNode {
+	if e.props == nil {
+		e.props = make(Props)
+	}
+	e.props["position"] = position
+	return e
+}
+
+// SetPortalPriority implements VNode - sets the priority property
+func (e *ErrorBoundaryVNode) SetPortalPriority(priority int) VNode {
+	if e.props == nil {
+		e.props = make(Props)
+	}
+	e.props["priority"] = priority
+	return e
+}
+
+// SetPortalRootId implements VNode - sets the portalRootId property
+func (e *ErrorBoundaryVNode) SetPortalRootId(portalRootId string) VNode {
+	if e.props == nil {
+		e.props = make(Props)
+	}
+	e.props["portalRootId"] = portalRootId
 	return e
 }
 

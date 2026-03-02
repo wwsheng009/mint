@@ -1,12 +1,16 @@
 package ui
 
-import "github.com/wwsheng009/mint/runtime/style"
+import (
+	"github.com/wwsheng009/mint/runtime/style"
+	"github.com/wwsheng009/mint/runtime/types"
+)
 
 // ElementVNode represents a standard element node
 type ElementVNode struct {
 	vnodeType VNodeType
 	tag       string
 	key       string
+	id        string
 	props     Props
 	children  []VNode
 	style     style.Style
@@ -63,6 +67,17 @@ func (e *ElementVNode) SetKey(key string) VNode {
 	return e
 }
 
+// ID implements VNode - returns the business identifier for element reference/positioning
+func (e *ElementVNode) ID() string {
+	return e.id
+}
+
+// SetID implements VNode - sets the business identifier and returns VNode for chaining
+func (e *ElementVNode) SetID(id string) VNode {
+	e.id = id
+	return e
+}
+
 // Style implements VNode
 func (e *ElementVNode) Style() style.Style {
 	return e.style
@@ -81,6 +96,56 @@ func (e *ElementVNode) GetLayer() Layer {
 
 // SetLayer sets the rendering layer - returns VNode for chaining
 func (e *ElementVNode) SetLayer(l Layer) VNode {
+	return e
+}
+
+// =============================================================================
+// Portal Methods - Chainable methods for Portal configuration
+// =============================================================================
+
+// SetPortalRoot implements VNode - sets the portalRoot property
+func (e *ElementVNode) SetPortalRoot(portalRootID string) VNode {
+	if e.props == nil {
+		e.props = make(Props)
+	}
+	e.props["portalRoot"] = portalRootID
+	return e
+}
+
+// SetAnchorTo implements VNode - sets anchorId and anchor properties
+func (e *ElementVNode) SetAnchorTo(anchorID string, anchor types.Anchor) VNode {
+	if e.props == nil {
+		e.props = make(Props)
+	}
+	e.props["anchorId"] = anchorID
+	e.props["anchor"] = anchor
+	return e
+}
+
+// SetPortalPosition implements VNode - sets the position property
+func (e *ElementVNode) SetPortalPosition(position types.PositionType) VNode {
+	if e.props == nil {
+		e.props = make(Props)
+	}
+	e.props["position"] = position
+	return e
+}
+
+// SetPortalPriority implements VNode - sets the priority property
+func (e *ElementVNode) SetPortalPriority(priority int) VNode {
+	if e.props == nil {
+		e.props = make(Props)
+	}
+	e.props["priority"] = priority
+	return e
+}
+
+// SetPortalRootId implements VNode - sets the portalRootId property
+func (e *ElementVNode) SetPortalRootId(portalRootId string) VNode {
+	if e.props == nil {
+		e.props = make(Props)
+	}
+	e.props["portalRootId"] = portalRootId
 	return e
 }
 

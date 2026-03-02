@@ -44,6 +44,14 @@ type Identifiable interface {
 	GetStableID() uint64
 }
 
+// PropsIDProvider 业务标识提供者接口
+// 节点可以实现此接口以提供业务标识符 (PropsID)
+type PropsIDProvider interface {
+	// GetPropsID 返回节点的业务标识符
+	// 该标识符来自 Fiber.ID，用于业务引用和定位
+	GetPropsID() string
+}
+
 // Versioned 可版本接口
 // 节点可以实现此接口以跟踪版本信息
 type Versioned interface {
@@ -109,8 +117,12 @@ func (r Rect) Intersects(other Rect) bool {
 // LayoutBox 布局结果盒子
 // 表示一个节点在布局后的最终位置和尺寸
 type LayoutBox struct {
-	// ID 节点ID
+	// ID 节点ID (运行时标识，fmt.Sprintf("%d", Fiber.NodeID))
 	ID string
+
+	// PropsID 业务标识 (来自 Fiber.ID，由 SetID() 设置)
+	// 用于业务引用和定位，如 Portal.anchorId
+	PropsID string
 
 	// X, Y 位置（相对于父节点）
 	X int
@@ -637,8 +649,15 @@ func (e *Engine) layoutNodeWithDepth(node Node, constraints Constraints, x, y in
 	// x, y 已经是传入的全局坐标（由父节点累积）
 	absX, absY := x, y
 
+	// Get PropsID from node if it implements PropsIDProvider interface
+	propsID := ""
+	if propsIDProvider, ok := node.(PropsIDProvider); ok {
+		propsID = propsIDProvider.GetPropsID()
+	}
+
 	box := &LayoutBox{
 		ID:       node.ID(),
+		PropsID:  propsID,
 		X:        x,
 		Y:        y,
 		AbsX:     absX,  // ✨ Phase 1.2: 保存全局坐标

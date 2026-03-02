@@ -130,6 +130,12 @@ type Fiber struct {
 	// Key is an alias for DiffKey for backward compatibility
 	Key string
 
+	// === ID for business reference/positioning ===
+	// ID is the business identifier for element reference/positioning
+	// This is separate from Key which is used for diffing
+	// ID is copied from VNode.ID()
+	ID string
+
 	// === Root Fiber Marker ===
 	// IsRoot indicates if this fiber is the root component
 	// Set during prepareFreshStack for the root component wrapper

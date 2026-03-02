@@ -29,6 +29,13 @@ func (b *Builder) Key(key string) *Builder {
 	return b
 }
 
+// SetID sets the business identifier for positioning and Portal anchoring.
+// This is separate from Key() which is used for list diffing.
+func (b *Builder) SetID(id string) *Builder {
+	b.node.SetID(id)
+	return b
+}
+
 // Text sets the tooltip text.
 func (b *Builder) Text(text string) *Builder {
 	b.node.SetText(text)
