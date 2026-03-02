@@ -74,15 +74,15 @@ func CheckboxDemo() ui.VNode {
 	_ = registerCheckboxHandler
 
 	return ui.VStack(
-		app.NewTextBuilder("Checkbox Demo").
+		ui.NewTextBuilder("Checkbox Demo").
 			FgColor("cyan").
 			Bold(true).
 			Build(),
-		app.Text(""),
-		app.NewTextBuilder("Select your preferences:").
+		ui.Text(""),
+		ui.NewTextBuilder("Select your preferences:").
 			FgColor("bright-black").
 			Build(),
-		app.Text(""),
+		ui.Text(""),
 		app.CheckboxBuilder().
 			ForField(intent.ForField(acceptTermsKey)).
 			Label("I accept the terms and conditions").
@@ -98,12 +98,12 @@ func CheckboxDemo() ui.VNode {
 			Label("I have read the privacy policy").
 			Checked(acceptPrivacy).
 			Build(),
-		app.Text(""),
-		app.NewTextBuilder("Checked: 1/3").
+		ui.Text(""),
+		ui.NewTextBuilder("Checked: 1/3").
 			FgColor("yellow").
 			Build(),
-		app.Text(""),
-		app.NewTextBuilder("Tab: focus | Space/Enter: toggle | q: quit").
+		ui.Text(""),
+		ui.NewTextBuilder("Tab: focus | Space/Enter: toggle | q: quit").
 			FgColor("bright-black").
 			Build(),
 	)

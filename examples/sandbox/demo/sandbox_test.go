@@ -151,7 +151,7 @@ func TestInputInteraction(t *testing.T) {
 
 // TestStyledText tests styled text rendering
 func TestStyledText(t *testing.T) {
-	text := app.NewTextBuilder("Hello, Sandbox!").
+	text := ui.NewTextBuilder("Hello, Sandbox!").
 		FgColor("green").
 		Bold(true).
 		Underline(true).
@@ -229,10 +229,10 @@ func TestCounterComponentStructure_OLD(t *testing.T) {
 func BenchmarkComponentCreation(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		_ = ui.VStack(
-			app.Text("Line 1"),
-			app.Text("Line 2"),
-			app.Text("Line 3"),
-			app.HStack(
+			ui.Text("Line 1"),
+			ui.Text("Line 2"),
+			ui.Text("Line 3"),
+			ui.HStack(
 				app.ButtonBuilder("Btn1").OnClick(func() {}).Build(),
 				app.ButtonBuilder("Btn2").OnClick(func() {}).Build(),
 			),

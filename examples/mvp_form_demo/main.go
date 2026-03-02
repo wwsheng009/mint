@@ -135,27 +135,27 @@ func App() ui.VNode {
 	}
 
 	return ui.VStack(
-		app.NewTextBuilder("📝 MVP Intent Data Flow Demo").
+		ui.NewTextBuilder("📝 MVP Intent Data Flow Demo").
 			Bold(true).
 			FgColor("cyan").
 			Build(),
-		app.Text(""),
-		app.NewTextBuilder("State is Single Source of Truth").
+		ui.Text(""),
+		ui.NewTextBuilder("State is Single Source of Truth").
 			FgColor("gray").
 			Build(),
-		app.Text(""),
-		app.NewTextBuilder("─").
+		ui.Text(""),
+		ui.NewTextBuilder("─").
 			FgColor("gray").
 			Build(),
 
-		app.Text(""),
+		ui.Text(""),
 
-		app.NewTextBuilder("Username:").
+		ui.NewTextBuilder("Username:").
 			FgColor("blue").
 			Build(),
 
-		app.HStack(
-			app.Text("  "),
+		ui.HStack(
+			ui.Text("  "),
 			app.InputBuilder().
 				ForField(intent.BindField("username")).
 				Value(username).
@@ -164,14 +164,14 @@ func App() ui.VNode {
 				Build(),
 		),
 
-		app.Text(""),
+		ui.Text(""),
 
-		app.NewTextBuilder("Email:").
+		ui.NewTextBuilder("Email:").
 			FgColor("blue").
 			Build(),
 
-		app.HStack(
-			app.Text("  "),
+		ui.HStack(
+			ui.Text("  "),
 			app.InputBuilder().
 				ForField(intent.BindField("email")).
 				Value(email).
@@ -180,10 +180,10 @@ func App() ui.VNode {
 				Build(),
 		),
 
-		app.Text(""),
+		ui.Text(""),
 
-		app.HStack(
-			app.Text("  "),
+		ui.HStack(
+			ui.Text("  "),
 			app.CheckboxBuilder().
 				ForField(intent.BindField("agree")).
 				Checked(agree).
@@ -191,20 +191,20 @@ func App() ui.VNode {
 				Build(),
 		),
 
-		app.Text(""),
-		app.NewTextBuilder("─").
+		ui.Text(""),
+		ui.NewTextBuilder("─").
 			FgColor("gray").
 			Build(),
-		app.Text(""),
+		ui.Text(""),
 
-		app.HStack(
-			app.Text("  "),
+		ui.HStack(
+			ui.Text("  "),
 			app.ButtonBuilder("  Submit  ").
 				Variant(app.ButtonVariantPrimary).
 				OnPress(SubmitFormIntent{}).
 				Disabled(username == "" || email == "" || !agree).
 				Build(),
-			app.Text(" "),
+			ui.Text(" "),
 			app.ButtonBuilder("  Reset  ").
 				Variant(app.ButtonVariantSecondary).
 				OnPress(ResetIntent{}).
@@ -216,25 +216,25 @@ func App() ui.VNode {
 // SuccessView - 成功提交视图
 func SuccessView(username, email string, agree bool) ui.VNode {
 	return ui.VStack(
-		app.NewTextBuilder("✅ Form Submitted Successfully!").
+		ui.NewTextBuilder("✅ Form Submitted Successfully!").
 			Bold(true).
 			FgColor("green").
 			Build(),
-		app.Text(""),
-		app.NewTextBuilder("─").
+		ui.Text(""),
+		ui.NewTextBuilder("─").
 			FgColor("gray").
 			Build(),
-		app.Text(""),
-		app.NewTextBuilder(fmt.Sprintf("Username: %s", username)).Build(),
-		app.NewTextBuilder(fmt.Sprintf("Email: %s", email)).Build(),
-		app.NewTextBuilder(fmt.Sprintf("Agreed: %v", agree)).Build(),
-		app.Text(""),
-		app.NewTextBuilder("─").
+		ui.Text(""),
+		ui.NewTextBuilder(fmt.Sprintf("Username: %s", username)).Build(),
+		ui.NewTextBuilder(fmt.Sprintf("Email: %s", email)).Build(),
+		ui.NewTextBuilder(fmt.Sprintf("Agreed: %v", agree)).Build(),
+		ui.Text(""),
+		ui.NewTextBuilder("─").
 			FgColor("gray").
 			Build(),
-		app.Text(""),
-		app.HStack(
-			app.Text("  "),
+		ui.Text(""),
+		ui.HStack(
+			ui.Text("  "),
 			app.ButtonBuilder("  Back to Form  ").
 				Variant(app.ButtonVariantSecondary).
 				OnPress(ClearSubmittedIntent{}).

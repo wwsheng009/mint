@@ -40,25 +40,25 @@ func StrategyApp() ui.VNode {
 	})
 
 	return ui.VStack(
-		app.NewTextBuilder("╔══════════════════════════════╗").
+		ui.NewTextBuilder("╔══════════════════════════════╗").
 			FgColor("cyan").
 			Build(),
-		app.NewTextBuilder("║   Injection Strategy Demo     ║").
+		ui.NewTextBuilder("║   Injection Strategy Demo     ║").
 			FgColor("cyan").
 			Build(),
-		app.NewTextBuilder("╚══════════════════════════════╝").
+		ui.NewTextBuilder("╚══════════════════════════════╝").
 			FgColor("cyan").
 			Build(),
 		ui.Text(""),
 		ui.HStack(
 			ui.Text("Strategy: "),
-			app.NewTextBuilder(strategy).
+			ui.NewTextBuilder(strategy).
 				FgColor("yellow").
 				Bold(true).
 				Build(),
 		),
 		ui.Text(""),
-		app.NewTextBuilder(fmt.Sprintf("Count: %d", count)).
+		ui.NewTextBuilder(fmt.Sprintf("Count: %d", count)).
 			FgColor("green").
 			Bold(true).
 			Build(),
@@ -70,11 +70,11 @@ func StrategyApp() ui.VNode {
 			OnPress(DecrementStrategyIntent{}).
 			Build(),
 		ui.Text(""),
-		app.NewTextBuilder("──────────────────────────────────").
+		ui.NewTextBuilder("──────────────────────────────────").
 			FgColor("bright-black").
 			Build(),
 		ui.Text(""),
-		app.NewTextBuilder("Strategies:").
+		ui.NewTextBuilder("Strategies:").
 			FgColor("bright-black").
 			Build(),
 		ui.Text("  • Prohibited - 生产环境"),

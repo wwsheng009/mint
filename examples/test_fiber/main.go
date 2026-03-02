@@ -32,7 +32,7 @@ func SimpleApp() ui.VNode {
 	return ui.VStack(
 		ui.Text("Fiber Mode Test"),
 		ui.Text(fmt.Sprintf("Count: %d", count)),
-		app.HStack(
+		ui.HStack(
 			app.ButtonBuilder("[-]").
 				OnPress(DecrementIntent{}).
 				Build(),

@@ -31,20 +31,20 @@ func WrapDemo() ui.VNode {
 	}
 
 	return ui.VStack(
-		app.Text("Wrap Component Demo"),
-		app.Text("─────────────────"),
-		app.Text(""),
-		app.Text("10 buttons with automatic wrapping:"),
-		app.Text(""),
+		ui.Text("Wrap Component Demo"),
+		ui.Text("─────────────────"),
+		ui.Text(""),
+		ui.Text("10 buttons with automatic wrapping:"),
+		ui.Text(""),
 		app.WrapBuilder(buttons...).
 			Gap(1).
 			RowGap(0).
 			Width(76). // 80 - border padding
 			Align(ui.AlignStart).
 			Build(),
-		app.Text(""),
-		app.Text("─ Usage ───────────────────────────────────"),
-		app.Text("WrapBuilder(children...).Gap(1).ScreenWidth(76)"),
-		app.Text(""),
+		ui.Text(""),
+		ui.Text("─ Usage ───────────────────────────────────"),
+		ui.Text("WrapBuilder(children...).Gap(1).ScreenWidth(76)"),
+		ui.Text(""),
 	)
 }

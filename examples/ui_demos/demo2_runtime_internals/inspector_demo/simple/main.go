@@ -99,15 +99,15 @@ func InspectorDemo(
 
 // BuildHeader creates the header
 func BuildHeader() ui.VNode {
-	header := app.NewTextBuilder("╔══════════════════════════════════════════════════╗").
+	header := ui.NewTextBuilder("╔══════════════════════════════════════════════════╗").
 		Style(style.FgBold(style.Cyan)).
 		Build()
 
-	subheader := app.NewTextBuilder("║     UI Inspector Feature Demonstration              ║").
+	subheader := ui.NewTextBuilder("║     UI Inspector Feature Demonstration              ║").
 		Style(style.FgBold(style.Yellow)).
 		Build()
 
-	border := app.NewTextBuilder("╚══════════════════════════════════════════════════╝").
+	border := ui.NewTextBuilder("╚══════════════════════════════════════════════════╝").
 		Style(style.FgBold(style.Cyan)).
 		Build()
 
@@ -127,15 +127,15 @@ func BuildPerformancePanel(perf *inspector.PerformanceAnalyzer) ui.VNode {
 		memText = "Memory: collecting..."
 	}
 
-	label := app.NewTextBuilder("┌─ Performance ──────────────────────────────────").
+	label := ui.NewTextBuilder("┌─ Performance ──────────────────────────────────").
 		Style(style.FgBold(style.Green)).
 		Build()
 
-	fps := app.NewTextBuilder(fpsText).
+	fps := ui.NewTextBuilder(fpsText).
 		Style(style.Foreground(style.White)).
 		Build()
 
-	mem := app.NewTextBuilder(memText).
+	mem := ui.NewTextBuilder(memText).
 		Style(style.Foreground(style.White)).
 		Build()
 
@@ -161,11 +161,11 @@ func BuildDiagnosticsPanel(diagnostics *inspector.LayoutDiagnostics) ui.VNode {
 			counts[inspector.SeverityWarning])
 	}
 
-	label := app.NewTextBuilder("┌─ Layout Diagnostics ───────────────────────────").
+	label := ui.NewTextBuilder("┌─ Layout Diagnostics ───────────────────────────").
 		Style(style.FgBold(style.Magenta)).
 		Build()
 
-	text := app.NewTextBuilder(diagText).
+	text := ui.NewTextBuilder(diagText).
 		Style(style.Foreground(style.White)).
 		Build()
 
@@ -184,11 +184,11 @@ func BuildTreePanel(treeView *inspector.TreeView) ui.VNode {
 		stats.MaxDepth,
 		stats.LeafNodes)
 
-	label := app.NewTextBuilder("┌─ Layout Tree ────────────────────────────────────").
+	label := ui.NewTextBuilder("┌─ Layout Tree ────────────────────────────────────").
 		Style(style.FgBold(style.Cyan)).
 		Build()
 
-	text := app.NewTextBuilder(treeText).
+	text := ui.NewTextBuilder(treeText).
 		Style(style.Foreground(style.White)).
 		Build()
 
@@ -200,7 +200,7 @@ func BuildTreePanel(treeView *inspector.TreeView) ui.VNode {
 
 // BuildDemoContentPanel shows the actual demo content
 func BuildDemoContentPanel(content ui.VNode) ui.VNode {
-	label := app.NewTextBuilder("┌─ Demo Content ───────────────────────────────────").
+	label := ui.NewTextBuilder("┌─ Demo Content ───────────────────────────────────").
 		Style(style.FgBold(style.Yellow)).
 		Build()
 
@@ -248,7 +248,7 @@ func BuildInstructions() ui.VNode {
 
 	var nodes []ui.VNode
 	for _, text := range instructions {
-		nodes = append(nodes, app.NewTextBuilder(text).
+		nodes = append(nodes, ui.NewTextBuilder(text).
 			Style(style.Foreground(theme.Muted())).
 			Build())
 	}

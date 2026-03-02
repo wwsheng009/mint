@@ -48,32 +48,32 @@ func StatefulApp() ui.VNode {
 	modeName := modeNames[mode%3]
 
 	return ui.VStack(
-		app.NewTextBuilder("╔══════════════════════════════╗").
+		ui.NewTextBuilder("╔══════════════════════════════╗").
 			FgColor("cyan").
 			Build(),
-		app.NewTextBuilder("║     Snapshot Demo             ║").
+		ui.NewTextBuilder("║     Snapshot Demo             ║").
 			FgColor("cyan").
 			Build(),
-		app.NewTextBuilder("╚══════════════════════════════╝").
+		ui.NewTextBuilder("╚══════════════════════════════╝").
 			FgColor("cyan").
 			Build(),
 		ui.Text(""),
 		ui.HStack(
 			ui.Text("Mode: "),
-			app.NewTextBuilder(modeName).
+			ui.NewTextBuilder(modeName).
 				FgColor("yellow").
 				Bold(true).
 				Build(),
 		),
 		ui.Text(""),
-		app.NewTextBuilder(fmt.Sprintf("Count: %d", count)).
+		ui.NewTextBuilder(fmt.Sprintf("Count: %d", count)).
 			FgColor("green").
 			Bold(true).
 			Build(),
 		ui.Text(""),
 		ui.HStack(
 			ui.Text("Text: "),
-			app.NewTextBuilder(text).
+			ui.NewTextBuilder(text).
 				FgColor("magenta").
 				Build(),
 		),
@@ -96,14 +96,14 @@ func StatefulApp() ui.VNode {
 				Build(), // TODO: integrate with FieldChangeIntent
 		),
 		ui.Text(""),
-		app.NewTextBuilder("──────────────────────────────────").
+		ui.NewTextBuilder("──────────────────────────────────").
 			FgColor("bright-black").
 			Build(),
 		ui.Text(""),
-		app.NewTextBuilder("This app demonstrates snapshots.").
+		ui.NewTextBuilder("This app demonstrates snapshots.").
 			FgColor("bright-black").
 			Build(),
-		app.NewTextBuilder("Run tests to see save/restore.").
+		ui.NewTextBuilder("Run tests to see save/restore.").
 			FgColor("bright-black").
 			Build(),
 	)

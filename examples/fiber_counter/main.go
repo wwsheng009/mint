@@ -37,7 +37,7 @@ func SimpleCounter() ui.VNode {
 	isFiber := os.Getenv("MINT_USE_FIBER") == "true"
 
 	return ui.VStack(
-		app.NewTextBuilder(fmt.Sprintf("Count: %d", count)).
+		ui.NewTextBuilder(fmt.Sprintf("Count: %d", count)).
 			FgColor("green").
 			Build(),
 		ui.HStack(
@@ -51,8 +51,8 @@ func SimpleCounter() ui.VNode {
 				Build(),
 
 		),
-		app.Text(""),
-		app.NewTextBuilder(fmt.Sprintf("[Fiber: %v] 全局状态模式", isFiber)).
+		ui.Text(""),
+		ui.NewTextBuilder(fmt.Sprintf("[Fiber: %v] 全局状态模式", isFiber)).
 			FgColor("bright-black").
 			Build(),
 	)

@@ -6,6 +6,7 @@ import (
 
 	"github.com/wwsheng009/mint/app"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
+	"github.com/wwsheng009/mint/ui"
 )
 
 // TestCollectHitTestEntryInfo tests extracting tag/key/label from VNodes
@@ -32,7 +33,7 @@ func TestCollectHitTestEntryInfo(t *testing.T) {
 		{
 			name: "Text node",
 			createVNode: func() rtui.VNode {
-				return app.Text("Hello World")
+				return ui.Text("Hello World")
 			},
 			expectedTag:   "text",
 			expectedKey:   "",
@@ -65,8 +66,8 @@ func TestCollectHitTestEntryInfo(t *testing.T) {
 			name: "VStack",
 			createVNode: func() rtui.VNode {
 				return rtui.VStack(
-					app.Text("Child 1"),
-					app.Text("Child 2"),
+					ui.Text("Child 1"),
+					ui.Text("Child 2"),
 				)
 			},
 			expectedTag:   "vstack",
@@ -77,7 +78,7 @@ func TestCollectHitTestEntryInfo(t *testing.T) {
 		{
 			name: "Text with long content (should be truncated)",
 			createVNode: func() rtui.VNode {
-				return app.Text("This is a very long text content that should be truncated")
+				return ui.Text("This is a very long text content that should be truncated")
 			},
 			expectedTag:   "text",
 			expectedKey:   "",
@@ -247,7 +248,7 @@ func TestCollectHitTestEntries_RealWorld(t *testing.T) {
 		},
 		{
 			name:          "Text node",
-			vnode:         app.Text("Hello World"),
+			vnode:         ui.Text("Hello World"),
 			expectedTag:    "text",
 			expectedKey:    "",
 			expectedLabel:  "Hello World",
@@ -324,7 +325,7 @@ func TestFormatNodeInfo_RealWorld(t *testing.T) {
 		},
 		{
 			name:  "Text shows content",
-			vnode: app.Text("Hello World"),
+			vnode: ui.Text("Hello World"),
 			contains: []string{
 				"Text",
 				"text",
@@ -334,7 +335,7 @@ func TestFormatNodeInfo_RealWorld(t *testing.T) {
 		// Real demo2 components
 		{
 			name:  "Bordered node (from demo2)",
-			vnode: rtui.Bordered().Child(app.Text("Content")).Build(),
+			vnode: rtui.Bordered().Child(ui.Text("Content")).Build(),
 			contains: []string{
 				"Element",
 				"bordered", // This is the actual tag from ElementVNode
@@ -354,8 +355,8 @@ func TestFormatNodeInfo_RealWorld(t *testing.T) {
 		{
 			name:  "HStack (from demo2)",
 			vnode: rtui.HStack(
-				app.Text("Left"),
-				app.Text("Right"),
+				ui.Text("Left"),
+				ui.Text("Right"),
 			),
 			contains: []string{
 				"Element",
@@ -454,7 +455,7 @@ func TestExtractElementInfo_Button(t *testing.T) {
 
 // TestExtractElementInfo_Text tests extracting info from Text
 func TestExtractElementInfo_Text(t *testing.T) {
-	text := app.Text("Hello World")
+	text := ui.Text("Hello World")
 
 	info := ExtractElementInfo(text)
 
@@ -739,7 +740,7 @@ func TestDemo2RealWorldStructure(t *testing.T) {
 	// Test Bordered node with nested content (like HeaderPanel)
 	t.Run("Bordered container", func(t *testing.T) {
 		bordered := rtui.Bordered().Child(
-			app.Text("Content inside border"),
+			ui.Text("Content inside border"),
 		).Build()
 
 		var tag string
@@ -760,9 +761,9 @@ func TestDemo2RealWorldStructure(t *testing.T) {
 	// Test VStack with multiple children (like PipelineVisualization)
 	t.Run("VStack container", func(t *testing.T) {
 		vstack := rtui.VStack(
-			app.Text("Line 1"),
-			app.Text("Line 2"),
-			app.Text("Line 3"),
+			ui.Text("Line 1"),
+			ui.Text("Line 2"),
+			ui.Text("Line 3"),
 		)
 
 		var tag string
@@ -783,8 +784,8 @@ func TestDemo2RealWorldStructure(t *testing.T) {
 	// Test HStack (like StatisticsPanel content)
 	t.Run("HStack container", func(t *testing.T) {
 		hstack := rtui.HStack(
-			app.Text("Left"),
-			app.Text("Right"),
+			ui.Text("Left"),
+			ui.Text("Right"),
 		)
 
 		var tag string
@@ -804,7 +805,7 @@ func TestDemo2RealWorldStructure(t *testing.T) {
 
 	// Test Text node
 	t.Run("Text node", func(t *testing.T) {
-		text := app.Text("Hello World")
+		text := ui.Text("Hello World")
 
 		var tag, label string
 		if tagger, ok := text.(interface{ Tag() string }); ok {
@@ -937,7 +938,7 @@ func TestVNodeBoundsDataFlow(t *testing.T) {
 	})
 
 	t.Run("Text with bounds", func(t *testing.T) {
-		text := app.Text("Hello")
+		text := ui.Text("Hello")
 
 		// Set bounds
 		if boundsSetter, ok := text.(interface{ SetBounds(int, int, int, int) }); ok {
@@ -951,7 +952,7 @@ func TestVNodeBoundsDataFlow(t *testing.T) {
 	})
 
 	t.Run("Bordered node with bounds", func(t *testing.T) {
-		bordered := rtui.Bordered().Child(app.Text("Content")).Build()
+		bordered := rtui.Bordered().Child(ui.Text("Content")).Build()
 
 		// BorderedNode should support SetBounds (inherited from ElementVNode)
 		if boundsSetter, ok := bordered.(interface{ SetBounds(int, int, int, int) }); ok {

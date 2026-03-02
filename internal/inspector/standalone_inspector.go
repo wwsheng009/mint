@@ -23,15 +23,14 @@ import (
 	"sync"
 	"time"
 
-	"github.com/wwsheng009/mint/app"
-	"github.com/wwsheng009/mint/runtime/action"
-	"github.com/wwsheng009/mint/runtime"
-	"github.com/wwsheng009/mint/runtime/style"
-	"github.com/wwsheng009/mint/runtime/intent"
-	rtui "github.com/wwsheng009/mint/runtime/ui"
 	frameworkevent "github.com/wwsheng009/mint/framework/event"
 	"github.com/wwsheng009/mint/framework/theme"
 	"github.com/wwsheng009/mint/internal/log"
+	"github.com/wwsheng009/mint/runtime"
+	"github.com/wwsheng009/mint/runtime/action"
+	"github.com/wwsheng009/mint/runtime/intent"
+	"github.com/wwsheng009/mint/runtime/style"
+	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/ui"
 	componentlist "github.com/wwsheng009/mint/ui/components/list"
 	componentpanel "github.com/wwsheng009/mint/ui/components/panel"
@@ -395,7 +394,7 @@ func (si *StandaloneInspector) buildOverlayContent() rtui.VNode {
 	hoverInfo := fmt.Sprintf("Hover: %s", si.formatHovered())
 	headerText := fmt.Sprintf("F12:关闭 | Alt+J/K/L:移动 | Ctrl+D:调试 | %s | %s | %s", keyInfo, mouseInfo, hoverInfo)
 
-	titleBar := app.NewTextBuilder(headerText).
+	titleBar := ui.NewTextBuilder(headerText).
 		Style(style.NewStyle().Foreground(style.White).Background(style.Blue).Bold(true)).
 		Build()
 
@@ -543,13 +542,13 @@ func (si *StandaloneInspector) buildTabBar() rtui.VNode {
 		// Highlight active tab
 		if item.tab == si.activeTab {
 			tabs = append(tabs,
-				app.NewTextBuilder(fmt.Sprintf("[%s]", item.name)).
+				ui.NewTextBuilder(fmt.Sprintf("[%s]", item.name)).
 					Style(style.FgBgBold(style.Yellow, style.Blue)).
 					Build(),
 			)
 		} else {
 			tabs = append(tabs,
-				app.NewTextBuilder(fmt.Sprintf(" %s(%s) ", item.name, item.key)).
+				ui.NewTextBuilder(fmt.Sprintf(" %s(%s) ", item.name, item.key)).
 					Style(style.Foreground(style.White)).
 					Build(),
 			)
@@ -589,14 +588,14 @@ func (si *StandaloneInspector) buildElementsTabContent() rtui.VNode {
 	stats := si.treeView.GetTreeStats()
 
 	header := rtui.VStack(
-		app.NewTextBuilder("📦 Layout Tree").
+		ui.NewTextBuilder("📦 Layout Tree").
 			Style(style.FgBold(style.Green)).
 			Build(),
-		app.NewTextBuilder(fmt.Sprintf("Nodes: %d | Depth: %d | Leaves: %d",
+		ui.NewTextBuilder(fmt.Sprintf("Nodes: %d | Depth: %d | Leaves: %d",
 			stats.TotalNodes, stats.MaxDepth, stats.LeafNodes)).
 			Style(style.Foreground(style.White)).
 			Build(),
-		app.NewTextBuilder("").
+		ui.NewTextBuilder("").
 			Build(),
 	)
 
@@ -651,16 +650,16 @@ func (si *StandaloneInspector) buildElementsTabContent() rtui.VNode {
 		separator := strings.Repeat("─", si.overlayWidth-4)
 
 		selectedInfo = rtui.VStack(
-			app.NewTextBuilder(separator).
+			ui.NewTextBuilder(separator).
 				Style(style.Foreground(theme.Muted())).
 				Build(),
-			app.NewTextBuilder(infoText).
+			ui.NewTextBuilder(infoText).
 				Style(style.FgBold(style.Yellow)).
 				Build(),
-			app.NewTextBuilder(fmt.Sprintf("Path: %s", targetPath)).
+			ui.NewTextBuilder(fmt.Sprintf("Path: %s", targetPath)).
 				Style(style.Foreground(style.Cyan)).
 				Build(),
-			app.NewTextBuilder("").
+			ui.NewTextBuilder("").
 				Build(),
 		)
 	} else {
@@ -668,10 +667,10 @@ func (si *StandaloneInspector) buildElementsTabContent() rtui.VNode {
 		separator := strings.Repeat("─", si.overlayWidth-4)
 
 		selectedInfo = rtui.VStack(
-			app.NewTextBuilder(separator).
+			ui.NewTextBuilder(separator).
 				Style(style.Foreground(theme.Muted())).
 				Build(),
-			app.NewTextBuilder("").
+			ui.NewTextBuilder("").
 				Build(),
 		)
 	}
@@ -687,22 +686,22 @@ func (si *StandaloneInspector) buildElementsTabContent() rtui.VNode {
 	// Instructions
 	separator := strings.Repeat("─", si.overlayWidth-4)
 	instructions := rtui.VStack(
-		app.NewTextBuilder(separator).
+		ui.NewTextBuilder(separator).
 			Style(style.Foreground(theme.Muted())).
 			Build(),
-		app.NewTextBuilder("Instructions:").
+		ui.NewTextBuilder("Instructions:").
 			Style(style.FgBold(style.Cyan)).
 			Build(),
-		app.NewTextBuilder("  ↑↓: Navigate | Enter: Inspect").
+		ui.NewTextBuilder("  ↑↓: Navigate | Enter: Inspect").
 			Style(style.Foreground(theme.Muted())).
 			Build(),
-		app.NewTextBuilder("  E: Expand/Collapse").
+		ui.NewTextBuilder("  E: Expand/Collapse").
 			Style(style.Foreground(theme.Muted())).
 			Build(),
-		app.NewTextBuilder("  PgUp/PgDn: Scroll tree").
+		ui.NewTextBuilder("  PgUp/PgDn: Scroll tree").
 			Style(style.Foreground(theme.Muted())).
 			Build(),
-		app.NewTextBuilder("  Home/End: Top/Bottom").
+		ui.NewTextBuilder("  Home/End: Top/Bottom").
 			Style(style.Foreground(theme.Muted())).
 			Build(),
 	)
@@ -726,15 +725,15 @@ func (si *StandaloneInspector) buildElementsTabContent() rtui.VNode {
 // buildConsoleTabContent builds content for Console tab
 func (si *StandaloneInspector) buildConsoleTabContent() rtui.VNode {
 	return rtui.VStack(
-		app.NewTextBuilder("💻 Console").
+		ui.NewTextBuilder("💻 Console").
 			Style(style.FgBold(style.Green)).
 			Build(),
-		app.NewTextBuilder("").
+		ui.NewTextBuilder("").
 			Build(),
-		app.NewTextBuilder("Console messages will appear here").
+		ui.NewTextBuilder("Console messages will appear here").
 			Style(style.Foreground(theme.Muted())).
 			Build(),
-		app.NewTextBuilder("Use Inspector.Log() to output messages").
+		ui.NewTextBuilder("Use Inspector.Log() to output messages").
 			Style(style.Foreground(theme.Muted())).
 			Build(),
 	)
@@ -761,23 +760,23 @@ func (si *StandaloneInspector) buildPerformanceTabContent() rtui.VNode {
 	)
 
 	return rtui.VStack(
-		app.NewTextBuilder("⚡ Performance").
+		ui.NewTextBuilder("⚡ Performance").
 			Style(style.FgBold(style.Green)).
 			Build(),
-		app.NewTextBuilder("").
+		ui.NewTextBuilder("").
 			Build(),
-		app.NewTextBuilder(metricsText).
+		ui.NewTextBuilder(metricsText).
 			Style(style.Foreground(style.White)).
 			Build(),
-		app.NewTextBuilder("").
+		ui.NewTextBuilder("").
 			Build(),
-		app.NewTextBuilder("─").
+		ui.NewTextBuilder("─").
 			Style(style.Foreground(theme.Muted())).
 			Build(),
-		app.NewTextBuilder("Real-time Performance Metrics").
+		ui.NewTextBuilder("Real-time Performance Metrics").
 			Style(style.FgBold(style.Cyan)).
 			Build(),
-		app.NewTextBuilder("Data updates every frame").
+		ui.NewTextBuilder("Data updates every frame").
 			Style(style.Foreground(theme.Muted())).
 			Build(),
 	)
@@ -803,23 +802,23 @@ func (si *StandaloneInspector) buildDiagnosticsTabContent() rtui.VNode {
 	)
 
 	return rtui.VStack(
-		app.NewTextBuilder("🔧 Diagnostics").
+		ui.NewTextBuilder("🔧 Diagnostics").
 			Style(style.FgBold(style.Green)).
 			Build(),
-		app.NewTextBuilder("").
+		ui.NewTextBuilder("").
 			Build(),
-		app.NewTextBuilder(summaryText).
+		ui.NewTextBuilder(summaryText).
 			Style(style.Foreground(style.White)).
 			Build(),
-		app.NewTextBuilder("").
+		ui.NewTextBuilder("").
 			Build(),
-		app.NewTextBuilder("─").
+		ui.NewTextBuilder("─").
 			Style(style.Foreground(theme.Muted())).
 			Build(),
-		app.NewTextBuilder("Layout Problems").
+		ui.NewTextBuilder("Layout Problems").
 			Style(style.FgBold(style.Cyan)).
 			Build(),
-		app.NewTextBuilder("No problems detected").
+		ui.NewTextBuilder("No problems detected").
 			Style(style.Foreground(style.Green)).
 			Build(),
 	)
@@ -828,15 +827,15 @@ func (si *StandaloneInspector) buildDiagnosticsTabContent() rtui.VNode {
 // buildNetworkTabContent builds content for Network tab
 func (si *StandaloneInspector) buildNetworkTabContent() rtui.VNode {
 	return rtui.VStack(
-		app.NewTextBuilder("🌐 Network").
+		ui.NewTextBuilder("🌐 Network").
 			Style(style.FgBold(style.Green)).
 			Build(),
-		app.NewTextBuilder("").
+		ui.NewTextBuilder("").
 			Build(),
-		app.NewTextBuilder("Network activity will appear here").
+		ui.NewTextBuilder("Network activity will appear here").
 			Style(style.Foreground(theme.Muted())).
 			Build(),
-		app.NewTextBuilder("HTTP requests, WebSocket messages").
+		ui.NewTextBuilder("HTTP requests, WebSocket messages").
 			Style(style.Foreground(theme.Muted())).
 			Build(),
 	)
@@ -898,26 +897,26 @@ func (si *StandaloneInspector) buildScreenInfoTabContent() rtui.VNode {
 
 	// Build all lines compactly but readable
 	return rtui.VStack(
-		app.NewTextBuilder("📺 Screen Information").
+		ui.NewTextBuilder("📺 Screen Information").
 			Style(style.FgBold(style.Green)).
 			Build(),
 		ui.Text("─"),
 
 		// Screen & Overlay (2 lines)
-		app.NewTextBuilder(screenInfo).
+		ui.NewTextBuilder(screenInfo).
 			Style(style.Foreground(style.White)).
 			Build(),
-		app.NewTextBuilder(overlayInfo).
+		ui.NewTextBuilder(overlayInfo).
 			Style(style.Foreground(style.White)).
 			Build(),
 
 		ui.Text(""),
 
 		// Mouse (2 lines)
-		app.NewTextBuilder(mouseInfo).
+		ui.NewTextBuilder(mouseInfo).
 			Style(style.Foreground(style.Cyan)).
 			Build(),
-		app.NewTextBuilder(boundsInfo+"  "+insideInfo).
+		ui.NewTextBuilder(boundsInfo+"  "+insideInfo).
 			Style(func() style.Style {
 				if mouseInOverlay {
 					return style.Foreground(style.Green)
@@ -929,27 +928,27 @@ func (si *StandaloneInspector) buildScreenInfoTabContent() rtui.VNode {
 		ui.Text(""),
 
 		// Elements (2 lines)
-		app.NewTextBuilder(hoverInfo).
+		ui.NewTextBuilder(hoverInfo).
 			Style(style.Foreground(style.Yellow)).
 			Build(),
-		app.NewTextBuilder(selInfo).
+		ui.NewTextBuilder(selInfo).
 			Style(style.Foreground(style.Green)).
 			Build(),
 
 		ui.Text(""),
 
 		// Button & State (2 lines)
-		app.NewTextBuilder(buttonInfo).
+		ui.NewTextBuilder(buttonInfo).
 			Style(style.Foreground(style.White)).
 			Build(),
-		app.NewTextBuilder(stateInfo).
+		ui.NewTextBuilder(stateInfo).
 			Style(style.Foreground(style.Magenta)).
 			Build(),
 
 		ui.Text(""),
 
 		// Instructions
-		app.NewTextBuilder("Alt+H/J/K/L: Move overlay | Real-time updates").
+		ui.NewTextBuilder("Alt+H/J/K/L: Move overlay | Real-time updates").
 			Style(style.Foreground(theme.Muted())).
 			Build(),
 	)
@@ -1084,7 +1083,7 @@ func (si *StandaloneInspector) buildHitTestTabContent() rtui.VNode {
 
 	// Wrap both summary and list in VStack
 	return rtui.VStack(
-		app.NewTextBuilder(summaryText).
+		ui.NewTextBuilder(summaryText).
 			Style(style.Foreground(style.White)).
 			Build(),
 		list,
@@ -1276,15 +1275,15 @@ func (si *StandaloneInspector) buildLayoutTabContent() rtui.VNode {
 		displayText = "Analyzing entire app root"
 	} else {
 		return rtui.VStack(
-			app.NewTextBuilder("📐 Layout Diagnostics").
+			ui.NewTextBuilder("📐 Layout Diagnostics").
 				Style(style.FgBold(style.Green)).
 				Build(),
-			app.NewTextBuilder("").
+			ui.NewTextBuilder("").
 				Build(),
-			app.NewTextBuilder("No VNode to analyze").
+			ui.NewTextBuilder("No VNode to analyze").
 				Style(style.Foreground(theme.Muted())).
 				Build(),
-			app.NewTextBuilder("Select a node in Elements tab first").
+			ui.NewTextBuilder("Select a node in Elements tab first").
 				Style(style.Foreground(theme.Muted())).
 				Build(),
 		)
@@ -1322,31 +1321,31 @@ func (si *StandaloneInspector) buildLayoutTabContent() rtui.VNode {
 		// Colorize based on content
 		var text rtui.VNode
 		if strings.Contains(line, "✅") {
-			text = app.NewTextBuilder(line).
+			text = ui.NewTextBuilder(line).
 				Style(style.FgBold(style.Green)).
 				Build()
 		} else if strings.Contains(line, "❌") {
-			text = app.NewTextBuilder(line).
+			text = ui.NewTextBuilder(line).
 				Style(style.FgBold(style.Red)).
 				Build()
 		} else if strings.Contains(line, "⚠️") {
-			text = app.NewTextBuilder(line).
+			text = ui.NewTextBuilder(line).
 				Style(style.FgBold(style.Yellow)).
 				Build()
 		} else if strings.Contains(line, "SELECTED NODE") || strings.Contains(line, "═") {
-			text = app.NewTextBuilder(line).
+			text = ui.NewTextBuilder(line).
 				Style(style.FgBold(style.Cyan)).
 				Build()
 		} else if strings.Contains(line, "Constraints:") || strings.Contains(line, "Measured:") {
-			text = app.NewTextBuilder(line).
+			text = ui.NewTextBuilder(line).
 				Style(style.Foreground(style.White)).
 				Build()
 		} else if strings.Contains(line, "Issues:") {
-			text = app.NewTextBuilder(line).
+			text = ui.NewTextBuilder(line).
 				Style(style.FgBold(style.Yellow)).
 				Build()
 		} else {
-			text = app.NewTextBuilder(line).
+			text = ui.NewTextBuilder(line).
 				Style(style.Foreground(style.White)).
 				Build()
 		}
@@ -1355,15 +1354,15 @@ func (si *StandaloneInspector) buildLayoutTabContent() rtui.VNode {
 
 	// Build the VStack with header and content
 	headerNodes := []rtui.VNode{
-		app.NewTextBuilder("📐 Layout Diagnostics").
+		ui.NewTextBuilder("📐 Layout Diagnostics").
 			Style(style.FgBold(style.Green)).
 			Build(),
-		app.NewTextBuilder(displayText).
+		ui.NewTextBuilder(displayText).
 			Style(style.Foreground(style.Cyan)).
 			Build(),
-		app.NewTextBuilder("").
+		ui.NewTextBuilder("").
 			Build(),
-		app.NewTextBuilder("─").
+		ui.NewTextBuilder("─").
 			Style(style.Foreground(theme.Muted())).
 			Build(),
 	}
@@ -1377,15 +1376,15 @@ func (si *StandaloneInspector) buildLayoutTabContent() rtui.VNode {
 // buildConsoleTab builds the Console tab
 func (si *StandaloneInspector) buildConsoleTab() rtui.VNode {
 	return rtui.VStack(
-		app.NewTextBuilder("💻 Console").
+		ui.NewTextBuilder("💻 Console").
 			Style(style.FgBold(style.Green)).
 			Build(),
-		app.NewTextBuilder("").
+		ui.NewTextBuilder("").
 			Build(),
-		app.NewTextBuilder("Console messages will appear here").
+		ui.NewTextBuilder("Console messages will appear here").
 			Style(style.Foreground(theme.Muted())).
 			Build(),
-		app.NewTextBuilder("Use Inspector.Log() to output messages").
+		ui.NewTextBuilder("Use Inspector.Log() to output messages").
 			Style(style.Foreground(theme.Muted())).
 			Build(),
 	)
@@ -1412,23 +1411,23 @@ func (si *StandaloneInspector) buildPerformanceTab() rtui.VNode {
 	)
 
 	return rtui.VStack(
-		app.NewTextBuilder("⚡ Performance").
+		ui.NewTextBuilder("⚡ Performance").
 			Style(style.FgBold(style.Green)).
 			Build(),
-		app.NewTextBuilder("").
+		ui.NewTextBuilder("").
 			Build(),
-		app.NewTextBuilder(metricsText).
+		ui.NewTextBuilder(metricsText).
 			Style(style.Foreground(style.White)).
 			Build(),
-		app.NewTextBuilder("").
+		ui.NewTextBuilder("").
 			Build(),
-		app.NewTextBuilder("─").
+		ui.NewTextBuilder("─").
 			Style(style.Foreground(theme.Muted())).
 			Build(),
-		app.NewTextBuilder("Real-time Performance Metrics").
+		ui.NewTextBuilder("Real-time Performance Metrics").
 			Style(style.FgBold(style.Cyan)).
 			Build(),
-		app.NewTextBuilder("Data updates every frame").
+		ui.NewTextBuilder("Data updates every frame").
 			Style(style.Foreground(theme.Muted())).
 			Build(),
 	)
@@ -1459,7 +1458,7 @@ func (si *StandaloneInspector) buildDiagnosticsTab() rtui.VNode {
 		for i, p := range problems {
 			if i >= 10 { // Show first 10
 				items = append(items,
-					app.NewTextBuilder(fmt.Sprintf("... and %d more", len(problems)-10)).
+					ui.NewTextBuilder(fmt.Sprintf("... and %d more", len(problems)-10)).
 						Style(style.Foreground(theme.Muted())).
 						Build(),
 				)
@@ -1482,45 +1481,45 @@ func (si *StandaloneInspector) buildDiagnosticsTab() rtui.VNode {
 
 			items = append(items,
 				rtui.VStack(
-					app.NewTextBuilder(fmt.Sprintf("[%s] %s", severityStr, p.Type)).
+					ui.NewTextBuilder(fmt.Sprintf("[%s] %s", severityStr, p.Type)).
 						Style(severityStyle(style.Yellow)).
 						Build(),
-					app.NewTextBuilder(fmt.Sprintf("  %s", p.Message)).
+					ui.NewTextBuilder(fmt.Sprintf("  %s", p.Message)).
 						Style(style.Foreground(style.White)).
 						Build(),
-					app.NewTextBuilder(fmt.Sprintf("  → %s", p.Suggestion)).
+					ui.NewTextBuilder(fmt.Sprintf("  → %s", p.Suggestion)).
 						Style(style.Foreground(style.Cyan)).
 						Build(),
-					app.NewTextBuilder("").
+					ui.NewTextBuilder("").
 						Build(),
 				),
 			)
 		}
 		problemList = rtui.VStack(items...)
 	} else {
-		problemList = app.NewTextBuilder("✓ No layout problems detected").
+		problemList = ui.NewTextBuilder("✓ No layout problems detected").
 			Style(style.FgBold(style.Green)).
 			Build()
 	}
 
 	return rtui.VStack(
-		app.NewTextBuilder("🔍 Diagnostics").
+		ui.NewTextBuilder("🔍 Diagnostics").
 			Style(style.FgBold(style.Green)).
 			Build(),
-		app.NewTextBuilder("").
+		ui.NewTextBuilder("").
 			Build(),
-		app.NewTextBuilder(summaryText).
+		ui.NewTextBuilder(summaryText).
 			Style(style.Foreground(style.White)).
 			Build(),
-		app.NewTextBuilder("").
+		ui.NewTextBuilder("").
 			Build(),
-		app.NewTextBuilder("─").
+		ui.NewTextBuilder("─").
 			Style(style.Foreground(theme.Muted())).
 			Build(),
-		app.NewTextBuilder("Layout Problems:").
+		ui.NewTextBuilder("Layout Problems:").
 			Style(style.FgBold(style.Cyan)).
 			Build(),
-		app.NewTextBuilder("").
+		ui.NewTextBuilder("").
 			Build(),
 		problemList,
 	)
@@ -1529,15 +1528,15 @@ func (si *StandaloneInspector) buildDiagnosticsTab() rtui.VNode {
 // buildNetworkTab builds the Network tab
 func (si *StandaloneInspector) buildNetworkTab() rtui.VNode {
 	return rtui.VStack(
-		app.NewTextBuilder("🌐 Network").
+		ui.NewTextBuilder("🌐 Network").
 			Style(style.FgBold(style.Green)).
 			Build(),
-		app.NewTextBuilder("").
+		ui.NewTextBuilder("").
 			Build(),
-		app.NewTextBuilder("Network activity monitoring").
+		ui.NewTextBuilder("Network activity monitoring").
 			Style(style.Foreground(theme.Muted())).
 			Build(),
-		app.NewTextBuilder("(Not yet implemented for TUI)").
+		ui.NewTextBuilder("(Not yet implemented for TUI)").
 			Style(style.Foreground(theme.Muted())).
 			Build(),
 	)

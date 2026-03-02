@@ -61,64 +61,64 @@ func App() ui.VNode {
 	return ui.VStack(
 		// Header
 		ui.VStack(
-			app.NewTextBuilder("📍 Modal Positioning Demo").
+			ui.NewTextBuilder("📍 Modal Positioning Demo").
 				Bold(true).
 				FgColor("cyan").
 				Build(),
-			app.Text(""),
-			app.NewTextBuilder("Learn how to control modal display positions").
+			ui.Text(""),
+			ui.NewTextBuilder("Learn how to control modal display positions").
 				FgColor("gray").
 				Build(),
-			app.NewTextBuilder("Press ESC or click outside to close").
+			ui.NewTextBuilder("Press ESC or click outside to close").
 				FgColor("gray").
 				Build(),
-			app.Text(""),
+			ui.Text(""),
 		),
 
-		app.NewTextBuilder("─").FgColor("gray").Build(),
-		app.Text(""),
+		ui.NewTextBuilder("─").FgColor("gray").Build(),
+		ui.Text(""),
 
 		// Position Options Grid (Column 1)
 		ui.HStack(
-			app.Text("  "),
+			ui.Text("  "),
 			// Left column
 			ui.VStack(
 				positionButton("Center", "center"),
-				app.Text(""),
+				ui.Text(""),
 				positionButton("Left Aligned", "left"),
-				app.Text(""),
+				ui.Text(""),
 				positionButton("Right Aligned", "right"),
 			),
-			app.Text("   "),
+			ui.Text("   "),
 			// Right column
 			ui.VStack(
 				positionButton("Top Aligned", "top"),
-				app.Text(""),
+				ui.Text(""),
 				positionButton("Bottom Aligned", "bottom"),
-				app.Text(""),
+				ui.Text(""),
 				positionButton("Custom (30%, 20%)", "custom"),
 			),
 		),
 
-		app.Text(""),
-		app.NewTextBuilder("─").FgColor("gray").Build(),
-		app.Text(""),
+		ui.Text(""),
+		ui.NewTextBuilder("─").FgColor("gray").Build(),
+		ui.Text(""),
 
 		// Status Display
-		app.HStack(
-			app.Text("  "),
-			app.NewTextBuilder("Current: ").FgColor("blue").Build(),
-			app.NewTextBuilder(getPositionName(position)).
+		ui.HStack(
+			ui.Text("  "),
+			ui.NewTextBuilder("Current: ").FgColor("blue").Build(),
+			ui.NewTextBuilder(getPositionName(position)).
 				FgColor("cyan").
 				Build(),
 			app.Spacer().Build(),
-			app.NewTextBuilder(getPositionDescription(position)).
+			ui.NewTextBuilder(getPositionDescription(position)).
 				FgColor("gray").
 				Build(),
-			app.Text("  "),
+			ui.Text("  "),
 		),
 
-		app.Text(""),
+		ui.Text(""),
 		// Render the positioned modal
 		getPositionedModal(position),
 	)
@@ -190,7 +190,7 @@ func getPositionedModal(position string) ui.VNode {
 	case "custom":
 		return customPositionModal()
 	default:
-		return app.Text("")
+		return ui.Text("")
 	}
 }
 
@@ -205,31 +205,31 @@ func centeredModal() ui.VNode {
 			Key("modal-centered").
 			Title("Centered Modal").
 			Content(ui.VStack(
-				app.NewTextBuilder("🎯 Centered Position").
+				ui.NewTextBuilder("🎯 Centered Position").
 					FgColor("yellow").
 					Bold(true).
 					Build(),
-				app.Text(""),
-				app.NewTextBuilder("This is the default and most common").
+				ui.Text(""),
+				ui.NewTextBuilder("This is the default and most common").
 					FgColor("gray").
 					Build(),
-				app.NewTextBuilder("positioning for modals.").
+				ui.NewTextBuilder("positioning for modals.").
 					FgColor("gray").
 					Build(),
-				app.Text(""),
-				app.NewTextBuilder("Built with:").
+				ui.Text(""),
+				ui.NewTextBuilder("Built with:").
 					FgColor("cyan").
 					Build(),
-				app.NewTextBuilder("  modal.NewBuilder().").
+				ui.NewTextBuilder("  modal.NewBuilder().").
 					FgColor("green").
 					Build(),
-				app.NewTextBuilder("    Title(\"...\").").
+				ui.NewTextBuilder("    Title(\"...\").").
 					FgColor("green").
 					Build(),
-				app.NewTextBuilder("    Center().").
+				ui.NewTextBuilder("    Center().").
 					FgColor("yellow").
 					Build(),
-				app.NewTextBuilder("    Build()").
+				ui.NewTextBuilder("    Build()").
 					FgColor("green").
 					Build(),
 			)).
@@ -253,37 +253,37 @@ func leftAlignedModal() ui.VNode {
 			Key("modal-left").
 			Title("Left Aligned").
 			Content(ui.VStack(
-				app.NewTextBuilder("⬅️ Left Aligned").
+				ui.NewTextBuilder("⬅️ Left Aligned").
 					FgColor("yellow").
 					Bold(true).
 					Build(),
-				app.Text(""),
-				app.NewTextBuilder("No spacer on the left side").
+				ui.Text(""),
+				ui.NewTextBuilder("No spacer on the left side").
 					FgColor("gray").
 					Build(),
-				app.NewTextBuilder("pushes modal to the left.").
+				ui.NewTextBuilder("pushes modal to the left.").
 					FgColor("gray").
 					Build(),
-				app.Text(""),
-				app.NewTextBuilder("Built with:").
+				ui.Text(""),
+				ui.NewTextBuilder("Built with:").
 					FgColor("cyan").
 					Build(),
-				app.NewTextBuilder("  ui.HStack(").
+				ui.NewTextBuilder("  ui.HStack(").
 					FgColor("green").
 					Build(),
-				app.NewTextBuilder("    modal.NewBuilder().").
+				ui.NewTextBuilder("    modal.NewBuilder().").
 					FgColor("green").
 					Build(),
-				app.NewTextBuilder("      Centered(false).").
+				ui.NewTextBuilder("      Centered(false).").
 					FgColor("yellow").
 					Build(),
-				app.NewTextBuilder("      Build(),").
+				ui.NewTextBuilder("      Build(),").
 					FgColor("green").
 					Build(),
-				app.NewTextBuilder("    ui.Spacer().Build(),").
+				ui.NewTextBuilder("    ui.Spacer().Build(),").
 					FgColor("green").
 					Build(),
-				app.NewTextBuilder("  )").
+				ui.NewTextBuilder("  )").
 					FgColor("green").
 					Build(),
 			)).
@@ -311,37 +311,37 @@ func rightAlignedModal() ui.VNode {
 			Key("modal-right").
 			Title("Right Aligned").
 			Content(ui.VStack(
-				app.NewTextBuilder("➡️ Right Aligned").
+				ui.NewTextBuilder("➡️ Right Aligned").
 					FgColor("yellow").
 					Bold(true).
 					Build(),
-				app.Text(""),
-				app.NewTextBuilder("Spacer on the left").
+				ui.Text(""),
+				ui.NewTextBuilder("Spacer on the left").
 					FgColor("gray").
 					Build(),
-				app.NewTextBuilder("pushes modal to the right.").
+				ui.NewTextBuilder("pushes modal to the right.").
 					FgColor("gray").
 					Build(),
-				app.Text(""),
-				app.NewTextBuilder("Built with:").
+				ui.Text(""),
+				ui.NewTextBuilder("Built with:").
 					FgColor("cyan").
 					Build(),
-				app.NewTextBuilder("  ui.HStack(").
+				ui.NewTextBuilder("  ui.HStack(").
 					FgColor("green").
 					Build(),
-				app.NewTextBuilder("    ui.Spacer().Build(),").
+				ui.NewTextBuilder("    ui.Spacer().Build(),").
 					FgColor("green").
 					Build(),
-				app.NewTextBuilder("    modal.NewBuilder().").
+				ui.NewTextBuilder("    modal.NewBuilder().").
 					FgColor("green").
 					Build(),
-				app.NewTextBuilder("      Centered(false).").
+				ui.NewTextBuilder("      Centered(false).").
 					FgColor("yellow").
 					Build(),
-				app.NewTextBuilder("      Build(),").
+				ui.NewTextBuilder("      Build(),").
 					FgColor("green").
 					Build(),
-				app.NewTextBuilder("  )").
+				ui.NewTextBuilder("  )").
 					FgColor("green").
 					Build(),
 			)).
@@ -363,37 +363,37 @@ func topAlignedModal() ui.VNode {
 			Key("modal-top").
 			Title("Top Aligned").
 			Content(ui.VStack(
-				app.NewTextBuilder("⬆️ Top Aligned").
+				ui.NewTextBuilder("⬆️ Top Aligned").
 					FgColor("yellow").
 					Bold(true).
 					Build(),
-				app.Text(""),
-				app.NewTextBuilder("No spacer on the top").
+				ui.Text(""),
+				ui.NewTextBuilder("No spacer on the top").
 					FgColor("gray").
 					Build(),
-				app.NewTextBuilder("pushes modal to the top.").
+				ui.NewTextBuilder("pushes modal to the top.").
 					FgColor("gray").
 					Build(),
-				app.Text(""),
-				app.NewTextBuilder("Built with:").
+				ui.Text(""),
+				ui.NewTextBuilder("Built with:").
 					FgColor("cyan").
 					Build(),
-				app.NewTextBuilder("  ui.VStack(").
+				ui.NewTextBuilder("  ui.VStack(").
 					FgColor("green").
 					Build(),
-				app.NewTextBuilder("    modal.NewBuilder().").
+				ui.NewTextBuilder("    modal.NewBuilder().").
 					FgColor("green").
 					Build(),
-				app.NewTextBuilder("      Centered(false).").
+				ui.NewTextBuilder("      Centered(false).").
 					FgColor("yellow").
 					Build(),
-				app.NewTextBuilder("      Build(),").
+				ui.NewTextBuilder("      Build(),").
 					FgColor("green").
 					Build(),
-				app.NewTextBuilder("    ui.Spacer().Build(),").
+				ui.NewTextBuilder("    ui.Spacer().Build(),").
 					FgColor("green").
 					Build(),
-				app.NewTextBuilder("  )").
+				ui.NewTextBuilder("  )").
 					FgColor("green").
 					Build(),
 			)).
@@ -421,37 +421,37 @@ func bottomAlignedModal() ui.VNode {
 			Key("modal-bottom").
 			Title("Bottom Aligned").
 			Content(ui.VStack(
-				app.NewTextBuilder("⬇️ Bottom Aligned").
+				ui.NewTextBuilder("⬇️ Bottom Aligned").
 					FgColor("yellow").
 					Bold(true).
 					Build(),
-				app.Text(""),
-				app.NewTextBuilder("Spacer on the top").
+				ui.Text(""),
+				ui.NewTextBuilder("Spacer on the top").
 					FgColor("gray").
 					Build(),
-				app.NewTextBuilder("pushes modal to the bottom.").
+				ui.NewTextBuilder("pushes modal to the bottom.").
 					FgColor("gray").
 					Build(),
-				app.Text(""),
-				app.NewTextBuilder("Built with:").
+				ui.Text(""),
+				ui.NewTextBuilder("Built with:").
 					FgColor("cyan").
 					Build(),
-				app.NewTextBuilder("  ui.VStack(").
+				ui.NewTextBuilder("  ui.VStack(").
 					FgColor("green").
 					Build(),
-				app.NewTextBuilder("    ui.Spacer().Build(),").
+				ui.NewTextBuilder("    ui.Spacer().Build(),").
 					FgColor("green").
 					Build(),
-				app.NewTextBuilder("    modal.NewBuilder().").
+				ui.NewTextBuilder("    modal.NewBuilder().").
 					FgColor("green").
 					Build(),
-				app.NewTextBuilder("      Centered(false).").
+				ui.NewTextBuilder("      Centered(false).").
 					FgColor("yellow").
 					Build(),
-				app.NewTextBuilder("      Build(),").
+				ui.NewTextBuilder("      Build(),").
 					FgColor("green").
 					Build(),
-				app.NewTextBuilder("  )").
+				ui.NewTextBuilder("  )").
 					FgColor("green").
 					Build(),
 			)).
@@ -487,35 +487,35 @@ func customPositionModal() ui.VNode {
 				Key("modal-custom").
 				Title("Custom Position").
 				Content(ui.VStack(
-					app.NewTextBuilder("🎯 Custom: (30%, 20%)").
+					ui.NewTextBuilder("🎯 Custom: (30%, 20%)").
 						FgColor("yellow").
 						Bold(true).
 						Build(),
-					app.Text(""),
-					app.NewTextBuilder("Using spacers to set").
+					ui.Text(""),
+					ui.NewTextBuilder("Using spacers to set").
 						FgColor("gray").
 						Build(),
-					app.NewTextBuilder("precise percentage position.").
+					ui.NewTextBuilder("precise percentage position.").
 						FgColor("gray").
 						Build(),
-					app.Text(""),
-					app.NewTextBuilder("Position Formula:").
+					ui.Text(""),
+					ui.NewTextBuilder("Position Formula:").
 						FgColor("cyan").
 						Build(),
-					app.NewTextBuilder("  left%  = left / (left + right)").
+					ui.NewTextBuilder("  left%  = left / (left + right)").
 						FgColor("green").
 						Build(),
-					app.NewTextBuilder("  top%   = top / (top + bottom)").
+					ui.NewTextBuilder("  top%   = top / (top + bottom)").
 						FgColor("green").
 						Build(),
-					app.Text(""),
-					app.NewTextBuilder("This example:").
+					ui.Text(""),
+					ui.NewTextBuilder("This example:").
 						FgColor("yellow").
 						Build(),
-					app.NewTextBuilder("  left  = 3, right  = 7 → 30%").
+					ui.NewTextBuilder("  left  = 3, right  = 7 → 30%").
 						FgColor("gray").
 						Build(),
-					app.NewTextBuilder("  top   = 2, bottom = 8 → 20%").
+					ui.NewTextBuilder("  top   = 2, bottom = 8 → 20%").
 						FgColor("gray").
 						Build(),
 				)).

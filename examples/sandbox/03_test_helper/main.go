@@ -44,13 +44,13 @@ func FormApp() ui.VNode {
 	})
 
 	return ui.VStack(
-		app.NewTextBuilder("╔══════════════════════════════╗").
+		ui.NewTextBuilder("╔══════════════════════════════╗").
 			FgColor("cyan").
 			Build(),
-		app.NewTextBuilder("║     TestHelper Demo           ║").
+		ui.NewTextBuilder("║     TestHelper Demo           ║").
 			FgColor("cyan").
 			Build(),
-		app.NewTextBuilder("╚══════════════════════════════╝").
+		ui.NewTextBuilder("╚══════════════════════════════╝").
 			FgColor("cyan").
 			Build(),
 		ui.Text(""),
@@ -81,7 +81,7 @@ func FormApp() ui.VNode {
 		ui.Text(""),
 		func() ui.VNode {
 			if submitted {
-				return app.NewTextBuilder(message).
+				return ui.NewTextBuilder(message).
 					FgColor(func() string {
 						if username != "" && password != "" {
 							return "green"

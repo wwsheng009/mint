@@ -34,7 +34,7 @@ func (CloseModalIntent) IntentType() string { return "CloseModal" }
 func ModalDialogPortal(content string, show bool) rtui.VNode {
 	if !show || content == "" {
 		// 返回空文本而不是 nil，避免 reconciler 处理 nil
-		return app.Text("")
+		return ui.Text("")
 	}
 
 	// 使用 Portal 将 Modal 渲染到 "modal-root" PortalRoot
@@ -64,17 +64,17 @@ func ModalDialogPortal(content string, show bool) rtui.VNode {
 						}).
 						SetChildren([]rtui.VNode{
 							app.VStack(
-								app.NewTextBuilder("📦 Modal via Portal").
+								ui.NewTextBuilder("📦 Modal via Portal").
 									FgColor("cyan").
 									Bold(true).
 									Build(),
-								app.Text(""),
-								app.Text(content),
-								app.Text(""),
-								app.NewTextBuilder("按 ESC 或点击外部关闭").
+								ui.Text(""),
+								ui.Text(content),
+								ui.Text(""),
+								ui.NewTextBuilder("按 ESC 或点击外部关闭").
 									FgColor("gray").
 									Build(),
-								app.Text(""),
+								ui.Text(""),
 								app.ButtonBuilder("  [关闭]  ").
 									Variant(app.ButtonVariantPrimary).
 									OnPress(CloseModalIntent{}).
@@ -127,34 +127,34 @@ func App() rtui.VNode {
 		app.VStack(
 			// 标题
 			app.VStack(
-				app.NewTextBuilder("🌟 Portal 跨树挂载演示").
+				ui.NewTextBuilder("🌟 Portal 跨树挂载演示").
 					FgColor("cyan").
 					Bold(true).
 					Build(),
-				app.Text(""),
-				app.NewTextBuilder("Portal 系统说明").
+				ui.Text(""),
+				ui.NewTextBuilder("Portal 系统说明").
 					FgColor("yellow").
 					Bold(true).
 					Build(),
-				app.Text(""),
-				app.NewTextBuilder("  • PortalRoot: 定义在应用顶层，作为挂载目标").
+				ui.Text(""),
+				ui.NewTextBuilder("  • PortalRoot: 定义在应用顶层，作为挂载目标").
 					FgColor("gray").
 					Build(),
-				app.NewTextBuilder("  • Portal: 子组件通过 props[\"portalRoot\"] 指定目标").
+				ui.NewTextBuilder("  • Portal: 子组件通过 props[\"portalRoot\"] 指定目标").
 					FgColor("gray").
 					Build(),
-				app.NewTextBuilder("  • linkPortalsToRoots(): Commit 阶段自动建立链接").
+				ui.NewTextBuilder("  • linkPortalsToRoots(): Commit 阶段自动建立链接").
 					FgColor("gray").
 					Build(),
-				app.Text(""),
-				app.NewTextBuilder("—").FgColor("gray").Build(),
-				app.Text(""),
+				ui.Text(""),
+				ui.NewTextBuilder("—").FgColor("gray").Build(),
+				ui.Text(""),
 			),
 
 			// 交互按钮
 			app.VStack(
-				app.HStack(
-					app.Text("  "),
+				ui.HStack(
+					ui.Text("  "),
 					app.ButtonBuilder("  📦 打开 Modal  ").
 						Variant(app.ButtonVariantPrimary).
 						OnPress(OpenModalIntent{Content: "这是通过 Portal 渲染到 app 顶层的 Modal！"}).
@@ -162,33 +162,33 @@ func App() rtui.VNode {
 						Build(),
 				),
 
-				app.Text(""),
+				ui.Text(""),
 
 				// 提示信息
-				app.NewTextBuilder("💡 提示: 按 ESC 或点击 Modal 外部区域可关闭").
+				ui.NewTextBuilder("💡 提示: 按 ESC 或点击 Modal 外部区域可关闭").
 					FgColor("gray").
 					Italic(true).
 					Build(),
 
-				app.Text(""),
+				ui.Text(""),
 
-				app.NewTextBuilder("📋 Portal 渲染流程:").FgColor("cyan").Build(),
-				app.Text(""),
-				app.NewTextBuilder("  1. Render 阶段: VNode → Fiber").
+				ui.NewTextBuilder("📋 Portal 渲染流程:").FgColor("cyan").Build(),
+				ui.Text(""),
+				ui.NewTextBuilder("  1. Render 阶段: VNode → Fiber").
 					FgColor("gray").
 					Build(),
-				app.NewTextBuilder("  2. Commit 阶段: linkPortalsToRoots() 建立链接").
+				ui.NewTextBuilder("  2. Commit 阶段: linkPortalsToRoots() 建立链接").
 					FgColor("gray").
 					Build(),
-				app.NewTextBuilder("  3. Layout 阶段: 使用 PortalRoot 作为父级布局").
+				ui.NewTextBuilder("  3. Layout 阶段: 使用 PortalRoot 作为父级布局").
 					FgColor("gray").
 					Build(),
-				app.NewTextBuilder("  4. Paint 阶段: 在 PortalRoot 位置绘制").
+				ui.NewTextBuilder("  4. Paint 阶段: 在 PortalRoot 位置绘制").
 					FgColor("gray").
 					Build(),
 			),
 
-			app.Text(""),
+			ui.Text(""),
 
 			// 状态显示
 			rtui.NewElement("box").
@@ -197,12 +197,12 @@ func App() rtui.VNode {
 					"height": 3,
 				}).
 				SetChildren([]rtui.VNode{
-					app.HStack(
-						app.Text("  "),
-						app.NewTextBuilder("Modal 状态: ").
+					ui.HStack(
+						ui.Text("  "),
+						ui.NewTextBuilder("Modal 状态: ").
 							FgColor("blue").
 							Build(),
-						app.NewTextBuilder(func() string {
+						ui.NewTextBuilder(func() string {
 							if showModal {
 								return "🟢 已打开"
 							}

@@ -92,21 +92,21 @@ func TimerDemo() ui.VNode {
 
 	// 5. 返回 VNode
 	return ui.VStack(
-		app.NewTextBuilder("⏱ Timer").Bold(true).FgColor("cyan").Build(),
-		app.Text(""),
-		app.NewTextBuilder(timeStr).Bold(true).FgColor("bright-white").Build(),
-		app.Text(""),
-		app.NewTextBuilder(fmt.Sprintf("Status: %s", statusText)).FgColor(statusColor).Build(),
-		app.Text(""),
+		ui.NewTextBuilder("⏱ Timer").Bold(true).FgColor("cyan").Build(),
+		ui.Text(""),
+		ui.NewTextBuilder(timeStr).Bold(true).FgColor("bright-white").Build(),
+		ui.Text(""),
+		ui.NewTextBuilder(fmt.Sprintf("Status: %s", statusText)).FgColor(statusColor).Build(),
+		ui.Text(""),
 		ui.HStack(
 			app.ButtonBuilder(" ▶ Start ").OnPress(StartTimerIntent{}).Build(),
-			app.Text(" "),
+			ui.Text(" "),
 			app.ButtonBuilder(" ⏹ Stop ").OnPress(StopTimerIntent{}).Build(),
-			app.Text(" "),
+			ui.Text(" "),
 			app.ButtonBuilder(" ↺ Reset ").OnPress(ResetTimerIntent{}).Build(),
 		),
-		app.Text(""),
-		app.NewTextBuilder("Tab: focus | Enter: click | q: quit").FgColor("bright-black").Build(),
+		ui.Text(""),
+		ui.NewTextBuilder("Tab: focus | Enter: click | q: quit").FgColor("bright-black").Build(),
 	)
 }
 

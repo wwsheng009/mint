@@ -39,39 +39,39 @@ func Counter() ui.VNode {
 	log.TempLogger.Debug("[Counter] Render: count=%d, Fiber=%s", count, fiberStr)
 
 	return ui.VStack(
-		app.NewTextBuilder("Mint UI Counter Demo").
+		ui.NewTextBuilder("Mint UI Counter Demo").
 			FgColor("cyan").
 			Bold(true).
 			Build(),
-		app.Text(""),
-		app.NewTextBuilder(fmt.Sprintf("Count: %d", count)).
+		ui.Text(""),
+		ui.NewTextBuilder(fmt.Sprintf("Count: %d", count)).
 			FgColor("green").
 			Build(),
-		app.Text(""),
+		ui.Text(""),
 		// Debug info line
-		app.NewTextBuilder(fmt.Sprintf("[Fiber: %s] Using GlobalState + IncrementIntent", fiberStr)).
+		ui.NewTextBuilder(fmt.Sprintf("[Fiber: %s] Using GlobalState + IncrementIntent", fiberStr)).
 			FgColor("yellow").
 			Build(),
-		app.Text(""),
-		app.HStack(
+		ui.Text(""),
+		ui.HStack(
 			// Decrement button using Intent (Fiber-first)
 			// Intent created with fresh parameter values at render time
 			app.ButtonBuilder("  -  ").
 				OnPress(intent.Decrement("count", 1)).
 				Build(),
-			app.Text("   "),
+			ui.Text("   "),
 			// Increment button using Intent (Fiber-first)
 			// Intent created with fresh parameter values at render time
 			app.ButtonBuilder("  +  ").
 				OnPress(intent.Increment("count", 1)).
 				Build(),
 		),
-		app.Text(""),
-		app.NewTextBuilder("Focused button = BLUE background").
+		ui.Text(""),
+		ui.NewTextBuilder("Focused button = BLUE background").
 			FgColor("bright-black").
 			Build(),
-		app.Text(""),
-		app.NewTextBuilder("Tab/Arrows: focus | Enter/Space: click | q: quit").
+		ui.Text(""),
+		ui.NewTextBuilder("Tab/Arrows: focus | Enter/Space: click | q: quit").
 			FgColor("bright-black").
 			Build(),
 	)

@@ -49,12 +49,12 @@ func main() {
 		})
 
 		return app.VStack(
-			app.NewTextBuilder("Virtual List Demo").Bold(true).FgColor("cyan").Build(),
-			app.Text(""),
-			app.NewTextBuilder(fmt.Sprintf("Items: %d | Offset: %d | Selected: %d",
+			ui.NewTextBuilder("Virtual List Demo").Bold(true).FgColor("cyan").Build(),
+			ui.Text(""),
+			ui.NewTextBuilder(fmt.Sprintf("Items: %d | Offset: %d | Selected: %d",
 				len(items), offset, selected)).FgColor("gray").Build(),
-			app.Text(""),
-			app.HStack(
+			ui.Text(""),
+			ui.HStack(
 				app.ButtonBuilder(" Scroll Up ").
 					OnPress(ScrollUpIntent{}).
 					Build(),
@@ -62,9 +62,9 @@ func main() {
 					OnPress(ScrollDownIntent{}).
 					Build(),
 			),
-			app.Text(""),
-			app.NewTextBuilder("────────────────────────────").FgColor("blue").Build(),
-			app.Text(""),
+			ui.Text(""),
+			ui.NewTextBuilder("────────────────────────────").FgColor("blue").Build(),
+			ui.Text(""),
 			// Virtual list - only renders visible items
 			app.VirtualListBuilder().
 				Items(items).
@@ -74,10 +74,10 @@ func main() {
 				ScrollOffset(offset).
 				SelectedIndex(selected).
 				Build(),
-			app.Text(""),
-			app.NewTextBuilder("────────────────────────────").FgColor("blue").Build(),
-			app.Text(""),
-			app.NewTextBuilder("Tab to buttons, Enter to scroll").FgColor("gray").Build(),
+			ui.Text(""),
+			ui.NewTextBuilder("────────────────────────────").FgColor("blue").Build(),
+			ui.Text(""),
+			ui.NewTextBuilder("Tab to buttons, Enter to scroll").FgColor("gray").Build(),
 		)
 	},
 		ui.WithWidth(60),

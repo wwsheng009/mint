@@ -43,19 +43,19 @@ func SelectDemo() ui.VNode {
 	currentThemeName := themeNames[currentThemeValue]
 
 	return ui.VStack(
-		app.NewTextBuilder("Settings Demo").
+		ui.NewTextBuilder("Settings Demo").
 			FgColor("cyan").
 			Bold(true).
 			Build(),
-		app.Text(""),
-		app.NewTextBuilder("─────────────────────────────────────").
+		ui.Text(""),
+		ui.NewTextBuilder("─────────────────────────────────────").
 			FgColor("bright-black").
 			Build(),
-		app.Text(""),
-		app.NewTextBuilder("Theme:").
+		ui.Text(""),
+		ui.NewTextBuilder("Theme:").
 			FgColor("bright-black").
 			Build(),
-		app.Text(""),
+		ui.Text(""),
 		app.SelectBuilder().
 			ForField(intent.ForField[int](selectedIndexKey)).
 			AddOption("dark", "Dark Theme").
@@ -64,11 +64,11 @@ func SelectDemo() ui.VNode {
 			AddOption("nord", "Nord Theme").
 			Selected(selectedIndex).
 			Build(),
-		app.Text(""),
-		app.NewTextBuilder(fmt.Sprintf("Selected: %s", currentThemeName)).
+		ui.Text(""),
+		ui.NewTextBuilder(fmt.Sprintf("Selected: %s", currentThemeName)).
 			FgColor("green").
 			Build(),
-		app.Text(""),
+		ui.Text(""),
 		app.TableBuilder().
 			Columns([]app.TableColumn{
 				{Title: "ID", Width: 5},
@@ -79,8 +79,8 @@ func SelectDemo() ui.VNode {
 			AddRow("2", "Bob", "Active").
 			AddRow("3", "Charlie", "Inactive").
 			Build(),
-		app.Text(""),
-		app.NewTextBuilder("Tab: focus | Up/Down/Enter: select | q: quit").
+		ui.Text(""),
+		ui.NewTextBuilder("Tab: focus | Up/Down/Enter: select | q: quit").
 			FgColor("bright-black").
 			Build(),
 	)

@@ -3,13 +3,13 @@
 package main
 
 import (
-	newtext "github.com/wwsheng009/mint/ui/components/text"
-	"github.com/wwsheng009/mint/ui/components/modal"
-	"github.com/wwsheng009/mint/ui"
 	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/framework"
 	"github.com/wwsheng009/mint/runtime/intent"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
+	"github.com/wwsheng009/mint/ui"
+	"github.com/wwsheng009/mint/ui/components/modal"
+	newtext "github.com/wwsheng009/mint/ui/components/text"
 )
 
 func main() {
@@ -61,38 +61,38 @@ func App() ui.VNode {
 
 	return ui.VStack(
 		ui.VStack(
-			app.NewTextBuilder("🎨 Modal Component Demo").
+			ui.NewTextBuilder("🎨 Modal Component Demo").
 				Bold(true).
 				FgColor("cyan").
 				Build(),
-			app.Text(""),
-			app.NewTextBuilder("Interactive Modal Dialog System").
+			ui.Text(""),
+			ui.NewTextBuilder("Interactive Modal Dialog System").
 				FgColor("gray").
 				Build(),
-			app.NewTextBuilder("ESCAPE key or click outside to close").
+			ui.NewTextBuilder("ESCAPE key or click outside to close").
 				FgColor("gray").
 				Build(),
-			app.Text(""),
+			ui.Text(""),
 		),
 
-		app.NewTextBuilder("─").FgColor("gray").Build(),
-		app.Text(""),
+		ui.NewTextBuilder("─").FgColor("gray").Build(),
+		ui.Text(""),
 
 		// Button Grid
 		ui.HStack(
-			app.Text("  "),
+			ui.Text("  "),
 			app.ButtonBuilder("  Basic  ").
 				Variant(app.ButtonVariantPrimary).
 				OnPress(OpenModalIntent{ModalType: "basic"}).
 				Disabled(modalType != "").
 				Build(),
-			app.Text(" "),
+			ui.Text(" "),
 			app.ButtonBuilder("  Border  ").
 				Variant(app.ButtonVariantSecondary).
 				OnPress(OpenModalIntent{ModalType: "border"}).
 				Disabled(modalType != "").
 				Build(),
-			app.Text(" "),
+			ui.Text(" "),
 			app.ButtonBuilder("  Footer  ").
 				Variant(app.ButtonVariantSecondary).
 				OnPress(OpenModalIntent{ModalType: "footer"}).
@@ -100,21 +100,21 @@ func App() ui.VNode {
 				Build(),
 		),
 
-		app.Text(""),
+		ui.Text(""),
 		ui.HStack(
-			app.Text("  "),
+			ui.Text("  "),
 			app.ButtonBuilder("  Alert  ").
 				Variant(app.ButtonVariantSecondary).
 				OnPress(OpenModalIntent{ModalType: "alert"}).
 				Disabled(modalType != "").
 				Build(),
-			app.Text(" "),
+			ui.Text(" "),
 			app.ButtonBuilder("  Sizes  ").
 				Variant(app.ButtonVariantSecondary).
 				OnPress(OpenModalIntent{ModalType: "sizes"}).
 				Disabled(modalType != "").
 				Build(),
-			app.Text(" "),
+			ui.Text(" "),
 			app.ButtonBuilder("  Locked  ").
 				Variant(app.ButtonVariantDanger).
 				OnPress(OpenModalIntent{ModalType: "locked"}).
@@ -122,21 +122,21 @@ func App() ui.VNode {
 				Build(),
 		),
 
-		app.Text(""),
-		app.NewTextBuilder("─").FgColor("gray").Build(),
-		app.Text(""),
+		ui.Text(""),
+		ui.NewTextBuilder("─").FgColor("gray").Build(),
+		ui.Text(""),
 
 		// Status Display
-		app.HStack(
-			app.Text("  "),
-			app.NewTextBuilder("Status: ").FgColor("blue").Build(),
-			app.NewTextBuilder(getStatusText(modalType)).
+		ui.HStack(
+			ui.Text("  "),
+			ui.NewTextBuilder("Status: ").FgColor("blue").Build(),
+			ui.NewTextBuilder(getStatusText(modalType)).
 				FgColor(getStatusColor(modalType)).
 				Build(),
 		),
 
-		app.Text(""),
-		app.NewTextBuilder("─").FgColor("gray").Build(),
+		ui.Text(""),
+		ui.NewTextBuilder("─").FgColor("gray").Build(),
 
 		// Only render the active modal
 		getModal(modalType),
@@ -166,20 +166,20 @@ func getModal(modalType string) ui.VNode {
 			Key("modal-basic").
 			Title("Basic Modal").
 			Content(ui.VStack(
-				app.NewTextBuilder("This is a basic modal dialog.").
+				ui.NewTextBuilder("This is a basic modal dialog.").
 					FgColor("white").
 					Build(),
-				app.Text(""),
-				app.NewTextBuilder("Try pressing ESC").
+				ui.Text(""),
+				ui.NewTextBuilder("Try pressing ESC").
 					FgColor("gray").
 					Build(),
-				app.NewTextBuilder("or clicking outside").
+				ui.NewTextBuilder("or clicking outside").
 					FgColor("gray").
 					Build(),
-				app.NewTextBuilder("or the button below").
+				ui.NewTextBuilder("or the button below").
 					FgColor("gray").
 					Build(),
-				app.Text(""),
+				ui.Text(""),
 				app.ButtonBuilder("  [Close]  ").
 					Variant(app.ButtonVariantPrimary).
 					OnPress(CloseModalIntent{}).
@@ -255,6 +255,6 @@ func getModal(modalType string) ui.VNode {
 			Build()
 
 	default:
-		return app.Text("")
+		return ui.Text("")
 	}
 }

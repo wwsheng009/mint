@@ -56,13 +56,13 @@ func DemoApp() ui.VNode {
 	}
 
 	return ui.VStack(
-		app.NewTextBuilder("╔═══════════════════════════════════════╗").
+		ui.NewTextBuilder("╔═══════════════════════════════════════╗").
 			FgColor("cyan").
 			Build(),
-		app.NewTextBuilder("║     Mint UI Declarative Framework     ║").
+		ui.NewTextBuilder("║     Mint UI Declarative Framework     ║").
 			FgColor("cyan").
 			Build(),
-		app.NewTextBuilder("╚═══════════════════════════════════════╝").
+		ui.NewTextBuilder("╚═══════════════════════════════════════╝").
 			FgColor("cyan").
 			Build(),
 		ui.Text(""),
@@ -81,7 +81,7 @@ func DemoApp() ui.VNode {
 				Build(),
 		),
 		ui.Text(""),
-		app.NewTextBuilder("───────────────────────────────────────").
+		ui.NewTextBuilder("───────────────────────────────────────").
 			FgColor("bright-black").
 			Build(),
 		ui.Text(""),
@@ -89,20 +89,20 @@ func DemoApp() ui.VNode {
 		func() ui.VNode {
 			if currentTab == "counter" {
 				return ui.Fragment(
-					app.NewTextBuilder("📊 Counter Demo").
+					ui.NewTextBuilder("📊 Counter Demo").
 						FgColor("yellow").
 						Bold(true).
 						Build(),
 					ui.Text(""),
-					app.NewTextBuilder("   Count:   ").
+					ui.NewTextBuilder("   Count:   ").
 						FgColor("bright-black").
 						Build(),
 					ui.HStack(
-						app.NewTextBuilder("   ").
+						ui.NewTextBuilder("   ").
 							FgColor("green").
 							Bold(true).
 							Build(),
-						app.NewTextBuilder("  ").
+						ui.NewTextBuilder("  ").
 							FgColor("green").
 							Bold(true).
 							Build(),
@@ -117,7 +117,7 @@ func DemoApp() ui.VNode {
 				)
 			} else if currentTab == "input" {
 				return ui.Fragment(
-					app.NewTextBuilder("📝 Input Demo").
+					ui.NewTextBuilder("📝 Input Demo").
 						FgColor("yellow").
 						Bold(true).
 						Build(),
@@ -127,13 +127,13 @@ func DemoApp() ui.VNode {
 						Placeholder("Type here...").
 						Build(),
 					ui.Text(""),
-					app.NewTextBuilder("You typed: " + text).
+					ui.NewTextBuilder("You typed: " + text).
 						FgColor("magenta").
 						Build(),
 				)
 			} else {
 				return ui.Fragment(
-					app.NewTextBuilder("✓ Tasks Demo").
+					ui.NewTextBuilder("✓ Tasks Demo").
 						FgColor("yellow").
 						Bold(true).
 						Build(),
@@ -157,7 +157,7 @@ func DemoApp() ui.VNode {
 			}
 		}(),
 		ui.Text(""),
-		app.NewTextBuilder("Tab: focus | Space/Enter: select | q: quit").
+		ui.NewTextBuilder("Tab: focus | Space/Enter: select | q: quit").
 			FgColor("bright-black").
 			Build(),
 	)

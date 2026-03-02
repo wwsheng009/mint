@@ -121,7 +121,7 @@ func buildDemoContent(
 // HeaderPanel shows the title with border
 func HeaderPanel() ui.VNode {
 	headerContent := ui.HStackBuilder(
-		app.NewTextBuilder("Runtime Scheduling Pipeline Visualization").
+		ui.NewTextBuilder("Runtime Scheduling Pipeline Visualization").
 			Style(style.FgBold(theme.Text())).
 			Build(),
 	).
@@ -183,7 +183,7 @@ func buildPipelineLine(phases []struct{ name string; color string; position int 
 		result += "[" + p.name + "]"
 	}
 
-	return app.NewTextBuilder(result).
+	return ui.NewTextBuilder(result).
 		Style(style.Foreground(theme.Muted())).
 		Build()
 }
@@ -200,7 +200,7 @@ func buildPipelineArrows(phases []struct{ name string; color string; position in
 		}
 	}
 
-	return app.NewTextBuilder(result).
+	return ui.NewTextBuilder(result).
 		Style(style.Foreground(theme.Muted())).
 		Build()
 }
@@ -208,22 +208,22 @@ func buildPipelineArrows(phases []struct{ name string; color string; position in
 // StatisticsPanel shows runtime statistics
 func StatisticsPanel(eventCount, renderCount, bufferUpdates int) ui.VNode {
 	content := ui.HStack(
-		app.NewTextBuilder("Events:").
+		ui.NewTextBuilder("Events:").
 			Style(style.Foreground(theme.Text())).
 			Build(),
-		app.NewTextBuilder(fmt.Sprintf("%6d", eventCount)).
+		ui.NewTextBuilder(fmt.Sprintf("%6d", eventCount)).
 			Style(style.FgBgBold(theme.Error(), theme.BG())).
 			Build(),
-		app.NewTextBuilder("  Renders:").
+		ui.NewTextBuilder("  Renders:").
 			Style(style.Foreground(theme.Text())).
 			Build(),
-		app.NewTextBuilder(fmt.Sprintf("%6d", renderCount)).
+		ui.NewTextBuilder(fmt.Sprintf("%6d", renderCount)).
 			Style(style.FgBgBold(theme.Info(), theme.BG())).
 			Build(),
-		app.NewTextBuilder("  Buffers:").
+		ui.NewTextBuilder("  Buffers:").
 			Style(style.Foreground(theme.Text())).
 			Build(),
-		app.NewTextBuilder(fmt.Sprintf("%6d", bufferUpdates)).
+		ui.NewTextBuilder(fmt.Sprintf("%6d", bufferUpdates)).
 			Style(style.FgBgBold(theme.Success(), theme.BG())).
 			Build(),
 	)
@@ -338,7 +338,7 @@ func ExplanationPanel(currentPhase string) ui.VNode {
 		text = "Select a phase to see detailed explanation..."
 	}
 
-	content := app.NewTextBuilder(text).
+	content := ui.NewTextBuilder(text).
 		Style(style.Foreground(theme.Text())).
 		Build()
 

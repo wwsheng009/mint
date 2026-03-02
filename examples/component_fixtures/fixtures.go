@@ -115,16 +115,16 @@ func BuildDemo1App(opts ...Demo1ConfigOption) ui.VNode {
 // BuildDemo1Header builds the header component
 func BuildDemo1Header(count int) ui.VNode {
 	headerContent := ui.HStack(
-		app.NewTextBuilder("TUI Engine Demo").
+		ui.NewTextBuilder("TUI Engine Demo").
 			Style(style.FgBgBold(theme.Text(), theme.Primary())).
 			Build(),
-		app.NewTextBuilder("              ").
+		ui.NewTextBuilder("              ").
 			Style(style.FgBg(theme.Surface(), theme.Primary())).
 			Build(),
-		app.NewTextBuilder(" ").
+		ui.NewTextBuilder(" ").
 			Style(style.FgBg(theme.Surface(), theme.Primary())).
 			Build(),
-		app.NewTextBuilder(fmt.Sprintf("Clicks: %d", count)).
+		ui.NewTextBuilder(fmt.Sprintf("Clicks: %d", count)).
 			Style(style.FgBgBold(theme.BG(), theme.Primary())).
 			Build(),
 	)
@@ -138,13 +138,13 @@ func BuildDemo1Header(count int) ui.VNode {
 // BuildDemo1MainBody builds the main body layout
 func BuildDemo1MainBody(count int, input string, items []string) ui.VNode {
 	sidebar := ui.VStackBuilder(
-		app.NewTextBuilder("Menu").
+		ui.NewTextBuilder("Menu").
 			Style(style.FgBoldUnderline(theme.Muted())).
 			Build(),
-		app.NewTextBuilder("Add Count").
+		ui.NewTextBuilder("Add Count").
 			Style(style.FgBold(theme.Primary())).
 			Build(),
-		app.NewTextBuilder("Quit").
+		ui.NewTextBuilder("Quit").
 			Style(style.FgBold(theme.Error())).
 			Build(),
 	).Stretch().Build()
@@ -173,17 +173,17 @@ func buildContentArea(input string, items []string) ui.VNode {
 	children := make([]ui.VNode, 0, len(items)+3)
 
 	children = append(children,
-		app.NewTextBuilder("[ Input: "+input+" ]").
+		ui.NewTextBuilder("[ Input: "+input+" ]").
 			Style(style.Foreground(theme.Text())).
 			Build(),
-		app.NewTextBuilder("──────────────────────────────────────").
+		ui.NewTextBuilder("──────────────────────────────────────").
 			Style(style.Foreground(theme.Border())).
 			Build(),
 	)
 
 	for i := 0; i < len(items)-1; i++ {
 		children = append(children,
-			app.NewTextBuilder(items[i]).
+			ui.NewTextBuilder(items[i]).
 				Style(style.Foreground(theme.Muted())).
 				Build(),
 		)
@@ -192,10 +192,10 @@ func buildContentArea(input string, items []string) ui.VNode {
 	// Last item with ellipsis
 	children = append(children,
 		ui.HStack(
-			app.NewTextBuilder(items[len(items)-1]).
+			ui.NewTextBuilder(items[len(items)-1]).
 				Style(style.Foreground(theme.Muted())).
 				Build(),
-			app.NewTextBuilder(" ...").
+			ui.NewTextBuilder(" ...").
 				Style(style.FgItalic(theme.Placeholder())).
 				Build(),
 		),
@@ -219,7 +219,7 @@ func BuildDemo1ConfirmModal(onClose func()) ui.VNode {
 				ui.Text(""),
 				ui.Text("=== MODAL START ==="),
 				ui.HStackBuilder(
-					app.NewTextBuilder("*** Are you sure? ***").
+					ui.NewTextBuilder("*** Are you sure? ***").
 						Style(style.FgBold(theme.Warning())).
 						Build(),
 				).Align(ui.AlignCenter).Build(),
@@ -239,7 +239,7 @@ func BuildDemo1ConfirmModal(onClose func()) ui.VNode {
 				).Align(ui.AlignCenter).Build(),
 				ui.Text(""),
 				ui.HStackBuilder(
-					app.NewTextBuilder("Press ESC to close").
+					ui.NewTextBuilder("Press ESC to close").
 						Style(style.Foreground(theme.Placeholder())).
 						Build(),
 				).Align(ui.AlignCenter).Build(),

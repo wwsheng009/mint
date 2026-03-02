@@ -12,9 +12,10 @@ import (
 	"github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/paint"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
+	"github.com/wwsheng009/mint/ui"
+	app "github.com/wwsheng009/mint/ui"
 	modal "github.com/wwsheng009/mint/ui/components/modal"
 	text "github.com/wwsheng009/mint/ui/components/text"
-	app "github.com/wwsheng009/mint/ui"
 )
 
 // Test 1: Centered modal from main.go (uses Stack+Spacer)
@@ -29,7 +30,7 @@ func Test1_CenteredModalFromMain() rtui.VNode {
 					FgColor("yellow").
 					Bold(true).
 					Build(),
-				app.Text(""),
+				ui.Text(""),
 				text.NewBuilder("This is the default and most common").
 					FgColor("gray").
 					Build(),
@@ -49,7 +50,7 @@ func Test1_CenteredModalFromMain() rtui.VNode {
 
 // Test 2: Left aligned modal from main.go
 func Test2_LeftAlignedModal() rtui.VNode {
-	return app.HStack(
+	return ui.HStack(
 		modal.NewBuilder().
 			Key("modal-left").
 			Title("Left Aligned").
@@ -58,7 +59,7 @@ func Test2_LeftAlignedModal() rtui.VNode {
 					FgColor("yellow").
 					Bold(true).
 					Build(),
-				app.Text(""),
+				ui.Text(""),
 				text.NewBuilder("No spacer on the left side").
 					FgColor("gray").
 					Build(),

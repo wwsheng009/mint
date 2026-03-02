@@ -204,40 +204,40 @@ func App() ui.VNode {
 // FormView - 主表单视图
 func FormView(username, email, bio string, country int, agree bool) ui.VNode {
 	return ui.VStack(
-		app.NewTextBuilder("🎨 MVP Components Demo").
+		ui.NewTextBuilder("🎨 MVP Components Demo").
 			Bold(true).
 			FgColor("cyan").
 			Build(),
-		app.Text(""),
-		app.NewTextBuilder("ForField() + FieldChangeIntent Pattern").
+		ui.Text(""),
+		ui.NewTextBuilder("ForField() + FieldChangeIntent Pattern").
 			FgColor("gray").
 			Build(),
-		app.NewTextBuilder("数据流: Instance → FieldChangeIntent → State → VNode").
+		ui.NewTextBuilder("数据流: Instance → FieldChangeIntent → State → VNode").
 			FgColor("gray").
 			Build(),
-		app.Text(""),
-		app.NewTextBuilder("─").FgColor("gray").Build(),
-		app.Text(""),
+		ui.Text(""),
+		ui.NewTextBuilder("─").FgColor("gray").Build(),
+		ui.Text(""),
 
 		// 表单内容
 		BasicFormFields(username, email, agree),
-		app.NewTextBuilder("─").FgColor("gray").Build(),
-		app.Text(""),
+		ui.NewTextBuilder("─").FgColor("gray").Build(),
+		ui.Text(""),
 		ProfileFormFields(bio, country),
 
-		app.Text(""),
-		app.NewTextBuilder("─").FgColor("gray").Build(),
-		app.Text(""),
+		ui.Text(""),
+		ui.NewTextBuilder("─").FgColor("gray").Build(),
+		ui.Text(""),
 
 		// 底部按钮
-		app.HStack(
-			app.Text("  "),
+		ui.HStack(
+			ui.Text("  "),
 			app.ButtonBuilder("  Submit  ").
 				Variant(app.ButtonVariantPrimary).
 				OnPress(SubmitFormIntent{}).
 				Disabled(username == "" || email == "" || !agree).
 				Build(),
-			app.Text(" "),
+			ui.Text(" "),
 			app.ButtonBuilder("  Reset  ").
 				Variant(app.ButtonVariantSecondary).
 				OnPress(ResetIntent{}).
@@ -250,9 +250,9 @@ func FormView(username, email, bio string, country int, agree bool) ui.VNode {
 func BasicFormFields(username, email string, agree bool) ui.VNode {
 	return ui.VStack(
 		// Input 组件 - 用户名
-		app.NewTextBuilder("Username:").FgColor("blue").Build(),
-		app.HStack(
-			app.Text("  "),
+		ui.NewTextBuilder("Username:").FgColor("blue").Build(),
+		ui.HStack(
+			ui.Text("  "),
 			app.InputBuilder().
 				// ForField() 自动处理 FieldChangeIntent
 				ForField(intent.ForField(usernameKey)).
@@ -262,12 +262,12 @@ func BasicFormFields(username, email string, agree bool) ui.VNode {
 				Build(),
 		),
 
-		app.Text(""),
+		ui.Text(""),
 
 		// Input 组件 - 电子邮件
-		app.NewTextBuilder("Email:").FgColor("blue").Build(),
-		app.HStack(
-			app.Text("  "),
+		ui.NewTextBuilder("Email:").FgColor("blue").Build(),
+		ui.HStack(
+			ui.Text("  "),
 			app.InputBuilder().
 				ForField(intent.ForField(emailKey)).
 				Value(email).
@@ -276,11 +276,11 @@ func BasicFormFields(username, email string, agree bool) ui.VNode {
 				Build(),
 		),
 
-		app.Text(""),
+		ui.Text(""),
 
 		// Checkbox 组件 - 同意条款
-		app.HStack(
-			app.Text("  "),
+		ui.HStack(
+			ui.Text("  "),
 			app.CheckboxBuilder().
 				ForField(intent.ForField(agreeKey)).
 				Checked(agree).
@@ -288,8 +288,8 @@ func BasicFormFields(username, email string, agree bool) ui.VNode {
 				Build(),
 		),
 
-		app.Text(""),
-		app.NewTextBuilder(fmt.Sprintf("✓ State: username=%q, email=%q, agree=%v",
+		ui.Text(""),
+		ui.NewTextBuilder(fmt.Sprintf("✓ State: username=%q, email=%q, agree=%v",
 			username, email, agree)).FgColor("gray").Build(),
 	)
 }
@@ -313,9 +313,9 @@ func ProfileFormFields(bio string, country int) ui.VNode {
 
 	return ui.VStack(
 		// Select 组件 - 国家选择
-		app.NewTextBuilder("Country:").FgColor("blue").Build(),
-		app.HStack(
-			app.Text("  "),
+		ui.NewTextBuilder("Country:").FgColor("blue").Build(),
+		ui.HStack(
+			ui.Text("  "),
 			app.SelectBuilder().
 				Options(countries).
 				Selected(country).
@@ -325,12 +325,12 @@ func ProfileFormFields(bio string, country int) ui.VNode {
 				Build(),
 		),
 
-		app.Text(""),
+		ui.Text(""),
 
 		// Textarea 组件 - 个人简介
-		app.NewTextBuilder("Bio:").FgColor("blue").Build(),
-		app.HStack(
-			app.Text("  "),
+		ui.NewTextBuilder("Bio:").FgColor("blue").Build(),
+		ui.HStack(
+			ui.Text("  "),
 			app.TextareaBuilder().
 				ForField(intent.ForField(bioKey)).
 				Value(bio).
@@ -340,8 +340,8 @@ func ProfileFormFields(bio string, country int) ui.VNode {
 				Build(),
 		),
 
-		app.Text(""),
-		app.NewTextBuilder(fmt.Sprintf("✓ State: country=%s (%d), bio chars=%d",
+		ui.Text(""),
+		ui.NewTextBuilder(fmt.Sprintf("✓ State: country=%s (%d), bio chars=%d",
 			countryLabel, country, len(bio))).FgColor("gray").Build(),
 	)
 }
@@ -364,31 +364,31 @@ func SuccessView(username, email, bio string, country int, agree bool) ui.VNode 
 	}
 
 	return ui.VStack(
-		app.NewTextBuilder("✅ Form Submitted Successfully!").
+		ui.NewTextBuilder("✅ Form Submitted Successfully!").
 			Bold(true).
 			FgColor("green").
 			Build(),
-		app.Text(""),
-		app.NewTextBuilder("─").FgColor("gray").Build(),
-		app.Text(""),
+		ui.Text(""),
+		ui.NewTextBuilder("─").FgColor("gray").Build(),
+		ui.Text(""),
 
-		app.NewTextBuilder(fmt.Sprintf("Username: %s", username)).Build(),
-		app.NewTextBuilder(fmt.Sprintf("Email: %s", email)).Build(),
-		app.NewTextBuilder(fmt.Sprintf("Country: %s", countryLabel)).Build(),
-		app.NewTextBuilder(fmt.Sprintf("Bio: %s", bio)).Build(),
-		app.NewTextBuilder(fmt.Sprintf("Agreed: %v", agree)).Build(),
+		ui.NewTextBuilder(fmt.Sprintf("Username: %s", username)).Build(),
+		ui.NewTextBuilder(fmt.Sprintf("Email: %s", email)).Build(),
+		ui.NewTextBuilder(fmt.Sprintf("Country: %s", countryLabel)).Build(),
+		ui.NewTextBuilder(fmt.Sprintf("Bio: %s", bio)).Build(),
+		ui.NewTextBuilder(fmt.Sprintf("Agreed: %v", agree)).Build(),
 
-		app.Text(""),
-		app.NewTextBuilder("─").FgColor("gray").Build(),
-		app.Text(""),
+		ui.Text(""),
+		ui.NewTextBuilder("─").FgColor("gray").Build(),
+		ui.Text(""),
 
-		app.HStack(
-			app.Text("  "),
+		ui.HStack(
+			ui.Text("  "),
 			app.ButtonBuilder("  Back to Form  ").
 				Variant(app.ButtonVariantSecondary).
 				OnPress(BackFormIntent{}).
 				Build(),
-			app.Text(" "),
+			ui.Text(" "),
 			app.ButtonBuilder("  Reset  ").
 				Variant(app.ButtonVariantDanger).
 				OnPress(ResetIntent{}).

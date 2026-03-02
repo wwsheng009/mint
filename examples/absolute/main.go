@@ -27,19 +27,19 @@ func main() {
 			})
 		})
 
-		return app.VStack(
-			app.NewTextBuilder("Absolute Positioning Demo").Bold(true).FgColor("cyan").Build(),
-			app.Text(""),
-			app.Text("Button with notification badge:"),
-			app.Text(""),
-			app.HStack(
+		return ui.VStack(
+			ui.TextBuilder("Absolute Positioning Demo").Bold(true).FgColor("cyan").Build(),
+			ui.Text(""),
+			ui.Text("Button with notification badge:"),
+			ui.Text(""),
+			ui.HStack(
 				app.ButtonBuilder("  Messages  ").
 					OnPress(IncrementIntent{}).
 					Variant(button.VariantPrimary).
 					Build(),
 				// Badge positioned absolutely relative to parent
 				app.AbsoluteBuilder(
-					app.NewTextBuilder("New!").
+					ui.NewTextBuilder("New!").
 						FgColor("red").
 						BgColor("white").
 						Bold(true).
@@ -49,15 +49,15 @@ func main() {
 					Top(absolute.AbsolutePos(10)).
 					Build(),
 			),
-			app.Text(""),
-			app.NewTextBuilder("Stacked Elements").FgColor("yellow").Build(),
-			app.Text(""),
+			ui.Text(""),
+			ui.NewTextBuilder("Stacked Elements").FgColor("yellow").Build(),
+			ui.Text(""),
 			app.VStack(
-				app.Text("Background layer"),
-				app.HStack(
-					app.Text("Middle layer"),
+				ui.Text("Background layer"),
+				ui.HStack(
+					ui.Text("Middle layer"),
 					app.AbsoluteBuilder(
-						app.NewTextBuilder("OVERLAY").FgColor("white").BgColor("red").Build(),
+						ui.NewTextBuilder("OVERLAY").FgColor("white").BgColor("red").Build(),
 					).
 						Left(absolute.AbsolutePos(10)).
 						Top(absolute.AbsolutePos(5)).
@@ -65,8 +65,8 @@ func main() {
 						Build(),
 				),
 			),
-			app.Text(""),
-			app.NewTextBuilder(fmt.Sprintf("Click count: %d", count)).Build(),
+			ui.Text(""),
+			ui.NewTextBuilder(fmt.Sprintf("Click count: %d", count)).Build(),
 		)
 	},
 		ui.WithWidth(50),

@@ -9,7 +9,7 @@ import (
 func Hello() ui.VNode {
 
 	return app.VStack(
-		app.Text("Hello World"),
+		ui.Text("Hello World"),
 	)
 }
 

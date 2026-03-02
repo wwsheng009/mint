@@ -13,9 +13,10 @@ import (
 	"github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/paint"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
+	"github.com/wwsheng009/mint/ui"
+	app "github.com/wwsheng009/mint/ui"
 	modal "github.com/wwsheng009/mint/ui/components/modal"
 	text "github.com/wwsheng009/mint/ui/components/text"
-	app "github.com/wwsheng009/mint/ui"
 )
 
 // Test case struct
@@ -80,7 +81,7 @@ func TestModalAloneCentered() rtui.VNode {
 // Should follow VStack flow (not centered)
 func TestModalInVStackNotCentered() rtui.VNode {
 	return app.VStack(
-		app.Text("Before modal"),
+		ui.Text("Before modal"),
 		modal.NewBuilder().
 			Key("modal-vstack-not-center").
 			Title("In VStack").
@@ -90,14 +91,14 @@ func TestModalInVStackNotCentered() rtui.VNode {
 			Centered(false).
 			Open(true).
 			Build(),
-		app.Text("After modal"),
+		ui.Text("After modal"),
 	)
 }
 
 // Test 5: Modal in HStack with Centered(false)
 // Should follow HStack flow (not centered)
 func TestModalInHStackNotCentered() rtui.VNode {
-	return app.HStack(
+	return ui.HStack(
 		modal.NewBuilder().
 			Key("modal-hstack-not-center").
 			Title("In HStack").

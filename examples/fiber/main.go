@@ -30,12 +30,12 @@ func SimpleCounter() ui.VNode {
 	})
 
 	return ui.VStack(
-		app.NewTextBuilder("Fiber Reconciler Test").
+		ui.NewTextBuilder("Fiber Reconciler Test").
 			FgColor("cyan").
 			Bold(true).
 			Build(),
 		ui.Text(""),
-		app.NewTextBuilder(fmt.Sprintf("Count: %d", count)).
+		ui.NewTextBuilder(fmt.Sprintf("Count: %d", count)).
 			FgColor("green").
 			Build(),
 		ui.Text(""),
@@ -49,11 +49,11 @@ func SimpleCounter() ui.VNode {
 				Build(),
 		),
 		ui.Text(""),
-		app.NewTextBuilder("Fiber Mode: ENABLED").
+		ui.NewTextBuilder("Fiber Mode: ENABLED").
 			FgColor("yellow").
 			Build(),
 		ui.Text(""),
-		app.NewTextBuilder("Tab/Arrows: focus | Enter/Space: click | q: quit").
+		ui.NewTextBuilder("Tab/Arrows: focus | Enter/Space: click | q: quit").
 			FgColor("bright-black").
 			Build(),
 	)

@@ -16,7 +16,7 @@ func TestScrollViewWrapper(t *testing.T) {
 	// Create a large content that exceeds viewport
 	var content []ui.VNode
 	for i := 0; i < 50; i++ {
-		content = append(content, app.Text(fmt.Sprintf("Line %d", i+1)))
+		content = append(content, ui.Text(fmt.Sprintf("Line %d", i+1)))
 	}
 	vstackContent := app.VStack(content...)
 

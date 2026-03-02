@@ -71,24 +71,24 @@ func main() {
 
 		// 4. 返回 VNode
 		return app.VStack(
-			app.NewTextBuilder("Toast Notifications Demo").Bold(true).FgColor("cyan").Build(),
-			app.Text(""),
-			app.Text("Click buttons below to show different toast types:"),
-			app.Text(""),
-			app.HStack(
+			ui.NewTextBuilder("Toast Notifications Demo").Bold(true).FgColor("cyan").Build(),
+			ui.Text(""),
+			ui.Text("Click buttons below to show different toast types:"),
+			ui.Text(""),
+			ui.HStack(
 				app.ButtonBuilder(" Info ").OnPress(ShowInfoToastIntent{}).Build(),
 				app.ButtonBuilder(" Success ").OnPress(ShowSuccessToastIntent{}).Build(),
 				app.ButtonBuilder(" Warning ").OnPress(ShowWarningToastIntent{}).Build(),
 				app.ButtonBuilder(" Error ").OnPress(ShowErrorToastIntent{}).Build(),
 			),
-			app.Text(""),
-			app.Text(""),
-			app.HStack(
+			ui.Text(""),
+			ui.Text(""),
+			ui.HStack(
 				app.ButtonBuilder(" Clear All ").OnPress(ClearAllToastsIntent{}).Build(),
 			),
-			app.Text(""),
-			app.NewTextBuilder("────────────────────────────").FgColor("blue").Build(),
-			app.Text(""),
+			ui.Text(""),
+			ui.NewTextBuilder("────────────────────────────").FgColor("blue").Build(),
+			ui.Text(""),
 			app.VStack(toasts...),
 		)
 	},

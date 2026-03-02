@@ -16,7 +16,7 @@ func TestScrollViewHeightClipping(t *testing.T) {
 	// Create content with 50 lines
 	var content []ui.VNode
 	for i := 0; i < 50; i++ {
-		content = append(content, app.Text(fmt.Sprintf("Line %d", i+1)))
+		content = append(content, ui.Text(fmt.Sprintf("Line %d", i+1)))
 	}
 	vstackContent := app.VStack(content...)
 

@@ -93,7 +93,7 @@ func TestModalCenteringWithButtons(t *testing.T) {
 	// Create a modal with buttons
 	app := func() ui.VNode {
 		return ui.VStack(
-			app.Text("Background"),
+			ui.Text("Background"),
 			ui.Modal(
 				ui.Bordered().
 					Width(40).
@@ -163,7 +163,7 @@ func TestModalCenteringWithButtons(t *testing.T) {
 // TestModalAlignProp tests that align prop is set correctly
 func TestModalAlignProp(t *testing.T) {
 	hstack := ui.HStackBuilder(
-		app.Text("Test"),
+		ui.Text("Test"),
 	).Align(ui.AlignCenter).Build()
 
 	props := hstack.Props()

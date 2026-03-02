@@ -208,17 +208,17 @@ func ModalView() ui.VNode {
 	return ui.VStackBuilder(
 		ui.HStackBuilder(
 			ui.Text(""),
-			app.NewTextBuilder("✓ Registration Successful!").
+			ui.NewTextBuilder("✓ Registration Successful!").
 				Style(style.Style{}.Foreground(theme.Success()).Bold(true)).
 				Build(),
 			ui.Text(""),
 		).Build(),
 		ui.Text(""),
-		app.NewTextBuilder("Thank you for registering with us.").
+		ui.NewTextBuilder("Thank you for registering with us.").
 			Style(style.Style{}).
 			Build(),
 		ui.Text(""),
-		app.HStack(
+		ui.HStack(
 			ui.Text(""),
 			app.ButtonBuilder("[ Close ]").
 				Variant(app.ButtonVariantPrimary).
@@ -239,7 +239,7 @@ func Header() ui.VNode {
 		Color(string(theme.Primary())).
 		Child(
 			ui.HStackBuilder(
-				app.NewTextBuilder("📝 User Registration Form").
+				ui.NewTextBuilder("📝 User Registration Form").
 					Style(style.Style{}.
 						Foreground(theme.BG()).
 						Background(theme.Primary()).
@@ -271,7 +271,7 @@ func StepIndicator(step int) ui.VNode {
 		}
 
 		items[i] = ui.HStackBuilder(
-			app.NewTextBuilder(fmt.Sprintf("%d. %s", i+1, s)).
+			ui.NewTextBuilder(fmt.Sprintf("%d. %s", i+1, s)).
 				Style(itemStyle).
 				Build(),
 		).Align(ui.AlignCenter).Build()
@@ -285,18 +285,18 @@ func ProgressBar(step int) ui.VNode {
 	const totalSteps = 3
 	progress := step * 30 / totalSteps
 
-	track := app.NewTextBuilder("┌" + strings.Repeat("─", 30) + "┐").
+	track := ui.NewTextBuilder("┌" + strings.Repeat("─", 30) + "┐").
 		Style(style.Style{}.Foreground(theme.Border())).
 		Build()
 
-	fill := app.NewTextBuilder("│" + strings.Repeat("━", progress) + strings.Repeat("─", 30-progress) + "│").
+	fill := ui.NewTextBuilder("│" + strings.Repeat("━", progress) + strings.Repeat("─", 30-progress) + "│").
 		Style(style.Style{}.Foreground(theme.Primary())).
 		Build()
 
 	return ui.VStack(
 		track,
 		fill,
-		app.NewTextBuilder("└"+strings.Repeat("─", 30)+"┐").
+		ui.NewTextBuilder("└"+strings.Repeat("─", 30)+"┐").
 			Style(style.Style{}.Foreground(theme.Border())).
 			Build(),
 	)
@@ -366,7 +366,7 @@ func FormItem(
 
 	var requiredMark ui.VNode
 	if required {
-		requiredMark = app.NewTextBuilder("*").
+		requiredMark = ui.NewTextBuilder("*").
 			Style(style.Style{}.Foreground(theme.Error())).
 			Build()
 	} else {
@@ -375,7 +375,7 @@ func FormItem(
 
 	var helpNode ui.VNode
 	if helpText != "" {
-		helpNode = app.NewTextBuilder(helpText).
+		helpNode = ui.NewTextBuilder(helpText).
 			Style(style.Style{}.Foreground(theme.Muted())).
 			Build()
 	} else {
@@ -390,7 +390,7 @@ func FormItem(
 
 	return ui.VStackBuilder(
 		ui.HStackBuilder(
-			app.NewTextBuilder(fmt.Sprintf("%-*s", labelWidth, label)).
+			ui.NewTextBuilder(fmt.Sprintf("%-*s", labelWidth, label)).
 				Style(style.Style{}.
 					Foreground(theme.Text()).
 					Bold(true)).
@@ -423,7 +423,7 @@ func FormItemPassword(
 
 	var helpNode ui.VNode
 	if helpText != "" {
-		helpNode = app.NewTextBuilder(helpText).
+		helpNode = ui.NewTextBuilder(helpText).
 			Style(style.Style{}.Foreground(theme.Muted())).
 			Build()
 	} else {
@@ -432,7 +432,7 @@ func FormItemPassword(
 
 	return ui.VStackBuilder(
 		ui.HStackBuilder(
-			app.NewTextBuilder(fmt.Sprintf("%-*s", labelWidth, "Password:")).
+			ui.NewTextBuilder(fmt.Sprintf("%-*s", labelWidth, "Password:")).
 				Style(style.Style{}.
 					Foreground(theme.Text()).
 					Bold(true)).
@@ -457,12 +457,12 @@ func ConfirmInfo(label, value string) ui.VNode {
 	labelWidth := 10
 
 	return ui.HStackBuilder(
-		app.NewTextBuilder(fmt.Sprintf("%-*s", labelWidth, label)).
+		ui.NewTextBuilder(fmt.Sprintf("%-*s", labelWidth, label)).
 			Style(style.Style{}.
 				Foreground(theme.Muted()).
 				Bold(true)).
 			Build(),
-		app.NewTextBuilder(value).
+		ui.NewTextBuilder(value).
 			Style(style.Style{}.
 				Foreground(theme.Text())).
 			Build(),
@@ -512,7 +512,7 @@ func ActionButtons(step int) ui.VNode {
 // Footer - 页脚
 func Footer() ui.VNode {
 	return ui.HStackBuilder(
-		app.NewTextBuilder("Press Tab to navigate • Enter to select • Esc to quit").
+		ui.NewTextBuilder("Press Tab to navigate • Enter to select • Esc to quit").
 			Style(style.Style{}.Foreground(theme.Placeholder())).
 			Build(),
 	).Align(ui.AlignCenter).Build()

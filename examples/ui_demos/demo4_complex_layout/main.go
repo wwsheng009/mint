@@ -64,22 +64,22 @@ func LayoutDemo() ui.VNode {
 // HeaderPanel shows the title
 func HeaderPanel() ui.VNode {
 	return ui.VStack(
-		app.NewTextBuilder("╔══════════════════════════════════════════════════════════════════════════════════════════╗").
+		ui.NewTextBuilder("╔══════════════════════════════════════════════════════════════════════════════════════════╗").
 			FgColor("cyan").
 			Build(),
 		ui.HStack(
-			app.NewTextBuilder("║ ").
+			ui.NewTextBuilder("║ ").
 				FgColor("cyan").
 				Build(),
-			app.NewTextBuilder("                          Complex Layout System Demo").
+			ui.NewTextBuilder("                          Complex Layout System Demo").
 				Bold(true).
 				FgColor("white").
 				Build(),
-			app.NewTextBuilder("                                   ║").
+			ui.NewTextBuilder("                                   ║").
 				FgColor("cyan").
 				Build(),
 		),
-		app.NewTextBuilder("╚══════════════════════════════════════════════════════════════════════════════════════════╝").
+		ui.NewTextBuilder("╚══════════════════════════════════════════════════════════════════════════════════════════╝").
 			FgColor("cyan").
 			Build(),
 	)
@@ -134,71 +134,71 @@ func renderDemoContent(currentDemo string) ui.VNode {
 	case "complex":
 		return ComplexLayoutDemo()
 	default:
-		return app.NewTextBuilder("Unknown demo").Build()
+		return ui.NewTextBuilder("Unknown demo").Build()
 	}
 }
 
 // FlexDemo demonstrates Flex layout
 func FlexDemo() ui.VNode {
 	return ui.VStack(
-		app.NewTextBuilder("┌─ Flex Layout (Row) ─────────────────────────────────────────────────────────────────────┐").
+		ui.NewTextBuilder("┌─ Flex Layout (Row) ─────────────────────────────────────────────────────────────────────┐").
 			FgColor("gray").
 			Build(),
 		ui.Text(""),
 		ui.HStack(
-			app.NewTextBuilder("│ ").
+			ui.NewTextBuilder("│ ").
 				FgColor("gray").
 				Build(),
-			app.NewTextBuilder("[Fixed]").
+			ui.NewTextBuilder("[Fixed]").
 				BgColor("red").
 				FgColor("white").
 				Build(),
 			ui.Text(" "),
-			app.NewTextBuilder("[Flex=1]").
+			ui.NewTextBuilder("[Flex=1]").
 				BgColor("blue").
 				FgColor("white").
 				Build(),
 			ui.Text(" "),
-			app.NewTextBuilder("[Flex=2]").
+			ui.NewTextBuilder("[Flex=2]").
 				BgColor("green").
 				FgColor("white").
 				Build(),
-			app.NewTextBuilder("                                               │").
+			ui.NewTextBuilder("                                               │").
 				FgColor("gray").
 				Build(),
 		),
 		ui.Text(""),
-		app.NewTextBuilder("│ Fixed width elements take their space, remaining is divided by Flex ratio                │").
+		ui.NewTextBuilder("│ Fixed width elements take their space, remaining is divided by Flex ratio                │").
 			FgColor("gray").
 			Build(),
-		app.NewTextBuilder("└──────────────────────────────────────────────────────────────────────────────────────────────┘").
+		ui.NewTextBuilder("└──────────────────────────────────────────────────────────────────────────────────────────────┘").
 			FgColor("gray").
 			Build(),
 		ui.Text(""),
-		app.NewTextBuilder("┌─ Flex Layout (Column) ────────────────────────────────────────────────────────────────────┐").
+		ui.NewTextBuilder("┌─ Flex Layout (Column) ────────────────────────────────────────────────────────────────────┐").
 			FgColor("gray").
 			Build(),
 		ui.Text(""),
 		ui.VStack(
-			app.NewTextBuilder("│ [Fixed Height=3]").
+			ui.NewTextBuilder("│ [Fixed Height=3]").
 				FgColor("gray").
 				BgColor("red").
 				FgColor("white").
 				Build(),
 			ui.Text(""),
-			app.NewTextBuilder("│ [Flex=1 - takes remaining space]").
+			ui.NewTextBuilder("│ [Flex=1 - takes remaining space]").
 				FgColor("gray").
 				BgColor("blue").
 				FgColor("white").
 				Build(),
 			ui.Text(""),
-			app.NewTextBuilder("│ [Fixed Height=2]").
+			ui.NewTextBuilder("│ [Fixed Height=2]").
 				FgColor("gray").
 				BgColor("green").
 				FgColor("white").
 				Build(),
 		),
-		app.NewTextBuilder("└──────────────────────────────────────────────────────────────────────────────────────────────┘").
+		ui.NewTextBuilder("└──────────────────────────────────────────────────────────────────────────────────────────────┘").
 			FgColor("gray").
 			Build(),
 	)
@@ -207,85 +207,85 @@ func FlexDemo() ui.VNode {
 // GridDemo demonstrates Grid layout
 func GridDemo() ui.VNode {
 	return ui.VStack(
-		app.NewTextBuilder("╔═════════════════ Grid Layout Demo ══════════════════════════════════════════════════════════════╗").
+		ui.NewTextBuilder("╔═════════════════ Grid Layout Demo ══════════════════════════════════════════════════════════════╗").
 			FgColor("gray").
 			Build(),
 		ui.Text(""),
 		ui.HStack(
-			app.NewTextBuilder("║ ").
+			ui.NewTextBuilder("║ ").
 				FgColor("gray").
 				Build(),
 			ui.VStack(
 				ui.HStack(
-					app.NewTextBuilder("┌───────┐").
+					ui.NewTextBuilder("┌───────┐").
 						FgColor("yellow").
 						Build(),
 					ui.Text("  "),
-					app.NewTextBuilder("┌───────┐").
+					ui.NewTextBuilder("┌───────┐").
 						FgColor("cyan").
 						Build(),
 					ui.Text("  "),
-					app.NewTextBuilder("┌───────┐").
+					ui.NewTextBuilder("┌───────┐").
 						FgColor("green").
 						Build(),
 				),
 				ui.HStack(
-					app.NewTextBuilder("│ CPU   │").
+					ui.NewTextBuilder("│ CPU   │").
 						FgColor("yellow").
 						Build(),
 					ui.Text("  "),
-					app.NewTextBuilder("│ RAM   │").
+					ui.NewTextBuilder("│ RAM   │").
 						FgColor("cyan").
 						Build(),
 					ui.Text("  "),
-					app.NewTextBuilder("│ NET   │").
+					ui.NewTextBuilder("│ NET   │").
 						FgColor("green").
 						Build(),
 				),
 				ui.HStack(
-					app.NewTextBuilder("│  32%  │").
+					ui.NewTextBuilder("│  32%  │").
 						FgColor("yellow").
 						Build(),
 					ui.Text("  "),
-					app.NewTextBuilder("│  68%  │").
+					ui.NewTextBuilder("│  68%  │").
 						FgColor("cyan").
 						Build(),
 					ui.Text("  "),
-					app.NewTextBuilder("│ 120MB │").
+					ui.NewTextBuilder("│ 120MB │").
 						FgColor("green").
 						Build(),
 				),
 				ui.HStack(
-					app.NewTextBuilder("└───────┘").
+					ui.NewTextBuilder("└───────┘").
 						FgColor("yellow").
 						Build(),
 					ui.Text("  "),
-					app.NewTextBuilder("└───────┘").
+					ui.NewTextBuilder("└───────┘").
 						FgColor("cyan").
 						Build(),
 					ui.Text("  "),
-					app.NewTextBuilder("└───────┘").
+					ui.NewTextBuilder("└───────┘").
 						FgColor("green").
 						Build(),
 				),
 			),
-			app.NewTextBuilder("                                                                      ║").
+			ui.NewTextBuilder("                                                                      ║").
 				FgColor("gray").
 				Build(),
 		),
 		ui.Text(""),
 		ui.HStack(
-			app.NewTextBuilder("║ ").
+			ui.NewTextBuilder("║ ").
 				FgColor("gray").
 				Build(),
-			app.NewTextBuilder("Grid allows 2D positioning with row/column spans. Ideal for dashboard layouts.    ").
+			ui.NewTextBuilder("Grid allows 2D positioning with row/column spans. Ideal for dashboard layouts.    ").
 				FgColor("white").
 				Build(),
-			app.NewTextBuilder("║").
+			ui.NewTextBuilder("║").
 				FgColor("gray").
 				Build(),
 		),
-		app.NewTextBuilder("╚════════════════════════════════════════════════════════════════════════════════════════════════════╝").
+		ui.NewTextBuilder("╚════════════════════════════════════════════════════════════════════════════════════════════════════╝").
 			FgColor("gray").
 			Build(),
 	)
@@ -294,78 +294,78 @@ func GridDemo() ui.VNode {
 // AbsoluteDemo demonstrates Absolute positioning
 func AbsoluteDemo() ui.VNode {
 	return ui.VStack(
-		app.NewTextBuilder("╔═══════════════════ Absolute Positioning Demo ════════════════════════════════════════════════════╗").
+		ui.NewTextBuilder("╔═══════════════════ Absolute Positioning Demo ════════════════════════════════════════════════════╗").
 			FgColor("gray").
 			Build(),
 		ui.Text(""),
 		ui.HStack(
-			app.NewTextBuilder("║ ").
+			ui.NewTextBuilder("║ ").
 				FgColor("gray").
 				Build(),
 			ui.Text("Base Layer Content "),
 			ui.Text("                  "),
-			app.NewTextBuilder("TOP").
+			ui.NewTextBuilder("TOP").
 				BgColor("red").
 				FgColor("white").
 				Bold(true).
 				Build(),
-			app.NewTextBuilder("                                          ║").
+			ui.NewTextBuilder("                                          ║").
 				FgColor("gray").
 				Build(),
 		),
 		ui.Text(""),
 		ui.HStack(
-			app.NewTextBuilder("║ ").
+			ui.NewTextBuilder("║ ").
 				FgColor("gray").
 				Build(),
 			ui.Text("                  "),
-			app.NewTextBuilder("[Overlay]").
+			ui.NewTextBuilder("[Overlay]").
 				BgColor("yellow").
 				FgColor("black").
 				Build(),
-			app.Text("                                               "),
-			app.NewTextBuilder("RIGHT").
+			ui.Text("                                               "),
+			ui.NewTextBuilder("RIGHT").
 				BgColor("blue").
 				FgColor("white").
 				Bold(true).
 				Build(),
-			app.NewTextBuilder("    ║").
+			ui.NewTextBuilder("    ║").
 				FgColor("gray").
 				Build(),
 		),
 		ui.Text(""),
 		ui.HStack(
-			app.NewTextBuilder("║ ").
+			ui.NewTextBuilder("║ ").
 				FgColor("gray").
 				Build(),
-			app.NewTextBuilder("Absolute positioning:").
+			ui.NewTextBuilder("Absolute positioning:").
 				Bold(true).
 				Build(),
-			app.Text(" "),
-			app.NewTextBuilder("Top").
+			ui.Text(" "),
+			ui.NewTextBuilder("Top").
 				BgColor("magenta").
 				FgColor("white").
 				Build(),
 			ui.Text(" "),
-			app.NewTextBuilder("Bottom").
+			ui.NewTextBuilder("Bottom").
 				BgColor("magenta").
 				FgColor("white").
 				Build(),
 			ui.Text(" "),
-			app.NewTextBuilder("Left").
+			ui.NewTextBuilder("Left").
 				BgColor("magenta").
 				FgColor("white").
 				Build(),
 			ui.Text(" "),
-			app.NewTextBuilder("Right").
+			ui.NewTextBuilder("Right").
 				BgColor("magenta").
 				FgColor("white").
 				Build(),
-			app.NewTextBuilder("                     ║").
+			ui.NewTextBuilder("                     ║").
 				FgColor("gray").
 				Build(),
 		),
-		app.NewTextBuilder("╚════════════════════════════════════════════════════════════════════════════════════════════════════╝").
+		ui.NewTextBuilder("╚════════════════════════════════════════════════════════════════════════════════════════════════════╝").
 			FgColor("gray").
 			Build(),
 	)
@@ -379,59 +379,59 @@ func ScrollDemo() ui.VNode {
 	}
 
 	return ui.VStack(
-		app.NewTextBuilder("╔═══════════════════ Scroll Container Demo ══════════════════════════════════════════════════════╗").
+		ui.NewTextBuilder("╔═══════════════════ Scroll Container Demo ══════════════════════════════════════════════════════╗").
 			FgColor("gray").
 			Build(),
 		ui.Text(""),
 		ui.HStack(
-			app.NewTextBuilder("║ ").
+			ui.NewTextBuilder("║ ").
 				FgColor("gray").
 				Build(),
-			app.NewTextBuilder("Scrollable List (8 visible of 20 total):").
+			ui.NewTextBuilder("Scrollable List (8 visible of 20 total):").
 				FgColor("cyan").
 				Bold(true).
 				Build(),
-			app.NewTextBuilder("                                    ║").
+			ui.NewTextBuilder("                                    ║").
 				FgColor("gray").
 				Build(),
 		),
 		ui.Text(""),
 		ui.HStack(
-			app.NewTextBuilder("║ ").
+			ui.NewTextBuilder("║ ").
 				FgColor("gray").
 				Build(),
 			ui.VStack(
-				app.NewTextBuilder("┌─ Scroll Area ─────────────────────┐").
+				ui.NewTextBuilder("┌─ Scroll Area ─────────────────────┐").
 					FgColor("gray").
 					Build(),
 				ui.HStack(
-					app.NewTextBuilder("│ ").
+					ui.NewTextBuilder("│ ").
 						FgColor("gray").
 						Build(),
 					ui.VStack(renderScrollItems(items, 0, 8)...),
-					app.NewTextBuilder(" │").
+					ui.NewTextBuilder(" │").
 						FgColor("gray").
 						Build(),
 				),
-				app.NewTextBuilder("└────────────────────────────────────┘").
+				ui.NewTextBuilder("└────────────────────────────────────┘").
 					FgColor("gray").
 					Build(),
 			),
-			app.NewTextBuilder("                                      ║").
+			ui.NewTextBuilder("                                      ║").
 				FgColor("gray").
 				Build(),
 		),
 		ui.Text(""),
 		ui.HStack(
-			app.NewTextBuilder("║ ").
+			ui.NewTextBuilder("║ ").
 				FgColor("gray").
 				Build(),
 			ui.Text("Use arrow keys or Page Up/Down to scroll"),
-			app.NewTextBuilder("                                    ║").
+			ui.NewTextBuilder("                                    ║").
 				FgColor("gray").
 				Build(),
 		),
-		app.NewTextBuilder("╚════════════════════════════════════════════════════════════════════════════════════════════════════╝").
+		ui.NewTextBuilder("╚════════════════════════════════════════════════════════════════════════════════════════════════════╝").
 			FgColor("gray").
 			Build(),
 	)
@@ -447,7 +447,7 @@ func renderScrollItems(items []string, offset int, visibleCount int) []ui.VNode 
 	var result []ui.VNode
 	for i := offset; i < end; i++ {
 		result = append(result,
-			app.NewTextBuilder(items[i]).
+			ui.NewTextBuilder(items[i]).
 				FgColor("white").
 				Build(),
 		)
@@ -458,51 +458,51 @@ func renderScrollItems(items []string, offset int, visibleCount int) []ui.VNode 
 // ComplexLayoutDemo demonstrates a complex IDE-like layout
 func ComplexLayoutDemo() ui.VNode {
 	return ui.VStack(
-		app.NewTextBuilder("╔══════════════════════════════════════════════════════════════════════════════════════════════════╗").
+		ui.NewTextBuilder("╔══════════════════════════════════════════════════════════════════════════════════════════════════╗").
 			FgColor("gray").
 			Build(),
 		// Header row (fixed height)
 		ui.HStack(
-			app.NewTextBuilder("║ ").
+			ui.NewTextBuilder("║ ").
 				FgColor("gray").
 				Build(),
-			app.NewTextBuilder("[File] [Edit] [View] [Run]").
+			ui.NewTextBuilder("[File] [Edit] [View] [Run]").
 				BgColor("blue").
 				FgColor("white").
 				Build(),
-			app.NewTextBuilder("                                                                  ║").
+			ui.NewTextBuilder("                                                                  ║").
 				FgColor("gray").
 				Build(),
 		),
-		app.NewTextBuilder("╠══════════════════════════════════════════════════════════════════════════════════════════════════╣").
+		ui.NewTextBuilder("╠══════════════════════════════════════════════════════════════════════════════════════════════════╣").
 			FgColor("gray").
 			Build(),
 		// Main content row (flex height)
 		ui.HStack(
-			app.NewTextBuilder("║ ").
+			ui.NewTextBuilder("║ ").
 				FgColor("gray").
 				Build(),
 			// Sidebar (fixed width)
 			ui.VStack(
-				app.NewTextBuilder("┌─ Explorer ─┐").
+				ui.NewTextBuilder("┌─ Explorer ─┐").
 					FgColor("gray").
 					Build(),
-				app.NewTextBuilder("│ > src      │").
+				ui.NewTextBuilder("│ > src      │").
 					FgColor("yellow").
 					Build(),
-				app.NewTextBuilder("│   > ui     │").
+				ui.NewTextBuilder("│   > ui     │").
 					FgColor("yellow").
 					Build(),
-				app.NewTextBuilder("│   > core   │").
+				ui.NewTextBuilder("│   > core   │").
 					FgColor("white").
 					Build(),
-				app.NewTextBuilder("│ > pkg      │").
+				ui.NewTextBuilder("│ > pkg      │").
 					FgColor("yellow").
 					Build(),
-				app.NewTextBuilder("│   main.go  │").
+				ui.NewTextBuilder("│   main.go  │").
 					FgColor("white").
 					Build(),
-				app.NewTextBuilder("└────────────┘").
+				ui.NewTextBuilder("└────────────┘").
 					FgColor("gray").
 					Build(),
 			),
@@ -510,95 +510,95 @@ func ComplexLayoutDemo() ui.VNode {
 			// Main content area (flex width)
 			ui.VStack(
 				// Tab bar (fixed height)
-				app.NewTextBuilder("┌─ main.go ────────────────────────────────────────┐").
+				ui.NewTextBuilder("┌─ main.go ────────────────────────────────────────┐").
 					FgColor("gray").
 					Build(),
 				// Editor area (flex height)
-				app.NewTextBuilder("│ func main() {                                     │").
+				ui.NewTextBuilder("│ func main() {                                     │").
 					FgColor("gray").
 					Build(),
-				app.NewTextBuilder("│     ui.Run(App)                                   │").
+				ui.NewTextBuilder("│     ui.Run(App)                                   │").
 					FgColor("gray").
 					Build(),
-				app.NewTextBuilder("│ }                                                 │").
+				ui.NewTextBuilder("│ }                                                 │").
 					FgColor("gray").
 					Build(),
-				app.NewTextBuilder("│                                                   │").
+				ui.NewTextBuilder("│                                                   │").
 					FgColor("gray").
 					Build(),
-				app.NewTextBuilder("│ (scroll)                                          │").
+				ui.NewTextBuilder("│ (scroll)                                          │").
 					FgColor("gray").
 					Build(),
-				app.NewTextBuilder("└───────────────────────────────────────────────────┘").
+				ui.NewTextBuilder("└───────────────────────────────────────────────────┘").
 					FgColor("gray").
 					Build(),
 				// Console (fixed height)
-				app.NewTextBuilder("┌─ Console ─────────────────────────────────────────┐").
+				ui.NewTextBuilder("┌─ Console ─────────────────────────────────────────┐").
 					FgColor("gray").
 					Build(),
-				app.NewTextBuilder("│ > Building...                                    │").
+				ui.NewTextBuilder("│ > Building...                                    │").
 					FgColor("gray").
 					Build(),
-				app.NewTextBuilder("│ > Done in 1.2s                                   │").
+				ui.NewTextBuilder("│ > Done in 1.2s                                   │").
 					FgColor("green").
 					Build(),
-				app.NewTextBuilder("└───────────────────────────────────────────────────┘").
+				ui.NewTextBuilder("└───────────────────────────────────────────────────┘").
 					FgColor("gray").
 					Build(),
 			),
 			ui.Text(" "),
 			// Problems panel (fixed width)
 			ui.VStack(
-				app.NewTextBuilder("┌─ Problems ─┐").
+				ui.NewTextBuilder("┌─ Problems ─┐").
 					FgColor("gray").
 					Build(),
-				app.NewTextBuilder("│            │").
+				ui.NewTextBuilder("│            │").
 					FgColor("gray").
 					Build(),
-				app.NewTextBuilder("│ 0 errors  │").
+				ui.NewTextBuilder("│ 0 errors  │").
 					FgColor("green").
 					Build(),
-				app.NewTextBuilder("│ 0 warnings│").
+				ui.NewTextBuilder("│ 0 warnings│").
 					FgColor("yellow").
 					Build(),
-				app.NewTextBuilder("│            │").
+				ui.NewTextBuilder("│            │").
 					FgColor("gray").
 					Build(),
-				app.NewTextBuilder("└────────────┘").
+				ui.NewTextBuilder("└────────────┘").
 					FgColor("gray").
 					Build(),
 			),
-			app.NewTextBuilder("  ║").
+			ui.NewTextBuilder("  ║").
 				FgColor("gray").
 				Build(),
 		),
-		app.NewTextBuilder("╠══════════════════════════════════════════════════════════════════════════════════════════════════╣").
+		ui.NewTextBuilder("╠══════════════════════════════════════════════════════════════════════════════════════════════════╣").
 			FgColor("gray").
 			Build(),
 		// Status bar (fixed height)
 		ui.HStack(
-			app.NewTextBuilder("║ ").
+			ui.NewTextBuilder("║ ").
 				FgColor("gray").
 				Build(),
-			app.NewTextBuilder("Ln 1, Col 1").
+			ui.NewTextBuilder("Ln 1, Col 1").
 				FgColor("white").
 				Build(),
-			app.NewTextBuilder("  ").
+			ui.NewTextBuilder("  ").
 				Build(),
-			app.NewTextBuilder("UTF-8").
+			ui.NewTextBuilder("UTF-8").
 				FgColor("green").
 				Build(),
-			app.NewTextBuilder("  ").
+			ui.NewTextBuilder("  ").
 				Build(),
-			app.NewTextBuilder("Go").
+			ui.NewTextBuilder("Go").
 				BgColor("cyan").
 				FgColor("black").
 				Build(),
-			app.NewTextBuilder("                                                               ║").
+			ui.NewTextBuilder("                                                               ║").
 				FgColor("gray").
 				Build(),
 		),
-		app.NewTextBuilder("╚══════════════════════════════════════════════════════════════════════════════════════════════════╝").
+		ui.NewTextBuilder("╚══════════════════════════════════════════════════════════════════════════════════════════════════╝").
 			FgColor("gray").
 			Build(),
 	)

@@ -47,19 +47,19 @@ func StatsApp() ui.VNode {
 	})
 
 	return ui.VStack(
-		app.NewTextBuilder("╔══════════════════════════════╗").
+		ui.NewTextBuilder("╔══════════════════════════════╗").
 			FgColor("cyan").
 			Build(),
-		app.NewTextBuilder("║    Queue Stats Demo           ║").
+		ui.NewTextBuilder("║    Queue Stats Demo           ║").
 			FgColor("cyan").
 			Build(),
-		app.NewTextBuilder("╚══════════════════════════════╝").
+		ui.NewTextBuilder("╚══════════════════════════════╝").
 			FgColor("cyan").
 			Build(),
 		ui.Text(""),
 		ui.HStack(
 			ui.Text("Count: "),
-			app.NewTextBuilder(fmt.Sprintf("%d", count)).
+			ui.NewTextBuilder(fmt.Sprintf("%d", count)).
 				FgColor("green").
 				Bold(true).
 				Build(),
@@ -67,14 +67,14 @@ func StatsApp() ui.VNode {
 		ui.Text(""),
 		ui.HStack(
 			ui.Text("Events: "),
-			app.NewTextBuilder(fmt.Sprintf("%d", events)).
+			ui.NewTextBuilder(fmt.Sprintf("%d", events)).
 				FgColor("yellow").
 				Build(),
 		),
 		ui.Text(""),
 		ui.HStack(
 			ui.Text("Memory: "),
-			app.NewTextBuilder(fmt.Sprintf("%d bytes", memory)).
+			ui.NewTextBuilder(fmt.Sprintf("%d bytes", memory)).
 				FgColor("magenta").
 				Build(),
 		),
@@ -86,14 +86,14 @@ func StatsApp() ui.VNode {
 			OnPress(DecrementStatsIntent{}).
 			Build(),
 		ui.Text(""),
-		app.NewTextBuilder("──────────────────────────────────").
+		ui.NewTextBuilder("──────────────────────────────────").
 			FgColor("bright-black").
 			Build(),
 		ui.Text(""),
-		app.NewTextBuilder("This demo shows queue stats.").
+		ui.NewTextBuilder("This demo shows queue stats.").
 			FgColor("bright-black").
 			Build(),
-		app.NewTextBuilder("Run tests to see monitoring.").
+		ui.NewTextBuilder("Run tests to see monitoring.").
 			FgColor("bright-black").
 			Build(),
 	)

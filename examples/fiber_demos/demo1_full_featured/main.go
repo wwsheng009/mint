@@ -92,16 +92,16 @@ func App() ui.VNode {
 // Header demonstrates layout with Bordered component
 func Header(count int) ui.VNode {
 	headerContent := ui.HStack(
-		app.NewTextBuilder("TUI Engine Demo").
+		ui.NewTextBuilder("TUI Engine Demo").
 			Style(style.FgBgBold(theme.Text(), theme.Primary())).
 			Build(),
-		app.NewTextBuilder("              ").
+		ui.NewTextBuilder("              ").
 			Style(style.FgBg(theme.Surface(), theme.Primary())).
 			Build(),
-		app.NewTextBuilder(" ").
+		ui.NewTextBuilder(" ").
 			Style(style.FgBg(theme.Surface(), theme.Primary())).
 			Build(),
-		app.NewTextBuilder(fmt.Sprintf("Clicks: %d", count)).
+		ui.NewTextBuilder(fmt.Sprintf("Clicks: %d", count)).
 			Style(style.FgBgBold(theme.BG(), theme.Primary())).
 			Build(),
 	)
@@ -133,45 +133,45 @@ func Header(count int) ui.VNode {
 func MainBody(count int, input string, items []string) ui.VNode {
 	// Left sidebar with menu buttons (no click handlers)
 	sidebar := ui.VStackBuilder(
-		app.NewTextBuilder("Menu").
+		ui.NewTextBuilder("Menu").
 			Style(style.FgBoldUnderline(theme.Muted())).
 			Build(),
-		app.NewTextBuilder("Add Count").
+		ui.NewTextBuilder("Add Count").
 			Style(style.FgBold(theme.Primary())).
 			Build(),
-		app.NewTextBuilder("Quit").
+		ui.NewTextBuilder("Quit").
 			Style(style.FgBold(theme.Error())).
 			Build(),
 	).Stretch().Build()
 
 	// Right content area with input and log lines
 	contentArea := ui.VStackBuilder(
-		app.NewTextBuilder("[ Input: " + input + " ]").
+		ui.NewTextBuilder("[ Input: " + input + " ]").
 			Style(style.Foreground(theme.Text())).
 			Build(),
-		app.NewTextBuilder("──────────────────────────────────────").
+		ui.NewTextBuilder("──────────────────────────────────────").
 			Style(style.Foreground(theme.Border())).
 			Build(),
-		app.NewTextBuilder(items[0]).
+		ui.NewTextBuilder(items[0]).
 			Style(style.Foreground(theme.Muted())).
 			Build(),
-		app.NewTextBuilder(items[1]).
+		ui.NewTextBuilder(items[1]).
 			Style(style.Foreground(theme.Muted())).
 			Build(),
-		app.NewTextBuilder(items[2]).
+		ui.NewTextBuilder(items[2]).
 			Style(style.Foreground(theme.Muted())).
 			Build(),
-		app.NewTextBuilder(items[3]).
+		ui.NewTextBuilder(items[3]).
 			Style(style.Foreground(theme.Muted())).
 			Build(),
-		app.NewTextBuilder(items[4]).
+		ui.NewTextBuilder(items[4]).
 			Style(style.Foreground(theme.Muted())).
 			Build(),
 		ui.HStack(
-			app.NewTextBuilder(items[5]).
+			ui.NewTextBuilder(items[5]).
 				Style(style.Foreground(theme.Muted())).
 				Build(),
-			app.NewTextBuilder(" ...").
+			ui.NewTextBuilder(" ...").
 				Style(style.FgItalic(theme.Placeholder())).
 				Build(),
 		),
@@ -214,7 +214,7 @@ func ConfirmModal(onClose func()) ui.VNode {
 				// Centered title - use HStack with AlignCenter
 				// Uses theme WARNING color for title
 				ui.HStackBuilder(
-					app.NewTextBuilder("*** Are you sure? ***").
+					ui.NewTextBuilder("*** Are you sure? ***").
 						Style(style.FgBold(theme.Warning())).
 						Build(),
 				).Align(ui.AlignCenter).Build(),
@@ -238,7 +238,7 @@ func ConfirmModal(onClose func()) ui.VNode {
 				// Centered footer text
 				// Uses theme PLACEHOLDER color for hint text
 				ui.HStackBuilder(
-					app.NewTextBuilder("Press ESC to close").
+					ui.NewTextBuilder("Press ESC to close").
 						Style(style.Foreground(theme.Placeholder())).
 						Build(),
 				).Align(ui.AlignCenter).Build(),

@@ -29,15 +29,15 @@ func CounterWithHooks() ui.VNode {
 	})
 
 	return ui.VStack(
-		app.NewTextBuilder(fmt.Sprintf("Count: %d", count)).FgColor("green").Build(),
+		ui.NewTextBuilder(fmt.Sprintf("Count: %d", count)).FgColor("green").Build(),
 		ui.HStack(
 			app.ButtonBuilder(" - ").OnPress(ui.SimpleDecrementIntent{}).Build(),
 			ui.Text(" "),
 			app.ButtonBuilder(" + ").OnPress(ui.SimpleIncrementIntent{}).Build(),
 		),
-		app.Text(""),
-		app.NewTextBuilder("[方式1: ui.On + UseState]").FgColor("cyan").Build(),
-		app.Text("  组件内状态，闭包自然访问"),
+		ui.Text(""),
+		ui.NewTextBuilder("[方式1: ui.On + UseState]").FgColor("cyan").Build(),
+		ui.Text("  组件内状态，闭包自然访问"),
 	)
 }
 
@@ -54,15 +54,15 @@ func CounterWithGlobalState() ui.VNode {
 	count := ctx.GetIntState("counter2", 0)
 
 	return ui.VStack(
-		app.NewTextBuilder(fmt.Sprintf("Count: %d", count)).FgColor("yellow").Build(),
+		ui.NewTextBuilder(fmt.Sprintf("Count: %d", count)).FgColor("yellow").Build(),
 		ui.HStack(
 			app.ButtonBuilder(" - ").OnPress(intent.Decrement("counter2", 1)).Build(),
 			ui.Text(" "),
 			app.ButtonBuilder(" + ").OnPress(intent.Increment("counter2", 1)).Build(),
 		),
-		app.Text(""),
-		app.NewTextBuilder("[方式2: intent.Increment]").FgColor("cyan").Build(),
-		app.Text("  全局状态，跨组件共享"),
+		ui.Text(""),
+		ui.NewTextBuilder("[方式2: intent.Increment]").FgColor("cyan").Build(),
+		ui.Text("  全局状态，跨组件共享"),
 	)
 }
 
@@ -87,13 +87,13 @@ func CounterWithCustomIntent() ui.VNode {
 		setCount(func(c int) int { return c + 10 })
 	})
 	return ui.VStack(
-		app.NewTextBuilder(fmt.Sprintf("Count: %d", count)).FgColor("magenta").Build(),
+		ui.NewTextBuilder(fmt.Sprintf("Count: %d", count)).FgColor("magenta").Build(),
 		ui.HStack(
 			app.ButtonBuilder(" +10 ").OnPress(CustomIncrement{Step: 10}).Build(),
 		),
-		app.Text(""),
-		app.NewTextBuilder("[方式3: 自定义 Intent]").FgColor("cyan").Build(),
-		app.Text("  支持参数传递"),
+		ui.Text(""),
+		ui.NewTextBuilder("[方式3: 自定义 Intent]").FgColor("cyan").Build(),
+		ui.Text("  支持参数传递"),
 	)
 }
 
@@ -103,15 +103,15 @@ func CounterWithCustomIntent() ui.VNode {
 
 func SimpleCounter() ui.VNode {
 	return ui.VStack(
-		app.NewTextBuilder("Mint UI - Intent 管理模式").FgColor("bright-cyan").Build(),
-		app.Text(""),
-		app.NewTextBuilder("【方案1】组件级状态").FgColor("white").Build(),
+		ui.NewTextBuilder("Mint UI - Intent 管理模式").FgColor("bright-cyan").Build(),
+		ui.Text(""),
+		ui.NewTextBuilder("【方案1】组件级状态").FgColor("white").Build(),
 		CounterWithHooks(),
-		app.Text(""),
-		app.NewTextBuilder("【方案2】全局状态").FgColor("white").Build(),
+		ui.Text(""),
+		ui.NewTextBuilder("【方案2】全局状态").FgColor("white").Build(),
 		CounterWithGlobalState(),
-		app.Text(""),
-		app.NewTextBuilder("【方案3】自定义 Intent").FgColor("white").Build(),
+		ui.Text(""),
+		ui.NewTextBuilder("【方案3】自定义 Intent").FgColor("white").Build(),
 		CounterWithCustomIntent(),
 	)
 }

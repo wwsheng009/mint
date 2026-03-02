@@ -65,22 +65,22 @@ func StylingDemo() ui.VNode {
 // HeaderPanel shows the title
 func HeaderPanel() ui.VNode {
 	return ui.VStack(
-		app.NewTextBuilder("╔══════════════════════════════════════════════════════════════════════════════════════════╗").
+		ui.NewTextBuilder("╔══════════════════════════════════════════════════════════════════════════════════════════╗").
 			FgColor("cyan").
 			Build(),
 		ui.HStack(
-			app.NewTextBuilder("║ ").
+			ui.NewTextBuilder("║ ").
 				FgColor("cyan").
 				Build(),
-			app.NewTextBuilder("                        Styling System Demo (TUI CSS)").
+			ui.NewTextBuilder("                        Styling System Demo (TUI CSS)").
 				Bold(true).
 				FgColor("white").
 				Build(),
-			app.NewTextBuilder("                                  ║").
+			ui.NewTextBuilder("                                  ║").
 				FgColor("cyan").
 				Build(),
 		),
-		app.NewTextBuilder("╚══════════════════════════════════════════════════════════════════════════════════════════╝").
+		ui.NewTextBuilder("╚══════════════════════════════════════════════════════════════════════════════════════════╝").
 			FgColor("cyan").
 			Build(),
 	)
@@ -136,7 +136,7 @@ func renderTabContent(currentTab string) ui.VNode {
 	case "themes":
 		return ThemesTab()
 	default:
-		return app.NewTextBuilder("Unknown tab").Build()
+		return ui.NewTextBuilder("Unknown tab").Build()
 	}
 }
 
@@ -166,7 +166,7 @@ func ColorsTab() ui.VNode {
 
 	var children []ui.VNode
 	children = append(children,
-		app.NewTextBuilder("┌─ Color Palette ─────────────────────────────────────────────────────────────────────────┐").
+		ui.NewTextBuilder("┌─ Color Palette ─────────────────────────────────────────────────────────────────────────┐").
 			FgColor("gray").
 			Build(),
 	)
@@ -175,7 +175,7 @@ func ColorsTab() ui.VNode {
 		if i%2 == 0 {
 			children = append(children,
 				ui.HStack(
-					app.NewTextBuilder("│ ").
+					ui.NewTextBuilder("│ ").
 						FgColor("gray").
 						Build(),
 					renderColorSwatch(c.name, c.color),
@@ -194,7 +194,7 @@ func ColorsTab() ui.VNode {
 							return ""
 						}(),
 					),
-					app.NewTextBuilder(" │").
+					ui.NewTextBuilder(" │").
 						FgColor("gray").
 						Build(),
 				),
@@ -203,7 +203,7 @@ func ColorsTab() ui.VNode {
 	}
 
 	children = append(children,
-		app.NewTextBuilder("└──────────────────────────────────────────────────────────────────────────────────────────────┘").
+		ui.NewTextBuilder("└──────────────────────────────────────────────────────────────────────────────────────────────┘").
 			FgColor("gray").
 			Build(),
 	)
@@ -217,11 +217,11 @@ func renderColorSwatch(name, color string) ui.VNode {
 		return ui.Text("                          ")
 	}
 	return ui.HStack(
-		app.NewTextBuilder("■ ").
+		ui.NewTextBuilder("■ ").
 			FgColor(color).
 			Bold(true).
 			Build(),
-		app.NewTextBuilder(name).
+		ui.NewTextBuilder(name).
 			FgColor(color).
 			Bold(true).
 			Build(),
@@ -231,71 +231,71 @@ func renderColorSwatch(name, color string) ui.VNode {
 // AttributesTab demonstrates text attributes
 func AttributesTab() ui.VNode {
 	return ui.VStack(
-		app.NewTextBuilder("┌─ Text Attributes ─────────────────────────────────────────────────────────────────────────┐").
+		ui.NewTextBuilder("┌─ Text Attributes ─────────────────────────────────────────────────────────────────────────┐").
 			FgColor("gray").
 			Build(),
 		ui.Text(""),
 		ui.HStack(
-			app.NewTextBuilder("│ ").
+			ui.NewTextBuilder("│ ").
 				FgColor("gray").
 				Build(),
 			renderAttribute("Normal Text", "", "", false, false, false),
-			app.NewTextBuilder("     │").
+			ui.NewTextBuilder("     │").
 				FgColor("gray").
 				Build(),
 		),
 		ui.Text(""),
 		ui.HStack(
-			app.NewTextBuilder("│ ").
+			ui.NewTextBuilder("│ ").
 				FgColor("gray").
 				Build(),
 			renderAttribute("Bold Text", "", "", true, false, false),
-			app.NewTextBuilder("       │").
+			ui.NewTextBuilder("       │").
 				FgColor("gray").
 				Build(),
 		),
 		ui.Text(""),
 		ui.HStack(
-			app.NewTextBuilder("│ ").
+			ui.NewTextBuilder("│ ").
 				FgColor("gray").
 				Build(),
 			renderAttribute("Italic Text", "", "", false, true, false),
-			app.NewTextBuilder("      │").
+			ui.NewTextBuilder("      │").
 				FgColor("gray").
 				Build(),
 		),
 		ui.Text(""),
 		ui.HStack(
-			app.NewTextBuilder("│ ").
+			ui.NewTextBuilder("│ ").
 				FgColor("gray").
 				Build(),
 			renderAttribute("Underline Text", "", "", false, false, true),
-			app.NewTextBuilder("  │").
+			ui.NewTextBuilder("  │").
 				FgColor("gray").
 				Build(),
 		),
 		ui.Text(""),
 		ui.HStack(
-			app.NewTextBuilder("│ ").
+			ui.NewTextBuilder("│ ").
 				FgColor("gray").
 				Build(),
 			renderAttribute("Bold + Italic", "", "", true, true, false),
-			app.NewTextBuilder("    │").
+			ui.NewTextBuilder("    │").
 				FgColor("gray").
 				Build(),
 		),
 		ui.Text(""),
 		ui.HStack(
-			app.NewTextBuilder("│ ").
+			ui.NewTextBuilder("│ ").
 				FgColor("gray").
 				Build(),
 			renderAttribute("All Styles", "", "", true, true, true),
-			app.NewTextBuilder("         │").
+			ui.NewTextBuilder("         │").
 				FgColor("gray").
 				Build(),
 		),
 		ui.Text(""),
-		app.NewTextBuilder("└──────────────────────────────────────────────────────────────────────────────────────────────┘").
+		ui.NewTextBuilder("└──────────────────────────────────────────────────────────────────────────────────────────────┘").
 			FgColor("gray").
 			Build(),
 	)
@@ -303,7 +303,7 @@ func AttributesTab() ui.VNode {
 
 // renderAttribute renders a text with attributes
 func renderAttribute(text, fg, bg string, bold, italic, underline bool) ui.VNode {
-	builder := app.NewTextBuilder(text)
+	builder := ui.NewTextBuilder(text)
 	if fg != "" {
 		builder.FgColor(fg)
 	}
@@ -325,57 +325,57 @@ func renderAttribute(text, fg, bg string, bold, italic, underline bool) ui.VNode
 // BordersTab demonstrates border styles
 func BordersTab() ui.VNode {
 	return ui.VStack(
-		app.NewTextBuilder("┌─ Border Styles ────────────────────────────────────────────────────────────────────────────┐").
+		ui.NewTextBuilder("┌─ Border Styles ────────────────────────────────────────────────────────────────────────────┐").
 			FgColor("gray").
 			Build(),
 		ui.Text(""),
 		ui.HStack(
-			app.NewTextBuilder("│ ").
+			ui.NewTextBuilder("│ ").
 				FgColor("gray").
 				Build(),
 			ui.Text("Single: ┌───┐"),
 			ui.Text("   Double: ╔═══╗"),
 			ui.Text("   Rounded: ╭───╮"),
-			app.NewTextBuilder("    │").
+			ui.NewTextBuilder("    │").
 				FgColor("gray").
 				Build(),
 		),
 		ui.Text(""),
 		ui.HStack(
-			app.NewTextBuilder("│ ").
+			ui.NewTextBuilder("│ ").
 				FgColor("gray").
 				Build(),
 			ui.Text("        │   │"),
 			ui.Text("           ║   ║"),
 			ui.Text("           │   │"),
-			app.NewTextBuilder("    │").
+			ui.NewTextBuilder("    │").
 				FgColor("gray").
 				Build(),
 		),
 		ui.Text(""),
 		ui.HStack(
-			app.NewTextBuilder("│ ").
+			ui.NewTextBuilder("│ ").
 				FgColor("gray").
 				Build(),
 			ui.Text("        └───┘"),
 			ui.Text("           ╚═══╝"),
 			ui.Text("           ╰───╯"),
-			app.NewTextBuilder("    │").
+			ui.NewTextBuilder("    │").
 				FgColor("gray").
 				Build(),
 		),
 		ui.Text(""),
 		ui.HStack(
-			app.NewTextBuilder("│ ").
+			ui.NewTextBuilder("│ ").
 				FgColor("gray").
 				Build(),
 			ui.Text("Dashed: ┏ ┳ ┓     Thick: ┏━━━┓     Dotted: ╌╌╌╌┐"),
-			app.NewTextBuilder("    │").
+			ui.NewTextBuilder("    │").
 				FgColor("gray").
 				Build(),
 		),
 		ui.Text(""),
-		app.NewTextBuilder("└──────────────────────────────────────────────────────────────────────────────────────────────┘").
+		ui.NewTextBuilder("└──────────────────────────────────────────────────────────────────────────────────────────────┘").
 			FgColor("gray").
 			Build(),
 	)
@@ -384,16 +384,16 @@ func BordersTab() ui.VNode {
 // InheritanceTab demonstrates style inheritance
 func InheritanceTab() ui.VNode {
 	return ui.VStack(
-		app.NewTextBuilder("┌─ Style Inheritance ─────────────────────────────────────────────────────────────────────────┐").
+		ui.NewTextBuilder("┌─ Style Inheritance ─────────────────────────────────────────────────────────────────────────┐").
 			FgColor("gray").
 			Build(),
 		ui.Text(""),
 		ui.HStack(
-			app.NewTextBuilder("│ ").
+			ui.NewTextBuilder("│ ").
 				FgColor("gray").
 				Build(),
 			ui.VStack(
-				app.NewTextBuilder("Parent: Blue + Bold").
+				ui.NewTextBuilder("Parent: Blue + Bold").
 					FgColor("blue").
 					Bold(true).
 					Build(),
@@ -403,58 +403,58 @@ func InheritanceTab() ui.VNode {
 				),
 				ui.HStack(
 					ui.Text("  └─ Child 2: "),
-					app.NewTextBuilder("Overrides to Red").
+					ui.NewTextBuilder("Overrides to Red").
 						FgColor("red").
 						Bold(true).
 						Build(),
 				),
 			),
-			app.NewTextBuilder("                                                            │").
+			ui.NewTextBuilder("                                                            │").
 				FgColor("gray").
 				Build(),
 		),
 		ui.Text(""),
-		app.NewTextBuilder("│ Inheritance Rules:                                                                           │").
+		ui.NewTextBuilder("│ Inheritance Rules:                                                                           │").
 			FgColor("gray").
 			Build(),
 		ui.HStack(
-			app.NewTextBuilder("│ ").
+			ui.NewTextBuilder("│ ").
 				FgColor("gray").
 				Build(),
-			app.NewTextBuilder("FgColor").
+			ui.NewTextBuilder("FgColor").
 				Bold(true).
 				Build(),
 			ui.Text(" - Inherited by default"),
-			app.NewTextBuilder("                                            │").
+			ui.NewTextBuilder("                                            │").
 				FgColor("gray").
 				Build(),
 		),
 		ui.HStack(
-			app.NewTextBuilder("│ ").
+			ui.NewTextBuilder("│ ").
 				FgColor("gray").
 				Build(),
-			app.NewTextBuilder("BgColor").
+			ui.NewTextBuilder("BgColor").
 				Bold(true).
 				Build(),
 			ui.Text(" - Not inherited (must be set explicitly)"),
-			app.NewTextBuilder("                             │").
+			ui.NewTextBuilder("                             │").
 				FgColor("gray").
 				Build(),
 		),
 		ui.HStack(
-			app.NewTextBuilder("│ ").
+			ui.NewTextBuilder("│ ").
 				FgColor("gray").
 				Build(),
-			app.NewTextBuilder("Bold/Italic/Underline").
+			ui.NewTextBuilder("Bold/Italic/Underline").
 				Bold(true).
 				Build(),
 			ui.Text(" - Inherited by default"),
-			app.NewTextBuilder("                              │").
+			ui.NewTextBuilder("                              │").
 				FgColor("gray").
 				Build(),
 		),
 		ui.Text(""),
-		app.NewTextBuilder("└──────────────────────────────────────────────────────────────────────────────────────────────┘").
+		ui.NewTextBuilder("└──────────────────────────────────────────────────────────────────────────────────────────────┘").
 			FgColor("gray").
 			Build(),
 	)
@@ -479,7 +479,7 @@ func ThemesTab() ui.VNode {
 
 	var children []ui.VNode
 	children = append(children,
-		app.NewTextBuilder("┌─ Theme System ─────────────────────────────────────────────────────────────────────────────┐").
+		ui.NewTextBuilder("┌─ Theme System ─────────────────────────────────────────────────────────────────────────────┐").
 			FgColor("gray").
 			Build(),
 		ui.Text(""),
@@ -488,10 +488,10 @@ func ThemesTab() ui.VNode {
 	for _, theme := range themes {
 		children = append(children,
 			ui.HStack(
-				app.NewTextBuilder("│ ").
+				ui.NewTextBuilder("│ ").
 					FgColor("gray").
 					Build(),
-				app.NewTextBuilder(" "+theme.name+" ").
+				ui.NewTextBuilder(" "+theme.name+" ").
 					BgColor(theme.bg).
 					FgColor(theme.fg).
 					Build(),
@@ -505,7 +505,7 @@ func ThemesTab() ui.VNode {
 					BgColor(theme.secondary).
 					FgColor("white").
 					Build(),
-				app.NewTextBuilder("                                                            │").
+				ui.NewTextBuilder("                                                            │").
 					FgColor("gray").
 					Build(),
 			),
@@ -513,7 +513,7 @@ func ThemesTab() ui.VNode {
 	}
 
 	children = append(children,
-		app.NewTextBuilder("└──────────────────────────────────────────────────────────────────────────────────────────────┘").
+		ui.NewTextBuilder("└──────────────────────────────────────────────────────────────────────────────────────────────┘").
 			FgColor("gray").
 			Build(),
 	)

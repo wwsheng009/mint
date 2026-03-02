@@ -12,15 +12,15 @@ func ControlledInputDemo() ui.VNode {
 	text, setText := ui.UseStateString("")
 
 	return app.VStack(
-		app.NewTextBuilder("Input Demo").
+		ui.NewTextBuilder("Input Demo").
 			Bold(true).
 			Build(),
-		app.Text(""),
-		app.NewTextBuilder("Type something:").
+		ui.Text(""),
+		ui.NewTextBuilder("Type something:").
 			Build(),
-		app.Text(""),
-		app.HStack(
-			app.Text("> "),
+		ui.Text(""),
+		ui.HStack(
+			ui.Text("> "),
 			app.InputBuilder().
 				Value(text).
 				Placeholder("Type here...").
@@ -28,18 +28,18 @@ func ControlledInputDemo() ui.VNode {
 				OnChange(setText).
 				Build(),
 		),
-		app.Text(""),
-		app.NewTextBuilder(fmt.Sprintf("Length: %d/20", len(text))).
+		ui.Text(""),
+		ui.NewTextBuilder(fmt.Sprintf("Length: %d/20", len(text))).
 			Build(),
-		app.Text(""),
-		app.NewTextBuilder("Value:").
+		ui.Text(""),
+		ui.NewTextBuilder("Value:").
 			Build(),
-		app.Text(""),
-		app.NewTextBuilder(fmt.Sprintf("\"%s\"", text)).
+		ui.Text(""),
+		ui.NewTextBuilder(fmt.Sprintf("\"%s\"", text)).
 			FgColor("cyan").
 			Build(),
-		app.Text(""),
-		app.NewTextBuilder("Tab: focus | Type: add text | Backspace: delete | q: quit").
+		ui.Text(""),
+		ui.NewTextBuilder("Tab: focus | Type: add text | Backspace: delete | q: quit").
 			FgColor("bright-black").
 			Build(),
 	)

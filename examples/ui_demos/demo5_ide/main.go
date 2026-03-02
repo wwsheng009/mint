@@ -110,11 +110,11 @@ func IDEDemo() ui.VNode {
 // MenuBar shows the top menu
 func MenuBar(setShowCommandPalette func(bool)) ui.VNode {
 	return ui.VStack(
-		app.NewTextBuilder("╔══════════════════════════════════════════════════════════════════════════════════════════════════╗").
+		ui.NewTextBuilder("╔══════════════════════════════════════════════════════════════════════════════════════════════════╗").
 			FgColor("blue").
 			Build(),
 		ui.HStack(
-			app.NewTextBuilder("║ ").
+			ui.NewTextBuilder("║ ").
 				FgColor("blue").
 				Build(),
 			app.ButtonBuilder("[File]").
@@ -137,22 +137,22 @@ func MenuBar(setShowCommandPalette func(bool)) ui.VNode {
 				FgColor("white").
 				Build(),
 			ui.Text("   "),
-			app.NewTextBuilder("Mint IDE").
+			ui.NewTextBuilder("Mint IDE").
 				Bold(true).
 				FgColor("yellow").
 				Build(),
-			app.NewTextBuilder("                                                        ").
+			ui.NewTextBuilder("                                                        ").
 				Build(),
 			app.ButtonBuilder("[Ctrl+P] Command Palette").
 				BgColor("yellow").
 				FgColor("black").
 				OnPress(ShowCommandPaletteIntent{}).
 				Build(),
-			app.NewTextBuilder("  ║").
+			ui.NewTextBuilder("  ║").
 				FgColor("blue").
 				Build(),
 		),
-		app.NewTextBuilder("╠══════════════════════════════════════════════════════════════════════════════════════════════════╣").
+		ui.NewTextBuilder("╠══════════════════════════════════════════════════════════════════════════════════════════════════╣").
 			FgColor("blue").
 			Build(),
 	)
@@ -197,7 +197,7 @@ func FileExplorer(activeFile string, setActiveFile func(string)) ui.VNode {
 
 	var children []ui.VNode
 	children = append(children,
-		app.NewTextBuilder("┌─ Explorer ──────────────────────────┐").
+		ui.NewTextBuilder("┌─ Explorer ──────────────────────────┐").
 			FgColor("gray").
 			Build(),
 	)
@@ -215,13 +215,13 @@ func FileExplorer(activeFile string, setActiveFile func(string)) ui.VNode {
 		isActive := activeFile == f.name
 		var item ui.VNode
 		if isActive {
-			item = app.NewTextBuilder("│ "+indent+prefix+f.name+" ").
+			item = ui.NewTextBuilder("│ "+indent+prefix+f.name+" ").
 				FgColor("gray").
 				BgColor("blue").
 				FgColor("white").
 				Build()
 		} else {
-			item = app.NewTextBuilder("│ "+indent+prefix+f.name).
+			item = ui.NewTextBuilder("│ "+indent+prefix+f.name).
 				FgColor("gray").
 				Build()
 		}
@@ -240,10 +240,10 @@ func FileExplorer(activeFile string, setActiveFile func(string)) ui.VNode {
 	}
 
 	children = append(children,
-		app.NewTextBuilder("│                                   │").
+		ui.NewTextBuilder("│                                   │").
 			FgColor("gray").
 			Build(),
-		app.NewTextBuilder("└───────────────────────────────────┘").
+		ui.NewTextBuilder("└───────────────────────────────────┘").
 			FgColor("gray").
 			Build(),
 	)
@@ -280,7 +280,7 @@ func TabsBar(selectedTab string, setSelectedTab func(string), activeFile string)
 
 	var children []ui.VNode
 	children = append(children,
-		app.NewTextBuilder("┌─").
+		ui.NewTextBuilder("┌─").
 			FgColor("gray").
 			Build(),
 	)
@@ -303,7 +303,7 @@ func TabsBar(selectedTab string, setSelectedTab func(string), activeFile string)
 	}
 
 	children = append(children,
-		app.NewTextBuilder("────────────────────────────────────────────────────────────────────────────────────────┐").
+		ui.NewTextBuilder("────────────────────────────────────────────────────────────────────────────────────────┐").
 			FgColor("gray").
 			Build(),
 	)
@@ -323,7 +323,7 @@ func TabContent(
 	} else if selectedTab == "terminal" {
 		return TerminalPanel()
 	}
-	return app.NewTextBuilder("│ Tab content: " + selectedTab + "                                                                │").
+	return ui.NewTextBuilder("│ Tab content: " + selectedTab + "                                                                │").
 		FgColor("gray").
 		Build()
 }
@@ -341,7 +341,7 @@ func EditorPanel(filename string, content string, setContent func(string)) ui.VN
 
 	var children []ui.VNode
 	children = append(children,
-		app.NewTextBuilder("│ ").
+		ui.NewTextBuilder("│ ").
 			FgColor("gray").
 			Build(),
 	)
@@ -350,13 +350,13 @@ func EditorPanel(filename string, content string, setContent func(string)) ui.VN
 		lineNum := fmt.Sprintf("%2d", i+1)
 		var lineText ui.VNode
 		if i == 0 {
-			lineText = app.NewTextBuilder("│ "+lineNum+" │ "+line+"                                                      │").
+			lineText = ui.NewTextBuilder("│ "+lineNum+" │ "+line+"                                                      │").
 				FgColor("gray").
 				BgColor("blue").
 				FgColor("white").
 				Build()
 		} else {
-			lineText = app.NewTextBuilder("│ "+lineNum+" │ "+line+"                                                      │").
+			lineText = ui.NewTextBuilder("│ "+lineNum+" │ "+line+"                                                      │").
 				FgColor("gray").
 				Build()
 		}
@@ -364,10 +364,10 @@ func EditorPanel(filename string, content string, setContent func(string)) ui.VN
 	}
 
 	children = append(children,
-		app.NewTextBuilder("│                                                                                             │").
+		ui.NewTextBuilder("│                                                                                             │").
 			FgColor("gray").
 			Build(),
-		app.NewTextBuilder("└────────────────────────────────────────────────────────────────────────────────────────────┘").
+		ui.NewTextBuilder("└────────────────────────────────────────────────────────────────────────────────────────────┘").
 			FgColor("gray").
 			Build(),
 	)
@@ -385,7 +385,7 @@ func TerminalPanel() ui.VNode {
 
 	var children []ui.VNode
 	children = append(children,
-		app.NewTextBuilder("│ > Terminal                                                                                │").
+		ui.NewTextBuilder("│ > Terminal                                                                                │").
 			FgColor("gray").
 			Build(),
 		ui.Text(""),
@@ -409,7 +409,7 @@ func TerminalPanel() ui.VNode {
 		}
 
 		children = append(children,
-			app.NewTextBuilder("│ "+log).
+			ui.NewTextBuilder("│ "+log).
 				FgColor(color).
 				Build(),
 		)
@@ -417,10 +417,10 @@ func TerminalPanel() ui.VNode {
 
 	children = append(children,
 		ui.Text(""),
-		app.NewTextBuilder("│ > _                                                                                      │").
+		ui.NewTextBuilder("│ > _                                                                                      │").
 			FgColor("gray").
 			Build(),
-		app.NewTextBuilder("└────────────────────────────────────────────────────────────────────────────────────────────┘").
+		ui.NewTextBuilder("└────────────────────────────────────────────────────────────────────────────────────────────┘").
 			FgColor("gray").
 			Build(),
 	)
@@ -431,42 +431,42 @@ func TerminalPanel() ui.VNode {
 // StatusBar shows the status bar
 func StatusBar(activeFile, selectedTab string) ui.VNode {
 	return ui.VStack(
-		app.NewTextBuilder("╠══════════════════════════════════════════════════════════════════════════════════════════════════╣").
+		ui.NewTextBuilder("╠══════════════════════════════════════════════════════════════════════════════════════════════════╣").
 			FgColor("blue").
 			Build(),
 		ui.HStack(
-			app.NewTextBuilder("║ ").
+			ui.NewTextBuilder("║ ").
 				FgColor("blue").
 				Build(),
-			app.NewTextBuilder("Ln 1, Col 1").
+			ui.NewTextBuilder("Ln 1, Col 1").
 				FgColor("white").
 				Build(),
-			app.NewTextBuilder("  ").
+			ui.NewTextBuilder("  ").
 				Build(),
-			app.NewTextBuilder("UTF-8").
+			ui.NewTextBuilder("UTF-8").
 				FgColor("green").
 				Build(),
-			app.NewTextBuilder("  ").
+			ui.NewTextBuilder("  ").
 				Build(),
-			app.NewTextBuilder("Go").
+			ui.NewTextBuilder("Go").
 				BgColor("cyan").
 				FgColor("black").
 				Build(),
-			app.NewTextBuilder("  ").
+			ui.NewTextBuilder("  ").
 				Build(),
-			app.NewTextBuilder(activeFile).
+			ui.NewTextBuilder(activeFile).
 				FgColor("yellow").
 				Build(),
-			app.NewTextBuilder("                                                      ").
+			ui.NewTextBuilder("                                                      ").
 				Build(),
-			app.NewTextBuilder("✓ Ready").
+			ui.NewTextBuilder("✓ Ready").
 				FgColor("green").
 				Build(),
-			app.NewTextBuilder("  ║").
+			ui.NewTextBuilder("  ║").
 				FgColor("blue").
 				Build(),
 		),
-		app.NewTextBuilder("╚══════════════════════════════════════════════════════════════════════════════════════════════════╝").
+		ui.NewTextBuilder("╚══════════════════════════════════════════════════════════════════════════════════════════════════╝").
 			FgColor("blue").
 			Build(),
 	)
@@ -495,13 +495,13 @@ func renderCommandPalette(show bool, setShow func(bool)) ui.VNode {
 		ui.HStack(
 			ui.Text("         "),
 			ui.VStack(
-				app.NewTextBuilder("╔══════════════════════════════════════════════════╗").
+				ui.NewTextBuilder("╔══════════════════════════════════════════════════╗").
 					FgColor("yellow").
 					Build(),
-				app.NewTextBuilder("║ > Type command...                             ║").
+				ui.NewTextBuilder("║ > Type command...                             ║").
 					FgColor("yellow").
 					Build(),
-				app.NewTextBuilder("╠══════════════════════════════════════════════════╣").
+				ui.NewTextBuilder("╠══════════════════════════════════════════════════╣").
 					FgColor("yellow").
 					Build(),
 			),
@@ -512,10 +512,10 @@ func renderCommandPalette(show bool, setShow func(bool)) ui.VNode {
 		children = append(children,
 			ui.HStack(
 				ui.Text("         "),
-				app.NewTextBuilder("║ "+cmd).
+				ui.NewTextBuilder("║ "+cmd).
 					FgColor("yellow").
 					Build(),
-				app.NewTextBuilder("                              ║").
+				ui.NewTextBuilder("                              ║").
 					FgColor("yellow").
 					Build(),
 			),
@@ -525,12 +525,12 @@ func renderCommandPalette(show bool, setShow func(bool)) ui.VNode {
 	children = append(children,
 		ui.HStack(
 			ui.Text("         "),
-			app.NewTextBuilder("╚══════════════════════════════════════════════════╝").
+			ui.NewTextBuilder("╚══════════════════════════════════════════════════╝").
 				FgColor("yellow").
 				Build(),
 		),
 		ui.Text(""),
-		app.NewTextBuilder("Press ESC to close").
+		ui.NewTextBuilder("Press ESC to close").
 			FgColor("gray").
 			Build(),
 	)

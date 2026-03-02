@@ -67,25 +67,25 @@ func ComprehensiveApp() ui.VNode {
 	}
 
 	return ui.VStack(
-		app.NewTextBuilder("╔══════════════════════════════╗").
+		ui.NewTextBuilder("╔══════════════════════════════╗").
 			FgColor("cyan").
 			Build(),
-		app.NewTextBuilder("║     Comprehensive Demo         ║").
+		ui.NewTextBuilder("║     Comprehensive Demo         ║").
 			FgColor("cyan").
 			Build(),
-		app.NewTextBuilder("╚══════════════════════════════╝").
+		ui.NewTextBuilder("╚══════════════════════════════╝").
 			FgColor("cyan").
 			Build(),
 		ui.Text(""),
 		ui.HStack(
 			ui.Text("Step: "),
-			app.NewTextBuilder(fmt.Sprintf("%d/3", step)).
+			ui.NewTextBuilder(fmt.Sprintf("%d/3", step)).
 				FgColor("yellow").
 				Bold(true).
 				Build(),
 		),
 		ui.Text(""),
-		app.NewTextBuilder(steps[step-1]).
+		ui.NewTextBuilder(steps[step-1]).
 			FgColor("bright-black").
 			Build(),
 		ui.Text(""),
@@ -110,14 +110,14 @@ func ComprehensiveApp() ui.VNode {
 				return ui.VStack(
 					ui.HStack(
 						ui.Text("Hello, "),
-						app.NewTextBuilder(name).
+						ui.NewTextBuilder(name).
 							FgColor("magenta").
 							Bold(true).
 							Build(),
 						ui.Text("!"),
 					),
 					ui.Text(""),
-					app.NewTextBuilder(fmt.Sprintf("Count: %d", count)).
+					ui.NewTextBuilder(fmt.Sprintf("Count: %d", count)).
 						FgColor("green").
 						Bold(true).
 						Build(),

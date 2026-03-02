@@ -25,8 +25,8 @@ func TestSandboxWithUIComponents(t *testing.T) {
 			count, setCount, _ := ui.UseStateInt(0)
 
 			return ui.VStack(
-				app.NewTextBuilder("Counter:").Build(),
-				app.NewTextBuilder(fmt.Sprintf("Count: %d", count)).
+				ui.NewTextBuilder("Counter:").Build(),
+				ui.NewTextBuilder(fmt.Sprintf("Count: %d", count)).
 					FgColor("green").
 					Build(),
 				ui.HStack(
@@ -35,7 +35,7 @@ func TestSandboxWithUIComponents(t *testing.T) {
 							setCount(func(c int) int { return c - 1 })
 						}).
 						Build(),
-					app.Text("  "),
+					ui.Text("  "),
 					app.ButtonBuilder("+").
 						OnClick(func() {
 							setCount(func(c int) int { return c + 1 })
@@ -104,7 +104,7 @@ func TestSandboxWithUIComponents(t *testing.T) {
 	})
 
 	t.Run("StyledText", func(t *testing.T) {
-		text := app.NewTextBuilder("Styled Text").
+		text := ui.NewTextBuilder("Styled Text").
 			FgColor("cyan").
 			Bold(true).
 			Underline(true).
@@ -119,11 +119,11 @@ func TestSandboxWithUIComponents(t *testing.T) {
 
 	t.Run("LayoutComponents", func(t *testing.T) {
 		layout := ui.VStack(
-			app.Text("Line 1"),
-			app.Text("Line 2"),
+			ui.Text("Line 1"),
+			ui.Text("Line 2"),
 			ui.HStack(
-				app.Text("Left"),
-				app.Text("Right"),
+				ui.Text("Left"),
+				ui.Text("Right"),
 			),
 		)
 
@@ -145,7 +145,7 @@ func TestSandboxCompatibilitySummary(t *testing.T) {
 	t.Log("  - TestHelper (fluent API)")
 	t.Log("")
 	t.Log("✅ Component APIs:")
-	t.Log("  - app.Text(), app.NewTextBuilder()")
+	t.Log("  - ui.Text(), ui.NewTextBuilder()")
 	t.Log("  - app.ButtonBuilder().OnClick()")
 	t.Log("  - app.InputBuilder(), app.TextAreaBuilder()")
 	t.Log("  - ui.VStack(), ui.HStack(), ui.Box()")

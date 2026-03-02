@@ -109,10 +109,10 @@ func main() {
 
 		// Base layer content
 		baseContent := app.VStack(
-			app.NewTextBuilder("🔑 UI Key Inspector 演示").Bold(true).FgColor("cyan").Build(),
-			app.Text(""),
-			app.NewTextBuilder("点击按钮打开不同的 layer，观察 Inspector 中的 KEY 变化").FgColor("gray").Build(),
-			app.Text(""),
+			ui.NewTextBuilder("🔑 UI Key Inspector 演示").Bold(true).FgColor("cyan").Build(),
+			ui.Text(""),
+			ui.NewTextBuilder("点击按钮打开不同的 layer，观察 Inspector 中的 KEY 变化").FgColor("gray").Build(),
+			ui.Text(""),
 			app.ButtonBuilder("打开 Modal").
 				OnPress(OpenModalIntent{}).
 				Build(),
@@ -125,10 +125,10 @@ func main() {
 			app.ButtonBuilder("关闭所有 Layers").
 				OnPress(CloseAllLayersIntent{}).
 				Build(),
-			app.Text(""),
-			app.NewTextBuilder("─────────────────────────────────").FgColor("gray").Build(),
-			app.NewTextBuilder("显示选项:").FgColor("cyan").Build(),
-			app.Text(""),
+			ui.Text(""),
+			ui.NewTextBuilder("─────────────────────────────────").FgColor("gray").Build(),
+			ui.NewTextBuilder("显示选项:").FgColor("cyan").Build(),
+			ui.Text(""),
 			buildCheckbox("显示 Keys", showKeys, ToggleShowKeysIntent{}),
 			buildCheckbox("显示 Paths", showPaths, ToggleShowPathsIntent{}),
 			buildCheckbox("显示 Layer 标记", showLayers, ToggleShowLayersIntent{}),
@@ -137,9 +137,9 @@ func main() {
 		var modalContent ui.VNode
 		if modalOpen {
 			modalContent = app.VStack(
-				app.NewTextBuilder("这是 Modal (LayerModal)").FgColor("cyan").Build(),
-				app.NewTextBuilder("观察 Inspector 中这个节点的 KEY").FgColor("gray").Build(),
-				app.Text(""),
+				ui.NewTextBuilder("这是 Modal (LayerModal)").FgColor("cyan").Build(),
+				ui.NewTextBuilder("观察 Inspector 中这个节点的 KEY").FgColor("gray").Build(),
+				ui.Text(""),
 				app.ButtonBuilder("Modal 内部的按钮").
 					OnPress(ModalButtonClickIntent{}).
 					Build(),
@@ -152,9 +152,9 @@ func main() {
 		var overlayContent ui.VNode
 		if overlayVisible {
 			overlayContent = app.VStack(
-				app.NewTextBuilder("这是 Overlay (LayerOverlay)").FgColor("yellow").Build(),
-				app.NewTextBuilder("观察 Inspector 中这个节点的 KEY").FgColor("gray").Build(),
-				app.Text(""),
+				ui.NewTextBuilder("这是 Overlay (LayerOverlay)").FgColor("yellow").Build(),
+				ui.NewTextBuilder("观察 Inspector 中这个节点的 KEY").FgColor("gray").Build(),
+				ui.Text(""),
 				app.ButtonBuilder("Overlay 按钮").
 					OnPress(OverlayButtonClickIntent{}).
 					Build(),
@@ -196,8 +196,8 @@ func buildCheckbox(label string, checked bool, toggleIntent intent.Intent) ui.VN
 		status = "[ ] "
 	}
 
-	return app.HStack(
-		app.NewTextBuilder(status+label).Build(),
+	return ui.HStack(
+		ui.NewTextBuilder(status+label).Build(),
 		app.ButtonBuilder("切换").
 			OnPress(toggleIntent).
 			Build(),
@@ -234,7 +234,7 @@ func createInspectorOverlay(showKeys, showPaths, showLayers bool) ui.VNode {
 
 	textNodes := make([]ui.VNode, len(lines))
 	for i, line := range lines {
-		textNodes[i] = app.Text(line)
+		textNodes[i] = ui.Text(line)
 	}
 
 	return app.VStack(textNodes...)

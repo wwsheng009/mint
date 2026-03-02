@@ -48,7 +48,7 @@ func TodoItem(props ui.Props) ui.VNode {
 	}
 
 	return ui.HStack(
-		app.NewTextBuilder(fmt.Sprintf("%s %s", status, displayText)).
+		ui.NewTextBuilder(fmt.Sprintf("%s %s", status, displayText)).
 			FgColor(func() string {
 				if todo.Done {
 					return "bright-black"
@@ -74,16 +74,16 @@ func TodoList() ui.VNode {
 	// Render todo list with keys for state preservation
 	items := make([]ui.VNode, 0, len(todos)+5)
 	items = append(items,
-		app.NewTextBuilder("Dynamic List Demo - State Preservation").
+		ui.NewTextBuilder("Dynamic List Demo - State Preservation").
 			FgColor("cyan").
 			Bold(true).
 			Build(),
 		ui.Text(""),
-		app.NewTextBuilder("Each item has local click count").
+		ui.NewTextBuilder("Each item has local click count").
 			FgColor("yellow").
 			Build(),
 		ui.Text(""),
-		app.NewTextBuilder("Click + on each item, then re-run to see").
+		ui.NewTextBuilder("Click + on each item, then re-run to see").
 			FgColor("bright-black").
 			Build(),
 		ui.Text(""),
@@ -103,11 +103,11 @@ func TodoList() ui.VNode {
 
 	items = append(items,
 		ui.Text(""),
-		app.NewTextBuilder(fmt.Sprintf("Total: %d items", len(todos))).
+		ui.NewTextBuilder(fmt.Sprintf("Total: %d items", len(todos))).
 			FgColor("bright-black").
 			Build(),
 		ui.Text(""),
-		app.NewTextBuilder("Press 'q' to quit").
+		ui.NewTextBuilder("Press 'q' to quit").
 			FgColor("bright-black").
 			Build(),
 	)

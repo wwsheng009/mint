@@ -52,20 +52,20 @@ func MouseFocusDemo() ui.VNode {
 	}
 
 	return app.VStack(
-		app.NewTextBuilder("=== Mouse Focus Demo ===").
+		ui.NewTextBuilder("=== Mouse Focus Demo ===").
 			Bold(true).
 			Build(),
-		app.Text(""),
-		app.NewTextBuilder("Click on any input to set focus").
+		ui.Text(""),
+		ui.NewTextBuilder("Click on any input to set focus").
 			FgColor("cyan").
 			Build(),
-		app.Text(""),
+		ui.Text(""),
 
 		// Multiple input fields with MVP data flow
-		app.NewTextBuilder("Name:").
+		ui.NewTextBuilder("Name:").
 			Build(),
-		app.HStack(
-			app.Text("  "),
+		ui.HStack(
+			ui.Text("  "),
 			app.InputBuilder().
 				ForField(intent.BindField("name")).
 				Value(name).
@@ -75,10 +75,10 @@ func MouseFocusDemo() ui.VNode {
 				Build(),
 		),
 
-		app.NewTextBuilder("Email:").
+		ui.NewTextBuilder("Email:").
 			Build(),
-		app.HStack(
-			app.Text("  "),
+		ui.HStack(
+			ui.Text("  "),
 			app.InputBuilder().
 				ForField(intent.BindField("email")).
 				Value(email).
@@ -88,10 +88,10 @@ func MouseFocusDemo() ui.VNode {
 				Build(),
 		),
 
-		app.NewTextBuilder("Password:").
+		ui.NewTextBuilder("Password:").
 			Build(),
-		app.HStack(
-			app.Text("  "),
+		ui.HStack(
+			ui.Text("  "),
 			app.InputBuilder().
 				ForField(intent.BindField("password")).
 				Value(password).
@@ -102,11 +102,11 @@ func MouseFocusDemo() ui.VNode {
 				Build(),
 		),
 
-		app.Text(""),
+		ui.Text(""),
 
 		// Submit button
-		app.HStack(
-			app.Text("  "),
+		ui.HStack(
+			ui.Text("  "),
 			app.ButtonBuilder("  Submit  ").
 				Variant(app.ButtonVariantPrimary).
 				Key("submit-btn").
@@ -115,38 +115,38 @@ func MouseFocusDemo() ui.VNode {
 				Build(),
 		),
 
-		app.Text(""),
+		ui.Text(""),
 
 		// Instructions
-		app.NewTextBuilder("Instructions:").
+		ui.NewTextBuilder("Instructions:").
 			FgColor("yellow").
 			Build(),
-		app.Text("  • Mouse Click:  Click an input/button to focus"),
-		app.Text("  • Tab:          Navigate to next focusable"),
-		app.Text("  • SHIFT+Tab:    Navigate to previous"),
-		app.Text("  • Type:         Enter text in focused input"),
-		app.Text("  • Backspace:    Delete character"),
-		app.Text("  • q:            Quit"),
+		ui.Text("  • Mouse Click:  Click an input/button to focus"),
+		ui.Text("  • Tab:          Navigate to next focusable"),
+		ui.Text("  • SHIFT+Tab:    Navigate to previous"),
+		ui.Text("  • Type:         Enter text in focused input"),
+		ui.Text("  • Backspace:    Delete character"),
+		ui.Text("  • q:            Quit"),
 	)
 }
 
 // SubmittedView - 显示提交成功的视图
 func SubmittedView(name, email, password string) ui.VNode {
 	return app.VStack(
-		app.NewTextBuilder("✅ Form Submitted!").
+		ui.NewTextBuilder("✅ Form Submitted!").
 			Bold(true).
 			FgColor("green").
 			Build(),
-		app.Text(""),
-		app.NewTextBuilder("─").FgColor("gray").Build(),
-		app.Text(""),
-		app.NewTextBuilder(fmt.Sprintf("Name: %s", name)).Build(),
-		app.NewTextBuilder(fmt.Sprintf("Email: %s", email)).Build(),
-		app.Text(""),
-		app.NewTextBuilder("─").FgColor("gray").Build(),
-		app.Text(""),
-		app.HStack(
-			app.Text("  "),
+		ui.Text(""),
+		ui.NewTextBuilder("─").FgColor("gray").Build(),
+		ui.Text(""),
+		ui.NewTextBuilder(fmt.Sprintf("Name: %s", name)).Build(),
+		ui.NewTextBuilder(fmt.Sprintf("Email: %s", email)).Build(),
+		ui.Text(""),
+		ui.NewTextBuilder("─").FgColor("gray").Build(),
+		ui.Text(""),
+		ui.HStack(
+			ui.Text("  "),
 			app.ButtonBuilder("  Back  ").
 				Variant(app.ButtonVariantSecondary).
 				Key("back-btn").

@@ -35,23 +35,23 @@ func MouseInteractionDemo() ui.VNode {
 
 	return ui.VStack(
 		// Header
-		app.NewTextBuilder("╔══════════════════════════════════════════╗").
+		ui.NewTextBuilder("╔══════════════════════════════════════════╗").
 			FgColor("cyan").
 			Build(),
-		app.NewTextBuilder("║     Mouse Interaction Demo               ║").
+		ui.NewTextBuilder("║     Mouse Interaction Demo               ║").
 			FgColor("cyan").
 			Build(),
-		app.NewTextBuilder("║     🖱️ Hover & Click to interact          ║").
+		ui.NewTextBuilder("║     🖱️ Hover & Click to interact          ║").
 			FgColor("cyan").
 			Build(),
-		app.NewTextBuilder("╚══════════════════════════════════════════╝").
+		ui.NewTextBuilder("╚══════════════════════════════════════════╝").
 			FgColor("cyan").
 			Build(),
 		ui.Text(""),
 		ui.Text(""),
 
 		// Button Section
-		app.NewTextBuilder("🔘 BUTTONS - Click to interact").
+		ui.NewTextBuilder("🔘 BUTTONS - Click to interact").
 			FgColor("yellow").
 			Bold(true).
 			Build(),
@@ -61,7 +61,7 @@ func MouseInteractionDemo() ui.VNode {
 				OnPress(DecrementMouseIntent{}).
 				Build(),
 			ui.Text(" "),
-			app.NewTextBuilder(fmt.Sprintf(" Count: %d ", count)).
+			ui.NewTextBuilder(fmt.Sprintf(" Count: %d ", count)).
 				Bold(true).
 				FgColor("green").
 				Build(),
@@ -73,7 +73,7 @@ func MouseInteractionDemo() ui.VNode {
 		ui.Text(""),
 
 		// Checkbox Section
-		app.NewTextBuilder("☑️ CHECKBOXES - Click to toggle").
+		ui.NewTextBuilder("☑️ CHECKBOXES - Click to toggle").
 			FgColor("yellow").
 			Bold(true).
 			Build(),
@@ -89,7 +89,7 @@ func MouseInteractionDemo() ui.VNode {
 		ui.Text(""),
 
 		// Input Section
-		app.NewTextBuilder("📝 INPUT - Click to focus, type to edit").
+		ui.NewTextBuilder("📝 INPUT - Click to focus, type to edit").
 			FgColor("yellow").
 			Bold(true).
 			Build(),
@@ -104,7 +104,7 @@ func MouseInteractionDemo() ui.VNode {
 		ui.Text(""),
 
 		// Select Section
-		app.NewTextBuilder("📋 SELECT - Click to cycle options").
+		ui.NewTextBuilder("📋 SELECT - Click to cycle options").
 			FgColor("yellow").
 			Bold(true).
 			Build(),
@@ -124,7 +124,7 @@ func MouseInteractionDemo() ui.VNode {
 		ui.Text(""),
 
 		// Textarea Section
-		app.NewTextBuilder("📄 TEXTAREA - Click to focus").
+		ui.NewTextBuilder("📄 TEXTAREA - Click to focus").
 			FgColor("yellow").
 			Bold(true).
 			Build(),
@@ -137,17 +137,17 @@ func MouseInteractionDemo() ui.VNode {
 		ui.Text(""),
 
 		// Info Section
-		app.NewTextBuilder("─────────────────────────────────────────").
+		ui.NewTextBuilder("─────────────────────────────────────────").
 			FgColor("bright-black").
 			Build(),
 		ui.Text(""),
-		app.NewTextBuilder("💡 TIP: Hover over controls highlights them").
+		ui.NewTextBuilder("💡 TIP: Hover over controls highlights them").
 			FgColor("gray").
 			Build(),
-		app.NewTextBuilder("💡 TIP: Click buttons/checkboxes to interact").
+		ui.NewTextBuilder("💡 TIP: Click buttons/checkboxes to interact").
 			FgColor("gray").
 			Build(),
-		app.NewTextBuilder("💡 TIP: Use Tab to navigate, Enter to select").
+		ui.NewTextBuilder("💡 TIP: Use Tab to navigate, Enter to select").
 			FgColor("gray").
 			Build(),
 	)

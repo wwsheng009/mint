@@ -39,38 +39,38 @@ func main() {
 		switch activeTab {
 		case 0:
 			content = app.VStack(
-				app.NewTextBuilder("Welcome to the Home tab!").FgColor("green").Build(),
-				app.Text(""),
-				app.NewTextBuilder("This is the main content area.").FgColor("gray").Build(),
-				app.Text(""),
-				app.NewTextBuilder("Navigate using the buttons below:").FgColor("bright-black").Build(),
+				ui.NewTextBuilder("Welcome to the Home tab!").FgColor("green").Build(),
+				ui.Text(""),
+				ui.NewTextBuilder("This is the main content area.").FgColor("gray").Build(),
+				ui.Text(""),
+				ui.NewTextBuilder("Navigate using the buttons below:").FgColor("bright-black").Build(),
 			)
 		case 1:
 			content = app.VStack(
-				app.NewTextBuilder("User Profile").FgColor("cyan").Build(),
-				app.Text(""),
-				app.NewTextBuilder("Name:   John Doe").Build(),
-				app.NewTextBuilder("Email:  john@example.com").Build(),
-				app.NewTextBuilder("Role:   Administrator").Build(),
-				app.Text(""),
-				app.NewTextBuilder("Member since: Jan 2025").FgColor("gray").Build(),
+				ui.NewTextBuilder("User Profile").FgColor("cyan").Build(),
+				ui.Text(""),
+				ui.NewTextBuilder("Name:   John Doe").Build(),
+				ui.NewTextBuilder("Email:  john@example.com").Build(),
+				ui.NewTextBuilder("Role:   Administrator").Build(),
+				ui.Text(""),
+				ui.NewTextBuilder("Member since: Jan 2025").FgColor("gray").Build(),
 			)
 		case 2:
 			content = app.VStack(
-				app.NewTextBuilder("System Settings").FgColor("yellow").Build(),
-				app.Text(""),
-				app.NewTextBuilder("Theme:     Dark").Build(),
-				app.NewTextBuilder("Language:  English").Build(),
-				app.NewTextBuilder("Auto-save:  Enabled").Build(),
-				app.Text(""),
-				app.NewTextBuilder("Notifications: On").FgColor("green").Build(),
+				ui.NewTextBuilder("System Settings").FgColor("yellow").Build(),
+				ui.Text(""),
+				ui.NewTextBuilder("Theme:     Dark").Build(),
+				ui.NewTextBuilder("Language:  English").Build(),
+				ui.NewTextBuilder("Auto-save:  Enabled").Build(),
+				ui.Text(""),
+				ui.NewTextBuilder("Notifications: On").FgColor("green").Build(),
 			)
 		}
 
 		return app.VStack(
-			app.NewTextBuilder("Tabs Demo").Bold(true).FgColor("cyan").Build(),
-			app.Text(""),
-			app.HStack(
+			ui.NewTextBuilder("Tabs Demo").Bold(true).FgColor("cyan").Build(),
+			ui.Text(""),
+			ui.HStack(
 				app.ButtonBuilder(" Home ").
 					OnPress(SetHomeTabIntent{}).
 					Build(),
@@ -81,9 +81,9 @@ func main() {
 					OnPress(SetSettingsTabIntent{}).
 					Build(),
 			),
-			app.Text(""),
+			ui.Text(""),
 			ui.Text("─────────────────────────────────────"),
-			app.Text(""),
+			ui.Text(""),
 			content,
 		)
 	},

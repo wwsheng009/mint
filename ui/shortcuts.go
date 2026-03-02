@@ -2,7 +2,7 @@
 //
 // This package re-exports:
 // 1. Quick shortcut functions for common use cases (e.g., Text(), Button(), Input())
-// 2. Builder types for full-featured configurations (e.g., TextBuilder, ButtonBuilder)
+// 2. Builder factory functions (e.g., NewButtonBuilder(), NewInputBuilder())
 //
 // Usage examples:
 //
@@ -12,9 +12,9 @@
 //   ui.Input("Placeholder")
 //
 // Full Builder patterns:
-//   ui.TextBuilder("Hello").Bold().FgColor("red").Build()
-//   ui.ButtonBuilder("Click").Primary().OnPress(intent).Build()
-//   ui.InputBuilder().Placeholder("...").Value("x").OnChange(intent).Build()
+//   ui.NewTextBuilder("Hello").Bold().FgColor("red").Build()
+//   ui.NewButtonBuilder("Click").Primary().Large().OnPress(intent).Build()
+//   ui.NewInputBuilder().Placeholder("...").Value("x").OnChange(intent).Build()
 package ui
 
 import (
@@ -48,70 +48,115 @@ import (
 )
 
 // =============================================================================
-// Builder Type Re-exports (for full-featured configuration)
+// Builder Factory Functions - Re-exported from component packages
 // =============================================================================
 
 // Form Components
-type (
-	InputBuilder    = input.Builder
-	TextareaBuilder = textarea.Builder
-	CheckboxBuilder = checkbox.Builder
-	SelectBuilder   = selectcomp.Builder
-)
+func NewInputBuilder() *input.Builder {
+	return input.NewBuilder()
+}
+
+func NewTextareaBuilder() *textarea.Builder {
+	return textarea.NewBuilder()
+}
+
+func NewCheckboxBuilder() *checkbox.Builder {
+	return checkbox.NewBuilder()
+}
 
 // Button Components
-type ButtonBuilder = button.Builder
+func NewButtonBuilder(label string) *button.Builder {
+	return button.NewBuilder(label)
+}
 
 // Text Components
-type TextBuilder = text.Builder
+func NewTextBuilder(content string) *text.Builder {
+	return text.NewBuilder(content)
+}
 
 // Layout Components
-type (
-	StackBuilder      = stack.Builder
-	// Note: HStackBuilder, VStackBuilder are in ui/layout.go (runtime/ui.LayoutBuilder)
-	// Note: WrapBuilder is in ui/layout.go (wrap.Builder)
-	GridBuilder   = grid.Builder
-	AbsoluteBuilder = absolute.Builder
-)
+func NewStackBuilder(dir stack.Direction) *stack.Builder {
+	return stack.NewBuilder(dir)
+}
+
+func NewWrapBuilder() *wrap.Builder {
+	return wrap.NewBuilder()
+}
+
+func NewGridBuilder() *grid.Builder {
+	return grid.NewBuilder()
+}
+
+func NewAbsoluteBuilder(child rtui.VNode) *absolute.Builder {
+	return absolute.NewBuilder(child)
+}
 
 // Container Components
-type (
-	BorderBuilder    = border.Builder
-	PanelBuilder     = panel.Builder
-	ScrollViewBuilder = scrollview.Builder
-)
+func NewBorderBuilder() *border.Builder {
+	return border.NewBuilder()
+}
+
+func NewPanelBuilder() *panel.Builder {
+	return panel.NewBuilder()
+}
+
+func NewScrollViewBuilder() *scrollview.Builder {
+	return scrollview.NewBuilder()
+}
 
 // Data Display Components
-type (
-	ListBuilder      = list.Builder
-	TableBuilder     = table.Builder
-	TreeViewBuilder  = treeview.Builder
-	VirtualListBuilder = virtuallist.Builder
-)
+func NewListBuilder() *list.Builder {
+	return list.NewBuilder()
+}
+
+func NewTableBuilder() *table.Builder {
+	return table.NewBuilder()
+}
+
+func NewTreeViewBuilder() *treeview.Builder {
+	return treeview.NewBuilder()
+}
+
+func NewVirtualListBuilder() *virtuallist.Builder {
+	return virtuallist.NewBuilder()
+}
 
 // Navigation Components
-type TabsBuilder = tabs.Builder
-
-// Overlay Components
-type (
-	// Note: ModalBuilder, TooltipBuilder are in ui/layer.go (ui-specific implementations)
-	// For Fiber-first builders, use individual packages:
-	//   - ui/components/modal.Builder
-	//   - ui/components/tooltip.Builder
-	ToastBuilder = tooltip.ToastBuilder
-)
+func NewTabsBuilder() *tabs.Builder {
+	return tabs.NewBuilder()
+}
 
 // Divider Components
-type DividerBuilder = divider.Builder
+func NewDividerBuilder() *divider.Builder {
+	return divider.NewBuilder()
+}
 
 // Progress Components
-type ProgressBuilder = progress.Builder
+func NewProgressBuilder() *progress.Builder {
+	return progress.NewBuilder()
+}
+
+// Modal Components
+func NewModalBuilder() *modal.Builder {
+	return modal.NewBuilder()
+}
+
+// Tooltip Components
+func NewTooltipBuilder(content rtui.VNode, tooltipText string) *tooltip.Builder {
+	return tooltip.NewBuilder(content, tooltipText)
+}
 
 // =============================================================================
 // Common Type Re-exports
 // =============================================================================
 
 // Button Types
+type (
+	ButtonVariant    = button.Variant
+	ButtonSize       = button.Size
+	ButtonFocusStyle = button.FocusStyle
+)
+
 const (
 	ButtonVariantDefault   = button.VariantDefault
 	ButtonVariantPrimary   = button.VariantPrimary
@@ -149,16 +194,11 @@ const (
 type (
 	GridDimension = grid.Dimension
 	Fixed         = grid.Fixed
-	// Note: Flex is a function in ui/layout.go, not a type here
-	Auto          = struct{} // Placeholder for grid.Auto
 )
 
 // Absolute Position Types
 type PositionValue = absolute.PositionValue
 type Anchor = absolute.Anchor
-
-// Note: PositionTop, etc. are not exported by absolute component
-// Use PositionFixed(0) for fixed positioning, or position values directly
 
 // Tab Types
 type TabPosition = tabs.TabPosition
@@ -183,6 +223,8 @@ type SelectOption = selectcomp.Option
 // =============================================================================
 // NOTE: BorderStyle constants are in ui/layout.go (re-exported from rtui)
 // =============================================================================
+// NOTE: HStackBuilder, VStackBuilder are in ui/layout.go (runtime/ui.LayoutBuilder)
+// NOTE: ModalBuilder, TooltipBuilder are in ui/layer.go (ui-specific implementations)
 
 // =============================================================================
 // Quick Shortcut Functions (for common use cases)
@@ -400,7 +442,7 @@ func BottomRight(child rtui.VNode) rtui.VNode {
 	return absolute.BottomRight(child)
 }
 
-// Center places a child at center of container
+// CenterAbs places a child at center of container
 func CenterAbs(child rtui.VNode) rtui.VNode {
 	return absolute.Center(child)
 }

@@ -23,18 +23,18 @@ func ProgressDemo() ui.VNode {
 	})
 
 	return app.VStack(
-		app.NewTextBuilder("Progress Bar Demo").
+		ui.NewTextBuilder("Progress Bar Demo").
 			FgColor("cyan").
 			Bold(true).
 			Build(),
-		app.Text(""),
+		ui.Text(""),
 		// TODO: SpinnerBuilder 暂时不可用
 		// app.SpinnerBuilder().
 		// 	Message("Loading demo...").
 		// 	FgColor("yellow").
 		// 	Build(),
-		app.NewTextBuilder("Spinner placeholder...").FgColor("yellow").Build(),
-		app.Text(""),
+		ui.NewTextBuilder("Spinner placeholder...").FgColor("yellow").Build(),
+		ui.Text(""),
 		app.ProgressBuilder().
 			Label("Download:").
 			Value(progress).
@@ -42,39 +42,39 @@ func ProgressDemo() ui.VNode {
 			Width(30).
 			ShowPercent(true).
 			Build(),
-		app.Text(""),
-		app.NewTextBuilder("Status:").
+		ui.Text(""),
+		ui.NewTextBuilder("Status:").
 			FgColor("bright-black").
 			Build(),
 		func() ui.VNode {
 			if progress < 30 {
-				return app.NewTextBuilder("  Starting...").
+				return ui.NewTextBuilder("  Starting...").
 					FgColor("bright-black").
 					Build()
 			} else if progress < 70 {
-				return app.NewTextBuilder("  In progress...").
+				return ui.NewTextBuilder("  In progress...").
 					FgColor("yellow").
 					Build()
 			} else if progress < 100 {
-				return app.NewTextBuilder("  Almost done!").
+				return ui.NewTextBuilder("  Almost done!").
 					FgColor("cyan").
 					Build()
 			}
-			return app.NewTextBuilder("  Complete!").
+			return ui.NewTextBuilder("  Complete!").
 				FgColor("green").
 				Bold(true).
 				Build()
 		}(),
-		app.Text(""),
+		ui.Text(""),
 		app.ButtonBuilder("  +10%  ").
 			OnPress(IncrementProgressIntent{}).
 			Build(),
-		app.Text(""),
-		app.NewTextBuilder("Press button to increase progress").
+		ui.Text(""),
+		ui.NewTextBuilder("Press button to increase progress").
 			FgColor("bright-black").
 			Build(),
-		app.Text(""),
-		app.NewTextBuilder("q: quit").
+		ui.Text(""),
+		ui.NewTextBuilder("q: quit").
 			FgColor("bright-black").
 			Build(),
 	)

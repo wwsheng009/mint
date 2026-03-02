@@ -35,17 +35,17 @@ func SimpleCounter() ui.VNode {
 	})
 
 	return ui.VStack(
-		app.NewTextBuilder("╔══════════════════════════════╗").
+		ui.NewTextBuilder("╔══════════════════════════════╗").
 			FgColor("cyan").
 			Build(),
-		app.NewTextBuilder("║   Event Recording Demo       ║").
+		ui.NewTextBuilder("║   Event Recording Demo       ║").
 			FgColor("cyan").
 			Build(),
-		app.NewTextBuilder("╚══════════════════════════════╝").
+		ui.NewTextBuilder("╚══════════════════════════════╝").
 			FgColor("cyan").
 			Build(),
 		ui.Text(""),
-		app.NewTextBuilder(fmt.Sprintf("Count: %d", count)).
+		ui.NewTextBuilder(fmt.Sprintf("Count: %d", count)).
 			FgColor("green").
 			Bold(true).
 			Build(),
@@ -60,27 +60,27 @@ func SimpleCounter() ui.VNode {
 				Build(),
 		),
 		ui.Text(""),
-		app.NewTextBuilder("──────────────────────────────────").
+		ui.NewTextBuilder("──────────────────────────────────").
 			FgColor("bright-black").
 			Build(),
 		ui.Text(""),
-		app.NewTextBuilder("This demo records your actions").
+		ui.NewTextBuilder("This demo records your actions").
 			FgColor("bright-black").
 			Build(),
-		app.NewTextBuilder("and can replay them later.").
+		ui.NewTextBuilder("and can replay them later.").
 			FgColor("bright-black").
 			Build(),
 		ui.Text(""),
 		ui.HStack(
-			app.NewTextBuilder("Tab: focus").
+			ui.NewTextBuilder("Tab: focus").
 				FgColor("bright-black").
 				Build(),
 			ui.Text("  "),
-			app.NewTextBuilder("Enter: click").
+			ui.NewTextBuilder("Enter: click").
 				FgColor("bright-black").
 				Build(),
 			ui.Text("  "),
-			app.NewTextBuilder("q: quit").
+			ui.NewTextBuilder("q: quit").
 				FgColor("bright-black").
 				Build(),
 		),

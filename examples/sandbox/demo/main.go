@@ -46,7 +46,7 @@ func Counter() ui.VNode {
 		ui.Text(""),
 
 		// Greeting
-		app.HStack(
+		ui.HStack(
 			ui.Text("Hello, "),
 			ui.TextWithStyle(name, yellowBoldStyle),
 			ui.Text("!"),
@@ -58,7 +58,7 @@ func Counter() ui.VNode {
 		ui.Text(""),
 
 		// Buttons
-		app.HStack(
+		ui.HStack(
 			app.ButtonBuilder("  [ - ]  ").
 				OnPress(DecrementSandboxDemoIntent{}).
 				Build(),
@@ -70,7 +70,7 @@ func Counter() ui.VNode {
 		ui.Text(""),
 
 		// Input field (name input - TODO: integrate with FieldChangeIntent)
-		app.HStack(
+		ui.HStack(
 			ui.Text("Name: "),
 			app.InputBuilder().
 				Value(name).
@@ -82,7 +82,7 @@ func Counter() ui.VNode {
 		ui.Text(""),
 
 		// Instructions
-		app.HStack(
+		ui.HStack(
 			ui.TextWithStyle("Tab: focus", grayStyle),
 			ui.Text("  "),
 			ui.TextWithStyle("Enter: click", grayStyle),
