@@ -6,13 +6,15 @@ import (
 
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/ui"
+	"github.com/wwsheng009/mint/ui/components/stack"
 )
 
 // TestStep3LayoutVNode 测试 Step 3 布局的 VNode 结构
 func TestStep3LayoutVNode(t *testing.T) {
 	// 创建 Step 3 的 VNode 结构，使用固定测试值
-	vnode := ui.Bordered().
-		Child(
+	vnode := stack.NewVStack().
+		SingleBorder().
+		SetChildrenList([]ui.VNode{
 			ui.VStackBuilder(
 				ConfirmInfo("Username:", ""),
 				ConfirmInfo("Email:", ""),
@@ -25,15 +27,14 @@ func TestStep3LayoutVNode(t *testing.T) {
 						Build(),
 				).Build(),
 			).Gap(2).Build(),
-		).
-		Build()
+		})
 
 	// 创建 Fiber 树
 	fiber := rtui.CreateFiberFromVNode(vnode)
 
 	// 验证 Fiber 结构
-	if fiber.Tag != "bordered" {
-		t.Errorf("Expected Bordered tag, got '%s'", fiber.Tag)
+	if fiber.Tag != "vstack" {
+		t.Errorf("Expected vstack tag, got '%s'", fiber.Tag)
 	}
 
 	// 统计子节点数量

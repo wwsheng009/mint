@@ -30,6 +30,7 @@ import (
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/ui"
+	"github.com/wwsheng009/mint/ui/components/stack"
 )
 
 // =============================================================================
@@ -229,10 +230,10 @@ func Header(count int, setShowModal func(bool), setCount func(interface{})) ui.V
 			Build(),
 	)
 
-	return ui.Bordered().
-		Style(string(theme.Primary())).
-		Child(headerContent).
-		Build()
+	return stack.NewVStack().
+		SingleBorder().
+		BorderColor(string(theme.Primary())).
+		SetChildrenList([]ui.VNode{headerContent})
 }
 
 // MainBody uses VStack/HStack with Bordered components for layout
@@ -313,17 +314,17 @@ func MainBody(count int, setCount func(interface{}), input string, setInput func
 	// Uses theme BORDER color for borders
 	return ui.HStackBuilder(
 		ui.Flex(
-			ui.Bordered().
-				Style(string(theme.Border())).
-				Child(sidebar).
-				Build(),
+			stack.NewVStack().
+				SingleBorder().
+				BorderColor(string(theme.Border())).
+				SetChildrenList([]ui.VNode{sidebar}),
 			1, // Flex factor
 		),
 		ui.Flex(
-			ui.Bordered().
-				Style(string(theme.Border())).
-				Child(contentArea).
-				Build(),
+			stack.NewVStack().
+				SingleBorder().
+				BorderColor(string(theme.Border())).
+				SetChildrenList([]ui.VNode{contentArea}),
 			1, // Flex factor
 		),
 	).Gap(0).Build()
@@ -335,10 +336,11 @@ func MainBody(count int, setCount func(interface{}), input string, setInput func
 func ConfirmModal(onClose func()) ui.VNode {
 	// Modal content - the actual dialog box with border
 	// Uses theme WARNING color for modal border to indicate caution
-	modalBox := ui.Bordered().
-		Style(string(theme.Warning())).
-		Width(40). // Fixed width for the modal
-		Child(
+	modalBox := stack.NewVStack().
+		SingleBorder().
+		BorderColor(string(theme.Warning())).
+		SetWidth(40). // Fixed width for the modal
+		SetChildrenList([]ui.VNode{
 			ui.VStackBuilder(
 				ui.Text(""),
 				// DEBUG: Line number to verify position
@@ -378,8 +380,7 @@ func ConfirmModal(onClose func()) ui.VNode {
 				// DEBUG: End marker
 				ui.Text("=== MODAL END ==="),
 			).Build(),
-		).
-		Build()
+		})
 
 	return ui.Modal(modalBox).
 		OnClose(onClose).

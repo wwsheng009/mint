@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/wwsheng009/mint/ui"
+	"github.com/wwsheng009/mint/ui/components/stack"
 )
 
 func TestBorderedSimple(t *testing.T) {
@@ -145,37 +146,37 @@ func TestBorderedDashedStyle(t *testing.T) {
 }
 
 func SimpleBorderedApp() ui.VNode {
-	return ui.Bordered().Child(
+	return stack.NewVStack().SingleBorder().SetChildrenList([]ui.VNode{
 		ui.Text("Hello"),
-	).Build()
+	})
 }
 
 func BorderedWithLabelApp() ui.VNode {
-	return ui.Bordered().Label("Title").Child(
+	return stack.NewVStack().SingleBorder("Title").SetChildrenList([]ui.VNode{
 		ui.Text("Hello"),
-	).Build()
+	})
 }
 
 func BorderedMultiLineApp() ui.VNode {
-	return ui.Bordered().Child(
+	return stack.NewVStack().SingleBorder().SetChildrenList([]ui.VNode{
 		ui.VStack(
 			ui.Text("Line 1"),
 			ui.Text("Line 2"),
 			ui.Text("Line 3"),
 		),
-	).Build()
+	})
 }
 
 func BorderedDoubleStyleApp() ui.VNode {
-	return ui.Bordered().Style("double").Child(
+	return stack.NewVStack().DoubleBorder().SetChildrenList([]ui.VNode{
 		ui.Text("Hello"),
-	).Build()
+	})
 }
 
 func BorderedDashedStyleApp() ui.VNode {
-	return ui.Bordered().Style("dashed").Child(
+	return stack.NewVStack().DashedBorder().SetChildrenList([]ui.VNode{
 		ui.Text("Hello"),
-	).Build()
+	})
 }
 
 func contains(s, substr string) bool {

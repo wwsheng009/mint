@@ -11,6 +11,7 @@ import (
 	"github.com/wwsheng009/mint/framework/theme"
 	"github.com/wwsheng009/mint/runtime/style"
 	"github.com/wwsheng009/mint/ui"
+	"github.com/wwsheng009/mint/ui/components/stack"
 )
 
 // =============================================================================
@@ -128,10 +129,10 @@ func BuildDemo1Header(count int) ui.VNode {
 			Build(),
 	)
 
-	return ui.Bordered().
-		Style(string(theme.Primary())).
-		Child(headerContent).
-		Build()
+	return stack.NewVStack().
+		SingleBorder().
+		BorderColor(string(theme.Primary())).
+		SetChildrenList([]ui.VNode{headerContent})
 }
 
 // BuildDemo1MainBody builds the main body layout
@@ -152,17 +153,17 @@ func BuildDemo1MainBody(count int, input string, items []string) ui.VNode {
 
 	return ui.HStackBuilder(
 		ui.Flex(
-			ui.Bordered().
-				Style(string(theme.Border())).
-				Child(sidebar).
-				Build(),
+			stack.NewVStack().
+				SingleBorder().
+				BorderColor(string(theme.Border())).
+				SetChildrenList([]ui.VNode{sidebar}),
 			1,
 		),
 		ui.Flex(
-			ui.Bordered().
-				Style(string(theme.Border())).
-				Child(contentArea).
-				Build(),
+			stack.NewVStack().
+				SingleBorder().
+				BorderColor(string(theme.Border())).
+				SetChildrenList([]ui.VNode{contentArea}),
 			1,
 		),
 	).Gap(0).Build()
@@ -210,10 +211,11 @@ func BuildDemo1ConfirmModal(onClose func()) ui.VNode {
 		onClose()
 	})
 
-	modalBox := ui.Bordered().
-		Style(string(theme.Warning())).
-		Width(40).
-		Child(
+	modalBox := stack.NewVStack().
+		SingleBorder().
+		BorderColor(string(theme.Warning())).
+		SetWidth(40).
+		SetChildrenList([]ui.VNode{
 			ui.VStackBuilder(
 				ui.Text(""),
 				ui.Text("=== MODAL START ==="),
@@ -245,8 +247,7 @@ func BuildDemo1ConfirmModal(onClose func()) ui.VNode {
 				ui.Text(""),
 				ui.Text("=== MODAL END ==="),
 			).Build(),
-		).
-		Build()
+		})
 
 	return ui.Modal(modalBox).
 		OnClose(onClose).
@@ -362,10 +363,10 @@ func StandardFixtures() []ComponentFixture {
 			Name:        "bordered_content",
 			Description: "Bordered container with content",
 			Build: func() ui.VNode {
-				return ui.Bordered().
-					Style("blue").
-					Child(ui.Text("Bordered content")).
-					Build()
+				return stack.NewVStack().
+					SingleBorder().
+					BorderColor("blue").
+					SetChildrenList([]ui.VNode{ui.Text("Bordered content")})
 			},
 		},
 		{

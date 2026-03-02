@@ -47,8 +47,9 @@ type VNode struct {
 	fillHeight  bool  // stretch wrap to fill parent height
 
 	// === Border Props (方案 A - 边框作为容器属性) ===
-	borderStyle  string // "none", "single", "double", "rounded", "dashed"
-	borderLabel  string // Optional label displayed on top border
+	borderStyle  string       // "none", "single", "double", "rounded", "dashed"
+	borderLabel  string       // Optional label displayed on top border
+	borderColor  style.Color  // Border color
 
 	// === Children ===
 	children []rtui.VNode
@@ -145,10 +146,12 @@ func (w *VNode) Props() rtui.Props {
 		"padding":    w.padding,
 		"fillWidth":  w.fillWidth,
 		"fillHeight": w.fillHeight,
-		"borderStyle": w.borderStyle,  // ✨ 边框样式
-		"label":      w.borderLabel,  // ✨ 边框标签
-		"children":   w.children,
-		"style":      w.style,
+		"borderStyle": w.borderStyle,      // ✨ 边框样式
+		"label":       w.borderLabel,      // ✨ 边框标签 (Fiber 使用)
+		"borderLabel": w.borderLabel,      // ✨ 边框标签 (backward compatibility)
+		"borderColor": string(w.borderColor),  // ✨ 边框颜色
+		"children":    w.children,
+		"style":       w.style,
 	}
 }
 
@@ -184,6 +187,12 @@ func (w *VNode) SetProps(p rtui.Props) rtui.VNode {
 	}
 	if v, ok := p["label"].(string); ok {
 		w.borderLabel = v
+	}
+	if v, ok := p["borderLabel"].(string); ok {
+		w.borderLabel = v
+	}
+	if v, ok := p["borderColor"].(string); ok {
+		w.borderColor = style.Color(v)
 	}
 	if v, ok := p["children"].([]rtui.VNode); ok {
 		w.children = v
@@ -451,5 +460,17 @@ func (w *VNode) DashedBorder(label ...string) *VNode {
 // BorderLabel sets only the border label (keeps current style).
 func (w *VNode) BorderLabel(label string) *VNode {
 	w.borderLabel = label
+	return w
+}
+
+// SetBorderColor sets the border color.
+func (w *VNode) SetBorderColor(color style.Color) *VNode {
+	w.borderColor = color
+	return w
+}
+
+// BorderColor sets the border color (alias for SetBorderColor).
+func (w *VNode) BorderColor(color string) *VNode {
+	w.borderColor = style.Color(color)
 	return w
 }

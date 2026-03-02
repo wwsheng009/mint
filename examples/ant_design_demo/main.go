@@ -23,6 +23,7 @@ import (
 	"github.com/wwsheng009/mint/runtime/style"
 	"github.com/wwsheng009/mint/ui"
 	"github.com/wwsheng009/mint/ui/components/input"
+	"github.com/wwsheng009/mint/ui/components/stack"
 )
 
 // =============================================================================
@@ -234,9 +235,10 @@ func ModalView() ui.VNode {
 
 // Header - 页面头部
 func Header() ui.VNode {
-	return ui.Bordered().
-		Color(string(theme.Primary())).
-		Child(
+	return stack.NewVStack().
+		SingleBorder().
+		BorderColor(string(theme.Primary())).
+		SetChildrenList([]ui.VNode{
 			ui.HStackBuilder(
 				ui.NewTextBuilder("📝 User Registration Form").
 					Style(style.Style{}.
@@ -245,8 +247,7 @@ func Header() ui.VNode {
 						Bold(true)).
 					Build(),
 			).Align(ui.AlignCenter).Build(),
-		).
-		Build()
+		})
 }
 
 // StepIndicator - 步骤指示器（Ant Design Steps 组件）
@@ -312,28 +313,29 @@ func FormContent(
 ) ui.VNode {
 	if step == 1 {
 		// Step 1: Account Information
-		return ui.Bordered().
-			Child(
+		return stack.NewVStack().
+			SingleBorder().
+			SetChildrenList([]ui.VNode{
 				ui.VStackBuilder(
 					FormItem(username, "Enter your username", 24, usernameKey, "", true),
 					FormItem(email, "example@domain.com", 24, emailKey, "We'll never share your email", true),
 					FormItemPassword(password, "Enter your password", 24, passwordKey, "At least 8 characters"),
 				).Gap(2).Build(),
-			).
-			Build()
+			})
 	} else if step == 2 {
 		// Step 2: Profile
-		return ui.Bordered().
-			Child(
+		return stack.NewVStack().
+			SingleBorder().
+			SetChildrenList([]ui.VNode{
 				ui.VStackBuilder(
 					FormItem(age, "Your age", 10, ageKey, "", true),
 				).Gap(1).Build(),
-			).
-			Build()
+			})
 	} else {
 		// Step 3: Confirm
-		return ui.Bordered().
-			Child(
+		return stack.NewVStack().
+			SingleBorder().
+			SetChildrenList([]ui.VNode{
 				ui.VStackBuilder(
 					ConfirmInfo("Username:", username),
 					ConfirmInfo("Email:", email),
@@ -347,8 +349,7 @@ func FormContent(
 							Build(),
 					).Build(),
 				).Gap(2).Build(),
-			).
-			Build()
+			})
 	}
 }
 

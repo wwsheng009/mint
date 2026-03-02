@@ -4,7 +4,6 @@ import (
 	"github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
-	newborder "github.com/wwsheng009/mint/ui/components/border"
 	newtext "github.com/wwsheng009/mint/ui/components/text"
 )
 
@@ -22,7 +21,10 @@ func (v *VNode) SetOuterWidth(w int) *VNode {
 // Automatically calculates outer width = innerWidth + borderPadding.
 // This is easier than manually adding border padding.
 func (v *VNode) SetInnerWidth(w int) *VNode {
-	borderPadding := 2 * newborder.GetBorderWidth(v.borderStyle)
+	borderPadding := 0
+	if v.borderStyle != layout.BorderNone {
+		borderPadding = 2
+	}
 	v.width = w + borderPadding
 	v.composed = nil
 	return v
@@ -42,7 +44,10 @@ func (v *VNode) SetOuterHeight(h int) *VNode {
 // SetInnerHeight sets the inner content height (excluding border padding).
 // Automatically calculates outer height = innerHeight + borderPadding.
 func (v *VNode) SetInnerHeight(h int) *VNode {
-	borderPadding := 2 * newborder.GetBorderWidth(v.borderStyle)
+	borderPadding := 0
+	if v.borderStyle != layout.BorderNone {
+		borderPadding = 2
+	}
 	v.height = h + borderPadding
 	v.composed = nil
 	return v
@@ -97,7 +102,10 @@ func (v *VNode) GetOuterDimensions() (width, height int) {
 
 // GetInnerDimensions returns the inner content dimensions (excluding border).
 func (v *VNode) GetInnerDimensions() (width, height int) {
-	borderPadding := 2 * newborder.GetBorderWidth(v.borderStyle)
+	borderPadding := 0
+	if v.borderStyle != layout.BorderNone {
+		borderPadding = 2
+	}
 	innerWidth := max(0, v.width-borderPadding)
 	innerHeight := max(0, v.height-borderPadding)
 	return innerWidth, innerHeight
@@ -117,7 +125,10 @@ func (v *VNode) GetContentHeight() int {
 
 // GetBorderPadding returns the total border padding added to dimensions.
 func (v *VNode) GetBorderPadding() (widthPadding, heightPadding int) {
-	padding := 2 * newborder.GetBorderWidth(v.borderStyle)
+	padding := 0
+	if v.borderStyle != layout.BorderNone {
+		padding = 2
+	}
 	return padding, padding
 }
 
@@ -305,7 +316,10 @@ func (v *VNode) WithBorderStyleAndColor(style layout.BorderStyle, color style.Co
 
 // helper function to get border padding for a given style.
 func getBorderPaddingForStyle(borderStyle layout.BorderStyle) int {
-	return 2 * newborder.GetBorderWidth(borderStyle)
+	if borderStyle == layout.BorderNone {
+		return 0
+	}
+	return 2
 }
 
 // CalculateOuterWidth calculates outer width from inner width and border style.

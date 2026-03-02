@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/wwsheng009/mint/ui"
+	"github.com/wwsheng009/mint/ui/components/stack"
 )
 
 // =============================================================================
@@ -14,58 +15,58 @@ import (
 
 // Border 1: Single style (default) - continuous line characters
 func ShowcaseSingleStyle() ui.VNode {
-	return ui.Bordered().Child(
+	return stack.NewVStack().SingleBorder().SetChildrenList([]ui.VNode{
 		ui.Text("Single Border"),
-	).Build()
+	})
 }
 
 // Border 2: Single style with label
 func ShowcaseSingleWithLabel() ui.VNode {
-	return ui.Bordered().Label("Title").Child(
+	return stack.NewVStack().SingleBorder("Title").SetChildrenList([]ui.VNode{
 		ui.Text("Single with Label"),
-	).Build()
+	})
 }
 
 // Border 3: Double style border
 func ShowcaseDoubleStyle() ui.VNode {
-	return ui.Bordered().Style("double").Child(
+	return stack.NewVStack().DoubleBorder().SetChildrenList([]ui.VNode{
 		ui.Text("Double Border"),
-	).Build()
+	})
 }
 
 // Border 4: Double style with label
 func ShowcaseDoubleWithLabel() ui.VNode {
-	return ui.Bordered().Style("double").Label("Settings").Child(
+	return stack.NewVStack().DoubleBorder("Settings").SetChildrenList([]ui.VNode{
 		ui.Text("Double with Label"),
-	).Build()
+	})
 }
 
 // Border 5: Rounded corners style
 func ShowcaseRoundedStyle() ui.VNode {
-	return ui.Bordered().Style("rounded").Child(
+	return stack.NewVStack().RoundedBorder().SetChildrenList([]ui.VNode{
 		ui.Text("Rounded Corners"),
-	).Build()
+	})
 }
 
 // Border 6: Rounded style with label
 func ShowcaseRoundedWithLabel() ui.VNode {
-	return ui.Bordered().Style("rounded").Label("Info").Child(
+	return stack.NewVStack().RoundedBorder("Info").SetChildrenList([]ui.VNode{
 		ui.Text("Rounded with Label"),
-	).Build()
+	})
 }
 
 // Border 7: Dashed (ASCII) style
 func ShowcaseDashedStyle() ui.VNode {
-	return ui.Bordered().Style("dashed").Child(
+	return stack.NewVStack().DashedBorder().SetChildrenList([]ui.VNode{
 		ui.Text("Dashed Border"),
-	).Build()
+	})
 }
 
 // Border 8: Dashed style with label
 func ShowcaseDashedWithLabel() ui.VNode {
-	return ui.Bordered().Style("dashed").Label("ASCII").Child(
+	return stack.NewVStack().DashedBorder("ASCII").SetChildrenList([]ui.VNode{
 		ui.Text("Dashed with Label"),
-	).Build()
+	})
 }
 
 // =============================================================================
@@ -73,17 +74,17 @@ func ShowcaseDashedWithLabel() ui.VNode {
 // =============================================================================
 
 func ShowcaseMultiLineContent() ui.VNode {
-	return ui.Bordered().Label("Multiple Lines").Child(
+	return stack.NewVStack().SingleBorder("Multiple Lines").SetChildrenList([]ui.VNode{
 		ui.VStack(
 			ui.Text("Line 1: First content"),
 			ui.Text("Line 2: Second content"),
 			ui.Text("Line 3: Third content"),
 		),
-	).Build()
+	})
 }
 
 func ShowcaseMultiLineDouble() ui.VNode {
-	return ui.Bordered().Style("double").Label("Data Grid").Child(
+	return stack.NewVStack().DoubleBorder("Data Grid").SetChildrenList([]ui.VNode{
 		ui.VStack(
 			ui.Text("┌─────────┬─────────┐"),
 			ui.Text("│ Column1 │ Column2 │"),
@@ -91,7 +92,7 @@ func ShowcaseMultiLineDouble() ui.VNode {
 			ui.Text("│ Data A  │ Data B  │"),
 			ui.Text("└─────────┴─────────┘"),
 		),
-	).Build()
+	})
 }
 
 // =============================================================================
@@ -99,14 +100,14 @@ func ShowcaseMultiLineDouble() ui.VNode {
 // =============================================================================
 
 func ShowcaseWideCharacters() ui.VNode {
-	return ui.Bordered().Label("Wide Characters").Child(
+	return stack.NewVStack().SingleBorder("Wide Characters").SetChildrenList([]ui.VNode{
 		ui.VStack(
 			ui.Text("English: Hello"),
 			ui.Text("Chinese: 你好世界"),
 			ui.Text("Japanese: こんにちは"),
 			ui.Text("Emoji: 😀🎉🚀"),
 		),
-	).Build()
+	})
 }
 
 // =============================================================================
@@ -114,25 +115,25 @@ func ShowcaseWideCharacters() ui.VNode {
 // =============================================================================
 
 func ShowcaseNestedBorders() ui.VNode {
-	return ui.Bordered().Label("Outer Border").Child(
+	return stack.NewVStack().SingleBorder("Outer Border").SetChildrenList([]ui.VNode{
 		ui.VStack(
 			ui.Text("Content above nested"),
-			ui.Bordered().Style("double").Label("Inner").Child(
+			stack.NewVStack().DoubleBorder("Inner").SetChildrenList([]ui.VNode{
 				ui.Text("Nested content"),
-			).Build(),
+			}),
 			ui.Text("Content below nested"),
 		),
-	).Build()
+	})
 }
 
 func ShowcaseTripleNested() ui.VNode {
-	return ui.Bordered().Label("Level 1").Child(
-		ui.Bordered().Style("double").Label("Level 2").Child(
-			ui.Bordered().Style("rounded").Label("Level 3").Child(
+	return stack.NewVStack().SingleBorder("Level 1").SetChildrenList([]ui.VNode{
+		stack.NewVStack().DoubleBorder("Level 2").SetChildrenList([]ui.VNode{
+			stack.NewVStack().RoundedBorder("Level 3").SetChildrenList([]ui.VNode{
 				ui.Text("Deeply nested content"),
-			).Build(),
-		).Build(),
-	).Build()
+			}),
+		}),
+	})
 }
 
 // =============================================================================
@@ -144,15 +145,15 @@ func ShowcaseAllStylesGrid() ui.VNode {
 		ui.Text("Border Style Showcase"),
 		ui.Text(""),
 		ui.HStack(
-			ui.Bordered().Label("single").Child(ui.Text("Style 1")).Build(),
+			stack.NewVStack().SingleBorder("single").SetChildrenList([]ui.VNode{ui.Text("Style 1")}),
 			ui.Text("  "),
-			ui.Bordered().Style("double").Label("double").Child(ui.Text("Style 2")).Build(),
+			stack.NewVStack().DoubleBorder("double").SetChildrenList([]ui.VNode{ui.Text("Style 2")}),
 		),
 		ui.Text(""),
 		ui.HStack(
-			ui.Bordered().Style("rounded").Label("rounded").Child(ui.Text("Style 3")).Build(),
+			stack.NewVStack().RoundedBorder("rounded").SetChildrenList([]ui.VNode{ui.Text("Style 3")}),
 			ui.Text("  "),
-			ui.Bordered().Style("dashed").Label("dashed").Child(ui.Text("Style 4")).Build(),
+			stack.NewVStack().DashedBorder("dashed").SetChildrenList([]ui.VNode{ui.Text("Style 4")}),
 		),
 	)
 }
@@ -166,19 +167,19 @@ func ShowcaseBorderColors() ui.VNode {
 		ui.Text("Border Color Variations"),
 		ui.Text(""),
 		ui.HStack(
-			ui.Bordered().Color("red").Label("red").Child(ui.Text("Red")).Build(),
+			stack.NewVStack().SingleBorder("red").SetChildrenList([]ui.VNode{ui.Text("Red")}),
 			ui.Text(" "),
-			ui.Bordered().Color("green").Label("green").Child(ui.Text("Green")).Build(),
+			stack.NewVStack().SingleBorder("green").SetChildrenList([]ui.VNode{ui.Text("Green")}),
 			ui.Text(" "),
-			ui.Bordered().Color("blue").Label("blue").Child(ui.Text("Blue")).Build(),
+			stack.NewVStack().SingleBorder("blue").SetChildrenList([]ui.VNode{ui.Text("Blue")}),
 		),
 		ui.Text(""),
 		ui.HStack(
-			ui.Bordered().Color("yellow").Label("yellow").Child(ui.Text("Yellow")).Build(),
+			stack.NewVStack().SingleBorder("yellow").SetChildrenList([]ui.VNode{ui.Text("Yellow")}),
 			ui.Text(" "),
-			ui.Bordered().Color("magenta").Label("magenta").Child(ui.Text("Magenta")).Build(),
+			stack.NewVStack().SingleBorder("magenta").SetChildrenList([]ui.VNode{ui.Text("Magenta")}),
 			ui.Text(" "),
-			ui.Bordered().Color("cyan").Label("cyan").Child(ui.Text("Cyan")).Build(),
+			stack.NewVStack().SingleBorder("cyan").SetChildrenList([]ui.VNode{ui.Text("Cyan")}),
 		),
 	)
 }

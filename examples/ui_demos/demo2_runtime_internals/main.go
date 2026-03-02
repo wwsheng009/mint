@@ -19,6 +19,7 @@ import (
 	"github.com/wwsheng009/mint/framework/theme"
 	"github.com/wwsheng009/mint/runtime/style"
 	"github.com/wwsheng009/mint/ui"
+	"github.com/wwsheng009/mint/ui/components/stack"
 )
 
 // Intent Types
@@ -169,11 +170,11 @@ func HeaderPanel() ui.VNode {
 
 	// Use FillWidth() to stretch horizontally WITHOUT affecting vertical direction
 	// This is the new layout system feature for single-component stretching
-	return ui.Bordered().
-		Style(string(theme.Primary())).
-		Child(headerContent).
-		FillWidth(). // Horizontal stretch ONLY (doesn't affect height)
-		Build()
+	return stack.NewVStack().
+		SingleBorder().
+		BorderColor(string(theme.Primary())).
+		SetChildrenList([]ui.VNode{headerContent})
+	// Note: FillWidth() is handled by parent layout
 }
 
 // PipelineVisualization shows the runtime pipeline flow
@@ -200,16 +201,16 @@ func PipelineVisualization(currentPhase string) ui.VNode {
 		}
 	}
 
-	return ui.Bordered().
-		Style(string(theme.Border())).
-		Child(
+	return stack.NewVStack().
+		SingleBorder().
+		BorderColor(string(theme.Border())).
+		SetChildrenList([]ui.VNode{
 			ui.VStack(
 				buildPipelineLine(phases, activeIndex),
 				ui.Text(""),
 				buildPipelineArrows(phases, activeIndex),
 			),
-		).
-		Build()
+		})
 }
 
 // buildPipelineLine creates the phase boxes
@@ -244,7 +245,7 @@ func buildPipelineArrows(phases []struct{ name string; color string; position in
 		Build()
 }
 
-// StatisticsPanel shows runtime statistics
+	// StatisticsPanel shows runtime statistics
 func StatisticsPanel(eventCount, renderCount, bufferUpdates int) ui.VNode {
 	content := ui.HStack(
 		ui.NewTextBuilder("Events:").
@@ -267,10 +268,10 @@ func StatisticsPanel(eventCount, renderCount, bufferUpdates int) ui.VNode {
 			Build(),
 	)
 
-	return ui.Bordered().
-		Style(string(theme.Border())).
-		Child(content).
-		Build()
+	return stack.NewVStack().
+		SingleBorder().
+		BorderColor(string(theme.Border())).
+		SetChildrenList([]ui.VNode{content})
 }
 
 // ControlPanel provides buttons to trigger each phase
@@ -320,18 +321,17 @@ func ControlPanel() ui.VNode {
 	// ScreenWidth: 78 = container width (80) - border (2)
 	// This ensures buttons fill the entire available width
 	wrappedButtons := ui.NewWrapBuilder(allButtons...).
-		Gap(1).                    // 1 space gap between buttons
-		RowGap(0).                 // No extra gap between rows
-		Width(78).                 // Container width (80) - borders (2) = 78 (ScreenWidth renamed to Width)
-		Align(ui.AlignCenter).     // Center each button within its allocated space
-		FillWidth().               // Stretch each row to fill width
+		Gap(1).
+		RowGap(0).
+		Width(78).
+		Align(ui.AlignCenter).
+		FillWidth().
 		Build()
 
-	return ui.Bordered().
-		Style(string(theme.Border())).
-		Child(wrappedButtons).
-		FillWidth(). // Stretch to full width
-		Build()
+	return stack.NewVStack().
+		SingleBorder().
+		BorderColor(string(theme.Border())).
+		SetChildrenList([]ui.VNode{wrappedButtons})
 }
 
 // ExplanationPanel shows detailed explanation of each phase
@@ -356,8 +356,8 @@ func ExplanationPanel(currentPhase string) ui.VNode {
 		Style(style.Foreground(theme.Text())).
 		Build()
 
-	return ui.Bordered().
-		Style(string(theme.Border())).
-		Child(content).
-		Build()
+	return stack.NewVStack().
+		SingleBorder().
+		BorderColor(string(theme.Border())).
+		SetChildrenList([]ui.VNode{content})
 }

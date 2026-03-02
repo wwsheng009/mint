@@ -5,27 +5,26 @@ import (
 	"testing"
 
 	"github.com/wwsheng009/mint/ui"
+	"github.com/wwsheng009/mint/ui/components/stack"
 )
 
-// TestBorderedNodeStructure demonstrates how BorderedNode works
+// TestBorderedNodeStructure demonstrates how Stack border works
 func TestBorderedNodeStructure(t *testing.T) {
-	fmt.Println("\n=== BorderedNode Structure Demo ===")
+	fmt.Println("\n=== Stack Border Structure Demo ===")
 
-	// Create a BorderedNode with content
-	bordered := ui.Bordered().
-		Style("double").
-		Label("Title").
-		Child(
+	// Create a bordered Stack with content
+	bordered := stack.NewVStack().
+		DoubleBorder("Title").
+		SetChildrenList([]ui.VNode{
 			ui.VStack(
 				ui.Text("A"),
 				ui.Text("B"),
 				ui.Text("C"),
 			),
-		).
-		Build()
+		})
 
-	fmt.Printf("BorderedNode type: %T\n", bordered)
-	fmt.Printf("BorderedNode children: %d\n", len(bordered.Children()))
+	fmt.Printf("Bordered Stack type: %T\n", bordered)
+	fmt.Printf("Bordered Stack children: %d\n", len(bordered.Children()))
 
 	// Get the child (should be a VStack)
 	children := bordered.Children()
@@ -126,13 +125,15 @@ func TestBorderedVsNormalNode(t *testing.T) {
 		ui.Text("B"),
 	)
 
-	// Bordered VStack
-	bordered := ui.Bordered().Child(
-		ui.VStack(
-			ui.Text("A"),
-			ui.Text("B"),
-		),
-	).Build()
+	// Bordered VStack (migrated to Stack)
+	bordered := stack.NewVStack().
+		SingleBorder().
+		SetChildrenList([]ui.VNode{
+			ui.VStack(
+				ui.Text("A"),
+				ui.Text("B"),
+			),
+		})
 
 	fmt.Println("Normal VStack:")
 	fmt.Printf("  Type: %T\n", vstack)
@@ -140,10 +141,10 @@ func TestBorderedVsNormalNode(t *testing.T) {
 	fmt.Printf("  Tree would show: VStack → Text, Text\n")
 	fmt.Println()
 
-	fmt.Println("Bordered VStack:")
+	fmt.Println("Bordered Stack:")
 	fmt.Printf("  Type: %T\n", bordered)
 	fmt.Printf("  Children: %d (the VStack inside border)\n", len(bordered.Children()))
-	fmt.Printf("  Tree shows: BorderedNode → VStack → Text, Text\n")
+	fmt.Printf("  Tree shows: Stack (bordered) → VStack → Text, Text\n")
 	fmt.Println()
 
 	fmt.Println("Visual Output:")

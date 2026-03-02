@@ -26,7 +26,6 @@ import (
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 
 	"github.com/wwsheng009/mint/ui/components/absolute"
-	"github.com/wwsheng009/mint/ui/components/border"
 	"github.com/wwsheng009/mint/ui/components/button"
 	"github.com/wwsheng009/mint/ui/components/checkbox"
 	"github.com/wwsheng009/mint/ui/components/divider"
@@ -97,12 +96,6 @@ func NewAbsoluteBuilder(child rtui.VNode) *absolute.Builder {
 
 // NewBorderBuilder creates a border builder.
 //
-// Deprecated: Use container's border methods instead, e.g., stack.SingleBorder().
-// Border is now a native property of all containers (Stack, Grid, Wrap, Absolute).
-func NewBorderBuilder() *border.Builder {
-	return border.NewBuilder()
-}
-
 func NewPanelBuilder() *panel.Builder {
 	return panel.NewBuilder()
 }
@@ -486,48 +479,6 @@ func CenterAbs(child rtui.VNode) rtui.VNode {
 // =============================================================================
 // Container Components shortcuts
 // =============================================================================
-
-// Border shortcuts
-
-// Border creates a box with single border
-func Border(child rtui.VNode) rtui.VNode {
-	return border.B(child)
-}
-
-// Bc creates a single-line border (alias for Border, avoid collision with rtui.Bordered())
-func Bc(child rtui.VNode) rtui.VNode {
-	return Border(child)
-}
-
-// Single creates a box with single border
-func Single(child rtui.VNode) rtui.VNode {
-	return border.Single(child)
-}
-
-// Double creates a box with double border
-func Double(child rtui.VNode) rtui.VNode {
-	return border.Double(child)
-}
-
-// Rounded creates a box with rounded corners
-func Rounded(child rtui.VNode) rtui.VNode {
-	return border.Rounded(child)
-}
-
-// Dashed creates a box with dashed border
-func Dashed(child rtui.VNode) rtui.VNode {
-	return border.Dashed(child)
-}
-
-// WithLabel creates a border with an optional label
-func WithLabel(label string, child rtui.VNode) rtui.VNode {
-	return border.WithLabel(label, child)
-}
-
-// WithColorBorder creates a border with custom color
-func WithColorBorder(color string, child rtui.VNode) rtui.VNode {
-	return border.WithColor(color, child)
-}
 
 // Panel shortcuts
 

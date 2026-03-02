@@ -4,7 +4,6 @@ import (
 	"github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
-	newborder "github.com/wwsheng009/mint/ui/components/border"
 )
 
 // ============================================================================
@@ -31,7 +30,10 @@ func (b *Builder) OuterSize(w, h int) *Builder {
 // InnerWidth sets the inner content width (excluding border padding).
 // Automatically calculates outer width = innerWidth + borderPadding.
 func (b *Builder) InnerWidth(w int) *Builder {
-	borderPadding := 2 * newborder.GetBorderWidth(b.vnode.borderStyle)
+	borderPadding := 0
+	if b.vnode.borderStyle != layout.BorderNone {
+		borderPadding = 2
+	}
 	b.vnode.SetWidth(w + borderPadding)
 	return b
 }
@@ -44,7 +46,10 @@ func (b *Builder) ContentWidth(w int) *Builder {
 // InnerHeight sets the inner content height (excluding border padding).
 // Automatically calculates outer height = innerHeight + borderPadding.
 func (b *Builder) InnerHeight(h int) *Builder {
-	borderPadding := 2 * newborder.GetBorderWidth(b.vnode.borderStyle)
+	borderPadding := 0
+	if b.vnode.borderStyle != layout.BorderNone {
+		borderPadding = 2
+	}
 	b.vnode.SetHeight(h + borderPadding)
 	return b
 }

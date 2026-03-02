@@ -1,13 +1,12 @@
 // Package panel provides a Fiber-first Panel container component.
 // Panel is a high-level container that manages borders, headers, and content layout.
-// It is implemented as a composition of Border + Stack components.
+// It is implemented using native Stack border properties (no border wrapper needed).
 package panel
 
 import (
 	"github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
-	newborder "github.com/wwsheng009/mint/ui/components/border"
 	newstack "github.com/wwsheng009/mint/ui/components/stack"
 	newtext "github.com/wwsheng009/mint/ui/components/text"
 )
@@ -17,7 +16,7 @@ import (
 // =============================================================================
 
 // VNode is the panel container description.
-// Panel is implemented as a composition: Border(VStack(header, content, footer))
+// Panel is implemented as: VStack with native border properties (Border(VStack(...)) no longer needed)
 type VNode struct {
 	*rtui.ElementVNode
 
@@ -213,10 +212,11 @@ func (v *VNode) CreateInstance() rtui.ComponentInstance {
 }
 
 // =============================================================================
-// Composition - Build the Border(VStack) structure
+// Composition - Build the VStack with native border properties
 // =============================================================================
 
 // getComposed builds and returns the composed node structure.
+// Now uses VStack's native border properties instead of wrapping with Border component.
 func (v *VNode) getComposed() rtui.VNode {
 	if v.composed != nil {
 		return v.composed
@@ -243,48 +243,47 @@ func (v *VNode) getComposed() rtui.VNode {
 		stackChildren = append(stackChildren, v.footer)
 	}
 
-	// Create VStack
-	vstack := newstack.New(newstack.Column).
-		SetChildrenList(stackChildren).
-		SetGap(0)
-
 	// Build border label from title (if not explicitly set)
 	borderLabel := v.borderLabel
 	if borderLabel == "" && v.title != "" {
 		borderLabel = " " + v.title + " "
 	}
 
-	// Create Border wrapper
-	border := newborder.New().
-		SetBorderStyle(v.borderStyle).
-		SetBorderColor(v.borderColor).
-		SetBorderLabel(borderLabel).
-		SetChild(vstack)
+	// Convert layout.BorderStyle to string
+	borderStyleStr := "none"
+	switch v.borderStyle {
+	case layout.BorderSingle:
+		borderStyleStr = "single"
+	case layout.BorderDouble:
+		borderStyleStr = "double"
+	case layout.BorderRounded:
+		borderStyleStr = "rounded"
+	case layout.BorderDashed:
+		borderStyleStr = "dashed"
+	}
 
-	// Panel width/height = total size including border
-	// Border width/height = inner content size (border adds padding)
-	// So we subtract border padding (2 for single-style borders)
-	borderPadding := 2 * newborder.GetBorderWidth(v.borderStyle)
+	// Create VStack with native border properties
+	vstack := newstack.New(newstack.Column).
+		SetChildrenList(stackChildren).
+		SetGap(0).
+		Border(borderStyleStr, borderLabel). // Set border style and label
+		BorderColor(string(v.borderColor))  // Set border color
+
+	// Set Panel size and flex
 	if v.width > 0 {
-		innerWidth := v.width - borderPadding
-		if innerWidth > 0 {
-			border.SetWidth(innerWidth)
-		}
+		vstack = vstack.SetWidth(v.width)
 	}
 	if v.height > 0 {
-		innerHeight := v.height - borderPadding
-		if innerHeight > 0 {
-			border.SetHeight(innerHeight)
-		}
+		vstack = vstack.SetHeight(v.height)
 	}
 	if v.flex > 0 {
-		border.SetFlex(v.flex)
+		vstack = vstack.SetFlex(v.flex)
 	}
 	if v.instStyle.FG != "" || v.instStyle.BG != "" {
-		border.SetStyle(v.instStyle)
+		vstack = vstack.SetStyleProps(v.instStyle)
 	}
 
-	v.composed = border
+	v.composed = vstack
 	return v.composed
 }
 

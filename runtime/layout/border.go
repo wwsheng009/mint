@@ -306,11 +306,3 @@ func CalculateBorderBoxSize(contentWidth, contentHeight int, border Border) (int
 	}
 	return contentWidth + border.HorizontalPadding(), contentHeight + border.VerticalPadding()
 }
-
-// max returns the maximum of two integers
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
-}

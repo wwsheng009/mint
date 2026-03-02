@@ -173,14 +173,14 @@ func renderFormTab() ui.VNode {
 		ui.Text(""),
 		ui.HStack(
 			ui.NewButtonBuilder("Submit").
-				Variant(ui.NewButtonVariantPrimary).
+				Variant(ui.ButtonVariantPrimary).
 				Disabled(!formAgree).
 				Build(),
 
 			ui.Text("  "),
 
 			ui.NewButtonBuilder("Reset").
-				Variant(ui.NewButtonVariantSecondary).
+				Variant(ui.ButtonVariantSecondary).
 				Build(),
 		),
 

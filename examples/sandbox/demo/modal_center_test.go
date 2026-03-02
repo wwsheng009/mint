@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/wwsheng009/mint/ui"
+	"github.com/wwsheng009/mint/ui/components/stack"
 )
 
 // TestModalCentering tests that modal content is centered
@@ -16,9 +17,10 @@ func TestModalCentering(t *testing.T) {
 		return ui.VStack(
 			ui.Text("Background content"),
 			ui.Modal(
-				ui.Bordered().
-					Width(40).
-					Child(
+				stack.NewVStack().
+					SingleBorder().
+					SetWidth(40).
+					SetChildrenList([]ui.VNode{
 						ui.VStackBuilder(
 							ui.Text(""),
 							ui.HStackBuilder(
@@ -32,8 +34,7 @@ func TestModalCentering(t *testing.T) {
 							).Align(ui.AlignCenter).Build(),
 							ui.Text(""),
 						).Build(),
-					).
-					Build(),
+					}),
 			).Build(),
 		)
 	}
@@ -94,9 +95,10 @@ func TestModalCenteringWithButtons(t *testing.T) {
 		return ui.VStack(
 			ui.Text("Background"),
 			ui.Modal(
-				ui.Bordered().
-					Width(40).
-					Child(
+				stack.NewVStack().
+					SingleBorder().
+					SetWidth(40).
+					SetChildrenList([]ui.VNode{
 						ui.VStackBuilder(
 							ui.Text(""),
 							ui.HStackBuilder(
@@ -106,8 +108,7 @@ func TestModalCenteringWithButtons(t *testing.T) {
 							).Align(ui.AlignCenter).Build(),
 							ui.Text(""),
 						).Build(),
-					).
-					Build(),
+					}),
 			).Build(),
 		)
 	}

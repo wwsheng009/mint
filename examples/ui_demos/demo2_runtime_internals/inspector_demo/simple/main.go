@@ -12,11 +12,11 @@ package main
 import (
 	"fmt"
 
-	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/framework/theme"
 	"github.com/wwsheng009/mint/internal/inspector"
 	"github.com/wwsheng009/mint/runtime/style"
 	"github.com/wwsheng009/mint/ui"
+	"github.com/wwsheng009/mint/ui/components/stack"
 )
 
 func main() {
@@ -139,10 +139,10 @@ func BuildPerformancePanel(perf *inspector.PerformanceAnalyzer) ui.VNode {
 		Style(style.Foreground(style.White)).
 		Build()
 
-	return ui.Bordered().
-		Style(string(theme.Border())).
-		Child(ui.VStack(label, fps, mem)).
-		Build()
+	return stack.NewVStack().
+		SingleBorder().
+		BorderColor(string(theme.Border())).
+		SetChildrenList([]ui.VNode{ui.VStack(label, fps, mem)})
 }
 
 // BuildDiagnosticsPanel creates diagnostics display
@@ -169,10 +169,10 @@ func BuildDiagnosticsPanel(diagnostics *inspector.LayoutDiagnostics) ui.VNode {
 		Style(style.Foreground(style.White)).
 		Build()
 
-	return ui.Bordered().
-		Style(string(theme.Border())).
-		Child(ui.VStack(label, text)).
-		Build()
+	return stack.NewVStack().
+		SingleBorder().
+		BorderColor(string(theme.Border())).
+		SetChildrenList([]ui.VNode{ui.VStack(label, text)})
 }
 
 // BuildTreePanel creates tree view display
@@ -192,10 +192,10 @@ func BuildTreePanel(treeView *inspector.TreeView) ui.VNode {
 		Style(style.Foreground(style.White)).
 		Build()
 
-	return ui.Bordered().
-		Style(string(theme.Border())).
-		Child(ui.VStack(label, text)).
-		Build()
+	return stack.NewVStack().
+		SingleBorder().
+		BorderColor(string(theme.Border())).
+		SetChildrenList([]ui.VNode{ui.VStack(label, text)})
 }
 
 // BuildDemoContentPanel shows the actual demo content
@@ -204,20 +204,20 @@ func BuildDemoContentPanel(content ui.VNode) ui.VNode {
 		Style(style.FgBold(style.Yellow)).
 		Build()
 
-	return ui.Bordered().
-		Style(string(theme.Border())).
-		Child(ui.VStack(label, content)).
-		Build()
+	return stack.NewVStack().
+		SingleBorder().
+		BorderColor(string(theme.Border())).
+		SetChildrenList([]ui.VNode{ui.VStack(label, content)})
 }
 
 // BuildDemoContent creates the demo VNode tree
 func BuildDemoContent() ui.VNode {
 	button1 := ui.NewButtonBuilder("Button 1").
-		Variant(app.ButtonVariantPrimary).
+		Variant(ui.ButtonVariantPrimary).
 		Build()
 
 	button2 := ui.NewButtonBuilder("Button 2").
-		Variant(app.ButtonVariantSuccess).
+		Variant(ui.ButtonVariantSuccess).
 		Build()
 
 	text1 := ui.Text("Hello, UI Inspector!")
@@ -228,10 +228,10 @@ func BuildDemoContent() ui.VNode {
 	column := ui.VStack(text1, text2, row)
 
 	// Wrap in bordered container
-	return ui.Bordered().
-		Style(string(theme.Info())).
-		Child(column).
-		Build()
+	return stack.NewVStack().
+		SingleBorder().
+		BorderColor(string(theme.Info())).
+		SetChildrenList([]ui.VNode{column})
 }
 
 // BuildInstructions shows usage instructions

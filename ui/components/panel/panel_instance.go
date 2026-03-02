@@ -3,20 +3,18 @@
 package panel
 
 import (
-	"fmt"
-
 	"github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/paint"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
-	newborder "github.com/wwsheng009/mint/ui/components/border"
+	newstack "github.com/wwsheng009/mint/ui/components/stack"
 )
 
 // =============================================================================
-// PanelInstance - Wraps Border Instance with constraint tracing
+// PanelInstance - Wraps Stack Instance with constraint tracing
 // =============================================================================
 
-// PanelInstance is a runtime wrapper that delegates to the Border Instance
-// and adds constraint tracing at the Panel level.
+// PanelInstance is a runtime wrapper that delegates to the Stack Instance
+// (which now has native border properties) and adds constraint tracing at the Panel level.
 type PanelInstance struct {
 	// Panel identification
 	key string
@@ -25,11 +23,8 @@ type PanelInstance struct {
 	// Panel props
 	panelVNode *VNode
 
-	// Delegated Border instance
-	borderInstance *newborder.Instance
-
-	// Border label for tracing
-	borderLabel string
+	// Delegated Stack instance (which has native border properties)
+	stackInstance *newstack.Instance
 
 	// Context for component instance
 	context *rtui.ComponentContext
@@ -53,30 +48,22 @@ var (
 
 // newPanelInstance creates a new PanelInstance from a Panel VNode.
 func newPanelInstance(vnode *VNode, path string) *PanelInstance {
-	// Build the composed Border
+	// Build the composed Stack (with native border properties)
 	composed := vnode.getComposed()
 	if composed == nil {
 		return nil
 	}
 
-	// Create Border instance
-	var borderInst *newborder.Instance
+	// Create Stack instance
+	var stackInst *newstack.Instance
 	if factory, ok := composed.(rtui.InstanceFactory); ok {
 		inst := factory.CreateInstance()
-		if bi, ok := inst.(*newborder.Instance); ok {
-			borderInst = bi
-			// Set path for Border's internal tracing
-			panelPath := path
-			if vnode.key != "" {
-				panelPath = fmt.Sprintf("%s/panel(%s)", path, vnode.key)
-			} else {
-				panelPath = fmt.Sprintf("%s/panel", path)
-			}
-			borderInst.SetPath(panelPath)
+		if si, ok := inst.(*newstack.Instance); ok {
+			stackInst = si
 		}
 	}
 
-	if borderInst == nil {
+	if stackInst == nil {
 		return nil
 	}
 
@@ -100,14 +87,13 @@ func newPanelInstance(vnode *VNode, path string) *PanelInstance {
 	}
 
 	return &PanelInstance{
-		key:            vnode.key,
-		path:           path,
-		panelVNode:     vnode,
-		borderInstance: borderInst,
-		borderLabel:    borderLabel,
-		context:        rtui.NewComponentContext(vnode.key),
-		props:          props,
-		dirty:          true,
+		key:           vnode.key,
+		path:          path,
+		panelVNode:    vnode,
+		stackInstance: stackInst,
+		context:       rtui.NewComponentContext(vnode.key),
+		props:         props,
+		dirty:         true,
 	}
 }
 
@@ -123,35 +109,35 @@ func (inst *PanelInstance) Key() string {
 // SetKey implements ComponentInstance.
 func (inst *PanelInstance) SetKey(key string) {
 	inst.key = key
-	inst.borderInstance.SetKey(key)
+	inst.stackInstance.SetKey(key)
 	inst.context = rtui.NewComponentContext(key)
 }
 
 // Init implements ComponentInstance.
 func (inst *PanelInstance) Init(props rtui.Props) {
-	inst.borderInstance.Init(props)
+	inst.stackInstance.Init(props)
 	inst.props = props
 	inst.dirty = true
 }
 
 // Destroy implements ComponentInstance.
 func (inst *PanelInstance) Destroy() {
-	inst.borderInstance.Destroy()
+	inst.stackInstance.Destroy()
 }
 
 // OnMount implements ComponentInstance.
 func (inst *PanelInstance) OnMount() {
-	inst.borderInstance.OnMount()
+	inst.stackInstance.OnMount()
 }
 
 // OnUnmount implements ComponentInstance.
 func (inst *PanelInstance) OnUnmount() {
-	inst.borderInstance.OnUnmount()
+	inst.stackInstance.OnUnmount()
 }
 
 // SetProps implements ComponentInstance.
 func (inst *PanelInstance) SetProps(props rtui.Props) bool {
-	changed := inst.borderInstance.SetProps(props)
+	changed := inst.stackInstance.SetProps(props)
 	// Update local props
 	inst.props = props
 	inst.dirty = true
@@ -170,12 +156,12 @@ func (inst *PanelInstance) GetProps() rtui.Props {
 // MarkDirty implements ComponentInstance.
 func (inst *PanelInstance) MarkDirty() {
 	inst.dirty = true
-	inst.borderInstance.MarkDirty()
+	inst.stackInstance.MarkDirty()
 }
 
 // IsDirty implements ComponentInstance.
 func (inst *PanelInstance) IsDirty() bool {
-	return inst.dirty || inst.borderInstance.IsDirty()
+	return inst.dirty || inst.stackInstance.IsDirty()
 }
 
 // GetContext implements ComponentInstance.
@@ -189,77 +175,20 @@ func (inst *PanelInstance) GetContext() *rtui.ComponentContext {
 
 // Measure implements layout measurement with constraint tracing.
 func (inst *PanelInstance) Measure(constraints layout.Constraints) layout.Size {
-	// Build panel ID for tracing
-	panelID := "panel"
-	if inst.key != "" {
-		panelID = fmt.Sprintf("panel(%s)", inst.key)
-	}
-	panelPath := inst.path
-
-	// Build border ID for tracing
-	borderID := "border"
-	if inst.borderInstance.Key() != "" {
-		borderID = fmt.Sprintf("border(%s)", inst.borderInstance.Key())
-	}
-
-	// Calculate inner constraints (accounting for border padding)
-	borderWidth := newborder.GetBorderWidth(inst.panelVNode.borderStyle)
-	borderPadding := borderWidth * 2
-
-	var innerConstraints layout.Constraints
-
-	// Use explicit dimensions if set
-	if inst.panelVNode.width > 0 {
-		innerWidth := inst.panelVNode.width - borderPadding
-		if innerWidth > 0 {
-			innerConstraints.MinWidth = innerWidth
-			innerConstraints.MaxWidth = innerWidth
-		}
-	}
-	if inst.panelVNode.height > 0 {
-		innerHeight := inst.panelVNode.height - borderPadding
-		if innerHeight > 0 {
-			innerConstraints.MinHeight = innerHeight
-			innerConstraints.MaxHeight = innerHeight
-		}
-	}
-
-	// Use parent constraints for auto dimensions
-	if innerConstraints.MinWidth == 0 && innerConstraints.MaxWidth == 0 {
-		innerConstraints.MinWidth = max(0, constraints.MinWidth-borderPadding)
-		innerConstraints.MaxWidth = max(0, constraints.MaxWidth-borderPadding)
-	}
-	if innerConstraints.MinHeight == 0 && innerConstraints.MaxHeight == 0 {
-		innerConstraints.MinHeight = max(0, constraints.MinHeight-borderPadding)
-		innerConstraints.MaxHeight = max(0, constraints.MaxHeight-borderPadding)
-	}
-
-	// Trace constraint propagation from Panel to Border
-	borderPath := fmt.Sprintf("%s/%s", panelPath, "border")
-	layout.TraceMeasuring(
-		panelID,
-		borderID,
-		borderPath,
-		constraints,        // Panel's input constraints
-		innerConstraints,   // Constraints passed to Border (inner dimensions)
-		layout.Size{},      // Size will be updated after measurement
-		fmt.Sprintf("Panel: Applied border padding (%dx%d), explicit width=%d, height=%d, flex=%d",
-			borderWidth, borderWidth, inst.panelVNode.width, inst.panelVNode.height, inst.panelVNode.flex),
-	)
-
-	// Delegate measurement to Border instance
-	size := inst.borderInstance.Measure(constraints)
+	// Delegate measurement to Stack instance (which handles native border internally)
+	// No need to calculate border padding here - Stack's native border properties handle this
+	size := inst.stackInstance.Measure(constraints)
 
 	return size
 }
 
 // =============================================================================
-// PaintableInstance Interface - Delegates to Border Instance
+// PaintableInstance Interface - Delegates to Stack Instance
 // =============================================================================
 
 // Paint implements PaintableInstance.
 func (inst *PanelInstance) Paint(x, y int) []paint.DrawCmd {
-	return inst.borderInstance.Paint(x, y)
+	return inst.stackInstance.Paint(x, y)
 }
 
 // =============================================================================
@@ -278,16 +207,27 @@ func (inst *PanelInstance) GetBorderColor() string {
 
 // GetBorderLabel returns the border label.
 func (inst *PanelInstance) GetBorderLabel() string {
-	return inst.borderLabel
+	// Return label from Panel props
+	borderLabel := inst.panelVNode.borderLabel
+	if borderLabel == "" && inst.panelVNode.title != "" {
+		borderLabel = " " + inst.panelVNode.title + " "
+	}
+	return borderLabel
 }
 
 // =============================================================================
 // Helper Methods
 // =============================================================================
 
-// GetBorderInstance returns the delegated border instance.
-func (inst *PanelInstance) GetBorderInstance() *newborder.Instance {
-	return inst.borderInstance
+// GetStackInstance returns the delegated stack instance.
+func (inst *PanelInstance) GetStackInstance() *newstack.Instance {
+	return inst.stackInstance
+}
+
+// GetBorderInstance returns the delegated border instance (deprecated, use GetStackInstance).
+// This method is kept for backward compatibility but now returns the Stack instance.
+func (inst *PanelInstance) GetBorderInstance() *newstack.Instance {
+	return inst.stackInstance
 }
 
 // SetPath sets the constraint tracing path for this instance.
@@ -299,16 +239,5 @@ func (inst *PanelInstance) SetPath(path string) *PanelInstance {
 // ClearDirty clears the dirty flag.
 func (inst *PanelInstance) ClearDirty() {
 	inst.dirty = false
-	inst.borderInstance.ClearDirty()
-}
-
-// =============================================================================
-// max helper function
-// =============================================================================
-
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
+	inst.stackInstance.ClearDirty()
 }

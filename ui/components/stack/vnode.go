@@ -58,8 +58,9 @@ type VNode struct {
 	flex   int // flex factor
 
 	// === Border Props (方案 A - 边框作为容器属性) ===
-	borderStyle  string // "none", "single", "double", "rounded", "dashed"
-	borderLabel  string // Optional label displayed on top border
+	borderStyle  string       // "none", "single", "double", "rounded", "dashed"
+	borderLabel  string       // Optional label displayed on top border
+	borderColor  style.Color  // Border color
 
 	// === Children ===
 	children []rtui.VNode
@@ -101,6 +102,32 @@ func NewHStack() *VNode {
 // NewVStack creates a vertical stack (VStack).
 func NewVStack() *VNode {
 	return New(Column)
+}
+
+// =============================================================================
+// Convenience Constructors - Bordered Variants
+// =============================================================================
+
+// Bordered creates a vertical stack (VStack) with a single-line border.
+// This is a migration helper for ui.Bordered() - deprecated.
+func Bordered() *VNode {
+	return NewVStack().SingleBorder()
+}
+
+// BorderedWithLabel creates a vertical stack (VStack) with a single-line border and label.
+// This is a migration helper for ui.Bordered().Label() - deprecated.
+func BorderedWithLabel(label string) *VNode {
+	return NewVStack().SingleBorder(label)
+}
+
+// BorderedHStack creates a horizontal stack (HStack) with a single-line border.
+func BorderedHStack() *VNode {
+	return NewHStack().SingleBorder()
+}
+
+// BorderedHStackWithLabel creates a horizontal stack (HStack) with a single-line border and label.
+func BorderedHStackWithLabel(label string) *VNode {
+	return NewHStack().SingleBorder(label)
 }
 
 // =============================================================================
@@ -171,8 +198,10 @@ func (s *VNode) Props() rtui.Props {
 		"width":        s.width,
 		"height":       s.height,
 		"flex":         s.flex,
-		"borderStyle":  s.borderStyle,  // ✨ 边框样式
-		"label":        s.borderLabel,  // ✨ 边框标签
+		"borderStyle":  s.borderStyle,      // ✨ 边框样式
+		"label":        s.borderLabel,      // ✨ 边框标签 (Fiber 使用)
+		"borderLabel":  s.borderLabel,      // ✨ 边框标签 (backward compatibility)
+		"borderColor":  string(s.borderColor),  // ✨ 边框颜色
 	}
 }
 
@@ -217,6 +246,12 @@ func (s *VNode) SetProps(p rtui.Props) rtui.VNode {
 	}
 	if v, ok := p["label"].(string); ok {
 		s.borderLabel = v
+	}
+	if v, ok := p["borderLabel"].(string); ok {
+		s.borderLabel = v
+	}
+	if v, ok := p["borderColor"].(string); ok {
+		s.borderColor = style.Color(v)
 	}
 	return s
 }
@@ -410,6 +445,18 @@ func (s *VNode) DashedBorder(label ...string) *VNode {
 // BorderLabel sets only the border label (keeps current style).
 func (s *VNode) BorderLabel(label string) *VNode {
 	s.borderLabel = label
+	return s
+}
+
+// SetBorderColor sets the border color.
+func (s *VNode) SetBorderColor(color style.Color) *VNode {
+	s.borderColor = color
+	return s
+}
+
+// BorderColor sets the border color (alias for SetBorderColor).
+func (s *VNode) BorderColor(color string) *VNode {
+	s.borderColor = style.Color(color)
 	return s
 }
 

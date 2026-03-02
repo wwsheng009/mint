@@ -322,10 +322,3 @@ func constraintsToString(c runtime.BoxConstraints) string {
 
 	return fmt.Sprintf("[%s x %s]", widthStr, heightStr)
 }
-
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
-}

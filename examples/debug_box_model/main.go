@@ -17,19 +17,19 @@ func main() {
 	btn1 := ui.NewButtonBuilder("Left").
 		PaddingH(1, 2).   // left=1, right=2
 		Flex(1).
-		SetTextAlign(rtui.AlignStart).
+		TextAlign(rtui.AlignStart).
 		Build()
 
 	btn2 := ui.NewButtonBuilder("Center").
 		PaddingH(1, 1).   // left=1, right=1
 		Flex(1).
-		SetTextAlign(rtui.AlignCenter).
+		TextAlign(rtui.AlignCenter).
 		Build()
 
 	btn3 := ui.NewButtonBuilder("Right").
 		PaddingH(2, 1).   // left=2, right=1
 		Flex(1).
-		SetTextAlign(rtui.AlignEnd).
+		TextAlign(rtui.AlignEnd).
 		Build()
 
 	// Check button 1

@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/wwsheng009/mint/ui"
+	"github.com/wwsheng009/mint/ui/components/stack"
 )
 
 // TestHardcodedBorderFixed verifies that the Inspector no longer uses hardcoded border characters
@@ -20,102 +21,122 @@ func TestHardcodedBorderFixed(t *testing.T) {
 	t.Log("   NEW: Style('double') - correct border style string")
 	t.Log("")
 
-	// Verify BorderedNode has Label feature
-	bordered := ui.Bordered().
-		Style("double").
-		Label("TEST").
-		Child(ui.Text("Content")).
-		Build()
+	// Verify BorderedNode has Label feature (migrated to Stack)
+	bordered := stack.NewVStack().
+		DoubleBorder("TEST").
+		SetChildrenList([]ui.VNode{ui.Text("Content")})
 
 	if bordered == nil {
-		t.Error("Bordered().Label() should work")
+		t.Error("Bordered Stack should work")
 	} else {
-		t.Log("✅ Bordered().Label('TEST') works correctly")
+		t.Log("✅ Bordered Stack with label works correctly")
 	}
 
 	t.Log("\n=== Summary ===")
 	t.Log("1. Removed hardcoded '╔═ INSPECTOR ═╗' text")
 	t.Log("2. Added Label('INSPECTOR') to BorderedNode")
 	t.Log("3. Changed Style(string(theme.Border())) to Style('double')")
-	t.Log("4. Border is now drawn by BorderedNode component, not hardcoded text")
+	t.Log("4. Border is now drawn by Stack component, not hardcoded text")
 }
 
-// TestBorderedNodeLabelFeature tests that BorderedNode's Label feature works
+// TestBorderedNodeLabelFeature tests that Stack border feature works
 func TestBorderedNodeLabelFeature(t *testing.T) {
-	t.Log("=== Testing BorderedNode Label Feature ===\n")
+	t.Log("=== Testing Stack Border Label Feature ===\n")
 
 	// Test with label
-	bordered1 := ui.Bordered().
-		Style("double").
-		Label("TITLE").
-		Child(ui.Text("Content")).
-		Build()
+	bordered1 := stack.NewVStack().
+		DoubleBorder("TITLE").
+		SetChildrenList([]ui.VNode{ui.Text("Content")})
 
 	t.Logf("Bordered with label: %T", bordered1)
 	if bordered1 == nil {
-		t.Error("Failed to create BorderedNode with label")
+		t.Error("Failed to create Stack with label")
 	} else {
-		t.Log("✅ BorderedNode with label created successfully")
+		t.Log("✅ Stack with label created successfully")
 	}
 
 	// Test without label
-	bordered2 := ui.Bordered().
-		Style("single").
-		Child(ui.Text("Content")).
-		Build()
+	bordered2 := stack.NewVStack().
+		SingleBorder().
+		SetChildrenList([]ui.VNode{ui.Text("Content")})
 
 	t.Logf("Bordered without label: %T", bordered2)
 	if bordered2 == nil {
-		t.Error("Failed to create BorderedNode without label")
+		t.Error("Failed to create Stack without label")
 	} else {
-		t.Log("✅ BorderedNode without label created successfully")
+		t.Log("✅ Stack without label created successfully")
 	}
 
 	// Test different styles
-	styles := []string{"single", "double", "rounded", "dashed"}
-	for _, style := range styles {
-		bordered := ui.Bordered().
-			Style(style).
-			Child(ui.Text("Content")).
-			Build()
+	t.Run("Single", func(t *testing.T) {
+		bordered := stack.NewVStack().
+			SingleBorder().
+			SetChildrenList([]ui.VNode{ui.Text("Content")})
 		if bordered == nil {
-			t.Errorf("Failed to create BorderedNode with style '%s'", style)
+			t.Error("Failed to create Stack with single border")
 		} else {
-			t.Logf("✅ BorderedNode with style '%s' created", style)
+			t.Log("✅ Stack with single border created")
 		}
-	}
+	})
+	t.Run("Double", func(t *testing.T) {
+		bordered := stack.NewVStack().
+			DoubleBorder().
+			SetChildrenList([]ui.VNode{ui.Text("Content")})
+		if bordered == nil {
+			t.Error("Failed to create Stack with double border")
+		} else {
+			t.Log("✅ Stack with double border created")
+		}
+	})
+	t.Run("Rounded", func(t *testing.T) {
+		bordered := stack.NewVStack().
+			RoundedBorder().
+			SetChildrenList([]ui.VNode{ui.Text("Content")})
+		if bordered == nil {
+			t.Error("Failed to create Stack with rounded border")
+		} else {
+			t.Log("✅ Stack with rounded border created")
+		}
+	})
+	t.Run("Dashed", func(t *testing.T) {
+		bordered := stack.NewVStack().
+			DashedBorder().
+			SetChildrenList([]ui.VNode{ui.Text("Content")})
+		if bordered == nil {
+			t.Error("Failed to create Stack with dashed border")
+		} else {
+			t.Log("✅ Stack with dashed border created")
+		}
+	})
 }
 
 // TestBorderStyleVsColor demonstrates the difference between Style() and Color()
 func TestBorderStyleVsColor(t *testing.T) {
 	t.Log("=== Border Style vs Color ===\n")
 
-	t.Log("BorderedNode has two different methods:")
+	t.Log("Stack has two different methods:")
 	t.Log("")
-	t.Log("1. Style(string) - Sets the border LINE STYLE:")
-	t.Log("   - 'single': Single line border ┌─┐")
-	t.Log("   - 'double': Double line border ╔═╗")
-	t.Log("   - 'rounded': Rounded border ╭─╮")
-	t.Log("   - 'dashed': Dashed border +--+")
+	t.Log("1. Border methods - Sets the border LINE STYLE:")
+	t.Log("   - SingleBorder(): Single line border ┌─┐")
+	t.Log("   - DoubleBorder(): Double line border ╔═╗")
+	t.Log("   - RoundedBorder(): Rounded border ╭─╮")
+	t.Log("   - DashedBorder(): Dashed border +--+")
 	t.Log("")
-	t.Log("2. Color(string) - Sets the border COLOR:")
+	t.Log("2. BorderColor(string) - Sets the border COLOR:")
 	t.Log("   - 'red', 'blue', 'green', etc.")
 	t.Log("")
 	t.Log("Example:")
-	t.Log("  Bordered().")
-	t.Log("    Style('double').    ← Line style")
-	t.Log("    Color('blue').      ← Line color")
-	t.Log("    Label('TITLE').     ← Border label")
-	t.Log("    Child(content).")
-	t.Log("    Build()")
+	t.Log("  stack.NewVStack().")
+	t.Log("    DoubleBorder().          ← Line style")
+	t.Log("    BorderColor('blue').     ← Line color")
+	t.Log("    BorderLabel('TITLE').    ← Border label")
+	t.Log("    SetChildrenList([...])")
 
 	// Create an example
-	bordered := ui.Bordered().
-		Style("double").
-		Color("blue").
-		Label("INSPECTOR").
-		Child(ui.Text("Content")).
-		Build()
+	bordered := stack.NewVStack().
+		DoubleBorder().
+		BorderColor("blue").
+		SetChildrenList([]ui.VNode{ui.Text("Content")})
 
 	if bordered != nil {
 		t.Log("\n✅ Example created successfully")

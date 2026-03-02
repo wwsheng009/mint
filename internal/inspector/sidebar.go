@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/wwsheng009/mint/ui"
+	"github.com/wwsheng009/mint/ui/components/stack"
 )
 
 // Sidebar provides a detailed information panel for inspected elements
@@ -305,11 +306,11 @@ func (s *Sidebar) BuildVNode(info ElementInfo) ui.VNode {
 	// Build sidebar content as text
 	content := s.FormatSidebar(info)
 
-	// Return as a text node
-	return ui.Bordered().
-		Child(ui.Text(content)).
-		Width(s.width).
-		Build()
+	// Return as a bordered stack
+	return stack.NewVStack().
+		SingleBorder().
+		SetChildrenList([]ui.VNode{ui.Text(content)}).
+		SetWidth(s.width)
 }
 
 // BuildCompactVNode builds a compact VNode for the sidebar

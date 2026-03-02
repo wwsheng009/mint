@@ -510,11 +510,11 @@ func (si *StandaloneInspector) buildOverlayContainer(content rtui.VNode) rtui.VN
 
 	// Wrap in bordered box (bordered wrapper doesn't need height constraint
 	// since mainContent already has it)
-	overlay := rtui.Bordered().
-		Style(string(theme.Border())).
-		Child(mainContent).
-		Width(si.overlayWidth).
-		Build()
+	overlay := componentstack.NewVStack().
+		SingleBorder().
+		BorderColor(string(theme.Border())).
+		SetChildrenList([]rtui.VNode{mainContent}).
+		SetWidth(si.overlayWidth)
 
 	return overlay
 }

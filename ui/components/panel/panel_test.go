@@ -6,7 +6,6 @@ import (
 	"github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
-	newborder "github.com/wwsheng009/mint/ui/components/border"
 	newtext "github.com/wwsheng009/mint/ui/components/text"
 )
 
@@ -114,9 +113,9 @@ func TestVNode_GetComposed(t *testing.T) {
 		t.Fatal("getComposed() returned nil")
 	}
 
-	// Composed should be a Border VNode
-	if composed.Tag() != "bordered" {
-		t.Errorf("Expected composed tag 'bordered', got '%s'", composed.Tag())
+	// Composed should be a VStack with native border properties (no longer Border VNode)
+	if composed.Tag() != "vstack" {
+		t.Errorf("Expected composed tag 'vstack', got '%s'", composed.Tag())
 	}
 }
 
@@ -301,8 +300,8 @@ func TestVNode_CompositionWithNoBorder(t *testing.T) {
 	composed := vnode.getComposed()
 	props := composed.Props()
 
-	if props["borderStyle"] != layout.BorderNone {
-		t.Error("NoBorder should set BorderNone style")
+	if props["borderStyle"] != "none" {
+		t.Error("NoBorder should set 'none' border style")
 	}
 }
 
@@ -313,7 +312,7 @@ func TestVNode_CompositionPassesDimensions(t *testing.T) {
 		SetFlex(2).
 		SetContent(newtext.New("Content"))
 
-	// Test Panel's own props (not composed Border's props)
+	// Test Panel's own props (not composed Stack's props)
 	panelProps := vnode.Props()
 
 	if panelProps["width"] != 40 {
@@ -326,19 +325,19 @@ func TestVNode_CompositionPassesDimensions(t *testing.T) {
 		t.Errorf("Panel flex should be 2, got %v", panelProps["flex"])
 	}
 
-	// Composed Border gets inner dimensions (minus border padding)
+	// Composed VStack now gets the same dimensions as Panel
+	// Stack's native border properties handle border padding internally
 	composed := vnode.getComposed()
-	borderProps := composed.Props()
+	stackProps := composed.Props()
 
-	borderPadding := 2 * newborder.GetBorderWidth(vnode.borderStyle)
-	expectedInnerWidth := 40 - borderPadding // 40 - 2 = 38 for single border
-	expectedInnerHeight := 10 - borderPadding // 10 - 2 = 8 for single border
-
-	if borderProps["width"] != expectedInnerWidth {
-		t.Errorf("Border inner width should be %d (40 - %d), got %v", expectedInnerWidth, borderPadding, borderProps["width"])
+	if stackProps["width"] != 40 {
+		t.Errorf("Stack width should be 40, got %v", stackProps["width"])
 	}
-	if borderProps["height"] != expectedInnerHeight {
-		t.Errorf("Border inner height should be %d (10 - %d), got %v", expectedInnerHeight, borderPadding, borderProps["height"])
+	if stackProps["height"] != 10 {
+		t.Errorf("Stack height should be 10, got %v", stackProps["height"])
+	}
+	if stackProps["flex"] != 2 {
+		t.Errorf("Stack flex should be 2, got %v", stackProps["flex"])
 	}
 }
 

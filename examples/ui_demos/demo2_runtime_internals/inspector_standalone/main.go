@@ -25,6 +25,7 @@ import (
 	"github.com/wwsheng009/mint/internal/inspector"
 	"github.com/wwsheng009/mint/runtime/style"
 	"github.com/wwsheng009/mint/ui"
+	"github.com/wwsheng009/mint/ui/components/stack"
 )
 
 // Global standalone inspector instance
@@ -128,11 +129,10 @@ func HeaderPanel() ui.VNode {
 		Align(ui.AlignCenter).
 		Build()
 
-	return ui.Bordered().
-		Style(string(theme.Primary())).
-		Child(headerContent).
-		FillWidth().
-		Build()
+	return stack.NewVStack().
+		SingleBorder().
+		BorderColor(string(theme.Primary())).
+		SetChildrenList([]ui.VNode{headerContent})
 }
 
 // PipelineVisualization shows the runtime pipeline flow
@@ -159,16 +159,16 @@ func PipelineVisualization(currentPhase string) ui.VNode {
 		}
 	}
 
-	return ui.Bordered().
-		Style(string(theme.Border())).
-		Child(
+	return stack.NewVStack().
+		SingleBorder().
+		BorderColor(string(theme.Border())).
+		SetChildrenList([]ui.VNode{
 			ui.VStack(
 				buildPipelineLine(phases, activeIndex),
 				ui.Text(""),
 				buildPipelineArrows(phases, activeIndex),
 			),
-		).
-		Build()
+		})
 }
 
 // buildPipelineLine creates the phase boxes
@@ -227,10 +227,10 @@ func StatisticsPanel(eventCount, renderCount, bufferUpdates int) ui.VNode {
 			Build(),
 	)
 
-	return ui.Bordered().
-		Style(string(theme.Border())).
-		Child(content).
-		Build()
+	return stack.NewVStack().
+		SingleBorder().
+		BorderColor(string(theme.Border())).
+		SetChildrenList([]ui.VNode{content})
 }
 
 // ControlPanel provides buttons to trigger each phase
@@ -312,11 +312,10 @@ func ControlPanel(
 		FillWidth().
 		Build()
 
-	return ui.Bordered().
-		Style(string(theme.Border())).
-		Child(wrappedButtons).
-		FillWidth().
-		Build()
+	return stack.NewVStack().
+		SingleBorder().
+		BorderColor(string(theme.Border())).
+		SetChildrenList([]ui.VNode{wrappedButtons})
 }
 
 // ExplanationPanel shows detailed explanation of each phase
@@ -341,10 +340,10 @@ func ExplanationPanel(currentPhase string) ui.VNode {
 		Style(style.Foreground(theme.Text())).
 		Build()
 
-	return ui.Bordered().
-		Style(string(theme.Border())).
-		Child(content).
-		Build()
+	return stack.NewVStack().
+		SingleBorder().
+		BorderColor(string(theme.Border())).
+		SetChildrenList([]ui.VNode{content})
 }
 
 // TestLayoutInfo runs layout info tests

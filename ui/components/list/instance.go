@@ -612,17 +612,3 @@ func getStyleProp(props rtui.Props, key string) style.Style {
 	}
 	return style.Style{}
 }
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
-}

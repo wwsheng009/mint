@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"testing"
 
-	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/ui"
+	"github.com/wwsheng009/mint/ui/components/stack"
 )
 
 // TestCollectHitTestEntryInfo tests extracting tag/key/label from VNodes
@@ -333,11 +333,11 @@ func TestFormatNodeInfo_RealWorld(t *testing.T) {
 		},
 		// Real demo2 components
 		{
-			name:  "Bordered node (from demo2)",
-			vnode: rtui.Bordered().Child(ui.Text("Content")).Build(),
+			name:  "Bordered node (migrated to Stack)",
+			vnode: stack.NewVStack().SingleBorder().SetChildrenList([]ui.VNode{ui.Text("Content")}),
 			contains: []string{
 				"Element",
-				"bordered", // This is the actual tag from ElementVNode
+				"vstack", // Stack uses vstack tag
 			},
 		},
 		{
@@ -385,17 +385,18 @@ func TestFormatNodeInfo_RealWorld(t *testing.T) {
 			},
 		},
 		{
-			name:  "Nested structure - Bordered with VStack and Buttons",
-			vnode: rtui.Bordered().
-				Child(
-					rtui.VStack(
+			name:  "Nested structure - Bordered Stack with VStack and Buttons",
+			vnode: stack.NewVStack().
+				SingleBorder().
+				SetChildrenList([]ui.VNode{
+					ui.VStack(
 						ui.NewButtonBuilder("[1] Event").Key("btn-event").Build(),
 						ui.NewButtonBuilder("[2]setState").Key("btn-setstate").Build(),
 					),
-				).Build(),
+				}),
 			contains: []string{
 				"Element",
-				"bordered",
+				"vstack",
 			},
 		},
 	}
@@ -736,24 +737,26 @@ func TestDemo2RealWorldStructure(t *testing.T) {
 		}
 	})
 
-	// Test Bordered node with nested content (like HeaderPanel)
-	t.Run("Bordered container", func(t *testing.T) {
-		bordered := rtui.Bordered().Child(
-			ui.Text("Content inside border"),
-		).Build()
+	// Test Bordered Stack node with nested content (like HeaderPanel)
+	t.Run("Bordered Stack container", func(t *testing.T) {
+		bordered := stack.NewVStack().
+			SingleBorder().
+			SetChildrenList([]ui.VNode{
+				ui.Text("Content inside border"),
+			})
 
 		var tag string
 		if tagger, ok := bordered.(interface{ Tag() string }); ok {
 			tag = tagger.Tag()
 		}
 
-		if tag != "bordered" {
-			t.Errorf("Expected tag 'bordered', got '%s'", tag)
+		if tag != "vstack" {
+			t.Errorf("Expected tag 'vstack', got '%s'", tag)
 		}
 
 		result := formatNodeInfo(bordered.Type().String(), tag, "", "")
-		if result != "Element/(bordered)" {
-			t.Errorf("Expected 'Element/(bordered)', got %q", result)
+		if result != "Element/(vstack)" {
+			t.Errorf("Expected 'Element/(vstack)', got %q", result)
 		}
 	})
 
@@ -833,23 +836,25 @@ func TestDemo2RealWorldStructure(t *testing.T) {
 		}
 	})
 
-	// Test nested structure (Bordered > VStack > Buttons)
+	// Test nested structure (Bordered Stack > VStack > Buttons)
 	t.Run("Nested demo2 structure", func(t *testing.T) {
-		nested := rtui.Bordered().Child(
-			rtui.VStack(
-				ui.NewButtonBuilder("[1] Event").Key("btn-event").Build(),
-				ui.NewButtonBuilder("[2]setState").Key("btn-setstate").Build(),
-			),
-		).Build()
+		nested := stack.NewVStack().
+			SingleBorder().
+			SetChildrenList([]ui.VNode{
+				ui.VStack(
+					ui.NewButtonBuilder("[1] Event").Key("btn-event").Build(),
+					ui.NewButtonBuilder("[2]setState").Key("btn-setstate").Build(),
+				),
+			})
 
-		// Extract tag from top-level BorderedNode
+		// Extract tag from top-level Stack
 		var tag string
 		if tagger, ok := nested.(interface{ Tag() string }); ok {
 			tag = tagger.Tag()
 		}
 
-		if tag != "bordered" {
-			t.Errorf("Expected tag 'bordered', got '%s'", tag)
+		if tag != "vstack" {
+			t.Errorf("Expected tag 'vstack', got '%s'", tag)
 		}
 
 		// Check children
@@ -950,16 +955,18 @@ func TestVNodeBoundsDataFlow(t *testing.T) {
 		}
 	})
 
-	t.Run("Bordered node with bounds", func(t *testing.T) {
-		bordered := rtui.Bordered().Child(ui.Text("Content")).Build()
+	t.Run("Bordered Stack node with bounds", func(t *testing.T) {
+		bordered := stack.NewVStack().
+			SingleBorder().
+			SetChildrenList([]ui.VNode{ui.Text("Content")})
 
-		// BorderedNode should support SetBounds (inherited from ElementVNode)
+		// Stack should support SetBounds (inherited from ElementVNode)
 		if boundsSetter, ok := bordered.(interface{ SetBounds(int, int, int, int) }); ok {
 			boundsSetter.SetBounds(2, 2, 40, 10)
 
 			bounds := bordered.(interface{ GetBounds() [4]int }).GetBounds()
 			if bounds != [4]int{2, 2, 40, 10} {
-				t.Errorf("Bordered bounds should be [2,2,40,10], got %v", bounds)
+				t.Errorf("Bordered Stack bounds should be [2,2,40,10], got %v", bounds)
 			}
 		}
 	})

@@ -91,8 +91,9 @@ type VNode struct {
 	flex   int // flex factor
 
 	// === Border Props (方案 A - 边框作为容器属性) ===
-	borderStyle  string // "none", "single", "double", "rounded", "dashed"
-	borderLabel  string // Optional label displayed on top border
+	borderStyle  string       // "none", "single", "double", "rounded", "dashed"
+	borderLabel  string       // Optional label displayed on top border
+	borderColor  style.Color  // Container border color
 
 	// === ✨ Cell Borders Props (格子间边框) ===
 	showCellBorders   bool   // 是否显示格子边框
@@ -217,8 +218,10 @@ func (g *VNode) Props() rtui.Props {
 		"width":        g.width,
 		"height":       g.height,
 		"flex":         g.flex,
-		"borderStyle":  g.borderStyle,  // ✨ 边框样式
-		"label":        g.borderLabel,  // ✨ 边框标签
+		"borderStyle":  g.borderStyle,      // ✨ 边框样式
+		"label":        g.borderLabel,      // ✨ 边框标签 (Fiber 使用)
+		"borderLabel":  g.borderLabel,      // ✨ 边框标签 (backward compatibility)
+		"borderColor":  string(g.borderColor),  // ✨ 容器边框颜色
 		// ✨ Cell Borders 属性
 		"showCellBorders":   g.showCellBorders,
 		"cellBorderStyle":   g.cellBorderStyle,
@@ -268,6 +271,12 @@ func (g *VNode) SetProps(p rtui.Props) rtui.VNode {
 	}
 	if v, ok := p["label"].(string); ok {
 		g.borderLabel = v
+	}
+	if v, ok := p["borderLabel"].(string); ok {
+		g.borderLabel = v
+	}
+	if v, ok := p["borderColor"].(string); ok {
+		g.borderColor = style.Color(v)
 	}
 	// ✨ Cell Borders 属性
 	if v, ok := p["showCellBorders"].(bool); ok {
@@ -595,6 +604,18 @@ func (g *VNode) DashedBorder(label ...string) *VNode {
 // BorderLabel sets only the border label (keeps current style).
 func (g *VNode) BorderLabel(label string) *VNode {
 	g.borderLabel = label
+	return g
+}
+
+// SetBorderColor sets the container border color.
+func (g *VNode) SetBorderColor(color style.Color) *VNode {
+	g.borderColor = color
+	return g
+}
+
+// BorderColor sets the container border color (alias for SetBorderColor).
+func (g *VNode) BorderColor(color string) *VNode {
+	g.borderColor = style.Color(color)
 	return g
 }
 

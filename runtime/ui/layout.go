@@ -47,6 +47,11 @@ type LayoutNode struct {
 	flex         int    // Flex factor (0 = fixed size, >0 = grows to fill space)
 	padding      [4]int // top, right, bottom, left
 	stretchCross bool   // Stretch children to fill cross axis (width for VStack, height for HStack)
+
+	// Border properties
+	borderStyle  BorderStyle
+	borderLabel  string
+	borderColor  style.Color
 }
 
 // HStack creates a horizontal layout container
@@ -218,6 +223,60 @@ func (b *LayoutBuilder) BgColor(c interface{}) *LayoutBuilder {
 	return b
 }
 
+// BorderStyle sets the border style for layout containers
+func (b *LayoutBuilder) BorderStyle(style BorderStyle) *LayoutBuilder {
+	b.node.borderStyle = style
+	return b
+}
+
+// BorderLabel sets the border label
+func (b *LayoutBuilder) BorderLabel(label string) *LayoutBuilder {
+	b.node.borderLabel = label
+	return b
+}
+
+// BorderColor sets the border color
+func (b *LayoutBuilder) BorderColor(color style.Color) *LayoutBuilder {
+	b.node.borderColor = color
+	return b
+}
+
+// SingleBorder sets single-line border with optional label
+func (b *LayoutBuilder) SingleBorder(label ...string) *LayoutBuilder {
+	b.node.borderStyle = BorderSingle
+	if len(label) > 0 && label[0] != "" {
+		b.node.borderLabel = label[0]
+	}
+	return b
+}
+
+// DoubleBorder sets double-line border with optional label
+func (b *LayoutBuilder) DoubleBorder(label ...string) *LayoutBuilder {
+	b.node.borderStyle = BorderDouble
+	if len(label) > 0 && label[0] != "" {
+		b.node.borderLabel = label[0]
+	}
+	return b
+}
+
+// RoundedBorder sets rounded border with optional label
+func (b *LayoutBuilder) RoundedBorder(label ...string) *LayoutBuilder {
+	b.node.borderStyle = BorderRounded
+	if len(label) > 0 && label[0] != "" {
+		b.node.borderLabel = label[0]
+	}
+	return b
+}
+
+// DashedBorder sets dashed border with optional label
+func (b *LayoutBuilder) DashedBorder(label ...string) *LayoutBuilder {
+	b.node.borderStyle = BorderDashed
+	if len(label) > 0 && label[0] != "" {
+		b.node.borderLabel = label[0]
+	}
+	return b
+}
+
 // Key sets the key for diffing
 func (b *LayoutBuilder) Key(key string) *LayoutBuilder {
 	b.node.SetKey(key)
@@ -242,6 +301,30 @@ func (b *LayoutBuilder) Build() VNode {
 	props["padding"] = b.node.padding
 	props["flex"] = b.node.flex
 	props["stretchCross"] = b.node.stretchCross
+
+	// Sync border properties
+	if b.node.borderStyle != BorderNone {
+		styleStr := "single"
+		switch b.node.borderStyle {
+		case BorderDouble:
+			styleStr = "double"
+		case BorderRounded:
+			styleStr = "rounded"
+		case BorderDashed:
+			styleStr = "dashed"
+		case BorderNone:
+			styleStr = "none"
+		}
+		props["borderStyle"] = styleStr
+	}
+	if b.node.borderLabel != "" {
+		props["borderLabel"] = b.node.borderLabel
+		props["label"] = b.node.borderLabel
+	}
+	if b.node.borderColor != "" {
+		props["borderColor"] = b.node.borderColor
+	}
+
 	b.node.SetProps(props)
 
 	return b.node
