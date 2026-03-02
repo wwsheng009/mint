@@ -675,8 +675,19 @@ func (e *Engine) layoutNodeWithDepth(node Node, constraints Constraints, x, y in
 	node.SetPosition(x, y)
 	node.SetSize(width, height)
 
-	// 计算边框偏移（用于布局子节点）
-	borderOffsetX, borderOffsetY := nodeBorder.ContentOffset()
+	// 计算内容区域偏移（用于布局子节点）
+	// 优先使用 BoxModelProvider，否则使用 Bordered 接口
+	contentOffsetX, contentOffsetY := 0, 0
+	if boxModelProvider, ok := node.(BoxModelProvider); ok {
+		boxModel := boxModelProvider.GetBoxModel()
+		contentOffsetX = boxModel.ContentOffsetX()
+		contentOffsetY = boxModel.ContentOffsetY()
+	} else if nodeBorder.HasBorder() {
+		contentOffsetX, contentOffsetY = nodeBorder.ContentOffset()
+	}
+	// 兼容旧的 borderOffsetX 变量名
+	borderOffsetX := contentOffsetX
+	borderOffsetY := contentOffsetY
 
 	// 检查节点是否实现了 FlexStyleProvider 接口
 	// 如果是，使用 FlexLayout 进行子节点布局
@@ -710,15 +721,29 @@ func (e *Engine) layoutNodeWithDepth(node Node, constraints Constraints, x, y in
 				}
 			}
 
-			// 计算子节点可用的内部空间（减去边框占用）
-			innerWidth := width - nodeBorder.HorizontalPadding()
-			innerHeight := height - nodeBorder.VerticalPadding()
-			if innerWidth < 0 {
-				innerWidth = 0
+			// 计算子节点可用的内部空间（减去 padding/border）
+			// 优先使用 BoxModelProvider，否则使用 Bordered 接口
+			var innerWidth, innerHeight int
+			if boxModelProvider, ok := node.(BoxModelProvider); ok {
+				boxModel := boxModelProvider.GetBoxModel()
+				innerWidth = boxModel.InnerWidth(width)
+				innerHeight = boxModel.InnerHeight(height)
+			} else {
+				innerWidth = width - nodeBorder.HorizontalPadding()
+				innerHeight = height - nodeBorder.VerticalPadding()
+				if innerWidth < 0 {
+					innerWidth = 0
+				}
+				if innerHeight < 0 {
+					innerHeight = 0
+				}
 			}
-			if innerHeight < 0 {
-				innerHeight = 0
-			}
+
+			// FlexLayout 的 padding 是内部配置，用于控制子节点布局区域
+			// 这与 BoxModel 的 padding（外部边距）不同，需要手动扣除
+			// TODO: 未来考虑将 FlexLayout 的 padding 迁移到 BoxModel 语义
+			innerWidth = max(0, innerWidth-flexStyle.Padding.Horizontal())
+			innerHeight = max(0, innerHeight-flexStyle.Padding.Vertical())
 
 			// 布局子节点
 			childBoxes := flex.LayoutChildren(innerWidth, innerHeight)
@@ -803,14 +828,22 @@ func (e *Engine) layoutNodeWithDepth(node Node, constraints Constraints, x, y in
 			grid := NewGridLayout(node.ID(), gridStyle)
 			grid.SetChildren(node.Children())
 
-			// 计算子节点可用的内部空间（减去边框占用）
-			innerWidth := width - nodeBorder.HorizontalPadding()
-			innerHeight := height - nodeBorder.VerticalPadding()
-			if innerWidth < 0 {
-				innerWidth = 0
-			}
-			if innerHeight < 0 {
-				innerHeight = 0
+			// 计算子节点可用的内部空间（减去 padding/border）
+			// 优先使用 BoxModelProvider，否则使用 Bordered 接口
+			var innerWidth, innerHeight int
+			if boxModelProvider, ok := node.(BoxModelProvider); ok {
+				boxModel := boxModelProvider.GetBoxModel()
+				innerWidth = boxModel.InnerWidth(width)
+				innerHeight = boxModel.InnerHeight(height)
+			} else {
+				innerWidth = width - nodeBorder.HorizontalPadding()
+				innerHeight = height - nodeBorder.VerticalPadding()
+				if innerWidth < 0 {
+					innerWidth = 0
+				}
+				if innerHeight < 0 {
+					innerHeight = 0
+				}
 			}
 
 			// 布局子节点
@@ -993,16 +1026,23 @@ func (e *Engine) layoutNodeWithDepth(node Node, constraints Constraints, x, y in
 		}
 	}
 
-	// 默认布局：递归布局子节点（垂直方向），考虑边框偏移
-	childX := x + borderOffsetX
-	childY := y + borderOffsetY
-	// 为子节点创建新的约束，使用节点的实际尺寸减去边框偏移
+	// 默认布局：递归布局子节点（垂直方向），考虑内容区域偏移
+	childX := x + contentOffsetX
+	childY := y + contentOffsetY
+	// 为子节点创建新的约束，使用节点的实际尺寸减去内容偏移
 	// 这样 absolute 子节点可以使用正确的内容区域尺寸
 	childConstraints := constraints
 	if width > 0 && height > 0 {
-		// 计算内容区域尺寸
-		contentWidth := width - 2*borderOffsetX
-		contentHeight := height - 2*borderOffsetY
+		// 计算内容区域尺寸（使用 BoxModel 比 2*offset 更准确）
+		var contentWidth, contentHeight int
+		if boxModelProvider, ok := node.(BoxModelProvider); ok {
+			boxModel := boxModelProvider.GetBoxModel()
+			contentWidth = boxModel.InnerWidth(width)
+			contentHeight = boxModel.InnerHeight(height)
+		} else {
+			contentWidth = width - 2*contentOffsetX
+			contentHeight = height - 2*contentOffsetY
+		}
 		if contentWidth > 0 && contentHeight > 0 {
 			childConstraints = Constraints{
 				MinWidth:  0,
