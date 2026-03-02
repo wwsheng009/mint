@@ -72,7 +72,7 @@ func Counter() ui.VNode {
 		// Input field (name input - TODO: integrate with FieldChangeIntent)
 		ui.HStack(
 			ui.Text("Name: "),
-			app.InputBuilder().
+			ui.NewInputBuilder().
 				Value(name).
 				Placeholder("Enter name").
 				Build(),

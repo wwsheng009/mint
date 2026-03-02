@@ -26,7 +26,6 @@ package main
 import (
 	"fmt"
 
-	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/ui"
 )
@@ -156,7 +155,7 @@ func App() ui.VNode {
 
 		ui.HStack(
 			ui.Text("  "),
-			app.InputBuilder().
+			ui.NewInputBuilder().
 				ForField(intent.BindField("username")).
 				Value(username).
 				Placeholder("Enter username").
@@ -172,7 +171,7 @@ func App() ui.VNode {
 
 		ui.HStack(
 			ui.Text("  "),
-			app.InputBuilder().
+			ui.NewInputBuilder().
 				ForField(intent.BindField("email")).
 				Value(email).
 				Placeholder("Enter email").
@@ -184,7 +183,7 @@ func App() ui.VNode {
 
 		ui.HStack(
 			ui.Text("  "),
-			app.CheckboxBuilder().
+			ui.NewCheckboxBuilder().
 				ForField(intent.BindField("agree")).
 				Checked(agree).
 				Label("I agree to the terms").
@@ -200,13 +199,13 @@ func App() ui.VNode {
 		ui.HStack(
 			ui.Text("  "),
 			ui.NewButtonBuilder("  Submit  ").
-				Variant(app.ButtonVariantPrimary).
+				Variant(ui.ButtonVariantPrimary).
 				OnPress(SubmitFormIntent{}).
 				Disabled(username == "" || email == "" || !agree).
 				Build(),
 			ui.Text(" "),
 			ui.NewButtonBuilder("  Reset  ").
-				Variant(app.ButtonVariantSecondary).
+				Variant(ui.ButtonVariantSecondary).
 				OnPress(ResetIntent{}).
 				Build(),
 		),
@@ -236,7 +235,7 @@ func SuccessView(username, email string, agree bool) ui.VNode {
 		ui.HStack(
 			ui.Text("  "),
 			ui.NewButtonBuilder("  Back to Form  ").
-				Variant(app.ButtonVariantSecondary).
+				Variant(ui.ButtonVariantSecondary).
 				OnPress(ClearSubmittedIntent{}).
 				Build(),
 		),

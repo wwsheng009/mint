@@ -13,7 +13,6 @@ package main
 import (
 	"fmt"
 
-	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/ui"
 )
 
@@ -95,7 +94,7 @@ func ComprehensiveApp() ui.VNode {
 			if step == 1 {
 				return ui.HStack(
 					ui.Text("Name: "),
-					app.InputBuilder().
+					ui.NewInputBuilder().
 						Value(name).
 						Placeholder("Your name").
 						Build(), // TODO: integrate with FieldChangeIntent

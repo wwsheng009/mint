@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 
-	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/ui"
 )
 
@@ -11,7 +10,7 @@ import (
 func ControlledInputDemo() ui.VNode {
 	text, setText := ui.UseStateString("")
 
-	return app.VStack(
+	return ui.VStack(
 		ui.NewTextBuilder("Input Demo").
 			Bold(true).
 			Build(),
@@ -21,10 +20,9 @@ func ControlledInputDemo() ui.VNode {
 		ui.Text(""),
 		ui.HStack(
 			ui.Text("> "),
-			app.InputBuilder().
+			ui.NewInputBuilder().
 				Value(text).
 				Placeholder("Type here...").
-				MaxLength(20).
 				OnChange(setText).
 				Build(),
 		),

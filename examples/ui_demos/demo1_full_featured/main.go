@@ -275,7 +275,7 @@ func MainBody(count int, setCount func(interface{}), input string, setInput func
 	// Right content area with input and log lines
 	// Uses theme colors: TEXT for labels, MUTED for log lines, BORDER for divider
 	contentArea := ui.VStackBuilder(
-		app.InputBuilder().
+		ui.NewInputBuilder().
 			Value(input).
 			Placeholder("Type something...").
 			Width(30). // Input width (less than panel width)

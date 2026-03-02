@@ -9,7 +9,6 @@ package main
 import (
 	"fmt"
 
-	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/ui"
 )
 
@@ -56,7 +55,7 @@ func FormApp() ui.VNode {
 		ui.Text(""),
 		ui.HStack(
 			ui.Text("Username: "),
-			app.InputBuilder().
+			ui.NewInputBuilder().
 				Value(username).
 				Placeholder("Enter username").
 				Build(), // TODO: integrate with FieldChangeIntent
@@ -64,7 +63,7 @@ func FormApp() ui.VNode {
 		ui.Text(""),
 		ui.HStack(
 			ui.Text("Password: "),
-			app.InputBuilder().
+			ui.NewInputBuilder().
 				Value(password).
 				Placeholder("Enter password").
 				Password().

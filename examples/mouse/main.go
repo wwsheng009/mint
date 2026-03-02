@@ -111,11 +111,11 @@ func MouseInteractionDemo() ui.VNode {
 		ui.HStack(
 			ui.Text("Theme: "),
 			ui.NewSelectBuilder().
-				Options([]ui.NewSelectOption{
-					{Value: "dark", Label: "Dark"},
-					{Value: "light", Label: "Light"},
-					{Value: "blue", Label: "Blue"},
-					{Value: "green", Label: "Green"},
+				Options([]ui.SelectOption{
+					ui.NewSelectOption("dark", "Dark"),
+					ui.NewSelectOption("light", "Light"),
+					ui.NewSelectOption("blue", "Blue"),
+					ui.NewSelectOption("green", "Green"),
 				}).
 				Selected(selectedIndex).
 				Build(), // TODO: integrate with FieldChangeIntent

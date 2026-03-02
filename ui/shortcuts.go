@@ -232,6 +232,11 @@ type TreeNode = treeview.TreeNode
 // Select Types
 type SelectOption = selectcomp.Option
 
+// NewSelectOption creates a new select option with value and label
+func NewSelectOption(value, label string) selectcomp.Option {
+	return selectcomp.Option{Value: value, Label: label}
+}
+
 // =============================================================================
 // NOTE: BorderStyle constants are in ui/layout.go (re-exported from rtui)
 // =============================================================================

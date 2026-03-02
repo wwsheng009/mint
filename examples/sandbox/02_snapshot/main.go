@@ -9,7 +9,6 @@ package main
 import (
 	"fmt"
 
-	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/ui"
 )
 
@@ -90,7 +89,7 @@ func StatefulApp() ui.VNode {
 		ui.Text(""),
 		ui.HStack(
 			ui.Text("Input: "),
-			app.InputBuilder().
+			ui.NewInputBuilder().
 				Value(text).
 				Placeholder("Type something...").
 				Build(), // TODO: integrate with FieldChangeIntent

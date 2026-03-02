@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/ui"
 	selectcomp "github.com/wwsheng009/mint/ui/components/select"
@@ -233,13 +232,13 @@ func FormView(username, email, bio string, country int, agree bool) ui.VNode {
 		ui.HStack(
 			ui.Text("  "),
 			ui.NewButtonBuilder("  Submit  ").
-				Variant(app.ButtonVariantPrimary).
+				Variant(ui.ButtonVariantPrimary).
 				OnPress(SubmitFormIntent{}).
 				Disabled(username == "" || email == "" || !agree).
 				Build(),
 			ui.Text(" "),
 			ui.NewButtonBuilder("  Reset  ").
-				Variant(app.ButtonVariantSecondary).
+				Variant(ui.ButtonVariantSecondary).
 				OnPress(ResetIntent{}).
 				Build(),
 		),
@@ -253,7 +252,7 @@ func BasicFormFields(username, email string, agree bool) ui.VNode {
 		ui.NewTextBuilder("Username:").FgColor("blue").Build(),
 		ui.HStack(
 			ui.Text("  "),
-			app.InputBuilder().
+			ui.NewInputBuilder().
 				// ForField() 自动处理 FieldChangeIntent
 				ForField(intent.ForField(usernameKey)).
 				Value(username).
@@ -268,7 +267,7 @@ func BasicFormFields(username, email string, agree bool) ui.VNode {
 		ui.NewTextBuilder("Email:").FgColor("blue").Build(),
 		ui.HStack(
 			ui.Text("  "),
-			app.InputBuilder().
+			ui.NewInputBuilder().
 				ForField(intent.ForField(emailKey)).
 				Value(email).
 				Placeholder("Enter email").
@@ -281,7 +280,7 @@ func BasicFormFields(username, email string, agree bool) ui.VNode {
 		// Checkbox 组件 - 同意条款
 		ui.HStack(
 			ui.Text("  "),
-			app.CheckboxBuilder().
+			ui.NewCheckboxBuilder().
 				ForField(intent.ForField(agreeKey)).
 				Checked(agree).
 				Label("I agree to the terms and conditions").
@@ -316,7 +315,7 @@ func ProfileFormFields(bio string, country int) ui.VNode {
 		ui.NewTextBuilder("Country:").FgColor("blue").Build(),
 		ui.HStack(
 			ui.Text("  "),
-			app.SelectBuilder().
+			ui.NewSelectBuilder().
 				Options(countries).
 				Selected(country).
 				// ForField() 会将选中的索引存储到 State
@@ -331,7 +330,7 @@ func ProfileFormFields(bio string, country int) ui.VNode {
 		ui.NewTextBuilder("Bio:").FgColor("blue").Build(),
 		ui.HStack(
 			ui.Text("  "),
-			app.TextareaBuilder().
+			ui.NewTextareaBuilder().
 				ForField(intent.ForField(bioKey)).
 				Value(bio).
 				Placeholder("Tell us about yourself...").
@@ -385,12 +384,12 @@ func SuccessView(username, email, bio string, country int, agree bool) ui.VNode 
 		ui.HStack(
 			ui.Text("  "),
 			ui.NewButtonBuilder("  Back to Form  ").
-				Variant(app.ButtonVariantSecondary).
+				Variant(ui.ButtonVariantSecondary).
 				OnPress(BackFormIntent{}).
 				Build(),
 			ui.Text(" "),
 			ui.NewButtonBuilder("  Reset  ").
-				Variant(app.ButtonVariantDanger).
+				Variant(ui.ButtonVariantDanger).
 				OnPress(ResetIntent{}).
 				Build(),
 		),

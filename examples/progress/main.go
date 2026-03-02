@@ -1,7 +1,6 @@
 package main
 
 import (
-	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/ui"
 )
 
@@ -22,20 +21,20 @@ func ProgressDemo() ui.VNode {
 		setProgress(progress + 10)
 	})
 
-	return app.VStack(
+	return ui.VStack(
 		ui.NewTextBuilder("Progress Bar Demo").
 			FgColor("cyan").
 			Bold(true).
 			Build(),
 		ui.Text(""),
 		// TODO: SpinnerBuilder 暂时不可用
-		// app.SpinnerBuilder().
+		// ui.NewSpinnerBuilder().
 		// 	Message("Loading demo...").
 		// 	FgColor("yellow").
 		// 	Build(),
 		ui.NewTextBuilder("Spinner placeholder...").FgColor("yellow").Build(),
 		ui.Text(""),
-		app.ProgressBuilder().
+		ui.NewProgressBuilder().
 			Label("Download:").
 			Value(progress).
 			Max(100).

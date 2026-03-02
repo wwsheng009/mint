@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/runtime/platform"
 	"github.com/wwsheng009/mint/sandbox/mock"
 	"github.com/wwsheng009/mint/ui"
@@ -125,7 +124,7 @@ func TestInputInteraction(t *testing.T) {
 	sb := mock.New(40, 18)
 
 	inputValue := ""
-	input := app.InputBuilder().
+	input := ui.NewInputBuilder().
 		Value("").
 		Placeholder("Type here").
 		OnChange(func(value string) {
