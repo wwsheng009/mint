@@ -21,7 +21,6 @@ import (
 	"github.com/wwsheng009/mint/internal/inspector"
 	"github.com/wwsheng009/mint/runtime/style"
 	"github.com/wwsheng009/mint/ui"
-	"github.com/wwsheng009/mint/ui/components/stack"
 )
 
 // Global inspector instance
@@ -168,9 +167,9 @@ func buildInspectorPanel(currentPhase string, eventCount, renderCount, bufferUpd
 			Build(),
 	)
 
-	return stack.NewVStack().
+	return ui.NewVStack().
 		SingleBorder().
-		BorderColor(string(theme.Info())).
+		BorderColor(theme.Info()).
 		SetChildrenList([]ui.VNode{ui.VStack(inspectorSections...)})
 }
 
@@ -300,9 +299,9 @@ func HeaderPanel() ui.VNode {
 		Align(ui.AlignCenter).
 		Build()
 
-	return stack.NewVStack().
+	return ui.NewVStack().
 		SingleBorder().
-		BorderColor(string(theme.Primary())).
+		BorderColor(theme.Primary()).
 		SetChildrenList([]ui.VNode{headerContent})
 }
 
@@ -330,9 +329,9 @@ func PipelineVisualization(currentPhase string) ui.VNode {
 		}
 	}
 
-	return stack.NewVStack().
+	return ui.NewVStack().
 		SingleBorder().
-		BorderColor(string(theme.Border())).
+		BorderColor(theme.Border()).
 		SetChildrenList([]ui.VNode{
 			ui.VStack(
 				buildPipelineLine(phases, activeIndex),
@@ -398,9 +397,9 @@ func StatisticsPanel(eventCount, renderCount, bufferUpdates int) ui.VNode {
 			Build(),
 	)
 
-	return stack.NewVStack().
+	return ui.NewVStack().
 		SingleBorder().
-		BorderColor(string(theme.Border())).
+		BorderColor(theme.Border()).
 		SetChildrenList([]ui.VNode{content})
 }
 
@@ -489,17 +488,17 @@ func ControlPanel(
 			Build(),
 	}
 
-	wrappedButtons := ui.NewWrapBuilder(allButtons...).
+	wrappedButtons := ui.NewWrapBuilder().Children(allButtons...).
 		Gap(1).
 		RowGap(0).
-		ScreenWidth(78).
+		Width(78).
 		Align(ui.AlignCenter).
 		FillWidth().
 		Build()
 
-	return stack.NewVStack().
+	return ui.NewVStack().
 		SingleBorder().
-		BorderColor(string(theme.Border())).
+		BorderColor(theme.Border()).
 		SetChildrenList([]ui.VNode{wrappedButtons})
 }
 
@@ -525,9 +524,9 @@ func ExplanationPanel(currentPhase string) ui.VNode {
 		Style(style.Foreground(theme.Text())).
 		Build()
 
-	return stack.NewVStack().
+	return ui.NewVStack().
 		SingleBorder().
-		BorderColor(string(theme.Border())).
+		BorderColor(theme.Border()).
 		SetChildrenList([]ui.VNode{content})
 }
 

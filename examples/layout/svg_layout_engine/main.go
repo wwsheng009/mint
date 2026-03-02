@@ -7,9 +7,8 @@ import (
 
 	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/compute"
-	"github.com/wwsheng009/mint/runtime/ui"
+	"github.com/wwsheng009/mint/ui"
 	"github.com/wwsheng009/mint/ui/components/panel"
-	"github.com/wwsheng009/mint/ui/components/stack"
 	"github.com/wwsheng009/mint/ui/components/text"
 	"github.com/wwsheng009/mint/ui/layout/visualizer"
 )
@@ -75,7 +74,7 @@ func main() {
 		Title("Dashboard").
 		OuterSize(70, 30).
 		Content(
-			stack.NewVStack().
+			ui.NewVStack().
 				SetChildren([]ui.VNode{
 					panel.NewBuilder().
 						Title("Statistics").
@@ -125,7 +124,7 @@ func main() {
 	fmt.Println("Example 3: Horizontal Stack (HStack)")
 	fmt.Println("---")
 
-	hstackLayout := stack.NewHStack().
+	hstackLayout := ui.NewHStack().
 		SetChildren([]ui.VNode{
 			text.New("First"),
 			text.New("Second"),

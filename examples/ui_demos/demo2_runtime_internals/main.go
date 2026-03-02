@@ -15,11 +15,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/framework/theme"
 	"github.com/wwsheng009/mint/runtime/style"
 	"github.com/wwsheng009/mint/ui"
-	"github.com/wwsheng009/mint/ui/components/stack"
 )
 
 // Intent Types
@@ -66,7 +64,7 @@ var (
 func main() {
 	// Check if layout debug mode is enabled
 	if os.Getenv("TUI_UI_DEBUG_LAYOUT") == "true" || os.Getenv("TUI_LAYOUT_DEBUG") == "true" {
-		TestLayoutInfo()
+		fmt.Println("=== Layout Info Test ===")
 		return
 	}
 
@@ -170,9 +168,9 @@ func HeaderPanel() ui.VNode {
 
 	// Use FillWidth() to stretch horizontally WITHOUT affecting vertical direction
 	// This is the new layout system feature for single-component stretching
-	return stack.NewVStack().
+	return ui.NewVStack().
 		SingleBorder().
-		BorderColor(string(theme.Primary())).
+		BorderColor(theme.Primary()).
 		SetChildrenList([]ui.VNode{headerContent})
 	// Note: FillWidth() is handled by parent layout
 }
@@ -201,9 +199,9 @@ func PipelineVisualization(currentPhase string) ui.VNode {
 		}
 	}
 
-	return stack.NewVStack().
+	return ui.NewVStack().
 		SingleBorder().
-		BorderColor(string(theme.Border())).
+		BorderColor(theme.Border()).
 		SetChildrenList([]ui.VNode{
 			ui.VStack(
 				buildPipelineLine(phases, activeIndex),
@@ -268,9 +266,9 @@ func StatisticsPanel(eventCount, renderCount, bufferUpdates int) ui.VNode {
 			Build(),
 	)
 
-	return stack.NewVStack().
+	return ui.NewVStack().
 		SingleBorder().
-		BorderColor(string(theme.Border())).
+		BorderColor(theme.Border()).
 		SetChildrenList([]ui.VNode{content})
 }
 
@@ -280,47 +278,47 @@ func ControlPanel() ui.VNode {
 	// Create all buttons as a slice
 	allButtons := []ui.VNode{
 		ui.NewButtonBuilder("[1] Event").
-			Variant(app.ButtonVariantDanger).
+			Variant(ui.ButtonVariantDanger).
 			OnPress(SetEventPhaseIntent{}).
-			FocusStyle(app.FocusStyleBracket).
+			FocusStyle(ui.FocusStyleBracket).
 			Build(),
 		ui.NewButtonBuilder("[2]setState").
-			Variant(app.ButtonVariantSecondary).
+			Variant(ui.ButtonVariantSecondary).
 			OnPress(SetSetStatePhaseIntent{}).
-			FocusStyle(app.FocusStyleBracket).
+			FocusStyle(ui.FocusStyleBracket).
 			Build(),
 		ui.NewButtonBuilder("[3]Scheduler").
-			Variant(app.ButtonVariantSuccess).
+			Variant(ui.ButtonVariantSuccess).
 			OnPress(SetSchedulerPhaseIntent{}).
-			FocusStyle(app.FocusStyleBracket).
+			FocusStyle(ui.FocusStyleBracket).
 			Build(),
 		ui.NewButtonBuilder("[4] Render").
-			Variant(app.ButtonVariantPrimary).
+			Variant(ui.ButtonVariantPrimary).
 			OnPress(SetRenderPhaseIntent{}).
-			FocusStyle(app.FocusStyleBracket).
+			FocusStyle(ui.FocusStyleBracket).
 			Build(),
 		ui.NewButtonBuilder("[5]Reconcile").
 			OnPress(SetReconcilePhaseIntent{}).
-			FocusStyle(app.FocusStyleBracket).
+			FocusStyle(ui.FocusStyleBracket).
 			Build(),
 		ui.NewButtonBuilder("[6] Layout").
 			OnPress(SetLayoutPhaseIntent{}).
-			FocusStyle(app.FocusStyleBracket).
+			FocusStyle(ui.FocusStyleBracket).
 			Build(),
 		ui.NewButtonBuilder("[7] Paint").
 			OnPress(SetPaintPhaseIntent{}).
-			FocusStyle(app.FocusStyleBracket).
+			FocusStyle(ui.FocusStyleBracket).
 			Build(),
 		ui.NewButtonBuilder("[0] Idle").
 			OnPress(SetIdlePhaseIntent{}).
-			FocusStyle(app.FocusStyleBracket).
+			FocusStyle(ui.FocusStyleBracket).
 			Build(),
 	}
 
 	// Use Wrap component for automatic wrapping
 	// ScreenWidth: 78 = container width (80) - border (2)
 	// This ensures buttons fill the entire available width
-	wrappedButtons := ui.NewWrapBuilder(allButtons...).
+	wrappedButtons := ui.NewWrapBuilder().Children(allButtons...).
 		Gap(1).
 		RowGap(0).
 		Width(78).
@@ -328,9 +326,9 @@ func ControlPanel() ui.VNode {
 		FillWidth().
 		Build()
 
-	return stack.NewVStack().
+	return ui.NewVStack().
 		SingleBorder().
-		BorderColor(string(theme.Border())).
+		BorderColor(theme.Border()).
 		SetChildrenList([]ui.VNode{wrappedButtons})
 }
 
@@ -356,8 +354,8 @@ func ExplanationPanel(currentPhase string) ui.VNode {
 		Style(style.Foreground(theme.Text())).
 		Build()
 
-	return stack.NewVStack().
+	return ui.NewVStack().
 		SingleBorder().
-		BorderColor(string(theme.Border())).
+		BorderColor(theme.Border()).
 		SetChildrenList([]ui.VNode{content})
 }

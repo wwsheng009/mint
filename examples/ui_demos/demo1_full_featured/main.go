@@ -23,14 +23,12 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/framework/theme"
 	"github.com/wwsheng009/mint/internal/log"
 	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/ui"
-	"github.com/wwsheng009/mint/ui/components/stack"
 )
 
 // =============================================================================
@@ -218,9 +216,9 @@ func Header(count int, setShowModal func(bool), setCount func(interface{})) ui.V
 			Style(style.FgBg(theme.Surface(), theme.Primary())).
 			Build(),
 		ui.NewButtonBuilder("[Open Modal]").
-			Variant(app.ButtonVariantPrimary). // 使用 Primary variant，默认就有 PRIMARY 背景
+			Variant(ui.ButtonVariantPrimary). // 使用 Primary variant，默认就有 PRIMARY 背景
 			OnPress(OpenModalIntent{}).
-			FocusStyle(app.FocusStyleBracket). // 恢复 Bracket 样式
+			FocusStyle(ui.FocusStyleBracket). // 恢复 Bracket 样式
 			Build(),
 		ui.NewTextBuilder(" ").
 			Style(style.FgBg(theme.Surface(), theme.Primary())).
@@ -230,9 +228,9 @@ func Header(count int, setShowModal func(bool), setCount func(interface{})) ui.V
 			Build(),
 	)
 
-	return stack.NewVStack().
+	return ui.NewVStack().
 		SingleBorder().
-		BorderColor(string(theme.Primary())).
+		BorderColor(theme.Primary()).
 		SetChildrenList([]ui.VNode{headerContent})
 }
 
@@ -262,13 +260,13 @@ func MainBody(count int, setCount func(interface{}), input string, setInput func
 			Style(style.FgBoldUnderline(theme.Muted())).
 			Build(),
 		ui.NewButtonBuilder("Add Count").
-			Variant(app.ButtonVariantPrimary).
+			Variant(ui.ButtonVariantPrimary).
 			OnPress(AddCountIntent{}).
-			FocusStyle(app.FocusStyleBracket).
+			FocusStyle(ui.FocusStyleBracket).
 			Build(),
 		ui.NewButtonBuilder("Quit").
-			Variant(app.ButtonVariantDanger).
-			FocusStyle(app.FocusStyleBracket).
+			Variant(ui.ButtonVariantDanger).
+			FocusStyle(ui.FocusStyleBracket).
 			OnPress(QuitIntent{}).
 			Build(),
 	).Stretch().Build()
@@ -314,16 +312,16 @@ func MainBody(count int, setCount func(interface{}), input string, setInput func
 	// Uses theme BORDER color for borders
 	return ui.HStackBuilder(
 		ui.Flex(
-			stack.NewVStack().
+			ui.NewVStack().
 				SingleBorder().
-				BorderColor(string(theme.Border())).
+				BorderColor(theme.Border()).
 				SetChildrenList([]ui.VNode{sidebar}),
 			1, // Flex factor
 		),
 		ui.Flex(
-			stack.NewVStack().
+			ui.NewVStack().
 				SingleBorder().
-				BorderColor(string(theme.Border())).
+				BorderColor(theme.Border()).
 				SetChildrenList([]ui.VNode{contentArea}),
 			1, // Flex factor
 		),
@@ -336,9 +334,9 @@ func MainBody(count int, setCount func(interface{}), input string, setInput func
 func ConfirmModal(onClose func()) ui.VNode {
 	// Modal content - the actual dialog box with border
 	// Uses theme WARNING color for modal border to indicate caution
-	modalBox := stack.NewVStack().
+	modalBox := ui.NewVStack().
 		SingleBorder().
-		BorderColor(string(theme.Warning())).
+		BorderColor(theme.Warning()).
 		SetWidth(40). // Fixed width for the modal
 		SetChildrenList([]ui.VNode{
 			ui.VStackBuilder(
@@ -357,14 +355,14 @@ func ConfirmModal(onClose func()) ui.VNode {
 				// Uses theme colors: Secondary for Cancel, Success for OK
 				ui.HStackBuilder(
 					ui.NewButtonBuilder("[ Cancel ]").
-						Variant(app.ButtonVariantSecondary).
+						Variant(ui.ButtonVariantSecondary).
 						OnPress(CloseModalIntent{}).
-						FocusStyle(app.FocusStyleBracket).
+						FocusStyle(ui.FocusStyleBracket).
 						Build(),
 					ui.Text(" "),
 					ui.NewButtonBuilder("[ OK ]").
-						Variant(app.ButtonVariantSuccess).
-						FocusStyle(app.FocusStyleBracket).
+						Variant(ui.ButtonVariantSuccess).
+						FocusStyle(ui.FocusStyleBracket).
 						OnPress(CloseModalIntent{}).
 						Build(),
 				).Align(ui.AlignCenter).Build(),

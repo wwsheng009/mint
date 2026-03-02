@@ -6,13 +6,12 @@ import (
 
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/ui"
-	"github.com/wwsheng009/mint/ui/components/stack"
 )
 
 // TestStep3LayoutVNode 测试 Step 3 布局的 VNode 结构
 func TestStep3LayoutVNode(t *testing.T) {
 	// 创建 Step 3 的 VNode 结构，使用固定测试值
-	vnode := stack.NewVStack().
+	vnode := ui.NewVStack().
 		SingleBorder().
 		SetChildrenList([]ui.VNode{
 			ui.VStackBuilder(

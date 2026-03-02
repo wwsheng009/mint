@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/wwsheng009/mint/ui"
-	"github.com/wwsheng009/mint/ui/components/stack"
 )
 
 // TestBorderedNodeStructure demonstrates how Stack border works
@@ -13,7 +12,7 @@ func TestBorderedNodeStructure(t *testing.T) {
 	fmt.Println("\n=== Stack Border Structure Demo ===")
 
 	// Create a bordered Stack with content
-	bordered := stack.NewVStack().
+	bordered := ui.NewVStack().
 		DoubleBorder("Title").
 		SetChildrenList([]ui.VNode{
 			ui.VStack(
@@ -67,14 +66,6 @@ func TestBorderedNodeStructure(t *testing.T) {
 		fmt.Printf("  Path: %s\n", node.Path)
 		fmt.Printf("  Children (in tree): %d\n", len(node.Children))
 
-		// For BorderedNode, show if it has border properties
-		if bn, ok := node.VNode.(*ui.BorderedNode); ok {
-			fmt.Printf("  >>> Has Border Properties <<<\n")
-			fmt.Printf("  Border Style: (check via reflection)\n")
-			fmt.Printf("  Border Label: (check via reflection)\n")
-			_ = bn // Use variable
-		}
-
 		fmt.Println()
 	}
 
@@ -126,7 +117,7 @@ func TestBorderedVsNormalNode(t *testing.T) {
 	)
 
 	// Bordered VStack (migrated to Stack)
-	bordered := stack.NewVStack().
+	bordered := ui.NewVStack().
 		SingleBorder().
 		SetChildrenList([]ui.VNode{
 			ui.VStack(

@@ -1,8 +1,8 @@
 package ui
 
 import (
-	"github.com/wwsheng009/mint/ui/components/wrap"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
+	"github.com/wwsheng009/mint/ui/components/wrap"
 )
 
 // =============================================================================
@@ -49,6 +49,12 @@ func HStackBuilder(children ...VNode) *rtui.LayoutBuilder {
 	return rtui.HStackBuilder(children...)
 }
 
+// Example: ui.NewHStack().SetGap(2).SetChildrenList([]ui.VNode{...})
+// This returns *LayoutBuilder which implements VNode interface, so it can be used as VNode
+func NewHStack() *rtui.LayoutBuilder {
+	return rtui.HStackBuilder()
+}
+
 // VStack creates a vertical layout container
 func VStack(children ...VNode) VNode {
 	return rtui.VStack(children...)
@@ -58,6 +64,12 @@ func VStack(children ...VNode) VNode {
 // Example: ui.VStackBuilder(item1, item2).Stretch().Build()
 func VStackBuilder(children ...VNode) *rtui.LayoutBuilder {
 	return rtui.VStackBuilder(children...)
+}
+
+// Example: ui.NewVStack().SetGap(0).SetChildrenList([]ui.VNode{...})
+// This returns *LayoutBuilder which implements VNode interface, so it can be used as VNode
+func NewVStack() *rtui.LayoutBuilder {
+	return rtui.VStackBuilder()
 }
 
 // Flex wraps a VNode to make it flexible in a layout
@@ -74,6 +86,11 @@ func Box() *rtui.BoxLayoutBuilder {
 // Spacer creates a flexible space
 func Spacer() *rtui.SpacerBuilder {
 	return rtui.Spacer()
+}
+
+// SpacerWithFlex creates a flexible space with specified flex value (compatibility with ui/components/stack)
+func SpacerWithFlex(flex int) VNode {
+	return rtui.Spacer().Flex(flex).Build()
 }
 
 // =============================================================================

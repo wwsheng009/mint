@@ -7,7 +7,6 @@ import (
 	"github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
-	newstack "github.com/wwsheng009/mint/ui/components/stack"
 	newtext "github.com/wwsheng009/mint/ui/components/text"
 )
 
@@ -263,11 +262,11 @@ func (v *VNode) getComposed() rtui.VNode {
 	}
 
 	// Create VStack with native border properties
-	vstack := newstack.New(newstack.Column).
+	vstack := rtui.VStackBuilder().
 		SetChildrenList(stackChildren).
 		SetGap(0).
-		Border(borderStyleStr, borderLabel). // Set border style and label
-		BorderColor(string(v.borderColor))  // Set border color
+		SetBorder(borderStyleStr, borderLabel). // Set border style and label
+		SetBorderColor(v.borderColor)  // Set border color
 
 	// Set Panel size and flex
 	if v.width > 0 {

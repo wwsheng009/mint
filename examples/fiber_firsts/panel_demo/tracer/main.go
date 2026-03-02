@@ -6,9 +6,9 @@ import (
 
 	"github.com/wwsheng009/mint/runtime/layout"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
-	newtext "github.com/wwsheng009/mint/ui/components/text"
-	newstack "github.com/wwsheng009/mint/ui/components/stack"
+	"github.com/wwsheng009/mint/ui"
 	panel "github.com/wwsheng009/mint/ui/components/panel"
+	newtext "github.com/wwsheng009/mint/ui/components/text"
 )
 
 func main() {
@@ -79,7 +79,7 @@ func main() {
 	nestedPanel := panel.New().
 		SetTitle("Nested Panel").
 		SetContent(
-			newstack.New(newstack.Column).
+			ui.NewVStack().
 				SetChildrenList([]rtui.VNode{
 					newtext.New("First line of nested content"),
 					newtext.New("Second line of nested content"),

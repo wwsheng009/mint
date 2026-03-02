@@ -19,15 +19,15 @@ import (
 	"github.com/wwsheng009/mint/internal/render"
 	"github.com/wwsheng009/mint/runtime/paint"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
+	"github.com/wwsheng009/mint/ui"
 	"github.com/wwsheng009/mint/ui/components/button"
-	"github.com/wwsheng009/mint/ui/components/stack"
 	"github.com/wwsheng009/mint/ui/components/text"
 	"github.com/wwsheng009/mint/ui/components/wrap"
 )
 
 // DemoApp renders containers with native border properties
 func DemoApp() rtui.VNode {
-	return stack.NewVStack().
+	return ui.NewVStack().
 		SetGap(1).
 		SetChildrenList([]rtui.VNode{
 			// =====================================================
@@ -38,7 +38,7 @@ func DemoApp() rtui.VNode {
 			subTitle("1.1 No size - auto measures child"),
 			highlight("Border auto-sizes to fit child content!"),
 			// Simple text with rounded border - wrap in Stack
-			stack.NewVStack().
+			ui.NewVStack().
 				RoundedBorder().
 				BorderColor("green").
 				SetChildrenList([]rtui.VNode{
@@ -46,7 +46,7 @@ func DemoApp() rtui.VNode {
 				}),
 
 			subTitle("1.2 Auto height with explicit width=30"),
-			stack.NewVStack().
+			ui.NewVStack().
 				SingleBorder().
 				SetWidth(30).
 				SetChildrenList([]rtui.VNode{
@@ -54,7 +54,7 @@ func DemoApp() rtui.VNode {
 				}),
 
 			subTitle("1.3 Auto width with explicit height=2"),
-			stack.NewVStack().
+			ui.NewVStack().
 				SingleBorder().
 				SetHeight(2).
 				SetChildrenList([]rtui.VNode{
@@ -67,7 +67,7 @@ func DemoApp() rtui.VNode {
 			sectionTitle("═══ 2. Auto-Measure Complex Children ═══"),
 
 			subTitle("2.1 VStack child (auto-sized)"),
-			stack.NewVStack().
+			ui.NewVStack().
 				RoundedBorder(" Menu ").
 				BorderColor("cyan").
 				SetGap(0).
@@ -79,7 +79,7 @@ func DemoApp() rtui.VNode {
 				}),
 
 			subTitle("2.2 HStack child (auto-sized)"),
-			stack.NewHStack().
+			ui.NewHStack().
 				SingleBorder().
 				BorderColor("yellow").
 				SetGap(2).
@@ -105,7 +105,7 @@ func DemoApp() rtui.VNode {
 				}),
 
 			subTitle("2.4 Button children (auto-sized)"),
-			stack.NewHStack().
+			ui.NewHStack().
 				SingleBorder().
 				BorderColor("blue").
 				SetGap(1).
@@ -121,7 +121,7 @@ func DemoApp() rtui.VNode {
 			sectionTitle("═══ 3. Explicit vs Auto ═══"),
 
 			subTitle("3.1 Explicit size (25x2)"),
-			stack.NewVStack().
+			ui.NewVStack().
 				SingleBorder().
 				SetWidth(25).
 				SetHeight(2).
@@ -131,7 +131,7 @@ func DemoApp() rtui.VNode {
 				}),
 
 			subTitle("3.2 Auto size (same content)"),
-			stack.NewVStack().
+			ui.NewVStack().
 				SingleBorder().
 				BorderColor("green").
 				SetChildrenList([]rtui.VNode{
@@ -139,7 +139,7 @@ func DemoApp() rtui.VNode {
 				}),
 
 			subTitle("3.3 Explicit with extra space"),
-			stack.NewVStack().
+			ui.NewVStack().
 				SingleBorder().
 				SetWidth(40).
 				SetHeight(3).
@@ -154,28 +154,28 @@ func DemoApp() rtui.VNode {
 			sectionTitle("═══ 4. Border Styles ═══"),
 
 			subTitle("4.1 Single (default)"),
-			stack.NewVStack().
+			ui.NewVStack().
 				SingleBorder().
 				SetChildrenList([]rtui.VNode{
 					text.New("Single line border"),
 				}),
 
 			subTitle("4.2 Double"),
-			stack.NewVStack().
+			ui.NewVStack().
 				DoubleBorder().
 				SetChildrenList([]rtui.VNode{
 					text.New("Double line border"),
 				}),
 
 			subTitle("4.3 Rounded"),
-			stack.NewVStack().
+			ui.NewVStack().
 				RoundedBorder().
 				SetChildrenList([]rtui.VNode{
 					text.New("Rounded corners"),
 				}),
 
 			subTitle("4.4 Dashed"),
-			stack.NewVStack().
+			ui.NewVStack().
 				DashedBorder().
 				SetChildrenList([]rtui.VNode{
 					text.New("Dashed line border"),
@@ -187,7 +187,7 @@ func DemoApp() rtui.VNode {
 			sectionTitle("═══ 5. Border with Label ═══"),
 
 			subTitle("5.1 Label (auto-sized)"),
-			stack.NewVStack().
+			ui.NewVStack().
 				RoundedBorder(" Settings ").
 				BorderColor("cyan").
 				SetGap(0).
@@ -197,7 +197,7 @@ func DemoApp() rtui.VNode {
 				}),
 
 			subTitle("5.2 Long label (auto-sized)"),
-			stack.NewVStack().
+			ui.NewVStack().
 				DoubleBorder(" Configuration Panel ").
 				BorderColor("yellow").
 				SetChildrenList([]rtui.VNode{
@@ -210,7 +210,7 @@ func DemoApp() rtui.VNode {
 			sectionTitle("═══ 6. Border Colors ═══"),
 
 			subTitle("6.1 Green"),
-			stack.NewVStack().
+			ui.NewVStack().
 				RoundedBorder().
 				BorderColor("green").
 				SetChildrenList([]rtui.VNode{
@@ -218,7 +218,7 @@ func DemoApp() rtui.VNode {
 				}),
 
 			subTitle("6.2 Red"),
-			stack.NewVStack().
+			ui.NewVStack().
 				SingleBorder().
 				BorderColor("red").
 				SetChildrenList([]rtui.VNode{
@@ -226,7 +226,7 @@ func DemoApp() rtui.VNode {
 				}),
 
 			subTitle("6.3 Yellow"),
-			stack.NewVStack().
+			ui.NewVStack().
 				SingleBorder().
 				BorderColor("yellow").
 				SetChildrenList([]rtui.VNode{
@@ -234,7 +234,7 @@ func DemoApp() rtui.VNode {
 				}),
 
 			subTitle("6.4 Cyan"),
-			stack.NewVStack().
+			ui.NewVStack().
 				RoundedBorder().
 				BorderColor("cyan").
 				SetChildrenList([]rtui.VNode{
@@ -247,11 +247,11 @@ func DemoApp() rtui.VNode {
 			sectionTitle("═══ 7. Nested Borders ═══"),
 
 			subTitle("7.1 Nested auto-sized"),
-			stack.NewVStack().
+			ui.NewVStack().
 				DoubleBorder(" Outer ").
 				BorderColor("blue").
 				SetChildrenList([]rtui.VNode{
-					stack.NewVStack().
+					ui.NewVStack().
 						RoundedBorder(" Inner ").
 						BorderColor("green").
 						SetChildrenList([]rtui.VNode{
@@ -265,13 +265,13 @@ func DemoApp() rtui.VNode {
 			sectionTitle("═══ 8. Real World ═══"),
 
 			subTitle("8.1 Dialog (auto-sized to content)"),
-			stack.NewVStack().
+			ui.NewVStack().
 				DoubleBorder(" Confirm ").
 				BorderColor("yellow").
 				SetGap(1).
 				SetChildrenList([]rtui.VNode{
 					text.New("Delete this file?"),
-					stack.NewHStack().
+					ui.NewHStack().
 						SetGap(2).
 						SetChildrenList([]rtui.VNode{
 							button.New("Yes").SetVariant(button.VariantDanger),
@@ -280,7 +280,7 @@ func DemoApp() rtui.VNode {
 				}),
 
 			subTitle("8.2 Info Panel"),
-			stack.NewVStack().
+			ui.NewVStack().
 				RoundedBorder(" Status ").
 				BorderColor("green").
 				SetGap(0).
@@ -291,7 +291,7 @@ func DemoApp() rtui.VNode {
 				}),
 
 			subTitle("8.3 Error Box"),
-			stack.NewVStack().
+			ui.NewVStack().
 				SingleBorder(" ERROR ").
 				BorderColor("red").
 				SetChildrenList([]rtui.VNode{

@@ -14,8 +14,8 @@ import (
 	"github.com/wwsheng009/mint/internal/render"
 	"github.com/wwsheng009/mint/runtime/paint"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
+	"github.com/wwsheng009/mint/ui"
 	"github.com/wwsheng009/mint/ui/components/scrollview"
-	newstack "github.com/wwsheng009/mint/ui/components/stack"
 	newtext "github.com/wwsheng009/mint/ui/components/text"
 )
 
@@ -118,7 +118,7 @@ func buildFileList() string {
 
 // DemoApp renders ScrollView components using the Fiber-first pipeline
 func DemoApp() rtui.VNode {
-	return newstack.New(newstack.Column).
+	return ui.NewVStack().
 		SetWidth(70).
 		SetGap(1).
 		SetChildrenList([]rtui.VNode{
@@ -195,7 +195,7 @@ func DemoApp() rtui.VNode {
 			newtext.New(""),
 			subTitle("6. Scroll Position Indicators (Top/Middle/Bottom)"),
 
-			newstack.New(newstack.Row).
+			ui.NewHStack().
 				SetGap(2).
 				SetChildrenList([]rtui.VNode{
 					scrollview.NewBuilder().

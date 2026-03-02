@@ -9,15 +9,14 @@ import (
 	"github.com/wwsheng009/mint/framework"
 	"github.com/wwsheng009/mint/framework/theme"
 	"github.com/wwsheng009/mint/internal/render"
-	"github.com/wwsheng009/mint/runtime/ui"
-	newtoast "github.com/wwsheng009/mint/ui/components/stack"
+	"github.com/wwsheng009/mint/ui"
 	newtext "github.com/wwsheng009/mint/ui/components/text"
 	tooltipcomp "github.com/wwsheng009/mint/ui/components/tooltip"
 )
 
 // TooltipDemoApp 主应用 VNode
 func TooltipDemoApp() ui.VNode {
-	return newtoast.NewVStack().
+	return ui.NewVStack().
 		SetGap(0).
 		SetChildrenList([]ui.VNode{
 			// ┌─────────────────────────────────────────────────────────────┐

@@ -14,14 +14,14 @@ import (
 	"github.com/wwsheng009/mint/internal/render"
 	"github.com/wwsheng009/mint/runtime/paint"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
+	"github.com/wwsheng009/mint/ui"
 	"github.com/wwsheng009/mint/ui/components/grid"
-	newstack "github.com/wwsheng009/mint/ui/components/stack"
 	newtext "github.com/wwsheng009/mint/ui/components/text"
 )
 
 // DemoApp renders Grid layouts using the Fiber-first pipeline
 func DemoApp() rtui.VNode {
-	return newstack.NewVStack().
+	return ui.NewVStack().
 		SetGap(0).
 		SetChildrenList([]rtui.VNode{
 			// =====================================================
@@ -250,7 +250,7 @@ func subTitle(title string) rtui.VNode {
 
 // boxPanel creates a simple panel
 func boxPanel(title, content string) rtui.VNode {
-	return newstack.NewVStack().
+	return ui.NewVStack().
 		SetChildrenList([]rtui.VNode{
 			newtext.New("┌─ " + title + " ─"),
 			newtext.New("│ " + content),

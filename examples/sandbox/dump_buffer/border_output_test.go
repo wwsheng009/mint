@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/wwsheng009/mint/ui"
-	"github.com/wwsheng009/mint/ui/components/stack"
 )
 
 // outputDir is where we save the rendered output files
@@ -31,7 +30,7 @@ func TestSaveAllBordersToFile(t *testing.T) {
 			name:     "Single Style",
 			filename: "01_single.txt",
 			buildVNode: func() ui.VNode {
-				return stack.NewVStack().SingleBorder().SetChildrenList([]ui.VNode{ui.Text("Single Border")})
+				return ui.NewVStack().SingleBorder().SetChildrenList([]ui.VNode{ui.Text("Single Border")})
 			},
 			width:  30,
 			height: 10,
@@ -40,7 +39,7 @@ func TestSaveAllBordersToFile(t *testing.T) {
 			name:     "Single with Label",
 			filename: "02_single_label.txt",
 			buildVNode: func() ui.VNode {
-				return stack.NewVStack().SingleBorder("Title").SetChildrenList([]ui.VNode{ui.Text("Content")})
+				return ui.NewVStack().SingleBorder("Title").SetChildrenList([]ui.VNode{ui.Text("Content")})
 			},
 			width:  30,
 			height: 10,
@@ -49,7 +48,7 @@ func TestSaveAllBordersToFile(t *testing.T) {
 			name:     "Double Style",
 			filename: "03_double.txt",
 			buildVNode: func() ui.VNode {
-				return stack.NewVStack().DoubleBorder().SetChildrenList([]ui.VNode{ui.Text("Double Border")})
+				return ui.NewVStack().DoubleBorder().SetChildrenList([]ui.VNode{ui.Text("Double Border")})
 			},
 			width:  30,
 			height: 10,
@@ -58,7 +57,7 @@ func TestSaveAllBordersToFile(t *testing.T) {
 			name:     "Double with Label",
 			filename: "04_double_label.txt",
 			buildVNode: func() ui.VNode {
-				return stack.NewVStack().DoubleBorder("Settings").SetChildrenList([]ui.VNode{ui.Text("Content")})
+				return ui.NewVStack().DoubleBorder("Settings").SetChildrenList([]ui.VNode{ui.Text("Content")})
 			},
 			width:  30,
 			height: 10,
@@ -67,7 +66,7 @@ func TestSaveAllBordersToFile(t *testing.T) {
 			name:     "Rounded Style",
 			filename: "05_rounded.txt",
 			buildVNode: func() ui.VNode {
-				return stack.NewVStack().RoundedBorder().SetChildrenList([]ui.VNode{ui.Text("Rounded Border")})
+				return ui.NewVStack().RoundedBorder().SetChildrenList([]ui.VNode{ui.Text("Rounded Border")})
 			},
 			width:  30,
 			height: 10,
@@ -76,7 +75,7 @@ func TestSaveAllBordersToFile(t *testing.T) {
 			name:     "Rounded with Label",
 			filename: "06_rounded_label.txt",
 			buildVNode: func() ui.VNode {
-				return stack.NewVStack().RoundedBorder("Info").SetChildrenList([]ui.VNode{ui.Text("Content")})
+				return ui.NewVStack().RoundedBorder("Info").SetChildrenList([]ui.VNode{ui.Text("Content")})
 			},
 			width:  30,
 			height: 10,
@@ -85,7 +84,7 @@ func TestSaveAllBordersToFile(t *testing.T) {
 			name:     "Dashed Style",
 			filename: "07_dashed.txt",
 			buildVNode: func() ui.VNode {
-				return stack.NewVStack().DashedBorder().SetChildrenList([]ui.VNode{ui.Text("Dashed Border")})
+				return ui.NewVStack().DashedBorder().SetChildrenList([]ui.VNode{ui.Text("Dashed Border")})
 			},
 			width:  30,
 			height: 10,
@@ -94,7 +93,7 @@ func TestSaveAllBordersToFile(t *testing.T) {
 			name:     "Dashed with Label",
 			filename: "08_dashed_label.txt",
 			buildVNode: func() ui.VNode {
-				return stack.NewVStack().DashedBorder("ASCII").SetChildrenList([]ui.VNode{ui.Text("Content")})
+				return ui.NewVStack().DashedBorder("ASCII").SetChildrenList([]ui.VNode{ui.Text("Content")})
 			},
 			width:  30,
 			height: 10,
@@ -103,7 +102,7 @@ func TestSaveAllBordersToFile(t *testing.T) {
 			name:     "Multi-line Content",
 			filename: "09_multiline.txt",
 			buildVNode: func() ui.VNode {
-				return stack.NewVStack().SingleBorder("Multiple Lines").SetChildrenList([]ui.VNode{
+				return ui.NewVStack().SingleBorder("Multiple Lines").SetChildrenList([]ui.VNode{
 					ui.VStack(
 						ui.Text("Line 1: First content"),
 						ui.Text("Line 2: Second content"),
@@ -118,7 +117,7 @@ func TestSaveAllBordersToFile(t *testing.T) {
 			name:     "Wide Characters",
 			filename: "10_wide_chars.txt",
 			buildVNode: func() ui.VNode {
-				return stack.NewVStack().SingleBorder("Wide Characters").SetChildrenList([]ui.VNode{
+				return ui.NewVStack().SingleBorder("Wide Characters").SetChildrenList([]ui.VNode{
 					ui.VStack(
 						ui.Text("English: Hello"),
 						ui.Text("Chinese: 你好世界"),
@@ -153,13 +152,13 @@ func TestSaveAllBordersToFile(t *testing.T) {
 					ui.Text("Border Style Showcase"),
 					ui.Text(""),
 					ui.HStack(
-						stack.NewVStack().SingleBorder("single").SetChildrenList([]ui.VNode{ui.Text("A")}),
+						ui.NewVStack().SingleBorder("single").SetChildrenList([]ui.VNode{ui.Text("A")}),
 						ui.Text("  "),
-						stack.NewVStack().DoubleBorder("double").SetChildrenList([]ui.VNode{ui.Text("B")}),
+						ui.NewVStack().DoubleBorder("double").SetChildrenList([]ui.VNode{ui.Text("B")}),
 						ui.Text("  "),
-						stack.NewVStack().RoundedBorder("rounded").SetChildrenList([]ui.VNode{ui.Text("C")}),
+						ui.NewVStack().RoundedBorder("rounded").SetChildrenList([]ui.VNode{ui.Text("C")}),
 						ui.Text("  "),
-						stack.NewVStack().DashedBorder("dashed").SetChildrenList([]ui.VNode{ui.Text("D")}),
+						ui.NewVStack().DashedBorder("dashed").SetChildrenList([]ui.VNode{ui.Text("D")}),
 					),
 				)
 			},
@@ -205,7 +204,7 @@ func TestViewSingleBorder(t *testing.T) {
 
 	app, err := ui.RunTestWithSandbox(
 		func() ui.VNode {
-			return stack.NewVStack().SingleBorder("Demo").SetChildrenList([]ui.VNode{
+			return ui.NewVStack().SingleBorder("Demo").SetChildrenList([]ui.VNode{
 				ui.VStack(
 					ui.Text("This is a demo"),
 					ui.Text("with multiple lines"),
@@ -247,13 +246,13 @@ func TestAllStylesGrid(t *testing.T) {
 		ui.Text("Border Style Showcase"),
 		ui.Text(""),
 		ui.HStack(
-			stack.NewVStack().SingleBorder("single").SetChildrenList([]ui.VNode{ui.Text("A")}),
+			ui.NewVStack().SingleBorder("single").SetChildrenList([]ui.VNode{ui.Text("A")}),
 			ui.Text("  "),
-			stack.NewVStack().DoubleBorder("double").SetChildrenList([]ui.VNode{ui.Text("B")}),
+			ui.NewVStack().DoubleBorder("double").SetChildrenList([]ui.VNode{ui.Text("B")}),
 			ui.Text("  "),
-			stack.NewVStack().RoundedBorder("rounded").SetChildrenList([]ui.VNode{ui.Text("C")}),
+			ui.NewVStack().RoundedBorder("rounded").SetChildrenList([]ui.VNode{ui.Text("C")}),
 			ui.Text("  "),
-			stack.NewVStack().DashedBorder("dashed").SetChildrenList([]ui.VNode{ui.Text("D")}),
+			ui.NewVStack().DashedBorder("dashed").SetChildrenList([]ui.VNode{ui.Text("D")}),
 		),
 	)
 

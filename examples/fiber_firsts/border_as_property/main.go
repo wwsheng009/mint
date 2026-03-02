@@ -13,17 +13,16 @@ import (
 	"github.com/wwsheng009/mint/framework/theme"
 	"github.com/wwsheng009/mint/internal/render"
 	"github.com/wwsheng009/mint/runtime/paint"
-	"github.com/wwsheng009/mint/runtime/ui"
+	"github.com/wwsheng009/mint/ui"
 	"github.com/wwsheng009/mint/ui/components/grid"
-	"github.com/wwsheng009/mint/ui/components/stack"
 	"github.com/wwsheng009/mint/ui/components/text"
 	"github.com/wwsheng009/mint/ui/components/wrap"
 )
 
 // 辅助函数：Stack VNode
 func borderStack(style, label string, children ...ui.VNode) ui.VNode {
-	return stack.NewVStack().
-		Border(style, label).
+	return ui.NewVStack().
+		SetBorder(style, label).
 		SetGap(0).
 		SetChildrenList(children)
 }
@@ -46,7 +45,7 @@ func borderWrap(width int, style, label string, children ...ui.VNode) ui.VNode {
 
 // DemoApp 展示方案 A - 边框作为容器属性
 func DemoApp() ui.VNode {
-	return stack.NewVStack().
+	return ui.NewVStack().
 		SetGap(1).
 		SetChildrenList([]ui.VNode{
 			// =====================================================
@@ -61,7 +60,7 @@ func DemoApp() ui.VNode {
 			sectionTitle("==== 1. Stack 容器边框 ===="),
 
 			subTitle("1.1 VStack 单线边框"),
-			stack.NewVStack().
+			ui.NewVStack().
 				SingleBorder("Stack Title").
 				SetGap(0).
 				SetChildrenList([]ui.VNode{
@@ -71,7 +70,7 @@ func DemoApp() ui.VNode {
 				}),
 
 			subTitle("1.2 HStack 双线边框"),
-			stack.NewHStack().
+			ui.NewHStack().
 				DoubleBorder("Horizontal").
 				SetWidth(25).
 				SetGap(2).
@@ -170,11 +169,11 @@ func DemoApp() ui.VNode {
 			sectionTitle("==== 6. 嵌套边框 ===="),
 
 			subTitle("6.1 Stack 嵌套"),
-			stack.NewVStack().
+			ui.NewVStack().
 				DoubleBorder("Outer").
 				SetGap(0).
 				SetChildrenList([]ui.VNode{
-					stack.NewVStack().
+					ui.NewVStack().
 						SingleBorder("Inner").
 						SetGap(0).
 						SetChildrenList([]ui.VNode{

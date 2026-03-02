@@ -5,9 +5,8 @@ import (
 	"os"
 
 	"github.com/wwsheng009/mint/runtime/layout"
-	"github.com/wwsheng009/mint/runtime/ui"
+	"github.com/wwsheng009/mint/ui"
 	"github.com/wwsheng009/mint/ui/components/panel"
-	"github.com/wwsheng009/mint/ui/components/stack"
 	"github.com/wwsheng009/mint/ui/components/text"
 	"github.com/wwsheng009/mint/ui/layout/visualizer"
 )
@@ -54,7 +53,7 @@ func main() {
 		Title("Dashboard").
 		OuterSize(70, 30).
 		Content(
-			stack.NewVStack().
+			ui.NewVStack().
 				SetChildren([]ui.VNode{
 					panel.NewBuilder().
 						Title("Statistics").
@@ -120,7 +119,7 @@ func main() {
 		Title("Massive Layout").
 		OuterSize(90, 50).
 		Content(
-			stack.NewVStack().
+			ui.NewVStack().
 				SetChildren([]ui.VNode{
 					panel.NewBuilder().Title("Section 1").OuterSize(80, 8).
 						Content(text.New("Content 1")).Build(),

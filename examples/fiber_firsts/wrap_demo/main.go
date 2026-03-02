@@ -16,7 +16,6 @@ import (
 	"github.com/wwsheng009/mint/runtime/paint"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 	newbutton "github.com/wwsheng009/mint/ui/components/button"
-	newstack "github.com/wwsheng009/mint/ui/components/stack"
 	newtext "github.com/wwsheng009/mint/ui/components/text"
 	"github.com/wwsheng009/mint/ui/components/wrap"
 	"github.com/wwsheng009/mint/examples/utils"
@@ -24,7 +23,7 @@ import (
 
 // DemoApp renders Wrap layouts using the Fiber-first pipeline
 func DemoApp() rtui.VNode {
-	return newstack.NewVStack().
+	return rtui.VStackBuilder().
 		SetGap(0).
 		SetChildrenList([]rtui.VNode{
 			// =====================================================
@@ -395,7 +394,7 @@ func subTitle(title string) rtui.VNode {
 // wrapWithBorder adds a cyan single-line border to a Wrap component to visualize container boundary
 // Uses the native border property of the Wrap container (no wrapper API needed)
 func wrapWithBorder(w *wrap.VNode) rtui.VNode {
-	return w.SingleBorder().FgColor("cyan")
+	return w.SingleBorder().BorderColor("cyan")
 }
 
 func main() {

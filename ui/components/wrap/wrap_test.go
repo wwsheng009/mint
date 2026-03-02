@@ -5,6 +5,7 @@ import (
 
 	"github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/style"
+	"github.com/wwsheng009/mint/runtime/types"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
 
@@ -482,6 +483,8 @@ type mockVNode struct {
 func (m *mockVNode) Type() rtui.VNodeType                           { return rtui.VNodeElement }
 func (m *mockVNode) Key() string                                    { return m.id }
 func (m *mockVNode) SetKey(string) rtui.VNode                       { return m }
+func (m *mockVNode) ID() string                                     { return m.id }
+func (m *mockVNode) SetID(id string) rtui.VNode                     { m.id = id; return m }
 func (m *mockVNode) Tag() string                                    { return "mock" }
 func (m *mockVNode) Style() style.Style                             { return style.Style{} }
 func (m *mockVNode) SetStyle(style.Style) rtui.VNode                { return m }
@@ -499,6 +502,11 @@ func (m *mockVNode) SetLayer(rtui.Layer) rtui.VNode { return m }
 func (m *mockVNode) CreateInstance() rtui.ComponentInstance {
 	return &mockInstance{width: m.width, height: m.height}
 }
+func (m *mockVNode) SetPortalRoot(portalRootID string) rtui.VNode { return m }
+func (m *mockVNode) SetAnchorTo(anchorID string, anchor types.Anchor) rtui.VNode { return m }
+func (m *mockVNode) SetPortalPosition(position types.PositionType) rtui.VNode { return m }
+func (m *mockVNode) SetPortalPriority(priority int) rtui.VNode { return m }
+func (m *mockVNode) SetPortalRootId(portalRootId string) rtui.VNode { return m }
 
 type mockInstance struct {
 	width  int

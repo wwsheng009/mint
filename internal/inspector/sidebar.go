@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/wwsheng009/mint/ui"
-	"github.com/wwsheng009/mint/ui/components/stack"
 )
 
 // Sidebar provides a detailed information panel for inspected elements
@@ -307,7 +306,7 @@ func (s *Sidebar) BuildVNode(info ElementInfo) ui.VNode {
 	content := s.FormatSidebar(info)
 
 	// Return as a bordered stack
-	return stack.NewVStack().
+	return ui.NewVStack().
 		SingleBorder().
 		SetChildrenList([]ui.VNode{ui.Text(content)}).
 		SetWidth(s.width)

@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 
-	"github.com/wwsheng009/mint/app"
 	ui "github.com/wwsheng009/mint/ui"
 )
 
@@ -25,7 +24,7 @@ func WrapDemo() ui.VNode {
 		label := fmt.Sprintf("[%d]", i)
 		buttons = append(buttons,
 			ui.NewButtonBuilder(label).
-				FocusStyle(app.FocusStyleBracket).
+				FocusStyle(ui.FocusStyleBracket).
 				Build(),
 		)
 	}
@@ -36,7 +35,7 @@ func WrapDemo() ui.VNode {
 		ui.Text(""),
 		ui.Text("10 buttons with automatic wrapping:"),
 		ui.Text(""),
-		ui.NewWrapBuilder(buttons...).
+		ui.NewWrapBuilder().Children(buttons...).
 			Gap(1).
 			RowGap(0).
 			Width(76). // 80 - border padding

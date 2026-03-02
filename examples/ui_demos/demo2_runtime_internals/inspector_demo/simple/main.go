@@ -16,7 +16,6 @@ import (
 	"github.com/wwsheng009/mint/internal/inspector"
 	"github.com/wwsheng009/mint/runtime/style"
 	"github.com/wwsheng009/mint/ui"
-	"github.com/wwsheng009/mint/ui/components/stack"
 )
 
 func main() {
@@ -139,9 +138,9 @@ func BuildPerformancePanel(perf *inspector.PerformanceAnalyzer) ui.VNode {
 		Style(style.Foreground(style.White)).
 		Build()
 
-	return stack.NewVStack().
+	return ui.NewVStack().
 		SingleBorder().
-		BorderColor(string(theme.Border())).
+		BorderColor(theme.Border()).
 		SetChildrenList([]ui.VNode{ui.VStack(label, fps, mem)})
 }
 
@@ -169,9 +168,9 @@ func BuildDiagnosticsPanel(diagnostics *inspector.LayoutDiagnostics) ui.VNode {
 		Style(style.Foreground(style.White)).
 		Build()
 
-	return stack.NewVStack().
+	return ui.NewVStack().
 		SingleBorder().
-		BorderColor(string(theme.Border())).
+		BorderColor(theme.Border()).
 		SetChildrenList([]ui.VNode{ui.VStack(label, text)})
 }
 
@@ -192,9 +191,9 @@ func BuildTreePanel(treeView *inspector.TreeView) ui.VNode {
 		Style(style.Foreground(style.White)).
 		Build()
 
-	return stack.NewVStack().
+	return ui.NewVStack().
 		SingleBorder().
-		BorderColor(string(theme.Border())).
+		BorderColor(theme.Border()).
 		SetChildrenList([]ui.VNode{ui.VStack(label, text)})
 }
 
@@ -204,9 +203,9 @@ func BuildDemoContentPanel(content ui.VNode) ui.VNode {
 		Style(style.FgBold(style.Yellow)).
 		Build()
 
-	return stack.NewVStack().
+	return ui.NewVStack().
 		SingleBorder().
-		BorderColor(string(theme.Border())).
+		BorderColor(theme.Border()).
 		SetChildrenList([]ui.VNode{ui.VStack(label, content)})
 }
 
@@ -228,9 +227,9 @@ func BuildDemoContent() ui.VNode {
 	column := ui.VStack(text1, text2, row)
 
 	// Wrap in bordered container
-	return stack.NewVStack().
+	return ui.NewVStack().
 		SingleBorder().
-		BorderColor(string(theme.Info())).
+		BorderColor(theme.Info()).
 		SetChildrenList([]ui.VNode{column})
 }
 

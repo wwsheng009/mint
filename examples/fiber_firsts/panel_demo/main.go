@@ -14,14 +14,14 @@ import (
 	"github.com/wwsheng009/mint/internal/render"
 	"github.com/wwsheng009/mint/runtime/paint"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
-	newstack "github.com/wwsheng009/mint/ui/components/stack"
-	newtext "github.com/wwsheng009/mint/ui/components/text"
+	"github.com/wwsheng009/mint/ui"
 	"github.com/wwsheng009/mint/ui/components/panel"
+	newtext "github.com/wwsheng009/mint/ui/components/text"
 )
 
 // DemoApp creates the demo UI
 func DemoApp() rtui.VNode {
-	return newstack.New(newstack.Column).
+	return ui.NewVStack().
 		SetWidth(70).
 		SetGap(1).
 		SetChildrenList([]rtui.VNode{
@@ -61,7 +61,7 @@ func DemoApp() rtui.VNode {
 			// Section 3: Border Styles
 			// =====================================================
 			subTitle("3. Border Styles (Double, Single, Rounded)"),
-			newstack.New(newstack.Row).
+			ui.NewHStack().
 				SetGap(2).
 				SetChildrenList([]rtui.VNode{
 					panel.NewBuilder().
@@ -143,7 +143,7 @@ func DemoApp() rtui.VNode {
 				BorderColor("green").
 				Build(),
 			newtext.New(""),
-			newstack.New(newstack.Row).
+			ui.NewHStack().
 				SetGap(3).
 				SetChildrenList([]rtui.VNode{
 					panel.NewBuilder().

@@ -6,8 +6,8 @@ import (
 
 	"github.com/wwsheng009/mint/runtime/layout"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
+	"github.com/wwsheng009/mint/ui"
 	"github.com/wwsheng009/mint/ui/components/panel"
-	"github.com/wwsheng009/mint/ui/components/stack"
 	"github.com/wwsheng009/mint/ui/components/text"
 	"github.com/wwsheng009/mint/ui/layout/visualizer"
 )
@@ -249,7 +249,7 @@ func example6() {
 		Title("Main Application").
 		OuterSize(60, 20).
 		Content(
-			stack.NewVStack().
+			ui.NewVStack().
 				SetChildren([]rtui.VNode{
 					panel.NewBuilder().
 						Title("Section 1").

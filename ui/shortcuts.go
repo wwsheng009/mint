@@ -37,7 +37,6 @@ import (
 	"github.com/wwsheng009/mint/ui/components/progress"
 	"github.com/wwsheng009/mint/ui/components/scrollview"
 	selectcomp "github.com/wwsheng009/mint/ui/components/select"
-	"github.com/wwsheng009/mint/ui/components/stack"
 	"github.com/wwsheng009/mint/ui/components/table"
 	"github.com/wwsheng009/mint/ui/components/tabs"
 	"github.com/wwsheng009/mint/ui/components/text"
@@ -75,10 +74,6 @@ func NewTextBuilder(content string) *text.Builder {
 	return text.NewBuilder(content)
 }
 
-// Layout Components
-func NewStackBuilder(dir stack.Direction) *stack.Builder {
-	return stack.NewBuilder(dir)
-}
 
 func NewWrapBuilder() *wrap.Builder {
 	return wrap.NewBuilder()
@@ -375,42 +370,6 @@ func Progress(value, max int) rtui.VNode {
 // ProgressPercent creates a progress bar with percentage
 func ProgressPercent(percent int) rtui.VNode {
 	return progress.NewBuilder().Value(percent).Max(100).Build()
-}
-
-// =============================================================================
-// Layout Components shortcuts
-// =============================================================================
-
-// Stack shortcuts
-
-// H creates a horizontal stack (HStack)
-func H(children ...rtui.VNode) rtui.VNode {
-	return stack.HBox(children...)
-}
-
-// V creates a vertical stack (VStack)
-func V(children ...rtui.VNode) rtui.VNode {
-	return stack.VBox(children...)
-}
-
-// HBox creates an HStack with children (alias for H)
-func HBox(children ...rtui.VNode) rtui.VNode {
-	return H(children...)
-}
-
-// VBox creates a VStack with children (alias for V)
-func VBox(children ...rtui.VNode) rtui.VNode {
-	return V(children...)
-}
-
-// RowStack creates a row layout with gap
-func RowStack(gap int, children ...rtui.VNode) rtui.VNode {
-	return stack.RowStack(gap, children...)
-}
-
-// ColStack creates a column layout with gap
-func ColStack(gap int, children ...rtui.VNode) rtui.VNode {
-	return stack.ColStack(gap, children...)
 }
 
 // Wrap shortcuts

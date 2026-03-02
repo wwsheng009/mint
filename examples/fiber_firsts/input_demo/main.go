@@ -13,14 +13,14 @@ import (
 	"github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/paint"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
+	"github.com/wwsheng009/mint/ui"
 	"github.com/wwsheng009/mint/ui/components/input"
-	newstack "github.com/wwsheng009/mint/ui/components/stack"
 	newtext "github.com/wwsheng009/mint/ui/components/text"
 )
 
 // DemoApp renders Input components using the Fiber-first pipeline
 func DemoApp() rtui.VNode {
-	return newstack.New(newstack.Column).
+	return ui.NewVStack().
 		SetWidth(60).
 		SetGap(1).
 		SetChildrenList([]rtui.VNode{
@@ -30,7 +30,7 @@ func DemoApp() rtui.VNode {
 			// Section 1: Border Styles
 			newtext.New(""),
 			newtext.New("1. Border Styles:"),
-			newstack.New(newstack.Column).
+			ui.NewVStack().
 				SetGap(0).
 				SetChildrenList([]rtui.VNode{
 					input.New().SetPlaceholder("Single border (default)").SetWidth(25),
@@ -42,7 +42,7 @@ func DemoApp() rtui.VNode {
 			// Section 2: Input Types
 			newtext.New(""),
 			newtext.New("2. Input Types:"),
-			newstack.New(newstack.Column).
+			ui.NewVStack().
 				SetGap(0).
 				SetChildrenList([]rtui.VNode{
 					input.New().SetValue("Text input").SetWidth(25),
@@ -53,7 +53,7 @@ func DemoApp() rtui.VNode {
 			// Section 3: States
 			newtext.New(""),
 			newtext.New("3. States:"),
-			newstack.New(newstack.Column).
+			ui.NewVStack().
 				SetGap(0).
 				SetChildrenList([]rtui.VNode{
 					input.New().SetValue("Normal").SetWidth(25),

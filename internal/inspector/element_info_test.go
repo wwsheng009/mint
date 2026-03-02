@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 
+	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/ui"
 	"github.com/wwsheng009/mint/ui/components/stack"
 )
@@ -12,12 +13,12 @@ import (
 // This simulates what collectHitTestEntries does in standalone_inspector.go
 func TestCollectHitTestEntryInfo(t *testing.T) {
 	tests := []struct {
-		name           string
-		createVNode    func() rtui.VNode
-		expectedTag    string
-		expectedKey    string
-		expectedLabel  string
-		expectedType   string
+		name          string
+		createVNode   func() rtui.VNode
+		expectedTag   string
+		expectedKey   string
+		expectedLabel string
+		expectedType  string
 	}{
 		{
 			name: "Button with label",
@@ -148,7 +149,7 @@ func TestHitTestEntryFormatting(t *testing.T) {
 		{
 			name: "Button with all fields",
 			entry: HitTestEntry{
-				Type:    "Element",
+				Type:      "Element",
 				Tag:       "button",
 				Key:       "btn1",
 				Label:     "Click Me",
@@ -162,7 +163,7 @@ func TestHitTestEntryFormatting(t *testing.T) {
 		{
 			name: "Element with only tag",
 			entry: HitTestEntry{
-				Type:    "Element",
+				Type:      "Element",
 				Tag:       "bordered",
 				Key:       "",
 				Label:     "",
@@ -176,7 +177,7 @@ func TestHitTestEntryFormatting(t *testing.T) {
 		{
 			name: "Text node",
 			entry: HitTestEntry{
-				Type:    "Text",
+				Type:      "Text",
 				Tag:       "text",
 				Key:       "",
 				Label:     "Hello World",
@@ -190,7 +191,7 @@ func TestHitTestEntryFormatting(t *testing.T) {
 		{
 			name: "Long label should be truncated",
 			entry: HitTestEntry{
-				Type:    "Element",
+				Type:      "Element",
 				Tag:       "button",
 				Key:       "",
 				Label:     "This is a very long button label",
@@ -221,10 +222,10 @@ func TestHitTestEntryFormatting(t *testing.T) {
 
 // mockVNode wraps a real VNode for testing
 type mockVNode struct {
-	vnode  rtui.VNode
-	tag    string
-	key    string
-	label  string
+	vnode   rtui.VNode
+	tag     string
+	key     string
+	label   string
 	content string
 }
 
@@ -241,23 +242,23 @@ func TestCollectHitTestEntries_RealWorld(t *testing.T) {
 		{
 			name:          "Button with label",
 			vnode:         ui.NewButtonBuilder("Click Me").Build(),
-			expectedTag:    "button",
-			expectedKey:    "",
-			expectedLabel:  "Click Me",
+			expectedTag:   "button",
+			expectedKey:   "",
+			expectedLabel: "Click Me",
 		},
 		{
 			name:          "Text node",
 			vnode:         ui.Text("Hello World"),
-			expectedTag:    "text",
-			expectedKey:    "",
-			expectedLabel:  "Hello World",
+			expectedTag:   "text",
+			expectedKey:   "",
+			expectedLabel: "Hello World",
 		},
 		{
 			name:          "Element with custom tag",
 			vnode:         rtui.NewElement("bordered"),
-			expectedTag:    "bordered",
-			expectedKey:    "",
-			expectedLabel:  "",
+			expectedTag:   "bordered",
+			expectedKey:   "",
+			expectedLabel: "",
 		},
 	}
 
@@ -341,7 +342,7 @@ func TestFormatNodeInfo_RealWorld(t *testing.T) {
 			},
 		},
 		{
-			name:  "VStack (from demo2)",
+			name: "VStack (from demo2)",
 			vnode: rtui.VStack(
 				ui.NewButtonBuilder("Button A").Build(),
 				ui.NewButtonBuilder("Button B").Build(),
@@ -352,7 +353,7 @@ func TestFormatNodeInfo_RealWorld(t *testing.T) {
 			},
 		},
 		{
-			name:  "HStack (from demo2)",
+			name: "HStack (from demo2)",
 			vnode: rtui.HStack(
 				ui.Text("Left"),
 				ui.Text("Right"),
@@ -373,8 +374,8 @@ func TestFormatNodeInfo_RealWorld(t *testing.T) {
 			},
 		},
 		{
-			name:  "Wrap component (from demo2)",
-			vnode: ui.NewWrapBuilder(
+			name: "Wrap component (from demo2)",
+			vnode: ui.NewWrapBuilder().Children(
 				ui.NewButtonBuilder("Btn1").Build(),
 				ui.NewButtonBuilder("Btn2").Build(),
 				ui.NewButtonBuilder("Btn3").Build(),
@@ -385,7 +386,7 @@ func TestFormatNodeInfo_RealWorld(t *testing.T) {
 			},
 		},
 		{
-			name:  "Nested structure - Bordered Stack with VStack and Buttons",
+			name: "Nested structure - Bordered Stack with VStack and Buttons",
 			vnode: stack.NewVStack().
 				SingleBorder().
 				SetChildrenList([]ui.VNode{
@@ -488,7 +489,7 @@ func TestExtractElementInfo_WithBounds(t *testing.T) {
 
 	// Check bounds
 	if info.Bounds[0] != 5 || info.Bounds[1] != 10 ||
-	   info.Bounds[2] != 20 || info.Bounds[3] != 1 {
+		info.Bounds[2] != 20 || info.Bounds[3] != 1 {
 		t.Errorf("Expected bounds [5 10 20 1], got %v", info.Bounds)
 	}
 
@@ -577,12 +578,12 @@ func TestFormatElementInfo(t *testing.T) {
 // TestExtractElementInfo_NaturalWidthCalculation tests natural width calculation
 func TestExtractElementInfo_NaturalWidthCalculation(t *testing.T) {
 	tests := []struct {
-		name           string
-		label          string
-		expectedWidth  int
+		name          string
+		label         string
+		expectedWidth int
 	}{
-		{"Short label", "OK", 6},     // "OK" (2) + brackets (2) + focus space (2)
-		{"Medium label", "Cancel", 10}, // "Cancel" (6) + brackets (2) + focus space (2)
+		{"Short label", "OK", 6},          // "OK" (2) + brackets (2) + focus space (2)
+		{"Medium label", "Cancel", 10},    // "Cancel" (6) + brackets (2) + focus space (2)
 		{"Long label", "Submit Form", 15}, // "Submit Form" (11) + brackets (2) + focus space (2)
 	}
 
@@ -603,7 +604,7 @@ func TestExtractElementInfo_NaturalWidthCalculation(t *testing.T) {
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || len(s) > len(substr) &&
 		(s[:len(substr)] == substr || s[len(s)-len(substr):] == substr ||
-		containsMiddle(s, substr)))
+			containsMiddle(s, substr)))
 }
 
 func containsMiddle(s, substr string) bool {
@@ -746,9 +747,7 @@ func TestDemo2RealWorldStructure(t *testing.T) {
 			})
 
 		var tag string
-		if tagger, ok := bordered.(interface{ Tag() string }); ok {
-			tag = tagger.Tag()
-		}
+		tag = bordered.Tag()
 
 		if tag != "vstack" {
 			t.Errorf("Expected tag 'vstack', got '%s'", tag)
@@ -849,9 +848,7 @@ func TestDemo2RealWorldStructure(t *testing.T) {
 
 		// Extract tag from top-level Stack
 		var tag string
-		if tagger, ok := nested.(interface{ Tag() string }); ok {
-			tag = tagger.Tag()
-		}
+		tag = nested.Tag()
 
 		if tag != "vstack" {
 			t.Errorf("Expected tag 'vstack', got '%s'", tag)
@@ -917,7 +914,7 @@ func TestVNodeBoundsDataFlow(t *testing.T) {
 
 		// Verify HitTestEntry would be created correctly
 		entry := HitTestEntry{
-			Type:  elem.Type().String(),
+			Type:      elem.Type().String(),
 			Tag:       elem.Tag(),
 			Key:       elem.Key(),
 			Label:     "",
@@ -961,14 +958,12 @@ func TestVNodeBoundsDataFlow(t *testing.T) {
 			SetChildrenList([]ui.VNode{ui.Text("Content")})
 
 		// Stack should support SetBounds (inherited from ElementVNode)
-		if boundsSetter, ok := bordered.(interface{ SetBounds(int, int, int, int) }); ok {
-			boundsSetter.SetBounds(2, 2, 40, 10)
+			bordered.SetBounds(2, 2, 40, 10)
 
-			bounds := bordered.(interface{ GetBounds() [4]int }).GetBounds()
+			bounds := bordered.GetBounds()
 			if bounds != [4]int{2, 2, 40, 10} {
 				t.Errorf("Bordered Stack bounds should be [2,2,40,10], got %v", bounds)
 			}
-		}
 	})
 
 	t.Run("HitTestEntry creation with bounds", func(t *testing.T) {
@@ -979,7 +974,7 @@ func TestVNodeBoundsDataFlow(t *testing.T) {
 		// Simulate collectHitTestEntries creating HitTestEntry
 		bounds := elem.GetBounds()
 		entry := HitTestEntry{
-			Type:    elem.Type().String(),
+			Type:      elem.Type().String(),
 			Tag:       elem.Tag(),
 			Key:       elem.Key(),
 			Label:     "",

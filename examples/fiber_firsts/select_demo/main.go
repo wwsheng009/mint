@@ -12,14 +12,14 @@ import (
 	"github.com/wwsheng009/mint/internal/render"
 	"github.com/wwsheng009/mint/runtime/paint"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
-	newstack "github.com/wwsheng009/mint/ui/components/stack"
+	"github.com/wwsheng009/mint/ui"
 	newselect "github.com/wwsheng009/mint/ui/components/select"
 	newtext "github.com/wwsheng009/mint/ui/components/text"
 )
 
 // DemoApp renders Select components using the Fiber-first pipeline
 func DemoApp() rtui.VNode {
-	return newstack.New(newstack.Column).
+	return ui.NewVStack().
 		SetWidth(50).
 		SetGap(1).
 		SetChildrenList([]rtui.VNode{
@@ -29,7 +29,7 @@ func DemoApp() rtui.VNode {
 			// Section 1: Basic Select
 			newtext.New(""),
 			newtext.New("1. Basic Select:"),
-			newstack.New(newstack.Column).
+			ui.NewVStack().
 				SetGap(0).
 				SetChildrenList([]rtui.VNode{
 					newselect.New().
@@ -47,7 +47,7 @@ func DemoApp() rtui.VNode {
 			// Section 2: Disabled Select
 			newtext.New(""),
 			newtext.New("2. States:"),
-			newstack.New(newstack.Column).
+			ui.NewVStack().
 				SetGap(0).
 				SetChildrenList([]rtui.VNode{
 					newselect.New().
@@ -62,7 +62,7 @@ func DemoApp() rtui.VNode {
 			// Section 3: Long Options
 			newtext.New(""),
 			newtext.New("3. Long Options:"),
-			newstack.New(newstack.Column).
+			ui.NewVStack().
 				SetGap(0).
 				SetChildrenList([]rtui.VNode{
 					newselect.New().
@@ -76,7 +76,7 @@ func DemoApp() rtui.VNode {
 			// Section 4: No Selection
 			newtext.New(""),
 			newtext.New("4. No Selection:"),
-			newstack.New(newstack.Column).
+			ui.NewVStack().
 				SetGap(0).
 				SetChildrenList([]rtui.VNode{
 					newselect.New().

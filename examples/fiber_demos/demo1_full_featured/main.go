@@ -25,7 +25,6 @@ import (
 	"github.com/wwsheng009/mint/framework/theme"
 	"github.com/wwsheng009/mint/runtime/style"
 	"github.com/wwsheng009/mint/ui"
-	"github.com/wwsheng009/mint/ui/components/stack"
 )
 
 // Intent Types
@@ -106,9 +105,9 @@ func Header(count int) ui.VNode {
 			Build(),
 	)
 
-	return stack.NewVStack().
+	return ui.NewVStack().
 		SingleBorder().
-		BorderColor(string(theme.Primary())).
+		BorderColor(theme.Primary()).
 		SetChildrenList([]ui.VNode{headerContent})
 }
 
@@ -181,16 +180,16 @@ func MainBody(count int, input string, items []string) ui.VNode {
 	// Uses theme BORDER color for borders
 	return ui.HStackBuilder(
 		ui.Flex(
-			stack.NewVStack().
+			ui.NewVStack().
 				SingleBorder().
-				BorderColor(string(theme.Border())).
+				BorderColor(theme.Border()).
 				SetChildrenList([]ui.VNode{sidebar}),
 			1, // Flex factor
 		),
 		ui.Flex(
-			stack.NewVStack().
+			ui.NewVStack().
 				SingleBorder().
-				BorderColor(string(theme.Border())).
+				BorderColor(theme.Border()).
 				SetChildrenList([]ui.VNode{contentArea}),
 			1, // Flex factor
 		),
@@ -203,9 +202,9 @@ func MainBody(count int, input string, items []string) ui.VNode {
 func ConfirmModal(onClose func()) ui.VNode {
 	// Modal content - the actual dialog box with border
 	// Uses theme WARNING color for modal border to indicate caution
-	modalBox := stack.NewVStack().
+	modalBox := ui.NewVStack().
 		SingleBorder().
-		BorderColor(string(theme.Warning())).
+		BorderColor(theme.Warning()).
 		SetWidth(40). // Fixed width for the modal
 		SetChildrenList([]ui.VNode{
 			ui.VStackBuilder(

@@ -9,15 +9,14 @@ import (
 	"github.com/wwsheng009/mint/framework"
 	"github.com/wwsheng009/mint/framework/theme"
 	"github.com/wwsheng009/mint/internal/render"
-	"github.com/wwsheng009/mint/runtime/ui"
-	newstack "github.com/wwsheng009/mint/ui/components/stack"
+	"github.com/wwsheng009/mint/ui"
 	newtext "github.com/wwsheng009/mint/ui/components/text"
 	tooltipcomp "github.com/wwsheng009/mint/ui/components/tooltip"
 )
 
 // LayerZOrderDebugApp 主应用 VNode
 func LayerZOrderDebugApp() ui.VNode {
-	return newstack.NewVStack().
+	return ui.NewVStack().
 		SetGap(0).
 		SetChildrenList([]ui.VNode{
 			// ┌─────────────────────────────────────────────────────────────┐

@@ -12,14 +12,14 @@ import (
 	"github.com/wwsheng009/mint/internal/render"
 	"github.com/wwsheng009/mint/runtime/paint"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
-	newstack "github.com/wwsheng009/mint/ui/components/stack"
+	"github.com/wwsheng009/mint/ui"
 	newtext "github.com/wwsheng009/mint/ui/components/text"
 	"github.com/wwsheng009/mint/ui/components/textarea"
 )
 
 // DemoApp renders Textarea components using the Fiber-first pipeline
 func DemoApp() rtui.VNode {
-	return newstack.New(newstack.Column).
+	return ui.NewVStack().
 		SetWidth(50).
 		SetGap(1).
 		SetChildrenList([]rtui.VNode{

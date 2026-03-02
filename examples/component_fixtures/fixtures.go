@@ -11,7 +11,6 @@ import (
 	"github.com/wwsheng009/mint/framework/theme"
 	"github.com/wwsheng009/mint/runtime/style"
 	"github.com/wwsheng009/mint/ui"
-	"github.com/wwsheng009/mint/ui/components/stack"
 )
 
 // =============================================================================
@@ -129,9 +128,9 @@ func BuildDemo1Header(count int) ui.VNode {
 			Build(),
 	)
 
-	return stack.NewVStack().
+	return ui.NewVStack().
 		SingleBorder().
-		BorderColor(string(theme.Primary())).
+		BorderColor(theme.Primary()).
 		SetChildrenList([]ui.VNode{headerContent})
 }
 
@@ -153,16 +152,16 @@ func BuildDemo1MainBody(count int, input string, items []string) ui.VNode {
 
 	return ui.HStackBuilder(
 		ui.Flex(
-			stack.NewVStack().
+			ui.NewVStack().
 				SingleBorder().
-				BorderColor(string(theme.Border())).
+				BorderColor(theme.Border()).
 				SetChildrenList([]ui.VNode{sidebar}),
 			1,
 		),
 		ui.Flex(
-			stack.NewVStack().
+			ui.NewVStack().
 				SingleBorder().
-				BorderColor(string(theme.Border())).
+				BorderColor(theme.Border()).
 				SetChildrenList([]ui.VNode{contentArea}),
 			1,
 		),
@@ -211,9 +210,9 @@ func BuildDemo1ConfirmModal(onClose func()) ui.VNode {
 		onClose()
 	})
 
-	modalBox := stack.NewVStack().
+	modalBox := ui.NewVStack().
 		SingleBorder().
-		BorderColor(string(theme.Warning())).
+		BorderColor(theme.Warning()).
 		SetWidth(40).
 		SetChildrenList([]ui.VNode{
 			ui.VStackBuilder(
@@ -363,7 +362,7 @@ func StandardFixtures() []ComponentFixture {
 			Name:        "bordered_content",
 			Description: "Bordered container with content",
 			Build: func() ui.VNode {
-				return stack.NewVStack().
+				return ui.NewVStack().
 					SingleBorder().
 					BorderColor("blue").
 					SetChildrenList([]ui.VNode{ui.Text("Bordered content")})

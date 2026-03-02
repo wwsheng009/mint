@@ -3,12 +3,12 @@ package ui
 import (
 	"strings"
 
+	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/cmd"
 	"github.com/wwsheng009/mint/runtime/layout"
 	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
-
-	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/style"
+	"github.com/wwsheng009/mint/runtime/types"
 )
 
 // Direction represents layout direction
@@ -122,6 +122,133 @@ type LayoutBuilder struct {
 	children []VNode
 }
 
+// =============================================================================
+// VNode Interface Implementation for LayoutBuilder (for v2 compatibility)
+// This allows using LayoutBuilder where VNode is expected (e.g., return value)
+// =============================================================================
+
+// Type implements VNode interface
+func (b *LayoutBuilder) Type() VNodeType {
+	return VNodeElement
+}
+
+// Key returns the key for diffing (getter for VNode interface)
+func (b *LayoutBuilder) Key() string {
+	return b.node.Key()
+}
+
+// SetKey implements VNode interface (setter - returns VNode for interface compliance)
+func (b *LayoutBuilder) SetKey(key string) VNode {
+	b.node.SetKey(key)
+	return b
+}
+
+// ID implements VNode interface
+func (b *LayoutBuilder) ID() string {
+	return b.node.ID()
+}
+
+// SetID implements VNode interface
+func (b *LayoutBuilder) SetID(id string) VNode {
+	b.node.SetID(id)
+	return b
+}
+
+// Children implements VNode interface
+func (b *LayoutBuilder) Children() []VNode {
+	if len(b.children) > 0 {
+		return b.children
+	}
+	return b.node.Children()
+}
+
+// SetChildren implements VNode interface
+func (b *LayoutBuilder) SetChildren(children []VNode) VNode {
+	b.children = children
+	b.node.SetChildren(children)
+	return b
+}
+
+// Props implements VNode interface
+func (b *LayoutBuilder) Props() Props {
+	b.node.SetChildren(b.children)
+	props := b.node.Props()
+	if props == nil {
+		props = make(Props)
+	}
+	props["direction"] = b.node.direction
+	props["align"] = b.node.align
+	props["crossAlign"] = b.node.crossAlign
+	props["gap"] = b.node.gap
+	props["padding"] = b.node.padding
+	props["flex"] = b.node.flex
+	props["stretchCross"] = b.node.stretchCross
+	return props
+}
+
+// SetProps implements VNode interface
+func (b *LayoutBuilder) SetProps(p Props) VNode {
+	b.node.SetProps(p)
+	return b
+}
+
+// Tag implements VNode interface
+func (b *LayoutBuilder) Tag() string {
+	return b.node.Tag()
+}
+
+// Style returns the visual style (getter for VNode interface)
+func (b *LayoutBuilder) Style() style.Style {
+	return b.node.Style()
+}
+
+// SetStyle implements VNode interface (setter - returns VNode for interface compliance)
+func (b *LayoutBuilder) SetStyle(st style.Style) VNode {
+	b.node.SetStyle(st)
+	return b
+}
+
+// GetLayer implements VNode interface
+func (b *LayoutBuilder) GetLayer() Layer {
+	return b.node.GetLayer()
+}
+
+// SetLayer implements VNode interface
+func (b *LayoutBuilder) SetLayer(l Layer) VNode {
+	b.node.SetLayer(l)
+	return b
+}
+
+// SetPortalRoot implements VNode interface
+func (b *LayoutBuilder) SetPortalRoot(portalRootID string) VNode {
+	b.node.SetProp("portalRoot", portalRootID)
+	return b
+}
+
+// SetAnchorTo implements VNode interface
+func (b *LayoutBuilder) SetAnchorTo(anchorID string, anchor types.Anchor) VNode {
+	b.node.SetProps(Props{"anchorId": anchorID, "anchor": anchor})
+	return b
+}
+
+// SetPortalPosition implements VNode interface
+func (b *LayoutBuilder) SetPortalPosition(position types.PositionType) VNode {
+	b.node.SetProp("position", position)
+	return b
+}
+
+// SetPortalPriority implements VNode interface
+func (b *LayoutBuilder) SetPortalPriority(priority int) VNode {
+	b.node.SetProp("portalPriority", priority)
+	return b
+}
+
+// SetPortalRootId implements VNode interface
+func (b *LayoutBuilder) SetPortalRootId(portalRootId string) VNode {
+	b.node.SetProp("portalRootId", portalRootId)
+	return b
+}
+
 // Align sets the main axis alignment
 func (b *LayoutBuilder) Align(a Align) *LayoutBuilder {
 	b.node.align = a
@@ -189,8 +316,8 @@ func (b *LayoutBuilder) FillHeight() *LayoutBuilder {
 	return b
 }
 
-// Style sets the visual style
-func (b *LayoutBuilder) Style(s style.Style) *LayoutBuilder {
+// WithStyle sets the visual style (alternative to SetStyle for internal use)
+func (b *LayoutBuilder) WithStyle(s style.Style) *LayoutBuilder {
 	b.node.SetStyle(s)
 	return b
 }
@@ -241,6 +368,113 @@ func (b *LayoutBuilder) BorderColor(color style.Color) *LayoutBuilder {
 	return b
 }
 
+// =============================================================================
+// These provide SetXxx methods that match the stack component API
+// =============================================================================
+
+// SetGap sets the spacing between children (compatibility with stack.NewVStack)
+func (b *LayoutBuilder) SetGap(n int) *LayoutBuilder {
+	return b.Gap(n)
+}
+
+// SetPadding sets the padding (compatibility with stack.NewVStack)
+func (b *LayoutBuilder) SetPadding(top, right, bottom, left int) *LayoutBuilder {
+	return b.Padding(top, right, bottom, left)
+}
+
+// SetWidth sets the width (compatibility with stack.NewVStack)
+func (b *LayoutBuilder) SetWidth(n int) *LayoutBuilder {
+	return b.Width(n)
+}
+
+// SetHeight sets the height (compatibility with stack.NewVStack)
+func (b *LayoutBuilder) SetHeight(n int) *LayoutBuilder {
+	return b.Height(n)
+}
+
+// SetFlex sets the flex factor (compatibility with stack.NewVStack)
+func (b *LayoutBuilder) SetFlex(n int) *LayoutBuilder {
+	return b.Flex(n)
+}
+
+// SetAlign sets the main axis alignment (compatibility with stack.NewVStack)
+func (b *LayoutBuilder) SetAlign(a Align) *LayoutBuilder {
+	return b.Align(a)
+}
+
+// SetCrossAlign sets the cross axis alignment (compatibility with stack.NewVStack)
+func (b *LayoutBuilder) SetCrossAlign(a Align) *LayoutBuilder {
+	return b.AlignCross(a)
+}
+
+// SetBorder sets both the border style and label in one call (compatibility with stack.NewVStack)
+// style can be: "single", "double", "rounded", "dashed", "none"
+func (b *LayoutBuilder) SetBorder(style string, label string) *LayoutBuilder {
+	switch style {
+	case "single":
+		b.node.borderStyle = BorderSingle
+	case "double":
+		b.node.borderStyle = BorderDouble
+	case "rounded":
+		b.node.borderStyle = BorderRounded
+	case "dashed":
+		b.node.borderStyle = BorderDashed
+	case "none":
+		b.node.borderStyle = BorderNone
+	default:
+		b.node.borderStyle = BorderSingle
+	}
+	if label != "" {
+		b.node.borderLabel = label
+	}
+	return b
+}
+
+// SetBorderColor sets the border color (compatibility with stack.NewVStack)
+// Accepts both string and style.Color types
+func (b *LayoutBuilder) SetBorderColor(color interface{}) *LayoutBuilder {
+	if colorStr, ok := color.(string); ok {
+		b.node.borderColor = style.Color(colorStr)
+	} else if color, ok := color.(style.Color); ok {
+		b.node.borderColor = color
+	}
+	return b
+}
+
+// SetStyleProps sets the visual style (compatibility with stack.NewVStack)
+// Returns *LayoutBuilder for chaining
+func (b *LayoutBuilder) SetStyleProps(st style.Style) *LayoutBuilder {
+	b.node.SetStyle(st)
+	return b
+}
+
+// Center centers children on main axis (compatibility with stack.NewVStack)
+func (b *LayoutBuilder) Center() *LayoutBuilder {
+	return b.Align(AlignCenter)
+}
+
+// CenterCross centers children on cross axis (compatibility with stack.NewVStack)
+func (b *LayoutBuilder) CenterCross() *LayoutBuilder {
+	return b.AlignCross(AlignCenter)
+}
+
+// SetChildrenList sets the children list (compatibility with stack.NewVStack)
+// Returns *LayoutBuilder for chaining
+func (b *LayoutBuilder) SetChildrenList(children []VNode) *LayoutBuilder {
+	b.children = children
+	return b
+}
+
+// AddChild appends a child to the children list (compatibility with stack.NewVStack)
+func (b *LayoutBuilder) AddChild(child VNode) *LayoutBuilder {
+	b.children = append(b.children, child)
+	return b
+}
+
+// =============================================================================
+// Border Convenience Methods
+// =============================================================================
+
 // SingleBorder sets single-line border with optional label
 func (b *LayoutBuilder) SingleBorder(label ...string) *LayoutBuilder {
 	b.node.borderStyle = BorderSingle
@@ -274,12 +508,6 @@ func (b *LayoutBuilder) DashedBorder(label ...string) *LayoutBuilder {
 	if len(label) > 0 && label[0] != "" {
 		b.node.borderLabel = label[0]
 	}
-	return b
-}
-
-// Key sets the key for diffing
-func (b *LayoutBuilder) Key(key string) *LayoutBuilder {
-	b.node.SetKey(key)
 	return b
 }
 

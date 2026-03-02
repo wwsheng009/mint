@@ -10,7 +10,6 @@ import (
 	buttonComp "github.com/wwsheng009/mint/ui/components/button"
 	checkboxComp "github.com/wwsheng009/mint/ui/components/checkbox"
 	inputComp "github.com/wwsheng009/mint/ui/components/input"
-	newstack "github.com/wwsheng009/mint/ui/components/stack"
 	newtext "github.com/wwsheng009/mint/ui/components/text"
 )
 
@@ -74,7 +73,7 @@ func SimpleApp() ui.VNode {
 	disabledChk.SetIntent(intent.Toggle("chk3-checked"))
 	disabledChk.SetKey("chk3")
 
-	return newstack.New(newstack.Column).
+	return ui.NewVStack().
 		SetWidth(50).
 		SetGap(1).
 		SetChildrenList([]ui.VNode{
@@ -85,7 +84,7 @@ func SimpleApp() ui.VNode {
 
 			// Section 1: Normal focusable components
 			newtext.New("1. Focusable Components:"),
-			newstack.New(newstack.Column).
+			ui.NewVStack().
 				SetGap(0).
 				SetChildrenList([]ui.VNode{
 					// Button 1 - with Click intent
@@ -114,7 +113,7 @@ func SimpleApp() ui.VNode {
 
 			// Section 2: Disabled components (not focusable)
 			newtext.New("2. Disabled Components (skipped by focus):"),
-			newstack.New(newstack.Column).
+			ui.NewVStack().
 				SetGap(0).
 				SetChildrenList([]ui.VNode{
 					disabledBtn,

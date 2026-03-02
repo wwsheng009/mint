@@ -12,14 +12,14 @@ import (
 	"github.com/wwsheng009/mint/internal/render"
 	"github.com/wwsheng009/mint/runtime/paint"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
+	"github.com/wwsheng009/mint/ui"
 	"github.com/wwsheng009/mint/ui/components/progress"
-	newstack "github.com/wwsheng009/mint/ui/components/stack"
 	newtext "github.com/wwsheng009/mint/ui/components/text"
 )
 
 // DemoApp renders Progress components using the Fiber-first pipeline
 func DemoApp() rtui.VNode {
-	return newstack.New(newstack.Column).
+	return ui.NewVStack().
 		SetWidth(50).
 		SetGap(1).
 		SetChildrenList([]rtui.VNode{
@@ -29,7 +29,7 @@ func DemoApp() rtui.VNode {
 			// Section 1: Basic Progress Bars
 			newtext.New(""),
 			newtext.New("1. Basic Progress Bars:"),
-			newstack.New(newstack.Column).
+			ui.NewVStack().
 				SetGap(0).
 				SetChildrenList([]rtui.VNode{
 					progress.New().SetValue(0).SetWidth(30),
@@ -42,7 +42,7 @@ func DemoApp() rtui.VNode {
 			// Section 2: With Labels
 			newtext.New(""),
 			newtext.New("2. With Labels:"),
-			newstack.New(newstack.Column).
+			ui.NewVStack().
 				SetGap(0).
 				SetChildrenList([]rtui.VNode{
 					progress.New().SetValue(30).SetLabel("Downloading").SetWidth(35),
@@ -53,7 +53,7 @@ func DemoApp() rtui.VNode {
 			// Section 3: Without Percentage
 			newtext.New(""),
 			newtext.New("3. Without Percentage:"),
-			newstack.New(newstack.Column).
+			ui.NewVStack().
 				SetGap(0).
 				SetChildrenList([]rtui.VNode{
 					progress.New().SetValue(50).SetLabel("Loading...").SetShowPercent(false).SetWidth(30),
@@ -63,7 +63,7 @@ func DemoApp() rtui.VNode {
 			// Section 4: Different Widths
 			newtext.New(""),
 			newtext.New("4. Different Widths:"),
-			newstack.New(newstack.Column).
+			ui.NewVStack().
 				SetGap(0).
 				SetChildrenList([]rtui.VNode{
 					progress.New().SetValue(50).SetWidth(10),
@@ -74,7 +74,7 @@ func DemoApp() rtui.VNode {
 			// Section 5: Custom Max Value
 			newtext.New(""),
 			newtext.New("5. Custom Max Value (200):"),
-			newstack.New(newstack.Column).
+			ui.NewVStack().
 				SetGap(0).
 				SetChildrenList([]rtui.VNode{
 					progress.New().SetValue(50).SetMax(200).SetLabel("50/200").SetWidth(30),

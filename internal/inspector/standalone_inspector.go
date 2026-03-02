@@ -34,7 +34,6 @@ import (
 	"github.com/wwsheng009/mint/ui"
 	componentlist "github.com/wwsheng009/mint/ui/components/list"
 	componentpanel "github.com/wwsheng009/mint/ui/components/panel"
-	componentstack "github.com/wwsheng009/mint/ui/components/stack"
 	componenttabs "github.com/wwsheng009/mint/ui/components/tabs"
 	componenttreeview "github.com/wwsheng009/mint/ui/components/treeview"
 )
@@ -57,10 +56,10 @@ type StandaloneInspector struct {
 	editor            *PropertyEditor
 
 	// VNode tracking
-	appRoot       rtui.VNode
-	selectedVNode rtui.VNode
+	appRoot       ui.VNode
+	selectedVNode ui.VNode
 	selectedPath  string
-	hoveredVNode  rtui.VNode
+	hoveredVNode  ui.VNode
 	hoveredPath   string
 
 	// Overlay configuration
@@ -90,7 +89,7 @@ type StandaloneInspector struct {
 	treeTotalLines   int      // Total number of tree lines (for scroll bounds)
 
 	// Cached overlay content for event dispatching
-	cachedOverlayContent rtui.VNode // Cached overlay root for mouse events
+	cachedOverlayContent ui.VNode // Cached overlay root for mouse events
 
 	// Key debug info (for displaying what keys are being pressed)
 	lastKey      string // Last key name received
@@ -264,7 +263,7 @@ func (si *StandaloneInspector) IsVisible() bool {
 
 // AttachToApp attaches inspector to application root
 // This should be called each frame with the current VNode tree
-func (si *StandaloneInspector) AttachToApp(root rtui.VNode) {
+func (si *StandaloneInspector) AttachToApp(root ui.VNode) {
 	si.mu.Lock()
 	defer si.mu.Unlock()
 
@@ -311,7 +310,7 @@ func (si *StandaloneInspector) SelectElement(path string) {
 }
 
 // GetSelectedVNode returns the currently selected VNode
-func (si *StandaloneInspector) GetSelectedVNode() rtui.VNode {
+func (si *StandaloneInspector) GetSelectedVNode() ui.VNode {
 	si.mu.RLock()
 	defer si.mu.RUnlock()
 	return si.selectedVNode
@@ -336,7 +335,7 @@ func (si *StandaloneInspector) GetActiveTab() InspectorTab {
 //
 // Deprecated: Use RenderContent() instead. This method will be removed
 // once the hook system is fully integrated.
-func (si *StandaloneInspector) RenderOverlay() rtui.VNode {
+func (si *StandaloneInspector) RenderOverlay() ui.VNode {
 	si.mu.Lock()
 	defer si.mu.Unlock()
 
@@ -348,7 +347,7 @@ func (si *StandaloneInspector) RenderOverlay() rtui.VNode {
 	content := si.buildOverlayContent()
 
 	// Mark as Inspector layer
-	content.SetLayer(rtui.LayerInspector)
+	content.SetLayer(ui.LayerInspector)
 
 	// Cache for event dispatching
 	si.cachedOverlayContent = content
@@ -359,7 +358,7 @@ func (si *StandaloneInspector) RenderOverlay() rtui.VNode {
 // RenderContent renders the inspector UI content without setting Layer
 // This is used by the hook system. The hook will set LayerInspector
 // and position the overlay, keeping this method purely focused on UI.
-func (si *StandaloneInspector) RenderContent() rtui.VNode {
+func (si *StandaloneInspector) RenderContent() ui.VNode {
 	si.mu.RLock()
 	defer si.mu.RUnlock()
 
@@ -373,7 +372,7 @@ func (si *StandaloneInspector) RenderContent() rtui.VNode {
 
 // buildOverlayContent builds the overlay UI using Tab and ScrollView components
 // Returns a modern inspector panel with reusable components
-func (si *StandaloneInspector) buildOverlayContent() rtui.VNode {
+func (si *StandaloneInspector) buildOverlayContent() ui.VNode {
 	// Build combined header line: shortcuts + last key
 	modifiers := ""
 	if si.lastAlt {
@@ -411,7 +410,7 @@ func (si *StandaloneInspector) buildOverlayContent() rtui.VNode {
 	}
 
 	// Build active tab content
-	var activeContent rtui.VNode
+	var activeContent ui.VNode
 	switch si.activeTab {
 	case TabElements:
 		activeContent = si.buildElementsTabContent()
@@ -442,10 +441,8 @@ func (si *StandaloneInspector) buildOverlayContent() rtui.VNode {
 		Build()
 
 	// Build content using Stack component
-	content := componentstack.NewBuilder(componentstack.Column).
-		Children(tabsComponent, ui.Text("─"), activeContent).
-		Flex(1).
-		Build()
+	content := ui.NewVStack().
+		SetChildren([]rtui.VNode{tabsComponent, ui.Text("─"), activeContent})
 
 	// Use the new Panel component
 	panel := componentpanel.NewBuilder().
@@ -493,7 +490,7 @@ func formatMouseButton(eventType frameworkevent.EventType, btn frameworkevent.Mo
 }
 
 // buildOverlayContainer creates the overlay container
-func (si *StandaloneInspector) buildOverlayContainer(content rtui.VNode) rtui.VNode {
+func (si *StandaloneInspector) buildOverlayContainer(content ui.VNode) ui.VNode {
 	// Tab bar
 	tabBar := si.buildTabBar()
 
@@ -510,18 +507,18 @@ func (si *StandaloneInspector) buildOverlayContainer(content rtui.VNode) rtui.VN
 
 	// Wrap in bordered box (bordered wrapper doesn't need height constraint
 	// since mainContent already has it)
-	overlay := componentstack.NewVStack().
+	overlay := ui.NewVStack().
 		SingleBorder().
-		BorderColor(string(theme.Border())).
-		SetChildrenList([]rtui.VNode{mainContent}).
+		BorderColor(theme.Border()).
+		SetChildrenList([]ui.VNode{mainContent}).
 		SetWidth(si.overlayWidth)
 
 	return overlay
 }
 
 // buildTabBar creates the tab selection bar
-func (si *StandaloneInspector) buildTabBar() rtui.VNode {
-	var tabs []rtui.VNode
+func (si *StandaloneInspector) buildTabBar() ui.VNode {
+	var tabs []ui.VNode
 
 	allTabs := []struct {
 		tab  InspectorTab
@@ -559,7 +556,7 @@ func (si *StandaloneInspector) buildTabBar() rtui.VNode {
 }
 
 // buildActiveTabContent builds content for the active tab
-func (si *StandaloneInspector) buildActiveTabContent() rtui.VNode {
+func (si *StandaloneInspector) buildActiveTabContent() ui.VNode {
 	switch si.activeTab {
 	case TabElements:
 		return si.buildElementsTabContent()
@@ -583,7 +580,7 @@ func (si *StandaloneInspector) buildActiveTabContent() rtui.VNode {
 }
 
 // buildElementsTabContent builds content for Elements tab (used by Tab component)
-func (si *StandaloneInspector) buildElementsTabContent() rtui.VNode {
+func (si *StandaloneInspector) buildElementsTabContent() ui.VNode {
 	// Tree statistics
 	stats := si.treeView.GetTreeStats()
 
@@ -624,7 +621,7 @@ func (si *StandaloneInspector) buildElementsTabContent() rtui.VNode {
 
 	// Build selected/focused element info
 	// Priority: show selected (Enter) if available, otherwise show focused (↑↓)
-	var targetVNode rtui.VNode
+	var targetVNode ui.VNode
 	var targetPath string
 	var displayType string
 
@@ -636,7 +633,7 @@ func (si *StandaloneInspector) buildElementsTabContent() rtui.VNode {
 	}
 
 	// Create info display
-	var selectedInfo rtui.VNode
+	var selectedInfo ui.VNode
 	if targetVNode != nil {
 		props := targetVNode.Props()
 		infoText := fmt.Sprintf("%s: %s", displayType, targetVNode.Type())
@@ -723,7 +720,7 @@ func (si *StandaloneInspector) buildElementsTabContent() rtui.VNode {
 }
 
 // buildConsoleTabContent builds content for Console tab
-func (si *StandaloneInspector) buildConsoleTabContent() rtui.VNode {
+func (si *StandaloneInspector) buildConsoleTabContent() ui.VNode {
 	return rtui.VStack(
 		ui.NewTextBuilder("💻 Console").
 			Style(style.FgBold(style.Green)).
@@ -740,7 +737,7 @@ func (si *StandaloneInspector) buildConsoleTabContent() rtui.VNode {
 }
 
 // buildPerformanceTabContent builds content for Performance tab
-func (si *StandaloneInspector) buildPerformanceTabContent() rtui.VNode {
+func (si *StandaloneInspector) buildPerformanceTabContent() ui.VNode {
 	metrics := si.perf.GetMetrics()
 
 	// Build metrics display
@@ -783,7 +780,7 @@ func (si *StandaloneInspector) buildPerformanceTabContent() rtui.VNode {
 }
 
 // buildDiagnosticsTabContent builds content for Diagnostics tab
-func (si *StandaloneInspector) buildDiagnosticsTabContent() rtui.VNode {
+func (si *StandaloneInspector) buildDiagnosticsTabContent() ui.VNode {
 	problems := si.diagnostics.GetProblems()
 	counts := si.diagnostics.CountBySeverity()
 
@@ -825,7 +822,7 @@ func (si *StandaloneInspector) buildDiagnosticsTabContent() rtui.VNode {
 }
 
 // buildNetworkTabContent builds content for Network tab
-func (si *StandaloneInspector) buildNetworkTabContent() rtui.VNode {
+func (si *StandaloneInspector) buildNetworkTabContent() ui.VNode {
 	return rtui.VStack(
 		ui.NewTextBuilder("🌐 Network").
 			Style(style.FgBold(style.Green)).
@@ -843,7 +840,7 @@ func (si *StandaloneInspector) buildNetworkTabContent() rtui.VNode {
 
 // buildScreenInfoTabContent builds content for Screen Info tab
 // Shows real-time screen size, mouse position, and button detection
-func (si *StandaloneInspector) buildScreenInfoTabContent() rtui.VNode {
+func (si *StandaloneInspector) buildScreenInfoTabContent() ui.VNode {
 	// Build screen size info
 	screenInfo := fmt.Sprintf("Terminal: %d cols × %d rows", si.screenWidth, si.screenHeight)
 
@@ -1019,7 +1016,7 @@ func formatMouseButtonName(btn frameworkevent.MouseButton) string {
 }
 
 // buildHitTestTabContent builds content for HitTest tab using ListVNode component
-func (si *StandaloneInspector) buildHitTestTabContent() rtui.VNode {
+func (si *StandaloneInspector) buildHitTestTabContent() ui.VNode {
 	// Update hit test entries from current app root
 	entries := si.updateHitTestEntries()
 
@@ -1116,7 +1113,7 @@ func (si *StandaloneInspector) updateHitTestEntries() []HitTestEntry {
 
 // collectHitTestEntries recursively collects hit test entries from a VNode tree
 // entries is an accumulator slice to append collected entries to
-func (si *StandaloneInspector) collectHitTestEntries(node rtui.VNode, x, y, zOrder int, entries *[]HitTestEntry) {
+func (si *StandaloneInspector) collectHitTestEntries(node ui.VNode, x, y, zOrder int, entries *[]HitTestEntry) {
 	if node == nil {
 		return
 	}
@@ -1259,12 +1256,12 @@ func (si *StandaloneInspector) collectHitTestEntries(node rtui.VNode, x, y, zOrd
 }
 
 // buildLayoutTabContent builds content for Layout Diagnostics tab
-func (si *StandaloneInspector) buildLayoutTabContent() rtui.VNode {
+func (si *StandaloneInspector) buildLayoutTabContent() ui.VNode {
 	// Create diagnostic instance
 	diagnostic := NewLayoutDiagnostic()
 
 	// Analyze the selected node if available, otherwise analyze the entire app root
-	var targetVNode rtui.VNode
+	var targetVNode ui.VNode
 	var displayText string
 
 	if si.selectedVNode != nil {
@@ -1311,7 +1308,7 @@ func (si *StandaloneInspector) buildLayoutTabContent() rtui.VNode {
 	}
 
 	// Convert lines to VNodes
-	contentNodes := make([]rtui.VNode, 0, len(lines))
+	contentNodes := make([]ui.VNode, 0, len(lines))
 	for _, line := range lines {
 		// Skip empty lines for cleaner display
 		if line == "" {
@@ -1319,7 +1316,7 @@ func (si *StandaloneInspector) buildLayoutTabContent() rtui.VNode {
 		}
 
 		// Colorize based on content
-		var text rtui.VNode
+		var text ui.VNode
 		if strings.Contains(line, "✅") {
 			text = ui.NewTextBuilder(line).
 				Style(style.FgBold(style.Green)).
@@ -1353,7 +1350,7 @@ func (si *StandaloneInspector) buildLayoutTabContent() rtui.VNode {
 	}
 
 	// Build the VStack with header and content
-	headerNodes := []rtui.VNode{
+	headerNodes := []ui.VNode{
 		ui.NewTextBuilder("📐 Layout Diagnostics").
 			Style(style.FgBold(style.Green)).
 			Build(),
@@ -1374,7 +1371,7 @@ func (si *StandaloneInspector) buildLayoutTabContent() rtui.VNode {
 }
 
 // buildConsoleTab builds the Console tab
-func (si *StandaloneInspector) buildConsoleTab() rtui.VNode {
+func (si *StandaloneInspector) buildConsoleTab() ui.VNode {
 	return rtui.VStack(
 		ui.NewTextBuilder("💻 Console").
 			Style(style.FgBold(style.Green)).
@@ -1391,7 +1388,7 @@ func (si *StandaloneInspector) buildConsoleTab() rtui.VNode {
 }
 
 // buildPerformanceTab builds the Performance tab
-func (si *StandaloneInspector) buildPerformanceTab() rtui.VNode {
+func (si *StandaloneInspector) buildPerformanceTab() ui.VNode {
 	metrics := si.perf.GetMetrics()
 
 	// Build metrics display
@@ -1434,7 +1431,7 @@ func (si *StandaloneInspector) buildPerformanceTab() rtui.VNode {
 }
 
 // buildDiagnosticsTab builds the Diagnostics tab
-func (si *StandaloneInspector) buildDiagnosticsTab() rtui.VNode {
+func (si *StandaloneInspector) buildDiagnosticsTab() ui.VNode {
 	problems := si.diagnostics.GetProblems()
 	counts := si.diagnostics.CountBySeverity()
 
@@ -1452,9 +1449,9 @@ func (si *StandaloneInspector) buildDiagnosticsTab() rtui.VNode {
 		counts[SeverityInfo],
 	)
 
-	var problemList rtui.VNode
+	var problemList ui.VNode
 	if len(problems) > 0 {
-		var items []rtui.VNode
+		var items []ui.VNode
 		for i, p := range problems {
 			if i >= 10 { // Show first 10
 				items = append(items,
@@ -1526,7 +1523,7 @@ func (si *StandaloneInspector) buildDiagnosticsTab() rtui.VNode {
 }
 
 // buildNetworkTab builds the Network tab
-func (si *StandaloneInspector) buildNetworkTab() rtui.VNode {
+func (si *StandaloneInspector) buildNetworkTab() ui.VNode {
 	return rtui.VStack(
 		ui.NewTextBuilder("🌐 Network").
 			Style(style.FgBold(style.Green)).
@@ -2234,7 +2231,7 @@ func formatNodeInfo(nodeType, tag, key, label string) string {
 }
 
 // lookupPathForVNode tries to find the path of a VNode in the current tree.
-func (si *StandaloneInspector) lookupPathForVNode(vnode rtui.VNode) string {
+func (si *StandaloneInspector) lookupPathForVNode(vnode ui.VNode) string {
 	if si.treeView == nil {
 		return ""
 	}

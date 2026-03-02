@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/wwsheng009/mint/ui"
-	"github.com/wwsheng009/mint/ui/components/stack"
 )
 
 // TestHardcodedBorderFixed verifies that the Inspector no longer uses hardcoded border characters
@@ -22,7 +21,7 @@ func TestHardcodedBorderFixed(t *testing.T) {
 	t.Log("")
 
 	// Verify BorderedNode has Label feature (migrated to Stack)
-	bordered := stack.NewVStack().
+	bordered := ui.NewVStack().
 		DoubleBorder("TEST").
 		SetChildrenList([]ui.VNode{ui.Text("Content")})
 
@@ -44,7 +43,7 @@ func TestBorderedNodeLabelFeature(t *testing.T) {
 	t.Log("=== Testing Stack Border Label Feature ===\n")
 
 	// Test with label
-	bordered1 := stack.NewVStack().
+	bordered1 := ui.NewVStack().
 		DoubleBorder("TITLE").
 		SetChildrenList([]ui.VNode{ui.Text("Content")})
 
@@ -56,7 +55,7 @@ func TestBorderedNodeLabelFeature(t *testing.T) {
 	}
 
 	// Test without label
-	bordered2 := stack.NewVStack().
+	bordered2 := ui.NewVStack().
 		SingleBorder().
 		SetChildrenList([]ui.VNode{ui.Text("Content")})
 
@@ -69,7 +68,7 @@ func TestBorderedNodeLabelFeature(t *testing.T) {
 
 	// Test different styles
 	t.Run("Single", func(t *testing.T) {
-		bordered := stack.NewVStack().
+		bordered := ui.NewVStack().
 			SingleBorder().
 			SetChildrenList([]ui.VNode{ui.Text("Content")})
 		if bordered == nil {
@@ -79,7 +78,7 @@ func TestBorderedNodeLabelFeature(t *testing.T) {
 		}
 	})
 	t.Run("Double", func(t *testing.T) {
-		bordered := stack.NewVStack().
+		bordered := ui.NewVStack().
 			DoubleBorder().
 			SetChildrenList([]ui.VNode{ui.Text("Content")})
 		if bordered == nil {
@@ -89,7 +88,7 @@ func TestBorderedNodeLabelFeature(t *testing.T) {
 		}
 	})
 	t.Run("Rounded", func(t *testing.T) {
-		bordered := stack.NewVStack().
+		bordered := ui.NewVStack().
 			RoundedBorder().
 			SetChildrenList([]ui.VNode{ui.Text("Content")})
 		if bordered == nil {
@@ -99,7 +98,7 @@ func TestBorderedNodeLabelFeature(t *testing.T) {
 		}
 	})
 	t.Run("Dashed", func(t *testing.T) {
-		bordered := stack.NewVStack().
+		bordered := ui.NewVStack().
 			DashedBorder().
 			SetChildrenList([]ui.VNode{ui.Text("Content")})
 		if bordered == nil {
@@ -126,14 +125,14 @@ func TestBorderStyleVsColor(t *testing.T) {
 	t.Log("   - 'red', 'blue', 'green', etc.")
 	t.Log("")
 	t.Log("Example:")
-	t.Log("  stack.NewVStack().")
+	t.Log("  ui.NewVStack().")
 	t.Log("    DoubleBorder().          ← Line style")
 	t.Log("    BorderColor('blue').     ← Line color")
 	t.Log("    BorderLabel('TITLE').    ← Border label")
 	t.Log("    SetChildrenList([...])")
 
 	// Create an example
-	bordered := stack.NewVStack().
+	bordered := ui.NewVStack().
 		DoubleBorder().
 		BorderColor("blue").
 		SetChildrenList([]ui.VNode{ui.Text("Content")})

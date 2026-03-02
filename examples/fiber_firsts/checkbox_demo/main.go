@@ -12,14 +12,14 @@ import (
 	"github.com/wwsheng009/mint/internal/render"
 	"github.com/wwsheng009/mint/runtime/paint"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
+	"github.com/wwsheng009/mint/ui"
 	"github.com/wwsheng009/mint/ui/components/checkbox"
-	newstack "github.com/wwsheng009/mint/ui/components/stack"
 	newtext "github.com/wwsheng009/mint/ui/components/text"
 )
 
 // DemoApp renders Checkbox components using the Fiber-first pipeline
 func DemoApp() rtui.VNode {
-	return newstack.New(newstack.Column).
+	return ui.NewVStack().
 		SetWidth(50).
 		SetGap(1).
 		SetChildrenList([]rtui.VNode{
@@ -29,7 +29,7 @@ func DemoApp() rtui.VNode {
 			// Section 1: Basic Checkboxes
 			newtext.New(""),
 			newtext.New("1. Basic Checkboxes:"),
-			newstack.New(newstack.Column).
+			ui.NewVStack().
 				SetGap(0).
 				SetChildrenList([]rtui.VNode{
 					checkbox.New("Unchecked option").SetChecked(false),
@@ -41,7 +41,7 @@ func DemoApp() rtui.VNode {
 			// Section 2: Different states
 			newtext.New(""),
 			newtext.New("2. Interaction States:"),
-			newstack.New(newstack.Row).
+			ui.NewHStack().
 				SetGap(2).
 				SetChildrenList([]rtui.VNode{
 					checkbox.New("Normal"),
@@ -52,7 +52,7 @@ func DemoApp() rtui.VNode {
 			// Section 3: Form example
 			newtext.New(""),
 			newtext.New("3. Form Example:"),
-			newstack.New(newstack.Column).
+			ui.NewVStack().
 				SetGap(0).
 				SetChildrenList([]rtui.VNode{
 					checkbox.New("I agree to the terms and conditions").SetChecked(true),

@@ -14,14 +14,14 @@ import (
 	"github.com/wwsheng009/mint/internal/render"
 	"github.com/wwsheng009/mint/runtime/paint"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
+	"github.com/wwsheng009/mint/ui"
 	"github.com/wwsheng009/mint/ui/components/absolute"
-	newstack "github.com/wwsheng009/mint/ui/components/stack"
 	newtext "github.com/wwsheng009/mint/ui/components/text"
 )
 
 // DemoApp renders Absolute positioned elements using the Fiber-first pipeline
 func DemoApp() rtui.VNode {
-	return newstack.NewVStack().
+	return ui.NewVStack().
 		SetGap(1).
 		SetChildrenList([]rtui.VNode{
 			// =====================================================
@@ -30,7 +30,7 @@ func DemoApp() rtui.VNode {
 			sectionTitle("═══ 1. TopLeft (0,0) ═══"),
 
 			// 使用 Stack 容器显示边界，内部是带边框的 Absolute 元素
-			newstack.NewVStack().
+			ui.NewVStack().
 				SetWidth(58).SetHeight(8).
 				SetChildrenList([]rtui.VNode{
 					absolute.NewBuilder(
@@ -47,7 +47,7 @@ func DemoApp() rtui.VNode {
 			// =====================================================
 			sectionTitle("═══ 2. TopRight ═══"),
 
-			newstack.NewVStack().
+			ui.NewVStack().
 				SetWidth(58).SetHeight(8).
 				SetChildrenList([]rtui.VNode{
 					absolute.NewBuilder(
@@ -64,7 +64,7 @@ func DemoApp() rtui.VNode {
 			// =====================================================
 			sectionTitle("═══ 3. BottomLeft ═══"),
 
-			newstack.NewVStack().
+			ui.NewVStack().
 				SetWidth(58).SetHeight(8).
 				SetChildrenList([]rtui.VNode{
 					absolute.NewBuilder(
@@ -81,7 +81,7 @@ func DemoApp() rtui.VNode {
 			// =====================================================
 			sectionTitle("═══ 4. BottomRight ═══"),
 
-			newstack.NewVStack().
+			ui.NewVStack().
 				SetWidth(58).SetHeight(8).
 				SetChildrenList([]rtui.VNode{
 					absolute.NewBuilder(
@@ -98,7 +98,7 @@ func DemoApp() rtui.VNode {
 			// =====================================================
 			sectionTitle("═══ 5. Center (50%,50%) ═══"),
 
-			newstack.NewVStack().
+			ui.NewVStack().
 				SetWidth(58).SetHeight(8).
 				SetChildrenList([]rtui.VNode{
 					absolute.NewBuilder(
@@ -116,7 +116,7 @@ func DemoApp() rtui.VNode {
 			// =====================================================
 			sectionTitle("═══ 6. AtPercent(25,25) ═══"),
 
-			newstack.NewVStack().
+			ui.NewVStack().
 				SetWidth(58).SetHeight(8).
 				SetChildrenList([]rtui.VNode{
 					absolute.NewBuilder(
@@ -133,7 +133,7 @@ func DemoApp() rtui.VNode {
 			// =====================================================
 			sectionTitle("═══ 7. AtPercent(75,75) ═══"),
 
-			newstack.NewVStack().
+			ui.NewVStack().
 				SetWidth(58).SetHeight(8).
 				SetChildrenList([]rtui.VNode{
 					absolute.NewBuilder(

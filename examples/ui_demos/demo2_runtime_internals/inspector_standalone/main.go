@@ -25,7 +25,6 @@ import (
 	"github.com/wwsheng009/mint/internal/inspector"
 	"github.com/wwsheng009/mint/runtime/style"
 	"github.com/wwsheng009/mint/ui"
-	"github.com/wwsheng009/mint/ui/components/stack"
 )
 
 // Global standalone inspector instance
@@ -129,9 +128,9 @@ func HeaderPanel() ui.VNode {
 		Align(ui.AlignCenter).
 		Build()
 
-	return stack.NewVStack().
+	return ui.NewVStack().
 		SingleBorder().
-		BorderColor(string(theme.Primary())).
+		BorderColor(theme.Primary()).
 		SetChildrenList([]ui.VNode{headerContent})
 }
 
@@ -159,9 +158,9 @@ func PipelineVisualization(currentPhase string) ui.VNode {
 		}
 	}
 
-	return stack.NewVStack().
+	return ui.NewVStack().
 		SingleBorder().
-		BorderColor(string(theme.Border())).
+		BorderColor(theme.Border()).
 		SetChildrenList([]ui.VNode{
 			ui.VStack(
 				buildPipelineLine(phases, activeIndex),
@@ -227,9 +226,9 @@ func StatisticsPanel(eventCount, renderCount, bufferUpdates int) ui.VNode {
 			Build(),
 	)
 
-	return stack.NewVStack().
+	return ui.NewVStack().
 		SingleBorder().
-		BorderColor(string(theme.Border())).
+		BorderColor(theme.Border()).
 		SetChildrenList([]ui.VNode{content})
 }
 
@@ -312,9 +311,9 @@ func ControlPanel(
 		FillWidth().
 		Build()
 
-	return stack.NewVStack().
+	return ui.NewVStack().
 		SingleBorder().
-		BorderColor(string(theme.Border())).
+		BorderColor(theme.Border()).
 		SetChildrenList([]ui.VNode{wrappedButtons})
 }
 
@@ -340,9 +339,9 @@ func ExplanationPanel(currentPhase string) ui.VNode {
 		Style(style.Foreground(theme.Text())).
 		Build()
 
-	return stack.NewVStack().
+	return ui.NewVStack().
 		SingleBorder().
-		BorderColor(string(theme.Border())).
+		BorderColor(theme.Border()).
 		SetChildrenList([]ui.VNode{content})
 }
 

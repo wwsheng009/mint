@@ -23,7 +23,6 @@ import (
 	"github.com/wwsheng009/mint/runtime/style"
 	"github.com/wwsheng009/mint/ui"
 	"github.com/wwsheng009/mint/ui/components/input"
-	"github.com/wwsheng009/mint/ui/components/stack"
 )
 
 // =============================================================================
@@ -235,9 +234,9 @@ func ModalView() ui.VNode {
 
 // Header - 页面头部
 func Header() ui.VNode {
-	return stack.NewVStack().
+	return ui.NewVStack().
 		SingleBorder().
-		BorderColor(string(theme.Primary())).
+		BorderColor(theme.Primary()).
 		SetChildrenList([]ui.VNode{
 			ui.HStackBuilder(
 				ui.NewTextBuilder("📝 User Registration Form").
@@ -313,7 +312,7 @@ func FormContent(
 ) ui.VNode {
 	if step == 1 {
 		// Step 1: Account Information
-		return stack.NewVStack().
+		return ui.NewVStack().
 			SingleBorder().
 			SetChildrenList([]ui.VNode{
 				ui.VStackBuilder(
@@ -324,7 +323,7 @@ func FormContent(
 			})
 	} else if step == 2 {
 		// Step 2: Profile
-		return stack.NewVStack().
+		return ui.NewVStack().
 			SingleBorder().
 			SetChildrenList([]ui.VNode{
 				ui.VStackBuilder(
@@ -333,7 +332,7 @@ func FormContent(
 			})
 	} else {
 		// Step 3: Confirm
-		return stack.NewVStack().
+		return ui.NewVStack().
 			SingleBorder().
 			SetChildrenList([]ui.VNode{
 				ui.VStackBuilder(

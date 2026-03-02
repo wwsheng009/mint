@@ -6,16 +6,16 @@
 // To run this debug program, you have two options:
 //
 // Option 1 - Quick Edit (easiest):
-//   1. Open this file in an editor
-//   2. Find line ~107: "func main() {"
-//   3. Change it to: "func main() {"
-//   4. Run: go run render_debug.go
-//   5. Revert change when done
+//  1. Open this file in an editor
+//  2. Find line ~107: "func main() {"
+//  3. Change it to: "func main() {"
+//  4. Run: go run render_debug.go
+//  5. Revert change when done
 //
 // Option 2 - Build and Run:
-//   1. Copy this file to a separate location (e.g., debug_run.go)
-//   2. Change line ~107: "func main() {"
-//   3. Run: go run debug_run.go
+//  1. Copy this file to a separate location (e.g., debug_run.go)
+//  2. Change line ~107: "func main() {"
+//  3. Run: go run debug_run.go
 package main
 
 import (
@@ -30,8 +30,8 @@ import (
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/types"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
+	"github.com/wwsheng009/mint/ui"
 	newtext "github.com/wwsheng009/mint/ui/components/text"
-	newstack "github.com/wwsheng009/mint/ui/components/stack"
 )
 
 // DebugApp shows UI components with Portal rendering
@@ -75,7 +75,7 @@ func DebugApp() rtui.VNode {
 	)
 
 	// Combine main content with PortalRoot and Portals
-	return newstack.NewVStack().SetGap(0).SetChildrenList([]rtui.VNode{
+	return ui.NewVStack().SetGap(0).SetChildrenList([]rtui.VNode{
 		// PortalRoot for tooltips (Phase 2: Overlay Layout target)
 		rtui.NewElement("div").SetProps(rtui.Props{
 			"portalRootId": "tooltip-root",
