@@ -77,6 +77,9 @@ type DeclarativeNode struct {
 
 	// === Paintable Result Storage ===
 	lastPaintableRoot *paint.PaintableBox // Last paintable layout result (for GetPaintableBoxes)
+
+	// === Portal Box Debug Storage ===
+	lastPortalBoxes []layout.LayoutBox // Portal boxes from last layout (for debugging)
 }
 
 // NewDeclarativeNode creates a new declarative node from a VNode
@@ -488,15 +491,20 @@ func (n *DeclarativeNode) fiberFirstPaint(ctx component.PaintContext, buf *paint
 			return
 		}
 
-		// Merge portal boxes into main result
+		// Merge portal boxes into main result and store for debugging
+		n.mu.Lock()
 		if len(portalBoxes) > 0 {
 			log.RenderLogger.Debug("[DeclarativeNode.fiberFirstPaint] Merged %d Portal boxes into layout", len(portalBoxes))
 			mainResult.Boxes = append(mainResult.Boxes, portalBoxes...)
+			n.lastPortalBoxes = portalBoxes // Direct reference for debugging
 
 			// Build a combined hit map that includes main tree + portals
 			// For now, portals are added to the main hit map
 			// TODO: Refine hit map building for portal z-ordering
+		} else {
+			n.lastPortalBoxes = nil
 		}
+		n.mu.Unlock()
 
 		layoutResult = &newLayoutResultAdapter{result: mainResult, fiberRoot: fiberRoot}
 	} else {
@@ -2395,6 +2403,21 @@ func (n *DeclarativeNode) GetPaintableBoxes() []*paint.PaintableBox {
 	}
 	collect(n.lastPaintableRoot)
 	return boxes
+}
+
+// GetPortalBoxes returns the portal boxes from the last layout computation
+// This provides access to the computed portal boxes for debugging and testing
+func (n *DeclarativeNode) GetPortalBoxes() []layout.LayoutBox {
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+
+	if n.lastPortalBoxes == nil {
+		return make([]layout.LayoutBox, 0)
+	}
+	// Return a copy to avoid external modification
+	result := make([]layout.LayoutBox, len(n.lastPortalBoxes))
+	copy(result, n.lastPortalBoxes)
+	return result
 }
 
 // =============================================================================
