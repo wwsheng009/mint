@@ -1,14 +1,20 @@
 // Package ui provides convenient shortcuts for common UI components
 //
-// These shortcuts redirect to Fiber-first components in ui/components/.
-// For full-featured Builder patterns, use the component packages directly:
-//   - ui/components/text.NewBuilder(content)
-//   - ui/components/button.NewBuilder(label)
-//   - ui/components/input.NewBuilder()
+// This package re-exports:
+// 1. Quick shortcut functions for common use cases (e.g., Text(), Button(), Input())
+// 2. Builder types for full-featured configurations (e.g., TextBuilder, ButtonBuilder)
 //
-// Or use the app package for convenience re-exports:
-//   - app.Text(content) / app.Button(label)
-//   - app.Input() / app.Checkbox(label)
+// Usage examples:
+//
+// Quick shortcuts:
+//   ui.Text("Hello")
+//   ui.Button("Click Me")
+//   ui.Input("Placeholder")
+//
+// Full Builder patterns:
+//   ui.TextBuilder("Hello").Bold().FgColor("red").Build()
+//   ui.ButtonBuilder("Click").Primary().OnPress(intent).Build()
+//   ui.InputBuilder().Placeholder("...").Value("x").OnChange(intent).Build()
 package ui
 
 import (
@@ -25,6 +31,7 @@ import (
 	"github.com/wwsheng009/mint/ui/components/grid"
 	"github.com/wwsheng009/mint/ui/components/input"
 	"github.com/wwsheng009/mint/ui/components/list"
+	"github.com/wwsheng009/mint/ui/components/modal"
 	"github.com/wwsheng009/mint/ui/components/panel"
 	"github.com/wwsheng009/mint/ui/components/progress"
 	"github.com/wwsheng009/mint/ui/components/scrollview"
@@ -41,10 +48,147 @@ import (
 )
 
 // =============================================================================
-// Form Components shortcuts
+// Builder Type Re-exports (for full-featured configuration)
 // =============================================================================
 
-// Input shortcuts - redirect to ui/components/input
+// Form Components
+type (
+	InputBuilder    = input.Builder
+	TextareaBuilder = textarea.Builder
+	CheckboxBuilder = checkbox.Builder
+	SelectBuilder   = selectcomp.Builder
+)
+
+// Button Components
+type ButtonBuilder = button.Builder
+
+// Text Components
+type TextBuilder = text.Builder
+
+// Layout Components
+type (
+	StackBuilder      = stack.Builder
+	// Note: HStackBuilder, VStackBuilder are in ui/layout.go (runtime/ui.LayoutBuilder)
+	// Note: WrapBuilder is in ui/layout.go (wrap.Builder)
+	GridBuilder   = grid.Builder
+	AbsoluteBuilder = absolute.Builder
+)
+
+// Container Components
+type (
+	BorderBuilder    = border.Builder
+	PanelBuilder     = panel.Builder
+	ScrollViewBuilder = scrollview.Builder
+)
+
+// Data Display Components
+type (
+	ListBuilder      = list.Builder
+	TableBuilder     = table.Builder
+	TreeViewBuilder  = treeview.Builder
+	VirtualListBuilder = virtuallist.Builder
+)
+
+// Navigation Components
+type TabsBuilder = tabs.Builder
+
+// Overlay Components
+type (
+	// Note: ModalBuilder, TooltipBuilder are in ui/layer.go (ui-specific implementations)
+	// For Fiber-first builders, use individual packages:
+	//   - ui/components/modal.Builder
+	//   - ui/components/tooltip.Builder
+	ToastBuilder = tooltip.ToastBuilder
+)
+
+// Divider Components
+type DividerBuilder = divider.Builder
+
+// Progress Components
+type ProgressBuilder = progress.Builder
+
+// =============================================================================
+// Common Type Re-exports
+// =============================================================================
+
+// Button Types
+const (
+	ButtonVariantDefault   = button.VariantDefault
+	ButtonVariantPrimary   = button.VariantPrimary
+	ButtonVariantSecondary = button.VariantSecondary
+	ButtonVariantDanger    = button.VariantDanger
+	ButtonVariantSuccess   = button.VariantSuccess
+
+	ButtonSmall  = button.SizeSmall
+	ButtonMedium = button.SizeMedium
+	ButtonLarge  = button.SizeLarge
+
+	FocusStyleReverse   = button.FocusStyleReverse
+	FocusStyleUnderline = button.FocusStyleUnderline
+	FocusStyleBracket   = button.FocusStyleBracket
+	FocusStyleBold      = button.FocusStyleBold
+)
+
+// Divider Types
+type (
+	DividerStyle       = divider.Style
+	DividerOrientation = divider.Orientation
+)
+
+const (
+	DividerSolid   = divider.StyleSolid
+	DividerDashed  = divider.StyleDashed
+	DividerDotted  = divider.StyleDotted
+	DividerDouble  = divider.StyleDouble
+
+	HorizontalDivider = divider.Horizontal
+	VerticalDivider   = divider.Vertical
+)
+
+// Grid Types
+type (
+	GridDimension = grid.Dimension
+	Fixed         = grid.Fixed
+	// Note: Flex is a function in ui/layout.go, not a type here
+	Auto          = struct{} // Placeholder for grid.Auto
+)
+
+// Absolute Position Types
+type PositionValue = absolute.PositionValue
+type Anchor = absolute.Anchor
+
+// Note: PositionTop, etc. are not exported by absolute component
+// Use PositionFixed(0) for fixed positioning, or position values directly
+
+// Tab Types
+type TabPosition = tabs.TabPosition
+type TabItem = tabs.TabItem
+
+const (
+	TabPositionTop    = tabs.TabPositionTop
+	TabPositionBottom = tabs.TabPositionBottom
+	TabPositionLeft   = tabs.TabPositionLeft
+	TabPositionRight  = tabs.TabPositionRight
+)
+
+// Table Types
+type TableColumn = table.TableColumn
+
+// Tree Types
+type TreeNode = treeview.TreeNode
+
+// Select Types
+type SelectOption = selectcomp.Option
+
+// =============================================================================
+// NOTE: BorderStyle constants are in ui/layout.go (re-exported from rtui)
+// =============================================================================
+
+// =============================================================================
+// Quick Shortcut Functions (for common use cases)
+// =============================================================================
+
+// Form Components shortcuts
 
 // Input creates an input field with placeholder
 func Input(placeholder string) rtui.VNode {
@@ -56,8 +200,6 @@ func InputWithValue(placeholder, value string) rtui.VNode {
 	return input.NewBuilder().Placeholder(placeholder).Value(value).Build()
 }
 
-// Textarea shortcuts - redirect to ui/components/textarea
-
 // Textarea creates a textarea field with placeholder
 func Textarea(placeholder string) rtui.VNode {
 	return textarea.NewBuilder().Placeholder(placeholder).Build()
@@ -68,14 +210,10 @@ func TextareaWithValue(placeholder, value string) rtui.VNode {
 	return textarea.NewBuilder().Placeholder(placeholder).Value(value).Build()
 }
 
-// Checkbox shortcuts - redirect to ui/components/checkbox
-
 // Checkbox creates a checkbox
 func Checkbox(label string, checked bool) rtui.VNode {
 	return checkbox.NewBuilder().Label(label).Checked(checked).Build()
 }
-
-// Select shortcuts - redirect to ui/components/selectcomp
 
 // Select creates a select dropdown with options
 func Select(options []map[string]interface{}) rtui.VNode {
@@ -89,9 +227,7 @@ func Select(options []map[string]interface{}) rtui.VNode {
 	return selectcomp.NewBuilder().Options(opts).Build()
 }
 
-// =============================================================================
-// Button shortcuts - redirect to ui/components/button (Intent-based)
-// =============================================================================
+// Button shortcuts
 
 // Button creates a button with label (no click handler)
 // Note: This version does not support onClick. Use ButtonWithIntent for actions.
@@ -100,16 +236,13 @@ func Button(label string) rtui.VNode {
 }
 
 // ButtonWithIntent creates a button with Intent (Fiber-first pattern)
-// This is the recommended way to create buttons with actions.
 func ButtonWithIntent(label string, pressIntent intent.Intent) rtui.VNode {
 	return button.NewBuilder(label).OnPress(pressIntent).Build()
 }
 
-// =============================================================================
 // Display Components shortcuts
-// =============================================================================
 
-// Text shortcuts - redirect to ui/components/text
+// Text shortcuts
 
 // Text creates a simple text VNode
 func Text(content string) rtui.VNode {
@@ -119,7 +252,6 @@ func Text(content string) rtui.VNode {
 // Textf creates a formatted text VNode
 // Note: actual formatting should be done by caller with fmt.Sprintf
 func Textf(format string, args ...interface{}) rtui.VNode {
-	// Note: actual formatting should be done by caller with fmt.Sprintf
 	return text.NewBuilder(format).Build()
 }
 
@@ -139,7 +271,6 @@ func TextColored(content string, fg style.Color) rtui.VNode {
 }
 
 // TextAlign creates a text VNode with horizontal alignment
-// Supported align values: "left", "center", "right"
 func TextAlign(content string, align string) rtui.VNode {
 	var a rtui.Align
 	switch align {
@@ -163,7 +294,7 @@ func TextRight(content string) rtui.VNode {
 	return TextAlign(content, "right")
 }
 
-// Progress shortcuts - redirect to ui/components/progress
+// Progress shortcuts
 
 // Progress creates a progress bar
 func Progress(value, max int) rtui.VNode {
@@ -176,15 +307,17 @@ func ProgressPercent(percent int) rtui.VNode {
 }
 
 // =============================================================================
-// Layout Components shortcuts (some are already in ui/layout.go)
+// Layout Components shortcuts
 // =============================================================================
 
-// H creates a horizontal stack (HStack) - redirects to ui/components/stack
+// Stack shortcuts
+
+// H creates a horizontal stack (HStack)
 func H(children ...rtui.VNode) rtui.VNode {
 	return stack.HBox(children...)
 }
 
-// V creates a vertical stack (VStack) - redirects to ui/components/stack
+// V creates a vertical stack (VStack)
 func V(children ...rtui.VNode) rtui.VNode {
 	return stack.VBox(children...)
 }
@@ -209,8 +342,7 @@ func ColStack(gap int, children ...rtui.VNode) rtui.VNode {
 	return stack.ColStack(gap, children...)
 }
 
-// Wrap shortcuts - redirect to ui/components/wrap
-// (Note: ui/layout.go also has Wrap(), this provides additional variants)
+// Wrap shortcuts
 
 // WrapWithWidth creates a wrap layout with specified width
 func WrapWithWidth(width int, children ...rtui.VNode) rtui.VNode {
@@ -224,7 +356,7 @@ func WrapWithGap(gap int, children ...rtui.VNode) rtui.VNode {
 	return wrap.W().Gap(gap).Children(children...).Build()
 }
 
-// Grid shortcuts - redirect to ui/components/grid
+// Grid shortcuts
 
 // Grid creates a simple grid with specified number of columns
 func Grid(numCols int, children ...rtui.VNode) rtui.VNode {
@@ -241,7 +373,7 @@ func ThreeColumnGrid(children ...rtui.VNode) rtui.VNode {
 	return grid.ThreeColumnGrid(children...)
 }
 
-// Absolute shortcuts - redirect to ui/components/absolute
+// Absolute shortcuts
 
 // At places a child at absolute coordinates (x, y)
 func At(child rtui.VNode, x, y int) rtui.VNode {
@@ -277,14 +409,14 @@ func CenterAbs(child rtui.VNode) rtui.VNode {
 // Container Components shortcuts
 // =============================================================================
 
-// Border shortcuts - redirect to ui/components/border
+// Border shortcuts
 
 // Border creates a box with single border
 func Border(child rtui.VNode) rtui.VNode {
 	return border.B(child)
 }
 
-// B creates a single-line border (alias for Border, avoid collision with rtui.Bordered())
+// Bc creates a single-line border (alias for Border, avoid collision with rtui.Bordered())
 func Bc(child rtui.VNode) rtui.VNode {
 	return Border(child)
 }
@@ -314,12 +446,12 @@ func WithLabel(label string, child rtui.VNode) rtui.VNode {
 	return border.WithLabel(label, child)
 }
 
-// WithColorBorder creates a border with custom color (renamed to avoid collision)
+// WithColorBorder creates a border with custom color
 func WithColorBorder(color string, child rtui.VNode) rtui.VNode {
 	return border.WithColor(color, child)
 }
 
-// Panel shortcuts - redirect to ui/components/panel
+// Panel shortcuts
 
 // Panel creates a panel with content
 func Panel(content rtui.VNode) rtui.VNode {
@@ -341,7 +473,7 @@ func PanelBordered(content rtui.VNode, width, height int) rtui.VNode {
 	return panel.Bordered(content, width, height)
 }
 
-// ScrollView shortcuts - redirect to ui/components/scrollview
+// ScrollView shortcuts
 
 // ScrollView creates a scrollable view
 func ScrollView(child rtui.VNode) rtui.VNode {
@@ -367,7 +499,7 @@ func ScrollBordered(child rtui.VNode, width, height int) rtui.VNode {
 // Data Display Components shortcuts
 // =============================================================================
 
-// List shortcuts - redirect to ui/components/list
+// List shortcuts
 
 // List creates a list component
 func List() *list.Builder {
@@ -384,8 +516,7 @@ func ListWithHeader(header string, rows []string) rtui.VNode {
 	return list.WithHeader(header).Rows(rows).Build()
 }
 
-// Table shortcuts - redirect to ui/components/table
-// (Note: ui/layout.go also has Table(), this is for the full table component)
+// Table shortcuts
 
 // TableOf creates a table with columns and rows
 func TableOf(columns []string, rows [][]string) rtui.VNode {
@@ -397,7 +528,7 @@ func TableOf(columns []string, rows [][]string) rtui.VNode {
 	return table.Of(cols, rows)
 }
 
-// TreeView shortcuts - redirect to ui/components/treeview
+// TreeView shortcuts
 
 // TreeView creates a tree view
 func TreeView() *treeview.Builder {
@@ -409,8 +540,7 @@ func TreeViewOf(nodes []treeview.TreeNode) rtui.VNode {
 	return treeview.Of(nodes)
 }
 
-// =============================================================================
-// VirtualList shortcuts - redirect to ui/components/virtuallist
+// VirtualList shortcuts
 
 // VirtualList creates a virtual list
 func VirtualList() *virtuallist.Builder {
@@ -426,15 +556,13 @@ func VirtualListOfSize(items []string, width, height int) rtui.VNode {
 // Navigation Components shortcuts
 // =============================================================================
 
-// Tabs shortcuts - redirect to ui/components/tabs
-
 // Tabs creates a tabs component with tab items
 func Tabs(tabItems []tabs.TabItem) rtui.VNode {
 	return tabs.Of(tabItems)
 }
 
 // =============================================================================
-// Divider shortcuts - redirect to ui/components/divider
+// Divider shortcuts
 // =============================================================================
 
 // Divider creates a simple horizontal divider
@@ -460,6 +588,33 @@ func HDivider() rtui.VNode {
 // DividerSection creates a section divider with title
 func DividerSection(title string) rtui.VNode {
 	return divider.Section(title)
+}
+
+// =============================================================================
+// Modal shortcuts
+// =============================================================================
+
+// Note: Modal() function exists in ui/layer.go (returns *ModalBuilder)
+// The following are shortcuts for ui/components/modal.Of():
+
+// ModalOfSize creates a modal with specified size
+func ModalOfSize(content rtui.VNode, width, height int) rtui.VNode {
+	return modal.OfSize(content, width, height)
+}
+
+// ModalTitled creates a modal with title
+func ModalTitled(title string, content rtui.VNode) rtui.VNode {
+	return modal.Titled(title, content)
+}
+
+// ModalAlert creates an alert modal dialog
+func ModalAlert(title, message string) rtui.VNode {
+	return modal.Alert(title, message)
+}
+
+// ModalConfirm creates a confirm modal dialog
+func ModalConfirm(title, message string) rtui.VNode {
+	return modal.Confirm(title, message)
 }
 
 // =============================================================================
@@ -553,7 +708,7 @@ func WithPortalRoot(portalRootID string) func(rtui.VNode) rtui.VNode {
 }
 
 // WithAnchorTo is a functional helper that sets anchorId and anchor properties
-func WithAnchorTo(anchorID string, anchor types.Anchor) func(rtui.VNode) rtui.VNode {
+func WithAnchorTo(anchorID string, anchor Anchor) func(rtui.VNode) rtui.VNode {
 	return func(vnode rtui.VNode) rtui.VNode {
 		return vnode.SetAnchorTo(anchorID, anchor)
 	}
@@ -590,8 +745,8 @@ func ErrorBoundary(name string, component rtui.ComponentFunc, fallback rtui.VNod
 }
 
 // FallbackText creates a simple text fallback
-func FallbackText(txt string) rtui.VNode {
-	return rtui.FallbackText(txt)
+func FallbackText(text string) rtui.VNode {
+	return rtui.FallbackText(text)
 }
 
 // FallbackError creates an error message fallback with details
@@ -650,7 +805,7 @@ func PureComponentWithProps(name string, fn rtui.ComponentFuncWithProps) rtui.VN
 }
 
 // =============================================================================
-// Toast Notifications shortcuts (from ui/components/tooltip)
+// Toast Notifications shortcuts
 // =============================================================================
 
 // ToastInfo creates an info toast notification
@@ -673,7 +828,7 @@ func ToastError(message string) rtui.VNode {
 	return tooltip.Error(message)
 }
 
-// Tooltip shortcut - redirect to ui/components/tooltip
+// Tooltip shortcut
 
 // TooltipFor creates a tooltip for a content element
 func TooltipFor(content rtui.VNode, tooltipText string) rtui.VNode {

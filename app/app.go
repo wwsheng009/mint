@@ -10,24 +10,6 @@ import (
 // App Entry Point
 // =============================================================================
 
-// Option configures the app
-type Option func(*ui.Options)
-
-// Options holds app configuration (re-exported from ui)
-type Options = ui.Options
-
-// WithWidth sets the window width
-var WithWidth = ui.WithWidth
-
-// WithHeight sets the window height
-var WithHeight = ui.WithHeight
-
-// WithTitle sets the window title
-var WithTitle = ui.WithTitle
-
-// WithFPS sets the frame rate limit
-var WithFPS = ui.WithFPS
-
 // appInstance holds the framework app for quit functionality
 var appInstance *framework.App
 
@@ -41,7 +23,7 @@ var appInstance *framework.App
 //   ui.Button("Click Me")
 //   ui.Input("Placeholder")
 //   ui.HBox(ui.Text("A"), ui.Text("B"))
-func Run(appFunc rtui.ComponentFunc, opts ...Option) error {
+func Run(appFunc rtui.ComponentFunc, opts ...func(*ui.Options)) error {
 	// Convert app.Option to ui.Option
 	uiOpts := make([]ui.Option, len(opts))
 	for i, opt := range opts {
