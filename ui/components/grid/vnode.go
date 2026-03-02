@@ -488,6 +488,54 @@ func (g *VNode) MeasureConstraints(c layout.Constraints) layout.Size {
 }
 
 // =============================================================================
+// layout.BoxModelProvider Implementation
+// =============================================================================
+
+// GetBoxModel returns the box model for the Grid VNode.
+// Implements layout.BoxModelProvider for unified padding/border handling.
+// Note: Border is treated as a container property (方案 A), not as a separate component.
+func (g *VNode) GetBoxModel() layout.BoxModel {
+	boxModel := layout.BoxModel{}
+
+	// Padding from grid properties
+	boxModel.Padding = layout.Padding{
+		Left:   g.padding[3],
+		Right:  g.padding[1],
+		Top:    g.padding[0],
+		Bottom: g.padding[2],
+	}
+
+	// Border from grid properties (container-level border, 方案 A)
+	if g.borderStyle != "none" && g.borderStyle != "" {
+		var borderStyle layout.BorderStyle
+		switch g.borderStyle {
+		case "double":
+			borderStyle = layout.BorderDouble
+		case "rounded":
+			borderStyle = layout.BorderRounded
+		case "dashed":
+			borderStyle = layout.BorderDashed
+		case "single":
+			borderStyle = layout.BorderSingle
+		default:
+			borderStyle = layout.BorderNone
+		}
+
+		// If label is set, use NewBorderWithLabel; otherwise use NewBorder
+		if g.borderLabel != "" {
+			boxModel.Border = layout.NewBorderWithLabel(borderStyle, g.borderLabel)
+		} else {
+			boxModel.Border = layout.NewBorder(borderStyle)
+		}
+	}
+
+	// Note: Margin is not currently supported on Grid VNode
+	// If needed, it can be added as a property in the future
+
+	return boxModel
+}
+
+// =============================================================================
 // ✨ Border Builder Methods (方案 A - 边框作为容器属性)
 // =============================================================================
 
