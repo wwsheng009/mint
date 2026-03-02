@@ -481,3 +481,51 @@ func (s *VNode) MeasureConstraints(c layout.Constraints) layout.Size {
 	}
 	return layout.Size{Width: c.MinWidth, Height: c.MinHeight}
 }
+
+// =============================================================================
+// layout.BoxModelProvider Implementation
+// =============================================================================
+
+// GetBoxModel returns the box model for the Stack VNode.
+// Implements layout.BoxModelProvider for unified padding/border handling.
+// Note: Border is treated as a container property (方案 A), not as a separate component.
+func (s *VNode) GetBoxModel() layout.BoxModel {
+	boxModel := layout.BoxModel{}
+
+	// Padding from stack properties
+	boxModel.Padding = layout.Padding{
+		Left:   s.padding[3],
+		Right:  s.padding[1],
+		Top:    s.padding[0],
+		Bottom: s.padding[2],
+	}
+
+	// Border from stack properties (container-level border, 方案 A)
+	if s.borderStyle != "none" && s.borderStyle != "" {
+		var borderStyle layout.BorderStyle
+		switch s.borderStyle {
+		case "double":
+			borderStyle = layout.BorderDouble
+		case "rounded":
+			borderStyle = layout.BorderRounded
+		case "dashed":
+			borderStyle = layout.BorderDashed
+		case "single":
+			borderStyle = layout.BorderSingle
+		default:
+			borderStyle = layout.BorderNone
+		}
+
+		// If label is set, use NewBorderWithLabel; otherwise use NewBorder
+		if s.borderLabel != "" {
+			boxModel.Border = layout.NewBorderWithLabel(borderStyle, s.borderLabel)
+		} else {
+			boxModel.Border = layout.NewBorder(borderStyle)
+		}
+	}
+
+	// Note: Margin is not currently supported on Stack VNode
+	// If needed, it can be added as a property in the future
+
+	return boxModel
+}

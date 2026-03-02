@@ -121,6 +121,16 @@ func (m Margin) Vertical() int {
 	return m.Top + m.Bottom
 }
 
+// Horizontal 返回水平方向总内边距
+func (p Padding) Horizontal() int {
+	return p.Left + p.Right
+}
+
+// Vertical 返回垂直方向总内边距
+func (p Padding) Vertical() int {
+	return p.Top + p.Bottom
+}
+
 // Flex 弹性配置
 type Flex struct {
 	// Grow 放大比例（默认0，不放大）
@@ -277,11 +287,18 @@ func (f *FlexLayout) SetFlex(index int, grow, shrink, basis int) {
 }
 
 // Measure 测量节点尺寸
+//
+// FlexLayout 的 style.Padding 是内部配置，控制子节点区域
+// 此方法返回包含 padding 的总尺寸
 func (f *FlexLayout) Measure(constraints Constraints) Size {
 	if len(f.children) == 0 {
-		width := constraints.ConstrainWidth(f.style.Padding.Left + f.style.Padding.Right)
-		height := constraints.ConstrainHeight(f.style.Padding.Top + f.style.Padding.Bottom)
-		return Size{Width: width, Height: height}
+		// 空容器返回 padding 占用
+		paddingWidth := f.style.Padding.Horizontal()
+		paddingHeight := f.style.Padding.Vertical()
+		return Size{
+			Width:  constraints.ConstrainWidth(paddingWidth),
+			Height: constraints.ConstrainHeight(paddingHeight),
+		}
 	}
 
 	isRow := f.style.Direction == FlexRow || f.style.Direction == FlexRowReverse
@@ -298,9 +315,9 @@ func (f *FlexLayout) Measure(constraints Constraints) Size {
 			continue
 		}
 
-		childConstraints := f.childConstraints(constraints, i)
+		// 使用约束测量子节点
 		if measurable, ok := child.(Measurable); ok {
-			childSizes[i] = measurable.Measure(childConstraints)
+			childSizes[i] = measurable.Measure(constraints)
 		} else {
 			// 尝试从 GetSize 获取尺寸
 			w, h := child.GetSize()
@@ -309,8 +326,8 @@ func (f *FlexLayout) Measure(constraints Constraints) Size {
 			} else {
 				// 最后使用约束的最大值作为默认
 				childSizes[i] = Size{
-					Width:  childConstraints.MaxWidth,
-					Height: childConstraints.MaxHeight,
+					Width:  constraints.MaxWidth,
+					Height: constraints.MaxHeight,
 				}
 			}
 		}
@@ -368,14 +385,17 @@ func (f *FlexLayout) Measure(constraints Constraints) Size {
 		}
 	}
 
-	// 计算总尺寸
+	// 计算包含 padding 的总尺寸
 	var width, height int
+	paddingWidth := f.style.Padding.Horizontal()
+	paddingHeight := f.style.Padding.Vertical()
+
 	if isRow {
-		width = f.style.Padding.Left + totalMainSize + f.style.Padding.Right
-		height = f.style.Padding.Top + maxCrossSize + f.style.Padding.Bottom
+		width = totalMainSize + paddingWidth
+		height = maxCrossSize + paddingHeight
 	} else {
-		width = f.style.Padding.Left + maxCrossSize + f.style.Padding.Right
-		height = f.style.Padding.Top + totalMainSize + f.style.Padding.Bottom
+		width = maxCrossSize + paddingWidth
+		height = totalMainSize + paddingHeight
 	}
 
 	return Size{
@@ -424,6 +444,9 @@ func (f *FlexLayout) LayoutChildren(width, height int) []LayoutBox {
 
 	// Phase 1: 测量所有子节点
 	childSizes := make([]Size, len(f.children))
+	childMarginContent := make([]int, len(f.children)) // 主轴方向的 margin 总和
+	childMarginStart := make([]int, len(f.children))   // 主轴起始侧 margin
+	childMarginCross := make([]int, len(f.children))   // 跨轴方向的 margin 总和
 	fixedTotal := 0    // 固定尺寸总和
 	flexGrowTotal := 0 // flex-grow 总和
 
@@ -433,6 +456,27 @@ func (f *FlexLayout) LayoutChildren(width, height int) []LayoutBox {
 			childSizes[i] = Size{Width: 0, Height: 0}
 			continue
 		}
+
+		// 获取子节点的 margin
+		marginSizeContent := 0
+		marginSizeStart := 0
+		marginSizeCross := 0
+		if marginal, ok := child.(Marginal); ok {
+			m := marginal.GetMargin()
+			if isRow {
+				marginSizeContent = m.Left + m.Right
+				marginSizeStart = m.Left
+				marginSizeCross = m.Top + m.Bottom
+			} else {
+				marginSizeContent = m.Top + m.Bottom
+				marginSizeStart = m.Top
+				marginSizeCross = m.Left + m.Right
+			}
+		}
+		// 保存 margin 信息
+		childMarginContent[i] = marginSizeContent
+		childMarginStart[i] = marginSizeStart
+		childMarginCross[i] = marginSizeCross
 
 		constraints := Constraints{}
 		if isRow {
@@ -469,22 +513,22 @@ func (f *FlexLayout) LayoutChildren(width, height int) []LayoutBox {
 
 		if flex, ok := f.style.FlexibleChildren[i]; ok && flex.Grow > 0 {
 			flexGrowTotal += flex.Grow
-			// 使用 basis 作为基础尺寸
+			// 使用 basis 作为基础尺寸 + margin
 			if flex.Basis > 0 {
-				fixedTotal += flex.Basis
+				fixedTotal += flex.Basis + marginSizeContent
 			} else {
 				if isRow {
-					fixedTotal += childSizes[i].Width
+					fixedTotal += childSizes[i].Width + marginSizeContent
 				} else {
-					fixedTotal += childSizes[i].Height
+					fixedTotal += childSizes[i].Height + marginSizeContent
 				}
 			}
 		} else {
-			// 固定尺寸节点
+			// 固定尺寸节点，包含 margin
 			if isRow {
-				fixedTotal += childSizes[i].Width
+				fixedTotal += childSizes[i].Width + marginSizeContent
 			} else {
-				fixedTotal += childSizes[i].Height
+				fixedTotal += childSizes[i].Height + marginSizeContent
 			}
 		}
 	}
@@ -509,24 +553,37 @@ func (f *FlexLayout) LayoutChildren(width, height int) []LayoutBox {
 	for i := range f.children {
 		if flex, ok := f.style.FlexibleChildren[i]; ok && flex.Grow > 0 {
 			// 按比例分配剩余空间
+			// 注意: 剩余空间是 content space，不包含 margin
 			extra := 0
 			if flexGrowTotal > 0 {
 				extra = (remainingSpace * flex.Grow) / flexGrowTotal
 			}
+			// finalSizes 包含 contentWidth + marginWidth
 			if isRow {
 				finalSizes[i] = Size{
-					Width:  childSizes[i].Width + extra,
-					Height: childSizes[i].Height,
+					Width:  childSizes[i].Width + childMarginContent[i] + extra,
+					Height: childSizes[i].Height + childMarginCross[i],
 				}
 			} else {
 				finalSizes[i] = Size{
-					Width:  childSizes[i].Width,
-					Height: childSizes[i].Height + extra,
+					Width:  childSizes[i].Width + childMarginCross[i],
+					Height: childSizes[i].Height + childMarginContent[i] + extra,
 				}
 			}
 			flexIndex++
 		} else {
-			finalSizes[i] = childSizes[i]
+			// 固定尺寸节点，包含 margin
+			if isRow {
+				finalSizes[i] = Size{
+					Width:  childSizes[i].Width + childMarginContent[i],
+					Height: childSizes[i].Height + childMarginCross[i],
+				}
+			} else {
+				finalSizes[i] = Size{
+					Width:  childSizes[i].Width + childMarginCross[i],
+					Height: childSizes[i].Height + childMarginContent[i],
+				}
+			}
 		}
 	}
 
@@ -685,6 +742,13 @@ func (f *FlexLayout) LayoutChildren(width, height int) []LayoutBox {
 			y += yOffset
 		}
 
+		// childBox.X/Y 应该指向子节点的左上角（包括 margin 偏移）
+		// 主轴方向：mainPos 已经包含了 start margin（因为 finalSizes 包含 margin）
+		// 但是这里 mainPos 指向的是不含 margin 的位置，所以需要加上 start margin
+		// 注意: finalSizes.ChildIdx 已经包含 marginTotal
+		// mainPos += finalSizes 包含了 margin，所以 mainPos 本身就是下一个子节点的"内容位置"
+		// childBox.X/Y 应该指向完整的盒子左上角，所以不需要再加 margin
+		// ✅ 修正: childBox.X/Y 已经包含了 margin 空间（因为 mainPos 使用了 finalSizes）
 		boxes[i] = LayoutBox{
 			ID:     child.ID(),
 			X:      x,

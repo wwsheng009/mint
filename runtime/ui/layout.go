@@ -344,6 +344,50 @@ func (l *LayoutNode) GetFlexStyle() *layout.FlexStyle {
 	return flexStyle
 }
 
+// GetBoxModel returns the box model for the LayoutNode
+// Implements layout.BoxModelProvider interface for unified padding/border handling
+func (l *LayoutNode) GetBoxModel() layout.BoxModel {
+	boxModel := layout.BoxModel{}
+
+	// Padding from layout node
+	boxModel.Padding = layout.Padding{
+		Left:   l.padding[3],
+		Right:  l.padding[1],
+		Top:    l.padding[0],
+		Bottom: l.padding[2],
+	}
+
+	// Read border from props (if set)
+	props := l.Props()
+	if props != nil {
+		// Read "border" prop (boolean)
+		if hasBorder, ok := props["border"].(bool); ok && hasBorder {
+			// Read border style
+			borderStyle := layout.BorderSingle // default
+			if style, ok := props["borderStyle"].(string); ok {
+				switch style {
+				case "double":
+					borderStyle = layout.BorderDouble
+				case "rounded":
+					borderStyle = layout.BorderRounded
+				case "dashed":
+					borderStyle = layout.BorderDashed
+				case "none":
+					borderStyle = layout.BorderNone
+				default:
+					borderStyle = layout.BorderSingle
+				}
+			}
+			boxModel.Border = layout.NewBorder(borderStyle)
+		}
+	}
+
+	// Note: Margin is not currently supported on LayoutNode
+	// If needed, it can be read from props in the future
+
+	return boxModel
+}
+
 // =============================================================================
 // Flex Wrapper - elegant API for making VNodes flexible
 // =============================================================================
@@ -1250,12 +1294,16 @@ func (bn *BorderedNode) Measure(constraints runtime.BoxConstraints) runtime.Size
 	// Measure child content
 	var contentWidth, contentHeight int
 	children := bn.Children()
-	// Check if this Bordered node has flex or explicit width/height
+	// Check if this Bordered node has flex, fillWidth, or explicit width/height
 	hasFlex := false
+	hasFillWidth := false
 	props := bn.Props()
 	if props != nil {
 		if f, ok := props["flex"].(int); ok && f > 0 {
 			hasFlex = true
+		}
+		if fillWidth, ok := props["fillWidth"].(bool); ok && fillWidth {
+			hasFillWidth = true
 		}
 		// Check for explicit width/height props and apply as constraints
 		if width, ok := props["width"].(int); ok && width > 0 {
@@ -1284,12 +1332,12 @@ func (bn *BorderedNode) Measure(constraints runtime.BoxConstraints) runtime.Size
 			contentWidth = contentSize.Width
 			contentHeight = contentSize.Height
 
-			// If this Bordered node has flex, expand child to fill available space
-			if hasFlex {
+			// If this Bordered node has flex or fillWidth, expand child to fill available space
+			if hasFlex || hasFillWidth {
 				if innerConstraints.HasBoundedWidth() && contentWidth < innerConstraints.MaxWidth {
 					contentWidth = innerConstraints.MaxWidth
 				}
-				if innerConstraints.HasBoundedHeight() && contentHeight < innerConstraints.MaxHeight {
+				if hasFlex && innerConstraints.HasBoundedHeight() && contentHeight < innerConstraints.MaxHeight {
 					contentHeight = innerConstraints.MaxHeight
 				}
 			}
@@ -1297,17 +1345,21 @@ func (bn *BorderedNode) Measure(constraints runtime.BoxConstraints) runtime.Size
 			// Fallback: estimate child size
 			contentWidth = 10 // Default minimum
 			contentHeight = 1
+			// If fillWidth, expand to fill available space
+			if hasFillWidth && constraints.HasBoundedWidth() {
+				contentWidth = max(0, constraints.MaxWidth-borderWidth)
+			}
 		}
 	} else {
 		// No child - minimum size
 		contentWidth = 1
 		contentHeight = 1
-		// If flex, expand to fill available space
-		if hasFlex {
+		// If flex or fillWidth, expand to fill available space
+		if hasFlex || hasFillWidth {
 			if constraints.HasBoundedWidth() {
 				contentWidth = max(0, constraints.MaxWidth-borderWidth)
 			}
-			if constraints.HasBoundedHeight() {
+			if hasFlex && constraints.HasBoundedHeight() {
 				contentHeight = max(0, constraints.MaxHeight-borderHeight)
 			}
 		}

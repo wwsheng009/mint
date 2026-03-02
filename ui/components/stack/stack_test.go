@@ -6,6 +6,7 @@ import (
 	"github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
+	"github.com/wwsheng009/mint/runtime/types"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
 
@@ -473,26 +474,34 @@ func TestSpacer(t *testing.T) {
 type mockVNode struct {
 	width, height int
 	content       string
+	id            string
 }
 
-func (m *mockVNode) Type() rtui.VNodeType                           { return rtui.VNodeElement }
-func (m *mockVNode) Key() string                                    { return "" }
-func (m *mockVNode) SetKey(string) rtui.VNode                       { return m }
-func (m *mockVNode) Tag() string                                    { return "mock" }
-func (m *mockVNode) Style() style.Style                             { return style.Style{} }
-func (m *mockVNode) SetStyle(style.Style) rtui.VNode                { return m }
-func (m *mockVNode) Children() []rtui.VNode                         { return nil }
-func (m *mockVNode) SetChildren([]rtui.VNode) rtui.VNode            { return m }
+func (m *mockVNode) Type() rtui.VNodeType                      { return rtui.VNodeElement }
+func (m *mockVNode) ID() string                                { return m.id }
+func (m *mockVNode) SetID(id string) rtui.VNode                { m.id = id; return m }
+func (m *mockVNode) Key() string                               { return "" }
+func (m *mockVNode) SetKey(string) rtui.VNode                  { return m }
+func (m *mockVNode) Tag() string                               { return "mock" }
+func (m *mockVNode) Style() style.Style                        { return style.Style{} }
+func (m *mockVNode) SetStyle(style.Style) rtui.VNode           { return m }
+func (m *mockVNode) Children() []rtui.VNode                    { return nil }
+func (m *mockVNode) SetChildren([]rtui.VNode) rtui.VNode       { return m }
 func (m *mockVNode) Props() rtui.Props {
 	return rtui.Props{"content": m.content, "width": m.width, "height": m.height}
 }
-func (m *mockVNode) SetProps(rtui.Props) rtui.VNode                 { return m }
-func (m *mockVNode) GetLayer() rtui.Layer                           { return rtui.LayerBase }
-func (m *mockVNode) SetLayer(rtui.Layer) rtui.VNode                 { return m }
+func (m *mockVNode) SetProps(rtui.Props) rtui.VNode             { return m }
+func (m *mockVNode) GetLayer() rtui.Layer                       { return rtui.LayerBase }
+func (m *mockVNode) SetLayer(rtui.Layer) rtui.VNode            { return m }
+func (m *mockVNode) SetPortalRoot(portalRootID string) rtui.VNode { return m }
+func (m *mockVNode) SetAnchorTo(anchorID string, anchor types.Anchor) rtui.VNode { return m }
+func (m *mockVNode) SetPortalPosition(position types.PositionType) rtui.VNode { return m }
+func (m *mockVNode) SetPortalPriority(priority int) rtui.VNode { return m }
+func (m *mockVNode) SetPortalRootId(portalRootId string) rtui.VNode { return m }
 func (m *mockVNode) CreateInstance() rtui.ComponentInstance {
 	return &mockInstance{width: m.width, height: m.height}
 }
-func (m *mockVNode) GetLayoutInfo() rtui.LayoutInfo                 { return rtui.LayoutInfo{} }
+func (m *mockVNode) GetLayoutInfo() rtui.LayoutInfo              { return rtui.LayoutInfo{} }
 
 type mockInstance struct {
 	width, height int

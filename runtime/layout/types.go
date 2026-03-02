@@ -747,16 +747,15 @@ func (e *Engine) layoutNodeWithDepth(node Node, constraints Constraints, x, y in
 					// 需要加上：前面所有兄弟节点的累积 margin + 当前节点的起始侧 margin
 					var childX, childY int
 					if isFlexRow {
-						// Row: X 是主轴，从左到右排列，所以起始侧是 left
+						// Row: X 是主轴，Y 是跨轴
 						childX = x + childBox.X + borderOffsetX + mainAxisMarginOffset + marginLeft
-						childY = y + childBox.Y + borderOffsetY
+						childY = y + childBox.Y + borderOffsetY + marginTop  // ✅ 添加跨轴垂直 margin
 						// 为下一个节点累积：currentRightMargin + nextLeftMargin
-						// 这里我们只累积当前节点的 right margin，下一个节点的 left margin 会在下次迭代中添加
 						mainAxisMarginOffset += marginLeft + marginRight
 					} else {
-						// Column: Y 是主轴，从上到下排列，所以起始侧是 top
+						// Column: Y 是主轴，X 是跨轴
 						childY = y + childBox.Y + borderOffsetY + mainAxisMarginOffset + marginTop
-						childX = x + childBox.X + borderOffsetX
+						childX = x + childBox.X + borderOffsetX + marginLeft  // ✅ 添加跨轴水平 margin
 						// 为下一个节点累积：currentBottomMargin + nextTopMargin
 						mainAxisMarginOffset += marginTop + marginBottom
 					}
@@ -1354,22 +1353,88 @@ func (e *Engine) GetOverlayManager() *OverlayManager {
 	return e.overlayManager
 }
 
-// Engine.Measure method should check if the node is Measurable, and if so, call its Measure method. 
-// Otherwise, it should return the node's current size constrained by the input.
+// Measure 测量节点的尺寸
+//
+// 测量流程：
+// 1. 获取节点的 BoxModel（如果实现了 BoxModelProvider）
+// 2. 扣除 Padding 和 Border，创建内容区域的约束
+// 3. 测量内容尺寸
+// 4. 加回 Padding 和 Border，返回总尺寸
+//
+// 注意：返回的尺寸包含 Padding 和 Border，但不包含 Margin
+// Margin 仅在布局阶段使用，用于计算节点之间的间距
 func (e *Engine) Measure(node Node, constraints Constraints) Size {
 	if node == nil {
 		return Size{}
 	}
 
-	if measurable, ok := node.(Measurable); ok {
-		return measurable.Measure(constraints)
+	// Step 1: 获取 BoxModel 扣除 padding/border
+	var boxModel BoxModel
+
+	// 特殊处理：FlexLayout 自己处理内部 padding，Engine 只处理 border
+	// 这是因为 FlexLayout 的 style.Padding 是控制子节点位置的内部配置
+	// 而不是标准的 box model padding
+	if _, ok := node.(*FlexLayout); ok {
+		// FlexLayout 只扣除 border
+		if provider, ok := node.(Bordered); ok {
+			boxModel.Border = provider.GetBorder()
+		}
+		boxModel.Padding = Padding{} // padding 由 FlexLayout 自己处理
+	} else if provider, ok := node.(BoxModelProvider); ok {
+		boxModel = provider.GetBoxModel()
 	}
 
-	// Default: return current node size but respect the constraints.
-	w, h := node.GetSize()
-	w = constraints.ConstrainWidth(w)
-	h = constraints.ConstrainHeight(h)
-	return Size{Width: w, Height: h}
+	// Step 2: 计算内部约束（扣除 padding/border）
+	horizPadding := boxModel.HorizontalPadding()
+	vertPadding := boxModel.VerticalPadding()
+
+	minInnerWidth := constraints.MinWidth - horizPadding
+	maxInnerWidth := constraints.MaxWidth - horizPadding
+	minInnerHeight := constraints.MinHeight - vertPadding
+	maxInnerHeight := constraints.MaxHeight - vertPadding
+
+	// 防止负值
+	if maxInnerWidth < 0 {
+		maxInnerWidth = 0
+	}
+	if maxInnerHeight < 0 {
+		maxInnerHeight = 0
+	}
+	if minInnerWidth < 0 {
+		minInnerWidth = 0
+	}
+	if minInnerHeight < 0 {
+		minInnerHeight = 0
+	}
+	if maxInnerWidth < minInnerWidth {
+		minInnerWidth = maxInnerWidth
+	}
+	if maxInnerHeight < minInnerHeight {
+		minInnerHeight = maxInnerHeight
+	}
+
+	innerConstraints := NewConstraints(minInnerWidth, maxInnerWidth, minInnerHeight, maxInnerHeight)
+
+	// Step 3: 测量内容
+	var contentSize Size
+	if measurable, ok := node.(Measurable); ok {
+		contentSize = measurable.Measure(innerConstraints)
+	} else {
+		// 对于非可测量节点，使用其当前尺寸
+		w, h := node.GetSize()
+		contentSize.Width = innerConstraints.ConstrainWidth(w)
+		contentSize.Height = innerConstraints.ConstrainHeight(h)
+	}
+
+	// Step 4: 返回总尺寸（包含 padding/border）
+	totalWidth := contentSize.Width + horizPadding
+	totalHeight := contentSize.Height + vertPadding
+
+	// 确保不超过约束
+	totalWidth = constraints.ConstrainWidth(totalWidth)
+	totalHeight = constraints.ConstrainHeight(totalHeight)
+
+	return Size{Width: totalWidth, Height: totalHeight}
 }
 
 // =============================================================================
