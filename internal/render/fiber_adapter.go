@@ -507,7 +507,19 @@ func (a *FiberToNodeAdapter) GetMargin() layout.Margin {
 		return layout.Margin{}
 	}
 
-	// Try Fiber.Props first
+	// ✨ 优先使用 Fiber.LayoutMargin 字段（在 completeWork 中设置）
+	// LayoutMargin[4]int = [top, right, bottom, left]
+	if a.fiber.LayoutMargin[0] != 0 || a.fiber.LayoutMargin[1] != 0 ||
+		a.fiber.LayoutMargin[2] != 0 || a.fiber.LayoutMargin[3] != 0 {
+		return layout.Margin{
+			Top:    a.fiber.LayoutMargin[0],
+			Right:  a.fiber.LayoutMargin[1],
+			Bottom: a.fiber.LayoutMargin[2],
+			Left:   a.fiber.LayoutMargin[3],
+		}
+	}
+
+	// 向后兼容：Fiber.Props["margin"]（旧的方式）
 	if a.fiber.Props != nil {
 		if m, ok := a.fiber.Props["margin"].([4]int); ok {
 			return layout.Margin{

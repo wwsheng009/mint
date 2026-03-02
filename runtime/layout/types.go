@@ -722,6 +722,13 @@ func (e *Engine) layoutNodeWithDepth(node Node, constraints Constraints, x, y in
 
 			// 布局子节点
 			childBoxes := flex.LayoutChildren(innerWidth, innerHeight)
+
+			// ✨ 重新计算子节点位置以考虑主轴方向上的 margin
+			// FlexLayout 不考虑 margin，所以我们需要手动调整主轴位置
+			// 思路：childBox.Y/X 已经包含了 gap，但需要在主轴方向上额外添加前面的兄弟节点的 margin
+			isFlexRow := flexStyle.Direction == FlexRow || flexStyle.Direction == FlexRowReverse
+			mainAxisMarginOffset := 0 // 累积前面所有兄弟节点的主轴边距
+
 			for i, childBox := range childBoxes {
 				// 递归布局子节点的子节点
 				child := node.Children()[i]
@@ -736,9 +743,23 @@ func (e *Engine) layoutNodeWithDepth(node Node, constraints Constraints, x, y in
 						marginRight = m.Right
 					}
 
-					// 应用边框偏移 + margin 偏移
-					childX := x + childBox.X + borderOffsetX + marginLeft
-					childY := y + childBox.Y + borderOffsetY + marginTop
+					// 主轴方向：childBox.X/Y 是不含 margin 的位置
+					// 需要加上：前面所有兄弟节点的累积 margin + 当前节点的起始侧 margin
+					var childX, childY int
+					if isFlexRow {
+						// Row: X 是主轴，从左到右排列，所以起始侧是 left
+						childX = x + childBox.X + borderOffsetX + mainAxisMarginOffset + marginLeft
+						childY = y + childBox.Y + borderOffsetY
+						// 为下一个节点累积：currentRightMargin + nextLeftMargin
+						// 这里我们只累积当前节点的 right margin，下一个节点的 left margin 会在下次迭代中添加
+						mainAxisMarginOffset += marginLeft + marginRight
+					} else {
+						// Column: Y 是主轴，从上到下排列，所以起始侧是 top
+						childY = y + childBox.Y + borderOffsetY + mainAxisMarginOffset + marginTop
+						childX = x + childBox.X + borderOffsetX
+						// 为下一个节点累积：currentBottomMargin + nextTopMargin
+						mainAxisMarginOffset += marginTop + marginBottom
+					}
 
 					// ✨ FIX: 为子节点创建正确的约束，基于 Flex 分配的尺寸并扣除 margin
 					// 这样嵌套布局（如 VStack 内嵌 HStack）可以使用正确的约束

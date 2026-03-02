@@ -54,13 +54,13 @@ func ElegantAPIDemo() ui.VNode {
 		// Example 3: Margin for spacing
 		ui.Text("3. Buttons with MarginV(0, 1):"),
 		ui.NewButtonBuilder("Btn1").
-			MarginV(0, 1).  // ✅ Elegant!
+			MarginV(1, 2).  // ✅ Elegant!
 			Build(),
 		ui.NewButtonBuilder("Btn2").
-			MarginV(0, 1).  // ✅ Elegant!
+			MarginV(1, 1).  // ✅ Elegant!
 			Build(),
 		ui.NewButtonBuilder("Btn3").
-			MarginV(0, 1).  // ✅ Elegant!
+			MarginV(1, 2).  // ✅ Elegant!
 			Build(),
 
 		ui.Text(""),

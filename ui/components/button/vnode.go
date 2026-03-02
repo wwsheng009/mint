@@ -166,6 +166,7 @@ func (b *VNode) Props() rtui.Props {
 		"pressIntent": b.pressIntent,
 		"disabled":    b.disabled,
 		"padding":     b.padding,
+		"margin":      b.Margin(),
 		"textAlign":   b.textAlign,
 		"flex":        b.flex,
 	}
