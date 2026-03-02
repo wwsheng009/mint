@@ -13,14 +13,16 @@ import (
 	"github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/paint"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
-	panel "github.com/wwsheng009/mint/ui/components/panel"
 	modal "github.com/wwsheng009/mint/ui/components/modal"
+	panel "github.com/wwsheng009/mint/ui/components/panel"
 	newtext "github.com/wwsheng009/mint/ui/components/text"
 )
 
-// DebugApp shows UI components with modals positioned using Stack+Spacer
+// DebugApp shows UI components with modals positioned using Fixed positioning
+// Modal is positioned independently from the main layout tree (Position=fixed)
 func DebugApp() rtui.VNode {
-	return rtui.VStack(
+	// Main layout tree (without Modals)
+	mainContent := rtui.VStack(
 		// Header panel
 		panel.NewBuilder().
 			Title("Header").
@@ -29,67 +31,12 @@ func DebugApp() rtui.VNode {
 			Height(3).
 			Build(),
 
-		// Main content area
+		// Main content area placeholder
 		rtui.VStack(
-			// Centered Modal using VStack + Spacer
-			// This makes the modal centered in the viewport
-			rtui.HStack(
-				// Left spacer centers the modal
-				rtui.Spacer().Flex(1).Build(),
-
-				// Centered Modal
-				modal.NewBuilder().
-					Title("Centered Modal").
-					Content(newtext.New("This modal is centered using Stack+Spacer")).
-					Width(34).
-					Height(10).
-					Single().
-					Open(true).
-					Build(),
-
-				// Right spacer centers the modal
-				rtui.Spacer().Flex(1).Build(),
-			),
-
-			// Vertical spacer for vertical centering
-			rtui.Spacer().Flex(1).Build(),
-
-			// Left Aligned Modal using HStack (no left spacer)
-			rtui.HStack(
-				// Modal left aligned (no spacer on left)
-				modal.NewBuilder().
-					Title("Left Aligned Modal").
-					Content(newtext.New("Left aligned - no spacer before modal")).
-					Width(30).
-					Height(8).
-					Single().
-					Open(true).
-					Build(),
-
-				// Spacer pushes modal to left
-				rtui.Spacer().Flex(1).Build(),
-			),
-
-			rtui.Spacer().Flex(1).Build(),
-
-			// Right Aligned Modal using HStack (spacer on left)
-			rtui.HStack(
-				// Spacer pushes modal to right
-				rtui.Spacer().Flex(1).Build(),
-
-				// Modal right aligned
-				modal.NewBuilder().
-					Title("Right Aligned Modal").
-					Content(newtext.New("Right aligned - spacer before modal")).
-					Width(30).
-					Height(8).
-					Single().
-					Open(true).
-					Build(),
-			),
-
-			// Bottom spacer
-			rtui.Spacer().Flex(1).Build(),
+			newtext.New("Main content area"),
+			newtext.New("─────────────────────────────────────────────────────"),
+			newtext.New("Use the modal below (fixed positioning)"),
+			newtext.New("It will appear at Y=0 or centered based on anchor"),
 		),
 
 		// Footer panel
@@ -99,6 +46,44 @@ func DebugApp() rtui.VNode {
 			Width(70).
 			Height(2).
 			Build(),
+	)
+
+	// ✨ Fixed Centered Modal - 使用 Centered API
+	// Phase 2.2: SetCentered(true) 自动设置 Position=fixed, Anchor=center
+	// Results: AbsX=(80-38)/2=21, AbsY=(45-12)/2=16 (centered in viewport)
+	centeredFixedModal := modal.NewBuilder().
+		Title("Fixed Centered Modal").
+		Content(newtext.New("This modal uses Centered() API (Position=fixed, Anchor=center)")).
+		Width(38).
+		Height(12).
+		Centered(true).  // ✅ 使用 Centered API 自动居中
+		Single().
+		Open(true).
+		BuildVNode()
+
+	// ✨ Fixed Top-Center Modal - 显式使用 Props 设置
+	// Phase 2.2: 通过 Props 显式设置 position="fixed", anchor="topcenter"
+	// Results: AbsX=(80-38)/2=21, AbsY=0 (顶部居中)
+	topFixedModal := modal.NewBuilder().
+		Title("Fixed Top-Center Modal").
+		Content(newtext.New("Comparison: Explicit Props (position=fixed, anchor=topcenter)")).
+		Width(38).
+		Height(8).
+		Centered(false). // 禁用 centered，使用显式 Props
+		Double().
+		Open(true).
+		BuildVNode()
+	topFixedModal.SetProps(rtui.Props{
+		"position": "fixed",    // ✅ 显式设置: Fixed positioning
+		"anchor":   "topcenter", // ✅ 显式设置: Anchor topcenter → Y=0
+	})
+
+	// Combine main content with fixed-position Modals
+	// 注意：这两种 Modal 根据文档设计，不受父布局影响，使用 Fixed 定位
+	return rtui.VStack(
+		mainContent,
+		centeredFixedModal,
+		topFixedModal,
 	)
 }
 
@@ -161,6 +146,14 @@ func main() {
 			if nodeType == "Modal" {
 				fmt.Printf("  [Modal #%d] Node ID: %s\n", modalCount, box.ID)
 				fmt.Printf("         Position: X=%d, Y=%d\n", box.X, box.Y)
+				fmt.Printf("         Absolute Position: AbsX=%d, AbsY=%d\n", box.AbsX, box.AbsY)
+				fmt.Printf("         Size: Width=%d, Height=%d\n", box.Width, box.Height)
+				fmt.Printf("         Layer: %s (%d)\n", layerName, box.Layer)
+				fmt.Printf("         ShouldCenter: %v\n", box.ShouldCenter)
+			}else{
+				fmt.Printf("  [BOX ] Node ID: %s\n",box.ID)
+				fmt.Printf("         Position: X=%d, Y=%d\n", box.X, box.Y)
+				fmt.Printf("         Absolute Position: AbsX=%d, AbsY=%d\n", box.AbsX, box.AbsY)
 				fmt.Printf("         Size: Width=%d, Height=%d\n", box.Width, box.Height)
 				fmt.Printf("         Layer: %s (%d)\n", layerName, box.Layer)
 			}
