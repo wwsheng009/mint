@@ -1,6 +1,7 @@
 package checkbox
 
 import (
+	"github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
@@ -221,4 +222,30 @@ func (c *VNode) Checked() bool {
 // ToggleIntent returns the toggle intent.
 func (c *VNode) ToggleIntent() intent.Intent {
 	return c.toggleIntent
+}
+
+// =============================================================================
+// layout.BoxModelProvider Implementation
+// =============================================================================
+
+// GetBoxModel returns the box model for the Checkbox VNode.
+// Implements layout.BoxModelProvider for unified padding/border handling.
+// Note: Checkbox uses BoxModelMixin for padding/margin, and has no border.
+func (c *VNode) GetBoxModel() layout.BoxModel {
+	return layout.BoxModel{
+		Padding: layout.Padding{
+			Left:   c.BoxModelMixin.Padding()[3],
+			Right:  c.BoxModelMixin.Padding()[1],
+			Top:    c.BoxModelMixin.Padding()[0],
+			Bottom: c.BoxModelMixin.Padding()[2],
+		},
+		Margin: layout.Margin{
+			Left:   c.BoxModelMixin.Margin()[3],
+			Right:  c.BoxModelMixin.Margin()[1],
+			Top:    c.BoxModelMixin.Margin()[0],
+			Bottom: c.BoxModelMixin.Margin()[2],
+		},
+		// Checkbox typically doesn't have a border
+		Border: layout.Border{Style: layout.BorderNone},
+	}
 }

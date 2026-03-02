@@ -528,3 +528,51 @@ func (a *VNode) BorderLabel(label string) *VNode {
 	a.borderLabel = label
 	return a
 }
+
+// =============================================================================
+// layout.BoxModelProvider Implementation
+// =============================================================================
+
+// GetBoxModel returns the box model for the Absolute VNode.
+// Implements layout.BoxModelProvider for unified padding/border handling.
+// Note: Absolute has optional border based on borderStyle property.
+func (a *VNode) GetBoxModel() layout.BoxModel {
+	var border layout.Border
+	if a.borderStyle != "none" && a.borderStyle != "" {
+		var borderStyle layout.BorderStyle
+		switch a.borderStyle {
+		case "double":
+			borderStyle = layout.BorderDouble
+		case "rounded":
+			borderStyle = layout.BorderRounded
+		case "dashed":
+			borderStyle = layout.BorderDashed
+		case "single":
+			borderStyle = layout.BorderSingle
+		default:
+			borderStyle = layout.BorderNone
+		}
+
+		if a.borderLabel != "" {
+			border = layout.NewBorderWithLabel(borderStyle, a.borderLabel)
+		} else {
+			border = layout.NewBorder(borderStyle)
+		}
+	}
+
+	return layout.BoxModel{
+		Padding: layout.Padding{
+			Left:   0,
+			Right:  0,
+			Top:    0,
+			Bottom: 0,
+		},
+		Margin: layout.Margin{
+			Left:   0,
+			Right:  0,
+			Top:    0,
+			Bottom: 0,
+		},
+		Border: border,
+	}
+}

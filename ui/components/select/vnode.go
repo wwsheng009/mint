@@ -1,6 +1,7 @@
 package selectcomp
 
 import (
+	"github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
@@ -245,4 +246,30 @@ func (s *VNode) Width() int {
 // ChangeIntent returns the change intent.
 func (s *VNode) ChangeIntent() intent.Intent {
 	return s.changeIntent
+}
+
+// =============================================================================
+// layout.BoxModelProvider Implementation
+// =============================================================================
+
+// GetBoxModel returns the box model for the Select VNode.
+// Implements layout.BoxModelProvider for unified padding/border handling.
+// Note: Select uses BoxModelMixin for padding/margin, and has no border.
+func (s *VNode) GetBoxModel() layout.BoxModel {
+	return layout.BoxModel{
+		Padding: layout.Padding{
+			Left:   s.BoxModelMixin.Padding()[3],
+			Right:  s.BoxModelMixin.Padding()[1],
+			Top:    s.BoxModelMixin.Padding()[0],
+			Bottom: s.BoxModelMixin.Padding()[2],
+		},
+		Margin: layout.Margin{
+			Left:   s.BoxModelMixin.Margin()[3],
+			Right:  s.BoxModelMixin.Margin()[1],
+			Top:    s.BoxModelMixin.Margin()[0],
+			Bottom: s.BoxModelMixin.Margin()[2],
+		},
+		// Select typically doesn't have a border
+		Border: layout.Border{Style: layout.BorderNone},
+	}
 }

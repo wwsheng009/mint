@@ -378,6 +378,31 @@ func GetBorderWidth(s BorderStyle) int {
 	}
 }
 
+// =============================================================================
+// layout.BoxModelProvider Implementation
+// =============================================================================
+
+// GetBoxModel returns the box model for the Border VNode.
+// Implements layout.BoxModelProvider for unified padding/border handling.
+// Note: Border has no padding/margin, only border.
+func (v *VNode) GetBoxModel() layout.BoxModel {
+	return layout.BoxModel{
+		Padding: layout.Padding{
+			Left:   0,
+			Right:  0,
+			Top:    0,
+			Bottom: 0,
+		},
+		Margin: layout.Margin{
+			Left:   0,
+			Right:  0,
+			Top:    0,
+			Bottom: 0,
+		},
+		Border: v.GetBorder(),
+	}
+}
+
 // GetLayoutInfo returns layout information for the layout engine.
 func (v *VNode) GetLayoutInfo() rtui.LayoutInfo {
 	return rtui.LayoutInfo{

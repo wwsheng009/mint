@@ -3,6 +3,7 @@ package tooltip
 import (
 	"time"
 
+	"github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
@@ -515,4 +516,30 @@ func (t *ToastVNode) CloseIntent() interface{} {
 // This is the public API for creating toasts.
 func Toast(message string) *ToastVNode {
 	return NewToast(message)
+}
+
+// =============================================================================
+// layout.BoxModelProvider Implementation for ToastVNode
+// =============================================================================
+
+// GetBoxModel returns the box model for the ToastVNode.
+// Implements layout.BoxModelProvider for unified padding/border handling.
+// Note: ToastVNode uses BoxModelMixin for padding/margin, and has no border.
+func (t *ToastVNode) GetBoxModel() layout.BoxModel {
+	return layout.BoxModel{
+		Padding: layout.Padding{
+			Left:   t.BoxModelMixin.Padding()[3],
+			Right:  t.BoxModelMixin.Padding()[1],
+			Top:    t.BoxModelMixin.Padding()[0],
+			Bottom: t.BoxModelMixin.Padding()[2],
+		},
+		Margin: layout.Margin{
+			Left:   t.BoxModelMixin.Margin()[3],
+			Right:  t.BoxModelMixin.Margin()[1],
+			Top:    t.BoxModelMixin.Margin()[0],
+			Bottom: t.BoxModelMixin.Margin()[2],
+		},
+		// Toast typically doesn't have a border
+		Border: layout.Border{Style: layout.BorderNone},
+	}
 }

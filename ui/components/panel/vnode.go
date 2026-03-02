@@ -414,3 +414,28 @@ func (v *VNode) GetPadding() layout.Padding {
 		Left:   v.padding,
 	}
 }
+
+// =============================================================================
+// layout.BoxModelProvider Implementation
+// =============================================================================
+
+// GetBoxModel returns the box model for the Panel VNode.
+// Implements layout.BoxModelProvider for unified padding/border handling.
+// Note: Panel returns BorderNone to avoid double border calculation with internal Border.
+func (v *VNode) GetBoxModel() layout.BoxModel {
+	return layout.BoxModel{
+		Padding: layout.Padding{
+			Top:    v.padding,
+			Right:  v.padding,
+			Bottom: v.padding,
+			Left:   v.padding,
+		},
+		Margin: layout.Margin{
+			Left:   0,
+			Right:  0,
+			Top:    0,
+			Bottom: 0,
+		},
+		Border: layout.Border{Style: layout.BorderNone},
+	}
+}

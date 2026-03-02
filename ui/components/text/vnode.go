@@ -3,6 +3,7 @@
 package text
 
 import (
+	"github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
@@ -252,4 +253,30 @@ func (t *VNode) Content() string {
 // MaxWidth returns the maximum width.
 func (t *VNode) MaxWidth() int {
 	return t.maxWidth
+}
+
+// =============================================================================
+// layout.BoxModelProvider Implementation
+// =============================================================================
+
+// GetBoxModel returns the box model for the Text VNode.
+// Implements layout.BoxModelProvider for unified padding/border handling.
+// Note: Text uses BoxModelMixin for padding/margin, and has no border.
+func (t *VNode) GetBoxModel() layout.BoxModel {
+	return layout.BoxModel{
+		Padding: layout.Padding{
+			Left:   t.BoxModelMixin.Padding()[3],
+			Right:  t.BoxModelMixin.Padding()[1],
+			Top:    t.BoxModelMixin.Padding()[0],
+			Bottom: t.BoxModelMixin.Padding()[2],
+		},
+		Margin: layout.Margin{
+			Left:   t.BoxModelMixin.Margin()[3],
+			Right:  t.BoxModelMixin.Margin()[1],
+			Top:    t.BoxModelMixin.Margin()[0],
+			Bottom: t.BoxModelMixin.Margin()[2],
+		},
+		// Text typically doesn't have a border
+		Border: layout.Border{Style: layout.BorderNone},
+	}
 }

@@ -279,3 +279,35 @@ func (v *VNode) ShowBorder() bool {
 func (v *VNode) ShowIndicator() bool {
 	return v.showIndicator
 }
+
+// =============================================================================
+// layout.BoxModelProvider Implementation
+// =============================================================================
+
+// GetBoxModel returns the box model for the ScrollView VNode.
+// Implements layout.BoxModelProvider for unified padding/border handling.
+// Note: ScrollView uses BoxModelMixin for padding/margin, and optional border.
+func (v *VNode) GetBoxModel() layout.BoxModel {
+	var border layout.Border
+	if v.showBorder {
+		border = layout.NewBorder(layout.BorderSingle)
+	} else {
+		border = layout.Border{Style: layout.BorderNone}
+	}
+
+	return layout.BoxModel{
+		Padding: layout.Padding{
+			Left:   v.BoxModelMixin.Padding()[3],
+			Right:  v.BoxModelMixin.Padding()[1],
+			Top:    v.BoxModelMixin.Padding()[0],
+			Bottom: v.BoxModelMixin.Padding()[2],
+		},
+		Margin: layout.Margin{
+			Left:   v.BoxModelMixin.Margin()[3],
+			Right:  v.BoxModelMixin.Margin()[1],
+			Top:    v.BoxModelMixin.Margin()[0],
+			Bottom: v.BoxModelMixin.Margin()[2],
+		},
+		Border: border,
+	}
+}
