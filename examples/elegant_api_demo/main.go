@@ -27,17 +27,17 @@ func ElegantAPIDemo() ui.VNode {
 			ui.NewButtonBuilder("Left").
 				PaddingH(1, 2).   // Right padding
 				Flex(1).          // ✅ Elegant!
-				SetTextAlign(rtui.AlignStart).
+				TextAlign(rtui.AlignStart).
 				Build(),
 			ui.NewButtonBuilder("Center").
 				PaddingH(1, 1).   // Even padding
 				Flex(1).          // ✅ Elegant!
-				SetTextAlign(rtui.AlignCenter).
+				TextAlign(rtui.AlignCenter).
 				Build(),
 			ui.NewButtonBuilder("Right").
 				PaddingH(2, 1).   // Left padding
 				Flex(1).          // ✅ Elegant!
-				SetTextAlign(rtui.AlignEnd).
+				TextAlign(rtui.AlignEnd).
 				Build(),
 		).
 			Gap(1).

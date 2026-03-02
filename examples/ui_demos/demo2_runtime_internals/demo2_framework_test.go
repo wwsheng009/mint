@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/internal/inspector"
 	"github.com/wwsheng009/mint/runtime/platform"
 	ui "github.com/wwsheng009/mint/ui"
@@ -161,13 +160,13 @@ func TestInspectorStandalone(t *testing.T) {
 // buildDemo2Buttons 创建类似 demo2 的按钮
 func buildDemo2Buttons() ui.VNode {
 	return ui.HStack(
-		ui.NewButtonBuilder("[1] Event").FocusStyle(app.FocusStyleBracket).Build(),
-		ui.NewButtonBuilder("[2]setState").FocusStyle(app.FocusStyleBracket).Build(),
-		ui.NewButtonBuilder("[3]Scheduler").FocusStyle(app.FocusStyleBracket).Build(),
-		ui.NewButtonBuilder("[4] Render").FocusStyle(app.FocusStyleBracket).Build(),
-		ui.NewButtonBuilder("[5]Reconcile").FocusStyle(app.FocusStyleBracket).Build(),
-		ui.NewButtonBuilder("[6] Layout").FocusStyle(app.FocusStyleBracket).Build(),
-		ui.NewButtonBuilder("[7] Paint").FocusStyle(app.FocusStyleBracket).Build(),
-		ui.NewButtonBuilder("[0] Idle").FocusStyle(app.FocusStyleBracket).Build(),
+		ui.NewButtonBuilder("[1] Event").FocusStyle(ui.FocusStyleBracket).Build(),
+		ui.NewButtonBuilder("[2]setState").FocusStyle(ui.FocusStyleBracket).Build(),
+		ui.NewButtonBuilder("[3]Scheduler").FocusStyle(ui.FocusStyleBracket).Build(),
+		ui.NewButtonBuilder("[4] Render").FocusStyle(ui.FocusStyleBracket).Build(),
+		ui.NewButtonBuilder("[5]Reconcile").FocusStyle(ui.FocusStyleBracket).Build(),
+		ui.NewButtonBuilder("[6] Layout").FocusStyle(ui.FocusStyleBracket).Build(),
+		ui.NewButtonBuilder("[7] Paint").FocusStyle(ui.FocusStyleBracket).Build(),
+		ui.NewButtonBuilder("[0] Idle").FocusStyle(ui.FocusStyleBracket).Build(),
 	)
 }
