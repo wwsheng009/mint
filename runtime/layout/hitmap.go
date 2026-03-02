@@ -52,6 +52,15 @@ func (hm *HitMap) buildFromLayoutBoxRecursive(box *LayoutBox, zIndex int) {
 		return
 	}
 
+	// Use box.ZIndex if it's explicitly set (non-zero),
+	// otherwise use the recursive zIndex parameter
+	// This allows Portals to have their own ZIndex range (1000+)
+	// while main tree nodes use the recursive depth-based ZIndex
+	actualZIndex := zIndex
+	if box.ZIndex != 0 {
+		actualZIndex = box.ZIndex
+	}
+
 	// 为当前盒子创建条目
 	rect := Rect{
 		X:      box.X,
@@ -63,12 +72,20 @@ func (hm *HitMap) buildFromLayoutBoxRecursive(box *LayoutBox, zIndex int) {
 	hm.entries[box.ID] = &HitMapEntry{
 		NodeID: box.ID,
 		Rect:   rect,
-		ZIndex: zIndex,
+		ZIndex: actualZIndex,
 	}
 
-	// 递归处理子节点（Z 递增）
-	for _, child := range box.Children {
-		hm.buildFromLayoutBoxRecursive(child, zIndex+1)
+	// 递归处理子节点
+	// Portal nodes (box.ZIndex != 0): each child gets unique ZIndex
+	// Main tree nodes (box.ZIndex == 0): all children get same ZIndex (backward compatible)
+	for i, child := range box.Children {
+		if box.ZIndex != 0 {
+			// Portal: each child gets unique ZIndex (parent.ZIndex + 1, +2, +3, ...)
+			hm.buildFromLayoutBoxRecursive(child, box.ZIndex+1+i)
+		} else {
+			// Main tree: all children get same ZIndex (backward compatible)
+			hm.buildFromLayoutBoxRecursive(child, actualZIndex+1)
+		}
 	}
 }
 

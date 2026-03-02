@@ -64,6 +64,10 @@ type DeclarativeNode struct {
 	converter         *FiberToPaintableConverter // Fiber to Paintable converter
 	fiberFirstEnabled bool                       // Whether Fiber-first mode is enabled
 
+	// === Portal Support (Two-Phase Layout) ===
+	portalLayoutEngine *PortalAwareLayoutEngine // Portal-aware layout engine (Phase 5)
+	usePortalLayout    bool                     // Whether to use Portal-aware layout
+
 	// === HitMap Storage ===
 	// Fiber-first mode stores HitMap here (separate from RenderingPipeline)
 	fiberLastHitMap *event.HitMap // HitMap from fiberFirstPaint() path
@@ -461,12 +465,48 @@ func (n *DeclarativeNode) fiberFirstPaint(ctx component.PaintContext, buf *paint
 		MaxHeight: ctx.AvailableHeight,
 	}
 
-	// Perform layout using the layout engine
-	layoutResult, err := n.newLayoutEngine.LayoutFiber(fiberRoot, constraints)
-	if err != nil {
-		log.RenderLogger.Debug("[DeclarativeNode.fiberFirstPaint] Layout FAILED: %v, falling back to legacy", err)
-		n.legacyPaint(ctx, buf)
-		return
+	// Check if the tree contains Portals (check for PortalRoot/Portal props)
+	hasPortals := n.hasPortals(fiberRoot)
+
+	var layoutResult LayoutResult
+	var err error
+
+	if hasPortals && n.usePortalLayout {
+		// Use Portal-aware layout engine for two-phase layout
+		log.RenderLogger.Debug("[DeclarativeNode.fiberFirstPaint] ✅ Using Portal-aware layout engine")
+
+		if n.portalLayoutEngine == nil {
+			n.portalLayoutEngine = NewPortalAwareLayoutEngine()
+		}
+
+		// Perform two-phase layout using PortalAwareLayoutEngine
+		mainResult, portalBoxes, layoutErr := n.portalLayoutEngine.Layout(fiberRoot, constraints)
+
+		if layoutErr != nil {
+			log.RenderLogger.Debug("[DeclarativeNode.fiberFirstPaint] Portal Layout FAILED: %v, falling back to legacy", layoutErr)
+			n.legacyPaint(ctx, buf)
+			return
+		}
+
+		// Merge portal boxes into main result
+		if len(portalBoxes) > 0 {
+			log.RenderLogger.Debug("[DeclarativeNode.fiberFirstPaint] Merged %d Portal boxes into layout", len(portalBoxes))
+			mainResult.Boxes = append(mainResult.Boxes, portalBoxes...)
+
+			// Build a combined hit map that includes main tree + portals
+			// For now, portals are added to the main hit map
+			// TODO: Refine hit map building for portal z-ordering
+		}
+
+		layoutResult = &newLayoutResultAdapter{result: mainResult, fiberRoot: fiberRoot}
+	} else {
+		// Use standard layout engine (single-phase)
+		layoutResult, err = n.newLayoutEngine.LayoutFiber(fiberRoot, constraints)
+		if err != nil {
+			log.RenderLogger.Debug("[DeclarativeNode.fiberFirstPaint] Layout FAILED: %v, falling back to legacy", err)
+			n.legacyPaint(ctx, buf)
+			return
+		}
 	}
 
 	log.RenderLogger.Debug("[DeclarativeNode.fiberFirstPaint] Layout complete")
@@ -2355,4 +2395,57 @@ func (n *DeclarativeNode) GetPaintableBoxes() []*paint.PaintableBox {
 	}
 	collect(n.lastPaintableRoot)
 	return boxes
+}
+
+// =============================================================================
+// Portal Support - Helper Methods
+// =============================================================================
+
+// hasPortals checks if the Fiber tree contains any Portal nodes
+func (n *DeclarativeNode) hasPortals(fiber *reconciler.Fiber) bool {
+	if fiber == nil {
+		return false
+	}
+
+	found := false
+
+	var checkNode func(f *reconciler.Fiber)
+	checkNode = func(f *reconciler.Fiber) {
+		if f == nil || found {
+			return
+		}
+
+		// Check if this is a Portal node
+		if f.Props != nil {
+			if _, ok := f.Props["portalRoot"].(string); ok {
+				found = true
+				return
+			}
+			// Also check for PortalRoot
+			if _, ok := f.Props["portalRootId"].(string); ok {
+				found = true
+				return
+			}
+		}
+
+		checkNode(f.Child)
+		checkNode(f.Sibling)
+	}
+
+	checkNode(fiber)
+	return found
+}
+
+// SetUsePortalLayout enables or disables Portal-aware layout
+func (n *DeclarativeNode) SetUsePortalLayout(enabled bool) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.usePortalLayout = enabled
+}
+
+// IsPortalLayoutEnabled returns whether Portal-aware layout is enabled
+func (n *DeclarativeNode) IsPortalLayoutEnabled() bool {
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+	return n.usePortalLayout
 }
