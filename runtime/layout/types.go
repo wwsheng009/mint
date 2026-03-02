@@ -921,25 +921,25 @@ func (e *Engine) layoutNodeWithDepth(node Node, constraints Constraints, x, y in
 			}
 			for _, child := range node.Children() {
 				// 获取子节点的 margin（如果实现了 Marginal 接口）
-				marginTop, marginBottom, marginLeft, marginRight := 0, 0, 0, 0
+				// 注意：绝对定位只应用 margin 的位置偏移，不影响约束
+				marginTop, marginLeft := 0, 0
 				if marginal, ok := child.(Marginal); ok {
 					m := marginal.GetMargin()
 					marginTop = m.Top
-					marginBottom = m.Bottom
 					marginLeft = m.Left
-					marginRight = m.Right
 				}
 
 				// 获取子元素尺寸
 				childWidth, childHeight := child.GetSize()
 
 				// 如果子元素实现了 Measurable，测量其尺寸
+				// 注意：绝对定位的约束不受 margin 影响
 				if measurable, ok := child.(Measurable); ok {
 					childConstraints := Constraints{
-						MinWidth:  max(0, containerWidth-marginLeft-marginRight),
-						MaxWidth:  max(0, containerWidth-marginLeft-marginRight),
-						MinHeight: max(0, containerHeight-marginTop-marginBottom),
-						MaxHeight: max(0, containerHeight-marginTop-marginBottom),
+						MinWidth:  0,
+						MaxWidth:  containerWidth,
+						MinHeight: 0,
+						MaxHeight: containerHeight,
 					}
 					size := measurable.Measure(childConstraints)
 					childWidth = size.Width
