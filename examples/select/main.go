@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/ui"
 )
@@ -56,7 +55,7 @@ func SelectDemo() ui.VNode {
 			FgColor("bright-black").
 			Build(),
 		ui.Text(""),
-		app.SelectBuilder().
+		ui.NewSelectBuilder().
 			ForField(intent.ForField[int](selectedIndexKey)).
 			AddOption("dark", "Dark Theme").
 			AddOption("light", "Light Theme").
@@ -69,8 +68,8 @@ func SelectDemo() ui.VNode {
 			FgColor("green").
 			Build(),
 		ui.Text(""),
-		app.TableBuilder().
-			Columns([]app.TableColumn{
+		ui.NewTableBuilder().
+			Columns([]ui.TableColumn{
 				{Title: "ID", Width: 5},
 				{Title: "Name", Width: 12},
 				{Title: "Status", Width: 10},

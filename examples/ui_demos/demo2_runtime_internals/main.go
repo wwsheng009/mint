@@ -319,7 +319,7 @@ func ControlPanel() ui.VNode {
 	// Use Wrap component for automatic wrapping
 	// ScreenWidth: 78 = container width (80) - border (2)
 	// This ensures buttons fill the entire available width
-	wrappedButtons := app.WrapBuilder(allButtons...).
+	wrappedButtons := ui.NewWrapBuilder(allButtons...).
 		Gap(1).                    // 1 space gap between buttons
 		RowGap(0).                 // No extra gap between rows
 		Width(78).                 // Container width (80) - borders (2) = 78 (ScreenWidth renamed to Width)

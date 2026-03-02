@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/framework"
 	"github.com/wwsheng009/mint/framework/theme"
 	"github.com/wwsheng009/mint/internal/inspector"
@@ -305,51 +304,51 @@ func ControlPanel(
 	allButtons := []ui.VNode{
 		ui.NewButtonBuilder("[1] Event").
 			Key("btn-event").
-			Variant(app.ButtonVariantDanger).
+			Variant(ui.ButtonVariantDanger).
 			OnClick(func() {
 				setCurrentPhase("Event")
 				setEventCount(func(c int) int { return c + 1 })
 			}).
-			FocusStyle(app.FocusStyleBracket).
+			FocusStyle(ui.FocusStyleBracket).
 			Build(),
 		ui.NewButtonBuilder("[2]setState").
 			Key("btn-setstate").
-			Variant(app.ButtonVariantSecondary).
+			Variant(ui.ButtonVariantSecondary).
 			OnClick(func() {
 				setCurrentPhase("setState")
 			}).
-			FocusStyle(app.FocusStyleBracket).
+			FocusStyle(ui.FocusStyleBracket).
 			Build(),
 		ui.NewButtonBuilder("[3]Scheduler").
 			Key("btn-scheduler").
-			Variant(app.ButtonVariantSuccess).
+			Variant(ui.ButtonVariantSuccess).
 			OnClick(func() {
 				setCurrentPhase("Scheduler")
 				setRenderCount(func(c int) int { return c + 1 })
 			}).
-			FocusStyle(app.FocusStyleBracket).
+			FocusStyle(ui.FocusStyleBracket).
 			Build(),
 		ui.NewButtonBuilder("[4] Render").
 			Key("btn-render").
-			Variant(app.ButtonVariantPrimary).
+			Variant(ui.ButtonVariantPrimary).
 			OnClick(func() {
 				setCurrentPhase("Render")
 			}).
-			FocusStyle(app.FocusStyleBracket).
+			FocusStyle(ui.FocusStyleBracket).
 			Build(),
 		ui.NewButtonBuilder("[5]Reconcile").
 			Key("btn-reconcile").
 			OnClick(func() {
 				setCurrentPhase("Reconcile")
 			}).
-			FocusStyle(app.FocusStyleBracket).
+			FocusStyle(ui.FocusStyleBracket).
 			Build(),
 		ui.NewButtonBuilder("[6] Layout").
 			Key("btn-layout").
 			OnClick(func() {
 				setCurrentPhase("Layout")
 			}).
-			FocusStyle(app.FocusStyleBracket).
+			FocusStyle(ui.FocusStyleBracket).
 			Build(),
 		ui.NewButtonBuilder("[7] Paint").
 			Key("btn-paint").
@@ -357,19 +356,19 @@ func ControlPanel(
 				setCurrentPhase("Paint")
 				setBufferUpdates(func(c int) int { return c + 1 })
 			}).
-			FocusStyle(app.FocusStyleBracket).
+			FocusStyle(ui.FocusStyleBracket).
 			Build(),
 		ui.NewButtonBuilder("[0] Idle").
 			Key("btn-idle").
 			OnClick(func() {
 				setCurrentPhase("idle")
 			}).
-			FocusStyle(app.FocusStyleBracket).
+			FocusStyle(ui.FocusStyleBracket).
 			Build(),
 		// Toggle Inspector button - works with framework-level overlay
 		ui.NewButtonBuilder("[I] Inspector").
 			Key("btn-inspector").
-			Variant(app.ButtonVariantSecondary).
+			Variant(ui.ButtonVariantSecondary).
 			OnClick(func() {
 				// Debug output
 				if os.Getenv("TUI_DEBUG") == "true" || os.Getenv("TUI_DEBUG_UI") == "true" {
@@ -389,11 +388,11 @@ func ControlPanel(
 				// Trigger re-render to show/hide overlay
 				setShowInspector(globalInspector.IsVisible())
 			}).
-			FocusStyle(app.FocusStyleBracket).
+			FocusStyle(ui.FocusStyleBracket).
 			Build(),
 	}
 
-	wrappedButtons := app.WrapBuilder(allButtons...).
+	wrappedButtons := ui.NewWrapBuilder(allButtons...).
 		Gap(1).
 		RowGap(0).
 		ScreenWidth(98).

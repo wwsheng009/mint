@@ -4,7 +4,6 @@ package main
 import (
 	"fmt"
 
-	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/runtime/style"
 	"github.com/wwsheng009/mint/ui"
 )
@@ -39,7 +38,7 @@ func Counter() ui.VNode {
 	grayStyle := style.NewStyle().Foreground(style.Color("bright-black"))
 
 	// Build VNode tree using builder pattern
-	return app.VStack(
+	return ui.VStack(
 		ui.TextWithStyle("╔══════════════════════════════╗", cyanStyle),
 		ui.TextWithStyle("║     Sandbox Demo: Counter     ║", cyanStyle),
 		ui.TextWithStyle("╚══════════════════════════════╝", cyanStyle),

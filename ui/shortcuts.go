@@ -151,6 +151,10 @@ func NewTooltipBuilder(content rtui.VNode, tooltipText string) *tooltip.Builder 
 	return tooltip.NewBuilder(content, tooltipText)
 }
 
+func NewToastBuilder(message string) *tooltip.ToastBuilder {
+	return tooltip.NewToastBuilder(message)
+}
+
 // =============================================================================
 // Common Type Re-exports
 // =============================================================================
@@ -228,6 +232,16 @@ type TableColumn = table.TableColumn
 
 // Tree Types
 type TreeNode = treeview.TreeNode
+
+// Toast Types
+type ToastType = tooltip.ToastType
+
+const (
+	ToastTypeInfo    = tooltip.ToastInfo
+	ToastTypeSuccess = tooltip.ToastSuccess
+	ToastTypeWarning = tooltip.ToastWarning
+	ToastTypeError   = tooltip.ToastError
+)
 
 // Select Types
 type SelectOption = selectcomp.Option

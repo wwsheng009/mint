@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/runtime/platform"
 	"github.com/wwsheng009/mint/ui"
 )
@@ -645,7 +644,7 @@ func DemoAppWithVirtualList() ui.VNode {
 		ui.Text(""),
 		ui.Text("100 items, virtualized rendering:"),
 		ui.Text(""),
-		app.VirtualListBuilder().
+		ui.NewVirtualListBuilder().
 			Items(items).
 			ItemHeight(1).
 			Height(20).

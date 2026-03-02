@@ -1,7 +1,6 @@
 package main
 
 import (
-	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/ui"
 )
 
@@ -57,20 +56,20 @@ func main() {
 		// 3. 构建 toast 列表
 		var toasts []ui.VNode
 		if infoToast == 1 {
-			toasts = append(toasts, app.ToastBuilder("This is an info message").Info().Build())
+			toasts = append(toasts, ui.NewToastBuilder("This is an info message").Info().Build())
 		}
 		if successToast == 1 {
-			toasts = append(toasts, app.ToastBuilder("Operation completed successfully!").Success().Build())
+			toasts = append(toasts, ui.NewToastBuilder("Operation completed successfully!").Success().Build())
 		}
 		if warningToast == 1 {
-			toasts = append(toasts, app.ToastBuilder("Please check your input").Warning().Build())
+			toasts = append(toasts, ui.NewToastBuilder("Please check your input").Warning().Build())
 		}
 		if errorToast == 1 {
-			toasts = append(toasts, app.ToastBuilder("An error occurred!").Error().Build())
+			toasts = append(toasts, ui.NewToastBuilder("An error occurred!").Error().Build())
 		}
 
 		// 4. 返回 VNode
-		return app.VStack(
+		return ui.VStack(
 			ui.NewTextBuilder("Toast Notifications Demo").Bold(true).FgColor("cyan").Build(),
 			ui.Text(""),
 			ui.Text("Click buttons below to show different toast types:"),
@@ -89,7 +88,7 @@ func main() {
 			ui.Text(""),
 			ui.NewTextBuilder("────────────────────────────").FgColor("blue").Build(),
 			ui.Text(""),
-			app.VStack(toasts...),
+			ui.VStack(toasts...),
 		)
 	},
 		ui.WithWidth(50),

@@ -36,7 +36,7 @@ func WrapDemo() ui.VNode {
 		ui.Text(""),
 		ui.Text("10 buttons with automatic wrapping:"),
 		ui.Text(""),
-		app.WrapBuilder(buttons...).
+		ui.NewWrapBuilder(buttons...).
 			Gap(1).
 			RowGap(0).
 			Width(76). // 80 - border padding

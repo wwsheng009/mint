@@ -146,7 +146,7 @@ func TestSandboxCompatibilitySummary(t *testing.T) {
 	t.Log("✅ Component APIs:")
 	t.Log("  - ui.Text(), ui.NewTextBuilder()")
 	t.Log("  - ui.NewButtonBuilder().OnClick()")
-	t.Log("  - ui.NewInputBuilder(), app.TextAreaBuilder()")
+	t.Log("  - ui.NewInputBuilder(), ui.NewTextAreaBuilder()")
 	t.Log("  - ui.VStack(), ui.HStack(), ui.Box()")
 	t.Log("")
 	t.Log("✅ Sandbox Features:")

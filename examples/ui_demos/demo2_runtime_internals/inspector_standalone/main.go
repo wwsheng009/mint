@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/framework/theme"
 	"github.com/wwsheng009/mint/internal/inspector"
 	"github.com/wwsheng009/mint/runtime/style"
@@ -241,71 +240,71 @@ func ControlPanel(
 ) ui.VNode {
 	allButtons := []ui.VNode{
 		ui.NewButtonBuilder("[1] Event").
-			Variant(app.ButtonVariantDanger).
+			Variant(ui.ButtonVariantDanger).
 			OnClick(func() {
 				setCurrentPhase("Event")
 				setEventCount(func(c int) int { return c + 1 })
 			}).
-			FocusStyle(app.FocusStyleBracket).
+			FocusStyle(ui.FocusStyleBracket).
 			Build(),
 		ui.NewButtonBuilder("[2]setState").
-			Variant(app.ButtonVariantSecondary).
+			Variant(ui.ButtonVariantSecondary).
 			OnClick(func() {
 				setCurrentPhase("setState")
 			}).
-			FocusStyle(app.FocusStyleBracket).
+			FocusStyle(ui.FocusStyleBracket).
 			Build(),
 		ui.NewButtonBuilder("[3]Scheduler").
-			Variant(app.ButtonVariantSuccess).
+			Variant(ui.ButtonVariantSuccess).
 			OnClick(func() {
 				setCurrentPhase("Scheduler")
 				setRenderCount(func(c int) int { return c + 1 })
 			}).
-			FocusStyle(app.FocusStyleBracket).
+			FocusStyle(ui.FocusStyleBracket).
 			Build(),
 		ui.NewButtonBuilder("[4] Render").
-			Variant(app.ButtonVariantPrimary).
+			Variant(ui.ButtonVariantPrimary).
 			OnClick(func() {
 				setCurrentPhase("Render")
 			}).
-			FocusStyle(app.FocusStyleBracket).
+			FocusStyle(ui.FocusStyleBracket).
 			Build(),
 		ui.NewButtonBuilder("[5]Reconcile").
 			OnClick(func() {
 				setCurrentPhase("Reconcile")
 			}).
-			FocusStyle(app.FocusStyleBracket).
+			FocusStyle(ui.FocusStyleBracket).
 			Build(),
 		ui.NewButtonBuilder("[6] Layout").
 			OnClick(func() {
 				setCurrentPhase("Layout")
 			}).
-			FocusStyle(app.FocusStyleBracket).
+			FocusStyle(ui.FocusStyleBracket).
 			Build(),
 		ui.NewButtonBuilder("[7] Paint").
 			OnClick(func() {
 				setCurrentPhase("Paint")
 				setBufferUpdates(func(c int) int { return c + 1 })
 			}).
-			FocusStyle(app.FocusStyleBracket).
+			FocusStyle(ui.FocusStyleBracket).
 			Build(),
 		ui.NewButtonBuilder("[0] Idle").
 			OnClick(func() {
 				setCurrentPhase("idle")
 			}).
-			FocusStyle(app.FocusStyleBracket).
+			FocusStyle(ui.FocusStyleBracket).
 			Build(),
 		// Toggle Inspector button
 		ui.NewButtonBuilder("[I] Inspector").
-			Variant(app.ButtonVariantSecondary).
+			Variant(ui.ButtonVariantSecondary).
 			OnClick(func() {
 				globalInspector.ToggleVisibility()
 			}).
-			FocusStyle(app.FocusStyleBracket).
+			FocusStyle(ui.FocusStyleBracket).
 			Build(),
 	}
 
-	wrappedButtons := app.WrapBuilder(allButtons...).
+	wrappedButtons := ui.NewWrapBuilder(allButtons...).
 		Gap(1).
 		RowGap(0).
 		ScreenWidth(98).

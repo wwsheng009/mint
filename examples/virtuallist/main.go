@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 
-	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/ui"
 )
 
@@ -48,7 +47,7 @@ func main() {
 			setOffset(newOffset)
 		})
 
-		return app.VStack(
+		return ui.VStack(
 			ui.NewTextBuilder("Virtual List Demo").Bold(true).FgColor("cyan").Build(),
 			ui.Text(""),
 			ui.NewTextBuilder(fmt.Sprintf("Items: %d | Offset: %d | Selected: %d",
@@ -66,7 +65,7 @@ func main() {
 			ui.NewTextBuilder("────────────────────────────").FgColor("blue").Build(),
 			ui.Text(""),
 			// Virtual list - only renders visible items
-			app.VirtualListBuilder().
+			ui.NewVirtualListBuilder().
 				Items(items).
 				ItemHeight(1).
 				VisibleCount(10).

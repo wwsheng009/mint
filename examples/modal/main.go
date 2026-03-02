@@ -3,7 +3,6 @@ package main
 import (
 	"reflect"
 
-	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/ui"
 )
@@ -31,7 +30,7 @@ func main() {
 
 			// If modal is open, show modal content
 			if state == 1 {
-				return app.VStack(
+				return ui.VStack(
 					ui.NewTextBuilder("┌───────────────────────────────────────┐").FgColor("cyan").Build(),
 					ui.NewTextBuilder("│           MODAL IS OPEN               │").FgColor("cyan").Build(),
 					ui.NewTextBuilder("│                                       │").FgColor("cyan").Build(),
@@ -56,7 +55,7 @@ func main() {
 			}
 
 			// Modal is closed - show main content
-			return app.VStack(
+			return ui.VStack(
 				ui.NewTextBuilder("Modal Demo").Bold(true).FgColor("cyan").Build(),
 				ui.Text(""),
 				ui.NewTextBuilder("Click the button below to open a modal dialog").FgColor("gray").Build(),

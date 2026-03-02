@@ -18,7 +18,7 @@ func TestScrollViewWrapper(t *testing.T) {
 	for i := 0; i < 50; i++ {
 		content = append(content, ui.Text(fmt.Sprintf("Line %d", i+1)))
 	}
-	vstackContent := app.VStack(content...)
+	vstackContent := ui.VStack(content...)
 
 	// Wrap in ScrollView with fixed height
 	viewportHeight := 10

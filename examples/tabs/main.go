@@ -1,7 +1,6 @@
 package main
 
 import (
-	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/ui"
 )
 
@@ -38,7 +37,7 @@ func main() {
 		var content ui.VNode
 		switch activeTab {
 		case 0:
-			content = app.VStack(
+			content = ui.VStack(
 				ui.NewTextBuilder("Welcome to the Home tab!").FgColor("green").Build(),
 				ui.Text(""),
 				ui.NewTextBuilder("This is the main content area.").FgColor("gray").Build(),
@@ -46,7 +45,7 @@ func main() {
 				ui.NewTextBuilder("Navigate using the buttons below:").FgColor("bright-black").Build(),
 			)
 		case 1:
-			content = app.VStack(
+			content = ui.VStack(
 				ui.NewTextBuilder("User Profile").FgColor("cyan").Build(),
 				ui.Text(""),
 				ui.NewTextBuilder("Name:   John Doe").Build(),
@@ -56,7 +55,7 @@ func main() {
 				ui.NewTextBuilder("Member since: Jan 2025").FgColor("gray").Build(),
 			)
 		case 2:
-			content = app.VStack(
+			content = ui.VStack(
 				ui.NewTextBuilder("System Settings").FgColor("yellow").Build(),
 				ui.Text(""),
 				ui.NewTextBuilder("Theme:     Dark").Build(),
@@ -67,7 +66,7 @@ func main() {
 			)
 		}
 
-		return app.VStack(
+		return ui.VStack(
 			ui.NewTextBuilder("Tabs Demo").Bold(true).FgColor("cyan").Build(),
 			ui.Text(""),
 			ui.HStack(

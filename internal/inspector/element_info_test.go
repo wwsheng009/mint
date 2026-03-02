@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/wwsheng009/mint/app"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/ui"
 )
@@ -375,7 +374,7 @@ func TestFormatNodeInfo_RealWorld(t *testing.T) {
 		},
 		{
 			name:  "Wrap component (from demo2)",
-			vnode: app.WrapBuilder(
+			vnode: ui.NewWrapBuilder(
 				ui.NewButtonBuilder("Btn1").Build(),
 				ui.NewButtonBuilder("Btn2").Build(),
 				ui.NewButtonBuilder("Btn3").Build(),
