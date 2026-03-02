@@ -173,6 +173,7 @@ type Fiber struct {
 	LayoutCrossAlign Align
 	LayoutGap        int
 	LayoutPadding    [4]int
+	LayoutMargin     [4]int
 	LayoutFlex       int
 
 	// ✨ Border Style (方案 A - 边框作为容器属性)

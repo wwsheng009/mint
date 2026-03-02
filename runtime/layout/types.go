@@ -726,17 +726,27 @@ func (e *Engine) layoutNodeWithDepth(node Node, constraints Constraints, x, y in
 				// 递归布局子节点的子节点
 				child := node.Children()[i]
 				if child != nil {
-					// 应用边框偏移
-					childX := x + childBox.X + borderOffsetX
-					childY := y + childBox.Y + borderOffsetY
+					// 获取子节点的 margin（如果实现了 Marginal 接口）
+					marginTop, marginBottom, marginLeft, marginRight := 0, 0, 0, 0
+					if marginal, ok := child.(Marginal); ok {
+						m := marginal.GetMargin()
+						marginTop = m.Top
+						marginBottom = m.Bottom
+						marginLeft = m.Left
+						marginRight = m.Right
+					}
 
-					// ✨ FIX: 为子节点创建正确的约束，基于 Flex 分配的尺寸
+					// 应用边框偏移 + margin 偏移
+					childX := x + childBox.X + borderOffsetX + marginLeft
+					childY := y + childBox.Y + borderOffsetY + marginTop
+
+					// ✨ FIX: 为子节点创建正确的约束，基于 Flex 分配的尺寸并扣除 margin
 					// 这样嵌套布局（如 VStack 内嵌 HStack）可以使用正确的约束
 					childConstraints := Constraints{
-						MinWidth:  childBox.Width,
-						MaxWidth:  childBox.Width,
-						MinHeight: childBox.Height,
-						MaxHeight: childBox.Height,
+						MinWidth:  max(0, childBox.Width-marginLeft-marginRight),
+						MaxWidth:  max(0, childBox.Width-marginLeft-marginRight),
+						MinHeight: max(0, childBox.Height-marginTop-marginBottom),
+						MaxHeight: max(0, childBox.Height-marginTop-marginBottom),
 					}
 
 					subBox := e.layoutNodeWithDepth(child, childConstraints, childX, childY, depth+1, visited)
@@ -795,15 +805,25 @@ func (e *Engine) layoutNodeWithDepth(node Node, constraints Constraints, x, y in
 					child = node.Children()[i]
 				}
 				if child != nil {
-					childX := x + childBox.X + borderOffsetX
-					childY := y + childBox.Y + borderOffsetY
+					// 获取子节点的 margin（如果实现了 Marginal 接口）
+					marginTop, marginBottom, marginLeft, marginRight := 0, 0, 0, 0
+					if marginal, ok := child.(Marginal); ok {
+						m := marginal.GetMargin()
+						marginTop = m.Top
+						marginBottom = m.Bottom
+						marginLeft = m.Left
+						marginRight = m.Right
+					}
 
-					// ✨ FIX: 为子节点创建正确的约束，基于分配的尺寸
+					childX := x + childBox.X + borderOffsetX + marginLeft
+					childY := y + childBox.Y + borderOffsetY + marginTop
+
+					// ✨ FIX: 为子节点创建正确的约束，基于分配的尺寸并扣除 margin
 					childConstraints := Constraints{
-						MinWidth:  childBox.Width,
-						MaxWidth:  childBox.Width,
-						MinHeight: childBox.Height,
-						MaxHeight: childBox.Height,
+						MinWidth:  max(0, childBox.Width-marginLeft-marginRight),
+						MaxWidth:  max(0, childBox.Width-marginLeft-marginRight),
+						MinHeight: max(0, childBox.Height-marginTop-marginBottom),
+						MaxHeight: max(0, childBox.Height-marginTop-marginBottom),
 					}
 
 					subBox := e.layoutNodeWithDepth(child, childConstraints, childX, childY, depth+1, visited)
@@ -841,15 +861,25 @@ func (e *Engine) layoutNodeWithDepth(node Node, constraints Constraints, x, y in
 			for i, childBox := range childBoxes {
 				child := node.Children()[i]
 				if child != nil {
-					childX := x + childBox.X + borderOffsetX
-					childY := y + childBox.Y + borderOffsetY
+					// 获取子节点的 margin（如果实现了 Marginal 接口）
+					marginTop, marginBottom, marginLeft, marginRight := 0, 0, 0, 0
+					if marginal, ok := child.(Marginal); ok {
+						m := marginal.GetMargin()
+						marginTop = m.Top
+						marginBottom = m.Bottom
+						marginLeft = m.Left
+						marginRight = m.Right
+					}
 
-					// ✨ FIX: 为子节点创建正确的约束，基于分配的尺寸
+					childX := x + childBox.X + borderOffsetX + marginLeft
+					childY := y + childBox.Y + borderOffsetY + marginTop
+
+					// ✨ FIX: 为子节点创建正确的约束，基于分配的尺寸并扣除 margin
 					childConstraints := Constraints{
-						MinWidth:  childBox.Width,
-						MaxWidth:  childBox.Width,
-						MinHeight: childBox.Height,
-						MaxHeight: childBox.Height,
+						MinWidth:  max(0, childBox.Width-marginLeft-marginRight),
+						MaxWidth:  max(0, childBox.Width-marginLeft-marginRight),
+						MinHeight: max(0, childBox.Height-marginTop-marginBottom),
+						MaxHeight: max(0, childBox.Height-marginTop-marginBottom),
 					}
 
 					subBox := e.layoutNodeWithDepth(child, childConstraints, childX, childY, depth+1, visited)
@@ -890,16 +920,26 @@ func (e *Engine) layoutNodeWithDepth(node Node, constraints Constraints, x, y in
 				containerHeight = constraints.MaxHeight
 			}
 			for _, child := range node.Children() {
+				// 获取子节点的 margin（如果实现了 Marginal 接口）
+				marginTop, marginBottom, marginLeft, marginRight := 0, 0, 0, 0
+				if marginal, ok := child.(Marginal); ok {
+					m := marginal.GetMargin()
+					marginTop = m.Top
+					marginBottom = m.Bottom
+					marginLeft = m.Left
+					marginRight = m.Right
+				}
+
 				// 获取子元素尺寸
 				childWidth, childHeight := child.GetSize()
 
 				// 如果子元素实现了 Measurable，测量其尺寸
 				if measurable, ok := child.(Measurable); ok {
 					childConstraints := Constraints{
-						MinWidth:  0,
-						MaxWidth:  containerWidth,
-						MinHeight: 0,
-						MaxHeight: containerHeight,
+						MinWidth:  max(0, containerWidth-marginLeft-marginRight),
+						MaxWidth:  max(0, containerWidth-marginLeft-marginRight),
+						MinHeight: max(0, containerHeight-marginTop-marginBottom),
+						MaxHeight: max(0, containerHeight-marginTop-marginBottom),
 					}
 					size := measurable.Measure(childConstraints)
 					childWidth = size.Width
@@ -909,6 +949,10 @@ func (e *Engine) layoutNodeWithDepth(node Node, constraints Constraints, x, y in
 				// 使用 AbsoluteStyle 计算子元素位置
 				childX, childY := absStyle.CalculatePosition(containerWidth, containerHeight, childWidth, childHeight)
 
+				// 应用 margin 偏移
+				childX += marginLeft
+				childY += marginTop
+
 				// 递归布局子节点
 				subBox := e.layoutNodeWithDepth(child, constraints, x+childX+borderOffsetX, y+childY+borderOffsetY, depth+1, visited)
 				if subBox != nil {
@@ -917,7 +961,7 @@ func (e *Engine) layoutNodeWithDepth(node Node, constraints Constraints, x, y in
 					if posProvider, ok := child.(PositionProvider); ok {
 						childPosition = posProvider.GetPositionType()
 					}
-					
+
 					if childPosition != PositionFixed {
 						subBox.X = x + childX + borderOffsetX
 						subBox.Y = y + childY + borderOffsetY
@@ -949,10 +993,31 @@ func (e *Engine) layoutNodeWithDepth(node Node, constraints Constraints, x, y in
 		}
 	}
 	for _, child := range node.Children() {
-		childBox := e.layoutNodeWithDepth(child, childConstraints, childX, childY, depth+1, visited)
+		// 获取子节点的 margin（如果实现了 Marginal 接口）
+		marginTop, marginBottom, marginLeft, marginRight := 0, 0, 0, 0
+		if marginal, ok := child.(Marginal); ok {
+			m := marginal.GetMargin()
+			marginTop = m.Top
+			marginBottom = m.Bottom
+			marginLeft = m.Left
+			marginRight = m.Right
+		}
+
+		// 应用 margin 偏移
+		actualChildX := childX + marginLeft
+		actualChildY := childY + marginTop
+
+		// 调整约束，考虑 margin
+		adjustedConstraints := childConstraints
+		if childConstraints.MaxWidth > 0 {
+			adjustedConstraints.MaxWidth = max(0, childConstraints.MaxWidth-marginLeft-marginRight)
+		}
+
+		childBox := e.layoutNodeWithDepth(child, adjustedConstraints, actualChildX, actualChildY, depth+1, visited)
 		if childBox != nil {
 			box.Children = append(box.Children, childBox)
-			childY += childBox.Height
+			// 移动下一个子节点的位置，包含当前子节点的高度和垂直 margin
+			childY += childBox.Height + marginTop + marginBottom
 		}
 	}
 

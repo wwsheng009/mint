@@ -219,6 +219,7 @@ func (b *VNode) CreateInstance() rtui.ComponentInstance {
 		"pressIntent": b.pressIntent,
 		"disabled":    b.disabled,
 		"padding":     b.Padding(),
+		"margin":      b.Margin(),
 		"textAlign":   b.TextAlign(),
 		"flex":        b.flex,
 	}
@@ -325,4 +326,10 @@ func (b *VNode) Disabled() bool {
 // PressIntent returns the press intent.
 func (b *VNode) PressIntent() intent.Intent {
 	return b.pressIntent
+}
+
+// GetFlex returns the flex grow factor for this button.
+// Implements FlexChildProvider interface.
+func (b *VNode) GetFlex() int {
+	return b.flex
 }

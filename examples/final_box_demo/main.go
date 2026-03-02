@@ -29,17 +29,17 @@ func Demo() ui.VNode {
 			ui.NewButtonBuilder("Left").
 				PaddingH(1, 2).
 				Flex(1).
-				SetTextAlign(rtui.AlignStart).
+				TextAlign(rtui.AlignStart).
 				Build(),
 			ui.NewButtonBuilder("Center").
 				PaddingH(1, 1).
 				Flex(1).
-				SetTextAlign(rtui.AlignCenter).
+				TextAlign(rtui.AlignCenter).
 				Build(),
 			ui.NewButtonBuilder("Right").
 				PaddingH(2, 1).
 				Flex(1).
-				SetTextAlign(rtui.AlignEnd).
+				TextAlign(rtui.AlignEnd).
 				Build(),
 		).
 			Gap(1).
@@ -53,7 +53,7 @@ func Demo() ui.VNode {
 		ui.NewButtonBuilder("Padded & Centered Button").
 			PaddingAll(2).
 			Flex(1).
-			SetTextAlign(rtui.AlignCenter).
+			TextAlign(rtui.AlignCenter).
 			Build(),
 		ui.Text(""),
 		ui.Text("Expected above: Button fills width, text centered"),

@@ -5,6 +5,7 @@ import (
 
 	"github.com/wwsheng009/mint/internal/log"
 	"github.com/wwsheng009/mint/runtime/intent"
+	"github.com/wwsheng009/mint/runtime/layout"
 )
 
 // =============================================================================
@@ -171,6 +172,7 @@ func CreateFiber(vnode VNode) *Fiber {
 	var layoutCrossAlign Align
 	var layoutGap int
 	var layoutPadding [4]int
+	var layoutMargin [4]int
 	var layoutFlex int
 
 	// ✨ Border Properties (方案 A - 边框作为容器属性)
@@ -219,6 +221,9 @@ func CreateFiber(vnode VNode) *Fiber {
 		}
 		if p, ok := props["padding"].([4]int); ok {
 			layoutPadding = p
+		}
+		if m, ok := props["margin"].([4]int); ok {
+			layoutMargin = m
 		}
 		if f, ok := props["flex"].(int); ok {
 			layoutFlex = f
@@ -278,6 +283,7 @@ func CreateFiber(vnode VNode) *Fiber {
 		LayoutCrossAlign: layoutCrossAlign,
 		LayoutGap:        layoutGap,
 		LayoutPadding:    layoutPadding,
+		LayoutMargin:     layoutMargin,
 		LayoutFlex:       layoutFlex,
 		// ✨ Border Properties (方案 A)
 		BorderStyle:      borderStyle,
@@ -614,6 +620,17 @@ func (f *Fiber) GetGap() int {
 // Returns Fiber.LayoutPadding field (Fiber-first, no VNode fallback)
 func (f *Fiber) GetPadding() [4]int {
 	return f.LayoutPadding
+}
+
+// GetMargin returns the margin as layout.Margin type
+// Returns Fiber.LayoutMargin field converted to layout.Margin (Fiber-first)
+func (f *Fiber) GetMargin() layout.Margin {
+	return layout.Margin{
+		Top:    f.LayoutMargin[0],
+		Right:  f.LayoutMargin[1],
+		Bottom: f.LayoutMargin[2],
+		Left:   f.LayoutMargin[3],
+	}
 }
 
 // GetFlex returns the flex factor

@@ -176,35 +176,31 @@ func (b *Builder) TextAlign(align rtui.Align) *Builder {
 // Flex sets the flex factor for this button in a layout.
 // Usage: .Flex(1) to make button take equal space.
 func (b *Builder) Flex(factor int) *Builder {
-	b.node.Props().Set("flex", factor)
+	b.node.flex = factor
 	return b
 }
 
 // Margin sets the margin (top, right, bottom, left).
 func (b *Builder) Margin(top, right, bottom, left int) *Builder {
-	margin := [4]int{top, right, bottom, left}
-	b.node.Props().Set("margin", margin)
+	b.node.BoxModelMixin.SetMargin(top, right, bottom, left)
 	return b
 }
 
 // MarginH sets horizontal margin (left, right).
 func (b *Builder) MarginH(left, right int) *Builder {
-	margin := [4]int{0, right, 0, left}
-	b.node.Props().Set("margin", margin)
+	b.node.BoxModelMixin.SetMargin(0, right, 0, left)
 	return b
 }
 
 // MarginV sets vertical margin (top, bottom).
 func (b *Builder) MarginV(top, bottom int) *Builder {
-	margin := [4]int{top, 0, bottom, 0}
-	b.node.Props().Set("margin", margin)
+	b.node.BoxModelMixin.SetMargin(top, 0, bottom, 0)
 	return b
 }
 
 // MarginAll sets same margin on all sides.
 func (b *Builder) MarginAll(m int) *Builder {
-	margin := [4]int{m, m, m, m}
-	b.node.Props().Set("margin", margin)
+	b.node.BoxModelMixin.SetMargin(m, m, m, m)
 	return b
 }
 
