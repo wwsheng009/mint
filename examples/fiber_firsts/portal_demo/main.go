@@ -6,7 +6,6 @@
 package main
 
 import (
-	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/runtime/intent"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/ui"
@@ -63,7 +62,7 @@ func ModalDialogPortal(content string, show bool) rtui.VNode {
 							"centered": true,
 						}).
 						SetChildren([]rtui.VNode{
-							app.VStack(
+							ui.VStack(
 								ui.NewTextBuilder("📦 Modal via Portal").
 									FgColor("cyan").
 									Bold(true).
@@ -75,8 +74,8 @@ func ModalDialogPortal(content string, show bool) rtui.VNode {
 									FgColor("gray").
 									Build(),
 								ui.Text(""),
-								app.ButtonBuilder("  [关闭]  ").
-									Variant(app.ButtonVariantPrimary).
+								ui.NewButtonBuilder("  [关闭]  ").
+									Variant(ui.ButtonVariantPrimary).
 									OnPress(CloseModalIntent{}).
 									Build(),
 							),
@@ -106,7 +105,7 @@ func App() rtui.VNode {
 	})
 
 	// 使用 VStack 包装所有内容（避免 Fragment 的复杂性）
-	return app.VStack(
+	return ui.VStack(
 		// ========================================
 		// 🔑 PortalRoot - 定义在应用顶层（通过 Stack 隐藏，但存在于树中）
 		// 这是所有 Portal 组件的挂载目标
@@ -124,9 +123,9 @@ func App() rtui.VNode {
 		// ========================================
 		// 主内容区域 - 使用额外的 VStack 分隔
 		// ========================================
-		app.VStack(
+		ui.VStack(
 			// 标题
-			app.VStack(
+			ui.VStack(
 				ui.NewTextBuilder("🌟 Portal 跨树挂载演示").
 					FgColor("cyan").
 					Bold(true).
@@ -152,11 +151,11 @@ func App() rtui.VNode {
 			),
 
 			// 交互按钮
-			app.VStack(
+			ui.VStack(
 				ui.HStack(
 					ui.Text("  "),
-					app.ButtonBuilder("  📦 打开 Modal  ").
-						Variant(app.ButtonVariantPrimary).
+					ui.NewButtonBuilder("  📦 打开 Modal  ").
+						Variant(ui.ButtonVariantPrimary).
 						OnPress(OpenModalIntent{Content: "这是通过 Portal 渲染到 app 顶层的 Modal！"}).
 						Disabled(showModal).
 						Build(),

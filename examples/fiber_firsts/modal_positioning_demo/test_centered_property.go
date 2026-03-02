@@ -14,7 +14,6 @@ import (
 	"github.com/wwsheng009/mint/runtime/paint"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/ui"
-	app "github.com/wwsheng009/mint/ui"
 	modal "github.com/wwsheng009/mint/ui/components/modal"
 	text "github.com/wwsheng009/mint/ui/components/text"
 )
@@ -80,7 +79,7 @@ func TestModalAloneCentered() rtui.VNode {
 // Test 4: Modal in VStack with Centered(false)
 // Should follow VStack flow (not centered)
 func TestModalInVStackNotCentered() rtui.VNode {
-	return app.VStack(
+	return ui.VStack(
 		ui.Text("Before modal"),
 		modal.NewBuilder().
 			Key("modal-vstack-not-center").
@@ -108,7 +107,7 @@ func TestModalInHStackNotCentered() rtui.VNode {
 			Centered(false).
 			Open(true).
 			Build(),
-		app.Spacer().Flex(1).Build(),
+		ui.Spacer().Flex(1).Build(),
 	)
 }
 

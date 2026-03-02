@@ -278,39 +278,39 @@ func StatisticsPanel(eventCount, renderCount, bufferUpdates int) ui.VNode {
 func ControlPanel() ui.VNode {
 	// Create all buttons as a slice
 	allButtons := []ui.VNode{
-		app.ButtonBuilder("[1] Event").
+		ui.NewButtonBuilder("[1] Event").
 			Variant(app.ButtonVariantDanger).
 			OnPress(SetEventPhaseIntent{}).
 			FocusStyle(app.FocusStyleBracket).
 			Build(),
-		app.ButtonBuilder("[2]setState").
+		ui.NewButtonBuilder("[2]setState").
 			Variant(app.ButtonVariantSecondary).
 			OnPress(SetSetStatePhaseIntent{}).
 			FocusStyle(app.FocusStyleBracket).
 			Build(),
-		app.ButtonBuilder("[3]Scheduler").
+		ui.NewButtonBuilder("[3]Scheduler").
 			Variant(app.ButtonVariantSuccess).
 			OnPress(SetSchedulerPhaseIntent{}).
 			FocusStyle(app.FocusStyleBracket).
 			Build(),
-		app.ButtonBuilder("[4] Render").
+		ui.NewButtonBuilder("[4] Render").
 			Variant(app.ButtonVariantPrimary).
 			OnPress(SetRenderPhaseIntent{}).
 			FocusStyle(app.FocusStyleBracket).
 			Build(),
-		app.ButtonBuilder("[5]Reconcile").
+		ui.NewButtonBuilder("[5]Reconcile").
 			OnPress(SetReconcilePhaseIntent{}).
 			FocusStyle(app.FocusStyleBracket).
 			Build(),
-		app.ButtonBuilder("[6] Layout").
+		ui.NewButtonBuilder("[6] Layout").
 			OnPress(SetLayoutPhaseIntent{}).
 			FocusStyle(app.FocusStyleBracket).
 			Build(),
-		app.ButtonBuilder("[7] Paint").
+		ui.NewButtonBuilder("[7] Paint").
 			OnPress(SetPaintPhaseIntent{}).
 			FocusStyle(app.FocusStyleBracket).
 			Build(),
-		app.ButtonBuilder("[0] Idle").
+		ui.NewButtonBuilder("[0] Idle").
 			OnPress(SetIdlePhaseIntent{}).
 			FocusStyle(app.FocusStyleBracket).
 			Build(),

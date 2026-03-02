@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/framework"
 	ui "github.com/wwsheng009/mint/ui"
 )
@@ -15,9 +14,9 @@ import (
 func TestButtonInstanceCreation(t *testing.T) {
 	demoFunc := func() ui.VNode {
 		return ui.VStack(
-			app.ButtonBuilder("Button 1").Key("btn-1").OnClick(func() {}).Build(),
-			app.ButtonBuilder("Button 2").Key("btn-2").OnClick(func() {}).Build(),
-			app.ButtonBuilder("Button 3").Key("btn-3").OnClick(func() {}).Build(),
+			ui.NewButtonBuilder("Button 1").Key("btn-1").OnClick(func() {}).Build(),
+			ui.NewButtonBuilder("Button 2").Key("btn-2").OnClick(func() {}).Build(),
+			ui.NewButtonBuilder("Button 3").Key("btn-3").OnClick(func() {}).Build(),
 		)
 	}
 
@@ -71,9 +70,9 @@ func TestButtonInstanceCreation(t *testing.T) {
 func TestButtonHitMapEnrichment(t *testing.T) {
 	demoFunc := func() ui.VNode {
 		return ui.VStack(
-			app.ButtonBuilder("Event Button").Key("btn-event").OnClick(func() {}).Build(),
-			app.ButtonBuilder("Render Button").Key("btn-render").OnClick(func() {}).Build(),
-			app.ButtonBuilder("Idle Button").Key("btn-idle").OnClick(func() {}).Build(),
+			ui.NewButtonBuilder("Event Button").Key("btn-event").OnClick(func() {}).Build(),
+			ui.NewButtonBuilder("Render Button").Key("btn-render").OnClick(func() {}).Build(),
+			ui.NewButtonBuilder("Idle Button").Key("btn-idle").OnClick(func() {}).Build(),
 		)
 	}
 

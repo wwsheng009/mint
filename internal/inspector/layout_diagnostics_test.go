@@ -3,8 +3,8 @@ package inspector
 import (
 	"testing"
 
-	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/runtime"
+	"github.com/wwsheng009/mint/ui"
 )
 
 // TestNewLayoutDiagnostics tests creating a new diagnostics instance
@@ -54,7 +54,7 @@ func TestAnalyze_EmptyTree(t *testing.T) {
 func TestAnalyze_SimpleTree(t *testing.T) {
 	ld := NewLayoutDiagnostics()
 
-	button := app.ButtonBuilder("Test").Build()
+	button := ui.NewButtonBuilder("Test").Build()
 
 	// Set some bounds
 	if boundsAware, ok := button.(interface{ SetBounds(int, int, int, int) }); ok {
@@ -73,7 +73,7 @@ func TestAnalyze_SimpleTree(t *testing.T) {
 func TestImpossibleConstraints(t *testing.T) {
 	ld := NewLayoutDiagnostics()
 
-	button := app.ButtonBuilder("Test").Build()
+	button := ui.NewButtonBuilder("Test").Build()
 	info := ExtractElementInfo(button)
 
 	// Set impossible constraints
@@ -107,7 +107,7 @@ func TestImpossibleConstraints(t *testing.T) {
 func TestZeroSize(t *testing.T) {
 	ld := NewLayoutDiagnostics()
 
-	button := app.ButtonBuilder("Test").Build()
+	button := ui.NewButtonBuilder("Test").Build()
 	info := ExtractElementInfo(button)
 
 	// Set zero size but non-zero natural width
@@ -139,7 +139,7 @@ func TestZeroSize(t *testing.T) {
 func TestNegativePosition(t *testing.T) {
 	ld := NewLayoutDiagnostics()
 
-	button := app.ButtonBuilder("Test").Build()
+	button := ui.NewButtonBuilder("Test").Build()
 	info := ExtractElementInfo(button)
 
 	// Set negative position

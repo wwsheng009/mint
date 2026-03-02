@@ -78,13 +78,13 @@ func StatefulApp() ui.VNode {
 				Build(),
 		),
 		ui.Text(""),
-		app.ButtonBuilder("  [ + ]  ").
+		ui.NewButtonBuilder("  [ + ]  ").
 			OnPress(IncrementSnapshotIntent{}).
 			Build(),
-		app.ButtonBuilder("  [ - ]  ").
+		ui.NewButtonBuilder("  [ - ]  ").
 			OnPress(DecrementSnapshotIntent{}).
 			Build(),
-		app.ButtonBuilder("  [ Mode ]  ").
+		ui.NewButtonBuilder("  [ Mode ]  ").
 			OnPress(ToggleModeIntent{}).
 			Build(),
 		ui.Text(""),

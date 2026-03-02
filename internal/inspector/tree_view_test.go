@@ -4,7 +4,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/ui"
 )
 
@@ -34,7 +33,7 @@ func TestSetRoot(t *testing.T) {
 	treeView := NewTreeView()
 
 	// Create a simple tree
-	button := app.ButtonBuilder("Test").Build()
+	button := ui.NewButtonBuilder("Test").Build()
 	text := ui.Text("Hello")
 
 	container := ui.HStack(button, text)
@@ -68,8 +67,8 @@ func TestFormatTree(t *testing.T) {
 	treeView := NewTreeView()
 
 	// Create a simple tree
-	button1 := app.ButtonBuilder("Button1").Build()
-	button2 := app.ButtonBuilder("Button2").Build()
+	button1 := ui.NewButtonBuilder("Button1").Build()
+	button2 := ui.NewButtonBuilder("Button2").Build()
 	text := ui.Text("Hello")
 
 	container := ui.HStack(
@@ -119,7 +118,7 @@ func TestFormatTree_Empty(t *testing.T) {
 func TestToggleNode(t *testing.T) {
 	treeView := NewTreeView()
 
-	button := app.ButtonBuilder("Test").Build()
+	button := ui.NewButtonBuilder("Test").Build()
 	treeView.SetRoot(button)
 
 	// Get initial UniqueID
@@ -147,8 +146,8 @@ func TestToggleNode(t *testing.T) {
 func TestExpandAll(t *testing.T) {
 	treeView := NewTreeView()
 
-	button1 := app.ButtonBuilder("B1").Build()
-	button2 := app.ButtonBuilder("B2").Build()
+	button1 := ui.NewButtonBuilder("B1").Build()
+	button2 := ui.NewButtonBuilder("B2").Build()
 	container := ui.HStack(button1, button2)
 
 	treeView.SetRoot(container)
@@ -172,8 +171,8 @@ func TestExpandAll(t *testing.T) {
 func TestCollapseAll(t *testing.T) {
 	treeView := NewTreeView()
 
-	button1 := app.ButtonBuilder("B1").Build()
-	button2 := app.ButtonBuilder("B2").Build()
+	button1 := ui.NewButtonBuilder("B1").Build()
+	button2 := ui.NewButtonBuilder("B2").Build()
 	container := ui.HStack(button1, button2)
 
 	treeView.SetRoot(container)
@@ -194,7 +193,7 @@ func TestCollapseAll(t *testing.T) {
 func TestFindNodeByPath(t *testing.T) {
 	treeView := NewTreeView()
 
-	button := app.ButtonBuilder("Test").Build()
+	button := ui.NewButtonBuilder("Test").Build()
 	treeView.SetRoot(button)
 
 	if treeView.root == nil {
@@ -217,7 +216,7 @@ func TestFindNodeByPath(t *testing.T) {
 func TestFindNodeByPath_NotFound(t *testing.T) {
 	treeView := NewTreeView()
 
-	button := app.ButtonBuilder("Test").Build()
+	button := ui.NewButtonBuilder("Test").Build()
 	treeView.SetRoot(button)
 
 	found := treeView.FindNodeByPath("nonexistent.path")
@@ -231,8 +230,8 @@ func TestFindNodeByPath_NotFound(t *testing.T) {
 func TestFindNodesByType(t *testing.T) {
 	treeView := NewTreeView()
 
-	button1 := app.ButtonBuilder("Button1").Build()
-	button2 := app.ButtonBuilder("Button2").Build()
+	button1 := ui.NewButtonBuilder("Button1").Build()
+	button2 := ui.NewButtonBuilder("Button2").Build()
 	text := ui.Text("Hello")
 
 	container := ui.HStack(
@@ -261,8 +260,8 @@ func TestFindNodesByType(t *testing.T) {
 func TestFindNodesByLabel(t *testing.T) {
 	treeView := NewTreeView()
 
-	button1 := app.ButtonBuilder("Click Me").Build()
-	button2 := app.ButtonBuilder("Click Me Too").Build()
+	button1 := ui.NewButtonBuilder("Click Me").Build()
+	button2 := ui.NewButtonBuilder("Click Me Too").Build()
 	text := ui.Text("Search Text")
 
 	container := ui.VStack(button1, button2, text)
@@ -289,9 +288,9 @@ func TestGetTreeStats(t *testing.T) {
 	treeView := NewTreeView()
 
 	// Create a simple tree
-	button1 := app.ButtonBuilder("B1").Build()
+	button1 := ui.NewButtonBuilder("B1").Build()
 	button2 := ui.Box().Child(ui.Text("B2")).Build()
-	button3 := app.ButtonBuilder("B3").Build()
+	button3 := ui.NewButtonBuilder("B3").Build()
 	text1 := ui.Text("T1")
 	text2 := ui.Text("T2")
 
@@ -328,7 +327,7 @@ func TestGetTreeStats(t *testing.T) {
 func TestGetFlatList(t *testing.T) {
 	treeView := NewTreeView()
 
-	button := app.ButtonBuilder("Test").Build()
+	button := ui.NewButtonBuilder("Test").Build()
 	treeView.SetRoot(button)
 
 	flatList := treeView.GetFlatList()
@@ -450,8 +449,8 @@ func TestBuildTree_Structure(t *testing.T) {
 	//   │   └── Button2
 	//   └── Text
 
-	button1 := app.ButtonBuilder("B1").Build()
-	button2 := app.ButtonBuilder("B2").Build()
+	button1 := ui.NewButtonBuilder("B1").Build()
+	button2 := ui.NewButtonBuilder("B2").Build()
 	vstack := ui.VStack(button1, button2)
 	text := ui.Text("Hello")
 	root := ui.HStack(vstack, text)
@@ -502,7 +501,7 @@ func TestBuildTree_Structure(t *testing.T) {
 func TestPathGeneration(t *testing.T) {
 	treeView := NewTreeView()
 
-	button := app.ButtonBuilder("Test").Build()
+	button := ui.NewButtonBuilder("Test").Build()
 	treeView.SetRoot(button)
 
 	if treeView.root.Path == "" {

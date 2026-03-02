@@ -24,7 +24,7 @@ func WrapDemo() ui.VNode {
 	for i := 1; i <= 10; i++ {
 		label := fmt.Sprintf("[%d]", i)
 		buttons = append(buttons,
-			app.ButtonBuilder(label).
+			ui.NewButtonBuilder(label).
 				FocusStyle(app.FocusStyleBracket).
 				Build(),
 		)

@@ -1,9 +1,8 @@
 package main
 
 import (
-	ui "github.com/wwsheng009/mint/ui"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
-	"github.com/wwsheng009/mint/app"
+	ui "github.com/wwsheng009/mint/ui"
 )
 
 func main() {
@@ -24,15 +23,15 @@ func VisualDemo() ui.VNode {
 		ui.Text("│ Example 1: Three flex buttons with different alignments"),
 		ui.Text("│"),
 		ui.HStackBuilder(
-			ui.Flex(app.ButtonBuilder("Left").
+			ui.Flex(ui.NewButtonBuilder("Left").
 				PaddingH(1, 2).
 				TextAlign(rtui.AlignStart).
 				Build(), 1),
-			ui.Flex(app.ButtonBuilder("Center").
+			ui.Flex(ui.NewButtonBuilder("Center").
 				PaddingH(1, 1).
 				TextAlign(rtui.AlignCenter).
 				Build(), 1),
-			ui.Flex(app.ButtonBuilder("Right").
+			ui.Flex(ui.NewButtonBuilder("Right").
 				PaddingH(2, 1).
 				TextAlign(rtui.AlignEnd).
 				Build(), 1),
@@ -47,7 +46,7 @@ func VisualDemo() ui.VNode {
 		ui.Text("│ Example 2: Button with padding and centering"),
 		ui.Text("│"),
 		ui.HStackBuilder(
-			ui.Flex(app.ButtonBuilder("Padded & Centered").
+			ui.Flex(ui.NewButtonBuilder("Padded & Centered").
 				PaddingAll(2).
 				TextAlign(rtui.AlignCenter).
 				Build(), 1),

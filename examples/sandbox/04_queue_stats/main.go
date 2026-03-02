@@ -9,7 +9,6 @@ package main
 import (
 	"fmt"
 
-	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/ui"
 )
 
@@ -79,10 +78,10 @@ func StatsApp() ui.VNode {
 				Build(),
 		),
 		ui.Text(""),
-		app.ButtonBuilder("  [ + ]  ").
+		ui.NewButtonBuilder("  [ + ]  ").
 			OnPress(IncrementStatsIntent{}).
 			Build(),
-		app.ButtonBuilder("  [ - ]  ").
+		ui.NewButtonBuilder("  [ - ]  ").
 			OnPress(DecrementStatsIntent{}).
 			Build(),
 		ui.Text(""),

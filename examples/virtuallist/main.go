@@ -55,10 +55,10 @@ func main() {
 				len(items), offset, selected)).FgColor("gray").Build(),
 			ui.Text(""),
 			ui.HStack(
-				app.ButtonBuilder(" Scroll Up ").
+				ui.NewButtonBuilder(" Scroll Up ").
 					OnPress(ScrollUpIntent{}).
 					Build(),
-				app.ButtonBuilder(" Scroll Down ").
+				ui.NewButtonBuilder(" Scroll Down ").
 					OnPress(ScrollDownIntent{}).
 					Build(),
 			),

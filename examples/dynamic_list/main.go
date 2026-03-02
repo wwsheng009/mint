@@ -4,7 +4,6 @@ package main
 import (
 	"fmt"
 
-	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/ui"
 )
 
@@ -56,7 +55,7 @@ func TodoItem(props ui.Props) ui.VNode {
 				return "white"
 			}()).
 			Build(),
-		app.ButtonBuilder(" +").
+		ui.NewButtonBuilder(" +").
 			OnPress(IncrementTodoItemIntent{}).
 			Build(),
 	)

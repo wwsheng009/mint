@@ -96,7 +96,7 @@ func TestButtonInteraction(t *testing.T) {
 	sb := mock.New(40, 18)
 
 	clicked := false
-	button := app.ButtonBuilder("Click Me").
+	button := ui.NewButtonBuilder("Click Me").
 		OnClick(func() {
 			clicked = true
 		}).
@@ -233,8 +233,8 @@ func BenchmarkComponentCreation(b *testing.B) {
 			ui.Text("Line 2"),
 			ui.Text("Line 3"),
 			ui.HStack(
-				app.ButtonBuilder("Btn1").OnClick(func() {}).Build(),
-				app.ButtonBuilder("Btn2").OnClick(func() {}).Build(),
+				ui.NewButtonBuilder("Btn1").OnClick(func() {}).Build(),
+				ui.NewButtonBuilder("Btn2").OnClick(func() {}).Build(),
 			),
 		)
 	}

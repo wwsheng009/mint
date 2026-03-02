@@ -66,7 +66,7 @@ func ProgressDemo() ui.VNode {
 				Build()
 		}(),
 		ui.Text(""),
-		app.ButtonBuilder("  +10%  ").
+		ui.NewButtonBuilder("  +10%  ").
 			OnPress(IncrementProgressIntent{}).
 			Build(),
 		ui.Text(""),

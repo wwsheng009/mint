@@ -3,7 +3,6 @@
 package main
 
 import (
-	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/framework"
 	"github.com/wwsheng009/mint/runtime/intent"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
@@ -81,20 +80,20 @@ func App() ui.VNode {
 		// Button Grid
 		ui.HStack(
 			ui.Text("  "),
-			app.ButtonBuilder("  Basic  ").
-				Variant(app.ButtonVariantPrimary).
+			ui.NewButtonBuilder("  Basic  ").
+				Variant(ui.ButtonVariantPrimary).
 				OnPress(OpenModalIntent{ModalType: "basic"}).
 				Disabled(modalType != "").
 				Build(),
 			ui.Text(" "),
-			app.ButtonBuilder("  Border  ").
-				Variant(app.ButtonVariantSecondary).
+			ui.NewButtonBuilder("  Border  ").
+				Variant(ui.ButtonVariantSecondary).
 				OnPress(OpenModalIntent{ModalType: "border"}).
 				Disabled(modalType != "").
 				Build(),
 			ui.Text(" "),
-			app.ButtonBuilder("  Footer  ").
-				Variant(app.ButtonVariantSecondary).
+			ui.NewButtonBuilder("  Footer  ").
+				Variant(ui.ButtonVariantSecondary).
 				OnPress(OpenModalIntent{ModalType: "footer"}).
 				Disabled(modalType != "").
 				Build(),
@@ -103,20 +102,20 @@ func App() ui.VNode {
 		ui.Text(""),
 		ui.HStack(
 			ui.Text("  "),
-			app.ButtonBuilder("  Alert  ").
-				Variant(app.ButtonVariantSecondary).
+			ui.NewButtonBuilder("  Alert  ").
+				Variant(ui.ButtonVariantSecondary).
 				OnPress(OpenModalIntent{ModalType: "alert"}).
 				Disabled(modalType != "").
 				Build(),
 			ui.Text(" "),
-			app.ButtonBuilder("  Sizes  ").
-				Variant(app.ButtonVariantSecondary).
+			ui.NewButtonBuilder("  Sizes  ").
+				Variant(ui.ButtonVariantSecondary).
 				OnPress(OpenModalIntent{ModalType: "sizes"}).
 				Disabled(modalType != "").
 				Build(),
 			ui.Text(" "),
-			app.ButtonBuilder("  Locked  ").
-				Variant(app.ButtonVariantDanger).
+			ui.NewButtonBuilder("  Locked  ").
+				Variant(ui.ButtonVariantDanger).
 				OnPress(OpenModalIntent{ModalType: "locked"}).
 				Disabled(modalType != "").
 				Build(),
@@ -180,8 +179,8 @@ func getModal(modalType string) ui.VNode {
 					FgColor("gray").
 					Build(),
 				ui.Text(""),
-				app.ButtonBuilder("  [Close]  ").
-					Variant(app.ButtonVariantPrimary).
+				ui.NewButtonBuilder("  [Close]  ").
+					Variant(ui.ButtonVariantPrimary).
 					OnPress(CloseModalIntent{}).
 					Build(),
 			)).

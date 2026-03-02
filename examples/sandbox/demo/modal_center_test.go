@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/ui"
 )
 
@@ -27,9 +26,9 @@ func TestModalCentering(t *testing.T) {
 							).Align(ui.AlignCenter).Build(),
 							ui.Text(""),
 							ui.HStackBuilder(
-								app.ButtonBuilder("[ Cancel ]").Build(),
+								ui.NewButtonBuilder("[ Cancel ]").Build(),
 								ui.Text(" "),
-								app.ButtonBuilder("[ OK ]").Build(),
+								ui.NewButtonBuilder("[ OK ]").Build(),
 							).Align(ui.AlignCenter).Build(),
 							ui.Text(""),
 						).Build(),
@@ -101,9 +100,9 @@ func TestModalCenteringWithButtons(t *testing.T) {
 						ui.VStackBuilder(
 							ui.Text(""),
 							ui.HStackBuilder(
-								app.ButtonBuilder("[ Cancel ]").Build(),
+								ui.NewButtonBuilder("[ Cancel ]").Build(),
 								ui.Text(" "),
-								app.ButtonBuilder("[ OK ]").Build(),
+								ui.NewButtonBuilder("[ OK ]").Build(),
 							).Align(ui.AlignCenter).Build(),
 							ui.Text(""),
 						).Build(),

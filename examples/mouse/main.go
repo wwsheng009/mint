@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 
-	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/ui"
 )
 
@@ -57,7 +56,7 @@ func MouseInteractionDemo() ui.VNode {
 			Build(),
 		ui.Text(""),
 		ui.HStack(
-			app.ButtonBuilder(" [-] ").
+			ui.NewButtonBuilder(" [-] ").
 				OnPress(DecrementMouseIntent{}).
 				Build(),
 			ui.Text(" "),
@@ -66,7 +65,7 @@ func MouseInteractionDemo() ui.VNode {
 				FgColor("green").
 				Build(),
 			ui.Text(" "),
-			app.ButtonBuilder(" [+] ").
+			ui.NewButtonBuilder(" [+] ").
 				OnPress(IncrementMouseIntent{}).
 				Build(),
 		),
@@ -78,11 +77,11 @@ func MouseInteractionDemo() ui.VNode {
 			Bold(true).
 			Build(),
 		ui.Text(""),
-		app.CheckboxBuilder().
+		ui.NewCheckboxBuilder().
 			Label("Enable notifications").
 			Checked(checked1).
 			Build(), // TODO: integrate with FieldChangeIntent
-		app.CheckboxBuilder().
+		ui.NewCheckboxBuilder().
 			Label("Accept terms and conditions").
 			Checked(checked2).
 			Build(), // TODO: integrate with FieldChangeIntent
@@ -96,7 +95,7 @@ func MouseInteractionDemo() ui.VNode {
 		ui.Text(""),
 		ui.HStack(
 			ui.Text("Name: "),
-			app.InputBuilder().
+			ui.NewInputBuilder().
 				Value(text).
 				Placeholder("Hover and click here...").
 				Build(), // TODO: integrate with FieldChangeIntent
@@ -111,8 +110,8 @@ func MouseInteractionDemo() ui.VNode {
 		ui.Text(""),
 		ui.HStack(
 			ui.Text("Theme: "),
-			app.SelectBuilder().
-				Options([]app.SelectOption{
+			ui.NewSelectBuilder().
+				Options([]ui.NewSelectOption{
 					{Value: "dark", Label: "Dark"},
 					{Value: "light", Label: "Light"},
 					{Value: "blue", Label: "Blue"},
@@ -129,7 +128,7 @@ func MouseInteractionDemo() ui.VNode {
 			Bold(true).
 			Build(),
 		ui.Text(""),
-		app.TextareaBuilder().
+		ui.NewTextareaBuilder().
 			Placeholder("Hover and click to edit multi-line text...").
 			Rows(3).
 			Cols(40).

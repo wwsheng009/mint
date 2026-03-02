@@ -15,7 +15,6 @@ package main
 import (
 	"fmt"
 
-	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/ui"
 )
 
@@ -117,22 +116,22 @@ func MenuBar(setShowCommandPalette func(bool)) ui.VNode {
 			ui.NewTextBuilder("║ ").
 				FgColor("blue").
 				Build(),
-			app.ButtonBuilder("[File]").
+			ui.NewButtonBuilder("[File]").
 				BgColor("blue").
 				FgColor("white").
 				Build(),
 			ui.Text(" "),
-			app.ButtonBuilder("[Edit]").
+			ui.NewButtonBuilder("[Edit]").
 				BgColor("blue").
 				FgColor("white").
 				Build(),
 			ui.Text(" "),
-			app.ButtonBuilder("[View]").
+			ui.NewButtonBuilder("[View]").
 				BgColor("blue").
 				FgColor("white").
 				Build(),
 			ui.Text(" "),
-			app.ButtonBuilder("[Run]").
+			ui.NewButtonBuilder("[Run]").
 				BgColor("blue").
 				FgColor("white").
 				Build(),
@@ -143,7 +142,7 @@ func MenuBar(setShowCommandPalette func(bool)) ui.VNode {
 				Build(),
 			ui.NewTextBuilder("                                                        ").
 				Build(),
-			app.ButtonBuilder("[Ctrl+P] Command Palette").
+			ui.NewButtonBuilder("[Ctrl+P] Command Palette").
 				BgColor("yellow").
 				FgColor("black").
 				OnPress(ShowCommandPaletteIntent{}).
@@ -230,7 +229,7 @@ func FileExplorer(activeFile string, setActiveFile func(string)) ui.VNode {
 		if !f.isFolder {
 			item = ui.HStack(
 				item,
-				app.ButtonBuilder(" ").
+				ui.NewButtonBuilder(" ").
 					OnPress(SetActiveFileIntent{Name: f.name}).
 					Build(),
 			)
@@ -289,13 +288,13 @@ func TabsBar(selectedTab string, setSelectedTab func(string), activeFile string)
 		isActive := selectedTab == tab.id
 		var tabBtn ui.VNode
 		if isActive {
-			tabBtn = app.ButtonBuilder(" "+tab.label+" ").
+			tabBtn = ui.NewButtonBuilder(" "+tab.label+" ").
 				BgColor("white").
 				FgColor("black").
 				OnPress(SetSelectedTabIntent{TabID: tab.id}).
 				Build()
 		} else {
-			tabBtn = app.ButtonBuilder(" "+tab.label+" ").
+			tabBtn = ui.NewButtonBuilder(" "+tab.label+" ").
 				OnPress(SetSelectedTabIntent{TabID: tab.id}).
 				Build()
 		}

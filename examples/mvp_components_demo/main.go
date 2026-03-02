@@ -232,13 +232,13 @@ func FormView(username, email, bio string, country int, agree bool) ui.VNode {
 		// 底部按钮
 		ui.HStack(
 			ui.Text("  "),
-			app.ButtonBuilder("  Submit  ").
+			ui.NewButtonBuilder("  Submit  ").
 				Variant(app.ButtonVariantPrimary).
 				OnPress(SubmitFormIntent{}).
 				Disabled(username == "" || email == "" || !agree).
 				Build(),
 			ui.Text(" "),
-			app.ButtonBuilder("  Reset  ").
+			ui.NewButtonBuilder("  Reset  ").
 				Variant(app.ButtonVariantSecondary).
 				OnPress(ResetIntent{}).
 				Build(),
@@ -384,12 +384,12 @@ func SuccessView(username, email, bio string, country int, agree bool) ui.VNode 
 
 		ui.HStack(
 			ui.Text("  "),
-			app.ButtonBuilder("  Back to Form  ").
+			ui.NewButtonBuilder("  Back to Form  ").
 				Variant(app.ButtonVariantSecondary).
 				OnPress(BackFormIntent{}).
 				Build(),
 			ui.Text(" "),
-			app.ButtonBuilder("  Reset  ").
+			ui.NewButtonBuilder("  Reset  ").
 				Variant(app.ButtonVariantDanger).
 				OnPress(ResetIntent{}).
 				Build(),

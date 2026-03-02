@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/runtime/platform"
 	"github.com/wwsheng009/mint/sandbox"
 	"github.com/wwsheng009/mint/sandbox/mock"
@@ -30,13 +29,13 @@ func TestSandboxWithUIComponents(t *testing.T) {
 					FgColor("green").
 					Build(),
 				ui.HStack(
-					app.ButtonBuilder("-").
+					ui.NewButtonBuilder("-").
 						OnClick(func() {
 							setCount(func(c int) int { return c - 1 })
 						}).
 						Build(),
 					ui.Text("  "),
-					app.ButtonBuilder("+").
+					ui.NewButtonBuilder("+").
 						OnClick(func() {
 							setCount(func(c int) int { return c + 1 })
 						}).
@@ -77,7 +76,7 @@ func TestSandboxWithUIComponents(t *testing.T) {
 		sb := mock.New(40, 18)
 
 		// Create components using app builders
-		button := app.ButtonBuilder("Click Me").
+		button := ui.NewButtonBuilder("Click Me").
 			OnClick(func() {
 				// Handle click
 			}).
@@ -146,7 +145,7 @@ func TestSandboxCompatibilitySummary(t *testing.T) {
 	t.Log("")
 	t.Log("✅ Component APIs:")
 	t.Log("  - ui.Text(), ui.NewTextBuilder()")
-	t.Log("  - app.ButtonBuilder().OnClick()")
+	t.Log("  - ui.NewButtonBuilder().OnClick()")
 	t.Log("  - app.InputBuilder(), app.TextAreaBuilder()")
 	t.Log("  - ui.VStack(), ui.HStack(), ui.Box()")
 	t.Log("")

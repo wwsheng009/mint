@@ -7,14 +7,16 @@
 // Usage examples:
 //
 // Quick shortcuts:
-//   ui.Text("Hello")
-//   ui.Button("Click Me")
-//   ui.Input("Placeholder")
+//
+//	ui.Text("Hello")
+//	ui.Button("Click Me")
+//	ui.Input("Placeholder")
 //
 // Full Builder patterns:
-//   ui.NewTextBuilder("Hello").Bold().FgColor("red").Build()
-//   ui.NewButtonBuilder("Click").Primary().Large().OnPress(intent).Build()
-//   ui.NewInputBuilder().Placeholder("...").Value("x").OnChange(intent).Build()
+//
+//	ui.NewTextBuilder("Hello").Bold().FgColor("red").Build()
+//	ui.NewButtonBuilder("Click").Primary().Large().OnPress(intent).Build()
+//	ui.NewInputBuilder().Placeholder("...").Value("x").OnChange(intent).Build()
 package ui
 
 import (
@@ -120,11 +122,14 @@ func NewTreeViewBuilder() *treeview.Builder {
 func NewVirtualListBuilder() *virtuallist.Builder {
 	return virtuallist.NewBuilder()
 }
-
-// Navigation Components
 func NewTabsBuilder() *tabs.Builder {
 	return tabs.NewBuilder()
 }
+func NewSelectBuilder() *selectcomp.Builder {
+	return selectcomp.NewBuilder()
+}
+// Navigation Components
+// Note: NewTabsBuilder() is declared above
 
 // Divider Components
 func NewDividerBuilder() *divider.Builder {
@@ -193,8 +198,15 @@ const (
 // Grid Types
 type (
 	GridDimension = grid.Dimension
-	Fixed         = grid.Fixed
+	GridFixed     = grid.Fixed
+	GridFlex      = grid.Flex
+	GridAuto      = grid.Auto
 )
+
+// Grid dimension helper functions - avoid conflict with ui.Flex function
+func FixedDim(size int) grid.Fixed { return grid.Fixed(size) }
+func FlexDim(factor int) grid.Flex { return grid.Flex{Factor: factor} }
+func AutoDim() grid.Auto          { return grid.Auto{} }
 
 // Absolute Position Types
 type PositionValue = absolute.PositionValue

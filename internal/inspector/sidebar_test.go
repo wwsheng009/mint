@@ -3,7 +3,7 @@ package inspector
 import (
 	"testing"
 
-	"github.com/wwsheng009/mint/app"
+	"github.com/wwsheng009/mint/ui"
 )
 
 // TestNewSidebar tests creating a new sidebar
@@ -120,7 +120,7 @@ func TestSetShowProps(t *testing.T) {
 func TestFormatSidebar(t *testing.T) {
 	sidebar := NewSidebar()
 
-	button := app.ButtonBuilder("Test Button").Build()
+	button := ui.NewButtonBuilder("Test Button").Build()
 	info := ExtractElementInfo(button)
 
 	// Set bounds for complete info
@@ -162,7 +162,7 @@ func TestFormatSidebar(t *testing.T) {
 func TestFormatSidebar_Collapsed(t *testing.T) {
 	sidebar := NewSidebar()
 
-	button := app.ButtonBuilder("Test").Build()
+	button := ui.NewButtonBuilder("Test").Build()
 	info := ExtractElementInfo(button)
 
 	// Collapse the type section
@@ -183,7 +183,7 @@ func TestFormatSidebar_Collapsed(t *testing.T) {
 func TestFormatCompact(t *testing.T) {
 	sidebar := NewSidebar()
 
-	button := app.ButtonBuilder("Test Button").Build()
+	button := ui.NewButtonBuilder("Test Button").Build()
 	info := ExtractElementInfo(button)
 
 	// Set position and size
@@ -217,7 +217,7 @@ func TestFormatCompact(t *testing.T) {
 func TestFormatCompact_WithFlex(t *testing.T) {
 	sidebar := NewSidebar()
 
-	button := app.ButtonBuilder("Test").Build()
+	button := ui.NewButtonBuilder("Test").Build()
 	info := ExtractElementInfo(button)
 
 	// Add flex info
@@ -240,8 +240,8 @@ func TestFormatCompact_WithFlex(t *testing.T) {
 func TestFormatTable(t *testing.T) {
 	sidebar := NewSidebar()
 
-	button1 := app.ButtonBuilder("Button1").Build()
-	button2 := app.ButtonBuilder("Button2").Build()
+	button1 := ui.NewButtonBuilder("Button1").Build()
+	button2 := ui.NewButtonBuilder("Button2").Build()
 
 	info1 := ExtractElementInfo(button1)
 	info2 := ExtractElementInfo(button2)
@@ -279,7 +279,7 @@ func TestFormatTable_Empty(t *testing.T) {
 func TestGetCopyableText(t *testing.T) {
 	sidebar := NewSidebar()
 
-	button := app.ButtonBuilder("Test Button").Build()
+	button := ui.NewButtonBuilder("Test Button").Build()
 	info := ExtractElementInfo(button)
 
 	// Set various info
@@ -320,7 +320,7 @@ func TestGetCopyableText(t *testing.T) {
 func TestGetCopyableText_WithProperties(t *testing.T) {
 	sidebar := NewSidebar()
 
-	button := app.ButtonBuilder("Test").Build()
+	button := ui.NewButtonBuilder("Test").Build()
 	info := ExtractElementInfo(button)
 
 	// Add properties
@@ -350,7 +350,7 @@ func TestGetCopyableText_WithProperties(t *testing.T) {
 func TestBuildVNode(t *testing.T) {
 	sidebar := NewSidebar()
 
-	button := app.ButtonBuilder("Test").Build()
+	button := ui.NewButtonBuilder("Test").Build()
 	info := ExtractElementInfo(button)
 
 	vnode := sidebar.BuildVNode(info)
@@ -368,7 +368,7 @@ func TestBuildVNode_Disabled(t *testing.T) {
 	sidebar := NewSidebar()
 	sidebar.Disable()
 
-	button := app.ButtonBuilder("Test").Build()
+	button := ui.NewButtonBuilder("Test").Build()
 	info := ExtractElementInfo(button)
 
 	vnode := sidebar.BuildVNode(info)
@@ -398,7 +398,7 @@ func TestBuildVNode_EmptyInfo(t *testing.T) {
 func TestBuildCompactVNode(t *testing.T) {
 	sidebar := NewSidebar()
 
-	button := app.ButtonBuilder("Test Button").Build()
+	button := ui.NewButtonBuilder("Test Button").Build()
 	info := ExtractElementInfo(button)
 
 	info.Position.X = 10

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/ui"
 )
@@ -108,21 +107,21 @@ func main() {
 		})
 
 		// Base layer content
-		baseContent := app.VStack(
+		baseContent := ui.VStack(
 			ui.NewTextBuilder("🔑 UI Key Inspector 演示").Bold(true).FgColor("cyan").Build(),
 			ui.Text(""),
 			ui.NewTextBuilder("点击按钮打开不同的 layer，观察 Inspector 中的 KEY 变化").FgColor("gray").Build(),
 			ui.Text(""),
-			app.ButtonBuilder("打开 Modal").
+			ui.NewButtonBuilder("打开 Modal").
 				OnPress(OpenModalIntent{}).
 				Build(),
-			app.ButtonBuilder("显示 Overlay").
+			ui.NewButtonBuilder("显示 Overlay").
 				OnPress(ShowOverlayIntent{}).
 				Build(),
-			app.ButtonBuilder("切换 Inspector").
+			ui.NewButtonBuilder("切换 Inspector").
 				OnPress(ToggleInspectorIntent{}).
 				Build(),
-			app.ButtonBuilder("关闭所有 Layers").
+			ui.NewButtonBuilder("关闭所有 Layers").
 				OnPress(CloseAllLayersIntent{}).
 				Build(),
 			ui.Text(""),
@@ -136,14 +135,14 @@ func main() {
 
 		var modalContent ui.VNode
 		if modalOpen {
-			modalContent = app.VStack(
+			modalContent = ui.VStack(
 				ui.NewTextBuilder("这是 Modal (LayerModal)").FgColor("cyan").Build(),
 				ui.NewTextBuilder("观察 Inspector 中这个节点的 KEY").FgColor("gray").Build(),
 				ui.Text(""),
-				app.ButtonBuilder("Modal 内部的按钮").
+				ui.NewButtonBuilder("Modal 内部的按钮").
 					OnPress(ModalButtonClickIntent{}).
 					Build(),
-				app.ButtonBuilder("关闭 Modal").
+				ui.NewButtonBuilder("关闭 Modal").
 					OnPress(CloseModalIntent{}).
 					Build(),
 			)
@@ -151,11 +150,11 @@ func main() {
 
 		var overlayContent ui.VNode
 		if overlayVisible {
-			overlayContent = app.VStack(
+			overlayContent = ui.VStack(
 				ui.NewTextBuilder("这是 Overlay (LayerOverlay)").FgColor("yellow").Build(),
 				ui.NewTextBuilder("观察 Inspector 中这个节点的 KEY").FgColor("gray").Build(),
 				ui.Text(""),
-				app.ButtonBuilder("Overlay 按钮").
+				ui.NewButtonBuilder("Overlay 按钮").
 					OnPress(OverlayButtonClickIntent{}).
 					Build(),
 			)
@@ -179,7 +178,7 @@ func main() {
 			children = append(children, inspectorContent)
 		}
 
-		return app.VStack(children...)
+		return ui.VStack(children...)
 	},
 		ui.WithWidth(80),
 		ui.WithHeight(40),
@@ -198,7 +197,7 @@ func buildCheckbox(label string, checked bool, toggleIntent intent.Intent) ui.VN
 
 	return ui.HStack(
 		ui.NewTextBuilder(status+label).Build(),
-		app.ButtonBuilder("切换").
+		ui.NewButtonBuilder("切换").
 			OnPress(toggleIntent).
 			Build(),
 	)
@@ -237,5 +236,5 @@ func createInspectorOverlay(showKeys, showPaths, showLayers bool) ui.VNode {
 		textNodes[i] = ui.Text(line)
 	}
 
-	return app.VStack(textNodes...)
+	return ui.VStack(textNodes...)
 }

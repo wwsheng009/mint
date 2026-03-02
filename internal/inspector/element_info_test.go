@@ -23,7 +23,7 @@ func TestCollectHitTestEntryInfo(t *testing.T) {
 		{
 			name: "Button with label",
 			createVNode: func() rtui.VNode {
-				return app.ButtonBuilder("Click Me").Key("btn1").Build()
+				return ui.NewButtonBuilder("Click Me").Key("btn1").Build()
 			},
 			expectedTag:   "button",
 			expectedKey:   "btn1",
@@ -43,7 +43,7 @@ func TestCollectHitTestEntryInfo(t *testing.T) {
 		{
 			name: "Button without key",
 			createVNode: func() rtui.VNode {
-				return app.ButtonBuilder("Submit").Build()
+				return ui.NewButtonBuilder("Submit").Build()
 			},
 			expectedTag:   "button",
 			expectedKey:   "",
@@ -241,7 +241,7 @@ func TestCollectHitTestEntries_RealWorld(t *testing.T) {
 	}{
 		{
 			name:          "Button with label",
-			vnode:         app.ButtonBuilder("Click Me").Build(),
+			vnode:         ui.NewButtonBuilder("Click Me").Build(),
 			expectedTag:    "button",
 			expectedKey:    "",
 			expectedLabel:  "Click Me",
@@ -316,7 +316,7 @@ func TestFormatNodeInfo_RealWorld(t *testing.T) {
 	}{
 		{
 			name:  "Button shows tag and label",
-			vnode: app.ButtonBuilder("Submit").Build(),
+			vnode: ui.NewButtonBuilder("Submit").Build(),
 			contains: []string{
 				"Element",
 				"button",
@@ -344,8 +344,8 @@ func TestFormatNodeInfo_RealWorld(t *testing.T) {
 		{
 			name:  "VStack (from demo2)",
 			vnode: rtui.VStack(
-				app.ButtonBuilder("Button A").Build(),
-				app.ButtonBuilder("Button B").Build(),
+				ui.NewButtonBuilder("Button A").Build(),
+				ui.NewButtonBuilder("Button B").Build(),
 			),
 			contains: []string{
 				"Element",
@@ -365,7 +365,7 @@ func TestFormatNodeInfo_RealWorld(t *testing.T) {
 		},
 		{
 			name:  "Button with key (from demo2 ControlPanel)",
-			vnode: app.ButtonBuilder("[1] Event").Key("btn-event").Build(),
+			vnode: ui.NewButtonBuilder("[1] Event").Key("btn-event").Build(),
 			contains: []string{
 				"Element",
 				"button",
@@ -376,9 +376,9 @@ func TestFormatNodeInfo_RealWorld(t *testing.T) {
 		{
 			name:  "Wrap component (from demo2)",
 			vnode: app.WrapBuilder(
-				app.ButtonBuilder("Btn1").Build(),
-				app.ButtonBuilder("Btn2").Build(),
-				app.ButtonBuilder("Btn3").Build(),
+				ui.NewButtonBuilder("Btn1").Build(),
+				ui.NewButtonBuilder("Btn2").Build(),
+				ui.NewButtonBuilder("Btn3").Build(),
 			).Build(),
 			contains: []string{
 				"Element",
@@ -390,8 +390,8 @@ func TestFormatNodeInfo_RealWorld(t *testing.T) {
 			vnode: rtui.Bordered().
 				Child(
 					rtui.VStack(
-						app.ButtonBuilder("[1] Event").Key("btn-event").Build(),
-						app.ButtonBuilder("[2]setState").Key("btn-setstate").Build(),
+						ui.NewButtonBuilder("[1] Event").Key("btn-event").Build(),
+						ui.NewButtonBuilder("[2]setState").Key("btn-setstate").Build(),
 					),
 				).Build(),
 			contains: []string{
@@ -437,7 +437,7 @@ func TestFormatNodeInfo_RealWorld(t *testing.T) {
 
 // TestExtractElementInfo_Button tests extracting info from a Button
 func TestExtractElementInfo_Button(t *testing.T) {
-	button := app.ButtonBuilder("[1] Event").Build()
+	button := ui.NewButtonBuilder("[1] Event").Build()
 
 	info := ExtractElementInfo(button)
 
@@ -477,7 +477,7 @@ func TestExtractElementInfo_Text(t *testing.T) {
 func TestExtractElementInfo_WithBounds(t *testing.T) {
 	t.Skip("SetBounds integration needs actual layout engine")
 
-	button := app.ButtonBuilder("Test").Build()
+	button := ui.NewButtonBuilder("Test").Build()
 
 	// Simulate SetBounds being called
 	if boundsAware, ok := button.(interface{ SetBounds(int, int, int, int) }); ok {
@@ -515,7 +515,7 @@ func TestExtractElementInfo_Flex(t *testing.T) {
 	t.Skip("SetProp integration needs proper props handling")
 
 	// Create a button with flex prop through ElementVNode
-	button := app.ButtonBuilder("Test").Build()
+	button := ui.NewButtonBuilder("Test").Build()
 
 	// Get the element and set prop
 	if elem, ok := button.(interface{ SetProp(string, interface{}) }); ok {
@@ -549,7 +549,7 @@ func TestExtractElementInfo_NilVNode(t *testing.T) {
 
 // TestFormatElementInfo tests formatting of ElementInfo
 func TestFormatElementInfo(t *testing.T) {
-	button := app.ButtonBuilder("Test Button").Build()
+	button := ui.NewButtonBuilder("Test Button").Build()
 
 	info := ExtractElementInfo(button)
 	formatted := formatNodeInfo(info.Type, info.Tag, info.Key, info.Label)
@@ -588,7 +588,7 @@ func TestExtractElementInfo_NaturalWidthCalculation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			button := app.ButtonBuilder(tt.label).Build()
+			button := ui.NewButtonBuilder(tt.label).Build()
 			info := ExtractElementInfo(button)
 
 			if info.Layout.NaturalWidth != tt.expectedWidth {
@@ -701,9 +701,9 @@ func TestFormatNodeInfo(t *testing.T) {
 // - Text nodes
 func TestDemo2RealWorldStructure(t *testing.T) {
 	// Create a structure similar to demo2's ControlPanel
-	btn1 := app.ButtonBuilder("[1] Event").Key("btn-event").Build()
-	_ = app.ButtonBuilder("[2]setState").Key("btn-setstate").Build()
-	_ = app.ButtonBuilder("[3]Scheduler").Key("btn-scheduler").Build()
+	btn1 := ui.NewButtonBuilder("[1] Event").Key("btn-event").Build()
+	_ = ui.NewButtonBuilder("[2]setState").Key("btn-setstate").Build()
+	_ = ui.NewButtonBuilder("[3]Scheduler").Key("btn-scheduler").Build()
 
 	// Test button extraction
 	t.Run("Button [1] Event", func(t *testing.T) {
@@ -838,8 +838,8 @@ func TestDemo2RealWorldStructure(t *testing.T) {
 	t.Run("Nested demo2 structure", func(t *testing.T) {
 		nested := rtui.Bordered().Child(
 			rtui.VStack(
-				app.ButtonBuilder("[1] Event").Key("btn-event").Build(),
-				app.ButtonBuilder("[2]setState").Key("btn-setstate").Build(),
+				ui.NewButtonBuilder("[1] Event").Key("btn-event").Build(),
+				ui.NewButtonBuilder("[2]setState").Key("btn-setstate").Build(),
 			),
 		).Build()
 
@@ -1000,7 +1000,7 @@ func TestVNodeBoundsDataFlow(t *testing.T) {
 	t.Run("formatNodeInfo with bounds context", func(t *testing.T) {
 		// Test that formatNodeInfo correctly formats node info
 		// even without bounds (bounds are shown separately in HitTestEntry)
-		button := app.ButtonBuilder("Submit").Key("btn-submit").Build()
+		button := ui.NewButtonBuilder("Submit").Key("btn-submit").Build()
 
 		var tag, key, label string
 		if tagger, ok := button.(interface{ Tag() string }); ok {

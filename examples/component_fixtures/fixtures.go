@@ -8,7 +8,6 @@ package component_fixtures
 import (
 	"fmt"
 
-	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/framework/theme"
 	"github.com/wwsheng009/mint/runtime/style"
 	"github.com/wwsheng009/mint/ui"
@@ -225,15 +224,15 @@ func BuildDemo1ConfirmModal(onClose func()) ui.VNode {
 				).Align(ui.AlignCenter).Build(),
 				ui.Text(""),
 				ui.HStackBuilder(
-					app.ButtonBuilder("[ Cancel ]").
-						Variant(app.ButtonVariantSecondary).
+					ui.NewButtonBuilder("[ Cancel ]").
+						Variant(ui.ButtonVariantSecondary).
 						OnPress(ModalCloseIntent{}).
-						FocusStyle(app.FocusStyleBracket).
+						FocusStyle(ui.FocusStyleBracket).
 						Build(),
 					ui.Text(" "),
-					app.ButtonBuilder("[ OK ]").
-						Variant(app.ButtonVariantSuccess).
-						FocusStyle(app.FocusStyleBracket).
+					ui.NewButtonBuilder("[ OK ]").
+						Variant(ui.ButtonVariantSuccess).
+						FocusStyle(ui.FocusStyleBracket).
 						OnPress(ModalCloseIntent{}).
 						Build(),
 				).Align(ui.AlignCenter).Build(),

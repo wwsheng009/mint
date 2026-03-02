@@ -4,7 +4,6 @@ package main
 import (
 	"testing"
 
-	"github.com/wwsheng009/mint/app"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/ui"
 )
@@ -20,7 +19,7 @@ func TestStep3LayoutVNode(t *testing.T) {
 				ConfirmInfo("Age:", ""),
 				ui.HStackBuilder(
 					ui.Text("         "),
-					app.CheckboxBuilder().
+					ui.NewCheckboxBuilder().
 						Checked(false).
 						Label("I agree to the Terms and Conditions").
 						Build(),

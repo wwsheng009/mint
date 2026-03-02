@@ -2,8 +2,8 @@ package main
 
 import (
 	"fmt"
+
 	rtui "github.com/wwsheng009/mint/runtime/ui"
-	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/ui"
 )
 
@@ -14,19 +14,19 @@ func main() {
 	fmt.Println("1. Creating 3 flex buttons with different alignments...")
 	fmt.Println()
 
-	btn1 := app.ButtonBuilder("Left").
+	btn1 := ui.NewButtonBuilder("Left").
 		PaddingH(1, 2).   // left=1, right=2
 		Flex(1).
 		SetTextAlign(rtui.AlignStart).
 		Build()
 
-	btn2 := app.ButtonBuilder("Center").
+	btn2 := ui.NewButtonBuilder("Center").
 		PaddingH(1, 1).   // left=1, right=1
 		Flex(1).
 		SetTextAlign(rtui.AlignCenter).
 		Build()
 
-	btn3 := app.ButtonBuilder("Right").
+	btn3 := ui.NewButtonBuilder("Right").
 		PaddingH(2, 1).   // left=2, right=1
 		Flex(1).
 		SetTextAlign(rtui.AlignEnd).

@@ -123,11 +123,11 @@ func ComprehensiveApp() ui.VNode {
 						Build(),
 					ui.Text(""),
 					ui.HStack(
-						app.ButtonBuilder("  [ - ]  ").
+						ui.NewButtonBuilder("  [ - ]  ").
 							OnPress(DecrementComprehensiveIntent{}).
 							Build(),
 						ui.Text(" "),
-						app.ButtonBuilder("  [ + ]  ").
+						ui.NewButtonBuilder("  [ + ]  ").
 							OnPress(IncrementComprehensiveIntent{}).
 							Build(),
 					),
@@ -137,10 +137,10 @@ func ComprehensiveApp() ui.VNode {
 		}(),
 
 		ui.Text(""),
-		app.ButtonBuilder("  [ Next ]  ").
+		ui.NewButtonBuilder("  [ Next ]  ").
 			OnPress(NextStepIntent{}).
 			Build(),
-		app.ButtonBuilder("  [ Back ]  ").
+		ui.NewButtonBuilder("  [ Back ]  ").
 			OnPress(BackStepIntent{}).
 			Build(),
 	)

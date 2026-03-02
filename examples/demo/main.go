@@ -3,7 +3,6 @@ package main
 import (
 	"reflect"
 
-	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/ui"
 )
@@ -68,15 +67,15 @@ func DemoApp() ui.VNode {
 		ui.Text(""),
 		// Tab navigation (简化：不实现 Tab 切换功能)
 		ui.HStack(
-			app.ButtonBuilder(" [1] Counter ").
+			ui.NewButtonBuilder(" [1] Counter ").
 				OnPress(intent.ClickIntent{}).
 				Build(),
 			ui.Text(" "),
-			app.ButtonBuilder(" [2] Input ").
+			ui.NewButtonBuilder(" [2] Input ").
 				OnPress(intent.ClickIntent{}).
 				Build(),
 			ui.Text(" "),
-			app.ButtonBuilder(" [3] Tasks ").
+			ui.NewButtonBuilder(" [3] Tasks ").
 				OnPress(intent.ClickIntent{}).
 				Build(),
 		),
@@ -106,11 +105,11 @@ func DemoApp() ui.VNode {
 							FgColor("green").
 							Bold(true).
 							Build(),
-						app.ButtonBuilder("  [ - ]  ").
+						ui.NewButtonBuilder("  [ - ]  ").
 							OnPress(intent.ClickIntent{}).
 							Build(),
 						ui.Text(" "),
-						app.ButtonBuilder("  [ + ]  ").
+						ui.NewButtonBuilder("  [ + ]  ").
 							OnPress(intent.ClickIntent{}).
 							Build(),
 					),
@@ -122,7 +121,7 @@ func DemoApp() ui.VNode {
 						Bold(true).
 						Build(),
 					ui.Text(""),
-					app.InputBuilder().
+					ui.NewInputBuilder().
 						ForField(intent.ForField[string]("text")).
 						Placeholder("Type here...").
 						Build(),
@@ -138,17 +137,17 @@ func DemoApp() ui.VNode {
 						Bold(true).
 						Build(),
 					ui.Text(""),
-					app.CheckboxBuilder().
+					ui.NewCheckboxBuilder().
 						ForField(intent.ForField(checked1Key)).
 						Label("Review documentation").
 						Checked(checked1).
 						Build(),
-					app.CheckboxBuilder().
+					ui.NewCheckboxBuilder().
 						ForField(intent.ForField(checked2Key)).
 						Label("Write tests").
 						Checked(checked2).
 						Build(),
-					app.CheckboxBuilder().
+					ui.NewCheckboxBuilder().
 						ForField(intent.ForField(checked3Key)).
 						Label("Build release").
 						Checked(checked3).

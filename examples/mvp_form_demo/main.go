@@ -199,13 +199,13 @@ func App() ui.VNode {
 
 		ui.HStack(
 			ui.Text("  "),
-			app.ButtonBuilder("  Submit  ").
+			ui.NewButtonBuilder("  Submit  ").
 				Variant(app.ButtonVariantPrimary).
 				OnPress(SubmitFormIntent{}).
 				Disabled(username == "" || email == "" || !agree).
 				Build(),
 			ui.Text(" "),
-			app.ButtonBuilder("  Reset  ").
+			ui.NewButtonBuilder("  Reset  ").
 				Variant(app.ButtonVariantSecondary).
 				OnPress(ResetIntent{}).
 				Build(),
@@ -235,7 +235,7 @@ func SuccessView(username, email string, agree bool) ui.VNode {
 		ui.Text(""),
 		ui.HStack(
 			ui.Text("  "),
-			app.ButtonBuilder("  Back to Form  ").
+			ui.NewButtonBuilder("  Back to Form  ").
 				Variant(app.ButtonVariantSecondary).
 				OnPress(ClearSubmittedIntent{}).
 				Build(),

@@ -1,9 +1,8 @@
 package main
 
 import (
-	ui "github.com/wwsheng009/mint/ui"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
-	"github.com/wwsheng009/mint/app"
+	ui "github.com/wwsheng009/mint/ui"
 )
 
 func main() {
@@ -24,17 +23,17 @@ func TestLayout() ui.VNode {
 		ui.Text(""),
 		ui.Text("1. Three flex buttons:"),
 		ui.HStackBuilder(
-			app.ButtonBuilder("Left").
+			ui.NewButtonBuilder("Left").
 				PaddingH(1, 2).
 				Flex(1).
 				SetTextAlign(rtui.AlignStart).
 				Build(),
-			app.ButtonBuilder("Center").
+			ui.NewButtonBuilder("Center").
 				PaddingH(1, 1).
 				Flex(1).
 				SetTextAlign(rtui.AlignCenter).
 				Build(),
-			app.ButtonBuilder("Right").
+			ui.NewButtonBuilder("Right").
 				PaddingH(2, 1).
 				Flex(1).
 				SetTextAlign(rtui.AlignEnd).
@@ -47,15 +46,15 @@ func TestLayout() ui.VNode {
 		ui.PaddingAll(ui.Text("Padded Text"), 2),
 		ui.Text(""),
 		ui.Text("3. Button with margins:"),
-		app.ButtonBuilder("Btn1").
+		ui.NewButtonBuilder("Btn1").
 			MarginV(0, 1).
 			Build(),
-		app.ButtonBuilder("Btn2").
+		ui.NewButtonBuilder("Btn2").
 			MarginV(0, 1).
 			Build(),
 		ui.Text(""),
 		ui.Text("4. Spacious button:"),
-		app.ButtonBuilder("Spacious").
+		ui.NewButtonBuilder("Spacious").
 			PaddingAll(1).
 			MarginV(0, 0).
 			Flex(1).

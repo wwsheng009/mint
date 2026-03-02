@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/internal/log"
 	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/ui"
@@ -56,13 +55,13 @@ func Counter() ui.VNode {
 		ui.HStack(
 			// Decrement button using Intent (Fiber-first)
 			// Intent created with fresh parameter values at render time
-			app.ButtonBuilder("  -  ").
+			ui.NewButtonBuilder("  -  ").
 				OnPress(intent.Decrement("count", 1)).
 				Build(),
 			ui.Text("   "),
 			// Increment button using Intent (Fiber-first)
 			// Intent created with fresh parameter values at render time
-			app.ButtonBuilder("  +  ").
+			ui.NewButtonBuilder("  +  ").
 				OnPress(intent.Increment("count", 1)).
 				Build(),
 		),

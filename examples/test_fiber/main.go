@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/ui"
 )
 
@@ -33,10 +32,10 @@ func SimpleApp() ui.VNode {
 		ui.Text("Fiber Mode Test"),
 		ui.Text(fmt.Sprintf("Count: %d", count)),
 		ui.HStack(
-			app.ButtonBuilder("[-]").
+			ui.NewButtonBuilder("[-]").
 				OnPress(DecrementIntent{}).
 				Build(),
-			app.ButtonBuilder("[+]").
+			ui.NewButtonBuilder("[+]").
 				OnPress(IncrementIntent{}).
 				Build(),
 		),

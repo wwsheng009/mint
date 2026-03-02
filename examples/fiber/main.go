@@ -4,7 +4,6 @@ package main
 import (
 	"fmt"
 
-	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/ui"
 )
 
@@ -40,11 +39,11 @@ func SimpleCounter() ui.VNode {
 			Build(),
 		ui.Text(""),
 		ui.HStack(
-			app.ButtonBuilder("  -  ").
+			ui.NewButtonBuilder("  -  ").
 				OnPress(DecrementIntent{}).
 				Build(),
 			ui.Text("   "),
-			app.ButtonBuilder("  +  ").
+			ui.NewButtonBuilder("  +  ").
 				OnPress(IncrementIntent{}).
 				Build(),
 		),

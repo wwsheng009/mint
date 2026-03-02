@@ -1,7 +1,6 @@
 package main
 
 import (
-	"github.com/wwsheng009/mint/app"
 	ui "github.com/wwsheng009/mint/ui"
 )
 
@@ -23,7 +22,7 @@ func BoxModelDemo() ui.VNode {
 
 		// Example 1: Button with padding
 		ui.Text("1. Button with PaddingAll(2):"),
-		app.ButtonBuilder("Btn").
+		ui.NewButtonBuilder("Btn").
 			PaddingAll(2).  // Universal method - works on any component
 			Build(),
 
@@ -31,7 +30,7 @@ func BoxModelDemo() ui.VNode {
 
 		// Example 2: Button with different horizontal padding
 		ui.Text("2. Button with PaddingH(3, 3):"),
-		app.ButtonBuilder("Btn").
+		ui.NewButtonBuilder("Btn").
 			PaddingH(3, 3).
 			Build(),
 
@@ -40,9 +39,9 @@ func BoxModelDemo() ui.VNode {
 		// Example 3: Multiple buttons using VStack with Gap instead of margin
 		ui.Text("3. Buttons with VStack Gap(1):"),
 		ui.VStackBuilder(
-			app.ButtonBuilder("Btn1").Build(),
-			app.ButtonBuilder("Btn2").Build(),
-			app.ButtonBuilder("Btn3").Build(),
+			ui.NewButtonBuilder("Btn1").Build(),
+			ui.NewButtonBuilder("Btn2").Build(),
+			ui.NewButtonBuilder("Btn3").Build(),
 		).
 			Gap(1).
 			Build(),
@@ -58,13 +57,13 @@ func BoxModelDemo() ui.VNode {
 		// Example 5: Buttons with different padding
 		ui.Text("5. Buttons with PaddingLeft(2) vs PaddingRight(2):"),
 		ui.HStackBuilder(
-			app.ButtonBuilder("Left").
+			ui.NewButtonBuilder("Left").
 				PaddingH(0, 2).  // Right padding
 				Build(),
-			app.ButtonBuilder("Center").
+			ui.NewButtonBuilder("Center").
 				PaddingH(1, 1).  // Even padding
 				Build(),
-			app.ButtonBuilder("Right").
+			ui.NewButtonBuilder("Right").
 				PaddingH(2, 0).  // Left padding
 				Build(),
 		).

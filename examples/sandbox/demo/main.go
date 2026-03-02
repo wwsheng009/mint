@@ -59,11 +59,11 @@ func Counter() ui.VNode {
 
 		// Buttons
 		ui.HStack(
-			app.ButtonBuilder("  [ - ]  ").
+			ui.NewButtonBuilder("  [ - ]  ").
 				OnPress(DecrementSandboxDemoIntent{}).
 				Build(),
 			ui.Text(" "),
-			app.ButtonBuilder("  [ + ]  ").
+			ui.NewButtonBuilder("  [ + ]  ").
 				OnPress(IncrementSandboxDemoIntent{}).
 				Build(),
 		),

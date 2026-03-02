@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 
-	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/ui"
 )
@@ -31,9 +30,9 @@ func CounterWithHooks() ui.VNode {
 	return ui.VStack(
 		ui.NewTextBuilder(fmt.Sprintf("Count: %d", count)).FgColor("green").Build(),
 		ui.HStack(
-			app.ButtonBuilder(" - ").OnPress(ui.SimpleDecrementIntent{}).Build(),
+			ui.NewButtonBuilder(" - ").OnPress(ui.SimpleDecrementIntent{}).Build(),
 			ui.Text(" "),
-			app.ButtonBuilder(" + ").OnPress(ui.SimpleIncrementIntent{}).Build(),
+			ui.NewButtonBuilder(" + ").OnPress(ui.SimpleIncrementIntent{}).Build(),
 		),
 		ui.Text(""),
 		ui.NewTextBuilder("[方式1: ui.On + UseState]").FgColor("cyan").Build(),
@@ -56,9 +55,9 @@ func CounterWithGlobalState() ui.VNode {
 	return ui.VStack(
 		ui.NewTextBuilder(fmt.Sprintf("Count: %d", count)).FgColor("yellow").Build(),
 		ui.HStack(
-			app.ButtonBuilder(" - ").OnPress(intent.Decrement("counter2", 1)).Build(),
+			ui.NewButtonBuilder(" - ").OnPress(intent.Decrement("counter2", 1)).Build(),
 			ui.Text(" "),
-			app.ButtonBuilder(" + ").OnPress(intent.Increment("counter2", 1)).Build(),
+			ui.NewButtonBuilder(" + ").OnPress(intent.Increment("counter2", 1)).Build(),
 		),
 		ui.Text(""),
 		ui.NewTextBuilder("[方式2: intent.Increment]").FgColor("cyan").Build(),
@@ -89,7 +88,7 @@ func CounterWithCustomIntent() ui.VNode {
 	return ui.VStack(
 		ui.NewTextBuilder(fmt.Sprintf("Count: %d", count)).FgColor("magenta").Build(),
 		ui.HStack(
-			app.ButtonBuilder(" +10 ").OnPress(CustomIncrement{Step: 10}).Build(),
+			ui.NewButtonBuilder(" +10 ").OnPress(CustomIncrement{Step: 10}).Build(),
 		),
 		ui.Text(""),
 		ui.NewTextBuilder("[方式3: 自定义 Intent]").FgColor("cyan").Build(),

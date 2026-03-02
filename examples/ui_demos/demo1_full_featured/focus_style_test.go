@@ -8,6 +8,7 @@ import (
 	"github.com/wwsheng009/mint/components/button"
 	"github.com/wwsheng009/mint/framework/theme"
 	"github.com/wwsheng009/mint/runtime/paint"
+	"github.com/wwsheng009/mint/ui"
 )
 
 // TestFocusStyleVisibility tests that focus style changes are visible
@@ -15,12 +16,12 @@ func TestFocusStyleVisibility(t *testing.T) {
 	// Note: Theme is already initialized by the test framework
 
 	// Create test buttons
-	primaryBtn := app.ButtonBuilder("[Open Modal]").
+	primaryBtn := ui.NewButtonBuilder("[Open Modal]").
 		Variant(app.ButtonVariantPrimary).
 		FocusStyle(app.FocusStyleBracket).
 		Build()
 
-	dangerBtn := app.ButtonBuilder("Quit").
+	dangerBtn := ui.NewButtonBuilder("Quit").
 		Variant(app.ButtonVariantDanger).
 		FocusStyle(app.FocusStyleBracket).
 		Build()
@@ -144,7 +145,7 @@ func TestFocusStyleVisibility(t *testing.T) {
 func TestFocusIndicator(t *testing.T) {
 	// Note: Theme is already initialized by the test framework
 
-	btn := app.ButtonBuilder("[Test]").
+	btn := ui.NewButtonBuilder("[Test]").
 		Variant(app.ButtonVariantPrimary).
 		FocusStyle(app.FocusStyleBracket).
 		Build()

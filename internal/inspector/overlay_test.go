@@ -3,7 +3,6 @@ package inspector
 import (
 	"testing"
 
-	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
 	"github.com/wwsheng009/mint/ui"
@@ -166,13 +165,13 @@ func TestGetColorForVNode(t *testing.T) {
 	}{
 		{
 			name:      "Selected button",
-			vnode:     app.ButtonBuilder("Test").Build(),
+			vnode:     ui.NewButtonBuilder("Test").Build(),
 			isSelected: true,
 			expectedColor: "Selected",
 		},
 		{
 			name:      "Unselected button",
-			vnode:     app.ButtonBuilder("Test").Build(),
+			vnode:     ui.NewButtonBuilder("Test").Build(),
 			isSelected: false,
 			expectedColor: "Button",
 		},
@@ -217,7 +216,7 @@ func TestGetCornerIndicator(t *testing.T) {
 		vnode    ui.VNode
 		expected rune
 	}{
-		{"Button", app.ButtonBuilder("Test").Build(), '█'},
+		{"Button", ui.NewButtonBuilder("Test").Build(), '█'},
 		{"Text", ui.Text("Hello"), '▪'},
 		{"HStack", ui.HStack(), '→'},
 		{"VStack", ui.VStack(), '↓'},
@@ -242,7 +241,7 @@ func TestGetElementTypeName(t *testing.T) {
 		vnode    ui.VNode
 		expected string
 	}{
-		{"Button", app.ButtonBuilder("Test").Build(), "BTN"},
+		{"Button", ui.NewButtonBuilder("Test").Build(), "BTN"},
 		{"Text", ui.Text("Hello"), "TXT"},
 		{"HStack", ui.HStack(), "H"},
 		{"VStack", ui.VStack(), "V"},
@@ -266,7 +265,7 @@ func TestGetElementTypeName(t *testing.T) {
 func TestPaintWithColors(t *testing.T) {
 	overlay := NewOverlay()
 
-	button := app.ButtonBuilder("Test Button").Build()
+	button := ui.NewButtonBuilder("Test Button").Build()
 
 	// Set bounds
 	if boundsAware, ok := button.(interface{ SetBounds(int, int, int, int) }); ok {
@@ -295,7 +294,7 @@ func TestPaintWithCornerTags(t *testing.T) {
 	overlay := NewOverlay()
 	overlay.SetShowCornerTags(true)
 
-	button := app.ButtonBuilder("Test").Build()
+	button := ui.NewButtonBuilder("Test").Build()
 
 	// Set bounds
 	if boundsAware, ok := button.(interface{ SetBounds(int, int, int, int) }); ok {
@@ -321,7 +320,7 @@ func TestPaintWithElementTypes(t *testing.T) {
 	overlay := NewOverlay()
 	overlay.SetShowElementTypes(true)
 
-	button := app.ButtonBuilder("Test").Build()
+	button := ui.NewButtonBuilder("Test").Build()
 
 	// Set bounds
 	if boundsAware, ok := button.(interface{ SetBounds(int, int, int, int) }); ok {
@@ -371,7 +370,7 @@ func TestPaintWithPadding(t *testing.T) {
 func TestPaintHighlightWithColor(t *testing.T) {
 	overlay := NewOverlay()
 
-	button := app.ButtonBuilder("Test").Build()
+	button := ui.NewButtonBuilder("Test").Build()
 
 	// Set bounds
 	if boundsAware, ok := button.(interface{ SetBounds(int, int, int, int) }); ok {
@@ -400,7 +399,7 @@ func TestOverlayDisabledFeatures(t *testing.T) {
 	overlay.SetShowCornerTags(false)
 	overlay.SetShowElementTypes(false)
 
-	button := app.ButtonBuilder("Test").Build()
+	button := ui.NewButtonBuilder("Test").Build()
 
 	// Set bounds
 	if boundsAware, ok := button.(interface{ SetBounds(int, int, int, int) }); ok {
@@ -424,7 +423,7 @@ func TestOverlayDisabledFeatures(t *testing.T) {
 func TestMultipleElements(t *testing.T) {
 	overlay := NewOverlay()
 
-	button1 := app.ButtonBuilder("Button1").Build()
+	button1 := ui.NewButtonBuilder("Button1").Build()
 	text := ui.Text("Hello")
 	_ = ui.HStack(button1, text) // Create container but not used for painting
 

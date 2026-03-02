@@ -39,11 +39,11 @@ func main() {
 					ui.NewTextBuilder("│                                       │").FgColor("cyan").Build(),
 					ui.HStack(
 						ui.NewTextBuilder("│  ").FgColor("cyan").Build(),
-						app.ButtonBuilder(" Yes ").
+						ui.NewButtonBuilder(" Yes ").
 							OnPress(CloseModalIntent{}).
 							Build(),
 						ui.NewTextBuilder("  ").FgColor("cyan").Build(),
-						app.ButtonBuilder(" No ").
+						ui.NewButtonBuilder(" No ").
 							OnPress(CloseModalIntent{}).
 							Build(),
 						ui.NewTextBuilder("               │").FgColor("cyan").Build(),
@@ -61,7 +61,7 @@ func main() {
 				ui.Text(""),
 				ui.NewTextBuilder("Click the button below to open a modal dialog").FgColor("gray").Build(),
 				ui.Text(""),
-				app.ButtonBuilder("  Show Modal  ").
+				ui.NewButtonBuilder("  Show Modal  ").
 					OnPress(OpenModalIntent{}).
 					Build(),
 				ui.Text(""),

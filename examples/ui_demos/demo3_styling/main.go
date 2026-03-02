@@ -15,7 +15,6 @@
 package main
 
 import (
-	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/ui"
 )
 
@@ -105,13 +104,13 @@ func TabNavigation(currentTab string) ui.VNode {
 		isActive := currentTab == tab.id
 		var btn ui.VNode
 		if isActive {
-			btn = app.ButtonBuilder("[" + tab.label + "]").
+			btn = ui.NewButtonBuilder("[" + tab.label + "]").
 				BgColor(tab.color).
 				FgColor("white").
 				OnPress(SetStylingTabIntent{TabID: tab.id}).
 				Build()
 		} else {
-			btn = app.ButtonBuilder(" " + tab.label + " ").
+			btn = ui.NewButtonBuilder(" " + tab.label + " ").
 				FgColor(tab.color).
 				OnPress(SetStylingTabIntent{TabID: tab.id}).
 				Build()
@@ -496,12 +495,12 @@ func ThemesTab() ui.VNode {
 					FgColor(theme.fg).
 					Build(),
 				ui.Text(" "),
-				app.ButtonBuilder("[Primary]").
+				ui.NewButtonBuilder("[Primary]").
 					BgColor(theme.primary).
 					FgColor("white").
 					Build(),
 				ui.Text(" "),
-				app.ButtonBuilder("[Secondary]").
+				ui.NewButtonBuilder("[Secondary]").
 					BgColor(theme.secondary).
 					FgColor("white").
 					Build(),

@@ -17,7 +17,6 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/framework/theme"
 	"github.com/wwsheng009/mint/internal/log"
 	"github.com/wwsheng009/mint/runtime/intent"
@@ -220,8 +219,8 @@ func ModalView() ui.VNode {
 		ui.Text(""),
 		ui.HStack(
 			ui.Text(""),
-			app.ButtonBuilder("[ Close ]").
-				Variant(app.ButtonVariantPrimary).
+			ui.NewButtonBuilder("[ Close ]").
+				Variant(ui.ButtonVariantPrimary).
 				OnPress(CloseModalIntent{}). // 使用 CloseModalIntent 关闭 Modal
 				Build(),
 			ui.Text(""),
@@ -341,7 +340,7 @@ func FormContent(
 					ConfirmInfo("Age:", age),
 					ui.HStackBuilder(
 						ui.Text("         "),
-						app.CheckboxBuilder().
+						ui.NewCheckboxBuilder().
 							ForField(intent.ForField(agreedKey)).
 							Checked(agreed).
 							Label("I agree to the Terms and Conditions").
@@ -396,7 +395,7 @@ func FormItem(
 					Bold(true)).
 				Build(),
 			ui.Text(" "),
-			app.InputBuilder().
+			ui.NewInputBuilder().
 				ForField(intent.ForField(fieldKey)).
 				Value(value).
 				Placeholder(placeholder).
@@ -438,7 +437,7 @@ func FormItemPassword(
 					Bold(true)).
 				Build(),
 			ui.Text(" "),
-			app.InputBuilder().
+			ui.NewInputBuilder().
 				ForField(intent.ForField(fieldKey)).
 				Value(value).
 				Password().
@@ -476,8 +475,8 @@ func ActionButtons(step int) ui.VNode {
 
 	if step > 1 {
 		buttons = append(buttons,
-			app.ButtonBuilder("[ Previous ]").
-				Variant(app.ButtonVariantSecondary).
+			ui.NewButtonBuilder("[ Previous ]").
+				Variant(ui.ButtonVariantSecondary).
 				OnPress(UpdateStepIntent{Step: step - 1}).
 				Build(),
 		)
@@ -485,23 +484,23 @@ func ActionButtons(step int) ui.VNode {
 
 	if step < totalSteps {
 		buttons = append(buttons,
-			app.ButtonBuilder("[ Next ]").
-				Variant(app.ButtonVariantPrimary).
+			ui.NewButtonBuilder("[ Next ]").
+				Variant(ui.ButtonVariantPrimary).
 				OnPress(UpdateStepIntent{Step: step + 1}).
 				Build(),
 		)
 	} else {
 		buttons = append(buttons,
-			app.ButtonBuilder("[ Submit ]").
-				Variant(app.ButtonVariantPrimary).
+			ui.NewButtonBuilder("[ Submit ]").
+				Variant(ui.ButtonVariantPrimary).
 				OnPress(ShowModalIntent{}).
 				Build(),
 		)
 	}
 
 	buttons = append(buttons,
-		app.ButtonBuilder("[ Cancel ]").
-			Variant(app.ButtonVariantDefault).
+		ui.NewButtonBuilder("[ Cancel ]").
+			Variant(ui.ButtonVariantDefault).
 			OnPress(QuitIntent{}).
 			Build(),
 	)

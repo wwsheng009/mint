@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/ui"
 )
 
@@ -99,11 +98,11 @@ func TimerDemo() ui.VNode {
 		ui.NewTextBuilder(fmt.Sprintf("Status: %s", statusText)).FgColor(statusColor).Build(),
 		ui.Text(""),
 		ui.HStack(
-			app.ButtonBuilder(" ▶ Start ").OnPress(StartTimerIntent{}).Build(),
+			ui.NewButtonBuilder(" ▶ Start ").OnPress(StartTimerIntent{}).Build(),
 			ui.Text(" "),
-			app.ButtonBuilder(" ⏹ Stop ").OnPress(StopTimerIntent{}).Build(),
+			ui.NewButtonBuilder(" ⏹ Stop ").OnPress(StopTimerIntent{}).Build(),
 			ui.Text(" "),
-			app.ButtonBuilder(" ↺ Reset ").OnPress(ResetTimerIntent{}).Build(),
+			ui.NewButtonBuilder(" ↺ Reset ").OnPress(ResetTimerIntent{}).Build(),
 		),
 		ui.Text(""),
 		ui.NewTextBuilder("Tab: focus | Enter: click | q: quit").FgColor("bright-black").Build(),

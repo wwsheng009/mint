@@ -71,13 +71,13 @@ func main() {
 			ui.NewTextBuilder("Tabs Demo").Bold(true).FgColor("cyan").Build(),
 			ui.Text(""),
 			ui.HStack(
-				app.ButtonBuilder(" Home ").
+				ui.NewButtonBuilder(" Home ").
 					OnPress(SetHomeTabIntent{}).
 					Build(),
-				app.ButtonBuilder(" Profile ").
+				ui.NewButtonBuilder(" Profile ").
 					OnPress(SetProfileTabIntent{}).
 					Build(),
-				app.ButtonBuilder(" Settings ").
+				ui.NewButtonBuilder(" Settings ").
 					OnPress(SetSettingsTabIntent{}).
 					Build(),
 			),

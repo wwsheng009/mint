@@ -240,7 +240,7 @@ func ControlPanel(
 	setEventCount, setRenderCount, setBufferUpdates func(interface{}),
 ) ui.VNode {
 	allButtons := []ui.VNode{
-		app.ButtonBuilder("[1] Event").
+		ui.NewButtonBuilder("[1] Event").
 			Variant(app.ButtonVariantDanger).
 			OnClick(func() {
 				setCurrentPhase("Event")
@@ -248,14 +248,14 @@ func ControlPanel(
 			}).
 			FocusStyle(app.FocusStyleBracket).
 			Build(),
-		app.ButtonBuilder("[2]setState").
+		ui.NewButtonBuilder("[2]setState").
 			Variant(app.ButtonVariantSecondary).
 			OnClick(func() {
 				setCurrentPhase("setState")
 			}).
 			FocusStyle(app.FocusStyleBracket).
 			Build(),
-		app.ButtonBuilder("[3]Scheduler").
+		ui.NewButtonBuilder("[3]Scheduler").
 			Variant(app.ButtonVariantSuccess).
 			OnClick(func() {
 				setCurrentPhase("Scheduler")
@@ -263,40 +263,40 @@ func ControlPanel(
 			}).
 			FocusStyle(app.FocusStyleBracket).
 			Build(),
-		app.ButtonBuilder("[4] Render").
+		ui.NewButtonBuilder("[4] Render").
 			Variant(app.ButtonVariantPrimary).
 			OnClick(func() {
 				setCurrentPhase("Render")
 			}).
 			FocusStyle(app.FocusStyleBracket).
 			Build(),
-		app.ButtonBuilder("[5]Reconcile").
+		ui.NewButtonBuilder("[5]Reconcile").
 			OnClick(func() {
 				setCurrentPhase("Reconcile")
 			}).
 			FocusStyle(app.FocusStyleBracket).
 			Build(),
-		app.ButtonBuilder("[6] Layout").
+		ui.NewButtonBuilder("[6] Layout").
 			OnClick(func() {
 				setCurrentPhase("Layout")
 			}).
 			FocusStyle(app.FocusStyleBracket).
 			Build(),
-		app.ButtonBuilder("[7] Paint").
+		ui.NewButtonBuilder("[7] Paint").
 			OnClick(func() {
 				setCurrentPhase("Paint")
 				setBufferUpdates(func(c int) int { return c + 1 })
 			}).
 			FocusStyle(app.FocusStyleBracket).
 			Build(),
-		app.ButtonBuilder("[0] Idle").
+		ui.NewButtonBuilder("[0] Idle").
 			OnClick(func() {
 				setCurrentPhase("idle")
 			}).
 			FocusStyle(app.FocusStyleBracket).
 			Build(),
 		// Toggle Inspector button
-		app.ButtonBuilder("[I] Inspector").
+		ui.NewButtonBuilder("[I] Inspector").
 			Variant(app.ButtonVariantSecondary).
 			OnClick(func() {
 				globalInspector.ToggleVisibility()

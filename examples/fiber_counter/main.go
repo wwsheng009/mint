@@ -16,7 +16,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/ui"
 )
@@ -41,12 +40,12 @@ func SimpleCounter() ui.VNode {
 			FgColor("green").
 			Build(),
 		ui.HStack(
-			app.ButtonBuilder(" - ").
+			ui.NewButtonBuilder(" - ").
 				// ✅ 使用内置 Intent - 会自动注册 handler 处理
 				OnPress(intent.Decrement("count", 1)).
 				Build(),
 			ui.Text(" "),
-			app.ButtonBuilder(" + ").
+			ui.NewButtonBuilder(" + ").
 				OnPress(intent.Increment("count", 1)).
 				Build(),
 

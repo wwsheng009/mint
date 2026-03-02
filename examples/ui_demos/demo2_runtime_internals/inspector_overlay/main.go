@@ -303,7 +303,7 @@ func ControlPanel(
 	setShowInspector func(bool),
 ) ui.VNode {
 	allButtons := []ui.VNode{
-		app.ButtonBuilder("[1] Event").
+		ui.NewButtonBuilder("[1] Event").
 			Key("btn-event").
 			Variant(app.ButtonVariantDanger).
 			OnClick(func() {
@@ -312,7 +312,7 @@ func ControlPanel(
 			}).
 			FocusStyle(app.FocusStyleBracket).
 			Build(),
-		app.ButtonBuilder("[2]setState").
+		ui.NewButtonBuilder("[2]setState").
 			Key("btn-setstate").
 			Variant(app.ButtonVariantSecondary).
 			OnClick(func() {
@@ -320,7 +320,7 @@ func ControlPanel(
 			}).
 			FocusStyle(app.FocusStyleBracket).
 			Build(),
-		app.ButtonBuilder("[3]Scheduler").
+		ui.NewButtonBuilder("[3]Scheduler").
 			Key("btn-scheduler").
 			Variant(app.ButtonVariantSuccess).
 			OnClick(func() {
@@ -329,7 +329,7 @@ func ControlPanel(
 			}).
 			FocusStyle(app.FocusStyleBracket).
 			Build(),
-		app.ButtonBuilder("[4] Render").
+		ui.NewButtonBuilder("[4] Render").
 			Key("btn-render").
 			Variant(app.ButtonVariantPrimary).
 			OnClick(func() {
@@ -337,21 +337,21 @@ func ControlPanel(
 			}).
 			FocusStyle(app.FocusStyleBracket).
 			Build(),
-		app.ButtonBuilder("[5]Reconcile").
+		ui.NewButtonBuilder("[5]Reconcile").
 			Key("btn-reconcile").
 			OnClick(func() {
 				setCurrentPhase("Reconcile")
 			}).
 			FocusStyle(app.FocusStyleBracket).
 			Build(),
-		app.ButtonBuilder("[6] Layout").
+		ui.NewButtonBuilder("[6] Layout").
 			Key("btn-layout").
 			OnClick(func() {
 				setCurrentPhase("Layout")
 			}).
 			FocusStyle(app.FocusStyleBracket).
 			Build(),
-		app.ButtonBuilder("[7] Paint").
+		ui.NewButtonBuilder("[7] Paint").
 			Key("btn-paint").
 			OnClick(func() {
 				setCurrentPhase("Paint")
@@ -359,7 +359,7 @@ func ControlPanel(
 			}).
 			FocusStyle(app.FocusStyleBracket).
 			Build(),
-		app.ButtonBuilder("[0] Idle").
+		ui.NewButtonBuilder("[0] Idle").
 			Key("btn-idle").
 			OnClick(func() {
 				setCurrentPhase("idle")
@@ -367,7 +367,7 @@ func ControlPanel(
 			FocusStyle(app.FocusStyleBracket).
 			Build(),
 		// Toggle Inspector button - works with framework-level overlay
-		app.ButtonBuilder("[I] Inspector").
+		ui.NewButtonBuilder("[I] Inspector").
 			Key("btn-inspector").
 			Variant(app.ButtonVariantSecondary).
 			OnClick(func() {

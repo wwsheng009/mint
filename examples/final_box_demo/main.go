@@ -1,9 +1,8 @@
 package main
 
 import (
-	ui "github.com/wwsheng009/mint/ui"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
-	"github.com/wwsheng009/mint/app"
+	ui "github.com/wwsheng009/mint/ui"
 )
 
 func main() {
@@ -27,17 +26,17 @@ func Demo() ui.VNode {
 		ui.Text("─────────────────────────────────────────────────────────────────────"),
 		ui.Text(""),
 		ui.HStackBuilder(
-			app.ButtonBuilder("Left").
+			ui.NewButtonBuilder("Left").
 				PaddingH(1, 2).
 				Flex(1).
 				SetTextAlign(rtui.AlignStart).
 				Build(),
-			app.ButtonBuilder("Center").
+			ui.NewButtonBuilder("Center").
 				PaddingH(1, 1).
 				Flex(1).
 				SetTextAlign(rtui.AlignCenter).
 				Build(),
-			app.ButtonBuilder("Right").
+			ui.NewButtonBuilder("Right").
 				PaddingH(2, 1).
 				Flex(1).
 				SetTextAlign(rtui.AlignEnd).
@@ -51,7 +50,7 @@ func Demo() ui.VNode {
 		ui.Text("Test 2: Button with padding and centering"),
 		ui.Text("─────────────────────────────────────────────────────────────────────"),
 		ui.Text(""),
-		app.ButtonBuilder("Padded & Centered Button").
+		ui.NewButtonBuilder("Padded & Centered Button").
 			PaddingAll(2).
 			Flex(1).
 			SetTextAlign(rtui.AlignCenter).
@@ -61,10 +60,10 @@ func Demo() ui.VNode {
 		ui.Text(""),
 		ui.Text("Test 3: Buttons with vertical margin"),
 		ui.Text("─────────────────────────────────────────────────────────────────────"),
-		app.ButtonBuilder("Button 1").
+		ui.NewButtonBuilder("Button 1").
 			MarginV(0, 1).
 			Build(),
-		app.ButtonBuilder("Button 2").
+		ui.NewButtonBuilder("Button 2").
 			MarginV(0, 1).
 			Build(),
 		ui.Text(""),

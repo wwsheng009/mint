@@ -42,7 +42,7 @@ func TestInspectorEnableDisable(t *testing.T) {
 
 	// Test that disable clears selection
 	inspector.Enable()
-	button := app.ButtonBuilder("Test").Build()
+	button := ui.NewButtonBuilder("Test").Build()
 	inspector.SetSelectedVNode(button)
 
 	inspector.Disable()
@@ -56,7 +56,7 @@ func TestInspectorEnableDisable(t *testing.T) {
 func TestSetSelectedVNode(t *testing.T) {
 	inspector := NewInspector()
 
-	button := app.ButtonBuilder("Test Button").Build()
+	button := ui.NewButtonBuilder("Test Button").Build()
 	inspector.SetSelectedVNode(button)
 
 	selected := inspector.GetSelectedVNode()
@@ -75,7 +75,7 @@ func TestSetSelectedVNode(t *testing.T) {
 func TestGetSelectedInfo(t *testing.T) {
 	inspector := NewInspector()
 
-	button := app.ButtonBuilder("Click Me").Build()
+	button := ui.NewButtonBuilder("Click Me").Build()
 	inspector.SetSelectedVNode(button)
 
 	info := inspector.GetSelectedInfo()
@@ -112,7 +112,7 @@ func TestFindVNodeAt(t *testing.T) {
 	inspector := NewInspector()
 
 	// Create a simple VNode tree
-	button := app.ButtonBuilder("Test").Build()
+	button := ui.NewButtonBuilder("Test").Build()
 
 	// Simulate bounds being set
 	if boundsAware, ok := button.(interface{ SetBounds(int, int, int, int) }); ok {
@@ -175,7 +175,7 @@ func TestHandleMouseEvent_Disabled(t *testing.T) {
 func TestVNodeContains(t *testing.T) {
 	t.Skip("Requires actual layout engine to set bounds properly")
 
-	button := app.ButtonBuilder("Test").Build()
+	button := ui.NewButtonBuilder("Test").Build()
 
 	// Simulate bounds
 	if boundsAware, ok := button.(interface{ SetBounds(int, int, int, int) }); ok {
@@ -245,7 +245,7 @@ func TestOverlaySetters(t *testing.T) {
 func TestGetBorderStyle(t *testing.T) {
 	overlay := NewOverlay()
 
-	button := app.ButtonBuilder("Test").Build()
+	button := ui.NewButtonBuilder("Test").Build()
 	text := ui.Text("Hello")
 
 	buttonStyle := overlay.GetBorderStyle(button)
@@ -264,7 +264,7 @@ func TestGetBorderStyle(t *testing.T) {
 func TestPaintHighlight(t *testing.T) {
 	overlay := NewOverlay()
 
-	button := app.ButtonBuilder("Test").Build()
+	button := ui.NewButtonBuilder("Test").Build()
 
 	// Set bounds
 	if boundsAware, ok := button.(interface{ SetBounds(int, int, int, int) }); ok {
@@ -590,7 +590,7 @@ func DemoAppWithMultipleComponents() ui.VNode {
 		ui.Text("  - VirtualList"),
 		ui.Text("  - Tabs"),
 		ui.Text(""),
-		app.ButtonBuilder("[1] Action Button").Build(),
+		ui.NewButtonBuilder("[1] Action Button").Build(),
 		ui.Text(""),
 		ui.Text("Press Tab to navigate between components"),
 	)
@@ -604,11 +604,11 @@ func DemoAppWithButtons() ui.VNode {
 		ui.Text(""),
 		ui.Text("Use arrow keys to navigate:"),
 		ui.Text(""),
-		app.ButtonBuilder("[Button 1]").Build(),
-		app.ButtonBuilder("[Button 2]").Build(),
-		app.ButtonBuilder("[Button 3]").Build(),
-		app.ButtonBuilder("[Button 4]").Build(),
-		app.ButtonBuilder("[Button 5]").Build(),
+		ui.NewButtonBuilder("[Button 1]").Build(),
+		ui.NewButtonBuilder("[Button 2]").Build(),
+		ui.NewButtonBuilder("[Button 3]").Build(),
+		ui.NewButtonBuilder("[Button 4]").Build(),
+		ui.NewButtonBuilder("[Button 5]").Build(),
 	)
 }
 
@@ -667,7 +667,7 @@ func DemoAppWithTabs() ui.VNode {
 		ui.Text("────────────────────"),
 		ui.Text("Content for Tab 1"),
 		ui.Text(""),
-		app.ButtonBuilder("[Action]").Build(),
+		ui.NewButtonBuilder("[Action]").Build(),
 	)
 }
 
@@ -693,7 +693,7 @@ func DemoAppWithInspector() ui.VNode {
 
 	// 添加多个按钮
 	for i := 1; i <= 10; i++ {
-		items = append(items, app.ButtonBuilder(fmt.Sprintf("[Button %d]", i)).Build())
+		items = append(items, ui.NewButtonBuilder(fmt.Sprintf("[Button %d]", i)).Build())
 	}
 
 	return ui.VStack(items...)

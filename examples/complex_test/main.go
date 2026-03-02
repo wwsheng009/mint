@@ -5,7 +5,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/runtime/style"
 	ui "github.com/wwsheng009/mint/ui"
 	"github.com/wwsheng009/mint/ui/components/checkbox"
@@ -112,7 +111,7 @@ func createText(content string, color style.Color, bold bool) ui.VNode {
 func createStyledText(content string, color style.Color, bold bool) ui.VNode {
 	t := text.New(content).Foreground(color)
 	if bold {
-		t = t.Bold()
+		t = t.Bold(true)
 	}
 	return t
 }
@@ -125,7 +124,7 @@ func tabButton(label, tabID string) ui.VNode {
 	} else {
 		fg = style.Color("white")
 	}
-	return app.ButtonBuilder(label).
+	return ui.NewButtonBuilder(label).
 		FgColor(fg).
 		Build()
 }
@@ -173,15 +172,15 @@ func renderFormTab() ui.VNode {
 		ui.Text(""),
 		ui.Text(""),
 		ui.HStack(
-			app.ButtonBuilder("Submit").
-				Variant(app.ButtonVariantPrimary).
+			ui.NewButtonBuilder("Submit").
+				Variant(ui.NewButtonVariantPrimary).
 				Disabled(!formAgree).
 				Build(),
 
 			ui.Text("  "),
 
-			app.ButtonBuilder("Reset").
-				Variant(app.ButtonVariantSecondary).
+			ui.NewButtonBuilder("Reset").
+				Variant(ui.NewButtonVariantSecondary).
 				Build(),
 		),
 
@@ -199,16 +198,16 @@ func renderListTab() ui.VNode {
 		createText("--- List Tab ---", style.Color("yellow"), true),
 		ui.Text(""),
 		ui.HStack(
-			app.ButtonBuilder("Add Item").
-				Variant(app.ButtonVariantSuccess).
+			ui.NewButtonBuilder("Add Item").
+				Variant(ui.ButtonVariantSuccess).
 				Build(),
 			ui.Text("  "),
-			app.ButtonBuilder("Remove Last").
-				Variant(app.ButtonVariantDanger).
+			ui.NewButtonBuilder("Remove Last").
+				Variant(ui.ButtonVariantDanger).
 				Build(),
 			ui.Text("  "),
-			app.ButtonBuilder("Clear All").
-				Variant(app.ButtonVariantSecondary).
+			ui.NewButtonBuilder("Clear All").
+				Variant(ui.ButtonVariantSecondary).
 				Build(),
 		),
 		ui.Text(""),
@@ -236,8 +235,8 @@ func renderModalTab() ui.VNode {
 		createText("--- Modal Tab ---", style.Color("yellow"), true),
 		ui.Text(""),
 
-		app.ButtonBuilder("Show Modal").
-			Variant(app.ButtonVariantPrimary).
+		ui.NewButtonBuilder("Show Modal").
+			Variant(ui.ButtonVariantPrimary).
 			Build(),
 
 		ui.Text(""),
@@ -261,22 +260,22 @@ func renderProgressTab() ui.VNode {
 		ui.Text(""),
 
 		ui.HStack(
-			app.ButtonBuilder("0%").Build(),
+			ui.NewButtonBuilder("0%").Build(),
 			ui.Text(" "),
-			app.ButtonBuilder("25%").Build(),
+			ui.NewButtonBuilder("25%").Build(),
 			ui.Text(" "),
-			app.ButtonBuilder("50%").Build(),
+			ui.NewButtonBuilder("50%").Build(),
 			ui.Text(" "),
-			app.ButtonBuilder("75%").Build(),
+			ui.NewButtonBuilder("75%").Build(),
 			ui.Text(" "),
-			app.ButtonBuilder("100%").Build(),
+			ui.NewButtonBuilder("100%").Build(),
 		),
 
 		ui.Text(""),
 		ui.Text(""),
 
-		app.ButtonBuilder("Auto Increment").
-			Variant(app.ButtonVariantSuccess).
+		ui.NewButtonBuilder("Auto Increment").
+			Variant(ui.ButtonVariantSuccess).
 			Build(),
 	)
 }

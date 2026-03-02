@@ -70,7 +70,7 @@ var registeredHandlers sync.Map
 //			setVisible(!visible)
 //		})
 //
-//		return app.ButtonBuilder("Toggle").OnPress(ui.SimpleToggleIntent{}).Build()
+//		return ui.NewButtonBuilder("Toggle").OnPress(ui.SimpleToggleIntent{}).Build()
 //	}
 //
 // 使用示例（自定义 intent 类型）：
@@ -86,7 +86,7 @@ var registeredHandlers sync.Map
 //			setCount(func(c int) int { return c + 1 })
 //		})
 //
-//		return app.ButtonBuilder(" + ").OnPress(CustomIncrement{}).Build()
+//		return ui.NewButtonBuilder(" + ").OnPress(CustomIncrement{}).Build()
 //	}
 //
 // 重要提示：

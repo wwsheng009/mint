@@ -216,7 +216,7 @@ func Header(count int, setShowModal func(bool), setCount func(interface{})) ui.V
 		ui.NewTextBuilder("              ").
 			Style(style.FgBg(theme.Surface(), theme.Primary())).
 			Build(),
-		app.ButtonBuilder("[Open Modal]").
+		ui.NewButtonBuilder("[Open Modal]").
 			Variant(app.ButtonVariantPrimary). // 使用 Primary variant，默认就有 PRIMARY 背景
 			OnPress(OpenModalIntent{}).
 			FocusStyle(app.FocusStyleBracket). // 恢复 Bracket 样式
@@ -260,12 +260,12 @@ func MainBody(count int, setCount func(interface{}), input string, setInput func
 		ui.NewTextBuilder("Menu").
 			Style(style.FgBoldUnderline(theme.Muted())).
 			Build(),
-		app.ButtonBuilder("Add Count").
+		ui.NewButtonBuilder("Add Count").
 			Variant(app.ButtonVariantPrimary).
 			OnPress(AddCountIntent{}).
 			FocusStyle(app.FocusStyleBracket).
 			Build(),
-		app.ButtonBuilder("Quit").
+		ui.NewButtonBuilder("Quit").
 			Variant(app.ButtonVariantDanger).
 			FocusStyle(app.FocusStyleBracket).
 			OnPress(QuitIntent{}).
@@ -354,13 +354,13 @@ func ConfirmModal(onClose func()) ui.VNode {
 				// Centered buttons - use HStack with AlignCenter
 				// Uses theme colors: Secondary for Cancel, Success for OK
 				ui.HStackBuilder(
-					app.ButtonBuilder("[ Cancel ]").
+					ui.NewButtonBuilder("[ Cancel ]").
 						Variant(app.ButtonVariantSecondary).
 						OnPress(CloseModalIntent{}).
 						FocusStyle(app.FocusStyleBracket).
 						Build(),
 					ui.Text(" "),
-					app.ButtonBuilder("[ OK ]").
+					ui.NewButtonBuilder("[ OK ]").
 						Variant(app.ButtonVariantSuccess).
 						FocusStyle(app.FocusStyleBracket).
 						OnPress(CloseModalIntent{}).

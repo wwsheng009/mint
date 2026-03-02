@@ -212,11 +212,11 @@ func BuildDemoContentPanel(content ui.VNode) ui.VNode {
 
 // BuildDemoContent creates the demo VNode tree
 func BuildDemoContent() ui.VNode {
-	button1 := app.ButtonBuilder("Button 1").
+	button1 := ui.NewButtonBuilder("Button 1").
 		Variant(app.ButtonVariantPrimary).
 		Build()
 
-	button2 := app.ButtonBuilder("Button 2").
+	button2 := ui.NewButtonBuilder("Button 2").
 		Variant(app.ButtonVariantSuccess).
 		Build()
 

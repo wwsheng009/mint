@@ -1,14 +1,13 @@
 package main
 
 import (
-	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/ui"
 )
 
 // Hello demonstrates controlled input with real-time updates
 func Hello() ui.VNode {
 
-	return app.VStack(
+	return ui.VStack(
 		ui.Text("Hello World"),
 	)
 }

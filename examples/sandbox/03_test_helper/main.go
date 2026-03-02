@@ -71,11 +71,11 @@ func FormApp() ui.VNode {
 				Build(), // TODO: integrate with FieldChangeIntent
 		),
 		ui.Text(""),
-		app.ButtonBuilder("  [ Submit ]  ").
+		ui.NewButtonBuilder("  [ Submit ]  ").
 			OnPress(SubmitFormIntent{}).
 			Build(),
 		ui.Text(""),
-		app.ButtonBuilder("  [ Clear ]  ").
+		ui.NewButtonBuilder("  [ Clear ]  ").
 			OnPress(ClearFormIntent{}).
 			Build(),
 		ui.Text(""),

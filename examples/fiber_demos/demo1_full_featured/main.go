@@ -22,7 +22,6 @@ package main
 import (
 	"fmt"
 
-	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/framework/theme"
 	"github.com/wwsheng009/mint/runtime/style"
 	"github.com/wwsheng009/mint/ui"
@@ -222,16 +221,16 @@ func ConfirmModal(onClose func()) ui.VNode {
 				// Centered buttons - use HStack with AlignCenter
 				// Uses theme colors: Secondary for Cancel, Success for OK
 				ui.HStackBuilder(
-					app.ButtonBuilder("[ Cancel ]").
-						Variant(app.ButtonVariantSecondary).
+					ui.NewButtonBuilder("[ Cancel ]").
+						Variant(ui.ButtonVariantSecondary).
 						OnPress(CloseFiberDemoModalIntent{}).
-						FocusStyle(app.FocusStyleBracket).
+						FocusStyle(ui.FocusStyleBracket).
 						Build(),
 					ui.Text(" "),
-					app.ButtonBuilder("[ OK ]").
-						Variant(app.ButtonVariantSuccess).
+					ui.NewButtonBuilder("[ OK ]").
+						Variant(ui.ButtonVariantSuccess).
 						OnPress(CloseFiberDemoModalIntent{}).
-						FocusStyle(app.FocusStyleBracket).
+						FocusStyle(ui.FocusStyleBracket).
 						Build(),
 				).Align(ui.AlignCenter).Build(),
 				ui.Text(""),

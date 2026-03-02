@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 
-	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/ui"
 	"github.com/wwsheng009/mint/ui/components/absolute"
 	"github.com/wwsheng009/mint/ui/components/button"
@@ -28,17 +27,17 @@ func main() {
 		})
 
 		return ui.VStack(
-			ui.TextBuilder("Absolute Positioning Demo").Bold(true).FgColor("cyan").Build(),
+			ui.NewTextBuilder("Absolute Positioning Demo").Bold(true).FgColor("cyan").Build(),
 			ui.Text(""),
 			ui.Text("Button with notification badge:"),
 			ui.Text(""),
 			ui.HStack(
-				app.ButtonBuilder("  Messages  ").
+				ui.NewButtonBuilder("  Messages  ").
 					OnPress(IncrementIntent{}).
 					Variant(button.VariantPrimary).
 					Build(),
 				// Badge positioned absolutely relative to parent
-				app.AbsoluteBuilder(
+				ui.NewAbsoluteBuilder(
 					ui.NewTextBuilder("New!").
 						FgColor("red").
 						BgColor("white").
@@ -52,11 +51,11 @@ func main() {
 			ui.Text(""),
 			ui.NewTextBuilder("Stacked Elements").FgColor("yellow").Build(),
 			ui.Text(""),
-			app.VStack(
+			ui.VStack(
 				ui.Text("Background layer"),
 				ui.HStack(
 					ui.Text("Middle layer"),
-					app.AbsoluteBuilder(
+					ui.NewAbsoluteBuilder(
 						ui.NewTextBuilder("OVERLAY").FgColor("white").BgColor("red").Build(),
 					).
 						Left(absolute.AbsolutePos(10)).

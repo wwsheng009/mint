@@ -3,7 +3,6 @@
 package main
 
 import (
-	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/framework"
 	"github.com/wwsheng009/mint/runtime/intent"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
@@ -111,7 +110,7 @@ func App() ui.VNode {
 			ui.NewTextBuilder(getPositionName(position)).
 				FgColor("cyan").
 				Build(),
-			app.Spacer().Build(),
+			ui.Spacer().Build(),
 			ui.NewTextBuilder(getPositionDescription(position)).
 				FgColor("gray").
 				Build(),
@@ -125,8 +124,8 @@ func App() ui.VNode {
 }
 
 func positionButton(label, pos string) ui.VNode {
-	return app.ButtonBuilder(label+"   ").
-		Variant(app.ButtonVariantPrimary).
+	return ui.NewButtonBuilder(label+"   ").
+		Variant(ui.ButtonVariantPrimary).
 		OnPress(ShowPositioningIntent{Position: pos}).
 		Build()
 }

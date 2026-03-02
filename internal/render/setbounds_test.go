@@ -1,3 +1,4 @@
+//go:build integration
 // +build integration
 
 package render
@@ -5,7 +6,6 @@ package render
 import (
 	"testing"
 
-	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/runtime"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
@@ -14,8 +14,8 @@ import (
 // before Paint() is invoked
 func TestSetBoundsCalledForButtons(t *testing.T) {
 	// Create a simple HStack with buttons
-	button1 := app.ButtonBuilder("Button1").Build()
-	button2 := app.ButtonBuilder("Button2").Build()
+	button1 := ui.NewButtonBuilder("Button1").Build()
+	button2 := ui.NewButtonBuilder("Button2").Build()
 
 	hstack := rtui.HStackBuilder(button1, button2).
 		Gap(1).

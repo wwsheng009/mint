@@ -4,7 +4,6 @@ package main
 import (
 	"fmt"
 
-	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/ui"
 )
@@ -51,7 +50,7 @@ func MouseFocusDemo() ui.VNode {
 		return SubmittedView(name, email, password)
 	}
 
-	return app.VStack(
+	return ui.VStack(
 		ui.NewTextBuilder("=== Mouse Focus Demo ===").
 			Bold(true).
 			Build(),
@@ -66,7 +65,7 @@ func MouseFocusDemo() ui.VNode {
 			Build(),
 		ui.HStack(
 			ui.Text("  "),
-			app.InputBuilder().
+			ui.NewInputBuilder().
 				ForField(intent.BindField("name")).
 				Value(name).
 				Placeholder("Enter your name").
@@ -79,7 +78,7 @@ func MouseFocusDemo() ui.VNode {
 			Build(),
 		ui.HStack(
 			ui.Text("  "),
-			app.InputBuilder().
+			ui.NewInputBuilder().
 				ForField(intent.BindField("email")).
 				Value(email).
 				Placeholder("Enter your email").
@@ -92,7 +91,7 @@ func MouseFocusDemo() ui.VNode {
 			Build(),
 		ui.HStack(
 			ui.Text("  "),
-			app.InputBuilder().
+			ui.NewInputBuilder().
 				ForField(intent.BindField("password")).
 				Value(password).
 				Placeholder("Enter password").
@@ -107,8 +106,8 @@ func MouseFocusDemo() ui.VNode {
 		// Submit button
 		ui.HStack(
 			ui.Text("  "),
-			app.ButtonBuilder("  Submit  ").
-				Variant(app.ButtonVariantPrimary).
+			ui.NewButtonBuilder("  Submit  ").
+				Variant(ui.ButtonVariantPrimary).
 				Key("submit-btn").
 				OnPress(SubmitFormIntent{}).
 				Disabled(name == "" || email == "" || password == "").
@@ -132,7 +131,7 @@ func MouseFocusDemo() ui.VNode {
 
 // SubmittedView - 显示提交成功的视图
 func SubmittedView(name, email, password string) ui.VNode {
-	return app.VStack(
+	return ui.VStack(
 		ui.NewTextBuilder("✅ Form Submitted!").
 			Bold(true).
 			FgColor("green").
@@ -147,8 +146,8 @@ func SubmittedView(name, email, password string) ui.VNode {
 		ui.Text(""),
 		ui.HStack(
 			ui.Text("  "),
-			app.ButtonBuilder("  Back  ").
-				Variant(app.ButtonVariantSecondary).
+			ui.NewButtonBuilder("  Back  ").
+				Variant(ui.ButtonVariantSecondary).
 				Key("back-btn").
 				OnPress(ClearSubmittedStateIntent{}).
 				Build(),

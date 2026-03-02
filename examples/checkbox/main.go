@@ -3,7 +3,6 @@ package main
 import (
 	"reflect"
 
-	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/ui"
 )
@@ -83,17 +82,17 @@ func CheckboxDemo() ui.VNode {
 			FgColor("bright-black").
 			Build(),
 		ui.Text(""),
-		app.CheckboxBuilder().
+		ui.NewCheckboxBuilder().
 			ForField(intent.ForField(acceptTermsKey)).
 			Label("I accept the terms and conditions").
 			Checked(acceptTerms).
 			Build(),
-		app.CheckboxBuilder().
+		ui.NewCheckboxBuilder().
 			ForField(intent.ForField(acceptUpdatesKey)).
 			Label("Subscribe to updates").
 			Checked(acceptUpdates).
 			Build(),
-		app.CheckboxBuilder().
+		ui.NewCheckboxBuilder().
 			ForField(intent.ForField(acceptPrivacyKey)).
 			Label("I have read the privacy policy").
 			Checked(acceptPrivacy).

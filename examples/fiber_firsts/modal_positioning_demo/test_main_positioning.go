@@ -13,19 +13,18 @@ import (
 	"github.com/wwsheng009/mint/runtime/paint"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/ui"
-	app "github.com/wwsheng009/mint/ui"
 	modal "github.com/wwsheng009/mint/ui/components/modal"
 	text "github.com/wwsheng009/mint/ui/components/text"
 )
 
 // Test 1: Centered modal from main.go (uses Stack+Spacer)
 func Test1_CenteredModalFromMain() rtui.VNode {
-	return app.VStack(
-		app.Spacer().Flex(1).Build(),
+	return ui.VStack(
+		ui.Spacer().Flex(1).Build(),
 		modal.NewBuilder().
 			Key("modal-centered").
 			Title("Centered Modal").
-			Content(app.VStack(
+			Content(ui.VStack(
 				text.NewBuilder("🎯 Centered Position").
 					FgColor("yellow").
 					Bold(true).
@@ -44,7 +43,7 @@ func Test1_CenteredModalFromMain() rtui.VNode {
 			Open(true).
 			Rounded().
 			Build(),
-		app.Spacer().Flex(1).Build(),
+		ui.Spacer().Flex(1).Build(),
 	)
 }
 
@@ -54,7 +53,7 @@ func Test2_LeftAlignedModal() rtui.VNode {
 		modal.NewBuilder().
 			Key("modal-left").
 			Title("Left Aligned").
-			Content(app.VStack(
+			Content(ui.VStack(
 				text.NewBuilder("⬅️ Left Aligned").
 					FgColor("yellow").
 					Bold(true).
@@ -70,7 +69,7 @@ func Test2_LeftAlignedModal() rtui.VNode {
 			Open(true).
 			Rounded().
 			Build(),
-		app.Spacer().Flex(1).Build(),
+		ui.Spacer().Flex(1).Build(),
 	)
 }
 

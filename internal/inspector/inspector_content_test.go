@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/wwsheng009/mint/app"
 	ui "github.com/wwsheng009/mint/ui"
 )
 
@@ -27,13 +26,13 @@ func TestInspectorWithRealContent(t *testing.T) {
 		ui.Text("───────────────"),
 		ui.HStack(
 			ui.Text("Left"),
-			app.ButtonBuilder("[Button A]").Build(),
+			ui.NewButtonBuilder("[Button A]").Build(),
 			ui.Text("Right"),
 		),
 		ui.VStack(
 			ui.Text("Nested VStack"),
-			app.ButtonBuilder("[Button B]").Build(),
-			app.ButtonBuilder("[Button C]").Build(),
+			ui.NewButtonBuilder("[Button B]").Build(),
+			ui.NewButtonBuilder("[Button C]").Build(),
 		),
 		ui.Text("───────────────"),
 		ui.Text("End of content"),
@@ -158,15 +157,15 @@ func TestInspectorWithAttachedApp(t *testing.T) {
 			ui.HStack(
 				ui.Text("Column 1:"),
 				ui.VStack(
-					app.ButtonBuilder("[Btn 1]").Build(),
-					app.ButtonBuilder("[Btn 2]").Build(),
-					app.ButtonBuilder("[Btn 3]").Build(),
+					ui.NewButtonBuilder("[Btn 1]").Build(),
+					ui.NewButtonBuilder("[Btn 2]").Build(),
+					ui.NewButtonBuilder("[Btn 3]").Build(),
 				),
 				ui.Text("  "),
 				ui.Text("Column 2:"),
 				ui.VStack(
-					app.ButtonBuilder("[Btn 4]").Build(),
-					app.ButtonBuilder("[Btn 5]").Build(),
+					ui.NewButtonBuilder("[Btn 4]").Build(),
+					ui.NewButtonBuilder("[Btn 5]").Build(),
 				),
 			),
 			ui.Text("────────────────"),

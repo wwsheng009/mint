@@ -11,7 +11,6 @@ package main
 import (
 	"fmt"
 
-	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/ui"
 )
 
@@ -63,10 +62,10 @@ func StrategyApp() ui.VNode {
 			Bold(true).
 			Build(),
 		ui.Text(""),
-		app.ButtonBuilder("  [ + ]  ").
+		ui.NewButtonBuilder("  [ + ]  ").
 			OnPress(IncrementStrategyIntent{}).
 			Build(),
-		app.ButtonBuilder("  [ - ]  ").
+		ui.NewButtonBuilder("  [ - ]  ").
 			OnPress(DecrementStrategyIntent{}).
 			Build(),
 		ui.Text(""),

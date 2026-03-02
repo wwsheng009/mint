@@ -14,7 +14,6 @@ package main
 import (
 	"fmt"
 
-	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/ui"
 )
 
@@ -103,13 +102,13 @@ func TabNavigation(currentDemo string) ui.VNode {
 		isActive := currentDemo == tab.id
 		var btn ui.VNode
 		if isActive {
-			btn = app.ButtonBuilder("[" + tab.label + "]").
+			btn = ui.NewButtonBuilder("[" + tab.label + "]").
 				BgColor("blue").
 				FgColor("white").
 				OnPress(SetComplexLayoutTabIntent{TabID: tab.id}).
 				Build()
 		} else {
-			btn = app.ButtonBuilder(" " + tab.label + " ").
+			btn = ui.NewButtonBuilder(" " + tab.label + " ").
 				FgColor("blue").
 				OnPress(SetComplexLayoutTabIntent{TabID: tab.id}).
 				Build()

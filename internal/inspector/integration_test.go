@@ -3,7 +3,6 @@ package inspector
 import (
 	"testing"
 
-	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/ui"
 )
 
@@ -89,7 +88,7 @@ func TestHandleKeyEvent_Escape_ClearsSelection(t *testing.T) {
 	inspector := NewInspector()
 	inspector.Enable()
 
-	button := app.ButtonBuilder("Test").Build()
+	button := ui.NewButtonBuilder("Test").Build()
 	inspector.SetSelectedVNode(button)
 
 	if inspector.GetSelectedVNode() == nil {
@@ -122,8 +121,8 @@ func TestHandleKeyEvent_Tab(t *testing.T) {
 	inspector := NewInspector()
 	inspector.Enable()
 
-	button1 := app.ButtonBuilder("Button1").Build()
-	button2 := app.ButtonBuilder("Button2").Build()
+	button1 := ui.NewButtonBuilder("Button1").Build()
+	button2 := ui.NewButtonBuilder("Button2").Build()
 
 	// Set initial selection
 	inspector.SetSelectedVNode(button1)
@@ -148,7 +147,7 @@ func TestHandleKeyEvent_Enter(t *testing.T) {
 	inspector := NewInspector()
 	inspector.Enable()
 
-	button := app.ButtonBuilder("Test").Build()
+	button := ui.NewButtonBuilder("Test").Build()
 	inspector.SetSelectedVNode(button)
 
 	// Press Enter
@@ -194,9 +193,9 @@ func TestNavigateToNextElement(t *testing.T) {
 	inspector := NewInspector()
 	inspector.Enable()
 
-	button1 := app.ButtonBuilder("Button1").Build()
-	button2 := app.ButtonBuilder("Button2").Build()
-	button3 := app.ButtonBuilder("Button3").Build()
+	button1 := ui.NewButtonBuilder("Button1").Build()
+	button2 := ui.NewButtonBuilder("Button2").Build()
+	button3 := ui.NewButtonBuilder("Button3").Build()
 
 	// Create a simple VNode tree
 	_ = ui.HStack(button1, button2, button3)
@@ -223,7 +222,7 @@ func TestIsSelectable(t *testing.T) {
 		vnode    ui.VNode
 		expected bool
 	}{
-		{"Button", app.ButtonBuilder("Test").Build(), true},
+		{"Button", ui.NewButtonBuilder("Test").Build(), true},
 		{"Text", ui.Text("Hello"), false},
 		{"HStack", ui.HStack(), false},
 		{"VStack", ui.VStack(), false},
@@ -244,8 +243,8 @@ func TestIsSelectable(t *testing.T) {
 func TestCollectAllElements(t *testing.T) {
 	inspector := NewInspector()
 
-	button1 := app.ButtonBuilder("Button1").Build()
-	button2 := app.ButtonBuilder("Button2").Build()
+	button1 := ui.NewButtonBuilder("Button1").Build()
+	button2 := ui.NewButtonBuilder("Button2").Build()
 	text := ui.Text("Not selectable")
 
 	container := ui.HStack(button1, text, button2)
@@ -262,9 +261,9 @@ func TestCollectAllElements(t *testing.T) {
 func TestFindNextSelectable(t *testing.T) {
 	inspector := NewInspector()
 
-	button1 := app.ButtonBuilder("Button1").Build()
-	button2 := app.ButtonBuilder("Button2").Build()
-	button3 := app.ButtonBuilder("Button3").Build()
+	button1 := ui.NewButtonBuilder("Button1").Build()
+	button2 := ui.NewButtonBuilder("Button2").Build()
+	button3 := ui.NewButtonBuilder("Button3").Build()
 
 	container := ui.HStack(button1, button2, button3)
 
@@ -303,7 +302,7 @@ func TestIntegrationHelper(t *testing.T) {
 	}
 
 	// Test SetRootVNode
-	button := app.ButtonBuilder("Test").Build()
+	button := ui.NewButtonBuilder("Test").Build()
 	helper.SetRootVNode(button)
 
 	// Test CreateEventFilter

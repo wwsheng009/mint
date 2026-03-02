@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/wwsheng009/mint/app"
 	ui "github.com/wwsheng009/mint/ui"
 )
 
@@ -137,7 +136,7 @@ func TestInspectorTreeRendering(t *testing.T) {
 			ui.Text("Child 1"),
 			ui.Text("Child 2"),
 		),
-		app.ButtonBuilder("Button").Build(),
+		ui.NewButtonBuilder("Button").Build(),
 	)
 
 	// 使用 AttachToApp 附加 VNode
