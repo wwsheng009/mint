@@ -1094,6 +1094,37 @@ func (bn *BorderedNode) GetBorderLabel() string {
 	return bn.borderLabel
 }
 
+// =============================================================================
+// layout.BoxModelProvider Implementation
+// =============================================================================
+
+// GetBoxModel returns the box model for the BorderedNode.
+// Implements layout.BoxModelProvider for unified padding/border handling.
+// Note: BorderedNode has no padding/margin, only border.
+func (bn *BorderedNode) GetBoxModel() layout.BoxModel {
+	var border layout.Border
+	if bn.borderLabel != "" {
+		border = layout.NewBorderWithLabel(bn.borderStyle, bn.borderLabel)
+	} else {
+		border = layout.NewBorder(bn.borderStyle)
+	}
+	return layout.BoxModel{
+		Padding: layout.Padding{
+			Left:   0,
+			Right:  0,
+			Top:    0,
+			Bottom: 0,
+		},
+		Margin: layout.Margin{
+			Left:   0,
+			Right:  0,
+			Top:    0,
+			Bottom: 0,
+		},
+		Border: border,
+	}
+}
+
 // Update returns nil as BorderedNode doesn't handle messages
 func (bn *BorderedNode) Update(message runtimemsg.Msg) cmd.Cmd {
 	return nil
