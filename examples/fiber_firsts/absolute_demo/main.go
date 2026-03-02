@@ -15,7 +15,6 @@ import (
 	"github.com/wwsheng009/mint/runtime/paint"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/ui/components/absolute"
-	newborder "github.com/wwsheng009/mint/ui/components/border"
 	newstack "github.com/wwsheng009/mint/ui/components/stack"
 	newtext "github.com/wwsheng009/mint/ui/components/text"
 )
@@ -30,16 +29,16 @@ func DemoApp() rtui.VNode {
 			// =====================================================
 			sectionTitle("═══ 1. TopLeft (0,0) ═══"),
 
-			// 用 border 包裹来显示容器边界 (border 需要显式高度)
-			newborder.New().
-				SetBorderLabel("TopLeft").
+			// 使用 Stack 容器显示边界，内部是带边框的 Absolute 元素
+			newstack.NewVStack().
 				SetWidth(58).SetHeight(8).
-				SetChildren([]rtui.VNode{
+				SetChildrenList([]rtui.VNode{
 					absolute.NewBuilder(
 						newtext.New("[TL] 定位在 (0,0)").Foreground(theme.Highlight()),
 					).
 						Left(absolute.AbsolutePos(0)).
 						Top(absolute.AbsolutePos(0)).
+						SingleBorder("TopLeft").
 						Build(),
 				}),
 
@@ -48,15 +47,15 @@ func DemoApp() rtui.VNode {
 			// =====================================================
 			sectionTitle("═══ 2. TopRight ═══"),
 
-			newborder.New().
-				SetBorderLabel("TopRight").
+			newstack.NewVStack().
 				SetWidth(58).SetHeight(8).
-				SetChildren([]rtui.VNode{
+				SetChildrenList([]rtui.VNode{
 					absolute.NewBuilder(
 						newtext.New("[TR] 右上角").Foreground(theme.Success()),
 					).
 						Right(absolute.AbsolutePos(0)).
 						Top(absolute.AbsolutePos(0)).
+						SingleBorder("TopRight").
 						Build(),
 				}),
 
@@ -65,15 +64,15 @@ func DemoApp() rtui.VNode {
 			// =====================================================
 			sectionTitle("═══ 3. BottomLeft ═══"),
 
-			newborder.New().
-				SetBorderLabel("BottomLeft").
+			newstack.NewVStack().
 				SetWidth(58).SetHeight(8).
-				SetChildren([]rtui.VNode{
+				SetChildrenList([]rtui.VNode{
 					absolute.NewBuilder(
 						newtext.New("[BL] 左下角").Foreground(theme.Warning()),
 					).
 						Left(absolute.AbsolutePos(0)).
 						Bottom(absolute.AbsolutePos(0)).
+						SingleBorder("BottomLeft").
 						Build(),
 				}),
 
@@ -82,15 +81,15 @@ func DemoApp() rtui.VNode {
 			// =====================================================
 			sectionTitle("═══ 4. BottomRight ═══"),
 
-			newborder.New().
-				SetBorderLabel("BottomRight").
+			newstack.NewVStack().
 				SetWidth(58).SetHeight(8).
-				SetChildren([]rtui.VNode{
+				SetChildrenList([]rtui.VNode{
 					absolute.NewBuilder(
 						newtext.New("[BR] 右下角").Foreground(theme.Error()),
 					).
 						Right(absolute.AbsolutePos(0)).
 						Bottom(absolute.AbsolutePos(0)).
+						SingleBorder("BottomRight").
 						Build(),
 				}),
 
@@ -99,16 +98,16 @@ func DemoApp() rtui.VNode {
 			// =====================================================
 			sectionTitle("═══ 5. Center (50%,50%) ═══"),
 
-			newborder.New().
-				SetBorderLabel("Center").
+			newstack.NewVStack().
 				SetWidth(58).SetHeight(8).
-				SetChildren([]rtui.VNode{
+				SetChildrenList([]rtui.VNode{
 					absolute.NewBuilder(
 						newtext.New("[CENTER] 居中").Foreground(theme.Highlight()),
 					).
 						Left(absolute.RelativePos(50)).
 						Top(absolute.RelativePos(50)).
 						Anchor(absolute.AnchorCenter).
+						SingleBorder("Center").
 						Build(),
 				}),
 
@@ -117,15 +116,15 @@ func DemoApp() rtui.VNode {
 			// =====================================================
 			sectionTitle("═══ 6. AtPercent(25,25) ═══"),
 
-			newborder.New().
-				SetBorderLabel("25%").
+			newstack.NewVStack().
 				SetWidth(58).SetHeight(8).
-				SetChildren([]rtui.VNode{
+				SetChildrenList([]rtui.VNode{
 					absolute.NewBuilder(
 						newtext.New("[25%] 四分之一位置").Foreground(theme.Success()),
 					).
 						Left(absolute.RelativePos(25)).
 						Top(absolute.RelativePos(25)).
+						SingleBorder("25%").
 						Build(),
 				}),
 
@@ -134,15 +133,15 @@ func DemoApp() rtui.VNode {
 			// =====================================================
 			sectionTitle("═══ 7. AtPercent(75,75) ═══"),
 
-			newborder.New().
-				SetBorderLabel("75%").
+			newstack.NewVStack().
 				SetWidth(58).SetHeight(8).
-				SetChildren([]rtui.VNode{
+				SetChildrenList([]rtui.VNode{
 					absolute.NewBuilder(
 						newtext.New("[75%] 四分之三位置").Foreground(theme.Warning()),
 					).
 						Left(absolute.RelativePos(75)).
 						Top(absolute.RelativePos(75)).
+						SingleBorder("75%").
 						Build(),
 				}),
 

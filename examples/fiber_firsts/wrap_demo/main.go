@@ -15,7 +15,6 @@ import (
 	"github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/paint"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
-	newborder "github.com/wwsheng009/mint/ui/components/border"
 	newbutton "github.com/wwsheng009/mint/ui/components/button"
 	newstack "github.com/wwsheng009/mint/ui/components/stack"
 	newtext "github.com/wwsheng009/mint/ui/components/text"
@@ -393,15 +392,10 @@ func subTitle(title string) rtui.VNode {
 	return newtext.New("  " + title)
 }
 
-// wrapWithBorder wraps a Wrap component in a border to visualize container width
-// The border shows the actual Wrap container boundary
-// Border auto-measures child dimensions when width/height not explicitly set
+// wrapWithBorder adds a cyan single-line border to a Wrap component to visualize container boundary
+// Uses the native border property of the Wrap container (no wrapper API needed)
 func wrapWithBorder(w *wrap.VNode) rtui.VNode {
-	// Border now auto-measures child - no need for explicit width/height
-	return newborder.New().
-		SetBorderStyle(newborder.BorderSingle).
-		SetBorderColor("cyan").
-		SetChild(w)
+	return w.SingleBorder().FgColor("cyan")
 }
 
 func main() {

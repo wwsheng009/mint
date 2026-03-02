@@ -2,6 +2,12 @@
 
 Fiber-first 边框容器组件，用于为内容添加装饰性边框。
 
+> ⚠️ **重要通知：API 迁移中**
+>
+> Border 正在从独立包装组件迁移为容器的原生属性。
+> 新代码应优先使用容器的边框方法，而不是包装在 Border 组件中。
+> 请参考下方的 [迁移指南](#迁移指南)。
+
 ## 目录
 
 - [概述](#概述)
@@ -10,6 +16,7 @@ Fiber-first 边框容器组件，用于为内容添加装饰性边框。
 - [边框样式](#边框样式)
 - [边框对布局的影响](#边框对布局的影响)
 - [Builder 模式](#builder-模式)
+- [迁移指南](#迁移指南) ⚠️
 - [示例](#示例)
 - [架构说明](#架构说明)
 
@@ -254,6 +261,181 @@ border.Double(text.New("Emphasized content"))
 // 圆角边框
 border.Rounded(text.New("Modern look"))
 ```
+
+## 迁移指南 ⚠️
+
+### 背景
+
+Border 正在从独立包装组件迁移为容器的原生属性。新架构下：
+- **Stack、Grid、Wrap、Absolute** 等容器原生支持边框
+- 不再需要将内容包装在 `border.New()` 中
+- 边框尺寸自动计算，布局更高效
+
+### 迁移对照表
+
+| 旧 API (包装模式) | 新 API (容器属性) | 说明 |
+|------------------|-----------------|------|
+| `border.New().Label("T").SetChild(c)` | `stack.SingleBorder("T").SetChildrenList([c])` | Stack 边框 |
+| `border.Double().SetChild(c)` | `grid.DoubleBorder().Children(c)` | Grid 边框 |
+| `border.Rounded().SetChild(c)` | `wrap.RoundedBorder().Children(c)` | Wrap 边框 |
+| `border.New().Color("red").SetChild(c)` | `stack.SingleBorder().SetStyle({...})` | 带颜色 |
+
+### 逐个容器迁移示例
+
+#### Stack (VStack/HStack)
+
+**旧代码**：
+```go
+border.New().
+    Label("Title").
+    SetChild(
+        stack.NewVStack().
+            SetGap(0).
+            SetChildrenList([]ui.VNode{
+                text.New("Item 1"),
+                text.New("Item 2"),
+            }),
+    ).
+    SetWidth(20).
+    SetHeight(5)
+```
+
+**新代码**：
+```go
+stack.NewVStack().
+    SingleBorder("Title").
+    SetGap(0).
+    SetWidth(20).  // 注意：现在指包含边框的总宽度
+    SetHeight(5).
+    SetChildrenList([]ui.VNode{
+        text.New("Item 1"),
+        text.New("Item 2"),
+    })
+```
+
+#### Grid
+
+**旧代码**：
+```go
+border.New().
+    Double().
+    SetChild(
+        grid.New().
+            SetColumns(grid.Flex{Factor: 1}, grid.Flex{Factor: 1}).
+            SetChildrenAuto(cell1, cell2, cell3, cell4),
+    ).
+    SetWidth(40).
+    SetHeight(10)
+```
+
+**新代码**：
+```go
+grid.New().
+    DoubleBorder().
+    SetColumns(grid.Flex{Factor: 1}, grid.Flex{Factor: 1}).
+    SetWidth(40).
+    SetHeight(10).
+    SetChildrenAuto(cell1, cell2, cell3, cell4)
+```
+
+#### Wrap
+
+**旧代码**：
+```go
+border.New().
+    Rounded().Label(" Tags ").
+    SetChild(
+        wrap.New().
+            SetWidth(30).
+            SetGap(1).
+            SetChildrenList(tagItems),
+    )
+```
+
+**新代码**：
+```go
+wrap.New().
+    RoundedBorder(" Tags ").
+    SetWidth(30).
+    SetGap(1).
+    SetChildrenList(tagItems)
+```
+
+#### Absolute
+
+**旧代码**：
+```go
+border.New().
+    SetChild(
+        absolute.NewBuilder(child).
+            Left(absolute.AbsolutePos(10)).
+            Top(absolute.AbsolutePos(5)).
+            Build(),
+    )
+```
+
+**新代码**：
+```go
+absolute.NewBuilder(child).
+    Left(absolute.AbsolutePos(10)).
+    Top(absolute.AbsolutePos(5)).
+    SingleBorder().  // 直接在 absolute 上设置边框
+    Build()
+```
+
+### Builder 模式迁移
+
+**旧代码 (Border Builder)**：
+```go
+border.NewBuilder().
+    Label("Settings").
+    Color("green").
+    Rounded().
+    Child(settingsContent).
+    Build()
+```
+
+**新代码 (Stack Builder)**：
+```go
+stack.NewBuilder(stack.Column).
+    SingleBorder("Settings").
+    FgColor("green").
+    Children(settingsContent).
+    Build()
+```
+
+### 边框方法参考
+
+以下方法在所有容器（Stack、Grid、Wrap、Absolute）上通用：
+
+| 方法 | 说明 | 示例 |
+|------|------|------|
+| `Border(style, label)` | 设置边框样式和标签 | `.Border("single", "Title")` |
+| `Bordered(style)` | 设置边框样式（无标签） | `.Bordered("double")` |
+| `NoBorder()` | 移除边框 | `.NoBorder()` |
+| `SingleBorder(label...)` | 单线边框 | `.SingleBorder("Title")` |
+| `DoubleBorder(label...)` | 双线边框 | `.DoubleBorder()` |
+| `RoundedBorder(label...)` | 圆角边框 | `.RoundedBorder("Tags")` |
+| `DashedBorder(label...)` | 虚线边框 | `.DashedBorder()` |
+| `BorderLabel(label)` | 只设置标签 | `.BorderLabel("Info")` |
+
+### 为什么迁移？
+
+1. **API 更简洁**：直接在容器上设置，无需额外包装层
+2. **性能更好**：减少一层 Fiber 节点，内存占用更少
+3. **自然布局**：边框尺寸自动计算，无需手动调整
+4. **统一风格**：与 Padding、Margin 等属性保持一致
+5. **向后兼容**：旧 API 继续可用，渐进式迁移
+
+### 完全迁移步骤
+
+1. 第一阶段：新代码使用新 API
+2. 第二阶段：核心组件迁移到新 API
+3. 第三阶段：更新所有示例和文档
+4. 第四阶段：标记旧 API 为 `Deprecated`
+5. 第五阶段：完全移除 Border 包装组件
+
+当前处于**第四阶段**：旧 API 已标记为废弃，但仍可使用。
 
 ## 示例
 

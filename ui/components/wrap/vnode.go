@@ -344,6 +344,54 @@ func (w *VNode) MeasureConstraints(c layout.Constraints) layout.Size {
 }
 
 // =============================================================================
+// layout.BoxModelProvider Implementation
+// =============================================================================
+
+// GetBoxModel returns the box model for the Wrap VNode.
+// Implements layout.BoxModelProvider for unified padding/border handling.
+// Note: Border is treated as a container property (方案 A), not as a separate component.
+func (w *VNode) GetBoxModel() layout.BoxModel {
+	boxModel := layout.BoxModel{}
+
+	// Padding from wrap properties
+	boxModel.Padding = layout.Padding{
+		Left:   w.padding[3],
+		Right:  w.padding[1],
+		Top:    w.padding[0],
+		Bottom: w.padding[2],
+	}
+
+	// Border from wrap properties (container-level border, 方案 A)
+	if w.borderStyle != "none" && w.borderStyle != "" {
+		var borderStyle layout.BorderStyle
+		switch w.borderStyle {
+		case "double":
+			borderStyle = layout.BorderDouble
+		case "rounded":
+			borderStyle = layout.BorderRounded
+		case "dashed":
+			borderStyle = layout.BorderDashed
+		case "single":
+			borderStyle = layout.BorderSingle
+		default:
+			borderStyle = layout.BorderNone
+		}
+
+		// If label is set, use NewBorderWithLabel; otherwise use NewBorder
+		if w.borderLabel != "" {
+			boxModel.Border = layout.NewBorderWithLabel(borderStyle, w.borderLabel)
+		} else {
+			boxModel.Border = layout.NewBorder(borderStyle)
+		}
+	}
+
+	// Note: Margin is not currently supported on Wrap VNode
+	// If needed, it can be added as a property in the future
+
+	return boxModel
+}
+
+// =============================================================================
 // ✨ Border Builder Methods (方案 A - 边框作为容器属性)
 // =============================================================================
 

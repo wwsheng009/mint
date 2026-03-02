@@ -94,6 +94,11 @@ func NewAbsoluteBuilder(child rtui.VNode) *absolute.Builder {
 }
 
 // Container Components
+
+// NewBorderBuilder creates a border builder.
+//
+// Deprecated: Use container's border methods instead, e.g., stack.SingleBorder().
+// Border is now a native property of all containers (Stack, Grid, Wrap, Absolute).
 func NewBorderBuilder() *border.Builder {
 	return border.NewBuilder()
 }

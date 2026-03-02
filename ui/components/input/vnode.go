@@ -346,3 +346,28 @@ func (i *VNode) ChangeIntent() intent.Intent {
 func (i *VNode) SubmitIntent() intent.Intent {
 	return i.submitIntent
 }
+
+// =============================================================================
+// layout.BoxModelProvider Implementation
+// =============================================================================
+
+// GetBoxModel returns the box model for the Input VNode.
+// Implements layout.BoxModelProvider for unified padding/border handling.
+// Note: Input uses BoxModelMixin for padding/margin, and borderStyle property.
+func (i *VNode) GetBoxModel() layout.BoxModel {
+	return layout.BoxModel{
+		Padding: layout.Padding{
+			Left:   i.BoxModelMixin.Padding()[3],
+			Right:  i.BoxModelMixin.Padding()[1],
+			Top:    i.BoxModelMixin.Padding()[0],
+			Bottom: i.BoxModelMixin.Padding()[2],
+		},
+		Margin: layout.Margin{
+			Left:   i.BoxModelMixin.Margin()[3],
+			Right:  i.BoxModelMixin.Margin()[1],
+			Top:    i.BoxModelMixin.Margin()[0],
+			Bottom: i.BoxModelMixin.Margin()[2],
+		},
+		Border: layout.NewBorder(i.borderStyle),
+	}
+}

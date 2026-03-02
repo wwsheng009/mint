@@ -68,6 +68,15 @@ var (
 // =============================================================================
 
 // New creates a new border container VNode.
+//
+// Deprecated: Use container's border methods instead, e.g., stack.SingleBorder("Title").
+// Border is now a native property of all containers (Stack, Grid, Wrap, Absolute).
+// This wrapper component will be removed in a future version.
+//
+// Migration example:
+//
+//	Old: border.New().Label("Title").SetChild(content)
+//	New: stack.NewVStack().SingleBorder("Title").SetChild(content)
 func New() *VNode {
 	return &VNode{
 		ElementVNode: rtui.NewElement("bordered"),

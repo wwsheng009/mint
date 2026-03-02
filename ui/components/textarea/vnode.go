@@ -2,6 +2,7 @@ package textarea
 
 import (
 	"github.com/wwsheng009/mint/runtime/intent"
+	"github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
@@ -150,3 +151,28 @@ func (t *VNode) MaxLen() int           { return t.maxLen }
 func (t *VNode) Disabled() bool        { return t.disabled }
 func (t *VNode) ChangeIntent() intent.Intent { return t.changeIntent }
 func (t *VNode) SubmitIntent() intent.Intent { return t.submitIntent }
+
+// =============================================================================
+// layout.BoxModelProvider Implementation
+// =============================================================================
+
+// GetBoxModel returns the box model for the TextArea VNode.
+// Implements layout.BoxModelProvider for unified padding/border handling.
+// Note: TextArea uses BoxModelMixin for padding/margin, and has no border.
+func (t *VNode) GetBoxModel() layout.BoxModel {
+	return layout.BoxModel{
+		Padding: layout.Padding{
+			Left:   t.BoxModelMixin.Padding()[3],
+			Right:  t.BoxModelMixin.Padding()[1],
+			Top:    t.BoxModelMixin.Padding()[0],
+			Bottom: t.BoxModelMixin.Padding()[2],
+		},
+		Margin: layout.Margin{
+			Left:   t.BoxModelMixin.Margin()[3],
+			Right:  t.BoxModelMixin.Margin()[1],
+			Top:    t.BoxModelMixin.Margin()[0],
+			Bottom: t.BoxModelMixin.Margin()[2],
+		},
+		Border: layout.Border{Style: layout.BorderNone},
+	}
+}

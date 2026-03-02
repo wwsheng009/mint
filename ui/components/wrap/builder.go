@@ -139,6 +139,58 @@ func (b *Builder) BuildInstance() rtui.ComponentInstance {
 }
 
 // =============================================================================
+// Border Builder Methods
+// =============================================================================
+
+// Border sets the border style and label.
+func (b *Builder) Border(style string, label string) *Builder {
+	b.node.Border(style, label)
+	return b
+}
+
+// Bordered sets border with specified style (no label).
+func (b *Builder) Bordered(style string) *Builder {
+	b.node.Bordered(style)
+	return b
+}
+
+// NoBorder removes border.
+func (b *Builder) NoBorder() *Builder {
+	b.node.NoBorder()
+	return b
+}
+
+// SingleBorder sets single line border with optional label.
+func (b *Builder) SingleBorder(label ...string) *Builder {
+	b.node.SingleBorder(label...)
+	return b
+}
+
+// DoubleBorder sets double line border with optional label.
+func (b *Builder) DoubleBorder(label ...string) *Builder {
+	b.node.DoubleBorder(label...)
+	return b
+}
+
+// RoundedBorder sets rounded border with optional label.
+func (b *Builder) RoundedBorder(label ...string) *Builder {
+	b.node.RoundedBorder(label...)
+	return b
+}
+
+// DashedBorder sets dashed border with optional label.
+func (b *Builder) DashedBorder(label ...string) *Builder {
+	b.node.DashedBorder(label...)
+	return b
+}
+
+// BorderLabel sets only the border label (keeps current style).
+func (b *Builder) BorderLabel(label string) *Builder {
+	b.node.BorderLabel(label)
+	return b
+}
+
+// =============================================================================
 // Convenience Functions
 // =============================================================================
 

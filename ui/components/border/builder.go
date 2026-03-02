@@ -123,40 +123,55 @@ func (b *Builder) BuildInstance() rtui.ComponentInstance {
 }
 
 // =============================================================================
-// Convenience Functions
+// Convenience Functions (Deprecated)
 // =============================================================================
 
 // B creates a border container with default single-line style.
+//
+// Deprecated: Use container's border methods instead, e.g., stack.SingleBorder().
+// Border is now a native property of all containers (Stack, Grid, Wrap, Absolute).
 func B(child rtui.VNode) *VNode {
 	return New().SetChild(child)
 }
 
 // Single creates a single-line border container.
+//
+// Deprecated: Use container's SingleBorder method instead.
 func Single(child rtui.VNode) *VNode {
 	return New().Single().SetChild(child)
 }
 
 // Double creates a double-line border container.
+//
+// Deprecated: Use container's DoubleBorder method instead.
 func Double(child rtui.VNode) *VNode {
 	return New().Double().SetChild(child)
 }
 
 // Rounded creates a rounded-corners border container.
+//
+// Deprecated: Use container's RoundedBorder method instead.
 func Rounded(child rtui.VNode) *VNode {
 	return New().Rounded().SetChild(child)
 }
 
 // Dashed creates a dashed-line border container.
+//
+// Deprecated: Use container's DashedBorder method instead.
 func Dashed(child rtui.VNode) *VNode {
 	return New().Dashed().SetChild(child)
 }
 
 // WithLabel creates a bordered container with a label on the top edge.
+//
+// Deprecated: Use container's SingleBorder method with a label instead.
 func WithLabel(label string, child rtui.VNode) *VNode {
 	return New().Label(label).SetChild(child)
 }
 
 // WithColor creates a bordered container with a custom color.
+//
+// Deprecated: Use container's border methods with style color instead.
 func WithColor(color string, child rtui.VNode) *VNode {
 	return New().Color(color).SetChild(child)
 }

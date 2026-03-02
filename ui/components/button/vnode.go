@@ -2,6 +2,7 @@ package button
 
 import (
 	"github.com/wwsheng009/mint/runtime/intent"
+	"github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
@@ -333,4 +334,31 @@ func (b *VNode) PressIntent() intent.Intent {
 // Implements FlexChildProvider interface.
 func (b *VNode) GetFlex() int {
 	return b.flex
+}
+
+// =============================================================================
+// layout.BoxModelProvider Implementation
+// =============================================================================
+
+// GetBoxModel returns the box model for the Button VNode.
+// Implements layout.BoxModelProvider for unified padding/border handling.
+// Note: Button uses BoxModelMixin for padding/margin, which can be accessed
+// via the embedded rtui.BoxModelMixin.Padding() and Margin() methods.
+func (b *VNode) GetBoxModel() layout.BoxModel {
+	return layout.BoxModel{
+		Padding: layout.Padding{
+			Left:   b.BoxModelMixin.Padding()[3],
+			Right:  b.BoxModelMixin.Padding()[1],
+			Top:    b.BoxModelMixin.Padding()[0],
+			Bottom: b.BoxModelMixin.Padding()[2],
+		},
+		Margin: layout.Margin{
+			Left:   b.BoxModelMixin.Margin()[3],
+			Right:  b.BoxModelMixin.Margin()[1],
+			Top:    b.BoxModelMixin.Margin()[0],
+			Bottom: b.BoxModelMixin.Margin()[2],
+		},
+		// Button typically doesn't have a border (handled by visual styling)
+		Border: layout.Border{Style: layout.BorderNone},
+	}
 }

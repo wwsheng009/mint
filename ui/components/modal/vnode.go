@@ -3,6 +3,7 @@ package modal
 
 import (
 	"github.com/wwsheng009/mint/runtime/intent"
+	"github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
@@ -229,3 +230,41 @@ func (v *VNode) Height() int         { return v.height }
 func (v *VNode) Centered() bool      { return v.centered }
 func (v *VNode) Closeable() bool     { return v.closeable }
 func (v *VNode) BorderStyle() string { return v.borderStyle }
+
+// =============================================================================
+// layout.BoxModelProvider Implementation
+// =============================================================================
+
+// GetBoxModel returns the box model for the Modal VNode.
+// Implements layout.BoxModelProvider for unified padding/border handling.
+// Note: Modal uses borderStyle property, title is displayed in border label.
+func (v *VNode) GetBoxModel() layout.BoxModel {
+	boxModel := layout.BoxModel{}
+
+	// Border from modal properties
+	var borderStyle layout.BorderStyle
+	switch v.borderStyle {
+	case "double":
+		borderStyle = layout.BorderDouble
+	case "rounded":
+		borderStyle = layout.BorderRounded
+	case "dashed":
+		borderStyle = layout.BorderDashed
+	case "single":
+		borderStyle = layout.BorderSingle
+	default:
+		borderStyle = layout.BorderNone
+	}
+
+	// Use title as border label if set
+	if v.title != "" {
+		boxModel.Border = layout.NewBorderWithLabel(borderStyle, " "+v.title+" ")
+	} else {
+		boxModel.Border = layout.NewBorder(borderStyle)
+	}
+
+	// Note: Modal currently doesn't support custom padding or margin
+	// If needed, they can be added as properties in the future
+
+	return boxModel
+}

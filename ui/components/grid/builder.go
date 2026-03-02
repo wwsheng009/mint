@@ -140,6 +140,58 @@ func (b *Builder) Build() rtui.VNode {
 }
 
 // =============================================================================
+// Border Builder Methods
+// =============================================================================
+
+// Border sets the border style and label.
+func (b *Builder) Border(style string, label string) *Builder {
+	b.grid.Border(style, label)
+	return b
+}
+
+// Bordered sets border with specified style (no label).
+func (b *Builder) Bordered(style string) *Builder {
+	b.grid.Bordered(style)
+	return b
+}
+
+// NoBorder removes border.
+func (b *Builder) NoBorder() *Builder {
+	b.grid.NoBorder()
+	return b
+}
+
+// SingleBorder sets single line border with optional label.
+func (b *Builder) SingleBorder(label ...string) *Builder {
+	b.grid.SingleBorder(label...)
+	return b
+}
+
+// DoubleBorder sets double line border with optional label.
+func (b *Builder) DoubleBorder(label ...string) *Builder {
+	b.grid.DoubleBorder(label...)
+	return b
+}
+
+// RoundedBorder sets rounded border with optional label.
+func (b *Builder) RoundedBorder(label ...string) *Builder {
+	b.grid.RoundedBorder(label...)
+	return b
+}
+
+// DashedBorder sets dashed border with optional label.
+func (b *Builder) DashedBorder(label ...string) *Builder {
+	b.grid.DashedBorder(label...)
+	return b
+}
+
+// BorderLabel sets only the border label (keeps current style).
+func (b *Builder) BorderLabel(label string) *Builder {
+	b.grid.BorderLabel(label)
+	return b
+}
+
+// =============================================================================
 // Convenience Functions
 // =============================================================================
 

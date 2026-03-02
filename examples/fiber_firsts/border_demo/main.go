@@ -1,5 +1,15 @@
 // Fiber-first Border Component Demo
-// Demonstrates the Border container component with AUTO-MEASURE feature
+// Demonstrates container with native border properties (Migration to new API)
+//
+// ═══ Migration Guide ═══
+// Old API (wrapping):    border.New().Label("Title").SetChild(content)
+// New API (container):   stack.NewVStack().SingleBorder("Title").SetChildrenList([content])
+//
+// Border is now a native property of all containers:
+// - Stack:   SingleBorder(), DoubleBorder(), RoundedBorder(), DashedBorder()
+// - Grid:    Same border methods
+// - Wrap:    Same border methods
+// - Absolute: Same border methods
 package main
 
 import (
