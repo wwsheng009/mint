@@ -1,6 +1,6 @@
 // Portal System Test (Phase 3)
 // Tests for OverlayManager and Portal functionality
-package portal_demo
+package main
 
 import (
 	"testing"

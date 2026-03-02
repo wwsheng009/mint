@@ -1,6 +1,6 @@
 // Portal 实际使用示例 (Phase 3)
 // 展示如何在应用中创建 PortalRoot 和 Portal 组件
-package portal_demo
+package main
 
 import (
 	"testing"
