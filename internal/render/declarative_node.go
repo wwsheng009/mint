@@ -30,7 +30,9 @@ import (
 type RenderMode int
 
 const (
-	// RenderModeLegacy uses the old VNode-based rendering
+	// RenderModeLegacy uses the old VNode-based rendering (DEPRECATED)
+	// This mode is kept backward compatibility but may be removed in future versions.
+	// Use RenderModeFiberFirst instead, which is now the default.
 	RenderModeLegacy RenderMode = iota
 	// RenderModeFiberFirst uses the new Fiber-first rendering pipeline
 	RenderModeFiberFirst
@@ -405,13 +407,10 @@ func (n *DeclarativeNode) Paint(ctx paint.PaintContext, buf *paint.Buffer) {
 		}
 	}
 
-	// Acquire write lock for legacy rendering mode
-	n.mu.Lock()
-	defer n.mu.Unlock()
-
-	// === Legacy Rendering Path ===
-	// NOT HITMAP
-	n.legacyPaint(ctx, buf)
+	// Legacy rendering path is deprecated - no longer called
+	// Fiber-first mode is enabled by default when using NewDeclarativeNodeFromFuncWithFiber
+	// If you need legacy mode, set MINT_FIBER_FIRST=false (not recommended)
+	log.PaintLogger.Warn("[DeclarativeNode.Paint] Legacy rendering path not available. Fiber-first mode is recommended.")
 }
 
 // fiberFirstPaint renders using the new Fiber-first pipeline
@@ -620,17 +619,20 @@ func (n *DeclarativeNode) comparePaint(ctx paint.PaintContext, buf *paint.Buffer
 	log.RenderLogger.Debug("[DeclarativeNode.comparePaint] Comparison complete, using Fiber-first result")
 }
 
-// legacyPaint is the original VNode-based rendering path
+// legacyPaint is the original VNode-based rendering path (DEPRECATED)
 //
 // Deprecated: Use fiberFirstPaint with Fiber-first architecture instead.
-// This method is kept for backward compatibility but should not be used in new code.
+//
+// This method is kept ONLY as an error fallback for fiberFirstPaint.
+// It is no longer called from Paint() under normal circumstances.
+//
 // The legacy path has the following issues:
 //   - VNode is kept in memory during rendering (not discarded after Fiber reconciliation)
 //   - Uses LayoutSwitcher which is deprecated
 //   - Does not follow Fiber-first architecture where VNode is discarded after Fiber creation
 //
-// Note: Fiber-first mode is now enabled by default. Use NewDeclarativeNodeFromFuncWithFiber to create fiber-enabled nodes.
-// This function is automatically called when fiberFirstEnabled is true.
+// Note: Fiber-first mode is now enabled by default when using NewDeclarativeNodeFromFuncWithFiber.
+// This function may be removed in future versions once fiberFirstPaint error handling is improved.
 func (n *DeclarativeNode) legacyPaint(ctx paint.PaintContext, buf *paint.Buffer) {
 	// Debug logging
 	log.PaintLogger.Debug("[DeclarativeNode.legacyPaint] START: hasReconciler=%v",
