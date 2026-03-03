@@ -194,6 +194,14 @@ func Run(app ComponentFunc, opts ...Option) error {
 	// Set app on the declarative node (this sets the scheduler for frame scheduling)
 	declarativeRoot.SetApp(fwApp)
 
+	// CRITICAL: Sync FocusManager from DeclarativeNode to framework.App
+	// This ensures keyboard navigation (Tab/Shift+Tab) works correctly
+	// The Reconciler collects focusable Fibers into DeclarativeNode.focusMgr,
+	// but App.focusManager is used for event routing in processMsg()
+	if fm := declarativeRoot.GetFocusManager(); fm != nil {
+		fwApp.SetFocusManagerFromDeclarativeNode(fm)
+	}
+
 	// Pass Intent Runtime to declarative node for component context
 	render.SetDeclarativeNodeIntentRuntime(declarativeRoot, intentRuntime)
 
