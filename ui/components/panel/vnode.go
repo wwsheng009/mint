@@ -48,8 +48,7 @@ type VNode struct {
 
 // Ensure VNode implements required interfaces
 var (
-	_ rtui.VNode           = (*VNode)(nil)
-	_ rtui.InstanceFactory = (*VNode)(nil)
+	_ rtui.VNode = (*VNode)(nil)
 )
 
 // =============================================================================
@@ -199,16 +198,6 @@ func (v *VNode) TextContent() string {
 	return ""
 }
 
-// =============================================================================
-// InstanceFactory Interface - Delegates to composed Border
-// =============================================================================
-
-// CreateInstance creates a new PanelInstance that wraps the Border instance
-// and adds constraint tracing at the Panel level.
-func (v *VNode) CreateInstance() rtui.ComponentInstance {
-	// Create Panel instance with empty path (will be set by layout system)
-	return newPanelInstance(v, "")
-}
 
 // =============================================================================
 // Composition - Build the VStack with native border properties
@@ -268,13 +257,10 @@ func (v *VNode) getComposed() rtui.VNode {
 		SetBorder(borderStyleStr, borderLabel). // Set border style and label
 		SetBorderColor(v.borderColor)  // Set border color
 
-	// Set Panel size and flex
-	if v.width > 0 {
-		vstack = vstack.SetWidth(v.width)
-	}
-	if v.height > 0 {
-		vstack = vstack.SetHeight(v.height)
-	}
+	// ✨ FIX: Panel 的尺寸应该由子节点决定
+	// 不要在这里设置 VStack 的 width/height，让 VStack 根据内容自适应
+	// Panel.Props 中的 width/height 仅用于参考，不传给 VStack
+	// 这确保边框不会被宽度约束截断
 	if v.flex > 0 {
 		vstack = vstack.SetFlex(v.flex)
 	}
@@ -282,7 +268,8 @@ func (v *VNode) getComposed() rtui.VNode {
 		vstack = vstack.SetStyleProps(v.instStyle)
 	}
 
-	v.composed = vstack
+	// Build the LayoutNode to ensure border properties are set in Props
+	v.composed = vstack.Build()
 	return v.composed
 }
 
