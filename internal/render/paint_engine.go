@@ -314,14 +314,10 @@ func (e *PaintEngine) paintBorderedBox(box *paint.PaintableBox, buffer *paint.Bu
 	}
 	renderer := border.WithConfig(config)
 
-	// Calculate content area: subtract border padding
-	// When label is present, TotalHorizontalPadding = 2 (borders) + 2 (label padding) = 4
-	// When no label, TotalHorizontalPadding = 2 (borders only)
-	labelPadding := 0
-	if bl != "" {
-		labelPadding = 2
-	}
-	contentWidth := box.Width - (borderWidth * 2) - labelPadding
+	// Calculate content area: subtract border padding only
+	// LabelPadding is only for visual balance in the border line, NOT for constraining content area
+	// The label is rendered inside the top border line, doesn't reduce horizontal content space
+	contentWidth := box.Width - (borderWidth * 2)
 	contentHeight := box.Height - (borderWidth * 2)
 	if contentWidth < 0 {
 		contentWidth = 0
