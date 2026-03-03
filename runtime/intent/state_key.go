@@ -38,6 +38,34 @@ func (k StateKey[T]) String() string {
 	return string(k)
 }
 
+// Name returns the key name (alias for String).
+func (k StateKey[T]) Name() string {
+	return string(k)
+}
+
+// Change creates a TypedFieldChange intent for this key.
+//
+// Example:
+//
+//	intent := Username.Change("alice")
+//	dispatcher.Dispatch(intent)
+func (k StateKey[T]) Change(value T) TypedFieldChange[T] {
+	return TypedFieldChange[T]{
+		Key:   k,
+		Value: value,
+	}
+}
+
+// NewStateKey creates a new type-safe state key.
+// This is an alias for direct type conversion.
+//
+// Example:
+//
+//	var Username = intent.NewStateKey[string]("username")
+func NewStateKey[T any](name string) StateKey[T] {
+	return StateKey[T](name)
+}
+
 // Type returns a string representation of the type (for debugging).
 func (k StateKey[T]) Type() string {
 	var zero T
