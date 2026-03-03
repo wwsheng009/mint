@@ -364,19 +364,19 @@ func (n *DeclarativeNode) Measure(maxWidth, maxHeight int) (width, height int) {
 // UNIFIED RENDERING: Supports both Legacy and Fiber-first rendering paths
 func (n *DeclarativeNode) Paint(ctx paint.PaintContext, buf *paint.Buffer) {
 	// Acquire read lock to read state for determining render mode
+	// useFiber is implied by the presence of reconciler (see SetReconciler)
 	n.mu.RLock()
 	fiberFirstEnabled := n.fiberFirstEnabled
-	useFiber := n.useFiber
 	renderMode := n.renderMode
-	hasReconciler := (n.reconciler != nil)
+	reconciler := n.reconciler
 	n.mu.RUnlock()
 
 	// Debug logging
-	log.PaintLogger.Debug("[DeclarativeNode.Paint] START: ctx.X=%d, ctx.Y=%d, buf=%dx%d, useFiber=%v, renderMode=%v, fiberFirstEnabled=%v",
-		ctx.Bounds.X, ctx.Bounds.Y, buf.Width, buf.Height, useFiber, renderMode, fiberFirstEnabled)
+	log.PaintLogger.Debug("[DeclarativeNode.Paint] START: ctx.X=%d, ctx.Y=%d, buf=%dx%d, hasReconciler=%v, renderMode=%v, fiberFirstEnabled=%v",
+		ctx.Bounds.X, ctx.Bounds.Y, buf.Width, buf.Height, reconciler != nil, renderMode, fiberFirstEnabled)
 
-	// Check if Fiber-first mode is enabled
-	if fiberFirstEnabled && useFiber && hasReconciler {
+	// Check if Fiber-first mode is enabled (reconciler != nil implies useFiber)
+	if fiberFirstEnabled && reconciler != nil {
 		switch renderMode {
 		case RenderModeFiberFirst:
 			// Release locks before calling fiberFirstPaint (it will acquire its own locks)
@@ -618,15 +618,15 @@ func (n *DeclarativeNode) comparePaint(ctx paint.PaintContext, buf *paint.Buffer
 // Migration: Set MINT_FIBER_FIRST=true and use NewDeclarativeNodeFromFuncWithFiber
 func (n *DeclarativeNode) legacyPaint(ctx paint.PaintContext, buf *paint.Buffer) {
 	// Debug logging
-	log.PaintLogger.Debug("[DeclarativeNode.legacyPaint] START: useFiber=%v, reconciler=%v",
-		n.useFiber, n.reconciler != nil)
+	log.PaintLogger.Debug("[DeclarativeNode.legacyPaint] START: hasReconciler=%v",
+		n.reconciler != nil)
 
 	// Phase 1: Get the VNode tree
-	if n.useFiber && n.reconciler != nil {
+	// useFiber is implied by the presence of reconciler (see SetReconciler)
+	if n.reconciler != nil {
 		// Fiber mode: just call render function directly for now
 		// The reconciler's state management still happens through hooks
-		log.PaintLogger.Debug("[DeclarativeNode.legacyPaint] ✅ Calling renderWithFiberContext (useFiber=%v, reconciler=%v)",
-			n.useFiber, n.reconciler != nil)
+		log.PaintLogger.Debug("[DeclarativeNode.legacyPaint] ✅ Calling renderWithFiberContext")
 
 		n.root = n.renderWithFiberContext()
 
@@ -640,8 +640,7 @@ func (n *DeclarativeNode) legacyPaint(ctx paint.PaintContext, buf *paint.Buffer)
 
 	} else {
 		// Non-Fiber mode
-		log.RenderLogger.Debug("[DeclarativeNode.Paint] ⚠️  Using nonFiberRender (useFiber=%v, reconciler=%v)",
-			n.useFiber, n.reconciler != nil)
+		log.RenderLogger.Debug("[DeclarativeNode.Paint] ⚠️  Using nonFiberRender")
 
 		n.root = n.nonFiberRender()
 	}
@@ -801,7 +800,8 @@ func (n *DeclarativeNode) applyFocusState() {
 
 	// In Fiber mode, focus is managed by reconciler during commit phase
 	// The FiberFocusManager is updated by reconciler.updateFocusManagerFromFiber()
-	if n.useFiber {
+	// Fiber mode is enabled when reconciler != nil (see SetReconciler)
+	if n.reconciler != nil {
 		log.RenderLogger.Debug("DeclarativeNode.applyFocusState: Fiber mode, focus managed by reconciler")
 		return
 	}
@@ -829,7 +829,7 @@ func (n *DeclarativeNode) applyFocusState() {
 	// Legacy: This path is only for non-Fiber mode
 	// For Fiber mode, focus is managed by FiberFocusManager which stores []*Fiber
 	// We skip this update in Fiber mode
-	if !n.useFiber {
+	if n.reconciler == nil {
 		// Cast to VNodeFocusManager for legacy mode
 		type legacyFocusManager interface {
 			UpdateFocusableList([]rtui.FocusableVNode)
@@ -1741,8 +1741,9 @@ func (n *DeclarativeNode) findModalNode(vnode rtui.VNode) rtui.VNode {
 }
 
 // requestRender triggers a re-render
+// useFiber parameter is kept for backward compatibility but is implied by reconciler != nil
 func (n *DeclarativeNode) requestRender(useFiber bool, reconciler rtui.Reconciler) {
-	if useFiber && reconciler != nil {
+	if reconciler != nil {
 		// Fiber mode: schedule reconciler update
 		if r, ok := reconciler.(*fiberReconcilerAdapter); ok {
 			r.r.ScheduleUpdate(rtui.LaneSyncLane)
