@@ -47,11 +47,12 @@ type DeclarativeNode struct {
 	focusMgr *rtui.FiberFocusManager // Focus manager for keyboard navigation (Fiber-first)
 
 	// Framework integration
-	// scheduler 用于请求帧调度，解耦对 framework.App 的直接依赖
-	scheduler  reconciler.Scheduler // Scheduler for frame requests
-	reconciler rtui.Reconciler      // Fiber reconciler (if enabled) - use interface to avoid import cycle
-	renderer   rtui.VNodeRenderer   // VNode renderer (implements VNodeRenderer interface)
-	useFiber   bool                 // Whether Fiber mode is enabled
+	reconciler rtui.Reconciler   // Fiber reconciler (if enabled) - use interface to avoid import cycle
+	renderer   rtui.VNodeRenderer // VNode renderer (implements VNodeRenderer interface)
+	useFiber   bool               // Whether Fiber mode is enabled
+
+	// scheduler 用于非 Fiber 模式下请求帧调度
+	scheduler reconciler.Scheduler // Scheduler for frame requests (non-Fiber mode only)
 
 	// === Intent Integration ===
 	intentRuntime *intent.Runtime // Intent runtime for dispatching intents
@@ -121,6 +122,7 @@ func NewDeclarativeNodeFromFunc(fn rtui.ComponentFunc) *DeclarativeNode {
 }
 
 // SetScheduler sets the scheduler for requesting frame updates
+// Only used in non-Fiber mode. In Fiber mode, the reconciler handles scheduling internally.
 func (n *DeclarativeNode) SetScheduler(scheduler reconciler.Scheduler) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
@@ -129,6 +131,7 @@ func (n *DeclarativeNode) SetScheduler(scheduler reconciler.Scheduler) {
 
 // NewDeclarativeNodeFromFuncWithFiber creates a new declarative node with Fiber reconciler enabled
 // This function is called from ui.Run when MINT_USE_FIBER is set
+// scheduler is passed to the reconciler for frame scheduling; DeclarativeNode does not store it
 func NewDeclarativeNodeFromFuncWithFiber(fn rtui.ComponentFunc, scheduler reconciler.Scheduler) *DeclarativeNode {
 	// Create root component context (shared global state)
 	rootCtx := rtui.NewComponentContextForRoot()
@@ -161,7 +164,6 @@ func NewDeclarativeNodeFromFuncWithFiber(fn rtui.ComponentFunc, scheduler reconc
 		renderFn:   fn,
 		instance:   rootCtx, // Use the same context for global state
 		focusMgr:   focusMgr,
-		scheduler:  scheduler,
 		reconciler: r,
 		renderer:   renderer,
 		useFiber:   true,
