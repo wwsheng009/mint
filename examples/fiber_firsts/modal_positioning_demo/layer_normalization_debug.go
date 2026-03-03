@@ -114,8 +114,8 @@ func main() {
 				fmt.Printf("    Boxes:\n")
 				for _, box := range layerBoxes {
 					fmt.Printf("      [%s] Pos:(%d,%d) Size:%dx%d Border:%v\n",
-						box.ID, box.X, box.Y, box.Width, box.Height, 
-						box.Border.Style != layout.BorderNone)
+						box.ID, box.X, box.Y, box.Width, box.Height,
+						box.BoxModel.Border.Style != layout.BorderNone)
 				}
 			}
 		}
@@ -224,7 +224,7 @@ func main() {
 
 func findBoxByLayer(boxes []*layout.LayoutBox, layer int) *layout.LayoutBox {
 	for _, box := range boxes {
-		if int(box.Layer) == layer && box.Border.Style != layout.BorderNone {
+		if int(box.Layer) == layer && box.BoxModel.Border.Style != layout.BorderNone {
 			return box
 		}
 	}

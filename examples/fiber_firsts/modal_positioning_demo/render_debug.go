@@ -133,7 +133,7 @@ func main() {
 		for _, box := range boxes {
 			layerName := getLayerName(rtui.Layer(box.Layer))
 			nodeType := "Unknown"
-			if box.Border.Style != layout.BorderNone {
+			if box.BoxModel.Border.Style != layout.BorderNone {
 				if box.Layer == 2 { // LayerModal
 					nodeType = "Modal"
 					modalCount++

@@ -93,6 +93,20 @@ func (c *FiberToPaintableConverter) Convert(
 		c.fillFromFiber(pbox, fiber)
 	}
 
+	// Copy BoxModel information (Padding, Margin) for debugging
+	// This data comes from layout calculation
+	if !lbox.BoxModel.IsEmpty() {
+		pbox.PaddingTop = lbox.BoxModel.Padding.Top
+		pbox.PaddingRight = lbox.BoxModel.Padding.Right
+		pbox.PaddingBottom = lbox.BoxModel.Padding.Bottom
+		pbox.PaddingLeft = lbox.BoxModel.Padding.Left
+
+		pbox.MarginTop = lbox.BoxModel.Margin.Top
+		pbox.MarginRight = lbox.BoxModel.Margin.Right
+		pbox.MarginBottom = lbox.BoxModel.Margin.Bottom
+		pbox.MarginLeft = lbox.BoxModel.Margin.Left
+	}
+
 	// Recursively convert children
 	for _, childLBox := range lbox.Children {
 		childPBox := c.Convert(childLBox, pbox)
@@ -140,11 +154,17 @@ func (c *FiberToPaintableConverter) fillFromFiber(pbox *paint.PaintableBox, fibe
 	pbox.Node = NewFiberPaintableNode(fiber)
 	
 	// Border info from Props
-	if fiber.Props != nil {
+	// Note: Panel components don't render their own border - the internal VStack does.
+	// This prevents double border rendering.
+	if fiber.Props != nil && fiber.Tag != "panel" {
 		pbox.BorderStyle = getBorderStyleFromProps(fiber.Props)
 		pbox.BorderColor = getBorderProp(fiber.Props, "borderColor")
 		pbox.BorderLabel = getBorderProp(fiber.Props, "borderLabel")
 	}
+
+	// Note: Padding and Margin from LayoutBox.BoxModel are NOT copied here.
+	// They should be set during layout calculation if needed for debugging.
+	// LayoutBox.BoxModel contains the complete box model information (margin, padding, border).
 }
 
 // =============================================================================
@@ -395,6 +415,20 @@ func (c *VNodeToPaintableConverter) Convert(
 	// Find matching VNode and fill paint-specific data
 	if vnode := c.findVNode(lbox.ID); vnode != nil {
 		c.fillFromVNode(pbox, vnode)
+	}
+
+	// Copy BoxModel information (Padding, Margin) for debugging
+	// This data comes from layout calculation
+	if !lbox.BoxModel.IsEmpty() {
+		pbox.PaddingTop = lbox.BoxModel.Padding.Top
+		pbox.PaddingRight = lbox.BoxModel.Padding.Right
+		pbox.PaddingBottom = lbox.BoxModel.Padding.Bottom
+		pbox.PaddingLeft = lbox.BoxModel.Padding.Left
+
+		pbox.MarginTop = lbox.BoxModel.Margin.Top
+		pbox.MarginRight = lbox.BoxModel.Margin.Right
+		pbox.MarginBottom = lbox.BoxModel.Margin.Bottom
+		pbox.MarginLeft = lbox.BoxModel.Margin.Left
 	}
 
 	// Recursively convert children

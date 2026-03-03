@@ -263,8 +263,8 @@ func main() {
 		}
 		if box.PropsID != "" {
 			tag := ""
-			if box.Border.Label != "" {
-				tag = fmt.Sprintf("[%s]", box.Border.Label)
+			if box.BoxModel.Border.Label != "" {
+				tag = fmt.Sprintf("[%s]", box.BoxModel.Border.Label)
 			}
 			fmt.Printf("  %sBox: ID=%s %s PropsID='%s', pos=(%d,%d), size=%dx%d, children=%d\n",
 				strings.Repeat("  ", indent), box.ID, tag, box.PropsID, box.X, box.Y, box.Width, box.Height, len(box.Children))
@@ -284,8 +284,8 @@ func main() {
 			return
 		}
 		tag := ""
-		if box.Border.Label != "" {
-			tag = fmt.Sprintf("[%s]", box.Border.Label)
+		if box.BoxModel.Border.Label != "" {
+			tag = fmt.Sprintf("[%s]", box.BoxModel.Border.Label)
 		}
 		propsIDInfo := ""
 		if box.PropsID != "" {

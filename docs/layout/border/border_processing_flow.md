@@ -130,16 +130,16 @@ type Border struct {
                       ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │                  布局引擎布局阶段                              │
-│  1. 获取边框: border = node.GetBorder()                      │
-│  2. 计算边框偏移: offsetX, offsetY = border.ContentOffset()  │
-│  3. 子节点位置 = 父位置 + 内容位置 + 边框偏移                │
-│  4. 保存边框到 LayoutBox：box.Border = border               │
+│  1. 获取盒模型: boxModel = node.GetBoxModel()                │
+│  2. 计算内容偏移: boxModel.ContentOffsetX/Y()                 │
+│  3. 子节点位置 = 父位置 + 内容位置 + 边框偏移 + padding       │
+│  4. 保存盒模型到 LayoutBox：box.BoxModel = boxModel          │
 └─────────────────────┬───────────────────────────────────────────┘
                       │
                       ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │                    Paint 阶段                                 │
-│  读取 LayoutBox.Border 并渲染边框字符                         │
+│  读取 LayoutBox.BoxModel.Border 并渲染边框字符                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 

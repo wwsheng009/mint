@@ -254,7 +254,9 @@ func (e *Engine) layoutNodeWithDepth(node Node, constraints Constraints, x, y in
 		Layer:    layer,
 		ZIndex:   zIndex,
 		ShouldCenter: shouldCenter,  // ✨ Phase 1.1: 保存居中标记
-		Border:   nodeBorder,
+		BoxModel: BoxModel{
+			Border: nodeBorder,  // Border is part of BoxModel
+		},
 		Children: make([]*LayoutBox, 0),
 	}
 
@@ -263,14 +265,16 @@ func (e *Engine) layoutNodeWithDepth(node Node, constraints Constraints, x, y in
 	node.SetSize(width, height)
 
 	// 计算内容区域偏移（用于布局子节点）
-	// 优先使用 BoxModelProvider，否则使用 Bordered 接口
+	// 优先使用 BoxModelProvider，否则使用 BoxModel.Border
 	contentOffsetX, contentOffsetY := 0, 0
 	if boxModelProvider, ok := node.(BoxModelProvider); ok {
 		boxModel := boxModelProvider.GetBoxModel()
 		contentOffsetX = boxModel.ContentOffsetX()
 		contentOffsetY = boxModel.ContentOffsetY()
-	} else if nodeBorder.HasBorder() {
-		contentOffsetX, contentOffsetY = nodeBorder.ContentOffset()
+		// 保存完整的 BoxModel 数据到 box.BoxModel
+		box.BoxModel = boxModel
+	} else if box.BoxModel.Border.HasBorder() {
+		contentOffsetX, contentOffsetY = box.BoxModel.Border.ContentOffset()
 	}
 	// 兼容旧的 borderOffsetX 变量名
 	borderOffsetX := contentOffsetX
@@ -309,10 +313,15 @@ func (e *Engine) layoutNodeWithDepth(node Node, constraints Constraints, x, y in
 			}
 
 			// 计算子节点可用的内部空间（减去 padding/border）
-			// 优先使用 BoxModelProvider，否则使用 Bordered 接口
+			// 优先使用已保存的 box.BoxModel，否则从 BoxModelProvider 获取
 			var innerWidth, innerHeight int
-			if boxModelProvider, ok := node.(BoxModelProvider); ok {
+			if !box.BoxModel.IsEmpty() {
+				// BoxModel 已经在前面保存过
+				innerWidth = box.BoxModel.InnerWidth(width)
+				innerHeight = box.BoxModel.InnerHeight(height)
+			} else if boxModelProvider, ok := node.(BoxModelProvider); ok {
 				boxModel := boxModelProvider.GetBoxModel()
+				box.BoxModel = boxModel  // 保存 BoxModel
 				innerWidth = boxModel.InnerWidth(width)
 				innerHeight = boxModel.InnerHeight(height)
 			} else {
@@ -416,10 +425,15 @@ func (e *Engine) layoutNodeWithDepth(node Node, constraints Constraints, x, y in
 			grid.SetChildren(node.Children())
 
 			// 计算子节点可用的内部空间（减去 padding/border）
-			// 优先使用 BoxModelProvider，否则使用 Bordered 接口
+			// 优先使用已保存的 box.BoxModel，否则从 BoxModelProvider 获取
 			var innerWidth, innerHeight int
-			if boxModelProvider, ok := node.(BoxModelProvider); ok {
+			if !box.BoxModel.IsEmpty() {
+				// BoxModel 已经在前面保存过
+				innerWidth = box.BoxModel.InnerWidth(width)
+				innerHeight = box.BoxModel.InnerHeight(height)
+			} else if boxModelProvider, ok := node.(BoxModelProvider); ok {
 				boxModel := boxModelProvider.GetBoxModel()
+				box.BoxModel = boxModel  // 保存 BoxModel
 				innerWidth = boxModel.InnerWidth(width)
 				innerHeight = boxModel.InnerHeight(height)
 			} else {
@@ -622,8 +636,13 @@ func (e *Engine) layoutNodeWithDepth(node Node, constraints Constraints, x, y in
 	if width > 0 && height > 0 {
 		// 计算内容区域尺寸（使用 BoxModel 比 2*offset 更准确）
 		var contentWidth, contentHeight int
-		if boxModelProvider, ok := node.(BoxModelProvider); ok {
+		if !box.BoxModel.IsEmpty() {
+			// BoxModel 已经在前面保存过
+			contentWidth = box.BoxModel.InnerWidth(width)
+			contentHeight = box.BoxModel.InnerHeight(height)
+		} else if boxModelProvider, ok := node.(BoxModelProvider); ok {
 			boxModel := boxModelProvider.GetBoxModel()
+			box.BoxModel = boxModel  // 保存 BoxModel
 			contentWidth = boxModel.InnerWidth(width)
 			contentHeight = boxModel.InnerHeight(height)
 		} else {
@@ -993,17 +1012,18 @@ func (e *Engine) Measure(node Node, constraints Constraints) Size {
 	// Step 1: 获取 BoxModel 扣除 padding/border
 	var boxModel BoxModel
 
-	// 特殊处理：FlexLayout 自己处理内部 padding，Engine 只处理 border
-	// 这是因为 FlexLayout 的 style.Padding 是控制子节点位置的内部配置
-	// 而不是标准的 box model padding
-	if _, ok := node.(*FlexLayout); ok {
-		// FlexLayout 只扣除 border
-		if provider, ok := node.(Bordered); ok {
-			boxModel.Border = provider.GetBorder()
-		}
-		boxModel.Padding = Padding{} // padding 由 FlexLayout 自己处理
-	} else if provider, ok := node.(BoxModelProvider); ok {
+	// 优先使用 GetBoxModel 获取完整的盒模型
+	if provider, ok := node.(BoxModelProvider); ok {
 		boxModel = provider.GetBoxModel()
+	} else if provider, ok := node.(Bordered); ok {
+		boxModel.Border = provider.GetBorder()
+	}
+
+	// 特殊处理：FlexLayout 自己处理内部 padding，Engine 只处理 border
+	// 这是因为 FlexLayout 的 style.Padding 是控制子节点空间的内部配置
+	// 而不是标准的 box model padding（外部边距）
+	if _, ok := node.(*FlexLayout); ok {
+		boxModel.Padding = Padding{} // padding 由 FlexLayout 自己处理
 	}
 
 	// Step 2: 计算内部约束（扣除 padding/border）

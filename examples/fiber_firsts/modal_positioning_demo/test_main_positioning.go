@@ -132,7 +132,7 @@ func main() {
 		boxes := node.GetLayoutBoxes()
 		if boxes != nil {
 			for _, box := range boxes {
-				if box.Layer == 2 && box.Border.Style != layout.BorderNone {
+				if box.Layer == 2 && box.BoxModel.Border.Style != layout.BorderNone {
 					fmt.Printf("  Position: (%d, %d), Size: %dx%d\n", box.X, box.Y, box.Width, box.Height)
 				}
 			}

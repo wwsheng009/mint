@@ -54,6 +54,18 @@ type PaintableBox struct {
 	BorderColor string
 	BorderLabel string
 
+	// === Padding Information ===
+	PaddingTop    int
+	PaddingRight  int
+	PaddingBottom int
+	PaddingLeft   int
+
+	// === Margin Information ===
+	MarginTop    int
+	MarginRight  int
+	MarginBottom int
+	MarginLeft   int
+
 	// === State ===
 	LayoutDirty bool
 	LayoutHash  uint64
@@ -453,10 +465,51 @@ func (b *PaintableBox) buildTreeNodeString(box *PaintableBox, depth int, sb *str
 		diffKey = "-"
 	}
 
+	// 构建边框详细信息
+	borderInfo := ""
+	if box.BorderStyle != BorderStyleNone {
+		borderWidth := 1 // 边框宽度（单字符）
+		borderInfo += fmt.Sprintf(", Border:%s", box.BorderStyle.String())
+		if box.BorderLabel != "" {
+			borderInfo += fmt.Sprintf("(%q)", box.BorderLabel)
+		}
+		// 边框绘制信息：边框占用2个字符的水平和垂直空间
+		borderInfo += fmt.Sprintf(" [border_area:%d,%d,%dx%d]",
+			box.X, box.Y, box.Width, box.Height)
+
+		// 内容区域坐标（边框内 + padding内）
+		borderX := box.X + borderWidth
+		borderY := box.Y + borderWidth
+		borderW := box.Width - borderWidth*2
+		borderH := box.Height - borderWidth*2
+
+		contentX := borderX + box.PaddingLeft
+		contentY := borderY + box.PaddingTop
+		contentW := borderW - box.PaddingLeft - box.PaddingRight
+		contentH := borderH - box.PaddingTop - box.PaddingBottom
+
+		borderInfo += fmt.Sprintf(" [padding_inner:%d,%d,%d,%d]",
+			box.PaddingTop, box.PaddingRight, box.PaddingBottom, box.PaddingLeft)
+		borderInfo += fmt.Sprintf(" [content:%d,%d,%dx%d]", contentX, contentY, contentW, contentH)
+
+		// 标签额外占用空间
+		if box.BorderLabel != "" {
+			labelWidth := len(box.BorderLabel) + 2 // 标签+2个空格
+			borderInfo += fmt.Sprintf(" [label_w:%d]", labelWidth)
+		}
+	}
+
+	// 构建 Margin 信息
+	marginInfo := ""
+	if box.MarginTop != 0 || box.MarginRight != 0 || box.MarginBottom != 0 || box.MarginLeft != 0 {
+		marginInfo = fmt.Sprintf(" [margin:%d,%d,%d,%d]",
+			box.MarginTop, box.MarginRight, box.MarginBottom, box.MarginLeft)
+	}
+
 	// Append node with hierarchical relationship
-	sb.WriteString(fmt.Sprintf("%s└─ [%s] ID:%d DiffKey:%s Size:%dx%d Pos:%d,%d Layer:%d\n",
+	sb.WriteString(fmt.Sprintf("%s└─ [%s] ID:%d DiffKey:%s Size:%dx%d Pos:%d,%d Layer:%d%s%s\n",
 		indent, nodeType, box.NodeID, diffKey,
-		box.Width, box.Height, box.X, box.Y, box.Layer))
+		box.Width, box.Height, box.X, box.Y, box.Layer, borderInfo, marginInfo))
 
 	// Append children recursively
 	for _, child := range box.Children {

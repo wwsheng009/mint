@@ -153,8 +153,9 @@ type LayoutBox struct {
 	// 检测到 Modal 且未设置明确位置时为 true
 	ShouldCenter bool
 
-	// Border 边框信息（如果有）
-	Border Border
+	// BoxModel 统一的盒模型信息（包含 margin, padding, border）
+	// 注意：BoxModel 主要在布局计算过程中使用，不总是需要存储在最终结果中
+	BoxModel BoxModel
 
 	// Children 子节点布局结果
 	Children []*LayoutBox

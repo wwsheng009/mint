@@ -250,17 +250,20 @@ func (v *VNode) getComposed() rtui.VNode {
 		borderStyleStr = "dashed"
 	}
 
-	// Create VStack with native border properties
+	// Create VStack with border properties
 	vstack := rtui.VStackBuilder().
 		SetChildrenList(stackChildren).
 		SetGap(0).
-		SetBorder(borderStyleStr, borderLabel). // Set border style and label
-		SetBorderColor(v.borderColor)  // Set border color
+		SetBorder(borderStyleStr, borderLabel).
+		SetBorderColor(v.borderColor)
 
-	// ✨ FIX: Panel 的尺寸应该由子节点决定
-	// 不要在这里设置 VStack 的 width/height，让 VStack 根据内容自适应
-	// Panel.Props 中的 width/height 仅用于参考，不传给 VStack
-	// 这确保边框不会被宽度约束截断
+	// 传递 width/height 给 VStack
+	if v.width > 0 {
+		vstack = vstack.SetWidth(v.width)
+	}
+	if v.height > 0 {
+		vstack = vstack.SetHeight(v.height)
+	}
 	if v.flex > 0 {
 		vstack = vstack.SetFlex(v.flex)
 	}
@@ -379,8 +382,7 @@ func (v *VNode) NoBorder() *VNode {
 // =============================================================================
 
 // GetBorder returns BorderNone - Panel is a composition container.
-// The actual border is handled by the internal Border component.
-// This avoids double border calculation between Panel and Border.
+// The actual border is handled by the internal VStack component.
 func (v *VNode) GetBorder() layout.Border {
 	return layout.Border{Style: layout.BorderNone}
 }
@@ -406,7 +408,7 @@ func (v *VNode) GetPadding() layout.Padding {
 
 // GetBoxModel returns the box model for the Panel VNode.
 // Implements layout.BoxModelProvider for unified padding/border handling.
-// Note: Panel returns BorderNone to avoid double border calculation with internal Border.
+// Panel returns BorderNone because the internal VStack handles the border.
 func (v *VNode) GetBoxModel() layout.BoxModel {
 	return layout.BoxModel{
 		Padding: layout.Padding{

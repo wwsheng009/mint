@@ -291,17 +291,17 @@ func main() {
 	utils.PrintBuffer(buf, 70, 90)
 
 	// Get layout boxes for debugging
-	var boxes []*layout.LayoutBox
-	nodeBoxes := node.GetLayoutBoxes()
-	if nodeBoxes != nil {
-		boxes = nodeBoxes
-	}
+	// var boxes []*layout.LayoutBox
+	// nodeBoxes := node.GetLayoutBoxes()
+	// if nodeBoxes != nil {
+	// 	boxes = nodeBoxes
+	// }
 
 	// Print layout box debug info
-	fmt.Println("\n" + strings.Repeat("=", 70))
-	fmt.Println("Layout Box Debug Info (Flattened)")
-	fmt.Println(strings.Repeat("=", 70))
-	printLayoutBoxes(boxes)
+	// fmt.Println("\n" + strings.Repeat("=", 70))
+	// fmt.Println("Layout Box Debug Info (Flattened)")
+	// fmt.Println(strings.Repeat("=", 70))
+	// printLayoutBoxes(boxes)
 
 	// Print layout tree with hierarchical structure
 	fmt.Println("\n" + strings.Repeat("=", 70))
