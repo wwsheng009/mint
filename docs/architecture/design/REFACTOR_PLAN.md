@@ -1645,16 +1645,16 @@ func ErrorBoundary(child ui.VNode) ui.VNode {
 
 #### Phase 5: Lane 调度
 
-- [ ] 实现 Lane 类型定义
-- [ ] 实现 Scheduler
-- [ ] 实现 IntentWithLane
+- [x] 实现 Lane 类型定义
+- [x] 实现 Scheduler
+- [x] 实现 IntentWithLane
 - [ ] 添加性能测试
   - [ ] 大列表渲染
   - [ ] 快速连续输入
-- [ ] 更新文档
-  - [ ] 创建 `LANE_SCHEDULING.md`
-- [ ] 创建示例
-  - [ ] `examples/lane_demo/` - Lane 优先级示例
+- [x] 更新文档
+  - [x] 创建 `LANE_SCHEDULING.md`
+- [x] 创建示例
+  - [x] `examples/lane_demo/` - Lane 优先级示例
   - [ ] `examples/interruptible_demo/` - 可中断渲染示例
 - [ ] 发布 v2.3.0
 

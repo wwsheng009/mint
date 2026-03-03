@@ -1,599 +1,410 @@
-// Package scheduler provides update batching and frame-split rendering.
-//
-// The scheduler manages component updates with the following features:
-//   - Update merging: Multiple dirty updates are batched into a single render
-//   - Time slicing: Large updates are split across multiple frames
-//   - Priority processing: High-priority updates are processed first
-//   - Dirty queue: Efficient tracking of components needing updates
+// Package scheduler provides the core scheduler implementation.
 package scheduler
 
 import (
+	"context"
 	"sync"
 	"time"
-
-	"github.com/wwsheng009/mint/runtime/priority"
 )
 
-// DirtyNode represents a node that needs rendering.
-type DirtyNode struct {
-	// Node is the component/node to render.
-	Node interface{}
+// =============================================================================
+// Work Definition
+// =============================================================================
 
-	// Priority is the dirty priority level.
-	Priority priority.DirtyLevel
-
-	// Timestamp when the node was marked dirty.
-	Timestamp time.Time
-
-	// LayoutDirty indicates if layout needs recalculation.
-	LayoutDirty bool
-
-	// PaintDirty indicates if painting is needed.
-	PaintDirty bool
+// Work represents a unit of work to be scheduled.
+type Work interface {
+	// Execute performs the work. Returns true if completed, false if interrupted.
+	Execute(shouldYield ShouldYieldFunc) bool
 }
 
-// UpdateBatch represents a batch of updates to be processed together.
-type UpdateBatch struct {
-	// Nodes contains the dirty nodes in this batch.
-	Nodes []*DirtyNode
+// WorkFunc is an adapter to allow using functions as Work.
+type WorkFunc func(shouldYield ShouldYieldFunc) bool
 
-	// HighPriority count of high-priority nodes.
-	HighPriority int
-
-	// NormalPriority count of normal-priority nodes.
-	NormalPriority int
-
-	// LowPriority count of low-priority nodes.
-	LowPriority int
-
-	// Timestamp when this batch was created.
-	Timestamp time.Time
+// Execute implements Work.
+func (f WorkFunc) Execute(shouldYield ShouldYieldFunc) bool {
+	return f(shouldYield)
 }
 
-// Scheduler manages component updates with batching and time slicing.
+// =============================================================================
+// ScheduledTask
+// =============================================================================
+
+// ScheduledTask represents a task in the scheduler queue.
+type ScheduledTask struct {
+	ID        uint64
+	Lane      Lane
+	Work      Work
+	CreatedAt time.Time
+	Deadline  time.Time
+	Canceled  bool
+}
+
+// Cancel marks the task as canceled.
+func (t *ScheduledTask) Cancel() {
+	t.Canceled = true
+}
+
+// IsExpired checks if the task has exceeded its deadline.
+func (t *ScheduledTask) IsExpired() bool {
+	return time.Now().After(t.Deadline)
+}
+
+// =============================================================================
+// Scheduler
+// =============================================================================
+
+// Scheduler manages the execution of work based on priority.
 type Scheduler struct {
-	mu sync.RWMutex
+	mu sync.Mutex
 
-	// dirtyQueue contains nodes marked dirty but not yet processed.
-	dirtyQueue map[string]*DirtyNode
+	// Task queues for each lane
+	queues map[Lane][]*ScheduledTask
 
-	// processingSet tracks nodes currently being processed.
-	processingSet map[string]struct{}
+	// Task ID counter
+	nextTaskID uint64
 
-	// pendingBatch accumulates updates for the next frame.
-	pendingBatch *UpdateBatch
+	// Current work in progress
+	currentTask *ScheduledTask
+	currentLane Lane
 
-	// isBatching indicates if batching mode is active.
-	isBatching bool
+	// Scheduler state
+	isPerformingWork bool
+	pendingLanes     Lane
 
-	// defaultTimeBudget is the max time to spend per priority level.
-	defaultTimeBudget time.Duration
+	// Callbacks
+	onWorkStart   func(task *ScheduledTask)
+	onWorkComplete func(task *ScheduledTask)
+	onWorkYield   func(task *ScheduledTask)
 
-	// maxBatchSize is the maximum number of updates to batch.
-	maxBatchSize int
-
-	// maxBatchDuration is how long to accumulate updates before forcing a flush.
-	maxBatchDuration time.Duration
-
-	// lastFlushTime tracks when the last batch was flushed.
-	lastFlushTime time.Time
+	// Context for cancellation
+	ctx    context.Context
+	cancel context.CancelFunc
 }
 
-// New creates a new scheduler with default settings.
-func New() *Scheduler {
-	return &Scheduler{
-		dirtyQueue:         make(map[string]*DirtyNode),
-		processingSet:      make(map[string]struct{}),
-		defaultTimeBudget:  2 * time.Millisecond,
-		maxBatchSize:       1000,
-		maxBatchDuration:   16 * time.Millisecond, // ~60fps
-		lastFlushTime:      time.Now(),
+// SchedulerOption configures the scheduler.
+type SchedulerOption func(*Scheduler)
+
+// WithOnWorkStart sets the callback for when work starts.
+func WithOnWorkStart(fn func(task *ScheduledTask)) SchedulerOption {
+	return func(s *Scheduler) {
+		s.onWorkStart = fn
 	}
 }
 
-// NewWithBudget creates a scheduler with a custom time budget.
-func NewWithBudget(budget time.Duration) *Scheduler {
-	s := New()
-	s.defaultTimeBudget = budget
+// WithOnWorkComplete sets the callback for when work completes.
+func WithOnWorkComplete(fn func(task *ScheduledTask)) SchedulerOption {
+	return func(s *Scheduler) {
+		s.onWorkComplete = fn
+	}
+}
+
+// WithOnWorkYield sets the callback for when work yields.
+func WithOnWorkYield(fn func(task *ScheduledTask)) SchedulerOption {
+	return func(s *Scheduler) {
+		s.onWorkYield = fn
+	}
+}
+
+// NewScheduler creates a new scheduler.
+func NewScheduler(opts ...SchedulerOption) *Scheduler {
+	ctx, cancel := context.WithCancel(context.Background())
+	s := &Scheduler{
+		queues: make(map[Lane][]*ScheduledTask),
+		ctx:    ctx,
+		cancel: cancel,
+	}
+	for _, opt := range opts {
+		opt(s)
+	}
 	return s
 }
 
-// NewWithConfig creates a scheduler with custom configuration.
-func NewWithConfig(timeBudget, maxBatchDuration time.Duration, maxBatchSize int) *Scheduler {
-	s := New()
-	s.defaultTimeBudget = timeBudget
-	s.maxBatchDuration = maxBatchDuration
-	s.maxBatchSize = maxBatchSize
-	return s
+// Shutdown stops the scheduler.
+func (s *Scheduler) Shutdown() {
+	s.cancel()
 }
 
-// ==============================================================================
-// Dirty Queue Management
-// ==============================================================================
+// =============================================================================
+// Scheduling Methods
+// =============================================================================
 
-// MarkDirty marks a node as needing an update.
+// Schedule adds work to the scheduler queue with a given lane.
 //
-// If batching is enabled, the node is added to the pending batch.
-// Otherwise, it's added to the dirty queue for immediate processing.
-func (s *Scheduler) MarkDirty(nodeID string, node interface{}, level priority.DirtyLevel) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	s.markDirtyUnsafe(nodeID, node, level, true, true)
-}
-
-// MarkLayoutDirty marks a node as needing layout recalculation.
-func (s *Scheduler) MarkLayoutDirty(nodeID string, node interface{}, level priority.DirtyLevel) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	s.markDirtyUnsafe(nodeID, node, level, true, false)
-}
-
-// MarkPaintDirty marks a node as needing repainting.
-func (s *Scheduler) MarkPaintDirty(nodeID string, node interface{}, level priority.DirtyLevel) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	s.markDirtyUnsafe(nodeID, node, level, false, true)
-}
-
-// markDirtyUnsafe is the internal implementation without locking.
-func (s *Scheduler) markDirtyUnsafe(nodeID string, node interface{}, level priority.DirtyLevel, layout, paint bool) {
-	// Check if already being processed
-	if _, processing := s.processingSet[nodeID]; processing {
-		return
-	}
-
-	// Create or update the dirty node
-	dirtyNode := &DirtyNode{
-		Node:        node,
-		Priority:    level,
-		Timestamp:   time.Now(),
-		LayoutDirty: layout,
-		PaintDirty:  paint,
-	}
-
-	// When batching, only add to batch (not dirty queue)
-	if s.isBatching {
-		// Check if already in pending batch
-		if s.pendingBatch != nil {
-			for _, existing := range s.pendingBatch.Nodes {
-				if getNodeID(existing.Node) == nodeID {
-					existing.LayoutDirty = existing.LayoutDirty || layout
-					existing.PaintDirty = existing.PaintDirty || paint
-					if level < existing.Priority {
-						existing.Priority = level
-					}
-					existing.Timestamp = time.Now()
-					return
-				}
-			}
-		}
-		s.addToBatch(nodeID, dirtyNode)
-		return
-	}
-
-	// Not batching: add to dirty queue
-	if existing, ok := s.dirtyQueue[nodeID]; ok {
-		existing.LayoutDirty = existing.LayoutDirty || layout
-		existing.PaintDirty = existing.PaintDirty || paint
-		// Upgrade priority if new level is higher
-		if level < existing.Priority {
-			existing.Priority = level
-		}
-		existing.Timestamp = time.Now()
-	} else {
-		s.dirtyQueue[nodeID] = dirtyNode
-	}
-}
-
-// IsDirty checks if a node is currently marked dirty.
-func (s *Scheduler) IsDirty(nodeID string) bool {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	_, ok := s.dirtyQueue[nodeID]
-	return ok
-}
-
-// ClearDirty removes a node from the dirty queue.
-func (s *Scheduler) ClearDirty(nodeID string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	delete(s.dirtyQueue, nodeID)
-	delete(s.processingSet, nodeID)
-}
-
-// ==============================================================================
-// Batch Management
-// ==============================================================================
-
-// BeginBatch starts accumulating updates for batched processing.
+// Example:
 //
-// While batching is active, MarkDirty calls add nodes to a pending batch
-// instead of immediately queuing them. Call FlushBatch to process the batch.
-func (s *Scheduler) BeginBatch() {
+//	task := scheduler.Schedule(InputLane, func(shouldYield ShouldYieldFunc) bool {
+//	    // Process input...
+//	    return true // completed
+//	})
+func (s *Scheduler) Schedule(lane Lane, work Work) *ScheduledTask {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	s.isBatching = true
-	if s.pendingBatch == nil {
-		s.pendingBatch = &UpdateBatch{
-			Nodes:     make([]*DirtyNode, 0, s.maxBatchSize),
-			Timestamp: time.Now(),
-		}
+	task := &ScheduledTask{
+		ID:        s.nextTaskID,
+		Lane:      lane,
+		Work:      work,
+		CreatedAt: time.Now(),
+		Deadline:  time.Now().Add(GetDeadline(lane)),
 	}
+	s.nextTaskID++
+
+	s.queues[lane] = append(s.queues[lane], task)
+	s.pendingLanes |= lane
+
+	return task
 }
 
-// EndBatch stops batching and optionally flushes the accumulated updates.
-func (s *Scheduler) EndBatch(flush bool) {
+// ScheduleFunc adds a function to the scheduler queue.
+func (s *Scheduler) ScheduleFunc(lane Lane, fn func(shouldYield ShouldYieldFunc) bool) *ScheduledTask {
+	return s.Schedule(lane, WorkFunc(fn))
+}
+
+// Cancel removes a task from the queue.
+func (s *Scheduler) Cancel(task *ScheduledTask) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	s.isBatching = false
+	task.Cancel()
+	s.removeFromQueue(task)
+}
 
-	if flush && s.pendingBatch != nil && len(s.pendingBatch.Nodes) > 0 {
-		// Move batched nodes to dirty queue
-		for _, node := range s.pendingBatch.Nodes {
-			nodeID := getNodeID(node.Node)
-			s.dirtyQueue[nodeID] = node
+func (s *Scheduler) removeFromQueue(task *ScheduledTask) {
+	queue := s.queues[task.Lane]
+	for i, t := range queue {
+		if t.ID == task.ID {
+			s.queues[task.Lane] = append(queue[:i], queue[i+1:]...)
+			break
 		}
 	}
 
-	s.pendingBatch = nil
-	s.lastFlushTime = time.Now()
+	// Update pending lanes
+	if len(s.queues[task.Lane]) == 0 {
+		s.pendingLanes &^= task.Lane
+	}
 }
 
-// FlushBatch processes the accumulated batch of updates.
-//
-// Returns true if any updates were flushed.
-func (s *Scheduler) FlushBatch() bool {
+// =============================================================================
+// Work Execution
+// =============================================================================
+
+// Flush performs all pending work synchronously.
+// This is useful for testing or when immediate updates are needed.
+func (s *Scheduler) Flush() {
+	for s.HasPendingWork() {
+		s.performWorkUntilDeadline()
+	}
+}
+
+// PerformWork processes the highest priority work until yielding or completion.
+func (s *Scheduler) PerformWork() {
+	s.performWorkUntilDeadline()
+}
+
+// performWorkUntilDeadline processes work until there's no more work or we should yield.
+func (s *Scheduler) performWorkUntilDeadline() {
 	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.isPerformingWork = true
+	s.mu.Unlock()
 
-	if s.pendingBatch == nil || len(s.pendingBatch.Nodes) == 0 {
-		return false
-	}
+	defer func() {
+		s.mu.Lock()
+		s.isPerformingWork = false
+		s.mu.Unlock()
+	}()
 
-	// Move batched nodes to dirty queue
-	for _, node := range s.pendingBatch.Nodes {
-		nodeID := getNodeID(node.Node)
-		s.dirtyQueue[nodeID] = node
-	}
-
-	s.pendingBatch = &UpdateBatch{
-		Nodes:     make([]*DirtyNode, 0, s.maxBatchSize),
-		Timestamp: time.Now(),
-	}
-	s.lastFlushTime = time.Now()
-
-	return true
-}
-
-// ShouldFlush returns true if the batch should be flushed based on size or time.
-func (s *Scheduler) ShouldFlush() bool {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	if s.pendingBatch == nil {
-		return false
-	}
-
-	// Flush if batch is full
-	if len(s.pendingBatch.Nodes) >= s.maxBatchSize {
-		return true
-	}
-
-	// Flush if max duration elapsed
-	if time.Since(s.pendingBatch.Timestamp) >= s.maxBatchDuration {
-		return true
-	}
-
-	return false
-}
-
-// GetBatchSize returns the current batch size.
-func (s *Scheduler) GetBatchSize() int {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	if s.pendingBatch == nil {
-		return 0
-	}
-	return len(s.pendingBatch.Nodes)
-}
-
-// addToBatch adds a dirty node to the pending batch.
-func (s *Scheduler) addToBatch(nodeID string, node *DirtyNode) {
-	if s.pendingBatch == nil {
-		s.pendingBatch = &UpdateBatch{
-			Nodes:     make([]*DirtyNode, 0, s.maxBatchSize),
-			Timestamp: time.Now(),
+	for s.HasPendingWork() {
+		// Check for context cancellation
+		select {
+		case <-s.ctx.Done():
+			return
+		default:
 		}
-	}
 
-	// Check if already in batch
-	for _, existing := range s.pendingBatch.Nodes {
-		if getNodeID(existing.Node) == nodeID {
-			existing.LayoutDirty = existing.LayoutDirty || node.LayoutDirty
-			existing.PaintDirty = existing.PaintDirty || node.PaintDirty
+		// Get highest priority lane with work
+		lane := PickHighestPriorityLane(s.pendingLanes)
+		if lane == NoLane {
 			return
 		}
-	}
 
-	s.pendingBatch.Nodes = append(s.pendingBatch.Nodes, node)
+		// Get the next task
+		task := s.getNextTask(lane)
+		if task == nil {
+			continue
+		}
 
-	switch node.Priority {
-	case priority.DirtyHigh:
-		s.pendingBatch.HighPriority++
-	case priority.DirtyNormal:
-		s.pendingBatch.NormalPriority++
-	case priority.DirtyLow:
-		s.pendingBatch.LowPriority++
-	}
-}
+		s.currentTask = task
+		s.currentLane = lane
 
-// ==============================================================================
-// Update Processing
-// ==============================================================================
+		// Notify work start
+		if s.onWorkStart != nil {
+			s.onWorkStart(task)
+		}
 
-// Renderer defines how nodes are rendered.
-type Renderer interface {
-	Layout(node interface{})
-	Paint(node interface{})
-}
+		// Execute the work
+		startTime := time.Now()
+		shouldYield := DefaultShouldYield(startTime, GetDeadline(lane))
 
-// ProcessOptions controls how updates are processed.
-type ProcessOptions struct {
-	// TimeBudget limits how long to spend processing.
-	TimeBudget time.Duration
+		completed := task.Work.Execute(shouldYield)
 
-	// MaxNodes limits the number of nodes to process.
-	MaxNodes int
+		// Handle result
+		s.mu.Lock()
+		if completed || task.Canceled {
+			s.removeFromQueue(task)
+			if s.onWorkComplete != nil {
+				s.onWorkComplete(task)
+			}
+		} else {
+			// Work yielded, put it back in queue
+			if s.onWorkYield != nil {
+				s.onWorkYield(task)
+			}
+		}
+		s.currentTask = nil
+		s.currentLane = NoLane
+		s.mu.Unlock()
 
-	// PriorityLevels specifies which priorities to process.
-	// If empty, all levels are processed.
-	PriorityLevels []priority.DirtyLevel
-}
-
-// ProcessResult contains statistics about processed updates.
-type ProcessResult struct {
-	// Processed is the total number of nodes processed.
-	Processed int
-
-	// OutOfTime indicates if processing stopped due to time budget.
-	OutOfTime bool
-
-	// ByPriority counts processed nodes by priority level.
-	ByPriority map[priority.DirtyLevel]int
-
-	// Remaining is the count of dirty nodes left to process.
-	Remaining int
-}
-
-// DefaultProcessOptions returns default processing options.
-func DefaultProcessOptions() ProcessOptions {
-	return ProcessOptions{
-		TimeBudget:     0, // No limit by default
-		MaxNodes:       0,
-		PriorityLevels: nil,
-	}
-}
-
-// ProcessNext processes the next batch of dirty updates.
-//
-// Nodes are processed in priority order: High → Normal → Low.
-// Time budget is respected per priority level.
-func (s *Scheduler) ProcessNext(renderer Renderer, opts ProcessOptions) ProcessResult {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	// Auto-flush batch if needed
-	if s.isBatching && s.ShouldFlush() {
-		s.flushBatchUnsafe()
-	}
-
-	result := ProcessResult{
-		ByPriority: map[priority.DirtyLevel]int{
-			priority.DirtyHigh:   0,
-			priority.DirtyNormal: 0,
-			priority.DirtyLow:    0,
-		},
-	}
-
-	// Determine which levels to process
-	levels := s.priorityLevels(opts)
-
-	// Process each priority level
-	for _, level := range levels {
-		levelResult := s.processLevel(renderer, level, opts)
-		result.Processed += levelResult.Processed
-		result.ByPriority[level] = levelResult.Processed
-
-		if levelResult.OutOfTime {
-			result.OutOfTime = true
+		// Check if we should yield for higher priority work
+		if !completed && !task.Canceled && shouldYield() {
+			// Yield and let higher priority work run
 			break
 		}
 	}
-
-	result.Remaining = len(s.dirtyQueue)
-	return result
 }
 
-// priorityLevels returns the priority levels to process.
-func (s *Scheduler) priorityLevels(opts ProcessOptions) []priority.DirtyLevel {
-	if len(opts.PriorityLevels) > 0 {
-		return opts.PriorityLevels
-	}
-	return []priority.DirtyLevel{
-		priority.DirtyHigh,
-		priority.DirtyNormal,
-		priority.DirtyLow,
-	}
-}
-
-// processLevel processes all dirty nodes at a given priority level.
-func (s *Scheduler) processLevel(renderer Renderer, level priority.DirtyLevel, opts ProcessOptions) ProcessResult {
-	result := ProcessResult{OutOfTime: false}
-
-	// Set time budget
-	budget := s.defaultTimeBudget
-	if opts.TimeBudget > 0 {
-		budget = opts.TimeBudget
-	}
-	start := time.Now()
-
-	// Collect nodes at this level
-	nodes := s.collectByLevel(level)
-
-	// Process nodes
-	for _, node := range nodes {
-		// Check max nodes limit
-		if opts.MaxNodes > 0 && result.Processed >= opts.MaxNodes {
-			break
-		}
-
-		// Check time budget
-		if budget > 0 && time.Since(start) > budget {
-			result.OutOfTime = true
-			break
-		}
-
-		// Mark as processing
-		nodeID := getNodeID(node.Node)
-		s.processingSet[nodeID] = struct{}{}
-
-		// Process the node
-		if node.LayoutDirty {
-			renderer.Layout(node.Node)
-		}
-		if node.PaintDirty {
-			renderer.Paint(node.Node)
-		}
-
-		// Remove from dirty queue
-		delete(s.dirtyQueue, nodeID)
-		delete(s.processingSet, nodeID)
-
-		result.Processed++
-	}
-
-	return result
-}
-
-// collectByLevel collects all dirty nodes at a given priority level.
-func (s *Scheduler) collectByLevel(level priority.DirtyLevel) []*DirtyNode {
-	result := make([]*DirtyNode, 0, len(s.dirtyQueue))
-
-	for _, node := range s.dirtyQueue {
-		if node.Priority == level {
-			result = append(result, node)
-		}
-	}
-
-	return result
-}
-
-// flushBatchUnsafe flushes the pending batch without locking.
-func (s *Scheduler) flushBatchUnsafe() {
-	if s.pendingBatch == nil || len(s.pendingBatch.Nodes) == 0 {
-		return
-	}
-
-	for _, node := range s.pendingBatch.Nodes {
-		nodeID := getNodeID(node.Node)
-		s.dirtyQueue[nodeID] = node
-	}
-
-	s.pendingBatch = &UpdateBatch{
-		Nodes:     make([]*DirtyNode, 0, s.maxBatchSize),
-		Timestamp: time.Now(),
-	}
-	s.lastFlushTime = time.Now()
-}
-
-// ==============================================================================
-// Statistics and Configuration
-// ==============================================================================
-
-// DirtyCount returns the number of dirty nodes by priority level.
-func (s *Scheduler) DirtyCount() map[priority.DirtyLevel]int {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	counts := map[priority.DirtyLevel]int{
-		priority.DirtyHigh:   0,
-		priority.DirtyNormal: 0,
-		priority.DirtyLow:    0,
-	}
-
-	for _, node := range s.dirtyQueue {
-		counts[node.Priority]++
-	}
-
-	return counts
-}
-
-// TotalDirtyCount returns the total number of dirty nodes.
-func (s *Scheduler) TotalDirtyCount() int {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return len(s.dirtyQueue)
-}
-
-// IsBatching returns true if batching is currently active.
-func (s *Scheduler) IsBatching() bool {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.isBatching
-}
-
-// SetTimeBudget sets the default time budget per priority level.
-func (s *Scheduler) SetTimeBudget(budget time.Duration) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.defaultTimeBudget = budget
-}
-
-// SetMaxBatchSize sets the maximum batch size.
-func (s *Scheduler) SetMaxBatchSize(size int) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.maxBatchSize = size
-}
-
-// SetMaxBatchDuration sets the maximum batch duration.
-func (s *Scheduler) SetMaxBatchDuration(duration time.Duration) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.maxBatchDuration = duration
-}
-
-// Clear removes all dirty nodes and resets batching state.
-func (s *Scheduler) Clear() {
+// getNextTask gets the next task from a lane's queue.
+func (s *Scheduler) getNextTask(lane Lane) *ScheduledTask {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	s.dirtyQueue = make(map[string]*DirtyNode)
-	s.processingSet = make(map[string]struct{})
-	s.pendingBatch = nil
-	s.isBatching = false
-	s.lastFlushTime = time.Now()
-}
-
-// ==============================================================================
-// Helper Functions
-// ==============================================================================
-
-// getNodeID extracts a node ID from various node types.
-func getNodeID(node interface{}) string {
-	// Try common interface methods
-	if ider, ok := node.(interface{ ID() string }); ok {
-		return ider.ID()
+	queue := s.queues[lane]
+	if len(queue) == 0 {
+		return nil
 	}
 
-	// Fallback to string representation
-	return ""
+	task := queue[0]
+	if task.Canceled {
+		s.removeFromQueue(task)
+		return nil
+	}
+
+	return task
+}
+
+// =============================================================================
+// Scheduler State
+// =============================================================================
+
+// HasPendingWork returns true if there's pending work.
+func (s *Scheduler) HasPendingWork() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.pendingLanes != NoLane
+}
+
+// GetPendingLanes returns the set of lanes with pending work.
+func (s *Scheduler) GetPendingLanes() Lane {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.pendingLanes
+}
+
+// IsPerformingWork returns true if work is being performed.
+func (s *Scheduler) IsPerformingWork() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.isPerformingWork
+}
+
+// GetQueueLength returns the number of tasks in a specific lane.
+func (s *Scheduler) GetQueueLength(lane Lane) int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.queues[lane])
+}
+
+// GetTotalQueueLength returns the total number of pending tasks.
+func (s *Scheduler) GetTotalQueueLength() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	var total int
+	for _, queue := range s.queues {
+		total += len(queue)
+	}
+	return total
+}
+
+// CurrentTask returns the currently executing task.
+func (s *Scheduler) CurrentTask() *ScheduledTask {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.currentTask
+}
+
+// =============================================================================
+// Lane Management
+// =============================================================================
+
+// MarkLaneReady marks a lane as having work to do.
+func (s *Scheduler) MarkLaneReady(lane Lane) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.pendingLanes |= lane
+}
+
+// MarkLaneComplete marks a lane as complete (no more work).
+func (s *Scheduler) MarkLaneComplete(lane Lane) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.pendingLanes &^= lane
+}
+
+// =============================================================================
+// Batch Scheduling
+// =============================================================================
+
+// BatchScheduler helps schedule multiple tasks efficiently.
+type BatchScheduler struct {
+	scheduler *Scheduler
+	lane      Lane
+	tasks     []*ScheduledTask
+}
+
+// NewBatchScheduler creates a new batch scheduler.
+func NewBatchScheduler(scheduler *Scheduler, lane Lane) *BatchScheduler {
+	return &BatchScheduler{
+		scheduler: scheduler,
+		lane:      lane,
+		tasks:     make([]*ScheduledTask, 0),
+	}
+}
+
+// Add adds work to the batch.
+func (b *BatchScheduler) Add(work Work) {
+	task := b.scheduler.Schedule(b.lane, work)
+	b.tasks = append(b.tasks, task)
+}
+
+// AddFunc adds a function to the batch.
+func (b *BatchScheduler) AddFunc(fn func(shouldYield ShouldYieldFunc) bool) {
+	b.Add(WorkFunc(fn))
+}
+
+// Flush executes all batch tasks.
+func (b *BatchScheduler) Flush() {
+	b.scheduler.Flush()
+}
+
+// Cancel cancels all tasks in the batch.
+func (b *BatchScheduler) Cancel() {
+	for _, task := range b.tasks {
+		task.Cancel()
+	}
+	b.tasks = nil
+}
+
+// Count returns the number of tasks in the batch.
+func (b *BatchScheduler) Count() int {
+	return len(b.tasks)
 }
