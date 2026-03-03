@@ -1,5 +1,10 @@
 package paint
 
+import (
+	"fmt"
+	"strings"
+)
+
 // =============================================================================
 // PaintableBox - Decoupled Layout Box for Paint Engine
 // =============================================================================
@@ -394,4 +399,67 @@ func (b *PaintableBoxBuilder) AddChild(child *PaintableBox) *PaintableBoxBuilder
 // Build returns the constructed PaintableBox.
 func (b *PaintableBoxBuilder) Build() *PaintableBox {
 	return b.box
+}
+
+// =============================================================================
+// PaintableBox Tree Methods
+// =============================================================================
+
+// String returns the paintable tree as string representation.
+func (b *PaintableBox) String() string {
+	return b.TreeString()
+}
+
+// TreeString returns the paintable tree as string (hierarchical structure).
+func (b *PaintableBox) TreeString() string {
+	if b == nil {
+		return "No paintable tree found!"
+	}
+
+	var sb strings.Builder
+	sb.WriteString("Paintable Tree (hierarchical):\n")
+	sb.WriteString(strings.Repeat("=", 70))
+	sb.WriteString("\n")
+	b.buildTreeNodeString(b, 0, &sb)
+	return sb.String()
+}
+
+// buildTreeNodeString recursively builds the string representation of paintable tree nodes.
+func (b *PaintableBox) buildTreeNodeString(box *PaintableBox, depth int, sb *strings.Builder) {
+	if box == nil {
+		return
+	}
+
+	indent := strings.Repeat("  ", depth)
+
+	// Get node type
+	nodeType := "unknown"
+	tag := "-"
+	if box.Node != nil {
+		// Use Tag() for element names, fallback to NodeType for generic types
+		nodeTag := box.Node.Tag()
+		if nodeTag != "" {
+			tag = nodeTag
+		}
+		nodeType = fmt.Sprintf("%s (type:%s)", tag, box.Node.NodeType())
+	}
+
+	// Build diff key info
+	diffKey := box.DiffKey
+	if len(diffKey) > 15 {
+		diffKey = diffKey[:12] + "..."
+	}
+	if diffKey == "" {
+		diffKey = "-"
+	}
+
+	// Append node with hierarchical relationship
+	sb.WriteString(fmt.Sprintf("%s└─ [%s] ID:%d DiffKey:%s Size:%dx%d Pos:%d,%d Layer:%d\n",
+		indent, nodeType, box.NodeID, diffKey,
+		box.Width, box.Height, box.X, box.Y, box.Layer))
+
+	// Append children recursively
+	for _, child := range box.Children {
+		b.buildTreeNodeString(child, depth+1, sb)
+	}
 }
