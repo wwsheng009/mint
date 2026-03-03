@@ -8,6 +8,7 @@ import (
 	"github.com/wwsheng009/mint/runtime"
 	compute_engine "github.com/wwsheng009/mint/runtime/compute"
 	rtlayout "github.com/wwsheng009/mint/runtime/layout"
+	"github.com/wwsheng009/mint/runtime/intent"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
 
@@ -15,6 +16,12 @@ import (
 // 展示它们在处理相同VNode树时的异同
 func main() {
 	fmt.Println("=== Layout Engine Comparison: runtime/compute vs runtime/layout ===\n")
+
+
+	// Initialize Intent Runtime (required for tests that call ui.On)
+	intentRuntime := intent.NewRuntime()
+	intent.SetupBuiltinHandlers(intentRuntime)
+	rtui.SetGlobalIntentRuntime(intentRuntime)
 
 	// 获取测试组件
 	fixtures := component_fixtures.StandardFixtures()
