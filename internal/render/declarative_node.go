@@ -97,8 +97,21 @@ func (n *DeclarativeNode) SetScheduler(scheduler reconciler.Scheduler) {
 	n.scheduler = scheduler
 }
 
-// SetApp sets the framework app (scheduler) on the DeclarativeNode and its reconciler
-// This is called from ui.Run to enable frame scheduling
+// SetApp sets the framework app (scheduler) on the DeclarativeNode and its reconciler.
+//
+// OPTIONAL - This method is only required when:
+//   - Running an interactive application (e.g., ui.Run)
+//   - State-driven re-rendering is needed (e.g., setState, Intent handlers)
+//   - The reconciler's requestWork() needs to trigger MarkDirty()
+//
+// NOT REQUIRED for:
+//   - Static rendering / one-time painting
+//   - Measurement / layout calculation
+//   - Unit tests that only call Paint() once
+//
+// The reconciler internally handles nil scheduler safely (requestWorks() checks before calling MarkDirty)
+//
+// This is called from ui.Run to enable frame scheduling.
 func (n *DeclarativeNode) SetApp(app interface{}) {
 	// Set scheduler on the DeclarativeNode (for non-Fiber mode)
 	if scheduler, ok := app.(reconciler.Scheduler); ok {
