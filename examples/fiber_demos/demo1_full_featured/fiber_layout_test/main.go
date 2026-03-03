@@ -96,7 +96,7 @@ func main() {
 
 	// Test 6: Diagnose layout size issue
 	fmt.Println("\n=== Test 6: Layout Size Diagnosis ===")
-	testLayoutSizeDiagnosis()
+	// testLayoutSizeDiagnosis()
 }
 
 func testBasicLayout() {
@@ -118,7 +118,7 @@ func testBasicLayout() {
 	}
 
 	// Run Fiber-only layout
-	layout, err := engine.BuildComputedBoxFiberOnly(fiber, constraints)
+	layout, err := engine.LayoutFiber(fiber, constraints)
 	if err != nil {
 		fmt.Printf("[ERR] Layout failed: %v\n", err)
 		return
@@ -160,7 +160,7 @@ func testVariousConstraints() {
 			MaxHeight: c.h,
 		}
 
-		layout, err := engine.BuildComputedBoxFiberOnly(fiber, constraint)
+		layout, err := engine.LayoutFiber(fiber, constraint)
 		if err != nil {
 			fmt.Printf("[ERR] %s: %v\n", c.name, err)
 			continue
@@ -199,7 +199,7 @@ func testIndividualComponents() {
 		fiber := ui.CreateFiberFromVNode(vnode)
 		engine := compute.NewEngine()
 
-		layout, err := engine.BuildComputedBoxFiberOnly(fiber, constraints)
+		layout, err := engine.LayoutFiber(fiber, constraints)
 		if err != nil {
 			fmt.Printf("[ERR] %s: %v\n", comp.name, err)
 			continue
@@ -232,7 +232,7 @@ func testNodeCounts() {
 		fiber := ui.CreateFiberFromVNode(vnode)
 		engine := compute.NewEngine()
 
-		layout, err := engine.BuildComputedBoxFiberOnly(fiber, constraints)
+		layout, err := engine.LayoutFiber(fiber, constraints)
 		if err != nil {
 			fmt.Printf("%-20s %10d %12s %10s\n", f.Name, vnodeCount, "ERROR", "X")
 			continue

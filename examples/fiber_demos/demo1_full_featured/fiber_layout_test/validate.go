@@ -394,7 +394,7 @@ func RunValidation() bool {
 		MaxHeight: 24,
 	}
 
-	layout, err := engine.BuildComputedBoxFiberOnly(fiber, constraints)
+	layout, err := engine.LayoutFiber(fiber, constraints)
 	if err != nil {
 		fmt.Printf("[FATAL] Layout computation failed: %v\n", err)
 		return false
@@ -442,7 +442,7 @@ func RunBatchValidation() {
 		fiber := ui.CreateFiberFromVNode(vnode)
 		engine := compute.NewEngine()
 
-		layout, err := engine.BuildComputedBoxFiberOnly(fiber, constraints)
+		layout, err := engine.LayoutFiber(fiber, constraints)
 		if err != nil {
 			results = append(results, BatchValidationResult{
 				FixtureName: f.Name,
@@ -1086,7 +1086,7 @@ func RunVisualization() {
 		MaxHeight: 24,
 	}
 
-	layout, err := engine.BuildComputedBoxFiberOnly(fiber, constraints)
+	layout, err := engine.LayoutFiber(fiber, constraints)
 	if err != nil {
 		fmt.Printf("[ERR] Layout failed: %v\n", err)
 		return
@@ -1116,7 +1116,7 @@ func RunDetailedVisualization() {
 		MaxHeight: 24,
 	}
 
-	layout, err := engine.BuildComputedBoxFiberOnly(fiber, constraints)
+	layout, err := engine.LayoutFiber(fiber, constraints)
 	if err != nil {
 		fmt.Printf("[ERR] Layout failed: %v\n", err)
 		return
@@ -1158,7 +1158,7 @@ func VisualizeFixture(name string) {
 		MaxHeight: 24,
 	}
 
-	layout, err := engine.BuildComputedBoxFiberOnly(fiber, constraints)
+	layout, err := engine.LayoutFiber(fiber, constraints)
 	if err != nil {
 		fmt.Printf("[ERR] Layout failed: %v\n", err)
 		return
