@@ -61,38 +61,29 @@ var registeredHandlers sync.Map
 
 // On 注册 Intent 处理器的通用实现（简洁 API）
 //
+// ⚠️ 警告：此 API 存在闭包过期风险！
+//
+// handler 闭包会捕获定义时的状态值，如果组件重新渲染，
+// handler 内访问的变量可能是旧值。推荐使用 OnWithContext 替代。
+//
 // 使用示例（使用内置 Simple* Intent 类型）：
 //
 //	func MyComponent() ui.VNode {
 //		visible, setVisible, _ := ui.UseStateBool(false)
 //
 //		ui.On(ui.SimpleToggleIntent{}, func() {
-//			setVisible(!visible)
+//			setVisible(!visible)  // ⚠️ visible 可能是旧值
 //		})
 //
 //		return ui.NewButtonBuilder("Toggle").OnPress(ui.SimpleToggleIntent{}).Build()
-//	}
-//
-// 使用示例（自定义 intent 类型）：
-//
-//	type CustomIncrement struct{}
-//	func (CustomIncrement) IntentType() string { return "CustomIncrement" }
-//	func (CustomIncrement) StayPressed() bool  { return true }
-//
-//	func MyComponent() ui.VNode {
-//		count, setCount, _ := ui.UseStateInt(0)
-//
-//		ui.On(CustomIncrement{}, func() {
-//			setCount(func(c int) int { return c + 1 })
-//		})
-//
-//		return ui.NewButtonBuilder(" + ").OnPress(CustomIncrement{}).Build()
 //	}
 //
 // 重要提示：
 // - 对于 UseBool/UseInt 等简单状态，推荐使用函数形式的 setter（避免闭包捕获旧值）
 // - handler 闭包可以直接访问组件内的局部变量（通过闭包）
 // - 每个组件渲染时只注册一次 handler（通过包级 map 防止重复注册）
+//
+// 废弃警告：建议迁移到 OnWithContext 以避免闭包问题
 func On[T interface{ IntentType() string; StayPressed() bool }](
 	intentType T, // 例如 ui.SimpleIncrementIntent, ui.SimpleDecrementIntent, 或自定义类型
 	handler func(), // 处理函数，不需要接收参数（闭包直接访问局部变量）
@@ -114,4 +105,93 @@ func On[T interface{ IntentType() string; StayPressed() bool }](
 		// 返回处理结果
 		return intent.HandledResult()
 	})
+}
+
+// OnWithContext 注册 Intent 处理器（推荐 API，无闭包风险）
+//
+// 这是推荐的 Intent 注册方式，handler 接收 *ActionContext 参数，
+// 可以从中读取最新状态，避免闭包捕获旧值的问题。
+//
+// 使用示例：
+//
+//	func Counter() ui.VNode {
+//		count, setCount, _ := ui.UseStateInt(0)
+//
+//		// ✅ 将状态保存到 GlobalStore 供 handler 读取
+//		ctx := ui.GetCurrentContext()
+//		if ctx != nil {
+//			ctx.GlobalState["counter_count"] = count
+//			ctx.GlobalState["counter_setCount"] = setCount
+//		}
+//
+//		ui.OnWithContext(ui.SimpleIncrementIntent{}, func(ctx *intent.ActionContext) {
+//			// ✅ 从 Context 读取最新值
+//			setCountFn, _ := ctx.GlobalStore["counter_setCount"].(func(interface{}))
+//			if setCountFn != nil {
+//				setCountFn(func(c int) int { return c + 1 })
+//			}
+//		})
+//
+//		return ui.Text(fmt.Sprintf("Count: %d", count))
+//	}
+//
+// 更简洁写法（使用类型安全的访问器）：
+//
+//	func Form() ui.VNode {
+//		ctx := ui.GetCurrentContext()
+//		ctx.SetState("username", username)  // 保存状态
+//
+//		ui.OnWithContext(SubmitIntent{}, func(ctx *intent.ActionContext) {
+//			// ✅ 类型安全地读取状态
+//			username := ctx.GetStringState("username", "")
+//			// 处理提交逻辑...
+//		})
+//	}
+func OnWithContext[T interface{ IntentType() string; StayPressed() bool }](
+	intentType T,
+	handler func(*intent.ActionContext),
+) {
+	// 生成唯一键
+	key := intentType.IntentType()
+
+	// 检查是否已注册
+	if _, loaded := registeredHandlers.LoadOrStore(key, true); loaded {
+		return
+	}
+
+	// 注册全局 Intent 处理器，传递 ActionContext 给 handler
+	rtui.RegisterIntent(func(ctx *intent.ActionContext, i T) intent.IntentResult {
+		handler(ctx)
+		return intent.HandledResult()
+	})
+}
+
+// =============================================================================
+// StateKey for Type-Safe State Access (Phase 1.2)
+// =============================================================================
+
+// StateKey is a type-safe key for accessing state.
+// Use this instead of string keys to get compile-time type checking.
+type StateKey[T any] struct {
+	name string
+}
+
+// NewStateKey creates a new type-safe state key.
+func NewStateKey[T any](name string) StateKey[T] {
+	return StateKey[T]{name: name}
+}
+
+// String returns the string representation of the key.
+func (k StateKey[T]) String() string {
+	return k.name
+}
+
+// Get retrieves the typed value from ActionContext.
+func (k StateKey[T]) Get(ctx *intent.ActionContext, defaultValue T) T {
+	return intent.GetStateAs[T](ctx, k.name, defaultValue)
+}
+
+// Set stores the value in ActionContext.
+func (k StateKey[T]) Set(ctx *intent.ActionContext, value T) {
+	ctx.SetState(k.name, value)
 }

@@ -192,6 +192,74 @@ func (c *ActionContext) ScheduleUpdate() {
 }
 
 // =============================================================================
+// Type-safe State Accessors (Phase 1.2 of Refactoring)
+// =============================================================================
+
+// GetStringState retrieves a string state value with a default.
+// This is the preferred way for handlers to read string state.
+func (c *ActionContext) GetStringState(key string, defaultValue string) string {
+	if c.stateSetter != nil {
+		if v, ok := c.stateSetter.GetState(key); ok {
+			if s, ok := v.(string); ok {
+				return s
+			}
+		}
+	}
+	return defaultValue
+}
+
+// GetIntState retrieves an int state value with a default.
+// This is the preferred way for handlers to read int state.
+func (c *ActionContext) GetIntState(key string, defaultValue int) int {
+	if c.stateSetter != nil {
+		if v, ok := c.stateSetter.GetState(key); ok {
+			if i, ok := v.(int); ok {
+				return i
+			}
+		}
+	}
+	return defaultValue
+}
+
+// GetBoolState retrieves a boolean state value with a default.
+// This is the preferred way for handlers to read boolean state.
+func (c *ActionContext) GetBoolState(key string, defaultValue bool) bool {
+	if c.stateSetter != nil {
+		if v, ok := c.stateSetter.GetState(key); ok {
+			if b, ok := v.(bool); ok {
+				return b
+			}
+		}
+	}
+	return defaultValue
+}
+
+// GetFloat64State retrieves a float64 state value with a default.
+func (c *ActionContext) GetFloat64State(key string, defaultValue float64) float64 {
+	if c.stateSetter != nil {
+		if v, ok := c.stateSetter.GetState(key); ok {
+			if f, ok := v.(float64); ok {
+				return f
+			}
+		}
+	}
+	return defaultValue
+}
+
+// GetStateAs retrieves a typed state value with a default.
+// This is a generic version for custom types.
+func GetStateAs[T any](c *ActionContext, key string, defaultValue T) T {
+	if c.stateSetter != nil {
+		if v, ok := c.stateSetter.GetState(key); ok {
+			if t, ok := v.(T); ok {
+				return t
+			}
+		}
+	}
+	return defaultValue
+}
+
+// =============================================================================
 // Intent Result
 // =============================================================================
 

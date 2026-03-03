@@ -47,32 +47,38 @@ func main() {
 		ui.WithTitle("Validation Form Demo"),
 		ui.WithInit(func() {
 			// 注册 FieldChangeIntent 处理器
+			// 将 UseState 的 setter 保存到 GlobalState，供处理器调用
 			ui.RegisterIntent(func(ctx *intent.ActionContext, i intent.FieldChangeIntent) intent.IntentResult {
 				switch i.Field {
 				case "username":
-					setUsername, _ := ctx.GetState("usernameSetter")
-					if fn, ok := setUsername.(func(string)); ok {
-						fn(i.Value)
+					if fn, ok := ctx.GetState("usernameSetter"); ok {
+						if setter, ok := fn.(func(string)); ok {
+							setter(i.Value)
+						}
 					}
 				case "email":
-					setEmail, _ := ctx.GetState("emailSetter")
-					if fn, ok := setEmail.(func(string)); ok {
-						fn(i.Value)
+					if fn, ok := ctx.GetState("emailSetter"); ok {
+						if setter, ok := fn.(func(string)); ok {
+							setter(i.Value)
+						}
 					}
 				case "age":
-					setAge, _ := ctx.GetState("ageSetter")
-					if fn, ok := setAge.(func(string)); ok {
-						fn(i.Value)
+					if fn, ok := ctx.GetState("ageSetter"); ok {
+						if setter, ok := fn.(func(string)); ok {
+							setter(i.Value)
+						}
 					}
 				case "password":
-					setPassword, _ := ctx.GetState("passwordSetter")
-					if fn, ok := setPassword.(func(string)); ok {
-						fn(i.Value)
+					if fn, ok := ctx.GetState("passwordSetter"); ok {
+						if setter, ok := fn.(func(string)); ok {
+							setter(i.Value)
+						}
 					}
 				case "confirmPwd":
-					setConfirmPwd, _ := ctx.GetState("confirmPwdSetter")
-					if fn, ok := setConfirmPwd.(func(string)); ok {
-						fn(i.Value)
+					if fn, ok := ctx.GetState("confirmPwdSetter"); ok {
+						if setter, ok := fn.(func(string)); ok {
+							setter(i.Value)
+						}
 					}
 				}
 				return intent.HandledResult()
@@ -89,33 +95,46 @@ func main() {
 // =============================================================================
 
 func FormApp() ui.VNode {
-	// 表单状态
+	// 使用 UseState 创建表单状态 - 这是单一事实源
 	username, setUsername := ui.UseStateString("")
 	email, setEmail := ui.UseStateString("")
 	age, setAge := ui.UseStateString("")
 	password, setPassword := ui.UseStateString("")
 	confirmPwd, setConfirmPwd := ui.UseStateString("")
 
-	// 验证错误状态
+	// 将 setter 和当前值保存到 GlobalState 供 Intent 处理器使用
+	// ✅ 这是解决闭包问题的关键：将状态存储到 GlobalState，handler 从 ActionContext 读取
+	ctx := ui.GetCurrentContext()
+	if ctx != nil {
+		// 保存 setter
+		ctx.GlobalState["usernameSetter"] = setUsername
+		ctx.GlobalState["emailSetter"] = setEmail
+		ctx.GlobalState["ageSetter"] = setAge
+		ctx.GlobalState["passwordSetter"] = setPassword
+		ctx.GlobalState["confirmPwdSetter"] = setConfirmPwd
+
+		// 保存当前值（供 SubmitIntent 读取最新值）
+		ctx.GlobalState["username"] = username
+		ctx.GlobalState["email"] = email
+		ctx.GlobalState["age"] = age
+		ctx.GlobalState["password"] = password
+		ctx.GlobalState["confirmPwd"] = confirmPwd
+	}
+
+	// 验证错误状态 - 使用 UseState 管理
 	usernameErr, setUsernameErr := ui.UseStateString("")
 	emailErr, setEmailErr := ui.UseStateString("")
 	ageErr, setAgeErr := ui.UseStateString("")
 	passwordErr, setPasswordErr := ui.UseStateString("")
 	confirmErr, setConfirmErr := ui.UseStateString("")
 
-	// 将 setter 保存到 GlobalState
-	ctx := ui.GetCurrentContext()
+	// 保存错误 setter 到 GlobalState
 	if ctx != nil {
-		ctx.GlobalState["usernameSetter"] = setUsername
-		ctx.GlobalState["emailSetter"] = setEmail
-		ctx.GlobalState["ageSetter"] = setAge
-		ctx.GlobalState["passwordSetter"] = setPassword
-		ctx.GlobalState["confirmPwdSetter"] = setConfirmPwd
-		ctx.GlobalState["usernameErrSetter"] = setUsernameErr
-		ctx.GlobalState["emailErrSetter"] = setEmailErr
-		ctx.GlobalState["ageErrSetter"] = setAgeErr
-		ctx.GlobalState["passwordErrSetter"] = setPasswordErr
-		ctx.GlobalState["confirmErrSetter"] = setConfirmErr
+		ctx.GlobalState["setUsernameErr"] = setUsernameErr
+		ctx.GlobalState["setEmailErr"] = setEmailErr
+		ctx.GlobalState["setAgeErr"] = setAgeErr
+		ctx.GlobalState["setPasswordErr"] = setPasswordErr
+		ctx.GlobalState["setConfirmErr"] = setConfirmErr
 	}
 
 	// 验证器定义
@@ -137,7 +156,7 @@ func FormApp() ui.VNode {
 		Build()
 
 	// 验证单个字段
-	validateField := func(field string, value string) string {
+	validateField := func(field string, value string, pwd string) string {
 		switch field {
 		case "username":
 			if err := usernameValidator.Validate(value); err != nil {
@@ -149,11 +168,11 @@ func FormApp() ui.VNode {
 			}
 		case "age":
 			if value != "" {
-				age, err := strconv.Atoi(value)
+				ageVal, err := strconv.Atoi(value)
 				if err != nil {
 					return "请输入有效数字"
 				}
-				if age < 1 || age > 150 {
+				if ageVal < 1 || ageVal > 150 {
 					return "年龄必须在1-150之间"
 				}
 			}
@@ -162,35 +181,102 @@ func FormApp() ui.VNode {
 				return err.Error()
 			}
 		case "confirmPwd":
-			if value != password {
+			if value != pwd {
 				return "两次密码输入不一致"
 			}
 		}
 		return ""
 	}
 
-	// Submit 处理 - 提交时验证所有字段
-	ui.On(SubmitIntent{}, func() {
-		// 验证所有字段
-		setUsernameErr(validateField("username", username))
-		setEmailErr(validateField("email", email))
-		setAgeErr(validateField("age", age))
-		setPasswordErr(validateField("password", password))
-		setConfirmErr(validateField("confirmPwd", confirmPwd))
+	// ✅ Submit 处理 - 使用 OnWithContext 从 ActionContext 读取最新状态
+	// 这解决了闭包捕获旧值的问题
+	ui.OnWithContext(SubmitIntent{}, func(actx *intent.ActionContext) {
+		// ✅ 从 ActionContext 获取最新的表单值
+		currentUsername := actx.GetStringState("username", "")
+		currentEmail := actx.GetStringState("email", "")
+		currentAge := actx.GetStringState("age", "")
+		currentPassword := actx.GetStringState("password", "")
+		currentConfirmPwd := actx.GetStringState("confirmPwd", "")
+
+		// 从 ActionContext 获取错误 setter
+		setUNameErr, _ := actx.GetState("setUsernameErr")
+		setEMailErr, _ := actx.GetState("setEmailErr")
+		setAgeErrFn, _ := actx.GetState("setAgeErr")
+		setPwdErr, _ := actx.GetState("setPasswordErr")
+		setConfErr, _ := actx.GetState("setConfirmErr")
+
+		// 验证所有字段并设置错误
+		if fn, ok := setUNameErr.(func(string)); ok {
+			fn(validateField("username", currentUsername, ""))
+		}
+		if fn, ok := setEMailErr.(func(string)); ok {
+			fn(validateField("email", currentEmail, ""))
+		}
+		if fn, ok := setAgeErrFn.(func(string)); ok {
+			fn(validateField("age", currentAge, ""))
+		}
+		if fn, ok := setPwdErr.(func(string)); ok {
+			fn(validateField("password", currentPassword, ""))
+		}
+		if fn, ok := setConfErr.(func(string)); ok {
+			fn(validateField("confirmPwd", currentConfirmPwd, currentPassword))
+		}
 	})
 
-	// Reset 处理
-	ui.On(ResetIntent{}, func() {
-		setUsername("")
-		setEmail("")
-		setAge("")
-		setPassword("")
-		setConfirmPwd("")
-		setUsernameErr("")
-		setEmailErr("")
-		setAgeErr("")
-		setPasswordErr("")
-		setConfirmErr("")
+	// ✅ Reset 处理 - 使用 OnWithContext
+	ui.OnWithContext(ResetIntent{}, func(actx *intent.ActionContext) {
+		// 从 ActionContext 获取 setter
+		if fn, ok := actx.GetState("usernameSetter"); ok {
+			if setter, ok := fn.(func(string)); ok {
+				setter("")
+			}
+		}
+		if fn, ok := actx.GetState("emailSetter"); ok {
+			if setter, ok := fn.(func(string)); ok {
+				setter("")
+			}
+		}
+		if fn, ok := actx.GetState("ageSetter"); ok {
+			if setter, ok := fn.(func(string)); ok {
+				setter("")
+			}
+		}
+		if fn, ok := actx.GetState("passwordSetter"); ok {
+			if setter, ok := fn.(func(string)); ok {
+				setter("")
+			}
+		}
+		if fn, ok := actx.GetState("confirmPwdSetter"); ok {
+			if setter, ok := fn.(func(string)); ok {
+				setter("")
+			}
+		}
+		// 清空错误
+		if fn, ok := actx.GetState("setUsernameErr"); ok {
+			if setter, ok := fn.(func(string)); ok {
+				setter("")
+			}
+		}
+		if fn, ok := actx.GetState("setEmailErr"); ok {
+			if setter, ok := fn.(func(string)); ok {
+				setter("")
+			}
+		}
+		if fn, ok := actx.GetState("setAgeErr"); ok {
+			if setter, ok := fn.(func(string)); ok {
+				setter("")
+			}
+		}
+		if fn, ok := actx.GetState("setPasswordErr"); ok {
+			if setter, ok := fn.(func(string)); ok {
+				setter("")
+			}
+		}
+		if fn, ok := actx.GetState("setConfirmErr"); ok {
+			if setter, ok := fn.(func(string)); ok {
+				setter("")
+			}
+		}
 	})
 
 	// 显示错误信息
@@ -233,6 +319,7 @@ func FormApp() ui.VNode {
 				Value(username).
 				Placeholder("3-20字符").
 				Width(30).
+				MaxLen(20).
 				Build(),
 		),
 		showError(usernameErr),
@@ -247,6 +334,7 @@ func FormApp() ui.VNode {
 				Value(email).
 				Placeholder("example@mail.com").
 				Width(30).
+				MaxLen(50).
 				Build(),
 		),
 		showError(emailErr),
@@ -261,6 +349,7 @@ func FormApp() ui.VNode {
 				Value(age).
 				Placeholder("1-150").
 				Width(30).
+				MaxLen(3).
 				Build(),
 		),
 		showError(ageErr),
@@ -275,6 +364,8 @@ func FormApp() ui.VNode {
 				Value(password).
 				Placeholder("6-20字符").
 				Width(30).
+				MaxLen(20).
+				Password().
 				Build(),
 		),
 		showError(passwordErr),
@@ -289,6 +380,8 @@ func FormApp() ui.VNode {
 				Value(confirmPwd).
 				Placeholder("再次输入密码").
 				Width(30).
+				MaxLen(20).
+				Password().
 				Build(),
 		),
 		showError(confirmErr),
