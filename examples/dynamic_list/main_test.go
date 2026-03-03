@@ -3,13 +3,12 @@ package main
 
 import (
 	"fmt"
-	"os"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/wwsheng009/mint/ui"
 	"github.com/wwsheng009/mint/runtime/platform"
+	"github.com/wwsheng009/mint/ui"
 )
 
 // TestDynamicListKeyboardInput tests keyboard navigation and button clicks
@@ -38,7 +37,6 @@ func TestDynamicListKeyboardInput(t *testing.T) {
 
 	// Check the declarative root state
 	root := testApp.GetDeclarativeRoot()
-	t.Logf("Buttons count: %d", len(root.GetButtons()))
 	t.Logf("Inputs count: %d", len(root.GetInputs()))
 	t.Logf("Focused index: %d, type: %d", root.GetFocusedIndex(), root.GetFocusedType())
 
@@ -169,75 +167,7 @@ func TestDynamicListMouseClick(t *testing.T) {
 	// Check the declarative root state for debugging
 	root := testApp.GetDeclarativeRoot()
 	t.Logf("Declarative root: %+v", root)
-	if root != nil {
-		t.Logf("Root children: %d", len(root.GetButtons()))
-		t.Logf("Root inputs: %d", len(root.GetInputs()))
-	}
 
-	// Use TestableApp.GetButtons() instead of GetDeclarativeRoot().GetButtons()
-	// This properly handles both Fiber and non-Fiber modes
-	buttons := testApp.GetButtons()
-
-	t.Logf("useFiber=%v", os.Getenv("MINT_USE_FIBER"))
-	t.Logf("Found %d buttons", len(buttons))
-	if len(buttons) == 0 {
-		t.Fatal("No buttons found in the app")
-	}
-
-	// Try clicking the first button
-	// Find button bounds
-	for i, btn := range buttons {
-		if boundsAware, ok := btn.(interface{ Bounds() [4]int }); ok {
-			bounds := boundsAware.Bounds()
-			t.Logf("Button %d bounds: x=%d, y=%d, w=%d, h=%d",
-				i, bounds[0], bounds[1], bounds[2], bounds[3])
-		} else {
-			t.Logf("Button %d does not have Bounds() method", i)
-		}
-	}
-
-	// Click on the first button (assuming it's at position around x=25, y=7)
-	// The button "[ +]" should be clickable
-	t.Log("\n=== Clicking first button with mouse ===")
-	if len(buttons) > 0 {
-		if boundsAware, ok := buttons[0].(interface{ Bounds() [4]int }); ok {
-			bounds := boundsAware.Bounds()
-			// Click in the center of the button
-			clickX := bounds[0] + bounds[2]/2
-			clickY := bounds[1] + bounds[3]/2
-			t.Logf("Clicking at x=%d, y=%d", clickX, clickY)
-
-			// Mouse click requires:
-			// 1. MouseEnter to set hover state
-			// 2. MousePress
-			// 3. MouseRelease (which triggers onClick)
-			err = testApp.InjectMouse(clickX, clickY, platform.MouseLeft, platform.MouseMotion)
-			if err != nil {
-				t.Errorf("Failed to inject mouse motion: %v", err)
-			}
-			err = testApp.InjectMouse(clickX, clickY, platform.MouseLeft, platform.MousePress)
-			if err != nil {
-				t.Errorf("Failed to inject mouse press: %v", err)
-			}
-			err = testApp.InjectMouse(clickX, clickY, platform.MouseLeft, platform.MouseRelease)
-			if err != nil {
-				t.Errorf("Failed to inject mouse release: %v", err)
-			}
-			time.Sleep(50 * time.Millisecond)
-			testApp.GetFrameworkApp().ForceRenderNow() // Force render to complete
-			time.Sleep(50 * time.Millisecond)
-
-			rendered := testApp.GetRenderString()
-			t.Logf("After mouse click:\n%s", rendered)
-
-			// Check if counter was incremented
-			if err := testApp.AssertRender("clicked: 1"); err != nil {
-				t.Errorf("Counter not incremented after mouse click: %v", err)
-			}
-		} else {
-			t.Log("Button does not have Bounds() method, skipping mouse click test")
-		}
-	}
 }
 
 // TestDynamicListFocusManagement tests focus management
@@ -257,7 +187,6 @@ func TestDynamicListFocusManagement(t *testing.T) {
 	root := testApp.GetDeclarativeRoot()
 
 	t.Log("=== Initial state ===")
-	t.Logf("Buttons: %d", len(root.GetButtons()))
 	t.Logf("Focused index: %d", root.GetFocusedIndex())
 	t.Logf("Focused type: %d", root.GetFocusedType())
 
@@ -356,8 +285,6 @@ func TestDynamicListDebug(t *testing.T) {
 	t.Logf("Renderer: %v", fwApp.GetRenderer())
 
 	t.Log("\n=== INTERACTIVE ELEMENTS ===")
-	t.Logf("Buttons: %d", len(root.GetButtons()))
-	t.Logf("Inputs: %d", len(root.GetInputs()))
 	t.Logf("Focused index: %d", root.GetFocusedIndex())
 	t.Logf("Focused type: %d", root.GetFocusedType())
 

@@ -1,14 +1,14 @@
-// Package main demonstrates the constraint tracer integration with Panel.
+// Package main demonstrates the constraint tracer integration.
+// Note: Panel now uses composition-based implementation (VNode->Border->Stack)
+// and no longer supports CreateInstance(). The constraint tracer can be used
+// with other components that implement InstanceFactory.
 package main
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/wwsheng009/mint/runtime/layout"
-	rtui "github.com/wwsheng009/mint/runtime/ui"
-	"github.com/wwsheng009/mint/ui"
-	panel "github.com/wwsheng009/mint/ui/components/panel"
-	newtext "github.com/wwsheng009/mint/ui/components/text"
 )
 
 func main() {
@@ -20,118 +20,27 @@ func main() {
 	fmt.Println()
 
 	// ========================================
-	// Step 2: Create a simple Panel with explicit dimensions
+	// Info: Panel is now composition-based
 	// ========================================
-	fmt.Println("=== Test 1: Panel with explicit dimensions (50x10) ===")
+	fmt.Println("=== Panel Composition-Based Architecture ===")
+	fmt.Println()
+	fmt.Println("Panel now uses composition:")
+	fmt.Println("  Panel VNode -> Border VNode -> Stack VNode")
+	fmt.Println()
+	fmt.Println("This means:")
+	fmt.Println("  - No separate PanelInstance needed")
+	fmt.Println("  - Border component handles all layout state")
+	fmt.Println("  - CreateInstance() is no longer available")
+	fmt.Println()
+	fmt.Println("For constraint tracing demos, use components")
+	fmt.Println("that implement InstanceFactory directly.")
 	fmt.Println()
 
-	panelNode := panel.New().
-		SetTitle("Test Panel").
-		SetContent(newtext.New("This is test content inside the panel.\nThe panel has explicit dimensions.")).
-		SetWidth(50).
-		SetHeight(10).
-		Rounded()
-
-	// Get the instance directly from VNode
-	instance := panelNode.CreateInstance()
-	if panelInst, ok := instance.(*panel.PanelInstance); ok {
-		// Set path for trace
-		panelInst.SetPath("/root/test1")
-
-		// Measure with constraints
-		constraints := layout.UnboundedConstraints()
-		size := panelInst.Measure(constraints)
-		fmt.Printf("Input constraints: unbounded\n")
-		fmt.Printf("Measured size: %dx%d\n", size.Width, size.Height)
-		fmt.Println()
-	}
-
 	// ========================================
-	// Step 3: Panel with tight constraints
-	// ========================================
-	fmt.Println("=== Test 2: Panel with tight constraints (40x8) ===")
-	fmt.Println()
-
-	panelNode2 := panel.New().
-		SetTitle("Constrained Panel").
-		SetContent(newtext.New("Content constrained by parent.")).
-		SetFlex(1) // Will expand
-
-	instance2 := panelNode2.CreateInstance()
-	if panelInst2, ok := instance2.(*panel.PanelInstance); ok {
-		// Set path for trace
-		panelInst2.SetPath("/root/test2")
-
-		// Measure with tight constraints
-		tightConstraints := layout.NewConstraints(0, 40, 0, 8)
-		size2 := panelInst2.Measure(tightConstraints)
-		fmt.Printf("Input constraints: 0-%d x 0-%d (tight)\n", tightConstraints.MaxWidth, tightConstraints.MaxHeight)
-		fmt.Printf("Measured size: %dx%d\n", size2.Width, size2.Height)
-		fmt.Println()
-	}
-
-	// ========================================
-	// Step 4: Panel with nested content (auto height)
-	// ========================================
-	fmt.Println("=== Test 3: Nested Panel in Stack (auto height) ===")
-	fmt.Println()
-
-	nestedPanel := panel.New().
-		SetTitle("Nested Panel").
-		SetContent(
-			ui.NewVStack().
-				SetChildrenList([]rtui.VNode{
-					newtext.New("First line of nested content"),
-					newtext.New("Second line of nested content"),
-					newtext.New("Third line of nested content"),
-				}),
-		).
-		SetWidth(60).
-		SetHeight(0) // Height 0 means auto height
-
-	instance3 := nestedPanel.CreateInstance()
-	if panelInst3, ok := instance3.(*panel.PanelInstance); ok {
-		// Set path for trace
-		panelInst3.SetPath("/root/test3")
-
-		// Measure with constraints
-		constraints3 := layout.NewConstraints(0, 100, 0, 100)
-		size3 := panelInst3.Measure(constraints3)
-		fmt.Printf("Input constraints: 0-%d x 0-%d (loose)\n", constraints3.MaxWidth, constraints3.MaxHeight)
-		fmt.Printf("Measured size: %dx%d (auto height)\n", size3.Width, size3.Height)
-		fmt.Println()
-	}
-
-	// ========================================
-	// Step 5: Panel with large content requiring wrap
-	// ========================================
-	fmt.Println("=== Test 4: Panel with text wrapping ===")
-	fmt.Println()
-
-	wrapPanel := panel.New().
-		SetTitle("Text Wrap Panel").
-		SetContent(newtext.New("This is a very long text that should wrap to multiple lines when displayed inside a panel.")).
-		SetWidth(40).
-		SetHeight(0) // Auto height
-
-	instance4 := wrapPanel.CreateInstance()
-	if panelInst4, ok := instance4.(*panel.PanelInstance); ok {
-		// Set path for trace
-		panelInst4.SetPath("/root/test4")
-
-		// Measure with constraints
-		constraints4 := layout.NewConstraints(0, 50, 0, 50)
-		size4 := panelInst4.Measure(constraints4)
-		fmt.Printf("Input constraints: 0-%d x 0-%d\n", constraints4.MaxWidth, constraints4.MaxHeight)
-		fmt.Printf("Measured size: %dx%d\n", size4.Width, size4.Height)
-		fmt.Println()
-	}
-
-	// ========================================
-	// Step 6: Output constraint trace
+	// Step 2: Output constraint trace
 	// ========================================
 	fmt.Println("======================================================================")
-	fmt.Println("                        CONSTRAINT PROPAGATION TRACE                  ")
+	fmt.Println("                        CONSTRAINT PROPAGATION DEMO                   ")
 	fmt.Println("======================================================================")
 	fmt.Println()
 
@@ -143,6 +52,13 @@ func main() {
 	layout.DisableTracer()
 
 	fmt.Println("======================================================================")
-	fmt.Println("                        TRACE DEMO COMPLETE                           ")
+	fmt.Println("                        DEMO COMPLETE                                 ")
 	fmt.Println("======================================================================")
+
+	// Exit with note
+	fmt.Println("")
+	fmt.Println("NOTE: The original tracer demo used Panel.CreateInstance()")
+	fmt.Println("      which is no longer supported. Panel is now a composition")
+	fmt.Println("      component that delegates to Border and Stack.")
+	os.Exit(0)
 }

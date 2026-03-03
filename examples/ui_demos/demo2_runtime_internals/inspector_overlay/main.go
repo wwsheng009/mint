@@ -29,6 +29,14 @@ import (
 	ui "github.com/wwsheng009/mint/ui"
 )
 
+// InspectorActionIntent defines custom intent for inspector demo actions
+type InspectorActionIntent struct {
+	Action string
+}
+
+func (i InspectorActionIntent) IntentType() string { return "InspectorAction" }
+func (i InspectorActionIntent) StayPressed() bool  { return true }
+
 // Global inspector instance
 var globalInspector *inspector.StandaloneInspector
 
@@ -300,101 +308,112 @@ func ControlPanel(
 	setEventCount, setRenderCount, setBufferUpdates func(interface{}),
 	setShowInspector func(bool),
 ) ui.VNode {
+	// Register handlers for each button action
+	ui.On(InspectorActionIntent{Action: "event"}, func() {
+		setCurrentPhase("Event")
+		setEventCount(func(c int) int { return c + 1 })
+	})
+	ui.On(InspectorActionIntent{Action: "setstate"}, func() {
+		setCurrentPhase("setState")
+	})
+	ui.On(InspectorActionIntent{Action: "scheduler"}, func() {
+		setCurrentPhase("Scheduler")
+		setRenderCount(func(c int) int { return c + 1 })
+	})
+	ui.On(InspectorActionIntent{Action: "render"}, func() {
+		setCurrentPhase("Render")
+	})
+	ui.On(InspectorActionIntent{Action: "reconcile"}, func() {
+		setCurrentPhase("Reconcile")
+	})
+	ui.On(InspectorActionIntent{Action: "layout"}, func() {
+		setCurrentPhase("Layout")
+	})
+	ui.On(InspectorActionIntent{Action: "paint"}, func() {
+		setCurrentPhase("Paint")
+		setBufferUpdates(func(c int) int { return c + 1 })
+	})
+	ui.On(InspectorActionIntent{Action: "idle"}, func() {
+		setCurrentPhase("idle")
+	})
+	ui.On(InspectorActionIntent{Action: "toggle-inspector"}, func() {
+		// Debug output
+		if os.Getenv("TUI_DEBUG") == "true" || os.Getenv("TUI_DEBUG_UI") == "true" {
+			log.UILogger.Debug("[DEMO2] [I] button clicked, Inspector enabled=%v, visible=%v",
+				globalInspector.IsEnabled(), globalInspector.IsVisible())
+		}
+
+		// Toggle inspector visibility
+		globalInspector.ToggleVisibility()
+
+		// Debug output after toggle
+		if os.Getenv("TUI_DEBUG") == "true" || os.Getenv("TUI_DEBUG_UI") == "true" {
+			log.UILogger.Debug("[DEMO2] After toggle, Inspector visible=%v",
+				globalInspector.IsVisible())
+		}
+
+		// Trigger re-render to show/hide overlay
+		setShowInspector(globalInspector.IsVisible())
+	})
+
 	allButtons := []ui.VNode{
 		ui.NewButtonBuilder("[1] Event").
 			Key("btn-event").
 			Variant(ui.ButtonVariantDanger).
-			OnClick(func() {
-				setCurrentPhase("Event")
-				setEventCount(func(c int) int { return c + 1 })
-			}).
+			OnPress(InspectorActionIntent{Action: "event"}).
 			FocusStyle(ui.FocusStyleBracket).
 			Build(),
 		ui.NewButtonBuilder("[2]setState").
 			Key("btn-setstate").
 			Variant(ui.ButtonVariantSecondary).
-			OnClick(func() {
-				setCurrentPhase("setState")
-			}).
+			OnPress(InspectorActionIntent{Action: "setstate"}).
 			FocusStyle(ui.FocusStyleBracket).
 			Build(),
 		ui.NewButtonBuilder("[3]Scheduler").
 			Key("btn-scheduler").
 			Variant(ui.ButtonVariantSuccess).
-			OnClick(func() {
-				setCurrentPhase("Scheduler")
-				setRenderCount(func(c int) int { return c + 1 })
-			}).
+			OnPress(InspectorActionIntent{Action: "scheduler"}).
 			FocusStyle(ui.FocusStyleBracket).
 			Build(),
 		ui.NewButtonBuilder("[4] Render").
 			Key("btn-render").
 			Variant(ui.ButtonVariantPrimary).
-			OnClick(func() {
-				setCurrentPhase("Render")
-			}).
+			OnPress(InspectorActionIntent{Action: "render"}).
 			FocusStyle(ui.FocusStyleBracket).
 			Build(),
 		ui.NewButtonBuilder("[5]Reconcile").
 			Key("btn-reconcile").
-			OnClick(func() {
-				setCurrentPhase("Reconcile")
-			}).
+			OnPress(InspectorActionIntent{Action: "reconcile"}).
 			FocusStyle(ui.FocusStyleBracket).
 			Build(),
 		ui.NewButtonBuilder("[6] Layout").
 			Key("btn-layout").
-			OnClick(func() {
-				setCurrentPhase("Layout")
-			}).
+			OnPress(InspectorActionIntent{Action: "layout"}).
 			FocusStyle(ui.FocusStyleBracket).
 			Build(),
 		ui.NewButtonBuilder("[7] Paint").
 			Key("btn-paint").
-			OnClick(func() {
-				setCurrentPhase("Paint")
-				setBufferUpdates(func(c int) int { return c + 1 })
-			}).
+			OnPress(InspectorActionIntent{Action: "paint"}).
 			FocusStyle(ui.FocusStyleBracket).
 			Build(),
 		ui.NewButtonBuilder("[0] Idle").
 			Key("btn-idle").
-			OnClick(func() {
-				setCurrentPhase("idle")
-			}).
+			OnPress(InspectorActionIntent{Action: "idle"}).
 			FocusStyle(ui.FocusStyleBracket).
 			Build(),
 		// Toggle Inspector button - works with framework-level overlay
 		ui.NewButtonBuilder("[I] Inspector").
 			Key("btn-inspector").
 			Variant(ui.ButtonVariantSecondary).
-			OnClick(func() {
-				// Debug output
-				if os.Getenv("TUI_DEBUG") == "true" || os.Getenv("TUI_DEBUG_UI") == "true" {
-					log.UILogger.Debug("[DEMO2] [I] button clicked, Inspector enabled=%v, visible=%v",
-						globalInspector.IsEnabled(), globalInspector.IsVisible())
-				}
-
-				// Toggle inspector visibility
-				globalInspector.ToggleVisibility()
-
-				// Debug output after toggle
-				if os.Getenv("TUI_DEBUG") == "true" || os.Getenv("TUI_DEBUG_UI") == "true" {
-					log.UILogger.Debug("[DEMO2] After toggle, Inspector visible=%v",
-						globalInspector.IsVisible())
-				}
-
-				// Trigger re-render to show/hide overlay
-				setShowInspector(globalInspector.IsVisible())
-			}).
+			OnPress(InspectorActionIntent{Action: "toggle-inspector"}).
 			FocusStyle(ui.FocusStyleBracket).
 			Build(),
 	}
 
-	wrappedButtons := ui.NewWrapBuilder(allButtons...).
+	wrappedButtons := ui.NewWrapBuilder().Children(allButtons...).
 		Gap(1).
 		RowGap(0).
-		ScreenWidth(98).
+		Width(98).
 		Align(ui.AlignCenter).
 		FillWidth().
 		Build()

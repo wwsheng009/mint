@@ -100,6 +100,13 @@ func (b *Builder) RowStyle(s style.Style) *Builder {
 	return b
 }
 
+// RowStyleFn sets a dynamic style function that determines style per row.
+// The function is called with row index and text, and should return the style.
+func (b *Builder) RowStyleFn(fn func(int, string) style.Style) *Builder {
+	b.vnode.SetRowStyleFn(fn)
+	return b
+}
+
 // SelectedStyle sets the style for the selected row.
 func (b *Builder) SelectedStyle(s style.Style) *Builder {
 	b.vnode.SetSelectedStyle(s)

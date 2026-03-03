@@ -18,3 +18,4 @@
 同时已完成：
 - Panel 组件移除对 ui/components/border 包的依赖
 - ui.Bordered() 已标记 Deprecated，推荐使用 stack.Bordered() 或 stack.New().SingleBorder()
+- examples 目录存在大量编译错误，主要由于 list 组件 API 变更、Builder 链式调用问题、main 函数重复声明、以及 button/panel 等组件 API 方法不存在导致

@@ -29,6 +29,7 @@ type Instance struct {
 	separatorChar  rune
 	headerStyle    style.Style
 	rowStyle       style.Style
+	rowStyleFn     func(int, string) style.Style
 	selectedStyle  style.Style
 	borderStyle    style.Style
 	scrollOffset   int
@@ -77,6 +78,11 @@ func NewInstance(props rtui.Props) *Instance {
 		dirty:          true,
 	}
 
+	// Extract rowStyleFn if provided in props
+	if fn, ok := props["rowStyleFn"].(func(int, string) style.Style); ok {
+		inst.rowStyleFn = fn
+	}
+
 	return inst
 }
 
@@ -110,6 +116,11 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	inst.selectedIndex = getIntProp(props, "selectedIndex", inst.selectedIndex)
 	inst.viewportHeight = getIntProp(props, "viewportHeight", inst.viewportHeight)
 	inst.allowScroll = getBoolProp(props, "allowScroll", inst.allowScroll)
+
+	// Update rowStyleFn if provided in props
+	if fn, ok := props["rowStyleFn"].(func(int, string) style.Style); ok {
+		inst.rowStyleFn = fn
+	}
 
 	inst.clampScroll()
 

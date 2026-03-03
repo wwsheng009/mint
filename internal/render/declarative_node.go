@@ -4,12 +4,10 @@ package render
 import (
 	"fmt"
 	"os"
-	"strings"
 	"sync"
 
 	"github.com/wwsheng009/mint/framework"
 	"github.com/wwsheng009/mint/framework/component"
-	frameworkevent "github.com/wwsheng009/mint/framework/event"
 	"github.com/wwsheng009/mint/internal/log"
 	"github.com/wwsheng009/mint/internal/reconciler"
 	"github.com/wwsheng009/mint/runtime"
@@ -339,7 +337,7 @@ func (n *DeclarativeNode) Type() string {
 }
 
 // Children returns child VNodes
-func (n *DeclarativeNode) Children() []component.Node {
+func (n *DeclarativeNode) Children() []runtime.Node {
 	// DeclarativeNode doesn't expose children as framework Nodes
 	// They are managed internally through the VNode tree
 	return nil
@@ -378,7 +376,7 @@ func (n *DeclarativeNode) Measure(maxWidth, maxHeight int) (width, height int) {
 
 // Paint renders the VNode tree to the buffer
 // UNIFIED RENDERING: Supports both Legacy and Fiber-first rendering paths
-func (n *DeclarativeNode) Paint(ctx component.PaintContext, buf *paint.Buffer) {
+func (n *DeclarativeNode) Paint(ctx paint.PaintContext, buf *paint.Buffer) {
 	// Acquire read lock to read state for determining render mode
 	n.mu.RLock()
 	fiberFirstEnabled := n.fiberFirstEnabled
@@ -420,13 +418,13 @@ func (n *DeclarativeNode) Paint(ctx component.PaintContext, buf *paint.Buffer) {
 // Phase 1: Reconcile (VNode -> Fiber, VNode discarded)
 // Phase 2: Layout (Fiber -> LayoutBox, no VNode access)
 // Phase 3: Paint (LayoutBox -> PaintableBox -> Buffer)
-func (n *DeclarativeNode) fiberFirstPaint(ctx component.PaintContext, buf *paint.Buffer) {
+func (n *DeclarativeNode) fiberFirstPaint(ctx paint.PaintContext, buf *paint.Buffer) {
 	log.RenderLogger.Debug("[DeclarativeNode.fiberFirstPaint] === STARTING Fiber-first render ===")
 	// Phase 1: Fiber Reconciliation
 	// The reconciler updates the Fiber tree, VNode is discarded after this
 	// Use a minimal buffer for reconciliation (actual painting happens later)
 	nullBuf := paint.NewBuffer(1, 1)
-	n.reconciler.Render(component.PaintContext{
+	n.reconciler.Render(paint.PaintContext{
 		Bounds: paint.Rect{X: 0, Y: 0, Width: 1, Height: 1},
 	}, nullBuf, n.renderFn)
 
@@ -609,49 +607,12 @@ func countFiberChildren(fiber *rtui.Fiber) int {
 	return count
 }
 
-// printLayoutBoxTree prints the LayoutBox tree for debugging
-func printLayoutBoxTree(box *layout.LayoutBox, indent int) {
-	if box == nil {
-		return
-	}
-	prefix := ""
-	for i := 0; i < indent; i++ {
-		prefix += "  "
-	}
-	log.PaintLogger.Debug("%sLayoutBox[%s] at (%d,%d) size %dx%d, children=%d",
-		prefix, box.ID, box.X, box.Y, box.Width, box.Height, len(box.Children))
-	for _, child := range box.Children {
-		printLayoutBoxTree(child, indent+1)
-	}
-}
-
-
-// printPaintableBoxTree prints the PaintableBox tree for debugging
-func printPaintableBoxTree(box *paint.PaintableBox, indent int) {
-	if box == nil {
-		return
-	}
-	prefix := ""
-	for i := 0; i < indent; i++ {
-		prefix += "  "
-	}
-	nodeTag := ""
-	if box.Node != nil {
-		nodeTag = box.Node.Tag()
-	}
-	log.PaintLogger.Debug("%sPaintableBox at (%d,%d) size %dx%d, tag=%s, children=%d",
-		prefix, box.X, box.Y, box.Width, box.Height, nodeTag, len(box.Children))
-	for _, child := range box.Children {
-		printPaintableBoxTree(child, indent+1)
-	}
-}
-
 // comparePaint runs both legacy and Fiber-first paths and compares results
 // Used for testing and validation during migration
 //
 // Deprecated: This method is only for testing purposes during migration to Fiber-first.
 // It will be removed once migration is complete. Use fiberFirstPaint instead.
-func (n *DeclarativeNode) comparePaint(ctx component.PaintContext, buf *paint.Buffer) {
+func (n *DeclarativeNode) comparePaint(ctx paint.PaintContext, buf *paint.Buffer) {
 	log.RenderLogger.Debug("[DeclarativeNode.comparePaint] Running both paths for comparison")
 
 	// Create separate buffers for each path
@@ -681,7 +642,7 @@ func (n *DeclarativeNode) comparePaint(ctx component.PaintContext, buf *paint.Bu
 //   - Does not follow Fiber-first architecture where VNode is discarded after Fiber creation
 //
 // Migration: Set MINT_FIBER_FIRST=true and use NewDeclarativeNodeFromFuncWithFiber
-func (n *DeclarativeNode) legacyPaint(ctx component.PaintContext, buf *paint.Buffer) {
+func (n *DeclarativeNode) legacyPaint(ctx paint.PaintContext, buf *paint.Buffer) {
 	// Debug logging
 	log.PaintLogger.Debug("[DeclarativeNode.legacyPaint] START: useFiber=%v, reconciler=%v",
 		n.useFiber, n.reconciler != nil)
@@ -784,7 +745,7 @@ func (n *DeclarativeNode) renderWithFiberContext() rtui.VNode {
 	callCount := 0
 
 	nullBuf := paint.NewBuffer(1, 1)
-	n.reconciler.Render(component.PaintContext{
+	n.reconciler.Render(paint.PaintContext{
 		Bounds: paint.Rect{X: 0, Y: 0, Width: 1, Height: 1},
 	}, nullBuf, func() rtui.VNode {
 		callCount++
@@ -1633,255 +1594,7 @@ func (n *DeclarativeNode) UpdateRoot(vnode rtui.VNode) {
 	n.root = vnode
 }
 
-// =============================================================================
-// framework.Event Component interface implementation
-// =============================================================================
 
-// HandleEvent processes events by distributing them to child components
-func (n *DeclarativeNode) HandleEvent(ev frameworkevent.Event) bool {
-	log.RenderLogger.Debug("DeclarativeNode.HandleEvent: event type=%d", ev.Type())
-
-	n.mu.RLock()
-	root := n.root
-	focusMgr := n.focusMgr
-	useFiber := n.useFiber
-	reconciler := n.reconciler
-	n.mu.RUnlock()
-
-	if root == nil {
-		return false
-	}
-
-	// 0. Handle layer-specific events (ESC to close modal, etc.)
-	// This takes priority over all other event handling
-	if ev.Type() == frameworkevent.EventKeyPress {
-		if keyEv, ok := ev.(*frameworkevent.KeyEvent); ok {
-			if keyEv.Key.Name == "escape" || keyEv.Key.Name == "esc" {
-				if n.handleLayerKeyEvent(root) {
-					// Modal was closed, trigger re-render
-					n.requestRender(useFiber, reconciler)
-					return true
-				}
-			}
-		}
-	}
-
-	// 1. Let focus manager handle navigation (Tab, Shift+Tab)
-	if focusMgr != nil {
-		handled, shouldRender := focusMgr.HandleEvent(ev)
-		if handled {
-			log.RenderLogger.Debug("DeclarativeNode.HandleEvent: focus manager handled event, shouldRender=%v", shouldRender)
-
-			// Request a re-render when focus changes
-			// In Fiber mode, use the reconciler; in non-Fiber mode, mark as dirty
-			if shouldRender {
-				if useFiber && reconciler != nil {
-					// Fiber mode: schedule reconciler update
-					if r, ok := reconciler.(*fiberReconcilerAdapter); ok {
-						r.r.ScheduleUpdate(rtui.LaneSyncLane)
-					}
-				} else {
-					// Non-Fiber mode: mark framework app as dirty to trigger re-render
-					// This ensures the updated focus state is painted
-					if fwApp := n.getFrameworkApp(); fwApp != nil {
-						fwApp.MarkDirty()
-					}
-				}
-			}
-			return true
-		}
-
-		// 2. Keyboard events are handled by App.handleMsg via ActionBridge
-		// Focus navigation (Tab/Shift+Tab) is handled above
-	}
-
-	// 1.5. Handle mouse clicks - switch focus before dispatching event
-	// This ensures that clicking a button focuses it before triggering its action
-	if ev.Type().IsMouse() {
-		if mouseEv, ok := ev.(*frameworkevent.MouseEvent); ok {
-			// Handle mouse press and click events
-			if ev.Type() == frameworkevent.EventMousePress || ev.Type() == frameworkevent.EventClick {
-				if n.handleMouseFocus(mouseEv) {
-					log.RenderLogger.Debug("DeclarativeNode.HandleEvent: mouse click switched focus")
-
-					// Focus was switched, trigger re-render
-					if useFiber && reconciler != nil {
-						if r, ok := reconciler.(*fiberReconcilerAdapter); ok {
-							r.r.ScheduleUpdate(rtui.LaneSyncLane)
-						}
-					} else {
-						if fwApp := n.getFrameworkApp(); fwApp != nil {
-							fwApp.MarkDirty()
-						}
-					}
-					// Continue to dispatch the event to the newly focused element
-				}
-			}
-		}
-	}
-
-	// 3. Fall back to global event distribution
-	// Try to distribute to root tree
-	handled := n.distributeEventToVNode(root, ev)
-	if handled {
-		// Event was handled by a component (e.g., button click)
-		// Trigger re-render to update the UI with new state
-		n.requestRender(useFiber, reconciler)
-	}
-	return handled
-}
-
-// distributeEventToVNode recursively distributes an event to VNode tree
-func (n *DeclarativeNode) distributeEventToVNode(vnode rtui.VNode, ev frameworkevent.Event) bool {
-	if vnode == nil {
-		log.RenderLogger.Debug("distributeEventToVNode: vnode is nil")
-		return false
-	}
-
-	log.RenderLogger.Debug("distributeEventToVNode: called with vnode type=%d, actual type=%T", vnode.Type(), vnode)
-
-	// Phase 3: Event-centric distribution
-	// If this is a MouseEvent with TargetID, only distribute to the target component
-	if mouseEv, ok := ev.(*frameworkevent.MouseEvent); ok && mouseEv.TargetID != 0 {
-		targetID := mouseEv.TargetID
-		// Convert VNode key to uint64 for comparison
-		nodeID := uint64(0)
-		if key := vnode.Key(); key != "" {
-			// Use the same hash conversion as HitMap building
-			nodeID = event.StringToNodeID(key)
-		}
-
-		// Check if this node is the target
-		if nodeID == targetID {
-			// This is the target component, call HandleEvent
-			if component, ok := vnode.(frameworkevent.Component); ok {
-				// Debug: check if this is a button and print its label and pointer
-				if button, ok := vnode.(interface{ Label() string }); ok {
-					log.RenderLogger.Debug("distributeEventToVNode: Found target button key=%d, label='%s', pointer=%p, calling HandleEvent", targetID, button.Label(), vnode)
-				} else {
-					log.RenderLogger.Debug("distributeEventToVNode: Found target component with key=%d (not a button), calling HandleEvent", targetID)
-				}
-				if component.HandleEvent(ev) {
-					return true
-				}
-			}
-		}
-
-		// Not the target, but children might be - recursively check children
-		children := vnode.Children()
-		for _, child := range children {
-			if n.distributeEventToVNode(child, ev) {
-				return true
-			}
-		}
-
-		// This branch doesn't contain the target
-		return false
-	}
-
-	// Legacy behavior: broadcast to all components (for KeyEvent or MouseEvent without TargetID)
-	// Check if this VNode implements the Component interface
-	if component, ok := vnode.(frameworkevent.Component); ok {
-		log.RenderLogger.Debug("distributeEventToVNode: VNode type=%d implements frameworkevent.Component, calling HandleEvent", vnode.Type())
-
-		if component.HandleEvent(ev) {
-			// Event was handled by this component - stop propagation
-			// This prevents keyboard events from triggering multiple buttons
-			return true
-		}
-	}
-
-	// Try to distribute to children
-	children := vnode.Children()
-	if len(children) > 0 {
-		log.RenderLogger.Debug("distributeEventToVNode: VNode type=%d has %d children, distributing...", vnode.Type(), len(children))
-
-		for _, child := range children {
-			if n.distributeEventToVNode(child, ev) {
-				// Event was handled by a child - stop propagation
-				return true
-			}
-		}
-	}
-
-	return false
-}
-
-// handleMouseFocus handles mouse clicks by switching focus to the clicked focusable node.
-// Returns true if focus was switched, false otherwise.
-func (n *DeclarativeNode) handleMouseFocus(mouseEv *frameworkevent.MouseEvent) bool {
-	if n.focusMgr == nil {
-		return false
-	}
-
-	// Collect all focusable nodes from the tree
-	var focusable []rtui.FocusableVNode
-	hasModal := rtui.HasModalInTree(n.root)
-
-	if hasModal {
-		// Modal is open: only consider focusable nodes in modal layer
-		focusable = rtui.CollectFocusableInLayer(n.root, rtui.LayerModal)
-	} else {
-		// No modal: consider all focusable nodes
-		focusable = rtui.CollectFocusable(n.root)
-	}
-
-	if len(focusable) == 0 {
-		return false
-	}
-
-	// Find the focusable node that was clicked
-	for i, node := range focusable {
-		if n.nodeWasClicked(node, mouseEv.X, mouseEv.Y) {
-			// Found the clicked focusable node
-			currentIndex := n.focusMgr.CurrentIndex()
-			if i == currentIndex {
-				// Already focused, no change
-				return false
-			}
-
-			log.RenderLogger.Debug("handleMouseFocus: switching focus from index %d to %d",
-				currentIndex, i)
-
-			// Switch focus to the clicked node
-			n.focusMgr.SetFocusByIndex(i)
-			return true
-		}
-	}
-
-	return false
-}
-
-// nodeWasClicked checks if a VNode was clicked based on mouse coordinates.
-// This performs hit testing using the node's bounds if available.
-func (n *DeclarativeNode) nodeWasClicked(node rtui.VNode, x, y int) bool {
-	// Check if node has bounds information (from SetBounds during Paint)
-	if boundsAware, ok := node.(interface {
-		GetBounds() (x, y, width, height int)
-	}); ok {
-		bx, by, bw, bh := boundsAware.GetBounds()
-		log.RenderLogger.Debug("node Was Clicked: bounds=(%d,%d,%d,%d), mouse=(%d,%d)",
-			bx, by, bw, bh, x, y)
-
-		// Check if mouse click is within bounds
-		if x >= bx && x < bx+bw && y >= by && y < by+bh {
-			log.RenderLogger.Debug("node Was Clicked: HIT!")
-
-			return true
-		}
-
-		log.RenderLogger.Debug("node Was Clicked: MISS!")
-
-		return false
-	}
-
-	// Fallback: check if node implements button-like interface
-	if hasContainsPoint, ok := node.(interface{ ContainsPoint(x, y int) bool }); ok {
-		return hasContainsPoint.ContainsPoint(x, y)
-	}
-
-	return false
-}
 
 // =============================================================================
 // Test Helper Methods
@@ -1967,162 +1680,6 @@ func (n *DeclarativeNode) getFrameworkApp() *framework.App {
 	return n.fwApp
 }
 
-// GetButtons returns all button VNodes in the tree
-// ⚠️ DEPRECATED: Use FiberFocusManager.GetFocusable() or GetFocusableInstances() instead.
-// This method returns []rtui.FocusableVNode for backward compatibility with existing tests.
-func (n *DeclarativeNode) GetButtons() []rtui.FocusableVNode {
-	n.mu.RLock()
-	defer n.mu.RUnlock()
-
-	// In Fiber mode, collect buttons directly from the Fiber tree
-	// This preserves the original button VNode objects with their layout bounds
-	if n.useFiber && n.reconciler != nil {
-		// Access the reconciler directly to get the Fiber root
-		// The reconciler is a fiberReconcilerAdapter which wraps the actual reconciler
-		if adapter, ok := n.reconciler.(*fiberReconcilerAdapter); ok {
-			if fiberRoot := adapter.r.GetFiberRoot(); fiberRoot != nil {
-				return n.collectButtonsFromFiber(fiberRoot)
-			}
-		}
-	}
-
-	// Non-Fiber mode: use the traditional collection method
-	return collectByType(n.root, func(vnode rtui.VNode) bool {
-		// Check if this is a button by checking if it has a Tag() method that returns "button"
-		if tag, hasTag := vnode.(interface{ Tag() string }); hasTag && tag.Tag() == "button" {
-			if focusable, ok := vnode.(rtui.FocusableVNode); ok {
-				return focusable.IsFocusable()
-			}
-		}
-		return false
-	})
-}
-
-// collectButtonsFromFiber collects buttons from the Fiber tree.
-// ⚠️ DEPRECATED: Uses Instance-based focus management instead.
-// Returns empty list for backward compatibility - use FiberFocusManager instead.
-func (n *DeclarativeNode) collectButtonsFromFiber(fiber *reconciler.Fiber) []rtui.FocusableVNode {
-	// ⚠️ DEPRECATED: No longer collects FocusableVNode.
-	// Use FiberFocusManager for focus management instead.
-	return []rtui.FocusableVNode{}
-}
-
-// isButtonVNode checks if a VNode is a button element
-func (n *DeclarativeNode) isButtonVNode(vnode rtui.VNode) bool {
-	if vnode == nil {
-		return false
-	}
-	if tag, hasTag := vnode.(interface{ Tag() string }); hasTag && tag.Tag() == "button" {
-		return true
-	}
-	return false
-}
-
-// collectFocusableFromFiber collects all focusable elements from the Fiber tree.
-// ⚠️ DEPRECATED: Uses Instance-based focus management instead.
-// Returns empty list for backward compatibility - use FiberFocusManager instead.
-func (n *DeclarativeNode) collectFocusableFromFiber(fiber *reconciler.Fiber) []rtui.FocusableVNode {
-	// ⚠️ DEPRECATED: No longer collects FocusableVNode.
-	// Use FiberFocusManager for focus management instead.
-	return []rtui.FocusableVNode{}
-}
-
-// GetInputs returns all input VNodes in the tree
-// ⚠️ DEPRECATED: Use FiberFocusManager.GetFocusable() instead.
-func (n *DeclarativeNode) GetInputs() []rtui.FocusableVNode {
-	n.mu.RLock()
-	defer n.mu.RUnlock()
-	return collectByType(n.root, func(vnode rtui.VNode) bool {
-		if focusable, ok := vnode.(rtui.FocusableVNode); ok {
-			// Check if this is an input by its tag
-			if vnode.Type() == rtui.VNodeElement {
-				if tag, ok := vnode.(interface{ Tag() string }); ok && tag.Tag() == "input" {
-					return focusable.IsFocusable()
-				}
-			}
-		}
-		return false
-	})
-}
-
-// GetTextareas returns all textarea VNodes in the tree
-// ⚠️ DEPRECATED: Use FiberFocusManager.GetFocusable() instead.
-func (n *DeclarativeNode) GetTextareas() []rtui.FocusableVNode {
-	n.mu.RLock()
-	defer n.mu.RUnlock()
-	return collectByType(n.root, func(vnode rtui.VNode) bool {
-		if focusable, ok := vnode.(rtui.FocusableVNode); ok {
-			if vnode.Type() == rtui.VNodeElement {
-				if tag, ok := vnode.(interface{ Tag() string }); ok && tag.Tag() == "textarea" {
-					return focusable.IsFocusable()
-				}
-			}
-		}
-		return false
-	})
-}
-
-// GetCheckboxes returns all checkbox VNodes in the tree
-// ⚠️ DEPRECATED: Use FiberFocusManager.GetFocusable() instead.
-func (n *DeclarativeNode) GetCheckboxes() []rtui.FocusableVNode {
-	n.mu.RLock()
-	defer n.mu.RUnlock()
-	return collectByType(n.root, func(vnode rtui.VNode) bool {
-		if focusable, ok := vnode.(rtui.FocusableVNode); ok {
-			if vnode.Type() == rtui.VNodeElement {
-				if tag, ok := vnode.(interface{ Tag() string }); ok && tag.Tag() == "checkbox" {
-					return focusable.IsFocusable()
-				}
-			}
-		}
-		return false
-	})
-}
-
-// GetSelects returns all select VNodes in the tree
-// ⚠️ DEPRECATED: Use FiberFocusManager.GetFocusable() instead.
-func (n *DeclarativeNode) GetSelects() []rtui.FocusableVNode {
-	n.mu.RLock()
-	defer n.mu.RUnlock()
-	return collectByType(n.root, func(vnode rtui.VNode) bool {
-		if focusable, ok := vnode.(rtui.FocusableVNode); ok {
-			if vnode.Type() == rtui.VNodeElement {
-				if tag, ok := vnode.(interface{ Tag() string }); ok && tag.Tag() == "select" {
-					return focusable.IsFocusable()
-				}
-			}
-		}
-		return false
-	})
-}
-
-// =============================================================================
-// Utility functions
-// =============================================================================
-
-// collectByType collects VNodes that match a predicate function
-func collectByType(root rtui.VNode, predicate func(rtui.VNode) bool) []rtui.FocusableVNode {
-	var result []rtui.FocusableVNode
-
-	if root == nil {
-		return result
-	}
-
-	// Check current node
-	if focusable, ok := root.(rtui.FocusableVNode); ok {
-		if predicate(root) {
-			result = append(result, focusable)
-		}
-	}
-
-	// Recursively check children
-	for _, child := range root.Children() {
-		childResult := collectByType(child, predicate)
-		result = append(result, childResult...)
-	}
-
-	return result
-}
 
 func minInt(a, b int) int {
 	if a < b {
@@ -2367,55 +1924,6 @@ func copyBuffer(dst, src *paint.Buffer) {
 	}
 }
 
-// GetLayoutRoot returns the root of the layout tree from the last layout computation
-// This provides access to the computed hierarchical layout (tree structure)
-func (n *DeclarativeNode) GetLayoutRoot() *layout.LayoutBox {
-	n.mu.RLock()
-	defer n.mu.RUnlock()
-
-	if n.lastLayoutResult != nil && n.lastLayoutResult.Root != nil {
-		return n.lastLayoutResult.Root
-	}
-	return nil
-}
-
-// GetLayoutTreeString returns the layout tree as string (hierarchical structure)
-func (n *DeclarativeNode) GetLayoutTreeString() string {
-	n.mu.RLock()
-	defer n.mu.RUnlock()
-
-	if n.lastLayoutResult != nil {
-		return n.lastLayoutResult.TreeString()
-	}
-	return "No layout tree found!"
-}
-
-// GetLayoutBoxes returns the flattened layout boxes from the last layout computation
-// DEPRECATED: Use GetLayoutRoot() instead to get tree structure
-// This provides flattened list for backward compatibility
-func (n *DeclarativeNode) GetLayoutBoxes() []*layout.LayoutBox {
-	n.mu.RLock()
-	defer n.mu.RUnlock()
-
-	if n.lastLayoutResult != nil && n.lastLayoutResult.Root != nil {
-		// Collect all boxes recursively
-		boxes := make([]*layout.LayoutBox, 0)
-		var collect func(box *layout.LayoutBox)
-		collect = func(box *layout.LayoutBox) {
-			if box == nil {
-				return
-			}
-			boxes = append(boxes, box)
-			for _, child := range box.Children {
-				collect(child)
-			}
-		}
-		collect(n.lastLayoutResult.Root)
-		return boxes
-	}
-	return make([]*layout.LayoutBox, 0)
-}
-
 // GetPaintableRoot returns the root of the paintable boxes tree from the last paint computation
 // This provides access to the computed hierarchical paintable structure
 func (n *DeclarativeNode) GetPaintableRoot() *paint.PaintableBox {
@@ -2425,125 +1933,7 @@ func (n *DeclarativeNode) GetPaintableRoot() *paint.PaintableBox {
 	return n.lastPaintableRoot
 }
 
-// GetPaintableTreeString returns the paintable tree as string (hierarchical structure)
-func (n *DeclarativeNode) GetPaintableTreeString() string {
-	n.mu.RLock()
-	defer n.mu.RUnlock()
 
-	if n.lastPaintableRoot != nil {
-		return n.lastPaintableRoot.TreeString()
-	}
-	return "No paintable tree found!"
-}
-
-// GetPaintableBoxes returns the flattened paintable boxes from the last paint computation
-// DEPRECATED: Use GetPaintableRoot() instead to get tree structure
-// This provides flattened list for backward compatibility
-func (n *DeclarativeNode) GetPaintableBoxes() []*paint.PaintableBox {
-	n.mu.RLock()
-	defer n.mu.RUnlock()
-
-	if n.lastPaintableRoot == nil {
-		return make([]*paint.PaintableBox, 0)
-	}
-
-	// Collect all paintable boxes recursively
-	boxes := make([]*paint.PaintableBox, 0)
-	var collect func(box *paint.PaintableBox)
-	collect = func(box *paint.PaintableBox) {
-		if box == nil {
-			return
-		}
-		boxes = append(boxes, box)
-		for _, child := range box.Children {
-			collect(child)
-		}
-	}
-	collect(n.lastPaintableRoot)
-	return boxes
-}
-
-// GetPortalRoots returns the portal box roots from the last layout computation
-// Each portal root represents an independent tree structure
-func (n *DeclarativeNode) GetPortalRoots() []*layout.LayoutBox {
-	n.mu.RLock()
-	defer n.mu.RUnlock()
-
-	if n.lastPortalBoxes == nil {
-		return make([]*layout.LayoutBox, 0)
-	}
-	// Return a copy to avoid external modification
-	result := make([]*layout.LayoutBox, len(n.lastPortalBoxes))
-	copy(result, n.lastPortalBoxes)
-	return result
-}
-
-// GetPortalTreeString returns the portal trees as string (multiple hierarchical structures)
-func (n *DeclarativeNode) GetPortalTreeString() string {
-	n.mu.RLock()
-	defer n.mu.RUnlock()
-
-	if n.lastPortalBoxes == nil || len(n.lastPortalBoxes) == 0 {
-		return "No portal trees found!"
-	}
-
-	var sb strings.Builder
-	sb.WriteString("Portal Trees (hierarchical):\n")
-	sb.WriteString(strings.Repeat("=", 70))
-	sb.WriteString(fmt.Sprintf("\nTotal Portals: %d\n\n", len(n.lastPortalBoxes)))
-
-	// Each portal is an independent tree root
-	for i, portalRoot := range n.lastPortalBoxes {
-		sb.WriteString(fmt.Sprintf("=== Portal %d ===\n", i+1))
-		buildLayoutTreeNodeString(portalRoot, 0, &sb)
-		sb.WriteString("\n")
-	}
-
-	return sb.String()
-}
-
-// buildLayoutTreeNodeString recursively builds the string representation of a layout tree node
-// Helper function for GetPortalTreeString
-func buildLayoutTreeNodeString(box *layout.LayoutBox, depth int, sb *strings.Builder) {
-	if box == nil {
-		return
-	}
-
-	indent := strings.Repeat("  ", depth)
-	propsID := box.PropsID
-	if len(propsID) > 15 {
-		propsID = propsID[:12] + "..."
-	}
-	if propsID == "" {
-		propsID = "-"
-	}
-
-	// Append node with hierarchical relationship
-	sb.WriteString(fmt.Sprintf("%s└─ [%s] %s (ID:%s, Size:%dx%d, Pos:%d,%d)\n",
-		indent, box.Tag, propsID, box.ID, box.Width, box.Height, box.X, box.Y))
-
-	// Append children recursively
-	for _, child := range box.Children {
-		buildLayoutTreeNodeString(child, depth+1, sb)
-	}
-}
-
-// GetPortalBoxes returns the portal boxes from the last layout computation
-// DEPRECATED: Use GetPortalRoots() instead to get tree structure
-func (n *DeclarativeNode) GetPortalBoxes() []layout.LayoutBox {
-	n.mu.RLock()
-	defer n.mu.RUnlock()
-
-	if n.lastPortalBoxes == nil {
-		return make([]layout.LayoutBox, 0)
-	}
-	// Convert pointer slice to value slice for backward compatibility
-	result := make([]layout.LayoutBox, len(n.lastPortalBoxes))
-	for i, box := range n.lastPortalBoxes {
-		result[i] = *box
-	}
-	return result
-}
 
 // =============================================================================
 // Portal Support - Helper Methods

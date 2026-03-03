@@ -164,7 +164,8 @@ func renderFormTab() ui.VNode {
 
 		ui.Text(""),
 		ui.HStack(
-			checkbox.New("I agree to terms").
+			checkbox.NewBuilder().
+				Label("I agree to terms").
 				Checked(formAgree).
 				Build(),
 		),
@@ -250,7 +251,7 @@ func renderProgressTab() ui.VNode {
 		createText("--- Progress Tab ---", style.Color("yellow"), true),
 		ui.Text(""),
 
-		progress.New().
+		progress.NewBuilder().
 			Value(progressValue).
 			Max(100).
 			Build(),

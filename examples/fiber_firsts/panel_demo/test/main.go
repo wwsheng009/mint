@@ -11,7 +11,6 @@ import (
 	"github.com/wwsheng009/mint/framework"
 	"github.com/wwsheng009/mint/framework/component"
 	"github.com/wwsheng009/mint/internal/render"
-	"github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/paint"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/ui"
@@ -20,147 +19,6 @@ import (
 // DemoApp creates the demo UI
 func DemoApp() rtui.VNode {
 	return ui.NewVStack().SingleBorder().SetChildrenList([]ui.VNode{ui.Text("Single Border")}).Build()
-}
-
-// printLayoutBoxes prints detailed layout box information for debugging
-// Uses flattened view for backward compatibility
-func printLayoutBoxes(boxes []*layout.LayoutBox) {
-	if boxes == nil {
-		fmt.Println("  No layout boxes found!")
-		return
-	}
-
-	// Count boxes by type
-	typeCount := make(map[string]int)
-	hstackCount := 0
-	vstackCount := 0
-	panelCount := 0
-
-	// Print ALL boxes with detail (flattened view for backward compatibility)
-	fmt.Printf("Total boxes: %d\n\n", len(boxes))
-	fmt.Printf("%-10s | %-8s | PropsID      | %-8s | %-10s | %-7s\n", "Node ID", "Tag", "Pos", "Size", "Children")
-	fmt.Println(strings.Repeat("-", 90))
-
-	for _, box := range boxes {
-		propsID := box.PropsID
-		if len(propsID) > 12 {
-			propsID = propsID[:9] + "..."
-		}
-		if propsID == "" {
-			propsID = "-"
-		}
-
-		fmt.Printf("%-10s | %-8s | %-12s | (%3d,%3d) | %-10s | %d\n",
-			box.ID, box.Tag, propsID,
-			box.X, box.Y,
-			fmt.Sprintf("%dx%d", box.Width, box.Height),
-			len(box.Children))
-
-		// Count by type using Tag (new way - more accurate)
-		switch box.Tag {
-		case "hstack":
-			hstackCount++
-			typeCount["HStack"]++
-		case "vstack":
-			vstackCount++
-			typeCount["VStack"]++
-		case "panel":
-			panelCount++
-			typeCount["Panel"]++
-		case "text":
-			typeCount["Text"]++
-		default:
-			if box.Tag != "" {
-				typeCount[box.Tag]++
-			} else {
-				typeCount["Other"]++
-			}
-		}
-	}
-
-	// Print summary
-	fmt.Println("\nType Summary:")
-	fmt.Printf("  Panel:   %d\n", panelCount)
-	fmt.Printf("  VStack:  %d\n", vstackCount)
-	fmt.Printf("  HStack:  %d\n", hstackCount)
-	fmt.Printf("  Text:    %d\n", typeCount["Text"])
-	fmt.Printf("  Other:   %d\n", typeCount["Other"])
-}
-
-// printBufferCoordinates prints each coordinate of the buffer
-// Focus on rows 0-40 to see the panel area in detail
-func printBufferCoordinates(buf *paint.Buffer, width, height int) {
-	// Print first 40 rows, highlighting the first panel (around y=6-10)
-	maxY := 40
-	if maxY > height {
-		maxY = height
-	}
-
-	for y := 0; y < maxY; y++ {
-		// Highlight rows that are likely part of the first panel
-		rowMarker := "   "
-		if y >= 6 && y <= 10 {
-			rowMarker = ">>> " // Mark panel area
-		}
-		fmt.Printf("%sY%02d: ", rowMarker, y)
-
-		// Print each cell in this row
-		for x := 0; x < width; x++ {
-			cell := buf.GetContent(x, y)
-			if cell.Cluster == "" || cell.Cluster == " " {
-				fmt.Print(".")
-			} else {
-				// Highlight border characters
-				cluster := cell.Cluster
-				runes := []rune(cluster)
-				r := runes[0] // Get first rune for comparison
-
-				// Highlight border characters
-				if r == '╭' || r == '╮' || r == '╰' || r == '╯' ||
-					r == '─' || r == '│' {
-					fmt.Printf("[%c]", r) // Border in brackets
-				} else if x == 39 || x == 0 {
-					// Highlight border edges at column 0 and 39
-					fmt.Printf("[%c]", r)
-				} else {
-					// Regular content - show 2 chars per cell
-					if len(cluster) > 1 {
-						fmt.Printf("%2s", cluster[:2])
-					} else {
-						fmt.Printf(" %c", r)
-					}
-				}
-			}
-		}
-		fmt.Println()
-	}
-
-	// Print detailed border character positions for the first panel
-	fmt.Println("\n" + strings.Repeat("-", 70))
-	fmt.Println("Border Character Positions (First Panel at Y=6-10):")
-	fmt.Println(strings.Repeat("-", 70))
-
-	// Check rows 6-10 for border characters, focusing on edges
-	for y := 6; y <= 10; y++ {
-		borderChars := []string{}
-		// Check left border (x=0)
-		for x := 0; x < 5; x++ {
-			cell := buf.GetContent(x, y)
-			if cell.Cluster != "" && cell.Cluster != " " {
-				borderChars = append(borderChars, fmt.Sprintf("(%d,%d)=%s", x, y, cell.Cluster))
-			}
-		}
-		// Check right border (around x=39)
-		for x := 35; x < width && x < 42; x++ {
-			cell := buf.GetContent(x, y)
-			if cell.Cluster != "" && cell.Cluster != " " {
-				borderChars = append(borderChars, fmt.Sprintf("(%d,%d)=%s", x, y, cell.Cluster))
-			}
-		}
-		if len(borderChars) > 0 {
-			fmt.Printf("Y%02d: %s\n", y, strings.Join(borderChars, ", "))
-		}
-	}
 }
 
 func main() {
@@ -207,7 +65,7 @@ func main() {
 	fmt.Println("\n" + strings.Repeat("=", 70))
 	fmt.Println("Buffer Coordinates (first 40 rows, focused on panel area)")
 	fmt.Println(strings.Repeat("=", 70))
-	printBufferCoordinates(buf, 70, 90)
+	utils.PrintBufferCoordinates(buf, 70, 90)
 
 	// Get layout boxes for debugging
 	// var boxes []*layout.LayoutBox

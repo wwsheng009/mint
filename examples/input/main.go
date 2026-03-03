@@ -1,15 +1,18 @@
 package main
 
 import (
-	"fmt"
-
 	"github.com/wwsheng009/mint/ui"
 )
 
+// TextChangeIntent defines custom intent for input text changes
+type TextChangeIntent struct{}
+
+func (t TextChangeIntent) IntentType() string { return "TextChange" }
+func (t TextChangeIntent) StayPressed() bool  { return false }
+
 // ControlledInputDemo demonstrates controlled input with real-time updates
 func ControlledInputDemo() ui.VNode {
-	text, setText := ui.UseStateString("")
-
+	// Input demo - simple uncontrolled input
 	return ui.VStack(
 		ui.NewTextBuilder("Input Demo").
 			Bold(true).
@@ -21,21 +24,10 @@ func ControlledInputDemo() ui.VNode {
 		ui.HStack(
 			ui.Text("> "),
 			ui.NewInputBuilder().
-				Value(text).
 				Placeholder("Type here...").
-				OnChange(setText).
+				OnChange(TextChangeIntent{}).
 				Build(),
 		),
-		ui.Text(""),
-		ui.NewTextBuilder(fmt.Sprintf("Length: %d/20", len(text))).
-			Build(),
-		ui.Text(""),
-		ui.NewTextBuilder("Value:").
-			Build(),
-		ui.Text(""),
-		ui.NewTextBuilder(fmt.Sprintf("\"%s\"", text)).
-			FgColor("cyan").
-			Build(),
 		ui.Text(""),
 		ui.NewTextBuilder("Tab: focus | Type: add text | Backspace: delete | q: quit").
 			FgColor("bright-black").

@@ -23,6 +23,14 @@ import (
 	"github.com/wwsheng009/mint/ui"
 )
 
+// InspectorActionIntent defines custom intent for inspector demo actions
+type InspectorActionIntent struct {
+	Action string
+}
+
+func (i InspectorActionIntent) IntentType() string { return "InspectorAction" }
+func (i InspectorActionIntent) StayPressed() bool  { return true }
+
 // Global inspector instance
 var globalInspector *inspector.Inspector
 var globalPerf *inspector.PerformanceAnalyzer
@@ -411,79 +419,90 @@ func ControlPanel(
 	setBufferUpdates func(interface{}),
 	setShowInspector func(bool),
 ) ui.VNode {
+	// Register handlers for each button action
+	ui.On(InspectorActionIntent{Action: "event"}, func() {
+		setCurrentPhase("Event")
+		setEventCount(func(c int) int { return c + 1 })
+	})
+	ui.On(InspectorActionIntent{Action: "setstate"}, func() {
+		setCurrentPhase("setState")
+	})
+	ui.On(InspectorActionIntent{Action: "scheduler"}, func() {
+		setCurrentPhase("Scheduler")
+		setRenderCount(func(c int) int { return c + 1 })
+	})
+	ui.On(InspectorActionIntent{Action: "render"}, func() {
+		setCurrentPhase("Render")
+	})
+	ui.On(InspectorActionIntent{Action: "reconcile"}, func() {
+		setCurrentPhase("Reconcile")
+	})
+	ui.On(InspectorActionIntent{Action: "layout"}, func() {
+		setCurrentPhase("Layout")
+	})
+	ui.On(InspectorActionIntent{Action: "paint"}, func() {
+		setCurrentPhase("Paint")
+		setBufferUpdates(func(c int) int { return c + 1 })
+	})
+	ui.On(InspectorActionIntent{Action: "idle"}, func() {
+		setCurrentPhase("idle")
+	})
+	ui.On(InspectorActionIntent{Action: "toggle-inspector"}, func() {
+		// Toggle inspector state
+		newState := !inspectorEnabled
+		inspectorEnabled = newState
+
+		// Update global inspector
+		if newState {
+			globalInspector.Enable()
+		} else {
+			globalInspector.Disable()
+		}
+
+		// Update UI state to trigger re-render
+		setShowInspector(newState)
+	})
+
 	allButtons := []ui.VNode{
 		ui.NewButtonBuilder("[1] Event").
 			Variant(ui.ButtonVariantDanger).
-			OnClick(func() {
-				setCurrentPhase("Event")
-				setEventCount(func(c int) int { return c + 1 })
-			}).
+			OnPress(InspectorActionIntent{Action: "event"}).
 			FocusStyle(ui.FocusStyleBracket).
 			Build(),
 		ui.NewButtonBuilder("[2]setState").
 			Variant(ui.ButtonVariantSecondary).
-			OnClick(func() {
-				setCurrentPhase("setState")
-			}).
+			OnPress(InspectorActionIntent{Action: "setstate"}).
 			FocusStyle(ui.FocusStyleBracket).
 			Build(),
 		ui.NewButtonBuilder("[3]Scheduler").
 			Variant(ui.ButtonVariantSuccess).
-			OnClick(func() {
-				setCurrentPhase("Scheduler")
-				setRenderCount(func(c int) int { return c + 1 })
-			}).
+			OnPress(InspectorActionIntent{Action: "scheduler"}).
 			FocusStyle(ui.FocusStyleBracket).
 			Build(),
 		ui.NewButtonBuilder("[4] Render").
 			Variant(ui.ButtonVariantPrimary).
-			OnClick(func() {
-				setCurrentPhase("Render")
-			}).
+			OnPress(InspectorActionIntent{Action: "render"}).
 			FocusStyle(ui.FocusStyleBracket).
 			Build(),
 		ui.NewButtonBuilder("[5]Reconcile").
-			OnClick(func() {
-				setCurrentPhase("Reconcile")
-			}).
+			OnPress(InspectorActionIntent{Action: "reconcile"}).
 			FocusStyle(ui.FocusStyleBracket).
 			Build(),
 		ui.NewButtonBuilder("[6] Layout").
-			OnClick(func() {
-				setCurrentPhase("Layout")
-			}).
+			OnPress(InspectorActionIntent{Action: "layout"}).
 			FocusStyle(ui.FocusStyleBracket).
 			Build(),
 		ui.NewButtonBuilder("[7] Paint").
-			OnClick(func() {
-				setCurrentPhase("Paint")
-				setBufferUpdates(func(c int) int { return c + 1 })
-			}).
+			OnPress(InspectorActionIntent{Action: "paint"}).
 			FocusStyle(ui.FocusStyleBracket).
 			Build(),
 		ui.NewButtonBuilder("[0] Idle").
-			OnClick(func() {
-				setCurrentPhase("idle")
-			}).
+			OnPress(InspectorActionIntent{Action: "idle"}).
 			FocusStyle(ui.FocusStyleBracket).
 			Build(),
 		ui.NewButtonBuilder("[I] Toggle Inspector").
 			Variant(ui.ButtonVariantSecondary).
-			OnClick(func() {
-				// Toggle inspector state
-				newState := !inspectorEnabled
-				inspectorEnabled = newState
-
-				// Update global inspector
-				if newState {
-					globalInspector.Enable()
-				} else {
-					globalInspector.Disable()
-				}
-
-				// Update UI state to trigger re-render
-				setShowInspector(newState)
-			}).
+			OnPress(InspectorActionIntent{Action: "toggle-inspector"}).
 			FocusStyle(ui.FocusStyleBracket).
 			Build(),
 	}

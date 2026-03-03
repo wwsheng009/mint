@@ -436,7 +436,7 @@ func BuildKeyedVNodeTree(depth, breadth int, prefix string) ui.VNode {
 		children[i] = BuildKeyedVNodeTree(depth-1, breadth, key)
 	}
 
-	return ui.VStackBuilder(children...).Key(prefix).Build()
+	return ui.VStackBuilder(children...).SetKey(prefix)
 }
 
 // BuildMixedKeyedTree creates a tree with both keyed and non-keyed nodes

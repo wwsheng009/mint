@@ -1,6 +1,9 @@
 package list
 
 import (
+	"github.com/wwsheng009/mint/runtime"
+	"github.com/wwsheng009/mint/runtime/layout"
+	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
@@ -31,12 +34,13 @@ type VNode struct {
 	// === Styles ===
 	headerStyle   style.Style // Style for the header row
 	rowStyle      style.Style // Default style for data rows
+	rowStyleFn    func(int, string) style.Style // Dynamic style function per row
 	selectedStyle style.Style // Style for the selected row
 	borderStyle   style.Style // Style for the border
 
 	// === State Properties (declarative initial state) ===
-	scrollOffset  int // Initial scroll offset
-	selectedIndex int // Currently selected row index
+	scrollOffset   int // Initial scroll offset
+	selectedIndex  int // Currently selected row index
 	viewportHeight int // Visible height for scrolling
 
 	// === Interaction ===
@@ -91,7 +95,7 @@ func (v *VNode) GetLayer() rtui.Layer          { return rtui.LayerBase }
 func (v *VNode) SetLayer(l rtui.Layer) rtui.VNode { return v }
 
 func (v *VNode) Props() rtui.Props {
-	return rtui.Props{
+	props := rtui.Props{
 		"key":            v.key,
 		"header":         v.header,
 		"rows":           v.rows,
@@ -109,6 +113,13 @@ func (v *VNode) Props() rtui.Props {
 		"viewportHeight": v.viewportHeight,
 		"allowScroll":    v.allowScroll,
 	}
+
+	// Add rowStyleFn if it's set (functions can be stored in Props)
+	if v.rowStyleFn != nil {
+		props["rowStyleFn"] = v.rowStyleFn
+	}
+
+	return props
 }
 
 func (v *VNode) SetProps(p rtui.Props) rtui.VNode {
@@ -184,6 +195,7 @@ func (v *VNode) SetShowSeparator(show bool) *VNode { v.showSeparator = show; ret
 func (v *VNode) SetSeparatorChar(ch rune) *VNode { v.separatorChar = ch; return v }
 func (v *VNode) SetHeaderStyle(s style.Style) *VNode { v.headerStyle = s; return v }
 func (v *VNode) SetRowStyle(s style.Style) *VNode    { v.rowStyle = s; return v }
+func (v *VNode) SetRowStyleFn(fn func(int, string) style.Style) *VNode { v.rowStyleFn = fn; return v }
 func (v *VNode) SetSelectedStyle(s style.Style) *VNode { v.selectedStyle = s; return v }
 func (v *VNode) SetBorderStyle(s style.Style) *VNode   { v.borderStyle = s; return v }
 func (v *VNode) SetScrollOffset(offset int) *VNode  { v.scrollOffset = offset; return v }
@@ -206,3 +218,39 @@ func (v *VNode) AddRows(rows ...string) *VNode {
 	v.rows = append(v.rows, rows...)
 	return v
 }
+
+// ============================================================================
+// Getter Methods for Testing/Demo
+// ============================================================================
+
+func (v *VNode) Header() string { return v.header }
+func (v *VNode) Rows() []string { return v.rows }
+func (v *VNode) RowCount() int { return len(v.rows) }
+
+// Measure creates a temporary instance and measures it with the given constraints.
+func (v *VNode) Measure(constraints runtime.BoxConstraints) runtime.Size {
+	inst := v.CreateInstance().(*Instance)
+
+	// Convert runtime.BoxConstraints to layout.Constraints
+	layoutConstraints := layout.Constraints{
+		MinWidth:  constraints.MinWidth,
+		MaxWidth:  constraints.MaxWidth,
+		MinHeight: constraints.MinHeight,
+		MaxHeight: constraints.MaxHeight,
+	}
+
+	layoutSize := inst.Measure(layoutConstraints)
+
+	// Convert layout.Size to runtime.Size (they have the same fields)
+	return runtime.Size{
+		Width:  layoutSize.Width,
+		Height: layoutSize.Height,
+	}
+}
+
+// Paint creates a temporary instance and returns its paint commands.
+func (v *VNode) Paint(x, y int) []paint.DrawCmd {
+	inst := v.CreateInstance().(*Instance)
+	return inst.Paint(x, y)
+}
+

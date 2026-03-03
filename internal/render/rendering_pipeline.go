@@ -241,66 +241,6 @@ type PaintableConverter interface {
 	ConvertToLayout(lbox *layout.LayoutBox) *paint.PaintableLayout
 }
 
-// ✨ Phase 1.1: applyLayerTransformsToPaintable 已废弃
-// Modal 居中逻辑已移到 Layout 阶段 (runtime/layout/types.go layoutNodeWithDepth)
-// 保留此函数仅用于向后兼容，当前实现为空操作
-func (p *RenderingPipeline) applyLayerTransformsToPaintable(root *paint.PaintableBox, constraints layout.Constraints) {
-	// 空操作：居中现在在 Layout 阶段完成
-	// 保留此函数用于向后兼容，未来版本可能会移除
-}
-
-// centerPaintableModalBox centers a Modal PaintableBox in the viewport
-func (p *RenderingPipeline) centerPaintableModalBox(box *paint.PaintableBox, constraints layout.Constraints) {
-	if box == nil {
-		return
-	}
-
-	modalWidth := box.Width
-	modalHeight := box.Height
-	containerWidth := constraints.MaxWidth
-	containerHeight := constraints.MaxHeight
-
-	if containerWidth == runtime.Infinity {
-		containerWidth = modalWidth
-	}
-	if containerHeight == runtime.Infinity {
-		containerHeight = modalHeight
-	}
-
-	offsetX := (containerWidth - modalWidth) / 2
-	offsetY := (containerHeight - modalHeight) / 2
-
-	if offsetX < 0 {
-		offsetX = 0
-	}
-	if offsetY < 0 {
-		offsetY = 0
-	}
-
-	// Shift the modal box tree
-	p.shiftPaintableBoxTree(box, offsetX, offsetY)
-}
-
-// shiftPaintableBoxTree shifts all boxes in a PaintableBox tree by the given offset
-func (p *RenderingPipeline) shiftPaintableBoxTree(box *paint.PaintableBox, offsetX, offsetY int) {
-	if box == nil {
-		return
-	}
-
-	var walk func(b *paint.PaintableBox)
-	walk = func(b *paint.PaintableBox) {
-		if b == nil {
-			return
-		}
-		b.X += offsetX
-		b.Y += offsetY
-		for _, child := range b.Children {
-			walk(child)
-		}
-	}
-
-	walk(box)
-}
 
 // buildPaintablePlanes builds PaintablePlanes from PaintableBox tree
 func (p *RenderingPipeline) buildPaintablePlanes(root *paint.PaintableBox) *paint.PaintablePlanes {
