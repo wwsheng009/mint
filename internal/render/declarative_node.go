@@ -127,8 +127,9 @@ func (n *DeclarativeNode) SetApp(app interface{}) {
 }
 
 // NewDeclarativeNodeFromFuncWithFiber creates a new declarative node with Fiber reconciler enabled
-// This function is called from ui.Run when MINT_USE_FIBER is set
-// Scheduler must be set later via SetApp() to enable frame scheduling
+// This is the default and recommended way to create declarative nodes.
+// Fiber-first mode is enabled by default unless MINT_FIBER_FIRST=false or MINT_FIBER_FIRST=0.
+// Scheduler must be set later via SetApp() to enable frame scheduling (optional for static rendering).
 func NewDeclarativeNodeFromFuncWithFiber(fn rtui.ComponentFunc) *DeclarativeNode {
 	// Create root component context (shared global state)
 	rootCtx := rtui.NewComponentContextForRoot()
@@ -174,22 +175,22 @@ func NewDeclarativeNodeFromFuncWithFiber(fn rtui.ComponentFunc) *DeclarativeNode
 
 // initFiberFirstPipeline initializes the Fiber-first rendering pipeline components
 func (n *DeclarativeNode) initFiberFirstPipeline() {
-	// Check if Fiber-first mode is enabled via environment variable
+	// Fiber-first mode is now enabled by default
+	// Can be disabled via MINT_FIBER_FIRST=false or MINT_FIBER_FIRST=0 for backward compatibility
 	fiberFirstEnv := os.Getenv("MINT_FIBER_FIRST")
-	n.fiberFirstEnabled = fiberFirstEnv == "true" || fiberFirstEnv == "1"
-
-	if n.fiberFirstEnabled {
-		log.RenderLogger.Debug("[DeclarativeNode] Fiber-first mode ENABLED")
+	if fiberFirstEnv == "false" || fiberFirstEnv == "0" {
+		n.fiberFirstEnabled = false
+		n.renderMode = RenderModeLegacy
+		log.RenderLogger.Debug("[DeclarativeNode] Fiber-first mode DISABLED (MINT_FIBER_FIRST=%s)", fiberFirstEnv)
+	} else {
+		n.fiberFirstEnabled = true
+		log.RenderLogger.Debug("[DeclarativeNode] Fiber-first mode ENABLED (default or MINT_FIBER_FIRST=%s)", fiberFirstEnv)
 		n.renderMode = RenderModeFiberFirst
 		// Use the new layout engine directly (runtime/layout), bypassing LayoutSwitcher
 		// This ensures we never go through the compute path
 		n.newLayoutEngine = NewNewLayoutEngineAdapter()
 		n.paintEngine = NewPaintEngine()
 		// converter will be created with Fiber root during render
-	} else {
-		// Default to legacy mode for now
-		n.renderMode = RenderModeLegacy
-		log.RenderLogger.Debug("[DeclarativeNode] Using legacy render mode (MINT_FIBER_FIRST not set)")
 	}
 }
 
@@ -628,7 +629,8 @@ func (n *DeclarativeNode) comparePaint(ctx paint.PaintContext, buf *paint.Buffer
 //   - Uses LayoutSwitcher which is deprecated
 //   - Does not follow Fiber-first architecture where VNode is discarded after Fiber creation
 //
-// Migration: Set MINT_FIBER_FIRST=true and use NewDeclarativeNodeFromFuncWithFiber
+// Note: Fiber-first mode is now enabled by default. Use NewDeclarativeNodeFromFuncWithFiber to create fiber-enabled nodes.
+// This function is automatically called when fiberFirstEnabled is true.
 func (n *DeclarativeNode) legacyPaint(ctx paint.PaintContext, buf *paint.Buffer) {
 	// Debug logging
 	log.PaintLogger.Debug("[DeclarativeNode.legacyPaint] START: hasReconciler=%v",
