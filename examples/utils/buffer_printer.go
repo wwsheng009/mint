@@ -100,3 +100,73 @@ func PrintBufferWithFilename(buf *paint.Buffer, width, height int, filename stri
 		fmt.Printf("📄 输出已保存到: %s\n", filename)
 	}
 }
+
+// PrintBufferCoordinates 打印 Buffer 的坐标网格视图
+// 上下显示 X 坐标（竖向显示），每列都有标注
+// 左侧显示 Y 坐标
+// 每个单元格固定 2 字符格式，保持对齐
+func PrintBufferCoordinates(buf *paint.Buffer, width, height int) {
+	maxY := height
+
+	// Print X coordinate header vertically (for every column)
+	// Each cell = 2 chars, so mark every 2 character positions
+	fmt.Printf("     ")
+	for x := 0; x < width; x++ {
+		// Tens digit (skip if single digit)
+		fmt.Printf("%d ", x/10)
+	}
+	fmt.Println()
+	fmt.Printf("     ")
+	for x := 0; x < width; x++ {
+		// Ones digit
+		fmt.Printf("%d ", x%10)
+	}
+	fmt.Println()
+	fmt.Printf("     ")
+	for x := 0; x < width; x++ {
+		fmt.Print("│ ")
+	}
+	fmt.Println()
+	fmt.Println()
+
+	for y := 0; y < maxY; y++ {
+		fmt.Printf("Y%02d: ", y)
+
+		// Print each cell in this row
+		for x := 0; x < width; x++ {
+			cell := buf.GetContent(x, y)
+			if cell.Cluster == "" || cell.Cluster == " " {
+				fmt.Print(". ") // 2 chars for empty cell
+			} else {
+				// Unified format - always 2 chars
+				runes := []rune(cell.Cluster)
+				if len(runes) > 0 {
+					fmt.Printf("%c ", runes[0]) // char + space = 2 chars
+				} else {
+					fmt.Print(". ")
+				}
+			}
+		}
+		fmt.Println()
+	}
+
+	// Print X coordinate footer vertically
+	fmt.Println()
+	fmt.Printf("     ")
+	for x := 0; x < width; x++ {
+		fmt.Print("│ ")
+	}
+	fmt.Println()
+	fmt.Printf("     ")
+	for x := 0; x < width; x++ {
+		// Tens digit
+		fmt.Printf("%d ", x/10)
+	}
+
+	fmt.Println()
+	fmt.Printf("     ")
+	for x := 0; x < width; x++ {
+		// Ones digit
+		fmt.Printf("%d ", x%10)
+	}
+}
