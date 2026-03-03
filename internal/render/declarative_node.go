@@ -130,7 +130,15 @@ func (n *DeclarativeNode) SetApp(app interface{}) {
 
 // NewDeclarativeNodeFromFuncWithFiber creates a new declarative node with Fiber reconciler enabled
 // This is the default and recommended way to create declarative nodes.
-// Fiber-first mode is enabled by default unless MINT_FIBER_FIRST=false or MINT_FIBER_FIRST=0.
+//
+// Default enabled features:
+//   - Fiber-first mode (reconciliation + layout + paint pipeline)
+//   - Portal-aware layout (two-phase layout for Portal components)
+//
+// These can be disabled via environment variables for backward compatibility:
+//   - MINT_FIBER_FIRST=false or MINT_FIBER_FIRST=0 to disable Fiber-first
+//   - MINT_PORTAL_LAYOUT=false or MINT_PORTAL_LAYOUT=0 to disable Portal-aware layout
+//
 // Scheduler must be set later via SetApp() to enable frame scheduling (optional for static rendering).
 func NewDeclarativeNodeFromFuncWithFiber(fn rtui.ComponentFunc) *DeclarativeNode {
 	// Create root component context (shared global state)
@@ -171,6 +179,7 @@ func NewDeclarativeNodeFromFuncWithFiber(fn rtui.ComponentFunc) *DeclarativeNode
 
 	// Initialize Fiber-first pipeline components
 	node.initFiberFirstPipeline()
+	node.initPortalLayoutSupport()
 
 	return node
 }
@@ -193,6 +202,21 @@ func (n *DeclarativeNode) initFiberFirstPipeline() {
 		n.newLayoutEngine = NewNewLayoutEngineAdapter()
 		n.paintEngine = NewPaintEngine()
 		// converter will be created with Fiber root during render
+	}
+}
+
+// initPortalLayoutSupport initializes Portal-aware layout configuration
+// Portal-aware layout uses two-phase layout: main tree first, then portal overlays separately
+func (n *DeclarativeNode) initPortalLayoutSupport() {
+	// Portal-aware layout is now enabled by default
+	// Can be disabled via MINT_PORTAL_LAYOUT=false or MINT_PORTAL_LAYOUT=0 for backward compatibility
+	portalLayoutEnv := os.Getenv("MINT_PORTAL_LAYOUT")
+	if portalLayoutEnv == "false" || portalLayoutEnv == "0" {
+		n.usePortalLayout = false
+		log.RenderLogger.Debug("[DeclarativeNode] Portal-aware layout DISABLED (MINT_PORTAL_LAYOUT=%s)", portalLayoutEnv)
+	} else {
+		n.usePortalLayout = true
+		log.RenderLogger.Debug("[DeclarativeNode] Portal-aware layout ENABLED (default or MINT_PORTAL_LAYOUT=%s)", portalLayoutEnv)
 	}
 }
 
@@ -1960,6 +1984,8 @@ func (n *DeclarativeNode) hasPortals(fiber *reconciler.Fiber) bool {
 }
 
 // SetUsePortalLayout enables or disables Portal-aware layout
+// Note: Portal-aware layout is enabled by default when using NewDeclarativeNodeFromFuncWithFiber.
+// Can be disabled via MINT_PORTAL_LAYOUT=false or MINT_PORTAL_LAYOUT=0 for backward compatibility.
 func (n *DeclarativeNode) SetUsePortalLayout(enabled bool) {
 	n.mu.Lock()
 	defer n.mu.Unlock()

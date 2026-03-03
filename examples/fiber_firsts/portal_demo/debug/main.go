@@ -140,7 +140,7 @@ func main() {
     node.SetApp(fwApp)
 	node.SetRenderMode(render.RenderModeFiberFirst)
 
-	// Enable Portal-aware layout
+	// Enable Portal-aware layout (redundant since it's now enabled by default, kept for clarity)
 	node.SetUsePortalLayout(true)
 
 	fmt.Printf("\nConfiguration:\n")
