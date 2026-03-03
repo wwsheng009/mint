@@ -1598,10 +1598,9 @@ func ErrorBoundary(child ui.VNode) ui.VNode {
 
 - [x] 实现 `runtime/store/store.go`
 - [x] 实现 `runtime/reducer/reducer.go`
-- [x] 实现 `runtime/dispatcher/dispatcher.go` (已存在，集成 Store)
-- [ ] 实现 `runtime/runtime.go` (新版本)
-- [ ] 更新文档
-  - [ ] 创建 `STORE_REDUCER_GUIDE.md`
+- [x] 实现 `runtime/statemachine/runtime.go` - AppRuntime 集成 Store + Reducer
+- [x] 更新文档
+  - [x] 创建 `STORE_REDUCER_GUIDE.md`
   - [ ] 更新 `MVP_MIGRATION_GUIDE.md`
 - [x] 创建示例
   - [x] `examples/store_reducer_demo/` - Store + Reducer 完整示例
