@@ -454,8 +454,7 @@ func (n *DeclarativeNode) fiberFirstPaint(ctx paint.PaintContext, buf *paint.Buf
 	// Get the Fiber root from reconciler
 	fiberRoot := n.getFiberRoot()
 	if fiberRoot == nil {
-		log.PaintLogger.Debug("[DeclarativeNode.fiberFirstPaint] Fiber root is nil, falling back to legacy")
-		n.legacyPaint(ctx, buf)
+		log.PaintLogger.Error("[DeclarativeNode.fiberFirstPaint] Fiber root is nil, render aborted")
 		return
 	}
 
@@ -496,8 +495,7 @@ func (n *DeclarativeNode) fiberFirstPaint(ctx paint.PaintContext, buf *paint.Buf
 		mainResult, portalBoxes, layoutErr := n.portalLayoutEngine.Layout(fiberRoot, constraints)
 
 		if layoutErr != nil {
-			log.RenderLogger.Debug("[DeclarativeNode.fiberFirstPaint] Portal Layout FAILED: %v, falling back to legacy", layoutErr)
-			n.legacyPaint(ctx, buf)
+			log.PaintLogger.Error("[DeclarativeNode.fiberFirstPaint] Portal layout FAILED: %v, render aborted", layoutErr)
 			return
 		}
 
@@ -525,8 +523,7 @@ func (n *DeclarativeNode) fiberFirstPaint(ctx paint.PaintContext, buf *paint.Buf
 		// Use standard layout engine (single-phase)
 		layoutResult, err = n.newLayoutEngine.LayoutFiber(fiberRoot, constraints)
 		if err != nil {
-			log.RenderLogger.Debug("[DeclarativeNode.fiberFirstPaint] Layout FAILED: %v, falling back to legacy", err)
-			n.legacyPaint(ctx, buf)
+			log.PaintLogger.Error("[DeclarativeNode.fiberFirstPaint] Layout FAILED: %v, render aborted", err)
 			return
 		}
 	}
@@ -542,8 +539,7 @@ func (n *DeclarativeNode) fiberFirstPaint(ctx paint.PaintContext, buf *paint.Buf
 		n.mu.Unlock()
 
 		if innerResult == nil || innerResult.Root == nil {
-			log.RenderLogger.Debug("[DeclarativeNode.fiberFirstPaint] Layout root is nil")
-			n.legacyPaint(ctx, buf)
+			log.PaintLogger.Error("[DeclarativeNode.fiberFirstPaint] Layout root is nil, render aborted")
 			return
 		}
 
@@ -555,8 +551,7 @@ func (n *DeclarativeNode) fiberFirstPaint(ctx paint.PaintContext, buf *paint.Buf
 		paintableLayout := converter.ConvertToLayout(innerResult.Root)
 
 		if paintableLayout == nil || paintableLayout.Root == nil {
-			log.RenderLogger.Debug("[DeclarativeNode.fiberFirstPaint] PaintableLayout result is nil")
-			n.legacyPaint(ctx, buf)
+			log.PaintLogger.Error("[DeclarativeNode.fiberFirstPaint] PaintableLayout result is nil, render aborted")
 			return
 		}
 
@@ -583,8 +578,7 @@ func (n *DeclarativeNode) fiberFirstPaint(ctx paint.PaintContext, buf *paint.Buf
 
 		// Paint using PaintablePlanes for proper layer Z-Ordering
 		if err := n.paintEngine.PaintPaintablePlanes(planes, buf); err != nil {
-			log.RenderLogger.Debug("[DeclarativeNode.fiberFirstPaint] Paint FAILED: %v, falling back", err)
-			n.legacyPaint(ctx, buf)
+			log.PaintLogger.Error("[DeclarativeNode.fiberFirstPaint] Paint FAILED: %v, render aborted", err)
 			return
 		}
 
@@ -604,8 +598,7 @@ func (n *DeclarativeNode) fiberFirstPaint(ctx paint.PaintContext, buf *paint.Buf
 
 		log.RenderLogger.Debug("[DeclarativeNode.fiberFirstPaint] ✅ Render complete")
 	} else {
-		log.RenderLogger.Debug("[DeclarativeNode.fiberFirstPaint] Layout result type mismatch")
-		n.legacyPaint(ctx, buf)
+		log.PaintLogger.Error("[DeclarativeNode.fiberFirstPaint] Layout result type mismatch, render aborted")
 	}
 }
 
@@ -647,8 +640,8 @@ func (n *DeclarativeNode) comparePaint(ctx paint.PaintContext, buf *paint.Buffer
 //
 // Deprecated: Use fiberFirstPaint with Fiber-first architecture instead.
 //
-// This method is kept ONLY as an error fallback for fiberFirstPaint.
-// It is no longer called from Paint() under normal circumstances.
+// This method is only kept for testing purposes (called from comparePaint).
+// It is no longer called from Paint() or fiberFirstPaint() fallback paths.
 //
 // The legacy path has the following issues:
 //   - VNode is kept in memory during rendering (not discarded after Fiber reconciliation)
@@ -656,7 +649,7 @@ func (n *DeclarativeNode) comparePaint(ctx paint.PaintContext, buf *paint.Buffer
 //   - Does not follow Fiber-first architecture where VNode is discarded after Fiber creation
 //
 // Note: Fiber-first mode is now enabled by default when using NewDeclarativeNodeFromFuncWithFiber.
-// This function may be removed in future versions once fiberFirstPaint error handling is improved.
+// This function will be removed once comparePaint is replaced with proper diff testing.
 func (n *DeclarativeNode) legacyPaint(ctx paint.PaintContext, buf *paint.Buffer) {
 	// Debug logging
 	log.PaintLogger.Debug("[DeclarativeNode.legacyPaint] START: hasReconciler=%v",
