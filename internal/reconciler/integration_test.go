@@ -590,14 +590,14 @@ func TestBeginWork_VNodeText(t *testing.T) {
 	}
 }
 
-// TestReconciler_SetApp tests setting the app
-func TestReconciler_SetApp(t *testing.T) {
+// TestReconciler_SetScheduler tests setting the scheduler
+func TestReconciler_SetScheduler(t *testing.T) {
 	config := ReconcilerConfig{EnableFiber: true}
 	reconciler := NewReconciler(nil, nil, config)
 
-	// Create a mock app - we can't use framework.NewApp() in tests
+	// Create a mock scheduler - we can't use framework.NewApp() in tests
 	// because it requires platform setup, but we can test with nil
-	reconciler.SetApp(nil)
+	reconciler.SetScheduler(nil)
 
 	// Should not panic
 }

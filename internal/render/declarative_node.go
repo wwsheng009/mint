@@ -6,7 +6,6 @@ import (
 	"os"
 	"sync"
 
-	"github.com/wwsheng009/mint/framework"
 	"github.com/wwsheng009/mint/framework/component"
 	"github.com/wwsheng009/mint/internal/log"
 	"github.com/wwsheng009/mint/internal/reconciler"
@@ -48,10 +47,11 @@ type DeclarativeNode struct {
 	focusMgr *rtui.FiberFocusManager // Focus manager for keyboard navigation (Fiber-first)
 
 	// Framework integration
-	fwApp      *framework.App     // Framework app (for triggering re-renders in non-Fiber mode)
-	reconciler rtui.Reconciler    // Fiber reconciler (if enabled) - use interface to avoid import cycle
-	renderer   rtui.VNodeRenderer // VNode renderer (implements VNodeRenderer interface)
-	useFiber   bool               // Whether Fiber mode is enabled
+	// scheduler 用于请求帧调度，解耦对 framework.App 的直接依赖
+	scheduler  reconciler.Scheduler // Scheduler for frame requests
+	reconciler rtui.Reconciler      // Fiber reconciler (if enabled) - use interface to avoid import cycle
+	renderer   rtui.VNodeRenderer   // VNode renderer (implements VNodeRenderer interface)
+	useFiber   bool                 // Whether Fiber mode is enabled
 
 	// === Intent Integration ===
 	intentRuntime *intent.Runtime // Intent runtime for dispatching intents
@@ -95,11 +95,11 @@ func NewDeclarativeNode(vnode rtui.VNode) *DeclarativeNode {
 // This function is kept for backward compatibility but should not be used in new code.
 func NewDeclarativeNodeFromFunc(fn rtui.ComponentFunc) *DeclarativeNode {
 	node := &DeclarativeNode{
-		renderFn: fn,
-		instance: rtui.NewComponentContextForRoot(),
-		focusMgr: rtui.NewFiberFocusManager(),
-		fwApp:    nil,   // Will be set by SetFrameworkApp
-		useFiber: false, // Default to non-Fiber mode
+		renderFn:  fn,
+		instance:  rtui.NewComponentContextForRoot(),
+		focusMgr:  rtui.NewFiberFocusManager(),
+		scheduler: nil, // Will be set by SetScheduler
+		useFiber:  false, // Default to non-Fiber mode
 	}
 	// Use the new PipelineRenderer with Layout/Paint separation by default
 	// This provides constraint-driven layout, caching, and better architecture
@@ -120,22 +120,22 @@ func NewDeclarativeNodeFromFunc(fn rtui.ComponentFunc) *DeclarativeNode {
 	return node
 }
 
-// SetFrameworkApp sets the framework app reference (called from ui/test.go in RunTest)
-func (n *DeclarativeNode) SetFrameworkApp(app *framework.App) {
+// SetScheduler sets the scheduler for requesting frame updates
+func (n *DeclarativeNode) SetScheduler(scheduler reconciler.Scheduler) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	n.fwApp = app
+	n.scheduler = scheduler
 }
 
 // NewDeclarativeNodeFromFuncWithFiber creates a new declarative node with Fiber reconciler enabled
 // This function is called from ui.Run when MINT_USE_FIBER is set
-func NewDeclarativeNodeFromFuncWithFiber(fn rtui.ComponentFunc, fwApp *framework.App) *DeclarativeNode {
+func NewDeclarativeNodeFromFuncWithFiber(fn rtui.ComponentFunc, scheduler reconciler.Scheduler) *DeclarativeNode {
 	// Create root component context (shared global state)
 	rootCtx := rtui.NewComponentContextForRoot()
 
 	// Import the reconciler package here to avoid import cycles in ui package
 	// This is safe because internal/render can import internal/reconciler
-	r := newFiberReconciler(fwApp, fn, rootCtx)
+	r := newFiberReconciler(scheduler, fn, rootCtx)
 
 	// Create a new FiberFocusManager (Fiber-first architecture)
 	// This replaces the VNodeFocusManager to ensure focus state is managed on Fiber nodes
@@ -161,7 +161,7 @@ func NewDeclarativeNodeFromFuncWithFiber(fn rtui.ComponentFunc, fwApp *framework
 		renderFn:   fn,
 		instance:   rootCtx, // Use the same context for global state
 		focusMgr:   focusMgr,
-		fwApp:      fwApp,
+		scheduler:  scheduler,
 		reconciler: r,
 		renderer:   renderer,
 		useFiber:   true,
@@ -257,9 +257,9 @@ func SetDeclarativeNodeIntentRuntime(node *DeclarativeNode, rt *intent.Runtime) 
 				// Use LaneSyncLane for synchronous updating
 				adapter.r.ScheduleUpdate(rtui.LaneSyncLane)
 			}
-		} else if node.fwApp != nil {
+		} else if node.scheduler != nil {
 			// Non-Fiber mode: mark framework app as dirty
-			node.fwApp.MarkDirty()
+			node.scheduler.MarkDirty()
 		}
 	})
 }
@@ -438,18 +438,6 @@ func (n *DeclarativeNode) fiberFirstPaint(ctx paint.PaintContext, buf *paint.Buf
 
 	log.PaintLogger.Debug("[DeclarativeNode.fiberFirstPaint] Fiber root OK: type=%d, tag=%s, children=%d",
 		fiberRoot.Type, fiberRoot.Tag, countFiberChildren(fiberRoot))
-
-	// Phase 1.5: Sync FocusManager to framework.App
-	// This is critical for Tab navigation to work in Fiber-first mode
-	// The reconciler updates n.focusMgr during Render() (via updateFocusManagerFromFiber)
-	// but we need to sync it to framework.App for event routing
-	if n.fwApp != nil && n.focusMgr != nil {
-		if appSetter, ok := interface{}(n.fwApp).(interface{ SetFocusManagerFromDeclarativeNode(*rtui.FiberFocusManager) }); ok {
-			appSetter.SetFocusManagerFromDeclarativeNode(n.focusMgr)
-			log.RenderLogger.Debug("[DeclarativeNode.fiberFirstPaint] ✅ Synced FocusManager to framework.App (%d focusable)",
-				n.focusMgr.Count())
-		}
-	}
 
 	// Phase 2: Fiber-based Layout
 	// 方案A: 单树共享布局 - 所有layer在一个布局树中计算
@@ -794,9 +782,9 @@ func (n *DeclarativeNode) nonFiberRender() rtui.VNode {
 		intentRuntime.Dispatcher.SetStateSetter(n.instance)
 		// Set schedule update callback
 		n.instance.SetScheduleUpdate(func() {
-			// Request re-render through framework app
-			if n.fwApp != nil {
-				n.fwApp.MarkDirty()
+			// Request re-render through scheduler (framework app)
+			if n.scheduler != nil {
+				n.scheduler.MarkDirty()
 			}
 		})
 	}
@@ -829,14 +817,6 @@ func (n *DeclarativeNode) applyFocusState() {
 	// The FiberFocusManager is updated by reconciler.updateFocusManagerFromFiber()
 	if n.useFiber {
 		log.RenderLogger.Debug("DeclarativeNode.applyFocusState: Fiber mode, focus managed by reconciler")
-
-		// CRITICAL: Sync focusManager to framework.App for event routing
-		// This ensures Tab/Shift+Tab navigation works correctly
-		if n.fwApp != nil {
-			if appSetter, ok := interface{}(n.fwApp).(interface{ SetFocusManagerFromDeclarativeNode(*rtui.FiberFocusManager) }); ok {
-				appSetter.SetFocusManagerFromDeclarativeNode(n.focusMgr)
-			}
-		}
 		return
 	}
 
@@ -1674,10 +1654,11 @@ func (n *DeclarativeNode) GetFocusedType() int {
 }
 
 // getFrameworkApp returns the framework app (for triggering re-renders)
-func (n *DeclarativeNode) getFrameworkApp() *framework.App {
+// Deprecated: Use framework.App to access FocusManager directly
+func (n *DeclarativeNode) getFrameworkApp() reconciler.Scheduler {
 	n.mu.RLock()
 	defer n.mu.RUnlock()
-	return n.fwApp
+	return n.scheduler
 }
 
 

@@ -1,7 +1,6 @@
 package render
 
 import (
-	"github.com/wwsheng009/mint/framework"
 	"github.com/wwsheng009/mint/framework/component"
 	"github.com/wwsheng009/mint/internal/reconciler"
 	"github.com/wwsheng009/mint/runtime/action"
@@ -19,10 +18,10 @@ type fiberReconcilerAdapter struct {
 	r *reconciler.Reconciler
 }
 
-// newFiberReconciler creates a new Fiber reconciler for the given app, render function and root context
-func newFiberReconciler(fwApp *framework.App, fn rtui.ComponentFunc, rootCtx *rtui.ComponentContext) rtui.Reconciler {
+// newFiberReconciler creates a new Fiber reconciler for the given scheduler, render function and root context
+func newFiberReconciler(scheduler reconciler.Scheduler, fn rtui.ComponentFunc, rootCtx *rtui.ComponentContext) rtui.Reconciler {
 	// Create the actual reconciler from internal/reconciler
-	r := reconciler.NewReconciler(fwApp, fn, reconciler.ReconcilerConfig{
+	r := reconciler.NewReconciler(scheduler, fn, reconciler.ReconcilerConfig{
 		EnableFiber: true,
 	})
 
@@ -53,9 +52,10 @@ func (a *fiberReconcilerAdapter) Render(ctx interface{}, buffer interface{}, ren
 }
 
 // SetApp sets the framework app (adapter method)
+// Note: This is kept for backward compatibility, the actual storage uses Scheduler interface
 func (a *fiberReconcilerAdapter) SetApp(app interface{}) {
-	if fwApp, ok := app.(*framework.App); ok {
-		a.r.SetApp(fwApp)
+	if scheduler, ok := app.(reconciler.Scheduler); ok {
+		a.r.SetScheduler(scheduler)
 	}
 }
 

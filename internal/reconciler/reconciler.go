@@ -16,7 +16,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/wwsheng009/mint/framework"
 	"github.com/wwsheng009/mint/framework/component"
 	"github.com/wwsheng009/mint/internal/log"
 	"github.com/wwsheng009/mint/internal/state"
@@ -24,6 +23,12 @@ import (
 	"github.com/wwsheng009/mint/runtime/paint"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
+
+// Scheduler 调度器接口，用于通知框架需要调度帧
+// Reconciler 通过此接口请求调度，解耦对 framework.App 的直接依赖
+type Scheduler interface {
+	MarkDirty()
+}
 
 // Reconciler manages Fiber reconciliation
 type Reconciler struct {
@@ -39,7 +44,7 @@ type Reconciler struct {
 	timeBudget time.Duration // Time slice budget per frame
 
 	// === Integration ===
-	app                 *framework.App                 // Framework app
+	scheduler            Scheduler                       // Scheduler for frame requests
 	instanceMgr         *state.InstanceManager         // Component instance manager
 	interactionStateMgr *state.InteractionStateManager // Interaction state (hover/focus/etc)
 	keyValidator        *state.KeyValidator            // Key validation
@@ -76,14 +81,14 @@ type ReconcilerConfig struct {
 }
 
 // NewReconciler creates a new reconciler
-func NewReconciler(app *framework.App, rootComponent rtui.ComponentFunc, config ReconcilerConfig) *Reconciler {
+func NewReconciler(scheduler Scheduler, rootComponent rtui.ComponentFunc, config ReconcilerConfig) *Reconciler {
 	timeBudget := config.TimeBudget
 	if timeBudget == 0 {
 		timeBudget = 5 * time.Millisecond // Default 5ms budget
 	}
 
 	return &Reconciler{
-		app:                 app,
+		scheduler:            scheduler,
 		rootComponent:       rootComponent,
 		instanceMgr:         state.NewInstanceManager(),
 		interactionStateMgr: state.NewInteractionStateManager(),
@@ -418,8 +423,8 @@ func (r *Reconciler) SetRenderCallback(cb RenderFunc) {
 
 // requestWork requests the framework to schedule a frame
 func (r *Reconciler) requestWork() {
-	if r.app != nil {
-		r.app.MarkDirty()
+	if r.scheduler != nil {
+		r.scheduler.MarkDirty()
 	}
 }
 
@@ -473,9 +478,9 @@ func (r *Reconciler) updateRenderedRoot() {
 	r.renderedRoot = nil
 }
 
-// SetApp sets the framework app for the reconciler
-func (r *Reconciler) SetApp(app *framework.App) {
-	r.app = app
+// SetScheduler sets the scheduler for the reconciler
+func (r *Reconciler) SetScheduler(scheduler Scheduler) {
+	r.scheduler = scheduler
 }
 
 // SetFocusManager sets the focus manager for keyboard navigation (Fiber-first)
