@@ -73,7 +73,7 @@ func main() {
 	// Create declarative root WITH FIBER RECONCILER
 	// This enables VNodeComponentInstance for persistent event handlers
 	declarativeRoot = render.NewDeclarativeNodeFromFuncWithFiber(RuntimeDemoWithInspectorOverlay, FwApp)
-	declarativeRoot.SetFrameworkApp(FwApp)
+	declarativeRoot.SetApp(FwApp)
 
 	// Set as root FIRST (before registering Inspector)
 	FwApp.SetRoot(declarativeRoot)

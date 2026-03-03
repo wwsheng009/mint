@@ -5,8 +5,8 @@ import (
 
 	"github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/style"
-	"github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/runtime/types"
+	"github.com/wwsheng009/mint/runtime/ui"
 )
 
 // =============================================================================

@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/wwsheng009/mint/examples/utils"
 	"github.com/wwsheng009/mint/framework"
 	"github.com/wwsheng009/mint/framework/component"
 	"github.com/wwsheng009/mint/framework/theme"
@@ -18,7 +19,6 @@ import (
 	newbutton "github.com/wwsheng009/mint/ui/components/button"
 	newtext "github.com/wwsheng009/mint/ui/components/text"
 	"github.com/wwsheng009/mint/ui/components/wrap"
-	"github.com/wwsheng009/mint/examples/utils"
 )
 
 // DemoApp renders Wrap layouts using the Fiber-first pipeline
@@ -407,7 +407,8 @@ func main() {
 	fmt.Println("╚════════════════════════════════════════════════════════════╝")
 
 	fwApp := framework.NewApp()
-	node := render.NewDeclarativeNodeFromFuncWithFiber(DemoApp, fwApp)
+	node := render.NewDeclarativeNodeFromFuncWithFiber(DemoApp)
+    node.SetApp(fwApp)
 	node.SetRenderMode(render.RenderModeFiberFirst)
 
 	fmt.Printf("\nConfiguration:\n")

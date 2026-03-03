@@ -11,7 +11,7 @@ import (
 // TestDeclarativeNode_GetRenderer tests GetRenderer method
 func TestDeclarativeNode_GetRenderer(t *testing.T) {
 	t.Run("pipeline renderer", func(t *testing.T) {
-		node := NewDeclarativeNodeFromFunc(func() rtui.VNode {
+		node := NewDeclarativeNodeFromFuncWithFiber(func() rtui.VNode {
 			return rtui.Element("text").Prop("content", "test").Build()
 		})
 

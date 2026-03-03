@@ -136,7 +136,8 @@ func main() {
 	fmt.Println("╚══════════════════════════════════════════════════════════════╝")
 
 	fwApp := framework.NewApp()
-	node := render.NewDeclarativeNodeFromFuncWithFiber(DebugApp, fwApp)
+	node := render.NewDeclarativeNodeFromFuncWithFiber(DebugApp)
+    node.SetApp(fwApp)
 	node.SetRenderMode(render.RenderModeFiberFirst)
 
 	// Enable Portal-aware layout

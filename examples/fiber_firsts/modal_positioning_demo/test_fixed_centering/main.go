@@ -8,12 +8,12 @@ import (
 
 	"github.com/wwsheng009/mint/framework"
 	"github.com/wwsheng009/mint/framework/component"
-	"github.com/wwsheng009/mint/internal/render"
 	"github.com/wwsheng009/mint/internal/reconciler"
+	"github.com/wwsheng009/mint/internal/render"
 	"github.com/wwsheng009/mint/runtime/paint"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
-	uitext "github.com/wwsheng009/mint/ui/components/text"
 	"github.com/wwsheng009/mint/ui/components/modal"
+	uitext "github.com/wwsheng009/mint/ui/components/text"
 )
 
 func main() {
@@ -59,7 +59,8 @@ func main() {
 
 	// 4. 创建 DeclarativeNode
 	fwApp := framework.NewApp()
-	node := render.NewDeclarativeNodeFromFuncWithFiber(func() rtui.VNode { return app }, fwApp)
+	node := render.NewDeclarativeNodeFromFuncWithFiber(func() rtui.VNode { return app })
+    node.SetApp(fwApp)
 	node.SetRenderMode(render.RenderModeFiberFirst)
 
 	// 5. 创建 viewport 缓冲

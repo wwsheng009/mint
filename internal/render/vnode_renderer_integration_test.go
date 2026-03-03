@@ -49,7 +49,7 @@ func TestVNodeRenderer_Integration(t *testing.T) {
 		},
 	}
 
-	node := NewDeclarativeNodeFromFunc(func() rtui.VNode {
+	node := NewDeclarativeNodeFromFuncWithFiber(func() rtui.VNode {
 		return rtui.Element("text").Prop("content", "test").Build()
 	})
 	renderer := node.GetRenderer()
@@ -131,7 +131,7 @@ func TestVNodeRenderer_ComplexLayout(t *testing.T) {
 		rtui.Element("text").Prop("content", "F").Build(),
 	)
 
-	node := NewDeclarativeNodeFromFunc(func() rtui.VNode {
+	node := NewDeclarativeNodeFromFuncWithFiber(func() rtui.VNode {
 		return rtui.Element("text").Prop("content", "test").Build()
 	})
 	renderer := node.GetRenderer()
@@ -146,7 +146,7 @@ func TestVNodeRenderer_ComplexLayout(t *testing.T) {
 
 // TestVNodeRenderer_EmptyChildren tests measurement of nodes with no children
 func TestVNodeRenderer_EmptyChildren(t *testing.T) {
-	node := NewDeclarativeNodeFromFunc(func() rtui.VNode {
+	node := NewDeclarativeNodeFromFuncWithFiber(func() rtui.VNode {
 		return rtui.Element("text").Prop("content", "test").Build()
 	})
 	renderer := node.GetRenderer()

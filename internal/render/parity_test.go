@@ -4,8 +4,8 @@ package render
 import (
 	"testing"
 
-	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/runtime/style"
+	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
 
 // TestRenderingParity_SimpleText tests that both modes render simple text identically
@@ -13,7 +13,7 @@ func TestRenderingParity_SimpleText(t *testing.T) {
 	vnode := rtui.Element("text").Prop("content", "Hello, World!").Build()
 
 	// Render with non-Fiber mode
-	nonFiberNode := NewDeclarativeNodeFromFunc(func() rtui.VNode {
+	nonFiberNode := NewDeclarativeNodeFromFuncWithFiber(func() rtui.VNode {
 		return vnode
 	})
 
@@ -39,7 +39,7 @@ func TestRenderingParity_NestedElements(t *testing.T) {
 		rtui.Element("text").Prop("content", "B").Build(),
 	)
 
-	node := NewDeclarativeNodeFromFunc(func() rtui.VNode {
+	node := NewDeclarativeNodeFromFuncWithFiber(func() rtui.VNode {
 		return vnode
 	})
 
@@ -81,7 +81,7 @@ func TestRenderingParity_LayoutNodes(t *testing.T) {
 		},
 	}
 
-	node := NewDeclarativeNodeFromFunc(func() rtui.VNode {
+	node := NewDeclarativeNodeFromFuncWithFiber(func() rtui.VNode {
 		return rtui.Element("text").Prop("content", "test").Build()
 	})
 	renderer := node.GetRenderer()
@@ -136,7 +136,7 @@ func TestRenderingParity_FragmentTests(t *testing.T) {
 		},
 	}
 
-	node := NewDeclarativeNodeFromFunc(func() rtui.VNode {
+	node := NewDeclarativeNodeFromFuncWithFiber(func() rtui.VNode {
 		return rtui.Element("text").Prop("content", "test").Build()
 	})
 	renderer := node.GetRenderer()
@@ -177,7 +177,7 @@ func TestRenderingParity_ButtonLikeElements(t *testing.T) {
 		},
 	}
 
-	node := NewDeclarativeNodeFromFunc(func() rtui.VNode {
+	node := NewDeclarativeNodeFromFuncWithFiber(func() rtui.VNode {
 		return rtui.Element("text").Prop("content", "test").Build()
 	})
 	renderer := node.GetRenderer()
@@ -211,7 +211,7 @@ func TestRenderingParity_DeepNesting(t *testing.T) {
 		),
 	)
 
-	node := NewDeclarativeNodeFromFunc(func() rtui.VNode {
+	node := NewDeclarativeNodeFromFuncWithFiber(func() rtui.VNode {
 		return rtui.Element("text").Prop("content", "test").Build()
 	})
 	renderer := node.GetRenderer()

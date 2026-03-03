@@ -13,8 +13,8 @@ import (
 	"github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/paint"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
-	panel "github.com/wwsheng009/mint/ui/components/panel"
 	modal "github.com/wwsheng009/mint/ui/components/modal"
+	panel "github.com/wwsheng009/mint/ui/components/panel"
 	newtext "github.com/wwsheng009/mint/ui/components/text"
 )
 
@@ -61,7 +61,8 @@ func main() {
 	fmt.Println("╚══════════════════════════════════════════════════════════════╝")
 
 	fwApp := framework.NewApp()
-	node := render.NewDeclarativeNodeFromFuncWithFiber(DebugApp, fwApp)
+	node := render.NewDeclarativeNodeFromFuncWithFiber(DebugApp)
+    node.SetApp(fwApp)
 	node.SetRenderMode(render.RenderModeFiberFirst)
 
 	// Create buffer

@@ -28,9 +28,6 @@ func TestVNode_ImplementsInterfaces(t *testing.T) {
 
 	// Test VNode interface
 	var _ rtui.VNode = vnode
-
-	// Test InstanceFactory interface
-	var _ rtui.InstanceFactory = vnode
 }
 
 func TestVNode_FluentAPI(t *testing.T) {
@@ -68,20 +65,6 @@ func TestVNode_FluentAPI(t *testing.T) {
 	if vnode.content != textNode {
 		t.Error("Content mismatch")
 	}
-}
-
-func TestVNode_CreateInstance(t *testing.T) {
-	vnode := New().
-		SetTitle("Test").
-		SetWidth(30).
-		SetHeight(10).
-		SetContent(newtext.New("Content"))
-
-	inst := vnode.CreateInstance()
-	if inst == nil {
-		t.Fatal("CreateInstance() returned nil")
-	}
-	// Panel delegates to Border instance
 }
 
 func TestVNode_Children(t *testing.T) {
@@ -388,17 +371,5 @@ func TestVNode_CreateInstanceFromPanelWithLabel(t *testing.T) {
 	// Check Border props
 	if borderProps["borderLabel"] != " My Panel " {
 		t.Errorf("Expected borderLabel ' My Panel ', got '%v'", borderProps["borderLabel"])
-	}
-
-	// Create instance
-	inst := vnode.CreateInstance()
-	if inst == nil {
-		t.Fatal("CreateInstance returned nil")
-	}
-
-	// Check if it's a border Instance
-	props := inst.GetProps()
-	if props["borderLabel"] != " My Panel " {
-		t.Errorf("Instance props borderLabel should be ' My Panel ', got '%v'", props["borderLabel"])
 	}
 }

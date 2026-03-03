@@ -61,7 +61,8 @@ func main() {
 		fmt.Printf("%s\n\n", test.desc)
 
 		fwApp := framework.NewApp()
-		node := render.NewDeclarativeNodeFromFuncWithFiber(func() rtui.VNode { return test.node }, fwApp)
+		node := render.NewDeclarativeNodeFromFuncWithFiber(func() rtui.VNode { return test.node })
+    node.SetApp(fwApp)
 		node.SetRenderMode(render.RenderModeFiberFirst)
 
 		buf := paint.NewBuffer(60, 15)

@@ -161,11 +161,8 @@ func main() {
 	fwApp := framework.NewApp()
 	fwApp.Resize(80, 55)
 
-	declarativeNode := render.NewDeclarativeNodeFromFuncWithFiber(
-		LayerZOrderDebugApp,
-		fwApp,
-	)
-
+	declarativeNode := render.NewDeclarativeNodeFromFuncWithFiber(LayerZOrderDebugApp)
+	declarativeNode.SetApp(fwApp)
 	fwApp.SetRoot(declarativeNode)
 
 	fmt.Println("")

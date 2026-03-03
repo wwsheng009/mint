@@ -89,38 +89,6 @@ func NewDeclarativeNode(vnode rtui.VNode) *DeclarativeNode {
 	}
 }
 
-// NewDeclarativeNodeFromFunc creates a new declarative node from a render function
-//
-// Deprecated: Fiber mode is now the default and required for persistent component
-// instances and event handlers. Use NewDeclarativeNodeFromFuncWithFiber instead.
-// This function is kept for backward compatibility but should not be used in new code.
-func NewDeclarativeNodeFromFunc(fn rtui.ComponentFunc) *DeclarativeNode {
-	node := &DeclarativeNode{
-		renderFn:  fn,
-		instance:  rtui.NewComponentContextForRoot(),
-		focusMgr:  rtui.NewFiberFocusManager(),
-		scheduler: nil, // Will be set by SetScheduler
-		useFiber:  false, // Default to non-Fiber mode
-	}
-	// Use the new PipelineRenderer with Layout/Paint separation by default
-	// This provides constraint-driven layout, caching, and better architecture
-	node.renderer = NewPipelineRendererAdapter()
-	if log.RenderLogger.Enabled() {
-		log.RenderLogger.Debug("[DeclarativeNode] Using new PipelineRenderer (Layout/Paint separation)")
-	}
-
-	// LEGACY RENDERER (commented out - kept for reference only)
-	// To use the old renderer, set MINT_USE_LEGACY_RENDERER=true
-	// if os.Getenv("MINT_USE_LEGACY_RENDERER") == "true" {
-	// 	node.renderer = NewNonFiberRenderer(node)
-	// 	if os.Getenv("TUI_DEBUG_UI") == "true" {
-	// 		log.RenderLogger.Debug("[DeclarativeNode] Using LEGACY renderer")
-	// 	}
-	// }
-
-	return node
-}
-
 // SetScheduler sets the scheduler for requesting frame updates
 // Only used in non-Fiber mode. In Fiber mode, the reconciler handles scheduling internally.
 func (n *DeclarativeNode) SetScheduler(scheduler reconciler.Scheduler) {
@@ -129,16 +97,32 @@ func (n *DeclarativeNode) SetScheduler(scheduler reconciler.Scheduler) {
 	n.scheduler = scheduler
 }
 
+// SetApp sets the framework app (scheduler) on the DeclarativeNode and its reconciler
+// This is called from ui.Run to enable frame scheduling
+func (n *DeclarativeNode) SetApp(app interface{}) {
+	// Set scheduler on the DeclarativeNode (for non-Fiber mode)
+	if scheduler, ok := app.(reconciler.Scheduler); ok {
+		n.SetScheduler(scheduler)
+	}
+
+	// Set app on the reconciler (for Fiber mode)
+	if n.reconciler != nil {
+		if reconciler, ok := n.reconciler.(interface{ SetApp(interface{}) }); ok {
+			reconciler.SetApp(app)
+		}
+	}
+}
+
 // NewDeclarativeNodeFromFuncWithFiber creates a new declarative node with Fiber reconciler enabled
 // This function is called from ui.Run when MINT_USE_FIBER is set
-// scheduler is passed to the reconciler for frame scheduling; DeclarativeNode does not store it
-func NewDeclarativeNodeFromFuncWithFiber(fn rtui.ComponentFunc, scheduler reconciler.Scheduler) *DeclarativeNode {
+// Scheduler must be set later via SetApp() to enable frame scheduling
+func NewDeclarativeNodeFromFuncWithFiber(fn rtui.ComponentFunc) *DeclarativeNode {
 	// Create root component context (shared global state)
 	rootCtx := rtui.NewComponentContextForRoot()
 
 	// Import the reconciler package here to avoid import cycles in ui package
 	// This is safe because internal/render can import internal/reconciler
-	r := newFiberReconciler(scheduler, fn, rootCtx)
+	r := newFiberReconciler(nil, fn, rootCtx) // scheduler will be set later via SetApp
 
 	// Create a new FiberFocusManager (Fiber-first architecture)
 	// This replaces the VNodeFocusManager to ensure focus state is managed on Fiber nodes

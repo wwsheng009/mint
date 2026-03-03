@@ -268,7 +268,8 @@ func main() {
 	fmt.Println("╚════════════════════════════════════════════════════════════╝")
 
 	fwApp := framework.NewApp()
-	node := render.NewDeclarativeNodeFromFuncWithFiber(DemoApp, fwApp)
+	node := render.NewDeclarativeNodeFromFuncWithFiber(DemoApp)
+    node.SetApp(fwApp)
 	node.SetRenderMode(render.RenderModeFiberFirst)
 
 	fmt.Printf("\nConfiguration:\n")

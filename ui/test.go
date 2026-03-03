@@ -221,7 +221,10 @@ func RunTest(app ComponentFunc, opts ...Option) (*TestableApp, error) {
 
 	// Create the declarative root component with Fiber reconciler enabled
 	// Fiber is now the default and required for persistent component instances and event handlers
-	declarativeNode := render.NewDeclarativeNodeFromFuncWithFiber(app, fwApp)
+	declarativeNode := render.NewDeclarativeNodeFromFuncWithFiber(app)
+
+	// Set app to enable frame scheduling
+	declarativeNode.SetApp(fwApp)
 
 	// Pass Intent Runtime to declarative node for component context
 	render.SetDeclarativeNodeIntentRuntime(declarativeNode, intentRuntime)
@@ -291,7 +294,10 @@ func RunTestWithSandbox(app ComponentFunc, opts ...Option) (*TestableApp, error)
 
 	// Create the declarative root component with Fiber reconciler enabled
 	// Fiber is now the default and required for persistent component instances and event handlers
-	declarativeNode := render.NewDeclarativeNodeFromFuncWithFiber(app, fwApp)
+	declarativeNode := render.NewDeclarativeNodeFromFuncWithFiber(app)
+
+	// Set app to enable frame scheduling
+	declarativeNode.SetApp(fwApp)
 
 	// Pass Intent Runtime to declarative node for component context
 	render.SetDeclarativeNodeIntentRuntime(declarativeNode, intentRuntime)

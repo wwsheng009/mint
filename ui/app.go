@@ -189,7 +189,10 @@ func Run(app ComponentFunc, opts ...Option) error {
 
 	// Create declarative node from the component function with Fiber reconciler enabled
 	// Fiber is now the default and required for persistent component instances and event handlers
-	declarativeRoot := render.NewDeclarativeNodeFromFuncWithFiber(app, fwApp)
+	declarativeRoot := render.NewDeclarativeNodeFromFuncWithFiber(app)
+
+	// Set app on the declarative node (this sets the scheduler for frame scheduling)
+	declarativeRoot.SetApp(fwApp)
 
 	// Pass Intent Runtime to declarative node for component context
 	render.SetDeclarativeNodeIntentRuntime(declarativeRoot, intentRuntime)

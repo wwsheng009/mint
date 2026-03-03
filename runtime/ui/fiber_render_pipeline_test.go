@@ -464,7 +464,7 @@ func TestDeclarativeNode_FiberFirstMode(t *testing.T) {
 	t.Log("=== 测试 DeclarativeNode Fiber-first 模式 ===")
 
 	// 创建使用新 Button 的 renderFn
-	node := render.NewDeclarativeNodeFromFunc(func() rtui.VNode {
+	node := render.NewDeclarativeNodeFromFuncWithFiber(func() rtui.VNode {
 		return button.New("Test Button").
 			SetVariant(button.VariantPrimary).
 			SetSize(button.SizeMedium)

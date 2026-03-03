@@ -135,10 +135,8 @@ func main() {
 
 	// 创建 DeclarativeNode 使用 Fiber-first 渲染
 	// 在交互模式下展示不同 Layer 的 Toast
-	declarativeNode := render.NewDeclarativeNodeFromFuncWithFiber(
-		LayerVisualApp,
-		fwApp,
-	)
+	declarativeNode := render.NewDeclarativeNodeFromFuncWithFiber(LayerVisualApp)
+	declarativeNode.SetApp(fwApp)
 
 	// 设置 Root（自动启用 Fiber-first 模式）
 	fwApp.SetRoot(declarativeNode)

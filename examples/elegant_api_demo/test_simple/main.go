@@ -9,8 +9,8 @@ import (
 	"github.com/wwsheng009/mint/framework/component"
 	"github.com/wwsheng009/mint/internal/render"
 	"github.com/wwsheng009/mint/runtime/layout"
-	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/runtime/paint"
+	rtui "github.com/wwsheng009/mint/runtime/ui"
 	ui "github.com/wwsheng009/mint/ui"
 )
 
@@ -58,7 +58,8 @@ func main() {
 	fmt.Println("╚══════════════════════════════════════════════════════════════╝")
 
 	fwApp := framework.NewApp()
-	node := render.NewDeclarativeNodeFromFuncWithFiber(SimpleMarginTest, fwApp)
+	node := render.NewDeclarativeNodeFromFuncWithFiber(SimpleMarginTest)
+    node.SetApp(fwApp)
 	node.SetRenderMode(render.RenderModeFiberFirst)
 
 	buf := paint.NewBuffer(80, 25)

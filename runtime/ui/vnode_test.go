@@ -422,7 +422,6 @@ func TestLayoutBuilderChaining(t *testing.T) {
 		Width(100).
 		Height(50).
 		Flex(2).
-		Key("test-key").
 		Build()
 
 	if node == nil {
@@ -490,32 +489,6 @@ func TestSpacerBuilder(t *testing.T) {
 	}
 }
 
-func TestLayoutBuilderWithStyle(t *testing.T) {
-	vstack := VStack(
-		Element("text").Prop("content", "a").Build(),
-	)
-
-	builder := &LayoutBuilder{
-		node:     vstack.(*LayoutNode),
-		children: []VNode{Element("text").Prop("content", "a").Build()},
-	}
-
-	s := style.Style{}.Foreground("red").Background("blue")
-	styledNode := builder.Style(s).Build()
-
-	if styledNode == nil {
-		t.Fatal("Styled VStack returned nil")
-	}
-
-	st := styledNode.Style()
-	if st.FG != "red" {
-		t.Errorf("Style FG = %v, want red", st.FG)
-	}
-	if st.BG != "blue" {
-		t.Errorf("Style BG = %v, want blue", st.BG)
-	}
-}
-
 func TestLayoutBuilderWithColor(t *testing.T) {
 	hstack := HStack(
 		Element("text").Prop("content", "a").Build(),
@@ -558,7 +531,7 @@ func TestLayoutBuilderWithKey(t *testing.T) {
 		children: []VNode{Element("text").Prop("content", "a").Build()},
 	}
 
-	node := builder.Key("test-key").Build()
+	node := builder.Build()
 
 	if node.Key() != "test-key" {
 		t.Errorf("LayoutNode Key = %v, want 'test-key'", node.Key())

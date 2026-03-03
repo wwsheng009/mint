@@ -48,8 +48,8 @@ func TestIntentToStateSync(t *testing.T) {
 	fwApp.Resize(10, 10)
 
 	// Create the node with Fiber reconciler
-	declarativeRoot := NewDeclarativeNodeFromFuncWithFiber(renderFn, fwApp)
-
+	declarativeRoot := NewDeclarativeNodeFromFuncWithFiber(renderFn)
+	declarativeRoot.SetApp(fwApp)
 	// Initialize Intent Runtime
 	intentRuntime := intent.NewRuntime()
 	rtui.SetGlobalIntentRuntime(intentRuntime)
@@ -89,8 +89,8 @@ func TestMultipleStateUpdates(t *testing.T) {
 	fwApp.SetConfigSize(10, 10)
 	fwApp.Resize(10, 10)
 
-	declarativeRoot := NewDeclarativeNodeFromFuncWithFiber(renderFn, fwApp)
-
+	declarativeRoot := NewDeclarativeNodeFromFuncWithFiber(renderFn)
+	declarativeRoot.SetApp(fwApp)
 	intentRuntime := intent.NewRuntime()
 	rtui.SetGlobalIntentRuntime(intentRuntime)
 	SetDeclarativeNodeIntentRuntime(declarativeRoot, intentRuntime)

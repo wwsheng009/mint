@@ -128,9 +128,7 @@ func main() {
 	fwApp.Resize(80, 40)
 
 	declarativeNode := render.NewDeclarativeNodeFromFuncWithFiber(
-		TooltipDemoApp,
-		fwApp,
-	)
+		TooltipDemoApp)
 
 	fwApp.SetRoot(declarativeNode)
 

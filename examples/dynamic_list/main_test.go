@@ -37,7 +37,6 @@ func TestDynamicListKeyboardInput(t *testing.T) {
 
 	// Check the declarative root state
 	root := testApp.GetDeclarativeRoot()
-	t.Logf("Inputs count: %d", len(root.GetInputs()))
 	t.Logf("Focused index: %d, type: %d", root.GetFocusedIndex(), root.GetFocusedType())
 
 	// Try Tab key to navigate to first button

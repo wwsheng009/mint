@@ -164,7 +164,8 @@ func main() {
 	fwApp := framework.NewApp()
 
 	// Create DeclarativeNode WITH Fiber reconciler
-	node := render.NewDeclarativeNodeFromFuncWithFiber(DemoApp, fwApp)
+	node := render.NewDeclarativeNodeFromFuncWithFiber(DemoApp)
+    node.SetApp(fwApp)
 
 	// Enable Fiber-first mode
 	node.SetRenderMode(render.RenderModeFiberFirst)

@@ -215,7 +215,8 @@ func main() {
 	fwApp := framework.NewApp()
 
 	// 创建带有 Fiber reconciler 的 DeclarativeNode
-	node := render.NewDeclarativeNodeFromFuncWithFiber(DemoApp, fwApp)
+	node := render.NewDeclarativeNodeFromFuncWithFiber(DemoApp)
+    node.SetApp(fwApp)
 	node.SetRenderMode(render.RenderModeFiberFirst)
 
 	fmt.Printf("\n配置:\n  渲染模式: %v\n", node.GetRenderMode())

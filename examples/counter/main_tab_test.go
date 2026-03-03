@@ -23,12 +23,6 @@ func TestTabNavigation(t *testing.T) {
 
 	// Get initial state
 	focusMgr := testApp.GetFocusManager()
-	buttons := testApp.GetButtons()
-
-	t.Logf("Initial: %d buttons", len(buttons))
-	if fm, ok := focusMgr.(interface{ CurrentIndex() int }); ok {
-		t.Logf("Initial focus index: %d", fm.CurrentIndex())
-	}
 
 	// Get initial render
 	initialRender := testApp.GetRenderString()
@@ -58,17 +52,6 @@ func TestTabNavigation(t *testing.T) {
 	// Get render after Tab
 	afterTabRender := testApp.GetRenderString()
 	t.Logf("Render after Tab:\n%s", afterTabRender)
-
-	// Check button focus states
-	newButtons := testApp.GetButtons()
-	t.Logf("After Tab - Button count: %d", len(newButtons))
-
-	// Check focus state of buttons
-	for i := 0; i < len(newButtons) && i < 2; i++ {
-		if fb, ok := newButtons[i].(interface{ IsFocused() bool }); ok {
-			t.Logf("Button %d IsFocused: %v", i, fb.IsFocused())
-		}
-	}
 }
 
 // TestShiftTabNavigation tests Shift+Tab key navigation
