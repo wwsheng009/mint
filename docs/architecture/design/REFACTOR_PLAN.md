@@ -1620,9 +1620,9 @@ func ErrorBoundary(child ui.VNode) ui.VNode {
 - [x] 添加时间旅行调试器
 - [x] 更新文档
   - [x] 创建 `FIBER_ARCHITECTURE.md`
-  - [ ] 创建 `HOOK_USAGE_GUIDE.md`
+  - [x] 创建 `HOOK_USAGE_GUIDE.md`
 - [x] 创建示例
-  - [ ] `examples/fiber_demo/` - Fiber 基础示例
+  - [x] `examples/fiber_demo/` - Fiber 基础示例
   - [x] `examples/timetravel_demo/` - 时间旅行示例
 - [ ] 发布 v2.1.0
 
@@ -1655,7 +1655,7 @@ func ErrorBoundary(child ui.VNode) ui.VNode {
   - [x] 创建 `LANE_SCHEDULING.md`
 - [x] 创建示例
   - [x] `examples/lane_demo/` - Lane 优先级示例
-  - [ ] `examples/interruptible_demo/` - 可中断渲染示例
+  - [x] `examples/interruptible_demo/` - 可中断渲染示例
 - [ ] 发布 v2.3.0
 
 ---
