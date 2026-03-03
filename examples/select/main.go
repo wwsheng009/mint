@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"reflect"
+	"strconv"
 
 	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/ui"
@@ -110,7 +111,10 @@ func main() {
 			ui.RegisterIntent(func(ctx *intent.ActionContext, i intent.FieldChangeIntent) intent.IntentResult {
 				if i.Field == selectedIndexKey.String() {
 					setter, _ := ctx.GetState(selectedIndexSetterKey.String())
-					callSetter(setter, i.Value)
+					// FieldChangeIntent.Value is always string, need to convert to int
+					if intValue, err := strconv.Atoi(i.Value); err == nil {
+						callSetter(setter, intValue)
+					}
 				}
 				return intent.HandledResult()
 			})

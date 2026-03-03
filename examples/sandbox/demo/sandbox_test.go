@@ -24,12 +24,6 @@ func TestCounterWithSandbox(t *testing.T) {
 	// Wait for initial render
 	time.Sleep(50 * time.Millisecond)
 
-	// Verify buttons are collected
-	buttons := testApp.GetButtons()
-	if len(buttons) < 2 {
-		t.Logf("Expected at least 2 buttons, got %d", len(buttons))
-	}
-
 	// Test keyboard navigation
 	testApp.InjectSpecialKey(platform.KeyTab)
 	time.Sleep(20 * time.Millisecond)
@@ -94,11 +88,8 @@ func TestCounterWithSandbox_OLD(t *testing.T) {
 func TestButtonInteraction(t *testing.T) {
 	sb := mock.New(40, 18)
 
-	clicked := false
 	button := ui.NewButtonBuilder("Click Me").
-		OnClick(func() {
-			clicked = true
-		}).
+		Key("test-btn").
 		Build()
 
 	if button == nil {
@@ -115,7 +106,7 @@ func TestButtonInteraction(t *testing.T) {
 		Result()
 
 	if result.OK() {
-		t.Logf("Button interaction test passed, clicked=%v", clicked)
+		t.Logf("Button interaction test passed")
 	}
 }
 
@@ -123,13 +114,10 @@ func TestButtonInteraction(t *testing.T) {
 func TestInputInteraction(t *testing.T) {
 	sb := mock.New(40, 18)
 
-	inputValue := ""
 	input := ui.NewInputBuilder().
 		Value("").
 		Placeholder("Type here").
-		OnChange(func(value string) {
-			inputValue = value
-		}).
+		Key("test-input").
 		Build()
 
 	if input == nil {
@@ -144,7 +132,7 @@ func TestInputInteraction(t *testing.T) {
 		Result()
 
 	if result.OK() {
-		t.Logf("Input value: %s", inputValue)
+		t.Log("Input interaction test passed")
 	}
 }
 
@@ -176,13 +164,11 @@ func TestCounterComponentStructure(t *testing.T) {
 
 	time.Sleep(50 * time.Millisecond)
 
-	// Verify buttons are collected
-	buttons := testApp.GetButtons()
-	t.Logf("Found %d buttons", len(buttons))
-
-	// Verify inputs are collected
-	inputs := testApp.GetInputs()
-	t.Logf("Found %d inputs", len(inputs))
+	// Verify render output
+	rendered := testApp.GetRenderString()
+	if rendered == "" {
+		t.Error("Render output is empty")
+	}
 
 	t.Logf("Counter test structure verified")
 }
@@ -232,8 +218,8 @@ func BenchmarkComponentCreation(b *testing.B) {
 			ui.Text("Line 2"),
 			ui.Text("Line 3"),
 			ui.HStack(
-				ui.NewButtonBuilder("Btn1").OnClick(func() {}).Build(),
-				ui.NewButtonBuilder("Btn2").OnClick(func() {}).Build(),
+				ui.NewButtonBuilder("Btn1").Key("btn1").Build(),
+				ui.NewButtonBuilder("Btn2").Key("btn2").Build(),
 			),
 		)
 	}

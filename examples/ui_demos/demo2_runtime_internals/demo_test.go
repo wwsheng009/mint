@@ -27,21 +27,6 @@ func TestDemo2InitialRender(t *testing.T) {
 	t.Logf("✓ Demo2 initial render works")
 }
 
-// TestDemo2PhaseButtons tests that phase buttons exist
-func TestDemo2PhaseButtons(t *testing.T) {
-	testApp, err := ui.RunTest(RuntimeDemo,
-		ui.WithSize(100, 35),
-	)
-	if err != nil {
-		t.Fatalf("Failed to run test app: %v", err)
-	}
-	defer testApp.Close()
-
-	// Get buttons - may need additional processing to collect
-	buttons := testApp.GetButtons()
-	t.Logf("✓ Demo2 phase buttons test completed (%d buttons found)", len(buttons))
-}
-
 // TestDemo2Statistics tests the statistics panel renders
 func TestDemo2Statistics(t *testing.T) {
 	testApp, err := ui.RunTest(RuntimeDemo,

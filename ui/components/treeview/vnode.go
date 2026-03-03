@@ -191,6 +191,13 @@ func (v *VNode) SetAllowScroll(allow bool) *VNode  { v.allowScroll = allow; retu
 func (v *VNode) SetAllowExpand(allow bool) *VNode  { v.allowExpand = allow; return v }
 
 // =============================================================================
+// Getter Methods
+// =============================================================================
+
+// GetSelectedIndex returns the currently selected node index
+func (v *VNode) GetSelectedIndex() int { return v.selectedIndex }
+
+// =============================================================================
 // Convenience Methods
 // =============================================================================
 

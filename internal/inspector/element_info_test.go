@@ -952,17 +952,16 @@ func TestVNodeBoundsDataFlow(t *testing.T) {
 	})
 
 	t.Run("Bordered Stack node with bounds", func(t *testing.T) {
-		bordered := ui.NewVStack().
-			SingleBorder().
-			SetChildrenList([]ui.VNode{ui.Text("Content")})
+		bordered := rtui.NewElement("vstack")
+		bordered.SetChildren([]ui.VNode{ui.Text("Content")})
 
-		// Stack should support SetBounds (inherited from ElementVNode)
-			bordered.SetBounds(2, 2, 40, 10)
+		// ElementVNode supports SetBounds/GetBounds
+		bordered.SetBounds(2, 2, 40, 10)
 
-			bounds := bordered.GetBounds()
-			if bounds != [4]int{2, 2, 40, 10} {
-				t.Errorf("Bordered Stack bounds should be [2,2,40,10], got %v", bounds)
-			}
+		bounds := bordered.GetBounds()
+		if bounds != [4]int{2, 2, 40, 10} {
+			t.Errorf("Bordered Stack bounds should be [2,2,40,10], got %v", bounds)
+		}
 	})
 
 	t.Run("HitTestEntry creation with bounds", func(t *testing.T) {

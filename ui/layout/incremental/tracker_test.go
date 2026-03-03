@@ -14,8 +14,9 @@ import (
 // =============================================================================
 
 type mockVNode struct {
-	key  string
-	tag  string
+	key   string
+	id    string
+	tag   string
 	props ui.Props
 }
 
@@ -39,6 +40,21 @@ func (m *mockVNode) Tag() string {
 		return m.tag
 	}
 	return ""
+}
+
+func (m *mockVNode) ID() string {
+	if m != nil {
+		return m.id
+	}
+	return ""
+}
+
+func (m *mockVNode) SetID(id string) ui.VNode {
+	if m != nil {
+		m.id = id
+		return m
+	}
+	return nil
 }
 
 func (m *mockVNode) Type() ui.VNodeType {
@@ -81,6 +97,26 @@ func (m *mockVNode) GetLayer() types.Layer {
 }
 
 func (m *mockVNode) SetLayer(l types.Layer) ui.VNode {
+	return m
+}
+
+func (m *mockVNode) SetPortalRoot(portalRootID string) ui.VNode {
+	return m
+}
+
+func (m *mockVNode) SetAnchorTo(anchorID string, anchor types.Anchor) ui.VNode {
+	return m
+}
+
+func (m *mockVNode) SetPortalPosition(position types.PositionType) ui.VNode {
+	return m
+}
+
+func (m *mockVNode) SetPortalPriority(priority int) ui.VNode {
+	return m
+}
+
+func (m *mockVNode) SetPortalRootId(portalRootId string) ui.VNode {
 	return m
 }
 

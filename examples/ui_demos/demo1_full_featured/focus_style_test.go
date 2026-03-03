@@ -4,11 +4,10 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/wwsheng009/mint/app"
-	"github.com/wwsheng009/mint/components/button"
 	"github.com/wwsheng009/mint/framework/theme"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/ui"
+	"github.com/wwsheng009/mint/ui/components/button"
 )
 
 // TestFocusStyleVisibility tests that focus style changes are visible
@@ -17,32 +16,34 @@ func TestFocusStyleVisibility(t *testing.T) {
 
 	// Create test buttons
 	primaryBtn := ui.NewButtonBuilder("[Open Modal]").
-		Variant(app.ButtonVariantPrimary).
-		FocusStyle(app.FocusStyleBracket).
+		Variant(ui.ButtonVariantPrimary).
+		FocusStyle(ui.FocusStyleBracket).
 		Build()
 
 	dangerBtn := ui.NewButtonBuilder("Quit").
-		Variant(app.ButtonVariantDanger).
-		FocusStyle(app.FocusStyleBracket).
+		Variant(ui.ButtonVariantDanger).
+		FocusStyle(ui.FocusStyleBracket).
 		Build()
 
-	// Set up button as focusable component
-	primaryBtnVNode, ok := primaryBtn.(*button.ButtonVNode)
+	// Get VNode and create Instance
+	primaryBtnVNode, ok := primaryBtn.(*button.VNode)
 	if !ok {
 		t.Fatal("Expected ButtonVNode")
 	}
+	primaryInst := primaryBtnVNode.CreateInstance().(*button.Instance)
 
-	dangerBtnVNode, ok := dangerBtn.(*button.ButtonVNode)
+	dangerBtnVNode, ok := dangerBtn.(*button.VNode)
 	if !ok {
 		t.Fatal("Expected ButtonVNode")
 	}
+	dangerInst := dangerBtnVNode.CreateInstance().(*button.Instance)
 
 	fmt.Println("\n=== Testing Focus Style Visibility ===")
 
 	// Test 1: Primary button without focus
 	fmt.Println("Test 1: Primary button WITHOUT focus")
-	primaryBtnVNode.SetFocus(false)
-	commandsNoFocus := primaryBtnVNode.Paint(10, 10)
+	primaryInst.SetFocus(false)
+	commandsNoFocus := primaryInst.Paint(10, 10)
 	if len(commandsNoFocus) > 0 {
 		cmd := commandsNoFocus[0]
 		style := cmd.Style
@@ -52,8 +53,8 @@ func TestFocusStyleVisibility(t *testing.T) {
 
 	// Test 2: Primary button WITH focus
 	fmt.Println("\nTest 2: Primary button WITH focus")
-	primaryBtnVNode.SetFocus(true)
-	commandsWithFocus := primaryBtnVNode.Paint(10, 10)
+	primaryInst.SetFocus(true)
+	commandsWithFocus := primaryInst.Paint(10, 10)
 	if len(commandsWithFocus) > 0 {
 		cmd := commandsWithFocus[0]
 		style := cmd.Style
@@ -76,8 +77,8 @@ func TestFocusStyleVisibility(t *testing.T) {
 
 	// Test 3: Danger button without focus
 	fmt.Println("\nTest 3: Danger button WITHOUT focus")
-	dangerBtnVNode.SetFocus(false)
-	commandsNoFocus = dangerBtnVNode.Paint(10, 20)
+	dangerInst.SetFocus(false)
+	commandsNoFocus = dangerInst.Paint(10, 20)
 	if len(commandsNoFocus) > 0 {
 		cmd := commandsNoFocus[0]
 		style := cmd.Style
@@ -86,8 +87,8 @@ func TestFocusStyleVisibility(t *testing.T) {
 
 	// Test 4: Danger button WITH focus
 	fmt.Println("\nTest 4: Danger button WITH focus")
-	dangerBtnVNode.SetFocus(true)
-	commandsWithFocus = dangerBtnVNode.Paint(10, 20)
+	dangerInst.SetFocus(true)
+	commandsWithFocus = dangerInst.Paint(10, 20)
 	if len(commandsWithFocus) > 0 {
 		cmd := commandsWithFocus[0]
 		style := cmd.Style
@@ -111,12 +112,12 @@ func TestFocusStyleVisibility(t *testing.T) {
 	fmt.Println("\n=== ANSI Output Comparison ===")
 
 	// Generate ANSI for non-focus
-	primaryBtnVNode.SetFocus(false)
-	commandsNoFocus = primaryBtnVNode.Paint(0, 0)
+	primaryInst.SetFocus(false)
+	commandsNoFocus = primaryInst.Paint(0, 0)
 
 	// Generate ANSI for focus
-	primaryBtnVNode.SetFocus(true)
-	commandsWithFocus = primaryBtnVNode.Paint(0, 0)
+	primaryInst.SetFocus(true)
+	commandsWithFocus = primaryInst.Paint(0, 0)
 
 	if len(commandsNoFocus) > 0 && len(commandsWithFocus) > 0 {
 		noFocusCmd := commandsNoFocus[0]
@@ -146,20 +147,21 @@ func TestFocusIndicator(t *testing.T) {
 	// Note: Theme is already initialized by the test framework
 
 	btn := ui.NewButtonBuilder("[Test]").
-		Variant(app.ButtonVariantPrimary).
-		FocusStyle(app.FocusStyleBracket).
+		Variant(ui.ButtonVariantPrimary).
+		FocusStyle(ui.FocusStyleBracket).
 		Build()
 
-	btnVNode, ok := btn.(*button.ButtonVNode)
+	btnVNode, ok := btn.(*button.VNode)
 	if !ok {
 		t.Fatal("Expected ButtonVNode")
 	}
+	btnInst := btnVNode.CreateInstance().(*button.Instance)
 
 	fmt.Println("\n=== Testing Focus Indicator ===")
 
 	// Without focus
-	btnVNode.SetFocus(false)
-	commandsNoFocus := btnVNode.Paint(0, 0)
+	btnInst.SetFocus(false)
+	commandsNoFocus := btnInst.Paint(0, 0)
 	if len(commandsNoFocus) > 0 {
 		cmd := commandsNoFocus[0]
 		fmt.Printf("Without focus: %q\n", cmd.Text)
@@ -171,8 +173,8 @@ func TestFocusIndicator(t *testing.T) {
 	}
 
 	// With focus
-	btnVNode.SetFocus(true)
-	commandsWithFocus := btnVNode.Paint(0, 0)
+	btnInst.SetFocus(true)
+	commandsWithFocus := btnInst.Paint(0, 0)
 	if len(commandsWithFocus) > 0 {
 		cmd := commandsWithFocus[0]
 		fmt.Printf("With focus:    %q\n", cmd.Text)

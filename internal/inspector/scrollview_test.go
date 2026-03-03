@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/wwsheng009/mint/app"
 	"github.com/wwsheng009/mint/ui"
 	"github.com/wwsheng009/mint/ui/components/scrollview"
 )
@@ -22,7 +21,7 @@ func TestScrollViewWrapper(t *testing.T) {
 
 	// Wrap in ScrollView with fixed height
 	viewportHeight := 10
-	scrollContainer := app.ScrollView().
+	scrollContainer := ui.NewScrollViewBuilder().
 		Child(vstackContent).
 		Height(viewportHeight).
 		Width(80).

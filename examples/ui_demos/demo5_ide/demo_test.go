@@ -28,23 +28,6 @@ func TestDemo5InitialRender(t *testing.T) {
 	t.Logf("✓ Demo5 initial render works")
 }
 
-// TestDemo5MenuBar tests the menu bar
-func TestDemo5MenuBar(t *testing.T) {
-	testApp, err := ui.RunTest(IDEDemo,
-		ui.WithSize(100, 40),
-	)
-	if err != nil {
-		t.Fatalf("Failed to run test app: %v", err)
-	}
-	defer testApp.Close()
-
-	// Get menu buttons
-	buttons := testApp.GetButtons()
-	menuButtonCount := len(buttons)
-
-	t.Logf("✓ Demo5 menu bar works (%d buttons found)", menuButtonCount)
-}
-
 // TestDemo5FileExplorer tests the file explorer sidebar
 func TestDemo5FileExplorer(t *testing.T) {
 	testApp, err := ui.RunTest(IDEDemo,

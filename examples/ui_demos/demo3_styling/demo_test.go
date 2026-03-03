@@ -38,9 +38,6 @@ func TestDemo3TabNavigation(t *testing.T) {
 	}
 	defer testApp.Close()
 
-	// Get initial buttons
-	buttons := testApp.GetButtons()
-	initialCount := len(buttons)
 
 	// Try clicking on different tabs
 	for i := 0; i < 3; i++ {
@@ -48,7 +45,6 @@ func TestDemo3TabNavigation(t *testing.T) {
 		testApp.InjectSpecialKey(platform.KeyEnter)
 	}
 
-	t.Logf("✓ Demo3 tab navigation works (%d buttons found)", initialCount)
 }
 
 // TestDemo3ColorTab tests the colors tab

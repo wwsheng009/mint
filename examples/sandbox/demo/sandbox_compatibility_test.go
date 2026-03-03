@@ -21,7 +21,7 @@ func TestSandboxWithUIComponents(t *testing.T) {
 	t.Run("BasicUIComponents", func(t *testing.T) {
 		// Create a simple app using ui components
 		counterApp := func() ui.VNode {
-			count, setCount, _ := ui.UseStateInt(0)
+			count, _, _ := ui.UseStateInt(0)
 
 			return ui.VStack(
 				ui.NewTextBuilder("Counter:").Build(),
@@ -30,15 +30,11 @@ func TestSandboxWithUIComponents(t *testing.T) {
 					Build(),
 				ui.HStack(
 					ui.NewButtonBuilder("-").
-						OnClick(func() {
-							setCount(func(c int) int { return c - 1 })
-						}).
+						Key("decrement").
 						Build(),
 					ui.Text("  "),
 					ui.NewButtonBuilder("+").
-						OnClick(func() {
-							setCount(func(c int) int { return c + 1 })
-						}).
+						Key("increment").
 						Build(),
 				),
 			)
@@ -58,13 +54,7 @@ func TestSandboxWithUIComponents(t *testing.T) {
 			t.Error("Initial render should not be empty")
 		}
 
-		// Verify buttons are collected
-		buttons := testApp.GetButtons()
-		if len(buttons) < 2 {
-			t.Logf("Expected at least 2 buttons, got %d", len(buttons))
-		}
-
-		// Test increment
+		// Test increment via keyboard
 		testApp.InjectSpecialKey(platform.KeyTab) // Focus + button
 		testApp.InjectSpecialKey(platform.KeyEnter) // Click
 
@@ -77,9 +67,7 @@ func TestSandboxWithUIComponents(t *testing.T) {
 
 		// Create components using app builders
 		button := ui.NewButtonBuilder("Click Me").
-			OnClick(func() {
-				// Handle click
-			}).
+			Key("test-btn").
 			Build()
 
 		if button == nil {

@@ -188,22 +188,8 @@ func TestCounterGetDeclarativeRoot(t *testing.T) {
 	root := testApp.GetDeclarativeRoot()
 	t.Logf("Root node: %v", root)
 
-	// 使用 TestableApp 的方法获取组件信息
-	t.Logf("Buttons count: %d", len(testApp.GetButtons()))
-	t.Logf("Inputs count: %d", len(testApp.GetInputs()))
+	// 使用 TestableApp 的方法获取焦点信息
 	t.Logf("Focused index: %d, type: %d", testApp.GetFocusedIndex(), testApp.GetFocusedType())
-
-	// 检查按钮存在
-	buttons := testApp.GetButtons()
-	if len(buttons) != 2 {
-		t.Logf("Expected 2 buttons, got %d (focus tracking not yet implemented)", len(buttons))
-	}
-
-	// 检查输入框存在
-	inputs := testApp.GetInputs()
-	if len(inputs) != 1 {
-		t.Logf("Expected 1 input, got %d (focus tracking not yet implemented)", len(inputs))
-	}
 }
 
 // TestCounterMouseClick 测试鼠标点击
@@ -220,45 +206,24 @@ func TestCounterMouseClick(t *testing.T) {
 	// 等待初始渲染
 	time.Sleep(100 * time.Millisecond)
 
-	buttons := testApp.GetButtons()
-
-	if len(buttons) == 0 {
-		t.Log("No buttons found (focus tracking not yet implemented)")
-		// For now, skip this test since button collection is not implemented
-		t.Skip("Button collection not yet implemented")
-		return
+	// 使用键盘导航进行测试 (鼠标点击测试需要 Bounds 支持)
+	// 导航到 [+] 按钮并点击
+	if err := testApp.InjectSpecialKey(platform.KeyTab); err != nil {
+		t.Errorf("Failed to inject Tab: %v", err)
 	}
+	time.Sleep(50 * time.Millisecond)
 
-	t.Logf("Found %d buttons", len(buttons))
+	if err := testApp.InjectSpecialKey(platform.KeyEnter); err != nil {
+		t.Errorf("Failed to inject Enter: %v", err)
+	}
+	time.Sleep(150 * time.Millisecond)
 
-	// 获取第二个按钮（"+" 按钮）的边界
-	if len(buttons) > 1 {
-		// Type assert to get Bounds method
-		if boundsAware, ok := buttons[1].(interface{ Bounds() [4]int }); ok {
-			bounds := boundsAware.Bounds()
-			t.Logf("Button [+] bounds: x=%d, y=%d, w=%d, h=%d",
-				bounds[0], bounds[1], bounds[2], bounds[3])
+	// 检查渲染
+	rendered := testApp.GetRenderString()
+	t.Logf("After click:\n%s", rendered)
 
-			// 点击按钮中心
-			clickX := bounds[0] + bounds[2]/2
-			clickY := bounds[1] + bounds[3]/2
-			t.Logf("Clicking at x=%d, y=%d", clickX, clickY)
-
-			if err := testApp.InjectMouse(clickX, clickY, platform.MouseLeft, platform.MousePress); err != nil {
-				t.Errorf("Failed to inject mouse click: %v", err)
-			}
-			time.Sleep(150 * time.Millisecond)
-
-			// 检查渲染
-			rendered := testApp.GetRenderString()
-			t.Logf("After mouse click:\n%s", rendered)
-
-			if err := testApp.AssertRender("Count: 1"); err != nil {
-				t.Errorf("Counter not incremented after mouse click: %v", err)
-			}
-		} else {
-			t.Skip("Button does not support Bounds() method")
-		}
+	if err := testApp.AssertRender("Count: 1"); err != nil {
+		t.Errorf("Counter not incremented: %v", err)
 	}
 }
 

@@ -14,9 +14,9 @@ import (
 func TestButtonInstanceCreation(t *testing.T) {
 	demoFunc := func() ui.VNode {
 		return ui.VStack(
-			ui.NewButtonBuilder("Button 1").Key("btn-1").OnClick(func() {}).Build(),
-			ui.NewButtonBuilder("Button 2").Key("btn-2").OnClick(func() {}).Build(),
-			ui.NewButtonBuilder("Button 3").Key("btn-3").OnClick(func() {}).Build(),
+			ui.NewButtonBuilder("Button 1").Key("btn-1").Build(),
+			ui.NewButtonBuilder("Button 2").Key("btn-2").Build(),
+			ui.NewButtonBuilder("Button 3").Key("btn-3").Build(),
 		)
 	}
 
@@ -70,9 +70,9 @@ func TestButtonInstanceCreation(t *testing.T) {
 func TestButtonHitMapEnrichment(t *testing.T) {
 	demoFunc := func() ui.VNode {
 		return ui.VStack(
-			ui.NewButtonBuilder("Event Button").Key("btn-event").OnClick(func() {}).Build(),
-			ui.NewButtonBuilder("Render Button").Key("btn-render").OnClick(func() {}).Build(),
-			ui.NewButtonBuilder("Idle Button").Key("btn-idle").OnClick(func() {}).Build(),
+			ui.NewButtonBuilder("Event Button").Key("btn-event").Build(),
+			ui.NewButtonBuilder("Render Button").Key("btn-render").Build(),
+			ui.NewButtonBuilder("Idle Button").Key("btn-idle").Build(),
 		)
 	}
 

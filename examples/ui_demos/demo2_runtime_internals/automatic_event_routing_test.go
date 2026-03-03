@@ -76,7 +76,7 @@ func TestAutomaticEventRouting(t *testing.T) {
 		t.Fatal("TreeView component is nil")
 	}
 
-	initialFocus := treeView.GetFocusIndex()
+	initialFocus := treeView.GetSelectedIndex()
 	t.Logf("Initial focus index: %d", initialFocus)
 
 	// Test automatic event routing with Down Arrow
@@ -92,7 +92,7 @@ func TestAutomaticEventRouting(t *testing.T) {
 		time.Sleep(150 * time.Millisecond)
 	}
 
-	afterDown := treeView.GetFocusIndex()
+	afterDown := treeView.GetSelectedIndex()
 	t.Logf("After 3 Down arrows, focus index: %d", afterDown)
 
 	if afterDown <= initialFocus {
@@ -109,7 +109,7 @@ func TestAutomaticEventRouting(t *testing.T) {
 		time.Sleep(150 * time.Millisecond)
 	}
 
-	afterUp := treeView.GetFocusIndex()
+	afterUp := treeView.GetSelectedIndex()
 	t.Logf("After 2 Up arrows, focus index: %d", afterUp)
 
 	if afterUp >= afterDown {
@@ -124,7 +124,7 @@ func TestAutomaticEventRouting(t *testing.T) {
 	}
 	time.Sleep(200 * time.Millisecond)
 
-	afterPageDown := treeView.GetFocusIndex()
+	afterPageDown := treeView.GetSelectedIndex()
 	t.Logf("After PageDown, focus index: %d", afterPageDown)
 
 	if afterPageDown <= afterUp {
@@ -139,7 +139,7 @@ func TestAutomaticEventRouting(t *testing.T) {
 	}
 	time.Sleep(200 * time.Millisecond)
 
-	afterHome := treeView.GetFocusIndex()
+	afterHome := treeView.GetSelectedIndex()
 	t.Logf("After Home, focus index: %d", afterHome)
 
 	if afterHome != 0 {
@@ -154,7 +154,7 @@ func TestAutomaticEventRouting(t *testing.T) {
 	}
 	time.Sleep(200 * time.Millisecond)
 
-	afterEnd := treeView.GetFocusIndex()
+	afterEnd := treeView.GetSelectedIndex()
 	t.Logf("After End, focus index: %d", afterEnd)
 
 	if afterEnd < afterHome {
