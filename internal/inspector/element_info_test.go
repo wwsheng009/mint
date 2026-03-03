@@ -6,7 +6,6 @@ import (
 
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/ui"
-	"github.com/wwsheng009/mint/ui/components/stack"
 )
 
 // TestCollectHitTestEntryInfo tests extracting tag/key/label from VNodes
@@ -335,7 +334,7 @@ func TestFormatNodeInfo_RealWorld(t *testing.T) {
 		// Real demo2 components
 		{
 			name:  "Bordered node (migrated to Stack)",
-			vnode: stack.NewVStack().SingleBorder().SetChildrenList([]ui.VNode{ui.Text("Content")}),
+			vnode: ui.NewVStack().SingleBorder().SetChildrenList([]ui.VNode{ui.Text("Content")}),
 			contains: []string{
 				"Element",
 				"vstack", // Stack uses vstack tag
@@ -387,7 +386,7 @@ func TestFormatNodeInfo_RealWorld(t *testing.T) {
 		},
 		{
 			name: "Nested structure - Bordered Stack with VStack and Buttons",
-			vnode: stack.NewVStack().
+			vnode: ui.NewVStack().
 				SingleBorder().
 				SetChildrenList([]ui.VNode{
 					ui.VStack(
@@ -740,7 +739,7 @@ func TestDemo2RealWorldStructure(t *testing.T) {
 
 	// Test Bordered Stack node with nested content (like HeaderPanel)
 	t.Run("Bordered Stack container", func(t *testing.T) {
-		bordered := stack.NewVStack().
+		bordered := ui.NewVStack().
 			SingleBorder().
 			SetChildrenList([]ui.VNode{
 				ui.Text("Content inside border"),
@@ -837,7 +836,7 @@ func TestDemo2RealWorldStructure(t *testing.T) {
 
 	// Test nested structure (Bordered Stack > VStack > Buttons)
 	t.Run("Nested demo2 structure", func(t *testing.T) {
-		nested := stack.NewVStack().
+		nested := ui.NewVStack().
 			SingleBorder().
 			SetChildrenList([]ui.VNode{
 				ui.VStack(
@@ -953,7 +952,7 @@ func TestVNodeBoundsDataFlow(t *testing.T) {
 	})
 
 	t.Run("Bordered Stack node with bounds", func(t *testing.T) {
-		bordered := stack.NewVStack().
+		bordered := ui.NewVStack().
 			SingleBorder().
 			SetChildrenList([]ui.VNode{ui.Text("Content")})
 

@@ -12,6 +12,7 @@ import (
 	"github.com/wwsheng009/mint/framework/component"
 	"github.com/wwsheng009/mint/framework/theme"
 	"github.com/wwsheng009/mint/internal/render"
+	"github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/paint"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/ui"
@@ -184,6 +185,71 @@ func highlight(text string) rtui.VNode {
 	return newtext.New("  >>> " + text).Foreground("yellow")
 }
 
+// printLayoutBoxes prints detailed layout box information for debugging
+// Uses flattened view for backward compatibility
+func printLayoutBoxes(boxes []*layout.LayoutBox) {
+	if boxes == nil {
+		fmt.Println("  No layout boxes found!")
+		return
+	}
+
+	// Count boxes by type
+	typeCount := make(map[string]int)
+	hstackCount := 0
+	vstackCount := 0
+	panelCount := 0
+
+	// Print ALL boxes with detail (flattened view for backward compatibility)
+	fmt.Printf("Total boxes: %d\n\n", len(boxes))
+	fmt.Printf("%-10s | %-8s | PropsID      | %-8s | %-10s | %-7s\n", "Node ID", "Tag", "Pos", "Size", "Children")
+	fmt.Println(strings.Repeat("-", 90))
+
+	for _, box := range boxes {
+		propsID := box.PropsID
+		if len(propsID) > 12 {
+			propsID = propsID[:9] + "..."
+		}
+		if propsID == "" {
+			propsID = "-"
+		}
+
+		fmt.Printf("%-10s | %-8s | %-12s | (%3d,%3d) | %-10s | %d\n",
+			box.ID, box.Tag, propsID,
+			box.X, box.Y,
+			fmt.Sprintf("%dx%d", box.Width, box.Height),
+			len(box.Children))
+
+		// Count by type using Tag (new way - more accurate)
+		switch box.Tag {
+		case "hstack":
+			hstackCount++
+			typeCount["HStack"]++
+		case "vstack":
+			vstackCount++
+			typeCount["VStack"]++
+		case "panel":
+			panelCount++
+			typeCount["Panel"]++
+		case "text":
+			typeCount["Text"]++
+		default:
+			if box.Tag != "" {
+				typeCount[box.Tag]++
+			} else {
+				typeCount["Other"]++
+			}
+		}
+	}
+
+	// Print summary
+	fmt.Println("\nType Summary:")
+	fmt.Printf("  Panel:   %d\n", panelCount)
+	fmt.Printf("  VStack:  %d\n", vstackCount)
+	fmt.Printf("  HStack:  %d\n", hstackCount)
+	fmt.Printf("  Text:    %d\n", typeCount["Text"])
+	fmt.Printf("  Other:   %d\n", typeCount["Other"])
+}
+
 func main() {
 	os.Setenv("MINT_USE_FIBER", "true")
 	os.Setenv("MINT_FIBER_FIRST", "true")
@@ -223,6 +289,27 @@ func main() {
 
 	// Output result
 	utils.PrintBuffer(buf, 70, 90)
+
+	// Get layout boxes for debugging
+	var boxes []*layout.LayoutBox
+	nodeBoxes := node.GetLayoutBoxes()
+	if nodeBoxes != nil {
+		boxes = nodeBoxes
+	}
+
+	// Print layout box debug info
+	fmt.Println("\n" + strings.Repeat("=", 70))
+	fmt.Println("Layout Box Debug Info (Flattened)")
+	fmt.Println(strings.Repeat("=", 70))
+	printLayoutBoxes(boxes)
+
+	// Print layout tree with hierarchical structure
+	fmt.Println("\n" + strings.Repeat("=", 70))
+	fmt.Print(node.GetLayoutTreeString())
+
+	// Print paintable tree with hierarchical structure
+	fmt.Println("\n" + strings.Repeat("=", 70))
+	fmt.Print(node.GetPaintableTreeString())
 
 	fmt.Println("\n" + strings.Repeat("=", 70))
 	fmt.Println("Panel Component Features:")
