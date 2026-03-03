@@ -5,27 +5,44 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/ui"
 )
 
 // Intent Types
 type DecrementIntent struct{}
+
 func (DecrementIntent) IntentType() string { return "Decrement" }
 func (DecrementIntent) StayPressed() bool  { return true }
 
 type IncrementIntent struct{}
+
 func (IncrementIntent) IntentType() string { return "Increment" }
 func (IncrementIntent) StayPressed() bool  { return true }
 
 func SimpleApp() ui.VNode {
 	count, setCount, _ := ui.UseStateInt(0)
 
+	// Save setter to context for handler access
+	ctx := ui.GetCurrentContext()
+	if ctx != nil {
+		ctx.SetState("setCount", setCount)
+	}
+
 	// Register intent handlers
-	ui.On(DecrementIntent{}, func() {
-		setCount(func(c int) int { return c - 1 })
+	ui.On(DecrementIntent{}, func(ctx *intent.ActionContext) {
+		if fn, ok := ctx.GetState("setCount"); ok {
+			if setter, ok := fn.(func(func(int) int)); ok {
+				setter(func(c int) int { return c - 1 })
+			}
+		}
 	})
-	ui.On(IncrementIntent{}, func() {
-		setCount(func(c int) int { return c + 1 })
+	ui.On(IncrementIntent{}, func(ctx *intent.ActionContext) {
+		if fn, ok := ctx.GetState("setCount"); ok {
+			if setter, ok := fn.(func(func(int) int)); ok {
+				setter(func(c int) int { return c + 1 })
+			}
+		}
 	})
 
 	return ui.VStack(

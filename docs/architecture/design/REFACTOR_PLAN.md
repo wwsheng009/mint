@@ -1583,12 +1583,12 @@ func ErrorBoundary(child ui.VNode) ui.VNode {
 
 - [x] 扩展 `ui.On` 支持 `*ActionContext` 参数
 - [x] 扩展 `ActionContext` 增加 `GlobalStore` 访问方法
-- [ ] 更新 `INTENT_MANAGEMENT_PATTERNS.md` 文档
+- [x] 创建迁移文档 `INTENT_HANDLER_MIGRATION.md`
+- [x] 移除 `On` 函数的 `StayPressed()` 强制约束（改为可选）
 - [x] 迁移示例代码
-  - [x] `examples/validation_demo/` - 已迁移使用 OnWithContext
-  - [ ] `examples/fiber_counter_test/`
-  - [ ] `examples/ant_design_demo/`
-  - [ ] 所有使用 `ui.On` 的组件
+  - [x] `examples/validation_demo/` - 已迁移使用新 API
+  - [x] `examples/test_fiber/` - 已迁移
+  - [ ] 其他示例待迁移（参考迁移文档）
 - [ ] 添加 E2E 测试，验证闭包问题修复
 - [ ] 发布 v1.1.0
 
@@ -1631,7 +1631,7 @@ func ErrorBoundary(child ui.VNode) ui.VNode {
 
 #### Phase 4: 类型安全 DSL
 
-- [ ] 实现 `StateKey[T]` 类型
+- [x] 实现 `StateKey[T]` 类型
 - [ ] 实现 `TypedFieldChange[T]` Intent
 - [ ] 更新 Reducer 支持类型安全
 - [ ] 更新文档
