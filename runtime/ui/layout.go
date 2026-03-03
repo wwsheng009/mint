@@ -249,6 +249,12 @@ func (b *LayoutBuilder) SetPortalRootId(portalRootId string) VNode {
 	return b
 }
 
+// GetBoxModel returns the box model for the LayoutBuilder.
+// This delegates to the underlying LayoutNode for unified padding/border handling.
+func (b *LayoutBuilder) GetBoxModel() layout.BoxModel {
+	return b.node.GetBoxModel()
+}
+
 // Align sets the main axis alignment
 func (b *LayoutBuilder) Align(a Align) *LayoutBuilder {
 	b.node.align = a
@@ -671,25 +677,27 @@ func (l *LayoutNode) GetBoxModel() layout.BoxModel {
 	// Read border from props (if set)
 	props := l.Props()
 	if props != nil {
-		// Read "border" prop (boolean)
-		if hasBorder, ok := props["border"].(bool); ok && hasBorder {
-			// Read border style
-			borderStyle := layout.BorderSingle // default
-			if style, ok := props["borderStyle"].(string); ok {
-				switch style {
-				case "double":
-					borderStyle = layout.BorderDouble
-				case "rounded":
-					borderStyle = layout.BorderRounded
-				case "dashed":
-					borderStyle = layout.BorderDashed
-				case "none":
-					borderStyle = layout.BorderNone
-				default:
-					borderStyle = layout.BorderSingle
-				}
+		// Read border style directly from props
+		borderStyle := layout.BorderNone // default
+		if style, ok := props["borderStyle"].(string); ok {
+			switch style {
+			case "double":
+				borderStyle = layout.BorderDouble
+			case "rounded":
+				borderStyle = layout.BorderRounded
+			case "dashed":
+				borderStyle = layout.BorderDashed
+			case "none":
+				borderStyle = layout.BorderNone
+			default:
+				borderStyle = layout.BorderSingle
 			}
-			boxModel.Border = layout.NewBorder(borderStyle)
+			// Use borderLabel if present
+			if label, ok := props["borderLabel"].(string); ok && label != "" {
+				boxModel.Border = layout.NewBorderWithLabel(borderStyle, label)
+			} else {
+				boxModel.Border = layout.NewBorder(borderStyle)
+			}
 		}
 	}
 

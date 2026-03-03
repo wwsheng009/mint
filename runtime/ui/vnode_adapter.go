@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/layout"
 )
 
@@ -78,6 +79,34 @@ func (a *VNodeAdapter) GetHeight() int {
 		return h
 	}
 	return 0
+}
+
+// Measure 实现 layout.Measurable 接口
+// 这使得布局引擎能够调用VNode的Measure方法来计算正确的尺寸
+func (a *VNodeAdapter) Measure(constraints layout.Constraints) layout.Size {
+	// 获取runtime风格的约束
+	runtimeConstraints := runtime.BoxConstraints{
+		MinWidth:  constraints.MinWidth,
+		MaxWidth:  constraints.MaxWidth,
+		MinHeight: constraints.MinHeight,
+		MaxHeight: constraints.MaxHeight,
+	}
+
+	// 尝试调用VNode的Measure方法（如果实现了）
+	if measurable, ok := a.VNode.(interface {
+		Measure(runtime.BoxConstraints) runtime.Size
+	}); ok {
+		size := measurable.Measure(runtimeConstraints)
+		return layout.Size{Width: size.Width, Height: size.Height}
+	}
+
+	// 回退到使用GetSize
+	if w, h := a.GetSize(); w > 0 || h > 0 {
+		return layout.Size{Width: w, Height: h}
+	}
+
+	// 最后回退到约束的最小值
+	return layout.Size{Width: runtimeConstraints.MinWidth, Height: runtimeConstraints.MinHeight}
 }
 
 // AsLayoutNode 将 VNode 转换为 layout.Node

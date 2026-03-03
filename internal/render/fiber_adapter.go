@@ -320,9 +320,14 @@ func (a *FiberToNodeAdapter) Measure(constraints layout.Constraints) layout.Size
 					Height: constraints.ConstrainHeight(h),
 				}
 			}
+			// ✨FIX: width 被设置但 height=0 (表示 auto)
+			// 不要提前返回，继续到第4步测量子节点来确定高度
+			// 将 width 存储到约束中，用于子节点布局
+		} else if h, ok := a.fiber.Props["height"].(int); ok && h > 0 {
+			// 只有 height，没有 width
 			return layout.Size{
-				Width:  constraints.ConstrainWidth(w),
-				Height: constraints.ConstrainHeight(0),
+				Width:  constraints.ConstrainWidth(0),
+				Height: constraints.ConstrainHeight(h),
 			}
 		}
 	}
@@ -532,6 +537,25 @@ func (a *FiberToNodeAdapter) GetMargin() layout.Margin {
 	}
 
 	return layout.Margin{}
+}
+
+// GetBoxModel returns the box model (margin, padding, border) from Fiber
+// Implements layout.BoxModelProvider interface
+func (a *FiberToNodeAdapter) GetBoxModel() layout.BoxModel {
+	if a.fiber == nil {
+		return layout.BoxModel{}
+	}
+	boxModel := layout.BoxModel{
+		Margin: a.GetMargin(),
+		Padding: layout.Padding{
+			Top:    a.fiber.LayoutPadding[0],
+			Right:  a.fiber.LayoutPadding[1],
+			Bottom: a.fiber.LayoutPadding[2],
+			Left:   a.fiber.LayoutPadding[3],
+		},
+		Border: a.GetBorder(),
+	}
+	return boxModel
 }
 
 // GetAbsolutePosition returns the absolute position from Fiber fields
