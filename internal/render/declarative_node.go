@@ -35,9 +35,8 @@ const (
 	// Use RenderModeFiberFirst instead, which is now the default.
 	RenderModeLegacy RenderMode = iota
 	// RenderModeFiberFirst uses the new Fiber-first rendering pipeline
+	// This is the default and recommended rendering mode.
 	RenderModeFiberFirst
-	// RenderModeBoth runs both paths and compares results (for testing)
-	RenderModeBoth
 )
 
 // DeclarativeNode wraps a VNode function for use as a framework Component
@@ -169,12 +168,14 @@ func NewDeclarativeNodeFromFuncWithFiber(fn rtui.ComponentFunc) *DeclarativeNode
 	}
 
 	node := &DeclarativeNode{
-		renderFn:   fn,
-		instance:   rootCtx, // Use the same context for global state
-		focusMgr:   focusMgr,
-		reconciler: r,
-		renderer:   renderer,
-		useFiber:   true,
+		renderFn:          fn,
+		instance:          rootCtx, // Use the same context for global state
+		focusMgr:          focusMgr,
+		reconciler:        r,
+		renderer:          renderer,
+		useFiber:          true,
+		renderMode:        RenderModeFiberFirst, // Initialize with Fiber-first mode
+		fiberFirstEnabled: true,                // Fiber-first always enabled
 	}
 
 	// Initialize Fiber-first pipeline components
@@ -185,24 +186,15 @@ func NewDeclarativeNodeFromFuncWithFiber(fn rtui.ComponentFunc) *DeclarativeNode
 }
 
 // initFiberFirstPipeline initializes the Fiber-first rendering pipeline components
+// Fiber-first mode is always enabled; no environment variable check needed.
 func (n *DeclarativeNode) initFiberFirstPipeline() {
-	// Fiber-first mode is now enabled by default
-	// Can be disabled via MINT_FIBER_FIRST=false or MINT_FIBER_FIRST=0 for backward compatibility
-	fiberFirstEnv := os.Getenv("MINT_FIBER_FIRST")
-	if fiberFirstEnv == "false" || fiberFirstEnv == "0" {
-		n.fiberFirstEnabled = false
-		n.renderMode = RenderModeLegacy
-		log.RenderLogger.Debug("[DeclarativeNode] Fiber-first mode DISABLED (MINT_FIBER_FIRST=%s)", fiberFirstEnv)
-	} else {
-		n.fiberFirstEnabled = true
-		log.RenderLogger.Debug("[DeclarativeNode] Fiber-first mode ENABLED (default or MINT_FIBER_FIRST=%s)", fiberFirstEnv)
-		n.renderMode = RenderModeFiberFirst
-		// Use the new layout engine directly (runtime/layout), bypassing LayoutSwitcher
-		// This ensures we never go through the compute path
-		n.newLayoutEngine = NewNewLayoutEngineAdapter()
-		n.paintEngine = NewPaintEngine()
-		// converter will be created with Fiber root during render
-	}
+	log.RenderLogger.Debug("[DeclarativeNode] Fiber-first mode ENABLED (default)")
+
+	// Use the new layout engine directly (runtime/layout), bypassing LayoutSwitcher
+	// This ensures we never go through the compute path
+	n.newLayoutEngine = NewNewLayoutEngineAdapter()
+	n.paintEngine = NewPaintEngine()
+	// converter will be created with Fiber root during render
 }
 
 // initPortalLayoutSupport initializes Portal-aware layout configuration
@@ -422,12 +414,6 @@ func (n *DeclarativeNode) Paint(ctx paint.PaintContext, buf *paint.Buffer) {
 			// Release locks before calling fiberFirstPaint (it will acquire its own locks)
 			n.fiberFirstPaint(ctx, buf)
 			return
-		case RenderModeBoth:
-			// Release locks before calling comparePaint (it will acquire its own locks)
-			n.comparePaint(ctx, buf)
-			return
-		default:
-			// Fall through to legacy path
 		}
 	}
 
@@ -611,37 +597,13 @@ func countFiberChildren(fiber *rtui.Fiber) int {
 	return count
 }
 
-// comparePaint runs both legacy and Fiber-first paths and compares results
-// Used for testing and validation during migration
-//
-// Deprecated: This method is only for testing purposes during migration to Fiber-first.
-// It will be removed once migration is complete. Use fiberFirstPaint instead.
-func (n *DeclarativeNode) comparePaint(ctx paint.PaintContext, buf *paint.Buffer) {
-	log.RenderLogger.Debug("[DeclarativeNode.comparePaint] Running both paths for comparison")
-
-	// Create separate buffers for each path
-	legacyBuf := paint.NewBuffer(buf.Width, buf.Height)
-	fiberFirstBuf := paint.NewBuffer(buf.Width, buf.Height)
-
-	// Run legacy path
-	n.legacyPaint(ctx, legacyBuf)
-
-	// Run Fiber-first path
-	n.fiberFirstPaint(ctx, fiberFirstBuf)
-
-	// TODO: Compare buffers and log differences
-	// For now, use the Fiber-first result
-	copyBuffer(buf, fiberFirstBuf)
-
-	log.RenderLogger.Debug("[DeclarativeNode.comparePaint] Comparison complete, using Fiber-first result")
-}
-
 // legacyPaint is the original VNode-based rendering path (DEPRECATED)
 //
 // Deprecated: Use fiberFirstPaint with Fiber-first architecture instead.
 //
-// This method is only kept for testing purposes (called from comparePaint).
-// It is no longer called from Paint() or fiberFirstPaint() fallback paths.
+// This method is no longer used in normal rendering operations:
+//   - Not called from Paint() (fiberFirstPaint is the default)
+//   - Not used as fallback in fiberFirstPaint() (errors abort render)
 //
 // The legacy path has the following issues:
 //   - VNode is kept in memory during rendering (not discarded after Fiber reconciliation)
@@ -649,7 +611,7 @@ func (n *DeclarativeNode) comparePaint(ctx paint.PaintContext, buf *paint.Buffer
 //   - Does not follow Fiber-first architecture where VNode is discarded after Fiber creation
 //
 // Note: Fiber-first mode is now enabled by default when using NewDeclarativeNodeFromFuncWithFiber.
-// This function will be removed once comparePaint is replaced with proper diff testing.
+// This function will be removed in a future version once RenderModeLegacy is removed.
 func (n *DeclarativeNode) legacyPaint(ctx paint.PaintContext, buf *paint.Buffer) {
 	// Debug logging
 	log.PaintLogger.Debug("[DeclarativeNode.legacyPaint] START: hasReconciler=%v",
