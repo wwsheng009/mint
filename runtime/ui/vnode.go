@@ -212,6 +212,15 @@ type ComponentFunc func() VNode
 // ComponentFuncWithProps represents a component that accepts props
 type ComponentFuncWithProps func(Props) VNode
 
+// Buildable is an interface for VNode builders that need to be finalized
+// before being used by the reconciler. Build() is called automatically
+// by CreateFiber() to ensure the VNode is in its final form.
+type Buildable interface {
+	VNode
+	// Build finalizes the builder and returns the constructed VNode
+	Build() VNode
+}
+
 // =============================================================================
 // Layer Methods (default implementations)
 // =============================================================================

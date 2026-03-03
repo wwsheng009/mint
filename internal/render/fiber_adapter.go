@@ -827,7 +827,18 @@ func (a *FiberToNodeAdapter) GetBorder() layout.Border {
 		return layout.Border{Style: layout.BorderNone}
 	}
 
-	// ✨ 方案 A: 优先使用 Fiber.BorderStyle 字段（对所有容器有效）
+	// 优先检查 Instance 是否实现 BoxModelProvider 接口
+	// 对于已迁移的组件（如 Stack, Panel），它们自己管理 BoxModel 数据
+	if a.fiber.Instance != nil {
+		if boxModelProvider, ok := a.fiber.Instance.(interface {
+			GetBoxModel() layout.BoxModel
+		}); ok {
+			boxModel := boxModelProvider.GetBoxModel()
+			return boxModel.Border
+		}
+	}
+
+	// 方案 A: 使用 Fiber.BorderStyle 字段（对所有容器有效）
 	if a.fiber.BorderStyle != "" && a.fiber.BorderStyle != "none" {
 		borderStyle := parseBorderStyleString(a.fiber.BorderStyle)
 		return layout.Border{

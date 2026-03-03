@@ -1,8 +1,8 @@
-┌ Multiple Lines ┐                                                              
-│Line 1: First cont                                                             
-└Line 2: Second con                                                             
- Line 3: Third cont                                                             
-                                                                                
+┌─── Multiple Lines ───┐                                                        
+│Line 1: First content │                                                        
+│Line 2: Second content│                                                        
+│Line 3: Third content │                                                        
+└──────────────────────┘                                                        
                                                                                 
                                                                                 
                                                                                 

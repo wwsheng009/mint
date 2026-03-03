@@ -481,12 +481,65 @@ func (b *LayoutBuilder) AddChild(child VNode) *LayoutBuilder {
 // Border Convenience Methods
 // =============================================================================
 
+// syncToProps syncs all layout properties from LayoutNode fields to Props
+// This ensures CreateFiber() can read the properties even without calling Build()
+func (b *LayoutBuilder) syncToProps() {
+	props := b.node.Props()
+	if props == nil {
+		props = make(Props)
+	}
+
+	// Sync layout properties
+	props["direction"] = b.node.direction
+	props["align"] = b.node.align
+	props["crossAlign"] = b.node.crossAlign
+	props["gap"] = b.node.gap
+	props["padding"] = b.node.padding
+	props["flex"] = b.node.flex
+	props["stretchCross"] = b.node.stretchCross
+
+	// Sync border properties
+	if b.node.borderStyle != BorderNone {
+		styleStr := "single"
+		switch b.node.borderStyle {
+		case BorderDouble:
+			styleStr = "double"
+		case BorderRounded:
+			styleStr = "rounded"
+		case BorderDashed:
+			styleStr = "dashed"
+		case BorderNone:
+			styleStr = "none"
+		}
+		props["borderStyle"] = styleStr
+	} else {
+		delete(props, "borderStyle")
+	}
+
+	if b.node.borderLabel != "" {
+		props["borderLabel"] = b.node.borderLabel
+		props["label"] = b.node.borderLabel
+	} else {
+		delete(props, "borderLabel")
+		delete(props, "label")
+	}
+
+	if b.node.borderColor != "" {
+		props["borderColor"] = b.node.borderColor
+	} else {
+		delete(props, "borderColor")
+	}
+
+	b.node.SetProps(props)
+}
+
 // SingleBorder sets single-line border with optional label
 func (b *LayoutBuilder) SingleBorder(label ...string) *LayoutBuilder {
 	b.node.borderStyle = BorderSingle
 	if len(label) > 0 && label[0] != "" {
 		b.node.borderLabel = label[0]
 	}
+	b.syncToProps()
 	return b
 }
 
@@ -496,6 +549,7 @@ func (b *LayoutBuilder) DoubleBorder(label ...string) *LayoutBuilder {
 	if len(label) > 0 && label[0] != "" {
 		b.node.borderLabel = label[0]
 	}
+	b.syncToProps()
 	return b
 }
 
@@ -522,44 +576,9 @@ func (b *LayoutBuilder) Build() VNode {
 	// Set children on the element
 	b.node.SetChildren(b.children)
 
-	// Sync layout properties to Props so CreateFiber can read them
-	// This fixes the component interference issue where layout config was lost
-	props := b.node.Props()
-	if props == nil {
-		props = make(Props)
-	}
-	props["direction"] = b.node.direction
-	props["align"] = b.node.align
-	props["crossAlign"] = b.node.crossAlign
-	props["gap"] = b.node.gap
-	props["padding"] = b.node.padding
-	props["flex"] = b.node.flex
-	props["stretchCross"] = b.node.stretchCross
-
-	// Sync border properties
-	if b.node.borderStyle != BorderNone {
-		styleStr := "single"
-		switch b.node.borderStyle {
-		case BorderDouble:
-			styleStr = "double"
-		case BorderRounded:
-			styleStr = "rounded"
-		case BorderDashed:
-			styleStr = "dashed"
-		case BorderNone:
-			styleStr = "none"
-		}
-		props["borderStyle"] = styleStr
-	}
-	if b.node.borderLabel != "" {
-		props["borderLabel"] = b.node.borderLabel
-		props["label"] = b.node.borderLabel
-	}
-	if b.node.borderColor != "" {
-		props["borderColor"] = b.node.borderColor
-	}
-
-	b.node.SetProps(props)
+	// Sync all properties from fields to Props
+	// This ensures CreateFiber() can read the correct property values
+	b.syncToProps()
 
 	return b.node
 }

@@ -10,179 +10,16 @@ import (
 	"github.com/wwsheng009/mint/examples/utils"
 	"github.com/wwsheng009/mint/framework"
 	"github.com/wwsheng009/mint/framework/component"
-	"github.com/wwsheng009/mint/framework/theme"
 	"github.com/wwsheng009/mint/internal/render"
 	"github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/paint"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/ui"
-	"github.com/wwsheng009/mint/ui/components/panel"
-	newtext "github.com/wwsheng009/mint/ui/components/text"
 )
 
 // DemoApp creates the demo UI
 func DemoApp() rtui.VNode {
-	return ui.NewVStack().
-		SetWidth(70).
-		SetGap(1).
-		SetChildrenList([]rtui.VNode{
-			// Title
-			sectionTitle("Panel Component Demo"),
-			newtext.New(""),
-
-			// =====================================================
-			// Section 1: Basic Panel with Title
-			// =====================================================
-			subTitle("1. Basic Panel with Rounded Border"),
-			panel.NewBuilder().
-				Title("Basic Panel").
-				Content(newtext.New("This is the main content area of the panel.")).
-				Width(40).
-				Height(5).
-				Rounded().
-				Build(),
-			newtext.New(""),
-
-			// =====================================================
-			// Section 2: Panel with Header and Footer
-			// =====================================================
-			subTitle("2. Panel with Header and Footer"),
-			panel.NewBuilder().
-				Title("Complete Panel").
-				Header(newtext.New("━ Header Line ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")).
-				Content(newtext.New("Content goes here.\nMultiple lines are supported.\nPanel handles layout automatically.")).
-				Footer(newtext.New("━ Footer Line ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")).
-				Width(50).
-				Height(8).
-				BorderColor("cyan").
-				Build(),
-			newtext.New(""),
-
-			// =====================================================
-			// Section 3: Border Styles
-			// =====================================================
-			subTitle("3. Border Styles (Double, Single, Rounded)"),
-			ui.NewHStack().
-				SetGap(2).
-				SetChildrenList([]rtui.VNode{
-					panel.NewBuilder().
-						Title("Double").
-						Content(newtext.New("═══ Double Border ═══\nStyle uses ╔╗╚╝ chars")).
-						Width(20).
-						Height(5).
-						Double().
-						BorderColor("yellow").
-						Build(),
-					panel.NewBuilder().
-						Title("Single").
-						Content(newtext.New("Single-line border\nUses ┌┐└┘ chars")).
-						Width(20).
-						Height(5).
-						Single().
-						BorderColor("green").
-						Build(),
-					panel.NewBuilder().
-						Title("Rounded").
-						Content(newtext.New("Rounded corners\nUses ╭╮╰╯ chars")).
-						Width(20).
-						Height(5).
-						Rounded().
-						BorderColor("blue").
-						Build(),
-				}),
-			newtext.New(""),
-
-			// =====================================================
-			// Section 4: No Border
-			// =====================================================
-			subTitle("4. No Border Mode"),
-			panel.NewBuilder().
-				Title("No Border").
-				Content(newtext.New("This panel has no border.\nJust pure content area.\nFor minimalist designs.")).
-				Width(40).
-				Height(5).
-				NoBorder().
-				Build(),
-			newtext.New(""),
-
-			// =====================================================
-			// Section 5: Custom Border Label
-			// =====================================================
-			subTitle("5. Custom Border Label"),
-			panel.NewBuilder().
-				Label(" ⚡ Custom Label ⚡ ").
-				Content(newtext.New("The label appears in the top border.\nYou can customize it independently from the title.")).
-				Width(45).
-				Height(5).
-				Rounded().
-				BorderColor("magenta").
-				Build(),
-			newtext.New(""),
-
-			// =====================================================
-			// Section 6: Flex Panel
-			// =====================================================
-			subTitle("6. Flex Panel (expands to fill space)"),
-			panel.NewBuilder().
-				Title("Flex Panel").
-				Content(newtext.New("This panel has flex=1.\nIt will expand to fill available space in a stack.\nUseful for responsive layouts.")).
-				Width(50).
-				Flex(1).
-				BorderColor("blue").
-				Build(),
-			newtext.New(""),
-
-			// =====================================================
-			// Section 7: Text Wrapping
-			// =====================================================
-			subTitle("7. Text Wrapping in Panel"),
-			panel.NewBuilder().
-				Title("Text Wrap Demo").
-				Content(newtext.New("This is a very long text that should wrap to multiple lines when displayed inside a panel. The wrap feature automatically breaks text at word boundaries while preserving readability.").SetWrap(true)).
-				Width(40).
-				Height(8).
-				BorderColor("green").
-				Build(),
-			newtext.New(""),
-			ui.NewHStack().
-				SetGap(3).
-				SetChildrenList([]rtui.VNode{
-					panel.NewBuilder().
-						Title("No Wrap").
-						Content(newtext.New("This text is too long and will be truncated.").SetWrap(false)).
-						Width(20).
-						Height(3).
-						BorderColor("red").
-						Build(),
-					panel.NewBuilder().
-						Title("With Wrap").
-						Content(newtext.New("This text is too long and will be wrapped to multiple lines.").SetWrap(true)).
-						Width(20).
-						BorderColor("green").
-						Build(),
-				}),
-			newtext.New(""),
-
-			// Footer
-			highlight("Panel: borders, headers, footers, flexible layout, multiple border styles"),
-		})
-}
-
-// sectionTitle creates a styled section title
-func sectionTitle(title string) rtui.VNode {
-	return newtext.New(title).
-		Foreground(theme.Primary()).
-		Bold(true)
-}
-
-// subTitle creates a subtitle
-func subTitle(title string) rtui.VNode {
-	return newtext.New("  " + title).Foreground("white")
-}
-
-// highlight creates a highlighted note
-func highlight(text string) rtui.VNode {
-	return newtext.New("  >>> " + text).Foreground("yellow")
+	return ui.NewVStack().SingleBorder().SetChildrenList([]ui.VNode{ui.Text("Single Border")}).Build()
 }
 
 // printLayoutBoxes prints detailed layout box information for debugging
@@ -263,7 +100,7 @@ func printBufferCoordinates(buf *paint.Buffer, width, height int) {
 		// Highlight rows that are likely part of the first panel
 		rowMarker := "   "
 		if y >= 6 && y <= 10 {
-			rowMarker = ">>> "  // Mark panel area
+			rowMarker = ">>> " // Mark panel area
 		}
 		fmt.Printf("%sY%02d: ", rowMarker, y)
 
@@ -276,12 +113,12 @@ func printBufferCoordinates(buf *paint.Buffer, width, height int) {
 				// Highlight border characters
 				cluster := cell.Cluster
 				runes := []rune(cluster)
-				r := runes[0]  // Get first rune for comparison
+				r := runes[0] // Get first rune for comparison
 
 				// Highlight border characters
 				if r == '╭' || r == '╮' || r == '╰' || r == '╯' ||
 					r == '─' || r == '│' {
-					fmt.Printf("[%c]", r)  // Border in brackets
+					fmt.Printf("[%c]", r) // Border in brackets
 				} else if x == 39 || x == 0 {
 					// Highlight border edges at column 0 and 39
 					fmt.Printf("[%c]", r)

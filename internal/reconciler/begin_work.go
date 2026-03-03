@@ -197,10 +197,18 @@ func beginWorkComponent(current, workInProgress *Fiber) *Fiber {
 	if workInProgress.ComponentFunc != nil {
 		// Simple component function
 		vnode := workInProgress.ComponentFunc()
+		// Automatically call Build() for VNode implementations that need finalization
+		if buildable, ok := vnode.(rtui.Buildable); ok {
+			vnode = buildable.Build()
+		}
 		children = []rtui.VNode{vnode}
 	} else if workInProgress.ComponentFuncWithProps != nil {
 		// Component function with props
 		vnode := workInProgress.ComponentFuncWithProps(workInProgress.Props)
+		// Automatically call Build() for VNode implementations that need finalization
+		if buildable, ok := vnode.(rtui.Buildable); ok {
+			vnode = buildable.Build()
+		}
 		children = []rtui.VNode{vnode}
 	}
 

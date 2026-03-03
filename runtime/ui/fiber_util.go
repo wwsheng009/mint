@@ -40,6 +40,13 @@ func CreateFiber(vnode VNode) *Fiber {
 		return nil
 	}
 
+	// Automatically call Build() if VNode implements Buildable interface
+	// This allows builders like LayoutBuilder to be finalized automatically
+	// Users can write: ui.NewVStack().SingleBorder("Title") without manual Build()
+	if buildable, ok := vnode.(Buildable); ok {
+		vnode = buildable.Build()
+	}
+
 	vnodeType := vnode.Type()
 
 	// Determine tag from VNode
