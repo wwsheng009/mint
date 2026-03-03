@@ -1613,17 +1613,17 @@ func ErrorBoundary(child ui.VNode) ui.VNode {
 
 #### Phase 3: Fiber Runtime
 
-- [ ] 完善 FiberNode 结构（双缓存、Effect）
-- [ ] 实现 UseState 无闭包版本
-- [ ] 实现 VNode Diff 算法
-- [ ] 实现 Reconciler
-- [ ] 添加时间旅行调试器
-- [ ] 更新文档
-  - [ ] 创建 `FIBER_ARCHITECTURE.md`
+- [x] 完善 FiberNode 结构（双缓存、Effect）- 已有实现
+- [x] 实现 UseState 无闭包版本 - 已有实现
+- [x] 实现 VNode Diff 算法 - 已有实现
+- [x] 实现 Reconciler - 已有实现
+- [x] 添加时间旅行调试器
+- [x] 更新文档
+  - [x] 创建 `FIBER_ARCHITECTURE.md`
   - [ ] 创建 `HOOK_USAGE_GUIDE.md`
-- [ ] 创建示例
+- [x] 创建示例
   - [ ] `examples/fiber_demo/` - Fiber 基础示例
-  - [ ] `examples/timetravel_demo/` - 时间旅行示例
+  - [x] `examples/timetravel_demo/` - 时间旅行示例
 - [ ] 发布 v2.1.0
 
 ---
