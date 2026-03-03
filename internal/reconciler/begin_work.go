@@ -14,6 +14,9 @@ package reconciler
 // =============================================================================
 
 import (
+	"fmt"
+	"runtime/debug"
+
 	"github.com/wwsheng009/mint/internal/log"
 	"github.com/wwsheng009/mint/internal/state"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
@@ -358,11 +361,13 @@ func beginWorkErrorBoundary(current, workInProgress *Fiber) *Fiber {
 	// Try to render the component with panic recovery
 	var children []rtui.VNode
 	var hadPanic bool
+	var panicValue interface{}
 
 	func() {
 		defer func() {
 			if r := recover(); r != nil {
 				hadPanic = true
+				panicValue = r
 			}
 		}()
 
@@ -373,8 +378,17 @@ func beginWorkErrorBoundary(current, workInProgress *Fiber) *Fiber {
 		}
 	}()
 
-	// If panic occurred, render the fallback instead
+	// If panic occurred, update original ErrorBoundaryVNode and render fallback instead
 	if hadPanic {
+		// Update original ErrorBoundaryVNode state so tests can check HadError()
+		if workInProgress.ErrorBoundary != nil {
+			if err, ok := panicValue.(error); ok {
+				workInProgress.ErrorBoundary.SetError(err, fmt.Sprintf("panic in %s: %v", workInProgress.ErrorBoundary.Name(), panicValue), string(debug.Stack()))
+			} else {
+				workInProgress.ErrorBoundary.SetError(fmt.Errorf("panic: %v", panicValue), fmt.Sprintf("panic in %s: %v", workInProgress.ErrorBoundary.Name(), panicValue), string(debug.Stack()))
+			}
+		}
+		
 		if workInProgress.ErrorBoundaryFallbackFiber != nil {
 			// Use the fallback fiber as the child
 			workInProgress.Child = workInProgress.ErrorBoundaryFallbackFiber

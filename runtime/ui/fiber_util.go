@@ -57,6 +57,7 @@ func CreateFiber(vnode VNode) *Fiber {
 	var componentFuncWithProps ComponentFuncWithProps
 	var errorBoundaryFunc ComponentFunc
 	var errorBoundaryFallback *Fiber
+	var errorBoundaryVNode *ErrorBoundaryVNode // Store reference for state sync
 	var memoCompare PropsEqual
 
 	switch n := vnode.(type) {
@@ -86,6 +87,7 @@ func CreateFiber(vnode VNode) *Fiber {
 		if fallback := n.Fallback(); fallback != nil {
 			errorBoundaryFallback = CreateFiber(fallback)
 		}
+		errorBoundaryVNode = n // Store reference for state sync
 	case *MemoVNode:
 		memoCompare = n.GetCompare()
 	}
@@ -279,6 +281,7 @@ func CreateFiber(vnode VNode) *Fiber {
 		ComponentName:              componentName,
 		ErrorBoundaryFunc:          errorBoundaryFunc,
 		ErrorBoundaryFallbackFiber: errorBoundaryFallback,
+		ErrorBoundary:              errorBoundaryVNode, // Store reference for state sync
 		MemoCompare:                memoCompare,
 		// FocusableVNode:             focusableVNode,
 		ActionTargetID:             fmt.Sprintf("%d",nodeId),
@@ -487,6 +490,7 @@ func CloneFiber(fiber *Fiber) *Fiber {
 		ComponentName:              fiber.ComponentName,
 		ErrorBoundaryFunc:          fiber.ErrorBoundaryFunc,
 		ErrorBoundaryFallbackFiber: fiber.ErrorBoundaryFallbackFiber,
+		ErrorBoundary:              fiber.ErrorBoundary, // Preserve reference to original ErrorBoundaryVNode for state sync
 		MemoCompare:                fiber.MemoCompare,
 		MemoShouldUpdate:           fiber.MemoShouldUpdate,
 		// Focusable support (DEPRECATED - use Instance instead)

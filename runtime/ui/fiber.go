@@ -230,6 +230,7 @@ type Fiber struct {
 	ComponentName          string
 	ErrorBoundaryFunc      ComponentFunc
 	ErrorBoundaryFallbackFiber *Fiber
+	ErrorBoundary      *ErrorBoundaryVNode // Reference to original ErrorBoundaryVNode for state sync
 	MemoCompare            PropsEqual
 	MemoShouldUpdate       bool
 
