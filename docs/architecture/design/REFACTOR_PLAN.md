@@ -1631,12 +1631,13 @@ func ErrorBoundary(child ui.VNode) ui.VNode {
 #### Phase 4: 类型安全 DSL
 
 - [x] 实现 `StateKey[T]` 类型
-- [ ] 实现 `TypedFieldChange[T]` Intent
+- [x] 实现 `TypedFieldChange[T]` Intent
 - [ ] 更新 Reducer 支持类型安全
-- [ ] 更新文档
-  - [ ] 创建 `TYPE_SAFE_INTENT.md`
+- [x] 更新文档
+  - [x] 创建 `TYPE_SAFE_INTENT.md`
   - [ ] 更新 `MVP_MIGRATION_GUIDE.md`
-- [ ] 迁移示例代码
+- [x] 迁移示例代码
+  - [x] `examples/typed_intent_demo/` - 类型安全 Intent 示例
   - [ ] `examples/mvp_components_demo/` 使用类型安全
 - [ ] 发布 v2.2.0
 
