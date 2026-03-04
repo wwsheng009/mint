@@ -148,6 +148,13 @@ func (d *Dispatcher) SetErrorHandler(handler func(intent Intent, err error)) {
 	d.errorHandler = handler
 }
 
+// SetMaxRetry sets the maximum number of retries for ErrorLogRetry strategy.
+func (d *Dispatcher) SetMaxRetry(maxRetry int) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.maxRetry = maxRetry
+}
+
 // =============================================================================
 // Dispatch Methods
 // =============================================================================
@@ -172,10 +179,81 @@ func (d *Dispatcher) applyErrorStrategy(intent Intent, result IntentResult) {
 		}
 
 	case ErrorLogRetry:
-		// TODO: Implement retry logic
-		if d.logger != nil {
-			d.logger.Warn("Retry strategy not implemented for intent type=%s", intent.IntentType())
+		d.retryDispatch(intent, result)
+	}
+}
+
+// retryDispatch implements retry logic for failed intents.
+// It will retry the intent dispatch up to maxRetry times.
+// This method directly invokes the handler to avoid infinite recursion through applyErrorStrategy.
+func (d *Dispatcher) retryDispatch(intent Intent, lastResult IntentResult) {
+	d.mu.RLock()
+	maxRetries := d.maxRetry
+	if maxRetries <= 0 {
+		maxRetries = 3 // Default retry count
+	}
+	stateSetter := d.stateSetter
+	scheduler := d.scheduler
+	d.mu.RUnlock()
+
+	intentType := intent.IntentType()
+
+	// Get handler from registry
+	handler, ok := d.registry.GetHandler(intentType)
+	if !ok {
+		// No handler to retry with
+		if d.logger != nil && d.logger.Enabled() {
+			d.logger.Error("Cannot retry intent type=%s: no handler registered", intentType)
 		}
+		return
+	}
+
+	if d.logger != nil && d.logger.Enabled() {
+		d.logger.Warn("Starting retry for intent type=%s, max attempts=%d",
+			intentType, maxRetries+1)
+	}
+
+	// Resolve priority for scheduling (only if needed)
+	var lane priority.DirtyLevel
+	if scheduler != nil {
+		priority := d.registry.GetPriority(intent)
+		lane = priority.ToLane()
+	}
+
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		// Small delay between retries (linear backoff: 50ms * attempt)
+		delay := time.Duration(attempt*50) * time.Millisecond
+		time.Sleep(delay)
+
+		// Create context for this retry attempt
+		ctx := NewActionContext(context.Background(), "retry", stateSetter)
+
+		// Directly invoke handler to avoid infinite recursion through applyErrorStrategy
+		result := handler.Handle(ctx, intent)
+
+		if result.Error == nil {
+			// Schedule fiber update if needed
+			if result.Handled && scheduler != nil {
+				scheduler(lane)
+			}
+
+			if d.logger != nil && d.logger.Enabled() {
+				d.logger.Debug("Intent succeeded after retry: type=%s, attempt=%d/%d",
+					intentType, attempt+1, maxRetries+1)
+			}
+			return // Success, stop retrying
+		}
+
+		if d.logger != nil && d.logger.Enabled() {
+			d.logger.Warn("Retry attempt %d failed for intent type=%s: %v",
+				attempt, intentType, result.Error)
+		}
+	}
+
+	// All retries exhausted
+	if d.logger != nil && d.logger.Enabled() {
+		d.logger.Error("All retry attempts exhausted for intent type=%s, original error: %v",
+			intentType, lastResult.Error)
 	}
 }
 
