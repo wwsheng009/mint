@@ -407,8 +407,9 @@ func (c *VNodeConverter) convertButton(btn *rtui.ButtonVNode, parent *runtime.La
 
 	node := runtime.NewLayoutNode(id, runtime.NodeTypeCustom, runtimeStyle)
 	node.Props = map[string]interface{}{
-		"label": btn.Label(),
-		"type":  "button",
+		"label":       btn.Label(),
+		"type":        "button",
+		"pressIntent": nil, // Will be set by Instance update from VNode.Props()
 	}
 
 	node.Component = runtime.NewComponentRef(id, "button", btn)
