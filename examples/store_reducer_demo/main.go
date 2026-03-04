@@ -15,7 +15,6 @@
 package main
 
 import (
-	"fmt"
 	"strconv"
 
 	"github.com/wwsheng009/mint/runtime/intent"
@@ -23,8 +22,6 @@ import (
 	"github.com/wwsheng009/mint/runtime/store"
 	"github.com/wwsheng009/mint/ui"
 )
-
-
 
 // =============================================================================
 // 应用状态定义
@@ -54,39 +51,25 @@ type AppState struct {
 // IncrementIntent 增加计数
 type IncrementIntent struct{}
 
-func (IncrementIntent) IntentType() string { return "Increment" }
+func (IncrementIntent) IntentType() string { return "DemoIncrement" }
 func (IncrementIntent) StayPressed() bool   { return true }
 
 // DecrementIntent 减少计数
 type DecrementIntent struct{}
 
-func (DecrementIntent) IntentType() string { return "Decrement" }
+func (DecrementIntent) IntentType() string { return "DemoDecrement" }
 func (DecrementIntent) StayPressed() bool   { return true }
-
-// SetUsernameIntent 设置用户名
-type SetUsernameIntent struct {
-	Value string
-}
-
-func (SetUsernameIntent) IntentType() string { return "SetUsername" }
-
-// SetEmailIntent 设置邮箱
-type SetEmailIntent struct {
-	Value string
-}
-
-func (SetEmailIntent) IntentType() string { return "SetEmail" }
 
 // SubmitFormIntent 提交表单
 type SubmitFormIntent struct{}
 
-func (SubmitFormIntent) IntentType() string { return "SubmitForm" }
+func (SubmitFormIntent) IntentType() string { return "DemoSubmitForm" }
 func (SubmitFormIntent) StayPressed() bool   { return true }
 
 // ResetFormIntent 重置表单
 type ResetFormIntent struct{}
 
-func (ResetFormIntent) IntentType() string { return "ResetForm" }
+func (ResetFormIntent) IntentType() string { return "DemoResetForm" }
 func (ResetFormIntent) StayPressed() bool   { return true }
 
 // SwitchTabIntent 切换标签页
@@ -101,38 +84,35 @@ func (SwitchTabIntent) IntentType() string { return "SwitchTab" }
 // =============================================================================
 
 // reducerBuilder 是 Reducer 的构建器
-// 延迟构建，以便在初始化 Store 后自动注册 handlers
 var reducerBuilder = reducer.NewBuilder[AppState]().
 	On(IncrementIntent{}, func(s AppState, i intent.Intent) AppState {
-		fmt.Println("[HANDLER] IncrementIntent called, Count:", s.Count)
 		s.Count++
 		return s
 	}).
 	On(DecrementIntent{}, func(s AppState, i intent.Intent) AppState {
-		fmt.Println("[HANDLER] DecrementIntent called, Count:", s.Count)
 		s.Count--
 		return s
 	}).
-	On(SetUsernameIntent{}, func(s AppState, i intent.Intent) AppState {
-		if typed, ok := i.(SetUsernameIntent); ok {
-			s.Username = typed.Value
-			// 实时验证
-			if len(s.Username) < 3 {
-				s.UsernameErr = "用户名至少3个字符"
-			} else {
-				s.UsernameErr = ""
-			}
-		}
-		return s
-	}).
-	On(SetEmailIntent{}, func(s AppState, i intent.Intent) AppState {
-		if typed, ok := i.(SetEmailIntent); ok {
-			s.Email = typed.Value
-			// 实时验证（简化示例）
-			if s.Email != "" && !containsAt(s.Email) {
-				s.EmailErr = "邮箱格式不正确"
-			} else {
-				s.EmailErr = ""
+	// 处理输入框的字段变更（通过 BindField 自动发送 FieldChangeIntent）
+	On(intent.FieldChangeIntent{}, func(s AppState, i intent.Intent) AppState {
+		if fieldChange, ok := i.(intent.FieldChangeIntent); ok {
+			switch fieldChange.Field {
+			case "username":
+				s.Username = fieldChange.Value
+				// 实时验证
+				if len(s.Username) < 3 {
+					s.UsernameErr = "用户名至少3个字符"
+				} else {
+					s.UsernameErr = ""
+				}
+			case "email":
+				s.Email = fieldChange.Value
+				// 实时验证
+				if s.Email != "" && !containsAt(s.Email) {
+					s.EmailErr = "邮箱格式不正确"
+				} else {
+					s.EmailErr = ""
+				}
 			}
 		}
 		return s
@@ -184,9 +164,21 @@ func initStore() {
 		Email:      "",
 		ActiveTab:  0,
 	})
+}
 
-	// 构建 Reducer 并自动注册所有 Intent handlers
+func registerHandlers() {
+	// 构建 Reducer 并注册 Intent handlers
 	// Intent → Reducer → Store → 触发重新渲染
+	//
+	// ✨ 注意：reducerBuilder 已经定义了所有 Intent handlers，包括：
+	//   - IncrementIntent
+	//   - DecrementIntent
+	//   - FieldChangeIntent (username/email 字段变更)
+	//   - SubmitFormIntent
+	//   - ResetFormIntent
+	//   - SwitchTabIntent
+	//
+	// BuildAndRegister() 会自动注册这些 handlers 到全局 Registry
 	reducerBuilder.RegisterToGlobal(appStore)
 }
 
@@ -197,28 +189,11 @@ func initStore() {
 func main() {
 	initStore()
 
-	// 测试 intent 是否能正确 emit
-	registry := intent.DefaultRegistry()
-	if registry.HasHandler("Increment") {
-		fmt.Println("[INIT] Increment handler registered")
-	}
-	if registry.HasHandler("Decrement") {
-		fmt.Println("[INIT] Decrement handler registered")
-	}
-	if registry.HasHandler("SetUsername") {
-		fmt.Println("[INIT] SetUsername handler registered")
-	}
-	if registry.HasHandler("SubmitForm") {
-		fmt.Println("[INIT] SubmitForm handler registered")
-	}
-	if registry.HasHandler("ResetForm") {
-		fmt.Println("[INIT] ResetForm handler registered")
-	}
-
 	err := ui.Run(App,
 		ui.WithWidth(60),
 		ui.WithHeight(30),
 		ui.WithTitle("Store + Reducer Demo"),
+		ui.WithInit(registerHandlers), // 在内置 handlers 之后注册
 	)
 	if err != nil {
 		panic(err)
@@ -235,7 +210,7 @@ func App() ui.VNode {
 
 	return ui.VStack(
 		// 标题
-		ui.NewTextBuilder("📦 Store + Reducer Architecture Demo").
+		ui.NewTextBuilder("Store + Reducer Architecture Demo").
 			Bold(true).
 			FgColor("cyan").
 			Build(),
@@ -329,9 +304,9 @@ func App() ui.VNode {
 			FgColor("bright-black").
 			Build(),
 		ui.NewTextBuilder("Current State:").Bold(true).Build(),
-		ui.NewTextBuilder(fmt.Sprintf("  Count: %d", state.Count)).FgColor("bright-black").Build(),
-		ui.NewTextBuilder(fmt.Sprintf("  Username: %q", state.Username)).FgColor("bright-black").Build(),
-		ui.NewTextBuilder(fmt.Sprintf("  Email: %q", state.Email)).FgColor("bright-black").Build(),
+		ui.NewTextBuilder("  Count: " + strconv.Itoa(state.Count)).FgColor("bright-black").Build(),
+		ui.NewTextBuilder("  Username: " + strconv.Quote(state.Username)).FgColor("bright-black").Build(),
+		ui.NewTextBuilder("  Email: " + strconv.Quote(state.Email)).FgColor("bright-black").Build(),
 	)
 }
 

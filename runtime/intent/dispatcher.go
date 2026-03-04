@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	mintlog "github.com/wwsheng009/mint/internal/log"
 	"github.com/wwsheng009/mint/runtime/priority"
 )
 
@@ -29,7 +30,10 @@ type Dispatcher struct {
 	// stateSetter is used by ActionContext
 	stateSetter StateSetter
 
-	// log enables debug logging
+	// logger is the structured logger for intent dispatch events
+	logger *mintlog.Logger
+
+	// log enables debug logging (deprecated - use logger instead)
 	log bool
 
 	// logEntries stores dispatch history
@@ -37,6 +41,18 @@ type Dispatcher struct {
 
 	// logMaxSize limits log entries
 	logMaxSize int
+
+	// errorStrategy defines how to handle intent errors
+	errorStrategy ErrorHandlingStrategy
+
+	// errorHandler is a custom error handler (when errorStrategy == ErrorCustomCallback)
+	errorHandler func(intent Intent, err error)
+
+	// maxRetry is the maximum number of retries for ErrorLogRetry strategy
+	maxRetry int
+
+	// useCustomLogger indicates if a custom logger was set by the user
+	useCustomLogger bool
 }
 
 // ScheduleFunc is called to schedule a fiber update with the given lane.
@@ -54,13 +70,29 @@ type DispatchLog struct {
 	Error     error
 }
 
+// ErrorHandlingStrategy defines how to handle intent errors.
+type ErrorHandlingStrategy int
+
+const (
+	// ErrorLogIgnore logs the error and ignores it
+	ErrorLogIgnore ErrorHandlingStrategy = iota
+	// ErrorLogPanic logs the error and panics
+	ErrorLogPanic
+	// ErrorLogRetry logs the error and retries (not implemented)
+	ErrorLogRetry
+	// ErrorCustomCallback calls the custom error handler
+	ErrorCustomCallback
+)
+
 // NewDispatcher creates a new intent dispatcher.
+// By default, it uses the IntentLogger for logging.
 func NewDispatcher(registry *Registry) *Dispatcher {
 	return &Dispatcher{
 		registry:    registry,
 		queue:       newIntentQueue(),
 		logMaxSize:  1000,
 		logEntries:  make([]DispatchLog, 0),
+		logger:      mintlog.IntentLogger, // Use dedicated IntentLogger by default
 	}
 }
 
@@ -78,6 +110,23 @@ func (d *Dispatcher) SetStateSetter(setter StateSetter) {
 	d.stateSetter = setter
 }
 
+// SetLogger sets a custom structured logger for intent dispatch events.
+// If not set, the dispatcher uses the default IntentLogger.
+func (d *Dispatcher) SetLogger(logger *mintlog.Logger) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.logger = logger
+	d.useCustomLogger = true
+}
+
+// GetLogger returns the current logger being used by the dispatcher.
+// Returns the IntentLogger by default, or a custom logger if SetLogger was called.
+func (d *Dispatcher) GetLogger() *mintlog.Logger {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	return d.logger
+}
+
 // EnableLog enables or disables debug logging.
 func (d *Dispatcher) EnableLog(enabled bool) {
 	d.mu.Lock()
@@ -85,9 +134,50 @@ func (d *Dispatcher) EnableLog(enabled bool) {
 	d.log = enabled
 }
 
+// SetErrorStrategy sets the error handling strategy for intent dispatch failures.
+func (d *Dispatcher) SetErrorStrategy(strategy ErrorHandlingStrategy) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.errorStrategy = strategy
+}
+
+// SetErrorHandler sets a custom error handler for when errorStrategy is ErrorCustomCallback.
+func (d *Dispatcher) SetErrorHandler(handler func(intent Intent, err error)) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.errorHandler = handler
+}
+
 // =============================================================================
 // Dispatch Methods
 // =============================================================================
+
+// applyErrorStrategy applies the configured error handling strategy to a failed intent result.
+func (d *Dispatcher) applyErrorStrategy(intent Intent, result IntentResult) {
+	d.mu.RLock()
+	strategy := d.errorStrategy
+	handler := d.errorHandler
+	d.mu.RUnlock()
+
+	switch strategy {
+	case ErrorLogIgnore:
+		// Already logged, do nothing
+
+	case ErrorLogPanic:
+		panic(fmt.Sprintf("Intent dispatch failed: type=%s, error=%v", intent.IntentType(), result.Error))
+
+	case ErrorCustomCallback:
+		if handler != nil {
+			handler(intent, result.Error)
+		}
+
+	case ErrorLogRetry:
+		// TODO: Implement retry logic
+		if d.logger != nil {
+			d.logger.Warn("Retry strategy not implemented for intent type=%s", intent.IntentType())
+		}
+	}
+}
 
 // Dispatch dispatches an intent with automatic priority resolution.
 func (d *Dispatcher) Dispatch(intent Intent) IntentResult {
@@ -106,10 +196,16 @@ func (d *Dispatcher) DispatchWithPriority(intent Intent, source string, p Action
 	intentType := intent.IntentType()
 	lane := p.ToLane()
 
+	// Log dispatch start
+	if d.logger != nil && d.logger.Enabled() {
+		d.logger.Debug("Dispatching intent: type=%s, source=%s, priority=%s, lane=%s",
+			intentType, source, p, lane)
+	}
+
 	// Create action context
 	ctx := NewActionContext(context.Background(), source, d.stateSetter)
 
-	// Log dispatch start
+	// Log dispatch start (backward compatibility)
 	var logEntry DispatchLog
 	if d.log {
 		logEntry = DispatchLog{
@@ -125,12 +221,26 @@ func (d *Dispatcher) DispatchWithPriority(intent Intent, source string, p Action
 	handler, ok := d.registry.GetHandler(intentType)
 	if !ok {
 		result := ErrorResult(fmt.Errorf("no handler registered for intent type: %s", intentType))
+
+		// Log error using structured logger
+		if d.logger != nil {
+			if result.Error != nil {
+				d.logger.Error("No handler for intent type=%s: %v", intentType, result.Error)
+			} else {
+				d.logger.Warn("No handler registered for intent type=%s", intentType)
+			}
+		}
+
+		// Backward compatible logging
 		if d.log {
 			logEntry.Duration = time.Since(start)
 			logEntry.Handled = false
 			logEntry.Error = result.Error
 			d.addLog(logEntry)
 		}
+
+		// Apply error handling strategy
+		d.applyErrorStrategy(intent, result)
 		return result
 	}
 
@@ -149,11 +259,29 @@ func (d *Dispatcher) DispatchWithPriority(intent Intent, source string, p Action
 	}
 
 	// Log result
+	duration := time.Since(start)
+	if d.logger != nil && d.logger.Enabled() {
+		if result.Error != nil {
+			d.logger.Error("Intent failed: type=%s, duration=%v, error=%v",
+				intentType, duration, result.Error)
+		} else if result.Handled {
+			d.logger.Debug("Intent handled: type=%s, duration=%v", intentType, duration)
+		} else {
+			d.logger.Debug("Intent not handled: type=%s", intentType)
+		}
+	}
+
+	// Backward compatible logging
 	if d.log {
-		logEntry.Duration = time.Since(start)
+		logEntry.Duration = duration
 		logEntry.Handled = result.Handled
 		logEntry.Error = result.Error
 		d.addLog(logEntry)
+	}
+
+	// Apply error handling strategy for failed intents
+	if result.Error != nil {
+		d.applyErrorStrategy(intent, result)
 	}
 
 	return result
@@ -161,6 +289,12 @@ func (d *Dispatcher) DispatchWithPriority(intent Intent, source string, p Action
 
 // dispatchTransition handles async transition intents.
 func (d *Dispatcher) dispatchTransition(handler Handler, ctx *ActionContext, intent Intent, lane priority.DirtyLevel, logEntry DispatchLog, start time.Time) IntentResult {
+	// Log transition intent
+	intentType := intent.IntentType()
+	if d.logger != nil && d.logger.Enabled() {
+		d.logger.Debug("Queueing transition intent: type=%s", intentType)
+	}
+
 	// Add to queue for async processing
 	item := &queueItem{
 		intent:  intent,
@@ -174,8 +308,13 @@ func (d *Dispatcher) dispatchTransition(handler Handler, ctx *ActionContext, int
 	// The actual processing happens in ProcessQueue
 	done := make(chan struct{})
 
+	duration := time.Since(start)
+	if d.logger != nil && d.logger.Enabled() {
+		d.logger.Debug("Transition intent queued: type=%s, duration=%v", intentType, duration)
+	}
+
 	if d.log {
-		logEntry.Duration = time.Since(start)
+		logEntry.Duration = duration
 		logEntry.Handled = true
 		d.addLog(logEntry)
 	}

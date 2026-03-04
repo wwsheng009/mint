@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"reflect"
 	"sync"
+
+	mintlog "github.com/wwsheng009/mint/internal/log"
 )
 
 // =============================================================================
@@ -27,6 +29,33 @@ func (f HandlerFunc) Handle(ctx *ActionContext, intent Intent) IntentResult {
 // TypedHandler is a type-safe handler for a specific intent type.
 type TypedHandler[T Intent] func(ctx *ActionContext, intent T) IntentResult
 
+// HandlerRegistration stores handler metadata.
+type HandlerRegistration struct {
+	Handler     Handler
+	Overridable bool
+	Priority    ActionPriority
+}
+
+// RegisterOption configures handler registration.
+type RegisterOption func(*HandlerRegistration)
+
+// WithOverridable marks a handler as overridable.
+// If a user registers a handler for the same intent type after this handler,
+// the user's handler will replace the overridable handler.
+func WithOverridable(overridable bool) RegisterOption {
+	return func(reg *HandlerRegistration) {
+		reg.Overridable = overridable
+	}
+}
+
+// WithHandlerPriority sets the explicit priority for the handler registration.
+// This overrides the PriorityAware interface on the intent if implemented.
+func WithHandlerPriority(priority ActionPriority) RegisterOption {
+	return func(reg *HandlerRegistration) {
+		reg.Priority = priority
+	}
+}
+
 // =============================================================================
 // Registry
 // =============================================================================
@@ -36,13 +65,13 @@ type TypedHandler[T Intent] func(ctx *ActionContext, intent T) IntentResult
 type Registry struct {
 	mu sync.RWMutex
 
-	// handlers maps intent type to handler
-	handlers map[string]Handler
+	// handlers maps intent type to handler registration
+	handlers map[string]*HandlerRegistration
 
 	// typeMap maps reflect.Type to intent type string
 	typeMap map[reflect.Type]string
 
-	// priorities maps intent type to explicit priority
+	// priorities maps intent type to explicit priority (legacy, kept for compatibility)
 	priorities map[string]ActionPriority
 
 	// middleware that wraps all handlers
@@ -50,6 +79,9 @@ type Registry struct {
 
 	// fallbackHandler is called when no specific handler is found
 	fallbackHandler Handler
+
+	// logger is the structured logger for registry events
+	logger *mintlog.Logger
 }
 
 // Middleware wraps a handler for cross-cutting concerns.
@@ -58,25 +90,86 @@ type Middleware func(next Handler) Handler
 // NewRegistry creates a new intent registry.
 func NewRegistry() *Registry {
 	return &Registry{
-		handlers:   make(map[string]Handler),
+		handlers:   make(map[string]*HandlerRegistration),
 		typeMap:    make(map[reflect.Type]string),
 		priorities: make(map[string]ActionPriority),
+		logger:     mintlog.IntentLogger, // Use dedicated IntentLogger by default
 	}
 }
 
-// Register registers a handler for a specific intent type.
+// SetLogger sets the structured logger for registry events.
+func (r *Registry) SetLogger(logger *mintlog.Logger) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.logger = logger
+}
+
+// GetLogger returns the current logger being used by the registry.
+// Returns the IntentLogger by default, or a custom logger if SetLogger was called.
+func (r *Registry) GetLogger() *mintlog.Logger {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.logger
+}
+
+// Register registers a handler for a specific intent type with optional configuration.
 // This is the low-level registration method.
-func (r *Registry) Register(intentType string, handler Handler) func() {
+//
+// Options:
+//   - WithOverridable(true): Allow this handler to be overridden by later registrations
+//   - WithHandlerPriority(priority): Set explicit priority for this handler
+//
+// Example:
+//
+//	registry.Register("Increment", handler, WithOverridable(true))
+func (r *Registry) Register(intentType string, handler Handler, opts ...RegisterOption) func() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	r.handlers[intentType] = handler
+	// Check for existing handler
+	existing, ok := r.handlers[intentType]
+
+	// Create registration with default values
+	reg := &HandlerRegistration{
+		Handler: handler,
+	}
+
+	// Apply options
+	for _, opt := range opts {
+		opt(reg)
+	}
+
+	// Handle overridable logic
+	if ok && existing != nil {
+		// If existing handler is not overridable, warn and don't replace
+		if !existing.Overridable {
+			if r.logger != nil && r.logger.Enabled() {
+				r.logger.Warn("Cannot override protected handler: type=%s", intentType)
+			}
+			return func() {} // No-op unregister
+		}
+		// Existing handler is overridable, it will be replaced
+		if r.logger != nil && r.logger.Enabled() {
+			r.logger.Debug("Overriding overridable handler: type=%s", intentType)
+		}
+	} else {
+		// New registration
+		if r.logger != nil && r.logger.Enabled() {
+			r.logger.Debug("Registering new handler: type=%s, overridable=%v",
+				intentType, reg.Overridable)
+		}
+	}
+
+	r.handlers[intentType] = reg
 
 	// Return unregister function
 	return func() {
 		r.mu.Lock()
 		defer r.mu.Unlock()
 		delete(r.handlers, intentType)
+		if r.logger != nil && r.logger.Enabled() {
+			r.logger.Debug("Unregistered handler: type=%s", intentType)
+		}
 	}
 }
 
@@ -113,7 +206,22 @@ func RegisterTyped[T Intent](r *Registry, handler TypedHandler[T]) func() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	r.handlers[intentType] = wrapper
+	// Check for existing handler
+	existing, ok := r.handlers[intentType]
+
+	// Create registration with default values (not overridable, default priority)
+	reg := &HandlerRegistration{
+		Handler: wrapper,
+	}
+
+	// Handle overridable logic
+	if ok && existing != nil && !existing.Overridable {
+		// If existing handler is not overridable, warn and don't replace
+		// For now, just return without replacing
+		return func() {} // No-op unregister
+	}
+
+	r.handlers[intentType] = reg
 	r.typeMap[typ] = intentType
 
 	// Return unregister function
@@ -186,15 +294,16 @@ func (r *Registry) GetHandler(intentType string) (Handler, bool) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	handler, ok := r.handlers[intentType]
+	reg, ok := r.handlers[intentType]
 	if !ok {
 		// Try fallback handler
 		if r.fallbackHandler != nil {
-			handler = r.fallbackHandler
-		} else {
-			return nil, false
+			return r.fallbackHandler, true
 		}
+		return nil, false
 	}
+
+	handler := reg.Handler
 
 	// Apply middleware
 	for i := len(r.middleware) - 1; i >= 0; i-- {

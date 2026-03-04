@@ -3,6 +3,8 @@ package intent
 import (
 	"context"
 	"sync"
+
+	mintlog "github.com/wwsheng009/mint/internal/log"
 )
 
 // =============================================================================
@@ -120,6 +122,7 @@ type Runtime struct {
 
 // NewRuntime creates a new intent runtime using the global registry.
 // This ensures all handlers registered via DefaultRegistry() are available.
+// The Dispatcher and Registry both use IntentLogger by default for logging.
 func NewRuntime() *Runtime {
 	registry := DefaultRegistry()
 	dispatcher := NewDispatcher(registry)
@@ -136,6 +139,7 @@ func NewRuntime() *Runtime {
 
 // NewRuntimeWithNewRegistry creates a new intent runtime with a fresh registry.
 // Use this for testing or when you need isolation from the global registry.
+// The Dispatcher and Registry both use IntentLogger by default for logging.
 func NewRuntimeWithNewRegistry() *Runtime {
 	registry := NewRegistry()
 	dispatcher := NewDispatcher(registry)
@@ -170,6 +174,22 @@ func RegisterTypedRuntime[T Intent](rt *Runtime, handler TypedHandler[T]) func()
 	return RegisterTyped(rt.Registry, handler)
 }
 
+// RegisterTypedWithOpts registers a type-safe handler with options.
+// Example:
+//
+//	RegisterTypedWithOpts(rt, handleFieldChange, WithOverridable(true))
+func RegisterTypedWithOpts[T Intent](registry *Registry, handler TypedHandler[T], opts ...RegisterOption) func() {
+	// Create a zero value of T to get its type
+	var zero T
+	intentType := zero.IntentType()
+
+	// Wrap the typed handler to implement Handler
+	wrapper := &typedHandlerWrapper[T]{handler: handler}
+
+	// Register with options
+	return registry.Register(intentType, wrapper, opts...)
+}
+
 // =============================================================================
 // ActionContext Builders
 // =============================================================================
@@ -177,6 +197,16 @@ func RegisterTypedRuntime[T Intent](rt *Runtime, handler TypedHandler[T]) func()
 // NewContext creates an ActionContext with the runtime's store.
 func (r *Runtime) NewContext(source string) *ActionContext {
 	return NewActionContext(context.Background(), source, r.Store)
+}
+
+// GetLogger returns the current logger used by the dispatcher.
+func (r *Runtime) GetLogger() *mintlog.Logger {
+	return r.Dispatcher.GetLogger()
+}
+
+// SetLogger sets a custom logger for the dispatcher.
+func (r *Runtime) SetLogger(logger *mintlog.Logger) {
+	r.Dispatcher.SetLogger(logger)
 }
 
 // =============================================================================

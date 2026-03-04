@@ -167,7 +167,17 @@ func CreateFiber(vnode VNode) *Fiber {
 			setter.SetIntentEmitter(func(intent intent.Intent) {
 				// Emit to global intent runtime
 				if runtime := GetGlobalIntentRuntime(); runtime != nil {
-					runtime.Emit(intent)
+					result := runtime.Emit(intent)
+					if result.Error != nil {
+						// Log intent emission errors
+						if log.UILogger.Enabled() {
+							log.UILogger.Debug("[IntentEmitter] Failed to emit intent %s: %v",
+								intent.IntentType(), result.Error)
+						} else {
+							fmt.Printf("[IntentEmitter] Failed to emit intent %s: %v\n",
+								intent.IntentType(), result.Error)
+						}
+					}
 				}
 			})
 		}

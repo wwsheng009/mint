@@ -40,8 +40,9 @@ func SetupBuiltinHandlers(rt *Runtime) {
 	RegisterTypedRuntime(rt, handleSubmitForm)
 	RegisterTypedRuntime(rt, handleValidateForm)
 
-	// ✨ MVP: Field Change handler
-	RegisterTypedRuntime(rt, handleFieldChange)
+	// ✨ MVP: Field Change handler - marked as overridable
+	// Users can override this with their own Store-based handler
+	RegisterTypedWithOpts(rt.Registry, handleFieldChange, WithOverridable(true))
 
 	// Data handlers (async)
 	RegisterTypedRuntime(rt, handleLoadData)
