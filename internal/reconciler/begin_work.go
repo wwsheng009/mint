@@ -78,6 +78,14 @@ func manageWorkInProgressInstance(current, workInProgress *Fiber) {
 
 	// Update props if they changed
 	if workInProgress.Props != nil {
+		// Debug: print pressIntent from Props
+		if workInProgress.Tag == "button" {
+			if pressIntent, ok := workInProgress.Props["pressIntent"]; ok {
+				fmt.Printf("[DEBUG] Button %q pressIntent: %T -> %v\n", workInProgress.Key, pressIntent, pressIntent)
+			} else {
+				fmt.Printf("[DEBUG] Button %q has NO pressIntent in Props!\n", workInProgress.Key)
+			}
+		}
 		instance.SetProps(workInProgress.Props)
 	}
 
