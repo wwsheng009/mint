@@ -18,6 +18,20 @@ func RegisterIntent[T intent.Intent](handler intent.TypedHandler[T]) func() {
 	return rtui.RegisterIntent(handler)
 }
 
+// RegisterFallback registers a fallback handler that processes all intents
+// when no specific handler is found. This is ideal for reducer-style architectures.
+//
+// Example:
+//
+//	ui.RegisterFallback(func(ctx *intent.ActionContext, i intent.Intent) intent.IntentResult {
+//		newState := reducer.Reduce(store.Get(), i)
+//		store.Set(newState)
+//		return intent.HandledResult()
+//	})
+func RegisterFallback(handler intent.Handler) func() {
+	return intent.RegisterFallbackGlobally(handler)
+}
+
 // EmitIntentGlobal emits an intent through the global runtime.
 func EmitIntentGlobal(i intent.Intent) intent.IntentResult {
 	return rtui.EmitIntentGlobal(i)
