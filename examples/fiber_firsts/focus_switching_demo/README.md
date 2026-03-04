@@ -1,16 +1,66 @@
 # Focus Switching Demo
 
-This demo demonstrates focus management in the Mint UI framework using the `ui.Run()` entry point.
+This demo demonstrates focus management in the Mint UI framework using the **Store + Reducer Architecture**.
+
+## Architecture: Store + Reducer (Single Source of Truth)
+
+The demo follows the recommended architecture for Mint UI applications:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     Store + Reducer Architecture               │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  User Input → FieldChangeIntent → Reducer → Store → View        │
+│                                                                 │
+│  Components:                                                    │
+│    - Store[T]: Single source of truth                          │
+│    - Reducer[T]: Pure function for state transformations        │
+│    - ForField(): Automatic Intent emission                      │
+│    - Value(state): Read latest state from Store               │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Key Principles
+
+| Principle | Description |
+|-----------|-------------|
+| **Single Source of Truth** | All state stored in one `Store[T]` |
+| **Pure State Updates** | Only Reducer can modify state |
+| **Automatic Re-render** | Store updates trigger view re-render |
+| **No Closure Dependencies** | View reads from Store, not from closures |
+
+### Data Flow
+
+```
+┌──────────┐   User Input    ┌─────────────┐   Intent      ┌─────────┐
+│  Input   │ ───────────────► │  Instance   │ ───────────► │Dispatch │
+└──────────┘                 └─────────────┘               └─────────┘
+                                    │                       │
+                                    ▼                       │
+                               ForField() API              │
+                                    │                       │
+                                    ▼                       │
+                            FieldChangeIntent              │
+                                    │                       │
+                                    ▼                       │
+┌─────────┐   Reducer     ┌──────────┐   New State   ┌─────────┐
+│  View   │ ◄───────────── │  Store   │ ◄──────────── │ Handler │
+└─────────┘               └──────────┘               └─────────┘
+```
+
+---
 
 ## Features
 
 ### Focusable Components
 
-| Component | Count | Focus ID Format | Intent Method |
-|-----------|-------|-----------------|---------------|
-| Button | 3 | `button:{key}` | `.SetIntent(intent.Click(targetID))` |
-| Input | 2 | `input:{key}` | `.ForField(intent.BindField(key))` |
-| Checkbox | 2 | `checkbox:{key}` | `.SetIntent(intent.Toggle(key))` |
+| Component | Count | Focus ID Format | Intent |
+|-----------|-------|-----------------|--------|
+| Button | 3 | `button:{key}` | `ClickButtonIntent{}` |
+| Input | 3 | `input:{key}` | `FieldChangeIntent{Field, Value}` |
+| Checkbox | 3 | `checkbox:{key}` | `FieldChangeIntent{Field, Value}` |
 
 ### Navigation
 
@@ -20,175 +70,247 @@ This demo demonstrates focus management in the Mint UI framework using the `ui.R
 - **SPACE** - Toggle focused checkbox
 - **ESC / CTRL+C** - Exit the app
 
-## MVP Pattern - State Management
+---
 
-这个 demo 展示了 Mint 的 MVP 模式，使用 `UseState` + `FieldChangeIntent`：
+## Implementation
+
+### 1. Define Application State
+
+```go
+// AppState is the single source of truth
+type AppState struct {
+    Input1     string
+    Input2     string
+    Input3     string
+    Checked1   string
+    Checked2   string
+    Checked3   string
+    ClickCount int
+    ActiveTab  int
+}
+```
+
+### 2. Create Global Store
+
+```go
+var appStore *store.Store[AppState]
+
+func initStore() {
+    appStore = store.NewStore(AppState{
+        Input1: "", Input2: "", Input3: "Disabled Input",
+        Checked1: "false", Checked2: "false", Checked3: "false",
+        ClickCount: 0, ActiveTab: 0,
+    })
+}
+```
+
+### 3. Define Reducer
+
+```go
+var appReducer = reducer.NewBuilder[AppState]().
+    On(ClickButtonIntent{}, func(s AppState, i intent.Intent) AppState {
+        s.ClickCount++
+        return s
+    }).
+    On(intent.FieldChangeIntent{}, func(s AppState, i intent.Intent) AppState {
+        if fieldChange, ok := i.(intent.FieldChangeIntent); ok {
+            switch fieldChange.Field {
+            case "input1-value", "input2-value":
+                // Update state directly
+                if fieldChange.Field == "input1-value" {
+                    s.Input1 = fieldChange.Value
+                } else {
+                    s.Input2 = fieldChange.Value
+                }
+            case "checked1", "checked2":
+                // Checkbox boolean stored as string
+                if fieldChange.Field == "checked1" {
+                    s.Checked1 = fieldChange.Value  // "true" or "false"
+                } else {
+                    s.Checked2 = fieldChange.Value
+                }
+            }
+        }
+        return s
+    })
+```
+
+### 4. Register Handlers
+
+```go
+func registerHandlers() {
+    // BuildAndRegister automatically registers handlers to global registry
+    // Each handler will:
+    //   1. Run Reducer to compute new state
+    //   2. Update Store
+    //   3. Call ScheduleUpdate() to trigger re-render
+    appReducer.RegisterToGlobal(appStore)
+}
+```
+
+### 5. View - Read from Store
 
 ```go
 func FocusApp() ui.VNode {
-    // 1. 使用 UseState 创建表单状态
-    input1Value, setInput1Value := ui.UseStateString("")
-    input2Value, setInput2Value := ui.UseStateString("")
-
-    // 2. 将 setter 保存到 GlobalState，供 FieldChangeIntent handler 调用
-    ctx := ui.GetCurrentContext()
-    if ctx != nil {
-        ctx.GlobalState["input1-value-setter"] = setInput1Value
-        ctx.GlobalState["input2-value-setter"] = setInput2Value
-    }
+    // Get current state from Store (always latest value)
+    state := appStore.Get()
 
     return ui.VStack(
-        // 3. Input 使用 ForField + Value 绑定
+        // Button - emits ClickButtonIntent
+        buttonComp.NewBuilder("Button 1 - First").
+            OnPress(ClickButtonIntent{}).
+            Build().
+            SetKey("btn1"),
+
+        // Input - reads from Store
         inputComp.NewBuilder().
-            ForField(intent.BindField("input1-value")).
-            Value(input1Value).
+            ForField(intent.BindField("input1-value")).  // Auto emit FieldChangeIntent
+            Value(state.Input1).                               // Display latest value
             Placeholder("Enter name...").
             Build().
             SetKey("input1"),
 
-        // 显示当前值（实时反馈）
-        ui.NewTextBuilder(fmt.Sprintf("Value: %s", input1Value)).
-            FgColor("bright-black").
-            Build(),
+        // Checkbox - reads from Store
+        checkboxComp.NewBuilder().
+            Label("Option A").
+            ForField(intent.BindField("checked1")).   // Auto emit FieldChangeIntent
+            Checked(state.Checked1 == "true").           // Display boolean
+            Build().
+            SetKey("chk1"),
         // ...
     )
 }
+```
 
+---
+
+## Complete Data Flow Example
+
+### Button Click
+
+```
+1. User presses ENTER on focused button
+        |
+        ▼
+2. Button Instance emits ClickButtonIntent
+        |
+        ▼
+3. Handler receives ClickButtonIntent
+        |
+        ▼
+4. Reducer runs: s.ClickCount++ → newState
+        |
+        ▼
+5. Store updates: store.Set(newState)
+        |
+        ▼
+6. All listeners notified → ScheduleUpdate()
+        |
+        ▼
+7. Re-render → View reads store.Get() → UI updates
+```
+
+### Input Field Typing
+
+```
+1. User types 'a' in input
+        |
+        ▼
+2. Input Instance buffers: inst.value = "a"
+        |
+        ▼
+3. ForField config emits FieldChangeIntent{Field: "input1-value", Value: "a"}
+        |
+        ▼
+4. Handler receives FieldChangeIntent
+        |
+        ▼
+5. Reducer updates: s.Input1 = "a" → newState
+        |
+        ▼
+6. Store updates: store.Set(newState)
+        |
+        ▼
+7. Re-render → View reads store.Get() → Input displays "a"
+```
+
+---
+
+## Using ui.Run()
+
+The demo uses `ui.Run()` to start the application:
+
+```go
 func main() {
+    initStore()  // Initialize global Store
+    
     err := ui.Run(FocusApp,
         ui.WithWidth(60),
         ui.WithHeight(35),
         ui.WithTitle("Focus Switching Demo"),
-        ui.WithInit(func() {
-            // 4. 注册 FieldChangeIntent handler
-            // 从 GlobalState 获取 setter 并调用
-            ui.RegisterIntent(func(ctx *intent.ActionContext, i intent.FieldChangeIntent) intent.IntentResult {
-                switch i.Field {
-                case "input1-value":
-                    if fn, ok := ctx.GetState("input1-value-setter"); ok {
-                        if setter, ok := fn.(func(string)); ok {
-                            setter(i.Value)  // 更新 UseState
-                        }
-                    }
-                // ...
-                }
-                return intent.HandledResult()
-            })
-        }),
+        ui.WithInit(registerHandlers),  // Register Reducer handlers
     )
+    if err != nil {
+        panic(err)
+    }
 }
 ```
 
-### 数据流
+---
 
-```
-用户输入
-   ↓
-Instance 内部状态（临时缓冲）
-   ↓
-FieldChangeIntent{Field, Value}
-   ↓
-Handler 从 GlobalState 获取 setter
-   ↓
-setter(i.Value) 更新 UseState
-   ↓
-自动重渲染
-   ↓
-VNode 更新
-   ↓
-Instance 更新显示
-```
-
-### 关键点
-
-1. **UseState** 创建组件局部状态（存储在 hooks）
-2. **ForField** 配置组件发射 `FieldChangeIntent`
-3. **setter → GlobalState**：将闭包 setter 存储到 GlobalState
-4. **Handler → setter**：从 GlobalState 获取 setter 并调用更新 UseState
-5. **Value 绑定**：Input 的 `.Value()` 属性绑定 UseState 状态
-
-## Intent Usage Summary
+## Intent Usage
 
 ### Button - OnPress()
 
 ```go
-// 使用自定义 Intent (推荐 - 完全控制)
+// Use custom Intent (recommended)
 buttonComp.NewBuilder("Button 1 - First").
     OnPress(ClickButtonIntent{}).
     Build().
     SetKey("btn1")
 ```
 
-**注意事项**:
-- `Click` intent **没有内置 handler**，使用时会产生警告
-- 推荐使用**自定义 Intent** + 注册 handler，完全控制行为
-- 或者使用内置 Intent：`Toggle`, `OpenModal`, `SetState`, `Navigate` 等
-
-自定义 Intent 示例：
-```go
-type ClickButtonIntent struct{}
-
-func (ClickButtonIntent) IntentType() string { return "ClickButton" }
-func (ClickButtonIntent) StayPressed() bool  { return true }
-
-// 状态管理
-clickCount, setClickCount, _ := ui.UseStateInt(0)
-ctx.GlobalState["setClickCount"] = setClickCount
-
-// 注册 handler
-ui.RegisterIntent(func(ctx *intent.ActionContext, i ClickButtonIntent) intent.IntentResult {
-    if fn, ok := ctx.GetState("setClickCount"); ok {
-        if setter, ok := fn.(func(interface{})); ok {
-            // 使用 functional update：基于当前值递增
-            setter(func(c int) int {
-                return c + 1
-            })
-        }
-    }
-    return intent.HandledResult()
-})
-```
-
-**Functional Update 说明**：
-- `UseStateInt` 返回三个值：`(currentValue, setValue, getValue)`
-- `setValue` 支持直接设置值：`setValue(5)`
-- `setValue` 也支持 functional update：`setValue(func(c int) int { return c + 1 })`
-- Functional update 会先通过 `getValue()` 获取当前值，然后应用函数更新
-
-### Checkbox - OnToggle()
-
-```go
-checkboxComp.NewBuilder().
-    Label("Option A").
-    OnToggle(intent.Toggle("chk1-checked")).
-    Build().
-    SetKey("chk1")
-```
+**Note**: Do NOT use `Click` intent - it has no built-in handler.
 
 ### Input - ForField() + Value()
 
 ```go
+// Component automatically emits FieldChangeIntent
 inputComp.NewBuilder().
-    ForField(intent.BindField("input1-value")).
-    Value(input1Value).
-    Placeholder("Enter name...").
-    Build().
-    SetKey("input1")
+    ForField(intent.BindField("field")).  // Auto emit Intent
+    Value(state.Field).                      // Display from Store
+    Placeholder("Enter text...").
+    Build()
 ```
 
-### Available Intents
+### Checkbox - ForField() + Checked()
 
-| Intent | Constructor | Priority | Purpose |
-|--------|-------------|----------|---------|
-| Toggle | `intent.Toggle(key)` | UserBlocking | Toggle boolean state (used for button clicks) |
-| SetState | `intent.SetState(key, value)` | Normal | Set a state value |
-| Focus | `intent.Focus(targetID)` | Immediate | Focus an element |
-| Blur | `intent.Blur(targetID)` | Immediate | Remove focus |
-| Navigate | `intent.Navigate(path)` | UserBlocking | Navigate to a page |
-| OpenModal | `intent.OpenModal(modalID)` | UserBlocking | Open a modal |
-| CloseModal | `intent.CloseModal(modalID)` | UserBlocking | Close a modal |
+```go
+// Component automatically emits FieldChangeIntent
+checkboxComp.NewBuilder().
+    Label("Option A").
+    ForField(intent.BindField("checked")).
+    Checked(state.Checked == "true").  // Display boolean from Store
+    Build()
+```
 
-**注意**: `Click` intent 没有内置 handler。在这个 demo 中，按钮使用 `Toggle` intent 来更新点击计数。
+---
+
+## Available Intents with Handlers
+
+| Intent | Handler | Purpose |
+|--------|--------|---------|
+| `FieldChange` | ✅ `handleFieldChange` | Form field input |
+| `SetState` | ✅ `handleSetState` | Set global state value |
+| `Toggle` | ✅ `handleToggle` | Toggle boolean state |
+| `Increment` | ✅ `handleIncrement` | Increment numeric state |
+| `Navigate` | ✅ `handleNavigate` | Page navigation |
+| `Focus`/`Blur` | ✅ `handleFocus`/`handleBlur` | Focus management |
+| `OpenModal`/`CloseModal` | ✅ `handleOpenModal`/`handleCloseModal` | Modal management |
+
+**Note**: `Click` and `Press` intents DO NOT have built-in handlers. Use custom intents instead.
+
+---
 
 ## Running the Demo
 
@@ -203,3 +325,72 @@ Or build and run:
 go build -o focus_demo.exe main.go
 ./focus_demo.exe
 ```
+
+---
+
+## Key Benefits of Store + Reducer Architecture
+
+### Before: UseState + GlobalState (Complex)
+
+```go
+// ❌ 5 steps + type assertions
+value, setValue := ui.UseStateString("")
+ctx.GlobalState["setter"] = setValue
+ui.WithInit(func() {
+    ui.RegisterIntent(func(ctx *intent.ActionContext, i intent.FieldChangeIntent) intent.IntentResult {
+        if fn, ok := ctx.GetState("setter"); ok {
+            if setter, ok := fn.(func(string)); ok {  // Type assertion
+                setter(i.Value)
+            }
+        }
+        return intent.HandledResult()
+    })
+}, ...)
+input.ForField(...).Value(value).Build()
+```
+
+**Problems**:
+- ❌ Complex setter marshaling
+- ❌ Type assertions required
+- ❌ Timing dependencies (WithInit before render)
+- ❌ Multiple state sources (UseState + GlobalState + Instance)
+
+### After: Store + Reducer (Simple)
+
+```go
+// ✅ 3 steps, no type assertions
+// Store (initialized once)
+appStore := store.NewStore(AppState{Field: ""})
+
+// Reducer (defined once)
+reducer.NewBuilder[AppState]().
+    On(intent.FieldChangeIntent{}, func(s AppState, i intent.Intent) AppState {
+        s.Field = i.(intent.FieldChangeIntent).Value
+        return s
+    }).RegisterToGlobal(appStore)
+
+// View (pure function)
+state := appStore.Get()
+input.ForField(intent.BindField("field")).Value(state.Field).Build()
+```
+
+**Benefits**:
+- ✅ Single state source (Store only)
+- ✅ No type assertions
+- ✅ No timing dependencies
+- ✅ Predictable state updates
+- ✅ Easy to test (Reducer is pure function)
+
+---
+
+## Comparison with Other Demos
+
+| Demo | Architecture | Complexity |
+|------|-------------|------------|
+| `store_reducer_demo` | Store + Reducer | ✅ Simple |
+| `focus_switching_demo` | Store + Reducer | ✅ Simple |
+| `validation_demo` | UseState + GlobalState | ❌ Complex |
+| `mvp_form_demo` | UseState + GlobalState | ❌ Complex |
+| `typesafe_form_demo` | UseState + GlobalState | ❌ Complex |
+
+**Recommendation**: Use **Store + Reducer** architecture for all new applications.
