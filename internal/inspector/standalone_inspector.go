@@ -2519,7 +2519,7 @@ func (si *StandaloneInspector) initIntentHandlers() {
 	})
 
 	// Register ToggleInspector handler (no parameters, can use ui.On)
-	ui.On(ToggleInspectorIntent{}, func() {
+	ui.On(ToggleInspectorIntent{}, func(actx *intent.ActionContext) {
 		si.ToggleVisibility()
 	})
 
