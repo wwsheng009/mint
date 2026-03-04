@@ -163,12 +163,12 @@ func FormReducer(state FormState, i intent.Intent) FormState {
 
 func TypedFormDemo() ui.VNode {
 	// Get component state using hooks
-	username, setUsername, _ := ui.UseStateString("")
-	email, setEmail, _ := ui.UseStateString("")
-	age, setAge, _ := ui.UseStateInt(0)
-	active, setActive, _ := ui.UseStateBool(false)
-	usernameErr, setUsernameErr, _ := ui.UseStateString("")
-	emailErr, setEmailErr, _ := ui.UseStateString("")
+	username, setUsername := ui.UseStateString("")
+	email, setEmail := ui.UseStateString("")
+	age, setAge := ui.UseStateInt(0)
+	active, setActive := ui.UseStateBool(false)
+	usernameErr, setUsernameErr := ui.UseStateString("")
+	emailErr, setEmailErr := ui.UseStateString("")
 
 	// Save state setters to context for handler access
 	ctx := ui.GetCurrentContext()

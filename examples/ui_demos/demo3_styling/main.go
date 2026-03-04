@@ -15,6 +15,7 @@
 package main
 
 import (
+	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/ui"
 )
 
@@ -24,9 +25,6 @@ type SetStylingTabIntent struct {
 }
 func (SetStylingTabIntent) IntentType() string { return "SetStylingTab" }
 func (SetStylingTabIntent) StayPressed() bool  { return true }
-
-// Global setter for tab navigation
-var globalSetStylingTab func(string)
 
 func main() {
 	err := ui.Run(StylingDemo,
@@ -43,13 +41,18 @@ func main() {
 func StylingDemo() ui.VNode {
 	currentTab, setCurrentTab := ui.UseStateString("colors")
 
-	// Update global setter
-	globalSetStylingTab = setCurrentTab
+	// 将 setter 保存到 GlobalState，供 handler 从 ActionContext 读取
+	ctx := ui.GetCurrentContext()
+	if ctx != nil {
+		ctx.GlobalState["setCurrentTab"] = setCurrentTab
+	}
 
 	// Register tab change handler
-	ui.On(SetStylingTabIntent{TabID: currentTab}, func() {
-		if globalSetStylingTab != nil {
-			globalSetStylingTab(currentTab)
+	ui.On(SetStylingTabIntent{TabID: currentTab}, func(actx *intent.ActionContext) {
+		if fn, ok := actx.GetState("setCurrentTab"); ok {
+			if setter, ok := fn.(func(string)); ok {
+				setter(currentTab)
+			}
 		}
 	})
 

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/ui"
 )
 
@@ -13,12 +14,24 @@ func (IncrementProgressIntent) StayPressed() bool  { return true }
 func ProgressDemo() ui.VNode {
 	progress, setProgress, _ := ui.UseStateInt(0)
 
+	// 将状态保存到 GlobalState，供 handler 从 ActionContext 读取
+	ctx := ui.GetCurrentContext()
+	if ctx != nil {
+		ctx.GlobalState["progress"] = progress
+		ctx.GlobalState["setProgress"] = setProgress
+	}
+
 	// Register intent handler
-	ui.On(IncrementProgressIntent{}, func() {
-		if progress >= 100 {
+	ui.On(IncrementProgressIntent{}, func(actx *intent.ActionContext) {
+		currentProgress := actx.GetIntState("progress", 0)
+		if currentProgress >= 100 {
 			return
 		}
-		setProgress(progress + 10)
+		if fn, ok := actx.GetState("setProgress"); ok {
+			if setter, ok := fn.(func(int)); ok {
+				setter(currentProgress + 10)
+			}
+		}
 	})
 
 	return ui.VStack(

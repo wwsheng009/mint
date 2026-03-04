@@ -15,7 +15,6 @@ import (
 
 	"github.com/wwsheng009/mint/runtime/debug"
 	"github.com/wwsheng009/mint/runtime/intent"
-	"github.com/wwsheng009/mint/ui"
 )
 
 // =============================================================================
@@ -35,17 +34,14 @@ type AppState struct {
 type IncrementIntent struct{}
 
 func (IncrementIntent) IntentType() string { return "Increment" }
-
 type DecrementIntent struct{}
 
 func (DecrementIntent) IntentType() string { return "Decrement" }
-
 type SetMessageIntent struct {
 	Message string
 }
 
 func (SetMessageIntent) IntentType() string { return "SetMessage" }
-
 type ResetIntent struct{}
 
 func (ResetIntent) IntentType() string { return "Reset" }
@@ -89,12 +85,12 @@ func main() {
 `)
 
 	// Create time travel debugger
-	dbg := debug.NewTimeTravelDebugger[AppState](
-		debug.WithMaxHistory(50),
-		debug.WithApplyState(func(s AppState) {
+	tdbg := debug.NewTimeTravelDebugger[AppState](
+		debug.WithMaxHistory[AppState](50),
+		debug.WithApplyState[AppState](func(s AppState) {
 			fmt.Printf("⏪ Applied state: Count=%d, Message='%s'\n", s.Count, s.Message)
 		}),
-		debug.WithOnRecord(func(s debug.Snapshot) {
+		debug.WithOnRecord[AppState](func(s debug.Snapshot) {
 			fmt.Printf("📝 Recorded [%d]: %s\n", s.Index, s.GetIntentType())
 		}),
 	)
@@ -107,78 +103,78 @@ func main() {
 	}
 
 	// Record initial state
-	dbg.RecordWithIntent(state, nil, "initial")
+	tdbg.RecordWithIntent(state, nil, "initial")
 
 	fmt.Println("=== Simulating State Changes ===\n")
 
 	// Simulate state changes
 	state = appReducer(state, IncrementIntent{})
-	dbg.RecordWithIntent(state, IncrementIntent{}, "increment 1")
+	tdbg.RecordWithIntent(state, IncrementIntent{}, "increment 1")
 
 	state = appReducer(state, IncrementIntent{})
-	dbg.RecordWithIntent(state, IncrementIntent{}, "increment 2")
+	tdbg.RecordWithIntent(state, IncrementIntent{}, "increment 2")
 
 	state = appReducer(state, SetMessageIntent{Message: "World"})
-	dbg.RecordWithIntent(state, SetMessageIntent{}, "set message")
+	tdbg.RecordWithIntent(state, SetMessageIntent{}, "set message")
 
 	state = appReducer(state, DecrementIntent{})
-	dbg.RecordWithIntent(state, DecrementIntent{}, "decrement 1")
+	tdbg.RecordWithIntent(state, DecrementIntent{}, "decrement 1")
 
 	state = appReducer(state, SetMessageIntent{Message: "Time Travel!"})
-	dbg.RecordWithIntent(state, SetMessageIntent{}, "set message 2")
+	tdbg.RecordWithIntent(state, SetMessageIntent{}, "set message 2")
 
 	state = appReducer(state, IncrementIntent{})
-	dbg.RecordWithIntent(state, IncrementIntent{}, "increment 3")
+	tdbg.RecordWithIntent(state, IncrementIntent{}, "increment 3")
 
 	fmt.Println("\n=== Current State ===")
 	fmt.Printf("Count: %d\n", state.Count)
 	fmt.Printf("Message: %s\n", state.Message)
 
-	fmt.Println("\n=== History Navigation ===\n")
+	fmt.Println("\n=== History Navigation ===")
 
 	// Show history
-	history := dbg.GetHistory()
+	history := tdbg.GetHistory()
 	fmt.Printf("History (%d snapshots):\n", len(history))
 	for i, s := range history {
 		marker := " "
-		if i == dbg.GetCurrentIndex() {
+		if i == tdbg.GetCurrentIndex() {
 			marker = ">"
 		}
 		fmt.Printf("  %s [%d] %s - %s\n", marker, s.Index, s.GetIntentType(), s.Label)
 	}
 
-	fmt.Println("\n=== Undo Demo ===\n")
+	fmt.Println("\n=== Undo Demo ===")
 
 	// Undo 3 times
 	for i := 0; i < 3; i++ {
-		if dbg.CanUndo() {
-			dbg.Undo()
+		if tdbg.CanUndo() {
+			tdbg.Undo()
 		}
 	}
 
-	fmt.Println("\n=== Redo Demo ===\n")
+	fmt.Println("\n=== Redo Demo ===")
 
 	// Redo once
-	if dbg.CanRedo() {
-		dbg.Redo()
+	if tdbg.CanRedo() {
+		tdbg.Redo()
 	}
 
-	fmt.Println("\n=== Jump To Specific Point ===\n")
+	fmt.Println("\n=== Jump To Specific Point ===")
 
 	// Jump to beginning
-	dbg.JumpTo(0)
-	currentState, _ := dbg.GetCurrentState()
+	tdbg.JumpTo(0)
+	currentState, _ := tdbg.GetCurrentState()
 	fmt.Printf("After jump to 0: Count=%d\n", currentState.Count)
 
 	// Jump to end
-	dbg.JumpTo(len(history) - 1)
-	currentState, _ = dbg.GetCurrentState()
+	tdbg.JumpTo(len(history) - 1)
+	currentState, _ = tdbg.GetCurrentState()
 	fmt.Printf("After jump to end: Count=%d\n", currentState.Count)
 
-	fmt.Println("\n=== Export/Import Demo ===\n")
+	fmt.Println("\n=== Export/Import Demo ===")
 
 	// Export history
-	data, err := dbg.Export()
+	data, err := tdbg.Export()
 	if err != nil {
 		fmt.Printf("Export error: %v\n", err)
 	} else {
@@ -190,18 +186,18 @@ func main() {
 		fmt.Printf("Saved to: %s\n", tmpFile)
 
 		// Create new debugger and import
-		dbg2 := debug.NewTimeTravelDebugger[AppState]()
+		tdbg2 := debug.NewTimeTravelDebugger[AppState]()
 		data2, _ := os.ReadFile(tmpFile)
-		if err := dbg2.Import(data2); err != nil {
+		if err := tdbg2.Import(data2); err != nil {
 			fmt.Printf("Import error: %v\n", err)
 		} else {
-			fmt.Printf("Imported history with %d snapshots\n", len(dbg2.GetHistory()))
+			fmt.Printf("Imported history with %d snapshots\n", len(tdbg2.GetHistory()))
 		}
 	}
 
-	fmt.Println("\n=== Debug Panel State ===\n")
+	fmt.Println("\n=== Debug Panel State ===")
 
-	panelState := dbg.GetDebugPanelState()
+	panelState := tdbg.GetDebugPanelState()
 	panelJSON, _ := json.MarshalIndent(panelState, "", "  ")
 	fmt.Printf("%s\n", panelJSON)
 
@@ -227,7 +223,7 @@ func main() {
 // Example integration:
 //
 //	store := store.NewStore(AppState{})
-//	dbg := debug.NewTimeTravelDebugger[AppState]()
+//	tdbg := debug.NewTimeTravelDebugger[AppState]()
 //	store.Subscribe(dbg.RecordFunc())
 //
 //	// In UI:

@@ -109,24 +109,44 @@ func App() ui.VNode {
 		ctx.GlobalState["submittedSetter"] = setSubmitted
 	}
 
-	// 使用 ui.On 注册自定义 Intent 处理器（简化注册 API）
+	// 使用 ui.On 注册自定义 Intent 处理器（从 ActionContext 读取状态）
 	// ui.On 有去重机制，多次渲染只注册一次
 
 	// Reset 处理器
-	ui.On(ResetIntent{}, func() {
-		setUsername("")
-		setEmail("")
-		setAgree(false)
+	ui.On(ResetIntent{}, func(actx *intent.ActionContext) {
+		if fn, ok := actx.GetState("usernameSetter"); ok {
+			if setter, ok := fn.(func(string)); ok {
+				setter("")
+			}
+		}
+		if fn, ok := actx.GetState("emailSetter"); ok {
+			if setter, ok := fn.(func(string)); ok {
+				setter("")
+			}
+		}
+		if fn, ok := actx.GetState("agreeSetter"); ok {
+			if setter, ok := fn.(func(bool)); ok {
+				setter(false)
+			}
+		}
 	})
 
 	// Submit 处理器
-	ui.On(SubmitFormIntent{}, func() {
-		setSubmitted(true)
+	ui.On(SubmitFormIntent{}, func(actx *intent.ActionContext) {
+		if fn, ok := actx.GetState("submittedSetter"); ok {
+			if setter, ok := fn.(func(bool)); ok {
+				setter(true)
+			}
+		}
 	})
 
 	// Back 处理器
-	ui.On(ClearSubmittedIntent{}, func() {
-		setSubmitted(false)
+	ui.On(ClearSubmittedIntent{}, func(actx *intent.ActionContext) {
+		if fn, ok := actx.GetState("submittedSetter"); ok {
+			if setter, ok := fn.(func(bool)); ok {
+				setter(false)
+			}
+		}
 	})
 
 	if submitted {

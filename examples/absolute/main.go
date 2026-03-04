@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 
+	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/ui"
 	"github.com/wwsheng009/mint/ui/components/absolute"
 	"github.com/wwsheng009/mint/ui/components/button"
@@ -18,12 +19,22 @@ func main() {
 		// 使用 UseState 管理计数状态
 		count, setCount, _ := ui.UseStateInt(0)
 
+		// 将 setter 保存到 GlobalState，供 handler 从 ActionContext 读取
+		ctx := ui.GetCurrentContext()
+		if ctx != nil {
+			ctx.GlobalState["setCount"] = setCount
+		}
+
 		// 使用 ui.On 注册 Intent 处理器（带 sync.Map 去重，每次渲染不会重复注册）
-		// 重要：使用函数式更新 setCount(func(c int) int { return c + 1 }) 避免闭包捕获旧值
-		ui.On(IncrementIntent{}, func() {
-			setCount(func(c int) int {
-				return c + 1
-			})
+		// handler 从 ActionContext 读取状态，避免闭包捕获旧值
+		ui.On(IncrementIntent{}, func(actx *intent.ActionContext) {
+			if fn, ok := actx.GetState("setCount"); ok {
+				if setter, ok := fn.(func(func(int) int)); ok {
+					setter(func(c int) int {
+						return c + 1
+					})
+				}
+			}
 		})
 
 		return ui.VStack(

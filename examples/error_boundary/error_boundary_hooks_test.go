@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/runtime/platform"
 	"github.com/wwsheng009/mint/ui"
 )
@@ -40,8 +41,20 @@ func (RenderIncrementIntent) StayPressed() bool  { return true }
 func CounterWithHooks() ui.VNode {
 	count, setCount, _ := ui.UseStateInt(0)
 
-	ui.On(CounterIncrementIntent{}, func() {
-		setCount(count + 1)
+	// 将 setter 保存到 GlobalState，供 handler 从 ActionContext 读取
+	ctx := ui.GetCurrentContext()
+	if ctx != nil {
+		ctx.GlobalState["setCount"] = setCount
+		ctx.GlobalState["count"] = count
+	}
+
+	ui.On(CounterIncrementIntent{}, func(actx *intent.ActionContext) {
+		currentCount := actx.GetIntState("count", 0)
+		if fn, ok := actx.GetState("setCount"); ok {
+			if setter, ok := fn.(func(int)); ok {
+				setter(currentCount + 1)
+			}
+		}
 	})
 
 	return ui.VStack(
@@ -57,8 +70,20 @@ var panicThreshold int = 5
 func PanicOnCount() ui.VNode {
 	count, setCount, _ := ui.UseStateInt(0)
 
-	ui.On(PanicIncrementIntent{}, func() {
-		setCount(count + 1)
+	// 将 setter 保存到 GlobalState，供 handler 从 ActionContext 读取
+	ctx := ui.GetCurrentContext()
+	if ctx != nil {
+		ctx.GlobalState["setCount"] = setCount
+		ctx.GlobalState["count"] = count
+	}
+
+	ui.On(PanicIncrementIntent{}, func(actx *intent.ActionContext) {
+		currentCount := actx.GetIntState("count", 0)
+		if fn, ok := actx.GetState("setCount"); ok {
+			if setter, ok := fn.(func(int)); ok {
+				setter(currentCount + 1)
+			}
+		}
 	})
 
 	// Panic when count reaches threshold
@@ -79,8 +104,20 @@ var panicInEffect bool = false
 func EffectPanic() ui.VNode {
 	count, setCount, _ := ui.UseStateInt(0)
 
-	ui.On(EffectTriggerIntent{}, func() {
-		setCount(count + 1)
+	// 将 setter 保存到 GlobalState，供 handler 从 ActionContext 读取
+	ctx := ui.GetCurrentContext()
+	if ctx != nil {
+		ctx.GlobalState["setCount"] = setCount
+		ctx.GlobalState["count"] = count
+	}
+
+	ui.On(EffectTriggerIntent{}, func(actx *intent.ActionContext) {
+		currentCount := actx.GetIntState("count", 0)
+		if fn, ok := actx.GetState("setCount"); ok {
+			if setter, ok := fn.(func(int)); ok {
+				setter(currentCount + 1)
+			}
+		}
 	})
 
 	ui.UseEffect(func() ui.CleanupFunc {
@@ -107,8 +144,29 @@ func RenderPanic() ui.VNode {
 
 	count, setCount, _ := ui.UseStateInt(0)
 
-	ui.On(RenderIncrementIntent{}, func() {
-		setCount(count + 1)
+	// 将 setter 保存到 GlobalState，供 handler 从 ActionContext 读取
+	ctx := ui.GetCurrentContext()
+	if ctx != nil {
+		ctx.GlobalState["setCount"] = setCount
+		ctx.GlobalState["count"] = count
+	}
+
+	ui.On(RenderIncrementIntent{}, func(actx *intent.ActionContext) {
+		currentCount := actx.GetIntState("count", 0)
+		if fn, ok := actx.GetState("setCount"); ok {
+			if setter, ok := fn.(func(int)); ok {
+				setter(currentCount + 1)
+			}
+		}
+	})
+
+	ui.On(RenderIncrementIntent{}, func(actx *intent.ActionContext) {
+		currentCount := actx.GetIntState("count", 0)
+		if fn, ok := actx.GetState("setCount"); ok {
+			if setter, ok := fn.(func(int)); ok {
+				setter(currentCount + 1)
+			}
+		}
 	})
 
 	return ui.VStack(
@@ -361,8 +419,20 @@ func TestErrorBoundary_MultipleHooks(t *testing.T) {
 			return count * 2
 		}, []interface{}{count})
 
-		ui.On(RenderIncrementIntent{}, func() {
-			setCount(count + 1)
+		// 将 setter 保存到 GlobalState，供 handler 从 ActionContext 读取
+		ctx := ui.GetCurrentContext()
+		if ctx != nil {
+			ctx.GlobalState["setCount"] = setCount
+			ctx.GlobalState["count"] = count
+		}
+
+		ui.On(RenderIncrementIntent{}, func(actx *intent.ActionContext) {
+			currentCount := actx.GetIntState("count", 0)
+			if fn, ok := actx.GetState("setCount"); ok {
+				if setter, ok := fn.(func(int)); ok {
+					setter(currentCount + 1)
+				}
+			}
 		})
 
 		return ui.VStack(
@@ -478,8 +548,20 @@ func TestErrorBoundary_HookCleanup(t *testing.T) {
 	cleanupComponent := func() ui.VNode {
 		count, setCount, _ := ui.UseStateInt(0)
 
-		ui.On(CounterIncrementIntent{}, func() {
-			setCount(count + 1)
+		// 将 setter 保存到 GlobalState，供 handler 从 ActionContext 读取
+		ctx := ui.GetCurrentContext()
+		if ctx != nil {
+			ctx.GlobalState["setCount"] = setCount
+			ctx.GlobalState["count"] = count
+		}
+
+		ui.On(CounterIncrementIntent{}, func(actx *intent.ActionContext) {
+			currentCount := actx.GetIntState("count", 0)
+			if fn, ok := actx.GetState("setCount"); ok {
+				if setter, ok := fn.(func(int)); ok {
+					setter(currentCount + 1)
+				}
+			}
 		})
 
 		ui.UseEffect(func() ui.CleanupFunc {
@@ -534,8 +616,21 @@ func TestErrorBoundary_NestedHooks(t *testing.T) {
 	// Outer component using hooks
 	outerHook := func() ui.VNode {
 		count, setCount, _ := ui.UseStateInt(0)
-		ui.On(RenderIncrementIntent{}, func() {
-			setCount(count + 1)
+		
+		// 将 setter 保存到 GlobalState，供 handler 从 ActionContext 读取
+		ctx := ui.GetCurrentContext()
+		if ctx != nil {
+			ctx.GlobalState["setCount"] = setCount
+			ctx.GlobalState["count"] = count
+		}
+
+		ui.On(RenderIncrementIntent{}, func(actx *intent.ActionContext) {
+			currentCount := actx.GetIntState("count", 0)
+			if fn, ok := actx.GetState("setCount"); ok {
+				if setter, ok := fn.(func(int)); ok {
+					setter(currentCount + 1)
+				}
+			}
 		})
 		return ui.VStack(
 			ui.Element("text").Prop("content", "Nested Hooks").Build(),

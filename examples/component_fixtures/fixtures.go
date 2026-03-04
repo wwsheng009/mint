@@ -9,6 +9,7 @@ import (
 	"fmt"
 
 	"github.com/wwsheng009/mint/framework/theme"
+	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/runtime/style"
 	"github.com/wwsheng009/mint/ui"
 )
@@ -205,9 +206,19 @@ func buildContentArea(input string, items []string) ui.VNode {
 
 // BuildDemo1ConfirmModal builds a confirmation modal
 func BuildDemo1ConfirmModal(onClose func()) ui.VNode {
-	// 使用 ui.On 注册 Intent handler（简单场景）
-	ui.On(ModalCloseIntent{}, func() {
-		onClose()
+	// 将 onClose 保存到 GlobalState，供 handler 从 ActionContext 读取
+	ctx := ui.GetCurrentContext()
+	if ctx != nil {
+		ctx.GlobalState["onClose"] = onClose
+	}
+
+	// 使用 ui.On 注册 Intent handler
+	ui.On(ModalCloseIntent{}, func(actx *intent.ActionContext) {
+		if fn, ok := actx.GetState("onClose"); ok {
+			if closeFn, ok := fn.(func()); ok {
+				closeFn()
+			}
+		}
 	})
 
 	modalBox := ui.NewVStack().

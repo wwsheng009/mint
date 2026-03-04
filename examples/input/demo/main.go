@@ -36,13 +36,21 @@ func MouseFocusDemo() ui.VNode {
 	}
 
 	// Register Submit intent handler
-	ui.On(SubmitFormIntent{}, func() {
-		setSubmitted(true)
+	ui.On(SubmitFormIntent{}, func(actx *intent.ActionContext) {
+		if fn, ok := actx.GetState("submittedSetter"); ok {
+			if setter, ok := fn.(func(bool)); ok {
+				setter(true)
+			}
+		}
 	})
 
 	// Register ClearSubmitted intent handler
-	ui.On(ClearSubmittedStateIntent{}, func() {
-		setSubmitted(false)
+	ui.On(ClearSubmittedStateIntent{}, func(actx *intent.ActionContext) {
+		if fn, ok := actx.GetState("submittedSetter"); ok {
+			if setter, ok := fn.(func(bool)); ok {
+				setter(false)
+			}
+		}
 	})
 
 	// Show submitted view

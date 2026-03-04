@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/ui"
 )
 
@@ -33,24 +34,65 @@ func main() {
 		warningToast, setWarningToast, _ := ui.UseStateInt(0)
 		errorToast, setErrorToast, _ := ui.UseStateInt(0)
 
-		// 2. 注册 Intent handler（闭包捕获 setter）
-		ui.On(ShowInfoToastIntent{}, func() {
-			setInfoToast(1)
+		// 将 setter 保存到 GlobalState，供 handler 从 ActionContext 读取
+		ctx := ui.GetCurrentContext()
+		if ctx != nil {
+			ctx.GlobalState["setInfoToast"] = setInfoToast
+			ctx.GlobalState["setSuccessToast"] = setSuccessToast
+			ctx.GlobalState["setWarningToast"] = setWarningToast
+			ctx.GlobalState["setErrorToast"] = setErrorToast
+		}
+
+		// 2. 注册 Intent handler（从 ActionContext 读取状态）
+		ui.On(ShowInfoToastIntent{}, func(actx *intent.ActionContext) {
+			if fn, ok := actx.GetState("setInfoToast"); ok {
+				if setter, ok := fn.(func(int)); ok {
+					setter(1)
+				}
+			}
 		})
-		ui.On(ShowSuccessToastIntent{}, func() {
-			setSuccessToast(1)
+		ui.On(ShowSuccessToastIntent{}, func(actx *intent.ActionContext) {
+			if fn, ok := actx.GetState("setSuccessToast"); ok {
+				if setter, ok := fn.(func(int)); ok {
+					setter(1)
+				}
+			}
 		})
-		ui.On(ShowWarningToastIntent{}, func() {
-			setWarningToast(1)
+		ui.On(ShowWarningToastIntent{}, func(actx *intent.ActionContext) {
+			if fn, ok := actx.GetState("setWarningToast"); ok {
+				if setter, ok := fn.(func(int)); ok {
+					setter(1)
+				}
+			}
 		})
-		ui.On(ShowErrorToastIntent{}, func() {
-			setErrorToast(1)
+		ui.On(ShowErrorToastIntent{}, func(actx *intent.ActionContext) {
+			if fn, ok := actx.GetState("setErrorToast"); ok {
+				if setter, ok := fn.(func(int)); ok {
+					setter(1)
+				}
+			}
 		})
-		ui.On(ClearAllToastsIntent{}, func() {
-			setInfoToast(0)
-			setSuccessToast(0)
-			setWarningToast(0)
-			setErrorToast(0)
+		ui.On(ClearAllToastsIntent{}, func(actx *intent.ActionContext) {
+			if fn, ok := actx.GetState("setInfoToast"); ok {
+				if setter, ok := fn.(func(int)); ok {
+					setter(0)
+				}
+			}
+			if fn, ok := actx.GetState("setSuccessToast"); ok {
+				if setter, ok := fn.(func(int)); ok {
+					setter(0)
+				}
+			}
+			if fn, ok := actx.GetState("setWarningToast"); ok {
+				if setter, ok := fn.(func(int)); ok {
+					setter(0)
+				}
+			}
+			if fn, ok := actx.GetState("setErrorToast"); ok {
+				if setter, ok := fn.(func(int)); ok {
+					setter(0)
+				}
+			}
 		})
 
 		// 3. 构建 toast 列表

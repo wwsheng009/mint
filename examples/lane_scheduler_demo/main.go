@@ -27,38 +27,6 @@ func main() {
 	fmt.Println("Background tasks use low priority (IdleLane).")
 	fmt.Println()
 
-	// Register intent handlers
-	ui.On(IncrementIntent{}, func(ctx *intent.ActionContext) {
-		// High-priority user input
-		if fn, ok := ctx.GetState("setCount"); ok {
-			if setter, ok := fn.(func(func(int) int)); ok {
-				setter(func(c int) int { return c + 1 })
-			}
-		}
-	})
-
-	ui.On(DecrementIntent{}, func(ctx *intent.ActionContext) {
-		// High-priority user input
-		if fn, ok := ctx.GetState("setCount"); ok {
-			if setter, ok := fn.(func(func(int) int)); ok {
-				setter(func(c int) int { return c - 1 })
-			}
-		}
-	})
-
-	ui.On(BackgroundTaskIntent{}, func(ctx *intent.ActionContext) {
-		// Low-priority background task
-		// This demonstrates scheduling work at different priorities
-		if rtui.HasGlobalFiberScheduler() {
-			rtui.ScheduleIdle(func() {
-				fmt.Println("Background task executed at idle priority")
-				// Perform non-critical work
-			})
-		} else {
-			fmt.Println("Lane scheduler not enabled, executing immediately")
-		}
-	})
-
 	// Run with Lane Scheduler enabled
 	err := ui.Run(App,
 		ui.WithLaneScheduler(),
@@ -71,14 +39,57 @@ func main() {
 	}
 }
 
+// CounterState holds counter state accessors for intent handlers
+type CounterState struct {
+	Get  func() int
+	Set  func(interface{})
+}
+
 // App is the main application component
 func App() ui.VNode {
-	count, setCount, _ := ui.UseStateInt(0)
+	count, setCount, getCount := ui.UseStateInt(0)
 
-	// Store setter in GlobalState for handler access
+	// Register intent handlers once on mount
+	ui.UseEffect(func() ui.CleanupFunc {
+		ui.On(IncrementIntent{}, func(ctx *intent.ActionContext) {
+			if state, ok := ctx.GetState("counter"); ok {
+				if cs, ok := state.(*CounterState); ok {
+					cs.Set(cs.Get() + 1)
+				}
+			}
+		})
+
+		ui.On(DecrementIntent{}, func(ctx *intent.ActionContext) {
+			if state, ok := ctx.GetState("counter"); ok {
+				if cs, ok := state.(*CounterState); ok {
+					cs.Set(cs.Get() - 1)
+				}
+			}
+		})
+
+		ui.On(BackgroundTaskIntent{}, func(ctx *intent.ActionContext) {
+			fmt.Println("Background task scheduled at IdleLane...")
+			if rtui.HasGlobalFiberScheduler() {
+				rtui.ScheduleIdle(func() {
+					fmt.Println("Background task executed at idle priority")
+				})
+				// Flush to execute scheduled idle work
+				rtui.FlushScheduler()
+			} else {
+				fmt.Println("Lane scheduler not enabled, executing immediately")
+			}
+		})
+
+		return nil
+	}, nil)
+
+	// Store counter state in GlobalState for handler access
 	ctx := ui.GetCurrentContext()
 	if ctx != nil {
-		ctx.GlobalState["setCount"] = setCount
+		ctx.GlobalState["counter"] = &CounterState{
+			Get: getCount,
+			Set: setCount,
+		}
 	}
 
 	// Check if scheduler is enabled

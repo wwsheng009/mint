@@ -15,6 +15,7 @@ package main
 import (
 	"fmt"
 
+	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/ui"
 )
 
@@ -39,29 +40,27 @@ type SetSelectedTabIntent struct {
 func (SetSelectedTabIntent) IntentType() string { return "SetSelectedTab" }
 func (SetSelectedTabIntent) StayPressed() bool  { return true }
 
-// Global setters for handling dynamic intents
-// Note: This pattern uses global variables to work around the ui.On deduplication issue
-// See docs/architecture/mvp/INTENT_MANAGEMENT_PATTERNS.md for details
-var (
-	globalSetShowCommandPalette func(bool)
-	globalSetActiveFile         func(string)
-	globalSetSelectedTab        func(string)
-)
-
 func main() {
-	// Register intent handlers once at application start
-	ui.On(ShowCommandPaletteIntent{}, func() {
-		if globalSetShowCommandPalette != nil {
-			globalSetShowCommandPalette(true)
-		}
-	})
-	ui.On(HideCommandPaletteIntent{}, func() {
-		if globalSetShowCommandPalette != nil {
-			globalSetShowCommandPalette(false)
-		}
-	})
-
 	err := ui.Run(IDEDemo,
+		ui.WithInit(func() {
+			// Register global intent handlers for ShowCommandPaletteIntent 和 HideCommandPaletteIntent
+			ui.RegisterIntent(func(ctx *intent.ActionContext, i ShowCommandPaletteIntent) intent.IntentResult {
+				if fn, ok := ctx.GetState("setShowCommandPalette"); ok {
+					if setter, ok := fn.(func(bool)); ok {
+						setter(true)
+					}
+				}
+				return intent.HandledResult()
+			})
+			ui.RegisterIntent(func(ctx *intent.ActionContext, i HideCommandPaletteIntent) intent.IntentResult {
+				if fn, ok := ctx.GetState("setShowCommandPalette"); ok {
+					if setter, ok := fn.(func(bool)); ok {
+						setter(false)
+					}
+				}
+				return intent.HandledResult()
+			})
+		}),
 		ui.WithWidth(100),
 		ui.WithHeight(40),
 		ui.WithTitle("Mint TUI - IDE Interface"),
@@ -78,22 +77,29 @@ func IDEDemo() ui.VNode {
 	selectedTab, setSelectedTab := ui.UseStateString("editor")
 	editorContent, setEditorContent := ui.UseStateString("func main() {\\n    ui.Run(App)\\n}")
 
-	// Update global setters
-	globalSetShowCommandPalette = setShowCommandPalette
-	globalSetActiveFile = setActiveFile
-	globalSetSelectedTab = setSelectedTab
+	// 将 setter 保存到 GlobalState，供 handler 从 ActionContext 读取
+	ctx := ui.GetCurrentContext()
+	if ctx != nil {
+		ctx.GlobalState["setActiveFile"] = setActiveFile
+		ctx.GlobalState["setShowCommandPalette"] = setShowCommandPalette
+		ctx.GlobalState["setSelectedTab"] = setSelectedTab
+	}
 
 	// Register file selection handler
-	ui.On(SetActiveFileIntent{Name: activeFile}, func() {
-		if globalSetActiveFile != nil {
-			globalSetActiveFile(activeFile)
+	ui.On(SetActiveFileIntent{Name: activeFile}, func(actx *intent.ActionContext) {
+		if fn, ok := actx.GetState("setActiveFile"); ok {
+			if setter, ok := fn.(func(string)); ok {
+				setter(activeFile)
+			}
 		}
 	})
 
 	// Register tab selection handler
-	ui.On(SetSelectedTabIntent{TabID: selectedTab}, func() {
-		if globalSetSelectedTab != nil {
-			globalSetSelectedTab(selectedTab)
+	ui.On(SetSelectedTabIntent{TabID: selectedTab}, func(actx *intent.ActionContext) {
+		if fn, ok := actx.GetState("setSelectedTab"); ok {
+			if setter, ok := fn.(func(string)); ok {
+				setter(selectedTab)
+			}
 		}
 	})
 

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/ui"
 )
 
@@ -22,15 +23,33 @@ func main() {
 		// Use int for tab state: 0 = Home, 1 = Profile, 2 = Settings
 		activeTab, setActiveTab, _ := ui.UseStateInt(0)
 
+		// 将 setter 保存到 GlobalState，供 handler 从 ActionContext 读取
+		ctx := ui.GetCurrentContext()
+		if ctx != nil {
+			ctx.GlobalState["setActiveTab"] = setActiveTab
+		}
+
 		// Register intent handlers
-		ui.On(SetHomeTabIntent{}, func() {
-			setActiveTab(0)
+		ui.On(SetHomeTabIntent{}, func(actx *intent.ActionContext) {
+			if fn, ok := actx.GetState("setActiveTab"); ok {
+				if setter, ok := fn.(func(int)); ok {
+					setter(0)
+				}
+			}
 		})
-		ui.On(SetProfileTabIntent{}, func() {
-			setActiveTab(1)
+		ui.On(SetProfileTabIntent{}, func(actx *intent.ActionContext) {
+			if fn, ok := actx.GetState("setActiveTab"); ok {
+				if setter, ok := fn.(func(int)); ok {
+					setter(1)
+				}
+			}
 		})
-		ui.On(SetSettingsTabIntent{}, func() {
-			setActiveTab(2)
+		ui.On(SetSettingsTabIntent{}, func(actx *intent.ActionContext) {
+			if fn, ok := actx.GetState("setActiveTab"); ok {
+				if setter, ok := fn.(func(int)); ok {
+					setter(2)
+				}
+			}
 		})
 
 		// Tab content based on active tab

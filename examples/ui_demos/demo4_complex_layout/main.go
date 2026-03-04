@@ -14,6 +14,7 @@ package main
 import (
 	"fmt"
 
+	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/ui"
 )
 
@@ -23,9 +24,6 @@ type SetComplexLayoutTabIntent struct {
 }
 func (SetComplexLayoutTabIntent) IntentType() string { return "SetComplexLayoutTab" }
 func (SetComplexLayoutTabIntent) StayPressed() bool  { return true }
-
-// Global setter for tab navigation
-var globalSetComplexLayoutTab func(string)
 
 func main() {
 	err := ui.Run(LayoutDemo,
@@ -42,13 +40,18 @@ func main() {
 func LayoutDemo() ui.VNode {
 	currentDemo, setCurrentDemo := ui.UseStateString("flex")
 
-	// Update global setter
-	globalSetComplexLayoutTab = setCurrentDemo
+	// 将 setter 保存到 GlobalState，供 handler 从 ActionContext 读取
+	ctx := ui.GetCurrentContext()
+	if ctx != nil {
+		ctx.GlobalState["setCurrentDemo"] = setCurrentDemo
+	}
 
 	// Register tab change handler
-	ui.On(SetComplexLayoutTabIntent{TabID: currentDemo}, func() {
-		if globalSetComplexLayoutTab != nil {
-			globalSetComplexLayoutTab(currentDemo)
+	ui.On(SetComplexLayoutTabIntent{TabID: currentDemo}, func(actx *intent.ActionContext) {
+		if fn, ok := actx.GetState("setCurrentDemo"); ok {
+			if setter, ok := fn.(func(string)); ok {
+				setter(currentDemo)
+			}
 		}
 	})
 

@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 
+	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/ui"
 )
 
@@ -27,16 +28,29 @@ func main() {
 		offset, setOffset, _ := ui.UseStateInt(0)
 		selected, _, _ := ui.UseStateInt(-1)
 
-		// Register intent handlers using ui.On (captures current state values)
-		ui.On(ScrollUpIntent{}, func() {
-			newOffset := offset - 5
+		// 将状态保存到 GlobalState，供 handler 从 ActionContext 读取
+		ctx := ui.GetCurrentContext()
+		if ctx != nil {
+			ctx.GlobalState["offset"] = offset
+			ctx.GlobalState["setOffset"] = setOffset
+		}
+
+		// Register intent handlers using ui.On (从 ActionContext 读取状态)
+		ui.On(ScrollUpIntent{}, func(actx *intent.ActionContext) {
+			currentOffset := actx.GetIntState("offset", 0)
+			newOffset := currentOffset - 5
 			if newOffset < 0 {
 				newOffset = 0
 			}
-			setOffset(newOffset)
+			if fn, ok := actx.GetState("setOffset"); ok {
+				if setter, ok := fn.(func(int)); ok {
+					setter(newOffset)
+				}
+			}
 		})
-		ui.On(ScrollDownIntent{}, func() {
-			newOffset := offset + 5
+		ui.On(ScrollDownIntent{}, func(actx *intent.ActionContext) {
+			currentOffset := actx.GetIntState("offset", 0)
+			newOffset := currentOffset + 5
 			maxOffset := len(items) - 10
 			if maxOffset < 0 {
 				maxOffset = 0
@@ -44,7 +58,11 @@ func main() {
 			if newOffset > maxOffset {
 				newOffset = maxOffset
 			}
-			setOffset(newOffset)
+			if fn, ok := actx.GetState("setOffset"); ok {
+				if setter, ok := fn.(func(int)); ok {
+					setter(newOffset)
+				}
+			}
 		})
 
 		return ui.VStack(

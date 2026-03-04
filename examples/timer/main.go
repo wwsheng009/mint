@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/ui"
 )
 
@@ -66,16 +67,39 @@ func TimerDemo() ui.VNode {
 		}
 	}, []interface{}{running}) // 依赖 running 状态
 
-	// 3. 注册 Intent handler
-	ui.On(StartTimerIntent{}, func() {
-		setRunning(true)
+	// 3. 将 setter 保存到 GlobalState，供 handler 从 ActionContext 读取
+	ctx := ui.GetCurrentContext()
+	if ctx != nil {
+		ctx.GlobalState["setRunning"] = setRunning
+		ctx.GlobalState["setElapsed"] = setElapsed
+	}
+
+	// 4. 注册 Intent handler
+	ui.On(StartTimerIntent{}, func(actx *intent.ActionContext) {
+		if fn, ok := actx.GetState("setRunning"); ok {
+			if setter, ok := fn.(func(bool)); ok {
+				setter(true)
+			}
+		}
 	})
-	ui.On(StopTimerIntent{}, func() {
-		setRunning(false)
+	ui.On(StopTimerIntent{}, func(actx *intent.ActionContext) {
+		if fn, ok := actx.GetState("setRunning"); ok {
+			if setter, ok := fn.(func(bool)); ok {
+				setter(false)
+			}
+		}
 	})
-	ui.On(ResetTimerIntent{}, func() {
-		setRunning(false)
-		setElapsed(0)
+	ui.On(ResetTimerIntent{}, func(actx *intent.ActionContext) {
+		if fn, ok := actx.GetState("setRunning"); ok {
+			if setter, ok := fn.(func(bool)); ok {
+				setter(false)
+			}
+		}
+		if fn, ok := actx.GetState("setElapsed"); ok {
+			if setter, ok := fn.(func(int)); ok {
+				setter(0)
+			}
+		}
 	})
 
 	// 4. 计算显示状态

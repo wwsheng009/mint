@@ -17,14 +17,27 @@ func CounterWithHooks() ui.VNode {
 	// 使用 hooks 状态管理
 	count, setCount, _ := ui.UseStateInt(0)
 
-	// 注册通用 Intent 处理器（无参数，行为由闭包决定）
-	ui.On(ui.SimpleIncrementIntent{}, func() {
-		// ✅ 使用函数形式的 setCount 避免闭包捕获旧值
-		setCount(func(c int) int { return c + 1 })
+	// 将 setter 保存到 GlobalState，供 handler 从 ActionContext 读取
+	ctx := ui.GetCurrentContext()
+	if ctx != nil {
+		ctx.GlobalState["setCount"] = setCount
+	}
+
+	// 注册通用 Intent 处理器（从 ActionContext 读取状态）
+	ui.On(ui.SimpleIncrementIntent{}, func(actx *intent.ActionContext) {
+		if fn, ok := actx.GetState("setCount"); ok {
+			if setter, ok := fn.(func(func(int) int)); ok {
+				setter(func(c int) int { return c + 1 })
+			}
+		}
 	})
 
-	ui.On(ui.SimpleDecrementIntent{}, func() {
-		setCount(func(c int) int { return c - 1 })
+	ui.On(ui.SimpleDecrementIntent{}, func(actx *intent.ActionContext) {
+		if fn, ok := actx.GetState("setCount"); ok {
+			if setter, ok := fn.(func(func(int) int)); ok {
+				setter(func(c int) int { return c - 1 })
+			}
+		}
 	})
 
 	return ui.VStack(
@@ -81,9 +94,19 @@ func (CustomIncrement) StayPressed() bool  { return true }
 func CounterWithCustomIntent() ui.VNode {
 	count, setCount, _ := ui.UseStateInt(0)
 
+	// 将 setter 保存到 GlobalState，供 handler 从 ActionContext 读取
+	ctx := ui.GetCurrentContext()
+	if ctx != nil {
+		ctx.GlobalState["setCount"] = setCount
+	}
+
 	// 注册自定义 Intent 处理器
-	ui.On(CustomIncrement{Step: 10}, func() {
-		setCount(func(c int) int { return c + 10 })
+	ui.On(CustomIncrement{Step: 10}, func(actx *intent.ActionContext) {
+		if fn, ok := actx.GetState("setCount"); ok {
+			if setter, ok := fn.(func(func(int) int)); ok {
+				setter(func(c int) int { return c + 10 })
+			}
+		}
 	})
 	return ui.VStack(
 		ui.NewTextBuilder(fmt.Sprintf("Count: %d", count)).FgColor("magenta").Build(),

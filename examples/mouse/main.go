@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 
+	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/ui"
 )
 
@@ -24,12 +25,29 @@ func MouseInteractionDemo() ui.VNode {
 	checked2, _ := ui.UseStateBool(false)
 	selectedIndex, _, _ := ui.UseStateInt(0)
 
+	// 将状态保存到 GlobalState，供 handler 从 ActionContext 读取
+	ctx := ui.GetCurrentContext()
+	if ctx != nil {
+		ctx.GlobalState["count"] = count
+		ctx.GlobalState["setCount"] = setCount
+	}
+
 	// Register intent handlers for buttons
-	ui.On(DecrementMouseIntent{}, func() {
-		setCount(count - 1)
+	ui.On(DecrementMouseIntent{}, func(actx *intent.ActionContext) {
+		currentCount := actx.GetIntState("count", 0)
+		if fn, ok := actx.GetState("setCount"); ok {
+			if setter, ok := fn.(func(int)); ok {
+				setter(currentCount - 1)
+			}
+		}
 	})
-	ui.On(IncrementMouseIntent{}, func() {
-		setCount(count + 1)
+	ui.On(IncrementMouseIntent{}, func(actx *intent.ActionContext) {
+		currentCount := actx.GetIntState("count", 0)
+		if fn, ok := actx.GetState("setCount"); ok {
+			if setter, ok := fn.(func(int)); ok {
+				setter(currentCount + 1)
+			}
+		}
 	})
 
 	return ui.VStack(

@@ -24,6 +24,8 @@ import (
 	"github.com/wwsheng009/mint/ui"
 )
 
+
+
 // =============================================================================
 // 应用状态定义
 // =============================================================================
@@ -98,14 +100,16 @@ func (SwitchTabIntent) IntentType() string { return "SwitchTab" }
 // Reducer 定义 - 唯一的状态变更入口
 // =============================================================================
 
-// AppReducer 是应用的核心 Reducer
-// 所有状态变更逻辑都集中在这里
-var AppReducer = reducer.NewBuilder[AppState]().
+// reducerBuilder 是 Reducer 的构建器
+// 延迟构建，以便在初始化 Store 后自动注册 handlers
+var reducerBuilder = reducer.NewBuilder[AppState]().
 	On(IncrementIntent{}, func(s AppState, i intent.Intent) AppState {
+		fmt.Println("[HANDLER] IncrementIntent called, Count:", s.Count)
 		s.Count++
 		return s
 	}).
 	On(DecrementIntent{}, func(s AppState, i intent.Intent) AppState {
+		fmt.Println("[HANDLER] DecrementIntent called, Count:", s.Count)
 		s.Count--
 		return s
 	}).
@@ -156,8 +160,7 @@ var AppReducer = reducer.NewBuilder[AppState]().
 			s.ActiveTab = typed.Index
 		}
 		return s
-	}).
-	Build()
+	})
 
 func containsAt(s string) bool {
 	for _, c := range s {
@@ -181,6 +184,10 @@ func initStore() {
 		Email:      "",
 		ActiveTab:  0,
 	})
+
+	// 构建 Reducer 并自动注册所有 Intent handlers
+	// Intent → Reducer → Store → 触发重新渲染
+	reducerBuilder.RegisterToGlobal(appStore)
 }
 
 // =============================================================================
@@ -190,26 +197,28 @@ func initStore() {
 func main() {
 	initStore()
 
+	// 测试 intent 是否能正确 emit
+	registry := intent.DefaultRegistry()
+	if registry.HasHandler("Increment") {
+		fmt.Println("[INIT] Increment handler registered")
+	}
+	if registry.HasHandler("Decrement") {
+		fmt.Println("[INIT] Decrement handler registered")
+	}
+	if registry.HasHandler("SetUsername") {
+		fmt.Println("[INIT] SetUsername handler registered")
+	}
+	if registry.HasHandler("SubmitForm") {
+		fmt.Println("[INIT] SubmitForm handler registered")
+	}
+	if registry.HasHandler("ResetForm") {
+		fmt.Println("[INIT] ResetForm handler registered")
+	}
+
 	err := ui.Run(App,
 		ui.WithWidth(60),
 		ui.WithHeight(30),
 		ui.WithTitle("Store + Reducer Demo"),
-		ui.WithInit(func() {
-			// 注册 Intent 处理器
-			// Intent → Reducer → Store → 触发重新渲染
-			ui.RegisterIntent(func(ctx *intent.ActionContext, i intent.Intent) intent.IntentResult {
-				// 从 Store 获取当前状态
-				currentState := appStore.Get()
-
-				// 通过 Reducer 计算新状态
-				newState := AppReducer.Reduce(currentState, i)
-
-				// 更新 Store
-				appStore.Set(newState)
-
-				return intent.HandledResult()
-			})
-		}),
 	)
 	if err != nil {
 		panic(err)

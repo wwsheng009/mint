@@ -102,7 +102,6 @@ func FormApp() ui.VNode {
 	password, setPassword := ui.UseStateString("")
 	confirmPwd, setConfirmPwd := ui.UseStateString("")
 
-	// 将 setter 和当前值保存到 GlobalState 供 Intent 处理器使用
 	// ✅ 这是解决闭包问题的关键：将状态存储到 GlobalState，handler 从 ActionContext 读取
 	ctx := ui.GetCurrentContext()
 	if ctx != nil {
@@ -190,7 +189,7 @@ func FormApp() ui.VNode {
 
 	// ✅ Submit 处理 - 使用 OnWithContext 从 ActionContext 读取最新状态
 	// 这解决了闭包捕获旧值的问题
-	ui.OnWithContext(SubmitIntent{}, func(actx *intent.ActionContext) {
+	ui.On(SubmitIntent{}, func(actx *intent.ActionContext) {
 		// ✅ 从 ActionContext 获取最新的表单值
 		currentUsername := actx.GetStringState("username", "")
 		currentEmail := actx.GetStringState("email", "")
@@ -224,7 +223,7 @@ func FormApp() ui.VNode {
 	})
 
 	// ✅ Reset 处理 - 使用 OnWithContext
-	ui.OnWithContext(ResetIntent{}, func(actx *intent.ActionContext) {
+	ui.On(ResetIntent{}, func(actx *intent.ActionContext) {
 		// 从 ActionContext 获取 setter
 		if fn, ok := actx.GetState("usernameSetter"); ok {
 			if setter, ok := fn.(func(string)); ok {

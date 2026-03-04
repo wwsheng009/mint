@@ -73,36 +73,91 @@ func main() {
 		showPaths, setShowPaths := ui.UseStateBool(true)
 		showLayers, setShowLayers := ui.UseStateBool(true)
 
-		// 使用 ui.On 注册 Intent handler（闭包捕获最新状态值）
-		ui.On(OpenModalIntent{}, func() {
-			setModalOpen(true)
+		// 将 setter 保存到 GlobalState，供 handler 从 ActionContext 读取
+		ctx := ui.GetCurrentContext()
+		if ctx != nil {
+			ctx.GlobalState["setModalOpen"] = setModalOpen
+			ctx.GlobalState["setOverlayVisible"] = setOverlayVisible
+			ctx.GlobalState["setInspectorEnabled"] = setInspectorEnabled
+			ctx.GlobalState["modalOpen"] = modalOpen
+			ctx.GlobalState["showKeys"] = showKeys
+			ctx.GlobalState["showPaths"] = showPaths
+			ctx.GlobalState["showLayers"] = showLayers
+			ctx.GlobalState["setShowKeys"] = setShowKeys
+			ctx.GlobalState["setShowPaths"] = setShowPaths
+			ctx.GlobalState["setShowLayers"] = setShowLayers
+		}
+
+		// 使用 ui.On 注册 Intent handler（从 ActionContext 读取状态）
+		ui.On(OpenModalIntent{}, func(actx *intent.ActionContext) {
+			if fn, ok := actx.GetState("setModalOpen"); ok {
+				if setter, ok := fn.(func(bool)); ok {
+					setter(true)
+				}
+			}
 		})
-		ui.On(ShowOverlayIntent{}, func() {
-			setOverlayVisible(true)
+		ui.On(ShowOverlayIntent{}, func(actx *intent.ActionContext) {
+			if fn, ok := actx.GetState("setOverlayVisible"); ok {
+				if setter, ok := fn.(func(bool)); ok {
+					setter(true)
+				}
+			}
 		})
-		ui.On(ToggleInspectorIntent{}, func() {
-			setInspectorEnabled(!inspectorEnabled)
+		ui.On(ToggleInspectorIntent{}, func(actx *intent.ActionContext) {
+			currentInspectorEnabled := actx.GetBoolState("inspectorEnabled", true)
+			if fn, ok := actx.GetState("setInspectorEnabled"); ok {
+				if setter, ok := fn.(func(bool)); ok {
+					setter(!currentInspectorEnabled)
+				}
+			}
 		})
-		ui.On(CloseAllLayersIntent{}, func() {
-			setModalOpen(false)
-			setOverlayVisible(false)
+		ui.On(CloseAllLayersIntent{}, func(actx *intent.ActionContext) {
+			if fn, ok := actx.GetState("setModalOpen"); ok {
+				if setter, ok := fn.(func(bool)); ok {
+					setter(false)
+				}
+			}
+			if fn, ok := actx.GetState("setOverlayVisible"); ok {
+				if setter, ok := fn.(func(bool)); ok {
+					setter(false)
+				}
+			}
 		})
-		ui.On(ToggleShowKeysIntent{}, func() {
-			setShowKeys(!showKeys)
+		ui.On(ToggleShowKeysIntent{}, func(actx *intent.ActionContext) {
+			currentShowKeys := actx.GetBoolState("showKeys", true)
+			if fn, ok := actx.GetState("setShowKeys"); ok {
+				if setter, ok := fn.(func(bool)); ok {
+					setter(!currentShowKeys)
+				}
+			}
 		})
-		ui.On(ToggleShowPathsIntent{}, func() {
-			setShowPaths(!showPaths)
+		ui.On(ToggleShowPathsIntent{}, func(actx *intent.ActionContext) {
+			currentShowPaths := actx.GetBoolState("showPaths", true)
+			if fn, ok := actx.GetState("setShowPaths"); ok {
+				if setter, ok := fn.(func(bool)); ok {
+					setter(!currentShowPaths)
+				}
+			}
 		})
-		ui.On(ToggleShowLayersIntent{}, func() {
-			setShowLayers(!showLayers)
+		ui.On(ToggleShowLayersIntent{}, func(actx *intent.ActionContext) {
+			currentShowLayers := actx.GetBoolState("showLayers", true)
+			if fn, ok := actx.GetState("setShowLayers"); ok {
+				if setter, ok := fn.(func(bool)); ok {
+					setter(!currentShowLayers)
+				}
+			}
 		})
-		ui.On(ModalButtonClickIntent{}, func() {
+		ui.On(ModalButtonClickIntent{}, func(actx *intent.ActionContext) {
 			fmt.Println("Modal button clicked!")
 		})
-		ui.On(CloseModalIntent{}, func() {
-			setModalOpen(false)
+		ui.On(CloseModalIntent{}, func(actx *intent.ActionContext) {
+			if fn, ok := actx.GetState("setModalOpen"); ok {
+				if setter, ok := fn.(func(bool)); ok {
+					setter(false)
+				}
+			}
 		})
-		ui.On(OverlayButtonClickIntent{}, func() {
+		ui.On(OverlayButtonClickIntent{}, func(actx *intent.ActionContext) {
 			fmt.Println("Overlay button clicked!")
 		})
 
