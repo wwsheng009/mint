@@ -4,6 +4,7 @@ package main
 import (
 	"fmt"
 
+	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/runtime/style"
 	"github.com/wwsheng009/mint/ui"
 )
@@ -23,12 +24,26 @@ func Counter() ui.VNode {
 	count, setCount, _ := ui.UseStateInt(0)
 	name, _ := ui.UseStateString("Guest")
 
+	// 将 setter 保存到 GlobalState，供 handler 从 ActionContext 读取
+	ctx := ui.GetCurrentContext()
+	if ctx != nil {
+		ctx.GlobalState["setCount"] = setCount
+	}
+
 	// Register intent handlers for buttons
-	ui.On(DecrementSandboxDemoIntent{}, func() {
-		setCount(func(c int) int { return c - 1 })
+	ui.On(DecrementSandboxDemoIntent{}, func(actx *intent.ActionContext) {
+		if fn, ok := actx.GetState("setCount"); ok {
+			if setter, ok := fn.(func(func(int) int)); ok {
+				setter(func(c int) int { return c - 1 })
+			}
+		}
 	})
-	ui.On(IncrementSandboxDemoIntent{}, func() {
-		setCount(func(c int) int { return c + 1 })
+	ui.On(IncrementSandboxDemoIntent{}, func(actx *intent.ActionContext) {
+		if fn, ok := actx.GetState("setCount"); ok {
+			if setter, ok := fn.(func(func(int) int)); ok {
+				setter(func(c int) int { return c + 1 })
+			}
+		}
 	})
 
 	// Style builders

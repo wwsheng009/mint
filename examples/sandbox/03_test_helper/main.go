@@ -9,6 +9,7 @@ package main
 import (
 	"fmt"
 
+	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/ui"
 )
 
@@ -28,18 +29,51 @@ func FormApp() ui.VNode {
 	submitted, setSubmitted := ui.UseStateBool(false)
 	message, setMessage := ui.UseStateString("")
 
+	// 将 setter 保存到 GlobalState，供 handler 从 ActionContext 读取
+	ctx := ui.GetCurrentContext()
+	if ctx != nil {
+		ctx.GlobalState["username"] = username
+		ctx.GlobalState["password"] = password
+		ctx.GlobalState["setSubmitted"] = setSubmitted
+		ctx.GlobalState["setMessage"] = setMessage
+	}
+
 	// Register intent handlers
-	ui.On(SubmitFormIntent{}, func() {
-		setSubmitted(true)
-		if username != "" && password != "" {
-			setMessage(fmt.Sprintf("Welcome, %s!", username))
+	ui.On(SubmitFormIntent{}, func(actx *intent.ActionContext) {
+		currentUsername := actx.GetStringState("username", "")
+		currentPassword := actx.GetStringState("password", "")
+		// currentMessage := actx.GetStringState("message", "")
+		
+		if fn, ok := actx.GetState("setSubmitted"); ok {
+			if setter, ok := fn.(func(bool)); ok {
+				setter(true)
+			}
+		}
+		if currentUsername != "" && currentPassword != "" {
+			if fn, ok := actx.GetState("setMessage"); ok {
+				if setter, ok := fn.(func(string)); ok {
+					setter(fmt.Sprintf("Welcome, %s!", currentUsername))
+				}
+			}
 		} else {
-			setMessage("Please fill all fields")
+			if fn, ok := actx.GetState("setMessage"); ok {
+				if setter, ok := fn.(func(string)); ok {
+					setter("Please fill all fields")
+				}
+			}
 		}
 	})
-	ui.On(ClearFormIntent{}, func() {
-		setSubmitted(false)
-		setMessage("")
+	ui.On(ClearFormIntent{}, func(actx *intent.ActionContext) {
+		if fn, ok := actx.GetState("setSubmitted"); ok {
+			if setter, ok := fn.(func(bool)); ok {
+				setter(false)
+			}
+		}
+		if fn, ok := actx.GetState("setMessage"); ok {
+			if setter, ok := fn.(func(string)); ok {
+				setter("")
+			}
+		}
 	})
 
 	return ui.VStack(

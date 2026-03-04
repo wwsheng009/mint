@@ -9,6 +9,7 @@ package main
 import (
 	"fmt"
 
+	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/ui"
 )
 
@@ -25,12 +26,26 @@ func (IncrementEventRecordingIntent) StayPressed() bool  { return true }
 func SimpleCounter() ui.VNode {
 	count, setCount, _ := ui.UseStateInt(0)
 
+	// 将 setter 保存到 GlobalState，供 handler 从 ActionContext 读取
+	ctx := ui.GetCurrentContext()
+	if ctx != nil {
+		ctx.GlobalState["setCount"] = setCount
+	}
+
 	// Register intent handlers
-	ui.On(DecrementEventRecordingIntent{}, func() {
-		setCount(func(c int) int { return c - 1 })
+	ui.On(DecrementEventRecordingIntent{}, func(actx *intent.ActionContext) {
+		if fn, ok := actx.GetState("setCount"); ok {
+			if setter, ok := fn.(func(func(int) int)); ok {
+				setter(func(c int) int { return c - 1 })
+			}
+		}
 	})
-	ui.On(IncrementEventRecordingIntent{}, func() {
-		setCount(func(c int) int { return c + 1 })
+	ui.On(IncrementEventRecordingIntent{}, func(actx *intent.ActionContext) {
+		if fn, ok := actx.GetState("setCount"); ok {
+			if setter, ok := fn.(func(func(int) int)); ok {
+				setter(func(c int) int { return c + 1 })
+			}
+		}
 	})
 
 	return ui.VStack(

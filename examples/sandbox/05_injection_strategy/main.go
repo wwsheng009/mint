@@ -11,6 +11,7 @@ package main
 import (
 	"fmt"
 
+	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/ui"
 )
 
@@ -28,13 +29,30 @@ func StrategyApp() ui.VNode {
 	count, setCount, _ := ui.UseStateInt(0)
 	strategy, _ := ui.UseStateString("Allowed")
 
+	// 将 setter 保存到 GlobalState，供 handler 从 ActionContext 读取
+	ctx := ui.GetCurrentContext()
+	if ctx != nil {
+		ctx.GlobalState["count"] = count
+		ctx.GlobalState["setCount"] = setCount
+	}
+
 	// Register intent handlers
-	ui.On(IncrementStrategyIntent{}, func() {
-		setCount(count + 1)
+	ui.On(IncrementStrategyIntent{}, func(actx *intent.ActionContext) {
+		currentCount := actx.GetIntState("count", 0)
+		if fn, ok := actx.GetState("setCount"); ok {
+			if setter, ok := fn.(func(int)); ok {
+				setter(currentCount + 1)
+			}
+		}
 	})
-	ui.On(DecrementStrategyIntent{}, func() {
-		if count > 0 {
-			setCount(count - 1)
+	ui.On(DecrementStrategyIntent{}, func(actx *intent.ActionContext) {
+		currentCount := actx.GetIntState("count", 0)
+		if currentCount > 0 {
+			if fn, ok := actx.GetState("setCount"); ok {
+				if setter, ok := fn.(func(int)); ok {
+					setter(currentCount - 1)
+				}
+			}
 		}
 	})
 

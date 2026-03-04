@@ -9,6 +9,7 @@ package main
 import (
 	"fmt"
 
+	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/ui"
 )
 
@@ -31,15 +32,39 @@ func StatefulApp() ui.VNode {
 	text, _ := ui.UseStateString("")
 	mode, setMode, _ := ui.UseStateInt(0)
 
+	// 将 setter 保存到 GlobalState，供 handler 从 ActionContext 读取
+	ctx := ui.GetCurrentContext()
+	if ctx != nil {
+		ctx.GlobalState["count"] = count
+		ctx.GlobalState["setCount"] = setCount
+		ctx.GlobalState["mode"] = mode
+		ctx.GlobalState["setMode"] = setMode
+	}
+
 	// Register intent handlers
-	ui.On(IncrementSnapshotIntent{}, func() {
-		setCount(count + 1)
+	ui.On(IncrementSnapshotIntent{}, func(actx *intent.ActionContext) {
+		currentCount := actx.GetIntState("count", 0)
+		if fn, ok := actx.GetState("setCount"); ok {
+			if setter, ok := fn.(func(int)); ok {
+				setter(currentCount + 1)
+			}
+		}
 	})
-	ui.On(DecrementSnapshotIntent{}, func() {
-		setCount(count - 1)
+	ui.On(DecrementSnapshotIntent{}, func(actx *intent.ActionContext) {
+		currentCount := actx.GetIntState("count", 0)
+		if fn, ok := actx.GetState("setCount"); ok {
+			if setter, ok := fn.(func(int)); ok {
+				setter(currentCount - 1)
+			}
+		}
 	})
-	ui.On(ToggleModeIntent{}, func() {
-		setMode(mode + 1)
+	ui.On(ToggleModeIntent{}, func(actx *intent.ActionContext) {
+		currentMode := actx.GetIntState("mode", 0)
+		if fn, ok := actx.GetState("setMode"); ok {
+			if setter, ok := fn.(func(int)); ok {
+				setter(currentMode + 1)
+			}
+		}
 	})
 
 	// 模式显示

@@ -9,6 +9,7 @@ package main
 import (
 	"fmt"
 
+	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/ui"
 )
 
@@ -27,21 +28,64 @@ func StatsApp() ui.VNode {
 	events, setEvents, _ := ui.UseStateInt(0)
 	memory, setMemory, _ := ui.UseStateInt(0)
 
+	// 将 setter 保存到 GlobalState，供 handler 从 ActionContext 读取
+	ctx := ui.GetCurrentContext()
+	if ctx != nil {
+		ctx.GlobalState["count"] = count
+		ctx.GlobalState["setCount"] = setCount
+		ctx.GlobalState["setEvents"] = setEvents
+		ctx.GlobalState["events"] = events
+		ctx.GlobalState["setMemory"] = setMemory
+		ctx.GlobalState["memory"] = memory
+	}
+
 	// Register intent handlers
-	ui.On(IncrementStatsIntent{}, func() {
-		setCount(count + 1)
-		setEvents(events + 1)
-		setMemory(memory + 128)
+	ui.On(IncrementStatsIntent{}, func(actx *intent.ActionContext) {
+		currentCount := actx.GetIntState("count", 0)
+		currentEvents := actx.GetIntState("events", 0)
+		currentMemory := actx.GetIntState("memory", 0)
+		
+		if fn, ok := actx.GetState("setCount"); ok {
+			if setter, ok := fn.(func(int)); ok {
+				setter(currentCount + 1)
+			}
+		}
+		if fn, ok := actx.GetState("setEvents"); ok {
+			if setter, ok := fn.(func(int)); ok {
+				setter(currentEvents + 1)
+			}
+		}
+		if fn, ok := actx.GetState("setMemory"); ok {
+			if setter, ok := fn.(func(int)); ok {
+				setter(currentMemory + 128)
+			}
+		}
 	})
-	ui.On(DecrementStatsIntent{}, func() {
-		if count > 0 {
-			setCount(count - 1)
+	ui.On(DecrementStatsIntent{}, func(actx *intent.ActionContext) {
+		currentCount := actx.GetIntState("count", 0)
+		currentEvents := actx.GetIntState("events", 0)
+		currentMemory := actx.GetIntState("memory", 0)
+		
+		if currentCount > 0 {
+			if fn, ok := actx.GetState("setCount"); ok {
+				if setter, ok := fn.(func(int)); ok {
+					setter(currentCount - 1)
+				}
+			}
 		}
-		if events > 0 {
-			setEvents(events - 1)
+		if currentEvents > 0 {
+			if fn, ok := actx.GetState("setEvents"); ok {
+				if setter, ok := fn.(func(int)); ok {
+					setter(currentEvents - 1)
+				}
+			}
 		}
-		if memory > 0 {
-			setMemory(memory - 128)
+		if currentMemory > 0 {
+			if fn, ok := actx.GetState("setMemory"); ok {
+				if setter, ok := fn.(func(int)); ok {
+					setter(currentMemory - 128)
+				}
+			}
 		}
 	})
 

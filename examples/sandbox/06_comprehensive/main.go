@@ -13,6 +13,7 @@ package main
 import (
 	"fmt"
 
+	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/ui"
 )
 
@@ -39,24 +40,53 @@ func ComprehensiveApp() ui.VNode {
 	name, _ := ui.UseStateString("Guest")
 	step, setStep, _ := ui.UseStateInt(1)
 
+	// 将 setter 保存到 GlobalState，供 handler 从 ActionContext 读取
+	ctx := ui.GetCurrentContext()
+	if ctx != nil {
+		ctx.GlobalState["count"] = count
+		ctx.GlobalState["setCount"] = setCount
+		ctx.GlobalState["step"] = step
+		ctx.GlobalState["setStep"] = setStep
+	}
+
 	// Register intent handlers
-	ui.On(NextStepIntent{}, func() {
-		if step < 3 {
-			setStep(step + 1)
+	ui.On(NextStepIntent{}, func(actx *intent.ActionContext) {
+		currentStep := actx.GetIntState("step", 1)
+		if currentStep < 3 {
+			if fn, ok := actx.GetState("setStep"); ok {
+				if setter, ok := fn.(func(int)); ok {
+					setter(currentStep + 1)
+				}
+			}
 		}
 	})
-	ui.On(BackStepIntent{}, func() {
-		if step > 1 {
-			setStep(step - 1)
+	ui.On(BackStepIntent{}, func(actx *intent.ActionContext) {
+		currentStep := actx.GetIntState("step", 1)
+		if currentStep > 1 {
+			if fn, ok := actx.GetState("setStep"); ok {
+				if setter, ok := fn.(func(int)); ok {
+					setter(currentStep - 1)
+				}
+			}
 		}
 	})
-	ui.On(DecrementComprehensiveIntent{}, func() {
-		if count > 0 {
-			setCount(count - 1)
+	ui.On(DecrementComprehensiveIntent{}, func(actx *intent.ActionContext) {
+		currentCount := actx.GetIntState("count", 0)
+		if currentCount > 0 {
+			if fn, ok := actx.GetState("setCount"); ok {
+				if setter, ok := fn.(func(int)); ok {
+					setter(currentCount - 1)
+				}
+			}
 		}
 	})
-	ui.On(IncrementComprehensiveIntent{}, func() {
-		setCount(count + 1)
+	ui.On(IncrementComprehensiveIntent{}, func(actx *intent.ActionContext) {
+		currentCount := actx.GetIntState("count", 0)
+		if fn, ok := actx.GetState("setCount"); ok {
+			if setter, ok := fn.(func(int)); ok {
+				setter(currentCount + 1)
+			}
+		}
 	})
 
 	steps := []string{
