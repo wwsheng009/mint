@@ -396,3 +396,144 @@ func FlushScheduler() {
 		globalFiberScheduler.Flush()
 	}
 }
+
+// =============================================================================
+// Throttler - FPS Control
+// =============================================================================
+
+// Throttler controls rendering frequency to maintain target FPS.
+type Throttler struct {
+	targetFPS   int
+	minInterval time.Duration
+	lastRender  time.Time
+}
+
+// NewThrottler creates a new throttler with target FPS.
+func NewThrottler(fps int) *Throttler {
+	if fps <= 0 {
+		fps = 60
+	}
+	return &Throttler{
+		targetFPS:   fps,
+		minInterval: time.Second / time.Duration(fps),
+	}
+}
+
+// ShouldRender returns true if enough time has passed since last render.
+func (t *Throttler) ShouldRender() bool {
+	now := time.Now()
+	if now.Sub(t.lastRender) >= t.minInterval {
+		t.lastRender = now
+		return true
+	}
+	return false
+}
+
+// SetFPS sets the target FPS.
+func (t *Throttler) SetFPS(fps int) {
+	if fps < 1 {
+		fps = 1
+	}
+	if fps > 120 {
+		fps = 120
+	}
+	t.targetFPS = fps
+	t.minInterval = time.Second / time.Duration(fps)
+}
+
+// FPS returns current target FPS.
+func (t *Throttler) FPS() int {
+	return t.targetFPS
+}
+
+// ForceRender resets lastRender to allow immediate next render.
+func (t *Throttler) ForceRender() {
+	t.lastRender = time.Time{}
+}
+
+// =============================================================================
+// Render Strategy
+// =============================================================================
+
+// RenderStrategy defines when rendering should occur.
+type RenderStrategy int
+
+const (
+	// StrategyAlways always renders (no throttling).
+	StrategyAlways RenderStrategy = iota
+	// StrategyOnDirty only renders when there is pending work.
+	StrategyOnDirty
+	// StrategyAuto adaptive rendering based on workload.
+	StrategyAuto
+)
+
+// =============================================================================
+// Render Controller
+// =============================================================================
+
+// RenderController manages rendering strategy and throttling.
+type RenderController struct {
+	scheduler *FiberScheduler
+	strategy  RenderStrategy
+	throttler *Throttler
+}
+
+// NewRenderController creates a render controller.
+func NewRenderController(scheduler *FiberScheduler) *RenderController {
+	return &RenderController{
+		scheduler: scheduler,
+		strategy:  StrategyOnDirty,
+		throttler: NewThrottler(60),
+	}
+}
+
+// ShouldRender decides if rendering should happen based on strategy.
+func (c *RenderController) ShouldRender() bool {
+	// Check throttler first
+	if !c.throttler.ShouldRender() {
+		return false
+	}
+
+	switch c.strategy {
+	case StrategyAlways:
+		return true
+	case StrategyOnDirty:
+		return c.scheduler.HasPendingWork()
+	case StrategyAuto:
+		// Adaptive: allow higher FPS for heavy workloads
+		count := c.scheduler.GetTotalQueueLength()
+		if count > 10 {
+			return true
+		}
+		return count > 0
+	default:
+		return true
+	}
+}
+
+// SetStrategy sets the render strategy.
+func (c *RenderController) SetStrategy(s RenderStrategy) {
+	c.strategy = s
+}
+
+// SetTargetFPS sets the target FPS.
+func (c *RenderController) SetTargetFPS(fps int) {
+	c.throttler.SetFPS(fps)
+}
+
+// GetThrottler returns the throttler for direct access.
+func (c *RenderController) GetThrottler() *Throttler {
+	return c.throttler
+}
+
+// ProcessFrame executes pending work.
+func (c *RenderController) ProcessFrame() {
+	if c.scheduler != nil {
+		c.scheduler.Flush()
+	}
+}
+
+// GetTotalQueueLength returns total pending tasks across all lanes.
+func (fs *FiberScheduler) GetTotalQueueLength() int {
+	return fs.scheduler.GetTotalQueueLength()
+}
