@@ -61,8 +61,34 @@ func NewComponentContextForRoot() *ComponentContext {
 }
 
 // =============================================================================
-// useState Hook
+// useState Hook - DEPRECATED
 // =============================================================================
+
+// Deprecated: Use Store + Reducer architecture instead.
+//
+// useState is deprecated in favor of the Store + Reducer architecture.
+// Using Store + Reducer provides better code organization and predictability.
+//
+// Migration Guide:
+//   1. Define your application state as a struct
+//   2. Create a global store: `appStore := store.NewStore(AppState{})`
+//   3. Define a reducer to handle state changes
+//   4. Use `state := appStore.Get()` to read state in components
+//
+// Example:
+//
+// Before (Old):
+//   username, setUsername := ui.UseStateString("")
+//   ctx.GlobalState["setter"] = setUsername
+//
+// After (New):
+//   type AppState struct { Username string }
+//   appStore := store.NewStore(AppState{Username: ""})
+//   // In component:
+//   state := appStore.Get()
+//
+// See migration guide: docs/architecture/store/MIGRATION_GUIDE.md
+// See examples/store_reducer_demo/main.go for usage example
 
 // useState creates a state hook
 // Usage: count, setCount := useState(0)
@@ -141,6 +167,9 @@ type SetIntFunc func(int) int
 //	setCount(func(c int) int {     // Functional update
 //	    return c + 1
 //	})
+//
+// Deprecated: Use Store + Reducer architecture instead.
+// Migration Guide: See docs/architecture/store/MIGRATION_GUIDE.md
 func UseStateInt(initial int) (int, func(interface{}), func() int) {
 	// Get context BEFORE calling useState (useState will increment HookIndex)
 	ctx := rtui.GetCurrentContext()
@@ -179,6 +208,9 @@ func UseStateInt(initial int) (int, func(interface{}), func() int) {
 }
 
 // UseStateString is a type-safe version of useState for string
+//
+// Deprecated: Use Store + Reducer architecture instead.
+// Migration Guide: See docs/architecture/store/MIGRATION_GUIDE.md
 func UseStateString(initial string) (string, func(string)) {
 	value, setValue := useState(initial)
 	return value.(string), func(newValue string) {
@@ -187,6 +219,9 @@ func UseStateString(initial string) (string, func(string)) {
 }
 
 // UseStateBool is a type-safe version of useState for bool
+//
+// Deprecated: Use Store + Reducer architecture instead.
+// Migration Guide: See docs/architecture/store/MIGRATION_GUIDE.md
 func UseStateBool(initial bool) (bool, func(bool)) {
 	value, setValue := useState(initial)
 	return value.(bool), func(newValue bool) {
@@ -443,6 +478,9 @@ func UseHoverState() (func() bool, func(bool)) {
 //   - setValue: func(interface{}) - sets new value
 //   - getValue: func() int - gets current value
 //   - hookIndex: int - the hook index (for debugging)
+//
+// Deprecated: Use Store + Reducer architecture instead.
+// Migration Guide: See docs/architecture/store/MIGRATION_GUIDE.md
 func UseStateIntWithDebug(initial int) (int, func(interface{}), func() int, int) {
 	// Get context BEFORE calling useState (useState will increment HookIndex)
 	ctx := rtui.GetCurrentContext()
