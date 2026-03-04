@@ -23,6 +23,7 @@ import (
 	"fmt"
 
 	"github.com/wwsheng009/mint/framework/theme"
+	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/runtime/style"
 	"github.com/wwsheng009/mint/ui"
 )
@@ -248,11 +249,19 @@ func ConfirmModal(onClose func()) ui.VNode {
 			).Build(),
 		})
 
-	// Register handler for CloseFiberDemoModalIntent (only when actually running)
+	// 将 onClose 保存到 GlobalState，供 handler 从 ActionContext 读取
+	ctx := ui.GetCurrentContext()
+	if ctx != nil {
+		ctx.GlobalState["onClose"] = onClose
+	}
+
+	// Register handler for CloseFiberDemoModalIntent (从 ActionContext 读取状态)
 	// Note: This is a Fiber conversion test, not a real TUI app
-	ui.On(CloseFiberDemoModalIntent{}, func() {
-		if onClose != nil {
-			onClose()
+	ui.On(CloseFiberDemoModalIntent{}, func(actx *intent.ActionContext) {
+		if fn, ok := actx.GetState("onClose"); ok {
+			if closeFn, ok := fn.(func()); ok {
+				closeFn()
+			}
 		}
 	})
 
