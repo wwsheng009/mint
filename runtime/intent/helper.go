@@ -118,8 +118,25 @@ type Runtime struct {
 	Store      *SimpleStore
 }
 
-// NewRuntime creates a new intent runtime.
+// NewRuntime creates a new intent runtime using the global registry.
+// This ensures all handlers registered via DefaultRegistry() are available.
 func NewRuntime() *Runtime {
+	registry := DefaultRegistry()
+	dispatcher := NewDispatcher(registry)
+	store := NewSimpleStore()
+
+	dispatcher.SetStateSetter(store)
+
+	return &Runtime{
+		Registry:   registry,
+		Dispatcher: dispatcher,
+		Store:      store,
+	}
+}
+
+// NewRuntimeWithNewRegistry creates a new intent runtime with a fresh registry.
+// Use this for testing or when you need isolation from the global registry.
+func NewRuntimeWithNewRegistry() *Runtime {
 	registry := NewRegistry()
 	dispatcher := NewDispatcher(registry)
 	store := NewSimpleStore()

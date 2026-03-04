@@ -47,6 +47,9 @@ type Registry struct {
 
 	// middleware that wraps all handlers
 	middleware []Middleware
+
+	// fallbackHandler is called when no specific handler is found
+	fallbackHandler Handler
 }
 
 // Middleware wraps a handler for cross-cutting concerns.
@@ -89,6 +92,19 @@ func (r *Registry) Register(intentType string, handler Handler) func() {
 func RegisterTyped[T Intent](r *Registry, handler TypedHandler[T]) func() {
 	// Create a zero value of T to get its type
 	var zero T
+
+	// Check if T is an interface type using reflection
+	// When T is an interface type, reflect.TypeOf(zero) returns nil because zero is nil
+	// For concrete struct types, reflect.TypeOf(zero) returns the struct's type
+	typ := reflect.TypeOf(zero)
+	if typ == nil {
+		panic(fmt.Sprintf(
+			"RegisterTyped: type parameter T cannot be an interface type (e.g., intent.Intent). " +
+				"Use a concrete intent struct type instead. " +
+				"For generic handlers, use Registry.Register() with an explicit intentType string.",
+		))
+	}
+
 	intentType := zero.IntentType()
 
 	// Wrap the typed handler to implement Handler
@@ -98,14 +114,14 @@ func RegisterTyped[T Intent](r *Registry, handler TypedHandler[T]) func() {
 	defer r.mu.Unlock()
 
 	r.handlers[intentType] = wrapper
-	r.typeMap[reflect.TypeOf(zero)] = intentType
+	r.typeMap[typ] = intentType
 
 	// Return unregister function
 	return func() {
 		r.mu.Lock()
 		defer r.mu.Unlock()
 		delete(r.handlers, intentType)
-		delete(r.typeMap, reflect.TypeOf(zero))
+		delete(r.typeMap, typ)
 	}
 }
 
@@ -164,13 +180,20 @@ func (r *Registry) IsTransition(intent Intent) bool {
 }
 
 // GetHandler returns the handler for an intent type.
+// If no specific handler is found but a fallback handler is registered,
+// returns the fallback handler.
 func (r *Registry) GetHandler(intentType string) (Handler, bool) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
 	handler, ok := r.handlers[intentType]
 	if !ok {
-		return nil, false
+		// Try fallback handler
+		if r.fallbackHandler != nil {
+			handler = r.fallbackHandler
+		} else {
+			return nil, false
+		}
 	}
 
 	// Apply middleware
@@ -194,6 +217,39 @@ func (r *Registry) Use(middleware Middleware) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.middleware = append(r.middleware, middleware)
+}
+
+// RegisterFallback registers a handler that will be called when no specific
+// handler is found for an intent type. This is useful for implementing
+// reducer-style handlers that process all intents.
+//
+// Example:
+//
+//	registry.RegisterFallback(HandlerFunc(func(ctx *ActionContext, intent Intent) IntentResult {
+//		// Process all intents through a reducer
+//		newState := reducer.Reduce(currentState, intent)
+//		store.Set(newState)
+//		return HandledResult()
+//	}))
+func (r *Registry) RegisterFallback(handler Handler) func() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.fallbackHandler = handler
+
+	// Return unregister function
+	return func() {
+		r.mu.Lock()
+		defer r.mu.Unlock()
+		r.fallbackHandler = nil
+	}
+}
+
+// HasFallback returns true if a fallback handler is registered.
+func (r *Registry) HasFallback() bool {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.fallbackHandler != nil
 }
 
 // GetRegisteredTypes returns all registered intent types.
@@ -227,4 +283,18 @@ func RegisterTypedGlobally[T Intent](handler TypedHandler[T]) func() {
 // RegisterGlobally registers a handler in the global registry.
 func RegisterGlobally(intentType string, handler Handler) func() {
 	return globalRegistry.Register(intentType, handler)
+}
+
+// RegisterFallbackGlobally registers a fallback handler in the global registry.
+// This handler will be called when no specific handler is found for an intent type.
+//
+// Example:
+//
+//	intent.RegisterFallbackGlobally(intent.HandlerFunc(func(ctx *intent.ActionContext, i intent.Intent) intent.IntentResult {
+//		newState := reducer.Reduce(store.Get(), i)
+//		store.Set(newState)
+//		return intent.HandledResult()
+//	}))
+func RegisterFallbackGlobally(handler Handler) func() {
+	return globalRegistry.RegisterFallback(handler)
 }

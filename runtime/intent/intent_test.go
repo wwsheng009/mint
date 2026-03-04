@@ -493,3 +493,145 @@ func TestPriorityWrapper(t *testing.T) {
 		t.Errorf("IntentType() = %v, want Test", wrapped.IntentType())
 	}
 }
+
+// =============================================================================
+// RegisterTyped Interface Type Protection Tests
+// =============================================================================
+
+func TestRegisterTyped_InterfaceType(t *testing.T) {
+	// Test that RegisterTyped panics with a clear error when T is an interface type
+	defer func() {
+		r := recover()
+		if r == nil {
+			t.Error("RegisterTyped should panic when T is an interface type")
+		}
+		errMsg, ok := r.(string)
+		if !ok {
+			t.Errorf("Expected string panic message, got %T", r)
+		}
+		if errMsg == "" {
+			t.Error("Panic message should not be empty")
+		}
+		// Verify the error message mentions interface type
+		if len(errMsg) < 10 {
+			t.Errorf("Panic message too short: %q", errMsg)
+		}
+	}()
+
+	registry := NewRegistry()
+	// This should panic because Intent is an interface type
+	RegisterTyped[Intent](registry, func(ctx *ActionContext, intent Intent) IntentResult {
+		return HandledResult()
+	})
+}
+
+func TestRegisterTyped_ConcreteType(t *testing.T) {
+	// Test that RegisterTyped works correctly with concrete struct types
+	registry := NewRegistry()
+	unregister := RegisterTyped(registry, func(ctx *ActionContext, intent TestIntent) IntentResult {
+		return HandledResult()
+	})
+
+	handler, ok := registry.GetHandler("Test")
+	if !ok {
+		t.Error("Handler not registered")
+	}
+	if handler == nil {
+		t.Error("Handler is nil")
+	}
+
+	// Test unregister
+	unregister()
+	_, ok = registry.GetHandler("Test")
+	if ok {
+		t.Error("Handler should be unregistered")
+	}
+}
+
+// =============================================================================
+// Fallback Handler Tests
+// =============================================================================
+
+func TestRegisterFallback(t *testing.T) {
+	registry := NewRegistry()
+
+	// Initially no fallback
+	if registry.HasFallback() {
+		t.Error("Registry should not have fallback initially")
+	}
+
+	// Register fallback
+	fallbackCalled := false
+	unregister := registry.RegisterFallback(HandlerFunc(func(ctx *ActionContext, intent Intent) IntentResult {
+		fallbackCalled = true
+		return HandledResult()
+	}))
+
+	if !registry.HasFallback() {
+		t.Error("Registry should have fallback after registration")
+	}
+
+	// Test fallback is returned for unregistered intent type
+	handler, ok := registry.GetHandler("UnknownIntent")
+	if !ok {
+		t.Error("GetHandler should return fallback handler for unknown intent type")
+	}
+	if handler == nil {
+		t.Error("Handler should not be nil")
+	}
+
+	// Call the handler
+	result := handler.Handle(NewActionContext(nil, "test", nil), TestIntent{})
+	if !result.Handled {
+		t.Error("Fallback handler should return HandledResult")
+	}
+	if !fallbackCalled {
+		t.Error("Fallback handler should have been called")
+	}
+
+	// Test unregister
+	unregister()
+	if registry.HasFallback() {
+		t.Error("Registry should not have fallback after unregister")
+	}
+
+	// After unregister, unknown intent should not find handler
+	_, ok = registry.GetHandler("UnknownIntent")
+	if ok {
+		t.Error("GetHandler should return false for unknown intent type after fallback unregister")
+	}
+}
+
+func TestFallback_SpecificHandlerTakesPrecedence(t *testing.T) {
+	registry := NewRegistry()
+
+	// Register fallback
+	fallbackCalled := false
+	registry.RegisterFallback(HandlerFunc(func(ctx *ActionContext, intent Intent) IntentResult {
+		fallbackCalled = true
+		return HandledResult()
+	}))
+
+	// Register specific handler for TestIntent
+	specificCalled := false
+	registry.Register("Test", HandlerFunc(func(ctx *ActionContext, intent Intent) IntentResult {
+		specificCalled = true
+		return HandledResult()
+	}))
+
+	// Get handler for TestIntent - should return specific handler
+	handler, ok := registry.GetHandler("Test")
+	if !ok {
+		t.Error("GetHandler should return handler for Test")
+	}
+
+	// Call the handler
+	handler.Handle(NewActionContext(nil, "test", nil), TestIntent{})
+
+	if !specificCalled {
+		t.Error("Specific handler should have been called")
+	}
+	if fallbackCalled {
+		t.Error("Fallback handler should NOT have been called when specific handler exists")
+	}
+}

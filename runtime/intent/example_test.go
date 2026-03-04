@@ -199,8 +199,8 @@ func Example_priorityWrapper() {
 // =============================================================================
 
 func Example_middleware() {
-	// Create a runtime
-	rt := intent.NewRuntime()
+	// Create a runtime with isolated registry for testing
+	rt := intent.NewRuntimeWithNewRegistry()
 
 	// Add logging middleware
 	rt.Registry.Use(func(next intent.Handler) intent.Handler {
@@ -230,8 +230,8 @@ func Example_middleware() {
 // =============================================================================
 
 func Example_emitter() {
-	// Create a runtime
-	rt := intent.NewRuntime()
+	// Create a runtime with isolated registry for testing
+	rt := intent.NewRuntimeWithNewRegistry()
 
 	intent.RegisterTypedRuntime(rt, func(ctx *intent.ActionContext, i intent.ClickIntent) intent.IntentResult {
 		fmt.Printf("Click handled: %s\n", i.TargetID)
