@@ -323,3 +323,76 @@ func (fs *FiberScheduler) shouldYieldForLane(lane scheduler.Lane) scheduler.Shou
 		return lane.IsLowerPriorityThan(highestPending)
 	}
 }
+
+// =============================================================================
+// Global FiberScheduler Access
+// =============================================================================
+
+var globalFiberScheduler *FiberScheduler
+
+// SetGlobalFiberScheduler sets the global FiberScheduler instance.
+// This is called by ui.Run() when Lane Scheduler is enabled.
+func SetGlobalFiberScheduler(fs *FiberScheduler) {
+	globalFiberScheduler = fs
+}
+
+// GetGlobalFiberScheduler returns the global FiberScheduler instance.
+// Returns nil if Lane Scheduler is not enabled.
+func GetGlobalFiberScheduler() *FiberScheduler {
+	return globalFiberScheduler
+}
+
+// HasGlobalFiberScheduler returns true if a global FiberScheduler is set.
+func HasGlobalFiberScheduler() bool {
+	return globalFiberScheduler != nil
+}
+
+// =============================================================================
+// Convenience Functions for Priority Updates
+// =============================================================================
+
+// ScheduleInput schedules a high-priority input update.
+// Falls back to immediate execution if no scheduler is available.
+func ScheduleInput(fn func()) {
+	if globalFiberScheduler != nil {
+		globalFiberScheduler.scheduler.ScheduleFunc(scheduler.InputLane, func(shouldYield scheduler.ShouldYieldFunc) bool {
+			fn()
+			return true
+		})
+	} else {
+		fn()
+	}
+}
+
+// ScheduleTransition schedules a low-priority transition update.
+// Falls back to immediate execution if no scheduler is available.
+func ScheduleTransition(fn func()) {
+	if globalFiberScheduler != nil {
+		globalFiberScheduler.scheduler.ScheduleFunc(scheduler.TransitionLane, func(shouldYield scheduler.ShouldYieldFunc) bool {
+			fn()
+			return true
+		})
+	} else {
+		fn()
+	}
+}
+
+// ScheduleIdle schedules a background idle update.
+// Falls back to immediate execution if no scheduler is available.
+func ScheduleIdle(fn func()) {
+	if globalFiberScheduler != nil {
+		globalFiberScheduler.scheduler.ScheduleFunc(scheduler.IdleLane, func(shouldYield scheduler.ShouldYieldFunc) bool {
+			fn()
+			return true
+		})
+	} else {
+		fn()
+	}
+}
+
+// FlushScheduler executes all pending scheduled work.
+func FlushScheduler() {
+	if globalFiberScheduler != nil {
+		globalFiberScheduler.Flush()
+	}
+}

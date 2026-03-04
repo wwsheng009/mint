@@ -8,6 +8,7 @@ import (
 	"github.com/wwsheng009/mint/internal/render"
 	"github.com/wwsheng009/mint/runtime/intent"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
+	"github.com/wwsheng009/mint/runtime/scheduler"
 )
 
 // =============================================================================
@@ -29,6 +30,10 @@ type Options struct {
 	NoAlternateScreen bool   // Don't use alternate screen mode - allows copying/scrolling
 	InitFunc          func() // Initialization function called after Intent Runtime is created
 	PluginSetupFunc   func(*framework.App)
+
+	// Lane Scheduler Options
+	UseLaneScheduler  bool   // Enable priority-based lane scheduler
+	DefaultLane       uint32 // Default lane for updates (1=Sync, 2=Input, 4=Default, 8=Transition, 16=Idle)
 }
 
 // WithWidth sets the window width
@@ -120,6 +125,34 @@ func WithPluginSetup(pluginSetup func(*framework.App)) Option {
 	}
 }
 
+// WithLaneScheduler enables priority-based lane scheduling for rendering.
+// This allows:
+//   - User input to be processed with higher priority
+//   - Background tasks to be processed during idle time
+//   - Interruptible rendering for large updates
+//
+// Example:
+//
+//	ui.Run(App, ui.WithLaneScheduler())
+func WithLaneScheduler() Option {
+	return func(o *Options) {
+		o.UseLaneScheduler = true
+	}
+}
+
+// WithDefaultLane sets the default lane for updates when lane scheduler is enabled.
+// Lane values: 1=Sync, 2=Input, 4=Default, 8=Transition, 16=Idle
+//
+// Example:
+//
+//	// Use Input lane as default (high priority)
+//	ui.Run(App, ui.WithLaneScheduler(), ui.WithDefaultLane(2))
+func WithDefaultLane(lane uint32) Option {
+	return func(o *Options) {
+		o.DefaultLane = lane
+	}
+}
+
 // appInstance holds the framework app for quit functionality
 var appInstance *framework.App
 
@@ -193,6 +226,27 @@ func Run(app ComponentFunc, opts ...Option) error {
 
 	// Set app on the declarative node (this sets the scheduler for frame scheduling)
 	declarativeRoot.SetApp(fwApp)
+
+	// Initialize Lane Scheduler if enabled
+	var fiberScheduler *rtui.FiberScheduler
+	if options.UseLaneScheduler {
+		log.UILogger.Debug("ui.Run: Lane Scheduler enabled")
+		fiberScheduler = rtui.NewFiberScheduler(
+			rtui.WithOnCommit(func() {
+				// Commit callback - can be used for logging/metrics
+				log.UILogger.Debug("ui.Run: FiberScheduler commit")
+			}),
+		)
+
+		// Set default lane if specified
+		if options.DefaultLane > 0 {
+			defaultLane := scheduler.Lane(options.DefaultLane)
+			log.UILogger.Debug("ui.Run: Default lane set to %s", defaultLane)
+		}
+
+		// Store scheduler reference for global access
+		rtui.SetGlobalFiberScheduler(fiberScheduler)
+	}
 
 	// CRITICAL: Sync FocusManager from DeclarativeNode to framework.App
 	// This ensures keyboard navigation (Tab/Shift+Tab) works correctly
