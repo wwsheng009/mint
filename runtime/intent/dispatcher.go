@@ -78,7 +78,7 @@ const (
 	ErrorLogIgnore ErrorHandlingStrategy = iota
 	// ErrorLogPanic logs the error and panics
 	ErrorLogPanic
-	// ErrorLogRetry logs the error and retries (not implemented)
+	// ErrorLogRetry logs the error and retries with configurable maxRetry count
 	ErrorLogRetry
 	// ErrorCustomCallback calls the custom error handler
 	ErrorCustomCallback

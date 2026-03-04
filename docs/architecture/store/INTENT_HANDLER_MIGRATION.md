@@ -22,24 +22,24 @@
 
 ## 迁移步骤
 
-### 步骤 1: 更新 Intent 类型定义
+### 步骤 1: 等等，不需要更新 Intent 类型定义
 
-**旧代码**：必须实现 `StayPressed()`
-
-```go
-type IncrementIntent struct{}
-func (IncrementIntent) IntentType() string { return "Increment" }
-func (IncrementIntent) StayPressed() bool  { return true }  // 必需
-```
-
-**新代码**：`StayPressed()` 变为可选
+**好消息**：`StayPressed()` 接口一直是**可选**的！
 
 ```go
 type IncrementIntent struct{}
 func (IncrementIntent) IntentType() string { return "Increment" }
-// StayPressed() 可选：仅当需要控制按钮视觉反馈时实现
-func (IncrementIntent) StayPressed() bool  { return true }
+// ✅ StayPressed() 是可选的：仅当需要控制按钮视觉反馈时才实现
+// 如果不实现，按钮会在 Enter/Submit 后立即重置 pressed 状态
+func (IncrementIntent) StayPressed() bool {
+    return true  // 保持视觉反馈（导航类操作）
+}
 ```
+
+**说明**：
+- `StayPressedIntent` 是一个**可选接口**，定义在 `ui/components/control/types.go`
+- 只有需要控制按钮按下后的视觉反馈时才需要实现
+- 如果不实现，按钮会在键盘操作后立即重置
 
 ---
 

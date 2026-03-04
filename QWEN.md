@@ -20,3 +20,4 @@
 - ui.Bordered() 已标记 Deprecated，推荐使用 stack.Bordered() 或 stack.New().SingleBorder()
 - examples 目录存在大量编译错误，主要由于 list 组件 API 变更、Builder 链式调用问题、main 函数重复声明、以及 button/panel 等组件 API 方法不存在导致
 - Mint 渲染管线重构完成：移除了 framework.App 依赖，使用 Scheduler 接口解耦。Fiber-first 和 Portal-aware layout 已默认启用。移除了 legacyPaint、comparePaint 和 RenderModeBoth 选项。
+- StayPressedIntent 是可选接口（非必需）。Intent 不需要必须实现 StayPressed()，只有需要控制按钮视觉反馈时才需要实现。不实现的 Intent 会在键盘 Enter/Submit 后立即重置 pressed 状态。
