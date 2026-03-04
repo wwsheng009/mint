@@ -4,6 +4,72 @@
 
 本文档说明如何将 `runtime/scheduler` 包中的 Lane 调度系统与现有的 Fiber 架构集成，实现优先级调度和可中断渲染。
 
+**✅ 已完成集成！** 通过 `ui.WithLaneScheduler()` 选项启用。
+
+---
+
+## 快速开始
+
+### 启用 Lane Scheduler
+
+```go
+package main
+
+import "github.com/wwsheng009/mint/ui"
+
+func main() {
+    // 启用优先级调度
+    err := ui.Run(App, ui.WithLaneScheduler())
+    if err != nil {
+        panic(err)
+    }
+}
+
+func App() ui.VNode {
+    return ui.Text("Hello, Lane Scheduler!")
+}
+```
+
+### 使用不同优先级
+
+```go
+import rtui "github.com/wwsheng009/mint/runtime/ui"
+
+func handleUserInput() {
+    // 高优先级 - 用户输入
+    rtui.ScheduleInput(func() {
+        // 立即处理
+    })
+}
+
+func handleDataFetch() {
+    // 普通优先级 - 数据获取
+    rtui.ScheduleTransition(func() {
+        // 正常处理
+    })
+}
+
+func handleBackground() {
+    // 低优先级 - 后台任务
+    rtui.ScheduleIdle(func() {
+        // 空闲时处理
+    })
+}
+```
+
+---
+
+## 集成状态
+
+| 功能 | 状态 | 说明 |
+|------|------|------|
+| FiberScheduler | ✅ 完成 | `runtime/ui/fiber_scheduler.go` |
+| ui.Run 集成 | ✅ 完成 | `ui/app.go` |
+| WithLaneScheduler 选项 | ✅ 完成 | 启用优先级调度 |
+| 全局访问 | ✅ 完成 | `GetGlobalFiberScheduler()` |
+| 便捷函数 | ✅ 完成 | `ScheduleInput/Transition/Idle` |
+| 示例 | ✅ 完成 | `examples/lane_scheduler_demo/` |
+
 ---
 
 ## 现有架构
