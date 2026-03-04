@@ -133,6 +133,72 @@ func (b *Builder[T]) Build() Reducer[T] {
 	}
 }
 
+// BuildWithStore creates a Reducer and a Store update function.
+// The returned function can be used to update a store after reduction.
+func (b *Builder[T]) BuildWithStore(store StoreSetter[T]) (Reducer[T], func(intent.Intent)) {
+	reducer := b.Build()
+	return reducer, func(i intent.Intent) {
+		newState := reducer.Reduce(store.Get(), i)
+		store.Set(newState)
+	}
+}
+
+// StoreSetter is an interface for setting state in a store.
+type StoreSetter[T any] interface {
+	Get() T
+	Set(T)
+}
+
+// BuildAndRegister builds the reducer and registers all intent handlers
+// to the given registry. Each handler will:
+//  1. Run the reducer to compute new state
+//  2. Update the store with the new state
+//  3. Return a handled result
+//
+// This provides a complete Redux-like flow: Intent → Reducer → Store → UI
+//
+// Example:
+//
+//	appStore := store.NewStore(AppState{})
+//	reducer := NewBuilder[AppState]().
+//	    On(IncrementIntent{}, func(s AppState, i intent.Intent) AppState {
+//	        s.Count++
+//	        return s
+//	    }).
+//	    BuildAndRegister(intent.DefaultRegistry(), appStore)
+func (b *Builder[T]) BuildAndRegister(r *intent.Registry, store StoreSetter[T]) Reducer[T] {
+	// Build the reducer
+	rd := b.Build()
+
+	// Register handlers for all known intent types
+	for intentType := range b.handlers {
+		// Capture loop variable
+		it := intentType
+		r.Register(it, intent.HandlerFunc(func(ctx *intent.ActionContext, i intent.Intent) intent.IntentResult {
+			// Get current state
+			currentState := store.Get()
+
+			// Reduce to new state
+			newState := rd.Reduce(currentState, i)
+
+			// Update store
+			store.Set(newState)
+
+			// Schedule UI update to re-render
+			ctx.ScheduleUpdate()
+
+			return intent.HandledResult()
+		}))
+	}
+
+	return rd
+}
+
+// RegisterToGlobal is a convenience method that registers to the global registry.
+func (b *Builder[T]) RegisterToGlobal(store StoreSetter[T]) Reducer[T] {
+	return b.BuildAndRegister(intent.DefaultRegistry(), store)
+}
+
 // =============================================================================
 // Middleware Support
 // =============================================================================
