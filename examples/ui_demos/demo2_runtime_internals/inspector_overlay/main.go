@@ -25,6 +25,7 @@ import (
 	"github.com/wwsheng009/mint/internal/inspector"
 	"github.com/wwsheng009/mint/internal/log"
 	"github.com/wwsheng009/mint/internal/render"
+	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/runtime/style"
 	ui "github.com/wwsheng009/mint/ui"
 )
@@ -308,35 +309,88 @@ func ControlPanel(
 	setEventCount, setRenderCount, setBufferUpdates func(interface{}),
 	setShowInspector func(bool),
 ) ui.VNode {
+	// 将 setter 保存到 GlobalState，供 handler 从 ActionContext 读取
+	ctx := ui.GetCurrentContext()
+	if ctx != nil {
+		ctx.GlobalState["setCurrentPhase"] = setCurrentPhase
+		ctx.GlobalState["setEventCount"] = setEventCount
+		ctx.GlobalState["setRenderCount"] = setRenderCount
+		ctx.GlobalState["setBufferUpdates"] = setBufferUpdates
+	}
+
 	// Register handlers for each button action
-	ui.On(InspectorActionIntent{Action: "event"}, func() {
-		setCurrentPhase("Event")
-		setEventCount(func(c int) int { return c + 1 })
+	ui.On(InspectorActionIntent{Action: "event"}, func(actx *intent.ActionContext) {
+		if fn, ok := actx.GetState("setCurrentPhase"); ok {
+			if setter, ok := fn.(func(string)); ok {
+				setter("Event")
+			}
+		}
+		if fn, ok := actx.GetState("setEventCount"); ok {
+			if setter, ok := fn.(func(func(int) int)); ok {
+				setter(func(c int) int { return c + 1 })
+			}
+		}
 	})
-	ui.On(InspectorActionIntent{Action: "setstate"}, func() {
-		setCurrentPhase("setState")
+	ui.On(InspectorActionIntent{Action: "setstate"}, func(actx *intent.ActionContext) {
+		if fn, ok := actx.GetState("setCurrentPhase"); ok {
+			if setter, ok := fn.(func(string)); ok {
+				setter("setState")
+			}
+		}
 	})
-	ui.On(InspectorActionIntent{Action: "scheduler"}, func() {
-		setCurrentPhase("Scheduler")
-		setRenderCount(func(c int) int { return c + 1 })
+	ui.On(InspectorActionIntent{Action: "scheduler"}, func(actx *intent.ActionContext) {
+		if fn, ok := actx.GetState("setCurrentPhase"); ok {
+			if setter, ok := fn.(func(string)); ok {
+				setter("Scheduler")
+			}
+		}
+		if fn, ok := actx.GetState("setRenderCount"); ok {
+			if setter, ok := fn.(func(func(int) int)); ok {
+				setter(func(c int) int { return c + 1 })
+			}
+		}
 	})
-	ui.On(InspectorActionIntent{Action: "render"}, func() {
-		setCurrentPhase("Render")
+	ui.On(InspectorActionIntent{Action: "render"}, func(actx *intent.ActionContext) {
+		if fn, ok := actx.GetState("setCurrentPhase"); ok {
+			if setter, ok := fn.(func(string)); ok {
+				setter("Render")
+			}
+		}
 	})
-	ui.On(InspectorActionIntent{Action: "reconcile"}, func() {
-		setCurrentPhase("Reconcile")
+	ui.On(InspectorActionIntent{Action: "reconcile"}, func(actx *intent.ActionContext) {
+		if fn, ok := actx.GetState("setCurrentPhase"); ok {
+			if setter, ok := fn.(func(string)); ok {
+				setter("Reconcile")
+			}
+		}
 	})
-	ui.On(InspectorActionIntent{Action: "layout"}, func() {
-		setCurrentPhase("Layout")
+	ui.On(InspectorActionIntent{Action: "layout"}, func(actx *intent.ActionContext) {
+		if fn, ok := actx.GetState("setCurrentPhase"); ok {
+			if setter, ok := fn.(func(string)); ok {
+				setter("Layout")
+			}
+		}
 	})
-	ui.On(InspectorActionIntent{Action: "paint"}, func() {
-		setCurrentPhase("Paint")
-		setBufferUpdates(func(c int) int { return c + 1 })
+	ui.On(InspectorActionIntent{Action: "paint"}, func(actx *intent.ActionContext) {
+		if fn, ok := actx.GetState("setCurrentPhase"); ok {
+			if setter, ok := fn.(func(string)); ok {
+				setter("Paint")
+			}
+		}
+		if fn, ok := actx.GetState("setBufferUpdates"); ok {
+			if setter, ok := fn.(func(func(int) int)); ok {
+				setter(func(c int) int { return c + 1 })
+			}
+		}
 	})
-	ui.On(InspectorActionIntent{Action: "idle"}, func() {
-		setCurrentPhase("idle")
+	ui.On(InspectorActionIntent{Action: "idle"}, func(actx *intent.ActionContext) {
+		if fn, ok := actx.GetState("setCurrentPhase"); ok {
+			if setter, ok := fn.(func(string)); ok {
+				setter("idle")
+			}
+		}
 	})
-	ui.On(InspectorActionIntent{Action: "toggle-inspector"}, func() {
+	ui.On(InspectorActionIntent{Action: "toggle-inspector"}, func(actx *intent.ActionContext) {
 		// Debug output
 		if os.Getenv("TUI_DEBUG") == "true" || os.Getenv("TUI_DEBUG_UI") == "true" {
 			log.UILogger.Debug("[DEMO2] [I] button clicked, Inspector enabled=%v, visible=%v",
@@ -351,7 +405,6 @@ func ControlPanel(
 			log.UILogger.Debug("[DEMO2] After toggle, Inspector visible=%v",
 				globalInspector.IsVisible())
 		}
-
 		// Trigger re-render to show/hide overlay
 		setShowInspector(globalInspector.IsVisible())
 	})

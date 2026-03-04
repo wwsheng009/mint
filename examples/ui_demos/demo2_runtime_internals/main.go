@@ -16,6 +16,7 @@ import (
 	"os"
 
 	"github.com/wwsheng009/mint/framework/theme"
+	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/runtime/style"
 	"github.com/wwsheng009/mint/ui"
 )
@@ -53,14 +54,6 @@ type SetIdlePhaseIntent struct{}
 func (SetIdlePhaseIntent) IntentType() string { return "SetIdlePhase" }
 func (SetIdlePhaseIntent) StayPressed() bool  { return true }
 
-// Global setters for control panel
-var (
-	globalSetCurrentPhase       func(string)
-	globalSetEventCount         func(interface{})
-	globalSetRenderCount        func(interface{})
-	globalSetBufferUpdates      func(interface{})
-)
-
 func main() {
 	// Check if layout debug mode is enabled
 	if os.Getenv("TUI_UI_DEBUG_LAYOUT") == "true" || os.Getenv("TUI_LAYOUT_DEBUG") == "true" {
@@ -88,60 +81,85 @@ func RuntimeDemo() ui.VNode {
 	renderCount, setRenderCount, _ := ui.UseStateInt(0)
 	bufferUpdates, setBufferUpdates, _ := ui.UseStateInt(0)
 
-	// Update global setters
-	globalSetCurrentPhase = setCurrentPhase
-	globalSetEventCount = setEventCount
-	globalSetRenderCount = setRenderCount
-	globalSetBufferUpdates = setBufferUpdates
+	// 将 setter 保存到 GlobalState，供 handler 从 ActionContext 读取
+	ctx := ui.GetCurrentContext()
+	if ctx != nil {
+		ctx.GlobalState["setCurrentPhase"] = setCurrentPhase
+		ctx.GlobalState["setEventCount"] = setEventCount
+		ctx.GlobalState["setRenderCount"] = setRenderCount
+		ctx.GlobalState["setBufferUpdates"] = setBufferUpdates
+	}
 
 	// Register intent handlers
-	ui.On(SetEventPhaseIntent{}, func() {
-		if globalSetCurrentPhase != nil {
-			globalSetCurrentPhase("Event")
+	ui.On(SetEventPhaseIntent{}, func(actx *intent.ActionContext) {
+		if fn, ok := actx.GetState("setCurrentPhase"); ok {
+			if setter, ok := fn.(func(string)); ok {
+				setter("Event")
+			}
 		}
-		if globalSetEventCount != nil {
-			globalSetEventCount(func(c int) int { return c + 1 })
-		}
-	})
-	ui.On(SetSetStatePhaseIntent{}, func() {
-		if globalSetCurrentPhase != nil {
-			globalSetCurrentPhase("setState")
-		}
-	})
-	ui.On(SetSchedulerPhaseIntent{}, func() {
-		if globalSetCurrentPhase != nil {
-			globalSetCurrentPhase("Scheduler")
-		}
-		if globalSetRenderCount != nil {
-			globalSetRenderCount(func(c int) int { return c + 1 })
+		if fn, ok := actx.GetState("setEventCount"); ok {
+			if setter, ok := fn.(func(func(int) int)); ok {
+				setter(func(c int) int { return c + 1 })
+			}
 		}
 	})
-	ui.On(SetRenderPhaseIntent{}, func() {
-		if globalSetCurrentPhase != nil {
-			globalSetCurrentPhase("Render")
+	ui.On(SetSetStatePhaseIntent{}, func(actx *intent.ActionContext) {
+		if fn, ok := actx.GetState("setCurrentPhase"); ok {
+			if setter, ok := fn.(func(string)); ok {
+				setter("setState")
+			}
 		}
 	})
-	ui.On(SetReconcilePhaseIntent{}, func() {
-		if globalSetCurrentPhase != nil {
-			globalSetCurrentPhase("Reconcile")
+	ui.On(SetSchedulerPhaseIntent{}, func(actx *intent.ActionContext) {
+		if fn, ok := actx.GetState("setCurrentPhase"); ok {
+			if setter, ok := fn.(func(string)); ok {
+				setter("Scheduler")
+			}
+		}
+		if fn, ok := actx.GetState("setRenderCount"); ok {
+			if setter, ok := fn.(func(func(int) int)); ok {
+				setter(func(c int) int { return c + 1 })
+			}
 		}
 	})
-	ui.On(SetLayoutPhaseIntent{}, func() {
-		if globalSetCurrentPhase != nil {
-			globalSetCurrentPhase("Layout")
+	ui.On(SetRenderPhaseIntent{}, func(actx *intent.ActionContext) {
+		if fn, ok := actx.GetState("setCurrentPhase"); ok {
+			if setter, ok := fn.(func(string)); ok {
+				setter("Render")
+			}
 		}
 	})
-	ui.On(SetPaintPhaseIntent{}, func() {
-		if globalSetCurrentPhase != nil {
-			globalSetCurrentPhase("Paint")
-		}
-		if globalSetBufferUpdates != nil {
-			globalSetBufferUpdates(func(c int) int { return c + 1 })
+	ui.On(SetReconcilePhaseIntent{}, func(actx *intent.ActionContext) {
+		if fn, ok := actx.GetState("setCurrentPhase"); ok {
+			if setter, ok := fn.(func(string)); ok {
+				setter("Reconcile")
+			}
 		}
 	})
-	ui.On(SetIdlePhaseIntent{}, func() {
-		if globalSetCurrentPhase != nil {
-			globalSetCurrentPhase("idle")
+	ui.On(SetLayoutPhaseIntent{}, func(actx *intent.ActionContext) {
+		if fn, ok := actx.GetState("setCurrentPhase"); ok {
+			if setter, ok := fn.(func(string)); ok {
+				setter("Layout")
+			}
+		}
+	})
+	ui.On(SetPaintPhaseIntent{}, func(actx *intent.ActionContext) {
+		if fn, ok := actx.GetState("setCurrentPhase"); ok {
+			if setter, ok := fn.(func(string)); ok {
+				setter("Paint")
+			}
+		}
+		if fn, ok := actx.GetState("setBufferUpdates"); ok {
+			if setter, ok := fn.(func(func(int) int)); ok {
+				setter(func(c int) int { return c + 1 })
+			}
+		}
+	})
+	ui.On(SetIdlePhaseIntent{}, func(actx *intent.ActionContext) {
+		if fn, ok := actx.GetState("setCurrentPhase"); ok {
+			if setter, ok := fn.(func(string)); ok {
+				setter("idle")
+			}
 		}
 	})
 
