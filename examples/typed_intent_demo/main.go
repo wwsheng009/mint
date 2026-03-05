@@ -9,7 +9,6 @@ package main
 
 import (
 	"fmt"
-	"strconv"
 
 	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/ui"
@@ -165,7 +164,7 @@ func TypedFormDemo() ui.VNode {
 	// Get component state using hooks
 	username, setUsername := ui.UseStateString("")
 	email, setEmail := ui.UseStateString("")
-	age, setAge := ui.UseStateInt(0)
+	age, setAge, _ := ui.UseStateInt(0)
 	active, setActive := ui.UseStateBool(false)
 	usernameErr, setUsernameErr := ui.UseStateString("")
 	emailErr, setEmailErr := ui.UseStateString("")
@@ -239,41 +238,35 @@ func TypedFormDemo() ui.VNode {
 	})
 
 	return ui.VStack(
-		ui.Text("📝 Type-Safe Intent Demo").Bold(true),
+		ui.NewTextBuilder("📝 Type-Safe Intent Demo").Build(),
 		ui.Text(""),
 
 		// Username field
 		ui.HStack(
-			ui.Text("Username:").Width(12),
+			ui.NewTextBuilder("Username:").Build(),
+			ui.Text("  "),
 			ui.NewInputBuilder().
 				Placeholder("Enter username").
 				Value(username).
-				OnChange(func(v string) {
-					setUsername(v)
-					// Type-safe field change
-					// In a full implementation, this would dispatch:
-					// dispatcher.Dispatch(Username.Change(v))
-				}).
 				Build(),
 		),
-		ui.Text(usernameErr).Color("red"),
+		ui.NewTextBuilder(usernameErr).FgColor("red").Build(),
 
 		// Email field
 		ui.HStack(
-			ui.Text("Email:").Width(12),
+			ui.NewTextBuilder("Email:").Build(),
+			ui.Text("  "),
 			ui.NewInputBuilder().
 				Placeholder("Enter email").
 				Value(email).
-				OnChange(func(v string) {
-					setEmail(v)
-				}).
 				Build(),
 		),
-		ui.Text(emailErr).Color("red"),
+		ui.NewTextBuilder(emailErr).FgColor("red").Build(),
 
 		// Age field with +/- buttons
 		ui.HStack(
-			ui.Text("Age:").Width(12),
+			ui.NewTextBuilder("Age:").Build(),
+			ui.Text("  "),
 			ui.NewButtonBuilder(" - ").
 				OnPress(DecrementAgeIntent{}).
 				Build(),
@@ -285,7 +278,8 @@ func TypedFormDemo() ui.VNode {
 
 		// Active checkbox
 		ui.HStack(
-			ui.Text("Active:").Width(12),
+			ui.NewTextBuilder("Active:").Build(),
+			ui.Text("  "),
 			ui.NewButtonBuilder(fmt.Sprintf("[%s]", boolToCheck(active))).
 				OnPress(ToggleActiveIntent{}).
 				Build(),
@@ -304,9 +298,9 @@ func TypedFormDemo() ui.VNode {
 		),
 
 		ui.Text(""),
-		ui.Text("─".repeat(40)).Faint(true),
-		ui.Text("Type-Safe Keys: Username, Email, Age, Active").Faint(true),
-		ui.Text("Compile-time checking prevents typos!").Faint(true),
+		ui.NewTextBuilder("─").FgColor("gray").Build(),
+		ui.NewTextBuilder("Type-Safe Keys: Username, Email, Age, Active").FgColor("gray").Build(),
+		ui.NewTextBuilder("Compile-time checking prevents typos!").FgColor("gray").Build(),
 	)
 }
 
