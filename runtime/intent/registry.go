@@ -144,19 +144,26 @@ func (r *Registry) Register(intentType string, handler Handler, opts ...Register
 		// If existing handler is not overridable, warn and don't replace
 		if !existing.Overridable {
 			if r.logger != nil && r.logger.Enabled() {
-				r.logger.Warn("Cannot override protected handler: type=%s", intentType)
+				r.logger.Warn(
+					"Cannot override protected handler: type=%s, currentHandler=%T, newHandler=%T. "+
+						"Use WithOverridable(true) to allow overriding, or register the handler before the builtin one.",
+					intentType, existing.Handler, handler,
+				)
 			}
 			return func() {} // No-op unregister
 		}
 		// Existing handler is overridable, it will be replaced
 		if r.logger != nil && r.logger.Enabled() {
-			r.logger.Debug("Overriding overridable handler: type=%s", intentType)
+			r.logger.Info(
+				"Successfully overridable handler: type=%s, oldHandler=%T, newHandler=%T",
+				intentType, existing.Handler, handler,
+			)
 		}
 	} else {
 		// New registration
 		if r.logger != nil && r.logger.Enabled() {
-			r.logger.Debug("Registering new handler: type=%s, overridable=%v",
-				intentType, reg.Overridable)
+			r.logger.Debug("Registering new handler: type=%s, handler=%T, overridable=%v",
+				intentType, handler, reg.Overridable)
 		}
 	}
 
@@ -168,7 +175,10 @@ func (r *Registry) Register(intentType string, handler Handler, opts ...Register
 		defer r.mu.Unlock()
 		delete(r.handlers, intentType)
 		if r.logger != nil && r.logger.Enabled() {
-			r.logger.Debug("Unregistered handler: type=%s", intentType)
+			r.logger.Debug(
+				"[Register] Unregistered handler: type=%s, handler=%T",
+				intentType, reg.Handler,
+			)
 		}
 	}
 }
@@ -217,8 +227,34 @@ func RegisterTyped[T Intent](r *Registry, handler TypedHandler[T]) func() {
 	// Handle overridable logic
 	if ok && existing != nil && !existing.Overridable {
 		// If existing handler is not overridable, warn and don't replace
+		if r.logger != nil && r.logger.Enabled() {
+			r.logger.Warn(
+				"[RegisterTyped] Cannot override protected handler: type=%s (from %T), newHandler=%T. "+
+					"Handler is not marked as overridable. Use RegisterTypedWithOpts with WithOverridable(true) to override.",
+				intentType, existing.Handler, wrapper,
+			)
+		}
 		// For now, just return without replacing
 		return func() {} // No-op unregister
+	}
+
+	// Log handler registration
+	if ok && existing != nil {
+		// Replacing existing handler
+		if r.logger != nil && r.logger.Enabled() {
+			r.logger.Info(
+				"[RegisterTyped] Replacing handler: type=%s, oldHandler=%T, newHandler=%T",
+				intentType, existing.Handler, wrapper,
+			)
+		}
+	} else {
+		// New handler registration
+		if r.logger != nil && r.logger.Enabled() {
+			r.logger.Debug(
+				"[RegisterTyped] Registering new handler: type=%s, handler=%T (GoType=%s)",
+				intentType, wrapper, typ.String(),
+			)
+		}
 	}
 
 	r.handlers[intentType] = reg
@@ -230,6 +266,9 @@ func RegisterTyped[T Intent](r *Registry, handler TypedHandler[T]) func() {
 		defer r.mu.Unlock()
 		delete(r.handlers, intentType)
 		delete(r.typeMap, typ)
+		if r.logger != nil && r.logger.Enabled() {
+			r.logger.Debug("[RegisterTyped] Unregistered handler: type=%s", intentType)
+		}
 	}
 }
 

@@ -50,9 +50,27 @@ import (
 	"github.com/wwsheng009/mint/runtime/store"
 )
 
-// ViewFunction[T] is a pure function that renders state to VNode.
+// ViewFunction[T] is a pure function that renders state to a renderable result.
 // It should be stateless and deterministic - same state = same output.
-type ViewFunction[T any] func(state T) any // Using any to avoid importing ui.VNode
+//
+// NOTE: Returns 'any' to avoid circular dependency with ui package.
+// For type safety, use AppRuntime.NewTyped() or wrap your view function.
+//
+// Example:
+//
+//	// Direct usage (less type-safe):
+//	func AppView(state AppState) any {
+//		return ui.VStack(...)
+//	}
+//
+//	// Type-safe usage with wrapper:
+//	func renderAppView(state AppState) ui.VNode {
+//		return ui.VStack(...)
+//	}
+//	func AppView(state AppState) any {
+//		return renderAppView(state)
+//	}
+type ViewFunction[T any] func(state T) any
 
 // AppRuntime[T] is the main runtime for state-machine-driven applications.
 // It manages the complete lifecycle of state, intents, and rendering.
@@ -72,8 +90,10 @@ type AppRuntime[T any] struct {
 	onStateChange func(T)
 
 	// Debug support
-	history    []T
-	maxHistory int
+	history      []T
+	currentIndex int // Current position in history index
+	maxHistory   int
+	skipHistory  bool // Flag to skip history recording (for Undo/JumpTo)
 }
 
 // RuntimeConfig holds configuration for AppRuntime.
@@ -147,11 +167,18 @@ func NewAppRuntime[T any](
 // handleStateChange is called when state changes.
 func (rt *AppRuntime[T]) handleStateChange(state T) {
 	rt.mu.Lock()
-	// Record history
-	if rt.maxHistory > 0 {
+	// Record history (only if not skipping)
+	if !rt.skipHistory && rt.maxHistory > 0 {
+		// If we're in the middle of history and perform a new action,
+		// truncate history from current position forward
+		if rt.currentIndex < len(rt.history)-1 {
+			rt.history = rt.history[:rt.currentIndex+1]
+		}
 		rt.history = append(rt.history, state)
+		rt.currentIndex = len(rt.history) - 1
 		if len(rt.history) > rt.maxHistory {
 			rt.history = rt.history[1:]
+			rt.currentIndex--
 		}
 	}
 	callback := rt.onStateChange
@@ -198,6 +225,17 @@ func (rt *AppRuntime[T]) View() any {
 	return rt.view(rt.store.Get())
 }
 
+// GetStore returns the store for this runtime.
+// This is useful for registering intent handlers.
+func (rt *AppRuntime[T]) GetStore() *store.Store[T] {
+	return rt.store
+}
+
+// GetReducer returns the reducer for this runtime.
+func (rt *AppRuntime[T]) GetReducer() reducer.Reducer[T] {
+	return rt.reducer
+}
+
 // =============================================================================
 // Lifecycle
 // =============================================================================
@@ -228,14 +266,25 @@ func (rt *AppRuntime[T]) History() []T {
 // This is useful for time-travel debugging.
 func (rt *AppRuntime[T]) JumpTo(index int) error {
 	rt.mu.Lock()
-	defer rt.mu.Unlock()
 
 	if index < 0 || index >= len(rt.history) {
+		rt.mu.Unlock()
 		return fmt.Errorf("index out of range: %d (history size: %d)", index, len(rt.history))
 	}
 
 	state := rt.history[index]
+	rt.currentIndex = index
+
+	// Skip history recording during time jump
+	rt.skipHistory = true
+	rt.mu.Unlock()
+
 	rt.store.Set(state)
+
+	rt.mu.Lock()
+	rt.skipHistory = false
+	rt.mu.Unlock()
+
 	return nil
 }
 
@@ -244,18 +293,56 @@ func (rt *AppRuntime[T]) Undo() error {
 	rt.mu.Lock()
 	defer rt.mu.Unlock()
 
-	if len(rt.history) <= 1 {
+	if rt.currentIndex <= 0 {
 		return fmt.Errorf("no previous state to undo to")
 	}
 
-	// Remove current state from history
-	rt.history = rt.history[:len(rt.history)-1]
+	// Move to previous state index
+	rt.currentIndex--
 
 	// Get previous state
-	prev := rt.history[len(rt.history)-1]
+	prev := rt.history[rt.currentIndex]
+
+	// Skip history recording during undo
+	rt.skipHistory = true
+	rt.mu.Unlock()
+
 	rt.store.Set(prev)
+
+	rt.mu.Lock()
+	rt.skipHistory = false
+
 	return nil
 }
+
+// Redo reinstates the next state that was previously undone.
+func (rt *AppRuntime[T]) Redo() error {
+	rt.mu.Lock()
+	defer rt.mu.Unlock()
+
+	if rt.currentIndex >= len(rt.history)-1 {
+		return fmt.Errorf("no next state to redo to")
+	}
+
+	// Move to next state index
+	rt.currentIndex++
+
+	// Get next state
+	next := rt.history[rt.currentIndex]
+
+	// Skip history recording during redo
+	rt.skipHistory = true
+	rt.mu.Unlock()
+
+	rt.store.Set(next)
+
+	rt.mu.Lock()
+	rt.skipHistory = false
+
+	return nil
+}
+
+
 
 // Reset resets the state to the initial state.
 func (rt *AppRuntime[T]) Reset(initial T) {
@@ -270,12 +357,19 @@ func (rt *AppRuntime[T]) Reset(initial T) {
 func (rt *AppRuntime[T]) HistoryIndex() int {
 	rt.mu.RLock()
 	defer rt.mu.RUnlock()
-	return len(rt.history) - 1
+	return rt.currentIndex
 }
 
 // CanUndo returns true if undo is possible.
 func (rt *AppRuntime[T]) CanUndo() bool {
 	rt.mu.RLock()
 	defer rt.mu.RUnlock()
-	return len(rt.history) > 1
+	return rt.currentIndex > 0
+}
+
+// CanRedo returns true if redo is possible.
+func (rt *AppRuntime[T]) CanRedo() bool {
+	rt.mu.RLock()
+	defer rt.mu.RUnlock()
+	return rt.currentIndex < len(rt.history)-1
 }

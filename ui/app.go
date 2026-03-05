@@ -7,8 +7,9 @@ import (
 	"github.com/wwsheng009/mint/internal/log"
 	"github.com/wwsheng009/mint/internal/render"
 	"github.com/wwsheng009/mint/runtime/intent"
-	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/runtime/scheduler"
+	"github.com/wwsheng009/mint/runtime/statemachine"
+	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
 
 // =============================================================================
@@ -263,4 +264,185 @@ func Quit() {
 	if appInstance != nil {
 		appInstance.Quit()
 	}
+}
+
+// RunApp starts a declarative UI application using Store + Reducer architecture.
+// This is the recommended entry point for applications using AppRuntime.
+//
+// RunApp[T] integrates with the AppRuntime to provide:
+//   - Automatic state subscription and re-rendering
+//   - Type-safe state management
+//   - Time-travel debugging support (via AppRuntime's history)
+//
+// IMPORTANT: You must register Intent handlers using ui.WithInit
+//
+// Example:
+//
+//	type AppState struct {
+//		Count int
+//	}
+//
+//	// Option 1: Direct return (less type-safe)
+//	func AppView(state AppState) any {
+//		return ui.VStack(
+//			ui.Text(fmt.Sprintf("Count: %d", state.Count)),
+//			ui.NewButtonBuilder("+").OnPress(IncrementIntent{}).Build(),
+//		)
+//	}
+//
+//	// Option 2: Type-safe wrapper (recommended)
+//	func renderAppView(state AppState) ui.VNode {
+//		return ui.VStack(
+//			ui.Text(fmt.Sprintf("Count: %d", state.Count)),
+//			ui.NewButtonBuilder("+").OnPress(IncrementIntent{}).Build(),
+//		)
+//	}
+//	func AppView(state AppState) any { return renderAppView(state) }
+//
+//	var appReducerBuilder = reducer.NewBuilder[AppState]().
+//	    On(IncrementIntent{}, func(s AppState, i intent.Intent) AppState {
+//	        s.Count++
+//	        return s
+//	    })
+//
+//	func main() {
+//		rt := statemachine.NewAppRuntime(AppState{}, AppView, appReducerBuilder.Build())
+//		ui.RunApp(rt,
+//			ui.WithWidth(60),
+//			ui.WithTitle("My App"),
+//			// IMPORTANT: Register Intent handlers
+//			ui.WithInit(func() {
+//				appReducerBuilder.RegisterToGlobal(rt.GetStore())
+//			}),
+//		)
+//	}
+func RunApp[T any](rt *statemachine.AppRuntime[T], opts ...Option) error {
+	options := &Options{
+		Width:  80,
+		Height: 24,
+		Title:  "Mint UI App",
+		FPS:    60,
+	}
+
+	for _, opt := range opts {
+		opt(options)
+	}
+
+	log.UILogger.IfEnabled().Debug("ui.RunApp: Starting Store + Reducer app")
+
+	// Set environment variable for NoAlternateScreen mode
+	if options.NoAlternateScreen {
+		os.Setenv("MINT_NO_ALTERNATE_SCREEN", "true")
+	} else {
+		os.Unsetenv("MINT_NO_ALTERNATE_SCREEN")
+	}
+
+	// Create the framework app
+	log.UILogger.IfEnabled().Debug("ui.RunApp: Creating framework app")
+	fwApp := framework.NewApp()
+	fwApp.SetConfigSize(options.Width, options.Height)
+	fwApp.Resize(options.Width, options.Height)
+	appInstance = fwApp
+
+	// Initialize theme
+	log.UILogger.IfEnabled().Debug("ui.RunApp: Initializing theme")
+	if err := fwApp.InitTheme("dark"); err != nil {
+		log.UILogger.IfEnabled().Debug("Failed to initialize theme: %v", err)
+	}
+
+	// Initialize Intent Runtime
+	intentRuntime := intent.NewRuntime()
+	intent.SetupBuiltinHandlers(intentRuntime)
+	rtui.SetGlobalIntentRuntime(intentRuntime)
+	log.UILogger.IfEnabled().Debug("ui.RunApp: Intent Runtime initialized with built-in handlers")
+
+	// Set up state change callback to trigger re-render
+	// This creates the automatic integration between Store and Fiber rendering
+	var declarativeRoot *render.DeclarativeNode
+	rt.OnStateChange(func(state T) {
+		if declarativeRoot != nil {
+			log.UILogger.IfEnabled().Debug("ui.RunApp: State changed, attempting re-render")
+			// Try multiple methods to trigger re-render (for compatibility)
+			if r := declarativeRoot.GetReconciler(); r != nil {
+				// Try type assertion for ScheduleUpdate method (internal reconciler)
+				if sched, ok := r.(interface{ ScheduleUpdate(lane interface{}) }); ok {
+					sched.ScheduleUpdate(rtui.LaneSyncLane)
+					log.UILogger.IfEnabled().Debug("ui.RunApp: Re-render triggered via ScheduleUpdate")
+					return
+				}
+				// Try type assertion for MarkDirty method
+				if dirty, ok := r.(interface{ MarkDirty() }); ok {
+					dirty.MarkDirty()
+					log.UILogger.IfEnabled().Debug("ui.RunApp: Re-render triggered via MarkDirty")
+					return
+				}
+			}
+			log.UILogger.IfEnabled().Debug("ui.RunApp: Could not trigger re-render - reconciler does not support ScheduleUpdate or MarkDirty")
+		}
+	})
+
+	// Call plugin setup function if provided
+	if options.PluginSetupFunc != nil {
+		options.PluginSetupFunc(fwApp)
+	}
+
+	// Call initialization function if provided
+	if options.InitFunc != nil {
+		options.InitFunc()
+	}
+
+	// Create declarative node from a component that wraps AppRuntime's view function
+	// The component function captures the AppRuntime and calls View() on each render
+	app := func() VNode {
+		// Call AppRuntime's View function with current state
+		result := rt.View()
+		if vnode, ok := result.(VNode); ok {
+			return vnode
+		}
+		// Fallback for non-VNode types (shouldn't happen with well-typed views)
+		return Text("Error: View function must return ui.VNode")
+	}
+
+	// Create declarative node with Fiber reconciler
+	declarativeRoot = render.NewDeclarativeNodeFromFuncWithFiber(app)
+
+	// Set app on the declarative node
+	declarativeRoot.SetApp(fwApp)
+
+	// Initialize Lane Scheduler if enabled
+	var fiberScheduler *rtui.FiberScheduler
+	if options.UseLaneScheduler {
+		log.UILogger.IfEnabled().Debug("ui.RunApp: Lane Scheduler enabled")
+		fiberScheduler = rtui.NewFiberScheduler(
+			rtui.WithOnCommit(func() {
+				log.UILogger.IfEnabled().Debug("ui.RunApp: FiberScheduler commit")
+			}),
+		)
+
+		if options.DefaultLane > 0 {
+			defaultLane := scheduler.Lane(options.DefaultLane)
+			log.UILogger.IfEnabled().Debug("ui.RunApp: Default lane set to %s", defaultLane)
+		}
+
+		rtui.SetGlobalFiberScheduler(fiberScheduler)
+	}
+
+	// Sync FocusManager from DeclarativeNode to framework.App
+	if fm := declarativeRoot.GetFocusManager(); fm != nil {
+		fwApp.SetFocusManagerFromDeclarativeNode(fm)
+	}
+
+	// Pass Intent Runtime to declarative node
+	render.SetDeclarativeNodeIntentRuntime(declarativeRoot, intentRuntime)
+
+	log.UILogger.IfEnabled().Debug("ui.RunApp: Fiber mode enabled (default)")
+	fwApp.SetRoot(declarativeRoot)
+	log.UILogger.IfEnabled().Debug("ui.RunApp: declarative root set to %T", declarativeRoot)
+
+	// Cleanup AppRuntime when app exits
+	defer rt.Close()
+
+	// Run the app
+	log.UILogger.IfEnabled().Debug("ui.RunApp: Calling fwApp.Run()")
+	return fwApp.Run()
 }
