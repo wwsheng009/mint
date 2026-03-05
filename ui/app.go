@@ -165,9 +165,7 @@ func Run(app ComponentFunc, opts ...Option) error {
 		FPS:    60,
 	}
 
-	if log.UILogger.Enabled() {
-		log.UILogger.Debug("ui.Run: Starting")
-	}
+		log.UILogger.IfEnabled().Debug("ui.Run: Starting")
 
 	for _, opt := range opts {
 		opt(options)
@@ -182,9 +180,7 @@ func Run(app ComponentFunc, opts ...Option) error {
 	}
 
 	// Create the framework app
-	if log.UILogger.Enabled() {
-		log.UILogger.Debug("ui.Run: Creating framework app")
-	}
+	 log.UILogger.IfEnabled().Debug("ui.Run: Creating framework app")
 	fwApp := framework.NewApp()
 	// IMPORTANT: SetConfigSize sets the LAYOUT constraints (user's intended size)
 	// Resize() only sets the BUFFER size (actual terminal size)
@@ -193,22 +189,16 @@ func Run(app ComponentFunc, opts ...Option) error {
 	appInstance = fwApp
 
 	// Initialize theme
-	if log.UILogger.Enabled() {
-		log.UILogger.Debug("ui.Run: Initializing theme")
-	}
+	 log.UILogger.IfEnabled().Debug("ui.Run: Initializing theme")
 	if err := fwApp.InitTheme("dark"); err != nil {
-		if log.UILogger.Enabled() {
-			log.UILogger.Debug("Failed to initialize theme: %v", err)
-		}
+		  log.UILogger.IfEnabled().Debug("Failed to initialize theme: %v", err)
 	}
 
 	// Initialize Intent Runtime (declarative UI layer)
 	intentRuntime := intent.NewRuntime()
 	intent.SetupBuiltinHandlers(intentRuntime) // Register built-in intent handlers (Increment, Decrement, etc.)
 	rtui.SetGlobalIntentRuntime(intentRuntime)
-	if log.UILogger.Enabled() {
-		log.UILogger.Debug("ui.Run: Intent Runtime initialized with built-in handlers")
-	}
+	 log.UILogger.IfEnabled().Debug("ui.Run: Intent Runtime initialized with built-in handlers")
 
 	// Call plugin setup function if provided (e.g., for registering UI component extensions like Modal)
 	if options.PluginSetupFunc != nil {
@@ -230,18 +220,18 @@ func Run(app ComponentFunc, opts ...Option) error {
 	// Initialize Lane Scheduler if enabled
 	var fiberScheduler *rtui.FiberScheduler
 	if options.UseLaneScheduler {
-		log.UILogger.Debug("ui.Run: Lane Scheduler enabled")
+		log.UILogger.IfEnabled().Debug("ui.Run: Lane Scheduler enabled")
 		fiberScheduler = rtui.NewFiberScheduler(
 			rtui.WithOnCommit(func() {
 				// Commit callback - can be used for logging/metrics
-				log.UILogger.Debug("ui.Run: FiberScheduler commit")
+				log.UILogger.IfEnabled().Debug("ui.Run: FiberScheduler commit")
 			}),
 		)
 
 		// Set default lane if specified
 		if options.DefaultLane > 0 {
 			defaultLane := scheduler.Lane(options.DefaultLane)
-			log.UILogger.Debug("ui.Run: Default lane set to %s", defaultLane)
+			log.UILogger.IfEnabled().Debug("ui.Run: Default lane set to %s", defaultLane)
 		}
 
 		// Store scheduler reference for global access
@@ -259,12 +249,12 @@ func Run(app ComponentFunc, opts ...Option) error {
 	// Pass Intent Runtime to declarative node for component context
 	render.SetDeclarativeNodeIntentRuntime(declarativeRoot, intentRuntime)
 
-	log.UILogger.Debug("ui.Run: Fiber mode enabled (default)")
+	log.UILogger.IfEnabled().Debug("ui.Run: Fiber mode enabled (default)")
 	// Set as the root of the framework app
 	fwApp.SetRoot(declarativeRoot)
-	log.UILogger.Debug("ui.Run: declarative root set to %T", declarativeRoot)
+	log.UILogger.IfEnabled().Debug("ui.Run: declarative root set to %T", declarativeRoot)
 	// Run the app
-	log.UILogger.Debug("ui.Run: Calling fwApp.Run()")
+	log.UILogger.IfEnabled().Debug("ui.Run: Calling fwApp.Run()")
 	return fwApp.Run()
 }
 

@@ -156,17 +156,13 @@ func createAllNewChildren(returnFiber *Fiber, children []rtui.VNode, lanes Lane)
 	// ✨ Track type counts for correct indexing
 	typeCounts := make(map[string]int)
 
-	if log.HitMapLogger.Enabled() {
-		log.UILogger.Debug("[createAllNewChildren] Creating %d children for parent Key=%q, Tag=%q",
-			len(children), returnFiber.Key, returnFiber.Tag)
-	}
+	log.RenderLogger.Debug("[createAllNewChildren] Creating %d children for parent Key=%q, Tag=%q",
+		len(children), returnFiber.Key, returnFiber.Tag)
 
 	for i, childVNode := range children {
 		// ⚠️ Skip nil VNodes - they should not be in the Fiber tree
 		if childVNode == nil {
-			if log.HitMapLogger.Enabled() {
-				log.UILogger.Debug("[createAllNewChildren] Skipping nil VNode at index %d", i)
-			}
+			log.RenderLogger.IfEnabled().Debug("[createAllNewChildren] Skipping nil VNode at index %d", i)
 			continue
 		}
 
@@ -182,13 +178,11 @@ func createAllNewChildren(returnFiber *Fiber, children []rtui.VNode, lanes Lane)
 		child := createChildFiberWithIndex(returnFiber, childVNode, lanes, i, typeIndex)
 		if child == nil {
 			// CreateFiber may return nil for nil VNode (though we check above)
-			if log.HitMapLogger.Enabled() {
-				log.UILogger.Debug("[createAllNewChildren] Skipping nil Fiber at index %d", i)
-			}
+			log.RenderLogger.IfEnabled().Debug("[createAllNewChildren] Skipping nil Fiber at index %d", i)
 			continue
 		}
 
-		if log.HitMapLogger.Enabled() {
+		if log.RenderLogger.Enabled() {
 			typeName := "UNKNOWN"
 			switch child.Type {
 			case rtui.VNodeComponent:
@@ -200,7 +194,7 @@ func createAllNewChildren(returnFiber *Fiber, children []rtui.VNode, lanes Lane)
 			case rtui.VNodeFragment:
 				typeName = "VNodeFragment"
 			}
-			log.UILogger.Debug("[createAllNewChildren] Created child %d: Type=%d(%s), Key=%q, Tag=%q, Path=%q",
+			log.RenderLogger.Debug("[createAllNewChildren] Created child %d: Type=%d(%s), Key=%q, Tag=%q, Path=%q",
 				i, child.Type, typeName, child.Key, child.Tag, child.Path)
 		}
 

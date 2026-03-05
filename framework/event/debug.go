@@ -300,13 +300,13 @@ func (l *EventLogger) GetByType(eventType string) []*EventLogEntry {
 // PrintStats 打印统计信息到 stderr
 func (l *EventLogger) PrintStats() {
 	stats := l.GetStats()
-	log.UILogger.Debug("Event Logger Stats:")
-	log.UILogger.Debug("  Total Events: %v", stats["total"])
-	log.UILogger.Debug("  By Phase: %v", stats["by_phase"])
-	log.UILogger.Debug("  By Type: %v", stats["by_type"])
-	log.UILogger.Debug("  By Target: %v", stats["by_target"])
+	log.UILogger.IfEnabled().Debug("Event Logger Stats:")
+	log.UILogger.IfEnabled().Debug("  Total Events: %v", stats["total"])
+	log.UILogger.IfEnabled().Debug("  By Phase: %v", stats["by_phase"])
+	log.UILogger.IfEnabled().Debug("  By Type: %v", stats["by_type"])
+	log.UILogger.IfEnabled().Debug("  By Target: %v", stats["by_target"])
 	if avgDuration, ok := stats["avg_duration"]; ok {
-		log.UILogger.Debug("  Avg Duration: %v", avgDuration)
+		log.UILogger.IfEnabled().Debug("  Avg Duration: %v", avgDuration)
 	}
 }
 

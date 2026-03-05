@@ -32,7 +32,7 @@ func (m *VNodeFocusManager) SetFocusable(nodes []FocusableVNode) {
 	currentIndexBefore := m.current
 	if m.current >= 0 && m.current < len(m.focusable) {
 		currentID = m.focusable[m.current].GetFocusID()
-		log.FocusLogger.Debug("SetFocusable: saving currentID=%s from index %d", currentID, m.current)
+		log.FocusLogger.IfEnabled().Debug("SetFocusable: saving currentID=%s from index %d", currentID, m.current)
 	}
 
 	m.focusable = nodes
@@ -48,16 +48,16 @@ func (m *VNodeFocusManager) SetFocusable(nodes []FocusableVNode) {
 				// Same ID at same index - preserve focus by index
 				m.current = currentIndexBefore
 				m.focusable[m.current].SetFocus(true)
-				log.FocusLogger.Debug("SetFocusable: preserved focus at index %d by position", m.current)
+				log.FocusLogger.IfEnabled().Debug("SetFocusable: preserved focus at index %d by position", m.current)
 			} else {
 				// Different ID - search by ID
 				for i, node := range m.focusable {
 					nodeID := node.GetFocusID()
-					log.FocusLogger.Debug("SetFocusable: checking node %d, ID=%s", i, nodeID)
+					log.FocusLogger.IfEnabled().Debug("SetFocusable: checking node %d, ID=%s", i, nodeID)
 					if nodeID == currentID {
 						m.current = i
 						node.SetFocus(true)
-						log.FocusLogger.Debug("SetFocusable: restored focus to index %d by ID=%s", i, nodeID)
+						log.FocusLogger.IfEnabled().Debug("SetFocusable: restored focus to index %d by ID=%s", i, nodeID)
 						break
 					}
 				}
@@ -66,18 +66,18 @@ func (m *VNodeFocusManager) SetFocusable(nodes []FocusableVNode) {
 			// Previous index out of range - search by ID
 			for i, node := range m.focusable {
 				nodeID := node.GetFocusID()
-				log.FocusLogger.Debug("SetFocusable: checking node %d, ID=%s", i, nodeID)
+				log.FocusLogger.IfEnabled().Debug("SetFocusable: checking node %d, ID=%s", i, nodeID)
 				if nodeID == currentID {
 					m.current = i
 					node.SetFocus(true)
-					log.FocusLogger.Debug("SetFocusable: restored focus to index %d by ID=%s", i, nodeID)
+					log.FocusLogger.IfEnabled().Debug("SetFocusable: restored focus to index %d by ID=%s", i, nodeID)
 					break
 				}
 			}
 		}
 	}
 
-	log.FocusLogger.Debug("SetFocusable: before=%d, after=%d, nodes=%d", currentIndexBefore, m.current, len(nodes))
+	log.FocusLogger.IfEnabled().Debug("SetFocusable: before=%d, after=%d, nodes=%d", currentIndexBefore, m.current, len(nodes))
 
 	// If no focus and there are focusable nodes, focus the first one
 	if m.current < 0 && len(m.focusable) > 0 {
@@ -95,7 +95,7 @@ func (m *VNodeFocusManager) UpdateFocusableList(nodes []FocusableVNode) {
 // FocusNext moves focus to the next focusable node.
 // Wraps around to the first node when at the end.
 func (m *VNodeFocusManager) FocusNext() bool {
-	log.FocusLogger.Debug("FocusNext current=%d, len(focusable)=%d", m.current, len(m.focusable))
+	log.FocusLogger.IfEnabled().Debug("FocusNext current=%d, len(focusable)=%d", m.current, len(m.focusable))
 	if len(m.focusable) == 0 {
 		return false
 	}
@@ -103,7 +103,7 @@ func (m *VNodeFocusManager) FocusNext() bool {
 	old := m.current
 	m.current = (m.current + 1) % len(m.focusable)
 
-	log.FocusLogger.Debug("FocusNext old=%d, new=%d", old, m.current)
+	log.FocusLogger.IfEnabled().Debug("FocusNext old=%d, new=%d", old, m.current)
 
 	m.updateFocusState(old, m.current)
 

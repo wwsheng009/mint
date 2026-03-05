@@ -37,9 +37,7 @@ func NewFiberFocusManager() *FiberFocusManager {
 func (m *FiberFocusManager) SetActiveLayer(layer Layer) {
 	oldLayer := m.activeLayer
 	m.activeLayer = layer
-	if log.FocusLogger.Enabled() {
-		log.FocusLogger.Debug("SetActiveLayer: %d -> %d", oldLayer, layer)
-	}
+	log.FocusLogger.IfEnabled().Debug("SetActiveLayer: %d -> %d", oldLayer, layer)
 
 	// If switching to a higher layer, focus first item in that layer
 	if layer > oldLayer && layer > LayerBase {
@@ -61,12 +59,10 @@ func (m *FiberFocusManager) HasActiveLayer() bool {
 // This should be called during Commit phase after the Fiber tree is complete.
 func (m *FiberFocusManager) CollectFromFiber(root *Fiber) {
 	m.focusable = m.collectFocusableFibers(root)
-	if log.FocusLogger.Enabled() {
-		log.FocusLogger.Debug("CollectFromFiber: collected %d focusable fibers", len(m.focusable))
-		for i, f := range m.focusable {
-			focusID := fmt.Sprintf("node-%d", f.NodeID)
-			log.FocusLogger.Debug("  [%d] FocusID=%s, Tag=%s", i, focusID, f.Tag)
-		}
+	log.FocusLogger.IfEnabled().Debug("CollectFromFiber: collected %d focusable fibers", len(m.focusable))
+	for i, f := range m.focusable {
+		focusID := fmt.Sprintf("node-%d", f.NodeID)
+		log.FocusLogger.IfEnabled().Debug("  [%d] FocusID=%s, Tag=%s", i, focusID, f.Tag)
 	}
 }
 
@@ -116,9 +112,7 @@ func (m *FiberFocusManager) SetFocusable(fibers []*Fiber) {
 	if m.current >= 0 && m.current < len(m.focusable) {
 		// Fiber-first: use NodeID to generate FocusID
 		currentID = fmt.Sprintf("node-%d", m.focusable[m.current].NodeID)
-		if log.FocusLogger.Enabled() {
-			log.FocusLogger.Debug("SetFocusable: saving currentID=%s from index %d", currentID, m.current)
-		}
+		log.FocusLogger.IfEnabled().Debug("SetFocusable: saving currentID=%s from index %d", currentID, m.current)
 	}
 
 	m.focusable = fibers
@@ -132,9 +126,7 @@ func (m *FiberFocusManager) SetFocusable(fibers []*Fiber) {
 			if nodeID == currentID {
 				m.current = currentIndexBefore
 				m.applyFocusState(m.current, true)
-				if log.FocusLogger.Enabled() {
-					log.FocusLogger.Debug("SetFocusable: preserved focus at index %d by position", m.current)
-				}
+				log.FocusLogger.IfEnabled().Debug("SetFocusable: preserved focus at index %d by position", m.current)
 			} else {
 				// Different ID - search by ID
 				for i, fiber := range m.focusable {
@@ -142,9 +134,7 @@ func (m *FiberFocusManager) SetFocusable(fibers []*Fiber) {
 					if fiberID == currentID {
 						m.current = i
 						m.applyFocusState(m.current, true)
-						if log.FocusLogger.Enabled() {
-							log.FocusLogger.Debug("SetFocusable: restored focus to index %d by ID=%s", i, currentID)
-						}
+						log.FocusLogger.IfEnabled().Debug("SetFocusable: restored focus to index %d by ID=%s", i, currentID)
 						break
 					}
 				}
@@ -156,18 +146,14 @@ func (m *FiberFocusManager) SetFocusable(fibers []*Fiber) {
 				if fiberID == currentID {
 					m.current = i
 					m.applyFocusState(m.current, true)
-					if log.FocusLogger.Enabled() {
-						log.FocusLogger.Debug("SetFocusable: restored focus to index %d by ID=%s", i, currentID)
-					}
+					log.FocusLogger.IfEnabled().Debug("SetFocusable: restored focus to index %d by ID=%s", i, currentID)
 					break
 				}
 			}
 		}
 	}
 
-	if log.FocusLogger.Enabled() {
-		log.FocusLogger.Debug("SetFocusable: before=%d, after=%d, fibers=%d", currentIndexBefore, m.current, len(fibers))
-	}
+	log.FocusLogger.IfEnabled().Debug("SetFocusable: before=%d, after=%d, fibers=%d", currentIndexBefore, m.current, len(fibers))
 
 	// If no focus and there are focusable fibers, focus the first one
 	if m.current < 0 && len(m.focusable) > 0 {
@@ -178,9 +164,7 @@ func (m *FiberFocusManager) SetFocusable(fibers []*Fiber) {
 // FocusNext moves focus to the next focusable Fiber.
 // If activeLayer is set (e.g., Modal), only cycles within that layer.
 func (m *FiberFocusManager) FocusNext() bool {
-	if log.FocusLogger.Enabled() {
-		log.FocusLogger.Debug("FocusNext current=%d, len(focusable)=%d, activeLayer=%d", m.current, len(m.focusable), m.activeLayer)
-	}
+	log.FocusLogger.IfEnabled().Debug("FocusNext current=%d, len(focusable)=%d, activeLayer=%d", m.current, len(m.focusable), m.activeLayer)
 	if len(m.focusable) == 0 {
 		return false
 	}
@@ -199,9 +183,7 @@ func (m *FiberFocusManager) FocusNext() bool {
 		m.current = (m.current + 1) % len(m.focusable)
 	}
 
-	if log.FocusLogger.Enabled() {
-		log.FocusLogger.Debug("FocusNext old=%d, new=%d", old, m.current)
-	}
+	log.FocusLogger.IfEnabled().Debug("FocusNext old=%d, new=%d", old, m.current)
 
 	m.updateFocusState(old, m.current)
 

@@ -122,7 +122,7 @@ func (k *KeyMap) Lookup(ev *KeyEvent) (EventHandler, bool) {
 	if combo != "" {
 		if handler, ok := k.bindings[combo]; ok {
 			if log.UILogger.Enabled() || log.InspectorLogger.Enabled() {
-				log.UILogger.Debug("[KeyMap] Found handler for combo '%s'", combo)
+				log.UILogger.IfEnabled().Debug("[KeyMap] Found handler for combo '%s'", combo)
 			}
 			return handler, true
 		}

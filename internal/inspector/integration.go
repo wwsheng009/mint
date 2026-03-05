@@ -72,7 +72,7 @@ func (ih *IntegrationHelper) CreateMouseHandler() func(x, y int) bool {
 
 			if hovered != nil {
 				info := ExtractElementInfo(hovered)
-				log.InspectorLogger.Debug("Hovered: %s (%s)", info.Type, info.Label)
+				log.InspectorLogger.IfEnabled().Debug("Hovered: %s (%s)", info.Type, info.Label)
 			}
 		}
 
@@ -101,7 +101,7 @@ func (ih *IntegrationHelper) RegisterWithApp(app interface{}) bool {
 	// 2. app.RegisterGlobalHandler(handler)
 	// 3. app.AddInspector(inspector)
 
-	log.InspectorLogger.Debug("RegisterWithApp called (integration pending)")
+	log.InspectorLogger.IfEnabled().Debug("RegisterWithApp called (integration pending)")
 
 	return false
 }
@@ -110,20 +110,16 @@ func (ih *IntegrationHelper) RegisterWithApp(app interface{}) bool {
 // Returns true if the inspector was enabled
 func (ih *IntegrationHelper) EnableFromEnvironment() bool {
 	// Check for TUI_INSPECTOR environment variable
-	if log.InspectorLogger.Enabled() {
-		ih.inspector.Enable()
-		log.InspectorLogger.Debug("Enabled via TUI_INSPECTOR=true")
-		log.InspectorLogger.Debug("Press F12 or Ctrl+I to toggle, Tab to navigate, Esc to close")
-		return true
-	}
+ ih.inspector.Enable()
+		log.InspectorLogger.IfEnabled().Debug("Enabled via TUI_INSPECTOR=true")
+		log.InspectorLogger.IfEnabled().Debug("Press F12 or Ctrl+I to toggle, Tab to navigate, Esc to close")
+ return true
 
 	// Check for TUI_INSPECTOR_AUTO environment variable (enable with auto-start)
-	if log.InspectorLogger.Enabled() {
-		ih.inspector.Enable()
-		log.InspectorLogger.Debug("Auto-enabled via TUI_INSPECTOR_AUTO=true")
-		log.InspectorLogger.Debug("Press F12 or Ctrl+I to toggle, Tab to navigate, Esc to close")
+			ih.inspector.Enable()
+ log.InspectorLogger.IfEnabled().Debug("Auto-enabled via TUI_INSPECTOR_AUTO=true")
+ log.InspectorLogger.IfEnabled().Debug("Press F12 or Ctrl+I to toggle, Tab to navigate, Esc to close")
 		return true
-	}
 
 	return false
 }

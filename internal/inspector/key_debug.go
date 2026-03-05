@@ -8,19 +8,19 @@ import (
 func (si *StandaloneInspector) DebugKeyEvent() func(key string, alt bool, ctrl bool, shift bool) bool {
 	return func(key string, alt bool, ctrl bool, shift bool) bool {
 		// 调试输出
-		log.InspectorLogger.Debug("=== Inspector KeyEvent Debug ===")
-		log.InspectorLogger.Debug("Key: '%s'", key)
-		log.InspectorLogger.Debug("Alt: %v, Ctrl: %v, Shift: %v", alt, ctrl, shift)
-		log.InspectorLogger.Debug("Inspector visible: %v", si.visible)
-		log.InspectorLogger.Debug("Inspector enabled: %v", si.enabled)
-		log.InspectorLogger.Debug("Current tab before: %v", si.activeTab)
+		log.InspectorLogger.IfEnabled().Debug("=== Inspector KeyEvent Debug ===")
+		log.InspectorLogger.IfEnabled().Debug("Key: '%s'", key)
+		log.InspectorLogger.IfEnabled().Debug("Alt: %v, Ctrl: %v, Shift: %v", alt, ctrl, shift)
+		log.InspectorLogger.IfEnabled().Debug("Inspector visible: %v", si.visible)
+		log.InspectorLogger.IfEnabled().Debug("Inspector enabled: %v", si.enabled)
+		log.InspectorLogger.IfEnabled().Debug("Current tab before: %v", si.activeTab)
 
 		// 调用原始 HandleKeyEvent
 		result := si.HandleKeyEvent(key, alt, ctrl, shift)
 
-		log.InspectorLogger.Debug("HandleKeyEvent returned: %v", result)
-		log.InspectorLogger.Debug("Current tab after: %v", si.activeTab)
-		log.InspectorLogger.Debug("===========================")
+		log.InspectorLogger.IfEnabled().Debug("HandleKeyEvent returned: %v", result)
+		log.InspectorLogger.IfEnabled().Debug("Current tab after: %v", si.activeTab)
+		log.InspectorLogger.IfEnabled().Debug("===========================")
 
 		return result
 	}

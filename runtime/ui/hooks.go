@@ -171,19 +171,15 @@ func (ctx *ComponentContext) ResetContext() {
 	// Flush any pending updates before re-rendering
 	count := ctx.FlushUpdates()
 	if count > 0 && log.UILogger.Enabled() {
-		log.UILogger.Debug("ResetContext: Flushed %d pending updates", count)
+		log.UILogger.IfEnabled().Debug("ResetContext: Flushed %d pending updates", count)
 	}
 
-	if log.UILogger.Enabled() {
+	if len(ctx.Hooks) > 0 {
+		log.UILogger.IfEnabled().Debug("ResetContext: BEFORE reset, Hooks[0].Value=%v, &ctx=%p", ctx.Hooks[0].Value, ctx)
+		ctx.HookIndex = 0
+		ctx.RenderCount++
 		if len(ctx.Hooks) > 0 {
-			log.UILogger.Debug("ResetContext: BEFORE reset, Hooks[0].Value=%v, &ctx=%p", ctx.Hooks[0].Value, ctx)
-		}
-	}
-	ctx.HookIndex = 0
-	ctx.RenderCount++
-	if log.UILogger.Enabled() {
-		if len(ctx.Hooks) > 0 {
-			log.UILogger.Debug("ResetContext: AFTER reset, Hooks[0].Value=%v, &ctx=%p", ctx.Hooks[0].Value, ctx)
+			log.UILogger.IfEnabled().Debug("ResetContext: AFTER reset, Hooks[0].Value=%v, &ctx=%p", ctx.Hooks[0].Value, ctx)
 		}
 	}
 }
@@ -273,7 +269,7 @@ func (ctx *ComponentContext) GetIntentRuntime() *intent.Runtime {
 func (ctx *ComponentContext) EmitIntent(i intent.Intent) intent.IntentResult {
 	if ctx.IntentRuntime == nil {
 		// Fallback: if no runtime, log warning and mark as unhandled
-		log.UILogger.Debug("[ComponentContext] EmitIntent: no IntentRuntime set, intent=%s ignored", i.IntentType())
+		log.UILogger.IfEnabled().Debug("[ComponentContext] EmitIntent: no IntentRuntime set, intent=%s ignored", i.IntentType())
 		return intent.ErrorResult(fmt.Errorf("IntentRuntime not initialized"))
 	}
 	return ctx.IntentRuntime.EmitFromSource(i, ctx.ComponentID)
@@ -300,9 +296,7 @@ func (ctx *ComponentContext) SetState(key string, value interface{}) {
 	// Add to pending updates queue for batching
 	ctx.PendingUpdates[key] = value
 
-	if log.UILogger.Enabled() {
-		log.UILogger.Debug("[ComponentContext] SetState: %s = %v (queued)", key, value)
-	}
+	log.UILogger.IfEnabled().Debug("[ComponentContext] SetState: %s = %v (queued)", key, value)
 
 	// Schedule update only once per batch
 	if !ctx.UpdateScheduled && ctx.scheduleUpdate != nil {
@@ -342,9 +336,7 @@ func (ctx *ComponentContext) FlushUpdates() int {
 	count := len(ctx.PendingUpdates)
 	for key, value := range ctx.PendingUpdates {
 		ctx.GlobalState[key] = value
-		if log.UILogger.Enabled() {
-			log.UILogger.Debug("[ComponentContext] FlushUpdates: %s = %v", key, value)
-		}
+		log.UILogger.IfEnabled().Debug("[ComponentContext] FlushUpdates: %s = %v", key, value)
 	}
 
 	// Clear the pending queue

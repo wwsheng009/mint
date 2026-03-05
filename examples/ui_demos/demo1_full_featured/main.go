@@ -112,12 +112,12 @@ func main() {
 	}
 
 	// 运行结束后提示日志位置
-	log.UILogger.Debug("=== Debug session ended ===")
-	log.UILogger.Debug("Log file: demo1_debug.log")
-	log.UILogger.Debug("Check for:")
-	log.UILogger.Debug("  - [MOUSE] mouse position and HitTest results")
-	log.UILogger.Debug("  - [LAYER] modal centering and position")
-	log.UILogger.Debug("  - [HITMAP] button bounds entries")
+	log.UILogger.IfEnabled().Debug("=== Debug session ended ===")
+	log.UILogger.IfEnabled().Debug("Log file: demo1_debug.log")
+	log.UILogger.IfEnabled().Debug("Check for:")
+	log.UILogger.IfEnabled().Debug("  - [MOUSE] mouse position and HitTest results")
+	log.UILogger.IfEnabled().Debug("  - [LAYER] modal centering and position")
+	log.UILogger.IfEnabled().Debug("  - [HITMAP] button bounds entries")
 }
 
 // App is the root component

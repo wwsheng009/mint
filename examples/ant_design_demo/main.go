@@ -113,7 +113,7 @@ func init() {
 	appReducer.On(UpdateStepIntent{}, func(s AppState, i intent.Intent) AppState {
 		usi := i.(UpdateStepIntent)
 		s.Step = usi.Step
-		log.TempLogger.Debug("Step updated to: %d", usi.Step)
+		log.TempLogger.IfEnabled().Debug("Step updated to: %d", usi.Step)
 		return s
 	})
 

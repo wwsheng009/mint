@@ -33,9 +33,9 @@
 //	log.SetAllEnabled(true)
 //
 //	// Use domain-specific loggers
-//	log.FocusLogger.Debug("Focus moved to index %d", index)
-//	log.FiberLogger.Debug("Starting reconciliation")
-//	log.RenderLogger.Info("Render completed in %dms", duration)
+//	log.FocusLogger.IfEnabled().Debug("Focus moved to index %d", index)
+//	log.FiberLogger.IfEnabled().Debug("Starting reconciliation")
+//	log.RenderLogger.IfEnabled().Info("Render completed in %dms", duration)
 //
 //	// Close log file on application exit
 //	defer log.CloseLogFile()

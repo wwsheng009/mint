@@ -105,7 +105,7 @@ func Counter() ui.VNode {
 		fiberStr = "ON"
 	}
 
-	log.TempLogger.Debug("[Counter] Render: count=%d, Fiber=%s", state.Count, fiberStr)
+	log.TempLogger.IfEnabled().Debug("[Counter] Render: count=%d, Fiber=%s", state.Count, fiberStr)
 
 	return ui.VStack(
 		ui.NewTextBuilder("Mint UI Counter Demo").

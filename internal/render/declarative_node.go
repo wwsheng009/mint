@@ -188,7 +188,7 @@ func NewDeclarativeNodeFromFuncWithFiber(fn rtui.ComponentFunc) *DeclarativeNode
 // initFiberFirstPipeline initializes the Fiber-first rendering pipeline components
 // Fiber-first mode is always enabled; no environment variable check needed.
 func (n *DeclarativeNode) initFiberFirstPipeline() {
-	log.RenderLogger.Debug("[DeclarativeNode] Fiber-first mode ENABLED (default)")
+	log.RenderLogger.IfEnabled().Debug("[DeclarativeNode] Fiber-first mode ENABLED (default)")
 
 	// Use the new layout engine directly (runtime/layout), bypassing LayoutSwitcher
 	// This ensures we never go through the compute path
@@ -205,10 +205,10 @@ func (n *DeclarativeNode) initPortalLayoutSupport() {
 	portalLayoutEnv := os.Getenv("MINT_PORTAL_LAYOUT")
 	if portalLayoutEnv == "false" || portalLayoutEnv == "0" {
 		n.usePortalLayout = false
-		log.RenderLogger.Debug("[DeclarativeNode] Portal-aware layout DISABLED (MINT_PORTAL_LAYOUT=%s)", portalLayoutEnv)
+		log.RenderLogger.IfEnabled().Debug("[DeclarativeNode] Portal-aware layout DISABLED (MINT_PORTAL_LAYOUT=%s)", portalLayoutEnv)
 	} else {
 		n.usePortalLayout = true
-		log.RenderLogger.Debug("[DeclarativeNode] Portal-aware layout ENABLED (default or MINT_PORTAL_LAYOUT=%s)", portalLayoutEnv)
+		log.RenderLogger.IfEnabled().Debug("[DeclarativeNode] Portal-aware layout ENABLED (default or MINT_PORTAL_LAYOUT=%s)", portalLayoutEnv)
 	}
 }
 
@@ -420,7 +420,7 @@ func (n *DeclarativeNode) Paint(ctx paint.PaintContext, buf *paint.Buffer) {
 	// Legacy rendering path is deprecated - no longer called
 	// Fiber-first mode is enabled by default when using NewDeclarativeNodeFromFuncWithFiber
 	// If you need legacy mode, set MINT_FIBER_FIRST=false (not recommended)
-	log.PaintLogger.Warn("[DeclarativeNode.Paint] Legacy rendering path not available. Fiber-first mode is recommended.")
+	log.PaintLogger.IfEnabled().Warn("[DeclarativeNode.Paint] Legacy rendering path not available. Fiber-first mode is recommended.")
 }
 
 // fiberFirstPaint renders using the new Fiber-first pipeline
@@ -428,7 +428,7 @@ func (n *DeclarativeNode) Paint(ctx paint.PaintContext, buf *paint.Buffer) {
 // Phase 2: Layout (Fiber -> LayoutBox, no VNode access)
 // Phase 3: Paint (LayoutBox -> PaintableBox -> Buffer)
 func (n *DeclarativeNode) fiberFirstPaint(ctx paint.PaintContext, buf *paint.Buffer) {
-	log.RenderLogger.Debug("[DeclarativeNode.fiberFirstPaint] === STARTING Fiber-first render ===")
+	log.RenderLogger.IfEnabled().Debug("[DeclarativeNode.fiberFirstPaint] === STARTING Fiber-first render ===")
 	// Phase 1: Fiber Reconciliation
 	// The reconciler updates the Fiber tree, VNode is discarded after this
 	// Use a minimal buffer for reconciliation (actual painting happens later)
@@ -440,7 +440,7 @@ func (n *DeclarativeNode) fiberFirstPaint(ctx paint.PaintContext, buf *paint.Buf
 	// Get the Fiber root from reconciler
 	fiberRoot := n.getFiberRoot()
 	if fiberRoot == nil {
-		log.PaintLogger.Error("[DeclarativeNode.fiberFirstPaint] Fiber root is nil, render aborted")
+		log.PaintLogger.IfEnabled().Error("[DeclarativeNode.fiberFirstPaint] Fiber root is nil, render aborted")
 		return
 	}
 
@@ -471,7 +471,7 @@ func (n *DeclarativeNode) fiberFirstPaint(ctx paint.PaintContext, buf *paint.Buf
 
 	if hasPortals && n.usePortalLayout {
 		// Use Portal-aware layout engine for two-phase layout
-		log.RenderLogger.Debug("[DeclarativeNode.fiberFirstPaint] ✅ Using Portal-aware layout engine")
+		log.RenderLogger.IfEnabled().Debug("[DeclarativeNode.fiberFirstPaint] ✅ Using Portal-aware layout engine")
 
 		if n.portalLayoutEngine == nil {
 			n.portalLayoutEngine = NewPortalAwareLayoutEngine()
@@ -481,14 +481,14 @@ func (n *DeclarativeNode) fiberFirstPaint(ctx paint.PaintContext, buf *paint.Buf
 		mainResult, portalBoxes, layoutErr := n.portalLayoutEngine.Layout(fiberRoot, constraints)
 
 		if layoutErr != nil {
-			log.PaintLogger.Error("[DeclarativeNode.fiberFirstPaint] Portal layout FAILED: %v, render aborted", layoutErr)
+			log.PaintLogger.IfEnabled().Error("[DeclarativeNode.fiberFirstPaint] Portal layout FAILED: %v, render aborted", layoutErr)
 			return
 		}
 
 		// Merge portal boxes into main result and store for debugging
 		n.mu.Lock()
 		if len(portalBoxes) > 0 {
-			log.RenderLogger.Debug("[DeclarativeNode.fiberFirstPaint] Merged %d Portal boxes into layout", len(portalBoxes))
+			log.RenderLogger.IfEnabled().Debug("[DeclarativeNode.fiberFirstPaint] Merged %d Portal boxes into layout", len(portalBoxes))
 			mainResult.Boxes = append(mainResult.Boxes, portalBoxes...)
 			// Convert to pointer slice to preserve tree structure
 			n.lastPortalBoxes = make([]*layout.LayoutBox, len(portalBoxes))
@@ -509,12 +509,12 @@ func (n *DeclarativeNode) fiberFirstPaint(ctx paint.PaintContext, buf *paint.Buf
 		// Use standard layout engine (single-phase)
 		layoutResult, err = n.newLayoutEngine.LayoutFiber(fiberRoot, constraints)
 		if err != nil {
-			log.PaintLogger.Error("[DeclarativeNode.fiberFirstPaint] Layout FAILED: %v, render aborted", err)
+			log.PaintLogger.IfEnabled().Error("[DeclarativeNode.fiberFirstPaint] Layout FAILED: %v, render aborted", err)
 			return
 		}
 	}
 
-	log.RenderLogger.Debug("[DeclarativeNode.fiberFirstPaint] Layout complete")
+	log.RenderLogger.IfEnabled().Debug("[DeclarativeNode.fiberFirstPaint] Layout complete")
 
 	// Get the layout result
 	if adapter, ok := layoutResult.(*newLayoutResultAdapter); ok {
@@ -525,7 +525,7 @@ func (n *DeclarativeNode) fiberFirstPaint(ctx paint.PaintContext, buf *paint.Buf
 		n.mu.Unlock()
 
 		if innerResult == nil || innerResult.Root == nil {
-			log.PaintLogger.Error("[DeclarativeNode.fiberFirstPaint] Layout root is nil, render aborted")
+			log.PaintLogger.IfEnabled().Error("[DeclarativeNode.fiberFirstPaint] Layout root is nil, render aborted")
 			return
 		}
 
@@ -537,7 +537,7 @@ func (n *DeclarativeNode) fiberFirstPaint(ctx paint.PaintContext, buf *paint.Buf
 		paintableLayout := converter.ConvertToLayout(innerResult.Root)
 
 		if paintableLayout == nil || paintableLayout.Root == nil {
-			log.PaintLogger.Error("[DeclarativeNode.fiberFirstPaint] PaintableLayout result is nil, render aborted")
+			log.PaintLogger.IfEnabled().Error("[DeclarativeNode.fiberFirstPaint] PaintableLayout result is nil, render aborted")
 			return
 		}
 
@@ -560,11 +560,11 @@ func (n *DeclarativeNode) fiberFirstPaint(ctx paint.PaintContext, buf *paint.Buf
 		}
 		walkPaintable(paintableLayout.Root)
 
-		log.RenderLogger.Debug("[DeclarativeNode.fiberFirstPaint] PaintablePlanes: %d boxes", planes.CountBoxes())
+		log.RenderLogger.IfEnabled().Debug("[DeclarativeNode.fiberFirstPaint] PaintablePlanes: %d boxes", planes.CountBoxes())
 
 		// Paint using PaintablePlanes for proper layer Z-Ordering
 		if err := n.paintEngine.PaintPaintablePlanes(planes, buf); err != nil {
-			log.PaintLogger.Error("[DeclarativeNode.fiberFirstPaint] Paint FAILED: %v, render aborted", err)
+			log.PaintLogger.IfEnabled().Error("[DeclarativeNode.fiberFirstPaint] Paint FAILED: %v, render aborted", err)
 			return
 		}
 
@@ -574,17 +574,17 @@ func (n *DeclarativeNode) fiberFirstPaint(ctx paint.PaintContext, buf *paint.Buf
 			n.mu.Lock()
 			n.fiberLastHitMap = hitMap
 			n.mu.Unlock()
-			log.RenderLogger.Debug("[DeclarativeNode.fiberFirstPaint] ✅ Saved HitMap with %d entries", hitMap.Size())
+			log.RenderLogger.IfEnabled().Debug("[DeclarativeNode.fiberFirstPaint] ✅ Saved HitMap with %d entries", hitMap.Size())
 		} else {
-			log.RenderLogger.Debug("[DeclarativeNode.fiberFirstPaint] ⚠️  HitMap is nil from layoutResult")
+			log.RenderLogger.IfEnabled().Debug("[DeclarativeNode.fiberFirstPaint] ⚠️  HitMap is nil from layoutResult")
 			n.mu.Lock()
 			n.fiberLastHitMap = nil
 			n.mu.Unlock()
 		}
 
-		log.RenderLogger.Debug("[DeclarativeNode.fiberFirstPaint] ✅ Render complete")
+		log.RenderLogger.IfEnabled().Debug("[DeclarativeNode.fiberFirstPaint] ✅ Render complete")
 	} else {
-		log.PaintLogger.Error("[DeclarativeNode.fiberFirstPaint] Layout result type mismatch, render aborted")
+		log.PaintLogger.IfEnabled().Error("[DeclarativeNode.fiberFirstPaint] Layout result type mismatch, render aborted")
 	}
 }
 
@@ -622,7 +622,7 @@ func (n *DeclarativeNode) legacyPaint(ctx paint.PaintContext, buf *paint.Buffer)
 	if n.reconciler != nil {
 		// Fiber mode: just call render function directly for now
 		// The reconciler's state management still happens through hooks
-		log.PaintLogger.Debug("[DeclarativeNode.legacyPaint] ✅ Calling renderWithFiberContext")
+		log.PaintLogger.IfEnabled().Debug("[DeclarativeNode.legacyPaint] ✅ Calling renderWithFiberContext")
 
 		n.root = n.renderWithFiberContext()
 
@@ -631,18 +631,18 @@ func (n *DeclarativeNode) legacyPaint(ctx paint.PaintContext, buf *paint.Buffer)
 			log.PaintLogger.Debug("[DeclarativeNode.Paint] n.root type=%d, tag=%s, children=%d",
 				n.root.Type(), n.root.Tag(), len(n.root.Children()))
 		} else {
-			log.PaintLogger.Debug("[DeclarativeNode.Paint] n.root is NIL after renderWithFiberContext")
+			log.PaintLogger.IfEnabled().Debug("[DeclarativeNode.Paint] n.root is NIL after renderWithFiberContext")
 		}
 
 	} else {
 		// Non-Fiber mode
-		log.RenderLogger.Debug("[DeclarativeNode.Paint] ⚠️  Using nonFiberRender")
+		log.RenderLogger.IfEnabled().Debug("[DeclarativeNode.Paint] ⚠️  Using nonFiberRender")
 
 		n.root = n.nonFiberRender()
 	}
 
 	if n.root == nil {
-		log.RenderLogger.Debug("DeclarativeNode.Paint: root is nil, returning")
+		log.RenderLogger.IfEnabled().Debug("DeclarativeNode.Paint: root is nil, returning")
 
 		return
 	}
@@ -651,19 +651,19 @@ func (n *DeclarativeNode) legacyPaint(ctx paint.PaintContext, buf *paint.Buffer)
 	n.applyFocusState()
 
 	// Phase 3: UNIFIED RENDERING - use PipelineRenderer with constraint-based layout
-	log.RenderLogger.Debug("[DeclarativeNode.Paint] n.renderer = %v", n.renderer)
+	log.RenderLogger.IfEnabled().Debug("[DeclarativeNode.Paint] n.renderer = %v", n.renderer)
 	if n.renderer != nil {
-		log.RenderLogger.Debug("[DeclarativeNode.Paint] renderer type = %T", n.renderer)
+		log.RenderLogger.IfEnabled().Debug("[DeclarativeNode.Paint] renderer type = %T", n.renderer)
 	}
 
-	log.PaintLogger.Debug("[DeclarativeNode.Paint] n.renderer=%v, isAdapter=%v", n.renderer != nil, n.renderer != nil && fmt.Sprintf("%T", n.renderer) == "*render.PipelineRendererAdapter")
+	log.PaintLogger.IfEnabled().Debug("[DeclarativeNode.Paint] n.renderer=%v, isAdapter=%v", n.renderer != nil, n.renderer != nil && fmt.Sprintf("%T", n.renderer) == "*render.PipelineRendererAdapter")
 
 	if n.renderer != nil {
 		// Use the PaintContext dimensions as layout constraints (not buffer size)
 		// The PaintContext.AvailableWidth/Height contains the user's configured layout size
 		// while the buffer size may be larger (actual terminal size)
 		if adapter, ok := n.renderer.(*PipelineRendererAdapter); ok {
-			log.RenderLogger.Debug("[DeclarativeNode.Paint] ✅ Using PipelineRendererAdapter")
+			log.RenderLogger.IfEnabled().Debug("[DeclarativeNode.Paint] ✅ Using PipelineRendererAdapter")
 			log.RenderLogger.Debug("[DeclarativeNode.Paint] Layout constraints: %dx%d (buffer: %dx%d)",
 				ctx.AvailableWidth, ctx.AvailableHeight, buf.Width, buf.Height)
 
@@ -674,28 +674,28 @@ func (n *DeclarativeNode) legacyPaint(ctx paint.PaintContext, buf *paint.Buffer)
 			pipeline := adapter.GetPipeline()
 			if err := pipeline.RenderWithConstraints(n.root, ctx.AvailableWidth, ctx.AvailableHeight, buf); err != nil {
 				// Fallback to legacy rendering if pipeline fails
-				log.RenderLogger.Debug("[DeclarativeNode.Paint] ❌ Pipeline render FAILED: %v, falling back to legacy", err)
+				log.RenderLogger.IfEnabled().Debug("[DeclarativeNode.Paint] ❌ Pipeline render FAILED: %v, falling back to legacy", err)
 				n.PaintVNode(n.root, ctx.Bounds.X, ctx.Bounds.Y, buf)
 			} else {
-				log.RenderLogger.Debug("[DeclarativeNode.Paint] ✅ Pipeline render SUCCESS")
+				log.RenderLogger.IfEnabled().Debug("[DeclarativeNode.Paint] ✅ Pipeline render SUCCESS")
 				// NOTE: Inspector attachment is now handled by application layer
 				// The demo calls inspector.AttachToApp() after reconciliation completes
 				// This avoids circular dependency between render and framework packages
 			}
 		} else {
 			// Use the generic renderer interface (old path)
-			log.RenderLogger.Debug("[DeclarativeNode.Paint] ⚠️ Using generic renderer interface (old path)")
+			log.RenderLogger.IfEnabled().Debug("[DeclarativeNode.Paint] ⚠️ Using generic renderer interface (old path)")
 
 			n.renderer.Render(n.root, ctx.Bounds.X, ctx.Bounds.Y, buf)
 		}
 	} else {
 		// Fallback to legacy painting
-		log.RenderLogger.Debug("[DeclarativeNode.Paint] ⚠️ No renderer, using legacy PaintVNode")
+		log.RenderLogger.IfEnabled().Debug("[DeclarativeNode.Paint] ⚠️ No renderer, using legacy PaintVNode")
 
 		n.PaintVNode(n.root, ctx.Bounds.X, ctx.Bounds.Y, buf)
 	}
 
-	log.RenderLogger.Debug("DeclarativeNode.Paint: painting complete")
+	log.RenderLogger.IfEnabled().Debug("DeclarativeNode.Paint: painting complete")
 
 }
 
@@ -706,7 +706,7 @@ func (n *DeclarativeNode) renderWithFiberContext() rtui.VNode {
 		return n.root
 	}
 
-	log.RenderLogger.Debug("[renderWithFiberContext] reconciler=%v", n.reconciler != nil)
+	log.RenderLogger.IfEnabled().Debug("[renderWithFiberContext] reconciler=%v", n.reconciler != nil)
 
 	// The reconciler manages hook context through its render cycle
 	// We capture the VNode tree during the render to avoid calling renderFn twice
@@ -721,18 +721,18 @@ func (n *DeclarativeNode) renderWithFiberContext() rtui.VNode {
 		vnode := n.renderFn()
 		capturedVNode = vnode // Capture for PipelineRenderer
 		if vnode != nil {
-			log.PaintLogger.Debug("[renderWithFiberContext] renderFn call #%d: returned type=%d tag=%s children=%d", callCount, vnode.Type(), vnode.Tag(), len(vnode.Children()))
+			log.PaintLogger.IfEnabled().Debug("[renderWithFiberContext] renderFn call #%d: returned type=%d tag=%s children=%d", callCount, vnode.Type(), vnode.Tag(), len(vnode.Children()))
 		} else {
-			log.PaintLogger.Debug("[renderWithFiberContext] renderFn call #%d: returned nil", callCount)
+			log.PaintLogger.IfEnabled().Debug("[renderWithFiberContext] renderFn call #%d: returned nil", callCount)
 		}
 
 		return vnode
 	})
 
 	if capturedVNode != nil {
-		log.PaintLogger.Debug("[renderWithFiberContext] FINAL capturedVNode type=%d tag=%s children=%d (total calls: %d)", capturedVNode.Type(), capturedVNode.Tag(), len(capturedVNode.Children()), callCount)
+		log.PaintLogger.IfEnabled().Debug("[renderWithFiberContext] FINAL capturedVNode type=%d tag=%s children=%d (total calls: %d)", capturedVNode.Type(), capturedVNode.Tag(), len(capturedVNode.Children()), callCount)
 	} else {
-		log.PaintLogger.Debug("[renderWithFiberContext] FINAL capturedVNode is nil (total calls: %d)", callCount)
+		log.PaintLogger.IfEnabled().Debug("[renderWithFiberContext] FINAL capturedVNode is nil (total calls: %d)", callCount)
 	}
 
 	// Return the captured VNode tree for PipelineRenderer
@@ -798,7 +798,7 @@ func (n *DeclarativeNode) applyFocusState() {
 	// The FiberFocusManager is updated by reconciler.updateFocusManagerFromFiber()
 	// Fiber mode is enabled when reconciler != nil (see SetReconciler)
 	if n.reconciler != nil {
-		log.RenderLogger.Debug("DeclarativeNode.applyFocusState: Fiber mode, focus managed by reconciler")
+		log.RenderLogger.IfEnabled().Debug("DeclarativeNode.applyFocusState: Fiber mode, focus managed by reconciler")
 		return
 	}
 
@@ -815,11 +815,11 @@ func (n *DeclarativeNode) applyFocusState() {
 	if hasModal {
 		// Focus trap: only collect focusable elements from modal layer
 		focusable = rtui.CollectFocusableInLayer(n.root, rtui.LayerModal)
-		log.RenderLogger.Debug("DeclarativeNode.Paint: modal detected, collected %d modal focusable nodes", len(focusable))
+		log.RenderLogger.IfEnabled().Debug("DeclarativeNode.Paint: modal detected, collected %d modal focusable nodes", len(focusable))
 	} else {
 		// No modal: collect all focusable elements
 		focusable = rtui.CollectFocusable(n.root)
-		log.RenderLogger.Debug("DeclarativeNode.Paint: no modal, collected %d focusable nodes", len(focusable))
+		log.RenderLogger.IfEnabled().Debug("DeclarativeNode.Paint: no modal, collected %d focusable nodes", len(focusable))
 	}
 
 	// Legacy: This path is only for non-Fiber mode
@@ -874,7 +874,7 @@ func (n *DeclarativeNode) PaintVNode(vnode rtui.VNode, x, y int, buf *paint.Buff
 	}
 
 	// Deprecation warning (can be enabled via environment variable)
-	log.RenderLogger.Warn("[DEPRECATED] PaintVNode is deprecated, use PaintLayout instead. VNode type=%d", vnode.Type())
+	log.RenderLogger.IfEnabled().Warn("[DEPRECATED] PaintVNode is deprecated, use PaintLayout instead. VNode type=%d", vnode.Type())
 
 	// Debug logging
 	log.RenderLogger.Debug("[PaintVNode] vnode type=%d (%s), x=%d, y=%d, actual type=%T",
@@ -891,7 +891,7 @@ func (n *DeclarativeNode) PaintVNode(vnode rtui.VNode, x, y int, buf *paint.Buff
 			x, y, width, height, vnode)
 
 	} else {
-		log.RenderLogger.Debug("[PaintVNode] vnode does not implement SetBounds: type=%T", vnode)
+		log.RenderLogger.IfEnabled().Debug("[PaintVNode] vnode does not implement SetBounds: type=%T", vnode)
 
 	}
 
@@ -1164,7 +1164,7 @@ func (n *DeclarativeNode) paintBordered(vnode rtui.VNode, _ interface{ RenderBor
 		if log.BorderLogger.Enabled() {
 			// Log first few border cells for debugging
 			if ch == '┌' || (px == x && py == y) {
-				log.RenderLogger.Debug("[BORDER.Paint] cornerTL at (%d,%d): '%c'", px, py, ch)
+				log.RenderLogger.IfEnabled().Debug("[BORDER.Paint] cornerTL at (%d,%d): '%c'", px, py, ch)
 			}
 		}
 		buf.SetCell(px, py, ch, s)
@@ -1397,7 +1397,7 @@ func (n *DeclarativeNode) applyFocus(focusable []rtui.FocusableVNode) {
 	// Set focus by index
 	for i, elem := range focusable {
 		if i == focusedIndex {
-			log.RenderLogger.Debug("[applyFocus] setting focus=true on index %d (%s)", i, elem.GetFocusID())
+			log.RenderLogger.IfEnabled().Debug("[applyFocus] setting focus=true on index %d (%s)", i, elem.GetFocusID())
 
 			elem.SetFocus(true)
 		} else {
@@ -1586,7 +1586,7 @@ func (n *DeclarativeNode) GetHitMap() *event.HitMap {
 
 	// Priority 1: Check fiberFirstPaint path (Fiber-first mode)
 	if n.fiberLastHitMap != nil {
-		log.RenderLogger.Debug("[DeclarativeNode.GetHitMap] Returning fiberFirstPaint HitMap with %d entries", n.fiberLastHitMap.Size())
+		log.RenderLogger.IfEnabled().Debug("[DeclarativeNode.GetHitMap] Returning fiberFirstPaint HitMap with %d entries", n.fiberLastHitMap.Size())
 		return n.fiberLastHitMap
 	}
 
@@ -1597,16 +1597,16 @@ func (n *DeclarativeNode) GetHitMap() *event.HitMap {
 		if pipeline != nil {
 			hitMap := pipeline.GetHitMap()
 			if hitMap != nil {
-				log.RenderLogger.Debug("[DeclarativeNode.GetHitMap] Returning RenderingPipeline HitMap with %d entries", hitMap.Size())
+				log.RenderLogger.IfEnabled().Debug("[DeclarativeNode.GetHitMap] Returning RenderingPipeline HitMap with %d entries", hitMap.Size())
 			} else {
-				log.RenderLogger.Debug("[DeclarativeNode.GetHitMap] RenderingPipeline returned nil HitMap")
+				log.RenderLogger.IfEnabled().Debug("[DeclarativeNode.GetHitMap] RenderingPipeline returned nil HitMap")
 			}
 			return hitMap
 		}
 	}
 
 	// No HitMap available
-	log.RenderLogger.Debug("[DeclarativeNode.GetHitMap] No HitMap available (fiberFirstPaint=%v, renderer=%T)", n.fiberLastHitMap != nil, n.renderer)
+	log.RenderLogger.IfEnabled().Debug("[DeclarativeNode.GetHitMap] No HitMap available (fiberFirstPaint=%v, renderer=%T)", n.fiberLastHitMap != nil, n.renderer)
 	return nil
 }
 
@@ -1794,7 +1794,7 @@ func (n *DeclarativeNode) RenderWithFiber(buffer *paint.Buffer) error {
 
 	if n.reconciler == nil || n.renderer == nil {
 		// No reconciler or renderer - can't use Fiber-based rendering
-		log.RenderLogger.Debug("[RenderWithFiber] No reconciler or renderer available")
+		log.RenderLogger.IfEnabled().Debug("[RenderWithFiber] No reconciler or renderer available")
 		return fmt.Errorf("no reconciler or renderer for Fiber-based rendering")
 	}
 
@@ -1805,7 +1805,7 @@ func (n *DeclarativeNode) RenderWithFiber(buffer *paint.Buffer) error {
 	}
 
 	// Fallback for non-PipelineRenderer types
-	log.RenderLogger.Debug("[RenderWithFiber] No PipelineRendererAdapter available")
+	log.RenderLogger.IfEnabled().Debug("[RenderWithFiber] No PipelineRendererAdapter available")
 	return fmt.Errorf("no PipelineRendererAdapter for Fiber-based rendering")
 }
 

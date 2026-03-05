@@ -52,20 +52,14 @@ func (r *windowsInputReader) Start(events chan<- RawInput) error {
 	r.events = events
 
 	// DEBUG: 打印启动信息
-	if log.PlatFormLogger.Enabled() {
-		log.PlatFormLogger.Debug("[WIN INPUT] Starting...")
-	}
+		log.PlatFormLogger.IfEnabled().Debug("[WIN INPUT] Starting...")
 
 	handle, _, err := procGetStdHandle.Call(STD_INPUT_HANDLE)
 	if handle == 0 {
-		if log.PlatFormLogger.Enabled() {
-			log.PlatFormLogger.Debug("[WIN INPUT] Failed to get stdin handle: %v", err)
-		}
+		  log.PlatFormLogger.IfEnabled().Debug("[WIN INPUT] Failed to get stdin handle: %v", err)
 		return err
 	}
-	if log.PlatFormLogger.Enabled() {
-		log.PlatFormLogger.Debug("[WIN INPUT] Got handle: 0x%x", handle)
-	}
+	 log.PlatFormLogger.IfEnabled().Debug("[WIN INPUT] Got handle: 0x%x", handle)
 
 	// 🔥 关键修复：先重置控制台到安全模式，防止上次崩溃遗毒
 	r.resetConsoleToSaneMode(handle)
@@ -100,7 +94,7 @@ func (r *windowsInputReader) Start(events chan<- RawInput) error {
 
 	// Verify the mode was set
 	actualMode := r.getConsoleMode(handle)
-	log.PlatFormLogger.Debug("[WIN] Actual console mode after set: 0x%08X", actualMode)
+	log.PlatFormLogger.IfEnabled().Debug("[WIN] Actual console mode after set: 0x%08X", actualMode)
 
 	// 清空所有待处理的输入事件
 	// fmt.Scanln() 可能会留下一些待处理的事件，特别是 Enter 键
@@ -110,10 +104,10 @@ func (r *windowsInputReader) Start(events chan<- RawInput) error {
 	r.updateWindowSize(handle)
 
 	// DEBUG: 确认即将启动 readLoop
-	log.PlatFormLogger.Debug("[WIN] About to start readLoop...")
+	log.PlatFormLogger.IfEnabled().Debug("[WIN] About to start readLoop...")
 
 	go r.readLoop(handle)
-	log.PlatFormLogger.Debug("[WIN] readLoop goroutine started (async)")
+	log.PlatFormLogger.IfEnabled().Debug("[WIN] readLoop goroutine started (async)")
 
 	return nil
 }
@@ -194,7 +188,7 @@ func (r *windowsInputReader) readLoop(handle uintptr) {
 
 			record, err := r.readSingleRecord(handle)
 			if err != nil {
-				log.PlatFormLogger.Debug("[WIN] Error reading record: %v", err)
+				log.PlatFormLogger.IfEnabled().Debug("[WIN] Error reading record: %v", err)
 				continue
 			}
 
@@ -487,11 +481,11 @@ func (r *windowsInputReader) getConsoleMode(handle uintptr) uint32 {
 func (r *windowsInputReader) setConsoleMode(handle uintptr, mode uint32) {
 	ret, _, err := procSetConsoleMode.Call(handle, uintptr(mode))
 	if ret == 0 {
-		log.PlatFormLogger.Debug("[WIN] SetConsoleMode FAILED! handle=0x%x mode=0x%x err=%v", handle, mode, err)
+		log.PlatFormLogger.IfEnabled().Debug("[WIN] SetConsoleMode FAILED! handle=0x%x mode=0x%x err=%v", handle, mode, err)
 
 	} else {
 		// Success - optionally log
-		log.PlatFormLogger.Debug("[WIN] SetConsoleMode success: 0x%x", mode)
+		log.PlatFormLogger.IfEnabled().Debug("[WIN] SetConsoleMode success: 0x%x", mode)
 
 	}
 }

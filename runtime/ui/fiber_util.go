@@ -93,9 +93,7 @@ func CreateFiber(vnode VNode) *Fiber {
 	}
 
 	// Debug logging to understand VNode types
-	if log.HitMapLogger.Enabled() {
-		log.HitMapLogger.Debug("[CREATEFIBER] Type=%s Key=%s Tag=%s", vnodeType.String(), vnode.Key(), tag)
-	}
+		log.HitMapLogger.IfEnabled().Debug("[CREATEFIBER] Type=%s Key=%s Tag=%s", vnodeType.String(), vnode.Key(), tag)
 
 	// ✨ DiffKey: Copy from VNode.Key() without any modification
 	diffKey := vnode.Key()

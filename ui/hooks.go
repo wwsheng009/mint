@@ -232,12 +232,12 @@ func UseStateBool(initial bool) (bool, func(bool)) {
 // scheduleRender schedules a re-render by marking the app as dirty
 func scheduleRender(componentID string) {
 	// Access the global app instance to mark it dirty
-	log.UILogger.Debug("scheduleRender: componentID=%s, appInstance=%v", componentID, appInstance != nil)
+	log.UILogger.IfEnabled().Debug("scheduleRender: componentID=%s, appInstance=%v", componentID, appInstance != nil)
 	if appInstance != nil {
 		appInstance.MarkDirty()
-		log.UILogger.Debug("scheduleRender: MarkDirty() called, state=%v", appInstance.GetState())
+		log.UILogger.IfEnabled().Debug("scheduleRender: MarkDirty() called, state=%v", appInstance.GetState())
 	} else {
-		log.UILogger.Debug("scheduleRender: appInstance is nil, cannot MarkDirty()")
+		log.UILogger.IfEnabled().Debug("scheduleRender: appInstance is nil, cannot MarkDirty()")
 	}
 }
 
@@ -486,7 +486,7 @@ func UseStateIntWithDebug(initial int) (int, func(interface{}), func() int, int)
 	ctx := rtui.GetCurrentContext()
 	hookIndex := ctx.HookIndex // Capture index before useState increments it
 
-	log.UILogger.Debug("[DEBUG] UseStateIntWithDebug: initial=%d, hookIndex=%d", initial, hookIndex)
+	log.UILogger.IfEnabled().Debug("[DEBUG] UseStateIntWithDebug: initial=%d, hookIndex=%d", initial, hookIndex)
 
 	value, setValue := useState(initial)
 
@@ -522,7 +522,7 @@ func UseStateIntWithDebug(initial int) (int, func(interface{}), func() int, int)
 	}
 
 	intValue := value.(int)
-	log.UILogger.Debug("[DEBUG] UseStateIntWithDebug RETURN: hookIndex=%d, returning value=%d, ptr=%p", hookIndex, intValue, &intValue)
+	log.UILogger.IfEnabled().Debug("[DEBUG] UseStateIntWithDebug RETURN: hookIndex=%d, returning value=%d, ptr=%p", hookIndex, intValue, &intValue)
 
 	return intValue, setInt, getValue, hookIndex
 }

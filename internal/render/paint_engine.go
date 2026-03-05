@@ -333,7 +333,7 @@ func (e *PaintEngine) paintBorderedBox(box *paint.PaintableBox, buffer *paint.Bu
 
 	for _, childBox := range box.Children {
 		if err := e.paintBox(childBox, buffer); err != nil && e.debug {
-			log.PaintLogger.Debug("[paintBorderedBox] error: %v", err)
+			log.PaintLogger.IfEnabled().Debug("[paintBorderedBox] error: %v", err)
 		}
 	}
 }
@@ -487,7 +487,7 @@ func (e *PaintEngine) PaintPaintableLayouts(
 		prevBounds := e.lastLayerBounds[rtui.Layer(l)]
 
 		if hadLayer && !hasLayer {
-			log.PaintLogger.Debug("[PaintPaintableLayouts] Layer %s disappeared, clearing region", l.String())
+			log.PaintLogger.IfEnabled().Debug("[PaintPaintableLayouts] Layer %s disappeared, clearing region", l.String())
 			e.clearRegion(prevBounds, buffer)
 			e.forceFullRender = true
 		}
@@ -511,7 +511,7 @@ func (e *PaintEngine) PaintPaintableLayouts(
 		}
 
 		if e.debug {
-			log.PaintLogger.Debug("[PaintPaintableLayouts] Rendering layer: %s", l.String())
+			log.PaintLogger.IfEnabled().Debug("[PaintPaintableLayouts] Rendering layer: %s", l.String())
 		}
 
 		if err := e.PaintLayout(layout, buffer); err != nil {
@@ -536,7 +536,7 @@ func (e *PaintEngine) PaintPaintablePlanes(
 		return nil
 	}
 
-	log.PaintLogger.Debug("[PaintEngine.PaintPaintablePlanes] START: boxes=%d", planes.CountBoxes())
+	log.PaintLogger.IfEnabled().Debug("[PaintEngine.PaintPaintablePlanes] START: boxes=%d", planes.CountBoxes())
 
 	for _, layer := range planes.GetRenderOrder() {
 		boxes := planes.GetLayer(layer)
@@ -544,7 +544,7 @@ func (e *PaintEngine) PaintPaintablePlanes(
 			continue
 		}
 
-		log.PaintLogger.Debug("[PaintEngine.PaintPaintablePlanes] Layer %s: %d boxes", layer.String(), len(boxes))
+		log.PaintLogger.IfEnabled().Debug("[PaintEngine.PaintPaintablePlanes] Layer %s: %d boxes", layer.String(), len(boxes))
 
 		for _, box := range boxes {
 			layout := paint.NewPaintableLayout(box)
@@ -558,7 +558,7 @@ func (e *PaintEngine) PaintPaintablePlanes(
 		}
 	}
 
-	log.PaintLogger.Debug("[PaintEngine.PaintPaintablePlanes] END")
+	log.PaintLogger.IfEnabled().Debug("[PaintEngine.PaintPaintablePlanes] END")
 	return nil
 }
 

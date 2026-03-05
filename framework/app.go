@@ -248,11 +248,11 @@ func (a *App) SetDebugMode(enabled bool) {
 		}
 		recorder, err := debug.NewRecorder(logFile)
 		if err != nil {
-			log.UILogger.Debug("Failed to create debug recorder: %v", err)
+			log.UILogger.IfEnabled().Debug("Failed to create debug recorder: %v", err)
 			return
 		}
 		a.debugRecorder = recorder
-		log.UILogger.Debug("Debug mode enabled, logging to: %s", logFile)
+		log.UILogger.IfEnabled().Debug("Debug mode enabled, logging to: %s", logFile)
 	}
 }
 
@@ -562,8 +562,8 @@ func (a *App) isInspectorVisible() bool {
 //	app.SetupInspectorShortcut() // 启用 F12 切换 Inspector
 func (a *App) SetupInspectorShortcut() {
 	if a.inspector == nil {
-		log.UILogger.Debug("[APP] Warning: SetupInspectorShortcut() called but no Inspector set")
-		log.UILogger.Debug("[APP] Call SetInspector() first")
+		log.UILogger.IfEnabled().Debug("[APP] Warning: SetupInspectorShortcut() called but no Inspector set")
+		log.UILogger.IfEnabled().Debug("[APP] Call SetInspector() first")
 		return
 	}
 
@@ -618,21 +618,17 @@ func (a *App) SetupInspectorShortcut() {
 	// The routing logic at the end of handleEvent() will forward any unhandled keys
 	// to the Inspector if it is visible.
 
-	if log.UILogger.Enabled() {
-		log.UILogger.Debug("[APP] Inspector shortcuts registered: F12, Ctrl+D (toggle)")
-		log.UILogger.Debug("[APP] Panel movement: Alt+H/J/K/L or Alt+Arrow keys")
-		log.UILogger.Debug("[APP] Tab switching: 1-6 (handled dynamically)")
-		log.UILogger.Debug("[APP] Tree scroll: PgUp/PgDn, Home/End (when Elements tab active)")
-	}
+		log.UILogger.IfEnabled().Debug("[APP] Inspector shortcuts registered: F12, Ctrl+D (toggle)")
+		log.UILogger.IfEnabled().Debug("[APP] Panel movement: Alt+H/J/K/L or Alt+Arrow keys")
+		log.UILogger.IfEnabled().Debug("[APP] Tab switching: 1-6 (handled dynamically)")
+		log.UILogger.IfEnabled().Debug("[APP] Tree scroll: PgUp/PgDn, Home/End (when Elements tab active)")
 }
 
 // toggleInspector 切换 Inspector 显示状态
 // 这个方法会被快捷键触发
 func (a *App) toggleInspector() {
 	if a.inspector == nil {
-		if log.UILogger.Enabled() {
-			log.UILogger.Debug("[APP] Inspector not initialized, ignoring toggle")
-		}
+		  log.UILogger.IfEnabled().Debug("[APP] Inspector not initialized, ignoring toggle")
 		return
 	}
 
@@ -646,9 +642,7 @@ func (a *App) toggleInspector() {
 		a.inspectorVisible = inspectorObj.IsVisible()
 		a.dirty = true // 触发重绘
 
-		if log.UILogger.Enabled() {
-			log.UILogger.Debug("[APP] Inspector toggled: now visible=%v", a.inspectorVisible)
-		}
+		  log.UILogger.IfEnabled().Debug("[APP] Inspector toggled: now visible=%v", a.inspectorVisible)
 	}
 }
 
@@ -667,7 +661,7 @@ func (a *App) moveInspector(dx, dy int) {
 		a.dirty = true // 触发重绘
 
 		x, y := inspectorObj.GetPosition()
-		log.UILogger.Debug("[APP] Inspector moved to (%d, %d)", x, y)
+		log.UILogger.IfEnabled().Debug("[APP] Inspector moved to (%d, %d)", x, y)
 	}
 }
 
@@ -685,7 +679,7 @@ func (a *App) switchInspectorTab(tabNum int) {
 		if inspectorObj.HandleKeyEvent(key, false, false, false) {
 			a.dirty = true // 触发重绘
 
-			log.UILogger.Debug("[APP] Inspector switched to tab %d", tabNum)
+			log.UILogger.IfEnabled().Debug("[APP] Inspector switched to tab %d", tabNum)
 		}
 	}
 }
@@ -716,16 +710,16 @@ func (a *App) Init() error {
 		a.pump = frameworkevent.NewPumpWithSource(a.customSource)
 	} else {
 		// 使用默认的平台输入源（生产模式）
-		log.UILogger.Debug("[APP] Init: Creating input reader")
+		log.UILogger.IfEnabled().Debug("[APP] Init: Creating input reader")
 		inputReader, err := platform.NewInputReader()
 		if err != nil {
 			return err
 		}
-		log.UILogger.Debug("[APP] Init: Input reader created")
+		log.UILogger.IfEnabled().Debug("[APP] Init: Input reader created")
 		a.pump = frameworkevent.NewPump(inputReader)
 	}
 
-	log.UILogger.Debug("[APP] Init: Starting pump")
+	log.UILogger.IfEnabled().Debug("[APP] Init: Starting pump")
 	if err := a.pump.Start(); err != nil {
 		return err
 	}
@@ -740,7 +734,7 @@ func (a *App) Init() error {
 	a.state = StateRunning
 	a.dirty = true
 
-	log.UILogger.Debug("[APP] Init: Complete, state=StateRunning")
+	log.UILogger.IfEnabled().Debug("[APP] Init: Complete, state=StateRunning")
 
 	return nil
 }
@@ -809,9 +803,7 @@ func (a *App) Run() error {
 					if extraMsg == nil {
 						break
 					}
-					if log.MessageLogger.Enabled() {
-						log.MessageLogger.Debug("[APP] Msg from channel: Type=%v Message=%v", msg.Type(), msg)
-					}
+					     log.MessageLogger.IfEnabled().Debug("[APP] Msg from channel: Type=%v Message=%v", msg.Type(), msg)
 
 					// Keyboard events: always queue
 					if extraMsg.Type() == runtimemsg.MsgTypeKey {
@@ -900,9 +892,7 @@ func (a *App) Run() error {
 				needsRender = a.dirty && a.throttler.ShouldRender()
 			}
 			if needsRender {
-				if log.UILogger.Enabled() {
-					log.UILogger.Debug("[APP] Immediate render after event processing")
-				}
+				    log.UILogger.IfEnabled().Debug("[APP] Immediate render after event processing")
 				renderStartTime = time.Now()
 				a.render()
 				a.throttler.RecordFrameTime(time.Since(renderStartTime))
@@ -919,26 +909,18 @@ func (a *App) Run() error {
 			}
 
 		case <-ticker.C:
-			if log.UILogger.Enabled() {
-				log.UILogger.Debug("[APP] Tick triggered")
-			}
+			   log.UILogger.IfEnabled().Debug("[APP] Tick triggered")
 			a.handleTick()
 
 			// 处理完 tick 后，如果需要渲染则渲染
 			needsRender := a.dirty && a.throttler.ShouldRender()
-			if log.UILogger.Enabled() {
-				log.UILogger.Debug("[APP] needsRender=%v, dirty=%v", needsRender, a.dirty)
-			}
+			   log.UILogger.IfEnabled().Debug("[APP] needsRender=%v, dirty=%v", needsRender, a.dirty)
 			if needsRender {
-				if log.UILogger.Enabled() {
-					log.UILogger.Debug("[APP] Calling render()")
-				}
+				    log.UILogger.IfEnabled().Debug("[APP] Calling render()")
 				renderStartTime = time.Now()
 				a.render()
 				a.throttler.RecordFrameTime(time.Since(renderStartTime))
-				if log.UILogger.Enabled() {
-					log.UILogger.Debug("[APP] render() complete")
-				}
+				    log.UILogger.IfEnabled().Debug("[APP] render() complete")
 
 				// Pull pattern: Inspector pulls rendered tree from App after reconciliation
 				// App provides GetRenderedRoot() interface, Inspector calls AttachToApp()
@@ -1198,7 +1180,7 @@ func (a *App) handleSystemMsg(msg runtimemsg.Msg) {
 	}
 
 	// 其他系统事件...
-	log.UILogger.Debug("[processMsg] Unhandled system message: Type=%v", msg.Type())
+	log.UILogger.IfEnabled().Debug("[processMsg] Unhandled system message: Type=%v", msg.Type())
 }
 
 // dispatchAction 分发 Action 到 ActionRouter
@@ -1211,7 +1193,7 @@ func (a *App) dispatchAction(act *action.Action) *action.RouterResult {
 // DEPRECATED: Action 系统现在是主路径，保留此方法仅用于调试
 func (a *App) SetLegacyMode(enabled bool) {
 	a.legacyMode = enabled
-	log.UILogger.Debug("[App] ⚠️  Legacy mode enabled - Action system bypassed")
+	log.UILogger.IfEnabled().Debug("[App] ⚠️  Legacy mode enabled - Action system bypassed")
 }
 
 // handleEvent 处理事件（已废弃）
@@ -1249,7 +1231,7 @@ func (a *App) handleEvent(ev frameworkevent.Event) {
 	// 键盘事件处理
 	if ev.Type() == frameworkevent.EventKeyPress {
 		// DEBUG: 调试键盘事件
-		log.UILogger.Debug("[APP] KeyPress event received")
+		log.UILogger.IfEnabled().Debug("[APP] KeyPress event received")
 
 		// 首先检查快捷键映射
 		if keyEv, ok := ev.(*frameworkevent.KeyEvent); ok {
@@ -1296,7 +1278,7 @@ func (a *App) handleEvent(ev frameworkevent.Event) {
 					// This ensures UI updates even when event propagates (handled=false)
 					a.dirty = true
 
-					log.UILogger.Debug("[APP] Inspector processed key '%s' (handled=%v)", keyName, handled)
+					log.UILogger.IfEnabled().Debug("[APP] Inspector processed key '%s' (handled=%v)", keyName, handled)
 
 					// If Inspector handled the event, don't send to VNode tree
 					if handled {
@@ -1309,16 +1291,16 @@ func (a *App) handleEvent(ev frameworkevent.Event) {
 
 		// 然后发送到根组件
 		if a.root != nil {
-			log.UILogger.Debug("[APP] Sending event to root, type=%T", a.root)
+			log.UILogger.IfEnabled().Debug("[APP] Sending event to root, type=%T", a.root)
 			// 使用 event.Component 接口检查，而不是匿名接口
 			// 这样可以避免类型别名导致的类型断言失败
 			if handler, ok := a.root.(frameworkevent.Component); ok {
-				log.UILogger.Debug("[APP] root implements Component, calling HandleEvent")
+				log.UILogger.IfEnabled().Debug("[APP] root implements Component, calling HandleEvent")
 				if handler.HandleEvent(ev) {
 					a.dirty = true
 				}
 			} else {
-				log.UILogger.Debug("[APP] root does NOT implement Component")
+				log.UILogger.IfEnabled().Debug("[APP] root does NOT implement Component")
 			}
 		}
 		return
@@ -1329,7 +1311,7 @@ func (a *App) handleEvent(ev frameworkevent.Event) {
 	// EventMouseWheel, EventMouseEnter, EventMouseLeave
 	if ev.Type().IsMouse() {
 		// DEBUG: 打印鼠标事件
-		log.UILogger.Debug("[handleEvent] Mouse event type=%d, sending to root Component", ev.Type())
+		log.UILogger.IfEnabled().Debug("[handleEvent] Mouse event type=%d, sending to root Component", ev.Type())
 
 		// Route mouse events to Inspector first (for hover tracking, overlay hit test, etc.)
 		if a.inspector != nil && a.isInspectorVisible() {
@@ -1337,11 +1319,11 @@ func (a *App) handleEvent(ev frameworkevent.Event) {
 				HandleMouseEvent(frameworkevent.EventType, *frameworkevent.MouseEvent) bool
 			}); ok {
 				if mouseEv, ok := ev.(*frameworkevent.MouseEvent); ok {
-					log.UILogger.Debug("[APP] Routing mouse (%d,%d) to Inspector (type=%v)", mouseEv.X, mouseEv.Y, ev.Type())
+					log.UILogger.IfEnabled().Debug("[APP] Routing mouse (%d,%d) to Inspector (type=%v)", mouseEv.X, mouseEv.Y, ev.Type())
 					handled := inspectorObj.HandleMouseEvent(ev.Type(), mouseEv)
 					a.dirty = true // refresh overlay with latest mouse info
 					if handled {
-						log.UILogger.Debug("[handleEvent] Inspector handled mouse event, returning")
+						log.UILogger.IfEnabled().Debug("[handleEvent] Inspector handled mouse event, returning")
 						return
 					}
 				}
@@ -1350,18 +1332,18 @@ func (a *App) handleEvent(ev frameworkevent.Event) {
 
 		// 发送到根组件处理，由根组件负责 hit testing 和分发
 		if a.root != nil {
-			log.UILogger.Debug("[handleEvent] Calling root.HandleEvent for mouse event")
+			log.UILogger.IfEnabled().Debug("[handleEvent] Calling root.HandleEvent for mouse event")
 			if handler, ok := a.root.(frameworkevent.Component); ok {
 				handled := handler.HandleEvent(ev)
-				log.UILogger.Debug("[handleEvent] root.HandleEvent returned=%v", handled)
+				log.UILogger.IfEnabled().Debug("[handleEvent] root.HandleEvent returned=%v", handled)
 				if handled {
 					a.dirty = true
 				}
 			} else {
-				log.UILogger.Debug("[handleEvent] root does NOT implement Component interface!")
+				log.UILogger.IfEnabled().Debug("[handleEvent] root does NOT implement Component interface!")
 			}
 		} else {
-			log.UILogger.Debug("[handleEvent] root is nil!")
+			log.UILogger.IfEnabled().Debug("[handleEvent] root is nil!")
 		}
 		return
 	}
@@ -1369,7 +1351,7 @@ func (a *App) handleEvent(ev frameworkevent.Event) {
 	// Click 事件（已包含目标信息）
 	if ev.Type() == frameworkevent.EventClick {
 		if a.debugMode {
-			log.UILogger.Debug("[CLICK] Target: %v", ev.Target())
+			log.UILogger.IfEnabled().Debug("[CLICK] Target: %v", ev.Target())
 		}
 		// 直接分发到目标组件
 		if target := ev.Target(); target != nil {
@@ -1450,7 +1432,7 @@ func (a *App) render() {
 					}
 				}
 			}
-			log.UILogger.Debug("[App.render] AFTER Paint: back buffer non-empty cells: %d", count)
+			log.UILogger.IfEnabled().Debug("[App.render] AFTER Paint: back buffer non-empty cells: %d", count)
 		}
 
 		// 调试模式：记录渲染状态
@@ -1498,13 +1480,11 @@ func (a *App) render() {
 						}
 					}
 				}
-				log.UILogger.Debug("[App.render] AFTER renderer.Render(): back=%d cells, front=%d cells", backCount, frontCount)
+				log.UILogger.IfEnabled().Debug("[App.render] AFTER renderer.Render(): back=%d cells, front=%d cells", backCount, frontCount)
 			}
 
 			// DEBUG: 输出渲染信息（每次）
-			if log.RenderLogger.Enabled() {
-				log.RenderLogger.Debug("[APP] FirstRender=%v, OutputLen=%d, Dirty=%v", a.firstRender, len(output), a.dirty)
-			}
+			   log.RenderLogger.IfEnabled().Debug("[APP] FirstRender=%v, OutputLen=%d, Dirty=%v", a.firstRender, len(output), a.dirty)
 
 			if output != "" {
 				fmt.Print(output)
@@ -1519,7 +1499,7 @@ func (a *App) render() {
 	// 如果不可用，回退到从布局树构建 HitMap
 	if a.root != nil {
 		// DEBUG: 输出 root 类型
-		log.RenderLogger.Debug("[APP] root type: %T", a.root)
+		log.RenderLogger.IfEnabled().Debug("[APP] root type: %T", a.root)
 
 		// 方法1：尝试从 DeclarativeNode 获取 RenderingPipeline 的 HitMap（推荐）
 		// 这个 HitMap 包含了所有布局变换后的最终位置（包括 Layer centering）
@@ -1527,13 +1507,13 @@ func (a *App) render() {
 			a.hitMap = declNode.GetHitMap()
 
 			if a.hitMap != nil {
-				log.RenderLogger.Debug("[APP] ✅ Got HitMap from RenderingPipeline: %d entries (includes layer transforms)", a.hitMap.Size())
+				log.RenderLogger.IfEnabled().Debug("[APP] ✅ Got HitMap from RenderingPipeline: %d entries (includes layer transforms)", a.hitMap.Size())
 
 			} else {
-				log.RenderLogger.Debug("[APP] ⚠️  RenderingPipeline returned nil HitMap, falling back to BuildHitMap")
+				log.RenderLogger.IfEnabled().Debug("[APP] ⚠️  RenderingPipeline returned nil HitMap, falling back to BuildHitMap")
 			}
 		}
-		log.HitMapLogger.Debug("[APP] Phase 2: Fiber Reconciler handles VNode → Instance reconciliation")
+		log.HitMapLogger.IfEnabled().Debug("[APP] Phase 2: Fiber Reconciler handles VNode → Instance reconciliation")
 		// Phase 1-6: 将 HitMap 传递给 Pump 用于鼠标事件命中测试
 		// HitMap already contains Instance references (enriched in DeclarativeNode.fiberFirstPaint)
 		if a.pump != nil && a.hitMap != nil {
@@ -1567,7 +1547,7 @@ func (a *App) outputBuffer(buf *paint.Buffer) {
 
 	// 调试模式：记录输出
 	if a.debugMode && a.debugRecorder != nil {
-		log.UILogger.Debug("[OUTPUT] %d changes detected", len(diffResult.Changes))
+		log.UILogger.IfEnabled().Debug("[OUTPUT] %d changes detected", len(diffResult.Changes))
 	}
 
 	// 排序变化（从上到下，从左到右）
@@ -1613,7 +1593,7 @@ func (a *App) outputBufferDirect(buf *paint.Buffer) {
 
 	// 调试模式：记录输出
 	if a.debugMode && a.debugRecorder != nil {
-		log.UILogger.Debug("[OUTPUT DIRECT] about to write %d cells to terminal", buf.Height*buf.Width)
+		log.UILogger.IfEnabled().Debug("[OUTPUT DIRECT] about to write %d cells to terminal", buf.Height*buf.Width)
 	}
 
 	// 移动光标到左上角
@@ -1714,9 +1694,9 @@ func (a *App) Close() error {
 	// 调试模式：保存日志
 	if a.debugMode && a.debugRecorder != nil {
 		if err := a.debugRecorder.DumpToFile(); err != nil {
-			log.UILogger.Debug("Failed to save debug log: %v", err)
+			log.UILogger.IfEnabled().Debug("Failed to save debug log: %v", err)
 		} else {
-			log.UILogger.Debug("Debug log saved")
+			log.UILogger.IfEnabled().Debug("Debug log saved")
 		}
 	}
 
@@ -1798,9 +1778,7 @@ func (a *App) SetConfigSize(width, height int) {
 	a.configWidth = width
 	a.configHeight = height
 
-	if log.UILogger.Enabled() {
-		log.UILogger.Debug("SetConfigSize: config=%dx%d", width, height)
-	}
+	 log.UILogger.IfEnabled().Debug("SetConfigSize: config=%dx%d", width, height)
 }
 
 // GetConfigSize 获取用户配置的布局尺寸
@@ -1834,7 +1812,7 @@ func (a *App) Resize(width, height int) {
 			SetScreenSize(width, height int)
 		}); ok {
 			inspectorObj.SetScreenSize(width, height)
-			log.UILogger.Debug("[APP] Inspector screen size updated to %dx%d", width, height)
+			log.UILogger.IfEnabled().Debug("[APP] Inspector screen size updated to %dx%d", width, height)
 		}
 	}
 
@@ -1872,7 +1850,7 @@ func (a *App) GetRenderer() *paint.Renderer {
 //	if hitMap != nil {
 //	    entry := hitMap.HitTest(x, y)
 //	    if entry != nil {
-//	        log.UILogger.Debug("Hit node: %s", entry.NodeID)
+//	        log.UILogger.IfEnabled().Debug("Hit node: %s", entry.NodeID)
 //	    }
 //	}
 func (a *App) GetHitMap() *runtimeevent.HitMap {
@@ -1908,7 +1886,7 @@ func (a *App) InjectEvent(raw platform.RawInput) error {
 		return errors.New("event pump not initialized")
 	}
 	if !a.pump.IsRunning() {
-		log.UILogger.Debug("[APP] InjectEvent: pump not running, state=%d, pump=%v", a.state, a.pump)
+		log.UILogger.IfEnabled().Debug("[APP] InjectEvent: pump not running, state=%d, pump=%v", a.state, a.pump)
 		return errors.New("event pump not running")
 	}
 	a.pump.Inject(raw)

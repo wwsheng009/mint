@@ -65,37 +65,37 @@ func (r *PipelineRenderer) Render(vnode rtui.VNode, x, y int, buffer interface{}
 	height := buf.Height
 
 	// Debug: Log buffer size
-	log.RenderLogger.Debug("Buffer size: %dx%d", buf.Width, buf.Height)
-	log.LayerLogger.Debug("Buffer size: %dx%d", buf.Width, buf.Height)
+	log.RenderLogger.IfEnabled().Debug("Buffer size: %dx%d", buf.Width, buf.Height)
+	log.LayerLogger.IfEnabled().Debug("Buffer size: %dx%d", buf.Width, buf.Height)
 
 	constraints := runtime.NewBoxConstraints(0, width, 0, height)
 
 	// Check if VNode tree contains any layer nodes (Modal, Overlay, Tooltip)
 	hasLayers := r.hasLayerNodes(vnode)
 
-	log.LayerLogger.Debug("hasLayers=%v", hasLayers)
+	log.LayerLogger.IfEnabled().Debug("hasLayers=%v", hasLayers)
 
 	var err error
 	if hasLayers {
 		// Use multi-layer rendering for modals, overlays, tooltips
-		log.RenderLogger.Debug("Using RenderLayers for multi-layer rendering")
+		log.RenderLogger.IfEnabled().Debug("Using RenderLayers for multi-layer rendering")
 		err = r.pipeline.RenderLayers(vnode, r.fiber, constraints, buf)
 	} else {
 		// Use standard rendering for simple VNode trees
-		log.RenderLogger.Debug("Using standard Render")
+		log.RenderLogger.IfEnabled().Debug("Using standard Render")
 		err = r.pipeline.Render(vnode, r.fiber, constraints, buf)
 	}
 
 	if err != nil {
-		log.RenderLogger.Debug("X[Render FAILED: %v, falling back to legacy", err)
+		log.RenderLogger.IfEnabled().Debug("X[Render FAILED: %v, falling back to legacy", err)
 		// Fall back to legacy rendering if pipeline fails
 		return r.renderLegacy(vnode, x, y, buf)
 	}
 
-	log.RenderLogger.Debug("✅ Render SUCCESS")
+	log.RenderLogger.IfEnabled().Debug("✅ Render SUCCESS")
 
 	if r.debug {
-		log.RenderLogger.Debug("Render complete, cache stats: %s", r.GetCacheStats())
+		log.RenderLogger.IfEnabled().Debug("Render complete, cache stats: %s", r.GetCacheStats())
 	}
 
 	return nil
@@ -130,7 +130,7 @@ func (r *PipelineRenderer) hasLayerNodesFromFiber(fiber *rtui.Fiber) bool {
 	log.HitMapLogger.Debug("[hasLayerNodes] Node type=%T, Layer=%d, IsValid=%v",
 		fiber, layer, layer.IsValid())
 	if layer != rtui.LayerBase && layer.IsValid() {
-		log.HitMapLogger.Debug("[hasLayerNodes] ✅ Found layer node: Layer=%d", layer)
+		log.HitMapLogger.IfEnabled().Debug("[hasLayerNodes] ✅ Found layer node: Layer=%d", layer)
 		return true
 	}
 
@@ -156,7 +156,7 @@ func (r *PipelineRenderer) hasLayerNodesFromVNode(vnode rtui.VNode) bool {
 	log.HitMapLogger.Debug("[hasLayerNodes] VNode type=%T, Layer=%d, IsValid=%v",
 		vnode, layer, layer.IsValid())
 	if layer != rtui.LayerBase && layer.IsValid() {
-		log.HitMapLogger.Debug("[hasLayerNodes] ✅ Found layer VNode: Layer=%d", layer)
+		log.HitMapLogger.IfEnabled().Debug("[hasLayerNodes] ✅ Found layer VNode: Layer=%d", layer)
 		return true
 	}
 
@@ -245,7 +245,7 @@ func (r *PipelineRenderer) RenderWithConstraints(vnode rtui.VNode, layoutWidth, 
 	// Check if VNode tree contains any layer nodes (Modal, Overlay, Tooltip)
 	hasLayers := r.hasLayerNodes(vnode)
 
-	log.LayerLogger.Debug("hasLayers=%v", hasLayers)
+	log.LayerLogger.IfEnabled().Debug("hasLayers=%v", hasLayers)
 
 	var err error
 	if hasLayers {
@@ -255,14 +255,14 @@ func (r *PipelineRenderer) RenderWithConstraints(vnode rtui.VNode, layoutWidth, 
 	}
 
 	if err != nil {
-		log.RenderLogger.Debug("❌ Render FAILED: %v", err)
+		log.RenderLogger.IfEnabled().Debug("❌ Render FAILED: %v", err)
 		return err
 	}
 
-	log.RenderLogger.Debug("✅ Render SUCCESS")
+	log.RenderLogger.IfEnabled().Debug("✅ Render SUCCESS")
 
 	if r.debug {
-		log.RenderLogger.Debug("Render complete, cache stats: %s", r.GetCacheStats())
+		log.RenderLogger.IfEnabled().Debug("Render complete, cache stats: %s", r.GetCacheStats())
 	}
 
 	return nil
@@ -320,8 +320,8 @@ func (r *PipelineRenderer) RenderWithFiber(vnode rtui.VNode, fiber *reconciler.F
 	width := buffer.Width
 	height := buffer.Height
 
-	log.RenderLogger.Debug("RenderWithFiber: Buffer size: %dx%d", width, height)
-	log.LayerLogger.Debug("RenderWithFiber: Buffer size: %dx%d", width, height)
+	log.RenderLogger.IfEnabled().Debug("RenderWithFiber: Buffer size: %dx%d", width, height)
+	log.LayerLogger.IfEnabled().Debug("RenderWithFiber: Buffer size: %dx%d", width, height)
 
 	constraints := runtime.NewBoxConstraints(0, width, 0, height)
 
@@ -338,21 +338,21 @@ func (r *PipelineRenderer) RenderWithFiber(vnode rtui.VNode, fiber *reconciler.F
 	// Check if VNode tree contains any layer nodes (Modal, Overlay, Tooltip)
 	hasLayers := r.hasLayerNodes(vnode)
 
-	log.LayerLogger.Debug("RenderWithFiber: hasLayers=%v, fiber=%v", hasLayers, fiber != nil)
+	log.LayerLogger.IfEnabled().Debug("RenderWithFiber: hasLayers=%v, fiber=%v", hasLayers, fiber != nil)
 
 	var err error
 	if hasLayers {
 		// Use multi-layer rendering for modals, overlays, tooltips
-		log.RenderLogger.Debug("RenderWithFiber: Using RenderLayers for multi-layer rendering")
+		log.RenderLogger.IfEnabled().Debug("RenderWithFiber: Using RenderLayers for multi-layer rendering")
 		err = r.pipeline.RenderLayers(vnode, fiber, constraints, buffer)
 	} else {
 		// Use standard rendering for simple VNode trees
-		log.RenderLogger.Debug("RenderWithFiber: Using standard Render")
+		log.RenderLogger.IfEnabled().Debug("RenderWithFiber: Using standard Render")
 		err = r.pipeline.Render(vnode, fiber, constraints, buffer)
 	}
 
 	if err != nil {
-		log.RenderLogger.Debug("X[RenderWithFiber] FAILED: %v", err)
+		log.RenderLogger.IfEnabled().Debug("X[RenderWithFiber] FAILED: %v", err)
 	}
 
 	return err

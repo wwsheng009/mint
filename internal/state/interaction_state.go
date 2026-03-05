@@ -217,14 +217,14 @@ func (v *KeyValidator) warnAboutMissingKeys(parent VNode, children []VNode, miss
 		parentName = parent.Type().String()
 	}
 
-	log.EngineLogger.Debug("[Mint Warning] Missing keys in %s with %d children", parentName, len(children))
-	log.EngineLogger.Debug("  Positions without keys: %v", missing)
-	log.EngineLogger.Debug("  This may cause issues with:")
-	log.EngineLogger.Debug("    - Component state preservation")
-	log.EngineLogger.Debug("    - Hover/focus state in dynamic lists")
-	log.EngineLogger.Debug("    - Performance (unnecessary re-renders)")
-	log.EngineLogger.Debug("  Fix: Add unique keys to each child:")
-	log.EngineLogger.Debug("    ui.ComponentBuilder(\"Item\").Key(fmt.Sprintf(\"item-%%d\", id)).Build()")
+	log.EngineLogger.IfEnabled().Debug("[Mint Warning] Missing keys in %s with %d children", parentName, len(children))
+	log.EngineLogger.IfEnabled().Debug("  Positions without keys: %v", missing)
+	log.EngineLogger.IfEnabled().Debug("  This may cause issues with:")
+	log.EngineLogger.IfEnabled().Debug("    - Component state preservation")
+	log.EngineLogger.IfEnabled().Debug("    - Hover/focus state in dynamic lists")
+	log.EngineLogger.IfEnabled().Debug("    - Performance (unnecessary re-renders)")
+	log.EngineLogger.IfEnabled().Debug("  Fix: Add unique keys to each child:")
+	log.EngineLogger.IfEnabled().Debug("    ui.ComponentBuilder(\"Item\").Key(fmt.Sprintf(\"item-%%d\", id)).Build()")
 }
 
 // warnAboutDuplicateKeys prints a warning about duplicate keys
@@ -234,9 +234,9 @@ func (v *KeyValidator) warnAboutDuplicateKeys(parent VNode, duplicates map[strin
 		parentName = parent.Type().String()
 	}
 
-	log.EngineLogger.Debug("[Mint Warning] Duplicate keys in %s", parentName)
+	log.EngineLogger.IfEnabled().Debug("[Mint Warning] Duplicate keys in %s", parentName)
 	for key, count := range duplicates {
-		log.EngineLogger.Debug("  Key %q appears %d times", key, count)
+		log.EngineLogger.IfEnabled().Debug("  Key %q appears %d times", key, count)
 	}
-	log.EngineLogger.Debug("  Keys must be unique among siblings")
+	log.EngineLogger.IfEnabled().Debug("  Keys must be unique among siblings")
 }

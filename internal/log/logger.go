@@ -103,30 +103,31 @@ func (l *Logger) SetEnabled(enabled bool) {
 }
 
 // Debug logs a debug message if debugging is enabled
-func (l *Logger) Debug(format string, args ...any) {
-	l.log(LevelDebug, format, args...)
+func (l *Logger) Debug(format string, args ...any) bool {
+	return l.log(LevelDebug, format, args...)
 }
 
 // Info logs an info message
-func (l *Logger) Info(format string, args ...any) {
-	l.log(LevelInfo, format, args...)
+func (l *Logger) Info(format string, args ...any) bool {
+	return l.log(LevelInfo, format, args...)
 }
 
 // Warn logs a warning message
-func (l *Logger) Warn(format string, args ...any) {
-	l.log(LevelWarn, format, args...)
+func (l *Logger) Warn(format string, args ...any) bool {
+	return l.log(LevelWarn, format, args...)
 }
 
 // Error logs an error message
-func (l *Logger) Error(format string, args ...any) {
-	l.log(LevelError, format, args...)
+func (l *Logger) Error(format string, args ...any) bool {
+	return l.log(LevelError, format, args...)
 }
 
 // log is the internal logging method
-func (l *Logger) log(level LogLevel, format string, args ...any) {
+// Returns true if the message was logged, false otherwise
+func (l *Logger) log(level LogLevel, format string, args ...any) bool {
 	// Fast path: check enabled before locking to avoid lock contention
 	if !l.enabled && level == LevelDebug {
-		return
+		return false
 	}
 
 	l.mu.Lock()
@@ -134,7 +135,7 @@ func (l *Logger) log(level LogLevel, format string, args ...any) {
 
 	// Re-check enabled after acquiring lock (in case it changed)
 	if !l.enabled && level == LevelDebug {
-		return
+		return false
 	}
 
 	msg := fmt.Sprintf(format, args...)
@@ -158,6 +159,7 @@ func (l *Logger) log(level LogLevel, format string, args ...any) {
 			writeToFile(msg)
 		}
 	}
+	return true
 }
 
 // Focus logs a focus-related debug message
@@ -347,4 +349,75 @@ func Printf(format string, args ...any) {
 func Println(args ...any) {
 	msg := fmt.Sprint(args...)
 	defaultLogger.Info("%s", msg)
+}
+
+// ConditionalLogger wraps a logger to enable conditional logging
+type ConditionalLogger struct {
+	logger *Logger
+}
+
+// IfEnabled returns a ConditionalLogger that only logs when enabled
+// Usage: log.RenderLogger.IfEnabled().Debug("...")
+// This short-circuits logging when disabled
+func (l *Logger) IfEnabled() *ConditionalLogger {
+	if l == nil || !l.enabled {
+		return &ConditionalLogger{logger: nil}
+	}
+	return &ConditionalLogger{logger: l}
+}
+
+// Debug logs if the underlying logger is enabled
+func (c *ConditionalLogger) Debug(format string, args ...any) {
+	if c.logger != nil {
+		c.logger.Debug(format, args...)
+	}
+}
+
+// Info logs if the underlying logger is enabled
+func (c *ConditionalLogger) Info(format string, args ...any) {
+	if c.logger != nil {
+		c.logger.Info(format, args...)
+	}
+}
+
+// Warn logs if the underlying logger is enabled
+func (c *ConditionalLogger) Warn(format string, args ...any) {
+	if c.logger != nil {
+		c.logger.Warn(format, args...)
+	}
+}
+
+// Error logs if the underlying logger is enabled
+func (c *ConditionalLogger) Error(format string, args ...any) {
+	if c.logger != nil {
+		c.logger.Error(format, args...)
+	}
+}
+
+// Focus logs a focus-related debug message if enabled
+func (c *ConditionalLogger) Focus(format string, args ...any) {
+	if c.logger != nil {
+		c.logger.Focus(format, args...)
+	}
+}
+
+// Reconciler logs a reconciler-related debug message if enabled
+func (c *ConditionalLogger) Reconciler(format string, args ...any) {
+	if c.logger != nil {
+		c.logger.Reconciler(format, args...)
+	}
+}
+
+// Render logs a render-related debug message if enabled
+func (c *ConditionalLogger) Render(format string, args ...any) {
+	if c.logger != nil {
+		c.logger.Render(format, args...)
+	}
+}
+
+// Key logs a key event debug message if enabled
+func (c *ConditionalLogger) Key(format string, args ...any) {
+	if c.logger != nil {
+		c.logger.Key(format, args...)
+	}
 }

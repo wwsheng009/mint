@@ -73,7 +73,7 @@ func (b *Bridge) DispatchFromFiber(
 				}
 			}
 		} else {
-			log.RenderLogger.Debug("[%s] %s ui.ComponentInstance is nil!", start.Tag, start.Key)
+			log.RenderLogger.IfEnabled().Debug("[%s] %s ui.ComponentInstance is nil!", start.Tag, start.Key)
 		}
 
 		// Mode 1: ScopeDispatcher mode (ActionTargetID → registered closure)

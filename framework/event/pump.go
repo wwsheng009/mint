@@ -80,7 +80,7 @@ func (p *Pump) Start() error {
 	atomic.StoreInt32(&p.running, 1)
 
 	// DEBUG: 打印启动信息
-	log.PumpLogger.Debug("[PUMP] Started, convertLoop running...")
+	log.PumpLogger.IfEnabled().Debug("[PUMP] Started, convertLoop running...")
 
 	// Start conversion loop
 	p.wg.Add(1)
@@ -371,16 +371,16 @@ func (p *Pump) SetHitMap(hitMap *event.HitMap) {
 // 注意：此方法仅用于测试，不应用于生产代码
 func (p *Pump) Inject(raw platform.RawInput) {
 	if atomic.LoadInt32(&p.running) == 0 {
-		log.PumpLogger.Debug("[PUMP] Inject: pump not running!")
+		log.PumpLogger.IfEnabled().Debug("[PUMP] Inject: pump not running!")
 		return
 	}
 	message := p.convertToMsg(raw)
 	if message != nil {
-		log.PumpLogger.Debug("[PUMP] Injecting message: Type=%v", message.Type())
+		log.PumpLogger.IfEnabled().Debug("[PUMP] Injecting message: Type=%v", message.Type())
 		// Safe to send because Stop() waits for all goroutines to exit first
 		select {
 		case p.messages <- message:
-			log.PumpLogger.Debug("[PUMP] Message sent to channel")
+			log.PumpLogger.IfEnabled().Debug("[PUMP] Message sent to channel")
 		case <-p.quit:
 		}
 	}

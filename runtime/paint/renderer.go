@@ -109,7 +109,7 @@ func (r *Renderer) renderRegion(region Rect) {
 
 	for y := region.Y; y < region.Y+region.Height; y++ {
 		if y >= r.back.Height {
-			log.RenderLogger.Debug("[renderRegion] y=%d >= back.Height=%d, break", y, r.back.Height)
+			log.RenderLogger.IfEnabled().Debug("[renderRegion] y=%d >= back.Height=%d, break", y, r.back.Height)
 			break
 		}
 		r.renderLine(y, region)
@@ -130,15 +130,13 @@ func (r *Renderer) renderLine(y int, region Rect) {
 
 	// 确保 x 不超出范围
 	if x >= endX || x < 0 {
-		log.RenderLogger.Debug("[renderLine] x=%d >= endX=%d or x<0, no render!", x, endX)
-
+		log.RenderLogger.IfEnabled().Debug("[renderLine] x=%d >= endX=%d or x<0, no render!", x, endX)
 		return
 	}
 
 	// 确保 y 在有效范围内
 	if y >= len(r.back.Cells) || (r.front != nil && y >= len(r.front.Cells)) {
-		log.RenderLogger.Debug("[renderLine] y=%d out of bounds, no render!", y)
-
+		log.RenderLogger.IfEnabled().Debug("[renderLine] y=%d out of bounds, no render!", y)
 		return
 	}
 
@@ -146,8 +144,7 @@ func (r *Renderer) renderLine(y int, region Rect) {
 	for x < endX {
 		// 边界检查
 		if x >= len(r.back.Cells[y]) || (r.front != nil && x >= len(r.front.Cells[y])) {
-			log.RenderLogger.Debug("[renderLine] x=%d out of row bounds, break", x)
-
+			log.RenderLogger.IfEnabled().Debug("[renderLine] x=%d out of row bounds, break", x)
 			break
 		}
 
@@ -211,7 +208,7 @@ func (r *Renderer) renderLine(y int, region Rect) {
 		r.emitRunWithWidth(startX, y, runStyle, runText.String(), totalWidth)
 	}
 
-	log.RenderLogger.Debug("[renderLine] emitted %d runs", runCount)
+	log.RenderLogger.IfEnabled().Debug("[renderLine] emitted %d runs", runCount)
 
 }
 

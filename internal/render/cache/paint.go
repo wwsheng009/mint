@@ -280,7 +280,7 @@ func (pc *PaintingContext) TryPaintFromCache(buffer *paint.Buffer, boxID string,
 	if pc == nil || pc.cache == nil || buffer == nil {
 		return false
 	}
-	log.RenderLogger.Debug("[PaintingContext] boxID %s",boxID)
+	log.RenderLogger.IfEnabled().Debug("[PaintingContext] boxID %s",boxID)
 	content, width, height, found := pc.cache.Get(boxID, pc.version)
 	if !found {
 		return false

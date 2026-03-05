@@ -87,17 +87,15 @@ func main() {
 
 	// Initialize theme
 	if err := FwApp.InitTheme("nord"); err != nil {
-		log.UILogger.Debug("Failed to initialize theme: %v", err)
+		log.UILogger.IfEnabled().Debug("Failed to initialize theme: %v", err)
 	}
 
 	// Run the app
 	fmt.Println("Starting Mint TUI Demo - Press F12 or Ctrl+D to toggle Inspector")
 
 	// Debug info
-	if log.UILogger.Enabled() {
-		log.UILogger.Debug("[DEMO2] Inspector enabled: %v", globalInspector.IsEnabled())
-		log.UILogger.Debug("[DEMO2] Inspector visible: %v", globalInspector.IsVisible())
-	}
+		log.UILogger.IfEnabled().Debug("[DEMO2] Inspector enabled: %v", globalInspector.IsEnabled())
+		log.UILogger.IfEnabled().Debug("[DEMO2] Inspector visible: %v", globalInspector.IsVisible())
 
 	if err := FwApp.Run(); err != nil {
 		panic(err)
@@ -113,14 +111,14 @@ func RuntimeDemoWithInspectorOverlay() ui.VNode {
 
 	// Debug: check inspector visibility before hook
 	if os.Getenv("TUI_DEBUG_INSPECTOR") == "true" {
-		log.UILogger.Debug("[DEMO] globalInspector.IsVisible() = %v", globalInspector.IsVisible())
+		log.UILogger.IfEnabled().Debug("[DEMO] globalInspector.IsVisible() = %v", globalInspector.IsVisible())
 	}
 
 	showInspector, setShowInspector := ui.UseStateBool(globalInspector.IsVisible())
 
 	// Debug: log state
 	if os.Getenv("TUI_DEBUG_INSPECTOR") == "true" {
-		log.UILogger.Debug("[DEMO] showInspector (from hook) = %v", showInspector)
+		log.UILogger.IfEnabled().Debug("[DEMO] showInspector (from hook) = %v", showInspector)
 	}
 
 	// Track performance

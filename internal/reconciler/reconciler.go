@@ -44,7 +44,7 @@ type Reconciler struct {
 	timeBudget time.Duration // Time slice budget per frame
 
 	// === Integration ===
-	scheduler            Scheduler                       // Scheduler for frame requests
+	scheduler           Scheduler                      // Scheduler for frame requests
 	instanceMgr         *state.InstanceManager         // Component instance manager
 	interactionStateMgr *state.InteractionStateManager // Interaction state (hover/focus/etc)
 	keyValidator        *state.KeyValidator            // Key validation
@@ -59,7 +59,7 @@ type Reconciler struct {
 	renderedRoot   rtui.VNode // The rendered VNode tree (for focus management, etc.)
 
 	// === Layout Integration ===
-	vnodeConverter *VNodeConverter     // VNode → runtime.LayoutNode converter
+	vnodeConverter *VNodeConverter // VNode → runtime.LayoutNode converter
 	// layoutRoot     *runtime.LayoutNode // Root of the layout tree
 	// layoutBoxes    []runtime.LayoutBox // Layout boxes for hit testing
 
@@ -88,7 +88,7 @@ func NewReconciler(scheduler Scheduler, rootComponent rtui.ComponentFunc, config
 	}
 
 	return &Reconciler{
-		scheduler:            scheduler,
+		scheduler:           scheduler,
 		rootComponent:       rootComponent,
 		instanceMgr:         state.NewInstanceManager(),
 		interactionStateMgr: state.NewInteractionStateManager(),
@@ -111,11 +111,11 @@ func (r *Reconciler) Render(ctx component.PaintContext, buffer *paint.Buffer, re
 	// Note: renderFunc returns ui.VNode (VNode interface is from ui package)
 	// This is correct as VNode implementations are in ui package
 	if !r.enableFiber {
-		log.FiberLogger.Debug("[Reconciler.Render] ⚠️  Fiber NOT enabled! enableFiber=%v", r.enableFiber)
+		log.FiberLogger.IfEnabled().Debug("[Reconciler.Render] ⚠️  Fiber NOT enabled! enableFiber=%v", r.enableFiber)
 		return // Fiber not enabled, use legacy rendering
 	}
 
-	log.FiberLogger.Debug("[Reconciler.Render] ✅ Fiber enabled, starting render...")
+	log.FiberLogger.IfEnabled().Debug("[Reconciler.Render] ✅ Fiber enabled, starting render...")
 	r.buffer = buffer
 	r.paintCtx = ctx
 
@@ -189,9 +189,8 @@ func (r *Reconciler) prepareFreshStack(renderFunc func() rtui.VNode) {
 // Phase 3 will add time slicing
 func (r *Reconciler) workLoopSync() {
 	if r.workInProgress == nil {
-		if log.HitMapLogger.Enabled() {
-			log.FiberLogger.Debug("[workLoopSync] ⚠️  workInProgress is nil!")
-		}
+		log.FiberLogger.IfEnabled().Debug("[workLoopSync] ⚠️  workInProgress is nil!")
+
 		return
 	}
 
@@ -203,9 +202,7 @@ func (r *Reconciler) workLoopSync() {
 	// ✨ Set path generator for automatic key generation
 	pathGenerator = r.pathGenerator
 
-	if os.Getenv("TUI_DEBUG_HITMAP") == "true" {
-		log.FiberLogger.Debug("[workLoopSync] Starting work loop...")
-	}
+	log.FiberLogger.IfEnabled().Debug("[workLoopSync] Starting work loop...")
 
 	// Process all work units using correct Fiber traversal
 	// The traversal follows: BeginWork down the tree, then CompleteWork back up
@@ -416,7 +413,6 @@ func (r *Reconciler) SetRenderCallback(cb RenderFunc) {
 	r.renderCallback = cb
 }
 
-
 // =============================================================================
 // Scheduling
 // =============================================================================
@@ -472,7 +468,7 @@ func (r *Reconciler) GetFiberRoot() *Fiber {
 // updateRenderedRoot extracts and stores the rendered content from the Fiber tree
 // In Fiber-first architecture, we don't need to build a VNode tree
 func (r *Reconciler) updateRenderedRoot() {
-	log.FocusLogger.Debug("updateRenderedRoot called, r.root=%v", r.root != nil)
+	log.FocusLogger.IfEnabled().Debug("updateRenderedRoot called, r.root=%v", r.root != nil)
 	// In Fiber-first, we don't maintain a VNode tree
 	// The Fiber tree itself is the source of truth
 	r.renderedRoot = nil
@@ -506,7 +502,7 @@ func (r *Reconciler) commitDeletions(fiber *Fiber) {
 	// Collect all fibers marked for deletion
 	deletedFibers := r.collectDeletedFibers(fiber)
 
-	log.FiberLogger.Debug("commitDeletions found %d fibers to delete", len(deletedFibers))
+	log.FiberLogger.IfEnabled().Debug("commitDeletions found %d fibers to delete", len(deletedFibers))
 
 	// Process each deleted fiber
 	for _, deleted := range deletedFibers {
@@ -533,7 +529,7 @@ func (r *Reconciler) collectDeletedFibers(fiber *Fiber) []*Fiber {
 		result = append(result, childDeletions...)
 	}
 
-	log.FiberLogger.Debug("collectDeletedFibers found %d fibers to delete", len(result))
+	log.FiberLogger.IfEnabled().Debug("collectDeletedFibers found %d fibers to delete", len(result))
 
 	return result
 }
@@ -642,14 +638,14 @@ func (r *Reconciler) applyFocusStateToFiber(fiber *Fiber) {
 	r.focusMgr.CollectFromFiber(fiber)
 	focusable := r.focusMgr.GetFocusable()
 
-	log.FocusLogger.Debug("applyFocus focusedIndex=%d, totalFocusable=%d", focusedIndex, len(focusable))
+	log.FocusLogger.IfEnabled().Debug("applyFocus focusedIndex=%d, totalFocusable=%d", focusedIndex, len(focusable))
 
 	// Set focus by index on Fiber nodes (Fiber-first)
 	for i, f := range focusable {
 		focused := (i == focusedIndex)
 		if focused {
 			focusID := fmt.Sprintf("node-%d", f.NodeID)
-			log.FocusLogger.Debug("applyFocus setting focus=true on index %d (%s)", i, focusID)
+			log.FocusLogger.IfEnabled().Debug("applyFocus setting focus=true on index %d (%s)", i, focusID)
 		}
 
 		// IMPORTANT: Use Instance.(FocusableInstance).SetFocus() instead of FocusableVNode.SetFocus()
