@@ -21,6 +21,7 @@ package store
 
 import (
 	"sync"
+	"sync/atomic"
 )
 
 // Store[T] is a type-safe state container.
@@ -44,17 +45,29 @@ import (
 //	})
 //	store.Set(AppState{Count: 1, Username: "john"})
 type Store[T any] struct {
-	mu        sync.RWMutex
-	state     T
-	listeners []func(T)
+	mu           sync.RWMutex
+	state        T
+	listeners    []func(T)
+	listenersRef atomic.Value // Stores []func(T) snapshot for Set/Update
 }
 
 // NewStore creates a new Store with the given initial state.
 func NewStore[T any](initial T) *Store[T] {
-	return &Store[T]{
+	s := &Store[T]{
 		state:     initial,
 		listeners: make([]func(T), 0),
 	}
+	// Initialize listeners snapshot with empty slice
+	s.listenersRef.Store(make([]func(T), 0))
+	return s
+}
+
+// updateListenersSnapshot updates the listeners snapshot.
+// This must be called with mu.Lock() held.
+func (s *Store[T]) updateListenersSnapshot() {
+	listeners := make([]func(T), len(s.listeners))
+	copy(listeners, s.listeners)
+	s.listenersRef.Store(listeners)
 }
 
 // Get returns the current state.
@@ -70,13 +83,14 @@ func (s *Store[T]) Get() T {
 func (s *Store[T]) Set(next T) {
 	s.mu.Lock()
 	s.state = next
-	listeners := make([]func(T), len(s.listeners))
-	copy(listeners, s.listeners)
 	s.mu.Unlock()
 
-	// Notify subscribers outside of lock
-	for _, listener := range listeners {
-		listener(next)
+	// Get listeners snapshot (lock-free read)
+	if listeners, ok := s.listenersRef.Load().([]func(T)); ok {
+		// Notify subscribers outside of lock
+		for _, listener := range listeners {
+			listener(next)
+		}
 	}
 }
 
@@ -92,10 +106,10 @@ func (s *Store[T]) Set(next T) {
 //	unsubscribe()
 func (s *Store[T]) Subscribe(callback func(T)) func() {
 	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	s.listeners = append(s.listeners, callback)
 	index := len(s.listeners) - 1
+	s.updateListenersSnapshot()
+	s.mu.Unlock()
 
 	return func() {
 		s.mu.Lock()
@@ -104,6 +118,8 @@ func (s *Store[T]) Subscribe(callback func(T)) func() {
 		if index < len(s.listeners) {
 			s.listeners = append(s.listeners[:index], s.listeners[index+1:]...)
 		}
+		// Update snapshot after removing listener
+		s.updateListenersSnapshot()
 	}
 }
 
@@ -120,13 +136,14 @@ func (s *Store[T]) Update(fn func(T) T) {
 	s.mu.Lock()
 	next := fn(s.state)
 	s.state = next
-	listeners := make([]func(T), len(s.listeners))
-	copy(listeners, s.listeners)
 	s.mu.Unlock()
 
-	// Notify subscribers outside of lock
-	for _, listener := range listeners {
-		listener(next)
+	// Get listeners snapshot (lock-free read)
+	if listeners, ok := s.listenersRef.Load().([]func(T)); ok {
+		// Notify subscribers outside of lock
+		for _, listener := range listeners {
+			listener(next)
+		}
 	}
 }
 

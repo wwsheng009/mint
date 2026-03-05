@@ -123,6 +123,39 @@ func (fb *FieldBinder[T]) BindIntField(
 }
 
 // =============================================================================
+// Float Field Binding
+// =============================================================================
+
+// BindFloatField binds a float64 field to FieldChangeIntent.
+//
+// Example:
+//
+//	BindField(appReducer).
+//		BindFloatField("price", func(s AppState, val float64) AppState {
+//			s.Price = val
+//			return s
+//		})
+func (fb *FieldBinder[T]) BindFloatField(
+	fieldName string,
+	update func(T, float64) T,
+) *FieldBinder[T] {
+	fb.On(intent.FieldChangeIntent{}, func(s T, i intent.Intent) T {
+		fci, ok := i.(intent.FieldChangeIntent)
+		if !ok || fci.Field != fieldName {
+			return s
+		}
+		// Convert string to float64
+		floatVal, err := strconv.ParseFloat(fci.Value, 64)
+		if err != nil {
+			// Keep original value if conversion fails
+			return s
+		}
+		return update(s, floatVal)
+	})
+	return fb
+}
+
+// =============================================================================
 // Generic Field Binding
 // =============================================================================
 
