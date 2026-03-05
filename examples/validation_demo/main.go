@@ -1,4 +1,4 @@
-// Validation Demo
+// Validation Demo - Store + Reducer 版本
 //
 // 演示如何将 validation 包与 Input 组件结合使用
 // 展示表单验证的完整流程：
@@ -6,6 +6,11 @@
 //   2. 输入时实时验证
 //   3. 提交时全面验证
 //   4. 显示验证错误信息
+//
+// 架构：Store + Reducer（状态管理改进为单一状态源）
+// - AppState: 单一事实源，包含所有表单状态
+// - Reducer: 纯函数，处理所有 Intent
+// - BuildAndRegister: 自动注册 handlers
 //
 // 运行: go run ./examples/validation_demo/
 
@@ -16,12 +21,35 @@ import (
 	"strconv"
 
 	"github.com/wwsheng009/mint/runtime/intent"
+	"github.com/wwsheng009/mint/runtime/reducer"
+	"github.com/wwsheng009/mint/runtime/store"
 	"github.com/wwsheng009/mint/ui"
 	"github.com/wwsheng009/mint/ui/components/validation"
 )
 
 // =============================================================================
-// 自定义 Intent
+// 状态定义
+// =============================================================================
+
+// AppState 应用状态 - 单一事实源
+type AppState struct {
+	// 表单值
+	Username  string
+	Email     string
+	Age       string
+	Password  string
+	ConfirmPwd string
+
+	// 验证错误
+	UsernameErr  string
+	EmailErr     string
+	AgeErr       string
+	PasswordErr  string
+	ConfirmErr   string
+}
+
+// =============================================================================
+// Intent 定义
 // =============================================================================
 
 // SubmitIntent 提交表单
@@ -37,53 +65,145 @@ func (ResetIntent) IntentType() string { return "Reset" }
 func (ResetIntent) StayPressed() bool  { return true }
 
 // =============================================================================
+// 全局 Store
+// =============================================================================
+
+var appStore *store.Store[AppState]
+
+func initStore() {
+	appStore = store.NewStore(AppState{
+		Username:   "",
+		Email:      "",
+		Age:        "",
+		Password:   "",
+		ConfirmPwd: "",
+
+		UsernameErr:  "",
+		EmailErr:     "",
+		AgeErr:       "",
+		PasswordErr:  "",
+		ConfirmErr:   "",
+	})
+}
+
+// =============================================================================
+// Reducer 定义
+// =============================================================================
+
+// 定义验证器（在组件外避免重复创建）
+var (
+	usernameValidator = validation.NewChain().
+			Required().
+			MinLength(3).
+			MaxLength(20).
+			Build()
+
+	emailValidator = validation.NewChain().
+			Required().
+			Email().
+			Build()
+
+	passwordValidator = validation.NewChain().
+			Required().
+			MinLength(6).
+			MaxLength(20).
+			Build()
+)
+
+// validateField 单个字段验证
+func validateField(field string, value string, pwd string) string {
+	switch field {
+	case "username":
+		if err := usernameValidator.Validate(value); err != nil {
+			return err.Error()
+		}
+	case "email":
+		if err := emailValidator.Validate(value); err != nil {
+			return err.Error()
+		}
+	case "age":
+		if value != "" {
+			ageVal, err := strconv.Atoi(value)
+			if err != nil {
+				return "请输入有效数字"
+			}
+			if ageVal < 1 || ageVal > 150 {
+				return "年龄必须在1-150之间"
+			}
+		}
+	case "password":
+		if err := passwordValidator.Validate(value); err != nil {
+			return err.Error()
+		}
+	case "confirmPwd":
+		if value != pwd {
+			return "两次密码输入不一致"
+		}
+	}
+	return ""
+}
+
+// 定义 Reducer
+var appReducer = reducer.NewBuilder[AppState]().
+	// 字段变更 - 自动更新状态
+	On(intent.FieldChangeIntent{}, func(s AppState, i intent.Intent) AppState {
+		fieldChange, ok := i.(intent.FieldChangeIntent)
+		if !ok {
+			return s
+		}
+
+		switch fieldChange.Field {
+		case "username":
+			s.Username = fieldChange.Value
+			// 可以在这里进行实时验证
+			// s.UsernameErr = validateField("username", s.Username, "")
+		case "email":
+			s.Email = fieldChange.Value
+		case "age":
+			s.Age = fieldChange.Value
+		case "password":
+			s.Password = fieldChange.Value
+		case "confirmPwd":
+			s.ConfirmPwd = fieldChange.Value
+		}
+		return s
+	}).
+	// 提交表单 - 验证所有字段
+	On(SubmitIntent{}, func(s AppState, i intent.Intent) AppState {
+		s.UsernameErr = validateField("username", s.Username, "")
+		s.EmailErr = validateField("email", s.Email, "")
+		s.AgeErr = validateField("age", s.Age, "")
+		s.PasswordErr = validateField("password", s.Password, "")
+		s.ConfirmErr = validateField("confirmPwd", s.ConfirmPwd, s.Password)
+		return s
+	}).
+	// 重置表单 - 清空所有状态
+	On(ResetIntent{}, func(s AppState, i intent.Intent) AppState {
+		s.Username = ""
+		s.Email = ""
+		s.Age = ""
+		s.Password = ""
+		s.ConfirmPwd = ""
+		s.UsernameErr = ""
+		s.EmailErr = ""
+		s.AgeErr = ""
+		s.PasswordErr = ""
+		s.ConfirmErr = ""
+		return s
+	})
+
+// =============================================================================
 // 主函数
 // =============================================================================
 
 func main() {
+	initStore()
+	appReducer.RegisterToGlobal(appStore)
+
 	err := ui.Run(FormApp,
 		ui.WithWidth(70),
 		ui.WithHeight(35),
-		ui.WithTitle("Validation Form Demo"),
-		ui.WithInit(func() {
-			// 注册 FieldChangeIntent 处理器
-			// 将 UseState 的 setter 保存到 GlobalState，供处理器调用
-			ui.RegisterIntent(func(ctx *intent.ActionContext, i intent.FieldChangeIntent) intent.IntentResult {
-				switch i.Field {
-				case "username":
-					if fn, ok := ctx.GetState("usernameSetter"); ok {
-						if setter, ok := fn.(func(string)); ok {
-							setter(i.Value)
-						}
-					}
-				case "email":
-					if fn, ok := ctx.GetState("emailSetter"); ok {
-						if setter, ok := fn.(func(string)); ok {
-							setter(i.Value)
-						}
-					}
-				case "age":
-					if fn, ok := ctx.GetState("ageSetter"); ok {
-						if setter, ok := fn.(func(string)); ok {
-							setter(i.Value)
-						}
-					}
-				case "password":
-					if fn, ok := ctx.GetState("passwordSetter"); ok {
-						if setter, ok := fn.(func(string)); ok {
-							setter(i.Value)
-						}
-					}
-				case "confirmPwd":
-					if fn, ok := ctx.GetState("confirmPwdSetter"); ok {
-						if setter, ok := fn.(func(string)); ok {
-							setter(i.Value)
-						}
-					}
-				}
-				return intent.HandledResult()
-			})
-		}),
+		ui.WithTitle("Validation Form Demo (Store + Reducer)"),
 	)
 	if err != nil {
 		panic(err)
@@ -95,188 +215,8 @@ func main() {
 // =============================================================================
 
 func FormApp() ui.VNode {
-	// 使用 UseState 创建表单状态 - 这是单一事实源
-	username, setUsername := ui.UseStateString("")
-	email, setEmail := ui.UseStateString("")
-	age, setAge := ui.UseStateString("")
-	password, setPassword := ui.UseStateString("")
-	confirmPwd, setConfirmPwd := ui.UseStateString("")
-
-	// ✅ 这是解决闭包问题的关键：将状态存储到 GlobalState，handler 从 ActionContext 读取
-	ctx := ui.GetCurrentContext()
-	if ctx != nil {
-		// 保存 setter
-		ctx.GlobalState["usernameSetter"] = setUsername
-		ctx.GlobalState["emailSetter"] = setEmail
-		ctx.GlobalState["ageSetter"] = setAge
-		ctx.GlobalState["passwordSetter"] = setPassword
-		ctx.GlobalState["confirmPwdSetter"] = setConfirmPwd
-
-		// 保存当前值（供 SubmitIntent 读取最新值）
-		ctx.GlobalState["username"] = username
-		ctx.GlobalState["email"] = email
-		ctx.GlobalState["age"] = age
-		ctx.GlobalState["password"] = password
-		ctx.GlobalState["confirmPwd"] = confirmPwd
-	}
-
-	// 验证错误状态 - 使用 UseState 管理
-	usernameErr, setUsernameErr := ui.UseStateString("")
-	emailErr, setEmailErr := ui.UseStateString("")
-	ageErr, setAgeErr := ui.UseStateString("")
-	passwordErr, setPasswordErr := ui.UseStateString("")
-	confirmErr, setConfirmErr := ui.UseStateString("")
-
-	// 保存错误 setter 到 GlobalState
-	if ctx != nil {
-		ctx.GlobalState["setUsernameErr"] = setUsernameErr
-		ctx.GlobalState["setEmailErr"] = setEmailErr
-		ctx.GlobalState["setAgeErr"] = setAgeErr
-		ctx.GlobalState["setPasswordErr"] = setPasswordErr
-		ctx.GlobalState["setConfirmErr"] = setConfirmErr
-	}
-
-	// 验证器定义
-	usernameValidator := validation.NewChain().
-		Required().
-		MinLength(3).
-		MaxLength(20).
-		Build()
-
-	emailValidator := validation.NewChain().
-		Required().
-		Email().
-		Build()
-
-	passwordValidator := validation.NewChain().
-		Required().
-		MinLength(6).
-		MaxLength(20).
-		Build()
-
-	// 验证单个字段
-	validateField := func(field string, value string, pwd string) string {
-		switch field {
-		case "username":
-			if err := usernameValidator.Validate(value); err != nil {
-				return err.Error()
-			}
-		case "email":
-			if err := emailValidator.Validate(value); err != nil {
-				return err.Error()
-			}
-		case "age":
-			if value != "" {
-				ageVal, err := strconv.Atoi(value)
-				if err != nil {
-					return "请输入有效数字"
-				}
-				if ageVal < 1 || ageVal > 150 {
-					return "年龄必须在1-150之间"
-				}
-			}
-		case "password":
-			if err := passwordValidator.Validate(value); err != nil {
-				return err.Error()
-			}
-		case "confirmPwd":
-			if value != pwd {
-				return "两次密码输入不一致"
-			}
-		}
-		return ""
-	}
-
-	// ✅ Submit 处理 - 使用 OnWithContext 从 ActionContext 读取最新状态
-	// 这解决了闭包捕获旧值的问题
-	ui.On(SubmitIntent{}, func(actx *intent.ActionContext) {
-		// ✅ 从 ActionContext 获取最新的表单值
-		currentUsername := actx.GetStringState("username", "")
-		currentEmail := actx.GetStringState("email", "")
-		currentAge := actx.GetStringState("age", "")
-		currentPassword := actx.GetStringState("password", "")
-		currentConfirmPwd := actx.GetStringState("confirmPwd", "")
-
-		// 从 ActionContext 获取错误 setter
-		setUNameErr, _ := actx.GetState("setUsernameErr")
-		setEMailErr, _ := actx.GetState("setEmailErr")
-		setAgeErrFn, _ := actx.GetState("setAgeErr")
-		setPwdErr, _ := actx.GetState("setPasswordErr")
-		setConfErr, _ := actx.GetState("setConfirmErr")
-
-		// 验证所有字段并设置错误
-		if fn, ok := setUNameErr.(func(string)); ok {
-			fn(validateField("username", currentUsername, ""))
-		}
-		if fn, ok := setEMailErr.(func(string)); ok {
-			fn(validateField("email", currentEmail, ""))
-		}
-		if fn, ok := setAgeErrFn.(func(string)); ok {
-			fn(validateField("age", currentAge, ""))
-		}
-		if fn, ok := setPwdErr.(func(string)); ok {
-			fn(validateField("password", currentPassword, ""))
-		}
-		if fn, ok := setConfErr.(func(string)); ok {
-			fn(validateField("confirmPwd", currentConfirmPwd, currentPassword))
-		}
-	})
-
-	// ✅ Reset 处理 - 使用 OnWithContext
-	ui.On(ResetIntent{}, func(actx *intent.ActionContext) {
-		// 从 ActionContext 获取 setter
-		if fn, ok := actx.GetState("usernameSetter"); ok {
-			if setter, ok := fn.(func(string)); ok {
-				setter("")
-			}
-		}
-		if fn, ok := actx.GetState("emailSetter"); ok {
-			if setter, ok := fn.(func(string)); ok {
-				setter("")
-			}
-		}
-		if fn, ok := actx.GetState("ageSetter"); ok {
-			if setter, ok := fn.(func(string)); ok {
-				setter("")
-			}
-		}
-		if fn, ok := actx.GetState("passwordSetter"); ok {
-			if setter, ok := fn.(func(string)); ok {
-				setter("")
-			}
-		}
-		if fn, ok := actx.GetState("confirmPwdSetter"); ok {
-			if setter, ok := fn.(func(string)); ok {
-				setter("")
-			}
-		}
-		// 清空错误
-		if fn, ok := actx.GetState("setUsernameErr"); ok {
-			if setter, ok := fn.(func(string)); ok {
-				setter("")
-			}
-		}
-		if fn, ok := actx.GetState("setEmailErr"); ok {
-			if setter, ok := fn.(func(string)); ok {
-				setter("")
-			}
-		}
-		if fn, ok := actx.GetState("setAgeErr"); ok {
-			if setter, ok := fn.(func(string)); ok {
-				setter("")
-			}
-		}
-		if fn, ok := actx.GetState("setPasswordErr"); ok {
-			if setter, ok := fn.(func(string)); ok {
-				setter("")
-			}
-		}
-		if fn, ok := actx.GetState("setConfirmErr"); ok {
-			if setter, ok := fn.(func(string)); ok {
-				setter("")
-			}
-		}
-	})
+	// 从 Store 读取最新状态（每次渲染时获取）
+	state := appStore.Get()
 
 	// 显示错误信息
 	showError := func(err string) ui.VNode {
@@ -302,6 +242,21 @@ func FormApp() ui.VNode {
 			Build(),
 		ui.Text(""),
 
+		// 使用说明
+		ui.NewTextBuilder("✅ 架构改进: Store + Reducer (无 UseState)").
+			FgColor("green").
+			Build(),
+		ui.NewTextBuilder("   - 单一状态源: AppState").
+			FgColor("gray").
+			Build(),
+		ui.NewTextBuilder("   - 无类型断言: 纯函数 Reducer").
+			FgColor("gray").
+			Build(),
+		ui.NewTextBuilder("   - 自动注册: RegisterToGlobal()").
+			FgColor("gray").
+			Build(),
+		ui.Text(""),
+
 		// 分割线
 		ui.NewTextBuilder("──────────────────────────────────────────").
 			FgColor("bright-black").
@@ -315,13 +270,13 @@ func FormApp() ui.VNode {
 				Build(),
 			ui.NewInputBuilder().
 				ForField(intent.BindField("username")).
-				Value(username).
+				Value(state.Username).
 				Placeholder("3-20字符").
 				Width(30).
 				MaxLen(20).
 				Build(),
 		),
-		showError(usernameErr),
+		showError(state.UsernameErr),
 
 		// 邮箱
 		ui.HStack(
@@ -330,13 +285,13 @@ func FormApp() ui.VNode {
 				Build(),
 			ui.NewInputBuilder().
 				ForField(intent.BindField("email")).
-				Value(email).
+				Value(state.Email).
 				Placeholder("example@mail.com").
 				Width(30).
 				MaxLen(50).
 				Build(),
 		),
-		showError(emailErr),
+		showError(state.EmailErr),
 
 		// 年龄
 		ui.HStack(
@@ -345,13 +300,13 @@ func FormApp() ui.VNode {
 				Build(),
 			ui.NewInputBuilder().
 				ForField(intent.BindField("age")).
-				Value(age).
+				Value(state.Age).
 				Placeholder("1-150").
 				Width(30).
 				MaxLen(3).
 				Build(),
 		),
-		showError(ageErr),
+		showError(state.AgeErr),
 
 		// 密码
 		ui.HStack(
@@ -360,14 +315,14 @@ func FormApp() ui.VNode {
 				Build(),
 			ui.NewInputBuilder().
 				ForField(intent.BindField("password")).
-				Value(password).
+				Value(state.Password).
 				Placeholder("6-20字符").
 				Width(30).
 				MaxLen(20).
 				Password().
 				Build(),
 		),
-		showError(passwordErr),
+		showError(state.PasswordErr),
 
 		// 确认密码
 		ui.HStack(
@@ -376,14 +331,14 @@ func FormApp() ui.VNode {
 				Build(),
 			ui.NewInputBuilder().
 				ForField(intent.BindField("confirmPwd")).
-				Value(confirmPwd).
+				Value(state.ConfirmPwd).
 				Placeholder("再次输入密码").
 				Width(30).
 				MaxLen(20).
 				Password().
 				Build(),
 		),
-		showError(confirmErr),
+		showError(state.ConfirmErr),
 
 		ui.Text(""),
 
@@ -419,8 +374,8 @@ func FormApp() ui.VNode {
 			Build(),
 		ui.Text(""),
 		ui.NewTextBuilder("当前输入:").Bold(true).Build(),
-		ui.NewTextBuilder(fmt.Sprintf("  Username: %s", username)).Build(),
-		ui.NewTextBuilder(fmt.Sprintf("  Email: %s", email)).Build(),
-		ui.NewTextBuilder(fmt.Sprintf("  Age: %s", age)).Build(),
+		ui.NewTextBuilder(fmt.Sprintf("  Username: %s", state.Username)).Build(),
+		ui.NewTextBuilder(fmt.Sprintf("  Email: %s", state.Email)).Build(),
+		ui.NewTextBuilder(fmt.Sprintf("  Age: %s", state.Age)).Build(),
 	)
 }

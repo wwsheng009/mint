@@ -1,11 +1,18 @@
 // Package main demonstrates type-safe form handling with Store + Reducer.
 //
-// 优化版本：使用字段映射减少硬编码
+// 优化版本：使用 FieldMap 消除硬编码
+//
+// 架构优势：
+//   - 类型安全（泛型）
+//   - 消除 switch-case 硬编码
+//   - 使用映射表替代重复的 On FieldChangeIntent
+//   - 单一 FieldChangeIntent 处理器处理所有字段
 //
 package main
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/runtime/reducer"
@@ -39,97 +46,40 @@ func (SubmitIntent) IntentType() string { return "Submit" }
 func (SubmitIntent) StayPressed() bool  { return true }
 
 // =============================================================================
-// Optimized Reducer (Using Field Mapping)
+// Field Map (消除硬编码)
 // =============================================================================
 
-// FieldType 表示字段类型
-type FieldType int
-
-const (
-	TypeString FieldType = iota
-	TypeBool
-	TypeInt
-)
-
-// FieldUpdate 表示字段更新器
-type FieldUpdate struct {
-	Name  string
-	Type  FieldType
-	Update func(s *AppState, val string) // val 是字符串表示
-}
-
-// 字段映射表 - 避免硬编码 switch
-var fieldUpdates = []FieldUpdate{
-	{
-		Name: "Username",
-		Type: TypeString,
-		Update: func(s *AppState, val string) {
+// fieldMap 定义所有字段的更新逻辑，避免 switch-case
+var fieldMap = reducer.BindField(reducer.NewBuilder[AppState]()).
+	BindFieldMap(map[string]func(AppState, string) AppState{
+		// 字符串字段
+		"Username": func(s AppState, val string) AppState {
 			s.Username = val
+			return s
 		},
-	},
-	{
-		Name: "Email",
-		Type: TypeString,
-		Update: func(s *AppState, val string) {
+		"Email": func(s AppState, val string) AppState {
 			s.Email = val
+			return s
 		},
-	},
-	{
-		Name: "Age",
-		Type: TypeInt,
-		Update: func(s *AppState, val string) {
-			var ageVal int
-			if _, err := fmt.Sscanf(val, "%d", &ageVal); err == nil {
-				s.Age = ageVal
+		// 整型字段
+		"Age": func(s AppState, val string) AppState {
+			if v, err := strconv.Atoi(val); err == nil {
+				s.Age = v
 			}
+			return s
 		},
-	},
-	{
-		Name: "AcceptTerms",
-		Type: TypeBool,
-		Update: func(s *AppState, val string) {
+		// 布尔字段
+		"AcceptTerms": func(s AppState, val string) AppState {
 			s.AcceptTerms = val == "true"
+			return s
 		},
-	},
-	{
-		Name: "Subscribe",
-		Type: TypeBool,
-		Update: func(s *AppState, val string) {
+		"Subscribe": func(s AppState, val string) AppState {
 			s.Subscribe = val == "true"
+			return s
 		},
-	},
-}
-
-// 查找字段更新器（避免遍历，可以用 map 优化）
-func findFieldUpdate(fieldName string) *FieldUpdate {
-	for i := range fieldUpdates {
-		if fieldUpdates[i].Name == fieldName {
-			return &fieldUpdates[i]
-		}
-	}
-	return nil
-}
-
-// =============================================================================
-// Reducer (Using Field Mapping) / 纯函数
-// =============================================================================
-
-// appReducer handles all state transitions for the form.
-var appReducer = reducer.NewBuilder[AppState]()
-
-// Initialize the reducer - ForField components emit FieldChangeIntent automatically
-func init() {
-	// 方案 1: 使用字段映射表（推荐）
-	appReducer.On(intent.FieldChangeIntent{}, func(s AppState, i intent.Intent) AppState {
-		fci := i.(intent.FieldChangeIntent)
-		if update := findFieldUpdate(fci.Field); update != nil {
-			update.Update(&s, fci.Value)
-		}
-		return s
-	})
-
-	// 方案 2: 处理 SubmitIntent - log the form data
-	appReducer.On(SubmitIntent{}, func(s AppState, i intent.Intent) AppState {
+	}).
+	GetBuilder().
+	On(SubmitIntent{}, func(s AppState, i intent.Intent) AppState {
 		fmt.Println("\n=== Form Submission ===")
 		fmt.Printf("Username:   %v\n", s.Username)
 		fmt.Printf("Email:      %v\n", s.Email)
@@ -139,7 +89,6 @@ func init() {
 		fmt.Println("========================\n")
 		return s
 	})
-}
 
 // =============================================================================
 // Store (Single State Source)
@@ -180,7 +129,7 @@ func App() ui.VNode {
 	ageInput := input.NewBuilder().
 		Placeholder("Enter your age").
 		ForField(intent.BindField("Age")).
-		Value(fmt.Sprintf("%d", state.Age)).
+		Value(reducer.FormatInt(state.Age)).
 		Width(10).
 		Build()
 
@@ -225,11 +174,11 @@ func App() ui.VNode {
 
 func main() {
 	// Register all handlers automatically
-	appReducer.RegisterToGlobal(appStore)
+	fieldMap.RegisterToGlobal(appStore)
 
 	ui.Run(App,
 		ui.WithWidth(50),
 		ui.WithHeight(18),
-		ui.WithTitle("Type-Safe Form Demo (Store+Reducer)"),
+		ui.WithTitle("Type-Safe Form Demo (Store+Reducer Optimized)"),
 	)
 }

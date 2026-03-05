@@ -215,6 +215,58 @@ var appReducer = reducer.NewBuilder[AppState]().
 
 ---
 
+### 步骤 3.1: 优化 FieldBinding（推荐）
+
+使用 **FieldBinding API** 可以消除 switch-case 硬编码，让代码更简洁：
+
+```go
+import "strconv"
+import "github.com/wwsheng009/mint/runtime/reducer"
+import "github.com/wwsheng009/mint/runtime/intent"
+
+// 使用 FieldMap 替代 switch-case
+var appReducer = reducer.BindField(reducer.NewBuilder[AppState]()).
+    BindFieldMap(map[string]func(AppState, string) AppState{
+        // 所有字段集中定义，单一处理器
+        "username": func(s AppState, val string) AppState {
+            s.Username = val
+            return s
+        },
+        "email": func(s AppState, val string) AppState {
+            s.Email = val
+            return s
+        },
+        "count": func(s AppState, val string) AppState {
+            if v, err := strconv.Atoi(val); err == nil {
+                s.Count = v
+            }
+            return s
+        },
+        "checked": func(s AppState, val string) AppState {
+            s.Checked = val == "true"
+            return s
+        },
+    }).
+    GetBuilder().
+    // 自定义 Intent
+    On(ClickButtonIntent{}, func(s AppState, i intent.Intent) AppState {
+        s.Count++
+        return s
+    })
+```
+
+**优势**：
+| 传统方式 | FieldBinding 方式 |
+|----------|------------------|
+| switch-case 硬编码 | 字段映射表 |
+| 类型断言 | 泛型类型安全 |
+| 分散的字段逻辑 | 集中的字段定义 |
+| 需要手动类型转换 | 自动类型转换（BindIntField、BindBoolField） |
+
+**详细优化指南**: [FIELD_BINDING_OPTIMIZATION.md](./FIELD_BINDING_OPTIMIZATION.md)
+
+---
+
 ### 步骤 4: 注册 Handlers
 
 使用 `BuildAndRegister` 自动注册 handlers：

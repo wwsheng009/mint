@@ -1,115 +1,77 @@
-# API 参考 - Store + Reducer
+# Store + Reducer API 参考
 
-**版本**: v1.0  
-**创建时间**: 2026-03-04
+**版本**: v0.11
+**最后更新**: 2026-03-05
 
 ---
 
 ## 目录
 
-- [状态管理 API](#状态管理-api)
+- [Store API](#store-api)
+- [Reducer API](#reducer-api)
+- [FieldBinding API](#fieldbinding-api)
 - [Intent API](#intent-api)
-- [组件 API](#组件-api)
-- [已废弃 API](#已废弃-api)
-- [完整示例](#完整示例)
+- [AppRuntime API](#appruntime-api)
 
 ---
 
-## 状态管理 API
+## Store API
 
-### Store[T]
+**位置**: `github.com/wwsheng009/mint/runtime/store`
 
-**导入**: `github.com/wwsheng009/mint/runtime/store`
-
-#### NewStore
+### 创建 Store
 
 ```go
 func NewStore[T any](initial T) *Store[T]
 ```
 
-创建一个新的 Store 初始状态。
-
 **参数**:
-- `initial T`: 初始状态值
+- `initial`: 初始状态
 
-**返回**:
-- `*Store[T]`: Store 实例
+**返回值**: `*Store[T]` - Store 实例
 
 **示例**:
 ```go
-type AppState struct {
-    Count int
-    Username string
-}
-
 appStore := store.NewStore(AppState{
     Count: 0,
-    Username: "",
 })
 ```
 
 ---
 
-#### Get
+### 读取状态
 
 ```go
 func (s *Store[T]) Get() T
 ```
 
-获取 Store 中的当前状态。这是读取状态的唯一方式。
-
-**返回**:
-- `T`: 当前状态值
+**返回值**: `T` - 当前状态
 
 **示例**:
 ```go
 state := appStore.Get()
-fmt.Printf("Count: %d", state.Count)
+fmt.Printf("Count: %d\n", state.Count)
 ```
 
 ---
 
-#### Set
+### 更新状态
 
 ```go
 func (s *Store[T]) Set(next T)
-```
-
-更新 Store 中的状态。这会通知所有订阅者。通常由 Reducer 调用。
-
-**参数**:
-- `next T`: 新的状态值
-
-**示例**:
-```go
-appStore.Set(AppState{
-    Count: 1,
-    Username: "john",
-})
-
-// 通常由 Reducer 使用
-appReducer := reducer.NewBuilder[AppState]().
-    On(IncrementIntent{}, func(s AppState, i intent.Intent) AppState {
-        s.Count++
-        return s  // 返回状态副本，Store 内部会调用 Set()
-    })
-```
-
----
-
-#### Update
-
-```go
 func (s *Store[T]) Update(fn func(T) T)
 ```
 
-使用函数更新状态。这是原子操作，避免并发问题。
-
 **参数**:
-- `fn func(T) T`: 更新函数，接收当前状态，返回新状态
+- `Set(next)`: 直接设置新状态
+- `Update(fn)`: 基于当前状态计算新状态
 
 **示例**:
 ```go
+// 方式 1: 直接设置
+appStore.Set(AppState{Count: 10})
+
+// 方式 2: 函数式更新
 appStore.Update(func(state AppState) AppState {
     state.Count++
     return state
@@ -118,24 +80,21 @@ appStore.Update(func(state AppState) AppState {
 
 ---
 
-#### Subscribe
+### 订阅状态变化
 
 ```go
 func (s *Store[T]) Subscribe(callback func(T)) func()
 ```
 
-订阅状态变化。当状态改变时，回调会被调用。
-
 **参数**:
-- `callback func(T)`: 状态变化回调函数
+- `callback`: 状态变化回调
 
-**返回**:
-- `func()`: 取消订阅函数
+**返回值**: `func()` - 取消订阅函数
 
 **示例**:
 ```go
-unsubscribe := appStore.Subscribe(func(oldState, newState AppState) {
-    fmt.Printf("State changed: %+v -> %+v", oldState, newState)
+unsubscribe := appStore.Subscribe(func(state AppState) {
+    fmt.Printf("State changed: %+v\n", state)
 })
 
 // 取消订阅
@@ -144,266 +103,772 @@ unsubscribe()
 
 ---
 
-## Intent API
+### 选择器
 
-### FieldChangeIntent
-
-**用途**: 表单字段变更（UI 组件自动发射）
-
-**定义**:
 ```go
-type FieldChangeIntent struct {
-    Field string  // 字段名
-    Value string  // 字段值
-}
-
-func (FieldChangeIntent) IntentType() string { return "FieldChange" }
+func (s *Store[T]) Select[R any](selector func(T) R) *Computed[R]
 ```
 
-**Handler 位置**: `intent.HandleFieldChange`
+**参数**:
+- `selector`: 选择器函数，从 `T` 中提取 `R`
 
-**使用方式**: 组件通过 `ForField()` 自动发射
-
----
-
-### SetStateIntent
-
-**用途**: 设置全局状态值（直接访问 GlobalState）
-
-**定义**:
-```go
-type SetStateIntent struct {
-    Key   string
-    Value interface{}
-}
-
-func (SetStateIntent) IntentType() string { return "SetState" }
-```
-
-**Handler 位置**: `intent.HandleSetState`
-
-**注意**: 在 Store + Reducer 架构中不推荐使用，推荐使用 FieldChangeIntent
-
----
-
-### ToggleIntent
-
-**用途**: 切换布尔状态
-
-**定义**:
-```go
-type ToggleIntent struct {
-    Key string
-}
-
-func (ToggleIntent) IntentType() string { return "Toggle" }
-```
-
-**Handler 位置**: `intent.HandleToggle`
-
-**使用方式**: 组件通过 `OnToggle()` 或手动发射
-
----
-
-### IncrementIntent
-
-**用途**: 递增数值状态
-
-**定义**:
-```go
-type IncrementIntent struct {
-    Key   string
-    Delta int
-}
-
-func (IncrementIntent) IntentType() string { return "Increment" }
-```
-
-**Handler 位置**: `intent.HandleIncrement`
-
-**使用方式**: 组件通过发射意图或手动发射
-
----
-
-## 组件 API
-
-### ForField
-
-**适用组件**: Input, Textarea, Checkbox, Select, Tabs
-
-**用途**: 绑定到 State 字段，并自动发射 `FieldChangeIntent`
-
-**签名**:
-```go
-// Input
-inputComp.NewBuilder().ForField(intent.BindField("field")).Value(state.Field).Build()
-
-// Checkbox
-checkboxComp.NewBuilder().ForField(intent.BindField("field")).Checked(state.Field == "true").Build()
-
-// Select
-selectComp.NewBuilder().ForField(intent.BindField("field")).Value(state.Field).Build()
-```
+**返回值**: `*Computed[R]` - 计算值
 
 **示例**:
 ```go
-inputComp.NewBuilder().
-    ForField(intent.BindField("username")).
-    Value(state.Username).
-    Placeholder("Username").
-    Build()
+totalPrice := appStore.Select(func(state AppState) float64 {
+    total := 0.0
+    for _, item := range state.Items {
+        total += item.Price
+    }
+    return total
+})
+
+price := totalPrice.Get()
 ```
 
 ---
 
-### OnPress
+### 计算值
 
-**适用组件**: Button
-
-**用途**: 设置按钮按压时发射的 Intent
-
-**签名**:
 ```go
-buttonComp.NewBuilder("Button").
-    OnPress(CustomIntent{}).
-    Build()
+func (s *Store[T]) Compute[R any](compute func(T) R) *Computed[R]
 ```
+
+**参数**:
+- `compute`: 计算函数，自动缓存
+
+**返回值**: `*Computed[R]` - 计算值
 
 **示例**:
 ```go
-type ClickButtonIntent struct{}
+itemCount := appStore.Compute(func(state AppState) int {
+    return len(state.Items)
+})
 
-func (ClickButtonIntent) IntentType() string { return "ClickButton" }
-
-buttonComp.NewBuilder("Click Me").
-    OnPress(CustomButtonIntent{}).
-    Build()
+// 自动缓存，重复调用不重复计算
+count1 := itemCount.Get()
+count2 := itemCount.Get()  // 使用缓存
 ```
 
 ---
 
-### OnToggle
-
-**适用组件**: Checkbox
-
-**用途**: 设置 checkbox 切换时发射的 Intent
-
-**签名**:
-```go
-checkboxComp.NewBuilder().
-    Label("Remember me").
-    OnToggle(CustomToggleIntent{}).
-    Build()
-```
-
-**示例**:
-```go
-checkboxComp.NewBuilder().
-    Label("Remember me").
-    ForField(intent.BindField("remember")).  // 使用 ForField 代替
-    Checked(state.Remember == "true").
-    Build()
-```
-
----
-
-## 已废弃 API
-
-### UseState 系列
-
-**状态**: `DEPRECATED`
-
-**位置**: `ui/hooks.go`
-
-**API**:
-```go
-// ❌ 已废弃：使用 UseState
-username, setUsername := ui.UseStateString("")
-email, setEmail := ui.UseStateString("")
-count, setCount, getter := ui.UseStateInt(0)
-checked, setChecked := ui.UseStateBool(false)
-```
-
-**替代方案**: Store + Reducer
+### Computed API
 
 ```go
-// ✅ 推荐：使用 Store + Reducer
-type AppState struct {
-    Username string
-    Email    string
-    Count    int
-    Checked  string // "true"/"false"
+type Computed[R] struct {
+    Get() R
+    Invalidate()
 }
+```
 
-// 定义 Reducer
-var appReducer = reducer.NewBuilder[AppState]().
-    On(intent.FieldChangeIntent{}, func(s AppState, i intent.Intent) AppState {
-        s.Username = fieldChange.Value  // 直接更新，无类型断言
-        return s
-    }).RegisterToGlobal(appStore)
+**方法**:
+- `Get() R`: 获取值
+- `Invalidate()`: 清除缓存，下次调用重新计算
 
-// 组件中使用
-state := appStore.Get()
-inputComp.NewBuilder().ForField(intent.BindField("username")).Value(state.Username).Build()
+**示例**:
+```go
+itemCount := appStore.Compute(func(state AppState) int {
+    return len(state.Items)
+})
+
+itemCount.Invalidate()  // 清除缓存
+value := itemCount.Get()  // 重新计算
 ```
 
 ---
 
-### RegisterIntent + GlobalState 手动注册
+### 订阅者数量
 
-**状态**: `DEPRECATED`（在 Store + Reducer 架构下不推荐）
-
-**位置**: `hooks.go` (GlobalState)
-
-**API**:
 ```go
-// ❌ 已废弃：手动注册 + 类型断言
-ui.WithInit(func() {
-    ui.RegisterIntent(func(ctx *intent.ActionContext, i intent.FieldChangeIntent) intent.IntentResult {
-        if fn, ok := ctx.GetState("setter"); ok {
-            if setter, ok := fn.(func(string)); ok {  // 类型断言
-                setter(i.Value)
-            }
-        }
-        return intent.HandledResult()
+func (s *Store[T]) ListenerCount() int
+```
+
+**返回值**: `int` - 当前订阅者数量
+
+**示例**:
+```go
+count := appStore.ListenerCount()
+fmt.Printf("Subscribers: %d\n", count)
+```
+
+---
+
+## Reducer API
+
+**位置**: `github.com/wwsheng009/mint/runtime/reducer/generic_reducer.go`
+
+### 创建 Reducer
+
+```go
+func New[T](fn func(T, intent.Intent) T) *Reducer[T]
+func NewBuilder[T]() *Builder[T]
+```
+
+**参数**:
+- `fn`: Reducer 函数
+- `NewBuilder()`: 使用 Builder 模式
+
+**返回值**: `*Reducer[T]` 或 `*Builder[T]`
+
+**示例**:
+```go
+// 方式 1: 直接创建
+appReducer := reducer.New(func(state AppState, i intent.Intent) AppState {
+    // 处理逻辑
+    return state
+})
+
+// 方式 2: Builder 模式（推荐）
+appReducer := reducer.NewBuilder[AppState]()
+```
+
+---
+
+### 注册 Handler
+
+```go
+func (b *Builder[T]) On(intentType Intent, handler Handler[T]) *Builder[T]
+```
+
+**参数**:
+- `intentType`: Intent 类型
+- `handler`: 处理函数 `func(T, intent.Intent) T`
+
+**返回值**: `*Builder[T]` - 支持链式调用
+
+**示例**:
+```go
+appReducer := reducer.NewBuilder[AppState]().
+    On(IncrementIntent{}, func(state AppState, i intent.Intent) AppState {
+        state.Count++
+        return state
+    }).
+    On(DecrementIntent{}, func(state AppState, i intent.Intent) AppState {
+        state.Count--
+        return state
     })
-}, ...)
 ```
 
-**替代方案**: BuildAndRegister 自动注册
+---
+
+### 字段绑定（已废弃）
 
 ```go
-// ✅ 推荐：自动注册（无类型断言）
-var appReducer = reducer.NewBuilder[AppState]().
-    On(intent.FieldChangeIntent{}, func(s AppState, i intent.Intent) AppState {
-        s.Field = i.(intent.FieldChangeIntent).Value
-        return s
-    })
+func (b *Builder[T]) OnField(fieldName string, handler FieldHandler[T]) *Builder[T]
+```
 
-// 在 main 或 init 中一次性注册
+**状态**: 已废弃，推荐使用 FieldBinding API
+
+---
+
+### 构建 Reducer
+
+```go
+func (b *Builder[T]) Build() *Reducer[T]
+```
+
+**返回值**: `*Reducer[T]` - Reducer 实例
+
+**示例**:
+```go
+appReducer := reducer.NewBuilder[AppState]().
+    On(IncrementIntent{}, func(state AppState, i intent.Intent) AppState {
+        state.Count++
+        return state
+    }).
+    Build()
+```
+
+---
+
+### 注册到 Global Registry
+
+```go
+func (r *Reducer[T]) RegisterToGlobal(stores ...*store.Store[T])
+```
+
+**参数**:
+- `stores`: 一个或多个 Store
+
+**示例**:
+```go
 appReducer.RegisterToGlobal(appStore)
 ```
 
 ---
 
-### SetChangeIntent (旧 API)
+### BuildAndRegister
 
-**状态**: `DEPRECATED`
-
-**位置**: `ui/components/*/vnode.go` (组件级 setter)
-
-**API**:
 ```go
-inputComp.New().SetChangeIntent(intent.SetState("field", "value"))
+func (b *Builder[T]) BuildAndRegister(registry *intent.GlobalIntentRegistry, stores ...*store.Store[T]) *Reducer[T]
 ```
 
-**问题**: `SetStateIntent` 的值是静态的，不会随用户输入变化
+**参数**:
+- `registry`: 全局 Intent Registry
+- `stores`: 一个或多个 Store
 
-**替代方案**: ForField + FieldChangeIntent
+**返回值**: `*Reducer[T]` - Reducer 实例
+
+**示例**:
+```go
+appReducer := reducer.NewBuilder[AppState]().
+    On(IncrementIntent{}, func(...) ...).
+    BuildAndRegister(intent.DefaultRegistry, appStore)
+```
+
+---
+
+## FieldBinding API
+
+**位置**: `github.com/wwsheng009/mint/runtime/reducer/field_mapping.go`
+
+### 创建 FieldBinder
 
 ```go
-// ✅ 推荐：使用 ForField
-inputComp.NewBuilder().
+func BindField[T any](builder *Builder[T]) *FieldBinder[T]
+```
+
+**参数**:
+- `builder`: Builder 实例
+
+**返回值**: `*FieldBinder[T]` - FieldBinder 实例
+
+**示例**:
+```go
+fieldBinder := reducer.BindField(reducer.NewBuilder[AppState]())
+```
+
+---
+
+### BindFieldMap
+
+```go
+func (fb *FieldBinder[T]) BindFieldMap(fieldMap FieldMap[T]) *FieldBinder[T]
+```
+
+**类型定义**:
+```go
+type FieldMap[T any] = map[string]func(T, string) T
+```
+
+**参数**:
+- `fieldMap`: 字段映射表（字段名 → 更新函数）
+
+**返回值**: `*FieldBinder[T]` - 支持链式调用
+
+**示例**:
+```go
+var appReducer = reducer.BindField(reducer.NewBuilder[AppState]()).
+    BindFieldMap(map[string]func(AppState, string) AppState{
+        "username": func(s AppState, val string) AppState {
+            s.Username = val
+            return s
+        },
+        "email": func(s AppState, val string) AppState {
+            s.Email = val
+            return s
+        },
+        "age": func(s AppState, val string) AppState {
+            if v, err := strconv.Atoi(val); err == nil {
+                s.Age = v
+            }
+            return s
+        },
+    })
+```
+
+---
+
+### 类型化绑定
+
+#### BindStringField
+
+```go
+func (fb *FieldBinder[T]) BindStringField(fieldName string, setter func(*T, string)) *FieldBinder[T]
+```
+
+**参数**:
+- `fieldName`: 字段名
+- `setter`: 字段设置函数
+
+**示例**:
+```go
+var appReducer = reducer.BindField(reducer.NewBuilder[AppState]()).
+    BindStringField("username", func(s *AppState, val string) {
+        s.Username = val
+    }).
+    BindStringField("email", func(s *AppState, val string) {
+        s.Email = val
+    })
+```
+
+---
+
+#### BindIntField
+
+```go
+func (fb *FieldBinder[T]) BindIntField(fieldName string, setter func(*T, int)) *FieldBinder[T]
+```
+
+**参数**:
+- `fieldName`: 字段名
+- `setter`: 类型安全的字段设置函数
+
+**示例**:
+```go
+var appReducer = reducer.BindField(reducer.NewBuilder[AppState]()).
+    BindIntField("age", func(s *AppState, val int) {
+        s.Age = val
+    }).
+    BindIntField("count", func(s *AppState, val int) {
+        s.Count = val
+    })
+```
+
+---
+
+#### BindBoolField
+
+```go
+func (fb *FieldBinder[T]) BindBoolField(fieldName string, setter func(*T, bool)) *FieldBinder[T]
+```
+
+**参数**:
+- `fieldName`: 字段名
+- `setter`: 类型安全的字段设置函数
+
+**示例**:
+```go
+var appReducer = reducer.BindField(reducer.NewBuilder[AppState]()).
+    BindBoolField("agreed", func(s *AppState, val bool) {
+        s.Agreed = val
+    }).
+    BindBoolField("enabled", func(s *AppState, val bool) {
+        s.Enabled = val
+    })
+```
+
+---
+
+### GetBuilder
+
+```go
+func (fb *FieldBinder[T]) GetBuilder() *Builder[T]
+```
+
+**返回值**: `*Builder[T]` - Builder 实例
+
+**示例**:
+```go
+var appReducer = reducer.BindField(reducer.NewBuilder[AppState]()).
+    BindFieldMap(map[string]func(AppState, string) AppState{
+        "username": func(s AppState, val string) AppState {
+            s.Username = val
+            return s
+        },
+    }).
+    GetBuilder().
+    On(SubmitIntent{}, func(s AppState, i intent.Intent) AppState {
+        return s
+    })
+```
+
+---
+
+### Build
+
+```go
+func (fb *FieldBinder[T]) Build() *Reducer[T]
+```
+
+**返回值**: `*Reducer[T]` - Reducer 实例
+
+**示例**:
+```go
+appReducer := reducer.BindField(reducer.NewBuilder[AppState]()).
+    BindStringField("username", func(s *AppState, val string) {
+        s.Username = val
+    }).
+    Build()
+```
+
+---
+
+### 组合示例
+
+```go
+// 方式 1: FieldMap + 自定义 Intent
+var appReducer = reducer.BindField(reducer.NewBuilder[AppState]()).
+    BindFieldMap(map[string]func(AppState, string) AppState{
+        "username": func(s AppState, val string) AppState {
+            s.Username = val
+            return s
+        },
+        "email": func(s AppState, val string) AppState {
+            s.Email = val
+            return s
+        },
+    }).
+    GetBuilder().
+    On(SubmitIntent{}, func(s AppState, i intent.Intent) AppState {
+        // 提交逻辑
+        return s
+    })
+
+// 方式 2: 类型化绑定
+var appReducer2 = reducer.BindField(reducer.NewBuilder[AppState]()).
+    BindStringField("username", func(s *AppState, val string) {
+        s.Username = val
+    }).
+    BindIntField("age", func(s *AppState, val int) {
+        s.Age = val
+    }).
+    BindBoolField("agreed", func(s *AppState, val bool) {
+        s.Agreed = val
+    }).
+    GetBuilder().
+    On(SubmitIntent{}, func(s AppState, i intent.Intent) AppState {
+        return s
+    })
+```
+
+**详细优化指南**: [FIELD_BINDING_OPTIMIZATION.md](./FIELD_BINDING_OPTIMIZATION.md)
+
+---
+
+## Intent API
+
+**位置**: `github.com/wwsheng009/mint/runtime/intent`
+
+### Intent 接口
+
+```go
+type Intent interface {
+    IntentType() string
+}
+```
+
+### FieldChangeIntent
+
+```go
+type FieldChangeIntent struct {
+    Field string
+    Value string
+}
+
+func FieldChangeIntent.IntentType() string {
+    return "FieldChange"
+}
+```
+
+**属性**:
+- `Field`: 字段名
+- `Value`: 字段值
+
+---
+
+### ForField API
+
+```go
+func BindField(field string) FieldChangeIntent
+```
+
+**参数**:
+- `field`: 字段名
+
+**返回值**: `FieldChangeIntent`
+
+**使用**:
+```go
+ui.NewInputBuilder().
+    ForField(intent.BindField("username")).
+    Value(state.Username).
+    Build()
+```
+
+---
+
+### 自定义 Intent
+
+```go
+type IncrementIntent struct {
+    Amount int
+}
+
+func (IncrementIntent) IntentType() string {
+    return "Increment"
+}
+
+type SubmitIntent struct{}
+
+func (SubmitIntent) IntentType() string {
+    return "Submit"
+}
+```
+
+---
+
+## AppRuntime API
+
+**位置**: `github.com/wwsheng009/mint/runtime/statemachine/runtime.go`
+
+### 创建 AppRuntime
+
+```go
+func NewAppRuntime[T any](initial T, view View[T], reducer *Reducer[T]) *AppRuntime[T]
+```
+
+**参数**:
+- `initial`: 初始状态
+- `view`: 视图函数
+- `reducer`: Reducer 实例
+
+**返回值**: `*AppRuntime[T]` - AppRuntime 实例
+
+**示例**:
+```go
+runtime := NewAppRuntime[AppState](
+    AppState{Count: 0},
+    App,
+    appReducer,
+)
+```
+
+---
+
+### GetState
+
+```go
+func (r *AppRuntime[T]) GetState() T
+```
+
+**返回值**: `T` - 当前状态
+
+---
+
+### Dispatch
+
+```go
+func (r *AppRuntime[T]) Dispatch(i Intent)
+```
+
+**参数**:
+- `i`: Intent
+
+---
+
+### Subscribe
+
+```go
+func (r *AppRuntime[T]) Subscribe(callback func(T)) func()
+```
+
+**参数**:
+- `callback`: 状态变化回调
+
+**返回值**: `func()` - 取消订阅函数
+
+---
+
+### 时间旅行
+
+```go
+func (r *AppRuntime[T]) JumpTo(index int)
+func (r *AppRuntime[T]) Undo()
+func (r *AppRuntime[T]) History() []T
+func (r *AppRuntime[T]) WithMaxHistory(n int) *AppRuntime[T]
+```
+
+**方法**:
+- `JumpTo(index)`: 跳转到历史状态
+- `Undo()`: 撤销到上一个状态
+- `History()`: 完整历史记录
+- `WithMaxHistory(n)`: 配置历史大小
+
+---
+
+### View
+
+```go
+func (r *AppRuntime[T]) View() ui.VNode
+```
+
+**返回值**: `ui.VNode` - 视图节点
+
+---
+
+### RunApp
+
+```go
+func (r *AppRuntime[T]) RunApp(opts ...ui.AppOption) error
+```
+
+**参数**:
+- `opts`: 应用选项
+
+**返回值**: `error` - 错误信息
+
+---
+
+## 使用示例
+
+### 完整示例：字段绑定优化
+
+```go
+package main
+
+import (
+    "strconv"
+    "github.com/wwsheng009/mint/runtime/intent"
+    "github.com/wwsheng009/mint/runtime/reducer"
+    "github.com/wwsheng009/mint/runtime/store"
+    "github.com/wwsheng009/mint/ui"
+)
+
+// State
+type AppState struct {
+    Username string
+    Email    string
+    Age      int
+    Agreed   bool
+}
+
+// Intent
+type SubmitIntent struct{}
+
+// Store
+var appStore = store.NewStore(AppState{})
+
+// Reducer: 使用 FieldMap 方式
+var appReducer = reducer.BindField(reducer.NewBuilder[AppState]()).
+    BindFieldMap(map[string]func(AppState, string) AppState{
+        "username": func(s AppState, val string) AppState {
+            s.Username = val
+            return s
+        },
+        "email": func(s AppState, val string) AppState {
+            s.Email = val
+            return s
+        },
+        "age": func(s AppState, val string) AppState {
+            if v, err := strconv.Atoi(val); err == nil {
+                s.Age = v
+            }
+            return s
+        },
+        "agreed": func(s AppState, val string) AppState {
+            s.Agreed = val == "true"
+            return s
+        },
+    }).
+    GetBuilder().
+    On(SubmitIntent{}, func(s AppState, i intent.Intent) AppState {
+        fmt.Printf("Submit: %+v\n", s)
+        return s
+    })
+
+// App
+func App() ui.VNode {
+    state := appStore.Get()
+    return ui.VStack(
+        ui.NewInputBuilder().
+            ForField(intent.BindField("username")).
+            Value(state.Username).
+            Placeholder("Username").
+            Build(),
+        ui.NewInputBuilder().
+            ForField(intent.BindField("email")).
+            Value(state.Email).
+            Placeholder("Email").
+            Build(),
+        ui.NewInputBuilder().
+            ForField(intent.BindField("age")).
+            Value(strconv.Itoa(state.Age)).
+            Placeholder("Age").
+            Build(),
+        ui.NewButtonBuilder("Submit").
+            OnPress(SubmitIntent{}).
+            Build(),
+    )
+}
+
+// Main
+func main() {
+    appReducer.RegisterToGlobal(appStore)
+    ui.Run(App, ui.WithTitle("App"))
+}
+```
+
+---
+
+### 选择器和计算值示例
+
+```go
+func App() ui.VNode {
+    // 计算 - 自动缓存
+    itemCount := appStore.Compute(func(state AppState) int {
+        return len(state.Items)
+    })
+
+    // 选择器 - 派生状态
+    totalPrice := appStore.Select(func(state AppState) float64 {
+        total := 0.0
+        for _, item := range state.Items {
+            total += item.Price
+        }
+        return total
+    })
+
+    return ui.VStack(
+        ui.NewTextBuilder(fmt.Sprintf("Items: %d", itemCount.Get())).Build(),
+        ui.NewTextBuilder(fmt.Sprintf("Total: %.2f", totalPrice.Get())).Build(),
+    )
+}
+```
+
+---
+
+## 总结
+
+### 主要 API
+
+| 组件 | 主要 API |
+|------|---------|
+| Store | `NewStore`, `Get`, `Set`, `Update`, `Subscribe`, `Compute`, `Select` |
+| Reducer | `NewBuilder`, `On`, `Build`, `RegisterToGlobal` |
+| FieldBinding | `BindField`, `BindFieldMap`, `BindStringField`, `BindIntField`, `BindBoolField` |
+| Intent | `FieldChangeIntent`, `BindField` |
+| AppRuntime | `NewAppRuntime`, `Dispatch`, `JumpTo`, `Undo`, `History` |
+
+### 快速参考
+
+```go
+// Store
+appStore = store.NewStore(AppState{})
+state = appStore.Get()
+appStore.Set(newState)
+appStore.Update(func(s AppState) AppState { ... })
+
+// Reducer
+appReducer = reducer.NewBuilder[AppState]().
+    On(Intent{}, func(...) ...).
+    On(intent.FieldChangeIntent{}, func(...) ...).
+    Build()
+
+// FieldBinding（推荐）
+appReducer = reducer.BindField(reducer.NewBuilder[AppState]()).
+    BindFieldMap(map[string]func(AppState, string) AppState{
+        "field": func(s, val) AppState { ... },
+    }).
+    GetBuilder().
+    Build()
+
+// 注册
+appReducer.RegisterToGlobal(appStore)
+
+// 组件
+ui.NewInputBuilder().
     ForField(intent.BindField("field")).
     Value(state.Field).
     Build()
@@ -411,162 +876,5 @@ inputComp.NewBuilder().
 
 ---
 
-## 完整示例
-
-### 示例：完整的 Store + Reducer 应用
-
-```go
-package main
-
-import (
-    "fmt"
-
-    "github.com/wwsheng009/mint/runtime/intent"
-    "github.com/wwsheng009/mint/runtime/reducer"
-    "github.com/wwsheng009/mint/runtime/store"
-    "github.com/wwsheng009/mint/ui"
-    buttonComp "github.com/wwsheng009/mint/ui/components/button"
-    inputComp "github.com/wwsheng009/mint/ui/components/input"
-)
-
-// State
-type AppState struct {
-    Count    int
-    Username string
-    Email    string
-    Checked  string
-}
-
-// Intents
-type IncrementIntent struct{}
-
-func (IncrementIntent) IntentType() string { return "Increment" }
-func (IncrementIntent) StayPressed() bool   { return true }
-
-// Global Store
-var appStore *store.Store[AppState]
-
-func initStore() {
-    appStore = store.NewStore(AppState{
-        Count:    0,
-        Username: "",
-        Email:    "",
-        Checked:  "false",
-    })
-}
-
-// Reducer
-var appReducer = reducer.NewBuilder[AppState]().
-    On(IncrementIntent{}, func(s AppState, i intent.Intent) AppState {
-        s.Count++
-        return s
-    }).
-    On(intent.FieldChangeIntent{}, func(s AppState, i intent.Intent) AppState {
-        if fieldChange, ok := i.(intent.FieldChangeIntent); ok {
-            switch fieldChange.Field {
-            case "username":
-                s.Username = fieldChange.Value
-            case "email":
-                s.Email = fieldChange.Value
-            case "checked":
-                s.Checked = fieldChange.Value
-            }
-        }
-        return s
-    })
-
-// View
-func App() ui.VNode {
-    state := appStore.Get()
-    
-    return ui.VStack(
-        ui.NewTextBuilder(fmt.Sprintf("Count: %d", state.Count)).Build(),
-        buttonComp.NewBuilder("+").
-            OnPress(IncrementIntent{}).
-            Build(),
-        
-        ui.VStack(
-            ui.NewTextBuilder("Username").Build(),
-            inputComp.NewBuilder().
-                ForField(intent.BindField("username")).
-                Value(state.Username).
-                Placeholder("Username").
-                Build(),
-        ),
-        
-        ui.VStack(
-            ui.NewTextBuilder("Email").Build(),
-            inputComp.NewBuilder().
-                ForField(intent.BindField("email")).
-                Value(state.Email).
-                Placeholder("Email").
-                Build(),
-        ),
-        
-        ui.VStack(
-            ui.NewTextBuilder("Checkbox").Build(),
-            checkboxComp.NewBuilder().
-                Label("Remember me").
-                ForField(intent.BindField("checked")).
-                Checked(state.Checked == "true").
-                Build(),
-        ),
-    )
-}
-
-func main() {
-    initStore()
-    appReducer.RegisterToGlobal(appStore)
-    
-    err := ui.Run(App, ui.WithWidth(50), ui.WithHeight(20))
-    if err != nil {
-        panic(err)
-    }
-}
-```
-
----
-
-## API 快速索引
-
-| 功能 | 已废弃 | 新 API | 类别 |
-|------|-------|-------|------|
-| 状态管理 | `UseState...` | `Store[T]` | 核心 |
-| | `GlobalState["setter"]` | `Store.Get()` | 核心 |
-| 状态更新 | `setter(value)` | `Store.Set(newState)` | 核心 |
-| 状态订阅 | ❌ 无 | `Store.Subscribe(callback)` | 核心 |
-| 字段绑定 | `SetChangeIntent(SetState)` | `ForField(FieldBinding)` | 组件 |
-| 按钮意图 | `Click` | 自定义 Intent | Intent |
-| 字段变更 | `FieldChangeIntent` | `FieldChangeIntent` | Intent |
-
----
-
-## 版本兼容性
-
-### Mint UI v0.9 使用 UseState 的迁移路径
-
-| API | v0.9 | v0.10+ |
-|-----|------|--------|
-| `UseStateString` | ✅ 支持 | ⚠️ Deprecated |
-| `UseStateInt` | ✅ 支持 | ⚠️ Deprecated |
-| `UseStateBool` | ✅ 支持 | ⚠️ Deprecated |
-| `GlobalState["setter"]` | ✅ 支持 | ⚠️ 不推荐 |
-| `ui.RegisterIntent` | ✅ 支持 | ⚠️ 使用 BuildAndRegister |
-
-### Store + Reducer API
-
-| API | v0.9 | v0.10+ |
-|-----|------|--------|
-| `store.NewStore` | ✅ 支持 | ✅ 推荐 |
-| `store.Store.Get()` | ✅ 支持 | ✅ 推荐 |
-| `reducer.NewBuilder[State]` | ✅ 支持 | ✅ 推荐 |
-| `BuildAndRegister` | ✅ 支持 | ✅ 推荐 |
-| `ForField(Intent.BindField)` | ✅ 支持 | ✅ 推荐 |
-
----
-
-## 参见指南
-
-- [迁移指南](MIGRATION_GUIDE.md) - 从 UseState 迁移到 Store + Reducer
-- [开发指南](DEVELOPMENT_GUIDE.md) - Store + Reducer 开发最佳实践
-- [示例代码](../../../examples/store_reducer_demo/main.go) - 完整示例参考
+**文档创建**: 2026-03-05
+**状态**: 完成 ✅

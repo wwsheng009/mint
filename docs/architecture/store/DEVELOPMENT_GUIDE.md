@@ -1,597 +1,554 @@
 # Store + Reducer 开发指南
 
-**版本**: v1.0  
-**创建时间**: 2026-03-04  
-**适用版本**: Mint UI v0.10+
+**版本**: v0.11
+**最后更新**: 2026-03-05
 
 ---
 
-## 目录
+## 概述
 
-- [一、架构概览](#一架构概览)
-- [二、快速开始](#二快速开始)
-- [三、State 设计](#三state-设计)
-- [四、Reducer 设计](#四reducer-设计)
-- [五、组件集成](#五组件集成)
-- [六、数据流](#六数据流)
-- [七、最佳实践](#七最佳实践)
-- [八、常见模式](#八常见模式)
-- [九、调试](#九调试)
-- [十、性能优化](#十性能优化)
+本文档指导如何在 Mint UI 中使用 Store + Reducer 架构构建应用程序。
 
----
-
-## 一、架构概览
-
-### 1.1 核心原则
-
-| 原则 | 说明 |
-|------|------|
-| **Single Source of Truth** | 所有状态存储在一个 `Store[T]` |
-| **State Immutability** | 状态不可变，修改总是返回新的 State |
-| **Pure Reducers** | Reducer 是纯函数，无副作用 |
-| **Unidirectional Data Flow** | Intent → Reducer → Store → View |
-
-### 1.2 架构图
+### 架构图
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                        Mint UI 架构                                   │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                     │
-│  ┌─────────────┐   Intent   ┌─────────────┐   Reducer    ┌──────────┐ │
-│  │   Component │ ────┬──────►  │ Dispatcher │ ──────┬──────► │  State   │ │
-│  └─────────────┘   │         └─────────────┘       │         └──────────┘ │
-│                    │                                    │            ▲                │
-│                    │                                    │            │                │
-│                    │           ┌─────────────┐            │            │                │
-│                    └───────────│    Store   │────────────│            │                │
-│                                │   Store<T>│             │            │                │
-│                                └─────────────┘             │            │                │
-│                                         │                       │            ▼                │
-│                                         │                       │    ┌──────────┐                 │
-│                                         └───────────────────────────────┤   View    │                 │
-│                                                                 │  (VNode)  │                 │
-│                                                                 └──────────┘                 │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────────────┐
+│                      视图层 (View)                          │
+│  ui.OnPress() → Instance → Intent                          │
+└─────────────────┬─────────────────────────────────────────┘
+                  │
+                  ▼
+┌───────────────────────────────────────────────────────────┐
+│              调度器层 (Registry/Dispatcher)                │
+│  intent.DefaultRegistry.Register()                          │
+└─────────────────┬─────────────────────────────────────────┘
+                  │
+                  ▼
+┌───────────────────────────────────────────────────────────┐
+│              Reducer 层 (Pure Function)                      │
+│  Reducer[T](state, intent) → newState                       │
+└─────────────────┬─────────────────────────────────────────┘
+                  │
+                  ▼
+┌───────────────────────────────────────────────────────────┐
+│              Store 层 (Single Source of Truth)              │
+│  Store[T].Set(newState) → Notify subscribers                │
+└───────────────────────────────────────────────────────────┘
 ```
-
-### 1.3 核心组件
-
-| 组件 | 职责 | 位置 |
-|------|------|------|
-| **Store[T]** | 单一状态源，管理应用状态 | `runtime/store/store.go` |
-| **Reducer[T]** | 纯函数，转换状态 | `runtime/reducer/reducer.go` |
-| **ViewFunction[T]** | 纯函数，渲染状态到 VNode | 用户代码 |
-| **Dispatcher** | 分发 Intent 到 Reducer | `runtime/intent/` |
 
 ---
 
-## 二、快速开始
+## 快速开始
 
-### 2.1 创建你的第一个 Store + Reducer 应用
+### 1. 定义 AppState
+
+```go
+// ✅ 推荐：扁平结构，包含所有状态
+type AppState struct {
+    // 表单字段
+    Username string
+    Email    string
+    Password string
+    Age      int
+
+    // UI 状态
+    IsLoading bool
+    ShowModal bool
+    Step      int
+}
+```
+
+### 2. 定义 Intent
+
+```go
+// 自定义 Intent
+type IncrementIntent struct {
+    Amount int
+}
+func (IncrementIntent) IntentType() string { return "Increment" }
+
+// 系统内置 Intent
+// - intent.FieldChangeIntent - 字段变更
+// - intent.SubmitIntent - 提交
+// - ...
+```
+
+### 3. 定义 Reducer
+
+**方案 1: 基础方式**
+
+```go
+var appReducer = reducer.NewBuilder[AppState]().
+    On(IncrementIntent{}, func(s AppState, i intent.Intent) AppState {
+        s.Count++
+        return s
+    }).
+    On(intent.FieldChangeIntent{}, func(s AppState, i intent.Intent) AppState {
+        fci := i.(intent.FieldChangeIntent)
+        switch fci.Field {
+        case "username":
+            s.Username = fci.Value
+        case "password":
+            s.Password = fci.Value
+        }
+        return s
+    })
+```
+
+**方案 2: 优化方式（使用 FieldMap，推荐）**
+
+```go
+import "strconv"
+import "github.com/wwsheng009/mint/runtime/reducer"
+
+// 使用 FieldMap 消除 switch-case 硬编码
+var appReducer = reducer.BindField(reducer.NewBuilder[AppState]()).
+    BindFieldMap(map[string]func(AppState, string) AppState{
+        // 所有字段集中定义，单一处理器
+        "username": func(s AppState, val string) AppState {
+            s.Username = val
+            return s
+        },
+        "password": func(s AppState, val string) AppState {
+            s.Password = val
+            return s
+        },
+        "age": func(s AppState, val string) AppState {
+            if v, err := strconv.Atoi(val); err == nil {
+                s.Age = v
+            }
+            return s
+        },
+    }).
+    GetBuilder().
+    On(SubmitIntent{}, func(s AppState, i intent.Intent) AppState {
+        // 提交逻辑
+        return s
+    })
+```
+
+**详细 FieldBinding 优化指南**: [FIELD_BINDING_OPTIMIZATION.md](./FIELD_BINDING_OPTIMIZATION.md)
+
+### 4. 创建 Store
+
+```go
+var appStore = store.NewStore(AppState{
+    Username: "",
+    Email:    "",
+    Age:      0,
+})
+```
+
+### 5. 注册 Handlers
+
+```go
+func main() {
+    // 自动注册所有 handlers
+    appReducer.RegisterToGlobal(appStore)
+
+    // 运行应用
+    ui.Run(App, ui.WithTitle("App"))
+}
+```
+
+### 6. 构建视图
+
+```go
+func App() ui.VNode {
+    // 每次渲染从 Store 读取最新状态
+    state := appStore.Get()
+
+    return ui.VStack(
+        ui.NewTextBuilder(state.Username).Build(),
+        ui.NewInputBuilder().
+            ForField(intent.BindField("username")).
+            Value(state.Username).
+            Build(),
+    )
+}
+```
+
+---
+
+## 最佳实践
+
+### 1. AppState 设计
+
+**✅ 推荐：扁平结构**
+
+```go
+type AppState struct {
+    // 表单字段
+    Username string
+    Email    string
+
+    // UI 状态
+    IsLoading bool
+}
+```
+
+**❌ 避免：深层嵌套**
+
+```go
+type AppState struct {
+    Form FormData  // 嵌套结构
+    UI   UIState   // 嵌套结构
+}
+```
+
+### 2. Reducer 设计
+
+**✅ 推荐：纯函数**
+
+```go
+appReducer.On(IncrementIntent{}, func(s AppState, i intent.Intent) AppState {
+    s.Count++  // 直接修改返回新状态
+    return s
+})
+```
+
+**❌ 避免：副作用**
+
+```go
+appReducer.On(IncrementIntent{}, func(s AppState, i intent.Intent) AppState {
+    fmt.Println("Logging...")  // 副作用
+    s.Count++
+    appStore.Set(s)           // 直接调用 Store（错误！）
+    return s
+})
+```
+
+### 3. 字段绑定
+
+**✅ 推荐：使用 FieldMap**
+
+```go
+var appReducer = reducer.BindField(reducer.NewBuilder[AppState]()).
+    BindFieldMap(map[string]func(AppState, string) AppState{
+        "username": func(s AppState, val string) AppState {
+            s.Username = val
+            return s
+        },
+        "email": func(s AppState, val string) AppState {
+            s.Email = val
+            return s
+        },
+    })
+```
+
+### 4. 组件设计
+
+**✅ 推荐：每次渲染读取最新状态**
+
+```go
+func App() ui.VNode {
+    state := appStore.Get()  // 每次渲染读取最新状态
+    return ui.VStack(...)
+}
+```
+
+**❌ 避免：捕获闭包**
+
+```go
+func App() ui.VNode {
+    state := appStore.Get()
+    stateCopy := state  // 复制状态（错误！）
+    return ui.VStack(func() ui.VNode {
+        // 使用过时的 stateCopy
+    })
+}
+```
+
+---
+
+## 常见问题
+
+### Q1: 如何处理异步操作？
+
+**方案 1: 使用状态机模式**
+
+```go
+type AppState struct {
+    Loading  bool
+    Error    string
+    Data     string
+}
+
+type FetchDataIntent struct{}
+type FetchSuccessIntent struct {
+    Data string
+}
+type FetchErrorIntent struct {
+    Error string
+}
+
+// Reducer
+appReducer.On(FetchDataIntent{}, func(s AppState, i intent.Intent) AppState {
+    s.Loading = true
+    return s
+})
+
+// 使用 goroutine
+func fetchData() {
+    go func() {
+        data, err := api.Fetch()
+        if err != nil {
+            ui.Dispatch(FetchErrorIntent{Error: err.Error()})
+        } else {
+            ui.Dispatch(FetchSuccessIntent{Data: data})
+        }
+    }()
+}
+```
+
+### Q2: 如何处理表单验证？
+
+**方案 1: 在 AppState 中存储错误**
+
+```go
+type AppState struct {
+    Username string
+    Email    string
+    UsernameErr string
+    EmailErr    string
+}
+
+// Reducer
+appReducer.On(SubmitIntent{}, func(s AppState, i intent.Intent) AppState {
+    // 验证逻辑
+    if s.Username == "" {
+        s.UsernameErr = "Username is required"
+    } else {
+        s.UsernameErr = ""
+    }
+
+    if s.Email == "" {
+        s.EmailErr = "Email is required"
+    } else {
+        s.EmailErr = ""
+    }
+
+    return s
+})
+
+// 组件
+usernameInput := ui.NewInputBuilder().
+    ForField(intent.BindField("username")).
+    Value(state.Username).
+    Build()
+
+if state.UsernameErr != "" {
+    ui.NewTextBuilder(state.UsernameErr).
+        FgColor("red").
+        Build()
+}
+```
+
+### Q3: 如何优化性能？
+
+**方案 1: 使用 Compute 和 Selector**
+
+```go
+// 选择器 - 计算派生状态
+type AppState struct {
+    Items []string
+}
+
+// 计算值 - 自动缓存
+itemCount := appStore.Compute(func(s AppState) int {
+    return len(s.Items)
+})
+
+// 使用
+count := itemCount.Get()  // 自动缓存，重复调用不重复计算
+```
+
+**方案 2: 避免不必要的渲染**
+
+```go
+// ✅ 使用 computed 避免重复计算
+var usernameLength = appStore.Compute(func(s AppState) int {
+    return len(s.Username)
+})
+
+// ❌ ❌ 避免在渲染时重复计算
+func App() ui.VNode {
+    state := appStore.Get()
+
+    length := len(state.Username)  // 每次渲染都计算
+    // ...
+}
+```
+
+### Q4: 如何调试？
+
+**方案 1: 使用中间件和日志**
+
+```go
+// 日志中间件
+appReducer := reducer.WithMiddleware(
+    reducer.NewBuilder[AppState](),
+    reducer.LoggingMiddleware[AppState](func(state AppState, i intent.Intent, newState AppState) {
+        log.Printf("Intent: %v\nState: %+v → %+v\n", i, state, newState)
+    }),
+).Build()
+```
+
+**方案 2: 使用 AppRuntime 时间旅行**
+
+```go
+runtime := NewAppRuntime(AppState{}, App, appReducer)
+
+// 跳转到历史状态
+runtime.JumpTo(0)
+
+// 撤销
+runtime.Undo()
+
+// 查看历史
+history := runtime.History()
+```
+
+---
+
+## 迁移到 Store + Reducer
+
+### 从 UseState 迁移
+
+**旧方式（UseState）**
+
+```go
+func App() ui.VNode {
+    username, setUsername := ui.UseStateString("")
+    email, setEmail := ui.UseStateString("")
+
+    // setter 手动注册
+    ctx := ui.GetCurrentContext()
+    ctx.GlobalState["usernameSetter"] = setUsername
+    ctx.GlobalState["emailSetter"] = setEmail
+
+    // Handler 手动注册
+    ui.RegisterIntent(func(ctx *intent.ActionContext, i intent.FieldChangeIntent) intent.IntentResult {
+        switch i.Field {
+        case "username":
+            setting, _ := ctx.GetState("usernameSetter")
+            if setter, ok := setting.(func(string)); ok {
+                setter(i.Value)
+            }
+        // ...
+        }
+    })
+
+    return ui.VStack(...)
+}
+```
+
+**新方式（Store + Reducer）**
+
+```go
+type AppState struct {
+    Username string
+    Email    string
+}
+
+var appStore = store.NewStore(AppState{})
+var appReducer = reducer.BindField(reducer.NewBuilder[AppState]()).
+    BindFieldMap(map[string]func(AppState, string) AppState{
+        "username": func(s AppState, val string) AppState {
+            s.Username = val
+            return s
+        },
+        "email": func(s AppState, val string) AppState {
+            s.Email = val
+            return s
+        },
+    })
+
+func App() ui.VNode {
+    state := appStore.Get()
+    return ui.VStack(
+        ui.NewInputBuilder().
+            ForField(intent.BindField("username")).
+            Value(state.Username).
+            Build(),
+    )
+}
+```
+
+**详细迁移指南**: [MIGRATION_GUIDE.md](./MIGRATION_GUIDE.md)
+
+---
+
+## 代码示例
+
+### 完整示例：简单的表单
 
 ```go
 package main
 
 import (
     "github.com/wwsheng009/mint/runtime/intent"
-    "github.com/wwshengeng009/mint/runtime/reducer"
+    "github.com/wwsheng009/mint/runtime/reducer"
     "github.com/wwsheng009/mint/runtime/store"
     "github.com/wwsheng009/mint/ui"
-    buttonComp "github.com/wwsheng009/mint/ui/components/button"
+    "github.com/wwsheng009/mint/ui/components/input"
 )
 
-// 1. 定义 State
+// State
 type AppState struct {
-    Count int
+    Username string
+    Email    string
 }
 
-// 2. 定义 Intent
-type IncrementIntent struct{}
+// Intent
+type SubmitIntent struct{}
 
-func (IncrementIntent) IntentType() string { return "Increment" }
-func (IncrementIntent) StayPressed() bool  { return true }
+// Store
+var appStore = store.NewStore(AppState{})
 
-// 3. 创建全局 Store
-var appStore *store.Store[AppState]
-
-func initStore() {
-    appStore = store.NewStore(AppState{Count: 0})
-}
-
-// 4. 定义 Reducer
-var appReducer = reducer.NewBuilder[AppState]().
-    On(IncrementIntent{}, func(s AppState, i intent.Intent) AppState {
-        s.Count++
+// Reducer (使用 FieldMap)
+var appReducer = reducer.BindField(reducer.NewBuilder[AppState]()).
+    BindFieldMap(map[string]func(AppState, string) AppState{
+        "username": func(s AppState, val string) AppState {
+            s.Username = val
+            return s
+        },
+        "email": func(s AppState, val string) AppState {
+            s.Email = val
+            return s
+        },
+    }).
+    GetBuilder().
+    On(SubmitIntent{}, func(s AppState, i intent.Intent) AppState {
+        fmt.Printf("Submit: %s, %s\n", s.Username, s.Email)
         return s
     })
 
-// 5. 注册 Handlers
-func registerHandlers() {
-    appReducer.RegisterToGlobal(appStore)
-}
-
-// 6. 视图函数
+// App
 func App() ui.VNode {
-    state := appStore.Get()  // 从 Store 读取状态
-    
+    state := appStore.Get()
+
     return ui.VStack(
-        ui.NewTextBuilder(fmt.Sprintf("Count: %d", state.Count)).Build(),
-        buttonComp.NewBuilder("+").
-            OnPress(IncrementIntent{}).
+        ui.NewInputBuilder().
+            ForField(intent.BindField("username")).
+            Value(state.Username).
+            Placeholder("Username").
+            Build(),
+        ui.NewInputBuilder().
+            ForField(intent.BindField("email")).
+            Value(state.Email).
+            Placeholder("Email").
+            Build(),
+        ui.NewButtonBuilder("Submit").
+            OnPress(SubmitIntent{}).
             Build(),
     )
 }
 
-// 7. 主函数
+// Main
 func main() {
-    initStore()
-    
-    err := ui.Run(App,
-        ui.WithWidth(40),
-        ui.WithHeight(10),
-        ui.WithInit(registerHandlers),
-    )
-    if err != nil {
-        panic(err)
-    }
-}
-```
-
----
-
-## 三、State 设计
-
-### 3.1 原则
-
-| 原则 | 说明 | 示例 |
-|------|------|------|
-| **扁平优先** | 尽量保持 State 扁平 | ✅ `Count int` |
-| | 避免深层嵌套 | ❌ `Form.Form.Data.Field` |
-| **类型安全** | 使用具体类型 | ✅ `Count int` |
-| | 避免使用 interface{} | ❌ `Value interface{}` |
-| **简单类型** | 优先使用基础类型 | ✅ `Username string` |
-| | 考虑序列化成本 | ⚠️ `Data struct{...}` |
-| **只读视图** | State 绝不修改 | 使用 `appStore.Get()` |
-
-### 3.2 好的 State 设计示例
-
-```go
-// ✅ 好的设计：扁平、类型安全
-type AppState struct {
-    // 计数器
-    Count int
-
-    // 表单字段
-    Username string
-    Email    string
-
-    // Checkbox (使用 string 统一存储)
-    AgreeTerms string
-
-    // UI 状态
-    ActiveTab int
-    IsLoading bool
-
-    // 列表
-    Items []string
-}
-
-// ❌ 避免的设计：深层嵌套
-type BadAppState struct {
-    Data struct {  // 嵌套结构
-        Form struct {
-            Username string
-        }
-        UI struct {
-            Count struct {
-                Value int
-            }
-        }
-    }
-}
-```
-
-### 3.3 State 初始化
-
-```go
-// 默认值
-err := ui.Run(App, ui.WithInit(initStore))
-
-func initStore() {
-    appStore.Set(AppState{
-        Count: 0,
-        Username: "",
-        Email: "",
-        ActiveTab: 0,
-        IsLoading: false,
-        Items: []string{},
-    })
-}
-```
-
----
-
-## 四、Reducer 设计
-
-### 4.1 Reducer 原则
-
-| 原则 | 说明 | 示例 |
-|------|------|------|
-| **Pure Function** | 无副作用，不修改输入 | `s.Count++` ✅ |
-| **Immutable** | 返回新的 State，不修改输入 | `NewState(s)` ✅ |
-| **Default Case** | 处理未知的 Intent | `return s` |
-| **小 Function** | 每个 Intent 单独处理 | `Case Increment` ✅ |
-
-### 4.2 基础 Reducer
-
-```go
-type IncrementIntent struct{}
-
-func (IncrementIntent) IntentType() string { return "Increment" }
-func (IncrementIntent) StayPressed() bool  { return true }
-
-var appReducer = reducer.NewBuilder[AppState]().
-    On(IncrementIntent{}, func(s AppState, i intent.Intent) AppState {
-        s.Count++
-        return s
-    })
-```
-
-### 4.3 FieldChangeIntent Reducer
-
-```go
-var appReducer = reducer.NewBuilder[AppState]().
-    On(intent.FieldChangeIntent{}, func(s AppState, i intent.Intent) AppState {
-        if fieldChange, ok := i.(intent.FieldChangeIntent); ok {
-            switch fieldChange.Field {
-            case "username":
-                s.Username = fieldChange.Value
-            case "email":
-                s.Email = fieldChange.Value
-            case "agree":  // Checkbox 存储为 "true"/"false"
-                s.AgreeTerms = fieldChange.Value
-            }
-        }
-        return s
-    })
-```
-
-### 4.4 复杂逻辑 Reducer
-
-```go
-var appReducer = reducer.NewBuilder[AppState]().
-    On(SubmitFormIntent{}, func(s AppState, i intent.Intent) AppState {
-        // 验证所有字段
-        isValid := true
-
-        if len(s.Username) < 3 {
-            s.UsernameErr = "用户名至少3个字符"
-            isValid = false
-        }
-
-        if !strings.Contains(s.Email, "@") {
-            s.EmailErr = "请输入有效邮箱"
-            isValid = false
-        }
-
-        if isValid {
-            // 表单验证通过
-            s.Submitted = true
-        }
-
-        return s
-    })
-```
-
----
-
-## 五、组件集成
-
-### 5.1 Input 组件
-
-```go
-// Input 组件自动发射 FieldChangeIntent
-inputComp.NewBuilder().
-    ForField(intent.BindField("username")).  // 绑定到 State 字段
-    Value(state.Username).                      // 显示值
-    Placeholder("Username").
-    Build()
-```
-
-### 5.2 Checkbox 组件
-
-```go
-// Checkbox 存储布尔值为 "true"/"false" 字符串
-checkboxComp.NewBuilder().
-    Label("Remember me").
-    ForField(intent.BindField("agree")).
-    Checked(state.Agree == "true").  // 字符串转布尔显示
-    Build()
-```
-
-### 5.3 Button 组件
-
-```go
-// 使用自定义 Intent
-buttonComp.NewBuilder("Submit").
-    OnPress(SubmitFormIntent{}).
-    Build()
-```
-
-### 5.4 Select 组件
-
-```go
-// Select 组件也可以使用 ForField
-selectComp.NewBuilder().
-    ForField(intent.BindField("country")).
-    Value(state.Country).
-    Options([]selectComp.Option{...}).
-    Build()
-```
-
----
-
-## 六、数据流
-
-### 6.1 用户输入数据流
-
-```
-用户输入 'a'
-    ↓
-Input Instance 缓冲: inst.value = "a"
-    ↓
-ForField 自动发射: FieldChangeIntent{Field: "username", Value: "a"}
-    ↓
-Dispatcher → Handler (BuildAndRegister 自动注册)
-    ↓
-Reducer 处理: s.Username = "a"
-    ↓
-Store 更新: store.Set(newState)
-    ↓
-组件重新渲染: state := appStore.Get() → 输入框显示 "a"
-```
-
-### 6.2 按钮点击数据流
-
-```
-用户按 ENTER
-    ↓
-Button Instance 发射: OnPress 意图
-    ↓
-Dispatcher → Handler
-    ↓
-Reducer 处理: s.ClickCount++ → newState
-    ↓
-Store 更新: store.Set(newState)
-    ↓
-组件重新渲染: 显示新的 ClickCount
-```
-
----
-
-## 七、最佳实践
-
-### 7.1 State 设计最佳实践
-
-| ✅ 推荐 | ❌ 避免 |
-|--------|--------|
-| **扁平结构**: `Count int, Username string` | **深层嵌套**: `Data.Form.Input.Value` |
-| **具体类型**: `Count int` | **避免 interface{}** |
-| **字符串表示**: `Checked string` | **JSON 序列化** |
-| **字段分组**: 前缀分组 | **无组织** |
-
-### 7.2 Reducer 设计最佳实践
-
-| ✅ 推荐 | ❌ 避免 |
-|--------|--------|
-| **Switch Intent Type**: `switch i.IntentType()` | **类型 switch** |
-| **类型断言保护**: `if typed, ok := i.(Type); ok` | **直接断言** |
-| **返回新 State**: `return s` 或 `return newState` | **修改输入 State** |
-| **Default case**: 未处理 Intent 返回原 State | | **Panic** |
-
-### 7.3 组件集成最佳实践
-
-| ✅ 推荐 | ❌ 避免 |
-|--------|--------|
-| **ForField**: 绑定到 State 字段 | **直接传递 setter** |
-| **Store.Get()**: 每次渲染时读取 | **缓存 State** |
-| **自定义 Intent**: 业务逻辑 | **通用 Intent** |
-| **自动注册**: BuildAndRegister | **手动 RegisterIntent** |
-
----
-
-## 八、常见模式
-
-### 模式 1: 表单验证
-
-```go
-type SubmitFormIntent struct{}
-
-var appReducer = reducer.NewBuilder[AppState]().
-    On(SubmitFormIntent{}, func(s AppState, i intent.Intent) AppState {
-        // 验证所有字段
-        if len(s.Username) < 3 {
-            s.UsernameErr = "用户名至少3个字符"
-        }
-        if len(s.Email) < 5 {
-            s.EmailErr = "邮箱至少5个字符"
-        }
-        return s
-    }).
-    On(intent.FieldChangeIntent{}, func(s AppState, i intent.Intent) AppState {
-        // 实时验证
-        if len(s.Username) < 3 {
-            s.UsernameErr = "用户名至少3个字符"
-        } else {
-            s.UsernameErr = ""
-        }
-        return s
-    })
-```
-
-### 模式 2: 异步数据加载
-
-```go
-type LoadDataIntent struct{}
-
-var appReducer = reducer.NewBuilder[AppState]().
-    On(LoadDataIntent{}, func(s AppState, i intent.Intent) AppState {
-        s.IsLoading = true
-        s.Data = nil
-        return s
-        // 异步加载在侧 effects 中
-    })
-
-// 在 effect 中处理异步
-ui.UseEffect(func() func() CleanupFunc {
-    go func() {
-        data := fetchData()
-        appStore.Set(func(s AppState) AppState {
-            s.IsLoading = false
-            s.Data = data
-            return s
-        })
-    }, nil)
-```
-
-### 模式 3: 条件渲染
-
-```go
-func App() ui.VNode {
-    state := appStore.Get()
-    
-    if state.IsLoading {
-        return ui.Text("Loading...")
-    }
-    
-    if state.Error != "" {
-        return ui.NewTextBuilder("Error: " + state.Error).
-            FgColor("red").
-            Build()
-    }
-    
-    // 正常渲染
-    return renderForm(state)
-}
-```
-
----
-
-## 九、调试
-
-### 9.1 启用调试日志
-
-```go
-import "github.com/wwsheng009/mint/internal/log"
-
-func main() {
-    log.UILogger.Enable(true)  // 启用日志
-    
-    err := ui.Run(App)
-    if err != nil {
-        panic(err)
-    }
-}
-```
-
-### 9.2 检查 State 变化
-
-```go
-// 在 View 中打印 State（调试用）
-func App() ui.VNode {
-    state := appStore.Get()
-    fmt.Printf("State: %+v\n", state)
-    
-    return ui.VStack(...)
-}
-```
-
-### 9.3 暂停 Store 订阅
-
-```go
-// 订阅 State 变化
-_ = appStore.Subscribe(func(oldState, newState AppState) {
-    fmt.Printf("State changed: %v -> %v\n", oldState, newState)
-})
-```
-
----
-
-## 十、性能优化
-
-### 10.1 避免 Store 过度订阅
-
-```go
-// ❌ 错误：每次渲染都订阅
-func BadComponent() ui.VNode {
-    unsubscribe := appStore.Subscribe(func(state AppState) {
-        // 每次渲染都会创建新的订阅，导致内存泄漏
-        render(state)
-    })
-    return ui.Text("...")
-}
-
-// ✅ 正确：全局订阅一次
-func goodComponent() ui.VNode {
-    state := appStore.Get()
-    return render(state)
-}
-```
-
-### 10.2 使用 Selector 避免重复计算
-
-```go
-// ❌ 每次都计算
-func App() ui.VNode {
-    state := appStore.Get()
-    username := state.Username
-    usernameLength := len(username)  // 每次渲染都计算
-    
-    return ui.Text(fmt.Sprintf("Length: %d", usernameLength))
-}
-
-// ✅ 使用 Computed 缓存
-var usernameLengthComputed store.Computed[AppState, int]
-
-func initStore() {
-    appStore := store.NewStore(AppState{Username: ""})
-    usernameLengthComputed = store.NewComputed(appStore,
-        func(s AppState) int {
-            return len(s.Username)
-        })
-}
-
-func App() ui.VNode {
-    state := appStore.Get()
-    length := usernameLengthComputed.Get()  // 自动缓存
-    
-    return ui.Text(fmt.Sprintf("Length: %d", length))
-}
-```
-
-### 10.3 减少不必要的渲染
-
-```go
-// ❌ 每次状态变化都重新渲染整个应用
-type AppState struct {
-    Count int
-    SubCount int
-}
-
-// ✅ 优化：只订阅需要的状态
-func TopComponent() ui.VNode {
-    appStore := store.NewStore(AppState{Count: 0, SubCount: 0})
-    
-    appStore.Subscribe(func(state AppState) {
-        // 只在 Count 变化时重新渲染
-        renderTop(state.Count)
-    }, func(state AppState) AppState {
-        // 只有 Count 变化时才通知
-        return state.Count != state.SubCount
-    })
+    appReducer.RegisterToGlobal(appStore)
+    ui.Run(App, ui.WithTitle("App"))
 }
 ```
 
@@ -599,26 +556,34 @@ func TopComponent() ui.VNode {
 
 ## 总结
 
-Store + Reducer 架构提供了：
+### Store + Reducer 优势
 
 | 优势 | 说明 |
 |------|------|
-| ✅ **状态清晰** | 单一状态源，状态变化可预测 |
-| ✅ **易于测试** | Reducer 是纯函数，易于单元测试 |
-| ✅ **易于调试** | 状态变化可追踪，支持时间旅行 |
-| ✅ **易于扩展** | 通过 Reducer 组合和 Middleware 扩展 |
-| ✅ **类型安全** | 编译期类型检查 |
+| 单一状态源 | 所有状态存储在一个 Store 中 |
+| 单向数据流 | Intent → Reducer → Store → View |
+| 类型安全 | 泛型支持，编译期类型检查 |
+| 易测试 | 纯函数，易于单元测试 |
+| 易调试 | 中间件、时间旅行等调试工具 |
+| 可扩展 | 中间件、Plugin 支持 |
 
-**关键模式**：
-1. State: 扁平、类型安全、可序列化
-2. Reducer: 纯函数、不可变、处理所有 Intent
-3. View: 从 Store 读取、无状态
-4. Auto-Register: 使用 BuildAndRegister 自动注册 handlers
+### 最佳实践
+
+1. ✅ 使用 **FieldMap** 处理字段变更
+2. ✅ **纯函数** Reducer
+3. ✅ **扁平结构** AppState
+4. ✅ **每次渲染** 读取最新状态
+5. ✅ **自动注册** handlers
+
+### 相关文档
+
+- **API 参考**: [API_REFERENCE.md](./API_REFERENCE.md)
+- **迁移指南**: [MIGRATION_GUIDE.md](./MIGRATION_GUIDE.md)
+- **状态评估**: [CURRENT_STATUS.md](./CURRENT_STATUS.md)
+- **字段绑定优化**: [FIELD_BINDING_OPTIMIZATION.md](./FIELD_BINDING_OPTIMIZATION.md)
+- **迁移进度**: [MIGRATION_PROGRESS.md](./MIGRATION_PROGRESS.md)
 
 ---
 
-## 相关文档
-
-- [迁移指南](MIGRATION_GUIDE.md) - 从 UseState 迁移
-- [API 参考](API_REFERENCE.md) - Store 和 Reducer API
-- [最佳实践](BEST_PRACTICES.md) - 更多最佳实践
+**文档创建**: 2026-03-05
+**状态**: 完成 ✅
