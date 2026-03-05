@@ -151,9 +151,11 @@ func getLabel(vnode rtui.VNode) string {
 
 	// Try extracting from Text content
 	if text := rtui.GetTextContent(vnode); text != "" {
-		// Truncate long text
+		// Truncate long text to 20 characters maximum
+		// Use rune-based truncation to avoid cutting UTF-8 multibyte characters
 		if utf8.RuneCountInString(text) > 20 {
-			return text[:17] + "..."
+			runes := []rune(text)
+			return string(runes[:17]) + "..."
 		}
 		return text
 	}

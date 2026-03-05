@@ -511,31 +511,59 @@ func (inst *Instance) clampScroll() {
 }
 
 // truncateText truncates text to fit within max width
+// Uses rune count and StringWidth to properly handle Unicode characters
 func (inst *Instance) truncateText(text string, maxWidth int) string {
-	if len(text) <= maxWidth {
+	// Check display width, not byte length
+	textWidth := paint.StringWidth(text)
+	if textWidth <= maxWidth {
 		return text
 	}
 
-	// Truncate and add ellipsis
+	// Truncate and add ellipsis (ellipsis takes 3 display cells)
 	if maxWidth > 3 {
-		return text[:maxWidth-3] + "..."
+		// Use rune-based truncation to avoid cutting UTF-8 multibyte characters
+		runes := []rune(text)
+		
+		// Keep truncating until we fit within maxWidth - ellipsis width
+		for i := len(runes); i > 0; i-- {
+			candidateText := string(runes[:i])
+			if paint.StringWidth(candidateText)+3 <= maxWidth {
+				return candidateText + "..."
+			}
+		}
 	}
-	return text[:maxWidth]
+
+	// Fallback: truncate to fit maxWidth
+	runes := []rune(text)
+	result := ""
+	currentWidth := 0
+	for _, r := range runes {
+		rWidth := paint.RuneWidth(r)
+		if currentWidth+rWidth > maxWidth {
+			break
+		}
+		result += string(r)
+		currentWidth += rWidth
+	}
+	return result
 }
 
 // calculateWidth calculates the maximum width needed
+// Uses StringWidth to properly handle Unicode characters
 func (inst *Instance) calculateWidth() int {
 	maxWidth := 40 // Minimum width
 
-	// Check header
-	if len(inst.header)+4 > maxWidth {
-		maxWidth = len(inst.header) + 4
+	// Check header width (using display width, not byte length)
+	headerWidth := paint.StringWidth(inst.header)
+	if headerWidth+4 > maxWidth {
+		maxWidth = headerWidth + 4
 	}
 
-	// Check rows
+	// Check rows width (using display width, not byte length)
 	for _, row := range inst.rows {
-		if len(row)+4 > maxWidth {
-			maxWidth = len(row) + 4
+		rowWidth := paint.StringWidth(row)
+		if rowWidth+4 > maxWidth {
+			maxWidth = rowWidth + 4
 		}
 	}
 

@@ -29,6 +29,7 @@ import (
 	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/action"
 	"github.com/wwsheng009/mint/runtime/intent"
+	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/ui"
@@ -1230,9 +1231,11 @@ func (si *StandaloneInspector) collectHitTestEntries(node ui.VNode, x, y, zOrder
 	if label == "" {
 		label = rtui.GetTextContent(node)
 	}
-	// Truncate long labels
-	if len(label) > 12 {
-		label = label[:9] + "..."
+	// Truncate long labels to 12 rune characters maximum
+	// Use rune-based truncation to avoid cutting UTF-8 multibyte characters
+	runes := []rune(label)
+	if len(runes) > 12 {
+		label = string(runes[:9]) + "..."
 	}
 
 	entry := HitTestEntry{
@@ -2128,14 +2131,16 @@ func (si *StandaloneInspector) handleOverlayMouse(localX, localY int, eventType 
 			var width int
 			if InspectorTab(idx) == si.activeTab {
 				// Active tab: [label]
-				width = len(label) + 2 // [ ]
+				// Use display width for correct click area with wide characters
+				width = paint.StringWidth(label) + 2 // [ ]
 				if localX >= cursor && localX < cursor+width {
 					return false // clicking active tab does nothing, consume event
 				}
 				cursor += width
 			} else {
 				// Inactive tab: " label " (with spaces)
-				width = len(label) + 2 // leading/trailing spaces
+				// Use display width for correct click area with wide characters
+				width = paint.StringWidth(label) + 2 // leading/trailing spaces
 				if localX >= cursor && localX < cursor+width {
 					si.activeTab = InspectorTab(idx)
 					log.InspectorLogger.IfEnabled().Debug("Tab clicked: %s (row %d, col %d)", label, localY, localX)

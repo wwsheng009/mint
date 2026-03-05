@@ -121,8 +121,9 @@ func (b *CommandBatch) canMerge(a, c DrawCmd) bool {
 		return false
 	}
 
-	// Must be adjacent
-	if a.X+len(a.Text) != c.X {
+	// Must be adjacent (using display width for wide characters like Chinese)
+	// StringWidth handles Unicode characters correctly (e.g., "你" = width 2, not len 3)
+	if a.X+StringWidth(a.Text) != c.X {
 		return false
 	}
 
