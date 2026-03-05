@@ -186,8 +186,46 @@ func (fb *FieldBinder[T]) BindFieldGeneric(
 // Multi-Field Binding (Using a map) / 多字段绑定（使用映射表）
 // =============================================================================
 
-// FieldMap maps field names to update functions.
+// FieldValidator validates a field value before updating the state.
+// Returns true if the value is valid, false otherwise.
+type FieldValidator func(fieldName, value string) bool
+
+// FieldError is returned when field validation fails.
+type FieldError struct {
+	Field   string
+	Value   string
+	Message string
+}
+
+func (e FieldError) Error() string {
+	return fmt.Sprintf("field %q validation failed: %s (value: %q)", e.Field, e.Message, e.Value)
+}
+
+// ValidationError is a slice of FieldError.
+type ValidationError []FieldError
+
+func (ve ValidationError) Error() string {
+	if len(ve) == 0 {
+		return "no validation errors"
+	}
+	msg := fmt.Sprintf("validation failed: %d error(s)", len(ve))
+	if len(ve) <= 3 {
+		for _, e := range ve {
+			msg += fmt.Sprintf("\n  - %s", e.Error())
+		}
+	} else {
+		for i := 0; i < 3; i++ {
+			msg += fmt.Sprintf("\n  - %s", ve[i].Error())
+		}
+		msg += fmt.Sprintf("\n  ... and %d more error(s)", len(ve)-3)
+	}
+	return msg
+}
+
+// FieldMap maps field names to update functions with optional validation.
 // This allows binding multiple fields without duplicate FieldChangeIntent handlers.
+//
+// For advanced usage with validation and error handling, see FieldEntry.
 //
 // Example:
 //
@@ -219,6 +257,24 @@ func (fb *FieldBinder[T]) BindFieldGeneric(
 //		Build()
 type FieldMap[T any] map[string]func(T, string) T
 
+// FieldEntry represents a complete field binding configuration with validation and error handling.
+type FieldEntry[T any] struct {
+	// Updater updates the state with the field value
+	Updater func(T, string) T
+
+	// Validator validates the field value before updating
+	// If nil, no validation is performed
+	Validator FieldValidator
+
+	// Required indicates if the field is required
+	// If true and the value is empty, validation fails
+	Required bool
+
+	// Transform transforms the field value before validation
+	// If nil, no transformation is performed
+	Transform func(string) string
+}
+
 // BindFieldMap binds multiple fields using a single FieldChangeIntent handler.
 //
 // Example:
@@ -244,6 +300,80 @@ func (fb *FieldBinder[T]) BindFieldMap(fieldMap FieldMap[T]) *FieldBinder[T] {
 			return updater(s, fci.Value)
 		}
 		return s
+	})
+	return fb
+}
+
+// BindFieldMapWithEntries binds multiple fields with advanced validation and error handling.
+//
+// FieldEntry allows for:
+// - Custom validation logic
+// - Required field checking
+// - Value transformation (e.g., trimming, case conversion)
+//
+// Example:
+//
+//	entries := map[string]*FieldEntry[AppState]{
+//		"username": {
+//			Updater: func(s GameState, val string) AppState {
+//				s.Username = val
+//				return s
+//			},
+//			Validator: func(field, val string) bool {
+//				return len(val) >= 3
+//			},
+//			Required: true,
+//		},
+//		"email": {
+//			Updater: func(s AppState, val string) AppState {
+//				s.Email = strings.ToLower(val)
+//				return s
+//			},
+//			Validator: func(field, val string) bool {
+//				return strings.Contains(val, "@")
+//			},
+//			Transform: func(val string) string {
+//				return strings.TrimSpace(val)
+//			},
+//		},
+//	}
+//
+//	BindField(appReducer).BindFieldMapWithEntries(entries)
+func (fb *FieldBinder[T]) BindFieldMapWithEntries(entries map[string]*FieldEntry[T]) *FieldBinder[T] {
+	fb.On(intent.FieldChangeIntent{}, func(s T, i intent.Intent) T {
+		fci, ok := i.(intent.FieldChangeIntent)
+		if !ok {
+			return s
+		}
+
+		entry, exists := entries[fci.Field]
+		if !exists {
+			return s
+		}
+
+		var value = fci.Value
+
+		// Apply transformation if provided
+		if entry.Transform != nil {
+			value = entry.Transform(value)
+		}
+
+		// Check required fields
+		if entry.Required && value == "" {
+			// Could also store validation errors in state if needed
+			return s
+		}
+
+		// Apply validation if provided
+		if entry.Validator != nil {
+			if !entry.Validator(fci.Field, value) {
+				// Could also store validation errors in state if needed
+				return s
+			}
+		}
+
+		// Update the state
+		return entry.Updater(s, value)
 	})
 	return fb
 }

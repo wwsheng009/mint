@@ -809,7 +809,9 @@ func (a *App) Run() error {
 					if extraMsg == nil {
 						break
 					}
-					log.MessageLogger.Debug("[APP] Msg from channel: Type=%v Message=%v", msg.Type(), msg)
+					if log.MessageLogger.Enabled() {
+						log.MessageLogger.Debug("[APP] Msg from channel: Type=%v Message=%v", msg.Type(), msg)
+					}
 
 					// Keyboard events: always queue
 					if extraMsg.Type() == runtimemsg.MsgTypeKey {
@@ -847,7 +849,29 @@ func (a *App) Run() error {
 			}
 
 			// Process all collected events
+			hasUserInput := false // Track if we processed user input events
 			for _, msg := range eventsToProcess {
+
+				// Track if this is a user input event (for immediate rendering)
+				if !hasUserInput {
+					switch msg.Type() {
+					case runtimemsg.MsgTypeKey:
+						// Key events (except special keys like Tab, Enter) are user input
+						if keyMsg, ok := msg.(*runtimemsg.KeyMsg); ok {
+							if keyMsg.Rune != 0 {
+								// Regular character key
+								hasUserInput = true
+							}
+						}
+					case runtimemsg.MsgTypeMouse:
+						// Mouse events (except Move) are user input
+						if mouseMsg, ok := msg.(*runtimemsg.MouseMsg); ok {
+							if mouseMsg.IsPress() || mouseMsg.IsRelease() || mouseMsg.IsScroll() {
+								hasUserInput = true
+							}
+						}
+					}
+				}
 
 				// Phase 1: Try Action unified path (if enabled)
 				if a.actionRouter != nil && a.inputProcessor != nil {
@@ -867,19 +891,54 @@ func (a *App) Run() error {
 				}
 			}
 
+			// Immediately render after processing user input events for better responsiveness
+			// Skip throttler check for user input events to minimize input latency
+			// For non-input events (resize, mouse move), use throttler to prevent excessive rendering
+			needsRender := a.dirty
+			if !hasUserInput {
+				// Only check throttler for non-input events
+				needsRender = a.dirty && a.throttler.ShouldRender()
+			}
+			if needsRender {
+				if log.UILogger.Enabled() {
+					log.UILogger.Debug("[APP] Immediate render after event processing")
+				}
+				renderStartTime = time.Now()
+				a.render()
+				a.throttler.RecordFrameTime(time.Since(renderStartTime))
+
+				if a.inspector != nil {
+					if provider, ok := a.root.(interface{ GetRenderedRoot() rtui.VNode }); ok {
+						if renderedRoot := provider.GetRenderedRoot(); renderedRoot != nil {
+							if inspector, ok := a.inspector.(interface{ AttachToApp(rtui.VNode) }); ok {
+								inspector.AttachToApp(renderedRoot)
+							}
+						}
+					}
+				}
+			}
+
 		case <-ticker.C:
-			log.UILogger.Debug("[APP] Tick triggered")
+			if log.UILogger.Enabled() {
+				log.UILogger.Debug("[APP] Tick triggered")
+			}
 			a.handleTick()
 
 			// 处理完 tick 后，如果需要渲染则渲染
 			needsRender := a.dirty && a.throttler.ShouldRender()
-			log.UILogger.Debug("[APP] needsRender=%v, dirty=%v", needsRender, a.dirty)
+			if log.UILogger.Enabled() {
+				log.UILogger.Debug("[APP] needsRender=%v, dirty=%v", needsRender, a.dirty)
+			}
 			if needsRender {
-				log.UILogger.Debug("[APP] Calling render()")
+				if log.UILogger.Enabled() {
+					log.UILogger.Debug("[APP] Calling render()")
+				}
 				renderStartTime = time.Now()
 				a.render()
 				a.throttler.RecordFrameTime(time.Since(renderStartTime))
-				log.UILogger.Debug("[APP] render() complete")
+				if log.UILogger.Enabled() {
+					log.UILogger.Debug("[APP] render() complete")
+				}
 
 				// Pull pattern: Inspector pulls rendered tree from App after reconciliation
 				// App provides GetRenderedRoot() interface, Inspector calls AttachToApp()
@@ -1443,7 +1502,9 @@ func (a *App) render() {
 			}
 
 			// DEBUG: 输出渲染信息（每次）
-			log.RenderLogger.Debug("[APP] FirstRender=%v, OutputLen=%d, Dirty=%v", a.firstRender, len(output), a.dirty)
+			if log.RenderLogger.Enabled() {
+				log.RenderLogger.Debug("[APP] FirstRender=%v, OutputLen=%d, Dirty=%v", a.firstRender, len(output), a.dirty)
+			}
 
 			if output != "" {
 				fmt.Print(output)

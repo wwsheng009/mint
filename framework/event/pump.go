@@ -210,9 +210,6 @@ func (p *Pump) convertToMouseMsg(raw platform.RawInput) runtimemsg.Msg {
 	hitMap := p.hitMap
 	p.hitMapMu.RUnlock()
 
-	// Log mouse position using logger
-	log.UILogger.Debug("Raw position: (%d, %d) | Action: %v", raw.MouseX, raw.MouseY, raw.MouseAction)
-
 	var targetID uint64
 	var targetFiber interface {
 		GetActionTargetID() string
@@ -237,27 +234,13 @@ func (p *Pump) convertToMouseMsg(raw platform.RawInput) runtimemsg.Msg {
 				Height: entry.Bounds.Height,
 			}
 
-			// Log successful hit test
-			log.UILogger.Debug("HitTest: Found '%d' at Bounds=(%d,%d,%dx%d) Local=(%d,%d) TargetFiber=%v",
-				entry.NodeID, entry.Bounds.X, entry.Bounds.Y,
-				entry.Bounds.Width, entry.Bounds.Height, localX, localY, entry.TargetFiber != nil)
-
-			// Also log all entries at this position for debugging overlapping buttons
-			allEntries := hitMap.FindAllAt(raw.MouseX, raw.MouseY)
-			if len(allEntries) > 1 {
-				log.UILogger.Debug("Multiple hits at (%d,%d):", raw.MouseX, raw.MouseY)
-				for i, e := range allEntries {
-					log.UILogger.Debug("  [%d] ID='%s' Bounds=(%d,%d,%dx%d) ZOrder=%d TargetFiber=%v",
-						i, e.NodeID, e.Bounds.X, e.Bounds.Y, e.Bounds.Width, e.Bounds.Height, e.ZOrder, e.TargetFiber != nil)
-				}
+			// Debug logging only when enabled
+			if log.UILogger.Enabled() {
+				log.UILogger.Debug("HitTest: Found '%d' at Bounds=(%d,%d,%dx%d) Local=(%d,%d) TargetFiber=%v",
+					entry.NodeID, entry.Bounds.X, entry.Bounds.Y,
+					entry.Bounds.Width, entry.Bounds.Height, localX, localY, entry.TargetFiber != nil)
 			}
-		} else {
-			// No hit
-			log.UILogger.Debug("HitTest: No hit at (%d,%d)", raw.MouseX, raw.MouseY)
 		}
-	} else {
-		// HitMap is nil
-		log.UILogger.Debug("HitMap is nil!")
 	}
 
 	// Calculate Delta for wheel events

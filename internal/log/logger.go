@@ -124,9 +124,15 @@ func (l *Logger) Error(format string, args ...any) {
 
 // log is the internal logging method
 func (l *Logger) log(level LogLevel, format string, args ...any) {
+	// Fast path: check enabled before locking to avoid lock contention
+	if !l.enabled && level == LevelDebug {
+		return
+	}
+
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
+	// Re-check enabled after acquiring lock (in case it changed)
 	if !l.enabled && level == LevelDebug {
 		return
 	}
