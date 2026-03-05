@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"reflect"
 	"sync"
 
 	"github.com/wwsheng009/mint/internal/log"
@@ -285,11 +286,38 @@ func (ctx *ComponentContext) EmitIntent(i intent.Intent) intent.IntentResult {
 // This implements the StateSetter interface for use by ActionContext.
 // Example: ctx.SetState("username", "john")
 func (ctx *ComponentContext) SetState(key string, value interface{}) {
+	defer func() {
+		// Recover from panics (e.g., uncomparable type comparison)
+		if r := recover(); r != nil {
+			log.UILogger.IfEnabled().Error("[ComponentContext] SetState panic recovered: %v (key=%s, value=%T)", r, key, value)
+			// Schedule update anyway to ensure state is set
+			if !ctx.UpdateScheduled && ctx.scheduleUpdate != nil {
+				ctx.UpdateScheduled = true
+				ctx.scheduleUpdate()
+			}
+		}
+	}()
+
 	ctx.StateMu.Lock()
 	defer ctx.StateMu.Unlock()
 
 	// Check if value actually changed
-	if existing, exists := ctx.GlobalState[key]; exists && existing == value {
+	// Use reflect.DeepEqual to handle uncomparable types (e.g., functions, slices, maps)
+	changed := true
+	if existing, exists := ctx.GlobalState[key]; exists {
+		// Try direct comparison first for performance
+		if existing == value {
+			changed = false
+		} else {
+			// Fall back to DeepEqual for uncomparable types
+			// This handles types like functions, slices, maps, etc.
+			if reflect.DeepEqual(existing, value) {
+				changed = false
+			}
+		}
+	}
+
+	if !changed {
 		return
 	}
 
