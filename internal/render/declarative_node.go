@@ -1097,17 +1097,10 @@ func (n *DeclarativeNode) paintBordered(vnode rtui.VNode, _ interface{ RenderBor
 	}
 
 	// Calculate inner content width
-	// BorderedNode.Measure uses: totalWidth = max(childWidth, labelWidth) + borderWidth + (labelPresent ? 2 : 0)
-	// So innerWidth = totalWidth - borderWidth - (labelPresent ? 2 : 0)
-	hasLabel := false
-	if l, ok := vnode.(interface{ GetBorderLabel() string }); ok && l.GetBorderLabel() != "" {
-		hasLabel = true
-	}
-
+	// BorderedNode.Measure returns: totalWidth = innerWidth + borderWidth
+	// where innerWidth = max(childWidth, labelWidth)
+	// The border.Render method automatically expands to fit label if needed
 	innerWidth := borderedNodeWidth - 2 // Subtract border (1 left + 1 right)
-	if hasLabel {
-		innerWidth -= 2 // Subtract the extra padding added when label is present
-	}
 	contentWidth := max(0, innerWidth)
 
 	// Also ensure contentWidth is at least the child width and label width
@@ -1115,12 +1108,11 @@ func (n *DeclarativeNode) paintBordered(vnode rtui.VNode, _ interface{ RenderBor
 	if childWidth > contentWidth {
 		contentWidth = childWidth
 	}
-	if hasLabel {
-		if l, ok := vnode.(interface{ GetBorderLabel() string }); ok {
-			labelWidth := len(" " + l.GetBorderLabel() + " ")
-			if labelWidth > contentWidth {
-				contentWidth = labelWidth
-			}
+	// Check for label and ensure contentWidth accommodates it
+	if l, ok := vnode.(interface{ GetBorderLabel() string }); ok && l.GetBorderLabel() != "" {
+		labelWidth := len(" " + l.GetBorderLabel() + " ")
+		if labelWidth > contentWidth {
+			contentWidth = labelWidth
 		}
 	}
 

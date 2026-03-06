@@ -559,6 +559,7 @@ func (b *LayoutBuilder) RoundedBorder(label ...string) *LayoutBuilder {
 	if len(label) > 0 && label[0] != "" {
 		b.node.borderLabel = label[0]
 	}
+	b.syncToProps()
 	return b
 }
 
@@ -568,6 +569,7 @@ func (b *LayoutBuilder) DashedBorder(label ...string) *LayoutBuilder {
 	if len(label) > 0 && label[0] != "" {
 		b.node.borderLabel = label[0]
 	}
+	b.syncToProps()
 	return b
 }
 
@@ -1741,12 +1743,9 @@ func (bn *BorderedNode) Measure(constraints runtime.BoxConstraints) runtime.Size
 	}
 
 	// Total size = content + border
-	// When label is present, renderTopBorder adds extra 2 chars for visual balance
-	// This matches the actual rendering logic in renderTopBorder
+	// Note: labelWidth is already included in innerWidth calculation above
+	// (innerWidth = max(contentWidth, labelWidth)), so no extra padding needed
 	totalWidth := innerWidth + borderWidth
-	if labelWidth > 0 {
-		totalWidth += 2 // Extra padding for label rendering (see renderTopBorder)
-	}
 	totalHeight := contentHeight + borderHeight
 
 	// Apply constraints

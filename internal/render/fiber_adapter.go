@@ -360,8 +360,7 @@ func (a *FiberToNodeAdapter) Measure(constraints layout.Constraints) layout.Size
 		if isFlexColumn {
 			// VStack: 传递宽度约束（跨轴）
 			if constraints.MaxWidth < layout.MaxInt {
-				// 使用 TotalHorizontalPadding 而不是 HorizontalPadding
-				// 因为边框可能包含标签，需要考虑标签额外的 2 像素填充
+				// TotalHorizontalPadding = HorizontalPadding (label width is handled by renderer expansion)
 				innerConstraints.MinWidth = max(0, constraints.MinWidth-border.TotalHorizontalPadding())
 				innerConstraints.MaxWidth = max(0, constraints.MaxWidth-border.TotalHorizontalPadding())
 			}
