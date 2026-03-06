@@ -76,6 +76,17 @@ func (m *mockVNode) SetProps(p ui.Props) ui.VNode {
 	return nil
 }
 
+func (m *mockVNode) SetProp(key string, value interface{}) ui.VNode {
+	if m != nil {
+		if m.props == nil {
+			m.props = make(ui.Props)
+		}
+		m.props[key] = value
+		return m
+	}
+	return nil
+}
+
 func (m *mockVNode) Children() []ui.VNode {
 	return nil
 }
