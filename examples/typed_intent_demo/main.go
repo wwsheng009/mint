@@ -17,6 +17,7 @@ import (
 	"github.com/wwsheng009/mint/ui/components/checkbox"
 	"github.com/wwsheng009/mint/ui/components/divider"
 	"github.com/wwsheng009/mint/ui/components/input"
+	"github.com/wwsheng009/mint/ui/components/optiongroup"
 )
 
 // =============================================================================
@@ -28,6 +29,8 @@ type FormState struct {
 	Email    string
 	Age      int
 	Active   bool
+	City     string       // OptionGroup single-select
+	Interests string       // OptionGroup multi-select (comma-separated)
 	ErrorMsg string
 	Submitted bool
 	SubmitTime time.Time
@@ -99,6 +102,14 @@ func init() {
 		},
 		"Active": func(s FormState, val string) FormState {
 			s.Active = val == "true" || (strings.ToLower(val) == "on")
+			return s
+		},
+		"City": func(s FormState, val string) FormState {
+			s.City = val
+			return s
+		},
+		"Interests": func(s FormState, val string) FormState {
+			s.Interests = val
 			return s
 		},
 	})
@@ -254,6 +265,40 @@ func renderFormView(state FormState) mintui.VNode {
 
 			mintui.Text(""),
 
+			// OptionGroup - Single Select (City)
+			optiongroup.NewBuilder([]optiongroup.Option{
+				{Value: "bj", Label: "Beijing"},
+				{Value: "sh", Label: "Shanghai"},
+				{Value: "gz", Label: "Guangzhou"},
+				{Value: "sz", Label: "Shenzhen"},
+			}).
+				Key("city-group").
+				Label("City:").
+				Mode(optiongroup.ModeSingle).
+				ForField(intent.BindField("City")).
+				Selected(state.City).
+				Vertical().
+				Build(),
+
+			mintui.Text(""),
+
+			// OptionGroup - Multiple Select (Interests)
+			optiongroup.NewBuilder([]optiongroup.Option{
+				{Value: "dev", Label: "Development"},
+				{Value: "design", Label: "Design"},
+				{Value: "test", Label: "Testing"},
+				{Value: "pm", Label: "Product Management"},
+			}).
+				Key("interests-group").
+				Label("Interests:").
+				Mode(optiongroup.ModeMultiple).
+				ForField(intent.BindField("Interests")).
+				Selecteds(strings.Split(state.Interests, ",")).
+				Vertical().
+				Build(),
+
+			mintui.Text(""),
+
 			// Action buttons
 			mintui.HStack(
 				mintui.Text("  "),
@@ -305,6 +350,22 @@ func renderFormView(state FormState) mintui.VNode {
 						FgColor("white").
 						Build(),
 				),
+				mintui.HStack(
+					mintui.NewTextBuilder("  City:     ").
+						FgColor("gray").
+						Build(),
+					mintui.NewTextBuilder(fmt.Sprintf("%q", state.City)).
+						FgColor("white").
+						Build(),
+				),
+				mintui.HStack(
+					mintui.NewTextBuilder("  Interests:").
+						FgColor("gray").
+						Build(),
+					mintui.NewTextBuilder(fmt.Sprintf("%q", state.Interests)).
+						FgColor("white").
+						Build(),
+				),
 			)
 		} else {
 			layout = append(layout,
@@ -328,6 +389,12 @@ func renderFormView(state FormState) mintui.VNode {
 					FgColor("white").
 					Build(),
 				mintui.NewTextBuilder("Active:          "+fmt.Sprintf("%v", state.Active)).
+					FgColor("white").
+					Build(),
+				mintui.NewTextBuilder("City:           "+state.City).
+					FgColor("white").
+					Build(),
+				mintui.NewTextBuilder("Interests:      "+state.Interests).
 					FgColor("white").
 					Build(),
 				mintui.NewTextBuilder("Submitted at:     "+state.SubmitTime.Format("15:04:05")).
@@ -366,10 +433,12 @@ func renderFormView(state FormState) mintui.VNode {
 func main() {
 	// Create initial state
 	initialState := FormState{
-		Username: "",
-		Email:    "",
-		Age:      0,
-		Active:   false,
+		Username:   "",
+		Email:      "",
+		Age:        0,
+		Active:     false,
+		City:       "",
+		Interests:  "",
 	}
 
 	// Create AppRuntime

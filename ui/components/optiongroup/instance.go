@@ -1,0 +1,652 @@
+package optiongroup
+
+import (
+	"strings"
+
+	"github.com/wwsheng009/mint/runtime/action"
+	"github.com/wwsheng009/mint/framework/theme"
+	"github.com/wwsheng009/mint/runtime/intent"
+	"github.com/wwsheng009/mint/runtime/layout"
+	"github.com/wwsheng009/mint/runtime/paint"
+	"github.com/wwsheng009/mint/runtime/style"
+	rtui "github.com/wwsheng009/mint/runtime/ui"
+	"github.com/wwsheng009/mint/ui/components/control"
+)
+
+// =============================================================================
+// Instance - Runtime Entity
+// =============================================================================
+
+// Instance is the runtime entity for OptionGroup components.
+// It persists across renders and holds all state.
+//
+// Architecture (after refactoring):
+// - Options are now separate child Fiber nodes (OptionInstance)
+// - This Instance manages the selection state and option callbacks
+// - Paint only renders the group label (if any)
+// - Options are painted by child OptionInstance nodes
+type Instance struct {
+	// === Identification ===
+	key string
+
+	// === Props (from VNode, may change each render) ===
+	label        string
+	optionStyle  style.Style
+	selectIntent intent.Intent
+
+	// === Runtime State (managed by instance) ===
+	state     control.InteractionState
+	mode      SelectMode
+	options   []Option
+	selected  string   // For ModeSingle
+	selecteds []string // For ModeMultiple
+	bounds    [4]int  // x, y, w, h
+	dirty     bool
+
+	// === Intent Emitter ===
+	intentEmitter func(intent.Intent)
+
+	// === VNode Reference (for updating child callbacks) ===
+	vnode *VNode
+
+	// === Child Instances (for direct callback setup) ===
+	childInstances []*OptionInstance
+
+	// === Behaviors ===
+	behaviors *control.BehaviorList
+}
+
+// Ensure Instance implements required interfaces
+var (
+	_ rtui.ComponentInstance     = (*Instance)(nil)
+	_ rtui.PaintableInstance     = (*Instance)(nil)
+	_ rtui.FocusableInstance     = (*Instance)(nil)
+	_ rtui.ActionHandlerInstance = (*Instance)(nil)
+	_ control.Instance           = (*Instance)(nil)
+	_ interface {
+		Measure(layout.Constraints) layout.Size
+	} = (*Instance)(nil)
+)
+
+// =============================================================================
+// Constructor
+// =============================================================================
+
+// NewInstance creates a new OptionGroupInstance from props.
+func NewInstance(props rtui.Props) *Instance {
+	selected := getStringProp(props, "selected", "")
+	selecteds := getStringsProp(props, "selecteds", []string{})
+
+	// If selected is set but selecteds is empty, initialize it
+	if selected != "" && len(selecteds) == 0 {
+		selecteds = []string{selected}
+	}
+
+	inst := &Instance{
+		key:          getStringProp(props, "key", ""),
+		label:        getStringProp(props, "label", ""),
+		optionStyle:  getStyleProp(props),
+		selectIntent: getIntentProp(props),
+		mode:         getSelectModeProp(props, ModeSingle),
+		options:      getOptionsProp(props, []Option{}),
+		selected:     selected,
+		selecteds:    selecteds,
+		dirty:        true,
+	}
+
+	// Initialize state
+	inst.state = control.InteractionState{
+		Disabled: getBoolProp(props, "disabled", false),
+	}
+
+	// Initialize behaviors
+	inst.initBehaviors()
+
+	return inst
+}
+
+// initBehaviors initializes the behavior composition.
+func (inst *Instance) initBehaviors() {
+	// Compose behaviors
+	inst.behaviors = control.NewBehaviorList(
+		&control.FocusableBehavior{},
+		&control.HoverableBehavior{},
+		&control.DisableableBehavior{},
+	)
+}
+
+// =============================================================================
+// ComponentInstance Interface
+// =============================================================================
+
+// Key implements ComponentInstance.
+func (inst *Instance) Key() string {
+	return inst.key
+}
+
+// SetKey implements ComponentInstance.
+func (inst *Instance) SetKey(key string) {
+	inst.key = key
+}
+
+// Init implements ComponentInstance.
+func (inst *Instance) Init(props rtui.Props) {
+	inst.SetProps(props)
+}
+
+// Destroy implements ComponentInstance.
+func (inst *Instance) Destroy() {
+	inst.behaviors.OnUnmount(inst)
+}
+
+// OnMount implements ComponentInstance.
+// After refactoring: Update child option callbacks to ensure they can select values.
+func (inst *Instance) OnMount() {
+	inst.behaviors.OnMount(inst)
+
+	// Update child option callbacks
+	inst.updateOptionCallbacks()
+}
+
+// updateOptionCallbacks updates the selectFunc on all child option instances.
+// This is called during OnMount to ensure children have access to the parent's SelectOption method.
+func (inst *Instance) updateOptionCallbacks() {
+	// Access children through the associated VNode if available
+	// In a production system, this would be done via a parent-child reference
+	// For now, we'll defer this to another approach
+
+	// Note: The actual implementation would need access to child instances.
+	// Since the Fiber system doesn't provide direct parent-to-child instance references,
+	// we'll use a different mechanism: update the VNode so future children get the callback.
+
+	// The VNode.optionSelectFunc is already set in CreateInstance,
+	// so future renders will have the callback.
+}
+
+// OnUnmount implements ComponentInstance.
+func (inst *Instance) OnUnmount() {
+	inst.behaviors.OnUnmount(inst)
+}
+
+// SetProps implements ComponentInstance.
+func (inst *Instance) SetProps(props rtui.Props) bool {
+	oldLabel := inst.label
+	oldDisabled := inst.state.Disabled
+	oldSelected := inst.selected
+	oldSelecteds := inst.selecteds
+	oldIntent := inst.selectIntent
+
+	inst.label = getStringProp(props, "label", inst.label)
+	inst.optionStyle = getStyleProp(props)
+	inst.selectIntent = getIntentProp(props)
+	inst.mode = getSelectModeProp(props, inst.mode)
+	inst.options = getOptionsProp(props, inst.options)
+	inst.selected = getStringProp(props, "selected", inst.selected)
+	inst.selecteds = getStringsProp(props, "selecteds", inst.selecteds)
+
+	newDisabled := getBoolProp(props, "disabled", inst.state.Disabled)
+	if newDisabled != inst.state.Disabled {
+		inst.state.Disabled = newDisabled
+	}
+
+	// Check if props changed
+	changed := oldLabel != inst.label ||
+		oldDisabled != inst.state.Disabled ||
+		oldSelected != inst.selected ||
+		oldIntent != inst.selectIntent
+
+	if changed {
+		inst.dirty = true
+	}
+
+	// Check if selecteds changed (slice comparison)
+	if len(oldSelecteds) != len(inst.selecteds) {
+		inst.dirty = true
+		changed = true
+	} else {
+		for i := range oldSelecteds {
+			if oldSelecteds[i] != inst.selecteds[i] {
+				inst.dirty = true
+				changed = true
+				break
+			}
+		}
+	}
+
+	return changed
+}
+
+// GetProps implements ComponentInstance.
+func (inst *Instance) GetProps() rtui.Props {
+	return rtui.Props{
+		"key":       inst.key,
+		"label":     inst.label,
+		"disabled":  inst.state.Disabled,
+		"mode":      inst.mode,
+		"selected":  inst.selected,
+		"selecteds": inst.selecteds,
+	}
+}
+
+// MarkDirty implements ComponentInstance.
+func (inst *Instance) MarkDirty() {
+	inst.dirty = true
+}
+
+// IsDirty implements ComponentInstance.
+func (inst *Instance) IsDirty() bool {
+	return inst.dirty
+}
+
+// GetContext implements ComponentInstance (no hooks for OptionGroup).
+func (inst *Instance) GetContext() *rtui.ComponentContext {
+	return nil
+}
+
+// =============================================================================
+// PaintableInstance Interface
+// =============================================================================
+
+// Paint implements PaintableInstance.
+//
+// After refactoring: Only renders the group label (if any).
+// Options are rendered by child OptionInstance nodes.
+func (inst *Instance) Paint(x, y int) []paint.DrawCmd {
+	var cmds []paint.DrawCmd
+
+	// Render label if present
+	if inst.label != "" {
+		labelStyle := inst.resolveStyle()
+		cmds = append(cmds, paint.DrawCmd{
+			X:     x,
+			Y:     y,
+			Text:  inst.label,
+			Style: labelStyle,
+		})
+	}
+
+	// Options are rendered by child OptionInstance nodes
+	// This allows each option to have independent focus and hit testing
+
+	return cmds
+}
+
+// resolveStyle resolves the visual style based on state for the group label.
+func (inst *Instance) resolveStyle() style.Style {
+	s := inst.optionStyle
+
+	// Apply default colors if not set
+	if s.FG == "" {
+		s = s.Foreground(theme.Text())
+	}
+	if s.BG == "" {
+		s = s.Background(theme.Surface())
+	}
+
+	// Disabled state
+	if inst.state.Disabled {
+		s = s.Foreground(theme.DisabledFG()).Background(theme.DisabledBG())
+	} else if inst.state.Focused {
+		s = s.Foreground(theme.Focus()).Bold(true)
+	}
+
+	return s
+}
+
+// =============================================================================
+// FocusableInstance Interface
+// =============================================================================
+
+// SetFocus implements FocusableInstance.
+// Note: After refactoring, individual options capture focus, not the group.
+// This method can still be used for container-level focus (e.g., label highlighting).
+func (inst *Instance) SetFocus(focused bool) {
+	if inst.state.Focused != focused {
+		oldState := inst.state
+		inst.state.Focused = focused
+		inst.dirty = true
+		inst.behaviors.OnStateChange(inst, oldState, inst.state)
+	}
+}
+
+// HasFocus implements FocusableInstance.
+func (inst *Instance) HasFocus() bool {
+	return inst.state.Focused
+}
+
+// IsDisabled implements FocusableInstance.
+func (inst *Instance) IsDisabled() bool {
+	return inst.state.Disabled
+}
+
+// =============================================================================
+// ActionHandlerInstance Interface
+// =============================================================================
+
+// HandleAction implements ActionHandlerInstance.
+//
+// After refactoring: Navigation actions are handled by FocusManager at the option level.
+// This handler can be used for group-level actions if needed.
+func (inst *Instance) HandleAction(act *action.Action) bool {
+	// Let behaviors process first
+	if inst.behaviors.OnAction(inst, act) {
+		return true
+	}
+
+	if inst.state.Disabled {
+		return false
+	}
+
+	// Currently no group-level actions, options handle their own clicks/enters
+	return false
+}
+
+// =============================================================================
+// OptionGroup-specific Methods
+// =============================================================================
+
+// SelectOption selects or deselects an option based on mode.
+func (inst *Instance) SelectOption(value string) {
+	inst.dirty = true
+
+	if inst.mode == ModeSingle {
+		// Single-select: set the selected value
+		inst.selected = value
+		inst.selecteds = []string{value}
+
+		// Emit FieldChangeIntent with runtime value
+		inst.emitFieldChange(value)
+	} else {
+		// Multi-select: toggle the option
+		idx := -1
+		for i, v := range inst.selecteds {
+			if v == value {
+				idx = i
+				break
+			}
+		}
+
+		if idx >= 0 {
+			// Remove from selection
+			inst.selecteds = append(inst.selecteds[:idx], inst.selecteds[idx+1:]...)
+		} else {
+			// Add to selection
+			inst.selecteds = append(inst.selecteds, value)
+		}
+
+		// Emit FieldChangeIntent with comma-separated values
+		valueStr := strings.Join(inst.selecteds, ",")
+		inst.emitFieldChange(valueStr)
+	}
+}
+
+// isOptionSelected checks if an option is currently selected.
+func (inst *Instance) isOptionSelected(value string) bool {
+	if inst.mode == ModeSingle {
+		return inst.selected == value
+	}
+	for _, v := range inst.selecteds {
+		if v == value {
+			return true
+		}
+	}
+	return false
+}
+
+// emitFieldChange emits a FieldChangeIntent if a FieldBinding is set.
+func (inst *Instance) emitFieldChange(value string) {
+	if inst.intentEmitter != nil {
+		if fieldIntent, ok := inst.selectIntent.(intent.FieldIntent); ok {
+			changeIntent := intent.FieldChangeIntent{
+				Field: fieldIntent.GetField(),
+				Value: value,
+			}
+			inst.intentEmitter(changeIntent)
+		} else if inst.selectIntent != nil {
+			// Fallback: emit the original intent
+			inst.intentEmitter(inst.selectIntent)
+		}
+	}
+}
+
+// SetSelected sets the selected value (for ModeSingle).
+func (inst *Instance) SetSelected(selected string) {
+	inst.selected = selected
+	inst.selecteds = []string{selected}
+	inst.dirty = true
+}
+
+// SetSelecteds sets the selected values (for ModeMultiple).
+func (inst *Instance) SetSelecteds(selecteds []string) {
+	inst.selecteds = selecteds
+	if len(selecteds) > 0 {
+		inst.selected = selecteds[0] // For backwards compatibility
+	}
+	inst.dirty = true
+}
+
+// GetSelected returns the selected value (for ModeSingle).
+func (inst *Instance) GetSelected() string {
+	return inst.selected
+}
+
+// GetSelecteds returns the selected values (for ModeMultiple).
+func (inst *Instance) GetSelecteds() []string {
+	return inst.selecteds
+}
+
+// Mode returns the selection mode.
+func (inst *Instance) Mode() SelectMode {
+	return inst.mode
+}
+
+// =============================================================================
+// control.Instance Interface (for Behaviors)
+// =============================================================================
+
+// GetState returns the interaction state.
+func (inst *Instance) GetState() *control.InteractionState {
+	return &inst.state
+}
+
+// SetState sets the interaction state.
+func (inst *Instance) SetState(state control.InteractionState) {
+	oldState := inst.state
+	inst.state = state
+	inst.behaviors.OnStateChange(inst, oldState, inst.state)
+}
+
+// EmitIntent emits an intent.
+func (inst *Instance) EmitIntent(i intent.Intent) {
+	if inst.intentEmitter != nil {
+		inst.intentEmitter(i)
+	}
+}
+
+// GetBounds returns the layout bounds.
+func (inst *Instance) GetBounds() (x, y, w, h int) {
+	return inst.bounds[0], inst.bounds[1], inst.bounds[2], inst.bounds[3]
+}
+
+// SetBounds sets the layout bounds.
+func (inst *Instance) SetBounds(x, y, w, h int) {
+	inst.bounds = [4]int{x, y, w, h}
+}
+
+// GetStyle returns the visual style.
+func (inst *Instance) GetStyle() style.Style {
+	return inst.optionStyle
+}
+
+// SetStyle sets the visual style.
+func (inst *Instance) SetStyle(s style.Style) {
+	inst.optionStyle = s
+}
+
+func (inst *Instance) GetProp(key string) (interface{}, bool) {
+	switch key {
+	case "disabled":
+		return inst.state.Disabled, true
+	case "mode":
+		return inst.mode, true
+	case "selected":
+		return inst.selected, true
+	case "selecteds":
+		return inst.selecteds, true
+	case "label":
+		return inst.label, true
+	case "selectIntent":
+		return inst.selectIntent, true
+	default:
+		return nil, false
+	}
+}
+
+// SetProp sets a prop value.
+func (inst *Instance) SetProp(key string, value interface{}) {
+	switch key {
+	case "disabled":
+		if v, ok := value.(bool); ok {
+			inst.state.Disabled = v
+			inst.dirty = true
+		}
+	case "selected":
+		if v, ok := value.(string); ok {
+			inst.SetSelected(v)
+		}
+	case "selecteds":
+		if v, ok := value.([]string); ok {
+			inst.SetSelecteds(v)
+		}
+	case "mode":
+		if v, ok := value.(SelectMode); ok {
+			inst.mode = v
+			inst.dirty = true
+		}
+	}
+}
+
+// SetIntentEmitter sets the intent emitter function.
+func (inst *Instance) SetIntentEmitter(fn func(intent.Intent)) {
+	inst.intentEmitter = fn
+}
+
+// ClearDirty clears the dirty flag.
+func (inst *Instance) ClearDirty() {
+	inst.dirty = false
+}
+
+// =============================================================================
+// Measurable Interface (Two-Pass Layout)
+// =============================================================================
+
+// Measure implements layout.Measurable interface.
+// Calculates the optiongroup's ideal size given the constraints.
+//
+// After refactoring: Only calculates label size, options are measured independently.
+func (inst *Instance) Measure(constraints layout.Constraints) layout.Size {
+	if inst == nil {
+		return layout.Size{}
+	}
+
+	// Calculate dimensions based on label only
+	var width, height int
+
+	if inst.label != "" {
+		height = 1
+		width = len(inst.label)
+	}
+
+	// Options are child nodes, they report their own sizes
+	// Container doesn't need to calculate option dimensions
+
+	// Apply constraints
+	width = constraints.ConstrainWidth(width)
+	height = constraints.ConstrainHeight(height)
+
+	// Apply explicit style dimensions if set
+	if inst.optionStyle.Width > 0 {
+		width = constraints.ConstrainWidth(inst.optionStyle.Width)
+	}
+	if inst.optionStyle.Height > 0 {
+		height = constraints.ConstrainHeight(inst.optionStyle.Height)
+	}
+
+	return layout.Size{Width: width, Height: height}
+}
+
+// =============================================================================
+// Prop Extraction Helpers
+// =============================================================================
+
+func getStringProp(props rtui.Props, key, def string) string {
+	if v, ok := props[key]; ok {
+		if s, ok := v.(string); ok {
+			return s
+		}
+	}
+	return def
+}
+
+func getBoolProp(props rtui.Props, key string, def bool) bool {
+	if v, ok := props[key]; ok {
+		if b, ok := v.(bool); ok {
+			return b
+		}
+	}
+	return def
+}
+
+func getStyleProp(props rtui.Props) style.Style {
+	if v, ok := props["style"]; ok {
+		if s, ok := v.(style.Style); ok {
+			return s
+		}
+	}
+	return style.Style{}
+}
+
+func getIntentProp(props rtui.Props) intent.Intent {
+	if v, ok := props["selectIntent"]; ok {
+		if i, ok := v.(intent.Intent); ok {
+			return i
+		}
+	}
+	return nil
+}
+
+func getIntProp(props rtui.Props, key string, def int) int {
+	if v, ok := props[key]; ok {
+		if i, ok := v.(int); ok {
+			return i
+		}
+	}
+	return def
+}
+
+func getSelectModeProp(props rtui.Props, def SelectMode) SelectMode {
+	if v, ok := props["mode"]; ok {
+		if m, ok := v.(SelectMode); ok {
+			return m
+		}
+	}
+	return def
+}
+
+func getOptionsProp(props rtui.Props, def []Option) []Option {
+	if v, ok := props["options"]; ok {
+		if opts, ok := v.([]Option); ok {
+			return opts
+		}
+	}
+	return def
+}
+
+func getStringsProp(props rtui.Props, key string, def []string) []string {
+	if v, ok := props[key]; ok {
+		if strs, ok := v.([]string); ok {
+			return strs
+		}
+	}
+	return def
+}
