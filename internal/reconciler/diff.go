@@ -182,6 +182,10 @@ func createAllNewChildren(returnFiber *Fiber, children []rtui.VNode, lanes Lane)
 			continue
 		}
 
+		// ===== Instance Tree (Mint Runtime 2.0 - Phase 1) =====
+		// Establish parent-child relationship in Instance Tree
+		mountInstanceToTree(returnFiber, child)
+
 		if log.RenderLogger.Enabled() {
 			typeName := "UNKNOWN"
 			switch child.Type {
@@ -504,4 +508,50 @@ func markForDeletion(fiber *Fiber) {
 	// Trigger cleanup for component instances (e.g., useEffect cleanup)
 	// This will be called during commit phase
 	_ = fiber
+}
+
+// =============================================================================
+// Instance Tree Management (Mint Runtime 2.0 - Phase 1)
+// =============================================================================
+
+// mountInstanceToTree establishes parent-child relationship in Instance Tree
+// This is called when a new Fiber/Instance is created
+func mountInstanceToTree(parentFiber, childFiber *Fiber) {
+	if parentFiber == nil || childFiber == nil {
+		return
+	}
+
+	parentInstance := parentFiber.Instance
+	childInstance := childFiber.Instance
+
+	if parentInstance == nil || childInstance == nil {
+		// No instances for these fibers (e.g., Element, Text without InstanceFactory)
+		return
+	}
+
+	// Check if parent implements TreeContainer interface
+	if parentContainer, ok := parentInstance.(rtui.TreeContainer); ok {
+		// Parent can manage its children tree
+		parentContainer.AddChild(childInstance)
+	}
+}
+
+// unmountInstanceFromTree removes parent-child relationship in Instance Tree
+// This is called when a Fiber/Instance is being removed
+func unmountInstanceFromTree(parentFiber, childFiber *Fiber) {
+	if parentFiber == nil || childFiber == nil {
+		return
+	}
+
+	parentInstance := parentFiber.Instance
+	childInstance := childFiber.Instance
+
+	if parentInstance == nil || childInstance == nil {
+		return
+	}
+
+	// Check if parent implements TreeContainer interface
+	if parentContainer, ok := parentInstance.(rtui.TreeContainer); ok {
+		parentContainer.RemoveChild(childInstance)
+	}
 }

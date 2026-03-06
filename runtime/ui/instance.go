@@ -51,11 +51,38 @@ type ComponentInstance interface {
 	GetContext() *ComponentContext
 }
 
+// ===== Instance Tree (Mint Runtime 2.0 - Phase 1) =====
+// 注意：这不是 ComponentInstance 的一部分
+// 只有需要管理子树的组件才实现这些接口
+
+// TreeNode is an optional interface for components that can be in the instance tree
+// Most components are tree nodes, but pure functional components might not be
+type TreeNode interface {
+	ComponentInstance
+	// Parent returns the parent component instance, or nil if this is root
+	Parent() ComponentInstance
+	// Children returns the list of child component instances
+	Children() []ComponentInstance
+}
+
+// TreeContainer is an optional interface for components that manage their child tree
+// Components that have children should implement this
+type TreeContainer interface {
+	TreeNode
+	// AddChild adds a child component instance
+	AddChild(child ComponentInstance)
+	// RemoveChild removes a child component instance
+	RemoveChild(child ComponentInstance)
+	// ClearChildren removes all child instances
+	ClearChildren()
+}
+
 // =============================================================================
 // BaseComponentInstance - Base implementation
 // =============================================================================
 
 // BaseComponentInstance provides a base implementation of ComponentInstance
+// It also implements TreeNode and TreeContainer for components that need instance tree support
 type BaseComponentInstance struct {
 	key         string
 	props       Props
@@ -64,6 +91,12 @@ type BaseComponentInstance struct {
 	fnWithProps ComponentFuncWithProps
 	dirty       bool
 	mounted     bool
+
+	// ===== Instance Tree (Mint Runtime 2.0 - Phase 1) =====
+	// These fields enable TreeNode and TreeContainer interfaces
+	// Only relevant for components that manage children
+	parent   ComponentInstance
+	children []ComponentInstance
 }
 
 // NewBaseComponentInstance creates a new base instance
@@ -158,6 +191,77 @@ func (b *BaseComponentInstance) ClearDirty() {
 // IsMounted returns whether the component is mounted
 func (b *BaseComponentInstance) IsMounted() bool {
 	return b.mounted
+}
+
+// ===== Instance Tree Methods (Mint Runtime 2.0 - Phase 1) =====
+
+// Parent implements ComponentInstance
+func (b *BaseComponentInstance) Parent() ComponentInstance {
+	return b.parent
+}
+
+// Children implements ComponentInstance
+func (b *BaseComponentInstance) Children() []ComponentInstance {
+	return b.children
+}
+
+// AddChild adds a child component instance
+// This is called by the fiber reconciler during mount/updates
+func (b *BaseComponentInstance) AddChild(child ComponentInstance) {
+	if child == nil {
+		return
+	}
+
+	// Check if already in children list
+	for _, existing := range b.children {
+		if existing == child {
+			return // Already added
+		}
+	}
+
+	// Add to children list
+	b.children = append(b.children, child)
+
+	// Set parent reference on child for BaseComponentInstance
+	if childBase, ok := child.(*BaseComponentInstance); ok {
+		childBase.parent = b
+	}
+	// Note: For custom instances that implement their own parent management
+	// (like optiongroup.OptionInstance, optiongroup.Instance),
+	// they need to implement their own AddChild logic to set the parent reference
+}
+
+// RemoveChild removes a child component instance
+// This is called by the fiber reconciler during unmounts
+func (b *BaseComponentInstance) RemoveChild(child ComponentInstance) {
+	if child == nil {
+		return
+	}
+
+	// Find and remove child
+	for i, existing := range b.children {
+		if existing == child {
+			b.children = append(b.children[:i], b.children[i+1:]...)
+
+			// Clear parent reference
+			if childBase, ok := child.(*BaseComponentInstance); ok {
+				childBase.parent = nil
+			}
+			break
+		}
+	}
+}
+
+// ClearChildren removes all child instances
+// Used during subtree unmounts
+func (b *BaseComponentInstance) ClearChildren() {
+	// Clear parent references on all children
+	for _, child := range b.children {
+		if childBase, ok := child.(*BaseComponentInstance); ok {
+			childBase.parent = nil
+		}
+	}
+	b.children = b.children[:0]
 }
 
 // Render calls the component function

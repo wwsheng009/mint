@@ -3,6 +3,7 @@ package optiongroup
 import (
 	"strings"
 
+	fcontext "github.com/wwsheng009/mint/runtime/context"
 	"github.com/wwsheng009/mint/runtime/action"
 	"github.com/wwsheng009/mint/framework/theme"
 	"github.com/wwsheng009/mint/runtime/intent"
@@ -12,6 +13,9 @@ import (
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/ui/components/control"
 )
+
+// Context Key for OptionGroup (Phase 2)
+const OptionGroupContext fcontext.ContextKey = "optiongroup/group"
 
 // =============================================================================
 // Instance - Runtime Entity
@@ -56,6 +60,66 @@ type Instance struct {
 	behaviors *control.BehaviorList
 }
 
+// ===== Instance Tree Methods (Mint Runtime 2.0 - Phase 1) =====
+
+// Parent implements TreeNode interface
+func (inst *Instance) Parent() rtui.ComponentInstance {
+	return nil // OptionGroup is typically a root or managed by its parent
+}
+
+// Children implements TreeNode interface
+func (inst *Instance) Children() []rtui.ComponentInstance {
+	children := make([]rtui.ComponentInstance, len(inst.childInstances))
+	for i, child := range inst.childInstances {
+		children[i] = child
+	}
+	return children
+}
+
+// AddChild implements TreeContainer interface
+func (inst *Instance) AddChild(child rtui.ComponentInstance) {
+	if child == nil {
+		return
+	}
+	if optInst, ok := child.(*OptionInstance); ok {
+		// Check if already added
+		for _, existing := range inst.childInstances {
+			if existing == optInst {
+				return
+			}
+		}
+		inst.childInstances = append(inst.childInstances, optInst)
+		// Set parent reference on child (Instance Tree)
+		optInst.parent = inst
+	}
+}
+
+// RemoveChild implements TreeContainer interface
+func (inst *Instance) RemoveChild(child rtui.ComponentInstance) {
+	if child == nil {
+		return
+	}
+	if optInst, ok := child.(*OptionInstance); ok {
+		for i, existing := range inst.childInstances {
+			if existing == optInst {
+				inst.childInstances = append(inst.childInstances[:i], inst.childInstances[i+1:]...)
+				// Clear parent reference on child (Instance Tree)
+				optInst.parent = nil
+				break
+			}
+		}
+	}
+}
+
+// ClearChildren implements TreeContainer interface
+func (inst *Instance) ClearChildren() {
+	// Clear parent references on all children
+	for _, child := range inst.childInstances {
+		child.parent = nil
+	}
+	inst.childInstances = inst.childInstances[:0]
+}
+
 // Ensure Instance implements required interfaces
 var (
 	_ rtui.ComponentInstance     = (*Instance)(nil)
@@ -63,6 +127,7 @@ var (
 	_ rtui.FocusableInstance     = (*Instance)(nil)
 	_ rtui.ActionHandlerInstance = (*Instance)(nil)
 	_ control.Instance           = (*Instance)(nil)
+	// Note: intent.IntentHandler is implemented via wrapper (see handleIntent method)
 	_ interface {
 		Measure(layout.Constraints) layout.Size
 	} = (*Instance)(nil)
@@ -144,8 +209,14 @@ func (inst *Instance) Destroy() {
 func (inst *Instance) OnMount() {
 	inst.behaviors.OnMount(inst)
 
-	// Update child option callbacks
-	inst.updateOptionCallbacks()
+	// Update child option callbacks AND set parent references (Phase 2)
+	for _, child := range inst.childInstances {
+		// Set direct parent reference for backward compatibility
+		child.parent = inst
+	}
+
+	// OptionGroup Context is injected at the Fiber level during provider creation
+	// See fiber_util.go for context injection logic
 }
 
 // updateOptionCallbacks updates the selectFunc on all child option instances.
@@ -650,3 +721,17 @@ func getStringsProp(props rtui.Props, key string, def []string) []string {
 	}
 	return def
 }
+
+// =============================================================================
+// IntentHandler Implementation (Phase 3 - Infrastructure Ready)
+// =============================================================================//
+
+// Phase 3 Intent Bubble infrastructure is in place in runtime/intent/bubble.go.
+// OptionGroup can implement intent.IntentHandlerProvider to handle intents from its children.
+//
+// To use intent bubble for OptionGroup in future:
+// 1. Implement GetIntentHandler() method returning intent.IntentHandler
+// 2. Add OptionIntentHandler struct wrapper similar to Phase 1's TreeNode pattern
+// 3. The intent will automatically bubble from Option to OptionGroup via Parent() references
+//
+// For now, we maintain backward compatibility with direct parent references.
