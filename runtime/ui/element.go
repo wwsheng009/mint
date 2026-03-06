@@ -177,8 +177,8 @@ func (e *ElementVNode) AddChildren(children ...VNode) *ElementVNode {
 	return e
 }
 
-// SetProp sets a single property
-func (e *ElementVNode) SetProp(key string, value interface{}) *ElementVNode {
+// SetProp sets a single property - returns VNode for chaining (implements VNode interface)
+func (e *ElementVNode) SetProp(key string, value interface{}) VNode {
 	if e.props == nil {
 		e.props = make(Props)
 	}

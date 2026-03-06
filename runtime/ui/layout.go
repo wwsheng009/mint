@@ -192,6 +192,12 @@ func (b *LayoutBuilder) SetProps(p Props) VNode {
 	return b
 }
 
+// SetProp sets a single property - returns VNode for chaining (implements VNode interface)
+func (b *LayoutBuilder) SetProp(key string, value interface{}) VNode {
+	b.node.SetProp(key, value)
+	return b
+}
+
 // Tag implements VNode interface
 func (b *LayoutBuilder) Tag() string {
 	return b.node.Tag()
@@ -739,18 +745,8 @@ func Flex(vnode VNode, flexFactors ...int) VNode {
 	if len(flexFactors) > 0 {
 		flex = flexFactors[0]
 	}
-	// Try SetProp method first (for builders)
-	if n, ok := vnode.(interface{ SetProp(string, interface{}) }); ok {
-		n.SetProp("flex", flex)
-		return vnode
-	}
-	// Fall back to SetProps (for VNode interface)
-	props := vnode.Props()
-	if props == nil {
-		props = make(Props)
-	}
-	props["flex"] = flex
-	vnode.SetProps(props)
+	// Use SetProp method directly (VNode interface now has SetProp)
+	vnode.SetProp("flex", flex)
 	return vnode
 }
 

@@ -59,6 +59,17 @@ func (f *FiberVNode) SetProps(props Props) VNode {
 	return f
 }
 
+// SetProp sets a single property - returns VNode for chaining (implements VNode interface)
+func (f *FiberVNode) SetProp(key string, value interface{}) VNode {
+	if f.fiber != nil {
+		if f.fiber.Props == nil {
+			f.fiber.Props = make(Props)
+		}
+		f.fiber.Props[key] = value
+	}
+	return f
+}
+
 func (f *FiberVNode) Style() style.Style {
 	if f.fiber == nil {
 		return style.Style{}

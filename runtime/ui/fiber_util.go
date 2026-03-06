@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 
+	fcontext "github.com/wwsheng009/mint/runtime/context"
 	"github.com/wwsheng009/mint/internal/log"
 	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/runtime/layout"
@@ -316,6 +317,9 @@ func CreateFiberFromVNode(vnode VNode) *Fiber {
 		return nil
 	}
 
+	// Initialize root Context (Phase 2)
+	root.Context = fcontext.NewContext(nil)
+
 	// Build fiber tree for children
 	buildFiberTree(root, vnode)
 	return root
@@ -334,6 +338,21 @@ func buildFiberTree(parentFiber *Fiber, parentVNode VNode) {
 
 		// Link to parent
 		childFiber.Return = parentFiber
+
+		// Inherit Context from parent (Phase 2)
+		childFiber.Context = fcontext.NewContext(parentFiber.Context)
+
+		// Process Provider components: inject Context values (Phase 2)
+		if childFiber.Tag == "provider" && childFiber.Context != nil {
+			props := childFiber.Props
+			if props != nil {
+				if key, ok := props["contextKey"].(fcontext.ContextKey); ok {
+					if value, ok := props["contextValue"]; ok {
+						childFiber.Context.Provide(key, value)
+					}
+				}
+			}
+		}
 
 		// Link siblings
 		if i == 0 {

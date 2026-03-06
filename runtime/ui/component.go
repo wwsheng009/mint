@@ -52,6 +52,15 @@ func (c *ComponentVNode) SetProps(p Props) VNode {
 	return c
 }
 
+// SetProp sets a single property - returns VNode for chaining (implements VNode interface)
+func (c *ComponentVNode) SetProp(key string, value interface{}) VNode {
+	if c.props == nil {
+		c.props = make(Props)
+	}
+	c.props[key] = value
+	return c
+}
+
 // Children implements VNode (component children are rendered by the function)
 func (c *ComponentVNode) Children() []VNode {
 	// Components render their children dynamically

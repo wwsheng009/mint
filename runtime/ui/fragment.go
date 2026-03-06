@@ -39,6 +39,15 @@ func (f *FragmentVNode) SetProps(p Props) VNode {
 	return f
 }
 
+// SetProp sets a single property - returns VNode for chaining (implements VNode interface)
+func (f *FragmentVNode) SetProp(key string, value interface{}) VNode {
+	if f.props == nil {
+		f.props = make(Props)
+	}
+	f.props[key] = value
+	return f
+}
+
 // Children implements VNode
 func (f *FragmentVNode) Children() []VNode {
 	return f.children

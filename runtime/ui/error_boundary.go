@@ -70,6 +70,12 @@ func (e *ErrorBoundaryVNode) SetProps(p Props) VNode {
 	return e
 }
 
+// SetProp sets a single property - returns VNode for chaining (implements VNode interface)
+func (e *ErrorBoundaryVNode) SetProp(key string, value interface{}) VNode {
+	// Error boundary doesn't use props
+	return e
+}
+
 // Children implements VNode
 func (e *ErrorBoundaryVNode) Children() []VNode {
 	// Children are rendered by the component function

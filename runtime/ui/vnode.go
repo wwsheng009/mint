@@ -37,6 +37,8 @@ type VNode interface {
 	Props() Props
 	// SetProps sets the node properties and returns the VNode for chaining
 	SetProps(p Props) VNode
+	// SetProp sets a single property and returns the VNode for chaining
+	SetProp(key string, value interface{}) VNode
 
 	// Children returns the child nodes
 	Children() []VNode
@@ -261,4 +263,13 @@ func (n *TextVNode) GetLayer() Layer {
 // SetLayer for TextVNode
 func (n *TextVNode) SetLayer(l Layer) VNode {
 	return setNodeLayer(n, l)
+}
+
+// SetProp sets a single property - returns VNode for chaining (implements VNode interface)
+func (n *TextVNode) SetProp(key string, value interface{}) VNode {
+	if n.ElementVNode == nil {
+		return n
+	}
+	n.ElementVNode.SetProp(key, value)
+	return n
 }
