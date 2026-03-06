@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 
+	fcontext "github.com/wwsheng009/mint/runtime/context"
 	"github.com/wwsheng009/mint/runtime/style"
 	"github.com/wwsheng009/mint/runtime/types"
 )
@@ -244,6 +245,13 @@ type Fiber struct {
 	// === ActionTargetID (Fiber-first Action Architecture) ===
 	// Fiber only stores ActionTargetID for routing to component.
 	ActionTargetID string
+
+	// === Context Stack (Phase 2) ===
+	// Context fiber-level context storage for dependency injection
+	// Each fiber has its own context that inherits from parent fiber
+	// Used by the Context System to provide values to child components
+	// See: runtime/context/context.go
+	Context *fcontext.FiberContext
 
 	// === FocusableMeta (DEPRECATED - Use Instance.FocusableInstance instead) ===
 	// ⚠️ DEPRECATED: This field will be removed in future versions.
