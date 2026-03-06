@@ -165,7 +165,7 @@ func (o *VNode) SetOptionCallbacks(selectFunc SelectOptionFunc) {
 
 	// Update existing child VNodes (if they've been created)
 	if o.options != nil {
-		for i := range o.options {
+		for range o.options {
 			// We need to update the VNode, but we don't have direct access to child VNodes here
 			// The Children() method creates new VNodes each time, so we rely on future renders
 		}
