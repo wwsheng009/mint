@@ -15,7 +15,7 @@ import (
 )
 
 // Context Key for OptionGroup (Phase 2)
-const OptionGroupContext fcontext.ContextKey = "optiongroup/group"
+const OptionGroupContext fcontext.ContextKey = "github.com/wwsheng009/mint/ui/components/optiongroup:group"
 
 // =============================================================================
 // Instance - Runtime Entity
@@ -87,14 +87,21 @@ func (inst *Instance) AddChild(child rtui.ComponentInstance) {
 	if optInst, ok := child.(*OptionInstance); ok {
 		// Check if already added (compare by key, not pointer)
 		// This prevents duplicate children with the same value from Fiber diffing
-		for _, existing := range inst.childInstances {
+		for i, existing := range inst.childInstances {
 			if existing.Key() == optInst.Key() {
-				// Already exists, but still set parent reference
-				// This ensures the child has correct parent even if created from Fiber
+				// Already exists - replace with new instance
+				// This fixes memory leak where Fiber diffing creates new instances
+				// but old instances remain in childInstances
+				oldOpt := existing
+				// Clear parent reference on old instance to prevent memory leak
+				oldOpt.parent = nil
+				// Replace with new instance
+				inst.childInstances[i] = optInst
 				optInst.parent = inst
 				return
 			}
 		}
+		// Not found, add as new child
 		inst.childInstances = append(inst.childInstances, optInst)
 		// Set parent reference on child (Instance Tree)
 		optInst.parent = inst

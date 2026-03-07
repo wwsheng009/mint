@@ -377,7 +377,7 @@ func TestInstance_Paint(t *testing.T) {
 				{Value: "opt1", Label: "Option 1"},
 				{Value: "opt2", Label: "Option 2"},
 			},
-			wantLen: 1, // only label (options are rendered as child nodes)
+			wantLen: 0, // Paint returns empty, all content rendered by child nodes
 		},
 		{
 			name: "Multiple mode no label",
@@ -385,7 +385,7 @@ func TestInstance_Paint(t *testing.T) {
 			opts: []Option{
 				{Value: "opt1", Label: "Option 1"},
 			},
-			wantLen: 0, // no label, options are child nodes
+			wantLen: 0, // Paint returns empty, all content rendered by child nodes
 		},
 	}
 
@@ -421,15 +421,15 @@ func TestInstance_Paint_WithSelection(t *testing.T) {
 	})
 
 	cmds := inst.Paint(0, 0)
-	// After refactoring: OptionGroup Paint only renders the label
-	// Options are rendered as child OptionInstance nodes
-	if len(cmds) != 1 { // label only
-		t.Fatalf("Paint returned %d commands, want 1", len(cmds))
+	// After refactoring: OptionGroup Paint returns empty
+	// All content (label and options) is rendered by child nodes
+	if len(cmds) != 0 {
+		t.Fatalf("Paint returned %d commands, want 0 (all content rendered by child nodes)", len(cmds))
 	}
 
-	// Label should be rendered
-	if !containsString(cmds[0].Text, "Select an option") {
-		t.Errorf("Label text = %q, should contain 'Select an option'", cmds[0].Text)
+	// Verify that child instances were created (options + label)
+	if len(inst.childInstances) != 2 {
+		t.Errorf("Expected 2 child instances (for 2 options), got %d", len(inst.childInstances))
 	}
 }
 

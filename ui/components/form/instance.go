@@ -217,6 +217,10 @@ func (inst *Instance) RemoveChild(child rtui.ComponentInstance) {
 	for i, existing := range inst.childInstances {
 		if existing == child {
 			inst.childInstances = append(inst.childInstances[:i], inst.childInstances[i+1:]...)
+			// Clear parent reference on child to prevent memory leak
+			if childWithParent, ok := child.(interface{ SetParent(interface{}) }); ok {
+				childWithParent.SetParent(nil)
+			}
 			break
 		}
 	}
@@ -226,6 +230,13 @@ func (inst *Instance) RemoveChild(child rtui.ComponentInstance) {
 func (inst *Instance) ClearChildren() error {
 	inst.mu.Lock()
 	defer inst.mu.Unlock()
+
+	// Clear parent references on all children to prevent memory leak
+	for _, child := range inst.childInstances {
+		if childWithParent, ok := child.(interface{ SetParent(interface{}) }); ok {
+			childWithParent.SetParent(nil)
+		}
+	}
 	inst.childInstances = inst.childInstances[:0]
 	return nil
 }
