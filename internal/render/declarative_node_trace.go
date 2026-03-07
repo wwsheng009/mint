@@ -4,47 +4,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/wwsheng009/mint/internal/log"
 	"github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/paint"
 )
-
-// printLayoutBoxTree prints the LayoutBox tree for debugging
-func printLayoutBoxTree(box *layout.LayoutBox, indent int) {
-	if box == nil {
-		return
-	}
-	prefix := ""
-	for i := 0; i < indent; i++ {
-		prefix += "  "
-	}
-	log.PaintLogger.Debug("%sLayoutBox[%s] at (%d,%d) size %dx%d, children=%d",
-		prefix, box.ID, box.X, box.Y, box.Width, box.Height, len(box.Children))
-	for _, child := range box.Children {
-		printLayoutBoxTree(child, indent+1)
-	}
-}
-
-
-// printPaintableBoxTree prints the PaintableBox tree for debugging
-func printPaintableBoxTree(box *paint.PaintableBox, indent int) {
-	if box == nil {
-		return
-	}
-	prefix := ""
-	for i := 0; i < indent; i++ {
-		prefix += "  "
-	}
-	nodeTag := ""
-	if box.Node != nil {
-		nodeTag = box.Node.Tag()
-	}
-	log.PaintLogger.Debug("%sPaintableBox at (%d,%d) size %dx%d, tag=%s, children=%d",
-		prefix, box.X, box.Y, box.Width, box.Height, nodeTag, len(box.Children))
-	for _, child := range box.Children {
-		printPaintableBoxTree(child, indent+1)
-	}
-}
 
 // GetPortalRoots returns the portal box roots from the last layout computation
 // Each portal root represents an independent tree structure
