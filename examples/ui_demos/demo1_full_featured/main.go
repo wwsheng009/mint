@@ -1,8 +1,8 @@
-// Demo 1: Full-Featured Demo App
+// Demo 1: Full-Featured Demo App (Store 模式)
 //
 // This demo demonstrates the complete TUI engine architecture, covering:
 // - Declarative components
-// - State system (Hooks)
+// - State system (Store + Reducer)
 // - Layout system (Flex, VStack, HStack, Table)
 // - Modal (Layer) - Using Layer system
 // - Input with Focus management
@@ -26,17 +26,21 @@ import (
 	"github.com/wwsheng009/mint/framework/theme"
 	"github.com/wwsheng009/mint/internal/log"
 	"github.com/wwsheng009/mint/runtime/intent"
+	"github.com/wwsheng009/mint/runtime/reducer"
+	"github.com/wwsheng009/mint/runtime/store"
 	"github.com/wwsheng009/mint/runtime/style"
-	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/ui"
 )
 
 // =============================================================================
-// State Keys
+// AppState - 定义应用状态
 // =============================================================================
 
-var inputKey = intent.StateKey[string]("input")
-var inputSetterKey = "inputSetter"
+type AppState struct {
+	Count    int    // 按钮点击计数
+	ShowModal bool   // 是否显示模态框
+	Input    string // 输入框文本
+}
 
 // =============================================================================
 // Intent Types
@@ -56,15 +60,56 @@ func (QuitIntent) StayPressed() bool  { return true }
 
 type CloseModalIntent struct{}
 func (CloseModalIntent) IntentType() string { return "CloseModal" }
-func (CloseModalIntent) StayPressed() bool  { return true }
+func (CloseModalIntent) StayPressed() bool  { return false }
 
-// Unregister functions to prevent memory leaks when handlers are re-registered
-var (
-	openModalUnregister  func()
-	addCountUnregister   func()
-	quitUnregister       func()
-	closeModalUnregister func()
-)
+// 添加一个内部 Intent 用于处理输入框变化
+type SetInputIntent struct {
+	Value string
+}
+func (SetInputIntent) IntentType() string { return "SetInput" }
+func (SetInputIntent) StayPressed() bool  { return false }
+
+// =============================================================================
+// Store 初始化
+// =============================================================================
+
+// 环境变量控制：默认打开 modal 用于调试
+var autoOpenModal = os.Getenv("AUTO_OPEN_MODAL") == "true"
+
+var appStore = store.NewStore(AppState{
+	Count:    0,
+	ShowModal: autoOpenModal,
+	Input:    "",
+})
+
+// =============================================================================
+// Reducer 注册
+// =============================================================================
+
+func init() {
+	reducer.NewBuilder[AppState]().
+		On(OpenModalIntent{}, func(s AppState, i intent.Intent) AppState {
+			s.ShowModal = true
+			return s
+		}).
+		On(AddCountIntent{}, func(s AppState, i intent.Intent) AppState {
+			s.Count++
+			return s
+		}).
+		On(CloseModalIntent{}, func(s AppState, i intent.Intent) AppState {
+			s.ShowModal = false
+			return s
+		}).
+		On(SetInputIntent{}, func(s AppState, i intent.Intent) AppState {
+			s.Input = i.(SetInputIntent).Value
+			return s
+		}).
+		BuildAndRegister(intent.DefaultRegistry(), appStore)
+}
+
+// =============================================================================
+// Main
+// =============================================================================
 
 func main() {
 	// Ensure default theme is loaded
@@ -88,24 +133,11 @@ func main() {
 	// ============================================================
 	// 运行应用
 	// ============================================================
+
 	err := ui.Run(App,
 		ui.WithWidth(80),
 		ui.WithHeight(24),
-		ui.WithTitle("Mint TUI - Full Featured Demo"),
-		ui.WithInit(func() {
-			// Register FieldChangeIntent handler for input field
-			ui.RegisterIntent(func(ctx *intent.ActionContext, i intent.FieldChangeIntent) intent.IntentResult {
-				if i.Field == inputKey.String() {
-					setInputFn, ok := ctx.GetState(inputSetterKey)
-					if ok && setInputFn != nil {
-						if fn, ok := setInputFn.(func(string)); ok {
-							fn(i.Value)
-						}
-					}
-				}
-				return intent.HandledResult()
-			})
-		}),
+		ui.WithTitle("Mint TUI - Full Featured Demo (Store 模式)"),
 	)
 	if err != nil {
 		panic(err)
@@ -120,94 +152,51 @@ func main() {
 	log.UILogger.IfEnabled().Debug("  - [HITMAP] button bounds entries")
 }
 
-// App is the root component
+// =============================================================================
+// App - 根组件
+// =============================================================================
+
 func App() ui.VNode {
-	count, setCount, _ := ui.UseStateInt(0)
+	// ✅ 订阅存储的状态
+	count := ui.UseStoreSelector(appStore, func(s AppState) int { return s.Count })
+	showModal := ui.UseStoreSelector(appStore, func(s AppState) bool { return s.ShowModal })
+	input := ui.UseStoreSelector(appStore, func(s AppState) string { return s.Input })
 
-	// 环境变量控制：默认打开 modal 用于调试
-	autoOpenModal := os.Getenv("AUTO_OPEN_MODAL") == "true"
-	showModal, setShowModal := ui.UseStateBool(autoOpenModal)
-
-	input, setInput := ui.UseStateString("")
-
-	// Save setInput to state for FieldChangeIntent handler
-	ctx := ui.GetCurrentContext()
-	if ctx != nil {
-		ctx.SetState(inputSetterKey, setInput)
-	}
-
-	// Unregister previous handlers to prevent memory leaks
-	if openModalUnregister != nil {
-		openModalUnregister()
-	}
-	if addCountUnregister != nil {
-		addCountUnregister()
-	}
-	if quitUnregister != nil {
-		quitUnregister()
-	}
-	if closeModalUnregister != nil {
-		closeModalUnregister()
-	}
-
-	// Register intent handlers - captures current state via closure
-	openModalUnregister = rtui.RegisterIntent(func(ctx *intent.ActionContext, i OpenModalIntent) intent.IntentResult {
-		setShowModal(true)
-		return intent.HandledResult()
-	})
-
-	addCountUnregister = rtui.RegisterIntent(func(ctx *intent.ActionContext, i AddCountIntent) intent.IntentResult {
-		setCount(func(c int) int { return c + 1 })
-		return intent.HandledResult()
-	})
-
-	quitUnregister = rtui.RegisterIntent(func(ctx *intent.ActionContext, i QuitIntent) intent.IntentResult {
-		ui.Quit()
-		return intent.HandledResult()
-	})
-
-	closeModalUnregister = rtui.RegisterIntent(func(ctx *intent.ActionContext, i CloseModalIntent) intent.IntentResult {
-		setShowModal(false)
-		return intent.HandledResult()
-	})
-
-	// Generate large list for VirtualList
+	// 生成大型列表用于 VirtualList
 	items := make([]string, 100)
 	for i := range items {
 		items[i] = fmt.Sprintf("Log line #%d", i)
 	}
 
-	// NEW: Render both main content AND modal (when open)
-	// The Layer system handles proper z-ordering and centering
+	// 渲染主内容和模态框（当打开时）
+	// Layer 系统会处理正确的 z-ordering 和居中
 	mainContent := ui.VStackBuilder(
-		Header(count, setShowModal, setCount),
-		MainBody(count, setCount, input, setInput, items),
+		Header(count),
+		MainBody(count, input, items),
 		DebugPanel(),
 	).Stretch().Build()
 
-	// If modal is open, render both main content and modal
-	// The LayerManager will separate them into different layers
+	// 如果模态框打开，渲染主内容和模态框
+	// LayerManager 会将它们分离到不同的层
 	if showModal {
-		modalVNode := ConfirmModal(func() {
-			setShowModal(false)
-		})
+		modalVNode := ConfirmModal()
 
 		result := ui.VStack(
 			mainContent,
-			// Modal layer - automatically centered and overlays main content
+			// Modal 层 - 自动居中并覆盖主内容
 			modalVNode,
 		)
 
 		return result
 	}
 
-	// Otherwise render just main content
+	// 否则只渲染主内容
 	return mainContent
 }
 
 // Header demonstrates state + layout with Bordered component
 // Uses theme colors: PRIMARY for header background, TEXT for text
-func Header(count int, setShowModal func(bool), setCount func(interface{})) ui.VNode {
+func Header(count int) ui.VNode {
 	headerContent := ui.HStack(
 		ui.NewTextBuilder("TUI Engine Demo").
 			Style(style.FgBgBold(theme.Text(), theme.Primary())).
@@ -237,6 +226,7 @@ func Header(count int, setShowModal func(bool), setCount func(interface{})) ui.V
 // MainBody uses VStack/HStack with Bordered components for layout
 // Matches the design from framework/docs/ui/demo/demo1.md:
 //
+//
 //	┌───────────┬──────────────────────────────────────────┐
 //	│ Menu      │ [ Input box............................... ] │
 //	├───────────┼──────────────────────────────────────────┤
@@ -252,7 +242,7 @@ func Header(count int, setShowModal func(bool), setCount func(interface{})) ui.V
 //	├───────────┼──────────────────────────────────────────┤
 //	│           │ Log line #5 ...                            │
 //	└───────────┴──────────────────────────────────────────┘
-func MainBody(count int, setCount func(interface{}), input string, setInput func(string), items []string) ui.VNode {
+func MainBody(count int, input string, items []string) ui.VNode {
 	// Left sidebar with menu buttons
 	// Uses theme colors: MUTED for menu label, Primary variant for Add Count, Danger variant for Quit
 	sidebar := ui.VStackBuilder(
@@ -271,15 +261,18 @@ func MainBody(count int, setCount func(interface{}), input string, setInput func
 			Build(),
 	).Stretch().Build()
 
-	// Right content area with input and log lines
+	// 右侧内容区，带输入框和日志行
 	// Uses theme colors: TEXT for labels, MUTED for log lines, BORDER for divider
+	// 注意：Input 组件仍然使用 ForField(intent.ForField) 模式，这个组件需要进一步集成 Intent Bubble
+	inputBuilder := ui.NewInputBuilder().
+		Value(input).
+		Placeholder("Type something...").
+		Width(30) // Input width (less than panel width)
+
+	// Store 模式下，Input 组件暂时显示值但不直接更新 Store
+	// 完整的 Input Intent Bubble 集成是后续任务
 	contentArea := ui.VStackBuilder(
-		ui.NewInputBuilder().
-			Value(input).
-			Placeholder("Type something...").
-			Width(30). // Input width (less than panel width)
-			ForField(intent.ForField(inputKey)).
-			Build(),
+		inputBuilder.Build(),
 		ui.NewTextBuilder("──────────────────────────────────────").
 			Style(style.Foreground(theme.Border())).
 			Build(),
@@ -308,7 +301,7 @@ func MainBody(count int, setCount func(interface{}), input string, setInput func
 		),
 	).Stretch().Build()
 
-	// Combine sidebar and content with borders
+	// 用边框组合侧边栏和内容
 	// Uses theme BORDER color for borders
 	return ui.HStackBuilder(
 		ui.Flex(
@@ -331,7 +324,7 @@ func MainBody(count int, setCount func(interface{}), input string, setInput func
 // ConfirmModal demonstrates Layer + Focus Trap with overlay rendering
 // Uses the new Layer system for automatic centering and backdrop
 // Uses theme colors: WARNING for modal border, SUCCESS for OK button
-func ConfirmModal(onClose func()) ui.VNode {
+func ConfirmModal() ui.VNode {
 	// Modal content - the actual dialog box with border
 	// Uses theme WARNING color for modal border to indicate caution
 	modalBox := ui.NewVStack().
@@ -381,7 +374,6 @@ func ConfirmModal(onClose func()) ui.VNode {
 		})
 
 	return ui.Modal(modalBox).
-		OnClose(onClose).
 		CloseOnESC(true).
 		CloseOnBackdropClick(true).
 		Build()
@@ -396,6 +388,7 @@ func DebugPanel() ui.VNode {
 	infoLines := []string{
 		"┌─ SCREEN/INFO PANEL ─────────────────────────────────────────────┐",
 		"│ Buffer Size: 80x24 (configured via ui.WithWidth/Height)        │",
+		"│ Mode: Store + Reducer (已迁移)                                  │",
 		"│ Debug Log: demo1_debug.log (check for HitTest details)         │",
 		"│                                                                │",
 		"│ MODAL BUTTON HITEST VERIFICATION:                              │",
@@ -410,6 +403,7 @@ func DebugPanel() ui.VNode {
 		"│ EXPECTED BEHAVIOR:                                             │",
 		"│ - Modal centered in buffer: Y position depends on buffer size│",
 		"│ - If actual terminal > 24 lines, check logs for actual size   │",
+		"│ - Input component uses ForField, intent integration pending   │",
 		"└────────────────────────────────────────────────────────────────┘",
 	}
 
@@ -428,6 +422,8 @@ func DebugPanel() ui.VNode {
 		ui.Text(infoLines[11]),
 		ui.Text(infoLines[12]),
 		ui.Text(infoLines[13]),
+		ui.Text(infoLines[14]),
+		ui.Text(infoLines[15]),
 	).
 		Build()
 }

@@ -1,6 +1,6 @@
 # GlobalState 迁移状态追踪
 
-**更新日期**: 2026-03-07
+**更新日期**: 2026-03-07 (Phase 6 完成)
 **状态**: 追踪中
 
 ---
@@ -40,6 +40,10 @@
 | ui_demos/demo4_complex_layout | ✅ 已完成 | 417 → 428 (+3%) | 本次迁移 |
 | ui_demos/demo3_styling | ✅ 已完成 | 525 → 533 (+2%) | 本次迁移 |
 | examples/select | ✅ 已完成 | 87 → 115 (+32%) | 本次迁移 |
+| examples/virtuallist | ✅ 已完成 | 107 → 148 (+38%) | 本次迁移 |
+| ui_demos/demo1_full_featured | ✅ 已完成 | 434 → 430 (-1%) | 本次迁移 |
+| ui_demos/demo2_runtime_internals | ✅ 已完成 | 380 → 270 (-29%) | 本次迁移 |
+| ui_demos/demo5_ide | ✅ 已完成 | 549 → 625 (+14%) | 本次迁移 |
 
 ---
 
@@ -51,11 +55,11 @@
 
 | 示例 | 使用次数 | 优先级 | 备注 |
 |------|---------|--------|------|
-| `examples/ui_demos/demo5_ide` | 8+ | 低 | IDE 模拟器，使用 GlobalState 存储多个 setter |
-| `examples/ui_demos/demo4_complex_layout` | 1 | 低 | 仅一处使用 |
-| `examples/ui_demos/demo3_styling` | 1 | 低 | 仅一处使用 |
-| `examples/ui_demos/demo2_runtime_internals` | 10+ | 低 | 运行时内部示例，多处使用 |
-| `examples/ui_demos/demo1_full_featured` | 2 | 低 | 完整功能示例 |
+| ~~`examples/ui_demos/demo5_ide`~~ | 8+ | ✅ 完成 | IDE 模拟器，使用 GlobalState 存储多个 setter |
+| ~~`examples/ui_demos/demo4_complex_layout`~~ | 1 | ✅ 完成 | 仅一处使用 |
+| ~~`examples/ui_demos/demo3_styling`~~ | 1 | ✅ 完成 | 仅一处使用 |
+| ~~`examples/ui_demos/demo2_runtime_internals`~~ | 10+ | ✅ 完成 | 运行时内部示例，多处使用 |
+| ~~`examples/ui_demos/demo1_full_featured`~~ | 2 | ✅ 完成 | 完整功能示例 |
 
 ### Fiber Demos
 
@@ -81,7 +85,7 @@
 | ~~`examples/dynamic_list`~~ | 已迁移 | ✅ 完成 | 动态列表示例 |
 | ~~`examples/input`~~ | 已迁移 | ✅ 完成 | 输入框示例 |
 | ~~`examples/select`~~ | 已迁移 | ✅ 完成 | 选择器示例 |
-| `examples/virtuallist` | 2 | 低 | 虚拟列表示例 |
+| ~~`examples/virtuallist`~~ | 2 | ✅ 完成 | 虚拟列表示例 |
 
 ### Sandbox / Test Examples
 
@@ -148,9 +152,9 @@
 
 ### 进度概览
 
-- **已完成**: 26 个示例
-- **待迁移**: 约 23+ 个示例
-- **完成率**: ~53%
+- **已完成**: 30 个示例
+- **待迁移**: 约 16+ 个示例
+- **完成率**: ~65%
 
 ### 代码行数影响
 
@@ -232,10 +236,20 @@
 - demo3_styling: 样式系统演示，使用 Store 管理当前标签
 - select: Select 组件演示，使用 Store 管理选中的主题索引（添加了手动选择按钮）
 
-### Phase 6: 完整示例（计划中）
-- [ ] demo1_full_featured
-- [ ] demo2_runtime_internals
-- [ ] demo5_ide
+### Phase 6: 完整示例 ✅ (已完成)
+- [x] virtuallist
+- [x] demo1_full_featured
+- [x] demo2_runtime_internals
+- [x] demo5_ide
+
+**迁移时间**: 2026-03-07
+**迁移说明**:
+- 迁移了 4 个完整示例
+- virtuallist: 虚拟列表演示，使用 Store 管理滚动偏移量和选中索引
+- demo1_full_featured: 完整功能演示，展示了 Modal、Focus、主题等高级特性
+- demo2_runtime_internals: 运行时内部可视化，展示完整管道流程
+- demo5_ide: IDE 界面模拟器，包含文件浏览器、编辑器、终端等多个组件
+- 注意：Input/Textarea 组件仍然使用 ForField(intent.ForField) 模式，完全的 Store 模式集成是后续任务
 
 ### Phase 7: 测试和沙箱示例（计划中）
 - [ ] sandbox 示例
@@ -270,6 +284,8 @@
 | 2026-03-07 | 完成 Phase 4: 迁移 5 个其他组件示例（demo, input, mouse, dynamic_list, transition_demo） |
 | 2026-03-07 | 完成 Phase 5: 迁移 3 个 UI Demos 和 Select 示例（demo4_complex_layout, demo3_styling, select） |
 | 2026-03-07 | 更新迁移进度：53% 完成（26/49 示例） |
+| 2026-03-07 | 完成 Phase 6: 迁移 4 个完整示例（virtuallist, demo1_full_featured, demo2_runtime_internals, demo5_ide） |
+| 2026-03-07 | 更新迁移进度：65% 完成（30/46 示例） |
 
 ---
 

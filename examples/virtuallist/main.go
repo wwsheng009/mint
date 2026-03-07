@@ -4,10 +4,24 @@ import (
 	"fmt"
 
 	"github.com/wwsheng009/mint/runtime/intent"
+	"github.com/wwsheng009/mint/runtime/reducer"
+	"github.com/wwsheng009/mint/runtime/store"
 	"github.com/wwsheng009/mint/ui"
 )
 
+// ============================================================================
+// AppState - 定义应用状态
+// ============================================================================
+
+type AppState struct {
+	Offset   int // 滚动偏移量
+	Selected int // 选中的项目索引
+}
+
+// ============================================================================
 // Intent Types
+// ============================================================================
+
 type ScrollUpIntent struct{}
 func (ScrollUpIntent) IntentType() string { return "ScrollUp" }
 func (ScrollUpIntent) StayPressed() bool  { return true }
@@ -16,54 +30,67 @@ type ScrollDownIntent struct{}
 func (ScrollDownIntent) IntentType() string { return "ScrollDown" }
 func (ScrollDownIntent) StayPressed() bool  { return true }
 
-func main() {
-	// Generate a large list of items
+// ============================================================================
+// 生成大型列表数据
+// ============================================================================
+
+func generateItems() []string {
 	items := make([]string, 1000)
 	for i := 0; i < 1000; i++ {
 		items[i] = fmt.Sprintf("Item #%d - This is a long description text", i+1)
 	}
+	return items
+}
 
-	ui.Run(func() ui.VNode {
-		// Track scroll position and selected item
-		offset, setOffset, _ := ui.UseStateInt(0)
-		selected, _, _ := ui.UseStateInt(-1)
+// ============================================================================
+// Store 初始化
+// ============================================================================
 
-		// 将状态保存到 GlobalState，供 handler 从 ActionContext 读取
-		ctx := ui.GetCurrentContext()
-		if ctx != nil {
-			ctx.GlobalState["offset"] = offset
-			ctx.GlobalState["setOffset"] = setOffset
-		}
+var virtualListStore = store.NewStore(AppState{
+	Offset:   0,
+	Selected: -1,
+})
 
-		// Register intent handlers using ui.On (从 ActionContext 读取状态)
-		ui.On(ScrollUpIntent{}, func(actx *intent.ActionContext) {
-			currentOffset := actx.GetIntState("offset", 0)
-			newOffset := currentOffset - 5
+// ============================================================================
+// Reducer 注册
+// ============================================================================
+
+func init() {
+	reducer.NewBuilder[AppState]().
+		On(ScrollUpIntent{}, func(s AppState, i intent.Intent) AppState {
+			newOffset := s.Offset - 5
 			if newOffset < 0 {
 				newOffset = 0
 			}
-			if fn, ok := actx.GetState("setOffset"); ok {
-				if setter, ok := fn.(func(int)); ok {
-					setter(newOffset)
-				}
-			}
-		})
-		ui.On(ScrollDownIntent{}, func(actx *intent.ActionContext) {
-			currentOffset := actx.GetIntState("offset", 0)
-			newOffset := currentOffset + 5
-			maxOffset := len(items) - 10
+			s.Offset = newOffset
+			return s
+		}).
+		On(ScrollDownIntent{}, func(s AppState, i intent.Intent) AppState {
+			maxOffset := len(generateItems()) - 10
 			if maxOffset < 0 {
 				maxOffset = 0
 			}
+			newOffset := s.Offset + 5
 			if newOffset > maxOffset {
 				newOffset = maxOffset
 			}
-			if fn, ok := actx.GetState("setOffset"); ok {
-				if setter, ok := fn.(func(int)); ok {
-					setter(newOffset)
-				}
-			}
-		})
+			s.Offset = newOffset
+			return s
+		}).
+		BuildAndRegister(intent.DefaultRegistry(), virtualListStore)
+}
+
+// ============================================================================
+// Main
+// ============================================================================
+
+func main() {
+	items := generateItems()
+
+	ui.Run(func() ui.VNode {
+		// ✅ 订阅 offset 和 selected 状态
+		offset := ui.UseStoreSelector(virtualListStore, func(s AppState) int { return s.Offset })
+		selected := ui.UseStoreSelector(virtualListStore, func(s AppState) int { return s.Selected })
 
 		return ui.VStack(
 			ui.NewTextBuilder("Virtual List Demo").Bold(true).FgColor("cyan").Build(),
@@ -99,6 +126,6 @@ func main() {
 	},
 		ui.WithWidth(60),
 		ui.WithHeight(25),
-		ui.WithTitle("Virtual List Demo"),
+		ui.WithTitle("Virtual List Demo (Store 模式)"),
 	)
 }
