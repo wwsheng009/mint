@@ -33,6 +33,10 @@
 | examples/tabs | ✅ 已完成 | 107 → 135 (+26%) | 本次迁移 |
 | examples/timer | ✅ 已完成 | 133 → 131 (-2%) | 本次迁移 |
 | examples/progress | ✅ 已完成 | 109 → 102 (-6%) | 本次迁移 |
+| examples/input | ✅ 已完成 | 44 → 44 (0%) | 本次迁移 |
+| examples/mouse | ✅ 已完成 | 140 → 148 (+6%) | 本次迁移 |
+| examples/dynamic_list | ✅ 已完成 | 149 → 217 (+46%) | 本次迁移 |
+| examples/transition_demo | ✅ 已完成 | 213 → 235 (+10%) | 本次迁移 |
 
 ---
 
@@ -63,16 +67,16 @@
 
 | 示例 | 使用次数 | 优先级 | 备注 |
 |------|---------|--------|------|
-| `examples/demo` | 4+ | 低 | 主要演示示例 |
+| ~~`examples/demo`~~ | 已迁移 | ✅ 完成 | 主要演示示例 |
 | ~~`examples/modal`~~ | 已迁移 | ✅ 完成 | Modal 组件示例 |
-| `examples/transition_demo` | 6 | 低 | 过渡动画示例 |
+| ~~`examples/transition_demo`~~ | 已迁移 | ✅ 完成 | 过渡动画示例 |
 | ~~`examples/toast`~~ | 已迁移 | ✅ 完成 | Toast 通知示例 |
 | ~~`examples/tabs`~~ | 已迁移 | ✅ 完成 | Tabs 组件示例 |
 | ~~`examples/timer`~~ | 已迁移 | ✅ 完成 | 计时器示例 |
 | ~~`examples/progress`~~ | 已迁移 | ✅ 完成 | 进度条示例 |
-| `examples/mouse` | 2 | 低 | 鼠标事件示例 |
-| `examples/dynamic_list` | 1 | 低 | 动态列表示例 |
-| `examples/input` | 3 | 低 | 输入框示例 |
+| ~~`examples/mouse`~~ | 已迁移 | ✅ 完成 | 鼠标事件示例 |
+| ~~`examples/dynamic_list`~~ | 已迁移 | ✅ 完成 | 动态列表示例 |
+| ~~`examples/input`~~ | 已迁移 | ✅ 完成 | 输入框示例 |
 | `examples/select` | 1 | 低 | 选择器示例 |
 | `examples/virtuallist` | 2 | 低 | 虚拟列表示例 |
 
@@ -141,9 +145,9 @@
 
 ### 进度概览
 
-- **已完成**: 18 个示例
-- **待迁移**: 约 31+ 个示例
-- **完成率**: ~37%
+- **已完成**: 23 个示例
+- **待迁移**: 约 26+ 个示例
+- **完成率**: ~47%
 
 ### 代码行数影响
 
@@ -197,7 +201,23 @@
 - timer: 定时器通过 Store 更新，UseEffect 保持不变
 - progress: 添加了 Reset 功能，代码结构更清晰
 
-### Phase 4: 完整示例（计划中）
+### Phase 4: 其他组件示例 ✅ (已完成)
+- [x] demo
+- [x] input
+- [x] mouse
+- [x] dynamic_list
+- [x] transition_demo
+
+**迁移时间**: 2026-03-07
+**迁移说明**:
+- 迁移了 5 个其他组件示例
+- demo: 使用 Store 管理多个状态字段
+- input: 简单输入示例，移除无用的 Intent 定义
+- mouse: 统一状态管理，支持鼠标交互
+- dynamic_list: 演示独立 Store 模式（每个列表项有自己的 Store）
+- transition_demo: 演示异步操作模式，后台 goroutine 通过 Store 更新
+
+### Phase 5: 完整示例（计划中）
 - [ ] demo1_full_featured
 - [ ] demo2_runtime_internals
 - [ ] demo3_styling
@@ -234,7 +254,8 @@
 | 2026-03-07 | 标记 GlobalState 为 Deprecated，创建弃用公告 |
 | 2026-03-07 | 完成 Phase 2: 迁移 4 个 Fiber 示例（fiber_counter, fiber, fiber_demo, fiber_counter_intent） |
 | 2026-03-07 | 完成 Phase 3: 迁移 5 个流行组件示例（modal, toast, tabs, timer, progress） |
-| 2026-03-07 | 更新迁移进度：37% 完成（18/49 示例） |
+| 2026-03-07 | 完成 Phase 4: 迁移 5 个其他组件示例（demo, input, mouse, dynamic_list, transition_demo） |
+| 2026-03-07 | 更新迁移进度：47% 完成（23/49 示例） |
 
 ---
 

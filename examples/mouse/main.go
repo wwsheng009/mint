@@ -4,10 +4,27 @@ import (
 	"fmt"
 
 	"github.com/wwsheng009/mint/runtime/intent"
+	"github.com/wwsheng009/mint/runtime/reducer"
+	"github.com/wwsheng009/mint/runtime/store"
 	"github.com/wwsheng009/mint/ui"
 )
 
+// =============================================================================
+// AppState - 定义应用状态
+// =============================================================================
+
+type AppState struct {
+	Count int // 按钮计数
+	Text  string
+	Checked1 bool
+	Checked2 bool
+	SelectedIndex int
+}
+
+// =============================================================================
 // Intent Types
+// =============================================================================
+
 type DecrementMouseIntent struct{}
 func (DecrementMouseIntent) IntentType() string { return "DecrementMouse" }
 func (DecrementMouseIntent) StayPressed() bool  { return true }
@@ -16,39 +33,46 @@ type IncrementMouseIntent struct{}
 func (IncrementMouseIntent) IntentType() string { return "IncrementMouse" }
 func (IncrementMouseIntent) StayPressed() bool  { return true }
 
+// =============================================================================
+// Store 初始化
+// =============================================================================
+
+var mouseStore = store.NewStore(AppState{
+	Count:       0,
+	Text:        "",
+	Checked1:    false,
+	Checked2:    false,
+	SelectedIndex: 0,
+})
+
+// =============================================================================
+// Reducer 注册
+// =============================================================================
+
+func init() {
+	reducer.NewBuilder[AppState]().
+		On(DecrementMouseIntent{}, func(s AppState, i intent.Intent) AppState {
+			s.Count--
+			return s
+		}).
+		On(IncrementMouseIntent{}, func(s AppState, i intent.Intent) AppState {
+			s.Count++
+			return s
+		}).
+		BuildAndRegister(intent.DefaultRegistry(), mouseStore)
+}
+
+// =============================================================================
 // MouseInteractionDemo showcases all mouse-supported components
+// =============================================================================
+
 func MouseInteractionDemo() ui.VNode {
-	// Track state for various components - must be inside component
-	count, setCount, _ := ui.UseStateInt(0)
-	text, _ := ui.UseStateString("")
-	checked1, _ := ui.UseStateBool(false)
-	checked2, _ := ui.UseStateBool(false)
-	selectedIndex, _, _ := ui.UseStateInt(0)
-
-	// 将状态保存到 GlobalState，供 handler 从 ActionContext 读取
-	ctx := ui.GetCurrentContext()
-	if ctx != nil {
-		ctx.GlobalState["count"] = count
-		ctx.GlobalState["setCount"] = setCount
-	}
-
-	// Register intent handlers for buttons
-	ui.On(DecrementMouseIntent{}, func(actx *intent.ActionContext) {
-		currentCount := actx.GetIntState("count", 0)
-		if fn, ok := actx.GetState("setCount"); ok {
-			if setter, ok := fn.(func(int)); ok {
-				setter(currentCount - 1)
-			}
-		}
-	})
-	ui.On(IncrementMouseIntent{}, func(actx *intent.ActionContext) {
-		currentCount := actx.GetIntState("count", 0)
-		if fn, ok := actx.GetState("setCount"); ok {
-			if setter, ok := fn.(func(int)); ok {
-				setter(currentCount + 1)
-			}
-		}
-	})
+	// ✅ 订阅状态
+	count := ui.UseStoreSelector(mouseStore, func(s AppState) int { return s.Count })
+	text := ui.UseStoreSelector(mouseStore, func(s AppState) string { return s.Text })
+	checked1 := ui.UseStoreSelector(mouseStore, func(s AppState) bool { return s.Checked1 })
+	checked2 := ui.UseStoreSelector(mouseStore, func(s AppState) bool { return s.Checked2 })
+	selectedIndex := ui.UseStoreSelector(mouseStore, func(s AppState) int { return s.SelectedIndex })
 
 	return ui.VStack(
 		// Header
@@ -170,10 +194,14 @@ func MouseInteractionDemo() ui.VNode {
 	)
 }
 
+// =============================================================================
+// Main
+// =============================================================================
+
 func main() {
 	ui.Run(MouseInteractionDemo,
 		ui.WithWidth(50),
 		ui.WithHeight(28),
-		ui.WithTitle("Mouse Interaction Demo"),
+		ui.WithTitle("Mouse Interaction Demo (Store 模式)"),
 	)
 }

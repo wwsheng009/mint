@@ -1,15 +1,15 @@
-// Package main demonstrates Transition Intent pattern for async operations.
+// Package main demonstrates Transition Intent pattern for async operations (Store 模式).
 //
 // This example shows:
-//   1. Using Intent to trigger async operations
+//   1. Using Store + Reducer for async state management
 //   2. Showing loading states while operation runs
 //   3. Updating UI with results when operation completes
 //
 // Key Concept: Async operations follow this pattern:
-//   1. User clicks → Intent emitted
+//   1. User clicks → Intent emitted → Reducer updates store
 //   2. Handler sets loading state → UI shows spinner
 //   3. Background work runs in goroutine
-//   4. Goroutine updates state with result → UI re-renders
+//   4. Goroutine updates store with result → UI re-renders
 package main
 
 import (
@@ -17,9 +17,21 @@ import (
 	"time"
 
 	"github.com/wwsheng009/mint/runtime/intent"
+	"github.com/wwsheng009/mint/runtime/reducer"
+	"github.com/wwsheng009/mint/runtime/store"
 	"github.com/wwsheng009/mint/ui"
 	buttoncomp "github.com/wwsheng009/mint/ui/components/button"
 )
+
+// =============================================================================
+// AppState - 定义应用状态
+// =============================================================================
+
+type AppState struct {
+	IsLoading  bool   // 是否正在加载
+	LastResult string // 加载结果
+	Status     string // 加载状态文本
+}
 
 // =============================================================================
 // Async Operation Intents
@@ -33,79 +45,108 @@ type LoadDataIntent struct {
 func (LoadDataIntent) IntentType() string { return "LoadData" }
 func (LoadDataIntent) StayPressed() bool  { return true }
 
+type SetLoadingIntent struct {
+	Loading bool
+}
+
+func (SetLoadingIntent) IntentType() string { return "SetLoading" }
+func (SetLoadingIntent) StayPressed() bool  { return false } // 内部操作
+
+type SetResultIntent struct {
+	Result string
+}
+
+func (SetResultIntent) IntentType() string { return "SetResult" }
+func (SetResultIntent) StayPressed() bool  { return false } // 内部操作
+
+type SetStatusIntent struct {
+	Status string
+}
+
+func (SetStatusIntent) IntentType() string { return "SetStatus" }
+func (SetStatusIntent) StayPressed() bool  { return false } // 内部操作
+
+// =============================================================================
+// Store 初始化
+// =============================================================================
+
+var appStore = store.NewStore(AppState{
+	IsLoading:  false,
+	LastResult: "",
+	Status:     "",
+})
+
+// =============================================================================
+// Reducer 注册
+// =============================================================================
+
+func init() {
+	reducer.NewBuilder[AppState]().
+		On(LoadDataIntent{}, func(s AppState, i intent.Intent) AppState {
+			// 设置加载状态
+			s.IsLoading = true
+			s.Status = fmt.Sprintf("Loading from %s...", i.(LoadDataIntent).Source)
+
+			// 在后台执行异步操作
+			go asyncLoadData(i.(LoadDataIntent).Source)
+
+			return s
+		}).
+		On(SetLoadingIntent{}, func(s AppState, i intent.Intent) AppState {
+			s.IsLoading = i.(SetLoadingIntent).Loading
+			return s
+		}).
+		On(SetResultIntent{}, func(s AppState, i intent.Intent) AppState {
+			s.LastResult = i.(SetResultIntent).Result
+			return s
+		}).
+		On(SetStatusIntent{}, func(s AppState, i intent.Intent) AppState {
+			s.Status = i.(SetStatusIntent).Status
+			return s
+		}).
+		BuildAndRegister(intent.DefaultRegistry(), appStore)
+}
+
+// =============================================================================
+// 异步加载函数
+// =============================================================================
+
+func asyncLoadData(source string) {
+	// 模拟异步操作（如 API 调用、数据库查询、文件 I/O）
+	// 随机时长 1-3 秒
+	duration := time.Duration(1000 + (time.Now().UnixNano() % 2000))
+	time.Sleep(duration)
+
+	// 更新 UI 结果
+	result := fmt.Sprintf("Data from %s (loaded in %.1fs)", source, duration.Seconds())
+
+	// 通过 Store 更新状态
+	appStore.Update(func(s AppState) AppState {
+		s.IsLoading = false
+		s.LastResult = result
+		s.Status = ""
+		return s
+	})
+}
+
 // =============================================================================
 // Main Application Component
 // =============================================================================
 
 func App() ui.VNode {
-	// 1. Define state using hooks (must be at top)
-	isLoading, setIsLoading := ui.UseStateBool(false)
-	lastResult, setLastResult := ui.UseStateString("")
-	status, setStatus := ui.UseStateString("")
+	// ✅ 订阅状态
+	isLoading := ui.UseStoreSelector(appStore, func(s AppState) bool { return s.IsLoading })
+	lastResult := ui.UseStoreSelector(appStore, func(s AppState) string { return s.LastResult })
+	status := ui.UseStoreSelector(appStore, func(s AppState) string { return s.Status })
 
-	// 2. Save setters to GlobalState for access from Intent handlers
-	ctx := ui.GetCurrentContext()
-	if ctx != nil {
-		ctx.GlobalState["setIsLoading"] = setIsLoading
-		ctx.GlobalState["setLastResult"] = setLastResult
-		ctx.GlobalState["setStatus"] = setStatus
-	}
-
-	// 3. Register Intent handler using RegisterIntent to access intent parameters
-	// We use RegisterIntent instead of ui.On because we need access to the intent's Source field
-	ui.RegisterIntent(func(actx *intent.ActionContext, i LoadDataIntent) intent.IntentResult {
-		source := i.Source
-
-		// Step 1: Update UI to show loading state
-		if fn, ok := actx.GetState("setIsLoading"); ok {
-			if setter, ok := fn.(func(bool)); ok {
-				setter(true)
-			}
-		}
-		if fn, ok := actx.GetState("setStatus"); ok {
-			if setter, ok := fn.(func(string)); ok {
-				setter(fmt.Sprintf("Loading from %s...", source))
-			}
-		}
-
-		// Step 2: Perform async work in background goroutine
-		go func() {
-			// Simulate async operation (e.g., API call, database query, file I/O)
-			// Random duration between 1-3 seconds
-			duration := time.Duration(1000 + (time.Now().UnixNano() % 2000))
-			time.Sleep(duration)
-
-			// Step 3: Update UI with result
-			result := fmt.Sprintf("Data from %s (loaded in %.1fs)", source, duration.Seconds())
-
-			if fn, ok := actx.GetState("setIsLoading"); ok {
-				if setter, ok := fn.(func(bool)); ok {
-					setter(false)
-				}
-			}
-			if fn, ok := actx.GetState("setLastResult"); ok {
-				if setter, ok := fn.(func(string)); ok {
-					setter(result)
-				}
-			}
-			if fn, ok := actx.GetState("setStatus"); ok {
-				if setter, ok := fn.(func(string)); ok {
-					setter("")
-				}
-			}
-		}()
-
-		return intent.HandledResult()
-	})
-
-	// 4. Get animation frame for loading spinner (alternates every 500ms)
+	// 获取加载动画（每 500ms 交替）
 	animationFrame := int(time.Now().UnixNano() / 500000000) % 4
 	spinners := []string{"|", "/", "-", "\\"}
 	spinChar := spinners[animationFrame]
 
-	// 5. Build UI
+	// 构建 UI
 	return ui.VStack(
-		// Title
+		// 标题
 		ui.NewTextBuilder("╔══════════════════════════════════════╗").
 			FgColor("cyan").
 			Build(),
@@ -117,7 +158,7 @@ func App() ui.VNode {
 			Build(),
 		ui.Text(""),
 
-		// Description
+		// 描述
 		ui.NewTextBuilder("Async Operation Pattern").
 			FgColor("yellow").
 			Bold(true).
@@ -131,7 +172,7 @@ func App() ui.VNode {
 			Build(),
 		ui.Text(""),
 
-		// Display loading spinner when isLoading
+		// 显示加载状态
 		func() ui.VNode {
 			if isLoading {
 				return ui.HStack(
@@ -159,7 +200,7 @@ func App() ui.VNode {
 
 		ui.Text(""),
 
-		// Display last result
+		// 显示最后的结果
 		func() ui.VNode {
 			if lastResult != "" {
 				return ui.HStack(
@@ -179,7 +220,7 @@ func App() ui.VNode {
 			Build(),
 		ui.Text(""),
 
-		// Load buttons
+		// 加载按钮
 		ui.NewTextBuilder("Trigger Async Operations:").
 			FgColor("gray").
 			Build(),
@@ -219,7 +260,7 @@ func main() {
 	err := ui.Run(App,
 		ui.WithWidth(60),
 		ui.WithHeight(22),
-		ui.WithTitle("Transition Demo"),
+		ui.WithTitle("Transition Demo (Store 模式)"),
 	)
 	if err != nil {
 		panic(err)
