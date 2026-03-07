@@ -38,7 +38,8 @@ type VNode struct {
 	*rtui.ElementVNode
 
 	// === Identification ===
-	key string
+	key         string
+	componentID string // Phase 7: Component ID for Intent routing
 
 	// === Tab Props ===
 	tabs      []TabItem
@@ -57,6 +58,7 @@ type VNode struct {
 
 	// === Intent (No Closures!) ===
 	changeIntent intent.Intent
+	changeIntentField intent.FieldIntent // For FieldChangeIntent
 }
 
 // Ensure VNode implements required interfaces
@@ -72,14 +74,16 @@ var (
 // New creates a new tabs VNode.
 func New() *VNode {
 	return &VNode{
-		ElementVNode:     rtui.NewElement("tabs"),
-		tabs:            []TabItem{},
-		position:        TabPositionTop,
-		wrapTabs:        false,
-		tabGap:          1,
-		flex:            1,
-		tabStyle:        style.Style{},
-		activeTabStyle:  style.Style{},
+		ElementVNode:        rtui.NewElement("tabs"),
+		componentID:         "", // Phase 7: Component ID
+		tabs:                []TabItem{},
+		position:            TabPositionTop,
+		wrapTabs:            false,
+		tabGap:              1,
+		flex:                1,
+		tabStyle:            style.Style{},
+		activeTabStyle:      style.Style{},
+		changeIntentField:   nil, // Phase 7: FieldChangeIntent
 	}
 }
 
@@ -112,23 +116,28 @@ func (v *VNode) TextContent() string   { return "" }
 
 func (v *VNode) Props() rtui.Props {
 	return rtui.Props{
-		"key":            v.key,
-		"tabs":           v.tabs,
-		"position":       v.position,
-		"wrapTabs":       v.wrapTabs,
-		"tabGap":         v.tabGap,
-		"width":          v.width,
-		"height":         v.height,
-		"flex":           v.flex,
-		"tabStyle":       v.tabStyle,
-		"activeTabStyle": v.activeTabStyle,
-		"changeIntent":   v.changeIntent,
+		"key":               v.key,
+		"componentID":       v.componentID,         // Phase 7
+		"tabs":              v.tabs,
+		"position":          v.position,
+		"wrapTabs":          v.wrapTabs,
+		"tabGap":            v.tabGap,
+		"width":             v.width,
+		"height":            v.height,
+		"flex":              v.flex,
+		"tabStyle":          v.tabStyle,
+		"activeTabStyle":    v.activeTabStyle,
+		"changeIntent":      v.changeIntent,
+		"changeIntentField": v.changeIntentField,   // Phase 7
 	}
 }
 
 func (v *VNode) SetProps(p rtui.Props) rtui.VNode {
 	if val, ok := p["key"].(string); ok {
 		v.key = val
+	}
+	if val, ok := p["componentID"].(string); ok {
+		v.componentID = val // Phase 7
 	}
 	if val, ok := p["tabs"].([]TabItem); ok {
 		v.tabs = val
@@ -160,6 +169,9 @@ func (v *VNode) SetProps(p rtui.Props) rtui.VNode {
 	if val, ok := p["changeIntent"].(intent.Intent); ok {
 		v.changeIntent = val
 	}
+	if val, ok := p["changeIntentField"].(intent.FieldIntent); ok {
+		v.changeIntentField = val // Phase 7
+	}
 	return v
 }
 
@@ -169,17 +181,19 @@ func (v *VNode) SetProps(p rtui.Props) rtui.VNode {
 
 func (v *VNode) CreateInstance() rtui.ComponentInstance {
 	return NewInstance(rtui.Props{
-		"key":            v.key,
-		"tabs":           v.tabs,
-		"position":       v.position,
-		"wrapTabs":       v.wrapTabs,
-		"tabGap":         v.tabGap,
-		"width":          v.width,
-		"height":         v.height,
-		"flex":           v.flex,
-		"tabStyle":       v.tabStyle,
-		"activeTabStyle": v.activeTabStyle,
-		"changeIntent":   v.changeIntent,
+		"key":               v.key,
+		"componentID":       v.componentID,         // Phase 7
+		"tabs":              v.tabs,
+		"position":          v.position,
+		"wrapTabs":          v.wrapTabs,
+		"tabGap":            v.tabGap,
+		"width":             v.width,
+		"height":            v.height,
+		"flex":              v.flex,
+		"tabStyle":          v.tabStyle,
+		"activeTabStyle":    v.activeTabStyle,
+		"changeIntent":      v.changeIntent,
+		"changeIntentField": v.changeIntentField,   // Phase 7
 	})
 }
 
@@ -187,11 +201,17 @@ func (v *VNode) CreateInstance() rtui.ComponentInstance {
 // Fluent Setters - Tabs Configuration
 // =============================================================================
 
+// Identification setters
+func (v *VNode) SetComponentID(id string) *VNode { v.componentID = id; return v } // Phase 7
+
 func (v *VNode) SetTabs(tabs []TabItem) *VNode  { v.tabs = tabs; return v }
 func (v *VNode) SetPosition(pos TabPosition) *VNode { v.position = pos; return v }
 func (v *VNode) SetWrapTabs(wrap bool) *VNode   { v.wrapTabs = wrap; return v }
 func (v *VNode) SetTabGap(gap int) *VNode       { v.tabGap = gap; return v }
+
+// Intent setters
 func (v *VNode) SetIntent(i intent.Intent) *VNode { v.changeIntent = i; return v }
+func (v *VNode) SetFieldIntent(i intent.FieldIntent) *VNode { v.changeIntentField = i; return v } // Phase 7
 
 // Layout setters
 func (v *VNode) SetWidth(w int) *VNode  { v.width = w; return v }

@@ -35,6 +35,13 @@ func (b *Builder) SetID(id string) *Builder {
 	return b
 }
 
+// ComponentID sets the component ID for Intent routing (Phase 7: Intent Bubble).
+// This enables Intent filtering and routing to specific Tabs instances.
+func (b *Builder) ComponentID(id string) *Builder {
+	b.vnode.SetComponentID(id)
+	return b
+}
+
 // Tabs sets the tab items.
 func (b *Builder) Tabs(tabs []TabItem) *Builder {
 	b.vnode.SetTabs(tabs)
@@ -110,6 +117,13 @@ func (b *Builder) ActiveTabStyle(s style.Style) *Builder {
 // OnChange sets the change intent.
 func (b *Builder) OnChange(intent intent.Intent) *Builder {
 	b.vnode.SetIntent(intent)
+	return b
+}
+
+// FieldIntent sets the FieldChangeIntent for this Tabs component (Phase 7: Intent Bubble).
+// This enables integration with the Form+Field system for automatic state binding.
+func (b *Builder) FieldIntent(intent intent.FieldIntent) *Builder {
+	b.vnode.SetFieldIntent(intent)
 	return b
 }
 
