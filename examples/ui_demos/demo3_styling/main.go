@@ -1,4 +1,4 @@
-// Demo 3: Styling System (TUI CSS)
+// Demo 3: Styling System (TUI CSS) (Store 模式)
 //
 // This demo demonstrates the styling system, which is essentially
 // CSS Box Model + Terminal color/attribute system + inheritance rules.
@@ -16,6 +16,8 @@ package main
 
 import (
 	"github.com/wwsheng009/mint/runtime/intent"
+	"github.com/wwsheng009/mint/runtime/reducer"
+	"github.com/wwsheng009/mint/runtime/store"
 	"github.com/wwsheng009/mint/ui"
 )
 
@@ -26,11 +28,31 @@ type SetStylingTabIntent struct {
 func (SetStylingTabIntent) IntentType() string { return "SetStylingTab" }
 func (SetStylingTabIntent) StayPressed() bool  { return true }
 
+// AppState - 定义应用状态
+type AppState struct {
+	CurrentTab string // 当前标签: colors, attributes, borders...
+}
+
+// Store 初始化
+var stylingStore = store.NewStore(AppState{
+	CurrentTab: "colors",
+})
+
+// Reducer 注册
+func init() {
+	reducer.NewBuilder[AppState]().
+		On(SetStylingTabIntent{}, func(s AppState, i intent.Intent) AppState {
+			s.CurrentTab = i.(SetStylingTabIntent).TabID
+			return s
+		}).
+		BuildAndRegister(intent.DefaultRegistry(), stylingStore)
+}
+
 func main() {
 	err := ui.Run(StylingDemo,
 		ui.WithWidth(100),
 		ui.WithHeight(40),
-		ui.WithTitle("Mint TUI - Styling System"),
+		ui.WithTitle("Mint TUI - Styling System (Store 模式)"),
 	)
 	if err != nil {
 		panic(err)
@@ -39,22 +61,8 @@ func main() {
 
 // StylingDemo is the root component
 func StylingDemo() ui.VNode {
-	currentTab, setCurrentTab := ui.UseStateString("colors")
-
-	// 将 setter 保存到 GlobalState，供 handler 从 ActionContext 读取
-	ctx := ui.GetCurrentContext()
-	if ctx != nil {
-		ctx.GlobalState["setCurrentTab"] = setCurrentTab
-	}
-
-	// Register tab change handler
-	ui.On(SetStylingTabIntent{TabID: currentTab}, func(actx *intent.ActionContext) {
-		if fn, ok := actx.GetState("setCurrentTab"); ok {
-			if setter, ok := fn.(func(string)); ok {
-				setter(currentTab)
-			}
-		}
-	})
+	// ✅ 订阅 currentTab 状态
+	currentTab := ui.UseStoreSelector(stylingStore, func(s AppState) string { return s.CurrentTab })
 
 	return ui.VStack(
 		HeaderPanel(),

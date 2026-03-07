@@ -1,4 +1,4 @@
-// Demo 4: Complex Layout System
+// Demo 4: Complex Layout System (Store 模式)
 //
 // This demo demonstrates the complex layout capabilities:
 // - Flex (线性分配)
@@ -15,45 +15,72 @@ import (
 	"fmt"
 
 	"github.com/wwsheng009/mint/runtime/intent"
+	"github.com/wwsheng009/mint/runtime/reducer"
+	"github.com/wwsheng009/mint/runtime/store"
 	"github.com/wwsheng009/mint/ui"
 )
 
+// =============================================================================
+// AppState - 定义应用状态
+// =============================================================================
+
+type AppState struct {
+	CurrentDemo string // 当前演示: flex, grid, absolute, scroll, complex
+}
+
+// =============================================================================
 // Intent Types
+// =============================================================================
+
 type SetComplexLayoutTabIntent struct {
 	TabID string
 }
 func (SetComplexLayoutTabIntent) IntentType() string { return "SetComplexLayoutTab" }
 func (SetComplexLayoutTabIntent) StayPressed() bool  { return true }
 
+// =============================================================================
+// Store 初始化
+// =============================================================================
+
+var layoutStore = store.NewStore(AppState{
+	CurrentDemo: "flex",
+})
+
+// =============================================================================
+// Reducer 注册
+// =============================================================================
+
+func init() {
+	reducer.NewBuilder[AppState]().
+		On(SetComplexLayoutTabIntent{}, func(s AppState, i intent.Intent) AppState {
+			s.CurrentDemo = i.(SetComplexLayoutTabIntent).TabID
+			return s
+		}).
+		BuildAndRegister(intent.DefaultRegistry(), layoutStore)
+}
+
+// =============================================================================
+// Main
+// =============================================================================
+
 func main() {
 	err := ui.Run(LayoutDemo,
 		ui.WithWidth(100),
 		ui.WithHeight(40),
-		ui.WithTitle("Mint TUI - Complex Layout"),
+		ui.WithTitle("Mint TUI - Complex Layout (Store 模式)"),
 	)
 	if err != nil {
 		panic(err)
 	}
 }
 
+// =============================================================================
 // LayoutDemo is the root component
+// =============================================================================
+
 func LayoutDemo() ui.VNode {
-	currentDemo, setCurrentDemo := ui.UseStateString("flex")
-
-	// 将 setter 保存到 GlobalState，供 handler 从 ActionContext 读取
-	ctx := ui.GetCurrentContext()
-	if ctx != nil {
-		ctx.GlobalState["setCurrentDemo"] = setCurrentDemo
-	}
-
-	// Register tab change handler
-	ui.On(SetComplexLayoutTabIntent{TabID: currentDemo}, func(actx *intent.ActionContext) {
-		if fn, ok := actx.GetState("setCurrentDemo"); ok {
-			if setter, ok := fn.(func(string)); ok {
-				setter(currentDemo)
-			}
-		}
-	})
+	// ✅ 订阅 currentDemo 状态
+	currentDemo := ui.UseStoreSelector(layoutStore, func(s AppState) string { return s.CurrentDemo })
 
 	return ui.VStack(
 		HeaderPanel(),
@@ -63,7 +90,10 @@ func LayoutDemo() ui.VNode {
 	)
 }
 
-// HeaderPanel shows the title
+// =============================================================================
+// Header Panel
+// =============================================================================
+
 func HeaderPanel() ui.VNode {
 	return ui.VStack(
 		ui.NewTextBuilder("╔══════════════════════════════════════════════════════════════════════════════════════════╗").
@@ -87,7 +117,10 @@ func HeaderPanel() ui.VNode {
 	)
 }
 
-// TabNavigation provides tab buttons
+// =============================================================================
+// Tab Navigation
+// =============================================================================
+
 func TabNavigation(currentDemo string) ui.VNode {
 	tabs := []struct {
 		id    string
@@ -122,7 +155,10 @@ func TabNavigation(currentDemo string) ui.VNode {
 	return ui.HStack(children...)
 }
 
-// renderDemoContent renders the selected demo content
+// =============================================================================
+// Demo Content Renderer
+// =============================================================================
+
 func renderDemoContent(currentDemo string) ui.VNode {
 	switch currentDemo {
 	case "flex":
@@ -140,7 +176,10 @@ func renderDemoContent(currentDemo string) ui.VNode {
 	}
 }
 
-// FlexDemo demonstrates Flex layout
+// =============================================================================
+// Flex Demo
+// =============================================================================
+
 func FlexDemo() ui.VNode {
 	return ui.VStack(
 		ui.NewTextBuilder("┌─ Flex Layout (Row) ─────────────────────────────────────────────────────────────────────┐").
@@ -206,7 +245,10 @@ func FlexDemo() ui.VNode {
 	)
 }
 
-// GridDemo demonstrates Grid layout
+// =============================================================================
+// Grid Demo
+// =============================================================================
+
 func GridDemo() ui.VNode {
 	return ui.VStack(
 		ui.NewTextBuilder("╔═════════════════ Grid Layout Demo ══════════════════════════════════════════════════════════════╗").
@@ -293,7 +335,10 @@ func GridDemo() ui.VNode {
 	)
 }
 
-// AbsoluteDemo demonstrates Absolute positioning
+// =============================================================================
+// Absolute Demo
+// =============================================================================
+
 func AbsoluteDemo() ui.VNode {
 	return ui.VStack(
 		ui.NewTextBuilder("╔═══════════════════ Absolute Positioning Demo ════════════════════════════════════════════════════╗").
@@ -373,7 +418,10 @@ func AbsoluteDemo() ui.VNode {
 	)
 }
 
-// ScrollDemo demonstrates Scroll containers
+// =============================================================================
+// Scroll Demo
+// =============================================================================
+
 func ScrollDemo() ui.VNode {
 	items := make([]string, 20)
 	for i := range items {
@@ -457,7 +505,10 @@ func renderScrollItems(items []string, offset int, visibleCount int) []ui.VNode 
 	return result
 }
 
-// ComplexLayoutDemo demonstrates a complex IDE-like layout
+// =============================================================================
+// Complex Layout Demo
+// =============================================================================
+
 func ComplexLayoutDemo() ui.VNode {
 	return ui.VStack(
 		ui.NewTextBuilder("╔══════════════════════════════════════════════════════════════════════════════════════════════════╗").
