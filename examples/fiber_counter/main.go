@@ -1,14 +1,15 @@
-// examples/fiber_counter/main.go - Fiber 模式计数器示例（修复版）
+// examples/fiber_counter/main.go - Fiber 模式计数器示例（Store 模式）
 //
-// 采用【模式2：全局状态】runtime/intent 内置 Intent
-// 适用于跨组件共享的状态，使用 Key 标识状态位置
+// 采用 Store + Reducer 架构，提供类型安全的状态管理
 //
-// 三种 Intent 管理模式：
-//   1. 组件级状态 - ui.On + UseState + Simple* Intent（推荐组件内状态）
-//   2. 全局状态 - runtime/intent 内置函数（本示例）
-//   3. 自定义 Intent - 自定义类型 + ui.On（复杂场景）
+// 三种状态管理模式：
+//   1. useState (局部状态) - 适用于简单的组件内部状态
+//   2. UseStoreField (订阅字段) - 适用于从 Store 订阅特定字段
+//   3. Store + Reducer (应用级状态) - 本示例使用
 //
-// 详细说明请参考: docs/architecture/mvp/INTENT_MANAGEMENT_PATTERNS.md
+// 详细说明请参考:
+//   - Store 架构: docs/ui/store/README.md
+//   - 迁移指南: docs/ui/store/guides/MIGRATION_GUIDE.md
 
 package main
 
@@ -17,20 +18,66 @@ import (
 	"os"
 
 	"github.com/wwsheng009/mint/runtime/intent"
+	"github.com/wwsheng009/mint/runtime/reducer"
+	"github.com/wwsheng009/mint/runtime/store"
 	"github.com/wwsheng009/mint/ui"
 )
+
+// =============================================================================
+// AppState - 定义应用状态
+// =============================================================================
+
+type AppState struct {
+	Count int
+}
+
+// =============================================================================
+// 自定义 Intent 类型
+// =============================================================================
+
+type IncrementIntent struct{}
+func (IncrementIntent) IntentType() string { return "Increment" }
+func (IncrementIntent) StayPressed() bool  { return true }
+
+type DecrementIntent struct{}
+func (DecrementIntent) IntentType() string { return "Decrement" }
+func (DecrementIntent) StayPressed() bool  { return true }
+
+// =============================================================================
+// Store 初始化
+// =============================================================================
+
+var counterStore = store.NewStore(AppState{
+	Count: 0,
+})
+
+// =============================================================================
+// Reducer 注册
+// =============================================================================
+
+func init() {
+	reducer.NewBuilder[AppState]().
+		On(IncrementIntent{}, func(s AppState, i intent.Intent) AppState {
+			s.Count++
+			return s
+		}).
+		On(DecrementIntent{}, func(s AppState, i intent.Intent) AppState {
+			s.Count--
+			return s
+		}).
+		BuildAndRegister(intent.DefaultRegistry(), counterStore)
+}
 
 // =============================================================================
 // 主组件
 // =============================================================================
 
 func SimpleCounter() ui.VNode {
-	// 获取当前组件上下文
-	ctx := ui.GetCurrentContext()
-
-	// 从 GlobalState 读取计数（通过 Key "count" 标识）
-	// Intent 内置 handler 会自动处理 Increment/Decrement 操作
-	count := ctx.GetIntState("count", 0)
+	// ✅ 从 Store 订阅count字段 - 类型安全，自动订阅更新
+	count := ui.UseStoreSelector(
+		counterStore,
+		func(s AppState) int { return s.Count },
+	)
 
 	// 检查是否使用 Fiber 模式
 	isFiber := os.Getenv("MINT_USE_FIBER") == "true"
@@ -41,17 +88,16 @@ func SimpleCounter() ui.VNode {
 			Build(),
 		ui.HStack(
 			ui.NewButtonBuilder(" - ").
-				// ✅ 使用内置 Intent - 会自动注册 handler 处理
-				OnPress(intent.Decrement("count", 1)).
+				// ✅ 使用自定义 Intent - 由 Reducer 处理
+				OnPress(DecrementIntent{}).
 				Build(),
 			ui.Text(" "),
 			ui.NewButtonBuilder(" + ").
-				OnPress(intent.Increment("count", 1)).
+				OnPress(IncrementIntent{}).
 				Build(),
-
 		),
 		ui.Text(""),
-		ui.NewTextBuilder(fmt.Sprintf("[Fiber: %v] 全局状态模式", isFiber)).
+		ui.NewTextBuilder(fmt.Sprintf("[Fiber: %v] Store + Reducer 模式", isFiber)).
 			FgColor("bright-black").
 			Build(),
 	)
@@ -62,11 +108,13 @@ func SimpleCounter() ui.VNode {
 // =============================================================================
 
 func main() {
-	// 内置 Intent 已自动注册 handler，无需 WithInit
+	// ✅ 无需 WithInit 或 GlobalState 注册
+	// Store 在包级别初始化，所有组件共享
+
 	err := ui.Run(SimpleCounter,
 		ui.WithWidth(40),
 		ui.WithHeight(10),
-		ui.WithTitle("Fiber Counter - GlobalState 模式"),
+		ui.WithTitle("Fiber Counter - Store 模式"),
 	)
 
 	if err != nil {

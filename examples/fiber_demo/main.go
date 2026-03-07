@@ -1,12 +1,114 @@
-// Package main demonstrates Fiber architecture basics.
+// Package main demonstrates Fiber architecture basics (Store 模式)
 package main
 
 import (
 	"fmt"
 
 	"github.com/wwsheng009/mint/runtime/intent"
+	"github.com/wwsheng009/mint/runtime/reducer"
+	"github.com/wwsheng009/mint/runtime/store"
 	"github.com/wwsheng009/mint/ui"
 )
+
+// =============================================================================
+// AppState - 定义应用状态
+// =============================================================================
+
+type AppState struct {
+	Count int
+}
+
+// =============================================================================
+// Intent Types
+// =============================================================================
+
+type DecrementIntent struct{}
+func (DecrementIntent) IntentType() string   { return "Decrement" }
+func (DecrementIntent) StayPressed() bool    { return true }
+
+type IncrementIntent struct{}
+func (IncrementIntent) IntentType() string   { return "Increment" }
+func (IncrementIntent) StayPressed() bool    { return true }
+
+// =============================================================================
+// Store 初始化
+// =============================================================================
+
+var demoStore = store.NewStore(AppState{
+	Count: 0,
+})
+
+// =============================================================================
+// Reducer 注册
+// =============================================================================
+
+func init() {
+	reducer.NewBuilder[AppState]().
+		On(DecrementIntent{}, func(s AppState, i intent.Intent) AppState {
+			s.Count--
+			return s
+		}).
+		On(IncrementIntent{}, func(s AppState, i intent.Intent) AppState {
+			s.Count++
+			return s
+		}).
+		BuildAndRegister(intent.DefaultRegistry(), demoStore)
+}
+
+// =============================================================================
+// Demo Component
+// =============================================================================
+
+func DemoComponent() ui.VNode {
+	// ✅ 使用 UseStoreSelector 订阅 count 字段
+	count := ui.UseStoreSelector(
+		demoStore,
+		func(s AppState) int { return s.Count },
+	)
+
+	return ui.VStack(
+		ui.NewTextBuilder("Fiber Architecture Demo").
+			FgColor("cyan").
+			Bold(true).
+			Build(),
+		ui.Text(""),
+		ui.NewTextBuilder("Count: "+fmt.Sprintf("%d", count)).
+			FgColor("green").
+			Build(),
+		ui.Text(""),
+		ui.HStack(
+			ui.NewButtonBuilder(" - ").
+				// ✅ 使用自定义 Intent - 由 Reducer 处理
+				OnPress(DecrementIntent{}).
+				Build(),
+			ui.Text("  "),
+			ui.NewButtonBuilder(" + ").
+				OnPress(IncrementIntent{}).
+				Build(),
+		),
+		ui.Text(""),
+		ui.NewTextBuilder("Fiber enables:").
+			FgColor("yellow").
+			Build(),
+		ui.NewTextBuilder("  • Interruptible rendering").
+			FgColor("bright-black").
+			Build(),
+		ui.NewTextBuilder("  • Priority scheduling").
+			FgColor("bright-black").
+			Build(),
+		ui.NewTextBuilder("  • Concurrent updates").
+			FgColor("bright-black").
+			Build(),
+		ui.Text(""),
+		ui.NewTextBuilder("Press q to quit").
+			FgColor("bright-black").
+			Build(),
+	)
+}
+
+// =============================================================================
+// Main
+// =============================================================================
 
 func main() {
 	fmt.Println("=== Fiber Architecture Demo ===")
@@ -35,6 +137,7 @@ func runDemoApp() {
 	fmt.Println("--- Running Demo App ---")
 	fmt.Println()
 
+	// ✅ 无需 WithInit 或 GlobalState 注册
 	err := ui.Run(DemoComponent,
 		ui.WithWidth(50),
 		ui.WithHeight(20),
@@ -43,83 +146,4 @@ func runDemoApp() {
 	if err != nil {
 		fmt.Println("Error:", err)
 	}
-}
-
-// DemoComponent demonstrates basic Fiber rendering
-func DemoComponent() ui.VNode {
-	count, setCount, _ := ui.UseStateInt(0)
-
-	// Store setter in GlobalState for handler access
-	ctx := ui.GetCurrentContext()
-	if ctx != nil {
-		ctx.GlobalState["setCount"] = setCount
-	}
-
-	return ui.VStack(
-		ui.NewTextBuilder("Fiber Architecture Demo").
-			FgColor("cyan").
-			Bold(true).
-			Build(),
-		ui.Text(""),
-		ui.NewTextBuilder("Count: "+fmt.Sprintf("%d", count)).
-			FgColor("green").
-			Build(),
-		ui.Text(""),
-		ui.HStack(
-			ui.NewButtonBuilder(" - ").
-				OnPress(DecrementIntent{}).
-				Build(),
-			ui.Text("  "),
-			ui.NewButtonBuilder(" + ").
-				OnPress(IncrementIntent{}).
-				Build(),
-		),
-		ui.Text(""),
-		ui.NewTextBuilder("Fiber enables:").
-			FgColor("yellow").
-			Build(),
-		ui.NewTextBuilder("  • Interruptible rendering").
-			FgColor("bright-black").
-			Build(),
-		ui.NewTextBuilder("  • Priority scheduling").
-			FgColor("bright-black").
-			Build(),
-		ui.NewTextBuilder("  • Concurrent updates").
-			FgColor("bright-black").
-			Build(),
-		ui.Text(""),
-		ui.NewTextBuilder("Press q to quit").
-			FgColor("bright-black").
-			Build(),
-	)
-}
-
-// Intent types
-type DecrementIntent struct{}
-
-func (DecrementIntent) IntentType() string { return "Decrement" }
-func (DecrementIntent) StayPressed() bool   { return true }
-
-type IncrementIntent struct{}
-
-func (IncrementIntent) IntentType() string { return "Increment" }
-func (IncrementIntent) StayPressed() bool   { return true }
-
-func init() {
-	// Register intent handlers using the new On API
-	ui.On(DecrementIntent{}, func(ctx *intent.ActionContext) {
-		if fn, ok := ctx.GetState("setCount"); ok {
-			if setter, ok := fn.(func(func(int) int)); ok {
-				setter(func(c int) int { return c - 1 })
-			}
-		}
-	})
-
-	ui.On(IncrementIntent{}, func(ctx *intent.ActionContext) {
-		if fn, ok := ctx.GetState("setCount"); ok {
-			if setter, ok := fn.(func(func(int) int)); ok {
-				setter(func(c int) int { return c + 1 })
-			}
-		}
-	})
 }

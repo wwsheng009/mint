@@ -6,6 +6,16 @@
 
 ---
 
+## ⚠️ 重要提示：GlobalState 已弃用
+
+**状态**: `ComponentContext.GlobalState` 及相关方法已标记为 **Deprecated**
+
+本指南介绍的混合模式（UseStoreField/UseStoreSelector）是为了帮助平滑过渡到 Store + Reducer 架构。对于新代码，强烈建议直接使用 **Store + Reducer** 架构。
+
+**详细说明**: [GlobalState 弃用公告](../GLOBALSTATE_DEPRECATION.md) | [迁移指南](../guides/MIGRATION_GUIDE.md)
+
+---
+
 ## 目录
 
 - [概述](#概述)
@@ -648,6 +658,37 @@ func ShoppingList() ui.VNode {
     )
 }
 ```
+
+#### 性能优化：深度比较（Deep Comparison）
+
+`UseStoreSelector` 使用深度比较算法来确定派生值是否发生变化。这确保了：
+
+1. **切片和 Map 的正确比较**：即使切片/Map 的底层数组地址不同，只要内容相同，就不会触发不必要的重新渲染。
+
+2. **复杂的嵌套数据结构**：自动递归比较嵌套的 struct、slice、map、pointer 等类型。
+
+3. **避免不必要的渲染**：只有当派生值真正发生变化时，组件才会重新渲染。
+
+**示例**：
+
+```go
+// Store 中的 Items 字段被更新为新切片（内容相同）
+itemsCopy := []string{"a", "b", "c"}
+store.Update(func(s AppState) AppState {
+    s.Items = itemsCopy  // 新 slice，内容相同
+    return s
+})
+
+// UseStoreSelector 会检测到相同内容，不会触发重新渲染
+items := ui.UseStoreSelector(
+    store,
+    func(s AppState) []string { return s.Items },
+)
+```
+
+**注意**：
+- 深度比较使用 Go 反射机制，对于非常深或非常大的数据结构可能会有性能开销
+- 对于大型数据集，建议使用 UseStoreField 订阅特定字段，而不是直接订阅整个切片
 
 ---
 

@@ -4,118 +4,192 @@ import (
 	"fmt"
 
 	"github.com/wwsheng009/mint/runtime/intent"
+	"github.com/wwsheng009/mint/runtime/reducer"
+	"github.com/wwsheng009/mint/runtime/store"
 	"github.com/wwsheng009/mint/ui"
 )
 
 // =============================================================================
-// 方案 1: 使用 ui.On + ui 内置通用 Intent（推荐组件内状态）
+// AppState - 定义应用状态（三个计数器）
 // =============================================================================
-// 这种方式适用于组件内部的局部状态，状态与组件绑定，通过闭包自然访问
-// 无需定义 Intent 类型，系统提供通用的 SimpleIncrementIntent/SimpleDecrementIntent
 
-func CounterWithHooks() ui.VNode {
-	// 使用 hooks 状态管理
-	count, setCount, _ := ui.UseStateInt(0)
+type AppState struct {
+	Counter1 int // 用于方案1
+	Counter2 int // 用于方案2
+	Counter3 int // 用于方案3
+}
 
-	// 将 setter 保存到 GlobalState，供 handler 从 ActionContext 读取
-	ctx := ui.GetCurrentContext()
-	if ctx != nil {
-		ctx.GlobalState["setCount"] = setCount
-	}
+// =============================================================================
+// Intent Types - 演示不同的 Intent 定义方式
+// =============================================================================
 
-	// 注册通用 Intent 处理器（从 ActionContext 读取状态）
-	ui.On(ui.SimpleIncrementIntent{}, func(actx *intent.ActionContext) {
-		if fn, ok := actx.GetState("setCount"); ok {
-			if setter, ok := fn.(func(func(int) int)); ok {
-				setter(func(c int) int { return c + 1 })
+// 方案1: 简单的自定义 Intent（无额外字段）
+type Counter1Increment struct{}
+func (Counter1Increment) IntentType() string      { return "Counter1Increment" }
+func (Counter1Increment) StayPressed() bool       { return true }
+
+type Counter1Decrement struct{}
+func (Counter1Decrement) IntentType() string      { return "Counter1Decrement" }
+func (Counter1Decrement) StayPressed() bool       { return true }
+
+// 方案2: 需要参数的 Intent（用于通用递增/递减）
+// 实际上在 Store 模式下，每个计数器有独立的 Store 实例
+type Counter2Increment struct{}
+func (Counter2Increment) IntentType() string      { return "Counter2Increment" }
+func (Counter2Increment) StayPressed() bool       { return true }
+
+type Counter2Decrement struct{}
+func (Counter2Decrement) IntentType() string      { return "Counter2Decrement" }
+func (Counter2Decrement) StayPressed() bool       { return true }
+
+// 方案3: 带参数的自定义 Intent（步长+10）
+type Counter3Increment struct {
+	Step int
+}
+func (Counter3Increment) IntentType() string      { return "Counter3Increment" }
+func (Counter3Increment) StayPressed() bool       { return true }
+
+// =============================================================================
+// Store 初始化
+// =============================================================================
+
+var appStore = store.NewStore(AppState{
+	Counter1: 0,
+	Counter2: 0,
+	Counter3: 0,
+})
+
+// =============================================================================
+// Reducer 注册
+// =============================================================================
+
+func init() {
+	reducer.NewBuilder[AppState]().
+		// 方案1: Counter1 的递增/递减
+		On(Counter1Increment{}, func(s AppState, i intent.Intent) AppState {
+			s.Counter1++
+			return s
+		}).
+		On(Counter1Decrement{}, func(s AppState, i intent.Intent) AppState {
+			s.Counter1--
+			return s
+		}).
+		// 方案2: Counter2 的递增/递增
+		On(Counter2Increment{}, func(s AppState, i intent.Intent) AppState {
+			s.Counter2++
+			return s
+		}).
+		On(Counter2Decrement{}, func(s AppState, i intent.Intent) AppState {
+			s.Counter2--
+			return s
+		}).
+		// 方案3: Counter3 的跨步递增
+		On(Counter3Increment{}, func(s AppState, i intent.Intent) AppState {
+			// ✅ 无需类型断言，直接读取 Intent 字段
+			if inc, ok := i.(Counter3Increment); ok {
+				s.Counter3 += inc.Step
 			}
-		}
-	})
+			return s
+		}).
+		BuildAndRegister(intent.DefaultRegistry(), appStore)
+}
 
-	ui.On(ui.SimpleDecrementIntent{}, func(actx *intent.ActionContext) {
-		if fn, ok := actx.GetState("setCount"); ok {
-			if setter, ok := fn.(func(func(int) int)); ok {
-				setter(func(c int) int { return c - 1 })
-			}
-		}
-	})
+// =============================================================================
+// 方案1: 使用简单的自定义 Intent + UseStoreSelector
+// =============================================================================
+
+func CounterWithSimpleIntent() ui.VNode {
+	// ✅ 订阅 Counter1 字段
+	count := ui.UseStoreSelector(
+		appStore,
+		func(s AppState) int { return s.Counter1 },
+	)
 
 	return ui.VStack(
 		ui.NewTextBuilder(fmt.Sprintf("Count: %d", count)).FgColor("green").Build(),
 		ui.HStack(
-			ui.NewButtonBuilder(" - ").OnPress(ui.SimpleDecrementIntent{}).Build(),
+			ui.NewButtonBuilder(" - ").OnPress(Counter1Decrement{}).Build(),
 			ui.Text(" "),
-			ui.NewButtonBuilder(" + ").OnPress(ui.SimpleIncrementIntent{}).Build(),
+			ui.NewButtonBuilder(" + ").OnPress(Counter1Increment{}).Build(),
 		),
 		ui.Text(""),
-		ui.NewTextBuilder("[方式1: ui.On + UseState]").FgColor("cyan").Build(),
-		ui.Text("  组件内状态，闭包自然访问"),
+		ui.NewTextBuilder("[方式1: 简单的自定义 Intent]").FgColor("cyan").Build(),
+		ui.Text("  类型安全的 Store 订阅"),
 	)
 }
 
 // =============================================================================
-// 方案 2: 使用 runtime/intent 内置函数（推荐全局状态）
+// 方案2: 使用独立 Store 的新方式（推荐）
 // =============================================================================
-// 这种方式适用于跨组件共享的全局状态，通过 Key 标识
-// 系统内置 handler，无需自定义
 
-func CounterWithGlobalState() ui.VNode {
-	ctx := ui.GetCurrentContext()
+// 定义方案2的独立状态
+type Counter2State struct {
+	Count int
+}
 
-	// 从全局状态读取计数
-	count := ctx.GetIntState("counter2", 0)
+type Counter2IncrementIntent struct{}
+func (Counter2IncrementIntent) IntentType() string      { return "Counter2IncrementIntent" }
+func (Counter2IncrementIntent) StayPressed() bool       { return true }
+
+type Counter2DecrementIntent struct{}
+func (Counter2DecrementIntent) IntentType() string      { return "Counter2DecrementIntent" }
+func (Counter2DecrementIntent) StayPressed() bool       { return true }
+
+var counter2Store = store.NewStore(Counter2State{Count: 0})
+
+func init() {
+	// 注册 Counter2 的 Reducer
+	reducer.NewBuilder[Counter2State]().
+		On(Counter2IncrementIntent{}, func(s Counter2State, i intent.Intent) Counter2State {
+			s.Count++
+			return s
+		}).
+		On(Counter2DecrementIntent{}, func(s Counter2State, i intent.Intent) Counter2State {
+			s.Count--
+			return s
+		}).
+		BuildAndRegister(intent.DefaultRegistry(), counter2Store)
+}
+
+func CounterWithStore() ui.VNode {
+	// ✅ 订阅 Counter2 的 Count 字段
+	count := ui.UseStoreSelector(
+		counter2Store,
+		func(s Counter2State) int { return s.Count },
+	)
 
 	return ui.VStack(
 		ui.NewTextBuilder(fmt.Sprintf("Count: %d", count)).FgColor("yellow").Build(),
 		ui.HStack(
-			ui.NewButtonBuilder(" - ").OnPress(intent.Decrement("counter2", 1)).Build(),
+			ui.NewButtonBuilder(" - ").OnPress(Counter2DecrementIntent{}).Build(),
 			ui.Text(" "),
-			ui.NewButtonBuilder(" + ").OnPress(intent.Increment("counter2", 1)).Build(),
+			ui.NewButtonBuilder(" + ").OnPress(Counter2IncrementIntent{}).Build(),
 		),
 		ui.Text(""),
-		ui.NewTextBuilder("[方式2: intent.Increment]").FgColor("cyan").Build(),
-		ui.Text("  全局状态，跨组件共享"),
+		ui.NewTextBuilder("[方式2: 独立 Store + Reducer]").FgColor("cyan").Build(),
+		ui.Text("  跨组件共享状态"),
 	)
 }
 
 // =============================================================================
-// 方案 3: 自定义 Intent 类型 + ui.On（推荐复杂场景）
+// 方案3: 带参数的自定义 Intent
 // =============================================================================
-// 这种方式适用于需要传递参数或特定业务逻辑的场景
-
-// CustomIncrement 自定义带步长的递增 Intent
-type CustomIncrement struct {
-	Step int
-}
-
-func (CustomIncrement) IntentType() string { return "CustomIncrement" }
-func (CustomIncrement) StayPressed() bool  { return true }
 
 func CounterWithCustomIntent() ui.VNode {
-	count, setCount, _ := ui.UseStateInt(0)
+	// ✅ 订阅 Counter3 字段
+	count := ui.UseStoreSelector(
+		appStore,
+		func(s AppState) int { return s.Counter3 },
+	)
 
-	// 将 setter 保存到 GlobalState，供 handler 从 ActionContext 读取
-	ctx := ui.GetCurrentContext()
-	if ctx != nil {
-		ctx.GlobalState["setCount"] = setCount
-	}
-
-	// 注册自定义 Intent 处理器
-	ui.On(CustomIncrement{Step: 10}, func(actx *intent.ActionContext) {
-		if fn, ok := actx.GetState("setCount"); ok {
-			if setter, ok := fn.(func(func(int) int)); ok {
-				setter(func(c int) int { return c + 10 })
-			}
-		}
-	})
 	return ui.VStack(
 		ui.NewTextBuilder(fmt.Sprintf("Count: %d", count)).FgColor("magenta").Build(),
 		ui.HStack(
-			ui.NewButtonBuilder(" +10 ").OnPress(CustomIncrement{Step: 10}).Build(),
+			ui.NewButtonBuilder(" +10 ").OnPress(Counter3Increment{Step: 10}).Build(),
 		),
 		ui.Text(""),
-		ui.NewTextBuilder("[方式3: 自定义 Intent]").FgColor("cyan").Build(),
-		ui.Text("  支持参数传递"),
+		ui.NewTextBuilder("[方式3: 带参数的自定义 Intent]").FgColor("cyan").Build(),
+		ui.Text("  无需类型断言，直接访问字段"),
 	)
 }
 
@@ -127,13 +201,13 @@ func SimpleCounter() ui.VNode {
 	return ui.VStack(
 		ui.NewTextBuilder("Mint UI - Intent 管理模式").FgColor("bright-cyan").Build(),
 		ui.Text(""),
-		ui.NewTextBuilder("【方案1】组件级状态").FgColor("white").Build(),
-		CounterWithHooks(),
+		ui.NewTextBuilder("【方案1】简单 Intent + Store").FgColor("white").Build(),
+		CounterWithSimpleIntent(),
 		ui.Text(""),
-		ui.NewTextBuilder("【方案2】全局状态").FgColor("white").Build(),
-		CounterWithGlobalState(),
+		ui.NewTextBuilder("【方案2】独立 Store（推荐跨组件）").FgColor("white").Build(),
+		CounterWithStore(),
 		ui.Text(""),
-		ui.NewTextBuilder("【方案3】自定义 Intent").FgColor("white").Build(),
+		ui.NewTextBuilder("【方案3】带参数的 Intent").FgColor("white").Build(),
 		CounterWithCustomIntent(),
 	)
 }
@@ -142,7 +216,7 @@ func main() {
 	err := ui.Run(SimpleCounter,
 		ui.WithWidth(40),
 		ui.WithHeight(30),
-		ui.WithTitle("Intent 管理模式对比"),
+		ui.WithTitle("Intent 管理模式对比（Store 模式）"),
 	)
 	if err != nil {
 		panic(err)

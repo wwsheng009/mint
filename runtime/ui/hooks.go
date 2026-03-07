@@ -73,6 +73,11 @@ type ComponentContext struct {
 	// This allows Intent handlers to update cross-component state without closures.
 	// Example: ctx.SetState("username", "john")
 	// Note: Renamed from State to GlobalState for clarity.
+	//
+	// Deprecated: Use Store + Reducer architecture instead.
+	// Use UseStoreField or UseStoreSelector for type-safe state management.
+	// Migration guide: https://github.com/wwsheng009/mint/docs/ui/store/guides/MIGRATION_GUIDE.md
+	// Status: Will be removed in v1.0
 	GlobalState map[string]interface{}
 
 	// PendingUpdates is a batch queue for state updates.
@@ -285,6 +290,11 @@ func (ctx *ComponentContext) EmitIntent(i intent.Intent) intent.IntentResult {
 // into a single re-render for better performance.
 // This implements the StateSetter interface for use by ActionContext.
 // Example: ctx.SetState("username", "john")
+//
+// Deprecated: Use Store + Reducer architecture instead.
+// Use UseStoreField for type-safe state management with automatic subscriptions.
+// Migration guide: https://github.com/wwsheng009/mint/docs/ui/store/guides/MIGRATION_GUIDE.md
+// Status: Will be removed in v1.0
 func (ctx *ComponentContext) SetState(key string, value interface{}) {
 	defer func() {
 		// Recover from panics (e.g., uncomparable type comparison)
@@ -336,6 +346,11 @@ func (ctx *ComponentContext) SetState(key string, value interface{}) {
 // GetState retrieves a state value by key.
 // Returns (value, true) if key exists, (nil, false) otherwise.
 // This implements the StateSetter interface for use by ActionContext.
+//
+// Deprecated: Use Store + Reducer architecture instead.
+// Use UseStoreField for type-safe state management with automatic subscriptions.
+// Migration guide: https://github.com/wwsheng009/mint/docs/ui/store/guides/MIGRATION_GUIDE.md
+// Status: Will be removed in v1.0
 func (ctx *ComponentContext) GetState(key string) (interface{}, bool) {
 	ctx.StateMu.RLock()
 	defer ctx.StateMu.RUnlock()
@@ -375,6 +390,11 @@ func (ctx *ComponentContext) FlushUpdates() int {
 }
 
 // GetStringState retrieves a string state value with a default.
+//
+// Deprecated: Use Store + Reducer architecture instead.
+// Use UseStoreField for type-safe state management.
+// Migration guide: https://github.com/wwsheng009/mint/docs/ui/store/guides/MIGRATION_GUIDE.md
+// Status: Will be removed in v1.0
 func (ctx *ComponentContext) GetStringState(key string, defaultValue string) string {
 	if value, exists := ctx.GetState(key); exists {
 		if str, ok := value.(string); ok {
@@ -385,6 +405,11 @@ func (ctx *ComponentContext) GetStringState(key string, defaultValue string) str
 }
 
 // GetIntState retrieves an int state value with a default.
+//
+// Deprecated: Use Store + Reducer architecture instead.
+// Use UseStoreField for type-safe state management.
+// Migration guide: https://github.com/wwsheng009/mint/docs/ui/store/guides/MIGRATION_GUIDE.md
+// Status: Will be removed in v1.0
 func (ctx *ComponentContext) GetIntState(key string, defaultValue int) int {
 	if value, exists := ctx.GetState(key); exists {
 		if i, ok := value.(int); ok {
@@ -395,6 +420,11 @@ func (ctx *ComponentContext) GetIntState(key string, defaultValue int) int {
 }
 
 // GetBoolState retrieves a boolean state value with a default.
+//
+// Deprecated: Use Store + Reducer architecture instead.
+// Use UseStoreField for type-safe state management.
+// Migration guide: https://github.com/wwsheng009/mint/docs/ui/store/guides/MIGRATION_GUIDE.md
+// Status: Will be removed in v1.0
 func (ctx *ComponentContext) GetBoolState(key string, defaultValue bool) bool {
 	if value, exists := ctx.GetState(key); exists {
 		if b, ok := value.(bool); ok {
@@ -424,6 +454,11 @@ func (ctx *ComponentContext) ScheduleUpdate() {
 
 // GetGlobalState retrieves a global state value by key.
 // This is an alias for GetState() that provides clearer semantic intent.
+//
+// Deprecated: Use Store + Reducer architecture instead.
+// Use UseStoreField for type-safe state management.
+// Migration guide: https://github.com/wwsheng009/mint/docs/ui/store/guides/MIGRATION_GUIDE.md
+// Status: Will be removed in v1.0
 func (ctx *ComponentContext) GetGlobalState(key string, defaultValue interface{}) interface{} {
 	if value, exists := ctx.GetState(key); exists {
 		return value
@@ -433,21 +468,41 @@ func (ctx *ComponentContext) GetGlobalState(key string, defaultValue interface{}
 
 // SetGlobalState updates a global state value.
 // This is an alias for SetState() that provides clearer semantic intent.
+//
+// Deprecated: Use Store + Reducer architecture instead.
+// Use UseStoreField for type-safe state management.
+// Migration guide: https://github.com/wwsheng009/mint/docs/ui/store/guides/MIGRATION_GUIDE.md
+// Status: Will be removed in v1.0
 func (ctx *ComponentContext) SetGlobalState(key string, value interface{}) {
 	ctx.SetState(key, value)
 }
 
 // GetGlobalString retrieves a global string state value with a default.
+//
+// Deprecated: Use Store + Reducer architecture instead.
+// Use store.GetStringField or UseStoreField for type-safe state management.
+// Migration guide: https://github.com/wwsheng009/mint/docs/ui/store/guides/MIGRATION_GUIDE.md
+// Status: Will be removed in v1.0
 func (ctx *ComponentContext) GetGlobalString(key string, defaultValue string) string {
 	return ctx.GetStringState(key, defaultValue)
 }
 
 // GetGlobalInt retrieves a global int state value with a default.
+//
+// Deprecated: Use Store + Reducer architecture instead.
+// Use store.GetIntField or UseStoreField for type-safe state management.
+// Migration guide: https://github.com/wwsheng009/mint/docs/ui/store/guides/MIGRATION_GUIDE.md
+// Status: Will be removed in v1.0
 func (ctx *ComponentContext) GetGlobalInt(key string, defaultValue int) int {
 	return ctx.GetIntState(key, defaultValue)
 }
 
 // GetGlobalBool retrieves a global boolean state value with a default.
+//
+// Deprecated: Use Store + Reducer architecture instead.
+// Use store.GetBoolField or UseStoreField for type-safe state management.
+// Migration guide: https://github.com/wwsheng009/mint/docs/ui/store/guides/MIGRATION_GUIDE.md
+// Status: Will be removed in v1.0
 func (ctx *ComponentContext) GetGlobalBool(key string, defaultValue bool) bool {
 	return ctx.GetBoolState(key, defaultValue)
 }

@@ -1,14 +1,28 @@
-// Package main is a simple test for Fiber reconciler
+// Package main - Fiber reconciler 测试示例（Store 模式）
+// 演示如何在 Fiber 模式下使用 Store + Reducer 架构
 package main
 
 import (
 	"fmt"
 
 	"github.com/wwsheng009/mint/runtime/intent"
+	"github.com/wwsheng009/mint/runtime/reducer"
+	"github.com/wwsheng009/mint/runtime/store"
 	"github.com/wwsheng009/mint/ui"
 )
 
+// =============================================================================
+// AppState - 定义应用状态
+// =============================================================================
+
+type AppState struct {
+	Count int
+}
+
+// =============================================================================
 // Intent Types
+// =============================================================================
+
 type DecrementIntent struct{}
 func (DecrementIntent) IntentType() string { return "Decrement" }
 func (DecrementIntent) StayPressed() bool  { return true }
@@ -17,31 +31,41 @@ type IncrementIntent struct{}
 func (IncrementIntent) IntentType() string { return "Increment" }
 func (IncrementIntent) StayPressed() bool  { return true }
 
-// SimpleCounter is a counter component for Fiber testing
+// =============================================================================
+// Store 初始化
+// =============================================================================
+
+var fiberStore = store.NewStore(AppState{
+	Count: 0,
+})
+
+// =============================================================================
+// Reducer 注册
+// =============================================================================
+
+func init() {
+	reducer.NewBuilder[AppState]().
+		On(DecrementIntent{}, func(s AppState, i intent.Intent) AppState {
+			s.Count--
+			return s
+		}).
+		On(IncrementIntent{}, func(s AppState, i intent.Intent) AppState {
+			s.Count++
+			return s
+		}).
+		BuildAndRegister(intent.DefaultRegistry(), fiberStore)
+}
+
+// =============================================================================
+// SimpleCounter - 计数器组件
+// =============================================================================
+
 func SimpleCounter() ui.VNode {
-	count, setCount, _ := ui.UseStateInt(0)
-
-	// 将 setter 保存到 GlobalState，供 handler 从 ActionContext 读取
-	ctx := ui.GetCurrentContext()
-	if ctx != nil {
-		ctx.GlobalState["setCount"] = setCount
-	}
-
-	// Register intent handlers using ui.On
-	ui.On(DecrementIntent{}, func(actx *intent.ActionContext) {
-		if fn, ok := actx.GetState("setCount"); ok {
-			if setter, ok := fn.(func(func(int) int)); ok {
-				setter(func(c int) int { return c - 1 })
-			}
-		}
-	})
-	ui.On(IncrementIntent{}, func(actx *intent.ActionContext) {
-		if fn, ok := actx.GetState("setCount"); ok {
-			if setter, ok := fn.(func(func(int) int)); ok {
-				setter(func(c int) int { return c + 1 })
-			}
-		}
-	})
+	// ✅ 使用 UseStoreSelector 订阅 count 字段
+	count := ui.UseStoreSelector(
+		fiberStore,
+		func(s AppState) int { return s.Count },
+	)
 
 	return ui.VStack(
 		ui.NewTextBuilder("Fiber Reconciler Test").
@@ -55,6 +79,7 @@ func SimpleCounter() ui.VNode {
 		ui.Text(""),
 		ui.HStack(
 			ui.NewButtonBuilder("  -  ").
+				// ✅ 使用自定义 Intent - 由 Reducer 处理，无需类型断言
 				OnPress(DecrementIntent{}).
 				Build(),
 			ui.Text("   "),
@@ -73,9 +98,14 @@ func SimpleCounter() ui.VNode {
 	)
 }
 
+// =============================================================================
+// Main
+// =============================================================================
+
 func main() {
 	// Fiber is enabled via MINT_USE_FIBER environment variable
 	// Run like: MINT_USE_FIBER=true go run examples/fiber/main.go
+	// ✅ 无需 WithInit 或 GlobalState 注册
 	err := ui.Run(SimpleCounter,
 		ui.WithWidth(40),
 		ui.WithHeight(14),

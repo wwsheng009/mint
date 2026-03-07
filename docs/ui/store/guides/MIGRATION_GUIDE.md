@@ -1,8 +1,22 @@
 # UseState 迁移指南
 
-**版本**: v1.0  
-**创建时间**: 2026-03-04  
+**版本**: v1.0
+**创建时间**: 2026-03-04
 **状态**: 当前架构 → Store + Reducer
+
+---
+
+## ⚠️ 重要提示：GlobalState 已弃用
+
+**状态**: `ComponentContext.GlobalState` 及相关方法已标记为 **Deprecated**
+
+请优先迁移到 **Store + Reducer** 架构，该架构提供：
+- ✅ 类型安全的状态管理
+- ✅ 无类型断言的代码
+- ✅ 单一数据源原则
+- ✅ 更清晰的代码结构
+
+**详细说明**: [GlobalState 弃用公告](../GLOBALSTATE_DEPRECATION.md) | [混合模式指南](../hybrid/STATE_MANAGEMENT_GUIDE.md)
 
 ---
 

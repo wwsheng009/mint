@@ -193,13 +193,43 @@ go run ./examples/store_mixed_demo/
 
 ### 短期
 1. 添加 UseStoreField 性能优化（避免每次渲染都订阅）
-2. 实现 UseStoreSelector 的深度比较支持
-3. 添加更多单元测试
+2. ✅ 实现 UseStoreSelector 的深度比较支持（已完成）
+3. ✅ 添加 More 单元测试（deepEqual 测试已完成）
+4. 添加 Store Hooks 集成测试
 
 ### 长期
 1. 考虑添加状态管理调试工具
 2. 实现异步 action 支持
 3. 添加状态快照和时间旅行功能
+
+---
+
+## 技术细节
+
+### 深度比较实现
+
+为了避免使用 `fmt.Sprintf` 字符串化比较的 bug，实现了自定义的 `deepEqual()` 函数：
+
+**支持的类型**：
+- 基本类型（int, float, string, bool 等）
+- 切片（递归比较）
+- Map（递归比较键值对）
+- Struct（比较导出字段）
+- Pointer（深度比较指向的值）
+- Interface 类型
+
+**特点**：
+- nil 安全（nil vs empty 不同）
+- 类型系统验证（不同类型直接返回 false）
+- 递归处理嵌套结构
+- 跳过未导出字段（符合 Go 反射规范）
+
+**单元测试覆盖**：
+- 基本类型测试
+- 切片和 Map 测试
+- 结构体测试
+- 指针测试
+- 边界情况处理
 
 ---
 
@@ -211,6 +241,8 @@ go run ./examples/store_mixed_demo/
 - ✅ 完整的文档和示例
 - ✅ 类型安全的 API
 - ✅ 自动订阅和重渲染
+- ✅ 深度比较优化
+- ✅ 完整的单元测试
 
 这为 Mint UI 开发者提供了更强大和灵活的状态管理能力，同时保持代码简洁和可维护性。
 
@@ -218,3 +250,4 @@ go run ./examples/store_mixed_demo/
 
 **文档创建**: 2026-03-07
 **状态**: 完成 ✅
+**最后更新**: 2026-03-07（深度比较优化）

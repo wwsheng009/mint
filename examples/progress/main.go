@@ -2,37 +2,65 @@ package main
 
 import (
 	"github.com/wwsheng009/mint/runtime/intent"
+	"github.com/wwsheng009/mint/runtime/reducer"
+	"github.com/wwsheng009/mint/runtime/store"
 	"github.com/wwsheng009/mint/ui"
 )
 
+// =============================================================================
+// AppState - Progress 状态
+// =============================================================================
+
+type AppState struct {
+	Progress int // 进度值 0-100
+}
+
+// =============================================================================
 // Intent Types
+// =============================================================================
+
 type IncrementProgressIntent struct{}
 func (IncrementProgressIntent) IntentType() string { return "IncrementProgress" }
 func (IncrementProgressIntent) StayPressed() bool  { return true }
 
-// ProgressDemo demonstrates the progress bar component
-func ProgressDemo() ui.VNode {
-	progress, setProgress, _ := ui.UseStateInt(0)
+type ResetProgressIntent struct{}
+func (ResetProgressIntent) IntentType() string    { return "ResetProgress" }
+func (ResetProgressIntent) StayPressed() bool     { return true }
 
-	// 将状态保存到 GlobalState，供 handler 从 ActionContext 读取
-	ctx := ui.GetCurrentContext()
-	if ctx != nil {
-		ctx.GlobalState["progress"] = progress
-		ctx.GlobalState["setProgress"] = setProgress
-	}
+// =============================================================================
+// Store 初始化
+// =============================================================================
 
-	// Register intent handler
-	ui.On(IncrementProgressIntent{}, func(actx *intent.ActionContext) {
-		currentProgress := actx.GetIntState("progress", 0)
-		if currentProgress >= 100 {
-			return
-		}
-		if fn, ok := actx.GetState("setProgress"); ok {
-			if setter, ok := fn.(func(int)); ok {
-				setter(currentProgress + 10)
+var progressStore = store.NewStore(AppState{
+	Progress: 0,
+})
+
+// =============================================================================
+// Reducer 注册
+// =============================================================================
+
+func init() {
+	reducer.NewBuilder[AppState]().
+		On(IncrementProgressIntent{}, func(s AppState, i intent.Intent) AppState {
+			if s.Progress < 100 {
+				s.Progress += 10
 			}
-		}
-	})
+			return s
+		}).
+		On(ResetProgressIntent{}, func(s AppState, i intent.Intent) AppState {
+			s.Progress = 0
+			return s
+		}).
+		BuildAndRegister(intent.DefaultRegistry(), progressStore)
+}
+
+// =============================================================================
+// Progress Demo Component
+// =============================================================================
+
+func ProgressDemo() ui.VNode {
+	// ✅ 订阅 progress 状态
+	progress := ui.UseStoreSelector(progressStore, func(s AppState) int { return s.Progress })
 
 	return ui.VStack(
 		ui.NewTextBuilder("Progress Bar Demo").
@@ -58,29 +86,18 @@ func ProgressDemo() ui.VNode {
 		ui.NewTextBuilder("Status:").
 			FgColor("bright-black").
 			Build(),
-		func() ui.VNode {
-			if progress < 30 {
-				return ui.NewTextBuilder("  Starting...").
-					FgColor("bright-black").
-					Build()
-			} else if progress < 70 {
-				return ui.NewTextBuilder("  In progress...").
-					FgColor("yellow").
-					Build()
-			} else if progress < 100 {
-				return ui.NewTextBuilder("  Almost done!").
-					FgColor("cyan").
-					Build()
-			}
-			return ui.NewTextBuilder("  Complete!").
-				FgColor("green").
-				Bold(true).
-				Build()
-		}(),
+		StatusText(progress),
 		ui.Text(""),
-		ui.NewButtonBuilder("  +10%  ").
-			OnPress(IncrementProgressIntent{}).
-			Build(),
+		ui.HStack(
+			ui.NewButtonBuilder("  +10%  ").
+				// ✅ 使用自定义 Intent - 由 Reducer 处理
+				OnPress(IncrementProgressIntent{}).
+				Build(),
+			ui.Text(" "),
+			ui.NewButtonBuilder("  Reset  ").
+				OnPress(ResetProgressIntent{}).
+				Build(),
+		),
 		ui.Text(""),
 		ui.NewTextBuilder("Press button to increase progress").
 			FgColor("bright-black").
@@ -92,11 +109,41 @@ func ProgressDemo() ui.VNode {
 	)
 }
 
+// =============================================================================
+// Status Text Component
+// =============================================================================
+
+func StatusText(progress int) ui.VNode {
+	switch {
+	case progress < 30:
+		return ui.NewTextBuilder("  Starting...").
+			FgColor("bright-black").
+			Build()
+	case progress < 70:
+		return ui.NewTextBuilder("  In progress...").
+			FgColor("yellow").
+			Build()
+	case progress < 100:
+		return ui.NewTextBuilder("  Almost done!").
+			FgColor("cyan").
+			Build()
+	default:
+		return ui.NewTextBuilder("  Complete!").
+			FgColor("green").
+			Bold(true).
+			Build()
+	}
+}
+
+// =============================================================================
+// Main
+// =============================================================================
+
 func main() {
 	err := ui.Run(ProgressDemo,
 		ui.WithWidth(50),
 		ui.WithHeight(20),
-		ui.WithTitle("Progress Demo"),
+		ui.WithTitle("Progress Demo (Store 模式)"),
 	)
 	if err != nil {
 		panic(err)

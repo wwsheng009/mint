@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"reflect"
 	"strings"
 
 	"github.com/wwsheng009/mint/internal/log"
@@ -598,6 +599,145 @@ func depsEqual(a, b []interface{}) bool {
 	return true
 }
 
+// deepEqual performs deep equality comparison for two values.
+// It supports:
+//   - Nil comparisons
+//   - Basic types (int, float, string, bool, etc.)
+//   - Slices (recursive)
+//   - Maps (recursive)
+//   - Structs (by comparing exported fields)
+//   - Pointers (comparing pointed values)
+//
+// This is used by UseStoreSelector and UseStoreField to determine if a value
+// has truly changed, avoiding unnecessary re-renders.
+//
+// Limitations:
+//   - Struct comparison uses reflection (may have performance overhead)
+//   - Unexported struct fields are not compared
+//   - Circular references may cause stack overflow (unlikely in typical use)
+func deepEqual(a, b interface{}) bool {
+	// Handle nil cases first
+	if a == nil && b == nil {
+		return true
+	}
+	if a == nil || b == nil {
+		return false
+	}
+
+	// Use reflection for complex types
+	va := reflect.ValueOf(a)
+	vb := reflect.ValueOf(b)
+
+	// If types don't match, they're not equal
+	if va.Kind() != vb.Kind() {
+		return false
+	}
+
+	// Handle slices and maps specially (nil vs empty is different)
+	switch va.Kind() {
+	case reflect.Slice, reflect.Map:
+		// nil vs empty is different
+		if va.IsNil() != vb.IsNil() {
+			return false
+		}
+	}
+
+	return deepEqualValue(va, vb)
+}
+
+// deepEqualValue recursively compares two reflect.Values
+func deepEqualValue(a, b reflect.Value) bool {
+	// Handle basic types efficiently
+	switch a.Kind() {
+	case reflect.Bool:
+		return a.Bool() == b.Bool()
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return a.Int() == b.Int()
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
+		return a.Uint() == b.Uint()
+	case reflect.Float32, reflect.Float64:
+		return a.Float() == b.Float()
+	case reflect.Complex64, reflect.Complex128:
+		return a.Complex() == b.Complex()
+	case reflect.String:
+		return a.String() == b.String()
+	}
+
+	// Handle pointers and interfaces
+	switch a.Kind() {
+	case reflect.Ptr:
+		// nil check
+		if a.IsNil() != b.IsNil() {
+			return false
+		}
+		if a.IsNil() {
+			return true
+		}
+		// For pointers, we compare the pointed values (deep comparison)
+		return deepEqualValue(a.Elem(), b.Elem())
+
+	case reflect.Interface:
+		if a.IsNil() != b.IsNil() {
+			return false
+		}
+		if a.IsNil() {
+			return true
+		}
+		return deepEqualValue(a.Elem(), b.Elem())
+
+	case reflect.Slice, reflect.Array:
+		if a.Len() != b.Len() {
+			return false
+		}
+		for i := 0; i < a.Len(); i++ {
+			if !deepEqualValue(a.Index(i), b.Index(i)) {
+				return false
+			}
+		}
+		return true
+
+	case reflect.Map:
+		if a.Len() != b.Len() {
+			return false
+		}
+		// Compare keys and values
+		for _, key := range a.MapKeys() {
+			va := a.MapIndex(key)
+			vb := b.MapIndex(key)
+			if !vb.IsValid() {
+				return false // Key doesn't exist in b
+			}
+			if !deepEqualValue(va, vb) {
+				return false
+			}
+		}
+		return true
+
+	case reflect.Struct:
+		// Compare exported struct fields
+		t := a.Type()
+		for i := 0; i < a.NumField(); i++ {
+			field := t.Field(i)
+			// Skip unexported fields
+			if field.PkgPath != "" {
+				continue
+			}
+			if !deepEqualValue(a.Field(i), b.Field(i)) {
+				return false
+			}
+		}
+		return true
+
+	case reflect.Func:
+		// Functions are equal only if they have the same address or both nil
+		return a.Pointer() == b.Pointer()
+
+	default:
+		// For other types, try direct equality
+		return a.Interface() == b.Interface()
+	}
+}
+
 // =============================================================================
 // Store Hooks - Hybrid Mode (useState + Store Architecture)
 // =============================================================================
@@ -774,9 +914,9 @@ func UseStoreSelector[S any, T any](
 		valueChanged = true
 		hook.Initialized = true
 	} else {
-		// Compare using string representation for simplicity
-		// For production, use a custom comparator
-		valueChanged = fmt.Sprintf("%v", hook.Value) != fmt.Sprintf("%v", currentValue)
+		// Use deep equality comparison instead of string representation
+		// This handles slices, maps, and structs correctly
+		valueChanged = !deepEqual(hook.Value, currentValue)
 	}
 
 	if valueChanged {
