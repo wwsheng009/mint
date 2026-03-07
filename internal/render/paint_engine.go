@@ -101,7 +101,10 @@ func (e *PaintEngine) PaintLayout(layout *paint.PaintableLayout, buffer *paint.B
 		if e.paintContext == nil {
 			e.paintContext = cachepkg.NewPaintingContext(e.cache, buffer, e.version)
 		}
-		e.paintContext.UpdateBufferCopy(buffer)
+		// e.paintContext.UpdateBufferCopy(buffer)
+		// REMOVED: This buffer copy was causing 33% CPU overhead (cloneBuffer).
+		// The system already uses DirtyTracker for diff tracking (runtime/paint/dirty.go).
+		// See DIFF_REDUNDANCY_ANALYSIS.md for details.
 	}
 
 	// Clear parent background map at the start of each frame

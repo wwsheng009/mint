@@ -1375,11 +1375,20 @@ func (a *App) handleEvent(ev frameworkevent.Event) {
 }
 
 // handleTick 处理定时器
-// 光标闪烁现在由 TextInput.Paint 自己处理，不需要外部 Tick
+// 
+// 性能优化：由于当前没有光标组件，而且系统能通过 Fiber/事件驱动重绘，
+// 完全不需要定时器触发渲染。
+//
+// 组件可以通过以下方式触发重绘：
+//   1. 用户事件（按键、鼠标、Resize）→ handleMsg() → a.dirty = true
+//   2. Fiber reconciler 状态更新 → reconciler.Scheduler -> a.dirty = true
+//   3. 组件 MarkDirty() → a.dirty = true (通过 SetDirtyCallback)
+//
+// 如果将来添加光标组件（如 Input），需要在组件内部自行管理刷新频率，
+// 或者在该函数中添加条件判断来定期刷新。
 func (a *App) handleTick() {
-	// 定期触发重绘以支持光标闪烁
-	// TextInput 会在 Paint 时自己检查时间并切换光标状态
-	a.dirty = true
+	// 空实现 - 不定时设置 dirty
+	// 如果需要光标闪烁，应在组件内部基于时间差判断并请求重绘
 }
 
 // render 渲染界面

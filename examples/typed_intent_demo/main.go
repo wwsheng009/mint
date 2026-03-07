@@ -6,6 +6,9 @@ package main
 
 import (
 	"fmt"
+	"net/http"
+	"os"
+	"runtime/pprof"
 	"strings"
 	"time"
 
@@ -431,6 +434,54 @@ func renderFormView(state FormState) mintui.VNode {
 // =============================================================================
 
 func main() {
+	// ============================================================
+	// CPU Profiling Setup (用于性能分析)
+	// ============================================================
+	// 检查是否启用 CPU profiling
+	if os.Getenv("MINT_CPU_PROFILE") == "true" {
+		// 启动 pprof HTTP 服务器 (用于在线分析)
+		// 访问 http://localhost:6060/debug/pprof/ 查看
+		go func() {
+			fmt.Println("pprof server listening on :6060")
+			fmt.Println("Access http://localhost:6060/debug/pprof/")
+			if err := http.ListenAndServe("localhost:6060", nil); err != nil {
+				fmt.Printf("pprof server error: %v\n", err)
+			}
+		}()
+
+		// 如果设置了 CPU profile 输出文件，自动采样
+		profileFile := os.Getenv("MINT_CPU_PROFILE_FILE")
+		if profileFile != "" {
+			duration := 30 // 默认采样30秒
+			if d := os.Getenv("MINT_CPU_PROFILE_DURATION"); d != "" {
+				fmt.Sscanf(d, "%d", &duration)
+			}
+
+			f, err := os.Create(profileFile)
+			if err != nil {
+				fmt.Printf("Could not create CPU profile: %v\n", err)
+				return
+			}
+			defer f.Close()
+
+			if err := pprof.StartCPUProfile(f); err != nil {
+				fmt.Printf("Could not start CPU profile: %v\n", err)
+				return
+			}
+			defer pprof.StopCPUProfile()
+
+			fmt.Printf("CPU profiling enabled: sampling for %d seconds to %s\n", duration, profileFile)
+
+			// 在指定时长后自动退出
+			go func() {
+				time.Sleep(time.Duration(duration) * time.Second)
+				fmt.Println("CPU profiling completed, exiting...")
+				pprof.StopCPUProfile()
+				os.Exit(0)
+			}()
+		}
+	}
+
 	// Create initial state
 	initialState := FormState{
 		Username:   "",
