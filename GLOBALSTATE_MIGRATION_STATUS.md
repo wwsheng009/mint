@@ -37,6 +37,9 @@
 | examples/mouse | ✅ 已完成 | 140 → 148 (+6%) | 本次迁移 |
 | examples/dynamic_list | ✅ 已完成 | 149 → 217 (+46%) | 本次迁移 |
 | examples/transition_demo | ✅ 已完成 | 213 → 235 (+10%) | 本次迁移 |
+| ui_demos/demo4_complex_layout | ✅ 已完成 | 417 → 428 (+3%) | 本次迁移 |
+| ui_demos/demo3_styling | ✅ 已完成 | 525 → 533 (+2%) | 本次迁移 |
+| examples/select | ✅ 已完成 | 87 → 115 (+32%) | 本次迁移 |
 
 ---
 
@@ -77,7 +80,7 @@
 | ~~`examples/mouse`~~ | 已迁移 | ✅ 完成 | 鼠标事件示例 |
 | ~~`examples/dynamic_list`~~ | 已迁移 | ✅ 完成 | 动态列表示例 |
 | ~~`examples/input`~~ | 已迁移 | ✅ 完成 | 输入框示例 |
-| `examples/select` | 1 | 低 | 选择器示例 |
+| ~~`examples/select`~~ | 已迁移 | ✅ 完成 | 选择器示例 |
 | `examples/virtuallist` | 2 | 低 | 虚拟列表示例 |
 
 ### Sandbox / Test Examples
@@ -145,9 +148,9 @@
 
 ### 进度概览
 
-- **已完成**: 23 个示例
-- **待迁移**: 约 26+ 个示例
-- **完成率**: ~47%
+- **已完成**: 26 个示例
+- **待迁移**: 约 23+ 个示例
+- **完成率**: ~53%
 
 ### 代码行数影响
 
@@ -217,14 +220,24 @@
 - dynamic_list: 演示独立 Store 模式（每个列表项有自己的 Store）
 - transition_demo: 演示异步操作模式，后台 goroutine 通过 Store 更新
 
-### Phase 5: 完整示例（计划中）
+### Phase 5: UI Demos 和 Select 组件 ✅ (已完成)
+- [x] ui_demos/demo4_complex_layout
+- [x] ui_demos/demo3_styling
+- [x] examples/select
+
+**迁移时间**: 2026-03-07
+**迁移说明**:
+- 迁移了 3 个更多示例
+- demo4_complex_layout: 复杂布局演示，使用 Store 管理当前选中的布局类型
+- demo3_styling: 样式系统演示，使用 Store 管理当前标签
+- select: Select 组件演示，使用 Store 管理选中的主题索引（添加了手动选择按钮）
+
+### Phase 6: 完整示例（计划中）
 - [ ] demo1_full_featured
 - [ ] demo2_runtime_internals
-- [ ] demo3_styling
-- [ ] demo4_complex_layout
 - [ ] demo5_ide
 
-### Phase 5: 测试和沙箱示例（计划中）
+### Phase 7: 测试和沙箱示例（计划中）
 - [ ] sandbox 示例
 - [ ] error_boundary 示例
 - [ ] 其他测试示例
@@ -255,7 +268,8 @@
 | 2026-03-07 | 完成 Phase 2: 迁移 4 个 Fiber 示例（fiber_counter, fiber, fiber_demo, fiber_counter_intent） |
 | 2026-03-07 | 完成 Phase 3: 迁移 5 个流行组件示例（modal, toast, tabs, timer, progress） |
 | 2026-03-07 | 完成 Phase 4: 迁移 5 个其他组件示例（demo, input, mouse, dynamic_list, transition_demo） |
-| 2026-03-07 | 更新迁移进度：47% 完成（23/49 示例） |
+| 2026-03-07 | 完成 Phase 5: 迁移 3 个 UI Demos 和 Select 示例（demo4_complex_layout, demo3_styling, select） |
+| 2026-03-07 | 更新迁移进度：53% 完成（26/49 示例） |
 
 ---
 
