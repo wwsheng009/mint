@@ -161,18 +161,25 @@ func CreateFiber(vnode VNode) *Fiber {
 		// VNode defines its own instance type
 		instance = factory.CreateInstance()
 
-		// Set IntentEmitter for Intent Bubble (Fix P0-1: INTENT_BUBBLE_AUDIT_REPORT.md)
-		// After fix: IntentEmitter should use intent.Emit(component, intent) to bubble up the tree
-		// Before fix: IntentEmitter was sending intents to global intent.Runtime
+		// IntentEmitter sends all intents to global Intent Runtime
+		// This is the unified routing strategy (Phase 10 revision):
+		// - All intents (FieldChange, Submit, etc.) are handled globally
+		// - Intent Bubble is optional and implemented via component's HandleIntent forwarding
 		if setter, ok := instance.(interface{ SetIntentEmitter(func(i intent.Intent)) }); ok {
 			setter.SetIntentEmitter(func(i intent.Intent) {
-				// Intent Bubble: Emit along the instance tree through Parent() chain
-				// This enables parent-child communication via intent bubbling
-				if component, ok := instance.(intent.TreeComponent); ok {
-					intent.Emit(component, i)
+				if runtime := GetGlobalIntentRuntime(); runtime != nil {
+					result := runtime.Emit(i)
+					if result.Error != nil {
+						// Log intent emission errors
+						if log.UILogger.Enabled() {
+							log.UILogger.Debug("[IntentEmitter] Failed to emit intent %s: %v",
+								i.IntentType(), result.Error)
+						} else {
+							fmt.Printf("[IntentEmitter] Failed to emit intent %s: %v\n",
+								i.IntentType(), result.Error)
+						}
+					}
 				}
-				// Note: If intent needs to also reach the global system,
-				// the component's HandleIntent can forward it there
 			})
 		}
 	}
