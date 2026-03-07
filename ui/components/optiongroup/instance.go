@@ -39,13 +39,15 @@ type Instance struct {
 	selectIntent intent.Intent
 
 	// === Runtime State (managed by instance) ===
-	state     control.InteractionState
-	mode      SelectMode
-	options   []Option
-	selected  string   // For ModeSingle
-	selecteds []string // For ModeMultiple
-	bounds    [4]int  // x, y, w, h
-	dirty     bool
+	state       control.InteractionState
+	mode        SelectMode
+	options     []Option
+	orientation Orientation // from vnode.go: OrientationVertical/Horizontal
+	spacing     int        // gap between options
+	selected    string     // For ModeSingle
+	selecteds   []string   // For ModeMultiple
+	bounds      [4]int     // x, y, w, h
+	dirty       bool
 
 	// === Intent Emitter ===
 	intentEmitter func(intent.Intent)
@@ -62,12 +64,13 @@ type Instance struct {
 
 // ===== Instance Tree Methods (Mint Runtime 2.0 - Phase 1) =====
 
-// Parent implements TreeNode interface
+// Parent implements rtui.TreeNode interface (for TreeContainer).
+// Returns nil since OptionGroup is typically a root component.
 func (inst *Instance) Parent() rtui.ComponentInstance {
-	return nil // OptionGroup is typically a root or managed by its parent
+	return nil
 }
 
-// Children implements TreeNode interface
+// Children implements rtui.TreeNode/TreeContainer interface
 func (inst *Instance) Children() []rtui.ComponentInstance {
 	children := make([]rtui.ComponentInstance, len(inst.childInstances))
 	for i, child := range inst.childInstances {
@@ -82,9 +85,13 @@ func (inst *Instance) AddChild(child rtui.ComponentInstance) {
 		return
 	}
 	if optInst, ok := child.(*OptionInstance); ok {
-		// Check if already added
+		// Check if already added (compare by key, not pointer)
+		// This prevents duplicate children with the same value from Fiber diffing
 		for _, existing := range inst.childInstances {
-			if existing == optInst {
+			if existing.Key() == optInst.Key() {
+				// Already exists, but still set parent reference
+				// This ensures the child has correct parent even if created from Fiber
+				optInst.parent = inst
 				return
 			}
 		}
@@ -127,7 +134,9 @@ var (
 	_ rtui.FocusableInstance     = (*Instance)(nil)
 	_ rtui.ActionHandlerInstance = (*Instance)(nil)
 	_ control.Instance           = (*Instance)(nil)
-	// Note: intent.IntentHandler is implemented via wrapper (see handleIntent method)
+	_ rtui.TreeNode              = (*Instance)(nil)      // Instance Tree Phase 1
+	_ rtui.TreeContainer         = (*Instance)(nil)      // Instance Tree Phase 1
+	_ intent.IntentHandler       = (*Instance)(nil)      // Intent Bubble
 	_ interface {
 		Measure(layout.Constraints) layout.Size
 	} = (*Instance)(nil)
@@ -162,6 +171,21 @@ func NewInstance(props rtui.Props) *Instance {
 	// Initialize state
 	inst.state = control.InteractionState{
 		Disabled: getBoolProp(props, "disabled", false),
+	}
+
+	// Initialize child Option instances from options list
+	for i, opt := range inst.options {
+		childProps := rtui.Props{
+			"key":   inst.key + "-opt-" + opt.Value,
+			"value": opt.Value,
+			"label": opt.Label,
+			"idx":   i,
+			"mode":  inst.mode,
+		}
+		childInst := NewOptionInstance(childProps)
+		inst.childInstances = append(inst.childInstances, childInst)
+		// Set parent reference
+		childInst.parent = inst
 	}
 
 	// Initialize behaviors
@@ -246,12 +270,16 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	oldSelected := inst.selected
 	oldSelecteds := inst.selecteds
 	oldIntent := inst.selectIntent
+	oldOptions := make([]Option, len(inst.options))
+	copy(oldOptions, inst.options)
 
 	inst.label = getStringProp(props, "label", inst.label)
 	inst.optionStyle = getStyleProp(props)
 	inst.selectIntent = getIntentProp(props)
 	inst.mode = getSelectModeProp(props, inst.mode)
 	inst.options = getOptionsProp(props, inst.options)
+	inst.orientation = getOrientationProp(props, inst.orientation)
+	inst.spacing = getIntProp(props, "spacing", inst.spacing)
 	inst.selected = getStringProp(props, "selected", inst.selected)
 	inst.selecteds = getStringsProp(props, "selecteds", inst.selecteds)
 
@@ -260,11 +288,18 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 		inst.state.Disabled = newDisabled
 	}
 
+	// Check if options changed - if so, rebuild children
+	optionsChanged := !equalOptions(oldOptions, inst.options)
+	if optionsChanged {
+		inst.rebuildChildInstances()
+	}
+
 	// Check if props changed
 	changed := oldLabel != inst.label ||
 		oldDisabled != inst.state.Disabled ||
 		oldSelected != inst.selected ||
-		oldIntent != inst.selectIntent
+		oldIntent != inst.selectIntent ||
+		optionsChanged
 
 	if changed {
 		inst.dirty = true
@@ -320,26 +355,12 @@ func (inst *Instance) GetContext() *rtui.ComponentContext {
 
 // Paint implements PaintableInstance.
 //
-// After refactoring: Only renders the group label (if any).
-// Options are rendered by child OptionInstance nodes.
+// Note: OptionGroup does not render anything directly.
+// - Label is rendered as a separate text child node (see VNode.Children())
+// - Options are rendered by child OptionInstance nodes
 func (inst *Instance) Paint(x, y int) []paint.DrawCmd {
-	var cmds []paint.DrawCmd
-
-	// Render label if present
-	if inst.label != "" {
-		labelStyle := inst.resolveStyle()
-		cmds = append(cmds, paint.DrawCmd{
-			X:     x,
-			Y:     y,
-			Text:  inst.label,
-			Style: labelStyle,
-		})
-	}
-
-	// Options are rendered by child OptionInstance nodes
-	// This allows each option to have independent focus and hit testing
-
-	return cmds
+	// No direct rendering - all content is rendered by child nodes
+	return []paint.DrawCmd{}
 }
 
 // resolveStyle resolves the visual style based on state for the group label.
@@ -425,6 +446,9 @@ func (inst *Instance) SelectOption(value string) {
 		inst.selected = value
 		inst.selecteds = []string{value}
 
+		// Update child instances' selected state
+		inst.updateChildInstances()
+
 		// Emit FieldChangeIntent with runtime value
 		inst.emitFieldChange(value)
 	} else {
@@ -445,9 +469,70 @@ func (inst *Instance) SelectOption(value string) {
 			inst.selecteds = append(inst.selecteds, value)
 		}
 
+		// Update child instances' selected state
+		inst.updateChildInstances()
+
 		// Emit FieldChangeIntent with comma-separated values
 		valueStr := strings.Join(inst.selecteds, ",")
 		inst.emitFieldChange(valueStr)
+	}
+}
+
+// updateChildInstances updates all child Option instances with the current selected state.
+// This ensures Paint() renders the correct selected indicator.
+func (inst *Instance) updateChildInstances() {
+	for _, child := range inst.childInstances {
+		var isSelected bool
+		if inst.mode == ModeSingle {
+			isSelected = (inst.selected == child.value)
+		} else {
+			for _, v := range inst.selecteds {
+				if v == child.value {
+					isSelected = true
+					break
+				}
+			}
+		}
+
+		// Update child's selected state through Props
+		child.SetProps(rtui.Props{"selected": isSelected})
+	}
+}
+
+// DeselectOption removes an option from the selection (for ModeMultiple).
+// Phase 5: Added to support Intent Bubble with toggle semantics.
+func (inst *Instance) DeselectOption(value string) {
+	inst.dirty = true
+
+	if inst.mode == ModeSingle {
+		// Single-select: clear selection
+		inst.selected = ""
+		inst.selecteds = []string{}
+
+		// Update child instances' selected state
+		inst.updateChildInstances()
+
+		inst.emitFieldChange("")
+	} else {
+		// Multi-select: remove the option
+		idx := -1
+		for i, v := range inst.selecteds {
+			if v == value {
+				idx = i
+				break
+			}
+		}
+
+		if idx >= 0 {
+			inst.selecteds = append(inst.selecteds[:idx], inst.selecteds[idx+1:]...)
+
+			// Update child instances' selected state
+			inst.updateChildInstances()
+
+			// Emit FieldChangeIntent with comma-separated values
+			valueStr := strings.Join(inst.selecteds, ",")
+			inst.emitFieldChange(valueStr)
+		}
 	}
 }
 
@@ -602,6 +687,37 @@ func (inst *Instance) SetIntentEmitter(fn func(intent.Intent)) {
 	inst.intentEmitter = fn
 }
 
+// =============================================================================
+// IntentHandler Interface (Phase 5: Intent Bubble Migration)
+// =============================================================================
+
+// HandleIntent implements the intent.IntentHandler interface.
+// This method is called when intents bubble up the instance tree.
+func (inst *Instance) HandleIntent(i intent.Intent) bool {
+	switch v := i.(type) {
+	case OptionSelectIntent:
+		// Ensure this intent is for the correct group
+		if v.GroupKey != inst.key {
+			return false // Not for this group, continue bubbling
+		}
+
+		// Handle the selection based on mode
+		if v.Mode == ModeSingle {
+			// Single select: replace current selection
+			inst.SelectOption(v.Value)
+		} else {
+			// Multi-select: toggle selection
+			if v.IsSelected {
+				inst.SelectOption(v.Value) // Add to selection
+			} else {
+				inst.DeselectOption(v.Value) // Remove from selection
+			}
+		}
+		return true // Intent handled, stop bubbling
+	}
+	return false // Intent not handled, continue bubbling
+}
+
 // ClearDirty clears the dirty flag.
 func (inst *Instance) ClearDirty() {
 	inst.dirty = false
@@ -614,13 +730,13 @@ func (inst *Instance) ClearDirty() {
 // Measure implements layout.Measurable interface.
 // Calculates the optiongroup's ideal size given the constraints.
 //
-// After refactoring: Only calculates label size, options are measured independently.
+// Calculates total size based on children (options) + label + spacing.
 func (inst *Instance) Measure(constraints layout.Constraints) layout.Size {
 	if inst == nil {
 		return layout.Size{}
 	}
 
-	// Calculate dimensions based on label only
+	// Calculate dimensions based on label
 	var width, height int
 
 	if inst.label != "" {
@@ -628,8 +744,45 @@ func (inst *Instance) Measure(constraints layout.Constraints) layout.Size {
 		width = len(inst.label)
 	}
 
-	// Options are child nodes, they report their own sizes
-	// Container doesn't need to calculate option dimensions
+	// Sum up child option dimensions
+	numChildren := len(inst.childInstances)
+	if numChildren > 0 {
+		var totalOptionWidth, totalOptionHeight int
+
+		// Calculate max single option size (needed for horizontal layout)
+		maxOptionWidth := 0
+		maxOptionHeight := 0
+
+		for _, child := range inst.childInstances {
+			// Measure child with same constraints
+			childSize := child.Measure(constraints)
+			if childSize.Width > maxOptionWidth {
+				maxOptionWidth = childSize.Width
+			}
+			if childSize.Height > maxOptionHeight {
+				maxOptionHeight = childSize.Height
+			}
+		}
+
+		// Calculate based on orientation
+		if inst.orientation == OrientationVertical {
+			// Vertical: Stack options, width = max, height = sum
+			// Note: spacing is handled by layout system, not by Measure
+			totalOptionWidth = maxOptionWidth
+			totalOptionHeight = numChildren * maxOptionHeight
+		} else {
+			// Horizontal: Options side by side, width = sum, height = max
+			// Note: spacing is handled by layout system, not by Measure
+			totalOptionWidth = numChildren * maxOptionWidth
+			totalOptionHeight = maxOptionHeight
+		}
+
+		// Update container size to fit options
+		if totalOptionWidth > width {
+			width = totalOptionWidth
+		}
+		height += totalOptionHeight
+	}
 
 	// Apply constraints
 	width = constraints.ConstrainWidth(width)
@@ -720,6 +873,52 @@ func getStringsProp(props rtui.Props, key string, def []string) []string {
 		}
 	}
 	return def
+}
+
+func getOrientationProp(props rtui.Props, def Orientation) Orientation {
+	if v, ok := props["orientation"]; ok {
+		if o, ok := v.(Orientation); ok {
+			return o
+		}
+	}
+	return def
+}
+
+// equalOptions compares two slices of Option for equality
+func equalOptions(a, b []Option) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i].Value != b[i].Value || a[i].Label != b[i].Label {
+			return false
+		}
+	}
+	return true
+}
+
+// rebuildChildInstances rebuilds child instances from current options
+func (inst *Instance) rebuildChildInstances() {
+	// Clear parent references on old children
+	for _, child := range inst.childInstances {
+		child.parent = nil
+	}
+
+	// Rebuild child instances
+	inst.childInstances = inst.childInstances[:0]
+	for i, opt := range inst.options {
+		childProps := rtui.Props{
+			"key":   inst.key + "-opt-" + opt.Value,
+			"value": opt.Value,
+			"label": opt.Label,
+			"idx":   i,
+			"mode":  inst.mode,
+		}
+		childInst := NewOptionInstance(childProps)
+		inst.childInstances = append(inst.childInstances, childInst)
+		// Set parent reference
+		childInst.parent = inst
+	}
 }
 
 // =============================================================================

@@ -1,58 +1,15 @@
 package optiongroup
 
 import (
-	"sync"
-
 	"github.com/wwsheng009/mint/runtime/action"
 	"github.com/wwsheng009/mint/framework/theme"
 	"github.com/wwsheng009/mint/runtime/intent"
+	"github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/ui/components/control"
 )
-
-// =============================================================================
-// Parent Instance Registry
-// =============================================================================
-
-// parentRegistry stores mapping from parent key to parent Instance.
-var parentRegistry = struct {
-	sync.RWMutex
-	registry map[string]*Instance
-}{
-	registry: make(map[string]*Instance),
-}
-
-// registerParent registers an OptionGroup Instance by its key.
-func registerParent(key string, inst *Instance) {
-	if key == "" || inst == nil {
-		return
-	}
-	parentRegistry.Lock()
-	parentRegistry.registry[key] = inst
-	parentRegistry.Unlock()
-}
-
-// unregisterParent unregisters an OptionGroup Instance.
-func unregisterParent(key string) {
-	if key == "" {
-		return
-	}
-	parentRegistry.Lock()
-	delete(parentRegistry.registry, key)
-	parentRegistry.Unlock()
-}
-
-// lookupParent looks up an OptionGroup Instance by parent key.
-func lookupParent(key string) *Instance {
-	if key == "" {
-		return nil
-	}
-	parentRegistry.RLock()
-	defer parentRegistry.RUnlock()
-	return parentRegistry.registry[key]
-}
 
 // =============================================================================
 // Option - Single Option Component (Child of OptionGroup)
@@ -253,12 +210,18 @@ type OptionInstance struct {
 
 	// === Parent Reference ===
 	selectFunc SelectOptionFunc
-	parentKey  string // Key of parent OptionGroup Instance (for callback lookup)
+
+	// ===== Instance Tree (Mint Runtime 2.0 - Phase 1) =====
+	// Direct parent reference for accessing parent's SelectOption method
+	parent rtui.ComponentInstance
 
 	// === Style/Base ===
 	optionStyle style.Style
 	bounds      [4]int // x, y, w, h
 	dirty       bool
+
+	// === Selected State ===
+	selected bool // Local cache of selected state for Paint()
 
 	// === Intent Emitter ===
 	intentEmitter func(intent.Intent)
@@ -273,6 +236,7 @@ var (
 	_ rtui.FocusableInstance     = (*OptionInstance)(nil)
 	_ rtui.ActionHandlerInstance = (*OptionInstance)(nil)
 	_ control.Instance           = (*OptionInstance)(nil)
+	_ intent.TreeComponent       = (*OptionInstance)(nil) // Intent Bubble - Parent() returns interface{}
 )
 
 // NewOptionInstance creates a new OptionInstance from props.
@@ -335,7 +299,7 @@ func (inst *OptionInstance) OnUnmount() {
 
 func (inst *OptionInstance) SetProps(props rtui.Props) bool {
 	oldDisabled := inst.state.Disabled
-	oldSelected := inst.state.Focused // Useocused as proxy for dirty check
+	oldSelected := inst.selected
 
 	inst.value = getStringProp(props, "value", inst.value)
 	inst.label = getStringProp(props, "label", inst.label)
@@ -346,11 +310,12 @@ func (inst *OptionInstance) SetProps(props rtui.Props) bool {
 	if v, ok := props["disabled"].(bool); ok {
 		inst.state.Disabled = v
 	}
-	if _, ok := props["selected"].(bool); ok {
-		// Selected is stored externally by parent, but we track focus
+	if v, ok := props["selected"].(bool); ok {
+		// Store selected state locally for Paint() to use
+		inst.selected = v
 	}
 
-	changed := oldDisabled != inst.state.Disabled || oldSelected != inst.state.Focused
+	changed := oldDisabled != inst.state.Disabled || oldSelected != inst.selected
 
 	if changed {
 		inst.dirty = true
@@ -373,6 +338,19 @@ func (inst *OptionInstance) MarkDirty() { inst.dirty = true }
 func (inst *OptionInstance) IsDirty() bool  { return inst.dirty }
 func (inst *OptionInstance) GetContext() *rtui.ComponentContext { return nil }
 
+// ===== Instance Tree Methods (Mint Runtime 2.0 - Phase 1) =====
+
+// Parent implements intent.TreeComponent interface (intent bubble).
+// Returns interface{} to satisfy intent package requirement.
+func (inst *OptionInstance) Parent() interface{} {
+	return inst.parent
+}
+
+// Children returns child instances (Option is a leaf).
+func (inst *OptionInstance) Children() []rtui.ComponentInstance {
+	return nil
+}
+
 // =============================================================================
 // PaintableInstance Interface
 // =============================================================================
@@ -380,18 +358,19 @@ func (inst *OptionInstance) GetContext() *rtui.ComponentContext { return nil }
 func (inst *OptionInstance) Paint(x, y int) []paint.DrawCmd {
 	s := inst.resolveStyle()
 
-	// Build indicator based on mode
+	// Build indicator based on mode and selected state
 	var indicator string
 	if inst.mode == ModeSingle {
-		// Radio style
-		if inst.state.Focused {
-			indicator = "(•)"
+		// Radio style: check if this option is selected
+		// Using (*) instead of (•) for consistent terminal rendering
+		if inst.isSelected() {
+			indicator = "(*)"
 		} else {
 			indicator = "( )"
 		}
 	} else {
-		// Checkbox style
-		if inst.state.Focused {
+		// Checkbox style: check if this option is selected
+		if inst.isSelected() {
 			indicator = "[X]"
 		} else {
 			indicator = "[ ]"
@@ -471,14 +450,77 @@ func (inst *OptionInstance) HandleAction(act *action.Action) bool {
 
 	switch act.Type {
 	case action.ActionClick, action.ActionEnter, action.ActionToggle:
-		// Select this option
-		if inst.selectFunc != nil {
-			inst.selectFunc(inst.value)
+		// Phase 5: Send intent to parent OptionGroup directly
+		// This is a simplified alternative to intent.Emit for OptionGroup's use case
+		if inst.parent != nil {
+			// Check if parent is an Instance (OptionGroup)
+			if groupInst, ok := inst.parent.(*Instance); ok {
+				selectIntent := OptionSelectIntent{
+					GroupKey:   groupInst.key,
+					Value:      inst.value,
+					IsSelected: !inst.isOptionSelected(), // Toggle current selection
+					Mode:       inst.mode,
+				}
+				return groupInst.HandleIntent(selectIntent)
+			}
+			// Check if parent implements IntentHandler interface
+			if handler, ok := inst.parent.(intent.IntentHandler); ok {
+				selectIntent := OptionSelectIntent{
+					GroupKey:   inst.getParentKey(),
+					Value:      inst.value,
+					IsSelected: !inst.isOptionSelected(),
+					Mode:       inst.mode,
+				}
+				return handler.HandleIntent(selectIntent)
+			}
 		}
-		return true
+		return false
 	}
 
 	return false
+}
+
+// getParentKey returns the key of the parent OptionGroup.
+// This is used to ensure OptionSelectIntent is routed to the correct group.
+func (inst *OptionInstance) getParentKey() string {
+	if inst.parent == nil {
+		return ""
+	}
+	if groupInst, ok := inst.parent.(*Instance); ok {
+		return groupInst.key
+	}
+	return ""
+}
+
+// isOptionSelected checks if this option is currently selected in the parent group.
+// Phase 5: Helper method to query selection state from parent.
+func (inst *OptionInstance) isOptionSelected() bool {
+	if inst.parent != nil {
+		if groupInst, ok := inst.parent.(*Instance); ok {
+			return groupInst.isOptionSelected(inst.value)
+		}
+	}
+	return false
+}
+
+// isSelected checks if this option is selected.
+// First checks local state (from props), then queries parent.
+func (inst *OptionInstance) isSelected() bool {
+	// Priority 1: Check local selected state (set by parent VNode)
+	if inst.parent == nil {
+		// No parent, use local state
+		return inst.selected
+	}
+
+	// Priority 2: If parent exists, try to query parent
+	if inst.parent != nil {
+		if groupInst, ok := inst.parent.(*Instance); ok {
+			return groupInst.isOptionSelected(inst.value)
+		}
+	}
+
+	// Fallback: local state
+	return inst.selected
 }
 
 // =============================================================================
@@ -544,6 +586,57 @@ func (inst *OptionInstance) SetIntentEmitter(fn func(intent.Intent)) {
 
 func (inst *OptionInstance) ClearDirty() {
 	inst.dirty = false
+}
+
+// =============================================================================
+// Measurable Interface (Two-Pass Layout)
+// =============================================================================
+
+// Measure implements layout.Measurable interface for OptionInstance.
+// Calculates the option's ideal size given the constraints.
+func (inst *OptionInstance) Measure(constraints layout.Constraints) layout.Size {
+	if inst == nil {
+		return layout.Size{}
+	}
+
+	// Calculate dimensions based on label and indicator
+	var width, height int
+
+	// Height is always 1 line
+	height = 1
+
+	// Width = indicator(3 or 4) + space(1) + label
+	indicatorWidth := 3 // "( )" or "[ ]"
+	if inst.mode == ModeSingle {
+		indicatorWidth = 3 // "( )"
+	} else {
+		indicatorWidth = 3 // "[ ]"
+	}
+
+	// Calculate text width
+	textWidth := 0
+	if inst.label != "" {
+		textWidth = len(inst.label)
+	} else {
+		textWidth = len(inst.value)
+	}
+
+	// Total width: indicator + space + text
+	width = indicatorWidth + 1 + textWidth
+
+	// Apply explicit style dimensions if set
+	if inst.optionStyle.Width > 0 {
+		width = constraints.ConstrainWidth(inst.optionStyle.Width)
+	}
+	if inst.optionStyle.Height > 0 {
+		height = constraints.ConstrainHeight(inst.optionStyle.Height)
+	}
+
+	// Apply constraints
+	width = constraints.ConstrainWidth(width)
+	height = constraints.ConstrainHeight(height)
+
+	return layout.Size{Width: width, Height: height}
 }
 
 // =============================================================================

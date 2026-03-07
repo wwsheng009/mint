@@ -127,26 +127,67 @@ func (o *VNode) SetStyle(s style.Style) rtui.VNode {
 	return o
 }
 
-// Children returns child nodes - the options as individual OptionVNodes.
+// Children returns child nodes - the label (if any) followed by options.
 func (o *VNode) Children() []rtui.VNode {
-	if o.options == nil {
-		return nil
+	var children []rtui.VNode
+
+	// First child: label text (if any)
+	if o.label != "" {
+		// Import rtui package for NewElement
+		children = append(children, rtui.NewElement("text").
+			SetKey(o.Key()+"-label").
+			SetProps(rtui.Props{"content": o.label}))
 	}
-	children := make([]rtui.VNode, len(o.options))
-	for i, opt := range o.options {
-		child := NewOptionVNodeDeferred(opt.Value, opt.Label, i, o.mode)
-		// Apply parent disabled state to child
-		if o.disabled {
-			child.SetDisabled(true)
+
+	// Next children: options as individual OptionVNodes
+	if o.options != nil {
+		for i, opt := range o.options {
+			child := NewOptionVNodeDeferred(opt.Value, opt.Label, i, o.mode)
+
+			// IMPORTANT: Set key with parent prefix for consistency with Instance.childInstances
+			// This ensures that Instance.AddChild() can detect and prevent duplicate children
+			parentKey := o.Key()
+			if parentKey != "" {
+				child.SetKey(parentKey + "-opt-" + opt.Value)
+			} else {
+				child.SetKey("opt-" + opt.Value)
+			}
+
+			// Apply parent disabled state to child
+			if o.disabled {
+				child.SetDisabled(true)
+			}
+
+			// Apply selected state based on mode
+			if o.mode == ModeSingle {
+				// Single select: check if this option is the selected one
+				isSelected := (o.selected == opt.Value)
+				child.selected = isSelected
+			} else {
+				// Multi select: check if this option is in selecteds list
+				isSelected := false
+				for _, selectedVal := range o.selecteds {
+					if selectedVal == opt.Value {
+						isSelected = true
+						break
+					}
+				}
+				child.selected = isSelected
+			}
+
+			// Apply the selectFunc if it's been set by the parent Instance
+			if o.optionSelectFunc != nil {
+				child.SetSelectFunc(o.optionSelectFunc)
+			}
+			// Pass parentCallback and selected state as props for Instance to use
+			child.SetProps(rtui.Props{
+				"parentCallback": o.optionSelectFunc,
+				"selected":       child.selected, // Propagate selected state to Instance
+			})
+			children = append(children, child)
 		}
-		// Apply the selectFunc if it's been set by the parent Instance
-		if o.optionSelectFunc != nil {
-			child.SetSelectFunc(o.optionSelectFunc)
-		}
-		// Pass parentCallback as a prop for later use
-		child.SetProps(rtui.Props{"parentCallback": o.optionSelectFunc})
-		children[i] = child
 	}
+
 	return children
 }
 

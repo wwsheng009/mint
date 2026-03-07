@@ -170,15 +170,15 @@ func TestInstance_Measure(t *testing.T) {
 			name:       "No label, one option",
 			label:      "",
 			options:    []Option{{Value: "opt1", Label: "Option 1"}},
-			wantWidth:  0, // No label (options are child nodes)
-			wantHeight: 0, // No label (options are child nodes)
+			wantWidth:  12, // indicator(3) + space(1) + "Option 1"(9) = 13, but indicator is 3: "( )"
+			wantHeight: 1,  // Option height is 1
 		},
 		{
 			name:       "With label, one option",
 			label:      "Select:",
 			options:    []Option{{Value: "opt1", Label: "Option 1"}},
-			wantWidth:  7,  // "Select:" length (options are child nodes)
-			wantHeight: 1,  // Only label height (options are child nodes)
+			wantWidth:  12, // Max of "Select:" (7) and option width (12)
+			wantHeight: 2,  // Label (1) + option (1)
 		},
 		{
 			name:  "Multiple options",
@@ -188,8 +188,8 @@ func TestInstance_Measure(t *testing.T) {
 				{Value: "opt2", Label: "Option 2"},
 				{Value: "opt3", Label: "Option 3"},
 			},
-			wantWidth:  0, // No label (options are child nodes)
-			wantHeight: 0, // No label (options are child nodes)
+			wantWidth:  12, // All options have same width: indicator(3) + space(1) + text(8) = 12
+			wantHeight: 3,  // 3 options, each height 1
 		},
 	}
 
@@ -226,12 +226,14 @@ func TestInstance_Measure_WithConstraints(t *testing.T) {
 
 	size := inst.Measure(constraints)
 
-	// "Test Label" = 10 chars, which is within [10, 15]
-	if size.Width != 10 {
-		t.Errorf("Width = %d, want 10", size.Width)
+	// "Test Label" = 10 chars, "Long Option Name" = 15 chars
+	// Max width is 15, but constraint limits to [10, 15], so width = 15
+	// Height = label (1) + option (1) = 2
+	if size.Width != 15 {
+		t.Errorf("Width = %d, want 15", size.Width)
 	}
-	if size.Height != 1 {
-		t.Errorf("Height = %d, want 1", size.Height)
+	if size.Height != 2 {
+		t.Errorf("Height = %d, want 2", size.Height)
 	}
 }
 
