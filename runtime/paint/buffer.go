@@ -221,13 +221,16 @@ func (b *Buffer) SetContentDirect(x, y int, char rune, s style.Style, zIndex int
 //
 // 变化检测规则：
 // - continuation → continuation: ❌ 不刷新（由主单元格处理）
+// - continuation → non-continuation: ✅ 需要刷新（prevCell 需要被擦除）
 // - head → continuation: ✅ 需要刷新（宽字符被覆盖）
 // - continuation → head: ✅ 需要刷新（宽字符位置现在有内容）
 // - 正常单元格: 比较 Cluster、Style 和 Selected
 func IsCellChanged(cell, prevCell Cell) bool {
-	// 如果当前单元格是延续单元格，跳过（由主单元格处理）
+	// 如果当前单元格是延续单元格
 	if cell.IsContinuation {
-		return false
+		// 如果 prevCell 也是 continuation，不刷新（由主单元格处理）
+		// 如果 prevCell 不是 continuation，需要刷新（prevCell 的内容需要被擦除）
+		return !prevCell.IsContinuation
 	}
 
 	// 如果前一个单元格是 continuation，当前是 head → 需要刷新

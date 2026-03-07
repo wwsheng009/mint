@@ -2,7 +2,6 @@ package paint
 
 import (
 	"bytes"
-	"fmt"
 	"strings"
 	"sync"
 
@@ -144,7 +143,6 @@ func (r *Renderer) renderLine(y int, region Rect) {
 
 	runCount := 0
 	for x < endX {
-
 		// 边界检查
 		if x >= len(r.back.Cells[y]) || (r.front != nil && x >= len(r.front.Cells[y])) {
 			log.RenderLogger.IfEnabled().Debug("[renderLine] x=%d out of row bounds, break", x)
@@ -153,23 +151,20 @@ func (r *Renderer) renderLine(y int, region Rect) {
 
 		cell := r.back.Cells[y][x]
 		prevCell := r.front.Cells[y][x]
-		if prevCell.Cluster == "→" || cell.Cluster == "→" {
-			fmt.Printf("<-->")
-		}
-		if prevCell.Width == 2 || cell.Width == 2 {
-			fmt.Printf(prevCell.Cluster)
-		}
-		if prevCell.Width == 2 || cell.Width == 2 {
-			fmt.Printf(prevCell.Cluster)
-		}
+
 		// 跳过未变化的单元格
 		if !IsCellChanged(cell, prevCell) {
-			x++
+			// 根据 Width 跳过相应位置
+			skipWidth := cell.Width
+			if skipWidth <= 0 {
+				skipWidth = 1
+			}
+			x += skipWidth
 			continue
 		}
 
-		log.RenderLogger.Debug("[renderLine] cell changed at x=%d: cell.Cluster=%q, prev.Cluster=%q, IsContinuation=%v",
-			x, cell.Cluster, prevCell.Cluster, cell.IsContinuation)
+		log.RenderLogger.Debug("[renderLine] cell changed at x=%d: cell.Cluster=%q, cell.Width=%d, prev.Cluster=%q, prev.Width=%d, IsContinuation=%v",
+			x, cell.Cluster, cell.Width, prevCell.Cluster, prevCell.Width, cell.IsContinuation)
 
 		// 如果是延续单元格，跳过（由主单元格处理）
 		if cell.IsContinuation {
@@ -177,26 +172,42 @@ func (r *Renderer) renderLine(y int, region Rect) {
 			continue
 		}
 
-		// 跳过空 cluster（避免无限循环和无效输出）
-		if cell.Cluster == "" || cell.Cluster == "\x00" {
-			if prevCell.Cluster != "" && prevCell.Cluster != " " {
-				r.emitRunWithWidth(x, y, cell.Style, " ", prevCell.Width)
+		// 计算当前 cell 的有效宽度
+		cellWidth := cell.Width
+		if cellWidth <= 0 {
+			cellWidth = 1
+		}
+
+		// 计算需要擦除的范围：如果 prevCell 是宽字符且当前 cell 不能完全覆盖
+		// 使用 Width 来判断，而不是硬编码的字符串比较
+		prevCellWidth := prevCell.Width
+		if prevCellWidth <= 0 && !prevCell.IsContinuation {
+			prevCellWidth = 1
+		}
+
+		// 判断当前 cell 是否有实际内容
+		cellHasContent := cell.Cluster != "" && cell.Cluster != "\x00"
+
+		// 如果 prevCell 有内容（Width > 0 且不是 continuation）
+		// 而当前 cell 无法覆盖 prevCell 的全部位置，需要擦除
+		if !prevCell.IsContinuation && prevCellWidth > 0 && prevCell.Cluster != "" {
+			// 如果 cell 没有内容，或者 cell 的宽度小于 prevCell 的宽度
+			// 需要擦除 prevCell 的全部位置
+			if !cellHasContent || cellWidth < prevCellWidth {
+				eraseWidth := prevCellWidth
+				spaces := strings.Repeat(" ", eraseWidth)
+				r.emitRunWithWidth(x, y, cell.Style, spaces, eraseWidth)
+				x += eraseWidth
+				continue
 			}
-			x++
+		}
+
+		// 如果 cell 没有内容，跳过
+		if !cellHasContent {
+			x += cellWidth
 			continue
 		}
 
-		// 处理宽字符被单空格或零宽度覆盖的情况
-		// 当前一个单元格是宽字符头（Width=2，非continuation），且当前cell是空格或零宽度时
-		// 需要用2个空格清除，避免continuation cell残留
-		if !prevCell.IsContinuation && prevCell.Width == 2 && (cell.Cluster == " " || cell.Width == 0) {
-			// 使用prevCell.Width个空格清除整个宽字符区域
-			spaces := strings.Repeat(" ", prevCell.Width)
-			r.emitRunWithWidth(x, y, cell.Style, spaces, prevCell.Width)
-			// 跳过prevCell.Width个位置（包括continuation）
-			x += prevCell.Width
-			continue
-		}
 		// 开始一个 run，尝试合并相邻的、同样式的单元格
 		startX := x
 		runStyle := cell.Style
@@ -206,11 +217,20 @@ func (r *Renderer) renderLine(y int, region Rect) {
 		// 收集当前单元格以及后续相邻的、同样式的单元格
 		for x < endX {
 			nextCell := r.back.Cells[y][x]
-			// 如果样式不同或是 continuation，停止合并
-			if nextCell.IsContinuation ||
-				nextCell.Style != runStyle ||
-				nextCell.Cluster == "" ||
-				nextCell.Cluster == "\\x00" {
+
+			// 如果样式不同，停止合并
+			if nextCell.Style != runStyle {
+				break
+			}
+
+			// 如果是 continuation，停止合并
+			// continuation 由其主单元格处理，不需要单独处理
+			if nextCell.IsContinuation {
+				break
+			}
+
+			// 如果没有内容，停止合并
+			if nextCell.Cluster == "" || nextCell.Cluster == "\x00" {
 				break
 			}
 
@@ -262,36 +282,6 @@ func (r *Renderer) emitRunWithWidth(x, y int, runStyle style.Style, text string,
 
 	// 输出文本
 	r.output.WriteString(text)
-}
-
-// emitRun 输出一个渲染批次
-//
-// 这是输出优化的核心：
-// 1. 最小化光标移动
-// 2. 只输出变化的样式
-// 3. 批量输出文本
-func (r *Renderer) emitRun(x, y int, runStyle style.Style, text string) {
-	if text == "" {
-		return
-	}
-
-	// 移动光标
-	cursorCmd := r.moveCursorOptimized(x, y)
-	if cursorCmd != "" {
-		r.output.WriteString(cursorCmd)
-	}
-
-	// 设置样式（只输出变化部分）
-	if r.styleState.NeedsUpdate(runStyle) {
-		r.output.WriteString(r.styleState.Update(runStyle))
-	}
-
-	// 输出文本
-	r.output.WriteString(text)
-
-	// 更新光标位置 - 使用正确计算的文本宽度
-	r.cursorX = x + r.getTextWidth(text)
-	r.cursorY = y
 }
 
 // moveCursorOptimized 优化的光标移动

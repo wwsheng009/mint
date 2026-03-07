@@ -5,8 +5,9 @@ import (
 	"github.com/rivo/uniseg"
 )
 
+// tuiWidthCondition 用于非 EastAsian 环境，避免 Ambiguous 字符被错误标记为宽度 2
 var tuiWidthCondition = &runewidth.Condition{
-	EastAsianWidth: true,  // 修复：设置为 true 以正确处理中文字符宽度
+	EastAsianWidth: false,
 }
 
 // StringWidth calculates the display width of text for TUI rendering.
@@ -27,20 +28,71 @@ func StringWidth(text string) int {
 			width += RuneWidth(runes[0])
 			continue
 		}
+		// For multi-rune clusters (emoji sequences), use conservative width
 		width += tuiWidthCondition.StringWidth(cluster)
 	}
 	return width
 }
-
-// RuneWidth calculates the display width of a single rune for TUI rendering.
-//
 // For Unicode Box Drawing characters (U+2500-U+257F), returns 1 instead of runewidth's 2.
-func RuneWidth(r rune) int {
+func RuneWidth2(r rune) int {
 	// Unicode Box Drawing block - always treat as width 1 for TUI
 	if r >= 0x2500 && r <= 0x257F {
 		return 1
 	}
 	return tuiWidthCondition.RuneWidth(r)
+}
+// RuneWidth calculates the display width of a single rune for TUI rendering.
+//
+// Strategy: Use EastAsianWidth=false to avoid ambiguous width issues,
+// then explicitly handle CJK wide characters that truly need width 2.
+func RuneWidth(r rune) int {
+	// Unicode Box Drawing block - always treat as width 1 for TUI
+	if r >= 0x2500 && r <= 0x257F {
+		return 1
+	}
+
+	// CJK Unified Ideographs - these truly need width 2
+	// U+4E00-U+9FFF: CJK Unified Ideographs
+	// U+3400-U+4DBF: CJK Unified Ideographs Extension A
+	// U+3000-U+303F: CJK Symbols and Punctuation (most are width 2)
+	if (r >= 0x4E00 && r <= 0x9FFF) ||
+		(r >= 0x3400 && r <= 0x4DBF) {
+		return 2
+	}
+
+	// CJK Symbols and Punctuation (most are width 2)
+	// Exception: U+3000 is ideographic space (width 2)
+	if r >= 0x3000 && r <= 0x303F {
+		return 2
+	}
+
+	// Fullwidth ASCII variants (U+FF00-U+FFEF)
+	if r >= 0xFF01 && r <= 0xFF60 {
+		return 2
+	}
+
+	// Hangul syllables (Korean)
+	if r >= 0xAC00 && r <= 0xD7A3 {
+		return 2
+	}
+
+	// Hangul Jamo (Korean)
+	if (r >= 0x1100 && r <= 0x11FF) || (r >= 0x3130 && r <= 0x318F) {
+		return 2
+	}
+
+	// Hiragana and Katakana
+	if (r >= 0x3040 && r <= 0x309F) || (r >= 0x30A0 && r <= 0x30FF) {
+		return 2
+	}
+
+	// For all other characters, use non-EastAsian width
+	// This treats most symbols, arrows, etc. as width 1
+	rw := tuiWidthCondition.RuneWidth(r)
+	if rw <= 0 {
+		return 1
+	}
+	return rw
 }
 
 // ============================================================================
