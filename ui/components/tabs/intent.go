@@ -41,6 +41,13 @@ func (TabChangeIntent) IsTransition() bool {
 	return true
 }
 
+// IsGlobal implements intent.GlobalIntent.
+// TabChangeIntent bubbles locally through Parent() chain.
+// Returns false to indicate local Intent Bubble behavior.
+func (TabChangeIntent) IsGlobal() bool {
+	return false
+}
+
 // =============================================================================
 // TabNextIntent
 // =============================================================================
@@ -67,6 +74,13 @@ func (TabNextIntent) IsTransition() bool {
 	return true
 }
 
+// IsGlobal implements intent.GlobalIntent.
+// TabNextIntent bubbles locally through Parent() chain.
+// Returns false to indicate local Intent Bubble behavior.
+func (TabNextIntent) IsGlobal() bool {
+	return false
+}
+
 // =============================================================================
 // TabPreviousIntent
 // =============================================================================
@@ -91,6 +105,13 @@ func (TabPreviousIntent) Priority() intent.ActionPriority {
 // IsTransition implements Intent interface.
 func (TabPreviousIntent) IsTransition() bool {
 	return true
+}
+
+// IsGlobal implements intent.GlobalIntent.
+// TabPreviousIntent bubbles locally through Parent() chain.
+// Returns false to indicate local Intent Bubble behavior.
+func (TabPreviousIntent) IsGlobal() bool {
+	return false
 }
 
 // ==============================================================================

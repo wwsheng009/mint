@@ -39,6 +39,13 @@ func (FormFieldChangeIntent) IsTransition() bool {
 	return false
 }
 
+// IsGlobal implements intent.GlobalIntent.
+// FormFieldChangeIntent bubbles locally through Parent() chain.
+// Returns false to indicate local Intent Bubble behavior.
+func (FormFieldChangeIntent) IsGlobal() bool {
+	return false
+}
+
 // FormFieldBlurIntent is emitted when a field loses focus.
 // This is typically used to trigger field validation.
 type FormFieldBlurIntent struct {
@@ -67,6 +74,13 @@ func (FormFieldBlurIntent) IsTransition() bool {
 	return false
 }
 
+// IsGlobal implements intent.GlobalIntent.
+// FormFieldBlurIntent bubbles locally through Parent() chain.
+// Returns false to indicate local Intent Bubble behavior.
+func (FormFieldBlurIntent) IsGlobal() bool {
+	return false
+}
+
 // FormValidateIntent is emitted to validate a form or specific field.
 type FormValidateIntent struct {
 	// FormID is the identifier of the form to validate.
@@ -89,6 +103,13 @@ func (FormValidateIntent) Priority() intent.ActionPriority {
 
 // IsTransition indicates this is NOT an async operation.
 func (FormValidateIntent) IsTransition() bool {
+	return false
+}
+
+// IsGlobal implements intent.GlobalIntent.
+// FormValidateIntent bubbles locally through Parent() chain.
+// Returns false to indicate local Intent Bubble behavior.
+func (FormValidateIntent) IsGlobal() bool {
 	return false
 }
 
@@ -117,6 +138,13 @@ func (FormSubmitIntent) IsTransition() bool {
 	return true
 }
 
+// IsGlobal implements intent.GlobalIntent.
+// FormSubmitIntent bubbles locally through Parent() chain.
+// Returns false to indicate local Intent Bubble behavior.
+func (FormSubmitIntent) IsGlobal() bool {
+	return false
+}
+
 // FormResetIntent is emitted to reset the form to its initial state.
 type FormResetIntent struct {
 	// FormID is the identifier of the form to reset.
@@ -135,5 +163,12 @@ func (FormResetIntent) Priority() intent.ActionPriority {
 
 // IsTransition indicates this is NOT an async operation.
 func (FormResetIntent) IsTransition() bool {
+	return false
+}
+
+// IsGlobal implements intent.GlobalIntent.
+// FormResetIntent bubbles locally through Parent() chain.
+// Returns false to indicate local Intent Bubble behavior.
+func (FormResetIntent) IsGlobal() bool {
 	return false
 }
