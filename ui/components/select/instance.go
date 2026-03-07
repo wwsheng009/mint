@@ -25,6 +25,9 @@ type Instance struct {
 	key         string
 	componentID string // Component ID for Intent routing (Phase 10)
 
+	// === Instance Tree (Phase 2 fix: Parent/Child tracking for Intent Bubble) ===
+	parent rtui.ComponentInstance // Parent component for intent bubbling
+
 	// === Props (from VNode) ===
 	options      []Option
 	selectStyle  style.Style
@@ -112,9 +115,16 @@ func (inst *Instance) SetKey(key string) {
 }
 
 // Parent implements TreeComponent interface (intent bubble).
-// Returns nil as Select is a leaf component without parent tracking.
+// Returns the parent component for intent bubbling.
+// Phase 2 fix: Now properly returns parent reference (was always nil before).
 func (inst *Instance) Parent() interface{} {
-	return nil
+	return inst.parent
+}
+
+// SetParent sets the parent component for intent bubbling.
+// Phase 2 fix: Added method for components to set parent reference.
+func (inst *Instance) SetParent(parent rtui.ComponentInstance) {
+	inst.parent = parent
 }
 
 // Init implements ComponentInstance.

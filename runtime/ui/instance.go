@@ -207,6 +207,14 @@ func (b *BaseComponentInstance) Children() []ComponentInstance {
 	return b.children
 }
 
+// SetParent sets the parent reference (for use by TreeContainer implementations)
+// This method is needed by components (like Form) to set parent references on child instances
+// that are BaseComponentInstance types but are in different packages.
+// Phase 2 fix: Added for Intent Bubble support (INTENT_BUBBLE_AUDIT_REPORT.md P0-2)
+func (b *BaseComponentInstance) SetParent(parent ComponentInstance) {
+	b.parent = parent
+}
+
 // AddChild adds a child component instance
 // This is called by the fiber reconciler during mount/updates
 func (b *BaseComponentInstance) AddChild(child ComponentInstance) {

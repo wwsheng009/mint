@@ -75,6 +75,14 @@ func Emit(component TreeComponent, i Intent) {
 		return
 	}
 
+	// Call test hook if set
+	if bubbleTestHook != nil {
+		if bubbleTestHook(component, i) {
+			// Test hook requested to stop bubbling
+			return
+		}
+	}
+
 	// Track depth to prevent infinite loops
 	depth := 0
 	maxDepth := 100
@@ -169,4 +177,19 @@ func GetPriority(i Intent) ActionPriority {
 // ToLane converts intent priority to a priority.DirtyLevel.
 func ToLane(i Intent) priority.DirtyLevel {
 	return GetPriority(i).ToLane()
+}
+
+// =============================================================================
+// Test Hook (for regression testing)
+// =============================================================================
+
+// bubbleTestHook is a test hook for verifying Emit() behavior
+// Set this to track all Emit() calls during tests
+var bubbleTestHook func(component interface{}, i Intent) bool
+
+// SetBubbleTestHook sets a test hook for the Emit function.
+// The hook is called immediately when Emit() is invoked.
+// If the hook returns true, the bubbling is stopped.
+func SetBubbleTestHook(hook func(component interface{}, i Intent) bool) {
+	bubbleTestHook = hook
 }

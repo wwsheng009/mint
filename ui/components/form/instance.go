@@ -198,6 +198,7 @@ func (inst *Instance) Children() []rtui.ComponentInstance {
 }
 
 // AddChild implements TreeContainer interface.
+// Sets the parent reference on the child to enable Intent Bubble.
 func (inst *Instance) AddChild(child rtui.ComponentInstance) {
 	if child == nil {
 		return
@@ -205,16 +206,25 @@ func (inst *Instance) AddChild(child rtui.ComponentInstance) {
 	inst.mu.Lock()
 	defer inst.mu.Unlock()
 
-	// Check if child already exists
+	// Check if child already exists (pointer comparison)
 	for _, existing := range inst.childInstances {
 		if existing == child {
-			return
+			return // Already added
 		}
 	}
+
+	// Add to child instances list
 	inst.childInstances = append(inst.childInstances, child)
+
+	// Set parent reference for Intent Bubble (Phase 2 fix: P0-2 in INTENT_BUBBLE_AUDIT_REPORT.md)
+	// Use SetParent method for cross-package access (requires BaseComponentInstance)
+	if childWithSetParent, ok := child.(interface{ SetParent(rtui.ComponentInstance) }); ok {
+		childWithSetParent.SetParent(inst)
+	}
 }
 
 // RemoveChild implements TreeContainer interface.
+// Clears the parent reference on the removed child.
 func (inst *Instance) RemoveChild(child rtui.ComponentInstance) {
 	if child == nil {
 		return
@@ -225,9 +235,10 @@ func (inst *Instance) RemoveChild(child rtui.ComponentInstance) {
 	for i, existing := range inst.childInstances {
 		if existing == child {
 			inst.childInstances = append(inst.childInstances[:i], inst.childInstances[i+1:]...)
-			// Clear parent reference on child to prevent memory leak
-			if childWithParent, ok := child.(interface{ SetParent(interface{}) }); ok {
-				childWithParent.SetParent(nil)
+
+			// Clear parent reference to prevent memory leak (Phase 2 fix)
+			if childWithSetParent, ok := child.(interface{ SetParent(rtui.ComponentInstance) }); ok {
+				childWithSetParent.SetParent(nil)
 			}
 			break
 		}
