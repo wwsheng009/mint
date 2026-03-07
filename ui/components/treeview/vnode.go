@@ -30,7 +30,8 @@ type VNode struct {
 	*rtui.ElementVNode
 
 	// === Identification ===
-	key string
+	key         string
+	componentID string // Component ID for Intent routing (Phase 10)
 
 	// === Visual Properties ===
 	nodes         []TreeNode // Tree nodes to display
@@ -69,6 +70,7 @@ func New() *VNode {
 	return &VNode{
 		ElementVNode:   rtui.NewElement("treeview"),
 		key:            "",
+		componentID:    "",
 		nodes:          []TreeNode{},
 		expandLevel:    1, // Default: expand first level
 		showIcons:      true,
@@ -102,6 +104,7 @@ func (v *VNode) SetLayer(l rtui.Layer) rtui.VNode { return v }
 func (v *VNode) Props() rtui.Props {
 	return rtui.Props{
 		"key":            v.key,
+		"componentID":    v.componentID,
 		"nodes":          v.nodes,
 		"expandLevel":    v.expandLevel,
 		"showIcons":      v.showIcons,
@@ -121,6 +124,9 @@ func (v *VNode) Props() rtui.Props {
 func (v *VNode) SetProps(p rtui.Props) rtui.VNode {
 	if key, ok := p["key"].(string); ok {
 		v.key = key
+	}
+	if componentID, ok := p["componentID"].(string); ok {
+		v.componentID = componentID
 	}
 	if nodes, ok := p["nodes"].([]TreeNode); ok {
 		v.nodes = nodes
@@ -177,6 +183,7 @@ func (v *VNode) CreateInstance() rtui.ComponentInstance {
 // =============================================================================
 
 func (v *VNode) SetNodes(nodes []TreeNode) *VNode { v.nodes = nodes; return v }
+func (v *VNode) SetComponentID(id string) *VNode  { v.componentID = id; return v }
 func (v *VNode) SetExpandLevel(level int) *VNode  { v.expandLevel = level; return v }
 func (v *VNode) SetShowIcons(show bool) *VNode    { v.showIcons = show; return v }
 func (v *VNode) SetShowLineNums(show bool) *VNode { v.showLineNums = show; return v }
@@ -196,6 +203,9 @@ func (v *VNode) SetAllowExpand(allow bool) *VNode  { v.allowExpand = allow; retu
 
 // GetSelectedIndex returns the currently selected node index
 func (v *VNode) GetSelectedIndex() int { return v.selectedIndex }
+
+// GetComponentID returns the component ID
+func (v *VNode) GetComponentID() string { return v.componentID }
 
 // =============================================================================
 // Convenience Methods

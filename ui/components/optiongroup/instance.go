@@ -64,9 +64,9 @@ type Instance struct {
 
 // ===== Instance Tree Methods (Mint Runtime 2.0 - Phase 1) =====
 
-// Parent implements rtui.TreeNode interface (for TreeContainer).
+// Parent implements rtui.TreeNode/intent.TreeComponent interface (for intent bubble).
 // Returns nil since OptionGroup is typically a root component.
-func (inst *Instance) Parent() rtui.ComponentInstance {
+func (inst *Instance) Parent() interface{} {
 	return nil
 }
 

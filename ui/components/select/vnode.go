@@ -27,7 +27,8 @@ type VNode struct {
 	*rtui.ElementVNode
 
 	// === Identification ===
-	key string
+	key         string
+	componentID string // Component ID for Intent routing (Phase 10)
 
 	// === Visual Props ===
 	options []Option
@@ -121,6 +122,7 @@ func (s *VNode) SetLayer(l rtui.Layer) rtui.VNode {
 func (s *VNode) Props() rtui.Props {
 	return rtui.Props{
 		"key":          s.key,
+		"componentID":  s.componentID,
 		"options":      s.options,
 		"style":        s.style,
 		"width":        s.width,
@@ -135,6 +137,9 @@ func (s *VNode) Props() rtui.Props {
 func (s *VNode) SetProps(p rtui.Props) rtui.VNode {
 	if v, ok := p["key"].(string); ok {
 		s.key = v
+	}
+	if v, ok := p["componentID"].(string); ok {
+		s.componentID = v
 	}
 	if v, ok := p["options"].([]Option); ok {
 		s.options = v
@@ -206,6 +211,12 @@ func (s *VNode) SetDisabled(disabled bool) *VNode {
 	return s
 }
 
+// SetComponentID sets the component ID for Intent routing.
+func (s *VNode) SetComponentID(componentID string) *VNode {
+	s.componentID = componentID
+	return s
+}
+
 // SetWidth sets the explicit width.
 func (s *VNode) SetWidth(width int) *VNode {
 	s.width = width
@@ -251,6 +262,11 @@ func (s *VNode) Width() int {
 // ChangeIntent returns the change intent.
 func (s *VNode) ChangeIntent() intent.Intent {
 	return s.changeIntent
+}
+
+// GetComponentID returns the component ID.
+func (s *VNode) GetComponentID() string {
+	return s.componentID
 }
 
 // SetFormID sets the form ID for Form integration (Phase 6).

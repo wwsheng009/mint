@@ -8,6 +8,7 @@ import (
 	"github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
+	"github.com/wwsheng009/mint/runtime/intent"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
 
@@ -18,7 +19,8 @@ import (
 // Instance is the runtime entity for TreeView components
 type Instance struct {
 	// === Identification ===
-	key string
+	key         string
+	componentID string // Component ID for Intent routing (Phase 10)
 
 	// === Props (from VNode, may change each render) ===
 	nodes         []TreeNode
@@ -39,6 +41,9 @@ type Instance struct {
 	expandState map[int]bool // Expand/collapse state for each node
 	bounds      [4]int      // x, y, w, h
 	dirty       bool
+
+	// === Intent Support (Phase 10) ===
+	intentEmitter func(intent.Intent) // Intent emitter for bubbling
 }
 
 // Ensure Instance implements required interfaces
@@ -59,6 +64,7 @@ var (
 func NewInstance(props rtui.Props) *Instance {
 	inst := &Instance{
 		key:            getStringProp(props, "key", ""),
+		componentID:    getStringProp(props, "componentID", ""),
 		nodes:          getNodesProp(props, []TreeNode{}),
 		expandLevel:    getIntProp(props, "expandLevel", 1),
 		showIcons:      getBoolProp(props, "showIcons", true),
@@ -101,8 +107,14 @@ func (inst *Instance) initExpandState() {
 // ComponentInstance Interface
 // =============================================================================
 
-func (inst *Instance) Key() string           { return inst.key }
-func (inst *Instance) SetKey(key string)     { inst.key = key }
+func (inst *Instance) Key() string                              { return inst.key }
+func (inst *Instance) SetKey(key string)                        { inst.key = key }
+
+// Parent implements TreeComponent interface (intent bubble).
+// Returns nil as TreeView is currently a leaf component without parent tracking.
+// Can be extended in the future to support nested tree structures.
+func (inst *Instance) Parent() interface{} { return nil }
+
 func (inst *Instance) Init(props rtui.Props) { inst.SetProps(props) }
 func (inst *Instance) Destroy()             { inst.expandState = nil }
 func (inst *Instance) OnMount()             { inst.dirty = true }
@@ -112,6 +124,7 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	oldSelected := inst.selectedIndex
 	oldScroll := inst.scrollOffset
 
+	inst.componentID = getStringProp(props, "componentID", inst.componentID)
 	inst.nodes = getNodesProp(props, inst.nodes)
 	inst.expandLevel = getIntProp(props, "expandLevel", inst.expandLevel)
 	inst.showIcons = getBoolProp(props, "showIcons", inst.showIcons)
@@ -341,8 +354,11 @@ func (inst *Instance) HandleAction(act *action.Action) bool {
 
 func (inst *Instance) navigateUp() bool {
 	if inst.selectedIndex > 0 {
+		fromIndex := inst.selectedIndex
 		inst.selectedIndex--
 		inst.dirty = true
+		// Emit Navigation Intent (Phase 10)
+		inst.emitNavigation("up", fromIndex, inst.selectedIndex)
 		return true
 	}
 	return false
@@ -351,8 +367,11 @@ func (inst *Instance) navigateUp() bool {
 func (inst *Instance) navigateDown() bool {
 	visibleNodes := inst.getVisibleNodes()
 	if inst.selectedIndex < len(visibleNodes)-1 {
+		fromIndex := inst.selectedIndex
 		inst.selectedIndex++
 		inst.dirty = true
+		// Emit Navigation Intent (Phase 10)
+		inst.emitNavigation("down", fromIndex, inst.selectedIndex)
 		return true
 	}
 	return false
@@ -394,10 +413,20 @@ func (inst *Instance) toggleExpand() bool {
 		return false
 	}
 
-	expanded := inst.expandState[inst.selectedIndex]
-	inst.expandState[inst.selectedIndex] = !expanded
+	node := inst.nodes[inst.selectedIndex]
+	wasExpanded := inst.expandState[inst.selectedIndex]
+	inst.expandState[inst.selectedIndex] = !wasExpanded
+	nowExpanded := inst.expandState[inst.selectedIndex]
 	inst.dirty = true
-	return !expanded
+
+	// Emit Expand/Collapse Intent (Phase 10)
+	if nowExpanded {
+		inst.emitNodeExpand(inst.selectedIndex, node.Path, node.NodeID)
+	} else {
+		inst.emitNodeCollapse(inst.selectedIndex, node.Path, node.NodeID)
+	}
+
+	return nowExpanded
 }
 
 // =============================================================================
@@ -467,6 +496,116 @@ func (inst *Instance) calculateWidth() int {
 func (inst *Instance) GetScrollOffset() int     { return inst.scrollOffset }
 func (inst *Instance) GetSelectedIndex() int   { return inst.selectedIndex }
 func (inst *Instance) GetViewportHeight() int  { return inst.viewportHeight }
+func (inst *Instance) GetComponentID() string { return inst.componentID }
+
+// =============================================================================
+// Intent Bubble Support (Phase 10)
+// =============================================================================
+
+// EmitIntent emits an intent through the bubble system.
+func (inst *Instance) EmitIntent(i intent.Intent) {
+	if inst.intentEmitter != nil {
+		inst.intentEmitter(i)
+	}
+}
+
+// SetIntentEmitter sets the intent emitter function for bubbling.
+func (inst *Instance) SetIntentEmitter(fn func(intent.Intent)) {
+	inst.intentEmitter = fn
+}
+
+// HandleIntent implements intent.IntentHandler to handle treeview-specific intents.
+// This allows external components or controllers to control the treeview via intents.
+func (inst *Instance) HandleIntent(i intent.Intent) bool {
+	// Only handle intents for this treeview (if componentID is set)
+	if inst.componentID != "" {
+		if id, ok := i.(interface{ GetComponentID() string }); ok {
+			if id.GetComponentID() != "" && id.GetComponentID() != inst.componentID {
+				// Intent is for a different treeview, ignore
+				return false
+			}
+		}
+	}
+
+	switch v := i.(type) {
+	case NodeSelectIntent:
+		// Handle selection by external request
+		if v.NodeIndex >= 0 && v.NodeIndex < len(inst.nodes) {
+			inst.selectedIndex = v.NodeIndex
+			inst.dirty = true
+			return true
+		}
+
+	case NodeExpandIntent:
+		// Handle expand by external request
+		if v.NodeIndex >= 0 && v.NodeIndex < len(inst.nodes) {
+			inst.expandState[v.NodeIndex] = true
+			inst.dirty = true
+			return true
+		}
+
+	case NodeCollapseIntent:
+		// Handle collapse by external request
+		if v.NodeIndex >= 0 && v.NodeIndex < len(inst.nodes) {
+			inst.expandState[v.NodeIndex] = false
+			inst.dirty = true
+			return true
+		}
+	}
+
+	return false
+}
+
+// emitNodeSelect emits a NodeSelectIntent when a node is selected.
+func (inst *Instance) emitNodeSelect(nodeIndex int) {
+	if nodeIndex < 0 || nodeIndex >= len(inst.nodes) {
+		return
+	}
+
+	node := inst.nodes[nodeIndex]
+	nodeSelect := NodeSelect(nodeIndex, node.Path, node.NodeID, node.NodeType, node.Content)
+	if inst.componentID != "" {
+		nodeSelect = NodeSelectWithID(inst.componentID, nodeIndex, node.Path, node.NodeID, node.NodeType, node.Content)
+	}
+
+	intent.Emit(inst, nodeSelect)
+}
+
+// emitNodeExpand emits a NodeExpandIntent when a folder is expanded.
+func (inst *Instance) emitNodeExpand(nodeIndex int, path string, nodeID int) {
+	var expandIntent NodeExpandIntent
+	if inst.componentID != "" {
+		expandIntent = NodeExpandWithID(inst.componentID, nodeIndex, path, nodeID)
+	} else {
+		expandIntent = NodeExpand(nodeIndex, path, nodeID)
+	}
+
+	intent.Emit(inst, expandIntent)
+}
+
+// emitNodeCollapse emits a NodeCollapseIntent when a folder is collapsed.
+func (inst *Instance) emitNodeCollapse(nodeIndex int, path string, nodeID int) {
+	var collapseIntent NodeCollapseIntent
+	if inst.componentID != "" {
+		collapseIntent = NodeCollapseWithID(inst.componentID, nodeIndex, path, nodeID)
+	} else {
+		collapseIntent = NodeCollapse(nodeIndex, path, nodeID)
+	}
+
+	intent.Emit(inst, collapseIntent)
+}
+
+// emitNavigation emits a NavigationIntent when the selection changes via navigation.
+func (inst *Instance) emitNavigation(direction string, fromIndex, toIndex int) {
+	var navIntent NavigationIntent
+	if inst.componentID != "" {
+		navIntent = NavigationWithID(inst.componentID, direction, fromIndex, toIndex)
+	} else {
+		navIntent = Navigation(direction, fromIndex, toIndex)
+	}
+
+	intent.Emit(inst, navIntent)
+}
 
 // =============================================================================
 // Bounds Support

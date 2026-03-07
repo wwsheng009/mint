@@ -114,11 +114,19 @@ func (inst *Instance) Destroy() {
 
 func (inst *Instance) OnMount() {
 	// Phase 2: Context System
-	// Optionally provide form context to children via Fiber
+	// Register form instance so children can access it via FormContext
+	formID := inst.Key()
+	if formID != "" {
+		RegisterForm(formID, inst)
+	}
 }
 
 func (inst *Instance) OnUnmount() {
-	// Clean up
+	// Unregister form instance to clean up
+	formID := inst.Key()
+	if formID != "" {
+		UnregisterForm(formID)
+	}
 }
 
 func (inst *Instance) SetProps(props rtui.Props) bool {

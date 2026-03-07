@@ -22,6 +22,7 @@ import (
 
 // TreeComponent is the interface for components in the instance tree.
 // This interface only requires a Parent() method for bubbling.
+// Parent() returns interface{} to avoid import cycles between ui and intent packages.
 type TreeComponent interface {
 	// Parent returns the parent component, or nil if this is root.
 	Parent() interface{}

@@ -258,3 +258,185 @@ func TestOptionGroupInstanceTree(t *testing.T) {
 		}
 	})
 }
+
+// TestInstanceTreeEdgeCases tests edge cases and boundary conditions
+func TestInstanceTreeEdgeCases(t *testing.T) {
+	t.Run("Circular dependency prevention", func(t *testing.T) {
+		// Create parent and child instances
+		parent := &rtui.BaseComponentInstance{}
+		parent.SetKey("parent")
+		child := &rtui.BaseComponentInstance{}
+		child.SetKey("child")
+
+		// Add child to parent
+		parent.AddChild(child)
+
+		// Try to add parent as child's child (should not cause infinite loop)
+		// The TreeContainer implementation should check for existing parent
+		child.AddChild(parent)
+
+		// Verify the structure is valid
+		if parent.Parent() != nil {
+			t.Error("Parent should not have a parent after adding parent as grandchild")
+		}
+
+		if len(child.Children()) == 0 {
+			// This is expected: parent should reject the child if it would cause a cycle
+		}
+	})
+
+	t.Run("Deep nesting", func(t *testing.T) {
+		// Create a deep tree structure
+		parent := &rtui.BaseComponentInstance{}
+		parent.SetKey("root")
+
+		current := parent
+		depth := 100
+
+		for i := 0; i < depth; i++ {
+			child := &rtui.BaseComponentInstance{}
+			child.SetKey(string(rune('A' + i%26)))
+
+			current.AddChild(child)
+
+			// Verify parent reference
+			if child.Parent() != current {
+				t.Errorf("Depth %d: child's parent reference incorrect", i)
+				break
+			}
+
+			current = child
+		}
+
+		// Verify depth
+		node := parent
+		actualDepth := 0
+		for node.Children() != nil && len(node.Children()) > 0 {
+			node = node.Children()[0].(*rtui.BaseComponentInstance)
+			actualDepth++
+		}
+
+		if actualDepth != depth {
+			t.Errorf("Expected depth %d, got %d", depth, actualDepth)
+		}
+	})
+
+	t.Run("Rapid add/remove operations", func(t *testing.T) {
+		parent := &rtui.BaseComponentInstance{}
+		parent.SetKey("parent")
+
+		// Add many children rapidly
+		for i := 0; i < 100; i++ {
+			child := &rtui.BaseComponentInstance{}
+			child.SetKey(string(rune('A' + i%26)) + string(rune('0'+i%10)))
+
+			parent.AddChild(child)
+		}
+
+		if children := parent.Children(); len(children) != 100 {
+			t.Errorf("Expected 100 children, got %d", len(children))
+		}
+
+		// Remove all children rapidly
+		for i := len(parent.Children()) - 1; i >= 0; i-- {
+			parent.RemoveChild(parent.Children()[i])
+		}
+
+		if children := parent.Children(); len(children) != 0 {
+			t.Errorf("Expected 0 children after removal, got %d", len(children))
+		}
+	})
+
+	t.Run("Re-parenting (move child between parents)", func(t *testing.T) {
+		parent1 := &rtui.BaseComponentInstance{}
+		parent1.SetKey("parent1")
+		parent2 := &rtui.BaseComponentInstance{}
+		parent2.SetKey("parent2")
+
+		child := &rtui.BaseComponentInstance{}
+		child.SetKey("child")
+
+		// Add to first parent
+		parent1.AddChild(child)
+
+		if child.Parent() != parent1 {
+			t.Error("Expected child's parent to be parent1")
+		}
+
+		if len(parent1.Children()) != 1 {
+			t.Error("Expected parent1 to have 1 child")
+		}
+
+		if len(parent2.Children()) != 0 {
+			t.Error("Expected parent2 to have 0 children initially")
+		}
+
+		// Move to second parent
+		parent2.AddChild(child)
+
+		// Verify re-parenting
+		if child.Parent() != parent2 {
+			t.Error("Expected child's parent to be parent2 after re-parenting")
+		}
+
+		// Verify old parent no longer has child
+		if len(parent1.Children()) != 0 {
+			t.Error("Expected parent1 to have 0 children after re-parenting")
+		}
+
+		// Verify new parent has child
+		if len(parent2.Children()) != 1 || parent2.Children()[0] != child {
+			t.Error("Expected parent2 to have 1 child")
+		}
+	})
+
+	t.Run("Empty children after ClearChildren", func(t *testing.T) {
+		parent := &rtui.BaseComponentInstance{}
+		parent.SetKey("parent")
+
+		child := &rtui.BaseComponentInstance{}
+		child.SetKey("child")
+
+		parent.AddChild(child)
+		parent.ClearChildren()
+
+		// Verify Children returns empty slice, not nil
+		children := parent.Children()
+		if children == nil {
+			t.Error("Expected Children() to return empty slice, not nil")
+		}
+
+		if len(children) != 0 {
+			t.Errorf("Expected empty children slice, got %d items", len(children))
+		}
+	})
+
+	t.Run("Self-removal attempt", func(t *testing.T) {
+		parent := &rtui.BaseComponentInstance{}
+		parent.SetKey("parent")
+
+		// Attempt to remove parent from itself
+		parent.RemoveChild(parent)
+
+		// Should not crash or cause issues
+	})
+
+	t.Run("Multiple ClearChildren calls (idempotence)", func(t *testing.T) {
+		parent := &rtui.BaseComponentInstance{}
+		parent.SetKey("parent")
+
+		child := &rtui.BaseComponentInstance{}
+		child.SetKey("child")
+
+		parent.AddChild(child)
+
+		// Clear multiple times
+		parent.ClearChildren()
+		parent.ClearChildren()
+		parent.ClearChildren()
+
+		if len(parent.Children()) != 0 {
+			t.Error("ClearChildren should be idempotent")
+		}
+	})
+}

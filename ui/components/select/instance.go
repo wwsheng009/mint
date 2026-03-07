@@ -22,7 +22,8 @@ import (
 // Instance is the runtime entity for Select components.
 type Instance struct {
 	// === Identification ===
-	key string
+	key         string
+	componentID string // Component ID for Intent routing (Phase 10)
 
 	// === Props (from VNode) ===
 	options      []Option
@@ -65,6 +66,7 @@ var (
 func NewInstance(props rtui.Props) *Instance {
 	inst := &Instance{
 		key:                getStringProp(props, "key", ""),
+		componentID:        getStringProp(props, "componentID", ""),
 		options:            getOptionsProp(props),
 		selectStyle:        getStyleProp(props),
 		width:              getIntProp(props, "width", 0),
@@ -141,6 +143,7 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	oldSelected := inst.selectedIndex
 	oldDisabled := inst.state.Disabled
 
+	inst.componentID = getStringProp(props, "componentID", inst.componentID)
 	inst.options = getOptionsProp(props)
 	inst.selectStyle = getStyleProp(props)
 	inst.width = getIntProp(props, "width", inst.width)
@@ -297,6 +300,7 @@ func (inst *Instance) SelectNext() {
 	inst.selectedIndex = (inst.selectedIndex + 1) % len(inst.options)
 	inst.dirty = true
 	inst.emitChange()
+	inst.emitSelectChange() // Phase 10: Emit SelectChangeIntent
 }
 
 // SelectPrev selects the previous option.
@@ -310,6 +314,7 @@ func (inst *Instance) SelectPrev() {
 	}
 	inst.dirty = true
 	inst.emitChange()
+	inst.emitSelectChange() // Phase 10: Emit SelectChangeIntent
 }
 
 // SetSelectedIndex sets the selected index.
@@ -317,6 +322,7 @@ func (inst *Instance) SetSelectedIndex(idx int) {
 	if idx >= -1 && idx < len(inst.options) && inst.selectedIndex != idx {
 		inst.selectedIndex = idx
 		inst.dirty = true
+		inst.emitSelectChange() // Phase 10: Emit SelectChangeIntent
 	}
 }
 
@@ -369,6 +375,56 @@ func (inst *Instance) EmitIntent(i intent.Intent) {
 	if inst.intentEmitter != nil {
 		inst.intentEmitter(i)
 	}
+}
+
+// HandleIntent implements intent.IntentHandler to handle select-specific intents.
+// This allows external components or controllers to control the select via intents.
+func (inst *Instance) HandleIntent(i intent.Intent) bool {
+	// Only handle intents for this select (if componentID is set)
+	if inst.componentID != "" {
+		if id, ok := i.(interface{ GetComponentID() string }); ok {
+			if id.GetComponentID() != "" && id.GetComponentID() != inst.componentID {
+				// Intent is for a different select, ignore
+				return false
+			}
+		}
+	}
+
+	switch v := i.(type) {
+	case SelectNextIntent:
+		// Handle next selection by external request
+		if len(inst.options) == 0 {
+			return false
+		}
+		inst.SelectNext()
+		return true
+
+	case SelectPrevIntent:
+		// Handle previous selection by external request
+		if len(inst.options) == 0 {
+			return false
+		}
+		inst.SelectPrev()
+		return true
+
+	case SelectByIndexIntent:
+		// Handle selection by index
+		if v.Index >= -1 && v.Index < len(inst.options) {
+			inst.SetSelectedIndex(v.Index)
+			return true
+		}
+
+	case SelectByValueIntent:
+		// Handle selection by value
+		for idx, opt := range inst.options {
+			if opt.Value == v.Value {
+				inst.SetSelectedIndex(idx)
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 // GetBounds returns the layout bounds.
@@ -473,6 +529,25 @@ func (inst *Instance) Measure(constraints layout.Constraints) layout.Size {
 // =============================================================================
 // Form Integration Methods (Phase 6)
 // =============================================================================
+
+// emitSelectChange emits SelectChangeIntent (Phase 10).
+func (inst *Instance) emitSelectChange() {
+	if inst.intentEmitter == nil {
+		return
+	}
+
+	var selectIntent SelectChangeIntent
+	selectedValue := inst.SelectedValue()
+	selectedLabel := inst.SelectedLabel()
+
+	if inst.componentID != "" {
+		selectIntent = SelectChangeWithID(inst.componentID, inst.selectedIndex, selectedValue, selectedLabel)
+	} else {
+		selectIntent = SelectChange(inst.selectedIndex, selectedValue, selectedLabel)
+	}
+
+	intent.Emit(inst, selectIntent)
+}
 
 // emitFieldValueChanged emits FieldChangeIntent or FormFieldChangeIntent
 // depending on whether formID is set.

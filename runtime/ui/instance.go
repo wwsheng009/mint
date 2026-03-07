@@ -57,10 +57,11 @@ type ComponentInstance interface {
 
 // TreeNode is an optional interface for components that can be in the instance tree
 // Most components are tree nodes, but pure functional components might not be
+// Parent() returns interface{} to be compatible with intent.TreeComponent and avoid import cycles
 type TreeNode interface {
 	ComponentInstance
 	// Parent returns the parent component instance, or nil if this is root
-	Parent() ComponentInstance
+	Parent() interface{}
 	// Children returns the list of child component instances
 	Children() []ComponentInstance
 }
@@ -195,8 +196,9 @@ func (b *BaseComponentInstance) IsMounted() bool {
 
 // ===== Instance Tree Methods (Mint Runtime 2.0 - Phase 1) =====
 
-// Parent implements ComponentInstance
-func (b *BaseComponentInstance) Parent() ComponentInstance {
+// Parent implements TreeNode/TreeComponent interface.
+// Returns interface{} to be compatible with both interfaces.
+func (b *BaseComponentInstance) Parent() interface{} {
 	return b.parent
 }
 
@@ -219,6 +221,24 @@ func (b *BaseComponentInstance) AddChild(child ComponentInstance) {
 		}
 	}
 
+	// Check for circular dependency (prevent adding parent as grandchild)
+	// If child would create a cycle, reject it
+	if wouldCauseCycle(b, child) {
+		return
+	}
+
+	// Remove child from its current parent (if any) for re-parenting
+	// Skip if child is already the current node's child in another tree
+	if child != b {
+		if childBase, ok := child.(*BaseComponentInstance); ok {
+			if oldParent := childBase.parent; oldParent != nil && oldParent != b {
+				if oldParentContainer, ok := oldParent.(TreeContainer); ok {
+					oldParentContainer.RemoveChild(child)
+				}
+			}
+		}
+	}
+
 	// Add to children list
 	b.children = append(b.children, child)
 
@@ -229,6 +249,75 @@ func (b *BaseComponentInstance) AddChild(child ComponentInstance) {
 	// Note: For custom instances that implement their own parent management
 	// (like optiongroup.OptionInstance, optiongroup.Instance),
 	// they need to implement their own AddChild logic to set the parent reference
+}
+
+// wouldCauseCycle checks if adding newChild as a child of parent would create a cycle
+func wouldCauseCycle(parent, newChild ComponentInstance) bool {
+	// Check 1: newChild is already an ancestor of parent?
+	// This would create: ... -> newChild -> ... -> parent -> newChild (cycle)
+	current := newChild
+	visited := make(map[ComponentInstance]bool)
+
+	for current != nil {
+		if visited[current] {
+			// Cycle detected without adding newChild, this shouldn't happen
+			return true
+		}
+		visited[current] = true
+
+		if current == parent {
+			// newChild is already an ancestor of parent, would create cycle
+			return true
+		}
+
+		// Move up to parent
+		if treeNode, ok := current.(TreeNode); ok {
+			if parentPtr := treeNode.Parent(); parentPtr != nil {
+				current = parentPtr.(ComponentInstance)
+			} else {
+				break
+			}
+		} else if current == parent {
+			// Direct circular reference
+			return true
+		} else {
+			break
+		}
+	}
+
+	// Check 2: parent is already an ancestor of newChild?
+	// This would create: parent -> ... -> newChild, adding newChild -> parent creates cycle
+	current = parent
+	visited = make(map[ComponentInstance]bool)
+
+	for current != nil {
+		if visited[current] {
+			// Cycle detected without adding newChild, this shouldn't happen
+			return true
+		}
+		visited[current] = true
+
+		if current == newChild {
+			// parent is already an ancestor of newChild, would create cycle
+			return true
+		}
+
+		// Move up to parent
+		if treeNode, ok := current.(TreeNode); ok {
+			if parentPtr := treeNode.Parent(); parentPtr != nil {
+				current = parentPtr.(ComponentInstance)
+			} else {
+				break
+			}
+		} else if current == newChild {
+			// Direct circular reference
+			return true
+		} else {
+			break
+		}
+	}
+
+	return false
 }
 
 // RemoveChild removes a child component instance
