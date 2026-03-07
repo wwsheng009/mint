@@ -437,7 +437,7 @@ func main() {
 		Email:      "",
 		Age:        0,
 		Active:     false,
-		City:       "",
+		City:       "bj", // Default select Beijing
 		Interests:  "",
 	}
 
