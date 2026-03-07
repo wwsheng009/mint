@@ -39,6 +39,11 @@ func (i SelectChangeIntent) IsTransition() bool {
 	return false
 }
 
+// GetComponentID implements intent.GetComponentID for routing
+func (i SelectChangeIntent) GetComponentID() string {
+	return i.ComponentID
+}
+
 // SelectNextIntent requests to select the next option
 type SelectNextIntent struct {
 	ComponentID string // Optional component ID for routing
@@ -59,6 +64,11 @@ func (i SelectNextIntent) IsTransition() bool {
 	return false
 }
 
+// GetComponentID implements intent.GetComponentID for routing
+func (i SelectNextIntent) GetComponentID() string {
+	return i.ComponentID
+}
+
 // SelectPrevIntent requests to select the previous option
 type SelectPrevIntent struct {
 	ComponentID string // Optional component ID for routing
@@ -77,6 +87,11 @@ func (i SelectPrevIntent) Priority() intent.ActionPriority {
 // IsTransition returns false (synchronous intent)
 func (i SelectPrevIntent) IsTransition() bool {
 	return false
+}
+
+// GetComponentID implements intent.GetComponentID for routing
+func (i SelectPrevIntent) GetComponentID() string {
+	return i.ComponentID
 }
 
 // SelectByIndexIntent requests to select an option by index
@@ -103,6 +118,11 @@ func (i SelectByIndexIntent) IsTransition() bool {
 	return false
 }
 
+// GetComponentID implements intent.GetComponentID for routing
+func (i SelectByIndexIntent) GetComponentID() string {
+	return i.ComponentID
+}
+
 // SelectByValueIntent requests to select an option by value
 type SelectByValueIntent struct {
 	// Value is the option value to select
@@ -125,6 +145,11 @@ func (i SelectByValueIntent) Priority() intent.ActionPriority {
 // IsTransition returns false (synchronous intent)
 func (i SelectByValueIntent) IsTransition() bool {
 	return false
+}
+
+// GetComponentID implements intent.GetComponentID for routing
+func (i SelectByValueIntent) GetComponentID() string {
+	return i.ComponentID
 }
 
 // =============================================================================

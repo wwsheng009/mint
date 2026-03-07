@@ -389,17 +389,15 @@ func (inst *Instance) EmitIntent(i intent.Intent) {
 
 // HandleIntent implements intent.IntentHandler to handle select-specific intents.
 // This allows external components or controllers to control the select via intents.
+// Phase 2 fix: Uses unified component ID routing (P1-4: INTENT_BUBBLE_AUDIT_REPORT.md)
 func (inst *Instance) HandleIntent(i intent.Intent) bool {
-	// Only handle intents for this select (if componentID is set)
-	if inst.componentID != "" {
-		if id, ok := i.(interface{ GetComponentID() string }); ok {
-			if id.GetComponentID() != "" && id.GetComponentID() != inst.componentID {
-				// Intent is for a different select, ignore
-				return false
-			}
-		}
+	// Check if this intent is for this component using unified routing
+	if !intent.ShouldHandleIntentWithID(inst.componentID, i) {
+		// Intent is for a different component, ignore it
+		return false
 	}
 
+	// Process the intent
 	switch v := i.(type) {
 	case SelectNextIntent:
 		// Handle next selection by external request
