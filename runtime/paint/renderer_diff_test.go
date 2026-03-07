@@ -419,7 +419,6 @@ func TestRender_WideCharAtBufferEdge(t *testing.T) {
 // TestRender_ZeroWidthCell 测试零宽度单元格
 func TestRender_ZeroWidthCell(t *testing.T) {
 	renderer := NewRenderer(10, 3)
-	s := style.Style{}
 
 	back := renderer.GetBackBuffer()
 	// 手动创建一个零宽度单元格

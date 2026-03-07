@@ -82,6 +82,12 @@ func (b *Buffer) setCluster(x, y int, cluster string, width int, s style.Style) 
 		return
 	}
 
+	// 宽字符需要足够空间：位置 x 和 x+1 都必须在 buffer 范围内
+	if width == 2 && x+1 >= b.Width {
+		// 没有足够空间写入宽字符，不写入
+		return
+	}
+
 	// 清除当前位置及其关联的宽字符单元格
 	b.clearCellAt(x, y)
 
@@ -94,7 +100,7 @@ func (b *Buffer) setCluster(x, y int, cluster string, width int, s style.Style) 
 	}
 
 	// 对于宽字符，标记下一个单元格为延续
-	if width == 2 && x+1 < b.Width {
+	if width == 2 {
 		b.Cells[y][x+1] = Cell{
 			IsContinuation: true,
 		}
