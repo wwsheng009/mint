@@ -83,6 +83,24 @@ setter.SetIntentEmitter(func(i intent.Intent) {
 
 **使用场景**: 树节点的选择状态和展开/折叠控制
 
+### Tabs
+
+- `TabChangeIntent.IsGlobal() = false`
+- `TabNextIntent.IsGlobal() = false`
+- `TabPreviousIntent.IsGlobal() = false`
+
+**使用场景**: Tabs 组件的标签切换和导航
+
+### Form
+
+- `FormFieldChangeIntent.IsGlobal() = false`
+- `FormFieldBlurIntent.IsGlobal() = false`
+- `FormValidateIntent.IsGlobal() = false`
+- `FormSubmitIntent.IsGlobal() = false`
+- `FormResetIntent.IsGlobal() = false`
+
+**使用场景**: 表单字段验证、提交和重置
+
 ## 默认全局 Intent
 
 未实现 `GlobalIntent` 接口的 Intent 默认全局处理，包括：
@@ -128,6 +146,7 @@ func TestNestedIntentBubble_FormTo(t *testing.T) {
 - ✅ OptionGroup: 所有测试通过
 - ✅ Form: 所有测试通过
 - ✅ Treeview: 所有测试通过
+- ✅ Tabs: 所有测试通过
 - ✅ Button: 所有测试通过（包括 Focus）
 
 ### 示例程序
@@ -192,6 +211,8 @@ func (inst *ParentComponent) HandleIntent(i intent.Intent) bool {
 3. `ui/components/select/intent.go` - 本地 Intent 实现
 4. `ui/components/select/instance.go` - 使用 intentEmitter
 5. `ui/components/treeview/intent.go` - 本地 Intent 实现
+6. `ui/components/tabs/intent.go` - 本地 Intent 实现
+7. `ui/components/form/intent.go` - 本地 Intent 实现
 
 ## Git 提交
 
@@ -235,6 +256,31 @@ func (inst *ParentComponent) HandleIntent(i intent.Intent) bool {
 ✅ examples/...: 所有示例编译成功
 ```
 
+### Commit 3: feat(intent): 为 Tabs 和 Form 组件添加 GlobalIntent 实现
+
+```
+完整性审查发现缺失的 Intent 实现，已完成补充：
+
+Tabs 组件 (3 个 Intent):
+- TabChangeIntent.IsGlobal() = false
+- TabNextIntent.IsGlobal() = false
+- TabPreviousIntent.IsGlobal() = false
+
+Form 组件 (5 个 Intent):
+- FormFieldChangeIntent.IsGlobal() = false
+- FormFieldBlurIntent.IsGlobal() = false
+- FormValidateIntent.IsGlobal() = false
+- FormSubmitIntent.IsGlobal() = false
+- FormResetIntent.IsGlobal() = false
+
+测试结果：
+✅ ui/components/form: 所有测试 PASS
+✅ ui/components/tabs: 所有测试 PASS
+✅ ui/components/optiongroup: 所有测试 PASS
+✅ ui/components/select: 所有测试 PASS
+✅ ui/components/treeview: 所有测试 PASS
+```
+
 ## 设计决策
 
 ### 为什么使用 GlobalIntent 接口？
@@ -270,7 +316,6 @@ func (inst *ParentComponent) HandleIntent(i intent.Intent) bool {
 
 - List 组件: ItemSelectIntent
 - Table 组件: RowSelectIntent, HeaderSortIntent
-- Tabs 组件: TabSelectIntent
 - Menu 组件: MenuItemSelectIntent
 
 ## 总结
@@ -278,7 +323,7 @@ func (inst *ParentComponent) HandleIntent(i intent.Intent) bool {
 Intent Bubble 实现成功达成了所有设计目标：
 
 ✅ **不破坏现有功能**: 所有测试通过，所有示例编译成功
-✅ **支持 Intent Bubble**: Select/OptionGroup/Treeview 支持本地冒泡
+✅ **支持 Intent Bubble**: Select/OptionGroup/Treeview/Tabs/Form 支持本地冒泡
 ✅ **向后兼容**: 未实现 GlobalIntent 的 Intent 默认全局处理
 
 双路由架构为 Mint Runtime 提供了清晰、灵活的 Intent 处理机制。
