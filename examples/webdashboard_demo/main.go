@@ -49,7 +49,7 @@ func main() {
 	dt.Enable()
 
 	// 2. Create and start DevToolsServer (using unified protocol package)
-	port := 8080
+	port := 9090
 	server := protocol.NewServer(protocol.ServerConfig{
 		Port:              port,
 		EnableDashboard:   true,

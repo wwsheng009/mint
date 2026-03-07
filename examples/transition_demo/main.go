@@ -1,12 +1,15 @@
 // Package main demonstrates Transition Intent pattern for async operations.
 //
 // This example shows:
-//   1. Using ShowPendingIntent to display loading states
-//   2. Using CompleteTransitionIntent to update UI with async results
-//   3. Understanding the async flow with pending/complete pattern
+//   1. Using Intent to trigger async operations
+//   2. Showing loading states while operation runs
+//   3. Updating UI with results when operation completes
 //
-// Key Concept: Async operations are handled by showing a pending state,
-// performing the operation in background, then emitting complete intent.
+// Key Concept: Async operations follow this pattern:
+//   1. User clicks → Intent emitted
+//   2. Handler sets loading state → UI shows spinner
+//   3. Background work runs in goroutine
+//   4. Goroutine updates state with result → UI re-renders
 package main
 
 import (
@@ -15,91 +18,210 @@ import (
 
 	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/ui"
-	"github.com/wwsheng009/mint/ui/components/button"
+	buttoncomp "github.com/wwsheng009/mint/ui/components/button"
 )
 
 // =============================================================================
 // Async Operation Intents
 // =============================================================================
 
-// LoadDataIntent demonstrates an async data loading operation.
-// When clicked, it starts a simulated async operation.
+// LoadDataIntent starts an async data loading operation.
 type LoadDataIntent struct {
-	Source string // Where to load data from
+	Source string // Where to load data from (e.g., "API", "Database", "File")
 }
 
 func (LoadDataIntent) IntentType() string { return "LoadData" }
+func (LoadDataIntent) StayPressed() bool  { return true }
 
 // =============================================================================
-// Main Application
+// Main Application Component
 // =============================================================================
 
 func App() ui.VNode {
-	// We'll use a simple state management for this demo
-	// In a real app, you'd use the proper State setters
+	// 1. Define state using hooks (must be at top)
+	isLoading, setIsLoading := ui.UseStateBool(false)
+	lastResult, setLastResult := ui.UseStateString("")
+	status, setStatus := ui.UseStateString("")
 
-	// LoadDataIntent handler
+	// 2. Save setters to GlobalState for access from Intent handlers
+	ctx := ui.GetCurrentContext()
+	if ctx != nil {
+		ctx.GlobalState["setIsLoading"] = setIsLoading
+		ctx.GlobalState["setLastResult"] = setLastResult
+		ctx.GlobalState["setStatus"] = setStatus
+	}
+
+	// 3. Register Intent handler using RegisterIntent to access intent parameters
+	// We use RegisterIntent instead of ui.On because we need access to the intent's Source field
 	ui.RegisterIntent(func(actx *intent.ActionContext, i LoadDataIntent) intent.IntentResult {
-		fmt.Printf("[Async] Starting to load from %s...\n", i.Source)
+		source := i.Source
 
-		// Emit a ShowPendingIntent to indicate loading state
-		// Note: In a full implementation, this would trigger UI updates
-		// For this demo, we just simulate the flow
+		// Step 1: Update UI to show loading state
+		if fn, ok := actx.GetState("setIsLoading"); ok {
+			if setter, ok := fn.(func(bool)); ok {
+				setter(true)
+			}
+		}
+		if fn, ok := actx.GetState("setStatus"); ok {
+			if setter, ok := fn.(func(string)); ok {
+				setter(fmt.Sprintf("Loading from %s...", source))
+			}
+		}
 
-		// Simulate async work
-		go func(source string) {
-			fmt.Printf("[Background] Loading data from %s...\n", source)
-			time.Sleep(1 * time.Second)
+		// Step 2: Perform async work in background goroutine
+		go func() {
+			// Simulate async operation (e.g., API call, database query, file I/O)
+			// Random duration between 1-3 seconds
+			duration := time.Duration(1000 + (time.Now().UnixNano() % 2000))
+			time.Sleep(duration)
 
-			// Emit CompleteTransitionIntent with results
-			fmt.Printf("[Complete] Loaded data from %s\n", source)
+			// Step 3: Update UI with result
+			result := fmt.Sprintf("Data from %s (loaded in %.1fs)", source, duration.Seconds())
 
-			// In full implementation: would emit CompleteTransitionIntent here
-		}(i.Source)
+			if fn, ok := actx.GetState("setIsLoading"); ok {
+				if setter, ok := fn.(func(bool)); ok {
+					setter(false)
+				}
+			}
+			if fn, ok := actx.GetState("setLastResult"); ok {
+				if setter, ok := fn.(func(string)); ok {
+					setter(result)
+				}
+			}
+			if fn, ok := actx.GetState("setStatus"); ok {
+				if setter, ok := fn.(func(string)); ok {
+					setter("")
+				}
+			}
+		}()
 
 		return intent.HandledResult()
 	})
 
-	// ShowPendingIntent handler (would update UI with loading spinner)
-	ui.RegisterIntent(func(actx *intent.ActionContext, i intent.ShowPendingIntent) intent.IntentResult {
-		// Update state to show pending state
-		actx.SetState("status", i.Label)
-		actx.ScheduleUpdate()
-		return intent.HandledResult()
-	})
+	// 4. Get animation frame for loading spinner (alternates every 500ms)
+	animationFrame := int(time.Now().UnixNano() / 500000000) % 4
+	spinners := []string{"|", "/", "-", "\\"}
+	spinChar := spinners[animationFrame]
 
-	// CompleteTransitionIntent handler (would update UI with results)
-	ui.RegisterIntent(func(actx *intent.ActionContext, i intent.CompleteTransitionIntent) intent.IntentResult {
-		actx.SetState("lastResult", fmt.Sprintf("Completed: %s", i.Name))
-		actx.ScheduleUpdate()
-		return intent.HandledResult()
-	})
-
-	// Build UI - simple static layout for demo
-	loadButton := button.NewBuilder("Load Data").
-		OnPress(LoadDataIntent{Source: "API Server"}).
-		Variant(button.VariantPrimary).
-		Build()
-
+	// 5. Build UI
 	return ui.VStack(
-		ui.Text("=== Transition Intent Demo ==="),
+		// Title
+		ui.NewTextBuilder("╔══════════════════════════════════════╗").
+			FgColor("cyan").
+			Build(),
+		ui.NewTextBuilder("║     Transition Intent Demo           ║").
+			FgColor("cyan").
+			Build(),
+		ui.NewTextBuilder("╚══════════════════════════════════════╝").
+			FgColor("cyan").
+			Build(),
 		ui.Text(""),
-		ui.Text("Click the button to trigger an async operation."),
+
+		// Description
+		ui.NewTextBuilder("Async Operation Pattern").
+			FgColor("yellow").
+			Bold(true).
+			Build(),
 		ui.Text(""),
-		ui.Text("Pattern:"),
-		ui.Text("  1. User clicks → LoadDataIntent emitted"),
-		ui.Text("  2. Handler shows pending state"),
-		ui.Text("  3. Background work runs"),
-		ui.Text("  4. CompleteTransitionIntent updates UI"),
+		ui.Text("Flow: Click → Loading → Background work → Result"),
+
 		ui.Text(""),
-		loadButton,
+		ui.NewTextBuilder("────────────────────────────────────").
+			FgColor("bright-black").
+			Build(),
+		ui.Text(""),
+
+		// Display loading spinner when isLoading
+		func() ui.VNode {
+			if isLoading {
+				return ui.HStack(
+					ui.NewTextBuilder("[").
+						FgColor("yellow").
+						Build(),
+					ui.NewTextBuilder(spinChar).
+						FgColor("yellow").
+						Bold(true).
+						Build(),
+					ui.NewTextBuilder("Loading").
+						FgColor("yellow").
+						Build(),
+					ui.Text("] "),
+					ui.Text(status),
+				)
+			}
+			return ui.HStack(
+				ui.NewTextBuilder("[Ready] ").
+					FgColor("green").
+					Build(),
+				ui.Text("Click a button to load data"),
+			)
+		}(),
+
+		ui.Text(""),
+
+		// Display last result
+		func() ui.VNode {
+			if lastResult != "" {
+				return ui.HStack(
+					ui.NewTextBuilder("✓ Result:").
+						FgColor("bright-black").
+						Bold(true).
+						Build(),
+					ui.Text(lastResult),
+				)
+			}
+			return ui.Text("")
+		}(),
+
+		ui.Text(""),
+		ui.NewTextBuilder("────────────────────────────────────").
+			FgColor("bright-black").
+			Build(),
+		ui.Text(""),
+
+		// Load buttons
+		ui.NewTextBuilder("Trigger Async Operations:").
+			FgColor("gray").
+			Build(),
+		ui.Text(""),
+		ui.HStack(
+			buttoncomp.NewBuilder("[API]").
+				OnPress(LoadDataIntent{Source: "API Server"}).
+				Variant(buttoncomp.VariantPrimary).
+				Disabled(isLoading).
+				Build(),
+			ui.Text(" "),
+			buttoncomp.NewBuilder("[DB]").
+				OnPress(LoadDataIntent{Source: "Database"}).
+				Variant(buttoncomp.VariantSecondary).
+				Disabled(isLoading).
+				Build(),
+			ui.Text(" "),
+			buttoncomp.NewBuilder("[File]").
+				OnPress(LoadDataIntent{Source: "File System"}).
+				Variant(buttoncomp.VariantSecondary).
+				Disabled(isLoading).
+				Build(),
+		),
+		ui.Text(""),
+		ui.Text(""),
+		ui.NewTextBuilder("[Tip] Buttons disabled during load").
+			FgColor("gray").
+			Build(),
 	)
 }
 
+// =============================================================================
+// Main Function
+// =============================================================================
+
 func main() {
-	ui.Run(App,
+	err := ui.Run(App,
 		ui.WithWidth(60),
-		ui.WithHeight(16),
+		ui.WithHeight(22),
 		ui.WithTitle("Transition Demo"),
 	)
+	if err != nil {
+		panic(err)
+	}
 }
