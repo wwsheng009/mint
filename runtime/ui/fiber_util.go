@@ -161,22 +161,44 @@ func CreateFiber(vnode VNode) *Fiber {
 		// VNode defines its own instance type
 		instance = factory.CreateInstance()
 
-		// IntentEmitter sends all intents to global Intent Runtime
-		// This is the unified routing strategy (Phase 10 revision):
-		// - All intents (FieldChange, Submit, etc.) are handled globally
-		// - Intent Bubble is optional and implemented via component's HandleIntent forwarding
+		// IntentEmitter routing strategy:
+		// - Global Intent (IsGlobal() = true or not implemented): Send to global Runtime
+		// - Local Intent (IsGlobal() = false): Bubble locally through Parent()
+		//
+		// This design enables:
+		// 1. Backward compatibility: All existing intents default to global
+		// 2. Optional Intent Bubble: Components can use local intents for communication
+		// 3. Clear separation: State management vs component internal logic
+		//
+		// See: docs/ui/mint2/INTENT_ARCHITECTURE_ANALYSIS.md
 		if setter, ok := instance.(interface{ SetIntentEmitter(func(i intent.Intent)) }); ok {
 			setter.SetIntentEmitter(func(i intent.Intent) {
-				if runtime := GetGlobalIntentRuntime(); runtime != nil {
-					result := runtime.Emit(i)
-					if result.Error != nil {
-						// Log intent emission errors
-						if log.UILogger.Enabled() {
-							log.UILogger.Debug("[IntentEmitter] Failed to emit intent %s: %v",
-								i.IntentType(), result.Error)
-						} else {
-							fmt.Printf("[IntentEmitter] Failed to emit intent %s: %v\n",
-								i.IntentType(), result.Error)
+				// Check if this is a local intent (implements GlobalIntent with IsGlobal() = false)
+				isLocal := false
+				if global, ok := i.(intent.GlobalIntent); ok {
+					isLocal = !global.IsGlobal()
+				}
+
+				if isLocal {
+					// Local Intent: Bubble locally through Parent() chain
+					// This enables component internal communication and event delegation
+					if component, ok := instance.(intent.TreeComponent); ok {
+						intent.Emit(component, i)
+					}
+				} else {
+					// Global Intent: Send to global Intent Runtime
+					// This goes through Reducer/FieldMap handlers for state management
+					if runtime := GetGlobalIntentRuntime(); runtime != nil {
+						result := runtime.Emit(i)
+						if result.Error != nil {
+							// Log intent emission errors
+							if log.UILogger.Enabled() {
+								log.UILogger.Debug("[IntentEmitter] Failed to emit intent %s: %v",
+									i.IntentType(), result.Error)
+							} else {
+								fmt.Printf("[IntentEmitter] Failed to emit intent %s: %v\n",
+									i.IntentType(), result.Error)
+							}
 						}
 					}
 				}
