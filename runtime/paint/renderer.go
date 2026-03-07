@@ -168,6 +168,9 @@ func (r *Renderer) renderLine(y int, region Rect) {
 
 		// 跳过空 cluster（避免无限循环和无效输出）
 		if cell.Cluster == "" || cell.Cluster == "\x00" {
+			if prevCell.Cluster != "" && prevCell.Cluster != " " {
+				r.emitRunWithWidth(x, y, cell.Style, " ", prevCell.Width)
+			}
 			x++
 			continue
 		}
@@ -179,7 +182,7 @@ func (r *Renderer) renderLine(y int, region Rect) {
 		totalWidth := 0
 
 		// 收集当前单元格以及后续相邻的、同样式的单元格
-		for ; x < endX; {
+		for x < endX {
 			nextCell := r.back.Cells[y][x]
 			// 如果样式不同或是 continuation，停止合并
 			if nextCell.IsContinuation ||

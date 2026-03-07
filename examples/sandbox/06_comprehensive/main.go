@@ -1,5 +1,5 @@
 // 06_comprehensive/main.go
-// 综合示例
+// 综合示例 (Store 模式)
 //
 // 演示多个高级功能的组合使用：
 // - 事件录制与回放
@@ -14,10 +14,25 @@ import (
 	"fmt"
 
 	"github.com/wwsheng009/mint/runtime/intent"
+	"github.com/wwsheng009/mint/runtime/reducer"
+	"github.com/wwsheng009/mint/runtime/store"
 	"github.com/wwsheng009/mint/ui"
 )
 
+// ============================================================================
+// AppState - 定义应用状态
+// ============================================================================
+
+type AppState struct {
+	Count int    // 计数器值
+	Name  string // 用户名称
+	Step  int    // 当前步骤 (1-3)
+}
+
+// ============================================================================
 // Intent Types
+// ============================================================================
+
 type NextStepIntent struct{}
 func (NextStepIntent) IntentType() string { return "NextStep" }
 func (NextStepIntent) StayPressed() bool  { return true }
@@ -34,60 +49,66 @@ type IncrementComprehensiveIntent struct{}
 func (IncrementComprehensiveIntent) IntentType() string { return "Increment" }
 func (IncrementComprehensiveIntent) StayPressed() bool  { return true }
 
-// ComprehensiveApp 综合演示应用
+type SetComprehensiveNameIntent struct {
+	Name string
+}
+func (SetComprehensiveNameIntent) IntentType() string { return "SetComprehensiveName" }
+func (SetComprehensiveNameIntent) StayPressed() bool  { return false }
+
+// ============================================================================
+// Store 初始化
+// ============================================================================
+
+var comprehensiveStore = store.NewStore(AppState{
+	Count: 0,
+	Name:  "Guest",
+	Step:  1,
+})
+
+// ============================================================================
+// Reducer 注册
+// ============================================================================
+
+func init() {
+	reducer.NewBuilder[AppState]().
+		On(NextStepIntent{}, func(s AppState, i intent.Intent) AppState {
+			if s.Step < 3 {
+				s.Step++
+			}
+			return s
+		}).
+		On(BackStepIntent{}, func(s AppState, i intent.Intent) AppState {
+			if s.Step > 1 {
+				s.Step--
+			}
+			return s
+		}).
+		On(DecrementComprehensiveIntent{}, func(s AppState, i intent.Intent) AppState {
+			if s.Count > 0 {
+				s.Count--
+			}
+			return s
+		}).
+		On(IncrementComprehensiveIntent{}, func(s AppState, i intent.Intent) AppState {
+			s.Count++
+			return s
+		}).
+		On(SetComprehensiveNameIntent{}, func(s AppState, i intent.Intent) AppState {
+			s.Name = i.(SetComprehensiveNameIntent).Name
+			return s
+		}).
+		BuildAndRegister(intent.DefaultRegistry(), comprehensiveStore)
+}
+
+// ============================================================================
+// ComprehensiveApp - 综合演示应用
+// ============================================================================
+
 func ComprehensiveApp() ui.VNode {
-	count, setCount, _ := ui.UseStateInt(0)
-	name, _ := ui.UseStateString("Guest")
-	step, setStep, _ := ui.UseStateInt(1)
-
-	// 将 setter 保存到 GlobalState，供 handler 从 ActionContext 读取
-	ctx := ui.GetCurrentContext()
-	if ctx != nil {
-		ctx.GlobalState["count"] = count
-		ctx.GlobalState["setCount"] = setCount
-		ctx.GlobalState["step"] = step
-		ctx.GlobalState["setStep"] = setStep
-	}
-
-	// Register intent handlers
-	ui.On(NextStepIntent{}, func(actx *intent.ActionContext) {
-		currentStep := actx.GetIntState("step", 1)
-		if currentStep < 3 {
-			if fn, ok := actx.GetState("setStep"); ok {
-				if setter, ok := fn.(func(int)); ok {
-					setter(currentStep + 1)
-				}
-			}
-		}
-	})
-	ui.On(BackStepIntent{}, func(actx *intent.ActionContext) {
-		currentStep := actx.GetIntState("step", 1)
-		if currentStep > 1 {
-			if fn, ok := actx.GetState("setStep"); ok {
-				if setter, ok := fn.(func(int)); ok {
-					setter(currentStep - 1)
-				}
-			}
-		}
-	})
-	ui.On(DecrementComprehensiveIntent{}, func(actx *intent.ActionContext) {
-		currentCount := actx.GetIntState("count", 0)
-		if currentCount > 0 {
-			if fn, ok := actx.GetState("setCount"); ok {
-				if setter, ok := fn.(func(int)); ok {
-					setter(currentCount - 1)
-				}
-			}
-		}
-	})
-	ui.On(IncrementComprehensiveIntent{}, func(actx *intent.ActionContext) {
-		currentCount := actx.GetIntState("count", 0)
-		if fn, ok := actx.GetState("setCount"); ok {
-			if setter, ok := fn.(func(int)); ok {
-				setter(currentCount + 1)
-			}
-		}
-	})
+	// ✅ 订阅存储的状态
+	count := ui.UseStoreSelector(comprehensiveStore, func(s AppState) int { return s.Count })
+	name := ui.UseStoreSelector(comprehensiveStore, func(s AppState) string { return s.Name })
+	step := ui.UseStoreSelector(comprehensiveStore, func(s AppState) int { return s.Step })
 
 	steps := []string{
 		"Step 1: Enter name",
@@ -175,11 +196,15 @@ func ComprehensiveApp() ui.VNode {
 	)
 }
 
+// ============================================================================
+// Main
+// ============================================================================
+
 func main() {
 	err := ui.Run(ComprehensiveApp,
 		ui.WithWidth(40),
 		ui.WithHeight(20),
-		ui.WithTitle("Comprehensive Demo"),
+		ui.WithTitle("Comprehensive Demo (Store 模式)"),
 	)
 	if err != nil {
 		panic(err)

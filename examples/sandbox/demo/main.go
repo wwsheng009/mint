@@ -5,11 +5,25 @@ import (
 	"fmt"
 
 	"github.com/wwsheng009/mint/runtime/intent"
+	"github.com/wwsheng009/mint/runtime/reducer"
+	"github.com/wwsheng009/mint/runtime/store"
 	"github.com/wwsheng009/mint/runtime/style"
 	"github.com/wwsheng009/mint/ui"
 )
 
+// ============================================================================
+// AppState - 定义应用状态
+// ============================================================================
+
+type AppState struct {
+	Count int // 计数器值
+	Name  string // 用户名称（只读展示）
+}
+
+// ============================================================================
 // Intent Types
+// ============================================================================
+
 type DecrementSandboxDemoIntent struct{}
 func (DecrementSandboxDemoIntent) IntentType() string { return "Decrement" }
 func (DecrementSandboxDemoIntent) StayPressed() bool  { return true }
@@ -18,33 +32,45 @@ type IncrementSandboxDemoIntent struct{}
 func (IncrementSandboxDemoIntent) IntentType() string { return "Increment" }
 func (IncrementSandboxDemoIntent) StayPressed() bool  { return true }
 
+// ============================================================================
+// Store 初始化
+// ============================================================================
+
+var sandboxStore = store.NewStore(AppState{
+	Count: 0,
+	Name:  "Guest",
+})
+
+// ============================================================================
+// Reducer 注册
+// ============================================================================
+
+func init() {
+	reducer.NewBuilder[AppState]().
+		On(DecrementSandboxDemoIntent{}, func(s AppState, i intent.Intent) AppState {
+			s.Count--
+			if s.Count < 0 {
+				s.Count = 0
+			}
+			return s
+		}).
+		On(IncrementSandboxDemoIntent{}, func(s AppState, i intent.Intent) AppState {
+			s.Count++
+			return s
+		}).
+		BuildAndRegister(intent.DefaultRegistry(), sandboxStore)
+}
+
+// ============================================================================
+// Counter - 计数器组件
+// ============================================================================
+
 // Counter 示例计数器应用
 // 演示如何使用 Sandbox 进行交互式组件测试
 func Counter() ui.VNode {
-	count, setCount, _ := ui.UseStateInt(0)
-	name, _ := ui.UseStateString("Guest")
-
-	// 将 setter 保存到 GlobalState，供 handler 从 ActionContext 读取
-	ctx := ui.GetCurrentContext()
-	if ctx != nil {
-		ctx.GlobalState["setCount"] = setCount
-	}
-
-	// Register intent handlers for buttons
-	ui.On(DecrementSandboxDemoIntent{}, func(actx *intent.ActionContext) {
-		if fn, ok := actx.GetState("setCount"); ok {
-			if setter, ok := fn.(func(func(int) int)); ok {
-				setter(func(c int) int { return c - 1 })
-			}
-		}
-	})
-	ui.On(IncrementSandboxDemoIntent{}, func(actx *intent.ActionContext) {
-		if fn, ok := actx.GetState("setCount"); ok {
-			if setter, ok := fn.(func(func(int) int)); ok {
-				setter(func(c int) int { return c + 1 })
-			}
-		}
-	})
+	// ✅ 订阅存储的状态
+	count := ui.UseStoreSelector(sandboxStore, func(s AppState) int { return s.Count })
+	name := ui.UseStoreSelector(sandboxStore, func(s AppState) string { return s.Name })
 
 	// Style builders
 	cyanStyle := style.NewStyle().Foreground(style.Color("cyan"))
@@ -106,15 +132,18 @@ func Counter() ui.VNode {
 	)
 }
 
+// ============================================================================
+// Main
+// ============================================================================
+
 // main 正常运行应用
 func main() {
 	err := ui.Run(Counter,
 		ui.WithWidth(40),
 		ui.WithHeight(18),
-		ui.WithTitle("Sandbox Demo"),
+		ui.WithTitle("Sandbox Demo (Store 模式)"),
 	)
 	if err != nil {
 		panic(err)
 	}
 }
-

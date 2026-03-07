@@ -24,6 +24,11 @@ type PaintEngine struct {
 	lastLayersPresent map[rtui.Layer]bool                 // Track which layers were present in last frame
 	lastLayerBounds   map[rtui.Layer]runtime.Box          // Track last bounds of each layer for cleanup
 
+	// Frame-to-frame tracking for smart buffer clearing
+	// These track individual PaintableBox positions to detect and clear outdated regions
+	previousFrameBoxes map[string]runtime.Box // key: box.Node.ID(), value: box bounds
+	currentFrameBoxes  map[string]runtime.Box // key: box.Node.ID(), value: box bounds (being rendered)
+
 	// Performance optimization: Paint cache
 	cache        *cachepkg.PaintCache      // Cache for rendered paintable boxes
 	enableCache  bool                      // Enable cache (true by default)
@@ -34,11 +39,13 @@ type PaintEngine struct {
 // NewPaintEngine creates a new paint engine
 func NewPaintEngine() *PaintEngine {
 	return &PaintEngine{
-		debug:             log.PaintLogger.Enabled(),
-		lastLayersPresent: make(map[rtui.Layer]bool),
-		lastLayerBounds:   make(map[rtui.Layer]runtime.Box),
-		enableCache:       true,
-		version:           0,
+		debug:              log.PaintLogger.Enabled(),
+		lastLayersPresent:  make(map[rtui.Layer]bool),
+		lastLayerBounds:    make(map[rtui.Layer]runtime.Box),
+		previousFrameBoxes: make(map[string]runtime.Box),
+		currentFrameBoxes:  make(map[string]runtime.Box),
+		enableCache:        true,
+		version:            0,
 	}
 }
 
@@ -541,6 +548,26 @@ func (e *PaintEngine) PaintPaintablePlanes(
 
 	log.PaintLogger.IfEnabled().Debug("[PaintEngine.PaintPaintablePlanes] START: boxes=%d", planes.CountBoxes())
 
+	// Phase 1: Collect all boxes in current frame for tracking
+	e.currentFrameBoxes = make(map[string]runtime.Box)
+	for _, layer := range planes.GetRenderOrder() {
+		boxes := planes.GetLayer(layer)
+		for _, box := range boxes {
+			if box.Node != nil {
+				e.currentFrameBoxes[box.Node.ID()] = runtime.Box{
+					X:      box.X,
+					Y:      box.Y,
+					Width:  box.Width,
+					Height: box.Height,
+				}
+			}
+		}
+	}
+
+	// Phase 2: Clear outdated painted regions (smart buffer clearing)
+	e.clearOutdatedRegions(buffer)
+
+	// Phase 3: Paint all boxes in current frame
 	for _, layer := range planes.GetRenderOrder() {
 		boxes := planes.GetLayer(layer)
 		if len(boxes) == 0 {
@@ -561,8 +588,48 @@ func (e *PaintEngine) PaintPaintablePlanes(
 		}
 	}
 
+	// Phase 4: Update tracking maps for next frame
+	e.previousFrameBoxes = e.currentFrameBoxes
+	e.currentFrameBoxes = make(map[string]runtime.Box) // Reset for next frame
+
 	log.PaintLogger.IfEnabled().Debug("[PaintEngine.PaintPaintablePlanes] END")
 	return nil
+}
+
+// clearOutdatedRegions smartly clears regions that need refreshing
+// It compares previous frame boxes with current frame boxes and clears:
+// - Boxes that were in previous frame but are gone now
+// - Boxes that have moved to different positions
+func (e *PaintEngine) clearOutdatedRegions(buffer *paint.Buffer) {
+	// Check each box from previous frame
+	for id, prevBounds := range e.previousFrameBoxes {
+		currentBounds, exists := e.currentFrameBoxes[id]
+
+		if !exists {
+			// Case 1: Box removed - clear its previous region
+			log.PaintLogger.IfEnabled().Debug("[clearOutdatedRegions] Box %s removed, clearing %v", id, prevBounds)
+			e.clearRegion(prevBounds, buffer)
+		} else if prevBounds != currentBounds {
+			// Case 2: Box moved - clear both old and new positions
+			log.PaintLogger.IfEnabled().Debug("[clearOutdatedRegions] Box %s moved from %v to %v",
+				id, prevBounds, currentBounds)
+			e.clearRegion(prevBounds, buffer) // Clear old position
+		}
+	}
+}
+
+// PrintBoxTrackingLogs prints current and previous frame box tracking for debugging
+func (e *PaintEngine) PrintBoxTrackingLogs() {
+	log.PaintLogger.IfEnabled().Debug("=== Frame Box Tracking ===")
+	log.PaintLogger.IfEnabled().Debug("Previous frame boxes:")
+	for id, bounds := range e.previousFrameBoxes {
+		log.PaintLogger.IfEnabled().Debug("  %s: %v", id, bounds)
+	}
+	log.PaintLogger.IfEnabled().Debug("Current frame boxes:")
+	for id, bounds := range e.currentFrameBoxes {
+		log.PaintLogger.IfEnabled().Debug("  %s: %v", id, bounds)
+	}
+	log.PaintLogger.IfEnabled().Debug("=========================")
 }
 
 // =============================================================================

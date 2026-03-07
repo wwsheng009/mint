@@ -5,32 +5,47 @@ import (
 	"strings"
 
 	"github.com/wwsheng009/mint/runtime/intent"
+	"github.com/wwsheng009/mint/runtime/reducer"
+	"github.com/wwsheng009/mint/runtime/store"
 	"github.com/wwsheng009/mint/ui"
 )
+
+// =============================================================================
+// AppState - 定义应用状态
+// =============================================================================
+
+type AppState struct {
+	ModalOpen        bool // Modal 是否打开
+	OverlayVisible   bool // Overlay 是否可见
+	InspectorEnabled bool // Inspector 是否启用
+	ShowKeys         bool // 是否显示 Keys
+	ShowPaths        bool // 是否显示 Paths
+	ShowLayers       bool // 是否显示 Layers
+}
 
 // =============================================================================
 // Intent Types
 // =============================================================================
 
 type OpenModalIntent struct{}
-func (OpenModalIntent) IntentType() string { return "OpenModal" }
-func (OpenModalIntent) StayPressed() bool  { return true }
+func (OpenModalIntent) IntentType() string      { return "OpenModal" }
+func (OpenModalIntent) StayPressed() bool       { return true }
 
 type ShowOverlayIntent struct{}
-func (ShowOverlayIntent) IntentType() string { return "ShowOverlay" }
-func (ShowOverlayIntent) StayPressed() bool  { return true }
+func (ShowOverlayIntent) IntentType() string    { return "ShowOverlay" }
+func (ShowOverlayIntent) StayPressed() bool     { return true }
 
 type ToggleInspectorIntent struct{}
 func (ToggleInspectorIntent) IntentType() string { return "ToggleInspector" }
 func (ToggleInspectorIntent) StayPressed() bool  { return true }
 
 type CloseAllLayersIntent struct{}
-func (CloseAllLayersIntent) IntentType() string { return "CloseAllLayers" }
-func (CloseAllLayersIntent) StayPressed() bool  { return true }
+func (CloseAllLayersIntent) IntentType() string  { return "CloseAllLayers" }
+func (CloseAllLayersIntent) StayPressed() bool   { return true }
 
 type ToggleShowKeysIntent struct{}
-func (ToggleShowKeysIntent) IntentType() string { return "ToggleShowKeys" }
-func (ToggleShowKeysIntent) StayPressed() bool  { return true }
+func (ToggleShowKeysIntent) IntentType() string  { return "ToggleShowKeys" }
+func (ToggleShowKeysIntent) StayPressed() bool   { return true }
 
 type ToggleShowPathsIntent struct{}
 func (ToggleShowPathsIntent) IntentType() string { return "ToggleShowPaths" }
@@ -45,15 +60,78 @@ func (ModalButtonClickIntent) IntentType() string { return "ModalButtonClick" }
 func (ModalButtonClickIntent) StayPressed() bool  { return true }
 
 type CloseModalIntent struct{}
-func (CloseModalIntent) IntentType() string { return "CloseModal" }
-func (CloseModalIntent) StayPressed() bool  { return true }
+func (CloseModalIntent) IntentType() string       { return "CloseModal" }
+func (CloseModalIntent) StayPressed() bool        { return true }
 
 type OverlayButtonClickIntent struct{}
 func (OverlayButtonClickIntent) IntentType() string { return "OverlayButtonClick" }
 func (OverlayButtonClickIntent) StayPressed() bool  { return true }
 
 // =============================================================================
-// KeyInspectorUI - UI Inspector
+// Store 初始化
+// ============================================================================
+
+var debugKeysStore = store.NewStore(AppState{
+	ModalOpen:        false,
+	OverlayVisible:   false,
+	InspectorEnabled: true,
+	ShowKeys:         true,
+	ShowPaths:        true,
+	ShowLayers:       true,
+})
+
+// =============================================================================
+// Reducer 注册
+// ============================================================================
+
+func init() {
+	reducer.NewBuilder[AppState]().
+		On(OpenModalIntent{}, func(s AppState, i intent.Intent) AppState {
+			s.ModalOpen = true
+			return s
+		}).
+		On(ShowOverlayIntent{}, func(s AppState, i intent.Intent) AppState {
+			s.OverlayVisible = true
+			return s
+		}).
+		On(ToggleInspectorIntent{}, func(s AppState, i intent.Intent) AppState {
+			s.InspectorEnabled = !s.InspectorEnabled
+			return s
+		}).
+		On(CloseAllLayersIntent{}, func(s AppState, i intent.Intent) AppState {
+			s.ModalOpen = false
+			s.OverlayVisible = false
+			return s
+		}).
+		On(ToggleShowKeysIntent{}, func(s AppState, i intent.Intent) AppState {
+			s.ShowKeys = !s.ShowKeys
+			return s
+		}).
+		On(ToggleShowPathsIntent{}, func(s AppState, i intent.Intent) AppState {
+			s.ShowPaths = !s.ShowPaths
+			return s
+		}).
+		On(ToggleShowLayersIntent{}, func(s AppState, i intent.Intent) AppState {
+			s.ShowLayers = !s.ShowLayers
+			return s
+		}).
+		On(CloseModalIntent{}, func(s AppState, i intent.Intent) AppState {
+			s.ModalOpen = false
+			return s
+		}).
+		On(ModalButtonClickIntent{}, func(s AppState, i intent.Intent) AppState {
+			fmt.Println("Modal button clicked!")
+			return s
+		}).
+		On(OverlayButtonClickIntent{}, func(s AppState, i intent.Intent) AppState {
+			fmt.Println("Overlay button clicked!")
+			return s
+		}).
+		BuildAndRegister(intent.DefaultRegistry(), debugKeysStore)
+}
+
+// =============================================================================
+// Main
 // =============================================================================
 
 func main() {
@@ -65,101 +143,13 @@ func main() {
 	fmt.Println("")
 
 	ui.Run(func() ui.VNode {
-		// 使用 UseState 管理状态
-		modalOpen, setModalOpen := ui.UseStateBool(false)
-		overlayVisible, setOverlayVisible := ui.UseStateBool(false)
-		inspectorEnabled, setInspectorEnabled := ui.UseStateBool(true)
-		showKeys, setShowKeys := ui.UseStateBool(true)
-		showPaths, setShowPaths := ui.UseStateBool(true)
-		showLayers, setShowLayers := ui.UseStateBool(true)
-
-		// 将 setter 保存到 GlobalState，供 handler 从 ActionContext 读取
-		ctx := ui.GetCurrentContext()
-		if ctx != nil {
-			ctx.GlobalState["setModalOpen"] = setModalOpen
-			ctx.GlobalState["setOverlayVisible"] = setOverlayVisible
-			ctx.GlobalState["setInspectorEnabled"] = setInspectorEnabled
-			ctx.GlobalState["modalOpen"] = modalOpen
-			ctx.GlobalState["showKeys"] = showKeys
-			ctx.GlobalState["showPaths"] = showPaths
-			ctx.GlobalState["showLayers"] = showLayers
-			ctx.GlobalState["setShowKeys"] = setShowKeys
-			ctx.GlobalState["setShowPaths"] = setShowPaths
-			ctx.GlobalState["setShowLayers"] = setShowLayers
-		}
-
-		// 使用 ui.On 注册 Intent handler（从 ActionContext 读取状态）
-		ui.On(OpenModalIntent{}, func(actx *intent.ActionContext) {
-			if fn, ok := actx.GetState("setModalOpen"); ok {
-				if setter, ok := fn.(func(bool)); ok {
-					setter(true)
-				}
-			}
-		})
-		ui.On(ShowOverlayIntent{}, func(actx *intent.ActionContext) {
-			if fn, ok := actx.GetState("setOverlayVisible"); ok {
-				if setter, ok := fn.(func(bool)); ok {
-					setter(true)
-				}
-			}
-		})
-		ui.On(ToggleInspectorIntent{}, func(actx *intent.ActionContext) {
-			currentInspectorEnabled := actx.GetBoolState("inspectorEnabled", true)
-			if fn, ok := actx.GetState("setInspectorEnabled"); ok {
-				if setter, ok := fn.(func(bool)); ok {
-					setter(!currentInspectorEnabled)
-				}
-			}
-		})
-		ui.On(CloseAllLayersIntent{}, func(actx *intent.ActionContext) {
-			if fn, ok := actx.GetState("setModalOpen"); ok {
-				if setter, ok := fn.(func(bool)); ok {
-					setter(false)
-				}
-			}
-			if fn, ok := actx.GetState("setOverlayVisible"); ok {
-				if setter, ok := fn.(func(bool)); ok {
-					setter(false)
-				}
-			}
-		})
-		ui.On(ToggleShowKeysIntent{}, func(actx *intent.ActionContext) {
-			currentShowKeys := actx.GetBoolState("showKeys", true)
-			if fn, ok := actx.GetState("setShowKeys"); ok {
-				if setter, ok := fn.(func(bool)); ok {
-					setter(!currentShowKeys)
-				}
-			}
-		})
-		ui.On(ToggleShowPathsIntent{}, func(actx *intent.ActionContext) {
-			currentShowPaths := actx.GetBoolState("showPaths", true)
-			if fn, ok := actx.GetState("setShowPaths"); ok {
-				if setter, ok := fn.(func(bool)); ok {
-					setter(!currentShowPaths)
-				}
-			}
-		})
-		ui.On(ToggleShowLayersIntent{}, func(actx *intent.ActionContext) {
-			currentShowLayers := actx.GetBoolState("showLayers", true)
-			if fn, ok := actx.GetState("setShowLayers"); ok {
-				if setter, ok := fn.(func(bool)); ok {
-					setter(!currentShowLayers)
-				}
-			}
-		})
-		ui.On(ModalButtonClickIntent{}, func(actx *intent.ActionContext) {
-			fmt.Println("Modal button clicked!")
-		})
-		ui.On(CloseModalIntent{}, func(actx *intent.ActionContext) {
-			if fn, ok := actx.GetState("setModalOpen"); ok {
-				if setter, ok := fn.(func(bool)); ok {
-					setter(false)
-				}
-			}
-		})
-		ui.On(OverlayButtonClickIntent{}, func(actx *intent.ActionContext) {
-			fmt.Println("Overlay button clicked!")
-		})
+		// ✅ 订阅存储的状态
+		modalOpen := ui.UseStoreSelector(debugKeysStore, func(s AppState) bool { return s.ModalOpen })
+		overlayVisible := ui.UseStoreSelector(debugKeysStore, func(s AppState) bool { return s.OverlayVisible })
+		inspectorEnabled := ui.UseStoreSelector(debugKeysStore, func(s AppState) bool { return s.InspectorEnabled })
+		showKeys := ui.UseStoreSelector(debugKeysStore, func(s AppState) bool { return s.ShowKeys })
+		showPaths := ui.UseStoreSelector(debugKeysStore, func(s AppState) bool { return s.ShowPaths })
+		showLayers := ui.UseStoreSelector(debugKeysStore, func(s AppState) bool { return s.ShowLayers })
 
 		// Base layer content
 		baseContent := ui.VStack(
@@ -237,9 +227,13 @@ func main() {
 	},
 		ui.WithWidth(80),
 		ui.WithHeight(40),
-		ui.WithTitle("UI Key Inspector"),
+		ui.WithTitle("UI Key Inspector (Store 模式)"),
 	)
 }
+
+// =============================================================================
+// Helper Functions
+// =============================================================================
 
 // buildCheckbox 创建一个简单的 checkbox (使用 text + button 模拟)
 func buildCheckbox(label string, checked bool, toggleIntent intent.Intent) ui.VNode {

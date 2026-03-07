@@ -1,13 +1,29 @@
 package main
 
 import (
-	"reflect"
-
 	"github.com/wwsheng009/mint/runtime/intent"
+	"github.com/wwsheng009/mint/runtime/reducer"
+	"github.com/wwsheng009/mint/runtime/store"
 	"github.com/wwsheng009/mint/ui"
 )
 
-// Intent definitions for DemoApp
+// =============================================================================
+
+// AppState - 定义应用状态
+// =============================================================================
+
+type AppState struct {
+	CurrentTab string  // 当前选中的 tab: "counter", "input", "tasks"
+	Text       string  // 输入框文本
+	Checked1   bool    // Checkbox 1 状态
+	Checked2   bool    // Checkbox 2 状态
+	Checked3   bool    // Checkbox 3 状态
+}
+
+// =============================================================================
+// Intent Types
+// =============================================================================
+
 type SetTabIntent struct {
 	Tab string
 }
@@ -15,44 +31,86 @@ type SetTabIntent struct {
 func (SetTabIntent) IntentType() string { return "SetTab" }
 func (SetTabIntent) StayPressed() bool  { return true }
 
-type IncrementIntent struct{}
-func (IncrementIntent) IntentType() string { return "Increment" }
-func (IncrementIntent) StayPressed() bool  { return true }
+type SetDemoTextIntent struct {
+	Text string
+}
 
-type DecrementIntent struct{}
-func (DecrementIntent) IntentType() string { return "Decrement" }
-func (DecrementIntent) StayPressed() bool  { return true }
+func (SetDemoTextIntent) IntentType() string { return "SetDemoText" }
+func (SetDemoTextIntent) StayPressed() bool  { return false }
 
-// DemoApp demonstrates all UI components
+type SetDemoChecked1Intent struct {
+	Checked bool
+}
+
+func (SetDemoChecked1Intent) IntentType() string { return "SetDemoChecked1" }
+func (SetDemoChecked1Intent) StayPressed() bool  { return false }
+
+type SetDemoChecked2Intent struct {
+	Checked bool
+}
+
+func (SetDemoChecked2Intent) IntentType() string { return "SetDemoChecked2" }
+func (SetDemoChecked2Intent) StayPressed() bool  { return false }
+
+type SetDemoChecked3Intent struct {
+	Checked bool
+}
+
+func (SetDemoChecked3Intent) IntentType() string { return "SetDemoChecked3" }
+func (SetDemoChecked3Intent) StayPressed() bool  { return false }
+
+// =============================================================================
+// Store 初始化
+// ============================================================================
+
+var demoAppStore = store.NewStore(AppState{
+	CurrentTab: "counter",
+	Text:       "",
+	Checked1:   false,
+	Checked2:   false,
+	Checked3:   false,
+})
+
+// =============================================================================
+// Reducer 注册
+// ============================================================================
+
+func init() {
+	reducer.NewBuilder[AppState]().
+		On(SetTabIntent{}, func(s AppState, i intent.Intent) AppState {
+			s.CurrentTab = i.(SetTabIntent).Tab
+			return s
+		}).
+		On(SetDemoTextIntent{}, func(s AppState, i intent.Intent) AppState {
+			s.Text = i.(SetDemoTextIntent).Text
+			return s
+		}).
+		On(SetDemoChecked1Intent{}, func(s AppState, i intent.Intent) AppState {
+			s.Checked1 = i.(SetDemoChecked1Intent).Checked
+			return s
+		}).
+		On(SetDemoChecked2Intent{}, func(s AppState, i intent.Intent) AppState {
+			s.Checked2 = i.(SetDemoChecked2Intent).Checked
+			return s
+		}).
+		On(SetDemoChecked3Intent{}, func(s AppState, i intent.Intent) AppState {
+			s.Checked3 = i.(SetDemoChecked3Intent).Checked
+			return s
+		}).
+		BuildAndRegister(intent.DefaultRegistry(), demoAppStore)
+}
+
+// =============================================================================
+// DemoApp - 演示所有 UI 组件
+// ============================================================================
+
 func DemoApp() ui.VNode {
-	currentTab, _ := ui.UseStateString("counter")
-
-	text, setText := ui.UseStateString("")
-	textSetterKey := intent.StateKey[func(string)]("textSetter")
-
-	ctx := ui.GetCurrentContext()
-	if ctx != nil {
-		ctx.GlobalState[textSetterKey.String()] = setText
-	}
-
-	checked1Key := intent.StateKey[bool]("checked1")
-	checked1SetterKey := intent.StateKey[func(bool)]("checked1Setter")
-	checked1, setChecked1 := ui.UseStateBool(false)
-
-	checked2Key := intent.StateKey[bool]("checked2")
-	checked2SetterKey := intent.StateKey[func(bool)]("checked2Setter")
-	checked2, setChecked2 := ui.UseStateBool(false)
-
-	checked3Key := intent.StateKey[bool]("checked3")
-	checked3SetterKey := intent.StateKey[func(bool)]("checked3Setter")
-	checked3, setChecked3 := ui.UseStateBool(false)
-
-	// 保存 setters
-	if ctx != nil {
-		ctx.GlobalState[checked1SetterKey.String()] = setChecked1
-		ctx.GlobalState[checked2SetterKey.String()] = setChecked2
-		ctx.GlobalState[checked3SetterKey.String()] = setChecked3
-	}
+	// ✅ 订阅存储的状态
+	currentTab := ui.UseStoreSelector(demoAppStore, func(s AppState) string { return s.CurrentTab })
+	text := ui.UseStoreSelector(demoAppStore, func(s AppState) string { return s.Text })
+	checked1 := ui.UseStoreSelector(demoAppStore, func(s AppState) bool { return s.Checked1 })
+	checked2 := ui.UseStoreSelector(demoAppStore, func(s AppState) bool { return s.Checked2 })
+	checked3 := ui.UseStoreSelector(demoAppStore, func(s AppState) bool { return s.Checked3 })
 
 	return ui.VStack(
 		ui.NewTextBuilder("╔═══════════════════════════════════════╗").
@@ -65,18 +123,18 @@ func DemoApp() ui.VNode {
 			FgColor("cyan").
 			Build(),
 		ui.Text(""),
-		// Tab navigation (简化：不实现 Tab 切换功能)
+		// Tab navigation
 		ui.HStack(
 			ui.NewButtonBuilder(" [1] Counter ").
-				OnPress(intent.ClickIntent{}).
+				OnPress(SetTabIntent{Tab: "counter"}).
 				Build(),
 			ui.Text(" "),
 			ui.NewButtonBuilder(" [2] Input ").
-				OnPress(intent.ClickIntent{}).
+				OnPress(SetTabIntent{Tab: "input"}).
 				Build(),
 			ui.Text(" "),
 			ui.NewButtonBuilder(" [3] Tasks ").
-				OnPress(intent.ClickIntent{}).
+				OnPress(SetTabIntent{Tab: "tasks"}).
 				Build(),
 		),
 		ui.Text(""),
@@ -93,18 +151,7 @@ func DemoApp() ui.VNode {
 						Bold(true).
 						Build(),
 					ui.Text(""),
-					ui.NewTextBuilder("   Count:   ").
-						FgColor("bright-black").
-						Build(),
 					ui.HStack(
-						ui.NewTextBuilder("   ").
-							FgColor("green").
-							Bold(true).
-							Build(),
-						ui.NewTextBuilder("  ").
-							FgColor("green").
-							Bold(true).
-							Build(),
 						ui.NewButtonBuilder("  [ - ]  ").
 							OnPress(intent.ClickIntent{}).
 							Build(),
@@ -122,11 +169,10 @@ func DemoApp() ui.VNode {
 						Build(),
 					ui.Text(""),
 					ui.NewInputBuilder().
-						ForField(intent.ForField[string]("text")).
 						Placeholder("Type here...").
 						Build(),
 					ui.Text(""),
-					ui.NewTextBuilder("You typed: " + text).
+					ui.NewTextBuilder("You typed: "+text).
 						FgColor("magenta").
 						Build(),
 				)
@@ -138,17 +184,14 @@ func DemoApp() ui.VNode {
 						Build(),
 					ui.Text(""),
 					ui.NewCheckboxBuilder().
-						ForField(intent.ForField(checked1Key)).
 						Label("Review documentation").
 						Checked(checked1).
 						Build(),
 					ui.NewCheckboxBuilder().
-						ForField(intent.ForField(checked2Key)).
 						Label("Write tests").
 						Checked(checked2).
 						Build(),
 					ui.NewCheckboxBuilder().
-						ForField(intent.ForField(checked3Key)).
 						Label("Build release").
 						Checked(checked3).
 						Build(),
@@ -162,53 +205,15 @@ func DemoApp() ui.VNode {
 	)
 }
 
-func callSetter(fn interface{}, arg interface{}) {
-	if fn == nil {
-		return
-	}
-	v := reflect.ValueOf(fn)
-	if v.Kind() != reflect.Func {
-		return
-	}
-	argV := reflect.ValueOf(arg)
-	v.Call([]reflect.Value{argV})
-}
+// =============================================================================
+// Main
+// ============================================================================
 
 func main() {
 	err := ui.Run(DemoApp,
 		ui.WithWidth(50),
 		ui.WithHeight(24),
-		ui.WithTitle("Mint UI Demo (MVP)"),
-		ui.WithInit(func() {
-			textSetterKey := intent.StateKey[func(string)]("textSetter")
-			checked1Key := intent.StateKey[bool]("checked1")
-			checked1SetterKey := intent.StateKey[func(bool)]("checked1Setter")
-			checked2Key := intent.StateKey[bool]("checked2")
-			checked2SetterKey := intent.StateKey[func(bool)]("checked2Setter")
-			checked3Key := intent.StateKey[bool]("checked3")
-			checked3SetterKey := intent.StateKey[func(bool)]("checked3Setter")
-
-			ui.RegisterIntent(func(ctx *intent.ActionContext, i intent.FieldChangeIntent) intent.IntentResult {
-				switch i.Field {
-				case "text":
-					setter, _ := ctx.GetState(textSetterKey.String())
-					callSetter(setter, i.Value)
-				case checked1Key.String():
-					setter, _ := ctx.GetState(checked1SetterKey.String())
-					value := i.Value == "true"
-					callSetter(setter, value)
-				case checked2Key.String():
-					setter, _ := ctx.GetState(checked2SetterKey.String())
-					value := i.Value == "true"
-					callSetter(setter, value)
-				case checked3Key.String():
-					setter, _ := ctx.GetState(checked3SetterKey.String())
-					value := i.Value == "true"
-					callSetter(setter, value)
-				}
-				return intent.HandledResult()
-			})
-		}),
+		ui.WithTitle("Mint UI Demo (Store 模式)"),
 	)
 	if err != nil {
 		panic(err)

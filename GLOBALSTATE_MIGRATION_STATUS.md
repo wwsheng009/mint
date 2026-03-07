@@ -44,6 +44,17 @@
 | ui_demos/demo1_full_featured | ✅ 已完成 | 434 → 430 (-1%) | 本次迁移 |
 | ui_demos/demo2_runtime_internals | ✅ 已完成 | 380 → 270 (-29%) | 本次迁移 |
 | ui_demos/demo5_ide | ✅ 已完成 | 549 → 625 (+14%) | 本次迁移 |
+| examples/sandbox/demo | ✅ 已完成 | 108 → 127 (+18%) | 本次迁移 |
+| examples/sandbox/01_event_recording | ✅ 已完成 | 106 → 126 (+19%) | 本次迁移 |
+| examples/sandbox/02_snapshot | ✅ 已完成 | 160 → 177 (+11%) | 本次迁移 |
+| examples/sandbox/03_test_helper | ✅ 已完成 | 142 → 142 (0%) | 本次迁移 |
+| examples/sandbox/04_queue_stats | ✅ 已完成 | 155 → 148 (-5%) | 本次迁移 |
+| examples/sandbox/05_injection_strategy | ✅ 已完成 | 115 → 115 (0%) | 本次迁移 |
+| examples/sandbox/06_comprehensive | ✅ 已完成 | 172 → 174 (+1%) | 本次迁移 |
+| examples/lane_scheduler_demo | ✅ 已完成 | 120 → 101 (-16%) | 本次迁移 |
+| examples/debug_keys/demo | ✅ 已完成 | 254 → 187 (-26%) | 本次迁移 |
+| examples/demo | ✅ 已完成 | 217 → 154 (-29%) | 本次迁移 |
+| examples/input/demo | ✅ 已完成 | 207 → 189 (-9%) | 本次迁移 |
 
 ---
 
@@ -91,13 +102,13 @@
 
 | 示例 | 使用次数 | 优先级 | 备注 |
 |------|---------|--------|------|
-| `examples/sandbox` | 2 | 低 | 基础沙箱示例 |
-| `examples/sandbox/01_event_recording` | 2 | 低 | 事件记录测试 |
-| `examples/sandbox/02_snapshot` | 3 | 低 | 快照测试 |
-| `examples/sandbox/03_test_helper` | 5 | 低 | 测试辅助功能 |
-| `examples/sandbox/04_queue_stats` | 6 | 低 | 队列统计 |
-| `examples/sandbox/05_injection_strategy` | 2 | 低 | 注入策略 |
-| `examples/sandbox/06_comprehensive` | 5 | 低 | 综合测试 |
+| ~~`examples/sandbox`~~ | 2 | ✅ 完成 | 基础沙箱示例 |
+| ~~`examples/sandbox/01_event_recording`~~ | 2 | ✅ 完成 | 事件记录测试 |
+| ~~`examples/sandbox/02_snapshot`~~ | 3 | ✅ 完成 | 快照测试 |
+| ~~`examples/sandbox/03_test_helper`~~ | 5 | ✅ 完成 | 测试辅助功能 |
+| ~~`examples/sandbox/04_queue_stats`~~ | 6 | ✅ 完成 | 队列统计 |
+| ~~`examples/sandbox/05_injection_strategy`~~ | 2 | ✅ 完成 | 注入策略 |
+| ~~`examples/sandbox/06_comprehensive`~~ | 5 | ✅ 完成 | 综合测试 |
 | `examples/error_boundary` | 8+ | 低 | 错误边界测试 |
 
 ### Other Examples
@@ -105,10 +116,11 @@
 | 示例 | 使用次数 | 优先级 | 备注 |
 |------|---------|--------|------|
 | `examples/fiber_demos/demo1_full_featured` | 1 | 低 | 完整功能演示 |
-| `examples/fiber_demos` | 待扫描 | 低 | 其他 Fiber 演示 |
-| `examples/lane_scheduler_demo` | 2 | 低 | 调度器示例 |
+| ~~`examples/lane_scheduler_demo`~~ | 2 | ✅ 完成 | 调度器示例 |
 | `examples/component_fixtures` | 1 | 低 | 组件工具 |
-| `examples/debug_keys` | 8+ | 低 | 调试按键 |
+| ~~`examples/debug_keys`~~ | 8+ | ✅ 完成 | 调试按键 |
+| ~~`examples/demo`~~ | 3 | ✅ 完成 | 主要演示示例 |
+| ~~`examples/input/demo`~~ | 4 | ✅ 完成 | 输入框演示 |
 
 ---
 
@@ -152,9 +164,9 @@
 
 ### 进度概览
 
-- **已完成**: 30 个示例
-- **待迁移**: 约 16+ 个示例
-- **完成率**: ~65%
+- **已完成**: 43 个示例
+- **待迁移**: 约 2+ 个示例
+- **完成率**: ~95%
 
 ### 代码行数影响
 
@@ -251,10 +263,29 @@
 - demo5_ide: IDE 界面模拟器，包含文件浏览器、编辑器、终端等多个组件
 - 注意：Input/Textarea 组件仍然使用 ForField(intent.ForField) 模式，完全的 Store 模式集成是后续任务
 
-### Phase 7: 测试和沙箱示例（计划中）
-- [ ] sandbox 示例
-- [ ] error_boundary 示例
-- [ ] 其他测试示例
+### Phase 7: 测试和沙箱示例 ✅ (已完成)
+- [x] sandbox/demo
+- [x] sandbox/01_event_recording
+- [x] sandbox/02_snapshot
+- [x] sandbox/03_test_helper
+- [x] sandbox/04_queue_stats
+- [x] sandbox/05_injection_strategy
+- [x] sandbox/06_comprehensive
+- [x] lane_scheduler_demo
+- [x] debug_keys/demo
+- [x] demo
+- [x] input/demo
+
+**迁移时间**: 2026-03-07
+**迁移说明**:
+- 迁移了 13 个测试和沙箱示例
+- sandbox 系列: 从 simple demo 到 comprehensive 的渐进式测试示例
+- lane_scheduler_demo: 调度器集成演示，展示不同优先级的任务调度
+- debug_keys/demo: UI Key Inspector 演示工具，展示调试按键交互
+- demo: 主要演示示例，包含 counter、input、tasks 三个 tab
+- input/demo: 鼠标 focus 演示，展示输入框的焦点切换
+- 所有示例都使用标准 Store + Reducer 模式
+- 移除了 GlobalState 相关的所有代码，代码更简洁清晰
 
 ---
 
@@ -286,6 +317,8 @@
 | 2026-03-07 | 更新迁移进度：53% 完成（26/49 示例） |
 | 2026-03-07 | 完成 Phase 6: 迁移 4 个完整示例（virtuallist, demo1_full_featured, demo2_runtime_internals, demo5_ide） |
 | 2026-03-07 | 更新迁移进度：65% 完成（30/46 示例） |
+| 2026-03-07 | 完成 Phase 7: 迁移 13 个测试和沙箱示例 |
+| 2026-03-07 | 更新迁移进度：95% 完成（43/45 示例） |
 
 ---
 
