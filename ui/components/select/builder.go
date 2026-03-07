@@ -97,6 +97,24 @@ func (b *Builder) ForField(binding intent.FieldBinding) *Builder {
 	return b
 }
 
+// ForForm binds the select to a form using FormBinding (Phase 6).
+// When the selected option changes, it emits a FormFieldChangeIntent.
+// Example:
+//
+//	formBinding := form.ForForm("myForm")
+//	selectcomp.NewBuilder().
+//	    Options([]selectcomp.Option{
+//	        {Value: "us", Label: "United States"},
+//	        {Value: "cn", Label: "China"},
+//	    }).
+//	    ForField(intent.ForField(country)).
+//	    ForForm(formBinding).
+//	    Build()
+func (b *Builder) ForForm(binding intent.FormBinding) *Builder {
+	b.node.SetFormID(binding.GetFormID())
+	return b
+}
+
 // Build returns the VNode.
 func (b *Builder) Build() rtui.VNode {
 	return b.node

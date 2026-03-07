@@ -34,6 +34,7 @@ type VNode struct {
 	value    string
 	maxLen   int
 	disabled bool
+	formID   string // Form ID for Form integration (Phase 6)
 
 	// === Box Model ===
 	rtui.BoxModelMixin
@@ -81,6 +82,7 @@ func (t *VNode) Props() rtui.Props {
 		"value":        t.value,
 		"maxLen":       t.maxLen,
 		"disabled":     t.disabled,
+		"formID":       t.formID,
 	}
 }
 
@@ -114,6 +116,9 @@ func (t *VNode) SetProps(p rtui.Props) rtui.VNode {
 	}
 	if v, ok := p["disabled"].(bool); ok {
 		t.disabled = v
+	}
+	if v, ok := p["formID"].(string); ok {
+		t.formID = v
 	}
 	return t
 }
@@ -151,6 +156,12 @@ func (t *VNode) MaxLen() int           { return t.maxLen }
 func (t *VNode) Disabled() bool        { return t.disabled }
 func (t *VNode) ChangeIntent() intent.Intent { return t.changeIntent }
 func (t *VNode) SubmitIntent() intent.Intent { return t.submitIntent }
+
+// SetFormID sets the form ID for Form integration (Phase 6).
+func (t *VNode) SetFormID(formID string) *VNode {
+	t.formID = formID
+	return t
+}
 
 // =============================================================================
 // layout.BoxModelProvider Implementation

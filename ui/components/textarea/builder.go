@@ -89,6 +89,21 @@ func (b *Builder) ForField(binding intent.FieldBinding) *Builder {
 	return b
 }
 
+// ForForm binds the textarea to a form using FormBinding (Phase 6).
+// When the textarea value changes, it emits a FormFieldChangeIntent.
+// Example:
+//
+//	formBinding := form.ForForm("myForm")
+//	var message = intent.StateKey[string]("message")
+//	textarea.NewBuilder().
+//	    ForField(intent.ForField(message)).
+//	    ForForm(formBinding).
+//	    Build()
+func (b *Builder) ForForm(binding intent.FormBinding) *Builder {
+	b.node.SetFormID(binding.GetFormID())
+	return b
+}
+
 func (b *Builder) Build() rtui.VNode {
 	return b.node
 }

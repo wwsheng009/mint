@@ -12,6 +12,7 @@ import (
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/ui/components/control"
+	"github.com/wwsheng009/mint/ui/components/form"
 )
 
 // =============================================================================
@@ -32,6 +33,7 @@ type Instance struct {
 	borderStyle  layout.BorderStyle
 	changeIntent intent.Intent
 	submitIntent intent.Intent
+	formID       string // Form ID for Form integration (Phase 6)
 	maxLen       int
 
 	// === Runtime State (managed by instance) ===
@@ -75,6 +77,7 @@ func NewInstance(props rtui.Props) *Instance {
 		borderStyle:  getBorderStyleProp(props, "borderStyle", layout.BorderSingle),
 		changeIntent: getIntentProp(props, "changeIntent"),
 		submitIntent: getIntentProp(props, "submitIntent"),
+		formID:       getStringProp(props, "formID", ""),
 		value:        getStringProp(props, "value", ""),
 		maxLen:       getIntProp(props, "maxLen", 0),
 		dirty:        true,
@@ -118,6 +121,12 @@ func (inst *Instance) SetKey(key string) {
 	inst.key = key
 }
 
+// Parent implements TreeComponent interface (intent bubble).
+// Returns nil as Input is a leaf component without parent tracking.
+func (inst *Instance) Parent() interface{} {
+	return nil
+}
+
 // Init implements ComponentInstance.
 func (inst *Instance) Init(props rtui.Props) {
 	inst.SetProps(props)
@@ -151,6 +160,7 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	inst.borderStyle = getBorderStyleProp(props, "borderStyle", inst.borderStyle)
 	inst.changeIntent = getIntentProp(props, "changeIntent")
 	inst.submitIntent = getIntentProp(props, "submitIntent")
+	inst.formID = getStringProp(props, "formID", inst.formID)
 
 	// ✨ CRITICAL: When value changes, update cursorPos to prevent out-of-bounds
 	// This fixes panic in InsertText when cursorPos > len(value)
@@ -545,20 +555,9 @@ func (inst *Instance) InsertText(text string) bool {
 	inst.cursorPos += len(textRunes)
 	inst.dirty = true
 
-	// ✨ MVP: Emit FieldChangeIntent with runtime value
+	// ✨ MVP/Phase 6: Emit FieldChangeIntent or FormFieldChangeIntent with runtime value
 	// State becomes the single source of truth
-	if inst.intentEmitter != nil {
-		if fieldIntent, ok := inst.changeIntent.(intent.FieldIntent); ok {
-			changeIntent := intent.FieldChangeIntent{
-				Field: fieldIntent.GetField(),
-				Value: inst.value,
-			}
-			inst.intentEmitter(changeIntent)
-		} else if inst.changeIntent != nil {
-			// Fallback: emit the original intent for backward compatibility
-			inst.intentEmitter(inst.changeIntent)
-		}
-	}
+	inst.emitFieldValueChanged()
 
 	return true
 }
@@ -605,20 +604,9 @@ func (inst *Instance) DeleteText(direction int) bool {
 
 	inst.dirty = true
 
-	// ✨ MVP: Emit FieldChangeIntent with runtime value
+	// ✨ MVP/Phase 6: Emit FieldChangeIntent or FormFieldChangeIntent with runtime value
 	// State becomes the single source of truth
-	if inst.intentEmitter != nil {
-		if fieldIntent, ok := inst.changeIntent.(intent.FieldIntent); ok {
-			changeIntent := intent.FieldChangeIntent{
-				Field: fieldIntent.GetField(),
-				Value: inst.value,
-			}
-			inst.intentEmitter(changeIntent)
-		} else if inst.changeIntent != nil {
-			// Fallback: emit the original intent for backward compatibility
-			inst.intentEmitter(inst.changeIntent)
-		}
-	}
+	inst.emitFieldValueChanged()
 
 	return true
 }
@@ -815,6 +803,61 @@ func (inst *Instance) Measure(constraints layout.Constraints) layout.Size {
 	}
 
 	return layout.Size{Width: totalWidth, Height: totalHeight}
+}
+
+// =============================================================================
+// Form Integration Methods (Phase 6)
+// =============================================================================
+
+// emitFieldValueChanged emits FieldChangeIntent or FormFieldChangeIntent
+// depending on whether formID is set.
+func (inst *Instance) emitFieldValueChanged() {
+	if inst.intentEmitter == nil {
+		return
+	}
+
+	// Phase 6: If formID is set, use FormFieldChangeIntent
+	if inst.formID != "" {
+		if fieldIntent, ok := inst.changeIntent.(intent.FieldIntent); ok {
+			formIntent := form.FieldChange(
+				inst.formID,
+				fieldIntent.GetField(),
+				inst.value,
+				true, // isDirty
+			)
+			intent.Emit(inst, formIntent)
+		}
+		return
+	}
+
+	// Original MVP behavior: emit FieldChangeIntent
+	if fieldIntent, ok := inst.changeIntent.(intent.FieldIntent); ok {
+		changeIntent := intent.FieldChangeIntent{
+			Field: fieldIntent.GetField(),
+			Value: inst.value,
+		}
+		inst.intentEmitter(changeIntent)
+	} else if inst.changeIntent != nil {
+		// Fallback: emit the original intent for backward compatibility
+		inst.intentEmitter(inst.changeIntent)
+	}
+}
+
+// emitFieldBlur emits FormFieldBlurIntent to trigger validation (Phase 6)
+// Only called when formID is set.
+func (inst *Instance) emitFieldBlur() {
+	if inst.intentEmitter == nil || inst.formID == "" {
+		return
+	}
+
+	if fieldIntent, ok := inst.changeIntent.(intent.FieldIntent); ok {
+		blurIntent := form.FieldBlur(
+			inst.formID,
+			fieldIntent.GetField(),
+			inst.value,
+		)
+		intent.Emit(inst, blurIntent)
+	}
 }
 
 // =============================================================================

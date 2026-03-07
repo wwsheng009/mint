@@ -40,6 +40,7 @@ type VNode struct {
 	// === State Props (declarative, actual state managed by Instance) ===
 	selectedIndex int
 	disabled      bool
+	formID        string // Form ID for Form integration (Phase 6)
 
 	// === Box Model (via interface) ===
 	rtui.BoxModelMixin
@@ -126,6 +127,7 @@ func (s *VNode) Props() rtui.Props {
 		"changeIntent": s.changeIntent,
 		"selectedIndex": s.selectedIndex,
 		"disabled":     s.disabled,
+		"formID":       s.formID,
 	}
 }
 
@@ -151,6 +153,9 @@ func (s *VNode) SetProps(p rtui.Props) rtui.VNode {
 	}
 	if v, ok := p["disabled"].(bool); ok {
 		s.disabled = v
+	}
+	if v, ok := p["formID"].(string); ok {
+		s.formID = v
 	}
 	return s
 }
@@ -246,6 +251,12 @@ func (s *VNode) Width() int {
 // ChangeIntent returns the change intent.
 func (s *VNode) ChangeIntent() intent.Intent {
 	return s.changeIntent
+}
+
+// SetFormID sets the form ID for Form integration (Phase 6).
+func (s *VNode) SetFormID(formID string) *VNode {
+	s.formID = formID
+	return s
 }
 
 // =============================================================================

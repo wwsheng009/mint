@@ -12,6 +12,7 @@ import (
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/ui/components/control"
+	"github.com/wwsheng009/mint/ui/components/form"
 )
 
 // =============================================================================
@@ -27,6 +28,7 @@ type Instance struct {
 	changeIntent intent.Intent
 	changeIntentField intent.FieldIntent  // For FieldChangeIntent extraction
 	submitIntent intent.Intent
+	formID       string // Form ID for Form integration (Phase 6)
 	maxLen       int
 
 	state   control.InteractionState
@@ -57,6 +59,7 @@ func NewInstance(props rtui.Props) *Instance {
 		cols:              getIntProp(props, "cols", 40),
 		changeIntent:      getIntentProp(props, "changeIntent"),
 		changeIntentField: getChangeIntentFieldProp(props, "changeIntent"),
+		formID:            getStringProp(props, "formID", ""),
 		submitIntent:      getIntentProp(props, "submitIntent"),
 		value:             getStringProp(props, "value", ""),
 		maxLen:            getIntProp(props, "maxLen", 0),
@@ -82,6 +85,13 @@ func NewInstance(props rtui.Props) *Instance {
 
 func (inst *Instance) Key() string         { return inst.key }
 func (inst *Instance) SetKey(key string)   { inst.key = key }
+
+// Parent implements TreeComponent interface (intent bubble).
+// Returns nil as Textarea is a leaf component without parent tracking.
+func (inst *Instance) Parent() interface{} {
+	return nil
+}
+
 func (inst *Instance) Init(props rtui.Props) { inst.SetProps(props) }
 func (inst *Instance) Destroy()            { inst.behaviors.OnUnmount(inst) }
 func (inst *Instance) OnMount()            { inst.behaviors.OnMount(inst) }
@@ -97,6 +107,7 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	inst.cols = getIntProp(props, "cols", inst.cols)
 	inst.changeIntent = getIntentProp(props, "changeIntent")
 	inst.changeIntentField = getChangeIntentFieldProp(props, "changeIntent")
+	inst.formID = getStringProp(props, "formID", inst.formID)
 	inst.submitIntent = getIntentProp(props, "submitIntent")
 	inst.value = getStringProp(props, "value", inst.value)
 	inst.maxLen = getIntProp(props, "maxLen", inst.maxLen)
@@ -271,20 +282,9 @@ func (inst *Instance) InsertText(text string) bool {
 	inst.value += text
 	inst.dirty = true
 
-	// Emit FieldChangeIntent with runtime value
-	if inst.intentEmitter != nil {
-		if inst.changeIntentField != nil {
-			// Use FieldChangeIntent mode
-			changeIntent := intent.FieldChangeIntent{
-				Field: inst.changeIntentField.GetField(),
-				Value: inst.value,
-			}
-			inst.intentEmitter(changeIntent)
-		} else if inst.changeIntent != nil {
-			// Fallback to original intent mode
-			inst.intentEmitter(inst.changeIntent)
-		}
-	}
+	// ✨ MVP/Phase 6: Emit FieldChangeIntent or FormFieldChangeIntent with runtime value
+	// State becomes the single source of truth
+	inst.emitFieldValueChanged()
 
 	return true
 }
@@ -359,6 +359,61 @@ func (inst *Instance) Measure(constraints layout.Constraints) layout.Size {
 	height = constraints.ConstrainHeight(height)
 
 	return layout.Size{Width: width, Height: height}
+}
+
+// =============================================================================
+// Form Integration Methods (Phase 6)
+// =============================================================================
+
+// emitFieldValueChanged emits FieldChangeIntent or FormFieldChangeIntent
+// depending on whether formID is set.
+func (inst *Instance) emitFieldValueChanged() {
+	if inst.intentEmitter == nil {
+		return
+	}
+
+	// Phase 6: If formID is set, use FormFieldChangeIntent
+	if inst.formID != "" {
+		if inst.changeIntentField != nil {
+			formIntent := form.FieldChange(
+				inst.formID,
+				inst.changeIntentField.GetField(),
+				inst.value,
+				true, // isDirty
+			)
+			intent.Emit(inst, formIntent)
+		}
+		return
+	}
+
+	// Original MVP behavior: emit FieldChangeIntent
+	if inst.changeIntentField != nil {
+		changeIntent := intent.FieldChangeIntent{
+			Field: inst.changeIntentField.GetField(),
+			Value: inst.value,
+		}
+		inst.intentEmitter(changeIntent)
+	} else if inst.changeIntent != nil {
+		// Fallback: emit the original intent for backward compatibility
+		inst.intentEmitter(inst.changeIntent)
+	}
+}
+
+// emitFieldBlur emits FormFieldBlurIntent to trigger validation (Phase 6)
+// Only called when formID is set.
+func (inst *Instance) emitFieldBlur() {
+	if inst.intentEmitter == nil || inst.formID == "" {
+		return
+	}
+
+	if inst.changeIntentField != nil {
+		blurIntent := form.FieldBlur(
+			inst.formID,
+			inst.changeIntentField.GetField(),
+			inst.value,
+		)
+		intent.Emit(inst, blurIntent)
+	}
 }
 
 // =============================================================================

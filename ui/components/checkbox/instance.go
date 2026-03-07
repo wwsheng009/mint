@@ -11,6 +11,7 @@ import (
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/ui/components/control"
+	"github.com/wwsheng009/mint/ui/components/form"
 )
 
 // =============================================================================
@@ -27,6 +28,7 @@ type Instance struct {
 	label        string
 	checkboxStyle style.Style
 	toggleIntent  intent.Intent
+	formID        string // Form ID for Form integration (Phase 6)
 
 	// === Runtime State (managed by instance) ===
 	state   control.InteractionState
@@ -64,6 +66,7 @@ func NewInstance(props rtui.Props) *Instance {
 		label:         getStringProp(props, "label", ""),
 		checkboxStyle: getStyleProp(props),
 		toggleIntent:  getIntentProp(props),
+		formID:        getStringProp(props, "formID", ""),
 		checked:       getBoolProp(props, "checked", false),
 		dirty:         true,
 	}
@@ -104,6 +107,12 @@ func (inst *Instance) SetKey(key string) {
 	inst.key = key
 }
 
+// Parent implements TreeComponent interface (intent bubble).
+// Returns nil as Checkbox is a leaf component without parent tracking.
+func (inst *Instance) Parent() interface{} {
+	return nil
+}
+
 // Init implements ComponentInstance.
 func (inst *Instance) Init(props rtui.Props) {
 	inst.SetProps(props)
@@ -134,6 +143,7 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	inst.label = getStringProp(props, "label", inst.label)
 	inst.checkboxStyle = getStyleProp(props)
 	inst.toggleIntent = getIntentProp(props)
+	inst.formID = getStringProp(props, "formID", inst.formID)
 	inst.checked = getBoolProp(props, "checked", inst.checked)
 
 	newDisabled := getBoolProp(props, "disabled", inst.state.Disabled)
@@ -291,26 +301,9 @@ func (inst *Instance) Toggle() bool {
 	inst.checked = !inst.checked
 	inst.dirty = true
 
-	// ✨ MVP: Emit FieldChangeIntent with runtime value
+	// ✨ MVP/Phase 6: Emit FieldChangeIntent or FormFieldChangeIntent with runtime value
 	// State becomes the single source of truth
-	// Convert boolean to string for FieldChangeIntent
-	value := "false"
-	if inst.checked {
-		value = "true"
-	}
-
-	if inst.intentEmitter != nil {
-		if fieldIntent, ok := inst.toggleIntent.(intent.FieldIntent); ok {
-			changeIntent := intent.FieldChangeIntent{
-				Field: fieldIntent.GetField(),
-				Value: value,
-			}
-			inst.intentEmitter(changeIntent)
-		} else if inst.toggleIntent != nil {
-			// Fallback: emit the original intent for backward compatibility
-			inst.intentEmitter(inst.toggleIntent)
-		}
-	}
+	inst.emitFieldValueChanged()
 
 	return inst.checked
 }
@@ -454,6 +447,73 @@ func (inst *Instance) GetNaturalSize() (width, height int) {
 	width = 4 + utf8.RuneCountInString(inst.label)
 	height = 1
 	return width, height
+}
+
+// =============================================================================
+// Form Integration Methods (Phase 6)
+// =============================================================================
+
+// emitFieldValueChanged emits FieldChangeIntent or FormFieldChangeIntent
+// depending on whether formID is set.
+func (inst *Instance) emitFieldValueChanged() {
+	if inst.intentEmitter == nil {
+		return
+	}
+
+	// Convert boolean to string for FieldChangeIntent
+	value := "false"
+	if inst.checked {
+		value = "true"
+	}
+
+	// Phase 6: If formID is set, use FormFieldChangeIntent
+	if inst.formID != "" {
+		if fieldIntent, ok := inst.toggleIntent.(intent.FieldIntent); ok {
+			formIntent := form.FieldChange(
+				inst.formID,
+				fieldIntent.GetField(),
+				value,
+				true, // isDirty
+			)
+			intent.Emit(inst, formIntent)
+		}
+		return
+	}
+
+	// Original MVP behavior: emit FieldChangeIntent
+	if fieldIntent, ok := inst.toggleIntent.(intent.FieldIntent); ok {
+		changeIntent := intent.FieldChangeIntent{
+			Field: fieldIntent.GetField(),
+			Value: value,
+		}
+		inst.intentEmitter(changeIntent)
+	} else if inst.toggleIntent != nil {
+		// Fallback: emit the original intent for backward compatibility
+		inst.intentEmitter(inst.toggleIntent)
+	}
+}
+
+// emitFieldBlur emits FormFieldBlurIntent to trigger validation (Phase 6)
+// Only called when formID is set.
+func (inst *Instance) emitFieldBlur() {
+	if inst.intentEmitter == nil || inst.formID == "" {
+		return
+	}
+
+	// Convert boolean to string for FieldBlurIntent
+	value := "false"
+	if inst.checked {
+		value = "true"
+	}
+
+	if fieldIntent, ok := inst.toggleIntent.(intent.FieldIntent); ok {
+		blurIntent := form.FieldBlur(
+			inst.formID,
+			fieldIntent.GetField(),
+			value,
+		)
+		intent.Emit(inst, blurIntent)
+	}
 }
 
 // =============================================================================

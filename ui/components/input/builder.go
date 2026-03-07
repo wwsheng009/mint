@@ -135,6 +135,20 @@ func (b *Builder) ForField(binding intent.FieldBinding) *Builder {
 	return b
 }
 
+// ForForm sets the form ID for Form integration (Phase 6).
+// When combined with ForField(), the component will emit
+// FormFieldChangeIntent/FormFieldBlurIntent instead of FieldChangeIntent.
+//
+// Example:
+//
+//	input.NewBuilder().
+//	    ForField(intent.BindField("username")).
+//	    ForForm(intent.BindForm("loginForm"))
+func (b *Builder) ForForm(binding intent.FormBinding) *Builder {
+	b.node.SetFormID(binding.GetFormID())
+	return b
+}
+
 // OnSubmit sets the submit intent.
 func (b *Builder) OnSubmit(submitIntent intent.Intent) *Builder {
 	b.node.SetSubmitIntent(submitIntent)

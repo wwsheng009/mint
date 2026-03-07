@@ -113,6 +113,20 @@ func (b *Builder) ForField(binding intent.FieldBinding) *Builder {
 	return b
 }
 
+// ForForm sets the form ID for Form integration (Phase 6).
+// When combined with ForField(), the component will emit
+// FormFieldChangeIntent/FormFieldBlurIntent instead of FieldChangeIntent.
+//
+// Example:
+//
+//	checkbox.NewBuilder().
+//	    ForField(intent.BindField("acceptTerms")).
+//	    ForForm(intent.BindForm("signupForm"))
+func (b *Builder) ForForm(binding intent.FormBinding) *Builder {
+	b.node.SetFormID(binding.GetFormID())
+	return b
+}
+
 // Build returns the VNode.
 func (b *Builder) Build() rtui.VNode {
 	return b.node

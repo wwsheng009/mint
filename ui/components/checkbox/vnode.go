@@ -25,6 +25,7 @@ type VNode struct {
 
 	// === Intent Props (no closures!) ===
 	toggleIntent intent.Intent // Structured intent instead of func(bool)
+	formID        string        // Form ID for Form integration (Phase 6)
 
 	// === State Props (declarative, actual state managed by Instance) ===
 	disabled bool
@@ -111,6 +112,7 @@ func (c *VNode) Props() rtui.Props {
 		"label":        c.label,
 		"style":        c.style,
 		"toggleIntent": c.toggleIntent,
+		"formID":       c.formID,
 		"disabled":     c.disabled,
 		"checked":      c.checked,
 	}
@@ -129,6 +131,9 @@ func (c *VNode) SetProps(p rtui.Props) rtui.VNode {
 	}
 	if v, ok := p["toggleIntent"].(intent.Intent); ok {
 		c.toggleIntent = v
+	}
+	if v, ok := p["formID"].(string); ok {
+		c.formID = v
 	}
 	if v, ok := p["disabled"].(bool); ok {
 		c.disabled = v
@@ -150,6 +155,7 @@ func (c *VNode) CreateInstance() rtui.ComponentInstance {
 		"label":        c.label,
 		"style":        c.style,
 		"toggleIntent": c.toggleIntent,
+		"formID":       c.formID,
 		"disabled":     c.disabled,
 		"checked":      c.checked,
 	}
@@ -181,6 +187,13 @@ func (c *VNode) SetChecked(checked bool) *VNode {
 // SetIntent sets the toggle intent (replaces OnChange closure).
 func (c *VNode) SetIntent(toggleIntent intent.Intent) *VNode {
 	c.toggleIntent = toggleIntent
+	return c
+}
+
+// SetFormID sets the form ID for Form integration.
+// When set, the component will emit FormFieldChangeIntent/FormFieldBlurIntent.
+func (c *VNode) SetFormID(formID string) *VNode {
+	c.formID = formID
 	return c
 }
 

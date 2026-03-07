@@ -47,6 +47,7 @@ type VNode struct {
 	// === Intent Props (no closures!) ===
 	changeIntent  intent.Intent // emitted when value changes
 	submitIntent  intent.Intent // emitted on Enter
+	formID        string        // Form ID for Form integration (Phase 6)
 
 	// === State Props (declarative, actual state managed by Instance) ===
 	value    string
@@ -140,6 +141,7 @@ func (i *VNode) Props() rtui.Props {
 		"borderStyle":  i.borderStyle,
 		"changeIntent": i.changeIntent,
 		"submitIntent": i.submitIntent,
+		"formID":       i.formID,
 		"value":        i.value,
 		"maxLen":       i.maxLen,
 		"disabled":     i.disabled,
@@ -173,6 +175,9 @@ func (i *VNode) SetProps(p rtui.Props) rtui.VNode {
 	if v, ok := p["submitIntent"].(intent.Intent); ok {
 		i.submitIntent = v
 	}
+	if v, ok := p["formID"].(string); ok {
+		i.formID = v
+	}
 	if v, ok := p["value"].(string); ok {
 		i.value = v
 	}
@@ -203,6 +208,7 @@ func (i *VNode) CreateInstance() rtui.ComponentInstance {
 		"borderStyle":  i.borderStyle,
 		"changeIntent": i.changeIntent,
 		"submitIntent": i.submitIntent,
+		"formID":       i.formID,
 		"value":        i.value,
 		"maxLen":       i.maxLen,
 		"disabled":     i.disabled,
@@ -284,6 +290,13 @@ func (i *VNode) SetChangeIntent(changeIntent intent.Intent) *VNode {
 // SetSubmitIntent sets the submit intent.
 func (i *VNode) SetSubmitIntent(submitIntent intent.Intent) *VNode {
 	i.submitIntent = submitIntent
+	return i
+}
+
+// SetFormID sets the form ID for Form integration.
+// When set, the component will emit FormFieldChangeIntent/FormFieldBlurIntent.
+func (i *VNode) SetFormID(formID string) *VNode {
+	i.formID = formID
 	return i
 }
 
