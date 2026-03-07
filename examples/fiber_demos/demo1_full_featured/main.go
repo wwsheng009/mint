@@ -249,19 +249,11 @@ func ConfirmModal(onClose func()) ui.VNode {
 			).Build(),
 		})
 
-	// 将 onClose 保存到 GlobalState，供 handler 从 ActionContext 读取
-	ctx := ui.GetCurrentContext()
-	if ctx != nil {
-		ctx.GlobalState["onClose"] = onClose
-	}
-
-	// Register handler for CloseFiberDemoModalIntent (从 ActionContext 读取状态)
+	// 直接调用 onClose 回调
 	// Note: This is a Fiber conversion test, not a real TUI app
 	ui.On(CloseFiberDemoModalIntent{}, func(actx *intent.ActionContext) {
-		if fn, ok := actx.GetState("onClose"); ok {
-			if closeFn, ok := fn.(func()); ok {
-				closeFn()
-			}
+		if onClose != nil {
+			onClose()
 		}
 	})
 

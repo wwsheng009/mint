@@ -206,18 +206,10 @@ func buildContentArea(input string, items []string) ui.VNode {
 
 // BuildDemo1ConfirmModal builds a confirmation modal
 func BuildDemo1ConfirmModal(onClose func()) ui.VNode {
-	// 将 onClose 保存到 GlobalState，供 handler 从 ActionContext 读取
-	ctx := ui.GetCurrentContext()
-	if ctx != nil {
-		ctx.GlobalState["onClose"] = onClose
-	}
-
-	// 使用 ui.On 注册 Intent handler
+	// 直接调用 onClose 回调
 	ui.On(ModalCloseIntent{}, func(actx *intent.ActionContext) {
-		if fn, ok := actx.GetState("onClose"); ok {
-			if closeFn, ok := fn.(func()); ok {
-				closeFn()
-			}
+		if onClose != nil {
+			onClose()
 		}
 	})
 

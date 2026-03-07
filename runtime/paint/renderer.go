@@ -2,6 +2,8 @@ package paint
 
 import (
 	"bytes"
+	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/wwsheng009/mint/internal/log"
@@ -142,6 +144,7 @@ func (r *Renderer) renderLine(y int, region Rect) {
 
 	runCount := 0
 	for x < endX {
+
 		// 边界检查
 		if x >= len(r.back.Cells[y]) || (r.front != nil && x >= len(r.front.Cells[y])) {
 			log.RenderLogger.IfEnabled().Debug("[renderLine] x=%d out of row bounds, break", x)
@@ -150,7 +153,15 @@ func (r *Renderer) renderLine(y int, region Rect) {
 
 		cell := r.back.Cells[y][x]
 		prevCell := r.front.Cells[y][x]
-
+		if prevCell.Cluster == "→" || cell.Cluster == "→" {
+			fmt.Printf("<-->")
+		}
+		if prevCell.Width == 2 || cell.Width == 2 {
+			fmt.Printf(prevCell.Cluster)
+		}
+		if prevCell.Width == 2 || cell.Width == 2 {
+			fmt.Printf(prevCell.Cluster)
+		}
 		// 跳过未变化的单元格
 		if !IsCellChanged(cell, prevCell) {
 			x++
@@ -175,6 +186,17 @@ func (r *Renderer) renderLine(y int, region Rect) {
 			continue
 		}
 
+		// 处理宽字符被单空格或零宽度覆盖的情况
+		// 当前一个单元格是宽字符头（Width=2，非continuation），且当前cell是空格或零宽度时
+		// 需要用2个空格清除，避免continuation cell残留
+		if !prevCell.IsContinuation && prevCell.Width == 2 && (cell.Cluster == " " || cell.Width == 0) {
+			// 使用prevCell.Width个空格清除整个宽字符区域
+			spaces := strings.Repeat(" ", prevCell.Width)
+			r.emitRunWithWidth(x, y, cell.Style, spaces, prevCell.Width)
+			// 跳过prevCell.Width个位置（包括continuation）
+			x += prevCell.Width
+			continue
+		}
 		// 开始一个 run，尝试合并相邻的、同样式的单元格
 		startX := x
 		runStyle := cell.Style

@@ -241,7 +241,7 @@ func IsCellChanged(cell, prevCell Cell) bool {
 	if prevCell.Width == 2 && cell.Width == 0 {
 		return true
 	}
-
+	
 	// 正常比较 Cluster、Style 和 Selected（文本选择高亮）
 	return cell.Cluster != prevCell.Cluster ||
 		cell.Style != prevCell.Style ||
