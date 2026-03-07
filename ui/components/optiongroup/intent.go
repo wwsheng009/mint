@@ -58,6 +58,13 @@ func (i OptionSelectIntent) IsTransition() bool {
 	return false
 }
 
+// IsGlobal implements intent.GlobalIntent.
+// OptionSelectIntent bubbles locally through Parent() chain.
+// Returns false to indicate local Intent Bubble behavior.
+func (i OptionSelectIntent) IsGlobal() bool {
+	return false
+}
+
 // OptionGroupDeselectIntent is emitted when an option is deselected
 // (only relevant in multi-select mode).
 type OptionGroupDeselectIntent struct {
@@ -83,5 +90,12 @@ func (i OptionGroupDeselectIntent) Priority() intent.ActionPriority {
 
 // IsTransition indicates this is NOT an async operation.
 func (i OptionGroupDeselectIntent) IsTransition() bool {
+	return false
+}
+
+// IsGlobal implements intent.GlobalIntent.
+// OptionGroupDeselectIntent bubbles locally through Parent() chain.
+// Returns false to indicate local Intent Bubble behavior.
+func (i OptionGroupDeselectIntent) IsGlobal() bool {
 	return false
 }

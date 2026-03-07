@@ -39,6 +39,13 @@ func (i SelectChangeIntent) IsTransition() bool {
 	return false
 }
 
+// IsGlobal implements intent.GlobalIntent.
+// SelectChangeIntent bubbles locally through Parent() chain.
+// Returns false to indicate local Intent Bubble behavior.
+func (i SelectChangeIntent) IsGlobal() bool {
+	return false
+}
+
 // GetComponentID implements intent.GetComponentID for routing
 func (i SelectChangeIntent) GetComponentID() string {
 	return i.ComponentID
@@ -64,6 +71,13 @@ func (i SelectNextIntent) IsTransition() bool {
 	return false
 }
 
+// IsGlobal implements intent.GlobalIntent.
+// SelectNextIntent bubbles locally through Parent() chain.
+// Returns false to indicate local Intent Bubble behavior.
+func (i SelectNextIntent) IsGlobal() bool {
+	return false
+}
+
 // GetComponentID implements intent.GetComponentID for routing
 func (i SelectNextIntent) GetComponentID() string {
 	return i.ComponentID
@@ -86,6 +100,13 @@ func (i SelectPrevIntent) Priority() intent.ActionPriority {
 
 // IsTransition returns false (synchronous intent)
 func (i SelectPrevIntent) IsTransition() bool {
+	return false
+}
+
+// IsGlobal implements intent.GlobalIntent.
+// SelectPrevIntent bubbles locally through Parent() chain.
+// Returns false to indicate local Intent Bubble behavior.
+func (i SelectPrevIntent) IsGlobal() bool {
 	return false
 }
 
@@ -118,6 +139,13 @@ func (i SelectByIndexIntent) IsTransition() bool {
 	return false
 }
 
+// IsGlobal implements intent.GlobalIntent.
+// SelectByIndexIntent bubbles locally through Parent() chain.
+// Returns false to indicate local Intent Bubble behavior.
+func (i SelectByIndexIntent) IsGlobal() bool {
+	return false
+}
+
 // GetComponentID implements intent.GetComponentID for routing
 func (i SelectByIndexIntent) GetComponentID() string {
 	return i.ComponentID
@@ -144,6 +172,13 @@ func (i SelectByValueIntent) Priority() intent.ActionPriority {
 
 // IsTransition returns false (synchronous intent)
 func (i SelectByValueIntent) IsTransition() bool {
+	return false
+}
+
+// IsGlobal implements intent.GlobalIntent.
+// SelectByValueIntent bubbles locally through Parent() chain.
+// Returns false to indicate local Intent Bubble behavior.
+func (i SelectByValueIntent) IsGlobal() bool {
 	return false
 }
 

@@ -539,6 +539,7 @@ func (inst *Instance) Measure(constraints layout.Constraints) layout.Size {
 // =============================================================================
 
 // emitSelectChange emits SelectChangeIntent (Phase 10).
+// Phase 11 fix: Uses intentEmitter to trigger FiberUtil's smart routing.
 func (inst *Instance) emitSelectChange() {
 	if inst.intentEmitter == nil {
 		return
@@ -554,7 +555,8 @@ func (inst *Instance) emitSelectChange() {
 		selectIntent = SelectChange(inst.selectedIndex, selectedValue, selectedLabel)
 	}
 
-	intent.Emit(inst, selectIntent)
+	// Emit via intentEmitter (FiberUtil's smart router decides global vs local)
+	inst.intentEmitter(selectIntent)
 }
 
 // emitFieldValueChanged emits FieldChangeIntent or FormFieldChangeIntent

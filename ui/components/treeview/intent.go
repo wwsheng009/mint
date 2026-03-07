@@ -44,6 +44,13 @@ func (i NodeSelectIntent) IsTransition() bool {
 	return false
 }
 
+// IsGlobal implements intent.GlobalIntent.
+// NodeSelectIntent bubbles locally through Parent() chain.
+// Returns false to indicate local Intent Bubble behavior.
+func (i NodeSelectIntent) IsGlobal() bool {
+	return false
+}
+
 // NodeExpandIntent is emitted when a folder node is expanded
 type NodeExpandIntent struct {
 	// NodeIndex is the index of the expanded node
@@ -71,6 +78,13 @@ func (i NodeExpandIntent) Priority() intent.ActionPriority {
 
 // IsTransition returns false (synchronous intent)
 func (i NodeExpandIntent) IsTransition() bool {
+	return false
+}
+
+// IsGlobal implements intent.GlobalIntent.
+// NodeExpandIntent bubbles locally through Parent() chain.
+// Returns false to indicate local Intent Bubble behavior.
+func (i NodeExpandIntent) IsGlobal() bool {
 	return false
 }
 
@@ -104,6 +118,13 @@ func (i NodeCollapseIntent) IsTransition() bool {
 	return false
 }
 
+// IsGlobal implements intent.GlobalIntent.
+// NodeCollapseIntent bubbles locally through Parent() chain.
+// Returns false to indicate local Intent Bubble behavior.
+func (i NodeCollapseIntent) IsGlobal() bool {
+	return false
+}
+
 // NavigationIntent is emitted for navigation events (up/down/pageup/pagedown)
 // Useful for parent components or external controllers to monitor selection changes
 type NavigationIntent struct {
@@ -132,6 +153,13 @@ func (i NavigationIntent) Priority() intent.ActionPriority {
 
 // IsTransition returns false (synchronous intent)
 func (i NavigationIntent) IsTransition() bool {
+	return false
+}
+
+// IsGlobal implements intent.GlobalIntent.
+// NavigationIntent bubbles locally through Parent() chain.
+// Returns false to indicate local Intent Bubble behavior.
+func (i NavigationIntent) IsGlobal() bool {
 	return false
 }
 
