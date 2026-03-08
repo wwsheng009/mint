@@ -221,11 +221,12 @@ const (
 
 // StatusBar Types
 type (
-	StatusBarSection          = statusbar.Section
-	StatusBarTheme            = statusbar.Theme
-	StatusBarOverflow         = statusbar.OverflowMode
-	StatusBarHelpDisplay      = statusbar.HelpDisplayMode
-	StatusBarTooltipPlacement = statusbar.TooltipPlacement
+	StatusBarSection           = statusbar.Section
+	StatusBarTheme             = statusbar.Theme
+	StatusBarOverflow          = statusbar.OverflowMode
+	StatusBarHelpDisplay       = statusbar.HelpDisplayMode
+	StatusBarTooltipPlacement  = statusbar.TooltipPlacement
+	StatusBarTooltipArrowStyle = statusbar.TooltipArrowStyle
 )
 
 const (
@@ -239,6 +240,10 @@ const (
 	StatusBarTooltipAuto   = statusbar.TooltipPlacementAuto
 	StatusBarTooltipTop    = statusbar.TooltipPlacementTop
 	StatusBarTooltipBottom = statusbar.TooltipPlacementBottom
+
+	StatusBarTooltipArrowDefault = statusbar.TooltipArrowStyleDefault
+	StatusBarTooltipArrowSharp   = statusbar.TooltipArrowStyleSharp
+	StatusBarTooltipArrowRounded = statusbar.TooltipArrowStyleRounded
 )
 
 // Grid Types

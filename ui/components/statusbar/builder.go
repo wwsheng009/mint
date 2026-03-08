@@ -44,6 +44,18 @@ const (
 	TooltipPlacementBottom
 )
 
+// TooltipArrowStyle controls the visual style of overlay tooltip borders and arrows.
+type TooltipArrowStyle int
+
+const (
+	// TooltipArrowStyleDefault falls back to the theme default.
+	TooltipArrowStyleDefault TooltipArrowStyle = iota
+	// TooltipArrowStyleSharp uses square corners and solid triangle arrows.
+	TooltipArrowStyleSharp
+	// TooltipArrowStyleRounded uses rounded corners and lighter triangle arrows.
+	TooltipArrowStyleRounded
+)
+
 // Section represents a text segment in the status bar.
 //
 // If Width is greater than zero, Text is padded or truncated to that exact
@@ -201,6 +213,7 @@ type Theme struct {
 	HelpStyle          style.Style
 	TooltipBorderStyle style.Style
 	TooltipShadowStyle style.Style
+	TooltipArrowStyle  TooltipArrowStyle
 }
 
 // WithHoverStyle sets the style overlay used for hovered sections.
@@ -245,6 +258,12 @@ func (t Theme) WithTooltipShadowStyle(s style.Style) Theme {
 	return t
 }
 
+// WithTooltipArrowStyle sets the border/arrow chrome used by overlay tooltips.
+func (t Theme) WithTooltipArrowStyle(arrowStyle TooltipArrowStyle) Theme {
+	t.TooltipArrowStyle = arrowStyle
+	return t
+}
+
 // DefaultTheme returns a neutral status bar theme.
 func DefaultTheme() Theme {
 	return Theme{
@@ -257,6 +276,7 @@ func DefaultTheme() Theme {
 		HelpStyle:          style.NewStyle().Foreground(style.White).Background(style.Blue),
 		TooltipBorderStyle: style.NewStyle().Foreground(style.White).Background(style.Blue).Bold(true),
 		TooltipShadowStyle: style.NewStyle().Foreground(style.BrightBlack).Background(style.Blue),
+		TooltipArrowStyle:  TooltipArrowStyleSharp,
 	}
 }
 
@@ -272,6 +292,7 @@ func MutedTheme() Theme {
 		HelpStyle:          style.NewStyle().Foreground(style.BrightWhite).Background(style.BrightBlack),
 		TooltipBorderStyle: style.NewStyle().Foreground(style.BrightWhite).Background(style.BrightBlack).Bold(true),
 		TooltipShadowStyle: style.NewStyle().Foreground(style.Black).Background(style.BrightBlack),
+		TooltipArrowStyle:  TooltipArrowStyleRounded,
 	}
 }
 
@@ -288,6 +309,7 @@ func ContrastTheme() Theme {
 		HelpStyle:          style.NewStyle().Foreground(style.Black).Background(style.Yellow).Bold(true),
 		TooltipBorderStyle: style.NewStyle().Foreground(style.Black).Background(style.Yellow).Bold(true),
 		TooltipShadowStyle: style.NewStyle().Foreground(style.BrightBlack).Background(style.Yellow),
+		TooltipArrowStyle:  TooltipArrowStyleSharp,
 	}
 }
 
@@ -489,7 +511,7 @@ func (b *Builder) BuildWithHelp() rtui.VNode {
 		if b.helpDisplay == HelpDisplayBoth {
 			overlayOffset = 1
 		}
-		return rtui.Fragment(content, newOverlayHelpVNode(model, b.resolveHelpStyle(), b.resolveTooltipBorderStyle(), b.resolveTooltipShadowStyle(), b.tooltipPlacement, b.tooltipMaxWidth, b.tooltipGapRows, overlayOffset))
+		return rtui.Fragment(content, newOverlayHelpVNode(model, b.resolveHelpStyle(), b.resolveTooltipBorderStyle(), b.resolveTooltipShadowStyle(), b.resolveTooltipArrowStyle(), b.tooltipPlacement, b.tooltipMaxWidth, b.tooltipGapRows, overlayOffset))
 	}
 	return content
 }
@@ -562,6 +584,13 @@ func (b *Builder) resolveTooltipShadowStyle() style.Style {
 	return resolveThemeDefaults(MutedTheme()).TooltipShadowStyle
 }
 
+func (b *Builder) resolveTooltipArrowStyle() TooltipArrowStyle {
+	if b.useTheme {
+		return resolveThemeDefaults(b.theme).TooltipArrowStyle
+	}
+	return resolveThemeDefaults(MutedTheme()).TooltipArrowStyle
+}
+
 func resolveThemeDefaults(theme Theme) Theme {
 	defaults := DefaultTheme()
 	if theme.HoverStyle.IsEmpty() {
@@ -584,6 +613,9 @@ func resolveThemeDefaults(theme Theme) Theme {
 	}
 	if theme.TooltipShadowStyle.IsEmpty() {
 		theme.TooltipShadowStyle = defaults.TooltipShadowStyle
+	}
+	if theme.TooltipArrowStyle == TooltipArrowStyleDefault {
+		theme.TooltipArrowStyle = defaults.TooltipArrowStyle
 	}
 	return theme
 }

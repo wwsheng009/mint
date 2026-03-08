@@ -31,13 +31,14 @@ type overlayHelpVNode struct {
 	*rtui.ElementVNode
 }
 
-func newOverlayHelpVNode(model *helpModel, fillStyle, borderStyle, shadowStyle style.Style, placement TooltipPlacement, maxContentWidth, gapRows, bottomOffsetRows int) *overlayHelpVNode {
+func newOverlayHelpVNode(model *helpModel, fillStyle, borderStyle, shadowStyle style.Style, arrowStyle TooltipArrowStyle, placement TooltipPlacement, maxContentWidth, gapRows, bottomOffsetRows int) *overlayHelpVNode {
 	node := &overlayHelpVNode{ElementVNode: rtui.NewElement("statusbar-help-overlay")}
 	node.SetStyle(fillStyle)
 	node.SetProp("style", fillStyle)
 	node.SetProp("helpModel", model)
 	node.SetProp("tooltipBorderStyle", borderStyle)
 	node.SetProp("tooltipShadowStyle", shadowStyle)
+	node.SetProp("tooltipArrowStyle", arrowStyle)
 	node.SetProp("tooltipPlacement", placement)
 	node.SetProp("tooltipMaxWidth", maxContentWidth)
 	node.SetProp("tooltipGapRows", gapRows)
@@ -71,6 +72,7 @@ type overlayHelpInstance struct {
 	fillStyle        style.Style
 	borderStyle      style.Style
 	shadowStyle      style.Style
+	arrowStyle       TooltipArrowStyle
 	placement        TooltipPlacement
 	maxContentWidth  int
 	gapRows          int
@@ -122,6 +124,7 @@ func newOverlayHelpInstance(props rtui.Props) *overlayHelpInstance {
 		fillStyle:        getSectionStyleProp(props),
 		borderStyle:      getSectionStylePropKey(props, "tooltipBorderStyle"),
 		shadowStyle:      getSectionStylePropKey(props, "tooltipShadowStyle"),
+		arrowStyle:       getTooltipArrowStyleProp(props, "tooltipArrowStyle", TooltipArrowStyleSharp),
 		placement:        getTooltipPlacementProp(props, "tooltipPlacement", TooltipPlacementAuto),
 		maxContentWidth:  getSectionIntProp(props, "tooltipMaxWidth", 48),
 		gapRows:          getSectionIntProp(props, "tooltipGapRows", 1),
@@ -204,6 +207,7 @@ func (inst *overlayHelpInstance) SetProps(props rtui.Props) bool {
 	oldFill := inst.fillStyle
 	oldBorder := inst.borderStyle
 	oldShadow := inst.shadowStyle
+	oldArrowStyle := inst.arrowStyle
 	oldPlacement := inst.placement
 	oldMaxWidth := inst.maxContentWidth
 	oldGap := inst.gapRows
@@ -212,11 +216,12 @@ func (inst *overlayHelpInstance) SetProps(props rtui.Props) bool {
 	inst.fillStyle = getSectionStyleProp(props)
 	inst.borderStyle = getSectionStylePropKey(props, "tooltipBorderStyle")
 	inst.shadowStyle = getSectionStylePropKey(props, "tooltipShadowStyle")
+	inst.arrowStyle = getTooltipArrowStyleProp(props, "tooltipArrowStyle", inst.arrowStyle)
 	inst.placement = getTooltipPlacementProp(props, "tooltipPlacement", inst.placement)
 	inst.maxContentWidth = getSectionIntProp(props, "tooltipMaxWidth", inst.maxContentWidth)
 	inst.gapRows = getSectionIntProp(props, "tooltipGapRows", inst.gapRows)
 	inst.bottomOffsetRows = getSectionIntProp(props, "bottomOffsetRows", inst.bottomOffsetRows)
-	changed := oldModel != inst.model || oldFill != inst.fillStyle || oldBorder != inst.borderStyle || oldShadow != inst.shadowStyle || oldPlacement != inst.placement || oldMaxWidth != inst.maxContentWidth || oldGap != inst.gapRows || oldOffset != inst.bottomOffsetRows
+	changed := oldModel != inst.model || oldFill != inst.fillStyle || oldBorder != inst.borderStyle || oldShadow != inst.shadowStyle || oldArrowStyle != inst.arrowStyle || oldPlacement != inst.placement || oldMaxWidth != inst.maxContentWidth || oldGap != inst.gapRows || oldOffset != inst.bottomOffsetRows
 	if changed {
 		inst.dirty = true
 	}
@@ -229,6 +234,7 @@ func (inst *overlayHelpInstance) GetProps() rtui.Props {
 		"helpModel":          inst.model,
 		"tooltipBorderStyle": inst.borderStyle,
 		"tooltipShadowStyle": inst.shadowStyle,
+		"tooltipArrowStyle":  inst.arrowStyle,
 		"tooltipPlacement":   inst.placement,
 		"tooltipMaxWidth":    inst.maxContentWidth,
 		"tooltipGapRows":     inst.gapRows,
@@ -347,7 +353,7 @@ func (inst *overlayHelpInstance) computeTooltipBox(text string, anchor [4]int) o
 	arrowX := resolveTooltipArrowX(anchor, tooltipX, boxWidth)
 	tooltipY, arrowY, placement := resolveTooltipY(anchor, inst.placement, boxHeight, inst.gapRows, inst.bottomOffsetRows, shadowH, viewportHeight)
 	hasArrow := arrowY >= 0 && (viewportHeight <= 0 || arrowY < viewportHeight)
-	boxLines := buildOverlayTooltipLines(lines, innerWidth, placement, hasArrow, arrowX-tooltipX)
+	boxLines := buildOverlayTooltipLines(lines, innerWidth, placement, inst.arrowStyle, hasArrow, arrowX-tooltipX)
 	shadowY := tooltipY + boxHeight
 	if placement == TooltipPlacementTop && hasArrow {
 		shadowY++
@@ -365,27 +371,28 @@ func (inst *overlayHelpInstance) computeTooltipBox(text string, anchor [4]int) o
 		shadowH:  shadowH,
 		arrowX:   arrowX,
 		arrowY:   arrowY,
-		arrow:    overlayTooltipArrowRune(placement),
+		arrow:    overlayTooltipArrowRune(placement, inst.arrowStyle),
 		hasArrow: hasArrow,
 	}
 }
 
-func buildOverlayTooltipLines(lines []string, innerWidth int, placement TooltipPlacement, hasArrow bool, arrowOffset int) []string {
-	top := "┌" + strings.Repeat("─", innerWidth+2) + "┐"
-	bottom := "└" + strings.Repeat("─", innerWidth+2) + "┘"
+func buildOverlayTooltipLines(lines []string, innerWidth int, placement TooltipPlacement, arrowStyle TooltipArrowStyle, hasArrow bool, arrowOffset int) []string {
+	topLeft, topRight, bottomLeft, bottomRight := tooltipCornerRunes(arrowStyle)
+	top := topLeft + strings.Repeat("?", innerWidth+2) + topRight
+	bottom := bottomLeft + strings.Repeat("?", innerWidth+2) + bottomRight
 	if hasArrow {
 		switch placement {
 		case TooltipPlacementTop:
-			bottom = replaceBorderRune(bottom, arrowOffset, '┴')
+			bottom = replaceBorderRune(bottom, arrowOffset, '?')
 		default:
-			top = replaceBorderRune(top, arrowOffset, '┬')
+			top = replaceBorderRune(top, arrowOffset, '?')
 		}
 	}
 
 	boxLines := make([]string, 0, len(lines)+2)
 	boxLines = append(boxLines, top)
 	for _, line := range lines {
-		boxLines = append(boxLines, "│ "+fitText(line, innerWidth, rtui.AlignStart, OverflowClip)+" │")
+		boxLines = append(boxLines, "? "+fitText(line, innerWidth, rtui.AlignStart, OverflowClip)+" ?")
 	}
 	boxLines = append(boxLines, bottom)
 	return boxLines
@@ -477,11 +484,24 @@ func resolveTooltipY(anchor [4]int, placement TooltipPlacement, boxHeight, gapRo
 	return boxY, arrowY, resolved
 }
 
-func overlayTooltipArrowRune(placement TooltipPlacement) string {
-	if placement == TooltipPlacementTop {
-		return "▼"
+func overlayTooltipArrowRune(placement TooltipPlacement, arrowStyle TooltipArrowStyle) string {
+	if arrowStyle == TooltipArrowStyleRounded {
+		if placement == TooltipPlacementTop {
+			return "?"
+		}
+		return "?"
 	}
-	return "▲"
+	if placement == TooltipPlacementTop {
+		return "?"
+	}
+	return "?"
+}
+
+func tooltipCornerRunes(arrowStyle TooltipArrowStyle) (string, string, string, string) {
+	if arrowStyle == TooltipArrowStyleRounded {
+		return "?", "?", "?", "?"
+	}
+	return "?", "?", "?", "?"
 }
 
 func (inst *overlayHelpInstance) Measure(constraints layout.Constraints) layout.Size {
@@ -564,6 +584,13 @@ func getHelpModelProp(props rtui.Props) *helpModel {
 		return v
 	}
 	return nil
+}
+
+func getTooltipArrowStyleProp(props rtui.Props, key string, fallback TooltipArrowStyle) TooltipArrowStyle {
+	if v, ok := props[key].(TooltipArrowStyle); ok {
+		return v
+	}
+	return fallback
 }
 
 func getTooltipPlacementProp(props rtui.Props, key string, fallback TooltipPlacement) TooltipPlacement {

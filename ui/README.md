@@ -270,7 +270,7 @@ go test ./ui/... -v -cover
 
 ```go
 bar := ui.NewStatusBarBuilder().
-    Theme(ui.StatusBarThemeDefault()).
+    Theme(ui.StatusBarThemeDefault().WithTooltipArrowStyle(ui.StatusBarTooltipArrowRounded)).
     HelpDisplayMode(ui.StatusBarHelpOverlay).
     TooltipPlacement(ui.StatusBarTooltipAuto).
     TooltipGapRows(1).

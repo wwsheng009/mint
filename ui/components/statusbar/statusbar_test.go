@@ -171,7 +171,7 @@ func TestOverlayTooltipOnlyShowsHoveredHelp(t *testing.T) {
 }
 
 func TestOverlayTooltipAddsArrowBubbleBelowAnchor(t *testing.T) {
-	inst := &overlayHelpInstance{bounds: [4]int{0, 0, 40, 12}, placement: TooltipPlacementBottom, maxContentWidth: 16, gapRows: 1}
+	inst := &overlayHelpInstance{bounds: [4]int{0, 0, 40, 12}, placement: TooltipPlacementBottom, maxContentWidth: 16, gapRows: 1, arrowStyle: TooltipArrowStyleSharp}
 	box := inst.computeTooltipBox("Tooltip", [4]int{10, 2, 4, 1})
 	if !box.hasArrow {
 		t.Fatal("expected overlay arrow to be enabled")
@@ -188,7 +188,7 @@ func TestOverlayTooltipAddsArrowBubbleBelowAnchor(t *testing.T) {
 }
 
 func TestOverlayTooltipAddsArrowBubbleAboveAnchor(t *testing.T) {
-	inst := &overlayHelpInstance{bounds: [4]int{0, 0, 40, 12}, placement: TooltipPlacementTop, maxContentWidth: 16, gapRows: 1}
+	inst := &overlayHelpInstance{bounds: [4]int{0, 0, 40, 12}, placement: TooltipPlacementTop, maxContentWidth: 16, gapRows: 1, arrowStyle: TooltipArrowStyleSharp}
 	box := inst.computeTooltipBox("Tooltip", [4]int{10, 8, 4, 1})
 	if !box.hasArrow {
 		t.Fatal("expected overlay arrow to be enabled")
@@ -201,6 +201,31 @@ func TestOverlayTooltipAddsArrowBubbleAboveAnchor(t *testing.T) {
 	}
 	if box.arrow != "▼" {
 		t.Fatalf("arrow rune = %q, want %q", box.arrow, "▼")
+	}
+}
+
+func TestOverlayTooltipRoundedArrowThemeUsesRoundedCorners(t *testing.T) {
+	inst := &overlayHelpInstance{bounds: [4]int{0, 0, 40, 12}, placement: TooltipPlacementBottom, maxContentWidth: 16, gapRows: 1, arrowStyle: TooltipArrowStyleRounded}
+	box := inst.computeTooltipBox("Tooltip", [4]int{10, 2, 4, 1})
+	if got := string([]rune(box.lines[0])[0]); got != "?" {
+		t.Fatalf("top-left corner = %q, want %q", got, "?")
+	}
+	if got := string([]rune(box.lines[len(box.lines)-1])[len([]rune(box.lines[len(box.lines)-1]))-1]); got != "?" {
+		t.Fatalf("bottom-right corner = %q, want %q", got, "?")
+	}
+	if box.arrow != "?" {
+		t.Fatalf("rounded bottom arrow = %q, want %q", box.arrow, "?")
+	}
+}
+
+func TestResolveThemeDefaultsPreservesTooltipArrowStyle(t *testing.T) {
+	theme := resolveThemeDefaults(Theme{})
+	if theme.TooltipArrowStyle != TooltipArrowStyleSharp {
+		t.Fatalf("default arrow style = %v, want %v", theme.TooltipArrowStyle, TooltipArrowStyleSharp)
+	}
+	muted := resolveThemeDefaults(MutedTheme())
+	if muted.TooltipArrowStyle != TooltipArrowStyleRounded {
+		t.Fatalf("muted arrow style = %v, want %v", muted.TooltipArrowStyle, TooltipArrowStyleRounded)
 	}
 }
 

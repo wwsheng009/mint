@@ -113,3 +113,16 @@ func TestStatusBarWithHelpModeShortcut(t *testing.T) {
 		t.Fatalf("children len = %d, want 2", len(bar.Children()))
 	}
 }
+
+func TestStatusBarTooltipArrowAliases(t *testing.T) {
+	if StatusBarTooltipArrowDefault != 0 {
+		t.Fatalf("default arrow alias = %v, want 0", StatusBarTooltipArrowDefault)
+	}
+	if StatusBarTooltipArrowSharp == StatusBarTooltipArrowRounded {
+		t.Fatal("sharp and rounded arrow aliases should differ")
+	}
+	theme := StatusBarThemeMuted().WithTooltipArrowStyle(StatusBarTooltipArrowRounded)
+	if theme.TooltipArrowStyle != StatusBarTooltipArrowRounded {
+		t.Fatalf("theme arrow style = %v, want %v", theme.TooltipArrowStyle, StatusBarTooltipArrowRounded)
+	}
+}

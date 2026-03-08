@@ -19,6 +19,7 @@
 - Overlay gap: `TooltipGapRows(...)` adds a clearer vertical separation from the anchor
 - Overlay visibility: overlay tooltips only appear while the mouse is hovering the section
 - Overlay bubble arrow: tooltips render an anchor-pointing arrow by default
+- Overlay arrow themes: `TooltipArrowStyleSharp` / `TooltipArrowStyleRounded`
 - 主题默认值：`Theme(...)` 可为未显式着色的节提供统一样式
 - 外层留白：`Padding(...)` 可用于和正文区域分隔
 
@@ -90,11 +91,12 @@ type Theme struct {
 - `statusbar.MutedTheme()`
 - `statusbar.ContrastTheme()`
 - `Theme.WithHoverStyle(...)` / `WithFocusStyle(...)` / `WithPressedStyle(...)` / `WithDisabledStyle(...)` / `WithHelpStyle(...)`
-- `Theme.WithTooltipBorderStyle(...)` / `WithTooltipShadowStyle(...)`
+- `Theme.WithTooltipBorderStyle(...)` / `WithTooltipShadowStyle(...)` / `WithTooltipArrowStyle(...)`
 - `Builder.HelpDisplayMode(statusbar.HelpDisplayInline | HelpDisplayOverlay | HelpDisplayBoth)`
 - `Builder.TooltipPlacement(statusbar.TooltipPlacementAuto | TooltipPlacementTop | TooltipPlacementBottom)`
 - `Builder.TooltipMaxWidth(width)`
 - `Builder.TooltipGapRows(rows)`
+- `Theme.WithTooltipArrowStyle(statusbar.TooltipArrowStyleSharp | statusbar.TooltipArrowStyleRounded)`
 
 ## Builder 示例
 
@@ -116,7 +118,7 @@ bar := statusbar.NewBuilder().
 
 ```go
 bar := statusbar.NewBuilder().
-    Theme(statusbar.DefaultTheme()).
+    Theme(statusbar.DefaultTheme().WithTooltipArrowStyle(statusbar.TooltipArrowStyleRounded)).
     HelpDisplayMode(statusbar.HelpDisplayOverlay).
     TooltipPlacement(statusbar.TooltipPlacementAuto).
     TooltipGapRows(1).

@@ -410,7 +410,8 @@ func InteractionStatusBar(state AppState) ui.VNode {
 		Theme(
 			ui.StatusBarThemeDefault().
 				WithTooltipBorderStyle(style.NewStyle().Foreground(style.BrightWhite).Background(style.Blue).Bold(true)).
-				WithTooltipShadowStyle(style.NewStyle().Foreground(style.BrightBlack).Background(style.Blue)),
+				WithTooltipShadowStyle(style.NewStyle().Foreground(style.BrightBlack).Background(style.Blue)).
+				WithTooltipArrowStyle(ui.StatusBarTooltipArrowRounded),
 		).
 		HelpDisplayMode(ui.StatusBarHelpOverlay).
 		TooltipPlacement(ui.StatusBarTooltipAuto).
