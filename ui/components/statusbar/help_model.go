@@ -7,6 +7,7 @@ type helpEntry struct {
 	hovered bool
 	focused bool
 	order   int
+	bounds  [4]int
 }
 
 type helpModel struct {
@@ -24,7 +25,7 @@ func newHelpModel(fallback, prefix string) *helpModel {
 	}
 }
 
-func (m *helpModel) Update(key string, order int, text string, hovered, focused bool) {
+func (m *helpModel) Update(key string, order int, text string, hovered, focused bool, bounds [4]int) {
 	if m == nil || key == "" {
 		return
 	}
@@ -40,6 +41,7 @@ func (m *helpModel) Update(key string, order int, text string, hovered, focused 
 		hovered: hovered,
 		focused: focused,
 		order:   order,
+		bounds:  bounds,
 	}
 }
 
@@ -75,6 +77,29 @@ func (m *helpModel) Current() string {
 	return current
 }
 
+func (m *helpModel) Active() (string, [4]int, bool) {
+	if m == nil {
+		return "", [4]int{}, false
+	}
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	entry, ok := m.pickEntry(true)
+	if !ok {
+		entry, ok = m.pickEntry(false)
+	}
+	return m.prefixedEntry(entry, ok)
+}
+
+func (m *helpModel) HoveredActive() (string, [4]int, bool) {
+	if m == nil {
+		return "", [4]int{}, false
+	}
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	entry, ok := m.pickEntry(true)
+	return m.prefixedEntry(entry, ok)
+}
+
 func (m *helpModel) HasContent() bool {
 	if m == nil {
 		return false
@@ -93,8 +118,17 @@ func (m *helpModel) HasContent() bool {
 }
 
 func (m *helpModel) pickText(hover bool) string {
+	entry, ok := m.pickEntry(hover)
+	if !ok {
+		return ""
+	}
+	return entry.text
+}
+
+func (m *helpModel) pickEntry(hover bool) (helpEntry, bool) {
 	bestOrder := int(^uint(0) >> 1)
-	bestText := ""
+	var best helpEntry
+	found := false
 	for _, entry := range m.entries {
 		active := entry.focused
 		if hover {
@@ -105,8 +139,20 @@ func (m *helpModel) pickText(hover bool) string {
 		}
 		if entry.order < bestOrder {
 			bestOrder = entry.order
-			bestText = entry.text
+			best = entry
+			found = true
 		}
 	}
-	return bestText
+	return best, found
+}
+
+func (m *helpModel) prefixedEntry(entry helpEntry, ok bool) (string, [4]int, bool) {
+	if !ok || entry.text == "" {
+		return "", [4]int{}, false
+	}
+	text := entry.text
+	if m.prefix != "" {
+		text = m.prefix + text
+	}
+	return text, entry.bounds, true
 }

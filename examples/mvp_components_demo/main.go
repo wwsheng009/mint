@@ -27,6 +27,7 @@ import (
 	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/runtime/reducer"
 	"github.com/wwsheng009/mint/runtime/store"
+	"github.com/wwsheng009/mint/runtime/style"
 	"github.com/wwsheng009/mint/ui"
 	selectcomp "github.com/wwsheng009/mint/ui/components/select"
 )
@@ -406,9 +407,17 @@ func InteractionStatusBar(state AppState) ui.VNode {
 	nextMode := nextInteractionMode(state.InteractionMode)
 
 	bar := ui.NewStatusBarBuilder().
-		Theme(ui.StatusBarThemeDefault()).
+		Theme(
+			ui.StatusBarThemeDefault().
+				WithTooltipBorderStyle(style.NewStyle().Foreground(style.BrightWhite).Background(style.Blue).Bold(true)).
+				WithTooltipShadowStyle(style.NewStyle().Foreground(style.BrightBlack).Background(style.Blue)),
+		).
+		HelpDisplayMode(ui.StatusBarHelpOverlay).
+		TooltipPlacement(ui.StatusBarTooltipAuto).
+		TooltipGapRows(1).
+		TooltipMaxWidth(38).
 		HelpPrefix("? ").
-		HelpFallback("Hover or Tab to inspect actions | Enter / Click to trigger | F6 and Ctrl+1/2/3 still work").
+		HelpFallback("Hover actions for overlay help | Click / Enter to trigger | F6 and Ctrl+1/2/3 still work").
 		Left(
 			ui.StatusBarActionBadge(" MODE ", "black", modeColor, SetInteractionModeIntent{Mode: nextMode}).
 				WithHelp("Cycle to the next interaction mode"),

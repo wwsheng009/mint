@@ -13,6 +13,11 @@
 - Keyboard accessible: interactive sections can be reached with `Tab` and triggered with `Enter`
 - Hover feedback: interactive sections highlight on mouse hover when mouse capture is enabled
 - Inline tooltip/help: `WithHelp(...)` / `WithTooltip(...)` + `BuildWithHelp()`
+- Help display modes: `HelpDisplayInline` / `HelpDisplayOverlay` / `HelpDisplayBoth`
+- Overlay placement: `TooltipPlacementAuto` / `TooltipPlacementTop` / `TooltipPlacementBottom`
+- Overlay wrapping: `TooltipMaxWidth(...)` limits content width and wraps to multiple lines
+- Overlay gap: `TooltipGapRows(...)` adds a clearer vertical separation from the anchor
+- Overlay visibility: overlay tooltips only appear while the mouse is hovering the section
 - 主题默认值：`Theme(...)` 可为未显式着色的节提供统一样式
 - 外层留白：`Padding(...)` 可用于和正文区域分隔
 
@@ -72,7 +77,9 @@ type Theme struct {
     FocusStyle    style.Style
     PressedStyle  style.Style
     DisabledStyle style.Style
-    HelpStyle     style.Style
+    HelpStyle          style.Style
+    TooltipBorderStyle style.Style
+    TooltipShadowStyle style.Style
 }
 ```
 
@@ -82,12 +89,18 @@ type Theme struct {
 - `statusbar.MutedTheme()`
 - `statusbar.ContrastTheme()`
 - `Theme.WithHoverStyle(...)` / `WithFocusStyle(...)` / `WithPressedStyle(...)` / `WithDisabledStyle(...)` / `WithHelpStyle(...)`
+- `Theme.WithTooltipBorderStyle(...)` / `WithTooltipShadowStyle(...)`
+- `Builder.HelpDisplayMode(statusbar.HelpDisplayInline | HelpDisplayOverlay | HelpDisplayBoth)`
+- `Builder.TooltipPlacement(statusbar.TooltipPlacementAuto | TooltipPlacementTop | TooltipPlacementBottom)`
+- `Builder.TooltipMaxWidth(width)`
+- `Builder.TooltipGapRows(rows)`
 
 ## Builder 示例
 
 ```go
 bar := statusbar.NewBuilder().
     DefaultTheme().
+    HelpDisplayMode(statusbar.HelpDisplayOverlay).
     Padding(0, 1, 0, 1).
     Left(statusbar.ActionBadge(" MODE ", "black", "yellow", CycleModeIntent{}).WithHelp("Cycle to the next mode")).
     Left(statusbar.ActionText(" Interactive ", CycleModeIntent{}).WithWidth(18).WithEllipsis().WithHelp("Current mode")).
@@ -103,25 +116,30 @@ bar := statusbar.NewBuilder().
 ```go
 bar := statusbar.NewBuilder().
     Theme(statusbar.DefaultTheme()).
+    HelpDisplayMode(statusbar.HelpDisplayOverlay).
+    TooltipPlacement(statusbar.TooltipPlacementAuto).
+    TooltipGapRows(1).
+    TooltipMaxWidth(38).
     HelpPrefix("? ").
-    HelpFallback("Hover or Tab to inspect actions").
+    HelpFallback("Hover actions to inspect overlay help").
     Left(statusbar.ActionText(" Open ", OpenIntent{}).WithHelp("Open current file")).
     Right(statusbar.ActionText(" Save ", SaveIntent{}).WithHelp("Save current document")).
     BuildWithHelp()
 ```
 
-`BuildWithHelp()` 会在状态栏下方增加一条帮助行：
+`BuildWithHelp()` ?????? `HelpDisplayMode(...)`?
 
-- Hovered section help first
-- Focused section help second
-- Fallback text last
+- Inline help: hovered first, focused second, fallback last
+- Overlay tooltip: only appears while the mouse is hovering the section
+- Both: inline keeps keyboard fallback semantics, overlay remains hover-only
 
 ## `ui` 顶层快捷入口
 
 ```go
-bar := ui.StatusBarWithHelp(
+bar := ui.StatusBarWithHelpMode(
     ui.StatusBarThemeDefault(),
-    "Hover or Tab to inspect actions",
+    "Hover actions to inspect overlay help",
+    ui.StatusBarHelpOverlay,
     ui.StatusBarSections(
         ui.StatusBarActionBadge(" MODE ", "black", "yellow", CycleModeIntent{}).WithHelp("Cycle to the next mode"),
         ui.StatusBarActionText(" Interactive ", CycleModeIntent{}).WithWidth(18).WithEllipsis().WithHelp("Current mode"),

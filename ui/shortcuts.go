@@ -111,9 +111,14 @@ func StatusBar(left, center, right []statusbar.Section) rtui.VNode {
 }
 
 func StatusBarWithHelp(theme statusbar.Theme, helpFallback string, left, center, right []statusbar.Section) rtui.VNode {
+	return StatusBarWithHelpMode(theme, helpFallback, statusbar.HelpDisplayInline, left, center, right)
+}
+
+func StatusBarWithHelpMode(theme statusbar.Theme, helpFallback string, mode statusbar.HelpDisplayMode, left, center, right []statusbar.Section) rtui.VNode {
 	return statusbar.NewBuilder().
 		Theme(theme).
 		HelpFallback(helpFallback).
+		HelpDisplayMode(mode).
 		LeftSections(left...).
 		CenterSections(center...).
 		RightSections(right...).
@@ -216,14 +221,24 @@ const (
 
 // StatusBar Types
 type (
-	StatusBarSection  = statusbar.Section
-	StatusBarTheme    = statusbar.Theme
-	StatusBarOverflow = statusbar.OverflowMode
+	StatusBarSection          = statusbar.Section
+	StatusBarTheme            = statusbar.Theme
+	StatusBarOverflow         = statusbar.OverflowMode
+	StatusBarHelpDisplay      = statusbar.HelpDisplayMode
+	StatusBarTooltipPlacement = statusbar.TooltipPlacement
 )
 
 const (
 	StatusBarOverflowEllipsis = statusbar.OverflowEllipsis
 	StatusBarOverflowClip     = statusbar.OverflowClip
+
+	StatusBarHelpInline  = statusbar.HelpDisplayInline
+	StatusBarHelpOverlay = statusbar.HelpDisplayOverlay
+	StatusBarHelpBoth    = statusbar.HelpDisplayBoth
+
+	StatusBarTooltipAuto   = statusbar.TooltipPlacementAuto
+	StatusBarTooltipTop    = statusbar.TooltipPlacementTop
+	StatusBarTooltipBottom = statusbar.TooltipPlacementBottom
 )
 
 // Grid Types

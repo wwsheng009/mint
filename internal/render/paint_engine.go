@@ -109,18 +109,14 @@ func (e *PaintEngine) paintLayout(layout *paint.PaintableLayout, buffer *paint.B
 		return nil
 	}
 
-	// Empty/zero-sized root can represent "no content" for top-level layout calls.
-	// But in per-box painting mode, zero-sized boxes are valid and must not clear
-	// the whole buffer.
+	// Empty/zero-sized roots can represent "no content" for top-level layout calls.
+	// But they may also intentionally rely on custom Paint() commands (for example,
+	// overlay/tooltip helpers that paint outside their measured layout box). Do not
+	// return early here; let paintBox decide whether the node actually emits content.
 	if layout.Root.Width <= 0 || layout.Root.Height <= 0 {
 		if clearOnEmptyRoot && len(layout.Root.Children) == 0 {
 			buffer.Clear()
 		}
-		// Nothing to paint for this root itself.
-		if len(layout.Root.Children) == 0 {
-			return nil
-		}
-		// Continue so zero-sized container roots can still paint visible children.
 	}
 
 	if buffer == nil {

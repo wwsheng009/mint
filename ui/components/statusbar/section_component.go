@@ -116,7 +116,7 @@ func (inst *sectionInstance) syncHelpModel() {
 		inst.helpModel.Remove(inst.helpKey)
 		return
 	}
-	inst.helpModel.Update(inst.helpKey, inst.helpOrder, inst.helpText, inst.state.Hovered, inst.state.Focused)
+	inst.helpModel.Update(inst.helpKey, inst.helpOrder, inst.helpText, inst.state.Hovered, inst.state.Focused, inst.bounds)
 }
 
 func (inst *sectionInstance) clearHelpModel() {
@@ -317,6 +317,7 @@ func (inst *sectionInstance) GetBounds() (x, y, w, h int) {
 
 func (inst *sectionInstance) SetBounds(x, y, w, h int) {
 	inst.bounds = [4]int{x, y, w, h}
+	inst.syncHelpModel()
 }
 
 func (inst *sectionInstance) GetStyle() style.Style { return inst.sectionStyle }

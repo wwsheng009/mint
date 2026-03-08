@@ -4,7 +4,28 @@ import (
 	"testing"
 
 	"github.com/wwsheng009/mint/runtime/paint"
+	"github.com/wwsheng009/mint/runtime/style"
 )
+
+type mockCustomPaintNode struct {
+	id    string
+	tag   string
+	style style.Style
+	paint func(x, y int) []paint.DrawCmd
+}
+
+func (m *mockCustomPaintNode) ID() string               { return m.id }
+func (m *mockCustomPaintNode) NodeType() paint.NodeType { return paint.NodeTypeElement }
+func (m *mockCustomPaintNode) Tag() string              { return m.tag }
+func (m *mockCustomPaintNode) Style() style.Style       { return m.style }
+func (m *mockCustomPaintNode) SetStyle(s style.Style)   { m.style = s }
+func (m *mockCustomPaintNode) TextContent() string      { return "" }
+func (m *mockCustomPaintNode) Paint(x, y int) []paint.DrawCmd {
+	if m.paint == nil {
+		return nil
+	}
+	return m.paint(x, y)
+}
 
 // =============================================================================
 // PaintEngine New API Tests
@@ -59,6 +80,41 @@ func TestPaintEngine_PaintPaintablePlanes(t *testing.T) {
 	err := engine.PaintPaintablePlanes(planes, buffer)
 	if err != nil {
 		t.Fatalf("PaintPaintablePlanes() error = %v", err)
+	}
+}
+
+func TestPaintEngine_PaintPaintablePlanes_RepaintsZeroSizedTooltipLayerNode(t *testing.T) {
+	engine := NewPaintEngine()
+	buffer := paint.NewBuffer(40, 10)
+
+	rootNode := &mockCustomPaintNode{id: "root", tag: "root"}
+	tooltipNode := &mockCustomPaintNode{
+		id:  "tooltip",
+		tag: "tooltip",
+		paint: func(x, y int) []paint.DrawCmd {
+			return []paint.DrawCmd{{X: 8, Y: 2, Text: "TIP", Style: style.NewStyle().Foreground(style.Yellow)}}
+		},
+	}
+	bodyNode := NewMockPaintableTextNode("body", "body text")
+
+	rootBox := paint.NewPaintableBoxWithBounds(rootNode, 0, 0, 40, 10)
+	tooltipBox := paint.NewPaintableBoxWithBounds(tooltipNode, 0, 0, 0, 0)
+	bodyBox := paint.NewPaintableBoxWithBounds(bodyNode, 0, 2, 20, 1)
+	rootBox.Children = []*paint.PaintableBox{tooltipBox, bodyBox}
+	tooltipBox.Parent = rootBox
+	bodyBox.Parent = rootBox
+
+	planes := paint.NewPaintablePlanes()
+	planes.AddToLayer(paint.RenderLayerBase, rootBox)
+	planes.AddToLayer(paint.RenderLayerTooltip, tooltipBox)
+
+	if err := engine.PaintPaintablePlanes(planes, buffer); err != nil {
+		t.Fatalf("PaintPaintablePlanes() error = %v", err)
+	}
+
+	got := buffer.GetContent(8, 2).Cluster
+	if got != "T" {
+		t.Fatalf("tooltip cell = %q, want %q (tooltip layer should repaint above base text)", got, "T")
 	}
 }
 

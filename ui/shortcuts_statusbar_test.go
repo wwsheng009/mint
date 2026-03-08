@@ -93,3 +93,23 @@ func TestStatusBarWithHelpShortcut(t *testing.T) {
 		t.Fatalf("children len = %d, want 2", len(bar.Children()))
 	}
 }
+
+func TestStatusBarWithHelpModeShortcut(t *testing.T) {
+	bar := StatusBarWithHelpMode(
+		StatusBarThemeDefault(),
+		"Ready",
+		StatusBarHelpOverlay,
+		StatusBarSections(
+			StatusBarActionBadge(" GO ", "black", "green", testStatusBarIntent{}).WithHelp("Run the current command"),
+		),
+		nil,
+		nil,
+	)
+
+	if bar == nil {
+		t.Fatal("StatusBarWithHelpMode() returned nil")
+	}
+	if len(bar.Children()) != 2 {
+		t.Fatalf("children len = %d, want 2", len(bar.Children()))
+	}
+}

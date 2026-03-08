@@ -20,6 +20,30 @@ const (
 	OverflowClip
 )
 
+// HelpDisplayMode controls how statusbar help text is rendered.
+type HelpDisplayMode int
+
+const (
+	// HelpDisplayInline renders help as a secondary line below the status bar.
+	HelpDisplayInline HelpDisplayMode = iota
+	// HelpDisplayOverlay renders help as a floating tooltip on the tooltip layer.
+	HelpDisplayOverlay
+	// HelpDisplayBoth renders both inline help and overlay tooltip.
+	HelpDisplayBoth
+)
+
+// TooltipPlacement controls where overlay tooltips are placed relative to the anchor.
+type TooltipPlacement int
+
+const (
+	// TooltipPlacementAuto chooses top or bottom automatically.
+	TooltipPlacementAuto TooltipPlacement = iota
+	// TooltipPlacementTop forces the tooltip above the anchor.
+	TooltipPlacementTop
+	// TooltipPlacementBottom forces the tooltip below the anchor.
+	TooltipPlacementBottom
+)
+
 // Section represents a text segment in the status bar.
 //
 // If Width is greater than zero, Text is padded or truncated to that exact
@@ -167,14 +191,16 @@ func (s Section) WithTooltip(tooltipText string) Section {
 
 // Theme provides default styling for sections that don't specify colors.
 type Theme struct {
-	FgColor       string
-	BgColor       string
-	Bold          bool
-	HoverStyle    style.Style
-	FocusStyle    style.Style
-	PressedStyle  style.Style
-	DisabledStyle style.Style
-	HelpStyle     style.Style
+	FgColor            string
+	BgColor            string
+	Bold               bool
+	HoverStyle         style.Style
+	FocusStyle         style.Style
+	PressedStyle       style.Style
+	DisabledStyle      style.Style
+	HelpStyle          style.Style
+	TooltipBorderStyle style.Style
+	TooltipShadowStyle style.Style
 }
 
 // WithHoverStyle sets the style overlay used for hovered sections.
@@ -207,43 +233,61 @@ func (t Theme) WithHelpStyle(s style.Style) Theme {
 	return t
 }
 
+// WithTooltipBorderStyle sets the border style used by overlay tooltips.
+func (t Theme) WithTooltipBorderStyle(s style.Style) Theme {
+	t.TooltipBorderStyle = s
+	return t
+}
+
+// WithTooltipShadowStyle sets the shadow style used by overlay tooltips.
+func (t Theme) WithTooltipShadowStyle(s style.Style) Theme {
+	t.TooltipShadowStyle = s
+	return t
+}
+
 // DefaultTheme returns a neutral status bar theme.
 func DefaultTheme() Theme {
 	return Theme{
-		FgColor:       "white",
-		BgColor:       "blue",
-		HoverStyle:    style.NewStyle().Underline(true),
-		FocusStyle:    style.NewStyle().Underline(true).Bold(true),
-		PressedStyle:  style.NewStyle().Reverse(true),
-		DisabledStyle: style.NewStyle().Foreground(style.BrightBlack),
-		HelpStyle:     style.NewStyle().Foreground(style.White).Background(style.Blue),
+		FgColor:            "white",
+		BgColor:            "blue",
+		HoverStyle:         style.NewStyle().Underline(true),
+		FocusStyle:         style.NewStyle().Underline(true).Bold(true),
+		PressedStyle:       style.NewStyle().Reverse(true),
+		DisabledStyle:      style.NewStyle().Foreground(style.BrightBlack),
+		HelpStyle:          style.NewStyle().Foreground(style.White).Background(style.Blue),
+		TooltipBorderStyle: style.NewStyle().Foreground(style.White).Background(style.Blue).Bold(true),
+		TooltipShadowStyle: style.NewStyle().Foreground(style.BrightBlack).Background(style.Blue),
 	}
 }
 
 // MutedTheme returns a lower-contrast theme.
 func MutedTheme() Theme {
 	return Theme{
-		FgColor:       "bright-white",
-		BgColor:       "bright-black",
-		HoverStyle:    style.NewStyle().Underline(true),
-		FocusStyle:    style.NewStyle().Underline(true).Bold(true),
-		PressedStyle:  style.NewStyle().Reverse(true),
-		DisabledStyle: style.NewStyle().Foreground(style.BrightBlack),
-		HelpStyle:     style.NewStyle().Foreground(style.BrightWhite).Background(style.BrightBlack),
+		FgColor:            "bright-white",
+		BgColor:            "bright-black",
+		HoverStyle:         style.NewStyle().Underline(true),
+		FocusStyle:         style.NewStyle().Underline(true).Bold(true),
+		PressedStyle:       style.NewStyle().Reverse(true),
+		DisabledStyle:      style.NewStyle().Foreground(style.BrightBlack),
+		HelpStyle:          style.NewStyle().Foreground(style.BrightWhite).Background(style.BrightBlack),
+		TooltipBorderStyle: style.NewStyle().Foreground(style.BrightWhite).Background(style.BrightBlack).Bold(true),
+		TooltipShadowStyle: style.NewStyle().Foreground(style.Black).Background(style.BrightBlack),
 	}
 }
 
 // ContrastTheme returns a strong contrast theme.
 func ContrastTheme() Theme {
 	return Theme{
-		FgColor:       "black",
-		BgColor:       "yellow",
-		Bold:          true,
-		HoverStyle:    style.NewStyle().Underline(true),
-		FocusStyle:    style.NewStyle().Underline(true).Bold(true),
-		PressedStyle:  style.NewStyle().Reverse(true),
-		DisabledStyle: style.NewStyle().Foreground(style.BrightBlack),
-		HelpStyle:     style.NewStyle().Foreground(style.Black).Background(style.Yellow).Bold(true),
+		FgColor:            "black",
+		BgColor:            "yellow",
+		Bold:               true,
+		HoverStyle:         style.NewStyle().Underline(true),
+		FocusStyle:         style.NewStyle().Underline(true).Bold(true),
+		PressedStyle:       style.NewStyle().Reverse(true),
+		DisabledStyle:      style.NewStyle().Foreground(style.BrightBlack),
+		HelpStyle:          style.NewStyle().Foreground(style.Black).Background(style.Yellow).Bold(true),
+		TooltipBorderStyle: style.NewStyle().Foreground(style.Black).Background(style.Yellow).Bold(true),
+		TooltipShadowStyle: style.NewStyle().Foreground(style.BrightBlack).Background(style.Yellow),
 	}
 }
 
@@ -252,21 +296,25 @@ func ContrastTheme() Theme {
 // Each slot gets equal layout width, so center sections stay visually centered
 // even when left and right content lengths differ.
 type Builder struct {
-	left         []Section
-	center       []Section
-	right        []Section
-	gap          int
-	padding      [4]int
-	theme        Theme
-	useTheme     bool
-	helpFallback string
-	helpPrefix   string
-	helpStyle    style.Style
+	left             []Section
+	center           []Section
+	right            []Section
+	gap              int
+	padding          [4]int
+	theme            Theme
+	useTheme         bool
+	helpFallback     string
+	helpPrefix       string
+	helpStyle        style.Style
+	helpDisplay      HelpDisplayMode
+	tooltipPlacement TooltipPlacement
+	tooltipMaxWidth  int
+	tooltipGapRows   int
 }
 
 // NewBuilder creates a new status bar builder.
 func NewBuilder() *Builder {
-	return &Builder{gap: 0}
+	return &Builder{gap: 0, helpDisplay: HelpDisplayInline, tooltipPlacement: TooltipPlacementAuto, tooltipMaxWidth: 48, tooltipGapRows: 1}
 }
 
 // Left appends one section to the left slot.
@@ -392,22 +440,58 @@ func (b *Builder) HelpStyle(s style.Style) *Builder {
 	return b
 }
 
+// HelpDisplayMode selects whether help is shown inline, as overlay tooltip, or both.
+func (b *Builder) HelpDisplayMode(mode HelpDisplayMode) *Builder {
+	b.helpDisplay = mode
+	return b
+}
+
+// TooltipPlacement sets overlay tooltip placement policy.
+func (b *Builder) TooltipPlacement(placement TooltipPlacement) *Builder {
+	b.tooltipPlacement = placement
+	return b
+}
+
+// TooltipMaxWidth sets the max content width for wrapped overlay tooltips.
+func (b *Builder) TooltipMaxWidth(width int) *Builder {
+	b.tooltipMaxWidth = clampNonNegative(width)
+	return b
+}
+
+// TooltipGapRows sets the vertical gap between the anchor and overlay tooltip.
+func (b *Builder) TooltipGapRows(rows int) *Builder {
+	b.tooltipGapRows = clampNonNegative(rows)
+	return b
+}
+
 // Build returns the composed single-line status bar VNode.
 func (b *Builder) Build() rtui.VNode {
 	return b.buildBar(b.left, b.center, b.right)
 }
 
-// BuildWithHelp returns the status bar with a secondary help/tooltip line.
+// BuildWithHelp returns the status bar with help rendered according to HelpDisplayMode.
 func (b *Builder) BuildWithHelp() rtui.VNode {
 	left, center, right, model, hasHelp := b.prepareHelpSections()
 	bar := b.buildBar(left, center, right)
 	if !hasHelp {
 		return bar
 	}
-	return rtui.VStackBuilder(
-		bar,
-		newHelpLineVNode(model, b.resolveHelpStyle()),
-	).Gap(0).Build()
+
+	content := bar
+	if b.helpDisplay == HelpDisplayInline || b.helpDisplay == HelpDisplayBoth {
+		content = rtui.VStackBuilder(
+			bar,
+			newHelpLineVNode(model, b.resolveHelpStyle()),
+		).Gap(0).Build()
+	}
+	if b.helpDisplay == HelpDisplayOverlay || b.helpDisplay == HelpDisplayBoth {
+		overlayOffset := 0
+		if b.helpDisplay == HelpDisplayBoth {
+			overlayOffset = 1
+		}
+		return rtui.Fragment(content, newOverlayHelpVNode(model, b.resolveHelpStyle(), b.resolveTooltipBorderStyle(), b.resolveTooltipShadowStyle(), b.tooltipPlacement, b.tooltipMaxWidth, b.tooltipGapRows, overlayOffset))
+	}
+	return content
 }
 
 func (b *Builder) buildBar(left, center, right []Section) rtui.VNode {
@@ -464,6 +548,20 @@ func (b *Builder) resolveHelpStyle() style.Style {
 	return resolveThemeDefaults(MutedTheme()).HelpStyle
 }
 
+func (b *Builder) resolveTooltipBorderStyle() style.Style {
+	if b.useTheme {
+		return resolveThemeDefaults(b.theme).TooltipBorderStyle
+	}
+	return resolveThemeDefaults(MutedTheme()).TooltipBorderStyle
+}
+
+func (b *Builder) resolveTooltipShadowStyle() style.Style {
+	if b.useTheme {
+		return resolveThemeDefaults(b.theme).TooltipShadowStyle
+	}
+	return resolveThemeDefaults(MutedTheme()).TooltipShadowStyle
+}
+
 func resolveThemeDefaults(theme Theme) Theme {
 	defaults := DefaultTheme()
 	if theme.HoverStyle.IsEmpty() {
@@ -480,6 +578,12 @@ func resolveThemeDefaults(theme Theme) Theme {
 	}
 	if theme.HelpStyle.IsEmpty() {
 		theme.HelpStyle = defaults.HelpStyle
+	}
+	if theme.TooltipBorderStyle.IsEmpty() {
+		theme.TooltipBorderStyle = defaults.TooltipBorderStyle
+	}
+	if theme.TooltipShadowStyle.IsEmpty() {
+		theme.TooltipShadowStyle = defaults.TooltipShadowStyle
 	}
 	return theme
 }
