@@ -276,6 +276,28 @@ func TestInstance_MoveCursorVertical_ResetGoalAfterHorizontalMove(t *testing.T) 
 	}
 }
 
+func TestInstance_MoveCursorVertical_WrappedLines(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"value": "abcdefghij",
+		"cols":  4,
+	})
+	inst.SetCursorPos(5)
+
+	if !inst.MoveCursorDown() {
+		t.Fatal("MoveCursorDown should move across wrapped visual lines")
+	}
+	if inst.CursorPos() != 10 {
+		t.Fatalf("cursor after down = %d, want 10", inst.CursorPos())
+	}
+
+	if !inst.MoveCursorUp() {
+		t.Fatal("MoveCursorUp should move across wrapped visual lines")
+	}
+	if inst.CursorPos() != 5 {
+		t.Fatalf("cursor after up = %d, want 5", inst.CursorPos())
+	}
+}
+
 func TestInstance_Disabled(t *testing.T) {
 	inst := NewInstance(rtui.Props{
 		"disabled": true,
@@ -335,6 +357,67 @@ func TestInstance_Paint(t *testing.T) {
 	// Check bottom border
 	if cmds[4].Text[0:1] != "+" {
 		t.Errorf("Bottom border should start with '+', got %q", cmds[4].Text[0:1])
+	}
+}
+
+func TestInstance_Paint_WrapsLongLines(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"value": "abcdefghij",
+		"rows":  2,
+		"cols":  4,
+	})
+
+	cmds := inst.Paint(0, 0)
+	// contentWidth = cols + 2 = 6, so wrap into 2 lines:
+	// top + 2 wrapped lines + bottom = 4
+	if len(cmds) != 4 {
+		t.Fatalf("Paint returned %d commands, want 4", len(cmds))
+	}
+	if cmds[1].Text != "|abcdef|" {
+		t.Fatalf("line1 = %q, want %q", cmds[1].Text, "|abcdef|")
+	}
+	if cmds[2].Text != "|ghij  |" {
+		t.Fatalf("line2 = %q, want %q", cmds[2].Text, "|ghij  |")
+	}
+}
+
+func TestInstance_Paint_HeightIsLimitedByRows(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"value": "abcdefghijklmnopqrstuvwxyz",
+		"rows":  2,
+		"cols":  4,
+	})
+
+	cmds := inst.Paint(0, 0)
+	// fixed rows=2 => top + 2 content + bottom
+	if len(cmds) != 4 {
+		t.Fatalf("Paint returned %d commands, want 4", len(cmds))
+	}
+	// Cursor defaults at end, viewport follows caret and shows last wrapped lines.
+	if cmds[1].Text != "|stuvwx|" {
+		t.Fatalf("visible line1 = %q, want %q", cmds[1].Text, "|stuvwx|")
+	}
+	if cmds[2].Text != "|yz    |" {
+		t.Fatalf("visible line2 = %q, want %q", cmds[2].Text, "|yz    |")
+	}
+}
+
+func TestInstance_Paint_FocusedCursorOnWrappedLine(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"value": "abcdefg",
+		"rows":  2,
+		"cols":  4,
+	})
+	inst.SetFocus(true)
+	inst.SetCursorPos(6) // before 'g', should be at next visual line start
+
+	cmds := inst.Paint(0, 0)
+	cursorCmd := cmds[len(cmds)-1]
+	if cursorCmd.X != 1 || cursorCmd.Y != 2 {
+		t.Fatalf("Cursor command at (%d,%d), want (1,2)", cursorCmd.X, cursorCmd.Y)
+	}
+	if cursorCmd.Text != "g" {
+		t.Fatalf("Cursor command text = %q, want %q", cursorCmd.Text, "g")
 	}
 }
 

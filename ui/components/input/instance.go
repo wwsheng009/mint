@@ -613,6 +613,12 @@ func (inst *Instance) InsertText(text string) bool {
 		inst.cursorPos = maxPos
 	}
 
+	// Enforce input width (content area width), allowing partial insert when needed.
+	textRunes = inst.clampInsertRunesByWidth(runes, textRunes)
+	if len(textRunes) == 0 {
+		return false
+	}
+
 	// Create new slice with enough capacity to avoid shared array issues
 	newRunes := make([]rune, 0, len(runes)+len(textRunes))
 	newRunes = append(newRunes, runes[:inst.cursorPos]...)
@@ -629,6 +635,46 @@ func (inst *Instance) InsertText(text string) bool {
 	inst.emitFieldValueChanged()
 
 	return true
+}
+
+func (inst *Instance) clampInsertRunesByWidth(current []rune, inserted []rune) []rune {
+	maxContentWidth := inst.editableContentWidth()
+	if maxContentWidth <= 0 || len(inserted) == 0 {
+		return inserted
+	}
+
+	currentWidth := paint.StringWidth(string(current))
+	remaining := maxContentWidth - currentWidth
+	if remaining <= 0 {
+		return nil
+	}
+
+	allowed := make([]rune, 0, len(inserted))
+	used := 0
+	for _, r := range inserted {
+		rw := paint.RuneWidth(r)
+		if used+rw > remaining {
+			break
+		}
+		allowed = append(allowed, r)
+		used += rw
+	}
+	return allowed
+}
+
+func (inst *Instance) editableContentWidth() int {
+	_, _, boxWidth, _ := inst.GetBounds()
+	if boxWidth > 0 {
+		contentWidth := boxWidth - 2 // left+right border/bracket
+		if contentWidth < 1 {
+			return 1
+		}
+		return contentWidth
+	}
+	if inst.width > 0 {
+		return inst.width
+	}
+	return 0
 }
 
 // DeleteText deletes text relative to cursor.

@@ -34,14 +34,14 @@ type Instance struct {
 	maxLen            int
 	cursorConfig      cursor.Config
 
-	state       control.InteractionState
-	value       string
-	cursorPos   int // Cursor position in rune index
-	cursorGoal  int // Preferred cursor column during vertical moves (rune index)
+	state         control.InteractionState
+	value         string
+	cursorPos     int // Cursor position in rune index
+	cursorGoal    int // Preferred cursor display column during vertical moves.
 	hasCursorGoal bool
-	cursorModel *cursor.Model
-	bounds      [4]int
-	dirty       bool
+	cursorModel   *cursor.Model
+	bounds        [4]int
+	dirty         bool
 
 	intentEmitter func(intent.Intent)
 	behaviors     *control.BehaviorList
@@ -178,16 +178,27 @@ func (inst *Instance) Paint(x, y int) []paint.DrawCmd {
 		content = inst.placeholder
 	}
 
-	lines := strings.Split(content, "\n")
-	if len(lines) == 0 {
-		lines = []string{""}
-	}
-
 	// Calculate dimensions
 	width := inst.cols + 4
 	height := inst.rows + 2
-	if len(lines) > inst.rows {
-		height = len(lines) + 2
+	contentWidth := width - 2
+	if contentWidth < 1 {
+		contentWidth = 1
+	}
+
+	contentHeight := inst.rows
+	if contentHeight < 1 {
+		contentHeight = 1
+	}
+	height = contentHeight + 2
+
+	logicalLines := strings.Split(content, "\n")
+	if len(logicalLines) == 0 {
+		logicalLines = []string{""}
+	}
+	wrappedLines := wrapLinesByDisplayWidth(logicalLines, contentWidth)
+	if len(wrappedLines) == 0 {
+		wrappedLines = []string{""}
 	}
 
 	// Resolve style
@@ -200,11 +211,36 @@ func (inst *Instance) Paint(x, y int) []paint.DrawCmd {
 	topBorder := "+" + strings.Repeat("-", width-2) + "+"
 	cmds = append(cmds, paint.DrawCmd{X: x, Y: y, Text: topBorder, Style: borderStyle})
 
-	contentWidth := width - 2
-	contentHeight := height - 2
+	cursorLine, cursorCol := inst.cursorLineColWrapped(contentWidth)
+	if inst.value == "" {
+		cursorLine, cursorCol = 0, 0
+	}
+
+	viewportTop := 0
+	if len(wrappedLines) > contentHeight {
+		if cursorLine >= contentHeight {
+			viewportTop = cursorLine - contentHeight + 1
+		}
+		maxTop := len(wrappedLines) - contentHeight
+		if viewportTop > maxTop {
+			viewportTop = maxTop
+		}
+		if viewportTop < 0 {
+			viewportTop = 0
+		}
+	}
 
 	// Content lines
-	for i, line := range lines {
+	visibleStart := viewportTop
+	visibleEnd := visibleStart + contentHeight
+	if visibleStart > len(wrappedLines) {
+		visibleStart = len(wrappedLines)
+	}
+	if visibleEnd > len(wrappedLines) {
+		visibleEnd = len(wrappedLines)
+	}
+	visibleLines := wrappedLines[visibleStart:visibleEnd]
+	for i, line := range visibleLines {
 		if i >= contentHeight {
 			break
 		}
@@ -213,7 +249,7 @@ func (inst *Instance) Paint(x, y int) []paint.DrawCmd {
 	}
 
 	// Fill empty rows
-	for i := len(lines); i < contentHeight; i++ {
+	for i := len(visibleLines); i < contentHeight; i++ {
 		emptyLine := "|" + strings.Repeat(" ", contentWidth) + "|"
 		cmds = append(cmds, paint.DrawCmd{X: x, Y: y + 1 + i, Text: emptyLine, Style: borderStyle})
 	}
@@ -223,17 +259,7 @@ func (inst *Instance) Paint(x, y int) []paint.DrawCmd {
 
 	// Draw caret overlay when focused.
 	if inst.shouldDrawCursor() && contentWidth > 0 && contentHeight > 0 {
-		cursorLine, cursorCol := inst.cursorLineCol()
-		if inst.value == "" {
-			cursorLine, cursorCol = 0, 0
-		}
-
-		if cursorLine < 0 {
-			cursorLine = 0
-		}
-		if cursorLine >= contentHeight {
-			cursorLine = contentHeight - 1
-		}
+		cursorLine = cursorLine - viewportTop
 		if cursorCol < 0 {
 			cursorCol = 0
 		}
@@ -241,14 +267,11 @@ func (inst *Instance) Paint(x, y int) []paint.DrawCmd {
 			cursorCol = contentWidth - 1
 		}
 
-		cursorChar := " "
-		if inst.value != "" {
-			valueLines := strings.Split(inst.value, "\n")
-			if cursorLine >= 0 && cursorLine < len(valueLines) {
-				cursorChar = glyphAtDisplayColumn(valueLines[cursorLine], cursorCol)
-			}
+		if cursorLine < 0 || cursorLine >= contentHeight {
+			return cmds
 		}
 
+		cursorChar := inst.cursorGlyphAtCursor()
 		if cmd, ok := inst.cursorModel.DrawCmd(x+1+cursorCol, y+1+cursorLine, cursorChar, borderStyle); ok {
 			cmds = append(cmds, cmd)
 		}
@@ -486,74 +509,57 @@ func (inst *Instance) MoveCursor(delta int) bool {
 
 // MoveCursorUp moves cursor to previous line while preserving column when possible.
 func (inst *Instance) MoveCursorUp() bool {
+	maxWidth := inst.wrapContentWidth()
 	runes := []rune(inst.value)
 	oldPos := inst.cursorPos
 	inst.clampCursorPos(len(runes))
 
-	start, _ := inst.currentLineBounds()
-	if start == 0 {
+	lineAt, colAt := buildWrappedCursorMap(runes, maxWidth)
+	currentLine := lineAt[inst.cursorPos]
+	if currentLine == 0 {
 		return false
 	}
 
 	col := inst.cursorGoal
 	if !inst.hasCursorGoal {
-		col = inst.cursorPos - start
+		col = colAt[inst.cursorPos]
 		inst.cursorGoal = col
 		inst.hasCursorGoal = true
 	}
 
-	prevEnd := start - 1 // points to '\n'
-	prevStart := 0
-	for i := prevEnd - 1; i >= 0; i-- {
-		if runes[i] == '\n' {
-			prevStart = i + 1
-			break
-		}
+	newPos, ok := findCursorPosForWrappedLineCol(lineAt, colAt, currentLine-1, col)
+	if !ok {
+		return false
 	}
-
-	prevLen := prevEnd - prevStart
-	if col > prevLen {
-		col = prevLen
-	}
-	inst.setCursorPos(prevStart + col)
+	inst.setCursorPos(newPos)
 	return inst.cursorPos != oldPos
 }
 
 // MoveCursorDown moves cursor to next line while preserving column when possible.
 func (inst *Instance) MoveCursorDown() bool {
+	maxWidth := inst.wrapContentWidth()
 	runes := []rune(inst.value)
 	oldPos := inst.cursorPos
 	inst.clampCursorPos(len(runes))
 
-	start, end := inst.currentLineBounds()
-	if end >= len(runes) {
-		return false
-	}
-	// A next line exists only when current line ends at a newline.
-	if runes[end] != '\n' {
+	lineAt, colAt := buildWrappedCursorMap(runes, maxWidth)
+	currentLine := lineAt[inst.cursorPos]
+	maxLine := lineAt[len(lineAt)-1]
+	if currentLine >= maxLine {
 		return false
 	}
 
 	col := inst.cursorGoal
 	if !inst.hasCursorGoal {
-		col = inst.cursorPos - start
+		col = colAt[inst.cursorPos]
 		inst.cursorGoal = col
 		inst.hasCursorGoal = true
 	}
-	nextStart := end + 1
-	nextEnd := len(runes)
-	for i := nextStart; i < len(runes); i++ {
-		if runes[i] == '\n' {
-			nextEnd = i
-			break
-		}
+	newPos, ok := findCursorPosForWrappedLineCol(lineAt, colAt, currentLine+1, col)
+	if !ok {
+		return false
 	}
-
-	nextLen := nextEnd - nextStart
-	if col > nextLen {
-		col = nextLen
-	}
-	inst.setCursorPos(nextStart + col)
+	inst.setCursorPos(newPos)
 	return inst.cursorPos != oldPos
 }
 
@@ -655,6 +661,40 @@ func (inst *Instance) cursorLineCol() (line int, col int) {
 	return line, col
 }
 
+func (inst *Instance) cursorLineColWrapped(maxWidth int) (line int, col int) {
+	if maxWidth <= 0 {
+		return 0, 0
+	}
+	runes := []rune(inst.value)
+	cursor := inst.cursorPos
+	if cursor < 0 {
+		cursor = 0
+	}
+	if cursor > len(runes) {
+		cursor = len(runes)
+	}
+	lineAt, colAt := buildWrappedCursorMap(runes, maxWidth)
+	return lineAt[cursor], colAt[cursor]
+}
+
+func (inst *Instance) cursorGlyphAtCursor() string {
+	if inst.value == "" {
+		return " "
+	}
+	runes := []rune(inst.value)
+	cursor := inst.cursorPos
+	if cursor < 0 {
+		cursor = 0
+	}
+	if cursor >= len(runes) {
+		return " "
+	}
+	if runes[cursor] == '\n' {
+		return " "
+	}
+	return string(runes[cursor])
+}
+
 func fitLineToWidth(text string, width int) string {
 	if width <= 0 {
 		return ""
@@ -698,6 +738,166 @@ func glyphAtDisplayColumn(text string, col int) string {
 		width += rw
 	}
 	return " "
+}
+
+func wrapLinesByDisplayWidth(lines []string, maxWidth int) []string {
+	if maxWidth <= 0 {
+		return []string{""}
+	}
+	out := make([]string, 0, len(lines))
+	for _, line := range lines {
+		out = append(out, wrapLineByDisplayWidth(line, maxWidth)...)
+	}
+	if len(out) == 0 {
+		return []string{""}
+	}
+	return out
+}
+
+func wrapLineByDisplayWidth(line string, maxWidth int) []string {
+	if maxWidth <= 0 {
+		return []string{""}
+	}
+	if line == "" {
+		return []string{""}
+	}
+
+	segments := make([]string, 0, 1)
+	var current []rune
+	currentWidth := 0
+
+	for _, r := range line {
+		rw := paint.RuneWidth(r)
+		if rw > maxWidth {
+			if len(current) > 0 {
+				segments = append(segments, string(current))
+				current = current[:0]
+				currentWidth = 0
+			}
+			segments = append(segments, string(r))
+			continue
+		}
+
+		if currentWidth+rw > maxWidth {
+			segments = append(segments, string(current))
+			current = current[:0]
+			currentWidth = 0
+		}
+
+		current = append(current, r)
+		currentWidth += rw
+
+		if currentWidth == maxWidth {
+			segments = append(segments, string(current))
+			current = current[:0]
+			currentWidth = 0
+		}
+	}
+
+	if len(current) > 0 {
+		segments = append(segments, string(current))
+	}
+	if len(segments) == 0 {
+		segments = append(segments, "")
+	}
+	return segments
+}
+
+func (inst *Instance) wrapContentWidth() int {
+	width := inst.cols + 2
+	if width < 1 {
+		return 1
+	}
+	return width
+}
+
+func buildWrappedCursorMap(runes []rune, maxWidth int) ([]int, []int) {
+	if maxWidth <= 0 {
+		maxWidth = 1
+	}
+	lineAt := make([]int, len(runes)+1)
+	colAt := make([]int, len(runes)+1)
+	line, col := 0, 0
+	lineAt[0], colAt[0] = line, col
+
+	for index, r := range runes {
+		if r == '\n' {
+			line++
+			col = 0
+			lineAt[index+1], colAt[index+1] = line, col
+			continue
+		}
+
+		rw := paint.RuneWidth(r)
+		if rw <= 0 {
+			rw = 1
+		}
+		if col+rw > maxWidth {
+			line++
+			col = 0
+		}
+
+		col += rw
+		if col >= maxWidth {
+			line++
+			col = 0
+		}
+
+		lineAt[index+1], colAt[index+1] = line, col
+	}
+
+	return lineAt, colAt
+}
+
+func findCursorPosForWrappedLineCol(lineAt, colAt []int, targetLine, targetCol int) (int, bool) {
+	if len(lineAt) == 0 || len(lineAt) != len(colAt) {
+		return 0, false
+	}
+	if targetLine < 0 {
+		return 0, false
+	}
+	if targetCol < 0 {
+		targetCol = 0
+	}
+
+	maxLine := lineAt[len(lineAt)-1]
+	if targetLine > maxLine {
+		return 0, false
+	}
+
+	bestPos := -1
+	bestCol := -1
+	for position := 0; position < len(lineAt); position++ {
+		line := lineAt[position]
+		col := colAt[position]
+
+		if line < targetLine {
+			continue
+		}
+		if line > targetLine {
+			break
+		}
+
+		if col == targetCol {
+			return position, true
+		}
+		if col < targetCol {
+			if col > bestCol {
+				bestCol = col
+				bestPos = position
+			}
+			continue
+		}
+		if bestPos != -1 {
+			return bestPos, true
+		}
+		return position, true
+	}
+
+	if bestPos != -1 {
+		return bestPos, true
+	}
+	return 0, false
 }
 
 // =============================================================================

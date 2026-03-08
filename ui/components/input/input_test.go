@@ -208,6 +208,49 @@ func TestInstance_InsertText_MaxLen(t *testing.T) {
 	}
 }
 
+func TestInstance_InsertText_WidthLimit(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"value": "abc",
+		"width": 5,
+	})
+	inst.SetCursorPos(3)
+
+	if !inst.InsertText("def") {
+		t.Fatal("InsertText should allow partial insert within width")
+	}
+	if inst.GetValue() != "abcde" {
+		t.Fatalf("Value = %q, want %q", inst.GetValue(), "abcde")
+	}
+	if inst.CursorPos() != 5 {
+		t.Fatalf("CursorPos = %d, want 5", inst.CursorPos())
+	}
+
+	if inst.InsertText("f") {
+		t.Fatal("InsertText should fail when content width is full")
+	}
+	if inst.GetValue() != "abcde" {
+		t.Fatalf("Value should stay %q, got %q", "abcde", inst.GetValue())
+	}
+}
+
+func TestInstance_InsertText_WidthLimit_FromBounds(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"value": "abc",
+	})
+	inst.SetBounds(0, 0, 6, 3) // content width = 4 (total width - 2 border)
+	inst.SetCursorPos(3)
+
+	if !inst.InsertText("zz") {
+		t.Fatal("InsertText should allow one rune with remaining width 1")
+	}
+	if inst.GetValue() != "abcz" {
+		t.Fatalf("Value = %q, want %q", inst.GetValue(), "abcz")
+	}
+	if inst.CursorPos() != 4 {
+		t.Fatalf("CursorPos = %d, want 4", inst.CursorPos())
+	}
+}
+
 func TestInstance_DeleteText(t *testing.T) {
 	inst := NewInstance(rtui.Props{
 		"value": "hello",
