@@ -1131,6 +1131,14 @@ func (a *App) processMsg(msg runtimemsg.Msg) {
 			act.Type = action.ActionCursorHome
 		case action.ActionNavigateEnd:
 			act.Type = action.ActionCursorEnd
+		case action.ActionNavigateUp:
+			if supportsVerticalCursorMove(focused) {
+				act.Type = action.ActionCursorUp
+			}
+		case action.ActionNavigateDown:
+			if supportsVerticalCursorMove(focused) {
+				act.Type = action.ActionCursorDown
+			}
 		}
 	}
 
@@ -1258,6 +1266,17 @@ func isTextInputFiber(fiber *rtui.Fiber) bool {
 		return ok
 	}
 	return false
+}
+
+func supportsVerticalCursorMove(fiber *rtui.Fiber) bool {
+	if fiber == nil || fiber.Instance == nil {
+		return false
+	}
+	_, ok := fiber.Instance.(interface {
+		MoveCursorUp() bool
+		MoveCursorDown() bool
+	})
+	return ok
 }
 
 // handleSystemMsg 处理无法转换为 Action 的系统消息

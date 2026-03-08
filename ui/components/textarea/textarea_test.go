@@ -203,6 +203,79 @@ func TestInstance_HandleAction_CursorAndEnter(t *testing.T) {
 	}
 }
 
+func TestInstance_HandleAction_CursorUpDown(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"value": "abcd\nef\nxyz",
+	})
+	inst.SetCursorPos(3)
+
+	if !inst.HandleAction(action.NewAction(action.ActionCursorDown)) {
+		t.Fatal("ActionCursorDown should be handled")
+	}
+	if inst.CursorPos() != 7 {
+		t.Fatalf("CursorPos after first down = %d, want 7", inst.CursorPos())
+	}
+
+	if !inst.HandleAction(action.NewAction(action.ActionCursorDown)) {
+		t.Fatal("second ActionCursorDown should be handled")
+	}
+	if inst.CursorPos() != 11 {
+		t.Fatalf("CursorPos after second down = %d, want 11", inst.CursorPos())
+	}
+
+	if !inst.HandleAction(action.NewAction(action.ActionCursorUp)) {
+		t.Fatal("ActionCursorUp should be handled")
+	}
+	if inst.CursorPos() != 7 {
+		t.Fatalf("CursorPos after up = %d, want 7", inst.CursorPos())
+	}
+
+	if !inst.HandleAction(action.NewAction(action.ActionCursorUp)) {
+		t.Fatal("second ActionCursorUp should be handled")
+	}
+	if inst.CursorPos() != 3 {
+		t.Fatalf("CursorPos after second up = %d, want 3", inst.CursorPos())
+	}
+
+	inst.SetCursorPos(0)
+	if inst.HandleAction(action.NewAction(action.ActionCursorUp)) {
+		t.Fatal("ActionCursorUp at first line should not move")
+	}
+
+	inst.SetCursorPos(11)
+	if inst.HandleAction(action.NewAction(action.ActionCursorDown)) {
+		t.Fatal("ActionCursorDown at last line should not move")
+	}
+}
+
+func TestInstance_MoveCursorVertical_ResetGoalAfterHorizontalMove(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"value": "abcd\nef\nxyz",
+	})
+	inst.SetCursorPos(3)
+
+	if !inst.MoveCursorDown() {
+		t.Fatal("MoveCursorDown should move to next line")
+	}
+	if inst.CursorPos() != 7 {
+		t.Fatalf("cursor after down = %d, want 7", inst.CursorPos())
+	}
+
+	if !inst.MoveCursor(-1) {
+		t.Fatal("MoveCursor(-1) should move")
+	}
+	if inst.CursorPos() != 6 {
+		t.Fatalf("cursor after left = %d, want 6", inst.CursorPos())
+	}
+
+	if !inst.MoveCursorDown() {
+		t.Fatal("second MoveCursorDown should move")
+	}
+	if inst.CursorPos() != 9 {
+		t.Fatalf("cursor after second down = %d, want 9", inst.CursorPos())
+	}
+}
+
 func TestInstance_Disabled(t *testing.T) {
 	inst := NewInstance(rtui.Props{
 		"disabled": true,

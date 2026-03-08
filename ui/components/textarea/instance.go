@@ -37,6 +37,8 @@ type Instance struct {
 	state       control.InteractionState
 	value       string
 	cursorPos   int // Cursor position in rune index
+	cursorGoal  int // Preferred cursor column during vertical moves (rune index)
+	hasCursorGoal bool
 	cursorModel *cursor.Model
 	bounds      [4]int
 	dirty       bool
@@ -127,6 +129,7 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	if newValue != inst.value {
 		inst.value = newValue
 		inst.cursorPos = utf8.RuneCountInString(inst.value)
+		inst.clearCursorGoal()
 		inst.cursorModel.ResetBlink()
 	}
 	inst.maxLen = getIntProp(props, "maxLen", inst.maxLen)
@@ -340,6 +343,10 @@ func (inst *Instance) HandleAction(act *action.Action) bool {
 		return inst.MoveCursor(-1)
 	case action.ActionCursorRight:
 		return inst.MoveCursor(1)
+	case action.ActionCursorUp:
+		return inst.MoveCursorUp()
+	case action.ActionCursorDown:
+		return inst.MoveCursorDown()
 	case action.ActionCursorHome:
 		return inst.MoveCursorToLineHome()
 	case action.ActionCursorEnd:
@@ -383,6 +390,7 @@ func (inst *Instance) InsertText(text string) bool {
 
 	inst.value = string(newRunes)
 	inst.cursorPos += len(textRunes)
+	inst.clearCursorGoal()
 	inst.cursorModel.ResetBlink()
 	inst.dirty = true
 
@@ -426,6 +434,7 @@ func (inst *Instance) DeleteText(direction int) bool {
 		inst.value = string(newRunes)
 	}
 
+	inst.clearCursorGoal()
 	inst.cursorModel.ResetBlink()
 	inst.dirty = true
 	inst.emitFieldValueChanged()
@@ -436,6 +445,7 @@ func (inst *Instance) SetValue(value string) {
 	if inst.value != value {
 		inst.value = value
 		inst.cursorPos = utf8.RuneCountInString(value)
+		inst.clearCursorGoal()
 		inst.cursorModel.ResetBlink()
 		inst.dirty = true
 	}
@@ -448,6 +458,11 @@ func (inst *Instance) CursorPos() int { return inst.cursorPos }
 
 // SetCursorPos sets cursor position in rune index.
 func (inst *Instance) SetCursorPos(pos int) {
+	inst.clearCursorGoal()
+	inst.setCursorPos(pos)
+}
+
+func (inst *Instance) setCursorPos(pos int) {
 	max := utf8.RuneCountInString(inst.value)
 	if pos < 0 {
 		pos = 0
@@ -466,6 +481,79 @@ func (inst *Instance) SetCursorPos(pos int) {
 func (inst *Instance) MoveCursor(delta int) bool {
 	oldPos := inst.cursorPos
 	inst.SetCursorPos(inst.cursorPos + delta)
+	return inst.cursorPos != oldPos
+}
+
+// MoveCursorUp moves cursor to previous line while preserving column when possible.
+func (inst *Instance) MoveCursorUp() bool {
+	runes := []rune(inst.value)
+	oldPos := inst.cursorPos
+	inst.clampCursorPos(len(runes))
+
+	start, _ := inst.currentLineBounds()
+	if start == 0 {
+		return false
+	}
+
+	col := inst.cursorGoal
+	if !inst.hasCursorGoal {
+		col = inst.cursorPos - start
+		inst.cursorGoal = col
+		inst.hasCursorGoal = true
+	}
+
+	prevEnd := start - 1 // points to '\n'
+	prevStart := 0
+	for i := prevEnd - 1; i >= 0; i-- {
+		if runes[i] == '\n' {
+			prevStart = i + 1
+			break
+		}
+	}
+
+	prevLen := prevEnd - prevStart
+	if col > prevLen {
+		col = prevLen
+	}
+	inst.setCursorPos(prevStart + col)
+	return inst.cursorPos != oldPos
+}
+
+// MoveCursorDown moves cursor to next line while preserving column when possible.
+func (inst *Instance) MoveCursorDown() bool {
+	runes := []rune(inst.value)
+	oldPos := inst.cursorPos
+	inst.clampCursorPos(len(runes))
+
+	start, end := inst.currentLineBounds()
+	if end >= len(runes) {
+		return false
+	}
+	// A next line exists only when current line ends at a newline.
+	if runes[end] != '\n' {
+		return false
+	}
+
+	col := inst.cursorGoal
+	if !inst.hasCursorGoal {
+		col = inst.cursorPos - start
+		inst.cursorGoal = col
+		inst.hasCursorGoal = true
+	}
+	nextStart := end + 1
+	nextEnd := len(runes)
+	for i := nextStart; i < len(runes); i++ {
+		if runes[i] == '\n' {
+			nextEnd = i
+			break
+		}
+	}
+
+	nextLen := nextEnd - nextStart
+	if col > nextLen {
+		col = nextLen
+	}
+	inst.setCursorPos(nextStart + col)
 	return inst.cursorPos != oldPos
 }
 
@@ -510,6 +598,11 @@ func (inst *Instance) clampCursorPos(max int) {
 	} else if inst.cursorPos > max {
 		inst.cursorPos = max
 	}
+}
+
+func (inst *Instance) clearCursorGoal() {
+	inst.cursorGoal = 0
+	inst.hasCursorGoal = false
 }
 
 func (inst *Instance) currentLineBounds() (start, end int) {

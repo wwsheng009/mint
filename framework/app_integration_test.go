@@ -14,6 +14,7 @@ import (
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/ui/components/cursor"
 	"github.com/wwsheng009/mint/ui/components/input"
+	"github.com/wwsheng009/mint/ui/components/textarea"
 )
 
 // TestApp_Throttler 测试 App 的节流器集成
@@ -345,6 +346,36 @@ func TestApp_ProcessMsg_LeftArrowMovesInputCursor_WithWrapperTag(t *testing.T) {
 	app.processMsg(runtimemsg.NewKeyMsg(0, runtimeplatform.KeyLeft, runtimemsg.Modifiers{}))
 	if inst.CursorPos() != 2 {
 		t.Fatalf("cursor after left = %d, want 2", inst.CursorPos())
+	}
+}
+
+func TestApp_ProcessMsg_UpDownMoveTextareaCursor_WithWrapperTag(t *testing.T) {
+	app := NewApp()
+
+	inst := textarea.NewInstance(rtui.Props{
+		"value": "abcd\nef\nxyz",
+	})
+	inst.SetCursorPos(3)
+
+	fiber := &rtui.Fiber{
+		Tag:      "component",
+		NodeID:   1,
+		Instance: inst,
+	}
+
+	app.focusManager.UpdateFocusableList([]*rtui.Fiber{fiber})
+	if ok := app.focusManager.SetFocusByIndex(0); !ok {
+		t.Fatal("SetFocusByIndex(0) should succeed")
+	}
+
+	app.processMsg(runtimemsg.NewKeyMsg(0, runtimeplatform.KeyDown, runtimemsg.Modifiers{}))
+	if inst.CursorPos() != 7 {
+		t.Fatalf("cursor after down = %d, want 7", inst.CursorPos())
+	}
+
+	app.processMsg(runtimemsg.NewKeyMsg(0, runtimeplatform.KeyUp, runtimemsg.Modifiers{}))
+	if inst.CursorPos() != 3 {
+		t.Fatalf("cursor after up = %d, want 3", inst.CursorPos())
 	}
 }
 

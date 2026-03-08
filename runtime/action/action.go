@@ -95,6 +95,8 @@ const (
 	ActionBackspace        ActionType = "backspace"          // Backspace key
 	ActionCursorHome       ActionType = "cursor_home"        // Cursor to line start
 	ActionCursorEnd        ActionType = "cursor_end"         // Cursor to line end
+	ActionCursorUp         ActionType = "cursor_up"          // Move cursor up
+	ActionCursorDown       ActionType = "cursor_down"        // Move cursor down
 	ActionCursorLeft       ActionType = "cursor_left"        // Move cursor left
 	ActionCursorRight      ActionType = "cursor_right"       // Move cursor right
 	ActionCursorWordLeft   ActionType = "cursor_word_left"   // Move cursor left by word
@@ -296,8 +298,9 @@ func (a *Action) IsEditing() bool {
 	switch a.Type {
 	case ActionInputChar, ActionInputText, ActionDeleteChar,
 		ActionDeleteWord, ActionDeleteLine, ActionBackspace,
-		ActionCursorHome, ActionCursorEnd, ActionCursorLeft,
-		ActionCursorRight, ActionCursorWordLeft, ActionCursorWordRight,
+		ActionCursorHome, ActionCursorEnd, ActionCursorUp,
+		ActionCursorDown, ActionCursorLeft, ActionCursorRight,
+		ActionCursorWordLeft, ActionCursorWordRight,
 		ActionSelectAll, ActionSelectWord, ActionSelectLine, ActionEnter:
 		return true
 	}

@@ -107,6 +107,18 @@ func TestActionTypes(t *testing.T) {
 	}
 }
 
+func TestActionIsEditing_CursorVertical(t *testing.T) {
+	if !NewAction(ActionCursorUp).IsEditing() {
+		t.Fatal("ActionCursorUp should be editing action")
+	}
+	if !NewAction(ActionCursorDown).IsEditing() {
+		t.Fatal("ActionCursorDown should be editing action")
+	}
+	if NewAction(ActionNavigateUp).IsEditing() {
+		t.Fatal("ActionNavigateUp should not be editing action")
+	}
+}
+
 func TestTargetFunc(t *testing.T) {
 	called := false
 	var receivedAction *Action
