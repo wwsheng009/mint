@@ -449,66 +449,6 @@ func (ctx *ComponentContext) ScheduleUpdate() {
 }
 
 // =============================================================================
-// Global State Accessors (Aliases for clarity)
-// =============================================================================
-
-// GetGlobalState retrieves a global state value by key.
-// This is an alias for GetState() that provides clearer semantic intent.
-//
-// Deprecated: Use Store + Reducer architecture instead.
-// Use UseStoreField for type-safe state management.
-// Migration guide: https://github.com/wwsheng009/mint/docs/ui/store/guides/MIGRATION_GUIDE.md
-// Status: Will be removed in v1.0
-func (ctx *ComponentContext) GetGlobalState(key string, defaultValue interface{}) interface{} {
-	if value, exists := ctx.GetState(key); exists {
-		return value
-	}
-	return defaultValue
-}
-
-// SetGlobalState updates a global state value.
-// This is an alias for SetState() that provides clearer semantic intent.
-//
-// Deprecated: Use Store + Reducer architecture instead.
-// Use UseStoreField for type-safe state management.
-// Migration guide: https://github.com/wwsheng009/mint/docs/ui/store/guides/MIGRATION_GUIDE.md
-// Status: Will be removed in v1.0
-func (ctx *ComponentContext) SetGlobalState(key string, value interface{}) {
-	ctx.SetState(key, value)
-}
-
-// GetGlobalString retrieves a global string state value with a default.
-//
-// Deprecated: Use Store + Reducer architecture instead.
-// Use store.GetStringField or UseStoreField for type-safe state management.
-// Migration guide: https://github.com/wwsheng009/mint/docs/ui/store/guides/MIGRATION_GUIDE.md
-// Status: Will be removed in v1.0
-func (ctx *ComponentContext) GetGlobalString(key string, defaultValue string) string {
-	return ctx.GetStringState(key, defaultValue)
-}
-
-// GetGlobalInt retrieves a global int state value with a default.
-//
-// Deprecated: Use Store + Reducer architecture instead.
-// Use store.GetIntField or UseStoreField for type-safe state management.
-// Migration guide: https://github.com/wwsheng009/mint/docs/ui/store/guides/MIGRATION_GUIDE.md
-// Status: Will be removed in v1.0
-func (ctx *ComponentContext) GetGlobalInt(key string, defaultValue int) int {
-	return ctx.GetIntState(key, defaultValue)
-}
-
-// GetGlobalBool retrieves a global boolean state value with a default.
-//
-// Deprecated: Use Store + Reducer architecture instead.
-// Use store.GetBoolField or UseStoreField for type-safe state management.
-// Migration guide: https://github.com/wwsheng009/mint/docs/ui/store/guides/MIGRATION_GUIDE.md
-// Status: Will be removed in v1.0
-func (ctx *ComponentContext) GetGlobalBool(key string, defaultValue bool) bool {
-	return ctx.GetBoolState(key, defaultValue)
-}
-
-// =============================================================================
-
 // Global Intent Runtime Management
 // =============================================================================
 
