@@ -1,7 +1,18 @@
 # Intent 管理模式指南
 
+> ⚠️ **DEPRECATED** - 本文档已归档
+>
+> **新架构**: **Store + Reducer**
+> **新文档**: [`/docs/ui/store/guides/DEVELOPMENT_GUIDE.md`](../../ui/store/guides/DEVELOPMENT_GUIDE.md)
+> **迁移指南**: [`/docs/ui/store/guides/MIGRATION_GUIDE.md`](../../ui/store/guides/MIGRATION_GUIDE.md)
+>
+> 本文档记录了 Mint UI 早期架构的 Intent 管理模式探索。当前推荐使用 **单一 Store + Reducer 架构**。
+
+---
+
 **生成时间**: 2026-02-27
 **最后更新**: 2026-02-27
+**归档时间**: 2026-03-08
 
 ---
 

@@ -1,8 +1,19 @@
 # Focus Switching Demo 重构完成报告
 
-**分支**: refactor/store-based-architecture  
-**提交**: 6b0d5625  
+> ⚠️ **DEPRECATED** - 本文档已归档
+>
+> **当前状态**: **Store + Reducer 架构已完整实现 (93%)**
+> **重构总结**: [`/docs/ui/store/reviews/IMPLEMENTATION_SUMMARY.md`](../../ui/store/reviews/IMPLEMENTATION_SUMMARY.md)
+> **迁移进度**: [`/docs/ui/store/status/MIGRATION_PROGRESS.md`](../../ui/store/status/MIGRATION_PROGRESS.md)
+>
+> 本文档记录了首次 UseState → Store + Reducer 重构完成。现在已有更多示例完成迁移。
+
+---
+
+**分支**: refactor/store-based-architecture → `feat/mint-runtime-2.0`
+**提交**: 6b0d5625
 **完成时间**: 2026-03-04
+**归档时间**: 2026-03-08
 
 ---
 

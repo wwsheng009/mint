@@ -1,8 +1,19 @@
 # Mint UI 架构重构方案总结
 
-**分支**: refactor/store-based-architecture  
-**创建时间**: 2026-03-04  
-**状态**: 分析完成
+> ⚠️ **DEPRECATED** - 本文档已归档
+>
+> **当前状态**: **Store + Reducer 架构已完整实现 (93%)**
+> **新文档**: [`/docs/ui/store/status/CURRENT_STATUS.md`](../../ui/store/status/CURRENT_STATUS.md)
+> **实现总结**: [`/docs/ui/store/reviews/IMPLEMENTATION_SUMMARY.md`](../../ui/store/reviews/IMPLEMENTATION_SUMMARY.md)
+>
+> 本文档记录了从 UseState + GlobalState 到 Store + Reducer 的重构决策过程。现在可以参考最新状态文档了解当前架构。
+
+---
+
+**分支**: refactor/store-based-architecture → `feat/mint-runtime-2.0`
+**创建时间**: 2026-03-04
+**归档时间**: 2026-03-08
+**状态**: ✅ 实现完成，文档已更新
 
 ---
 

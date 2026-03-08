@@ -1,7 +1,18 @@
 # Mint UI 当前问题分析与重构方案
 
+> ⚠️ **DEPRECATED** - 本文档已归档
+>
+> **当前状态**: **Store + Reducer 架构已完整实现 (93%)，所有 P0 问题已修复**
+> **状态报告**: [`/docs/ui/store/status/CURRENT_STATUS.md`](../../ui/store/status/CURRENT_STATUS.md)
+> **实现审查**: [`/docs/ui/store/reviews/IMPLEMENTATION_REVIEW.md`](../../ui/store/reviews/IMPLEMENTATION_REVIEW.md)
+>
+> 本文档记录了架构演进过程中的问题分析和重构方案。现在 Store + Reducer 架构已成熟，这些问题已解决。
+
+---
+
 **创建时间**: 2026-03-04
-**版本**: v1.0
+**归档时间**: 2026-03-08
+**版本**: v1.0 (历史版本)
 **范围**: 基于 store 和 mvp 架构文档与实际遇到的问题
 
 ---

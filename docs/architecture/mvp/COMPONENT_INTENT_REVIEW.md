@@ -1,6 +1,17 @@
 # 组件 Intent 设置检查报告
 
+> ⚠️ **DEPRECATED** - 本文档已归档
+>
+> **新架构**: **Store + Reducer**
+> **实现审查**: [`/docs/ui/store/reviews/IMPLEMENTATION_REVIEW.md`](../../ui/store/reviews/IMPLEMENTATION_REVIEW.md)
+> **新 Intent 文档**: [`/docs/ui/store/api/API_REFERENCE.md#intent-系统`](../../ui/store/api/API_REFERENCE.md)
+>
+> 本文档记录了 Phase 10 期间的组件 Intent 检查。现在 Store + Reducer 架构已完整实现，所有组件的 Intent 处理已标准化。
+
+---
+
 **生成时间**: 2026-02-26
+**归档时间**: 2026-03-08
 **最后更新**: 2026-02-26 (Phase 10 完成)
 
 ---

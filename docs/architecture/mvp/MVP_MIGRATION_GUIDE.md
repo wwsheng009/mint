@@ -1,7 +1,18 @@
 # MVP 架构迁移指南
 
+> ⚠️ **DEPRECATED** - 本文档已归档
+>
+> **新架构**: **Store + Reducer**
+> **新迁移指南**: [`/docs/ui/store/guides/MIGRATION_GUIDE.md`](../../ui/store/guides/MIGRATION_GUIDE.md)
+> **迁移进度**: [`/docs/ui/store/status/MIGRATION_PROGRESS.md`](../../ui/store/status/MIGRATION_PROGRESS.md)
+>
+> 本文档记录了 MVP 模式的早期探索。当前推荐使用 **Store + Reducer 架构**，它是 MVP 的完整进化版。
+
+---
+
 **创建时间**: 2026-02-26
 **版本**: Phase 10
+**归档时间**: 2026-03-08
 **适用版本**: Mint UI v0.10+
 
 ---
