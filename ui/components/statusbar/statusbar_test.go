@@ -139,8 +139,8 @@ func TestOverlayTooltipWrapsMultilineContent(t *testing.T) {
 func TestOverlayTooltipUsesGapRows(t *testing.T) {
 	inst := &overlayHelpInstance{bounds: [4]int{0, 0, 40, 12}, placement: TooltipPlacementBottom, maxContentWidth: 12, gapRows: 2}
 	box := inst.computeTooltipBox("Tooltip", [4]int{10, 2, 4, 1})
-	if box.y != 6 {
-		t.Fatalf("bottom gap y = %d, want 6", box.y)
+	if box.y != 5 {
+		t.Fatalf("bottom gap y = %d, want 5", box.y)
 	}
 
 	inst.placement = TooltipPlacementTop
@@ -176,48 +176,36 @@ func TestOverlayTooltipAddsArrowBubbleBelowAnchor(t *testing.T) {
 	if !box.hasArrow {
 		t.Fatal("expected overlay arrow to be enabled")
 	}
-	if box.arrowY != box.y-1 {
-		t.Fatalf("arrow y = %d, want %d", box.arrowY, box.y-1)
+	if box.y != 4 {
+		t.Fatalf("box y = %d, want 4", box.y)
 	}
-	if got := string([]rune(box.lines[0])[box.arrowX-box.x]); got != "┬" {
-		t.Fatalf("top connector = %q, want %q", got, "┬")
-	}
-	if box.arrow != "▲" {
-		t.Fatalf("arrow rune = %q, want %q", box.arrow, "▲")
+	if got := string([]rune(box.lines[0])[box.arrowX-box.x]); got != "▲" {
+		t.Fatalf("top border arrow = %q, want %q", got, "▲")
 	}
 }
-
 func TestOverlayTooltipAddsArrowBubbleAboveAnchor(t *testing.T) {
 	inst := &overlayHelpInstance{bounds: [4]int{0, 0, 40, 12}, placement: TooltipPlacementTop, maxContentWidth: 16, gapRows: 1, arrowStyle: TooltipArrowStyleSharp}
 	box := inst.computeTooltipBox("Tooltip", [4]int{10, 8, 4, 1})
 	if !box.hasArrow {
 		t.Fatal("expected overlay arrow to be enabled")
 	}
-	if box.arrowY != box.y+box.height {
-		t.Fatalf("arrow y = %d, want %d", box.arrowY, box.y+box.height)
-	}
-	if got := string([]rune(box.lines[len(box.lines)-1])[box.arrowX-box.x]); got != "┴" {
-		t.Fatalf("bottom connector = %q, want %q", got, "┴")
-	}
-	if box.arrow != "▼" {
-		t.Fatalf("arrow rune = %q, want %q", box.arrow, "▼")
+	if got := string([]rune(box.lines[len(box.lines)-1])[box.arrowX-box.x]); got != "▼" {
+		t.Fatalf("bottom border arrow = %q, want %q", got, "▼")
 	}
 }
-
 func TestOverlayTooltipRoundedArrowThemeUsesRoundedCorners(t *testing.T) {
 	inst := &overlayHelpInstance{bounds: [4]int{0, 0, 40, 12}, placement: TooltipPlacementBottom, maxContentWidth: 16, gapRows: 1, arrowStyle: TooltipArrowStyleRounded}
 	box := inst.computeTooltipBox("Tooltip", [4]int{10, 2, 4, 1})
-	if got := string([]rune(box.lines[0])[0]); got != "?" {
-		t.Fatalf("top-left corner = %q, want %q", got, "?")
+	if got := string([]rune(box.lines[0])[0]); got != "╭" {
+		t.Fatalf("top-left corner = %q, want %q", got, "╭")
 	}
-	if got := string([]rune(box.lines[len(box.lines)-1])[len([]rune(box.lines[len(box.lines)-1]))-1]); got != "?" {
-		t.Fatalf("bottom-right corner = %q, want %q", got, "?")
+	if got := string([]rune(box.lines[len(box.lines)-1])[len([]rune(box.lines[len(box.lines)-1]))-1]); got != "╯" {
+		t.Fatalf("bottom-right corner = %q, want %q", got, "╯")
 	}
-	if box.arrow != "?" {
-		t.Fatalf("rounded bottom arrow = %q, want %q", box.arrow, "?")
+	if got := string([]rune(box.lines[0])[box.arrowX-box.x]); got != "△" {
+		t.Fatalf("rounded top border arrow = %q, want %q", got, "△")
 	}
 }
-
 func TestResolveThemeDefaultsPreservesTooltipArrowStyle(t *testing.T) {
 	theme := resolveThemeDefaults(Theme{})
 	if theme.TooltipArrowStyle != TooltipArrowStyleSharp {

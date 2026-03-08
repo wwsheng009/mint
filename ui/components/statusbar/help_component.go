@@ -290,10 +290,6 @@ func (inst *overlayHelpInstance) Paint(x, y int) []paint.DrawCmd {
 		)
 	}
 
-	if box.hasArrow && box.arrow != "" {
-		cmds = append(cmds, paint.DrawCmd{X: box.arrowX, Y: box.arrowY, Text: box.arrow, Style: borderStyle})
-	}
-
 	shadowRune := "░"
 	for row := 0; row < box.shadowH; row++ {
 		cmds = append(cmds, paint.DrawCmd{
@@ -351,13 +347,8 @@ func (inst *overlayHelpInstance) computeTooltipBox(text string, anchor [4]int) o
 	shadowH := 1
 	tooltipX := resolveTooltipX(anchor, boxWidth, viewportWidth)
 	arrowX := resolveTooltipArrowX(anchor, tooltipX, boxWidth)
-	tooltipY, arrowY, placement := resolveTooltipY(anchor, inst.placement, boxHeight, inst.gapRows, inst.bottomOffsetRows, shadowH, viewportHeight)
-	hasArrow := arrowY >= 0 && (viewportHeight <= 0 || arrowY < viewportHeight)
-	boxLines := buildOverlayTooltipLines(lines, innerWidth, placement, inst.arrowStyle, hasArrow, arrowX-tooltipX)
-	shadowY := tooltipY + boxHeight
-	if placement == TooltipPlacementTop && hasArrow {
-		shadowY++
-	}
+	tooltipY, placement := resolveTooltipY(anchor, inst.placement, boxHeight, inst.gapRows, inst.bottomOffsetRows, shadowH, viewportHeight)
+	boxLines := buildOverlayTooltipLines(lines, innerWidth, placement, inst.arrowStyle, true, arrowX-tooltipX)
 
 	return overlayTooltipBox{
 		x:        tooltipX,
@@ -366,33 +357,34 @@ func (inst *overlayHelpInstance) computeTooltipBox(text string, anchor [4]int) o
 		height:   boxHeight,
 		lines:    boxLines,
 		shadowX:  tooltipX + 1,
-		shadowY:  shadowY,
+		shadowY:  tooltipY + boxHeight,
 		shadowW:  boxWidth,
 		shadowH:  shadowH,
 		arrowX:   arrowX,
-		arrowY:   arrowY,
+		arrowY:   -1,
 		arrow:    overlayTooltipArrowRune(placement, inst.arrowStyle),
-		hasArrow: hasArrow,
+		hasArrow: true,
 	}
 }
 
 func buildOverlayTooltipLines(lines []string, innerWidth int, placement TooltipPlacement, arrowStyle TooltipArrowStyle, hasArrow bool, arrowOffset int) []string {
 	topLeft, topRight, bottomLeft, bottomRight := tooltipCornerRunes(arrowStyle)
-	top := topLeft + strings.Repeat("?", innerWidth+2) + topRight
-	bottom := bottomLeft + strings.Repeat("?", innerWidth+2) + bottomRight
+	top := topLeft + strings.Repeat("─", innerWidth+2) + topRight
+	bottom := bottomLeft + strings.Repeat("─", innerWidth+2) + bottomRight
 	if hasArrow {
+		arrowRune := []rune(overlayTooltipArrowRune(placement, arrowStyle))[0]
 		switch placement {
 		case TooltipPlacementTop:
-			bottom = replaceBorderRune(bottom, arrowOffset, '?')
+			bottom = replaceBorderRune(bottom, arrowOffset, arrowRune)
 		default:
-			top = replaceBorderRune(top, arrowOffset, '?')
+			top = replaceBorderRune(top, arrowOffset, arrowRune)
 		}
 	}
 
 	boxLines := make([]string, 0, len(lines)+2)
 	boxLines = append(boxLines, top)
 	for _, line := range lines {
-		boxLines = append(boxLines, "? "+fitText(line, innerWidth, rtui.AlignStart, OverflowClip)+" ?")
+		boxLines = append(boxLines, "│ "+fitText(line, innerWidth, rtui.AlignStart, OverflowClip)+" │")
 	}
 	boxLines = append(boxLines, bottom)
 	return boxLines
@@ -423,7 +415,7 @@ func resolveTooltipArrowX(anchor [4]int, boxX, boxWidth int) int {
 	return arrowX
 }
 
-func resolveTooltipY(anchor [4]int, placement TooltipPlacement, boxHeight, gapRows, bottomOffsetRows, shadowH, viewportHeight int) (int, int, TooltipPlacement) {
+func resolveTooltipY(anchor [4]int, placement TooltipPlacement, boxHeight, gapRows, bottomOffsetRows, shadowH, viewportHeight int) (int, TooltipPlacement) {
 	if gapRows < 0 {
 		gapRows = 0
 	}
@@ -431,15 +423,13 @@ func resolveTooltipY(anchor [4]int, placement TooltipPlacement, boxHeight, gapRo
 		bottomOffsetRows = 0
 	}
 
-	aboveArrowY := anchor[1] - gapRows - 1
-	aboveBoxY := aboveArrowY - boxHeight
-	belowArrowY := anchor[1] + anchor[3] + gapRows + bottomOffsetRows
-	belowBoxY := belowArrowY + 1
+	aboveBoxY := anchor[1] - boxHeight - gapRows
+	belowBoxY := anchor[1] + anchor[3] + gapRows + bottomOffsetRows
 
 	resolved := placement
 	if resolved == TooltipPlacementAuto {
 		fitsBelow := viewportHeight <= 0 || belowBoxY+boxHeight+shadowH <= viewportHeight
-		fitsAbove := aboveBoxY >= 0 && (viewportHeight <= 0 || aboveBoxY+boxHeight+1+shadowH <= viewportHeight)
+		fitsAbove := aboveBoxY >= 0 && (viewportHeight <= 0 || aboveBoxY+boxHeight+shadowH <= viewportHeight)
 		switch {
 		case fitsAbove && !fitsBelow:
 			resolved = TooltipPlacementTop
@@ -448,23 +438,18 @@ func resolveTooltipY(anchor [4]int, placement TooltipPlacement, boxHeight, gapRo
 		default:
 			resolved = TooltipPlacementBottom
 		}
-		if viewportHeight <= 0 && anchor[1] > boxHeight+gapRows+1 {
+		if viewportHeight <= 0 && anchor[1] > boxHeight+gapRows {
 			resolved = TooltipPlacementTop
 		}
 	}
 
 	boxY := belowBoxY
-	arrowY := belowArrowY
 	if resolved == TooltipPlacementTop {
 		boxY = aboveBoxY
-		arrowY = aboveArrowY
 	}
 
 	if viewportHeight > 0 {
 		maxBoxY := viewportHeight - boxHeight - shadowH
-		if resolved == TooltipPlacementTop {
-			maxBoxY--
-		}
 		if maxBoxY < 0 {
 			maxBoxY = 0
 		}
@@ -474,34 +459,29 @@ func resolveTooltipY(anchor [4]int, placement TooltipPlacement, boxHeight, gapRo
 		if boxY > maxBoxY {
 			boxY = maxBoxY
 		}
-		if resolved == TooltipPlacementTop {
-			arrowY = boxY + boxHeight
-		} else {
-			arrowY = boxY - 1
-		}
 	}
 
-	return boxY, arrowY, resolved
+	return boxY, resolved
 }
 
 func overlayTooltipArrowRune(placement TooltipPlacement, arrowStyle TooltipArrowStyle) string {
 	if arrowStyle == TooltipArrowStyleRounded {
 		if placement == TooltipPlacementTop {
-			return "?"
+			return "▽"
 		}
-		return "?"
+		return "△"
 	}
 	if placement == TooltipPlacementTop {
-		return "?"
+		return "▼"
 	}
-	return "?"
+	return "▲"
 }
 
 func tooltipCornerRunes(arrowStyle TooltipArrowStyle) (string, string, string, string) {
 	if arrowStyle == TooltipArrowStyleRounded {
-		return "?", "?", "?", "?"
+		return "╭", "╮", "╰", "╯"
 	}
-	return "?", "?", "?", "?"
+	return "┌", "┐", "└", "┘"
 }
 
 func (inst *overlayHelpInstance) Measure(constraints layout.Constraints) layout.Size {

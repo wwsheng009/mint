@@ -415,9 +415,9 @@ func InteractionStatusBar(state AppState) ui.VNode {
 		).
 		HelpDisplayMode(ui.StatusBarHelpOverlay).
 		TooltipPlacement(ui.StatusBarTooltipAuto).
-		TooltipGapRows(1).
+		TooltipGapRows(0).
 		TooltipMaxWidth(38).
-		HelpPrefix("? ").
+		HelpPrefix("> ").
 		HelpFallback("Hover actions for overlay help | Click / Enter to trigger | F6 and Ctrl+1/2/3 still work").
 		Left(
 			ui.StatusBarActionBadge(" MODE ", "black", modeColor, SetInteractionModeIntent{Mode: nextMode}).

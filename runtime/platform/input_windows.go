@@ -53,6 +53,8 @@ func (r *windowsInputReader) Start(events chan<- RawInput) error {
 
 	r.events = events
 
+	setConsoleUTF8CodePage()
+
 	// DEBUG: 打印启动信息
 	log.PlatFormLogger.IfEnabled().Debug("[WIN INPUT] Starting...")
 
@@ -687,6 +689,8 @@ var (
 	kernel32                          = syscall.NewLazyDLL("kernel32.dll")
 	procGetConsoleMode                = kernel32.NewProc("GetConsoleMode")
 	procSetConsoleMode                = kernel32.NewProc("SetConsoleMode")
+	procSetConsoleCP                  = kernel32.NewProc("SetConsoleCP")
+	procSetConsoleOutputCP            = kernel32.NewProc("SetConsoleOutputCP")
 	procGetStdHandle                  = kernel32.NewProc("GetStdHandle")
 	procReadConsoleInput              = kernel32.NewProc("ReadConsoleInputW")
 	procGetNumberOfConsoleInputEvents = kernel32.NewProc("GetNumberOfConsoleInputEvents")
@@ -694,13 +698,20 @@ var (
 )
 
 func enableVirtualTerminal() error {
+	setConsoleUTF8CodePage()
 	stdout := windows.Handle(os.Stdout.Fd())
 	var mode uint32
 	if err := windows.GetConsoleMode(stdout, &mode); err != nil {
 		return err
 	}
-	// 打开 ANSI 支持
+	// ?? ANSI ??
 	return windows.SetConsoleMode(stdout, mode|windows.ENABLE_VIRTUAL_TERMINAL_PROCESSING)
+}
+
+func setConsoleUTF8CodePage() {
+	const utf8CodePage = 65001
+	procSetConsoleCP.Call(uintptr(utf8CodePage))
+	procSetConsoleOutputCP.Call(uintptr(utf8CodePage))
 }
 
 // restoreTerminalImpl Windows 终端恢复实现
