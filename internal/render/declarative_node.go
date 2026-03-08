@@ -78,6 +78,7 @@ type DeclarativeNode struct {
 
 	// === Paintable Result Storage ===
 	lastPaintableRoot *paint.PaintableBox // Last paintable layout result (for GetPaintableBoxes)
+	lastPaintDirtyRects []paint.Rect      // Dirty rect hints from last paintable tree
 
 	// === Portal Box Debug Storage ===
 	lastPortalBoxes []*layout.LayoutBox // Portal boxes from last layout (for debugging)
@@ -544,6 +545,7 @@ func (n *DeclarativeNode) fiberFirstPaint(ctx paint.PaintContext, buf *paint.Buf
 		// Save paintable root for GetPaintableBoxes()
 		n.mu.Lock()
 		n.lastPaintableRoot = paintableLayout.Root
+		n.lastPaintDirtyRects = collectPaintableDirtyRects(paintableLayout.Root)
 		n.mu.Unlock()
 
 		// Build PaintablePlanes from PaintableLayout
@@ -1887,6 +1889,47 @@ func (n *DeclarativeNode) GetPaintableRoot() *paint.PaintableBox {
 	defer n.mu.RUnlock()
 
 	return n.lastPaintableRoot
+}
+
+// GetPaintDirtyRects returns dirty rect hints collected from the last paintable tree.
+// These hints are optional and used by the terminal renderer for incremental repaint planning.
+func (n *DeclarativeNode) GetPaintDirtyRects() []paint.Rect {
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+
+	if len(n.lastPaintDirtyRects) == 0 {
+		return nil
+	}
+	rects := make([]paint.Rect, len(n.lastPaintDirtyRects))
+	copy(rects, n.lastPaintDirtyRects)
+	return rects
+}
+
+func collectPaintableDirtyRects(root *paint.PaintableBox) []paint.Rect {
+	if root == nil {
+		return nil
+	}
+
+	rects := make([]paint.Rect, 0, 8)
+	var walk func(box *paint.PaintableBox)
+	walk = func(box *paint.PaintableBox) {
+		if box == nil {
+			return
+		}
+		if box.LayoutDirty && box.Width > 0 && box.Height > 0 {
+			rects = append(rects, paint.Rect{
+				X:      box.X,
+				Y:      box.Y,
+				Width:  box.Width,
+				Height: box.Height,
+			})
+		}
+		for _, child := range box.Children {
+			walk(child)
+		}
+	}
+	walk(root)
+	return rects
 }
 
 

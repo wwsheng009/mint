@@ -13,7 +13,7 @@ import (
 // =============================================================================
 // 从 cell diff 升级到 line diff 架构
 // 核心原则：只要一行任意 cell 改变 → 整行重新渲染
-// 
+//
 // 优势：
 // - 解决折叠/展开导致的行位移问题
 // - 解决 UI 结构变化导致的残留字符
@@ -45,6 +45,11 @@ type Renderer struct {
 
 	// 渲染模式
 	useLineDiff bool // 是否使用行级 diff（默认 true）
+	forceFull   bool // 强制下一帧全量渲染
+
+	// 脏区域提示（来自 Fiber/PaintableBox 管线）
+	// 注意：这是“提示”，不是强约束；渲染仍以 buffer diff 为准保证正确性。
+	dirtyHints []Rect
 
 	// 统计信息
 	changedLines int // 最近一次渲染变化的行数
@@ -59,6 +64,7 @@ func NewRenderer(width, height int) *Renderer {
 		cursorX:     -1,
 		cursorY:     -1,
 		useLineDiff: true, // 默认使用行级 diff
+		dirtyHints:  make([]Rect, 0),
 	}
 }
 
@@ -98,26 +104,49 @@ func (r *Renderer) Render() string {
 		r.front.Rehash()
 	}
 
-	// 执行行级 diff
+	// 将脏区域提示转换为行集合（作为“额外渲染提示”）
+	hintLines := rectsToLines(r.dirtyHints, r.back.Height)
+
+	// 默认使用行级 diff，确保正确性
 	diff := LineDiff(r.front, r.back)
 
-	// 更新统计信息
-	r.changedLines = len(diff.ChangedLines)
+	var linesToRender []int
+	hasChanges := diff.HasChanges
 
-	log.RenderLogger.Debug("[RENDER] HasChanges=%v, ChangedLines=%d, HasScroll=%v",
-		diff.HasChanges, r.changedLines, diff.HasScroll)
+	// useLineDiff=false 时，回退为保守策略：有变化则整屏行重绘
+	if !r.useLineDiff {
+		if diff.HasChanges || r.forceFull || len(hintLines) > 0 {
+			linesToRender = allLines(r.back.Height)
+			hasChanges = len(linesToRender) > 0
+		}
+	} else if r.forceFull {
+		// 强制全量渲染
+		linesToRender = allLines(r.back.Height)
+		hasChanges = len(linesToRender) > 0
+	} else {
+		// 常规行级 diff
+		linesToRender = unionLines(diff.ChangedLines, hintLines, r.back.Height)
+		if len(linesToRender) > 0 {
+			hasChanges = true
+		}
+	}
 
-	if !diff.HasChanges {
+	r.changedLines = len(linesToRender)
+	log.RenderLogger.Debug("[RENDER] HasChanges=%v, ChangedLines=%d, HasScroll=%v, UseLineDiff=%v, HintRects=%d, ForceFull=%v",
+		hasChanges, r.changedLines, diff.HasScroll, r.useLineDiff, len(r.dirtyHints), r.forceFull)
+
+	if !hasChanges {
+		r.clearFrameHintsLocked()
 		return "" // 无变化，不输出
 	}
 
 	// 处理滚动（如果检测到）
-	if diff.HasScroll {
+	if r.useLineDiff && !r.forceFull && diff.HasScroll {
 		r.emitScroll(diff.ScrollAmount)
 	}
 
 	// 渲染变化的行
-	for _, y := range diff.ChangedLines {
+	for _, y := range linesToRender {
 		r.renderFullLine(y)
 	}
 
@@ -127,6 +156,7 @@ func (r *Renderer) Render() string {
 
 	// 交换缓冲区
 	r.swapBuffers()
+	r.clearFrameHintsLocked()
 
 	output := r.output.String()
 	log.RenderLogger.Debug("[RENDER] output length=%d bytes", len(output))
@@ -221,12 +251,10 @@ func (r *Renderer) renderFullLine(y int) {
 // emitRunWithWidth 输出一个渲染批次（带宽度参数，用于正确跟踪光标）
 // 对于边框字符，使用 cell width 而非 runewidth.StringWidth，避免光标位置错误
 func (r *Renderer) emitRunWithWidth(x, y int, runStyle style.Style, text string, textWidth int) {
-	// 即使 text 为空，也要更新 cursorX 以保持光标同步
-	// 这对于处理空单元格或 continuation 单元格很重要
-	r.cursorX = x + textWidth
-	r.cursorY = y
-
 	if text == "" {
+		// 空文本也要更新内部光标状态，避免后续相对移动基准错误。
+		r.cursorX = x + textWidth
+		r.cursorY = y
 		return
 	}
 
@@ -243,6 +271,10 @@ func (r *Renderer) emitRunWithWidth(x, y int, runStyle style.Style, text string,
 
 	// 输出文本
 	r.output.WriteString(text)
+
+	// 文本写入后，更新内部光标到 run 末尾
+	r.cursorX = x + textWidth
+	r.cursorY = y
 }
 
 // emitScroll 发送滚动 ANSI 命令
@@ -347,6 +379,7 @@ func (r *Renderer) Resize(width, height int) {
 
 	r.front = NewBuffer(width, height)
 	r.back = NewBuffer(width, height)
+	r.clearFrameHintsLocked()
 }
 
 // GetFrontBuffer 获取前缓冲区（用于测试）
@@ -355,16 +388,21 @@ func (r *Renderer) GetFrontBuffer() *Buffer {
 }
 
 // MarkDirty 标记整个缓冲区为脏（兼容 API）
-// 在 Renderer 2.0 中，此方法不再需要，因为每帧都会重新计算 hash
+// 在 Renderer 2.0 中，此方法保持 no-op 以兼容历史调用点。
+// 强制全量渲染请使用 ForceFullRender().
 func (r *Renderer) MarkDirty() {
-	// No-op in Renderer 2.0
-	// Line diff automatically detects all changes
+	// No-op (compatibility)
 }
 
 // MarkDirtyRect 标记矩形区域为脏（兼容 API）
 // 在 Renderer 2.0 中，此方法不再需要
 func (r *Renderer) MarkDirtyRect(rect Rect) {
-	// No-op in Renderer 2.0
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if rect.Width <= 0 || rect.Height <= 0 {
+		return
+	}
+	r.dirtyHints = append(r.dirtyHints, rect)
 }
 
 // ForceFullRender 强制下一帧全量渲染
@@ -372,6 +410,9 @@ func (r *Renderer) MarkDirtyRect(rect Rect) {
 func (r *Renderer) ForceFullRender() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+
+	r.forceFull = true
+	r.dirtyHints = r.dirtyHints[:0]
 
 	// 清空 front buffer，强制下一帧全量渲染
 	if r.front != nil {
@@ -402,9 +443,88 @@ func (r *Renderer) Reset() {
 
 	r.ResetState()
 	r.output.Reset()
+	r.clearFrameHintsLocked()
 }
 
 // UseLineDiff 设置是否使用行级 diff
 func (r *Renderer) UseLineDiff(enabled bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.useLineDiff = enabled
+}
+
+// clearFrameHintsLocked clears one-frame dirty hints.
+// Caller must hold r.mu.
+func (r *Renderer) clearFrameHintsLocked() {
+	r.forceFull = false
+	if len(r.dirtyHints) > 0 {
+		r.dirtyHints = r.dirtyHints[:0]
+	}
+}
+
+// rectsToLines converts dirty rect hints into affected line indices.
+func rectsToLines(rects []Rect, height int) []int {
+	if height <= 0 || len(rects) == 0 {
+		return nil
+	}
+	marks := make([]bool, height)
+	for _, rect := range rects {
+		if rect.Width <= 0 || rect.Height <= 0 {
+			continue
+		}
+		startY := rect.Y
+		endY := rect.Y + rect.Height
+		if startY < 0 {
+			startY = 0
+		}
+		if endY > height {
+			endY = height
+		}
+		for y := startY; y < endY; y++ {
+			marks[y] = true
+		}
+	}
+	lines := make([]int, 0, height)
+	for y, marked := range marks {
+		if marked {
+			lines = append(lines, y)
+		}
+	}
+	return lines
+}
+
+// unionLines merges changed lines and hint lines, deduplicated and ordered.
+func unionLines(a, b []int, height int) []int {
+	if height <= 0 {
+		return nil
+	}
+	marks := make([]bool, height)
+	for _, y := range a {
+		if y >= 0 && y < height {
+			marks[y] = true
+		}
+	}
+	for _, y := range b {
+		if y >= 0 && y < height {
+			marks[y] = true
+		}
+	}
+	out := make([]int, 0, height)
+	for y, marked := range marks {
+		if marked {
+			out = append(out, y)
+		}
+	}
+	return out
+}
+
+func allLines(height int) []int {
+	if height <= 0 {
+		return nil
+	}
+	lines := make([]int, 0, height)
+	for y := 0; y < height; y++ {
+		lines = append(lines, y)
+	}
+	return lines
 }

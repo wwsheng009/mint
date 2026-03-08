@@ -145,6 +145,17 @@ func (b *Buffer) writeString(x, y int, text string, s style.Style, maxWidth int)
 			continue
 		}
 
+		// maxWidth 为绝对终止列（exclusive）。
+		// 例如 x=10, maxWidth=17 时，只允许写入 [10,16]。
+		if maxWidth > 0 {
+			if col >= maxWidth {
+				break
+			}
+			if col+width > maxWidth {
+				break
+			}
+		}
+
 		// 边界检查
 		if col >= b.Width {
 			break

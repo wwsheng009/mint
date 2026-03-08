@@ -1470,6 +1470,14 @@ func (a *App) render() {
 				a.renderer.ForceFullRender() // 强制全屏渲染
 			}
 
+			// Fiber-first 路径：将 PaintableBox 脏矩形作为渲染提示传给 Renderer。
+			// 这是提示信息，Renderer 仍会以 buffer diff 作为最终正确性依据。
+			if dirtyProvider, ok := a.root.(interface{ GetPaintDirtyRects() []paint.Rect }); ok {
+				for _, rect := range dirtyProvider.GetPaintDirtyRects() {
+					a.renderer.MarkDirtyRect(rect)
+				}
+			}
+
 			// 使用新的 Renderer 输出（自动 diff + run merging + 光标优化）
 			output := a.renderer.Render()
 

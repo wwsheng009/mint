@@ -97,7 +97,33 @@ func (e *PaintEngine) SetDebug(debug bool) {
 // PaintLayout renders a PaintableLayout to a buffer.
 // This is the new decoupled API that operates on paint.PaintableLayout.
 func (e *PaintEngine) PaintLayout(layout *paint.PaintableLayout, buffer *paint.Buffer) error {
+	return e.paintLayout(layout, buffer, true)
+}
+
+// paintLayout renders one paintable layout.
+// clearOnEmptyRoot should only be true for top-level/full-frame calls.
+// When painting individual boxes (e.g. PaintPaintablePlanes), a zero-sized box
+// must not clear the entire target buffer.
+func (e *PaintEngine) paintLayout(layout *paint.PaintableLayout, buffer *paint.Buffer, clearOnEmptyRoot bool) error {
 	if layout == nil || layout.Root == nil {
+		return nil
+	}
+
+	// Empty/zero-sized root can represent "no content" for top-level layout calls.
+	// But in per-box painting mode, zero-sized boxes are valid and must not clear
+	// the whole buffer.
+	if layout.Root.Width <= 0 || layout.Root.Height <= 0 {
+		if clearOnEmptyRoot && len(layout.Root.Children) == 0 {
+			buffer.Clear()
+		}
+		// Nothing to paint for this root itself.
+		if len(layout.Root.Children) == 0 {
+			return nil
+		}
+		// Continue so zero-sized container roots can still paint visible children.
+	}
+
+	if buffer == nil {
 		return nil
 	}
 
@@ -150,14 +176,14 @@ func (e *PaintEngine) paintBox(box *paint.PaintableBox, buffer *paint.Buffer) er
 
 	// Check cache first (for leaf nodes without custom paint commands)
 	// Skip caching for nodes with dynamic content (like text inputs, animations)
-	boxID := box.Node.ID()
-	if e.enableCache && e.paintContext != nil && boxID != "" {
+	cacheKey := e.boxCacheKey(box)
+	if e.enableCache && e.paintContext != nil && cacheKey != "" {
 		// Only try caching for nodes that are likely cacheable (simple layout nodes)
 		// Skip nodes with custom paint commands, children, or dynamic content
 		hasCustomPaint := box.Node.Paint(box.X, box.Y)
 		if len(box.Children) == 0 && len(hasCustomPaint) == 0 {
 			// Try to paint from cache
-			if e.paintContext.TryPaintFromCache(buffer, boxID, box.X, box.Y) {
+			if e.paintContext.TryPaintFromCache(buffer, cacheKey, box.X, box.Y) {
 				return nil // Successfully painted from cache
 			}
 		}
@@ -187,9 +213,9 @@ func (e *PaintEngine) paintBox(box *paint.PaintableBox, buffer *paint.Buffer) er
 		// For leaf nodes (no children), we're done
 		if len(box.Children) == 0 {
 			// Update cache for leaf nodes with custom paint
-			if e.enableCache && e.paintContext != nil && boxID != "" {
+			if e.enableCache && e.paintContext != nil && cacheKey != "" {
 				rect := layout.Rect{X: box.X, Y: box.Y, Width: box.Width, Height: box.Height}
-				e.paintContext.UpdateCache(boxID, rect, buffer)
+				e.paintContext.UpdateCache(cacheKey, rect, buffer)
 			}
 			return nil
 		}
@@ -227,38 +253,38 @@ func (e *PaintEngine) paintBox(box *paint.PaintableBox, buffer *paint.Buffer) er
 
 // paintTextBox paints a text node (PaintableBox version)
 func (e *PaintEngine) paintTextBox(box *paint.PaintableBox, buffer *paint.Buffer) {
-	boxID := box.Node.ID()
+	cacheKey := e.boxCacheKey(box)
 	text := box.RenderedText
 	if text == "" {
 		text = box.Node.TextContent()
 	}
 	if text != "" {
-		// Use box.Width as the max width (relative), not absolute maxX
-		buffer.SetStringAligned(box.X, box.Y, text, box.Node.Style(), box.Width)
+		// SetStringAligned expects an absolute maxX; clip text to box bounds.
+		buffer.SetStringAligned(box.X, box.Y, text, box.Node.Style(), box.X+box.Width)
 
 		// Update cache for text box (if cacheable)
-		if e.enableCache && e.paintContext != nil && boxID != "" {
+		if e.enableCache && e.paintContext != nil && cacheKey != "" {
 			rect := layout.Rect{X: box.X, Y: box.Y, Width: box.Width, Height: box.Height}
-			e.paintContext.UpdateCache(boxID, rect, buffer)
+			e.paintContext.UpdateCache(cacheKey, rect, buffer)
 		}
 	}
 }
 
 // paintElementBox paints an element node (PaintableBox version)
 func (e *PaintEngine) paintElementBox(box *paint.PaintableBox, buffer *paint.Buffer) {
-	boxID := box.Node.ID()
+	cacheKey := e.boxCacheKey(box)
 	content := box.RenderedText
 	if content == "" {
 		content = box.Node.TextContent()
 	}
 	if content != "" {
-		// Use box.Width as the max width (relative), not absolute maxX
-		buffer.SetStringAligned(box.X, box.Y, content, box.Node.Style(), box.Width)
+		// SetStringAligned expects an absolute maxX; clip text to box bounds.
+		buffer.SetStringAligned(box.X, box.Y, content, box.Node.Style(), box.X+box.Width)
 
 		// Update cache for element with content (if cacheable)
-		if e.enableCache && e.paintContext != nil && boxID != "" {
+		if e.enableCache && e.paintContext != nil && cacheKey != "" {
 			rect := layout.Rect{X: box.X, Y: box.Y, Width: box.Width, Height: box.Height}
-			e.paintContext.UpdateCache(boxID, rect, buffer)
+			e.paintContext.UpdateCache(cacheKey, rect, buffer)
 		}
 		return
 	}
@@ -553,14 +579,7 @@ func (e *PaintEngine) PaintPaintablePlanes(
 	for _, layer := range planes.GetRenderOrder() {
 		boxes := planes.GetLayer(layer)
 		for _, box := range boxes {
-			if box.Node != nil {
-				e.currentFrameBoxes[box.Node.ID()] = runtime.Box{
-					X:      box.X,
-					Y:      box.Y,
-					Width:  box.Width,
-					Height: box.Height,
-				}
-			}
+			e.collectFrameBoxes(box)
 		}
 	}
 
@@ -578,7 +597,8 @@ func (e *PaintEngine) PaintPaintablePlanes(
 
 		for _, box := range boxes {
 			layout := paint.NewPaintableLayout(box)
-			if err := e.PaintLayout(layout, buffer); err != nil {
+			// Per-box render: never allow a zero-sized child to clear the full buffer.
+			if err := e.paintLayout(layout, buffer, false); err != nil {
 				return fmt.Errorf("error painting box in layer %s: %w", layer.String(), err)
 			}
 		}
@@ -616,6 +636,38 @@ func (e *PaintEngine) clearOutdatedRegions(buffer *paint.Buffer) {
 			e.clearRegion(prevBounds, buffer) // Clear old position
 		}
 	}
+}
+
+func (e *PaintEngine) collectFrameBoxes(box *paint.PaintableBox) {
+	if box == nil {
+		return
+	}
+	key := e.boxTrackingKey(box)
+	if key != "" {
+		e.currentFrameBoxes[key] = runtime.Box{
+			X:      box.X,
+			Y:      box.Y,
+			Width:  box.Width,
+			Height: box.Height,
+		}
+	}
+	for _, child := range box.Children {
+		e.collectFrameBoxes(child)
+	}
+}
+
+func (e *PaintEngine) boxTrackingKey(box *paint.PaintableBox) string {
+	if box == nil || box.Node == nil {
+		return ""
+	}
+	return fmt.Sprintf("%s@%d,%d,%d,%d", box.Node.ID(), box.X, box.Y, box.Width, box.Height)
+}
+
+func (e *PaintEngine) boxCacheKey(box *paint.PaintableBox) string {
+	if box == nil || box.Node == nil {
+		return ""
+	}
+	return fmt.Sprintf("%s@%d,%d,%d,%d", box.Node.ID(), box.X, box.Y, box.Width, box.Height)
 }
 
 // PrintBoxTrackingLogs prints current and previous frame box tracking for debugging

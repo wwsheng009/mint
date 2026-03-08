@@ -29,21 +29,21 @@ import (
 
 // MockPaintableTextNode is a simple PaintableNode that holds text content
 type MockPaintableTextNode struct {
-	id          string
-	text        string
-	nodeType    paint.NodeType
-	style       style.Style
+	id       string
+	text     string
+	nodeType paint.NodeType
+	style    style.Style
 }
 
-func (m *MockPaintableTextNode) ID() string                              { return m.id }
-func (m *MockPaintableTextNode) Type() string                            { return "MockText" }
-func (m *MockPaintableTextNode) Tag() string                             { return "text" }
-func (m *MockPaintableTextNode) TextContent() string                     { return m.text }
-func (m *MockPaintableTextNode) NodeType() paint.NodeType                { return m.nodeType }
-func (m *MockPaintableTextNode) Style() style.Style                      { return m.style }
-func (m *MockPaintableTextNode) SetStyle(s style.Style)                  { m.style = s }
-func (m *MockPaintableTextNode) Paint(x, y int) []paint.DrawCmd       { return nil }
-func (m *MockPaintableTextNode) Children() []paint.PaintableNode         { return nil }
+func (m *MockPaintableTextNode) ID() string                      { return m.id }
+func (m *MockPaintableTextNode) Type() string                    { return "MockText" }
+func (m *MockPaintableTextNode) Tag() string                     { return "text" }
+func (m *MockPaintableTextNode) TextContent() string             { return m.text }
+func (m *MockPaintableTextNode) NodeType() paint.NodeType        { return m.nodeType }
+func (m *MockPaintableTextNode) Style() style.Style              { return m.style }
+func (m *MockPaintableTextNode) SetStyle(s style.Style)          { m.style = s }
+func (m *MockPaintableTextNode) Paint(x, y int) []paint.DrawCmd  { return nil }
+func (m *MockPaintableTextNode) Children() []paint.PaintableNode { return nil }
 
 // NewMockPaintableTextNode creates a new mock text node
 func NewMockPaintableTextNode(id, text string) *MockPaintableTextNode {
@@ -73,7 +73,7 @@ func TestPaintEngine_TextLengthChange_BugReproduction(t *testing.T) {
 	// Create a text node with initial long text (using ASCII for reliable testing)
 	longText := "Count: 0    [  +  ]   *[  -  ]"
 	textNode1 := NewMockPaintableTextNode("count-0", longText)
-	box1 := paint.NewPaintableBoxWithBounds(textNode1, 0, 0, 30, 1)  // box width = 30
+	box1 := paint.NewPaintableBoxWithBounds(textNode1, 0, 0, 30, 1) // box width = 30
 	layout1 := paint.NewPaintableLayout(box1)
 
 	// Frame 1: Paint long text
@@ -96,8 +96,8 @@ func TestPaintEngine_TextLengthChange_BugReproduction(t *testing.T) {
 
 	// Frame 2: Update text to shorter content
 	shortText := "Count: 1   *[  +  ]"
-	textNode2 := NewMockPaintableTextNode("count-1", shortText)  // Same ID to simulate update
-	box2 := paint.NewPaintableBoxWithBounds(textNode2, 0, 0, 30, 1)  // Same position and width
+	textNode2 := NewMockPaintableTextNode("count-1", shortText)     // Same ID to simulate update
+	box2 := paint.NewPaintableBoxWithBounds(textNode2, 0, 0, 30, 1) // Same position and width
 	layout2 := paint.NewPaintableLayout(box2)
 
 	// Use the same engine instance to enable smart buffer clearing
@@ -116,7 +116,7 @@ func TestPaintEngine_TextLengthChange_BugReproduction(t *testing.T) {
 		if i < len(shortRunes) {
 			expectedString = string(shortRunes[i])
 		} else {
-			expectedString = " "  // Should be space after text ends
+			expectedString = " " // Should be space after text ends
 		}
 
 		if cell.Cluster != expectedString {
@@ -166,11 +166,11 @@ func TestPaintEngine_MultiComponent_BugReproduction(t *testing.T) {
 
 	// Frame 2: Move box1 from x=10 to x=20
 	// Reuse the same node ID with same text to simulate component update with layout change
-	textNode3 := NewMockPaintableTextNode("movable-box", "HELLO")  // Same ID as Frame 1!
-	box3 := paint.NewPaintableBoxWithBounds(textNode3, 20, 5, 8, 1)   // Moved to x=20
+	textNode3 := NewMockPaintableTextNode("movable-box", "HELLO")   // Same ID as Frame 1!
+	box3 := paint.NewPaintableBoxWithBounds(textNode3, 20, 5, 8, 1) // Moved to x=20
 
 	// Static box stays in place
-	box4 := paint.NewPaintableBoxWithBounds(textNode2, 30, 5, 8, 1)   // Same box2
+	box4 := paint.NewPaintableBoxWithBounds(textNode2, 30, 5, 8, 1) // Same box2
 
 	planes2 := paint.NewPaintablePlanes()
 	planes2.AddToLayer(paint.RenderLayerBase, box3)
@@ -328,7 +328,7 @@ func TestPaintEngine_ComponentRemoval_BugReproduction(t *testing.T) {
 
 	// Frame 2: Remove component (render empty layout)
 	// In production, component removed from tree
-	engine2 := NewPaintEngine()  // Fresh engine
+	engine2 := NewPaintEngine() // Fresh engine
 
 	emptyNode := NewMockPaintableTextNode("empty", "")
 	emptyBox := paint.NewPaintableBoxWithBounds(emptyNode, 0, 0, 0, 0)
@@ -359,6 +359,34 @@ func TestPaintEngine_ComponentRemoval_BugReproduction(t *testing.T) {
 	t.Log("Frame 2: ✓ Verified removal zone is clear")
 }
 
+// TestPaintEngine_Planes_ZeroSizeBox_NoFullBufferClear ensures zero-sized boxes
+// in PaintPaintablePlanes do not clear the whole frame.
+func TestPaintEngine_Planes_ZeroSizeBox_NoFullBufferClear(t *testing.T) {
+	engine := NewPaintEngine()
+	buffer := paint.NewBuffer(80, 25)
+
+	visibleNode := NewMockPaintableTextNode("visible-node", "VISIBLE")
+	visibleBox := paint.NewPaintableBoxWithBounds(visibleNode, 5, 10, 20, 1)
+
+	zeroNode := NewMockPaintableTextNode("zero-node", "")
+	zeroBox := paint.NewPaintableBoxWithBounds(zeroNode, 0, 0, 0, 0)
+
+	planes := paint.NewPaintablePlanes()
+	// Intentionally paint visible content first, then a zero-sized box.
+	// A full-buffer clear during the zero-sized pass would erase "VISIBLE".
+	planes.AddToLayer(paint.RenderLayerBase, visibleBox)
+	planes.AddToLayer(paint.RenderLayerBase, zeroBox)
+
+	if err := engine.PaintPaintablePlanes(planes, buffer); err != nil {
+		t.Fatalf("PaintPaintablePlanes() error = %v", err)
+	}
+
+	got := buffer.GetContent(5, 10).Cluster
+	if got != "V" {
+		t.Fatalf("expected visible content at (5,10), got %q", got)
+	}
+}
+
 // =============================================================================
 // Test Case 4: Planes - Multi-layer rendering bug
 // =============================================================================
@@ -381,7 +409,7 @@ func TestPaintEngine_Planes_BufferWipeout(t *testing.T) {
 	}
 
 	// Frame 2: Paint shorter content at same position
-	textNode2 := NewMockPaintableTextNode("plane-1", "SHORT")  // Same ID!
+	textNode2 := NewMockPaintableTextNode("plane-1", "SHORT") // Same ID!
 	box2 := paint.NewPaintableBoxWithBounds(textNode2, 0, 0, 20, 1)
 
 	planes2 := paint.NewPaintablePlanes()
@@ -402,7 +430,7 @@ func TestPaintEngine_Planes_BufferWipeout(t *testing.T) {
 		if i < len(expectedText) {
 			expectedChar = []rune(expectedText)[i]
 		} else {
-			expectedChar = ' '  // Should be space after text ends
+			expectedChar = ' ' // Should be space after text ends
 		}
 
 		if cell.Cluster != string(expectedChar) {

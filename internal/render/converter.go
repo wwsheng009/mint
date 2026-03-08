@@ -149,6 +149,9 @@ func (c *FiberToPaintableConverter) findFiber(id string) *reconciler.Fiber {
 func (c *FiberToPaintableConverter) fillFromFiber(pbox *paint.PaintableBox, fiber *reconciler.Fiber) {
 	pbox.NodeID = fiber.NodeID
 	pbox.DiffKey = fiber.DiffKey
+	pbox.LayoutDirty = fiber.IsLayoutDirty() ||
+		fiber.IsPaintDirty() ||
+		(fiber.Flags&(reconciler.EffectPlacement|reconciler.EffectUpdate|reconciler.EffectDeletion) != 0)
 	
 	// PaintableNode interface (wraps Fiber)
 	pbox.Node = NewFiberPaintableNode(fiber)
