@@ -139,8 +139,8 @@ func TestOverlayTooltipWrapsMultilineContent(t *testing.T) {
 func TestOverlayTooltipUsesGapRows(t *testing.T) {
 	inst := &overlayHelpInstance{bounds: [4]int{0, 0, 40, 12}, placement: TooltipPlacementBottom, maxContentWidth: 12, gapRows: 2}
 	box := inst.computeTooltipBox("Tooltip", [4]int{10, 2, 4, 1})
-	if box.y != 5 {
-		t.Fatalf("bottom gap y = %d, want 5", box.y)
+	if box.y != 6 {
+		t.Fatalf("bottom gap y = %d, want 6", box.y)
 	}
 
 	inst.placement = TooltipPlacementTop
@@ -167,6 +167,40 @@ func TestOverlayTooltipOnlyShowsHoveredHelp(t *testing.T) {
 	model.Update("demo", 0, "Overlay tooltip content", true, true, [4]int{5, 2, 4, 1})
 	if cmds := inst.Paint(0, 0); len(cmds) == 0 {
 		t.Fatal("hovered overlay should paint commands")
+	}
+}
+
+func TestOverlayTooltipAddsArrowBubbleBelowAnchor(t *testing.T) {
+	inst := &overlayHelpInstance{bounds: [4]int{0, 0, 40, 12}, placement: TooltipPlacementBottom, maxContentWidth: 16, gapRows: 1}
+	box := inst.computeTooltipBox("Tooltip", [4]int{10, 2, 4, 1})
+	if !box.hasArrow {
+		t.Fatal("expected overlay arrow to be enabled")
+	}
+	if box.arrowY != box.y-1 {
+		t.Fatalf("arrow y = %d, want %d", box.arrowY, box.y-1)
+	}
+	if got := string([]rune(box.lines[0])[box.arrowX-box.x]); got != "┬" {
+		t.Fatalf("top connector = %q, want %q", got, "┬")
+	}
+	if box.arrow != "▲" {
+		t.Fatalf("arrow rune = %q, want %q", box.arrow, "▲")
+	}
+}
+
+func TestOverlayTooltipAddsArrowBubbleAboveAnchor(t *testing.T) {
+	inst := &overlayHelpInstance{bounds: [4]int{0, 0, 40, 12}, placement: TooltipPlacementTop, maxContentWidth: 16, gapRows: 1}
+	box := inst.computeTooltipBox("Tooltip", [4]int{10, 8, 4, 1})
+	if !box.hasArrow {
+		t.Fatal("expected overlay arrow to be enabled")
+	}
+	if box.arrowY != box.y+box.height {
+		t.Fatalf("arrow y = %d, want %d", box.arrowY, box.y+box.height)
+	}
+	if got := string([]rune(box.lines[len(box.lines)-1])[box.arrowX-box.x]); got != "┴" {
+		t.Fatalf("bottom connector = %q, want %q", got, "┴")
+	}
+	if box.arrow != "▼" {
+		t.Fatalf("arrow rune = %q, want %q", box.arrow, "▼")
 	}
 }
 

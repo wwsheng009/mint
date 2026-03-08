@@ -18,6 +18,7 @@
 - Overlay wrapping: `TooltipMaxWidth(...)` limits content width and wraps to multiple lines
 - Overlay gap: `TooltipGapRows(...)` adds a clearer vertical separation from the anchor
 - Overlay visibility: overlay tooltips only appear while the mouse is hovering the section
+- Overlay bubble arrow: tooltips render an anchor-pointing arrow by default
 - 主题默认值：`Theme(...)` 可为未显式着色的节提供统一样式
 - 外层留白：`Padding(...)` 可用于和正文区域分隔
 
