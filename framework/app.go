@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/wwsheng009/mint/framework/component"
@@ -88,6 +89,10 @@ type App struct {
 	// ============================================================================
 	// Renderer 提供双缓冲、diff、run merging 等优化
 	renderer *paint.Renderer
+	// Async renderer (optional, enabled by env MINT_ASYNC_RENDER=true)
+	asyncRenderer      *paint.AsyncRenderer
+	asyncRenderEnabled bool
+	asyncFrameInterval time.Duration
 
 	// 上一帧缓冲区（用于局部刷新） - deprecated，保留用于兼容
 	prevBuffer [][]paint.Cell
@@ -137,8 +142,8 @@ type App struct {
 	// 根据 docs/event/PRESSED_STATE_COMPLETE_SOLUTION.md 的设计：
 	// - InputTracker: 追踪输入状态变化，推断边缘事件
 	// - InteractionContext: 全局交互状态管理，分配 Click/Cancel/ResetPressed
-	inputTracker     *input.InputTracker
-	interactionCtx   *interaction.InteractionContext
+	inputTracker   *input.InputTracker
+	interactionCtx *interaction.InteractionContext
 
 	// ============================================================================
 	// 调试支持
@@ -150,18 +155,22 @@ type App struct {
 
 // NewApp 创建新应用 (Phase 1: 初始化 Action 系统)
 func NewApp() *App {
+	asyncRenderEnabled, asyncFrameInterval := asyncRenderConfigFromEnv()
+
 	app := &App{
-		router:       frameworkevent.NewRouter(),
-		keyMap:       frameworkevent.NewKeyMap(),
-		focusManager: rtui.NewFiberFocusManager(),                        // Fiber-first: Focus manager
-		eventFilter:  func(ev frameworkevent.Event) bool { return true }, // 默认放行所有事件
-		quit:         make(chan struct{}, 1),
-		tickInterval: 16 * time.Millisecond, // ~60fps
-		firstRender:  true,
-		throttler:    render.NewThrottler(60), // 默认 60 FPS
-		contextMgr:   core.NewContextManager(context.Background()),
-		userData:     make(map[string]interface{}),
-		renderer:     paint.NewRenderer(80, 24), // 新增：初始化 Renderer
+		router:             frameworkevent.NewRouter(),
+		keyMap:             frameworkevent.NewKeyMap(),
+		focusManager:       rtui.NewFiberFocusManager(),                        // Fiber-first: Focus manager
+		eventFilter:        func(ev frameworkevent.Event) bool { return true }, // 默认放行所有事件
+		quit:               make(chan struct{}, 1),
+		tickInterval:       16 * time.Millisecond, // ~60fps
+		firstRender:        true,
+		throttler:          render.NewThrottler(60), // 默认 60 FPS
+		contextMgr:         core.NewContextManager(context.Background()),
+		userData:           make(map[string]interface{}),
+		renderer:           paint.NewRenderer(80, 24), // 新增：初始化 Renderer
+		asyncRenderEnabled: asyncRenderEnabled,
+		asyncFrameInterval: asyncFrameInterval,
 
 		// Phase 1: 初始化 Action 系统
 		actionRouter:    action.NewRouter(nil), // 根节点稍后设置
@@ -205,19 +214,23 @@ func NewApp() *App {
 // NewAppWithSource 创建使用自定义 EventSource 的应用 (Phase 1: 初始化 Action 系统)
 // 允许测试时使用 MockSandbox 或其他事件源替代真实的平台输入
 func NewAppWithSource(source frameworkevent.EventSource) *App {
+	asyncRenderEnabled, asyncFrameInterval := asyncRenderConfigFromEnv()
+
 	app := &App{
-		router:       frameworkevent.NewRouter(),
-		keyMap:       frameworkevent.NewKeyMap(),
-		focusManager: rtui.NewFiberFocusManager(), // Fiber-first: Focus manager
-		eventFilter:  func(ev frameworkevent.Event) bool { return true },
-		quit:         make(chan struct{}, 1),
-		tickInterval: 16 * time.Millisecond,
-		firstRender:  true,
-		throttler:    render.NewThrottler(60),
-		contextMgr:   core.NewContextManager(context.Background()),
-		userData:     make(map[string]interface{}),
-		renderer:     paint.NewRenderer(80, 24),
-		customSource: source, // 使用自定义事件源
+		router:             frameworkevent.NewRouter(),
+		keyMap:             frameworkevent.NewKeyMap(),
+		focusManager:       rtui.NewFiberFocusManager(), // Fiber-first: Focus manager
+		eventFilter:        func(ev frameworkevent.Event) bool { return true },
+		quit:               make(chan struct{}, 1),
+		tickInterval:       16 * time.Millisecond,
+		firstRender:        true,
+		throttler:          render.NewThrottler(60),
+		contextMgr:         core.NewContextManager(context.Background()),
+		userData:           make(map[string]interface{}),
+		renderer:           paint.NewRenderer(80, 24),
+		asyncRenderEnabled: asyncRenderEnabled,
+		asyncFrameInterval: asyncFrameInterval,
+		customSource:       source, // 使用自定义事件源
 
 		// Phase 1: 初始化 Action 系统
 		actionRouter:    action.NewRouter(nil),
@@ -236,6 +249,17 @@ func NewAppWithSource(source frameworkevent.EventSource) *App {
 	app.actionBridge.SetScopeDispatcher(app.scopeDispatcher)
 
 	return app
+}
+
+func asyncRenderConfigFromEnv() (bool, time.Duration) {
+	asyncRenderEnabled := os.Getenv("MINT_ASYNC_RENDER") == "true"
+	asyncFrameInterval := 16 * time.Millisecond // default ~60fps
+	if fpsStr := os.Getenv("MINT_ASYNC_FPS"); fpsStr != "" {
+		if fps, err := strconv.Atoi(fpsStr); err == nil && fps > 0 {
+			asyncFrameInterval = time.Second / time.Duration(fps)
+		}
+	}
+	return asyncRenderEnabled, asyncFrameInterval
 }
 
 // SetDebugMode 设置调试模式
@@ -618,17 +642,17 @@ func (a *App) SetupInspectorShortcut() {
 	// The routing logic at the end of handleEvent() will forward any unhandled keys
 	// to the Inspector if it is visible.
 
-		log.UILogger.IfEnabled().Debug("[APP] Inspector shortcuts registered: F12, Ctrl+D (toggle)")
-		log.UILogger.IfEnabled().Debug("[APP] Panel movement: Alt+H/J/K/L or Alt+Arrow keys")
-		log.UILogger.IfEnabled().Debug("[APP] Tab switching: 1-6 (handled dynamically)")
-		log.UILogger.IfEnabled().Debug("[APP] Tree scroll: PgUp/PgDn, Home/End (when Elements tab active)")
+	log.UILogger.IfEnabled().Debug("[APP] Inspector shortcuts registered: F12, Ctrl+D (toggle)")
+	log.UILogger.IfEnabled().Debug("[APP] Panel movement: Alt+H/J/K/L or Alt+Arrow keys")
+	log.UILogger.IfEnabled().Debug("[APP] Tab switching: 1-6 (handled dynamically)")
+	log.UILogger.IfEnabled().Debug("[APP] Tree scroll: PgUp/PgDn, Home/End (when Elements tab active)")
 }
 
 // toggleInspector 切换 Inspector 显示状态
 // 这个方法会被快捷键触发
 func (a *App) toggleInspector() {
 	if a.inspector == nil {
-		  log.UILogger.IfEnabled().Debug("[APP] Inspector not initialized, ignoring toggle")
+		log.UILogger.IfEnabled().Debug("[APP] Inspector not initialized, ignoring toggle")
 		return
 	}
 
@@ -642,7 +666,7 @@ func (a *App) toggleInspector() {
 		a.inspectorVisible = inspectorObj.IsVisible()
 		a.dirty = true // 触发重绘
 
-		  log.UILogger.IfEnabled().Debug("[APP] Inspector toggled: now visible=%v", a.inspectorVisible)
+		log.UILogger.IfEnabled().Debug("[APP] Inspector toggled: now visible=%v", a.inspectorVisible)
 	}
 }
 
@@ -731,6 +755,19 @@ func (a *App) Init() error {
 		}
 	}
 
+	if a.asyncRenderEnabled {
+		a.asyncRenderer = paint.NewAsyncRenderer(80, 24, paint.AsyncRendererOptions{
+			FrameInterval: a.asyncFrameInterval,
+			Output: func(out string) {
+				if out != "" {
+					fmt.Print(out)
+				}
+			},
+		})
+		a.asyncRenderer.Start()
+		log.RenderLogger.IfEnabled().Debug("[APP] async renderer enabled, frame interval=%s", a.asyncFrameInterval)
+	}
+
 	a.state = StateRunning
 	a.dirty = true
 
@@ -803,7 +840,7 @@ func (a *App) Run() error {
 					if extraMsg == nil {
 						break
 					}
-					     log.MessageLogger.IfEnabled().Debug("[APP] Msg from channel: Type=%v Message=%v", msg.Type(), msg)
+					log.MessageLogger.IfEnabled().Debug("[APP] Msg from channel: Type=%v Message=%v", msg.Type(), msg)
 
 					// Keyboard events: always queue
 					if extraMsg.Type() == runtimemsg.MsgTypeKey {
@@ -892,7 +929,7 @@ func (a *App) Run() error {
 				needsRender = a.dirty && a.throttler.ShouldRender()
 			}
 			if needsRender {
-				    log.UILogger.IfEnabled().Debug("[APP] Immediate render after event processing")
+				log.UILogger.IfEnabled().Debug("[APP] Immediate render after event processing")
 				renderStartTime = time.Now()
 				a.render()
 				a.throttler.RecordFrameTime(time.Since(renderStartTime))
@@ -909,18 +946,18 @@ func (a *App) Run() error {
 			}
 
 		case <-ticker.C:
-			   log.UILogger.IfEnabled().Debug("[APP] Tick triggered")
+			log.UILogger.IfEnabled().Debug("[APP] Tick triggered")
 			a.handleTick()
 
 			// 处理完 tick 后，如果需要渲染则渲染
 			needsRender := a.dirty && a.throttler.ShouldRender()
-			   log.UILogger.IfEnabled().Debug("[APP] needsRender=%v, dirty=%v", needsRender, a.dirty)
+			log.UILogger.IfEnabled().Debug("[APP] needsRender=%v, dirty=%v", needsRender, a.dirty)
 			if needsRender {
-				    log.UILogger.IfEnabled().Debug("[APP] Calling render()")
+				log.UILogger.IfEnabled().Debug("[APP] Calling render()")
 				renderStartTime = time.Now()
 				a.render()
 				a.throttler.RecordFrameTime(time.Since(renderStartTime))
-				    log.UILogger.IfEnabled().Debug("[APP] render() complete")
+				log.UILogger.IfEnabled().Debug("[APP] render() complete")
 
 				// Pull pattern: Inspector pulls rendered tree from App after reconciliation
 				// App provides GetRenderedRoot() interface, Inspector calls AttachToApp()
@@ -1375,14 +1412,14 @@ func (a *App) handleEvent(ev frameworkevent.Event) {
 }
 
 // handleTick 处理定时器
-// 
+//
 // 性能优化：由于当前没有光标组件，而且系统能通过 Fiber/事件驱动重绘，
 // 完全不需要定时器触发渲染。
 //
 // 组件可以通过以下方式触发重绘：
-//   1. 用户事件（按键、鼠标、Resize）→ handleMsg() → a.dirty = true
-//   2. Fiber reconciler 状态更新 → reconciler.Scheduler -> a.dirty = true
-//   3. 组件 MarkDirty() → a.dirty = true (通过 SetDirtyCallback)
+//  1. 用户事件（按键、鼠标、Resize）→ handleMsg() → a.dirty = true
+//  2. Fiber reconciler 状态更新 → reconciler.Scheduler -> a.dirty = true
+//  3. 组件 MarkDirty() → a.dirty = true (通过 SetDirtyCallback)
 //
 // 如果将来添加光标组件（如 Input），需要在组件内部自行管理刷新频率，
 // 或者在该函数中添加条件判断来定期刷新。
@@ -1466,45 +1503,56 @@ func (a *App) render() {
 				if !noAltScreen {
 					fmt.Print("\x1b[2J") // 清屏
 				}
-				fmt.Print("\x1b[?25l")       // 隐藏光标
-				a.renderer.ForceFullRender() // 强制全屏渲染
+				fmt.Print("\x1b[?25l") // 隐藏光标
 			}
 
 			// Fiber-first 路径：将 PaintableBox 脏矩形作为渲染提示传给 Renderer。
 			// 这是提示信息，Renderer 仍会以 buffer diff 作为最终正确性依据。
+			dirtyHints := make([]paint.Rect, 0, 8)
 			if dirtyProvider, ok := a.root.(interface{ GetPaintDirtyRects() []paint.Rect }); ok {
 				for _, rect := range dirtyProvider.GetPaintDirtyRects() {
+					dirtyHints = append(dirtyHints, rect)
+				}
+			}
+
+			if a.asyncRenderer != nil {
+				a.asyncRenderer.SubmitFrame(buf, dirtyHints, a.firstRender)
+			} else {
+				if a.firstRender {
+					a.renderer.ForceFullRender() // 同步路径保持首帧全量
+				}
+				for _, rect := range dirtyHints {
 					a.renderer.MarkDirtyRect(rect)
 				}
-			}
 
-			// 使用新的 Renderer 输出（自动 diff + run merging + 光标优化）
-			output := a.renderer.Render()
+				// 使用新的 Renderer 输出（自动 diff + run merging + 光标优化）
+				output := a.renderer.Render()
 
-			if os.Getenv("MINT_DEBUG_TEST") == "true" {
-				// Count non-empty cells after Render (which swaps buffers)
-				back := a.renderer.GetBackBuffer()
-				front := a.renderer.GetFrontBuffer()
-				backCount := 0
-				frontCount := 0
-				for y := 0; y < back.Height; y++ {
-					for x := 0; x < back.Width; x++ {
-						if back.Cells[y][x].Cluster != "" && back.Cells[y][x].Cluster != " " {
-							backCount++
-						}
-						if front.Cells[y][x].Cluster != "" && front.Cells[y][x].Cluster != " " {
-							frontCount++
+				if os.Getenv("MINT_DEBUG_TEST") == "true" {
+					// Count non-empty cells after Render (which swaps buffers)
+					back := a.renderer.GetBackBuffer()
+					front := a.renderer.GetFrontBuffer()
+					backCount := 0
+					frontCount := 0
+					for y := 0; y < back.Height; y++ {
+						for x := 0; x < back.Width; x++ {
+							if back.Cells[y][x].Cluster != "" && back.Cells[y][x].Cluster != " " {
+								backCount++
+							}
+							if front.Cells[y][x].Cluster != "" && front.Cells[y][x].Cluster != " " {
+								frontCount++
+							}
 						}
 					}
+					log.UILogger.IfEnabled().Debug("[App.render] AFTER renderer.Render(): back=%d cells, front=%d cells", backCount, frontCount)
 				}
-				log.UILogger.IfEnabled().Debug("[App.render] AFTER renderer.Render(): back=%d cells, front=%d cells", backCount, frontCount)
-			}
 
-			// DEBUG: 输出渲染信息（每次）
-			   log.RenderLogger.IfEnabled().Debug("[APP] FirstRender=%v, OutputLen=%d, Dirty=%v", a.firstRender, len(output), a.dirty)
+				// DEBUG: 输出渲染信息（每次）
+				log.RenderLogger.IfEnabled().Debug("[APP] FirstRender=%v, OutputLen=%d, Dirty=%v", a.firstRender, len(output), a.dirty)
 
-			if output != "" {
-				fmt.Print(output)
+				if output != "" {
+					fmt.Print(output)
+				}
 			}
 		}
 	}
@@ -1707,6 +1755,10 @@ func (a *App) Close() error {
 	if a.pump != nil {
 		a.pump.Stop()
 	}
+	if a.asyncRenderer != nil {
+		a.asyncRenderer.Stop()
+		a.asyncRenderer = nil
+	}
 
 	// 调试模式：保存日志
 	if a.debugMode && a.debugRecorder != nil {
@@ -1795,7 +1847,7 @@ func (a *App) SetConfigSize(width, height int) {
 	a.configWidth = width
 	a.configHeight = height
 
-	 log.UILogger.IfEnabled().Debug("SetConfigSize: config=%dx%d", width, height)
+	log.UILogger.IfEnabled().Debug("SetConfigSize: config=%dx%d", width, height)
 }
 
 // GetConfigSize 获取用户配置的布局尺寸
@@ -1822,6 +1874,9 @@ func (a *App) Resize(width, height int) {
 
 	// 更新 Renderer 的尺寸（buffer 大小）
 	a.renderer.Resize(width, height)
+	if a.asyncRenderer != nil {
+		a.asyncRenderer.Resize(width, height)
+	}
 
 	// 更新 Inspector 的屏幕大小
 	if a.inspector != nil {
