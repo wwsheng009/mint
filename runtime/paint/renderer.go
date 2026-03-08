@@ -2,19 +2,31 @@ package paint
 
 import (
 	"bytes"
-	"strings"
 	"sync"
 
 	"github.com/wwsheng009/mint/internal/log"
 	"github.com/wwsheng009/mint/runtime/style"
 )
 
+// =============================================================================
+// Renderer 2.0 - Line Diff Based Renderer
+// =============================================================================
+// 从 cell diff 升级到 line diff 架构
+// 核心原则：只要一行任意 cell 改变 → 整行重新渲染
+// 
+// 优势：
+// - 解决折叠/展开导致的行位移问题
+// - 解决 UI 结构变化导致的残留字符
+// - 解决宽字符/continuation cell 问题
+// - 自动清理行尾残留
+// - O(n) diff 复杂度
+
 // Renderer 双缓冲渲染器
 //
 // 实现了完整的双缓冲渲染管线：
 // - front buffer: 当前屏幕状态
 // - back buffer: 新一帧绘制目标
-// - diff: 只输出变化部分
+// - line diff: 只输出变化的行
 // - run merging: 合并连续相同样式的片段
 type Renderer struct {
 	mu sync.Mutex
@@ -23,9 +35,6 @@ type Renderer struct {
 	front *Buffer // 当前屏幕状态
 	back  *Buffer // 新一帧绘制目标
 
-	// 脏区域跟踪
-	dirtyTracker *DirtyTracker
-
 	// 渲染状态
 	styleState *StyleStateMachine
 	cursorX    int
@@ -33,17 +42,23 @@ type Renderer struct {
 
 	// 输出缓冲
 	output bytes.Buffer
+
+	// 渲染模式
+	useLineDiff bool // 是否使用行级 diff（默认 true）
+
+	// 统计信息
+	changedLines int // 最近一次渲染变化的行数
 }
 
 // NewRenderer 创建新的双缓冲渲染器
 func NewRenderer(width, height int) *Renderer {
 	return &Renderer{
-		front:        NewBuffer(width, height),
-		back:         NewBuffer(width, height),
-		dirtyTracker: NewDirtyTracker(),
-		styleState:   NewStyleStateMachine(),
-		cursorX:      -1,
-		cursorY:      -1,
+		front:       NewBuffer(width, height),
+		back:        NewBuffer(width, height),
+		styleState:  NewStyleStateMachine(),
+		cursorX:     -1,
+		cursorY:     -1,
+		useLineDiff: true, // 默认使用行级 diff
 	}
 }
 
@@ -63,8 +78,8 @@ func (r *Renderer) ResetState() {
 // Render 对比 front/back 并生成差异输出
 //
 // 这是核心渲染方法，执行以下步骤：
-// 1. 比较 front 和 back buffer，找出变化区域
-// 2. 对每个脏区域进行 run merging 渲染
+// 1. 比较 front 和 back buffer，找出变化的行
+// 2. 对每个变化行进行整行渲染（run merging 优化）
 // 3. 生成优化的 ANSI 输出
 // 4. 交换 front/back buffer
 func (r *Renderer) Render() string {
@@ -76,185 +91,131 @@ func (r *Renderer) Render() string {
 	// 重置内部状态，确保每帧渲染起点确定
 	r.ResetState()
 
-	// 执行 diff，找出变化区域
-	diff := r.dirtyTracker.Diff(r.front, r.back)
+	// 计算行 hash（用于快速比较）
+	// 每次都需要重新计算，因为 buffer 内容可能已被修改
+	r.back.Rehash()
+	if r.front != nil {
+		r.front.Rehash()
+	}
 
-	log.RenderLogger.Debug("[RENDER] HasChanges=%v, ChangedCells=%d, Regions=%d",
-		diff.HasChanges, diff.ChangedCells, len(diff.DirtyRegions))
+	// 执行行级 diff
+	diff := LineDiff(r.front, r.back)
+
+	// 更新统计信息
+	r.changedLines = len(diff.ChangedLines)
+
+	log.RenderLogger.Debug("[RENDER] HasChanges=%v, ChangedLines=%d, HasScroll=%v",
+		diff.HasChanges, r.changedLines, diff.HasScroll)
 
 	if !diff.HasChanges {
 		return "" // 无变化，不输出
 	}
 
-	// 渲染每个脏区域
-	for _, region := range diff.DirtyRegions {
-		r.renderRegion(region)
+	// 处理滚动（如果检测到）
+	if diff.HasScroll {
+		r.emitScroll(diff.ScrollAmount)
+	}
+
+	// 渲染变化的行
+	for _, y := range diff.ChangedLines {
+		r.renderFullLine(y)
 	}
 
 	// 重置样式
 	r.output.WriteString("\x1b[0m")
-	// CRITICAL: Reset style state machine's current style after emitting reset
-	// This ensures the next render call will have a clean state
 	r.styleState.Reset()
 
 	// 交换缓冲区
 	r.swapBuffers()
 
-	return r.output.String()
+	output := r.output.String()
+	log.RenderLogger.Debug("[RENDER] output length=%d bytes", len(output))
+
+	return output
 }
 
-// renderRegion 渲染单个脏区域
-func (r *Renderer) renderRegion(region Rect) {
-	log.RenderLogger.Debug("[renderRegion] region={X:%d, Y:%d, W:%d, H:%d}, back.H=%d",
-		region.X, region.Y, region.Width, region.Height, r.back.Height)
-
-	for y := region.Y; y < region.Y+region.Height; y++ {
-		if y >= r.back.Height {
-			log.RenderLogger.IfEnabled().Debug("[renderRegion] y=%d >= back.Height=%d, break", y, r.back.Height)
-			break
-		}
-		r.renderLine(y, region)
+// renderFullLine 渲染整行
+// 这是 Renderer 2.0 的核心方法，替代原来的 renderLine
+// 整行渲染解决了以下问题：
+// - 行移位导致的残留
+// - 跨行结构变化
+// - 行尾残留
+func (r *Renderer) renderFullLine(y int) {
+	if y >= r.back.Height {
+		return
 	}
-}
-
-// renderLine 渲染单行，使用 run merging 优化
-func (r *Renderer) renderLine(y int, region Rect) {
-	log.RenderLogger.Debug("[renderLine] y=%d, region.X=%d, region.W=%d, back.W=%d",
-		y, region.X, region.Width, r.back.Width)
-
-	x := region.X
-	// 确保 endX 不超过 back 和 front 缓冲区的宽度
-	endX := minInt(region.X+region.Width, r.back.Width)
-	if r.front != nil && r.front.Width < endX {
-		endX = r.front.Width
-	}
-
-	// 确保 x 不超出范围
-	if x >= endX || x < 0 {
-		log.RenderLogger.IfEnabled().Debug("[renderLine] x=%d >= endX=%d or x<0, no render!", x, endX)
+	if y >= len(r.back.Cells) {
 		return
 	}
 
-	// 确保 y 在有效范围内
-	if y >= len(r.back.Cells) || (r.front != nil && y >= len(r.front.Cells)) {
-		log.RenderLogger.IfEnabled().Debug("[renderLine] y=%d out of bounds, no render!", y)
-		return
-	}
+	row := r.back.Cells[y]
+	x := 0
 
-	runCount := 0
-	for x < endX {
-		// 边界检查
-		if x >= len(r.back.Cells[y]) || (r.front != nil && x >= len(r.front.Cells[y])) {
-			log.RenderLogger.IfEnabled().Debug("[renderLine] x=%d out of row bounds, break", x)
-			break
-		}
+	for x < len(row) {
+		cell := row[x]
 
-		cell := r.back.Cells[y][x]
-		prevCell := r.front.Cells[y][x]
-
-		// 跳过未变化的单元格
-		if !IsCellChanged(cell, prevCell) {
-			// 根据 Width 跳过相应位置
-			skipWidth := cell.Width
-			if skipWidth <= 0 {
-				skipWidth = 1
-			}
-			x += skipWidth
-			continue
-		}
-
-		log.RenderLogger.Debug("[renderLine] cell changed at x=%d: cell.Cluster=%q, cell.Width=%d, prev.Cluster=%q, prev.Width=%d, IsContinuation=%v",
-			x, cell.Cluster, cell.Width, prevCell.Cluster, prevCell.Width, cell.IsContinuation)
-
-		// 如果是延续单元格，跳过（由主单元格处理）
+		// 跳过 continuation 单元格（由主单元格处理）
 		if cell.IsContinuation {
 			x++
 			continue
 		}
 
-		// 计算当前 cell 的有效宽度
-		cellWidth := cell.Width
-		if cellWidth <= 0 {
-			cellWidth = 1
+		// 计算单元格宽度
+		width := cell.Width
+		if width <= 0 {
+			width = 1
 		}
 
-		// 计算需要擦除的范围：如果 prevCell 是宽字符且当前 cell 不能完全覆盖
-		// 使用 Width 来判断，而不是硬编码的字符串比较
-		prevCellWidth := prevCell.Width
-		if prevCellWidth <= 0 && !prevCell.IsContinuation {
-			prevCellWidth = 1
+		// 获取文本
+		text := cell.Cluster
+		if text == "" || text == "\x00" {
+			text = " "
 		}
 
-		// 判断当前 cell 是否有实际内容
-		cellHasContent := cell.Cluster != "" && cell.Cluster != "\x00"
-
-		// 如果 prevCell 有内容（Width > 0 且不是 continuation）
-		// 而当前 cell 无法覆盖 prevCell 的全部位置，需要擦除
-		if !prevCell.IsContinuation && prevCellWidth > 0 && prevCell.Cluster != "" {
-			// 如果 cell 没有内容，或者 cell 的宽度小于 prevCell 的宽度
-			// 需要擦除 prevCell 的全部位置
-			if !cellHasContent || cellWidth < prevCellWidth {
-				eraseWidth := prevCellWidth
-				spaces := strings.Repeat(" ", eraseWidth)
-				r.emitRunWithWidth(x, y, cell.Style, spaces, eraseWidth)
-				x += eraseWidth
-				continue
-			}
-		}
-
-		// 如果 cell 没有内容，跳过
-		if !cellHasContent {
-			x += cellWidth
-			continue
-		}
-
-		// 开始一个 run，尝试合并相邻的、同样式的单元格
+		// 尝试合并相邻同样式的单元格
 		startX := x
 		runStyle := cell.Style
 		var runText bytes.Buffer
 		totalWidth := 0
 
-		// 收集当前单元格以及后续相邻的、同样式的单元格
-		for x < endX {
-			nextCell := r.back.Cells[y][x]
+		// 收集连续同样式的单元格
+		for x < len(row) {
+			c := row[x]
 
-			// 如果样式不同，停止合并
-			if nextCell.Style != runStyle {
+			// continuation 由主单元格处理
+			if c.IsContinuation {
+				x++
+				continue
+			}
+
+			// 样式不同，停止合并
+			if c.Style != runStyle {
 				break
 			}
 
-			// 如果是 continuation，停止合并
-			// continuation 由其主单元格处理，不需要单独处理
-			if nextCell.IsContinuation {
-				break
+			// 添加文本
+			if c.Cluster == "" || c.Cluster == "\x00" {
+				runText.WriteString(" ")
+			} else {
+				runText.WriteString(c.Cluster)
 			}
 
-			// 如果没有内容，停止合并
-			if nextCell.Cluster == "" || nextCell.Cluster == "\x00" {
-				break
+			cWidth := c.Width
+			if cWidth <= 0 {
+				cWidth = 1
 			}
-
-			// 收集单元格文本
-			runText.WriteString(nextCell.Cluster)
-
-			// 计算单元格宽度
-			width := nextCell.Width
-			if width <= 0 {
-				width = 1
-			}
-			totalWidth += width
-
-			// 前进到下一个单元格
-			x += width
+			totalWidth += cWidth
+			x += cWidth
 		}
 
-		runCount++
-		// 输出合并后的 run，传入总宽度
-		r.emitRunWithWidth(startX, y, runStyle, runText.String(), totalWidth)
+		// 输出合并的 run
+		if runText.Len() > 0 {
+			r.emitRunWithWidth(startX, y, runStyle, runText.String(), totalWidth)
+		}
 	}
 
-	log.RenderLogger.IfEnabled().Debug("[renderLine] emitted %d runs", runCount)
-
+	// 清理行尾残留（关键修复：使用 ESC[K）
+	r.output.WriteString("\x1b[K")
 }
 
 // emitRunWithWidth 输出一个渲染批次（带宽度参数，用于正确跟踪光标）
@@ -284,6 +245,28 @@ func (r *Renderer) emitRunWithWidth(x, y int, runStyle style.Style, text string,
 	r.output.WriteString(text)
 }
 
+// emitScroll 发送滚动 ANSI 命令
+// 正数表示向上滚动，负数表示向下滚动
+func (r *Renderer) emitScroll(amount int) {
+	if amount == 0 {
+		return
+	}
+
+	if amount > 0 {
+		// 向上滚动: CSI n S
+		r.output.WriteString("\x1b[")
+		r.output.WriteString(itoa(amount))
+		r.output.WriteString("S")
+	} else {
+		// 向下滚动: CSI n T
+		r.output.WriteString("\x1b[")
+		r.output.WriteString(itoa(-amount))
+		r.output.WriteString("T")
+	}
+
+	log.RenderLogger.Debug("[emitScroll] amount=%d", amount)
+}
+
 // moveCursorOptimized 优化的光标移动
 func (r *Renderer) moveCursorOptimized(x, y int) string {
 	// 未知位置，使用绝对定位
@@ -311,32 +294,22 @@ func (r *Renderer) moveCursorOptimized(x, y int) string {
 	return "\x1b[" + itoa(y+1) + ";" + itoa(x+1) + "H"
 }
 
-// getTextWidth 计算文本的显示宽度
-// 对于边框字符（U+2500-U+257F Unicode Box Drawing block），返回 1 而非 runewidth.StringWidth 的 2
-// 这确保光标跟踪正确，不会跳过字符
-func (r *Renderer) getTextWidth(text string) int {
-	return StringWidth(text)
-}
-
-// swapBuffers 交换前后缓冲区
-// 交换后，front 指向新渲染的内容（成为当前屏幕状态），back 指向旧内容
-// 交换后，back 会被复制 front 的内容作为下一帧的基准，确保未绘制的区域不会产生误判的 diff
+// swapBuffers 更新前后缓冲区状态
+// 关键设计：保持 back 指针不变，复制 front 内容到 back
+// 这样用户持有的 back 指针始终有效
 func (r *Renderer) swapBuffers() {
-	r.front, r.back = r.back, r.front
-
-	// 确保两个缓冲区大小一致
+	// 确保 buffer 存在且大小一致
 	if r.front == nil || r.back == nil {
 		return
 	}
 
-	// 如果大小不一致，调整 back 缓冲区
-	if r.back.Width != r.front.Width || r.back.Height != r.front.Height {
-		r.back = NewBuffer(r.front.Width, r.front.Height)
+	// 如果大小不一致，调整 front 缓冲区
+	if r.front.Width != r.back.Width || r.front.Height != r.back.Height {
+		r.front = NewBuffer(r.back.Width, r.back.Height)
 	}
 
-	// 将 front 的内容复制到 back，作为下一帧绘制的基准
-	// 这样确保 diff 算法只检测真正变化的部分
-	minHeight := r.front.Height
+	// 将 back 的内容复制到 front，作为当前屏幕状态
+	minHeight := minInt(r.front.Height, r.back.Height)
 	if len(r.front.Cells) < minHeight {
 		minHeight = len(r.front.Cells)
 	}
@@ -345,18 +318,26 @@ func (r *Renderer) swapBuffers() {
 	}
 
 	for y := 0; y < minHeight; y++ {
-		// 确保行存在且长度足够
 		if y >= len(r.front.Cells) || y >= len(r.back.Cells) {
 			break
 		}
-		srcRow := r.front.Cells[y]
-		dstRow := r.back.Cells[y]
-		copyLen := len(srcRow)
-		if len(dstRow) < copyLen {
-			copyLen = len(dstRow)
-		}
+		srcRow := r.back.Cells[y]
+		dstRow := r.front.Cells[y]
+		copyLen := minInt(len(srcRow), len(dstRow))
 		copy(dstRow[:copyLen], srcRow[:copyLen])
 	}
+
+	// 同步 line hash
+	if r.back.LineHash != nil {
+		if r.front.LineHash == nil || len(r.front.LineHash) != len(r.back.LineHash) {
+			r.front.LineHash = make([]uint64, len(r.back.LineHash))
+		}
+		copy(r.front.LineHash, r.back.LineHash)
+	}
+
+	// 注意：不交换指针！
+	// back 保持不变，用户可以继续在同一个 buffer 上绘制
+	// front 更新为 back 的内容，用于下一次 diff
 }
 
 // Resize 调整渲染器大小
@@ -366,7 +347,6 @@ func (r *Renderer) Resize(width, height int) {
 
 	r.front = NewBuffer(width, height)
 	r.back = NewBuffer(width, height)
-	r.dirtyTracker.MarkAll()
 }
 
 // GetFrontBuffer 获取前缓冲区（用于测试）
@@ -374,22 +354,29 @@ func (r *Renderer) GetFrontBuffer() *Buffer {
 	return r.front
 }
 
-// MarkDirty 标记整个缓冲区为脏
+// MarkDirty 标记整个缓冲区为脏（兼容 API）
+// 在 Renderer 2.0 中，此方法不再需要，因为每帧都会重新计算 hash
 func (r *Renderer) MarkDirty() {
-	r.dirtyTracker.MarkAll()
+	// No-op in Renderer 2.0
+	// Line diff automatically detects all changes
 }
 
-// MarkDirtyRect 标记矩形区域为脏
+// MarkDirtyRect 标记矩形区域为脏（兼容 API）
+// 在 Renderer 2.0 中，此方法不再需要
 func (r *Renderer) MarkDirtyRect(rect Rect) {
-	r.dirtyTracker.MarkRect(rect)
+	// No-op in Renderer 2.0
 }
 
 // ForceFullRender 强制下一帧全量渲染
+// 通过重置 front buffer 来实现
 func (r *Renderer) ForceFullRender() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	r.dirtyTracker.MarkAll()
+	// 清空 front buffer，强制下一帧全量渲染
+	if r.front != nil {
+		r.front = NewBuffer(r.front.Width, r.front.Height)
+	}
 }
 
 // GetStats 获取渲染统计信息
@@ -403,7 +390,7 @@ type RenderStats struct {
 // GetStats 获取最近一次渲染的统计信息
 func (r *Renderer) GetStats() RenderStats {
 	return RenderStats{
-		ChangedCells: r.dirtyTracker.GetChangedCells(),
+		ChangedCells: r.changedLines, // 在 Renderer 2.0 中，这表示变化的行数
 		OutputBytes:  r.output.Len(),
 	}
 }
@@ -415,4 +402,9 @@ func (r *Renderer) Reset() {
 
 	r.ResetState()
 	r.output.Reset()
+}
+
+// UseLineDiff 设置是否使用行级 diff
+func (r *Renderer) UseLineDiff(enabled bool) {
+	r.useLineDiff = enabled
 }

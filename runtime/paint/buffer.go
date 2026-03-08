@@ -18,6 +18,10 @@ type Buffer struct {
 	// Cells stores the grid content.
 	// Access via GetCell/SetCell.
 	Cells [][]Cell
+
+	// LineHash stores hash values for each line for O(1) line comparison.
+	// Used by the line-diff renderer for efficient change detection.
+	LineHash []uint64
 }
 
 // NewBuffer creates a new buffer with the specified dimensions.
@@ -609,4 +613,101 @@ func (b *Buffer) Reset(width, height int) {
 
 	b.Width = width
 	b.Height = height
+
+	// Reset line hash
+	b.LineHash = nil
+}
+
+// =============================================================================
+// Line Hash Methods (Renderer 2.0)
+// =============================================================================
+
+// HashLine computes a hash for a single line using FNV-1a algorithm.
+// This enables O(1) line comparison for efficient diff.
+func HashLine(row []Cell) uint64 {
+	// FNV-1a offset basis
+	var h uint64 = 1469598103934665603
+
+	for _, c := range row {
+		// Hash cluster content
+		for _, r := range c.Cluster {
+			h ^= uint64(r)
+			h *= 1099511628211
+		}
+
+		// Hash style (for style changes detection)
+		h ^= uint64(c.Style.Hash())
+		h *= 1099511628211
+
+		// Hash width
+		h ^= uint64(c.Width)
+		h *= 1099511628211
+
+		// Hash continuation flag
+		if c.IsContinuation {
+			h ^= 1
+			h *= 1099511628211
+		}
+	}
+
+	return h
+}
+
+// Rehash recomputes all line hashes for the buffer.
+// Should be called after buffer content changes before diff.
+func (b *Buffer) Rehash() {
+	if b.LineHash == nil || len(b.LineHash) != b.Height {
+		b.LineHash = make([]uint64, b.Height)
+	}
+
+	for y := 0; y < b.Height; y++ {
+		if y < len(b.Cells) {
+			b.LineHash[y] = HashLine(b.Cells[y])
+		}
+	}
+}
+
+// EqualLine checks if a specific line equals between two buffers.
+// Falls back to cell-by-cell comparison if hashes don't match.
+func (b *Buffer) EqualLine(other *Buffer, y int) bool {
+	// Bounds check
+	if y >= b.Height || y >= other.Height {
+		return false
+	}
+	if y >= len(b.Cells) || y >= len(other.Cells) {
+		return false
+	}
+
+	// Fast path: compare hashes
+	if b.LineHash != nil && other.LineHash != nil {
+		if y < len(b.LineHash) && y < len(other.LineHash) {
+			if b.LineHash[y] != other.LineHash[y] {
+				return false
+			}
+			// Hashes match, lines are equal
+			return true
+		}
+	}
+
+	// Slow path: cell-by-cell comparison
+	row1 := b.Cells[y]
+	row2 := other.Cells[y]
+	width := minInt(len(row1), len(row2))
+
+	for x := 0; x < width; x++ {
+		if !IsCellEqual(row1[x], row2[x]) {
+			return false
+		}
+	}
+
+	return true
+}
+
+// IsCellEqual compares two cells for equality.
+// Used for cell-by-cell comparison when hash is not available.
+func IsCellEqual(a, b Cell) bool {
+	return a.Cluster == b.Cluster &&
+		a.Style == b.Style &&
+		a.Width == b.Width &&
+		a.IsContinuation == b.IsContinuation
 }

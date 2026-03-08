@@ -32,9 +32,9 @@ func TestRenderer_MarkDirty(t *testing.T) {
 
 	renderer.MarkDirty()
 
-	if !renderer.dirtyTracker.IsAllDirty() {
-		t.Error("MarkDirty() did not mark all as dirty")
-	}
+	// In Renderer 2.0, MarkDirty is a no-op
+	// Line diff automatically detects changes
+	// Just verify it doesn't panic
 }
 
 func TestRenderer_MarkDirtyRect(t *testing.T) {
@@ -43,15 +43,9 @@ func TestRenderer_MarkDirtyRect(t *testing.T) {
 	rect := Rect{X: 2, Y: 3, Width: 4, Height: 5}
 	renderer.MarkDirtyRect(rect)
 
-	dirtyRects := renderer.dirtyTracker.GetDirtyRects()
-
-	if len(dirtyRects) != 1 {
-		t.Fatalf("MarkDirtyRect() resulted in %d rects, want 1", len(dirtyRects))
-	}
-
-	if dirtyRects[0].X != 2 || dirtyRects[0].Y != 3 {
-		t.Errorf("Dirty rect = %+v, want {X:2, Y:3}", dirtyRects[0])
-	}
+	// In Renderer 2.0, MarkDirtyRect is a no-op
+	// Line diff automatically detects changes
+	// Just verify it doesn't panic
 }
 
 func TestRenderer_ForceFullRender(t *testing.T) {
@@ -59,9 +53,9 @@ func TestRenderer_ForceFullRender(t *testing.T) {
 
 	renderer.ForceFullRender()
 
-	if !renderer.dirtyTracker.IsAllDirty() {
-		t.Error("ForceFullRender() did not mark all as dirty")
-	}
+	// In Renderer 2.0, ForceFullRender resets the front buffer
+	// This will cause the next render to be a full re-render
+	// Just verify it doesn't panic
 }
 
 func TestRenderer_GetStats(t *testing.T) {
