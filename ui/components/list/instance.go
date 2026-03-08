@@ -8,6 +8,7 @@ import (
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
+	scrollutil "github.com/wwsheng009/mint/ui/components/internal/scroll"
 )
 
 // =============================================================================
@@ -20,22 +21,25 @@ type Instance struct {
 	key string
 
 	// === Props (from VNode, may change each render) ===
-	header         string
-	rows           []string
-	emptyText      string
-	maxRows        int
-	showBorder     bool
-	showSeparator  bool
-	separatorChar  rune
-	headerStyle    style.Style
-	rowStyle       style.Style
-	rowStyleFn     func(int, string) style.Style
-	selectedStyle  style.Style
-	borderStyle    style.Style
-	scrollOffset   int
-	selectedIndex  int
-	viewportHeight int
-	allowScroll    bool
+	header                 string
+	rows                   []string
+	emptyText              string
+	maxRows                int
+	showBorder             bool
+	showSeparator          bool
+	separatorChar          rune
+	headerStyle            style.Style
+	rowStyle               style.Style
+	rowStyleFn             func(int, string) style.Style
+	selectedStyle          style.Style
+	borderStyle            style.Style
+	showScrollbar          bool
+	scrollbarStyle         style.Style
+	scrollOffset           int
+	scrollOffsetControlled bool
+	selectedIndex          int
+	viewportHeight         int
+	allowScroll            bool
 
 	// === Runtime State ===
 	bounds [4]int // x, y, w, h
@@ -59,23 +63,26 @@ var (
 // NewInstance creates a new ListInstance from props
 func NewInstance(props rtui.Props) *Instance {
 	inst := &Instance{
-		key:            getStringProp(props, "key", ""),
-		header:         getStringProp(props, "header", ""),
-		rows:           getStringsProp(props, []string{}),
-		emptyText:      getStringProp(props, "emptyText", "(empty)"),
-		maxRows:        getIntProp(props, "maxRows", 0),
-		showBorder:     getBoolProp(props, "showBorder", true),
-		showSeparator:  getBoolProp(props, "showSeparator", true),
-		separatorChar:  getRuneProp(props, "separatorChar", '─'),
-		headerStyle:    getStyleProp(props, "headerStyle"),
-		rowStyle:       getStyleProp(props, "rowStyle"),
-		selectedStyle:  getStyleProp(props, "selectedStyle"),
-		borderStyle:    getStyleProp(props, "borderStyle"),
-		scrollOffset:   getIntProp(props, "scrollOffset", 0),
-		selectedIndex:  getIntProp(props, "selectedIndex", -1),
-		viewportHeight: getIntProp(props, "viewportHeight", 10),
-		allowScroll:    getBoolProp(props, "allowScroll", true),
-		dirty:          true,
+		key:                    getStringProp(props, "key", ""),
+		header:                 getStringProp(props, "header", ""),
+		rows:                   getStringsProp(props, []string{}),
+		emptyText:              getStringProp(props, "emptyText", "(empty)"),
+		maxRows:                getIntProp(props, "maxRows", 0),
+		showBorder:             getBoolProp(props, "showBorder", true),
+		showSeparator:          getBoolProp(props, "showSeparator", true),
+		separatorChar:          getRuneProp(props, "separatorChar", '─'),
+		headerStyle:            getStyleProp(props, "headerStyle"),
+		rowStyle:               getStyleProp(props, "rowStyle"),
+		selectedStyle:          getStyleProp(props, "selectedStyle"),
+		borderStyle:            getStyleProp(props, "borderStyle"),
+		showScrollbar:          getBoolProp(props, "showScrollbar", true),
+		scrollbarStyle:         getStyleProp(props, "scrollbarStyle"),
+		scrollOffset:           getIntProp(props, "scrollOffset", 0),
+		scrollOffsetControlled: getBoolProp(props, "scrollOffsetControlled", false),
+		selectedIndex:          getIntProp(props, "selectedIndex", -1),
+		viewportHeight:         getIntProp(props, "viewportHeight", 10),
+		allowScroll:            getBoolProp(props, "allowScroll", true),
+		dirty:                  true,
 	}
 
 	// Extract rowStyleFn if provided in props
@@ -93,13 +100,16 @@ func NewInstance(props rtui.Props) *Instance {
 func (inst *Instance) Key() string           { return inst.key }
 func (inst *Instance) SetKey(key string)     { inst.key = key }
 func (inst *Instance) Init(props rtui.Props) { inst.SetProps(props) }
-func (inst *Instance) Destroy()             { inst.rows = nil }
-func (inst *Instance) OnMount()             { inst.dirty = true }
-func (inst *Instance) OnUnmount()           {}
+func (inst *Instance) Destroy()              { inst.rows = nil }
+func (inst *Instance) OnMount()              { inst.dirty = true }
+func (inst *Instance) OnUnmount()            {}
 
 func (inst *Instance) SetProps(props rtui.Props) bool {
 	oldSelected := inst.selectedIndex
 	oldScroll := inst.scrollOffset
+	oldScrollControlled := inst.scrollOffsetControlled
+	oldShowScrollbar := inst.showScrollbar
+	oldScrollbarStyle := inst.scrollbarStyle
 
 	inst.header = getStringProp(props, "header", inst.header)
 	inst.rows = getStringsProp(props, inst.rows)
@@ -112,7 +122,16 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	inst.rowStyle = getStyleProp(props, "rowStyle")
 	inst.selectedStyle = getStyleProp(props, "selectedStyle")
 	inst.borderStyle = getStyleProp(props, "borderStyle")
-	inst.scrollOffset = getIntProp(props, "scrollOffset", inst.scrollOffset)
+	inst.showScrollbar = getBoolProp(props, "showScrollbar", inst.showScrollbar)
+	inst.scrollbarStyle = getStyleProp(props, "scrollbarStyle")
+	if controlled, ok := props["scrollOffsetControlled"].(bool); ok {
+		inst.scrollOffsetControlled = controlled
+	}
+	if inst.scrollOffsetControlled {
+		inst.scrollOffset = getIntProp(props, "scrollOffset", inst.scrollOffset)
+	} else if offset, ok := props["scrollOffset"].(int); ok {
+		inst.scrollOffset = offset
+	}
 	inst.selectedIndex = getIntProp(props, "selectedIndex", inst.selectedIndex)
 	inst.viewportHeight = getIntProp(props, "viewportHeight", inst.viewportHeight)
 	inst.allowScroll = getBoolProp(props, "allowScroll", inst.allowScroll)
@@ -124,7 +143,11 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 
 	inst.clampScroll()
 
-	changed := oldSelected != inst.selectedIndex || oldScroll != inst.scrollOffset
+	changed := oldSelected != inst.selectedIndex ||
+		oldScroll != inst.scrollOffset ||
+		oldScrollControlled != inst.scrollOffsetControlled ||
+		oldShowScrollbar != inst.showScrollbar ||
+		oldScrollbarStyle != inst.scrollbarStyle
 	if changed {
 		inst.dirty = true
 	}
@@ -133,21 +156,24 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 
 func (inst *Instance) GetProps() rtui.Props {
 	return rtui.Props{
-		"key":            inst.key,
-		"header":         inst.header,
-		"rows":           inst.rows,
-		"emptyText":      inst.emptyText,
-		"scrollOffset":   inst.scrollOffset,
-		"selectedIndex":  inst.selectedIndex,
-		"viewportHeight": inst.viewportHeight,
-		"allowScroll":    inst.allowScroll,
+		"key":                    inst.key,
+		"header":                 inst.header,
+		"rows":                   inst.rows,
+		"emptyText":              inst.emptyText,
+		"showScrollbar":          inst.showScrollbar,
+		"scrollbarStyle":         inst.scrollbarStyle,
+		"scrollOffsetControlled": inst.scrollOffsetControlled,
+		"scrollOffset":           inst.scrollOffset,
+		"selectedIndex":          inst.selectedIndex,
+		"viewportHeight":         inst.viewportHeight,
+		"allowScroll":            inst.allowScroll,
 	}
 }
 
-func (inst *Instance) MarkDirty()    { inst.dirty = true }
-func (inst *Instance) IsDirty() bool { return inst.dirty }
+func (inst *Instance) MarkDirty()                         { inst.dirty = true }
+func (inst *Instance) IsDirty() bool                      { return inst.dirty }
 func (inst *Instance) GetContext() *rtui.ComponentContext { return nil }
-func (inst *Instance) ClearDirty()   { inst.dirty = false }
+func (inst *Instance) ClearDirty()                        { inst.dirty = false }
 
 // =============================================================================
 // Measurable Interface
@@ -250,6 +276,9 @@ func (inst *Instance) paintWithBorder(x, y int) []paint.DrawCmd {
 		currentY++
 	}
 
+	dataStartY := currentY
+	visibleHeight := inst.visibleHeight()
+
 	// Draw rows
 	if len(inst.rows) == 0 {
 		// Show empty text
@@ -257,25 +286,30 @@ func (inst *Instance) paintWithBorder(x, y int) []paint.DrawCmd {
 		cmds = append(cmds, paint.NewTextCmd(x, currentY, emptyLine, inst.rowStyle))
 		currentY++
 	} else {
-		// Calculate visible rows
-		visibleHeight := inst.viewportHeight
-		if inst.maxRows > 0 {
-			visibleHeight = inst.maxRows
-		}
-
-		startRow := inst.scrollOffset
-		for i := startRow; i < len(inst.rows) && i-startRow < visibleHeight && currentY < y+inst.calculateHeight()-1; i++ {
-			rowIndex := i
-			style := inst.rowStyle
-			if rowIndex == inst.selectedIndex {
-				style = inst.selectedStyle
-			}
-
+		viewport := inst.dataViewport()
+		startRow, endRow := viewport.VisibleRange()
+		for rowIndex := startRow; rowIndex < endRow && currentY < y+inst.calculateHeight()-1; rowIndex++ {
 			rowText := inst.rows[rowIndex]
+			rowStyle := inst.rowStyleFor(rowIndex, rowText)
 			truncated := inst.truncateText(rowText, width-4)
 			rowLine := "│ " + truncated + " │"
-			cmds = append(cmds, paint.NewTextCmd(x, currentY, rowLine, style))
+			cmds = append(cmds, paint.NewTextCmd(x, currentY, rowLine, rowStyle))
 			currentY++
+		}
+
+		if inst.showScrollbar {
+			scrollbarStyle := inst.scrollbarStyle
+			if scrollbarStyle.FG == "" {
+				scrollbarStyle = scrollbarStyle.Foreground(inst.borderStyle.FG)
+			}
+			cmds = append(cmds, scrollutil.DrawVerticalScrollbar(
+				x+width-1,
+				dataStartY,
+				visibleHeight,
+				viewport,
+				scrollbarStyle,
+				scrollutil.DefaultVerticalScrollbarConfig(),
+			)...)
 		}
 	}
 
@@ -309,21 +343,12 @@ func (inst *Instance) paintWithoutBorder(x, y int) []paint.DrawCmd {
 		cmds = append(cmds, paint.NewTextCmd(x, currentY, inst.emptyText, inst.rowStyle))
 		currentY++
 	} else {
-		visibleHeight := inst.viewportHeight
-		if inst.maxRows > 0 {
-			visibleHeight = inst.maxRows
-		}
-
-		startRow := inst.scrollOffset
-		for i := startRow; i < len(inst.rows) && i-startRow < visibleHeight; i++ {
-			rowIndex := i
-			style := inst.rowStyle
-			if rowIndex == inst.selectedIndex {
-				style = inst.selectedStyle
-			}
-
+		viewport := inst.dataViewport()
+		startRow, endRow := viewport.VisibleRange()
+		for rowIndex := startRow; rowIndex < endRow; rowIndex++ {
 			rowText := inst.rows[rowIndex]
-			cmds = append(cmds, paint.NewTextCmd(x, currentY, rowText, style))
+			rowStyle := inst.rowStyleFor(rowIndex, rowText)
+			cmds = append(cmds, paint.NewTextCmd(x, currentY, rowText, rowStyle))
 			currentY++
 		}
 	}
@@ -341,6 +366,11 @@ func (inst *Instance) HandleAction(act *action.Action) bool {
 	}
 
 	switch act.Type {
+	case action.ActionScroll:
+		if delta, ok := scrollutil.DeltaFromAction(act); ok {
+			return inst.scrollBy(delta)
+		}
+		return false
 	case action.ActionNavigateUp:
 		if inst.selectedIndex > 0 {
 			return inst.navigateUp()
@@ -357,11 +387,7 @@ func (inst *Instance) HandleAction(act *action.Action) bool {
 		}
 		return false
 	case action.ActionNavigateEnd:
-		visibleHeight := inst.viewportHeight
-		if inst.maxRows > 0 {
-			visibleHeight = inst.maxRows
-		}
-		if inst.scrollOffset < len(inst.rows)-visibleHeight {
+		if inst.scrollOffset < inst.dataViewport().MaxOffset() {
 			return inst.navigateEnd()
 		}
 		return false
@@ -371,11 +397,7 @@ func (inst *Instance) HandleAction(act *action.Action) bool {
 		}
 		return false
 	case action.ActionNavigatePageDown:
-		visibleHeight := inst.viewportHeight
-		if inst.maxRows > 0 {
-			visibleHeight = inst.maxRows
-		}
-		if inst.scrollOffset < len(inst.rows)-visibleHeight {
+		if inst.scrollOffset < inst.dataViewport().MaxOffset() {
 			return inst.pageDown()
 		}
 		return false
@@ -424,13 +446,9 @@ func (inst *Instance) navigateHome() bool {
 }
 
 func (inst *Instance) navigateEnd() bool {
-	visibleHeight := inst.viewportHeight
-	if inst.maxRows > 0 {
-		visibleHeight = inst.maxRows
-	}
-
 	if len(inst.rows) > 0 {
-		inst.scrollOffset = max(0, len(inst.rows)-visibleHeight)
+		viewport := inst.dataViewport()
+		inst.scrollOffset = viewport.MaxOffset()
 		inst.selectedIndex = len(inst.rows) - 1
 	} else {
 		inst.scrollOffset = 0
@@ -441,26 +459,19 @@ func (inst *Instance) navigateEnd() bool {
 }
 
 func (inst *Instance) pageUp() bool {
-	visibleHeight := inst.viewportHeight
-	if inst.maxRows > 0 {
-		visibleHeight = inst.maxRows
-	}
-
-	inst.scrollOffset = max(0, inst.scrollOffset-visibleHeight)
-	inst.selectedIndex = max(0, inst.selectedIndex-visibleHeight)
+	viewport := inst.dataViewport()
+	viewport.PageUp()
+	inst.scrollOffset = viewport.Offset
+	inst.selectedIndex = max(0, inst.selectedIndex-viewport.ViewSize)
 	inst.dirty = true
 	return true
 }
 
 func (inst *Instance) pageDown() bool {
-	visibleHeight := inst.viewportHeight
-	if inst.maxRows > 0 {
-		visibleHeight = inst.maxRows
-	}
-
-	maxOffset := max(0, len(inst.rows)-visibleHeight)
-	inst.scrollOffset = min(maxOffset, inst.scrollOffset+visibleHeight)
-	inst.selectedIndex = min(len(inst.rows)-1, inst.selectedIndex+visibleHeight)
+	viewport := inst.dataViewport()
+	viewport.PageDown()
+	inst.scrollOffset = viewport.Offset
+	inst.selectedIndex = min(len(inst.rows)-1, inst.selectedIndex+viewport.ViewSize)
 	inst.dirty = true
 	return true
 }
@@ -475,39 +486,52 @@ func (inst *Instance) ensureSelectedRowVisible() {
 		return
 	}
 
-	visibleHeight := inst.viewportHeight
-	if inst.maxRows > 0 {
-		visibleHeight = inst.maxRows
+	viewport := inst.dataViewport()
+	if viewport.EnsureVisible(inst.selectedIndex) {
+		inst.scrollOffset = viewport.Offset
 	}
-
-	// If selected row is before visible area
-	if inst.selectedIndex < inst.scrollOffset {
-		inst.scrollOffset = inst.selectedIndex
-	}
-
-	// If selected row is after visible area
-	if inst.selectedIndex >= inst.scrollOffset+visibleHeight {
-		inst.scrollOffset = inst.selectedIndex - visibleHeight + 1
-	}
-
-	inst.clampScroll()
 }
 
 // clampScroll ensures scroll offset is valid
 func (inst *Instance) clampScroll() {
-	if inst.scrollOffset < 0 {
-		inst.scrollOffset = 0
-	}
+	inst.scrollOffset = inst.dataViewport().Offset
+}
 
-	visibleHeight := inst.viewportHeight
+func (inst *Instance) scrollBy(delta int) bool {
+	viewport := inst.dataViewport()
+	if !viewport.ScrollBy(delta) {
+		return false
+	}
+	inst.scrollOffset = viewport.Offset
+	inst.dirty = true
+	return true
+}
+
+func (inst *Instance) visibleHeight() int {
 	if inst.maxRows > 0 {
-		visibleHeight = inst.maxRows
+		if inst.maxRows < 1 {
+			return 1
+		}
+		return inst.maxRows
 	}
+	if inst.viewportHeight < 1 {
+		return 1
+	}
+	return inst.viewportHeight
+}
 
-	maxOffset := max(0, len(inst.rows)-visibleHeight)
-	if inst.scrollOffset > maxOffset {
-		inst.scrollOffset = maxOffset
+func (inst *Instance) dataViewport() scrollutil.VerticalViewport {
+	return scrollutil.NewVerticalViewport(len(inst.rows), inst.visibleHeight(), inst.scrollOffset)
+}
+
+func (inst *Instance) rowStyleFor(rowIndex int, rowText string) style.Style {
+	if rowIndex == inst.selectedIndex {
+		return inst.selectedStyle
 	}
+	if inst.rowStyleFn != nil {
+		return inst.rowStyleFn(rowIndex, rowText)
+	}
+	return inst.rowStyle
 }
 
 // truncateText truncates text to fit within max width
@@ -523,7 +547,7 @@ func (inst *Instance) truncateText(text string, maxWidth int) string {
 	if maxWidth > 3 {
 		// Use rune-based truncation to avoid cutting UTF-8 multibyte characters
 		runes := []rune(text)
-		
+
 		// Keep truncating until we fit within maxWidth - ellipsis width
 		for i := len(runes); i > 0; i-- {
 			candidateText := string(runes[:i])
@@ -574,7 +598,7 @@ func (inst *Instance) calculateWidth() int {
 // Getters
 // =============================================================================
 
-func (inst *Instance) GetScrollOffset() int    { return inst.scrollOffset }
+func (inst *Instance) GetScrollOffset() int   { return inst.scrollOffset }
 func (inst *Instance) GetSelectedIndex() int  { return inst.selectedIndex }
 func (inst *Instance) GetViewportHeight() int { return inst.viewportHeight }
 

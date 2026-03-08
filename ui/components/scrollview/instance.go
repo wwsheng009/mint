@@ -8,6 +8,7 @@ import (
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
+	scrollutil "github.com/wwsheng009/mint/ui/components/internal/scroll"
 	newtext "github.com/wwsheng009/mint/ui/components/text"
 )
 
@@ -37,10 +38,12 @@ type Instance struct {
 
 // Ensure Instance implements required interfaces
 var (
-	_ rtui.ComponentInstance        = (*Instance)(nil)
-	_ rtui.PaintableInstance        = (*Instance)(nil)
+	_ rtui.ComponentInstance = (*Instance)(nil)
+	_ rtui.PaintableInstance = (*Instance)(nil)
 	// Note: control.Instance intentionally not implemented - ScrollView doesn't need behaviors
-	_ interface{ Measure(layout.Constraints) layout.Size } = (*Instance)(nil)
+	_ interface {
+		Measure(layout.Constraints) layout.Size
+	} = (*Instance)(nil)
 )
 
 // =============================================================================
@@ -567,7 +570,7 @@ func (inst *Instance) HandleAction(act *action.Action) bool {
 
 	switch act.Type {
 	case action.ActionScroll:
-		if delta, ok := act.GetPayloadInt(); ok {
+		if delta, ok := scrollutil.DeltaFromAction(act); ok {
 			inst.ScrollBy(delta)
 			return true
 		}

@@ -21,27 +21,30 @@ type VNode struct {
 	key string
 
 	// === Visual Properties ===
-	header      string   // Optional column header text
-	rows        []string // Pre-formatted data rows
-	emptyText   string   // Text shown when rows is empty
-	maxRows     int      // Maximum visible rows (0 = unlimited)
-	showBorder  bool     // Show border around the list
+	header     string   // Optional column header text
+	rows       []string // Pre-formatted data rows
+	emptyText  string   // Text shown when rows is empty
+	maxRows    int      // Maximum visible rows (0 = unlimited)
+	showBorder bool     // Show border around the list
 
 	// === Separator ===
-	showSeparator bool  // Show separator line between header and rows
+	showSeparator bool // Show separator line between header and rows
 	separatorChar rune // Separator character (default '─')
 
 	// === Styles ===
-	headerStyle   style.Style // Style for the header row
-	rowStyle      style.Style // Default style for data rows
-	rowStyleFn    func(int, string) style.Style // Dynamic style function per row
-	selectedStyle style.Style // Style for the selected row
-	borderStyle   style.Style // Style for the border
+	headerStyle    style.Style                   // Style for the header row
+	rowStyle       style.Style                   // Default style for data rows
+	rowStyleFn     func(int, string) style.Style // Dynamic style function per row
+	selectedStyle  style.Style                   // Style for the selected row
+	borderStyle    style.Style                   // Style for the border
+	showScrollbar  bool
+	scrollbarStyle style.Style
 
 	// === State Properties (declarative initial state) ===
-	scrollOffset   int // Initial scroll offset
-	selectedIndex  int // Currently selected row index
-	viewportHeight int // Visible height for scrolling
+	scrollOffset           int  // Initial scroll offset
+	scrollOffsetControlled bool // Whether scrollOffset is externally controlled
+	selectedIndex          int  // Currently selected row index
+	viewportHeight         int  // Visible height for scrolling
 
 	// === Interaction ===
 	allowScroll bool // Whether scrolling is enabled
@@ -73,6 +76,7 @@ func New() *VNode {
 		rowStyle:       style.Style{},
 		selectedStyle:  style.Style{BG: style.Blue, FG: style.White},
 		borderStyle:    style.Style{FG: style.White},
+		showScrollbar:  true,
 		scrollOffset:   0,
 		selectedIndex:  -1,
 		viewportHeight: 10,
@@ -84,34 +88,39 @@ func New() *VNode {
 // rtui.VNode Interface Implementation
 // =============================================================================
 
-func (v *VNode) Key() string                   { return v.key }
-func (v *VNode) SetKey(key string) rtui.VNode  { v.key = key; return v }
-func (v *VNode) Tag() string                   { return "list" }
-func (v *VNode) Style() style.Style            { return v.rowStyle }
-func (v *VNode) SetStyle(s style.Style) rtui.VNode { v.rowStyle = s; return v }
-func (v *VNode) Children() []rtui.VNode        { return nil }
+func (v *VNode) Key() string                                  { return v.key }
+func (v *VNode) SetKey(key string) rtui.VNode                 { v.key = key; return v }
+func (v *VNode) Tag() string                                  { return "list" }
+func (v *VNode) Style() style.Style                           { return v.rowStyle }
+func (v *VNode) SetStyle(s style.Style) rtui.VNode            { v.rowStyle = s; return v }
+func (v *VNode) Children() []rtui.VNode                       { return nil }
 func (v *VNode) SetChildren(children []rtui.VNode) rtui.VNode { return v }
-func (v *VNode) GetLayer() rtui.Layer          { return rtui.LayerBase }
-func (v *VNode) SetLayer(l rtui.Layer) rtui.VNode { return v }
+func (v *VNode) GetLayer() rtui.Layer                         { return rtui.LayerBase }
+func (v *VNode) SetLayer(l rtui.Layer) rtui.VNode             { return v }
 
 func (v *VNode) Props() rtui.Props {
 	props := rtui.Props{
-		"key":            v.key,
-		"header":         v.header,
-		"rows":           v.rows,
-		"emptyText":      v.emptyText,
-		"maxRows":        v.maxRows,
-		"showBorder":     v.showBorder,
-		"showSeparator":  v.showSeparator,
-		"separatorChar":  v.separatorChar,
-		"headerStyle":    v.headerStyle,
-		"rowStyle":       v.rowStyle,
-		"selectedStyle":  v.selectedStyle,
-		"borderStyle":    v.borderStyle,
-		"scrollOffset":   v.scrollOffset,
-		"selectedIndex":  v.selectedIndex,
-		"viewportHeight": v.viewportHeight,
-		"allowScroll":    v.allowScroll,
+		"key":                    v.key,
+		"header":                 v.header,
+		"rows":                   v.rows,
+		"emptyText":              v.emptyText,
+		"maxRows":                v.maxRows,
+		"showBorder":             v.showBorder,
+		"showSeparator":          v.showSeparator,
+		"separatorChar":          v.separatorChar,
+		"headerStyle":            v.headerStyle,
+		"rowStyle":               v.rowStyle,
+		"selectedStyle":          v.selectedStyle,
+		"borderStyle":            v.borderStyle,
+		"showScrollbar":          v.showScrollbar,
+		"scrollbarStyle":         v.scrollbarStyle,
+		"scrollOffsetControlled": v.scrollOffsetControlled,
+		"selectedIndex":          v.selectedIndex,
+		"viewportHeight":         v.viewportHeight,
+		"allowScroll":            v.allowScroll,
+	}
+	if v.scrollOffsetControlled {
+		props["scrollOffset"] = v.scrollOffset
 	}
 
 	// Add rowStyleFn if it's set (functions can be stored in Props)
@@ -159,8 +168,18 @@ func (v *VNode) SetProps(p rtui.Props) rtui.VNode {
 	if borderStyle, ok := p["borderStyle"].(style.Style); ok {
 		v.borderStyle = borderStyle
 	}
+	if showScrollbar, ok := p["showScrollbar"].(bool); ok {
+		v.showScrollbar = showScrollbar
+	}
+	if scrollbarStyle, ok := p["scrollbarStyle"].(style.Style); ok {
+		v.scrollbarStyle = scrollbarStyle
+	}
 	if scrollOffset, ok := p["scrollOffset"].(int); ok {
 		v.scrollOffset = scrollOffset
+		v.scrollOffsetControlled = true
+	}
+	if controlled, ok := p["scrollOffsetControlled"].(bool); ok {
+		v.scrollOffsetControlled = controlled
 	}
 	if selectedIndex, ok := p["selectedIndex"].(int); ok {
 		v.selectedIndex = selectedIndex
@@ -186,22 +205,28 @@ func (v *VNode) CreateInstance() rtui.ComponentInstance {
 // Setter Methods (Fluent API)
 // =============================================================================
 
-func (v *VNode) SetHeader(header string) *VNode     { v.header = header; return v }
-func (v *VNode) SetRows(rows []string) *VNode      { v.rows = rows; return v }
-func (v *VNode) SetEmptyText(text string) *VNode  { v.emptyText = text; return v }
-func (v *VNode) SetMaxRows(n int) *VNode          { v.maxRows = n; return v }
-func (v *VNode) SetShowBorder(show bool) *VNode  { v.showBorder = show; return v }
-func (v *VNode) SetShowSeparator(show bool) *VNode { v.showSeparator = show; return v }
-func (v *VNode) SetSeparatorChar(ch rune) *VNode { v.separatorChar = ch; return v }
-func (v *VNode) SetHeaderStyle(s style.Style) *VNode { v.headerStyle = s; return v }
-func (v *VNode) SetRowStyle(s style.Style) *VNode    { v.rowStyle = s; return v }
+func (v *VNode) SetHeader(header string) *VNode                        { v.header = header; return v }
+func (v *VNode) SetRows(rows []string) *VNode                          { v.rows = rows; return v }
+func (v *VNode) SetEmptyText(text string) *VNode                       { v.emptyText = text; return v }
+func (v *VNode) SetMaxRows(n int) *VNode                               { v.maxRows = n; return v }
+func (v *VNode) SetShowBorder(show bool) *VNode                        { v.showBorder = show; return v }
+func (v *VNode) SetShowSeparator(show bool) *VNode                     { v.showSeparator = show; return v }
+func (v *VNode) SetSeparatorChar(ch rune) *VNode                       { v.separatorChar = ch; return v }
+func (v *VNode) SetHeaderStyle(s style.Style) *VNode                   { v.headerStyle = s; return v }
+func (v *VNode) SetRowStyle(s style.Style) *VNode                      { v.rowStyle = s; return v }
 func (v *VNode) SetRowStyleFn(fn func(int, string) style.Style) *VNode { v.rowStyleFn = fn; return v }
-func (v *VNode) SetSelectedStyle(s style.Style) *VNode { v.selectedStyle = s; return v }
-func (v *VNode) SetBorderStyle(s style.Style) *VNode   { v.borderStyle = s; return v }
-func (v *VNode) SetScrollOffset(offset int) *VNode  { v.scrollOffset = offset; return v }
-func (v *VNode) SetSelectedIndex(index int) *VNode { v.selectedIndex = index; return v }
+func (v *VNode) SetSelectedStyle(s style.Style) *VNode                 { v.selectedStyle = s; return v }
+func (v *VNode) SetBorderStyle(s style.Style) *VNode                   { v.borderStyle = s; return v }
+func (v *VNode) SetShowScrollbar(show bool) *VNode                     { v.showScrollbar = show; return v }
+func (v *VNode) SetScrollbarStyle(s style.Style) *VNode                { v.scrollbarStyle = s; return v }
+func (v *VNode) SetScrollOffset(offset int) *VNode {
+	v.scrollOffset = offset
+	v.scrollOffsetControlled = true
+	return v
+}
+func (v *VNode) SetSelectedIndex(index int) *VNode   { v.selectedIndex = index; return v }
 func (v *VNode) SetViewportHeight(height int) *VNode { v.viewportHeight = height; return v }
-func (v *VNode) SetAllowScroll(allow bool) *VNode  { v.allowScroll = allow; return v }
+func (v *VNode) SetAllowScroll(allow bool) *VNode    { v.allowScroll = allow; return v }
 
 // =============================================================================
 // Convenience Methods
@@ -225,7 +250,7 @@ func (v *VNode) AddRows(rows ...string) *VNode {
 
 func (v *VNode) Header() string { return v.header }
 func (v *VNode) Rows() []string { return v.rows }
-func (v *VNode) RowCount() int { return len(v.rows) }
+func (v *VNode) RowCount() int  { return len(v.rows) }
 
 // Measure creates a temporary instance and measures it with the given constraints.
 func (v *VNode) Measure(constraints runtime.BoxConstraints) runtime.Size {
@@ -253,4 +278,3 @@ func (v *VNode) Paint(x, y int) []paint.DrawCmd {
 	inst := v.CreateInstance().(*Instance)
 	return inst.Paint(x, y)
 }
-

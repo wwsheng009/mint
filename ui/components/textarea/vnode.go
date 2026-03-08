@@ -26,8 +26,12 @@ type VNode struct {
 	style       style.Style
 
 	// === Layout Props ===
-	rows int
-	cols int
+	rows                   int
+	cols                   int
+	scrollOffset           int
+	scrollOffsetControlled bool
+	showScrollbar          bool
+	scrollbarStyle         style.Style
 
 	// === Intent Props (no closures!) ===
 	changeIntent intent.Intent
@@ -54,10 +58,11 @@ var (
 // New creates a new Textarea VNode.
 func New() *VNode {
 	return &VNode{
-		ElementVNode: rtui.NewElement("textarea"),
-		rows:         3,
-		cols:         40,
-		cursorConfig: cursor.DefaultConfig(),
+		ElementVNode:  rtui.NewElement("textarea"),
+		rows:          3,
+		cols:          40,
+		showScrollbar: true,
+		cursorConfig:  cursor.DefaultConfig(),
 	}
 }
 
@@ -76,20 +81,27 @@ func (t *VNode) GetLayer() rtui.Layer                         { return rtui.Laye
 func (t *VNode) SetLayer(l rtui.Layer) rtui.VNode             { return t }
 
 func (t *VNode) Props() rtui.Props {
-	return rtui.Props{
-		"key":          t.key,
-		"placeholder":  t.placeholder,
-		"style":        t.style,
-		"rows":         t.rows,
-		"cols":         t.cols,
-		"changeIntent": t.changeIntent,
-		"submitIntent": t.submitIntent,
-		"value":        t.value,
-		"maxLen":       t.maxLen,
-		"disabled":     t.disabled,
-		"formID":       t.formID,
-		"cursorConfig": t.cursorConfig,
+	props := rtui.Props{
+		"key":                    t.key,
+		"placeholder":            t.placeholder,
+		"style":                  t.style,
+		"rows":                   t.rows,
+		"cols":                   t.cols,
+		"scrollOffsetControlled": t.scrollOffsetControlled,
+		"showScrollbar":          t.showScrollbar,
+		"scrollbarStyle":         t.scrollbarStyle,
+		"changeIntent":           t.changeIntent,
+		"submitIntent":           t.submitIntent,
+		"value":                  t.value,
+		"maxLen":                 t.maxLen,
+		"disabled":               t.disabled,
+		"formID":                 t.formID,
+		"cursorConfig":           t.cursorConfig,
 	}
+	if t.scrollOffsetControlled {
+		props["scrollOffset"] = t.scrollOffset
+	}
+	return props
 }
 
 func (t *VNode) SetProps(p rtui.Props) rtui.VNode {
@@ -107,6 +119,19 @@ func (t *VNode) SetProps(p rtui.Props) rtui.VNode {
 	}
 	if v, ok := p["cols"].(int); ok {
 		t.cols = v
+	}
+	if v, ok := p["scrollOffset"].(int); ok {
+		t.scrollOffset = v
+		t.scrollOffsetControlled = true
+	}
+	if v, ok := p["scrollOffsetControlled"].(bool); ok {
+		t.scrollOffsetControlled = v
+	}
+	if v, ok := p["showScrollbar"].(bool); ok {
+		t.showScrollbar = v
+	}
+	if v, ok := p["scrollbarStyle"].(style.Style); ok {
+		t.scrollbarStyle = v
 	}
 	if v, ok := p["changeIntent"].(intent.Intent); ok {
 		t.changeIntent = v
@@ -144,10 +169,17 @@ func (t *VNode) CreateInstance() rtui.ComponentInstance {
 // Builder Methods
 // =============================================================================
 
-func (t *VNode) SetPlaceholder(text string) *VNode      { t.placeholder = text; return t }
-func (t *VNode) SetValue(value string) *VNode           { t.value = value; return t }
-func (t *VNode) SetRows(rows int) *VNode                { t.rows = rows; return t }
-func (t *VNode) SetCols(cols int) *VNode                { t.cols = cols; return t }
+func (t *VNode) SetPlaceholder(text string) *VNode { t.placeholder = text; return t }
+func (t *VNode) SetValue(value string) *VNode      { t.value = value; return t }
+func (t *VNode) SetRows(rows int) *VNode           { t.rows = rows; return t }
+func (t *VNode) SetCols(cols int) *VNode           { t.cols = cols; return t }
+func (t *VNode) SetScrollOffset(offset int) *VNode {
+	t.scrollOffset = offset
+	t.scrollOffsetControlled = true
+	return t
+}
+func (t *VNode) SetShowScrollbar(show bool) *VNode      { t.showScrollbar = show; return t }
+func (t *VNode) SetScrollbarStyle(s style.Style) *VNode { t.scrollbarStyle = s; return t }
 func (t *VNode) SetMaxLen(len int) *VNode               { t.maxLen = len; return t }
 func (t *VNode) SetDisabled(disabled bool) *VNode       { t.disabled = disabled; return t }
 func (t *VNode) SetChangeIntent(i intent.Intent) *VNode { t.changeIntent = i; return t }
@@ -207,6 +239,8 @@ func (t *VNode) Placeholder() string         { return t.placeholder }
 func (t *VNode) Value() string               { return t.value }
 func (t *VNode) Rows() int                   { return t.rows }
 func (t *VNode) Cols() int                   { return t.cols }
+func (t *VNode) ScrollOffset() int           { return t.scrollOffset }
+func (t *VNode) ShowScrollbar() bool         { return t.showScrollbar }
 func (t *VNode) MaxLen() int                 { return t.maxLen }
 func (t *VNode) Disabled() bool              { return t.disabled }
 func (t *VNode) ChangeIntent() intent.Intent { return t.changeIntent }

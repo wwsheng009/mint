@@ -39,6 +39,21 @@ func (b *Builder) Cols(cols int) *Builder {
 	return b
 }
 
+func (b *Builder) ScrollOffset(offset int) *Builder {
+	b.node.SetScrollOffset(offset)
+	return b
+}
+
+func (b *Builder) ShowScrollbar(show bool) *Builder {
+	b.node.SetShowScrollbar(show)
+	return b
+}
+
+func (b *Builder) ScrollbarStyle(s style.Style) *Builder {
+	b.node.SetScrollbarStyle(s)
+	return b
+}
+
 func (b *Builder) MaxLen(len int) *Builder {
 	b.node.SetMaxLen(len)
 	return b

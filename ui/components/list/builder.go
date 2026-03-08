@@ -119,6 +119,18 @@ func (b *Builder) BorderStyle(s style.Style) *Builder {
 	return b
 }
 
+// ShowScrollbar controls whether a vertical scrollbar is shown when scrollable.
+func (b *Builder) ShowScrollbar(show bool) *Builder {
+	b.vnode.SetShowScrollbar(show)
+	return b
+}
+
+// ScrollbarStyle sets the style for the scrollbar.
+func (b *Builder) ScrollbarStyle(s style.Style) *Builder {
+	b.vnode.SetScrollbarStyle(s)
+	return b
+}
+
 // ScrollOffset sets the initial scroll offset.
 func (b *Builder) ScrollOffset(offset int) *Builder {
 	b.vnode.SetScrollOffset(offset)

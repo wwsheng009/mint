@@ -15,6 +15,7 @@ import (
 	"github.com/wwsheng009/mint/ui/components/control"
 	"github.com/wwsheng009/mint/ui/components/cursor"
 	"github.com/wwsheng009/mint/ui/components/form"
+	scrollutil "github.com/wwsheng009/mint/ui/components/internal/scroll"
 )
 
 // =============================================================================
@@ -23,16 +24,20 @@ import (
 
 // Instance is the runtime entity for Textarea components.
 type Instance struct {
-	key               string
-	placeholder       string
-	textareaStyle     style.Style
-	rows, cols        int
-	changeIntent      intent.Intent
-	changeIntentField intent.FieldIntent // For FieldChangeIntent extraction
-	submitIntent      intent.Intent
-	formID            string // Form ID for Form integration (Phase 6)
-	maxLen            int
-	cursorConfig      cursor.Config
+	key                    string
+	placeholder            string
+	textareaStyle          style.Style
+	rows, cols             int
+	scrollOffset           int
+	scrollOffsetControlled bool
+	showScrollbar          bool
+	scrollbarStyle         style.Style
+	changeIntent           intent.Intent
+	changeIntentField      intent.FieldIntent // For FieldChangeIntent extraction
+	submitIntent           intent.Intent
+	formID                 string // Form ID for Form integration (Phase 6)
+	maxLen                 int
+	cursorConfig           cursor.Config
 
 	state         control.InteractionState
 	value         string
@@ -63,20 +68,24 @@ var (
 func NewInstance(props rtui.Props) *Instance {
 	cursorCfg := getCursorConfigProp(props, "cursorConfig", cursor.DefaultConfig())
 	inst := &Instance{
-		key:               getStringProp(props, "key", ""),
-		placeholder:       getStringProp(props, "placeholder", ""),
-		textareaStyle:     getStyleProp(props),
-		rows:              getIntProp(props, "rows", 3),
-		cols:              getIntProp(props, "cols", 40),
-		changeIntent:      getIntentProp(props, "changeIntent"),
-		changeIntentField: getChangeIntentFieldProp(props, "changeIntent"),
-		formID:            getStringProp(props, "formID", ""),
-		submitIntent:      getIntentProp(props, "submitIntent"),
-		value:             getStringProp(props, "value", ""),
-		maxLen:            getIntProp(props, "maxLen", 0),
-		cursorConfig:      cursorCfg,
-		cursorModel:       cursor.NewModel(cursorCfg),
-		dirty:             true,
+		key:                    getStringProp(props, "key", ""),
+		placeholder:            getStringProp(props, "placeholder", ""),
+		textareaStyle:          getStyleProp(props),
+		rows:                   getIntProp(props, "rows", 3),
+		cols:                   getIntProp(props, "cols", 40),
+		scrollOffset:           getIntProp(props, "scrollOffset", 0),
+		scrollOffsetControlled: getBoolProp(props, "scrollOffsetControlled", false),
+		showScrollbar:          getBoolProp(props, "showScrollbar", true),
+		scrollbarStyle:         getStylePropByKey(props, "scrollbarStyle"),
+		changeIntent:           getIntentProp(props, "changeIntent"),
+		changeIntentField:      getChangeIntentFieldProp(props, "changeIntent"),
+		formID:                 getStringProp(props, "formID", ""),
+		submitIntent:           getIntentProp(props, "submitIntent"),
+		value:                  getStringProp(props, "value", ""),
+		maxLen:                 getIntProp(props, "maxLen", 0),
+		cursorConfig:           cursorCfg,
+		cursorModel:            cursor.NewModel(cursorCfg),
+		dirty:                  true,
 	}
 	inst.cursorPos = utf8.RuneCountInString(inst.value)
 
@@ -90,6 +99,7 @@ func NewInstance(props rtui.Props) *Instance {
 		&control.DisableableBehavior{},
 	)
 	inst.syncCursorVisibility()
+	inst.ensureCursorVisible()
 
 	return inst
 }
@@ -116,11 +126,25 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	oldValue := inst.value
 	oldDisabled := inst.state.Disabled
 	oldCursorConfig := inst.cursorConfig
+	oldScrollOffset := inst.scrollOffset
+	oldScrollOffsetControlled := inst.scrollOffsetControlled
+	oldShowScrollbar := inst.showScrollbar
+	oldScrollbarStyle := inst.scrollbarStyle
 
 	inst.placeholder = getStringProp(props, "placeholder", inst.placeholder)
 	inst.textareaStyle = getStyleProp(props)
 	inst.rows = getIntProp(props, "rows", inst.rows)
 	inst.cols = getIntProp(props, "cols", inst.cols)
+	if controlled, ok := props["scrollOffsetControlled"].(bool); ok {
+		inst.scrollOffsetControlled = controlled
+	}
+	if inst.scrollOffsetControlled {
+		inst.scrollOffset = getIntProp(props, "scrollOffset", inst.scrollOffset)
+	} else if offset, ok := props["scrollOffset"].(int); ok {
+		inst.scrollOffset = offset
+	}
+	inst.showScrollbar = getBoolProp(props, "showScrollbar", inst.showScrollbar)
+	inst.scrollbarStyle = getStylePropByKey(props, "scrollbarStyle")
 	inst.changeIntent = getIntentProp(props, "changeIntent")
 	inst.changeIntentField = getChangeIntentFieldProp(props, "changeIntent")
 	inst.formID = getStringProp(props, "formID", inst.formID)
@@ -131,6 +155,7 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 		inst.cursorPos = utf8.RuneCountInString(inst.value)
 		inst.clearCursorGoal()
 		inst.cursorModel.ResetBlink()
+		inst.ensureCursorVisible()
 	}
 	inst.maxLen = getIntProp(props, "maxLen", inst.maxLen)
 
@@ -148,7 +173,11 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 
 	changed := oldValue != inst.value ||
 		oldDisabled != inst.state.Disabled ||
-		oldCursorConfig != inst.cursorConfig
+		oldCursorConfig != inst.cursorConfig ||
+		oldScrollOffset != inst.scrollOffset ||
+		oldScrollOffsetControlled != inst.scrollOffsetControlled ||
+		oldShowScrollbar != inst.showScrollbar ||
+		oldScrollbarStyle != inst.scrollbarStyle
 	if changed {
 		inst.dirty = true
 	}
@@ -157,10 +186,14 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 
 func (inst *Instance) GetProps() rtui.Props {
 	return rtui.Props{
-		"key":          inst.key,
-		"value":        inst.value,
-		"disabled":     inst.state.Disabled,
-		"cursorConfig": inst.cursorConfig,
+		"key":                    inst.key,
+		"value":                  inst.value,
+		"disabled":               inst.state.Disabled,
+		"scrollOffsetControlled": inst.scrollOffsetControlled,
+		"scrollOffset":           inst.scrollOffset,
+		"showScrollbar":          inst.showScrollbar,
+		"scrollbarStyle":         inst.scrollbarStyle,
+		"cursorConfig":           inst.cursorConfig,
 	}
 }
 
@@ -216,29 +249,11 @@ func (inst *Instance) Paint(x, y int) []paint.DrawCmd {
 		cursorLine, cursorCol = 0, 0
 	}
 
-	viewportTop := 0
-	if len(wrappedLines) > contentHeight {
-		if cursorLine >= contentHeight {
-			viewportTop = cursorLine - contentHeight + 1
-		}
-		maxTop := len(wrappedLines) - contentHeight
-		if viewportTop > maxTop {
-			viewportTop = maxTop
-		}
-		if viewportTop < 0 {
-			viewportTop = 0
-		}
-	}
+	viewport := scrollutil.NewVerticalViewport(len(wrappedLines), contentHeight, inst.scrollOffset)
+	inst.scrollOffset = viewport.Offset
 
 	// Content lines
-	visibleStart := viewportTop
-	visibleEnd := visibleStart + contentHeight
-	if visibleStart > len(wrappedLines) {
-		visibleStart = len(wrappedLines)
-	}
-	if visibleEnd > len(wrappedLines) {
-		visibleEnd = len(wrappedLines)
-	}
+	visibleStart, visibleEnd := viewport.VisibleRange()
 	visibleLines := wrappedLines[visibleStart:visibleEnd]
 	for i, line := range visibleLines {
 		if i >= contentHeight {
@@ -257,9 +272,24 @@ func (inst *Instance) Paint(x, y int) []paint.DrawCmd {
 	// Bottom border
 	cmds = append(cmds, paint.DrawCmd{X: x, Y: y + height - 1, Text: topBorder, Style: borderStyle})
 
+	if inst.showScrollbar {
+		scrollbarStyle := inst.scrollbarStyle
+		if scrollbarStyle.FG == "" {
+			scrollbarStyle = scrollbarStyle.Foreground(borderStyle.FG)
+		}
+		cmds = append(cmds, scrollutil.DrawVerticalScrollbar(
+			x+width-1,
+			y+1,
+			contentHeight,
+			viewport,
+			scrollbarStyle,
+			scrollutil.DefaultVerticalScrollbarConfig(),
+		)...)
+	}
+
 	// Draw caret overlay when focused.
 	if inst.shouldDrawCursor() && contentWidth > 0 && contentHeight > 0 {
-		cursorLine = cursorLine - viewportTop
+		cursorLine = cursorLine - visibleStart
 		if cursorCol < 0 {
 			cursorCol = 0
 		}
@@ -353,6 +383,11 @@ func (inst *Instance) HandleAction(act *action.Action) bool {
 	}
 
 	switch act.Type {
+	case action.ActionScroll:
+		if delta, ok := scrollutil.DeltaFromAction(act); ok {
+			return inst.ScrollBy(delta)
+		}
+		return false
 	case action.ActionInputText:
 		if text, ok := act.GetPayloadString(); ok {
 			return inst.InsertText(text)
@@ -389,6 +424,17 @@ func (inst *Instance) HandleAction(act *action.Action) bool {
 // Textarea-specific Methods
 // =============================================================================
 
+// ScrollBy scrolls viewport by delta rows.
+func (inst *Instance) ScrollBy(delta int) bool {
+	viewport := scrollutil.NewVerticalViewport(inst.wrappedLineCountForContent(), inst.viewportRows(), inst.scrollOffset)
+	if !viewport.ScrollBy(delta) {
+		return false
+	}
+	inst.scrollOffset = viewport.Offset
+	inst.dirty = true
+	return true
+}
+
 func (inst *Instance) InsertText(text string) bool {
 	if inst.state.Disabled {
 		return false
@@ -415,6 +461,7 @@ func (inst *Instance) InsertText(text string) bool {
 	inst.cursorPos += len(textRunes)
 	inst.clearCursorGoal()
 	inst.cursorModel.ResetBlink()
+	inst.ensureCursorVisible()
 	inst.dirty = true
 
 	// ✨ MVP/Phase 6: Emit FieldChangeIntent or FormFieldChangeIntent with runtime value
@@ -459,6 +506,7 @@ func (inst *Instance) DeleteText(direction int) bool {
 
 	inst.clearCursorGoal()
 	inst.cursorModel.ResetBlink()
+	inst.ensureCursorVisible()
 	inst.dirty = true
 	inst.emitFieldValueChanged()
 	return true
@@ -470,6 +518,7 @@ func (inst *Instance) SetValue(value string) {
 		inst.cursorPos = utf8.RuneCountInString(value)
 		inst.clearCursorGoal()
 		inst.cursorModel.ResetBlink()
+		inst.ensureCursorVisible()
 		inst.dirty = true
 	}
 }
@@ -496,6 +545,7 @@ func (inst *Instance) setCursorPos(pos int) {
 	if inst.cursorPos != pos {
 		inst.cursorPos = pos
 		inst.cursorModel.ResetBlink()
+		inst.ensureCursorVisible()
 		inst.dirty = true
 	}
 }
@@ -609,6 +659,47 @@ func (inst *Instance) clampCursorPos(max int) {
 func (inst *Instance) clearCursorGoal() {
 	inst.cursorGoal = 0
 	inst.hasCursorGoal = false
+}
+
+func (inst *Instance) viewportRows() int {
+	if inst.rows < 1 {
+		return 1
+	}
+	return inst.rows
+}
+
+func (inst *Instance) wrappedLineCountForContent() int {
+	width := inst.wrapContentWidth()
+	if width < 1 {
+		width = 1
+	}
+	content := inst.value
+	if content == "" {
+		content = inst.placeholder
+	}
+	lines := strings.Split(content, "\n")
+	if len(lines) == 0 {
+		lines = []string{""}
+	}
+	wrapped := wrapLinesByDisplayWidth(lines, width)
+	if len(wrapped) == 0 {
+		return 1
+	}
+	return len(wrapped)
+}
+
+func (inst *Instance) ensureCursorVisible() {
+	if inst.scrollOffsetControlled {
+		return
+	}
+	width := inst.wrapContentWidth()
+	if width < 1 {
+		width = 1
+	}
+	cursorLine, _ := inst.cursorLineColWrapped(width)
+	viewport := scrollutil.NewVerticalViewport(inst.wrappedLineCountForContent(), inst.viewportRows(), inst.scrollOffset)
+	viewport.EnsureVisible(cursorLine)
+	inst.scrollOffset = viewport.Offset
 }
 
 func (inst *Instance) currentLineBounds() (start, end int) {
@@ -1058,6 +1149,15 @@ func getBoolProp(props rtui.Props, key string, def bool) bool {
 
 func getStyleProp(props rtui.Props) style.Style {
 	if v, ok := props["style"]; ok {
+		if s, ok := v.(style.Style); ok {
+			return s
+		}
+	}
+	return style.Style{}
+}
+
+func getStylePropByKey(props rtui.Props, key string) style.Style {
+	if v, ok := props[key]; ok {
 		if s, ok := v.(style.Style); ok {
 			return s
 		}

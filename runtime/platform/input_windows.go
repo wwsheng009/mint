@@ -52,14 +52,14 @@ func (r *windowsInputReader) Start(events chan<- RawInput) error {
 	r.events = events
 
 	// DEBUG: 打印启动信息
-		log.PlatFormLogger.IfEnabled().Debug("[WIN INPUT] Starting...")
+	log.PlatFormLogger.IfEnabled().Debug("[WIN INPUT] Starting...")
 
 	handle, _, err := procGetStdHandle.Call(STD_INPUT_HANDLE)
 	if handle == 0 {
-		  log.PlatFormLogger.IfEnabled().Debug("[WIN INPUT] Failed to get stdin handle: %v", err)
+		log.PlatFormLogger.IfEnabled().Debug("[WIN INPUT] Failed to get stdin handle: %v", err)
 		return err
 	}
-	 log.PlatFormLogger.IfEnabled().Debug("[WIN INPUT] Got handle: 0x%x", handle)
+	log.PlatFormLogger.IfEnabled().Debug("[WIN INPUT] Got handle: 0x%x", handle)
 
 	// 🔥 关键修复：先重置控制台到安全模式，防止上次崩溃遗毒
 	r.resetConsoleToSaneMode(handle)
@@ -383,9 +383,23 @@ func (r *windowsInputReader) parseMouseEvent(record *INPUT_RECORD, now time.Time
 	// 确定鼠标动作类型
 	eventFlags := mouseEvent.EventFlags
 	if eventFlags&MOUSE_WHEELED != 0 {
-		input.MouseAction = MouseWheelUp
+		// Windows: vertical wheel delta is stored in high word of ButtonState.
+		// delta > 0 => wheel up, delta < 0 => wheel down.
+		wheelDelta := int16(mouseEvent.ButtonState >> 16)
+		if wheelDelta < 0 {
+			input.MouseAction = MouseWheelDown
+		} else {
+			input.MouseAction = MouseWheelUp
+		}
 	} else if eventFlags&MOUSE_HWHEELED != 0 {
-		input.MouseAction = MouseWheelDown
+		// Horizontal wheel is also encoded in high word.
+		// We only have vertical actions in RawInput, so map by sign.
+		wheelDelta := int16(mouseEvent.ButtonState >> 16)
+		if wheelDelta < 0 {
+			input.MouseAction = MouseWheelDown
+		} else {
+			input.MouseAction = MouseWheelUp
+		}
 	} else if eventFlags&DOUBLE_CLICK != 0 {
 		input.MouseAction = MousePress
 		input.MouseButton = currentButton

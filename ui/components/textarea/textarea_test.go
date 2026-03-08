@@ -6,6 +6,7 @@ import (
 
 	"github.com/wwsheng009/mint/runtime/action"
 	"github.com/wwsheng009/mint/runtime/layout"
+	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/ui/components/cursor"
 )
@@ -389,9 +390,9 @@ func TestInstance_Paint_HeightIsLimitedByRows(t *testing.T) {
 	})
 
 	cmds := inst.Paint(0, 0)
-	// fixed rows=2 => top + 2 content + bottom
-	if len(cmds) != 4 {
-		t.Fatalf("Paint returned %d commands, want 4", len(cmds))
+	// fixed rows=2 + 2 scrollbar cells => 6 commands
+	if len(cmds) != 6 {
+		t.Fatalf("Paint returned %d commands, want 6", len(cmds))
 	}
 	// Cursor defaults at end, viewport follows caret and shows last wrapped lines.
 	if cmds[1].Text != "|stuvwx|" {
@@ -399,6 +400,20 @@ func TestInstance_Paint_HeightIsLimitedByRows(t *testing.T) {
 	}
 	if cmds[2].Text != "|yz    |" {
 		t.Fatalf("visible line2 = %q, want %q", cmds[2].Text, "|yz    |")
+	}
+}
+
+func TestInstance_Paint_HidesScrollbarWhenDisabled(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"value":         "abcdefghijklmnopqrstuvwxyz",
+		"rows":          2,
+		"cols":          4,
+		"showScrollbar": false,
+	})
+
+	cmds := inst.Paint(0, 0)
+	if len(cmds) != 4 {
+		t.Fatalf("Paint returned %d commands, want 4 without scrollbar", len(cmds))
 	}
 }
 
@@ -484,5 +499,51 @@ func TestInstance_DefaultCursorBlinksWhenFocused(t *testing.T) {
 
 	if !inst.WantsTick() {
 		t.Fatal("default focused textarea cursor should blink")
+	}
+}
+
+func TestInstance_HandleAction_ScrollWithMouseWheelDoesNotSnapBack(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"value": "line1\nline2\nline3\nline4\nline5\nline6",
+		"rows":  2,
+		"cols":  4,
+	})
+	startOffset := inst.scrollOffset
+	if startOffset <= 0 {
+		t.Fatalf("initial offset = %d, want > 0", startOffset)
+	}
+
+	mouseMsg := runtimemsg.NewMouseMsgWithDelta(0, 0, 1, runtimemsg.MouseActionWheel)
+	act := action.NewActionWithPayload(action.ActionScroll, mouseMsg)
+	if !inst.HandleAction(act) {
+		t.Fatal("ActionScroll with mouse wheel payload should be handled")
+	}
+	if inst.scrollOffset != startOffset-1 {
+		t.Fatalf("offset after wheel up = %d, want %d", inst.scrollOffset, startOffset-1)
+	}
+
+	_ = inst.Paint(0, 0)
+	if inst.scrollOffset != startOffset-1 {
+		t.Fatalf("offset after paint = %d, want %d", inst.scrollOffset, startOffset-1)
+	}
+}
+
+func TestInstance_SetProps_WithoutScrollOffsetPreservesInternalScroll(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"value": "line1\nline2\nline3\nline4\nline5\nline6",
+		"rows":  2,
+		"cols":  4,
+	})
+	inst.scrollOffset = 2
+
+	inst.SetProps(rtui.Props{
+		"value":         "line1\nline2\nline3\nline4\nline5\nline6",
+		"rows":          2,
+		"cols":          4,
+		"showScrollbar": true,
+	})
+
+	if inst.scrollOffset != 2 {
+		t.Fatalf("offset after SetProps = %d, want 2", inst.scrollOffset)
 	}
 }

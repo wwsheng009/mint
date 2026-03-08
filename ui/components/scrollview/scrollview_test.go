@@ -5,7 +5,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/wwsheng009/mint/runtime/action"
 	"github.com/wwsheng009/mint/runtime/layout"
+	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 	newtext "github.com/wwsheng009/mint/ui/components/text"
 )
@@ -304,6 +306,25 @@ func TestInstance_PageUpDown(t *testing.T) {
 	}
 }
 
+func TestInstance_HandleAction_ScrollWithMousePayload(t *testing.T) {
+	textNode := newtext.New(buildLines(20))
+	inst := NewInstance(rtui.Props{
+		"child":  textNode,
+		"width":  30,
+		"height": 5,
+	})
+	inst.extractContent()
+
+	mouseMsg := runtimemsg.NewMouseMsgWithDelta(0, 0, -1, runtimemsg.MouseActionWheel)
+	act := action.NewActionWithPayload(action.ActionScroll, mouseMsg)
+	if !inst.HandleAction(act) {
+		t.Fatal("ActionScroll with MouseMsg payload should be handled")
+	}
+	if inst.scrollOffset != 1 {
+		t.Fatalf("offset = %d, want 1", inst.scrollOffset)
+	}
+}
+
 func TestInstance_Paint_NoBorder(t *testing.T) {
 	textNode := newtext.New("Line 1\nLine 2\nLine 3")
 
@@ -584,11 +605,11 @@ func TestInstance_ScrollOffsetClamp(t *testing.T) {
 	textNode := newtext.New(buildLines(5))
 
 	inst := NewInstance(rtui.Props{
-		"child":         textNode,
-		"width":         30,
-		"height":        3,
-		"showBorder":    false,
-		"scrollOffset":  100, // Too high
+		"child":        textNode,
+		"width":        30,
+		"height":       3,
+		"showBorder":   false,
+		"scrollOffset": 100, // Too high
 	})
 
 	inst.extractContent()
