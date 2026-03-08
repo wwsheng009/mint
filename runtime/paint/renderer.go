@@ -123,6 +123,17 @@ func (r *Renderer) Render() string {
 		// 强制全量渲染
 		linesToRender = allLines(r.back.Height)
 		hasChanges = len(linesToRender) > 0
+	} else if diff.HasScroll {
+		// 滚动优化：只重绘滚动后新增的尾部行（再合并提示行）。
+		// 其余行由 ANSI scroll 指令完成位置迁移。
+		linesToRender = unionLines(scrollTailLines(r.back.Height, diff.ScrollAmount), hintLines, r.back.Height)
+		if len(linesToRender) == 0 {
+			// 防御回退：若尾部计算异常，退回常规 changed lines，保证正确性。
+			linesToRender = unionLines(diff.ChangedLines, hintLines, r.back.Height)
+		}
+		if len(linesToRender) > 0 {
+			hasChanges = true
+		}
 	} else {
 		// 常规行级 diff
 		linesToRender = unionLines(diff.ChangedLines, hintLines, r.back.Height)
@@ -524,6 +535,39 @@ func allLines(height int) []int {
 	}
 	lines := make([]int, 0, height)
 	for y := 0; y < height; y++ {
+		lines = append(lines, y)
+	}
+	return lines
+}
+
+// scrollTailLines returns the minimal set of lines that must be repainted
+// after applying terminal scroll commands.
+// amount > 0: scroll up, repaint bottom "amount" lines
+// amount < 0: scroll down, repaint top "-amount" lines
+func scrollTailLines(height, amount int) []int {
+	if height <= 0 || amount == 0 {
+		return nil
+	}
+
+	if amount > 0 {
+		if amount > height {
+			amount = height
+		}
+		start := height - amount
+		lines := make([]int, 0, amount)
+		for y := start; y < height; y++ {
+			lines = append(lines, y)
+		}
+		return lines
+	}
+
+	// amount < 0
+	n := -amount
+	if n > height {
+		n = height
+	}
+	lines := make([]int, 0, n)
+	for y := 0; y < n; y++ {
 		lines = append(lines, y)
 	}
 	return lines

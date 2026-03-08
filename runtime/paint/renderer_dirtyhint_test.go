@@ -1,6 +1,7 @@
 package paint
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/wwsheng009/mint/runtime/style"
@@ -74,5 +75,67 @@ func TestRenderer_UseLineDiffFalse_RendersFullScreenLines(t *testing.T) {
 	stats := renderer.GetStats()
 	if stats.ChangedCells != 3 {
 		t.Fatalf("ChangedCells=%d, want 3 full lines when line diff disabled", stats.ChangedCells)
+	}
+}
+
+func TestRenderer_ScrollUp_RendersOnlyTailLine(t *testing.T) {
+	renderer := NewRenderer(6, 4)
+	st := style.NewStyle()
+
+	back := renderer.GetBackBuffer()
+	back.SetStringAligned(0, 0, "A00000", st, 6)
+	back.SetStringAligned(0, 1, "B11111", st, 6)
+	back.SetStringAligned(0, 2, "C22222", st, 6)
+	back.SetStringAligned(0, 3, "D33333", st, 6)
+	_ = renderer.Render()
+
+	back = renderer.GetBackBuffer()
+	back.SetStringAligned(0, 0, "B11111", st, 6)
+	back.SetStringAligned(0, 1, "C22222", st, 6)
+	back.SetStringAligned(0, 2, "D33333", st, 6)
+	back.SetStringAligned(0, 3, "E44444", st, 6)
+
+	out := renderer.Render()
+	if out == "" {
+		t.Fatal("scroll up render should produce output")
+	}
+	if !strings.Contains(out, "\x1b[1S") {
+		t.Fatalf("expected scroll-up ANSI sequence, got %q", out)
+	}
+
+	stats := renderer.GetStats()
+	if stats.ChangedCells != 1 {
+		t.Fatalf("ChangedCells=%d, want 1 tail line after scroll up", stats.ChangedCells)
+	}
+}
+
+func TestRenderer_ScrollDown_RendersOnlyHeadLine(t *testing.T) {
+	renderer := NewRenderer(6, 4)
+	st := style.NewStyle()
+
+	back := renderer.GetBackBuffer()
+	back.SetStringAligned(0, 0, "A00000", st, 6)
+	back.SetStringAligned(0, 1, "B11111", st, 6)
+	back.SetStringAligned(0, 2, "C22222", st, 6)
+	back.SetStringAligned(0, 3, "D33333", st, 6)
+	_ = renderer.Render()
+
+	back = renderer.GetBackBuffer()
+	back.SetStringAligned(0, 0, "Z99999", st, 6)
+	back.SetStringAligned(0, 1, "A00000", st, 6)
+	back.SetStringAligned(0, 2, "B11111", st, 6)
+	back.SetStringAligned(0, 3, "C22222", st, 6)
+
+	out := renderer.Render()
+	if out == "" {
+		t.Fatal("scroll down render should produce output")
+	}
+	if !strings.Contains(out, "\x1b[1T") {
+		t.Fatalf("expected scroll-down ANSI sequence, got %q", out)
+	}
+
+	stats := renderer.GetStats()
+	if stats.ChangedCells != 1 {
+		t.Fatalf("ChangedCells=%d, want 1 head line after scroll down", stats.ChangedCells)
 	}
 }
