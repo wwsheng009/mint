@@ -1,16 +1,86 @@
 // Fiber-First Modal Positioning Demo
 // Demonstrates different ways to position Modal components interactively
+//
+// Architecture: Store + Reducer + Custom Intent (Single Source of Truth)
+
 package main
 
 import (
 	"github.com/wwsheng009/mint/framework"
 	"github.com/wwsheng009/mint/runtime/intent"
-	rtui "github.com/wwsheng009/mint/runtime/ui"
+	"github.com/wwsheng009/mint/runtime/reducer"
+	"github.com/wwsheng009/mint/runtime/store"
 	"github.com/wwsheng009/mint/ui"
 	"github.com/wwsheng009/mint/ui/components/modal"
 )
 
+// =============================================================================
+// AppState (Single Source of Truth)
+// =============================================================================
+
+// AppState represents the modal positioning demo state.
+type AppState struct {
+	Position string // "center", "left", "right", "top", "bottom", "custom"
+}
+
+// =============================================================================
+// Custom Intent Types
+// =============================================================================
+
+// ShowPositioningIntent shows a modal with the specified position.
+type ShowPositioningIntent struct {
+	Position string
+}
+
+func (ShowPositioningIntent) IntentType() string { return "ShowPositioning" }
+func (ShowPositioningIntent) StayPressed() bool  { return true }
+
+// ClosePositioningIntent closes the current modal.
+type ClosePositioningIntent struct{}
+
+func (ClosePositioningIntent) IntentType() string { return "ClosePositioning" }
+func (ClosePositioningIntent) StayPressed() bool  { return false }
+
+// =============================================================================
+// Reducer (Pure Function)
+// =============================================================================
+
+// appReducer handles all state transitions.
+var appReducer = reducer.NewBuilder[AppState]()
+
+// Initialize the reducer.
+func init() {
+	// Handle ShowPositioningIntent
+	appReducer.On(ShowPositioningIntent{}, func(s AppState, i intent.Intent) AppState {
+		spi := i.(ShowPositioningIntent)
+		s.Position = spi.Position
+		return s
+	})
+
+	// Handle ClosePositioningIntent
+	appReducer.On(ClosePositioningIntent{}, func(s AppState, i intent.Intent) AppState {
+		s.Position = ""
+		return s
+	})
+}
+
+// =============================================================================
+// Store (Single State Source)
+// =============================================================================
+
+// appStore holds the modal positioning demo state.
+var appStore = store.NewStore(AppState{
+	Position: "",
+})
+
+// =============================================================================
+// Main Entry Point
+// =============================================================================
+
 func main() {
+	// Register reducer handlers to store
+	appReducer.RegisterToGlobal(appStore)
+
 	err := ui.Run(App,
 		ui.WithWidth(80),
 		ui.WithHeight(45),
@@ -26,36 +96,12 @@ func main() {
 }
 
 // =============================================================================
-// Custom Intent Types
-// =============================================================================
-
-type ShowPositioningIntent struct {
-	Position string // "center", "left", "right", "top", "bottom", "custom"
-}
-
-func (ShowPositioningIntent) IntentType() string { return "ShowPositioning" }
-
-type ClosePositioningIntent struct{}
-
-func (ClosePositioningIntent) IntentType() string { return "ClosePositioning" }
-
-// =============================================================================
 // Main App
 // =============================================================================
 
 func App() ui.VNode {
-	position, setPosition := ui.UseStateString("")
-
-	// Register Intent handlers in App function
-	rtui.RegisterIntent(func(ctx *intent.ActionContext, i ShowPositioningIntent) intent.IntentResult {
-		setPosition(i.Position)
-		return intent.HandledResult()
-	})
-
-	rtui.RegisterIntent(func(ctx *intent.ActionContext, i ClosePositioningIntent) intent.IntentResult {
-		setPosition("")
-		return intent.HandledResult()
-	})
+	// Get current state snapshot from Store
+	state := appStore.Get()
 
 	return ui.VStack(
 		// Header
@@ -107,11 +153,11 @@ func App() ui.VNode {
 		ui.HStack(
 			ui.Text("  "),
 			ui.NewTextBuilder("Current: ").FgColor("blue").Build(),
-			ui.NewTextBuilder(getPositionName(position)).
+			ui.NewTextBuilder(getPositionName(state.Position)).
 				FgColor("cyan").
 				Build(),
 			ui.Spacer().Build(),
-			ui.NewTextBuilder(getPositionDescription(position)).
+			ui.NewTextBuilder(getPositionDescription(state.Position)).
 				FgColor("gray").
 				Build(),
 			ui.Text("  "),
@@ -119,7 +165,7 @@ func App() ui.VNode {
 
 		ui.Text(""),
 		// Render the positioned modal
-		getPositionedModal(position),
+		getPositionedModal(state.Position),
 	)
 }
 

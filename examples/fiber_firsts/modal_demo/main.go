@@ -1,17 +1,87 @@
 // Fiber-First Modal Component Demo - Interactive
 // Demonstrates the new Modal component with full interactivity
+//
+// Architecture: Store + Reducer + Custom Intent (Single Source of Truth)
+
 package main
 
 import (
 	"github.com/wwsheng009/mint/framework"
 	"github.com/wwsheng009/mint/runtime/intent"
-	rtui "github.com/wwsheng009/mint/runtime/ui"
+	"github.com/wwsheng009/mint/runtime/reducer"
+	"github.com/wwsheng009/mint/runtime/store"
 	"github.com/wwsheng009/mint/ui"
 	"github.com/wwsheng009/mint/ui/components/modal"
 	newtext "github.com/wwsheng009/mint/ui/components/text"
 )
 
+// =============================================================================
+// AppState (Single Source of Truth)
+// =============================================================================
+
+// AppState represents the modal demo state.
+type AppState struct {
+	ModalType string
+}
+
+// =============================================================================
+// Custom Intent Types
+// =============================================================================
+
+// OpenModalIntent opens a modal of the specified type.
+type OpenModalIntent struct {
+	ModalType string
+}
+
+func (OpenModalIntent) IntentType() string { return "OpenModal" }
+func (OpenModalIntent) StayPressed() bool  { return true }
+
+// CloseModalIntent closes the current modal.
+type CloseModalIntent struct{}
+
+func (CloseModalIntent) IntentType() string { return "CloseModal" }
+func (CloseModalIntent) StayPressed() bool  { return false }
+
+// =============================================================================
+// Reducer (Pure Function)
+// =============================================================================
+
+// appReducer handles all state transitions.
+var appReducer = reducer.NewBuilder[AppState]()
+
+// Initialize the reducer.
+func init() {
+	// Handle OpenModalIntent
+	appReducer.On(OpenModalIntent{}, func(s AppState, i intent.Intent) AppState {
+		omi := i.(OpenModalIntent)
+		s.ModalType = omi.ModalType
+		return s
+	})
+
+	// Handle CloseModalIntent
+	appReducer.On(CloseModalIntent{}, func(s AppState, i intent.Intent) AppState {
+		s.ModalType = ""
+		return s
+	})
+}
+
+// =============================================================================
+// Store (Single State Source)
+// =============================================================================
+
+// appStore holds the modal demo state.
+var appStore = store.NewStore(AppState{
+	ModalType: "",
+})
+
+// =============================================================================
+// Main Entry Point
+// =============================================================================
+
 func main() {
+	// Register reducer handlers to store
+	appReducer.RegisterToGlobal(appStore)
+
 	err := ui.Run(App,
 		ui.WithWidth(70),
 		ui.WithHeight(40),
@@ -27,36 +97,12 @@ func main() {
 }
 
 // =============================================================================
-// Custom Intent Types
-// =============================================================================
-
-type OpenModalIntent struct {
-	ModalType string
-}
-
-func (OpenModalIntent) IntentType() string { return "OpenModal" }
-
-type CloseModalIntent struct{}
-
-func (CloseModalIntent) IntentType() string { return "CloseModal" }
-
-// =============================================================================
 // Main App
 // =============================================================================
 
 func App() ui.VNode {
-	modalType, setModalType := ui.UseStateString("")
-
-	// Register Intent handlers in App function
-	rtui.RegisterIntent(func(ctx *intent.ActionContext, i OpenModalIntent) intent.IntentResult {
-		setModalType(i.ModalType)
-		return intent.HandledResult()
-	})
-
-	rtui.RegisterIntent(func(ctx *intent.ActionContext, i CloseModalIntent) intent.IntentResult {
-		setModalType("")
-		return intent.HandledResult()
-	})
+	// Get current state snapshot from Store
+	state := appStore.Get()
 
 	return ui.VStack(
 		ui.VStack(
@@ -83,19 +129,19 @@ func App() ui.VNode {
 			ui.NewButtonBuilder("  Basic  ").
 				Variant(ui.ButtonVariantPrimary).
 				OnPress(OpenModalIntent{ModalType: "basic"}).
-				Disabled(modalType != "").
+				Disabled(state.ModalType != "").
 				Build(),
 			ui.Text(" "),
 			ui.NewButtonBuilder("  Border  ").
 				Variant(ui.ButtonVariantSecondary).
 				OnPress(OpenModalIntent{ModalType: "border"}).
-				Disabled(modalType != "").
+				Disabled(state.ModalType != "").
 				Build(),
 			ui.Text(" "),
 			ui.NewButtonBuilder("  Footer  ").
 				Variant(ui.ButtonVariantSecondary).
 				OnPress(OpenModalIntent{ModalType: "footer"}).
-				Disabled(modalType != "").
+				Disabled(state.ModalType != "").
 				Build(),
 		),
 
@@ -105,19 +151,19 @@ func App() ui.VNode {
 			ui.NewButtonBuilder("  Alert  ").
 				Variant(ui.ButtonVariantSecondary).
 				OnPress(OpenModalIntent{ModalType: "alert"}).
-				Disabled(modalType != "").
+				Disabled(state.ModalType != "").
 				Build(),
 			ui.Text(" "),
 			ui.NewButtonBuilder("  Sizes  ").
 				Variant(ui.ButtonVariantSecondary).
 				OnPress(OpenModalIntent{ModalType: "sizes"}).
-				Disabled(modalType != "").
+				Disabled(state.ModalType != "").
 				Build(),
 			ui.Text(" "),
 			ui.NewButtonBuilder("  Locked  ").
 				Variant(ui.ButtonVariantDanger).
 				OnPress(OpenModalIntent{ModalType: "locked"}).
-				Disabled(modalType != "").
+				Disabled(state.ModalType != "").
 				Build(),
 		),
 
@@ -129,8 +175,8 @@ func App() ui.VNode {
 		ui.HStack(
 			ui.Text("  "),
 			ui.NewTextBuilder("Status: ").FgColor("blue").Build(),
-			ui.NewTextBuilder(getStatusText(modalType)).
-				FgColor(getStatusColor(modalType)).
+			ui.NewTextBuilder(getStatusText(state.ModalType)).
+				FgColor(getStatusColor(state.ModalType)).
 				Build(),
 		),
 
@@ -138,7 +184,7 @@ func App() ui.VNode {
 		ui.NewTextBuilder("─").FgColor("gray").Build(),
 
 		// Only render the active modal
-		getModal(modalType),
+		getModal(state.ModalType),
 	)
 }
 

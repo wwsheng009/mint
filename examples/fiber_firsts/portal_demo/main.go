@@ -3,43 +3,96 @@
 //
 // Portal 系统允许组件将其子元素渲染到 DOM 树的不同位置
 // 主要用于 Modal、Tooltip、Toast 等需要浮层显示的组件
+//
+// Architecture: Store + Reducer + Custom Intent (Single Source of Truth)
+
 package main
 
 import (
 	"github.com/wwsheng009/mint/runtime/intent"
+	"github.com/wwsheng009/mint/runtime/reducer"
+	"github.com/wwsheng009/mint/runtime/store"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/ui"
 )
 
 // =============================================================================
-// Intent 类型定义
+// AppState (Single Source of Truth)
 // =============================================================================
 
+// AppState represents the portal demo state.
+type AppState struct {
+	ModalContent string
+	ShowModal    bool
+}
+
+// =============================================================================
+// Custom Intent Types
+// =============================================================================
+
+// OpenModalIntent opens a modal with the specified content.
 type OpenModalIntent struct {
 	Content string
 }
 
 func (OpenModalIntent) IntentType() string { return "OpenModal" }
+func (OpenModalIntent) StayPressed() bool  { return true }
 
+// CloseModalIntent closes the modal.
 type CloseModalIntent struct{}
 
 func (CloseModalIntent) IntentType() string { return "CloseModal" }
+func (CloseModalIntent) StayPressed() bool  { return false }
 
 // =============================================================================
-// Portal 组件
+// Reducer (Pure Function)
 // =============================================================================
 
-// ModalDialogPortal 使用 Portal 渲染到 app 顶层的 Modal
+// appReducer handles all state transitions.
+var appReducer = reducer.NewBuilder[AppState]()
+
+// Initialize the reducer.
+func init() {
+	// Handle OpenModalIntent
+	appReducer.On(OpenModalIntent{}, func(s AppState, i intent.Intent) AppState {
+		omi := i.(OpenModalIntent)
+		s.ModalContent = omi.Content
+		s.ShowModal = true
+		return s
+	})
+
+	// Handle CloseModalIntent
+	appReducer.On(CloseModalIntent{}, func(s AppState, i intent.Intent) AppState {
+		s.ShowModal = false
+		return s
+	})
+}
+
+// =============================================================================
+// Store (Single State Source)
+// =============================================================================
+
+// appStore holds the portal demo state.
+var appStore = store.NewStore(AppState{
+	ModalContent: "",
+	ShowModal:    false,
+})
+
+// =============================================================================
+// Portal Component
+// =============================================================================
+
+// ModalDialogPortal uses Portal to render a modal to the app's top layer.
 func ModalDialogPortal(content string, show bool) rtui.VNode {
 	if !show || content == "" {
-		// 返回空文本而不是 nil，避免 reconciler 处理 nil
+		// Return empty text instead of nil to avoid reconciler issues
 		return ui.Text("")
 	}
 
-	// 使用 Portal 将 Modal 渲染到 "modal-root" PortalRoot
+	// Use Portal to render Modal to "modal-root" PortalRoot
 	return rtui.NewElement("box").
 		SetProps(rtui.Props{
-			"portalRoot": "modal-root", // 🔑 关键：指定 Portal 目标
+			"portalRoot": "modal-root", // 🔑 Key: specify Portal target
 			"width":     50,
 			"height":    12,
 			"position":  "fixed",
@@ -85,46 +138,34 @@ func ModalDialogPortal(content string, show bool) rtui.VNode {
 }
 
 // =============================================================================
-// 主应用组件
+// Main Application Component
 // =============================================================================
 
 func App() rtui.VNode {
-	modalContent, setModalContent := ui.UseStateString("")
-	showModal, setShowModal := ui.UseStateBool(false)
+	// Get current state snapshot from Store
+	state := appStore.Get()
 
-	// 注册 Intent 处理器
-	rtui.RegisterIntent(func(ctx *intent.ActionContext, i OpenModalIntent) intent.IntentResult {
-		setModalContent(i.Content)
-		setShowModal(true)
-		return intent.HandledResult()
-	})
-
-	rtui.RegisterIntent(func(ctx *intent.ActionContext, i CloseModalIntent) intent.IntentResult {
-		setShowModal(false)
-		return intent.HandledResult()
-	})
-
-	// 使用 VStack 包装所有内容（避免 Fragment 的复杂性）
+	// Wrap all content with VStack (to avoid Fragment complexity)
 	return ui.VStack(
 		// ========================================
-		// 🔑 PortalRoot - 定义在应用顶层（通过 Stack 隐藏，但存在于树中）
-		// 这是所有 Portal 组件的挂载目标
+		// 🔑 PortalRoot - defined at app top layer
+		// This is the mount target for all Portal components
 		// ========================================
 
 		// Modal PortalRoot
 		rtui.NewElement("box").
 			SetProps(rtui.Props{
-				"portalRootId": "modal-root", // 🔑 标识为 PortalRoot
+				"portalRootId": "modal-root", // 🔑 Identified as PortalRoot
 				"width":       80,
 				"height":      25,
 				"_layer":      rtui.LayerModal,
 			}),
 
 		// ========================================
-		// 主内容区域 - 使用额外的 VStack 分隔
+		// Main content area - separated with extra VStack
 		// ========================================
 		ui.VStack(
-			// 标题
+			// Title
 			ui.VStack(
 				ui.NewTextBuilder("🌟 Portal 跨树挂载演示").
 					FgColor("cyan").
@@ -150,20 +191,20 @@ func App() rtui.VNode {
 				ui.Text(""),
 			),
 
-			// 交互按钮
+			// Interactive buttons
 			ui.VStack(
 				ui.HStack(
 					ui.Text("  "),
 					ui.NewButtonBuilder("  📦 打开 Modal  ").
 						Variant(ui.ButtonVariantPrimary).
 						OnPress(OpenModalIntent{Content: "这是通过 Portal 渲染到 app 顶层的 Modal！"}).
-						Disabled(showModal).
+						Disabled(state.ShowModal).
 						Build(),
 				),
 
 				ui.Text(""),
 
-				// 提示信息
+				// Hint
 				ui.NewTextBuilder("💡 提示: 按 ESC 或点击 Modal 外部区域可关闭").
 					FgColor("gray").
 					Italic(true).
@@ -189,7 +230,7 @@ func App() rtui.VNode {
 
 			ui.Text(""),
 
-			// 状态显示
+			// Status display
 			rtui.NewElement("box").
 				SetProps(rtui.Props{
 					"width":  80,
@@ -202,13 +243,13 @@ func App() rtui.VNode {
 							FgColor("blue").
 							Build(),
 						ui.NewTextBuilder(func() string {
-							if showModal {
+							if state.ShowModal {
 								return "🟢 已打开"
 							}
 							return "🔴 已关闭"
 						}()).
 							FgColor(func() string {
-								if showModal {
+								if state.ShowModal {
 									return "green"
 								}
 								return "gray"
@@ -218,19 +259,22 @@ func App() rtui.VNode {
 				}),
 
 			// ========================================
-			// 🔑 Portal 子组件 - 声明在此，但渲染到 PortalRoot
+			// 🔑 Portal child component - declared here but rendered to PortalRoot
 			// ========================================
 
-			ModalDialogPortal(modalContent, showModal),
+			ModalDialogPortal(state.ModalContent, state.ShowModal),
 		),
 	)
 }
 
 // =============================================================================
-// 主程序入口
+// Main Entry Point
 // =============================================================================
 
 func main() {
+	// Register reducer handlers to store
+	appReducer.RegisterToGlobal(appStore)
+
 	err := ui.Run(App,
 		ui.WithWidth(80),
 		ui.WithHeight(25),
