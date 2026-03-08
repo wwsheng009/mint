@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"errors"
 	"os"
 
 	"github.com/wwsheng009/mint/framework"
@@ -33,9 +34,19 @@ type Options struct {
 	PluginSetupFunc   func(*framework.App)
 
 	// Lane Scheduler Options
-	UseLaneScheduler  bool   // Enable priority-based lane scheduler
-	DefaultLane       uint32 // Default lane for updates (1=Sync, 2=Input, 4=Default, 8=Transition, 16=Idle)
+	UseLaneScheduler bool   // Enable priority-based lane scheduler
+	DefaultLane      uint32 // Default lane for updates (1=Sync, 2=Input, 4=Default, 8=Transition, 16=Idle)
+	InteractionMode  framework.InteractionMode
 }
+
+// InteractionMode controls runtime mouse/selection behavior.
+type InteractionMode = framework.InteractionMode
+
+const (
+	InteractionModeInteractive       = framework.InteractionModeInteractive
+	InteractionModeAppSelection      = framework.InteractionModeAppSelection
+	InteractionModeTerminalSelection = framework.InteractionModeTerminalSelection
+)
 
 // WithWidth sets the window width
 func WithWidth(width int) Option {
@@ -81,6 +92,13 @@ func WithFPS(fps int) Option {
 func WithNoAlternateScreen() Option {
 	return func(o *Options) {
 		o.NoAlternateScreen = true
+	}
+}
+
+// WithInteractionMode sets initial runtime interaction mode.
+func WithInteractionMode(mode InteractionMode) Option {
+	return func(o *Options) {
+		o.InteractionMode = framework.InteractionMode(mode)
 	}
 }
 
@@ -160,13 +178,14 @@ var appInstance *framework.App
 // Run starts the declarative UI application
 func Run(app ComponentFunc, opts ...Option) error {
 	options := &Options{
-		Width:  80,
-		Height: 24,
-		Title:  "Mint UI App",
-		FPS:    60,
+		Width:           80,
+		Height:          24,
+		Title:           "Mint UI App",
+		FPS:             60,
+		InteractionMode: framework.InteractionModeInteractive,
 	}
 
-		log.UILogger.IfEnabled().Debug("ui.Run: Starting")
+	log.UILogger.IfEnabled().Debug("ui.Run: Starting")
 
 	for _, opt := range opts {
 		opt(options)
@@ -181,25 +200,28 @@ func Run(app ComponentFunc, opts ...Option) error {
 	}
 
 	// Create the framework app
-	 log.UILogger.IfEnabled().Debug("ui.Run: Creating framework app")
+	log.UILogger.IfEnabled().Debug("ui.Run: Creating framework app")
 	fwApp := framework.NewApp()
 	// IMPORTANT: SetConfigSize sets the LAYOUT constraints (user's intended size)
 	// Resize() only sets the BUFFER size (actual terminal size)
 	fwApp.SetConfigSize(options.Width, options.Height)
 	fwApp.Resize(options.Width, options.Height) // Initial terminal size
 	appInstance = fwApp
+	if err := fwApp.SetInteractionMode(options.InteractionMode); err != nil {
+		return err
+	}
 
 	// Initialize theme
-	 log.UILogger.IfEnabled().Debug("ui.Run: Initializing theme")
+	log.UILogger.IfEnabled().Debug("ui.Run: Initializing theme")
 	if err := fwApp.InitTheme("dark"); err != nil {
-		  log.UILogger.IfEnabled().Debug("Failed to initialize theme: %v", err)
+		log.UILogger.IfEnabled().Debug("Failed to initialize theme: %v", err)
 	}
 
 	// Initialize Intent Runtime (declarative UI layer)
 	intentRuntime := intent.NewRuntime()
 	intent.SetupBuiltinHandlers(intentRuntime) // Register built-in intent handlers (Increment, Decrement, etc.)
 	rtui.SetGlobalIntentRuntime(intentRuntime)
-	 log.UILogger.IfEnabled().Debug("ui.Run: Intent Runtime initialized with built-in handlers")
+	log.UILogger.IfEnabled().Debug("ui.Run: Intent Runtime initialized with built-in handlers")
 
 	// Call plugin setup function if provided (e.g., for registering UI component extensions like Modal)
 	if options.PluginSetupFunc != nil {
@@ -266,6 +288,31 @@ func Quit() {
 	}
 }
 
+// SetInteractionMode updates runtime interaction mode of the running app.
+func SetInteractionMode(mode InteractionMode) error {
+	if appInstance == nil {
+		return errors.New("app is not running")
+	}
+	return appInstance.SetInteractionMode(framework.InteractionMode(mode))
+}
+
+// GetInteractionMode returns current interaction mode of the running app.
+func GetInteractionMode() (InteractionMode, error) {
+	if appInstance == nil {
+		return InteractionModeInteractive, errors.New("app is not running")
+	}
+	return InteractionMode(appInstance.GetInteractionMode()), nil
+}
+
+// CycleInteractionMode cycles interaction mode of the running app.
+func CycleInteractionMode() (InteractionMode, error) {
+	if appInstance == nil {
+		return InteractionModeInteractive, errors.New("app is not running")
+	}
+	mode, err := appInstance.CycleInteractionMode()
+	return InteractionMode(mode), err
+}
+
 // RunApp starts a declarative UI application using Store + Reducer architecture.
 // This is the recommended entry point for applications using AppRuntime.
 //
@@ -318,10 +365,11 @@ func Quit() {
 //	}
 func RunApp[T any](rt *statemachine.AppRuntime[T], opts ...Option) error {
 	options := &Options{
-		Width:  80,
-		Height: 24,
-		Title:  "Mint UI App",
-		FPS:    60,
+		Width:           80,
+		Height:          24,
+		Title:           "Mint UI App",
+		FPS:             60,
+		InteractionMode: framework.InteractionModeInteractive,
 	}
 
 	for _, opt := range opts {
@@ -343,6 +391,9 @@ func RunApp[T any](rt *statemachine.AppRuntime[T], opts ...Option) error {
 	fwApp.SetConfigSize(options.Width, options.Height)
 	fwApp.Resize(options.Width, options.Height)
 	appInstance = fwApp
+	if err := fwApp.SetInteractionMode(options.InteractionMode); err != nil {
+		return err
+	}
 
 	// Initialize theme
 	log.UILogger.IfEnabled().Debug("ui.RunApp: Initializing theme")

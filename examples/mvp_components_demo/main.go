@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/wwsheng009/mint/framework"
 	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/runtime/reducer"
 	"github.com/wwsheng009/mint/runtime/store"
@@ -49,6 +50,13 @@ type BackFormIntent struct{}
 func (BackFormIntent) IntentType() string { return "BackForm" }
 func (BackFormIntent) StayPressed() bool  { return true }
 
+type SetInteractionModeIntent struct {
+	Mode string
+}
+
+func (SetInteractionModeIntent) IntentType() string { return "SetInteractionMode" }
+func (SetInteractionModeIntent) StayPressed() bool  { return true }
+
 // =============================================================================
 // 状态定义
 // =============================================================================
@@ -59,11 +67,14 @@ type AppState struct {
 	Username string
 	Email    string
 	Bio      string
-	Country  string  // 使用 string 存储索引
-	Agree    string  // 使用 string 存储布尔值
+	Country  string // 使用 string 存储索引
+	Agree    string // 使用 string 存储布尔值
 
 	// 提交状态
 	Submitted bool
+
+	// 交互模式
+	InteractionMode string // interactive | app_selection | terminal_selection
 }
 
 // =============================================================================
@@ -71,15 +82,17 @@ type AppState struct {
 // =============================================================================
 
 var appStore *store.Store[AppState]
+var runtimeApp *framework.App
 
 func initStore() {
 	appStore = store.NewStore(AppState{
-		Username:  "",
-		Email:     "",
-		Bio:       "",
-		Country:   "0",  // 默认选中第一个
-		Agree:     "false",
-		Submitted: false,
+		Username:        "",
+		Email:           "",
+		Bio:             "",
+		Country:         "0", // 默认选中第一个
+		Agree:           "false",
+		Submitted:       false,
+		InteractionMode: "interactive",
 	})
 }
 
@@ -128,6 +141,15 @@ var appReducer = reducer.NewBuilder[AppState]().
 	On(BackFormIntent{}, func(s AppState, i intent.Intent) AppState {
 		s.Submitted = false
 		return s
+	}).
+	// 切换交互模式（由 Store 状态驱动）
+	On(SetInteractionModeIntent{}, func(s AppState, i intent.Intent) AppState {
+		modeIntent, ok := i.(SetInteractionModeIntent)
+		if !ok {
+			return s
+		}
+		s.InteractionMode = normalizeModeString(modeIntent.Mode)
+		return s
 	})
 
 // =============================================================================
@@ -137,11 +159,36 @@ var appReducer = reducer.NewBuilder[AppState]().
 func main() {
 	initStore()
 	appReducer.RegisterToGlobal(appStore)
+	appStore.Subscribe(func(s AppState) {
+		applyRuntimeInteractionMode(s.InteractionMode)
+	})
 
 	err := ui.Run(App,
 		ui.WithWidth(70),
 		ui.WithHeight(35),
 		ui.WithTitle("MVP Components Demo - Store + Reducer"),
+		ui.WithInteractionMode(ui.InteractionModeInteractive),
+		ui.WithPluginSetup(func(app *framework.App) {
+			runtimeApp = app
+			applyRuntimeInteractionMode(appStore.Get().InteractionMode)
+
+			// F6: 循环切换三种交互模式
+			app.OnKeyCombo("f6", func() {
+				nextMode, err := app.CycleInteractionMode()
+				if err != nil {
+					return
+				}
+				appStore.Update(func(s AppState) AppState {
+					s.InteractionMode = modeToString(nextMode)
+					return s
+				})
+			})
+
+			// Ctrl+1/2/3: 直接切换模式
+			app.OnKeyCombo("ctrl+1", func() { setModeFromShortcut("interactive") })
+			app.OnKeyCombo("ctrl+2", func() { setModeFromShortcut("app_selection") })
+			app.OnKeyCombo("ctrl+3", func() { setModeFromShortcut("terminal_selection") })
+		}),
 	)
 	if err != nil {
 		panic(err)
@@ -166,6 +213,9 @@ func App() ui.VNode {
 // FormView - 主表单视图
 func FormView(state AppState) ui.VNode {
 	return ui.VStack(
+		InteractionStatusBar(state),
+		ui.Text(""),
+
 		ui.NewTextBuilder("🎨 MVP Components Demo").
 			Bold(true).
 			FgColor("cyan").
@@ -212,6 +262,24 @@ func FormView(state AppState) ui.VNode {
 			ui.NewButtonBuilder("  Reset  ").
 				Variant(ui.ButtonVariantSecondary).
 				OnPress(ResetIntent{}).
+				Build(),
+		),
+		ui.Text(""),
+		ui.HStack(
+			ui.Text("  "),
+			ui.NewButtonBuilder("Interactive").
+				Variant(modeButtonVariant(state.InteractionMode, "interactive")).
+				OnPress(SetInteractionModeIntent{Mode: "interactive"}).
+				Build(),
+			ui.Text(" "),
+			ui.NewButtonBuilder("App Selection").
+				Variant(modeButtonVariant(state.InteractionMode, "app_selection")).
+				OnPress(SetInteractionModeIntent{Mode: "app_selection"}).
+				Build(),
+			ui.Text(" "),
+			ui.NewButtonBuilder("Terminal Selection").
+				Variant(modeButtonVariant(state.InteractionMode, "terminal_selection")).
+				OnPress(SetInteractionModeIntent{Mode: "terminal_selection"}).
 				Build(),
 		),
 	)
@@ -263,6 +331,157 @@ func BasicFormFields(state AppState) ui.VNode {
 		ui.NewTextBuilder(fmt.Sprintf("✓ Store: username=%q, email=%q, agree=%v",
 			state.Username, state.Email, state.Agree == "true")).FgColor("gray").Build(),
 	)
+}
+
+func setModeFromShortcut(mode string) {
+	normalized := normalizeModeString(mode)
+	appStore.Update(func(s AppState) AppState {
+		s.InteractionMode = normalized
+		return s
+	})
+}
+
+func applyRuntimeInteractionMode(mode string) {
+	if runtimeApp == nil {
+		return
+	}
+	target := stringToMode(mode)
+	if runtimeApp.GetInteractionMode() == target {
+		return
+	}
+	_ = runtimeApp.SetInteractionMode(target)
+}
+
+func normalizeModeString(mode string) string {
+	switch mode {
+	case "interactive", "app_selection", "terminal_selection":
+		return mode
+	default:
+		return "interactive"
+	}
+}
+
+func stringToMode(mode string) framework.InteractionMode {
+	switch normalizeModeString(mode) {
+	case "app_selection":
+		return framework.InteractionModeAppSelection
+	case "terminal_selection":
+		return framework.InteractionModeTerminalSelection
+	default:
+		return framework.InteractionModeInteractive
+	}
+}
+
+func modeToString(mode framework.InteractionMode) string {
+	switch mode {
+	case framework.InteractionModeAppSelection:
+		return "app_selection"
+	case framework.InteractionModeTerminalSelection:
+		return "terminal_selection"
+	default:
+		return "interactive"
+	}
+}
+
+func modeLabel(mode string) string {
+	switch normalizeModeString(mode) {
+	case "app_selection":
+		return "App Selection"
+	case "terminal_selection":
+		return "Terminal Selection"
+	default:
+		return "Interactive"
+	}
+}
+
+func modeButtonVariant(current, target string) ui.ButtonVariant {
+	if normalizeModeString(current) == normalizeModeString(target) {
+		return ui.ButtonVariantPrimary
+	}
+	return ui.ButtonVariantSecondary
+}
+
+func InteractionStatusBar(state AppState) ui.VNode {
+	modeColor := modeSectionColor(state.InteractionMode)
+	nextMode := nextInteractionMode(state.InteractionMode)
+
+	bar := ui.NewStatusBarBuilder().
+		Theme(ui.StatusBarThemeDefault()).
+		HelpPrefix("? ").
+		HelpFallback("Hover or Tab to inspect actions | Enter / Click to trigger | F6 and Ctrl+1/2/3 still work").
+		Left(
+			ui.StatusBarActionBadge(" MODE ", "black", modeColor, SetInteractionModeIntent{Mode: nextMode}).
+				WithHelp("Cycle to the next interaction mode"),
+		).
+		Left(
+			ui.StatusBarActionText(" "+modeLabel(state.InteractionMode)+" ", SetInteractionModeIntent{Mode: nextMode}).
+				WithWidth(20).
+				WithEllipsis().
+				WithHelp("Current mode: click or press Enter to cycle"),
+		).
+		Center(
+			ui.StatusBarText(" Tab/Enter | F6 | Ctrl+1-3 ").
+				WithWidth(24).
+				WithAlign(ui.AlignCenter).
+				WithBold(true).
+				WithEllipsis().
+				WithTooltip("Keyboard shortcuts stay available in every interaction mode"),
+		).
+		Right(modeStatusSection(" UI ", "interactive", state.InteractionMode)).
+		Right(modeStatusSection(" APP ", "app_selection", state.InteractionMode)).
+		Right(modeStatusSection(" TERM ", "terminal_selection", state.InteractionMode))
+
+	return ui.Padding(bar.BuildWithHelp(), 0, 1, 0, 1)
+}
+
+func modeSectionColor(mode string) string {
+	switch normalizeModeString(mode) {
+	case "app_selection":
+		return "cyan"
+	case "terminal_selection":
+		return "green"
+	default:
+		return "yellow"
+	}
+}
+
+func nextInteractionMode(mode string) string {
+	switch normalizeModeString(mode) {
+	case "app_selection":
+		return "terminal_selection"
+	case "terminal_selection":
+		return "interactive"
+	default:
+		return "app_selection"
+	}
+}
+
+func modeStatusSection(label, targetMode, currentMode string) ui.StatusBarSection {
+	active := normalizeModeString(currentMode) == normalizeModeString(targetMode)
+	fgColor := "bright-white"
+	bgColor := "bright-black"
+	if active {
+		fgColor = "black"
+		bgColor = modeSectionColor(targetMode)
+	}
+	return ui.StatusBarActionBadge(label, fgColor, bgColor, SetInteractionModeIntent{Mode: targetMode}).
+		WithKey("mode-" + targetMode).
+		WithHelp(modeStatusHelp(targetMode, active))
+}
+
+func modeStatusHelp(mode string, active bool) string {
+	prefix := "Switch to "
+	if active {
+		prefix = "Already in "
+	}
+	switch normalizeModeString(mode) {
+	case "app_selection":
+		return prefix + "App Selection: app-managed text copy mode"
+	case "terminal_selection":
+		return prefix + "Terminal Selection: native terminal selection mode"
+	default:
+		return prefix + "Interactive: regular UI mouse and keyboard mode"
+	}
 }
 
 // ProfileFormFields - 个人资料字段 (Select + Textarea)
@@ -345,6 +564,9 @@ func SuccessView(state AppState) ui.VNode {
 	}
 
 	return ui.VStack(
+		InteractionStatusBar(state),
+		ui.Text(""),
+
 		ui.NewTextBuilder("✅ Form Submitted Successfully!").
 			Bold(true).
 			FgColor("green").

@@ -15,6 +15,7 @@ import (
 	frameworkevent "github.com/wwsheng009/mint/framework/event"
 	"github.com/wwsheng009/mint/framework/theme"
 	"github.com/wwsheng009/mint/internal/log"
+	runtimepkg "github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/action"
 	"github.com/wwsheng009/mint/runtime/bridge/actionbridge"
 	"github.com/wwsheng009/mint/runtime/core"
@@ -25,6 +26,7 @@ import (
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/platform"
 	"github.com/wwsheng009/mint/runtime/render"
+	"github.com/wwsheng009/mint/runtime/selection"
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
@@ -41,6 +43,32 @@ const (
 	StateStopped
 	StateError
 )
+
+// InteractionMode controls how mouse/text selection behaves at runtime.
+//
+// - Interactive: regular app interaction (mouse capture on)
+// - AppSelection: app-managed selection via runtime/selection (mouse capture on)
+// - TerminalSelection: terminal-native text selection (mouse capture off)
+type InteractionMode int
+
+const (
+	InteractionModeInteractive InteractionMode = iota
+	InteractionModeAppSelection
+	InteractionModeTerminalSelection
+)
+
+func (m InteractionMode) String() string {
+	switch m {
+	case InteractionModeInteractive:
+		return "interactive"
+	case InteractionModeAppSelection:
+		return "app_selection"
+	case InteractionModeTerminalSelection:
+		return "terminal_selection"
+	default:
+		return "unknown"
+	}
+}
 
 // App 主应用程序
 type App struct {
@@ -67,6 +95,7 @@ type App struct {
 
 	// 自定义事件源（测试时使用，如 MockSandbox）
 	customSource frameworkevent.EventSource
+	inputReader  platform.InputReader
 
 	// 生命周期
 	state AppState
@@ -146,6 +175,11 @@ type App struct {
 	inputTracker   *input.InputTracker
 	interactionCtx *interaction.InteractionContext
 
+	// 文本选择与交互模式
+	selectionAdapter *selection.RuntimeAdapter
+	interactionMode  InteractionMode
+	hoveredFiber     *rtui.Fiber
+
 	// ============================================================================
 	// 调试支持
 	// ============================================================================
@@ -180,8 +214,9 @@ func NewApp() *App {
 		legacyMode:      false,                                          // Action 系统优先，legacy 仅用于调试
 
 		// Phase 1-3: Pressed State 解决方案
-		inputTracker:   input.NewInputTracker(),
-		interactionCtx: interaction.NewInteractionContext(),
+		inputTracker:    input.NewInputTracker(),
+		interactionCtx:  interaction.NewInteractionContext(),
+		interactionMode: InteractionModeInteractive,
 	}
 
 	// 初始化 ActionBridge (Fiber → Action 桥接器)
@@ -238,6 +273,7 @@ func NewAppWithSource(source frameworkevent.EventSource) *App {
 		inputProcessor:  action.NewInputProcessor(),
 		scopeDispatcher: action.NewScopeDispatcherWithName(nil, "root"), // Scope-based dispatcher
 		legacyMode:      true,
+		interactionMode: InteractionModeInteractive,
 	}
 
 	// 初始化 ActionBridge
@@ -422,6 +458,109 @@ func (a *App) SetUserData(key string, value interface{}) {
 // GetUserData 获取用户数据
 func (a *App) GetUserData(key string) interface{} {
 	return a.userData[key]
+}
+
+// SetInteractionMode sets runtime interaction mode.
+func (a *App) SetInteractionMode(mode InteractionMode) error {
+	switch mode {
+	case InteractionModeInteractive, InteractionModeAppSelection, InteractionModeTerminalSelection:
+	default:
+		return fmt.Errorf("invalid interaction mode: %d", mode)
+	}
+
+	a.interactionMode = mode
+	a.updateHoveredFiber(nil, nil)
+
+	// Keep selection adapter state consistent.
+	if mode == InteractionModeAppSelection {
+		adapter := a.ensureSelectionAdapter()
+		adapter.SetEnabled(true)
+	} else if a.selectionAdapter != nil {
+		a.selectionAdapter.SetEnabled(false)
+		a.selectionAdapter.ClearSelection()
+	}
+
+	// Ctrl+C should copy selection in app-selection mode, not quit app.
+	if a.pump != nil {
+		a.pump.SetCtrlCAsQuit(mode != InteractionModeAppSelection)
+	}
+
+	// TerminalSelection means terminal-native selection: disable mouse capture.
+	if err := a.applyMouseCaptureForMode(); err != nil {
+		return err
+	}
+
+	a.dirty = true
+	return nil
+}
+
+// GetInteractionMode returns current runtime interaction mode.
+func (a *App) GetInteractionMode() InteractionMode {
+	return a.interactionMode
+}
+
+// CycleInteractionMode cycles through all interaction modes and returns the new one.
+func (a *App) CycleInteractionMode() (InteractionMode, error) {
+	next := InteractionModeInteractive
+	switch a.interactionMode {
+	case InteractionModeInteractive:
+		next = InteractionModeAppSelection
+	case InteractionModeAppSelection:
+		next = InteractionModeTerminalSelection
+	case InteractionModeTerminalSelection:
+		next = InteractionModeInteractive
+	}
+	return next, a.SetInteractionMode(next)
+}
+
+func (a *App) updateMouseHoverState(mouseMsg *runtimemsg.MouseMsg) {
+	if mouseMsg == nil || mouseMsg.Action != runtimemsg.MouseActionMove {
+		return
+	}
+	var next *rtui.Fiber
+	if fiber, ok := mouseMsg.TargetFiber.(*rtui.Fiber); ok {
+		next = fiber
+	}
+	a.updateHoveredFiber(next, mouseMsg)
+}
+
+func (a *App) updateHoveredFiber(next *rtui.Fiber, payload interface{}) {
+	if a.hoveredFiber == next {
+		return
+	}
+	if a.actionBridge != nil && a.hoveredFiber != nil {
+		if a.actionBridge.DispatchFromFiber(a.hoveredFiber, action.ActionMouseLeave, payload) {
+			a.dirty = true
+		}
+	}
+	if a.actionBridge != nil && next != nil {
+		if a.actionBridge.DispatchFromFiber(next, action.ActionMouseEnter, payload) {
+			a.dirty = true
+		}
+	}
+	a.hoveredFiber = next
+}
+
+func (a *App) ensureSelectionAdapter() *selection.RuntimeAdapter {
+	if a.selectionAdapter == nil {
+		a.selectionAdapter = selection.NewRuntimeAdapter()
+	}
+	return a.selectionAdapter
+}
+
+func (a *App) wantsMouseCapture() bool {
+	return a.interactionMode != InteractionModeTerminalSelection
+}
+
+func (a *App) applyMouseCaptureForMode() error {
+	if a.inputReader == nil {
+		return nil
+	}
+	controller, ok := a.inputReader.(platform.MouseCaptureController)
+	if !ok {
+		return nil
+	}
+	return controller.SetMouseCaptureEnabled(a.wantsMouseCapture())
 }
 
 // ============================================================================
@@ -750,8 +889,16 @@ func (a *App) Init() error {
 		if err != nil {
 			return err
 		}
+		a.inputReader = inputReader
+		if err := a.applyMouseCaptureForMode(); err != nil {
+			return err
+		}
 		log.UILogger.IfEnabled().Debug("[APP] Init: Input reader created")
 		a.pump = frameworkevent.NewPump(inputReader)
+	}
+
+	if a.pump != nil {
+		a.pump.SetCtrlCAsQuit(a.interactionMode != InteractionModeAppSelection)
 	}
 
 	log.UILogger.IfEnabled().Debug("[APP] Init: Starting pump")
@@ -1094,6 +1241,20 @@ func (a *App) processMsg(msg runtimemsg.Msg) {
 		return
 	}
 
+	// Global key shortcuts (OnKeyCombo/OnKey) must work in Action path too.
+	if a.handleGlobalKeyShortcut(msg) {
+		a.dirty = true
+		return
+	}
+
+	// AppSelection mode: selection system gets first chance to consume input.
+	if a.interactionMode == InteractionModeAppSelection {
+		if a.dispatchSelectionEvent(msg) {
+			a.dirty = true
+			return
+		}
+	}
+
 	// ========================================================================
 	// Phase 1-3: Pressed State 解决方案
 	// ========================================================================
@@ -1140,6 +1301,10 @@ func (a *App) processMsg(msg runtimemsg.Msg) {
 				act.Type = action.ActionCursorDown
 			}
 		}
+	}
+
+	if mouseMsg, ok := act.Payload.(*runtimemsg.MouseMsg); ok {
+		a.updateMouseHoverState(mouseMsg)
 	}
 
 	// 3. 导航 Action 由焦点管理器直接处理
@@ -1203,6 +1368,122 @@ func (a *App) processMsg(msg runtimemsg.Msg) {
 		if result.Handled {
 			a.dirty = true
 		}
+	}
+}
+
+func (a *App) handleGlobalKeyShortcut(msg runtimemsg.Msg) bool {
+	if a.keyMap == nil {
+		return false
+	}
+	keyMsg, ok := msg.(*runtimemsg.KeyMsg)
+	if !ok {
+		return false
+	}
+	ev := frameworkevent.MsgToEvent(keyMsg)
+	keyEv, ok := ev.(*frameworkevent.KeyEvent)
+	if !ok {
+		return false
+	}
+	handler, found := a.keyMap.Lookup(keyEv)
+	if !found || handler == nil {
+		return false
+	}
+	return handler.HandleEvent(keyEv)
+}
+
+func (a *App) dispatchSelectionEvent(msg runtimemsg.Msg) bool {
+	if a.interactionMode != InteractionModeAppSelection {
+		return false
+	}
+	adapter := a.ensureSelectionAdapter()
+	if adapter == nil || !adapter.IsEnabled() {
+		return false
+	}
+
+	switch m := msg.(type) {
+	case *runtimemsg.MouseMsg:
+		handled := adapter.OnEvent(mouseMsgToRuntimeSelectionEvent(m))
+		if !handled {
+			return false
+		}
+
+		// In app-selection mode, keep mouse clicks usable for UI controls.
+		// Only consume drag-move and drag-end to avoid accidental click-through
+		// while selecting text.
+		switch m.Action {
+		case runtimemsg.MouseActionMove:
+			return adapter.IsDragging()
+		case runtimemsg.MouseActionRelease:
+			return adapter.IsDragging()
+		case runtimemsg.MouseActionPress, runtimemsg.MouseActionWheel:
+			return false
+		default:
+			return handled
+		}
+	case *runtimemsg.KeyMsg:
+		return adapter.OnEvent(keyMsgToRuntimeSelectionEvent(m))
+	default:
+		return false
+	}
+}
+
+func keyMsgToRuntimeSelectionEvent(keyMsg *runtimemsg.KeyMsg) *runtimeevent.KeyEvent {
+	mod := runtimeevent.KeyModifier(0)
+	if keyMsg.Mod.Shift {
+		mod |= runtimeevent.ModShift
+	}
+	if keyMsg.Mod.Ctrl {
+		mod |= runtimeevent.ModCtrl
+	}
+	if keyMsg.Mod.Alt {
+		mod |= runtimeevent.ModAlt
+	}
+	return &runtimeevent.KeyEvent{
+		Key:     keyMsg.Rune,
+		Special: keyMsg.Special,
+		Type:    runtimeevent.KeyPress,
+		Mod:     mod,
+	}
+}
+
+func mouseMsgToRuntimeSelectionEvent(mouseMsg *runtimemsg.MouseMsg) *runtimeevent.MouseEvent {
+	mouseType := runtimeevent.MouseMove
+	mouseAction := runtimeevent.MouseActionMove
+	switch mouseMsg.Action {
+	case runtimemsg.MouseActionPress:
+		mouseType = runtimeevent.MousePress
+		mouseAction = runtimeevent.MouseActionPress
+	case runtimemsg.MouseActionRelease:
+		mouseType = runtimeevent.MouseRelease
+		mouseAction = runtimeevent.MouseActionRelease
+	case runtimemsg.MouseActionMove:
+		mouseType = runtimeevent.MouseMove
+		mouseAction = runtimeevent.MouseActionMove
+	case runtimemsg.MouseActionWheel:
+		mouseType = runtimeevent.MouseScroll
+		mouseAction = runtimeevent.MouseActionWheel
+	}
+
+	button := runtimeevent.MouseNone
+	switch mouseMsg.Button {
+	case runtimemsg.MouseLeft:
+		button = runtimeevent.MouseLeft
+	case runtimemsg.MouseMiddle:
+		button = runtimeevent.MouseMiddle
+	case runtimemsg.MouseRight:
+		button = runtimeevent.MouseRight
+	}
+
+	return &runtimeevent.MouseEvent{
+		X:        mouseMsg.X,
+		Y:        mouseMsg.Y,
+		Type:     mouseType,
+		Action:   mouseAction,
+		TargetID: fmt.Sprintf("%d", mouseMsg.TargetID),
+		LocalX:   mouseMsg.LocalX,
+		LocalY:   mouseMsg.LocalY,
+		Button:   button,
+		Delta:    mouseMsg.Delta,
 	}
 }
 
@@ -1547,6 +1828,17 @@ func (a *App) render() {
 		}
 
 		paintable.Paint(ctx, buf)
+
+		// Apply app-managed text selection highlight (mode C).
+		if a.interactionMode == InteractionModeAppSelection {
+			frame := runtimepkg.Frame{
+				Buffer: buf,
+				Width:  buf.Width,
+				Height: buf.Height,
+				Dirty:  true,
+			}
+			a.ensureSelectionAdapter().OnRender(&frame)
+		}
 
 		// ========================================================================
 		// Phase 1-3: Pressed State 解决方案 - 更新组件注册表

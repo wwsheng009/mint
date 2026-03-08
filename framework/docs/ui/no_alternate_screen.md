@@ -52,6 +52,9 @@ The option sets `MINT_NO_ALTERNATE_SCREEN=true` environment variable, which is c
 1. `ui/app.go` - Sets the env var from option
 2. `framework/app.go` - Skips screen clearing when set
 
+> Note: `NoAlternateScreen` only controls screen buffer behavior.  
+> For terminal-native mouse text selection at runtime, use interaction mode `terminal_selection`.
+
 ## Files Modified
 
 - `ui/app.go` - Added `WithNoAlternateScreen()` option

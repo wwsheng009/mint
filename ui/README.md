@@ -265,3 +265,30 @@ go test ./ui/... -v -cover
 ```
 
 当前测试覆盖率: **40.7%**
+
+## StatusBar ?????
+
+```go
+bar := ui.NewStatusBarBuilder().
+    Theme(ui.StatusBarThemeDefault()).
+    HelpPrefix("? ").
+    HelpFallback("Hover or Tab to inspect actions").
+    Left(ui.StatusBarActionBadge(" MODE ", "black", "yellow", CycleModeIntent{}).WithHelp("Cycle to the next mode")).
+    Center(ui.StatusBarText("Mint Demo").WithWidth(20).WithAlign(ui.AlignCenter).WithEllipsis()).
+    Right(ui.StatusBarActionBadge(" SAVE ", "black", "green", SaveIntent{}).WithHelp("Save current document")).
+    BuildWithHelp()
+
+bar2 := ui.StatusBarWithHelp(
+    ui.StatusBarThemeMuted(),
+    "F6 cycles mode | Ctrl+1/2/3 jumps directly",
+    ui.StatusBarSections(
+        ui.StatusBarActionBadge(" UI ", "black", "yellow", SetModeIntent{Mode: "interactive"}).WithHelp("Regular UI interaction mode"),
+    ),
+    ui.StatusBarSections(
+        ui.StatusBarText("StatusBar supports inline help").WithWidth(24).WithAlign(ui.AlignCenter).WithEllipsis(),
+    ),
+    ui.StatusBarSections(
+        ui.StatusBarActionBadge(" TERM ", "bright-white", "bright-black", SetModeIntent{Mode: "terminal_selection"}).WithHelp("Native terminal selection mode"),
+    ),
+)
+```

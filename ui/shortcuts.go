@@ -37,6 +37,7 @@ import (
 	"github.com/wwsheng009/mint/ui/components/progress"
 	"github.com/wwsheng009/mint/ui/components/scrollview"
 	selectcomp "github.com/wwsheng009/mint/ui/components/select"
+	"github.com/wwsheng009/mint/ui/components/statusbar"
 	"github.com/wwsheng009/mint/ui/components/table"
 	"github.com/wwsheng009/mint/ui/components/tabs"
 	"github.com/wwsheng009/mint/ui/components/text"
@@ -74,7 +75,6 @@ func NewTextBuilder(content string) *text.Builder {
 	return text.NewBuilder(content)
 }
 
-
 func NewWrapBuilder() *wrap.Builder {
 	return wrap.NewBuilder()
 }
@@ -90,13 +90,34 @@ func NewAbsoluteBuilder(child rtui.VNode) *absolute.Builder {
 // Container Components
 
 // NewBorderBuilder creates a border builder.
-//
 func NewPanelBuilder() *panel.Builder {
 	return panel.NewBuilder()
 }
 
 func NewScrollViewBuilder() *scrollview.Builder {
 	return scrollview.NewBuilder()
+}
+
+func NewStatusBarBuilder() *statusbar.Builder {
+	return statusbar.NewBuilder()
+}
+
+func StatusBar(left, center, right []statusbar.Section) rtui.VNode {
+	return statusbar.NewBuilder().
+		LeftSections(left...).
+		CenterSections(center...).
+		RightSections(right...).
+		Build()
+}
+
+func StatusBarWithHelp(theme statusbar.Theme, helpFallback string, left, center, right []statusbar.Section) rtui.VNode {
+	return statusbar.NewBuilder().
+		Theme(theme).
+		HelpFallback(helpFallback).
+		LeftSections(left...).
+		CenterSections(center...).
+		RightSections(right...).
+		BuildWithHelp()
 }
 
 // Data Display Components
@@ -121,6 +142,7 @@ func NewTabsBuilder() *tabs.Builder {
 func NewSelectBuilder() *selectcomp.Builder {
 	return selectcomp.NewBuilder()
 }
+
 // Navigation Components
 // Note: NewTabsBuilder() is declared above
 
@@ -183,13 +205,25 @@ type (
 )
 
 const (
-	DividerSolid   = divider.StyleSolid
-	DividerDashed  = divider.StyleDashed
-	DividerDotted  = divider.StyleDotted
-	DividerDouble  = divider.StyleDouble
+	DividerSolid  = divider.StyleSolid
+	DividerDashed = divider.StyleDashed
+	DividerDotted = divider.StyleDotted
+	DividerDouble = divider.StyleDouble
 
 	HorizontalDivider = divider.Horizontal
 	VerticalDivider   = divider.Vertical
+)
+
+// StatusBar Types
+type (
+	StatusBarSection  = statusbar.Section
+	StatusBarTheme    = statusbar.Theme
+	StatusBarOverflow = statusbar.OverflowMode
+)
+
+const (
+	StatusBarOverflowEllipsis = statusbar.OverflowEllipsis
+	StatusBarOverflowClip     = statusbar.OverflowClip
 )
 
 // Grid Types
@@ -203,7 +237,7 @@ type (
 // Grid dimension helper functions - avoid conflict with ui.Flex function
 func FixedDim(size int) grid.Fixed { return grid.Fixed(size) }
 func FlexDim(factor int) grid.Flex { return grid.Flex{Factor: factor} }
-func AutoDim() grid.Auto          { return grid.Auto{} }
+func AutoDim() grid.Auto           { return grid.Auto{} }
 
 // Absolute Position Types
 type PositionValue = absolute.PositionValue
@@ -334,6 +368,59 @@ func TextBold(content string) rtui.VNode {
 // TextColored creates a colored text VNode
 func TextColored(content string, fg style.Color) rtui.VNode {
 	return text.Colored(content, fg)
+}
+
+// StatusBarText creates a plain status bar section.
+func StatusBarText(content string) statusbar.Section {
+	return statusbar.Text(content)
+}
+
+// StatusBarActionText creates a clickable plain status bar section.
+func StatusBarActionText(content string, pressIntent intent.Intent) statusbar.Section {
+	return statusbar.ActionText(content, pressIntent)
+}
+
+func StatusBarSections(sections ...statusbar.Section) []statusbar.Section {
+	return statusbar.Sections(sections...)
+}
+
+// StatusBarBadge creates a highlighted status bar section.
+func StatusBarBadge(content, fgColor, bgColor string) statusbar.Section {
+	return statusbar.Badge(content, fgColor, bgColor)
+}
+
+// StatusBarActionBadge creates a clickable highlighted status bar section.
+func StatusBarActionBadge(content, fgColor, bgColor string, pressIntent intent.Intent) statusbar.Section {
+	return statusbar.ActionBadge(content, fgColor, bgColor, pressIntent)
+}
+
+// StatusBarHelp creates a help/tooltip text for a section.
+func StatusBarHelp(section statusbar.Section, helpText string) statusbar.Section {
+	return section.WithHelp(helpText)
+}
+
+// StatusBarThemeDefault returns the default status bar theme.
+func StatusBarThemeDefault() statusbar.Theme {
+	return statusbar.DefaultTheme()
+}
+
+// StatusBarThemeMuted returns the muted status bar theme.
+func StatusBarThemeMuted() statusbar.Theme {
+	return statusbar.MutedTheme()
+}
+
+// StatusBarThemeContrast returns the contrast status bar theme.
+func StatusBarThemeContrast() statusbar.Theme {
+	return statusbar.ContrastTheme()
+}
+
+func StatusBarWithTheme(theme statusbar.Theme, left, center, right []statusbar.Section) rtui.VNode {
+	return statusbar.NewBuilder().
+		Theme(theme).
+		LeftSections(left...).
+		CenterSections(center...).
+		RightSections(right...).
+		Build()
 }
 
 // TextAlign creates a text VNode with horizontal alignment

@@ -17,14 +17,15 @@ import (
 )
 
 type windowsInputReader struct {
-	events            chan<- RawInput
-	quit              chan struct{}
-	quitOnce          sync.Once
-	mu                sync.Mutex
-	originalMode      uint32
-	lastWidth         int
-	lastHeight        int
-	lastPressedButton MouseButton // Track which button was pressed for release events
+	events              chan<- RawInput
+	quit                chan struct{}
+	quitOnce            sync.Once
+	mu                  sync.Mutex
+	originalMode        uint32
+	lastWidth           int
+	lastHeight          int
+	mouseCaptureEnabled bool
+	lastPressedButton   MouseButton // Track which button was pressed for release events
 }
 
 func newInputReaderImpl() inputReaderImpl {
@@ -33,7 +34,8 @@ func newInputReaderImpl() inputReaderImpl {
 
 func newWindowsInputReader() inputReaderImpl {
 	return &windowsInputReader{
-		quit: make(chan struct{}),
+		quit:                make(chan struct{}),
+		mouseCaptureEnabled: true,
 	}
 }
 
@@ -76,7 +78,10 @@ func (r *windowsInputReader) Start(events chan<- RawInput) error {
 	// 禁用 PROCESSED_INPUT 以获得原始输入（包括 Ctrl+C 等）
 	// mode &^= ENABLE_PROCESSED_INPUT
 	// 启用我们需要的功能
-	mode |= ENABLE_WINDOW_INPUT | ENABLE_EXTENDED_FLAGS | ENABLE_MOUSE_INPUT
+	mode |= ENABLE_WINDOW_INPUT | ENABLE_EXTENDED_FLAGS
+	if r.mouseCaptureEnabled {
+		mode |= ENABLE_MOUSE_INPUT
+	}
 
 	// 打开 ANSI 支持
 	mode |= windows.ENABLE_VIRTUAL_TERMINAL_PROCESSING
@@ -148,6 +153,38 @@ func (r *windowsInputReader) Stop() error {
 	}
 
 	return nil
+}
+
+func (r *windowsInputReader) SetMouseCaptureEnabled(enabled bool) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.mouseCaptureEnabled = enabled
+
+	// Not started yet: persist preference only.
+	if r.events == nil {
+		return nil
+	}
+
+	handle, _, err := procGetStdHandle.Call(STD_INPUT_HANDLE)
+	if handle == 0 {
+		return err
+	}
+
+	mode := r.getConsoleMode(handle)
+	if enabled {
+		mode |= ENABLE_MOUSE_INPUT
+	} else {
+		mode &^= ENABLE_MOUSE_INPUT
+	}
+	r.setConsoleMode(handle, mode)
+	return nil
+}
+
+func (r *windowsInputReader) MouseCaptureEnabled() bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.mouseCaptureEnabled
 }
 
 func (r *windowsInputReader) ReadEvent() (RawInput, error) {

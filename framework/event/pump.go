@@ -29,13 +29,15 @@ type EventSource interface {
 
 // Pump reads raw input from an EventSource and converts to Msg.
 type Pump struct {
-	source   EventSource
-	messages chan runtimemsg.Msg // Changed from events chan Event
-	quit     chan struct{}
-	quitApp  chan struct{}  // 用于 Ctrl+C 退出通知
-	running  int32          // Use atomic for cross-goroutine visibility (0=stopped, 1=running)
-	mu       sync.RWMutex   // Protects messages channel from close while sending
-	wg       sync.WaitGroup // Waits for convertLoop to exit
+	source      EventSource
+	messages    chan runtimemsg.Msg // Changed from events chan Event
+	quit        chan struct{}
+	quitApp     chan struct{} // 用于 Ctrl+C 退出通知
+	quitAppOnce sync.Once
+	running     int32          // Use atomic for cross-goroutine visibility (0=stopped, 1=running)
+	ctrlCAsQuit int32          // 1=true, 0=false
+	mu          sync.RWMutex   // Protects messages channel from close while sending
+	wg          sync.WaitGroup // Waits for convertLoop to exit
 
 	// HitMap for mouse event hit testing (set by App after each render)
 	hitMap   *event.HitMap
@@ -45,11 +47,12 @@ type Pump struct {
 // NewPump creates a new event pump with a platform input reader.
 func NewPump(reader platform.InputReader) *Pump {
 	return &Pump{
-		source:   &PlatformEventSource{reader: reader},
-		messages: make(chan runtimemsg.Msg, 100), // Changed from events
-		quit:     make(chan struct{}),
-		quitApp:  make(chan struct{}), // 用于通知应用退出
-		running:  0,
+		source:      &PlatformEventSource{reader: reader},
+		messages:    make(chan runtimemsg.Msg, 100), // Changed from events
+		quit:        make(chan struct{}),
+		quitApp:     make(chan struct{}), // 用于通知应用退出
+		running:     0,
+		ctrlCAsQuit: 1,
 	}
 }
 
@@ -57,11 +60,12 @@ func NewPump(reader platform.InputReader) *Pump {
 // This allows using MockSandbox or other test event sources.
 func NewPumpWithSource(source EventSource) *Pump {
 	return &Pump{
-		source:   source,
-		messages: make(chan runtimemsg.Msg, 100), // Changed from events
-		quit:     make(chan struct{}),
-		quitApp:  make(chan struct{}), // 用于通知应用退出
-		running:  0,
+		source:      source,
+		messages:    make(chan runtimemsg.Msg, 100), // Changed from events
+		quit:        make(chan struct{}),
+		quitApp:     make(chan struct{}), // 用于通知应用退出
+		running:     0,
+		ctrlCAsQuit: 1,
 	}
 }
 
@@ -145,10 +149,14 @@ func (p *Pump) convertToKeyMsg(raw platform.RawInput) runtimemsg.Msg {
 		modifiers.Shift = true
 	}
 
-	// 检查 Ctrl+C 组合键 - 触发退出
-	if raw.Modifiers&platform.ModCtrl != 0 && raw.Key == 'c' {
+	// 检查 Ctrl+C 组合键 - 触发退出（可配置）
+	if atomic.LoadInt32(&p.ctrlCAsQuit) != 0 &&
+		raw.Modifiers&platform.ModCtrl != 0 &&
+		(raw.Key == 'c' || raw.Key == 'C') {
 		// Ctrl+C 被按下，通知应用退出
-		close(p.quitApp)
+		p.quitAppOnce.Do(func() {
+			close(p.quitApp)
+		})
 		// 仍然返回消息让上层处理（如果需要）
 	}
 
@@ -299,6 +307,15 @@ func (p *Pump) IsRunning() bool {
 // This allows the application to detect Ctrl+C and exit gracefully.
 func (p *Pump) QuitAppRequested() <-chan struct{} {
 	return p.quitApp
+}
+
+// SetCtrlCAsQuit configures whether Ctrl+C should request app quit.
+func (p *Pump) SetCtrlCAsQuit(enabled bool) {
+	if enabled {
+		atomic.StoreInt32(&p.ctrlCAsQuit, 1)
+	} else {
+		atomic.StoreInt32(&p.ctrlCAsQuit, 0)
+	}
 }
 
 // PumpWithTimeout gets a message with timeout.

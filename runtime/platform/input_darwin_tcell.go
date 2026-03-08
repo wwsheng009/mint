@@ -19,10 +19,12 @@ var exitFlag int32 = 0
 
 // tcellInputReader implements inputReader using tcell
 type tcellInputReader struct {
-	events     chan<- RawInput
-	quit       chan struct{}
-	screen     tcell.Screen
-	quitOnce   sync.Once
+	events              chan<- RawInput
+	quit                chan struct{}
+	screen              tcell.Screen
+	quitOnce            sync.Once
+	mu                  sync.Mutex
+	mouseCaptureEnabled bool
 
 	// Mouse button state tracking to distinguish Release from Motion
 	// Used when button==0 to determine if it's a release or just movement
@@ -31,7 +33,8 @@ type tcellInputReader struct {
 
 func newInputReaderImpl() inputReaderImpl {
 	return &tcellInputReader{
-		quit: make(chan struct{}),
+		quit:                make(chan struct{}),
+		mouseCaptureEnabled: true,
 	}
 }
 
@@ -48,8 +51,12 @@ func (r *tcellInputReader) Start(events chan<- RawInput) error {
 		return err
 	}
 
-	// Enable mouse events
-	screen.EnableMouse(tcell.MouseButtonEvents, tcell.MouseMotionEvents, tcell.MouseDragEvents)
+	// Enable/disable mouse capture based on current preference
+	if r.mouseCaptureEnabled {
+		screen.EnableMouse(tcell.MouseButtonEvents, tcell.MouseMotionEvents, tcell.MouseDragEvents)
+	} else {
+		screen.DisableMouse()
+	}
 	screen.HideCursor()
 
 	go r.readLoop()
@@ -210,63 +217,63 @@ func (r *tcellInputReader) parseKeyEvent(ev *tcell.EventKey, now time.Time) RawI
 	// Map function keys (only if not already handled as Ctrl+letter)
 	if input.Key == 0 {
 		switch ev.Key() {
-	case tcell.KeyUp:
-		input.Special = KeyUp
-	case tcell.KeyDown:
-		input.Special = KeyDown
-	case tcell.KeyLeft:
-		input.Special = KeyLeft
-	case tcell.KeyRight:
-		input.Special = KeyRight
-	case tcell.KeyHome:
-		input.Special = KeyHome
-	case tcell.KeyEnd:
-		input.Special = KeyEnd
-	case tcell.KeyPgUp:
-		input.Special = KeyPageUp
-	case tcell.KeyPgDn:
-		input.Special = KeyPageDown
-	case tcell.KeyEnter:
-		input.Special = KeyEnter
-	case tcell.KeyBackspace:
-		input.Special = KeyBackspace
-	case tcell.KeyBackspace2:
-		input.Special = KeyBackspace
-	case tcell.KeyDelete:
-		input.Special = KeyDelete
-	case tcell.KeyInsert:
-		input.Special = KeyInsert
-	case tcell.KeyEscape:
-		input.Special = KeyEscape
-	case tcell.KeyTab:
-		input.Special = KeyTab
-	case tcell.KeyF1:
-		input.Special = KeyF1
-	case tcell.KeyF2:
-		input.Special = KeyF2
-	case tcell.KeyF3:
-		input.Special = KeyF3
-	case tcell.KeyF4:
-		input.Special = KeyF4
-	case tcell.KeyF5:
-		input.Special = KeyF5
-	case tcell.KeyF6:
-		input.Special = KeyF6
-	case tcell.KeyF7:
-		input.Special = KeyF7
-	case tcell.KeyF8:
-		input.Special = KeyF8
-	case tcell.KeyF9:
-		input.Special = KeyF9
-	case tcell.KeyF10:
-		input.Special = KeyF10
-	case tcell.KeyF11:
-		input.Special = KeyF11
-	case tcell.KeyF12:
-		input.Special = KeyF12
-	default:
-		input.Special = KeyUnknown
-	}
+		case tcell.KeyUp:
+			input.Special = KeyUp
+		case tcell.KeyDown:
+			input.Special = KeyDown
+		case tcell.KeyLeft:
+			input.Special = KeyLeft
+		case tcell.KeyRight:
+			input.Special = KeyRight
+		case tcell.KeyHome:
+			input.Special = KeyHome
+		case tcell.KeyEnd:
+			input.Special = KeyEnd
+		case tcell.KeyPgUp:
+			input.Special = KeyPageUp
+		case tcell.KeyPgDn:
+			input.Special = KeyPageDown
+		case tcell.KeyEnter:
+			input.Special = KeyEnter
+		case tcell.KeyBackspace:
+			input.Special = KeyBackspace
+		case tcell.KeyBackspace2:
+			input.Special = KeyBackspace
+		case tcell.KeyDelete:
+			input.Special = KeyDelete
+		case tcell.KeyInsert:
+			input.Special = KeyInsert
+		case tcell.KeyEscape:
+			input.Special = KeyEscape
+		case tcell.KeyTab:
+			input.Special = KeyTab
+		case tcell.KeyF1:
+			input.Special = KeyF1
+		case tcell.KeyF2:
+			input.Special = KeyF2
+		case tcell.KeyF3:
+			input.Special = KeyF3
+		case tcell.KeyF4:
+			input.Special = KeyF4
+		case tcell.KeyF5:
+			input.Special = KeyF5
+		case tcell.KeyF6:
+			input.Special = KeyF6
+		case tcell.KeyF7:
+			input.Special = KeyF7
+		case tcell.KeyF8:
+			input.Special = KeyF8
+		case tcell.KeyF9:
+			input.Special = KeyF9
+		case tcell.KeyF10:
+			input.Special = KeyF10
+		case tcell.KeyF11:
+			input.Special = KeyF11
+		case tcell.KeyF12:
+			input.Special = KeyF12
+		default:
+			input.Special = KeyUnknown
+		}
 	}
 
 	// 🔥 关键修复：过滤单独的修饰键
@@ -337,6 +344,27 @@ func (r *tcellInputReader) restoreTerminal() {
 	if r.screen != nil {
 		r.screen.Fini()
 	}
+}
+
+func (r *tcellInputReader) SetMouseCaptureEnabled(enabled bool) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.mouseCaptureEnabled = enabled
+	if r.screen != nil {
+		if enabled {
+			r.screen.EnableMouse(tcell.MouseButtonEvents, tcell.MouseMotionEvents, tcell.MouseDragEvents)
+		} else {
+			r.screen.DisableMouse()
+		}
+	}
+	return nil
+}
+
+func (r *tcellInputReader) MouseCaptureEnabled() bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.mouseCaptureEnabled
 }
 
 func (r *tcellInputReader) Stop() error {
