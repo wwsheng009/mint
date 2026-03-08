@@ -6,8 +6,14 @@ import (
 	"time"
 
 	frameworkevent "github.com/wwsheng009/mint/framework/event"
+	irender "github.com/wwsheng009/mint/internal/render"
 	"github.com/wwsheng009/mint/runtime/core"
+	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
+	runtimeplatform "github.com/wwsheng009/mint/runtime/platform"
 	"github.com/wwsheng009/mint/runtime/render"
+	rtui "github.com/wwsheng009/mint/runtime/ui"
+	"github.com/wwsheng009/mint/ui/components/cursor"
+	"github.com/wwsheng009/mint/ui/components/input"
 )
 
 // TestApp_Throttler 测试 App 的节流器集成
@@ -188,6 +194,174 @@ func TestContextManager_Integration(t *testing.T) {
 	case <-time.After(200 * time.Millisecond):
 		t.Fatal("shutdown timed out")
 	}
+}
+
+func TestApp_HandleTick_DrivesTickableInstances(t *testing.T) {
+	app := NewApp()
+
+	caret := cursor.NewInstance(rtui.Props{
+		"visible": true,
+		"config": cursor.Config{
+			Blink:         true,
+			BlinkInterval: time.Nanosecond,
+		},
+	})
+
+	rootFiber := &rtui.Fiber{
+		Tag:      "cursor",
+		Instance: caret,
+	}
+	app.root = &mockFiberRootNode{fiberRoot: rootFiber}
+
+	app.dirty = false
+	time.Sleep(time.Millisecond)
+	app.handleTick()
+
+	if !app.dirty {
+		t.Fatal("handleTick should mark app dirty when a tickable instance advances")
+	}
+}
+
+func TestApp_HandleTick_DrivesFocusedInputCursor(t *testing.T) {
+	app := NewApp()
+	app.Resize(80, 24)
+
+	decl := irender.NewDeclarativeNodeFromFuncWithFiber(func() rtui.VNode {
+		return input.NewBuilder().
+			Key("test-input").
+			Value("abc").
+			CursorConfig(cursor.Config{
+				Blink:         true,
+				BlinkInterval: time.Millisecond,
+			}).
+			Build()
+	})
+	decl.SetApp(app)
+	if fm := decl.GetFocusManager(); fm != nil {
+		app.SetFocusManagerFromDeclarativeNode(fm)
+	}
+	app.SetRoot(decl)
+
+	// First render builds the Fiber tree and focusable list.
+	app.dirty = true
+	app.render()
+	// Second render applies focus state onto instances.
+	app.dirty = true
+	app.render()
+
+	rootFiber := app.getFiberRoot()
+	if rootFiber == nil {
+		t.Fatal("expected fiber root after rendering")
+	}
+
+	foundFocusedInput := false
+	rtui.WalkFiberDepthFirst(rootFiber, func(fiber *rtui.Fiber) bool {
+		if fiber == nil || fiber.Instance == nil {
+			return true
+		}
+		if inst, ok := fiber.Instance.(*input.Instance); ok && inst.HasFocus() {
+			foundFocusedInput = true
+		}
+		return true
+	})
+	if !foundFocusedInput {
+		t.Fatal("expected focused input instance after second render")
+	}
+
+	app.dirty = false
+	time.Sleep(2 * time.Millisecond)
+	app.handleTick()
+	if !app.dirty {
+		t.Fatal("handleTick should mark app dirty for focused blinking input")
+	}
+}
+
+func TestApp_ProcessMsg_LeftArrowMovesInputCursor(t *testing.T) {
+	app := NewApp()
+	app.Resize(80, 24)
+
+	decl := irender.NewDeclarativeNodeFromFuncWithFiber(func() rtui.VNode {
+		return input.NewBuilder().
+			Key("test-input").
+			Value("abc").
+			Build()
+	})
+	decl.SetApp(app)
+	if fm := decl.GetFocusManager(); fm != nil {
+		app.SetFocusManagerFromDeclarativeNode(fm)
+	}
+	app.SetRoot(decl)
+
+	// Build tree, then apply focus state.
+	app.dirty = true
+	app.render()
+	app.dirty = true
+	app.render()
+
+	var focusedInput *input.Instance
+	rtui.WalkFiberDepthFirst(app.getFiberRoot(), func(fiber *rtui.Fiber) bool {
+		if fiber == nil || fiber.Instance == nil {
+			return true
+		}
+		if inst, ok := fiber.Instance.(*input.Instance); ok && inst.HasFocus() {
+			focusedInput = inst
+		}
+		return true
+	})
+	if focusedInput == nil {
+		t.Fatal("expected focused input instance")
+	}
+	if focusedInput.CursorPos() != 3 {
+		t.Fatalf("initial cursor = %d, want 3", focusedInput.CursorPos())
+	}
+
+	app.processMsg(runtimemsg.NewKeyMsg(0, runtimeplatform.KeyLeft, runtimemsg.Modifiers{}))
+	if focusedInput.CursorPos() != 2 {
+		t.Fatalf("cursor after left = %d, want 2", focusedInput.CursorPos())
+	}
+}
+
+func TestApp_ProcessMsg_LeftArrowMovesInputCursor_WithWrapperTag(t *testing.T) {
+	app := NewApp()
+
+	inst := input.NewInstance(rtui.Props{
+		"value": "abc",
+	})
+	fiber := &rtui.Fiber{
+		Tag:      "component",
+		NodeID:   1,
+		Instance: inst,
+	}
+
+	app.focusManager.UpdateFocusableList([]*rtui.Fiber{fiber})
+	if ok := app.focusManager.SetFocusByIndex(0); !ok {
+		t.Fatal("SetFocusByIndex(0) should succeed")
+	}
+
+	if inst.CursorPos() != 3 {
+		t.Fatalf("initial cursor = %d, want 3", inst.CursorPos())
+	}
+
+	app.processMsg(runtimemsg.NewKeyMsg(0, runtimeplatform.KeyLeft, runtimemsg.Modifiers{}))
+	if inst.CursorPos() != 2 {
+		t.Fatalf("cursor after left = %d, want 2", inst.CursorPos())
+	}
+}
+
+type mockFiberRootNode struct {
+	fiberRoot *rtui.Fiber
+}
+
+func (n *mockFiberRootNode) ID() string {
+	return "mock-fiber-root"
+}
+
+func (n *mockFiberRootNode) Type() string {
+	return "mock-fiber-root"
+}
+
+func (n *mockFiberRootNode) GetFiberRoot() *rtui.Fiber {
+	return n.fiberRoot
 }
 
 // testPanicHandler 测试用的 panic 处理器

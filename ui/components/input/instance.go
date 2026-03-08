@@ -2,16 +2,18 @@ package input
 
 import (
 	"strings"
+	"time"
 	"unicode/utf8"
 
-	"github.com/wwsheng009/mint/runtime/action"
 	"github.com/wwsheng009/mint/framework/theme"
+	"github.com/wwsheng009/mint/runtime/action"
 	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/ui/components/control"
+	"github.com/wwsheng009/mint/ui/components/cursor"
 	"github.com/wwsheng009/mint/ui/components/form"
 )
 
@@ -35,13 +37,15 @@ type Instance struct {
 	submitIntent intent.Intent
 	formID       string // Form ID for Form integration (Phase 6)
 	maxLen       int
+	cursorConfig cursor.Config
 
 	// === Runtime State (managed by instance) ===
-	state     control.InteractionState
-	value     string
-	cursorPos int    // cursor position for editing
-	bounds    [4]int // x, y, w, h
-	dirty     bool
+	state       control.InteractionState
+	value       string
+	cursorPos   int // cursor position for editing
+	cursorModel *cursor.Model
+	bounds      [4]int // x, y, w, h
+	dirty       bool
 
 	// === Intent Emitter ===
 	intentEmitter func(intent.Intent)
@@ -56,6 +60,7 @@ var (
 	_ rtui.PaintableInstance     = (*Instance)(nil)
 	_ rtui.FocusableInstance     = (*Instance)(nil)
 	_ rtui.ActionHandlerInstance = (*Instance)(nil)
+	_ rtui.TickableInstance      = (*Instance)(nil)
 	_ control.Instance           = (*Instance)(nil)
 	_ interface {
 		Measure(layout.Constraints) layout.Size
@@ -68,6 +73,7 @@ var (
 
 // NewInstance creates a new InputInstance from props.
 func NewInstance(props rtui.Props) *Instance {
+	cursorCfg := getCursorConfigProp(props, "cursorConfig", cursor.DefaultConfig())
 	inst := &Instance{
 		key:          getStringProp(props, "key", ""),
 		placeholder:  getStringProp(props, "placeholder", ""),
@@ -80,6 +86,8 @@ func NewInstance(props rtui.Props) *Instance {
 		formID:       getStringProp(props, "formID", ""),
 		value:        getStringProp(props, "value", ""),
 		maxLen:       getIntProp(props, "maxLen", 0),
+		cursorConfig: cursorCfg,
+		cursorModel:  cursor.NewModel(cursorCfg),
 		dirty:        true,
 	}
 
@@ -94,6 +102,7 @@ func NewInstance(props rtui.Props) *Instance {
 
 	// Initialize behaviors
 	inst.initBehaviors()
+	inst.syncCursorVisibility()
 
 	return inst
 }
@@ -151,7 +160,9 @@ func (inst *Instance) OnUnmount() {
 func (inst *Instance) SetProps(props rtui.Props) bool {
 	oldValue := inst.value
 	oldDisabled := inst.state.Disabled
+	oldReadOnly := inst.state.Active
 	oldPlaceholder := inst.placeholder
+	oldCursorConfig := inst.cursorConfig
 
 	inst.placeholder = getStringProp(props, "placeholder", inst.placeholder)
 	inst.inputType = getTypeProp(props, inst.inputType)
@@ -168,6 +179,7 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	if newValue != inst.value {
 		inst.value = newValue
 		inst.cursorPos = utf8.RuneCountInString(inst.value)
+		inst.cursorModel.ResetBlink()
 	}
 	inst.maxLen = getIntProp(props, "maxLen", inst.maxLen)
 
@@ -175,10 +187,23 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	if newDisabled != inst.state.Disabled {
 		inst.state.Disabled = newDisabled
 	}
+	newReadOnly := getBoolProp(props, "readOnly", inst.state.Active)
+	if newReadOnly != inst.state.Active {
+		inst.state.Active = newReadOnly
+	}
+
+	newCursorConfig := getCursorConfigProp(props, "cursorConfig", inst.cursorConfig)
+	if newCursorConfig != inst.cursorConfig {
+		inst.cursorConfig = newCursorConfig
+		inst.cursorModel.SetConfig(newCursorConfig)
+	}
+	inst.syncCursorVisibility()
 
 	// Check if props changed
 	changed := oldValue != inst.value ||
 		oldDisabled != inst.state.Disabled ||
+		oldReadOnly != inst.state.Active ||
+		oldCursorConfig != inst.cursorConfig ||
 		oldPlaceholder != inst.placeholder
 
 	if changed {
@@ -190,10 +215,12 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 // GetProps implements ComponentInstance.
 func (inst *Instance) GetProps() rtui.Props {
 	return rtui.Props{
-		"key":         inst.key,
-		"placeholder": inst.placeholder,
-		"value":       inst.value,
-		"disabled":    inst.state.Disabled,
+		"key":          inst.key,
+		"placeholder":  inst.placeholder,
+		"value":        inst.value,
+		"disabled":     inst.state.Disabled,
+		"readOnly":     inst.state.Active,
+		"cursorConfig": inst.cursorConfig,
 	}
 }
 
@@ -283,7 +310,8 @@ func (inst *Instance) Paint(x, y int) []paint.DrawCmd {
 		text = displayValue
 	}
 
-	// Apply width constraint
+	// Keep raw text for cursor calculation, then clamp/pad for rendering.
+	rawText := text
 	if contentWidth > 0 {
 		text = inst.padText(text, contentWidth)
 	}
@@ -308,6 +336,16 @@ func (inst *Instance) Paint(x, y int) []paint.DrawCmd {
 			Text:  text,
 			Style: inputStyle,
 		})
+	}
+
+	// Draw caret overlay when focused.
+	if inst.shouldDrawCursor() {
+		cursorCol, cursorChar := inst.computeCursorOverlay(rawText, contentWidth)
+		if cursorCol >= 0 && cursorCol < contentWidth {
+			if cmd, ok := inst.cursorModel.DrawCmd(contentX+cursorCol, contentY, cursorChar, inputStyle); ok {
+				cmds = append(cmds, cmd)
+			}
+		}
 	}
 
 	return cmds
@@ -469,6 +507,7 @@ func (inst *Instance) SetFocus(focused bool) {
 	if inst.state.Focused != focused {
 		oldState := inst.state
 		inst.state.Focused = focused
+		inst.syncCursorVisibility()
 		inst.dirty = true
 		inst.behaviors.OnStateChange(inst, oldState, inst.state)
 	}
@@ -482,6 +521,27 @@ func (inst *Instance) HasFocus() bool {
 // IsDisabled implements FocusableInstance.
 func (inst *Instance) IsDisabled() bool {
 	return inst.state.Disabled
+}
+
+// =============================================================================
+// TickableInstance Interface
+// =============================================================================
+
+// WantsTick reports whether the input caret needs periodic blink updates.
+func (inst *Instance) WantsTick() bool {
+	return inst.cursorModel != nil && inst.cursorModel.WantsTick()
+}
+
+// Tick advances caret blink state.
+func (inst *Instance) Tick(now time.Time) bool {
+	if inst.cursorModel == nil {
+		return false
+	}
+	if inst.cursorModel.Tick(now) {
+		inst.dirty = true
+		return true
+	}
+	return false
 }
 
 // =============================================================================
@@ -504,6 +564,14 @@ func (inst *Instance) HandleAction(act *action.Action) bool {
 		return inst.DeleteText(-1)
 	case action.ActionDeleteChar:
 		return inst.DeleteText(1)
+	case action.ActionCursorLeft:
+		return inst.MoveCursor(-1)
+	case action.ActionCursorRight:
+		return inst.MoveCursor(1)
+	case action.ActionCursorHome:
+		return inst.MoveCursorToHome()
+	case action.ActionCursorEnd:
+		return inst.MoveCursorToEnd()
 	case action.ActionSubmit, action.ActionEnter:
 		if inst.submitIntent != nil && inst.intentEmitter != nil {
 			inst.intentEmitter(inst.submitIntent)
@@ -553,6 +621,7 @@ func (inst *Instance) InsertText(text string) bool {
 
 	inst.value = string(newRunes)
 	inst.cursorPos += len(textRunes)
+	inst.cursorModel.ResetBlink()
 	inst.dirty = true
 
 	// ✨ MVP/Phase 6: Emit FieldChangeIntent or FormFieldChangeIntent with runtime value
@@ -602,6 +671,7 @@ func (inst *Instance) DeleteText(direction int) bool {
 		inst.value = string(newRunes)
 	}
 
+	inst.cursorModel.ResetBlink()
 	inst.dirty = true
 
 	// ✨ MVP/Phase 6: Emit FieldChangeIntent or FormFieldChangeIntent with runtime value
@@ -616,6 +686,7 @@ func (inst *Instance) SetValue(value string) {
 	if inst.value != value {
 		inst.value = value
 		inst.cursorPos = utf8.RuneCountInString(value)
+		inst.cursorModel.ResetBlink()
 		inst.dirty = true
 	}
 }
@@ -638,7 +709,99 @@ func (inst *Instance) SetCursorPos(pos int) {
 	} else if pos > max {
 		pos = max
 	}
-	inst.cursorPos = pos
+	if inst.cursorPos != pos {
+		inst.cursorPos = pos
+		inst.cursorModel.ResetBlink()
+		inst.dirty = true
+	}
+}
+
+// MoveCursor moves the cursor by delta runes.
+func (inst *Instance) MoveCursor(delta int) bool {
+	oldPos := inst.cursorPos
+	inst.SetCursorPos(inst.cursorPos + delta)
+	return inst.cursorPos != oldPos
+}
+
+// MoveCursorToHome moves the cursor to the beginning.
+func (inst *Instance) MoveCursorToHome() bool {
+	oldPos := inst.cursorPos
+	inst.SetCursorPos(0)
+	return inst.cursorPos != oldPos
+}
+
+// MoveCursorToEnd moves the cursor to the end.
+func (inst *Instance) MoveCursorToEnd() bool {
+	oldPos := inst.cursorPos
+	inst.SetCursorPos(utf8.RuneCountInString(inst.value))
+	return inst.cursorPos != oldPos
+}
+
+func (inst *Instance) shouldDrawCursor() bool {
+	return inst.cursorModel != nil && inst.cursorModel.ShouldPaint()
+}
+
+func (inst *Instance) wantsCursorVisible() bool {
+	return inst.state.Focused && !inst.state.Disabled && !inst.state.Active
+}
+
+func (inst *Instance) syncCursorVisibility() bool {
+	if inst.cursorModel == nil {
+		return false
+	}
+	changed := inst.cursorModel.SetVisible(inst.wantsCursorVisible())
+	if changed {
+		inst.dirty = true
+	}
+	return changed
+}
+
+// computeCursorOverlay calculates the caret column and displayed glyph.
+func (inst *Instance) computeCursorOverlay(rawText string, contentWidth int) (int, string) {
+	if contentWidth <= 0 {
+		return -1, ""
+	}
+
+	// Placeholder is visual hint; caret follows editable value.
+	source := rawText
+	if inst.value == "" {
+		source = ""
+	}
+
+	runes := []rune(source)
+	valueLen := utf8.RuneCountInString(inst.value)
+	cursor := inst.cursorPos
+	if cursor < 0 {
+		cursor = 0
+	}
+	if cursor > valueLen {
+		cursor = valueLen
+	}
+
+	cursorCol := displayWidthByRuneIndex(runes, cursor)
+	if cursorCol >= contentWidth {
+		cursorCol = contentWidth - 1
+	}
+
+	// Draw current rune under caret, or a space if caret is at end.
+	if cursor < len(runes) {
+		return cursorCol, string(runes[cursor])
+	}
+	return cursorCol, " "
+}
+
+func displayWidthByRuneIndex(runes []rune, runeIndex int) int {
+	if runeIndex < 0 {
+		return 0
+	}
+	if runeIndex > len(runes) {
+		runeIndex = len(runes)
+	}
+	width := 0
+	for i := 0; i < runeIndex; i++ {
+		width += paint.RuneWidth(runes[i])
+	}
+	return width
 }
 
 // =============================================================================
@@ -654,6 +817,10 @@ func (inst *Instance) GetState() *control.InteractionState {
 func (inst *Instance) SetState(state control.InteractionState) {
 	oldState := inst.state
 	inst.state = state
+	inst.syncCursorVisibility()
+	if oldState != inst.state {
+		inst.dirty = true
+	}
 	inst.behaviors.OnStateChange(inst, oldState, inst.state)
 }
 
@@ -710,6 +877,7 @@ func (inst *Instance) SetProp(key string, value interface{}) {
 	case "disabled":
 		if v, ok := value.(bool); ok {
 			inst.state.Disabled = v
+			inst.syncCursorVisibility()
 			inst.dirty = true
 		}
 	case "value":
@@ -925,4 +1093,13 @@ func getBorderStyleProp(props rtui.Props, key string, def layout.BorderStyle) la
 		}
 	}
 	return def
+}
+
+func getCursorConfigProp(props rtui.Props, key string, def cursor.Config) cursor.Config {
+	if v, ok := props[key]; ok {
+		if cfg, ok := v.(cursor.Config); ok {
+			return cursor.NormalizeConfig(cfg)
+		}
+	}
+	return cursor.NormalizeConfig(def)
 }

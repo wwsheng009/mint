@@ -447,6 +447,13 @@ func (m *FiberFocusManager) DebugString() string {
 
 // updateFocusState updates the focus state when focus changes.
 func (m *FiberFocusManager) updateFocusState(oldIndex, newIndex int) {
+	// If focus index didn't change, avoid toggling false->true.
+	// Toggling would reset caret blink phase every render.
+	if oldIndex == newIndex {
+		m.applyFocusState(newIndex, true)
+		return
+	}
+
 	// Remove focus from old fiber
 	m.applyFocusState(oldIndex, false)
 	// Add focus to new fiber

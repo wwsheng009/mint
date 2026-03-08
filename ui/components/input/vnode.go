@@ -1,10 +1,13 @@
 package input
 
 import (
+	"time"
+
 	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
+	"github.com/wwsheng009/mint/ui/components/cursor"
 )
 
 // =============================================================================
@@ -45,15 +48,16 @@ type VNode struct {
 	borderStyle layout.BorderStyle
 
 	// === Intent Props (no closures!) ===
-	changeIntent  intent.Intent // emitted when value changes
-	submitIntent  intent.Intent // emitted on Enter
-	formID        string        // Form ID for Form integration (Phase 6)
+	changeIntent intent.Intent // emitted when value changes
+	submitIntent intent.Intent // emitted on Enter
+	formID       string        // Form ID for Form integration (Phase 6)
 
 	// === State Props (declarative, actual state managed by Instance) ===
-	value    string
-	maxLen   int
-	disabled bool
-	readOnly bool
+	value        string
+	maxLen       int
+	disabled     bool
+	readOnly     bool
+	cursorConfig cursor.Config
 
 	// === Box Model (via interface) ===
 	rtui.BoxModelMixin
@@ -76,6 +80,7 @@ func New() *VNode {
 		ElementVNode: rtui.NewElement("input"),
 		inputType:    TypeText,
 		borderStyle:  layout.BorderSingle, // Default border
+		cursorConfig: cursor.DefaultConfig(),
 	}
 }
 
@@ -146,6 +151,7 @@ func (i *VNode) Props() rtui.Props {
 		"maxLen":       i.maxLen,
 		"disabled":     i.disabled,
 		"readOnly":     i.readOnly,
+		"cursorConfig": i.cursorConfig,
 	}
 }
 
@@ -190,6 +196,9 @@ func (i *VNode) SetProps(p rtui.Props) rtui.VNode {
 	if v, ok := p["readOnly"].(bool); ok {
 		i.readOnly = v
 	}
+	if v, ok := p["cursorConfig"].(cursor.Config); ok {
+		i.cursorConfig = cursor.NormalizeConfig(v)
+	}
 	return i
 }
 
@@ -213,6 +222,7 @@ func (i *VNode) CreateInstance() rtui.ComponentInstance {
 		"maxLen":       i.maxLen,
 		"disabled":     i.disabled,
 		"readOnly":     i.readOnly,
+		"cursorConfig": i.cursorConfig,
 	}
 	return NewInstance(props)
 }
@@ -260,6 +270,54 @@ func (i *VNode) SetDisabled(disabled bool) *VNode {
 // SetReadOnly sets the read-only state.
 func (i *VNode) SetReadOnly(readOnly bool) *VNode {
 	i.readOnly = readOnly
+	return i
+}
+
+// SetCursorConfig sets cursor blink/shape config for the embedded caret.
+func (i *VNode) SetCursorConfig(cfg cursor.Config) *VNode {
+	i.cursorConfig = cursor.NormalizeConfig(cfg)
+	return i
+}
+
+// SetCursorShape sets the embedded caret shape.
+func (i *VNode) SetCursorShape(shape cursor.Shape) *VNode {
+	i.cursorConfig.Shape = shape
+	return i
+}
+
+// SetInsertCursor configures a thin insertion caret.
+func (i *VNode) SetInsertCursor() *VNode {
+	i.cursorConfig.Shape = cursor.ShapeBar
+	i.cursorConfig.Glyph = "|"
+	return i
+}
+
+// SetBlockCursor configures a block caret.
+func (i *VNode) SetBlockCursor() *VNode {
+	i.cursorConfig.Shape = cursor.ShapeBlock
+	i.cursorConfig.Glyph = ""
+	return i
+}
+
+// SetUnderlineCursor configures an underline caret.
+func (i *VNode) SetUnderlineCursor() *VNode {
+	i.cursorConfig.Shape = cursor.ShapeUnderline
+	i.cursorConfig.Glyph = ""
+	return i
+}
+
+// SetCursorBlink enables or disables caret blink.
+func (i *VNode) SetCursorBlink(enabled bool) *VNode {
+	i.cursorConfig.Blink = enabled
+	if i.cursorConfig.BlinkInterval <= 0 {
+		i.cursorConfig.BlinkInterval = cursor.NormalBlinkInterval
+	}
+	return i
+}
+
+// SetCursorBlinkInterval sets caret blink interval.
+func (i *VNode) SetCursorBlinkInterval(interval time.Duration) *VNode {
+	i.cursorConfig.BlinkInterval = interval
 	return i
 }
 

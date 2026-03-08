@@ -1,10 +1,13 @@
 package textarea
 
 import (
+	"time"
+
 	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
+	"github.com/wwsheng009/mint/ui/components/cursor"
 )
 
 // =============================================================================
@@ -31,10 +34,11 @@ type VNode struct {
 	submitIntent intent.Intent
 
 	// === State Props (declarative) ===
-	value    string
-	maxLen   int
-	disabled bool
-	formID   string // Form ID for Form integration (Phase 6)
+	value        string
+	maxLen       int
+	disabled     bool
+	formID       string // Form ID for Form integration (Phase 6)
+	cursorConfig cursor.Config
 
 	// === Box Model ===
 	rtui.BoxModelMixin
@@ -53,6 +57,7 @@ func New() *VNode {
 		ElementVNode: rtui.NewElement("textarea"),
 		rows:         3,
 		cols:         40,
+		cursorConfig: cursor.DefaultConfig(),
 	}
 }
 
@@ -60,15 +65,15 @@ func New() *VNode {
 // rtui.VNode Interface Implementation
 // =============================================================================
 
-func (t *VNode) Key() string                    { return t.key }
-func (t *VNode) SetKey(key string) rtui.VNode   { t.key = key; return t }
-func (t *VNode) Tag() string                    { return "textarea" }
-func (t *VNode) Style() style.Style             { return t.style }
-func (t *VNode) SetStyle(s style.Style) rtui.VNode { t.style = s; return t }
-func (t *VNode) Children() []rtui.VNode         { return nil }
+func (t *VNode) Key() string                                  { return t.key }
+func (t *VNode) SetKey(key string) rtui.VNode                 { t.key = key; return t }
+func (t *VNode) Tag() string                                  { return "textarea" }
+func (t *VNode) Style() style.Style                           { return t.style }
+func (t *VNode) SetStyle(s style.Style) rtui.VNode            { t.style = s; return t }
+func (t *VNode) Children() []rtui.VNode                       { return nil }
 func (t *VNode) SetChildren(children []rtui.VNode) rtui.VNode { return t }
-func (t *VNode) GetLayer() rtui.Layer           { return rtui.LayerBase }
-func (t *VNode) SetLayer(l rtui.Layer) rtui.VNode { return t }
+func (t *VNode) GetLayer() rtui.Layer                         { return rtui.LayerBase }
+func (t *VNode) SetLayer(l rtui.Layer) rtui.VNode             { return t }
 
 func (t *VNode) Props() rtui.Props {
 	return rtui.Props{
@@ -83,6 +88,7 @@ func (t *VNode) Props() rtui.Props {
 		"maxLen":       t.maxLen,
 		"disabled":     t.disabled,
 		"formID":       t.formID,
+		"cursorConfig": t.cursorConfig,
 	}
 }
 
@@ -120,6 +126,9 @@ func (t *VNode) SetProps(p rtui.Props) rtui.VNode {
 	if v, ok := p["formID"].(string); ok {
 		t.formID = v
 	}
+	if v, ok := p["cursorConfig"].(cursor.Config); ok {
+		t.cursorConfig = cursor.NormalizeConfig(v)
+	}
 	return t
 }
 
@@ -135,25 +144,71 @@ func (t *VNode) CreateInstance() rtui.ComponentInstance {
 // Builder Methods
 // =============================================================================
 
-func (t *VNode) SetPlaceholder(text string) *VNode { t.placeholder = text; return t }
-func (t *VNode) SetValue(value string) *VNode      { t.value = value; return t }
-func (t *VNode) SetRows(rows int) *VNode           { t.rows = rows; return t }
-func (t *VNode) SetCols(cols int) *VNode           { t.cols = cols; return t }
-func (t *VNode) SetMaxLen(len int) *VNode          { t.maxLen = len; return t }
-func (t *VNode) SetDisabled(disabled bool) *VNode  { t.disabled = disabled; return t }
+func (t *VNode) SetPlaceholder(text string) *VNode      { t.placeholder = text; return t }
+func (t *VNode) SetValue(value string) *VNode           { t.value = value; return t }
+func (t *VNode) SetRows(rows int) *VNode                { t.rows = rows; return t }
+func (t *VNode) SetCols(cols int) *VNode                { t.cols = cols; return t }
+func (t *VNode) SetMaxLen(len int) *VNode               { t.maxLen = len; return t }
+func (t *VNode) SetDisabled(disabled bool) *VNode       { t.disabled = disabled; return t }
 func (t *VNode) SetChangeIntent(i intent.Intent) *VNode { t.changeIntent = i; return t }
 func (t *VNode) SetSubmitIntent(i intent.Intent) *VNode { t.submitIntent = i; return t }
+func (t *VNode) SetCursorConfig(cfg cursor.Config) *VNode {
+	t.cursorConfig = cursor.NormalizeConfig(cfg)
+	return t
+}
+
+// SetCursorShape sets the embedded caret shape.
+func (t *VNode) SetCursorShape(shape cursor.Shape) *VNode {
+	t.cursorConfig.Shape = shape
+	return t
+}
+
+// SetInsertCursor configures a thin insertion caret.
+func (t *VNode) SetInsertCursor() *VNode {
+	t.cursorConfig.Shape = cursor.ShapeBar
+	t.cursorConfig.Glyph = "|"
+	return t
+}
+
+// SetBlockCursor configures a block caret.
+func (t *VNode) SetBlockCursor() *VNode {
+	t.cursorConfig.Shape = cursor.ShapeBlock
+	t.cursorConfig.Glyph = ""
+	return t
+}
+
+// SetUnderlineCursor configures an underline caret.
+func (t *VNode) SetUnderlineCursor() *VNode {
+	t.cursorConfig.Shape = cursor.ShapeUnderline
+	t.cursorConfig.Glyph = ""
+	return t
+}
+
+// SetCursorBlink enables or disables caret blink.
+func (t *VNode) SetCursorBlink(enabled bool) *VNode {
+	t.cursorConfig.Blink = enabled
+	if t.cursorConfig.BlinkInterval <= 0 {
+		t.cursorConfig.BlinkInterval = cursor.NormalBlinkInterval
+	}
+	return t
+}
+
+// SetCursorBlinkInterval sets caret blink interval.
+func (t *VNode) SetCursorBlinkInterval(interval time.Duration) *VNode {
+	t.cursorConfig.BlinkInterval = interval
+	return t
+}
 
 // =============================================================================
 // Props Accessors
 // =============================================================================
 
-func (t *VNode) Placeholder() string   { return t.placeholder }
-func (t *VNode) Value() string         { return t.value }
-func (t *VNode) Rows() int             { return t.rows }
-func (t *VNode) Cols() int             { return t.cols }
-func (t *VNode) MaxLen() int           { return t.maxLen }
-func (t *VNode) Disabled() bool        { return t.disabled }
+func (t *VNode) Placeholder() string         { return t.placeholder }
+func (t *VNode) Value() string               { return t.value }
+func (t *VNode) Rows() int                   { return t.rows }
+func (t *VNode) Cols() int                   { return t.cols }
+func (t *VNode) MaxLen() int                 { return t.maxLen }
+func (t *VNode) Disabled() bool              { return t.disabled }
 func (t *VNode) ChangeIntent() intent.Intent { return t.changeIntent }
 func (t *VNode) SubmitIntent() intent.Intent { return t.submitIntent }
 

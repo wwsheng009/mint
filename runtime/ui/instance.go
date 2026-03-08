@@ -4,6 +4,7 @@ import (
 	"github.com/wwsheng009/mint/runtime/action"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
+	"time"
 )
 
 // =============================================================================
@@ -422,6 +423,14 @@ type ActionHandlerInstance interface {
 	HandleAction(action *action.Action) bool
 }
 
+// TickableInstance is implemented by components that need time-driven updates
+// such as blinking cursors or lightweight animations.
+type TickableInstance interface {
+	ComponentInstance
+	WantsTick() bool
+	Tick(now time.Time) bool
+}
+
 // =============================================================================
 // InstanceFactory - Creates instances from VNodes
 // =============================================================================
@@ -451,6 +460,12 @@ func AsFocusableInstance(inst ComponentInstance) (FocusableInstance, bool) {
 func AsActionHandler(inst ComponentInstance) (ActionHandlerInstance, bool) {
 	a, ok := inst.(ActionHandlerInstance)
 	return a, ok
+}
+
+// AsTickableInstance attempts to cast to TickableInstance.
+func AsTickableInstance(inst ComponentInstance) (TickableInstance, bool) {
+	t, ok := inst.(TickableInstance)
+	return t, ok
 }
 
 // TryInstancePaint attempts to paint an instance

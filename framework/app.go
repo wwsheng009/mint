@@ -1119,6 +1119,21 @@ func (a *App) processMsg(msg runtimemsg.Msg) {
 		return
 	}
 
+	// Focus-aware remapping: in text editors, arrow/home/end should move caret,
+	// not trigger global focus navigation.
+	if focused := a.getFocusedFiber(); focused != nil && isTextInputFiber(focused) {
+		switch act.Type {
+		case action.ActionNavigateLeft:
+			act.Type = action.ActionCursorLeft
+		case action.ActionNavigateRight:
+			act.Type = action.ActionCursorRight
+		case action.ActionNavigateHome:
+			act.Type = action.ActionCursorHome
+		case action.ActionNavigateEnd:
+			act.Type = action.ActionCursorEnd
+		}
+	}
+
 	// 3. 导航 Action 由焦点管理器直接处理
 	if act.IsNavigation() {
 		a.handleNavigationAction(act)
@@ -1210,6 +1225,39 @@ func (a *App) handleNavigationAction(act *action.Action) {
 	if handled {
 		a.dirty = true
 	}
+}
+
+func (a *App) getFocusedFiber() *rtui.Fiber {
+	if a.focusManager == nil {
+		return nil
+	}
+	return a.focusManager.GetCurrent()
+}
+
+func (a *App) getFiberRoot() *rtui.Fiber {
+	if a.root == nil {
+		return nil
+	}
+	if provider, ok := a.root.(interface{ GetFiberRoot() *rtui.Fiber }); ok {
+		return provider.GetFiberRoot()
+	}
+	return nil
+}
+
+func isTextInputFiber(fiber *rtui.Fiber) bool {
+	if fiber == nil {
+		return false
+	}
+	if fiber.Tag == "input" || fiber.Tag == "textarea" {
+		return true
+	}
+	// Fallback: some component wrappers may use non-leaf tags while the runtime
+	// instance still supports text cursor navigation.
+	if fiber.Instance != nil {
+		_, ok := fiber.Instance.(interface{ CursorPos() int })
+		return ok
+	}
+	return false
 }
 
 // handleSystemMsg 处理无法转换为 Action 的系统消息
@@ -1422,21 +1470,30 @@ func (a *App) handleEvent(ev frameworkevent.Event) {
 	}
 }
 
-// handleTick 处理定时器
-//
-// 性能优化：由于当前没有光标组件，而且系统能通过 Fiber/事件驱动重绘，
-// 完全不需要定时器触发渲染。
-//
-// 组件可以通过以下方式触发重绘：
-//  1. 用户事件（按键、鼠标、Resize）→ handleMsg() → a.dirty = true
-//  2. Fiber reconciler 状态更新 → reconciler.Scheduler -> a.dirty = true
-//  3. 组件 MarkDirty() → a.dirty = true (通过 SetDirtyCallback)
-//
-// 如果将来添加光标组件（如 Input），需要在组件内部自行管理刷新频率，
-// 或者在该函数中添加条件判断来定期刷新。
+// handleTick drives optional TickableInstance components (e.g. blinking cursors).
+// Components opt in by implementing rtui.TickableInstance.
 func (a *App) handleTick() {
-	// 空实现 - 不定时设置 dirty
-	// 如果需要光标闪烁，应在组件内部基于时间差判断并请求重绘
+	rootFiber := a.getFiberRoot()
+	if rootFiber == nil {
+		return
+	}
+
+	now := time.Now()
+	rtui.WalkFiberDepthFirst(rootFiber, func(fiber *rtui.Fiber) bool {
+		if fiber == nil || fiber.Instance == nil {
+			return true
+		}
+
+		tickable, ok := rtui.AsTickableInstance(fiber.Instance)
+		if !ok || !tickable.WantsTick() {
+			return true
+		}
+
+		if tickable.Tick(now) {
+			a.dirty = true
+		}
+		return true
+	})
 }
 
 // render 渲染界面

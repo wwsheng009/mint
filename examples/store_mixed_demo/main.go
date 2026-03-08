@@ -46,9 +46,9 @@ type Item struct {
 // ==============================================================================
 
 var appStore = store.NewStore(AppState{
-	Count: 0,
+	Count:    0,
 	Username: "",
-	Email: "",
+	Email:    "",
 	Items: []Item{
 		{Name: "Apple", Price: 2.99},
 		{Name: "Banana", Price: 1.49},
@@ -69,10 +69,10 @@ type ClearTextIntent struct{}
 type AddItemIntent struct{}
 type ToggleExpandedIntent struct{}
 
-func (IncrementIntent) IntentType() string { return "MixedDemoIncrement" }
-func (DecrementIntent) IntentType() string { return "MixedDemoDecrement" }
-func (ClearTextIntent) IntentType() string { return "MixedDemoClearText" }
-func (AddItemIntent) IntentType() string { return "MixedDemoAddItem" }
+func (IncrementIntent) IntentType() string      { return "MixedDemoIncrement" }
+func (DecrementIntent) IntentType() string      { return "MixedDemoDecrement" }
+func (ClearTextIntent) IntentType() string      { return "MixedDemoClearText" }
+func (AddItemIntent) IntentType() string        { return "MixedDemoAddItem" }
 func (ToggleExpandedIntent) IntentType() string { return "MixedDemoToggleExpanded" }
 
 // ==============================================================================
@@ -130,7 +130,7 @@ func ExpanderComponent() ui.VNode {
 	expanded := ui.UseStoreSelector(
 		appStore,
 		func(s AppState) int { return s.Count },
-	) % 2 == 0 // 简单地用 count 来模拟展开/折叠
+	)%2 == 0 // 简单地用 count 来模拟展开/折叠
 
 	items := []ui.VNode{
 		ui.NewTextBuilder("=== 1. Store 订阅状态 ===").
@@ -201,7 +201,7 @@ type FunctionalCounterStepIntent struct {
 }
 
 func (FunctionalCounterDirectIntent) IntentType() string { return "FuncDirect" }
-func (FunctionalCounterStepIntent) IntentType() string { return "FuncStep" }
+func (FunctionalCounterStepIntent) IntentType() string   { return "FuncStep" }
 
 func init() {
 	reducer.NewBuilder[AppState]().
@@ -285,6 +285,7 @@ func FormComponent() ui.VNode {
 			ui.NewInputBuilder().
 				Placeholder("用户名").
 				Value(state.Username).
+				InsertCursor().
 				ForField(intent.BindField("username")).
 				Width(20).
 				Build(),
@@ -294,6 +295,7 @@ func FormComponent() ui.VNode {
 			ui.NewInputBuilder().
 				Placeholder("邮箱").
 				Value(state.Email).
+				InsertCursor().
 				ForField(intent.BindField("email")).
 				Width(20).
 				Build(),
@@ -368,6 +370,7 @@ func ListComponent() ui.VNode {
 			ui.NewInputBuilder().
 				Placeholder("输入关键词").
 				Value(state.FilterText).
+				InsertCursor().
 				ForField(intent.BindField("filterText")).
 				Width(15).
 				Build(),

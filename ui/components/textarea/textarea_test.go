@@ -2,10 +2,12 @@ package textarea
 
 import (
 	"testing"
+	"time"
 
 	"github.com/wwsheng009/mint/runtime/action"
 	"github.com/wwsheng009/mint/runtime/layout"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
+	"github.com/wwsheng009/mint/ui/components/cursor"
 )
 
 // =============================================================================
@@ -49,6 +51,16 @@ func TestVNode_Builder(t *testing.T) {
 	}
 	if vnode.Cols() != 30 {
 		t.Errorf("Cols = %d, want 30", vnode.Cols())
+	}
+}
+
+func TestVNode_Builder_InsertCursor(t *testing.T) {
+	ta := NewBuilder().InsertCursor().Build().(*VNode)
+	if ta.cursorConfig.Shape != cursor.ShapeBar {
+		t.Fatalf("cursor shape = %v, want %v", ta.cursorConfig.Shape, cursor.ShapeBar)
+	}
+	if ta.cursorConfig.Glyph != "|" {
+		t.Fatalf("cursor glyph = %q, want %q", ta.cursorConfig.Glyph, "|")
 	}
 }
 
@@ -122,6 +134,20 @@ func TestInstance_InsertText(t *testing.T) {
 	}
 }
 
+func TestInstance_InsertText_AtCursor(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"value": "hello\nworld",
+	})
+	inst.SetCursorPos(5) // before '\n'
+
+	if !inst.InsertText(",") {
+		t.Fatal("InsertText should succeed")
+	}
+	if inst.GetValue() != "hello,\nworld" {
+		t.Fatalf("Value = %q, want %q", inst.GetValue(), "hello,\nworld")
+	}
+}
+
 func TestInstance_InsertText_MaxLen(t *testing.T) {
 	inst := NewInstance(rtui.Props{
 		"value":  "abc",
@@ -154,6 +180,26 @@ func TestInstance_SetValue(t *testing.T) {
 	inst.SetValue("new value")
 	if inst.IsDirty() {
 		t.Error("Should not be dirty when setting same value")
+	}
+}
+
+func TestInstance_HandleAction_CursorAndEnter(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"value": "abc",
+	})
+
+	if !inst.HandleAction(action.NewAction(action.ActionCursorLeft)) {
+		t.Fatal("ActionCursorLeft should be handled")
+	}
+	if inst.CursorPos() != 2 {
+		t.Fatalf("CursorPos = %d, want 2", inst.CursorPos())
+	}
+
+	if !inst.HandleAction(action.NewAction(action.ActionEnter)) {
+		t.Fatal("ActionEnter should be handled")
+	}
+	if inst.GetValue() != "ab\nc" {
+		t.Fatalf("Value = %q, want %q", inst.GetValue(), "ab\nc")
 	}
 }
 
@@ -216,5 +262,71 @@ func TestInstance_Paint(t *testing.T) {
 	// Check bottom border
 	if cmds[4].Text[0:1] != "+" {
 		t.Errorf("Bottom border should start with '+', got %q", cmds[4].Text[0:1])
+	}
+}
+
+func TestInstance_Paint_FocusedShowsCursor(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"value": "line1\nline2",
+		"rows":  3,
+		"cols":  10,
+	})
+	inst.SetFocus(true)
+	inst.SetCursorPos(2)
+
+	cmds := inst.Paint(0, 0)
+	if len(cmds) != 6 {
+		t.Fatalf("Paint returned %d commands, want 6 with focused cursor", len(cmds))
+	}
+
+	cursorCmd := cmds[len(cmds)-1]
+	if cursorCmd.X != 3 || cursorCmd.Y != 1 {
+		t.Fatalf("Cursor command at (%d,%d), want (3,1)", cursorCmd.X, cursorCmd.Y)
+	}
+	if cursorCmd.Text != "n" {
+		t.Fatalf("Cursor command text = %q, want %q", cursorCmd.Text, "n")
+	}
+	if !cursorCmd.Style.IsReverse() {
+		t.Fatal("Cursor command style should be reverse")
+	}
+}
+
+func TestInstance_TickableCursorBlink(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"value": "line1",
+		"rows":  3,
+		"cols":  10,
+		"cursorConfig": cursor.Config{
+			Blink:         true,
+			BlinkInterval: 5 * time.Millisecond,
+		},
+	})
+	inst.SetFocus(true)
+
+	if !inst.WantsTick() {
+		t.Fatal("Focused textarea caret should want tick updates")
+	}
+
+	time.Sleep(6 * time.Millisecond)
+	if !inst.Tick(time.Now()) {
+		t.Fatal("Tick should toggle caret blink phase")
+	}
+
+	cmds := inst.Paint(0, 0)
+	if len(cmds) != 5 {
+		t.Fatalf("Paint returned %d commands, want 5 when caret hidden", len(cmds))
+	}
+}
+
+func TestInstance_DefaultCursorBlinksWhenFocused(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"value": "line1",
+		"rows":  3,
+		"cols":  10,
+	})
+	inst.SetFocus(true)
+
+	if !inst.WantsTick() {
+		t.Fatal("default focused textarea cursor should blink")
 	}
 }

@@ -1,9 +1,12 @@
 package input
 
 import (
+	"time"
+
 	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
+	"github.com/wwsheng009/mint/ui/components/cursor"
 )
 
 // =============================================================================
@@ -74,6 +77,48 @@ func (b *Builder) Disabled(v bool) *Builder {
 // ReadOnly sets the read-only state.
 func (b *Builder) ReadOnly(v bool) *Builder {
 	b.node.SetReadOnly(v)
+	return b
+}
+
+// CursorConfig sets cursor blink/shape config for the embedded caret.
+func (b *Builder) CursorConfig(cfg cursor.Config) *Builder {
+	b.node.SetCursorConfig(cfg)
+	return b
+}
+
+// CursorShape sets embedded caret shape.
+func (b *Builder) CursorShape(shape cursor.Shape) *Builder {
+	b.node.SetCursorShape(shape)
+	return b
+}
+
+// InsertCursor sets a thin insertion caret.
+func (b *Builder) InsertCursor() *Builder {
+	b.node.SetInsertCursor()
+	return b
+}
+
+// BlockCursor sets a block caret.
+func (b *Builder) BlockCursor() *Builder {
+	b.node.SetBlockCursor()
+	return b
+}
+
+// UnderlineCursor sets an underline caret.
+func (b *Builder) UnderlineCursor() *Builder {
+	b.node.SetUnderlineCursor()
+	return b
+}
+
+// CursorBlink enables/disables caret blink.
+func (b *Builder) CursorBlink(enabled bool) *Builder {
+	b.node.SetCursorBlink(enabled)
+	return b
+}
+
+// CursorBlinkInterval sets caret blink interval.
+func (b *Builder) CursorBlinkInterval(interval time.Duration) *Builder {
+	b.node.SetCursorBlinkInterval(interval)
 	return b
 }
 
