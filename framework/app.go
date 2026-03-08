@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/wwsheng009/mint/framework/component"
@@ -89,7 +90,7 @@ type App struct {
 	// ============================================================================
 	// Renderer 提供双缓冲、diff、run merging 等优化
 	renderer *paint.Renderer
-	// Async renderer (optional, enabled by env MINT_ASYNC_RENDER=true)
+	// Async renderer (enabled by default; disable via MINT_ASYNC_RENDER=false)
 	asyncRenderer      *paint.AsyncRenderer
 	asyncRenderEnabled bool
 	asyncFrameInterval time.Duration
@@ -252,7 +253,17 @@ func NewAppWithSource(source frameworkevent.EventSource) *App {
 }
 
 func asyncRenderConfigFromEnv() (bool, time.Duration) {
-	asyncRenderEnabled := os.Getenv("MINT_ASYNC_RENDER") == "true"
+	asyncRenderEnabled := true
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("MINT_ASYNC_RENDER"))) {
+	case "", "true", "1", "yes", "on":
+		asyncRenderEnabled = true
+	case "false", "0", "no", "off":
+		asyncRenderEnabled = false
+	default:
+		// Unknown value: keep default enabled.
+		asyncRenderEnabled = true
+	}
+
 	asyncFrameInterval := 16 * time.Millisecond // default ~60fps
 	if fpsStr := os.Getenv("MINT_ASYNC_FPS"); fpsStr != "" {
 		if fps, err := strconv.Atoi(fpsStr); err == nil && fps > 0 {
