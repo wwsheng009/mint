@@ -30,6 +30,34 @@ func TestRenderer_MarkDirtyRect_ForcesHintRedraw(t *testing.T) {
 	}
 }
 
+func TestRenderer_MarkDirtyRect_UsesXRangeHint(t *testing.T) {
+	renderer := NewRenderer(10, 1)
+	st := style.NewStyle()
+
+	back := renderer.GetBackBuffer()
+	back.SetStringAligned(0, 0, "ABCDEFGHIJ", st, 10)
+	_ = renderer.Render()
+
+	// No content changes, but mark only X:[4,6) as dirty.
+	renderer.MarkDirtyRect(Rect{X: 4, Y: 0, Width: 2, Height: 1})
+	out := renderer.Render()
+	if out == "" {
+		t.Fatal("dirty rect hint should trigger output")
+	}
+	if !strings.Contains(out, "EF") {
+		t.Fatalf("expected partial repaint content 'EF', got %q", out)
+	}
+	// Partial repaint should not clear full line tail.
+	if strings.Contains(out, "\x1b[K") {
+		t.Fatalf("partial repaint should not emit ESC[K, got %q", out)
+	}
+
+	stats := renderer.GetStats()
+	if stats.ChangedCells != 1 {
+		t.Fatalf("ChangedCells=%d, want 1 line touched by range hint", stats.ChangedCells)
+	}
+}
+
 func TestRenderer_ForceFullRender_ForcesFullRender(t *testing.T) {
 	renderer := NewRenderer(10, 4)
 	st := style.NewStyle()

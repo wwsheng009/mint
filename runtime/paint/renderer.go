@@ -2,6 +2,7 @@ package paint
 
 import (
 	"bytes"
+	"sort"
 	"sync"
 
 	"github.com/wwsheng009/mint/internal/log"
@@ -104,45 +105,46 @@ func (r *Renderer) Render() string {
 		r.front.Rehash()
 	}
 
-	// 将脏区域提示转换为行集合（作为“额外渲染提示”）
-	hintLines := rectsToLines(r.dirtyHints, r.back.Height)
+	// 将脏区域提示转换为行内区间（用于 X/Y 双维度最小化重绘）。
+	hintRanges := rectsToLineRanges(r.dirtyHints, r.back.Width, r.back.Height)
 
 	// 默认使用行级 diff，确保正确性
 	diff := LineDiff(r.front, r.back)
 
-	var linesToRender []int
-	hasChanges := diff.HasChanges
+	var fullLines []int
+	hasChanges := diff.HasChanges || len(hintRanges) > 0
 
 	// useLineDiff=false 时，回退为保守策略：有变化则整屏行重绘
 	if !r.useLineDiff {
-		if diff.HasChanges || r.forceFull || len(hintLines) > 0 {
-			linesToRender = allLines(r.back.Height)
-			hasChanges = len(linesToRender) > 0
+		if diff.HasChanges || r.forceFull || len(hintRanges) > 0 {
+			fullLines = allLines(r.back.Height)
+			hasChanges = len(fullLines) > 0
 		}
 	} else if r.forceFull {
 		// 强制全量渲染
-		linesToRender = allLines(r.back.Height)
-		hasChanges = len(linesToRender) > 0
+		fullLines = allLines(r.back.Height)
+		hasChanges = len(fullLines) > 0
 	} else if diff.HasScroll {
 		// 滚动优化：只重绘滚动后新增的尾部行（再合并提示行）。
 		// 其余行由 ANSI scroll 指令完成位置迁移。
-		linesToRender = unionLines(scrollTailLines(r.back.Height, diff.ScrollAmount), hintLines, r.back.Height)
-		if len(linesToRender) == 0 {
+		fullLines = scrollTailLines(r.back.Height, diff.ScrollAmount)
+		if len(fullLines) == 0 {
 			// 防御回退：若尾部计算异常，退回常规 changed lines，保证正确性。
-			linesToRender = unionLines(diff.ChangedLines, hintLines, r.back.Height)
+			fullLines = diff.ChangedLines
 		}
-		if len(linesToRender) > 0 {
+		if len(fullLines) > 0 || len(hintRanges) > 0 {
 			hasChanges = true
 		}
 	} else {
 		// 常规行级 diff
-		linesToRender = unionLines(diff.ChangedLines, hintLines, r.back.Height)
-		if len(linesToRender) > 0 {
+		fullLines = diff.ChangedLines
+		if len(fullLines) > 0 || len(hintRanges) > 0 {
 			hasChanges = true
 		}
 	}
 
-	r.changedLines = len(linesToRender)
+	partialLineRanges := subtractFullLines(hintRanges, fullLines, r.back.Height)
+	r.changedLines = countRenderedLines(fullLines, partialLineRanges, r.back.Height)
 	log.RenderLogger.Debug("[RENDER] HasChanges=%v, ChangedLines=%d, HasScroll=%v, UseLineDiff=%v, HintRects=%d, ForceFull=%v",
 		hasChanges, r.changedLines, diff.HasScroll, r.useLineDiff, len(r.dirtyHints), r.forceFull)
 
@@ -156,9 +158,22 @@ func (r *Renderer) Render() string {
 		r.emitScroll(diff.ScrollAmount)
 	}
 
-	// 渲染变化的行
-	for _, y := range linesToRender {
-		r.renderFullLine(y)
+	fullMarks := make([]bool, r.back.Height)
+	for _, y := range fullLines {
+		if y >= 0 && y < r.back.Height {
+			fullMarks[y] = true
+		}
+	}
+
+	// 渲染变化内容：优先整行，其次渲染提示区间
+	for y := 0; y < r.back.Height; y++ {
+		if fullMarks[y] {
+			r.renderFullLine(y)
+			continue
+		}
+		if ranges := partialLineRanges[y]; len(ranges) > 0 {
+			r.renderLineRanges(y, ranges)
+		}
 	}
 
 	// 重置样式
@@ -257,6 +272,80 @@ func (r *Renderer) renderFullLine(y int) {
 
 	// 清理行尾残留（关键修复：使用 ESC[K）
 	r.output.WriteString("\x1b[K")
+}
+
+// renderLineRanges renders only specified x-ranges of a line.
+// Unlike renderFullLine, this method does not emit ESC[K because it must not
+// clear line tail outside the hinted dirty region.
+func (r *Renderer) renderLineRanges(y int, ranges []lineRange) {
+	if y < 0 || y >= r.back.Height || y >= len(r.back.Cells) || len(ranges) == 0 {
+		return
+	}
+
+	row := r.back.Cells[y]
+	rowWidth := len(row)
+
+	for _, rg := range ranges {
+		start, end := normalizeRangeForWideCells(row, rg.start, rg.end)
+		if start < 0 {
+			start = 0
+		}
+		if end > rowWidth {
+			end = rowWidth
+		}
+		if start >= end {
+			continue
+		}
+
+		x := start
+		for x < end {
+			cell := row[x]
+			if cell.IsContinuation {
+				x++
+				continue
+			}
+
+			startX := x
+			runStyle := cell.Style
+			var runText bytes.Buffer
+			totalWidth := 0
+
+			for x < end {
+				c := row[x]
+				if c.IsContinuation {
+					x++
+					continue
+				}
+				if c.Style != runStyle {
+					break
+				}
+
+				cWidth := c.Width
+				if cWidth <= 0 {
+					cWidth = 1
+				}
+				if x+cWidth > end {
+					break
+				}
+
+				if c.Cluster == "" || c.Cluster == "\x00" {
+					runText.WriteString(" ")
+				} else {
+					runText.WriteString(c.Cluster)
+				}
+				totalWidth += cWidth
+				x += cWidth
+			}
+
+			if runText.Len() > 0 {
+				r.emitRunWithWidth(startX, y, runStyle, runText.String(), totalWidth)
+				continue
+			}
+
+			// 防御性推进，避免极端情况下死循环。
+			x++
+		}
+	}
 }
 
 // emitRunWithWidth 输出一个渲染批次（带宽度参数，用于正确跟踪光标）
@@ -406,7 +495,7 @@ func (r *Renderer) MarkDirty() {
 }
 
 // MarkDirtyRect 标记矩形区域为脏（兼容 API）
-// 在 Renderer 2.0 中，此方法不再需要
+// 在 Renderer 2.x 中用于提示局部重绘（支持 X/Y 范围）。
 func (r *Renderer) MarkDirtyRect(rect Rect) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -473,62 +562,6 @@ func (r *Renderer) clearFrameHintsLocked() {
 	}
 }
 
-// rectsToLines converts dirty rect hints into affected line indices.
-func rectsToLines(rects []Rect, height int) []int {
-	if height <= 0 || len(rects) == 0 {
-		return nil
-	}
-	marks := make([]bool, height)
-	for _, rect := range rects {
-		if rect.Width <= 0 || rect.Height <= 0 {
-			continue
-		}
-		startY := rect.Y
-		endY := rect.Y + rect.Height
-		if startY < 0 {
-			startY = 0
-		}
-		if endY > height {
-			endY = height
-		}
-		for y := startY; y < endY; y++ {
-			marks[y] = true
-		}
-	}
-	lines := make([]int, 0, height)
-	for y, marked := range marks {
-		if marked {
-			lines = append(lines, y)
-		}
-	}
-	return lines
-}
-
-// unionLines merges changed lines and hint lines, deduplicated and ordered.
-func unionLines(a, b []int, height int) []int {
-	if height <= 0 {
-		return nil
-	}
-	marks := make([]bool, height)
-	for _, y := range a {
-		if y >= 0 && y < height {
-			marks[y] = true
-		}
-	}
-	for _, y := range b {
-		if y >= 0 && y < height {
-			marks[y] = true
-		}
-	}
-	out := make([]int, 0, height)
-	for y, marked := range marks {
-		if marked {
-			out = append(out, y)
-		}
-	}
-	return out
-}
-
 func allLines(height int) []int {
 	if height <= 0 {
 		return nil
@@ -538,6 +571,159 @@ func allLines(height int) []int {
 		lines = append(lines, y)
 	}
 	return lines
+}
+
+type lineRange struct {
+	start int // inclusive
+	end   int // exclusive
+}
+
+func rectsToLineRanges(rects []Rect, width, height int) map[int][]lineRange {
+	if width <= 0 || height <= 0 || len(rects) == 0 {
+		return nil
+	}
+
+	rangesByLine := make(map[int][]lineRange, len(rects))
+	for _, rect := range rects {
+		if rect.Width <= 0 || rect.Height <= 0 {
+			continue
+		}
+
+		startY := rect.Y
+		endY := rect.Y + rect.Height
+		if startY < 0 {
+			startY = 0
+		}
+		if endY > height {
+			endY = height
+		}
+		if startY >= endY {
+			continue
+		}
+
+		startX := rect.X
+		endX := rect.X + rect.Width
+		if startX < 0 {
+			startX = 0
+		}
+		if endX > width {
+			endX = width
+		}
+		if startX >= endX {
+			continue
+		}
+
+		for y := startY; y < endY; y++ {
+			rangesByLine[y] = append(rangesByLine[y], lineRange{start: startX, end: endX})
+		}
+	}
+
+	for y, ranges := range rangesByLine {
+		rangesByLine[y] = mergeLineRanges(ranges)
+	}
+
+	return rangesByLine
+}
+
+func mergeLineRanges(ranges []lineRange) []lineRange {
+	if len(ranges) <= 1 {
+		return ranges
+	}
+
+	sort.Slice(ranges, func(i, j int) bool {
+		if ranges[i].start == ranges[j].start {
+			return ranges[i].end < ranges[j].end
+		}
+		return ranges[i].start < ranges[j].start
+	})
+
+	merged := make([]lineRange, 0, len(ranges))
+	current := ranges[0]
+	for i := 1; i < len(ranges); i++ {
+		next := ranges[i]
+		if next.start <= current.end {
+			if next.end > current.end {
+				current.end = next.end
+			}
+			continue
+		}
+		merged = append(merged, current)
+		current = next
+	}
+	merged = append(merged, current)
+	return merged
+}
+
+func subtractFullLines(hints map[int][]lineRange, fullLines []int, height int) map[int][]lineRange {
+	if len(hints) == 0 || height <= 0 {
+		return nil
+	}
+
+	fullMarks := make([]bool, height)
+	for _, y := range fullLines {
+		if y >= 0 && y < height {
+			fullMarks[y] = true
+		}
+	}
+
+	out := make(map[int][]lineRange, len(hints))
+	for y, ranges := range hints {
+		if y < 0 || y >= height || fullMarks[y] || len(ranges) == 0 {
+			continue
+		}
+		out[y] = ranges
+	}
+	return out
+}
+
+func countRenderedLines(fullLines []int, partial map[int][]lineRange, height int) int {
+	if height <= 0 {
+		return 0
+	}
+	marks := make([]bool, height)
+	for _, y := range fullLines {
+		if y >= 0 && y < height {
+			marks[y] = true
+		}
+	}
+	for y, ranges := range partial {
+		if y >= 0 && y < height && len(ranges) > 0 {
+			marks[y] = true
+		}
+	}
+	count := 0
+	for _, marked := range marks {
+		if marked {
+			count++
+		}
+	}
+	return count
+}
+
+func normalizeRangeForWideCells(row []Cell, start, end int) (int, int) {
+	if len(row) == 0 {
+		return start, end
+	}
+	if start < 0 {
+		start = 0
+	}
+	if end > len(row) {
+		end = len(row)
+	}
+	if start >= end {
+		return start, end
+	}
+
+	for start > 0 && start < len(row) && row[start].IsContinuation {
+		start--
+	}
+	for end < len(row) && row[end].IsContinuation {
+		end++
+	}
+	if end > len(row) {
+		end = len(row)
+	}
+	return start, end
 }
 
 // scrollTailLines returns the minimal set of lines that must be repainted
