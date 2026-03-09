@@ -52,13 +52,18 @@ type VNode struct {
 	searchQuery   string
 	filters       map[int]string
 
-	currentPage             int
-	currentPageControlled   bool
-	sortColumn              int
-	sortDescending          bool
-	sortControlled          bool
-	selectedIndex           int
-	selectedIndexControlled bool
+	currentPage              int
+	currentPageControlled    bool
+	sortColumn               int
+	sortDescending           bool
+	sortControlled           bool
+	selectedIndex            int
+	selectedIndexControlled  bool
+	selectionIntent          intent.Intent
+	selectionIntentField     intent.FieldIntent
+	selectionMode            SelectionMode
+	checkedIndices           []int
+	checkedIndicesControlled bool
 
 	changeIntent      intent.Intent
 	changeIntentField intent.FieldIntent
@@ -98,6 +103,8 @@ func New() *VNode {
 		currentPage:       0,
 		sortColumn:        -1,
 		selectedIndex:     -1,
+		selectionMode:     SelectionNone,
+		checkedIndices:    nil,
 		changeIntentField: nil,
 	}
 }
@@ -130,7 +137,7 @@ func (v *VNode) SetStyle(s style.Style) rtui.VNode { v.tableStyle = s; return v 
 func (v *VNode) TextContent() string { return "" }
 
 func (v *VNode) Props() rtui.Props {
-	return rtui.Props{
+	props := rtui.Props{
 		"key":                     v.key,
 		"componentID":             v.componentID,
 		"columns":                 v.columns,
@@ -156,10 +163,20 @@ func (v *VNode) Props() rtui.Props {
 		"sortControlled":          v.sortControlled,
 		"selectedIndex":           v.selectedIndex,
 		"selectedIndexControlled": v.selectedIndexControlled,
+		"selectionIntent":         v.selectionIntent,
+		"selectionMode":           v.selectionMode,
 		"changeIntent":            v.changeIntent,
 		"changeIntentField":       v.changeIntentField,
 		"pageIntentField":         v.pageIntentField,
 	}
+	if v.selectionIntentField != nil {
+		props["selectionIntentField"] = v.selectionIntentField
+	}
+	if v.checkedIndicesControlled {
+		props["checkedIndicesControlled"] = true
+		props["checkedIndices"] = append([]int(nil), v.checkedIndices...)
+	}
+	return props
 }
 
 func (v *VNode) SetProps(p rtui.Props) rtui.VNode {
@@ -238,6 +255,22 @@ func (v *VNode) SetProps(p rtui.Props) rtui.VNode {
 	if val, ok := p["selectedIndexControlled"].(bool); ok {
 		v.selectedIndexControlled = val
 	}
+	if val, ok := p["selectionIntent"].(intent.Intent); ok {
+		v.selectionIntent = val
+	}
+	if val, ok := p["selectionIntentField"].(intent.FieldIntent); ok {
+		v.selectionIntentField = val
+	}
+	if val, ok := p["selectionMode"].(SelectionMode); ok {
+		v.selectionMode = val
+	}
+	if val, ok := p["checkedIndices"].([]int); ok {
+		v.checkedIndices = append([]int(nil), val...)
+		v.checkedIndicesControlled = true
+	}
+	if val, ok := p["checkedIndicesControlled"].(bool); ok {
+		v.checkedIndicesControlled = val
+	}
 	if val, ok := p["changeIntent"].(intent.Intent); ok {
 		v.changeIntent = val
 	}
@@ -309,6 +342,23 @@ func (v *VNode) SetSortBy(columnIndex int, descending bool) *VNode {
 func (v *VNode) SetSelectedIndex(index int) *VNode {
 	v.selectedIndex = index
 	v.selectedIndexControlled = true
+	return v
+}
+func (v *VNode) SetSelectionIntent(i intent.Intent) *VNode {
+	v.selectionIntent = i
+	return v
+}
+func (v *VNode) SetSelectionFieldIntent(i intent.FieldIntent) *VNode {
+	v.selectionIntentField = i
+	return v
+}
+func (v *VNode) SetSelectionMode(mode SelectionMode) *VNode {
+	v.selectionMode = mode
+	return v
+}
+func (v *VNode) SetCheckedIndices(indices []int) *VNode {
+	v.checkedIndices = append([]int(nil), indices...)
+	v.checkedIndicesControlled = true
 	return v
 }
 func (v *VNode) SetIntent(i intent.Intent) *VNode {

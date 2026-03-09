@@ -33,7 +33,10 @@ type tableView struct {
 	end           int
 }
 
-const scrollbarReservedWidth = 2
+const (
+	scrollbarReservedWidth = 2
+	selectionColumnWidth   = 3
+)
 
 // Instance is the runtime entity for table components.
 type Instance struct {
@@ -57,16 +60,21 @@ type Instance struct {
 	searchQuery    string
 	filters        map[int]string
 
-	currentPage             int
-	currentPageControlled   bool
-	sortColumn              int
-	sortDescending          bool
-	sortControlled          bool
-	selectedIndex           int
-	selectedIndexControlled bool
-	lastPropCurrentPage     int
-	lastPropSortColumn      int
-	lastPropSortDescending  bool
+	currentPage              int
+	currentPageControlled    bool
+	sortColumn               int
+	sortDescending           bool
+	sortControlled           bool
+	selectedIndex            int
+	selectedIndexControlled  bool
+	selectionIntent          intent.Intent
+	selectionIntentField     intent.FieldIntent
+	selectionMode            SelectionMode
+	checkedIndices           []int
+	checkedIndicesControlled bool
+	lastPropCurrentPage      int
+	lastPropSortColumn       int
+	lastPropSortDescending   bool
 
 	changeIntent      intent.Intent
 	changeIntentField intent.FieldIntent
@@ -97,40 +105,46 @@ var (
 
 func NewInstance(props rtui.Props) *Instance {
 	inst := &Instance{
-		key:                     getStringProp(props, "key", ""),
-		componentID:             getStringProp(props, "componentID", ""),
-		columns:                 getColumnsProp(props, []TableColumn{}),
-		rows:                    getRowsProp(props, [][]string{}),
-		emptyText:               getStringProp(props, "emptyText", "(empty)"),
-		headerStyle:             getStyleProp(props, "headerStyle"),
-		tableStyle:              getStyleProp(props, "tableStyle"),
-		selectedStyle:           getStylePropWithDefault(props, "selectedStyle", style.Style{}.Reverse(true)),
-		borderStyle:             getStylePropWithDefault(props, "borderStyle", style.Style{}.Foreground(style.BrightBlack)),
-		statusStyle:             getStylePropWithDefault(props, "statusStyle", style.Style{}.Foreground(style.BrightBlack)),
-		scrollbarStyle:          getStylePropWithDefault(props, "scrollbarStyle", style.Style{}.Foreground(style.BrightBlack)),
-		gap:                     maxInt(0, getIntProp(props, "gap", 0)),
-		showBorder:              getBoolProp(props, "showBorder", false),
-		showFooter:              getBoolProp(props, "showFooter", true),
-		showScrollbar:           getBoolProp(props, "showScrollbar", true),
-		pageSize:                maxInt(0, getIntProp(props, "pageSize", 0)),
-		searchQuery:             getStringProp(props, "searchQuery", ""),
-		filters:                 getFiltersProp(props, map[int]string{}),
-		currentPage:             maxInt(0, getIntProp(props, "currentPage", 0)),
-		currentPageControlled:   getBoolProp(props, "currentPageControlled", false),
-		sortColumn:              getIntProp(props, "sortColumn", -1),
-		sortDescending:          getBoolProp(props, "sortDescending", false),
-		sortControlled:          getBoolProp(props, "sortControlled", false),
-		selectedIndex:           getIntProp(props, "selectedIndex", -1),
-		selectedIndexControlled: getBoolProp(props, "selectedIndexControlled", false),
-		lastPropCurrentPage:     maxInt(0, getIntProp(props, "currentPage", 0)),
-		lastPropSortColumn:      getIntProp(props, "sortColumn", -1),
-		lastPropSortDescending:  getBoolProp(props, "sortDescending", false),
-		changeIntent:            getIntentProp(props, "changeIntent"),
-		changeIntentField:       getFieldIntentProp(props, "changeIntent"),
-		pageIntentField:         getFieldIntentProp(props, "pageIntent"),
-		dirty:                   true,
+		key:                      getStringProp(props, "key", ""),
+		componentID:              getStringProp(props, "componentID", ""),
+		columns:                  getColumnsProp(props, []TableColumn{}),
+		rows:                     getRowsProp(props, [][]string{}),
+		emptyText:                getStringProp(props, "emptyText", "(empty)"),
+		headerStyle:              getStyleProp(props, "headerStyle"),
+		tableStyle:               getStyleProp(props, "tableStyle"),
+		selectedStyle:            getStylePropWithDefault(props, "selectedStyle", style.Style{}.Reverse(true)),
+		borderStyle:              getStylePropWithDefault(props, "borderStyle", style.Style{}.Foreground(style.BrightBlack)),
+		statusStyle:              getStylePropWithDefault(props, "statusStyle", style.Style{}.Foreground(style.BrightBlack)),
+		scrollbarStyle:           getStylePropWithDefault(props, "scrollbarStyle", style.Style{}.Foreground(style.BrightBlack)),
+		gap:                      maxInt(0, getIntProp(props, "gap", 0)),
+		showBorder:               getBoolProp(props, "showBorder", false),
+		showFooter:               getBoolProp(props, "showFooter", true),
+		showScrollbar:            getBoolProp(props, "showScrollbar", true),
+		pageSize:                 maxInt(0, getIntProp(props, "pageSize", 0)),
+		searchQuery:              getStringProp(props, "searchQuery", ""),
+		filters:                  getFiltersProp(props, map[int]string{}),
+		currentPage:              maxInt(0, getIntProp(props, "currentPage", 0)),
+		currentPageControlled:    getBoolProp(props, "currentPageControlled", false),
+		sortColumn:               getIntProp(props, "sortColumn", -1),
+		sortDescending:           getBoolProp(props, "sortDescending", false),
+		sortControlled:           getBoolProp(props, "sortControlled", false),
+		selectedIndex:            getIntProp(props, "selectedIndex", -1),
+		selectedIndexControlled:  getBoolProp(props, "selectedIndexControlled", false),
+		selectionIntent:          getIntentProp(props, "selectionIntent"),
+		selectionIntentField:     getFieldIntentProp(props, "selectionIntent"),
+		selectionMode:            getSelectionModeProp(props, "selectionMode", SelectionNone),
+		checkedIndices:           getIntsProp(props, "checkedIndices", nil),
+		checkedIndicesControlled: getBoolProp(props, "checkedIndicesControlled", false),
+		lastPropCurrentPage:      maxInt(0, getIntProp(props, "currentPage", 0)),
+		lastPropSortColumn:       getIntProp(props, "sortColumn", -1),
+		lastPropSortDescending:   getBoolProp(props, "sortDescending", false),
+		changeIntent:             getIntentProp(props, "changeIntent"),
+		changeIntentField:        getFieldIntentProp(props, "changeIntent"),
+		pageIntentField:          getFieldIntentProp(props, "pageIntent"),
+		dirty:                    true,
 	}
 	inst.normalizeViewState(false)
+	inst.normalizeCheckedIndices()
 	return inst
 }
 
@@ -169,6 +183,10 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	oldSortControlled := inst.sortControlled
 	oldSelectedIndex := inst.selectedIndex
 	oldSelectedIndexControlled := inst.selectedIndexControlled
+	oldSelectionIntent := inst.selectionIntent
+	oldSelectionMode := inst.selectionMode
+	oldCheckedIndices := append([]int(nil), inst.checkedIndices...)
+	oldCheckedIndicesControlled := inst.checkedIndicesControlled
 	oldPropCurrentPage := inst.lastPropCurrentPage
 	oldPropSortColumn := inst.lastPropSortColumn
 	oldPropSortDescending := inst.lastPropSortDescending
@@ -197,6 +215,9 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	inst.changeIntent = getIntentProp(props, "changeIntent")
 	inst.changeIntentField = getFieldIntentProp(props, "changeIntent")
 	inst.pageIntentField = getFieldIntentProp(props, "pageIntent")
+	inst.selectionIntent = getIntentProp(props, "selectionIntent")
+	inst.selectionIntentField = getFieldIntentProp(props, "selectionIntent")
+	inst.selectionMode = getSelectionModeProp(props, "selectionMode", inst.selectionMode)
 
 	if controlled, ok := props["currentPageControlled"].(bool); ok {
 		inst.currentPageControlled = controlled
@@ -222,11 +243,20 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	if inst.selectedIndexControlled {
 		inst.selectedIndex = getIntProp(props, "selectedIndex", inst.selectedIndex)
 	}
+	if controlled, ok := props["checkedIndicesControlled"].(bool); ok {
+		inst.checkedIndicesControlled = controlled
+	}
+	if inst.checkedIndicesControlled {
+		inst.checkedIndices = getIntsProp(props, "checkedIndices", inst.checkedIndices)
+	} else if checkedIndices, ok := props["checkedIndices"].([]int); ok {
+		inst.checkedIndices = append([]int(nil), checkedIndices...)
+	}
 
 	inst.reconcilePendingState(oldPropCurrentPage, oldPropSortColumn, oldPropSortDescending)
 
 	resetPage := oldSearchQuery != inst.searchQuery || !equalFilters(oldFilters, inst.filters) || oldPageSize != inst.pageSize
 	inst.normalizeViewState(resetPage)
+	inst.normalizeCheckedIndices()
 
 	changed := !columnsEqual(oldColumns, inst.columns) ||
 		!rowsEqual(oldRows, inst.rows) ||
@@ -251,6 +281,10 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 		oldSortControlled != inst.sortControlled ||
 		oldSelectedIndex != inst.selectedIndex ||
 		oldSelectedIndexControlled != inst.selectedIndexControlled ||
+		!sameIntent(oldSelectionIntent, inst.selectionIntent) ||
+		oldSelectionMode != inst.selectionMode ||
+		oldCheckedIndicesControlled != inst.checkedIndicesControlled ||
+		!equalInts(oldCheckedIndices, inst.checkedIndices) ||
 		oldPropCurrentPage != inst.lastPropCurrentPage ||
 		oldPropSortColumn != inst.lastPropSortColumn ||
 		oldPropSortDescending != inst.lastPropSortDescending ||
@@ -265,7 +299,7 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 }
 
 func (inst *Instance) GetProps() rtui.Props {
-	return rtui.Props{
+	props := rtui.Props{
 		"key":                     inst.key,
 		"columns":                 inst.columns,
 		"rows":                    inst.rows,
@@ -290,11 +324,21 @@ func (inst *Instance) GetProps() rtui.Props {
 		"sortControlled":          inst.sortControlled,
 		"selectedIndex":           inst.selectedIndex,
 		"selectedIndexControlled": inst.selectedIndexControlled,
+		"selectionIntent":         inst.selectionIntent,
+		"selectionMode":           inst.selectionMode,
 		"componentID":             inst.componentID,
 		"changeIntent":            inst.changeIntent,
 		"changeIntentField":       inst.changeIntentField,
 		"pageIntentField":         inst.pageIntentField,
 	}
+	if inst.selectionIntentField != nil {
+		props["selectionIntentField"] = inst.selectionIntentField
+	}
+	if inst.checkedIndicesControlled {
+		props["checkedIndicesControlled"] = true
+		props["checkedIndices"] = append([]int(nil), inst.checkedIndices...)
+	}
+	return props
 }
 
 func (inst *Instance) MarkDirty()                         { inst.dirty = true }
@@ -375,14 +419,14 @@ func (inst *Instance) Paint(x, y int) []paint.DrawCmd {
 
 	if len(renderedRows) == 0 {
 		innerLines = append(innerLines, lineSpec{
-			text:  inst.composeInnerLine(inst.emptyText, contentWidth, showScrollbar),
+			text:  inst.composeInnerLine(inst.emptyLineText(), contentWidth, showScrollbar),
 			style: inst.tableStyle,
 		})
 	} else {
 		for rowOffset, row := range renderedRows {
 			absoluteIndex := view.start + rowOffset
 			innerLines = append(innerLines, lineSpec{
-				text:  inst.composeInnerLine(inst.buildDataLine(row.cells, widths), contentWidth, showScrollbar),
+				text:  inst.composeInnerLine(inst.buildDataLine(row, widths), contentWidth, showScrollbar),
 				style: inst.rowStyleFor(absoluteIndex),
 			})
 		}
@@ -491,7 +535,12 @@ func (inst *Instance) HandleAction(act *action.Action) bool {
 		return inst.movePage(-1)
 	case action.ActionSelect, action.ActionEnter:
 		if inst.selectedIndex < 0 {
-			return inst.selectIndex(0)
+			if !inst.selectIndex(0) {
+				return false
+			}
+		}
+		if inst.selectionMode != SelectionNone {
+			return inst.handleActivateSelection()
 		}
 		return len(inst.filteredSortedRows()) > 0
 	}
@@ -693,16 +742,21 @@ func (inst *Instance) calculateColumnWidths(rows []rowView, maxInnerWidth int) (
 		totalContentWidth += width
 	}
 
-	separatorWidth := maxInt(0, len(inst.columns)-1) * 3
-	if maxInnerWidth > 0 && totalContentWidth+separatorWidth > maxInnerWidth {
-		widths = shrinkWidthsToFit(widths, maxInnerWidth-separatorWidth)
+	separatorCount := maxInt(0, len(inst.columns)-1)
+	prefixWidth := inst.selectionPrefixWidth()
+	if inst.selectionMode != SelectionNone {
+		separatorCount++
+	}
+	separatorWidth := separatorCount * 3
+	if maxInnerWidth > 0 && totalContentWidth+separatorWidth+prefixWidth > maxInnerWidth {
+		widths = shrinkWidthsToFit(widths, maxInnerWidth-separatorWidth-prefixWidth)
 		totalContentWidth = 0
 		for _, width := range widths {
 			totalContentWidth += width
 		}
 	}
 
-	return widths, totalContentWidth + separatorWidth
+	return widths, totalContentWidth + separatorWidth + prefixWidth
 }
 
 func (inst *Instance) lineCountForView(view tableView) int {
@@ -722,6 +776,20 @@ func (inst *Instance) lineCountForView(view tableView) int {
 		lines += 2
 	}
 	return lines
+}
+
+func (inst *Instance) selectionPrefixWidth() int {
+	if inst.selectionMode == SelectionNone {
+		return 0
+	}
+	return selectionColumnWidth
+}
+
+func (inst *Instance) emptyLineText() string {
+	if inst.selectionMode == SelectionNone {
+		return inst.emptyText
+	}
+	return formatCell("", selectionColumnWidth, rtui.AlignStart) + " │ " + inst.emptyText
 }
 
 func (inst *Instance) shouldPaintScrollbar(view tableView, visibleRows int) bool {
@@ -785,21 +853,27 @@ func (inst *Instance) maxRenderableRows(showFooter bool) int {
 }
 
 func (inst *Instance) buildHeaderLine(widths []int) string {
-	cells := make([]string, len(inst.columns))
+	cells := make([]string, 0, len(inst.columns)+1)
+	if inst.selectionMode != SelectionNone {
+		cells = append(cells, formatCell("Sel", selectionColumnWidth, rtui.AlignStart))
+	}
 	for columnIndex := range inst.columns {
-		cells[columnIndex] = formatCell(inst.headerLabel(columnIndex), widths[columnIndex], inst.columns[columnIndex].Align)
+		cells = append(cells, formatCell(inst.headerLabel(columnIndex), widths[columnIndex], inst.columns[columnIndex].Align))
 	}
 	return strings.Join(cells, " │ ")
 }
 
-func (inst *Instance) buildDataLine(cells []string, widths []int) string {
-	formatted := make([]string, len(widths))
+func (inst *Instance) buildDataLine(row rowView, widths []int) string {
+	formatted := make([]string, 0, len(widths)+1)
+	if inst.selectionMode != SelectionNone {
+		formatted = append(formatted, formatCell(inst.selectionMarker(row.sourceIndex), selectionColumnWidth, rtui.AlignStart))
+	}
 	for columnIndex := range widths {
 		cell := ""
-		if columnIndex < len(cells) {
-			cell = cells[columnIndex]
+		if columnIndex < len(row.cells) {
+			cell = row.cells[columnIndex]
 		}
-		formatted[columnIndex] = formatCell(cell, widths[columnIndex], inst.columns[columnIndex].Align)
+		formatted = append(formatted, formatCell(cell, widths[columnIndex], inst.columns[columnIndex].Align))
 	}
 	return strings.Join(formatted, " │ ")
 }
@@ -831,6 +905,7 @@ func (inst *Instance) shouldShowFooter(view tableView) bool {
 	return inst.pageSize > 0 ||
 		inst.searchQuery != "" ||
 		len(inst.filters) > 0 ||
+		inst.selectionMode != SelectionNone ||
 		(sortColumn >= 0 && sortColumn < len(inst.columns)) ||
 		view.filteredCount != view.totalCount
 }
@@ -853,6 +928,9 @@ func (inst *Instance) statusText(view tableView) string {
 	}
 	if len(inst.filters) > 0 {
 		parts = append(parts, fmt.Sprintf("Filters %d", len(inst.filters)))
+	}
+	if inst.selectionMode != SelectionNone {
+		parts = append(parts, fmt.Sprintf("Checked %d", len(inst.checkedIndices)))
 	}
 	return strings.Join(parts, " · ")
 }
@@ -880,8 +958,9 @@ func (inst *Instance) handleClick(act *action.Action) bool {
 	if !hit {
 		return false
 	}
-	if !inst.selectedIndexControlled {
-		inst.selectIndex(rowIndex)
+	inst.selectIndex(rowIndex)
+	if inst.selectionMode != SelectionNone && rowIndex >= 0 && rowIndex < len(view.rows) {
+		inst.applySelectionAtSourceIndex(view.rows[rowIndex].sourceIndex)
 	}
 	return true
 }
@@ -943,6 +1022,17 @@ func (inst *Instance) columnAtLocalX(localX int, widths []int) (int, bool) {
 			return -1, false
 		}
 		localX -= 2
+	}
+
+	if inst.selectionMode != SelectionNone {
+		if localX < selectionColumnWidth {
+			return -1, false
+		}
+		localX -= selectionColumnWidth
+		if localX < 3 {
+			return -1, false
+		}
+		localX -= 3
 	}
 
 	position := 0
@@ -1164,6 +1254,112 @@ func (inst *Instance) emitStateSnapshot(selectedIndex, currentPage, sortColumn i
 	}
 }
 
+func (inst *Instance) handleActivateSelection() bool {
+	view := inst.processedView()
+	if inst.selectedIndex < 0 || inst.selectedIndex >= len(view.rows) {
+		return false
+	}
+	return inst.applySelectionAtSourceIndex(view.rows[inst.selectedIndex].sourceIndex)
+}
+
+func (inst *Instance) applySelectionAtSourceIndex(sourceIndex int) bool {
+	if inst.selectionMode == SelectionNone || sourceIndex < 0 || sourceIndex >= len(inst.rows) {
+		return false
+	}
+
+	changed := false
+	switch inst.selectionMode {
+	case SelectionSingle:
+		changed = !equalInts(inst.checkedIndices, []int{sourceIndex})
+		inst.checkedIndices = []int{sourceIndex}
+	case SelectionMultiple:
+		if inst.isChecked(sourceIndex) {
+			inst.checkedIndices = removeInt(inst.checkedIndices, sourceIndex)
+		} else {
+			inst.checkedIndices = append(inst.checkedIndices, sourceIndex)
+		}
+		sort.Ints(inst.checkedIndices)
+		changed = true
+	}
+	inst.normalizeCheckedIndices()
+	if changed {
+		inst.dirty = true
+		inst.emitCheckedSelectionChanged()
+	}
+	return true
+}
+
+func (inst *Instance) emitCheckedSelectionChanged() {
+	if inst.intentEmitter == nil {
+		return
+	}
+	value := inst.checkedSelectionValue()
+	if inst.selectionIntentField != nil {
+		inst.intentEmitter(intent.FieldChangeIntent{
+			Field: inst.selectionIntentField.GetField(),
+			Value: value,
+		})
+		return
+	}
+	if inst.selectionIntent != nil {
+		inst.intentEmitter(inst.selectionIntent)
+	}
+}
+
+func (inst *Instance) checkedSelectionValue() string {
+	if len(inst.checkedIndices) == 0 {
+		return ""
+	}
+	parts := make([]string, len(inst.checkedIndices))
+	for index, value := range inst.checkedIndices {
+		parts[index] = strconv.Itoa(value)
+	}
+	if inst.selectionMode == SelectionSingle {
+		return parts[0]
+	}
+	return strings.Join(parts, ",")
+}
+
+func (inst *Instance) selectionMarker(sourceIndex int) string {
+	if inst.isChecked(sourceIndex) {
+		return "[x]"
+	}
+	return "[ ]"
+}
+
+func (inst *Instance) isChecked(sourceIndex int) bool {
+	for _, checkedIndex := range inst.checkedIndices {
+		if checkedIndex == sourceIndex {
+			return true
+		}
+	}
+	return false
+}
+
+func (inst *Instance) normalizeCheckedIndices() {
+	if inst.selectionMode == SelectionNone || len(inst.rows) == 0 {
+		inst.checkedIndices = nil
+		return
+	}
+	normalized := make([]int, 0, len(inst.checkedIndices))
+	seen := make(map[int]struct{}, len(inst.checkedIndices))
+	for _, checkedIndex := range inst.checkedIndices {
+		if checkedIndex < 0 || checkedIndex >= len(inst.rows) {
+			continue
+		}
+		if _, exists := seen[checkedIndex]; exists {
+			continue
+		}
+		seen[checkedIndex] = struct{}{}
+		normalized = append(normalized, checkedIndex)
+	}
+	sort.Ints(normalized)
+	if inst.selectionMode == SelectionSingle && len(normalized) > 1 {
+		normalized = normalized[:1]
+	}
+	inst.checkedIndices = normalized
+}
+
 func (inst *Instance) selectedSourceIndex(rows []rowView) int {
 	return inst.selectedSourceIndexFor(rows, inst.selectedIndex)
 }
@@ -1257,6 +1453,24 @@ func getFiltersProp(props rtui.Props, def map[int]string) map[int]string {
 	return cloneFilters(def)
 }
 
+func getIntsProp(props rtui.Props, key string, def []int) []int {
+	if value, ok := props[key]; ok {
+		if ints, ok := value.([]int); ok {
+			return append([]int(nil), ints...)
+		}
+	}
+	return append([]int(nil), def...)
+}
+
+func getSelectionModeProp(props rtui.Props, key string, def SelectionMode) SelectionMode {
+	if value, ok := props[key]; ok {
+		if mode, ok := value.(SelectionMode); ok {
+			return mode
+		}
+	}
+	return def
+}
+
 func getIntentProp(props rtui.Props, key string) intent.Intent {
 	if value, ok := props[key]; ok {
 		if result, ok := value.(intent.Intent); ok {
@@ -1312,6 +1526,18 @@ func rowsEqual(left, right [][]string) bool {
 	return true
 }
 
+func equalInts(left, right []int) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for index := range left {
+		if left[index] != right[index] {
+			return false
+		}
+	}
+	return true
+}
+
 func equalFilters(left, right map[int]string) bool {
 	if len(left) != len(right) {
 		return false
@@ -1330,6 +1556,16 @@ func cloneRows(rows [][]string) [][]string {
 		cloned[rowIndex] = append([]string(nil), row...)
 	}
 	return cloned
+}
+
+func removeInt(values []int, target int) []int {
+	filtered := values[:0]
+	for _, value := range values {
+		if value != target {
+			filtered = append(filtered, value)
+		}
+	}
+	return filtered
 }
 
 func sameIntent(left, right intent.Intent) bool {

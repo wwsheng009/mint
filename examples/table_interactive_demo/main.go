@@ -31,6 +31,8 @@ type AppState struct {
 	StatusFilter  string
 	RegionFilter  string
 	SelectedRow   string
+	CheckedRows   string
+	SelectionMode string
 	PageSize      int
 	ShowBorder    bool
 	ShowFooter    bool
@@ -48,6 +50,10 @@ type ToggleFooterIntent struct{}
 type ToggleScrollbarIntent struct{}
 type ClearFiltersIntent struct{}
 type ResetDemoIntent struct{}
+type ClearCheckedIntent struct{}
+type SetSelectionModeIntent struct {
+	Mode string
+}
 type StepPageIntent struct {
 	Delta int
 }
@@ -59,22 +65,26 @@ type AdjustPageSizeIntent struct {
 	Delta int
 }
 
-func (ToggleBorderIntent) IntentType() string    { return "TableDemoToggleBorder" }
-func (ToggleFooterIntent) IntentType() string    { return "TableDemoToggleFooter" }
-func (ToggleScrollbarIntent) IntentType() string { return "TableDemoToggleScrollbar" }
-func (ClearFiltersIntent) IntentType() string    { return "TableDemoClearFilters" }
-func (ResetDemoIntent) IntentType() string       { return "TableDemoReset" }
-func (StepPageIntent) IntentType() string        { return "TableDemoStepPage" }
-func (SetPageIntent) IntentType() string         { return "TableDemoSetPage" }
-func (AdjustPageSizeIntent) IntentType() string  { return "TableDemoAdjustPageSize" }
-func (ToggleBorderIntent) StayPressed() bool     { return true }
-func (ToggleFooterIntent) StayPressed() bool     { return true }
-func (ToggleScrollbarIntent) StayPressed() bool  { return true }
-func (ClearFiltersIntent) StayPressed() bool     { return true }
-func (ResetDemoIntent) StayPressed() bool        { return true }
-func (StepPageIntent) StayPressed() bool         { return true }
-func (SetPageIntent) StayPressed() bool          { return true }
-func (AdjustPageSizeIntent) StayPressed() bool   { return true }
+func (ToggleBorderIntent) IntentType() string     { return "TableDemoToggleBorder" }
+func (ToggleFooterIntent) IntentType() string     { return "TableDemoToggleFooter" }
+func (ToggleScrollbarIntent) IntentType() string  { return "TableDemoToggleScrollbar" }
+func (ClearFiltersIntent) IntentType() string     { return "TableDemoClearFilters" }
+func (ResetDemoIntent) IntentType() string        { return "TableDemoReset" }
+func (ClearCheckedIntent) IntentType() string     { return "TableDemoClearChecked" }
+func (SetSelectionModeIntent) IntentType() string { return "TableDemoSetSelectionMode" }
+func (StepPageIntent) IntentType() string         { return "TableDemoStepPage" }
+func (SetPageIntent) IntentType() string          { return "TableDemoSetPage" }
+func (AdjustPageSizeIntent) IntentType() string   { return "TableDemoAdjustPageSize" }
+func (ToggleBorderIntent) StayPressed() bool      { return true }
+func (ToggleFooterIntent) StayPressed() bool      { return true }
+func (ToggleScrollbarIntent) StayPressed() bool   { return true }
+func (ClearFiltersIntent) StayPressed() bool      { return true }
+func (ResetDemoIntent) StayPressed() bool         { return true }
+func (ClearCheckedIntent) StayPressed() bool      { return true }
+func (SetSelectionModeIntent) StayPressed() bool  { return true }
+func (StepPageIntent) StayPressed() bool          { return true }
+func (SetPageIntent) StayPressed() bool           { return true }
+func (AdjustPageSizeIntent) StayPressed() bool    { return true }
 
 var demoRecords = generateRecords()
 var demoRows = buildRows(demoRecords)
@@ -117,6 +127,9 @@ func init() {
 				s.CurrentPage = 0
 				s = recomputeDerivedState(s)
 				s.LastAction = fmt.Sprintf("Region filter = %q", strings.TrimSpace(s.RegionFilter))
+			case "checkedRows":
+				s.CheckedRows = normalizeCheckedRows(fieldChange.Value, s.SelectionMode)
+				s.LastAction = fmt.Sprintf("CheckedRows = %s", checkedSummary(checkedIndices(s.CheckedRows)))
 			case "currentPage":
 				if page, err := strconv.Atoi(strings.TrimSpace(fieldChange.Value)); err == nil {
 					s.CurrentPage = clampInt(page, 0, maxInt(0, s.PageCount-1))
@@ -167,6 +180,21 @@ func init() {
 		On(ToggleScrollbarIntent{}, func(s AppState, i intent.Intent) AppState {
 			s.ShowScrollbar = !s.ShowScrollbar
 			s.LastAction = fmt.Sprintf("Scrollbar = %t", s.ShowScrollbar)
+			return s
+		}).
+		On(SetSelectionModeIntent{}, func(s AppState, i intent.Intent) AppState {
+			modeIntent, ok := i.(SetSelectionModeIntent)
+			if !ok {
+				return s
+			}
+			s.SelectionMode = normalizeSelectionMode(modeIntent.Mode)
+			s.CheckedRows = normalizeCheckedRows(s.CheckedRows, s.SelectionMode)
+			s.LastAction = fmt.Sprintf("SelectionMode = %s", strings.ToUpper(s.SelectionMode))
+			return s
+		}).
+		On(ClearCheckedIntent{}, func(s AppState, i intent.Intent) AppState {
+			s.CheckedRows = ""
+			s.LastAction = "Cleared checked rows"
 			return s
 		}).
 		On(StepPageIntent{}, func(s AppState, i intent.Intent) AppState {
@@ -227,7 +255,11 @@ func main() {
 			app.OnKeyCombo("f5", func() { ui.EmitIntentGlobal(ClearFiltersIntent{}) })
 			app.OnKeyCombo("f6", func() { ui.EmitIntentGlobal(AdjustPageSizeIntent{Delta: -1}) })
 			app.OnKeyCombo("f7", func() { ui.EmitIntentGlobal(AdjustPageSizeIntent{Delta: 1}) })
-			app.OnKeyCombo("f8", func() { ui.EmitIntentGlobal(ResetDemoIntent{}) })
+			app.OnKeyCombo("f8", func() { ui.EmitIntentGlobal(SetSelectionModeIntent{Mode: "none"}) })
+			app.OnKeyCombo("f9", func() { ui.EmitIntentGlobal(SetSelectionModeIntent{Mode: "single"}) })
+			app.OnKeyCombo("f10", func() { ui.EmitIntentGlobal(SetSelectionModeIntent{Mode: "multi"}) })
+			app.OnKeyCombo("f11", func() { ui.EmitIntentGlobal(ClearCheckedIntent{}) })
+			app.OnKeyCombo("f12", func() { ui.EmitIntentGlobal(ResetDemoIntent{}) })
 		}),
 	)
 	if err != nil {
@@ -257,7 +289,7 @@ func headerPanel(state AppState, filteredCount int) ui.VNode {
 		SingleBorder("Interactive Table").
 		SetGap(0).
 		SetChildrenList([]ui.VNode{
-			ui.NewTextBuilder("搜索 / 列过滤 / 表头排序 / 键盘翻页 / 行选中 / 数字列右对齐 / 状态同步").Bold(true).FgColor("bright-cyan").Build(),
+			ui.NewTextBuilder("搜索 / 列过滤 / 表头排序 / 键盘翻页 / 行选中 / checkbox 单选多选 / 状态同步").Bold(true).FgColor("bright-cyan").Build(),
 			ui.NewTextBuilder(fmt.Sprintf("Rows=%d  Filtered=%d  Page=%d/%d  PageSize=%d  Sort=%s",
 				len(demoRecords),
 				filteredCount,
@@ -275,7 +307,9 @@ func headerPanel(state AppState, filteredCount int) ui.VNode {
 				state.ShowFooter)).
 				FgColor("yellow").
 				Build(),
-			ui.NewTextBuilder(fmt.Sprintf("Scrollbar=%t  LastAction=%s",
+			ui.NewTextBuilder(fmt.Sprintf("SelectionMode=%s  Checked=%s  Scrollbar=%t  LastAction=%s",
+				strings.ToUpper(state.SelectionMode),
+				checkedSummary(checkedIndices(state.CheckedRows)),
 				state.ShowScrollbar,
 				state.LastAction)).
 				FgColor("bright-black").
@@ -330,7 +364,7 @@ func tablePane(state AppState) ui.VNode {
 		4: state.StatusFilter,
 	}
 
-	return tablecomp.NewBuilder().
+	builder := tablecomp.NewBuilder().
 		ComponentID("ops.table").
 		Columns(demoColumns).
 		Rows(demoRows).
@@ -339,6 +373,7 @@ func tablePane(state AppState) ui.VNode {
 		PageSize(state.PageSize).
 		CurrentPage(state.CurrentPage).
 		SortBy(state.SortColumn, state.SortDesc).
+		CheckedIndices(checkedIndices(state.CheckedRows)...).
 		EmptyText("No incidents match the current search and filters").
 		ShowBorder(state.ShowBorder).
 		ShowFooter(state.ShowFooter).
@@ -349,8 +384,17 @@ func tablePane(state AppState) ui.VNode {
 		StatusStyle(style.Style{}.Foreground(style.BrightBlack)).
 		ScrollbarStyle(style.Style{}.Foreground(style.BrightBlack)).
 		SelectedStyle(style.Style{}.Foreground(style.Black).Background(style.BrightCyan).Bold(true)).
-		PageForField(intent.BindField("currentPage")).
-		Build()
+		SelectionForField(intent.BindField("checkedRows")).
+		PageForField(intent.BindField("currentPage"))
+
+	switch normalizeSelectionMode(state.SelectionMode) {
+	case "single":
+		builder.SingleSelect()
+	case "multi":
+		builder.MultiSelect()
+	}
+
+	return builder.Build()
 }
 
 func sidebar(state AppState, filteredCount int, record IncidentRecord, hasSelected bool) ui.VNode {
@@ -372,6 +416,8 @@ func statePanel(state AppState, filteredCount int) ui.VNode {
 			ui.NewTextBuilder(fmt.Sprintf("FilteredRows: %d / %d", filteredCount, len(demoRecords))).FgColor("bright-white").Build(),
 			ui.NewTextBuilder(fmt.Sprintf("Sort: %s", sortSummary(state.SortColumn, state.SortDesc))).FgColor("yellow").Build(),
 			ui.NewTextBuilder(fmt.Sprintf("SelectedRow: %s", displaySelectedRow(state.SelectedRow))).FgColor("cyan").Build(),
+			ui.NewTextBuilder(fmt.Sprintf("SelectionMode: %s", strings.ToUpper(state.SelectionMode))).FgColor("cyan").Build(),
+			ui.NewTextBuilder(fmt.Sprintf("CheckedRows: %s", checkedSummary(checkedIndices(state.CheckedRows)))).FgColor("bright-white").Build(),
 			ui.NewTextBuilder(fmt.Sprintf("Scrollbar: %t", state.ShowScrollbar)).FgColor("bright-black").Build(),
 			ui.NewTextBuilder("排序与分页现在走受控模式；table 交互会把目标状态同步回 store").FgColor("bright-black").Build(),
 		})
@@ -407,10 +453,10 @@ func helpPanel() ui.VNode {
 		SetGap(0).
 		SetChildrenList([]ui.VNode{
 			ui.NewTextBuilder("Tab: search/status/region/table 之间切换").FgColor("bright-white").Build(),
-			ui.NewTextBuilder("Table: 点击表头排序；第三次点击清除排序；↑↓ 选中；PageUp/PageDown 或 ←/→ 翻页").FgColor("bright-white").Build(),
+			ui.NewTextBuilder("Table: 点击表头排序；第三次点击清除排序；↑↓ 选中；Enter/Space 勾选；PageUp/PageDown 或 ←/→ 翻页").FgColor("bright-white").Build(),
 			ui.NewTextBuilder("F2 border  F3 footer  F4 scrollbar  F5 clear filters").FgColor("bright-black").Build(),
-			ui.NewTextBuilder("F6/F7 page size -/+  F8 reset").FgColor("bright-black").Build(),
-			ui.NewTextBuilder("Buttons: First / Prev / Next / Last 验证受控分页").FgColor("bright-black").Build(),
+			ui.NewTextBuilder("F6/F7 page size -/+  F8 none  F9 single  F10 multi").FgColor("bright-black").Build(),
+			ui.NewTextBuilder("F11 clear checked  F12 reset  Buttons: First / Prev / Next / Last").FgColor("bright-black").Build(),
 		})
 }
 
@@ -420,6 +466,8 @@ func newInitialState() AppState {
 		StatusFilter:  "",
 		RegionFilter:  "",
 		SelectedRow:   "",
+		CheckedRows:   "2,7,18",
+		SelectionMode: "multi",
 		PageSize:      10,
 		ShowBorder:    true,
 		ShowFooter:    true,
@@ -437,6 +485,8 @@ func newInitialState() AppState {
 func recomputeDerivedState(state AppState) AppState {
 	state.FilteredRows = filteredRecordCount(state.SearchText, state.StatusFilter, state.RegionFilter)
 	state.PageCount = pageCount(state.FilteredRows, state.PageSize)
+	state.SelectionMode = normalizeSelectionMode(state.SelectionMode)
+	state.CheckedRows = normalizeCheckedRows(state.CheckedRows, state.SelectionMode)
 	if state.CurrentPage >= state.PageCount {
 		state.CurrentPage = 0
 	}
@@ -515,6 +565,72 @@ func displaySelectedRow(raw string) string {
 		return strconv.Itoa(value)
 	}
 	return "(none)"
+}
+
+func checkedIndices(raw string) []int {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil
+	}
+	parts := strings.Split(raw, ",")
+	indices := make([]int, 0, len(parts))
+	seen := map[int]struct{}{}
+	for _, part := range parts {
+		value, err := strconv.Atoi(strings.TrimSpace(part))
+		if err != nil || value < 0 || value >= len(demoRecords) {
+			continue
+		}
+		if _, exists := seen[value]; exists {
+			continue
+		}
+		seen[value] = struct{}{}
+		indices = append(indices, value)
+	}
+	return indices
+}
+
+func checkedSummary(indices []int) string {
+	if len(indices) == 0 {
+		return "[]"
+	}
+	parts := make([]string, len(indices))
+	for index, value := range indices {
+		parts[index] = strconv.Itoa(value)
+	}
+	return "[" + strings.Join(parts, ",") + "]"
+}
+
+func normalizeSelectionMode(raw string) string {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "single":
+		return "single"
+	case "multi", "multiple":
+		return "multi"
+	default:
+		return "none"
+	}
+}
+
+func normalizeCheckedRows(raw, mode string) string {
+	indices := checkedIndices(raw)
+	switch normalizeSelectionMode(mode) {
+	case "none":
+		return ""
+	case "single":
+		if len(indices) == 0 {
+			return ""
+		}
+		return strconv.Itoa(indices[0])
+	default:
+		if len(indices) == 0 {
+			return ""
+		}
+		parts := make([]string, len(indices))
+		for index, value := range indices {
+			parts[index] = strconv.Itoa(value)
+		}
+		return strings.Join(parts, ",")
+	}
 }
 
 func sortSummary(columnIndex int, descending bool) string {

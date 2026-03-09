@@ -438,6 +438,8 @@ func TestBuilder_FluentEnhancements(t *testing.T) {
 		PageSize(5).
 		CurrentPage(1).
 		SortBy(0, true).
+		CheckedIndices(1, 4).
+		MultiSelect().
 		ShowBorder(true).
 		ShowFooter(true).
 		ShowScrollbar(true).
@@ -463,6 +465,12 @@ func TestBuilder_FluentEnhancements(t *testing.T) {
 	}
 	if vnode.componentID != "orders.table" {
 		t.Fatalf("componentID = %q, want orders.table", vnode.componentID)
+	}
+	if vnode.selectionMode != SelectionMultiple {
+		t.Fatalf("selectionMode = %v, want multi", vnode.selectionMode)
+	}
+	if !equalInts(vnode.checkedIndices, []int{1, 4}) {
+		t.Fatalf("checkedIndices = %#v, want [1 4]", vnode.checkedIndices)
 	}
 }
 
@@ -679,6 +687,72 @@ func TestInstance_PaintShowsScrollbarWhenPaginated(t *testing.T) {
 	}
 	if !hasThumb || !hasRail {
 		t.Fatalf("scrollbar cmds missing, thumb=%t rail=%t", hasThumb, hasRail)
+	}
+}
+
+func TestInstance_PaintShowsCheckboxMarkers(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"columns":        []TableColumn{{Title: "ID", Width: 4}, {Title: "Name", Width: 8}},
+		"rows":           [][]string{{"1", "Alice"}, {"2", "Bob"}},
+		"selectionMode":  SelectionMultiple,
+		"checkedIndices": []int{1},
+	})
+
+	if got := textAtY(inst.Paint(0, 0), 0); !strings.Contains(got, "Sel") {
+		t.Fatalf("header = %q, want Sel column", got)
+	}
+	if got := textAtY(inst.Paint(0, 0), 2); !strings.Contains(got, "[ ]") {
+		t.Fatalf("row 0 = %q, want unchecked marker", got)
+	}
+	if got := textAtY(inst.Paint(0, 0), 3); !strings.Contains(got, "[x]") {
+		t.Fatalf("row 1 = %q, want checked marker", got)
+	}
+}
+
+func TestInstance_HandleAction_MultiSelectEmitsSelectionFieldChangeIntent(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"columns":         []TableColumn{{Title: "ID", Width: 4}, {Title: "Name", Width: 8}},
+		"rows":            [][]string{{"1", "Alice"}, {"2", "Bob"}, {"3", "Carol"}},
+		"selectionMode":   SelectionMultiple,
+		"selectionIntent": intent.BindField("checked_rows"),
+	})
+	var emitted []intent.Intent
+	inst.SetIntentEmitter(func(i intent.Intent) { emitted = append(emitted, i) })
+
+	if !inst.HandleAction(action.NewAction(action.ActionNavigateDown)) {
+		t.Fatal("expected navigate down to be handled")
+	}
+	if !inst.HandleAction(action.NewAction(action.ActionSelect)) {
+		t.Fatal("expected select to be handled")
+	}
+	if len(emitted) == 0 {
+		t.Fatal("expected emitted selection intent")
+	}
+	last, ok := emitted[len(emitted)-1].(intent.FieldChangeIntent)
+	if !ok {
+		t.Fatalf("last emitted intent = %T, want FieldChangeIntent", emitted[len(emitted)-1])
+	}
+	if last.Field != "checked_rows" || last.Value != "0" {
+		t.Fatalf("field change = %#v, want checked_rows=0", last)
+	}
+}
+
+func TestInstance_HandleAction_SingleSelectReplacesCheckedIndices(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"columns":        []TableColumn{{Title: "ID", Width: 4}, {Title: "Name", Width: 8}},
+		"rows":           [][]string{{"1", "Alice"}, {"2", "Bob"}, {"3", "Carol"}},
+		"selectionMode":  SelectionSingle,
+		"checkedIndices": []int{2},
+	})
+
+	if !inst.HandleAction(action.NewAction(action.ActionNavigateDown)) {
+		t.Fatal("expected navigate down to be handled")
+	}
+	if !inst.HandleAction(action.NewAction(action.ActionSelect)) {
+		t.Fatal("expected select to be handled")
+	}
+	if !equalInts(inst.checkedIndices, []int{0}) {
+		t.Fatalf("checkedIndices = %#v, want [0]", inst.checkedIndices)
 	}
 }
 

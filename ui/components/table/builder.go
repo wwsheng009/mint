@@ -167,6 +167,34 @@ func (b *Builder) SelectedIndex(index int) *Builder {
 	return b
 }
 
+// OnSelectionChange sets the intent emitted when checkbox selection changes.
+func (b *Builder) OnSelectionChange(selectionIntent intent.Intent) *Builder {
+	b.vnode.SetSelectionIntent(selectionIntent)
+	return b
+}
+
+// CheckedIndices sets the checked source row indices in controlled mode.
+func (b *Builder) CheckedIndices(indices ...int) *Builder {
+	b.vnode.SetCheckedIndices(indices)
+	return b
+}
+
+// SelectionMode sets the checkbox selection mode.
+func (b *Builder) SelectionMode(mode SelectionMode) *Builder {
+	b.vnode.SetSelectionMode(mode)
+	return b
+}
+
+// SingleSelect enables single-select checkbox behavior.
+func (b *Builder) SingleSelect() *Builder {
+	return b.SelectionMode(SelectionSingle)
+}
+
+// MultiSelect enables multi-select checkbox behavior.
+func (b *Builder) MultiSelect() *Builder {
+	return b.SelectionMode(SelectionMultiple)
+}
+
 // OnChange sets a fallback change intent emitted on interactive state changes.
 func (b *Builder) OnChange(changeIntent intent.Intent) *Builder {
 	b.vnode.SetIntent(changeIntent)
@@ -176,6 +204,12 @@ func (b *Builder) OnChange(changeIntent intent.Intent) *Builder {
 // ForField binds the selected source row index to FieldChangeIntent.
 func (b *Builder) ForField(binding intent.FieldBinding) *Builder {
 	b.vnode.SetFieldIntent(binding)
+	return b
+}
+
+// SelectionForField binds checked source row indices to a field.
+func (b *Builder) SelectionForField(binding intent.FieldBinding) *Builder {
+	b.vnode.SetSelectionFieldIntent(binding)
 	return b
 }
 
