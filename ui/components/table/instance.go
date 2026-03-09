@@ -409,7 +409,7 @@ func (inst *Instance) Paint(x, y int) []paint.DrawCmd {
 
 	innerLines := make([]lineSpec, 0, inst.lineCountForView(view))
 	innerLines = append(innerLines, lineSpec{
-		text:  inst.composeInnerLine(inst.buildHeaderLine(widths), contentWidth, showScrollbar),
+		text:  inst.composeInnerLine(inst.buildHeaderLine(widths, view), contentWidth, showScrollbar),
 		style: inst.headerStyle,
 	})
 	innerLines = append(innerLines, lineSpec{text: inst.composeInnerLine(strings.Repeat("─", maxInt(1, contentWidth)), contentWidth, showScrollbar), style: inst.borderStyle})
@@ -543,6 +543,10 @@ func (inst *Instance) HandleAction(act *action.Action) bool {
 			return inst.handleActivateSelection()
 		}
 		return len(inst.filteredSortedRows()) > 0
+	case action.ActionSelectAll:
+		return inst.selectAllFilteredRows()
+	case action.ActionClear:
+		return inst.clearCheckedSelection()
 	}
 	return false
 }
@@ -792,6 +796,30 @@ func (inst *Instance) emptyLineText() string {
 	return formatCell("", selectionColumnWidth, rtui.AlignStart) + " │ " + inst.emptyText
 }
 
+func (inst *Instance) selectionHeaderMarker(view tableView) string {
+	if inst.selectionMode != SelectionMultiple {
+		return "Sel"
+	}
+	total := len(view.rows)
+	if total == 0 {
+		return "[ ]"
+	}
+	checked := 0
+	for _, row := range view.rows {
+		if inst.isChecked(row.sourceIndex) {
+			checked++
+		}
+	}
+	switch {
+	case checked == 0:
+		return "[ ]"
+	case checked == total:
+		return "[x]"
+	default:
+		return "[-]"
+	}
+}
+
 func (inst *Instance) shouldPaintScrollbar(view tableView, visibleRows int) bool {
 	if !inst.showScrollbar {
 		return false
@@ -852,10 +880,10 @@ func (inst *Instance) maxRenderableRows(showFooter bool) int {
 	return available
 }
 
-func (inst *Instance) buildHeaderLine(widths []int) string {
+func (inst *Instance) buildHeaderLine(widths []int, view tableView) string {
 	cells := make([]string, 0, len(inst.columns)+1)
 	if inst.selectionMode != SelectionNone {
-		cells = append(cells, formatCell("Sel", selectionColumnWidth, rtui.AlignStart))
+		cells = append(cells, formatCell(inst.selectionHeaderMarker(view), selectionColumnWidth, rtui.AlignStart))
 	}
 	for columnIndex := range inst.columns {
 		cells = append(cells, formatCell(inst.headerLabel(columnIndex), widths[columnIndex], inst.columns[columnIndex].Align))
@@ -944,6 +972,9 @@ func (inst *Instance) handleClick(act *action.Action) bool {
 	view := inst.processedView()
 	widths, _ := inst.calculateColumnWidths(view.rows, inst.maxInnerPaintWidth())
 	if mouseMsg.LocalY == inst.headerLocalY() {
+		if inst.selectionHeaderHit(mouseMsg.LocalX) {
+			return inst.selectAllFilteredRows()
+		}
 		columnIndex, hit := inst.columnAtLocalX(mouseMsg.LocalX, widths)
 		if !hit {
 			return false
@@ -988,6 +1019,17 @@ func (inst *Instance) rowIndexAtLocalY(localY int, view tableView) (int, bool) {
 	return view.start + relative, true
 }
 
+func (inst *Instance) selectionHeaderHit(localX int) bool {
+	if inst.selectionMode != SelectionMultiple {
+		return false
+	}
+	contentX, ok := inst.contentLocalX(localX)
+	if !ok {
+		return false
+	}
+	return contentX >= 0 && contentX < selectionColumnWidth
+}
+
 func (inst *Instance) effectiveCurrentPage() int {
 	if inst.currentPageControlled && inst.hasPendingCurrentPage {
 		return inst.pendingCurrentPage
@@ -1017,11 +1059,13 @@ func (inst *Instance) reconcilePendingState(oldCurrentPage, oldSortColumn int, o
 }
 
 func (inst *Instance) columnAtLocalX(localX int, widths []int) (int, bool) {
+	contentX, ok := inst.contentLocalX(localX)
+	if !ok {
+		return -1, false
+	}
+	localX = contentX
+
 	if inst.showBorder {
-		if localX < 2 {
-			return -1, false
-		}
-		localX -= 2
 	}
 
 	if inst.selectionMode != SelectionNone {
@@ -1049,6 +1093,16 @@ func (inst *Instance) columnAtLocalX(localX int, widths []int) (int, bool) {
 		}
 	}
 	return -1, false
+}
+
+func (inst *Instance) contentLocalX(localX int) (int, bool) {
+	if inst.showBorder {
+		if localX < 2 {
+			return -1, false
+		}
+		localX -= 2
+	}
+	return localX, true
 }
 
 func (inst *Instance) nextSortState(columnIndex int) (int, bool) {
@@ -1260,6 +1314,71 @@ func (inst *Instance) handleActivateSelection() bool {
 		return false
 	}
 	return inst.applySelectionAtSourceIndex(view.rows[inst.selectedIndex].sourceIndex)
+}
+
+func (inst *Instance) selectAllFilteredRows() bool {
+	if inst.selectionMode != SelectionMultiple {
+		return false
+	}
+	view := inst.processedView()
+	if len(view.rows) == 0 {
+		return false
+	}
+
+	allChecked := true
+	for _, row := range view.rows {
+		if !inst.isChecked(row.sourceIndex) {
+			allChecked = false
+			break
+		}
+	}
+
+	if allChecked {
+		filteredSet := make(map[int]struct{}, len(view.rows))
+		for _, row := range view.rows {
+			filteredSet[row.sourceIndex] = struct{}{}
+		}
+		next := inst.checkedIndices[:0]
+		for _, checkedIndex := range inst.checkedIndices {
+			if _, exists := filteredSet[checkedIndex]; !exists {
+				next = append(next, checkedIndex)
+			}
+		}
+		inst.checkedIndices = next
+	} else {
+		seen := make(map[int]struct{}, len(inst.checkedIndices)+len(view.rows))
+		next := make([]int, 0, len(inst.checkedIndices)+len(view.rows))
+		for _, checkedIndex := range inst.checkedIndices {
+			if _, exists := seen[checkedIndex]; exists {
+				continue
+			}
+			seen[checkedIndex] = struct{}{}
+			next = append(next, checkedIndex)
+		}
+		for _, row := range view.rows {
+			if _, exists := seen[row.sourceIndex]; exists {
+				continue
+			}
+			seen[row.sourceIndex] = struct{}{}
+			next = append(next, row.sourceIndex)
+		}
+		inst.checkedIndices = next
+	}
+
+	inst.normalizeCheckedIndices()
+	inst.dirty = true
+	inst.emitCheckedSelectionChanged()
+	return true
+}
+
+func (inst *Instance) clearCheckedSelection() bool {
+	if len(inst.checkedIndices) == 0 {
+		return false
+	}
+	inst.checkedIndices = nil
+	inst.dirty = true
+	inst.emitCheckedSelectionChanged()
+	return true
 }
 
 func (inst *Instance) applySelectionAtSourceIndex(sourceIndex int) bool {

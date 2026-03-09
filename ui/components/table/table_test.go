@@ -698,8 +698,8 @@ func TestInstance_PaintShowsCheckboxMarkers(t *testing.T) {
 		"checkedIndices": []int{1},
 	})
 
-	if got := textAtY(inst.Paint(0, 0), 0); !strings.Contains(got, "Sel") {
-		t.Fatalf("header = %q, want Sel column", got)
+	if got := textAtY(inst.Paint(0, 0), 0); !strings.Contains(got, "[-]") {
+		t.Fatalf("header = %q, want tri-state header marker", got)
 	}
 	if got := textAtY(inst.Paint(0, 0), 2); !strings.Contains(got, "[ ]") {
 		t.Fatalf("row 0 = %q, want unchecked marker", got)
@@ -753,6 +753,48 @@ func TestInstance_HandleAction_SingleSelectReplacesCheckedIndices(t *testing.T) 
 	}
 	if !equalInts(inst.checkedIndices, []int{0}) {
 		t.Fatalf("checkedIndices = %#v, want [0]", inst.checkedIndices)
+	}
+}
+
+func TestInstance_HandleAction_ClickSelectionHeaderTogglesAllFilteredRows(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"columns":       []TableColumn{{Title: "ID", Width: 4}, {Title: "Name", Width: 8}},
+		"rows":          [][]string{{"1", "Alice"}, {"2", "Bob"}, {"3", "Carol"}},
+		"selectionMode": SelectionMultiple,
+	})
+
+	mouseMsg := runtimemsg.NewMouseMsg(0, 0, runtimemsg.MouseLeft, runtimemsg.MouseActionPress)
+	mouseMsg.LocalX = 1
+	mouseMsg.LocalY = 0
+	act := action.NewAction(action.ActionClick).WithPayload(mouseMsg)
+
+	if !inst.HandleAction(act) {
+		t.Fatal("expected selection header click to be handled")
+	}
+	if !equalInts(inst.checkedIndices, []int{0, 1, 2}) {
+		t.Fatalf("checkedIndices after select all = %#v, want [0 1 2]", inst.checkedIndices)
+	}
+	if !inst.HandleAction(act) {
+		t.Fatal("expected second selection header click to be handled")
+	}
+	if len(inst.checkedIndices) != 0 {
+		t.Fatalf("checkedIndices after clear all = %#v, want []", inst.checkedIndices)
+	}
+}
+
+func TestInstance_HandleAction_ClearClearsCheckedRows(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"columns":        []TableColumn{{Title: "ID", Width: 4}, {Title: "Name", Width: 8}},
+		"rows":           [][]string{{"1", "Alice"}, {"2", "Bob"}},
+		"selectionMode":  SelectionMultiple,
+		"checkedIndices": []int{0, 1},
+	})
+
+	if !inst.HandleAction(action.NewAction(action.ActionClear)) {
+		t.Fatal("expected clear action to be handled")
+	}
+	if len(inst.checkedIndices) != 0 {
+		t.Fatalf("checkedIndices = %#v, want []", inst.checkedIndices)
 	}
 }
 

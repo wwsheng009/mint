@@ -328,6 +328,7 @@ func controlsPanel(state AppState) ui.VNode {
 				ui.Flex(inputBlock("Region Filter", state.RegionFilter, "regionFilter", "us-east / eu-west / ap-south", 24), 1),
 			).Gap(1).Stretch().Build(),
 			paginationControls(state),
+			selectionControls(state),
 			ui.NewTextBuilder("Tab 在三个 input 和 table 间切换；点击表头排序；↑↓ 选中，PageUp/PageDown 或 ←/→ 翻页").FgColor("bright-black").Build(),
 		})
 }
@@ -341,6 +342,17 @@ func paginationControls(state AppState) ui.VNode {
 		ui.NewButtonBuilder("Next").OnPress(StepPageIntent{Delta: 1}).Build(),
 		ui.NewButtonBuilder("Last").OnPress(SetPageIntent{Page: maxInt(0, state.PageCount-1)}).Build(),
 		ui.NewTextBuilder("受控分页：按钮与 table 内部翻页共享同一份状态").FgColor("bright-black").Build(),
+	).Gap(1).Build()
+}
+
+func selectionControls(state AppState) ui.VNode {
+	return ui.HStackBuilder(
+		ui.NewTextBuilder("Selection").FgColor("cyan").Build(),
+		ui.NewButtonBuilder("None").OnPress(SetSelectionModeIntent{Mode: "none"}).Build(),
+		ui.NewButtonBuilder("Single").OnPress(SetSelectionModeIntent{Mode: "single"}).Build(),
+		ui.NewButtonBuilder("Multi").OnPress(SetSelectionModeIntent{Mode: "multi"}).Build(),
+		ui.NewButtonBuilder("Clear Checked").OnPress(ClearCheckedIntent{}).Build(),
+		ui.NewTextBuilder(fmt.Sprintf("Mode=%s Checked=%s", strings.ToUpper(state.SelectionMode), checkedSummary(checkedIndices(state.CheckedRows)))).FgColor("bright-black").Build(),
 	).Gap(1).Build()
 }
 
@@ -454,6 +466,7 @@ func helpPanel() ui.VNode {
 		SetChildrenList([]ui.VNode{
 			ui.NewTextBuilder("Tab: search/status/region/table 之间切换").FgColor("bright-white").Build(),
 			ui.NewTextBuilder("Table: 点击表头排序；第三次点击清除排序；↑↓ 选中；Enter/Space 勾选；PageUp/PageDown 或 ←/→ 翻页").FgColor("bright-white").Build(),
+			ui.NewTextBuilder("Multi 模式下点击表头 checkbox 可对当前过滤结果全选/反选").FgColor("bright-white").Build(),
 			ui.NewTextBuilder("F2 border  F3 footer  F4 scrollbar  F5 clear filters").FgColor("bright-black").Build(),
 			ui.NewTextBuilder("F6/F7 page size -/+  F8 none  F9 single  F10 multi").FgColor("bright-black").Build(),
 			ui.NewTextBuilder("F11 clear checked  F12 reset  Buttons: First / Prev / Next / Last").FgColor("bright-black").Build(),
