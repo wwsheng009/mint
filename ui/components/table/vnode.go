@@ -62,6 +62,7 @@ type VNode struct {
 
 	changeIntent      intent.Intent
 	changeIntentField intent.FieldIntent
+	pageIntentField   intent.FieldIntent
 }
 
 // Ensure VNode implements required interfaces
@@ -157,6 +158,7 @@ func (v *VNode) Props() rtui.Props {
 		"selectedIndexControlled": v.selectedIndexControlled,
 		"changeIntent":            v.changeIntent,
 		"changeIntentField":       v.changeIntentField,
+		"pageIntentField":         v.pageIntentField,
 	}
 }
 
@@ -242,6 +244,9 @@ func (v *VNode) SetProps(p rtui.Props) rtui.VNode {
 	if val, ok := p["changeIntentField"].(intent.FieldIntent); ok {
 		v.changeIntentField = val
 	}
+	if val, ok := p["pageIntentField"].(intent.FieldIntent); ok {
+		v.pageIntentField = val
+	}
 	return v
 }
 
@@ -312,6 +317,10 @@ func (v *VNode) SetIntent(i intent.Intent) *VNode {
 }
 func (v *VNode) SetFieldIntent(i intent.FieldIntent) *VNode {
 	v.changeIntentField = i
+	return v
+}
+func (v *VNode) SetPageFieldIntent(i intent.FieldIntent) *VNode {
+	v.pageIntentField = i
 	return v
 }
 

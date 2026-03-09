@@ -179,6 +179,12 @@ func (b *Builder) ForField(binding intent.FieldBinding) *Builder {
 	return b
 }
 
+// PageForField binds the current page index to a field.
+func (b *Builder) PageForField(binding intent.FieldBinding) *Builder {
+	b.vnode.SetPageFieldIntent(binding)
+	return b
+}
+
 // Style sets the visual style (shortcut for TableStyle).
 func (b *Builder) Style(s style.Style) *Builder {
 	b.vnode.SetStyle(s)

@@ -70,6 +70,7 @@ type Instance struct {
 
 	changeIntent      intent.Intent
 	changeIntentField intent.FieldIntent
+	pageIntentField   intent.FieldIntent
 
 	pendingCurrentPage    int
 	hasPendingCurrentPage bool
@@ -126,6 +127,7 @@ func NewInstance(props rtui.Props) *Instance {
 		lastPropSortDescending:  getBoolProp(props, "sortDescending", false),
 		changeIntent:            getIntentProp(props, "changeIntent"),
 		changeIntentField:       getFieldIntentProp(props, "changeIntent"),
+		pageIntentField:         getFieldIntentProp(props, "pageIntent"),
 		dirty:                   true,
 	}
 	inst.normalizeViewState(false)
@@ -173,6 +175,7 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	oldComponentID := inst.componentID
 	oldChangeIntent := inst.changeIntent
 	oldChangeIntentField := inst.changeIntentField
+	oldPageIntentField := inst.pageIntentField
 
 	inst.componentID = getStringProp(props, "componentID", inst.componentID)
 	inst.columns = getColumnsProp(props, inst.columns)
@@ -193,6 +196,7 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	inst.filters = getFiltersProp(props, inst.filters)
 	inst.changeIntent = getIntentProp(props, "changeIntent")
 	inst.changeIntentField = getFieldIntentProp(props, "changeIntent")
+	inst.pageIntentField = getFieldIntentProp(props, "pageIntent")
 
 	if controlled, ok := props["currentPageControlled"].(bool); ok {
 		inst.currentPageControlled = controlled
@@ -252,7 +256,8 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 		oldPropSortDescending != inst.lastPropSortDescending ||
 		oldComponentID != inst.componentID ||
 		!sameIntent(oldChangeIntent, inst.changeIntent) ||
-		!sameFieldIntent(oldChangeIntentField, inst.changeIntentField)
+		!sameFieldIntent(oldChangeIntentField, inst.changeIntentField) ||
+		!sameFieldIntent(oldPageIntentField, inst.pageIntentField)
 	if changed {
 		inst.dirty = true
 	}
@@ -288,6 +293,7 @@ func (inst *Instance) GetProps() rtui.Props {
 		"componentID":             inst.componentID,
 		"changeIntent":            inst.changeIntent,
 		"changeIntentField":       inst.changeIntentField,
+		"pageIntentField":         inst.pageIntentField,
 	}
 }
 
@@ -1149,6 +1155,12 @@ func (inst *Instance) emitStateSnapshot(selectedIndex, currentPage, sortColumn i
 		})
 	} else if inst.changeIntent != nil {
 		inst.intentEmitter(inst.changeIntent)
+	}
+	if inst.pageIntentField != nil {
+		inst.intentEmitter(intent.FieldChangeIntent{
+			Field: inst.pageIntentField.GetField(),
+			Value: strconv.Itoa(clampedPage),
+		})
 	}
 }
 

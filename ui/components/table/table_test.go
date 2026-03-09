@@ -682,6 +682,35 @@ func TestInstance_PaintShowsScrollbarWhenPaginated(t *testing.T) {
 	}
 }
 
+func TestInstance_HandleAction_PageNavigationEmitsPageFieldChangeIntent(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"columns":         []TableColumn{{Title: "ID", Width: 4}, {Title: "Name", Width: 8}},
+		"rows":            [][]string{{"1", "Alice"}, {"2", "Bob"}, {"3", "Carol"}, {"4", "Dave"}},
+		"pageSize":        2,
+		"pageIntentField": intent.BindField("currentPage"),
+	})
+	var emitted []intent.Intent
+	inst.SetIntentEmitter(func(i intent.Intent) { emitted = append(emitted, i) })
+
+	if !inst.HandleAction(action.NewAction(action.ActionNavigatePageDown)) {
+		t.Fatal("expected page down to be handled")
+	}
+	found := false
+	for _, emittedIntent := range emitted {
+		fieldChange, ok := emittedIntent.(intent.FieldChangeIntent)
+		if !ok {
+			continue
+		}
+		if fieldChange.Field == "currentPage" && fieldChange.Value == "1" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("emitted intents = %#v, want currentPage=1 field change", emitted)
+	}
+}
+
 func textAtY(cmds []paint.DrawCmd, y int) string {
 	for _, cmd := range cmds {
 		if cmd.Y == y {

@@ -117,6 +117,10 @@ func init() {
 				s.CurrentPage = 0
 				s = recomputeDerivedState(s)
 				s.LastAction = fmt.Sprintf("Region filter = %q", strings.TrimSpace(s.RegionFilter))
+			case "currentPage":
+				if page, err := strconv.Atoi(strings.TrimSpace(fieldChange.Value)); err == nil {
+					s.CurrentPage = clampInt(page, 0, maxInt(0, s.PageCount-1))
+				}
 			}
 			return s
 		}).
@@ -345,6 +349,7 @@ func tablePane(state AppState) ui.VNode {
 		StatusStyle(style.Style{}.Foreground(style.BrightBlack)).
 		ScrollbarStyle(style.Style{}.Foreground(style.BrightBlack)).
 		SelectedStyle(style.Style{}.Foreground(style.Black).Background(style.BrightCyan).Bold(true)).
+		PageForField(intent.BindField("currentPage")).
 		Build()
 }
 
