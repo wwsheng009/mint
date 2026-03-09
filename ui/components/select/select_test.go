@@ -437,6 +437,7 @@ func TestInstance_HandleAction_MultiSelectEmitsFieldChangeIntent(t *testing.T) {
 func TestVNode_Children_OverlayPopupChild(t *testing.T) {
 	vnode := NewBuilder().
 		SetID("country-select").
+		OverlayPopup(true).
 		AddOption("us", "United States").
 		AddOption("cn", "China").
 		BuildTyped()

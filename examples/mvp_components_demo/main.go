@@ -522,6 +522,7 @@ func ProfileFormFields(state AppState) ui.VNode {
 		ui.HStack(
 			ui.Text("  "),
 			ui.NewSelectBuilder().
+				SetID("profile.country").
 				Options(countries).
 				Selected(countryIdx).
 				// ForField() 会将选中的索引存储到 State

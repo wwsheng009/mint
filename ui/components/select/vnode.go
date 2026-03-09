@@ -75,7 +75,7 @@ func New() *VNode {
 		selectionMode:  SelectionSingle,
 		maxVisibleRows: 6,
 		placeholder:    "...",
-		overlayPopup:   true,
+		overlayPopup:   false,
 		portalRoot:     rtui.DefaultOverlayPortalRootID,
 		closeOnOutside: true,
 	}
