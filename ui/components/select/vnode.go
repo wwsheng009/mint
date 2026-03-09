@@ -4,7 +4,6 @@ import (
 	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/style"
-	rttypes "github.com/wwsheng009/mint/runtime/types"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
 
@@ -130,12 +129,9 @@ func (s *VNode) SetStyle(st style.Style) rtui.VNode {
 	return s
 }
 
-// Children returns the optional overlay popup child.
+// Children returns child nodes.
 func (s *VNode) Children() []rtui.VNode {
-	if !s.usesOverlayPopup() {
-		return nil
-	}
-	return []rtui.VNode{newPopupVNode(s)}
+	return nil
 }
 
 func (s *VNode) usesOverlayPopup() bool {
@@ -144,37 +140,6 @@ func (s *VNode) usesOverlayPopup() bool {
 
 func (s *VNode) ownerID() string {
 	return s.ID()
-}
-
-func newPopupVNode(owner *VNode) rtui.VNode {
-	ownerID := owner.ownerID()
-	surface := &popupVNode{ElementVNode: rtui.NewElement("select-popup")}
-	surface.SetKey(ownerID + "-popup")
-	surface.SetID(ownerID + "-popup")
-	surface.SetProps(rtui.Props{
-		"ownerID":        ownerID,
-		"closeOnOutside": owner.closeOnOutside,
-	})
-
-	portal := rtui.NewElement("box")
-	portal.SetKey(ownerID + "-popup-portal")
-	portal.SetID(ownerID + "-popup-portal")
-	portal.SetProps(rtui.Props{
-		"position": "absolute",
-		"left":     0,
-		"top":      0,
-		"width":    1,
-		"height":   1,
-	})
-	if owner.portalRoot != "" {
-		portal.SetPortalRoot(owner.portalRoot)
-	}
-	portal.SetAnchorTo(ownerID, rttypes.AnchorBottomLeft)
-	portal.SetPortalPosition(rttypes.PositionAbsolute)
-	portal.SetProp("left", 0)
-	portal.SetProp("top", 1)
-	portal.SetChildren([]rtui.VNode{surface})
-	return portal
 }
 
 // SetChildren is a no-op for select - returns VNode for chaining.
@@ -195,22 +160,22 @@ func (s *VNode) SetLayer(l rtui.Layer) rtui.VNode {
 // Props returns the node properties.
 func (s *VNode) Props() rtui.Props {
 	return rtui.Props{
-		"key":             s.key,
-		"componentID":     s.componentID,
-		"options":         s.options,
-		"style":           s.style,
-		"width":           s.width,
-		"placeholder":     s.placeholder,
-		"maxVisibleRows":  s.maxVisibleRows,
-		"overlayPopup":    s.overlayPopup,
-		"portalRoot":      s.portalRoot,
-		"closeOnOutside":  s.closeOnOutside,
-		"changeIntent":    s.changeIntent,
-		"selectedIndex":   s.selectedIndex,
-		"selectedIndices": append([]int(nil), s.selectedIndices...),
-		"selectionMode":   s.selectionMode,
-		"disabled":        s.disabled,
-		"formID":          s.formID,
+		"key":               s.key,
+		"componentID":       s.componentID,
+		"options":           s.options,
+		"style":             s.style,
+		"width":             s.width,
+		"placeholder":       s.placeholder,
+		"maxVisibleRows":    s.maxVisibleRows,
+		"overlayPopup":      s.overlayPopup,
+		popupPortalRootProp: s.portalRoot,
+		"closeOnOutside":    s.closeOnOutside,
+		"changeIntent":      s.changeIntent,
+		"selectedIndex":     s.selectedIndex,
+		"selectedIndices":   s.resolvedSelectedIndices(),
+		"selectionMode":     s.selectionMode,
+		"disabled":          s.disabled,
+		"formID":            s.formID,
 	}
 }
 
@@ -239,6 +204,9 @@ func (s *VNode) SetProps(p rtui.Props) rtui.VNode {
 	}
 	if v, ok := p["overlayPopup"].(bool); ok {
 		s.overlayPopup = v
+	}
+	if v, ok := p[popupPortalRootProp].(string); ok {
+		s.portalRoot = v
 	}
 	if v, ok := p["portalRoot"].(string); ok {
 		s.portalRoot = v
@@ -274,23 +242,23 @@ func (s *VNode) SetProps(p rtui.Props) rtui.VNode {
 // CreateInstance creates a new SelectInstance from this VNode description.
 func (s *VNode) CreateInstance() rtui.ComponentInstance {
 	props := rtui.Props{
-		"key":             s.key,
-		"componentID":     s.componentID,
-		"options":         s.options,
-		"style":           s.style,
-		"width":           s.width,
-		"placeholder":     s.placeholder,
-		"maxVisibleRows":  s.maxVisibleRows,
-		"overlayPopup":    s.usesOverlayPopup(),
-		"ownerID":         s.ownerID(),
-		"portalRoot":      s.portalRoot,
-		"closeOnOutside":  s.closeOnOutside,
-		"changeIntent":    s.changeIntent,
-		"selectedIndex":   s.selectedIndex,
-		"selectedIndices": append([]int(nil), s.selectedIndices...),
-		"selectionMode":   s.selectionMode,
-		"disabled":        s.disabled,
-		"formID":          s.formID,
+		"key":               s.key,
+		"componentID":       s.componentID,
+		"options":           s.options,
+		"style":             s.style,
+		"width":             s.width,
+		"placeholder":       s.placeholder,
+		"maxVisibleRows":    s.maxVisibleRows,
+		"overlayPopup":      s.usesOverlayPopup(),
+		"ownerID":           s.ownerID(),
+		popupPortalRootProp: s.portalRoot,
+		"closeOnOutside":    s.closeOnOutside,
+		"changeIntent":      s.changeIntent,
+		"selectedIndex":     s.selectedIndex,
+		"selectedIndices":   s.resolvedSelectedIndices(),
+		"selectionMode":     s.selectionMode,
+		"disabled":          s.disabled,
+		"formID":            s.formID,
 	}
 	return NewInstance(props)
 }
@@ -314,18 +282,57 @@ func (s *VNode) AddOption(value, label string) *VNode {
 // SetSelectedIndex sets the selected index.
 func (s *VNode) SetSelectedIndex(idx int) *VNode {
 	s.selectedIndex = idx
+	if s.selectionMode == SelectionMultiple {
+		if idx >= 0 {
+			s.selectedIndices = []int{idx}
+		} else {
+			s.selectedIndices = nil
+		}
+		return s
+	}
+	if idx >= 0 {
+		s.selectedIndices = []int{idx}
+	} else {
+		s.selectedIndices = nil
+	}
 	return s
 }
 
 // SetSelectedIndices sets the selected indices for multi-select mode.
 func (s *VNode) SetSelectedIndices(indices []int) *VNode {
 	s.selectedIndices = append([]int(nil), indices...)
+	if s.selectionMode == SelectionMultiple {
+		if len(s.selectedIndices) > 0 {
+			s.selectedIndex = s.selectedIndices[len(s.selectedIndices)-1]
+		} else {
+			s.selectedIndex = -1
+		}
+		return s
+	}
+	if len(s.selectedIndices) > 0 {
+		s.selectedIndex = s.selectedIndices[0]
+		s.selectedIndices = []int{s.selectedIndex}
+	} else {
+		s.selectedIndex = -1
+	}
 	return s
 }
 
 // SetSelectionMode sets the selection mode.
 func (s *VNode) SetSelectionMode(mode SelectionMode) *VNode {
 	s.selectionMode = mode
+	switch mode {
+	case SelectionMultiple:
+		if len(s.selectedIndices) == 0 && s.selectedIndex >= 0 {
+			s.selectedIndices = []int{s.selectedIndex}
+		}
+	default:
+		if s.selectedIndex >= 0 {
+			s.selectedIndices = []int{s.selectedIndex}
+		} else {
+			s.selectedIndices = nil
+		}
+	}
 	return s
 }
 
@@ -405,7 +412,7 @@ func (s *VNode) SelectedIndex() int {
 
 // SelectedIndices returns the selected indices for multi-select mode.
 func (s *VNode) SelectedIndices() []int {
-	return append([]int(nil), s.selectedIndices...)
+	return s.resolvedSelectedIndices()
 }
 
 // SelectionMode returns the current selection mode.
@@ -488,4 +495,14 @@ func (s *VNode) GetBoxModel() layout.BoxModel {
 		// Select typically doesn't have a border
 		Border: layout.Border{Style: layout.BorderNone},
 	}
+}
+
+func (s *VNode) resolvedSelectedIndices() []int {
+	if s.selectionMode == SelectionMultiple {
+		return append([]int(nil), s.selectedIndices...)
+	}
+	if s.selectedIndex >= 0 {
+		return []int{s.selectedIndex}
+	}
+	return nil
 }

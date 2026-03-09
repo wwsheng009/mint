@@ -4,10 +4,14 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/wwsheng009/mint/framework"
+	"github.com/wwsheng009/mint/framework/component"
+	"github.com/wwsheng009/mint/internal/render"
 	"github.com/wwsheng009/mint/runtime/action"
 	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/runtime/layout"
 	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
+	"github.com/wwsheng009/mint/runtime/paint"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
 
@@ -434,17 +438,26 @@ func TestInstance_HandleAction_MultiSelectEmitsFieldChangeIntent(t *testing.T) {
 	}
 }
 
-func TestVNode_Children_OverlayPopupChild(t *testing.T) {
-	vnode := NewBuilder().
-		SetID("country-select").
-		OverlayPopup(true).
-		AddOption("us", "United States").
-		AddOption("cn", "China").
-		BuildTyped()
+func TestInstance_RuntimeChildren_OverlayPopupChild(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"ownerID":        "country-select",
+		"portalRoot":     rtui.DefaultOverlayPortalRootID,
+		"overlayPopup":   true,
+		"maxVisibleRows": 6,
+		"options": []Option{
+			{Value: "us", Label: "United States"},
+			{Value: "cn", Label: "China"},
+		},
+	})
 
-	children := vnode.Children()
+	if children := inst.RuntimeChildren(); len(children) != 0 {
+		t.Fatalf("closed RuntimeChildren len = %d, want 0", len(children))
+	}
+
+	inst.openDropdown()
+	children := inst.RuntimeChildren()
 	if len(children) != 1 {
-		t.Fatalf("Children len = %d, want 1", len(children))
+		t.Fatalf("RuntimeChildren len = %d, want 1", len(children))
 	}
 	if children[0].Tag() != "box" {
 		t.Fatalf("child Tag() = %q, want %q", children[0].Tag(), "box")
@@ -459,33 +472,121 @@ func TestVNode_Children_OverlayPopupChild(t *testing.T) {
 	}
 }
 
-func TestPopupInstance_Measure_UsesOwnerOpenState(t *testing.T) {
-	owner := NewInstance(rtui.Props{
-		"key":          "country",
-		"ownerID":      "country-select",
-		"overlayPopup": true,
-		"options": []Option{
-			{Value: "us", Label: "United States"},
-			{Value: "cn", Label: "China"},
-		},
+func TestPopupInstance_Measure_UsesPopupProps(t *testing.T) {
+	popup := newPopupInstance(rtui.Props{
+		"ownerID":        "country-select",
+		"componentID":    "country-select",
+		"options":        []Option{{Value: "us", Label: "United States"}, {Value: "cn", Label: "China"}},
+		"maxVisibleRows": 6,
+		"minWidth":       20,
 	})
+	size := popup.Measure(layout.UnboundedConstraints())
+	if size.Width <= 0 || size.Height <= 0 {
+		t.Fatalf("popup Measure = %+v, want non-zero size", size)
+	}
+}
+
+func TestPopupInstance_HandleAction_BubblesToOwner(t *testing.T) {
+	owner := NewInstance(rtui.Props{
+		"ownerID":        "country-select",
+		"overlayPopup":   true,
+		"portalRoot":     rtui.DefaultOverlayPortalRootID,
+		"options":        []Option{{Value: "us", Label: "United States"}, {Value: "cn", Label: "China"}},
+		"componentID":    "country-select",
+		"maxVisibleRows": 6,
+	})
+	owner.syncOverlayRegistration()
+	defer owner.unregisterOverlay()
+	owner.openDropdown()
+
+	popup := newPopupInstance(rtui.Props{
+		"ownerID":          "country-select",
+		"componentID":      "country-select",
+		"options":          []Option{{Value: "us", Label: "United States"}, {Value: "cn", Label: "China"}},
+		"selectedIndex":    -1,
+		"selectedIndices":  []int{},
+		"highlightedIndex": 0,
+		"maxVisibleRows":   6,
+		"minWidth":         20,
+	})
+
+	mouse := runtimemsg.NewMouseMsg(1, 2, runtimemsg.MouseLeft, runtimemsg.MouseActionPress)
+	mouse.LocalX = 1
+	mouse.LocalY = 1
+	if !popup.HandleAction(action.NewAction(action.ActionClick).WithPayload(mouse)) {
+		t.Fatal("popup click should be handled")
+	}
+	if owner.SelectedIndex() != 0 {
+		t.Fatalf("owner SelectedIndex = %d, want 0", owner.SelectedIndex())
+	}
+}
+
+func TestPopupInstance_HandleAction_NavigateDownBubblesHighlight(t *testing.T) {
+	owner := NewInstance(rtui.Props{
+		"ownerID":        "country-select",
+		"overlayPopup":   true,
+		"portalRoot":     rtui.DefaultOverlayPortalRootID,
+		"options":        []Option{{Value: "us", Label: "United States"}, {Value: "cn", Label: "China"}, {Value: "jp", Label: "Japan"}},
+		"componentID":    "country-select",
+		"maxVisibleRows": 6,
+	})
+	owner.openDropdown()
+	owner.highlightedIndex = 0
 	owner.syncOverlayRegistration()
 	defer owner.unregisterOverlay()
 
 	popup := newPopupInstance(rtui.Props{
-		"ownerID": "country-select",
+		"ownerID":          "country-select",
+		"componentID":      "country-select",
+		"options":          []Option{{Value: "us", Label: "United States"}, {Value: "cn", Label: "China"}, {Value: "jp", Label: "Japan"}},
+		"selectedIndex":    -1,
+		"selectedIndices":  []int{},
+		"highlightedIndex": 0,
+		"maxVisibleRows":   6,
+		"minWidth":         20,
 	})
-	defer popup.unregister()
 
-	size := popup.Measure(layout.UnboundedConstraints())
-	if size.Width != 0 || size.Height != 0 {
-		t.Fatalf("closed popup Measure = %+v, want zero size", size)
+	if !popup.HandleAction(action.NewAction(action.ActionNavigateDown)) {
+		t.Fatal("popup down should be handled")
 	}
+	if owner.highlightedIndex != 1 {
+		t.Fatalf("owner highlightedIndex = %d, want 1", owner.highlightedIndex)
+	}
+}
 
+func TestPopupInstance_HandleAction_NavigateDownBubblesHighlight_EmptyOwnerComponentID(t *testing.T) {
+	owner := NewInstance(rtui.Props{
+		"ownerID":      "country-select",
+		"overlayPopup": true,
+		"portalRoot":   rtui.DefaultOverlayPortalRootID,
+		"options": []Option{
+			{Value: "us", Label: "United States"},
+			{Value: "cn", Label: "China"},
+			{Value: "jp", Label: "Japan"},
+		},
+		"maxVisibleRows": 6,
+	})
 	owner.openDropdown()
-	size = popup.Measure(layout.UnboundedConstraints())
-	if size.Width <= 0 || size.Height <= 0 {
-		t.Fatalf("open popup Measure = %+v, want non-zero size", size)
+	owner.highlightedIndex = 0
+	owner.syncOverlayRegistration()
+	defer owner.unregisterOverlay()
+
+	popup := newPopupInstance(rtui.Props{
+		"ownerID":          "country-select",
+		"componentID":      "country-select",
+		"options":          []Option{{Value: "us", Label: "United States"}, {Value: "cn", Label: "China"}, {Value: "jp", Label: "Japan"}},
+		"selectedIndex":    -1,
+		"selectedIndices":  []int{},
+		"highlightedIndex": 0,
+		"maxVisibleRows":   6,
+		"minWidth":         20,
+	})
+
+	if !popup.HandleAction(action.NewAction(action.ActionNavigateDown)) {
+		t.Fatal("popup down should be handled")
+	}
+	if owner.highlightedIndex != 1 {
+		t.Fatalf("owner highlightedIndex = %d, want 1", owner.highlightedIndex)
 	}
 }
 
@@ -516,9 +617,163 @@ func TestMiddleware_ClickOutsideClosesOpenOverlaySelect(t *testing.T) {
 	)
 
 	if result := middleware.Before(act); result != nil {
-		t.Fatal("outside click should be intercepted when overlay select closes")
+		t.Fatal("outside click should be intercepted after overlay select closes")
 	}
 	if owner.open {
 		t.Fatal("overlay select should be closed after outside click")
+	}
+}
+
+func TestMiddleware_CancelClosesOpenOverlaySelect(t *testing.T) {
+	owner := NewInstance(rtui.Props{
+		"key":          "country",
+		"ownerID":      "country-select",
+		"overlayPopup": true,
+		"options": []Option{
+			{Value: "us", Label: "United States"},
+			{Value: "cn", Label: "China"},
+		},
+	})
+	owner.syncOverlayRegistration()
+	defer owner.unregisterOverlay()
+	owner.openDropdown()
+
+	middleware := NewMiddleware()
+	act := action.NewAction(action.ActionCancel)
+
+	if result := middleware.Before(act); result != nil {
+		t.Fatal("cancel should be intercepted after overlay select closes")
+	}
+	if owner.open {
+		t.Fatal("overlay select should be closed after cancel")
+	}
+}
+
+func TestOverlayPopup_AnchorsToSelectBounds(t *testing.T) {
+	selectNode := NewBuilder().
+		SetID("country-select").
+		OverlayPopup(true).
+		Width(20).
+		Options([]Option{
+			{Value: "us", Label: "United States"},
+			{Value: "cn", Label: "China"},
+			{Value: "jp", Label: "Japan"},
+		}).
+		Build()
+
+	app := func() rtui.VNode {
+		return rtui.VStack(
+			rtui.NewElement("box").SetProps(rtui.Props{
+				"portalRootId": rtui.DefaultOverlayPortalRootID,
+				"position":     "absolute",
+				"left":         0,
+				"top":          0,
+				"width":        1,
+				"height":       1,
+			}),
+			rtui.NewElement("text").SetProps(rtui.Props{"content": "Country:"}),
+			rtui.HStack(
+				rtui.NewElement("text").SetProps(rtui.Props{"content": "  "}),
+				selectNode,
+			),
+		)
+	}
+
+	node := render.NewDeclarativeNodeFromFuncWithFiber(app)
+	node.SetApp(framework.NewApp())
+	node.SetRenderMode(render.RenderModeFiberFirst)
+
+	ctx := component.PaintContext{
+		Bounds:          paint.Rect{X: 0, Y: 0, Width: 50, Height: 12},
+		AvailableWidth:  50,
+		AvailableHeight: 12,
+	}
+
+	node.Paint(ctx, paint.NewBuffer(50, 12))
+	fiberRoot := node.GetFiberRoot()
+	if fiberRoot == nil || fiberRoot.Child == nil {
+		t.Fatalf("unexpected fiber tree shape after render")
+	}
+	var selectFiber *rtui.Fiber
+	var findSelect func(*rtui.Fiber)
+	findSelect = func(f *rtui.Fiber) {
+		if f == nil || selectFiber != nil {
+			return
+		}
+		if f.Tag == "select" {
+			selectFiber = f
+			return
+		}
+		findSelect(f.Child)
+		findSelect(f.Sibling)
+	}
+	findSelect(fiberRoot)
+	if selectFiber == nil {
+		t.Fatalf("expected select fiber in tree")
+	}
+	if selectFiber.Tag != "select" {
+		t.Fatalf("select fiber tag = %q", selectFiber.Tag)
+	}
+	trigger := selectOverlayRegistry.trigger("country-select")
+	if trigger == nil {
+		t.Fatal("expected trigger instance to be registered")
+	}
+
+	trigger.openDropdown()
+	node.Paint(ctx, paint.NewBuffer(50, 12))
+	fiberRoot = node.GetFiberRoot()
+	selectFiber = nil
+	findSelect(fiberRoot)
+	if selectFiber == nil || selectFiber.Child == nil {
+		t.Fatalf("expected select fiber child portal after opening popup")
+	}
+	if selectFiber.ID != "country-select" {
+		t.Fatalf("select fiber ID = %q, want %q", selectFiber.ID, "country-select")
+	}
+	if got, _ := selectFiber.Child.Props["portalRoot"].(string); got != rtui.DefaultOverlayPortalRootID {
+		t.Fatalf("select child portalRoot = %q, want %q", got, rtui.DefaultOverlayPortalRootID)
+	}
+
+	portals := node.GetPortalRoots()
+	if len(portals) != 1 {
+		t.Fatalf("portal roots len = %d, want 1\nlayout:\n%s\nportal:\n%s", len(portals), node.GetLayoutTreeString(), node.GetPortalTreeString())
+	}
+
+	triggerX, triggerY, _, triggerH := trigger.GetBounds()
+	if triggerX == 0 && triggerY == 0 {
+		t.Fatalf("trigger bounds stayed at origin; test would not validate anchoring\nlayout:\n%s\npaintable:\n%s", node.GetLayoutTreeString(), node.GetPaintableTreeString())
+	}
+	portal := portals[0]
+	if portal.X != triggerX {
+		t.Fatalf("portal X = %d, want %d\nlayout:\n%s\nportal:\n%s\npaintable:\n%s", portal.X, triggerX, node.GetLayoutTreeString(), node.GetPortalTreeString(), node.GetPaintableTreeString())
+	}
+	expectedPopupY := triggerY + triggerH
+	if portal.Y != expectedPopupY {
+		t.Fatalf("portal Y = %d, want %d\nlayout:\n%s\nportal:\n%s\npaintable:\n%s", portal.Y, expectedPopupY, node.GetLayoutTreeString(), node.GetPortalTreeString(), node.GetPaintableTreeString())
+	}
+
+	var popupBox *paint.PaintableBox
+	var findPopup func(*paint.PaintableBox)
+	findPopup = func(box *paint.PaintableBox) {
+		if box == nil || popupBox != nil {
+			return
+		}
+		if box.Node != nil && box.Node.Tag() == "select-popup" {
+			popupBox = box
+			return
+		}
+		for _, child := range box.Children {
+			findPopup(child)
+		}
+	}
+	findPopup(node.GetPaintableRoot())
+	if popupBox == nil {
+		t.Fatalf("select-popup paintable box not found\npaintable:\n%s", node.GetPaintableTreeString())
+	}
+	if popupBox.X != triggerX {
+		t.Fatalf("popup paintable X = %d, want %d\nlayout:\n%s\nportal:\n%s\npaintable:\n%s", popupBox.X, triggerX, node.GetLayoutTreeString(), node.GetPortalTreeString(), node.GetPaintableTreeString())
+	}
+	if popupBox.Y != expectedPopupY {
+		t.Fatalf("popup paintable Y = %d, want %d\nlayout:\n%s\nportal:\n%s\npaintable:\n%s", popupBox.Y, expectedPopupY, node.GetLayoutTreeString(), node.GetPortalTreeString(), node.GetPaintableTreeString())
 	}
 }

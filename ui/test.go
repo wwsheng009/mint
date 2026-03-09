@@ -214,6 +214,11 @@ func RunTest(app ComponentFunc, opts ...Option) (*TestableApp, error) {
 	intent.SetupBuiltinHandlers(intentRuntime) // Register built-in intent handlers
 	rtui.SetGlobalIntentRuntime(intentRuntime)
 
+	// Keep test setup aligned with ui.Run/ui.RunApp plugin registration.
+	if options.PluginSetupFunc != nil {
+		options.PluginSetupFunc(fwApp)
+	}
+
 	// Call initialization function if provided (e.g., for registering Intent Handlers)
 	if options.InitFunc != nil {
 		options.InitFunc()
@@ -221,10 +226,15 @@ func RunTest(app ComponentFunc, opts ...Option) (*TestableApp, error) {
 
 	// Create the declarative root component with Fiber reconciler enabled
 	// Fiber is now the default and required for persistent component instances and event handlers
-	declarativeNode := render.NewDeclarativeNodeFromFuncWithFiber(app)
+	declarativeNode := render.NewDeclarativeNodeFromFuncWithFiber(wrapWithDefaultPortalRoots(app))
 
 	// Set app to enable frame scheduling
 	declarativeNode.SetApp(fwApp)
+
+	// Keep test runtime focus routing aligned with ui.Run/ui.RunApp.
+	if fm := declarativeNode.GetFocusManager(); fm != nil {
+		fwApp.SetFocusManagerFromDeclarativeNode(fm)
+	}
 
 	// Pass Intent Runtime to declarative node for component context
 	render.SetDeclarativeNodeIntentRuntime(declarativeNode, intentRuntime)
@@ -287,6 +297,11 @@ func RunTestWithSandbox(app ComponentFunc, opts ...Option) (*TestableApp, error)
 	intent.SetupBuiltinHandlers(intentRuntime) // Register built-in intent handlers
 	rtui.SetGlobalIntentRuntime(intentRuntime)
 
+	// Keep test setup aligned with ui.Run/ui.RunApp plugin registration.
+	if options.PluginSetupFunc != nil {
+		options.PluginSetupFunc(fwApp)
+	}
+
 	// Call initialization function if provided (e.g., for registering Intent Handlers)
 	if options.InitFunc != nil {
 		options.InitFunc()
@@ -294,10 +309,15 @@ func RunTestWithSandbox(app ComponentFunc, opts ...Option) (*TestableApp, error)
 
 	// Create the declarative root component with Fiber reconciler enabled
 	// Fiber is now the default and required for persistent component instances and event handlers
-	declarativeNode := render.NewDeclarativeNodeFromFuncWithFiber(app)
+	declarativeNode := render.NewDeclarativeNodeFromFuncWithFiber(wrapWithDefaultPortalRoots(app))
 
 	// Set app to enable frame scheduling
 	declarativeNode.SetApp(fwApp)
+
+	// Keep test runtime focus routing aligned with ui.Run/ui.RunApp.
+	if fm := declarativeNode.GetFocusManager(); fm != nil {
+		fwApp.SetFocusManagerFromDeclarativeNode(fm)
+	}
 
 	// Pass Intent Runtime to declarative node for component context
 	render.SetDeclarativeNodeIntentRuntime(declarativeNode, intentRuntime)
@@ -510,6 +530,7 @@ func (ta *TestableApp) GetFocusedType() int {
 	}
 	return ta.root.GetFocusedType()
 }
+
 // GetFocusManager 获取焦点管理器
 func (ta *TestableApp) GetFocusManager() interface{} {
 	if ta.root == nil {
