@@ -1,9 +1,13 @@
 package table
 
 import (
+	"strings"
 	"testing"
 
+	"github.com/wwsheng009/mint/runtime/action"
 	"github.com/wwsheng009/mint/runtime/layout"
+	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
+	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
@@ -145,7 +149,7 @@ func TestInstance_Measure(t *testing.T) {
 	})
 
 	size := inst.Measure(layout.Constraints{})
-	
+
 	// Expected: 2 chars (ID) + 3 spaces (" | ") + 4 chars (Name) = 9 width
 	// Height: header(1) + separator(1) + 2 rows = 4
 	if size.Width == 0 {
@@ -304,4 +308,150 @@ func TestColumnsEqual_DifferentLength(t *testing.T) {
 	if columnsEqual(cols1, cols2) {
 		t.Error("Expected unequal columns with different length")
 	}
+}
+
+func TestInstance_PaintAppliesSearchFilterAndFooter(t *testing.T) {
+	cols := []TableColumn{
+		{Title: "ID", Width: 4, Sortable: true},
+		{Title: "Name", Width: 10, Sortable: true},
+		{Title: "Role", Width: 8},
+	}
+	rows := [][]string{
+		{"2", "Bob", "Admin"},
+		{"1", "Alice", "User"},
+		{"3", "Alex", "Admin"},
+	}
+
+	inst := NewInstance(rtui.Props{
+		"columns":        cols,
+		"rows":           rows,
+		"searchQuery":    "al",
+		"filters":        map[int]string{2: "admin"},
+		"sortColumn":     0,
+		"sortDescending": false,
+		"showFooter":     true,
+	})
+
+	cmds := inst.Paint(0, 0)
+	if got := textAtY(cmds, 0); !strings.Contains(got, "ID ↑") {
+		t.Fatalf("header = %q, want sort marker", got)
+	}
+	if got := textAtY(cmds, 2); !strings.Contains(got, "3") || !strings.Contains(got, "Alex") {
+		t.Fatalf("first row = %q, want filtered/sorted Alex row", got)
+	}
+	if got := textAtY(cmds, 3); !strings.Contains(got, "Rows 1/3") || !strings.Contains(got, "Search \"al\"") || !strings.Contains(got, "Filters 1") {
+		t.Fatalf("footer = %q, want search/filter summary", got)
+	}
+}
+
+func TestInstance_HandleAction_ClickSortableHeaderTogglesSort(t *testing.T) {
+	cols := []TableColumn{
+		{Title: "ID", Width: 4},
+		{Title: "Name", Width: 8, Sortable: true},
+	}
+	rows := [][]string{
+		{"2", "Bob"},
+		{"1", "Alice"},
+	}
+
+	inst := NewInstance(rtui.Props{
+		"columns":    cols,
+		"rows":       rows,
+		"showBorder": true,
+	})
+
+	mouseMsg := runtimemsg.NewMouseMsg(0, 0, runtimemsg.MouseLeft, runtimemsg.MouseActionPress)
+	mouseMsg.LocalX = 10
+	mouseMsg.LocalY = 1
+	act := action.NewAction(action.ActionClick).WithPayload(mouseMsg)
+
+	if !inst.HandleAction(act) {
+		t.Fatal("expected header click to be handled")
+	}
+	if inst.sortColumn != 1 || inst.sortDescending {
+		t.Fatalf("sort state = (%d,%v), want column 1 ascending", inst.sortColumn, inst.sortDescending)
+	}
+	if got := textAtY(inst.Paint(0, 0), 3); !strings.Contains(got, "Alice") {
+		t.Fatalf("first sorted row = %q, want Alice", got)
+	}
+
+	if !inst.HandleAction(act) {
+		t.Fatal("expected second header click to be handled")
+	}
+	if inst.sortColumn != 1 || !inst.sortDescending {
+		t.Fatalf("sort state = (%d,%v), want column 1 descending", inst.sortColumn, inst.sortDescending)
+	}
+	if got := textAtY(inst.Paint(0, 0), 3); !strings.Contains(got, "Bob") {
+		t.Fatalf("first sorted row after toggle = %q, want Bob", got)
+	}
+}
+
+func TestInstance_HandleAction_PageNavigation(t *testing.T) {
+	cols := []TableColumn{
+		{Title: "ID", Width: 4},
+		{Title: "Name", Width: 8},
+	}
+	rows := [][]string{
+		{"1", "Alice"},
+		{"2", "Bob"},
+		{"3", "Carol"},
+		{"4", "Dave"},
+	}
+
+	inst := NewInstance(rtui.Props{
+		"columns":  cols,
+		"rows":     rows,
+		"pageSize": 2,
+	})
+
+	if !inst.HandleAction(action.NewAction(action.ActionNavigatePageDown)) {
+		t.Fatal("expected page down to be handled")
+	}
+	if inst.currentPage != 1 {
+		t.Fatalf("currentPage = %d, want 1", inst.currentPage)
+	}
+	if inst.selectedIndex != 2 {
+		t.Fatalf("selectedIndex = %d, want 2", inst.selectedIndex)
+	}
+	if got := textAtY(inst.Paint(0, 0), 2); !strings.Contains(got, "3") || !strings.Contains(got, "Carol") {
+		t.Fatalf("first row on page 2 = %q, want Carol", got)
+	}
+}
+
+func TestBuilder_FluentEnhancements(t *testing.T) {
+	vnode := NewBuilder().
+		Columns([]TableColumn{{Title: "ID", Sortable: true}}).
+		SearchQuery("alice").
+		Filter(0, "1").
+		PageSize(5).
+		CurrentPage(1).
+		SortBy(0, true).
+		ShowBorder(true).
+		ShowFooter(true).
+		BuildVNode()
+
+	if vnode.searchQuery != "alice" {
+		t.Fatalf("searchQuery = %q, want alice", vnode.searchQuery)
+	}
+	if vnode.pageSize != 5 {
+		t.Fatalf("pageSize = %d, want 5", vnode.pageSize)
+	}
+	if vnode.currentPage != 1 || !vnode.currentPageControlled {
+		t.Fatalf("currentPage state = (%d,%v), want (1,true)", vnode.currentPage, vnode.currentPageControlled)
+	}
+	if vnode.sortColumn != 0 || !vnode.sortDescending || !vnode.sortControlled {
+		t.Fatalf("sort state = (%d,%v,%v), want (0,true,true)", vnode.sortColumn, vnode.sortDescending, vnode.sortControlled)
+	}
+	if !vnode.showBorder || !vnode.showFooter {
+		t.Fatal("expected border and footer to be enabled")
+	}
+}
+
+func textAtY(cmds []paint.DrawCmd, y int) string {
+	for _, cmd := range cmds {
+		if cmd.Y == y {
+			return cmd.Text
+		}
+	}
+	return ""
 }

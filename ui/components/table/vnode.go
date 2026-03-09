@@ -12,8 +12,9 @@ import (
 
 // TableColumn represents a column in a table
 type TableColumn struct {
-	Title string
-	Width int
+	Title    string
+	Width    int
+	Sortable bool
 }
 
 // =============================================================================
@@ -29,13 +30,30 @@ type VNode struct {
 	key string
 
 	// === Table Props ===
-	columns     []TableColumn
-	rows        [][]string
-	headerStyle style.Style
-	tableStyle  style.Style
+	columns       []TableColumn
+	rows          [][]string
+	emptyText     string
+	headerStyle   style.Style
+	tableStyle    style.Style
+	selectedStyle style.Style
+	borderStyle   style.Style
+	statusStyle   style.Style
 
 	// === Layout Props ===
-	gap int // Gap between header and rows
+	gap         int
+	showBorder  bool
+	showFooter  bool
+	pageSize    int
+	searchQuery string
+	filters     map[int]string
+
+	currentPage             int
+	currentPageControlled   bool
+	sortColumn              int
+	sortDescending          bool
+	sortControlled          bool
+	selectedIndex           int
+	selectedIndexControlled bool
 }
 
 // Ensure VNode implements required interfaces
@@ -51,12 +69,24 @@ var (
 // New creates a new table VNode.
 func New() *VNode {
 	return &VNode{
-		ElementVNode: rtui.NewElement("table"),
-		columns:      []TableColumn{},
-		rows:         [][]string{},
-		headerStyle:  style.Style{}.Bold(true),
-		tableStyle:   style.Style{},
-		gap:          0,
+		ElementVNode:  rtui.NewElement("table"),
+		columns:       []TableColumn{},
+		rows:          [][]string{},
+		emptyText:     "(empty)",
+		headerStyle:   style.Style{}.Bold(true),
+		tableStyle:    style.Style{},
+		selectedStyle: style.Style{}.Reverse(true),
+		borderStyle:   style.Style{}.Foreground(style.BrightBlack),
+		statusStyle:   style.Style{}.Foreground(style.BrightBlack),
+		gap:           0,
+		showBorder:    false,
+		showFooter:    true,
+		pageSize:      0,
+		searchQuery:   "",
+		filters:       map[int]string{},
+		currentPage:   0,
+		sortColumn:    -1,
+		selectedIndex: -1,
 	}
 }
 
@@ -64,10 +94,10 @@ func New() *VNode {
 // rtui.VNode Interface Implementation
 // =============================================================================
 
-func (v *VNode) Key() string           { return v.key }
+func (v *VNode) Key() string                  { return v.key }
 func (v *VNode) SetKey(key string) rtui.VNode { v.key = key; return v }
-func (v *VNode) Tag() string           { return "table" }
-func (v *VNode) Type() rtui.VNodeType  { return rtui.VNodeElement }
+func (v *VNode) Tag() string                  { return "table" }
+func (v *VNode) Type() rtui.VNodeType         { return rtui.VNodeElement }
 
 func (v *VNode) Children() []rtui.VNode {
 	// Table is a leaf component - no children
@@ -79,22 +109,38 @@ func (v *VNode) SetChildren(children []rtui.VNode) rtui.VNode {
 	return v
 }
 
-func (v *VNode) GetLayer() rtui.Layer   { return rtui.LayerBase }
+func (v *VNode) GetLayer() rtui.Layer             { return rtui.LayerBase }
 func (v *VNode) SetLayer(l rtui.Layer) rtui.VNode { return v }
 
-func (v *VNode) Style() style.Style    { return v.tableStyle }
+func (v *VNode) Style() style.Style                { return v.tableStyle }
 func (v *VNode) SetStyle(s style.Style) rtui.VNode { v.tableStyle = s; return v }
 
-func (v *VNode) TextContent() string   { return "" }
+func (v *VNode) TextContent() string { return "" }
 
 func (v *VNode) Props() rtui.Props {
 	return rtui.Props{
-		"key":         v.key,
-		"columns":     v.columns,
-		"rows":        v.rows,
-		"headerStyle": v.headerStyle,
-		"tableStyle":  v.tableStyle,
-		"gap":         v.gap,
+		"key":                     v.key,
+		"columns":                 v.columns,
+		"rows":                    v.rows,
+		"emptyText":               v.emptyText,
+		"headerStyle":             v.headerStyle,
+		"tableStyle":              v.tableStyle,
+		"selectedStyle":           v.selectedStyle,
+		"borderStyle":             v.borderStyle,
+		"statusStyle":             v.statusStyle,
+		"gap":                     v.gap,
+		"showBorder":              v.showBorder,
+		"showFooter":              v.showFooter,
+		"pageSize":                v.pageSize,
+		"searchQuery":             v.searchQuery,
+		"filters":                 v.filters,
+		"currentPage":             v.currentPage,
+		"currentPageControlled":   v.currentPageControlled,
+		"sortColumn":              v.sortColumn,
+		"sortDescending":          v.sortDescending,
+		"sortControlled":          v.sortControlled,
+		"selectedIndex":           v.selectedIndex,
+		"selectedIndexControlled": v.selectedIndexControlled,
 	}
 }
 
@@ -108,14 +154,62 @@ func (v *VNode) SetProps(p rtui.Props) rtui.VNode {
 	if val, ok := p["rows"].([][]string); ok {
 		v.rows = val
 	}
+	if val, ok := p["emptyText"].(string); ok {
+		v.emptyText = val
+	}
 	if val, ok := p["headerStyle"].(style.Style); ok {
 		v.headerStyle = val
 	}
 	if val, ok := p["tableStyle"].(style.Style); ok {
 		v.tableStyle = val
 	}
+	if val, ok := p["selectedStyle"].(style.Style); ok {
+		v.selectedStyle = val
+	}
+	if val, ok := p["borderStyle"].(style.Style); ok {
+		v.borderStyle = val
+	}
+	if val, ok := p["statusStyle"].(style.Style); ok {
+		v.statusStyle = val
+	}
 	if val, ok := p["gap"].(int); ok {
 		v.gap = val
+	}
+	if val, ok := p["showBorder"].(bool); ok {
+		v.showBorder = val
+	}
+	if val, ok := p["showFooter"].(bool); ok {
+		v.showFooter = val
+	}
+	if val, ok := p["pageSize"].(int); ok {
+		v.pageSize = val
+	}
+	if val, ok := p["searchQuery"].(string); ok {
+		v.searchQuery = val
+	}
+	if val, ok := p["filters"].(map[int]string); ok {
+		v.filters = cloneFilters(val)
+	}
+	if val, ok := p["currentPage"].(int); ok {
+		v.currentPage = val
+	}
+	if val, ok := p["currentPageControlled"].(bool); ok {
+		v.currentPageControlled = val
+	}
+	if val, ok := p["sortColumn"].(int); ok {
+		v.sortColumn = val
+	}
+	if val, ok := p["sortDescending"].(bool); ok {
+		v.sortDescending = val
+	}
+	if val, ok := p["sortControlled"].(bool); ok {
+		v.sortControlled = val
+	}
+	if val, ok := p["selectedIndex"].(int); ok {
+		v.selectedIndex = val
+	}
+	if val, ok := p["selectedIndexControlled"].(bool); ok {
+		v.selectedIndexControlled = val
 	}
 	return v
 }
@@ -125,14 +219,7 @@ func (v *VNode) SetProps(p rtui.Props) rtui.VNode {
 // =============================================================================
 
 func (v *VNode) CreateInstance() rtui.ComponentInstance {
-	return NewInstance(rtui.Props{
-		"key":         v.key,
-		"columns":     v.columns,
-		"rows":        v.rows,
-		"headerStyle": v.headerStyle,
-		"tableStyle":  v.tableStyle,
-		"gap":         v.gap,
-	})
+	return NewInstance(v.Props())
 }
 
 // =============================================================================
@@ -140,9 +227,48 @@ func (v *VNode) CreateInstance() rtui.ComponentInstance {
 // =============================================================================
 
 func (v *VNode) SetColumns(cols []TableColumn) *VNode  { v.columns = cols; return v }
-func (v *VNode) SetRows(rows [][]string) *VNode         { v.rows = rows; return v }
+func (v *VNode) SetRows(rows [][]string) *VNode        { v.rows = rows; return v }
+func (v *VNode) SetEmptyText(text string) *VNode       { v.emptyText = text; return v }
 func (v *VNode) SetHeaderStyle(s style.Style) *VNode   { v.headerStyle = s; return v }
-func (v *VNode) SetGap(gap int) *VNode                  { v.gap = gap; return v }
+func (v *VNode) SetGap(gap int) *VNode                 { v.gap = gap; return v }
+func (v *VNode) SetShowBorder(show bool) *VNode        { v.showBorder = show; return v }
+func (v *VNode) SetShowFooter(show bool) *VNode        { v.showFooter = show; return v }
+func (v *VNode) SetBorderStyle(s style.Style) *VNode   { v.borderStyle = s; return v }
+func (v *VNode) SetSelectedStyle(s style.Style) *VNode { v.selectedStyle = s; return v }
+func (v *VNode) SetStatusStyle(s style.Style) *VNode   { v.statusStyle = s; return v }
+func (v *VNode) SetPageSize(pageSize int) *VNode       { v.pageSize = pageSize; return v }
+func (v *VNode) SetSearchQuery(query string) *VNode    { v.searchQuery = query; return v }
+func (v *VNode) SetFilters(filters map[int]string) *VNode {
+	v.filters = cloneFilters(filters)
+	return v
+}
+func (v *VNode) SetFilter(columnIndex int, value string) *VNode {
+	if v.filters == nil {
+		v.filters = make(map[int]string)
+	}
+	if value == "" {
+		delete(v.filters, columnIndex)
+	} else {
+		v.filters[columnIndex] = value
+	}
+	return v
+}
+func (v *VNode) SetCurrentPage(page int) *VNode {
+	v.currentPage = page
+	v.currentPageControlled = true
+	return v
+}
+func (v *VNode) SetSortBy(columnIndex int, descending bool) *VNode {
+	v.sortColumn = columnIndex
+	v.sortDescending = descending
+	v.sortControlled = true
+	return v
+}
+func (v *VNode) SetSelectedIndex(index int) *VNode {
+	v.selectedIndex = index
+	v.selectedIndexControlled = true
+	return v
+}
 
 func (v *VNode) AddRow(row ...string) *VNode {
 	v.rows = append(v.rows, row)
@@ -153,8 +279,20 @@ func (v *VNode) AddRow(row ...string) *VNode {
 // Accessors
 // =============================================================================
 
-func (v *VNode) Columns() []TableColumn  { return v.columns }
-func (v *VNode) Rows() [][]string      { return v.rows }
+func (v *VNode) Columns() []TableColumn   { return v.columns }
+func (v *VNode) Rows() [][]string         { return v.rows }
+func (v *VNode) EmptyText() string        { return v.emptyText }
 func (v *VNode) HeaderStyle() style.Style { return v.headerStyle }
 func (v *VNode) TableStyle() style.Style  { return v.tableStyle }
-func (v *VNode) Gap() int              { return v.gap }
+func (v *VNode) Gap() int                 { return v.gap }
+
+func cloneFilters(filters map[int]string) map[int]string {
+	if len(filters) == 0 {
+		return map[int]string{}
+	}
+	cloned := make(map[int]string, len(filters))
+	for key, value := range filters {
+		cloned[key] = value
+	}
+	return cloned
+}

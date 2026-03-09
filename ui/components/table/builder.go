@@ -46,6 +46,12 @@ func (b *Builder) Rows(rows [][]string) *Builder {
 	return b
 }
 
+// EmptyText sets the text shown when no rows match.
+func (b *Builder) EmptyText(text string) *Builder {
+	b.vnode.SetEmptyText(text)
+	return b
+}
+
 // AddRow adds a single row.
 func (b *Builder) AddRow(row ...string) *Builder {
 	b.vnode.AddRow(row...)
@@ -67,6 +73,78 @@ func (b *Builder) TableStyle(s style.Style) *Builder {
 // Gap sets the gap between header and rows.
 func (b *Builder) Gap(gap int) *Builder {
 	b.vnode.SetGap(gap)
+	return b
+}
+
+// ShowBorder toggles the outer table border.
+func (b *Builder) ShowBorder(show bool) *Builder {
+	b.vnode.SetShowBorder(show)
+	return b
+}
+
+// BorderStyle sets the border style.
+func (b *Builder) BorderStyle(s style.Style) *Builder {
+	b.vnode.SetBorderStyle(s)
+	return b
+}
+
+// SelectedStyle sets the selected row style.
+func (b *Builder) SelectedStyle(s style.Style) *Builder {
+	b.vnode.SetSelectedStyle(s)
+	return b
+}
+
+// StatusStyle sets the footer/status line style.
+func (b *Builder) StatusStyle(s style.Style) *Builder {
+	b.vnode.SetStatusStyle(s)
+	return b
+}
+
+// ShowFooter toggles the status/footer line.
+func (b *Builder) ShowFooter(show bool) *Builder {
+	b.vnode.SetShowFooter(show)
+	return b
+}
+
+// PageSize enables pagination with the given page size.
+func (b *Builder) PageSize(size int) *Builder {
+	b.vnode.SetPageSize(size)
+	return b
+}
+
+// CurrentPage sets the current page in controlled mode.
+func (b *Builder) CurrentPage(page int) *Builder {
+	b.vnode.SetCurrentPage(page)
+	return b
+}
+
+// SearchQuery applies case-insensitive search across all columns.
+func (b *Builder) SearchQuery(query string) *Builder {
+	b.vnode.SetSearchQuery(query)
+	return b
+}
+
+// Filters applies case-insensitive column filters.
+func (b *Builder) Filters(filters map[int]string) *Builder {
+	b.vnode.SetFilters(filters)
+	return b
+}
+
+// Filter applies or clears a filter for a single column.
+func (b *Builder) Filter(columnIndex int, value string) *Builder {
+	b.vnode.SetFilter(columnIndex, value)
+	return b
+}
+
+// SortBy sets the sort state in controlled mode.
+func (b *Builder) SortBy(columnIndex int, descending bool) *Builder {
+	b.vnode.SetSortBy(columnIndex, descending)
+	return b
+}
+
+// SelectedIndex sets the selected row index in controlled mode.
+func (b *Builder) SelectedIndex(index int) *Builder {
+	b.vnode.SetSelectedIndex(index)
 	return b
 }
 
