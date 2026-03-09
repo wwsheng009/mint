@@ -466,3 +466,34 @@ func TestInstallAddsMiddlewareOnceAndDedupsShortcuts(t *testing.T) {
 		t.Fatalf("middlewareCount after second install = %d, want 1", host.middlewareCount)
 	}
 }
+
+func TestRegisterBuiltinHandlers_RegistersNavigateMenuIntentAsOverridable(t *testing.T) {
+	registry := intent.NewRegistry()
+	registerBuiltinHandlers(registry)
+
+	handler, ok := registry.GetHandler((NavigateMenuIntent{}).IntentType())
+	if !ok || handler == nil {
+		t.Fatal("expected builtin handler for menu.navigate")
+	}
+
+	overrideCalled := false
+	intent.RegisterTypedWithOpts(registry, func(ctx *intent.ActionContext, i NavigateMenuIntent) intent.IntentResult {
+		overrideCalled = true
+		return intent.HandledResult()
+	})
+
+	result := handler.Handle(intent.NewActionContext(nil, "test", nil), NavigateMenuIntent{})
+	if result.Error != nil {
+		t.Fatalf("builtin handler returned error: %v", result.Error)
+	}
+
+	overridden, ok := registry.GetHandler((NavigateMenuIntent{}).IntentType())
+	if !ok || overridden == nil {
+		t.Fatal("expected overridden handler for menu.navigate")
+	}
+
+	overridden.Handle(intent.NewActionContext(nil, "test", nil), NavigateMenuIntent{})
+	if !overrideCalled {
+		t.Fatal("expected custom menu.navigate handler to override builtin handler")
+	}
+}
