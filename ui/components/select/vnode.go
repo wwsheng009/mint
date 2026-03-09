@@ -4,6 +4,7 @@ import (
 	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/style"
+	rttypes "github.com/wwsheng009/mint/runtime/types"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
 
@@ -36,6 +37,9 @@ type VNode struct {
 	width          int
 	placeholder    string
 	maxVisibleRows int
+	overlayPopup   bool
+	portalRoot     string
+	closeOnOutside bool
 
 	// === Intent Props (no closures!) ===
 	changeIntent intent.Intent
@@ -71,6 +75,9 @@ func New() *VNode {
 		selectionMode:  SelectionSingle,
 		maxVisibleRows: 6,
 		placeholder:    "...",
+		overlayPopup:   true,
+		portalRoot:     rtui.DefaultOverlayPortalRootID,
+		closeOnOutside: true,
 	}
 }
 
@@ -86,6 +93,24 @@ func (s *VNode) Key() string {
 // SetKey sets the component key - returns VNode for chaining.
 func (s *VNode) SetKey(key string) rtui.VNode {
 	s.key = key
+	return s
+}
+
+// ID returns the business identifier used for anchoring.
+// Falls back to componentID/key so overlay popup can anchor without an explicit SetID call.
+func (s *VNode) ID() string {
+	if id := s.ElementVNode.ID(); id != "" {
+		return id
+	}
+	if s.componentID != "" {
+		return s.componentID
+	}
+	return s.key
+}
+
+// SetID sets the business identifier.
+func (s *VNode) SetID(id string) rtui.VNode {
+	s.ElementVNode.SetID(id)
 	return s
 }
 
@@ -105,9 +130,51 @@ func (s *VNode) SetStyle(st style.Style) rtui.VNode {
 	return s
 }
 
-// Children returns child nodes (select has no children).
+// Children returns the optional overlay popup child.
 func (s *VNode) Children() []rtui.VNode {
-	return nil
+	if !s.usesOverlayPopup() {
+		return nil
+	}
+	return []rtui.VNode{newPopupVNode(s)}
+}
+
+func (s *VNode) usesOverlayPopup() bool {
+	return s.overlayPopup && s.ownerID() != ""
+}
+
+func (s *VNode) ownerID() string {
+	return s.ID()
+}
+
+func newPopupVNode(owner *VNode) rtui.VNode {
+	ownerID := owner.ownerID()
+	surface := &popupVNode{ElementVNode: rtui.NewElement("select-popup")}
+	surface.SetKey(ownerID + "-popup")
+	surface.SetID(ownerID + "-popup")
+	surface.SetProps(rtui.Props{
+		"ownerID":        ownerID,
+		"closeOnOutside": owner.closeOnOutside,
+	})
+
+	portal := rtui.NewElement("box")
+	portal.SetKey(ownerID + "-popup-portal")
+	portal.SetID(ownerID + "-popup-portal")
+	portal.SetProps(rtui.Props{
+		"position": "absolute",
+		"left":     0,
+		"top":      0,
+		"width":    1,
+		"height":   1,
+	})
+	if owner.portalRoot != "" {
+		portal.SetPortalRoot(owner.portalRoot)
+	}
+	portal.SetAnchorTo(ownerID, rttypes.AnchorBottomLeft)
+	portal.SetPortalPosition(rttypes.PositionAbsolute)
+	portal.SetProp("left", 0)
+	portal.SetProp("top", 1)
+	portal.SetChildren([]rtui.VNode{surface})
+	return portal
 }
 
 // SetChildren is a no-op for select - returns VNode for chaining.
@@ -135,6 +202,9 @@ func (s *VNode) Props() rtui.Props {
 		"width":           s.width,
 		"placeholder":     s.placeholder,
 		"maxVisibleRows":  s.maxVisibleRows,
+		"overlayPopup":    s.overlayPopup,
+		"portalRoot":      s.portalRoot,
+		"closeOnOutside":  s.closeOnOutside,
 		"changeIntent":    s.changeIntent,
 		"selectedIndex":   s.selectedIndex,
 		"selectedIndices": append([]int(nil), s.selectedIndices...),
@@ -166,6 +236,15 @@ func (s *VNode) SetProps(p rtui.Props) rtui.VNode {
 	}
 	if v, ok := p["maxVisibleRows"].(int); ok {
 		s.maxVisibleRows = v
+	}
+	if v, ok := p["overlayPopup"].(bool); ok {
+		s.overlayPopup = v
+	}
+	if v, ok := p["portalRoot"].(string); ok {
+		s.portalRoot = v
+	}
+	if v, ok := p["closeOnOutside"].(bool); ok {
+		s.closeOnOutside = v
 	}
 	if v, ok := p["changeIntent"].(intent.Intent); ok {
 		s.changeIntent = v
@@ -202,6 +281,10 @@ func (s *VNode) CreateInstance() rtui.ComponentInstance {
 		"width":           s.width,
 		"placeholder":     s.placeholder,
 		"maxVisibleRows":  s.maxVisibleRows,
+		"overlayPopup":    s.usesOverlayPopup(),
+		"ownerID":         s.ownerID(),
+		"portalRoot":      s.portalRoot,
+		"closeOnOutside":  s.closeOnOutside,
 		"changeIntent":    s.changeIntent,
 		"selectedIndex":   s.selectedIndex,
 		"selectedIndices": append([]int(nil), s.selectedIndices...),
@@ -276,6 +359,24 @@ func (s *VNode) SetMaxVisibleRows(rows int) *VNode {
 	return s
 }
 
+// SetOverlayPopup enables/disables overlay portal popup rendering.
+func (s *VNode) SetOverlayPopup(enabled bool) *VNode {
+	s.overlayPopup = enabled
+	return s
+}
+
+// SetPopupPortalRoot sets the portal root used by the overlay popup.
+func (s *VNode) SetPopupPortalRoot(root string) *VNode {
+	s.portalRoot = root
+	return s
+}
+
+// SetCloseOnOutside controls outside click dismissal for overlay popup.
+func (s *VNode) SetCloseOnOutside(close bool) *VNode {
+	s.closeOnOutside = close
+	return s
+}
+
 // SetChangeIntent sets the change intent.
 func (s *VNode) SetChangeIntent(changeIntent intent.Intent) *VNode {
 	s.changeIntent = changeIntent
@@ -330,6 +431,21 @@ func (s *VNode) Placeholder() string {
 // MaxVisibleRows returns the number of visible popup rows.
 func (s *VNode) MaxVisibleRows() int {
 	return s.maxVisibleRows
+}
+
+// OverlayPopup reports whether overlay popup mode is enabled.
+func (s *VNode) OverlayPopup() bool {
+	return s.overlayPopup
+}
+
+// PortalRoot returns the popup portal root.
+func (s *VNode) PortalRoot() string {
+	return s.portalRoot
+}
+
+// CloseOnOutside reports whether outside clicks dismiss the popup.
+func (s *VNode) CloseOnOutside() bool {
+	return s.closeOnOutside
 }
 
 // ChangeIntent returns the change intent.

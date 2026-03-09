@@ -87,6 +87,24 @@ func (b *Builder) Width(w int) *Builder {
 	return b
 }
 
+// OverlayPopup enables portal-based popup rendering.
+func (b *Builder) OverlayPopup(enabled bool) *Builder {
+	b.node.SetOverlayPopup(enabled)
+	return b
+}
+
+// PortalRoot sets the popup portal root.
+func (b *Builder) PortalRoot(root string) *Builder {
+	b.node.SetPopupPortalRoot(root)
+	return b
+}
+
+// CloseOnOutside controls outside click dismissal for overlay popups.
+func (b *Builder) CloseOnOutside(close bool) *Builder {
+	b.node.SetCloseOnOutside(close)
+	return b
+}
+
 // Placeholder sets the text shown when nothing is selected.
 func (b *Builder) Placeholder(text string) *Builder {
 	b.node.SetPlaceholder(text)

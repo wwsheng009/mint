@@ -7,6 +7,7 @@ import (
 	"github.com/wwsheng009/mint/runtime/action"
 	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/runtime/layout"
+	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
 
@@ -430,5 +431,93 @@ func TestInstance_HandleAction_MultiSelectEmitsFieldChangeIntent(t *testing.T) {
 	}
 	if lastField.Value != "0,1" {
 		t.Fatalf("Value = %q, want %q", lastField.Value, "0,1")
+	}
+}
+
+func TestVNode_Children_OverlayPopupChild(t *testing.T) {
+	vnode := NewBuilder().
+		SetID("country-select").
+		AddOption("us", "United States").
+		AddOption("cn", "China").
+		BuildTyped()
+
+	children := vnode.Children()
+	if len(children) != 1 {
+		t.Fatalf("Children len = %d, want 1", len(children))
+	}
+	if children[0].Tag() != "box" {
+		t.Fatalf("child Tag() = %q, want %q", children[0].Tag(), "box")
+	}
+	props := children[0].Props()
+	if got, _ := props["portalRoot"].(string); got != rtui.DefaultOverlayPortalRootID {
+		t.Fatalf("portalRoot = %q, want %q", got, rtui.DefaultOverlayPortalRootID)
+	}
+	grandChildren := children[0].Children()
+	if len(grandChildren) != 1 || grandChildren[0].Tag() != "select-popup" {
+		t.Fatalf("expected popup surface child, got %#v", grandChildren)
+	}
+}
+
+func TestPopupInstance_Measure_UsesOwnerOpenState(t *testing.T) {
+	owner := NewInstance(rtui.Props{
+		"key":          "country",
+		"ownerID":      "country-select",
+		"overlayPopup": true,
+		"options": []Option{
+			{Value: "us", Label: "United States"},
+			{Value: "cn", Label: "China"},
+		},
+	})
+	owner.syncOverlayRegistration()
+	defer owner.unregisterOverlay()
+
+	popup := newPopupInstance(rtui.Props{
+		"ownerID": "country-select",
+	})
+	defer popup.unregister()
+
+	size := popup.Measure(layout.UnboundedConstraints())
+	if size.Width != 0 || size.Height != 0 {
+		t.Fatalf("closed popup Measure = %+v, want zero size", size)
+	}
+
+	owner.openDropdown()
+	size = popup.Measure(layout.UnboundedConstraints())
+	if size.Width <= 0 || size.Height <= 0 {
+		t.Fatalf("open popup Measure = %+v, want non-zero size", size)
+	}
+}
+
+func TestMiddleware_ClickOutsideClosesOpenOverlaySelect(t *testing.T) {
+	owner := NewInstance(rtui.Props{
+		"key":            "country",
+		"ownerID":        "country-select",
+		"overlayPopup":   true,
+		"closeOnOutside": true,
+		"options": []Option{
+			{Value: "us", Label: "United States"},
+			{Value: "cn", Label: "China"},
+		},
+	})
+	owner.SetBounds(2, 2, 12, 1)
+	owner.syncOverlayRegistration()
+	defer owner.unregisterOverlay()
+	owner.openDropdown()
+
+	popup := newPopupInstance(rtui.Props{"ownerID": "country-select"})
+	popup.SetBounds(2, 3, owner.popupWidth(), owner.popupHeight())
+	selectOverlayRegistry.registerPopup("country-select", popup)
+	defer popup.unregister()
+
+	middleware := NewMiddleware()
+	act := action.NewAction(action.ActionClick).WithPayload(
+		runtimemsg.NewMouseMsg(40, 20, runtimemsg.MouseLeft, runtimemsg.MouseActionPress),
+	)
+
+	if result := middleware.Before(act); result != nil {
+		t.Fatal("outside click should be intercepted when overlay select closes")
+	}
+	if owner.open {
+		t.Fatal("overlay select should be closed after outside click")
 	}
 }

@@ -29,6 +29,9 @@ type Instance struct {
 	width             int
 	placeholder       string
 	maxVisibleRows    int
+	overlayPopup      bool
+	ownerID           string
+	closeOnOutside    bool
 	changeIntent      intent.Intent
 	changeIntentField intent.FieldIntent
 	formID            string
@@ -68,6 +71,9 @@ func NewInstance(props rtui.Props) *Instance {
 		width:             getIntProp(props, "width", 0),
 		placeholder:       getStringProp(props, "placeholder", "..."),
 		maxVisibleRows:    getIntProp(props, "maxVisibleRows", defaultMaxVisibleRows),
+		overlayPopup:      getBoolProp(props, "overlayPopup", false),
+		ownerID:           getStringProp(props, "ownerID", ""),
+		closeOnOutside:    getBoolProp(props, "closeOnOutside", true),
 		changeIntent:      getIntentProp(props, "changeIntent"),
 		changeIntentField: getChangeIntentFieldProp(props, "changeIntent"),
 		formID:            getStringProp(props, "formID", ""),
@@ -113,14 +119,17 @@ func (inst *Instance) Init(props rtui.Props) {
 }
 
 func (inst *Instance) Destroy() {
+	inst.unregisterOverlay()
 	inst.behaviors.OnUnmount(inst)
 }
 
 func (inst *Instance) OnMount() {
+	inst.syncOverlayRegistration()
 	inst.behaviors.OnMount(inst)
 }
 
 func (inst *Instance) OnUnmount() {
+	inst.unregisterOverlay()
 	inst.behaviors.OnUnmount(inst)
 }
 
@@ -133,6 +142,9 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	oldPlaceholder := inst.placeholder
 	oldMaxVisibleRows := inst.maxVisibleRows
 	oldSelectionMode := inst.selectionMode
+	oldOverlayPopup := inst.overlayPopup
+	oldOwnerID := inst.ownerID
+	oldCloseOnOutside := inst.closeOnOutside
 
 	inst.key = getStringProp(props, "key", inst.key)
 	inst.componentID = getStringProp(props, "componentID", inst.componentID)
@@ -141,6 +153,9 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	inst.width = getIntProp(props, "width", inst.width)
 	inst.placeholder = getStringProp(props, "placeholder", inst.placeholder)
 	inst.maxVisibleRows = getIntProp(props, "maxVisibleRows", inst.maxVisibleRows)
+	inst.overlayPopup = getBoolProp(props, "overlayPopup", inst.overlayPopup)
+	inst.ownerID = getStringProp(props, "ownerID", inst.ownerID)
+	inst.closeOnOutside = getBoolProp(props, "closeOnOutside", inst.closeOnOutside)
 	inst.changeIntent = getIntentProp(props, "changeIntent")
 	inst.changeIntentField = getChangeIntentFieldProp(props, "changeIntent")
 	inst.formID = getStringProp(props, "formID", inst.formID)
@@ -167,6 +182,7 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	}
 
 	inst.normalizeSelectionState()
+	inst.syncOverlayRegistration()
 
 	changed := !equalOptions(oldOptions, inst.options) ||
 		oldSelectedIndex != inst.selectedIndex ||
@@ -175,10 +191,14 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 		oldWidth != inst.width ||
 		oldPlaceholder != inst.placeholder ||
 		oldMaxVisibleRows != inst.maxVisibleRows ||
-		oldSelectionMode != inst.selectionMode
+		oldSelectionMode != inst.selectionMode ||
+		oldOverlayPopup != inst.overlayPopup ||
+		oldOwnerID != inst.ownerID ||
+		oldCloseOnOutside != inst.closeOnOutside
 
 	if changed {
 		inst.dirty = true
+		inst.markOverlayDirty()
 	}
 	return changed
 }
@@ -191,11 +211,15 @@ func (inst *Instance) GetProps() rtui.Props {
 		"selectionMode":   inst.selectionMode,
 		"disabled":        inst.state.Disabled,
 		"open":            inst.open,
+		"overlayPopup":    inst.overlayPopup,
+		"ownerID":         inst.ownerID,
+		"closeOnOutside":  inst.closeOnOutside,
 	}
 }
 
 func (inst *Instance) MarkDirty() {
 	inst.dirty = true
+	inst.markOverlayDirty()
 }
 
 func (inst *Instance) IsDirty() bool {
@@ -217,56 +241,14 @@ func (inst *Instance) Paint(x, y int) []paint.DrawCmd {
 		Style: triggerStyle,
 	}}
 
+	if inst.overlayPopup {
+		return cmds
+	}
+
 	if !inst.open || len(inst.options) == 0 {
 		return cmds
 	}
-
-	popupWidth := maxInt(triggerWidth, inst.popupWidth())
-	popupHeight := inst.popupHeight()
-	if popupWidth < 4 || popupHeight < 3 {
-		return cmds
-	}
-
-	borderStyle := inst.popupBorderStyle()
-	fillStyle := inst.popupFillStyle()
-	contentWidth := popupWidth - 2
-	top := "┌" + strings.Repeat("─", maxInt(0, popupWidth-2)) + "┐"
-	bottom := "└" + strings.Repeat("─", maxInt(0, popupWidth-2)) + "┘"
-	cmds = append(cmds, paint.DrawCmd{X: x, Y: y + 1, Text: top, Style: borderStyle})
-
-	visibleRows := inst.visibleRowCount()
-	for row := 0; row < visibleRows; row++ {
-		rowY := y + 2 + row
-		cmds = append(cmds,
-			paint.DrawCmd{X: x, Y: rowY, Text: "│", Style: borderStyle},
-			paint.DrawCmd{X: x + 1, Y: rowY, Text: strings.Repeat(" ", contentWidth), Style: fillStyle},
-			paint.DrawCmd{X: x + popupWidth - 1, Y: rowY, Text: "│", Style: borderStyle},
-		)
-
-		optionIndex := inst.scrollOffset + row
-		if optionIndex >= len(inst.options) {
-			continue
-		}
-
-		rowStyle := inst.optionRowStyle(optionIndex == inst.highlightedIndex)
-		rowText := inst.optionRowText(optionIndex, contentWidth)
-		cmds = append(cmds, paint.DrawCmd{
-			X:     x + 1,
-			Y:     rowY,
-			Text:  rowText,
-			Style: rowStyle,
-		})
-	}
-
-	cmds = append(cmds, paint.DrawCmd{X: x, Y: y + 1 + popupHeight - 1, Text: bottom, Style: borderStyle})
-	if inst.scrollOffset > 0 {
-		cmds = append(cmds, paint.DrawCmd{X: x + popupWidth - 2, Y: y + 1, Text: "↑", Style: borderStyle})
-	}
-	if inst.scrollOffset < inst.maxScrollOffset() {
-		cmds = append(cmds, paint.DrawCmd{X: x + popupWidth - 2, Y: y + popupHeight, Text: "↓", Style: borderStyle})
-	}
-
-	return cmds
+	return append(cmds, inst.paintPopupAt(x, y+1)...)
 }
 
 func (inst *Instance) resolveStyle() style.Style {
@@ -323,6 +305,59 @@ func (inst *Instance) optionRowStyle(highlighted bool) style.Style {
 	return s
 }
 
+func (inst *Instance) paintPopupAt(x, y int) []paint.DrawCmd {
+	if !inst.open || len(inst.options) == 0 {
+		return nil
+	}
+
+	popupWidth := inst.popupWidth()
+	popupHeight := inst.popupHeight()
+	if popupWidth < 4 || popupHeight < 3 {
+		return nil
+	}
+
+	borderStyle := inst.popupBorderStyle()
+	fillStyle := inst.popupFillStyle()
+	contentWidth := popupWidth - 2
+	top := "┌" + strings.Repeat("─", maxInt(0, popupWidth-2)) + "┐"
+	bottom := "└" + strings.Repeat("─", maxInt(0, popupWidth-2)) + "┘"
+	cmds := []paint.DrawCmd{{X: x, Y: y, Text: top, Style: borderStyle}}
+
+	visibleRows := inst.visibleRowCount()
+	for row := 0; row < visibleRows; row++ {
+		rowY := y + 1 + row
+		cmds = append(cmds,
+			paint.DrawCmd{X: x, Y: rowY, Text: "│", Style: borderStyle},
+			paint.DrawCmd{X: x + 1, Y: rowY, Text: strings.Repeat(" ", contentWidth), Style: fillStyle},
+			paint.DrawCmd{X: x + popupWidth - 1, Y: rowY, Text: "│", Style: borderStyle},
+		)
+
+		optionIndex := inst.scrollOffset + row
+		if optionIndex >= len(inst.options) {
+			continue
+		}
+
+		rowStyle := inst.optionRowStyle(optionIndex == inst.highlightedIndex)
+		rowText := inst.optionRowText(optionIndex, contentWidth)
+		cmds = append(cmds, paint.DrawCmd{
+			X:     x + 1,
+			Y:     rowY,
+			Text:  rowText,
+			Style: rowStyle,
+		})
+	}
+
+	cmds = append(cmds, paint.DrawCmd{X: x, Y: y + popupHeight - 1, Text: bottom, Style: borderStyle})
+	if inst.scrollOffset > 0 {
+		cmds = append(cmds, paint.DrawCmd{X: x + popupWidth - 2, Y: y, Text: "↑", Style: borderStyle})
+	}
+	if inst.scrollOffset < inst.maxScrollOffset() {
+		cmds = append(cmds, paint.DrawCmd{X: x + popupWidth - 2, Y: y + popupHeight - 1, Text: "↓", Style: borderStyle})
+	}
+
+	return cmds
+}
+
 func (inst *Instance) SetFocus(focused bool) {
 	if inst.state.Focused == focused {
 		return
@@ -334,6 +369,7 @@ func (inst *Instance) SetFocus(focused bool) {
 		inst.emitFieldBlur()
 	}
 	inst.dirty = true
+	inst.markOverlayDirty()
 	inst.behaviors.OnStateChange(inst, oldState, inst.state)
 }
 
@@ -430,7 +466,7 @@ func (inst *Instance) handleClick(act *action.Action) bool {
 		return inst.openDropdown()
 	}
 
-	if mouse.LocalY <= 0 {
+	if mouse.LocalY <= 0 || inst.overlayPopup {
 		if inst.open {
 			return inst.closeDropdown()
 		}
@@ -550,6 +586,7 @@ func (inst *Instance) SetSelectedIndex(idx int) {
 	}
 	inst.ensureHighlightVisible()
 	inst.dirty = true
+	inst.markOverlayDirty()
 	inst.emitSelectChange()
 }
 
@@ -571,6 +608,7 @@ func (inst *Instance) SetSelectedIndices(indices []int) {
 	inst.highlightedIndex = inst.selectedIndex
 	inst.ensureHighlightVisible()
 	inst.dirty = true
+	inst.markOverlayDirty()
 	inst.emitSelectChange()
 }
 
@@ -733,6 +771,7 @@ func (inst *Instance) SetProp(key string, value interface{}) {
 				inst.open = false
 			}
 			inst.dirty = true
+			inst.markOverlayDirty()
 		}
 	case "selectedIndex":
 		if v, ok := value.(int); ok {
@@ -747,6 +786,7 @@ func (inst *Instance) SetProp(key string, value interface{}) {
 			inst.selectionMode = v
 			inst.normalizeSelectionState()
 			inst.dirty = true
+			inst.markOverlayDirty()
 		}
 	}
 }
@@ -765,11 +805,11 @@ func (inst *Instance) Measure(constraints layout.Constraints) layout.Size {
 	}
 
 	width := inst.triggerWidth()
-	if inst.open {
+	if inst.open && !inst.overlayPopup {
 		width = maxInt(width, inst.popupWidth())
 	}
 	height := 1
-	if inst.open && len(inst.options) > 0 {
+	if inst.open && len(inst.options) > 0 && !inst.overlayPopup {
 		height += inst.popupHeight()
 	}
 
@@ -911,6 +951,7 @@ func (inst *Instance) openDropdown() bool {
 	}
 	inst.ensureHighlightVisible()
 	inst.dirty = true
+	inst.markOverlayDirty()
 	return true
 }
 
@@ -920,6 +961,7 @@ func (inst *Instance) closeDropdown() bool {
 	}
 	inst.open = false
 	inst.dirty = true
+	inst.markOverlayDirty()
 	return true
 }
 
@@ -937,6 +979,7 @@ func (inst *Instance) moveHighlight(delta int) bool {
 	inst.highlightedIndex = next
 	inst.ensureHighlightVisible()
 	inst.dirty = true
+	inst.markOverlayDirty()
 	return true
 }
 
@@ -954,6 +997,7 @@ func (inst *Instance) moveHighlightTo(index int) bool {
 	inst.highlightedIndex = next
 	inst.ensureHighlightVisible()
 	inst.dirty = true
+	inst.markOverlayDirty()
 	return true
 }
 
@@ -996,6 +1040,7 @@ func (inst *Instance) applySingleSelection(index int, close bool) bool {
 
 	if selectionChanged || closed {
 		inst.dirty = true
+		inst.markOverlayDirty()
 	}
 	if selectionChanged {
 		inst.emitChange()
@@ -1039,6 +1084,7 @@ func (inst *Instance) toggleIndex(index int) bool {
 	inst.highlightedIndex = index
 	inst.ensureHighlightVisible()
 	inst.dirty = true
+	inst.markOverlayDirty()
 	inst.emitChange()
 	inst.emitSelectChange()
 	return true
@@ -1123,10 +1169,14 @@ func (inst *Instance) ensureHighlightVisible() {
 }
 
 func (inst *Instance) optionIndexAt(localX, localY int) (int, bool) {
-	if !inst.open || localX < 0 || localY < 2 {
+	return inst.popupOptionIndexAt(localX, localY, 2)
+}
+
+func (inst *Instance) popupOptionIndexAt(localX, localY, rowStart int) (int, bool) {
+	if !inst.open || localX < 0 || localY < rowStart {
 		return 0, false
 	}
-	row := localY - 2
+	row := localY - rowStart
 	if row < 0 || row >= inst.visibleRowCount() {
 		return 0, false
 	}
@@ -1219,6 +1269,34 @@ func (inst *Instance) triggerPaintWidth() int {
 		return maxInt(inst.width, 6)
 	}
 	return maxInt(paint.StringWidth(inst.triggerDisplayLabel())+4, 6)
+}
+
+func (inst *Instance) containsPoint(screenX, screenY int) bool {
+	x, y, width, height := inst.GetBounds()
+	return screenX >= x && screenX < x+width && screenY >= y && screenY < y+height
+}
+
+func (inst *Instance) syncOverlayRegistration() {
+	inst.unregisterOverlay()
+	if !inst.overlayPopup || inst.ownerID == "" {
+		return
+	}
+	selectOverlayRegistry.registerTrigger(inst.ownerID, inst)
+	inst.markOverlayDirty()
+}
+
+func (inst *Instance) unregisterOverlay() {
+	if inst.ownerID == "" {
+		return
+	}
+	selectOverlayRegistry.unregisterTrigger(inst.ownerID, inst)
+}
+
+func (inst *Instance) markOverlayDirty() {
+	if !inst.overlayPopup || inst.ownerID == "" {
+		return
+	}
+	selectOverlayRegistry.markPopupDirty(inst.ownerID)
 }
 
 func getStringProp(props rtui.Props, key, def string) string {
