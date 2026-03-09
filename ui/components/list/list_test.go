@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/wwsheng009/mint/runtime/action"
+	"github.com/wwsheng009/mint/runtime/intent"
 	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
@@ -89,5 +90,121 @@ func TestInstance_SetProps_WithoutScrollOffsetPreservesInternalScroll(t *testing
 
 	if inst.scrollOffset != 2 {
 		t.Fatalf("offset after SetProps = %d, want 2", inst.scrollOffset)
+	}
+}
+
+func TestInstance_HandleAction_ClickSelectsVisibleRowWithHeaderAndBorder(t *testing.T) {
+	rows := []string{"first", "second", "third", "fourth"}
+	inst := NewInstance(rtui.Props{
+		"header":         "Items",
+		"rows":           rows,
+		"viewportHeight": 3,
+		"showBorder":     true,
+		"showSeparator":  true,
+		"scrollOffset":   1,
+	})
+	inst.SetBounds(0, 0, 20, 6)
+
+	mouseMsg := runtimemsg.NewMouseMsg(1, 4, runtimemsg.MouseLeft, runtimemsg.MouseActionPress)
+	mouseMsg.LocalY = 4
+	act := action.NewActionWithPayload(action.ActionClick, mouseMsg)
+
+	if !inst.HandleAction(act) {
+		t.Fatal("click on visible row should be handled")
+	}
+	if inst.GetSelectedIndex() != 2 {
+		t.Fatalf("selectedIndex = %d, want 2", inst.GetSelectedIndex())
+	}
+}
+
+func TestInstance_HandleAction_NavigateDownWorksWhenScrollDisabled(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"rows":        []string{"a", "b", "c"},
+		"allowScroll": false,
+	})
+
+	if !inst.HandleAction(action.NewAction(action.ActionNavigateDown)) {
+		t.Fatal("navigate down should still work when scrolling is disabled")
+	}
+	if inst.GetSelectedIndex() != 0 {
+		t.Fatalf("selectedIndex = %d, want 0", inst.GetSelectedIndex())
+	}
+}
+
+func TestInstance_HandleAction_NavigateDownEmitsFieldChangeIntent(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"rows":        []string{"a", "b", "c"},
+		"changeIntent": intent.BindField("selected_row"),
+	})
+
+	var emitted []intent.Intent
+	inst.SetIntentEmitter(func(i intent.Intent) {
+		emitted = append(emitted, i)
+	})
+
+	if !inst.HandleAction(action.NewAction(action.ActionNavigateDown)) {
+		t.Fatal("navigate down should be handled")
+	}
+	if len(emitted) != 1 {
+		t.Fatalf("emitted intents = %d, want 1", len(emitted))
+	}
+	fieldChange, ok := emitted[0].(intent.FieldChangeIntent)
+	if !ok {
+		t.Fatalf("emitted intent = %T, want intent.FieldChangeIntent", emitted[0])
+	}
+	if fieldChange.Field != "selected_row" {
+		t.Fatalf("field = %q, want selected_row", fieldChange.Field)
+	}
+	if fieldChange.Value != "0" {
+		t.Fatalf("value = %q, want 0", fieldChange.Value)
+	}
+}
+
+func TestInstance_HandleAction_HomeMovesSelectionEvenWhenScrollOffsetIsZero(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"rows":          []string{"a", "b", "c", "d"},
+		"selectedIndex": 2,
+		"scrollOffset":  0,
+	})
+
+	if !inst.HandleAction(action.NewAction(action.ActionNavigateHome)) {
+		t.Fatal("home should move selection to first row")
+	}
+	if inst.GetSelectedIndex() != 0 {
+		t.Fatalf("selectedIndex = %d, want 0", inst.GetSelectedIndex())
+	}
+}
+
+func TestInstance_SetProps_ClampsSelectedIndexWhenRowsShrink(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"rows":          []string{"a", "b", "c"},
+		"selectedIndex": 2,
+	})
+
+	inst.SetProps(rtui.Props{
+		"rows": []string{"a"},
+	})
+
+	if inst.GetSelectedIndex() != 0 {
+		t.Fatalf("selectedIndex = %d, want 0", inst.GetSelectedIndex())
+	}
+}
+
+func TestInstance_PaintWithBorder_UsesBoundsWidthForTruncation(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"rows":       []string{"this is a very long row"},
+		"showBorder": true,
+	})
+	inst.SetBounds(0, 0, 12, 4)
+
+	cmds := inst.Paint(0, 0)
+	if len(cmds) == 0 {
+		t.Fatal("expected paint commands")
+	}
+	if cmds[0].Text != "┌──────────┐" {
+		t.Fatalf("top border = %q, want %q", cmds[0].Text, "┌──────────┐")
+	}
+	if cmds[1].Text != "│ this ... │" {
+		t.Fatalf("row line = %q, want %q", cmds[1].Text, "│ this ... │")
 	}
 }

@@ -3,6 +3,7 @@ package list
 import (
 	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/layout"
+	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
@@ -39,12 +40,14 @@ type VNode struct {
 	borderStyle    style.Style                   // Style for the border
 	showScrollbar  bool
 	scrollbarStyle style.Style
+	changeIntent   intent.Intent
 
 	// === State Properties (declarative initial state) ===
 	scrollOffset           int  // Initial scroll offset
 	scrollOffsetControlled bool // Whether scrollOffset is externally controlled
 	selectedIndex          int  // Currently selected row index
 	viewportHeight         int  // Visible height for scrolling
+	formID                 string
 
 	// === Interaction ===
 	allowScroll bool // Whether scrolling is enabled
@@ -77,9 +80,11 @@ func New() *VNode {
 		selectedStyle:  style.Style{BG: style.Blue, FG: style.White},
 		borderStyle:    style.Style{FG: style.White},
 		showScrollbar:  true,
+		changeIntent:   nil,
 		scrollOffset:   0,
 		selectedIndex:  -1,
 		viewportHeight: 10,
+		formID:         "",
 		allowScroll:    true,
 	}
 }
@@ -114,9 +119,11 @@ func (v *VNode) Props() rtui.Props {
 		"borderStyle":            v.borderStyle,
 		"showScrollbar":          v.showScrollbar,
 		"scrollbarStyle":         v.scrollbarStyle,
+		"changeIntent":           v.changeIntent,
 		"scrollOffsetControlled": v.scrollOffsetControlled,
 		"selectedIndex":          v.selectedIndex,
 		"viewportHeight":         v.viewportHeight,
+		"formID":                 v.formID,
 		"allowScroll":            v.allowScroll,
 	}
 	if v.scrollOffsetControlled {
@@ -174,6 +181,9 @@ func (v *VNode) SetProps(p rtui.Props) rtui.VNode {
 	if scrollbarStyle, ok := p["scrollbarStyle"].(style.Style); ok {
 		v.scrollbarStyle = scrollbarStyle
 	}
+	if changeIntent, ok := p["changeIntent"].(intent.Intent); ok {
+		v.changeIntent = changeIntent
+	}
 	if scrollOffset, ok := p["scrollOffset"].(int); ok {
 		v.scrollOffset = scrollOffset
 		v.scrollOffsetControlled = true
@@ -186,6 +196,9 @@ func (v *VNode) SetProps(p rtui.Props) rtui.VNode {
 	}
 	if viewportHeight, ok := p["viewportHeight"].(int); ok {
 		v.viewportHeight = viewportHeight
+	}
+	if formID, ok := p["formID"].(string); ok {
+		v.formID = formID
 	}
 	if allowScroll, ok := p["allowScroll"].(bool); ok {
 		v.allowScroll = allowScroll
@@ -219,6 +232,7 @@ func (v *VNode) SetSelectedStyle(s style.Style) *VNode                 { v.selec
 func (v *VNode) SetBorderStyle(s style.Style) *VNode                   { v.borderStyle = s; return v }
 func (v *VNode) SetShowScrollbar(show bool) *VNode                     { v.showScrollbar = show; return v }
 func (v *VNode) SetScrollbarStyle(s style.Style) *VNode                { v.scrollbarStyle = s; return v }
+func (v *VNode) SetChangeIntent(changeIntent intent.Intent) *VNode     { v.changeIntent = changeIntent; return v }
 func (v *VNode) SetScrollOffset(offset int) *VNode {
 	v.scrollOffset = offset
 	v.scrollOffsetControlled = true
@@ -226,6 +240,7 @@ func (v *VNode) SetScrollOffset(offset int) *VNode {
 }
 func (v *VNode) SetSelectedIndex(index int) *VNode   { v.selectedIndex = index; return v }
 func (v *VNode) SetViewportHeight(height int) *VNode { v.viewportHeight = height; return v }
+func (v *VNode) SetFormID(formID string) *VNode      { v.formID = formID; return v }
 func (v *VNode) SetAllowScroll(allow bool) *VNode    { v.allowScroll = allow; return v }
 
 // =============================================================================

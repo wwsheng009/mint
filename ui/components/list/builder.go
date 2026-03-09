@@ -1,6 +1,7 @@
 package list
 
 import (
+	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
@@ -131,6 +132,12 @@ func (b *Builder) ScrollbarStyle(s style.Style) *Builder {
 	return b
 }
 
+// OnChange sets the change intent emitted when selection changes.
+func (b *Builder) OnChange(changeIntent intent.Intent) *Builder {
+	b.vnode.SetChangeIntent(changeIntent)
+	return b
+}
+
 // ScrollOffset sets the initial scroll offset.
 func (b *Builder) ScrollOffset(offset int) *Builder {
 	b.vnode.SetScrollOffset(offset)
@@ -146,6 +153,20 @@ func (b *Builder) SelectedIndex(index int) *Builder {
 // ViewportHeight sets the visible height for scrolling.
 func (b *Builder) ViewportHeight(height int) *Builder {
 	b.vnode.SetViewportHeight(height)
+	return b
+}
+
+// ForField binds the list selection to a state field using FieldBinding.
+func (b *Builder) ForField(binding intent.FieldBinding) *Builder {
+	b.vnode.SetProps(rtui.Props{
+		"changeIntent": binding,
+	})
+	return b
+}
+
+// ForForm binds the list to a form using FormBinding.
+func (b *Builder) ForForm(binding intent.FormBinding) *Builder {
+	b.vnode.SetFormID(binding.GetFormID())
 	return b
 }
 

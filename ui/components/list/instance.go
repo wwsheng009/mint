@@ -1,13 +1,18 @@
 package list
 
 import (
+	"fmt"
+	"reflect"
 	"strings"
 
 	"github.com/wwsheng009/mint/runtime/action"
+	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/runtime/layout"
+	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
+	"github.com/wwsheng009/mint/ui/components/form"
 	scrollutil "github.com/wwsheng009/mint/ui/components/internal/scroll"
 )
 
@@ -35,21 +40,28 @@ type Instance struct {
 	borderStyle            style.Style
 	showScrollbar          bool
 	scrollbarStyle         style.Style
+	changeIntent           intent.Intent
+	changeIntentField      intent.FieldIntent
 	scrollOffset           int
 	scrollOffsetControlled bool
 	selectedIndex          int
 	viewportHeight         int
+	formID                 string
 	allowScroll            bool
 
 	// === Runtime State ===
-	bounds [4]int // x, y, w, h
-	dirty  bool
+	parent        rtui.ComponentInstance
+	focused       bool
+	bounds        [4]int // x, y, w, h
+	dirty         bool
+	intentEmitter func(intent.Intent)
 }
 
 // Ensure Instance implements required interfaces
 var (
 	_ rtui.ComponentInstance     = (*Instance)(nil)
 	_ rtui.PaintableInstance     = (*Instance)(nil)
+	_ rtui.FocusableInstance     = (*Instance)(nil)
 	_ rtui.ActionHandlerInstance = (*Instance)(nil)
 	_ interface {
 		Measure(layout.Constraints) layout.Size
@@ -77,10 +89,13 @@ func NewInstance(props rtui.Props) *Instance {
 		borderStyle:            getStyleProp(props, "borderStyle"),
 		showScrollbar:          getBoolProp(props, "showScrollbar", true),
 		scrollbarStyle:         getStyleProp(props, "scrollbarStyle"),
+		changeIntent:           getIntentProp(props, "changeIntent"),
+		changeIntentField:      getChangeIntentFieldProp(props, "changeIntent"),
 		scrollOffset:           getIntProp(props, "scrollOffset", 0),
 		scrollOffsetControlled: getBoolProp(props, "scrollOffsetControlled", false),
 		selectedIndex:          getIntProp(props, "selectedIndex", -1),
 		viewportHeight:         getIntProp(props, "viewportHeight", 10),
+		formID:                 getStringProp(props, "formID", ""),
 		allowScroll:            getBoolProp(props, "allowScroll", true),
 		dirty:                  true,
 	}
@@ -103,13 +118,33 @@ func (inst *Instance) Init(props rtui.Props) { inst.SetProps(props) }
 func (inst *Instance) Destroy()              { inst.rows = nil }
 func (inst *Instance) OnMount()              { inst.dirty = true }
 func (inst *Instance) OnUnmount()            {}
+func (inst *Instance) Parent() interface{}   { return inst.parent }
+func (inst *Instance) SetParent(parent rtui.ComponentInstance) {
+	inst.parent = parent
+}
 
 func (inst *Instance) SetProps(props rtui.Props) bool {
+	oldHeader := inst.header
+	oldRows := append([]string(nil), inst.rows...)
+	oldEmptyText := inst.emptyText
+	oldMaxRows := inst.maxRows
+	oldShowBorder := inst.showBorder
+	oldShowSeparator := inst.showSeparator
+	oldSeparatorChar := inst.separatorChar
+	oldHeaderStyle := inst.headerStyle
+	oldRowStyle := inst.rowStyle
+	oldSelectedStyle := inst.selectedStyle
+	oldBorderStyle := inst.borderStyle
 	oldSelected := inst.selectedIndex
 	oldScroll := inst.scrollOffset
 	oldScrollControlled := inst.scrollOffsetControlled
 	oldShowScrollbar := inst.showScrollbar
 	oldScrollbarStyle := inst.scrollbarStyle
+	oldChangeIntent := inst.changeIntent
+	oldFormID := inst.formID
+	oldViewportHeight := inst.viewportHeight
+	oldAllowScroll := inst.allowScroll
+	oldRowStyleFn := inst.rowStyleFn
 
 	inst.header = getStringProp(props, "header", inst.header)
 	inst.rows = getStringsProp(props, inst.rows)
@@ -124,6 +159,8 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	inst.borderStyle = getStyleProp(props, "borderStyle")
 	inst.showScrollbar = getBoolProp(props, "showScrollbar", inst.showScrollbar)
 	inst.scrollbarStyle = getStyleProp(props, "scrollbarStyle")
+	inst.changeIntent = getIntentProp(props, "changeIntent")
+	inst.changeIntentField = getChangeIntentFieldProp(props, "changeIntent")
 	if controlled, ok := props["scrollOffsetControlled"].(bool); ok {
 		inst.scrollOffsetControlled = controlled
 	}
@@ -134,20 +171,40 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	}
 	inst.selectedIndex = getIntProp(props, "selectedIndex", inst.selectedIndex)
 	inst.viewportHeight = getIntProp(props, "viewportHeight", inst.viewportHeight)
+	inst.formID = getStringProp(props, "formID", inst.formID)
 	inst.allowScroll = getBoolProp(props, "allowScroll", inst.allowScroll)
 
 	// Update rowStyleFn if provided in props
 	if fn, ok := props["rowStyleFn"].(func(int, string) style.Style); ok {
 		inst.rowStyleFn = fn
+	} else if _, exists := props["rowStyleFn"]; exists {
+		inst.rowStyleFn = nil
 	}
 
+	inst.clampSelectedIndex()
 	inst.clampScroll()
 
-	changed := oldSelected != inst.selectedIndex ||
+	changed := oldHeader != inst.header ||
+		!equalStrings(oldRows, inst.rows) ||
+		oldEmptyText != inst.emptyText ||
+		oldMaxRows != inst.maxRows ||
+		oldShowBorder != inst.showBorder ||
+		oldShowSeparator != inst.showSeparator ||
+		oldSeparatorChar != inst.separatorChar ||
+		oldHeaderStyle != inst.headerStyle ||
+		oldRowStyle != inst.rowStyle ||
+		oldSelectedStyle != inst.selectedStyle ||
+		oldBorderStyle != inst.borderStyle ||
+		oldSelected != inst.selectedIndex ||
 		oldScroll != inst.scrollOffset ||
 		oldScrollControlled != inst.scrollOffsetControlled ||
 		oldShowScrollbar != inst.showScrollbar ||
-		oldScrollbarStyle != inst.scrollbarStyle
+		oldScrollbarStyle != inst.scrollbarStyle ||
+		!sameIntent(oldChangeIntent, inst.changeIntent) ||
+		oldFormID != inst.formID ||
+		oldViewportHeight != inst.viewportHeight ||
+		oldAllowScroll != inst.allowScroll ||
+		!sameRowStyleFn(oldRowStyleFn, inst.rowStyleFn)
 	if changed {
 		inst.dirty = true
 	}
@@ -162,10 +219,12 @@ func (inst *Instance) GetProps() rtui.Props {
 		"emptyText":              inst.emptyText,
 		"showScrollbar":          inst.showScrollbar,
 		"scrollbarStyle":         inst.scrollbarStyle,
+		"changeIntent":           inst.changeIntent,
 		"scrollOffsetControlled": inst.scrollOffsetControlled,
 		"scrollOffset":           inst.scrollOffset,
 		"selectedIndex":          inst.selectedIndex,
 		"viewportHeight":         inst.viewportHeight,
+		"formID":                 inst.formID,
 		"allowScroll":            inst.allowScroll,
 	}
 }
@@ -174,6 +233,9 @@ func (inst *Instance) MarkDirty()                         { inst.dirty = true }
 func (inst *Instance) IsDirty() bool                      { return inst.dirty }
 func (inst *Instance) GetContext() *rtui.ComponentContext { return nil }
 func (inst *Instance) ClearDirty()                        { inst.dirty = false }
+func (inst *Instance) SetIntentEmitter(fn func(intent.Intent)) {
+	inst.intentEmitter = fn
+}
 
 // =============================================================================
 // Measurable Interface
@@ -181,57 +243,31 @@ func (inst *Instance) ClearDirty()                        { inst.dirty = false }
 
 // Measure implements layout measurement
 func (inst *Instance) Measure(constraints layout.Constraints) layout.Size {
-	width := 60 // Default width
+	width := inst.calculateWidth()
 	height := inst.calculateHeight()
 
-	// Apply constraints
-	if width < constraints.MinWidth {
-		width = constraints.MinWidth
-	}
-	if width > constraints.MaxWidth && constraints.MaxWidth > 0 {
-		width = constraints.MaxWidth
-	}
-	if height < constraints.MinHeight {
-		height = constraints.MinHeight
-	}
-	if height > constraints.MaxHeight && constraints.MaxHeight > 0 {
-		height = constraints.MaxHeight
-	}
+	width = constraints.ConstrainWidth(width)
+	height = constraints.ConstrainHeight(height)
 
 	return layout.Size{Width: width, Height: height}
 }
 
 // calculateHeight calculates the total height of the list
 func (inst *Instance) calculateHeight() int {
-	dataHeight := 0
-
-	if inst.maxRows > 0 {
-		dataHeight = inst.maxRows
-	} else if len(inst.rows) < inst.viewportHeight {
-		dataHeight = len(inst.rows)
-	} else {
-		dataHeight = inst.viewportHeight
+	dataHeight := 1
+	if len(inst.rows) > 0 {
+		dataHeight = min(len(inst.rows), inst.visibleHeight())
 	}
-
-	// Add header and separator if present
 	if inst.header != "" {
-		dataHeight++ // Header row
+		dataHeight++
 		if inst.showSeparator && len(inst.rows) > 0 {
-			dataHeight++ // Separator line
+			dataHeight++
 		}
 	}
-
-	// Add border
 	if inst.showBorder {
-		dataHeight += 2 // Top and bottom border
+		dataHeight += 2
 	}
-
-	// Empty text
-	if len(inst.rows) == 0 && inst.emptyText != "" {
-		dataHeight = 3
-	}
-
-	return dataHeight
+	return max(1, dataHeight)
 }
 
 // =============================================================================
@@ -254,11 +290,15 @@ func (inst *Instance) paintWithBorder(x, y int) []paint.DrawCmd {
 	var cmds []paint.DrawCmd
 
 	// Calculate width
-	width := inst.calculateWidth()
+	width := inst.effectivePaintWidth()
+	borderStyle := inst.borderStyle
+	if inst.focused {
+		borderStyle = borderStyle.Bold(true)
+	}
 
 	// Draw top border
 	topBorder := "┌" + strings.Repeat("─", width-2) + "┐"
-	cmds = append(cmds, paint.NewTextCmd(x, y, topBorder, inst.borderStyle))
+	cmds = append(cmds, paint.NewTextCmd(x, y, topBorder, borderStyle))
 
 	currentY := y + 1
 
@@ -300,7 +340,7 @@ func (inst *Instance) paintWithBorder(x, y int) []paint.DrawCmd {
 		if inst.showScrollbar {
 			scrollbarStyle := inst.scrollbarStyle
 			if scrollbarStyle.FG == "" {
-				scrollbarStyle = scrollbarStyle.Foreground(inst.borderStyle.FG)
+				scrollbarStyle = scrollbarStyle.Foreground(borderStyle.FG)
 			}
 			cmds = append(cmds, scrollutil.DrawVerticalScrollbar(
 				x+width-1,
@@ -315,7 +355,7 @@ func (inst *Instance) paintWithBorder(x, y int) []paint.DrawCmd {
 
 	// Draw bottom border
 	bottomBorder := "└" + strings.Repeat("─", width-2) + "┘"
-	cmds = append(cmds, paint.NewTextCmd(x, currentY, bottomBorder, inst.borderStyle))
+	cmds = append(cmds, paint.NewTextCmd(x, currentY, bottomBorder, borderStyle))
 
 	return cmds
 }
@@ -324,23 +364,24 @@ func (inst *Instance) paintWithBorder(x, y int) []paint.DrawCmd {
 func (inst *Instance) paintWithoutBorder(x, y int) []paint.DrawCmd {
 	cmds := []paint.DrawCmd{}
 	currentY := y
+	width := inst.effectivePaintWidth()
 
 	// Draw header if present
 	if inst.header != "" {
-		cmds = append(cmds, paint.NewTextCmd(x, currentY, inst.header, inst.headerStyle))
+		cmds = append(cmds, paint.NewTextCmd(x, currentY, inst.truncateText(inst.header, width), inst.headerStyle))
 		currentY++
 	}
 
 	// Draw separator if present
 	if inst.showSeparator && inst.header != "" && len(inst.rows) > 0 {
-		sepLine := strings.Repeat(string(inst.separatorChar), 50)
+		sepLine := strings.Repeat(string(inst.separatorChar), max(1, width))
 		cmds = append(cmds, paint.NewTextCmd(x, currentY, sepLine, inst.rowStyle))
 		currentY++
 	}
 
 	// Draw rows
 	if len(inst.rows) == 0 {
-		cmds = append(cmds, paint.NewTextCmd(x, currentY, inst.emptyText, inst.rowStyle))
+		cmds = append(cmds, paint.NewTextCmd(x, currentY, inst.truncateText(inst.emptyText, width), inst.rowStyle))
 		currentY++
 	} else {
 		viewport := inst.dataViewport()
@@ -348,7 +389,7 @@ func (inst *Instance) paintWithoutBorder(x, y int) []paint.DrawCmd {
 		for rowIndex := startRow; rowIndex < endRow; rowIndex++ {
 			rowText := inst.rows[rowIndex]
 			rowStyle := inst.rowStyleFor(rowIndex, rowText)
-			cmds = append(cmds, paint.NewTextCmd(x, currentY, rowText, rowStyle))
+			cmds = append(cmds, paint.NewTextCmd(x, currentY, inst.truncateText(rowText, width), rowStyle))
 			currentY++
 		}
 	}
@@ -361,48 +402,54 @@ func (inst *Instance) paintWithoutBorder(x, y int) []paint.DrawCmd {
 // =============================================================================
 
 func (inst *Instance) HandleAction(act *action.Action) bool {
-	if !inst.allowScroll {
+	if act == nil {
 		return false
 	}
 
 	switch act.Type {
 	case action.ActionScroll:
+		if !inst.allowScroll {
+			return false
+		}
 		if delta, ok := scrollutil.DeltaFromAction(act); ok {
 			return inst.scrollBy(delta)
 		}
 		return false
+	case action.ActionClick:
+		return inst.handleClick(act)
 	case action.ActionNavigateUp:
-		if inst.selectedIndex > 0 {
-			return inst.navigateUp()
+		if len(inst.rows) == 0 {
+			return false
 		}
-		return false
+		return inst.navigateUp()
 	case action.ActionNavigateDown:
-		if inst.selectedIndex < len(inst.rows)-1 {
-			return inst.navigateDown()
+		if len(inst.rows) == 0 {
+			return false
 		}
-		return false
+		return inst.navigateDown()
 	case action.ActionNavigateHome:
-		if inst.scrollOffset > 0 {
-			return inst.navigateHome()
+		if len(inst.rows) == 0 {
+			return false
 		}
-		return false
+		return inst.navigateHome()
 	case action.ActionNavigateEnd:
-		if inst.scrollOffset < inst.dataViewport().MaxOffset() {
-			return inst.navigateEnd()
+		if len(inst.rows) == 0 {
+			return false
 		}
-		return false
+		return inst.navigateEnd()
 	case action.ActionNavigatePageUp:
-		if inst.scrollOffset > 0 {
-			return inst.pageUp()
+		if len(inst.rows) == 0 {
+			return false
 		}
-		return false
+		return inst.pageUp()
 	case action.ActionNavigatePageDown:
-		if inst.scrollOffset < inst.dataViewport().MaxOffset() {
-			return inst.pageDown()
+		if len(inst.rows) == 0 {
+			return false
 		}
-		return false
-	case action.ActionSelect:
-		if inst.selectedIndex >= 0 {
+		return inst.pageDown()
+	case action.ActionSelect, action.ActionEnter:
+		if inst.selectedIndex >= 0 && inst.selectedIndex < len(inst.rows) {
+			inst.emitSelectionChanged()
 			return true
 		}
 		return false
@@ -415,64 +462,87 @@ func (inst *Instance) HandleAction(act *action.Action) bool {
 // =============================================================================
 
 func (inst *Instance) navigateUp() bool {
-	if inst.selectedIndex > 0 {
-		inst.selectedIndex--
-		inst.dirty = true
-		inst.ensureSelectedRowVisible()
-		return true
+	if len(inst.rows) == 0 {
+		return false
 	}
-	return false
+	if inst.selectedIndex < 0 {
+		return inst.selectIndex(0, true)
+	}
+	return inst.selectIndex(inst.selectedIndex-1, true)
 }
 
 func (inst *Instance) navigateDown() bool {
-	if inst.selectedIndex < len(inst.rows)-1 {
-		inst.selectedIndex++
-		inst.dirty = true
-		inst.ensureSelectedRowVisible()
-		return true
+	if len(inst.rows) == 0 {
+		return false
 	}
-	return false
+	if inst.selectedIndex < 0 {
+		return inst.selectIndex(0, true)
+	}
+	return inst.selectIndex(inst.selectedIndex+1, true)
 }
 
 func (inst *Instance) navigateHome() bool {
-	inst.scrollOffset = 0
-	if len(inst.rows) > 0 {
-		inst.selectedIndex = 0
-	} else {
-		inst.selectedIndex = -1
+	if len(inst.rows) == 0 {
+		return false
 	}
+	if inst.selectedIndex == 0 && inst.scrollOffset == 0 {
+		return false
+	}
+	inst.scrollOffset = 0
+	inst.selectedIndex = 0
 	inst.dirty = true
+	inst.emitSelectionChanged()
 	return true
 }
 
 func (inst *Instance) navigateEnd() bool {
-	if len(inst.rows) > 0 {
-		viewport := inst.dataViewport()
-		inst.scrollOffset = viewport.MaxOffset()
-		inst.selectedIndex = len(inst.rows) - 1
-	} else {
-		inst.scrollOffset = 0
-		inst.selectedIndex = -1
+	if len(inst.rows) == 0 {
+		return false
 	}
+	lastIndex := len(inst.rows) - 1
+	maxOffset := inst.dataViewport().MaxOffset()
+	if inst.selectedIndex == lastIndex && inst.scrollOffset == maxOffset {
+		return false
+	}
+	inst.scrollOffset = maxOffset
+	inst.selectedIndex = lastIndex
 	inst.dirty = true
+	inst.emitSelectionChanged()
 	return true
 }
 
 func (inst *Instance) pageUp() bool {
 	viewport := inst.dataViewport()
+	if viewport.Offset == 0 && inst.selectedIndex <= 0 {
+		return false
+	}
 	viewport.PageUp()
 	inst.scrollOffset = viewport.Offset
-	inst.selectedIndex = max(0, inst.selectedIndex-viewport.ViewSize)
+	if inst.selectedIndex < 0 {
+		inst.selectedIndex = 0
+	} else {
+		inst.selectedIndex = max(0, inst.selectedIndex-viewport.ViewSize)
+	}
 	inst.dirty = true
+	inst.emitSelectionChanged()
 	return true
 }
 
 func (inst *Instance) pageDown() bool {
 	viewport := inst.dataViewport()
+	lastIndex := len(inst.rows) - 1
+	if viewport.Offset == viewport.MaxOffset() && inst.selectedIndex >= lastIndex {
+		return false
+	}
 	viewport.PageDown()
 	inst.scrollOffset = viewport.Offset
-	inst.selectedIndex = min(len(inst.rows)-1, inst.selectedIndex+viewport.ViewSize)
+	if inst.selectedIndex < 0 {
+		inst.selectedIndex = min(lastIndex, max(0, viewport.ViewSize-1))
+	} else {
+		inst.selectedIndex = min(lastIndex, inst.selectedIndex+viewport.ViewSize)
+	}
 	inst.dirty = true
+	inst.emitSelectionChanged()
 	return true
 }
 
@@ -489,6 +559,19 @@ func (inst *Instance) ensureSelectedRowVisible() {
 	viewport := inst.dataViewport()
 	if viewport.EnsureVisible(inst.selectedIndex) {
 		inst.scrollOffset = viewport.Offset
+	}
+}
+
+func (inst *Instance) clampSelectedIndex() {
+	if len(inst.rows) == 0 {
+		inst.selectedIndex = -1
+		return
+	}
+	if inst.selectedIndex >= len(inst.rows) {
+		inst.selectedIndex = len(inst.rows) - 1
+	}
+	if inst.selectedIndex < -1 {
+		inst.selectedIndex = -1
 	}
 }
 
@@ -520,8 +603,34 @@ func (inst *Instance) visibleHeight() int {
 	return inst.viewportHeight
 }
 
+func (inst *Instance) effectiveVisibleHeight() int {
+	height := inst.visibleHeight()
+	if inst.bounds[3] <= 0 {
+		return max(1, height)
+	}
+	available := inst.bounds[3] - inst.chromeHeight()
+	if available < 1 {
+		return 1
+	}
+	return min(height, available)
+}
+
+func (inst *Instance) chromeHeight() int {
+	chrome := 0
+	if inst.showBorder {
+		chrome += 2
+	}
+	if inst.header != "" {
+		chrome++
+		if inst.showSeparator && len(inst.rows) > 0 {
+			chrome++
+		}
+	}
+	return chrome
+}
+
 func (inst *Instance) dataViewport() scrollutil.VerticalViewport {
-	return scrollutil.NewVerticalViewport(len(inst.rows), inst.visibleHeight(), inst.scrollOffset)
+	return scrollutil.NewVerticalViewport(len(inst.rows), inst.effectiveVisibleHeight(), inst.scrollOffset)
 }
 
 func (inst *Instance) rowStyleFor(rowIndex int, rowText string) style.Style {
@@ -572,6 +681,13 @@ func (inst *Instance) truncateText(text string, maxWidth int) string {
 	return result
 }
 
+func (inst *Instance) effectivePaintWidth() int {
+	if inst.bounds[2] > 0 {
+		return max(4, inst.bounds[2])
+	}
+	return max(4, inst.calculateWidth())
+}
+
 // calculateWidth calculates the maximum width needed
 // Uses StringWidth to properly handle Unicode characters
 func (inst *Instance) calculateWidth() int {
@@ -594,6 +710,89 @@ func (inst *Instance) calculateWidth() int {
 	return maxWidth
 }
 
+func (inst *Instance) handleClick(act *action.Action) bool {
+	mouseMsg, ok := act.Payload.(*runtimemsg.MouseMsg)
+	if !ok || mouseMsg == nil {
+		return false
+	}
+	rowIndex, ok := inst.rowIndexAtLocalY(mouseMsg.LocalY)
+	if !ok {
+		return false
+	}
+	if rowIndex == inst.selectedIndex {
+		inst.emitSelectionChanged()
+		return true
+	}
+	return inst.selectIndex(rowIndex, true)
+}
+
+func (inst *Instance) rowIndexAtLocalY(localY int) (int, bool) {
+	if len(inst.rows) == 0 {
+		return -1, false
+	}
+	dataStart := 0
+	if inst.showBorder {
+		dataStart++
+	}
+	if inst.header != "" {
+		dataStart++
+		if inst.showSeparator && len(inst.rows) > 0 {
+			dataStart++
+		}
+	}
+	relative := localY - dataStart
+	if relative < 0 || relative >= inst.effectiveVisibleHeight() {
+		return -1, false
+	}
+	viewport := inst.dataViewport()
+	startRow, endRow := viewport.VisibleRange()
+	rowIndex := startRow + relative
+	if rowIndex < startRow || rowIndex >= endRow || rowIndex >= len(inst.rows) {
+		return -1, false
+	}
+	return rowIndex, true
+}
+
+func (inst *Instance) selectIndex(index int, emit bool) bool {
+	if len(inst.rows) == 0 {
+		return false
+	}
+	clamped := max(0, min(len(inst.rows)-1, index))
+	changed := inst.selectedIndex != clamped
+	inst.selectedIndex = clamped
+	inst.ensureSelectedRowVisible()
+	if changed {
+		inst.dirty = true
+		if emit {
+			inst.emitSelectionChanged()
+		}
+	}
+	return changed
+}
+
+func (inst *Instance) emitSelectionChanged() {
+	if inst.intentEmitter == nil {
+		return
+	}
+	value := fmt.Sprintf("%d", inst.selectedIndex)
+	if inst.formID != "" {
+		if inst.changeIntentField != nil {
+			intent.Emit(inst, form.FieldChange(inst.formID, inst.changeIntentField.GetField(), value, true))
+		}
+		return
+	}
+	if inst.changeIntentField != nil {
+		inst.intentEmitter(intent.FieldChangeIntent{
+			Field: inst.changeIntentField.GetField(),
+			Value: value,
+		})
+		return
+	}
+	if inst.changeIntent != nil {
+		inst.intentEmitter(inst.changeIntent)
+	}
+}
+
 // =============================================================================
 // Getters
 // =============================================================================
@@ -612,6 +811,23 @@ func (inst *Instance) GetBounds() (x, y, w, h int) {
 
 func (inst *Instance) SetBounds(x, y, w, h int) {
 	inst.bounds = [4]int{x, y, w, h}
+}
+
+// =============================================================================
+// FocusableInstance Interface
+// =============================================================================
+
+func (inst *Instance) SetFocus(focused bool) {
+	if inst.focused == focused {
+		return
+	}
+	inst.focused = focused
+	inst.dirty = true
+}
+
+func (inst *Instance) HasFocus() bool { return inst.focused }
+func (inst *Instance) IsDisabled() bool {
+	return false
 }
 
 // =============================================================================
@@ -674,4 +890,45 @@ func getStyleProp(props rtui.Props, key string) style.Style {
 		return s
 	}
 	return style.Style{}
+}
+
+func getIntentProp(props rtui.Props, key string) intent.Intent {
+	if v, ok := props[key]; ok {
+		if i, ok := v.(intent.Intent); ok {
+			return i
+		}
+	}
+	return nil
+}
+
+func getChangeIntentFieldProp(props rtui.Props, key string) intent.FieldIntent {
+	if v, ok := props[key]; ok {
+		if i, ok := v.(intent.FieldIntent); ok {
+			return i
+		}
+	}
+	return nil
+}
+
+func equalStrings(left, right []string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for index := range left {
+		if left[index] != right[index] {
+			return false
+		}
+	}
+	return true
+}
+
+func sameRowStyleFn(left, right func(int, string) style.Style) bool {
+	if left == nil || right == nil {
+		return left == nil && right == nil
+	}
+	return reflect.ValueOf(left).Pointer() == reflect.ValueOf(right).Pointer()
+}
+
+func sameIntent(left, right intent.Intent) bool {
+	return reflect.DeepEqual(left, right)
 }
