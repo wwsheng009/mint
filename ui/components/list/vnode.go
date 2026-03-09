@@ -2,8 +2,8 @@ package list
 
 import (
 	"github.com/wwsheng009/mint/runtime"
-	"github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/intent"
+	"github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
@@ -33,21 +33,25 @@ type VNode struct {
 	separatorChar rune // Separator character (default '─')
 
 	// === Styles ===
-	headerStyle    style.Style                   // Style for the header row
-	rowStyle       style.Style                   // Default style for data rows
-	rowStyleFn     func(int, string) style.Style // Dynamic style function per row
-	selectedStyle  style.Style                   // Style for the selected row
-	borderStyle    style.Style                   // Style for the border
-	showScrollbar  bool
-	scrollbarStyle style.Style
-	changeIntent   intent.Intent
+	headerStyle     style.Style                   // Style for the header row
+	rowStyle        style.Style                   // Default style for data rows
+	rowStyleFn      func(int, string) style.Style // Dynamic style function per row
+	selectedStyle   style.Style                   // Style for the selected row
+	borderStyle     style.Style                   // Style for the border
+	showScrollbar   bool
+	scrollbarStyle  style.Style
+	changeIntent    intent.Intent
+	selectionIntent intent.Intent
+	selectionMode   SelectionMode
 
 	// === State Properties (declarative initial state) ===
-	scrollOffset           int  // Initial scroll offset
-	scrollOffsetControlled bool // Whether scrollOffset is externally controlled
-	selectedIndex          int  // Currently selected row index
-	viewportHeight         int  // Visible height for scrolling
-	formID                 string
+	scrollOffset             int  // Initial scroll offset
+	scrollOffsetControlled   bool // Whether scrollOffset is externally controlled
+	selectedIndex            int  // Currently selected row index
+	checkedIndices           []int
+	checkedIndicesControlled bool
+	viewportHeight           int // Visible height for scrolling
+	formID                   string
 
 	// === Interaction ===
 	allowScroll bool // Whether scrolling is enabled
@@ -66,26 +70,29 @@ var (
 // New creates a new List VNode
 func New() *VNode {
 	return &VNode{
-		ElementVNode:   rtui.NewElement("list"),
-		key:            "",
-		header:         "",
-		rows:           []string{},
-		emptyText:      "(empty)",
-		maxRows:        0,
-		showBorder:     true,
-		showSeparator:  true,
-		separatorChar:  '─',
-		headerStyle:    style.Style{}.Bold(true),
-		rowStyle:       style.Style{},
-		selectedStyle:  style.Style{BG: style.Blue, FG: style.White},
-		borderStyle:    style.Style{FG: style.White},
-		showScrollbar:  true,
-		changeIntent:   nil,
-		scrollOffset:   0,
-		selectedIndex:  -1,
-		viewportHeight: 10,
-		formID:         "",
-		allowScroll:    true,
+		ElementVNode:    rtui.NewElement("list"),
+		key:             "",
+		header:          "",
+		rows:            []string{},
+		emptyText:       "(empty)",
+		maxRows:         0,
+		showBorder:      true,
+		showSeparator:   true,
+		separatorChar:   '─',
+		headerStyle:     style.Style{}.Bold(true),
+		rowStyle:        style.Style{},
+		selectedStyle:   style.Style{BG: style.Blue, FG: style.White},
+		borderStyle:     style.Style{FG: style.White},
+		showScrollbar:   true,
+		changeIntent:    nil,
+		selectionIntent: nil,
+		selectionMode:   SelectionNone,
+		scrollOffset:    0,
+		selectedIndex:   -1,
+		checkedIndices:  nil,
+		viewportHeight:  10,
+		formID:          "",
+		allowScroll:     true,
 	}
 }
 
@@ -120,6 +127,8 @@ func (v *VNode) Props() rtui.Props {
 		"showScrollbar":          v.showScrollbar,
 		"scrollbarStyle":         v.scrollbarStyle,
 		"changeIntent":           v.changeIntent,
+		"selectionIntent":        v.selectionIntent,
+		"selectionMode":          v.selectionMode,
 		"scrollOffsetControlled": v.scrollOffsetControlled,
 		"selectedIndex":          v.selectedIndex,
 		"viewportHeight":         v.viewportHeight,
@@ -128,6 +137,10 @@ func (v *VNode) Props() rtui.Props {
 	}
 	if v.scrollOffsetControlled {
 		props["scrollOffset"] = v.scrollOffset
+	}
+	if v.checkedIndicesControlled {
+		props["checkedIndicesControlled"] = true
+		props["checkedIndices"] = append([]int(nil), v.checkedIndices...)
 	}
 
 	// Add rowStyleFn if it's set (functions can be stored in Props)
@@ -184,6 +197,12 @@ func (v *VNode) SetProps(p rtui.Props) rtui.VNode {
 	if changeIntent, ok := p["changeIntent"].(intent.Intent); ok {
 		v.changeIntent = changeIntent
 	}
+	if selectionIntent, ok := p["selectionIntent"].(intent.Intent); ok {
+		v.selectionIntent = selectionIntent
+	}
+	if selectionMode, ok := p["selectionMode"].(SelectionMode); ok {
+		v.selectionMode = selectionMode
+	}
 	if scrollOffset, ok := p["scrollOffset"].(int); ok {
 		v.scrollOffset = scrollOffset
 		v.scrollOffsetControlled = true
@@ -193,6 +212,13 @@ func (v *VNode) SetProps(p rtui.Props) rtui.VNode {
 	}
 	if selectedIndex, ok := p["selectedIndex"].(int); ok {
 		v.selectedIndex = selectedIndex
+	}
+	if checkedIndices, ok := p["checkedIndices"].([]int); ok {
+		v.checkedIndices = append([]int(nil), checkedIndices...)
+		v.checkedIndicesControlled = true
+	}
+	if controlled, ok := p["checkedIndicesControlled"].(bool); ok {
+		v.checkedIndicesControlled = controlled
 	}
 	if viewportHeight, ok := p["viewportHeight"].(int); ok {
 		v.viewportHeight = viewportHeight
@@ -232,13 +258,26 @@ func (v *VNode) SetSelectedStyle(s style.Style) *VNode                 { v.selec
 func (v *VNode) SetBorderStyle(s style.Style) *VNode                   { v.borderStyle = s; return v }
 func (v *VNode) SetShowScrollbar(show bool) *VNode                     { v.showScrollbar = show; return v }
 func (v *VNode) SetScrollbarStyle(s style.Style) *VNode                { v.scrollbarStyle = s; return v }
-func (v *VNode) SetChangeIntent(changeIntent intent.Intent) *VNode     { v.changeIntent = changeIntent; return v }
+func (v *VNode) SetChangeIntent(changeIntent intent.Intent) *VNode {
+	v.changeIntent = changeIntent
+	return v
+}
+func (v *VNode) SetSelectionIntent(selectionIntent intent.Intent) *VNode {
+	v.selectionIntent = selectionIntent
+	return v
+}
+func (v *VNode) SetSelectionMode(mode SelectionMode) *VNode { v.selectionMode = mode; return v }
 func (v *VNode) SetScrollOffset(offset int) *VNode {
 	v.scrollOffset = offset
 	v.scrollOffsetControlled = true
 	return v
 }
-func (v *VNode) SetSelectedIndex(index int) *VNode   { v.selectedIndex = index; return v }
+func (v *VNode) SetSelectedIndex(index int) *VNode { v.selectedIndex = index; return v }
+func (v *VNode) SetCheckedIndices(indices []int) *VNode {
+	v.checkedIndices = append([]int(nil), indices...)
+	v.checkedIndicesControlled = true
+	return v
+}
 func (v *VNode) SetViewportHeight(height int) *VNode { v.viewportHeight = height; return v }
 func (v *VNode) SetFormID(formID string) *VNode      { v.formID = formID; return v }
 func (v *VNode) SetAllowScroll(allow bool) *VNode    { v.allowScroll = allow; return v }

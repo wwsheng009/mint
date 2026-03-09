@@ -138,6 +138,12 @@ func (b *Builder) OnChange(changeIntent intent.Intent) *Builder {
 	return b
 }
 
+// OnSelectionChange sets the intent emitted when checkbox selection changes.
+func (b *Builder) OnSelectionChange(selectionIntent intent.Intent) *Builder {
+	b.vnode.SetSelectionIntent(selectionIntent)
+	return b
+}
+
 // ScrollOffset sets the initial scroll offset.
 func (b *Builder) ScrollOffset(offset int) *Builder {
 	b.vnode.SetScrollOffset(offset)
@@ -150,6 +156,28 @@ func (b *Builder) SelectedIndex(index int) *Builder {
 	return b
 }
 
+// CheckedIndices sets the checked rows for single/multi select modes.
+func (b *Builder) CheckedIndices(indices ...int) *Builder {
+	b.vnode.SetCheckedIndices(indices)
+	return b
+}
+
+// SelectionMode sets the checkbox selection mode.
+func (b *Builder) SelectionMode(mode SelectionMode) *Builder {
+	b.vnode.SetSelectionMode(mode)
+	return b
+}
+
+// SingleSelect enables single-select checkbox behavior.
+func (b *Builder) SingleSelect() *Builder {
+	return b.SelectionMode(SelectionSingle)
+}
+
+// MultiSelect enables multi-select checkbox behavior.
+func (b *Builder) MultiSelect() *Builder {
+	return b.SelectionMode(SelectionMultiple)
+}
+
 // ViewportHeight sets the visible height for scrolling.
 func (b *Builder) ViewportHeight(height int) *Builder {
 	b.vnode.SetViewportHeight(height)
@@ -160,6 +188,14 @@ func (b *Builder) ViewportHeight(height int) *Builder {
 func (b *Builder) ForField(binding intent.FieldBinding) *Builder {
 	b.vnode.SetProps(rtui.Props{
 		"changeIntent": binding,
+	})
+	return b
+}
+
+// SelectionForField binds checkbox selection changes to a state field.
+func (b *Builder) SelectionForField(binding intent.FieldBinding) *Builder {
+	b.vnode.SetProps(rtui.Props{
+		"selectionIntent": binding,
 	})
 	return b
 }

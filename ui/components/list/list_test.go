@@ -133,7 +133,7 @@ func TestInstance_HandleAction_NavigateDownWorksWhenScrollDisabled(t *testing.T)
 
 func TestInstance_HandleAction_NavigateDownEmitsFieldChangeIntent(t *testing.T) {
 	inst := NewInstance(rtui.Props{
-		"rows":        []string{"a", "b", "c"},
+		"rows":         []string{"a", "b", "c"},
 		"changeIntent": intent.BindField("selected_row"),
 	})
 
@@ -206,5 +206,133 @@ func TestInstance_PaintWithBorder_UsesBoundsWidthForTruncation(t *testing.T) {
 	}
 	if cmds[1].Text != "│ this ... │" {
 		t.Fatalf("row line = %q, want %q", cmds[1].Text, "│ this ... │")
+	}
+}
+
+func TestInstance_PaintWithoutBorder_ShowsCheckboxMarkers(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"rows":           []string{"alpha", "beta"},
+		"showBorder":     false,
+		"showSeparator":  false,
+		"selectionMode":  SelectionMultiple,
+		"checkedIndices": []int{1},
+	})
+
+	cmds := inst.Paint(0, 0)
+	if len(cmds) != 2 {
+		t.Fatalf("cmd count = %d, want 2", len(cmds))
+	}
+	if cmds[0].Text != "[ ] alpha" {
+		t.Fatalf("first row = %q, want %q", cmds[0].Text, "[ ] alpha")
+	}
+	if cmds[1].Text != "[x] beta" {
+		t.Fatalf("second row = %q, want %q", cmds[1].Text, "[x] beta")
+	}
+}
+
+func TestInstance_HandleAction_MultiSelectTogglesCheckedIndices(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"rows":          []string{"a", "b", "c"},
+		"selectionMode": SelectionMultiple,
+		"selectedIndex": 1,
+	})
+
+	if !inst.HandleAction(action.NewAction(action.ActionSelect)) {
+		t.Fatal("select should be handled in multi-select mode")
+	}
+	if !equalInts(inst.GetCheckedIndices(), []int{1}) {
+		t.Fatalf("checkedIndices = %v, want [1]", inst.GetCheckedIndices())
+	}
+	if !inst.HandleAction(action.NewAction(action.ActionSelect)) {
+		t.Fatal("second select should be handled in multi-select mode")
+	}
+	if len(inst.GetCheckedIndices()) != 0 {
+		t.Fatalf("checkedIndices = %v, want []", inst.GetCheckedIndices())
+	}
+}
+
+func TestInstance_HandleAction_SingleSelectReplacesCheckedIndex(t *testing.T) {
+	rows := []string{"first", "second", "third"}
+	inst := NewInstance(rtui.Props{
+		"rows":           rows,
+		"selectionMode":  SelectionSingle,
+		"checkedIndices": []int{0},
+		"selectedIndex":  0,
+		"showBorder":     true,
+		"showSeparator":  true,
+		"viewportHeight": 3,
+	})
+	inst.SetBounds(0, 0, 20, 6)
+
+	mouseMsg := runtimemsg.NewMouseMsg(1, 3, runtimemsg.MouseLeft, runtimemsg.MouseActionPress)
+	mouseMsg.LocalY = 3
+	act := action.NewActionWithPayload(action.ActionClick, mouseMsg)
+	if !inst.HandleAction(act) {
+		t.Fatal("click should be handled in single-select mode")
+	}
+	if inst.GetSelectedIndex() != 2 {
+		t.Fatalf("selectedIndex = %d, want 2", inst.GetSelectedIndex())
+	}
+	if !equalInts(inst.GetCheckedIndices(), []int{2}) {
+		t.Fatalf("checkedIndices = %v, want [2]", inst.GetCheckedIndices())
+	}
+}
+
+func TestInstance_HandleAction_MultiSelectEmitsFieldChangeIntent(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"rows":            []string{"a", "b", "c"},
+		"selectionMode":   SelectionMultiple,
+		"selectedIndex":   1,
+		"selectionIntent": intent.BindField("checked_rows"),
+	})
+
+	var emitted []intent.Intent
+	inst.SetIntentEmitter(func(i intent.Intent) {
+		emitted = append(emitted, i)
+	})
+
+	if !inst.HandleAction(action.NewAction(action.ActionSelect)) {
+		t.Fatal("select should be handled")
+	}
+	if len(emitted) != 1 {
+		t.Fatalf("emitted intents = %d, want 1", len(emitted))
+	}
+	fieldChange, ok := emitted[0].(intent.FieldChangeIntent)
+	if !ok {
+		t.Fatalf("emitted intent = %T, want intent.FieldChangeIntent", emitted[0])
+	}
+	if fieldChange.Field != "checked_rows" {
+		t.Fatalf("field = %q, want checked_rows", fieldChange.Field)
+	}
+	if fieldChange.Value != "1" {
+		t.Fatalf("value = %q, want 1", fieldChange.Value)
+	}
+
+	inst.HandleAction(action.NewAction(action.ActionNavigateDown))
+	inst.HandleAction(action.NewAction(action.ActionSelect))
+	last, ok := emitted[len(emitted)-1].(intent.FieldChangeIntent)
+	if !ok {
+		t.Fatalf("last emitted intent = %T, want intent.FieldChangeIntent", emitted[len(emitted)-1])
+	}
+	if last.Value != "1,2" {
+		t.Fatalf("value = %q, want 1,2", last.Value)
+	}
+}
+
+func TestInstance_SetProps_WithoutCheckedIndicesPreservesUncontrolledSelection(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"rows":          []string{"a", "b", "c"},
+		"selectionMode": SelectionMultiple,
+	})
+	inst.checkedIndices = []int{1}
+
+	inst.SetProps(rtui.Props{
+		"rows":          []string{"a", "b", "c"},
+		"selectionMode": SelectionMultiple,
+		"showBorder":    true,
+	})
+
+	if !equalInts(inst.GetCheckedIndices(), []int{1}) {
+		t.Fatalf("checkedIndices = %v, want [1]", inst.GetCheckedIndices())
 	}
 }

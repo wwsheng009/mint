@@ -3,6 +3,8 @@ package list
 import (
 	"fmt"
 	"reflect"
+	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/wwsheng009/mint/runtime/action"
@@ -26,28 +28,33 @@ type Instance struct {
 	key string
 
 	// === Props (from VNode, may change each render) ===
-	header                 string
-	rows                   []string
-	emptyText              string
-	maxRows                int
-	showBorder             bool
-	showSeparator          bool
-	separatorChar          rune
-	headerStyle            style.Style
-	rowStyle               style.Style
-	rowStyleFn             func(int, string) style.Style
-	selectedStyle          style.Style
-	borderStyle            style.Style
-	showScrollbar          bool
-	scrollbarStyle         style.Style
-	changeIntent           intent.Intent
-	changeIntentField      intent.FieldIntent
-	scrollOffset           int
-	scrollOffsetControlled bool
-	selectedIndex          int
-	viewportHeight         int
-	formID                 string
-	allowScroll            bool
+	header                   string
+	rows                     []string
+	emptyText                string
+	maxRows                  int
+	showBorder               bool
+	showSeparator            bool
+	separatorChar            rune
+	headerStyle              style.Style
+	rowStyle                 style.Style
+	rowStyleFn               func(int, string) style.Style
+	selectedStyle            style.Style
+	borderStyle              style.Style
+	showScrollbar            bool
+	scrollbarStyle           style.Style
+	changeIntent             intent.Intent
+	changeIntentField        intent.FieldIntent
+	selectionIntent          intent.Intent
+	selectionIntentField     intent.FieldIntent
+	selectionMode            SelectionMode
+	scrollOffset             int
+	scrollOffsetControlled   bool
+	selectedIndex            int
+	checkedIndices           []int
+	checkedIndicesControlled bool
+	viewportHeight           int
+	formID                   string
+	allowScroll              bool
 
 	// === Runtime State ===
 	parent        rtui.ComponentInstance
@@ -75,35 +82,41 @@ var (
 // NewInstance creates a new ListInstance from props
 func NewInstance(props rtui.Props) *Instance {
 	inst := &Instance{
-		key:                    getStringProp(props, "key", ""),
-		header:                 getStringProp(props, "header", ""),
-		rows:                   getStringsProp(props, []string{}),
-		emptyText:              getStringProp(props, "emptyText", "(empty)"),
-		maxRows:                getIntProp(props, "maxRows", 0),
-		showBorder:             getBoolProp(props, "showBorder", true),
-		showSeparator:          getBoolProp(props, "showSeparator", true),
-		separatorChar:          getRuneProp(props, "separatorChar", '─'),
-		headerStyle:            getStyleProp(props, "headerStyle"),
-		rowStyle:               getStyleProp(props, "rowStyle"),
-		selectedStyle:          getStyleProp(props, "selectedStyle"),
-		borderStyle:            getStyleProp(props, "borderStyle"),
-		showScrollbar:          getBoolProp(props, "showScrollbar", true),
-		scrollbarStyle:         getStyleProp(props, "scrollbarStyle"),
-		changeIntent:           getIntentProp(props, "changeIntent"),
-		changeIntentField:      getChangeIntentFieldProp(props, "changeIntent"),
-		scrollOffset:           getIntProp(props, "scrollOffset", 0),
-		scrollOffsetControlled: getBoolProp(props, "scrollOffsetControlled", false),
-		selectedIndex:          getIntProp(props, "selectedIndex", -1),
-		viewportHeight:         getIntProp(props, "viewportHeight", 10),
-		formID:                 getStringProp(props, "formID", ""),
-		allowScroll:            getBoolProp(props, "allowScroll", true),
-		dirty:                  true,
+		key:                      getStringProp(props, "key", ""),
+		header:                   getStringProp(props, "header", ""),
+		rows:                     getStringsProp(props, []string{}),
+		emptyText:                getStringProp(props, "emptyText", "(empty)"),
+		maxRows:                  getIntProp(props, "maxRows", 0),
+		showBorder:               getBoolProp(props, "showBorder", true),
+		showSeparator:            getBoolProp(props, "showSeparator", true),
+		separatorChar:            getRuneProp(props, "separatorChar", '─'),
+		headerStyle:              getStyleProp(props, "headerStyle"),
+		rowStyle:                 getStyleProp(props, "rowStyle"),
+		selectedStyle:            getStyleProp(props, "selectedStyle"),
+		borderStyle:              getStyleProp(props, "borderStyle"),
+		showScrollbar:            getBoolProp(props, "showScrollbar", true),
+		scrollbarStyle:           getStyleProp(props, "scrollbarStyle"),
+		changeIntent:             getIntentProp(props, "changeIntent"),
+		changeIntentField:        getChangeIntentFieldProp(props, "changeIntent"),
+		selectionIntent:          getIntentProp(props, "selectionIntent"),
+		selectionIntentField:     getChangeIntentFieldProp(props, "selectionIntent"),
+		selectionMode:            getSelectionModeProp(props, "selectionMode", SelectionNone),
+		scrollOffset:             getIntProp(props, "scrollOffset", 0),
+		scrollOffsetControlled:   getBoolProp(props, "scrollOffsetControlled", false),
+		selectedIndex:            getIntProp(props, "selectedIndex", -1),
+		checkedIndices:           getIntsProp(props, "checkedIndices", nil),
+		checkedIndicesControlled: getBoolProp(props, "checkedIndicesControlled", false),
+		viewportHeight:           getIntProp(props, "viewportHeight", 10),
+		formID:                   getStringProp(props, "formID", ""),
+		allowScroll:              getBoolProp(props, "allowScroll", true),
+		dirty:                    true,
 	}
 
 	// Extract rowStyleFn if provided in props
 	if fn, ok := props["rowStyleFn"].(func(int, string) style.Style); ok {
 		inst.rowStyleFn = fn
 	}
+	inst.normalizeCheckedIndices()
 
 	return inst
 }
@@ -141,6 +154,10 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	oldShowScrollbar := inst.showScrollbar
 	oldScrollbarStyle := inst.scrollbarStyle
 	oldChangeIntent := inst.changeIntent
+	oldSelectionIntent := inst.selectionIntent
+	oldSelectionMode := inst.selectionMode
+	oldCheckedIndices := append([]int(nil), inst.checkedIndices...)
+	oldCheckedIndicesControlled := inst.checkedIndicesControlled
 	oldFormID := inst.formID
 	oldViewportHeight := inst.viewportHeight
 	oldAllowScroll := inst.allowScroll
@@ -161,6 +178,9 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	inst.scrollbarStyle = getStyleProp(props, "scrollbarStyle")
 	inst.changeIntent = getIntentProp(props, "changeIntent")
 	inst.changeIntentField = getChangeIntentFieldProp(props, "changeIntent")
+	inst.selectionIntent = getIntentProp(props, "selectionIntent")
+	inst.selectionIntentField = getChangeIntentFieldProp(props, "selectionIntent")
+	inst.selectionMode = getSelectionModeProp(props, "selectionMode", inst.selectionMode)
 	if controlled, ok := props["scrollOffsetControlled"].(bool); ok {
 		inst.scrollOffsetControlled = controlled
 	}
@@ -170,6 +190,14 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 		inst.scrollOffset = offset
 	}
 	inst.selectedIndex = getIntProp(props, "selectedIndex", inst.selectedIndex)
+	if controlled, ok := props["checkedIndicesControlled"].(bool); ok {
+		inst.checkedIndicesControlled = controlled
+	}
+	if inst.checkedIndicesControlled {
+		inst.checkedIndices = getIntsProp(props, "checkedIndices", inst.checkedIndices)
+	} else if checkedIndices, ok := props["checkedIndices"].([]int); ok {
+		inst.checkedIndices = append([]int(nil), checkedIndices...)
+	}
 	inst.viewportHeight = getIntProp(props, "viewportHeight", inst.viewportHeight)
 	inst.formID = getStringProp(props, "formID", inst.formID)
 	inst.allowScroll = getBoolProp(props, "allowScroll", inst.allowScroll)
@@ -182,6 +210,7 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	}
 
 	inst.clampSelectedIndex()
+	inst.normalizeCheckedIndices()
 	inst.clampScroll()
 
 	changed := oldHeader != inst.header ||
@@ -201,6 +230,10 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 		oldShowScrollbar != inst.showScrollbar ||
 		oldScrollbarStyle != inst.scrollbarStyle ||
 		!sameIntent(oldChangeIntent, inst.changeIntent) ||
+		!sameIntent(oldSelectionIntent, inst.selectionIntent) ||
+		oldSelectionMode != inst.selectionMode ||
+		oldCheckedIndicesControlled != inst.checkedIndicesControlled ||
+		!equalInts(oldCheckedIndices, inst.checkedIndices) ||
 		oldFormID != inst.formID ||
 		oldViewportHeight != inst.viewportHeight ||
 		oldAllowScroll != inst.allowScroll ||
@@ -212,7 +245,7 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 }
 
 func (inst *Instance) GetProps() rtui.Props {
-	return rtui.Props{
+	props := rtui.Props{
 		"key":                    inst.key,
 		"header":                 inst.header,
 		"rows":                   inst.rows,
@@ -220,6 +253,8 @@ func (inst *Instance) GetProps() rtui.Props {
 		"showScrollbar":          inst.showScrollbar,
 		"scrollbarStyle":         inst.scrollbarStyle,
 		"changeIntent":           inst.changeIntent,
+		"selectionIntent":        inst.selectionIntent,
+		"selectionMode":          inst.selectionMode,
 		"scrollOffsetControlled": inst.scrollOffsetControlled,
 		"scrollOffset":           inst.scrollOffset,
 		"selectedIndex":          inst.selectedIndex,
@@ -227,6 +262,11 @@ func (inst *Instance) GetProps() rtui.Props {
 		"formID":                 inst.formID,
 		"allowScroll":            inst.allowScroll,
 	}
+	if inst.checkedIndicesControlled {
+		props["checkedIndicesControlled"] = true
+		props["checkedIndices"] = append([]int(nil), inst.checkedIndices...)
+	}
+	return props
 }
 
 func (inst *Instance) MarkDirty()                         { inst.dirty = true }
@@ -304,7 +344,7 @@ func (inst *Instance) paintWithBorder(x, y int) []paint.DrawCmd {
 
 	// Draw header if present
 	if inst.header != "" {
-		headerLine := "│ " + inst.truncateText(inst.header, width-4) + " │"
+		headerLine := "│ " + inst.truncateText(inst.headerDisplayText(), width-4) + " │"
 		cmds = append(cmds, paint.NewTextCmd(x, currentY, headerLine, inst.headerStyle))
 		currentY++
 	}
@@ -322,7 +362,7 @@ func (inst *Instance) paintWithBorder(x, y int) []paint.DrawCmd {
 	// Draw rows
 	if len(inst.rows) == 0 {
 		// Show empty text
-		emptyLine := "│ " + inst.truncateText(inst.emptyText, width-4) + " │"
+		emptyLine := "│ " + inst.truncateText(inst.emptyDisplayText(), width-4) + " │"
 		cmds = append(cmds, paint.NewTextCmd(x, currentY, emptyLine, inst.rowStyle))
 		currentY++
 	} else {
@@ -331,7 +371,7 @@ func (inst *Instance) paintWithBorder(x, y int) []paint.DrawCmd {
 		for rowIndex := startRow; rowIndex < endRow && currentY < y+inst.calculateHeight()-1; rowIndex++ {
 			rowText := inst.rows[rowIndex]
 			rowStyle := inst.rowStyleFor(rowIndex, rowText)
-			truncated := inst.truncateText(rowText, width-4)
+			truncated := inst.truncateText(inst.rowDisplayText(rowIndex, rowText), width-4)
 			rowLine := "│ " + truncated + " │"
 			cmds = append(cmds, paint.NewTextCmd(x, currentY, rowLine, rowStyle))
 			currentY++
@@ -368,7 +408,7 @@ func (inst *Instance) paintWithoutBorder(x, y int) []paint.DrawCmd {
 
 	// Draw header if present
 	if inst.header != "" {
-		cmds = append(cmds, paint.NewTextCmd(x, currentY, inst.truncateText(inst.header, width), inst.headerStyle))
+		cmds = append(cmds, paint.NewTextCmd(x, currentY, inst.truncateText(inst.headerDisplayText(), width), inst.headerStyle))
 		currentY++
 	}
 
@@ -381,7 +421,7 @@ func (inst *Instance) paintWithoutBorder(x, y int) []paint.DrawCmd {
 
 	// Draw rows
 	if len(inst.rows) == 0 {
-		cmds = append(cmds, paint.NewTextCmd(x, currentY, inst.truncateText(inst.emptyText, width), inst.rowStyle))
+		cmds = append(cmds, paint.NewTextCmd(x, currentY, inst.truncateText(inst.emptyDisplayText(), width), inst.rowStyle))
 		currentY++
 	} else {
 		viewport := inst.dataViewport()
@@ -389,7 +429,7 @@ func (inst *Instance) paintWithoutBorder(x, y int) []paint.DrawCmd {
 		for rowIndex := startRow; rowIndex < endRow; rowIndex++ {
 			rowText := inst.rows[rowIndex]
 			rowStyle := inst.rowStyleFor(rowIndex, rowText)
-			cmds = append(cmds, paint.NewTextCmd(x, currentY, inst.truncateText(rowText, width), rowStyle))
+			cmds = append(cmds, paint.NewTextCmd(x, currentY, inst.truncateText(inst.rowDisplayText(rowIndex, rowText), width), rowStyle))
 			currentY++
 		}
 	}
@@ -448,11 +488,7 @@ func (inst *Instance) HandleAction(act *action.Action) bool {
 		}
 		return inst.pageDown()
 	case action.ActionSelect, action.ActionEnter:
-		if inst.selectedIndex >= 0 && inst.selectedIndex < len(inst.rows) {
-			inst.emitSelectionChanged()
-			return true
-		}
-		return false
+		return inst.handleActivate()
 	}
 	return false
 }
@@ -694,14 +730,14 @@ func (inst *Instance) calculateWidth() int {
 	maxWidth := 40 // Minimum width
 
 	// Check header width (using display width, not byte length)
-	headerWidth := paint.StringWidth(inst.header)
+	headerWidth := paint.StringWidth(inst.headerDisplayText())
 	if headerWidth+4 > maxWidth {
 		maxWidth = headerWidth + 4
 	}
 
 	// Check rows width (using display width, not byte length)
-	for _, row := range inst.rows {
-		rowWidth := paint.StringWidth(row)
+	for rowIndex, row := range inst.rows {
+		rowWidth := paint.StringWidth(inst.rowDisplayText(rowIndex, row))
 		if rowWidth+4 > maxWidth {
 			maxWidth = rowWidth + 4
 		}
@@ -713,17 +749,21 @@ func (inst *Instance) calculateWidth() int {
 func (inst *Instance) handleClick(act *action.Action) bool {
 	mouseMsg, ok := act.Payload.(*runtimemsg.MouseMsg)
 	if !ok || mouseMsg == nil {
-		return false
+		return inst.handleActivate()
 	}
 	rowIndex, ok := inst.rowIndexAtLocalY(mouseMsg.LocalY)
 	if !ok {
 		return false
 	}
-	if rowIndex == inst.selectedIndex {
+	if rowIndex != inst.selectedIndex {
+		inst.selectIndex(rowIndex, true)
+	} else if inst.selectionMode == SelectionNone {
 		inst.emitSelectionChanged()
-		return true
 	}
-	return inst.selectIndex(rowIndex, true)
+	if inst.selectionMode != SelectionNone {
+		inst.applySelectionAtIndex(rowIndex)
+	}
+	return true
 }
 
 func (inst *Instance) rowIndexAtLocalY(localY int) (int, bool) {
@@ -770,6 +810,50 @@ func (inst *Instance) selectIndex(index int, emit bool) bool {
 	return changed
 }
 
+func (inst *Instance) handleActivate() bool {
+	if len(inst.rows) == 0 {
+		return false
+	}
+	if inst.selectedIndex < 0 {
+		inst.selectIndex(0, true)
+	}
+	if inst.selectedIndex < 0 || inst.selectedIndex >= len(inst.rows) {
+		return false
+	}
+	if inst.selectionMode != SelectionNone {
+		inst.applySelectionAtIndex(inst.selectedIndex)
+		return true
+	}
+	inst.emitSelectionChanged()
+	return true
+}
+
+func (inst *Instance) applySelectionAtIndex(index int) bool {
+	if index < 0 || index >= len(inst.rows) || inst.selectionMode == SelectionNone {
+		return false
+	}
+	changed := false
+	switch inst.selectionMode {
+	case SelectionSingle:
+		changed = !equalInts(inst.checkedIndices, []int{index})
+		inst.checkedIndices = []int{index}
+	case SelectionMultiple:
+		if inst.isChecked(index) {
+			inst.checkedIndices = removeInt(inst.checkedIndices, index)
+		} else {
+			inst.checkedIndices = append(inst.checkedIndices, index)
+		}
+		sort.Ints(inst.checkedIndices)
+		changed = true
+	}
+	inst.normalizeCheckedIndices()
+	if changed {
+		inst.dirty = true
+		inst.emitCheckedSelectionChanged()
+	}
+	return true
+}
+
 func (inst *Instance) emitSelectionChanged() {
 	if inst.intentEmitter == nil {
 		return
@@ -793,6 +877,111 @@ func (inst *Instance) emitSelectionChanged() {
 	}
 }
 
+func (inst *Instance) emitCheckedSelectionChanged() {
+	if inst.intentEmitter == nil {
+		return
+	}
+	value := inst.checkedSelectionValue()
+	if inst.formID != "" {
+		if inst.selectionIntentField != nil {
+			intent.Emit(inst, form.FieldChange(inst.formID, inst.selectionIntentField.GetField(), value, true))
+		}
+		return
+	}
+	if inst.selectionIntentField != nil {
+		inst.intentEmitter(intent.FieldChangeIntent{
+			Field: inst.selectionIntentField.GetField(),
+			Value: value,
+		})
+		return
+	}
+	if inst.selectionIntent != nil {
+		inst.intentEmitter(inst.selectionIntent)
+	}
+}
+
+func (inst *Instance) checkedSelectionValue() string {
+	if len(inst.checkedIndices) == 0 {
+		return ""
+	}
+	parts := make([]string, len(inst.checkedIndices))
+	for index, value := range inst.checkedIndices {
+		parts[index] = strconv.Itoa(value)
+	}
+	if inst.selectionMode == SelectionSingle {
+		return parts[0]
+	}
+	return strings.Join(parts, ",")
+}
+
+func (inst *Instance) headerDisplayText() string {
+	if inst.selectionMode == SelectionNone {
+		return inst.header
+	}
+	return strings.Repeat(" ", inst.selectionMarkerWidth()) + inst.header
+}
+
+func (inst *Instance) emptyDisplayText() string {
+	if inst.selectionMode == SelectionNone {
+		return inst.emptyText
+	}
+	return strings.Repeat(" ", inst.selectionMarkerWidth()) + inst.emptyText
+}
+
+func (inst *Instance) rowDisplayText(rowIndex int, rowText string) string {
+	if inst.selectionMode == SelectionNone {
+		return rowText
+	}
+	return inst.selectionMarker(rowIndex) + rowText
+}
+
+func (inst *Instance) selectionMarkerWidth() int {
+	if inst.selectionMode == SelectionNone {
+		return 0
+	}
+	return 4
+}
+
+func (inst *Instance) selectionMarker(rowIndex int) string {
+	if inst.isChecked(rowIndex) {
+		return "[x] "
+	}
+	return "[ ] "
+}
+
+func (inst *Instance) isChecked(rowIndex int) bool {
+	for _, checkedIndex := range inst.checkedIndices {
+		if checkedIndex == rowIndex {
+			return true
+		}
+	}
+	return false
+}
+
+func (inst *Instance) normalizeCheckedIndices() {
+	if inst.selectionMode == SelectionNone || len(inst.rows) == 0 {
+		inst.checkedIndices = nil
+		return
+	}
+	normalized := make([]int, 0, len(inst.checkedIndices))
+	seen := make(map[int]struct{}, len(inst.checkedIndices))
+	for _, checkedIndex := range inst.checkedIndices {
+		if checkedIndex < 0 || checkedIndex >= len(inst.rows) {
+			continue
+		}
+		if _, exists := seen[checkedIndex]; exists {
+			continue
+		}
+		seen[checkedIndex] = struct{}{}
+		normalized = append(normalized, checkedIndex)
+	}
+	sort.Ints(normalized)
+	if inst.selectionMode == SelectionSingle && len(normalized) > 1 {
+		normalized = normalized[:1]
+	}
+	inst.checkedIndices = normalized
+}
+
 // =============================================================================
 // Getters
 // =============================================================================
@@ -800,6 +989,10 @@ func (inst *Instance) emitSelectionChanged() {
 func (inst *Instance) GetScrollOffset() int   { return inst.scrollOffset }
 func (inst *Instance) GetSelectedIndex() int  { return inst.selectedIndex }
 func (inst *Instance) GetViewportHeight() int { return inst.viewportHeight }
+func (inst *Instance) GetCheckedIndices() []int {
+	return append([]int(nil), inst.checkedIndices...)
+}
+func (inst *Instance) GetSelectionMode() SelectionMode { return inst.selectionMode }
 
 // =============================================================================
 // Bounds Support
@@ -852,6 +1045,15 @@ func getStringsProp(props rtui.Props, def []string) []string {
 		return rows
 	}
 	return def
+}
+
+func getIntsProp(props rtui.Props, key string, def []int) []int {
+	if value, ok := props[key]; ok {
+		if ints, ok := value.([]int); ok {
+			return append([]int(nil), ints...)
+		}
+	}
+	return append([]int(nil), def...)
 }
 
 func getBoolProp(props rtui.Props, key string, def bool) bool {
@@ -910,6 +1112,15 @@ func getChangeIntentFieldProp(props rtui.Props, key string) intent.FieldIntent {
 	return nil
 }
 
+func getSelectionModeProp(props rtui.Props, key string, def SelectionMode) SelectionMode {
+	if value, ok := props[key]; ok {
+		if mode, ok := value.(SelectionMode); ok {
+			return mode
+		}
+	}
+	return def
+}
+
 func equalStrings(left, right []string) bool {
 	if len(left) != len(right) {
 		return false
@@ -920,6 +1131,27 @@ func equalStrings(left, right []string) bool {
 		}
 	}
 	return true
+}
+
+func equalInts(left, right []int) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for index := range left {
+		if left[index] != right[index] {
+			return false
+		}
+	}
+	return true
+}
+
+func removeInt(values []int, target int) []int {
+	for index, value := range values {
+		if value == target {
+			return append(append([]int(nil), values[:index]...), values[index+1:]...)
+		}
+	}
+	return append([]int(nil), values...)
 }
 
 func sameRowStyleFn(left, right func(int, string) style.Style) bool {
