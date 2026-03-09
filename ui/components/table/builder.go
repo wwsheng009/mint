@@ -1,6 +1,7 @@
 package table
 
 import (
+	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
@@ -31,6 +32,12 @@ func (b *Builder) Key(key string) *Builder {
 // This is separate from Key() which is used for list diffing.
 func (b *Builder) SetID(id string) *Builder {
 	b.vnode.SetID(id)
+	return b
+}
+
+// ComponentID sets the logical component ID for state-change intents.
+func (b *Builder) ComponentID(id string) *Builder {
+	b.vnode.SetComponentID(id)
 	return b
 }
 
@@ -145,6 +152,18 @@ func (b *Builder) SortBy(columnIndex int, descending bool) *Builder {
 // SelectedIndex sets the selected row index in controlled mode.
 func (b *Builder) SelectedIndex(index int) *Builder {
 	b.vnode.SetSelectedIndex(index)
+	return b
+}
+
+// OnChange sets a fallback change intent emitted on interactive state changes.
+func (b *Builder) OnChange(changeIntent intent.Intent) *Builder {
+	b.vnode.SetIntent(changeIntent)
+	return b
+}
+
+// ForField binds the selected source row index to FieldChangeIntent.
+func (b *Builder) ForField(binding intent.FieldBinding) *Builder {
+	b.vnode.SetFieldIntent(binding)
 	return b
 }
 

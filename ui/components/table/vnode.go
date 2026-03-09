@@ -2,6 +2,7 @@
 package table
 
 import (
+	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
@@ -15,6 +16,7 @@ type TableColumn struct {
 	Title    string
 	Width    int
 	Sortable bool
+	Align    rtui.Align
 }
 
 // =============================================================================
@@ -27,7 +29,8 @@ type VNode struct {
 	*rtui.ElementVNode
 
 	// === Identification ===
-	key string
+	key         string
+	componentID string
 
 	// === Table Props ===
 	columns       []TableColumn
@@ -54,6 +57,9 @@ type VNode struct {
 	sortControlled          bool
 	selectedIndex           int
 	selectedIndexControlled bool
+
+	changeIntent      intent.Intent
+	changeIntentField intent.FieldIntent
 }
 
 // Ensure VNode implements required interfaces
@@ -69,24 +75,25 @@ var (
 // New creates a new table VNode.
 func New() *VNode {
 	return &VNode{
-		ElementVNode:  rtui.NewElement("table"),
-		columns:       []TableColumn{},
-		rows:          [][]string{},
-		emptyText:     "(empty)",
-		headerStyle:   style.Style{}.Bold(true),
-		tableStyle:    style.Style{},
-		selectedStyle: style.Style{}.Reverse(true),
-		borderStyle:   style.Style{}.Foreground(style.BrightBlack),
-		statusStyle:   style.Style{}.Foreground(style.BrightBlack),
-		gap:           0,
-		showBorder:    false,
-		showFooter:    true,
-		pageSize:      0,
-		searchQuery:   "",
-		filters:       map[int]string{},
-		currentPage:   0,
-		sortColumn:    -1,
-		selectedIndex: -1,
+		ElementVNode:      rtui.NewElement("table"),
+		columns:           []TableColumn{},
+		rows:              [][]string{},
+		emptyText:         "(empty)",
+		headerStyle:       style.Style{}.Bold(true),
+		tableStyle:        style.Style{},
+		selectedStyle:     style.Style{}.Reverse(true),
+		borderStyle:       style.Style{}.Foreground(style.BrightBlack),
+		statusStyle:       style.Style{}.Foreground(style.BrightBlack),
+		gap:               0,
+		showBorder:        false,
+		showFooter:        true,
+		pageSize:          0,
+		searchQuery:       "",
+		filters:           map[int]string{},
+		currentPage:       0,
+		sortColumn:        -1,
+		selectedIndex:     -1,
+		changeIntentField: nil,
 	}
 }
 
@@ -120,6 +127,7 @@ func (v *VNode) TextContent() string { return "" }
 func (v *VNode) Props() rtui.Props {
 	return rtui.Props{
 		"key":                     v.key,
+		"componentID":             v.componentID,
 		"columns":                 v.columns,
 		"rows":                    v.rows,
 		"emptyText":               v.emptyText,
@@ -141,12 +149,17 @@ func (v *VNode) Props() rtui.Props {
 		"sortControlled":          v.sortControlled,
 		"selectedIndex":           v.selectedIndex,
 		"selectedIndexControlled": v.selectedIndexControlled,
+		"changeIntent":            v.changeIntent,
+		"changeIntentField":       v.changeIntentField,
 	}
 }
 
 func (v *VNode) SetProps(p rtui.Props) rtui.VNode {
 	if val, ok := p["key"].(string); ok {
 		v.key = val
+	}
+	if val, ok := p["componentID"].(string); ok {
+		v.componentID = val
 	}
 	if val, ok := p["columns"].([]TableColumn); ok {
 		v.columns = val
@@ -211,6 +224,12 @@ func (v *VNode) SetProps(p rtui.Props) rtui.VNode {
 	if val, ok := p["selectedIndexControlled"].(bool); ok {
 		v.selectedIndexControlled = val
 	}
+	if val, ok := p["changeIntent"].(intent.Intent); ok {
+		v.changeIntent = val
+	}
+	if val, ok := p["changeIntentField"].(intent.FieldIntent); ok {
+		v.changeIntentField = val
+	}
 	return v
 }
 
@@ -227,6 +246,7 @@ func (v *VNode) CreateInstance() rtui.ComponentInstance {
 // =============================================================================
 
 func (v *VNode) SetColumns(cols []TableColumn) *VNode  { v.columns = cols; return v }
+func (v *VNode) SetComponentID(id string) *VNode       { v.componentID = id; return v }
 func (v *VNode) SetRows(rows [][]string) *VNode        { v.rows = rows; return v }
 func (v *VNode) SetEmptyText(text string) *VNode       { v.emptyText = text; return v }
 func (v *VNode) SetHeaderStyle(s style.Style) *VNode   { v.headerStyle = s; return v }
@@ -267,6 +287,14 @@ func (v *VNode) SetSortBy(columnIndex int, descending bool) *VNode {
 func (v *VNode) SetSelectedIndex(index int) *VNode {
 	v.selectedIndex = index
 	v.selectedIndexControlled = true
+	return v
+}
+func (v *VNode) SetIntent(i intent.Intent) *VNode {
+	v.changeIntent = i
+	return v
+}
+func (v *VNode) SetFieldIntent(i intent.FieldIntent) *VNode {
+	v.changeIntentField = i
 	return v
 }
 

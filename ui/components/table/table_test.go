@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/wwsheng009/mint/runtime/action"
+	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/runtime/layout"
 	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
 	"github.com/wwsheng009/mint/runtime/paint"
@@ -421,6 +422,7 @@ func TestInstance_HandleAction_PageNavigation(t *testing.T) {
 func TestBuilder_FluentEnhancements(t *testing.T) {
 	vnode := NewBuilder().
 		Columns([]TableColumn{{Title: "ID", Sortable: true}}).
+		ComponentID("orders.table").
 		SearchQuery("alice").
 		Filter(0, "1").
 		PageSize(5).
@@ -444,6 +446,76 @@ func TestBuilder_FluentEnhancements(t *testing.T) {
 	}
 	if !vnode.showBorder || !vnode.showFooter {
 		t.Fatal("expected border and footer to be enabled")
+	}
+	if vnode.componentID != "orders.table" {
+		t.Fatalf("componentID = %q, want orders.table", vnode.componentID)
+	}
+}
+
+func TestInstance_HandleAction_SelectEmitsFieldChangeIntent(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"columns":      []TableColumn{{Title: "ID", Width: 4}, {Title: "Name", Width: 8}},
+		"rows":         [][]string{{"10", "Alice"}, {"20", "Bob"}},
+		"changeIntent": intent.BindField("selected_row"),
+	})
+
+	var emitted []intent.Intent
+	inst.SetIntentEmitter(func(i intent.Intent) { emitted = append(emitted, i) })
+
+	if !inst.HandleAction(action.NewAction(action.ActionNavigateDown)) {
+		t.Fatal("expected navigate down to be handled")
+	}
+	if len(emitted) != 1 {
+		t.Fatalf("emitted len = %d, want 1", len(emitted))
+	}
+	fieldChange, ok := emitted[0].(intent.FieldChangeIntent)
+	if !ok {
+		t.Fatalf("emitted intent = %T, want FieldChangeIntent", emitted[0])
+	}
+	if fieldChange.Field != "selected_row" || fieldChange.Value != "0" {
+		t.Fatalf("field change = %#v, want selected_row=0", fieldChange)
+	}
+}
+
+func TestInstance_EmitStateChangeIntent(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"componentID": "orders.table",
+		"columns":     []TableColumn{{Title: "ID", Width: 4}, {Title: "Name", Width: 8}},
+		"rows":        [][]string{{"10", "Alice"}, {"20", "Bob"}},
+	})
+	var emitted []intent.Intent
+	inst.SetIntentEmitter(func(i intent.Intent) { emitted = append(emitted, i) })
+
+	if !inst.HandleAction(action.NewAction(action.ActionNavigateDown)) {
+		t.Fatal("expected navigate down to be handled")
+	}
+	if len(emitted) != 1 {
+		t.Fatalf("emitted len = %d, want 1", len(emitted))
+	}
+	change, ok := emitted[0].(StateChangeIntent)
+	if !ok {
+		t.Fatalf("emitted intent = %T, want StateChangeIntent", emitted[0])
+	}
+	if change.ComponentID != "orders.table" || change.SelectedSourceIndex != 0 || change.PageCount != 1 || change.FilteredRows != 2 {
+		t.Fatalf("state change = %#v, want componentID orders.table, source index 0, pageCount 1, filteredRows 2", change)
+	}
+}
+
+func TestInstance_PaintHonorsColumnAlignment(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"columns": []TableColumn{
+			{Title: "Qty", Width: 5, Align: rtui.AlignEnd},
+			{Title: "Name", Width: 8, Align: rtui.AlignCenter},
+		},
+		"rows": [][]string{{"12", "Bolt"}},
+	})
+
+	row := textAtY(inst.Paint(0, 0), 2)
+	if !strings.HasPrefix(row, "   12") {
+		t.Fatalf("row = %q, want right-aligned quantity", row)
+	}
+	if !strings.Contains(row, "  Bolt  ") {
+		t.Fatalf("row = %q, want centered name cell", row)
 	}
 }
 

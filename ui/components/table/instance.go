@@ -2,11 +2,13 @@ package table
 
 import (
 	"fmt"
+	"reflect"
 	"sort"
 	"strconv"
 	"strings"
 
 	"github.com/wwsheng009/mint/runtime/action"
+	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/runtime/layout"
 	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
 	"github.com/wwsheng009/mint/runtime/paint"
@@ -33,7 +35,8 @@ type tableView struct {
 
 // Instance is the runtime entity for table components.
 type Instance struct {
-	key string
+	key         string
+	componentID string
 
 	columns       []TableColumn
 	rows          [][]string
@@ -58,9 +61,14 @@ type Instance struct {
 	selectedIndex           int
 	selectedIndexControlled bool
 
-	focused bool
-	bounds  [4]int
-	dirty   bool
+	changeIntent      intent.Intent
+	changeIntentField intent.FieldIntent
+
+	parent        rtui.ComponentInstance
+	intentEmitter func(intent.Intent)
+	focused       bool
+	bounds        [4]int
+	dirty         bool
 }
 
 var (
@@ -76,6 +84,7 @@ var (
 func NewInstance(props rtui.Props) *Instance {
 	inst := &Instance{
 		key:                     getStringProp(props, "key", ""),
+		componentID:             getStringProp(props, "componentID", ""),
 		columns:                 getColumnsProp(props, []TableColumn{}),
 		rows:                    getRowsProp(props, [][]string{}),
 		emptyText:               getStringProp(props, "emptyText", "(empty)"),
@@ -97,6 +106,8 @@ func NewInstance(props rtui.Props) *Instance {
 		sortControlled:          getBoolProp(props, "sortControlled", false),
 		selectedIndex:           getIntProp(props, "selectedIndex", -1),
 		selectedIndexControlled: getBoolProp(props, "selectedIndexControlled", false),
+		changeIntent:            getIntentProp(props, "changeIntent"),
+		changeIntentField:       getFieldIntentProp(props, "changeIntent"),
 		dirty:                   true,
 	}
 	inst.normalizeViewState(false)
@@ -109,6 +120,10 @@ func (inst *Instance) Init(props rtui.Props) { inst.SetProps(props) }
 func (inst *Instance) Destroy()              { inst.columns = nil; inst.rows = nil; inst.filters = nil }
 func (inst *Instance) OnMount()              { inst.dirty = true }
 func (inst *Instance) OnUnmount()            {}
+func (inst *Instance) Parent() interface{}   { return inst.parent }
+func (inst *Instance) SetParent(parent rtui.ComponentInstance) {
+	inst.parent = parent
+}
 
 func (inst *Instance) SetProps(props rtui.Props) bool {
 	oldColumns := append([]TableColumn(nil), inst.columns...)
@@ -132,7 +147,11 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	oldSortControlled := inst.sortControlled
 	oldSelectedIndex := inst.selectedIndex
 	oldSelectedIndexControlled := inst.selectedIndexControlled
+	oldComponentID := inst.componentID
+	oldChangeIntent := inst.changeIntent
+	oldChangeIntentField := inst.changeIntentField
 
+	inst.componentID = getStringProp(props, "componentID", inst.componentID)
 	inst.columns = getColumnsProp(props, inst.columns)
 	inst.rows = getRowsProp(props, inst.rows)
 	inst.emptyText = getStringProp(props, "emptyText", inst.emptyText)
@@ -147,6 +166,8 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	inst.pageSize = maxInt(0, getIntProp(props, "pageSize", inst.pageSize))
 	inst.searchQuery = getStringProp(props, "searchQuery", inst.searchQuery)
 	inst.filters = getFiltersProp(props, inst.filters)
+	inst.changeIntent = getIntentProp(props, "changeIntent")
+	inst.changeIntentField = getFieldIntentProp(props, "changeIntent")
 
 	if controlled, ok := props["currentPageControlled"].(bool); ok {
 		inst.currentPageControlled = controlled
@@ -170,7 +191,7 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 		inst.selectedIndex = getIntProp(props, "selectedIndex", inst.selectedIndex)
 	}
 
-	resetPage := oldSearchQuery != inst.searchQuery || !equalFilters(oldFilters, inst.filters)
+	resetPage := oldSearchQuery != inst.searchQuery || !equalFilters(oldFilters, inst.filters) || oldPageSize != inst.pageSize
 	inst.normalizeViewState(resetPage)
 
 	changed := !columnsEqual(oldColumns, inst.columns) ||
@@ -193,7 +214,10 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 		oldSortDescending != inst.sortDescending ||
 		oldSortControlled != inst.sortControlled ||
 		oldSelectedIndex != inst.selectedIndex ||
-		oldSelectedIndexControlled != inst.selectedIndexControlled
+		oldSelectedIndexControlled != inst.selectedIndexControlled ||
+		oldComponentID != inst.componentID ||
+		!sameIntent(oldChangeIntent, inst.changeIntent) ||
+		!sameFieldIntent(oldChangeIntentField, inst.changeIntentField)
 	if changed {
 		inst.dirty = true
 	}
@@ -224,6 +248,9 @@ func (inst *Instance) GetProps() rtui.Props {
 		"sortControlled":          inst.sortControlled,
 		"selectedIndex":           inst.selectedIndex,
 		"selectedIndexControlled": inst.selectedIndexControlled,
+		"componentID":             inst.componentID,
+		"changeIntent":            inst.changeIntent,
+		"changeIntentField":       inst.changeIntentField,
 	}
 }
 
@@ -231,6 +258,9 @@ func (inst *Instance) MarkDirty()                         { inst.dirty = true }
 func (inst *Instance) IsDirty() bool                      { return inst.dirty }
 func (inst *Instance) GetContext() *rtui.ComponentContext { return nil }
 func (inst *Instance) ClearDirty()                        { inst.dirty = false }
+func (inst *Instance) SetIntentEmitter(fn func(intent.Intent)) {
+	inst.intentEmitter = fn
+}
 
 func (inst *Instance) Measure(constraints layout.Constraints) layout.Size {
 	if len(inst.columns) == 0 {
@@ -657,7 +687,7 @@ func (inst *Instance) maxRenderableRows(showFooter bool) int {
 func (inst *Instance) buildHeaderLine(widths []int) string {
 	cells := make([]string, len(inst.columns))
 	for columnIndex := range inst.columns {
-		cells[columnIndex] = formatCell(inst.headerLabel(columnIndex), widths[columnIndex])
+		cells[columnIndex] = formatCell(inst.headerLabel(columnIndex), widths[columnIndex], inst.columns[columnIndex].Align)
 	}
 	return strings.Join(cells, " │ ")
 }
@@ -669,7 +699,7 @@ func (inst *Instance) buildDataLine(cells []string, widths []int) string {
 		if columnIndex < len(cells) {
 			cell = cells[columnIndex]
 		}
-		formatted[columnIndex] = formatCell(cell, widths[columnIndex])
+		formatted[columnIndex] = formatCell(cell, widths[columnIndex], inst.columns[columnIndex].Align)
 	}
 	return strings.Join(formatted, " │ ")
 }
@@ -822,6 +852,7 @@ func (inst *Instance) toggleSort(columnIndex int) bool {
 	}
 	inst.normalizeViewState(true)
 	inst.dirty = true
+	inst.emitStateChanged()
 	return true
 }
 
@@ -841,6 +872,7 @@ func (inst *Instance) selectIndex(index int) bool {
 		inst.currentPage = clamped / inst.pageSize
 	}
 	inst.dirty = true
+	inst.emitStateChanged()
 	return true
 }
 
@@ -907,7 +939,50 @@ func (inst *Instance) movePage(delta int) bool {
 		inst.selectedIndex = target
 	}
 	inst.dirty = true
+	inst.emitStateChanged()
 	return true
+}
+
+func (inst *Instance) emitStateChanged() {
+	if inst.intentEmitter == nil {
+		return
+	}
+
+	view := inst.processedView()
+	selectedSourceIndex := inst.selectedSourceIndex(view.rows)
+	if inst.componentID != "" {
+		inst.intentEmitter(StateChange(
+			inst.componentID,
+			inst.selectedIndex,
+			selectedSourceIndex,
+			view.currentPage,
+			view.pageCount,
+			inst.pageSize,
+			inst.sortColumn,
+			inst.sortDescending,
+			inst.searchQuery,
+			inst.filters,
+			len(view.pageRows),
+			view.filteredCount,
+			view.totalCount,
+		))
+	}
+
+	if inst.changeIntentField != nil {
+		inst.intentEmitter(intent.FieldChangeIntent{
+			Field: inst.changeIntentField.GetField(),
+			Value: strconv.Itoa(selectedSourceIndex),
+		})
+	} else if inst.changeIntent != nil {
+		inst.intentEmitter(inst.changeIntent)
+	}
+}
+
+func (inst *Instance) selectedSourceIndex(rows []rowView) int {
+	if inst.selectedIndex < 0 || inst.selectedIndex >= len(rows) {
+		return -1
+	}
+	return rows[inst.selectedIndex].sourceIndex
 }
 
 func getStringProp(props rtui.Props, key, def string) string {
@@ -992,6 +1067,29 @@ func getFiltersProp(props rtui.Props, def map[int]string) map[int]string {
 	return cloneFilters(def)
 }
 
+func getIntentProp(props rtui.Props, key string) intent.Intent {
+	if value, ok := props[key]; ok {
+		if result, ok := value.(intent.Intent); ok {
+			return result
+		}
+	}
+	return nil
+}
+
+func getFieldIntentProp(props rtui.Props, key string) intent.FieldIntent {
+	if value, ok := props[key]; ok {
+		if result, ok := value.(intent.FieldIntent); ok {
+			return result
+		}
+	}
+	if value, ok := props[key+"Field"]; ok {
+		if result, ok := value.(intent.FieldIntent); ok {
+			return result
+		}
+	}
+	return nil
+}
+
 func columnsEqual(left, right []TableColumn) bool {
 	if len(left) != len(right) {
 		return false
@@ -999,7 +1097,8 @@ func columnsEqual(left, right []TableColumn) bool {
 	for index := range left {
 		if left[index].Title != right[index].Title ||
 			left[index].Width != right[index].Width ||
-			left[index].Sortable != right[index].Sortable {
+			left[index].Sortable != right[index].Sortable ||
+			left[index].Align != right[index].Align {
 			return false
 		}
 	}
@@ -1043,8 +1142,24 @@ func cloneRows(rows [][]string) [][]string {
 	return cloned
 }
 
-func formatCell(text string, width int) string {
-	return padRightToWidth(truncateText(text, width), width)
+func sameIntent(left, right intent.Intent) bool {
+	return reflect.DeepEqual(left, right)
+}
+
+func sameFieldIntent(left, right intent.FieldIntent) bool {
+	return reflect.DeepEqual(left, right)
+}
+
+func formatCell(text string, width int, align rtui.Align) string {
+	trimmed := truncateText(text, width)
+	switch align {
+	case rtui.AlignCenter:
+		return padCenterToWidth(trimmed, width)
+	case rtui.AlignEnd:
+		return padLeftToWidth(trimmed, width)
+	default:
+		return padRightToWidth(trimmed, width)
+	}
 }
 
 func truncateText(text string, maxWidth int) string {
@@ -1091,6 +1206,24 @@ func padRightToWidth(text string, width int) string {
 		return trimToWidth(text, width)
 	}
 	return text + strings.Repeat(" ", width-textWidth)
+}
+
+func padLeftToWidth(text string, width int) string {
+	textWidth := paint.StringWidth(text)
+	if textWidth >= width {
+		return trimToWidth(text, width)
+	}
+	return strings.Repeat(" ", width-textWidth) + text
+}
+
+func padCenterToWidth(text string, width int) string {
+	textWidth := paint.StringWidth(text)
+	if textWidth >= width {
+		return trimToWidth(text, width)
+	}
+	left := (width - textWidth) / 2
+	right := width - textWidth - left
+	return strings.Repeat(" ", left) + text + strings.Repeat(" ", right)
 }
 
 func shrinkWidthsToFit(widths []int, target int) []int {
