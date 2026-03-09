@@ -25,11 +25,11 @@ func (StateChangeIntent) IntentType() string {
 }
 
 func (StateChangeIntent) Priority() intent.ActionPriority {
-	return intent.PriorityNormal
+	return intent.PriorityUserBlocking
 }
 
 func (StateChangeIntent) IsTransition() bool {
-	return true
+	return false
 }
 
 func (StateChangeIntent) IsGlobal() bool {

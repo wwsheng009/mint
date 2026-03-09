@@ -48,6 +48,12 @@ type ToggleFooterIntent struct{}
 type ToggleScrollbarIntent struct{}
 type ClearFiltersIntent struct{}
 type ResetDemoIntent struct{}
+type StepPageIntent struct {
+	Delta int
+}
+type SetPageIntent struct {
+	Page int
+}
 
 type AdjustPageSizeIntent struct {
 	Delta int
@@ -58,12 +64,16 @@ func (ToggleFooterIntent) IntentType() string    { return "TableDemoToggleFooter
 func (ToggleScrollbarIntent) IntentType() string { return "TableDemoToggleScrollbar" }
 func (ClearFiltersIntent) IntentType() string    { return "TableDemoClearFilters" }
 func (ResetDemoIntent) IntentType() string       { return "TableDemoReset" }
+func (StepPageIntent) IntentType() string        { return "TableDemoStepPage" }
+func (SetPageIntent) IntentType() string         { return "TableDemoSetPage" }
 func (AdjustPageSizeIntent) IntentType() string  { return "TableDemoAdjustPageSize" }
 func (ToggleBorderIntent) StayPressed() bool     { return true }
 func (ToggleFooterIntent) StayPressed() bool     { return true }
 func (ToggleScrollbarIntent) StayPressed() bool  { return true }
 func (ClearFiltersIntent) StayPressed() bool     { return true }
 func (ResetDemoIntent) StayPressed() bool        { return true }
+func (StepPageIntent) StayPressed() bool         { return true }
+func (SetPageIntent) StayPressed() bool          { return true }
 func (AdjustPageSizeIntent) StayPressed() bool   { return true }
 
 var demoRecords = generateRecords()
@@ -107,14 +117,6 @@ func init() {
 				s.CurrentPage = 0
 				s = recomputeDerivedState(s)
 				s.LastAction = fmt.Sprintf("Region filter = %q", strings.TrimSpace(s.RegionFilter))
-			case "selectedRow":
-				s.SelectedRow = normalizeSelectedRow(fieldChange.Value)
-				if s.SelectedRow == "" {
-					s.LastAction = "Selection cleared"
-				} else if index, ok := selectedIndex(s.SelectedRow); ok {
-					record := demoRecords[index]
-					s.LastAction = fmt.Sprintf("Selected #%d · %s · %s", record.ID, record.Service, record.Status)
-				}
 			}
 			return s
 		}).
@@ -128,7 +130,24 @@ func init() {
 			s.SortColumn = change.SortColumn
 			s.SortDesc = change.SortDescending
 			s.FilteredRows = change.FilteredRows
-			s.LastAction = fmt.Sprintf("Page %d/%d · %s", change.CurrentPage+1, maxInt(1, change.PageCount), sortSummary(change.SortColumn, change.SortDescending))
+			s.SelectedRow = normalizeSelectedRow(strconv.Itoa(change.SelectedSourceIndex))
+			switch {
+			case change.SelectedSourceIndex >= 0:
+				record := demoRecords[change.SelectedSourceIndex]
+				s.LastAction = fmt.Sprintf("Page %d/%d · %s · Selected #%d %s",
+					change.CurrentPage+1,
+					maxInt(1, change.PageCount),
+					sortSummary(change.SortColumn, change.SortDescending),
+					record.ID,
+					record.Service,
+				)
+			default:
+				s.LastAction = fmt.Sprintf("Page %d/%d · %s",
+					change.CurrentPage+1,
+					maxInt(1, change.PageCount),
+					sortSummary(change.SortColumn, change.SortDescending),
+				)
+			}
 			return s
 		}).
 		On(ToggleBorderIntent{}, func(s AppState, i intent.Intent) AppState {
@@ -144,6 +163,24 @@ func init() {
 		On(ToggleScrollbarIntent{}, func(s AppState, i intent.Intent) AppState {
 			s.ShowScrollbar = !s.ShowScrollbar
 			s.LastAction = fmt.Sprintf("Scrollbar = %t", s.ShowScrollbar)
+			return s
+		}).
+		On(StepPageIntent{}, func(s AppState, i intent.Intent) AppState {
+			step, ok := i.(StepPageIntent)
+			if !ok {
+				return s
+			}
+			s.CurrentPage = clampInt(s.CurrentPage+step.Delta, 0, maxInt(0, s.PageCount-1))
+			s.LastAction = fmt.Sprintf("Page %d/%d", s.CurrentPage+1, maxInt(1, s.PageCount))
+			return s
+		}).
+		On(SetPageIntent{}, func(s AppState, i intent.Intent) AppState {
+			setPage, ok := i.(SetPageIntent)
+			if !ok {
+				return s
+			}
+			s.CurrentPage = clampInt(setPage.Page, 0, maxInt(0, s.PageCount-1))
+			s.LastAction = fmt.Sprintf("Page %d/%d", s.CurrentPage+1, maxInt(1, s.PageCount))
 			return s
 		}).
 		On(ClearFiltersIntent{}, func(s AppState, i intent.Intent) AppState {
@@ -252,8 +289,21 @@ func controlsPanel(state AppState) ui.VNode {
 				ui.Flex(inputBlock("Status Filter", state.StatusFilter, "statusFilter", "open / ack / closed / triage", 24), 1),
 				ui.Flex(inputBlock("Region Filter", state.RegionFilter, "regionFilter", "us-east / eu-west / ap-south", 24), 1),
 			).Gap(1).Stretch().Build(),
+			paginationControls(state),
 			ui.NewTextBuilder("Tab 在三个 input 和 table 间切换；点击表头排序；↑↓ 选中，PageUp/PageDown 或 ←/→ 翻页").FgColor("bright-black").Build(),
 		})
+}
+
+func paginationControls(state AppState) ui.VNode {
+	return ui.HStackBuilder(
+		ui.NewTextBuilder("Page").FgColor("cyan").Build(),
+		ui.NewButtonBuilder("First").OnPress(SetPageIntent{Page: 0}).Build(),
+		ui.NewButtonBuilder("Prev").OnPress(StepPageIntent{Delta: -1}).Build(),
+		ui.NewTextBuilder(fmt.Sprintf("%d/%d", state.CurrentPage+1, maxInt(1, state.PageCount))).FgColor("bright-white").Build(),
+		ui.NewButtonBuilder("Next").OnPress(StepPageIntent{Delta: 1}).Build(),
+		ui.NewButtonBuilder("Last").OnPress(SetPageIntent{Page: maxInt(0, state.PageCount-1)}).Build(),
+		ui.NewTextBuilder("受控分页：按钮与 table 内部翻页共享同一份状态").FgColor("bright-black").Build(),
+	).Gap(1).Build()
 }
 
 func inputBlock(label, value, field, placeholder string, width int) ui.VNode {
@@ -283,6 +333,8 @@ func tablePane(state AppState) ui.VNode {
 		SearchQuery(state.SearchText).
 		Filters(filters).
 		PageSize(state.PageSize).
+		CurrentPage(state.CurrentPage).
+		SortBy(state.SortColumn, state.SortDesc).
 		EmptyText("No incidents match the current search and filters").
 		ShowBorder(state.ShowBorder).
 		ShowFooter(state.ShowFooter).
@@ -293,7 +345,6 @@ func tablePane(state AppState) ui.VNode {
 		StatusStyle(style.Style{}.Foreground(style.BrightBlack)).
 		ScrollbarStyle(style.Style{}.Foreground(style.BrightBlack)).
 		SelectedStyle(style.Style{}.Foreground(style.Black).Background(style.BrightCyan).Bold(true)).
-		ForField(intent.BindField("selectedRow")).
 		Build()
 }
 
@@ -317,7 +368,7 @@ func statePanel(state AppState, filteredCount int) ui.VNode {
 			ui.NewTextBuilder(fmt.Sprintf("Sort: %s", sortSummary(state.SortColumn, state.SortDesc))).FgColor("yellow").Build(),
 			ui.NewTextBuilder(fmt.Sprintf("SelectedRow: %s", displaySelectedRow(state.SelectedRow))).FgColor("cyan").Build(),
 			ui.NewTextBuilder(fmt.Sprintf("Scrollbar: %t", state.ShowScrollbar)).FgColor("bright-black").Build(),
-			ui.NewTextBuilder("排序与分页来自 table.StateChangeIntent；选中来自 ForField(FieldChangeIntent)").FgColor("bright-black").Build(),
+			ui.NewTextBuilder("排序与分页现在走受控模式；table 交互会把目标状态同步回 store").FgColor("bright-black").Build(),
 		})
 }
 
@@ -351,9 +402,10 @@ func helpPanel() ui.VNode {
 		SetGap(0).
 		SetChildrenList([]ui.VNode{
 			ui.NewTextBuilder("Tab: search/status/region/table 之间切换").FgColor("bright-white").Build(),
-			ui.NewTextBuilder("Table: 点击表头排序；↑↓ 选中；PageUp/PageDown 或 ←/→ 翻页").FgColor("bright-white").Build(),
+			ui.NewTextBuilder("Table: 点击表头排序；第三次点击清除排序；↑↓ 选中；PageUp/PageDown 或 ←/→ 翻页").FgColor("bright-white").Build(),
 			ui.NewTextBuilder("F2 border  F3 footer  F4 scrollbar  F5 clear filters").FgColor("bright-black").Build(),
 			ui.NewTextBuilder("F6/F7 page size -/+  F8 reset").FgColor("bright-black").Build(),
+			ui.NewTextBuilder("Buttons: First / Prev / Next / Last 验证受控分页").FgColor("bright-black").Build(),
 		})
 }
 

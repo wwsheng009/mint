@@ -64,9 +64,18 @@ type Instance struct {
 	sortControlled          bool
 	selectedIndex           int
 	selectedIndexControlled bool
+	lastPropCurrentPage     int
+	lastPropSortColumn      int
+	lastPropSortDescending  bool
 
 	changeIntent      intent.Intent
 	changeIntentField intent.FieldIntent
+
+	pendingCurrentPage    int
+	hasPendingCurrentPage bool
+	pendingSortColumn     int
+	pendingSortDescending bool
+	hasPendingSort        bool
 
 	parent        rtui.ComponentInstance
 	intentEmitter func(intent.Intent)
@@ -112,6 +121,9 @@ func NewInstance(props rtui.Props) *Instance {
 		sortControlled:          getBoolProp(props, "sortControlled", false),
 		selectedIndex:           getIntProp(props, "selectedIndex", -1),
 		selectedIndexControlled: getBoolProp(props, "selectedIndexControlled", false),
+		lastPropCurrentPage:     maxInt(0, getIntProp(props, "currentPage", 0)),
+		lastPropSortColumn:      getIntProp(props, "sortColumn", -1),
+		lastPropSortDescending:  getBoolProp(props, "sortDescending", false),
 		changeIntent:            getIntentProp(props, "changeIntent"),
 		changeIntentField:       getFieldIntentProp(props, "changeIntent"),
 		dirty:                   true,
@@ -155,6 +167,9 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	oldSortControlled := inst.sortControlled
 	oldSelectedIndex := inst.selectedIndex
 	oldSelectedIndexControlled := inst.selectedIndexControlled
+	oldPropCurrentPage := inst.lastPropCurrentPage
+	oldPropSortColumn := inst.lastPropSortColumn
+	oldPropSortDescending := inst.lastPropSortDescending
 	oldComponentID := inst.componentID
 	oldChangeIntent := inst.changeIntent
 	oldChangeIntentField := inst.changeIntentField
@@ -184,6 +199,7 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	}
 	if inst.currentPageControlled {
 		inst.currentPage = maxInt(0, getIntProp(props, "currentPage", inst.currentPage))
+		inst.lastPropCurrentPage = inst.currentPage
 	}
 
 	if controlled, ok := props["sortControlled"].(bool); ok {
@@ -192,6 +208,8 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	if inst.sortControlled {
 		inst.sortColumn = getIntProp(props, "sortColumn", inst.sortColumn)
 		inst.sortDescending = getBoolProp(props, "sortDescending", inst.sortDescending)
+		inst.lastPropSortColumn = inst.sortColumn
+		inst.lastPropSortDescending = inst.sortDescending
 	}
 
 	if controlled, ok := props["selectedIndexControlled"].(bool); ok {
@@ -200,6 +218,8 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	if inst.selectedIndexControlled {
 		inst.selectedIndex = getIntProp(props, "selectedIndex", inst.selectedIndex)
 	}
+
+	inst.reconcilePendingState(oldPropCurrentPage, oldPropSortColumn, oldPropSortDescending)
 
 	resetPage := oldSearchQuery != inst.searchQuery || !equalFilters(oldFilters, inst.filters) || oldPageSize != inst.pageSize
 	inst.normalizeViewState(resetPage)
@@ -227,6 +247,9 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 		oldSortControlled != inst.sortControlled ||
 		oldSelectedIndex != inst.selectedIndex ||
 		oldSelectedIndexControlled != inst.selectedIndexControlled ||
+		oldPropCurrentPage != inst.lastPropCurrentPage ||
+		oldPropSortColumn != inst.lastPropSortColumn ||
+		oldPropSortDescending != inst.lastPropSortDescending ||
 		oldComponentID != inst.componentID ||
 		!sameIntent(oldChangeIntent, inst.changeIntent) ||
 		!sameFieldIntent(oldChangeIntentField, inst.changeIntentField)
@@ -489,6 +512,10 @@ func (inst *Instance) normalizeViewState(resetPage bool) {
 	if inst.sortColumn >= len(inst.columns) {
 		inst.sortColumn = -1
 	}
+	if inst.hasPendingSort && inst.pendingSortColumn >= len(inst.columns) {
+		inst.pendingSortColumn = -1
+		inst.pendingSortDescending = false
+	}
 	if inst.currentPage < 0 {
 		inst.currentPage = 0
 	}
@@ -552,7 +579,7 @@ func (inst *Instance) processedView() tableView {
 	}
 
 	pageCount := pageCountFor(len(rows), inst.pageSize)
-	page := clampInt(inst.currentPage, 0, maxInt(0, pageCount-1))
+	page := clampInt(inst.effectiveCurrentPage(), 0, maxInt(0, pageCount-1))
 	start := page * inst.pageSize
 	end := minInt(start+inst.pageSize, len(rows))
 	if start > len(rows) {
@@ -590,9 +617,8 @@ func (inst *Instance) filteredSortedRows() []rowView {
 		})
 	}
 
-	if inst.sortColumn >= 0 && inst.sortColumn < len(inst.columns) {
-		sortColumn := inst.sortColumn
-		descending := inst.sortDescending
+	sortColumn, descending := inst.effectiveSortState()
+	if sortColumn >= 0 && sortColumn < len(inst.columns) {
 		sort.SliceStable(rows, func(i, j int) bool {
 			comparison := compareCellValues(rows[i].cells[sortColumn], rows[j].cells[sortColumn])
 			if comparison == 0 {
@@ -774,8 +800,9 @@ func (inst *Instance) buildDataLine(cells []string, widths []int) string {
 
 func (inst *Instance) headerLabel(columnIndex int) string {
 	label := inst.columns[columnIndex].Title
-	if inst.sortColumn == columnIndex {
-		if inst.sortDescending {
+	sortColumn, sortDescending := inst.effectiveSortState()
+	if sortColumn == columnIndex {
+		if sortDescending {
 			return label + " ↓"
 		}
 		return label + " ↑"
@@ -794,10 +821,11 @@ func (inst *Instance) shouldShowFooter(view tableView) bool {
 	if !inst.showFooter {
 		return false
 	}
+	sortColumn, _ := inst.effectiveSortState()
 	return inst.pageSize > 0 ||
 		inst.searchQuery != "" ||
 		len(inst.filters) > 0 ||
-		(inst.sortColumn >= 0 && inst.sortColumn < len(inst.columns)) ||
+		(sortColumn >= 0 && sortColumn < len(inst.columns)) ||
 		view.filteredCount != view.totalCount
 }
 
@@ -806,12 +834,13 @@ func (inst *Instance) statusText(view tableView) string {
 	if view.pageCount > 1 {
 		parts = append(parts, fmt.Sprintf("Page %d/%d", view.currentPage+1, view.pageCount))
 	}
-	if inst.sortColumn >= 0 && inst.sortColumn < len(inst.columns) {
+	sortColumn, sortDescending := inst.effectiveSortState()
+	if sortColumn >= 0 && sortColumn < len(inst.columns) {
 		direction := "↑"
-		if inst.sortDescending {
+		if sortDescending {
 			direction = "↓"
 		}
-		parts = append(parts, fmt.Sprintf("Sort %s %s", inst.columns[inst.sortColumn].Title, direction))
+		parts = append(parts, fmt.Sprintf("Sort %s %s", inst.columns[sortColumn].Title, direction))
 	}
 	if query := strings.TrimSpace(inst.searchQuery); query != "" {
 		parts = append(parts, fmt.Sprintf("Search %q", query))
@@ -874,6 +903,34 @@ func (inst *Instance) rowIndexAtLocalY(localY int, view tableView) (int, bool) {
 	return view.start + relative, true
 }
 
+func (inst *Instance) effectiveCurrentPage() int {
+	if inst.currentPageControlled && inst.hasPendingCurrentPage {
+		return inst.pendingCurrentPage
+	}
+	return inst.currentPage
+}
+
+func (inst *Instance) effectiveSortState() (int, bool) {
+	if inst.sortControlled && inst.hasPendingSort {
+		return inst.pendingSortColumn, inst.pendingSortDescending
+	}
+	return inst.sortColumn, inst.sortDescending
+}
+
+func (inst *Instance) reconcilePendingState(oldCurrentPage, oldSortColumn int, oldSortDescending bool) {
+	if inst.currentPageControlled && inst.hasPendingCurrentPage {
+		if inst.currentPage == inst.pendingCurrentPage || inst.currentPage != oldCurrentPage {
+			inst.hasPendingCurrentPage = false
+		}
+	}
+	if inst.sortControlled && inst.hasPendingSort {
+		if (inst.sortColumn == inst.pendingSortColumn && inst.sortDescending == inst.pendingSortDescending) ||
+			inst.sortColumn != oldSortColumn || inst.sortDescending != oldSortDescending {
+			inst.hasPendingSort = false
+		}
+	}
+}
+
 func (inst *Instance) columnAtLocalX(localX int, widths []int) (int, bool) {
 	if inst.showBorder {
 		if localX < 2 {
@@ -898,46 +955,76 @@ func (inst *Instance) columnAtLocalX(localX int, widths []int) (int, bool) {
 	return -1, false
 }
 
+func (inst *Instance) nextSortState(columnIndex int) (int, bool) {
+	currentSortColumn, currentSortDescending := inst.effectiveSortState()
+	if currentSortColumn != columnIndex {
+		return columnIndex, false
+	}
+	if !currentSortDescending {
+		return columnIndex, true
+	}
+	return -1, false
+}
+
 func (inst *Instance) toggleSort(columnIndex int) bool {
-	if inst.sortControlled || columnIndex < 0 || columnIndex >= len(inst.columns) {
+	if columnIndex < 0 || columnIndex >= len(inst.columns) {
 		return false
 	}
 	if !inst.columns[columnIndex].Sortable {
 		return false
 	}
 
-	if inst.sortColumn == columnIndex {
-		inst.sortDescending = !inst.sortDescending
-	} else {
-		inst.sortColumn = columnIndex
-		inst.sortDescending = false
+	nextSortColumn, nextSortDescending := inst.nextSortState(columnIndex)
+	inst.sortColumn = nextSortColumn
+	inst.sortDescending = nextSortDescending
+	inst.currentPage = 0
+	inst.selectedIndex = -1
+	if inst.sortControlled {
+		inst.pendingSortColumn = nextSortColumn
+		inst.pendingSortDescending = nextSortDescending
+		inst.hasPendingSort = true
 	}
-	if !inst.currentPageControlled {
-		inst.currentPage = 0
-	}
-	if !inst.selectedIndexControlled {
-		inst.selectedIndex = -1
+	if inst.currentPageControlled {
+		inst.pendingCurrentPage = 0
+		inst.hasPendingCurrentPage = true
 	}
 	inst.normalizeViewState(true)
 	inst.dirty = true
+	if inst.sortControlled || inst.currentPageControlled || inst.selectedIndexControlled {
+		inst.emitStateSnapshot(inst.selectedIndex, inst.currentPage, inst.sortColumn, inst.sortDescending)
+		return true
+	}
 	inst.emitStateChanged()
 	return true
 }
 
 func (inst *Instance) selectIndex(index int) bool {
 	rows := inst.filteredSortedRows()
-	if len(rows) == 0 || inst.selectedIndexControlled {
+	if len(rows) == 0 {
 		return false
 	}
 
 	clamped := clampInt(index, 0, len(rows)-1)
-	if inst.selectedIndex == clamped && (inst.pageSize <= 0 || inst.currentPage == clamped/maxInt(1, inst.pageSize)) {
+	targetPage := inst.currentPage
+	if inst.pageSize > 0 {
+		targetPage = clamped / maxInt(1, inst.pageSize)
+	}
+	if inst.selectedIndex == clamped && (inst.pageSize <= 0 || inst.currentPage == targetPage) {
 		return false
 	}
 
 	inst.selectedIndex = clamped
-	if inst.pageSize > 0 && !inst.currentPageControlled {
-		inst.currentPage = clamped / inst.pageSize
+	if inst.pageSize > 0 {
+		inst.currentPage = targetPage
+	}
+	if inst.currentPageControlled {
+		inst.pendingCurrentPage = targetPage
+		inst.hasPendingCurrentPage = true
+	}
+	if inst.selectedIndexControlled || inst.currentPageControlled {
+		inst.dirty = true
+		inst.emitStateSnapshot(clamped, targetPage, inst.sortColumn, inst.sortDescending)
+		return true
 	}
 	inst.dirty = true
 	inst.emitStateChanged()
@@ -979,7 +1066,7 @@ func (inst *Instance) navigateEnd() bool {
 }
 
 func (inst *Instance) movePage(delta int) bool {
-	if inst.pageSize <= 0 || inst.currentPageControlled {
+	if inst.pageSize <= 0 {
 		return false
 	}
 
@@ -993,18 +1080,27 @@ func (inst *Instance) movePage(delta int) bool {
 		return false
 	}
 
+	requestedSelectedIndex := inst.selectedIndex
+	start := nextPage * inst.pageSize
+	rowOffset := 0
+	if inst.selectedIndex >= 0 {
+		rowOffset = inst.selectedIndex % inst.pageSize
+	}
+	target := minInt(start+rowOffset, len(view.rows)-1)
+	if target < start {
+		target = start
+	}
+	requestedSelectedIndex = target
+	inst.selectedIndex = target
 	inst.currentPage = nextPage
-	if !inst.selectedIndexControlled {
-		start := nextPage * inst.pageSize
-		rowOffset := 0
-		if inst.selectedIndex >= 0 {
-			rowOffset = inst.selectedIndex % inst.pageSize
-		}
-		target := minInt(start+rowOffset, len(view.rows)-1)
-		if target < start {
-			target = start
-		}
-		inst.selectedIndex = target
+	if inst.currentPageControlled {
+		inst.pendingCurrentPage = nextPage
+		inst.hasPendingCurrentPage = true
+	}
+	if inst.currentPageControlled {
+		inst.dirty = true
+		inst.emitStateSnapshot(requestedSelectedIndex, nextPage, inst.sortColumn, inst.sortDescending)
+		return true
 	}
 	inst.dirty = true
 	inst.emitStateChanged()
@@ -1012,27 +1108,37 @@ func (inst *Instance) movePage(delta int) bool {
 }
 
 func (inst *Instance) emitStateChanged() {
+	inst.emitStateSnapshot(inst.selectedIndex, inst.currentPage, inst.sortColumn, inst.sortDescending)
+}
+
+func (inst *Instance) emitStateSnapshot(selectedIndex, currentPage, sortColumn int, sortDescending bool) {
 	if inst.intentEmitter == nil {
 		return
 	}
 
-	view := inst.processedView()
-	selectedSourceIndex := inst.selectedSourceIndex(view.rows)
+	rows := inst.filteredSortedRows()
+	pageCount := pageCountFor(len(rows), inst.pageSize)
+	if pageCount < 1 {
+		pageCount = 1
+	}
+	clampedPage := clampInt(currentPage, 0, pageCount-1)
+	visibleRows := visibleRowsForPage(len(rows), inst.pageSize, clampedPage)
+	selectedSourceIndex := inst.selectedSourceIndexFor(rows, selectedIndex)
 	if inst.componentID != "" {
 		inst.intentEmitter(StateChange(
 			inst.componentID,
-			inst.selectedIndex,
+			selectedIndex,
 			selectedSourceIndex,
-			view.currentPage,
-			view.pageCount,
+			clampedPage,
+			pageCount,
 			inst.pageSize,
-			inst.sortColumn,
-			inst.sortDescending,
+			sortColumn,
+			sortDescending,
 			inst.searchQuery,
 			inst.filters,
-			len(view.pageRows),
-			view.filteredCount,
-			view.totalCount,
+			visibleRows,
+			len(rows),
+			len(inst.rows),
 		))
 	}
 
@@ -1047,10 +1153,14 @@ func (inst *Instance) emitStateChanged() {
 }
 
 func (inst *Instance) selectedSourceIndex(rows []rowView) int {
-	if inst.selectedIndex < 0 || inst.selectedIndex >= len(rows) {
+	return inst.selectedSourceIndexFor(rows, inst.selectedIndex)
+}
+
+func (inst *Instance) selectedSourceIndexFor(rows []rowView, selectedIndex int) int {
+	if selectedIndex < 0 || selectedIndex >= len(rows) {
 		return -1
 	}
-	return rows[inst.selectedIndex].sourceIndex
+	return rows[selectedIndex].sourceIndex
 }
 
 func getStringProp(props rtui.Props, key, def string) string {
@@ -1364,6 +1474,26 @@ func pageCountFor(totalRows, pageSize int) int {
 		return 1
 	}
 	return (totalRows + pageSize - 1) / pageSize
+}
+
+func visibleRowsForPage(totalRows, pageSize, currentPage int) int {
+	if totalRows <= 0 {
+		return 0
+	}
+	if pageSize <= 0 {
+		return totalRows
+	}
+	pageCount := pageCountFor(totalRows, pageSize)
+	if pageCount < 1 {
+		pageCount = 1
+	}
+	page := clampInt(currentPage, 0, pageCount-1)
+	start := page * pageSize
+	end := minInt(start+pageSize, totalRows)
+	if end < start {
+		return 0
+	}
+	return end - start
 }
 
 func clampInt(value, minimum, maximum int) int {

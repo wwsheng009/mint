@@ -385,6 +385,16 @@ func TestInstance_HandleAction_ClickSortableHeaderTogglesSort(t *testing.T) {
 	if got := textAtY(inst.Paint(0, 0), 3); !strings.Contains(got, "Bob") {
 		t.Fatalf("first sorted row after toggle = %q, want Bob", got)
 	}
+
+	if !inst.HandleAction(act) {
+		t.Fatal("expected third header click to be handled")
+	}
+	if inst.sortColumn != -1 || inst.sortDescending {
+		t.Fatalf("sort state after third click = (%d,%v), want (-1,false)", inst.sortColumn, inst.sortDescending)
+	}
+	if got := textAtY(inst.Paint(0, 0), 3); !strings.Contains(got, "2") || !strings.Contains(got, "Bob") {
+		t.Fatalf("first row after clearing sort = %q, want original Bob row", got)
+	}
 }
 
 func TestInstance_HandleAction_PageNavigation(t *testing.T) {
@@ -502,6 +512,131 @@ func TestInstance_EmitStateChangeIntent(t *testing.T) {
 	}
 	if change.ComponentID != "orders.table" || change.SelectedSourceIndex != 0 || change.PageCount != 1 || change.FilteredRows != 2 || change.TotalRows != 2 {
 		t.Fatalf("state change = %#v, want componentID orders.table, source index 0, pageCount 1, filteredRows 2, totalRows 2", change)
+	}
+}
+
+func TestInstance_HandleAction_PageNavigationControlledEmitsStateChange(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"componentID":           "orders.table",
+		"columns":               []TableColumn{{Title: "ID", Width: 4}, {Title: "Name", Width: 8}},
+		"rows":                  [][]string{{"1", "Alice"}, {"2", "Bob"}, {"3", "Carol"}, {"4", "Dave"}},
+		"pageSize":              2,
+		"currentPage":           0,
+		"currentPageControlled": true,
+	})
+	var emitted []intent.Intent
+	inst.SetIntentEmitter(func(i intent.Intent) { emitted = append(emitted, i) })
+
+	if !inst.HandleAction(action.NewAction(action.ActionNavigatePageDown)) {
+		t.Fatal("expected page down to be handled")
+	}
+	if len(emitted) != 1 {
+		t.Fatalf("emitted len = %d, want 1", len(emitted))
+	}
+	change, ok := emitted[0].(StateChangeIntent)
+	if !ok {
+		t.Fatalf("emitted intent = %T, want StateChangeIntent", emitted[0])
+	}
+	if change.CurrentPage != 1 || change.PageCount != 2 || change.VisibleRows != 2 {
+		t.Fatalf("state change = %#v, want page=1 pageCount=2 visibleRows=2", change)
+	}
+}
+
+func TestInstance_HandleAction_SelectAcrossControlledPageEmitsStateChange(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"componentID":           "orders.table",
+		"columns":               []TableColumn{{Title: "ID", Width: 4}, {Title: "Name", Width: 8}},
+		"rows":                  [][]string{{"1", "Alice"}, {"2", "Bob"}, {"3", "Carol"}, {"4", "Dave"}},
+		"pageSize":              2,
+		"currentPage":           0,
+		"currentPageControlled": true,
+		"selectedIndex":         1,
+	})
+	var emitted []intent.Intent
+	inst.SetIntentEmitter(func(i intent.Intent) { emitted = append(emitted, i) })
+
+	if !inst.HandleAction(action.NewAction(action.ActionNavigateDown)) {
+		t.Fatal("expected navigate down to be handled")
+	}
+	if len(emitted) != 1 {
+		t.Fatalf("emitted len = %d, want 1", len(emitted))
+	}
+	change, ok := emitted[0].(StateChangeIntent)
+	if !ok {
+		t.Fatalf("emitted intent = %T, want StateChangeIntent", emitted[0])
+	}
+	if change.CurrentPage != 1 || change.SelectedIndex != 2 || change.SelectedSourceIndex != 2 {
+		t.Fatalf("state change = %#v, want currentPage=1 selectedIndex=2 selectedSourceIndex=2", change)
+	}
+}
+
+func TestInstance_HandleAction_ControlledSortEmitsStateChange(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"componentID":    "orders.table",
+		"columns":        []TableColumn{{Title: "ID", Width: 4, Sortable: true}, {Title: "Name", Width: 8, Sortable: true}},
+		"rows":           [][]string{{"2", "Bob"}, {"1", "Alice"}},
+		"sortColumn":     -1,
+		"sortDescending": false,
+		"sortControlled": true,
+	})
+	var emitted []intent.Intent
+	inst.SetIntentEmitter(func(i intent.Intent) { emitted = append(emitted, i) })
+
+	mouseMsg := runtimemsg.NewMouseMsg(0, 0, runtimemsg.MouseLeft, runtimemsg.MouseActionPress)
+	mouseMsg.LocalX = 1
+	mouseMsg.LocalY = 0
+	act := action.NewAction(action.ActionClick).WithPayload(mouseMsg)
+
+	if !inst.HandleAction(act) {
+		t.Fatal("expected header click to be handled")
+	}
+	if len(emitted) != 1 {
+		t.Fatalf("emitted len = %d, want 1", len(emitted))
+	}
+	change, ok := emitted[0].(StateChangeIntent)
+	if !ok {
+		t.Fatalf("emitted intent = %T, want StateChangeIntent", emitted[0])
+	}
+	if change.SortColumn != 0 || change.SortDescending {
+		t.Fatalf("state change = %#v, want sort column 0 ascending", change)
+	}
+
+	inst.SetProps(rtui.Props{
+		"componentID":    "orders.table",
+		"columns":        []TableColumn{{Title: "ID", Width: 4, Sortable: true}, {Title: "Name", Width: 8, Sortable: true}},
+		"rows":           [][]string{{"2", "Bob"}, {"1", "Alice"}},
+		"sortColumn":     -1,
+		"sortDescending": false,
+		"sortControlled": true,
+	})
+	if got := textAtY(inst.Paint(0, 0), 2); !strings.Contains(got, "1") || !strings.Contains(got, "Alice") {
+		t.Fatalf("first row after stale controlled props = %q, want pending sorted Alice row", got)
+	}
+}
+
+func TestInstance_HandleAction_ControlledPagePendingSurvivesStaleProps(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"componentID":           "orders.table",
+		"columns":               []TableColumn{{Title: "ID", Width: 4}, {Title: "Name", Width: 8}},
+		"rows":                  [][]string{{"1", "Alice"}, {"2", "Bob"}, {"3", "Carol"}, {"4", "Dave"}},
+		"pageSize":              2,
+		"currentPage":           0,
+		"currentPageControlled": true,
+	})
+
+	if !inst.HandleAction(action.NewAction(action.ActionNavigatePageDown)) {
+		t.Fatal("expected page down to be handled")
+	}
+	inst.SetProps(rtui.Props{
+		"componentID":           "orders.table",
+		"columns":               []TableColumn{{Title: "ID", Width: 4}, {Title: "Name", Width: 8}},
+		"rows":                  [][]string{{"1", "Alice"}, {"2", "Bob"}, {"3", "Carol"}, {"4", "Dave"}},
+		"pageSize":              2,
+		"currentPage":           0,
+		"currentPageControlled": true,
+	})
+	if got := textAtY(inst.Paint(0, 0), 2); !strings.Contains(got, "3") || !strings.Contains(got, "Carol") {
+		t.Fatalf("first row after stale page props = %q, want pending page 2 Carol row", got)
 	}
 }
 
