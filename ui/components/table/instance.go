@@ -33,25 +33,29 @@ type tableView struct {
 	end           int
 }
 
+const scrollbarReservedWidth = 2
+
 // Instance is the runtime entity for table components.
 type Instance struct {
 	key         string
 	componentID string
 
-	columns       []TableColumn
-	rows          [][]string
-	emptyText     string
-	headerStyle   style.Style
-	tableStyle    style.Style
-	selectedStyle style.Style
-	borderStyle   style.Style
-	statusStyle   style.Style
-	gap           int
-	showBorder    bool
-	showFooter    bool
-	pageSize      int
-	searchQuery   string
-	filters       map[int]string
+	columns        []TableColumn
+	rows           [][]string
+	emptyText      string
+	headerStyle    style.Style
+	tableStyle     style.Style
+	selectedStyle  style.Style
+	borderStyle    style.Style
+	statusStyle    style.Style
+	scrollbarStyle style.Style
+	gap            int
+	showBorder     bool
+	showFooter     bool
+	showScrollbar  bool
+	pageSize       int
+	searchQuery    string
+	filters        map[int]string
 
 	currentPage             int
 	currentPageControlled   bool
@@ -93,9 +97,11 @@ func NewInstance(props rtui.Props) *Instance {
 		selectedStyle:           getStylePropWithDefault(props, "selectedStyle", style.Style{}.Reverse(true)),
 		borderStyle:             getStylePropWithDefault(props, "borderStyle", style.Style{}.Foreground(style.BrightBlack)),
 		statusStyle:             getStylePropWithDefault(props, "statusStyle", style.Style{}.Foreground(style.BrightBlack)),
+		scrollbarStyle:          getStylePropWithDefault(props, "scrollbarStyle", style.Style{}.Foreground(style.BrightBlack)),
 		gap:                     maxInt(0, getIntProp(props, "gap", 0)),
 		showBorder:              getBoolProp(props, "showBorder", false),
 		showFooter:              getBoolProp(props, "showFooter", true),
+		showScrollbar:           getBoolProp(props, "showScrollbar", true),
 		pageSize:                maxInt(0, getIntProp(props, "pageSize", 0)),
 		searchQuery:             getStringProp(props, "searchQuery", ""),
 		filters:                 getFiltersProp(props, map[int]string{}),
@@ -134,9 +140,11 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	oldSelectedStyle := inst.selectedStyle
 	oldBorderStyle := inst.borderStyle
 	oldStatusStyle := inst.statusStyle
+	oldScrollbarStyle := inst.scrollbarStyle
 	oldGap := inst.gap
 	oldShowBorder := inst.showBorder
 	oldShowFooter := inst.showFooter
+	oldShowScrollbar := inst.showScrollbar
 	oldPageSize := inst.pageSize
 	oldSearchQuery := inst.searchQuery
 	oldFilters := cloneFilters(inst.filters)
@@ -160,9 +168,11 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	inst.selectedStyle = getStylePropWithDefault(props, "selectedStyle", inst.selectedStyle)
 	inst.borderStyle = getStylePropWithDefault(props, "borderStyle", inst.borderStyle)
 	inst.statusStyle = getStylePropWithDefault(props, "statusStyle", inst.statusStyle)
+	inst.scrollbarStyle = getStylePropWithDefault(props, "scrollbarStyle", inst.scrollbarStyle)
 	inst.gap = maxInt(0, getIntProp(props, "gap", inst.gap))
 	inst.showBorder = getBoolProp(props, "showBorder", inst.showBorder)
 	inst.showFooter = getBoolProp(props, "showFooter", inst.showFooter)
+	inst.showScrollbar = getBoolProp(props, "showScrollbar", inst.showScrollbar)
 	inst.pageSize = maxInt(0, getIntProp(props, "pageSize", inst.pageSize))
 	inst.searchQuery = getStringProp(props, "searchQuery", inst.searchQuery)
 	inst.filters = getFiltersProp(props, inst.filters)
@@ -202,9 +212,11 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 		oldSelectedStyle != inst.selectedStyle ||
 		oldBorderStyle != inst.borderStyle ||
 		oldStatusStyle != inst.statusStyle ||
+		oldScrollbarStyle != inst.scrollbarStyle ||
 		oldGap != inst.gap ||
 		oldShowBorder != inst.showBorder ||
 		oldShowFooter != inst.showFooter ||
+		oldShowScrollbar != inst.showScrollbar ||
 		oldPageSize != inst.pageSize ||
 		oldSearchQuery != inst.searchQuery ||
 		!equalFilters(oldFilters, inst.filters) ||
@@ -235,9 +247,11 @@ func (inst *Instance) GetProps() rtui.Props {
 		"selectedStyle":           inst.selectedStyle,
 		"borderStyle":             inst.borderStyle,
 		"statusStyle":             inst.statusStyle,
+		"scrollbarStyle":          inst.scrollbarStyle,
 		"gap":                     inst.gap,
 		"showBorder":              inst.showBorder,
 		"showFooter":              inst.showFooter,
+		"showScrollbar":           inst.showScrollbar,
 		"pageSize":                inst.pageSize,
 		"searchQuery":             inst.searchQuery,
 		"filters":                 cloneFilters(inst.filters),
@@ -268,10 +282,11 @@ func (inst *Instance) Measure(constraints layout.Constraints) layout.Size {
 	}
 
 	view := inst.processedView()
-	_, innerWidth := inst.calculateColumnWidths(view.rows, 0)
+	_, contentWidth := inst.calculateColumnWidths(view.rows, 0)
 	if inst.shouldShowFooter(view) {
-		innerWidth = maxInt(innerWidth, paint.StringWidth(inst.statusText(view)))
+		contentWidth = maxInt(contentWidth, paint.StringWidth(inst.statusText(view)))
 	}
+	innerWidth := inst.innerWidth(contentWidth, view, len(view.pageRows))
 	width := innerWidth
 	if inst.showBorder {
 		width += 4
@@ -290,23 +305,29 @@ func (inst *Instance) Paint(x, y int) []paint.DrawCmd {
 
 	view := inst.processedView()
 	maxInnerWidth := inst.maxInnerPaintWidth()
-	widths, innerWidth := inst.calculateColumnWidths(view.rows, maxInnerWidth)
-	if innerWidth < 1 {
-		innerWidth = 1
+	maxContentWidth := maxInnerWidth
+	if maxInnerWidth > 0 && inst.showScrollbar {
+		maxContentWidth = maxInt(1, maxInnerWidth-scrollbarReservedWidth)
+	}
+	widths, contentWidth := inst.calculateColumnWidths(view.rows, maxContentWidth)
+	if contentWidth < 1 {
+		contentWidth = 1
 	}
 
 	showFooter := inst.shouldShowFooter(view)
 	statusText := inst.statusText(view)
 	if showFooter {
-		innerWidth = maxInt(innerWidth, paint.StringWidth(statusText))
-		if maxInnerWidth > 0 {
-			innerWidth = minInt(innerWidth, maxInnerWidth)
+		contentWidth = maxInt(contentWidth, paint.StringWidth(statusText))
+		if maxContentWidth > 0 {
+			contentWidth = minInt(contentWidth, maxContentWidth)
 		}
 	}
 	renderedRows := view.pageRows
 	if limit := inst.maxRenderableRows(showFooter); limit >= 0 && len(renderedRows) > limit {
 		renderedRows = renderedRows[:limit]
 	}
+	showScrollbar := inst.shouldPaintScrollbar(view, len(renderedRows))
+	innerWidth := inst.innerWidth(contentWidth, view, len(renderedRows))
 
 	type lineSpec struct {
 		text  string
@@ -315,24 +336,24 @@ func (inst *Instance) Paint(x, y int) []paint.DrawCmd {
 
 	innerLines := make([]lineSpec, 0, inst.lineCountForView(view))
 	innerLines = append(innerLines, lineSpec{
-		text:  padRightToWidth(truncateText(inst.buildHeaderLine(widths), innerWidth), innerWidth),
+		text:  inst.composeInnerLine(inst.buildHeaderLine(widths), contentWidth, showScrollbar),
 		style: inst.headerStyle,
 	})
-	innerLines = append(innerLines, lineSpec{text: strings.Repeat("─", maxInt(1, innerWidth)), style: inst.borderStyle})
+	innerLines = append(innerLines, lineSpec{text: inst.composeInnerLine(strings.Repeat("─", maxInt(1, contentWidth)), contentWidth, showScrollbar), style: inst.borderStyle})
 	for i := 0; i < inst.gap; i++ {
-		innerLines = append(innerLines, lineSpec{text: strings.Repeat(" ", maxInt(1, innerWidth)), style: inst.tableStyle})
+		innerLines = append(innerLines, lineSpec{text: inst.composeInnerLine("", contentWidth, showScrollbar), style: inst.tableStyle})
 	}
 
 	if len(renderedRows) == 0 {
 		innerLines = append(innerLines, lineSpec{
-			text:  padRightToWidth(truncateText(inst.emptyText, innerWidth), innerWidth),
+			text:  inst.composeInnerLine(inst.emptyText, contentWidth, showScrollbar),
 			style: inst.tableStyle,
 		})
 	} else {
 		for rowOffset, row := range renderedRows {
 			absoluteIndex := view.start + rowOffset
 			innerLines = append(innerLines, lineSpec{
-				text:  padRightToWidth(truncateText(inst.buildDataLine(row.cells, widths), innerWidth), innerWidth),
+				text:  inst.composeInnerLine(inst.buildDataLine(row.cells, widths), contentWidth, showScrollbar),
 				style: inst.rowStyleFor(absoluteIndex),
 			})
 		}
@@ -340,7 +361,7 @@ func (inst *Instance) Paint(x, y int) []paint.DrawCmd {
 
 	if showFooter {
 		innerLines = append(innerLines, lineSpec{
-			text:  padRightToWidth(truncateText(statusText, innerWidth), innerWidth),
+			text:  inst.composeInnerLine(statusText, contentWidth, showScrollbar),
 			style: inst.statusStyle,
 		})
 	}
@@ -376,6 +397,28 @@ func (inst *Instance) Paint(x, y int) []paint.DrawCmd {
 	cmds := make([]paint.DrawCmd, 0, len(lines))
 	for lineIndex, line := range lines {
 		cmds = append(cmds, paint.NewTextCmd(x, y+lineIndex, line.text, line.style))
+	}
+
+	if showScrollbar {
+		viewport := scrollutil.NewVerticalViewport(view.filteredCount, maxInt(1, len(renderedRows)), view.start)
+		scrollbarX := x + contentWidth + 1
+		scrollbarY := y + 2 + inst.gap
+		if inst.showBorder {
+			scrollbarX += 2
+			scrollbarY++
+		}
+		scrollbarStyle := inst.scrollbarStyle
+		if scrollbarStyle.FG == "" {
+			scrollbarStyle = scrollbarStyle.Foreground(inst.borderStyle.FG)
+		}
+		cmds = append(cmds, scrollutil.DrawVerticalScrollbar(
+			scrollbarX,
+			scrollbarY,
+			maxInt(1, len(renderedRows)),
+			viewport,
+			scrollbarStyle,
+			scrollutil.DefaultVerticalScrollbarConfig(),
+		)...)
 	}
 	return cmds
 }
@@ -647,6 +690,31 @@ func (inst *Instance) lineCountForView(view tableView) int {
 		lines += 2
 	}
 	return lines
+}
+
+func (inst *Instance) shouldPaintScrollbar(view tableView, visibleRows int) bool {
+	if !inst.showScrollbar {
+		return false
+	}
+	return view.filteredCount > maxInt(1, visibleRows)
+}
+
+func (inst *Instance) innerWidth(contentWidth int, view tableView, visibleRows int) int {
+	if contentWidth < 1 {
+		contentWidth = 1
+	}
+	if inst.shouldPaintScrollbar(view, visibleRows) {
+		return contentWidth + scrollbarReservedWidth
+	}
+	return contentWidth
+}
+
+func (inst *Instance) composeInnerLine(text string, contentWidth int, withScrollbar bool) string {
+	line := padRightToWidth(truncateText(text, contentWidth), contentWidth)
+	if withScrollbar {
+		line += strings.Repeat(" ", scrollbarReservedWidth)
+	}
+	return line
 }
 
 func (inst *Instance) maxInnerPaintWidth() int {

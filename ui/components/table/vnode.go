@@ -33,22 +33,24 @@ type VNode struct {
 	componentID string
 
 	// === Table Props ===
-	columns       []TableColumn
-	rows          [][]string
-	emptyText     string
-	headerStyle   style.Style
-	tableStyle    style.Style
-	selectedStyle style.Style
-	borderStyle   style.Style
-	statusStyle   style.Style
+	columns        []TableColumn
+	rows           [][]string
+	emptyText      string
+	headerStyle    style.Style
+	tableStyle     style.Style
+	selectedStyle  style.Style
+	borderStyle    style.Style
+	statusStyle    style.Style
+	scrollbarStyle style.Style
 
 	// === Layout Props ===
-	gap         int
-	showBorder  bool
-	showFooter  bool
-	pageSize    int
-	searchQuery string
-	filters     map[int]string
+	gap           int
+	showBorder    bool
+	showFooter    bool
+	showScrollbar bool
+	pageSize      int
+	searchQuery   string
+	filters       map[int]string
 
 	currentPage             int
 	currentPageControlled   bool
@@ -84,9 +86,11 @@ func New() *VNode {
 		selectedStyle:     style.Style{}.Reverse(true),
 		borderStyle:       style.Style{}.Foreground(style.BrightBlack),
 		statusStyle:       style.Style{}.Foreground(style.BrightBlack),
+		scrollbarStyle:    style.Style{}.Foreground(style.BrightBlack),
 		gap:               0,
 		showBorder:        false,
 		showFooter:        true,
+		showScrollbar:     true,
 		pageSize:          0,
 		searchQuery:       "",
 		filters:           map[int]string{},
@@ -136,9 +140,11 @@ func (v *VNode) Props() rtui.Props {
 		"selectedStyle":           v.selectedStyle,
 		"borderStyle":             v.borderStyle,
 		"statusStyle":             v.statusStyle,
+		"scrollbarStyle":          v.scrollbarStyle,
 		"gap":                     v.gap,
 		"showBorder":              v.showBorder,
 		"showFooter":              v.showFooter,
+		"showScrollbar":           v.showScrollbar,
 		"pageSize":                v.pageSize,
 		"searchQuery":             v.searchQuery,
 		"filters":                 v.filters,
@@ -185,6 +191,9 @@ func (v *VNode) SetProps(p rtui.Props) rtui.VNode {
 	if val, ok := p["statusStyle"].(style.Style); ok {
 		v.statusStyle = val
 	}
+	if val, ok := p["scrollbarStyle"].(style.Style); ok {
+		v.scrollbarStyle = val
+	}
 	if val, ok := p["gap"].(int); ok {
 		v.gap = val
 	}
@@ -193,6 +202,9 @@ func (v *VNode) SetProps(p rtui.Props) rtui.VNode {
 	}
 	if val, ok := p["showFooter"].(bool); ok {
 		v.showFooter = val
+	}
+	if val, ok := p["showScrollbar"].(bool); ok {
+		v.showScrollbar = val
 	}
 	if val, ok := p["pageSize"].(int); ok {
 		v.pageSize = val
@@ -253,11 +265,16 @@ func (v *VNode) SetHeaderStyle(s style.Style) *VNode   { v.headerStyle = s; retu
 func (v *VNode) SetGap(gap int) *VNode                 { v.gap = gap; return v }
 func (v *VNode) SetShowBorder(show bool) *VNode        { v.showBorder = show; return v }
 func (v *VNode) SetShowFooter(show bool) *VNode        { v.showFooter = show; return v }
+func (v *VNode) SetShowScrollbar(show bool) *VNode     { v.showScrollbar = show; return v }
 func (v *VNode) SetBorderStyle(s style.Style) *VNode   { v.borderStyle = s; return v }
 func (v *VNode) SetSelectedStyle(s style.Style) *VNode { v.selectedStyle = s; return v }
 func (v *VNode) SetStatusStyle(s style.Style) *VNode   { v.statusStyle = s; return v }
-func (v *VNode) SetPageSize(pageSize int) *VNode       { v.pageSize = pageSize; return v }
-func (v *VNode) SetSearchQuery(query string) *VNode    { v.searchQuery = query; return v }
+func (v *VNode) SetScrollbarStyle(s style.Style) *VNode {
+	v.scrollbarStyle = s
+	return v
+}
+func (v *VNode) SetPageSize(pageSize int) *VNode    { v.pageSize = pageSize; return v }
+func (v *VNode) SetSearchQuery(query string) *VNode { v.searchQuery = query; return v }
 func (v *VNode) SetFilters(filters map[int]string) *VNode {
 	v.filters = cloneFilters(filters)
 	return v

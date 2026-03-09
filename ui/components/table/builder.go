@@ -113,6 +113,18 @@ func (b *Builder) ShowFooter(show bool) *Builder {
 	return b
 }
 
+// ShowScrollbar toggles the vertical scrollbar indicator.
+func (b *Builder) ShowScrollbar(show bool) *Builder {
+	b.vnode.SetShowScrollbar(show)
+	return b
+}
+
+// ScrollbarStyle sets the scrollbar style.
+func (b *Builder) ScrollbarStyle(s style.Style) *Builder {
+	b.vnode.SetScrollbarStyle(s)
+	return b
+}
+
 // PageSize enables pagination with the given page size.
 func (b *Builder) PageSize(size int) *Builder {
 	b.vnode.SetPageSize(size)

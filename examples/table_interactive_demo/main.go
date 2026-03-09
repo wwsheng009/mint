@@ -27,23 +27,25 @@ type IncidentRecord struct {
 }
 
 type AppState struct {
-	SearchText   string
-	StatusFilter string
-	RegionFilter string
-	SelectedRow  string
-	PageSize     int
-	ShowBorder   bool
-	ShowFooter   bool
-	CurrentPage  int
-	PageCount    int
-	SortColumn   int
-	SortDesc     bool
-	FilteredRows int
-	LastAction   string
+	SearchText    string
+	StatusFilter  string
+	RegionFilter  string
+	SelectedRow   string
+	PageSize      int
+	ShowBorder    bool
+	ShowFooter    bool
+	ShowScrollbar bool
+	CurrentPage   int
+	PageCount     int
+	SortColumn    int
+	SortDesc      bool
+	FilteredRows  int
+	LastAction    string
 }
 
 type ToggleBorderIntent struct{}
 type ToggleFooterIntent struct{}
+type ToggleScrollbarIntent struct{}
 type ClearFiltersIntent struct{}
 type ResetDemoIntent struct{}
 
@@ -51,16 +53,18 @@ type AdjustPageSizeIntent struct {
 	Delta int
 }
 
-func (ToggleBorderIntent) IntentType() string   { return "TableDemoToggleBorder" }
-func (ToggleFooterIntent) IntentType() string   { return "TableDemoToggleFooter" }
-func (ClearFiltersIntent) IntentType() string   { return "TableDemoClearFilters" }
-func (ResetDemoIntent) IntentType() string      { return "TableDemoReset" }
-func (AdjustPageSizeIntent) IntentType() string { return "TableDemoAdjustPageSize" }
-func (ToggleBorderIntent) StayPressed() bool    { return true }
-func (ToggleFooterIntent) StayPressed() bool    { return true }
-func (ClearFiltersIntent) StayPressed() bool    { return true }
-func (ResetDemoIntent) StayPressed() bool       { return true }
-func (AdjustPageSizeIntent) StayPressed() bool  { return true }
+func (ToggleBorderIntent) IntentType() string    { return "TableDemoToggleBorder" }
+func (ToggleFooterIntent) IntentType() string    { return "TableDemoToggleFooter" }
+func (ToggleScrollbarIntent) IntentType() string { return "TableDemoToggleScrollbar" }
+func (ClearFiltersIntent) IntentType() string    { return "TableDemoClearFilters" }
+func (ResetDemoIntent) IntentType() string       { return "TableDemoReset" }
+func (AdjustPageSizeIntent) IntentType() string  { return "TableDemoAdjustPageSize" }
+func (ToggleBorderIntent) StayPressed() bool     { return true }
+func (ToggleFooterIntent) StayPressed() bool     { return true }
+func (ToggleScrollbarIntent) StayPressed() bool  { return true }
+func (ClearFiltersIntent) StayPressed() bool     { return true }
+func (ResetDemoIntent) StayPressed() bool        { return true }
+func (AdjustPageSizeIntent) StayPressed() bool   { return true }
 
 var demoRecords = generateRecords()
 var demoRows = buildRows(demoRecords)
@@ -137,6 +141,11 @@ func init() {
 			s.LastAction = fmt.Sprintf("Footer = %t", s.ShowFooter)
 			return s
 		}).
+		On(ToggleScrollbarIntent{}, func(s AppState, i intent.Intent) AppState {
+			s.ShowScrollbar = !s.ShowScrollbar
+			s.LastAction = fmt.Sprintf("Scrollbar = %t", s.ShowScrollbar)
+			return s
+		}).
 		On(ClearFiltersIntent{}, func(s AppState, i intent.Intent) AppState {
 			s.SearchText = ""
 			s.StatusFilter = ""
@@ -173,10 +182,11 @@ func main() {
 		ui.WithPluginSetup(func(app *framework.App) {
 			app.OnKeyCombo("f2", func() { ui.EmitIntentGlobal(ToggleBorderIntent{}) })
 			app.OnKeyCombo("f3", func() { ui.EmitIntentGlobal(ToggleFooterIntent{}) })
-			app.OnKeyCombo("f4", func() { ui.EmitIntentGlobal(ClearFiltersIntent{}) })
-			app.OnKeyCombo("f5", func() { ui.EmitIntentGlobal(AdjustPageSizeIntent{Delta: -1}) })
-			app.OnKeyCombo("f6", func() { ui.EmitIntentGlobal(AdjustPageSizeIntent{Delta: 1}) })
-			app.OnKeyCombo("f7", func() { ui.EmitIntentGlobal(ResetDemoIntent{}) })
+			app.OnKeyCombo("f4", func() { ui.EmitIntentGlobal(ToggleScrollbarIntent{}) })
+			app.OnKeyCombo("f5", func() { ui.EmitIntentGlobal(ClearFiltersIntent{}) })
+			app.OnKeyCombo("f6", func() { ui.EmitIntentGlobal(AdjustPageSizeIntent{Delta: -1}) })
+			app.OnKeyCombo("f7", func() { ui.EmitIntentGlobal(AdjustPageSizeIntent{Delta: 1}) })
+			app.OnKeyCombo("f8", func() { ui.EmitIntentGlobal(ResetDemoIntent{}) })
 		}),
 	)
 	if err != nil {
@@ -224,7 +234,9 @@ func headerPanel(state AppState, filteredCount int) ui.VNode {
 				state.ShowFooter)).
 				FgColor("yellow").
 				Build(),
-			ui.NewTextBuilder(fmt.Sprintf("LastAction=%s", state.LastAction)).
+			ui.NewTextBuilder(fmt.Sprintf("Scrollbar=%t  LastAction=%s",
+				state.ShowScrollbar,
+				state.LastAction)).
 				FgColor("bright-black").
 				Build(),
 		})
@@ -274,10 +286,12 @@ func tablePane(state AppState) ui.VNode {
 		EmptyText("No incidents match the current search and filters").
 		ShowBorder(state.ShowBorder).
 		ShowFooter(state.ShowFooter).
+		ShowScrollbar(state.ShowScrollbar).
 		HeaderStyle(style.Style{}.Foreground(style.BrightCyan).Bold(true)).
 		TableStyle(style.Style{}.Foreground(style.BrightWhite)).
 		BorderStyle(style.Style{}.Foreground(style.BrightBlack)).
 		StatusStyle(style.Style{}.Foreground(style.BrightBlack)).
+		ScrollbarStyle(style.Style{}.Foreground(style.BrightBlack)).
 		SelectedStyle(style.Style{}.Foreground(style.Black).Background(style.BrightCyan).Bold(true)).
 		ForField(intent.BindField("selectedRow")).
 		Build()
@@ -302,6 +316,7 @@ func statePanel(state AppState, filteredCount int) ui.VNode {
 			ui.NewTextBuilder(fmt.Sprintf("FilteredRows: %d / %d", filteredCount, len(demoRecords))).FgColor("bright-white").Build(),
 			ui.NewTextBuilder(fmt.Sprintf("Sort: %s", sortSummary(state.SortColumn, state.SortDesc))).FgColor("yellow").Build(),
 			ui.NewTextBuilder(fmt.Sprintf("SelectedRow: %s", displaySelectedRow(state.SelectedRow))).FgColor("cyan").Build(),
+			ui.NewTextBuilder(fmt.Sprintf("Scrollbar: %t", state.ShowScrollbar)).FgColor("bright-black").Build(),
 			ui.NewTextBuilder("排序与分页来自 table.StateChangeIntent；选中来自 ForField(FieldChangeIntent)").FgColor("bright-black").Build(),
 		})
 }
@@ -337,26 +352,27 @@ func helpPanel() ui.VNode {
 		SetChildrenList([]ui.VNode{
 			ui.NewTextBuilder("Tab: search/status/region/table 之间切换").FgColor("bright-white").Build(),
 			ui.NewTextBuilder("Table: 点击表头排序；↑↓ 选中；PageUp/PageDown 或 ←/→ 翻页").FgColor("bright-white").Build(),
-			ui.NewTextBuilder("F2 border  F3 footer  F4 clear filters").FgColor("bright-black").Build(),
-			ui.NewTextBuilder("F5/F6 page size -/+  F7 reset").FgColor("bright-black").Build(),
+			ui.NewTextBuilder("F2 border  F3 footer  F4 scrollbar  F5 clear filters").FgColor("bright-black").Build(),
+			ui.NewTextBuilder("F6/F7 page size -/+  F8 reset").FgColor("bright-black").Build(),
 		})
 }
 
 func newInitialState() AppState {
 	initial := AppState{
-		SearchText:   "",
-		StatusFilter: "",
-		RegionFilter: "",
-		SelectedRow:  "",
-		PageSize:     10,
-		ShowBorder:   true,
-		ShowFooter:   true,
-		CurrentPage:  0,
-		PageCount:    1,
-		SortColumn:   -1,
-		SortDesc:     false,
-		FilteredRows: len(demoRecords),
-		LastAction:   "Ready",
+		SearchText:    "",
+		StatusFilter:  "",
+		RegionFilter:  "",
+		SelectedRow:   "",
+		PageSize:      10,
+		ShowBorder:    true,
+		ShowFooter:    true,
+		ShowScrollbar: true,
+		CurrentPage:   0,
+		PageCount:     1,
+		SortColumn:    -1,
+		SortDesc:      false,
+		FilteredRows:  len(demoRecords),
+		LastAction:    "Ready",
 	}
 	return recomputeDerivedState(initial)
 }

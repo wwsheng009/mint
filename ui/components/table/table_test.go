@@ -430,6 +430,7 @@ func TestBuilder_FluentEnhancements(t *testing.T) {
 		SortBy(0, true).
 		ShowBorder(true).
 		ShowFooter(true).
+		ShowScrollbar(true).
 		BuildVNode()
 
 	if vnode.searchQuery != "alice" {
@@ -446,6 +447,9 @@ func TestBuilder_FluentEnhancements(t *testing.T) {
 	}
 	if !vnode.showBorder || !vnode.showFooter {
 		t.Fatal("expected border and footer to be enabled")
+	}
+	if !vnode.showScrollbar {
+		t.Fatal("expected scrollbar to be enabled")
 	}
 	if vnode.componentID != "orders.table" {
 		t.Fatalf("componentID = %q, want orders.table", vnode.componentID)
@@ -496,8 +500,8 @@ func TestInstance_EmitStateChangeIntent(t *testing.T) {
 	if !ok {
 		t.Fatalf("emitted intent = %T, want StateChangeIntent", emitted[0])
 	}
-	if change.ComponentID != "orders.table" || change.SelectedSourceIndex != 0 || change.PageCount != 1 || change.FilteredRows != 2 {
-		t.Fatalf("state change = %#v, want componentID orders.table, source index 0, pageCount 1, filteredRows 2", change)
+	if change.ComponentID != "orders.table" || change.SelectedSourceIndex != 0 || change.PageCount != 1 || change.FilteredRows != 2 || change.TotalRows != 2 {
+		t.Fatalf("state change = %#v, want componentID orders.table, source index 0, pageCount 1, filteredRows 2, totalRows 2", change)
 	}
 }
 
@@ -516,6 +520,30 @@ func TestInstance_PaintHonorsColumnAlignment(t *testing.T) {
 	}
 	if !strings.Contains(row, "  Bolt  ") {
 		t.Fatalf("row = %q, want centered name cell", row)
+	}
+}
+
+func TestInstance_PaintShowsScrollbarWhenPaginated(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"columns":       []TableColumn{{Title: "ID", Width: 4}, {Title: "Name", Width: 8}},
+		"rows":          [][]string{{"1", "Alice"}, {"2", "Bob"}, {"3", "Carol"}, {"4", "Dave"}},
+		"pageSize":      2,
+		"showScrollbar": true,
+	})
+
+	cmds := inst.Paint(0, 0)
+	hasThumb := false
+	hasRail := false
+	for _, cmd := range cmds {
+		if cmd.Text == "█" {
+			hasThumb = true
+		}
+		if cmd.Text == "│" {
+			hasRail = true
+		}
+	}
+	if !hasThumb || !hasRail {
+		t.Fatalf("scrollbar cmds missing, thumb=%t rail=%t", hasThumb, hasRail)
 	}
 }
 
