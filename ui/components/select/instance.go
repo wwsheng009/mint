@@ -2,54 +2,51 @@ package selectcomp
 
 import (
 	"fmt"
-	"unicode/utf8"
+	"strings"
 
-	"github.com/wwsheng009/mint/runtime/action"
 	"github.com/wwsheng009/mint/framework/theme"
+	"github.com/wwsheng009/mint/runtime/action"
 	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/runtime/layout"
+	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/ui/components/control"
 	"github.com/wwsheng009/mint/ui/components/form"
+	scrollutil "github.com/wwsheng009/mint/ui/components/internal/scroll"
 )
 
-// =============================================================================
-// Instance - Runtime Entity
-// =============================================================================
+const defaultMaxVisibleRows = 6
 
 // Instance is the runtime entity for Select components.
 type Instance struct {
-	// === Identification ===
-	key         string
-	componentID string // Component ID for Intent routing (Phase 10)
+	key               string
+	componentID       string
+	parent            rtui.ComponentInstance
+	options           []Option
+	selectStyle       style.Style
+	width             int
+	placeholder       string
+	maxVisibleRows    int
+	changeIntent      intent.Intent
+	changeIntentField intent.FieldIntent
+	formID            string
+	selectionMode     SelectionMode
 
-	// === Instance Tree (Phase 2 fix: Parent/Child tracking for Intent Bubble) ===
-	parent rtui.ComponentInstance // Parent component for intent bubbling
+	state            control.InteractionState
+	selectedIndex    int
+	selectedIndices  []int
+	open             bool
+	highlightedIndex int
+	scrollOffset     int
+	bounds           [4]int
+	dirty            bool
 
-	// === Props (from VNode) ===
-	options      []Option
-	selectStyle  style.Style
-	width        int
-	changeIntent intent.Intent
-	changeIntentField intent.FieldIntent  // For FieldChangeIntent extraction
-	formID       string // Form ID for Form integration (Phase 6)
-
-	// === Runtime State ===
-	state        control.InteractionState
-	selectedIndex int
-	bounds       [4]int
-	dirty        bool
-
-	// === Intent Emitter ===
 	intentEmitter func(intent.Intent)
-
-	// === Behaviors ===
-	behaviors *control.BehaviorList
+	behaviors     *control.BehaviorList
 }
 
-// Ensure Instance implements required interfaces
 var (
 	_ rtui.ComponentInstance     = (*Instance)(nil)
 	_ rtui.PaintableInstance     = (*Instance)(nil)
@@ -61,37 +58,34 @@ var (
 	} = (*Instance)(nil)
 )
 
-// =============================================================================
-// Constructor
-// =============================================================================
-
 // NewInstance creates a new SelectInstance from props.
 func NewInstance(props rtui.Props) *Instance {
 	inst := &Instance{
-		key:                getStringProp(props, "key", ""),
-		componentID:        getStringProp(props, "componentID", ""),
-		options:            getOptionsProp(props),
-		selectStyle:        getStyleProp(props),
-		width:              getIntProp(props, "width", 0),
-		changeIntent:       getIntentProp(props, "changeIntent"),
-		changeIntentField:  getChangeIntentFieldProp(props, "changeIntent"),
-		formID:             getStringProp(props, "formID", ""),
-		selectedIndex:      getIntProp(props, "selectedIndex", -1),
-		dirty:              true,
+		key:               getStringProp(props, "key", ""),
+		componentID:       getStringProp(props, "componentID", ""),
+		options:           getOptionsProp(props),
+		selectStyle:       getStyleProp(props),
+		width:             getIntProp(props, "width", 0),
+		placeholder:       getStringProp(props, "placeholder", "..."),
+		maxVisibleRows:    getIntProp(props, "maxVisibleRows", defaultMaxVisibleRows),
+		changeIntent:      getIntentProp(props, "changeIntent"),
+		changeIntentField: getChangeIntentFieldProp(props, "changeIntent"),
+		formID:            getStringProp(props, "formID", ""),
+		selectionMode:     getSelectionModeProp(props, SelectionSingle),
+		selectedIndex:     getIntProp(props, "selectedIndex", -1),
+		selectedIndices:   getIntsProp(props, "selectedIndices", nil),
+		highlightedIndex:  -1,
+		dirty:             true,
 	}
 
-	// Initialize state
 	inst.state = control.InteractionState{
 		Disabled: getBoolProp(props, "disabled", false),
 	}
-
-	// Initialize behaviors
+	inst.normalizeSelectionState()
 	inst.initBehaviors()
-
 	return inst
 }
 
-// initBehaviors initializes the behavior composition.
 func (inst *Instance) initBehaviors() {
 	inst.behaviors = control.NewBehaviorList(
 		&control.FocusableBehavior{},
@@ -100,76 +94,88 @@ func (inst *Instance) initBehaviors() {
 	)
 }
 
-// =============================================================================
-// ComponentInstance Interface
-// =============================================================================
+func (inst *Instance) Key() string { return inst.key }
 
-// Key implements ComponentInstance.
-func (inst *Instance) Key() string {
-	return inst.key
-}
-
-// SetKey implements ComponentInstance.
 func (inst *Instance) SetKey(key string) {
 	inst.key = key
 }
 
-// Parent implements TreeComponent interface (intent bubble).
-// Returns the parent component for intent bubbling.
-// Phase 2 fix: Now properly returns parent reference (was always nil before).
 func (inst *Instance) Parent() interface{} {
 	return inst.parent
 }
 
-// SetParent sets the parent component for intent bubbling.
-// Phase 2 fix: Added method for components to set parent reference.
 func (inst *Instance) SetParent(parent rtui.ComponentInstance) {
 	inst.parent = parent
 }
 
-// Init implements ComponentInstance.
 func (inst *Instance) Init(props rtui.Props) {
 	inst.SetProps(props)
 }
 
-// Destroy implements ComponentInstance.
 func (inst *Instance) Destroy() {
 	inst.behaviors.OnUnmount(inst)
 }
 
-// OnMount implements ComponentInstance.
 func (inst *Instance) OnMount() {
 	inst.behaviors.OnMount(inst)
 }
 
-// OnUnmount implements ComponentInstance.
 func (inst *Instance) OnUnmount() {
 	inst.behaviors.OnUnmount(inst)
 }
 
-// SetProps implements ComponentInstance.
 func (inst *Instance) SetProps(props rtui.Props) bool {
-	oldOptions := inst.options
-	oldSelected := inst.selectedIndex
+	oldOptions := append([]Option(nil), inst.options...)
+	oldSelectedIndex := inst.selectedIndex
+	oldSelectedIndices := append([]int(nil), inst.selectedIndices...)
 	oldDisabled := inst.state.Disabled
+	oldWidth := inst.width
+	oldPlaceholder := inst.placeholder
+	oldMaxVisibleRows := inst.maxVisibleRows
+	oldSelectionMode := inst.selectionMode
 
+	inst.key = getStringProp(props, "key", inst.key)
 	inst.componentID = getStringProp(props, "componentID", inst.componentID)
 	inst.options = getOptionsProp(props)
 	inst.selectStyle = getStyleProp(props)
 	inst.width = getIntProp(props, "width", inst.width)
+	inst.placeholder = getStringProp(props, "placeholder", inst.placeholder)
+	inst.maxVisibleRows = getIntProp(props, "maxVisibleRows", inst.maxVisibleRows)
 	inst.changeIntent = getIntentProp(props, "changeIntent")
 	inst.changeIntentField = getChangeIntentFieldProp(props, "changeIntent")
 	inst.formID = getStringProp(props, "formID", inst.formID)
+	inst.selectionMode = getSelectionModeProp(props, inst.selectionMode)
 	inst.selectedIndex = getIntProp(props, "selectedIndex", inst.selectedIndex)
+	inst.selectedIndices = getIntsProp(props, "selectedIndices", inst.selectedIndices)
 
 	newDisabled := getBoolProp(props, "disabled", inst.state.Disabled)
 	if newDisabled != inst.state.Disabled {
 		inst.state.Disabled = newDisabled
 	}
+	if inst.state.Disabled {
+		inst.open = false
+	}
 
-	changed := len(oldOptions) != len(inst.options) ||
-		oldSelected != inst.selectedIndex ||
-		oldDisabled != inst.state.Disabled
+	if oldSelectedIndex != inst.selectedIndex ||
+		!equalIntSlices(oldSelectedIndices, inst.selectedIndices) ||
+		oldSelectionMode != inst.selectionMode {
+		if inst.selectionMode == SelectionMultiple && len(inst.selectedIndices) > 0 {
+			inst.highlightedIndex = inst.selectedIndices[len(inst.selectedIndices)-1]
+		} else {
+			inst.highlightedIndex = inst.selectedIndex
+		}
+	}
+
+	inst.normalizeSelectionState()
+
+	changed := !equalOptions(oldOptions, inst.options) ||
+		oldSelectedIndex != inst.selectedIndex ||
+		!equalIntSlices(oldSelectedIndices, inst.selectedIndices) ||
+		oldDisabled != inst.state.Disabled ||
+		oldWidth != inst.width ||
+		oldPlaceholder != inst.placeholder ||
+		oldMaxVisibleRows != inst.maxVisibleRows ||
+		oldSelectionMode != inst.selectionMode
 
 	if changed {
 		inst.dirty = true
@@ -177,63 +183,94 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	return changed
 }
 
-// GetProps implements ComponentInstance.
 func (inst *Instance) GetProps() rtui.Props {
 	return rtui.Props{
-		"key":          inst.key,
-		"selectedIndex": inst.selectedIndex,
-		"disabled":     inst.state.Disabled,
+		"key":             inst.key,
+		"selectedIndex":   inst.selectedIndex,
+		"selectedIndices": append([]int(nil), inst.selectedIndices...),
+		"selectionMode":   inst.selectionMode,
+		"disabled":        inst.state.Disabled,
+		"open":            inst.open,
 	}
 }
 
-// MarkDirty implements ComponentInstance.
 func (inst *Instance) MarkDirty() {
 	inst.dirty = true
 }
 
-// IsDirty implements ComponentInstance.
 func (inst *Instance) IsDirty() bool {
 	return inst.dirty
 }
 
-// GetContext implements ComponentInstance.
 func (inst *Instance) GetContext() *rtui.ComponentContext {
 	return nil
 }
 
-// =============================================================================
-// PaintableInstance Interface
-// =============================================================================
-
-// Paint implements PaintableInstance.
 func (inst *Instance) Paint(x, y int) []paint.DrawCmd {
-	// Get the selected label
-	displayLabel := inst.SelectedLabel()
-	if displayLabel == "" && len(inst.options) > 0 {
-		displayLabel = inst.options[0].Label
-	}
-	if displayLabel == "" {
-		displayLabel = "..."
-	}
-
-	// Build select display: < label >
-	selectDisplay := "< " + displayLabel + " >"
-
-	// Resolve style
-	selectStyle := inst.resolveStyle()
-
-	return []paint.DrawCmd{{
+	triggerWidth := inst.triggerPaintWidth()
+	triggerStyle := inst.resolveStyle()
+	triggerText := inst.triggerText(triggerWidth)
+	cmds := []paint.DrawCmd{{
 		X:     x,
 		Y:     y,
-		Text:  selectDisplay,
-		Style: selectStyle,
+		Text:  triggerText,
+		Style: triggerStyle,
 	}}
+
+	if !inst.open || len(inst.options) == 0 {
+		return cmds
+	}
+
+	popupWidth := maxInt(triggerWidth, inst.popupWidth())
+	popupHeight := inst.popupHeight()
+	if popupWidth < 4 || popupHeight < 3 {
+		return cmds
+	}
+
+	borderStyle := inst.popupBorderStyle()
+	fillStyle := inst.popupFillStyle()
+	contentWidth := popupWidth - 2
+	top := "┌" + strings.Repeat("─", maxInt(0, popupWidth-2)) + "┐"
+	bottom := "└" + strings.Repeat("─", maxInt(0, popupWidth-2)) + "┘"
+	cmds = append(cmds, paint.DrawCmd{X: x, Y: y + 1, Text: top, Style: borderStyle})
+
+	visibleRows := inst.visibleRowCount()
+	for row := 0; row < visibleRows; row++ {
+		rowY := y + 2 + row
+		cmds = append(cmds,
+			paint.DrawCmd{X: x, Y: rowY, Text: "│", Style: borderStyle},
+			paint.DrawCmd{X: x + 1, Y: rowY, Text: strings.Repeat(" ", contentWidth), Style: fillStyle},
+			paint.DrawCmd{X: x + popupWidth - 1, Y: rowY, Text: "│", Style: borderStyle},
+		)
+
+		optionIndex := inst.scrollOffset + row
+		if optionIndex >= len(inst.options) {
+			continue
+		}
+
+		rowStyle := inst.optionRowStyle(optionIndex == inst.highlightedIndex)
+		rowText := inst.optionRowText(optionIndex, contentWidth)
+		cmds = append(cmds, paint.DrawCmd{
+			X:     x + 1,
+			Y:     rowY,
+			Text:  rowText,
+			Style: rowStyle,
+		})
+	}
+
+	cmds = append(cmds, paint.DrawCmd{X: x, Y: y + 1 + popupHeight - 1, Text: bottom, Style: borderStyle})
+	if inst.scrollOffset > 0 {
+		cmds = append(cmds, paint.DrawCmd{X: x + popupWidth - 2, Y: y + 1, Text: "↑", Style: borderStyle})
+	}
+	if inst.scrollOffset < inst.maxScrollOffset() {
+		cmds = append(cmds, paint.DrawCmd{X: x + popupWidth - 2, Y: y + popupHeight, Text: "↓", Style: borderStyle})
+	}
+
+	return cmds
 }
 
-// resolveStyle resolves the visual style based on state.
 func (inst *Instance) resolveStyle() style.Style {
 	s := inst.selectStyle
-
 	if s.FG == "" {
 		s = s.Foreground(theme.Text())
 	}
@@ -242,98 +279,299 @@ func (inst *Instance) resolveStyle() style.Style {
 	}
 
 	if inst.state.Disabled {
-		s = s.Foreground(theme.DisabledFG()).Background(theme.DisabledBG())
-	} else if inst.state.Focused {
-		s = s.Foreground(theme.Focus()).Bold(true)
-	} else if inst.state.Hovered {
-		s = s.Underline(true)
+		return s.Foreground(theme.DisabledFG()).Background(theme.DisabledBG())
 	}
-
+	if inst.open || inst.state.Focused {
+		return s.Foreground(theme.Focus()).Bold(true)
+	}
+	if inst.state.Hovered {
+		return s.Underline(true)
+	}
 	return s
 }
 
-// =============================================================================
-// FocusableInstance Interface
-// =============================================================================
-
-// SetFocus implements FocusableInstance.
-func (inst *Instance) SetFocus(focused bool) {
-	if inst.state.Focused != focused {
-		oldState := inst.state
-		inst.state.Focused = focused
-		inst.dirty = true
-		inst.behaviors.OnStateChange(inst, oldState, inst.state)
+func (inst *Instance) popupFillStyle() style.Style {
+	s := inst.selectStyle
+	if s.FG == "" {
+		s = s.Foreground(theme.Text())
 	}
+	if s.BG == "" {
+		s = s.Background(theme.Surface())
+	}
+	if inst.state.Disabled {
+		return s.Foreground(theme.DisabledFG()).Background(theme.DisabledBG())
+	}
+	return s.Background(theme.Surface())
 }
 
-// HasFocus implements FocusableInstance.
+func (inst *Instance) popupBorderStyle() style.Style {
+	s := style.Style{}.Foreground(theme.Focus()).Background(theme.Surface())
+	if inst.state.Disabled {
+		return s.Foreground(theme.DisabledFG()).Background(theme.DisabledBG())
+	}
+	return s
+}
+
+func (inst *Instance) optionRowStyle(highlighted bool) style.Style {
+	s := inst.popupFillStyle()
+	if inst.state.Disabled {
+		return s.Foreground(theme.DisabledFG()).Background(theme.DisabledBG())
+	}
+	if highlighted {
+		return s.Foreground(theme.BG()).Background(theme.Select()).Bold(true)
+	}
+	return s
+}
+
+func (inst *Instance) SetFocus(focused bool) {
+	if inst.state.Focused == focused {
+		return
+	}
+	oldState := inst.state
+	inst.state.Focused = focused
+	if !focused {
+		inst.closeDropdown()
+		inst.emitFieldBlur()
+	}
+	inst.dirty = true
+	inst.behaviors.OnStateChange(inst, oldState, inst.state)
+}
+
 func (inst *Instance) HasFocus() bool {
 	return inst.state.Focused
 }
 
-// IsDisabled implements FocusableInstance.
 func (inst *Instance) IsDisabled() bool {
 	return inst.state.Disabled
 }
 
-// =============================================================================
-// ActionHandlerInstance Interface
-// =============================================================================
-
-// HandleAction implements ActionHandlerInstance.
 func (inst *Instance) HandleAction(act *action.Action) bool {
+	if act == nil {
+		return false
+	}
+	if inst.behaviors.OnAction(inst, act) {
+		return true
+	}
 	if inst.state.Disabled || len(inst.options) == 0 {
 		return false
 	}
 
 	switch act.Type {
-	case action.ActionSelect, action.ActionClick, action.ActionEnter,
-		action.ActionNavigateDown:
+	case action.ActionHover:
+		return inst.handleHover(act)
+	case action.ActionClick:
+		return inst.handleClick(act)
+	case action.ActionScroll:
+		return inst.handleScroll(act)
+	case action.ActionNavigateDown:
+		if inst.open {
+			return inst.moveHighlight(1)
+		}
+		if inst.selectionMode == SelectionMultiple {
+			return inst.openDropdown()
+		}
 		inst.SelectNext()
 		return true
 	case action.ActionNavigateUp:
+		if inst.open {
+			return inst.moveHighlight(-1)
+		}
+		if inst.selectionMode == SelectionMultiple {
+			return inst.openDropdown()
+		}
 		inst.SelectPrev()
 		return true
+	case action.ActionNavigateHome:
+		if inst.open {
+			return inst.moveHighlightTo(0)
+		}
+		return inst.applySingleSelection(0, false)
+	case action.ActionNavigateEnd:
+		if inst.open {
+			return inst.moveHighlightTo(len(inst.options) - 1)
+		}
+		return inst.applySingleSelection(len(inst.options)-1, false)
+	case action.ActionNavigatePageUp:
+		if !inst.open {
+			return inst.openDropdown()
+		}
+		return inst.pageHighlight(-1)
+	case action.ActionNavigatePageDown:
+		if !inst.open {
+			return inst.openDropdown()
+		}
+		return inst.pageHighlight(1)
+	case action.ActionSelect:
+		if inst.open {
+			return inst.activateIndex(inst.highlightedIndex)
+		}
+		if inst.selectionMode == SelectionMultiple {
+			return inst.openDropdown()
+		}
+		inst.SelectNext()
+		return true
+	case action.ActionEnter, action.ActionSubmit:
+		if !inst.open {
+			return inst.openDropdown()
+		}
+		return inst.activateIndex(inst.highlightedIndex)
+	case action.ActionCancel:
+		return inst.closeDropdown()
 	}
 	return false
 }
 
-// =============================================================================
-// Select-specific Methods
-// =============================================================================
+func (inst *Instance) handleClick(act *action.Action) bool {
+	mouse, ok := mousePayload(act.Payload)
+	if !ok {
+		if inst.open {
+			return inst.activateIndex(inst.highlightedIndex)
+		}
+		return inst.openDropdown()
+	}
 
-// SelectNext selects the next option.
+	if mouse.LocalY <= 0 {
+		if inst.open {
+			return inst.closeDropdown()
+		}
+		return inst.openDropdown()
+	}
+
+	if !inst.open {
+		return inst.openDropdown()
+	}
+
+	index, hit := inst.optionIndexAt(mouse.LocalX, mouse.LocalY)
+	if !hit {
+		return true
+	}
+
+	inst.highlightedIndex = index
+	inst.ensureHighlightVisible()
+	return inst.activateIndex(index)
+}
+
+func (inst *Instance) handleHover(act *action.Action) bool {
+	if !inst.open {
+		return false
+	}
+	mouse, ok := mousePayload(act.Payload)
+	if !ok {
+		return false
+	}
+	index, hit := inst.optionIndexAt(mouse.LocalX, mouse.LocalY)
+	if !hit || index == inst.highlightedIndex {
+		return false
+	}
+	inst.highlightedIndex = index
+	inst.ensureHighlightVisible()
+	inst.dirty = true
+	return true
+}
+
+func (inst *Instance) handleScroll(act *action.Action) bool {
+	if !inst.open {
+		return false
+	}
+	delta, ok := scrollutil.DeltaFromAction(act)
+	if !ok || delta == 0 {
+		return false
+	}
+	if delta > 0 {
+		return inst.moveHighlight(1)
+	}
+	return inst.moveHighlight(-1)
+}
+
+// SelectNext selects the next option in single mode.
 func (inst *Instance) SelectNext() {
 	if len(inst.options) == 0 {
 		return
 	}
-	inst.selectedIndex = (inst.selectedIndex + 1) % len(inst.options)
-	inst.dirty = true
-	inst.emitChange()
-	inst.emitSelectChange() // Phase 10: Emit SelectChangeIntent
+	if inst.selectionMode == SelectionMultiple {
+		if !inst.open {
+			inst.openDropdown()
+			return
+		}
+		inst.moveHighlight(1)
+		return
+	}
+
+	next := inst.selectedIndex + 1
+	if next < 0 {
+		next = 0
+	}
+	if next >= len(inst.options) {
+		next = 0
+	}
+	inst.applySingleSelection(next, false)
 }
 
-// SelectPrev selects the previous option.
+// SelectPrev selects the previous option in single mode.
 func (inst *Instance) SelectPrev() {
 	if len(inst.options) == 0 {
 		return
 	}
-	inst.selectedIndex--
-	if inst.selectedIndex < 0 {
-		inst.selectedIndex = len(inst.options) - 1
+	if inst.selectionMode == SelectionMultiple {
+		if !inst.open {
+			inst.openDropdown()
+			return
+		}
+		inst.moveHighlight(-1)
+		return
 	}
-	inst.dirty = true
-	inst.emitChange()
-	inst.emitSelectChange() // Phase 10: Emit SelectChangeIntent
+
+	next := inst.selectedIndex - 1
+	if next < 0 {
+		next = len(inst.options) - 1
+	}
+	inst.applySingleSelection(next, false)
 }
 
 // SetSelectedIndex sets the selected index.
 func (inst *Instance) SetSelectedIndex(idx int) {
-	if idx >= -1 && idx < len(inst.options) && inst.selectedIndex != idx {
-		inst.selectedIndex = idx
-		inst.dirty = true
-		inst.emitSelectChange() // Phase 10: Emit SelectChangeIntent
+	if idx < -1 || idx >= len(inst.options) {
+		return
 	}
+	if inst.selectionMode == SelectionMultiple {
+		inst.SetSelectedIndices([]int{idx})
+		return
+	}
+	if inst.selectedIndex == idx && len(inst.selectedIndices) == boolToIntSliceLen(idx >= 0) {
+		return
+	}
+	inst.selectedIndex = idx
+	if idx >= 0 {
+		inst.selectedIndices = []int{idx}
+		inst.highlightedIndex = idx
+	} else {
+		inst.selectedIndices = nil
+		inst.highlightedIndex = 0
+	}
+	inst.ensureHighlightVisible()
+	inst.dirty = true
+	inst.emitSelectChange()
+}
+
+// SetSelectedIndices sets the selected indices.
+func (inst *Instance) SetSelectedIndices(indices []int) {
+	normalized := normalizeIndices(indices, len(inst.options))
+	if equalIntSlices(inst.selectedIndices, normalized) {
+		return
+	}
+	inst.selectedIndices = normalized
+	if len(normalized) == 0 {
+		inst.selectedIndex = -1
+	} else if inst.selectionMode == SelectionMultiple {
+		inst.selectedIndex = normalized[len(normalized)-1]
+	} else {
+		inst.selectedIndex = normalized[0]
+		inst.selectedIndices = []int{inst.selectedIndex}
+	}
+	inst.highlightedIndex = inst.selectedIndex
+	inst.ensureHighlightVisible()
+	inst.dirty = true
+	inst.emitSelectChange()
 }
 
 // SelectedIndex returns the selected index.
@@ -341,7 +579,12 @@ func (inst *Instance) SelectedIndex() int {
 	return inst.selectedIndex
 }
 
-// SelectedValue returns the selected value.
+// SelectedIndices returns the selected indices.
+func (inst *Instance) SelectedIndices() []int {
+	return append([]int(nil), inst.selectedIndices...)
+}
+
+// SelectedValue returns the primary selected value.
 func (inst *Instance) SelectedValue() string {
 	if inst.selectedIndex >= 0 && inst.selectedIndex < len(inst.options) {
 		return inst.options[inst.selectedIndex].Value
@@ -349,7 +592,18 @@ func (inst *Instance) SelectedValue() string {
 	return ""
 }
 
-// SelectedLabel returns the selected label.
+// SelectedValues returns all selected values.
+func (inst *Instance) SelectedValues() []string {
+	values := make([]string, 0, len(inst.selectedIndices))
+	for _, idx := range inst.selectedIndices {
+		if idx >= 0 && idx < len(inst.options) {
+			values = append(values, inst.options[idx].Value)
+		}
+	}
+	return values
+}
+
+// SelectedLabel returns the primary selected label.
 func (inst *Instance) SelectedLabel() string {
 	if inst.selectedIndex >= 0 && inst.selectedIndex < len(inst.options) {
 		return inst.options[inst.selectedIndex].Label
@@ -357,111 +611,112 @@ func (inst *Instance) SelectedLabel() string {
 	return ""
 }
 
-// emitChange emits the change intent.
+// SelectedLabels returns all selected labels.
+func (inst *Instance) SelectedLabels() []string {
+	labels := make([]string, 0, len(inst.selectedIndices))
+	for _, idx := range inst.selectedIndices {
+		if idx >= 0 && idx < len(inst.options) {
+			labels = append(labels, inst.options[idx].Label)
+		}
+	}
+	return labels
+}
+
 func (inst *Instance) emitChange() {
-	// ✨ MVP/Phase 6: Emit FieldChangeIntent or FormFieldChangeIntent with runtime value
-	// State becomes the single source of truth
 	inst.emitFieldValueChanged()
 }
 
-// =============================================================================
-// control.Instance Interface (for Behaviors)
-// =============================================================================
-
-// GetState returns the interaction state.
 func (inst *Instance) GetState() *control.InteractionState {
 	return &inst.state
 }
 
-// SetState sets the interaction state.
 func (inst *Instance) SetState(state control.InteractionState) {
 	oldState := inst.state
 	inst.state = state
 	inst.behaviors.OnStateChange(inst, oldState, inst.state)
 }
 
-// EmitIntent emits an intent.
 func (inst *Instance) EmitIntent(i intent.Intent) {
 	if inst.intentEmitter != nil {
 		inst.intentEmitter(i)
 	}
 }
 
-// HandleIntent implements intent.IntentHandler to handle select-specific intents.
-// This allows external components or controllers to control the select via intents.
-// Phase 2 fix: Uses unified component ID routing (P1-4: INTENT_BUBBLE_AUDIT_REPORT.md)
 func (inst *Instance) HandleIntent(i intent.Intent) bool {
-	// Check if this intent is for this component using unified routing
 	if !intent.ShouldHandleIntentWithID(inst.componentID, i) {
-		// Intent is for a different component, ignore it
 		return false
 	}
 
-	// Process the intent
 	switch v := i.(type) {
 	case SelectNextIntent:
-		// Handle next selection by external request
-		if len(inst.options) == 0 {
-			return false
+		if inst.selectionMode == SelectionMultiple && inst.open {
+			return inst.moveHighlight(1)
 		}
 		inst.SelectNext()
 		return true
-
 	case SelectPrevIntent:
-		// Handle previous selection by external request
-		if len(inst.options) == 0 {
-			return false
+		if inst.selectionMode == SelectionMultiple && inst.open {
+			return inst.moveHighlight(-1)
 		}
 		inst.SelectPrev()
 		return true
-
 	case SelectByIndexIntent:
-		// Handle selection by index
-		if v.Index >= -1 && v.Index < len(inst.options) {
-			inst.SetSelectedIndex(v.Index)
-			return true
+		if v.Index < -1 || v.Index >= len(inst.options) {
+			return false
 		}
-
-	case SelectByValueIntent:
-		// Handle selection by value
-		for idx, opt := range inst.options {
-			if opt.Value == v.Value {
-				inst.SetSelectedIndex(idx)
+		if inst.selectionMode == SelectionMultiple {
+			if v.Index < 0 {
+				inst.SetSelectedIndices(nil)
 				return true
 			}
+			return inst.toggleIndex(v.Index)
+		}
+		inst.SetSelectedIndex(v.Index)
+		return true
+	case SelectByValueIntent:
+		for idx, opt := range inst.options {
+			if opt.Value != v.Value {
+				continue
+			}
+			if inst.selectionMode == SelectionMultiple {
+				return inst.toggleIndex(idx)
+			}
+			inst.SetSelectedIndex(idx)
+			return true
 		}
 	}
 
 	return false
 }
 
-// GetBounds returns the layout bounds.
 func (inst *Instance) GetBounds() (x, y, w, h int) {
 	return inst.bounds[0], inst.bounds[1], inst.bounds[2], inst.bounds[3]
 }
 
-// SetBounds sets the layout bounds.
 func (inst *Instance) SetBounds(x, y, w, h int) {
 	inst.bounds = [4]int{x, y, w, h}
 }
 
-// GetStyle returns the visual style.
 func (inst *Instance) GetStyle() style.Style {
 	return inst.selectStyle
 }
 
-// SetStyle sets the visual style.
 func (inst *Instance) SetStyle(s style.Style) {
 	inst.selectStyle = s
 }
 
-// GetProp returns a prop value.
 func (inst *Instance) GetProp(key string) (interface{}, bool) {
 	switch key {
 	case "disabled":
 		return inst.state.Disabled, true
 	case "selectedIndex":
 		return inst.selectedIndex, true
+	case "selectedIndices":
+		return append([]int(nil), inst.selectedIndices...), true
+	case "selectionMode":
+		return inst.selectionMode, true
+	case "open":
+		return inst.open, true
 	case "options":
 		return inst.options, true
 	default:
@@ -469,156 +724,502 @@ func (inst *Instance) GetProp(key string) (interface{}, bool) {
 	}
 }
 
-// SetProp sets a prop value.
 func (inst *Instance) SetProp(key string, value interface{}) {
 	switch key {
 	case "disabled":
 		if v, ok := value.(bool); ok {
 			inst.state.Disabled = v
+			if v {
+				inst.open = false
+			}
 			inst.dirty = true
 		}
 	case "selectedIndex":
 		if v, ok := value.(int); ok {
 			inst.SetSelectedIndex(v)
 		}
+	case "selectedIndices":
+		if v, ok := value.([]int); ok {
+			inst.SetSelectedIndices(v)
+		}
+	case "selectionMode":
+		if v, ok := value.(SelectionMode); ok {
+			inst.selectionMode = v
+			inst.normalizeSelectionState()
+			inst.dirty = true
+		}
 	}
 }
 
-// SetIntentEmitter sets the intent emitter function.
 func (inst *Instance) SetIntentEmitter(fn func(intent.Intent)) {
 	inst.intentEmitter = fn
 }
 
-// ClearDirty clears the dirty flag.
 func (inst *Instance) ClearDirty() {
 	inst.dirty = false
 }
 
-// =============================================================================
-// Measurable Interface (Two-Pass Layout)
-// =============================================================================
-
-// Measure implements layout.Measurable interface.
 func (inst *Instance) Measure(constraints layout.Constraints) layout.Size {
 	if inst == nil {
 		return layout.Size{}
 	}
 
-	// Find the longest option label
-	maxWidth := 0
-	for _, opt := range inst.options {
-		labelWidth := utf8.RuneCountInString(opt.Label)
-		if labelWidth > maxWidth {
-			maxWidth = labelWidth
-		}
+	width := inst.triggerWidth()
+	if inst.open {
+		width = maxInt(width, inst.popupWidth())
 	}
-
-	// Minimum width
-	if maxWidth < 10 {
-		maxWidth = 10
-	}
-
-	// Width: longest label + 4 for "< " and " >"
-	width := maxWidth + 4
 	height := 1
-
-	// Apply explicit width
-	if inst.width > 0 {
-		width = inst.width
+	if inst.open && len(inst.options) > 0 {
+		height += inst.popupHeight()
 	}
 
-	// Apply constraints
 	width = constraints.ConstrainWidth(width)
 	height = constraints.ConstrainHeight(height)
-
 	return layout.Size{Width: width, Height: height}
 }
 
-// =============================================================================
-// Form Integration Methods (Phase 6)
-// =============================================================================
-
-// emitSelectChange emits SelectChangeIntent (Phase 10).
-// Phase 11 fix: Uses intentEmitter to trigger FiberUtil's smart routing.
 func (inst *Instance) emitSelectChange() {
 	if inst.intentEmitter == nil {
 		return
 	}
 
-	var selectIntent SelectChangeIntent
-	selectedValue := inst.SelectedValue()
-	selectedLabel := inst.SelectedLabel()
-
-	if inst.componentID != "" {
-		selectIntent = SelectChangeWithID(inst.componentID, inst.selectedIndex, selectedValue, selectedLabel)
-	} else {
-		selectIntent = SelectChange(inst.selectedIndex, selectedValue, selectedLabel)
-	}
-
-	// Emit via intentEmitter (FiberUtil's smart router decides global vs local)
-	inst.intentEmitter(selectIntent)
+	inst.intentEmitter(SelectChangeIntent{
+		SelectedIndex:   inst.selectedIndex,
+		SelectedIndices: inst.SelectedIndices(),
+		SelectedValue:   inst.SelectedValue(),
+		SelectedValues:  inst.SelectedValues(),
+		SelectedLabel:   inst.SelectedLabel(),
+		SelectedLabels:  inst.SelectedLabels(),
+		Mode:            inst.selectionMode,
+		ComponentID:     inst.componentID,
+	})
 }
 
-// emitFieldValueChanged emits FieldChangeIntent or FormFieldChangeIntent
-// depending on whether formID is set.
 func (inst *Instance) emitFieldValueChanged() {
 	if inst.intentEmitter == nil {
 		return
 	}
 
-	// Convert selected index to string for FieldChangeIntent
-	value := fmt.Sprintf("%d", inst.selectedIndex)
-
-	// Phase 6: If formID is set, use FormFieldChangeIntent
+	value := inst.fieldValue()
 	if inst.formID != "" {
 		if inst.changeIntentField != nil {
-			formIntent := form.FieldChange(
-				inst.formID,
-				inst.changeIntentField.GetField(),
-				value,
-				true, // isDirty
-			)
+			formIntent := form.FieldChange(inst.formID, inst.changeIntentField.GetField(), value, true)
 			intent.Emit(inst, formIntent)
 		}
 		return
 	}
 
-	// Original MVP behavior: emit FieldChangeIntent
 	if inst.changeIntentField != nil {
-		changeIntent := intent.FieldChangeIntent{
+		inst.intentEmitter(intent.FieldChangeIntent{
 			Field: inst.changeIntentField.GetField(),
 			Value: value,
-		}
-		inst.intentEmitter(changeIntent)
+		})
 	} else if inst.changeIntent != nil {
-		// Fallback: emit the original intent for backward compatibility
 		inst.intentEmitter(inst.changeIntent)
 	}
 }
 
-// emitFieldBlur emits FormFieldBlurIntent to trigger validation (Phase 6)
-// Only called when formID is set.
 func (inst *Instance) emitFieldBlur() {
-	if inst.intentEmitter == nil || inst.formID == "" {
+	if inst.intentEmitter == nil || inst.formID == "" || inst.changeIntentField == nil {
+		return
+	}
+	intent.Emit(inst, form.FieldBlur(inst.formID, inst.changeIntentField.GetField(), inst.fieldValue()))
+}
+
+func (inst *Instance) fieldValue() string {
+	if inst.selectionMode == SelectionMultiple {
+		return joinIndices(inst.selectedIndices)
+	}
+	return fmt.Sprintf("%d", inst.selectedIndex)
+}
+
+func (inst *Instance) normalizeSelectionState() {
+	if inst.maxVisibleRows <= 0 {
+		inst.maxVisibleRows = defaultMaxVisibleRows
+	}
+	if strings.TrimSpace(inst.placeholder) == "" {
+		inst.placeholder = "..."
+	}
+
+	count := len(inst.options)
+	inst.selectedIndices = normalizeIndices(inst.selectedIndices, count)
+
+	switch inst.selectionMode {
+	case SelectionMultiple:
+		if len(inst.selectedIndices) == 0 && inst.selectedIndex >= 0 && inst.selectedIndex < count {
+			inst.selectedIndices = []int{inst.selectedIndex}
+		}
+		if len(inst.selectedIndices) > 0 {
+			if !containsInt(inst.selectedIndices, inst.selectedIndex) {
+				inst.selectedIndex = inst.selectedIndices[len(inst.selectedIndices)-1]
+			}
+		} else {
+			inst.selectedIndex = -1
+		}
+	default:
+		if count == 0 {
+			inst.selectedIndex = -1
+			inst.selectedIndices = nil
+		} else {
+			if inst.selectedIndex >= count {
+				inst.selectedIndex = count - 1
+			}
+			if inst.selectedIndex < -1 {
+				inst.selectedIndex = -1
+			}
+			if inst.selectedIndex >= 0 {
+				inst.selectedIndices = []int{inst.selectedIndex}
+			} else {
+				inst.selectedIndices = nil
+			}
+		}
+	}
+
+	if count == 0 {
+		inst.open = false
+		inst.highlightedIndex = -1
+		inst.scrollOffset = 0
 		return
 	}
 
-	// Convert selected index to string for FieldBlurIntent
-	value := fmt.Sprintf("%d", inst.selectedIndex)
-
-	if inst.changeIntentField != nil {
-		blurIntent := form.FieldBlur(
-			inst.formID,
-			inst.changeIntentField.GetField(),
-			value,
-		)
-		intent.Emit(inst, blurIntent)
+	if inst.highlightedIndex < 0 || inst.highlightedIndex >= count {
+		switch {
+		case inst.selectionMode == SelectionMultiple && len(inst.selectedIndices) > 0:
+			inst.highlightedIndex = inst.selectedIndices[len(inst.selectedIndices)-1]
+		case inst.selectedIndex >= 0:
+			inst.highlightedIndex = inst.selectedIndex
+		default:
+			inst.highlightedIndex = 0
+		}
 	}
+
+	inst.highlightedIndex = clampInt(inst.highlightedIndex, 0, count-1)
+	inst.ensureHighlightVisible()
 }
 
-// =============================================================================
-// Prop Extraction Helpers
-// =============================================================================
+func (inst *Instance) openDropdown() bool {
+	if inst.open || len(inst.options) == 0 {
+		return false
+	}
+	inst.open = true
+	if inst.highlightedIndex < 0 {
+		if inst.selectedIndex >= 0 {
+			inst.highlightedIndex = inst.selectedIndex
+		} else {
+			inst.highlightedIndex = 0
+		}
+	}
+	inst.ensureHighlightVisible()
+	inst.dirty = true
+	return true
+}
+
+func (inst *Instance) closeDropdown() bool {
+	if !inst.open {
+		return false
+	}
+	inst.open = false
+	inst.dirty = true
+	return true
+}
+
+func (inst *Instance) moveHighlight(delta int) bool {
+	if len(inst.options) == 0 {
+		return false
+	}
+	if !inst.open {
+		return inst.openDropdown()
+	}
+	next := clampInt(inst.highlightedIndex+delta, 0, len(inst.options)-1)
+	if next == inst.highlightedIndex {
+		return false
+	}
+	inst.highlightedIndex = next
+	inst.ensureHighlightVisible()
+	inst.dirty = true
+	return true
+}
+
+func (inst *Instance) moveHighlightTo(index int) bool {
+	if len(inst.options) == 0 {
+		return false
+	}
+	if !inst.open {
+		inst.open = true
+	}
+	next := clampInt(index, 0, len(inst.options)-1)
+	if next == inst.highlightedIndex {
+		return false
+	}
+	inst.highlightedIndex = next
+	inst.ensureHighlightVisible()
+	inst.dirty = true
+	return true
+}
+
+func (inst *Instance) pageHighlight(direction int) bool {
+	if len(inst.options) == 0 {
+		return false
+	}
+	pageSize := maxInt(1, inst.visibleRowCount())
+	next := inst.highlightedIndex + direction*pageSize
+	return inst.moveHighlightTo(clampInt(next, 0, len(inst.options)-1))
+}
+
+func (inst *Instance) activateIndex(index int) bool {
+	if index < 0 || index >= len(inst.options) {
+		return false
+	}
+	if inst.selectionMode == SelectionMultiple {
+		return inst.toggleIndex(index)
+	}
+	return inst.applySingleSelection(index, true)
+}
+
+func (inst *Instance) applySingleSelection(index int, close bool) bool {
+	if index < 0 || index >= len(inst.options) {
+		return false
+	}
+
+	selectionChanged := inst.selectedIndex != index ||
+		len(inst.selectedIndices) != 1 ||
+		inst.selectedIndices[0] != index
+	closed := close && inst.open
+
+	inst.selectedIndex = index
+	inst.selectedIndices = []int{index}
+	inst.highlightedIndex = index
+	if close {
+		inst.open = false
+	}
+	inst.ensureHighlightVisible()
+
+	if selectionChanged || closed {
+		inst.dirty = true
+	}
+	if selectionChanged {
+		inst.emitChange()
+		inst.emitSelectChange()
+	}
+	return selectionChanged || closed
+}
+
+func (inst *Instance) toggleIndex(index int) bool {
+	if index < 0 || index >= len(inst.options) {
+		return false
+	}
+	if inst.selectionMode != SelectionMultiple {
+		return inst.applySingleSelection(index, true)
+	}
+
+	next := append([]int(nil), inst.selectedIndices...)
+	pos := indexOfInt(next, index)
+	if pos >= 0 {
+		next = append(next[:pos], next[pos+1:]...)
+	} else {
+		next = append(next, index)
+	}
+	next = normalizeIndices(next, len(inst.options))
+	if equalIntSlices(inst.selectedIndices, next) {
+		return false
+	}
+
+	inst.selectedIndices = next
+	if pos >= 0 {
+		if inst.selectedIndex == index {
+			if len(inst.selectedIndices) > 0 {
+				inst.selectedIndex = inst.selectedIndices[len(inst.selectedIndices)-1]
+			} else {
+				inst.selectedIndex = -1
+			}
+		}
+	} else {
+		inst.selectedIndex = index
+	}
+	inst.highlightedIndex = index
+	inst.ensureHighlightVisible()
+	inst.dirty = true
+	inst.emitChange()
+	inst.emitSelectChange()
+	return true
+}
+
+func (inst *Instance) triggerWidth() int {
+	longest := paint.StringWidth(inst.placeholder)
+	for _, opt := range inst.options {
+		longest = maxInt(longest, paint.StringWidth(opt.Label))
+	}
+	longest = maxInt(longest, paint.StringWidth(inst.triggerDisplayLabel()))
+	longest = maxInt(longest, 10)
+
+	width := longest + 4
+	if inst.width > 0 {
+		width = inst.width
+	}
+	return maxInt(width, 6)
+}
+
+func (inst *Instance) popupWidth() int {
+	markerWidth := inst.optionMarkerWidth()
+	labelWidth := 0
+	for _, opt := range inst.options {
+		labelWidth = maxInt(labelWidth, paint.StringWidth(opt.Label))
+	}
+
+	contentWidth := labelWidth
+	if markerWidth > 0 {
+		contentWidth += markerWidth + 1
+	}
+
+	width := contentWidth + 2
+	width = maxInt(width, inst.triggerWidth())
+	return maxInt(width, 6)
+}
+
+func (inst *Instance) popupHeight() int {
+	if len(inst.options) == 0 {
+		return 0
+	}
+	return inst.visibleRowCount() + 2
+}
+
+func (inst *Instance) visibleRowCount() int {
+	if len(inst.options) == 0 {
+		return 0
+	}
+	rows := inst.maxVisibleRows
+	if rows <= 0 {
+		rows = defaultMaxVisibleRows
+	}
+	return minInt(len(inst.options), rows)
+}
+
+func (inst *Instance) maxScrollOffset() int {
+	return maxInt(0, len(inst.options)-inst.visibleRowCount())
+}
+
+func (inst *Instance) ensureHighlightVisible() {
+	if len(inst.options) == 0 || inst.highlightedIndex < 0 {
+		inst.scrollOffset = 0
+		return
+	}
+
+	maxOffset := inst.maxScrollOffset()
+	if inst.scrollOffset > maxOffset {
+		inst.scrollOffset = maxOffset
+	}
+	if inst.highlightedIndex < inst.scrollOffset {
+		inst.scrollOffset = inst.highlightedIndex
+	}
+	visibleRows := inst.visibleRowCount()
+	if visibleRows <= 0 {
+		inst.scrollOffset = 0
+		return
+	}
+	if inst.highlightedIndex >= inst.scrollOffset+visibleRows {
+		inst.scrollOffset = inst.highlightedIndex - visibleRows + 1
+	}
+	inst.scrollOffset = clampInt(inst.scrollOffset, 0, maxOffset)
+}
+
+func (inst *Instance) optionIndexAt(localX, localY int) (int, bool) {
+	if !inst.open || localX < 0 || localY < 2 {
+		return 0, false
+	}
+	row := localY - 2
+	if row < 0 || row >= inst.visibleRowCount() {
+		return 0, false
+	}
+	index := inst.scrollOffset + row
+	if index < 0 || index >= len(inst.options) {
+		return 0, false
+	}
+	return index, true
+}
+
+func (inst *Instance) optionRowText(index, width int) string {
+	if index < 0 || index >= len(inst.options) {
+		return strings.Repeat(" ", width)
+	}
+	marker := inst.optionMarker(index)
+	labelWidth := width
+	rowText := ""
+	if marker != "" {
+		rowText = padDisplayWidth(marker, inst.optionMarkerWidth())
+		if width > inst.optionMarkerWidth() {
+			rowText += " "
+			labelWidth = width - inst.optionMarkerWidth() - 1
+		} else {
+			labelWidth = 0
+		}
+	}
+	rowText += padDisplayWidth(truncateWithEllipsis(inst.options[index].Label, labelWidth), labelWidth)
+	return padDisplayWidth(rowText, width)
+}
+
+func (inst *Instance) optionMarker(index int) string {
+	selected := containsInt(inst.selectedIndices, index)
+	if inst.selectionMode == SelectionMultiple {
+		if selected {
+			return "[x]"
+		}
+		return "[ ]"
+	}
+	if selected {
+		return "●"
+	}
+	return "○"
+}
+
+func (inst *Instance) optionMarkerWidth() int {
+	if inst.selectionMode == SelectionMultiple {
+		return 3
+	}
+	return 1
+}
+
+func (inst *Instance) triggerText(width int) string {
+	innerWidth := maxInt(0, width-4)
+	label := truncateWithEllipsis(inst.triggerDisplayLabel(), innerWidth)
+	return "< " + padDisplayWidth(label, innerWidth) + " >"
+}
+
+func (inst *Instance) triggerDisplayLabel() string {
+	if inst.selectionMode == SelectionMultiple {
+		switch len(inst.selectedIndices) {
+		case 0:
+			return inst.placeholder
+		case 1:
+			return inst.labelAt(inst.selectedIndices[0])
+		default:
+			return fmt.Sprintf("%d selected", len(inst.selectedIndices))
+		}
+	}
+	if label := inst.SelectedLabel(); label != "" {
+		return label
+	}
+	if len(inst.options) > 0 {
+		return inst.options[0].Label
+	}
+	return inst.placeholder
+}
+
+func (inst *Instance) labelAt(index int) string {
+	if index >= 0 && index < len(inst.options) {
+		return inst.options[index].Label
+	}
+	return ""
+}
+
+func (inst *Instance) triggerPaintWidth() int {
+	if inst.bounds[2] > 0 {
+		return maxInt(inst.bounds[2], 6)
+	}
+	if inst.width > 0 {
+		return maxInt(inst.width, 6)
+	}
+	return maxInt(paint.StringWidth(inst.triggerDisplayLabel())+4, 6)
+}
 
 func getStringProp(props rtui.Props, key, def string) string {
 	if v, ok := props[key]; ok {
@@ -636,6 +1237,15 @@ func getIntProp(props rtui.Props, key string, def int) int {
 		}
 	}
 	return def
+}
+
+func getIntsProp(props rtui.Props, key string, def []int) []int {
+	if v, ok := props[key]; ok {
+		if values, ok := v.([]int); ok {
+			return append([]int(nil), values...)
+		}
+	}
+	return append([]int(nil), def...)
 }
 
 func getBoolProp(props rtui.Props, key string, def bool) bool {
@@ -674,11 +1284,176 @@ func getChangeIntentFieldProp(props rtui.Props, key string) intent.FieldIntent {
 	return nil
 }
 
+func getSelectionModeProp(props rtui.Props, def SelectionMode) SelectionMode {
+	if v, ok := props["selectionMode"]; ok {
+		if mode, ok := v.(SelectionMode); ok {
+			return mode
+		}
+	}
+	return def
+}
+
 func getOptionsProp(props rtui.Props) []Option {
 	if v, ok := props["options"]; ok {
 		if opts, ok := v.([]Option); ok {
-			return opts
+			return append([]Option(nil), opts...)
 		}
 	}
 	return nil
+}
+
+func mousePayload(payload any) (*runtimemsg.MouseMsg, bool) {
+	switch value := payload.(type) {
+	case *runtimemsg.MouseMsg:
+		if value != nil {
+			return value, true
+		}
+	case runtimemsg.MouseMsg:
+		copy := value
+		return &copy, true
+	}
+	return nil, false
+}
+
+func equalOptions(a, b []Option) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func equalIntSlices(a, b []int) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func normalizeIndices(indices []int, optionCount int) []int {
+	if optionCount <= 0 || len(indices) == 0 {
+		return nil
+	}
+	seen := make(map[int]struct{}, len(indices))
+	result := make([]int, 0, len(indices))
+	for _, index := range indices {
+		if index < 0 || index >= optionCount {
+			continue
+		}
+		if _, exists := seen[index]; exists {
+			continue
+		}
+		seen[index] = struct{}{}
+		result = append(result, index)
+	}
+	return result
+}
+
+func containsInt(values []int, target int) bool {
+	return indexOfInt(values, target) >= 0
+}
+
+func indexOfInt(values []int, target int) int {
+	for i, value := range values {
+		if value == target {
+			return i
+		}
+	}
+	return -1
+}
+
+func joinIndices(indices []int) string {
+	if len(indices) == 0 {
+		return ""
+	}
+	parts := make([]string, len(indices))
+	for i, index := range indices {
+		parts[i] = fmt.Sprintf("%d", index)
+	}
+	return strings.Join(parts, ",")
+}
+
+func truncateWithEllipsis(content string, width int) string {
+	if width <= 0 {
+		return ""
+	}
+	const ellipsis = "…"
+	if paint.StringWidth(content) <= width {
+		return content
+	}
+	ellipsisWidth := paint.StringWidth(ellipsis)
+	if width <= ellipsisWidth {
+		return ellipsis
+	}
+	trimmed := strings.TrimRight(truncateByDisplayWidth(content, width-ellipsisWidth), " ")
+	if trimmed == "" {
+		return truncateByDisplayWidth(content, width)
+	}
+	return trimmed + ellipsis
+}
+
+func truncateByDisplayWidth(content string, width int) string {
+	if width <= 0 {
+		return ""
+	}
+	var builder strings.Builder
+	currentWidth := 0
+	for _, r := range content {
+		runeWidth := paint.RuneWidth(r)
+		if currentWidth+runeWidth > width {
+			break
+		}
+		builder.WriteRune(r)
+		currentWidth += runeWidth
+	}
+	return builder.String()
+}
+
+func padDisplayWidth(content string, width int) string {
+	content = truncateByDisplayWidth(content, width)
+	padding := width - paint.StringWidth(content)
+	if padding <= 0 {
+		return content
+	}
+	return content + strings.Repeat(" ", padding)
+}
+
+func clampInt(value, low, high int) int {
+	if value < low {
+		return low
+	}
+	if value > high {
+		return high
+	}
+	return value
+}
+
+func maxInt(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}
+
+func minInt(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+func boolToIntSliceLen(ok bool) int {
+	if ok {
+		return 1
+	}
+	return 0
 }

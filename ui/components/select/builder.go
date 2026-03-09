@@ -53,6 +53,28 @@ func (b *Builder) Selected(idx int) *Builder {
 	return b
 }
 
+// SelectedIndices sets the selected indices for multi-select mode.
+func (b *Builder) SelectedIndices(indices ...int) *Builder {
+	b.node.SetSelectedIndices(indices)
+	return b
+}
+
+// SelectionMode sets the select selection mode.
+func (b *Builder) SelectionMode(mode SelectionMode) *Builder {
+	b.node.SetSelectionMode(mode)
+	return b
+}
+
+// SingleSelect enables single-select behavior.
+func (b *Builder) SingleSelect() *Builder {
+	return b.SelectionMode(SelectionSingle)
+}
+
+// MultiSelect enables multi-select behavior.
+func (b *Builder) MultiSelect() *Builder {
+	return b.SelectionMode(SelectionMultiple)
+}
+
 // Disabled sets the disabled state.
 func (b *Builder) Disabled(v bool) *Builder {
 	b.node.SetDisabled(v)
@@ -62,6 +84,18 @@ func (b *Builder) Disabled(v bool) *Builder {
 // Width sets the explicit width.
 func (b *Builder) Width(w int) *Builder {
 	b.node.SetWidth(w)
+	return b
+}
+
+// Placeholder sets the text shown when nothing is selected.
+func (b *Builder) Placeholder(text string) *Builder {
+	b.node.SetPlaceholder(text)
+	return b
+}
+
+// MaxVisibleRows sets the number of visible popup rows.
+func (b *Builder) MaxVisibleRows(rows int) *Builder {
+	b.node.SetMaxVisibleRows(rows)
 	return b
 }
 
@@ -78,7 +112,8 @@ func (b *Builder) OnChange(changeIntent intent.Intent) *Builder {
 }
 
 // ForField binds the select to a state field using FieldBinding.
-// When the selected option changes, it emits a FieldChangeIntent with the index.
+// When the selected option changes, it emits a FieldChangeIntent.
+// Single-select emits the selected index, multi-select emits comma-separated indices.
 // Example:
 //
 //	var country = intent.StateKey[int]("country")

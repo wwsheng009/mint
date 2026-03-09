@@ -1,9 +1,11 @@
 package selectcomp
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/wwsheng009/mint/runtime/action"
+	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/runtime/layout"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
@@ -307,5 +309,126 @@ func TestInstance_Paint_NoSelection(t *testing.T) {
 	expected := "< Option A >"
 	if cmds[0].Text != expected {
 		t.Errorf("Text = %q, want %q", cmds[0].Text, expected)
+	}
+}
+
+func TestInstance_HandleAction_ClickOpensDropdown(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"options": []Option{
+			{Value: "a", Label: "A"},
+			{Value: "b", Label: "B"},
+		},
+	})
+
+	if handled := inst.HandleAction(action.NewAction(action.ActionClick)); !handled {
+		t.Fatal("click should open dropdown")
+	}
+	if !inst.open {
+		t.Fatal("dropdown should be open after click")
+	}
+}
+
+func TestInstance_Paint_OpenDropdownIncludesPopup(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"options": []Option{
+			{Value: "a", Label: "Option A"},
+			{Value: "b", Label: "Option B"},
+			{Value: "c", Label: "Option C"},
+		},
+		"selectedIndex": 1,
+	})
+
+	inst.openDropdown()
+	cmds := inst.Paint(0, 0)
+	if len(cmds) < 5 {
+		t.Fatalf("Paint returned %d commands, want popup commands too", len(cmds))
+	}
+
+	var texts []string
+	for _, cmd := range cmds {
+		texts = append(texts, cmd.Text)
+	}
+	joined := strings.Join(texts, "\n")
+	if !strings.Contains(joined, "┌") || !strings.Contains(joined, "Option A") || !strings.Contains(joined, "Option B") {
+		t.Fatalf("open popup paint missing expected content:\n%s", joined)
+	}
+}
+
+func TestInstance_HandleAction_MultiSelectTogglesIndices(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"options": []Option{
+			{Value: "a", Label: "A"},
+			{Value: "b", Label: "B"},
+			{Value: "c", Label: "C"},
+		},
+		"selectionMode": SelectionMultiple,
+	})
+
+	if !inst.HandleAction(action.NewAction(action.ActionEnter)) {
+		t.Fatal("enter should open multi-select dropdown")
+	}
+	if !inst.open {
+		t.Fatal("dropdown should be open")
+	}
+
+	if !inst.HandleAction(action.NewAction(action.ActionEnter)) {
+		t.Fatal("enter should toggle highlighted option")
+	}
+	if got := inst.SelectedIndices(); len(got) != 1 || got[0] != 0 {
+		t.Fatalf("SelectedIndices = %v, want [0]", got)
+	}
+	if !inst.open {
+		t.Fatal("multi-select should stay open after toggle")
+	}
+
+	if !inst.HandleAction(action.NewAction(action.ActionNavigateDown)) {
+		t.Fatal("down should move highlight")
+	}
+	if !inst.HandleAction(action.NewAction(action.ActionEnter)) {
+		t.Fatal("enter should toggle second option")
+	}
+	if got := inst.SelectedIndices(); len(got) != 2 || got[0] != 0 || got[1] != 1 {
+		t.Fatalf("SelectedIndices = %v, want [0 1]", got)
+	}
+}
+
+func TestInstance_HandleAction_MultiSelectEmitsFieldChangeIntent(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"options": []Option{
+			{Value: "a", Label: "A"},
+			{Value: "b", Label: "B"},
+		},
+		"selectionMode": SelectionMultiple,
+		"changeIntent":  intent.BindField("choices"),
+	})
+
+	var emitted []intent.Intent
+	inst.SetIntentEmitter(func(i intent.Intent) {
+		emitted = append(emitted, i)
+	})
+
+	inst.openDropdown()
+	inst.HandleAction(action.NewAction(action.ActionEnter))
+	inst.HandleAction(action.NewAction(action.ActionNavigateDown))
+	inst.HandleAction(action.NewAction(action.ActionEnter))
+
+	var lastField intent.FieldChangeIntent
+	found := false
+	for _, emittedIntent := range emitted {
+		fieldChange, ok := emittedIntent.(intent.FieldChangeIntent)
+		if !ok {
+			continue
+		}
+		lastField = fieldChange
+		found = true
+	}
+	if !found {
+		t.Fatal("expected FieldChangeIntent to be emitted")
+	}
+	if lastField.Field != "choices" {
+		t.Fatalf("Field = %q, want %q", lastField.Field, "choices")
+	}
+	if lastField.Value != "0,1" {
+		t.Fatalf("Value = %q, want %q", lastField.Value, "0,1")
 	}
 }

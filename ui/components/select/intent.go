@@ -14,11 +14,23 @@ type SelectChangeIntent struct {
 	// SelectedIndex is the newly selected option index
 	SelectedIndex int
 
+	// SelectedIndices contains the full selected index set.
+	SelectedIndices []int
+
 	// SelectedValue is the value of the selected option
 	SelectedValue string
 
+	// SelectedValues contains the full selected value set.
+	SelectedValues []string
+
 	// SelectedLabel is the label of the selected option
 	SelectedLabel string
+
+	// SelectedLabels contains the full selected label set.
+	SelectedLabels []string
+
+	// Mode indicates whether the Select is operating in single or multi mode.
+	Mode SelectionMode
 
 	// ComponentID is the select component ID for routing (optional)
 	ComponentID string
@@ -194,19 +206,19 @@ func (i SelectByValueIntent) GetComponentID() string {
 // SelectChange creates a SelectChangeIntent
 func SelectChange(selectedIndex int, selectedValue, selectedLabel string) SelectChangeIntent {
 	return SelectChangeIntent{
-		SelectedIndex:  selectedIndex,
-		SelectedValue:  selectedValue,
-		SelectedLabel:  selectedLabel,
+		SelectedIndex: selectedIndex,
+		SelectedValue: selectedValue,
+		SelectedLabel: selectedLabel,
 	}
 }
 
 // SelectChangeWithID creates a SelectChangeIntent with component ID
 func SelectChangeWithID(componentID string, selectedIndex int, selectedValue, selectedLabel string) SelectChangeIntent {
 	return SelectChangeIntent{
-		ComponentID:    componentID,
-		SelectedIndex:  selectedIndex,
-		SelectedValue:  selectedValue,
-		SelectedLabel:  selectedLabel,
+		ComponentID:   componentID,
+		SelectedIndex: selectedIndex,
+		SelectedValue: selectedValue,
+		SelectedLabel: selectedLabel,
 	}
 }
 

@@ -1,8 +1,8 @@
 package selectcomp
 
 import (
-	"github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/intent"
+	"github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
@@ -31,17 +31,21 @@ type VNode struct {
 	componentID string // Component ID for Intent routing (Phase 10)
 
 	// === Visual Props ===
-	options []Option
-	style   style.Style
-	width   int
+	options        []Option
+	style          style.Style
+	width          int
+	placeholder    string
+	maxVisibleRows int
 
 	// === Intent Props (no closures!) ===
 	changeIntent intent.Intent
 
 	// === State Props (declarative, actual state managed by Instance) ===
-	selectedIndex int
-	disabled      bool
-	formID        string // Form ID for Form integration (Phase 6)
+	selectedIndex   int
+	selectedIndices []int
+	selectionMode   SelectionMode
+	disabled        bool
+	formID          string // Form ID for Form integration (Phase 6)
 
 	// === Box Model (via interface) ===
 	rtui.BoxModelMixin
@@ -61,9 +65,12 @@ var (
 // New creates a new Select VNode.
 func New() *VNode {
 	return &VNode{
-		ElementVNode:  rtui.NewElement("select"),
-		options:       []Option{},
-		selectedIndex: -1,
+		ElementVNode:   rtui.NewElement("select"),
+		options:        []Option{},
+		selectedIndex:  -1,
+		selectionMode:  SelectionSingle,
+		maxVisibleRows: 6,
+		placeholder:    "...",
 	}
 }
 
@@ -121,15 +128,19 @@ func (s *VNode) SetLayer(l rtui.Layer) rtui.VNode {
 // Props returns the node properties.
 func (s *VNode) Props() rtui.Props {
 	return rtui.Props{
-		"key":          s.key,
-		"componentID":  s.componentID,
-		"options":      s.options,
-		"style":        s.style,
-		"width":        s.width,
-		"changeIntent": s.changeIntent,
-		"selectedIndex": s.selectedIndex,
-		"disabled":     s.disabled,
-		"formID":       s.formID,
+		"key":             s.key,
+		"componentID":     s.componentID,
+		"options":         s.options,
+		"style":           s.style,
+		"width":           s.width,
+		"placeholder":     s.placeholder,
+		"maxVisibleRows":  s.maxVisibleRows,
+		"changeIntent":    s.changeIntent,
+		"selectedIndex":   s.selectedIndex,
+		"selectedIndices": append([]int(nil), s.selectedIndices...),
+		"selectionMode":   s.selectionMode,
+		"disabled":        s.disabled,
+		"formID":          s.formID,
 	}
 }
 
@@ -150,11 +161,23 @@ func (s *VNode) SetProps(p rtui.Props) rtui.VNode {
 	if v, ok := p["width"].(int); ok {
 		s.width = v
 	}
+	if v, ok := p["placeholder"].(string); ok {
+		s.placeholder = v
+	}
+	if v, ok := p["maxVisibleRows"].(int); ok {
+		s.maxVisibleRows = v
+	}
 	if v, ok := p["changeIntent"].(intent.Intent); ok {
 		s.changeIntent = v
 	}
 	if v, ok := p["selectedIndex"].(int); ok {
 		s.selectedIndex = v
+	}
+	if v, ok := p["selectedIndices"].([]int); ok {
+		s.selectedIndices = append([]int(nil), v...)
+	}
+	if v, ok := p["selectionMode"].(SelectionMode); ok {
+		s.selectionMode = v
 	}
 	if v, ok := p["disabled"].(bool); ok {
 		s.disabled = v
@@ -172,13 +195,19 @@ func (s *VNode) SetProps(p rtui.Props) rtui.VNode {
 // CreateInstance creates a new SelectInstance from this VNode description.
 func (s *VNode) CreateInstance() rtui.ComponentInstance {
 	props := rtui.Props{
-		"key":          s.key,
-		"options":      s.options,
-		"style":        s.style,
-		"width":        s.width,
-		"changeIntent": s.changeIntent,
-		"selectedIndex": s.selectedIndex,
-		"disabled":     s.disabled,
+		"key":             s.key,
+		"componentID":     s.componentID,
+		"options":         s.options,
+		"style":           s.style,
+		"width":           s.width,
+		"placeholder":     s.placeholder,
+		"maxVisibleRows":  s.maxVisibleRows,
+		"changeIntent":    s.changeIntent,
+		"selectedIndex":   s.selectedIndex,
+		"selectedIndices": append([]int(nil), s.selectedIndices...),
+		"selectionMode":   s.selectionMode,
+		"disabled":        s.disabled,
+		"formID":          s.formID,
 	}
 	return NewInstance(props)
 }
@@ -205,6 +234,18 @@ func (s *VNode) SetSelectedIndex(idx int) *VNode {
 	return s
 }
 
+// SetSelectedIndices sets the selected indices for multi-select mode.
+func (s *VNode) SetSelectedIndices(indices []int) *VNode {
+	s.selectedIndices = append([]int(nil), indices...)
+	return s
+}
+
+// SetSelectionMode sets the selection mode.
+func (s *VNode) SetSelectionMode(mode SelectionMode) *VNode {
+	s.selectionMode = mode
+	return s
+}
+
 // SetDisabled sets the disabled state.
 func (s *VNode) SetDisabled(disabled bool) *VNode {
 	s.disabled = disabled
@@ -220,6 +261,18 @@ func (s *VNode) SetComponentID(componentID string) *VNode {
 // SetWidth sets the explicit width.
 func (s *VNode) SetWidth(width int) *VNode {
 	s.width = width
+	return s
+}
+
+// SetPlaceholder sets the text shown when nothing is selected.
+func (s *VNode) SetPlaceholder(placeholder string) *VNode {
+	s.placeholder = placeholder
+	return s
+}
+
+// SetMaxVisibleRows sets the number of visible rows in the dropdown popup.
+func (s *VNode) SetMaxVisibleRows(rows int) *VNode {
+	s.maxVisibleRows = rows
 	return s
 }
 
@@ -249,6 +302,16 @@ func (s *VNode) SelectedIndex() int {
 	return s.selectedIndex
 }
 
+// SelectedIndices returns the selected indices for multi-select mode.
+func (s *VNode) SelectedIndices() []int {
+	return append([]int(nil), s.selectedIndices...)
+}
+
+// SelectionMode returns the current selection mode.
+func (s *VNode) SelectionMode() SelectionMode {
+	return s.selectionMode
+}
+
 // Disabled returns the disabled state.
 func (s *VNode) Disabled() bool {
 	return s.disabled
@@ -257,6 +320,16 @@ func (s *VNode) Disabled() bool {
 // Width returns the explicit width.
 func (s *VNode) Width() int {
 	return s.width
+}
+
+// Placeholder returns the empty-state label.
+func (s *VNode) Placeholder() string {
+	return s.placeholder
+}
+
+// MaxVisibleRows returns the number of visible popup rows.
+func (s *VNode) MaxVisibleRows() int {
+	return s.maxVisibleRows
 }
 
 // ChangeIntent returns the change intent.
