@@ -21,19 +21,19 @@ type Instance struct {
 	key string
 
 	// === Props (from VNode, may change each render) ===
-	items          []string
-	itemCount      int
-	itemHeight     int
-	visibleCount   int
-	height         int
-	width          int
-	listStyle      style.Style
-	selectedStyle  style.Style
-	allowScroll    bool
+	items         []string
+	itemCount     int
+	itemHeight    int
+	visibleCount  int
+	height        int
+	width         int
+	listStyle     style.Style
+	selectedStyle style.Style
+	allowScroll   bool
 
 	// === Runtime State ===
-	scrollOffset   int  // Current scroll offset
-	selectedIndex  int  // Currently selected item
+	scrollOffset  int    // Current scroll offset
+	selectedIndex int    // Currently selected item
 	bounds        [4]int // x, y, w, h
 	dirty         bool
 }
@@ -55,20 +55,23 @@ var (
 // NewInstance creates a new VirtualListInstance from props.
 func NewInstance(props rtui.Props) *Instance {
 	inst := &Instance{
-		key:            getStringProp(props, "key", ""),
-		items:          getItemsProp(props, []string{}),
-		itemCount:      getIntProp(props, "itemCount", 0),
-		itemHeight:     getIntProp(props, "itemHeight", 1),
-		visibleCount:   getIntProp(props, "visibleCount", 10),
-		height:         getIntProp(props, "height", 10),
-		width:          getIntProp(props, "width", 40),
-		listStyle:      getStyleProp(props, "listStyle"),
-		selectedStyle:  getStyleProp(props, "selectedStyle"),
-		allowScroll:    getBoolProp(props, "allowScroll", true),
-		scrollOffset:   getIntProp(props, "scrollOffset", 0),
-		selectedIndex:  getIntProp(props, "selectedIndex", -1),
+		key:           getStringProp(props, "key", ""),
+		items:         getItemsProp(props, []string{}),
+		itemCount:     getIntProp(props, "itemCount", 0),
+		itemHeight:    getIntProp(props, "itemHeight", 1),
+		visibleCount:  getIntProp(props, "visibleCount", 10),
+		height:        getIntProp(props, "height", 10),
+		width:         getIntProp(props, "width", 40),
+		listStyle:     getStyleProp(props, "listStyle"),
+		selectedStyle: getStyleProp(props, "selectedStyle"),
+		allowScroll:   getBoolProp(props, "allowScroll", true),
+		scrollOffset:  getIntProp(props, "scrollOffset", 0),
+		selectedIndex: getIntProp(props, "selectedIndex", -1),
 		dirty:         true,
 	}
+	inst.normalizeItemCount()
+	inst.clampOffset()
+	inst.clampSelectedIndex()
 	return inst
 }
 
@@ -79,9 +82,9 @@ func NewInstance(props rtui.Props) *Instance {
 func (inst *Instance) Key() string           { return inst.key }
 func (inst *Instance) SetKey(key string)     { inst.key = key }
 func (inst *Instance) Init(props rtui.Props) { inst.SetProps(props) }
-func (inst *Instance) Destroy()             { inst.items = nil }
-func (inst *Instance) OnMount()             { inst.dirty = true }
-func (inst *Instance) OnUnmount()           {}
+func (inst *Instance) Destroy()              { inst.items = nil }
+func (inst *Instance) OnMount()              { inst.dirty = true }
+func (inst *Instance) OnUnmount()            {}
 
 func (inst *Instance) SetProps(props rtui.Props) bool {
 	oldOffset := inst.scrollOffset
@@ -99,6 +102,7 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	inst.scrollOffset = getIntProp(props, "scrollOffset", inst.scrollOffset)
 	inst.selectedIndex = getIntProp(props, "selectedIndex", inst.selectedIndex)
 
+	inst.normalizeItemCount()
 	// Clamp offset
 	inst.clampOffset()
 
@@ -114,23 +118,23 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 
 func (inst *Instance) GetProps() rtui.Props {
 	return rtui.Props{
-		"key":            inst.key,
-		"items":          inst.items,
-		"itemCount":      inst.itemCount,
-		"itemHeight":     inst.itemHeight,
-		"visibleCount":   inst.visibleCount,
-		"height":         inst.height,
-		"width":          inst.width,
-		"allowScroll":    inst.allowScroll,
-		"scrollOffset":    inst.scrollOffset,
-		"selectedIndex":  inst.selectedIndex,
+		"key":           inst.key,
+		"items":         inst.items,
+		"itemCount":     inst.itemCount,
+		"itemHeight":    inst.itemHeight,
+		"visibleCount":  inst.visibleCount,
+		"height":        inst.height,
+		"width":         inst.width,
+		"allowScroll":   inst.allowScroll,
+		"scrollOffset":  inst.scrollOffset,
+		"selectedIndex": inst.selectedIndex,
 	}
 }
 
-func (inst *Instance) MarkDirty()    { inst.dirty = true }
-func (inst *Instance) IsDirty() bool { return inst.dirty }
+func (inst *Instance) MarkDirty()                         { inst.dirty = true }
+func (inst *Instance) IsDirty() bool                      { return inst.dirty }
 func (inst *Instance) GetContext() *rtui.ComponentContext { return nil }
-func (inst *Instance) ClearDirty()   { inst.dirty = false }
+func (inst *Instance) ClearDirty()                        { inst.dirty = false }
 
 // =============================================================================
 // Measurable Interface
@@ -166,18 +170,21 @@ func (inst *Instance) Measure(constraints layout.Constraints) layout.Size {
 func (inst *Instance) Paint(x, y int) []paint.DrawCmd {
 	var cmds []paint.DrawCmd
 	listStyle := inst.listStyle
+	width := inst.paintWidth()
+	height := inst.paintHeight()
+	contentWidth := maxInt(0, width-4)
 
 	// Get visible range
 	start, end := inst.getVisibleRange()
 
 	// Draw top border
-	topBorder := "┌" + strings.Repeat("─", inst.width-2) + "┐"
+	topBorder := "┌" + strings.Repeat("─", maxInt(0, width-2)) + "┐"
 	cmds = append(cmds, paint.NewTextCmd(x, y, topBorder, listStyle))
 
 	// Draw visible items
 	for i := start; i < end; i++ {
 		rowY := y + 1 + (i - start)
-		if rowY >= y + inst.height - 1 {
+		if rowY >= y+height-1 {
 			break
 		}
 
@@ -187,13 +194,9 @@ func (inst *Instance) Paint(x, y int) []paint.DrawCmd {
 			itemText = inst.items[i]
 		}
 
-		// Truncate if too long
-		if len(itemText) > inst.width-4 {
-			itemText = itemText[:inst.width-4] + ".."
-		}
-
-		// Add padding
-		itemText = "│ " + itemText + strings.Repeat(" ", inst.width-4-len(itemText)) + "│"
+		itemText = inst.truncateText(itemText, contentWidth)
+		paddingWidth := maxInt(0, contentWidth-paint.StringWidth(itemText))
+		itemText = "│ " + itemText + strings.Repeat(" ", paddingWidth) + " │"
 
 		// Highlight selected item
 		itemStyle := listStyle
@@ -206,15 +209,15 @@ func (inst *Instance) Paint(x, y int) []paint.DrawCmd {
 
 	// Fill remaining space with empty rows
 	visibleItemCount := end - start
-	for i := visibleItemCount; i < inst.height-2; i++ {
+	for i := visibleItemCount; i < height-2; i++ {
 		rowY := y + 1 + i
-		emptyRow := "│" + strings.Repeat(" ", inst.width-2) + "│"
+		emptyRow := "│" + strings.Repeat(" ", maxInt(0, width-2)) + "│"
 		cmds = append(cmds, paint.NewTextCmd(x, rowY, emptyRow, listStyle))
 	}
 
 	// Draw bottom border
-	bottomBorder := "└" + strings.Repeat("─", inst.width-2) + "┘"
-	cmds = append(cmds, paint.NewTextCmd(x, y+inst.height-1, bottomBorder, listStyle))
+	bottomBorder := "└" + strings.Repeat("─", maxInt(0, width-2)) + "┘"
+	cmds = append(cmds, paint.NewTextCmd(x, y+height-1, bottomBorder, listStyle))
 
 	return cmds
 }
@@ -376,6 +379,63 @@ func (inst *Instance) clampSelectedIndex() {
 	}
 }
 
+func (inst *Instance) normalizeItemCount() {
+	if inst.itemCount <= 0 || inst.itemCount < len(inst.items) {
+		inst.itemCount = len(inst.items)
+	}
+}
+
+func (inst *Instance) paintWidth() int {
+	if inst.bounds[2] > 0 {
+		return maxInt(4, inst.bounds[2])
+	}
+	return maxInt(4, inst.width)
+}
+
+func (inst *Instance) paintHeight() int {
+	if inst.bounds[3] > 0 {
+		return maxInt(2, inst.bounds[3])
+	}
+	return maxInt(2, inst.height)
+}
+
+func (inst *Instance) truncateText(text string, maxWidth int) string {
+	if maxWidth <= 0 {
+		return ""
+	}
+	if paint.StringWidth(text) <= maxWidth {
+		return text
+	}
+	if maxWidth <= 2 {
+		return trimToWidth(text, maxWidth)
+	}
+	return trimToWidth(text, maxWidth-2) + ".."
+}
+
+func trimToWidth(text string, maxWidth int) string {
+	if maxWidth <= 0 {
+		return ""
+	}
+	var builder strings.Builder
+	currentWidth := 0
+	for _, r := range text {
+		runeWidth := paint.RuneWidth(r)
+		if currentWidth+runeWidth > maxWidth {
+			break
+		}
+		builder.WriteRune(r)
+		currentWidth += runeWidth
+	}
+	return builder.String()
+}
+
+func maxInt(left, right int) int {
+	if left > right {
+		return left
+	}
+	return right
+}
+
 func (inst *Instance) getVisibleRange() (start, end int) {
 	start = inst.scrollOffset
 	end = start + inst.visibleCount
@@ -431,12 +491,12 @@ func (inst *Instance) GetItem(index int) string {
 // Getters
 // =============================================================================
 
-func (inst *Instance) GetOffset() int          { return inst.scrollOffset }
-func (inst *Instance) ItemHeight() int        { return inst.itemHeight }
-func (inst *Instance) VisibleCount() int     { return inst.visibleCount }
-func (inst *Instance) ListHeight() int        { return inst.height }
-func (inst *Instance) ListWidth() int         { return inst.width }
-func (inst *Instance) SelectedIndex() int      { return inst.selectedIndex }
+func (inst *Instance) GetOffset() int     { return inst.scrollOffset }
+func (inst *Instance) ItemHeight() int    { return inst.itemHeight }
+func (inst *Instance) VisibleCount() int  { return inst.visibleCount }
+func (inst *Instance) ListHeight() int    { return inst.height }
+func (inst *Instance) ListWidth() int     { return inst.width }
+func (inst *Instance) SelectedIndex() int { return inst.selectedIndex }
 
 // =============================================================================
 // Bounds Support

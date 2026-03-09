@@ -48,7 +48,7 @@ var demoRows = generateRows()
 
 var demoStore = store.NewStore(AppState{
 	SelectedIndex:   "0",
-	ViewportHeight:  10,
+	ViewportHeight:  12,
 	ShowBorder:      true,
 	ShowSeparator:   true,
 	ShowScrollbar:   true,
@@ -137,10 +137,10 @@ func App() ui.VNode {
 		SetGap(1).
 		SetChildrenList([]ui.VNode{
 			headerPanel(state, selected, page, totalPages),
-			interactiveList(state, selected),
-			detailPanel(state, selected, page, totalPages),
-			virtualMirrorPanel(selected, previewVisible, previewOffset),
-			helpPanel(),
+			ui.HStackBuilder(
+				ui.Flex(leftPane(state, selected, page, totalPages, previewVisible, previewOffset), 3),
+				ui.Flex(rightPane(state, selected, page, totalPages, previewVisible, previewOffset), 2),
+			).Gap(1).Stretch().Build(),
 		})
 }
 
@@ -179,7 +179,7 @@ func interactiveList(state AppState, selected int) ui.VNode {
 func detailPanel(state AppState, selected, page, totalPages int) ui.VNode {
 	selectedRow := ""
 	if selected >= 0 && selected < len(demoRows) {
-		selectedRow = demoRows[selected]
+		selectedRow = truncateText(demoRows[selected], 44)
 	}
 	return ui.NewVStack().
 		SingleBorder("Selection Details").
@@ -192,6 +192,36 @@ func detailPanel(state AppState, selected, page, totalPages int) ui.VNode {
 		})
 }
 
+func leftPane(state AppState, selected, page, totalPages, previewVisible, previewOffset int) ui.VNode {
+	return ui.NewVStack().
+		SetGap(1).
+		SetChildrenList([]ui.VNode{
+			interactiveList(state, selected),
+			navigationPanel(selected, page, totalPages, previewVisible, previewOffset),
+			helpPanel(),
+		})
+}
+
+func rightPane(state AppState, selected, page, totalPages, previewVisible, previewOffset int) ui.VNode {
+	return ui.NewVStack().
+		SetGap(1).
+		SetChildrenList([]ui.VNode{
+			detailPanel(state, selected, page, totalPages),
+			virtualMirrorPanel(selected, previewVisible, previewOffset),
+		})
+}
+
+func navigationPanel(selected, page, totalPages, previewVisible, previewOffset int) ui.VNode {
+	return ui.NewVStack().
+		SingleBorder("Navigation").
+		SetGap(0).
+		SetChildrenList([]ui.VNode{
+			ui.NewTextBuilder(fmt.Sprintf("Page=%d/%d  Selected=%d", page, totalPages, selected)).FgColor("bright-white").Build(),
+			ui.NewTextBuilder(fmt.Sprintf("Mirror offset=%d  visible=%d", previewOffset, previewVisible)).FgColor("bright-black").Build(),
+			ui.NewTextBuilder("↑ ↓ / PageUp PageDown / Home End / 鼠标点击").FgColor("cyan").Build(),
+		})
+}
+
 func virtualMirrorPanel(selected, visible, offset int) ui.VNode {
 	return ui.NewVStack().
 		SingleBorder("VirtualList Mirror").
@@ -200,13 +230,14 @@ func virtualMirrorPanel(selected, visible, offset int) ui.VNode {
 			ui.NewTextBuilder(fmt.Sprintf("镜像当前选择窗口：offset=%d visible=%d", offset, visible)).FgColor("bright-black").Build(),
 			ui.NewVirtualListBuilder().
 				Items(demoRows).
-				Width(88).
-				Height(visible).
+				ItemCount(len(demoRows)).
+				Width(36).
+				Height(visible + 2).
 				ItemHeight(1).
 				VisibleCount(visible).
 				ScrollOffset(offset).
 				SelectedIndex(selected).
-				ListStyle(style.Style{}.Foreground(style.BrightBlack)).
+				ListStyle(style.Style{}.Foreground(style.BrightWhite)).
 				SelectedStyle(style.Style{}.Foreground(style.Black).Background(style.Yellow).Bold(true)).
 				Build(),
 		})
@@ -304,4 +335,14 @@ func clamp(value, lower, upper int) int {
 		return upper
 	}
 	return value
+}
+
+func truncateText(text string, max int) string {
+	if max <= 0 || len(text) <= max {
+		return text
+	}
+	if max <= 3 {
+		return text[:max]
+	}
+	return text[:max-3] + "..."
 }
