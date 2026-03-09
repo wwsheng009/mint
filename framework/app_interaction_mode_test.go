@@ -122,3 +122,35 @@ func TestApp_HandleGlobalKeyShortcut_InActionPath(t *testing.T) {
 		t.Fatal("global key shortcut handler should be triggered")
 	}
 }
+
+func TestApp_HandleGlobalKeyShortcut_CtrlComboNormalized(t *testing.T) {
+	app := NewApp()
+	triggered := false
+	app.OnKeyCombo("Ctrl + O", func() {
+		triggered = true
+	})
+
+	keyMsg := runtimemsg.NewKeyMsg('O', platform.KeyUnknown, runtimemsg.Modifiers{Ctrl: true})
+	if handled := app.handleGlobalKeyShortcut(keyMsg); !handled {
+		t.Fatal("ctrl+o shortcut should be handled after combo normalization")
+	}
+	if !triggered {
+		t.Fatal("ctrl+o shortcut handler should be triggered")
+	}
+}
+
+func TestApp_HandleGlobalKeyShortcut_FunctionKeyNormalized(t *testing.T) {
+	app := NewApp()
+	triggered := false
+	app.OnKeyCombo("F5", func() {
+		triggered = true
+	})
+
+	keyMsg := runtimemsg.NewKeyMsg(0, platform.KeyF5, runtimemsg.Modifiers{})
+	if handled := app.handleGlobalKeyShortcut(keyMsg); !handled {
+		t.Fatal("f5 shortcut should be handled after combo normalization")
+	}
+	if !triggered {
+		t.Fatal("f5 shortcut handler should be triggered")
+	}
+}
