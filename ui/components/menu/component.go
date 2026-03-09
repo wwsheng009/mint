@@ -393,9 +393,9 @@ func newPopupInstance(props rtui.Props) *popupInstance {
 func (inst *barInstance) Key() string                        { return inst.key }
 func (inst *barInstance) SetKey(key string)                  { inst.key = key }
 func (inst *barInstance) Init(props rtui.Props)              { inst.SetProps(props) }
-func (inst *barInstance) Destroy()                           {}
-func (inst *barInstance) OnMount()                           { inst.dirty = true }
-func (inst *barInstance) OnUnmount()                         {}
+func (inst *barInstance) Destroy()                           { menuRegistryGlobal.unregisterBar(inst) }
+func (inst *barInstance) OnMount()                           { menuRegistryGlobal.registerBar(inst); inst.dirty = true }
+func (inst *barInstance) OnUnmount()                         { menuRegistryGlobal.unregisterBar(inst) }
 func (inst *barInstance) MarkDirty()                         { inst.dirty = true }
 func (inst *barInstance) IsDirty() bool                      { return inst.dirty }
 func (inst *barInstance) GetContext() *rtui.ComponentContext { return nil }
@@ -775,6 +775,14 @@ func (inst *barInstance) GetBounds() (x, y, w, h int) {
 
 func (inst *barInstance) SetBounds(x, y, w, h int) {
 	inst.bounds = [4]int{x, y, w, h}
+}
+
+func (inst *barInstance) containsPoint(screenX, screenY int) bool {
+	left, top, width, height := inst.bounds[0], inst.bounds[1], inst.bounds[2], inst.bounds[3]
+	if width <= 0 || height <= 0 {
+		return false
+	}
+	return screenX >= left && screenX < left+width && screenY >= top && screenY < top+height
 }
 
 func (inst *popupInstance) GetBounds() (x, y, w, h int) {

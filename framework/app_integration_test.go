@@ -418,6 +418,25 @@ func TestApp_ProcessMsg_UnhandledNavigationFallsThroughToFocusedFiber(t *testing
 	}
 }
 
+func TestApp_ProcessMsg_UntargetedClickDispatchesActionRouterMiddleware(t *testing.T) {
+	app := NewApp()
+	middleware := &recordingMiddleware{intercept: true}
+	app.AddMiddleware(middleware)
+
+	app.dirty = false
+	app.processMsg(runtimemsg.NewMouseMsg(1, 1, runtimemsg.MouseLeft, runtimemsg.MouseActionPress))
+
+	if len(middleware.beforeCalls) != 1 {
+		t.Fatalf("middleware before calls = %d, want 1", len(middleware.beforeCalls))
+	}
+	if middleware.beforeCalls[0] != action.ActionClick {
+		t.Fatalf("middleware first action = %q, want %q", middleware.beforeCalls[0], action.ActionClick)
+	}
+	if !app.dirty {
+		t.Fatal("app should be marked dirty when middleware intercepts untargeted click")
+	}
+}
+
 type mockFiberRootNode struct {
 	fiberRoot *rtui.Fiber
 }
@@ -459,6 +478,28 @@ func (m *navigationActionRecorder) HandleAction(act *action.Action) bool {
 	m.handled = append(m.handled, act.Type)
 	return act.Type == action.ActionNavigateDown
 }
+
+type recordingMiddleware struct {
+	beforeCalls []action.ActionType
+	intercept   bool
+}
+
+func (m *recordingMiddleware) Name() string {
+	return "recording"
+}
+
+func (m *recordingMiddleware) Before(act *action.Action) *action.Action {
+	if act == nil {
+		return nil
+	}
+	m.beforeCalls = append(m.beforeCalls, act.Type)
+	if m.intercept {
+		return nil
+	}
+	return act
+}
+
+func (m *recordingMiddleware) After(act *action.Action, result *action.RouterResult) {}
 
 // testPanicHandler 测试用的 panic 处理器
 type testPanicHandler struct{}

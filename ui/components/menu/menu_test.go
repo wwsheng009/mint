@@ -370,6 +370,36 @@ func TestMenuMiddlewareLeavesInsideClickAlone(t *testing.T) {
 	}
 }
 
+func TestMenuMiddlewareLeavesMenuBarClickAlone(t *testing.T) {
+	menuRegistryGlobal.reset()
+	defer menuRegistryGlobal.reset()
+
+	barModel := NewMenuBar([]MenuItem{
+		Submenu("file", "File", Action("open", "Open", testIntent{"open"})),
+	}).ComponentID("main-menu").BuildModel()
+	bar := newBarVNode(barModel).CreateInstance().(*barInstance)
+	bar.SetBounds(0, 0, 20, 1)
+	bar.OnMount()
+	defer bar.Destroy()
+
+	popupModel := NewPopup([]MenuItem{
+		Action("open", "Open", testIntent{"open"}),
+	}).ComponentID("main-menu").BuildModel()
+	inst := newPopupVNode(clearPortalModel(popupModel)).CreateInstance().(*popupInstance)
+	inst.SetBounds(0, 1, 24, 8)
+	inst.OnMount()
+	defer inst.Destroy()
+
+	middleware := NewMiddleware()
+	act := action.NewAction(action.ActionClick).WithPayload(runtimemsg.NewMouseMsg(5, 0, runtimemsg.MouseLeft, runtimemsg.MouseActionPress))
+	if next := middleware.Before(act); next == nil {
+		t.Fatal("menu bar click should continue dispatch")
+	}
+	if !inst.open {
+		t.Fatal("popup should remain open after clicking menu bar")
+	}
+}
+
 func TestRegisterGlobalShortcutsRegistersGlobalBindings(t *testing.T) {
 	registrar := &fakeRegistrar{}
 	var emitted []intent.Intent

@@ -1358,12 +1358,12 @@ func (a *App) processMsg(msg runtimemsg.Msg) {
 		}
 	}
 
-	// 4.3 回退：通过 ActionRouter 分发（语义 Action 模式）
-	if act.TargetID != 0 {
-		result := a.actionRouter.Dispatch(act)
-		if result.Handled {
-			a.dirty = true
-		}
+	// 4.3 回退：统一通过 ActionRouter 分发剩余未处理 Action。
+	// 这里不能再要求必须有 TargetID；全局中间件和无目标动作
+	// （例如点击菜单外部关闭 popup）也需要进入 ActionRouter。
+	result := a.actionRouter.Dispatch(act)
+	if result.Handled {
+		a.dirty = true
 	}
 }
 
