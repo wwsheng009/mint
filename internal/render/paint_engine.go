@@ -446,6 +446,77 @@ func (e *PaintEngine) paintModalBackdropBox(root *paint.PaintableBox, buffer *pa
 	dimRegion(rightX, modalY, width, modalY+modalHeight)
 }
 
+func (e *PaintEngine) findBackdropModalBox(root *paint.PaintableBox) *paint.PaintableBox {
+	if root == nil {
+		return nil
+	}
+
+	var best *paint.PaintableBox
+	var walk func(box *paint.PaintableBox)
+	walk = func(box *paint.PaintableBox) {
+		if box == nil {
+			return
+		}
+		if e.isBackdropTargetBox(box) {
+			if best == nil || box.ZIndex > best.ZIndex || (box.ZIndex == best.ZIndex && box.Width*box.Height > best.Width*best.Height) {
+				best = box
+			}
+		}
+		for _, child := range box.Children {
+			walk(child)
+		}
+	}
+
+	walk(root)
+	return best
+}
+
+func (e *PaintEngine) findBackdropModalBoxInLayer(boxes []*paint.PaintableBox) *paint.PaintableBox {
+	var best *paint.PaintableBox
+	for _, box := range boxes {
+		if !e.isBackdropTargetBox(box) {
+			continue
+		}
+		if best == nil || box.ZIndex > best.ZIndex || (box.ZIndex == best.ZIndex && box.Width*box.Height > best.Width*best.Height) {
+			best = box
+		}
+	}
+	return best
+}
+
+func (e *PaintEngine) isBackdropTargetBox(box *paint.PaintableBox) bool {
+	if box == nil || box.Node == nil {
+		return false
+	}
+	if box.Width <= 0 || box.Height <= 0 {
+		return false
+	}
+	return !e.isPortalRootBox(box)
+}
+
+func (e *PaintEngine) isPortalRootBox(box *paint.PaintableBox) bool {
+	if box == nil || box.Node == nil {
+		return false
+	}
+
+	switch node := box.Node.(type) {
+	case *FiberPaintableNode:
+		return hasPortalRootID(node.fiber.Props)
+	case *VNodePaintableNode:
+		return hasPortalRootID(node.vnode.Props())
+	default:
+		return false
+	}
+}
+
+func hasPortalRootID(props rtui.Props) bool {
+	if props == nil {
+		return false
+	}
+	portalRootID, ok := props["portalRootId"].(string)
+	return ok && portalRootID != ""
+}
+
 // Fill fills a rectangular region of the buffer with a specific character and style
 func (e *PaintEngine) Fill(buffer *paint.Buffer, bounds runtime.Box, ch rune, s style.Style) {
 	if bounds.Width <= 0 || bounds.Height <= 0 {
@@ -487,7 +558,11 @@ func (e *PaintEngine) PaintPaintableLayouts(
 	layouts paint.PaintableLayouts,
 	buffer *paint.Buffer,
 ) error {
-	_, hasModal := layouts[paint.RenderLayerModal]
+	var modalBackdropBox *paint.PaintableBox
+	if modalLayout, ok := layouts[paint.RenderLayerModal]; ok {
+		modalBackdropBox = e.findBackdropModalBox(modalLayout.Root)
+	}
+	hasModal := modalBackdropBox != nil
 	hadModal := e.lastHadModal
 
 	if hasModal != hadModal {
@@ -507,12 +582,18 @@ func (e *PaintEngine) PaintPaintableLayouts(
 		hasLayer := false
 		var currentBounds runtime.Box = runtime.Box{}
 		if layout, ok := layouts[l]; ok && layout.Root != nil {
-			hasLayer = true
-			currentBounds = runtime.Box{
-				X:      layout.Root.X,
-				Y:      layout.Root.Y,
-				Width:  layout.Root.Width,
-				Height: layout.Root.Height,
+			target := layout.Root
+			if l == paint.RenderLayerModal {
+				target = modalBackdropBox
+			}
+			if target != nil {
+				hasLayer = true
+				currentBounds = runtime.Box{
+					X:      target.X,
+					Y:      target.Y,
+					Width:  target.Width,
+					Height: target.Height,
+				}
 			}
 		}
 		hadLayer := e.lastLayersPresent[rtui.Layer(l)]
@@ -550,8 +631,8 @@ func (e *PaintEngine) PaintPaintableLayouts(
 			return fmt.Errorf("error painting layer %s: %w", l.String(), err)
 		}
 
-		if l == paint.RenderLayerModal {
-			e.paintModalBackdropBox(layout.Root, buffer)
+		if l == paint.RenderLayerModal && modalBackdropBox != nil {
+			e.paintModalBackdropBox(modalBackdropBox, buffer)
 		}
 	}
 
@@ -569,6 +650,14 @@ func (e *PaintEngine) PaintPaintablePlanes(
 	}
 
 	log.PaintLogger.IfEnabled().Debug("[PaintEngine.PaintPaintablePlanes] START: boxes=%d", planes.CountBoxes())
+
+	modalBackdropBox := e.findBackdropModalBoxInLayer(planes.GetLayer(paint.RenderLayerModal))
+	hasModal := modalBackdropBox != nil
+	hadModal := e.lastHadModal
+	if hasModal != hadModal {
+		e.forceFullRender = true
+	}
+	e.lastHadModal = hasModal
 
 	// Phase 1: Collect all boxes in current frame for tracking
 	e.currentFrameBoxes = make(map[string]runtime.Box)
@@ -599,8 +688,8 @@ func (e *PaintEngine) PaintPaintablePlanes(
 			}
 		}
 
-		if layer == paint.RenderLayerModal && len(boxes) > 0 {
-			e.paintModalBackdropBox(boxes[0], buffer)
+		if layer == paint.RenderLayerModal && modalBackdropBox != nil {
+			e.paintModalBackdropBox(modalBackdropBox, buffer)
 		}
 	}
 

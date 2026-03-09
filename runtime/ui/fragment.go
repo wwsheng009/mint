@@ -99,12 +99,12 @@ func (f *FragmentVNode) Tag() string {
 
 // GetLayer returns the rendering layer
 func (f *FragmentVNode) GetLayer() Layer {
-	return LayerBase
+	return getNodeLayer(f)
 }
 
 // SetLayer sets the rendering layer - returns VNode for chaining
 func (f *FragmentVNode) SetLayer(l Layer) VNode {
-	return f
+	return setNodeLayer(f, l)
 }
 
 // =============================================================================

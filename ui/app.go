@@ -235,7 +235,7 @@ func Run(app ComponentFunc, opts ...Option) error {
 
 	// Create declarative node from the component function with Fiber reconciler enabled
 	// Fiber is now the default and required for persistent component instances and event handlers
-	declarativeRoot := render.NewDeclarativeNodeFromFuncWithFiber(app)
+	declarativeRoot := render.NewDeclarativeNodeFromFuncWithFiber(wrapWithDefaultPortalRoots(app))
 
 	// Set app on the declarative node (this sets the scheduler for frame scheduling)
 	declarativeRoot.SetApp(fwApp)
@@ -455,7 +455,7 @@ func RunApp[T any](rt *statemachine.AppRuntime[T], opts ...Option) error {
 	}
 
 	// Create declarative node with Fiber reconciler
-	declarativeRoot = render.NewDeclarativeNodeFromFuncWithFiber(app)
+	declarativeRoot = render.NewDeclarativeNodeFromFuncWithFiber(wrapWithDefaultPortalRoots(app))
 
 	// Set app on the declarative node
 	declarativeRoot.SetApp(fwApp)
@@ -496,4 +496,31 @@ func RunApp[T any](rt *statemachine.AppRuntime[T], opts ...Option) error {
 	// Run the app
 	log.UILogger.IfEnabled().Debug("ui.RunApp: Calling fwApp.Run()")
 	return fwApp.Run()
+}
+
+func wrapWithDefaultPortalRoots(app ComponentFunc) ComponentFunc {
+	return func() VNode {
+		content := app()
+		if content == nil {
+			content = Text("")
+		}
+		return rtui.VStack(
+			newDefaultPortalRoot(rtui.DefaultOverlayPortalRootID, rtui.LayerOverlay),
+			newDefaultPortalRoot(rtui.DefaultModalPortalRootID, rtui.LayerModal),
+			newDefaultPortalRoot(rtui.DefaultTooltipPortalRootID, rtui.LayerTooltip),
+			content,
+		)
+	}
+}
+
+func newDefaultPortalRoot(rootID string, layer rtui.Layer) rtui.VNode {
+	return rtui.NewElement("box").SetProps(rtui.Props{
+		"portalRootId": rootID,
+		"_layer":       layer,
+		"position":     "absolute",
+		"left":         0,
+		"top":          0,
+		"width":        1,
+		"height":       1,
+	})
 }

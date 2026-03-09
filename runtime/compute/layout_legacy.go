@@ -15,14 +15,14 @@ import (
 // Engine performs constraint-driven layout calculation
 // It separates layout (position calculation) from paint (rendering)
 type Engine struct {
-	debug        bool
-	traceDepth   int                              // Current depth for layout tracing
+	debug      bool
+	traceDepth int // Current depth for layout tracing
 }
 
 // NewEngine creates a new layout engine
 func NewEngine() *Engine {
 	return &Engine{
-		debug:        log.LayoutLogger.Enabled(),
+		debug: log.LayoutLogger.Enabled(),
 	}
 }
 
@@ -66,6 +66,7 @@ func (e *Engine) LayoutFiber(root *rtui.Fiber, constraints runtime.BoxConstraint
 	// rtui.Fiber and reconciler.Fiber are the same type (type alias)
 	return e.LayoutV3(nil, root, constraints)
 }
+
 // LayoutV3 performs layout calculation using the new layout engine (V3)
 // Fiber-first: Uses the new layout.Engine from runtime/layout package
 //
@@ -159,8 +160,8 @@ func convertLayoutBoxToComputedBox(
 	// Create ComputedBox with minimal fields
 	// VNode and ChildFiber are intentionally left nil to reduce dependencies
 	cb := &ComputedBox{
-		VNode:       nil,  // Deprecated: use fiberMap to look up Fiber by NodeID
-		ChildFiber:  nil,  // Deprecated: stored only for legacy compatibility
+		VNode:       nil, // Deprecated: use fiberMap to look up Fiber by NodeID
+		ChildFiber:  nil, // Deprecated: stored only for legacy compatibility
 		Parent:      parent,
 		LayoutDirty: false,
 		Box: runtime.Box{
@@ -172,7 +173,7 @@ func convertLayoutBoxToComputedBox(
 		Children:     make([]*ComputedBox, 0, len(lbox.Children)),
 		Layer:        rtui.Layer(lbox.Layer),
 		NodeID:       nodeID,
-		DiffKey:      "",     // Deprecated: not needed for pure layout results
+		DiffKey:      "",         // Deprecated: not needed for pure layout results
 		NaturalWidth: lbox.Width, // TODO: Extract natural width from layout metadata if available
 	}
 
@@ -206,9 +207,13 @@ func buildHitMapFromLayoutResult(layoutHitMap *layout.HitMap, fiberRoot *reconci
 		nodeID := event.StringToNodeID(layoutEntry.NodeID)
 
 		// Look up the target Fiber by NodeID
-		var targetFiber *rtui.Fiber
+		var targetFiber interface {
+			GetActionTargetID() string
+		}
 		if fiberRoot != nil {
-			targetFiber = rtui.FindFiberByID(fiberRoot, nodeID)
+			if fiber := rtui.FindFiberByID(fiberRoot, nodeID); fiber != nil {
+				targetFiber = fiber
+			}
 		}
 
 		entries = append(entries, event.HitMapEntryInternal{

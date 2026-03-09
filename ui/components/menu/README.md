@@ -22,6 +22,7 @@
 - **Phase 1.7**：已支持 outside-click / ESC 关闭中间件，以及 app 级 shortcut 注册 helper
 - **接入方式**：可通过 `menu.NewMiddleware()` 接入 action router，通过 `ui.BindMenuGlobalShortcuts(...)` 接入全局快捷键
 - **一键安装**：可通过 `menu.Install(...)` 或 `ui.InstallMenu(...)` 一次性安装中间件与全局快捷键
+- **默认挂载点**：`ui.Run` / `ui.RunApp` 会自动注入 `overlay/modal/tooltip` PortalRoot，菜单 popup 默认挂到 overlay host
 
 ---
 

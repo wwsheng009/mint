@@ -113,7 +113,6 @@ func (e *Engine) LayoutIncremental(root Node, constraints Constraints) *LayoutRe
 	return result
 }
 
-
 // layoutNode 递归布局单个节点
 func (e *Engine) layoutNode(node Node, constraints Constraints, x, y int) *LayoutBox {
 	return e.layoutNodeWithDepth(node, constraints, x, y, 0, make(map[string]bool))
@@ -129,13 +128,13 @@ func (e *Engine) layoutNodeWithDepth(node Node, constraints Constraints, x, y in
 	if depth > MaxLayoutDepth {
 		// 达到最大深度，返回最小尺寸的盒子
 		return &LayoutBox{
-			ID:      node.ID(),
-			X:       x,
-			Y:       y,
-			AbsX:    x,  // ✨ Phase 1.2: 保存全局坐标
-			AbsY:    y,
-			Width:   0,
-			Height:  0,
+			ID:       node.ID(),
+			X:        x,
+			Y:        y,
+			AbsX:     x, // ✨ Phase 1.2: 保存全局坐标
+			AbsY:     y,
+			Width:    0,
+			Height:   0,
 			Children: make([]*LayoutBox, 0),
 		}
 	}
@@ -146,13 +145,13 @@ func (e *Engine) layoutNodeWithDepth(node Node, constraints Constraints, x, y in
 		if visited[nodeID] {
 			// 检测到循环，返回空盒子避免无限递归
 			return &LayoutBox{
-				ID:      node.ID() + "_cycle",
-				X:       x,
-				Y:       y,
-				AbsX:    x,  // ✨ Phase 1.2: 保存全局坐标
-				AbsY:    y,
-				Width:   0,
-				Height:  0,
+				ID:       node.ID() + "_cycle",
+				X:        x,
+				Y:        y,
+				AbsX:     x, // ✨ Phase 1.2: 保存全局坐标
+				AbsY:     y,
+				Width:    0,
+				Height:   0,
 				Children: make([]*LayoutBox, 0),
 			}
 		}
@@ -187,7 +186,6 @@ func (e *Engine) layoutNodeWithDepth(node Node, constraints Constraints, x, y in
 		position = posProvider.GetPositionType()
 		anchor = posProvider.GetAnchor()
 	}
-
 
 	// Fixed 定位：使用 viewport 约束重新计算坐标
 	if position == PositionFixed && width > 0 && height > 0 {
@@ -242,20 +240,20 @@ func (e *Engine) layoutNodeWithDepth(node Node, constraints Constraints, x, y in
 	}
 
 	box := &LayoutBox{
-		ID:       node.ID(),
-		Tag:      node.Type(),  // ✨ 设置 Tag 用于调试和类型识别
-		PropsID:  propsID,
-		X:        x,
-		Y:        y,
-		AbsX:     absX,  // ✨ Phase 1.2: 保存全局坐标
-		AbsY:     absY,
-		Width:    width,
-		Height:   height,
-		Layer:    layer,
-		ZIndex:   zIndex,
-		ShouldCenter: shouldCenter,  // ✨ Phase 1.1: 保存居中标记
+		ID:           node.ID(),
+		Tag:          node.Type(), // ✨ 设置 Tag 用于调试和类型识别
+		PropsID:      propsID,
+		X:            x,
+		Y:            y,
+		AbsX:         absX, // ✨ Phase 1.2: 保存全局坐标
+		AbsY:         absY,
+		Width:        width,
+		Height:       height,
+		Layer:        layer,
+		ZIndex:       zIndex,
+		ShouldCenter: shouldCenter, // ✨ Phase 1.1: 保存居中标记
 		BoxModel: BoxModel{
-			Border: nodeBorder,  // Border is part of BoxModel
+			Border: nodeBorder, // Border is part of BoxModel
 		},
 		Children: make([]*LayoutBox, 0),
 	}
@@ -321,7 +319,7 @@ func (e *Engine) layoutNodeWithDepth(node Node, constraints Constraints, x, y in
 				innerHeight = box.BoxModel.InnerHeight(height)
 			} else if boxModelProvider, ok := node.(BoxModelProvider); ok {
 				boxModel := boxModelProvider.GetBoxModel()
-				box.BoxModel = boxModel  // 保存 BoxModel
+				box.BoxModel = boxModel // 保存 BoxModel
 				innerWidth = boxModel.InnerWidth(width)
 				innerHeight = boxModel.InnerHeight(height)
 			} else {
@@ -370,13 +368,13 @@ func (e *Engine) layoutNodeWithDepth(node Node, constraints Constraints, x, y in
 					if isFlexRow {
 						// Row: X 是主轴，Y 是跨轴
 						childX = x + childBox.X + borderOffsetX + mainAxisMarginOffset + marginLeft
-						childY = y + childBox.Y + borderOffsetY + marginTop  // ✅ 添加跨轴垂直 margin
+						childY = y + childBox.Y + borderOffsetY + marginTop // ✅ 添加跨轴垂直 margin
 						// 为下一个节点累积：currentRightMargin + nextLeftMargin
 						mainAxisMarginOffset += marginLeft + marginRight
 					} else {
 						// Column: Y 是主轴，X 是跨轴
 						childY = y + childBox.Y + borderOffsetY + mainAxisMarginOffset + marginTop
-						childX = x + childBox.X + borderOffsetX + marginLeft  // ✅ 添加跨轴水平 margin
+						childX = x + childBox.X + borderOffsetX + marginLeft // ✅ 添加跨轴水平 margin
 						// 为下一个节点累积：currentBottomMargin + nextTopMargin
 						mainAxisMarginOffset += marginTop + marginBottom
 					}
@@ -399,14 +397,14 @@ func (e *Engine) layoutNodeWithDepth(node Node, constraints Constraints, x, y in
 						if posProvider, ok := child.(PositionProvider); ok {
 							childPosition = posProvider.GetPositionType()
 						}
-						
-						if childPosition != PositionFixed {
+
+						if !isOutOfFlowPosition(childPosition) {
 							// 使用 FlexLayout 计算的位置和尺寸
 							subBox.X = childX
 							subBox.Y = childY
 						}
 						// Fixed 定位节点：subBox.X 和 subBox.Y 保持不变（已在 layoutNodeWithDepth 中计算）
-						
+
 						box.Children = append(box.Children, subBox)
 					}
 				}
@@ -433,7 +431,7 @@ func (e *Engine) layoutNodeWithDepth(node Node, constraints Constraints, x, y in
 				innerHeight = box.BoxModel.InnerHeight(height)
 			} else if boxModelProvider, ok := node.(BoxModelProvider); ok {
 				boxModel := boxModelProvider.GetBoxModel()
-				box.BoxModel = boxModel  // 保存 BoxModel
+				box.BoxModel = boxModel // 保存 BoxModel
 				innerWidth = boxModel.InnerWidth(width)
 				innerHeight = boxModel.InnerHeight(height)
 			} else {
@@ -487,12 +485,12 @@ func (e *Engine) layoutNodeWithDepth(node Node, constraints Constraints, x, y in
 						if posProvider, ok := child.(PositionProvider); ok {
 							childPosition = posProvider.GetPositionType()
 						}
-						
-						if childPosition != PositionFixed {
+
+						if !isOutOfFlowPosition(childPosition) {
 							subBox.X = childX
 							subBox.Y = childY
 						}
-						
+
 						box.Children = append(box.Children, subBox)
 					}
 				}
@@ -543,12 +541,12 @@ func (e *Engine) layoutNodeWithDepth(node Node, constraints Constraints, x, y in
 						if posProvider, ok := child.(PositionProvider); ok {
 							childPosition = posProvider.GetPositionType()
 						}
-						
-						if childPosition != PositionFixed {
+
+						if !isOutOfFlowPosition(childPosition) {
 							subBox.X = childX
 							subBox.Y = childY
 						}
-						
+
 						box.Children = append(box.Children, subBox)
 					}
 				}
@@ -616,7 +614,7 @@ func (e *Engine) layoutNodeWithDepth(node Node, constraints Constraints, x, y in
 						childPosition = posProvider.GetPositionType()
 					}
 
-					if childPosition != PositionFixed {
+					if !isOutOfFlowPosition(childPosition) {
 						subBox.X = x + childX + borderOffsetX
 						subBox.Y = y + childY + borderOffsetY
 					}
@@ -642,7 +640,7 @@ func (e *Engine) layoutNodeWithDepth(node Node, constraints Constraints, x, y in
 			contentHeight = box.BoxModel.InnerHeight(height)
 		} else if boxModelProvider, ok := node.(BoxModelProvider); ok {
 			boxModel := boxModelProvider.GetBoxModel()
-			box.BoxModel = boxModel  // 保存 BoxModel
+			box.BoxModel = boxModel // 保存 BoxModel
 			contentWidth = boxModel.InnerWidth(width)
 			contentHeight = boxModel.InnerHeight(height)
 		} else {
@@ -682,8 +680,14 @@ func (e *Engine) layoutNodeWithDepth(node Node, constraints Constraints, x, y in
 		childBox := e.layoutNodeWithDepth(child, adjustedConstraints, actualChildX, actualChildY, depth+1, visited)
 		if childBox != nil {
 			box.Children = append(box.Children, childBox)
-			// 移动下一个子节点的位置，包含当前子节点的高度和垂直 margin
-			childY += childBox.Height + marginTop + marginBottom
+			childPosition := PositionRelative
+			if posProvider, ok := child.(PositionProvider); ok {
+				childPosition = posProvider.GetPositionType()
+			}
+			if !isOutOfFlowPosition(childPosition) {
+				// 移动下一个子节点的位置，包含当前子节点的高度和垂直 margin
+				childY += childBox.Height + marginTop + marginBottom
+			}
 		}
 	}
 
@@ -723,13 +727,13 @@ func (e *Engine) layoutNodeIncrementalWithDepth(node Node, constraints Constrain
 	// 深度限制检查
 	if depth > MaxLayoutDepth {
 		return &LayoutBox{
-			ID:      node.ID(),
-			X:       x,
-			Y:       y,
-			AbsX:    x,  // ✨ Phase 1.2: 保存全局坐标
-			AbsY:    y,
-			Width:   0,
-			Height:  0,
+			ID:       node.ID(),
+			X:        x,
+			Y:        y,
+			AbsX:     x, // ✨ Phase 1.2: 保存全局坐标
+			AbsY:     y,
+			Width:    0,
+			Height:   0,
 			Children: make([]*LayoutBox, 0),
 		}
 	}
@@ -739,13 +743,13 @@ func (e *Engine) layoutNodeIncrementalWithDepth(node Node, constraints Constrain
 	if nodeID != "" {
 		if visited[nodeID] {
 			return &LayoutBox{
-				ID:      node.ID() + "_cycle",
-				X:       x,
-				Y:       y,
-				AbsX:    x,  // ✨ Phase 1.2: 保存全局坐标
-				AbsY:    y,
-				Width:   0,
-				Height:  0,
+				ID:       node.ID() + "_cycle",
+				X:        x,
+				Y:        y,
+				AbsX:     x, // ✨ Phase 1.2: 保存全局坐标
+				AbsY:     y,
+				Width:    0,
+				Height:   0,
 				Children: make([]*LayoutBox, 0),
 			}
 		}
@@ -757,10 +761,10 @@ func (e *Engine) layoutNodeIncrementalWithDepth(node Node, constraints Constrain
 	if !e.dirty.IsLayoutDirty(node.ID()) {
 		// 🔴 BUG FIX: 节点是干净的，但 Fixed 定位不能直接返回 curX, curY
 		// 即使节点本身是干净的，Fixed 定位也需要使用 viewportConstraints 重新计算
-		
+
 		width, height := node.GetSize()
 		curX, curY := node.GetPosition()
-		
+
 		// 🐛 获取定位属性（PositionFixed 需要）
 		position := PositionRelative
 		anchor := AnchorTopLeft
@@ -768,14 +772,14 @@ func (e *Engine) layoutNodeIncrementalWithDepth(node Node, constraints Constrain
 			position = posProvider.GetPositionType()
 			anchor = posProvider.GetAnchor()
 		}
-		
+
 		// ✨ Phase 2.3: Fixed 定位处理（Clean 路径也需要）
 		// Fixed 定位必须重新计算，不能只使用 curX, curY
 		if position == PositionFixed && width > 0 && height > 0 {
 			// 使用保存的 viewport 约束
 			rootW := e.viewportConstraints.MaxWidth
 			rootH := e.viewportConstraints.MaxHeight
-			
+
 			// 根据 Anchor 计算固定定位坐标
 			switch anchor {
 			case AnchorTopLeft:
@@ -813,15 +817,15 @@ func (e *Engine) layoutNodeIncrementalWithDepth(node Node, constraints Constrain
 		absX, absY := curX, curY
 
 		box := &LayoutBox{
-			ID:       node.ID(),
-			X:        curX,
-			Y:        curY,
-			AbsX:     absX,  // ✨ Phase 1.2: 保存全局坐标
-			AbsY:     absY,
-			Width:    width,
-			Height:   height,
-			ShouldCenter: (anchor == AnchorCenter && position == PositionFixed),  // ✨ 修复 Dirty 状态
-			Children: make([]*LayoutBox, 0),
+			ID:           node.ID(),
+			X:            curX,
+			Y:            curY,
+			AbsX:         absX, // ✨ Phase 1.2: 保存全局坐标
+			AbsY:         absY,
+			Width:        width,
+			Height:       height,
+			ShouldCenter: (anchor == AnchorCenter && position == PositionFixed), // ✨ 修复 Dirty 状态
+			Children:     make([]*LayoutBox, 0),
 		}
 
 		// 递归处理子节点（仍然检查脏标记）
@@ -831,7 +835,13 @@ func (e *Engine) layoutNodeIncrementalWithDepth(node Node, constraints Constrain
 			childBox := e.layoutNodeIncrementalWithDepth(child, constraints, childX, childY, depth+1, visited)
 			if childBox != nil {
 				box.Children = append(box.Children, childBox)
-				childY += childBox.Height
+				childPosition := PositionRelative
+				if posProvider, ok := child.(PositionProvider); ok {
+					childPosition = posProvider.GetPositionType()
+				}
+				if !isOutOfFlowPosition(childPosition) {
+					childY += childBox.Height
+				}
 			}
 		}
 
@@ -938,15 +948,15 @@ func (e *Engine) layoutNodeIncrementalWithDepth(node Node, constraints Constrain
 	absX, absY := x, y
 
 	box := &LayoutBox{
-		ID:      node.ID(),
-		X:       x,
-		Y:       y,
-		AbsX:    absX,  // ✨ Phase 1.2: 保存全局坐标
-		AbsY:    absY,
-		Width:   width,
-		Height:  height,
-		ShouldCenter: shouldCenter,  // ✨ Phase 1.1: 保存居中标记
-		Children: make([]*LayoutBox, 0),
+		ID:           node.ID(),
+		X:            x,
+		Y:            y,
+		AbsX:         absX, // ✨ Phase 1.2: 保存全局坐标
+		AbsY:         absY,
+		Width:        width,
+		Height:       height,
+		ShouldCenter: shouldCenter, // ✨ Phase 1.1: 保存居中标记
+		Children:     make([]*LayoutBox, 0),
 	}
 
 	// 设置节点位置和尺寸
@@ -960,11 +970,21 @@ func (e *Engine) layoutNodeIncrementalWithDepth(node Node, constraints Constrain
 		childBox := e.layoutNodeIncrementalWithDepth(child, constraints, childX, childY, depth+1, visited)
 		if childBox != nil {
 			box.Children = append(box.Children, childBox)
-			childY += childBox.Height
+			childPosition := PositionRelative
+			if posProvider, ok := child.(PositionProvider); ok {
+				childPosition = posProvider.GetPositionType()
+			}
+			if !isOutOfFlowPosition(childPosition) {
+				childY += childBox.Height
+			}
 		}
 	}
 
 	return box
+}
+
+func isOutOfFlowPosition(position PositionType) bool {
+	return position == PositionAbsolute || position == PositionFixed
 }
 
 // clearDirtyMarkers 清除节点树的脏标记
@@ -981,7 +1001,6 @@ func (e *Engine) clearDirtyMarkers(node Node) {
 		e.clearDirtyMarkers(child)
 	}
 }
-
 
 // GetStats 获取布局统计
 func (e *Engine) GetStats() LayoutStats {

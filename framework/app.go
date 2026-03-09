@@ -517,10 +517,7 @@ func (a *App) updateMouseHoverState(mouseMsg *runtimemsg.MouseMsg) {
 	if mouseMsg == nil || mouseMsg.Action != runtimemsg.MouseActionMove {
 		return
 	}
-	var next *rtui.Fiber
-	if fiber, ok := mouseMsg.TargetFiber.(*rtui.Fiber); ok {
-		next = fiber
-	}
+	next := mouseTargetFiber(mouseMsg)
 	a.updateHoveredFiber(next, mouseMsg)
 }
 
@@ -1158,14 +1155,12 @@ func (a *App) Run() error {
 func (a *App) handleMsg(message runtimemsg.Msg) bool {
 	// 鼠标事件：通过 HitMap 找到的 TargetFiber 路由
 	if mouseMsg, ok := message.(*runtimemsg.MouseMsg); ok {
-		if mouseMsg.TargetFiber != nil {
-			if fiber, ok := mouseMsg.TargetFiber.(*rtui.Fiber); ok {
-				actionType := a.mouseActionToActionType(mouseMsg.Action)
-				if actionType != "" {
-					if a.actionBridge.DispatchFromFiber(fiber, actionType, mouseMsg) {
-						a.dirty = true
-						return true
-					}
+		if fiber := mouseTargetFiber(mouseMsg); fiber != nil {
+			actionType := a.mouseActionToActionType(mouseMsg.Action)
+			if actionType != "" {
+				if a.actionBridge.DispatchFromFiber(fiber, actionType, mouseMsg) {
+					a.dirty = true
+					return true
 				}
 			}
 		}
@@ -1309,16 +1304,17 @@ func (a *App) processMsg(msg runtimemsg.Msg) {
 
 	// 3. 导航 Action 由焦点管理器直接处理
 	if act.IsNavigation() {
-		a.handleNavigationAction(act)
-		return
+		if a.handleNavigationAction(act) {
+			return
+		}
 	}
 
 	// 4. 统一 Action 路由：通过 ActionBridge 分发
 
 	// 4.1 鼠标事件：使用 MouseMsg 中的 TargetFiber
 	// 通过 Payload 类型识别鼠标事件（更可靠，因为 Source 可能为空）
-	if mouseMsg, ok := act.Payload.(*runtimemsg.MouseMsg); ok && mouseMsg.TargetFiber != nil {
-		if fiber, ok := mouseMsg.TargetFiber.(*rtui.Fiber); ok {
+	if mouseMsg, ok := act.Payload.(*runtimemsg.MouseMsg); ok {
+		if fiber := mouseTargetFiber(mouseMsg); fiber != nil {
 			// Mouse click: Check if target is focusable and transfer focus
 			if act.Type == action.ActionClick && fiber.Instance != nil {
 				if focusable, ok := fiber.Instance.(rtui.FocusableInstance); ok {
@@ -1369,6 +1365,17 @@ func (a *App) processMsg(msg runtimemsg.Msg) {
 			a.dirty = true
 		}
 	}
+}
+
+func mouseTargetFiber(mouseMsg *runtimemsg.MouseMsg) *rtui.Fiber {
+	if mouseMsg == nil || mouseMsg.TargetFiber == nil {
+		return nil
+	}
+	fiber, ok := mouseMsg.TargetFiber.(*rtui.Fiber)
+	if !ok || fiber == nil {
+		return nil
+	}
+	return fiber
 }
 
 func (a *App) handleGlobalKeyShortcut(msg runtimemsg.Msg) bool {
@@ -1489,9 +1496,9 @@ func mouseMsgToRuntimeSelectionEvent(mouseMsg *runtimemsg.MouseMsg) *runtimeeven
 
 // handleNavigationAction 处理导航 Action（Tab, 方向键等）
 // 导航由焦点管理器处理，不经过 ActionRouter
-func (a *App) handleNavigationAction(act *action.Action) {
+func (a *App) handleNavigationAction(act *action.Action) bool {
 	if a.focusManager == nil {
-		return
+		return false
 	}
 
 	// 根据导航类型调用焦点管理器
@@ -1514,6 +1521,7 @@ func (a *App) handleNavigationAction(act *action.Action) {
 	if handled {
 		a.dirty = true
 	}
+	return handled
 }
 
 func (a *App) getFocusedFiber() *rtui.Fiber {

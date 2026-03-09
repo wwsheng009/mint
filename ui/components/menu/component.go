@@ -75,6 +75,10 @@ func (b *Builder) Title(title string) *Builder     { b.model.Title = title; retu
 func (b *Builder) Theme(theme Theme) *Builder      { b.model.Theme = theme; return b }
 func (b *Builder) Style(s style.Style) *Builder    { b.model.Style = s; return b }
 func (b *Builder) Layer(layer rtui.Layer) *Builder { b.model.Layer = layer; return b }
+func (b *Builder) PathPrefix(path ...int) *Builder {
+	b.model.PathPrefix = append([]int(nil), path...)
+	return b
+}
 func (b *Builder) PortalRoot(root string) *Builder { b.model.PortalRoot = root; return b }
 func (b *Builder) AnchorTo(anchorID string, anchor rttypes.Anchor) *Builder {
 	b.model.AnchorID = anchorID
@@ -87,6 +91,11 @@ func (b *Builder) PortalPosition(position rttypes.PositionType) *Builder {
 }
 func (b *Builder) PortalPriority(priority int) *Builder {
 	b.model.PortalPriority = priority
+	return b
+}
+func (b *Builder) PortalOffset(offsetX, offsetY int) *Builder {
+	b.model.PortalOffsetX = offsetX
+	b.model.PortalOffsetY = offsetY
 	return b
 }
 func (b *Builder) Open(open bool) *Builder        { b.model.Open = open; return b }
@@ -133,6 +142,7 @@ func (b *Builder) Shortcuts() []ShortcutBinding { return CollectShortcuts(b.mode
 func (b *Builder) BuildModel() ThemeableModel {
 	model := b.model
 	model.Items = cloneItems(model.Items)
+	model.PathPrefix = append([]int(nil), model.PathPrefix...)
 	if isZeroTheme(model.Theme) {
 		model.Theme = DefaultTheme()
 	}
@@ -142,11 +152,14 @@ func (b *Builder) BuildModel() ThemeableModel {
 	if model.TypeaheadTimeout <= 0 {
 		model.TypeaheadTimeout = 750 * time.Millisecond
 	}
+	if model.Variant != VariantMenuBar && model.PortalRoot == "" {
+		model.PortalRoot = rtui.DefaultOverlayPortalRootID
+	}
 	if model.Variant == VariantMenuBar && model.Layer == rtui.LayerOverlay {
 		model.Layer = rtui.LayerBase
 	}
 	if model.AnchorID != "" && model.PortalPosition == rttypes.PositionRelative {
-		model.PortalPosition = rttypes.PositionFixed
+		model.PortalPosition = rttypes.PositionAbsolute
 	}
 	return model
 }
@@ -157,8 +170,41 @@ func (b *Builder) Build() rtui.VNode {
 	case VariantMenuBar:
 		return newBarVNode(model)
 	default:
-		return newPopupVNode(model)
+		surface := newPopupVNode(clearPortalModel(model))
+		if model.PortalRoot == "" {
+			return surface
+		}
+		return newPopupPortalVNode(model, surface)
 	}
+}
+
+func newPopupPortalVNode(model ThemeableModel, child rtui.VNode) rtui.VNode {
+	portal := rtui.NewElement("box")
+	if model.ID != "" {
+		portal.SetKey(model.ID + "-portal")
+	}
+	portal.SetProps(rtui.Props{
+		"position": "absolute",
+		"left":     0,
+		"top":      0,
+		"width":    1,
+		"height":   1,
+		"_layer":   model.Layer,
+	})
+	applyPortalProps(portal, model.Model)
+	portal.SetChildren([]rtui.VNode{child})
+	return portal
+}
+
+func clearPortalModel(model ThemeableModel) ThemeableModel {
+	model.PortalRoot = ""
+	model.AnchorID = ""
+	model.Anchor = rttypes.AnchorTopLeft
+	model.PortalPosition = rttypes.PositionRelative
+	model.PortalPriority = 0
+	model.PortalOffsetX = 0
+	model.PortalOffsetY = 0
+	return model
 }
 
 type barVNode struct{ *rtui.ElementVNode }
@@ -188,7 +234,6 @@ func newPopupVNode(model ThemeableModel) *popupVNode {
 		node.SetID(model.ID)
 		node.SetKey(model.ID)
 	}
-	applyPortalProps(node.ElementVNode, model.Model)
 	node.SetProp("model", model.Model)
 	node.SetProp("theme", model.Theme)
 	node.SetProp("style", model.Style)
@@ -388,15 +433,16 @@ func (inst *popupInstance) SetProps(props rtui.Props) bool {
 	inst.key = getStringProp(props, "key", inst.key)
 	inst.model = getModelProp(props, inst.model)
 	inst.model.Items = cloneItems(inst.model.Items)
+	localActivePath := trimPathPrefix(inst.model.ActivePath, inst.model.PathPrefix)
 	inst.theme = getThemeProp(props, inst.theme)
 	if isZeroTheme(inst.theme) {
 		inst.theme = DefaultTheme()
 	}
 	inst.rootStyle = getStyleProp(props, "style")
 	inst.open = inst.model.Open
-	if len(inst.model.ActivePath) > 0 {
-		inst.selectedIndex = clampIndex(inst.model.ActivePath[0], len(inst.model.Items))
-		inst.submenuPath = append([]int(nil), inst.model.ActivePath[1:]...)
+	if len(localActivePath) > 0 {
+		inst.selectedIndex = clampIndex(localActivePath[0], len(inst.model.Items))
+		inst.submenuPath = append([]int(nil), localActivePath[1:]...)
 		inst.submenuScroll = ensureLength(inst.submenuScroll, len(inst.submenuPath))
 	} else if inst.model.SelectedIndex >= 0 {
 		inst.selectedIndex = clampIndex(inst.model.SelectedIndex, len(inst.model.Items))
@@ -419,7 +465,7 @@ func (inst *barInstance) GetProps() rtui.Props {
 func (inst *popupInstance) GetProps() rtui.Props {
 	model := inst.model
 	model.Open = inst.open
-	model.ActivePath = inst.activePath()
+	model.ActivePath = inst.prefixedPath(inst.activePath())
 	model.SelectedIndex = inst.selectedIndex
 	model.ScrollOffset = inst.scrollOffset
 	return rtui.Props{"key": inst.key, "model": model, "theme": inst.theme, "style": inst.rootStyle}
@@ -1265,14 +1311,32 @@ func (inst *popupInstance) activePath() []int {
 	return path
 }
 
+func (inst *popupInstance) prefixedPath(path []int) []int {
+	fullPath := append([]int(nil), inst.model.PathPrefix...)
+	fullPath = append(fullPath, path...)
+	return fullPath
+}
+
+func trimPathPrefix(path, prefix []int) []int {
+	if len(prefix) == 0 || len(path) < len(prefix) {
+		return append([]int(nil), path...)
+	}
+	for index, value := range prefix {
+		if path[index] != value {
+			return append([]int(nil), path...)
+		}
+	}
+	return append([]int(nil), path[len(prefix):]...)
+}
+
 func (inst *popupInstance) pathAtDepth(depth, index int) []int {
 	if depth <= 0 {
-		return []int{index}
+		return inst.prefixedPath([]int{index})
 	}
 	path := []int{inst.selectedIndex}
 	path = append(path, inst.submenuPath[:depth-1]...)
 	path = append(path, index)
-	return path
+	return inst.prefixedPath(path)
 }
 
 func (inst *popupInstance) trimCascadeAfter(depth int) {
@@ -1437,6 +1501,12 @@ func applyPortalProps(node *rtui.ElementVNode, model Model) {
 	}
 	if model.PortalPriority != 0 {
 		node.SetPortalPriority(model.PortalPriority)
+	}
+	if model.PortalOffsetX != 0 {
+		node.SetProp("left", model.PortalOffsetX)
+	}
+	if model.PortalOffsetY != 0 {
+		node.SetProp("top", model.PortalOffsetY)
 	}
 }
 

@@ -100,6 +100,7 @@ type Model struct {
 	Variant           Variant
 	Title             string
 	Items             []MenuItem
+	PathPrefix        []int
 	Open              bool
 	Layer             rtui.Layer
 	PortalRoot        string
@@ -107,6 +108,8 @@ type Model struct {
 	Anchor            rttypes.Anchor
 	PortalPosition    rttypes.PositionType
 	PortalPriority    int
+	PortalOffsetX     int
+	PortalOffsetY     int
 	Placement         Placement
 	ActivePath        []int
 	ActiveIndex       int

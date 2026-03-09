@@ -35,6 +35,11 @@ func (h *fakeInstallerHost) AddMiddleware(_ action.ActionMiddleware) {
 	h.middlewareCount++
 }
 
+func buildPopupSurface(items []MenuItem) *popupVNode {
+	model := NewPopup(items).BuildModel()
+	return newPopupVNode(clearPortalModel(model))
+}
+
 func TestNavigationSkipsNonSelectableItems(t *testing.T) {
 	items := []MenuItem{
 		LabelItem("label", "Group"),
@@ -87,19 +92,38 @@ func TestBuilderBuildPopupCreatesOverlayVNode(t *testing.T) {
 		Title("Menu").
 		MaxHeight(8).
 		Build()
-	if vnode.Tag() != "menu-popup" {
-		t.Fatalf("Tag() = %q, want menu-popup", vnode.Tag())
+	if vnode.Tag() != "box" {
+		t.Fatalf("Tag() = %q, want box portal wrapper", vnode.Tag())
 	}
 	if vnode.GetLayer() != rtui.LayerOverlay {
 		t.Fatalf("GetLayer() = %v, want LayerOverlay", vnode.GetLayer())
 	}
 	props := vnode.Props()
-	model, ok := props["model"].(Model)
-	if !ok {
-		t.Fatal("Build() should store model prop")
+	if got, _ := props["portalRoot"].(string); got != rtui.DefaultOverlayPortalRootID {
+		t.Fatalf("portalRoot = %q, want %q", got, rtui.DefaultOverlayPortalRootID)
 	}
-	if model.Title != "Menu" {
-		t.Fatalf("model.Title = %q, want Menu", model.Title)
+	children := vnode.Children()
+	if len(children) != 1 {
+		t.Fatalf("wrapper children = %d, want 1", len(children))
+	}
+	if children[0].Tag() != "menu-popup" {
+		t.Fatalf("child Tag() = %q, want menu-popup", children[0].Tag())
+	}
+}
+
+func TestBuilderAnchorDefaultsToAbsolutePortalPosition(t *testing.T) {
+	model := NewPopup([]MenuItem{Action("open", "Open", testIntent{"open"})}).
+		AnchorTo("toolbar.file", rttypes.AnchorTopLeft).
+		BuildModel()
+	if model.PortalPosition != rttypes.PositionAbsolute {
+		t.Fatalf("PortalPosition = %v, want PositionAbsolute", model.PortalPosition)
+	}
+}
+
+func TestBuilderDefaultsToFrameworkOverlayPortalRoot(t *testing.T) {
+	model := NewPopup([]MenuItem{Action("open", "Open", testIntent{"open"})}).BuildModel()
+	if model.PortalRoot != rtui.DefaultOverlayPortalRootID {
+		t.Fatalf("PortalRoot = %q, want %q", model.PortalRoot, rtui.DefaultOverlayPortalRootID)
 	}
 }
 
@@ -110,6 +134,7 @@ func TestBuilderPreservesPortalProps(t *testing.T) {
 		AnchorTo("toolbar.file", rttypes.AnchorBottomLeft).
 		PortalPosition(rttypes.PositionFixed).
 		PortalPriority(7).
+		PortalOffset(11, 2).
 		Build()
 
 	props := vnode.Props()
@@ -128,17 +153,23 @@ func TestBuilderPreservesPortalProps(t *testing.T) {
 	if got, _ := props["priority"].(int); got != 7 {
 		t.Fatalf("priority = %d, want 7", got)
 	}
+	if got, _ := props["left"].(int); got != 11 {
+		t.Fatalf("left = %d, want 11", got)
+	}
+	if got, _ := props["top"].(int); got != 2 {
+		t.Fatalf("top = %d, want 2", got)
+	}
 }
 
 func TestPopupInstanceNavigateAndActivate(t *testing.T) {
 	menuRegistryGlobal.reset()
 	defer menuRegistryGlobal.reset()
-	vnode := NewPopup([]MenuItem{
+	vnode := buildPopupSurface([]MenuItem{
 		Action("open", "Open", testIntent{"open"}),
 		Separator(),
 		Action("quit", "Quit", testIntent{"quit"}),
-	}).Build()
-	inst := vnode.(rtui.InstanceFactory).CreateInstance().(*popupInstance)
+	})
+	inst := vnode.CreateInstance().(*popupInstance)
 	var emitted []intent.Intent
 	inst.SetIntentEmitter(func(i intent.Intent) { emitted = append(emitted, i) })
 	if inst.selectedIndex != 0 {
@@ -167,13 +198,14 @@ func TestPopupInstanceNavigateAndActivate(t *testing.T) {
 func TestPopupInstanceTypeaheadMovesSelection(t *testing.T) {
 	menuRegistryGlobal.reset()
 	defer menuRegistryGlobal.reset()
-	vnode := NewPopup([]MenuItem{
+	model := NewPopup([]MenuItem{
 		Action("alpha", "Alpha", testIntent{"alpha"}),
 		Action("beta", "Beta", testIntent{"beta"}),
 		Action("gamma", "Gamma", testIntent{"gamma"}),
-	}).Typeahead(true).TypeaheadTimeout(50 * time.Millisecond).Build()
+	}).Typeahead(true).TypeaheadTimeout(50 * time.Millisecond).BuildModel()
+	vnode := newPopupVNode(clearPortalModel(model))
 
-	inst := vnode.(rtui.InstanceFactory).CreateInstance().(*popupInstance)
+	inst := vnode.CreateInstance().(*popupInstance)
 	if inst.selectedIndex != 0 {
 		t.Fatalf("selectedIndex = %d, want 0", inst.selectedIndex)
 	}
@@ -195,15 +227,15 @@ func TestPopupInstanceTypeaheadMovesSelection(t *testing.T) {
 func TestPopupInstanceNavigateRightOpensSubmenuCascade(t *testing.T) {
 	menuRegistryGlobal.reset()
 	defer menuRegistryGlobal.reset()
-	vnode := NewPopup([]MenuItem{
+	vnode := buildPopupSurface([]MenuItem{
 		Submenu("file", "File",
 			Action("new", "New", testIntent{"new"}),
 			Action("open", "Open", testIntent{"open"}),
 		),
 		Action("quit", "Quit", testIntent{"quit"}),
-	}).Build()
+	})
 
-	inst := vnode.(rtui.InstanceFactory).CreateInstance().(*popupInstance)
+	inst := vnode.CreateInstance().(*popupInstance)
 	if handled := inst.HandleAction(action.NewAction(action.ActionNavigateRight)); !handled {
 		t.Fatal("navigate right should be handled")
 	}
@@ -222,15 +254,16 @@ func TestPopupInstanceNavigateRightOpensSubmenuCascade(t *testing.T) {
 func TestPopupInstanceControlledActivePath(t *testing.T) {
 	menuRegistryGlobal.reset()
 	defer menuRegistryGlobal.reset()
-	vnode := NewPopup([]MenuItem{
+	model := NewPopup([]MenuItem{
 		Submenu("file", "File",
 			Action("new", "New", testIntent{"new"}),
 			Action("open", "Open", testIntent{"open"}),
 		),
 		Action("quit", "Quit", testIntent{"quit"}),
-	}).ActivePath(0, 1).Build()
+	}).ActivePath(0, 1).BuildModel()
+	vnode := newPopupVNode(clearPortalModel(model))
 
-	inst := vnode.(rtui.InstanceFactory).CreateInstance().(*popupInstance)
+	inst := vnode.CreateInstance().(*popupInstance)
 	if inst.selectedIndex != 0 {
 		t.Fatalf("selectedIndex = %d, want 0", inst.selectedIndex)
 	}
@@ -239,6 +272,41 @@ func TestPopupInstanceControlledActivePath(t *testing.T) {
 	}
 	if got := inst.GetProps()["model"].(Model).ActivePath; !PathEqual(got, []int{0, 1}) {
 		t.Fatalf("ActivePath = %v, want [0 1]", got)
+	}
+}
+
+func TestPopupInstancePathPrefixIsIncludedInEmittedPath(t *testing.T) {
+	menuRegistryGlobal.reset()
+	defer menuRegistryGlobal.reset()
+
+	model := NewPopup([]MenuItem{
+		Submenu("theme", "Theme",
+			Action("dark", "Dark", testIntent{"dark"}),
+			Action("light", "Light", testIntent{"light"}),
+		),
+		Action("refresh", "Refresh", testIntent{"refresh"}),
+	}).PathPrefix(1).BuildModel()
+
+	inst := newPopupVNode(clearPortalModel(model)).CreateInstance().(*popupInstance)
+	var emitted []intent.Intent
+	inst.SetIntentEmitter(func(i intent.Intent) { emitted = append(emitted, i) })
+
+	if handled := inst.HandleAction(action.NewAction(action.ActionNavigateRight)); !handled {
+		t.Fatal("navigate right should be handled")
+	}
+	if len(emitted) == 0 {
+		t.Fatal("expected OpenMenuIntent to be emitted")
+	}
+
+	openIntent, ok := emitted[len(emitted)-1].(OpenMenuIntent)
+	if !ok {
+		t.Fatalf("last emitted intent = %T, want OpenMenuIntent", emitted[len(emitted)-1])
+	}
+	if !PathEqual(openIntent.Path, []int{1, 0}) {
+		t.Fatalf("OpenMenuIntent.Path = %v, want [1 0]", openIntent.Path)
+	}
+	if got := inst.GetProps()["model"].(Model).ActivePath; !PathEqual(got, []int{1, 0, 0}) {
+		t.Fatalf("GetProps().model.ActivePath = %v, want [1 0 0]", got)
 	}
 }
 
@@ -267,8 +335,8 @@ func TestThemeDefaultsArePopulated(t *testing.T) {
 func TestMenuMiddlewareClickOutsideClosesOpenPopup(t *testing.T) {
 	menuRegistryGlobal.reset()
 	defer menuRegistryGlobal.reset()
-	vnode := NewPopup([]MenuItem{Action("open", "Open", testIntent{"open"})}).Build()
-	inst := vnode.(rtui.InstanceFactory).CreateInstance().(*popupInstance)
+	vnode := buildPopupSurface([]MenuItem{Action("open", "Open", testIntent{"open"})})
+	inst := vnode.CreateInstance().(*popupInstance)
 	inst.SetBounds(10, 5, 24, 8)
 	inst.OnMount()
 	defer inst.Destroy()
@@ -286,8 +354,8 @@ func TestMenuMiddlewareClickOutsideClosesOpenPopup(t *testing.T) {
 func TestMenuMiddlewareLeavesInsideClickAlone(t *testing.T) {
 	menuRegistryGlobal.reset()
 	defer menuRegistryGlobal.reset()
-	vnode := NewPopup([]MenuItem{Action("open", "Open", testIntent{"open"})}).Build()
-	inst := vnode.(rtui.InstanceFactory).CreateInstance().(*popupInstance)
+	vnode := buildPopupSurface([]MenuItem{Action("open", "Open", testIntent{"open"})})
+	inst := vnode.CreateInstance().(*popupInstance)
 	inst.SetBounds(10, 5, 24, 8)
 	inst.OnMount()
 	defer inst.Destroy()

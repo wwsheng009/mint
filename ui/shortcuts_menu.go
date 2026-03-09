@@ -14,6 +14,10 @@ type MenuPlacement = menucomp.Placement
 type MenuPortalPosition = rttypes.PositionType
 type MenuShortcut = menucomp.Shortcut
 type MenuShortcutBinding = menucomp.ShortcutBinding
+type OpenMenuIntent = menucomp.OpenMenuIntent
+type CloseMenuIntent = menucomp.CloseMenuIntent
+type ActivateMenuItemIntent = menucomp.ActivateMenuItemIntent
+type NavigateMenuIntent = menucomp.NavigateMenuIntent
 
 const (
 	MenuVariantBar      = menucomp.VariantMenuBar

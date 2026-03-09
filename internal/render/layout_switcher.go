@@ -219,9 +219,13 @@ func convertLayoutHitMap(hm *layout.HitMap, fiberRoot *rtui.Fiber) *event.HitMap
 		nodeID := event.StringToNodeID(layoutEntry.NodeID)
 
 		// Look up the target Fiber by NodeID
-		var targetFiber *rtui.Fiber
+		var targetFiber interface {
+			GetActionTargetID() string
+		}
 		if fiberRoot != nil {
-			targetFiber = rtui.FindFiberByID(fiberRoot, nodeID)
+			if fiber := rtui.FindFiberByID(fiberRoot, nodeID); fiber != nil {
+				targetFiber = fiber
+			}
 		}
 
 		entries = append(entries, event.HitMapEntryInternal{
@@ -256,7 +260,8 @@ func convertLayoutHitMap(hm *layout.HitMap, fiberRoot *rtui.Fiber) *event.HitMap
 //   - error: Error if layout calculation fails
 //
 // Note: This function returns interface{} to avoid direct importing of runtime/compute in this package.
-//       Callers in runtime/compute can type-assert the result safely.
+//
+//	Callers in runtime/compute can type-assert the result safely.
 func LayoutV3(vnode rtui.VNode, fiber *reconciler.Fiber, constraints runtime.BoxConstraints) (interface{}, error) {
 	// Validate inputs
 	if vnode == nil && fiber == nil {
@@ -285,6 +290,3 @@ func LayoutV3(vnode rtui.VNode, fiber *reconciler.Fiber, constraints runtime.Box
 	// Step 5: Return raw layout result (conversion happens in compute package)
 	return layoutResult, nil
 }
-
-
-

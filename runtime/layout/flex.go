@@ -158,12 +158,12 @@ type FlexChildProvider interface {
 // DefaultFlexStyle 默认弹性样式
 func DefaultFlexStyle() *FlexStyle {
 	return &FlexStyle{
-		Direction:  FlexColumn,
-		MainAxis:   MainStart,
-		CrossAxis:  CrossStart,
-		Gap:        0,
-		CrossGap:   0,
-		Padding:    Padding{},
+		Direction:        FlexColumn,
+		MainAxis:         MainStart,
+		CrossAxis:        CrossStart,
+		Gap:              0,
+		CrossGap:         0,
+		Padding:          Padding{},
 		FlexibleChildren: make(map[int]*Flex),
 	}
 }
@@ -307,6 +307,7 @@ func (f *FlexLayout) Measure(constraints Constraints) Size {
 	childSizes := make([]Size, len(f.children))
 	totalMainSize := 0
 	maxCrossSize := 0
+	inFlowCount := 0
 
 	for i, child := range f.children {
 		// 跳过 nil 子节点
@@ -332,6 +333,11 @@ func (f *FlexLayout) Measure(constraints Constraints) Size {
 			}
 		}
 
+		if isOutOfFlowFlexChild(child) {
+			continue
+		}
+
+		inFlowCount++
 		if isRow {
 			// 横向布局：宽度累加，高度取最大
 			if flex, ok := f.style.FlexibleChildren[i]; ok && flex.Grow > 0 {
@@ -376,8 +382,17 @@ func (f *FlexLayout) Measure(constraints Constraints) Size {
 		}
 	}
 
+	if inFlowCount == 0 {
+		paddingWidth := f.style.Padding.Horizontal()
+		paddingHeight := f.style.Padding.Vertical()
+		return Size{
+			Width:  constraints.ConstrainWidth(paddingWidth),
+			Height: constraints.ConstrainHeight(paddingHeight),
+		}
+	}
+
 	// 添加间距
-	gapCount := len(f.children) - 1
+	gapCount := inFlowCount - 1
 	if gapCount > 0 {
 		totalMainSize += f.style.Gap * gapCount
 		if totalMainSize > MaxInt {
@@ -411,7 +426,7 @@ func (f *FlexLayout) childConstraints(constraints Constraints, index int) Constr
 	// 减去内边距
 	availableMain := constraints.MaxWidth - f.style.Padding.Left - f.style.Padding.Right
 	availableCross := constraints.MaxHeight - f.style.Padding.Top - f.style.Padding.Bottom
-	
+
 	// Ensure available space is non-negative
 	if availableMain < 0 {
 		availableMain = 0
@@ -447,8 +462,10 @@ func (f *FlexLayout) LayoutChildren(width, height int) []LayoutBox {
 	childMarginContent := make([]int, len(f.children)) // 主轴方向的 margin 总和
 	childMarginStart := make([]int, len(f.children))   // 主轴起始侧 margin
 	childMarginCross := make([]int, len(f.children))   // 跨轴方向的 margin 总和
+	childOutOfFlow := make([]bool, len(f.children))
 	fixedTotal := 0    // 固定尺寸总和
 	flexGrowTotal := 0 // flex-grow 总和
+	flowIndices := make([]int, 0, len(f.children))
 
 	for i, child := range f.children {
 		// 跳过 nil children
@@ -511,6 +528,12 @@ func (f *FlexLayout) LayoutChildren(width, height int) []LayoutBox {
 			}
 		}
 
+		childOutOfFlow[i] = isOutOfFlowFlexChild(child)
+		if childOutOfFlow[i] {
+			continue
+		}
+		flowIndices = append(flowIndices, i)
+
 		if flex, ok := f.style.FlexibleChildren[i]; ok && flex.Grow > 0 {
 			flexGrowTotal += flex.Grow
 			// 使用 basis 作为基础尺寸 + margin
@@ -534,7 +557,7 @@ func (f *FlexLayout) LayoutChildren(width, height int) []LayoutBox {
 	}
 
 	// Phase 2: 计算剩余空间
-	gapCount := len(f.children) - 1
+	gapCount := len(flowIndices) - 1
 	totalGap := 0
 	if gapCount > 0 {
 		totalGap = f.style.Gap * gapCount
@@ -549,7 +572,6 @@ func (f *FlexLayout) LayoutChildren(width, height int) []LayoutBox {
 
 	// Phase 3: 分配剩余空间给可伸缩节点
 	finalSizes := make([]Size, len(f.children))
-	flexIndex := 0
 	for i := range f.children {
 		if flex, ok := f.style.FlexibleChildren[i]; ok && flex.Grow > 0 {
 			// 按比例分配剩余空间
@@ -570,7 +592,6 @@ func (f *FlexLayout) LayoutChildren(width, height int) []LayoutBox {
 					Height: childSizes[i].Height + childMarginContent[i] + extra,
 				}
 			}
-			flexIndex++
 		} else {
 			// 固定尺寸节点，包含 margin
 			if isRow {
@@ -614,6 +635,8 @@ func (f *FlexLayout) LayoutChildren(width, height int) []LayoutBox {
 		mainPos = 0
 	}
 
+	flowCrossSize := f.getMaxCrossSizeForIndices(finalSizes, flowIndices)
+
 	// 交叉轴起始位置
 	crossPos := 0
 	switch f.style.CrossAxis {
@@ -621,15 +644,15 @@ func (f *FlexLayout) LayoutChildren(width, height int) []LayoutBox {
 		crossPos = 0
 	case CrossEnd:
 		if isRow {
-			crossPos = availableHeight - f.getMaxCrossSize(finalSizes)
+			crossPos = availableHeight - flowCrossSize
 		} else {
-			crossPos = availableWidth - f.getMaxCrossSize(finalSizes)
+			crossPos = availableWidth - flowCrossSize
 		}
 	case CrossCenter:
 		if isRow {
-			crossPos = (availableHeight - f.getMaxCrossSize(finalSizes)) / 2
+			crossPos = (availableHeight - flowCrossSize) / 2
 		} else {
-			crossPos = (availableWidth - f.getMaxCrossSize(finalSizes)) / 2
+			crossPos = (availableWidth - flowCrossSize) / 2
 		}
 	case Stretch:
 		crossPos = 0
@@ -641,7 +664,8 @@ func (f *FlexLayout) LayoutChildren(width, height int) []LayoutBox {
 	// For baseline alignment, calculate max baseline
 	maxBaseline := 0
 	if f.style.CrossAxis == Baseline && isRow {
-		for i, child := range f.children {
+		for _, i := range flowIndices {
+			child := f.children[i]
 			if child == nil {
 				continue
 			}
@@ -656,14 +680,14 @@ func (f *FlexLayout) LayoutChildren(width, height int) []LayoutBox {
 
 	// SpaceBetween/Around/Evenly 的额外间距
 	extraGap := 0
-	if (f.style.MainAxis == SpaceBetween || f.style.MainAxis == SpaceAround || f.style.MainAxis == SpaceEvenly) && len(f.children) > 1 {
+	if (f.style.MainAxis == SpaceBetween || f.style.MainAxis == SpaceAround || f.style.MainAxis == SpaceEvenly) && len(flowIndices) > 1 {
 		switch f.style.MainAxis {
 		case SpaceBetween:
 			extraGap = remainingSpace / gapCount
 		case SpaceAround:
-			extraGap = remainingSpace / len(f.children)
+			extraGap = remainingSpace / len(flowIndices)
 		case SpaceEvenly:
-			extraGap = remainingSpace / (len(f.children) + 1)
+			extraGap = remainingSpace / (len(flowIndices) + 1)
 		}
 	}
 
@@ -673,55 +697,38 @@ func (f *FlexLayout) LayoutChildren(width, height int) []LayoutBox {
 		mainPos += extraGap / 2
 	}
 
-	// 布局每个子节点
-	for i, child := range f.children {
-		// Skip nil children
+	// 布局主流中的子节点
+	visualIndices := flowIndices
+	if isReverse {
+		visualIndices = make([]int, len(flowIndices))
+		for i := range flowIndices {
+			visualIndices[i] = flowIndices[len(flowIndices)-1-i]
+		}
+	}
+
+	for visualIndex, childIdx := range visualIndices {
+		child := f.children[childIdx]
 		if child == nil {
 			continue
 		}
 
 		var x, y int
-		var childIdx int // 实际的子节点索引
-		if isReverse {
-			childIdx = len(f.children) - 1 - i
+		if isRow {
+			x = f.style.Padding.Left + mainPos
+			y = f.style.Padding.Top + crossPos
 		} else {
-			childIdx = i
+			x = f.style.Padding.Left + crossPos
+			y = f.style.Padding.Top + mainPos
 		}
 
-		if isReverse {
-			if isRow {
-				x = f.style.Padding.Left + mainPos
-				y = f.style.Padding.Top + crossPos
-			} else {
-				x = f.style.Padding.Left + crossPos
-				y = f.style.Padding.Top + mainPos
-			}
-			// 根据方向增加 mainPos
-			if isRow {
-				mainPos += finalSizes[childIdx].Width + f.style.Gap
-			} else {
-				mainPos += finalSizes[childIdx].Height + f.style.Gap
-			}
-			if extraGap > 0 && i < len(f.children)-1 {
-				mainPos += extraGap
-			}
+		// 根据方向增加 mainPos
+		if isRow {
+			mainPos += finalSizes[childIdx].Width + f.style.Gap
 		} else {
-			if isRow {
-				x = f.style.Padding.Left + mainPos
-				y = f.style.Padding.Top + crossPos
-			} else {
-				x = f.style.Padding.Left + crossPos
-				y = f.style.Padding.Top + mainPos
-			}
-			// 根据方向增加 mainPos
-			if isRow {
-				mainPos += finalSizes[childIdx].Width + f.style.Gap
-			} else {
-				mainPos += finalSizes[childIdx].Height + f.style.Gap
-			}
-			if extraGap > 0 && i < len(f.children)-1 {
-				mainPos += extraGap
-			}
+			mainPos += finalSizes[childIdx].Height + f.style.Gap
+		}
+		if extraGap > 0 && visualIndex < len(visualIndices)-1 {
+			mainPos += extraGap
 		}
 
 		// Stretch 处理 - 使用正确的索引
@@ -749,7 +756,7 @@ func (f *FlexLayout) LayoutChildren(width, height int) []LayoutBox {
 		// mainPos += finalSizes 包含了 margin，所以 mainPos 本身就是下一个子节点的"内容位置"
 		// childBox.X/Y 应该指向完整的盒子左上角，所以不需要再加 margin
 		// ✅ 修正: childBox.X/Y 已经包含了 margin 空间（因为 mainPos 使用了 finalSizes）
-		boxes[i] = LayoutBox{
+		boxes[childIdx] = LayoutBox{
 			ID:     child.ID(),
 			X:      x,
 			Y:      y,
@@ -762,7 +769,34 @@ func (f *FlexLayout) LayoutChildren(width, height int) []LayoutBox {
 		child.SetSize(finalSizes[childIdx].Width, finalSizes[childIdx].Height)
 	}
 
+	for i, child := range f.children {
+		if child == nil || !childOutOfFlow[i] {
+			continue
+		}
+
+		boxes[i] = LayoutBox{
+			ID:     child.ID(),
+			X:      f.style.Padding.Left,
+			Y:      f.style.Padding.Top,
+			Width:  finalSizes[i].Width,
+			Height: finalSizes[i].Height,
+		}
+		child.SetPosition(boxes[i].X, boxes[i].Y)
+		child.SetSize(finalSizes[i].Width, finalSizes[i].Height)
+	}
+
 	return boxes
+}
+
+func isOutOfFlowFlexChild(child Node) bool {
+	if child == nil {
+		return false
+	}
+	posProvider, ok := child.(PositionProvider)
+	if !ok {
+		return false
+	}
+	return isOutOfFlowPosition(posProvider.GetPositionType())
 }
 
 // getMaxCrossSize 获取最大交叉轴尺寸
@@ -777,6 +811,29 @@ func (f *FlexLayout) getMaxCrossSize(sizes []Size) int {
 		} else {
 			if size.Width > maxSize {
 				maxSize = size.Width
+			}
+		}
+	}
+	return maxSize
+}
+
+func (f *FlexLayout) getMaxCrossSizeForIndices(sizes []Size, indices []int) int {
+	if len(indices) == 0 {
+		return 0
+	}
+	isRow := f.style.Direction == FlexRow || f.style.Direction == FlexRowReverse
+	maxSize := 0
+	for _, index := range indices {
+		if index < 0 || index >= len(sizes) {
+			continue
+		}
+		if isRow {
+			if sizes[index].Height > maxSize {
+				maxSize = sizes[index].Height
+			}
+		} else {
+			if sizes[index].Width > maxSize {
+				maxSize = sizes[index].Width
 			}
 		}
 	}

@@ -701,11 +701,12 @@ func (r *Reconciler) updateFocusManagerFromFiber(fiber *Fiber) {
 		activeLayer = rtui.LayerOverlay
 	}
 
-	// Update active layer (this will auto-focus first item in layer if needed)
-	r.focusMgr.SetActiveLayer(activeLayer)
-
 	// Collect all focusable Fibers from the Fiber tree (Fiber-first)
 	r.focusMgr.CollectFromFiber(fiber)
+
+	// Update active layer after collecting focusable fibers.
+	// Otherwise switching to overlay/modal would try to focus against the previous frame's list.
+	r.focusMgr.SetActiveLayer(activeLayer)
 
 	// If we have an active layer (Modal/Overlay), focus is already set by SetActiveLayer
 	// Otherwise, preserve focus index

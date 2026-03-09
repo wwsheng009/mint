@@ -56,6 +56,17 @@ func NewPortalCollector() *PortalCollector {
 	}
 }
 
+// Reset clears all per-frame collected portal state.
+func (pc *PortalCollector) Reset() {
+	if pc == nil {
+		return
+	}
+	pc.portals = pc.portals[:0]
+	for key := range pc.portalRoot {
+		delete(pc.portalRoot, key)
+	}
+}
+
 // CollectPortalRoots collects all PortalRoot nodes from the Fiber tree
 func (pc *PortalCollector) CollectPortalRoots(fiber *reconciler.Fiber) {
 	if fiber == nil {
@@ -127,6 +138,7 @@ func (pc *PortalCollector) GetPortalRoot(portalRootID string) (*reconciler.Fiber
 // PortalAwareFiberToNodeAdapter wraps a Fiber tree to implement layout.Node interface
 // During Phase 1 (main tree layout), it skips Portal nodes and collects them
 type PortalAwareFiberToNodeAdapter struct {
+	base       *FiberToNodeAdapter
 	fiber      *reconciler.Fiber
 	children   []layout.Node
 	collector  *PortalCollector
@@ -137,6 +149,7 @@ type PortalAwareFiberToNodeAdapter struct {
 // NewPortalAwareFiberToNodeAdapter creates a new adapter with Portal handling
 func NewPortalAwareFiberToNodeAdapter(fiber *reconciler.Fiber, collector *PortalCollector) *PortalAwareFiberToNodeAdapter {
 	adapter := &PortalAwareFiberToNodeAdapter{
+		base:      NewFiberToNodeAdapterPure(fiber),
 		fiber:     fiber,
 		collector: collector,
 		isPortal:  false,
@@ -236,33 +249,10 @@ func (a *PortalAwareFiberToNodeAdapter) SetPosition(x, y int) {
 
 // GetSize returns the current size
 func (a *PortalAwareFiberToNodeAdapter) GetSize() (width, height int) {
-	if a.fiber == nil {
+	if a.base == nil {
 		return 0, 0
 	}
-
-	// 1. Try Instance
-	if a.fiber.Instance != nil {
-		if sizable, ok := a.fiber.Instance.(interface{ GetSize() (int, int) }); ok {
-			return sizable.GetSize()
-		}
-	}
-
-	// 2. Try from Fiber.Style
-	if a.fiber.Style.Width > 0 && a.fiber.Style.Height > 0 {
-		return a.fiber.Style.Width, a.fiber.Style.Height
-	}
-
-	// 3. Try from Fiber.Props
-	if a.fiber.Props != nil {
-		if w, ok := a.fiber.Props["width"].(int); ok && w > 0 {
-			if h, ok := a.fiber.Props["height"].(int); ok && h > 0 {
-				return w, h
-			}
-		}
-	}
-
-	// Default: 0x0
-	return 0, 0
+	return a.base.GetSize()
 }
 
 // GetWidth returns the width
@@ -279,19 +269,10 @@ func (a *PortalAwareFiberToNodeAdapter) GetHeight() int {
 
 // SetSize sets the size
 func (a *PortalAwareFiberToNodeAdapter) SetSize(width, height int) {
-	if a.fiber == nil {
+	if a.base == nil {
 		return
 	}
-	// Sync to Instance.bounds or Style
-	if a.fiber.Instance != nil {
-		if sizable, ok := a.fiber.Instance.(interface{ SetSize(width, height int) }); ok {
-			sizable.SetSize(width, height)
-		}
-		if boundsHaver, ok := a.fiber.Instance.(interface{ SetBounds(x, y, w, h int) }); ok {
-			x, y := a.GetInstancePosition()
-			boundsHaver.SetBounds(x, y, width, height)
-		}
-	}
+	a.base.SetSize(width, height)
 }
 
 // GetProp returns a property value
@@ -307,7 +288,8 @@ func (a *PortalAwareFiberToNodeAdapter) GetInstancePosition() (x, y int) {
 	if a.fiber == nil || a.fiber.Instance == nil {
 		return 0, 0
 	}
-	if boundsHaver, ok := a.fiber.Instance.(interface{ GetBounds() (int, int, int, int) }); ok {		x, y, _, _ := boundsHaver.GetBounds()
+	if boundsHaver, ok := a.fiber.Instance.(interface{ GetBounds() (int, int, int, int) }); ok {
+		x, y, _, _ := boundsHaver.GetBounds()
 		return x, y
 	}
 	return 0, 0
@@ -325,6 +307,97 @@ func (a *PortalAwareFiberToNodeAdapter) IsPositionFixed() bool {
 		}
 	}
 	return false
+}
+
+func (a *PortalAwareFiberToNodeAdapter) Measure(constraints layout.Constraints) layout.Size {
+	if a.base == nil {
+		return layout.Size{}
+	}
+	return a.base.Measure(constraints)
+}
+
+func (a *PortalAwareFiberToNodeAdapter) GetMargin() layout.Margin {
+	if a.base == nil {
+		return layout.Margin{}
+	}
+	return a.base.GetMargin()
+}
+
+func (a *PortalAwareFiberToNodeAdapter) GetBoxModel() layout.BoxModel {
+	if a.base == nil {
+		return layout.BoxModel{}
+	}
+	return a.base.GetBoxModel()
+}
+
+func (a *PortalAwareFiberToNodeAdapter) GetFlexStyle() *layout.FlexStyle {
+	if a.base == nil {
+		return nil
+	}
+	return a.base.GetFlexStyle()
+}
+
+func (a *PortalAwareFiberToNodeAdapter) GetGridStyle() *layout.GridStyle {
+	if a.base == nil {
+		return nil
+	}
+	return a.base.GetGridStyle()
+}
+
+func (a *PortalAwareFiberToNodeAdapter) GetWrapStyle() *layout.WrapStyle {
+	if a.base == nil {
+		return nil
+	}
+	return a.base.GetWrapStyle()
+}
+
+func (a *PortalAwareFiberToNodeAdapter) GetAbsoluteStyle() *layout.AbsoluteStyle {
+	if a.base == nil {
+		return nil
+	}
+	return a.base.GetAbsoluteStyle()
+}
+
+func (a *PortalAwareFiberToNodeAdapter) GetBorder() layout.Border {
+	if a.base == nil {
+		return layout.Border{Style: layout.BorderNone}
+	}
+	return a.base.GetBorder()
+}
+
+func (a *PortalAwareFiberToNodeAdapter) ShouldCenter() bool {
+	if a.base == nil {
+		return false
+	}
+	return a.base.ShouldCenter()
+}
+
+func (a *PortalAwareFiberToNodeAdapter) GetPositionType() layout.PositionType {
+	if a.base == nil {
+		return layout.PositionRelative
+	}
+	return a.base.GetPositionType()
+}
+
+func (a *PortalAwareFiberToNodeAdapter) GetAnchor() layout.Anchor {
+	if a.base == nil {
+		return layout.AnchorTopLeft
+	}
+	return a.base.GetAnchor()
+}
+
+func (a *PortalAwareFiberToNodeAdapter) GetLayer() layout.Layer {
+	if a.base == nil {
+		return layout.LayerBase
+	}
+	return a.base.GetLayer()
+}
+
+func (a *PortalAwareFiberToNodeAdapter) GetZIndex() int {
+	if a.base == nil {
+		return 0
+	}
+	return a.base.GetZIndex()
 }
 
 // =============================================================================
@@ -362,6 +435,10 @@ func (e *PortalAwareLayoutEngine) Layout(fiber *reconciler.Fiber, constraints ru
 	}
 
 	log := fmt.Sprintf
+
+	// Reset per-frame portal state to avoid leaking stale portals across renders.
+	e.collector.Reset()
+	e.overlayManager.Clear()
 
 	// Convert constraints
 	layoutConstraints := layout.Constraints{
@@ -437,7 +514,7 @@ func (e *PortalAwareLayoutEngine) layoutPortal(
 	// Use unconstrained layout to measure portal content
 	layoutConstraints := layout.Constraints{
 		MinWidth:  0,
-		MaxWidth:  constraints.MaxWidth,  // Use viewport width as max
+		MaxWidth:  constraints.MaxWidth, // Use viewport width as max
 		MinHeight: 0,
 		MaxHeight: constraints.MaxHeight, // Use viewport height as max
 	}
@@ -559,7 +636,7 @@ func (e *PortalAwareLayoutEngine) setPortalZIndex(box *layout.LayoutBox, zIndex 
 	// Use breadth-first traversal to assign ZIndex
 	// This ensures siblings are numbered before their children
 	// Portal: 1000, Child1: 1001, Child2: 1002, Grandchild: 1003
-	queue := []struct{
+	queue := []struct {
 		box    *layout.LayoutBox
 		zIndex int
 	}{

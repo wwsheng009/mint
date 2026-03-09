@@ -7,6 +7,7 @@ import (
 
 	frameworkevent "github.com/wwsheng009/mint/framework/event"
 	irender "github.com/wwsheng009/mint/internal/render"
+	"github.com/wwsheng009/mint/runtime/action"
 	"github.com/wwsheng009/mint/runtime/core"
 	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
 	runtimeplatform "github.com/wwsheng009/mint/runtime/platform"
@@ -379,6 +380,44 @@ func TestApp_ProcessMsg_UpDownMoveTextareaCursor_WithWrapperTag(t *testing.T) {
 	}
 }
 
+func TestApp_ProcessMsg_TypedNilMouseTargetFiber_NoPanic(t *testing.T) {
+	app := NewApp()
+
+	mouseMsg := runtimemsg.NewMouseMsg(1, 1, runtimemsg.MouseLeft, runtimemsg.MouseActionPress)
+	var targetFiber *rtui.Fiber
+	mouseMsg.TargetFiber = targetFiber
+
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			t.Fatalf("processMsg should ignore typed nil TargetFiber, got panic: %v", recovered)
+		}
+	}()
+
+	app.processMsg(mouseMsg)
+}
+
+func TestApp_ProcessMsg_UnhandledNavigationFallsThroughToFocusedFiber(t *testing.T) {
+	app := NewApp()
+
+	recorder := &navigationActionRecorder{}
+	fiber := &rtui.Fiber{
+		Tag:      "menu-popup",
+		NodeID:   42,
+		Instance: recorder,
+	}
+
+	app.focusManager.UpdateFocusableList([]*rtui.Fiber{fiber})
+	if ok := app.focusManager.SetFocusByIndex(0); !ok {
+		t.Fatal("SetFocusByIndex(0) should succeed")
+	}
+
+	app.processMsg(runtimemsg.NewKeyMsg(0, runtimeplatform.KeyDown, runtimemsg.Modifiers{}))
+
+	if len(recorder.handled) == 0 || recorder.handled[0] != action.ActionNavigateDown {
+		t.Fatalf("handled actions = %#v, want first action %q", recorder.handled, action.ActionNavigateDown)
+	}
+}
+
 type mockFiberRootNode struct {
 	fiberRoot *rtui.Fiber
 }
@@ -393,6 +432,32 @@ func (n *mockFiberRootNode) Type() string {
 
 func (n *mockFiberRootNode) GetFiberRoot() *rtui.Fiber {
 	return n.fiberRoot
+}
+
+type navigationActionRecorder struct {
+	handled []action.ActionType
+}
+
+func (m *navigationActionRecorder) Key() string                        { return "" }
+func (m *navigationActionRecorder) SetKey(key string)                  {}
+func (m *navigationActionRecorder) Init(props rtui.Props)              {}
+func (m *navigationActionRecorder) Destroy()                           {}
+func (m *navigationActionRecorder) OnMount()                           {}
+func (m *navigationActionRecorder) OnUnmount()                         {}
+func (m *navigationActionRecorder) SetProps(props rtui.Props) bool     { return false }
+func (m *navigationActionRecorder) GetProps() rtui.Props               { return nil }
+func (m *navigationActionRecorder) MarkDirty()                         {}
+func (m *navigationActionRecorder) IsDirty() bool                      { return false }
+func (m *navigationActionRecorder) GetContext() *rtui.ComponentContext { return nil }
+func (m *navigationActionRecorder) SetFocus(bool)                      {}
+func (m *navigationActionRecorder) HasFocus() bool                     { return true }
+func (m *navigationActionRecorder) IsDisabled() bool                   { return false }
+func (m *navigationActionRecorder) HandleAction(act *action.Action) bool {
+	if act == nil {
+		return false
+	}
+	m.handled = append(m.handled, act.Type)
+	return act.Type == action.ActionNavigateDown
 }
 
 // testPanicHandler 测试用的 panic 处理器

@@ -91,12 +91,12 @@ func (e *ElementVNode) SetStyle(s style.Style) VNode {
 
 // GetLayer returns the rendering layer
 func (e *ElementVNode) GetLayer() Layer {
-	return LayerBase
+	return getNodeLayer(e)
 }
 
 // SetLayer sets the rendering layer - returns VNode for chaining
 func (e *ElementVNode) SetLayer(l Layer) VNode {
-	return e
+	return setNodeLayer(e, l)
 }
 
 // =============================================================================

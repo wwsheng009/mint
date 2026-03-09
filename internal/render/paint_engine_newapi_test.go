@@ -5,6 +5,7 @@ import (
 
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
+	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
 
 type mockCustomPaintNode struct {
@@ -222,4 +223,165 @@ func TestPaintEngine_ModalBackdrop_Tracking(t *testing.T) {
 
 	// 第三次渲染：modal 消失
 	engine.PaintPaintableLayouts(layoutsNoModal, buffer)
+}
+
+func TestPaintEngine_PaintPaintablePlanes_IgnoresPortalHostForBackdrop(t *testing.T) {
+	engine := NewPaintEngine()
+	buffer := paint.NewBuffer(20, 8)
+
+	baseNode := &mockCustomPaintNode{
+		id:  "base",
+		tag: "base",
+		paint: func(x, y int) []paint.DrawCmd {
+			return []paint.DrawCmd{{
+				X:     5,
+				Y:     5,
+				Text:  "B",
+				Style: style.NewStyle().Foreground(style.White),
+			}}
+		},
+	}
+	baseBox := paint.NewPaintableBoxWithBounds(baseNode, 0, 0, 20, 8)
+	baseBox.Layer = int(paint.RenderLayerBase)
+
+	hostVNode := rtui.NewElement("box").
+		SetPortalRootId(rtui.DefaultModalPortalRootID).
+		SetLayer(rtui.LayerModal)
+	hostBox := paint.NewPaintableBoxWithBounds(NewVNodePaintableNode(hostVNode), 0, 0, 1, 1)
+	hostBox.Layer = int(paint.RenderLayerModal)
+
+	planes := paint.NewPaintablePlanes()
+	planes.AddToLayer(paint.RenderLayerBase, baseBox)
+	planes.AddToLayer(paint.RenderLayerModal, hostBox)
+
+	if err := engine.PaintPaintablePlanes(planes, buffer); err != nil {
+		t.Fatalf("PaintPaintablePlanes() error = %v", err)
+	}
+
+	cell := buffer.GetContent(5, 5)
+	if cell.Style.FG != style.White {
+		t.Fatalf("base cell FG = %q, want %q (portal host should not trigger backdrop)", cell.Style.FG, style.White)
+	}
+}
+
+func TestPaintEngine_PaintPaintablePlanes_UsesVisibleModalBoxForBackdrop(t *testing.T) {
+	engine := NewPaintEngine()
+	buffer := paint.NewBuffer(30, 10)
+
+	baseNode := &mockCustomPaintNode{
+		id:  "base",
+		tag: "base",
+		paint: func(x, y int) []paint.DrawCmd {
+			return []paint.DrawCmd{{
+				X:     2,
+				Y:     8,
+				Text:  "B",
+				Style: style.NewStyle().Foreground(style.White),
+			}}
+		},
+	}
+	baseBox := paint.NewPaintableBoxWithBounds(baseNode, 0, 0, 30, 10)
+	baseBox.Layer = int(paint.RenderLayerBase)
+
+	hostVNode := rtui.NewElement("box").
+		SetPortalRootId(rtui.DefaultModalPortalRootID).
+		SetLayer(rtui.LayerModal)
+	hostBox := paint.NewPaintableBoxWithBounds(NewVNodePaintableNode(hostVNode), 0, 0, 1, 1)
+	hostBox.Layer = int(paint.RenderLayerModal)
+
+	dialogNode := &mockCustomPaintNode{
+		id:  "dialog",
+		tag: "dialog",
+		paint: func(x, y int) []paint.DrawCmd {
+			return []paint.DrawCmd{{
+				X:     x + 1,
+				Y:     y + 1,
+				Text:  "M",
+				Style: style.NewStyle().Foreground(style.White),
+			}}
+		},
+	}
+	dialogBox := paint.NewPaintableBoxWithBounds(dialogNode, 10, 2, 8, 4)
+	dialogBox.Layer = int(paint.RenderLayerModal)
+	dialogBox.ZIndex = 10
+
+	planes := paint.NewPaintablePlanes()
+	planes.AddToLayer(paint.RenderLayerBase, baseBox)
+	planes.AddToLayer(paint.RenderLayerModal, hostBox)
+	planes.AddToLayer(paint.RenderLayerModal, dialogBox)
+
+	if err := engine.PaintPaintablePlanes(planes, buffer); err != nil {
+		t.Fatalf("PaintPaintablePlanes() error = %v", err)
+	}
+
+	dialogCell := buffer.GetContent(11, 3)
+	if dialogCell.Style.FG != style.White {
+		t.Fatalf("dialog cell FG = %q, want %q (visible modal content should stay undimmed)", dialogCell.Style.FG, style.White)
+	}
+
+	outsideCell := buffer.GetContent(2, 8)
+	if outsideCell.Style.FG != style.BrightBlack {
+		t.Fatalf("outside cell FG = %q, want %q (background should be dimmed outside modal bounds)", outsideCell.Style.FG, style.BrightBlack)
+	}
+}
+
+func TestPaintEngine_PaintPaintableLayouts_UsesVisibleModalChildForBackdrop(t *testing.T) {
+	engine := NewPaintEngine()
+	buffer := paint.NewBuffer(30, 10)
+
+	baseNode := &mockCustomPaintNode{
+		id:  "base",
+		tag: "base",
+		paint: func(x, y int) []paint.DrawCmd {
+			return []paint.DrawCmd{{
+				X:     1,
+				Y:     8,
+				Text:  "B",
+				Style: style.NewStyle().Foreground(style.White),
+			}}
+		},
+	}
+	baseBox := paint.NewPaintableBoxWithBounds(baseNode, 0, 0, 30, 10)
+
+	hostVNode := rtui.NewElement("box").
+		SetPortalRootId(rtui.DefaultModalPortalRootID).
+		SetLayer(rtui.LayerModal)
+	hostBox := paint.NewPaintableBoxWithBounds(NewVNodePaintableNode(hostVNode), 0, 0, 1, 1)
+	hostBox.Layer = int(paint.RenderLayerModal)
+
+	dialogNode := &mockCustomPaintNode{
+		id:  "dialog",
+		tag: "dialog",
+		paint: func(x, y int) []paint.DrawCmd {
+			return []paint.DrawCmd{{
+				X:     x + 1,
+				Y:     y + 1,
+				Text:  "M",
+				Style: style.NewStyle().Foreground(style.White),
+			}}
+		},
+	}
+	dialogBox := paint.NewPaintableBoxWithBounds(dialogNode, 12, 2, 8, 4)
+	dialogBox.Layer = int(paint.RenderLayerModal)
+	dialogBox.ZIndex = 10
+	hostBox.AddChild(dialogBox)
+
+	layouts := paint.PaintableLayouts{
+		paint.RenderLayerBase:  paint.NewPaintableLayout(baseBox),
+		paint.RenderLayerModal: paint.NewPaintableLayout(hostBox),
+	}
+
+	if err := engine.PaintPaintableLayouts(layouts, buffer); err != nil {
+		t.Fatalf("PaintPaintableLayouts() error = %v", err)
+	}
+
+	dialogCell := buffer.GetContent(13, 3)
+	if dialogCell.Style.FG != style.White {
+		t.Fatalf("dialog cell FG = %q, want %q", dialogCell.Style.FG, style.White)
+	}
+
+	outsideCell := buffer.GetContent(1, 8)
+	if outsideCell.Style.FG != style.BrightBlack {
+		t.Fatalf("outside cell FG = %q, want %q", outsideCell.Style.FG, style.BrightBlack)
+	}
 }
