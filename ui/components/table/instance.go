@@ -51,6 +51,7 @@ type Instance struct {
 	selectedStyle  style.Style
 	borderStyle    style.Style
 	statusStyle    style.Style
+	filterStyle    style.Style
 	scrollbarStyle style.Style
 	gap            int
 	showBorder     bool
@@ -115,6 +116,7 @@ func NewInstance(props rtui.Props) *Instance {
 		selectedStyle:            getStylePropWithDefault(props, "selectedStyle", style.Style{}.Reverse(true)),
 		borderStyle:              getStylePropWithDefault(props, "borderStyle", style.Style{}.Foreground(style.BrightBlack)),
 		statusStyle:              getStylePropWithDefault(props, "statusStyle", style.Style{}.Foreground(style.BrightBlack)),
+		filterStyle:              getStylePropWithDefault(props, "filterStyle", style.Style{}.Foreground(style.BrightBlack)),
 		scrollbarStyle:           getStylePropWithDefault(props, "scrollbarStyle", style.Style{}.Foreground(style.BrightBlack)),
 		gap:                      maxInt(0, getIntProp(props, "gap", 0)),
 		showBorder:               getBoolProp(props, "showBorder", false),
@@ -168,6 +170,7 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	oldSelectedStyle := inst.selectedStyle
 	oldBorderStyle := inst.borderStyle
 	oldStatusStyle := inst.statusStyle
+	oldFilterStyle := inst.filterStyle
 	oldScrollbarStyle := inst.scrollbarStyle
 	oldGap := inst.gap
 	oldShowBorder := inst.showBorder
@@ -204,6 +207,7 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	inst.selectedStyle = getStylePropWithDefault(props, "selectedStyle", inst.selectedStyle)
 	inst.borderStyle = getStylePropWithDefault(props, "borderStyle", inst.borderStyle)
 	inst.statusStyle = getStylePropWithDefault(props, "statusStyle", inst.statusStyle)
+	inst.filterStyle = getStylePropWithDefault(props, "filterStyle", inst.filterStyle)
 	inst.scrollbarStyle = getStylePropWithDefault(props, "scrollbarStyle", inst.scrollbarStyle)
 	inst.gap = maxInt(0, getIntProp(props, "gap", inst.gap))
 	inst.showBorder = getBoolProp(props, "showBorder", inst.showBorder)
@@ -266,6 +270,7 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 		oldSelectedStyle != inst.selectedStyle ||
 		oldBorderStyle != inst.borderStyle ||
 		oldStatusStyle != inst.statusStyle ||
+		oldFilterStyle != inst.filterStyle ||
 		oldScrollbarStyle != inst.scrollbarStyle ||
 		oldGap != inst.gap ||
 		oldShowBorder != inst.showBorder ||
@@ -309,6 +314,7 @@ func (inst *Instance) GetProps() rtui.Props {
 		"selectedStyle":           inst.selectedStyle,
 		"borderStyle":             inst.borderStyle,
 		"statusStyle":             inst.statusStyle,
+		"filterStyle":             inst.filterStyle,
 		"scrollbarStyle":          inst.scrollbarStyle,
 		"gap":                     inst.gap,
 		"showBorder":              inst.showBorder,
@@ -412,6 +418,12 @@ func (inst *Instance) Paint(x, y int) []paint.DrawCmd {
 		text:  inst.composeInnerLine(inst.buildHeaderLine(widths, view), contentWidth, showScrollbar),
 		style: inst.headerStyle,
 	})
+	if inst.hasActiveColumnFilters() {
+		innerLines = append(innerLines, lineSpec{
+			text:  inst.composeInnerLine(inst.buildFilterLine(widths), contentWidth, showScrollbar),
+			style: inst.filterStyle,
+		})
+	}
 	innerLines = append(innerLines, lineSpec{text: inst.composeInnerLine(strings.Repeat("─", maxInt(1, contentWidth)), contentWidth, showScrollbar), style: inst.borderStyle})
 	for i := 0; i < inst.gap; i++ {
 		innerLines = append(innerLines, lineSpec{text: inst.composeInnerLine("", contentWidth, showScrollbar), style: inst.tableStyle})
@@ -768,6 +780,9 @@ func (inst *Instance) lineCountForView(view tableView) int {
 		return 0
 	}
 	lines := 2 + inst.gap
+	if inst.hasActiveColumnFilters() {
+		lines++
+	}
 	if len(view.pageRows) == 0 {
 		lines++
 	} else {
@@ -796,6 +811,15 @@ func (inst *Instance) emptyLineText() string {
 	return formatCell("", selectionColumnWidth, rtui.AlignStart) + " │ " + inst.emptyText
 }
 
+func (inst *Instance) hasActiveColumnFilters() bool {
+	for _, rawFilter := range inst.filters {
+		if strings.TrimSpace(rawFilter) != "" {
+			return true
+		}
+	}
+	return false
+}
+
 func (inst *Instance) selectionHeaderMarker(view tableView) string {
 	if inst.selectionMode != SelectionMultiple {
 		return "Sel"
@@ -818,6 +842,24 @@ func (inst *Instance) selectionHeaderMarker(view tableView) string {
 	default:
 		return "[-]"
 	}
+}
+
+func (inst *Instance) buildFilterLine(widths []int) string {
+	cells := make([]string, 0, len(inst.columns)+1)
+	if inst.selectionMode != SelectionNone {
+		cells = append(cells, formatCell("", selectionColumnWidth, rtui.AlignStart))
+	}
+	for columnIndex := range inst.columns {
+		label := ""
+		if rawFilter, ok := inst.filters[columnIndex]; ok {
+			filter := strings.TrimSpace(rawFilter)
+			if filter != "" {
+				label = "~" + filter
+			}
+		}
+		cells = append(cells, formatCell(label, widths[columnIndex], inst.columns[columnIndex].Align))
+	}
+	return strings.Join(cells, " │ ")
 }
 
 func (inst *Instance) shouldPaintScrollbar(view tableView, visibleRows int) bool {
@@ -867,6 +909,9 @@ func (inst *Instance) maxRenderableRows(showFooter bool) int {
 		return -1
 	}
 	chrome := 2 + inst.gap
+	if inst.hasActiveColumnFilters() {
+		chrome++
+	}
 	if showFooter {
 		chrome++
 	}
@@ -1005,6 +1050,9 @@ func (inst *Instance) headerLocalY() int {
 
 func (inst *Instance) dataStartLocalY() int {
 	start := 2 + inst.gap
+	if inst.hasActiveColumnFilters() {
+		start++
+	}
 	if inst.showBorder {
 		start++
 	}

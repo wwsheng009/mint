@@ -107,6 +107,12 @@ func (b *Builder) StatusStyle(s style.Style) *Builder {
 	return b
 }
 
+// FilterStyle sets the active filter row style.
+func (b *Builder) FilterStyle(s style.Style) *Builder {
+	b.vnode.SetFilterStyle(s)
+	return b
+}
+
 // ShowFooter toggles the status/footer line.
 func (b *Builder) ShowFooter(show bool) *Builder {
 	b.vnode.SetShowFooter(show)

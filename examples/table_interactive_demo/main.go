@@ -28,6 +28,7 @@ type IncidentRecord struct {
 
 type AppState struct {
 	SearchText    string
+	ServiceFilter string
 	StatusFilter  string
 	RegionFilter  string
 	SelectedRow   string
@@ -115,6 +116,12 @@ func init() {
 				s.CurrentPage = 0
 				s = recomputeDerivedState(s)
 				s.LastAction = fmt.Sprintf("Search = %q", strings.TrimSpace(s.SearchText))
+			case "serviceFilter":
+				s.ServiceFilter = fieldChange.Value
+				s.SelectedRow = ""
+				s.CurrentPage = 0
+				s = recomputeDerivedState(s)
+				s.LastAction = fmt.Sprintf("Service filter = %q", strings.TrimSpace(s.ServiceFilter))
 			case "statusFilter":
 				s.StatusFilter = fieldChange.Value
 				s.SelectedRow = ""
@@ -217,6 +224,7 @@ func init() {
 		}).
 		On(ClearFiltersIntent{}, func(s AppState, i intent.Intent) AppState {
 			s.SearchText = ""
+			s.ServiceFilter = ""
 			s.StatusFilter = ""
 			s.RegionFilter = ""
 			s.SelectedRow = ""
@@ -269,7 +277,7 @@ func main() {
 
 func App() ui.VNode {
 	state := demoStore.Get()
-	filteredCount := filteredRecordCount(state.SearchText, state.StatusFilter, state.RegionFilter)
+	filteredCount := filteredRecordCount(state.SearchText, state.ServiceFilter, state.StatusFilter, state.RegionFilter)
 	selectedRecord, hasSelected := selectedRecord(state.SelectedRow)
 
 	return ui.NewVStack().
@@ -299,8 +307,9 @@ func headerPanel(state AppState, filteredCount int) ui.VNode {
 				sortSummary(state.SortColumn, state.SortDesc))).
 				FgColor("bright-white").
 				Build(),
-			ui.NewTextBuilder(fmt.Sprintf("Search=%q  Status=%q  Region=%q  Border=%t  Footer=%t",
+			ui.NewTextBuilder(fmt.Sprintf("Search=%q  Service=%q  Status=%q  Region=%q  Border=%t  Footer=%t",
 				strings.TrimSpace(state.SearchText),
+				strings.TrimSpace(state.ServiceFilter),
 				strings.TrimSpace(state.StatusFilter),
 				strings.TrimSpace(state.RegionFilter),
 				state.ShowBorder,
@@ -324,6 +333,7 @@ func controlsPanel(state AppState) ui.VNode {
 		SetChildrenList([]ui.VNode{
 			ui.HStackBuilder(
 				ui.Flex(inputBlock("Search", state.SearchText, "searchText", "service / owner / status / region / id", 30), 2),
+				ui.Flex(inputBlock("Service Filter", state.ServiceFilter, "serviceFilter", "gateway / billing / search", 22), 1),
 				ui.Flex(inputBlock("Status Filter", state.StatusFilter, "statusFilter", "open / ack / closed / triage", 24), 1),
 				ui.Flex(inputBlock("Region Filter", state.RegionFilter, "regionFilter", "us-east / eu-west / ap-south", 24), 1),
 			).Gap(1).Stretch().Build(),
@@ -372,6 +382,7 @@ func inputBlock(label, value, field, placeholder string, width int) ui.VNode {
 
 func tablePane(state AppState) ui.VNode {
 	filters := map[int]string{
+		1: state.ServiceFilter,
 		2: state.RegionFilter,
 		4: state.StatusFilter,
 	}
@@ -394,6 +405,7 @@ func tablePane(state AppState) ui.VNode {
 		TableStyle(style.Style{}.Foreground(style.BrightWhite)).
 		BorderStyle(style.Style{}.Foreground(style.BrightBlack)).
 		StatusStyle(style.Style{}.Foreground(style.BrightBlack)).
+		FilterStyle(style.Style{}.Foreground(style.Cyan)).
 		ScrollbarStyle(style.Style{}.Foreground(style.BrightBlack)).
 		SelectedStyle(style.Style{}.Foreground(style.Black).Background(style.BrightCyan).Bold(true)).
 		SelectionForField(intent.BindField("checkedRows")).
@@ -476,6 +488,7 @@ func helpPanel() ui.VNode {
 func newInitialState() AppState {
 	initial := AppState{
 		SearchText:    "",
+		ServiceFilter: "",
 		StatusFilter:  "",
 		RegionFilter:  "",
 		SelectedRow:   "",
@@ -496,7 +509,7 @@ func newInitialState() AppState {
 }
 
 func recomputeDerivedState(state AppState) AppState {
-	state.FilteredRows = filteredRecordCount(state.SearchText, state.StatusFilter, state.RegionFilter)
+	state.FilteredRows = filteredRecordCount(state.SearchText, state.ServiceFilter, state.StatusFilter, state.RegionFilter)
 	state.PageCount = pageCount(state.FilteredRows, state.PageSize)
 	state.SelectionMode = normalizeSelectionMode(state.SelectionMode)
 	state.CheckedRows = normalizeCheckedRows(state.CheckedRows, state.SelectionMode)
@@ -509,17 +522,22 @@ func recomputeDerivedState(state AppState) AppState {
 	return state
 }
 
-func filteredRecordCount(search, statusFilter, regionFilter string) int {
+func filteredRecordCount(search, serviceFilter, statusFilter, regionFilter string) int {
 	count := 0
 	for _, record := range demoRecords {
-		if matchesRecord(record, search, statusFilter, regionFilter) {
+		if matchesRecord(record, search, serviceFilter, statusFilter, regionFilter) {
 			count++
 		}
 	}
 	return count
 }
 
-func matchesRecord(record IncidentRecord, search, statusFilter, regionFilter string) bool {
+func matchesRecord(record IncidentRecord, search, serviceFilter, statusFilter, regionFilter string) bool {
+	serviceNeedle := strings.ToLower(strings.TrimSpace(serviceFilter))
+	if serviceNeedle != "" && !strings.Contains(strings.ToLower(record.Service), serviceNeedle) {
+		return false
+	}
+
 	statusNeedle := strings.ToLower(strings.TrimSpace(statusFilter))
 	if statusNeedle != "" && !strings.Contains(strings.ToLower(record.Status), statusNeedle) {
 		return false

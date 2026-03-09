@@ -337,10 +337,10 @@ func TestInstance_PaintAppliesSearchFilterAndFooter(t *testing.T) {
 	if got := textAtY(cmds, 0); !strings.Contains(got, "ID ↑") {
 		t.Fatalf("header = %q, want sort marker", got)
 	}
-	if got := textAtY(cmds, 2); !strings.Contains(got, "3") || !strings.Contains(got, "Alex") {
+	if got := textAtY(cmds, 3); !strings.Contains(got, "3") || !strings.Contains(got, "Alex") {
 		t.Fatalf("first row = %q, want filtered/sorted Alex row", got)
 	}
-	if got := textAtY(cmds, 3); !strings.Contains(got, "Rows 1/3") || !strings.Contains(got, "Search \"al\"") || !strings.Contains(got, "Filters 1") {
+	if got := textAtY(cmds, 4); !strings.Contains(got, "Rows 1/3") || !strings.Contains(got, "Search \"al\"") || !strings.Contains(got, "Filters 1") {
 		t.Fatalf("footer = %q, want search/filter summary", got)
 	}
 }
@@ -706,6 +706,28 @@ func TestInstance_PaintShowsCheckboxMarkers(t *testing.T) {
 	}
 	if got := textAtY(inst.Paint(0, 0), 3); !strings.Contains(got, "[x]") {
 		t.Fatalf("row 1 = %q, want checked marker", got)
+	}
+}
+
+func TestInstance_PaintShowsFilterRowWhenColumnFiltersActive(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"columns": []TableColumn{
+			{Title: "ID", Width: 4},
+			{Title: "Service", Width: 12},
+			{Title: "Region", Width: 8},
+		},
+		"rows": [][]string{
+			{"1", "gateway", "us-east"},
+			{"2", "billing", "eu-west"},
+		},
+		"filters": map[int]string{
+			1: "gate",
+			2: "us",
+		},
+	})
+
+	if got := textAtY(inst.Paint(0, 0), 1); !strings.Contains(got, "~gate") || !strings.Contains(got, "~us") {
+		t.Fatalf("filter row = %q, want active filter values", got)
 	}
 }
 

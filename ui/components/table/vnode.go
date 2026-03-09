@@ -41,6 +41,7 @@ type VNode struct {
 	selectedStyle  style.Style
 	borderStyle    style.Style
 	statusStyle    style.Style
+	filterStyle    style.Style
 	scrollbarStyle style.Style
 
 	// === Layout Props ===
@@ -92,6 +93,7 @@ func New() *VNode {
 		selectedStyle:     style.Style{}.Reverse(true),
 		borderStyle:       style.Style{}.Foreground(style.BrightBlack),
 		statusStyle:       style.Style{}.Foreground(style.BrightBlack),
+		filterStyle:       style.Style{}.Foreground(style.BrightBlack),
 		scrollbarStyle:    style.Style{}.Foreground(style.BrightBlack),
 		gap:               0,
 		showBorder:        false,
@@ -148,6 +150,7 @@ func (v *VNode) Props() rtui.Props {
 		"selectedStyle":           v.selectedStyle,
 		"borderStyle":             v.borderStyle,
 		"statusStyle":             v.statusStyle,
+		"filterStyle":             v.filterStyle,
 		"scrollbarStyle":          v.scrollbarStyle,
 		"gap":                     v.gap,
 		"showBorder":              v.showBorder,
@@ -209,6 +212,9 @@ func (v *VNode) SetProps(p rtui.Props) rtui.VNode {
 	}
 	if val, ok := p["statusStyle"].(style.Style); ok {
 		v.statusStyle = val
+	}
+	if val, ok := p["filterStyle"].(style.Style); ok {
+		v.filterStyle = val
 	}
 	if val, ok := p["scrollbarStyle"].(style.Style); ok {
 		v.scrollbarStyle = val
@@ -307,6 +313,7 @@ func (v *VNode) SetShowScrollbar(show bool) *VNode     { v.showScrollbar = show;
 func (v *VNode) SetBorderStyle(s style.Style) *VNode   { v.borderStyle = s; return v }
 func (v *VNode) SetSelectedStyle(s style.Style) *VNode { v.selectedStyle = s; return v }
 func (v *VNode) SetStatusStyle(s style.Style) *VNode   { v.statusStyle = s; return v }
+func (v *VNode) SetFilterStyle(s style.Style) *VNode   { v.filterStyle = s; return v }
 func (v *VNode) SetScrollbarStyle(s style.Style) *VNode {
 	v.scrollbarStyle = s
 	return v
