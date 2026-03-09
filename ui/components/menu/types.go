@@ -100,6 +100,7 @@ type Model struct {
 	Variant           Variant
 	Title             string
 	Items             []MenuItem
+	Open              bool
 	Layer             rtui.Layer
 	PortalRoot        string
 	AnchorID          string
@@ -107,6 +108,7 @@ type Model struct {
 	PortalPosition    rttypes.PositionType
 	PortalPriority    int
 	Placement         Placement
+	ActivePath        []int
 	ActiveIndex       int
 	SelectedIndex     int
 	ScrollOffset      int
@@ -118,6 +120,8 @@ type Model struct {
 	ShowCheckMarks    bool
 	ShowIcons         bool
 	Scrollable        bool
+	CloseOnOutside    bool
+	CloseOnEscape     bool
 	Typeahead         bool
 	TypeaheadTimeout  time.Duration
 	RegisterShortcuts bool

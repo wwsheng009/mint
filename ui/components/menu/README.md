@@ -18,6 +18,10 @@
 - **可扩展**：支持 checkbox/radio/submenu/custom item/lazy loading
 - **贴合 Mint 现有架构**：基于 `intent`、focus manager、overlay layer、scrollview、tooltip、theme manager 构建
 - **Phase 1.5**：已支持 popup anchor/portal 配置、typeahead 导航、submenu path helpers
+- **Phase 1.6**：已支持单实例级联 submenu 渲染与 `ActivePath(...)` 受控展开
+- **Phase 1.7**：已支持 outside-click / ESC 关闭中间件，以及 app 级 shortcut 注册 helper
+- **接入方式**：可通过 `menu.NewMiddleware()` 接入 action router，通过 `ui.BindMenuGlobalShortcuts(...)` 接入全局快捷键
+- **一键安装**：可通过 `menu.Install(...)` 或 `ui.InstallMenu(...)` 一次性安装中间件与全局快捷键
 
 ---
 

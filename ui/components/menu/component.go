@@ -36,11 +36,14 @@ func NewBuilder() *Builder {
 		model: ThemeableModel{
 			Model: Model{
 				Variant:          VariantPopup,
+				Open:             true,
 				Layer:            rtui.LayerOverlay,
 				ShowShortcuts:    true,
 				ShowCheckMarks:   true,
 				ShowIcons:        true,
 				Scrollable:       true,
+				CloseOnOutside:   true,
+				CloseOnEscape:    true,
 				Typeahead:        true,
 				TypeaheadTimeout: 750 * time.Millisecond,
 				ActiveIndex:      -1,
@@ -86,7 +89,12 @@ func (b *Builder) PortalPriority(priority int) *Builder {
 	b.model.PortalPriority = priority
 	return b
 }
-func (b *Builder) Placement(p Placement) *Builder   { b.model.Placement = p; return b }
+func (b *Builder) Open(open bool) *Builder        { b.model.Open = open; return b }
+func (b *Builder) Placement(p Placement) *Builder { b.model.Placement = p; return b }
+func (b *Builder) ActivePath(path ...int) *Builder {
+	b.model.ActivePath = append([]int(nil), path...)
+	return b
+}
 func (b *Builder) ActiveIndex(index int) *Builder   { b.model.ActiveIndex = index; return b }
 func (b *Builder) SelectedIndex(index int) *Builder { b.model.SelectedIndex = index; return b }
 func (b *Builder) ScrollOffset(offset int) *Builder {
@@ -104,6 +112,8 @@ func (b *Builder) ShowDescriptions(show bool) *Builder { b.model.ShowDescription
 func (b *Builder) ShowCheckMarks(show bool) *Builder   { b.model.ShowCheckMarks = show; return b }
 func (b *Builder) ShowIcons(show bool) *Builder        { b.model.ShowIcons = show; return b }
 func (b *Builder) Scrollable(scrollable bool) *Builder { b.model.Scrollable = scrollable; return b }
+func (b *Builder) CloseOnOutside(close bool) *Builder  { b.model.CloseOnOutside = close; return b }
+func (b *Builder) CloseOnEscape(close bool) *Builder   { b.model.CloseOnEscape = close; return b }
 func (b *Builder) Typeahead(enabled bool) *Builder     { b.model.Typeahead = enabled; return b }
 func (b *Builder) TypeaheadTimeout(timeout time.Duration) *Builder {
 	b.model.TypeaheadTimeout = timeout
@@ -253,8 +263,12 @@ type popupInstance struct {
 	rootStyle     style.Style
 	selectedIndex int
 	scrollOffset  int
+	submenuPath   []int
+	submenuScroll []int
 	typeahead     string
 	typeaheadAt   time.Time
+	open          bool
+	registered    bool
 	focused       bool
 	bounds        [4]int
 	dirty         bool
@@ -281,6 +295,17 @@ type popupMetrics struct {
 	surfaceHeight  int
 	shadowWidth    int
 	shadowHeight   int
+}
+
+type popupSurface struct {
+	depth        int
+	parentPath   []int
+	items        []MenuItem
+	selectedIdx  int
+	scrollOffset int
+	x            int
+	y            int
+	metrics      popupMetrics
 }
 
 var (
@@ -333,9 +358,9 @@ func (inst *barInstance) GetContext() *rtui.ComponentContext { return nil }
 func (inst *popupInstance) Key() string                        { return inst.key }
 func (inst *popupInstance) SetKey(key string)                  { inst.key = key }
 func (inst *popupInstance) Init(props rtui.Props)              { inst.SetProps(props) }
-func (inst *popupInstance) Destroy()                           {}
-func (inst *popupInstance) OnMount()                           { inst.dirty = true }
-func (inst *popupInstance) OnUnmount()                         {}
+func (inst *popupInstance) Destroy()                           { inst.unregister() }
+func (inst *popupInstance) OnMount()                           { inst.syncRegistration(); inst.dirty = true }
+func (inst *popupInstance) OnUnmount()                         { inst.unregister() }
 func (inst *popupInstance) MarkDirty()                         { inst.dirty = true }
 func (inst *popupInstance) IsDirty() bool                      { return inst.dirty }
 func (inst *popupInstance) GetContext() *rtui.ComponentContext { return nil }
@@ -368,13 +393,20 @@ func (inst *popupInstance) SetProps(props rtui.Props) bool {
 		inst.theme = DefaultTheme()
 	}
 	inst.rootStyle = getStyleProp(props, "style")
-	if inst.model.SelectedIndex >= 0 {
+	inst.open = inst.model.Open
+	if len(inst.model.ActivePath) > 0 {
+		inst.selectedIndex = clampIndex(inst.model.ActivePath[0], len(inst.model.Items))
+		inst.submenuPath = append([]int(nil), inst.model.ActivePath[1:]...)
+		inst.submenuScroll = ensureLength(inst.submenuScroll, len(inst.submenuPath))
+	} else if inst.model.SelectedIndex >= 0 {
 		inst.selectedIndex = clampIndex(inst.model.SelectedIndex, len(inst.model.Items))
 	}
 	if inst.selectedIndex < 0 {
 		inst.selectedIndex = FirstSelectableIndex(inst.model.Items)
 	}
 	inst.scrollOffset = clampNonNegative(inst.model.ScrollOffset)
+	inst.normalizeCascadeState()
+	inst.syncRegistration()
 	inst.ensureSelectionVisible()
 	inst.dirty = true
 	return true
@@ -385,7 +417,12 @@ func (inst *barInstance) GetProps() rtui.Props {
 }
 
 func (inst *popupInstance) GetProps() rtui.Props {
-	return rtui.Props{"key": inst.key, "model": inst.model, "theme": inst.theme, "style": inst.rootStyle}
+	model := inst.model
+	model.Open = inst.open
+	model.ActivePath = inst.activePath()
+	model.SelectedIndex = inst.selectedIndex
+	model.ScrollOffset = inst.scrollOffset
+	return rtui.Props{"key": inst.key, "model": model, "theme": inst.theme, "style": inst.rootStyle}
 }
 
 func (inst *barInstance) Measure(constraints layout.Constraints) layout.Size {
@@ -402,9 +439,16 @@ func (inst *barInstance) Measure(constraints layout.Constraints) layout.Size {
 }
 
 func (inst *popupInstance) Measure(constraints layout.Constraints) layout.Size {
-	metrics := inst.popupMetrics()
-	width := metrics.surfaceWidth + metrics.shadowWidth
-	height := metrics.surfaceHeight + metrics.shadowHeight
+	if !inst.open {
+		return layout.Size{}
+	}
+	surfaces := inst.popupSurfaces()
+	width := 1
+	height := 1
+	for _, surface := range surfaces {
+		width = max(width, surface.x+surface.metrics.surfaceWidth+surface.metrics.shadowWidth)
+		height = max(height, surface.y+surface.metrics.surfaceHeight+surface.metrics.shadowHeight)
+	}
 	width = applyWidthConstraints(width, constraints)
 	height = applyHeightConstraints(height, constraints)
 	return layout.Size{Width: width, Height: height}
@@ -431,91 +475,16 @@ func (inst *barInstance) Paint(x, y int) []paint.DrawCmd {
 }
 
 func (inst *popupInstance) Paint(x, y int) []paint.DrawCmd {
-	metrics := inst.popupMetrics()
-	if metrics.surfaceWidth <= 0 || metrics.surfaceHeight <= 0 {
+	if !inst.open {
 		return nil
 	}
-	cmds := make([]paint.DrawCmd, 0, metrics.surfaceHeight*6)
-	borderStyle := inst.theme.SurfaceBorderStyle.Merge(inst.rootStyle)
-	fillStyle := inst.theme.SurfaceStyle.Merge(inst.rootStyle)
-	shadowStyle := inst.theme.SurfaceShadowStyle
-	innerWidth := metrics.innerWidth
-	top := "┌" + strings.Repeat("─", max(0, metrics.surfaceWidth-2)) + "┐"
-	bottom := "└" + strings.Repeat("─", max(0, metrics.surfaceWidth-2)) + "┘"
-	cmds = append(cmds, paint.DrawCmd{X: x, Y: y, Text: top, Style: borderStyle})
-	if strings.TrimSpace(inst.model.Title) != "" && metrics.surfaceWidth > 4 {
-		title := " " + truncateWithEllipsis(inst.model.Title, metrics.surfaceWidth-4) + " "
-		cmds = append(cmds, paint.DrawCmd{X: x + 2, Y: y, Text: title, Style: inst.theme.TitleStyle.Merge(fillStyle)})
+	surfaces := inst.popupSurfaces()
+	if len(surfaces) == 0 {
+		return nil
 	}
-	visible := metrics.visibleIndices
-	viewportRows := metrics.viewportRows
-	for row := 0; row < viewportRows; row++ {
-		yPos := y + 1 + row
-		cmds = append(cmds,
-			paint.DrawCmd{X: x, Y: yPos, Text: "│", Style: borderStyle},
-			paint.DrawCmd{X: x + 1, Y: yPos, Text: strings.Repeat(" ", innerWidth), Style: fillStyle},
-			paint.DrawCmd{X: x + metrics.surfaceWidth - 1, Y: yPos, Text: "│", Style: borderStyle},
-		)
-		itemPos := inst.scrollOffset + row
-		if itemPos < 0 || itemPos >= len(visible) {
-			continue
-		}
-		itemIndex := visible[itemPos]
-		item := inst.model.Items[itemIndex].Normalize()
-		if item.IsSeparator() {
-			cmds = append(cmds, paint.DrawCmd{X: x + 1, Y: yPos, Text: strings.Repeat("─", innerWidth), Style: inst.theme.SeparatorStyle.Merge(fillStyle)})
-			continue
-		}
-		rowStyle := inst.resolvePopupRowStyle(item, itemIndex)
-		cmds = append(cmds, paint.DrawCmd{X: x + 1, Y: yPos, Text: strings.Repeat(" ", innerWidth), Style: rowStyle})
-		leftX := x + 1 + popupLeftPadding
-		if metrics.markWidth > 0 {
-			markText := padDisplayWidth(markForItem(item), metrics.markWidth)
-			cmds = append(cmds, paint.DrawCmd{X: leftX, Y: yPos, Text: markText, Style: rowStyle.Merge(inst.theme.CheckmarkStyle)})
-			leftX += metrics.markWidth + 1
-		}
-		if metrics.iconWidth > 0 {
-			iconText := padDisplayWidth(item.Icon, metrics.iconWidth)
-			cmds = append(cmds, paint.DrawCmd{X: leftX, Y: yPos, Text: iconText, Style: rowStyle.Merge(inst.theme.IconStyle)})
-			leftX += metrics.iconWidth + 1
-		}
-		label := truncateWithEllipsis(item.Label, metrics.contentWidth)
-		labelW := paint.StringWidth(label)
-		cmds = append(cmds, paint.DrawCmd{X: leftX, Y: yPos, Text: label, Style: rowStyle})
-		if inst.model.ShowDescriptions && item.Description != "" {
-			remaining := metrics.contentWidth - labelW
-			if remaining > 0 {
-				desc := truncateWithEllipsis(" — "+item.Description, remaining)
-				cmds = append(cmds, paint.DrawCmd{X: leftX + labelW, Y: yPos, Text: desc, Style: rowStyle.Merge(inst.theme.DescriptionStyle)})
-			}
-		} else if item.SecondaryText != "" {
-			remaining := metrics.contentWidth - labelW
-			if remaining > 0 {
-				secondary := truncateWithEllipsis(" "+item.SecondaryText, remaining)
-				cmds = append(cmds, paint.DrawCmd{X: leftX + labelW, Y: yPos, Text: secondary, Style: rowStyle.Merge(inst.theme.DescriptionStyle)})
-			}
-		}
-		if metrics.shortcutWidth > 0 {
-			shortcutText := padDisplayWidth(truncateWithEllipsis(item.Shortcut.DisplayText(), metrics.shortcutWidth), metrics.shortcutWidth)
-			shortcutX := x + 1 + innerWidth - popupRightPadding - metrics.arrowWidth - metrics.shortcutWidth
-			if metrics.arrowWidth > 0 {
-				shortcutX--
-			}
-			cmds = append(cmds, paint.DrawCmd{X: shortcutX, Y: yPos, Text: shortcutText, Style: rowStyle.Merge(inst.theme.ShortcutStyle)})
-		}
-		if metrics.arrowWidth > 0 && item.HasSubmenu() {
-			arrowX := x + 1 + innerWidth - popupRightPadding - metrics.arrowWidth
-			cmds = append(cmds, paint.DrawCmd{X: arrowX, Y: yPos, Text: padDisplayWidth("›", metrics.arrowWidth), Style: rowStyle.Merge(inst.theme.SubmenuArrowStyle)})
-		}
-	}
-	cmds = append(cmds, paint.DrawCmd{X: x, Y: y + metrics.surfaceHeight - 1, Text: bottom, Style: borderStyle})
-	if metrics.shadowWidth > 0 && !shadowStyle.IsEmpty() {
-		for row := 0; row < metrics.surfaceHeight; row++ {
-			cmds = append(cmds, paint.DrawCmd{X: x + metrics.surfaceWidth, Y: y + row + metrics.shadowHeight - 1, Text: strings.Repeat(" ", metrics.shadowWidth), Style: shadowStyle})
-		}
-	}
-	if metrics.shadowHeight > 0 && !shadowStyle.IsEmpty() {
-		cmds = append(cmds, paint.DrawCmd{X: x + metrics.shadowWidth, Y: y + metrics.surfaceHeight, Text: strings.Repeat(" ", metrics.surfaceWidth), Style: shadowStyle})
+	cmds := make([]paint.DrawCmd, 0, len(surfaces)*32)
+	for _, surface := range surfaces {
+		cmds = append(cmds, inst.paintSurface(surface, x, y)...)
 	}
 	return cmds
 }
@@ -575,96 +544,118 @@ func (inst *barInstance) HandleAction(act *action.Action) bool {
 }
 
 func (inst *popupInstance) HandleAction(act *action.Action) bool {
-	if act == nil {
+	if act == nil || !inst.open {
 		return false
 	}
+	currentDepth := inst.currentDepth()
 	switch act.Type {
 	case action.ActionNavigateUp, action.ActionNavigatePrev:
-		previous := inst.selectedIndex
-		inst.selectedIndex = PrevSelectableIndex(inst.model.Items, inst.selectedIndex)
-		if inst.selectedIndex != previous {
-			inst.EmitIntent(NavigateMenuIntent{MenuID: inst.menuID(), Direction: "up", FromIndex: previous, ToIndex: inst.selectedIndex})
+		items := inst.itemsAtDepth(currentDepth)
+		previous := inst.selectedIndexAtDepth(currentDepth)
+		next := PrevSelectableIndex(items, previous)
+		if next != previous {
+			inst.setSelectedIndexAtDepth(currentDepth, next)
+			inst.trimCascadeAfter(currentDepth)
+			inst.openCurrentSubmenuIfNeeded(currentDepth, false)
+			inst.EmitIntent(NavigateMenuIntent{MenuID: inst.menuID(), Direction: "up", FromIndex: previous, ToIndex: next})
 			inst.ensureSelectionVisible()
 			inst.dirty = true
 		}
 		return true
 	case action.ActionNavigateDown, action.ActionNavigateNext:
-		previous := inst.selectedIndex
-		inst.selectedIndex = NextSelectableIndex(inst.model.Items, inst.selectedIndex)
-		if inst.selectedIndex != previous {
-			inst.EmitIntent(NavigateMenuIntent{MenuID: inst.menuID(), Direction: "down", FromIndex: previous, ToIndex: inst.selectedIndex})
+		items := inst.itemsAtDepth(currentDepth)
+		previous := inst.selectedIndexAtDepth(currentDepth)
+		next := NextSelectableIndex(items, previous)
+		if next != previous {
+			inst.setSelectedIndexAtDepth(currentDepth, next)
+			inst.trimCascadeAfter(currentDepth)
+			inst.openCurrentSubmenuIfNeeded(currentDepth, false)
+			inst.EmitIntent(NavigateMenuIntent{MenuID: inst.menuID(), Direction: "down", FromIndex: previous, ToIndex: next})
 			inst.ensureSelectionVisible()
 			inst.dirty = true
 		}
 		return true
 	case action.ActionNavigateHome:
-		inst.selectedIndex = FirstSelectableIndex(inst.model.Items)
+		inst.setSelectedIndexAtDepth(currentDepth, FirstSelectableIndex(inst.itemsAtDepth(currentDepth)))
+		inst.trimCascadeAfter(currentDepth)
 		inst.ensureSelectionVisible()
 		inst.dirty = true
 		return true
 	case action.ActionNavigateEnd:
-		inst.selectedIndex = LastSelectableIndex(inst.model.Items)
+		inst.setSelectedIndexAtDepth(currentDepth, LastSelectableIndex(inst.itemsAtDepth(currentDepth)))
+		inst.trimCascadeAfter(currentDepth)
 		inst.ensureSelectionVisible()
 		inst.dirty = true
 		return true
 	case action.ActionNavigatePageUp:
-		inst.selectedIndex = inst.pageMove(-1)
+		inst.setSelectedIndexAtDepth(currentDepth, inst.pageMove(currentDepth, -1))
+		inst.trimCascadeAfter(currentDepth)
 		inst.ensureSelectionVisible()
 		inst.dirty = true
 		return true
 	case action.ActionNavigatePageDown:
-		inst.selectedIndex = inst.pageMove(1)
+		inst.setSelectedIndexAtDepth(currentDepth, inst.pageMove(currentDepth, 1))
+		inst.trimCascadeAfter(currentDepth)
 		inst.ensureSelectionVisible()
 		inst.dirty = true
 		return true
 	case action.ActionNavigateRight:
-		if item, ok := inst.currentItem(); ok && item.HasSubmenu() {
-			inst.EmitIntent(OpenMenuIntent{MenuID: inst.menuID(), Path: []int{inst.selectedIndex}})
+		return inst.openCurrentSubmenu(currentDepth)
+	case action.ActionNavigateLeft, action.ActionCancel:
+		if currentDepth > 0 {
+			inst.trimCascadeAfter(currentDepth - 1)
+			inst.ensureSelectionVisible()
+			inst.dirty = true
 			return true
 		}
-	case action.ActionNavigateLeft, action.ActionCancel:
 		inst.EmitIntent(CloseMenuIntent{MenuID: inst.menuID()})
 		return true
 	case action.ActionHover:
 		if mouse, ok := mousePayload(act.Payload); ok {
-			if idx, hit := inst.popupIndexAt(mouse.LocalY); hit {
-				inst.selectedIndex = idx
+			if depth, idx, hit := inst.popupIndexAt(mouse.LocalX, mouse.LocalY); hit {
+				inst.setSelectedIndexAtDepth(depth, idx)
+				inst.trimCascadeAfter(depth)
 				inst.ensureSelectionVisible()
 				inst.dirty = true
-				if item := inst.model.Items[idx].Normalize(); item.HasSubmenu() {
-					inst.EmitIntent(OpenMenuIntent{MenuID: inst.menuID(), Path: []int{idx}})
-				}
+				inst.openCurrentSubmenuIfNeeded(depth, true)
 				return true
 			}
 		}
 	case action.ActionClick, action.ActionEnter, action.ActionSubmit:
 		if act.Type == action.ActionClick {
 			if mouse, ok := mousePayload(act.Payload); ok {
-				if idx, hit := inst.popupIndexAt(mouse.LocalY); hit {
-					inst.selectedIndex = idx
+				if depth, idx, hit := inst.popupIndexAt(mouse.LocalX, mouse.LocalY); hit {
+					inst.setSelectedIndexAtDepth(depth, idx)
+					inst.trimCascadeAfter(depth)
+					currentDepth = depth
 				}
 			}
 		}
-		inst.activatePopupIndex(inst.selectedIndex)
+		inst.activatePopupIndex(currentDepth, inst.selectedIndexAtDepth(currentDepth))
 		return true
 	case action.ActionInputText:
 		if !inst.model.Typeahead {
 			return false
 		}
 		if text, ok := act.GetPayloadString(); ok {
-			return inst.applyTypeahead(text)
+			return inst.applyTypeahead(currentDepth, text)
 		}
 	case action.ActionInputChar:
 		if !inst.model.Typeahead {
 			return false
 		}
 		if r, ok := act.GetPayloadRune(); ok {
-			return inst.applyTypeahead(string(r))
+			return inst.applyTypeahead(currentDepth, string(r))
 		}
 	case action.ActionScroll:
 		if delta, ok := scrollutil.DeltaFromAction(act); ok {
-			inst.scrollOffset = clamp(inst.scrollOffset+delta, 0, inst.maxScrollOffset())
-			inst.dirty = true
+			if mouse, ok := mousePayload(act.Payload); ok {
+				if depth, _, hit := inst.popupIndexAt(mouse.LocalX, mouse.LocalY); hit {
+					inst.adjustScroll(depth, delta)
+					return true
+				}
+			}
+			inst.adjustScroll(currentDepth, delta)
 			return true
 		}
 	}
@@ -685,7 +676,7 @@ func (inst *popupInstance) SetFocus(focused bool) {
 }
 
 func (inst *popupInstance) HasFocus() bool   { return inst.focused }
-func (inst *popupInstance) IsDisabled() bool { return false }
+func (inst *popupInstance) IsDisabled() bool { return !inst.open }
 
 func (inst *barInstance) SetIntentEmitter(fn func(intent.Intent))   { inst.intentEmitter = fn }
 func (inst *popupInstance) SetIntentEmitter(fn func(intent.Intent)) { inst.intentEmitter = fn }
@@ -702,6 +693,36 @@ func (inst *popupInstance) EmitIntent(i intent.Intent) {
 	}
 }
 
+func (inst *popupInstance) syncRegistration() {
+	if !inst.open {
+		inst.unregister()
+		return
+	}
+	if inst.registered {
+		return
+	}
+	menuRegistryGlobal.register(inst)
+	inst.registered = true
+}
+
+func (inst *popupInstance) unregister() {
+	if !inst.registered {
+		return
+	}
+	menuRegistryGlobal.unregister(inst)
+	inst.registered = false
+}
+
+func (inst *popupInstance) close() {
+	if !inst.open {
+		return
+	}
+	inst.open = false
+	inst.unregister()
+	inst.dirty = true
+	inst.EmitIntent(CloseMenuIntent{MenuID: inst.menuID()})
+}
+
 func (inst *barInstance) GetBounds() (x, y, w, h int) {
 	return inst.bounds[0], inst.bounds[1], inst.bounds[2], inst.bounds[3]
 }
@@ -716,6 +737,23 @@ func (inst *popupInstance) GetBounds() (x, y, w, h int) {
 
 func (inst *popupInstance) SetBounds(x, y, w, h int) {
 	inst.bounds = [4]int{x, y, w, h}
+}
+
+func (inst *popupInstance) containsPoint(screenX, screenY int) bool {
+	if !inst.open {
+		return false
+	}
+	baseX, baseY := inst.bounds[0], inst.bounds[1]
+	for _, surface := range inst.popupSurfaces() {
+		left := baseX + surface.x
+		top := baseY + surface.y
+		right := left + surface.metrics.surfaceWidth + surface.metrics.shadowWidth
+		bottom := top + surface.metrics.surfaceHeight + surface.metrics.shadowHeight
+		if screenX >= left && screenX < right && screenY >= top && screenY < bottom {
+			return true
+		}
+	}
+	return false
 }
 
 func (inst *barInstance) barSegments() []barSegment {
@@ -759,14 +797,14 @@ func (inst *barInstance) activateBarIndex(index int) {
 	inst.EmitIntent(item.EffectiveIntent())
 }
 
-func (inst *popupInstance) popupMetrics() popupMetrics {
-	visible := make([]int, 0, len(inst.model.Items))
+func (inst *popupInstance) popupMetricsFor(items []MenuItem) popupMetrics {
+	visible := make([]int, 0, len(items))
 	contentWidth := 0
 	markWidth := 0
 	iconWidth := 0
 	shortcutWidth := 0
 	arrowWidth := 0
-	for index, raw := range inst.model.Items {
+	for index, raw := range items {
 		item := raw.Normalize()
 		if !item.IsVisible() {
 			continue
@@ -843,25 +881,31 @@ func (inst *popupInstance) popupMetrics() popupMetrics {
 	return popupMetrics{visibleIndices: visible, innerWidth: innerWidth, contentWidth: contentWidth, markWidth: markWidth, iconWidth: iconWidth, shortcutWidth: shortcutWidth, arrowWidth: arrowWidth, viewportRows: viewportRows, surfaceWidth: surfaceWidth, surfaceHeight: surfaceHeight, shadowWidth: shadowWidth, shadowHeight: shadowHeight}
 }
 
-func (inst *popupInstance) popupIndexAt(localY int) (int, bool) {
-	metrics := inst.popupMetrics()
-	row := localY - 1
-	if row < 0 || row >= metrics.viewportRows {
-		return -1, false
+func (inst *popupInstance) popupIndexAt(localX, localY int) (int, int, bool) {
+	surfaces := inst.popupSurfaces()
+	for _, surface := range surfaces {
+		if localX < surface.x || localX >= surface.x+surface.metrics.surfaceWidth {
+			continue
+		}
+		if localY < surface.y+1 || localY >= surface.y+1+surface.metrics.viewportRows {
+			continue
+		}
+		row := localY - surface.y - 1
+		itemPos := surface.scrollOffset + row
+		if itemPos < 0 || itemPos >= len(surface.metrics.visibleIndices) {
+			return 0, -1, false
+		}
+		itemIndex := surface.metrics.visibleIndices[itemPos]
+		item := surface.items[itemIndex].Normalize()
+		if !item.IsSelectable() {
+			return 0, -1, false
+		}
+		return surface.depth, itemIndex, true
 	}
-	idx := inst.scrollOffset + row
-	if idx < 0 || idx >= len(metrics.visibleIndices) {
-		return -1, false
-	}
-	itemIndex := metrics.visibleIndices[idx]
-	item := inst.model.Items[itemIndex].Normalize()
-	if !item.IsSelectable() {
-		return -1, false
-	}
-	return itemIndex, true
+	return 0, -1, false
 }
 
-func (inst *popupInstance) resolvePopupRowStyle(item MenuItem, itemIndex int) style.Style {
+func (inst *popupInstance) resolvePopupRowStyle(item MenuItem, selected bool) style.Style {
 	rowStyle := inst.theme.ItemStyle.Merge(inst.theme.SurfaceStyle).Merge(inst.rootStyle)
 	if item.Danger {
 		rowStyle = rowStyle.Merge(inst.theme.ItemDangerStyle)
@@ -869,7 +913,7 @@ func (inst *popupInstance) resolvePopupRowStyle(item MenuItem, itemIndex int) st
 	if item.Checked {
 		rowStyle = rowStyle.Merge(inst.theme.ItemCheckedStyle)
 	}
-	if itemIndex == inst.selectedIndex {
+	if selected {
 		rowStyle = rowStyle.Merge(inst.theme.ItemActiveStyle)
 		if inst.focused {
 			rowStyle = rowStyle.Merge(inst.theme.ItemFocusStyle)
@@ -886,26 +930,30 @@ func (inst *popupInstance) resolvePopupRowStyle(item MenuItem, itemIndex int) st
 	return rowStyle
 }
 
-func (inst *popupInstance) currentItem() (MenuItem, bool) {
-	if inst.selectedIndex < 0 || inst.selectedIndex >= len(inst.model.Items) {
+func (inst *popupInstance) currentItem(depth int) (MenuItem, bool) {
+	items := inst.itemsAtDepth(depth)
+	index := inst.selectedIndexAtDepth(depth)
+	if index < 0 || index >= len(items) {
 		return MenuItem{}, false
 	}
-	return inst.model.Items[inst.selectedIndex].Normalize(), true
+	return items[index].Normalize(), true
 }
 
-func (inst *popupInstance) activatePopupIndex(index int) {
-	if index < 0 || index >= len(inst.model.Items) {
+func (inst *popupInstance) activatePopupIndex(depth, index int) {
+	items := inst.itemsAtDepth(depth)
+	if index < 0 || index >= len(items) {
 		return
 	}
-	item := inst.model.Items[index].Normalize()
+	item := items[index].Normalize()
 	if !item.IsSelectable() {
 		return
 	}
 	if item.HasSubmenu() {
-		inst.EmitIntent(OpenMenuIntent{MenuID: inst.menuID(), Path: []int{index}})
+		inst.openCurrentSubmenu(depth)
 		return
 	}
-	inst.EmitIntent(ActivateMenuItemIntent{MenuID: inst.menuID(), ItemKey: item.Key, Path: []int{index}})
+	itemPath := inst.pathAtDepth(depth, index)
+	inst.EmitIntent(ActivateMenuItemIntent{MenuID: inst.menuID(), ItemKey: item.Key, Path: itemPath})
 	inst.EmitIntent(item.EffectiveIntent())
 	if item.EffectiveCloseOnSelect() {
 		inst.EmitIntent(CloseMenuIntent{MenuID: inst.menuID()})
@@ -913,46 +961,26 @@ func (inst *popupInstance) activatePopupIndex(index int) {
 }
 
 func (inst *popupInstance) ensureSelectionVisible() {
-	metrics := inst.popupMetrics()
-	if len(metrics.visibleIndices) == 0 {
-		inst.scrollOffset = 0
-		return
+	inst.ensureSelectionVisibleAtDepth(0)
+	for depth := 1; depth <= len(inst.submenuPath); depth++ {
+		inst.ensureSelectionVisibleAtDepth(depth)
 	}
-	if inst.selectedIndex < 0 {
-		inst.selectedIndex = FirstSelectableIndex(inst.model.Items)
-	}
-	visiblePosition := -1
-	for i, idx := range metrics.visibleIndices {
-		if idx == inst.selectedIndex {
-			visiblePosition = i
-			break
-		}
-	}
-	if visiblePosition < 0 {
-		return
-	}
-	maxOffset := inst.maxScrollOffset()
-	if visiblePosition < inst.scrollOffset {
-		inst.scrollOffset = visiblePosition
-	} else if visiblePosition >= inst.scrollOffset+metrics.viewportRows {
-		inst.scrollOffset = visiblePosition - metrics.viewportRows + 1
-	}
-	inst.scrollOffset = clamp(inst.scrollOffset, 0, maxOffset)
 }
 
-func (inst *popupInstance) maxScrollOffset() int {
-	metrics := inst.popupMetrics()
+func (inst *popupInstance) maxScrollOffset(depth int) int {
+	metrics := inst.popupMetricsFor(inst.itemsAtDepth(depth))
 	return max(0, len(metrics.visibleIndices)-metrics.viewportRows)
 }
 
-func (inst *popupInstance) pageMove(direction int) int {
-	metrics := inst.popupMetrics()
+func (inst *popupInstance) pageMove(depth, direction int) int {
+	items := inst.itemsAtDepth(depth)
+	metrics := inst.popupMetricsFor(items)
 	if len(metrics.visibleIndices) == 0 {
 		return -1
 	}
 	position := 0
 	for i, idx := range metrics.visibleIndices {
-		if idx == inst.selectedIndex {
+		if idx == inst.selectedIndexAtDepth(depth) {
 			position = i
 			break
 		}
@@ -961,15 +989,15 @@ func (inst *popupInstance) pageMove(direction int) int {
 	position = clamp(position, 0, len(metrics.visibleIndices)-1)
 	for position >= 0 && position < len(metrics.visibleIndices) {
 		idx := metrics.visibleIndices[position]
-		if inst.model.Items[idx].Normalize().IsSelectable() {
+		if items[idx].Normalize().IsSelectable() {
 			return idx
 		}
 		position += direction
 	}
-	return inst.selectedIndex
+	return inst.selectedIndexAtDepth(depth)
 }
 
-func (inst *popupInstance) applyTypeahead(text string) bool {
+func (inst *popupInstance) applyTypeahead(depth int, text string) bool {
 	text = strings.TrimSpace(text)
 	if text == "" {
 		return false
@@ -984,21 +1012,351 @@ func (inst *popupInstance) applyTypeahead(text string) bool {
 	}
 	inst.typeaheadAt = now
 	inst.typeahead += strings.ToLower(text)
-	if match := MatchTypeahead(inst.model.Items, inst.typeahead, inst.selectedIndex); match >= 0 {
-		inst.selectedIndex = match
+	items := inst.itemsAtDepth(depth)
+	currentIndex := inst.selectedIndexAtDepth(depth)
+	if match := MatchTypeahead(items, inst.typeahead, currentIndex); match >= 0 {
+		inst.setSelectedIndexAtDepth(depth, match)
+		inst.trimCascadeAfter(depth)
 		inst.ensureSelectionVisible()
 		inst.dirty = true
 		return true
 	}
 	last := strings.ToLower(text)
 	inst.typeahead = last
-	if match := MatchTypeahead(inst.model.Items, inst.typeahead, inst.selectedIndex); match >= 0 {
-		inst.selectedIndex = match
+	if match := MatchTypeahead(items, inst.typeahead, currentIndex); match >= 0 {
+		inst.setSelectedIndexAtDepth(depth, match)
+		inst.trimCascadeAfter(depth)
 		inst.ensureSelectionVisible()
 		inst.dirty = true
 		return true
 	}
 	return false
+}
+
+func (inst *popupInstance) normalizeCascadeState() {
+	if inst.selectedIndex < 0 {
+		inst.selectedIndex = FirstSelectableIndex(inst.model.Items)
+	}
+	items := inst.model.Items
+	depth := 0
+	trimmedPath := make([]int, 0, len(inst.submenuPath))
+	trimmedScroll := make([]int, 0, len(inst.submenuScroll))
+	currentIndex := inst.selectedIndex
+	for depth < len(inst.submenuPath) {
+		if currentIndex < 0 || currentIndex >= len(items) {
+			break
+		}
+		item := items[currentIndex].Normalize()
+		if !item.HasSubmenu() || len(item.Children) == 0 {
+			break
+		}
+		childIndex := inst.submenuPath[depth]
+		if childIndex < 0 || childIndex >= len(item.Children) {
+			childIndex = FirstSelectableIndex(item.Children)
+			if childIndex < 0 {
+				break
+			}
+		}
+		trimmedPath = append(trimmedPath, childIndex)
+		if depth < len(inst.submenuScroll) {
+			trimmedScroll = append(trimmedScroll, clampNonNegative(inst.submenuScroll[depth]))
+		} else {
+			trimmedScroll = append(trimmedScroll, 0)
+		}
+		items = item.Children
+		currentIndex = childIndex
+		depth++
+	}
+	inst.submenuPath = trimmedPath
+	inst.submenuScroll = trimmedScroll
+}
+
+func (inst *popupInstance) popupSurfaces() []popupSurface {
+	rootMetrics := inst.popupMetricsFor(inst.model.Items)
+	surfaces := []popupSurface{{
+		depth:        0,
+		items:        inst.model.Items,
+		selectedIdx:  inst.selectedIndex,
+		scrollOffset: inst.scrollOffset,
+		x:            0,
+		y:            0,
+		metrics:      rootMetrics,
+	}}
+	prefix := []int{inst.selectedIndex}
+	for depth := 1; depth <= len(inst.submenuPath); depth++ {
+		parentSurface := surfaces[depth-1]
+		parentItem, ok := ItemAtPath(inst.model.Items, prefix[:depth])
+		if !ok || !parentItem.HasSubmenu() || len(parentItem.Children) == 0 {
+			break
+		}
+		selectedIdx := inst.submenuPath[depth-1]
+		metrics := inst.popupMetricsFor(parentItem.Children)
+		rowPos := visiblePosition(parentSurface.metrics.visibleIndices, prefix[depth-1], parentSurface.scrollOffset)
+		if rowPos < 0 {
+			rowPos = 0
+		}
+		surface := popupSurface{
+			depth:        depth,
+			parentPath:   append([]int(nil), prefix[:depth]...),
+			items:        parentItem.Children,
+			selectedIdx:  selectedIdx,
+			scrollOffset: inst.scrollAtDepth(depth),
+			x:            parentSurface.x + parentSurface.metrics.surfaceWidth + parentSurface.metrics.shadowWidth,
+			y:            parentSurface.y + rowPos,
+			metrics:      metrics,
+		}
+		surfaces = append(surfaces, surface)
+		prefix = append(prefix, selectedIdx)
+	}
+	return surfaces
+}
+
+func (inst *popupInstance) paintSurface(surface popupSurface, offsetX, offsetY int) []paint.DrawCmd {
+	metrics := surface.metrics
+	x := offsetX + surface.x
+	y := offsetY + surface.y
+	borderStyle := inst.theme.SurfaceBorderStyle.Merge(inst.rootStyle)
+	fillStyle := inst.theme.SurfaceStyle.Merge(inst.rootStyle)
+	shadowStyle := inst.theme.SurfaceShadowStyle
+	innerWidth := metrics.innerWidth
+	cmds := make([]paint.DrawCmd, 0, metrics.surfaceHeight*6)
+	top := "┌" + strings.Repeat("─", max(0, metrics.surfaceWidth-2)) + "┐"
+	bottom := "└" + strings.Repeat("─", max(0, metrics.surfaceWidth-2)) + "┘"
+	cmds = append(cmds, paint.DrawCmd{X: x, Y: y, Text: top, Style: borderStyle})
+	if surface.depth == 0 && strings.TrimSpace(inst.model.Title) != "" && metrics.surfaceWidth > 4 {
+		title := " " + truncateWithEllipsis(inst.model.Title, metrics.surfaceWidth-4) + " "
+		cmds = append(cmds, paint.DrawCmd{X: x + 2, Y: y, Text: title, Style: inst.theme.TitleStyle.Merge(fillStyle)})
+	}
+	for row := 0; row < metrics.viewportRows; row++ {
+		yPos := y + 1 + row
+		cmds = append(cmds,
+			paint.DrawCmd{X: x, Y: yPos, Text: "│", Style: borderStyle},
+			paint.DrawCmd{X: x + 1, Y: yPos, Text: strings.Repeat(" ", innerWidth), Style: fillStyle},
+			paint.DrawCmd{X: x + metrics.surfaceWidth - 1, Y: yPos, Text: "│", Style: borderStyle},
+		)
+		itemPos := surface.scrollOffset + row
+		if itemPos < 0 || itemPos >= len(metrics.visibleIndices) {
+			continue
+		}
+		itemIndex := metrics.visibleIndices[itemPos]
+		item := surface.items[itemIndex].Normalize()
+		if item.IsSeparator() {
+			cmds = append(cmds, paint.DrawCmd{X: x + 1, Y: yPos, Text: strings.Repeat("─", innerWidth), Style: inst.theme.SeparatorStyle.Merge(fillStyle)})
+			continue
+		}
+		rowStyle := inst.resolvePopupRowStyle(item, itemIndex == surface.selectedIdx)
+		cmds = append(cmds, paint.DrawCmd{X: x + 1, Y: yPos, Text: strings.Repeat(" ", innerWidth), Style: rowStyle})
+		leftX := x + 1 + popupLeftPadding
+		if metrics.markWidth > 0 {
+			cmds = append(cmds, paint.DrawCmd{X: leftX, Y: yPos, Text: padDisplayWidth(markForItem(item), metrics.markWidth), Style: rowStyle.Merge(inst.theme.CheckmarkStyle)})
+			leftX += metrics.markWidth + 1
+		}
+		if metrics.iconWidth > 0 {
+			cmds = append(cmds, paint.DrawCmd{X: leftX, Y: yPos, Text: padDisplayWidth(item.Icon, metrics.iconWidth), Style: rowStyle.Merge(inst.theme.IconStyle)})
+			leftX += metrics.iconWidth + 1
+		}
+		label := truncateWithEllipsis(item.Label, metrics.contentWidth)
+		labelW := paint.StringWidth(label)
+		cmds = append(cmds, paint.DrawCmd{X: leftX, Y: yPos, Text: label, Style: rowStyle})
+		if inst.model.ShowDescriptions && item.Description != "" {
+			remaining := metrics.contentWidth - labelW
+			if remaining > 0 {
+				desc := truncateWithEllipsis(" — "+item.Description, remaining)
+				cmds = append(cmds, paint.DrawCmd{X: leftX + labelW, Y: yPos, Text: desc, Style: rowStyle.Merge(inst.theme.DescriptionStyle)})
+			}
+		} else if item.SecondaryText != "" {
+			remaining := metrics.contentWidth - labelW
+			if remaining > 0 {
+				secondary := truncateWithEllipsis(" "+item.SecondaryText, remaining)
+				cmds = append(cmds, paint.DrawCmd{X: leftX + labelW, Y: yPos, Text: secondary, Style: rowStyle.Merge(inst.theme.DescriptionStyle)})
+			}
+		}
+		if metrics.shortcutWidth > 0 {
+			shortcutText := padDisplayWidth(truncateWithEllipsis(item.Shortcut.DisplayText(), metrics.shortcutWidth), metrics.shortcutWidth)
+			shortcutX := x + 1 + innerWidth - popupRightPadding - metrics.arrowWidth - metrics.shortcutWidth
+			if metrics.arrowWidth > 0 {
+				shortcutX--
+			}
+			cmds = append(cmds, paint.DrawCmd{X: shortcutX, Y: yPos, Text: shortcutText, Style: rowStyle.Merge(inst.theme.ShortcutStyle)})
+		}
+		if metrics.arrowWidth > 0 && item.HasSubmenu() {
+			arrowX := x + 1 + innerWidth - popupRightPadding - metrics.arrowWidth
+			cmds = append(cmds, paint.DrawCmd{X: arrowX, Y: yPos, Text: padDisplayWidth("›", metrics.arrowWidth), Style: rowStyle.Merge(inst.theme.SubmenuArrowStyle)})
+		}
+	}
+	cmds = append(cmds, paint.DrawCmd{X: x, Y: y + metrics.surfaceHeight - 1, Text: bottom, Style: borderStyle})
+	if metrics.shadowWidth > 0 && !shadowStyle.IsEmpty() {
+		for row := 0; row < metrics.surfaceHeight; row++ {
+			cmds = append(cmds, paint.DrawCmd{X: x + metrics.surfaceWidth, Y: y + row + metrics.shadowHeight - 1, Text: strings.Repeat(" ", metrics.shadowWidth), Style: shadowStyle})
+		}
+	}
+	if metrics.shadowHeight > 0 && !shadowStyle.IsEmpty() {
+		cmds = append(cmds, paint.DrawCmd{X: x + metrics.shadowWidth, Y: y + metrics.surfaceHeight, Text: strings.Repeat(" ", metrics.surfaceWidth), Style: shadowStyle})
+	}
+	return cmds
+}
+
+func (inst *popupInstance) itemsAtDepth(depth int) []MenuItem {
+	if depth <= 0 {
+		return inst.model.Items
+	}
+	path := inst.activePath()
+	if depth > len(path) {
+		return nil
+	}
+	children, ok := ChildrenAtPath(inst.model.Items, path[:depth])
+	if !ok {
+		return nil
+	}
+	return children
+}
+
+func (inst *popupInstance) selectedIndexAtDepth(depth int) int {
+	if depth <= 0 {
+		return inst.selectedIndex
+	}
+	if depth-1 >= len(inst.submenuPath) {
+		return -1
+	}
+	return inst.submenuPath[depth-1]
+}
+
+func (inst *popupInstance) setSelectedIndexAtDepth(depth, index int) {
+	if depth <= 0 {
+		inst.selectedIndex = index
+		return
+	}
+	if len(inst.submenuPath) < depth {
+		inst.submenuPath = append(inst.submenuPath, make([]int, depth-len(inst.submenuPath))...)
+	}
+	inst.submenuPath[depth-1] = index
+	inst.submenuScroll = ensureLength(inst.submenuScroll, len(inst.submenuPath))
+}
+
+func (inst *popupInstance) scrollAtDepth(depth int) int {
+	if depth <= 0 {
+		return inst.scrollOffset
+	}
+	if depth-1 >= len(inst.submenuScroll) {
+		return 0
+	}
+	return inst.submenuScroll[depth-1]
+}
+
+func (inst *popupInstance) setScrollAtDepth(depth, offset int) {
+	if depth <= 0 {
+		inst.scrollOffset = offset
+		return
+	}
+	inst.submenuScroll = ensureLength(inst.submenuScroll, depth)
+	inst.submenuScroll[depth-1] = offset
+}
+
+func (inst *popupInstance) currentDepth() int {
+	return len(inst.submenuPath)
+}
+
+func (inst *popupInstance) activePath() []int {
+	if inst.selectedIndex < 0 {
+		return nil
+	}
+	path := []int{inst.selectedIndex}
+	path = append(path, inst.submenuPath...)
+	return path
+}
+
+func (inst *popupInstance) pathAtDepth(depth, index int) []int {
+	if depth <= 0 {
+		return []int{index}
+	}
+	path := []int{inst.selectedIndex}
+	path = append(path, inst.submenuPath[:depth-1]...)
+	path = append(path, index)
+	return path
+}
+
+func (inst *popupInstance) trimCascadeAfter(depth int) {
+	if depth < 0 {
+		depth = 0
+	}
+	if depth == 0 {
+		inst.submenuPath = nil
+		inst.submenuScroll = nil
+		return
+	}
+	if len(inst.submenuPath) > depth {
+		inst.submenuPath = append([]int(nil), inst.submenuPath[:depth]...)
+	}
+	if len(inst.submenuScroll) > depth {
+		inst.submenuScroll = append([]int(nil), inst.submenuScroll[:depth]...)
+	}
+}
+
+func (inst *popupInstance) ensureSelectionVisibleAtDepth(depth int) {
+	items := inst.itemsAtDepth(depth)
+	metrics := inst.popupMetricsFor(items)
+	if len(metrics.visibleIndices) == 0 {
+		inst.setScrollAtDepth(depth, 0)
+		return
+	}
+	selectedIndex := inst.selectedIndexAtDepth(depth)
+	if selectedIndex < 0 {
+		selectedIndex = FirstSelectableIndex(items)
+		inst.setSelectedIndexAtDepth(depth, selectedIndex)
+	}
+	visiblePosition := visiblePosition(metrics.visibleIndices, selectedIndex, 0)
+	if visiblePosition < 0 {
+		return
+	}
+	scrollOffset := inst.scrollAtDepth(depth)
+	maxOffset := inst.maxScrollOffset(depth)
+	if visiblePosition < scrollOffset {
+		scrollOffset = visiblePosition
+	} else if visiblePosition >= scrollOffset+metrics.viewportRows {
+		scrollOffset = visiblePosition - metrics.viewportRows + 1
+	}
+	inst.setScrollAtDepth(depth, clamp(scrollOffset, 0, maxOffset))
+}
+
+func (inst *popupInstance) openCurrentSubmenu(depth int) bool {
+	item, ok := inst.currentItem(depth)
+	if !ok || !item.HasSubmenu() {
+		return false
+	}
+	childIndex := FirstSelectableIndex(item.Children)
+	if childIndex < 0 {
+		inst.EmitIntent(OpenMenuIntent{MenuID: inst.menuID(), Path: inst.pathAtDepth(depth, inst.selectedIndexAtDepth(depth))})
+		return true
+	}
+	inst.submenuPath = ensureLength(inst.submenuPath, depth+1)
+	inst.submenuScroll = ensureLength(inst.submenuScroll, depth+1)
+	inst.submenuPath[depth] = childIndex
+	inst.submenuScroll[depth] = 0
+	inst.ensureSelectionVisible()
+	inst.EmitIntent(OpenMenuIntent{MenuID: inst.menuID(), Path: inst.pathAtDepth(depth, inst.selectedIndexAtDepth(depth))})
+	inst.dirty = true
+	return true
+}
+
+func (inst *popupInstance) openCurrentSubmenuIfNeeded(depth int, viaHover bool) {
+	item, ok := inst.currentItem(depth)
+	if !ok {
+		return
+	}
+	if !item.HasSubmenu() {
+		inst.trimCascadeAfter(depth)
+		return
+	}
+	if viaHover || depth < inst.currentDepth() {
+		inst.openCurrentSubmenu(depth)
+	}
+}
+
+func (inst *popupInstance) adjustScroll(depth, delta int) {
+	maxOffset := inst.maxScrollOffset(depth)
+	next := clamp(inst.scrollAtDepth(depth)+delta, 0, maxOffset)
+	inst.setScrollAtDepth(depth, next)
+	inst.dirty = true
 }
 
 func (inst *barInstance) menuID() string {
@@ -1045,6 +1403,13 @@ func getStyleProp(props rtui.Props, key string) style.Style {
 
 func getStringProp(props rtui.Props, key, def string) string {
 	if value, ok := props[key].(string); ok {
+		return value
+	}
+	return def
+}
+
+func getBoolProp(props rtui.Props, key string, def bool) bool {
+	if value, ok := props[key].(bool); ok {
 		return value
 	}
 	return def
@@ -1197,6 +1562,27 @@ func firstNonEmpty(values ...string) string {
 		}
 	}
 	return ""
+}
+
+func ensureLength(values []int, length int) []int {
+	if length <= 0 {
+		return nil
+	}
+	if len(values) >= length {
+		return append([]int(nil), values[:length]...)
+	}
+	out := append([]int(nil), values...)
+	out = append(out, make([]int, length-len(out))...)
+	return out
+}
+
+func visiblePosition(indices []int, selected, scrollOffset int) int {
+	for i, idx := range indices {
+		if idx == selected {
+			return i - scrollOffset
+		}
+	}
+	return -1
 }
 
 func max(a, b int) int {

@@ -2,6 +2,8 @@ package ui
 
 import (
 	"testing"
+
+	"github.com/wwsheng009/mint/framework"
 )
 
 type menuShortcutTestIntent struct{}
@@ -25,5 +27,27 @@ func TestMenuShortcuts(t *testing.T) {
 	}
 	if MenuPortalFixed != 2 {
 		t.Fatalf("MenuPortalFixed = %d, want 2", MenuPortalFixed)
+	}
+}
+
+func TestBindMenuGlobalShortcuts(t *testing.T) {
+	app := framework.NewApp()
+	builder := NewMenuPopupBuilder(MenuItems(
+		MenuAction("open", "Open", menuShortcutTestIntent{}).WithShortcut("ctrl+o"),
+	)).RegisterShortcuts(true)
+
+	if count := BindMenuGlobalShortcuts(app, builder); count != 1 {
+		t.Fatalf("BindMenuGlobalShortcuts() = %d, want 1", count)
+	}
+}
+
+func TestInstallMenu(t *testing.T) {
+	app := framework.NewApp()
+	builder := NewMenuPopupBuilder(MenuItems(
+		MenuAction("open", "Open", menuShortcutTestIntent{}).WithShortcut("ctrl+o"),
+	)).RegisterShortcuts(true)
+
+	if count := InstallMenu(app, builder); count != 1 {
+		t.Fatalf("InstallMenu() = %d, want 1", count)
 	}
 }

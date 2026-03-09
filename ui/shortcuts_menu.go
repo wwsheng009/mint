@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"github.com/wwsheng009/mint/framework"
 	"github.com/wwsheng009/mint/runtime/intent"
 	rttypes "github.com/wwsheng009/mint/runtime/types"
 	menucomp "github.com/wwsheng009/mint/ui/components/menu"
@@ -63,4 +64,21 @@ func MenuLabel(key, label string) menucomp.MenuItem            { return menucomp
 func MenuItems(items ...menucomp.MenuItem) []menucomp.MenuItem { return menucomp.Items(items...) }
 func MenuCollectShortcuts(items []menucomp.MenuItem) []menucomp.ShortcutBinding {
 	return menucomp.CollectShortcuts(items)
+}
+func BindMenuGlobalShortcuts(app *framework.App, builder *menucomp.Builder) int {
+	if app == nil || builder == nil {
+		return 0
+	}
+	return builder.BindGlobalShortcuts(app, func(i intent.Intent) {
+		EmitIntentGlobal(i)
+	})
+}
+
+func InstallMenu(app *framework.App, builders ...*menucomp.Builder) int {
+	if app == nil {
+		return 0
+	}
+	return menucomp.Install(app, func(i intent.Intent) {
+		EmitIntentGlobal(i)
+	}, builders...)
 }
