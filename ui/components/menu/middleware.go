@@ -143,7 +143,7 @@ func (m *Middleware) handleEscape(act *action.Action) *action.Action {
 }
 
 func (m *Middleware) handleClickOutside(act *action.Action) *action.Action {
-	mouseMsg, ok := act.Payload.(*runtimemsg.MouseMsg)
+	mouseMsg, ok := middlewareMousePayload(act.Payload)
 	if !ok || mouseMsg == nil {
 		return act
 	}
@@ -164,6 +164,21 @@ func (m *Middleware) handleClickOutside(act *action.Action) *action.Action {
 		}
 	}
 	return act
+}
+
+func middlewareMousePayload(payload any) (*runtimemsg.MouseMsg, bool) {
+	switch v := payload.(type) {
+	case *runtimemsg.MouseMsg:
+		if v == nil {
+			return nil, false
+		}
+		return v, true
+	case runtimemsg.MouseMsg:
+		msg := v
+		return &msg, true
+	default:
+		return nil, false
+	}
 }
 
 func clickHitsOpenMenu(mouseMsg *runtimemsg.MouseMsg, menus []*popupInstance) bool {
