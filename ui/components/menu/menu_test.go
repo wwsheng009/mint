@@ -351,6 +351,45 @@ func TestMenuMiddlewareClickOutsideClosesOpenPopup(t *testing.T) {
 	}
 }
 
+func TestMenuMiddlewareClickOutsideClosesOpenPopupWithValuePayload(t *testing.T) {
+	menuRegistryGlobal.reset()
+	defer menuRegistryGlobal.reset()
+	vnode := buildPopupSurface([]MenuItem{Action("open", "Open", testIntent{"open"})})
+	inst := vnode.CreateInstance().(*popupInstance)
+	inst.SetBounds(10, 5, 24, 8)
+	inst.OnMount()
+	defer inst.Destroy()
+
+	middleware := NewMiddleware()
+	mouse := *runtimemsg.NewMouseMsg(1, 1, runtimemsg.MouseLeft, runtimemsg.MouseActionPress)
+	act := action.NewAction(action.ActionClick).WithPayload(mouse)
+	if next := middleware.Before(act); next != nil {
+		t.Fatal("outside click should be intercepted when popup closes")
+	}
+	if inst.open {
+		t.Fatal("popup should be closed after outside click")
+	}
+}
+
+func TestMenuMiddlewareMouseReleaseOutsideClosesOpenPopup(t *testing.T) {
+	menuRegistryGlobal.reset()
+	defer menuRegistryGlobal.reset()
+	vnode := buildPopupSurface([]MenuItem{Action("open", "Open", testIntent{"open"})})
+	inst := vnode.CreateInstance().(*popupInstance)
+	inst.SetBounds(10, 5, 24, 8)
+	inst.OnMount()
+	defer inst.Destroy()
+
+	middleware := NewMiddleware()
+	act := action.NewAction(action.ActionMouseRelease).WithPayload(runtimemsg.NewMouseMsg(1, 1, runtimemsg.MouseLeft, runtimemsg.MouseActionRelease))
+	if next := middleware.Before(act); next != nil {
+		t.Fatal("outside mouse release should be intercepted when popup closes")
+	}
+	if inst.open {
+		t.Fatal("popup should be closed after outside mouse release")
+	}
+}
+
 func TestMenuMiddlewareLeavesInsideClickAlone(t *testing.T) {
 	menuRegistryGlobal.reset()
 	defer menuRegistryGlobal.reset()

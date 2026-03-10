@@ -124,7 +124,7 @@ func (m *Middleware) Before(act *action.Action) *action.Action {
 	switch act.Type {
 	case action.ActionCancel, action.ActionQuit:
 		return m.handleEscape(act)
-	case action.ActionClick:
+	case action.ActionClick, action.ActionMouseRelease:
 		return m.handleClickOutside(act)
 	}
 	return act
@@ -143,11 +143,11 @@ func (m *Middleware) handleEscape(act *action.Action) *action.Action {
 }
 
 func (m *Middleware) handleClickOutside(act *action.Action) *action.Action {
-	mouseMsg, ok := act.Payload.(*runtimemsg.MouseMsg)
+	mouseMsg, ok := middlewareMousePayload(act.Payload)
 	if !ok || mouseMsg == nil {
 		return act
 	}
-	if mouseMsg.Action != runtimemsg.MouseActionPress {
+	if mouseMsg.Action != runtimemsg.MouseActionPress && mouseMsg.Action != runtimemsg.MouseActionRelease {
 		return act
 	}
 	menus := menuRegistryGlobal.openMenus()
@@ -164,6 +164,21 @@ func (m *Middleware) handleClickOutside(act *action.Action) *action.Action {
 		}
 	}
 	return act
+}
+
+func middlewareMousePayload(payload any) (*runtimemsg.MouseMsg, bool) {
+	switch v := payload.(type) {
+	case *runtimemsg.MouseMsg:
+		if v == nil {
+			return nil, false
+		}
+		return v, true
+	case runtimemsg.MouseMsg:
+		msg := v
+		return &msg, true
+	default:
+		return nil, false
+	}
 }
 
 func clickHitsOpenMenu(mouseMsg *runtimemsg.MouseMsg, menus []*popupInstance) bool {
