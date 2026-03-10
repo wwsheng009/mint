@@ -3,8 +3,8 @@ package ui
 import (
 	"fmt"
 
-	fcontext "github.com/wwsheng009/mint/runtime/context"
 	"github.com/wwsheng009/mint/internal/log"
+	fcontext "github.com/wwsheng009/mint/runtime/context"
 	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/runtime/layout"
 )
@@ -94,7 +94,7 @@ func CreateFiber(vnode VNode) *Fiber {
 	}
 
 	// Debug logging to understand VNode types
-		log.HitMapLogger.IfEnabled().Debug("[CREATEFIBER] Type=%s Key=%s Tag=%s", vnodeType.String(), vnode.Key(), tag)
+	log.HitMapLogger.IfEnabled().Debug("[CREATEFIBER] Type=%s Key=%s Tag=%s", vnodeType.String(), vnode.Key(), tag)
 
 	// ✨ DiffKey: Copy from VNode.Key() without any modification
 	diffKey := vnode.Key()
@@ -301,7 +301,7 @@ func CreateFiber(vnode VNode) *Fiber {
 		MemoizedState:              memoizedState,
 		DiffKey:                    diffKey,
 		Key:                        diffKey,
-		ID:                         businessID,  // ✨ Business identifier for positioning/reference
+		ID:                         businessID, // ✨ Business identifier for positioning/reference
 		NodeID:                     nodeId,
 		Layer:                      vnode.GetLayer(),
 		Style:                      vnode.Style(),
@@ -317,7 +317,7 @@ func CreateFiber(vnode VNode) *Fiber {
 		ErrorBoundary:              errorBoundaryVNode, // Store reference for state sync
 		MemoCompare:                memoCompare,
 		// FocusableVNode:             focusableVNode,
-		ActionTargetID:             fmt.Sprintf("%d",nodeId),
+		ActionTargetID: fmt.Sprintf("%d", nodeId),
 		// Fiber-first Architecture
 		Instance: instance,
 		// Layout Properties (extracted from VNode)
@@ -329,8 +329,8 @@ func CreateFiber(vnode VNode) *Fiber {
 		LayoutMargin:     layoutMargin,
 		LayoutFlex:       layoutFlex,
 		// ✨ Border Properties (方案 A)
-		BorderStyle:      borderStyle,
-		BorderLabel:      borderLabel,
+		BorderStyle: borderStyle,
+		BorderLabel: borderLabel,
 	}
 }
 
@@ -495,15 +495,16 @@ func CloneFiber(fiber *Fiber) *Fiber {
 	clone := &Fiber{
 		Type:          fiber.Type,
 		Tag:           fiber.Tag,
-		DiffKey:       fiber.DiffKey, // ✨ Preserve DiffKey for diffing
-		Key:           fiber.Key,     // Backward compatibility
-		IsRoot:        fiber.IsRoot,  // ✨ Preserve IsRoot marker
-		NodeID:        fiber.NodeID,  // ✨ Preserve NodeID for stable identity
-		Layer:         fiber.Layer,   // ✨ Preserve Layer
-		Path:          fiber.Path,    // ✨ Preserve Path for key generation
-		PathSegment:   fiber.PathSegment, // ✨ Preserve PathSegment
+		DiffKey:       fiber.DiffKey,      // ✨ Preserve DiffKey for diffing
+		Key:           fiber.Key,          // Backward compatibility
+		ID:            fiber.ID,           // Preserve business identifier for anchors/positioning
+		IsRoot:        fiber.IsRoot,       // ✨ Preserve IsRoot marker
+		NodeID:        fiber.NodeID,       // ✨ Preserve NodeID for stable identity
+		Layer:         fiber.Layer,        // ✨ Preserve Layer
+		Path:          fiber.Path,         // ✨ Preserve Path for key generation
+		PathSegment:   fiber.PathSegment,  // ✨ Preserve PathSegment
 		SiblingIndex:  fiber.SiblingIndex, // ✨ Preserve SiblingIndex
-		Style:         fiber.Style,   // ✨ Preserve Style (Fiber-first)
+		Style:         fiber.Style,        // ✨ Preserve Style (Fiber-first)
 		Props:         fiber.Props,
 		MemoizedProps: fiber.MemoizedProps,
 		MemoizedState: fiber.MemoizedState,
@@ -525,16 +526,16 @@ func CloneFiber(fiber *Fiber) *Fiber {
 		LayoutPadding:    fiber.LayoutPadding,
 		LayoutFlex:       fiber.LayoutFlex,
 		// ✨ Border Style (Phase 1.3)
-		BorderStyle:      fiber.BorderStyle,
-		BorderLabel:      fiber.BorderLabel,
+		BorderStyle: fiber.BorderStyle,
+		BorderLabel: fiber.BorderLabel,
 		// ✨ Modal Centering (Phase 1.4)
-		Centered:         fiber.Centered,
+		Centered: fiber.Centered,
 		// ✨ Position Fixed (Phase 2.1)
-		Position:         fiber.Position,
+		Position: fiber.Position,
 		// ✨ Anchor (Phase 2.1)
-		Anchor:           fiber.Anchor,
+		Anchor: fiber.Anchor,
 		// ✨ Portal Root (Phase 3.1) - Copy reference to target fiber
-		PortalRoot:       fiber.PortalRoot,
+		PortalRoot: fiber.PortalRoot,
 		// Special VNode types support
 		ComponentFunc:              fiber.ComponentFunc,
 		ComponentFuncWithProps:     fiber.ComponentFuncWithProps,

@@ -403,10 +403,49 @@ func (r *Reconciler) CommitRoot() {
 
 	// Cleanup unused component instances
 	// activeKeys are collected during the render phase
+	r.cleanupUnusedInstances()
 }
 
 // RenderFunc is a function to render a Fiber to the buffer
 type RenderFunc func(fiber *Fiber, x, y int, buffer *paint.Buffer)
+
+func (r *Reconciler) cleanupUnusedInstances() {
+	if r.instanceMgr == nil || r.root == nil {
+		return
+	}
+	activeKeys := r.collectActiveInstanceKeys(r.root)
+	if len(activeKeys) == 0 {
+		return
+	}
+	r.instanceMgr.Cleanup(activeKeys)
+}
+
+func (r *Reconciler) collectActiveInstanceKeys(root *Fiber) []string {
+	keys := make([]string, 0, 256)
+	seen := make(map[uint64]struct{}, 256)
+
+	var walk func(*Fiber)
+	walk = func(f *Fiber) {
+		if f == nil {
+			return
+		}
+		if f.Instance != nil {
+			if _, ok := seen[f.NodeID]; !ok {
+				seen[f.NodeID] = struct{}{}
+				keys = append(keys, fmt.Sprintf("%d", f.NodeID))
+			}
+		}
+		if f.Child != nil {
+			walk(f.Child)
+		}
+		if f.Sibling != nil {
+			walk(f.Sibling)
+		}
+	}
+
+	walk(root)
+	return keys
+}
 
 // SetRenderCallback sets the render callback
 func (r *Reconciler) SetRenderCallback(cb RenderFunc) {

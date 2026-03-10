@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"reflect"
+
 	"github.com/wwsheng009/mint/runtime/action"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
@@ -239,8 +241,8 @@ func (b *BaseComponentInstance) AddChild(child ComponentInstance) {
 	// Remove child from its current parent (if any) for re-parenting
 	// Skip if child is already the current node's child in another tree
 	if child != b {
-		if childBase, ok := child.(*BaseComponentInstance); ok {
-			if oldParent := childBase.parent; oldParent != nil && oldParent != b {
+		if treeNode, ok := child.(TreeNode); ok {
+			if oldParent := treeNode.Parent(); oldParent != nil && oldParent != b {
 				if oldParentContainer, ok := oldParent.(TreeContainer); ok {
 					oldParentContainer.RemoveChild(child)
 				}
@@ -251,13 +253,7 @@ func (b *BaseComponentInstance) AddChild(child ComponentInstance) {
 	// Add to children list
 	b.children = append(b.children, child)
 
-	// Set parent reference on child for BaseComponentInstance
-	if childBase, ok := child.(*BaseComponentInstance); ok {
-		childBase.parent = b
-	}
-	// Note: For custom instances that implement their own parent management
-	// (like optiongroup.OptionInstance, optiongroup.Instance),
-	// they need to implement their own AddChild logic to set the parent reference
+	setInstanceParent(child, b)
 }
 
 // wouldCauseCycle checks if adding newChild as a child of parent would create a cycle
@@ -340,11 +336,7 @@ func (b *BaseComponentInstance) RemoveChild(child ComponentInstance) {
 	for i, existing := range b.children {
 		if existing == child {
 			b.children = append(b.children[:i], b.children[i+1:]...)
-
-			// Clear parent reference
-			if childBase, ok := child.(*BaseComponentInstance); ok {
-				childBase.parent = nil
-			}
+			setInstanceParent(child, nil)
 			break
 		}
 	}
@@ -355,11 +347,22 @@ func (b *BaseComponentInstance) RemoveChild(child ComponentInstance) {
 func (b *BaseComponentInstance) ClearChildren() {
 	// Clear parent references on all children
 	for _, child := range b.children {
-		if childBase, ok := child.(*BaseComponentInstance); ok {
-			childBase.parent = nil
-		}
+		setInstanceParent(child, nil)
 	}
 	b.children = b.children[:0]
+}
+
+func setInstanceParent(child ComponentInstance, parent ComponentInstance) {
+	if child == nil {
+		return
+	}
+	if setter, ok := child.(interface{ SetParent(ComponentInstance) }); ok {
+		setter.SetParent(parent)
+		return
+	}
+	if childBase, ok := child.(*BaseComponentInstance); ok {
+		childBase.parent = parent
+	}
 }
 
 // Render calls the component function
@@ -383,7 +386,7 @@ func propsEqual(a, b Props) bool {
 		return false
 	}
 	for k, v := range a {
-		if b[k] != v {
+		if !reflect.DeepEqual(b[k], v) {
 			return false
 		}
 	}
@@ -421,6 +424,15 @@ type FocusableInstance interface {
 type ActionHandlerInstance interface {
 	ComponentInstance
 	HandleAction(action *action.Action) bool
+}
+
+// RuntimeChildrenProvider is implemented by composite instances that need to
+// synthesize additional child VNodes from runtime state.
+// This is primarily used by popup/overlay style components where the child tree
+// depends on persistent instance state rather than pure VNode props.
+type RuntimeChildrenProvider interface {
+	ComponentInstance
+	RuntimeChildren() []VNode
 }
 
 // TickableInstance is implemented by components that need time-driven updates
