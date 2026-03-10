@@ -424,6 +424,12 @@ func createChildFiberWithIndex(returnFiber *Fiber, vnode rtui.VNode, lanes Lane,
 func cloneExistingFiber(returnFiber *Fiber, current *Fiber, vnode rtui.VNode, siblingIndex int) *Fiber {
 	fiber := CloneFiber(current)
 	fiber.Return = returnFiber
+	// IMPORTANT: drop copied tree links from CloneFiber.
+	// Child/sibling relationships must be rebuilt by reconcileChildren for the
+	// current render, otherwise stale links from previous trees can leak into hit
+	// testing and lifecycle traversals.
+	fiber.Child = nil
+	fiber.Sibling = nil
 	// Extract data from vnode instead of storing reference
 	// IMPORTANT: For elements/fragments, ensure children are stored in Props
 	props := vnode.Props()
