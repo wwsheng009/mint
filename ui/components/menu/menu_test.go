@@ -371,6 +371,32 @@ func TestMenuMiddlewareClickOutsideClosesOpenPopupWithValuePayload(t *testing.T)
 	}
 }
 
+func TestMenuMiddlewareOutsideClickIgnoresTargetFiberAncestry(t *testing.T) {
+	menuRegistryGlobal.reset()
+	defer menuRegistryGlobal.reset()
+
+	vnode := buildPopupSurface([]MenuItem{Action("open", "Open", testIntent{"open"})})
+	inst := vnode.CreateInstance().(*popupInstance)
+	inst.SetBounds(10, 5, 24, 8)
+	inst.OnMount()
+	defer inst.Destroy()
+
+	// Simulate a stale/incorrect TargetFiber chain that points at menu instances.
+	// Outside-click handling should rely on geometry and still close the popup.
+	target := &rtui.Fiber{Instance: inst}
+	msg := runtimemsg.NewMouseMsg(1, 1, runtimemsg.MouseLeft, runtimemsg.MouseActionPress)
+	msg.TargetFiber = target
+
+	middleware := NewMiddleware()
+	act := action.NewAction(action.ActionClick).WithPayload(msg)
+	if next := middleware.Before(act); next != nil {
+		t.Fatal("outside click should be intercepted when popup closes")
+	}
+	if inst.open {
+		t.Fatal("popup should be closed even when TargetFiber points to menu")
+	}
+}
+
 func TestMenuMiddlewareLeavesInsideClickAlone(t *testing.T) {
 	menuRegistryGlobal.reset()
 	defer menuRegistryGlobal.reset()

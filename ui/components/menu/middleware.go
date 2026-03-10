@@ -6,7 +6,6 @@ import (
 
 	"github.com/wwsheng009/mint/runtime/action"
 	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
-	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
 
 type menuRegistry struct {
@@ -197,42 +196,11 @@ func clickHitsOpenMenu(mouseMsg *runtimemsg.MouseMsg, menus []*popupInstance) bo
 		}
 	}
 
-	if fiber := menuTargetFiber(mouseMsg); fiber != nil && fiberBelongsToMenu(fiber, menuIDs) {
-		return true
-	}
-
 	for _, bar := range menuRegistryGlobal.barsForMenuIDs(menuIDs) {
 		if bar.containsPoint(mouseMsg.X, mouseMsg.Y) {
 			return true
 		}
 	}
 
-	return false
-}
-
-func menuTargetFiber(mouseMsg *runtimemsg.MouseMsg) *rtui.Fiber {
-	if mouseMsg == nil || mouseMsg.TargetFiber == nil {
-		return nil
-	}
-	fiber, ok := mouseMsg.TargetFiber.(*rtui.Fiber)
-	if !ok || fiber == nil {
-		return nil
-	}
-	return fiber
-}
-
-func fiberBelongsToMenu(fiber *rtui.Fiber, menuIDs map[string]struct{}) bool {
-	for node := fiber; node != nil; node = node.Return {
-		switch inst := node.Instance.(type) {
-		case *barInstance:
-			if _, ok := menuIDs[inst.menuID()]; ok {
-				return true
-			}
-		case *popupInstance:
-			if _, ok := menuIDs[inst.menuID()]; ok {
-				return true
-			}
-		}
-	}
 	return false
 }
