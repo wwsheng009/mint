@@ -1,85 +1,64 @@
 package selectcomp
 
-import "sync"
+import (
+	"sort"
+	"sync"
+)
 
-type overlayRegistry struct {
-	mu       sync.RWMutex
-	triggers map[string]*Instance
-	popups   map[string]*popupInstance
+type popupRegistry struct {
+	mu     sync.RWMutex
+	nextID uint64
+	popups map[*popupInstance]uint64
 }
 
-var selectOverlayRegistry = &overlayRegistry{
-	triggers: make(map[string]*Instance),
-	popups:   make(map[string]*popupInstance),
+var selectPopupRegistry = &popupRegistry{
+	popups: make(map[*popupInstance]uint64),
 }
 
-func (r *overlayRegistry) registerTrigger(ownerID string, inst *Instance) {
-	if ownerID == "" || inst == nil {
+func (r *popupRegistry) register(inst *popupInstance) {
+	if inst == nil {
 		return
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.triggers[ownerID] = inst
+	if _, exists := r.popups[inst]; exists {
+		return
+	}
+	r.nextID++
+	r.popups[inst] = r.nextID
 }
 
-func (r *overlayRegistry) unregisterTrigger(ownerID string, inst *Instance) {
-	if ownerID == "" || inst == nil {
+func (r *popupRegistry) unregister(inst *popupInstance) {
+	if inst == nil {
 		return
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if current := r.triggers[ownerID]; current == inst {
-		delete(r.triggers, ownerID)
-	}
+	delete(r.popups, inst)
 }
 
-func (r *overlayRegistry) registerPopup(ownerID string, popup *popupInstance) {
-	if ownerID == "" || popup == nil {
-		return
-	}
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.popups[ownerID] = popup
-}
-
-func (r *overlayRegistry) unregisterPopup(ownerID string, popup *popupInstance) {
-	if ownerID == "" || popup == nil {
-		return
-	}
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if current := r.popups[ownerID]; current == popup {
-		delete(r.popups, ownerID)
-	}
-}
-
-func (r *overlayRegistry) trigger(ownerID string) *Instance {
+func (r *popupRegistry) openPopups() []*popupInstance {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	return r.triggers[ownerID]
-}
 
-func (r *overlayRegistry) popup(ownerID string) *popupInstance {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	return r.popups[ownerID]
-}
-
-func (r *overlayRegistry) markPopupDirty(ownerID string) {
-	popup := r.popup(ownerID)
-	if popup != nil {
-		popup.MarkDirty()
+	type entry struct {
+		inst *popupInstance
+		seq  uint64
 	}
-}
-
-func (r *overlayRegistry) openTriggers() []*Instance {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	result := make([]*Instance, 0, len(r.triggers))
-	for _, inst := range r.triggers {
-		if inst != nil && inst.overlayPopup && inst.open {
-			result = append(result, inst)
+	entries := make([]entry, 0, len(r.popups))
+	for inst, seq := range r.popups {
+		if inst == nil {
+			continue
 		}
+		entries = append(entries, entry{inst: inst, seq: seq})
+	}
+	sort.Slice(entries, func(i, j int) bool {
+		return entries[i].seq > entries[j].seq
+	})
+
+	result := make([]*popupInstance, 0, len(entries))
+	for _, entry := range entries {
+		result = append(result, entry.inst)
 	}
 	return result
 }

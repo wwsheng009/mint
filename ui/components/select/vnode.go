@@ -49,6 +49,11 @@ type VNode struct {
 	selectionMode   SelectionMode
 	disabled        bool
 	formID          string // Form ID for Form integration (Phase 6)
+	open            bool
+	highlightedIndex int
+	scrollOffset    int
+	selectID        string
+	overlayCallbacks *overlayCallbacks
 
 	// === Box Model (via interface) ===
 	rtui.BoxModelMixin
@@ -71,6 +76,7 @@ func New() *VNode {
 		ElementVNode:   rtui.NewElement("select"),
 		options:        []Option{},
 		selectedIndex:  -1,
+		highlightedIndex: -1,
 		selectionMode:  SelectionSingle,
 		maxVisibleRows: 6,
 		placeholder:    "...",
@@ -176,6 +182,11 @@ func (s *VNode) Props() rtui.Props {
 		"selectionMode":     s.selectionMode,
 		"disabled":          s.disabled,
 		"formID":            s.formID,
+		"open":              s.open,
+		"highlightedIndex":  s.highlightedIndex,
+		"scrollOffset":      s.scrollOffset,
+		"selectID":          s.selectID,
+		overlayCallbacksProp: s.overlayCallbacks,
 	}
 }
 
@@ -232,6 +243,21 @@ func (s *VNode) SetProps(p rtui.Props) rtui.VNode {
 	if v, ok := p["formID"].(string); ok {
 		s.formID = v
 	}
+	if v, ok := p["open"].(bool); ok {
+		s.open = v
+	}
+	if v, ok := p["highlightedIndex"].(int); ok {
+		s.highlightedIndex = v
+	}
+	if v, ok := p["scrollOffset"].(int); ok {
+		s.scrollOffset = v
+	}
+	if v, ok := p["selectID"].(string); ok {
+		s.selectID = v
+	}
+	if v, ok := p[overlayCallbacksProp].(*overlayCallbacks); ok {
+		s.overlayCallbacks = v
+	}
 	return s
 }
 
@@ -259,6 +285,11 @@ func (s *VNode) CreateInstance() rtui.ComponentInstance {
 		"selectionMode":     s.selectionMode,
 		"disabled":          s.disabled,
 		"formID":            s.formID,
+		"open":              s.open,
+		"highlightedIndex":  s.highlightedIndex,
+		"scrollOffset":      s.scrollOffset,
+		"selectID":          firstNonEmpty(s.selectID, s.ownerID()),
+		overlayCallbacksProp: s.overlayCallbacks,
 	}
 	return NewInstance(props)
 }

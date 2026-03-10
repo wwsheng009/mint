@@ -170,6 +170,9 @@ func (b *Builder) ForForm(binding intent.FormBinding) *Builder {
 
 // Build returns the VNode.
 func (b *Builder) Build() rtui.VNode {
+	if b.node != nil && b.node.overlayPopup {
+		return newOverlayComponent(b.node)
+	}
 	return b.node
 }
 

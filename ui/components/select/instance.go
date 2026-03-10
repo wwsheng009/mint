@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/wwsheng009/mint/framework/theme"
+	"github.com/wwsheng009/mint/internal/log"
 	"github.com/wwsheng009/mint/runtime/action"
 	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/runtime/layout"
@@ -19,18 +20,23 @@ import (
 
 const defaultMaxVisibleRows = 6
 
+const popupPortalRootProp = "popupPortalRoot"
+
 // Instance is the runtime entity for Select components.
 type Instance struct {
 	key               string
 	componentID       string
 	parent            rtui.ComponentInstance
+	childInstances    []rtui.ComponentInstance
 	options           []Option
 	selectStyle       style.Style
 	width             int
 	placeholder       string
 	maxVisibleRows    int
 	overlayPopup      bool
+	portalRoot        string
 	ownerID           string
+	selectID          string
 	closeOnOutside    bool
 	changeIntent      intent.Intent
 	changeIntentField intent.FieldIntent
@@ -46,8 +52,9 @@ type Instance struct {
 	bounds           [4]int
 	dirty            bool
 
-	intentEmitter func(intent.Intent)
-	behaviors     *control.BehaviorList
+	intentEmitter    func(intent.Intent)
+	behaviors        *control.BehaviorList
+	overlayCallbacks *overlayCallbacks
 }
 
 var (
@@ -55,6 +62,8 @@ var (
 	_ rtui.PaintableInstance     = (*Instance)(nil)
 	_ rtui.FocusableInstance     = (*Instance)(nil)
 	_ rtui.ActionHandlerInstance = (*Instance)(nil)
+	_ rtui.TreeNode              = (*Instance)(nil)
+	_ rtui.TreeContainer         = (*Instance)(nil)
 	_ control.Instance           = (*Instance)(nil)
 	_ interface {
 		Measure(layout.Constraints) layout.Size
@@ -72,7 +81,9 @@ func NewInstance(props rtui.Props) *Instance {
 		placeholder:       getStringProp(props, "placeholder", "..."),
 		maxVisibleRows:    getIntProp(props, "maxVisibleRows", defaultMaxVisibleRows),
 		overlayPopup:      getBoolProp(props, "overlayPopup", false),
+		portalRoot:        getPortalRootProp(props, rtui.DefaultOverlayPortalRootID),
 		ownerID:           getStringProp(props, "ownerID", ""),
+		selectID:          getStringProp(props, "selectID", ""),
 		closeOnOutside:    getBoolProp(props, "closeOnOutside", true),
 		changeIntent:      getIntentProp(props, "changeIntent"),
 		changeIntentField: getChangeIntentFieldProp(props, "changeIntent"),
@@ -82,6 +93,7 @@ func NewInstance(props rtui.Props) *Instance {
 		selectedIndices:   getIntsProp(props, "selectedIndices", nil),
 		highlightedIndex:  -1,
 		dirty:             true,
+		overlayCallbacks:  getOverlayCallbacksProp(props),
 	}
 
 	inst.state = control.InteractionState{
@@ -100,6 +112,73 @@ func (inst *Instance) initBehaviors() {
 	)
 }
 
+func (inst *Instance) selectIdentity() string {
+	return firstNonEmpty(inst.selectID, inst.ownerID, inst.componentID, inst.key)
+}
+
+func (inst *Instance) applyOverlayControllerState(state overlayControllerState) bool {
+	oldOpen := inst.open
+	oldHighlight := inst.highlightedIndex
+	oldScroll := inst.scrollOffset
+	oldSelectedIndex := inst.selectedIndex
+	oldSelectedIndices := append([]int(nil), inst.selectedIndices...)
+
+	inst.open = state.open
+	inst.highlightedIndex = state.highlightedIndex
+	inst.scrollOffset = state.scrollOffset
+	inst.selectedIndex = state.selectedIndex
+	inst.selectedIndices = append([]int(nil), state.selectedIndices...)
+	inst.normalizeSelectionState()
+
+	changed := oldOpen != inst.open ||
+		oldHighlight != inst.highlightedIndex ||
+		oldScroll != inst.scrollOffset ||
+		oldSelectedIndex != inst.selectedIndex ||
+		!equalIntSlices(oldSelectedIndices, inst.selectedIndices)
+	if changed {
+		inst.dirty = true
+	}
+	return changed
+}
+
+func (inst *Instance) requestOverlayOpen(open bool) bool {
+	if inst.overlayCallbacks == nil {
+		if open {
+			return inst.openDropdown()
+		}
+		return inst.closeDropdown()
+	}
+	state := inst.overlayCallbacks.setOpen(open)
+	return inst.applyOverlayControllerState(state)
+}
+
+func (inst *Instance) requestOverlayHighlight(index int) bool {
+	if inst.overlayCallbacks == nil {
+		return inst.moveHighlightTo(index)
+	}
+	state := inst.overlayCallbacks.setHighlight(index)
+	return inst.applyOverlayControllerState(state)
+}
+
+func (inst *Instance) requestOverlayCommit(index int) bool {
+	if inst.overlayCallbacks == nil {
+		return inst.activateIndex(index)
+	}
+	oldSelectedIndex := inst.selectedIndex
+	oldSelectedIndices := append([]int(nil), inst.selectedIndices...)
+	oldOpen := inst.open
+	state := inst.overlayCallbacks.commit(index)
+	inst.applyOverlayControllerState(state)
+	selectionChanged := oldSelectedIndex != inst.selectedIndex ||
+		!equalIntSlices(oldSelectedIndices, inst.selectedIndices)
+	closed := oldOpen && !inst.open
+	if selectionChanged {
+		inst.emitChange()
+		inst.emitSelectChange()
+	}
+	return selectionChanged || closed
+}
+
 func (inst *Instance) Key() string { return inst.key }
 
 func (inst *Instance) SetKey(key string) {
@@ -114,22 +193,67 @@ func (inst *Instance) SetParent(parent rtui.ComponentInstance) {
 	inst.parent = parent
 }
 
+func (inst *Instance) Children() []rtui.ComponentInstance {
+	return append([]rtui.ComponentInstance(nil), inst.childInstances...)
+}
+
+func (inst *Instance) AddChild(child rtui.ComponentInstance) {
+	if child == nil {
+		return
+	}
+	for index, existing := range inst.childInstances {
+		if existing == child || existing.Key() == child.Key() {
+			inst.childInstances[index] = child
+			if setter, ok := child.(interface{ SetParent(rtui.ComponentInstance) }); ok {
+				setter.SetParent(inst)
+			}
+			return
+		}
+	}
+	inst.childInstances = append(inst.childInstances, child)
+	if setter, ok := child.(interface{ SetParent(rtui.ComponentInstance) }); ok {
+		setter.SetParent(inst)
+	}
+}
+
+func (inst *Instance) RemoveChild(child rtui.ComponentInstance) {
+	if child == nil {
+		return
+	}
+	for index, existing := range inst.childInstances {
+		if existing != child {
+			continue
+		}
+		inst.childInstances = append(inst.childInstances[:index], inst.childInstances[index+1:]...)
+		if setter, ok := child.(interface{ SetParent(rtui.ComponentInstance) }); ok {
+			setter.SetParent(nil)
+		}
+		return
+	}
+}
+
+func (inst *Instance) ClearChildren() {
+	for _, child := range inst.childInstances {
+		if setter, ok := child.(interface{ SetParent(rtui.ComponentInstance) }); ok {
+			setter.SetParent(nil)
+		}
+	}
+	inst.childInstances = inst.childInstances[:0]
+}
+
 func (inst *Instance) Init(props rtui.Props) {
 	inst.SetProps(props)
 }
 
 func (inst *Instance) Destroy() {
-	inst.unregisterOverlay()
 	inst.behaviors.OnUnmount(inst)
 }
 
 func (inst *Instance) OnMount() {
-	inst.syncOverlayRegistration()
 	inst.behaviors.OnMount(inst)
 }
 
 func (inst *Instance) OnUnmount() {
-	inst.unregisterOverlay()
 	inst.behaviors.OnUnmount(inst)
 }
 
@@ -143,7 +267,9 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	oldMaxVisibleRows := inst.maxVisibleRows
 	oldSelectionMode := inst.selectionMode
 	oldOverlayPopup := inst.overlayPopup
+	oldPortalRoot := inst.portalRoot
 	oldOwnerID := inst.ownerID
+	oldSelectID := inst.selectID
 	oldCloseOnOutside := inst.closeOnOutside
 
 	inst.key = getStringProp(props, "key", inst.key)
@@ -154,7 +280,9 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	inst.placeholder = getStringProp(props, "placeholder", inst.placeholder)
 	inst.maxVisibleRows = getIntProp(props, "maxVisibleRows", inst.maxVisibleRows)
 	inst.overlayPopup = getBoolProp(props, "overlayPopup", inst.overlayPopup)
+	inst.portalRoot = getPortalRootProp(props, inst.portalRoot)
 	inst.ownerID = getStringProp(props, "ownerID", inst.ownerID)
+	inst.selectID = getStringProp(props, "selectID", inst.selectIdentity())
 	inst.closeOnOutside = getBoolProp(props, "closeOnOutside", inst.closeOnOutside)
 	inst.changeIntent = getIntentProp(props, "changeIntent")
 	inst.changeIntentField = getChangeIntentFieldProp(props, "changeIntent")
@@ -162,6 +290,17 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	inst.selectionMode = getSelectionModeProp(props, inst.selectionMode)
 	inst.selectedIndex = getIntProp(props, "selectedIndex", inst.selectedIndex)
 	inst.selectedIndices = getIntsProp(props, "selectedIndices", inst.selectedIndices)
+	inst.overlayCallbacks = getOverlayCallbacksProp(props)
+
+	if v, ok := props["open"].(bool); ok {
+		inst.open = v
+	}
+	if v, ok := props["highlightedIndex"].(int); ok {
+		inst.highlightedIndex = v
+	}
+	if v, ok := props["scrollOffset"].(int); ok {
+		inst.scrollOffset = v
+	}
 
 	newDisabled := getBoolProp(props, "disabled", inst.state.Disabled)
 	if newDisabled != inst.state.Disabled {
@@ -174,15 +313,16 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	if oldSelectedIndex != inst.selectedIndex ||
 		!equalIntSlices(oldSelectedIndices, inst.selectedIndices) ||
 		oldSelectionMode != inst.selectionMode {
-		if inst.selectionMode == SelectionMultiple && len(inst.selectedIndices) > 0 {
-			inst.highlightedIndex = inst.selectedIndices[len(inst.selectedIndices)-1]
-		} else {
-			inst.highlightedIndex = inst.selectedIndex
+		if _, controlledHighlight := props["highlightedIndex"]; !controlledHighlight {
+			if inst.selectionMode == SelectionMultiple && len(inst.selectedIndices) > 0 {
+				inst.highlightedIndex = inst.selectedIndices[len(inst.selectedIndices)-1]
+			} else {
+				inst.highlightedIndex = inst.selectedIndex
+			}
 		}
 	}
 
 	inst.normalizeSelectionState()
-	inst.syncOverlayRegistration()
 
 	changed := !equalOptions(oldOptions, inst.options) ||
 		oldSelectedIndex != inst.selectedIndex ||
@@ -193,33 +333,38 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 		oldMaxVisibleRows != inst.maxVisibleRows ||
 		oldSelectionMode != inst.selectionMode ||
 		oldOverlayPopup != inst.overlayPopup ||
+		oldPortalRoot != inst.portalRoot ||
 		oldOwnerID != inst.ownerID ||
+		oldSelectID != inst.selectID ||
 		oldCloseOnOutside != inst.closeOnOutside
 
 	if changed {
 		inst.dirty = true
-		inst.markOverlayDirty()
 	}
 	return changed
 }
 
 func (inst *Instance) GetProps() rtui.Props {
 	return rtui.Props{
-		"key":             inst.key,
-		"selectedIndex":   inst.selectedIndex,
-		"selectedIndices": append([]int(nil), inst.selectedIndices...),
-		"selectionMode":   inst.selectionMode,
-		"disabled":        inst.state.Disabled,
-		"open":            inst.open,
-		"overlayPopup":    inst.overlayPopup,
-		"ownerID":         inst.ownerID,
-		"closeOnOutside":  inst.closeOnOutside,
+		"key":                inst.key,
+		"selectedIndex":      inst.selectedIndex,
+		"selectedIndices":    append([]int(nil), inst.selectedIndices...),
+		"selectionMode":      inst.selectionMode,
+		"disabled":           inst.state.Disabled,
+		"open":               inst.open,
+		"overlayPopup":       inst.overlayPopup,
+		"portalRoot":         inst.portalRoot,
+		"ownerID":            inst.ownerID,
+		"selectID":           inst.selectIdentity(),
+		"closeOnOutside":     inst.closeOnOutside,
+		"highlightedIndex":   inst.highlightedIndex,
+		"scrollOffset":       inst.scrollOffset,
+		overlayCallbacksProp: inst.overlayCallbacks,
 	}
 }
 
 func (inst *Instance) MarkDirty() {
 	inst.dirty = true
-	inst.markOverlayDirty()
 }
 
 func (inst *Instance) IsDirty() bool {
@@ -227,6 +372,10 @@ func (inst *Instance) IsDirty() bool {
 }
 
 func (inst *Instance) GetContext() *rtui.ComponentContext {
+	return nil
+}
+
+func (inst *Instance) RuntimeChildren() []rtui.VNode {
 	return nil
 }
 
@@ -365,11 +514,12 @@ func (inst *Instance) SetFocus(focused bool) {
 	oldState := inst.state
 	inst.state.Focused = focused
 	if !focused {
-		inst.closeDropdown()
-		inst.emitFieldBlur()
+		if !inst.overlayPopup || !inst.open {
+			inst.closeDropdown()
+			inst.emitFieldBlur()
+		}
 	}
 	inst.dirty = true
-	inst.markOverlayDirty()
 	inst.behaviors.OnStateChange(inst, oldState, inst.state)
 }
 
@@ -396,6 +546,10 @@ func (inst *Instance) HandleAction(act *action.Action) bool {
 	case action.ActionHover:
 		return inst.handleHover(act)
 	case action.ActionClick:
+		if mouse, ok := mousePayload(act.Payload); ok && log.RenderLogger.Enabled() {
+			log.RenderLogger.Debug("[SelectTrigger] ActionClick select=%s screen=(%d,%d) local=(%d,%d) open=%v",
+				inst.selectIdentity(), mouse.X, mouse.Y, mouse.LocalX, mouse.LocalY, inst.open)
+		}
 		return inst.handleClick(act)
 	case action.ActionScroll:
 		return inst.handleScroll(act)
@@ -404,55 +558,85 @@ func (inst *Instance) HandleAction(act *action.Action) bool {
 			return inst.moveHighlight(1)
 		}
 		if inst.selectionMode == SelectionMultiple {
-			return inst.openDropdown()
+			return inst.requestOverlayOpen(true)
 		}
-		inst.SelectNext()
-		return true
+		next := inst.selectedIndex + 1
+		if next < 0 {
+			next = 0
+		}
+		if next >= len(inst.options) {
+			next = 0
+		}
+		return inst.requestOverlayCommit(next)
 	case action.ActionNavigateUp:
 		if inst.open {
 			return inst.moveHighlight(-1)
 		}
 		if inst.selectionMode == SelectionMultiple {
-			return inst.openDropdown()
+			return inst.requestOverlayOpen(true)
 		}
-		inst.SelectPrev()
-		return true
+		next := inst.selectedIndex - 1
+		if next < 0 {
+			next = len(inst.options) - 1
+		}
+		return inst.requestOverlayCommit(next)
 	case action.ActionNavigateHome:
 		if inst.open {
 			return inst.moveHighlightTo(0)
 		}
-		return inst.applySingleSelection(0, false)
+		return inst.requestOverlayCommit(0)
 	case action.ActionNavigateEnd:
 		if inst.open {
 			return inst.moveHighlightTo(len(inst.options) - 1)
 		}
-		return inst.applySingleSelection(len(inst.options)-1, false)
+		return inst.requestOverlayCommit(len(inst.options) - 1)
 	case action.ActionNavigatePageUp:
 		if !inst.open {
-			return inst.openDropdown()
+			return inst.requestOverlayOpen(true)
 		}
 		return inst.pageHighlight(-1)
 	case action.ActionNavigatePageDown:
 		if !inst.open {
-			return inst.openDropdown()
+			return inst.requestOverlayOpen(true)
 		}
 		return inst.pageHighlight(1)
 	case action.ActionSelect:
+		if _, ok := mousePayload(act.Payload); ok {
+			// Mouse release is delivered as ActionSelect by App.processMsg.
+			// For the trigger we treat release as a no-op; real click behavior is
+			// handled on press (ActionClick), while popup rows handle release
+			// themselves as first-class components.
+			return true
+		}
 		if inst.open {
-			return inst.activateIndex(inst.highlightedIndex)
+			return inst.requestOverlayCommit(inst.highlightedIndex)
 		}
 		if inst.selectionMode == SelectionMultiple {
-			return inst.openDropdown()
+			return inst.requestOverlayOpen(true)
 		}
-		inst.SelectNext()
-		return true
+		next := inst.selectedIndex + 1
+		if next < 0 {
+			next = 0
+		}
+		if next >= len(inst.options) {
+			next = 0
+		}
+		return inst.requestOverlayCommit(next)
 	case action.ActionEnter, action.ActionSubmit:
 		if !inst.open {
-			return inst.openDropdown()
+			return inst.requestOverlayOpen(true)
 		}
-		return inst.activateIndex(inst.highlightedIndex)
+		return inst.requestOverlayCommit(inst.highlightedIndex)
+	case action.ActionMouseRelease:
+		// Real runtime maps mouse release to ActionMouseRelease. The trigger
+		// should not treat release as a second select/submit step.
+		if mouse, ok := mousePayload(act.Payload); ok && log.RenderLogger.Enabled() {
+			log.RenderLogger.Debug("[SelectTrigger] ActionMouseRelease select=%s screen=(%d,%d) local=(%d,%d) open=%v",
+				inst.selectIdentity(), mouse.X, mouse.Y, mouse.LocalX, mouse.LocalY, inst.open)
+		}
+		return true
 	case action.ActionCancel:
-		return inst.closeDropdown()
+		return inst.requestOverlayOpen(false)
 	}
 	return false
 }
@@ -461,20 +645,20 @@ func (inst *Instance) handleClick(act *action.Action) bool {
 	mouse, ok := mousePayload(act.Payload)
 	if !ok {
 		if inst.open {
-			return inst.activateIndex(inst.highlightedIndex)
+			return inst.requestOverlayCommit(inst.highlightedIndex)
 		}
-		return inst.openDropdown()
+		return inst.requestOverlayOpen(true)
 	}
 
 	if mouse.LocalY <= 0 || inst.overlayPopup {
 		if inst.open {
-			return inst.closeDropdown()
+			return inst.requestOverlayOpen(false)
 		}
-		return inst.openDropdown()
+		return inst.requestOverlayOpen(true)
 	}
 
 	if !inst.open {
-		return inst.openDropdown()
+		return inst.requestOverlayOpen(true)
 	}
 
 	index, hit := inst.optionIndexAt(mouse.LocalX, mouse.LocalY)
@@ -482,9 +666,8 @@ func (inst *Instance) handleClick(act *action.Action) bool {
 		return true
 	}
 
-	inst.highlightedIndex = index
-	inst.ensureHighlightVisible()
-	return inst.activateIndex(index)
+	inst.requestOverlayHighlight(index)
+	return inst.requestOverlayCommit(index)
 }
 
 func (inst *Instance) handleHover(act *action.Action) bool {
@@ -499,10 +682,7 @@ func (inst *Instance) handleHover(act *action.Action) bool {
 	if !hit || index == inst.highlightedIndex {
 		return false
 	}
-	inst.highlightedIndex = index
-	inst.ensureHighlightVisible()
-	inst.dirty = true
-	return true
+	return inst.requestOverlayHighlight(index)
 }
 
 func (inst *Instance) handleScroll(act *action.Action) bool {
@@ -690,14 +870,29 @@ func (inst *Instance) HandleIntent(i intent.Intent) bool {
 		if inst.selectionMode == SelectionMultiple && inst.open {
 			return inst.moveHighlight(1)
 		}
-		inst.SelectNext()
-		return true
+		if inst.selectionMode == SelectionMultiple {
+			return inst.requestOverlayOpen(true)
+		}
+		next := inst.selectedIndex + 1
+		if next < 0 {
+			next = 0
+		}
+		if next >= len(inst.options) {
+			next = 0
+		}
+		return inst.requestOverlayCommit(next)
 	case SelectPrevIntent:
 		if inst.selectionMode == SelectionMultiple && inst.open {
 			return inst.moveHighlight(-1)
 		}
-		inst.SelectPrev()
-		return true
+		if inst.selectionMode == SelectionMultiple {
+			return inst.requestOverlayOpen(true)
+		}
+		next := inst.selectedIndex - 1
+		if next < 0 {
+			next = len(inst.options) - 1
+		}
+		return inst.requestOverlayCommit(next)
 	case SelectByIndexIntent:
 		if v.Index < -1 || v.Index >= len(inst.options) {
 			return false
@@ -722,6 +917,12 @@ func (inst *Instance) HandleIntent(i intent.Intent) bool {
 			inst.SetSelectedIndex(idx)
 			return true
 		}
+	case SelectSetOpenIntent:
+		return inst.requestOverlayOpen(v.Open)
+	case SelectHighlightIntent:
+		return inst.requestOverlayHighlight(v.Index)
+	case SelectCommitIndexIntent:
+		return inst.requestOverlayCommit(v.Index)
 	}
 
 	return false
@@ -938,6 +1139,9 @@ func (inst *Instance) normalizeSelectionState() {
 }
 
 func (inst *Instance) openDropdown() bool {
+	if inst.overlayCallbacks != nil {
+		return inst.requestOverlayOpen(true)
+	}
 	if inst.open || len(inst.options) == 0 {
 		return false
 	}
@@ -951,21 +1155,38 @@ func (inst *Instance) openDropdown() bool {
 	}
 	inst.ensureHighlightVisible()
 	inst.dirty = true
-	inst.markOverlayDirty()
 	return true
 }
 
 func (inst *Instance) closeDropdown() bool {
+	if inst.overlayCallbacks != nil {
+		return inst.requestOverlayOpen(false)
+	}
 	if !inst.open {
 		return false
 	}
 	inst.open = false
 	inst.dirty = true
-	inst.markOverlayDirty()
+	if !inst.state.Focused {
+		inst.emitFieldBlur()
+	}
 	return true
 }
 
 func (inst *Instance) moveHighlight(delta int) bool {
+	if inst.overlayCallbacks != nil {
+		if len(inst.options) == 0 {
+			return false
+		}
+		if !inst.open {
+			return inst.requestOverlayOpen(true)
+		}
+		next := clampInt(inst.highlightedIndex+delta, 0, len(inst.options)-1)
+		if next == inst.highlightedIndex {
+			return false
+		}
+		return inst.requestOverlayHighlight(next)
+	}
 	if len(inst.options) == 0 {
 		return false
 	}
@@ -979,11 +1200,23 @@ func (inst *Instance) moveHighlight(delta int) bool {
 	inst.highlightedIndex = next
 	inst.ensureHighlightVisible()
 	inst.dirty = true
-	inst.markOverlayDirty()
 	return true
 }
 
 func (inst *Instance) moveHighlightTo(index int) bool {
+	if inst.overlayCallbacks != nil {
+		if len(inst.options) == 0 {
+			return false
+		}
+		if !inst.open {
+			inst.requestOverlayOpen(true)
+		}
+		next := clampInt(index, 0, len(inst.options)-1)
+		if next == inst.highlightedIndex {
+			return false
+		}
+		return inst.requestOverlayHighlight(next)
+	}
 	if len(inst.options) == 0 {
 		return false
 	}
@@ -997,7 +1230,6 @@ func (inst *Instance) moveHighlightTo(index int) bool {
 	inst.highlightedIndex = next
 	inst.ensureHighlightVisible()
 	inst.dirty = true
-	inst.markOverlayDirty()
 	return true
 }
 
@@ -1011,6 +1243,9 @@ func (inst *Instance) pageHighlight(direction int) bool {
 }
 
 func (inst *Instance) activateIndex(index int) bool {
+	if inst.overlayCallbacks != nil {
+		return inst.requestOverlayCommit(index)
+	}
 	if index < 0 || index >= len(inst.options) {
 		return false
 	}
@@ -1040,7 +1275,6 @@ func (inst *Instance) applySingleSelection(index int, close bool) bool {
 
 	if selectionChanged || closed {
 		inst.dirty = true
-		inst.markOverlayDirty()
 	}
 	if selectionChanged {
 		inst.emitChange()
@@ -1084,7 +1318,6 @@ func (inst *Instance) toggleIndex(index int) bool {
 	inst.highlightedIndex = index
 	inst.ensureHighlightVisible()
 	inst.dirty = true
-	inst.markOverlayDirty()
 	inst.emitChange()
 	inst.emitSelectChange()
 	return true
@@ -1277,26 +1510,15 @@ func (inst *Instance) containsPoint(screenX, screenY int) bool {
 }
 
 func (inst *Instance) syncOverlayRegistration() {
-	inst.unregisterOverlay()
-	if !inst.overlayPopup || inst.ownerID == "" {
-		return
-	}
-	selectOverlayRegistry.registerTrigger(inst.ownerID, inst)
-	inst.markOverlayDirty()
+	// Overlay popup is now rendered declaratively by the wrapper component.
 }
 
 func (inst *Instance) unregisterOverlay() {
-	if inst.ownerID == "" {
-		return
-	}
-	selectOverlayRegistry.unregisterTrigger(inst.ownerID, inst)
+	// Overlay popup is now rendered declaratively by the wrapper component.
 }
 
 func (inst *Instance) markOverlayDirty() {
-	if !inst.overlayPopup || inst.ownerID == "" {
-		return
-	}
-	selectOverlayRegistry.markPopupDirty(inst.ownerID)
+	// Overlay popup is now rendered declaratively by the wrapper component.
 }
 
 func getStringProp(props rtui.Props, key, def string) string {
@@ -1306,6 +1528,15 @@ func getStringProp(props rtui.Props, key, def string) string {
 		}
 	}
 	return def
+}
+
+func getPortalRootProp(props rtui.Props, def string) string {
+	if v, ok := props[popupPortalRootProp]; ok {
+		if s, ok := v.(string); ok {
+			return s
+		}
+	}
+	return getStringProp(props, "portalRoot", def)
 }
 
 func getIntProp(props rtui.Props, key string, def int) int {

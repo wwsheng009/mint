@@ -20,7 +20,10 @@ func (m *Middleware) Before(act *action.Action) *action.Action {
 	if act == nil {
 		return nil
 	}
-	if act.Type == action.ActionClick {
+	switch act.Type {
+	case action.ActionCancel, action.ActionQuit:
+		return m.handleCancel(act)
+	case action.ActionClick:
 		return m.handleClickOutside(act)
 	}
 	return act
@@ -28,52 +31,62 @@ func (m *Middleware) Before(act *action.Action) *action.Action {
 
 func (m *Middleware) After(act *action.Action, result *action.RouterResult) {}
 
+func (m *Middleware) handleCancel(act *action.Action) *action.Action {
+	for _, popup := range selectPopupRegistry.openPopups() {
+		if popup != nil && popup.requestClose() {
+			return nil
+		}
+	}
+	return act
+}
+
 func (m *Middleware) handleClickOutside(act *action.Action) *action.Action {
 	mouseMsg, ok := act.Payload.(*runtimemsg.MouseMsg)
 	if !ok || mouseMsg == nil || mouseMsg.Action != runtimemsg.MouseActionPress {
 		return act
 	}
 
-	open := selectOverlayRegistry.openTriggers()
-	if len(open) == 0 {
+	popups := selectPopupRegistry.openPopups()
+	if len(popups) == 0 {
 		return act
 	}
-	if clickHitsOpenSelect(mouseMsg, open) {
+	if clickHitsOpenSelect(mouseMsg, popups) {
 		return act
 	}
 
 	closed := false
-	for _, inst := range open {
-		if inst != nil && inst.closeOnOutside {
-			closed = inst.closeDropdown() || closed
+	for _, popup := range popups {
+		if popup != nil && popup.closeOnOutside {
+			closed = popup.requestClose() || closed
 		}
 	}
-	if closed {
-		return nil
+	if !closed {
+		return act
 	}
-	return act
+
+	if fiber := selectTargetFiber(mouseMsg); fiber != nil && fiberTargetsSelect(fiber) {
+		return act
+	}
+	return nil
 }
 
-func clickHitsOpenSelect(mouseMsg *runtimemsg.MouseMsg, selects []*Instance) bool {
-	if mouseMsg == nil || len(selects) == 0 {
+func clickHitsOpenSelect(mouseMsg *runtimemsg.MouseMsg, popups []*popupInstance) bool {
+	if mouseMsg == nil || len(popups) == 0 {
 		return false
 	}
 
-	openOwners := make(map[string]struct{}, len(selects))
-	for _, inst := range selects {
-		if inst == nil {
+	openIDs := make(map[string]struct{}, len(popups))
+	for _, popup := range popups {
+		if popup == nil {
 			continue
 		}
-		openOwners[inst.ownerID] = struct{}{}
-		if inst.containsPoint(mouseMsg.X, mouseMsg.Y) {
-			return true
-		}
-		if popup := selectOverlayRegistry.popup(inst.ownerID); popup != nil && popup.containsPoint(mouseMsg.X, mouseMsg.Y) {
+		openIDs[popup.selectID] = struct{}{}
+		if popup.containsPoint(mouseMsg.X, mouseMsg.Y) {
 			return true
 		}
 	}
 
-	if fiber := selectTargetFiber(mouseMsg); fiber != nil && fiberBelongsToOpenSelect(fiber, openOwners) {
+	if fiber := selectTargetFiber(mouseMsg); fiber != nil && fiberBelongsToOpenSelect(fiber, openIDs) {
 		return true
 	}
 	return false
@@ -90,17 +103,27 @@ func selectTargetFiber(mouseMsg *runtimemsg.MouseMsg) *rtui.Fiber {
 	return fiber
 }
 
-func fiberBelongsToOpenSelect(fiber *rtui.Fiber, openOwners map[string]struct{}) bool {
+func fiberBelongsToOpenSelect(fiber *rtui.Fiber, openIDs map[string]struct{}) bool {
 	for node := fiber; node != nil; node = node.Return {
 		switch inst := node.Instance.(type) {
 		case *Instance:
-			if _, ok := openOwners[inst.ownerID]; ok {
+			if _, ok := openIDs[inst.selectIdentity()]; ok {
 				return true
 			}
 		case *popupInstance:
-			if _, ok := openOwners[inst.ownerID]; ok {
+			if _, ok := openIDs[inst.selectID]; ok {
 				return true
 			}
+		}
+	}
+	return false
+}
+
+func fiberTargetsSelect(fiber *rtui.Fiber) bool {
+	for node := fiber; node != nil; node = node.Return {
+		switch node.Instance.(type) {
+		case *Instance, *popupInstance:
+			return true
 		}
 	}
 	return false

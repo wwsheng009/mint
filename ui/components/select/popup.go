@@ -4,76 +4,18 @@ import (
 	"strings"
 
 	"github.com/wwsheng009/mint/framework/theme"
+	"github.com/wwsheng009/mint/internal/log"
 	"github.com/wwsheng009/mint/runtime/action"
 	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/runtime/layout"
 	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
-	rttypes "github.com/wwsheng009/mint/runtime/types"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
 
 type popupVNode struct {
 	*rtui.ElementVNode
-}
-
-const popupAnchorOffsetY = 0
-
-func newPopupRuntimeVNode(owner *Instance) rtui.VNode {
-	if owner == nil || owner.ownerID == "" {
-		return nil
-	}
-
-	componentID := owner.componentID
-	if componentID == "" {
-		componentID = owner.ownerID
-	}
-
-	surface := &popupVNode{ElementVNode: rtui.NewElement("select-popup")}
-	surface.SetKey(owner.ownerID + "-popup")
-	surface.SetID(owner.ownerID + "-popup")
-	surface.SetLayer(rtui.LayerOverlay)
-	surface.SetProps(rtui.Props{
-		"ownerID":          owner.ownerID,
-		"componentID":      componentID,
-		"options":          append([]Option(nil), owner.options...),
-		"style":            owner.selectStyle,
-		"selectionMode":    owner.selectionMode,
-		"selectedIndex":    owner.selectedIndex,
-		"selectedIndices":  append([]int(nil), owner.selectedIndices...),
-		"highlightedIndex": owner.highlightedIndex,
-		"scrollOffset":     owner.scrollOffset,
-		"maxVisibleRows":   owner.maxVisibleRows,
-		"minWidth":         owner.triggerWidth(),
-		"disabled":         owner.state.Disabled,
-		"closeOnOutside":   owner.closeOnOutside,
-	})
-
-	portal := rtui.NewElement("box")
-	portal.SetKey(owner.ownerID + "-popup-portal")
-	portal.SetID(owner.ownerID + "-popup-portal")
-	portal.SetProps(rtui.Props{
-		"position": "absolute",
-		"left":     0,
-		"top":      0,
-		"width":    1,
-		"height":   1,
-	})
-	portal.SetLayer(rtui.LayerOverlay)
-	if ownerID := owner.ownerID; ownerID != "" {
-		portal.SetAnchorTo(ownerID, rttypes.AnchorBottomLeft)
-	}
-	if owner.portalRoot != "" {
-		portal.SetPortalRoot(owner.portalRoot)
-	}
-	portal.SetPortalPosition(rttypes.PositionAbsolute)
-	portal.SetProp("left", 0)
-	if popupAnchorOffsetY != 0 {
-		portal.SetProp("top", popupAnchorOffsetY)
-	}
-	portal.SetChildren([]rtui.VNode{surface})
-	return portal
 }
 
 func (v *popupVNode) SetProps(p rtui.Props) rtui.VNode {
@@ -99,7 +41,7 @@ func (v *popupVNode) CreateInstance() rtui.ComponentInstance {
 type popupInstance struct {
 	key              string
 	parent           rtui.ComponentInstance
-	ownerID          string
+	selectID         string
 	componentID      string
 	options          []Option
 	popupStyle       style.Style
@@ -112,9 +54,14 @@ type popupInstance struct {
 	minWidth         int
 	disabled         bool
 	closeOnOutside   bool
+	changeIntent     intent.Intent
+	changeIntentField intent.FieldIntent
+	formID           string
 	focused          bool
 	bounds           [4]int
 	dirty            bool
+	intentEmitter    func(intent.Intent)
+	overlayCallbacks *overlayCallbacks
 }
 
 var (
@@ -128,6 +75,7 @@ var (
 	_ interface {
 		Parent() interface{}
 	} = (*popupInstance)(nil)
+	_ selectIntentSource = (*popupInstance)(nil)
 )
 
 func newPopupInstance(props rtui.Props) *popupInstance {
@@ -139,35 +87,26 @@ func newPopupInstance(props rtui.Props) *popupInstance {
 func (inst *popupInstance) Key() string                        { return inst.key }
 func (inst *popupInstance) SetKey(key string)                  { inst.key = key }
 func (inst *popupInstance) Init(props rtui.Props)              { inst.SetProps(props) }
-func (inst *popupInstance) Destroy()                           { inst.unregister() }
-func (inst *popupInstance) OnMount()                           { selectOverlayRegistry.registerPopup(inst.ownerID, inst) }
-func (inst *popupInstance) OnUnmount()                         { inst.unregister() }
+func (inst *popupInstance) Destroy()                           { selectPopupRegistry.unregister(inst) }
+func (inst *popupInstance) OnMount()                           { selectPopupRegistry.register(inst); inst.dirty = true }
+func (inst *popupInstance) OnUnmount()                         { selectPopupRegistry.unregister(inst) }
 func (inst *popupInstance) MarkDirty()                         { inst.dirty = true }
 func (inst *popupInstance) IsDirty() bool                      { return inst.dirty }
 func (inst *popupInstance) GetContext() *rtui.ComponentContext { return nil }
-func (inst *popupInstance) Parent() interface{} {
-	if inst.parent != nil {
-		return inst.parent
-	}
-	return selectOverlayRegistry.trigger(inst.ownerID)
-}
+func (inst *popupInstance) Parent() interface{}                { return inst.parent }
 func (inst *popupInstance) SetParent(parent rtui.ComponentInstance) {
 	inst.parent = parent
 }
 
-func (inst *popupInstance) unregister() {
-	selectOverlayRegistry.unregisterPopup(inst.ownerID, inst)
-}
-
 func (inst *popupInstance) SetProps(props rtui.Props) bool {
-	oldOwnerID := inst.ownerID
+	oldSelectID := inst.selectID
 	oldHighlight := inst.highlightedIndex
 	oldScroll := inst.scrollOffset
 	oldSelected := inst.selectedIndex
 	oldSelectedIndices := append([]int(nil), inst.selectedIndices...)
 
 	inst.key = getStringProp(props, "key", inst.key)
-	inst.ownerID = getStringProp(props, "ownerID", inst.ownerID)
+	inst.selectID = getStringProp(props, "selectID", inst.selectID)
 	inst.componentID = getStringProp(props, "componentID", inst.componentID)
 	inst.options = getOptionsProp(props)
 	inst.popupStyle = getStyleProp(props)
@@ -180,31 +119,44 @@ func (inst *popupInstance) SetProps(props rtui.Props) bool {
 	inst.minWidth = getIntProp(props, "minWidth", inst.minWidth)
 	inst.disabled = getBoolProp(props, "disabled", inst.disabled)
 	inst.closeOnOutside = getBoolProp(props, "closeOnOutside", inst.closeOnOutside)
+	inst.changeIntent = getIntentProp(props, "changeIntent")
+	inst.changeIntentField = getChangeIntentFieldProp(props, "changeIntent")
+	inst.formID = getStringProp(props, "formID", inst.formID)
+	inst.overlayCallbacks = getOverlayCallbacksProp(props)
 
-	inst.selectedIndices = normalizeIndices(inst.selectedIndices, len(inst.options))
+	inst.selectedIndex, inst.selectedIndices = normalizeOverlaySelection(
+		inst.selectionMode,
+		inst.selectedIndex,
+		inst.selectedIndices,
+		len(inst.options),
+	)
 	if inst.maxVisibleRows <= 0 {
 		inst.maxVisibleRows = defaultMaxVisibleRows
 	}
-	if inst.highlightedIndex < 0 && len(inst.options) > 0 {
-		if inst.selectedIndex >= 0 {
-			inst.highlightedIndex = inst.selectedIndex
-		} else {
-			inst.highlightedIndex = 0
+	if len(inst.options) == 0 {
+		inst.highlightedIndex = -1
+		inst.scrollOffset = 0
+	} else {
+		if inst.highlightedIndex < 0 || inst.highlightedIndex >= len(inst.options) {
+			inst.highlightedIndex = defaultOverlayHighlight(
+				inst.selectedIndex,
+				inst.selectedIndices,
+				inst.selectionMode,
+				len(inst.options),
+			)
 		}
-	}
-	if len(inst.options) > 0 {
 		inst.highlightedIndex = clampInt(inst.highlightedIndex, 0, len(inst.options)-1)
 		inst.scrollOffset = clampInt(inst.scrollOffset, 0, inst.maxScrollOffset())
 	}
 
-	if oldOwnerID != "" && oldOwnerID != inst.ownerID {
-		selectOverlayRegistry.unregisterPopup(oldOwnerID, inst)
+	if oldSelectID != "" && oldSelectID != inst.selectID {
+		selectPopupRegistry.unregister(inst)
 	}
-	if inst.ownerID != "" {
-		selectOverlayRegistry.registerPopup(inst.ownerID, inst)
+	if inst.selectID != "" {
+		selectPopupRegistry.register(inst)
 	}
 
-	changed := oldOwnerID != inst.ownerID ||
+	changed := oldSelectID != inst.selectID ||
 		oldHighlight != inst.highlightedIndex ||
 		oldScroll != inst.scrollOffset ||
 		oldSelected != inst.selectedIndex ||
@@ -217,20 +169,23 @@ func (inst *popupInstance) SetProps(props rtui.Props) bool {
 
 func (inst *popupInstance) GetProps() rtui.Props {
 	return rtui.Props{
-		"key":              inst.key,
-		"ownerID":          inst.ownerID,
-		"componentID":      inst.componentID,
-		"options":          append([]Option(nil), inst.options...),
-		"style":            inst.popupStyle,
-		"selectionMode":    inst.selectionMode,
-		"selectedIndex":    inst.selectedIndex,
-		"selectedIndices":  append([]int(nil), inst.selectedIndices...),
-		"highlightedIndex": inst.highlightedIndex,
-		"scrollOffset":     inst.scrollOffset,
-		"maxVisibleRows":   inst.maxVisibleRows,
-		"minWidth":         inst.minWidth,
-		"disabled":         inst.disabled,
-		"closeOnOutside":   inst.closeOnOutside,
+		"key":               inst.key,
+		"selectID":          inst.selectID,
+		"componentID":       inst.componentID,
+		"options":           append([]Option(nil), inst.options...),
+		"style":             inst.popupStyle,
+		"selectionMode":     inst.selectionMode,
+		"selectedIndex":     inst.selectedIndex,
+		"selectedIndices":   append([]int(nil), inst.selectedIndices...),
+		"highlightedIndex":  inst.highlightedIndex,
+		"scrollOffset":      inst.scrollOffset,
+		"maxVisibleRows":    inst.maxVisibleRows,
+		"minWidth":          inst.minWidth,
+		"disabled":          inst.disabled,
+		"closeOnOutside":    inst.closeOnOutside,
+		"changeIntent":      inst.changeIntent,
+		"formID":            inst.formID,
+		overlayCallbacksProp: inst.overlayCallbacks,
 	}
 }
 
@@ -257,54 +212,67 @@ func (inst *popupInstance) HandleAction(act *action.Action) bool {
 
 	switch act.Type {
 	case action.ActionNavigateDown:
-		return inst.moveHighlight(1)
+		return inst.setHighlight(inst.highlightedIndex + 1)
 	case action.ActionNavigateUp:
-		return inst.moveHighlight(-1)
+		return inst.setHighlight(inst.highlightedIndex - 1)
 	case action.ActionNavigateHome:
-		return inst.moveHighlightTo(0)
+		return inst.setHighlight(0)
 	case action.ActionNavigateEnd:
-		return inst.moveHighlightTo(len(inst.options) - 1)
+		return inst.setHighlight(len(inst.options) - 1)
 	case action.ActionNavigatePageUp:
-		return inst.pageHighlight(-1)
+		return inst.setHighlight(inst.highlightedIndex - maxInt(1, inst.visibleRowCount()))
 	case action.ActionNavigatePageDown:
-		return inst.pageHighlight(1)
+		return inst.setHighlight(inst.highlightedIndex + maxInt(1, inst.visibleRowCount()))
 	case action.ActionHover:
 		mouse, ok := popupMousePayload(act.Payload)
 		if !ok {
 			return false
 		}
-		return inst.highlightIndexAt(mouse.LocalX, mouse.LocalY)
+		index, hit := inst.optionIndexAt(mouse.LocalX, mouse.LocalY)
+		if !hit {
+			return false
+		}
+		return inst.setHighlight(index)
 	case action.ActionClick:
 		mouse, ok := popupMousePayload(act.Payload)
 		if ok {
+			if log.RenderLogger.Enabled() {
+				log.RenderLogger.Debug("[SelectPopup] ActionClick select=%s screen=(%d,%d) local=(%d,%d) highlight=%d",
+					inst.selectID, mouse.X, mouse.Y, mouse.LocalX, mouse.LocalY, inst.highlightedIndex)
+			}
 			index, hit := inst.optionIndexAt(mouse.LocalX, mouse.LocalY)
 			if !hit {
 				return true
 			}
-			inst.applyOwnerState()
-			inst.setOwnerHighlight(index)
-			inst.commitOwnerIndex(index)
-			return true
+			inst.setHighlight(index)
+			return inst.commit(index)
 		}
-		inst.applyOwnerState()
-		inst.commitOwnerIndex(inst.highlightedIndex)
-		return true
+		return inst.commit(inst.highlightedIndex)
+	case action.ActionMouseRelease:
+		mouse, ok := popupMousePayload(act.Payload)
+		if ok {
+			if log.RenderLogger.Enabled() {
+				log.RenderLogger.Debug("[SelectPopup] ActionMouseRelease select=%s screen=(%d,%d) local=(%d,%d) highlight=%d",
+					inst.selectID, mouse.X, mouse.Y, mouse.LocalX, mouse.LocalY, inst.highlightedIndex)
+			}
+			index, hit := inst.optionIndexAt(mouse.LocalX, mouse.LocalY)
+			if !hit {
+				return true
+			}
+			inst.setHighlight(index)
+			return inst.commit(index)
+		}
+		return inst.commit(inst.highlightedIndex)
 	case action.ActionScroll:
 		delta, ok := scrollDeltaFromAction(act)
 		if !ok || delta == 0 {
 			return false
 		}
-		next := clampInt(inst.highlightedIndex+scrollDirection(delta), 0, len(inst.options)-1)
-		if next == inst.highlightedIndex {
-			return false
-		}
-		return inst.setOwnerHighlight(next)
+		return inst.setHighlight(inst.highlightedIndex + scrollDirection(delta))
 	case action.ActionSelect, action.ActionEnter, action.ActionSubmit:
-		inst.applyOwnerState()
-		return inst.commitOwnerIndex(inst.highlightedIndex)
+		return inst.commit(inst.highlightedIndex)
 	case action.ActionCancel:
-		inst.applyOwnerState()
-		return inst.setOwnerOpen(false)
+		return inst.requestClose()
 	}
 	return false
 }
@@ -331,6 +299,16 @@ func (inst *popupInstance) IsDisabled() bool {
 
 func (inst *popupInstance) SetBounds(x, y, w, h int) {
 	inst.bounds = [4]int{x, y, w, h}
+}
+
+func (inst *popupInstance) SetIntentEmitter(fn func(intent.Intent)) {
+	inst.intentEmitter = fn
+}
+
+func (inst *popupInstance) EmitIntent(i intent.Intent) {
+	if inst.intentEmitter != nil {
+		inst.intentEmitter(i)
+	}
 }
 
 func (inst *popupInstance) containsPoint(screenX, screenY int) bool {
@@ -373,31 +351,117 @@ func (inst *popupInstance) maxScrollOffset() int {
 	return maxInt(0, len(inst.options)-inst.visibleRowCount())
 }
 
-func (inst *popupInstance) moveHighlight(delta int) bool {
-	inst.applyOwnerState()
-	return inst.moveHighlightTo(clampInt(inst.highlightedIndex+delta, 0, len(inst.options)-1))
-}
-
-func (inst *popupInstance) moveHighlightTo(index int) bool {
-	next := clampInt(index, 0, len(inst.options)-1)
-	if next == inst.highlightedIndex {
+func (inst *popupInstance) setHighlight(index int) bool {
+	if len(inst.options) == 0 {
 		return false
 	}
-	return inst.setOwnerHighlight(next)
-}
-
-func (inst *popupInstance) pageHighlight(direction int) bool {
-	pageSize := maxInt(1, inst.visibleRowCount())
-	next := inst.highlightedIndex + direction*pageSize
-	return inst.moveHighlightTo(next)
-}
-
-func (inst *popupInstance) highlightIndexAt(localX, localY int) bool {
-	index, hit := inst.optionIndexAt(localX, localY)
-	if !hit || index == inst.highlightedIndex {
+	index = clampInt(index, 0, len(inst.options)-1)
+	if inst.overlayCallbacks != nil {
+		state := inst.overlayCallbacks.setHighlight(index)
+		oldHighlight := inst.highlightedIndex
+		oldScroll := inst.scrollOffset
+		inst.selectedIndex = state.selectedIndex
+		inst.selectedIndices = append([]int(nil), state.selectedIndices...)
+		inst.highlightedIndex = state.highlightedIndex
+		inst.scrollOffset = state.scrollOffset
+		inst.dirty = oldHighlight != inst.highlightedIndex || oldScroll != inst.scrollOffset
+		return oldHighlight != inst.highlightedIndex || oldScroll != inst.scrollOffset
+	}
+	if index == inst.highlightedIndex {
 		return false
 	}
-	return inst.setOwnerHighlight(index)
+	inst.highlightedIndex = index
+	inst.ensureHighlightVisible()
+	inst.dirty = true
+	return true
+}
+
+func (inst *popupInstance) commit(index int) bool {
+	if index < 0 || index >= len(inst.options) {
+		return false
+	}
+	oldSelectedIndex := inst.selectedIndex
+	oldSelectedIndices := append([]int(nil), inst.selectedIndices...)
+	closed := false
+	if inst.overlayCallbacks != nil {
+		state := inst.overlayCallbacks.commit(index)
+		inst.selectedIndex = state.selectedIndex
+		inst.selectedIndices = append([]int(nil), state.selectedIndices...)
+		inst.highlightedIndex = state.highlightedIndex
+		inst.scrollOffset = state.scrollOffset
+		inst.dirty = true
+		closed = !state.open
+	} else {
+		nextIndex, nextIndices, _, shouldClose := applyOverlayCommit(
+			inst.selectionMode,
+			len(inst.options),
+			inst.selectedIndex,
+			inst.selectedIndices,
+			index,
+		)
+		inst.selectedIndex = nextIndex
+		inst.selectedIndices = nextIndices
+		inst.highlightedIndex = clampIndexForOptions(index, len(inst.options))
+		inst.ensureHighlightVisible()
+		inst.dirty = true
+		closed = shouldClose
+	}
+
+	selectionChanged := oldSelectedIndex != inst.selectedIndex ||
+		!equalIntSlices(oldSelectedIndices, inst.selectedIndices)
+	if selectionChanged {
+		emitFieldValueChangedFrom(
+			inst,
+			inst.changeIntent,
+			inst.changeIntentField,
+			inst.formID,
+			inst.selectionMode,
+			inst.selectedIndex,
+			inst.selectedIndices,
+		)
+		emitSelectChangeFrom(
+			inst,
+			inst.componentID,
+			inst.selectionMode,
+			inst.options,
+			inst.selectedIndex,
+			inst.selectedIndices,
+		)
+	}
+	return selectionChanged || closed
+}
+
+func (inst *popupInstance) requestClose() bool {
+	if inst.overlayCallbacks != nil {
+		wasOpen := true
+		state := inst.overlayCallbacks.setOpen(false)
+		inst.selectedIndex = state.selectedIndex
+		inst.selectedIndices = append([]int(nil), state.selectedIndices...)
+		inst.highlightedIndex = state.highlightedIndex
+		inst.scrollOffset = state.scrollOffset
+		inst.dirty = true
+		return wasOpen && !state.open
+	}
+	inst.dirty = true
+	return true
+}
+
+func (inst *popupInstance) ensureHighlightVisible() {
+	if len(inst.options) == 0 || inst.highlightedIndex < 0 {
+		inst.scrollOffset = 0
+		return
+	}
+	maxOffset := inst.maxScrollOffset()
+	if inst.scrollOffset > maxOffset {
+		inst.scrollOffset = maxOffset
+	}
+	if inst.highlightedIndex < inst.scrollOffset {
+		inst.scrollOffset = inst.highlightedIndex
+	}
+	if visible := inst.visibleRowCount(); visible > 0 && inst.highlightedIndex >= inst.scrollOffset+visible {
+		inst.scrollOffset = inst.highlightedIndex - visible + 1
+	}
+	inst.scrollOffset = clampInt(inst.scrollOffset, 0, maxOffset)
 }
 
 func (inst *popupInstance) optionIndexAt(localX, localY int) (int, bool) {
@@ -573,66 +637,4 @@ func scrollDirection(delta int) int {
 		return -1
 	}
 	return 0
-}
-
-func (inst *popupInstance) owner() *Instance {
-	if inst == nil {
-		return nil
-	}
-	if parent := inst.Parent(); parent != nil {
-		if owner, ok := parent.(*Instance); ok {
-			return owner
-		}
-	}
-	return selectOverlayRegistry.trigger(inst.ownerID)
-}
-
-func (inst *popupInstance) applyOwnerState() {
-	owner := inst.owner()
-	if owner == nil {
-		return
-	}
-	inst.selectedIndex = owner.selectedIndex
-	inst.selectedIndices = append([]int(nil), owner.selectedIndices...)
-	inst.highlightedIndex = owner.highlightedIndex
-	inst.scrollOffset = owner.scrollOffset
-	inst.disabled = owner.state.Disabled
-}
-
-func (inst *popupInstance) setOwnerHighlight(index int) bool {
-	owner := inst.owner()
-	if owner == nil {
-		intent.Emit(inst, SelectHighlightIntent{Index: index, ComponentID: inst.componentID})
-		return true
-	}
-	handled := owner.HandleIntent(SelectHighlightIntent{Index: index, ComponentID: inst.componentID})
-	inst.applyOwnerState()
-	if handled {
-		inst.dirty = true
-	}
-	return handled
-}
-
-func (inst *popupInstance) commitOwnerIndex(index int) bool {
-	owner := inst.owner()
-	if owner == nil {
-		intent.Emit(inst, SelectCommitIndexIntent{Index: index, ComponentID: inst.componentID})
-		return true
-	}
-	handled := owner.HandleIntent(SelectCommitIndexIntent{Index: index, ComponentID: inst.componentID})
-	inst.applyOwnerState()
-	inst.dirty = true
-	return handled
-}
-
-func (inst *popupInstance) setOwnerOpen(open bool) bool {
-	owner := inst.owner()
-	if owner == nil {
-		intent.Emit(inst, SelectSetOpenIntent{Open: open, ComponentID: inst.componentID})
-		return true
-	}
-	handled := owner.HandleIntent(SelectSetOpenIntent{Open: open, ComponentID: inst.componentID})
-	inst.applyOwnerState()
-	inst.dirty = true
-	return handled
 }

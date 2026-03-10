@@ -199,6 +199,42 @@ func (i SelectByValueIntent) GetComponentID() string {
 	return i.ComponentID
 }
 
+// SelectSetOpenIntent requests to open or close the popup.
+type SelectSetOpenIntent struct {
+	Open        bool
+	ComponentID string
+}
+
+func (i SelectSetOpenIntent) IntentType() string              { return "select.SelectSetOpenIntent" }
+func (i SelectSetOpenIntent) Priority() intent.ActionPriority { return intent.PriorityNormal }
+func (i SelectSetOpenIntent) IsTransition() bool              { return false }
+func (i SelectSetOpenIntent) IsGlobal() bool                  { return false }
+func (i SelectSetOpenIntent) GetComponentID() string          { return i.ComponentID }
+
+// SelectHighlightIntent updates the highlighted option in the popup.
+type SelectHighlightIntent struct {
+	Index       int
+	ComponentID string
+}
+
+func (i SelectHighlightIntent) IntentType() string              { return "select.SelectHighlightIntent" }
+func (i SelectHighlightIntent) Priority() intent.ActionPriority { return intent.PriorityNormal }
+func (i SelectHighlightIntent) IsTransition() bool              { return false }
+func (i SelectHighlightIntent) IsGlobal() bool                  { return false }
+func (i SelectHighlightIntent) GetComponentID() string          { return i.ComponentID }
+
+// SelectCommitIndexIntent requests the owner to commit/toggle the option index.
+type SelectCommitIndexIntent struct {
+	Index       int
+	ComponentID string
+}
+
+func (i SelectCommitIndexIntent) IntentType() string              { return "select.SelectCommitIndexIntent" }
+func (i SelectCommitIndexIntent) Priority() intent.ActionPriority { return intent.PriorityNormal }
+func (i SelectCommitIndexIntent) IsTransition() bool              { return false }
+func (i SelectCommitIndexIntent) IsGlobal() bool                  { return false }
+func (i SelectCommitIndexIntent) GetComponentID() string          { return i.ComponentID }
+
 // =============================================================================
 // Intent Constructors
 // =============================================================================
