@@ -201,6 +201,7 @@ func RunTest(app ComponentFunc, opts ...Option) (*TestableApp, error) {
 
 	// Create the framework app
 	fwApp := framework.NewApp()
+	fwApp.SetConfigSize(options.Width, options.Height)
 	fwApp.Resize(options.Width, options.Height)
 
 	// Initialize theme (optional, don't fail on error)
@@ -284,6 +285,7 @@ func RunTestWithSandbox(app ComponentFunc, opts ...Option) (*TestableApp, error)
 
 	// Create the framework app
 	fwApp := framework.NewApp()
+	fwApp.SetConfigSize(options.Width, options.Height)
 	fwApp.Resize(options.Width, options.Height)
 
 	// Initialize theme (optional, don't fail on error)

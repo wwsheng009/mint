@@ -66,9 +66,15 @@ func TestSelectOverlayProbe_MouseClickCommitViaPump(t *testing.T) {
 	if err := testApp.InjectMouse(trigger.Bounds.X+1, trigger.Bounds.Y, platform.MouseLeft, platform.MousePress); err != nil {
 		t.Fatal(err)
 	}
+	if err := testApp.InjectMouse(trigger.Bounds.X+1, trigger.Bounds.Y, platform.MouseLeft, platform.MouseRelease); err != nil {
+		t.Fatal(err)
+	}
 
 	popup := waitForHitTag(t, testApp, "select-popup")
 	if err := testApp.InjectMouse(popup.Bounds.X+2, popup.Bounds.Y+2, platform.MouseLeft, platform.MousePress); err != nil {
+		t.Fatal(err)
+	}
+	if err := testApp.InjectMouse(popup.Bounds.X+2, popup.Bounds.Y+2, platform.MouseLeft, platform.MouseRelease); err != nil {
 		t.Fatal(err)
 	}
 

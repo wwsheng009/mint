@@ -9,12 +9,14 @@ import (
 	irender "github.com/wwsheng009/mint/internal/render"
 	"github.com/wwsheng009/mint/runtime/action"
 	"github.com/wwsheng009/mint/runtime/core"
+	runtimeevent "github.com/wwsheng009/mint/runtime/event"
 	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
 	runtimeplatform "github.com/wwsheng009/mint/runtime/platform"
 	"github.com/wwsheng009/mint/runtime/render"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/ui/components/cursor"
 	"github.com/wwsheng009/mint/ui/components/input"
+	selectcomp "github.com/wwsheng009/mint/ui/components/select"
 	"github.com/wwsheng009/mint/ui/components/textarea"
 )
 
@@ -418,6 +420,445 @@ func TestApp_ProcessMsg_UnhandledNavigationFallsThroughToFocusedFiber(t *testing
 	}
 }
 
+func TestApp_ProcessMsg_SelectArrowNavigationAndEnterCommit(t *testing.T) {
+	app := NewApp()
+	app.Resize(80, 24)
+	selectcomp.Install(app)
+	app.actionRouter.SetMiddleware(action.NewMiddlewareChain())
+
+	decl := irender.NewDeclarativeNodeFromFuncWithFiber(func() rtui.VNode {
+		return rtui.VStack(
+			rtui.NewElement("box").SetProps(rtui.Props{
+				"portalRootId": rtui.DefaultOverlayPortalRootID,
+				"position":     "absolute",
+				"left":         0,
+				"top":          0,
+				"width":        1,
+				"height":       1,
+			}),
+			selectcomp.NewBuilder().
+				SetID("country-select").
+				OverlayPopup(true).
+				Options([]selectcomp.Option{
+					{Value: "us", Label: "United States"},
+					{Value: "cn", Label: "China"},
+					{Value: "jp", Label: "Japan"},
+				}).
+				Selected(0).
+				Build(),
+		)
+	})
+	decl.SetApp(app)
+	if fm := decl.GetFocusManager(); fm != nil {
+		app.SetFocusManagerFromDeclarativeNode(fm)
+	}
+	app.SetRoot(decl)
+
+	app.dirty = true
+	app.render()
+	app.dirty = true
+	app.render()
+
+	var selectInst *selectcomp.Instance
+	rtui.WalkFiberDepthFirst(app.getFiberRoot(), func(fiber *rtui.Fiber) bool {
+		if fiber == nil || fiber.Instance == nil {
+			return true
+		}
+		if inst, ok := fiber.Instance.(*selectcomp.Instance); ok && inst.HasFocus() {
+			selectInst = inst
+			return false
+		}
+		return true
+	})
+	if selectInst == nil {
+		t.Fatal("expected focused select instance")
+	}
+
+	app.processMsg(runtimemsg.NewKeyMsg(0, runtimeplatform.KeyEnter, runtimemsg.Modifiers{}))
+	if open, _ := selectInst.GetProp("open"); open != true {
+		t.Fatalf("select open after enter = %#v, want true", open)
+	}
+	app.processMsg(runtimemsg.NewKeyMsg(0, runtimeplatform.KeyDown, runtimemsg.Modifiers{}))
+	app.processMsg(runtimemsg.NewKeyMsg(0, runtimeplatform.KeyEnter, runtimemsg.Modifiers{}))
+
+	if selectInst.SelectedIndex() != 1 {
+		t.Fatalf("SelectedIndex after down+enter = %d, want 1", selectInst.SelectedIndex())
+	}
+	if open, _ := selectInst.GetProp("open"); open != false {
+		t.Fatalf("select open after commit = %#v, want false", open)
+	}
+}
+
+func TestApp_ProcessMsg_SelectMouseOpenThenKeyboardCommit(t *testing.T) {
+	app := NewApp()
+	app.Resize(80, 24)
+	selectcomp.Install(app)
+	app.actionRouter.SetMiddleware(action.NewMiddlewareChain())
+
+	decl := irender.NewDeclarativeNodeFromFuncWithFiber(func() rtui.VNode {
+		return rtui.VStack(
+			rtui.NewElement("text").SetProps(rtui.Props{"content": "prefix"}),
+			rtui.NewElement("box").SetProps(rtui.Props{
+				"portalRootId": rtui.DefaultOverlayPortalRootID,
+				"position":     "absolute",
+				"left":         0,
+				"top":          0,
+				"width":        1,
+				"height":       1,
+			}),
+			selectcomp.NewBuilder().
+				SetID("country-select").
+				OverlayPopup(true).
+				Options([]selectcomp.Option{
+					{Value: "us", Label: "United States"},
+					{Value: "cn", Label: "China"},
+					{Value: "jp", Label: "Japan"},
+				}).
+				Selected(0).
+				Build(),
+		)
+	})
+	decl.SetApp(app)
+	if fm := decl.GetFocusManager(); fm != nil {
+		app.SetFocusManagerFromDeclarativeNode(fm)
+	}
+	app.SetRoot(decl)
+
+	app.dirty = true
+	app.render()
+	app.dirty = true
+	app.render()
+
+	var selectInst *selectcomp.Instance
+	rtui.WalkFiberDepthFirst(app.getFiberRoot(), func(fiber *rtui.Fiber) bool {
+		if fiber == nil || fiber.Instance == nil {
+			return true
+		}
+		if inst, ok := fiber.Instance.(*selectcomp.Instance); ok {
+			selectInst = inst
+			return false
+		}
+		return true
+	})
+	if selectInst == nil {
+		t.Fatal("expected select instance")
+	}
+
+	detail := selectTriggerHitDetail(t, app, 1, 0)
+	mouseMsg := runtimemsg.NewMouseMsg(detail.ScreenX, detail.ScreenY, runtimemsg.MouseLeft, runtimemsg.MouseActionPress)
+	mouseMsg.TargetFiber = detail.Entry.TargetFiber
+	mouseMsg.LocalX = detail.LocalX
+	mouseMsg.LocalY = detail.LocalY
+	app.processMsg(mouseMsg)
+	mouseRelease := runtimemsg.NewMouseMsg(detail.ScreenX, detail.ScreenY, runtimemsg.MouseLeft, runtimemsg.MouseActionRelease)
+	mouseRelease.TargetFiber = detail.Entry.TargetFiber
+	mouseRelease.LocalX = detail.LocalX
+	mouseRelease.LocalY = detail.LocalY
+	app.processMsg(mouseRelease)
+
+	if !selectInst.HasFocus() {
+		t.Fatal("select should receive focus after trigger click")
+	}
+	if open, _ := selectInst.GetProp("open"); open != true {
+		t.Fatalf("select open after trigger click = %#v, want true", open)
+	}
+
+	app.processMsg(runtimemsg.NewKeyMsg(0, runtimeplatform.KeyDown, runtimemsg.Modifiers{}))
+	app.processMsg(runtimemsg.NewKeyMsg(0, runtimeplatform.KeyEnter, runtimemsg.Modifiers{}))
+
+	if selectInst.SelectedIndex() != 1 {
+		t.Fatalf("SelectedIndex after mouse-open down+enter = %d, want 1", selectInst.SelectedIndex())
+	}
+}
+
+func TestApp_SelectPopupTakesFocusAfterOpenRender(t *testing.T) {
+	app := NewApp()
+	app.Resize(80, 24)
+	selectcomp.Install(app)
+	app.actionRouter.SetMiddleware(action.NewMiddlewareChain())
+
+	decl := irender.NewDeclarativeNodeFromFuncWithFiber(func() rtui.VNode {
+		return rtui.VStack(
+			rtui.NewElement("box").SetProps(rtui.Props{
+				"portalRootId": rtui.DefaultOverlayPortalRootID,
+				"position":     "absolute",
+				"left":         0,
+				"top":          0,
+				"width":        1,
+				"height":       1,
+			}),
+			selectcomp.NewBuilder().
+				SetID("country-select").
+				OverlayPopup(true).
+				Options([]selectcomp.Option{
+					{Value: "us", Label: "United States"},
+					{Value: "cn", Label: "China"},
+					{Value: "jp", Label: "Japan"},
+				}).
+				Selected(0).
+				Build(),
+		)
+	})
+	decl.SetApp(app)
+	if fm := decl.GetFocusManager(); fm != nil {
+		app.SetFocusManagerFromDeclarativeNode(fm)
+	}
+	app.SetRoot(decl)
+
+	app.dirty = true
+	app.render()
+	app.dirty = true
+	app.render()
+
+	app.processMsg(runtimemsg.NewKeyMsg(0, runtimeplatform.KeyEnter, runtimemsg.Modifiers{}))
+	app.dirty = true
+	app.render()
+
+	focused := app.GetFocusManager().GetCurrent()
+	if focused == nil {
+		t.Fatal("expected focused fiber")
+	}
+	if focused.Tag != "select-popup" {
+		t.Fatalf("focused fiber tag after popup open = %q, want %q", focused.Tag, "select-popup")
+	}
+
+	var selectInst *selectcomp.Instance
+	rtui.WalkFiberDepthFirst(app.getFiberRoot(), func(fiber *rtui.Fiber) bool {
+		if fiber == nil || fiber.Instance == nil {
+			return true
+		}
+		if inst, ok := fiber.Instance.(*selectcomp.Instance); ok {
+			selectInst = inst
+			return false
+		}
+		return true
+	})
+	if selectInst == nil {
+		t.Fatal("expected select instance")
+	}
+	if open, _ := selectInst.GetProp("open"); open != true {
+		t.Fatalf("select open after popup takes focus = %#v, want true", open)
+	}
+}
+
+func TestApp_ProcessMsg_SelectPopupMouseClickCommitsOption(t *testing.T) {
+	app := NewApp()
+	app.Resize(80, 24)
+	selectcomp.Install(app)
+	app.actionRouter.SetMiddleware(action.NewMiddlewareChain())
+
+	decl := irender.NewDeclarativeNodeFromFuncWithFiber(func() rtui.VNode {
+		return rtui.VStack(
+			rtui.NewElement("box").SetProps(rtui.Props{
+				"portalRootId": rtui.DefaultOverlayPortalRootID,
+				"position":     "absolute",
+				"left":         0,
+				"top":          0,
+				"width":        1,
+				"height":       1,
+			}),
+			selectcomp.NewBuilder().
+				SetID("country-select").
+				OverlayPopup(true).
+				Options([]selectcomp.Option{
+					{Value: "us", Label: "United States"},
+					{Value: "cn", Label: "China"},
+					{Value: "jp", Label: "Japan"},
+				}).
+				Selected(0).
+				Build(),
+		)
+	})
+	decl.SetApp(app)
+	if fm := decl.GetFocusManager(); fm != nil {
+		app.SetFocusManagerFromDeclarativeNode(fm)
+	}
+	app.SetRoot(decl)
+
+	app.dirty = true
+	app.render()
+	app.dirty = true
+	app.render()
+
+	var selectInst *selectcomp.Instance
+	rtui.WalkFiberDepthFirst(app.getFiberRoot(), func(fiber *rtui.Fiber) bool {
+		if fiber == nil || fiber.Instance == nil {
+			return true
+		}
+		if inst, ok := fiber.Instance.(*selectcomp.Instance); ok {
+			selectInst = inst
+			return false
+		}
+		return true
+	})
+	if selectInst == nil {
+		t.Fatal("expected select instance")
+	}
+
+	app.processMsg(runtimemsg.NewKeyMsg(0, runtimeplatform.KeyEnter, runtimemsg.Modifiers{}))
+	app.dirty = true
+	app.render()
+
+	detail := popupHitDetail(t, app, 1, 2)
+
+	mouseMsg := runtimemsg.NewMouseMsg(detail.ScreenX, detail.ScreenY, runtimemsg.MouseLeft, runtimemsg.MouseActionPress)
+	mouseMsg.TargetFiber = detail.Entry.TargetFiber
+	mouseMsg.LocalX = detail.LocalX
+	mouseMsg.LocalY = detail.LocalY
+	app.processMsg(mouseMsg)
+	mouseRelease := runtimemsg.NewMouseMsg(detail.ScreenX, detail.ScreenY, runtimemsg.MouseLeft, runtimemsg.MouseActionRelease)
+	mouseRelease.TargetFiber = detail.Entry.TargetFiber
+	mouseRelease.LocalX = detail.LocalX
+	mouseRelease.LocalY = detail.LocalY
+	app.processMsg(mouseRelease)
+	app.dirty = true
+	app.render()
+
+	if selectInst.SelectedIndex() != 1 {
+		t.Fatalf("SelectedIndex after popup click = %d, want 1", selectInst.SelectedIndex())
+	}
+	if open, _ := selectInst.GetProp("open"); open != false {
+		t.Fatalf("select open after popup click = %#v, want false", open)
+	}
+}
+
+func TestApp_SelectPopupHitMapLocalCoordinates(t *testing.T) {
+	app := NewApp()
+	app.Resize(80, 24)
+	selectcomp.Install(app)
+	app.actionRouter.SetMiddleware(action.NewMiddlewareChain())
+
+	decl := irender.NewDeclarativeNodeFromFuncWithFiber(func() rtui.VNode {
+		return rtui.VStack(
+			rtui.NewElement("box").SetProps(rtui.Props{
+				"portalRootId": rtui.DefaultOverlayPortalRootID,
+				"position":     "absolute",
+				"left":         0,
+				"top":          0,
+				"width":        1,
+				"height":       1,
+			}),
+			selectcomp.NewBuilder().
+				SetID("country-select").
+				OverlayPopup(true).
+				Options([]selectcomp.Option{
+					{Value: "us", Label: "United States"},
+					{Value: "cn", Label: "China"},
+					{Value: "jp", Label: "Japan"},
+				}).
+				Selected(0).
+				Build(),
+		)
+	})
+	decl.SetApp(app)
+	if fm := decl.GetFocusManager(); fm != nil {
+		app.SetFocusManagerFromDeclarativeNode(fm)
+	}
+	app.SetRoot(decl)
+
+	app.dirty = true
+	app.render()
+	app.dirty = true
+	app.render()
+
+	var selectInst *selectcomp.Instance
+	rtui.WalkFiberDepthFirst(app.getFiberRoot(), func(fiber *rtui.Fiber) bool {
+		if fiber == nil || fiber.Instance == nil {
+			return true
+		}
+		if inst, ok := fiber.Instance.(*selectcomp.Instance); ok {
+			selectInst = inst
+			return false
+		}
+		return true
+	})
+	if selectInst == nil {
+		t.Fatal("expected select instance")
+	}
+
+	app.processMsg(runtimemsg.NewKeyMsg(0, runtimeplatform.KeyEnter, runtimemsg.Modifiers{}))
+	app.dirty = true
+	app.render()
+
+	detail := popupHitDetail(t, app, 1, 2)
+	if detail.LocalX != 1 || detail.LocalY != 2 {
+		t.Fatalf("popup local coords = (%d,%d), want (1,2)", detail.LocalX, detail.LocalY)
+	}
+	fiber, ok := detail.Entry.TargetFiber.(*rtui.Fiber)
+	if !ok || fiber == nil {
+		t.Fatal("expected target fiber from popup hit")
+	}
+	if fiber.Tag != "select-popup" {
+		t.Fatalf("popup target fiber tag = %q, want %q", fiber.Tag, "select-popup")
+	}
+}
+
+func popupHitDetail(t *testing.T, app *App, localX, localY int) *runtimeevent.DetailedHitTestResult {
+	t.Helper()
+	hitMap := app.GetHitMap()
+	if hitMap == nil {
+		t.Fatal("expected hitmap after render")
+	}
+
+	var popupEntry *runtimeevent.HitMapEntry
+	for _, entry := range hitMap.AllEntries() {
+		fiber, ok := entry.TargetFiber.(*rtui.Fiber)
+		if !ok || fiber == nil {
+			continue
+		}
+		if fiber.Tag == "select-popup" {
+			entryCopy := entry
+			popupEntry = &entryCopy
+			break
+		}
+	}
+	if popupEntry == nil {
+		t.Fatal("expected select-popup entry in hitmap")
+	}
+
+	screenX := popupEntry.Bounds.X + localX
+	screenY := popupEntry.Bounds.Y + localY
+	detail := hitMap.HitTestDetailed(screenX, screenY)
+	if detail == nil || !detail.Found || detail.Entry == nil {
+		t.Fatalf("expected popup hit at (%d,%d)", screenX, screenY)
+	}
+	return detail
+}
+
+func selectTriggerHitDetail(t *testing.T, app *App, localX, localY int) *runtimeevent.DetailedHitTestResult {
+	t.Helper()
+	hitMap := app.GetHitMap()
+	if hitMap == nil {
+		t.Fatal("expected hitmap after render")
+	}
+
+	var triggerEntry *runtimeevent.HitMapEntry
+	for _, entry := range hitMap.AllEntries() {
+		fiber, ok := entry.TargetFiber.(*rtui.Fiber)
+		if !ok || fiber == nil {
+			continue
+		}
+		if nearestFocusableFiber(fiber) != nil {
+			if focusable, ok := nearestFocusableFiber(fiber).Instance.(*selectcomp.Instance); ok && focusable != nil {
+				entryCopy := entry
+				triggerEntry = &entryCopy
+				break
+			}
+		}
+	}
+	if triggerEntry == nil {
+		t.Fatal("expected select trigger entry in hitmap")
+	}
+
+	screenX := triggerEntry.Bounds.X + localX
+	screenY := triggerEntry.Bounds.Y + localY
+	detail := hitMap.HitTestDetailed(screenX, screenY)
+	if detail == nil || !detail.Found || detail.Entry == nil {
+		t.Fatalf("expected trigger hit at (%d,%d)", screenX, screenY)
+	}
+	return detail
+}
+
 func TestApp_ProcessMsg_UntargetedClickDispatchesActionRouterMiddleware(t *testing.T) {
 	app := NewApp()
 	middleware := &recordingMiddleware{intercept: true}
@@ -434,6 +875,31 @@ func TestApp_ProcessMsg_UntargetedClickDispatchesActionRouterMiddleware(t *testi
 	}
 	if !app.dirty {
 		t.Fatal("app should be marked dirty when middleware intercepts untargeted click")
+	}
+}
+
+func TestApp_ProcessMsg_TargetedClickRunsMiddlewareBeforeFiberDispatch(t *testing.T) {
+	app := NewApp()
+	middleware := &recordingMiddleware{}
+	app.AddMiddleware(middleware)
+
+	recorder := &clickActionRecorder{}
+	fiber := &rtui.Fiber{
+		Tag:      "button",
+		NodeID:   99,
+		Instance: recorder,
+	}
+
+	mouseMsg := runtimemsg.NewMouseMsg(3, 4, runtimemsg.MouseLeft, runtimemsg.MouseActionPress)
+	mouseMsg.TargetFiber = fiber
+
+	app.processMsg(mouseMsg)
+
+	if len(middleware.beforeCalls) != 1 || middleware.beforeCalls[0] != action.ActionClick {
+		t.Fatalf("middleware before calls = %#v, want [ActionClick]", middleware.beforeCalls)
+	}
+	if len(recorder.handled) != 1 || recorder.handled[0] != action.ActionClick {
+		t.Fatalf("handled actions = %#v, want [ActionClick]", recorder.handled)
 	}
 }
 
@@ -479,6 +945,29 @@ func (m *navigationActionRecorder) HandleAction(act *action.Action) bool {
 	return act.Type == action.ActionNavigateDown
 }
 
+type clickActionRecorder struct {
+	handled []action.ActionType
+}
+
+func (m *clickActionRecorder) Key() string                        { return "" }
+func (m *clickActionRecorder) SetKey(key string)                  {}
+func (m *clickActionRecorder) Init(props rtui.Props)              {}
+func (m *clickActionRecorder) Destroy()                           {}
+func (m *clickActionRecorder) OnMount()                           {}
+func (m *clickActionRecorder) OnUnmount()                         {}
+func (m *clickActionRecorder) SetProps(props rtui.Props) bool     { return false }
+func (m *clickActionRecorder) GetProps() rtui.Props               { return nil }
+func (m *clickActionRecorder) MarkDirty()                         {}
+func (m *clickActionRecorder) IsDirty() bool                      { return false }
+func (m *clickActionRecorder) GetContext() *rtui.ComponentContext { return nil }
+func (m *clickActionRecorder) HandleAction(act *action.Action) bool {
+	if act == nil {
+		return false
+	}
+	m.handled = append(m.handled, act.Type)
+	return act.Type == action.ActionClick
+}
+
 type recordingMiddleware struct {
 	beforeCalls []action.ActionType
 	intercept   bool
@@ -500,6 +989,21 @@ func (m *recordingMiddleware) Before(act *action.Action) *action.Action {
 }
 
 func (m *recordingMiddleware) After(act *action.Action, result *action.RouterResult) {}
+
+func mustPropBool(t *testing.T, inst interface {
+	GetProp(string) (interface{}, bool)
+}, key string) bool {
+	t.Helper()
+	value, ok := inst.GetProp(key)
+	if !ok {
+		t.Fatalf("prop %q missing", key)
+	}
+	b, ok := value.(bool)
+	if !ok {
+		t.Fatalf("prop %q type = %T, want bool", key, value)
+	}
+	return b
+}
 
 // testPanicHandler 测试用的 panic 处理器
 type testPanicHandler struct{}

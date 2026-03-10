@@ -171,6 +171,7 @@ func main() {
 		ui.WithInteractionMode(ui.InteractionModeInteractive),
 		ui.WithPluginSetup(func(app *framework.App) {
 			runtimeApp = app
+			selectcomp.Install(app)
 			applyRuntimeInteractionMode(appStore.Get().InteractionMode)
 
 			// F6: 循环切换三种交互模式
@@ -418,7 +419,7 @@ func InteractionStatusBar(state AppState) ui.VNode {
 		TooltipGapRows(0).
 		TooltipMaxWidth(38).
 		HelpPrefix("> ").
-		HelpFallback("Hover actions for overlay help | Click / Enter to trigger | F6 and Ctrl+1/2/3 still work").
+		HelpFallback("Hover actions for overlay help | Select supports Enter, Up/Down, and mouse click | F6 and Ctrl+1/2/3 still work").
 		Left(
 			ui.StatusBarActionBadge(" MODE ", "black", modeColor, SetInteractionModeIntent{Mode: nextMode}).
 				WithHelp("Cycle to the next interaction mode"),
@@ -430,12 +431,12 @@ func InteractionStatusBar(state AppState) ui.VNode {
 				WithHelp("Current mode: click or press Enter to cycle"),
 		).
 		Center(
-			ui.StatusBarText(" Tab/Enter | F6 | Ctrl+1-3 ").
-				WithWidth(24).
+			ui.StatusBarText(" Tab/Enter/Up/Down | Mouse | F6 | Ctrl+1-3 ").
+				WithWidth(40).
 				WithAlign(ui.AlignCenter).
 				WithBold(true).
 				WithEllipsis().
-				WithTooltip("Keyboard shortcuts stay available in every interaction mode"),
+				WithTooltip("Select: Enter opens, Up/Down moves, mouse click selects"),
 		).
 		Right(modeStatusSection(" UI ", "interactive", state.InteractionMode)).
 		Right(modeStatusSection(" APP ", "app_selection", state.InteractionMode)).
@@ -523,6 +524,7 @@ func ProfileFormFields(state AppState) ui.VNode {
 			ui.Text("  "),
 			ui.NewSelectBuilder().
 				SetID("profile.country").
+				OverlayPopup(true).
 				Options(countries).
 				Selected(countryIdx).
 				// ForField() 会将选中的索引存储到 State
