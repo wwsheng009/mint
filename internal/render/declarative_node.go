@@ -48,7 +48,7 @@ type DeclarativeNode struct {
 	focusMgr *rtui.FiberFocusManager // Focus manager for keyboard navigation (Fiber-first)
 
 	// Framework integration
-	reconciler rtui.Reconciler   // Fiber reconciler (if enabled) - use interface to avoid import cycle
+	reconciler rtui.Reconciler    // Fiber reconciler (if enabled) - use interface to avoid import cycle
 	renderer   rtui.VNodeRenderer // VNode renderer (implements VNodeRenderer interface)
 	useFiber   bool               // Whether Fiber mode is enabled
 
@@ -77,8 +77,8 @@ type DeclarativeNode struct {
 	lastLayoutResult *layout.LayoutResult // Last layout computation result (for GetLayoutBoxes)
 
 	// === Paintable Result Storage ===
-	lastPaintableRoot *paint.PaintableBox // Last paintable layout result (for GetPaintableBoxes)
-	lastPaintDirtyRects []paint.Rect      // Dirty rect hints from last paintable tree
+	lastPaintableRoot   *paint.PaintableBox // Last paintable layout result (for GetPaintableBoxes)
+	lastPaintDirtyRects []paint.Rect        // Dirty rect hints from last paintable tree
 
 	// === Portal Box Debug Storage ===
 	lastPortalBoxes []*layout.LayoutBox // Portal boxes from last layout (for debugging)
@@ -176,7 +176,7 @@ func NewDeclarativeNodeFromFuncWithFiber(fn rtui.ComponentFunc) *DeclarativeNode
 		renderer:          renderer,
 		useFiber:          true,
 		renderMode:        RenderModeFiberFirst, // Initialize with Fiber-first mode
-		fiberFirstEnabled: true,                // Fiber-first always enabled
+		fiberFirstEnabled: true,                 // Fiber-first always enabled
 	}
 
 	// Initialize Fiber-first pipeline components
@@ -434,9 +434,16 @@ func (n *DeclarativeNode) fiberFirstPaint(ctx paint.PaintContext, buf *paint.Buf
 	// The reconciler updates the Fiber tree, VNode is discarded after this
 	// Use a minimal buffer for reconciliation (actual painting happens later)
 	nullBuf := paint.NewBuffer(1, 1)
+	renderFn := n.renderFn
+	if hooks := n.GetHooks(); hooks != nil && hooks.VNodeHookCount() > 0 {
+		base := renderFn
+		renderFn = func() rtui.VNode {
+			return hooks.ApplyVNodeHooks(base())
+		}
+	}
 	n.reconciler.Render(paint.PaintContext{
 		Bounds: paint.Rect{X: 0, Y: 0, Width: 1, Height: 1},
-	}, nullBuf, n.renderFn)
+	}, nullBuf, renderFn)
 
 	// Get the Fiber root from reconciler
 	fiberRoot := n.getFiberRoot()
@@ -1550,8 +1557,6 @@ func (n *DeclarativeNode) UpdateRoot(vnode rtui.VNode) {
 	n.root = vnode
 }
 
-
-
 // =============================================================================
 // Test Helper Methods
 // =============================================================================
@@ -1636,7 +1641,6 @@ func (n *DeclarativeNode) getFrameworkApp() reconciler.Scheduler {
 	defer n.mu.RUnlock()
 	return n.scheduler
 }
-
 
 func minInt(a, b int) int {
 	if a < b {
@@ -1931,8 +1935,6 @@ func collectPaintableDirtyRects(root *paint.PaintableBox) []paint.Rect {
 	walk(root)
 	return rects
 }
-
-
 
 // =============================================================================
 // Portal Support - Helper Methods

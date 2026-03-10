@@ -88,6 +88,10 @@ func manageWorkInProgressInstance(current, workInProgress *Fiber) {
 		instanceCtx := instance.GetContext()
 		instanceCtx.GlobalState = sharedCtx.GlobalState
 		instanceCtx.StateMu = sharedCtx.StateMu
+		instanceCtx.SetIntentRuntime(sharedCtx.GetIntentRuntime())
+		instanceCtx.SetScheduleUpdate(func() {
+			sharedCtx.ScheduleUpdate()
+		})
 	}
 }
 
@@ -263,6 +267,11 @@ func beginWorkElement(current, workInProgress *Fiber) *Fiber {
 			children = c
 		}
 	}
+	if provider, ok := workInProgress.Instance.(rtui.RuntimeChildrenProvider); ok {
+		if runtimeChildren := provider.RuntimeChildren(); len(runtimeChildren) > 0 {
+			children = append(children, runtimeChildren...)
+		}
+	}
 
 	// Get current child for reconciliation
 	var currentChild *Fiber
@@ -388,7 +397,7 @@ func beginWorkErrorBoundary(current, workInProgress *Fiber) *Fiber {
 				workInProgress.ErrorBoundary.SetError(fmt.Errorf("panic: %v", panicValue), fmt.Sprintf("panic in %s: %v", workInProgress.ErrorBoundary.Name(), panicValue), string(debug.Stack()))
 			}
 		}
-		
+
 		if workInProgress.ErrorBoundaryFallbackFiber != nil {
 			// Use the fallback fiber as the child
 			workInProgress.Child = workInProgress.ErrorBoundaryFallbackFiber

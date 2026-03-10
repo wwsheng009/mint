@@ -41,6 +41,7 @@ type AsyncRenderer struct {
 	submittedFrames int64
 	renderedFrames  int64
 	droppedFrames   int64
+	stopOnce        sync.Once
 }
 
 // NewAsyncRenderer creates a new async renderer.
@@ -86,9 +87,12 @@ func (a *AsyncRenderer) Stop() {
 		a.mu.Unlock()
 		return
 	}
-	close(a.stopCh)
+	a.started = false
 	a.mu.Unlock()
 
+	a.stopOnce.Do(func() {
+		close(a.stopCh)
+	})
 	<-a.doneCh
 }
 

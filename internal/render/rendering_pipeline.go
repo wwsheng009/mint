@@ -241,7 +241,6 @@ type PaintableConverter interface {
 	ConvertToLayout(lbox *layout.LayoutBox) *paint.PaintableLayout
 }
 
-
 // buildPaintablePlanes builds PaintablePlanes from PaintableBox tree
 func (p *RenderingPipeline) buildPaintablePlanes(root *paint.PaintableBox) *paint.PaintablePlanes {
 	pp := paint.NewPaintablePlanes()
@@ -277,6 +276,7 @@ func (p *RenderingPipeline) buildHitMapFromPaintablePlanes(pp *paint.PaintablePl
 		if box == nil || box.Node == nil {
 			return true
 		}
+		boxX, boxY := box.X, box.Y
 
 		// Get NodeID from PaintableNode
 		nodeID := uint64(0)
@@ -289,13 +289,13 @@ func (p *RenderingPipeline) buildHitMapFromPaintablePlanes(pp *paint.PaintablePl
 			NodeID: nodeID,
 			Node:   nil, // PaintableBox doesn't have direct LayoutNode access
 			Bounds: layout.Rect{
-				X:      box.X,
-				Y:      box.Y,
+				X:      boxX,
+				Y:      boxY,
 				Width:  box.Width,
 				Height: box.Height,
 			},
 			LocalXY: func(screenX, screenY int) (int, int) {
-				return screenX - box.X, screenY - box.Y
+				return screenX - boxX, screenY - boxY
 			},
 			ZOrder: zOrder,
 		})

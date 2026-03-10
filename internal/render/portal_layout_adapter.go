@@ -487,6 +487,14 @@ func (e *PortalAwareLayoutEngine) Layout(fiber *reconciler.Fiber, constraints ru
 		}
 	}
 
+	// Rebuild HitMap after portal boxes are merged into the main tree.
+	// The initial layout engine hit map is computed before overlays are appended,
+	// so without rebuilding it, portal content can be visible but not hittable.
+	if mainResult.HitMap == nil {
+		mainResult.HitMap = layout.NewHitMap()
+	}
+	mainResult.HitMap.BuildFromLayoutBox(mainResult.Root)
+
 	return mainResult, portalBoxes, nil
 }
 

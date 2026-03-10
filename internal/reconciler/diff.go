@@ -521,18 +521,21 @@ func mountInstanceToTree(parentFiber, childFiber *Fiber) {
 		return
 	}
 
-	parentInstance := parentFiber.Instance
 	childInstance := childFiber.Instance
 
-	if parentInstance == nil || childInstance == nil {
-		// No instances for these fibers (e.g., Element, Text without InstanceFactory)
+	if childInstance == nil {
+		// No instance for this fiber (e.g., Element/Text without InstanceFactory)
 		return
 	}
 
-	// Check if parent implements TreeContainer interface
-	if parentContainer, ok := parentInstance.(rtui.TreeContainer); ok {
-		// Parent can manage its children tree
-		parentContainer.AddChild(childInstance)
+	// Attach to the nearest ancestor with an instance tree container.
+	// This keeps the instance tree connected across structural fibers like
+	// Fragment/Layout/Portal wrappers that do not create runtime instances.
+	for ancestor := parentFiber; ancestor != nil; ancestor = ancestor.Return {
+		if parentContainer, ok := ancestor.Instance.(rtui.TreeContainer); ok {
+			parentContainer.AddChild(childInstance)
+			return
+		}
 	}
 }
 
@@ -543,15 +546,16 @@ func unmountInstanceFromTree(parentFiber, childFiber *Fiber) {
 		return
 	}
 
-	parentInstance := parentFiber.Instance
 	childInstance := childFiber.Instance
 
-	if parentInstance == nil || childInstance == nil {
+	if childInstance == nil {
 		return
 	}
 
-	// Check if parent implements TreeContainer interface
-	if parentContainer, ok := parentInstance.(rtui.TreeContainer); ok {
-		parentContainer.RemoveChild(childInstance)
+	for ancestor := parentFiber; ancestor != nil; ancestor = ancestor.Return {
+		if parentContainer, ok := ancestor.Instance.(rtui.TreeContainer); ok {
+			parentContainer.RemoveChild(childInstance)
+			return
+		}
 	}
 }
