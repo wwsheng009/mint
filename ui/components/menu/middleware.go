@@ -124,7 +124,7 @@ func (m *Middleware) Before(act *action.Action) *action.Action {
 	switch act.Type {
 	case action.ActionCancel, action.ActionQuit:
 		return m.handleEscape(act)
-	case action.ActionClick:
+	case action.ActionClick, action.ActionMouseRelease:
 		return m.handleClickOutside(act)
 	}
 	return act
@@ -147,7 +147,7 @@ func (m *Middleware) handleClickOutside(act *action.Action) *action.Action {
 	if !ok || mouseMsg == nil {
 		return act
 	}
-	if mouseMsg.Action != runtimemsg.MouseActionPress {
+	if mouseMsg.Action != runtimemsg.MouseActionPress && mouseMsg.Action != runtimemsg.MouseActionRelease {
 		return act
 	}
 	menus := menuRegistryGlobal.openMenus()
