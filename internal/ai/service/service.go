@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -132,6 +133,8 @@ type Service struct {
 	httpServer    *mcppkg.Server
 	overrides     map[string]map[string]interface{}
 	hookInstalled bool
+	renderCh      chan struct{}
+	batchWarnings []string
 }
 
 func New(host Host, cfg Config) *Service {
@@ -140,6 +143,7 @@ func New(host Host, cfg Config) *Service {
 		cfg:       cfg,
 		builder:   snapshotpkg.NewBuilder(),
 		overrides: make(map[string]map[string]interface{}),
+		renderCh:  make(chan struct{}),
 	}
 	svc.status.Enabled = cfg.Enabled
 	svc.status.ReadOnly = cfg.ReadOnly
@@ -170,21 +174,32 @@ func (s *Service) Start() error {
 
 	s.installOverrideHookLocked()
 
-	if s.cfg.MCP.Enabled && s.cfg.MCP.Transport == "http" {
+	if s.cfg.MCP.Enabled {
+		transport := strings.TrimSpace(strings.ToLower(s.cfg.MCP.Transport))
+		if transport == "" {
+			transport = "http"
+		}
+		if transport != "http" && transport != "pipe" {
+			return fmt.Errorf("unsupported MCP transport: %s", s.cfg.MCP.Transport)
+		}
 		server := mcppkg.New(mcppkg.Config{
-			Host:      s.cfg.MCP.Host,
-			Port:      s.cfg.MCP.Port,
-			ReadOnly:  s.cfg.ReadOnly || s.cfg.MCP.ReadOnly,
-			AuthToken: s.cfg.MCP.AuthToken,
+			Transport:   transport,
+			Host:        s.cfg.MCP.Host,
+			Port:        s.cfg.MCP.Port,
+			ReadOnly:    s.cfg.ReadOnly || s.cfg.MCP.ReadOnly,
+			AuthToken:   s.cfg.MCP.AuthToken,
+			ExposeTrees: s.cfg.MCP.ExposeTrees,
+			ExposeWrite: s.cfg.MCP.ExposeWrite,
 		}, mcppkg.API{
 			Inspect: s.Inspect,
 			Find: func(selector string) (interface{}, error) {
 				return s.Find(selector)
 			},
-			Query:       s.Query,
-			GetTree:     s.GetTree,
-			GetNode:     s.GetNode,
-			GetFormData: s.GetFormData,
+			Query:          s.Query,
+			GetTree:        s.GetTree,
+			GetTreeCompact: s.GetTreeCompact,
+			GetNode:        s.GetNode,
+			GetFormData:    s.GetFormData,
 			GetValue: func(locator string) (interface{}, error) {
 				return s.GetValue(locator)
 			},
@@ -223,10 +238,11 @@ func (s *Service) Stop() error {
 		return nil
 	}
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	var notify chan struct{}
 
+	s.mu.Lock()
 	if !s.status.Running {
+		s.mu.Unlock()
 		return nil
 	}
 
@@ -239,6 +255,13 @@ func (s *Service) Stop() error {
 	s.status.StoppedAt = time.Now()
 	s.status.MCPEndpoint = ""
 	s.status.HTTPEndpoint = ""
+	notify = s.renderCh
+	s.renderCh = make(chan struct{})
+	s.mu.Unlock()
+
+	if notify != nil {
+		close(notify)
+	}
 	return nil
 }
 
@@ -247,10 +270,11 @@ func (s *Service) OnAfterRender(info RenderInfo) {
 		return
 	}
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	var notify chan struct{}
 
+	s.mu.Lock()
 	if !s.status.Running {
+		s.mu.Unlock()
 		return
 	}
 
@@ -272,6 +296,14 @@ func (s *Service) OnAfterRender(info RenderInfo) {
 		s.status.LastRenderAt = info.RenderedAt
 	} else {
 		s.status.LastRenderAt = time.Now()
+	}
+
+	notify = s.renderCh
+	s.renderCh = make(chan struct{})
+	s.mu.Unlock()
+
+	if notify != nil {
+		close(notify)
 	}
 }
 
@@ -425,50 +457,72 @@ func (s *Service) WaitUntil(condition func(*state.Snapshot) bool, timeout time.D
 	if condition == nil {
 		return errors.New("nil wait condition")
 	}
-	if timeout <= 0 {
-		timeout = 5 * time.Second
-	}
-
-	deadline := time.Now().Add(timeout)
-	ticker := time.NewTicker(25 * time.Millisecond)
-	defer ticker.Stop()
-
-	for {
-		snap, err := s.Inspect()
-		if err != nil {
-			return err
-		}
-		if condition(snap) {
-			return nil
-		}
-		if time.Now().After(deadline) {
-			return fmt.Errorf("timeout waiting for condition")
-		}
-		<-ticker.C
-	}
+	_, err := s.waitForSnapshot(timeout, condition)
+	return err
 }
 
 func (s *Service) WaitFor(condition WaitCondition, timeout time.Duration) (*state.Snapshot, error) {
+	return s.waitForSnapshot(timeout, func(snap *state.Snapshot) bool {
+		return s.matchWaitCondition(snap, condition)
+	})
+}
+
+func (s *Service) waitForSnapshot(timeout time.Duration, match func(*state.Snapshot) bool) (*state.Snapshot, error) {
+	if match == nil {
+		return nil, errors.New("nil wait condition")
+	}
 	if timeout <= 0 {
 		timeout = 5 * time.Second
 	}
-	deadline := time.Now().Add(timeout)
-	ticker := time.NewTicker(25 * time.Millisecond)
-	defer ticker.Stop()
 
+	deadline := time.Now().Add(timeout)
 	for {
+		ch := s.renderSignal()
+
 		snap, err := s.Inspect()
 		if err != nil {
 			return nil, err
 		}
-		if s.matchWaitCondition(snap, condition) {
+		if match(snap) {
 			return snap, nil
 		}
-		if time.Now().After(deadline) {
+
+		remaining := time.Until(deadline)
+		if remaining <= 0 {
 			return nil, fmt.Errorf("timeout waiting for condition")
 		}
-		<-ticker.C
+
+		timer := time.NewTimer(remaining)
+		select {
+		case <-ch:
+			if !timer.Stop() {
+				<-timer.C
+			}
+			continue
+		case <-timer.C:
+			return nil, fmt.Errorf("timeout waiting for condition")
+		}
 	}
+}
+
+func (s *Service) renderSignal() <-chan struct{} {
+	if s == nil {
+		return nil
+	}
+	s.mu.RLock()
+	ch := s.renderCh
+	s.mu.RUnlock()
+	if ch != nil {
+		return ch
+	}
+
+	s.mu.Lock()
+	if s.renderCh == nil {
+		s.renderCh = make(chan struct{})
+	}
+	ch = s.renderCh
+	s.mu.Unlock()
+	return ch
 }
 
 func (s *Service) GetValue(locator string) (interface{}, error) {
@@ -631,7 +685,20 @@ func (s *Service) GetTree(kind string) (interface{}, error) {
 		return nil, errors.New("AI service is not available")
 	}
 	return s.host.Invoke(context.Background(), func() (any, error) {
-		return snapshotpkg.BuildTree(s.host.GetRoot(), kind)
+		return snapshotpkg.BuildTreeWithOptions(s.host.GetRoot(), kind, snapshotpkg.TreeOptions{})
+	})
+}
+
+func (s *Service) GetTreeCompact(kind string) (interface{}, error) {
+	return s.GetTreeWithOptions(kind, snapshotpkg.TreeOptions{Compact: true})
+}
+
+func (s *Service) GetTreeWithOptions(kind string, opts snapshotpkg.TreeOptions) (interface{}, error) {
+	if s == nil || s.host == nil {
+		return nil, errors.New("AI service is not available")
+	}
+	return s.host.Invoke(context.Background(), func() (any, error) {
+		return snapshotpkg.BuildTreeWithOptions(s.host.GetRoot(), kind, opts)
 	})
 }
 
@@ -782,7 +849,7 @@ func (s *Service) Select(locator string, value interface{}) error {
 	})
 }
 
-func (s *Service) Batch(operations []mcppkg.BatchOperation, stopOnError bool) (*mcppkg.BatchResult, error) {
+func (s *Service) Batch(operations []mcppkg.BatchOperation, stopOnError bool, dryRun bool) (*mcppkg.BatchResult, error) {
 	if s == nil || s.host == nil {
 		return nil, errors.New("AI service is not available")
 	}
@@ -800,24 +867,69 @@ func (s *Service) Batch(operations []mcppkg.BatchOperation, stopOnError bool) (*
 		Results:     make([]mcppkg.BatchOperationResult, 0, len(operations)),
 	}
 	var firstErr error
+	previewCounts := make(map[string]*mcppkg.BatchPreviewTarget)
+	s.resetBatchWarnings()
 
 	_, err := s.host.Invoke(context.Background(), func() (any, error) {
-		prepared := make([]preparedBatchOperation, 0, len(operations))
+		if dryRun {
+			result.ValidatedOnly = true
+			for idx, op := range operations {
+				item, err := s.prepareBatchOperation(op)
+				if err != nil {
+					if firstErr == nil {
+						firstErr = err
+					}
+					result.Results = append(result.Results, batchResultItem(idx, op, err, false, false, nil, nil, nil, nil))
+					result.OK = false
+					if stopOnError {
+						result.StoppedOnError = true
+						result.Preview = buildBatchPreview(previewCounts)
+						break
+					}
+					continue
+				}
+				loc := item.Locator
+				result.Results = append(result.Results, batchResultItem(idx, op, nil, true, false, &loc, item.Preview, item.Warnings, item.WarningCodes))
+				accumulateBatchPreview(previewCounts, op, &loc)
+			}
+			if firstErr == nil {
+				result.OK = true
+			}
+			result.Status = batchSummaryStatus(result, firstErr, dryRun)
+			result.Preview = buildBatchPreview(previewCounts)
+			result.Warnings = s.takeBatchWarnings()
+			return nil, nil
+		}
+
 		if stopOnError {
+			prepared := make([]preparedBatchOperation, 0, len(operations))
+			precheckResults := make([]mcppkg.BatchOperationResult, 0, len(operations))
+			result.ValidatedOnly = true
 			for idx, op := range operations {
 				item, err := s.prepareBatchOperation(op)
 				if err != nil {
 					firstErr = err
 					result.OK = false
 					result.StoppedOnError = true
-					result.Results = append(result.Results, batchResultItem(idx, op, err))
+					precheckResults = append(precheckResults, batchResultItem(idx, op, err, false, false, nil, nil, nil, nil))
+					result.Results = precheckResults
+					result.Status = batchSummaryStatus(result, firstErr, dryRun)
+					result.Preview = buildBatchPreview(previewCounts)
 					return nil, nil
 				}
+				item.Index = idx
 				prepared = append(prepared, item)
+				loc := item.Locator
+				precheckResults = append(precheckResults, batchResultItem(idx, op, nil, true, false, &loc, item.Preview, item.Warnings, item.WarningCodes))
+				accumulateBatchPreview(previewCounts, op, &loc)
 			}
-			for idx, item := range prepared {
+			result.ValidatedOnly = false
+			result.Results = result.Results[:0]
+			for _, item := range prepared {
 				err := s.executePreparedBatchOperation(item)
-				result.Results = append(result.Results, batchResultItem(idx, item.Operation, err))
+				loc := item.Locator
+				result.Results = append(result.Results, batchResultItem(item.Index, item.Operation, err, true, err == nil, &loc, item.Preview, item.Warnings, item.WarningCodes))
+				accumulateBatchPreview(previewCounts, item.Operation, &loc)
 				if err != nil {
 					firstErr = err
 					result.OK = false
@@ -826,6 +938,12 @@ func (s *Service) Batch(operations []mcppkg.BatchOperation, stopOnError bool) (*
 				}
 				result.Applied++
 			}
+			if firstErr == nil {
+				result.OK = true
+			}
+			result.Status = batchSummaryStatus(result, firstErr, dryRun)
+			result.Preview = buildBatchPreview(previewCounts)
+			result.Warnings = s.takeBatchWarnings()
 			return nil, nil
 		}
 
@@ -835,12 +953,14 @@ func (s *Service) Batch(operations []mcppkg.BatchOperation, stopOnError bool) (*
 				if firstErr == nil {
 					firstErr = err
 				}
-				result.Results = append(result.Results, batchResultItem(idx, op, err))
+				result.Results = append(result.Results, batchResultItem(idx, op, err, false, false, nil, nil, nil, nil))
 				continue
 			}
-
+			item.Index = idx
 			err = s.executePreparedBatchOperation(item)
-			result.Results = append(result.Results, batchResultItem(idx, op, err))
+			loc := item.Locator
+			result.Results = append(result.Results, batchResultItem(idx, op, err, true, err == nil, &loc, item.Preview, item.Warnings, item.WarningCodes))
+			accumulateBatchPreview(previewCounts, op, &loc)
 			if err != nil {
 				if firstErr == nil {
 					firstErr = err
@@ -850,35 +970,103 @@ func (s *Service) Batch(operations []mcppkg.BatchOperation, stopOnError bool) (*
 			result.Applied++
 		}
 		result.OK = firstErr == nil
+		result.Status = batchSummaryStatus(result, firstErr, dryRun)
+		result.Preview = buildBatchPreview(previewCounts)
+		result.Warnings = s.takeBatchWarnings()
 		return nil, nil
 	})
 	if err != nil {
 		return nil, err
 	}
-	if firstErr != nil && stopOnError {
-		return result, firstErr
-	}
 	return result, nil
 }
 
 type preparedBatchOperation struct {
-	Operation  mcppkg.BatchOperation
-	Locator    snapshotpkg.NodeLocator
-	HasLocator bool
+	Index        int
+	Operation    mcppkg.BatchOperation
+	Locator      snapshotpkg.NodeLocator
+	HasLocator   bool
+	Preview      *mcppkg.BatchPreviewTarget
+	Warnings     []string
+	WarningCodes []mcppkg.WarningCode
 }
 
-func batchResultItem(index int, op mcppkg.BatchOperation, err error) mcppkg.BatchOperationResult {
+func batchResultItem(index int, op mcppkg.BatchOperation, err error, validated bool, executed bool, locator *snapshotpkg.NodeLocator, preview *mcppkg.BatchPreviewTarget, warnings []string, warningCodes []mcppkg.WarningCode) mcppkg.BatchOperationResult {
 	item := mcppkg.BatchOperationResult{
 		Index:     index,
 		Operation: op.Operation,
 		Locator:   op.Locator,
 		Direction: op.Direction,
 		OK:        err == nil,
+		Validated: validated,
+		Executed:  executed,
+	}
+	item.Status = batchStatus(err, validated, executed)
+	if len(warnings) > 0 {
+		item.Warnings = append([]string(nil), warnings...)
+	}
+	if len(warningCodes) > 0 {
+		item.WarningCodes = append([]mcppkg.WarningCode(nil), warningCodes...)
+	}
+	if locator != nil {
+		item.ComponentID = locator.ComponentID
+		item.NodeID = locator.NodeID
+		item.Path = locator.Path
+		item.ActionTargetID = locator.ActionTargetID
+		item.Type = locator.Type
+		item.Tag = locator.Tag
+	}
+	if preview != nil {
+		item.Preview = preview
+	} else if locator != nil {
+		item.Preview = &mcppkg.BatchPreviewTarget{
+			ComponentID:    locator.ComponentID,
+			NodeID:         locator.NodeID,
+			Path:           locator.Path,
+			ActionTargetID: locator.ActionTargetID,
+			Type:           locator.Type,
+			Tag:            locator.Tag,
+			Operation:      op.Operation,
+			Direction:      op.Direction,
+			Count:          1,
+		}
+	} else if op.Operation == "navigate" {
+		item.Preview = &mcppkg.BatchPreviewTarget{
+			Operation: op.Operation,
+			Direction: op.Direction,
+			Count:     1,
+		}
 	}
 	if err != nil {
 		item.Error = err.Error()
 	}
 	return item
+}
+
+func batchStatus(err error, validated bool, executed bool) string {
+	if err != nil {
+		return "failed"
+	}
+	if executed {
+		return "executed"
+	}
+	if validated {
+		return "validated_only"
+	}
+	return "skipped"
+}
+
+func batchSummaryStatus(result *mcppkg.BatchResult, firstErr error, dryRun bool) string {
+	if firstErr != nil {
+		return "failed"
+	}
+	if dryRun || result.ValidatedOnly {
+		return "validated_only"
+	}
+	if result.Applied > 0 {
+		return "executed"
+	}
+	return "skipped"
 }
 
 func (s *Service) prepareBatchOperation(op mcppkg.BatchOperation) (preparedBatchOperation, error) {
@@ -913,6 +1101,13 @@ func (s *Service) prepareBatchOperation(op mcppkg.BatchOperation) (preparedBatch
 		if _, err := normalizeBatchDirection(op.Direction); err != nil {
 			return item, err
 		}
+		item.Preview = &mcppkg.BatchPreviewTarget{
+			Operation: op.Operation,
+			Direction: op.Direction,
+			Count:     1,
+		}
+		item.Warnings = nil
+		return item, nil
 	default:
 		return item, fmt.Errorf("unsupported batch operation: %s", op.Operation)
 	}
@@ -927,6 +1122,7 @@ func (s *Service) prepareBatchOperation(op mcppkg.BatchOperation) (preparedBatch
 		}
 		item.Locator = loc
 		item.HasLocator = true
+		item.Preview, item.Warnings, item.WarningCodes = s.buildOperationPreview(op, loc)
 		return item, nil
 	}
 }
@@ -1187,6 +1383,193 @@ func normalizeBatchDirection(direction string) (Direction, error) {
 	default:
 		return "", fmt.Errorf("invalid direction: %s", direction)
 	}
+}
+
+func (s *Service) buildOperationPreview(op mcppkg.BatchOperation, loc snapshotpkg.NodeLocator) (*mcppkg.BatchPreviewTarget, []string, []mcppkg.WarningCode) {
+	var warnings []string
+	var warningCodes []mcppkg.WarningCode
+	preview := &mcppkg.BatchPreviewTarget{
+		ComponentID:    loc.ComponentID,
+		NodeID:         loc.NodeID,
+		Path:           loc.Path,
+		ActionTargetID: loc.ActionTargetID,
+		Type:           loc.Type,
+		Tag:            loc.Tag,
+		Operation:      op.Operation,
+		Direction:      op.Direction,
+		Count:          1,
+	}
+	switch op.Operation {
+	case "set_value":
+		preview.Key = "value"
+		if before, ok := s.componentValueSnapshot(loc.ComponentID, "value"); ok {
+			preview.Before = before
+		} else {
+			warnings = append(warnings, fmt.Sprintf("preview.before missing for %s:%s", loc.ComponentID, "value"))
+			warningCodes = append(warningCodes, mcppkg.WarningCodePreviewBeforeMissing)
+		}
+		preview.After = op.Value
+	case "set_prop":
+		preview.Key = op.Key
+		if before, ok := s.componentValueSnapshot(loc.ComponentID, op.Key); ok {
+			preview.Before = before
+		} else {
+			warnings = append(warnings, fmt.Sprintf("preview.before missing for %s:%s", loc.ComponentID, op.Key))
+			warningCodes = append(warningCodes, mcppkg.WarningCodePreviewBeforeMissing)
+		}
+		preview.After = op.Value
+	case "set_form_field":
+		preview.Field = op.Field
+		if before, ok := s.componentFormFieldSnapshot(loc.ComponentID, op.Field); ok {
+			preview.Before = before
+		} else {
+			warnings = append(warnings, fmt.Sprintf("preview.before missing for %s:%s", loc.ComponentID, op.Field))
+			warningCodes = append(warningCodes, mcppkg.WarningCodePreviewBeforeMissing)
+		}
+		preview.After = op.Value
+	case "select":
+		if before, ok := s.componentValueSnapshot(loc.ComponentID, "selectedIndex"); ok {
+			preview.Before = before
+		} else if before, ok := s.componentValueSnapshot(loc.ComponentID, "selected"); ok {
+			preview.Before = before
+		} else if before, ok := s.componentValueSnapshot(loc.ComponentID, "selectedRow"); ok {
+			preview.Before = before
+		} else if before, ok := s.componentValueSnapshot(loc.ComponentID, "selectedNode"); ok {
+			preview.Before = before
+		} else {
+			warnings = append(warnings, fmt.Sprintf("preview.before missing for %s:selected", loc.ComponentID))
+			warningCodes = append(warningCodes, mcppkg.WarningCodePreviewBeforeMissing)
+		}
+		preview.After = op.Value
+	case "click", "dispatch", "input":
+		preview.MayChange = true
+	}
+	return preview, warnings, warningCodes
+}
+
+func (s *Service) componentValueSnapshot(componentID, key string) (interface{}, bool) {
+	s.mu.RLock()
+	frame := s.latestFrame
+	s.mu.RUnlock()
+	if frame == nil || frame.Snapshot == nil {
+		return nil, false
+	}
+	comp, ok := frame.Snapshot.GetComponent(componentID)
+	if !ok {
+		return nil, false
+	}
+	if value, ok := comp.State[key]; ok {
+		return value, true
+	}
+	if value, ok := comp.Props[key]; ok {
+		return value, true
+	}
+	return nil, false
+}
+
+func (s *Service) componentFormFieldSnapshot(componentID, field string) (interface{}, bool) {
+	s.mu.RLock()
+	frame := s.latestFrame
+	s.mu.RUnlock()
+	if frame == nil || frame.Snapshot == nil {
+		return nil, false
+	}
+	comp, ok := frame.Snapshot.GetComponent(componentID)
+	if !ok {
+		return nil, false
+	}
+	if values, ok := comp.State["values"].(map[string]interface{}); ok {
+		if value, ok := values[field]; ok {
+			return value, true
+		}
+	}
+	if values, ok := comp.Props["values"].(map[string]interface{}); ok {
+		if value, ok := values[field]; ok {
+			return value, true
+		}
+	}
+	return nil, false
+}
+
+func accumulateBatchPreview(preview map[string]*mcppkg.BatchPreviewTarget, op mcppkg.BatchOperation, loc *snapshotpkg.NodeLocator) {
+	if op.Operation == "navigate" {
+		key := fmt.Sprintf("navigate|%s", op.Direction)
+		target := preview[key]
+		if target == nil {
+			target = &mcppkg.BatchPreviewTarget{
+				Operation: op.Operation,
+				Direction: op.Direction,
+			}
+			preview[key] = target
+		}
+		target.Count++
+		return
+	}
+	if loc == nil {
+		return
+	}
+	key := fmt.Sprintf("%s|%d|%s|%s|%s", loc.ComponentID, loc.NodeID, loc.Path, loc.ActionTargetID, op.Operation)
+	target := preview[key]
+	if target == nil {
+		target = &mcppkg.BatchPreviewTarget{
+			ComponentID:    loc.ComponentID,
+			NodeID:         loc.NodeID,
+			Path:           loc.Path,
+			ActionTargetID: loc.ActionTargetID,
+			Type:           loc.Type,
+			Tag:            loc.Tag,
+			Operation:      op.Operation,
+		}
+		preview[key] = target
+	}
+	target.Count++
+}
+
+func buildBatchPreview(preview map[string]*mcppkg.BatchPreviewTarget) []mcppkg.BatchPreviewTarget {
+	if len(preview) == 0 {
+		return nil
+	}
+	out := make([]mcppkg.BatchPreviewTarget, 0, len(preview))
+	for _, entry := range preview {
+		out = append(out, *entry)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].ComponentID != out[j].ComponentID {
+			return out[i].ComponentID < out[j].ComponentID
+		}
+		if out[i].NodeID != out[j].NodeID {
+			return out[i].NodeID < out[j].NodeID
+		}
+		if out[i].Operation != out[j].Operation {
+			return out[i].Operation < out[j].Operation
+		}
+		return out[i].Direction < out[j].Direction
+	})
+	return out
+}
+
+func (s *Service) resetBatchWarnings() {
+	s.mu.Lock()
+	s.batchWarnings = nil
+	s.mu.Unlock()
+}
+
+func (s *Service) appendBatchWarningf(format string, args ...interface{}) {
+	message := fmt.Sprintf(format, args...)
+	s.mu.Lock()
+	s.batchWarnings = append(s.batchWarnings, message)
+	s.mu.Unlock()
+}
+
+func (s *Service) takeBatchWarnings() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if len(s.batchWarnings) == 0 {
+		return nil
+	}
+	out := append([]string(nil), s.batchWarnings...)
+	s.batchWarnings = nil
+	return out
 }
 
 func componentInfoFromState(comp state.ComponentState) ComponentInfo {

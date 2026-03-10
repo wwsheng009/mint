@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/url"
 	"reflect"
 	"strconv"
 	"strings"
@@ -16,30 +17,34 @@ import (
 )
 
 type Config struct {
-	Host      string
-	Port      int
-	ReadOnly  bool
-	AuthToken string
+	Transport   string
+	Host        string
+	Port        int
+	ReadOnly    bool
+	AuthToken   string
+	ExposeTrees bool
+	ExposeWrite bool
 }
 
 type API struct {
-	Inspect      func() (*state.Snapshot, error)
-	Find         func(selector string) (interface{}, error)
-	Query        func(componentID, componentType, stateKey string, value interface{}) (map[string]interface{}, error)
-	GetTree      func(kind string) (interface{}, error)
-	GetNode      func(locator string) (interface{}, error)
-	GetFormData  func(locator string) (map[string]interface{}, error)
-	GetValue     func(locator string) (interface{}, error)
-	WaitFor      func(condition map[string]any, timeout time.Duration) (interface{}, error)
-	SetValue     func(locator string, value interface{}) error
-	SetProp      func(locator, key string, value interface{}) error
-	SetFormField func(locator, field string, value interface{}) error
-	Select       func(locator string, value interface{}) error
-	Click        func(locator string) error
-	Input        func(locator, text string) error
-	Dispatch     func(locator, actionType string, payload interface{}) error
-	Navigate     func(direction string) error
-	Batch        func(operations []BatchOperation, stopOnError bool) (*BatchResult, error)
+	Inspect        func() (*state.Snapshot, error)
+	Find           func(selector string) (interface{}, error)
+	Query          func(componentID, componentType, stateKey string, value interface{}) (map[string]interface{}, error)
+	GetTree        func(kind string) (interface{}, error)
+	GetTreeCompact func(kind string) (interface{}, error)
+	GetNode        func(locator string) (interface{}, error)
+	GetFormData    func(locator string) (map[string]interface{}, error)
+	GetValue       func(locator string) (interface{}, error)
+	WaitFor        func(condition map[string]any, timeout time.Duration) (interface{}, error)
+	SetValue       func(locator string, value interface{}) error
+	SetProp        func(locator, key string, value interface{}) error
+	SetFormField   func(locator, field string, value interface{}) error
+	Select         func(locator string, value interface{}) error
+	Click          func(locator string) error
+	Input          func(locator, text string) error
+	Dispatch       func(locator, actionType string, payload interface{}) error
+	Navigate       func(direction string) error
+	Batch          func(operations []BatchOperation, stopOnError bool, dryRun bool) (*BatchResult, error)
 }
 
 type findInput struct {
@@ -54,7 +59,8 @@ type queryInput struct {
 }
 
 type treeInput struct {
-	Kind string `json:"kind"`
+	Kind    string `json:"kind"`
+	Compact *bool  `json:"compact,omitempty"`
 }
 
 type locatorInput struct {
@@ -111,12 +117,24 @@ type BatchOperation struct {
 }
 
 type BatchOperationResult struct {
-	Index     int    `json:"index"`
-	Operation string `json:"operation"`
-	Locator   string `json:"locator,omitempty"`
-	Direction string `json:"direction,omitempty"`
-	OK        bool   `json:"ok"`
-	Error     string `json:"error,omitempty"`
+	Index          int                 `json:"index"`
+	Operation      string              `json:"operation"`
+	Locator        string              `json:"locator,omitempty"`
+	Direction      string              `json:"direction,omitempty"`
+	OK             bool                `json:"ok"`
+	Validated      bool                `json:"validated"`
+	Executed       bool                `json:"executed"`
+	Status         string              `json:"status"`
+	ComponentID    string              `json:"component_id,omitempty"`
+	NodeID         uint64              `json:"node_id,omitempty"`
+	Path           string              `json:"path,omitempty"`
+	ActionTargetID string              `json:"action_target_id,omitempty"`
+	Type           string              `json:"type,omitempty"`
+	Tag            string              `json:"tag,omitempty"`
+	Preview        *BatchPreviewTarget `json:"preview,omitempty"`
+	Error          string              `json:"error,omitempty"`
+	Warnings       []string            `json:"warnings,omitempty"`
+	WarningCodes   []WarningCode       `json:"warning_codes,omitempty"`
 }
 
 type BatchResult struct {
@@ -125,12 +143,34 @@ type BatchResult struct {
 	Total          int                    `json:"total"`
 	StopOnError    bool                   `json:"stop_on_error"`
 	StoppedOnError bool                   `json:"stopped_on_error"`
+	Status         string                 `json:"status"`
 	Results        []BatchOperationResult `json:"results"`
+	ValidatedOnly  bool                   `json:"validated_only"`
+	Preview        []BatchPreviewTarget   `json:"preview,omitempty"`
+	Warnings       []string               `json:"warnings,omitempty"`
+}
+
+type BatchPreviewTarget struct {
+	ComponentID    string      `json:"component_id,omitempty"`
+	NodeID         uint64      `json:"node_id,omitempty"`
+	Path           string      `json:"path,omitempty"`
+	ActionTargetID string      `json:"action_target_id,omitempty"`
+	Type           string      `json:"type,omitempty"`
+	Tag            string      `json:"tag,omitempty"`
+	Operation      string      `json:"operation,omitempty"`
+	Direction      string      `json:"direction,omitempty"`
+	Key            string      `json:"key,omitempty"`
+	Field          string      `json:"field,omitempty"`
+	Before         interface{} `json:"before,omitempty"`
+	After          interface{} `json:"after,omitempty"`
+	MayChange      bool        `json:"may_change,omitempty"`
+	Count          int         `json:"count"`
 }
 
 type batchInput struct {
 	Operations  []BatchOperation `json:"operations"`
 	StopOnError *bool            `json:"stop_on_error,omitempty"`
+	DryRun      *bool            `json:"dry_run,omitempty"`
 }
 
 type waitInput struct {
@@ -157,6 +197,7 @@ type Server struct {
 	server        *http.Server
 	baseEndpoint  string
 	mcpEndpoint   string
+	cleanup       func()
 	sdkServer     *mcpsdk.Server
 	sdkHandler    http.Handler
 	sdkHandlerRaw interface{}
@@ -167,18 +208,16 @@ func New(cfg Config, api API) *Server {
 }
 
 func (s *Server) Start() error {
-	host := s.cfg.Host
-	if strings.TrimSpace(host) == "" {
-		host = "127.0.0.1"
-	}
-	addr := net.JoinHostPort(host, strconv.Itoa(s.cfg.Port))
-	ln, err := net.Listen("tcp", addr)
+	ln, baseEndpoint, mcpEndpoint, cleanup, err := s.listen()
 	if err != nil {
 		return err
 	}
 
 	if err := s.initSDK(); err != nil {
 		_ = ln.Close()
+		if cleanup != nil {
+			cleanup()
+		}
 		return err
 	}
 
@@ -203,8 +242,9 @@ func (s *Server) Start() error {
 	mux.HandleFunc("/ai/batch", s.handleBatch)
 
 	s.listener = ln
-	s.baseEndpoint = "http://" + ln.Addr().String()
-	s.mcpEndpoint = s.baseEndpoint + "/mcp"
+	s.baseEndpoint = baseEndpoint
+	s.mcpEndpoint = mcpEndpoint
+	s.cleanup = cleanup
 	s.server = &http.Server{
 		Handler:           s.withMiddleware(mux),
 		ReadHeaderTimeout: 3 * time.Second,
@@ -225,8 +265,12 @@ func (s *Server) Stop() error {
 	if closer, ok := s.sdkHandlerRaw.(interface{ Close() error }); ok {
 		_ = closer.Close()
 	}
+	if s.cleanup != nil {
+		s.cleanup()
+	}
 	s.server = nil
 	s.listener = nil
+	s.cleanup = nil
 	s.sdkHandler = nil
 	s.sdkHandlerRaw = nil
 	s.sdkServer = nil
@@ -241,6 +285,22 @@ func (s *Server) Endpoint() string {
 
 func (s *Server) BaseEndpoint() string {
 	return s.baseEndpoint
+}
+
+func (s *Server) treesEnabled() bool {
+	return s.cfg.ExposeTrees
+}
+
+func (s *Server) writesEnabled() bool {
+	return !s.cfg.ReadOnly && s.cfg.ExposeWrite
+}
+
+func (s *Server) denyWrite(w http.ResponseWriter) {
+	if s.cfg.ReadOnly {
+		writeError(w, http.StatusForbidden, "read-only")
+		return
+	}
+	writeError(w, http.StatusForbidden, "write exposure disabled")
 }
 
 func (s *Server) withMiddleware(next http.Handler) http.Handler {
@@ -309,13 +369,25 @@ func (s *Server) registerTools(server *mcpsdk.Server) {
 	}, func(_ context.Context, in queryInput) (any, error) {
 		return s.api.Query(in.ComponentID, in.ComponentType, in.StateKey, in.Value)
 	})
-	addTypedTool(server, &mcpsdk.Tool{
-		Name:        "mint.get_tree",
-		Description: "Get a structural tree snapshot.",
-		InputSchema: schemaObject(schemaEnumProp("kind", "tree kind", "vnode", "fiber", "layout", "paintable", "hitmap")),
-	}, func(_ context.Context, in treeInput) (any, error) {
-		return s.api.GetTree(in.Kind)
-	})
+	if s.treesEnabled() {
+		addTypedTool(server, &mcpsdk.Tool{
+			Name:        "mint.get_tree",
+			Description: "Get a structural tree snapshot.",
+			InputSchema: schemaObject(
+				schemaEnumProp("kind", "tree kind", "vnode", "fiber", "layout", "paintable", "hitmap"),
+				schemaProp("compact", "boolean", "return a compact tree snapshot"),
+			),
+		}, func(_ context.Context, in treeInput) (any, error) {
+			compact := false
+			if in.Compact != nil {
+				compact = *in.Compact
+			}
+			if compact && s.api.GetTreeCompact != nil {
+				return s.api.GetTreeCompact(in.Kind)
+			}
+			return s.api.GetTree(in.Kind)
+		})
+	}
 	addTypedTool(server, &mcpsdk.Tool{
 		Name:        "mint.get_node",
 		Description: "Get a node bundle by locator.",
@@ -374,7 +446,7 @@ func (s *Server) registerTools(server *mcpsdk.Server) {
 		return nil, map[string]any{"result": result}, nil
 	})
 
-	if !s.cfg.ReadOnly {
+	if s.writesEnabled() {
 		addTypedTool(server, &mcpsdk.Tool{
 			Name:        "mint.set_value",
 			Description: "Set a component value.",
@@ -453,7 +525,7 @@ func (s *Server) registerTools(server *mcpsdk.Server) {
 		})
 		mcpsdk.AddTool(server, &mcpsdk.Tool{
 			Name:        "mint.batch",
-			Description: "Execute multiple Mint write operations sequentially in one tool call. Supports set_value, set_prop, set_form_field, select, click, input, dispatch, and navigate. No rollback is performed.",
+			Description: fmt.Sprintf("Execute multiple Mint write operations sequentially in one tool call. Supports set_value, set_prop, set_form_field, select, click, input, dispatch, and navigate. No rollback is performed. Batch result items may include warning_codes. Known warning codes: %s.", strings.Join(warningCodeDocLines(), "; ")),
 			InputSchema: batchToolInputSchema(),
 		}, func(_ context.Context, _ *mcpsdk.CallToolRequest, in batchInput) (*mcpsdk.CallToolResult, map[string]any, error) {
 			if len(in.Operations) == 0 {
@@ -464,8 +536,12 @@ func (s *Server) registerTools(server *mcpsdk.Server) {
 			if in.StopOnError != nil {
 				stopOnError = *in.StopOnError
 			}
+			dryRun := false
+			if in.DryRun != nil {
+				dryRun = *in.DryRun
+			}
 
-			out, err := s.runBatch(in.Operations, stopOnError)
+			out, err := s.runBatch(in.Operations, stopOnError, dryRun)
 			if err != nil && out == nil {
 				return jsonToolError(err), nil, nil
 			}
@@ -518,20 +594,30 @@ func (s *Server) registerResources(server *mcpsdk.Server) {
 		return jsonSchemaResource(req.Params.URI, nodeBundleResourceSchema(), schemaResourceMeta("mint://node/{id}"))
 	})
 
-	server.AddResourceTemplate(&mcpsdk.ResourceTemplate{
-		URITemplate: "mint://tree/{kind}",
-		Name:        "tree",
-		Title:       "Tree Snapshot",
-		Description: "Structured vnode/fiber/layout/paintable/hitmap tree snapshot.",
-		MIMEType:    "application/json",
-	}, func(ctx context.Context, req *mcpsdk.ReadResourceRequest) (*mcpsdk.ReadResourceResult, error) {
-		kind := strings.TrimPrefix(req.Params.URI, "mint://tree/")
-		result, err := s.api.GetTree(kind)
-		if err != nil {
-			return nil, err
-		}
-		return jsonResource(req.Params.URI, result)
-	})
+	if s.treesEnabled() {
+		server.AddResourceTemplate(&mcpsdk.ResourceTemplate{
+			URITemplate: "mint://tree/{kind}",
+			Name:        "tree",
+			Title:       "Tree Snapshot",
+			Description: "Structured vnode/fiber/layout/paintable/hitmap tree snapshot.",
+			MIMEType:    "application/json",
+		}, func(ctx context.Context, req *mcpsdk.ReadResourceRequest) (*mcpsdk.ReadResourceResult, error) {
+			kind, compact := parseTreeURI(req.Params.URI)
+			var (
+				result interface{}
+				err    error
+			)
+			if compact && s.api.GetTreeCompact != nil {
+				result, err = s.api.GetTreeCompact(kind)
+			} else {
+				result, err = s.api.GetTree(kind)
+			}
+			if err != nil {
+				return nil, err
+			}
+			return jsonResource(req.Params.URI, result)
+		})
+	}
 
 	server.AddResourceTemplate(&mcpsdk.ResourceTemplate{
 		URITemplate: "mint://component/{id}",
@@ -716,6 +802,10 @@ func batchToolInputSchema() map[string]any {
 			"stop_on_error": map[string]any{
 				"type":        "boolean",
 				"description": "Stop at the first failed operation. Defaults to true.",
+			},
+			"dry_run": map[string]any{
+				"type":        "boolean",
+				"description": "Validate operations without executing. Defaults to false.",
 			},
 		},
 		"additionalProperties": false,
@@ -905,9 +995,9 @@ func hitEntrySchema() map[string]any {
 	}
 }
 
-func (s *Server) runBatch(operations []BatchOperation, stopOnError bool) (*BatchResult, error) {
+func (s *Server) runBatch(operations []BatchOperation, stopOnError bool, dryRun bool) (*BatchResult, error) {
 	if s.api.Batch != nil {
-		return s.api.Batch(operations, stopOnError)
+		return s.api.Batch(operations, stopOnError, dryRun)
 	}
 
 	result := &BatchResult{
@@ -1082,11 +1172,21 @@ func (s *Server) handleQuery(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleTree(w http.ResponseWriter, r *http.Request) {
+	if !s.treesEnabled() {
+		writeError(w, http.StatusForbidden, "tree exposure disabled")
+		return
+	}
 	if s.api.GetTree == nil {
 		writeError(w, http.StatusNotImplemented, "tree not available")
 		return
 	}
 	kind := strings.TrimSpace(r.URL.Query().Get("kind"))
+	compact := parseBoolQuery(r.URL.Query().Get("compact"))
+	if compact && s.api.GetTreeCompact != nil {
+		result, err := s.api.GetTreeCompact(kind)
+		writeJSONResult(w, result, err)
+		return
+	}
 	result, err := s.api.GetTree(kind)
 	writeJSONResult(w, result, err)
 }
@@ -1118,8 +1218,8 @@ func (s *Server) handleGetValue(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleSetValue(w http.ResponseWriter, r *http.Request) {
-	if s.cfg.ReadOnly {
-		writeError(w, http.StatusForbidden, "read-only")
+	if !s.writesEnabled() {
+		s.denyWrite(w)
 		return
 	}
 	var req struct {
@@ -1135,8 +1235,8 @@ func (s *Server) handleSetValue(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleSetProp(w http.ResponseWriter, r *http.Request) {
-	if s.cfg.ReadOnly {
-		writeError(w, http.StatusForbidden, "read-only")
+	if !s.writesEnabled() {
+		s.denyWrite(w)
 		return
 	}
 	var req struct {
@@ -1169,8 +1269,8 @@ func (s *Server) handleGetFormData(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleSetFormField(w http.ResponseWriter, r *http.Request) {
-	if s.cfg.ReadOnly {
-		writeError(w, http.StatusForbidden, "read-only")
+	if !s.writesEnabled() {
+		s.denyWrite(w)
 		return
 	}
 	if s.api.SetFormField == nil {
@@ -1191,8 +1291,8 @@ func (s *Server) handleSetFormField(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleSelect(w http.ResponseWriter, r *http.Request) {
-	if s.cfg.ReadOnly {
-		writeError(w, http.StatusForbidden, "read-only")
+	if !s.writesEnabled() {
+		s.denyWrite(w)
 		return
 	}
 	if s.api.Select == nil {
@@ -1212,8 +1312,8 @@ func (s *Server) handleSelect(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleClick(w http.ResponseWriter, r *http.Request) {
-	if s.cfg.ReadOnly {
-		writeError(w, http.StatusForbidden, "read-only")
+	if !s.writesEnabled() {
+		s.denyWrite(w)
 		return
 	}
 	var req struct {
@@ -1228,8 +1328,8 @@ func (s *Server) handleClick(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleInput(w http.ResponseWriter, r *http.Request) {
-	if s.cfg.ReadOnly {
-		writeError(w, http.StatusForbidden, "read-only")
+	if !s.writesEnabled() {
+		s.denyWrite(w)
 		return
 	}
 	var req struct {
@@ -1245,8 +1345,8 @@ func (s *Server) handleInput(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleNavigate(w http.ResponseWriter, r *http.Request) {
-	if s.cfg.ReadOnly {
-		writeError(w, http.StatusForbidden, "read-only")
+	if !s.writesEnabled() {
+		s.denyWrite(w)
 		return
 	}
 	var req struct {
@@ -1261,8 +1361,8 @@ func (s *Server) handleNavigate(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleBatch(w http.ResponseWriter, r *http.Request) {
-	if s.cfg.ReadOnly {
-		writeError(w, http.StatusForbidden, "read-only")
+	if !s.writesEnabled() {
+		s.denyWrite(w)
 		return
 	}
 	if s.api.Batch == nil {
@@ -1278,7 +1378,11 @@ func (s *Server) handleBatch(w http.ResponseWriter, r *http.Request) {
 	if req.StopOnError != nil {
 		stopOnError = *req.StopOnError
 	}
-	result, err := s.api.Batch(req.Operations, stopOnError)
+	dryRun := false
+	if req.DryRun != nil {
+		dryRun = *req.DryRun
+	}
+	result, err := s.api.Batch(req.Operations, stopOnError, dryRun)
 	writeJSONResultWithOptionalError(w, result, err)
 }
 
@@ -1326,6 +1430,34 @@ func writeError(w http.ResponseWriter, status int, message string) {
 		"ok":    false,
 		"error": message,
 	})
+}
+
+func parseBoolQuery(value string) bool {
+	raw := strings.TrimSpace(value)
+	if raw == "" {
+		return false
+	}
+	parsed, err := strconv.ParseBool(raw)
+	if err != nil {
+		return false
+	}
+	return parsed
+}
+
+func parseTreeURI(uri string) (string, bool) {
+	parsed, err := url.Parse(uri)
+	if err != nil {
+		return strings.TrimPrefix(uri, "mint://tree/"), false
+	}
+
+	kind := ""
+	if parsed.Scheme == "mint" && parsed.Host == "tree" {
+		kind = strings.TrimPrefix(parsed.Path, "/")
+	} else {
+		kind = strings.TrimPrefix(uri, "mint://tree/")
+	}
+	compact := parseBoolQuery(parsed.Query().Get("compact"))
+	return kind, compact
 }
 
 func (cfg Config) String() string {

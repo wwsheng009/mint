@@ -358,6 +358,191 @@ func TestAIHTTPInspectAndSetValue(t *testing.T) {
 	if got, _ := value.(string); got != "carol" {
 		t.Fatalf("value after HTTP set = %q, want carol", got)
 	}
+
+	prevSeq = app.AIStatus().RenderSeq
+	batchPayload, _ := json.Marshal(map[string]interface{}{
+		"operations": []map[string]interface{}{
+			{"operation": "set_value", "locator": "username", "value": "dora"},
+			{"operation": "dispatch", "locator": "username", "action_type": "input_text", "payload": "!"},
+		},
+	})
+	resp, err = http.Post(endpoint+"/ai/batch", "application/json", bytes.NewReader(batchPayload))
+	if err != nil {
+		t.Fatalf("POST /ai/batch error = %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("POST /ai/batch status = %d", resp.StatusCode)
+	}
+	var batchBody map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&batchBody); err != nil {
+		t.Fatalf("decode batch response error = %v", err)
+	}
+	if ok, _ := batchBody["ok"].(bool); !ok {
+		t.Fatalf("batch response not ok: %+v", batchBody)
+	}
+	if result, ok := batchBody["result"].(map[string]interface{}); ok {
+		if validated, ok := result["validated_only"].(bool); ok && validated {
+			t.Fatalf("batch validated_only = true, want false")
+		}
+		if results, ok := result["results"].([]interface{}); ok && len(results) > 0 {
+			if first, ok := results[0].(map[string]interface{}); ok {
+				if validated, ok := first["validated"].(bool); !ok || !validated {
+					t.Fatalf("batch validated = %v, want true", first["validated"])
+				}
+				if executed, ok := first["executed"].(bool); !ok || !executed {
+					t.Fatalf("batch executed = %v, want true", first["executed"])
+				}
+				if status, ok := first["status"].(string); !ok || status != "executed" {
+					t.Fatalf("batch status = %v, want executed", first["status"])
+				}
+				if compID, ok := first["component_id"].(string); !ok || compID != "username" {
+					t.Fatalf("batch component_id = %v, want username", first["component_id"])
+				}
+				if nodeID, ok := first["node_id"].(float64); !ok || nodeID <= 0 {
+					t.Fatalf("batch node_id = %v, want > 0", first["node_id"])
+				}
+				if preview, ok := first["preview"].(map[string]interface{}); ok {
+					if compID, ok := preview["component_id"].(string); !ok || compID != "username" {
+						t.Fatalf("batch result preview component_id = %v, want username", preview["component_id"])
+					}
+					if before, ok := preview["before"].(string); !ok || before != "carol" {
+						t.Fatalf("batch result preview before = %v, want carol", preview["before"])
+					}
+					if after, ok := preview["after"].(string); !ok || after != "dora" {
+						t.Fatalf("batch result preview after = %v, want dora", preview["after"])
+					}
+				}
+				if warnings, ok := first["warnings"].([]interface{}); ok {
+					_ = warnings
+				}
+				if codes, ok := first["warning_codes"].([]interface{}); ok {
+					_ = codes
+				}
+			}
+		}
+		if results, ok := result["results"].([]interface{}); ok && len(results) > 1 {
+			if second, ok := results[1].(map[string]interface{}); ok {
+				if preview, ok := second["preview"].(map[string]interface{}); ok {
+					if mayChange, ok := preview["may_change"].(bool); !ok || !mayChange {
+						t.Fatalf("batch dispatch preview may_change = %v, want true", preview["may_change"])
+					}
+				}
+			}
+		}
+		if status, ok := result["status"].(string); !ok || status != "executed" {
+			t.Fatalf("batch summary status = %v, want executed", result["status"])
+		}
+		if preview, ok := result["preview"].([]interface{}); !ok || len(preview) == 0 {
+			t.Fatalf("batch preview missing or empty: %+v", result["preview"])
+		} else if entry, ok := preview[0].(map[string]interface{}); ok {
+			if compID, ok := entry["component_id"].(string); !ok || compID != "username" {
+				t.Fatalf("batch preview component_id = %v, want username", entry["component_id"])
+			}
+			if count, ok := entry["count"].(float64); !ok || count < 1 {
+				t.Fatalf("batch preview count = %v, want >= 1", entry["count"])
+			}
+			if op, ok := entry["operation"].(string); !ok || op == "" {
+				t.Fatalf("batch preview operation = %v, want non-empty", entry["operation"])
+			}
+			if compID, ok := entry["component_id"].(string); ok && compID != "" {
+				if idx, ok := preview[len(preview)-1].(map[string]interface{}); ok {
+					if lastID, ok := idx["component_id"].(string); ok && lastID < compID {
+						t.Fatalf("batch preview not sorted by component_id")
+					}
+				}
+			}
+		}
+		if warnings, ok := result["warnings"].([]interface{}); ok {
+			_ = warnings
+		}
+	}
+	waitForRenderSeq(t, app, prevSeq+1)
+	value, err = app.AIController().GetValue("username")
+	if err != nil {
+		t.Fatalf("GetValue() after HTTP batch error = %v", err)
+	}
+	if got, _ := value.(string); got != "dora!" {
+		t.Fatalf("value after HTTP batch = %q, want dora!", got)
+	}
+
+	prevSeq = app.AIStatus().RenderSeq
+	dryPayload, _ := json.Marshal(map[string]interface{}{
+		"dry_run": true,
+		"operations": []map[string]interface{}{
+			{"operation": "set_value", "locator": "username", "value": "emma"},
+		},
+	})
+	resp, err = http.Post(endpoint+"/ai/batch", "application/json", bytes.NewReader(dryPayload))
+	if err != nil {
+		t.Fatalf("POST /ai/batch dry_run error = %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("POST /ai/batch dry_run status = %d", resp.StatusCode)
+	}
+	var dryBody map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&dryBody); err != nil {
+		t.Fatalf("decode dry_run response error = %v", err)
+	}
+	if result, ok := dryBody["result"].(map[string]interface{}); ok {
+		if validated, ok := result["validated_only"].(bool); !ok || !validated {
+			t.Fatalf("dry_run validated_only = %v, want true", result["validated_only"])
+		}
+		if results, ok := result["results"].([]interface{}); ok && len(results) > 0 {
+			if first, ok := results[0].(map[string]interface{}); ok {
+				if validated, ok := first["validated"].(bool); !ok || !validated {
+					t.Fatalf("dry_run validated = %v, want true", first["validated"])
+				}
+				if executed, ok := first["executed"].(bool); ok && executed {
+					t.Fatalf("dry_run executed = true, want false")
+				}
+				if status, ok := first["status"].(string); !ok || status != "validated_only" {
+					t.Fatalf("dry_run status = %v, want validated_only", first["status"])
+				}
+				if compID, ok := first["component_id"].(string); !ok || compID != "username" {
+					t.Fatalf("dry_run component_id = %v, want username", first["component_id"])
+				}
+				if preview, ok := first["preview"].(map[string]interface{}); ok {
+					if compID, ok := preview["component_id"].(string); !ok || compID != "username" {
+						t.Fatalf("dry_run result preview component_id = %v, want username", preview["component_id"])
+					}
+					if before, ok := preview["before"].(string); !ok || before != "dora!" {
+						t.Fatalf("dry_run result preview before = %v, want dora!", preview["before"])
+					}
+				}
+				if warnings, ok := first["warnings"].([]interface{}); ok {
+					_ = warnings
+				}
+				if codes, ok := first["warning_codes"].([]interface{}); ok {
+					_ = codes
+				}
+			}
+		}
+		if status, ok := result["status"].(string); !ok || status != "validated_only" {
+			t.Fatalf("dry_run summary status = %v, want validated_only", result["status"])
+		}
+		if preview, ok := result["preview"].([]interface{}); !ok || len(preview) == 0 {
+			t.Fatalf("dry_run preview missing or empty: %+v", result["preview"])
+		} else if entry, ok := preview[0].(map[string]interface{}); ok {
+			if compID, ok := entry["component_id"].(string); !ok || compID != "username" {
+				t.Fatalf("dry_run preview component_id = %v, want username", entry["component_id"])
+			}
+			if count, ok := entry["count"].(float64); !ok || count < 1 {
+				t.Fatalf("dry_run preview count = %v, want >= 1", entry["count"])
+			}
+			if compID, ok := entry["component_id"].(string); ok && compID != "" {
+				if idx, ok := preview[len(preview)-1].(map[string]interface{}); ok {
+					if lastID, ok := idx["component_id"].(string); ok && lastID < compID {
+						t.Fatalf("dry_run preview not sorted by component_id")
+					}
+				}
+			}
+		}
+	}
+	if app.AIStatus().RenderSeq != prevSeq {
+		t.Fatalf("dry_run render seq = %d, want %d", app.AIStatus().RenderSeq, prevSeq)
+	}
 }
 
 func TestAIControllerListTableTreeViewSelection(t *testing.T) {
@@ -761,6 +946,7 @@ func TestMCPSDKListToolsAndReadResource(t *testing.T) {
 			"operations": []map[string]any{
 				{"operation": "set_value", "locator": "missing", "value": "bad"},
 				{"operation": "set_value", "locator": "username", "value": "ivy"},
+				{"operation": "select", "locator": "users", "value": 0},
 			},
 		},
 	})
@@ -777,6 +963,283 @@ func TestMCPSDKListToolsAndReadResource(t *testing.T) {
 	}
 	if got, _ := value.(string); got != "ivy" {
 		t.Fatalf("value after continue batch = %q, want ivy", got)
+	}
+
+	toolRes, err = session.CallTool(context.Background(), &mcpsdk.CallToolParams{
+		Name: "mint.batch",
+		Arguments: map[string]any{
+			"operations": []map[string]any{
+				{"operation": "set_value", "locator": "username", "value": "kate"},
+				{"operation": "set_value", "locator": "missing", "value": "bad"},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("CallTool(mint.batch precheck) error = %v", err)
+	}
+	if toolRes.StructuredContent == nil {
+		t.Fatalf("mint.batch precheck missing structured content")
+	}
+	if payload, ok := toolRes.StructuredContent.(map[string]interface{}); ok {
+		result, _ := payload["result"].(map[string]interface{})
+		if okValue, ok := result["ok"].(bool); okValue || !ok {
+			t.Fatalf("mint.batch precheck ok = %v, want false", result["ok"])
+		}
+		if validated, ok := result["validated_only"].(bool); !ok || !validated {
+			t.Fatalf("mint.batch precheck validated_only = %v, want true", result["validated_only"])
+		}
+		if results, ok := result["results"].([]interface{}); ok && len(results) > 0 {
+			for _, entry := range results {
+				item, ok := entry.(map[string]interface{})
+				if !ok {
+					continue
+				}
+				if item["error"] != nil {
+					if validated, ok := item["validated"].(bool); ok && validated {
+						t.Fatalf("mint.batch precheck error validated = true, want false")
+					}
+					if executed, ok := item["executed"].(bool); ok && executed {
+						t.Fatalf("mint.batch precheck error executed = true, want false")
+					}
+					if status, ok := item["status"].(string); !ok || status != "failed" {
+						t.Fatalf("mint.batch precheck status = %v, want failed", item["status"])
+					}
+					if preview, ok := item["preview"].(map[string]interface{}); ok {
+						if compID, ok := preview["component_id"].(string); ok && compID != "" {
+							t.Fatalf("mint.batch precheck error preview component_id = %v, want empty", preview["component_id"])
+						}
+					}
+					if warnings, ok := item["warnings"].([]interface{}); ok {
+						_ = warnings
+					}
+					if codes, ok := item["warning_codes"].([]interface{}); ok {
+						_ = codes
+					}
+					break
+				}
+			}
+		}
+		if preview, ok := result["preview"].([]interface{}); !ok || len(preview) == 0 {
+			t.Fatalf("mint.batch precheck preview missing or empty: %+v", result["preview"])
+		} else if entry, ok := preview[0].(map[string]interface{}); ok {
+			if compID, ok := entry["component_id"].(string); !ok || compID != "username" {
+				t.Fatalf("mint.batch precheck preview component_id = %v, want username", entry["component_id"])
+			}
+			if count, ok := entry["count"].(float64); !ok || count < 1 {
+				t.Fatalf("mint.batch precheck preview count = %v, want >= 1", entry["count"])
+			}
+			if op, ok := entry["operation"].(string); !ok || op == "" {
+				t.Fatalf("mint.batch precheck preview operation = %v, want non-empty", entry["operation"])
+			}
+		}
+		if warnings, ok := result["warnings"].([]interface{}); ok {
+			_ = warnings
+		}
+		if results, ok := result["results"].([]interface{}); ok && len(results) > 0 {
+			for _, entry := range results {
+				item, ok := entry.(map[string]interface{})
+				if !ok {
+					continue
+				}
+				if op, ok := item["operation"].(string); ok && op == "select" {
+					if preview, ok := item["preview"].(map[string]interface{}); ok {
+						if preview["before"] == nil || preview["after"] == nil {
+							t.Fatalf("mint.batch select preview missing before/after: %+v", preview)
+						}
+					}
+					break
+				}
+			}
+		}
+		if status, ok := result["status"].(string); !ok || status != "failed" {
+			t.Fatalf("mint.batch precheck summary status = %v, want failed", result["status"])
+		}
+	}
+	value, err = app.AIController().GetValue("username")
+	if err != nil {
+		t.Fatalf("GetValue() after precheck batch error = %v", err)
+	}
+	if got, _ := value.(string); got != "ivy" {
+		t.Fatalf("value after precheck batch = %q, want ivy", got)
+	}
+
+	toolRes, err = session.CallTool(context.Background(), &mcpsdk.CallToolParams{
+		Name: "mint.batch",
+		Arguments: map[string]any{
+			"dry_run": true,
+			"operations": []map[string]any{
+				{"operation": "set_value", "locator": "username", "value": "frank"},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("CallTool(mint.batch dry_run) error = %v", err)
+	}
+	if toolRes.StructuredContent == nil {
+		t.Fatalf("mint.batch dry_run missing structured content")
+	}
+	if payload, ok := toolRes.StructuredContent.(map[string]interface{}); ok {
+		result, _ := payload["result"].(map[string]interface{})
+		if validated, ok := result["validated_only"].(bool); !ok || !validated {
+			t.Fatalf("mint.batch dry_run validated_only = %v, want true", result["validated_only"])
+		}
+		if results, ok := result["results"].([]interface{}); ok && len(results) > 0 {
+			if first, ok := results[0].(map[string]interface{}); ok {
+				if validated, ok := first["validated"].(bool); !ok || !validated {
+					t.Fatalf("mint.batch dry_run validated = %v, want true", first["validated"])
+				}
+				if executed, ok := first["executed"].(bool); ok && executed {
+					t.Fatalf("mint.batch dry_run executed = true, want false")
+				}
+				if status, ok := first["status"].(string); !ok || status != "validated_only" {
+					t.Fatalf("mint.batch dry_run status = %v, want validated_only", first["status"])
+				}
+				if compID, ok := first["component_id"].(string); !ok || compID != "username" {
+					t.Fatalf("mint.batch dry_run component_id = %v, want username", first["component_id"])
+				}
+				if preview, ok := first["preview"].(map[string]interface{}); ok {
+					if compID, ok := preview["component_id"].(string); !ok || compID != "username" {
+						t.Fatalf("mint.batch dry_run result preview component_id = %v, want username", preview["component_id"])
+					}
+					if before, ok := preview["before"].(string); !ok || before != "ivy" {
+						t.Fatalf("mint.batch dry_run result preview before = %v, want ivy", preview["before"])
+					}
+				}
+				if warnings, ok := first["warnings"].([]interface{}); ok {
+					_ = warnings
+				}
+				if codes, ok := first["warning_codes"].([]interface{}); ok {
+					_ = codes
+				}
+			}
+		}
+		if status, ok := result["status"].(string); !ok || status != "validated_only" {
+			t.Fatalf("mint.batch dry_run summary status = %v, want validated_only", result["status"])
+		}
+		if preview, ok := result["preview"].([]interface{}); !ok || len(preview) == 0 {
+			t.Fatalf("mint.batch dry_run preview missing or empty: %+v", result["preview"])
+		} else if entry, ok := preview[0].(map[string]interface{}); ok {
+			if compID, ok := entry["component_id"].(string); !ok || compID != "username" {
+				t.Fatalf("mint.batch dry_run preview component_id = %v, want username", entry["component_id"])
+			}
+			if count, ok := entry["count"].(float64); !ok || count < 1 {
+				t.Fatalf("mint.batch dry_run preview count = %v, want >= 1", entry["count"])
+			}
+			if op, ok := entry["operation"].(string); !ok || op == "" {
+				t.Fatalf("mint.batch dry_run preview operation = %v, want non-empty", entry["operation"])
+			}
+			if compID, ok := entry["component_id"].(string); ok && compID != "" {
+				if idx, ok := preview[len(preview)-1].(map[string]interface{}); ok {
+					if lastID, ok := idx["component_id"].(string); ok && lastID < compID {
+						t.Fatalf("mint.batch dry_run preview not sorted by component_id")
+					}
+				}
+			}
+		}
+		if warnings, ok := result["warnings"].([]interface{}); ok {
+			_ = warnings
+		}
+	}
+}
+
+func TestMCPExposureFlags(t *testing.T) {
+	t.Setenv("MINT_ASYNC_RENDER", "false")
+	t.Setenv("MINT_NO_ALTERNATE_SCREEN", "true")
+
+	rawCh := make(chan platform.RawInput)
+	app := NewAppWithSource(frameworkevent.NewChannelEventSource(rawCh))
+
+	decl := irender.NewDeclarativeNodeFromFuncWithFiber(func() rtui.VNode {
+		return input.NewBuilder().Key("username").Value("alice").Build()
+	})
+	decl.SetApp(app)
+	if fm := decl.GetFocusManager(); fm != nil {
+		app.SetFocusManagerFromDeclarativeNode(fm)
+	}
+	app.SetRoot(decl)
+
+	exposeTrees := false
+	exposeWrite := false
+	if err := app.EnableAI(AIConfig{
+		MCP: MCPConfig{
+			Enabled:     true,
+			Transport:   "http",
+			Host:        "127.0.0.1",
+			Port:        0,
+			ExposeTrees: &exposeTrees,
+			ExposeWrite: &exposeWrite,
+		},
+	}); err != nil {
+		t.Fatalf("EnableAI() error = %v", err)
+	}
+
+	runDone := make(chan error, 1)
+	go func() {
+		runDone <- app.Run()
+	}()
+	defer stopAppAndWait(t, app, runDone)
+
+	waitForAppState(t, app, StateRunning)
+	waitForRenderSeq(t, app, 1)
+
+	endpoint := app.AIStatus().HTTPEndpoint
+	if endpoint == "" {
+		t.Fatal("HTTPEndpoint is empty")
+	}
+
+	resp, err := http.Get(endpoint + "/ai/tree?kind=fiber")
+	if err != nil {
+		t.Fatalf("GET /ai/tree error = %v", err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("GET /ai/tree status = %d, want %d", resp.StatusCode, http.StatusForbidden)
+	}
+
+	payload, _ := json.Marshal(map[string]interface{}{
+		"locator": "username",
+		"value":   "bob",
+	})
+	resp, err = http.Post(endpoint+"/ai/value/set", "application/json", bytes.NewReader(payload))
+	if err != nil {
+		t.Fatalf("POST /ai/value/set error = %v", err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("POST /ai/value/set status = %d, want %d", resp.StatusCode, http.StatusForbidden)
+	}
+
+	mcpEndpoint := app.AIStatus().MCPEndpoint
+	if mcpEndpoint == "" {
+		t.Fatal("MCPEndpoint is empty")
+	}
+
+	client := mcpsdk.NewClient(&mcpsdk.Implementation{Name: "mint-test-client", Version: "0.1.0"}, nil)
+	session, err := client.Connect(context.Background(), &mcpsdk.StreamableClientTransport{Endpoint: mcpEndpoint}, nil)
+	if err != nil {
+		t.Fatalf("client.Connect() error = %v", err)
+	}
+	defer session.Close()
+
+	tools, err := session.ListTools(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("ListTools() error = %v", err)
+	}
+	for _, tool := range tools.Tools {
+		switch tool.Name {
+		case "mint.get_tree", "mint.set_value", "mint.batch":
+			t.Fatalf("tool %q should not be exposed", tool.Name)
+		}
+	}
+
+	templates, err := session.ListResourceTemplates(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("ListResourceTemplates() error = %v", err)
+	}
+	for _, template := range templates.ResourceTemplates {
+		if template.URITemplate == "mint://tree/{kind}" {
+			t.Fatalf("tree resource template should not be exposed")
+		}
 	}
 }
 

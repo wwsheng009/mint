@@ -9,7 +9,7 @@ import (
 )
 
 // MCPConfig configures the embedded AI transport surface.
-// The actual MCP server is not implemented yet; this config establishes the host API.
+// The MCP server is implemented in internal/ai/mcp and can be enabled per-app.
 type MCPConfig struct {
 	Enabled     bool
 	Transport   string
@@ -17,8 +17,8 @@ type MCPConfig struct {
 	Port        int
 	ReadOnly    bool
 	AuthToken   string
-	ExposeTrees bool
-	ExposeWrite bool
+	ExposeTrees *bool
+	ExposeWrite *bool
 }
 
 // AIConfig configures the embedded AI service for an app instance.
@@ -92,7 +92,7 @@ func normalizeAIConfig(cfg AIConfig) AIConfig {
 		if strings.TrimSpace(cfg.MCP.Transport) == "" {
 			cfg.MCP.Transport = "http"
 		}
-		if strings.TrimSpace(cfg.MCP.Host) == "" {
+		if cfg.MCP.Transport == "http" && strings.TrimSpace(cfg.MCP.Host) == "" {
 			cfg.MCP.Host = "127.0.0.1"
 		}
 	}
@@ -100,6 +100,12 @@ func normalizeAIConfig(cfg AIConfig) AIConfig {
 }
 
 func toInternalAIConfig(cfg AIConfig) aiservice.Config {
+	exposeTrees := boolValue(cfg.MCP.ExposeTrees, true)
+	exposeWrite := boolValue(cfg.MCP.ExposeWrite, !cfg.ReadOnly && !cfg.MCP.ReadOnly)
+	if !cfg.MCP.Enabled {
+		exposeTrees = false
+		exposeWrite = false
+	}
 	return aiservice.Config{
 		Enabled:   cfg.Enabled,
 		AutoStart: cfg.AutoStart,
@@ -111,8 +117,15 @@ func toInternalAIConfig(cfg AIConfig) aiservice.Config {
 			Port:        cfg.MCP.Port,
 			ReadOnly:    cfg.MCP.ReadOnly,
 			AuthToken:   cfg.MCP.AuthToken,
-			ExposeTrees: cfg.MCP.ExposeTrees,
-			ExposeWrite: cfg.MCP.ExposeWrite,
+			ExposeTrees: exposeTrees,
+			ExposeWrite: exposeWrite,
 		},
 	}
+}
+
+func boolValue(value *bool, fallback bool) bool {
+	if value == nil {
+		return fallback
+	}
+	return *value
 }

@@ -160,11 +160,11 @@ func (c *AIController) Select(locator string, value interface{}) error {
 	return c.app.aiService.Select(locator, value)
 }
 
-func (c *AIController) Batch(operations []AIBatchOperation, stopOnError bool) (*AIBatchResult, error) {
+func (c *AIController) Batch(operations []AIBatchOperation, stopOnError bool, dryRun bool) (*AIBatchResult, error) {
 	if c == nil || c.app == nil || c.app.aiService == nil {
 		return nil, errors.New("AI service is not enabled")
 	}
-	return c.app.aiService.Batch(operations, stopOnError)
+	return c.app.aiService.Batch(operations, stopOnError, dryRun)
 }
 
 // Status returns the current AI subsystem status.
