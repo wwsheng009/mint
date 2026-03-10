@@ -531,6 +531,7 @@ func TestLayoutBuilderWithKey(t *testing.T) {
 		children: []VNode{Element("text").Prop("content", "a").Build()},
 	}
 
+	builder.SetKey("test-key")
 	node := builder.Build()
 
 	if node.Key() != "test-key" {

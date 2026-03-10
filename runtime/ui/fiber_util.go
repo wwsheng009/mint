@@ -509,8 +509,8 @@ func CloneFiber(fiber *Fiber) *Fiber {
 		MemoizedProps: fiber.MemoizedProps,
 		MemoizedState: fiber.MemoizedState,
 		Return:        fiber.Return,
-		Child:         nil, // ✨ BUG FIX: Clear Child pointer - will be re-established by reconcileChildren
-		Sibling:       nil, // ✨ BUG FIX: Clear Sibling pointer - will be set by reconcileChildren
+		Child:         fiber.Child,   // Shallow copy of tree structure
+		Sibling:       fiber.Sibling, // Shallow copy of sibling link
 		Alternate:     fiber.Alternate,
 		// Don't share UpdateQueue - cloned fiber gets its own empty queue
 		UpdateQueue:  nil,
