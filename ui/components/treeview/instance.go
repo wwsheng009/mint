@@ -5,10 +5,10 @@ import (
 	"strings"
 
 	"github.com/wwsheng009/mint/runtime/action"
+	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
-	"github.com/wwsheng009/mint/runtime/intent"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
 
@@ -23,23 +23,23 @@ type Instance struct {
 	componentID string // Component ID for Intent routing (Phase 10)
 
 	// === Props (from VNode, may change each render) ===
-	nodes         []TreeNode
-	expandLevel   int
-	showIcons     bool
-	showLineNums  bool
-	compact       bool
-	treeStyle     style.Style
-	selectedStyle style.Style
-	iconStyle     style.Style
-	scrollOffset  int
-	selectedIndex int
+	nodes          []TreeNode
+	expandLevel    int
+	showIcons      bool
+	showLineNums   bool
+	compact        bool
+	treeStyle      style.Style
+	selectedStyle  style.Style
+	iconStyle      style.Style
+	scrollOffset   int
+	selectedIndex  int
 	viewportHeight int
-	allowScroll   bool
-	allowExpand   bool
+	allowScroll    bool
+	allowExpand    bool
 
 	// === Runtime State ===
 	expandState map[int]bool // Expand/collapse state for each node
-	bounds      [4]int      // x, y, w, h
+	bounds      [4]int       // x, y, w, h
 	dirty       bool
 
 	// === Intent Support (Phase 10) ===
@@ -107,8 +107,8 @@ func (inst *Instance) initExpandState() {
 // ComponentInstance Interface
 // =============================================================================
 
-func (inst *Instance) Key() string                              { return inst.key }
-func (inst *Instance) SetKey(key string)                        { inst.key = key }
+func (inst *Instance) Key() string       { return inst.key }
+func (inst *Instance) SetKey(key string) { inst.key = key }
 
 // Parent implements TreeComponent interface (intent bubble).
 // Returns nil as TreeView is currently a leaf component without parent tracking.
@@ -116,9 +116,9 @@ func (inst *Instance) SetKey(key string)                        { inst.key = key
 func (inst *Instance) Parent() interface{} { return nil }
 
 func (inst *Instance) Init(props rtui.Props) { inst.SetProps(props) }
-func (inst *Instance) Destroy()             { inst.expandState = nil }
-func (inst *Instance) OnMount()             { inst.dirty = true }
-func (inst *Instance) OnUnmount()           {}
+func (inst *Instance) Destroy()              { inst.expandState = nil }
+func (inst *Instance) OnMount()              { inst.dirty = true }
+func (inst *Instance) OnUnmount()            {}
 
 func (inst *Instance) SetProps(props rtui.Props) bool {
 	oldSelected := inst.selectedIndex
@@ -164,10 +164,10 @@ func (inst *Instance) GetProps() rtui.Props {
 	}
 }
 
-func (inst *Instance) MarkDirty()    { inst.dirty = true }
-func (inst *Instance) IsDirty() bool { return inst.dirty }
+func (inst *Instance) MarkDirty()                         { inst.dirty = true }
+func (inst *Instance) IsDirty() bool                      { return inst.dirty }
 func (inst *Instance) GetContext() *rtui.ComponentContext { return nil }
-func (inst *Instance) ClearDirty()   { inst.dirty = false }
+func (inst *Instance) ClearDirty()                        { inst.dirty = false }
 
 // =============================================================================
 // Measurable Interface
@@ -493,10 +493,35 @@ func (inst *Instance) calculateWidth() int {
 // Getters
 // =============================================================================
 
-func (inst *Instance) GetScrollOffset() int     { return inst.scrollOffset }
-func (inst *Instance) GetSelectedIndex() int   { return inst.selectedIndex }
-func (inst *Instance) GetViewportHeight() int  { return inst.viewportHeight }
+func (inst *Instance) GetScrollOffset() int   { return inst.scrollOffset }
+func (inst *Instance) GetSelectedIndex() int  { return inst.selectedIndex }
+func (inst *Instance) GetViewportHeight() int { return inst.viewportHeight }
 func (inst *Instance) GetComponentID() string { return inst.componentID }
+func (inst *Instance) GetNodes() []TreeNode {
+	return append([]TreeNode(nil), inst.nodes...)
+}
+func (inst *Instance) GetVisibleNodes() []TreeNode {
+	return append([]TreeNode(nil), inst.getVisibleNodes()...)
+}
+func (inst *Instance) GetSelectedNode() (TreeNode, bool) {
+	visibleNodes := inst.getVisibleNodes()
+	if inst.selectedIndex < 0 || inst.selectedIndex >= len(visibleNodes) {
+		return TreeNode{}, false
+	}
+	return visibleNodes[inst.selectedIndex], true
+}
+func (inst *Instance) SelectIndex(index int) bool {
+	visibleNodes := inst.getVisibleNodes()
+	if index < 0 || index >= len(visibleNodes) {
+		return false
+	}
+	if inst.selectedIndex == index {
+		return false
+	}
+	inst.selectedIndex = index
+	inst.dirty = true
+	return true
+}
 
 // =============================================================================
 // Intent Bubble Support (Phase 10)

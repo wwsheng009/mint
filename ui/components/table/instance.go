@@ -1538,6 +1538,35 @@ func (inst *Instance) selectedSourceIndexFor(rows []rowView, selectedIndex int) 
 	return rows[selectedIndex].sourceIndex
 }
 
+func (inst *Instance) GetSelectedIndex() int {
+	return inst.selectedIndex
+}
+
+func (inst *Instance) GetCheckedIndices() []int {
+	return append([]int(nil), inst.checkedIndices...)
+}
+
+func (inst *Instance) GetSelectedSourceIndex() int {
+	return inst.selectedSourceIndex(inst.filteredSortedRows())
+}
+
+func (inst *Instance) GetSelectedRow() ([]string, bool) {
+	rows := inst.filteredSortedRows()
+	if inst.selectedIndex < 0 || inst.selectedIndex >= len(rows) {
+		return nil, false
+	}
+	row := append([]string(nil), rows[inst.selectedIndex].cells...)
+	return row, true
+}
+
+func (inst *Instance) SelectIndexForAI(index int) bool {
+	return inst.selectIndex(index)
+}
+
+func (inst *Instance) ToggleSelectionAtSourceIndex(index int) bool {
+	return inst.applySelectionAtSourceIndex(index)
+}
+
 func getStringProp(props rtui.Props, key, def string) string {
 	if value, ok := props[key]; ok {
 		if text, ok := value.(string); ok {

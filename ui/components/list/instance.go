@@ -989,10 +989,23 @@ func (inst *Instance) normalizeCheckedIndices() {
 func (inst *Instance) GetScrollOffset() int   { return inst.scrollOffset }
 func (inst *Instance) GetSelectedIndex() int  { return inst.selectedIndex }
 func (inst *Instance) GetViewportHeight() int { return inst.viewportHeight }
+func (inst *Instance) GetRows() []string      { return append([]string(nil), inst.rows...) }
 func (inst *Instance) GetCheckedIndices() []int {
 	return append([]int(nil), inst.checkedIndices...)
 }
 func (inst *Instance) GetSelectionMode() SelectionMode { return inst.selectionMode }
+func (inst *Instance) GetSelectedRow() (string, bool) {
+	if inst.selectedIndex < 0 || inst.selectedIndex >= len(inst.rows) {
+		return "", false
+	}
+	return inst.rows[inst.selectedIndex], true
+}
+func (inst *Instance) SelectIndex(index int) bool {
+	return inst.selectIndex(index, true)
+}
+func (inst *Instance) ToggleSelectionAt(index int) bool {
+	return inst.applySelectionAtIndex(index)
+}
 
 // =============================================================================
 // Bounds Support
