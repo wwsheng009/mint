@@ -454,7 +454,19 @@ func (ctx *ComponentContext) ScheduleUpdate() {
 
 // globalIntentRuntime is the global intent runtime shared across app.
 // Set by ui.Run() when starting the declarative UI app.
-var globalIntentRuntime *intent.Runtime
+var (
+	globalIntentRuntime   *intent.Runtime
+	globalIntentRuntimeMu sync.RWMutex
+	pendingIntentMu       sync.Mutex
+	pendingIntents        []*pendingIntent
+)
+
+type pendingIntent struct {
+	mu         sync.Mutex
+	register   func(*intent.Registry) func()
+	unregister func()
+	canceled   bool
+}
 
 // RegisterIntent registers an intent handler for a specific intent type.
 // This is the public API for registering intent handlers in declarative UI components.
@@ -466,29 +478,107 @@ var globalIntentRuntime *intent.Runtime
 //	    return intent.HandledResult()
 //	})
 func RegisterIntent[T intent.Intent](handler intent.TypedHandler[T]) func() {
-	if globalIntentRuntime == nil {
-		panic("RegisterIntent called before app initialized. Call ui.Run() first.")
+	if handler == nil {
+		return func() {}
 	}
-	return intent.RegisterTyped(globalIntentRuntime.Registry, handler)
+
+	globalIntentRuntimeMu.RLock()
+	rt := globalIntentRuntime
+	globalIntentRuntimeMu.RUnlock()
+	if rt != nil {
+		return intent.RegisterTyped(rt.Registry, handler)
+	}
+
+	pending := &pendingIntent{
+		register: func(reg *intent.Registry) func() {
+			return intent.RegisterTyped(reg, handler)
+		},
+	}
+
+	pendingIntentMu.Lock()
+	pendingIntents = append(pendingIntents, pending)
+	pendingIntentMu.Unlock()
+
+	log.UILogger.IfEnabled().Debug("[Intent] RegisterIntent queued until runtime is initialized")
+
+	return func() {
+		pending.mu.Lock()
+		unregister := pending.unregister
+		if unregister != nil {
+			pending.mu.Unlock()
+			unregister()
+			return
+		}
+		if pending.canceled {
+			pending.mu.Unlock()
+			return
+		}
+		pending.canceled = true
+		pending.mu.Unlock()
+
+		pendingIntentMu.Lock()
+		for i, item := range pendingIntents {
+			if item == pending {
+				pendingIntents = append(pendingIntents[:i], pendingIntents[i+1:]...)
+				break
+			}
+		}
+		pendingIntentMu.Unlock()
+	}
 }
 
 // SetGlobalIntentRuntime sets the global intent runtime.
 // This is called internally by ui.Run().
 func SetGlobalIntentRuntime(rt *intent.Runtime) {
+	globalIntentRuntimeMu.Lock()
 	globalIntentRuntime = rt
+	globalIntentRuntimeMu.Unlock()
+
+	if rt == nil {
+		return
+	}
+
+	pendingIntentMu.Lock()
+	pending := pendingIntents
+	pendingIntents = nil
+	pendingIntentMu.Unlock()
+
+	for _, item := range pending {
+		item.mu.Lock()
+		if item.canceled {
+			item.mu.Unlock()
+			continue
+		}
+		item.mu.Unlock()
+
+		unregister := item.register(rt.Registry)
+		item.mu.Lock()
+		if item.canceled {
+			item.mu.Unlock()
+			unregister()
+			continue
+		}
+		item.unregister = unregister
+		item.mu.Unlock()
+	}
 }
 
 // GetGlobalIntentRuntime returns the global intent runtime.
 // This can be used to directly emit intents without a component context.
 func GetGlobalIntentRuntime() *intent.Runtime {
+	globalIntentRuntimeMu.RLock()
+	defer globalIntentRuntimeMu.RUnlock()
 	return globalIntentRuntime
 }
 
 // EmitIntentGlobal emits an intent through the global runtime.
 // This can be used outside of component contexts.
 func EmitIntentGlobal(i intent.Intent) intent.IntentResult {
-	if globalIntentRuntime == nil {
+	globalIntentRuntimeMu.RLock()
+	rt := globalIntentRuntime
+	globalIntentRuntimeMu.RUnlock()
+	if rt == nil {
 		return intent.ErrorResult(fmt.Errorf("Global IntentRuntime not initialized"))
 	}
-	return globalIntentRuntime.Emit(i)
+	return rt.Emit(i)
 }
