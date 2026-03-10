@@ -8,12 +8,14 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/wwsheng009/mint/framework/component"
 	"github.com/wwsheng009/mint/framework/debug"
 	frameworkevent "github.com/wwsheng009/mint/framework/event"
 	"github.com/wwsheng009/mint/framework/theme"
+	aiservice "github.com/wwsheng009/mint/internal/ai/service"
 	"github.com/wwsheng009/mint/internal/log"
 	runtimepkg "github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/action"
@@ -102,6 +104,13 @@ type App struct {
 	quit  chan struct{}
 	dirty bool
 
+	// AI / external invoke support
+	aiService      *aiservice.Service
+	invokeQ        chan invokeRequest
+	invokeDone     chan struct{}
+	invokeDoneOnce sync.Once
+	renderSeq      uint64
+
 	// 终端尺寸
 	terminalWidth  int
 	terminalHeight int
@@ -179,6 +188,10 @@ type App struct {
 	selectionAdapter *selection.RuntimeAdapter
 	interactionMode  InteractionMode
 	hoveredFiber     *rtui.Fiber
+	mouseCaptureID   uint64
+	mouseCaptureBtn  runtimemsg.MouseButton
+	mouseCaptureOn   bool
+	mouseCaptureRef  string
 
 	// ============================================================================
 	// 调试支持
@@ -198,6 +211,8 @@ func NewApp() *App {
 		focusManager:       rtui.NewFiberFocusManager(),                        // Fiber-first: Focus manager
 		eventFilter:        func(ev frameworkevent.Event) bool { return true }, // 默认放行所有事件
 		quit:               make(chan struct{}, 1),
+		invokeQ:            make(chan invokeRequest, 32),
+		invokeDone:         make(chan struct{}),
 		tickInterval:       16 * time.Millisecond, // ~60fps
 		firstRender:        true,
 		throttler:          render.NewThrottler(60), // 默认 60 FPS
@@ -258,6 +273,8 @@ func NewAppWithSource(source frameworkevent.EventSource) *App {
 		focusManager:       rtui.NewFiberFocusManager(), // Fiber-first: Focus manager
 		eventFilter:        func(ev frameworkevent.Event) bool { return true },
 		quit:               make(chan struct{}, 1),
+		invokeQ:            make(chan invokeRequest, 32),
+		invokeDone:         make(chan struct{}),
 		tickInterval:       16 * time.Millisecond,
 		firstRender:        true,
 		throttler:          render.NewThrottler(60),
@@ -924,6 +941,12 @@ func (a *App) Init() error {
 	}
 
 	a.state = StateRunning
+	if a.aiService != nil && a.aiService.ShouldAutoStart() {
+		if err := a.aiService.Start(); err != nil {
+			a.state = StateError
+			return err
+		}
+	}
 	a.dirty = true
 
 	log.UILogger.IfEnabled().Debug("[APP] Init: Complete, state=StateRunning")
@@ -974,6 +997,13 @@ func (a *App) Run() error {
 	for a.state == StateRunning {
 		// 等待事件或定时器（优先处理事件）
 		select {
+		case req := <-a.invokeQ:
+			a.handleInvokeRequest(req)
+			if a.dirty {
+				renderStartTime = time.Now()
+				a.render()
+				a.throttler.RecordFrameTime(time.Since(renderStartTime))
+			}
 		case msg := <-eventChan:
 			if msg == nil {
 				// 通道关闭，退出
@@ -1302,9 +1332,28 @@ func (a *App) processMsg(msg runtimemsg.Msg) {
 		a.updateMouseHoverState(mouseMsg)
 	}
 
+	act = a.applyActionMiddlewareBefore(act)
+	if act == nil {
+		a.dirty = true
+		return
+	}
+	if act.IsStopped() {
+		a.applyActionMiddlewareAfter(act, &action.RouterResult{
+			Handled: true,
+			Stopped: true,
+			Phase:   action.ActionPhaseNone,
+		})
+		a.dirty = true
+		return
+	}
+
 	// 3. 导航 Action 由焦点管理器直接处理
 	if act.IsNavigation() {
 		if a.handleNavigationAction(act) {
+			a.applyActionMiddlewareAfter(act, &action.RouterResult{
+				Handled: true,
+				Phase:   action.ActionPhaseTarget,
+			})
 			return
 		}
 	}
@@ -1313,23 +1362,47 @@ func (a *App) processMsg(msg runtimemsg.Msg) {
 
 	// 4.1 鼠标事件：使用 MouseMsg 中的 TargetFiber
 	// 通过 Payload 类型识别鼠标事件（更可靠，因为 Source 可能为空）
+	mouseDispatchCleanup := func() {}
 	if mouseMsg, ok := act.Payload.(*runtimemsg.MouseMsg); ok {
+		if log.RenderLogger.Enabled() {
+			targetTag := "<nil>"
+			targetRef := ""
+			if fiber := mouseTargetFiber(mouseMsg); fiber != nil {
+				targetTag = fiber.Tag
+				targetRef = fiber.ID
+			}
+			log.RenderLogger.Debug("[Mouse] msgAction=%v mappedAction=%s button=%v screen=(%d,%d) local=(%d,%d) targetNodeID=%d targetTag=%s targetRef=%s captureOn=%v captureRef=%s",
+				mouseMsg.Action, act.Type, mouseMsg.Button, mouseMsg.X, mouseMsg.Y, mouseMsg.LocalX, mouseMsg.LocalY,
+				mouseMsg.TargetID, targetTag, targetRef, a.mouseCaptureOn, a.mouseCaptureRef)
+		}
+		switch mouseMsg.Action {
+		case runtimemsg.MouseActionPress:
+			a.beginMouseCapture(mouseMsg)
+		case runtimemsg.MouseActionRelease:
+			a.applyMouseCapture(mouseMsg)
+			mouseDispatchCleanup = func() {
+				a.clearMouseCapture(mouseMsg.Button)
+			}
+		}
 		if fiber := mouseTargetFiber(mouseMsg); fiber != nil {
 			// Mouse click: Check if target is focusable and transfer focus
-			if act.Type == action.ActionClick && fiber.Instance != nil {
-				if focusable, ok := fiber.Instance.(rtui.FocusableInstance); ok {
-					if !focusable.IsDisabled() && a.focusManager != nil {
-						// Transfer focus to clicked element by NodeID
-						focusID := fmt.Sprintf("%d", fiber.NodeID)
-						if a.focusManager.SetFocusByID(focusID) {
-							a.dirty = true
-						}
+			if act.Type == action.ActionClick && a.focusManager != nil {
+				if focusFiber := nearestFocusableFiber(fiber); focusFiber != nil {
+					// Transfer focus to the nearest focusable ancestor by NodeID.
+					focusID := fmt.Sprintf("%d", focusFiber.NodeID)
+					if a.focusManager.SetFocusByID(focusID) {
+						a.dirty = true
 					}
 				}
 			}
 
 			// 传入 act.Payload (MouseMsg) 而不是 act
 			if a.actionBridge.DispatchFromFiber(fiber, act.Type, act.Payload) {
+				mouseDispatchCleanup()
+				a.applyActionMiddlewareAfter(act, &action.RouterResult{
+					Handled: true,
+					Phase:   action.ActionPhaseTarget,
+				})
 				a.dirty = true
 				return
 			}
@@ -1342,7 +1415,8 @@ func (a *App) processMsg(msg runtimemsg.Msg) {
 		// 对于 ESC 键（ActionCancel），优先尝试通过 ActionRouter 的全局处理器处理
 		// 这样 Modal 的 GlobalActionHandler 可以拦截并关闭 modal
 		if act.Type == action.ActionCancel || act.Type == action.ActionQuit {
-			result := a.actionRouter.Dispatch(act)
+			result := a.actionRouter.DispatchWithoutMiddleware(act)
+			a.applyActionMiddlewareAfter(act, result)
 			if result.Handled {
 				a.dirty = true
 				return
@@ -1352,6 +1426,10 @@ func (a *App) processMsg(msg runtimemsg.Msg) {
 		// 否则正常路由到焦点元素
 		if focused := a.focusManager.GetCurrent(); focused != nil {
 			if a.actionBridge.DispatchFromFiber(focused, act.Type, act.Payload) {
+				a.applyActionMiddlewareAfter(act, &action.RouterResult{
+					Handled: true,
+					Phase:   action.ActionPhaseTarget,
+				})
 				a.dirty = true
 				return
 			}
@@ -1361,10 +1439,26 @@ func (a *App) processMsg(msg runtimemsg.Msg) {
 	// 4.3 回退：统一通过 ActionRouter 分发剩余未处理 Action。
 	// 这里不能再要求必须有 TargetID；全局中间件和无目标动作
 	// （例如点击菜单外部关闭 popup）也需要进入 ActionRouter。
-	result := a.actionRouter.Dispatch(act)
+	result := a.actionRouter.DispatchWithoutMiddleware(act)
+	mouseDispatchCleanup()
+	a.applyActionMiddlewareAfter(act, result)
 	if result.Handled {
 		a.dirty = true
 	}
+}
+
+func (a *App) applyActionMiddlewareBefore(act *action.Action) *action.Action {
+	if act == nil || a.actionRouter == nil || a.actionRouter.Middleware == nil {
+		return act
+	}
+	return a.actionRouter.Middleware.Before(act)
+}
+
+func (a *App) applyActionMiddlewareAfter(act *action.Action, result *action.RouterResult) {
+	if act == nil || a.actionRouter == nil || a.actionRouter.Middleware == nil {
+		return
+	}
+	a.actionRouter.Middleware.After(act, result)
 }
 
 func mouseTargetFiber(mouseMsg *runtimemsg.MouseMsg) *rtui.Fiber {
@@ -1376,6 +1470,113 @@ func mouseTargetFiber(mouseMsg *runtimemsg.MouseMsg) *rtui.Fiber {
 		return nil
 	}
 	return fiber
+}
+
+func (a *App) beginMouseCapture(mouseMsg *runtimemsg.MouseMsg) {
+	if mouseMsg == nil || mouseMsg.Action != runtimemsg.MouseActionPress {
+		return
+	}
+	fiber := mouseTargetFiber(mouseMsg)
+	targetID := mouseMsg.TargetID
+	if targetID == 0 && fiber != nil {
+		targetID = fiber.NodeID
+	}
+	if targetID == 0 || fiber == nil {
+		a.clearMouseCapture(runtimemsg.MouseButtonUnknown)
+		return
+	}
+	a.mouseCaptureID = targetID
+	a.mouseCaptureBtn = mouseMsg.Button
+	a.mouseCaptureOn = true
+	a.mouseCaptureRef = fiber.ID
+	if log.RenderLogger.Enabled() {
+		log.RenderLogger.Debug("[MouseCapture] begin nodeID=%d ref=%s button=%v", a.mouseCaptureID, a.mouseCaptureRef, a.mouseCaptureBtn)
+	}
+}
+
+func (a *App) applyMouseCapture(mouseMsg *runtimemsg.MouseMsg) {
+	if mouseMsg == nil || !a.mouseCaptureOn {
+		return
+	}
+	if mouseMsg.Button != a.mouseCaptureBtn {
+		return
+	}
+	if mouseMsg.Action != runtimemsg.MouseActionRelease {
+		return
+	}
+	if a.hitMap == nil || a.mouseCaptureID == 0 {
+		return
+	}
+	entry := a.hitMap.FindByID(a.mouseCaptureID)
+	if entry == nil && a.mouseCaptureRef != "" {
+		for _, candidate := range a.hitMap.AllEntries() {
+			fiber, ok := candidate.TargetFiber.(*rtui.Fiber)
+			if !ok || fiber == nil {
+				continue
+			}
+			if fiber.ID != a.mouseCaptureRef {
+				continue
+			}
+			entryCopy := candidate
+			entry = &entryCopy
+			break
+		}
+	}
+	if entry == nil {
+		if log.RenderLogger.Enabled() {
+			log.RenderLogger.Debug("[MouseCapture] release no target found for nodeID=%d ref=%s", a.mouseCaptureID, a.mouseCaptureRef)
+		}
+		return
+	}
+	localX, localY := entry.LocalXY(mouseMsg.X, mouseMsg.Y)
+	mouseMsg.TargetID = entry.NodeID
+	mouseMsg.TargetFiber = entry.TargetFiber
+	mouseMsg.LocalX = localX
+	mouseMsg.LocalY = localY
+	mouseMsg.TargetBounds = runtimepkg.Box{
+		X:      entry.Bounds.X,
+		Y:      entry.Bounds.Y,
+		Width:  entry.Bounds.Width,
+		Height: entry.Bounds.Height,
+	}
+	if log.RenderLogger.Enabled() {
+		targetTag := "<nil>"
+		if fiber := mouseTargetFiber(mouseMsg); fiber != nil {
+			targetTag = fiber.Tag
+		}
+		log.RenderLogger.Debug("[MouseCapture] retarget release nodeID=%d ref=%s targetTag=%s local=(%d,%d)",
+			mouseMsg.TargetID, a.mouseCaptureRef, targetTag, mouseMsg.LocalX, mouseMsg.LocalY)
+	}
+}
+
+func (a *App) clearMouseCapture(button runtimemsg.MouseButton) {
+	if !a.mouseCaptureOn {
+		return
+	}
+	if button != runtimemsg.MouseButtonUnknown && a.mouseCaptureBtn != button {
+		return
+	}
+	a.mouseCaptureID = 0
+	a.mouseCaptureBtn = runtimemsg.MouseButtonUnknown
+	a.mouseCaptureOn = false
+	a.mouseCaptureRef = ""
+	if log.RenderLogger.Enabled() {
+		log.RenderLogger.Debug("[MouseCapture] cleared")
+	}
+}
+
+func nearestFocusableFiber(fiber *rtui.Fiber) *rtui.Fiber {
+	for node := fiber; node != nil; node = node.Return {
+		if node.Instance == nil {
+			continue
+		}
+		focusable, ok := node.Instance.(rtui.FocusableInstance)
+		if !ok || focusable.IsDisabled() {
+			continue
+		}
+		return node
+	}
+	return nil
 }
 
 func (a *App) handleGlobalKeyShortcut(msg runtimemsg.Msg) bool {
@@ -1972,6 +2173,13 @@ func (a *App) render() {
 			a.pump.SetHitMap(a.hitMap)
 		}
 	}
+	if a.aiService != nil {
+		a.renderSeq++
+		a.aiService.OnAfterRender(aiservice.RenderInfo{
+			RenderSeq:  a.renderSeq,
+			RenderedAt: time.Now(),
+		})
+	}
 	a.dirty = false
 	// 清除首次渲染标记
 	if a.firstRender {
@@ -2130,6 +2338,12 @@ func (a *App) Quit() {
 // Close 关闭应用
 func (a *App) Close() error {
 	a.state = StateStopped
+	a.invokeDoneOnce.Do(func() {
+		close(a.invokeDone)
+	})
+	if a.aiService != nil {
+		_ = a.aiService.Stop()
+	}
 
 	// 让根组件失去焦点
 	if a.root != nil {

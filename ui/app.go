@@ -32,6 +32,7 @@ type Options struct {
 	NoAlternateScreen bool   // Don't use alternate screen mode - allows copying/scrolling
 	InitFunc          func() // Initialization function called after Intent Runtime is created
 	PluginSetupFunc   func(*framework.App)
+	AIConfig          *framework.AIConfig
 
 	// Lane Scheduler Options
 	UseLaneScheduler bool   // Enable priority-based lane scheduler
@@ -209,6 +210,11 @@ func Run(app ComponentFunc, opts ...Option) error {
 	appInstance = fwApp
 	if err := fwApp.SetInteractionMode(options.InteractionMode); err != nil {
 		return err
+	}
+	if options.AIConfig != nil {
+		if err := fwApp.EnableAI(*options.AIConfig); err != nil {
+			return err
+		}
 	}
 
 	// Initialize theme
@@ -393,6 +399,11 @@ func RunApp[T any](rt *statemachine.AppRuntime[T], opts ...Option) error {
 	appInstance = fwApp
 	if err := fwApp.SetInteractionMode(options.InteractionMode); err != nil {
 		return err
+	}
+	if options.AIConfig != nil {
+		if err := fwApp.EnableAI(*options.AIConfig); err != nil {
+			return err
+		}
 	}
 
 	// Initialize theme
