@@ -70,8 +70,9 @@ type Instance struct {
 	selectedIndex           int
 	selectedIndexControlled bool
 	viewportHeight          int
-	expandedKeys            map[string]bool
-	expandedKeysControlled  bool
+	expandedKeys                map[string]bool
+	expandedKeysControlled     bool
+	lastExternalExpandedKeys   map[string]bool
 	allowScroll             bool
 	allowExpand             bool
 
@@ -234,6 +235,13 @@ func (inst *Instance) applyExpandedKeys(keys map[string]bool, reset bool) {
 				next[key] = existing
 				continue
 			}
+		}
+
+		// In controlled mode, only use keys explicitly provided by external source.
+		// Do not fall back to expandLevel defaults.
+		if inst.expandedKeysControlled {
+			next[key] = false
+			continue
 		}
 
 		depth := nodeDepth(node)
@@ -406,8 +414,18 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 		inst.checkedKeysInitialized = true
 	}
 	inst.viewportHeight = getIntProp(props, "viewportHeight", inst.viewportHeight)
+	externalExpandedKeysChanged := false
 	if expandedKeys, ok := props["expandedKeys"].(map[string]bool); ok {
-		inst.expandedKeys = cloneExpandedKeys(expandedKeys)
+		// Only overwrite internal expandedKeys when the external value has actually
+		// changed since the last SetProps call. This prevents a same-frame
+		// SetProps (triggered by dirty=true before the intent is processed) from
+		// undoing an expand/collapse that navigateLeft/Right just performed.
+		normalized := normalizeExpandedKeys(expandedKeys)
+		if !equalExpandedKeys(normalized, inst.lastExternalExpandedKeys) {
+			inst.lastExternalExpandedKeys = cloneExpandedKeys(normalized)
+			inst.expandedKeys = cloneExpandedKeys(normalized)
+			externalExpandedKeysChanged = true
+		}
 		inst.expandedKeysControlled = true
 	}
 	if controlled, ok := props["expandedKeysControlled"].(bool); ok {
@@ -426,7 +444,7 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 		inst.autoSelectMatch = true
 	}
 	if inst.expandedKeysControlled {
-		if nodesChanged || expandLevelChanged || expandedKeysChanged {
+		if nodesChanged || expandLevelChanged || externalExpandedKeysChanged {
 			inst.applyExpandedKeys(inst.expandedKeys, true)
 		}
 	} else if nodesChanged || expandLevelChanged {
@@ -1049,15 +1067,6 @@ func (inst *Instance) navigateLeft() bool {
 		return true
 	}
 
-	parentIndex := inst.parentVisibleIndex(visible, inst.selectedIndex)
-	if parentIndex >= 0 {
-		fromIndex := inst.selectedIndex
-		if inst.selectVisibleIndex(parentIndex, visible, true) {
-			inst.emitNavigation("left", fromIndex, inst.selectedIndex)
-			return true
-		}
-	}
-
 	return false
 }
 
@@ -1083,14 +1092,6 @@ func (inst *Instance) navigateRight() bool {
 			inst.emitNodeExpand(entry.Index, entry.Node.Path, entry.Node.NodeID)
 			inst.maybeEmitLazyLoad(entry)
 			return true
-		}
-		childIndex := inst.firstChildVisibleIndex(visible, inst.selectedIndex)
-		if childIndex >= 0 {
-			fromIndex := inst.selectedIndex
-			if inst.selectVisibleIndex(childIndex, visible, true) {
-				inst.emitNavigation("right", fromIndex, inst.selectedIndex)
-				return true
-			}
 		}
 	}
 	return false
@@ -2992,7 +2993,11 @@ func (inst *Instance) setExpandedKey(key string, value bool) {
 	if inst.expandedKeys == nil {
 		inst.expandedKeys = make(map[string]bool)
 	}
-	inst.expandedKeys[key] = value
+	if value {
+		inst.expandedKeys[key] = true
+	} else {
+		delete(inst.expandedKeys, key)
+	}
 }
 
 func normalizeExpandedKeys(keys map[string]bool) map[string]bool {
