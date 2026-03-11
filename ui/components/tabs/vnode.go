@@ -25,7 +25,46 @@ const (
 type TabItem struct {
 	ID       string
 	Label    string
+	Icon     string
+	Badge    string
+	Hotkey   rune
 	Disabled bool
+	Hidden   bool
+}
+
+// Item creates a tab item with the provided ID and label.
+func Item(id, label string) TabItem {
+	return TabItem{ID: id, Label: label}
+}
+
+// WithIcon adds an icon prefix to the tab label.
+func (t TabItem) WithIcon(icon string) TabItem {
+	t.Icon = icon
+	return t
+}
+
+// WithBadge adds a badge suffix to the tab label.
+func (t TabItem) WithBadge(badge string) TabItem {
+	t.Badge = badge
+	return t
+}
+
+// WithHotkey assigns a keyboard hotkey for direct tab activation.
+func (t TabItem) WithHotkey(hotkey rune) TabItem {
+	t.Hotkey = hotkey
+	return t
+}
+
+// WithDisabled toggles the disabled state.
+func (t TabItem) WithDisabled(disabled bool) TabItem {
+	t.Disabled = disabled
+	return t
+}
+
+// WithHidden toggles visibility without removing the tab from the data model.
+func (t TabItem) WithHidden(hidden bool) TabItem {
+	t.Hidden = hidden
+	return t
 }
 
 // =============================================================================
@@ -42,10 +81,15 @@ type VNode struct {
 	componentID string // Phase 7: Component ID for Intent routing
 
 	// === Tab Props ===
-	tabs      []TabItem
-	position  TabPosition
-	wrapTabs  bool
-	tabGap    int
+	tabs           []TabItem
+	position       TabPosition
+	activeTab      int
+	activeTabID    string
+	wrapTabs       bool
+	tabGap         int
+	loopNavigation bool
+	showHotkeys    bool
+	divider        string
 
 	// === Layout Props ===
 	width  int
@@ -53,11 +97,12 @@ type VNode struct {
 	flex   int
 
 	// === Style ===
-	tabStyle      style.Style
-	activeTabStyle style.Style
+	tabStyle         style.Style
+	activeTabStyle   style.Style
+	disabledTabStyle style.Style
 
 	// === Intent (No Closures!) ===
-	changeIntent intent.Intent
+	changeIntent      intent.Intent
 	changeIntentField intent.FieldIntent // For FieldChangeIntent
 }
 
@@ -74,16 +119,21 @@ var (
 // New creates a new tabs VNode.
 func New() *VNode {
 	return &VNode{
-		ElementVNode:        rtui.NewElement("tabs"),
-		componentID:         "", // Phase 7: Component ID
-		tabs:                []TabItem{},
-		position:            TabPositionTop,
-		wrapTabs:            false,
-		tabGap:              1,
-		flex:                1,
-		tabStyle:            style.Style{},
-		activeTabStyle:      style.Style{},
-		changeIntentField:   nil, // Phase 7: FieldChangeIntent
+		ElementVNode:      rtui.NewElement("tabs"),
+		componentID:       "", // Phase 7: Component ID
+		tabs:              []TabItem{},
+		position:          TabPositionTop,
+		activeTab:         -1,
+		wrapTabs:          false,
+		tabGap:            1,
+		loopNavigation:    false,
+		showHotkeys:       false,
+		divider:           " | ",
+		flex:              1,
+		tabStyle:          style.Style{},
+		activeTabStyle:    style.Style{},
+		disabledTabStyle:  style.Style{},
+		changeIntentField: nil, // Phase 7: FieldChangeIntent
 	}
 }
 
@@ -91,10 +141,10 @@ func New() *VNode {
 // rtui.VNode Interface Implementation
 // =============================================================================
 
-func (v *VNode) Key() string           { return v.key }
+func (v *VNode) Key() string                  { return v.key }
 func (v *VNode) SetKey(key string) rtui.VNode { v.key = key; return v }
-func (v *VNode) Tag() string           { return "tabs" }
-func (v *VNode) Type() rtui.VNodeType  { return rtui.VNodeElement }
+func (v *VNode) Tag() string                  { return "tabs" }
+func (v *VNode) Type() rtui.VNodeType         { return rtui.VNodeElement }
 
 func (v *VNode) Children() []rtui.VNode {
 	// Children are built dynamically by Instance
@@ -106,29 +156,35 @@ func (v *VNode) SetChildren(children []rtui.VNode) rtui.VNode {
 	return v
 }
 
-func (v *VNode) GetLayer() rtui.Layer   { return rtui.LayerBase }
+func (v *VNode) GetLayer() rtui.Layer             { return rtui.LayerBase }
 func (v *VNode) SetLayer(l rtui.Layer) rtui.VNode { return v }
 
-func (v *VNode) Style() style.Style    { return v.tabStyle }
+func (v *VNode) Style() style.Style                { return v.tabStyle }
 func (v *VNode) SetStyle(s style.Style) rtui.VNode { v.tabStyle = s; return v }
 
-func (v *VNode) TextContent() string   { return "" }
+func (v *VNode) TextContent() string { return "" }
 
 func (v *VNode) Props() rtui.Props {
 	return rtui.Props{
 		"key":               v.key,
-		"componentID":       v.componentID,         // Phase 7
+		"componentID":       v.componentID, // Phase 7
 		"tabs":              v.tabs,
 		"position":          v.position,
+		"activeTab":         v.activeTab,
+		"activeTabID":       v.activeTabID,
 		"wrapTabs":          v.wrapTabs,
 		"tabGap":            v.tabGap,
+		"loopNavigation":    v.loopNavigation,
+		"showHotkeys":       v.showHotkeys,
+		"divider":           v.divider,
 		"width":             v.width,
 		"height":            v.height,
 		"flex":              v.flex,
 		"tabStyle":          v.tabStyle,
 		"activeTabStyle":    v.activeTabStyle,
+		"disabledTabStyle":  v.disabledTabStyle,
 		"changeIntent":      v.changeIntent,
-		"changeIntentField": v.changeIntentField,   // Phase 7
+		"changeIntentField": v.changeIntentField, // Phase 7
 	}
 }
 
@@ -145,11 +201,26 @@ func (v *VNode) SetProps(p rtui.Props) rtui.VNode {
 	if val, ok := p["position"].(TabPosition); ok {
 		v.position = val
 	}
+	if val, ok := p["activeTab"].(int); ok {
+		v.activeTab = val
+	}
+	if val, ok := p["activeTabID"].(string); ok {
+		v.activeTabID = val
+	}
 	if val, ok := p["wrapTabs"].(bool); ok {
 		v.wrapTabs = val
 	}
 	if val, ok := p["tabGap"].(int); ok {
 		v.tabGap = val
+	}
+	if val, ok := p["loopNavigation"].(bool); ok {
+		v.loopNavigation = val
+	}
+	if val, ok := p["showHotkeys"].(bool); ok {
+		v.showHotkeys = val
+	}
+	if val, ok := p["divider"].(string); ok {
+		v.divider = val
 	}
 	if val, ok := p["width"].(int); ok {
 		v.width = val
@@ -165,6 +236,9 @@ func (v *VNode) SetProps(p rtui.Props) rtui.VNode {
 	}
 	if val, ok := p["activeTabStyle"].(style.Style); ok {
 		v.activeTabStyle = val
+	}
+	if val, ok := p["disabledTabStyle"].(style.Style); ok {
+		v.disabledTabStyle = val
 	}
 	if val, ok := p["changeIntent"].(intent.Intent); ok {
 		v.changeIntent = val
@@ -182,18 +256,24 @@ func (v *VNode) SetProps(p rtui.Props) rtui.VNode {
 func (v *VNode) CreateInstance() rtui.ComponentInstance {
 	return NewInstance(rtui.Props{
 		"key":               v.key,
-		"componentID":       v.componentID,         // Phase 7
+		"componentID":       v.componentID, // Phase 7
 		"tabs":              v.tabs,
 		"position":          v.position,
+		"activeTab":         v.activeTab,
+		"activeTabID":       v.activeTabID,
 		"wrapTabs":          v.wrapTabs,
 		"tabGap":            v.tabGap,
+		"loopNavigation":    v.loopNavigation,
+		"showHotkeys":       v.showHotkeys,
+		"divider":           v.divider,
 		"width":             v.width,
 		"height":            v.height,
 		"flex":              v.flex,
 		"tabStyle":          v.tabStyle,
 		"activeTabStyle":    v.activeTabStyle,
+		"disabledTabStyle":  v.disabledTabStyle,
 		"changeIntent":      v.changeIntent,
-		"changeIntentField": v.changeIntentField,   // Phase 7
+		"changeIntentField": v.changeIntentField, // Phase 7
 	})
 }
 
@@ -204,13 +284,18 @@ func (v *VNode) CreateInstance() rtui.ComponentInstance {
 // Identification setters
 func (v *VNode) SetComponentID(id string) *VNode { v.componentID = id; return v } // Phase 7
 
-func (v *VNode) SetTabs(tabs []TabItem) *VNode  { v.tabs = tabs; return v }
+func (v *VNode) SetTabs(tabs []TabItem) *VNode      { v.tabs = tabs; return v }
 func (v *VNode) SetPosition(pos TabPosition) *VNode { v.position = pos; return v }
-func (v *VNode) SetWrapTabs(wrap bool) *VNode   { v.wrapTabs = wrap; return v }
-func (v *VNode) SetTabGap(gap int) *VNode       { v.tabGap = gap; return v }
+func (v *VNode) SetActiveTab(index int) *VNode      { v.activeTab = index; return v }
+func (v *VNode) SetActiveTabID(id string) *VNode    { v.activeTabID = id; return v }
+func (v *VNode) SetWrapTabs(wrap bool) *VNode       { v.wrapTabs = wrap; return v }
+func (v *VNode) SetTabGap(gap int) *VNode           { v.tabGap = gap; return v }
+func (v *VNode) SetLoopNavigation(loop bool) *VNode { v.loopNavigation = loop; return v }
+func (v *VNode) SetShowHotkeys(show bool) *VNode    { v.showHotkeys = show; return v }
+func (v *VNode) SetDivider(divider string) *VNode   { v.divider = divider; return v }
 
 // Intent setters
-func (v *VNode) SetIntent(i intent.Intent) *VNode { v.changeIntent = i; return v }
+func (v *VNode) SetIntent(i intent.Intent) *VNode           { v.changeIntent = i; return v }
 func (v *VNode) SetFieldIntent(i intent.FieldIntent) *VNode { v.changeIntentField = i; return v } // Phase 7
 
 // Layout setters
@@ -220,8 +305,9 @@ func (v *VNode) SetFlex(f int) *VNode   { v.flex = f; return v }
 func (v *VNode) Size(w, h int) *VNode   { return v.SetWidth(w).SetHeight(h) }
 
 // Style setters
-func (v *VNode) SetTabStyle(s style.Style) *VNode        { v.tabStyle = s; return v }
-func (v *VNode) SetActiveTabStyle(s style.Style) *VNode { v.activeTabStyle = s; return v }
+func (v *VNode) SetTabStyle(s style.Style) *VNode         { v.tabStyle = s; return v }
+func (v *VNode) SetActiveTabStyle(s style.Style) *VNode   { v.activeTabStyle = s; return v }
+func (v *VNode) SetDisabledTabStyle(s style.Style) *VNode { v.disabledTabStyle = s; return v }
 
 // Tab position convenience methods
 func (v *VNode) Top() *VNode    { return v.SetPosition(TabPositionTop) }
@@ -233,15 +319,21 @@ func (v *VNode) Right() *VNode  { return v.SetPosition(TabPositionRight) }
 // Accessors
 // =============================================================================
 
-func (v *VNode) Tabs() []TabItem  { return v.tabs }
-func (v *VNode) Position() TabPosition { return v.position }
-func (v *VNode) WrapTabs() bool  { return v.wrapTabs }
-func (v *VNode) TabGap() int     { return v.tabGap }
-func (v *VNode) Width() int      { return v.width }
-func (v *VNode) Height() int     { return v.height }
-func (v *VNode) Flex() int       { return v.flex }
-func (v *VNode) TabStyle() style.Style      { return v.tabStyle }
-func (v *VNode) ActiveTabStyle() style.Style { return v.activeTabStyle }
+func (v *VNode) Tabs() []TabItem               { return v.tabs }
+func (v *VNode) Position() TabPosition         { return v.position }
+func (v *VNode) ActiveTab() int                { return v.activeTab }
+func (v *VNode) ActiveTabID() string           { return v.activeTabID }
+func (v *VNode) WrapTabs() bool                { return v.wrapTabs }
+func (v *VNode) TabGap() int                   { return v.tabGap }
+func (v *VNode) LoopNavigation() bool          { return v.loopNavigation }
+func (v *VNode) ShowHotkeys() bool             { return v.showHotkeys }
+func (v *VNode) Divider() string               { return v.divider }
+func (v *VNode) Width() int                    { return v.width }
+func (v *VNode) Height() int                   { return v.height }
+func (v *VNode) Flex() int                     { return v.flex }
+func (v *VNode) TabStyle() style.Style         { return v.tabStyle }
+func (v *VNode) ActiveTabStyle() style.Style   { return v.activeTabStyle }
+func (v *VNode) DisabledTabStyle() style.Style { return v.disabledTabStyle }
 
 // =============================================================================
 // Tab Management Helpers
@@ -250,6 +342,12 @@ func (v *VNode) ActiveTabStyle() style.Style { return v.activeTabStyle }
 // AddTab adds a new tab
 func (v *VNode) AddTab(id, label string) *VNode {
 	v.tabs = append(v.tabs, TabItem{ID: id, Label: label, Disabled: false})
+	return v
+}
+
+// AddTabItem adds a fully configured tab item.
+func (v *VNode) AddTabItem(tab TabItem) *VNode {
+	v.tabs = append(v.tabs, tab)
 	return v
 }
 

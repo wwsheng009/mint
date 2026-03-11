@@ -100,46 +100,46 @@ percent := virtualList.GetScrollPercent()
 
 ### 3. Tabs - 标签页组件
 
-**位置**: `components/navigation/tabs.go`
+**位置**: `ui/components/tabs/`
 
-**用途**: 创建标签页界面，组织多面板内容
+**用途**: 渲染 tab 栏并管理当前选中的 tab，适合做多面板导航或工具区切换
 
 **Builder API**:
 ```go
-tabs := navigation.TabsBuilder()
-tabs.AddTab(id, label)
-tabs.Content(id, content)
-tabs.ActiveTab(index)
-tabs.Position(position)  // TabPositionTop/Bottom/Left/Right
-tabs.OnChange(handler)
-tabsComponent := tabs.Build()
+tabs := ui.NewTabsBuilder().
+    ComponentID("workspace-tabs").
+    AddTab("home", "Home").
+    AddTabItem(
+        ui.NewTabItem("alerts", "Alerts").
+            WithIcon("!").
+            WithBadge("12").
+            WithHotkey('a'),
+    ).
+    ActiveTabID("alerts").
+    Position(ui.TabPositionTop).
+    WrapTabs(true).
+    Divider(" / ").
+    LoopNavigation(true).
+    ShowHotkeys(true).
+    Build()
 ```
 
 **使用示例**:
 ```go
-// 创建标签页
-tabsBuilder := navigation.TabsBuilder()
-
-// 添加标签
-tabsBuilder.AddTab("elements", "Elements")
-tabsBuilder.Content("elements", buildElementsContent())
-
-tabsBuilder.AddTab("console", "Console")
-tabsBuilder.Content("console", buildConsoleContent())
-
-// 设置默认激活的标签
-tabsBuilder.ActiveTab(0)
-
-// 设置标签位置
-tabsBuilder.Position(navigation.TabPositionTop)
-
-// 可选：设置变化回调
-tabsBuilder.OnChange(func(tabID string) {
-    fmt.Println("Switched to:", tabID)
-})
-
-// 构建组件
-tabsComponent := tabsBuilder.Build()
+func InspectorTabs(activeTab string) ui.VNode {
+    return ui.NewTabsBuilder().
+        ComponentID("inspector-tabs").
+        Tabs([]ui.TabItem{
+            ui.NewTabItem("elements", "Elements").WithHotkey('e'),
+            ui.NewTabItem("console", "Console").WithHotkey('c'),
+            ui.NewTabItem("network", "Network").WithBadge("3"),
+            ui.NewTabItem("layout", "Layout").WithDisabled(true),
+        }).
+        ActiveTabID(activeTab).
+        ShowHotkeys(true).
+        Width(56).
+        Build()
+}
 ```
 
 **Tab 位置**:
@@ -151,50 +151,53 @@ tabsComponent := tabsBuilder.Build()
 **运行时方法**:
 ```go
 // 切换标签
-tabs.NextTab()         // 下一个标签
-tabs.PreviousTab()     // 上一个标签
-tabs.FirstTab()        // 第一个标签
-tabs.LastTab()         // 最后一个标签
+inst.NextTab()
+inst.PreviousTab()
+inst.FirstTab()
+inst.LastTab()
 
 // 通过 ID/Label 切换
-tabs.SetActiveTabByID("elements")
-tabs.SetActiveTabByLabel("Elements")
+inst.SetActiveTabByID("elements")
+inst.SetActiveTabByLabel("Elements")
 
 // 查询方法
-label := tabs.GetActiveTabLabel()
-id := tabs.GetActiveTabID()
-content := tabs.GetActiveTabContent()
-count := tabs.GetTabCount()
+label := inst.GetActiveTabLabel()
+id := inst.GetActiveTabID()
+count := inst.GetTabCount()
+visibleCount := inst.GetVisibleTabCount()
 
 // 检查状态
-canGoNext := tabs.CanGoNext()
-canGoPrev := tabs.CanGoPrevious()
-isEnabled := tabs.IsTabEnabled(index)
+canGoNext := inst.CanGoNext()
+canGoPrev := inst.CanGoPrevious()
+isEnabled := inst.IsTabEnabled(index)
 
 // 查找
-index := tabs.FindTabByID("elements")
-index = tabs.FindTabByLabel("Elements")
+index := inst.FindTabByID("elements")
+index = inst.FindTabByLabel("Elements")
 ```
 
 **TabItem 结构**:
 ```go
 type TabItem struct {
-    ID       string      // 唯一标识符
-    Label    string      // 显示标签
-    Content  ui.VNode    // 内容
-    Key      string      // Diff 键（可选）
-    Disabled bool        // 是否禁用
+    ID       string
+    Label    string
+    Icon     string
+    Badge    string
+    Hotkey   rune
+    Disabled bool
+    Hidden   bool
 }
 ```
 
 **特性**:
 - ✅ 多种位置 - Top/Bottom/Left/Right
-- ✅ 键盘导航 - 支持方向键切换
+- ✅ 键盘导航 - arrows / Home / End / Ctrl+Tab / hotkeys / digits
+- ✅ Metadata - Icon / Badge / Hotkey / Hidden / Disabled
 - ✅ 禁用支持 - 可禁用特定标签
-- ✅ 回调机制 - onChange 事件
-- ✅ 灵活内容 - 任意 VNode 作为内容
+- ✅ Intent 集成 - `TabChange`, `TabNext`, `TabPrevious`, `TabSelect`
+- ✅ 换行和偏移命中 - `WrapTabs`、`Bottom`、`Right` 均支持正确点击
 
-**导出**: `navigation.TabsBuilder`, `navigation.NewTabs`
+**导出**: `ui.NewTabsBuilder`, `ui.Tabs`, `ui.NewTabItem`, `ui.TabsNext`
 
 ---
 
@@ -260,21 +263,16 @@ func FileBrowser(files []FileInfo) ui.VNode {
 
 ```go
 func MultiPanelApp() ui.VNode {
-    tabs := navigation.TabsBuilder()
-
-    // 面板 1: 日志
-    tabs.AddTab("logs", "Logs")
-    tabs.Content("logs", LogViewer(appLogs))
-
-    // 面板 2: 文件
-    tabs.AddTab("files", "Files")
-    tabs.Content("files", FileBrowser(appFiles))
-
-    // 面板 3: 设置
-    tabs.AddTab("settings", "Settings")
-    tabs.Content("settings", SettingsPanel())
-
-    return tabs.Build()
+    return ui.NewTabsBuilder().
+        Tabs([]ui.TabItem{
+            ui.NewTabItem("logs", "Logs").WithHotkey('l'),
+            ui.NewTabItem("files", "Files").WithHotkey('f'),
+            ui.NewTabItem("settings", "Settings"),
+        }).
+        ActiveTabID("logs").
+        ShowHotkeys(true).
+        Width(48).
+        Build()
 }
 ```
 
@@ -366,18 +364,23 @@ func (c *MyComponent) HandleKeyEvent(key string) bool {
 ### Tabs 键盘处理
 
 ```go
-func (t *MyTabs) HandleKeyEvent(key string) bool {
+func tabsKeyMap(key string) string {
     switch key {
-    case "left", "shift+tab":
-        return t.PreviousTab()
-    case "right", "tab":
-        return t.NextTab()
+    case "left", "up", "ctrl+shift+tab":
+        return "previous"
+    case "right", "down", "ctrl+tab":
+        return "next"
     case "home":
-        return t.FirstTab()
+        return "first"
     case "end":
-        return t.LastTab()
+        return "last"
+    case "1":
+        return "visible-tab-1"
+    case "a":
+        return "hotkey-a"
+    default:
+        return ""
     }
-    return false
 }
 ```
 
@@ -491,14 +494,18 @@ var (
 )
 ```
 
-### navigation 包导出
+### ui 包 Tabs 导出
 
 ```go
-// components/navigation/tabs.go
+// ui shortcuts
 
-func Tabs() ui.VNode
-func NewTabs() *TabsVNode
-func TabsBuilder() *TabsBuilderType
+func NewTabsBuilder() *tabs.Builder
+func Tabs(tabItems []tabs.TabItem) rtui.VNode
+func NewTabItem(id, label string) tabs.TabItem
+func TabsNext(componentID string) tabs.TabNextIntent
+func TabsPrevious(componentID string) tabs.TabPreviousIntent
+func TabsSelect(componentID, tabID string) tabs.TabSelectIntent
+func TabsSelectIndex(componentID string, tabIndex int) tabs.TabSelectIntent
 ```
 
 ### layout 包导出

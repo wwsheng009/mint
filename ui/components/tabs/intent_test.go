@@ -133,6 +133,38 @@ func TestTabPreviousIntent_Transition(t *testing.T) {
 }
 
 // =============================================================================
+// TabSelectIntent Tests
+// =============================================================================
+
+func TestTabSelectIntent_Type(t *testing.T) {
+	i := TabSelect("comp1", "tab2")
+	if i.IntentType() != "Tabs:TabSelect" {
+		t.Errorf("Expected intent type 'Tabs:TabSelect', got '%s'", i.IntentType())
+	}
+}
+
+func TestTabSelectIntent_Properties(t *testing.T) {
+	i := TabSelect("comp1", "tab2")
+	if i.ComponentID != "comp1" {
+		t.Errorf("Expected ComponentID 'comp1', got '%s'", i.ComponentID)
+	}
+	if i.TabID != "tab2" {
+		t.Errorf("Expected TabID 'tab2', got '%s'", i.TabID)
+	}
+	if i.TabIndex != -1 {
+		t.Errorf("Expected TabIndex -1, got %d", i.TabIndex)
+	}
+
+	indexIntent := TabSelectIndex("comp1", 2)
+	if indexIntent.TabID != "" {
+		t.Errorf("Expected empty TabID for index intent, got '%s'", indexIntent.TabID)
+	}
+	if indexIntent.TabIndex != 2 {
+		t.Errorf("Expected TabIndex 2, got %d", indexIntent.TabIndex)
+	}
+}
+
+// =============================================================================
 // ComponentID Routing Tests
 // =============================================================================
 
@@ -238,6 +270,37 @@ func TestInstance_HandleIntent_TabPrevious(t *testing.T) {
 	// Try to go to previous but at first tab - should return false
 	if inst.HandleIntent(TabPrevious("comp1")) {
 		t.Error("HandleIntent should return false when at first tab")
+	}
+}
+
+func TestInstance_HandleIntent_TabSelect(t *testing.T) {
+	tabs := []TabItem{
+		{ID: "tab1", Label: "Tab 1"},
+		{ID: "tab2", Label: "Tab 2"},
+		{ID: "tab3", Label: "Tab 3"},
+	}
+
+	inst := NewInstance(map[string]interface{}{
+		"tabs":        tabs,
+		"componentID": "comp1",
+	})
+
+	if !inst.HandleIntent(TabSelect("comp1", "tab3")) {
+		t.Fatal("HandleIntent should select by tab ID")
+	}
+	if inst.activeTab != 2 {
+		t.Fatalf("Expected activeTab 2 after TabSelect, got %d", inst.activeTab)
+	}
+
+	if !inst.HandleIntent(TabSelectIndex("comp1", 1)) {
+		t.Fatal("HandleIntent should select by tab index")
+	}
+	if inst.activeTab != 1 {
+		t.Fatalf("Expected activeTab 1 after TabSelectIndex, got %d", inst.activeTab)
+	}
+
+	if inst.HandleIntent(TabSelect("other", "tab1")) {
+		t.Fatal("HandleIntent should ignore TabSelect for other component IDs")
 	}
 }
 

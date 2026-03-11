@@ -54,6 +54,12 @@ func (b *Builder) AddTab(id, label string) *Builder {
 	return b
 }
 
+// AddTabItem adds a preconfigured tab item.
+func (b *Builder) AddTabItem(tab TabItem) *Builder {
+	b.vnode.AddTabItem(tab)
+	return b
+}
+
 // AddTabWithOptions adds a tab with disabled option.
 func (b *Builder) AddTabWithOptions(id, label string, disabled bool) *Builder {
 	b.vnode.AddTabWithOptions(id, label, disabled)
@@ -66,6 +72,18 @@ func (b *Builder) Position(pos TabPosition) *Builder {
 	return b
 }
 
+// ActiveTab sets the declarative active tab index. Use -1 to keep runtime state.
+func (b *Builder) ActiveTab(index int) *Builder {
+	b.vnode.SetActiveTab(index)
+	return b
+}
+
+// ActiveTabID sets the declarative active tab by ID.
+func (b *Builder) ActiveTabID(id string) *Builder {
+	b.vnode.SetActiveTabID(id)
+	return b
+}
+
 // WrapTabs enables/disables tab wrapping.
 func (b *Builder) WrapTabs(wrap bool) *Builder {
 	b.vnode.SetWrapTabs(wrap)
@@ -75,6 +93,24 @@ func (b *Builder) WrapTabs(wrap bool) *Builder {
 // TabGap sets the gap between tabs when wrapping.
 func (b *Builder) TabGap(gap int) *Builder {
 	b.vnode.SetTabGap(gap)
+	return b
+}
+
+// LoopNavigation enables/disables circular keyboard navigation.
+func (b *Builder) LoopNavigation(loop bool) *Builder {
+	b.vnode.SetLoopNavigation(loop)
+	return b
+}
+
+// ShowHotkeys toggles hotkey hints in the rendered tab labels.
+func (b *Builder) ShowHotkeys(show bool) *Builder {
+	b.vnode.SetShowHotkeys(show)
+	return b
+}
+
+// Divider sets the separator between horizontal tabs.
+func (b *Builder) Divider(divider string) *Builder {
+	b.vnode.SetDivider(divider)
 	return b
 }
 
@@ -111,6 +147,12 @@ func (b *Builder) Style(s style.Style) *Builder {
 // ActiveTabStyle sets the active tab style.
 func (b *Builder) ActiveTabStyle(s style.Style) *Builder {
 	b.vnode.SetActiveTabStyle(s)
+	return b
+}
+
+// DisabledTabStyle sets the style for disabled tabs.
+func (b *Builder) DisabledTabStyle(s style.Style) *Builder {
+	b.vnode.SetDisabledTabStyle(s)
 	return b
 }
 

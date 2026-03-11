@@ -114,6 +114,42 @@ func (TabPreviousIntent) IsGlobal() bool {
 	return false
 }
 
+// =============================================================================
+// TabSelectIntent
+// =============================================================================
+
+// TabSelectIntent is a command intent to select a specific tab by ID or index.
+type TabSelectIntent struct {
+	// ComponentID identifies the target tabs component.
+	ComponentID string
+
+	// TabID selects the target tab by ID when provided.
+	TabID string
+
+	// TabIndex selects the target tab by index when TabID is empty.
+	TabIndex int
+}
+
+// IntentType implements Intent interface.
+func (TabSelectIntent) IntentType() string {
+	return "Tabs:TabSelect"
+}
+
+// Priority implements Intent interface.
+func (TabSelectIntent) Priority() intent.ActionPriority {
+	return intent.PriorityNormal
+}
+
+// IsTransition implements Intent interface.
+func (TabSelectIntent) IsTransition() bool {
+	return true
+}
+
+// IsGlobal implements intent.GlobalIntent.
+func (TabSelectIntent) IsGlobal() bool {
+	return false
+}
+
 // ==============================================================================
 // Helper Functions
 // ==============================================================================
@@ -148,4 +184,21 @@ func TabNext(componentID string) TabNextIntent {
 //	intent.Emit(tabsComponent, TabPrevious("myTabs"))
 func TabPrevious(componentID string) TabPreviousIntent {
 	return TabPreviousIntent{ComponentID: componentID}
+}
+
+// TabSelect creates a TabSelectIntent targeting a tab by ID.
+func TabSelect(componentID, tabID string) TabSelectIntent {
+	return TabSelectIntent{
+		ComponentID: componentID,
+		TabID:       tabID,
+		TabIndex:    -1,
+	}
+}
+
+// TabSelectIndex creates a TabSelectIntent targeting a tab by index.
+func TabSelectIndex(componentID string, tabIndex int) TabSelectIntent {
+	return TabSelectIntent{
+		ComponentID: componentID,
+		TabIndex:    tabIndex,
+	}
 }
