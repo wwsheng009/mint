@@ -844,12 +844,79 @@ func normalizeLazyChildren(parent treeviewcomp.TreeNode, children []treeviewcomp
 }
 
 func syncSelectedMetadata(state AppState) AppState {
+	// First, check if the selected path is in the nodes array
 	index := nodeIndexByPath(state.Nodes, state.SelectedPath)
 	if index < 0 {
-		return state
+		// Path doesn't exist in nodes, reset to first visible node
+		return resetToFirstVisible(state)
 	}
+
+	// Update content and nodeID
 	state.SelectedContent = state.Nodes[index].Content
 	state.SelectedNodeID = state.Nodes[index].NodeID
+
+	// Now check if the node is currently visible
+	visible := computeVisibleEntries(state.Nodes, splitList(state.ExpandedPaths), state.SearchText)
+	visibleIdx := visibleIndexByPath(visible, state.SelectedPath)
+
+	if visibleIdx >= 0 {
+		// Node is visible, all good
+		return state
+	}
+
+	// Node is not visible - find a visible ancestor or fallback to first visible node
+	return findVisibleAncestorOrFirst(state, visible)
+}
+
+func resetToFirstVisible(state AppState) AppState {
+	visible := computeVisibleEntries(state.Nodes, splitList(state.ExpandedPaths), state.SearchText)
+	if len(visible) == 0 {
+		// No visible nodes, clear selection
+		state.SelectedPath = ""
+		state.SelectedContent = ""
+		state.SelectedNodeID = 0
+		return state
+	}
+
+	// Select the first visible node
+	state.SelectedPath = visible[0].path
+	state.SelectedContent = visible[0].node.Content
+	state.SelectedNodeID = visible[0].node.NodeID
+	return state
+}
+
+func findVisibleAncestorOrFirst(state AppState, visible []demoEntry) AppState {
+	if len(visible) == 0 {
+		// No visible nodes at all
+		state.SelectedPath = ""
+		state.SelectedContent = ""
+		state.SelectedNodeID = 0
+		return state
+	}
+
+	// Try to find a visible ancestor
+	pathParts := strings.Split(state.SelectedPath, "/")
+	for i := len(pathParts) - 1; i >= 0; i-- {
+		ancestorPath := strings.Join(pathParts[:i], "/")
+		if ancestorPath == "" {
+			continue
+		}
+
+		// Check if this ancestor is visible
+		for _, entry := range visible {
+			if entry.path == ancestorPath {
+				state.SelectedPath = entry.path
+				state.SelectedContent = entry.node.Content
+				state.SelectedNodeID = entry.node.NodeID
+				return state
+			}
+		}
+	}
+
+	// No visible ancestor found, fallback to first visible node
+	state.SelectedPath = visible[0].path
+	state.SelectedContent = visible[0].node.Content
+	state.SelectedNodeID = visible[0].node.NodeID
 	return state
 }
 
