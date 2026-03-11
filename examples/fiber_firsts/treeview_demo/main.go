@@ -124,7 +124,7 @@ func init() {
 			path := resolvedNodePath(s.Nodes, change.NodeIndex, change.Path, change.NodeID)
 			s.ExpandedPaths = setExpandedPath(s.ExpandedPaths, path, true)
 			s.LastAction = fmt.Sprintf("Expanded %s", path)
-			return s
+			return syncSelectedMetadata(s)
 		}).
 		On(treeviewcomp.NodeCollapseIntent{}, func(s AppState, i intent.Intent) AppState {
 			change, ok := i.(treeviewcomp.NodeCollapseIntent)
@@ -134,7 +134,7 @@ func init() {
 			path := resolvedNodePath(s.Nodes, change.NodeIndex, change.Path, change.NodeID)
 			s.ExpandedPaths = setExpandedPath(s.ExpandedPaths, path, false)
 			s.LastAction = fmt.Sprintf("Collapsed %s", path)
-			return s
+			return syncSelectedMetadata(s)
 		}).
 		On(treeviewcomp.LazyLoadIntent{}, func(s AppState, i intent.Intent) AppState {
 			load, ok := i.(treeviewcomp.LazyLoadIntent)
@@ -211,7 +211,7 @@ func init() {
 		On(ClearSearchIntent{}, func(s AppState, i intent.Intent) AppState {
 			s.SearchText = ""
 			s.LastAction = "Cleared search query"
-			return s
+			return syncSelectedMetadata(s)
 		}).
 		On(AdjustViewportIntent{}, func(s AppState, i intent.Intent) AppState {
 			adjust, ok := i.(AdjustViewportIntent)
@@ -235,12 +235,12 @@ func init() {
 		On(ExpandAllDemoIntent{}, func(s AppState, i intent.Intent) AppState {
 			s.ExpandedPaths = strings.Join(allExpandablePaths(s.Nodes), ",")
 			s.LastAction = "Expanded all tree folders"
-			return s
+			return syncSelectedMetadata(s)
 		}).
 		On(CollapseAllDemoIntent{}, func(s AppState, i intent.Intent) AppState {
 			s.ExpandedPaths = ""
 			s.LastAction = "Collapsed tree to root"
-			return s
+			return syncSelectedMetadata(s)
 		}).
 		On(SearchNextDemoIntent{}, func(s AppState, i intent.Intent) AppState {
 			return navigateMatchInState(s, 1)
