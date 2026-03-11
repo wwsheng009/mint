@@ -279,6 +279,13 @@ type TableColumn = table.TableColumn
 
 // Tree Types
 type TreeNode = treeview.TreeNode
+type TreeSelectionMode = treeview.SelectionMode
+
+const (
+	TreeSelectionNone     = treeview.SelectionNone
+	TreeSelectionSingle   = treeview.SelectionSingle
+	TreeSelectionMultiple = treeview.SelectionMultiple
+)
 
 // Toast Types
 type ToastType = tooltip.ToastType

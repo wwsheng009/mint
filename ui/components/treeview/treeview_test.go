@@ -1,11 +1,13 @@
 package treeview
 
 import (
+	"strings"
 	"testing"
 
+	"github.com/wwsheng009/mint/runtime/action"
 	"github.com/wwsheng009/mint/runtime/layout"
-	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/runtime/style"
+	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
 
 // =============================================================================
@@ -141,6 +143,7 @@ func TestInstance_ImplementsInterfaces(t *testing.T) {
 
 	var _ rtui.ComponentInstance = inst
 	var _ rtui.PaintableInstance = inst
+	var _ rtui.FocusableInstance = inst
 	var _ rtui.ActionHandlerInstance = inst
 }
 
@@ -173,8 +176,8 @@ func TestInstance_Props(t *testing.T) {
 			{Content: "root", NodeID: 0},
 			{Indent: 4, Content: "child", NodeID: 1},
 		},
-		"expandLevel":   2,
-		"showIcons":     false,
+		"expandLevel":    2,
+		"showIcons":      false,
 		"viewportHeight": 15,
 		"selectedIndex":  1,
 	}
@@ -206,10 +209,10 @@ func TestInstance_Measure(t *testing.T) {
 	})
 
 	constraints := layout.Constraints{
-		MinWidth:   40,
-		MaxWidth:   80,
-		MinHeight:  10,
-		MaxHeight:  30,
+		MinWidth:  40,
+		MaxWidth:  80,
+		MinHeight: 10,
+		MaxHeight: 30,
 	}
 
 	size := inst.Measure(constraints)
@@ -309,6 +312,495 @@ func TestInstance_GetVisibleNodes(t *testing.T) {
 	}
 }
 
+func TestInstance_SearchQueryFilters(t *testing.T) {
+	props := rtui.Props{
+		"nodes": []TreeNode{
+			{Content: "root", NodeID: 0, NodeType: "folder"},
+			{Indent: 4, Content: "child", NodeID: 1, NodeType: "file"},
+			{Indent: 4, Content: "other", NodeID: 2, NodeType: "file"},
+		},
+		"searchQuery": "child",
+	}
+	inst := NewInstance(props)
+
+	visible, _ := inst.visibleEntries()
+	if len(visible) != 2 {
+		t.Fatalf("expected 2 visible nodes (root + child), got %d", len(visible))
+	}
+	if !visible[1].Match {
+		t.Fatalf("expected child to be marked as match")
+	}
+}
+
+func TestInstance_ToggleChecked(t *testing.T) {
+	props := rtui.Props{
+		"nodes": []TreeNode{
+			{Content: "root", NodeID: 0, NodeType: "folder"},
+			{Indent: 4, Content: "child", NodeID: 1, NodeType: "file"},
+		},
+		"selectionMode": SelectionMultiple,
+	}
+	inst := NewInstance(props)
+	visible, _ := inst.visibleEntries()
+	if len(visible) == 0 {
+		t.Fatal("expected visible entries")
+	}
+
+	inst.toggleChecked(visible[1])
+	if len(inst.checkedKeys) != 1 {
+		t.Fatalf("expected 1 checked key, got %d", len(inst.checkedKeys))
+	}
+
+	inst.toggleChecked(visible[1])
+	if len(inst.checkedKeys) != 0 {
+		t.Fatalf("expected 0 checked keys after toggle off, got %d", len(inst.checkedKeys))
+	}
+}
+
+func TestInstance_ToggleCheckedCascadesDescendants(t *testing.T) {
+	props := rtui.Props{
+		"nodes": []TreeNode{
+			{Content: "root", Path: "root", NodeID: 0, NodeType: "folder"},
+			{Indent: 4, Content: "child", Path: "root/child", NodeID: 1, NodeType: "file"},
+			{Indent: 4, Content: "branch", Path: "root/branch", NodeID: 2, NodeType: "folder"},
+			{Indent: 8, Content: "leaf", Path: "root/branch/leaf", NodeID: 3, NodeType: "file"},
+		},
+		"selectionMode": SelectionMultiple,
+		"expandLevel":   3,
+	}
+	inst := NewInstance(props)
+	visible, _ := inst.visibleEntries()
+
+	if !inst.toggleChecked(visible[0]) {
+		t.Fatalf("expected cascade select on parent to succeed")
+	}
+	if got := len(inst.GetCheckedKeys()); got != 4 {
+		t.Fatalf("expected all descendants to be selected, got %d", got)
+	}
+
+	if !inst.toggleChecked(visible[0]) {
+		t.Fatalf("expected cascade deselect on parent to succeed")
+	}
+	if got := len(inst.GetCheckedKeys()); got != 0 {
+		t.Fatalf("expected all descendants to be deselected, got %d", got)
+	}
+}
+
+func TestInstance_LazyLoadRequested(t *testing.T) {
+	props := rtui.Props{
+		"nodes": []TreeNode{
+			{Content: "lazy", NodeID: 0, NodeType: "folder", Lazy: true},
+		},
+		"selectedIndex": 0,
+		"expandLevel":   0,
+	}
+	inst := NewInstance(props)
+	inst.toggleExpand()
+
+	key := nodeKey(inst.nodes[0], 0)
+	if !inst.lazyRequested[key] {
+		t.Fatalf("expected lazy load request for key %s", key)
+	}
+}
+
+func TestInstance_LazyLoadChildren(t *testing.T) {
+	props := rtui.Props{
+		"nodes": []TreeNode{
+			{Content: "lazy", NodeID: 0, NodeType: "folder", Lazy: true},
+		},
+		"selectedIndex":      0,
+		"expandLevel":        0,
+		"lazyLoadChildrenFn": func(node TreeNode) []TreeNode { return []TreeNode{{Content: "child", NodeID: 1}} },
+	}
+	inst := NewInstance(props)
+	inst.toggleExpand()
+
+	if len(inst.nodes) != 2 {
+		t.Fatalf("expected 2 nodes after lazy load, got %d", len(inst.nodes))
+	}
+	if inst.nodes[1].Indent <= inst.nodes[0].Indent {
+		t.Fatalf("expected child indent greater than parent (parent=%d child=%d)", inst.nodes[0].Indent, inst.nodes[1].Indent)
+	}
+}
+
+func TestInstance_LazyLoadNotRepeatedAfterCollapse(t *testing.T) {
+	loadCount := 0
+	props := rtui.Props{
+		"nodes": []TreeNode{
+			{Content: "lazy", NodeID: 0, NodeType: "folder", Lazy: true},
+		},
+		"selectedIndex": 0,
+		"expandLevel":   0,
+		"lazyLoadFn": func(node TreeNode) {
+			loadCount++
+		},
+	}
+	inst := NewInstance(props)
+
+	if !inst.toggleExpand() {
+		t.Fatalf("expected first expand to succeed")
+	}
+	if loadCount != 1 {
+		t.Fatalf("expected first expand to request lazy load once, got %d", loadCount)
+	}
+	if inst.toggleExpand() {
+		t.Fatalf("expected collapse to return false")
+	}
+	if !inst.toggleExpand() {
+		t.Fatalf("expected re-expand to succeed")
+	}
+	if loadCount != 1 {
+		t.Fatalf("expected lazy load request to be deduplicated after collapse, got %d", loadCount)
+	}
+}
+
+func TestInstance_HandleIntentExpandTriggersLazyLoad(t *testing.T) {
+	loadCount := 0
+	props := rtui.Props{
+		"nodes": []TreeNode{
+			{Content: "lazy", NodeID: 7, Path: "root/lazy", NodeType: "folder", Lazy: true},
+		},
+		"expandLevel": 0,
+		"lazyLoadFn": func(node TreeNode) {
+			loadCount++
+		},
+	}
+	inst := NewInstance(props)
+
+	if !inst.HandleIntent(NodeExpand(0, "root/lazy", 7)) {
+		t.Fatalf("expected expand intent to be handled")
+	}
+	if loadCount != 1 {
+		t.Fatalf("expected expand intent to trigger lazy load, got %d", loadCount)
+	}
+	key := nodeKey(inst.nodes[0], 0)
+	if !inst.expandState[key] {
+		t.Fatalf("expected node to be expanded after intent")
+	}
+}
+
+func TestInstance_HandleIntentLazyLoadSuccess(t *testing.T) {
+	props := rtui.Props{
+		"nodes": []TreeNode{
+			{Content: "lazy", NodeID: 7, Path: "root/lazy", NodeType: "folder", Lazy: true, Loading: true},
+		},
+		"expandLevel": 0,
+	}
+	inst := NewInstance(props)
+
+	if !inst.HandleIntent(LazyLoadSuccess(0, "root/lazy", 7, []TreeNode{{Content: "child", NodeID: 8}})) {
+		t.Fatalf("expected lazy load success intent to be handled")
+	}
+	if len(inst.nodes) != 2 {
+		t.Fatalf("expected child to be inserted, got %d nodes", len(inst.nodes))
+	}
+	if inst.nodes[0].Loading || inst.nodes[0].Lazy {
+		t.Fatalf("expected parent loading/lazy flags to be cleared")
+	}
+	if inst.nodes[1].Path != "root/lazy/child" {
+		t.Fatalf("expected child path to be normalized, got %q", inst.nodes[1].Path)
+	}
+}
+
+func TestInstance_HandleIntentLazyLoadSuccessReplace(t *testing.T) {
+	props := rtui.Props{
+		"nodes": []TreeNode{
+			{Content: "lazy", NodeID: 7, Path: "root/lazy", NodeType: "folder", Lazy: true, Loading: true},
+			{Indent: 4, Content: "old", NodeID: 8, Path: "root/lazy/old", NodeType: "file"},
+		},
+		"expandLevel": 2,
+	}
+	inst := NewInstance(props)
+
+	intent := LazyLoadSuccess(0, "root/lazy", 7, []TreeNode{{Content: "fresh", NodeID: 9}})
+	intent.Replace = true
+	if !inst.HandleIntent(intent) {
+		t.Fatalf("expected lazy load replace intent to be handled")
+	}
+	if len(inst.nodes) != 2 {
+		t.Fatalf("expected descendants to be replaced, got %d nodes", len(inst.nodes))
+	}
+	if inst.nodes[1].Path != "root/lazy/fresh" {
+		t.Fatalf("expected replacement child path, got %q", inst.nodes[1].Path)
+	}
+}
+
+func TestInstance_HandleIntentLazyLoadFailure(t *testing.T) {
+	props := rtui.Props{
+		"nodes": []TreeNode{
+			{Content: "lazy", NodeID: 7, Path: "root/lazy", NodeType: "folder", Lazy: true, Loading: true},
+		},
+		"expandLevel": 0,
+	}
+	inst := NewInstance(props)
+
+	if !inst.HandleIntent(LazyLoadFailure(0, "root/lazy", 7, "network error")) {
+		t.Fatalf("expected lazy load failure intent to be handled")
+	}
+	if inst.nodes[0].Loading {
+		t.Fatalf("expected loading flag to be cleared after failure")
+	}
+	if inst.nodes[0].LoadError != "network error" {
+		t.Fatalf("expected load error to be recorded, got %q", inst.nodes[0].LoadError)
+	}
+}
+
+func TestInstance_ControlledExpandedPathsReplaceLocalState(t *testing.T) {
+	props := rtui.Props{
+		"nodes": []TreeNode{
+			{Content: "root", Path: "root", NodeID: 1, NodeType: "folder"},
+			{Indent: 4, Content: "child", Path: "root/child", NodeID: 2, NodeType: "file"},
+		},
+		"expandLevel": 0,
+		"expandedKeys": map[string]bool{
+			"root": true,
+		},
+		"expandedKeysControlled": true,
+	}
+	inst := NewInstance(props)
+
+	if visible := inst.GetVisibleNodes(); len(visible) != 2 {
+		t.Fatalf("expected controlled expanded tree to show child, got %d visible nodes", len(visible))
+	}
+
+	updated := rtui.Props{
+		"nodes": []TreeNode{
+			{Content: "root", Path: "root", NodeID: 1, NodeType: "folder"},
+			{Indent: 4, Content: "child", Path: "root/child", NodeID: 2, NodeType: "file"},
+		},
+		"expandLevel":            0,
+		"expandedKeys":           map[string]bool{},
+		"expandedKeysControlled": true,
+	}
+	inst.SetProps(updated)
+
+	if visible := inst.GetVisibleNodes(); len(visible) != 1 {
+		t.Fatalf("expected controlled collapse to hide child, got %d visible nodes", len(visible))
+	}
+}
+
+func TestInstance_SearchNextPrev(t *testing.T) {
+	props := rtui.Props{
+		"nodes": []TreeNode{
+			{Content: "root", NodeID: 0, NodeType: "folder"},
+			{Indent: 4, Content: "alpha", NodeID: 1, NodeType: "file"},
+			{Indent: 4, Content: "beta", NodeID: 2, NodeType: "file"},
+		},
+		"searchQuery":   "beta",
+		"selectedIndex": 0,
+	}
+	inst := NewInstance(props)
+
+	actNext := action.NewAction(action.ActionSearch).WithPayload("next")
+	if !inst.HandleAction(actNext) {
+		t.Fatalf("expected search next to be handled")
+	}
+	if inst.selectedIndex < 0 {
+		t.Fatalf("expected selected index to move to match")
+	}
+
+	actPrev := action.NewAction(action.ActionSearch).WithPayload("prev")
+	if !inst.HandleAction(actPrev) {
+		t.Fatalf("expected search prev to be handled")
+	}
+	if inst.selectedIndex < 0 {
+		t.Fatalf("expected selected index to remain valid")
+	}
+}
+
+func TestInstance_PaintSearchStats(t *testing.T) {
+	props := rtui.Props{
+		"nodes": []TreeNode{
+			{Content: "root", NodeID: 0, NodeType: "folder"},
+			{Indent: 4, Content: "child", NodeID: 1, NodeType: "file"},
+		},
+		"searchQuery":     "child",
+		"showSearchStats": true,
+	}
+	inst := NewInstance(props)
+
+	cmds := inst.Paint(0, 0)
+	foundStats := false
+	foundRoot := false
+	for _, cmd := range cmds {
+		if cmd.Y == 1 && strings.Contains(cmd.Text, `Search: "child" 1/1`) {
+			foundStats = true
+		}
+		if cmd.Y == 2 && strings.Contains(cmd.Text, "root") {
+			foundRoot = true
+		}
+	}
+	if !foundStats {
+		t.Fatalf("expected search stats row to be painted")
+	}
+	if !foundRoot {
+		t.Fatalf("expected content rows to start after search stats row")
+	}
+}
+
+func TestInstance_PaintLazyLoadHint(t *testing.T) {
+	props := rtui.Props{
+		"nodes": []TreeNode{
+			{Content: "lazy", NodeID: 0, NodeType: "folder", Lazy: true},
+		},
+		"expandLevel": 0,
+	}
+	inst := NewInstance(props)
+
+	cmds := inst.Paint(0, 0)
+	for _, cmd := range cmds {
+		if strings.Contains(cmd.Text, "[load:R]") {
+			return
+		}
+	}
+	t.Fatalf("expected lazy load shortcut hint to be painted")
+}
+
+func TestInstance_FocusedBorderUsesHighlightStyle(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"nodes": []TreeNode{
+			{Content: "root", NodeID: 0, NodeType: "folder"},
+		},
+	})
+	inst.SetFocus(true)
+
+	cmds := inst.Paint(0, 0)
+	if len(cmds) == 0 {
+		t.Fatalf("expected paint commands")
+	}
+	if cmds[0].Style.BG != "" {
+		t.Fatalf("expected focused border to preserve empty background, got %q", cmds[0].Style.BG)
+	}
+	if !strings.HasPrefix(cmds[0].Text, "╔") || !strings.HasSuffix(cmds[0].Text, "╗") || !strings.Contains(cmds[0].Text, "[FOCUS]") {
+		t.Fatalf("expected focused border to use double-line focus title, got %q", cmds[0].Text)
+	}
+	if !cmds[0].Style.IsBold() {
+		t.Fatalf("expected focused border to be bold")
+	}
+}
+
+func TestInstance_InputShortcutRefreshLazy(t *testing.T) {
+	props := rtui.Props{
+		"nodes": []TreeNode{
+			{Content: "lazy", NodeID: 0, NodeType: "folder", Lazy: true},
+		},
+		"selectedIndex":      0,
+		"expandLevel":        0,
+		"lazyLoadChildrenFn": func(node TreeNode) []TreeNode { return []TreeNode{{Content: "child", NodeID: 1}} },
+	}
+	inst := NewInstance(props)
+
+	if !inst.HandleAction(action.NewAction(action.ActionInputText).WithPayload("r")) {
+		t.Fatalf("expected input shortcut to refresh selected lazy node")
+	}
+	if len(inst.nodes) != 2 {
+		t.Fatalf("expected lazy children to be inserted via shortcut, got %d nodes", len(inst.nodes))
+	}
+}
+
+func TestInstance_SelectRangeUsesAnchor(t *testing.T) {
+	props := rtui.Props{
+		"nodes": []TreeNode{
+			{Content: "root", NodeID: 0, Path: "root", NodeType: "folder"},
+			{Indent: 4, Content: "a", NodeID: 1, Path: "root/a", NodeType: "file"},
+			{Indent: 4, Content: "b", NodeID: 2, Path: "root/b", NodeType: "file"},
+			{Indent: 4, Content: "c", NodeID: 3, Path: "root/c", NodeType: "file"},
+		},
+		"selectionMode": SelectionMultiple,
+		"expandLevel":   2,
+	}
+	inst := NewInstance(props)
+
+	visible, _ := inst.visibleEntries()
+	inst.selectVisibleIndex(1, visible, true)
+	if !inst.HandleAction(action.NewAction(action.ActionToggleSelect)) {
+		t.Fatalf("expected initial toggle select to succeed")
+	}
+	visible, _ = inst.visibleEntries()
+	inst.selectVisibleIndex(3, visible, true)
+	if !inst.HandleAction(action.NewAction(action.ActionSelectRange)) {
+		t.Fatalf("expected range select with anchor to succeed")
+	}
+
+	keys := inst.GetCheckedKeys()
+	if len(keys) != 3 {
+		t.Fatalf("expected 3 checked nodes from anchor range, got %d", len(keys))
+	}
+}
+
+func TestInstance_ToggleSelectInvertMatches(t *testing.T) {
+	props := rtui.Props{
+		"nodes": []TreeNode{
+			{Content: "root", NodeID: 0, Path: "root", NodeType: "folder"},
+			{Indent: 4, Content: "alpha", NodeID: 1, Path: "root/alpha", NodeType: "file"},
+			{Indent: 4, Content: "beta", NodeID: 2, Path: "root/beta", NodeType: "file"},
+		},
+		"selectionMode": SelectionMultiple,
+		"searchQuery":   "beta",
+		"expandLevel":   2,
+	}
+	inst := NewInstance(props)
+
+	if !inst.HandleAction(action.NewAction(action.ActionToggleSelect).WithPayload("invert")) {
+		t.Fatalf("expected invert toggle to succeed")
+	}
+	keys := inst.GetCheckedKeys()
+	if len(keys) != 1 || keys[0] != "path:root/beta" {
+		t.Fatalf("expected only matched node to be inverted, got %v", keys)
+	}
+}
+
+func TestInstance_ActionRefreshTargetsNodeByPath(t *testing.T) {
+	props := rtui.Props{
+		"nodes": []TreeNode{
+			{Content: "root", Path: "root", NodeID: 0, NodeType: "folder"},
+			{Indent: 4, Content: "lazy", Path: "root/lazy", NodeID: 1, NodeType: "folder", Lazy: true},
+		},
+		"selectedIndex": 0,
+		"expandLevel":   2,
+		"lazyLoadChildrenFn": func(node TreeNode) []TreeNode {
+			if node.Path == "root/lazy" {
+				return []TreeNode{{Content: "child", NodeID: 2}}
+			}
+			return nil
+		},
+	}
+	inst := NewInstance(props)
+
+	act := action.NewAction(action.ActionRefresh).WithPayload(map[string]string{"path": "root/lazy"})
+	if !inst.HandleAction(act) {
+		t.Fatalf("expected refresh action with path payload to be handled")
+	}
+	if len(inst.nodes) != 3 {
+		t.Fatalf("expected targeted refresh to insert child, got %d nodes", len(inst.nodes))
+	}
+	if inst.nodes[2].Path != "root/lazy/child" {
+		t.Fatalf("expected inserted child path to be normalized, got %q", inst.nodes[2].Path)
+	}
+}
+
+func TestInstance_ActionSelectAllVisibleScope(t *testing.T) {
+	props := rtui.Props{
+		"nodes": []TreeNode{
+			{Content: "root", Path: "root", NodeID: 0, NodeType: "folder"},
+			{Indent: 4, Content: "alpha", Path: "root/alpha", NodeID: 1, NodeType: "file"},
+			{Indent: 4, Content: "beta", Path: "root/beta", NodeID: 2, NodeType: "file"},
+		},
+		"selectionMode": SelectionMultiple,
+		"searchQuery":   "beta",
+		"expandLevel":   2,
+	}
+	inst := NewInstance(props)
+
+	if !inst.HandleAction(action.NewAction(action.ActionSelectAll).WithPayload("visible")) {
+		t.Fatalf("expected visible-scope select all to succeed")
+	}
+	keys := inst.GetCheckedKeys()
+	if len(keys) != 2 {
+		t.Fatalf("expected visible scope to select ancestor and match, got %v", keys)
+	}
+}
+
 // =============================================================================
 // Builder Tests
 // =============================================================================
@@ -334,6 +826,9 @@ func TestBuilder_FluentAPI(t *testing.T) {
 		Nodes(nodes).
 		ExpandLevel(1).
 		ShowIcons(true).
+		ShowSearchStats(true).
+		SearchStatsStyle(style.Style{FG: style.Green}).
+		SearchQueryControlled("child").
 		ViewportHeight(10).
 		SelectedIndex(0).
 		BuildVNode()
@@ -346,6 +841,15 @@ func TestBuilder_FluentAPI(t *testing.T) {
 	}
 	if vnode.viewportHeight != 10 {
 		t.Errorf("Expected viewportHeight 10, got %d", vnode.viewportHeight)
+	}
+	if !vnode.showSearchStats {
+		t.Error("Expected showSearchStats true")
+	}
+	if vnode.searchStatsStyle.FG != style.Green {
+		t.Errorf("Expected searchStatsStyle.FG green, got %s", vnode.searchStatsStyle.FG)
+	}
+	if vnode.searchQuery != "child" || !vnode.searchQueryControlled {
+		t.Errorf("Expected controlled search query to be set, got query=%q controlled=%t", vnode.searchQuery, vnode.searchQueryControlled)
 	}
 }
 
