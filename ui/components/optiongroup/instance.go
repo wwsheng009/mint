@@ -1,6 +1,7 @@
 package optiongroup
 
 import (
+	"github.com/wwsheng009/mint/ui/components/internal/proputil"
 	"strings"
 
 	fcontext "github.com/wwsheng009/mint/runtime/context"
@@ -155,7 +156,7 @@ var (
 
 // NewInstance creates a new OptionGroupInstance from props.
 func NewInstance(props rtui.Props) *Instance {
-	selected := getStringProp(props, "selected", "")
+	selected := proputil.GetString(props, "selected", "")
 	selecteds := getStringsProp(props, "selecteds", []string{})
 
 	// If selected is set but selecteds is empty, initialize it
@@ -164,10 +165,10 @@ func NewInstance(props rtui.Props) *Instance {
 	}
 
 	inst := &Instance{
-		key:          getStringProp(props, "key", ""),
-		label:        getStringProp(props, "label", ""),
-		optionStyle:  getStyleProp(props),
-		selectIntent: getIntentProp(props),
+		key:          proputil.GetString(props, "key", ""),
+		label:        proputil.GetString(props, "label", ""),
+		optionStyle:  proputil.GetStyle(props, "style", style.Style{}),
+		selectIntent: proputil.GetIntent(props, "selectIntent", nil),
 		mode:         getSelectModeProp(props, ModeSingle),
 		options:      getOptionsProp(props, []Option{}),
 		selected:     selected,
@@ -177,7 +178,7 @@ func NewInstance(props rtui.Props) *Instance {
 
 	// Initialize state
 	inst.state = control.InteractionState{
-		Disabled: getBoolProp(props, "disabled", false),
+		Disabled: proputil.GetBool(props, "disabled", false),
 	}
 
 	// Initialize child Option instances from options list
@@ -280,17 +281,17 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	oldOptions := make([]Option, len(inst.options))
 	copy(oldOptions, inst.options)
 
-	inst.label = getStringProp(props, "label", inst.label)
-	inst.optionStyle = getStyleProp(props)
-	inst.selectIntent = getIntentProp(props)
+	inst.label = proputil.GetString(props, "label", inst.label)
+	inst.optionStyle = proputil.GetStyle(props, "style", style.Style{})
+	inst.selectIntent = proputil.GetIntent(props, "selectIntent", nil)
 	inst.mode = getSelectModeProp(props, inst.mode)
 	inst.options = getOptionsProp(props, inst.options)
 	inst.orientation = getOrientationProp(props, inst.orientation)
-	inst.spacing = getIntProp(props, "spacing", inst.spacing)
-	inst.selected = getStringProp(props, "selected", inst.selected)
+	inst.spacing = proputil.GetInt(props, "spacing", inst.spacing)
+	inst.selected = proputil.GetString(props, "selected", inst.selected)
 	inst.selecteds = getStringsProp(props, "selecteds", inst.selecteds)
 
-	newDisabled := getBoolProp(props, "disabled", inst.state.Disabled)
+	newDisabled := proputil.GetBool(props, "disabled", inst.state.Disabled)
 	if newDisabled != inst.state.Disabled {
 		inst.state.Disabled = newDisabled
 	}
@@ -809,51 +810,6 @@ func (inst *Instance) Measure(constraints layout.Constraints) layout.Size {
 // =============================================================================
 // Prop Extraction Helpers
 // =============================================================================
-
-func getStringProp(props rtui.Props, key, def string) string {
-	if v, ok := props[key]; ok {
-		if s, ok := v.(string); ok {
-			return s
-		}
-	}
-	return def
-}
-
-func getBoolProp(props rtui.Props, key string, def bool) bool {
-	if v, ok := props[key]; ok {
-		if b, ok := v.(bool); ok {
-			return b
-		}
-	}
-	return def
-}
-
-func getStyleProp(props rtui.Props) style.Style {
-	if v, ok := props["style"]; ok {
-		if s, ok := v.(style.Style); ok {
-			return s
-		}
-	}
-	return style.Style{}
-}
-
-func getIntentProp(props rtui.Props) intent.Intent {
-	if v, ok := props["selectIntent"]; ok {
-		if i, ok := v.(intent.Intent); ok {
-			return i
-		}
-	}
-	return nil
-}
-
-func getIntProp(props rtui.Props, key string, def int) int {
-	if v, ok := props[key]; ok {
-		if i, ok := v.(int); ok {
-			return i
-		}
-	}
-	return def
-}
 
 func getSelectModeProp(props rtui.Props, def SelectMode) SelectMode {
 	if v, ok := props["mode"]; ok {

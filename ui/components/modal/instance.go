@@ -1,6 +1,7 @@
 package modal
 
 import (
+	"github.com/wwsheng009/mint/ui/components/internal/proputil"
 	"strings"
 	"sync"
 
@@ -161,25 +162,25 @@ var (
 // NewInstance creates a new ModalInstance from props.
 func NewInstance(props rtui.Props) *Instance {
 	inst := &Instance{
-		key:             getStringProp(props, "key", ""),
-		title:           getStringProp(props, "title", ""),
-		modalStyle:      getStyleProp(props),
+		key:             proputil.GetString(props, "key", ""),
+		title:           proputil.GetString(props, "title", ""),
+		modalStyle:      proputil.GetStyle(props, "style", style.Style{}),
 		shadowStyle:     getShadowStyleProp(props),
-		borderStyle:     getStringProp(props, "borderStyle", "single"),
-		closeIntent:     getIntentProp(props),
-		isOpen:          getBoolProp(props, "isOpen", false),
-		centered:        getBoolProp(props, "centered", true),
-		closeable:       getBoolProp(props, "closeable", true),
-		closeOnEsc:      getBoolProp(props, "closeOnEsc", true),
-		closeOnBackdrop: getBoolProp(props, "closeOnBackdrop", true),
-		width:           getIntProp(props, "width", 40),
-		height:          getIntProp(props, "height", 15),
-		padding:         getIntProp(props, "padding", 0),
+		borderStyle:     proputil.GetString(props, "borderStyle", "single"),
+		closeIntent:     proputil.GetIntent(props, "closeIntent", nil),
+		isOpen:          proputil.GetBool(props, "isOpen", false),
+		centered:        proputil.GetBool(props, "centered", true),
+		closeable:       proputil.GetBool(props, "closeable", true),
+		closeOnEsc:      proputil.GetBool(props, "closeOnEsc", true),
+		closeOnBackdrop: proputil.GetBool(props, "closeOnBackdrop", true),
+		width:           proputil.GetInt(props, "width", 40),
+		height:          proputil.GetInt(props, "height", 15),
+		padding:         proputil.GetInt(props, "padding", 0),
 		content:         getChildProp(props, "content"),
 		footer:          getChildProp(props, "footer"),
 		dirty:           true,
 		registered:      false, // Not registered yet
-		showShadow:      getBoolProp(props, "showShadow", true),
+		showShadow:      proputil.GetBool(props, "showShadow", true),
 	}
 	return inst
 }
@@ -223,22 +224,22 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	oldCloseOnBackdrop := inst.closeOnBackdrop
 	oldHasFooter := inst.footer != nil
 
-	inst.title = getStringProp(props, "title", inst.title)
-	inst.modalStyle = getStyleProp(props)
+	inst.title = proputil.GetString(props, "title", inst.title)
+	inst.modalStyle = proputil.GetStyle(props, "style", style.Style{})
 	inst.shadowStyle = getShadowStyleProp(props)
-	inst.borderStyle = getStringProp(props, "borderStyle", inst.borderStyle)
-	inst.closeIntent = getIntentProp(props)
-	inst.isOpen = getBoolProp(props, "isOpen", inst.isOpen)
-	inst.centered = getBoolProp(props, "centered", inst.centered)
-	inst.closeable = getBoolProp(props, "closeable", inst.closeable)
-	inst.closeOnEsc = getBoolProp(props, "closeOnEsc", inst.closeOnEsc)
-	inst.closeOnBackdrop = getBoolProp(props, "closeOnBackdrop", inst.closeOnBackdrop)
-	inst.width = getIntProp(props, "width", inst.width)
-	inst.height = getIntProp(props, "height", inst.height)
-	inst.padding = getIntProp(props, "padding", inst.padding)
+	inst.borderStyle = proputil.GetString(props, "borderStyle", inst.borderStyle)
+	inst.closeIntent = proputil.GetIntent(props, "closeIntent", nil)
+	inst.isOpen = proputil.GetBool(props, "isOpen", inst.isOpen)
+	inst.centered = proputil.GetBool(props, "centered", inst.centered)
+	inst.closeable = proputil.GetBool(props, "closeable", inst.closeable)
+	inst.closeOnEsc = proputil.GetBool(props, "closeOnEsc", inst.closeOnEsc)
+	inst.closeOnBackdrop = proputil.GetBool(props, "closeOnBackdrop", inst.closeOnBackdrop)
+	inst.width = proputil.GetInt(props, "width", inst.width)
+	inst.height = proputil.GetInt(props, "height", inst.height)
+	inst.padding = proputil.GetInt(props, "padding", inst.padding)
 	inst.content = getChildProp(props, "content")
 	inst.footer = getChildProp(props, "footer")
-	inst.showShadow = getBoolProp(props, "showShadow", inst.showShadow)
+	inst.showShadow = proputil.GetBool(props, "showShadow", inst.showShadow)
 	// Track modal open/close state in global registry for GlobalActionHandler
 	// 1. If state changed from closed to open, register
 	if !oldOpen && inst.isOpen {
@@ -786,42 +787,6 @@ func (inst *Instance) SetIntentEmitter(fn func(intent.Intent)) {
 // Prop Extraction Helpers
 // =============================================================================
 
-func getStringProp(props rtui.Props, key, def string) string {
-	if v, ok := props[key]; ok {
-		if s, ok := v.(string); ok {
-			return s
-		}
-	}
-	return def
-}
-
-func getBoolProp(props rtui.Props, key string, def bool) bool {
-	if v, ok := props[key]; ok {
-		if b, ok := v.(bool); ok {
-			return b
-		}
-	}
-	return def
-}
-
-func getIntProp(props rtui.Props, key string, def int) int {
-	if v, ok := props[key]; ok {
-		if i, ok := v.(int); ok {
-			return i
-		}
-	}
-	return def
-}
-
-func getStyleProp(props rtui.Props) style.Style {
-	if v, ok := props["modalStyle"]; ok {
-		if s, ok := v.(style.Style); ok {
-			return s
-		}
-	}
-	return style.Style{}
-}
-
 func getShadowStyleProp(props rtui.Props) style.Style {
 	if v, ok := props["shadowStyle"]; ok {
 		if s, ok := v.(style.Style); ok {
@@ -829,15 +794,6 @@ func getShadowStyleProp(props rtui.Props) style.Style {
 		}
 	}
 	return style.Style{}
-}
-
-func getIntentProp(props rtui.Props) intent.Intent {
-	if v, ok := props["closeIntent"]; ok {
-		if i, ok := v.(intent.Intent); ok {
-			return i
-		}
-	}
-	return nil
 }
 
 func getChildProp(props rtui.Props, key string) rtui.VNode {

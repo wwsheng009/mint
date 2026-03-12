@@ -1,6 +1,7 @@
 package progress
 
 import (
+	"github.com/wwsheng009/mint/ui/components/internal/proputil"
 	"fmt"
 
 	"github.com/wwsheng009/mint/framework/theme"
@@ -35,13 +36,13 @@ var (
 // NewInstance creates a new ProgressInstance from props.
 func NewInstance(props rtui.Props) *Instance {
 	inst := &Instance{
-		key:         getStringProp(props, "key", ""),
-		label:       getStringProp(props, "label", ""),
-		progressStyle: getStyleProp(props),
-		width:       getIntProp(props, "width", 30),
-		value:       getIntProp(props, "value", 0),
-		max:         getIntProp(props, "max", 100),
-		showPercent: getBoolProp(props, "showPercent", true),
+		key:         proputil.GetString(props, "key", ""),
+		label:       proputil.GetString(props, "label", ""),
+		progressStyle: proputil.GetStyle(props, "style", style.Style{}),
+		width:       proputil.GetInt(props, "width", 30),
+		value:       proputil.GetInt(props, "value", 0),
+		max:         proputil.GetInt(props, "max", 100),
+		showPercent: proputil.GetBool(props, "showPercent", true),
 		dirty:       true,
 	}
 	return inst
@@ -62,12 +63,12 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	oldValue := inst.value
 	oldWidth := inst.width
 
-	inst.label = getStringProp(props, "label", inst.label)
-	inst.progressStyle = getStyleProp(props)
-	inst.width = getIntProp(props, "width", inst.width)
-	inst.value = getIntProp(props, "value", inst.value)
-	inst.max = getIntProp(props, "max", inst.max)
-	inst.showPercent = getBoolProp(props, "showPercent", inst.showPercent)
+	inst.label = proputil.GetString(props, "label", inst.label)
+	inst.progressStyle = proputil.GetStyle(props, "style", style.Style{})
+	inst.width = proputil.GetInt(props, "width", inst.width)
+	inst.value = proputil.GetInt(props, "value", inst.value)
+	inst.max = proputil.GetInt(props, "max", inst.max)
+	inst.showPercent = proputil.GetBool(props, "showPercent", inst.showPercent)
 
 	changed := oldValue != inst.value || oldWidth != inst.width
 	if changed {
@@ -206,38 +207,3 @@ func (inst *Instance) Measure(constraints layout.Constraints) layout.Size {
 // Prop Extraction Helpers
 // =============================================================================
 
-func getStringProp(props rtui.Props, key, def string) string {
-	if v, ok := props[key]; ok {
-		if s, ok := v.(string); ok {
-			return s
-		}
-	}
-	return def
-}
-
-func getIntProp(props rtui.Props, key string, def int) int {
-	if v, ok := props[key]; ok {
-		if i, ok := v.(int); ok {
-			return i
-		}
-	}
-	return def
-}
-
-func getBoolProp(props rtui.Props, key string, def bool) bool {
-	if v, ok := props[key]; ok {
-		if b, ok := v.(bool); ok {
-			return b
-		}
-	}
-	return def
-}
-
-func getStyleProp(props rtui.Props) style.Style {
-	if v, ok := props["style"]; ok {
-		if s, ok := v.(style.Style); ok {
-			return s
-		}
-	}
-	return style.Style{}
-}

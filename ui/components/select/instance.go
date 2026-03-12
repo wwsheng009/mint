@@ -1,6 +1,7 @@
 package selectcomp
 
 import (
+	"github.com/wwsheng009/mint/ui/components/internal/proputil"
 	"fmt"
 	"strings"
 
@@ -73,23 +74,23 @@ var (
 // NewInstance creates a new SelectInstance from props.
 func NewInstance(props rtui.Props) *Instance {
 	inst := &Instance{
-		key:               getStringProp(props, "key", ""),
-		componentID:       getStringProp(props, "componentID", ""),
+		key:               proputil.GetString(props, "key", ""),
+		componentID:       proputil.GetString(props, "componentID", ""),
 		options:           getOptionsProp(props),
-		selectStyle:       getStyleProp(props),
-		width:             getIntProp(props, "width", 0),
-		placeholder:       getStringProp(props, "placeholder", "..."),
-		maxVisibleRows:    getIntProp(props, "maxVisibleRows", defaultMaxVisibleRows),
-		overlayPopup:      getBoolProp(props, "overlayPopup", false),
+		selectStyle:       proputil.GetStyle(props, "style", style.Style{}),
+		width:             proputil.GetInt(props, "width", 0),
+		placeholder:       proputil.GetString(props, "placeholder", "..."),
+		maxVisibleRows:    proputil.GetInt(props, "maxVisibleRows", defaultMaxVisibleRows),
+		overlayPopup:      proputil.GetBool(props, "overlayPopup", false),
 		portalRoot:        getPortalRootProp(props, rtui.DefaultOverlayPortalRootID),
-		ownerID:           getStringProp(props, "ownerID", ""),
-		selectID:          getStringProp(props, "selectID", ""),
-		closeOnOutside:    getBoolProp(props, "closeOnOutside", true),
-		changeIntent:      getIntentProp(props, "changeIntent"),
+		ownerID:           proputil.GetString(props, "ownerID", ""),
+		selectID:          proputil.GetString(props, "selectID", ""),
+		closeOnOutside:    proputil.GetBool(props, "closeOnOutside", true),
+		changeIntent:      proputil.GetIntent(props, "changeIntent", nil),
 		changeIntentField: getChangeIntentFieldProp(props, "changeIntent"),
-		formID:            getStringProp(props, "formID", ""),
+		formID:            proputil.GetString(props, "formID", ""),
 		selectionMode:     getSelectionModeProp(props, SelectionSingle),
-		selectedIndex:     getIntProp(props, "selectedIndex", -1),
+		selectedIndex:     proputil.GetInt(props, "selectedIndex", -1),
 		selectedIndices:   getIntsProp(props, "selectedIndices", nil),
 		highlightedIndex:  -1,
 		dirty:             true,
@@ -97,7 +98,7 @@ func NewInstance(props rtui.Props) *Instance {
 	}
 
 	inst.state = control.InteractionState{
-		Disabled: getBoolProp(props, "disabled", false),
+		Disabled: proputil.GetBool(props, "disabled", false),
 	}
 	inst.normalizeSelectionState()
 	inst.initBehaviors()
@@ -272,23 +273,23 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	oldSelectID := inst.selectID
 	oldCloseOnOutside := inst.closeOnOutside
 
-	inst.key = getStringProp(props, "key", inst.key)
-	inst.componentID = getStringProp(props, "componentID", inst.componentID)
+	inst.key = proputil.GetString(props, "key", inst.key)
+	inst.componentID = proputil.GetString(props, "componentID", inst.componentID)
 	inst.options = getOptionsProp(props)
-	inst.selectStyle = getStyleProp(props)
-	inst.width = getIntProp(props, "width", inst.width)
-	inst.placeholder = getStringProp(props, "placeholder", inst.placeholder)
-	inst.maxVisibleRows = getIntProp(props, "maxVisibleRows", inst.maxVisibleRows)
-	inst.overlayPopup = getBoolProp(props, "overlayPopup", inst.overlayPopup)
+	inst.selectStyle = proputil.GetStyle(props, "style", style.Style{})
+	inst.width = proputil.GetInt(props, "width", inst.width)
+	inst.placeholder = proputil.GetString(props, "placeholder", inst.placeholder)
+	inst.maxVisibleRows = proputil.GetInt(props, "maxVisibleRows", inst.maxVisibleRows)
+	inst.overlayPopup = proputil.GetBool(props, "overlayPopup", inst.overlayPopup)
 	inst.portalRoot = getPortalRootProp(props, inst.portalRoot)
-	inst.ownerID = getStringProp(props, "ownerID", inst.ownerID)
-	inst.selectID = getStringProp(props, "selectID", inst.selectIdentity())
-	inst.closeOnOutside = getBoolProp(props, "closeOnOutside", inst.closeOnOutside)
-	inst.changeIntent = getIntentProp(props, "changeIntent")
+	inst.ownerID = proputil.GetString(props, "ownerID", inst.ownerID)
+	inst.selectID = proputil.GetString(props, "selectID", inst.selectIdentity())
+	inst.closeOnOutside = proputil.GetBool(props, "closeOnOutside", inst.closeOnOutside)
+	inst.changeIntent = proputil.GetIntent(props, "changeIntent", nil)
 	inst.changeIntentField = getChangeIntentFieldProp(props, "changeIntent")
-	inst.formID = getStringProp(props, "formID", inst.formID)
+	inst.formID = proputil.GetString(props, "formID", inst.formID)
 	inst.selectionMode = getSelectionModeProp(props, inst.selectionMode)
-	inst.selectedIndex = getIntProp(props, "selectedIndex", inst.selectedIndex)
+	inst.selectedIndex = proputil.GetInt(props, "selectedIndex", inst.selectedIndex)
 	inst.selectedIndices = getIntsProp(props, "selectedIndices", inst.selectedIndices)
 	inst.overlayCallbacks = getOverlayCallbacksProp(props)
 
@@ -302,7 +303,7 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 		inst.scrollOffset = v
 	}
 
-	newDisabled := getBoolProp(props, "disabled", inst.state.Disabled)
+	newDisabled := proputil.GetBool(props, "disabled", inst.state.Disabled)
 	if newDisabled != inst.state.Disabled {
 		inst.state.Disabled = newDisabled
 	}
@@ -1521,31 +1522,13 @@ func (inst *Instance) markOverlayDirty() {
 	// Overlay popup is now rendered declaratively by the wrapper component.
 }
 
-func getStringProp(props rtui.Props, key, def string) string {
-	if v, ok := props[key]; ok {
-		if s, ok := v.(string); ok {
-			return s
-		}
-	}
-	return def
-}
-
 func getPortalRootProp(props rtui.Props, def string) string {
 	if v, ok := props[popupPortalRootProp]; ok {
 		if s, ok := v.(string); ok {
 			return s
 		}
 	}
-	return getStringProp(props, "portalRoot", def)
-}
-
-func getIntProp(props rtui.Props, key string, def int) int {
-	if v, ok := props[key]; ok {
-		if i, ok := v.(int); ok {
-			return i
-		}
-	}
-	return def
+	return proputil.GetString(props, "portalRoot", def)
 }
 
 func getIntsProp(props rtui.Props, key string, def []int) []int {
@@ -1555,33 +1538,6 @@ func getIntsProp(props rtui.Props, key string, def []int) []int {
 		}
 	}
 	return append([]int(nil), def...)
-}
-
-func getBoolProp(props rtui.Props, key string, def bool) bool {
-	if v, ok := props[key]; ok {
-		if b, ok := v.(bool); ok {
-			return b
-		}
-	}
-	return def
-}
-
-func getStyleProp(props rtui.Props) style.Style {
-	if v, ok := props["style"]; ok {
-		if s, ok := v.(style.Style); ok {
-			return s
-		}
-	}
-	return style.Style{}
-}
-
-func getIntentProp(props rtui.Props, key string) intent.Intent {
-	if v, ok := props[key]; ok {
-		if i, ok := v.(intent.Intent); ok {
-			return i
-		}
-	}
-	return nil
 }
 
 func getChangeIntentFieldProp(props rtui.Props, key string) intent.FieldIntent {

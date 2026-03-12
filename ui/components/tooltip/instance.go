@@ -1,6 +1,7 @@
 package tooltip
 
 import (
+	"github.com/wwsheng009/mint/ui/components/internal/proputil"
 	"time"
 
 	"github.com/wwsheng009/mint/framework/theme"
@@ -57,11 +58,11 @@ var (
 // NewInstance creates a new TooltipInstance from props.
 func NewInstance(props rtui.Props) *Instance {
 	inst := &Instance{
-		key:          getStringProp(props, "key", ""),
-		text:         getStringProp(props, "text", ""),
+		key:          proputil.GetString(props, "key", ""),
+		text:         proputil.GetString(props, "text", ""),
 		position:     getPositionProp(props, PositionAuto),
 		delay:        getDurationProp(props, 500*time.Millisecond),
-		tooltipStyle: getStyleProp(props),
+		tooltipStyle: proputil.GetStyle(props, "style", style.Style{}),
 		visible:      false,
 		dirty:        true,
 	}
@@ -114,10 +115,10 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	oldPosition := inst.position
 	oldDelay := inst.delay
 
-	inst.text = getStringProp(props, "text", inst.text)
+	inst.text = proputil.GetString(props, "text", inst.text)
 	inst.position = getPositionProp(props, inst.position)
 	inst.delay = getDurationProp(props, inst.delay)
-	inst.tooltipStyle = getStyleProp(props)
+	inst.tooltipStyle = proputil.GetStyle(props, "style", style.Style{})
 
 	changed := oldText != inst.text ||
 		oldPosition != inst.position ||
@@ -278,15 +279,6 @@ func (inst *Instance) Measure(constraints layout.Constraints) layout.Size {
 // Prop Extraction Helpers
 // =============================================================================
 
-func getStringProp(props rtui.Props, key, def string) string {
-	if v, ok := props[key]; ok {
-		if s, ok := v.(string); ok {
-			return s
-		}
-	}
-	return def
-}
-
 func getPositionProp(props rtui.Props, def Position) Position {
 	if v, ok := props["position"]; ok {
 		if pos, ok := v.(Position); ok {
@@ -305,24 +297,6 @@ func getDurationProp(props rtui.Props, def time.Duration) time.Duration {
 	return def
 }
 
-func getStyleProp(props rtui.Props) style.Style {
-	if v, ok := props["style"]; ok {
-		if s, ok := v.(style.Style); ok {
-			return s
-		}
-	}
-	return style.Style{}
-}
-
-func getBoolProp(props rtui.Props, key string, def bool) bool {
-	if v, ok := props[key]; ok {
-		if b, ok := v.(bool); ok {
-			return b
-		}
-	}
-	return def
-}
-
 func getToastTypeProp(props rtui.Props, def ToastType) ToastType {
 	if v, ok := props["toastType"]; ok {
 		if tt, ok := v.(ToastType); ok {
@@ -332,11 +306,3 @@ func getToastTypeProp(props rtui.Props, def ToastType) ToastType {
 	return def
 }
 
-func getIntProp(props rtui.Props, key string, def int) int {
-	if v, ok := props[key]; ok {
-		if i, ok := v.(int); ok {
-			return i
-		}
-	}
-	return def
-}

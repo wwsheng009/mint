@@ -1,6 +1,7 @@
 package selectcomp
 
 import (
+	"github.com/wwsheng009/mint/ui/components/internal/proputil"
 	"fmt"
 
 	"github.com/wwsheng009/mint/runtime/intent"
@@ -87,21 +88,21 @@ func renderOverlayComponent(props rtui.Props) rtui.VNode {
 
 func overlayComponentModelFromProps(props rtui.Props) overlayComponentModel {
 	model := overlayComponentModel{
-		key:             getStringProp(props, "key", ""),
-		selectID:        getStringProp(props, "selectID", ""),
-		componentID:     getStringProp(props, "componentID", ""),
+		key:             proputil.GetString(props, "key", ""),
+		selectID:        proputil.GetString(props, "selectID", ""),
+		componentID:     proputil.GetString(props, "componentID", ""),
 		options:         getOptionsProp(props),
-		selectStyle:     getStyleProp(props),
-		width:           getIntProp(props, "width", 0),
-		placeholder:     getStringProp(props, "placeholder", "..."),
-		maxVisibleRows:  getIntProp(props, "maxVisibleRows", defaultMaxVisibleRows),
+		selectStyle:     proputil.GetStyle(props, "style", style.Style{}),
+		width:           proputil.GetInt(props, "width", 0),
+		placeholder:     proputil.GetString(props, "placeholder", "..."),
+		maxVisibleRows:  proputil.GetInt(props, "maxVisibleRows", defaultMaxVisibleRows),
 		portalRoot:      getPortalRootProp(props, rtui.DefaultOverlayPortalRootID),
-		closeOnOutside:  getBoolProp(props, "closeOnOutside", true),
-		changeIntent:    getIntentProp(props, "changeIntent"),
+		closeOnOutside:  proputil.GetBool(props, "closeOnOutside", true),
+		changeIntent:    proputil.GetIntent(props, "changeIntent", nil),
 		selectionMode:   getSelectionModeProp(props, SelectionSingle),
-		disabled:        getBoolProp(props, "disabled", false),
-		formID:          getStringProp(props, "formID", ""),
-		selectedIndex:   getIntProp(props, "selectedIndex", -1),
+		disabled:        proputil.GetBool(props, "disabled", false),
+		formID:          proputil.GetString(props, "formID", ""),
+		selectedIndex:   proputil.GetInt(props, "selectedIndex", -1),
 		selectedIndices: getIntsProp(props, "selectedIndices", nil),
 	}
 	if model.selectID == "" {

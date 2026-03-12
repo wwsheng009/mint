@@ -1,6 +1,7 @@
 package tooltip
 
 import (
+	"github.com/wwsheng009/mint/ui/components/internal/proputil"
 	"time"
 
 	"github.com/wwsheng009/mint/framework/theme"
@@ -56,12 +57,12 @@ var (
 func NewToastInstance(props rtui.Props) *ToastInstance {
 	duration := getToastDurationProp(props, 3000*time.Millisecond)
 	inst := &ToastInstance{
-		key:           getStringProp(props, "key", ""),
-		title:         getStringProp(props, "title", ""),
-		message:       getStringProp(props, "message", ""),
+		key:           proputil.GetString(props, "key", ""),
+		title:         proputil.GetString(props, "title", ""),
+		message:       proputil.GetString(props, "message", ""),
 		toastType:     getToastTypeProp(props, ToastInfo),
 		toastDuration: duration,
-		toastStyle:    getStyleProp(props),
+		toastStyle:    proputil.GetStyle(props, "style", style.Style{}),
 		closeIntent:   props["closeIntent"],
 		padding:       getPaddingProp(props),
 		visible:       true,
@@ -118,15 +119,15 @@ func (inst *ToastInstance) SetProps(props rtui.Props) bool {
 	oldMessage := inst.message
 	oldType := inst.toastType
 
-	inst.title = getStringProp(props, "title", inst.title)
-	inst.message = getStringProp(props, "message", inst.message)
+	inst.title = proputil.GetString(props, "title", inst.title)
+	inst.message = proputil.GetString(props, "message", inst.message)
 	inst.toastType = getToastTypeProp(props, inst.toastType)
 	inst.toastDuration = getDurationProp(props, inst.toastDuration)
-	inst.toastStyle = getStyleProp(props)
+	inst.toastStyle = proputil.GetStyle(props, "style", style.Style{})
 	inst.closeIntent = props["closeIntent"]
 	inst.padding = getPaddingProp(props)
 
-	visible := getBoolProp(props, "visible", inst.visible)
+	visible := proputil.GetBool(props, "visible", inst.visible)
 	if visible != inst.visible {
 		inst.visible = visible
 		inst.dirty = true

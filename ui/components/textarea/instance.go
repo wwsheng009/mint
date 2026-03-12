@@ -1,6 +1,7 @@
 package textarea
 
 import (
+	"github.com/wwsheng009/mint/ui/components/internal/proputil"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -68,21 +69,21 @@ var (
 func NewInstance(props rtui.Props) *Instance {
 	cursorCfg := getCursorConfigProp(props, "cursorConfig", cursor.DefaultConfig())
 	inst := &Instance{
-		key:                    getStringProp(props, "key", ""),
-		placeholder:            getStringProp(props, "placeholder", ""),
-		textareaStyle:          getStyleProp(props),
-		rows:                   getIntProp(props, "rows", 3),
-		cols:                   getIntProp(props, "cols", 40),
-		scrollOffset:           getIntProp(props, "scrollOffset", 0),
-		scrollOffsetControlled: getBoolProp(props, "scrollOffsetControlled", false),
-		showScrollbar:          getBoolProp(props, "showScrollbar", true),
-		scrollbarStyle:         getStylePropByKey(props, "scrollbarStyle"),
-		changeIntent:           getIntentProp(props, "changeIntent"),
+		key:                    proputil.GetString(props, "key", ""),
+		placeholder:            proputil.GetString(props, "placeholder", ""),
+		textareaStyle:          proputil.GetStyle(props, "style", style.Style{}),
+		rows:                   proputil.GetInt(props, "rows", 3),
+		cols:                   proputil.GetInt(props, "cols", 40),
+		scrollOffset:           proputil.GetInt(props, "scrollOffset", 0),
+		scrollOffsetControlled: proputil.GetBool(props, "scrollOffsetControlled", false),
+		showScrollbar:          proputil.GetBool(props, "showScrollbar", true),
+		scrollbarStyle:         proputil.GetStyle(props, "scrollbarStyle", style.Style{}),
+		changeIntent:           proputil.GetIntent(props, "changeIntent", nil),
 		changeIntentField:      getChangeIntentFieldProp(props, "changeIntent"),
-		formID:                 getStringProp(props, "formID", ""),
-		submitIntent:           getIntentProp(props, "submitIntent"),
-		value:                  getStringProp(props, "value", ""),
-		maxLen:                 getIntProp(props, "maxLen", 0),
+		formID:                 proputil.GetString(props, "formID", ""),
+		submitIntent:           proputil.GetIntent(props, "submitIntent", nil),
+		value:                  proputil.GetString(props, "value", ""),
+		maxLen:                 proputil.GetInt(props, "maxLen", 0),
 		cursorConfig:           cursorCfg,
 		cursorModel:            cursor.NewModel(cursorCfg),
 		dirty:                  true,
@@ -90,7 +91,7 @@ func NewInstance(props rtui.Props) *Instance {
 	inst.cursorPos = utf8.RuneCountInString(inst.value)
 
 	inst.state = control.InteractionState{
-		Disabled: getBoolProp(props, "disabled", false),
+		Disabled: proputil.GetBool(props, "disabled", false),
 	}
 
 	inst.behaviors = control.NewBehaviorList(
@@ -131,25 +132,25 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	oldShowScrollbar := inst.showScrollbar
 	oldScrollbarStyle := inst.scrollbarStyle
 
-	inst.placeholder = getStringProp(props, "placeholder", inst.placeholder)
-	inst.textareaStyle = getStyleProp(props)
-	inst.rows = getIntProp(props, "rows", inst.rows)
-	inst.cols = getIntProp(props, "cols", inst.cols)
+	inst.placeholder = proputil.GetString(props, "placeholder", inst.placeholder)
+	inst.textareaStyle = proputil.GetStyle(props, "style", style.Style{})
+	inst.rows = proputil.GetInt(props, "rows", inst.rows)
+	inst.cols = proputil.GetInt(props, "cols", inst.cols)
 	if controlled, ok := props["scrollOffsetControlled"].(bool); ok {
 		inst.scrollOffsetControlled = controlled
 	}
 	if inst.scrollOffsetControlled {
-		inst.scrollOffset = getIntProp(props, "scrollOffset", inst.scrollOffset)
+		inst.scrollOffset = proputil.GetInt(props, "scrollOffset", inst.scrollOffset)
 	} else if offset, ok := props["scrollOffset"].(int); ok {
 		inst.scrollOffset = offset
 	}
-	inst.showScrollbar = getBoolProp(props, "showScrollbar", inst.showScrollbar)
-	inst.scrollbarStyle = getStylePropByKey(props, "scrollbarStyle")
-	inst.changeIntent = getIntentProp(props, "changeIntent")
+	inst.showScrollbar = proputil.GetBool(props, "showScrollbar", inst.showScrollbar)
+	inst.scrollbarStyle = proputil.GetStyle(props, "scrollbarStyle", style.Style{})
+	inst.changeIntent = proputil.GetIntent(props, "changeIntent", nil)
 	inst.changeIntentField = getChangeIntentFieldProp(props, "changeIntent")
-	inst.formID = getStringProp(props, "formID", inst.formID)
-	inst.submitIntent = getIntentProp(props, "submitIntent")
-	newValue := getStringProp(props, "value", inst.value)
+	inst.formID = proputil.GetString(props, "formID", inst.formID)
+	inst.submitIntent = proputil.GetIntent(props, "submitIntent", nil)
+	newValue := proputil.GetString(props, "value", inst.value)
 	if newValue != inst.value {
 		inst.value = newValue
 		inst.cursorPos = utf8.RuneCountInString(inst.value)
@@ -157,9 +158,9 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 		inst.cursorModel.ResetBlink()
 		inst.ensureCursorVisible()
 	}
-	inst.maxLen = getIntProp(props, "maxLen", inst.maxLen)
+	inst.maxLen = proputil.GetInt(props, "maxLen", inst.maxLen)
 
-	newDisabled := getBoolProp(props, "disabled", inst.state.Disabled)
+	newDisabled := proputil.GetBool(props, "disabled", inst.state.Disabled)
 	if newDisabled != inst.state.Disabled {
 		inst.state.Disabled = newDisabled
 	}
@@ -1119,60 +1120,6 @@ func (inst *Instance) emitFieldBlur() {
 // =============================================================================
 // Prop Extraction Helpers
 // =============================================================================
-
-func getStringProp(props rtui.Props, key, def string) string {
-	if v, ok := props[key]; ok {
-		if s, ok := v.(string); ok {
-			return s
-		}
-	}
-	return def
-}
-
-func getIntProp(props rtui.Props, key string, def int) int {
-	if v, ok := props[key]; ok {
-		if i, ok := v.(int); ok {
-			return i
-		}
-	}
-	return def
-}
-
-func getBoolProp(props rtui.Props, key string, def bool) bool {
-	if v, ok := props[key]; ok {
-		if b, ok := v.(bool); ok {
-			return b
-		}
-	}
-	return def
-}
-
-func getStyleProp(props rtui.Props) style.Style {
-	if v, ok := props["style"]; ok {
-		if s, ok := v.(style.Style); ok {
-			return s
-		}
-	}
-	return style.Style{}
-}
-
-func getStylePropByKey(props rtui.Props, key string) style.Style {
-	if v, ok := props[key]; ok {
-		if s, ok := v.(style.Style); ok {
-			return s
-		}
-	}
-	return style.Style{}
-}
-
-func getIntentProp(props rtui.Props, key string) intent.Intent {
-	if v, ok := props[key]; ok {
-		if i, ok := v.(intent.Intent); ok {
-			return i
-		}
-	}
-	return nil
-}
 
 func getChangeIntentFieldProp(props rtui.Props, key string) intent.FieldIntent {
 	if v, ok := props[key]; ok {

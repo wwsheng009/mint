@@ -1,6 +1,7 @@
 package grid
 
 import (
+	"github.com/wwsheng009/mint/ui/components/internal/proputil"
 	"fmt"
 
 	"github.com/wwsheng009/mint/internal/log"
@@ -74,23 +75,23 @@ var (
 // NewInstance creates a new GridInstance from props.
 func NewInstance(props rtui.Props) *Instance {
 	inst := &Instance{
-		key:          getStringProp(props, "key", ""),
-		columnGap:    getIntProp(props, "columnGap", 0),
-		rowGap:       getIntProp(props, "rowGap", 0),
+		key:          proputil.GetString(props, "key", ""),
+		columnGap:    proputil.GetInt(props, "columnGap", 0),
+		rowGap:       proputil.GetInt(props, "rowGap", 0),
 		padding:      getPaddingProp(props),
 		alignContent: getAlignContentProp(props),
-		width:        getIntProp(props, "width", 0),
-		height:       getIntProp(props, "height", 0),
-		flex:         getIntProp(props, "flex", 0),
-		instStyle:    getStyleProp(props),
+		width:        proputil.GetInt(props, "width", 0),
+		height:       proputil.GetInt(props, "height", 0),
+		flex:         proputil.GetInt(props, "flex", 0),
+		instStyle:    proputil.GetStyle(props, "style", style.Style{}),
 		dirty:        true,
-		borderStyle:  getStringProp(props, "borderStyle", "none"), // ✨ 边框样式
-		borderLabel:  getStringProp(props, "label", ""),           // ✨ 边框标签
+		borderStyle:  proputil.GetString(props, "borderStyle", "none"), // ✨ 边框样式
+		borderLabel:  proputil.GetString(props, "label", ""),           // ✨ 边框标签
 		// ✨ Cell Borders 初始化
-		showCellBorders:   getBoolProp(props, "showCellBorders", false),
-		cellBorderStyle:   getStringProp(props, "cellBorderStyle", "single"),
-		cellBorderRounded: getBoolProp(props, "cellBorderRounded", false),
-		cellBorderColor:   getStringProp(props, "cellBorderColor", ""),
+		showCellBorders:   proputil.GetBool(props, "showCellBorders", false),
+		cellBorderStyle:   proputil.GetString(props, "cellBorderStyle", "single"),
+		cellBorderRounded: proputil.GetBool(props, "cellBorderRounded", false),
+		cellBorderColor:   proputil.GetString(props, "cellBorderColor", ""),
 	}
 
 	// Parse columns
@@ -154,15 +155,15 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	oldRows := inst.rows
 	oldCells := inst.cells
 
-	inst.key = getStringProp(props, "key", inst.key)
-	inst.columnGap = getIntProp(props, "columnGap", inst.columnGap)
-	inst.rowGap = getIntProp(props, "rowGap", inst.rowGap)
+	inst.key = proputil.GetString(props, "key", inst.key)
+	inst.columnGap = proputil.GetInt(props, "columnGap", inst.columnGap)
+	inst.rowGap = proputil.GetInt(props, "rowGap", inst.rowGap)
 	inst.padding = getPaddingPropWithDefault(props, inst.padding)
 	inst.alignContent = getAlignContentProp(props)
-	inst.width = getIntProp(props, "width", inst.width)
-	inst.height = getIntProp(props, "height", inst.height)
-	inst.flex = getIntProp(props, "flex", inst.flex)
-	inst.instStyle = getStyleProp(props)
+	inst.width = proputil.GetInt(props, "width", inst.width)
+	inst.height = proputil.GetInt(props, "height", inst.height)
+	inst.flex = proputil.GetInt(props, "flex", inst.flex)
+	inst.instStyle = proputil.GetStyle(props, "style", style.Style{})
 
 	// ✨ 容器边框属性
 	if v, ok := props["borderStyle"].(string); ok {
@@ -764,33 +765,6 @@ func (inst *Instance) ClearDirty() {
 // Prop Extraction Helpers
 // =============================================================================
 
-func getStringProp(props rtui.Props, key, def string) string {
-	if v, ok := props[key]; ok {
-		if s, ok := v.(string); ok {
-			return s
-		}
-	}
-	return def
-}
-
-func getIntProp(props rtui.Props, key string, def int) int {
-	if v, ok := props[key]; ok {
-		if i, ok := v.(int); ok {
-			return i
-		}
-	}
-	return def
-}
-
-func getStyleProp(props rtui.Props) style.Style {
-	if v, ok := props["style"]; ok {
-		if s, ok := v.(style.Style); ok {
-			return s
-		}
-	}
-	return style.Style{}
-}
-
 func getPaddingProp(props rtui.Props) [4]int {
 	if v, ok := props["padding"]; ok {
 		if p, ok := v.([4]int); ok {
@@ -819,15 +793,6 @@ func getAlignContentProp(props rtui.Props) rtui.Align {
 }
 
 // ✨ Cell Borders 辅助函数
-
-func getBoolProp(props rtui.Props, key string, def bool) bool {
-	if v, ok := props[key]; ok {
-		if b, ok := v.(bool); ok {
-			return b
-		}
-	}
-	return def
-}
 
 // =============================================================================
 // ✨ GridStyleProvider Interface Implementation

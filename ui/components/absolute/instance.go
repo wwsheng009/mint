@@ -1,6 +1,7 @@
 package absolute
 
 import (
+	"github.com/wwsheng009/mint/ui/components/internal/proputil"
 	"github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
@@ -59,13 +60,13 @@ var (
 // NewInstance creates a new AbsoluteInstance from props.
 func NewInstance(props rtui.Props) *Instance {
 	inst := &Instance{
-		key:       getStringProp(props, "key", ""),
+		key:       proputil.GetString(props, "key", ""),
 		anchor:    AnchorTopLeft,
-		width:     getIntProp(props, "width", 0),
-		height:    getIntProp(props, "height", 0),
-		zIndex:    getIntProp(props, "zIndex", 0),
-		flex:      getIntProp(props, "flex", 0),
-		instStyle: getStyleProp(props),
+		width:     proputil.GetInt(props, "width", 0),
+		height:    proputil.GetInt(props, "height", 0),
+		zIndex:    proputil.GetInt(props, "zIndex", 0),
+		flex:      proputil.GetInt(props, "flex", 0),
+		instStyle: proputil.GetStyle(props, "style", style.Style{}),
 		dirty:     true,
 	}
 
@@ -131,12 +132,12 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	oldChild := inst.child
 	oldAnchor := inst.anchor
 
-	inst.key = getStringProp(props, "key", inst.key)
-	inst.width = getIntProp(props, "width", inst.width)
-	inst.height = getIntProp(props, "height", inst.height)
-	inst.zIndex = getIntProp(props, "zIndex", inst.zIndex)
-	inst.flex = getIntProp(props, "flex", inst.flex)
-	inst.instStyle = getStyleProp(props)
+	inst.key = proputil.GetString(props, "key", inst.key)
+	inst.width = proputil.GetInt(props, "width", inst.width)
+	inst.height = proputil.GetInt(props, "height", inst.height)
+	inst.zIndex = proputil.GetInt(props, "zIndex", inst.zIndex)
+	inst.flex = proputil.GetInt(props, "flex", inst.flex)
+	inst.instStyle = proputil.GetStyle(props, "style", style.Style{})
 
 	if v, ok := props["child"].(rtui.VNode); ok {
 		inst.child = v
@@ -351,33 +352,6 @@ func (inst *Instance) ClearDirty() {
 // =============================================================================
 // Prop Extraction Helpers
 // =============================================================================
-
-func getStringProp(props rtui.Props, key, def string) string {
-	if v, ok := props[key]; ok {
-		if s, ok := v.(string); ok {
-			return s
-		}
-	}
-	return def
-}
-
-func getIntProp(props rtui.Props, key string, def int) int {
-	if v, ok := props[key]; ok {
-		if i, ok := v.(int); ok {
-			return i
-		}
-	}
-	return def
-}
-
-func getStyleProp(props rtui.Props) style.Style {
-	if v, ok := props["style"]; ok {
-		if s, ok := v.(style.Style); ok {
-			return s
-		}
-	}
-	return style.Style{}
-}
 
 // =============================================================================
 // Layout Interfaces Implementation

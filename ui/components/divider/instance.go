@@ -1,6 +1,7 @@
 package divider
 
 import (
+	"github.com/wwsheng009/mint/ui/components/internal/proputil"
 	"strings"
 	"unicode/utf8"
 
@@ -49,13 +50,13 @@ var (
 // NewInstance creates a new DividerInstance from props.
 func NewInstance(props rtui.Props) *Instance {
 	inst := &Instance{
-		key:          getStringProp(props, "key", ""),
-		label:        getStringProp(props, "label", ""),
+		key:          proputil.GetString(props, "key", ""),
+		label:        proputil.GetString(props, "label", ""),
 		dividerStyle: getStyleEnumProp(props, StyleSolid),
 		orientation:  getOrientationProp(props, Horizontal),
-		thickness:    getIntProp(props, "thickness", 1),
-		divStyle:     getStyleProp(props),
-		fillWidth:    getBoolProp(props, "fillWidth", true),
+		thickness:    proputil.GetInt(props, "thickness", 1),
+		divStyle:     proputil.GetStyle(props, "style", style.Style{}),
+		fillWidth:    proputil.GetBool(props, "fillWidth", true),
 		dirty:        true,
 	}
 
@@ -107,12 +108,12 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	oldStyle := inst.dividerStyle
 	oldThickness := inst.thickness
 
-	inst.label = getStringProp(props, "label", inst.label)
+	inst.label = proputil.GetString(props, "label", inst.label)
 	inst.dividerStyle = getStyleEnumProp(props, inst.dividerStyle)
 	inst.orientation = getOrientationProp(props, inst.orientation)
-	inst.thickness = getIntProp(props, "thickness", inst.thickness)
-	inst.divStyle = getStyleProp(props)
-	inst.fillWidth = getBoolProp(props, "fillWidth", inst.fillWidth)
+	inst.thickness = proputil.GetInt(props, "thickness", inst.thickness)
+	inst.divStyle = proputil.GetStyle(props, "style", style.Style{})
+	inst.fillWidth = proputil.GetBool(props, "fillWidth", inst.fillWidth)
 
 	if inst.thickness < 1 {
 		inst.thickness = 1
@@ -360,42 +361,6 @@ func (inst *Instance) SetStyle(s style.Style) {
 // =============================================================================
 // Prop Extraction Helpers
 // =============================================================================
-
-func getStringProp(props rtui.Props, key, def string) string {
-	if v, ok := props[key]; ok {
-		if s, ok := v.(string); ok {
-			return s
-		}
-	}
-	return def
-}
-
-func getIntProp(props rtui.Props, key string, def int) int {
-	if v, ok := props[key]; ok {
-		if i, ok := v.(int); ok {
-			return i
-		}
-	}
-	return def
-}
-
-func getBoolProp(props rtui.Props, key string, def bool) bool {
-	if v, ok := props[key]; ok {
-		if b, ok := v.(bool); ok {
-			return b
-		}
-	}
-	return def
-}
-
-func getStyleProp(props rtui.Props) style.Style {
-	if v, ok := props["style"]; ok {
-		if s, ok := v.(style.Style); ok {
-			return s
-		}
-	}
-	return style.Style{}
-}
 
 func getStyleEnumProp(props rtui.Props, def Style) Style {
 	if v, ok := props["dividerStyle"]; ok {

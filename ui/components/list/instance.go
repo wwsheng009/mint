@@ -1,6 +1,7 @@
 package list
 
 import (
+	"github.com/wwsheng009/mint/ui/components/internal/proputil"
 	"fmt"
 	"reflect"
 	"sort"
@@ -105,42 +106,42 @@ var (
 // NewInstance creates a new ListInstance from props
 func NewInstance(props rtui.Props) *Instance {
 	inst := &Instance{
-		key:                      getStringProp(props, "key", ""),
-		componentID:              getStringProp(props, "componentID", ""),
-		header:                   getStringProp(props, "header", ""),
+		key:                      proputil.GetString(props, "key", ""),
+		componentID:              proputil.GetString(props, "componentID", ""),
+		header:                   proputil.GetString(props, "header", ""),
 		rows:                     getStringsProp(props, []string{}),
-		emptyText:                getStringProp(props, "emptyText", "(empty)"),
-		maxRows:                  getIntProp(props, "maxRows", 0),
-		showBorder:               getBoolProp(props, "showBorder", true),
-		showSeparator:            getBoolProp(props, "showSeparator", true),
+		emptyText:                proputil.GetString(props, "emptyText", "(empty)"),
+		maxRows:                  proputil.GetInt(props, "maxRows", 0),
+		showBorder:               proputil.GetBool(props, "showBorder", true),
+		showSeparator:            proputil.GetBool(props, "showSeparator", true),
 		separatorChar:            getRuneProp(props, "separatorChar", '─'),
-		headerStyle:              getStyleProp(props, "headerStyle"),
-		rowStyle:                 getStyleProp(props, "rowStyle"),
-		matchStyle:               getStyleProp(props, "matchStyle"),
-		selectedStyle:            getStyleProp(props, "selectedStyle"),
-		borderStyle:              getStyleProp(props, "borderStyle"),
-		showScrollbar:            getBoolProp(props, "showScrollbar", true),
-		scrollbarStyle:           getStyleProp(props, "scrollbarStyle"),
-		changeIntent:             getIntentProp(props, "changeIntent"),
+		headerStyle:              proputil.GetStyle(props, "headerStyle", style.Style{}),
+		rowStyle:                 proputil.GetStyle(props, "rowStyle", style.Style{}),
+		matchStyle:               proputil.GetStyle(props, "matchStyle", style.Style{}),
+		selectedStyle:            proputil.GetStyle(props, "selectedStyle", style.Style{}),
+		borderStyle:              proputil.GetStyle(props, "borderStyle", style.Style{}),
+		showScrollbar:            proputil.GetBool(props, "showScrollbar", true),
+		scrollbarStyle:           proputil.GetStyle(props, "scrollbarStyle", style.Style{}),
+		changeIntent:             proputil.GetIntent(props, "changeIntent", nil),
 		changeIntentField:        getChangeIntentFieldProp(props, "changeIntent"),
-		selectionIntent:          getIntentProp(props, "selectionIntent"),
+		selectionIntent:          proputil.GetIntent(props, "selectionIntent", nil),
 		selectionIntentField:     getChangeIntentFieldProp(props, "selectionIntent"),
 		selectionMode:            getSelectionModeProp(props, "selectionMode", SelectionNone),
-		searchQuery:              getStringProp(props, "searchQuery", ""),
+		searchQuery:              proputil.GetString(props, "searchQuery", ""),
 		searchFn:                 getSearchFn(props),
-		showSearchStats:          getBoolProp(props, "showSearchStats", false),
-		searchStatsStyle:         getStyleProp(props, "searchStatsStyle"),
-		scrollOffset:             getIntProp(props, "scrollOffset", 0),
-		scrollOffsetControlled:   getBoolProp(props, "scrollOffsetControlled", false),
-		selectedIndex:            getIntProp(props, "selectedIndex", -1),
-		selectedIndexControlled:  getBoolProp(props, "selectedIndexControlled", false),
+		showSearchStats:          proputil.GetBool(props, "showSearchStats", false),
+		searchStatsStyle:         proputil.GetStyle(props, "searchStatsStyle", style.Style{}),
+		scrollOffset:             proputil.GetInt(props, "scrollOffset", 0),
+		scrollOffsetControlled:   proputil.GetBool(props, "scrollOffsetControlled", false),
+		selectedIndex:            proputil.GetInt(props, "selectedIndex", -1),
+		selectedIndexControlled:  proputil.GetBool(props, "selectedIndexControlled", false),
 		checkedIndices:           getIntsProp(props, "checkedIndices", nil),
-		checkedIndicesControlled: getBoolProp(props, "checkedIndicesControlled", false),
-		viewportHeight:           getIntProp(props, "viewportHeight", 10),
-		formID:                   getStringProp(props, "formID", ""),
-		allowScroll:              getBoolProp(props, "allowScroll", true),
-		lastPropScrollOffset:     getIntProp(props, "scrollOffset", 0),
-		lastPropSelectedIndex:    getIntProp(props, "selectedIndex", -1),
+		checkedIndicesControlled: proputil.GetBool(props, "checkedIndicesControlled", false),
+		viewportHeight:           proputil.GetInt(props, "viewportHeight", 10),
+		formID:                   proputil.GetString(props, "formID", ""),
+		allowScroll:              proputil.GetBool(props, "allowScroll", true),
+		lastPropScrollOffset:     proputil.GetInt(props, "scrollOffset", 0),
+		lastPropSelectedIndex:    proputil.GetInt(props, "selectedIndex", -1),
 		lastPropCheckedIndices:   getIntsProp(props, "checkedIndices", nil),
 		dirty:                    true,
 	}
@@ -211,35 +212,35 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	oldAllowScroll := inst.allowScroll
 	oldRowStyleFn := inst.rowStyleFn
 
-	inst.componentID = getStringProp(props, "componentID", inst.componentID)
-	inst.header = getStringProp(props, "header", inst.header)
+	inst.componentID = proputil.GetString(props, "componentID", inst.componentID)
+	inst.header = proputil.GetString(props, "header", inst.header)
 	inst.rows = getStringsProp(props, inst.rows)
-	inst.emptyText = getStringProp(props, "emptyText", inst.emptyText)
-	inst.maxRows = getIntProp(props, "maxRows", inst.maxRows)
-	inst.showBorder = getBoolProp(props, "showBorder", inst.showBorder)
-	inst.showSeparator = getBoolProp(props, "showSeparator", inst.showSeparator)
+	inst.emptyText = proputil.GetString(props, "emptyText", inst.emptyText)
+	inst.maxRows = proputil.GetInt(props, "maxRows", inst.maxRows)
+	inst.showBorder = proputil.GetBool(props, "showBorder", inst.showBorder)
+	inst.showSeparator = proputil.GetBool(props, "showSeparator", inst.showSeparator)
 	inst.separatorChar = getRuneProp(props, "separatorChar", inst.separatorChar)
-	inst.headerStyle = getStyleProp(props, "headerStyle")
-	inst.rowStyle = getStyleProp(props, "rowStyle")
-	inst.matchStyle = getStyleProp(props, "matchStyle")
-	inst.selectedStyle = getStyleProp(props, "selectedStyle")
-	inst.borderStyle = getStyleProp(props, "borderStyle")
-	inst.showScrollbar = getBoolProp(props, "showScrollbar", inst.showScrollbar)
-	inst.scrollbarStyle = getStyleProp(props, "scrollbarStyle")
-	inst.changeIntent = getIntentProp(props, "changeIntent")
+	inst.headerStyle = proputil.GetStyle(props, "headerStyle", style.Style{})
+	inst.rowStyle = proputil.GetStyle(props, "rowStyle", style.Style{})
+	inst.matchStyle = proputil.GetStyle(props, "matchStyle", style.Style{})
+	inst.selectedStyle = proputil.GetStyle(props, "selectedStyle", style.Style{})
+	inst.borderStyle = proputil.GetStyle(props, "borderStyle", style.Style{})
+	inst.showScrollbar = proputil.GetBool(props, "showScrollbar", inst.showScrollbar)
+	inst.scrollbarStyle = proputil.GetStyle(props, "scrollbarStyle", style.Style{})
+	inst.changeIntent = proputil.GetIntent(props, "changeIntent", nil)
 	inst.changeIntentField = getChangeIntentFieldProp(props, "changeIntent")
-	inst.selectionIntent = getIntentProp(props, "selectionIntent")
+	inst.selectionIntent = proputil.GetIntent(props, "selectionIntent", nil)
 	inst.selectionIntentField = getChangeIntentFieldProp(props, "selectionIntent")
 	inst.selectionMode = getSelectionModeProp(props, "selectionMode", inst.selectionMode)
-	inst.searchQuery = getStringProp(props, "searchQuery", inst.searchQuery)
+	inst.searchQuery = proputil.GetString(props, "searchQuery", inst.searchQuery)
 	inst.searchFn = getSearchFnOrCurrent(props, inst.searchFn)
-	inst.showSearchStats = getBoolProp(props, "showSearchStats", inst.showSearchStats)
-	inst.searchStatsStyle = getStyleProp(props, "searchStatsStyle")
+	inst.showSearchStats = proputil.GetBool(props, "showSearchStats", inst.showSearchStats)
+	inst.searchStatsStyle = proputil.GetStyle(props, "searchStatsStyle", style.Style{})
 	if controlled, ok := props["scrollOffsetControlled"].(bool); ok {
 		inst.scrollOffsetControlled = controlled
 	}
 	if inst.scrollOffsetControlled {
-		nextScroll := getIntProp(props, "scrollOffset", inst.scrollOffset)
+		nextScroll := proputil.GetInt(props, "scrollOffset", inst.scrollOffset)
 		inst.lastPropScrollOffset = nextScroll
 		if inst.hasPendingScrollOffset {
 			if nextScroll == inst.pendingScrollOffset || nextScroll != oldPropScroll {
@@ -268,7 +269,7 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 		inst.selectedIndexControlled = controlled
 	}
 	if inst.selectedIndexControlled {
-		nextSelected := getIntProp(props, "selectedIndex", inst.selectedIndex)
+		nextSelected := proputil.GetInt(props, "selectedIndex", inst.selectedIndex)
 		inst.lastPropSelectedIndex = nextSelected
 		if inst.hasPendingSelectedIndex {
 			if nextSelected == inst.pendingSelectedIndex || nextSelected != oldPropSelected {
@@ -322,9 +323,9 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 		inst.lastPropCheckedIndices = append([]int(nil), inst.checkedIndices...)
 		inst.hasPendingCheckedIndices = false
 	}
-	inst.viewportHeight = getIntProp(props, "viewportHeight", inst.viewportHeight)
-	inst.formID = getStringProp(props, "formID", inst.formID)
-	inst.allowScroll = getBoolProp(props, "allowScroll", inst.allowScroll)
+	inst.viewportHeight = proputil.GetInt(props, "viewportHeight", inst.viewportHeight)
+	inst.formID = proputil.GetString(props, "formID", inst.formID)
+	inst.allowScroll = proputil.GetBool(props, "allowScroll", inst.allowScroll)
 
 	// Update rowStyleFn if provided in props
 	if fn, ok := props["rowStyleFn"].(func(int, string) style.Style); ok {
@@ -1730,15 +1731,6 @@ func (inst *Instance) IsDisabled() bool {
 // Prop Extraction Helpers
 // =============================================================================
 
-func getStringProp(props rtui.Props, key, def string) string {
-	if v, ok := props[key]; ok {
-		if s, ok := v.(string); ok {
-			return s
-		}
-	}
-	return def
-}
-
 func getStringsProp(props rtui.Props, def []string) []string {
 	v, ok := props["rows"]
 	if !ok {
@@ -1759,24 +1751,6 @@ func getIntsProp(props rtui.Props, key string, def []int) []int {
 	return append([]int(nil), def...)
 }
 
-func getBoolProp(props rtui.Props, key string, def bool) bool {
-	if v, ok := props[key]; ok {
-		if b, ok := v.(bool); ok {
-			return b
-		}
-	}
-	return def
-}
-
-func getIntProp(props rtui.Props, key string, def int) int {
-	if v, ok := props[key]; ok {
-		if i, ok := v.(int); ok {
-			return i
-		}
-	}
-	return def
-}
-
 func getRuneProp(props rtui.Props, key string, def rune) rune {
 	if v, ok := props[key]; ok {
 		if r, ok := v.(rune); ok {
@@ -1784,26 +1758,6 @@ func getRuneProp(props rtui.Props, key string, def rune) rune {
 		}
 	}
 	return def
-}
-
-func getStyleProp(props rtui.Props, key string) style.Style {
-	v, ok := props[key]
-	if !ok {
-		return style.Style{}
-	}
-	if s, ok := v.(style.Style); ok {
-		return s
-	}
-	return style.Style{}
-}
-
-func getIntentProp(props rtui.Props, key string) intent.Intent {
-	if v, ok := props[key]; ok {
-		if i, ok := v.(intent.Intent); ok {
-			return i
-		}
-	}
-	return nil
 }
 
 func getChangeIntentFieldProp(props rtui.Props, key string) intent.FieldIntent {

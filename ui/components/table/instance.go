@@ -1,6 +1,7 @@
 package table
 
 import (
+	"github.com/wwsheng009/mint/ui/components/internal/proputil"
 	"fmt"
 	"reflect"
 	"sort"
@@ -106,41 +107,41 @@ var (
 
 func NewInstance(props rtui.Props) *Instance {
 	inst := &Instance{
-		key:                      getStringProp(props, "key", ""),
-		componentID:              getStringProp(props, "componentID", ""),
+		key:                      proputil.GetString(props, "key", ""),
+		componentID:              proputil.GetString(props, "componentID", ""),
 		columns:                  getColumnsProp(props, []TableColumn{}),
 		rows:                     getRowsProp(props, [][]string{}),
-		emptyText:                getStringProp(props, "emptyText", "(empty)"),
-		headerStyle:              getStyleProp(props, "headerStyle"),
-		tableStyle:               getStyleProp(props, "tableStyle"),
-		selectedStyle:            getStylePropWithDefault(props, "selectedStyle", style.Style{}.Reverse(true)),
-		borderStyle:              getStylePropWithDefault(props, "borderStyle", style.Style{}.Foreground(style.BrightBlack)),
-		statusStyle:              getStylePropWithDefault(props, "statusStyle", style.Style{}.Foreground(style.BrightBlack)),
-		filterStyle:              getStylePropWithDefault(props, "filterStyle", style.Style{}.Foreground(style.BrightBlack)),
-		scrollbarStyle:           getStylePropWithDefault(props, "scrollbarStyle", style.Style{}.Foreground(style.BrightBlack)),
-		gap:                      maxInt(0, getIntProp(props, "gap", 0)),
-		showBorder:               getBoolProp(props, "showBorder", false),
-		showFooter:               getBoolProp(props, "showFooter", true),
-		showScrollbar:            getBoolProp(props, "showScrollbar", true),
-		pageSize:                 maxInt(0, getIntProp(props, "pageSize", 0)),
-		searchQuery:              getStringProp(props, "searchQuery", ""),
+		emptyText:                proputil.GetString(props, "emptyText", "(empty)"),
+		headerStyle:              proputil.GetStyle(props, "headerStyle", style.Style{}),
+		tableStyle:               proputil.GetStyle(props, "tableStyle", style.Style{}),
+		selectedStyle:            proputil.GetStyle(props, "selectedStyle", style.Style{}.Reverse(true)),
+		borderStyle:              proputil.GetStyle(props, "borderStyle", style.Style{}.Foreground(style.BrightBlack)),
+		statusStyle:              proputil.GetStyle(props, "statusStyle", style.Style{}.Foreground(style.BrightBlack)),
+		filterStyle:              proputil.GetStyle(props, "filterStyle", style.Style{}.Foreground(style.BrightBlack)),
+		scrollbarStyle:           proputil.GetStyle(props, "scrollbarStyle", style.Style{}.Foreground(style.BrightBlack)),
+		gap:                      maxInt(0, proputil.GetInt(props, "gap", 0)),
+		showBorder:               proputil.GetBool(props, "showBorder", false),
+		showFooter:               proputil.GetBool(props, "showFooter", true),
+		showScrollbar:            proputil.GetBool(props, "showScrollbar", true),
+		pageSize:                 maxInt(0, proputil.GetInt(props, "pageSize", 0)),
+		searchQuery:              proputil.GetString(props, "searchQuery", ""),
 		filters:                  getFiltersProp(props, map[int]string{}),
-		currentPage:              maxInt(0, getIntProp(props, "currentPage", 0)),
-		currentPageControlled:    getBoolProp(props, "currentPageControlled", false),
-		sortColumn:               getIntProp(props, "sortColumn", -1),
-		sortDescending:           getBoolProp(props, "sortDescending", false),
-		sortControlled:           getBoolProp(props, "sortControlled", false),
-		selectedIndex:            getIntProp(props, "selectedIndex", -1),
-		selectedIndexControlled:  getBoolProp(props, "selectedIndexControlled", false),
-		selectionIntent:          getIntentProp(props, "selectionIntent"),
+		currentPage:              maxInt(0, proputil.GetInt(props, "currentPage", 0)),
+		currentPageControlled:    proputil.GetBool(props, "currentPageControlled", false),
+		sortColumn:               proputil.GetInt(props, "sortColumn", -1),
+		sortDescending:           proputil.GetBool(props, "sortDescending", false),
+		sortControlled:           proputil.GetBool(props, "sortControlled", false),
+		selectedIndex:            proputil.GetInt(props, "selectedIndex", -1),
+		selectedIndexControlled:  proputil.GetBool(props, "selectedIndexControlled", false),
+		selectionIntent:          proputil.GetIntent(props, "selectionIntent", nil),
 		selectionIntentField:     getFieldIntentProp(props, "selectionIntent"),
 		selectionMode:            getSelectionModeProp(props, "selectionMode", SelectionNone),
 		checkedIndices:           getIntsProp(props, "checkedIndices", nil),
-		checkedIndicesControlled: getBoolProp(props, "checkedIndicesControlled", false),
-		lastPropCurrentPage:      maxInt(0, getIntProp(props, "currentPage", 0)),
-		lastPropSortColumn:       getIntProp(props, "sortColumn", -1),
-		lastPropSortDescending:   getBoolProp(props, "sortDescending", false),
-		changeIntent:             getIntentProp(props, "changeIntent"),
+		checkedIndicesControlled: proputil.GetBool(props, "checkedIndicesControlled", false),
+		lastPropCurrentPage:      maxInt(0, proputil.GetInt(props, "currentPage", 0)),
+		lastPropSortColumn:       proputil.GetInt(props, "sortColumn", -1),
+		lastPropSortDescending:   proputil.GetBool(props, "sortDescending", false),
+		changeIntent:             proputil.GetIntent(props, "changeIntent", nil),
 		changeIntentField:        getFieldIntentProp(props, "changeIntent"),
 		pageIntentField:          getFieldIntentProp(props, "pageIntent"),
 		dirty:                    true,
@@ -198,28 +199,28 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	oldChangeIntentField := inst.changeIntentField
 	oldPageIntentField := inst.pageIntentField
 
-	inst.componentID = getStringProp(props, "componentID", inst.componentID)
+	inst.componentID = proputil.GetString(props, "componentID", inst.componentID)
 	inst.columns = getColumnsProp(props, inst.columns)
 	inst.rows = getRowsProp(props, inst.rows)
-	inst.emptyText = getStringProp(props, "emptyText", inst.emptyText)
-	inst.headerStyle = getStylePropWithDefault(props, "headerStyle", inst.headerStyle)
-	inst.tableStyle = getStylePropWithDefault(props, "tableStyle", inst.tableStyle)
-	inst.selectedStyle = getStylePropWithDefault(props, "selectedStyle", inst.selectedStyle)
-	inst.borderStyle = getStylePropWithDefault(props, "borderStyle", inst.borderStyle)
-	inst.statusStyle = getStylePropWithDefault(props, "statusStyle", inst.statusStyle)
-	inst.filterStyle = getStylePropWithDefault(props, "filterStyle", inst.filterStyle)
-	inst.scrollbarStyle = getStylePropWithDefault(props, "scrollbarStyle", inst.scrollbarStyle)
-	inst.gap = maxInt(0, getIntProp(props, "gap", inst.gap))
-	inst.showBorder = getBoolProp(props, "showBorder", inst.showBorder)
-	inst.showFooter = getBoolProp(props, "showFooter", inst.showFooter)
-	inst.showScrollbar = getBoolProp(props, "showScrollbar", inst.showScrollbar)
-	inst.pageSize = maxInt(0, getIntProp(props, "pageSize", inst.pageSize))
-	inst.searchQuery = getStringProp(props, "searchQuery", inst.searchQuery)
+	inst.emptyText = proputil.GetString(props, "emptyText", inst.emptyText)
+	inst.headerStyle = proputil.GetStyle(props, "headerStyle", inst.headerStyle)
+	inst.tableStyle = proputil.GetStyle(props, "tableStyle", inst.tableStyle)
+	inst.selectedStyle = proputil.GetStyle(props, "selectedStyle", inst.selectedStyle)
+	inst.borderStyle = proputil.GetStyle(props, "borderStyle", inst.borderStyle)
+	inst.statusStyle = proputil.GetStyle(props, "statusStyle", inst.statusStyle)
+	inst.filterStyle = proputil.GetStyle(props, "filterStyle", inst.filterStyle)
+	inst.scrollbarStyle = proputil.GetStyle(props, "scrollbarStyle", inst.scrollbarStyle)
+	inst.gap = maxInt(0, proputil.GetInt(props, "gap", inst.gap))
+	inst.showBorder = proputil.GetBool(props, "showBorder", inst.showBorder)
+	inst.showFooter = proputil.GetBool(props, "showFooter", inst.showFooter)
+	inst.showScrollbar = proputil.GetBool(props, "showScrollbar", inst.showScrollbar)
+	inst.pageSize = maxInt(0, proputil.GetInt(props, "pageSize", inst.pageSize))
+	inst.searchQuery = proputil.GetString(props, "searchQuery", inst.searchQuery)
 	inst.filters = getFiltersProp(props, inst.filters)
-	inst.changeIntent = getIntentProp(props, "changeIntent")
+	inst.changeIntent = proputil.GetIntent(props, "changeIntent", nil)
 	inst.changeIntentField = getFieldIntentProp(props, "changeIntent")
 	inst.pageIntentField = getFieldIntentProp(props, "pageIntent")
-	inst.selectionIntent = getIntentProp(props, "selectionIntent")
+	inst.selectionIntent = proputil.GetIntent(props, "selectionIntent", nil)
 	inst.selectionIntentField = getFieldIntentProp(props, "selectionIntent")
 	inst.selectionMode = getSelectionModeProp(props, "selectionMode", inst.selectionMode)
 
@@ -227,7 +228,7 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 		inst.currentPageControlled = controlled
 	}
 	if inst.currentPageControlled {
-		inst.currentPage = maxInt(0, getIntProp(props, "currentPage", inst.currentPage))
+		inst.currentPage = maxInt(0, proputil.GetInt(props, "currentPage", inst.currentPage))
 		inst.lastPropCurrentPage = inst.currentPage
 	}
 
@@ -235,8 +236,8 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 		inst.sortControlled = controlled
 	}
 	if inst.sortControlled {
-		inst.sortColumn = getIntProp(props, "sortColumn", inst.sortColumn)
-		inst.sortDescending = getBoolProp(props, "sortDescending", inst.sortDescending)
+		inst.sortColumn = proputil.GetInt(props, "sortColumn", inst.sortColumn)
+		inst.sortDescending = proputil.GetBool(props, "sortDescending", inst.sortDescending)
 		inst.lastPropSortColumn = inst.sortColumn
 		inst.lastPropSortDescending = inst.sortDescending
 	}
@@ -245,7 +246,7 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 		inst.selectedIndexControlled = controlled
 	}
 	if inst.selectedIndexControlled {
-		inst.selectedIndex = getIntProp(props, "selectedIndex", inst.selectedIndex)
+		inst.selectedIndex = proputil.GetInt(props, "selectedIndex", inst.selectedIndex)
 	}
 	if controlled, ok := props["checkedIndicesControlled"].(bool); ok {
 		inst.checkedIndicesControlled = controlled
@@ -1567,55 +1568,6 @@ func (inst *Instance) ToggleSelectionAtSourceIndex(index int) bool {
 	return inst.applySelectionAtSourceIndex(index)
 }
 
-func getStringProp(props rtui.Props, key, def string) string {
-	if value, ok := props[key]; ok {
-		if text, ok := value.(string); ok {
-			return text
-		}
-	}
-	return def
-}
-
-func getIntProp(props rtui.Props, key string, def int) int {
-	if value, ok := props[key]; ok {
-		if number, ok := value.(int); ok {
-			return number
-		}
-	}
-	return def
-}
-
-func getBoolProp(props rtui.Props, key string, def bool) bool {
-	if value, ok := props[key]; ok {
-		if flag, ok := value.(bool); ok {
-			return flag
-		}
-	}
-	return def
-}
-
-func getStyleProp(props rtui.Props, key string) style.Style {
-	value, ok := props[key]
-	if !ok {
-		return style.Style{}
-	}
-	if result, ok := value.(style.Style); ok {
-		return result
-	}
-	return style.Style{}
-}
-
-func getStylePropWithDefault(props rtui.Props, key string, def style.Style) style.Style {
-	value, ok := props[key]
-	if !ok {
-		return def
-	}
-	if result, ok := value.(style.Style); ok {
-		return result
-	}
-	return def
-}
-
 func getColumnsProp(props rtui.Props, def []TableColumn) []TableColumn {
 	value, ok := props["columns"]
 	if !ok {
@@ -1665,15 +1617,6 @@ func getSelectionModeProp(props rtui.Props, key string, def SelectionMode) Selec
 		}
 	}
 	return def
-}
-
-func getIntentProp(props rtui.Props, key string) intent.Intent {
-	if value, ok := props[key]; ok {
-		if result, ok := value.(intent.Intent); ok {
-			return result
-		}
-	}
-	return nil
 }
 
 func getFieldIntentProp(props rtui.Props, key string) intent.FieldIntent {

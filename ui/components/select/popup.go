@@ -1,6 +1,7 @@
 package selectcomp
 
 import (
+	"github.com/wwsheng009/mint/ui/components/internal/proputil"
 	"strings"
 
 	"github.com/wwsheng009/mint/framework/theme"
@@ -105,23 +106,23 @@ func (inst *popupInstance) SetProps(props rtui.Props) bool {
 	oldSelected := inst.selectedIndex
 	oldSelectedIndices := append([]int(nil), inst.selectedIndices...)
 
-	inst.key = getStringProp(props, "key", inst.key)
-	inst.selectID = getStringProp(props, "selectID", inst.selectID)
-	inst.componentID = getStringProp(props, "componentID", inst.componentID)
+	inst.key = proputil.GetString(props, "key", inst.key)
+	inst.selectID = proputil.GetString(props, "selectID", inst.selectID)
+	inst.componentID = proputil.GetString(props, "componentID", inst.componentID)
 	inst.options = getOptionsProp(props)
-	inst.popupStyle = getStyleProp(props)
+	inst.popupStyle = proputil.GetStyle(props, "style", style.Style{})
 	inst.selectionMode = getSelectionModeProp(props, inst.selectionMode)
-	inst.selectedIndex = getIntProp(props, "selectedIndex", inst.selectedIndex)
+	inst.selectedIndex = proputil.GetInt(props, "selectedIndex", inst.selectedIndex)
 	inst.selectedIndices = getIntsProp(props, "selectedIndices", inst.selectedIndices)
-	inst.highlightedIndex = getIntProp(props, "highlightedIndex", inst.highlightedIndex)
-	inst.scrollOffset = getIntProp(props, "scrollOffset", inst.scrollOffset)
-	inst.maxVisibleRows = getIntProp(props, "maxVisibleRows", inst.maxVisibleRows)
-	inst.minWidth = getIntProp(props, "minWidth", inst.minWidth)
-	inst.disabled = getBoolProp(props, "disabled", inst.disabled)
-	inst.closeOnOutside = getBoolProp(props, "closeOnOutside", inst.closeOnOutside)
-	inst.changeIntent = getIntentProp(props, "changeIntent")
+	inst.highlightedIndex = proputil.GetInt(props, "highlightedIndex", inst.highlightedIndex)
+	inst.scrollOffset = proputil.GetInt(props, "scrollOffset", inst.scrollOffset)
+	inst.maxVisibleRows = proputil.GetInt(props, "maxVisibleRows", inst.maxVisibleRows)
+	inst.minWidth = proputil.GetInt(props, "minWidth", inst.minWidth)
+	inst.disabled = proputil.GetBool(props, "disabled", inst.disabled)
+	inst.closeOnOutside = proputil.GetBool(props, "closeOnOutside", inst.closeOnOutside)
+	inst.changeIntent = proputil.GetIntent(props, "changeIntent", nil)
 	inst.changeIntentField = getChangeIntentFieldProp(props, "changeIntent")
-	inst.formID = getStringProp(props, "formID", inst.formID)
+	inst.formID = proputil.GetString(props, "formID", inst.formID)
 	inst.overlayCallbacks = getOverlayCallbacksProp(props)
 
 	inst.selectedIndex, inst.selectedIndices = normalizeOverlaySelection(

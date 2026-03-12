@@ -1,6 +1,7 @@
 package virtuallist
 
 import (
+	"github.com/wwsheng009/mint/ui/components/internal/proputil"
 	"strings"
 
 	"github.com/wwsheng009/mint/runtime/action"
@@ -55,18 +56,18 @@ var (
 // NewInstance creates a new VirtualListInstance from props.
 func NewInstance(props rtui.Props) *Instance {
 	inst := &Instance{
-		key:           getStringProp(props, "key", ""),
+		key:           proputil.GetString(props, "key", ""),
 		items:         getItemsProp(props, []string{}),
-		itemCount:     getIntProp(props, "itemCount", 0),
-		itemHeight:    getIntProp(props, "itemHeight", 1),
-		visibleCount:  getIntProp(props, "visibleCount", 10),
-		height:        getIntProp(props, "height", 10),
-		width:         getIntProp(props, "width", 40),
-		listStyle:     getStyleProp(props, "listStyle"),
-		selectedStyle: getStyleProp(props, "selectedStyle"),
-		allowScroll:   getBoolProp(props, "allowScroll", true),
-		scrollOffset:  getIntProp(props, "scrollOffset", 0),
-		selectedIndex: getIntProp(props, "selectedIndex", -1),
+		itemCount:     proputil.GetInt(props, "itemCount", 0),
+		itemHeight:    proputil.GetInt(props, "itemHeight", 1),
+		visibleCount:  proputil.GetInt(props, "visibleCount", 10),
+		height:        proputil.GetInt(props, "height", 10),
+		width:         proputil.GetInt(props, "width", 40),
+		listStyle:     proputil.GetStyle(props, "listStyle", style.Style{}),
+		selectedStyle: proputil.GetStyle(props, "selectedStyle", style.Style{}),
+		allowScroll:   proputil.GetBool(props, "allowScroll", true),
+		scrollOffset:  proputil.GetInt(props, "scrollOffset", 0),
+		selectedIndex: proputil.GetInt(props, "selectedIndex", -1),
 		dirty:         true,
 	}
 	inst.normalizeItemCount()
@@ -91,16 +92,16 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	oldSelected := inst.selectedIndex
 
 	inst.items = getItemsProp(props, inst.items)
-	inst.itemCount = getIntProp(props, "itemCount", inst.itemCount)
-	inst.itemHeight = getIntProp(props, "itemHeight", inst.itemHeight)
-	inst.visibleCount = getIntProp(props, "visibleCount", inst.visibleCount)
-	inst.height = getIntProp(props, "height", inst.height)
-	inst.width = getIntProp(props, "width", inst.width)
-	inst.listStyle = getStyleProp(props, "listStyle")
-	inst.selectedStyle = getStyleProp(props, "selectedStyle")
-	inst.allowScroll = getBoolProp(props, "allowScroll", inst.allowScroll)
-	inst.scrollOffset = getIntProp(props, "scrollOffset", inst.scrollOffset)
-	inst.selectedIndex = getIntProp(props, "selectedIndex", inst.selectedIndex)
+	inst.itemCount = proputil.GetInt(props, "itemCount", inst.itemCount)
+	inst.itemHeight = proputil.GetInt(props, "itemHeight", inst.itemHeight)
+	inst.visibleCount = proputil.GetInt(props, "visibleCount", inst.visibleCount)
+	inst.height = proputil.GetInt(props, "height", inst.height)
+	inst.width = proputil.GetInt(props, "width", inst.width)
+	inst.listStyle = proputil.GetStyle(props, "listStyle", style.Style{})
+	inst.selectedStyle = proputil.GetStyle(props, "selectedStyle", style.Style{})
+	inst.allowScroll = proputil.GetBool(props, "allowScroll", inst.allowScroll)
+	inst.scrollOffset = proputil.GetInt(props, "scrollOffset", inst.scrollOffset)
+	inst.selectedIndex = proputil.GetInt(props, "selectedIndex", inst.selectedIndex)
 
 	inst.normalizeItemCount()
 	// Clamp offset
@@ -513,44 +514,6 @@ func (inst *Instance) SetBounds(x, y, w, h int) {
 // =============================================================================
 // Prop Extraction Helpers
 // =============================================================================
-
-func getStringProp(props rtui.Props, key, def string) string {
-	if v, ok := props[key]; ok {
-		if s, ok := v.(string); ok {
-			return s
-		}
-	}
-	return def
-}
-
-func getBoolProp(props rtui.Props, key string, def bool) bool {
-	if v, ok := props[key]; ok {
-		if b, ok := v.(bool); ok {
-			return b
-		}
-	}
-	return def
-}
-
-func getIntProp(props rtui.Props, key string, def int) int {
-	if v, ok := props[key]; ok {
-		if i, ok := v.(int); ok {
-			return i
-		}
-	}
-	return def
-}
-
-func getStyleProp(props rtui.Props, key string) style.Style {
-	v, ok := props[key]
-	if !ok {
-		return style.Style{}
-	}
-	if s, ok := v.(style.Style); ok {
-		return s
-	}
-	return style.Style{}
-}
 
 func getItemsProp(props rtui.Props, def []string) []string {
 	v, ok := props["items"]

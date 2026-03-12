@@ -1,6 +1,7 @@
 package cursor
 
 import (
+	"github.com/wwsheng009/mint/ui/components/internal/proputil"
 	"time"
 
 	"github.com/wwsheng009/mint/runtime/layout"
@@ -32,9 +33,9 @@ var (
 func NewInstance(props rtui.Props) *Instance {
 	cfg := getConfigProp(props, "config", DefaultConfig())
 	inst := &Instance{
-		key:     getStringProp(props, "key", ""),
+		key:     proputil.GetString(props, "key", ""),
 		config:  cfg,
-		visible: getBoolProp(props, "visible", true),
+		visible: proputil.GetBool(props, "visible", true),
 		model:   NewModel(cfg),
 		dirty:   true,
 	}
@@ -54,7 +55,7 @@ func (inst *Instance) OnUnmount() {}
 func (inst *Instance) SetProps(props rtui.Props) bool {
 	changed := false
 
-	if key := getStringProp(props, "key", inst.key); key != inst.key {
+	if key := proputil.GetString(props, "key", inst.key); key != inst.key {
 		inst.key = key
 		changed = true
 	}
@@ -67,7 +68,7 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 		}
 	}
 
-	visible := getBoolProp(props, "visible", inst.visible)
+	visible := proputil.GetBool(props, "visible", inst.visible)
 	if visible != inst.visible {
 		inst.visible = visible
 		if inst.model.SetVisible(visible) {
@@ -123,24 +124,6 @@ func (inst *Instance) Measure(constraints layout.Constraints) layout.Size {
 
 func (inst *Instance) ClearDirty() {
 	inst.dirty = false
-}
-
-func getStringProp(props rtui.Props, key, def string) string {
-	if value, ok := props[key]; ok {
-		if s, ok := value.(string); ok {
-			return s
-		}
-	}
-	return def
-}
-
-func getBoolProp(props rtui.Props, key string, def bool) bool {
-	if value, ok := props[key]; ok {
-		if b, ok := value.(bool); ok {
-			return b
-		}
-	}
-	return def
 }
 
 func getConfigProp(props rtui.Props, key string, def Config) Config {

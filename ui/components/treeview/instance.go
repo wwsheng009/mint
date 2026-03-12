@@ -1,6 +1,7 @@
 package treeview
 
 import (
+	"github.com/wwsheng009/mint/ui/components/internal/proputil"
 	"fmt"
 	"reflect"
 	"strconv"
@@ -119,42 +120,42 @@ var (
 // NewInstance creates a new TreeViewInstance from props
 func NewInstance(props rtui.Props) *Instance {
 	inst := &Instance{
-		key:                     getStringProp(props, "key", ""),
-		componentID:             getStringProp(props, "componentID", ""),
+		key:                     proputil.GetString(props, "key", ""),
+		componentID:             proputil.GetString(props, "componentID", ""),
 		nodes:                   getNodesProp(props, []TreeNode{}),
-		expandLevel:             getIntProp(props, "expandLevel", 1),
-		showIcons:               getBoolProp(props, "showIcons", true),
-		showLineNums:            getBoolProp(props, "showLineNums", false),
-		compact:                 getBoolProp(props, "compact", false),
-		showBorder:              getBoolProp(props, "showBorder", true),
-		showScrollbar:           getBoolProp(props, "showScrollbar", true),
-		treeStyle:               getStyleProp(props, "treeStyle"),
-		selectedStyle:           getStyleProp(props, "selectedStyle"),
-		iconStyle:               getStyleProp(props, "iconStyle"),
-		scrollbarStyle:          getStyleProp(props, "scrollbarStyle"),
+		expandLevel:             proputil.GetInt(props, "expandLevel", 1),
+		showIcons:               proputil.GetBool(props, "showIcons", true),
+		showLineNums:            proputil.GetBool(props, "showLineNums", false),
+		compact:                 proputil.GetBool(props, "compact", false),
+		showBorder:              proputil.GetBool(props, "showBorder", true),
+		showScrollbar:           proputil.GetBool(props, "showScrollbar", true),
+		treeStyle:               proputil.GetStyle(props, "treeStyle", style.Style{}),
+		selectedStyle:           proputil.GetStyle(props, "selectedStyle", style.Style{}),
+		iconStyle:               proputil.GetStyle(props, "iconStyle", style.Style{}),
+		scrollbarStyle:          proputil.GetStyle(props, "scrollbarStyle", style.Style{}),
 		rowStyleFn:              getRowStyleFn(props),
-		matchStyle:              getStyleProp(props, "matchStyle"),
-		searchQuery:             getStringProp(props, "searchQuery", ""),
-		searchQueryControlled:   getBoolProp(props, "searchQueryControlled", false),
+		matchStyle:              proputil.GetStyle(props, "matchStyle", style.Style{}),
+		searchQuery:             proputil.GetString(props, "searchQuery", ""),
+		searchQueryControlled:   proputil.GetBool(props, "searchQueryControlled", false),
 		searchFn:                getSearchFn(props),
 		selectionMode:           getSelectionModeProp(props, "selectionMode", SelectionNone),
 		checkedKeys:             normalizeNodeKeys(getCheckedKeysProp(props)),
-		checkedKeysControlled:   getBoolProp(props, "checkedKeysControlled", false),
-		selectionIntent:         getIntentProp(props, "selectionIntent"),
+		checkedKeysControlled:   proputil.GetBool(props, "checkedKeysControlled", false),
+		selectionIntent:         proputil.GetIntent(props, "selectionIntent", nil),
 		selectionIntentField:    getFieldIntentProp(props, "selectionIntentField"),
 		lazyLoadFn:              getLazyLoadFn(props),
 		lazyLoadChildrenFn:      getLazyLoadChildrenFn(props),
-		showSearchStats:         getBoolProp(props, "showSearchStats", false),
-		searchStatsStyle:        getStyleProp(props, "searchStatsStyle"),
-		scrollOffset:            getIntProp(props, "scrollOffset", 0),
-		scrollOffsetControlled:  getBoolProp(props, "scrollOffsetControlled", false),
-		selectedIndex:           getIntProp(props, "selectedIndex", -1),
-		selectedIndexControlled: getBoolProp(props, "selectedIndexControlled", false),
-		viewportHeight:          getIntProp(props, "viewportHeight", 10),
+		showSearchStats:         proputil.GetBool(props, "showSearchStats", false),
+		searchStatsStyle:        proputil.GetStyle(props, "searchStatsStyle", style.Style{}),
+		scrollOffset:            proputil.GetInt(props, "scrollOffset", 0),
+		scrollOffsetControlled:  proputil.GetBool(props, "scrollOffsetControlled", false),
+		selectedIndex:           proputil.GetInt(props, "selectedIndex", -1),
+		selectedIndexControlled: proputil.GetBool(props, "selectedIndexControlled", false),
+		viewportHeight:          proputil.GetInt(props, "viewportHeight", 10),
 		expandedKeys:            getExpandedKeysProp(props),
-		expandedKeysControlled:  getBoolProp(props, "expandedKeysControlled", false),
-		allowScroll:             getBoolProp(props, "allowScroll", true),
-		allowExpand:             getBoolProp(props, "allowExpand", true),
+		expandedKeysControlled:  proputil.GetBool(props, "expandedKeysControlled", false),
+		allowScroll:             proputil.GetBool(props, "allowScroll", true),
+		allowExpand:             proputil.GetBool(props, "allowExpand", true),
 		expandState:             make(map[string]bool),
 		lazyRequested:           make(map[string]bool),
 		lazyInsertions:          make(map[string][]TreeNode),
@@ -335,29 +336,29 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	oldAllowScroll := inst.allowScroll
 	oldAllowExpand := inst.allowExpand
 
-	inst.componentID = getStringProp(props, "componentID", inst.componentID)
+	inst.componentID = proputil.GetString(props, "componentID", inst.componentID)
 	inst.nodes = getNodesProp(props, inst.nodes)
-	inst.expandLevel = getIntProp(props, "expandLevel", inst.expandLevel)
-	inst.showIcons = getBoolProp(props, "showIcons", inst.showIcons)
-	inst.showLineNums = getBoolProp(props, "showLineNums", inst.showLineNums)
-	inst.compact = getBoolProp(props, "compact", inst.compact)
-	inst.showBorder = getBoolProp(props, "showBorder", inst.showBorder)
-	inst.showScrollbar = getBoolProp(props, "showScrollbar", inst.showScrollbar)
-	inst.treeStyle = getStyleProp(props, "treeStyle")
-	inst.selectedStyle = getStyleProp(props, "selectedStyle")
-	inst.iconStyle = getStyleProp(props, "iconStyle")
-	inst.scrollbarStyle = getStyleProp(props, "scrollbarStyle")
+	inst.expandLevel = proputil.GetInt(props, "expandLevel", inst.expandLevel)
+	inst.showIcons = proputil.GetBool(props, "showIcons", inst.showIcons)
+	inst.showLineNums = proputil.GetBool(props, "showLineNums", inst.showLineNums)
+	inst.compact = proputil.GetBool(props, "compact", inst.compact)
+	inst.showBorder = proputil.GetBool(props, "showBorder", inst.showBorder)
+	inst.showScrollbar = proputil.GetBool(props, "showScrollbar", inst.showScrollbar)
+	inst.treeStyle = proputil.GetStyle(props, "treeStyle", style.Style{})
+	inst.selectedStyle = proputil.GetStyle(props, "selectedStyle", style.Style{})
+	inst.iconStyle = proputil.GetStyle(props, "iconStyle", style.Style{})
+	inst.scrollbarStyle = proputil.GetStyle(props, "scrollbarStyle", style.Style{})
 	if fn, ok := props["rowStyleFn"].(func(int, TreeNode) style.Style); ok {
 		inst.rowStyleFn = fn
 	} else if _, exists := props["rowStyleFn"]; exists {
 		inst.rowStyleFn = nil
 	}
-	inst.matchStyle = getStyleProp(props, "matchStyle")
+	inst.matchStyle = proputil.GetStyle(props, "matchStyle", style.Style{})
 	if controlled, ok := props["searchQueryControlled"].(bool); ok {
 		inst.searchQueryControlled = controlled
 	}
 	if inst.searchQueryControlled {
-		inst.searchQuery = getStringProp(props, "searchQuery", inst.searchQuery)
+		inst.searchQuery = proputil.GetString(props, "searchQuery", inst.searchQuery)
 		inst.searchQueryInitialized = true
 	} else if query, ok := props["searchQuery"].(string); ok && !inst.searchQueryInitialized {
 		inst.searchQuery = query
@@ -369,10 +370,10 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 		inst.searchFn = nil
 	}
 	inst.selectionMode = getSelectionModeProp(props, "selectionMode", inst.selectionMode)
-	inst.selectionIntent = getIntentProp(props, "selectionIntent")
+	inst.selectionIntent = proputil.GetIntent(props, "selectionIntent", nil)
 	inst.selectionIntentField = getFieldIntentProp(props, "selectionIntentField")
-	inst.showSearchStats = getBoolProp(props, "showSearchStats", inst.showSearchStats)
-	inst.searchStatsStyle = getStyleProp(props, "searchStatsStyle")
+	inst.showSearchStats = proputil.GetBool(props, "showSearchStats", inst.showSearchStats)
+	inst.searchStatsStyle = proputil.GetStyle(props, "searchStatsStyle", style.Style{})
 	if fn, ok := props["lazyLoadFn"].(func(TreeNode)); ok {
 		inst.lazyLoadFn = fn
 	} else if _, exists := props["lazyLoadFn"]; exists {
@@ -387,7 +388,7 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 		inst.scrollOffsetControlled = controlled
 	}
 	if inst.scrollOffsetControlled {
-		inst.scrollOffset = getIntProp(props, "scrollOffset", inst.scrollOffset)
+		inst.scrollOffset = proputil.GetInt(props, "scrollOffset", inst.scrollOffset)
 		inst.scrollOffsetInitialized = true
 	} else if offset, ok := props["scrollOffset"].(int); ok && !inst.scrollOffsetInitialized {
 		inst.scrollOffset = offset
@@ -397,7 +398,7 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 		inst.selectedIndexControlled = controlled
 	}
 	if inst.selectedIndexControlled {
-		inst.selectedIndex = getIntProp(props, "selectedIndex", inst.selectedIndex)
+		inst.selectedIndex = proputil.GetInt(props, "selectedIndex", inst.selectedIndex)
 		inst.selectedIndexInitialized = true
 	} else if index, ok := props["selectedIndex"].(int); ok && !inst.selectedIndexInitialized {
 		inst.selectedIndex = index
@@ -413,7 +414,7 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 		inst.checkedKeys = normalizeNodeKeys(getCheckedKeysProp(props))
 		inst.checkedKeysInitialized = true
 	}
-	inst.viewportHeight = getIntProp(props, "viewportHeight", inst.viewportHeight)
+	inst.viewportHeight = proputil.GetInt(props, "viewportHeight", inst.viewportHeight)
 	externalExpandedKeysChanged := false
 	if expandedKeys, ok := props["expandedKeys"].(map[string]bool); ok {
 		// Only overwrite internal expandedKeys when the external value has actually
@@ -431,8 +432,8 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	if controlled, ok := props["expandedKeysControlled"].(bool); ok {
 		inst.expandedKeysControlled = controlled
 	}
-	inst.allowScroll = getBoolProp(props, "allowScroll", inst.allowScroll)
-	inst.allowExpand = getBoolProp(props, "allowExpand", inst.allowExpand)
+	inst.allowScroll = proputil.GetBool(props, "allowScroll", inst.allowScroll)
+	inst.allowExpand = proputil.GetBool(props, "allowExpand", inst.allowExpand)
 
 	lazyInserted := inst.reapplyLazyInsertions()
 	nodesChanged := !nodesEqual(oldNodes, inst.nodes) || lazyInserted
@@ -3061,15 +3062,6 @@ func getSelectionModeProp(props rtui.Props, key string, def SelectionMode) Selec
 	return def
 }
 
-func getIntentProp(props rtui.Props, key string) intent.Intent {
-	if value, ok := props[key]; ok {
-		if result, ok := value.(intent.Intent); ok {
-			return result
-		}
-	}
-	return nil
-}
-
 func getFieldIntentProp(props rtui.Props, key string) intent.FieldIntent {
 	if value, ok := props[key]; ok {
 		if result, ok := value.(intent.FieldIntent); ok {
@@ -3231,44 +3223,6 @@ func padRightToWidth(text string, width int) string {
 		return trimToWidth(text, width)
 	}
 	return text + strings.Repeat(" ", width-textWidth)
-}
-
-func getStringProp(props rtui.Props, key, def string) string {
-	if v, ok := props[key]; ok {
-		if s, ok := v.(string); ok {
-			return s
-		}
-	}
-	return def
-}
-
-func getBoolProp(props rtui.Props, key string, def bool) bool {
-	if v, ok := props[key]; ok {
-		if b, ok := v.(bool); ok {
-			return b
-		}
-	}
-	return def
-}
-
-func getIntProp(props rtui.Props, key string, def int) int {
-	if v, ok := props[key]; ok {
-		if i, ok := v.(int); ok {
-			return i
-		}
-	}
-	return def
-}
-
-func getStyleProp(props rtui.Props, key string) style.Style {
-	v, ok := props[key]
-	if !ok {
-		return style.Style{}
-	}
-	if s, ok := v.(style.Style); ok {
-		return s
-	}
-	return style.Style{}
 }
 
 func getNodesProp(props rtui.Props, def []TreeNode) []TreeNode {

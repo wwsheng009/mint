@@ -1,6 +1,7 @@
 package form
 
 import (
+	"github.com/wwsheng009/mint/ui/components/internal/proputil"
 	"sync"
 
 	"github.com/wwsheng009/mint/runtime/intent"
@@ -67,10 +68,10 @@ var (
 // NewInstance creates a new Form Instance.
 func NewInstance(props rtui.Props) *Instance {
 	inst := &Instance{
-		key:           getStringProp(props, "key", "form"),
-		label:         getStringProp(props, "label", ""),
-		formStyle:     getStyleProp(props),
-		validateAll:   getBoolProp(props, "validateAll", true),
+		key:           proputil.GetString(props, "key", "form"),
+		label:         proputil.GetString(props, "label", ""),
+		formStyle:     proputil.GetStyle(props, "style", style.Style{}),
+		validateAll:   proputil.GetBool(props, "validateAll", true),
 		values:        make(map[string]interface{}),
 		initialValues: make(map[string]interface{}),
 		errors:        make(map[string]string),
@@ -569,27 +570,6 @@ func (inst *Instance) Measure(constraints layout.Constraints) layout.Size {
 // =============================================================================
 // Helper Props Extraction
 // =============================================================================
-
-func getStringProp(props rtui.Props, key string, defaultValue string) string {
-	if v, ok := props[key].(string); ok {
-		return v
-	}
-	return defaultValue
-}
-
-func getBoolProp(props rtui.Props, key string, defaultValue bool) bool {
-	if v, ok := props[key].(bool); ok {
-		return v
-	}
-	return defaultValue
-}
-
-func getStyleProp(props rtui.Props) style.Style {
-	if v, ok := props["style"].(style.Style); ok {
-		return v
-	}
-	return style.Style{}
-}
 
 // =============================================================================
 // Validation Integration (Placeholder)

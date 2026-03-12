@@ -1,6 +1,7 @@
 package optiongroup
 
 import (
+	"github.com/wwsheng009/mint/ui/components/internal/proputil"
 	"github.com/wwsheng009/mint/runtime/action"
 	"github.com/wwsheng009/mint/framework/theme"
 	"github.com/wwsheng009/mint/runtime/intent"
@@ -241,15 +242,15 @@ var (
 
 // NewOptionInstance creates a new OptionInstance from props.
 func NewOptionInstance(props rtui.Props) *OptionInstance {
-	value := getStringProp(props, "value", "")
-	label := getStringProp(props, "label", value)
+	value := proputil.GetString(props, "value", "")
+	label := proputil.GetString(props, "label", value)
 
 	inst := &OptionInstance{
-		key:         getStringProp(props, "key", "opt-"+value),
-		idx:         getIntProp(props, "idx", 0),
+		key:         proputil.GetString(props, "key", "opt-"+value),
+		idx:         proputil.GetInt(props, "idx", 0),
 		value:       value,
 		label:       label,
-		optionStyle: getStyleProp(props),
+		optionStyle: proputil.GetStyle(props, "style", style.Style{}),
 		mode:        getSelectModeProp(props, ModeSingle),
 		selectFunc:  getSelectFuncProp(props),
 		dirty:       true,
@@ -257,7 +258,7 @@ func NewOptionInstance(props rtui.Props) *OptionInstance {
 
 	// Initialize state
 	inst.state = control.InteractionState{
-		Disabled: getBoolProp(props, "disabled", false),
+		Disabled: proputil.GetBool(props, "disabled", false),
 	}
 
 	// Initialize behaviors
@@ -301,9 +302,9 @@ func (inst *OptionInstance) SetProps(props rtui.Props) bool {
 	oldDisabled := inst.state.Disabled
 	oldSelected := inst.selected
 
-	inst.value = getStringProp(props, "value", inst.value)
-	inst.label = getStringProp(props, "label", inst.label)
-	inst.optionStyle = getStyleProp(props)
+	inst.value = proputil.GetString(props, "value", inst.value)
+	inst.label = proputil.GetString(props, "label", inst.label)
+	inst.optionStyle = proputil.GetStyle(props, "style", style.Style{})
 	inst.mode = getSelectModeProp(props, inst.mode)
 	inst.selectFunc = getSelectFuncProp(props)
 

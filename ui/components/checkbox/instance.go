@@ -1,6 +1,7 @@
 package checkbox
 
 import (
+	"github.com/wwsheng009/mint/ui/components/internal/proputil"
 	"unicode/utf8"
 
 	"github.com/wwsheng009/mint/runtime/action"
@@ -62,18 +63,18 @@ var (
 // NewInstance creates a new CheckboxInstance from props.
 func NewInstance(props rtui.Props) *Instance {
 	inst := &Instance{
-		key:           getStringProp(props, "key", ""),
-		label:         getStringProp(props, "label", ""),
-		checkboxStyle: getStyleProp(props),
-		toggleIntent:  getIntentProp(props),
-		formID:        getStringProp(props, "formID", ""),
-		checked:       getBoolProp(props, "checked", false),
+		key:           proputil.GetString(props, "key", ""),
+		label:         proputil.GetString(props, "label", ""),
+		checkboxStyle: proputil.GetStyle(props, "style", style.Style{}),
+		toggleIntent:  proputil.GetIntent(props, "toggleIntent", nil),
+		formID:        proputil.GetString(props, "formID", ""),
+		checked:       proputil.GetBool(props, "checked", false),
 		dirty:         true,
 	}
 
 	// Initialize state
 	inst.state = control.InteractionState{
-		Disabled: getBoolProp(props, "disabled", false),
+		Disabled: proputil.GetBool(props, "disabled", false),
 	}
 
 	// Initialize behaviors
@@ -140,13 +141,13 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	oldChecked := inst.checked
 	oldIntent := inst.toggleIntent
 
-	inst.label = getStringProp(props, "label", inst.label)
-	inst.checkboxStyle = getStyleProp(props)
-	inst.toggleIntent = getIntentProp(props)
-	inst.formID = getStringProp(props, "formID", inst.formID)
-	inst.checked = getBoolProp(props, "checked", inst.checked)
+	inst.label = proputil.GetString(props, "label", inst.label)
+	inst.checkboxStyle = proputil.GetStyle(props, "style", style.Style{})
+	inst.toggleIntent = proputil.GetIntent(props, "toggleIntent", nil)
+	inst.formID = proputil.GetString(props, "formID", inst.formID)
+	inst.checked = proputil.GetBool(props, "checked", inst.checked)
 
-	newDisabled := getBoolProp(props, "disabled", inst.state.Disabled)
+	newDisabled := proputil.GetBool(props, "disabled", inst.state.Disabled)
 	if newDisabled != inst.state.Disabled {
 		inst.state.Disabled = newDisabled
 	}
@@ -520,38 +521,3 @@ func (inst *Instance) emitFieldBlur() {
 // Prop Extraction Helpers
 // =============================================================================
 
-func getStringProp(props rtui.Props, key, def string) string {
-	if v, ok := props[key]; ok {
-		if s, ok := v.(string); ok {
-			return s
-		}
-	}
-	return def
-}
-
-func getBoolProp(props rtui.Props, key string, def bool) bool {
-	if v, ok := props[key]; ok {
-		if b, ok := v.(bool); ok {
-			return b
-		}
-	}
-	return def
-}
-
-func getStyleProp(props rtui.Props) style.Style {
-	if v, ok := props["style"]; ok {
-		if s, ok := v.(style.Style); ok {
-			return s
-		}
-	}
-	return style.Style{}
-}
-
-func getIntentProp(props rtui.Props) intent.Intent {
-	if v, ok := props["toggleIntent"]; ok {
-		if i, ok := v.(intent.Intent); ok {
-			return i
-		}
-	}
-	return nil
-}

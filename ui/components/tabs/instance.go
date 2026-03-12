@@ -1,6 +1,7 @@
 package tabs
 
 import (
+	"github.com/wwsheng009/mint/ui/components/internal/proputil"
 	"fmt"
 	"strings"
 	"unicode"
@@ -103,26 +104,26 @@ var (
 // NewInstance creates a new TabsInstance from props.
 func NewInstance(props rtui.Props) *Instance {
 	inst := &Instance{
-		key:                  getStringProp(props, "key", ""),
-		componentID:          getStringProp(props, "componentID", ""), // Phase 7
+		key:                  proputil.GetString(props, "key", ""),
+		componentID:          proputil.GetString(props, "componentID", ""), // Phase 7
 		tabs:                 getTabsProp(props, []TabItem{}),
 		position:             getTabPositionProp(props, TabPositionTop),
-		wrapTabs:             getBoolProp(props, "wrapTabs", false),
-		tabGap:               getIntProp(props, "tabGap", 1),
-		loopNavigation:       getBoolProp(props, "loopNavigation", false),
-		showHotkeys:          getBoolProp(props, "showHotkeys", false),
-		divider:              getStringProp(props, "divider", " | "),
-		tabStyle:             getStyleProp(props, "tabStyle", style.New()),
-		activeTabStyle:       getStyleProp(props, "activeTabStyle", style.New()),
-		disabledTabStyle:     getStyleProp(props, "disabledTabStyle", style.New()),
-		changeIntent:         getIntentProp(props, nil),
+		wrapTabs:             proputil.GetBool(props, "wrapTabs", false),
+		tabGap:               proputil.GetInt(props, "tabGap", 1),
+		loopNavigation:       proputil.GetBool(props, "loopNavigation", false),
+		showHotkeys:          proputil.GetBool(props, "showHotkeys", false),
+		divider:              proputil.GetString(props, "divider", " | "),
+		tabStyle:             proputil.GetStyle(props, "tabStyle", style.New()),
+		activeTabStyle:       proputil.GetStyle(props, "activeTabStyle", style.New()),
+		disabledTabStyle:     proputil.GetStyle(props, "disabledTabStyle", style.New()),
+		changeIntent:         proputil.GetIntent(props, "changeIntent", nil),
 		changeIntentField:    getChangeIntentFieldProp(props, nil),
-		width:                getIntProp(props, "width", 0),
-		height:               getIntProp(props, "height", 0),
-		flex:                 getIntProp(props, "flex", 1),
+		width:                proputil.GetInt(props, "width", 0),
+		height:               proputil.GetInt(props, "height", 0),
+		flex:                 proputil.GetInt(props, "flex", 1),
 		activeTab:            -1,
-		requestedActiveTab:   getIntProp(props, "activeTab", -1),
-		requestedActiveTabID: getStringProp(props, "activeTabID", ""),
+		requestedActiveTab:   proputil.GetInt(props, "activeTab", -1),
+		requestedActiveTabID: proputil.GetString(props, "activeTabID", ""),
 		dirty:                true,
 	}
 	inst.normalizeActiveTab()
@@ -165,24 +166,24 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	oldRequestedActiveTab := inst.requestedActiveTab
 	oldRequestedActiveTabID := inst.requestedActiveTabID
 
-	inst.componentID = getStringProp(props, "componentID", inst.componentID)
+	inst.componentID = proputil.GetString(props, "componentID", inst.componentID)
 	inst.tabs = getTabsProp(props, inst.tabs)
 	inst.position = getTabPositionProp(props, inst.position)
-	inst.wrapTabs = getBoolProp(props, "wrapTabs", inst.wrapTabs)
-	inst.tabGap = getIntProp(props, "tabGap", inst.tabGap)
-	inst.loopNavigation = getBoolProp(props, "loopNavigation", inst.loopNavigation)
-	inst.showHotkeys = getBoolProp(props, "showHotkeys", inst.showHotkeys)
-	inst.divider = getStringProp(props, "divider", inst.divider)
-	inst.tabStyle = getStyleProp(props, "tabStyle", inst.tabStyle)
-	inst.activeTabStyle = getStyleProp(props, "activeTabStyle", inst.activeTabStyle)
-	inst.disabledTabStyle = getStyleProp(props, "disabledTabStyle", inst.disabledTabStyle)
-	inst.changeIntent = getIntentProp(props, inst.changeIntent)
+	inst.wrapTabs = proputil.GetBool(props, "wrapTabs", inst.wrapTabs)
+	inst.tabGap = proputil.GetInt(props, "tabGap", inst.tabGap)
+	inst.loopNavigation = proputil.GetBool(props, "loopNavigation", inst.loopNavigation)
+	inst.showHotkeys = proputil.GetBool(props, "showHotkeys", inst.showHotkeys)
+	inst.divider = proputil.GetString(props, "divider", inst.divider)
+	inst.tabStyle = proputil.GetStyle(props, "tabStyle", inst.tabStyle)
+	inst.activeTabStyle = proputil.GetStyle(props, "activeTabStyle", inst.activeTabStyle)
+	inst.disabledTabStyle = proputil.GetStyle(props, "disabledTabStyle", inst.disabledTabStyle)
+	inst.changeIntent = proputil.GetIntent(props, "changeIntent", inst.changeIntent)
 	inst.changeIntentField = getChangeIntentFieldProp(props, inst.changeIntentField)
-	inst.width = getIntProp(props, "width", inst.width)
-	inst.height = getIntProp(props, "height", inst.height)
-	inst.flex = getIntProp(props, "flex", inst.flex)
-	inst.requestedActiveTab = getIntProp(props, "activeTab", inst.requestedActiveTab)
-	inst.requestedActiveTabID = getStringProp(props, "activeTabID", inst.requestedActiveTabID)
+	inst.width = proputil.GetInt(props, "width", inst.width)
+	inst.height = proputil.GetInt(props, "height", inst.height)
+	inst.flex = proputil.GetInt(props, "flex", inst.flex)
+	inst.requestedActiveTab = proputil.GetInt(props, "activeTab", inst.requestedActiveTab)
+	inst.requestedActiveTabID = proputil.GetString(props, "activeTabID", inst.requestedActiveTabID)
 
 	inst.normalizeActiveTab()
 
@@ -1090,55 +1091,10 @@ func tabsEqual(a, b []TabItem) bool {
 // Prop Extraction Helpers
 // =============================================================================
 
-func getStringProp(props rtui.Props, key, def string) string {
-	if v, ok := props[key]; ok {
-		if s, ok := v.(string); ok {
-			return s
-		}
-	}
-	return def
-}
-
-func getBoolProp(props rtui.Props, key string, def bool) bool {
-	if v, ok := props[key]; ok {
-		if b, ok := v.(bool); ok {
-			return b
-		}
-	}
-	return def
-}
-
-func getIntProp(props rtui.Props, key string, def int) int {
-	if v, ok := props[key]; ok {
-		if i, ok := v.(int); ok {
-			return i
-		}
-	}
-	return def
-}
-
 func getTabPositionProp(props rtui.Props, def TabPosition) TabPosition {
 	if v, ok := props["position"]; ok {
 		if tp, ok := v.(TabPosition); ok {
 			return tp
-		}
-	}
-	return def
-}
-
-func getStyleProp(props rtui.Props, key string, def style.Style) style.Style {
-	if v, ok := props[key]; ok {
-		if s, ok := v.(style.Style); ok {
-			return s
-		}
-	}
-	return def
-}
-
-func getIntentProp(props rtui.Props, def intent.Intent) intent.Intent {
-	if v, ok := props["changeIntent"]; ok {
-		if i, ok := v.(intent.Intent); ok {
-			return i
 		}
 	}
 	return def

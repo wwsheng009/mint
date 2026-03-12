@@ -1,6 +1,7 @@
 package menu
 
 import (
+	"github.com/wwsheng009/mint/ui/components/internal/proputil"
 	"strings"
 	"time"
 
@@ -411,14 +412,14 @@ func (inst *popupInstance) IsDirty() bool                      { return inst.dir
 func (inst *popupInstance) GetContext() *rtui.ComponentContext { return nil }
 
 func (inst *barInstance) SetProps(props rtui.Props) bool {
-	inst.key = getStringProp(props, "key", inst.key)
+	inst.key = proputil.GetString(props, "key", inst.key)
 	inst.model = getModelProp(props, inst.model)
 	inst.model.Items = cloneItems(inst.model.Items)
 	inst.theme = getThemeProp(props, inst.theme)
 	if isZeroTheme(inst.theme) {
 		inst.theme = DefaultTheme()
 	}
-	inst.rootStyle = getStyleProp(props, "style")
+	inst.rootStyle = proputil.GetStyle(props, "style", style.Style{})
 	if inst.model.ActiveIndex >= 0 {
 		inst.activeIndex = clampIndex(inst.model.ActiveIndex, len(inst.model.Items))
 	}
@@ -430,7 +431,7 @@ func (inst *barInstance) SetProps(props rtui.Props) bool {
 }
 
 func (inst *popupInstance) SetProps(props rtui.Props) bool {
-	inst.key = getStringProp(props, "key", inst.key)
+	inst.key = proputil.GetString(props, "key", inst.key)
 	inst.model = getModelProp(props, inst.model)
 	inst.model.Items = cloneItems(inst.model.Items)
 	localActivePath := trimPathPrefix(inst.model.ActivePath, inst.model.PathPrefix)
@@ -438,7 +439,7 @@ func (inst *popupInstance) SetProps(props rtui.Props) bool {
 	if isZeroTheme(inst.theme) {
 		inst.theme = DefaultTheme()
 	}
-	inst.rootStyle = getStyleProp(props, "style")
+	inst.rootStyle = proputil.GetStyle(props, "style", style.Style{})
 	inst.open = inst.model.Open
 	if len(localActivePath) > 0 {
 		inst.selectedIndex = clampIndex(localActivePath[0], len(inst.model.Items))
@@ -1461,27 +1462,6 @@ func getModelProp(props rtui.Props, def Model) Model {
 
 func getThemeProp(props rtui.Props, def Theme) Theme {
 	if value, ok := props["theme"].(Theme); ok {
-		return value
-	}
-	return def
-}
-
-func getStyleProp(props rtui.Props, key string) style.Style {
-	if value, ok := props[key].(style.Style); ok {
-		return value
-	}
-	return style.Style{}
-}
-
-func getStringProp(props rtui.Props, key, def string) string {
-	if value, ok := props[key].(string); ok {
-		return value
-	}
-	return def
-}
-
-func getBoolProp(props rtui.Props, key string, def bool) bool {
-	if value, ok := props[key].(bool); ok {
 		return value
 	}
 	return def

@@ -1,6 +1,7 @@
 package input
 
 import (
+	"github.com/wwsheng009/mint/ui/components/internal/proputil"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -75,17 +76,17 @@ var (
 func NewInstance(props rtui.Props) *Instance {
 	cursorCfg := getCursorConfigProp(props, "cursorConfig", cursor.DefaultConfig())
 	inst := &Instance{
-		key:          getStringProp(props, "key", ""),
-		placeholder:  getStringProp(props, "placeholder", ""),
+		key:          proputil.GetString(props, "key", ""),
+		placeholder:  proputil.GetString(props, "placeholder", ""),
 		inputType:    getTypeProp(props, TypeText),
-		inputStyle:   getStyleProp(props),
-		width:        getIntProp(props, "width", 0),
+		inputStyle:   proputil.GetStyle(props, "style", style.Style{}),
+		width:        proputil.GetInt(props, "width", 0),
 		borderStyle:  getBorderStyleProp(props, "borderStyle", layout.BorderSingle),
-		changeIntent: getIntentProp(props, "changeIntent"),
-		submitIntent: getIntentProp(props, "submitIntent"),
-		formID:       getStringProp(props, "formID", ""),
-		value:        getStringProp(props, "value", ""),
-		maxLen:       getIntProp(props, "maxLen", 0),
+		changeIntent: proputil.GetIntent(props, "changeIntent", nil),
+		submitIntent: proputil.GetIntent(props, "submitIntent", nil),
+		formID:       proputil.GetString(props, "formID", ""),
+		value:        proputil.GetString(props, "value", ""),
+		maxLen:       proputil.GetInt(props, "maxLen", 0),
 		cursorConfig: cursorCfg,
 		cursorModel:  cursor.NewModel(cursorCfg),
 		dirty:        true,
@@ -96,8 +97,8 @@ func NewInstance(props rtui.Props) *Instance {
 
 	// Initialize state
 	inst.state = control.InteractionState{
-		Disabled: getBoolProp(props, "disabled", false),
-		Active:   getBoolProp(props, "readOnly", false), // Use Active for readOnly
+		Disabled: proputil.GetBool(props, "disabled", false),
+		Active:   proputil.GetBool(props, "readOnly", false), // Use Active for readOnly
 	}
 
 	// Initialize behaviors
@@ -164,30 +165,30 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	oldPlaceholder := inst.placeholder
 	oldCursorConfig := inst.cursorConfig
 
-	inst.placeholder = getStringProp(props, "placeholder", inst.placeholder)
+	inst.placeholder = proputil.GetString(props, "placeholder", inst.placeholder)
 	inst.inputType = getTypeProp(props, inst.inputType)
-	inst.inputStyle = getStyleProp(props)
-	inst.width = getIntProp(props, "width", inst.width)
+	inst.inputStyle = proputil.GetStyle(props, "style", style.Style{})
+	inst.width = proputil.GetInt(props, "width", inst.width)
 	inst.borderStyle = getBorderStyleProp(props, "borderStyle", inst.borderStyle)
-	inst.changeIntent = getIntentProp(props, "changeIntent")
-	inst.submitIntent = getIntentProp(props, "submitIntent")
-	inst.formID = getStringProp(props, "formID", inst.formID)
+	inst.changeIntent = proputil.GetIntent(props, "changeIntent", nil)
+	inst.submitIntent = proputil.GetIntent(props, "submitIntent", nil)
+	inst.formID = proputil.GetString(props, "formID", inst.formID)
 
 	// ✨ CRITICAL: When value changes, update cursorPos to prevent out-of-bounds
 	// This fixes panic in InsertText when cursorPos > len(value)
-	newValue := getStringProp(props, "value", inst.value)
+	newValue := proputil.GetString(props, "value", inst.value)
 	if newValue != inst.value {
 		inst.value = newValue
 		inst.cursorPos = utf8.RuneCountInString(inst.value)
 		inst.cursorModel.ResetBlink()
 	}
-	inst.maxLen = getIntProp(props, "maxLen", inst.maxLen)
+	inst.maxLen = proputil.GetInt(props, "maxLen", inst.maxLen)
 
-	newDisabled := getBoolProp(props, "disabled", inst.state.Disabled)
+	newDisabled := proputil.GetBool(props, "disabled", inst.state.Disabled)
 	if newDisabled != inst.state.Disabled {
 		inst.state.Disabled = newDisabled
 	}
-	newReadOnly := getBoolProp(props, "readOnly", inst.state.Active)
+	newReadOnly := proputil.GetBool(props, "readOnly", inst.state.Active)
 	if newReadOnly != inst.state.Active {
 		inst.state.Active = newReadOnly
 	}
@@ -1078,33 +1079,6 @@ func (inst *Instance) emitFieldBlur() {
 // Prop Extraction Helpers
 // =============================================================================
 
-func getStringProp(props rtui.Props, key, def string) string {
-	if v, ok := props[key]; ok {
-		if s, ok := v.(string); ok {
-			return s
-		}
-	}
-	return def
-}
-
-func getIntProp(props rtui.Props, key string, def int) int {
-	if v, ok := props[key]; ok {
-		if i, ok := v.(int); ok {
-			return i
-		}
-	}
-	return def
-}
-
-func getBoolProp(props rtui.Props, key string, def bool) bool {
-	if v, ok := props[key]; ok {
-		if b, ok := v.(bool); ok {
-			return b
-		}
-	}
-	return def
-}
-
 func getTypeProp(props rtui.Props, def Type) Type {
 	if v, ok := props["inputType"]; ok {
 		if t, ok := v.(Type); ok {
@@ -1112,24 +1086,6 @@ func getTypeProp(props rtui.Props, def Type) Type {
 		}
 	}
 	return def
-}
-
-func getStyleProp(props rtui.Props) style.Style {
-	if v, ok := props["style"]; ok {
-		if s, ok := v.(style.Style); ok {
-			return s
-		}
-	}
-	return style.Style{}
-}
-
-func getIntentProp(props rtui.Props, key string) intent.Intent {
-	if v, ok := props[key]; ok {
-		if i, ok := v.(intent.Intent); ok {
-			return i
-		}
-	}
-	return nil
 }
 
 func getBorderStyleProp(props rtui.Props, key string, def layout.BorderStyle) layout.BorderStyle {

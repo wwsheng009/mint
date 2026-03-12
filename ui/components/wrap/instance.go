@@ -1,6 +1,7 @@
 package wrap
 
 import (
+	"github.com/wwsheng009/mint/ui/components/internal/proputil"
 	"unicode/utf8"
 
 	"github.com/wwsheng009/mint/runtime"
@@ -62,16 +63,16 @@ var (
 // NewInstance creates a new WrapInstance from props.
 func NewInstance(props rtui.Props) *Instance {
 	inst := &Instance{
-		key:       getStringProp(props, "key", ""),
-		gap:       getIntProp(props, "gap", 1),
-		rowGap:    getIntProp(props, "rowGap", 0),
+		key:       proputil.GetString(props, "key", ""),
+		gap:       proputil.GetInt(props, "gap", 1),
+		rowGap:    proputil.GetInt(props, "rowGap", 0),
 		align:     getAlignProp(props, AlignStart),
-		width:     getIntProp(props, "width", 80),
+		width:     proputil.GetInt(props, "width", 80),
 		padding:   getPaddingProp(props),
-		fillWidth: getBoolProp(props, "fillWidth", false),
-		fillHeight: getBoolProp(props, "fillHeight", false),
+		fillWidth: proputil.GetBool(props, "fillWidth", false),
+		fillHeight: proputil.GetBool(props, "fillHeight", false),
 		children:  getChildrenProp(props),
-		instStyle: getStyleProp(props),
+		instStyle: proputil.GetStyle(props, "style", style.Style{}),
 		dirty:     true,
 	}
 
@@ -118,16 +119,16 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	oldWidth := inst.width
 	oldChildren := inst.children
 
-	inst.key = getStringProp(props, "key", inst.key)
-	inst.gap = getIntProp(props, "gap", inst.gap)
-	inst.rowGap = getIntProp(props, "rowGap", inst.rowGap)
+	inst.key = proputil.GetString(props, "key", inst.key)
+	inst.gap = proputil.GetInt(props, "gap", inst.gap)
+	inst.rowGap = proputil.GetInt(props, "rowGap", inst.rowGap)
 	inst.align = getAlignPropWithDefault(props, inst.align)
-	inst.width = getIntProp(props, "width", inst.width)
+	inst.width = proputil.GetInt(props, "width", inst.width)
 	inst.padding = getPaddingPropWithDefault(props, inst.padding)
-	inst.fillWidth = getBoolProp(props, "fillWidth", inst.fillWidth)
-	inst.fillHeight = getBoolProp(props, "fillHeight", inst.fillHeight)
+	inst.fillWidth = proputil.GetBool(props, "fillWidth", inst.fillWidth)
+	inst.fillHeight = proputil.GetBool(props, "fillHeight", inst.fillHeight)
 	inst.children = getChildrenPropWithDefault(props, inst.children)
-	inst.instStyle = getStyleProp(props)
+	inst.instStyle = proputil.GetStyle(props, "style", style.Style{})
 
 	changed := oldGap != inst.gap ||
 		oldWidth != inst.width ||
@@ -426,42 +427,6 @@ func (inst *Instance) ClearDirty() {
 // =============================================================================
 // Prop Extraction Helpers
 // =============================================================================
-
-func getStringProp(props rtui.Props, key, def string) string {
-	if v, ok := props[key]; ok {
-		if s, ok := v.(string); ok {
-			return s
-		}
-	}
-	return def
-}
-
-func getIntProp(props rtui.Props, key string, def int) int {
-	if v, ok := props[key]; ok {
-		if i, ok := v.(int); ok {
-			return i
-		}
-	}
-	return def
-}
-
-func getBoolProp(props rtui.Props, key string, def bool) bool {
-	if v, ok := props[key]; ok {
-		if b, ok := v.(bool); ok {
-			return b
-		}
-	}
-	return def
-}
-
-func getStyleProp(props rtui.Props) style.Style {
-	if v, ok := props["style"]; ok {
-		if s, ok := v.(style.Style); ok {
-			return s
-		}
-	}
-	return style.Style{}
-}
 
 func getAlignProp(props rtui.Props, def Align) Align {
 	if v, ok := props["align"]; ok {
