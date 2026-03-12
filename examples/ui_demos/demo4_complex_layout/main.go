@@ -17,6 +17,7 @@ import (
 	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/runtime/reducer"
 	"github.com/wwsheng009/mint/runtime/store"
+	"github.com/wwsheng009/mint/runtime/style"
 	"github.com/wwsheng009/mint/ui"
 )
 
@@ -28,15 +29,7 @@ type AppState struct {
 	CurrentDemo string // 当前演示: flex, grid, absolute, scroll, complex
 }
 
-// =============================================================================
-// Intent Types
-// =============================================================================
-
-type SetComplexLayoutTabIntent struct {
-	TabID string
-}
-func (SetComplexLayoutTabIntent) IntentType() string { return "SetComplexLayoutTab" }
-func (SetComplexLayoutTabIntent) StayPressed() bool  { return true }
+const complexLayoutTabsComponentID = "demo4-layout-tabs"
 
 // =============================================================================
 // Store 初始化
@@ -52,8 +45,12 @@ var layoutStore = store.NewStore(AppState{
 
 func init() {
 	reducer.NewBuilder[AppState]().
-		On(SetComplexLayoutTabIntent{}, func(s AppState, i intent.Intent) AppState {
-			s.CurrentDemo = i.(SetComplexLayoutTabIntent).TabID
+		On(ui.TabChangeIntent{}, func(s AppState, i intent.Intent) AppState {
+			change, ok := i.(ui.TabChangeIntent)
+			if !ok || change.ComponentID != complexLayoutTabsComponentID {
+				return s
+			}
+			s.CurrentDemo = change.TabID
 			return s
 		}).
 		BuildAndRegister(intent.DefaultRegistry(), layoutStore)
@@ -85,7 +82,6 @@ func LayoutDemo() ui.VNode {
 	return ui.VStack(
 		HeaderPanel(),
 		TabNavigation(currentDemo),
-		ui.Text(""),
 		renderDemoContent(currentDemo),
 	)
 }
@@ -122,37 +118,26 @@ func HeaderPanel() ui.VNode {
 // =============================================================================
 
 func TabNavigation(currentDemo string) ui.VNode {
-	tabs := []struct {
-		id    string
-		label string
-	}{
-		{"flex", "Flex"},
-		{"grid", "Grid"},
-		{"absolute", "Absolute"},
-		{"scroll", "Scroll"},
-		{"complex", "Complex"},
-	}
-
-	var children []ui.VNode
-	for _, tab := range tabs {
-		isActive := currentDemo == tab.id
-		var btn ui.VNode
-		if isActive {
-			btn = ui.NewButtonBuilder("[" + tab.label + "]").
-				BgColor("blue").
-				FgColor("white").
-				OnPress(SetComplexLayoutTabIntent{TabID: tab.id}).
-				Build()
-		} else {
-			btn = ui.NewButtonBuilder(" " + tab.label + " ").
-				FgColor("blue").
-				OnPress(SetComplexLayoutTabIntent{TabID: tab.id}).
-				Build()
-		}
-		children = append(children, btn, ui.Text(" "))
-	}
-
-	return ui.HStack(children...)
+	return ui.VStack(
+		ui.NewTabsBuilder().
+			ComponentID(complexLayoutTabsComponentID).
+			Tabs([]ui.TabItem{
+				ui.NewTabItem("flex", "Flex").WithIcon("1").WithHotkey('1'),
+				ui.NewTabItem("grid", "Grid").WithIcon("2").WithHotkey('2'),
+				ui.NewTabItem("absolute", "Absolute").WithIcon("3").WithHotkey('3'),
+				ui.NewTabItem("scroll", "Scroll").WithIcon("4").WithHotkey('4'),
+				ui.NewTabItem("complex", "Complex").WithIcon("5").WithHotkey('5'),
+			}).
+			ActiveTabID(currentDemo).
+			ShowHotkeys(true).
+			LoopNavigation(true).
+			Width(94).
+			Divider("  ").
+			Style(style.NewStyle().Foreground(style.BrightBlue)).
+			ActiveTabStyle(style.NewStyle().Foreground(style.White).Background(style.Blue).Bold(true)).
+			Build(),
+		ui.Text(""),
+	)
 }
 
 // =============================================================================

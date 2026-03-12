@@ -44,19 +44,17 @@ func (m *ModalMiddleware) Before(act *action.Action) *action.Action {
 
 // handleKeyboardClose handles ESC key to close modals.
 func (m *ModalMiddleware) handleKeyboardClose(act *action.Action) *action.Action {
-	// Get all open modals from global registry
-	modals := globalRegistry.getOpenModals()
-	for _, modalInst := range modals {
-		if modalInst.isOpen && modalInst.closeable {
-			// Close the modal
-			modalInst.isOpen = false
-			modalInst.dirty = true
-			modalInst.emitCloseIntent()
-			// Return nil to intercept (stop) the action
-			return nil
-		}
+	topmost := globalRegistry.getTopmostOpenModal()
+	if topmost == nil {
+		return act
 	}
-	return act
+
+	if topmost.closeable && topmost.closeOnEsc {
+		topmost.requestClose()
+	}
+
+	// Modal is open, so ESC should never propagate to the app below it.
+	return nil
 }
 
 // handleClickOutside handles mouse clicks outside of modals.
@@ -72,39 +70,22 @@ func (m *ModalMiddleware) handleClickOutside(act *action.Action) *action.Action 
 		return act
 	}
 
-	// Get all open modals from global registry
-	modals := globalRegistry.getOpenModals()
-	if len(modals) == 0 {
+	topmost := globalRegistry.getTopmostOpenModal()
+	if topmost == nil {
 		return act // No open modals, continue normally
 	}
 
-	// Check if the click is inside any open modal
-	clickedInsideModal := false
-	for _, modalInst := range modals {
-		if modalInst.isOpen && modalInst.closeable {
-			if modalInst.containsPoint(mouseMsg.X, mouseMsg.Y) {
-				clickedInsideModal = true
-				break
-			}
-		}
+	// Clicks inside the topmost modal should continue to normal dispatch.
+	if topmost.containsPoint(mouseMsg.X, mouseMsg.Y) {
+		return act
 	}
 
-	// If click is outside all modals, close the topmost one
-	if !clickedInsideModal {
-		for i := len(modals) - 1; i >= 0; i-- {
-			modalInst := modals[i]
-			if modalInst.isOpen && modalInst.closeable {
-				// Close the modal
-				modalInst.isOpen = false
-				modalInst.dirty = true
-				modalInst.emitCloseIntent()
-				// Return nil to intercept (stop) the action
-				return nil
-			}
-		}
+	if topmost.closeable && topmost.closeOnBackdrop {
+		topmost.requestClose()
 	}
 
-	return act
+	// Even when outside-click close is disabled, modal should still block the background.
+	return nil
 }
 
 // After is called after action dispatch. Used for cleanup or logging.

@@ -21,22 +21,27 @@ type VNode struct {
 	key string
 
 	// === Modal Props ===
-	title     string
-	isOpen    bool
-	centered  bool
-	closeable bool
+	title           string
+	isOpen          bool
+	centered        bool
+	closeable       bool
+	closeOnEsc      bool
+	closeOnBackdrop bool
 
 	// === Layout Props ===
-	width  int
-	height int
+	width   int
+	height  int
+	padding int
 
 	// === Content ===
 	content rtui.VNode
 	footer  rtui.VNode
 
 	// === Style ===
-	modalStyle style.Style
+	modalStyle  style.Style
+	shadowStyle style.Style
 	borderStyle string
+	showShadow  bool
 
 	// === Intent (No Closures!) ===
 	closeIntent intent.Intent
@@ -55,13 +60,17 @@ var (
 // New creates a new modal VNode.
 func New() *VNode {
 	return &VNode{
-		ElementVNode: rtui.NewElement("modal"),
-		isOpen:       false,
-		centered:     true,
-		closeable:    true,
-		width:        40,
-		height:       15,
-		borderStyle:  "double", // ✨ Modal 默认使用双线边框
+		ElementVNode:    rtui.NewElement("modal"),
+		isOpen:          false,
+		centered:        true,
+		closeable:       true,
+		closeOnEsc:      true,
+		closeOnBackdrop: true,
+		width:           40,
+		height:          15,
+		padding:         0,
+		borderStyle:     "double", // ✨ Modal 默认使用双线边框
+		showShadow:      true,
 	}
 }
 
@@ -69,15 +78,19 @@ func New() *VNode {
 // rtui.VNode Interface Implementation
 // =============================================================================
 
-func (v *VNode) Key() string           { return v.key }
+func (v *VNode) Key() string                  { return v.key }
 func (v *VNode) SetKey(key string) rtui.VNode { v.key = key; return v }
-func (v *VNode) Tag() string           { return "modal" }
-func (v *VNode) Type() rtui.VNodeType  { return rtui.VNodeElement }
+func (v *VNode) Tag() string                  { return "modal" }
+func (v *VNode) Type() rtui.VNodeType         { return rtui.VNodeElement }
 
 func (v *VNode) Children() []rtui.VNode {
 	var children []rtui.VNode
 	if v.content != nil {
-		children = append(children, v.content)
+		if v.footer != nil {
+			children = append(children, rtui.VStackBuilder(v.content).SetGap(0).SetFlex(1).Build())
+		} else {
+			children = append(children, v.content)
+		}
 	}
 	if v.footer != nil {
 		children = append(children, v.footer)
@@ -95,29 +108,34 @@ func (v *VNode) SetChildren(children []rtui.VNode) rtui.VNode {
 	return v
 }
 
-func (v *VNode) GetLayer() rtui.Layer   { return rtui.LayerModal }
+func (v *VNode) GetLayer() rtui.Layer             { return rtui.LayerModal }
 func (v *VNode) SetLayer(l rtui.Layer) rtui.VNode { return v }
 
-func (v *VNode) Style() style.Style    { return v.modalStyle }
+func (v *VNode) Style() style.Style                { return v.modalStyle }
 func (v *VNode) SetStyle(s style.Style) rtui.VNode { v.modalStyle = s; return v }
 
-func (v *VNode) TextContent() string   { return "" }
+func (v *VNode) TextContent() string { return "" }
 
 func (v *VNode) Props() rtui.Props {
 	return rtui.Props{
-		"key":         v.key,
-		"title":       v.title,
-		"label":       v.title, // ✨ 映射 title 到 label（边框标签）
-		"isOpen":      v.isOpen,
-		"centered":    v.centered,
-		"closeable":   v.closeable,
-		"width":       v.width,
-		"height":      v.height,
-		"content":     v.content,
-		"footer":      v.footer,
-		"modalStyle":  v.modalStyle,
-		"borderStyle": v.borderStyle,
-		"closeIntent": v.closeIntent,
+		"key":             v.key,
+		"title":           v.title,
+		"label":           v.title, // ✨ 映射 title 到 label（边框标签）
+		"isOpen":          v.isOpen,
+		"centered":        v.centered,
+		"closeable":       v.closeable,
+		"closeOnEsc":      v.closeOnEsc,
+		"closeOnBackdrop": v.closeOnBackdrop,
+		"width":           v.width,
+		"height":          v.height,
+		"padding":         v.padding,
+		"content":         v.content,
+		"footer":          v.footer,
+		"modalStyle":      v.modalStyle,
+		"shadowStyle":     v.shadowStyle,
+		"borderStyle":     v.borderStyle,
+		"showShadow":      v.showShadow,
+		"closeIntent":     v.closeIntent,
 	}
 }
 
@@ -141,11 +159,20 @@ func (v *VNode) SetProps(p rtui.Props) rtui.VNode {
 	if val, ok := p["closeable"].(bool); ok {
 		v.closeable = val
 	}
+	if val, ok := p["closeOnEsc"].(bool); ok {
+		v.closeOnEsc = val
+	}
+	if val, ok := p["closeOnBackdrop"].(bool); ok {
+		v.closeOnBackdrop = val
+	}
 	if val, ok := p["width"].(int); ok {
 		v.width = val
 	}
 	if val, ok := p["height"].(int); ok {
 		v.height = val
+	}
+	if val, ok := p["padding"].(int); ok {
+		v.padding = val
 	}
 	if val, ok := p["content"].(rtui.VNode); ok {
 		v.content = val
@@ -156,8 +183,14 @@ func (v *VNode) SetProps(p rtui.Props) rtui.VNode {
 	if val, ok := p["modalStyle"].(style.Style); ok {
 		v.modalStyle = val
 	}
+	if val, ok := p["shadowStyle"].(style.Style); ok {
+		v.shadowStyle = val
+	}
 	if val, ok := p["borderStyle"].(string); ok {
 		v.borderStyle = val
+	}
+	if val, ok := p["showShadow"].(bool); ok {
+		v.showShadow = val
 	}
 	if val, ok := p["closeIntent"].(intent.Intent); ok {
 		v.closeIntent = val
@@ -171,19 +204,24 @@ func (v *VNode) SetProps(p rtui.Props) rtui.VNode {
 
 func (v *VNode) CreateInstance() rtui.ComponentInstance {
 	return NewInstance(rtui.Props{
-		"key":         v.key,
-		"title":       v.title,
-		"label":       v.title, // ✨ 映射到 label（边框标签）
-		"isOpen":      v.isOpen,
-		"centered":    v.centered,
-		"closeable":   v.closeable,
-		"width":       v.width,
-		"height":      v.height,
-		"content":     v.content,
-		"footer":      v.footer,
-		"modalStyle":  v.modalStyle,
-		"borderStyle": v.borderStyle,
-		"closeIntent": v.closeIntent,
+		"key":             v.key,
+		"title":           v.title,
+		"label":           v.title, // ✨ 映射到 label（边框标签）
+		"isOpen":          v.isOpen,
+		"centered":        v.centered,
+		"closeable":       v.closeable,
+		"closeOnEsc":      v.closeOnEsc,
+		"closeOnBackdrop": v.closeOnBackdrop,
+		"width":           v.width,
+		"height":          v.height,
+		"padding":         v.padding,
+		"content":         v.content,
+		"footer":          v.footer,
+		"modalStyle":      v.modalStyle,
+		"shadowStyle":     v.shadowStyle,
+		"borderStyle":     v.borderStyle,
+		"showShadow":      v.showShadow,
+		"closeIntent":     v.closeIntent,
 	})
 }
 
@@ -191,29 +229,44 @@ func (v *VNode) CreateInstance() rtui.ComponentInstance {
 // Fluent Setters
 // =============================================================================
 
-func (v *VNode) SetTitle(title string) *VNode   { v.title = title; return v }
+func (v *VNode) SetTitle(title string) *VNode         { v.title = title; return v }
 func (v *VNode) SetContent(content rtui.VNode) *VNode { v.content = content; return v }
 func (v *VNode) SetFooter(footer rtui.VNode) *VNode   { v.footer = footer; return v }
-func (v *VNode) SetOpen(isOpen bool) *VNode          { v.isOpen = isOpen; return v }
-func (v *VNode) SetWidth(width int) *VNode           { v.width = width; return v }
-func (v *VNode) SetHeight(height int) *VNode         { v.height = height; return v }
-func (v *VNode) SetCentered(centered bool) *VNode    { v.centered = centered; return v }
-func (v *VNode) SetCloseable(closeable bool) *VNode  { v.closeable = closeable; return v }
+func (v *VNode) SetOpen(isOpen bool) *VNode           { v.isOpen = isOpen; return v }
+func (v *VNode) SetWidth(width int) *VNode            { v.width = width; return v }
+func (v *VNode) SetHeight(height int) *VNode          { v.height = height; return v }
+func (v *VNode) SetPadding(padding int) *VNode        { v.padding = padding; return v }
+func (v *VNode) SetCentered(centered bool) *VNode     { v.centered = centered; return v }
+func (v *VNode) SetCloseable(closeable bool) *VNode   { v.closeable = closeable; return v }
+func (v *VNode) SetCloseOnEsc(closeOnEsc bool) *VNode { v.closeOnEsc = closeOnEsc; return v }
+func (v *VNode) SetCloseOnBackdrop(closeOnBackdrop bool) *VNode {
+	v.closeOnBackdrop = closeOnBackdrop
+	return v
+}
 func (v *VNode) SetBorderStyle(style string) *VNode  { v.borderStyle = style; return v }
 func (v *VNode) SetIntent(i intent.Intent) *VNode    { v.closeIntent = i; return v }
+func (v *VNode) SetShadow(show bool) *VNode          { v.showShadow = show; return v }
+func (v *VNode) SetShadowStyle(s style.Style) *VNode { v.shadowStyle = s; return v }
 
-func (v *VNode) Open() *VNode    { return v.SetOpen(true) }
-func (v *VNode) Close() *VNode   { return v.SetOpen(false) }
-func (v *VNode) Toggle() *VNode  { v.isOpen = !v.isOpen; return v }
+func (v *VNode) Open() *VNode   { return v.SetOpen(true) }
+func (v *VNode) Close() *VNode  { return v.SetOpen(false) }
+func (v *VNode) Toggle() *VNode { v.isOpen = !v.isOpen; return v }
 
 func (v *VNode) Size(w, h int) *VNode { return v.SetWidth(w).SetHeight(h) }
+func (v *VNode) InnerSize(w, h int) *VNode {
+	extraHeight := 2
+	if v.title != "" {
+		extraHeight += 2
+	}
+	return v.SetWidth(w + 2 + 2*v.padding).SetHeight(h + extraHeight + 2*v.padding)
+}
 
-func (v *VNode) Single() *VNode   { return v.SetBorderStyle("single") }
-func (v *VNode) Double() *VNode   { return v.SetBorderStyle("double") }
-func (v *VNode) Rounded() *VNode  { return v.SetBorderStyle("rounded") }
-func (v *VNode) Dashed() *VNode   { return v.SetBorderStyle("dashed") }
+func (v *VNode) Single() *VNode  { return v.SetBorderStyle("single") }
+func (v *VNode) Double() *VNode  { return v.SetBorderStyle("double") }
+func (v *VNode) Rounded() *VNode { return v.SetBorderStyle("rounded") }
+func (v *VNode) Dashed() *VNode  { return v.SetBorderStyle("dashed") }
 
-func (v *VNode) Center() *VNode  { return v.SetCentered(true) }
+func (v *VNode) Center() *VNode { return v.SetCentered(true) }
 
 func (v *VNode) OnClose(i intent.Intent) *VNode { return v.SetIntent(i) }
 
@@ -221,15 +274,19 @@ func (v *VNode) OnClose(i intent.Intent) *VNode { return v.SetIntent(i) }
 // Accessors
 // =============================================================================
 
-func (v *VNode) Title() string      { return v.title }
-func (v *VNode) Content() rtui.VNode { return v.content }
-func (v *VNode) Footer() rtui.VNode  { return v.footer }
-func (v *VNode) IsOpen() bool        { return v.isOpen }
-func (v *VNode) Width() int          { return v.width }
-func (v *VNode) Height() int         { return v.height }
-func (v *VNode) Centered() bool      { return v.centered }
-func (v *VNode) Closeable() bool     { return v.closeable }
-func (v *VNode) BorderStyle() string { return v.borderStyle }
+func (v *VNode) Title() string         { return v.title }
+func (v *VNode) Content() rtui.VNode   { return v.content }
+func (v *VNode) Footer() rtui.VNode    { return v.footer }
+func (v *VNode) IsOpen() bool          { return v.isOpen }
+func (v *VNode) Width() int            { return v.width }
+func (v *VNode) Height() int           { return v.height }
+func (v *VNode) Padding() int          { return v.padding }
+func (v *VNode) Centered() bool        { return v.centered }
+func (v *VNode) Closeable() bool       { return v.closeable }
+func (v *VNode) CloseOnEsc() bool      { return v.closeOnEsc }
+func (v *VNode) CloseOnBackdrop() bool { return v.closeOnBackdrop }
+func (v *VNode) BorderStyle() string   { return v.borderStyle }
+func (v *VNode) Shadow() bool          { return v.showShadow }
 
 // =============================================================================
 // layout.BoxModelProvider Implementation
@@ -256,15 +313,16 @@ func (v *VNode) GetBoxModel() layout.BoxModel {
 		borderStyle = layout.BorderNone
 	}
 
-	// Use title as border label if set
-	if v.title != "" {
-		boxModel.Border = layout.NewBorderWithLabel(borderStyle, " "+v.title+" ")
-	} else {
-		boxModel.Border = layout.NewBorder(borderStyle)
+	boxModel.Border = layout.NewBorder(borderStyle)
+	boxModel.Padding = layout.Padding{
+		Top:    v.padding,
+		Right:  v.padding,
+		Bottom: v.padding,
+		Left:   v.padding,
 	}
-
-	// Note: Modal currently doesn't support custom padding or margin
-	// If needed, they can be added as properties in the future
+	if v.title != "" {
+		boxModel.Padding.Top += 2
+	}
 
 	return boxModel
 }

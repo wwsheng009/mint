@@ -47,16 +47,18 @@ func RootApp() ui.VNode {
 		divider.H(),
 		ui.Text(""),
 
-		// 标签页导航
-		ui.HStack(
-			tabButton("Form", "form"),
-			ui.Text(" "),
-			tabButton("List", "list"),
-			ui.Text(" "),
-			tabButton("Modal", "modal"),
-			ui.Text(" "),
-			tabButton("Progress", "progress"),
-		),
+		ui.NewTabsBuilder().
+			Tabs([]ui.TabItem{
+				ui.NewTabItem("form", "Form").WithIcon("1"),
+				ui.NewTabItem("list", "List").WithIcon("2"),
+				ui.NewTabItem("modal", "Modal").WithIcon("3"),
+				ui.NewTabItem("progress", "Progress").WithIcon("4"),
+			}).
+			ActiveTabID(currentTab).
+			Width(44).
+			Divider("  ").
+			ActiveTabStyle(style.NewStyle().Foreground(style.White).Background(style.Green).Bold(true)).
+			Build(),
 
 		ui.Text(""),
 		divider.H(),
@@ -114,19 +116,6 @@ func createStyledText(content string, color style.Color, bold bool) ui.VNode {
 		t = t.Bold(true)
 	}
 	return t
-}
-
-// tabButton 标签按钮
-func tabButton(label, tabID string) ui.VNode {
-	var fg style.Color
-	if currentTab == tabID {
-		fg = style.Color("green")
-	} else {
-		fg = style.Color("white")
-	}
-	return ui.NewButtonBuilder(label).
-		FgColor(fg).
-		Build()
 }
 
 // renderTabContent 渲染标签内容

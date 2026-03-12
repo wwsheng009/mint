@@ -19,7 +19,8 @@ type VNode struct {
 	*rtui.ElementVNode
 
 	// === Identification ===
-	key string
+	key         string
+	componentID string
 
 	// === Visual Properties ===
 	header     string   // Optional column header text
@@ -33,21 +34,27 @@ type VNode struct {
 	separatorChar rune // Separator character (default '─')
 
 	// === Styles ===
-	headerStyle     style.Style                   // Style for the header row
-	rowStyle        style.Style                   // Default style for data rows
-	rowStyleFn      func(int, string) style.Style // Dynamic style function per row
-	selectedStyle   style.Style                   // Style for the selected row
-	borderStyle     style.Style                   // Style for the border
-	showScrollbar   bool
-	scrollbarStyle  style.Style
-	changeIntent    intent.Intent
-	selectionIntent intent.Intent
-	selectionMode   SelectionMode
+	headerStyle      style.Style                   // Style for the header row
+	rowStyle         style.Style                   // Default style for data rows
+	rowStyleFn       func(int, string) style.Style // Dynamic style function per row
+	matchStyle       style.Style                   // Style for matched search rows
+	selectedStyle    style.Style                   // Style for the selected row
+	borderStyle      style.Style                   // Style for the border
+	showScrollbar    bool
+	scrollbarStyle   style.Style
+	changeIntent     intent.Intent
+	selectionIntent  intent.Intent
+	selectionMode    SelectionMode
+	searchQuery      string
+	searchFn         func(string, string) bool
+	showSearchStats  bool
+	searchStatsStyle style.Style
 
 	// === State Properties (declarative initial state) ===
 	scrollOffset             int  // Initial scroll offset
 	scrollOffsetControlled   bool // Whether scrollOffset is externally controlled
 	selectedIndex            int  // Currently selected row index
+	selectedIndexControlled  bool // Whether selectedIndex is externally controlled
 	checkedIndices           []int
 	checkedIndicesControlled bool
 	viewportHeight           int // Visible height for scrolling
@@ -72,6 +79,7 @@ func New() *VNode {
 	return &VNode{
 		ElementVNode:    rtui.NewElement("list"),
 		key:             "",
+		componentID:     "",
 		header:          "",
 		rows:            []string{},
 		emptyText:       "(empty)",
@@ -81,12 +89,15 @@ func New() *VNode {
 		separatorChar:   '─',
 		headerStyle:     style.Style{}.Bold(true),
 		rowStyle:        style.Style{},
+		matchStyle:      style.Style{},
 		selectedStyle:   style.Style{BG: style.Blue, FG: style.White},
 		borderStyle:     style.Style{FG: style.White},
 		showScrollbar:   true,
 		changeIntent:    nil,
 		selectionIntent: nil,
 		selectionMode:   SelectionNone,
+		searchQuery:     "",
+		showSearchStats: false,
 		scrollOffset:    0,
 		selectedIndex:   -1,
 		checkedIndices:  nil,
@@ -112,40 +123,45 @@ func (v *VNode) SetLayer(l rtui.Layer) rtui.VNode             { return v }
 
 func (v *VNode) Props() rtui.Props {
 	props := rtui.Props{
-		"key":                    v.key,
-		"header":                 v.header,
-		"rows":                   v.rows,
-		"emptyText":              v.emptyText,
-		"maxRows":                v.maxRows,
-		"showBorder":             v.showBorder,
-		"showSeparator":          v.showSeparator,
-		"separatorChar":          v.separatorChar,
-		"headerStyle":            v.headerStyle,
-		"rowStyle":               v.rowStyle,
-		"selectedStyle":          v.selectedStyle,
-		"borderStyle":            v.borderStyle,
-		"showScrollbar":          v.showScrollbar,
-		"scrollbarStyle":         v.scrollbarStyle,
-		"changeIntent":           v.changeIntent,
-		"selectionIntent":        v.selectionIntent,
-		"selectionMode":          v.selectionMode,
-		"scrollOffsetControlled": v.scrollOffsetControlled,
-		"selectedIndex":          v.selectedIndex,
-		"viewportHeight":         v.viewportHeight,
-		"formID":                 v.formID,
-		"allowScroll":            v.allowScroll,
+		"key":                     v.key,
+		"componentID":             v.componentID,
+		"header":                  v.header,
+		"rows":                    v.rows,
+		"emptyText":               v.emptyText,
+		"maxRows":                 v.maxRows,
+		"showBorder":              v.showBorder,
+		"showSeparator":           v.showSeparator,
+		"separatorChar":           v.separatorChar,
+		"headerStyle":             v.headerStyle,
+		"rowStyle":                v.rowStyle,
+		"matchStyle":              v.matchStyle,
+		"selectedStyle":           v.selectedStyle,
+		"borderStyle":             v.borderStyle,
+		"showScrollbar":           v.showScrollbar,
+		"scrollbarStyle":          v.scrollbarStyle,
+		"changeIntent":            v.changeIntent,
+		"selectionIntent":         v.selectionIntent,
+		"selectionMode":           v.selectionMode,
+		"searchQuery":             v.searchQuery,
+		"showSearchStats":         v.showSearchStats,
+		"searchStatsStyle":        v.searchStatsStyle,
+		"scrollOffsetControlled":  v.scrollOffsetControlled,
+		"scrollOffset":            v.scrollOffset,
+		"selectedIndex":           v.selectedIndex,
+		"selectedIndexControlled": v.selectedIndexControlled,
+		"checkedIndices":          append([]int(nil), v.checkedIndices...),
+		"viewportHeight":          v.viewportHeight,
+		"formID":                  v.formID,
+		"allowScroll":             v.allowScroll,
 	}
-	if v.scrollOffsetControlled {
-		props["scrollOffset"] = v.scrollOffset
-	}
-	if v.checkedIndicesControlled {
-		props["checkedIndicesControlled"] = true
-		props["checkedIndices"] = append([]int(nil), v.checkedIndices...)
-	}
+	props["checkedIndicesControlled"] = v.checkedIndicesControlled
 
 	// Add rowStyleFn if it's set (functions can be stored in Props)
 	if v.rowStyleFn != nil {
 		props["rowStyleFn"] = v.rowStyleFn
+	}
+	if v.searchFn != nil {
+		props["searchFn"] = v.searchFn
 	}
 
 	return props
@@ -154,6 +170,9 @@ func (v *VNode) Props() rtui.Props {
 func (v *VNode) SetProps(p rtui.Props) rtui.VNode {
 	if key, ok := p["key"].(string); ok {
 		v.key = key
+	}
+	if componentID, ok := p["componentID"].(string); ok {
+		v.componentID = componentID
 	}
 	if header, ok := p["header"].(string); ok {
 		v.header = header
@@ -182,6 +201,9 @@ func (v *VNode) SetProps(p rtui.Props) rtui.VNode {
 	if rowStyle, ok := p["rowStyle"].(style.Style); ok {
 		v.rowStyle = rowStyle
 	}
+	if matchStyle, ok := p["matchStyle"].(style.Style); ok {
+		v.matchStyle = matchStyle
+	}
 	if selectedStyle, ok := p["selectedStyle"].(style.Style); ok {
 		v.selectedStyle = selectedStyle
 	}
@@ -203,9 +225,20 @@ func (v *VNode) SetProps(p rtui.Props) rtui.VNode {
 	if selectionMode, ok := p["selectionMode"].(SelectionMode); ok {
 		v.selectionMode = selectionMode
 	}
+	if searchQuery, ok := p["searchQuery"].(string); ok {
+		v.searchQuery = searchQuery
+	}
+	if searchFn, ok := p["searchFn"].(func(string, string) bool); ok {
+		v.searchFn = searchFn
+	}
+	if showSearchStats, ok := p["showSearchStats"].(bool); ok {
+		v.showSearchStats = showSearchStats
+	}
+	if searchStatsStyle, ok := p["searchStatsStyle"].(style.Style); ok {
+		v.searchStatsStyle = searchStatsStyle
+	}
 	if scrollOffset, ok := p["scrollOffset"].(int); ok {
 		v.scrollOffset = scrollOffset
-		v.scrollOffsetControlled = true
 	}
 	if controlled, ok := p["scrollOffsetControlled"].(bool); ok {
 		v.scrollOffsetControlled = controlled
@@ -213,9 +246,11 @@ func (v *VNode) SetProps(p rtui.Props) rtui.VNode {
 	if selectedIndex, ok := p["selectedIndex"].(int); ok {
 		v.selectedIndex = selectedIndex
 	}
+	if controlled, ok := p["selectedIndexControlled"].(bool); ok {
+		v.selectedIndexControlled = controlled
+	}
 	if checkedIndices, ok := p["checkedIndices"].([]int); ok {
 		v.checkedIndices = append([]int(nil), checkedIndices...)
-		v.checkedIndicesControlled = true
 	}
 	if controlled, ok := p["checkedIndicesControlled"].(bool); ok {
 		v.checkedIndicesControlled = controlled
@@ -244,6 +279,7 @@ func (v *VNode) CreateInstance() rtui.ComponentInstance {
 // Setter Methods (Fluent API)
 // =============================================================================
 
+func (v *VNode) SetComponentID(id string) *VNode                       { v.componentID = id; return v }
 func (v *VNode) SetHeader(header string) *VNode                        { v.header = header; return v }
 func (v *VNode) SetRows(rows []string) *VNode                          { v.rows = rows; return v }
 func (v *VNode) SetEmptyText(text string) *VNode                       { v.emptyText = text; return v }
@@ -254,6 +290,7 @@ func (v *VNode) SetSeparatorChar(ch rune) *VNode                       { v.separ
 func (v *VNode) SetHeaderStyle(s style.Style) *VNode                   { v.headerStyle = s; return v }
 func (v *VNode) SetRowStyle(s style.Style) *VNode                      { v.rowStyle = s; return v }
 func (v *VNode) SetRowStyleFn(fn func(int, string) style.Style) *VNode { v.rowStyleFn = fn; return v }
+func (v *VNode) SetMatchStyle(s style.Style) *VNode                    { v.matchStyle = s; return v }
 func (v *VNode) SetSelectedStyle(s style.Style) *VNode                 { v.selectedStyle = s; return v }
 func (v *VNode) SetBorderStyle(s style.Style) *VNode                   { v.borderStyle = s; return v }
 func (v *VNode) SetShowScrollbar(show bool) *VNode                     { v.showScrollbar = show; return v }
@@ -267,15 +304,54 @@ func (v *VNode) SetSelectionIntent(selectionIntent intent.Intent) *VNode {
 	return v
 }
 func (v *VNode) SetSelectionMode(mode SelectionMode) *VNode { v.selectionMode = mode; return v }
+func (v *VNode) SetSearchQuery(query string) *VNode         { v.searchQuery = query; return v }
+func (v *VNode) SetSearchFn(fn func(string, string) bool) *VNode {
+	v.searchFn = fn
+	return v
+}
+func (v *VNode) SetShowSearchStats(show bool) *VNode { v.showSearchStats = show; return v }
+func (v *VNode) SetSearchStatsStyle(s style.Style) *VNode {
+	v.searchStatsStyle = s
+	return v
+}
 func (v *VNode) SetScrollOffset(offset int) *VNode {
 	v.scrollOffset = offset
 	v.scrollOffsetControlled = true
 	return v
 }
-func (v *VNode) SetSelectedIndex(index int) *VNode { v.selectedIndex = index; return v }
+func (v *VNode) SetScrollOffsetControlled(offset int) *VNode {
+	v.scrollOffset = offset
+	v.scrollOffsetControlled = true
+	return v
+}
+func (v *VNode) SetInitialScrollOffset(offset int) *VNode {
+	v.scrollOffset = offset
+	v.scrollOffsetControlled = false
+	return v
+}
+func (v *VNode) SetSelectedIndex(index int) *VNode {
+	v.selectedIndex = index
+	v.selectedIndexControlled = true
+	return v
+}
+func (v *VNode) SetSelectedIndexControlled(index int) *VNode {
+	v.selectedIndex = index
+	v.selectedIndexControlled = true
+	return v
+}
+func (v *VNode) SetInitialSelectedIndex(index int) *VNode {
+	v.selectedIndex = index
+	v.selectedIndexControlled = false
+	return v
+}
 func (v *VNode) SetCheckedIndices(indices []int) *VNode {
 	v.checkedIndices = append([]int(nil), indices...)
 	v.checkedIndicesControlled = true
+	return v
+}
+func (v *VNode) SetInitialCheckedIndices(indices []int) *VNode {
+	v.checkedIndices = append([]int(nil), indices...)
+	v.checkedIndicesControlled = false
 	return v
 }
 func (v *VNode) SetViewportHeight(height int) *VNode { v.viewportHeight = height; return v }
@@ -302,9 +378,11 @@ func (v *VNode) AddRows(rows ...string) *VNode {
 // Getter Methods for Testing/Demo
 // ============================================================================
 
-func (v *VNode) Header() string { return v.header }
-func (v *VNode) Rows() []string { return v.rows }
-func (v *VNode) RowCount() int  { return len(v.rows) }
+func (v *VNode) Header() string         { return v.header }
+func (v *VNode) Rows() []string         { return v.rows }
+func (v *VNode) RowCount() int          { return len(v.rows) }
+func (v *VNode) GetComponentID() string { return v.componentID }
+func (v *VNode) GetSelectedIndex() int  { return v.selectedIndex }
 
 // Measure creates a temporary instance and measures it with the given constraints.
 func (v *VNode) Measure(constraints runtime.BoxConstraints) runtime.Size {

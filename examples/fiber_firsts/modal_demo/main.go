@@ -101,7 +101,6 @@ func main() {
 // =============================================================================
 
 func App() ui.VNode {
-	// Get current state snapshot from Store
 	state := appStore.Get()
 
 	return ui.VStack(
@@ -114,7 +113,10 @@ func App() ui.VNode {
 			ui.NewTextBuilder("Interactive Modal Dialog System").
 				FgColor("gray").
 				Build(),
-			ui.NewTextBuilder("ESCAPE key or click outside to close").
+			ui.NewTextBuilder("Styled header, shadow, padding, and close policies").
+				FgColor("gray").
+				Build(),
+			ui.NewTextBuilder("Background clicks are blocked by the modal middleware while open.").
 				FgColor("gray").
 				Build(),
 			ui.Text(""),
@@ -129,19 +131,21 @@ func App() ui.VNode {
 			ui.NewButtonBuilder("  Basic  ").
 				Variant(ui.ButtonVariantPrimary).
 				OnPress(OpenModalIntent{ModalType: "basic"}).
-				Disabled(state.ModalType != "").
 				Build(),
 			ui.Text(" "),
 			ui.NewButtonBuilder("  Border  ").
 				Variant(ui.ButtonVariantSecondary).
 				OnPress(OpenModalIntent{ModalType: "border"}).
-				Disabled(state.ModalType != "").
 				Build(),
 			ui.Text(" "),
 			ui.NewButtonBuilder("  Footer  ").
 				Variant(ui.ButtonVariantSecondary).
 				OnPress(OpenModalIntent{ModalType: "footer"}).
-				Disabled(state.ModalType != "").
+				Build(),
+			ui.Text(" "),
+			ui.NewButtonBuilder("  Padded  ").
+				Variant(ui.ButtonVariantSecondary).
+				OnPress(OpenModalIntent{ModalType: "padded"}).
 				Build(),
 		),
 
@@ -151,19 +155,16 @@ func App() ui.VNode {
 			ui.NewButtonBuilder("  Alert  ").
 				Variant(ui.ButtonVariantSecondary).
 				OnPress(OpenModalIntent{ModalType: "alert"}).
-				Disabled(state.ModalType != "").
 				Build(),
 			ui.Text(" "),
 			ui.NewButtonBuilder("  Sizes  ").
 				Variant(ui.ButtonVariantSecondary).
 				OnPress(OpenModalIntent{ModalType: "sizes"}).
-				Disabled(state.ModalType != "").
 				Build(),
 			ui.Text(" "),
-			ui.NewButtonBuilder("  Locked  ").
+			ui.NewButtonBuilder("  Sticky  ").
 				Variant(ui.ButtonVariantDanger).
-				OnPress(OpenModalIntent{ModalType: "locked"}).
-				Disabled(state.ModalType != "").
+				OnPress(OpenModalIntent{ModalType: "sticky"}).
 				Build(),
 		),
 
@@ -210,18 +211,16 @@ func getModal(modalType string) ui.VNode {
 		return modal.NewBuilder().
 			Key("modal-basic").
 			Title("Basic Modal").
+			Padding(1).
 			Content(ui.VStack(
 				ui.NewTextBuilder("This is a basic modal dialog.").
 					FgColor("white").
 					Build(),
 				ui.Text(""),
-				ui.NewTextBuilder("Try pressing ESC").
+				ui.NewTextBuilder("Try pressing ESC, clicking outside,").
 					FgColor("gray").
 					Build(),
-				ui.NewTextBuilder("or clicking outside").
-					FgColor("gray").
-					Build(),
-				ui.NewTextBuilder("or the button below").
+				ui.NewTextBuilder("or the button below.").
 					FgColor("gray").
 					Build(),
 				ui.Text(""),
@@ -230,8 +229,7 @@ func getModal(modalType string) ui.VNode {
 					OnPress(CloseModalIntent{}).
 					Build(),
 			)).
-			Width(45).
-			Height(12).
+			InnerSize(39, 6).
 			Rounded().
 			Open(true).
 			OnClose(CloseModalIntent{}).
@@ -241,7 +239,8 @@ func getModal(modalType string) ui.VNode {
 		return modal.NewBuilder().
 			Key("modal-border").
 			Title("Border Styles Demo").
-			Content(newtext.New("Compare different border styles:\n\n• Single: clean and minimal\n• Double: bold and prominent\n• Rounded: friendly and modern\n• Dashed: subtle and light")).
+			Padding(1).
+			Content(newtext.New("Compare different border styles:\n\n- Single: clean and minimal\n- Double: bold and prominent\n- Rounded: friendly and modern\n- Dashed: subtle and light")).
 			Width(50).
 			Height(12).
 			Rounded().
@@ -253,10 +252,44 @@ func getModal(modalType string) ui.VNode {
 		return modal.NewBuilder().
 			Key("modal-footer").
 			Title("Confirmation Dialog").
+			Padding(1).
 			Content(newtext.New("Are you sure you want to proceed?\nThis action cannot be undone.")).
-			Footer(newtext.New("  [Esc] Cancel     [Enter] Confirm  ")).
-			Width(40).
-			Height(10).
+			Footer(
+				ui.HStack(
+					ui.NewTextBuilder("Press Enter on a button to continue.").FgColor("gray").Build(),
+					ui.Spacer().Flex(1).Build(),
+					ui.NewButtonBuilder(" Cancel ").
+						Variant(ui.ButtonVariantSecondary).
+						OnPress(CloseModalIntent{}).
+						Build(),
+					ui.Text(" "),
+					ui.NewButtonBuilder(" Confirm ").
+						Variant(ui.ButtonVariantPrimary).
+						OnPress(CloseModalIntent{}).
+						Build(),
+				),
+			).
+			InnerSize(38, 5).
+			Double().
+			Open(true).
+			OnClose(CloseModalIntent{}).
+			Build()
+
+	case "padded":
+		return modal.NewBuilder().
+			Key("modal-padded").
+			Title("Padded Surface").
+			Padding(2).
+			Content(ui.VStack(
+				ui.NewTextBuilder("This modal uses InnerSize + Padding.").FgColor("white").Build(),
+				ui.Text(""),
+				ui.NewTextBuilder("The title is rendered in a dedicated header row,").FgColor("gray").Build(),
+				ui.NewTextBuilder("and the body gets a filled surface background.").FgColor("gray").Build(),
+				ui.Text(""),
+				ui.NewButtonBuilder(" Close ").Variant(ui.ButtonVariantPrimary).OnPress(CloseModalIntent{}).Build(),
+			)).
+			InnerSize(36, 6).
+			Shadow(true).
 			Rounded().
 			Open(true).
 			OnClose(CloseModalIntent{}).
@@ -266,6 +299,7 @@ func getModal(modalType string) ui.VNode {
 		return modal.NewBuilder().
 			Key("modal-alert").
 			Title("Alert").
+			Padding(1).
 			Content(newtext.New("⚠️  Important notification!\n\nPlease review this message before continuing.")).
 			Width(40).
 			Height(10).
@@ -278,7 +312,8 @@ func getModal(modalType string) ui.VNode {
 		return modal.NewBuilder().
 			Key("modal-sizes").
 			Title("Modal Sizes").
-			Content(newtext.New("Different modal sizes for different use cases:\n\n• Small: 25x6 - Quick messages\n• Medium: 30x8 - Standard dialogs\n• Large: 35x10 - Complex forms")).
+			Padding(1).
+			Content(newtext.New("Different modal sizes for different use cases:\n\n- Small: quick messages\n- Medium: standard dialogs\n- Large: multi-step content")).
 			Width(40).
 			Height(12).
 			Rounded().
@@ -286,15 +321,31 @@ func getModal(modalType string) ui.VNode {
 			OnClose(CloseModalIntent{}).
 			Build()
 
-	case "locked":
+	case "sticky":
 		return modal.NewBuilder().
-			Key("modal-locked").
-			Title("⚠️  Critical Alert").
-			Content(newtext.New("This modal is locked and cannot be closed.\n\nUsed for critical alerts that require user attention.\n\nClick outside or press ESC to simulate a system dismiss.")).
-			Width(45).
-			Height(10).
+			Key("modal-sticky").
+			Title("Sticky Modal").
+			Padding(1).
+			Content(ui.VStack(
+				ui.NewTextBuilder("ESC and backdrop closing are disabled here.").FgColor("white").Build(),
+				ui.Text(""),
+				ui.NewTextBuilder("Background controls stay blocked while the modal is open.").FgColor("gray").Build(),
+				ui.NewTextBuilder("Use the footer action to dismiss it.").FgColor("gray").Build(),
+			)).
+			Footer(
+				ui.HStack(
+					ui.NewTextBuilder("Use the button to close this dialog.").FgColor("gray").Build(),
+					ui.Spacer().Flex(1).Build(),
+					ui.NewButtonBuilder(" Acknowledge ").
+						Variant(ui.ButtonVariantPrimary).
+						OnPress(CloseModalIntent{}).
+						Build(),
+				),
+			).
+			InnerSize(52, 5).
 			Rounded().
-			Closeable(true).
+			CloseOnEsc(false).
+			CloseOnBackdrop(false).
 			Open(true).
 			OnClose(CloseModalIntent{}).
 			Build()

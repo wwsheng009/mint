@@ -35,6 +35,12 @@ func (b *Builder) SetID(id string) *Builder {
 	return b
 }
 
+// ComponentID sets the logical component ID for state-change intents.
+func (b *Builder) ComponentID(id string) *Builder {
+	b.vnode.SetComponentID(id)
+	return b
+}
+
 // Header sets the column header text.
 func (b *Builder) Header(h string) *Builder {
 	b.vnode.SetHeader(h)
@@ -108,6 +114,36 @@ func (b *Builder) RowStyleFn(fn func(int, string) style.Style) *Builder {
 	return b
 }
 
+// MatchStyle sets the style for rows matched by the active search query.
+func (b *Builder) MatchStyle(s style.Style) *Builder {
+	b.vnode.SetMatchStyle(s)
+	return b
+}
+
+// SearchQuery filters visible rows using case-insensitive substring matching.
+func (b *Builder) SearchQuery(query string) *Builder {
+	b.vnode.SetSearchQuery(query)
+	return b
+}
+
+// SearchFn sets a custom search function.
+func (b *Builder) SearchFn(fn func(string, string) bool) *Builder {
+	b.vnode.SetSearchFn(fn)
+	return b
+}
+
+// ShowSearchStats toggles the search stats row.
+func (b *Builder) ShowSearchStats(show bool) *Builder {
+	b.vnode.SetShowSearchStats(show)
+	return b
+}
+
+// SearchStatsStyle sets the style for the search stats row.
+func (b *Builder) SearchStatsStyle(s style.Style) *Builder {
+	b.vnode.SetSearchStatsStyle(s)
+	return b
+}
+
 // SelectedStyle sets the style for the selected row.
 func (b *Builder) SelectedStyle(s style.Style) *Builder {
 	b.vnode.SetSelectedStyle(s)
@@ -144,21 +180,51 @@ func (b *Builder) OnSelectionChange(selectionIntent intent.Intent) *Builder {
 	return b
 }
 
-// ScrollOffset sets the initial scroll offset.
+// ScrollOffset sets the scroll offset in controlled mode.
 func (b *Builder) ScrollOffset(offset int) *Builder {
 	b.vnode.SetScrollOffset(offset)
 	return b
 }
 
-// SelectedIndex sets the currently selected row index.
+// ScrollOffsetControlled sets the scroll offset in controlled mode.
+func (b *Builder) ScrollOffsetControlled(offset int) *Builder {
+	b.vnode.SetScrollOffsetControlled(offset)
+	return b
+}
+
+// InitialScrollOffset sets the initial scroll offset in uncontrolled mode.
+func (b *Builder) InitialScrollOffset(offset int) *Builder {
+	b.vnode.SetInitialScrollOffset(offset)
+	return b
+}
+
+// SelectedIndex sets the selected row index in controlled mode.
 func (b *Builder) SelectedIndex(index int) *Builder {
 	b.vnode.SetSelectedIndex(index)
 	return b
 }
 
-// CheckedIndices sets the checked rows for single/multi select modes.
+// SelectedIndexControlled sets the selected row index in controlled mode.
+func (b *Builder) SelectedIndexControlled(index int) *Builder {
+	b.vnode.SetSelectedIndexControlled(index)
+	return b
+}
+
+// InitialSelectedIndex sets the initial selected row index in uncontrolled mode.
+func (b *Builder) InitialSelectedIndex(index int) *Builder {
+	b.vnode.SetInitialSelectedIndex(index)
+	return b
+}
+
+// CheckedIndices sets the checked rows in controlled mode.
 func (b *Builder) CheckedIndices(indices ...int) *Builder {
 	b.vnode.SetCheckedIndices(indices)
+	return b
+}
+
+// InitialCheckedIndices sets the initial checked rows in uncontrolled mode.
+func (b *Builder) InitialCheckedIndices(indices ...int) *Builder {
+	b.vnode.SetInitialCheckedIndices(indices)
 	return b
 }
 

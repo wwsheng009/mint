@@ -4,6 +4,7 @@ import (
 	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/runtime/reducer"
 	"github.com/wwsheng009/mint/runtime/store"
+	"github.com/wwsheng009/mint/runtime/style"
 	"github.com/wwsheng009/mint/ui"
 )
 
@@ -13,23 +14,18 @@ import (
 // =============================================================================
 
 type AppState struct {
-	CurrentTab string  // 当前选中的 tab: "counter", "input", "tasks"
-	Text       string  // 输入框文本
-	Checked1   bool    // Checkbox 1 状态
-	Checked2   bool    // Checkbox 2 状态
-	Checked3   bool    // Checkbox 3 状态
+	CurrentTab string // 当前选中的 tab: "counter", "input", "tasks"
+	Text       string // 输入框文本
+	Checked1   bool   // Checkbox 1 状态
+	Checked2   bool   // Checkbox 2 状态
+	Checked3   bool   // Checkbox 3 状态
 }
+
+const demoTabsComponentID = "mint-demo-tabs"
 
 // =============================================================================
 // Intent Types
 // =============================================================================
-
-type SetTabIntent struct {
-	Tab string
-}
-
-func (SetTabIntent) IntentType() string { return "SetTab" }
-func (SetTabIntent) StayPressed() bool  { return true }
 
 type SetDemoTextIntent struct {
 	Text string
@@ -77,8 +73,12 @@ var demoAppStore = store.NewStore(AppState{
 
 func init() {
 	reducer.NewBuilder[AppState]().
-		On(SetTabIntent{}, func(s AppState, i intent.Intent) AppState {
-			s.CurrentTab = i.(SetTabIntent).Tab
+		On(ui.TabChangeIntent{}, func(s AppState, i intent.Intent) AppState {
+			change, ok := i.(ui.TabChangeIntent)
+			if !ok || change.ComponentID != demoTabsComponentID {
+				return s
+			}
+			s.CurrentTab = change.TabID
 			return s
 		}).
 		On(SetDemoTextIntent{}, func(s AppState, i intent.Intent) AppState {
@@ -123,20 +123,20 @@ func DemoApp() ui.VNode {
 			FgColor("cyan").
 			Build(),
 		ui.Text(""),
-		// Tab navigation
-		ui.HStack(
-			ui.NewButtonBuilder(" [1] Counter ").
-				OnPress(SetTabIntent{Tab: "counter"}).
-				Build(),
-			ui.Text(" "),
-			ui.NewButtonBuilder(" [2] Input ").
-				OnPress(SetTabIntent{Tab: "input"}).
-				Build(),
-			ui.Text(" "),
-			ui.NewButtonBuilder(" [3] Tasks ").
-				OnPress(SetTabIntent{Tab: "tasks"}).
-				Build(),
-		),
+		ui.NewTabsBuilder().
+			ComponentID(demoTabsComponentID).
+			Tabs([]ui.TabItem{
+				ui.NewTabItem("counter", "Counter").WithIcon("1").WithHotkey('1'),
+				ui.NewTabItem("input", "Input").WithIcon("2").WithHotkey('2'),
+				ui.NewTabItem("tasks", "Tasks").WithIcon("3").WithHotkey('3'),
+			}).
+			ActiveTabID(currentTab).
+			ShowHotkeys(true).
+			LoopNavigation(true).
+			Width(39).
+			Divider(" / ").
+			ActiveTabStyle(style.NewStyle().Foreground(style.Cyan).Bold(true)).
+			Build(),
 		ui.Text(""),
 		ui.NewTextBuilder("───────────────────────────────────────").
 			FgColor("bright-black").
@@ -199,7 +199,7 @@ func DemoApp() ui.VNode {
 			}
 		}(),
 		ui.Text(""),
-		ui.NewTextBuilder("Tab: focus | Space/Enter: select | q: quit").
+		ui.NewTextBuilder("Arrows / Ctrl+Tab / 1-3 switch tabs | q: quit").
 			FgColor("bright-black").
 			Build(),
 	)

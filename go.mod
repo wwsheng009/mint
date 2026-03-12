@@ -5,6 +5,7 @@ go 1.24.0
 toolchain go1.24.2
 
 require (
+	github.com/Microsoft/go-winio v0.6.2
 	github.com/gdamore/tcell/v2 v2.13.8
 	github.com/mattn/go-runewidth v0.0.15
 	github.com/modelcontextprotocol/go-sdk v1.4.0
@@ -16,7 +17,6 @@ require (
 )
 
 require (
-	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/gdamore/encoding v1.0.1 // indirect
 	github.com/google/jsonschema-go v0.4.2 // indirect

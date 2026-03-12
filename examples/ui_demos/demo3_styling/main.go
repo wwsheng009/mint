@@ -18,15 +18,11 @@ import (
 	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/runtime/reducer"
 	"github.com/wwsheng009/mint/runtime/store"
+	"github.com/wwsheng009/mint/runtime/style"
 	"github.com/wwsheng009/mint/ui"
 )
 
-// Intent Types
-type SetStylingTabIntent struct {
-	TabID string
-}
-func (SetStylingTabIntent) IntentType() string { return "SetStylingTab" }
-func (SetStylingTabIntent) StayPressed() bool  { return true }
+const stylingTabsComponentID = "styling-demo-tabs"
 
 // AppState - 定义应用状态
 type AppState struct {
@@ -41,8 +37,12 @@ var stylingStore = store.NewStore(AppState{
 // Reducer 注册
 func init() {
 	reducer.NewBuilder[AppState]().
-		On(SetStylingTabIntent{}, func(s AppState, i intent.Intent) AppState {
-			s.CurrentTab = i.(SetStylingTabIntent).TabID
+		On(ui.TabChangeIntent{}, func(s AppState, i intent.Intent) AppState {
+			change, ok := i.(ui.TabChangeIntent)
+			if !ok || change.ComponentID != stylingTabsComponentID {
+				return s
+			}
+			s.CurrentTab = change.TabID
 			return s
 		}).
 		BuildAndRegister(intent.DefaultRegistry(), stylingStore)
@@ -98,38 +98,23 @@ func HeaderPanel() ui.VNode {
 
 // TabNavigation provides tab buttons
 func TabNavigation(currentTab string) ui.VNode {
-	tabs := []struct {
-		id    string
-		label string
-		color string
-	}{
-		{"colors", "Colors", "red"},
-		{"attributes", "Attributes", "yellow"},
-		{"borders", "Borders", "green"},
-		{"inheritance", "Inheritance", "blue"},
-		{"themes", "Themes", "magenta"},
-	}
-
-	var children []ui.VNode
-	for _, tab := range tabs {
-		isActive := currentTab == tab.id
-		var btn ui.VNode
-		if isActive {
-			btn = ui.NewButtonBuilder("[" + tab.label + "]").
-				BgColor(tab.color).
-				FgColor("white").
-				OnPress(SetStylingTabIntent{TabID: tab.id}).
-				Build()
-		} else {
-			btn = ui.NewButtonBuilder(" " + tab.label + " ").
-				FgColor(tab.color).
-				OnPress(SetStylingTabIntent{TabID: tab.id}).
-				Build()
-		}
-		children = append(children, btn, ui.Text(" "))
-	}
-
-	return ui.HStack(children...)
+	return ui.NewTabsBuilder().
+		ComponentID(stylingTabsComponentID).
+		Tabs([]ui.TabItem{
+			ui.NewTabItem("colors", "Colors").WithIcon("C").WithHotkey('c'),
+			ui.NewTabItem("attributes", "Attributes").WithIcon("A").WithHotkey('a'),
+			ui.NewTabItem("borders", "Borders").WithIcon("B").WithHotkey('b'),
+			ui.NewTabItem("inheritance", "Inheritance").WithIcon("I").WithHotkey('i'),
+			ui.NewTabItem("themes", "Themes").WithIcon("T").WithHotkey('t'),
+		}).
+		ActiveTabID(currentTab).
+		ShowHotkeys(true).
+		LoopNavigation(true).
+		Width(92).
+		Divider("  ").
+		Style(style.NewStyle().Foreground(style.BrightBlue)).
+		ActiveTabStyle(style.NewStyle().Foreground(style.White).Background(style.Magenta).Bold(true)).
+		Build()
 }
 
 // renderTabContent renders the selected tab content
@@ -473,11 +458,11 @@ func InheritanceTab() ui.VNode {
 // ThemesTab demonstrates theme system
 func ThemesTab() ui.VNode {
 	themes := []struct {
-		name     string
-		primary  string
+		name      string
+		primary   string
 		secondary string
-		bg       string
-		fg       string
+		bg        string
+		fg        string
 	}{
 		{"Default", "blue", "cyan", "black", "white"},
 		{"Dark", "bright-blue", "bright-cyan", "black", "bright-white"},

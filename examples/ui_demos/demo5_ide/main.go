@@ -18,6 +18,7 @@ import (
 	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/runtime/reducer"
 	"github.com/wwsheng009/mint/runtime/store"
+	"github.com/wwsheng009/mint/runtime/style"
 	"github.com/wwsheng009/mint/ui"
 )
 
@@ -26,39 +27,39 @@ import (
 // =============================================================================
 
 type AppState struct {
-	ActiveFile        string // 当前选中的文件
+	ActiveFile         string // 当前选中的文件
 	ShowCommandPalette bool   // 是否显示命令面板
-	SelectedTab       string // 当前选中的标签
-	EditorContent     string // 编辑器内容
+	SelectedTab        string // 当前选中的标签
+	EditorContent      string // 编辑器内容
 }
+
+const ideTabsComponentID = "ide-main-tabs"
 
 // =============================================================================
 // Intent Types
 // =============================================================================
 
 type ShowCommandPaletteIntent struct{}
+
 func (ShowCommandPaletteIntent) IntentType() string { return "ShowCommandPalette" }
 func (ShowCommandPaletteIntent) StayPressed() bool  { return true }
 
 type HideCommandPaletteIntent struct{}
+
 func (HideCommandPaletteIntent) IntentType() string { return "HideCommandPalette" }
 func (HideCommandPaletteIntent) StayPressed() bool  { return true }
 
 type SetActiveFileIntent struct {
 	Name string
 }
+
 func (SetActiveFileIntent) IntentType() string { return "SetActiveFile" }
 func (SetActiveFileIntent) StayPressed() bool  { return true }
-
-type SetSelectedTabIntent struct {
-	TabID string
-}
-func (SetSelectedTabIntent) IntentType() string { return "SetSelectedTab" }
-func (SetSelectedTabIntent) StayPressed() bool  { return true }
 
 type SetEditorContentIntent struct {
 	Content string
 }
+
 func (SetEditorContentIntent) IntentType() string { return "SetEditorContent" }
 func (SetEditorContentIntent) StayPressed() bool  { return false }
 
@@ -67,10 +68,10 @@ func (SetEditorContentIntent) StayPressed() bool  { return false }
 // =============================================================================
 
 var ideStore = store.NewStore(AppState{
-	ActiveFile:        "main.go",
+	ActiveFile:         "main.go",
 	ShowCommandPalette: false,
-	SelectedTab:       "editor",
-	EditorContent:     "func main() {\n    ui.Run(App)\n}",
+	SelectedTab:        "editor",
+	EditorContent:      "func main() {\n    ui.Run(App)\n}",
 })
 
 // =============================================================================
@@ -91,8 +92,12 @@ func init() {
 			s.ActiveFile = i.(SetActiveFileIntent).Name
 			return s
 		}).
-		On(SetSelectedTabIntent{}, func(s AppState, i intent.Intent) AppState {
-			s.SelectedTab = i.(SetSelectedTabIntent).TabID
+		On(ui.TabChangeIntent{}, func(s AppState, i intent.Intent) AppState {
+			change, ok := i.(ui.TabChangeIntent)
+			if !ok || change.ComponentID != ideTabsComponentID {
+				return s
+			}
+			s.SelectedTab = change.TabID
 			return s
 		}).
 		On(SetEditorContentIntent{}, func(s AppState, i intent.Intent) AppState {
@@ -242,13 +247,13 @@ func FileExplorer(activeFile string) ui.VNode {
 		isActive := activeFile == f.name
 		var item ui.VNode
 		if isActive {
-			item = ui.NewTextBuilder("│ "+indent+prefix+f.name+" ").
+			item = ui.NewTextBuilder("│ " + indent + prefix + f.name + " ").
 				FgColor("gray").
 				BgColor("blue").
 				FgColor("white").
 				Build()
 		} else {
-			item = ui.NewTextBuilder("│ "+indent+prefix+f.name).
+			item = ui.NewTextBuilder("│ " + indent + prefix + f.name).
 				FgColor("gray").
 				Build()
 		}
@@ -286,54 +291,32 @@ func ContentArea(
 ) ui.VNode {
 	return ui.VStack(
 		TabsBar(selectedTab, activeFile),
-		ui.Text(""),
 		TabContent(selectedTab, activeFile, editorContent),
 	)
 }
 
 // TabsBar shows tab navigation
 func TabsBar(selectedTab string, activeFile string) ui.VNode {
-	tabs := []struct {
-		id    string
-		label string
-	}{
-		{"editor", activeFile},
-		{"terminal", "Terminal"},
-		{"problems", "Problems (0)"},
-		{"output", "Output"},
-	}
-
-	var children []ui.VNode
-	children = append(children,
-		ui.NewTextBuilder("┌─").
+	return ui.VStack(
+		ui.NewTabsBuilder().
+			ComponentID(ideTabsComponentID).
+			Tabs([]ui.TabItem{
+				ui.NewTabItem("editor", activeFile).WithIcon("F").WithHotkey('e'),
+				ui.NewTabItem("terminal", "Terminal").WithIcon(">").WithHotkey('t'),
+				ui.NewTabItem("problems", "Problems").WithBadge("0").WithHotkey('p'),
+				ui.NewTabItem("output", "Output").WithIcon("O").WithHotkey('o'),
+			}).
+			ActiveTabID(selectedTab).
+			ShowHotkeys(true).
+			LoopNavigation(true).
+			Divider("  ").
+			ActiveTabStyle(style.NewStyle().Foreground(style.Black).Background(style.White).Bold(true)).
+			TabGap(1).
+			Build(),
+		ui.NewTextBuilder("────────────────────────────────────────────────────────────────────────────────────────────").
 			FgColor("gray").
 			Build(),
 	)
-
-	for _, tab := range tabs {
-		isActive := selectedTab == tab.id
-		var tabBtn ui.VNode
-		if isActive {
-			tabBtn = ui.NewButtonBuilder(" "+tab.label+" ").
-				BgColor("white").
-				FgColor("black").
-				OnPress(SetSelectedTabIntent{TabID: tab.id}).
-				Build()
-		} else {
-			tabBtn = ui.NewButtonBuilder(" "+tab.label+" ").
-				OnPress(SetSelectedTabIntent{TabID: tab.id}).
-				Build()
-		}
-		children = append(children, tabBtn)
-	}
-
-	children = append(children,
-		ui.NewTextBuilder("────────────────────────────────────────────────────────────────────────────────────────┐").
-			FgColor("gray").
-			Build(),
-	)
-
-	return ui.HStack(children...)
 }
 
 // TabContent renders the selected tab content

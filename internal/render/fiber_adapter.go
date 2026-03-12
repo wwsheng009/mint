@@ -124,6 +124,7 @@ func (a *FiberToNodeAdapter) SetPosition(x, y int) {
 	if a.fiber.Instance != nil {
 		if positionable, ok := a.fiber.Instance.(interface{ SetPosition(x, y int) }); ok {
 			positionable.SetPosition(x, y)
+			return
 		}
 		// Try SetBounds for full bounds sync
 		if boundsHaver, ok := a.fiber.Instance.(interface{ SetBounds(x, y, w, h int) }); ok {
@@ -176,6 +177,7 @@ func (a *FiberToNodeAdapter) SetSize(width, height int) {
 	if a.fiber.Instance != nil {
 		if sizable, ok := a.fiber.Instance.(interface{ SetSize(width, height int) }); ok {
 			sizable.SetSize(width, height)
+			return
 		}
 		// Try SetBounds for full bounds sync
 		if boundsHaver, ok := a.fiber.Instance.(interface{ SetBounds(x, y, w, h int) }); ok {
@@ -350,7 +352,7 @@ func (a *FiberToNodeAdapter) Measure(constraints layout.Constraints) layout.Size
 		// VStack: 跨轴是宽度，应该限制在父容器的宽度内
 		innerConstraints := layout.Constraints{
 			MinWidth:  0,
-			MaxWidth:  layout.MaxInt,  // 主轴方向：暂时无界（内容由布局引擎分配）
+			MaxWidth:  layout.MaxInt, // 主轴方向：暂时无界（内容由布局引擎分配）
 			MinHeight: 0,
 			MaxHeight: layout.MaxInt, // 主轴方向：暂时无界（内容由布局引擎分配）
 		}
@@ -484,7 +486,7 @@ func (a *FiberToNodeAdapter) Measure(constraints layout.Constraints) layout.Size
 		}
 		// 计算文本宽度（简单使用字符串长度）
 		textWidth := len([]rune(content)) // 使用 rune 数来支持 multibyte 字符
-		textHeight := 1 // 文本默认高度为 1
+		textHeight := 1                   // 文本默认高度为 1
 
 		// 处理带有边框的 text 元素（不常见，但可能）
 		if border.HasBorder() {
@@ -544,6 +546,15 @@ func (a *FiberToNodeAdapter) GetBoxModel() layout.BoxModel {
 	if a.fiber == nil {
 		return layout.BoxModel{}
 	}
+	if a.fiber.Instance != nil {
+		if provider, ok := a.fiber.Instance.(interface {
+			GetBoxModel() layout.BoxModel
+		}); ok {
+			boxModel := provider.GetBoxModel()
+			boxModel.Margin = a.GetMargin()
+			return boxModel
+		}
+	}
 	boxModel := layout.BoxModel{
 		Margin: a.GetMargin(),
 		Padding: layout.Padding{
@@ -596,6 +607,15 @@ func (a *FiberToNodeAdapter) GetAbsolutePosition() layout.Position {
 func (a *FiberToNodeAdapter) GetFlexStyle() *layout.FlexStyle {
 	if a.fiber == nil {
 		return nil
+	}
+	if a.fiber.Instance != nil {
+		if provider, ok := a.fiber.Instance.(interface {
+			GetFlexStyle() *layout.FlexStyle
+		}); ok {
+			if style := provider.GetFlexStyle(); style != nil {
+				return style
+			}
+		}
 	}
 
 	// Only return flex style for flex containers (vstack, hstack)
@@ -1198,7 +1218,6 @@ func ConvertLayoutConstraints(c layout.Constraints) runtime.BoxConstraints {
 		MaxHeight: c.MaxHeight,
 	}
 }
-
 
 // =============================================================================
 // Type Conversion Helpers

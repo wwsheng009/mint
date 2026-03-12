@@ -6,7 +6,6 @@ package main
 import (
 	"testing"
 
-	"github.com/wwsheng009/mint/runtime/platform"
 	"github.com/wwsheng009/mint/ui"
 )
 
@@ -57,10 +56,7 @@ func TestDemo5TabsBar(t *testing.T) {
 	defer testApp.Close()
 
 	// Navigate to terminal tab
-	for i := 0; i < 15; i++ {
-		testApp.InjectSpecialKey(platform.KeyTab)
-	}
-	testApp.InjectSpecialKey(platform.KeyEnter)
+	testApp.InjectKey('t')
 
 	t.Log("✓ Demo5 tabs bar works")
 }
@@ -143,8 +139,8 @@ func TestDemo5Comprehensive(t *testing.T) {
 			defer testApp.Close()
 
 			// Try to navigate through tabs
-			for i := 0; i < 20; i++ {
-				testApp.InjectSpecialKey(platform.KeyTab)
+			for _, key := range []rune{'e', 't', 'p', 'o'} {
+				testApp.InjectKey(key)
 			}
 			t.Log("✓ Tab navigation works")
 		}},
@@ -155,11 +151,8 @@ func TestDemo5Comprehensive(t *testing.T) {
 			}
 			defer testApp.Close()
 
-			// Try clicking some buttons
-			for i := 0; i < 5; i++ {
-				testApp.InjectSpecialKey(platform.KeyTab)
-				testApp.InjectSpecialKey(platform.KeyEnter)
-			}
+			testApp.InjectKey('t')
+			testApp.InjectKey('o')
 			t.Log("✓ Button interaction works")
 		}},
 		{"EventProcessing", func(t *testing.T) {
