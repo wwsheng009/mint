@@ -6,7 +6,7 @@
 
 ---
 
-## 当前组件清单（30个）
+## 当前组件清单（34个）
 
 | 组件 | 目录 | 完整度 | 说明 |
 |------|------|--------|------|
@@ -15,6 +15,7 @@
 | Textarea | `textarea/` | ★★★☆☆ | 多行文本输入 |
 | Select | `select/` | ★★★★☆ | 单选/多选，overlay popup，placeholder，disabled |
 | Checkbox | `checkbox/` | ★★★☆☆ | 基本勾选，缺 indeterminate 和 CheckboxGroup |
+| Radio | `radio/` | ★★★☆☆ | 独立单选按钮，含 RadioGroup 包装层 |
 | OptionGroup | `optiongroup/` | ★★★☆☆ | 选项组，支持 radio/checkbox 模式 |
 | Form | `form/` | ★★★☆☆ | 表单容器，submit/reset intent，已补 FormItem、layout、validator 联动 |
 | Table | `table/` | ★★★★☆ | 排序、分页、过滤、多选、搜索、滚动 |
@@ -53,8 +54,8 @@
 | 组件 | 说明 | AntD 对应 |
 |------|------|-----------|
 | ~~**Spin**~~ | ~~异步加载指示器，支持全屏遮罩和局部 loading~~ | `Spin` ✅ 已实现（2026-03）|
-| **Notification** | 右上角通知弹窗，带标题和内容 | `Notification` |
-| **Message** | 全局顶部消息提示（Toast 已部分实现，需独立为正式组件） | `message` |
+| ~~**Notification**~~ | ~~右上角通知弹窗，带标题和内容~~ | `Notification` ✅ 已实现（2026-03）|
+| ~~**Message**~~ | ~~全局顶部消息提示（已由 `ui/components/toast/` 提供）~~ | `message` ✅ 已实现（2026-03）|
 | **Result** | 结果状态页，success/error/404/403 | `Result` |
 | **Skeleton** | 骨架屏加载占位 | `Skeleton` |
 
@@ -62,7 +63,7 @@
 
 | 组件 | 说明 | AntD 对应 |
 |------|------|-----------|
-| **Radio** | 独立单选按钮（当前只有 OptionGroup，缺独立 Radio） | `Radio` |
+| ~~**Radio**~~ | ~~独立单选按钮，含 RadioGroup~~ | `Radio` ✅ 已实现（2026-03）|
 | **Switch** | 开关，toggle，UX 与 Checkbox 不同 | `Switch` |
 | **Slider** | 数值范围滑块，支持单值和范围 | `Slider` |
 | **Rate** | 星级评分 | `Rate` |
@@ -145,7 +146,7 @@
 
 完善表单控件，使表单体系与 Form 验证体系闭环。
 
-- [ ] `Radio` — 独立单选按钮 + RadioGroup
+- [x] `Radio` — 独立单选按钮 + RadioGroup（2026-03）
 - [ ] `Switch` — 开关控件
 - [ ] `Checkbox` 增强 — indeterminate 状态，CheckboxGroup
 - [ ] `Input` 增强 — prefix/suffix，Search 变体，addonBefore/addonAfter

@@ -35,6 +35,7 @@ import (
 	"github.com/wwsheng009/mint/ui/components/modal"
 	"github.com/wwsheng009/mint/ui/components/panel"
 	"github.com/wwsheng009/mint/ui/components/progress"
+	"github.com/wwsheng009/mint/ui/components/radio"
 	"github.com/wwsheng009/mint/ui/components/scrollview"
 	selectcomp "github.com/wwsheng009/mint/ui/components/select"
 	"github.com/wwsheng009/mint/ui/components/statusbar"
@@ -64,6 +65,14 @@ func NewTextareaBuilder() *textarea.Builder {
 
 func NewCheckboxBuilder() *checkbox.Builder {
 	return checkbox.NewBuilder()
+}
+
+func NewRadioBuilder() *radio.Builder {
+	return radio.NewBuilder()
+}
+
+func NewRadioGroupBuilder(options []radio.Option) *radio.GroupBuilder {
+	return radio.NewGroupBuilder(options)
 }
 
 // Button Components
@@ -301,9 +310,25 @@ const (
 // Select Types
 type SelectOption = selectcomp.Option
 
+// Radio Types
+type (
+	RadioOption      = radio.Option
+	RadioOrientation = radio.Orientation
+)
+
+const (
+	RadioVertical   = radio.OrientationVertical
+	RadioHorizontal = radio.OrientationHorizontal
+)
+
 // NewSelectOption creates a new select option with value and label
 func NewSelectOption(value, label string) selectcomp.Option {
 	return selectcomp.Option{Value: value, Label: label}
+}
+
+// NewRadioOption creates a new radio option with value and label.
+func NewRadioOption(value, label string) radio.Option {
+	return radio.Option{Value: value, Label: label}
 }
 
 // =============================================================================
@@ -341,6 +366,16 @@ func TextareaWithValue(placeholder, value string) rtui.VNode {
 // Checkbox creates a checkbox
 func Checkbox(label string, checked bool) rtui.VNode {
 	return checkbox.NewBuilder().Label(label).Checked(checked).Build()
+}
+
+// Radio creates a radio button.
+func Radio(label string, checked bool) rtui.VNode {
+	return radio.NewBuilder().Label(label).Checked(checked).Build()
+}
+
+// RadioGroup creates a radio group builder.
+func RadioGroup(options []radio.Option) *radio.GroupBuilder {
+	return radio.NewGroupBuilder(options)
 }
 
 // Select creates a select dropdown with options
