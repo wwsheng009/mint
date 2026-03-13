@@ -154,6 +154,7 @@ func (b *BaseComponentInstance) OnMount() {
 
 // OnUnmount implements ComponentInstance
 func (b *BaseComponentInstance) OnUnmount() {
+	b.context.CleanupAll()
 	b.mounted = false
 }
 

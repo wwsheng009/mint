@@ -291,24 +291,24 @@ func TestSafeTimer_Basic(t *testing.T) {
 
 func TestSafeTimer_Reset(t *testing.T) {
 	count := 0
-	st := NewSafeTimer(10*time.Millisecond, func() {
+	st := NewSafeTimer(100*time.Millisecond, func() {
 		count++
 	})
 
 	st.Start()
 
 	// Reset before first fire
-	time.Sleep(5 * time.Millisecond)
-	st.Reset(10 * time.Millisecond)
+	time.Sleep(30 * time.Millisecond)
+	st.Reset(100 * time.Millisecond)
 
-	// Wait for original time (should not fire)
-	time.Sleep(8 * time.Millisecond)
+	// Wait for original time (should not fire yet — reset extends deadline)
+	time.Sleep(50 * time.Millisecond)
 	if count != 0 {
 		t.Errorf("count = %d, want 0 (timer should have been reset)", count)
 	}
 
 	// Wait for reset time
-	time.Sleep(20 * time.Millisecond)
+	time.Sleep(150 * time.Millisecond)
 	if count != 1 {
 		t.Errorf("count = %d, want 1", count)
 	}

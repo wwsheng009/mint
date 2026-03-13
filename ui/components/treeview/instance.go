@@ -174,6 +174,13 @@ func NewInstance(props rtui.Props) *Instance {
 	inst.checkedKeysInitialized = inst.checkedKeysControlled || hasProp(props, "checkedKeys")
 	inst.searchQueryInitialized = inst.searchQueryControlled || hasProp(props, "searchQuery")
 
+	// Initialize lastExternalExpandedKeys so that SetProps can correctly detect
+	// changes when the initial expandedKeys is non-empty (e.g. {"root": true})
+	// and a subsequent update passes an empty map.
+	if hasProp(props, "expandedKeys") {
+		inst.lastExternalExpandedKeys = cloneExpandedKeys(normalizeExpandedKeys(inst.expandedKeys))
+	}
+
 	// Initialize expand state based on expandLevel or controlled keys
 	if inst.expandedKeysControlled {
 		inst.applyExpandedKeys(inst.expandedKeys, true)

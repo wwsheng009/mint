@@ -18,8 +18,15 @@ func TestMenuShortcuts(t *testing.T) {
 	)
 	builder := NewMenuPopupBuilder(items).Theme(MenuThemeDefault())
 	vnode := builder.Build()
-	if vnode.Tag() != "menu-popup" {
-		t.Fatalf("Tag() = %q, want menu-popup", vnode.Tag())
+	// Build() wraps popup in a portal "box" element; check the first child for the popup tag.
+	tag := vnode.Tag()
+	if tag == "box" {
+		if children := vnode.Children(); len(children) > 0 {
+			tag = children[0].Tag()
+		}
+	}
+	if tag != "menu-popup" {
+		t.Fatalf("Tag() = %q, want menu-popup", tag)
 	}
 	bindings := builder.Shortcuts()
 	if len(bindings) != 2 {
