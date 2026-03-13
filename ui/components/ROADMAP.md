@@ -2,11 +2,11 @@
 
 > 本文档记录 Mint UI 组件库的现状、与 Ant Design 的对比分析，以及后续开发计划。
 >
-> 更新日期：2026-03-12
+> 更新日期：2026-03-14
 
 ---
 
-## 当前组件清单（28个）
+## 当前组件清单（30个）
 
 | 组件 | 目录 | 完整度 | 说明 |
 |------|------|--------|------|
@@ -24,6 +24,8 @@
 | Modal | `modal/` | ★★★★☆ | overlay定位，portal架构 |
 | Tabs | `tabs/` | ★★★★☆ | intent，controlled模式 |
 | Menu | `menu/` | ★★★★★ | menubar/dropdown/context/popup，submenu，shortcut |
+| Alert | `alert/` | ★★★☆☆ | 内联提示，info/success/warning/error，可关闭 |
+| Spin | `spin/` | ★★★☆☆ | 加载指示器，small/default/large，tip，TickFrame动画 |
 | Toast | `toast/` | ★★★☆☆ | 已从 tooltip 独立，info/success/warning/error，自动消失 |
 | Tooltip | `tooltip/` | ★★★☆☆ | placement 方位有限 |
 | Progress | `progress/` | ★★☆☆☆ | 线形进度条，value/max，showPercent |
@@ -48,8 +50,7 @@
 
 | 组件 | 说明 | AntD 对应 |
 |------|------|-----------|
-| **Alert** | 警告提示，success/info/warning/error 四种状态，带图标和可关闭 | `Alert` |
-| **Spin** | 异步加载指示器，支持全屏遮罩和局部 loading | `Spin` |
+| ~~**Spin**~~ | ~~异步加载指示器，支持全屏遮罩和局部 loading~~ | `Spin` ✅ 已实现（2026-03）|
 | **Notification** | 右上角通知弹窗，带标题和内容 | `Notification` |
 | **Message** | 全局顶部消息提示（Toast 已部分实现，需独立为正式组件） | `message` |
 | **Result** | 结果状态页，success/error/404/403 | `Result` |
@@ -131,7 +132,7 @@
 
 补全应用开发中最高频的反馈类组件，让用户能清晰感知操作结果和系统状态。
 
-- [ ] `Alert` — 内联状态提示
+- [x] `Alert` — 内联状态提示（2026-03）
 - [ ] `Spin` — 加载状态指示器
 - [x] `Message`/`Toast` — 已独立为 `ui/components/toast/` 包（2026-03）
 - [ ] `Notification` — 通知弹窗
