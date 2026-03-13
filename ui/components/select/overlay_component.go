@@ -1,8 +1,9 @@
 package selectcomp
 
 import (
-	"github.com/wwsheng009/mint/ui/components/internal/proputil"
 	"fmt"
+	"github.com/wwsheng009/mint/ui/components/internal/proputil"
+	"strings"
 
 	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/runtime/style"
@@ -13,22 +14,24 @@ import (
 const overlayCallbacksProp = "_selectOverlayCallbacks"
 
 type overlayComponentModel struct {
-	key             string
-	selectID        string
-	componentID     string
-	options         []Option
-	selectStyle     style.Style
-	width           int
-	placeholder     string
-	maxVisibleRows  int
-	portalRoot      string
-	closeOnOutside  bool
-	changeIntent    intent.Intent
-	selectionMode   SelectionMode
-	disabled        bool
-	formID          string
-	selectedIndex   int
-	selectedIndices []int
+	key               string
+	selectID          string
+	componentID       string
+	options           []Option
+	selectStyle       style.Style
+	width             int
+	placeholder       string
+	filterOption      bool
+	filterPlaceholder string
+	maxVisibleRows    int
+	portalRoot        string
+	closeOnOutside    bool
+	changeIntent      intent.Intent
+	selectionMode     SelectionMode
+	disabled          bool
+	formID            string
+	selectedIndex     int
+	selectedIndices   []int
 }
 
 type overlayComponentState struct {
@@ -37,6 +40,8 @@ type overlayComponentState struct {
 	open              bool
 	highlightedIndex  int
 	scrollOffset      int
+	filterQuery       string
+	createdOptions    []Option
 	externalSelection string
 }
 
@@ -46,12 +51,16 @@ type overlayControllerState struct {
 	open             bool
 	highlightedIndex int
 	scrollOffset     int
+	filterQuery      string
+	options          []Option
 }
 
 type overlayCallbacks struct {
-	setOpen      func(bool) overlayControllerState
-	setHighlight func(int) overlayControllerState
-	commit       func(int) overlayControllerState
+	setOpen        func(bool) overlayControllerState
+	setHighlight   func(int) overlayControllerState
+	commit         func(int) overlayControllerState
+	setFilterQuery func(string) overlayControllerState
+	createTag      func() overlayControllerState
 }
 
 func newOverlayComponent(node *VNode) rtui.VNode {
@@ -76,11 +85,12 @@ func renderOverlayComponent(props rtui.Props) rtui.VNode {
 	model := overlayComponentModelFromProps(props)
 	stateRef, ctx := currentOverlayComponentState(model)
 	callbacks := newOverlayCallbacks(ctx, stateRef, model)
+	rows := overlayPopupRows(model, stateRef)
 
 	children := []rtui.VNode{
 		newOverlayTriggerVNode(model, *stateRef, callbacks),
 	}
-	if stateRef.open && len(model.options) > 0 {
+	if stateRef.open && (rows.showFilter || len(rows.scrollable) > 0) {
 		children = append(children, newOverlayPopupVNode(model, *stateRef, callbacks))
 	}
 	return rtui.Fragment(children...)
@@ -88,22 +98,27 @@ func renderOverlayComponent(props rtui.Props) rtui.VNode {
 
 func overlayComponentModelFromProps(props rtui.Props) overlayComponentModel {
 	model := overlayComponentModel{
-		key:             proputil.GetString(props, "key", ""),
-		selectID:        proputil.GetString(props, "selectID", ""),
-		componentID:     proputil.GetString(props, "componentID", ""),
-		options:         getOptionsProp(props),
-		selectStyle:     proputil.GetStyle(props, "style", style.Style{}),
-		width:           proputil.GetInt(props, "width", 0),
-		placeholder:     proputil.GetString(props, "placeholder", "..."),
-		maxVisibleRows:  proputil.GetInt(props, "maxVisibleRows", defaultMaxVisibleRows),
-		portalRoot:      getPortalRootProp(props, rtui.DefaultOverlayPortalRootID),
-		closeOnOutside:  proputil.GetBool(props, "closeOnOutside", true),
-		changeIntent:    proputil.GetIntent(props, "changeIntent", nil),
-		selectionMode:   getSelectionModeProp(props, SelectionSingle),
-		disabled:        proputil.GetBool(props, "disabled", false),
-		formID:          proputil.GetString(props, "formID", ""),
-		selectedIndex:   proputil.GetInt(props, "selectedIndex", -1),
-		selectedIndices: getIntsProp(props, "selectedIndices", nil),
+		key:               proputil.GetString(props, "key", ""),
+		selectID:          proputil.GetString(props, "selectID", ""),
+		componentID:       proputil.GetString(props, "componentID", ""),
+		options:           getOptionsProp(props),
+		selectStyle:       proputil.GetStyle(props, "style", style.Style{}),
+		width:             proputil.GetInt(props, "width", 0),
+		placeholder:       proputil.GetString(props, "placeholder", "..."),
+		filterOption:      proputil.GetBool(props, propFilterOption, false),
+		filterPlaceholder: proputil.GetString(props, propFilterPlaceholder, "type to filter"),
+		maxVisibleRows:    proputil.GetInt(props, "maxVisibleRows", defaultMaxVisibleRows),
+		portalRoot:        getPortalRootProp(props, rtui.DefaultOverlayPortalRootID),
+		closeOnOutside:    proputil.GetBool(props, "closeOnOutside", true),
+		changeIntent:      proputil.GetIntent(props, "changeIntent", nil),
+		selectionMode:     getSelectionModeProp(props, SelectionSingle),
+		disabled:          proputil.GetBool(props, "disabled", false),
+		formID:            proputil.GetString(props, "formID", ""),
+		selectedIndex:     proputil.GetInt(props, "selectedIndex", -1),
+		selectedIndices:   getIntsProp(props, "selectedIndices", nil),
+	}
+	if isTagsSelectionMode(model.selectionMode) {
+		model.filterOption = true
 	}
 	if model.selectID == "" {
 		model.selectID = firstNonEmpty(model.componentID, model.key)
@@ -118,6 +133,27 @@ func overlayComponentModelFromProps(props rtui.Props) overlayComponentModel {
 		model.maxVisibleRows = defaultMaxVisibleRows
 	}
 	return model
+}
+
+func overlayEffectiveOptions(model overlayComponentModel, state *overlayComponentState) []Option {
+	if state == nil {
+		return append([]Option(nil), model.options...)
+	}
+	return mergeOptions(model.options, state.createdOptions)
+}
+
+func overlayPopupRows(model overlayComponentModel, state *overlayComponentState) popupRows {
+	filterQuery := ""
+	if state != nil {
+		filterQuery = state.filterQuery
+	}
+	return buildPopupRows(
+		overlayEffectiveOptions(model, state),
+		model.selectionMode,
+		model.filterOption,
+		model.filterPlaceholder,
+		filterQuery,
+	)
 }
 
 func currentOverlayComponentState(model overlayComponentModel) (*overlayComponentState, *rtui.ComponentContext) {
@@ -151,9 +187,9 @@ func initialOverlayComponentState(model overlayComponentModel) overlayComponentS
 		selectedIndices: append([]int(nil), model.selectedIndices...),
 		open:            false,
 		scrollOffset:    0,
+		filterQuery:     "",
 	}
 	state.externalSelection = overlaySelectionSignature(model.selectionMode, model.selectedIndex, model.selectedIndices)
-	state.highlightedIndex = defaultOverlayHighlight(state.selectedIndex, state.selectedIndices, model.selectionMode, len(model.options))
 	normalizeOverlayComponentState(&state, model)
 	return state
 }
@@ -168,9 +204,6 @@ func syncOverlayComponentState(state *overlayComponentState, model overlayCompon
 		state.selectedIndex = model.selectedIndex
 		state.selectedIndices = append([]int(nil), model.selectedIndices...)
 		state.externalSelection = externalSelection
-		if !state.open {
-			state.highlightedIndex = defaultOverlayHighlight(state.selectedIndex, state.selectedIndices, model.selectionMode, len(model.options))
-		}
 	}
 
 	normalizeOverlayComponentState(state, model)
@@ -185,36 +218,34 @@ func normalizeOverlayComponentState(state *overlayComponentState, model overlayC
 		model.selectionMode,
 		state.selectedIndex,
 		state.selectedIndices,
-		len(model.options),
+		len(overlayEffectiveOptions(model, state)),
 	)
 
-	if len(model.options) == 0 {
+	rows := overlayPopupRows(model, state)
+	if !rows.showFilter && len(rows.scrollable) == 0 {
 		state.open = false
 		state.highlightedIndex = -1
 		state.scrollOffset = 0
 		return
 	}
-
-	if state.highlightedIndex < 0 || state.highlightedIndex >= len(model.options) {
-		state.highlightedIndex = defaultOverlayHighlight(state.selectedIndex, state.selectedIndices, model.selectionMode, len(model.options))
-	}
-	state.highlightedIndex = clampInt(state.highlightedIndex, 0, len(model.options)-1)
-
-	visibleRows := minInt(len(model.options), maxInt(1, model.maxVisibleRows))
-	maxOffset := maxInt(0, len(model.options)-visibleRows)
-	state.scrollOffset = clampInt(state.scrollOffset, 0, maxOffset)
-	if state.highlightedIndex < state.scrollOffset {
-		state.scrollOffset = state.highlightedIndex
-	}
-	if state.highlightedIndex >= state.scrollOffset+visibleRows {
-		state.scrollOffset = state.highlightedIndex - visibleRows + 1
-	}
-	state.scrollOffset = clampInt(state.scrollOffset, 0, maxOffset)
+	state.highlightedIndex, state.scrollOffset = normalizePopupHighlight(
+		rows,
+		state.highlightedIndex,
+		state.scrollOffset,
+		model.maxVisibleRows,
+		model.selectionMode,
+		state.selectedIndex,
+		state.selectedIndices,
+	)
 }
 
-func overlayControllerSnapshot(state *overlayComponentState) overlayControllerState {
+func overlayControllerSnapshot(model overlayComponentModel, state *overlayComponentState) overlayControllerState {
 	if state == nil {
 		return overlayControllerState{}
+	}
+	options := overlayEffectiveOptions(model, state)
+	if options == nil {
+		options = []Option{}
 	}
 	return overlayControllerState{
 		selectedIndex:    state.selectedIndex,
@@ -222,6 +253,8 @@ func overlayControllerSnapshot(state *overlayComponentState) overlayControllerSt
 		open:             state.open,
 		highlightedIndex: state.highlightedIndex,
 		scrollOffset:     state.scrollOffset,
+		filterQuery:      state.filterQuery,
+		options:          append([]Option(nil), options...),
 	}
 }
 
@@ -242,57 +275,125 @@ func updateOverlayComponentState(
 	if ctx != nil {
 		ctx.ScheduleUpdate()
 	}
-	return overlayControllerSnapshot(state)
+	return overlayControllerSnapshot(model, state)
 }
 
 func newOverlayCallbacks(ctx *rtui.ComponentContext, state *overlayComponentState, model overlayComponentModel) *overlayCallbacks {
 	return &overlayCallbacks{
 		setOpen: func(open bool) overlayControllerState {
 			return updateOverlayComponentState(ctx, state, model, func(state *overlayComponentState) {
-				if len(model.options) == 0 {
+				rows := overlayPopupRows(model, state)
+				if !rows.showFilter && len(rows.scrollable) == 0 {
 					state.open = false
 					return
 				}
 				state.open = open
-				if open && (state.highlightedIndex < 0 || state.highlightedIndex >= len(model.options)) {
-					state.highlightedIndex = defaultOverlayHighlight(
-						state.selectedIndex,
-						state.selectedIndices,
-						model.selectionMode,
-						len(model.options),
-					)
+				if !open {
+					state.filterQuery = ""
 				}
 			})
 		},
 		setHighlight: func(index int) overlayControllerState {
 			return updateOverlayComponentState(ctx, state, model, func(state *overlayComponentState) {
-				if len(model.options) == 0 {
+				rows := overlayPopupRows(model, state)
+				if len(selectableTargets(rows)) == 0 {
 					state.open = false
 					state.highlightedIndex = -1
 					state.scrollOffset = 0
 					return
 				}
 				state.open = true
-				state.highlightedIndex = clampInt(index, 0, len(model.options)-1)
+				if rowPositionForHighlight(rows, index) < 0 {
+					index = defaultHighlightTarget(rows, model.selectionMode, state.selectedIndex, state.selectedIndices)
+				}
+				state.highlightedIndex = index
 			})
 		},
 		commit: func(index int) overlayControllerState {
 			return updateOverlayComponentState(ctx, state, model, func(state *overlayComponentState) {
+				if index == highlightCreateTag {
+					query := strings.TrimSpace(state.filterQuery)
+					if !isTagsSelectionMode(model.selectionMode) || query == "" {
+						return
+					}
+					options := overlayEffectiveOptions(model, state)
+					if existing := findExactOptionIndex(options, query); existing >= 0 {
+						index = existing
+					} else {
+						state.createdOptions = append(state.createdOptions, createTagOption(query))
+						options = overlayEffectiveOptions(model, state)
+						index = len(options) - 1
+					}
+				}
+				options := overlayEffectiveOptions(model, state)
 				nextIndex, nextIndices, _, shouldClose := applyOverlayCommit(
 					model.selectionMode,
-					len(model.options),
+					len(options),
 					state.selectedIndex,
 					state.selectedIndices,
 					index,
 				)
 				state.selectedIndex = nextIndex
 				state.selectedIndices = nextIndices
-				state.highlightedIndex = clampIndexForOptions(index, len(model.options))
+				state.highlightedIndex = index
+				if isTagsSelectionMode(model.selectionMode) {
+					state.filterQuery = ""
+				}
 				if shouldClose {
 					state.open = false
-				} else if len(model.options) > 0 {
+					state.filterQuery = ""
+				} else if len(options) > 0 {
 					state.open = true
 				}
+			})
+		},
+		setFilterQuery: func(query string) overlayControllerState {
+			return updateOverlayComponentState(ctx, state, model, func(state *overlayComponentState) {
+				state.open = true
+				state.filterQuery = sanitizeFilterText(query)
+			})
+		},
+		createTag: func() overlayControllerState {
+			return updateOverlayComponentState(ctx, state, model, func(state *overlayComponentState) {
+				if !isTagsSelectionMode(model.selectionMode) {
+					return
+				}
+				query := strings.TrimSpace(state.filterQuery)
+				if query == "" {
+					return
+				}
+				options := overlayEffectiveOptions(model, state)
+				if existing := findExactOptionIndex(options, query); existing >= 0 {
+					nextIndex, nextIndices, _, _ := applyOverlayCommit(
+						model.selectionMode,
+						len(options),
+						state.selectedIndex,
+						state.selectedIndices,
+						existing,
+					)
+					state.selectedIndex = nextIndex
+					state.selectedIndices = nextIndices
+					state.highlightedIndex = existing
+					state.filterQuery = ""
+					state.open = true
+					return
+				}
+
+				state.createdOptions = append(state.createdOptions, createTagOption(query))
+				options = overlayEffectiveOptions(model, state)
+				newIndex := len(options) - 1
+				nextIndex, nextIndices, _, _ := applyOverlayCommit(
+					model.selectionMode,
+					len(options),
+					state.selectedIndex,
+					state.selectedIndices,
+					newIndex,
+				)
+				state.selectedIndex = nextIndex
+				state.selectedIndices = nextIndices
+				state.highlightedIndex = newIndex
+				state.filterQuery = ""
+				state.open = true
 			})
 		},
 	}
@@ -303,13 +404,16 @@ func newOverlayTriggerVNode(
 	state overlayComponentState,
 	callbacks *overlayCallbacks,
 ) rtui.VNode {
+	options := overlayEffectiveOptions(model, &state)
 	trigger := New()
 	trigger.key = firstNonEmpty(model.key, model.selectID)
 	trigger.componentID = model.componentID
-	trigger.options = append([]Option(nil), model.options...)
+	trigger.options = append([]Option(nil), options...)
 	trigger.style = model.selectStyle
 	trigger.width = model.width
 	trigger.placeholder = model.placeholder
+	trigger.filterOption = model.filterOption
+	trigger.filterPlaceholder = model.filterPlaceholder
 	trigger.maxVisibleRows = model.maxVisibleRows
 	trigger.overlayPopup = true
 	trigger.portalRoot = model.portalRoot
@@ -323,6 +427,7 @@ func newOverlayTriggerVNode(
 	trigger.open = state.open
 	trigger.highlightedIndex = state.highlightedIndex
 	trigger.scrollOffset = state.scrollOffset
+	trigger.filterQuery = state.filterQuery
 	trigger.selectID = model.selectID
 	trigger.overlayCallbacks = callbacks
 	trigger.SetID(model.selectID)
@@ -334,27 +439,31 @@ func newOverlayPopupVNode(
 	state overlayComponentState,
 	callbacks *overlayCallbacks,
 ) rtui.VNode {
+	options := overlayEffectiveOptions(model, &state)
 	surface := &popupVNode{ElementVNode: rtui.NewElement("select-popup")}
 	surface.SetKey(firstNonEmpty(model.key, model.selectID) + "-popup")
 	surface.SetID(model.selectID + "-popup")
 	surface.SetLayer(rtui.LayerOverlay)
 	surface.SetProps(rtui.Props{
-		"selectID":           model.selectID,
-		"componentID":        resolvedSelectComponentID(model.componentID, model.selectID),
-		"options":            append([]Option(nil), model.options...),
-		"style":              model.selectStyle,
-		"selectionMode":      model.selectionMode,
-		"selectedIndex":      state.selectedIndex,
-		"selectedIndices":    append([]int(nil), state.selectedIndices...),
-		"highlightedIndex":   state.highlightedIndex,
-		"scrollOffset":       state.scrollOffset,
-		"maxVisibleRows":     model.maxVisibleRows,
-		"minWidth":           triggerWidthForModel(model, state.selectedIndex, state.selectedIndices),
-		"disabled":           model.disabled,
-		"closeOnOutside":     model.closeOnOutside,
-		"changeIntent":       model.changeIntent,
-		"formID":             model.formID,
-		overlayCallbacksProp: callbacks,
+		"selectID":            model.selectID,
+		"componentID":         resolvedSelectComponentID(model.componentID, model.selectID),
+		"options":             append([]Option(nil), options...),
+		"style":               model.selectStyle,
+		"selectionMode":       model.selectionMode,
+		"selectedIndex":       state.selectedIndex,
+		"selectedIndices":     append([]int(nil), state.selectedIndices...),
+		"highlightedIndex":    state.highlightedIndex,
+		"scrollOffset":        state.scrollOffset,
+		propFilterOption:      model.filterOption,
+		propFilterPlaceholder: model.filterPlaceholder,
+		"filterQuery":         state.filterQuery,
+		"maxVisibleRows":      model.maxVisibleRows,
+		"minWidth":            triggerWidthForModel(model, options, state.selectedIndex, state.selectedIndices),
+		"disabled":            model.disabled,
+		"closeOnOutside":      model.closeOnOutside,
+		"changeIntent":        model.changeIntent,
+		"formID":              model.formID,
+		overlayCallbacksProp:  callbacks,
 	})
 
 	portal := rtui.NewElement("box")
@@ -382,7 +491,7 @@ func normalizeOverlaySelection(
 	optionCount int,
 ) (int, []int) {
 	normalized := normalizeIndices(selectedIndices, optionCount)
-	if mode == SelectionMultiple {
+	if isMultiSelectionMode(mode) {
 		if len(normalized) == 0 && selectedIndex >= 0 && selectedIndex < optionCount {
 			normalized = []int{selectedIndex}
 		}
@@ -410,19 +519,6 @@ func normalizeOverlaySelection(
 	return -1, nil
 }
 
-func defaultOverlayHighlight(selectedIndex int, selectedIndices []int, mode SelectionMode, optionCount int) int {
-	if optionCount <= 0 {
-		return -1
-	}
-	if mode == SelectionMultiple && len(selectedIndices) > 0 {
-		return clampInt(selectedIndices[len(selectedIndices)-1], 0, optionCount-1)
-	}
-	if selectedIndex >= 0 {
-		return clampInt(selectedIndex, 0, optionCount-1)
-	}
-	return 0
-}
-
 func overlaySelectionSignature(mode SelectionMode, selectedIndex int, selectedIndices []int) string {
 	return fmt.Sprintf("%d:%d:%s", mode, selectedIndex, joinIndices(selectedIndices))
 }
@@ -437,7 +533,7 @@ func applyOverlayCommit(
 	if index < 0 || index >= optionCount {
 		return selectedIndex, append([]int(nil), selectedIndices...), false, false
 	}
-	if mode == SelectionMultiple {
+	if isMultiSelectionMode(mode) {
 		next := append([]int(nil), selectedIndices...)
 		pos := indexOfInt(next, index)
 		if pos >= 0 {
@@ -478,15 +574,17 @@ func resolvedSelectComponentID(componentID, selectID string) string {
 	return firstNonEmpty(componentID, selectID)
 }
 
-func triggerWidthForModel(model overlayComponentModel, selectedIndex int, selectedIndices []int) int {
+func triggerWidthForModel(model overlayComponentModel, options []Option, selectedIndex int, selectedIndices []int) int {
 	inst := &Instance{
-		options:         append([]Option(nil), model.options...),
-		selectStyle:     model.selectStyle,
-		width:           model.width,
-		placeholder:     model.placeholder,
-		selectionMode:   model.selectionMode,
-		selectedIndex:   selectedIndex,
-		selectedIndices: append([]int(nil), selectedIndices...),
+		options:           append([]Option(nil), options...),
+		selectStyle:       model.selectStyle,
+		width:             model.width,
+		placeholder:       model.placeholder,
+		filterOption:      model.filterOption,
+		filterPlaceholder: model.filterPlaceholder,
+		selectionMode:     model.selectionMode,
+		selectedIndex:     selectedIndex,
+		selectedIndices:   append([]int(nil), selectedIndices...),
 	}
 	inst.normalizeSelectionState()
 	return inst.triggerWidth()

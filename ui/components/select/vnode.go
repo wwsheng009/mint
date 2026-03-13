@@ -13,27 +13,30 @@ import (
 
 // Prop key constants — shared by VNode and Instance to avoid magic strings.
 const (
-	propChangeIntent = "changeIntent"
-	propCloseOnOutside = "closeOnOutside"
-	propComponentID = "componentID"
-	propDisabled = "disabled"
-	propFormID = "formID"
-	propHighlightedIndex = "highlightedIndex"
-	propKey = "key"
-	propMaxVisibleRows = "maxVisibleRows"
-	propOpen = "open"
-	propOptions = "options"
-	propOverlayPopup = "overlayPopup"
-	propOwnerID = "ownerID"
-	propPlaceholder = "placeholder"
-	propPortalRoot = "portalRoot"
-	propScrollOffset = "scrollOffset"
-	propSelectID = "selectID"
-	propSelectedIndex = "selectedIndex"
-	propSelectedIndices = "selectedIndices"
-	propSelectionMode = "selectionMode"
-	propStyle = "style"
-	propWidth = "width"
+	propChangeIntent      = "changeIntent"
+	propCloseOnOutside    = "closeOnOutside"
+	propComponentID       = "componentID"
+	propDisabled          = "disabled"
+	propFilterOption      = "filterOption"
+	propFilterPlaceholder = "filterPlaceholder"
+	propFilterQuery       = "filterQuery"
+	propFormID            = "formID"
+	propHighlightedIndex  = "highlightedIndex"
+	propKey               = "key"
+	propMaxVisibleRows    = "maxVisibleRows"
+	propOpen              = "open"
+	propOptions           = "options"
+	propOverlayPopup      = "overlayPopup"
+	propOwnerID           = "ownerID"
+	propPlaceholder       = "placeholder"
+	propPortalRoot        = "portalRoot"
+	propScrollOffset      = "scrollOffset"
+	propSelectID          = "selectID"
+	propSelectedIndex     = "selectedIndex"
+	propSelectedIndices   = "selectedIndices"
+	propSelectionMode     = "selectionMode"
+	propStyle             = "style"
+	propWidth             = "width"
 )
 
 // =============================================================================
@@ -44,6 +47,7 @@ const (
 type Option struct {
 	Value string
 	Label string
+	Group string
 }
 
 // =============================================================================
@@ -60,28 +64,31 @@ type VNode struct {
 	componentID string // Component ID for Intent routing (Phase 10)
 
 	// === Visual Props ===
-	options        []Option
-	style          style.Style
-	width          int
-	placeholder    string
-	maxVisibleRows int
-	overlayPopup   bool
-	portalRoot     string
-	closeOnOutside bool
+	options           []Option
+	style             style.Style
+	width             int
+	placeholder       string
+	filterOption      bool
+	filterPlaceholder string
+	maxVisibleRows    int
+	overlayPopup      bool
+	portalRoot        string
+	closeOnOutside    bool
 
 	// === Intent Props (no closures!) ===
 	changeIntent intent.Intent
 
 	// === State Props (declarative, actual state managed by Instance) ===
-	selectedIndex   int
-	selectedIndices []int
-	selectionMode   SelectionMode
-	disabled        bool
-	formID          string // Form ID for Form integration (Phase 6)
-	open            bool
+	selectedIndex    int
+	selectedIndices  []int
+	selectionMode    SelectionMode
+	disabled         bool
+	formID           string // Form ID for Form integration (Phase 6)
+	open             bool
 	highlightedIndex int
-	scrollOffset    int
-	selectID        string
+	scrollOffset     int
+	filterQuery      string
+	selectID         string
 	overlayCallbacks *overlayCallbacks
 
 	// === Box Model (via interface) ===
@@ -102,16 +109,17 @@ var (
 // New creates a new Select VNode.
 func New() *VNode {
 	return &VNode{
-		ElementVNode:   rtui.NewElement("select"),
-		options:        []Option{},
-		selectedIndex:  -1,
-		highlightedIndex: -1,
-		selectionMode:  SelectionSingle,
-		maxVisibleRows: 6,
-		placeholder:    "...",
-		overlayPopup:   false,
-		portalRoot:     rtui.DefaultOverlayPortalRootID,
-		closeOnOutside: true,
+		ElementVNode:      rtui.NewElement("select"),
+		options:           []Option{},
+		selectedIndex:     -1,
+		highlightedIndex:  -1,
+		selectionMode:     SelectionSingle,
+		maxVisibleRows:    6,
+		placeholder:       "...",
+		filterPlaceholder: "type to filter",
+		overlayPopup:      false,
+		portalRoot:        rtui.DefaultOverlayPortalRootID,
+		closeOnOutside:    true,
 	}
 }
 
@@ -201,9 +209,12 @@ func (s *VNode) Props() rtui.Props {
 		propStyle:             s.style,
 		propWidth:             s.width,
 		propPlaceholder:       s.placeholder,
+		propFilterOption:      s.filterOption,
+		propFilterPlaceholder: s.filterPlaceholder,
+		propFilterQuery:       s.filterQuery,
 		propMaxVisibleRows:    s.maxVisibleRows,
 		propOverlayPopup:      s.overlayPopup,
-		popupPortalRootProp: s.portalRoot,
+		popupPortalRootProp:   s.portalRoot,
 		propCloseOnOutside:    s.closeOnOutside,
 		propChangeIntent:      s.changeIntent,
 		propSelectedIndex:     s.selectedIndex,
@@ -215,7 +226,7 @@ func (s *VNode) Props() rtui.Props {
 		propHighlightedIndex:  s.highlightedIndex,
 		propScrollOffset:      s.scrollOffset,
 		propSelectID:          s.selectID,
-		overlayCallbacksProp: s.overlayCallbacks,
+		overlayCallbacksProp:  s.overlayCallbacks,
 	}
 }
 
@@ -238,6 +249,15 @@ func (s *VNode) SetProps(p rtui.Props) rtui.VNode {
 	}
 	if v, ok := p[propPlaceholder].(string); ok {
 		s.placeholder = v
+	}
+	if v, ok := p[propFilterOption].(bool); ok {
+		s.filterOption = v
+	}
+	if v, ok := p[propFilterPlaceholder].(string); ok {
+		s.filterPlaceholder = v
+	}
+	if v, ok := p[propFilterQuery].(string); ok {
+		s.filterQuery = v
 	}
 	if v, ok := p[propMaxVisibleRows].(int); ok {
 		s.maxVisibleRows = v
@@ -303,10 +323,13 @@ func (s *VNode) CreateInstance() rtui.ComponentInstance {
 		propStyle:             s.style,
 		propWidth:             s.width,
 		propPlaceholder:       s.placeholder,
+		propFilterOption:      s.filterOption,
+		propFilterPlaceholder: s.filterPlaceholder,
+		propFilterQuery:       s.filterQuery,
 		propMaxVisibleRows:    s.maxVisibleRows,
 		propOverlayPopup:      s.usesOverlayPopup(),
 		propOwnerID:           s.ownerID(),
-		popupPortalRootProp: s.portalRoot,
+		popupPortalRootProp:   s.portalRoot,
 		propCloseOnOutside:    s.closeOnOutside,
 		propChangeIntent:      s.changeIntent,
 		propSelectedIndex:     s.selectedIndex,
@@ -318,7 +341,7 @@ func (s *VNode) CreateInstance() rtui.ComponentInstance {
 		propHighlightedIndex:  s.highlightedIndex,
 		propScrollOffset:      s.scrollOffset,
 		propSelectID:          firstNonEmpty(s.selectID, s.ownerID()),
-		overlayCallbacksProp: s.overlayCallbacks,
+		overlayCallbacksProp:  s.overlayCallbacks,
 	}
 	return NewInstance(props)
 }
@@ -339,10 +362,22 @@ func (s *VNode) AddOption(value, label string) *VNode {
 	return s
 }
 
+// AddGroupedOption adds an option under an option group label.
+func (s *VNode) AddGroupedOption(group, value, label string) *VNode {
+	s.options = append(s.options, Option{Group: group, Value: value, Label: label})
+	return s
+}
+
+// SetOptionGroups replaces options with a flattened set of grouped options.
+func (s *VNode) SetOptionGroups(groups []OptionGroup) *VNode {
+	s.options = flattenOptionGroups(groups)
+	return s
+}
+
 // SetSelectedIndex sets the selected index.
 func (s *VNode) SetSelectedIndex(idx int) *VNode {
 	s.selectedIndex = idx
-	if s.selectionMode == SelectionMultiple {
+	if isMultiSelectionMode(s.selectionMode) {
 		if idx >= 0 {
 			s.selectedIndices = []int{idx}
 		} else {
@@ -361,7 +396,7 @@ func (s *VNode) SetSelectedIndex(idx int) *VNode {
 // SetSelectedIndices sets the selected indices for multi-select mode.
 func (s *VNode) SetSelectedIndices(indices []int) *VNode {
 	s.selectedIndices = append([]int(nil), indices...)
-	if s.selectionMode == SelectionMultiple {
+	if isMultiSelectionMode(s.selectionMode) {
 		if len(s.selectedIndices) > 0 {
 			s.selectedIndex = s.selectedIndices[len(s.selectedIndices)-1]
 		} else {
@@ -381,8 +416,11 @@ func (s *VNode) SetSelectedIndices(indices []int) *VNode {
 // SetSelectionMode sets the selection mode.
 func (s *VNode) SetSelectionMode(mode SelectionMode) *VNode {
 	s.selectionMode = mode
+	if isTagsSelectionMode(mode) {
+		s.filterOption = true
+	}
 	switch mode {
-	case SelectionMultiple:
+	case SelectionMultiple, SelectionTags:
 		if len(s.selectedIndices) == 0 && s.selectedIndex >= 0 {
 			s.selectedIndices = []int{s.selectedIndex}
 		}
@@ -417,6 +455,18 @@ func (s *VNode) SetWidth(width int) *VNode {
 // SetPlaceholder sets the text shown when nothing is selected.
 func (s *VNode) SetPlaceholder(placeholder string) *VNode {
 	s.placeholder = placeholder
+	return s
+}
+
+// SetFilterOption enables search filtering in the popup.
+func (s *VNode) SetFilterOption(enabled bool) *VNode {
+	s.filterOption = enabled
+	return s
+}
+
+// SetFilterPlaceholder configures the filter input hint text.
+func (s *VNode) SetFilterPlaceholder(placeholder string) *VNode {
+	s.filterPlaceholder = placeholder
 	return s
 }
 
@@ -500,6 +550,16 @@ func (s *VNode) MaxVisibleRows() int {
 	return s.maxVisibleRows
 }
 
+// FilterOption reports whether popup filtering is enabled.
+func (s *VNode) FilterOption() bool {
+	return s.filterOption
+}
+
+// FilterPlaceholder returns the filter input placeholder.
+func (s *VNode) FilterPlaceholder() string {
+	return s.filterPlaceholder
+}
+
 // OverlayPopup reports whether overlay popup mode is enabled.
 func (s *VNode) OverlayPopup() bool {
 	return s.overlayPopup
@@ -558,7 +618,7 @@ func (s *VNode) GetBoxModel() layout.BoxModel {
 }
 
 func (s *VNode) resolvedSelectedIndices() []int {
-	if s.selectionMode == SelectionMultiple {
+	if isMultiSelectionMode(s.selectionMode) {
 		return append([]int(nil), s.selectedIndices...)
 	}
 	if s.selectedIndex >= 0 {

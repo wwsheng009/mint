@@ -40,29 +40,32 @@ func (v *popupVNode) CreateInstance() rtui.ComponentInstance {
 }
 
 type popupInstance struct {
-	key              string
-	parent           rtui.ComponentInstance
-	selectID         string
-	componentID      string
-	options          []Option
-	popupStyle       style.Style
-	selectionMode    SelectionMode
-	selectedIndex    int
-	selectedIndices  []int
-	highlightedIndex int
-	scrollOffset     int
-	maxVisibleRows   int
-	minWidth         int
-	disabled         bool
-	closeOnOutside   bool
-	changeIntent     intent.Intent
+	key               string
+	parent            rtui.ComponentInstance
+	selectID          string
+	componentID       string
+	options           []Option
+	popupStyle        style.Style
+	selectionMode     SelectionMode
+	selectedIndex     int
+	selectedIndices   []int
+	highlightedIndex  int
+	scrollOffset      int
+	filterOption      bool
+	filterPlaceholder string
+	filterQuery       string
+	maxVisibleRows    int
+	minWidth          int
+	disabled          bool
+	closeOnOutside    bool
+	changeIntent      intent.Intent
 	changeIntentField intent.FieldIntent
-	formID           string
-	focused          bool
-	bounds           [4]int
-	dirty            bool
-	intentEmitter    func(intent.Intent)
-	overlayCallbacks *overlayCallbacks
+	formID            string
+	focused           bool
+	bounds            [4]int
+	dirty             bool
+	intentEmitter     func(intent.Intent)
+	overlayCallbacks  *overlayCallbacks
 }
 
 var (
@@ -99,12 +102,26 @@ func (inst *popupInstance) SetParent(parent rtui.ComponentInstance) {
 	inst.parent = parent
 }
 
+func (inst *popupInstance) rows() popupRows {
+	return buildPopupRows(
+		inst.options,
+		inst.selectionMode,
+		inst.filterOption,
+		inst.filterPlaceholder,
+		inst.filterQuery,
+	)
+}
+
 func (inst *popupInstance) SetProps(props rtui.Props) bool {
 	oldSelectID := inst.selectID
+	oldOptions := append([]Option(nil), inst.options...)
+	oldFilterOption := inst.filterOption
+	oldFilterPlaceholder := inst.filterPlaceholder
 	oldHighlight := inst.highlightedIndex
 	oldScroll := inst.scrollOffset
 	oldSelected := inst.selectedIndex
 	oldSelectedIndices := append([]int(nil), inst.selectedIndices...)
+	oldFilterQuery := inst.filterQuery
 
 	inst.key = proputil.GetString(props, "key", inst.key)
 	inst.selectID = proputil.GetString(props, "selectID", inst.selectID)
@@ -116,6 +133,9 @@ func (inst *popupInstance) SetProps(props rtui.Props) bool {
 	inst.selectedIndices = getIntsProp(props, "selectedIndices", inst.selectedIndices)
 	inst.highlightedIndex = proputil.GetInt(props, "highlightedIndex", inst.highlightedIndex)
 	inst.scrollOffset = proputil.GetInt(props, "scrollOffset", inst.scrollOffset)
+	inst.filterOption = proputil.GetBool(props, propFilterOption, inst.filterOption)
+	inst.filterPlaceholder = proputil.GetString(props, propFilterPlaceholder, inst.filterPlaceholder)
+	inst.filterQuery = sanitizeFilterText(proputil.GetString(props, "filterQuery", inst.filterQuery))
 	inst.maxVisibleRows = proputil.GetInt(props, "maxVisibleRows", inst.maxVisibleRows)
 	inst.minWidth = proputil.GetInt(props, "minWidth", inst.minWidth)
 	inst.disabled = proputil.GetBool(props, "disabled", inst.disabled)
@@ -134,21 +154,18 @@ func (inst *popupInstance) SetProps(props rtui.Props) bool {
 	if inst.maxVisibleRows <= 0 {
 		inst.maxVisibleRows = defaultMaxVisibleRows
 	}
-	if len(inst.options) == 0 {
-		inst.highlightedIndex = -1
-		inst.scrollOffset = 0
-	} else {
-		if inst.highlightedIndex < 0 || inst.highlightedIndex >= len(inst.options) {
-			inst.highlightedIndex = defaultOverlayHighlight(
-				inst.selectedIndex,
-				inst.selectedIndices,
-				inst.selectionMode,
-				len(inst.options),
-			)
-		}
-		inst.highlightedIndex = clampInt(inst.highlightedIndex, 0, len(inst.options)-1)
-		inst.scrollOffset = clampInt(inst.scrollOffset, 0, inst.maxScrollOffset())
+	if isTagsSelectionMode(inst.selectionMode) {
+		inst.filterOption = true
 	}
+	inst.highlightedIndex, inst.scrollOffset = normalizePopupHighlight(
+		inst.rows(),
+		inst.highlightedIndex,
+		inst.scrollOffset,
+		inst.maxVisibleRows,
+		inst.selectionMode,
+		inst.selectedIndex,
+		inst.selectedIndices,
+	)
 
 	if oldSelectID != "" && oldSelectID != inst.selectID {
 		selectPopupRegistry.unregister(inst)
@@ -158,9 +175,13 @@ func (inst *popupInstance) SetProps(props rtui.Props) bool {
 	}
 
 	changed := oldSelectID != inst.selectID ||
+		!equalOptions(oldOptions, inst.options) ||
+		oldFilterOption != inst.filterOption ||
+		oldFilterPlaceholder != inst.filterPlaceholder ||
 		oldHighlight != inst.highlightedIndex ||
 		oldScroll != inst.scrollOffset ||
 		oldSelected != inst.selectedIndex ||
+		oldFilterQuery != inst.filterQuery ||
 		!equalIntSlices(oldSelectedIndices, inst.selectedIndices)
 	if changed {
 		inst.dirty = true
@@ -170,28 +191,32 @@ func (inst *popupInstance) SetProps(props rtui.Props) bool {
 
 func (inst *popupInstance) GetProps() rtui.Props {
 	return rtui.Props{
-		"key":               inst.key,
-		"selectID":          inst.selectID,
-		"componentID":       inst.componentID,
-		"options":           append([]Option(nil), inst.options...),
-		"style":             inst.popupStyle,
-		"selectionMode":     inst.selectionMode,
-		"selectedIndex":     inst.selectedIndex,
-		"selectedIndices":   append([]int(nil), inst.selectedIndices...),
-		"highlightedIndex":  inst.highlightedIndex,
-		"scrollOffset":      inst.scrollOffset,
-		"maxVisibleRows":    inst.maxVisibleRows,
-		"minWidth":          inst.minWidth,
-		"disabled":          inst.disabled,
-		"closeOnOutside":    inst.closeOnOutside,
-		"changeIntent":      inst.changeIntent,
-		"formID":            inst.formID,
-		overlayCallbacksProp: inst.overlayCallbacks,
+		"key":                 inst.key,
+		"selectID":            inst.selectID,
+		"componentID":         inst.componentID,
+		"options":             append([]Option(nil), inst.options...),
+		"style":               inst.popupStyle,
+		"selectionMode":       inst.selectionMode,
+		"selectedIndex":       inst.selectedIndex,
+		"selectedIndices":     append([]int(nil), inst.selectedIndices...),
+		"highlightedIndex":    inst.highlightedIndex,
+		"scrollOffset":        inst.scrollOffset,
+		propFilterOption:      inst.filterOption,
+		propFilterPlaceholder: inst.filterPlaceholder,
+		"filterQuery":         inst.filterQuery,
+		"maxVisibleRows":      inst.maxVisibleRows,
+		"minWidth":            inst.minWidth,
+		"disabled":            inst.disabled,
+		"closeOnOutside":      inst.closeOnOutside,
+		"changeIntent":        inst.changeIntent,
+		"formID":              inst.formID,
+		overlayCallbacksProp:  inst.overlayCallbacks,
 	}
 }
 
 func (inst *popupInstance) Measure(constraints layout.Constraints) layout.Size {
-	if len(inst.options) == 0 {
+	rows := inst.rows()
+	if !rows.showFilter && len(rows.scrollable) == 0 {
 		return layout.Size{}
 	}
 	width := constraints.ConstrainWidth(inst.popupWidth())
@@ -200,30 +225,55 @@ func (inst *popupInstance) Measure(constraints layout.Constraints) layout.Size {
 }
 
 func (inst *popupInstance) Paint(x, y int) []paint.DrawCmd {
-	if len(inst.options) == 0 {
+	rows := inst.rows()
+	if !rows.showFilter && len(rows.scrollable) == 0 {
 		return nil
 	}
 	return inst.paintPopupAt(x, y)
 }
 
 func (inst *popupInstance) HandleAction(act *action.Action) bool {
-	if act == nil || inst.disabled || len(inst.options) == 0 {
+	if act == nil || inst.disabled {
+		return false
+	}
+
+	switch act.Type {
+	case action.ActionInputChar:
+		if value, ok := act.GetPayloadRune(); ok {
+			return inst.appendFilterText(string(value))
+		}
+		return false
+	case action.ActionInputText:
+		if value, ok := act.GetPayloadString(); ok {
+			return inst.appendFilterText(value)
+		}
+		return false
+	case action.ActionBackspace:
+		return inst.backspaceFilterText()
+	case action.ActionDeleteChar, action.ActionClear:
+		return inst.clearFilterText()
+	case action.ActionCancel:
+		return inst.requestClose()
+	}
+
+	rows := inst.rows()
+	if len(selectableTargets(rows)) == 0 {
 		return false
 	}
 
 	switch act.Type {
 	case action.ActionNavigateDown:
-		return inst.setHighlight(inst.highlightedIndex + 1)
+		return inst.setHighlight(nextHighlightTarget(rows, inst.highlightedIndex, 1))
 	case action.ActionNavigateUp:
-		return inst.setHighlight(inst.highlightedIndex - 1)
+		return inst.setHighlight(nextHighlightTarget(rows, inst.highlightedIndex, -1))
 	case action.ActionNavigateHome:
-		return inst.setHighlight(0)
+		return inst.setHighlight(firstSelectableTarget(rows))
 	case action.ActionNavigateEnd:
-		return inst.setHighlight(len(inst.options) - 1)
+		return inst.setHighlight(lastSelectableTarget(rows))
 	case action.ActionNavigatePageUp:
-		return inst.setHighlight(inst.highlightedIndex - maxInt(1, inst.visibleRowCount()))
+		return inst.setHighlight(pageHighlightTarget(rows, inst.highlightedIndex, -1, maxInt(1, inst.visibleRowCount())))
 	case action.ActionNavigatePageDown:
-		return inst.setHighlight(inst.highlightedIndex + maxInt(1, inst.visibleRowCount()))
+		return inst.setHighlight(pageHighlightTarget(rows, inst.highlightedIndex, 1, maxInt(1, inst.visibleRowCount())))
 	case action.ActionHover:
 		mouse, ok := popupMousePayload(act.Payload)
 		if !ok {
@@ -269,11 +319,9 @@ func (inst *popupInstance) HandleAction(act *action.Action) bool {
 		if !ok || delta == 0 {
 			return false
 		}
-		return inst.setHighlight(inst.highlightedIndex + scrollDirection(delta))
+		return inst.setHighlight(nextHighlightTarget(rows, inst.highlightedIndex, scrollDirection(delta)))
 	case action.ActionSelect, action.ActionEnter, action.ActionSubmit:
 		return inst.commit(inst.highlightedIndex)
-	case action.ActionCancel:
-		return inst.requestClose()
 	}
 	return false
 }
@@ -295,7 +343,7 @@ func (inst *popupInstance) HasFocus() bool {
 }
 
 func (inst *popupInstance) IsDisabled() bool {
-	return inst.disabled || len(inst.options) == 0
+	return inst.disabled || len(selectableTargets(inst.rows())) == 0
 }
 
 func (inst *popupInstance) SetBounds(x, y, w, h int) {
@@ -318,55 +366,123 @@ func (inst *popupInstance) containsPoint(screenX, screenY int) bool {
 }
 
 func (inst *popupInstance) popupWidth() int {
-	markerWidth := inst.optionMarkerWidth()
-	labelWidth := 0
-	for _, opt := range inst.options {
-		labelWidth = maxInt(labelWidth, paint.StringWidth(opt.Label))
-	}
-	contentWidth := labelWidth
-	if markerWidth > 0 {
-		contentWidth += markerWidth + 1
-	}
+	contentWidth := popupContentWidth(inst.rows(), inst.selectionMode)
 	return maxInt(inst.minWidth, maxInt(contentWidth+2, 6))
 }
 
 func (inst *popupInstance) popupHeight() int {
-	if len(inst.options) == 0 {
+	rows := inst.rows()
+	if !rows.showFilter && len(rows.scrollable) == 0 {
 		return 0
 	}
-	return inst.visibleRowCount() + 2
+	height := inst.visibleRowCount() + 2
+	if rows.showFilter {
+		height++
+	}
+	return height
 }
 
 func (inst *popupInstance) visibleRowCount() int {
-	if len(inst.options) == 0 {
-		return 0
-	}
-	rows := inst.maxVisibleRows
-	if rows <= 0 {
-		rows = defaultMaxVisibleRows
-	}
-	return minInt(len(inst.options), rows)
+	return visibleScrollableRowCount(inst.rows(), inst.maxVisibleRows)
 }
 
 func (inst *popupInstance) maxScrollOffset() int {
-	return maxInt(0, len(inst.options)-inst.visibleRowCount())
+	return maxScrollOffsetForRows(inst.rows(), inst.maxVisibleRows)
 }
 
-func (inst *popupInstance) setHighlight(index int) bool {
-	if len(inst.options) == 0 {
+func (inst *popupInstance) setFilterQuery(query string) bool {
+	if !filterEnabledFor(inst.selectionMode, inst.filterOption) {
 		return false
 	}
-	index = clampInt(index, 0, len(inst.options)-1)
+
+	query = sanitizeFilterText(query)
 	if inst.overlayCallbacks != nil {
-		state := inst.overlayCallbacks.setHighlight(index)
+		state := inst.overlayCallbacks.setFilterQuery(query)
 		oldHighlight := inst.highlightedIndex
 		oldScroll := inst.scrollOffset
+		oldFilterQuery := inst.filterQuery
+		oldOptions := append([]Option(nil), inst.options...)
 		inst.selectedIndex = state.selectedIndex
 		inst.selectedIndices = append([]int(nil), state.selectedIndices...)
 		inst.highlightedIndex = state.highlightedIndex
 		inst.scrollOffset = state.scrollOffset
-		inst.dirty = oldHighlight != inst.highlightedIndex || oldScroll != inst.scrollOffset
-		return oldHighlight != inst.highlightedIndex || oldScroll != inst.scrollOffset
+		if state.options != nil {
+			inst.options = append([]Option(nil), state.options...)
+		}
+		inst.filterQuery = state.filterQuery
+		inst.dirty = oldHighlight != inst.highlightedIndex ||
+			oldScroll != inst.scrollOffset ||
+			oldFilterQuery != inst.filterQuery ||
+			!equalOptions(oldOptions, inst.options)
+		return inst.dirty
+	}
+
+	if inst.filterQuery == query {
+		return false
+	}
+	inst.filterQuery = query
+	inst.ensureHighlightVisible()
+	inst.dirty = true
+	return true
+}
+
+func (inst *popupInstance) appendFilterText(text string) bool {
+	if !filterEnabledFor(inst.selectionMode, inst.filterOption) {
+		return false
+	}
+	text = sanitizeFilterText(text)
+	if strings.TrimSpace(text) == "" {
+		return false
+	}
+	return inst.setFilterQuery(inst.filterQuery + text)
+}
+
+func (inst *popupInstance) backspaceFilterText() bool {
+	if !filterEnabledFor(inst.selectionMode, inst.filterOption) || inst.filterQuery == "" {
+		return false
+	}
+	runes := []rune(inst.filterQuery)
+	if len(runes) == 0 {
+		return false
+	}
+	return inst.setFilterQuery(string(runes[:len(runes)-1]))
+}
+
+func (inst *popupInstance) clearFilterText() bool {
+	if !filterEnabledFor(inst.selectionMode, inst.filterOption) || inst.filterQuery == "" {
+		return false
+	}
+	return inst.setFilterQuery("")
+}
+
+func (inst *popupInstance) setHighlight(index int) bool {
+	rows := inst.rows()
+	if len(selectableTargets(rows)) == 0 {
+		return false
+	}
+	if rowPositionForHighlight(rows, index) < 0 {
+		index = defaultHighlightTarget(rows, inst.selectionMode, inst.selectedIndex, inst.selectedIndices)
+	}
+	if inst.overlayCallbacks != nil {
+		state := inst.overlayCallbacks.setHighlight(index)
+		oldHighlight := inst.highlightedIndex
+		oldScroll := inst.scrollOffset
+		oldFilterQuery := inst.filterQuery
+		oldOptions := append([]Option(nil), inst.options...)
+		inst.selectedIndex = state.selectedIndex
+		inst.selectedIndices = append([]int(nil), state.selectedIndices...)
+		inst.highlightedIndex = state.highlightedIndex
+		inst.scrollOffset = state.scrollOffset
+		if state.options != nil {
+			inst.options = append([]Option(nil), state.options...)
+		}
+		inst.filterQuery = state.filterQuery
+		changed := oldHighlight != inst.highlightedIndex ||
+			oldScroll != inst.scrollOffset ||
+			oldFilterQuery != inst.filterQuery ||
+			!equalOptions(oldOptions, inst.options)
+		inst.dirty = changed
+		return changed
 	}
 	if index == inst.highlightedIndex {
 		return false
@@ -379,20 +495,35 @@ func (inst *popupInstance) setHighlight(index int) bool {
 
 func (inst *popupInstance) commit(index int) bool {
 	if index < 0 || index >= len(inst.options) {
-		return false
+		if index != highlightCreateTag {
+			return false
+		}
 	}
 	oldSelectedIndex := inst.selectedIndex
 	oldSelectedIndices := append([]int(nil), inst.selectedIndices...)
+	oldOptions := append([]Option(nil), inst.options...)
 	closed := false
 	if inst.overlayCallbacks != nil {
-		state := inst.overlayCallbacks.commit(index)
+		var state overlayControllerState
+		if index == highlightCreateTag {
+			state = inst.overlayCallbacks.createTag()
+		} else {
+			state = inst.overlayCallbacks.commit(index)
+		}
 		inst.selectedIndex = state.selectedIndex
 		inst.selectedIndices = append([]int(nil), state.selectedIndices...)
 		inst.highlightedIndex = state.highlightedIndex
 		inst.scrollOffset = state.scrollOffset
+		if state.options != nil {
+			inst.options = append([]Option(nil), state.options...)
+		}
+		inst.filterQuery = state.filterQuery
 		inst.dirty = true
 		closed = !state.open
 	} else {
+		if index == highlightCreateTag {
+			return false
+		}
 		nextIndex, nextIndices, _, shouldClose := applyOverlayCommit(
 			inst.selectionMode,
 			len(inst.options),
@@ -410,6 +541,7 @@ func (inst *popupInstance) commit(index int) bool {
 
 	selectionChanged := oldSelectedIndex != inst.selectedIndex ||
 		!equalIntSlices(oldSelectedIndices, inst.selectedIndices)
+	optionsChanged := !equalOptions(oldOptions, inst.options)
 	if selectionChanged {
 		emitFieldValueChangedFrom(
 			inst,
@@ -419,6 +551,7 @@ func (inst *popupInstance) commit(index int) bool {
 			inst.selectionMode,
 			inst.selectedIndex,
 			inst.selectedIndices,
+			inst.options,
 		)
 		emitSelectChangeFrom(
 			inst,
@@ -429,7 +562,7 @@ func (inst *popupInstance) commit(index int) bool {
 			inst.selectedIndices,
 		)
 	}
-	return selectionChanged || closed
+	return selectionChanged || optionsChanged || closed
 }
 
 func (inst *popupInstance) requestClose() bool {
@@ -440,6 +573,10 @@ func (inst *popupInstance) requestClose() bool {
 		inst.selectedIndices = append([]int(nil), state.selectedIndices...)
 		inst.highlightedIndex = state.highlightedIndex
 		inst.scrollOffset = state.scrollOffset
+		if state.options != nil {
+			inst.options = append([]Option(nil), state.options...)
+		}
+		inst.filterQuery = state.filterQuery
 		inst.dirty = true
 		return wasOpen && !state.open
 	}
@@ -448,39 +585,26 @@ func (inst *popupInstance) requestClose() bool {
 }
 
 func (inst *popupInstance) ensureHighlightVisible() {
-	if len(inst.options) == 0 || inst.highlightedIndex < 0 {
-		inst.scrollOffset = 0
-		return
-	}
-	maxOffset := inst.maxScrollOffset()
-	if inst.scrollOffset > maxOffset {
-		inst.scrollOffset = maxOffset
-	}
-	if inst.highlightedIndex < inst.scrollOffset {
-		inst.scrollOffset = inst.highlightedIndex
-	}
-	if visible := inst.visibleRowCount(); visible > 0 && inst.highlightedIndex >= inst.scrollOffset+visible {
-		inst.scrollOffset = inst.highlightedIndex - visible + 1
-	}
-	inst.scrollOffset = clampInt(inst.scrollOffset, 0, maxOffset)
+	inst.highlightedIndex, inst.scrollOffset = normalizePopupHighlight(
+		inst.rows(),
+		inst.highlightedIndex,
+		inst.scrollOffset,
+		inst.maxVisibleRows,
+		inst.selectionMode,
+		inst.selectedIndex,
+		inst.selectedIndices,
+	)
 }
 
 func (inst *popupInstance) optionIndexAt(localX, localY int) (int, bool) {
 	if localX < 0 || localY < 1 {
 		return 0, false
 	}
-	row := localY - 1
-	if row < 0 || row >= inst.visibleRowCount() {
-		return 0, false
-	}
-	index := inst.scrollOffset + row
-	if index < 0 || index >= len(inst.options) {
-		return 0, false
-	}
-	return index, true
+	return popupHitTarget(inst.rows(), inst.scrollOffset, inst.maxVisibleRows, localY)
 }
 
 func (inst *popupInstance) paintPopupAt(x, y int) []paint.DrawCmd {
+	rows := inst.rows()
 	popupWidth := inst.popupWidth()
 	popupHeight := inst.popupHeight()
 	if popupWidth < 4 || popupHeight < 3 {
@@ -494,20 +618,37 @@ func (inst *popupInstance) paintPopupAt(x, y int) []paint.DrawCmd {
 	bottom := "└" + strings.Repeat("─", maxInt(0, popupWidth-2)) + "┘"
 	cmds := []paint.DrawCmd{{X: x, Y: y, Text: top, Style: borderStyle}}
 
+	contentY := y + 1
+	if rows.showFilter {
+		cmds = append(cmds,
+			paint.DrawCmd{X: x, Y: contentY, Text: "│", Style: borderStyle},
+			paint.DrawCmd{X: x + 1, Y: contentY, Text: strings.Repeat(" ", contentWidth), Style: fillStyle},
+			paint.DrawCmd{X: x + popupWidth - 1, Y: contentY, Text: "│", Style: borderStyle},
+			paint.DrawCmd{
+				X:     x + 1,
+				Y:     contentY,
+				Text:  padDisplayWidth(truncateWithEllipsis(popupFilterText(rows.filterQuery, rows.filterPlaceholder), contentWidth), contentWidth),
+				Style: fillStyle,
+			},
+		)
+		contentY++
+	}
+
 	visibleRows := inst.visibleRowCount()
-	for row := 0; row < visibleRows; row++ {
-		rowY := y + 1 + row
+	for rowOffset := 0; rowOffset < visibleRows; rowOffset++ {
+		rowY := contentY + rowOffset
 		cmds = append(cmds,
 			paint.DrawCmd{X: x, Y: rowY, Text: "│", Style: borderStyle},
 			paint.DrawCmd{X: x + 1, Y: rowY, Text: strings.Repeat(" ", contentWidth), Style: fillStyle},
 			paint.DrawCmd{X: x + popupWidth - 1, Y: rowY, Text: "│", Style: borderStyle},
 		)
-		optionIndex := inst.scrollOffset + row
-		if optionIndex >= len(inst.options) {
+		rowIndex := inst.scrollOffset + rowOffset
+		if rowIndex >= len(rows.scrollable) {
 			continue
 		}
-		rowStyle := popupOptionRowStyleFor(inst.popupStyle, inst.disabled, optionIndex == inst.highlightedIndex)
-		rowText := inst.optionRowText(optionIndex, contentWidth)
+		row := rows.scrollable[rowIndex]
+		rowStyle := popupOptionRowStyleFor(inst.popupStyle, inst.disabled, row, isHighlightedTarget(row, inst.highlightedIndex))
+		rowText := popupRowText(row, contentWidth, inst.selectionMode, inst.selectedIndices)
 		cmds = append(cmds, paint.DrawCmd{
 			X:     x + 1,
 			Y:     rowY,
@@ -547,24 +688,11 @@ func (inst *popupInstance) optionRowText(index, width int) string {
 }
 
 func (inst *popupInstance) optionMarker(index int) string {
-	selected := containsInt(inst.selectedIndices, index)
-	if inst.selectionMode == SelectionMultiple {
-		if selected {
-			return "[x]"
-		}
-		return "[ ]"
-	}
-	if selected {
-		return "●"
-	}
-	return "○"
+	return optionMarkerForMode(inst.selectionMode, inst.selectedIndices, index)
 }
 
 func (inst *popupInstance) optionMarkerWidth() int {
-	if inst.selectionMode == SelectionMultiple {
-		return 3
-	}
-	return 1
+	return markerWidthForMode(inst.selectionMode)
 }
 
 func popupFillStyleFor(base style.Style, disabled bool) style.Style {
@@ -589,10 +717,21 @@ func popupBorderStyleFor(base style.Style, disabled bool) style.Style {
 	return s
 }
 
-func popupOptionRowStyleFor(base style.Style, disabled, highlighted bool) style.Style {
+func popupOptionRowStyleFor(base style.Style, disabled bool, row popupRow, highlighted bool) style.Style {
 	s := popupFillStyleFor(base, disabled)
 	if disabled {
 		return s.Foreground(theme.DisabledFG()).Background(theme.DisabledBG())
+	}
+	switch row.kind {
+	case popupRowGroup:
+		return s.Foreground(theme.Focus()).Bold(true)
+	case popupRowCreateTag:
+		if highlighted {
+			return s.Foreground(theme.BG()).Background(theme.Select()).Bold(true)
+		}
+		return s.Foreground(theme.Focus()).Bold(true)
+	case popupRowEmpty:
+		return s.Foreground(theme.DisabledFG())
 	}
 	if highlighted {
 		return s.Foreground(theme.BG()).Background(theme.Select()).Bold(true)

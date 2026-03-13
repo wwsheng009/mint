@@ -34,6 +34,18 @@ func (b *Builder) AddOption(value, label string) *Builder {
 	return b
 }
 
+// AddGroupedOption adds an option under an option group label.
+func (b *Builder) AddGroupedOption(group, value, label string) *Builder {
+	b.node.AddGroupedOption(group, value, label)
+	return b
+}
+
+// OptionGroups flattens grouped options into the select option list.
+func (b *Builder) OptionGroups(groups []OptionGroup) *Builder {
+	b.node.SetOptionGroups(groups)
+	return b
+}
+
 // Key sets the key for diffing.
 func (b *Builder) Key(key string) *Builder {
 	b.node.SetKey(key)
@@ -75,6 +87,18 @@ func (b *Builder) MultiSelect() *Builder {
 	return b.SelectionMode(SelectionMultiple)
 }
 
+// TagsMode enables tag creation + multi-select behavior.
+func (b *Builder) TagsMode(enabled bool) *Builder {
+	if enabled {
+		b.node.SetSelectionMode(SelectionTags)
+		return b
+	}
+	if b.node.SelectionMode() == SelectionTags {
+		b.node.SetSelectionMode(SelectionMultiple)
+	}
+	return b
+}
+
 // Disabled sets the disabled state.
 func (b *Builder) Disabled(v bool) *Builder {
 	b.node.SetDisabled(v)
@@ -108,6 +132,18 @@ func (b *Builder) CloseOnOutside(close bool) *Builder {
 // Placeholder sets the text shown when nothing is selected.
 func (b *Builder) Placeholder(text string) *Builder {
 	b.node.SetPlaceholder(text)
+	return b
+}
+
+// FilterOption enables search filtering inside the popup.
+func (b *Builder) FilterOption(enabled bool) *Builder {
+	b.node.SetFilterOption(enabled)
+	return b
+}
+
+// FilterPlaceholder sets the filter input hint text.
+func (b *Builder) FilterPlaceholder(text string) *Builder {
+	b.node.SetFilterPlaceholder(text)
 	return b
 }
 

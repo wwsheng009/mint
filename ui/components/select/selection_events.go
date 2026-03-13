@@ -54,12 +54,13 @@ func emitFieldValueChangedFrom(
 	mode SelectionMode,
 	selectedIndex int,
 	selectedIndices []int,
+	options []Option,
 ) {
 	if source == nil {
 		return
 	}
 
-	value := fieldValueFor(mode, selectedIndex, selectedIndices)
+	value := fieldValueFor(mode, selectedIndex, selectedIndices, options)
 	if formID != "" {
 		if changeIntentField != nil {
 			intent.Emit(source, form.FieldChange(formID, changeIntentField.GetField(), value, true))
@@ -87,6 +88,7 @@ func emitFieldBlurFrom(
 	mode SelectionMode,
 	selectedIndex int,
 	selectedIndices []int,
+	options []Option,
 ) {
 	if source == nil || changeIntentField == nil || formID == "" {
 		return
@@ -94,7 +96,7 @@ func emitFieldBlurFrom(
 	intent.Emit(source, form.FieldBlur(
 		formID,
 		changeIntentField.GetField(),
-		fieldValueFor(mode, selectedIndex, selectedIndices),
+		fieldValueFor(mode, selectedIndex, selectedIndices, options),
 	))
 }
 
@@ -132,8 +134,11 @@ func selectedLabelsFor(options []Option, selectedIndices []int) []string {
 	return labels
 }
 
-func fieldValueFor(mode SelectionMode, selectedIndex int, selectedIndices []int) string {
-	if mode == SelectionMultiple {
+func fieldValueFor(mode SelectionMode, selectedIndex int, selectedIndices []int, options []Option) string {
+	if isTagsSelectionMode(mode) {
+		return joinSelectedValues(options, selectedIndices)
+	}
+	if isMultiSelectionMode(mode) {
 		return joinIndices(selectedIndices)
 	}
 	return fmt.Sprintf("%d", selectedIndex)

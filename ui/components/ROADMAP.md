@@ -13,7 +13,7 @@
 | Button | `button/` | ★★★★☆ | Primary/Secondary/Danger/Ghost变体，disabled，icon |
 | Input | `input/` | ★★★★☆ | text/password/number/email，placeholder，maxLen，readOnly，prefix/suffix，addonBefore/addonAfter，Search变体 |
 | Textarea | `textarea/` | ★★★☆☆ | 多行文本输入 |
-| Select | `select/` | ★★★★☆ | 单选/多选，overlay popup，placeholder，disabled |
+| Select | `select/` | ★★★★★ | 单选/多选/tags，overlay popup，OptGroup，filterOption，placeholder，disabled |
 | Checkbox | `checkbox/` | ★★★★☆ | 基本勾选、indeterminate、CheckboxGroup |
 | Radio | `radio/` | ★★★☆☆ | 独立单选按钮，含 RadioGroup 包装层 |
 | Switch | `switch/` | ★★★☆☆ | 开关切换，支持 label、自定义 on/off 文案、Field/Form 绑定 |
@@ -120,7 +120,7 @@
 | **Input** | InputNumber 完整实现 | 高 |
 | ~~**Checkbox**~~ | ~~indeterminate 半选状态；CheckboxGroup 组件~~ | ~~高~~ |
 | **Progress** | 圆形（Circle）和仪表盘（Dashboard）样式；status（success/exception/active） | 中 |
-| **Select** | OptGroup 分组；filterOption 搜索过滤；tags 模式（自定义输入+选择） | 中 |
+| ~~**Select**~~ | ~~OptGroup 分组；filterOption 搜索过滤；tags 模式（自定义输入+选择）~~ | ~~中~~ ✅ 已完成（2026-03） |
 | **Table** | expandable 行展开；固定列（sticky column）；列宽百分比/自适应；树形数据展示 | 中 |
 | **Modal** | confirm/info/success/error/warning 快捷静态方法 | 中 |
 | **Tooltip** | 12方位 placement 精细控制；delay 配置 | 中 |
@@ -151,7 +151,7 @@
 - [x] `Switch` — 开关控件（2026-03）
 - [x] `Checkbox` 增强 — indeterminate 状态，CheckboxGroup（2026-03）
 - [x] `Input` 增强 — prefix/suffix，Search 变体，addonBefore/addonAfter（2026-03）
-- [ ] `Select` 增强 — OptGroup，filterOption，tags 模式
+- [x] `Select` 增强 — OptGroup，filterOption，tags 模式（2026-03）
 - [ ] `Slider` — 数值滑块
 - [ ] `Rate` — 星级评分
 

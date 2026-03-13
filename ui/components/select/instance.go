@@ -1,8 +1,8 @@
 package selectcomp
 
 import (
-	"github.com/wwsheng009/mint/ui/components/internal/proputil"
 	"fmt"
+	"github.com/wwsheng009/mint/ui/components/internal/proputil"
 	"strings"
 
 	"github.com/wwsheng009/mint/framework/theme"
@@ -29,10 +29,14 @@ type Instance struct {
 	componentID       string
 	parent            rtui.ComponentInstance
 	childInstances    []rtui.ComponentInstance
+	baseOptions       []Option
+	createdOptions    []Option
 	options           []Option
 	selectStyle       style.Style
 	width             int
 	placeholder       string
+	filterOption      bool
+	filterPlaceholder string
 	maxVisibleRows    int
 	overlayPopup      bool
 	portalRoot        string
@@ -50,6 +54,7 @@ type Instance struct {
 	open             bool
 	highlightedIndex int
 	scrollOffset     int
+	filterQuery      string
 	bounds           [4]int
 	dirty            bool
 
@@ -73,13 +78,18 @@ var (
 
 // NewInstance creates a new SelectInstance from props.
 func NewInstance(props rtui.Props) *Instance {
+	baseOptions := getOptionsProp(props)
 	inst := &Instance{
 		key:               proputil.GetString(props, "key", ""),
 		componentID:       proputil.GetString(props, "componentID", ""),
-		options:           getOptionsProp(props),
+		baseOptions:       baseOptions,
+		options:           append([]Option(nil), baseOptions...),
 		selectStyle:       proputil.GetStyle(props, "style", style.Style{}),
 		width:             proputil.GetInt(props, "width", 0),
 		placeholder:       proputil.GetString(props, "placeholder", "..."),
+		filterOption:      proputil.GetBool(props, propFilterOption, false),
+		filterPlaceholder: proputil.GetString(props, propFilterPlaceholder, "type to filter"),
+		filterQuery:       proputil.GetString(props, propFilterQuery, ""),
 		maxVisibleRows:    proputil.GetInt(props, "maxVisibleRows", defaultMaxVisibleRows),
 		overlayPopup:      proputil.GetBool(props, "overlayPopup", false),
 		portalRoot:        getPortalRootProp(props, rtui.DefaultOverlayPortalRootID),
@@ -117,25 +127,52 @@ func (inst *Instance) selectIdentity() string {
 	return firstNonEmpty(inst.selectID, inst.ownerID, inst.componentID, inst.key)
 }
 
+func (inst *Instance) syncOptions() {
+	inst.options = mergeOptions(inst.baseOptions, inst.createdOptions)
+}
+
+func (inst *Instance) popupRows() popupRows {
+	return buildPopupRows(
+		inst.options,
+		inst.selectionMode,
+		inst.filterOption,
+		inst.filterPlaceholder,
+		inst.filterQuery,
+	)
+}
+
+func (inst *Instance) canOpenPopup() bool {
+	rows := inst.popupRows()
+	return rows.showFilter || len(rows.scrollable) > 0
+}
+
 func (inst *Instance) applyOverlayControllerState(state overlayControllerState) bool {
 	oldOpen := inst.open
 	oldHighlight := inst.highlightedIndex
 	oldScroll := inst.scrollOffset
 	oldSelectedIndex := inst.selectedIndex
 	oldSelectedIndices := append([]int(nil), inst.selectedIndices...)
+	oldOptions := append([]Option(nil), inst.options...)
+	oldFilterQuery := inst.filterQuery
 
 	inst.open = state.open
 	inst.highlightedIndex = state.highlightedIndex
 	inst.scrollOffset = state.scrollOffset
 	inst.selectedIndex = state.selectedIndex
 	inst.selectedIndices = append([]int(nil), state.selectedIndices...)
+	if state.options != nil {
+		inst.options = append([]Option(nil), state.options...)
+	}
+	inst.filterQuery = state.filterQuery
 	inst.normalizeSelectionState()
 
 	changed := oldOpen != inst.open ||
 		oldHighlight != inst.highlightedIndex ||
 		oldScroll != inst.scrollOffset ||
 		oldSelectedIndex != inst.selectedIndex ||
-		!equalIntSlices(oldSelectedIndices, inst.selectedIndices)
+		oldFilterQuery != inst.filterQuery ||
+		!equalIntSlices(oldSelectedIndices, inst.selectedIndices) ||
+		!equalOptions(oldOptions, inst.options)
 	if changed {
 		inst.dirty = true
 	}
@@ -178,6 +215,33 @@ func (inst *Instance) requestOverlayCommit(index int) bool {
 		inst.emitSelectChange()
 	}
 	return selectionChanged || closed
+}
+
+func (inst *Instance) requestOverlayFilterQuery(query string) bool {
+	if inst.overlayCallbacks == nil {
+		return inst.setFilterQuery(query)
+	}
+	state := inst.overlayCallbacks.setFilterQuery(query)
+	return inst.applyOverlayControllerState(state)
+}
+
+func (inst *Instance) requestOverlayCreateTag() bool {
+	if inst.overlayCallbacks == nil {
+		return inst.createTagFromQuery()
+	}
+	oldSelectedIndex := inst.selectedIndex
+	oldSelectedIndices := append([]int(nil), inst.selectedIndices...)
+	oldOptions := append([]Option(nil), inst.options...)
+	state := inst.overlayCallbacks.createTag()
+	inst.applyOverlayControllerState(state)
+	selectionChanged := oldSelectedIndex != inst.selectedIndex ||
+		!equalIntSlices(oldSelectedIndices, inst.selectedIndices)
+	optionsChanged := !equalOptions(oldOptions, inst.options)
+	if selectionChanged {
+		inst.emitChange()
+		inst.emitSelectChange()
+	}
+	return selectionChanged || optionsChanged
 }
 
 func (inst *Instance) Key() string { return inst.key }
@@ -265,6 +329,8 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	oldDisabled := inst.state.Disabled
 	oldWidth := inst.width
 	oldPlaceholder := inst.placeholder
+	oldFilterOption := inst.filterOption
+	oldFilterPlaceholder := inst.filterPlaceholder
 	oldMaxVisibleRows := inst.maxVisibleRows
 	oldSelectionMode := inst.selectionMode
 	oldOverlayPopup := inst.overlayPopup
@@ -275,10 +341,15 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 
 	inst.key = proputil.GetString(props, "key", inst.key)
 	inst.componentID = proputil.GetString(props, "componentID", inst.componentID)
-	inst.options = getOptionsProp(props)
+	inst.baseOptions = getOptionsProp(props)
 	inst.selectStyle = proputil.GetStyle(props, "style", style.Style{})
 	inst.width = proputil.GetInt(props, "width", inst.width)
 	inst.placeholder = proputil.GetString(props, "placeholder", inst.placeholder)
+	inst.filterOption = proputil.GetBool(props, propFilterOption, inst.filterOption)
+	inst.filterPlaceholder = proputil.GetString(props, propFilterPlaceholder, inst.filterPlaceholder)
+	if value, ok := props[propFilterQuery].(string); ok {
+		inst.filterQuery = value
+	}
 	inst.maxVisibleRows = proputil.GetInt(props, "maxVisibleRows", inst.maxVisibleRows)
 	inst.overlayPopup = proputil.GetBool(props, "overlayPopup", inst.overlayPopup)
 	inst.portalRoot = getPortalRootProp(props, inst.portalRoot)
@@ -289,6 +360,10 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	inst.changeIntentField = getChangeIntentFieldProp(props, "changeIntent")
 	inst.formID = proputil.GetString(props, "formID", inst.formID)
 	inst.selectionMode = getSelectionModeProp(props, inst.selectionMode)
+	if isTagsSelectionMode(inst.selectionMode) {
+		inst.filterOption = true
+	}
+	inst.syncOptions()
 	inst.selectedIndex = proputil.GetInt(props, "selectedIndex", inst.selectedIndex)
 	inst.selectedIndices = getIntsProp(props, "selectedIndices", inst.selectedIndices)
 	inst.overlayCallbacks = getOverlayCallbacksProp(props)
@@ -315,7 +390,7 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 		!equalIntSlices(oldSelectedIndices, inst.selectedIndices) ||
 		oldSelectionMode != inst.selectionMode {
 		if _, controlledHighlight := props[propHighlightedIndex]; !controlledHighlight {
-			if inst.selectionMode == SelectionMultiple && len(inst.selectedIndices) > 0 {
+			if isMultiSelectionMode(inst.selectionMode) && len(inst.selectedIndices) > 0 {
 				inst.highlightedIndex = inst.selectedIndices[len(inst.selectedIndices)-1]
 			} else {
 				inst.highlightedIndex = inst.selectedIndex
@@ -331,6 +406,8 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 		oldDisabled != inst.state.Disabled ||
 		oldWidth != inst.width ||
 		oldPlaceholder != inst.placeholder ||
+		oldFilterOption != inst.filterOption ||
+		oldFilterPlaceholder != inst.filterPlaceholder ||
 		oldMaxVisibleRows != inst.maxVisibleRows ||
 		oldSelectionMode != inst.selectionMode ||
 		oldOverlayPopup != inst.overlayPopup ||
@@ -347,20 +424,24 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 
 func (inst *Instance) GetProps() rtui.Props {
 	return rtui.Props{
-		propKey:                inst.key,
-		propSelectedIndex:      inst.selectedIndex,
-		propSelectedIndices:    append([]int(nil), inst.selectedIndices...),
-		propSelectionMode:      inst.selectionMode,
-		propDisabled:           inst.state.Disabled,
-		propOpen:               inst.open,
-		propOverlayPopup:       inst.overlayPopup,
-		propPortalRoot:         inst.portalRoot,
-		propOwnerID:            inst.ownerID,
-		propSelectID:           inst.selectIdentity(),
-		propCloseOnOutside:     inst.closeOnOutside,
-		propHighlightedIndex:   inst.highlightedIndex,
-		propScrollOffset:       inst.scrollOffset,
-		overlayCallbacksProp: inst.overlayCallbacks,
+		propKey:               inst.key,
+		propOptions:           append([]Option(nil), inst.options...),
+		propSelectedIndex:     inst.selectedIndex,
+		propSelectedIndices:   append([]int(nil), inst.selectedIndices...),
+		propSelectionMode:     inst.selectionMode,
+		propDisabled:          inst.state.Disabled,
+		propOpen:              inst.open,
+		propFilterOption:      inst.filterOption,
+		propFilterPlaceholder: inst.filterPlaceholder,
+		propFilterQuery:       inst.filterQuery,
+		propOverlayPopup:      inst.overlayPopup,
+		propPortalRoot:        inst.portalRoot,
+		propOwnerID:           inst.ownerID,
+		propSelectID:          inst.selectIdentity(),
+		propCloseOnOutside:    inst.closeOnOutside,
+		propHighlightedIndex:  inst.highlightedIndex,
+		propScrollOffset:      inst.scrollOffset,
+		overlayCallbacksProp:  inst.overlayCallbacks,
 	}
 }
 
@@ -395,7 +476,7 @@ func (inst *Instance) Paint(x, y int) []paint.DrawCmd {
 		return cmds
 	}
 
-	if !inst.open || len(inst.options) == 0 {
+	if !inst.open || inst.popupHeight() == 0 {
 		return cmds
 	}
 	return append(cmds, inst.paintPopupAt(x, y+1)...)
@@ -444,10 +525,21 @@ func (inst *Instance) popupBorderStyle() style.Style {
 	return s
 }
 
-func (inst *Instance) optionRowStyle(highlighted bool) style.Style {
+func (inst *Instance) popupRowStyle(row popupRow, highlighted bool) style.Style {
 	s := inst.popupFillStyle()
 	if inst.state.Disabled {
 		return s.Foreground(theme.DisabledFG()).Background(theme.DisabledBG())
+	}
+	switch row.kind {
+	case popupRowGroup:
+		return s.Foreground(theme.Focus()).Bold(true)
+	case popupRowCreateTag:
+		if highlighted {
+			return s.Foreground(theme.BG()).Background(theme.Select()).Bold(true)
+		}
+		return s.Foreground(theme.Focus()).Bold(true)
+	case popupRowEmpty:
+		return s.Foreground(theme.DisabledFG())
 	}
 	if highlighted {
 		return s.Foreground(theme.BG()).Background(theme.Select()).Bold(true)
@@ -456,7 +548,8 @@ func (inst *Instance) optionRowStyle(highlighted bool) style.Style {
 }
 
 func (inst *Instance) paintPopupAt(x, y int) []paint.DrawCmd {
-	if !inst.open || len(inst.options) == 0 {
+	rows := inst.popupRows()
+	if !inst.open || (!rows.showFilter && len(rows.scrollable) == 0) {
 		return nil
 	}
 
@@ -473,22 +566,38 @@ func (inst *Instance) paintPopupAt(x, y int) []paint.DrawCmd {
 	bottom := "└" + strings.Repeat("─", maxInt(0, popupWidth-2)) + "┘"
 	cmds := []paint.DrawCmd{{X: x, Y: y, Text: top, Style: borderStyle}}
 
-	visibleRows := inst.visibleRowCount()
-	for row := 0; row < visibleRows; row++ {
-		rowY := y + 1 + row
+	contentY := y + 1
+	if rows.showFilter {
+		cmds = append(cmds,
+			paint.DrawCmd{X: x, Y: contentY, Text: "│", Style: borderStyle},
+			paint.DrawCmd{X: x + 1, Y: contentY, Text: strings.Repeat(" ", contentWidth), Style: fillStyle},
+			paint.DrawCmd{X: x + popupWidth - 1, Y: contentY, Text: "│", Style: borderStyle},
+			paint.DrawCmd{
+				X:     x + 1,
+				Y:     contentY,
+				Text:  padDisplayWidth(truncateWithEllipsis(popupFilterText(rows.filterQuery, rows.filterPlaceholder), contentWidth), contentWidth),
+				Style: fillStyle,
+			},
+		)
+		contentY++
+	}
+
+	visibleRows := visibleScrollableRowCount(rows, inst.maxVisibleRows)
+	for rowOffset := 0; rowOffset < visibleRows; rowOffset++ {
+		rowY := contentY + rowOffset
 		cmds = append(cmds,
 			paint.DrawCmd{X: x, Y: rowY, Text: "│", Style: borderStyle},
 			paint.DrawCmd{X: x + 1, Y: rowY, Text: strings.Repeat(" ", contentWidth), Style: fillStyle},
 			paint.DrawCmd{X: x + popupWidth - 1, Y: rowY, Text: "│", Style: borderStyle},
 		)
 
-		optionIndex := inst.scrollOffset + row
-		if optionIndex >= len(inst.options) {
+		rowIndex := inst.scrollOffset + rowOffset
+		if rowIndex >= len(rows.scrollable) {
 			continue
 		}
-
-		rowStyle := inst.optionRowStyle(optionIndex == inst.highlightedIndex)
-		rowText := inst.optionRowText(optionIndex, contentWidth)
+		row := rows.scrollable[rowIndex]
+		rowStyle := inst.popupRowStyle(row, isHighlightedTarget(row, inst.highlightedIndex))
+		rowText := popupRowText(row, contentWidth, inst.selectionMode, inst.selectedIndices)
 		cmds = append(cmds, paint.DrawCmd{
 			X:     x + 1,
 			Y:     rowY,
@@ -539,11 +648,25 @@ func (inst *Instance) HandleAction(act *action.Action) bool {
 	if inst.behaviors.OnAction(inst, act) {
 		return true
 	}
-	if inst.state.Disabled || len(inst.options) == 0 {
+	if inst.state.Disabled {
 		return false
 	}
 
 	switch act.Type {
+	case action.ActionInputChar:
+		if value, ok := act.GetPayloadRune(); ok {
+			return inst.appendFilterText(string(value))
+		}
+		return false
+	case action.ActionInputText:
+		if value, ok := act.GetPayloadString(); ok {
+			return inst.appendFilterText(value)
+		}
+		return false
+	case action.ActionBackspace:
+		return inst.backspaceFilterText()
+	case action.ActionDeleteChar, action.ActionClear:
+		return inst.clearFilterText()
 	case action.ActionHover:
 		return inst.handleHover(act)
 	case action.ActionClick:
@@ -558,7 +681,7 @@ func (inst *Instance) HandleAction(act *action.Action) bool {
 		if inst.open {
 			return inst.moveHighlight(1)
 		}
-		if inst.selectionMode == SelectionMultiple {
+		if isMultiSelectionMode(inst.selectionMode) || filterEnabledFor(inst.selectionMode, inst.filterOption) {
 			return inst.requestOverlayOpen(true)
 		}
 		next := inst.selectedIndex + 1
@@ -573,7 +696,7 @@ func (inst *Instance) HandleAction(act *action.Action) bool {
 		if inst.open {
 			return inst.moveHighlight(-1)
 		}
-		if inst.selectionMode == SelectionMultiple {
+		if isMultiSelectionMode(inst.selectionMode) || filterEnabledFor(inst.selectionMode, inst.filterOption) {
 			return inst.requestOverlayOpen(true)
 		}
 		next := inst.selectedIndex - 1
@@ -583,12 +706,15 @@ func (inst *Instance) HandleAction(act *action.Action) bool {
 		return inst.requestOverlayCommit(next)
 	case action.ActionNavigateHome:
 		if inst.open {
-			return inst.moveHighlightTo(0)
+			return inst.moveHighlightTo(inst.firstHighlightTarget())
 		}
 		return inst.requestOverlayCommit(0)
 	case action.ActionNavigateEnd:
 		if inst.open {
-			return inst.moveHighlightTo(len(inst.options) - 1)
+			return inst.moveHighlightTo(inst.lastHighlightTarget())
+		}
+		if len(inst.options) == 0 {
+			return false
 		}
 		return inst.requestOverlayCommit(len(inst.options) - 1)
 	case action.ActionNavigatePageUp:
@@ -612,7 +738,7 @@ func (inst *Instance) HandleAction(act *action.Action) bool {
 		if inst.open {
 			return inst.requestOverlayCommit(inst.highlightedIndex)
 		}
-		if inst.selectionMode == SelectionMultiple {
+		if isMultiSelectionMode(inst.selectionMode) || filterEnabledFor(inst.selectionMode, inst.filterOption) {
 			return inst.requestOverlayOpen(true)
 		}
 		next := inst.selectedIndex + 1
@@ -700,12 +826,75 @@ func (inst *Instance) handleScroll(act *action.Action) bool {
 	return inst.moveHighlight(-1)
 }
 
+func (inst *Instance) firstHighlightTarget() int {
+	return firstSelectableTarget(inst.popupRows())
+}
+
+func (inst *Instance) lastHighlightTarget() int {
+	return lastSelectableTarget(inst.popupRows())
+}
+
+func (inst *Instance) setFilterQuery(query string) bool {
+	if !filterEnabledFor(inst.selectionMode, inst.filterOption) {
+		return false
+	}
+
+	query = sanitizeFilterText(query)
+	if inst.overlayCallbacks != nil {
+		return inst.requestOverlayFilterQuery(query)
+	}
+	if inst.filterQuery == query {
+		return false
+	}
+
+	inst.filterQuery = query
+	inst.normalizeSelectionState()
+	inst.dirty = true
+	return true
+}
+
+func (inst *Instance) clearFilterQueryValue() bool {
+	return inst.setFilterQuery("")
+}
+
+func (inst *Instance) appendFilterText(text string) bool {
+	if !filterEnabledFor(inst.selectionMode, inst.filterOption) {
+		return false
+	}
+	text = sanitizeFilterText(text)
+	if strings.TrimSpace(text) == "" {
+		return false
+	}
+	if !inst.open {
+		inst.requestOverlayOpen(true)
+	}
+	return inst.setFilterQuery(inst.filterQuery + text)
+}
+
+func (inst *Instance) backspaceFilterText() bool {
+	if !filterEnabledFor(inst.selectionMode, inst.filterOption) || inst.filterQuery == "" {
+		return false
+	}
+	runes := []rune(inst.filterQuery)
+	if len(runes) == 0 {
+		return false
+	}
+	return inst.setFilterQuery(string(runes[:len(runes)-1]))
+}
+
+func (inst *Instance) clearFilterText() bool {
+	if !filterEnabledFor(inst.selectionMode, inst.filterOption) || inst.filterQuery == "" {
+		return false
+	}
+	return inst.clearFilterQueryValue()
+}
+
 // SelectNext selects the next option in single mode.
 func (inst *Instance) SelectNext() {
-	if len(inst.options) == 0 {
+	if !inst.canOpenPopup() && len(inst.options) == 0 {
 		return
 	}
-	if inst.selectionMode == SelectionMultiple {
+	if isMultiSelectionMode(inst.selectionMode) || filterEnabledFor(inst.selectionMode, inst.filterOption) {
 		if !inst.open {
 			inst.openDropdown()
 			return
@@ -726,10 +915,10 @@ func (inst *Instance) SelectNext() {
 
 // SelectPrev selects the previous option in single mode.
 func (inst *Instance) SelectPrev() {
-	if len(inst.options) == 0 {
+	if !inst.canOpenPopup() && len(inst.options) == 0 {
 		return
 	}
-	if inst.selectionMode == SelectionMultiple {
+	if isMultiSelectionMode(inst.selectionMode) || filterEnabledFor(inst.selectionMode, inst.filterOption) {
 		if !inst.open {
 			inst.openDropdown()
 			return
@@ -750,7 +939,7 @@ func (inst *Instance) SetSelectedIndex(idx int) {
 	if idx < -1 || idx >= len(inst.options) {
 		return
 	}
-	if inst.selectionMode == SelectionMultiple {
+	if isMultiSelectionMode(inst.selectionMode) {
 		inst.SetSelectedIndices([]int{idx})
 		return
 	}
@@ -763,7 +952,7 @@ func (inst *Instance) SetSelectedIndex(idx int) {
 		inst.highlightedIndex = idx
 	} else {
 		inst.selectedIndices = nil
-		inst.highlightedIndex = 0
+		inst.highlightedIndex = -1
 	}
 	inst.ensureHighlightVisible()
 	inst.dirty = true
@@ -780,7 +969,7 @@ func (inst *Instance) SetSelectedIndices(indices []int) {
 	inst.selectedIndices = normalized
 	if len(normalized) == 0 {
 		inst.selectedIndex = -1
-	} else if inst.selectionMode == SelectionMultiple {
+	} else if isMultiSelectionMode(inst.selectionMode) {
 		inst.selectedIndex = normalized[len(normalized)-1]
 	} else {
 		inst.selectedIndex = normalized[0]
@@ -868,10 +1057,10 @@ func (inst *Instance) HandleIntent(i intent.Intent) bool {
 
 	switch v := i.(type) {
 	case SelectNextIntent:
-		if inst.selectionMode == SelectionMultiple && inst.open {
+		if isMultiSelectionMode(inst.selectionMode) && inst.open {
 			return inst.moveHighlight(1)
 		}
-		if inst.selectionMode == SelectionMultiple {
+		if isMultiSelectionMode(inst.selectionMode) || filterEnabledFor(inst.selectionMode, inst.filterOption) {
 			return inst.requestOverlayOpen(true)
 		}
 		next := inst.selectedIndex + 1
@@ -883,10 +1072,10 @@ func (inst *Instance) HandleIntent(i intent.Intent) bool {
 		}
 		return inst.requestOverlayCommit(next)
 	case SelectPrevIntent:
-		if inst.selectionMode == SelectionMultiple && inst.open {
+		if isMultiSelectionMode(inst.selectionMode) && inst.open {
 			return inst.moveHighlight(-1)
 		}
-		if inst.selectionMode == SelectionMultiple {
+		if isMultiSelectionMode(inst.selectionMode) || filterEnabledFor(inst.selectionMode, inst.filterOption) {
 			return inst.requestOverlayOpen(true)
 		}
 		next := inst.selectedIndex - 1
@@ -895,10 +1084,10 @@ func (inst *Instance) HandleIntent(i intent.Intent) bool {
 		}
 		return inst.requestOverlayCommit(next)
 	case SelectByIndexIntent:
-		if v.Index < -1 || v.Index >= len(inst.options) {
+		if v.Index < highlightCreateTag || v.Index >= len(inst.options) {
 			return false
 		}
-		if inst.selectionMode == SelectionMultiple {
+		if isMultiSelectionMode(inst.selectionMode) {
 			if v.Index < 0 {
 				inst.SetSelectedIndices(nil)
 				return true
@@ -912,7 +1101,7 @@ func (inst *Instance) HandleIntent(i intent.Intent) bool {
 			if opt.Value != v.Value {
 				continue
 			}
-			if inst.selectionMode == SelectionMultiple {
+			if isMultiSelectionMode(inst.selectionMode) {
 				return inst.toggleIndex(idx)
 			}
 			inst.SetSelectedIndex(idx)
@@ -959,6 +1148,8 @@ func (inst *Instance) GetProp(key string) (interface{}, bool) {
 		return inst.open, true
 	case propOptions:
 		return inst.options, true
+	case propFilterOption:
+		return inst.filterOption, true
 	default:
 		return nil, false
 	}
@@ -986,9 +1177,18 @@ func (inst *Instance) SetProp(key string, value interface{}) {
 	case propSelectionMode:
 		if v, ok := value.(SelectionMode); ok {
 			inst.selectionMode = v
+			if isTagsSelectionMode(v) {
+				inst.filterOption = true
+			}
 			inst.normalizeSelectionState()
 			inst.dirty = true
 			inst.markOverlayDirty()
+		}
+	case propFilterOption:
+		if v, ok := value.(bool); ok {
+			inst.filterOption = v
+			inst.normalizeSelectionState()
+			inst.dirty = true
 		}
 	}
 }
@@ -1011,7 +1211,7 @@ func (inst *Instance) Measure(constraints layout.Constraints) layout.Size {
 		width = maxInt(width, inst.popupWidth())
 	}
 	height := 1
-	if inst.open && len(inst.options) > 0 && !inst.overlayPopup {
+	if inst.open && !inst.overlayPopup && inst.popupHeight() > 0 {
 		height += inst.popupHeight()
 	}
 
@@ -1069,7 +1269,10 @@ func (inst *Instance) emitFieldBlur() {
 }
 
 func (inst *Instance) fieldValue() string {
-	if inst.selectionMode == SelectionMultiple {
+	if isTagsSelectionMode(inst.selectionMode) {
+		return joinSelectedValues(inst.options, inst.selectedIndices)
+	}
+	if isMultiSelectionMode(inst.selectionMode) {
 		return joinIndices(inst.selectedIndices)
 	}
 	return fmt.Sprintf("%d", inst.selectedIndex)
@@ -1082,12 +1285,19 @@ func (inst *Instance) normalizeSelectionState() {
 	if strings.TrimSpace(inst.placeholder) == "" {
 		inst.placeholder = "..."
 	}
+	if strings.TrimSpace(inst.filterPlaceholder) == "" {
+		inst.filterPlaceholder = "type to filter"
+	}
+	if isTagsSelectionMode(inst.selectionMode) {
+		inst.filterOption = true
+	}
+	inst.filterQuery = sanitizeFilterText(inst.filterQuery)
 
 	count := len(inst.options)
 	inst.selectedIndices = normalizeIndices(inst.selectedIndices, count)
 
 	switch inst.selectionMode {
-	case SelectionMultiple:
+	case SelectionMultiple, SelectionTags:
 		if len(inst.selectedIndices) == 0 && inst.selectedIndex >= 0 && inst.selectedIndex < count {
 			inst.selectedIndices = []int{inst.selectedIndex}
 		}
@@ -1117,43 +1327,32 @@ func (inst *Instance) normalizeSelectionState() {
 		}
 	}
 
-	if count == 0 {
+	if !inst.canOpenPopup() {
 		inst.open = false
-		inst.highlightedIndex = -1
-		inst.scrollOffset = 0
+		inst.highlightedIndex, inst.scrollOffset = -1, 0
 		return
 	}
 
-	if inst.highlightedIndex < 0 || inst.highlightedIndex >= count {
-		switch {
-		case inst.selectionMode == SelectionMultiple && len(inst.selectedIndices) > 0:
-			inst.highlightedIndex = inst.selectedIndices[len(inst.selectedIndices)-1]
-		case inst.selectedIndex >= 0:
-			inst.highlightedIndex = inst.selectedIndex
-		default:
-			inst.highlightedIndex = 0
-		}
-	}
-
-	inst.highlightedIndex = clampInt(inst.highlightedIndex, 0, count-1)
-	inst.ensureHighlightVisible()
+	rows := inst.popupRows()
+	inst.highlightedIndex, inst.scrollOffset = normalizePopupHighlight(
+		rows,
+		inst.highlightedIndex,
+		inst.scrollOffset,
+		inst.maxVisibleRows,
+		inst.selectionMode,
+		inst.selectedIndex,
+		inst.selectedIndices,
+	)
 }
 
 func (inst *Instance) openDropdown() bool {
 	if inst.overlayCallbacks != nil {
 		return inst.requestOverlayOpen(true)
 	}
-	if inst.open || len(inst.options) == 0 {
+	if inst.open || !inst.canOpenPopup() {
 		return false
 	}
 	inst.open = true
-	if inst.highlightedIndex < 0 {
-		if inst.selectedIndex >= 0 {
-			inst.highlightedIndex = inst.selectedIndex
-		} else {
-			inst.highlightedIndex = 0
-		}
-	}
 	inst.ensureHighlightVisible()
 	inst.dirty = true
 	return true
@@ -1167,6 +1366,10 @@ func (inst *Instance) closeDropdown() bool {
 		return false
 	}
 	inst.open = false
+	if inst.filterQuery != "" {
+		inst.filterQuery = ""
+	}
+	inst.normalizeSelectionState()
 	inst.dirty = true
 	if !inst.state.Focused {
 		inst.emitFieldBlur()
@@ -1175,26 +1378,27 @@ func (inst *Instance) closeDropdown() bool {
 }
 
 func (inst *Instance) moveHighlight(delta int) bool {
+	rows := inst.popupRows()
 	if inst.overlayCallbacks != nil {
-		if len(inst.options) == 0 {
+		if len(selectableTargets(rows)) == 0 {
 			return false
 		}
 		if !inst.open {
 			return inst.requestOverlayOpen(true)
 		}
-		next := clampInt(inst.highlightedIndex+delta, 0, len(inst.options)-1)
+		next := nextHighlightTarget(rows, inst.highlightedIndex, delta)
 		if next == inst.highlightedIndex {
 			return false
 		}
 		return inst.requestOverlayHighlight(next)
 	}
-	if len(inst.options) == 0 {
+	if len(selectableTargets(rows)) == 0 {
 		return false
 	}
 	if !inst.open {
 		return inst.openDropdown()
 	}
-	next := clampInt(inst.highlightedIndex+delta, 0, len(inst.options)-1)
+	next := nextHighlightTarget(rows, inst.highlightedIndex, delta)
 	if next == inst.highlightedIndex {
 		return false
 	}
@@ -1205,26 +1409,33 @@ func (inst *Instance) moveHighlight(delta int) bool {
 }
 
 func (inst *Instance) moveHighlightTo(index int) bool {
+	rows := inst.popupRows()
 	if inst.overlayCallbacks != nil {
-		if len(inst.options) == 0 {
+		if len(selectableTargets(rows)) == 0 {
 			return false
 		}
 		if !inst.open {
 			inst.requestOverlayOpen(true)
 		}
-		next := clampInt(index, 0, len(inst.options)-1)
+		next := index
+		if rowPositionForHighlight(rows, next) < 0 {
+			next = defaultHighlightTarget(rows, inst.selectionMode, inst.selectedIndex, inst.selectedIndices)
+		}
 		if next == inst.highlightedIndex {
 			return false
 		}
 		return inst.requestOverlayHighlight(next)
 	}
-	if len(inst.options) == 0 {
+	if len(selectableTargets(rows)) == 0 {
 		return false
 	}
 	if !inst.open {
 		inst.open = true
 	}
-	next := clampInt(index, 0, len(inst.options)-1)
+	next := index
+	if rowPositionForHighlight(rows, next) < 0 {
+		next = defaultHighlightTarget(rows, inst.selectionMode, inst.selectedIndex, inst.selectedIndices)
+	}
 	if next == inst.highlightedIndex {
 		return false
 	}
@@ -1235,25 +1446,58 @@ func (inst *Instance) moveHighlightTo(index int) bool {
 }
 
 func (inst *Instance) pageHighlight(direction int) bool {
-	if len(inst.options) == 0 {
+	rows := inst.popupRows()
+	if len(selectableTargets(rows)) == 0 {
 		return false
 	}
-	pageSize := maxInt(1, inst.visibleRowCount())
-	next := inst.highlightedIndex + direction*pageSize
-	return inst.moveHighlightTo(clampInt(next, 0, len(inst.options)-1))
+	pageSize := maxInt(1, visibleScrollableRowCount(rows, inst.maxVisibleRows))
+	return inst.moveHighlightTo(pageHighlightTarget(rows, inst.highlightedIndex, direction, pageSize))
 }
 
 func (inst *Instance) activateIndex(index int) bool {
+	if index == highlightCreateTag {
+		return inst.createTagFromQuery()
+	}
 	if inst.overlayCallbacks != nil {
 		return inst.requestOverlayCommit(index)
 	}
 	if index < 0 || index >= len(inst.options) {
 		return false
 	}
-	if inst.selectionMode == SelectionMultiple {
+	if isMultiSelectionMode(inst.selectionMode) {
 		return inst.toggleIndex(index)
 	}
 	return inst.applySingleSelection(index, true)
+}
+
+func (inst *Instance) createTagFromQuery() bool {
+	if !isTagsSelectionMode(inst.selectionMode) {
+		return false
+	}
+	if inst.overlayCallbacks != nil {
+		return inst.requestOverlayCreateTag()
+	}
+
+	query := strings.TrimSpace(inst.filterQuery)
+	if query == "" {
+		return false
+	}
+	if existing := findExactOptionIndex(inst.options, query); existing >= 0 {
+		inst.filterQuery = ""
+		if !inst.open {
+			inst.open = true
+		}
+		return inst.toggleIndex(existing)
+	}
+
+	inst.createdOptions = append(inst.createdOptions, createTagOption(query))
+	inst.syncOptions()
+	newIndex := len(inst.options) - 1
+	inst.filterQuery = ""
+	if !inst.open {
+		inst.open = true
+	}
+	return inst.toggleIndex(newIndex)
 }
 
 func (inst *Instance) applySingleSelection(index int, close bool) bool {
@@ -1271,6 +1515,7 @@ func (inst *Instance) applySingleSelection(index int, close bool) bool {
 	inst.highlightedIndex = index
 	if close {
 		inst.open = false
+		inst.filterQuery = ""
 	}
 	inst.ensureHighlightVisible()
 
@@ -1288,7 +1533,7 @@ func (inst *Instance) toggleIndex(index int) bool {
 	if index < 0 || index >= len(inst.options) {
 		return false
 	}
-	if inst.selectionMode != SelectionMultiple {
+	if !isMultiSelectionMode(inst.selectionMode) {
 		return inst.applySingleSelection(index, true)
 	}
 
@@ -1317,6 +1562,9 @@ func (inst *Instance) toggleIndex(index int) bool {
 		inst.selectedIndex = index
 	}
 	inst.highlightedIndex = index
+	if isTagsSelectionMode(inst.selectionMode) {
+		inst.filterQuery = ""
+	}
 	inst.ensureHighlightVisible()
 	inst.dirty = true
 	inst.emitChange()
@@ -1340,66 +1588,42 @@ func (inst *Instance) triggerWidth() int {
 }
 
 func (inst *Instance) popupWidth() int {
-	markerWidth := inst.optionMarkerWidth()
-	labelWidth := 0
-	for _, opt := range inst.options {
-		labelWidth = maxInt(labelWidth, paint.StringWidth(opt.Label))
-	}
-
-	contentWidth := labelWidth
-	if markerWidth > 0 {
-		contentWidth += markerWidth + 1
-	}
-
+	contentWidth := popupContentWidth(inst.popupRows(), inst.selectionMode)
 	width := contentWidth + 2
 	width = maxInt(width, inst.triggerWidth())
 	return maxInt(width, 6)
 }
 
 func (inst *Instance) popupHeight() int {
-	if len(inst.options) == 0 {
+	rows := inst.popupRows()
+	if !rows.showFilter && len(rows.scrollable) == 0 {
 		return 0
 	}
-	return inst.visibleRowCount() + 2
+	height := visibleScrollableRowCount(rows, inst.maxVisibleRows) + 2
+	if rows.showFilter {
+		height++
+	}
+	return height
 }
 
 func (inst *Instance) visibleRowCount() int {
-	if len(inst.options) == 0 {
-		return 0
-	}
-	rows := inst.maxVisibleRows
-	if rows <= 0 {
-		rows = defaultMaxVisibleRows
-	}
-	return minInt(len(inst.options), rows)
+	return visibleScrollableRowCount(inst.popupRows(), inst.maxVisibleRows)
 }
 
 func (inst *Instance) maxScrollOffset() int {
-	return maxInt(0, len(inst.options)-inst.visibleRowCount())
+	return maxScrollOffsetForRows(inst.popupRows(), inst.maxVisibleRows)
 }
 
 func (inst *Instance) ensureHighlightVisible() {
-	if len(inst.options) == 0 || inst.highlightedIndex < 0 {
-		inst.scrollOffset = 0
-		return
-	}
-
-	maxOffset := inst.maxScrollOffset()
-	if inst.scrollOffset > maxOffset {
-		inst.scrollOffset = maxOffset
-	}
-	if inst.highlightedIndex < inst.scrollOffset {
-		inst.scrollOffset = inst.highlightedIndex
-	}
-	visibleRows := inst.visibleRowCount()
-	if visibleRows <= 0 {
-		inst.scrollOffset = 0
-		return
-	}
-	if inst.highlightedIndex >= inst.scrollOffset+visibleRows {
-		inst.scrollOffset = inst.highlightedIndex - visibleRows + 1
-	}
-	inst.scrollOffset = clampInt(inst.scrollOffset, 0, maxOffset)
+	inst.highlightedIndex, inst.scrollOffset = normalizePopupHighlight(
+		inst.popupRows(),
+		inst.highlightedIndex,
+		inst.scrollOffset,
+		inst.maxVisibleRows,
+		inst.selectionMode,
+		inst.selectedIndex,
+		inst.selectedIndices,
+	)
 }
 
 func (inst *Instance) optionIndexAt(localX, localY int) (int, bool) {
@@ -1410,15 +1634,7 @@ func (inst *Instance) popupOptionIndexAt(localX, localY, rowStart int) (int, boo
 	if !inst.open || localX < 0 || localY < rowStart {
 		return 0, false
 	}
-	row := localY - rowStart
-	if row < 0 || row >= inst.visibleRowCount() {
-		return 0, false
-	}
-	index := inst.scrollOffset + row
-	if index < 0 || index >= len(inst.options) {
-		return 0, false
-	}
-	return index, true
+	return popupHitTarget(inst.popupRows(), inst.scrollOffset, inst.maxVisibleRows, localY-rowStart+1)
 }
 
 func (inst *Instance) optionRowText(index, width int) string {
@@ -1442,24 +1658,11 @@ func (inst *Instance) optionRowText(index, width int) string {
 }
 
 func (inst *Instance) optionMarker(index int) string {
-	selected := containsInt(inst.selectedIndices, index)
-	if inst.selectionMode == SelectionMultiple {
-		if selected {
-			return "[x]"
-		}
-		return "[ ]"
-	}
-	if selected {
-		return "●"
-	}
-	return "○"
+	return optionMarkerForMode(inst.selectionMode, inst.selectedIndices, index)
 }
 
 func (inst *Instance) optionMarkerWidth() int {
-	if inst.selectionMode == SelectionMultiple {
-		return 3
-	}
-	return 1
+	return markerWidthForMode(inst.selectionMode)
 }
 
 func (inst *Instance) triggerText(width int) string {
@@ -1469,6 +1672,14 @@ func (inst *Instance) triggerText(width int) string {
 }
 
 func (inst *Instance) triggerDisplayLabel() string {
+	if isTagsSelectionMode(inst.selectionMode) {
+		switch len(inst.selectedIndices) {
+		case 0:
+			return inst.placeholder
+		default:
+			return strings.Join(inst.SelectedLabels(), ", ")
+		}
+	}
 	if inst.selectionMode == SelectionMultiple {
 		switch len(inst.selectedIndices) {
 		case 0:
