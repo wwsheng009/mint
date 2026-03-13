@@ -14,7 +14,7 @@
 | Input | `input/` | ★★★★☆ | text/password/number/email，placeholder，maxLen，readOnly |
 | Textarea | `textarea/` | ★★★☆☆ | 多行文本输入 |
 | Select | `select/` | ★★★★☆ | 单选/多选，overlay popup，placeholder，disabled |
-| Checkbox | `checkbox/` | ★★★☆☆ | 基本勾选，缺 indeterminate 和 CheckboxGroup |
+| Checkbox | `checkbox/` | ★★★★☆ | 基本勾选、indeterminate、CheckboxGroup |
 | Radio | `radio/` | ★★★☆☆ | 独立单选按钮，含 RadioGroup 包装层 |
 | Switch | `switch/` | ★★★☆☆ | 开关切换，支持 label、自定义 on/off 文案、Field/Form 绑定 |
 | OptionGroup | `optiongroup/` | ★★★☆☆ | 选项组，支持 radio/checkbox 模式 |
@@ -118,7 +118,7 @@
 |------|---------|--------|
 | **Form** | Context 化替代全局 registry；补 touched/dirty 等字段级状态 | 中 |
 | **Input** | prefix/suffix 插槽；addonBefore/addonAfter；Search 变体；InputNumber 完整实现 | 高 |
-| **Checkbox** | indeterminate 半选状态；CheckboxGroup 组件 | 高 |
+| ~~**Checkbox**~~ | ~~indeterminate 半选状态；CheckboxGroup 组件~~ | ~~高~~ |
 | **Progress** | 圆形（Circle）和仪表盘（Dashboard）样式；status（success/exception/active） | 中 |
 | **Select** | OptGroup 分组；filterOption 搜索过滤；tags 模式（自定义输入+选择） | 中 |
 | **Table** | expandable 行展开；固定列（sticky column）；列宽百分比/自适应；树形数据展示 | 中 |
@@ -149,7 +149,7 @@
 
 - [x] `Radio` — 独立单选按钮 + RadioGroup（2026-03）
 - [x] `Switch` — 开关控件（2026-03）
-- [ ] `Checkbox` 增强 — indeterminate 状态，CheckboxGroup
+- [x] `Checkbox` 增强 — indeterminate 状态，CheckboxGroup（2026-03）
 - [ ] `Input` 增强 — prefix/suffix，Search 变体，addonBefore/addonAfter
 - [ ] `Select` 增强 — OptGroup，filterOption，tags 模式
 - [ ] `Slider` — 数值滑块

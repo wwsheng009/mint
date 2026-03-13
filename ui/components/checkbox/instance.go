@@ -1,7 +1,6 @@
 package checkbox
 
 import (
-	"github.com/wwsheng009/mint/ui/components/internal/proputil"
 	"unicode/utf8"
 
 	"github.com/wwsheng009/mint/framework/theme"
@@ -13,6 +12,8 @@ import (
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/ui/components/control"
 	"github.com/wwsheng009/mint/ui/components/form"
+	"github.com/wwsheng009/mint/ui/components/internal/proputil"
+	"github.com/wwsheng009/mint/ui/components/optiongroup"
 )
 
 // =============================================================================
@@ -32,10 +33,11 @@ type Instance struct {
 	formID        string // Form ID for Form integration (Phase 6)
 
 	// === Runtime State (managed by instance) ===
-	state   control.InteractionState
-	checked bool
-	bounds  [4]int // x, y, w, h
-	dirty   bool
+	state         control.InteractionState
+	checked       bool
+	indeterminate bool
+	bounds        [4]int // x, y, w, h
+	dirty         bool
 
 	// === Intent Emitter ===
 	intentEmitter func(intent.Intent)
@@ -56,6 +58,11 @@ var (
 	} = (*Instance)(nil)
 )
 
+// GroupInstance is the CheckboxGroup runtime entity.
+type GroupInstance struct {
+	*optiongroup.Instance
+}
+
 // =============================================================================
 // Constructor
 // =============================================================================
@@ -69,6 +76,7 @@ func NewInstance(props rtui.Props) *Instance {
 		toggleIntent:  proputil.GetIntent(props, "toggleIntent", nil),
 		formID:        proputil.GetString(props, "formID", ""),
 		checked:       proputil.GetBool(props, "checked", false),
+		indeterminate: proputil.GetBool(props, propIndeterminate, false),
 		dirty:         true,
 	}
 
@@ -139,6 +147,7 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	oldLabel := inst.label
 	oldDisabled := inst.state.Disabled
 	oldChecked := inst.checked
+	oldIndeterminate := inst.indeterminate
 	oldIntent := inst.toggleIntent
 
 	inst.label = proputil.GetString(props, "label", inst.label)
@@ -146,6 +155,7 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	inst.toggleIntent = proputil.GetIntent(props, "toggleIntent", nil)
 	inst.formID = proputil.GetString(props, "formID", inst.formID)
 	inst.checked = proputil.GetBool(props, "checked", inst.checked)
+	inst.indeterminate = proputil.GetBool(props, propIndeterminate, inst.indeterminate)
 
 	newDisabled := proputil.GetBool(props, "disabled", inst.state.Disabled)
 	if newDisabled != inst.state.Disabled {
@@ -156,6 +166,7 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	changed := oldLabel != inst.label ||
 		oldDisabled != inst.state.Disabled ||
 		oldChecked != inst.checked ||
+		oldIndeterminate != inst.indeterminate ||
 		oldIntent != inst.toggleIntent
 
 	if changed {
@@ -167,10 +178,11 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 // GetProps implements ComponentInstance.
 func (inst *Instance) GetProps() rtui.Props {
 	return rtui.Props{
-		propKey:      inst.key,
-		propLabel:    inst.label,
-		propDisabled: inst.state.Disabled,
-		propChecked:  inst.checked,
+		propKey:           inst.key,
+		propLabel:         inst.label,
+		propDisabled:      inst.state.Disabled,
+		propChecked:       inst.checked,
+		propIndeterminate: inst.indeterminate,
 	}
 }
 
@@ -197,9 +209,12 @@ func (inst *Instance) GetContext() *rtui.ComponentContext {
 func (inst *Instance) Paint(x, y int) []paint.DrawCmd {
 	// Build checkbox indicator: [X] or [ ]
 	var indicator string
-	if inst.checked {
+	switch {
+	case inst.indeterminate:
+		indicator = "[-]"
+	case inst.checked:
 		indicator = "[X]"
-	} else {
+	default:
 		indicator = "[ ]"
 	}
 
@@ -235,7 +250,7 @@ func (inst *Instance) resolveStyle() style.Style {
 	}
 
 	// Checked state: make it bold
-	if inst.checked && !inst.state.Disabled {
+	if (inst.checked || inst.indeterminate) && !inst.state.Disabled {
 		s = s.Bold(true)
 	}
 
@@ -303,7 +318,12 @@ func (inst *Instance) HandleAction(act *action.Action) bool {
 
 // Toggle toggles the checked state and returns the new value.
 func (inst *Instance) Toggle() bool {
-	inst.checked = !inst.checked
+	if inst.indeterminate {
+		inst.indeterminate = false
+		inst.checked = true
+	} else {
+		inst.checked = !inst.checked
+	}
 	inst.dirty = true
 
 	// ✨ MVP/Phase 6: Emit FieldChangeIntent or FormFieldChangeIntent with runtime value
@@ -321,9 +341,22 @@ func (inst *Instance) SetChecked(checked bool) {
 	}
 }
 
+// SetIndeterminate sets the indeterminate state.
+func (inst *Instance) SetIndeterminate(indeterminate bool) {
+	if inst.indeterminate != indeterminate {
+		inst.indeterminate = indeterminate
+		inst.dirty = true
+	}
+}
+
 // IsChecked returns the checked state.
 func (inst *Instance) IsChecked() bool {
 	return inst.checked
+}
+
+// IsIndeterminate returns the indeterminate state.
+func (inst *Instance) IsIndeterminate() bool {
+	return inst.indeterminate
 }
 
 // Label returns the label text.
@@ -381,6 +414,8 @@ func (inst *Instance) GetProp(key string) (interface{}, bool) {
 		return inst.state.Disabled, true
 	case propChecked:
 		return inst.checked, true
+	case propIndeterminate:
+		return inst.indeterminate, true
 	case propLabel:
 		return inst.label, true
 	case propToggleIntent:
@@ -401,6 +436,11 @@ func (inst *Instance) SetProp(key string, value interface{}) {
 	case propChecked:
 		if v, ok := value.(bool); ok {
 			inst.checked = v
+			inst.dirty = true
+		}
+	case propIndeterminate:
+		if v, ok := value.(bool); ok {
+			inst.indeterminate = v
 			inst.dirty = true
 		}
 	}

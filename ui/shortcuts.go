@@ -68,6 +68,10 @@ func NewCheckboxBuilder() *checkbox.Builder {
 	return checkbox.NewBuilder()
 }
 
+func NewCheckboxGroupBuilder(options []checkbox.Option) *checkbox.GroupBuilder {
+	return checkbox.NewGroupBuilder(options)
+}
+
 func NewRadioBuilder() *radio.Builder {
 	return radio.NewBuilder()
 }
@@ -317,11 +321,16 @@ type SelectOption = selectcomp.Option
 
 // Radio Types
 type (
-	RadioOption      = radio.Option
-	RadioOrientation = radio.Orientation
+	CheckboxOption      = checkbox.Option
+	CheckboxOrientation = checkbox.Orientation
+	RadioOption         = radio.Option
+	RadioOrientation    = radio.Orientation
 )
 
 const (
+	CheckboxVertical   = checkbox.OrientationVertical
+	CheckboxHorizontal = checkbox.OrientationHorizontal
+
 	RadioVertical   = radio.OrientationVertical
 	RadioHorizontal = radio.OrientationHorizontal
 )
@@ -334,6 +343,11 @@ func NewSelectOption(value, label string) selectcomp.Option {
 // NewRadioOption creates a new radio option with value and label.
 func NewRadioOption(value, label string) radio.Option {
 	return radio.Option{Value: value, Label: label}
+}
+
+// NewCheckboxOption creates a new checkbox option with value and label.
+func NewCheckboxOption(value, label string) checkbox.Option {
+	return checkbox.Option{Value: value, Label: label}
 }
 
 // =============================================================================
@@ -371,6 +385,11 @@ func TextareaWithValue(placeholder, value string) rtui.VNode {
 // Checkbox creates a checkbox
 func Checkbox(label string, checked bool) rtui.VNode {
 	return checkbox.NewBuilder().Label(label).Checked(checked).Build()
+}
+
+// CheckboxGroup creates a checkbox group builder.
+func CheckboxGroup(options []checkbox.Option) *checkbox.GroupBuilder {
+	return checkbox.NewGroupBuilder(options)
 }
 
 // Radio creates a radio button.
