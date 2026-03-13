@@ -6,7 +6,7 @@
 
 ---
 
-## 当前组件清单（29个）
+## 当前组件清单（28个）
 
 | 组件 | 目录 | 完整度 | 说明 |
 |------|------|--------|------|
@@ -24,7 +24,8 @@
 | Modal | `modal/` | ★★★★☆ | overlay定位，portal架构 |
 | Tabs | `tabs/` | ★★★★☆ | intent，controlled模式 |
 | Menu | `menu/` | ★★★★★ | menubar/dropdown/context/popup，submenu，shortcut |
-| Tooltip | `tooltip/` | ★★★☆☆ | 含 toast/toast_manager，placement 方位有限 |
+| Toast | `toast/` | ★★★☆☆ | 已从 tooltip 独立，info/success/warning/error，自动消失 |
+| Tooltip | `tooltip/` | ★★★☆☆ | placement 方位有限 |
 | Progress | `progress/` | ★★☆☆☆ | 线形进度条，value/max，showPercent |
 | Divider | `divider/` | ★★★☆☆ | 水平/垂直分隔线 |
 | StatusBar | `statusbar/` | ★★★☆☆ | help、section 子组件 |
@@ -132,7 +133,7 @@
 
 - [ ] `Alert` — 内联状态提示
 - [ ] `Spin` — 加载状态指示器
-- [ ] `Message` — 将 tooltip/toast_manager 重构为独立正式组件
+- [x] `Message`/`Toast` — 已独立为 `ui/components/toast/` 包（2026-03）
 - [ ] `Notification` — 通知弹窗
 - [ ] `Empty` — 空状态
 - [ ] `Form` 增强 — 完成 FormItem 封装，支持 label + 验证错误提示联动

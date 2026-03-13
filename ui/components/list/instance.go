@@ -85,6 +85,7 @@ type Instance struct {
 	lastSearchTotal           int
 	lastSearchSelected        int
 	intentEmitter             func(intent.Intent)
+	pendingEnsureVisible      bool
 }
 
 // Ensure Instance implements required interfaces
@@ -155,6 +156,7 @@ func NewInstance(props rtui.Props) *Instance {
 	inst.checkedIndicesInitialized = inst.checkedIndicesControlled || hasProp(props, "checkedIndices")
 	inst.clampSelectedIndex()
 	inst.normalizeCheckedIndices()
+	inst.pendingEnsureVisible = true
 	inst.normalizeSelectionAndScroll()
 
 	return inst
@@ -293,6 +295,9 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	if !inst.selectedIndexControlled {
 		inst.lastPropSelectedIndex = inst.selectedIndex
 		inst.hasPendingSelectedIndex = false
+	}
+	if inst.selectedIndex != oldSelected {
+		inst.pendingEnsureVisible = true
 	}
 	if controlled, ok := props[propCheckedIndicesControlled].(bool); ok {
 		inst.checkedIndicesControlled = controlled
@@ -1053,21 +1058,18 @@ func (inst *Instance) normalizeSelectionAndScroll() {
 	}
 
 	viewport := inst.dataViewportFor(len(visibleRows))
-	if visibleIndex >= 0 {
-		if viewport.EnsureVisible(visibleIndex) {
-			inst.scrollOffset = viewport.Offset
-		} else {
-			inst.scrollOffset = viewport.Offset
-		}
-	} else {
-		inst.scrollOffset = viewport.Offset
+	if visibleIndex >= 0 && inst.pendingEnsureVisible {
+		viewport.EnsureVisible(visibleIndex)
+		inst.pendingEnsureVisible = false
 	}
+	inst.scrollOffset = viewport.Offset
 
 	inst.emitSearchStats()
 }
 
 func (inst *Instance) scrollBy(delta int) bool {
-	viewport := inst.dataViewportFor(len(inst.visibleRowIndices()))
+	visibleRows := inst.visibleRowIndices()
+	viewport := inst.dataViewportFor(len(visibleRows))
 	oldOffset := inst.scrollOffset
 	if !viewport.ScrollBy(delta) {
 		return false
@@ -1075,8 +1077,33 @@ func (inst *Instance) scrollBy(delta int) bool {
 	inst.scrollOffset = viewport.Offset
 	inst.recordPendingScroll()
 	inst.dirty = true
+
+	// Clamp selectedIndex into the new visible viewport range, mirroring keyboard scroll behaviour.
+	// Only clamp when there is an active selection (selectedIndex >= 0) and it drifts out of view.
+	oldSelected := inst.selectedIndex
+	if len(visibleRows) > 0 && inst.selectedIndex >= 0 {
+		startRow, endRow := viewport.VisibleRange()
+		currentVisible := inst.visibleRowPosition(visibleRows, inst.selectedIndex)
+		if currentVisible >= 0 && currentVisible < startRow {
+			inst.selectedIndex = visibleRows[startRow]
+		} else if currentVisible >= endRow {
+			inst.selectedIndex = visibleRows[endRow-1]
+		}
+		if inst.selectedIndex != oldSelected {
+			inst.recordPendingSelected()
+			inst.emitSelectionChanged()
+			inst.emitRowSelect(inst.selectedIndex)
+			direction := "scroll-down"
+			if delta < 0 {
+				direction = "scroll-up"
+			}
+			inst.emitNavigation(direction, oldSelected, inst.selectedIndex)
+		}
+	}
+
 	inst.emitStateChanged()
 	inst.emitScrollIntent(inst.scrollOffset - oldOffset)
+	inst.emitSearchStats()
 	return true
 }
 
