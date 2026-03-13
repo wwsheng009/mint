@@ -283,8 +283,10 @@ func TestVNode_CompositionWithNoBorder(t *testing.T) {
 	composed := vnode.getComposed()
 	props := composed.Props()
 
-	if props["borderStyle"] != "none" {
-		t.Error("NoBorder should set 'none' border style")
+	// BorderNone causes Props() to delete the "borderStyle" key (no border = absent key)
+	bs, exists := props["borderStyle"]
+	if exists && bs != "none" && bs != nil {
+		t.Errorf("NoBorder should not set a non-none border style, got %v", bs)
 	}
 }
 
