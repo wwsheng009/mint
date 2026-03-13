@@ -211,10 +211,10 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 
 func (inst *Instance) GetProps() rtui.Props {
 	return rtui.Props{
-		"key":       inst.key,
-		"tabs":      inst.tabs,
-		"position":  inst.position,
-		"activeTab": inst.activeTab,
+		propKey:       inst.key,
+		propTabs:      inst.tabs,
+		propPosition:  inst.position,
+		propActiveTab: inst.activeTab,
 	}
 }
 
@@ -1092,7 +1092,7 @@ func tabsEqual(a, b []TabItem) bool {
 // =============================================================================
 
 func getTabPositionProp(props rtui.Props, def TabPosition) TabPosition {
-	if v, ok := props["position"]; ok {
+	if v, ok := props[propPosition]; ok {
 		if tp, ok := v.(TabPosition); ok {
 			return tp
 		}
@@ -1101,7 +1101,7 @@ func getTabPositionProp(props rtui.Props, def TabPosition) TabPosition {
 }
 
 func getChangeIntentFieldProp(props rtui.Props, def intent.FieldIntent) intent.FieldIntent {
-	if v, ok := props["changeIntentField"]; ok {
+	if v, ok := props[propChangeIntentField]; ok {
 		if intentField, ok := v.(intent.FieldIntent); ok {
 			return intentField
 		}
@@ -1110,7 +1110,7 @@ func getChangeIntentFieldProp(props rtui.Props, def intent.FieldIntent) intent.F
 }
 
 func getTabsProp(props rtui.Props, def []TabItem) []TabItem {
-	if v, ok := props["tabs"]; ok {
+	if v, ok := props[propTabs]; ok {
 		if tabs, ok := v.([]TabItem); ok {
 			return tabs
 		}

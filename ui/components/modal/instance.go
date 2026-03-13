@@ -272,18 +272,18 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 
 func (inst *Instance) GetProps() rtui.Props {
 	return rtui.Props{
-		"key":             inst.key,
-		"title":           inst.title,
-		"isOpen":          inst.isOpen,
-		"centered":        inst.centered,
-		"closeable":       inst.closeable,
-		"closeOnEsc":      inst.closeOnEsc,
-		"closeOnBackdrop": inst.closeOnBackdrop,
-		"width":           inst.width,
-		"height":          inst.height,
-		"padding":         inst.padding,
-		"borderStyle":     inst.borderStyle,
-		"showShadow":      inst.showShadow,
+		propKey:             inst.key,
+		propTitle:           inst.title,
+		propIsOpen:          inst.isOpen,
+		propCentered:        inst.centered,
+		propCloseable:       inst.closeable,
+		propCloseOnEsc:      inst.closeOnEsc,
+		propCloseOnBackdrop: inst.closeOnBackdrop,
+		propWidth:           inst.width,
+		propHeight:          inst.height,
+		propPadding:         inst.padding,
+		propBorderStyle:     inst.borderStyle,
+		propShowShadow:      inst.showShadow,
 	}
 }
 
@@ -389,11 +389,11 @@ func (inst *Instance) SetSize(width, height int) {
 
 func (inst *Instance) layoutBorderStyle() layout.BorderStyle {
 	switch inst.borderStyle {
-	case "double":
+	case propDouble:
 		return layout.BorderDouble
-	case "rounded":
+	case propRounded:
 		return layout.BorderRounded
-	case "dashed":
+	case propDashed:
 		return layout.BorderDashed
 	case "none":
 		return layout.BorderNone
@@ -610,7 +610,7 @@ func (inst *Instance) getBorderChars() borderChars {
 			leftT:       ' ',
 			rightT:      ' ',
 		}
-	case "double":
+	case propDouble:
 		return borderChars{
 			horizontal:  '═',
 			vertical:    '║',
@@ -621,7 +621,7 @@ func (inst *Instance) getBorderChars() borderChars {
 			leftT:       '╠',
 			rightT:      '╣',
 		}
-	case "rounded":
+	case propRounded:
 		return borderChars{
 			horizontal:  '─',
 			vertical:    '│',
@@ -632,7 +632,7 @@ func (inst *Instance) getBorderChars() borderChars {
 			leftT:       '├',
 			rightT:      '┤',
 		}
-	case "dashed":
+	case propDashed:
 		return borderChars{
 			horizontal:  '─',
 			vertical:    '│',
@@ -788,7 +788,7 @@ func (inst *Instance) SetIntentEmitter(fn func(intent.Intent)) {
 // =============================================================================
 
 func getShadowStyleProp(props rtui.Props) style.Style {
-	if v, ok := props["shadowStyle"]; ok {
+	if v, ok := props[propShadowStyle]; ok {
 		if s, ok := v.(style.Style); ok {
 			return s
 		}

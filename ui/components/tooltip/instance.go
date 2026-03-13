@@ -133,10 +133,10 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 // GetProps implements ComponentInstance.
 func (inst *Instance) GetProps() rtui.Props {
 	return rtui.Props{
-		"key":      inst.key,
-		"text":     inst.text,
-		"position": inst.position,
-		"delay":    inst.delay,
+		propKey:      inst.key,
+		propText:     inst.text,
+		propPosition: inst.position,
+		propDelay:    inst.delay,
 	}
 }
 
@@ -280,7 +280,7 @@ func (inst *Instance) Measure(constraints layout.Constraints) layout.Size {
 // =============================================================================
 
 func getPositionProp(props rtui.Props, def Position) Position {
-	if v, ok := props["position"]; ok {
+	if v, ok := props[propPosition]; ok {
 		if pos, ok := v.(Position); ok {
 			return pos
 		}
@@ -289,7 +289,7 @@ func getPositionProp(props rtui.Props, def Position) Position {
 }
 
 func getDurationProp(props rtui.Props, def time.Duration) time.Duration {
-	if v, ok := props["delay"]; ok {
+	if v, ok := props[propDelay]; ok {
 		if d, ok := v.(time.Duration); ok {
 			return d
 		}

@@ -184,11 +184,11 @@ func NewInstance(props rtui.Props) *Instance {
 	// Initialize child Option instances from options list
 	for i, opt := range inst.options {
 		childProps := rtui.Props{
-			"key":   inst.key + "-opt-" + opt.Value,
+			propKey:   inst.key + "-opt-" + opt.Value,
 			"value": opt.Value,
-			"label": opt.Label,
+			propLabel: opt.Label,
 			"idx":   i,
-			"mode":  inst.mode,
+			propMode:  inst.mode,
 		}
 		childInst := NewOptionInstance(childProps)
 		inst.childInstances = append(inst.childInstances, childInst)
@@ -333,12 +333,12 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 // GetProps implements ComponentInstance.
 func (inst *Instance) GetProps() rtui.Props {
 	return rtui.Props{
-		"key":       inst.key,
-		"label":     inst.label,
-		"disabled":  inst.state.Disabled,
-		"mode":      inst.mode,
-		"selected":  inst.selected,
-		"selecteds": inst.selecteds,
+		propKey:       inst.key,
+		propLabel:     inst.label,
+		propDisabled:  inst.state.Disabled,
+		propMode:      inst.mode,
+		propSelected:  inst.selected,
+		propSelecteds: inst.selecteds,
 	}
 }
 
@@ -503,7 +503,7 @@ func (inst *Instance) updateChildInstances() {
 		}
 
 		// Update child's selected state through Props
-		child.SetProps(rtui.Props{"selected": isSelected})
+		child.SetProps(rtui.Props{propSelected: isSelected})
 	}
 }
 
@@ -649,17 +649,17 @@ func (inst *Instance) SetStyle(s style.Style) {
 
 func (inst *Instance) GetProp(key string) (interface{}, bool) {
 	switch key {
-	case "disabled":
+	case propDisabled:
 		return inst.state.Disabled, true
-	case "mode":
+	case propMode:
 		return inst.mode, true
-	case "selected":
+	case propSelected:
 		return inst.selected, true
-	case "selecteds":
+	case propSelecteds:
 		return inst.selecteds, true
-	case "label":
+	case propLabel:
 		return inst.label, true
-	case "selectIntent":
+	case propSelectIntent:
 		return inst.selectIntent, true
 	default:
 		return nil, false
@@ -669,20 +669,20 @@ func (inst *Instance) GetProp(key string) (interface{}, bool) {
 // SetProp sets a prop value.
 func (inst *Instance) SetProp(key string, value interface{}) {
 	switch key {
-	case "disabled":
+	case propDisabled:
 		if v, ok := value.(bool); ok {
 			inst.state.Disabled = v
 			inst.dirty = true
 		}
-	case "selected":
+	case propSelected:
 		if v, ok := value.(string); ok {
 			inst.SetSelected(v)
 		}
-	case "selecteds":
+	case propSelecteds:
 		if v, ok := value.([]string); ok {
 			inst.SetSelecteds(v)
 		}
-	case "mode":
+	case propMode:
 		if v, ok := value.(SelectMode); ok {
 			inst.mode = v
 			inst.dirty = true
@@ -812,7 +812,7 @@ func (inst *Instance) Measure(constraints layout.Constraints) layout.Size {
 // =============================================================================
 
 func getSelectModeProp(props rtui.Props, def SelectMode) SelectMode {
-	if v, ok := props["mode"]; ok {
+	if v, ok := props[propMode]; ok {
 		if m, ok := v.(SelectMode); ok {
 			return m
 		}
@@ -821,7 +821,7 @@ func getSelectModeProp(props rtui.Props, def SelectMode) SelectMode {
 }
 
 func getOptionsProp(props rtui.Props, def []Option) []Option {
-	if v, ok := props["options"]; ok {
+	if v, ok := props[propOptions]; ok {
 		if opts, ok := v.([]Option); ok {
 			return opts
 		}
@@ -839,7 +839,7 @@ func getStringsProp(props rtui.Props, key string, def []string) []string {
 }
 
 func getOrientationProp(props rtui.Props, def Orientation) Orientation {
-	if v, ok := props["orientation"]; ok {
+	if v, ok := props[propOrientation]; ok {
 		if o, ok := v.(Orientation); ok {
 			return o
 		}
@@ -871,11 +871,11 @@ func (inst *Instance) rebuildChildInstances() {
 	inst.childInstances = inst.childInstances[:0]
 	for i, opt := range inst.options {
 		childProps := rtui.Props{
-			"key":   inst.key + "-opt-" + opt.Value,
+			propKey:   inst.key + "-opt-" + opt.Value,
 			"value": opt.Value,
-			"label": opt.Label,
+			propLabel: opt.Label,
 			"idx":   i,
-			"mode":  inst.mode,
+			propMode:  inst.mode,
 		}
 		childInst := NewOptionInstance(childProps)
 		inst.childInstances = append(inst.childInstances, childInst)

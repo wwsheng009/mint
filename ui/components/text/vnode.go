@@ -9,6 +9,21 @@ import (
 )
 
 // =============================================================================
+// Prop Keys
+// =============================================================================
+
+// Prop key constants — shared by VNode and Instance to avoid magic strings.
+const (
+	propContent = "content"
+	propKey = "key"
+	propMaxWidth = "maxWidth"
+	propPadding = "padding"
+	propStyle = "style"
+	propTextAlign = "textAlign"
+	propWrap = "wrap"
+)
+
+// =============================================================================
 // VNode - Description Only (No State, No Closures, No Paint)
 // =============================================================================
 
@@ -113,37 +128,37 @@ func (t *VNode) SetLayer(l rtui.Layer) rtui.VNode {
 // Props returns the node properties.
 func (t *VNode) Props() rtui.Props {
 	return rtui.Props{
-		"key":       t.key,
-		"content":   t.content,
-		"style":     t.style,
-		"padding":   t.padding,
-		"textAlign": t.textAlign,
-		"maxWidth":  t.maxWidth,
-		"wrap":      t.wrap,
+		propKey:       t.key,
+		propContent:   t.content,
+		propStyle:     t.style,
+		propPadding:   t.padding,
+		propTextAlign: t.textAlign,
+		propMaxWidth:  t.maxWidth,
+		propWrap:      t.wrap,
 	}
 }
 
 // SetProps sets the node properties - returns VNode for chaining.
 func (t *VNode) SetProps(p rtui.Props) rtui.VNode {
-	if v, ok := p["key"].(string); ok {
+	if v, ok := p[propKey].(string); ok {
 		t.key = v
 	}
-	if v, ok := p["content"].(string); ok {
+	if v, ok := p[propContent].(string); ok {
 		t.content = v
 	}
-	if v, ok := p["style"].(style.Style); ok {
+	if v, ok := p[propStyle].(style.Style); ok {
 		t.style = v
 	}
-	if v, ok := p["padding"].([4]int); ok {
+	if v, ok := p[propPadding].([4]int); ok {
 		t.padding = v
 	}
-	if v, ok := p["textAlign"].(rtui.Align); ok {
+	if v, ok := p[propTextAlign].(rtui.Align); ok {
 		t.textAlign = v
 	}
-	if v, ok := p["maxWidth"].(int); ok {
+	if v, ok := p[propMaxWidth].(int); ok {
 		t.maxWidth = v
 	}
-	if v, ok := p["wrap"].(bool); ok {
+	if v, ok := p[propWrap].(bool); ok {
 		t.wrap = v
 	}
 	return t
@@ -156,13 +171,13 @@ func (t *VNode) SetProps(p rtui.Props) rtui.VNode {
 // CreateInstance creates a new TextInstance from this VNode description.
 func (t *VNode) CreateInstance() rtui.ComponentInstance {
 	props := rtui.Props{
-		"key":       t.key,
-		"content":   t.content,
-		"style":     t.style,
-		"padding":   t.Padding(),
-		"textAlign": t.TextAlign(),
-		"maxWidth":  t.maxWidth,
-		"wrap":      t.wrap,
+		propKey:       t.key,
+		propContent:   t.content,
+		propStyle:     t.style,
+		propPadding:   t.Padding(),
+		propTextAlign: t.TextAlign(),
+		propMaxWidth:  t.maxWidth,
+		propWrap:      t.wrap,
 	}
 	return NewInstance(props)
 }

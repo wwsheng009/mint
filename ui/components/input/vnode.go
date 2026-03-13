@@ -11,6 +11,28 @@ import (
 )
 
 // =============================================================================
+// Prop Keys
+// =============================================================================
+
+// Prop key constants — shared by VNode and Instance to avoid magic strings.
+const (
+	propBorderStyle = "borderStyle"
+	propChangeIntent = "changeIntent"
+	propCursorConfig = "cursorConfig"
+	propDisabled = "disabled"
+	propFormID = "formID"
+	propInputType = "inputType"
+	propKey = "key"
+	propMaxLen = "maxLen"
+	propPlaceholder = "placeholder"
+	propReadOnly = "readOnly"
+	propStyle = "style"
+	propSubmitIntent = "submitIntent"
+	propValue = "value"
+	propWidth = "width"
+)
+
+// =============================================================================
 // Input Types
 // =============================================================================
 
@@ -138,65 +160,65 @@ func (i *VNode) SetLayer(l rtui.Layer) rtui.VNode {
 // Props returns the node properties.
 func (i *VNode) Props() rtui.Props {
 	return rtui.Props{
-		"key":          i.key,
-		"placeholder":  i.placeholder,
-		"inputType":    i.inputType,
-		"style":        i.style,
-		"width":        i.width,
-		"borderStyle":  i.borderStyle,
-		"changeIntent": i.changeIntent,
-		"submitIntent": i.submitIntent,
-		"formID":       i.formID,
-		"value":        i.value,
-		"maxLen":       i.maxLen,
-		"disabled":     i.disabled,
-		"readOnly":     i.readOnly,
-		"cursorConfig": i.cursorConfig,
+		propKey:          i.key,
+		propPlaceholder:  i.placeholder,
+		propInputType:    i.inputType,
+		propStyle:        i.style,
+		propWidth:        i.width,
+		propBorderStyle:  i.borderStyle,
+		propChangeIntent: i.changeIntent,
+		propSubmitIntent: i.submitIntent,
+		propFormID:       i.formID,
+		propValue:        i.value,
+		propMaxLen:       i.maxLen,
+		propDisabled:     i.disabled,
+		propReadOnly:     i.readOnly,
+		propCursorConfig: i.cursorConfig,
 	}
 }
 
 // SetProps sets the node properties - returns VNode for chaining.
 func (i *VNode) SetProps(p rtui.Props) rtui.VNode {
-	if v, ok := p["key"].(string); ok {
+	if v, ok := p[propKey].(string); ok {
 		i.key = v
 	}
-	if v, ok := p["placeholder"].(string); ok {
+	if v, ok := p[propPlaceholder].(string); ok {
 		i.placeholder = v
 	}
-	if v, ok := p["inputType"].(Type); ok {
+	if v, ok := p[propInputType].(Type); ok {
 		i.inputType = v
 	}
-	if v, ok := p["style"].(style.Style); ok {
+	if v, ok := p[propStyle].(style.Style); ok {
 		i.style = v
 	}
-	if v, ok := p["width"].(int); ok {
+	if v, ok := p[propWidth].(int); ok {
 		i.width = v
 	}
-	if v, ok := p["borderStyle"].(layout.BorderStyle); ok {
+	if v, ok := p[propBorderStyle].(layout.BorderStyle); ok {
 		i.borderStyle = v
 	}
-	if v, ok := p["changeIntent"].(intent.Intent); ok {
+	if v, ok := p[propChangeIntent].(intent.Intent); ok {
 		i.changeIntent = v
 	}
-	if v, ok := p["submitIntent"].(intent.Intent); ok {
+	if v, ok := p[propSubmitIntent].(intent.Intent); ok {
 		i.submitIntent = v
 	}
-	if v, ok := p["formID"].(string); ok {
+	if v, ok := p[propFormID].(string); ok {
 		i.formID = v
 	}
-	if v, ok := p["value"].(string); ok {
+	if v, ok := p[propValue].(string); ok {
 		i.value = v
 	}
-	if v, ok := p["maxLen"].(int); ok {
+	if v, ok := p[propMaxLen].(int); ok {
 		i.maxLen = v
 	}
-	if v, ok := p["disabled"].(bool); ok {
+	if v, ok := p[propDisabled].(bool); ok {
 		i.disabled = v
 	}
-	if v, ok := p["readOnly"].(bool); ok {
+	if v, ok := p[propReadOnly].(bool); ok {
 		i.readOnly = v
 	}
-	if v, ok := p["cursorConfig"].(cursor.Config); ok {
+	if v, ok := p[propCursorConfig].(cursor.Config); ok {
 		i.cursorConfig = cursor.NormalizeConfig(v)
 	}
 	return i
@@ -209,20 +231,20 @@ func (i *VNode) SetProps(p rtui.Props) rtui.VNode {
 // CreateInstance creates a new InputInstance from this VNode description.
 func (i *VNode) CreateInstance() rtui.ComponentInstance {
 	props := rtui.Props{
-		"key":          i.key,
-		"placeholder":  i.placeholder,
-		"inputType":    i.inputType,
-		"style":        i.style,
-		"width":        i.width,
-		"borderStyle":  i.borderStyle,
-		"changeIntent": i.changeIntent,
-		"submitIntent": i.submitIntent,
-		"formID":       i.formID,
-		"value":        i.value,
-		"maxLen":       i.maxLen,
-		"disabled":     i.disabled,
-		"readOnly":     i.readOnly,
-		"cursorConfig": i.cursorConfig,
+		propKey:          i.key,
+		propPlaceholder:  i.placeholder,
+		propInputType:    i.inputType,
+		propStyle:        i.style,
+		propWidth:        i.width,
+		propBorderStyle:  i.borderStyle,
+		propChangeIntent: i.changeIntent,
+		propSubmitIntent: i.submitIntent,
+		propFormID:       i.formID,
+		propValue:        i.value,
+		propMaxLen:       i.maxLen,
+		propDisabled:     i.disabled,
+		propReadOnly:     i.readOnly,
+		propCursorConfig: i.cursorConfig,
 	}
 	return NewInstance(props)
 }

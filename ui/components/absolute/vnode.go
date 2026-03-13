@@ -8,6 +8,32 @@ import (
 )
 
 // =============================================================================
+// Prop Keys
+// =============================================================================
+
+// Prop key constants — shared by VNode and Instance to avoid magic strings.
+const (
+	propAnchor = "anchor"
+	propBorderStyle = "borderStyle"
+	propBottom = "bottom"
+	propChild = "child"
+	propDashed = "dashed"
+	propDouble = "double"
+	propFlex = "flex"
+	propHeight = "height"
+	propKey = "key"
+	propLabel = "label"
+	propLeft = "left"
+	propRight = "right"
+	propRounded = "rounded"
+	propSingle = "single"
+	propStyle = "style"
+	propTop = "top"
+	propWidth = "width"
+	propZIndex = "zIndex"
+)
+
+// =============================================================================
 // Type Aliases for layout package types
 // =============================================================================
 
@@ -153,62 +179,62 @@ func (a *VNode) SetLayer(l rtui.Layer) rtui.VNode {
 // Props returns the node properties.
 func (a *VNode) Props() rtui.Props {
 	return rtui.Props{
-		"key":        a.key,
-		"child":      a.child,
-		"left":       a.left,
-		"top":        a.top,
-		"right":      a.right,
-		"bottom":     a.bottom,
-		"anchor":     a.anchor,
-		"width":      a.width,
-		"height":     a.height,
-		"zIndex":     a.zIndex,
-		"flex":       a.flex,
-		"borderStyle": a.borderStyle,  // ✨ 边框样式
-		"label":      a.borderLabel,  // ✨ 边框标签
+		propKey:        a.key,
+		propChild:      a.child,
+		propLeft:       a.left,
+		propTop:        a.top,
+		propRight:      a.right,
+		propBottom:     a.bottom,
+		propAnchor:     a.anchor,
+		propWidth:      a.width,
+		propHeight:     a.height,
+		propZIndex:     a.zIndex,
+		propFlex:       a.flex,
+		propBorderStyle: a.borderStyle,  // ✨ 边框样式
+		propLabel:      a.borderLabel,  // ✨ 边框标签
 	}
 }
 
 // SetProps sets the node properties - returns VNode for chaining.
 func (a *VNode) SetProps(p rtui.Props) rtui.VNode {
-	if v, ok := p["key"].(string); ok {
+	if v, ok := p[propKey].(string); ok {
 		a.key = v
 	}
-	if v, ok := p["child"].(rtui.VNode); ok {
+	if v, ok := p[propChild].(rtui.VNode); ok {
 		a.child = v
 	}
-	if v, ok := p["left"].(PositionValue); ok {
+	if v, ok := p[propLeft].(PositionValue); ok {
 		a.left = v
 	}
-	if v, ok := p["top"].(PositionValue); ok {
+	if v, ok := p[propTop].(PositionValue); ok {
 		a.top = v
 	}
-	if v, ok := p["right"].(PositionValue); ok {
+	if v, ok := p[propRight].(PositionValue); ok {
 		a.right = v
 	}
-	if v, ok := p["bottom"].(PositionValue); ok {
+	if v, ok := p[propBottom].(PositionValue); ok {
 		a.bottom = v
 	}
-	if v, ok := p["anchor"].(Anchor); ok {
+	if v, ok := p[propAnchor].(Anchor); ok {
 		a.anchor = v
 	}
-	if v, ok := p["width"].(int); ok {
+	if v, ok := p[propWidth].(int); ok {
 		a.width = v
 	}
-	if v, ok := p["height"].(int); ok {
+	if v, ok := p[propHeight].(int); ok {
 		a.height = v
 	}
-	if v, ok := p["zIndex"].(int); ok {
+	if v, ok := p[propZIndex].(int); ok {
 		a.zIndex = v
 	}
-	if v, ok := p["flex"].(int); ok {
+	if v, ok := p[propFlex].(int); ok {
 		a.flex = v
 	}
 	// ✨ 边框属性
-	if v, ok := p["borderStyle"].(string); ok {
+	if v, ok := p[propBorderStyle].(string); ok {
 		a.borderStyle = v
 	}
-	if v, ok := p["label"].(string); ok {
+	if v, ok := p[propLabel].(string); ok {
 		a.borderLabel = v
 	}
 	return a
@@ -221,20 +247,20 @@ func (a *VNode) SetProps(p rtui.Props) rtui.VNode {
 // CreateInstance creates a new AbsoluteInstance from this VNode description.
 func (a *VNode) CreateInstance() rtui.ComponentInstance {
 	return NewInstance(rtui.Props{
-		"key":        a.key,
-		"child":      a.child,
-		"left":       a.left,
-		"top":        a.top,
-		"right":      a.right,
-		"bottom":     a.bottom,
-		"anchor":     a.anchor,
-		"width":      a.width,
-		"height":     a.height,
-		"zIndex":     a.zIndex,
-		"flex":       a.flex,
-		"borderStyle": a.borderStyle,  // ✨ 边框样式
-		"label":      a.borderLabel,  // ✨ 边框标签
-		"style":      a.style,
+		propKey:        a.key,
+		propChild:      a.child,
+		propLeft:       a.left,
+		propTop:        a.top,
+		propRight:      a.right,
+		propBottom:     a.bottom,
+		propAnchor:     a.anchor,
+		propWidth:      a.width,
+		propHeight:     a.height,
+		propZIndex:     a.zIndex,
+		propFlex:       a.flex,
+		propBorderStyle: a.borderStyle,  // ✨ 边框样式
+		propLabel:      a.borderLabel,  // ✨ 边框标签
+		propStyle:      a.style,
 	})
 }
 
@@ -541,13 +567,13 @@ func (a *VNode) GetBoxModel() layout.BoxModel {
 	if a.borderStyle != "none" && a.borderStyle != "" {
 		var borderStyle layout.BorderStyle
 		switch a.borderStyle {
-		case "double":
+		case propDouble:
 			borderStyle = layout.BorderDouble
-		case "rounded":
+		case propRounded:
 			borderStyle = layout.BorderRounded
-		case "dashed":
+		case propDashed:
 			borderStyle = layout.BorderDashed
-		case "single":
+		case propSingle:
 			borderStyle = layout.BorderSingle
 		default:
 			borderStyle = layout.BorderNone

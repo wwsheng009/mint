@@ -136,12 +136,12 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	inst.textareaStyle = proputil.GetStyle(props, "style", style.Style{})
 	inst.rows = proputil.GetInt(props, "rows", inst.rows)
 	inst.cols = proputil.GetInt(props, "cols", inst.cols)
-	if controlled, ok := props["scrollOffsetControlled"].(bool); ok {
+	if controlled, ok := props[propScrollOffsetControlled].(bool); ok {
 		inst.scrollOffsetControlled = controlled
 	}
 	if inst.scrollOffsetControlled {
 		inst.scrollOffset = proputil.GetInt(props, "scrollOffset", inst.scrollOffset)
-	} else if offset, ok := props["scrollOffset"].(int); ok {
+	} else if offset, ok := props[propScrollOffset].(int); ok {
 		inst.scrollOffset = offset
 	}
 	inst.showScrollbar = proputil.GetBool(props, "showScrollbar", inst.showScrollbar)
@@ -187,14 +187,14 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 
 func (inst *Instance) GetProps() rtui.Props {
 	return rtui.Props{
-		"key":                    inst.key,
-		"value":                  inst.value,
-		"disabled":               inst.state.Disabled,
-		"scrollOffsetControlled": inst.scrollOffsetControlled,
-		"scrollOffset":           inst.scrollOffset,
-		"showScrollbar":          inst.showScrollbar,
-		"scrollbarStyle":         inst.scrollbarStyle,
-		"cursorConfig":           inst.cursorConfig,
+		propKey:                    inst.key,
+		propValue:                  inst.value,
+		propDisabled:               inst.state.Disabled,
+		propScrollOffsetControlled: inst.scrollOffsetControlled,
+		propScrollOffset:           inst.scrollOffset,
+		propShowScrollbar:          inst.showScrollbar,
+		propScrollbarStyle:         inst.scrollbarStyle,
+		propCursorConfig:           inst.cursorConfig,
 	}
 }
 
@@ -1019,9 +1019,9 @@ func (inst *Instance) GetStyle() style.Style    { return inst.textareaStyle }
 func (inst *Instance) SetStyle(s style.Style)   { inst.textareaStyle = s }
 func (inst *Instance) GetProp(key string) (interface{}, bool) {
 	switch key {
-	case "disabled":
+	case propDisabled:
 		return inst.state.Disabled, true
-	case "value":
+	case propValue:
 		return inst.value, true
 	default:
 		return nil, false
@@ -1029,13 +1029,13 @@ func (inst *Instance) GetProp(key string) (interface{}, bool) {
 }
 func (inst *Instance) SetProp(key string, value interface{}) {
 	switch key {
-	case "disabled":
+	case propDisabled:
 		if v, ok := value.(bool); ok {
 			inst.state.Disabled = v
 			inst.syncCursorVisibility()
 			inst.dirty = true
 		}
-	case "value":
+	case propValue:
 		if v, ok := value.(string); ok {
 			inst.SetValue(v)
 		}

@@ -71,24 +71,24 @@ func NewInstance(props rtui.Props) *Instance {
 	}
 
 	// Parse child
-	if v, ok := props["child"].(rtui.VNode); ok {
+	if v, ok := props[propChild].(rtui.VNode); ok {
 		inst.child = v
 	}
 
 	// Parse positions
-	if v, ok := props["left"].(PositionValue); ok {
+	if v, ok := props[propLeft].(PositionValue); ok {
 		inst.left = v
 	}
-	if v, ok := props["top"].(PositionValue); ok {
+	if v, ok := props[propTop].(PositionValue); ok {
 		inst.top = v
 	}
-	if v, ok := props["right"].(PositionValue); ok {
+	if v, ok := props[propRight].(PositionValue); ok {
 		inst.right = v
 	}
-	if v, ok := props["bottom"].(PositionValue); ok {
+	if v, ok := props[propBottom].(PositionValue); ok {
 		inst.bottom = v
 	}
-	if v, ok := props["anchor"].(Anchor); ok {
+	if v, ok := props[propAnchor].(Anchor); ok {
 		inst.anchor = v
 	}
 
@@ -139,22 +139,22 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	inst.flex = proputil.GetInt(props, "flex", inst.flex)
 	inst.instStyle = proputil.GetStyle(props, "style", style.Style{})
 
-	if v, ok := props["child"].(rtui.VNode); ok {
+	if v, ok := props[propChild].(rtui.VNode); ok {
 		inst.child = v
 	}
-	if v, ok := props["left"].(PositionValue); ok {
+	if v, ok := props[propLeft].(PositionValue); ok {
 		inst.left = v
 	}
-	if v, ok := props["top"].(PositionValue); ok {
+	if v, ok := props[propTop].(PositionValue); ok {
 		inst.top = v
 	}
-	if v, ok := props["right"].(PositionValue); ok {
+	if v, ok := props[propRight].(PositionValue); ok {
 		inst.right = v
 	}
-	if v, ok := props["bottom"].(PositionValue); ok {
+	if v, ok := props[propBottom].(PositionValue); ok {
 		inst.bottom = v
 	}
-	if v, ok := props["anchor"].(Anchor); ok {
+	if v, ok := props[propAnchor].(Anchor); ok {
 		inst.anchor = v
 	}
 
@@ -172,17 +172,17 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 // GetProps implements ComponentInstance.
 func (inst *Instance) GetProps() rtui.Props {
 	return rtui.Props{
-		"key":    inst.key,
-		"child":  inst.child,
-		"left":   inst.left,
-		"top":    inst.top,
-		"right":  inst.right,
-		"bottom": inst.bottom,
-		"anchor": inst.anchor,
-		"width":  inst.width,
-		"height": inst.height,
-		"zIndex": inst.zIndex,
-		"flex":   inst.flex,
+		propKey:    inst.key,
+		propChild:  inst.child,
+		propLeft:   inst.left,
+		propTop:    inst.top,
+		propRight:  inst.right,
+		propBottom: inst.bottom,
+		propAnchor: inst.anchor,
+		propWidth:  inst.width,
+		propHeight: inst.height,
+		propZIndex: inst.zIndex,
+		propFlex:   inst.flex,
 	}
 }
 

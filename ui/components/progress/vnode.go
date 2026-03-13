@@ -6,6 +6,21 @@ import (
 )
 
 // =============================================================================
+// Prop Keys
+// =============================================================================
+
+// Prop key constants — shared by VNode and Instance to avoid magic strings.
+const (
+	propKey = "key"
+	propLabel = "label"
+	propMax = "max"
+	propShowPercent = "showPercent"
+	propStyle = "style"
+	propValue = "value"
+	propWidth = "width"
+)
+
+// =============================================================================
 // VNode - Description Only (No State, No Closures, No Paint)
 // =============================================================================
 
@@ -52,36 +67,36 @@ func (p *VNode) SetLayer(l rtui.Layer) rtui.VNode { return p }
 
 func (p *VNode) Props() rtui.Props {
 	return rtui.Props{
-		"key":         p.key,
-		"label":       p.label,
-		"style":       p.style,
-		"width":       p.width,
-		"value":       p.value,
-		"max":         p.max,
-		"showPercent": p.showPercent,
+		propKey:         p.key,
+		propLabel:       p.label,
+		propStyle:       p.style,
+		propWidth:       p.width,
+		propValue:       p.value,
+		propMax:         p.max,
+		propShowPercent: p.showPercent,
 	}
 }
 
 func (p *VNode) SetProps(props rtui.Props) rtui.VNode {
-	if v, ok := props["key"].(string); ok {
+	if v, ok := props[propKey].(string); ok {
 		p.key = v
 	}
-	if v, ok := props["label"].(string); ok {
+	if v, ok := props[propLabel].(string); ok {
 		p.label = v
 	}
-	if v, ok := props["style"].(style.Style); ok {
+	if v, ok := props[propStyle].(style.Style); ok {
 		p.style = v
 	}
-	if v, ok := props["width"].(int); ok {
+	if v, ok := props[propWidth].(int); ok {
 		p.width = v
 	}
-	if v, ok := props["value"].(int); ok {
+	if v, ok := props[propValue].(int); ok {
 		p.value = v
 	}
-	if v, ok := props["max"].(int); ok {
+	if v, ok := props[propMax].(int); ok {
 		p.max = v
 	}
-	if v, ok := props["showPercent"].(bool); ok {
+	if v, ok := props[propShowPercent].(bool); ok {
 		p.showPercent = v
 	}
 	return p

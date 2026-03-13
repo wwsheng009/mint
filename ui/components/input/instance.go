@@ -216,12 +216,12 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 // GetProps implements ComponentInstance.
 func (inst *Instance) GetProps() rtui.Props {
 	return rtui.Props{
-		"key":          inst.key,
-		"placeholder":  inst.placeholder,
-		"value":        inst.value,
-		"disabled":     inst.state.Disabled,
-		"readOnly":     inst.state.Active,
-		"cursorConfig": inst.cursorConfig,
+		propKey:          inst.key,
+		propPlaceholder:  inst.placeholder,
+		propValue:        inst.value,
+		propDisabled:     inst.state.Disabled,
+		propReadOnly:     inst.state.Active,
+		propCursorConfig: inst.cursorConfig,
 	}
 }
 
@@ -901,17 +901,17 @@ func (inst *Instance) SetStyle(s style.Style) {
 // GetProp returns a prop value.
 func (inst *Instance) GetProp(key string) (interface{}, bool) {
 	switch key {
-	case "disabled":
+	case propDisabled:
 		return inst.state.Disabled, true
-	case "value":
+	case propValue:
 		return inst.value, true
-	case "placeholder":
+	case propPlaceholder:
 		return inst.placeholder, true
-	case "inputType":
+	case propInputType:
 		return inst.inputType, true
-	case "changeIntent":
+	case propChangeIntent:
 		return inst.changeIntent, true
-	case "submitIntent":
+	case propSubmitIntent:
 		return inst.submitIntent, true
 	default:
 		return nil, false
@@ -921,13 +921,13 @@ func (inst *Instance) GetProp(key string) (interface{}, bool) {
 // SetProp sets a prop value.
 func (inst *Instance) SetProp(key string, value interface{}) {
 	switch key {
-	case "disabled":
+	case propDisabled:
 		if v, ok := value.(bool); ok {
 			inst.state.Disabled = v
 			inst.syncCursorVisibility()
 			inst.dirty = true
 		}
-	case "value":
+	case propValue:
 		if v, ok := value.(string); ok {
 			inst.SetValue(v)
 		}
@@ -1080,7 +1080,7 @@ func (inst *Instance) emitFieldBlur() {
 // =============================================================================
 
 func getTypeProp(props rtui.Props, def Type) Type {
-	if v, ok := props["inputType"]; ok {
+	if v, ok := props[propInputType]; ok {
 		if t, ok := v.(Type); ok {
 			return t
 		}

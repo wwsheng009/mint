@@ -224,7 +224,7 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	inst.selectionIntentField = getFieldIntentProp(props, "selectionIntent")
 	inst.selectionMode = getSelectionModeProp(props, "selectionMode", inst.selectionMode)
 
-	if controlled, ok := props["currentPageControlled"].(bool); ok {
+	if controlled, ok := props[propCurrentPageControlled].(bool); ok {
 		inst.currentPageControlled = controlled
 	}
 	if inst.currentPageControlled {
@@ -232,7 +232,7 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 		inst.lastPropCurrentPage = inst.currentPage
 	}
 
-	if controlled, ok := props["sortControlled"].(bool); ok {
+	if controlled, ok := props[propSortControlled].(bool); ok {
 		inst.sortControlled = controlled
 	}
 	if inst.sortControlled {
@@ -242,18 +242,18 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 		inst.lastPropSortDescending = inst.sortDescending
 	}
 
-	if controlled, ok := props["selectedIndexControlled"].(bool); ok {
+	if controlled, ok := props[propSelectedIndexControlled].(bool); ok {
 		inst.selectedIndexControlled = controlled
 	}
 	if inst.selectedIndexControlled {
 		inst.selectedIndex = proputil.GetInt(props, "selectedIndex", inst.selectedIndex)
 	}
-	if controlled, ok := props["checkedIndicesControlled"].(bool); ok {
+	if controlled, ok := props[propCheckedIndicesControlled].(bool); ok {
 		inst.checkedIndicesControlled = controlled
 	}
 	if inst.checkedIndicesControlled {
 		inst.checkedIndices = getIntsProp(props, "checkedIndices", inst.checkedIndices)
-	} else if checkedIndices, ok := props["checkedIndices"].([]int); ok {
+	} else if checkedIndices, ok := props[propCheckedIndices].([]int); ok {
 		inst.checkedIndices = append([]int(nil), checkedIndices...)
 	}
 
@@ -306,44 +306,44 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 
 func (inst *Instance) GetProps() rtui.Props {
 	props := rtui.Props{
-		"key":                     inst.key,
-		"columns":                 inst.columns,
-		"rows":                    inst.rows,
-		"emptyText":               inst.emptyText,
-		"headerStyle":             inst.headerStyle,
-		"tableStyle":              inst.tableStyle,
-		"selectedStyle":           inst.selectedStyle,
-		"borderStyle":             inst.borderStyle,
-		"statusStyle":             inst.statusStyle,
-		"filterStyle":             inst.filterStyle,
-		"scrollbarStyle":          inst.scrollbarStyle,
-		"gap":                     inst.gap,
-		"showBorder":              inst.showBorder,
-		"showFooter":              inst.showFooter,
-		"showScrollbar":           inst.showScrollbar,
-		"pageSize":                inst.pageSize,
-		"searchQuery":             inst.searchQuery,
-		"filters":                 cloneFilters(inst.filters),
-		"currentPage":             inst.currentPage,
-		"currentPageControlled":   inst.currentPageControlled,
-		"sortColumn":              inst.sortColumn,
-		"sortDescending":          inst.sortDescending,
-		"sortControlled":          inst.sortControlled,
-		"selectedIndex":           inst.selectedIndex,
-		"selectedIndexControlled": inst.selectedIndexControlled,
-		"selectionIntent":         inst.selectionIntent,
-		"selectionMode":           inst.selectionMode,
-		"componentID":             inst.componentID,
-		"changeIntent":            inst.changeIntent,
-		"changeIntentField":       inst.changeIntentField,
-		"pageIntentField":         inst.pageIntentField,
+		propKey:                     inst.key,
+		propColumns:                 inst.columns,
+		propRows:                    inst.rows,
+		propEmptyText:               inst.emptyText,
+		propHeaderStyle:             inst.headerStyle,
+		propTableStyle:              inst.tableStyle,
+		propSelectedStyle:           inst.selectedStyle,
+		propBorderStyle:             inst.borderStyle,
+		propStatusStyle:             inst.statusStyle,
+		propFilterStyle:             inst.filterStyle,
+		propScrollbarStyle:          inst.scrollbarStyle,
+		propGap:                     inst.gap,
+		propShowBorder:              inst.showBorder,
+		propShowFooter:              inst.showFooter,
+		propShowScrollbar:           inst.showScrollbar,
+		propPageSize:                inst.pageSize,
+		propSearchQuery:             inst.searchQuery,
+		propFilters:                 cloneFilters(inst.filters),
+		propCurrentPage:             inst.currentPage,
+		propCurrentPageControlled:   inst.currentPageControlled,
+		propSortColumn:              inst.sortColumn,
+		propSortDescending:          inst.sortDescending,
+		propSortControlled:          inst.sortControlled,
+		propSelectedIndex:           inst.selectedIndex,
+		propSelectedIndexControlled: inst.selectedIndexControlled,
+		propSelectionIntent:         inst.selectionIntent,
+		propSelectionMode:           inst.selectionMode,
+		propComponentID:             inst.componentID,
+		propChangeIntent:            inst.changeIntent,
+		propChangeIntentField:       inst.changeIntentField,
+		propPageIntentField:         inst.pageIntentField,
 	}
 	if inst.selectionIntentField != nil {
-		props["selectionIntentField"] = inst.selectionIntentField
+		props[propSelectionIntentField] = inst.selectionIntentField
 	}
 	if inst.checkedIndicesControlled {
-		props["checkedIndicesControlled"] = true
-		props["checkedIndices"] = append([]int(nil), inst.checkedIndices...)
+		props[propCheckedIndicesControlled] = true
+		props[propCheckedIndices] = append([]int(nil), inst.checkedIndices...)
 	}
 	return props
 }
@@ -1569,7 +1569,7 @@ func (inst *Instance) ToggleSelectionAtSourceIndex(index int) bool {
 }
 
 func getColumnsProp(props rtui.Props, def []TableColumn) []TableColumn {
-	value, ok := props["columns"]
+	value, ok := props[propColumns]
 	if !ok {
 		return def
 	}
@@ -1580,7 +1580,7 @@ func getColumnsProp(props rtui.Props, def []TableColumn) []TableColumn {
 }
 
 func getRowsProp(props rtui.Props, def [][]string) [][]string {
-	value, ok := props["rows"]
+	value, ok := props[propRows]
 	if !ok {
 		return def
 	}
@@ -1591,7 +1591,7 @@ func getRowsProp(props rtui.Props, def [][]string) [][]string {
 }
 
 func getFiltersProp(props rtui.Props, def map[int]string) map[int]string {
-	value, ok := props["filters"]
+	value, ok := props[propFilters]
 	if !ok {
 		return cloneFilters(def)
 	}

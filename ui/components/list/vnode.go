@@ -10,6 +10,47 @@ import (
 )
 
 // =============================================================================
+// Prop Keys
+// =============================================================================
+
+// Prop key constants — shared by VNode and Instance to avoid magic strings.
+const (
+	propAllowScroll = "allowScroll"
+	propBorderStyle = "borderStyle"
+	propChangeIntent = "changeIntent"
+	propCheckedIndices = "checkedIndices"
+	propCheckedIndicesControlled = "checkedIndicesControlled"
+	propComponentID = "componentID"
+	propEmptyText = "emptyText"
+	propFormID = "formID"
+	propHeader = "header"
+	propHeaderStyle = "headerStyle"
+	propKey = "key"
+	propMatchStyle = "matchStyle"
+	propMaxRows = "maxRows"
+	propRowStyle = "rowStyle"
+	propRowStyleFn = "rowStyleFn"
+	propRows = "rows"
+	propScrollOffset = "scrollOffset"
+	propScrollOffsetControlled = "scrollOffsetControlled"
+	propScrollbarStyle = "scrollbarStyle"
+	propSearchFn = "searchFn"
+	propSearchQuery = "searchQuery"
+	propSearchStatsStyle = "searchStatsStyle"
+	propSelectedIndex = "selectedIndex"
+	propSelectedIndexControlled = "selectedIndexControlled"
+	propSelectedStyle = "selectedStyle"
+	propSelectionIntent = "selectionIntent"
+	propSelectionMode = "selectionMode"
+	propSeparatorChar = "separatorChar"
+	propShowBorder = "showBorder"
+	propShowScrollbar = "showScrollbar"
+	propShowSearchStats = "showSearchStats"
+	propShowSeparator = "showSeparator"
+	propViewportHeight = "viewportHeight"
+)
+
+// =============================================================================
 // VNode - Pure Description
 // =============================================================================
 
@@ -123,145 +164,145 @@ func (v *VNode) SetLayer(l rtui.Layer) rtui.VNode             { return v }
 
 func (v *VNode) Props() rtui.Props {
 	props := rtui.Props{
-		"key":                     v.key,
-		"componentID":             v.componentID,
-		"header":                  v.header,
-		"rows":                    v.rows,
-		"emptyText":               v.emptyText,
-		"maxRows":                 v.maxRows,
-		"showBorder":              v.showBorder,
-		"showSeparator":           v.showSeparator,
-		"separatorChar":           v.separatorChar,
-		"headerStyle":             v.headerStyle,
-		"rowStyle":                v.rowStyle,
-		"matchStyle":              v.matchStyle,
-		"selectedStyle":           v.selectedStyle,
-		"borderStyle":             v.borderStyle,
-		"showScrollbar":           v.showScrollbar,
-		"scrollbarStyle":          v.scrollbarStyle,
-		"changeIntent":            v.changeIntent,
-		"selectionIntent":         v.selectionIntent,
-		"selectionMode":           v.selectionMode,
-		"searchQuery":             v.searchQuery,
-		"showSearchStats":         v.showSearchStats,
-		"searchStatsStyle":        v.searchStatsStyle,
-		"scrollOffsetControlled":  v.scrollOffsetControlled,
-		"scrollOffset":            v.scrollOffset,
-		"selectedIndex":           v.selectedIndex,
-		"selectedIndexControlled": v.selectedIndexControlled,
-		"checkedIndices":          append([]int(nil), v.checkedIndices...),
-		"viewportHeight":          v.viewportHeight,
-		"formID":                  v.formID,
-		"allowScroll":             v.allowScroll,
+		propKey:                     v.key,
+		propComponentID:             v.componentID,
+		propHeader:                  v.header,
+		propRows:                    v.rows,
+		propEmptyText:               v.emptyText,
+		propMaxRows:                 v.maxRows,
+		propShowBorder:              v.showBorder,
+		propShowSeparator:           v.showSeparator,
+		propSeparatorChar:           v.separatorChar,
+		propHeaderStyle:             v.headerStyle,
+		propRowStyle:                v.rowStyle,
+		propMatchStyle:              v.matchStyle,
+		propSelectedStyle:           v.selectedStyle,
+		propBorderStyle:             v.borderStyle,
+		propShowScrollbar:           v.showScrollbar,
+		propScrollbarStyle:          v.scrollbarStyle,
+		propChangeIntent:            v.changeIntent,
+		propSelectionIntent:         v.selectionIntent,
+		propSelectionMode:           v.selectionMode,
+		propSearchQuery:             v.searchQuery,
+		propShowSearchStats:         v.showSearchStats,
+		propSearchStatsStyle:        v.searchStatsStyle,
+		propScrollOffsetControlled:  v.scrollOffsetControlled,
+		propScrollOffset:            v.scrollOffset,
+		propSelectedIndex:           v.selectedIndex,
+		propSelectedIndexControlled: v.selectedIndexControlled,
+		propCheckedIndices:          append([]int(nil), v.checkedIndices...),
+		propViewportHeight:          v.viewportHeight,
+		propFormID:                  v.formID,
+		propAllowScroll:             v.allowScroll,
 	}
-	props["checkedIndicesControlled"] = v.checkedIndicesControlled
+	props[propCheckedIndicesControlled] = v.checkedIndicesControlled
 
 	// Add rowStyleFn if it's set (functions can be stored in Props)
 	if v.rowStyleFn != nil {
-		props["rowStyleFn"] = v.rowStyleFn
+		props[propRowStyleFn] = v.rowStyleFn
 	}
 	if v.searchFn != nil {
-		props["searchFn"] = v.searchFn
+		props[propSearchFn] = v.searchFn
 	}
 
 	return props
 }
 
 func (v *VNode) SetProps(p rtui.Props) rtui.VNode {
-	if key, ok := p["key"].(string); ok {
+	if key, ok := p[propKey].(string); ok {
 		v.key = key
 	}
-	if componentID, ok := p["componentID"].(string); ok {
+	if componentID, ok := p[propComponentID].(string); ok {
 		v.componentID = componentID
 	}
-	if header, ok := p["header"].(string); ok {
+	if header, ok := p[propHeader].(string); ok {
 		v.header = header
 	}
-	if rows, ok := p["rows"].([]string); ok {
+	if rows, ok := p[propRows].([]string); ok {
 		v.rows = rows
 	}
-	if emptyText, ok := p["emptyText"].(string); ok {
+	if emptyText, ok := p[propEmptyText].(string); ok {
 		v.emptyText = emptyText
 	}
-	if maxRows, ok := p["maxRows"].(int); ok {
+	if maxRows, ok := p[propMaxRows].(int); ok {
 		v.maxRows = maxRows
 	}
-	if showBorder, ok := p["showBorder"].(bool); ok {
+	if showBorder, ok := p[propShowBorder].(bool); ok {
 		v.showBorder = showBorder
 	}
-	if showSeparator, ok := p["showSeparator"].(bool); ok {
+	if showSeparator, ok := p[propShowSeparator].(bool); ok {
 		v.showSeparator = showSeparator
 	}
-	if separatorChar, ok := p["separatorChar"].(rune); ok {
+	if separatorChar, ok := p[propSeparatorChar].(rune); ok {
 		v.separatorChar = separatorChar
 	}
-	if headerStyle, ok := p["headerStyle"].(style.Style); ok {
+	if headerStyle, ok := p[propHeaderStyle].(style.Style); ok {
 		v.headerStyle = headerStyle
 	}
-	if rowStyle, ok := p["rowStyle"].(style.Style); ok {
+	if rowStyle, ok := p[propRowStyle].(style.Style); ok {
 		v.rowStyle = rowStyle
 	}
-	if matchStyle, ok := p["matchStyle"].(style.Style); ok {
+	if matchStyle, ok := p[propMatchStyle].(style.Style); ok {
 		v.matchStyle = matchStyle
 	}
-	if selectedStyle, ok := p["selectedStyle"].(style.Style); ok {
+	if selectedStyle, ok := p[propSelectedStyle].(style.Style); ok {
 		v.selectedStyle = selectedStyle
 	}
-	if borderStyle, ok := p["borderStyle"].(style.Style); ok {
+	if borderStyle, ok := p[propBorderStyle].(style.Style); ok {
 		v.borderStyle = borderStyle
 	}
-	if showScrollbar, ok := p["showScrollbar"].(bool); ok {
+	if showScrollbar, ok := p[propShowScrollbar].(bool); ok {
 		v.showScrollbar = showScrollbar
 	}
-	if scrollbarStyle, ok := p["scrollbarStyle"].(style.Style); ok {
+	if scrollbarStyle, ok := p[propScrollbarStyle].(style.Style); ok {
 		v.scrollbarStyle = scrollbarStyle
 	}
-	if changeIntent, ok := p["changeIntent"].(intent.Intent); ok {
+	if changeIntent, ok := p[propChangeIntent].(intent.Intent); ok {
 		v.changeIntent = changeIntent
 	}
-	if selectionIntent, ok := p["selectionIntent"].(intent.Intent); ok {
+	if selectionIntent, ok := p[propSelectionIntent].(intent.Intent); ok {
 		v.selectionIntent = selectionIntent
 	}
-	if selectionMode, ok := p["selectionMode"].(SelectionMode); ok {
+	if selectionMode, ok := p[propSelectionMode].(SelectionMode); ok {
 		v.selectionMode = selectionMode
 	}
-	if searchQuery, ok := p["searchQuery"].(string); ok {
+	if searchQuery, ok := p[propSearchQuery].(string); ok {
 		v.searchQuery = searchQuery
 	}
-	if searchFn, ok := p["searchFn"].(func(string, string) bool); ok {
+	if searchFn, ok := p[propSearchFn].(func(string, string) bool); ok {
 		v.searchFn = searchFn
 	}
-	if showSearchStats, ok := p["showSearchStats"].(bool); ok {
+	if showSearchStats, ok := p[propShowSearchStats].(bool); ok {
 		v.showSearchStats = showSearchStats
 	}
-	if searchStatsStyle, ok := p["searchStatsStyle"].(style.Style); ok {
+	if searchStatsStyle, ok := p[propSearchStatsStyle].(style.Style); ok {
 		v.searchStatsStyle = searchStatsStyle
 	}
-	if scrollOffset, ok := p["scrollOffset"].(int); ok {
+	if scrollOffset, ok := p[propScrollOffset].(int); ok {
 		v.scrollOffset = scrollOffset
 	}
-	if controlled, ok := p["scrollOffsetControlled"].(bool); ok {
+	if controlled, ok := p[propScrollOffsetControlled].(bool); ok {
 		v.scrollOffsetControlled = controlled
 	}
-	if selectedIndex, ok := p["selectedIndex"].(int); ok {
+	if selectedIndex, ok := p[propSelectedIndex].(int); ok {
 		v.selectedIndex = selectedIndex
 	}
-	if controlled, ok := p["selectedIndexControlled"].(bool); ok {
+	if controlled, ok := p[propSelectedIndexControlled].(bool); ok {
 		v.selectedIndexControlled = controlled
 	}
-	if checkedIndices, ok := p["checkedIndices"].([]int); ok {
+	if checkedIndices, ok := p[propCheckedIndices].([]int); ok {
 		v.checkedIndices = append([]int(nil), checkedIndices...)
 	}
-	if controlled, ok := p["checkedIndicesControlled"].(bool); ok {
+	if controlled, ok := p[propCheckedIndicesControlled].(bool); ok {
 		v.checkedIndicesControlled = controlled
 	}
-	if viewportHeight, ok := p["viewportHeight"].(int); ok {
+	if viewportHeight, ok := p[propViewportHeight].(int); ok {
 		v.viewportHeight = viewportHeight
 	}
-	if formID, ok := p["formID"].(string); ok {
+	if formID, ok := p[propFormID].(string); ok {
 		v.formID = formID
 	}
-	if allowScroll, ok := p["allowScroll"].(bool); ok {
+	if allowScroll, ok := p[propAllowScroll].(bool); ok {
 		v.allowScroll = allowScroll
 	}
 	return v

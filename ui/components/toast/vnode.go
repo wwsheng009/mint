@@ -9,6 +9,23 @@ import (
 )
 
 // =============================================================================
+// Prop Keys
+// =============================================================================
+
+// Prop key constants — shared by VNode and Instance to avoid magic strings.
+const (
+	propCloseIntent = "closeIntent"
+	propDuration = "duration"
+	propKey = "key"
+	propLayer = "layer"
+	propMessage = "message"
+	propPadding = "padding"
+	propStyle = "style"
+	propTitle = "title"
+	propToastType = "toastType"
+)
+
+// =============================================================================
 // Toast Type
 // =============================================================================
 
@@ -130,42 +147,42 @@ func (t *ToastVNode) SetLayer(l rtui.Layer) rtui.VNode {
 // Props returns the node properties.
 func (t *ToastVNode) Props() rtui.Props {
 	return rtui.Props{
-		"key":         t.key,
-		"title":       t.title,
-		"message":     t.message,
-		"toastType":   t.toastType,
-		"duration":    t.duration,
-		"closeIntent": t.closeIntent,
-		"style":       t.style,
-		"padding":     t.Padding(),
-		"layer":       t.layer,
+		propKey:         t.key,
+		propTitle:       t.title,
+		propMessage:     t.message,
+		propToastType:   t.toastType,
+		propDuration:    t.duration,
+		propCloseIntent: t.closeIntent,
+		propStyle:       t.style,
+		propPadding:     t.Padding(),
+		propLayer:       t.layer,
 	}
 }
 
 // SetProps sets the node properties - returns ToastVNode for chaining.
 func (t *ToastVNode) SetProps(p rtui.Props) rtui.VNode {
-	if v, ok := p["key"].(string); ok {
+	if v, ok := p[propKey].(string); ok {
 		t.key = v
 	}
-	if v, ok := p["title"].(string); ok {
+	if v, ok := p[propTitle].(string); ok {
 		t.title = v
 	}
-	if v, ok := p["message"].(string); ok {
+	if v, ok := p[propMessage].(string); ok {
 		t.message = v
 	}
-	if v, ok := p["toastType"].(ToastType); ok {
+	if v, ok := p[propToastType].(ToastType); ok {
 		t.toastType = v
 	}
-	if v, ok := p["duration"].(time.Duration); ok {
+	if v, ok := p[propDuration].(time.Duration); ok {
 		t.duration = v
 	}
-	if v, ok := p["closeIntent"].(interface{}); ok {
+	if v, ok := p[propCloseIntent].(interface{}); ok {
 		t.closeIntent = v
 	}
-	if v, ok := p["style"].(style.Style); ok {
+	if v, ok := p[propStyle].(style.Style); ok {
 		t.style = v
 	}
-	if v, ok := p["layer"].(rtui.Layer); ok {
+	if v, ok := p[propLayer].(rtui.Layer); ok {
 		t.layer = v
 	}
 	return t
@@ -178,14 +195,14 @@ func (t *ToastVNode) SetProps(p rtui.Props) rtui.VNode {
 // CreateInstance creates a new ToastInstance from this ToastVNode description.
 func (t *ToastVNode) CreateInstance() rtui.ComponentInstance {
 	props := rtui.Props{
-		"key":         t.key,
-		"title":       t.title,
-		"message":     t.message,
-		"toastType":   t.toastType,
-		"duration":    t.duration,
-		"closeIntent": t.closeIntent,
-		"style":       t.style,
-		"padding":     t.Padding(),
+		propKey:         t.key,
+		propTitle:       t.title,
+		propMessage:     t.message,
+		propToastType:   t.toastType,
+		propDuration:    t.duration,
+		propCloseIntent: t.closeIntent,
+		propStyle:       t.style,
+		propPadding:     t.Padding(),
 	}
 	return NewToastInstance(props)
 }

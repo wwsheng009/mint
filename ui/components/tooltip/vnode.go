@@ -8,6 +8,20 @@ import (
 )
 
 // =============================================================================
+// Prop Keys
+// =============================================================================
+
+// Prop key constants — shared by VNode and Instance to avoid magic strings.
+const (
+	propDelay = "delay"
+	propKey = "key"
+	propLayer = "layer"
+	propPosition = "position"
+	propStyle = "style"
+	propText = "text"
+)
+
+// =============================================================================
 // Tooltip Position
 // =============================================================================
 
@@ -130,33 +144,33 @@ func (t *VNode) SetLayer(l rtui.Layer) rtui.VNode {
 // Props returns the node properties.
 func (t *VNode) Props() rtui.Props {
 	return rtui.Props{
-		"key":      t.key,
-		"text":     t.text,
-		"position": t.position,
-		"delay":    t.delay,
-		"style":    t.style,
-		"layer":    t.layer,
+		propKey:      t.key,
+		propText:     t.text,
+		propPosition: t.position,
+		propDelay:    t.delay,
+		propStyle:    t.style,
+		propLayer:    t.layer,
 	}
 }
 
 // SetProps sets the node properties - returns VNode for chaining.
 func (t *VNode) SetProps(p rtui.Props) rtui.VNode {
-	if v, ok := p["key"].(string); ok {
+	if v, ok := p[propKey].(string); ok {
 		t.key = v
 	}
-	if v, ok := p["text"].(string); ok {
+	if v, ok := p[propText].(string); ok {
 		t.text = v
 	}
-	if v, ok := p["position"].(Position); ok {
+	if v, ok := p[propPosition].(Position); ok {
 		t.position = v
 	}
-	if v, ok := p["delay"].(time.Duration); ok {
+	if v, ok := p[propDelay].(time.Duration); ok {
 		t.delay = v
 	}
-	if v, ok := p["style"].(style.Style); ok {
+	if v, ok := p[propStyle].(style.Style); ok {
 		t.style = v
 	}
-	if v, ok := p["layer"].(rtui.Layer); ok {
+	if v, ok := p[propLayer].(rtui.Layer); ok {
 		t.layer = v
 	}
 	return t
@@ -169,11 +183,11 @@ func (t *VNode) SetProps(p rtui.Props) rtui.VNode {
 // CreateInstance creates a new Instance from this VNode description.
 func (t *VNode) CreateInstance() rtui.ComponentInstance {
 	props := rtui.Props{
-		"key":      t.key,
-		"text":     t.text,
-		"position": t.position,
-		"delay":    t.delay,
-		"style":    t.style,
+		propKey:      t.key,
+		propText:     t.text,
+		propPosition: t.position,
+		propDelay:    t.delay,
+		propStyle:    t.style,
 	}
 	return NewInstance(props)
 }

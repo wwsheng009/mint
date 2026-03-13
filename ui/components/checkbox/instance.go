@@ -167,10 +167,10 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 // GetProps implements ComponentInstance.
 func (inst *Instance) GetProps() rtui.Props {
 	return rtui.Props{
-		"key":      inst.key,
-		"label":    inst.label,
-		"disabled": inst.state.Disabled,
-		"checked":  inst.checked,
+		propKey:      inst.key,
+		propLabel:    inst.label,
+		propDisabled: inst.state.Disabled,
+		propChecked:  inst.checked,
 	}
 }
 
@@ -373,13 +373,13 @@ func (inst *Instance) SetStyle(s style.Style) {
 // GetProp returns a prop value.
 func (inst *Instance) GetProp(key string) (interface{}, bool) {
 	switch key {
-	case "disabled":
+	case propDisabled:
 		return inst.state.Disabled, true
-	case "checked":
+	case propChecked:
 		return inst.checked, true
-	case "label":
+	case propLabel:
 		return inst.label, true
-	case "toggleIntent":
+	case propToggleIntent:
 		return inst.toggleIntent, true
 	default:
 		return nil, false
@@ -389,12 +389,12 @@ func (inst *Instance) GetProp(key string) (interface{}, bool) {
 // SetProp sets a prop value.
 func (inst *Instance) SetProp(key string, value interface{}) {
 	switch key {
-	case "disabled":
+	case propDisabled:
 		if v, ok := value.(bool); ok {
 			inst.state.Disabled = v
 			inst.dirty = true
 		}
-	case "checked":
+	case propChecked:
 		if v, ok := value.(bool); ok {
 			inst.checked = v
 			inst.dirty = true

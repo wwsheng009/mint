@@ -84,9 +84,9 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 
 func (inst *Instance) GetProps() rtui.Props {
 	return rtui.Props{
-		"key":     inst.key,
-		"config":  inst.config,
-		"visible": inst.visible,
+		propKey:     inst.key,
+		propConfig:  inst.config,
+		propVisible: inst.visible,
 	}
 }
 

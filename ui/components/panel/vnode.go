@@ -11,6 +11,27 @@ import (
 )
 
 // =============================================================================
+// Prop Keys
+// =============================================================================
+
+// Prop key constants — shared by VNode and Instance to avoid magic strings.
+const (
+	propBorderColor = "borderColor"
+	propBorderLabel = "borderLabel"
+	propBorderStyle = "borderStyle"
+	propContent = "content"
+	propFlex = "flex"
+	propFooter = "footer"
+	propHeader = "header"
+	propHeight = "height"
+	propKey = "key"
+	propPadding = "padding"
+	propStyle = "style"
+	propTitle = "title"
+	propWidth = "width"
+)
+
+// =============================================================================
 // VNode - Composition-based Panel (no Instance needed)
 // =============================================================================
 
@@ -120,61 +141,61 @@ func (v *VNode) SetLayer(l rtui.Layer) rtui.VNode {
 // Props returns the node properties.
 func (v *VNode) Props() rtui.Props {
 	return rtui.Props{
-		"key":         v.key,
-		"style":       v.instStyle,
-		"title":       v.title,
-		"width":       v.width,
-		"height":      v.height,
-		"flex":        v.flex,
-		"padding":     v.padding,
-		"borderStyle": v.borderStyle,
-		"borderColor": v.borderColor,
-		"borderLabel": v.borderLabel,
-		"header":      v.header,
-		"content":     v.content,
-		"footer":      v.footer,
+		propKey:         v.key,
+		propStyle:       v.instStyle,
+		propTitle:       v.title,
+		propWidth:       v.width,
+		propHeight:      v.height,
+		propFlex:        v.flex,
+		propPadding:     v.padding,
+		propBorderStyle: v.borderStyle,
+		propBorderColor: v.borderColor,
+		propBorderLabel: v.borderLabel,
+		propHeader:      v.header,
+		propContent:     v.content,
+		propFooter:      v.footer,
 	}
 }
 
 // SetProps sets the node properties - returns VNode for chaining.
 func (v *VNode) SetProps(p rtui.Props) rtui.VNode {
-	if val, ok := p["key"].(string); ok {
+	if val, ok := p[propKey].(string); ok {
 		v.key = val
 	}
-	if val, ok := p["style"].(style.Style); ok {
+	if val, ok := p[propStyle].(style.Style); ok {
 		v.instStyle = val
 	}
-	if val, ok := p["title"].(string); ok {
+	if val, ok := p[propTitle].(string); ok {
 		v.title = val
 	}
-	if val, ok := p["width"].(int); ok {
+	if val, ok := p[propWidth].(int); ok {
 		v.width = val
 	}
-	if val, ok := p["height"].(int); ok {
+	if val, ok := p[propHeight].(int); ok {
 		v.height = val
 	}
-	if val, ok := p["flex"].(int); ok {
+	if val, ok := p[propFlex].(int); ok {
 		v.flex = val
 	}
-	if val, ok := p["padding"].(int); ok {
+	if val, ok := p[propPadding].(int); ok {
 		v.padding = val
 	}
-	if val, ok := p["borderStyle"].(layout.BorderStyle); ok {
+	if val, ok := p[propBorderStyle].(layout.BorderStyle); ok {
 		v.borderStyle = val
 	}
-	if val, ok := p["borderColor"].(style.Color); ok {
+	if val, ok := p[propBorderColor].(style.Color); ok {
 		v.borderColor = val
 	}
-	if val, ok := p["borderLabel"].(string); ok {
+	if val, ok := p[propBorderLabel].(string); ok {
 		v.borderLabel = val
 	}
-	if val, ok := p["header"].(rtui.VNode); ok {
+	if val, ok := p[propHeader].(rtui.VNode); ok {
 		v.header = val
 	}
-	if val, ok := p["content"].(rtui.VNode); ok {
+	if val, ok := p[propContent].(rtui.VNode); ok {
 		v.content = val
 	}
-	if val, ok := p["footer"].(rtui.VNode); ok {
+	if val, ok := p[propFooter].(rtui.VNode); ok {
 		v.footer = val
 	}
 	// Reset composed to rebuild

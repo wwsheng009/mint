@@ -133,12 +133,12 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 // GetProps implements ComponentInstance.
 func (inst *Instance) GetProps() rtui.Props {
 	return rtui.Props{
-		"key":          inst.key,
-		"label":        inst.label,
-		"dividerStyle": inst.dividerStyle,
-		"orientation":  inst.orientation,
-		"thickness":    inst.thickness,
-		"fillWidth":    inst.fillWidth,
+		propKey:          inst.key,
+		propLabel:        inst.label,
+		propDividerStyle: inst.dividerStyle,
+		propOrientation:  inst.orientation,
+		propThickness:    inst.thickness,
+		propFillWidth:    inst.fillWidth,
 	}
 }
 
@@ -363,7 +363,7 @@ func (inst *Instance) SetStyle(s style.Style) {
 // =============================================================================
 
 func getStyleEnumProp(props rtui.Props, def Style) Style {
-	if v, ok := props["dividerStyle"]; ok {
+	if v, ok := props[propDividerStyle]; ok {
 		if s, ok := v.(Style); ok {
 			return s
 		}
@@ -372,7 +372,7 @@ func getStyleEnumProp(props rtui.Props, def Style) Style {
 }
 
 func getOrientationProp(props rtui.Props, def Orientation) Orientation {
-	if v, ok := props["orientation"]; ok {
+	if v, ok := props[propOrientation]; ok {
 		if o, ok := v.(Orientation); ok {
 			return o
 		}

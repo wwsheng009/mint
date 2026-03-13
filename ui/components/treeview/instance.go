@@ -351,25 +351,25 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	inst.selectedStyle = proputil.GetStyle(props, "selectedStyle", style.Style{})
 	inst.iconStyle = proputil.GetStyle(props, "iconStyle", style.Style{})
 	inst.scrollbarStyle = proputil.GetStyle(props, "scrollbarStyle", style.Style{})
-	if fn, ok := props["rowStyleFn"].(func(int, TreeNode) style.Style); ok {
+	if fn, ok := props[propRowStyleFn].(func(int, TreeNode) style.Style); ok {
 		inst.rowStyleFn = fn
-	} else if _, exists := props["rowStyleFn"]; exists {
+	} else if _, exists := props[propRowStyleFn]; exists {
 		inst.rowStyleFn = nil
 	}
 	inst.matchStyle = proputil.GetStyle(props, "matchStyle", style.Style{})
-	if controlled, ok := props["searchQueryControlled"].(bool); ok {
+	if controlled, ok := props[propSearchQueryControlled].(bool); ok {
 		inst.searchQueryControlled = controlled
 	}
 	if inst.searchQueryControlled {
 		inst.searchQuery = proputil.GetString(props, "searchQuery", inst.searchQuery)
 		inst.searchQueryInitialized = true
-	} else if query, ok := props["searchQuery"].(string); ok && !inst.searchQueryInitialized {
+	} else if query, ok := props[propSearchQuery].(string); ok && !inst.searchQueryInitialized {
 		inst.searchQuery = query
 		inst.searchQueryInitialized = true
 	}
-	if fn, ok := props["searchFn"].(func(TreeNode, string) bool); ok {
+	if fn, ok := props[propSearchFn].(func(TreeNode, string) bool); ok {
 		inst.searchFn = fn
-	} else if _, exists := props["searchFn"]; exists {
+	} else if _, exists := props[propSearchFn]; exists {
 		inst.searchFn = nil
 	}
 	inst.selectionMode = getSelectionModeProp(props, "selectionMode", inst.selectionMode)
@@ -377,49 +377,49 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	inst.selectionIntentField = getFieldIntentProp(props, "selectionIntentField")
 	inst.showSearchStats = proputil.GetBool(props, "showSearchStats", inst.showSearchStats)
 	inst.searchStatsStyle = proputil.GetStyle(props, "searchStatsStyle", style.Style{})
-	if fn, ok := props["lazyLoadFn"].(func(TreeNode)); ok {
+	if fn, ok := props[propLazyLoadFn].(func(TreeNode)); ok {
 		inst.lazyLoadFn = fn
-	} else if _, exists := props["lazyLoadFn"]; exists {
+	} else if _, exists := props[propLazyLoadFn]; exists {
 		inst.lazyLoadFn = nil
 	}
-	if fn, ok := props["lazyLoadChildrenFn"].(func(TreeNode) []TreeNode); ok {
+	if fn, ok := props[propLazyLoadChildrenFn].(func(TreeNode) []TreeNode); ok {
 		inst.lazyLoadChildrenFn = fn
-	} else if _, exists := props["lazyLoadChildrenFn"]; exists {
+	} else if _, exists := props[propLazyLoadChildrenFn]; exists {
 		inst.lazyLoadChildrenFn = nil
 	}
-	if controlled, ok := props["scrollOffsetControlled"].(bool); ok {
+	if controlled, ok := props[propScrollOffsetControlled].(bool); ok {
 		inst.scrollOffsetControlled = controlled
 	}
 	if inst.scrollOffsetControlled {
 		inst.scrollOffset = proputil.GetInt(props, "scrollOffset", inst.scrollOffset)
 		inst.scrollOffsetInitialized = true
-	} else if offset, ok := props["scrollOffset"].(int); ok && !inst.scrollOffsetInitialized {
+	} else if offset, ok := props[propScrollOffset].(int); ok && !inst.scrollOffsetInitialized {
 		inst.scrollOffset = offset
 		inst.scrollOffsetInitialized = true
 	}
-	if controlled, ok := props["selectedIndexControlled"].(bool); ok {
+	if controlled, ok := props[propSelectedIndexControlled].(bool); ok {
 		inst.selectedIndexControlled = controlled
 	}
 	if inst.selectedIndexControlled {
 		inst.selectedIndex = proputil.GetInt(props, "selectedIndex", inst.selectedIndex)
 		inst.selectedIndexInitialized = true
-	} else if index, ok := props["selectedIndex"].(int); ok && !inst.selectedIndexInitialized {
+	} else if index, ok := props[propSelectedIndex].(int); ok && !inst.selectedIndexInitialized {
 		inst.selectedIndex = index
 		inst.selectedIndexInitialized = true
 	}
-	if controlled, ok := props["checkedKeysControlled"].(bool); ok {
+	if controlled, ok := props[propCheckedKeysControlled].(bool); ok {
 		inst.checkedKeysControlled = controlled
 	}
 	if inst.checkedKeysControlled {
 		inst.checkedKeys = normalizeNodeKeys(getCheckedKeysProp(props))
 		inst.checkedKeysInitialized = true
-	} else if _, ok := props["checkedKeys"].(map[string]bool); ok && !inst.checkedKeysInitialized {
+	} else if _, ok := props[propCheckedKeys].(map[string]bool); ok && !inst.checkedKeysInitialized {
 		inst.checkedKeys = normalizeNodeKeys(getCheckedKeysProp(props))
 		inst.checkedKeysInitialized = true
 	}
 	inst.viewportHeight = proputil.GetInt(props, "viewportHeight", inst.viewportHeight)
 	externalExpandedKeysChanged := false
-	if expandedKeys, ok := props["expandedKeys"].(map[string]bool); ok {
+	if expandedKeys, ok := props[propExpandedKeys].(map[string]bool); ok {
 		// Only overwrite internal expandedKeys when the external value has actually
 		// changed since the last SetProps call. This prevents a same-frame
 		// SetProps (triggered by dirty=true before the intent is processed) from
@@ -432,7 +432,7 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 		}
 		inst.expandedKeysControlled = true
 	}
-	if controlled, ok := props["expandedKeysControlled"].(bool); ok {
+	if controlled, ok := props[propExpandedKeysControlled].(bool); ok {
 		inst.expandedKeysControlled = controlled
 	}
 	inst.allowScroll = proputil.GetBool(props, "allowScroll", inst.allowScroll)
@@ -501,40 +501,40 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 
 func (inst *Instance) GetProps() rtui.Props {
 	props := rtui.Props{
-		"key":                     inst.key,
-		"componentID":             inst.componentID,
-		"nodes":                   inst.nodes,
-		"expandLevel":             inst.expandLevel,
-		"showIcons":               inst.showIcons,
-		"showLineNums":            inst.showLineNums,
-		"compact":                 inst.compact,
-		"showBorder":              inst.showBorder,
-		"showScrollbar":           inst.showScrollbar,
-		"matchStyle":              inst.matchStyle,
-		"searchQuery":             inst.searchQuery,
-		"searchQueryControlled":   inst.searchQueryControlled,
-		"selectionMode":           inst.selectionMode,
-		"checkedKeysControlled":   inst.checkedKeysControlled,
-		"selectionIntent":         inst.selectionIntent,
-		"selectionIntentField":    inst.selectionIntentField,
-		"lazyLoadFn":              inst.lazyLoadFn,
-		"lazyLoadChildrenFn":      inst.lazyLoadChildrenFn,
-		"showSearchStats":         inst.showSearchStats,
-		"searchStatsStyle":        inst.searchStatsStyle,
-		"scrollOffsetControlled":  inst.scrollOffsetControlled,
-		"selectedIndexControlled": inst.selectedIndexControlled,
-		"scrollOffset":            inst.scrollOffset,
-		"selectedIndex":           inst.selectedIndex,
-		"viewportHeight":          inst.viewportHeight,
-		"expandedKeysControlled":  inst.expandedKeysControlled,
-		"allowScroll":             inst.allowScroll,
-		"allowExpand":             inst.allowExpand,
+		propKey:                     inst.key,
+		propComponentID:             inst.componentID,
+		propNodes:                   inst.nodes,
+		propExpandLevel:             inst.expandLevel,
+		propShowIcons:               inst.showIcons,
+		propShowLineNums:            inst.showLineNums,
+		propCompact:                 inst.compact,
+		propShowBorder:              inst.showBorder,
+		propShowScrollbar:           inst.showScrollbar,
+		propMatchStyle:              inst.matchStyle,
+		propSearchQuery:             inst.searchQuery,
+		propSearchQueryControlled:   inst.searchQueryControlled,
+		propSelectionMode:           inst.selectionMode,
+		propCheckedKeysControlled:   inst.checkedKeysControlled,
+		propSelectionIntent:         inst.selectionIntent,
+		propSelectionIntentField:    inst.selectionIntentField,
+		propLazyLoadFn:              inst.lazyLoadFn,
+		propLazyLoadChildrenFn:      inst.lazyLoadChildrenFn,
+		propShowSearchStats:         inst.showSearchStats,
+		propSearchStatsStyle:        inst.searchStatsStyle,
+		propScrollOffsetControlled:  inst.scrollOffsetControlled,
+		propSelectedIndexControlled: inst.selectedIndexControlled,
+		propScrollOffset:            inst.scrollOffset,
+		propSelectedIndex:           inst.selectedIndex,
+		propViewportHeight:          inst.viewportHeight,
+		propExpandedKeysControlled:  inst.expandedKeysControlled,
+		propAllowScroll:             inst.allowScroll,
+		propAllowExpand:             inst.allowExpand,
 	}
 	if inst.expandedKeysControlled {
-		props["expandedKeys"] = cloneExpandedKeys(inst.expandedKeys)
+		props[propExpandedKeys] = cloneExpandedKeys(inst.expandedKeys)
 	}
 	if inst.checkedKeysControlled {
-		props["checkedKeys"] = cloneExpandedKeys(inst.checkedKeys)
+		props[propCheckedKeys] = cloneExpandedKeys(inst.checkedKeys)
 	}
 	return props
 }
@@ -650,7 +650,7 @@ func equalExpandedKeys(left, right map[string]bool) bool {
 }
 
 func getExpandedKeysProp(props rtui.Props) map[string]bool {
-	if value, ok := props["expandedKeys"]; ok {
+	if value, ok := props[propExpandedKeys]; ok {
 		if keys, ok := value.(map[string]bool); ok {
 			return cloneExpandedKeys(keys)
 		}
@@ -659,7 +659,7 @@ func getExpandedKeysProp(props rtui.Props) map[string]bool {
 }
 
 func getCheckedKeysProp(props rtui.Props) map[string]bool {
-	if value, ok := props["checkedKeys"]; ok {
+	if value, ok := props[propCheckedKeys]; ok {
 		if keys, ok := value.(map[string]bool); ok {
 			return cloneExpandedKeys(keys)
 		}
@@ -691,7 +691,7 @@ func getFieldIntentProp(props rtui.Props, key string) intent.FieldIntent {
 }
 
 func getSearchFn(props rtui.Props) func(TreeNode, string) bool {
-	if value, ok := props["searchFn"]; ok {
+	if value, ok := props[propSearchFn]; ok {
 		if fn, ok := value.(func(TreeNode, string) bool); ok {
 			return fn
 		}
@@ -700,7 +700,7 @@ func getSearchFn(props rtui.Props) func(TreeNode, string) bool {
 }
 
 func getLazyLoadFn(props rtui.Props) func(TreeNode) {
-	if value, ok := props["lazyLoadFn"]; ok {
+	if value, ok := props[propLazyLoadFn]; ok {
 		if fn, ok := value.(func(TreeNode)); ok {
 			return fn
 		}
@@ -709,7 +709,7 @@ func getLazyLoadFn(props rtui.Props) func(TreeNode) {
 }
 
 func getLazyLoadChildrenFn(props rtui.Props) func(TreeNode) []TreeNode {
-	if value, ok := props["lazyLoadChildrenFn"]; ok {
+	if value, ok := props[propLazyLoadChildrenFn]; ok {
 		if fn, ok := value.(func(TreeNode) []TreeNode); ok {
 			return fn
 		}
@@ -840,7 +840,7 @@ func padRightToWidth(text string, width int) string {
 }
 
 func getNodesProp(props rtui.Props, def []TreeNode) []TreeNode {
-	v, ok := props["nodes"]
+	v, ok := props[propNodes]
 	if !ok {
 		return def
 	}
@@ -851,7 +851,7 @@ func getNodesProp(props rtui.Props, def []TreeNode) []TreeNode {
 }
 
 func getRowStyleFn(props rtui.Props) func(int, TreeNode) style.Style {
-	if v, ok := props["rowStyleFn"]; ok {
+	if v, ok := props[propRowStyleFn]; ok {
 		if fn, ok := v.(func(int, TreeNode) style.Style); ok {
 			return fn
 		}

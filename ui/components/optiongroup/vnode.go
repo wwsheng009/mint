@@ -10,6 +10,27 @@ import (
 )
 
 // =============================================================================
+// Prop Keys
+// =============================================================================
+
+// Prop key constants — shared by VNode and Instance to avoid magic strings.
+const (
+	propContent = "content"
+	propDisabled = "disabled"
+	propKey = "key"
+	propLabel = "label"
+	propMode = "mode"
+	propOptions = "options"
+	propOrientation = "orientation"
+	propParentCallback = "parentCallback"
+	propSelectIntent = "selectIntent"
+	propSelected = "selected"
+	propSelecteds = "selecteds"
+	propSpacing = "spacing"
+	propStyle = "style"
+)
+
+// =============================================================================
 // Types
 // =============================================================================
 
@@ -136,7 +157,7 @@ func (o *VNode) Children() []rtui.VNode {
 		// Import rtui package for NewElement
 		children = append(children, rtui.NewElement("text").
 			SetKey(o.Key()+"-label").
-			SetProps(rtui.Props{"content": o.label}))
+			SetProps(rtui.Props{propContent: o.label}))
 	}
 
 	// Next children: options as individual OptionVNodes
@@ -181,8 +202,8 @@ func (o *VNode) Children() []rtui.VNode {
 			}
 			// Pass parentCallback and selected state as props for Instance to use
 			child.SetProps(rtui.Props{
-				"parentCallback": o.optionSelectFunc,
-				"selected":       child.selected, // Propagate selected state to Instance
+				propParentCallback: o.optionSelectFunc,
+				propSelected:       child.selected, // Propagate selected state to Instance
 			})
 			children = append(children, child)
 		}
@@ -246,54 +267,54 @@ func (o *VNode) SetLayer(l rtui.Layer) rtui.VNode {
 // Props returns the node properties.
 func (o *VNode) Props() rtui.Props {
 	return rtui.Props{
-		"key":           o.key,
-		"label":         o.label,
-		"style":         o.style,
-		"selectIntent":  o.selectIntent,
-		"disabled":      o.disabled,
-		"mode":          o.mode,
-		"options":       o.options,
-		"selected":      o.selected,
-		"selecteds":     o.selecteds,
-		"orientation":   o.orientation,
-		"spacing":       o.spacing,
-		"parentCallback": o.optionSelectFunc, // Passed to children for selection
+		propKey:           o.key,
+		propLabel:         o.label,
+		propStyle:         o.style,
+		propSelectIntent:  o.selectIntent,
+		propDisabled:      o.disabled,
+		propMode:          o.mode,
+		propOptions:       o.options,
+		propSelected:      o.selected,
+		propSelecteds:     o.selecteds,
+		propOrientation:   o.orientation,
+		propSpacing:       o.spacing,
+		propParentCallback: o.optionSelectFunc, // Passed to children for selection
 	}
 }
 
 // SetProps sets the node properties - returns VNode for chaining.
 func (o *VNode) SetProps(p rtui.Props) rtui.VNode {
-	if v, ok := p["key"].(string); ok {
+	if v, ok := p[propKey].(string); ok {
 		o.key = v
 	}
-	if v, ok := p["label"].(string); ok {
+	if v, ok := p[propLabel].(string); ok {
 		o.label = v
 	}
-	if v, ok := p["style"].(style.Style); ok {
+	if v, ok := p[propStyle].(style.Style); ok {
 		o.style = v
 	}
-	if v, ok := p["selectIntent"].(intent.Intent); ok {
+	if v, ok := p[propSelectIntent].(intent.Intent); ok {
 		o.selectIntent = v
 	}
-	if v, ok := p["disabled"].(bool); ok {
+	if v, ok := p[propDisabled].(bool); ok {
 		o.disabled = v
 	}
-	if v, ok := p["mode"].(SelectMode); ok {
+	if v, ok := p[propMode].(SelectMode); ok {
 		o.mode = v
 	}
-	if v, ok := p["options"].([]Option); ok {
+	if v, ok := p[propOptions].([]Option); ok {
 		o.options = v
 	}
-	if v, ok := p["selected"].(string); ok {
+	if v, ok := p[propSelected].(string); ok {
 		o.selected = v
 	}
-	if v, ok := p["selecteds"].([]string); ok {
+	if v, ok := p[propSelecteds].([]string); ok {
 		o.selecteds = v
 	}
-	if v, ok := p["orientation"].(Orientation); ok {
+	if v, ok := p[propOrientation].(Orientation); ok {
 		o.orientation = v
 	}
-	if v, ok := p["spacing"].(int); ok {
+	if v, ok := p[propSpacing].(int); ok {
 		o.spacing = v
 	}
 	return o
@@ -306,17 +327,17 @@ func (o *VNode) SetProps(p rtui.Props) rtui.VNode {
 // CreateInstance creates a new OptionGroupInstance from this VNode description.
 func (o *VNode) CreateInstance() rtui.ComponentInstance {
 	props := rtui.Props{
-		"key":          o.key,
-		"label":        o.label,
-		"style":        o.style,
-		"selectIntent": o.selectIntent,
-		"disabled":     o.disabled,
-		"mode":         o.mode,
-		"options":      o.options,
-		"selected":     o.selected,
-		"selecteds":    o.selecteds,
-		"orientation":  o.orientation,
-		"spacing":      o.spacing,
+		propKey:          o.key,
+		propLabel:        o.label,
+		propStyle:        o.style,
+		propSelectIntent: o.selectIntent,
+		propDisabled:     o.disabled,
+		propMode:         o.mode,
+		propOptions:      o.options,
+		propSelected:     o.selected,
+		propSelecteds:    o.selecteds,
+		propOrientation:  o.orientation,
+		propSpacing:      o.spacing,
 	}
 	inst := NewInstance(props)
 

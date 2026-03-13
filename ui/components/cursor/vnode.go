@@ -8,6 +8,17 @@ import (
 )
 
 // VNode is the declarative description of a standalone cursor.
+// =============================================================================
+// Prop Keys
+// =============================================================================
+
+// Prop key constants — shared by VNode and Instance to avoid magic strings.
+const (
+	propConfig = "config"
+	propKey = "key"
+	propVisible = "visible"
+)
+
 type VNode struct {
 	*rtui.ElementVNode
 	key     string
@@ -48,20 +59,20 @@ func (v *VNode) SetLayer(l rtui.Layer) rtui.VNode {
 
 func (v *VNode) Props() rtui.Props {
 	return rtui.Props{
-		"key":     v.key,
-		"config":  v.config,
-		"visible": v.visible,
+		propKey:     v.key,
+		propConfig:  v.config,
+		propVisible: v.visible,
 	}
 }
 
 func (v *VNode) SetProps(p rtui.Props) rtui.VNode {
-	if key, ok := p["key"].(string); ok {
+	if key, ok := p[propKey].(string); ok {
 		v.key = key
 	}
-	if cfg, ok := p["config"].(Config); ok {
+	if cfg, ok := p[propConfig].(Config); ok {
 		v.config = NormalizeConfig(cfg)
 	}
-	if visible, ok := p["visible"].(bool); ok {
+	if visible, ok := p[propVisible].(bool); ok {
 		v.visible = visible
 	}
 	return v

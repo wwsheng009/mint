@@ -7,6 +7,21 @@ import (
 )
 
 // =============================================================================
+// Prop Keys
+// =============================================================================
+
+// Prop key constants — shared by VNode and Instance to avoid magic strings.
+const (
+	propKey = "key"
+	propLabel = "label"
+	propOnReset = "onReset"
+	propOnSubmit = "onSubmit"
+	propStyle = "style"
+	propValidateAll = "validateAll"
+	propValues = "values"
+)
+
+// =============================================================================
 // VNode - Form Component Description
 // =============================================================================
 
@@ -77,45 +92,45 @@ func (f *VNode) SetLayer(l rtui.Layer) rtui.VNode { return f }
 
 func (f *VNode) Props() rtui.Props {
 	props := rtui.Props{
-		"key":         f.key,
-		"label":       f.label,
-		"validateAll": f.validateAll,
-		"values":      f.values,
+		propKey:         f.key,
+		propLabel:       f.label,
+		propValidateAll: f.validateAll,
+		propValues:      f.values,
 	}
 
 	if f.formStyle != (style.Style{}) {
-		props["style"] = f.formStyle
+		props[propStyle] = f.formStyle
 	}
 	if f.onSubmit != nil {
-		props["onSubmit"] = f.onSubmit
+		props[propOnSubmit] = f.onSubmit
 	}
 	if f.onReset != nil {
-		props["onReset"] = f.onReset
+		props[propOnReset] = f.onReset
 	}
 
 	return props
 }
 
 func (f *VNode) SetProps(p rtui.Props) rtui.VNode {
-	if v, ok := p["key"].(string); ok {
+	if v, ok := p[propKey].(string); ok {
 		f.key = v
 	}
-	if v, ok := p["label"].(string); ok {
+	if v, ok := p[propLabel].(string); ok {
 		f.label = v
 	}
-	if v, ok := p["style"].(style.Style); ok {
+	if v, ok := p[propStyle].(style.Style); ok {
 		f.formStyle = v
 	}
-	if v, ok := p["validateAll"].(bool); ok {
+	if v, ok := p[propValidateAll].(bool); ok {
 		f.validateAll = v
 	}
-	if v, ok := p["values"].(map[string]interface{}); ok {
+	if v, ok := p[propValues].(map[string]interface{}); ok {
 		f.values = v
 	}
-	if v, ok := p["onSubmit"].(intent.Intent); ok {
+	if v, ok := p[propOnSubmit].(intent.Intent); ok {
 		f.onSubmit = v
 	}
-	if v, ok := p["onReset"].(intent.Intent); ok {
+	if v, ok := p[propOnReset].(intent.Intent); ok {
 		f.onReset = v
 	}
 	return f

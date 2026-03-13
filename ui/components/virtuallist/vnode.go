@@ -7,6 +7,26 @@ import (
 )
 
 // =============================================================================
+// Prop Keys
+// =============================================================================
+
+// Prop key constants — shared by VNode and Instance to avoid magic strings.
+const (
+	propAllowScroll = "allowScroll"
+	propHeight = "height"
+	propItemCount = "itemCount"
+	propItemHeight = "itemHeight"
+	propItems = "items"
+	propKey = "key"
+	propListStyle = "listStyle"
+	propScrollOffset = "scrollOffset"
+	propSelectedIndex = "selectedIndex"
+	propSelectedStyle = "selectedStyle"
+	propVisibleCount = "visibleCount"
+	propWidth = "width"
+)
+
+// =============================================================================
 // VNode - Pure Description (No State, No Closures, No Paint)
 // =============================================================================
 
@@ -96,56 +116,56 @@ func (v *VNode) TextContent() string   { return "" }
 
 func (v *VNode) Props() rtui.Props {
 	return rtui.Props{
-		"key":            v.key,
-		"items":          v.items,
-		"itemCount":      v.itemCount,
-		"itemHeight":     v.itemHeight,
-		"visibleCount":   v.visibleCount,
-		"height":         v.height,
-		"width":          v.width,
-		"allowScroll":    v.allowScroll,
-		"scrollOffset":    v.scrollOffset,
-		"selectedIndex":  v.selectedIndex,
-		"listStyle":      v.listStyle,
-		"selectedStyle":  v.selectedStyle,
+		propKey:            v.key,
+		propItems:          v.items,
+		propItemCount:      v.itemCount,
+		propItemHeight:     v.itemHeight,
+		propVisibleCount:   v.visibleCount,
+		propHeight:         v.height,
+		propWidth:          v.width,
+		propAllowScroll:    v.allowScroll,
+		propScrollOffset:    v.scrollOffset,
+		propSelectedIndex:  v.selectedIndex,
+		propListStyle:      v.listStyle,
+		propSelectedStyle:  v.selectedStyle,
 	}
 }
 
 func (v *VNode) SetProps(p rtui.Props) rtui.VNode {
-	if val, ok := p["key"].(string); ok {
+	if val, ok := p[propKey].(string); ok {
 		v.key = val
 	}
-	if val, ok := p["items"].([]string); ok {
+	if val, ok := p[propItems].([]string); ok {
 		v.items = val
 	}
-	if val, ok := p["itemCount"].(int); ok {
+	if val, ok := p[propItemCount].(int); ok {
 		v.itemCount = val
 	}
-	if val, ok := p["itemHeight"].(int); ok {
+	if val, ok := p[propItemHeight].(int); ok {
 		v.itemHeight = val
 	}
-	if val, ok := p["visibleCount"].(int); ok {
+	if val, ok := p[propVisibleCount].(int); ok {
 		v.visibleCount = val
 	}
-	if val, ok := p["height"].(int); ok {
+	if val, ok := p[propHeight].(int); ok {
 		v.height = val
 	}
-	if val, ok := p["width"].(int); ok {
+	if val, ok := p[propWidth].(int); ok {
 		v.width = val
 	}
-	if val, ok := p["allowScroll"].(bool); ok {
+	if val, ok := p[propAllowScroll].(bool); ok {
 		v.allowScroll = val
 	}
-	if val, ok := p["scrollOffset"].(int); ok {
+	if val, ok := p[propScrollOffset].(int); ok {
 		v.scrollOffset = val
 	}
-	if val, ok := p["selectedIndex"].(int); ok {
+	if val, ok := p[propSelectedIndex].(int); ok {
 		v.selectedIndex = val
 	}
-	if val, ok := p["listStyle"].(style.Style); ok {
+	if val, ok := p[propListStyle].(style.Style); ok {
 		v.listStyle = val
 	}
-	if val, ok := p["selectedStyle"].(style.Style); ok {
+	if val, ok := p[propSelectedStyle].(style.Style); ok {
 		v.selectedStyle = val
 	}
 	return v
@@ -157,18 +177,18 @@ func (v *VNode) SetProps(p rtui.Props) rtui.VNode {
 
 func (v *VNode) CreateInstance() rtui.ComponentInstance {
 	return NewInstance(rtui.Props{
-		"key":            v.key,
-		"items":          v.items,
-		"itemCount":      v.itemCount,
-		"itemHeight":     v.itemHeight,
-		"visibleCount":   v.visibleCount,
-		"height":         v.height,
-		"width":          v.width,
-		"allowScroll":    v.allowScroll,
-		"scrollOffset":    v.scrollOffset,
-		"selectedIndex":  v.selectedIndex,
-		"listStyle":      v.listStyle,
-		"selectedStyle":  v.selectedStyle,
+		propKey:            v.key,
+		propItems:          v.items,
+		propItemCount:      v.itemCount,
+		propItemHeight:     v.itemHeight,
+		propVisibleCount:   v.visibleCount,
+		propHeight:         v.height,
+		propWidth:          v.width,
+		propAllowScroll:    v.allowScroll,
+		propScrollOffset:    v.scrollOffset,
+		propSelectedIndex:  v.selectedIndex,
+		propListStyle:      v.listStyle,
+		propSelectedStyle:  v.selectedStyle,
 	})
 }
 

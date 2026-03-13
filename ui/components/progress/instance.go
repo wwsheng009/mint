@@ -79,9 +79,9 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 
 func (inst *Instance) GetProps() rtui.Props {
 	return rtui.Props{
-		"key":   inst.key,
-		"value": inst.value,
-		"max":   inst.max,
+		propKey:   inst.key,
+		propValue: inst.value,
+		propMax:   inst.max,
 	}
 }
 

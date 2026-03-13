@@ -9,6 +9,50 @@ import (
 )
 
 // =============================================================================
+// Prop Keys
+// =============================================================================
+
+// Prop key constants — shared by VNode and Instance to avoid magic strings.
+const (
+	propAllowExpand = "allowExpand"
+	propAllowScroll = "allowScroll"
+	propCheckedKeys = "checkedKeys"
+	propCheckedKeysControlled = "checkedKeysControlled"
+	propCompact = "compact"
+	propComponentID = "componentID"
+	propExpandLevel = "expandLevel"
+	propExpandedKeys = "expandedKeys"
+	propExpandedKeysControlled = "expandedKeysControlled"
+	propIconStyle = "iconStyle"
+	propKey = "key"
+	propLazyLoadChildrenFn = "lazyLoadChildrenFn"
+	propLazyLoadFn = "lazyLoadFn"
+	propMatchStyle = "matchStyle"
+	propNodes = "nodes"
+	propRowStyleFn = "rowStyleFn"
+	propScrollOffset = "scrollOffset"
+	propScrollOffsetControlled = "scrollOffsetControlled"
+	propScrollbarStyle = "scrollbarStyle"
+	propSearchFn = "searchFn"
+	propSearchQuery = "searchQuery"
+	propSearchQueryControlled = "searchQueryControlled"
+	propSearchStatsStyle = "searchStatsStyle"
+	propSelectedIndex = "selectedIndex"
+	propSelectedIndexControlled = "selectedIndexControlled"
+	propSelectedStyle = "selectedStyle"
+	propSelectionIntent = "selectionIntent"
+	propSelectionIntentField = "selectionIntentField"
+	propSelectionMode = "selectionMode"
+	propShowBorder = "showBorder"
+	propShowIcons = "showIcons"
+	propShowLineNums = "showLineNums"
+	propShowScrollbar = "showScrollbar"
+	propShowSearchStats = "showSearchStats"
+	propTreeStyle = "treeStyle"
+	propViewportHeight = "viewportHeight"
+)
+
+// =============================================================================
 // Types
 // =============================================================================
 
@@ -139,175 +183,175 @@ func (v *VNode) SetLayer(l rtui.Layer) rtui.VNode             { return v }
 
 func (v *VNode) Props() rtui.Props {
 	props := rtui.Props{
-		"key":                     v.key,
-		"componentID":             v.componentID,
-		"nodes":                   v.nodes,
-		"expandLevel":             v.expandLevel,
-		"showIcons":               v.showIcons,
-		"showLineNums":            v.showLineNums,
-		"compact":                 v.compact,
-		"showBorder":              v.showBorder,
-		"showScrollbar":           v.showScrollbar,
-		"treeStyle":               v.treeStyle,
-		"selectedStyle":           v.selectedStyle,
-		"iconStyle":               v.iconStyle,
-		"scrollbarStyle":          v.scrollbarStyle,
-		"scrollOffset":            v.scrollOffset,
-		"scrollOffsetControlled":  v.scrollOffsetControlled,
-		"selectedIndex":           v.selectedIndex,
-		"selectedIndexControlled": v.selectedIndexControlled,
-		"viewportHeight":          v.viewportHeight,
-		"expandedKeysControlled":  v.expandedKeysControlled,
-		"searchQuery":             v.searchQuery,
-		"searchQueryControlled":   v.searchQueryControlled,
-		"matchStyle":              v.matchStyle,
-		"selectionMode":           v.selectionMode,
-		"checkedKeysControlled":   v.checkedKeysControlled,
-		"selectionIntent":         v.selectionIntent,
-		"selectionIntentField":    v.selectionIntentField,
-		"lazyLoadFn":              v.lazyLoadFn,
-		"lazyLoadChildrenFn":      v.lazyLoadChildrenFn,
-		"showSearchStats":         v.showSearchStats,
-		"searchStatsStyle":        v.searchStatsStyle,
-		"allowScroll":             v.allowScroll,
-		"allowExpand":             v.allowExpand,
+		propKey:                     v.key,
+		propComponentID:             v.componentID,
+		propNodes:                   v.nodes,
+		propExpandLevel:             v.expandLevel,
+		propShowIcons:               v.showIcons,
+		propShowLineNums:            v.showLineNums,
+		propCompact:                 v.compact,
+		propShowBorder:              v.showBorder,
+		propShowScrollbar:           v.showScrollbar,
+		propTreeStyle:               v.treeStyle,
+		propSelectedStyle:           v.selectedStyle,
+		propIconStyle:               v.iconStyle,
+		propScrollbarStyle:          v.scrollbarStyle,
+		propScrollOffset:            v.scrollOffset,
+		propScrollOffsetControlled:  v.scrollOffsetControlled,
+		propSelectedIndex:           v.selectedIndex,
+		propSelectedIndexControlled: v.selectedIndexControlled,
+		propViewportHeight:          v.viewportHeight,
+		propExpandedKeysControlled:  v.expandedKeysControlled,
+		propSearchQuery:             v.searchQuery,
+		propSearchQueryControlled:   v.searchQueryControlled,
+		propMatchStyle:              v.matchStyle,
+		propSelectionMode:           v.selectionMode,
+		propCheckedKeysControlled:   v.checkedKeysControlled,
+		propSelectionIntent:         v.selectionIntent,
+		propSelectionIntentField:    v.selectionIntentField,
+		propLazyLoadFn:              v.lazyLoadFn,
+		propLazyLoadChildrenFn:      v.lazyLoadChildrenFn,
+		propShowSearchStats:         v.showSearchStats,
+		propSearchStatsStyle:        v.searchStatsStyle,
+		propAllowScroll:             v.allowScroll,
+		propAllowExpand:             v.allowExpand,
 	}
 	if v.expandedKeysControlled {
-		props["expandedKeys"] = cloneExpandedKeys(v.expandedKeys)
+		props[propExpandedKeys] = cloneExpandedKeys(v.expandedKeys)
 	}
 	if v.checkedKeysControlled {
-		props["checkedKeys"] = cloneExpandedKeys(v.checkedKeys)
+		props[propCheckedKeys] = cloneExpandedKeys(v.checkedKeys)
 	}
 	if v.rowStyleFn != nil {
-		props["rowStyleFn"] = v.rowStyleFn
+		props[propRowStyleFn] = v.rowStyleFn
 	}
 	if v.searchFn != nil {
-		props["searchFn"] = v.searchFn
+		props[propSearchFn] = v.searchFn
 	}
 	if v.showSearchStats {
-		props["showSearchStats"] = v.showSearchStats
+		props[propShowSearchStats] = v.showSearchStats
 	}
 	if v.searchStatsStyle != (style.Style{}) {
-		props["searchStatsStyle"] = v.searchStatsStyle
+		props[propSearchStatsStyle] = v.searchStatsStyle
 	}
 	if v.lazyLoadFn != nil {
-		props["lazyLoadFn"] = v.lazyLoadFn
+		props[propLazyLoadFn] = v.lazyLoadFn
 	}
 	if v.lazyLoadChildrenFn != nil {
-		props["lazyLoadChildrenFn"] = v.lazyLoadChildrenFn
+		props[propLazyLoadChildrenFn] = v.lazyLoadChildrenFn
 	}
 	return props
 }
 
 func (v *VNode) SetProps(p rtui.Props) rtui.VNode {
-	if key, ok := p["key"].(string); ok {
+	if key, ok := p[propKey].(string); ok {
 		v.key = key
 	}
-	if componentID, ok := p["componentID"].(string); ok {
+	if componentID, ok := p[propComponentID].(string); ok {
 		v.componentID = componentID
 	}
-	if nodes, ok := p["nodes"].([]TreeNode); ok {
+	if nodes, ok := p[propNodes].([]TreeNode); ok {
 		v.nodes = nodes
 	}
-	if expandLevel, ok := p["expandLevel"].(int); ok {
+	if expandLevel, ok := p[propExpandLevel].(int); ok {
 		v.expandLevel = expandLevel
 	}
-	if showIcons, ok := p["showIcons"].(bool); ok {
+	if showIcons, ok := p[propShowIcons].(bool); ok {
 		v.showIcons = showIcons
 	}
-	if showLineNums, ok := p["showLineNums"].(bool); ok {
+	if showLineNums, ok := p[propShowLineNums].(bool); ok {
 		v.showLineNums = showLineNums
 	}
-	if compact, ok := p["compact"].(bool); ok {
+	if compact, ok := p[propCompact].(bool); ok {
 		v.compact = compact
 	}
-	if showBorder, ok := p["showBorder"].(bool); ok {
+	if showBorder, ok := p[propShowBorder].(bool); ok {
 		v.showBorder = showBorder
 	}
-	if showScrollbar, ok := p["showScrollbar"].(bool); ok {
+	if showScrollbar, ok := p[propShowScrollbar].(bool); ok {
 		v.showScrollbar = showScrollbar
 	}
-	if treeStyle, ok := p["treeStyle"].(style.Style); ok {
+	if treeStyle, ok := p[propTreeStyle].(style.Style); ok {
 		v.treeStyle = treeStyle
 	}
-	if selectedStyle, ok := p["selectedStyle"].(style.Style); ok {
+	if selectedStyle, ok := p[propSelectedStyle].(style.Style); ok {
 		v.selectedStyle = selectedStyle
 	}
-	if iconStyle, ok := p["iconStyle"].(style.Style); ok {
+	if iconStyle, ok := p[propIconStyle].(style.Style); ok {
 		v.iconStyle = iconStyle
 	}
-	if scrollbarStyle, ok := p["scrollbarStyle"].(style.Style); ok {
+	if scrollbarStyle, ok := p[propScrollbarStyle].(style.Style); ok {
 		v.scrollbarStyle = scrollbarStyle
 	}
-	if fn, ok := p["rowStyleFn"].(func(int, TreeNode) style.Style); ok {
+	if fn, ok := p[propRowStyleFn].(func(int, TreeNode) style.Style); ok {
 		v.rowStyleFn = fn
 	}
-	if matchStyle, ok := p["matchStyle"].(style.Style); ok {
+	if matchStyle, ok := p[propMatchStyle].(style.Style); ok {
 		v.matchStyle = matchStyle
 	}
-	if scrollOffset, ok := p["scrollOffset"].(int); ok {
+	if scrollOffset, ok := p[propScrollOffset].(int); ok {
 		v.scrollOffset = scrollOffset
 	}
-	if controlled, ok := p["scrollOffsetControlled"].(bool); ok {
+	if controlled, ok := p[propScrollOffsetControlled].(bool); ok {
 		v.scrollOffsetControlled = controlled
 	}
-	if selectedIndex, ok := p["selectedIndex"].(int); ok {
+	if selectedIndex, ok := p[propSelectedIndex].(int); ok {
 		v.selectedIndex = selectedIndex
 	}
-	if controlled, ok := p["selectedIndexControlled"].(bool); ok {
+	if controlled, ok := p[propSelectedIndexControlled].(bool); ok {
 		v.selectedIndexControlled = controlled
 	}
-	if viewportHeight, ok := p["viewportHeight"].(int); ok {
+	if viewportHeight, ok := p[propViewportHeight].(int); ok {
 		v.viewportHeight = viewportHeight
 	}
-	if expandedKeys, ok := p["expandedKeys"].(map[string]bool); ok {
+	if expandedKeys, ok := p[propExpandedKeys].(map[string]bool); ok {
 		v.expandedKeys = cloneExpandedKeys(expandedKeys)
 		v.expandedKeysControlled = true
 	}
-	if controlled, ok := p["expandedKeysControlled"].(bool); ok {
+	if controlled, ok := p[propExpandedKeysControlled].(bool); ok {
 		v.expandedKeysControlled = controlled
 	}
-	if searchQuery, ok := p["searchQuery"].(string); ok {
+	if searchQuery, ok := p[propSearchQuery].(string); ok {
 		v.searchQuery = searchQuery
 	}
-	if controlled, ok := p["searchQueryControlled"].(bool); ok {
+	if controlled, ok := p[propSearchQueryControlled].(bool); ok {
 		v.searchQueryControlled = controlled
 	}
-	if searchFn, ok := p["searchFn"].(func(TreeNode, string) bool); ok {
+	if searchFn, ok := p[propSearchFn].(func(TreeNode, string) bool); ok {
 		v.searchFn = searchFn
 	}
-	if selectionMode, ok := p["selectionMode"].(SelectionMode); ok {
+	if selectionMode, ok := p[propSelectionMode].(SelectionMode); ok {
 		v.selectionMode = selectionMode
 	}
-	if checkedKeys, ok := p["checkedKeys"].(map[string]bool); ok {
+	if checkedKeys, ok := p[propCheckedKeys].(map[string]bool); ok {
 		v.checkedKeys = cloneExpandedKeys(checkedKeys)
 		v.checkedKeysControlled = true
 	}
-	if controlled, ok := p["checkedKeysControlled"].(bool); ok {
+	if controlled, ok := p[propCheckedKeysControlled].(bool); ok {
 		v.checkedKeysControlled = controlled
 	}
-	if selectionIntent, ok := p["selectionIntent"].(intent.Intent); ok {
+	if selectionIntent, ok := p[propSelectionIntent].(intent.Intent); ok {
 		v.selectionIntent = selectionIntent
 	}
-	if selectionIntentField, ok := p["selectionIntentField"].(intent.FieldIntent); ok {
+	if selectionIntentField, ok := p[propSelectionIntentField].(intent.FieldIntent); ok {
 		v.selectionIntentField = selectionIntentField
 	}
-	if lazyLoadFn, ok := p["lazyLoadFn"].(func(TreeNode)); ok {
+	if lazyLoadFn, ok := p[propLazyLoadFn].(func(TreeNode)); ok {
 		v.lazyLoadFn = lazyLoadFn
 	}
-	if lazyLoadChildrenFn, ok := p["lazyLoadChildrenFn"].(func(TreeNode) []TreeNode); ok {
+	if lazyLoadChildrenFn, ok := p[propLazyLoadChildrenFn].(func(TreeNode) []TreeNode); ok {
 		v.lazyLoadChildrenFn = lazyLoadChildrenFn
 	}
-	if showSearchStats, ok := p["showSearchStats"].(bool); ok {
+	if showSearchStats, ok := p[propShowSearchStats].(bool); ok {
 		v.showSearchStats = showSearchStats
 	}
-	if searchStatsStyle, ok := p["searchStatsStyle"].(style.Style); ok {
+	if searchStatsStyle, ok := p[propSearchStatsStyle].(style.Style); ok {
 		v.searchStatsStyle = searchStatsStyle
 	}
-	if allowScroll, ok := p["allowScroll"].(bool); ok {
+	if allowScroll, ok := p[propAllowScroll].(bool); ok {
 		v.allowScroll = allowScroll
 	}
-	if allowExpand, ok := p["allowExpand"].(bool); ok {
+	if allowExpand, ok := p[propAllowExpand].(bool); ok {
 		v.allowExpand = allowExpand
 	}
 	return v

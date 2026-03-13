@@ -119,16 +119,16 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 
 func (inst *Instance) GetProps() rtui.Props {
 	return rtui.Props{
-		"key":           inst.key,
-		"items":         inst.items,
-		"itemCount":     inst.itemCount,
-		"itemHeight":    inst.itemHeight,
-		"visibleCount":  inst.visibleCount,
-		"height":        inst.height,
-		"width":         inst.width,
-		"allowScroll":   inst.allowScroll,
-		"scrollOffset":  inst.scrollOffset,
-		"selectedIndex": inst.selectedIndex,
+		propKey:           inst.key,
+		propItems:         inst.items,
+		propItemCount:     inst.itemCount,
+		propItemHeight:    inst.itemHeight,
+		propVisibleCount:  inst.visibleCount,
+		propHeight:        inst.height,
+		propWidth:         inst.width,
+		propAllowScroll:   inst.allowScroll,
+		propScrollOffset:  inst.scrollOffset,
+		propSelectedIndex: inst.selectedIndex,
 	}
 }
 
@@ -516,7 +516,7 @@ func (inst *Instance) SetBounds(x, y, w, h int) {
 // =============================================================================
 
 func getItemsProp(props rtui.Props, def []string) []string {
-	v, ok := props["items"]
+	v, ok := props[propItems]
 	if !ok {
 		return def
 	}

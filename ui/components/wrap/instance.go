@@ -147,15 +147,15 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 // GetProps implements ComponentInstance.
 func (inst *Instance) GetProps() rtui.Props {
 	return rtui.Props{
-		"key":        inst.key,
-		"gap":        inst.gap,
-		"rowGap":     inst.rowGap,
-		"align":      inst.align,
-		"width":      inst.width,
-		"padding":    inst.padding,
-		"fillWidth":  inst.fillWidth,
-		"fillHeight": inst.fillHeight,
-		"children":   inst.children,
+		propKey:        inst.key,
+		propGap:        inst.gap,
+		propRowGap:     inst.rowGap,
+		propAlign:      inst.align,
+		propWidth:      inst.width,
+		propPadding:    inst.padding,
+		propFillWidth:  inst.fillWidth,
+		propFillHeight: inst.fillHeight,
+		propChildren:   inst.children,
 	}
 }
 
@@ -429,7 +429,7 @@ func (inst *Instance) ClearDirty() {
 // =============================================================================
 
 func getAlignProp(props rtui.Props, def Align) Align {
-	if v, ok := props["align"]; ok {
+	if v, ok := props[propAlign]; ok {
 		if a, ok := v.(Align); ok {
 			return a
 		}
@@ -438,7 +438,7 @@ func getAlignProp(props rtui.Props, def Align) Align {
 }
 
 func getAlignPropWithDefault(props rtui.Props, def Align) Align {
-	if v, ok := props["align"]; ok {
+	if v, ok := props[propAlign]; ok {
 		if a, ok := v.(Align); ok {
 			return a
 		}
@@ -447,7 +447,7 @@ func getAlignPropWithDefault(props rtui.Props, def Align) Align {
 }
 
 func getPaddingProp(props rtui.Props) [4]int {
-	if v, ok := props["padding"]; ok {
+	if v, ok := props[propPadding]; ok {
 		if p, ok := v.([4]int); ok {
 			return p
 		}
@@ -456,7 +456,7 @@ func getPaddingProp(props rtui.Props) [4]int {
 }
 
 func getPaddingPropWithDefault(props rtui.Props, def [4]int) [4]int {
-	if v, ok := props["padding"]; ok {
+	if v, ok := props[propPadding]; ok {
 		if p, ok := v.([4]int); ok {
 			return p
 		}
@@ -465,7 +465,7 @@ func getPaddingPropWithDefault(props rtui.Props, def [4]int) [4]int {
 }
 
 func getChildrenProp(props rtui.Props) []rtui.VNode {
-	if v, ok := props["children"]; ok {
+	if v, ok := props[propChildren]; ok {
 		if c, ok := v.([]rtui.VNode); ok {
 			return c
 		}
@@ -474,7 +474,7 @@ func getChildrenProp(props rtui.Props) []rtui.VNode {
 }
 
 func getChildrenPropWithDefault(props rtui.Props, def []rtui.VNode) []rtui.VNode {
-	if v, ok := props["children"]; ok {
+	if v, ok := props[propChildren]; ok {
 		if c, ok := v.([]rtui.VNode); ok {
 			return c
 		}

@@ -9,6 +9,36 @@ import (
 )
 
 // =============================================================================
+// Prop Keys
+// =============================================================================
+
+// Prop key constants — shared by VNode and Instance to avoid magic strings.
+const (
+	propBorderStyle = "borderStyle"
+	propCentered = "centered"
+	propCloseIntent = "closeIntent"
+	propCloseOnBackdrop = "closeOnBackdrop"
+	propCloseOnEsc = "closeOnEsc"
+	propCloseable = "closeable"
+	propContent = "content"
+	propDashed = "dashed"
+	propDouble = "double"
+	propFooter = "footer"
+	propHeight = "height"
+	propIsOpen = "isOpen"
+	propKey = "key"
+	propLabel = "label"
+	propModalStyle = "modalStyle"
+	propPadding = "padding"
+	propRounded = "rounded"
+	propShadowStyle = "shadowStyle"
+	propShowShadow = "showShadow"
+	propSingle = "single"
+	propTitle = "title"
+	propWidth = "width"
+)
+
+// =============================================================================
 // VNode - Pure Description (No State, No Closures, No Paint)
 // =============================================================================
 
@@ -118,81 +148,81 @@ func (v *VNode) TextContent() string { return "" }
 
 func (v *VNode) Props() rtui.Props {
 	return rtui.Props{
-		"key":             v.key,
-		"title":           v.title,
-		"label":           v.title, // ✨ 映射 title 到 label（边框标签）
-		"isOpen":          v.isOpen,
-		"centered":        v.centered,
-		"closeable":       v.closeable,
-		"closeOnEsc":      v.closeOnEsc,
-		"closeOnBackdrop": v.closeOnBackdrop,
-		"width":           v.width,
-		"height":          v.height,
-		"padding":         v.padding,
-		"content":         v.content,
-		"footer":          v.footer,
-		"modalStyle":      v.modalStyle,
-		"shadowStyle":     v.shadowStyle,
-		"borderStyle":     v.borderStyle,
-		"showShadow":      v.showShadow,
-		"closeIntent":     v.closeIntent,
+		propKey:             v.key,
+		propTitle:           v.title,
+		propLabel:           v.title, // ✨ 映射 title 到 label（边框标签）
+		propIsOpen:          v.isOpen,
+		propCentered:        v.centered,
+		propCloseable:       v.closeable,
+		propCloseOnEsc:      v.closeOnEsc,
+		propCloseOnBackdrop: v.closeOnBackdrop,
+		propWidth:           v.width,
+		propHeight:          v.height,
+		propPadding:         v.padding,
+		propContent:         v.content,
+		propFooter:          v.footer,
+		propModalStyle:      v.modalStyle,
+		propShadowStyle:     v.shadowStyle,
+		propBorderStyle:     v.borderStyle,
+		propShowShadow:      v.showShadow,
+		propCloseIntent:     v.closeIntent,
 	}
 }
 
 func (v *VNode) SetProps(p rtui.Props) rtui.VNode {
-	if val, ok := p["key"].(string); ok {
+	if val, ok := p[propKey].(string); ok {
 		v.key = val
 	}
-	if val, ok := p["title"].(string); ok {
+	if val, ok := p[propTitle].(string); ok {
 		v.title = val
 	}
 	// ✨ 从 "label" 属性读取标题
-	if val, ok := p["label"].(string); ok {
+	if val, ok := p[propLabel].(string); ok {
 		v.title = val
 	}
-	if val, ok := p["isOpen"].(bool); ok {
+	if val, ok := p[propIsOpen].(bool); ok {
 		v.isOpen = val
 	}
-	if val, ok := p["centered"].(bool); ok {
+	if val, ok := p[propCentered].(bool); ok {
 		v.centered = val
 	}
-	if val, ok := p["closeable"].(bool); ok {
+	if val, ok := p[propCloseable].(bool); ok {
 		v.closeable = val
 	}
-	if val, ok := p["closeOnEsc"].(bool); ok {
+	if val, ok := p[propCloseOnEsc].(bool); ok {
 		v.closeOnEsc = val
 	}
-	if val, ok := p["closeOnBackdrop"].(bool); ok {
+	if val, ok := p[propCloseOnBackdrop].(bool); ok {
 		v.closeOnBackdrop = val
 	}
-	if val, ok := p["width"].(int); ok {
+	if val, ok := p[propWidth].(int); ok {
 		v.width = val
 	}
-	if val, ok := p["height"].(int); ok {
+	if val, ok := p[propHeight].(int); ok {
 		v.height = val
 	}
-	if val, ok := p["padding"].(int); ok {
+	if val, ok := p[propPadding].(int); ok {
 		v.padding = val
 	}
-	if val, ok := p["content"].(rtui.VNode); ok {
+	if val, ok := p[propContent].(rtui.VNode); ok {
 		v.content = val
 	}
-	if val, ok := p["footer"].(rtui.VNode); ok {
+	if val, ok := p[propFooter].(rtui.VNode); ok {
 		v.footer = val
 	}
-	if val, ok := p["modalStyle"].(style.Style); ok {
+	if val, ok := p[propModalStyle].(style.Style); ok {
 		v.modalStyle = val
 	}
-	if val, ok := p["shadowStyle"].(style.Style); ok {
+	if val, ok := p[propShadowStyle].(style.Style); ok {
 		v.shadowStyle = val
 	}
-	if val, ok := p["borderStyle"].(string); ok {
+	if val, ok := p[propBorderStyle].(string); ok {
 		v.borderStyle = val
 	}
-	if val, ok := p["showShadow"].(bool); ok {
+	if val, ok := p[propShowShadow].(bool); ok {
 		v.showShadow = val
 	}
-	if val, ok := p["closeIntent"].(intent.Intent); ok {
+	if val, ok := p[propCloseIntent].(intent.Intent); ok {
 		v.closeIntent = val
 	}
 	return v
@@ -204,24 +234,24 @@ func (v *VNode) SetProps(p rtui.Props) rtui.VNode {
 
 func (v *VNode) CreateInstance() rtui.ComponentInstance {
 	return NewInstance(rtui.Props{
-		"key":             v.key,
-		"title":           v.title,
-		"label":           v.title, // ✨ 映射到 label（边框标签）
-		"isOpen":          v.isOpen,
-		"centered":        v.centered,
-		"closeable":       v.closeable,
-		"closeOnEsc":      v.closeOnEsc,
-		"closeOnBackdrop": v.closeOnBackdrop,
-		"width":           v.width,
-		"height":          v.height,
-		"padding":         v.padding,
-		"content":         v.content,
-		"footer":          v.footer,
-		"modalStyle":      v.modalStyle,
-		"shadowStyle":     v.shadowStyle,
-		"borderStyle":     v.borderStyle,
-		"showShadow":      v.showShadow,
-		"closeIntent":     v.closeIntent,
+		propKey:             v.key,
+		propTitle:           v.title,
+		propLabel:           v.title, // ✨ 映射到 label（边框标签）
+		propIsOpen:          v.isOpen,
+		propCentered:        v.centered,
+		propCloseable:       v.closeable,
+		propCloseOnEsc:      v.closeOnEsc,
+		propCloseOnBackdrop: v.closeOnBackdrop,
+		propWidth:           v.width,
+		propHeight:          v.height,
+		propPadding:         v.padding,
+		propContent:         v.content,
+		propFooter:          v.footer,
+		propModalStyle:      v.modalStyle,
+		propShadowStyle:     v.shadowStyle,
+		propBorderStyle:     v.borderStyle,
+		propShowShadow:      v.showShadow,
+		propCloseIntent:     v.closeIntent,
 	})
 }
 
@@ -301,13 +331,13 @@ func (v *VNode) GetBoxModel() layout.BoxModel {
 	// Border from modal properties
 	var borderStyle layout.BorderStyle
 	switch v.borderStyle {
-	case "double":
+	case propDouble:
 		borderStyle = layout.BorderDouble
-	case "rounded":
+	case propRounded:
 		borderStyle = layout.BorderRounded
-	case "dashed":
+	case propDashed:
 		borderStyle = layout.BorderDashed
-	case "single":
+	case propSingle:
 		borderStyle = layout.BorderSingle
 	default:
 		borderStyle = layout.BorderNone

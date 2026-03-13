@@ -78,15 +78,15 @@ func NewInstance(props rtui.Props) *Instance {
 		isValid:       true,
 	}
 
-	if v, ok := props["onSubmit"].(intent.Intent); ok {
+	if v, ok := props[propOnSubmit].(intent.Intent); ok {
 		inst.onSubmit = v
 	}
-	if v, ok := props["onReset"].(intent.Intent); ok {
+	if v, ok := props[propOnReset].(intent.Intent); ok {
 		inst.onReset = v
 	}
 
 	// Initialize with field values from props
-	if fieldValues, ok := props["values"].(map[string]interface{}); ok {
+	if fieldValues, ok := props[propValues].(map[string]interface{}); ok {
 		for k, v := range fieldValues {
 			inst.values[k] = v
 			inst.initialValues[k] = v
@@ -136,26 +136,26 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 
 	changed := false
 
-	if v, ok := props["label"].(string); ok {
+	if v, ok := props[propLabel].(string); ok {
 		if inst.label != v {
 			inst.label = v
 			changed = true
 		}
 	}
 	// Check if style prop exists and changed
-	if s, hasStyle := props["style"].(style.Style); hasStyle {
+	if s, hasStyle := props[propStyle].(style.Style); hasStyle {
 		if s != inst.formStyle {
 			inst.formStyle = s
 			changed = true
 		}
 	}
-	if v, ok := props["onSubmit"].(intent.Intent); ok {
+	if v, ok := props[propOnSubmit].(intent.Intent); ok {
 		inst.onSubmit = v
 	}
-	if v, ok := props["onReset"].(intent.Intent); ok {
+	if v, ok := props[propOnReset].(intent.Intent); ok {
 		inst.onReset = v
 	}
-	if v, ok := props["validateAll"].(bool); ok {
+	if v, ok := props[propValidateAll].(bool); ok {
 		inst.validateAll = v
 	}
 
@@ -171,9 +171,9 @@ func (inst *Instance) GetProps() rtui.Props {
 	defer inst.mu.RUnlock()
 
 	return rtui.Props{
-		"key":         inst.key,
-		"label":       inst.label,
-		"validateAll": inst.validateAll,
+		propKey:         inst.key,
+		propLabel:       inst.label,
+		propValidateAll: inst.validateAll,
 	}
 }
 

@@ -293,13 +293,13 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	inst.selectedIndices = getIntsProp(props, "selectedIndices", inst.selectedIndices)
 	inst.overlayCallbacks = getOverlayCallbacksProp(props)
 
-	if v, ok := props["open"].(bool); ok {
+	if v, ok := props[propOpen].(bool); ok {
 		inst.open = v
 	}
-	if v, ok := props["highlightedIndex"].(int); ok {
+	if v, ok := props[propHighlightedIndex].(int); ok {
 		inst.highlightedIndex = v
 	}
-	if v, ok := props["scrollOffset"].(int); ok {
+	if v, ok := props[propScrollOffset].(int); ok {
 		inst.scrollOffset = v
 	}
 
@@ -314,7 +314,7 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	if oldSelectedIndex != inst.selectedIndex ||
 		!equalIntSlices(oldSelectedIndices, inst.selectedIndices) ||
 		oldSelectionMode != inst.selectionMode {
-		if _, controlledHighlight := props["highlightedIndex"]; !controlledHighlight {
+		if _, controlledHighlight := props[propHighlightedIndex]; !controlledHighlight {
 			if inst.selectionMode == SelectionMultiple && len(inst.selectedIndices) > 0 {
 				inst.highlightedIndex = inst.selectedIndices[len(inst.selectedIndices)-1]
 			} else {
@@ -347,19 +347,19 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 
 func (inst *Instance) GetProps() rtui.Props {
 	return rtui.Props{
-		"key":                inst.key,
-		"selectedIndex":      inst.selectedIndex,
-		"selectedIndices":    append([]int(nil), inst.selectedIndices...),
-		"selectionMode":      inst.selectionMode,
-		"disabled":           inst.state.Disabled,
-		"open":               inst.open,
-		"overlayPopup":       inst.overlayPopup,
-		"portalRoot":         inst.portalRoot,
-		"ownerID":            inst.ownerID,
-		"selectID":           inst.selectIdentity(),
-		"closeOnOutside":     inst.closeOnOutside,
-		"highlightedIndex":   inst.highlightedIndex,
-		"scrollOffset":       inst.scrollOffset,
+		propKey:                inst.key,
+		propSelectedIndex:      inst.selectedIndex,
+		propSelectedIndices:    append([]int(nil), inst.selectedIndices...),
+		propSelectionMode:      inst.selectionMode,
+		propDisabled:           inst.state.Disabled,
+		propOpen:               inst.open,
+		propOverlayPopup:       inst.overlayPopup,
+		propPortalRoot:         inst.portalRoot,
+		propOwnerID:            inst.ownerID,
+		propSelectID:           inst.selectIdentity(),
+		propCloseOnOutside:     inst.closeOnOutside,
+		propHighlightedIndex:   inst.highlightedIndex,
+		propScrollOffset:       inst.scrollOffset,
 		overlayCallbacksProp: inst.overlayCallbacks,
 	}
 }
@@ -947,17 +947,17 @@ func (inst *Instance) SetStyle(s style.Style) {
 
 func (inst *Instance) GetProp(key string) (interface{}, bool) {
 	switch key {
-	case "disabled":
+	case propDisabled:
 		return inst.state.Disabled, true
-	case "selectedIndex":
+	case propSelectedIndex:
 		return inst.selectedIndex, true
-	case "selectedIndices":
+	case propSelectedIndices:
 		return append([]int(nil), inst.selectedIndices...), true
-	case "selectionMode":
+	case propSelectionMode:
 		return inst.selectionMode, true
-	case "open":
+	case propOpen:
 		return inst.open, true
-	case "options":
+	case propOptions:
 		return inst.options, true
 	default:
 		return nil, false
@@ -966,7 +966,7 @@ func (inst *Instance) GetProp(key string) (interface{}, bool) {
 
 func (inst *Instance) SetProp(key string, value interface{}) {
 	switch key {
-	case "disabled":
+	case propDisabled:
 		if v, ok := value.(bool); ok {
 			inst.state.Disabled = v
 			if v {
@@ -975,15 +975,15 @@ func (inst *Instance) SetProp(key string, value interface{}) {
 			inst.dirty = true
 			inst.markOverlayDirty()
 		}
-	case "selectedIndex":
+	case propSelectedIndex:
 		if v, ok := value.(int); ok {
 			inst.SetSelectedIndex(v)
 		}
-	case "selectedIndices":
+	case propSelectedIndices:
 		if v, ok := value.([]int); ok {
 			inst.SetSelectedIndices(v)
 		}
-	case "selectionMode":
+	case propSelectionMode:
 		if v, ok := value.(SelectionMode); ok {
 			inst.selectionMode = v
 			inst.normalizeSelectionState()
@@ -1550,7 +1550,7 @@ func getChangeIntentFieldProp(props rtui.Props, key string) intent.FieldIntent {
 }
 
 func getSelectionModeProp(props rtui.Props, def SelectionMode) SelectionMode {
-	if v, ok := props["selectionMode"]; ok {
+	if v, ok := props[propSelectionMode]; ok {
 		if mode, ok := v.(SelectionMode); ok {
 			return mode
 		}
@@ -1559,7 +1559,7 @@ func getSelectionModeProp(props rtui.Props, def SelectionMode) SelectionMode {
 }
 
 func getOptionsProp(props rtui.Props) []Option {
-	if v, ok := props["options"]; ok {
+	if v, ok := props[propOptions]; ok {
 		if opts, ok := v.([]Option); ok {
 			return append([]Option(nil), opts...)
 		}

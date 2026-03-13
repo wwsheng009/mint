@@ -7,6 +7,22 @@ import (
 )
 
 // =============================================================================
+// Prop Keys
+// =============================================================================
+
+// Prop key constants — shared by VNode and Instance to avoid magic strings.
+const (
+	propChild = "child"
+	propHeight = "height"
+	propKey = "key"
+	propScrollOffset = "scrollOffset"
+	propShowBorder = "showBorder"
+	propShowIndicator = "showIndicator"
+	propStyle = "style"
+	propWidth = "width"
+)
+
+// =============================================================================
 // VNode - Description Only (No State, No Closures, No Paint)
 // =============================================================================
 
@@ -117,41 +133,41 @@ func (v *VNode) SetLayer(l rtui.Layer) rtui.VNode {
 // Props returns the node properties.
 func (v *VNode) Props() rtui.Props {
 	return rtui.Props{
-		"key":           v.key,
-		"style":         v.style,
-		"width":         v.width,
-		"height":        v.height,
-		"scrollOffset":  v.scrollOffset,
-		"showBorder":    v.showBorder,
-		"showIndicator": v.showIndicator,
-		"child":         v.child,
+		propKey:           v.key,
+		propStyle:         v.style,
+		propWidth:         v.width,
+		propHeight:        v.height,
+		propScrollOffset:  v.scrollOffset,
+		propShowBorder:    v.showBorder,
+		propShowIndicator: v.showIndicator,
+		propChild:         v.child,
 	}
 }
 
 // SetProps sets the node properties - returns VNode for chaining.
 func (v *VNode) SetProps(p rtui.Props) rtui.VNode {
-	if val, ok := p["key"].(string); ok {
+	if val, ok := p[propKey].(string); ok {
 		v.key = val
 	}
-	if val, ok := p["style"].(style.Style); ok {
+	if val, ok := p[propStyle].(style.Style); ok {
 		v.style = val
 	}
-	if val, ok := p["width"].(int); ok {
+	if val, ok := p[propWidth].(int); ok {
 		v.width = val
 	}
-	if val, ok := p["height"].(int); ok {
+	if val, ok := p[propHeight].(int); ok {
 		v.height = val
 	}
-	if val, ok := p["scrollOffset"].(int); ok {
+	if val, ok := p[propScrollOffset].(int); ok {
 		v.scrollOffset = val
 	}
-	if val, ok := p["showBorder"].(bool); ok {
+	if val, ok := p[propShowBorder].(bool); ok {
 		v.showBorder = val
 	}
-	if val, ok := p["showIndicator"].(bool); ok {
+	if val, ok := p[propShowIndicator].(bool); ok {
 		v.showIndicator = val
 	}
-	if val, ok := p["child"].(rtui.VNode); ok {
+	if val, ok := p[propChild].(rtui.VNode); ok {
 		v.child = val
 	}
 	return v
@@ -164,13 +180,13 @@ func (v *VNode) SetProps(p rtui.Props) rtui.VNode {
 // CreateInstance creates a new ScrollView Instance from this VNode description.
 func (v *VNode) CreateInstance() rtui.ComponentInstance {
 	props := rtui.Props{
-		"style":         v.style,
-		"width":         v.width,
-		"height":        v.height,
-		"scrollOffset":  v.scrollOffset,
-		"showBorder":    v.showBorder,
-		"showIndicator": v.showIndicator,
-		"child":         v.child,
+		propStyle:         v.style,
+		propWidth:         v.width,
+		propHeight:        v.height,
+		propScrollOffset:  v.scrollOffset,
+		propShowBorder:    v.showBorder,
+		propShowIndicator: v.showIndicator,
+		propChild:         v.child,
 	}
 	return NewInstance(props)
 }

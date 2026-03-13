@@ -10,6 +10,32 @@ import (
 )
 
 // =============================================================================
+// Prop Keys
+// =============================================================================
+
+// Prop key constants — shared by VNode and Instance to avoid magic strings.
+const (
+	propAlign = "align"
+	propBorderColor = "borderColor"
+	propBorderLabel = "borderLabel"
+	propBorderStyle = "borderStyle"
+	propChildren = "children"
+	propDashed = "dashed"
+	propDouble = "double"
+	propFillHeight = "fillHeight"
+	propFillWidth = "fillWidth"
+	propGap = "gap"
+	propKey = "key"
+	propLabel = "label"
+	propPadding = "padding"
+	propRounded = "rounded"
+	propRowGap = "rowGap"
+	propSingle = "single"
+	propStyle = "style"
+	propWidth = "width"
+)
+
+// =============================================================================
 // Types - Use rtui types for consistency
 // =============================================================================
 
@@ -138,66 +164,66 @@ func (w *VNode) SetLayer(l rtui.Layer) rtui.VNode {
 // Props returns the node properties.
 func (w *VNode) Props() rtui.Props {
 	return rtui.Props{
-		"key":        w.key,
-		"gap":        w.gap,
-		"rowGap":     w.rowGap,
-		"align":      w.align,
-		"width":      w.width,
-		"padding":    w.padding,
-		"fillWidth":  w.fillWidth,
-		"fillHeight": w.fillHeight,
-		"borderStyle": w.borderStyle,      // ✨ 边框样式
-		"label":       w.borderLabel,      // ✨ 边框标签 (Fiber 使用)
-		"borderLabel": w.borderLabel,      // ✨ 边框标签 (backward compatibility)
-		"borderColor": string(w.borderColor),  // ✨ 边框颜色
-		"children":    w.children,
-		"style":       w.style,
+		propKey:        w.key,
+		propGap:        w.gap,
+		propRowGap:     w.rowGap,
+		propAlign:      w.align,
+		propWidth:      w.width,
+		propPadding:    w.padding,
+		propFillWidth:  w.fillWidth,
+		propFillHeight: w.fillHeight,
+		propBorderStyle: w.borderStyle,      // ✨ 边框样式
+		propLabel:       w.borderLabel,      // ✨ 边框标签 (Fiber 使用)
+		propBorderLabel: w.borderLabel,      // ✨ 边框标签 (backward compatibility)
+		propBorderColor: string(w.borderColor),  // ✨ 边框颜色
+		propChildren:    w.children,
+		propStyle:       w.style,
 	}
 }
 
 // SetProps sets the node properties - returns VNode for chaining.
 func (w *VNode) SetProps(p rtui.Props) rtui.VNode {
-	if v, ok := p["key"].(string); ok {
+	if v, ok := p[propKey].(string); ok {
 		w.key = v
 	}
-	if v, ok := p["gap"].(int); ok {
+	if v, ok := p[propGap].(int); ok {
 		w.gap = v
 	}
-	if v, ok := p["rowGap"].(int); ok {
+	if v, ok := p[propRowGap].(int); ok {
 		w.rowGap = v
 	}
-	if v, ok := p["align"].(Align); ok {
+	if v, ok := p[propAlign].(Align); ok {
 		w.align = v
 	}
-	if v, ok := p["width"].(int); ok {
+	if v, ok := p[propWidth].(int); ok {
 		w.width = v
 	}
-	if v, ok := p["padding"].([4]int); ok {
+	if v, ok := p[propPadding].([4]int); ok {
 		w.padding = v
 	}
-	if v, ok := p["fillWidth"].(bool); ok {
+	if v, ok := p[propFillWidth].(bool); ok {
 		w.fillWidth = v
 	}
-	if v, ok := p["fillHeight"].(bool); ok {
+	if v, ok := p[propFillHeight].(bool); ok {
 		w.fillHeight = v
 	}
 	// ✨ 边框属性
-	if v, ok := p["borderStyle"].(string); ok {
+	if v, ok := p[propBorderStyle].(string); ok {
 		w.borderStyle = v
 	}
-	if v, ok := p["label"].(string); ok {
+	if v, ok := p[propLabel].(string); ok {
 		w.borderLabel = v
 	}
-	if v, ok := p["borderLabel"].(string); ok {
+	if v, ok := p[propBorderLabel].(string); ok {
 		w.borderLabel = v
 	}
-	if v, ok := p["borderColor"].(string); ok {
+	if v, ok := p[propBorderColor].(string); ok {
 		w.borderColor = style.Color(v)
 	}
-	if v, ok := p["children"].([]rtui.VNode); ok {
+	if v, ok := p[propChildren].([]rtui.VNode); ok {
 		w.children = v
 	}
-	if v, ok := p["style"].(style.Style); ok {
+	if v, ok := p[propStyle].(style.Style); ok {
 		w.style = v
 	}
 	return w
@@ -210,18 +236,18 @@ func (w *VNode) SetProps(p rtui.Props) rtui.VNode {
 // CreateInstance creates a new WrapInstance from this VNode description.
 func (w *VNode) CreateInstance() rtui.ComponentInstance {
 	return NewInstance(rtui.Props{
-		"key":        w.key,
-		"gap":        w.gap,
-		"rowGap":     w.rowGap,
-		"align":      w.align,
-		"width":      w.width,
-		"padding":    w.padding,
-		"fillWidth":  w.fillWidth,
-		"fillHeight": w.fillHeight,
-		"borderStyle": w.borderStyle,  // ✨ 边框样式
-		"label":      w.borderLabel,  // ✨ 边框标签
-		"children":   w.children,
-		"style":      w.style,
+		propKey:        w.key,
+		propGap:        w.gap,
+		propRowGap:     w.rowGap,
+		propAlign:      w.align,
+		propWidth:      w.width,
+		propPadding:    w.padding,
+		propFillWidth:  w.fillWidth,
+		propFillHeight: w.fillHeight,
+		propBorderStyle: w.borderStyle,  // ✨ 边框样式
+		propLabel:      w.borderLabel,  // ✨ 边框标签
+		propChildren:   w.children,
+		propStyle:      w.style,
 	})
 }
 
@@ -374,13 +400,13 @@ func (w *VNode) GetBoxModel() layout.BoxModel {
 	if w.borderStyle != "none" && w.borderStyle != "" {
 		var borderStyle layout.BorderStyle
 		switch w.borderStyle {
-		case "double":
+		case propDouble:
 			borderStyle = layout.BorderDouble
-		case "rounded":
+		case propRounded:
 			borderStyle = layout.BorderRounded
-		case "dashed":
+		case propDashed:
 			borderStyle = layout.BorderDashed
-		case "single":
+		case propSingle:
 			borderStyle = layout.BorderSingle
 		default:
 			borderStyle = layout.BorderNone

@@ -68,25 +68,25 @@ func NewInstance(props rtui.Props) *Instance {
 func (inst *Instance) SetProps(props rtui.Props) bool {
 	inst.dirty = true
 
-	if val, ok := props["style"].(style.Style); ok {
+	if val, ok := props[propStyle].(style.Style); ok {
 		inst.instStyle = val
 	}
-	if val, ok := props["width"].(int); ok {
+	if val, ok := props[propWidth].(int); ok {
 		inst.width = val
 	}
-	if val, ok := props["height"].(int); ok {
+	if val, ok := props[propHeight].(int); ok {
 		inst.height = val
 	}
-	if val, ok := props["scrollOffset"].(int); ok {
+	if val, ok := props[propScrollOffset].(int); ok {
 		inst.scrollOffset = val
 	}
-	if val, ok := props["showBorder"].(bool); ok {
+	if val, ok := props[propShowBorder].(bool); ok {
 		inst.showBorder = val
 	}
-	if val, ok := props["showIndicator"].(bool); ok {
+	if val, ok := props[propShowIndicator].(bool); ok {
 		inst.showIndicator = val
 	}
-	if val, ok := props["child"].(rtui.VNode); ok {
+	if val, ok := props[propChild].(rtui.VNode); ok {
 		inst.child = val
 		inst.extractContent()
 	}
@@ -167,11 +167,11 @@ func (inst *Instance) OnUnmount() {
 // GetProps returns current props.
 func (inst *Instance) GetProps() rtui.Props {
 	return rtui.Props{
-		"width":         inst.width,
-		"height":        inst.height,
-		"scrollOffset":  inst.scrollOffset,
-		"showBorder":    inst.showBorder,
-		"showIndicator": inst.showIndicator,
+		propWidth:         inst.width,
+		propHeight:        inst.height,
+		propScrollOffset:  inst.scrollOffset,
+		propShowBorder:    inst.showBorder,
+		propShowIndicator: inst.showIndicator,
 	}
 }
 

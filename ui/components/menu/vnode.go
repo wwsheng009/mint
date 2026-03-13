@@ -4,6 +4,16 @@ import (
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
 
+// =============================================================================
+// Prop Keys
+// =============================================================================
+
+// Prop key constants — shared by VNode and Instance to avoid magic strings.
+const (
+	propKey = "key"
+	propStyle = "style"
+)
+
 type barVNode struct{ *rtui.ElementVNode }
 type popupVNode struct{ *rtui.ElementVNode }
 
@@ -74,15 +84,15 @@ func (v *popupVNode) SetLayer(l rtui.Layer) rtui.VNode {
 
 func (v *barVNode) CreateInstance() rtui.ComponentInstance {
 	props := v.Props().Clone()
-	props["key"] = v.Key()
-	props["style"] = getNodeStyle(v)
+	props[propKey] = v.Key()
+	props[propStyle] = getNodeStyle(v)
 	return newBarInstance(props)
 }
 
 func (v *popupVNode) CreateInstance() rtui.ComponentInstance {
 	props := v.Props().Clone()
-	props["key"] = v.Key()
-	props["style"] = getNodeStyle(v)
+	props[propKey] = v.Key()
+	props[propStyle] = getNodeStyle(v)
 	return newPopupInstance(props)
 }
 

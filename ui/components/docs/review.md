@@ -269,7 +269,7 @@ const (
 
 ---
 
-#### 🟡 3. Props 传递使用 `map[string]interface{}`，缺乏类型安全
+#### 🟡 3. Props 传递使用 `map[string]interface{}`，缺乏类型安全（部分改善）
 
 VNode → Instance 的 props 传递依赖 `rtui.Props`（本质是 `map[string]interface{}`），每个组件都要写大量 `getStringProp`、`getBoolProp`、`getIntProp` 辅助函数来做类型断言。
 

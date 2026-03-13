@@ -74,22 +74,22 @@ var (
 // NewInstance creates a new ButtonInstance from props.
 func NewInstance(props rtui.Props) *Instance {
 	inst := &Instance{
-		key:         proputil.GetString(props, "key", ""),
-		label:       proputil.GetString(props, "label", ""),
+		key:         proputil.GetString(props, propKey, ""),
+		label:       proputil.GetString(props, propLabel, ""),
 		variant:     getVariantProp(props, VariantDefault),
 		size:        getSizeProp(props, SizeMedium),
 		focusStyle:  getFocusStyleProp(props, FocusStyleReverse),
-		buttonStyle: proputil.GetStyle(props, "style", style.Style{}),
-		pressIntent: proputil.GetIntent(props, "pressIntent", nil),
+		buttonStyle: proputil.GetStyle(props, propStyle, style.Style{}),
+		pressIntent: proputil.GetIntent(props, propPressIntent, nil),
 		padding:     getPaddingProp(props),
 		textAlign:   getTextAlignProp(props, rtui.AlignStart),
-		flex:        proputil.GetInt(props, "flex", 0),
+		flex:        proputil.GetInt(props, propFlex, 0),
 		dirty:       true,
 	}
 
 	// Initialize state
 	inst.state = control.InteractionState{
-		Disabled: proputil.GetBool(props, "disabled", false),
+		Disabled: proputil.GetBool(props, propDisabled, false),
 	}
 
 	// Initialize behaviors
@@ -157,21 +157,21 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	oldFocusStyle := inst.focusStyle
 	oldIntent := inst.pressIntent
 
-	inst.label = proputil.GetString(props, "label", inst.label)
+	inst.label = proputil.GetString(props, propLabel, inst.label)
 	inst.variant = getVariantProp(props, inst.variant)
 	inst.size = getSizeProp(props, inst.size)
 	inst.focusStyle = getFocusStyleProp(props, inst.focusStyle)
-	inst.buttonStyle = proputil.GetStyle(props, "style", style.Style{})
-	inst.pressIntent = proputil.GetIntent(props, "pressIntent", nil)
+	inst.buttonStyle = proputil.GetStyle(props, propStyle, style.Style{})
+	inst.pressIntent = proputil.GetIntent(props, propPressIntent, nil)
 	inst.padding = getPaddingProp(props)
 	inst.textAlign = getTextAlignProp(props, inst.textAlign)
 
-	newFlex := proputil.GetInt(props, "flex", inst.flex)
+	newFlex := proputil.GetInt(props, propFlex, inst.flex)
 	if newFlex != inst.flex {
 		inst.flex = newFlex
 	}
 
-	newDisabled := proputil.GetBool(props, "disabled", inst.state.Disabled)
+	newDisabled := proputil.GetBool(props, propDisabled, inst.state.Disabled)
 	if newDisabled != inst.state.Disabled {
 		inst.state.Disabled = newDisabled
 	}
@@ -203,12 +203,12 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 func (inst *Instance) GetProps() rtui.Props {
 	return rtui.Props{
 		"key":        inst.key,
-		"label":      inst.label,
+		propLabel:      inst.label,
 		"variant":    inst.variant,
 		"size":       inst.size,
 		"focusStyle": inst.focusStyle,
-		"disabled":   inst.state.Disabled,
-		"flex":       inst.flex,
+		propDisabled:   inst.state.Disabled,
+		propFlex:       inst.flex,
 	}
 }
 
@@ -453,9 +453,9 @@ func (inst *Instance) SetStyle(s style.Style) {
 // GetProp returns a prop value.
 func (inst *Instance) GetProp(key string) (interface{}, bool) {
 	switch key {
-	case "disabled":
+	case propDisabled:
 		return inst.state.Disabled, true
-	case "label":
+	case propLabel:
 		return inst.label, true
 	case "variant":
 		return inst.variant, true
@@ -463,7 +463,7 @@ func (inst *Instance) GetProp(key string) (interface{}, bool) {
 		return inst.size, true
 	case "focusStyle":
 		return inst.focusStyle, true
-	case "pressIntent":
+	case propPressIntent:
 		return inst.pressIntent, true
 	default:
 		return nil, false
@@ -473,7 +473,7 @@ func (inst *Instance) GetProp(key string) (interface{}, bool) {
 // SetProp sets a prop value.
 func (inst *Instance) SetProp(key string, value interface{}) {
 	switch key {
-	case "disabled":
+	case propDisabled:
 		if v, ok := value.(bool); ok {
 			inst.state.Disabled = v
 			inst.dirty = true

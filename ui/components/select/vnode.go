@@ -8,6 +8,35 @@ import (
 )
 
 // =============================================================================
+// Prop Keys
+// =============================================================================
+
+// Prop key constants — shared by VNode and Instance to avoid magic strings.
+const (
+	propChangeIntent = "changeIntent"
+	propCloseOnOutside = "closeOnOutside"
+	propComponentID = "componentID"
+	propDisabled = "disabled"
+	propFormID = "formID"
+	propHighlightedIndex = "highlightedIndex"
+	propKey = "key"
+	propMaxVisibleRows = "maxVisibleRows"
+	propOpen = "open"
+	propOptions = "options"
+	propOverlayPopup = "overlayPopup"
+	propOwnerID = "ownerID"
+	propPlaceholder = "placeholder"
+	propPortalRoot = "portalRoot"
+	propScrollOffset = "scrollOffset"
+	propSelectID = "selectID"
+	propSelectedIndex = "selectedIndex"
+	propSelectedIndices = "selectedIndices"
+	propSelectionMode = "selectionMode"
+	propStyle = "style"
+	propWidth = "width"
+)
+
+// =============================================================================
 // Option Type
 // =============================================================================
 
@@ -166,93 +195,93 @@ func (s *VNode) SetLayer(l rtui.Layer) rtui.VNode {
 // Props returns the node properties.
 func (s *VNode) Props() rtui.Props {
 	return rtui.Props{
-		"key":               s.key,
-		"componentID":       s.componentID,
-		"options":           s.options,
-		"style":             s.style,
-		"width":             s.width,
-		"placeholder":       s.placeholder,
-		"maxVisibleRows":    s.maxVisibleRows,
-		"overlayPopup":      s.overlayPopup,
+		propKey:               s.key,
+		propComponentID:       s.componentID,
+		propOptions:           s.options,
+		propStyle:             s.style,
+		propWidth:             s.width,
+		propPlaceholder:       s.placeholder,
+		propMaxVisibleRows:    s.maxVisibleRows,
+		propOverlayPopup:      s.overlayPopup,
 		popupPortalRootProp: s.portalRoot,
-		"closeOnOutside":    s.closeOnOutside,
-		"changeIntent":      s.changeIntent,
-		"selectedIndex":     s.selectedIndex,
-		"selectedIndices":   s.resolvedSelectedIndices(),
-		"selectionMode":     s.selectionMode,
-		"disabled":          s.disabled,
-		"formID":            s.formID,
-		"open":              s.open,
-		"highlightedIndex":  s.highlightedIndex,
-		"scrollOffset":      s.scrollOffset,
-		"selectID":          s.selectID,
+		propCloseOnOutside:    s.closeOnOutside,
+		propChangeIntent:      s.changeIntent,
+		propSelectedIndex:     s.selectedIndex,
+		propSelectedIndices:   s.resolvedSelectedIndices(),
+		propSelectionMode:     s.selectionMode,
+		propDisabled:          s.disabled,
+		propFormID:            s.formID,
+		propOpen:              s.open,
+		propHighlightedIndex:  s.highlightedIndex,
+		propScrollOffset:      s.scrollOffset,
+		propSelectID:          s.selectID,
 		overlayCallbacksProp: s.overlayCallbacks,
 	}
 }
 
 // SetProps sets the node properties - returns VNode for chaining.
 func (s *VNode) SetProps(p rtui.Props) rtui.VNode {
-	if v, ok := p["key"].(string); ok {
+	if v, ok := p[propKey].(string); ok {
 		s.key = v
 	}
-	if v, ok := p["componentID"].(string); ok {
+	if v, ok := p[propComponentID].(string); ok {
 		s.componentID = v
 	}
-	if v, ok := p["options"].([]Option); ok {
+	if v, ok := p[propOptions].([]Option); ok {
 		s.options = v
 	}
-	if v, ok := p["style"].(style.Style); ok {
+	if v, ok := p[propStyle].(style.Style); ok {
 		s.style = v
 	}
-	if v, ok := p["width"].(int); ok {
+	if v, ok := p[propWidth].(int); ok {
 		s.width = v
 	}
-	if v, ok := p["placeholder"].(string); ok {
+	if v, ok := p[propPlaceholder].(string); ok {
 		s.placeholder = v
 	}
-	if v, ok := p["maxVisibleRows"].(int); ok {
+	if v, ok := p[propMaxVisibleRows].(int); ok {
 		s.maxVisibleRows = v
 	}
-	if v, ok := p["overlayPopup"].(bool); ok {
+	if v, ok := p[propOverlayPopup].(bool); ok {
 		s.overlayPopup = v
 	}
 	if v, ok := p[popupPortalRootProp].(string); ok {
 		s.portalRoot = v
 	}
-	if v, ok := p["portalRoot"].(string); ok {
+	if v, ok := p[propPortalRoot].(string); ok {
 		s.portalRoot = v
 	}
-	if v, ok := p["closeOnOutside"].(bool); ok {
+	if v, ok := p[propCloseOnOutside].(bool); ok {
 		s.closeOnOutside = v
 	}
-	if v, ok := p["changeIntent"].(intent.Intent); ok {
+	if v, ok := p[propChangeIntent].(intent.Intent); ok {
 		s.changeIntent = v
 	}
-	if v, ok := p["selectedIndex"].(int); ok {
+	if v, ok := p[propSelectedIndex].(int); ok {
 		s.selectedIndex = v
 	}
-	if v, ok := p["selectedIndices"].([]int); ok {
+	if v, ok := p[propSelectedIndices].([]int); ok {
 		s.selectedIndices = append([]int(nil), v...)
 	}
-	if v, ok := p["selectionMode"].(SelectionMode); ok {
+	if v, ok := p[propSelectionMode].(SelectionMode); ok {
 		s.selectionMode = v
 	}
-	if v, ok := p["disabled"].(bool); ok {
+	if v, ok := p[propDisabled].(bool); ok {
 		s.disabled = v
 	}
-	if v, ok := p["formID"].(string); ok {
+	if v, ok := p[propFormID].(string); ok {
 		s.formID = v
 	}
-	if v, ok := p["open"].(bool); ok {
+	if v, ok := p[propOpen].(bool); ok {
 		s.open = v
 	}
-	if v, ok := p["highlightedIndex"].(int); ok {
+	if v, ok := p[propHighlightedIndex].(int); ok {
 		s.highlightedIndex = v
 	}
-	if v, ok := p["scrollOffset"].(int); ok {
+	if v, ok := p[propScrollOffset].(int); ok {
 		s.scrollOffset = v
 	}
-	if v, ok := p["selectID"].(string); ok {
+	if v, ok := p[propSelectID].(string); ok {
 		s.selectID = v
 	}
 	if v, ok := p[overlayCallbacksProp].(*overlayCallbacks); ok {
@@ -268,27 +297,27 @@ func (s *VNode) SetProps(p rtui.Props) rtui.VNode {
 // CreateInstance creates a new SelectInstance from this VNode description.
 func (s *VNode) CreateInstance() rtui.ComponentInstance {
 	props := rtui.Props{
-		"key":               s.key,
-		"componentID":       s.componentID,
-		"options":           s.options,
-		"style":             s.style,
-		"width":             s.width,
-		"placeholder":       s.placeholder,
-		"maxVisibleRows":    s.maxVisibleRows,
-		"overlayPopup":      s.usesOverlayPopup(),
-		"ownerID":           s.ownerID(),
+		propKey:               s.key,
+		propComponentID:       s.componentID,
+		propOptions:           s.options,
+		propStyle:             s.style,
+		propWidth:             s.width,
+		propPlaceholder:       s.placeholder,
+		propMaxVisibleRows:    s.maxVisibleRows,
+		propOverlayPopup:      s.usesOverlayPopup(),
+		propOwnerID:           s.ownerID(),
 		popupPortalRootProp: s.portalRoot,
-		"closeOnOutside":    s.closeOnOutside,
-		"changeIntent":      s.changeIntent,
-		"selectedIndex":     s.selectedIndex,
-		"selectedIndices":   s.resolvedSelectedIndices(),
-		"selectionMode":     s.selectionMode,
-		"disabled":          s.disabled,
-		"formID":            s.formID,
-		"open":              s.open,
-		"highlightedIndex":  s.highlightedIndex,
-		"scrollOffset":      s.scrollOffset,
-		"selectID":          firstNonEmpty(s.selectID, s.ownerID()),
+		propCloseOnOutside:    s.closeOnOutside,
+		propChangeIntent:      s.changeIntent,
+		propSelectedIndex:     s.selectedIndex,
+		propSelectedIndices:   s.resolvedSelectedIndices(),
+		propSelectionMode:     s.selectionMode,
+		propDisabled:          s.disabled,
+		propFormID:            s.formID,
+		propOpen:              s.open,
+		propHighlightedIndex:  s.highlightedIndex,
+		propScrollOffset:      s.scrollOffset,
+		propSelectID:          firstNonEmpty(s.selectID, s.ownerID()),
 		overlayCallbacksProp: s.overlayCallbacks,
 	}
 	return NewInstance(props)

@@ -6,6 +6,12 @@ import (
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
 
+// TestMain resets the global form registry before each test run for isolation.
+func TestMain(m *testing.M) {
+	ResetRegistry()
+	m.Run()
+}
+
 // =============================================================================
 // Form Context Tests (Phase 2)
 // =============================================================================

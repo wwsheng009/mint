@@ -8,6 +8,33 @@ import (
 )
 
 // =============================================================================
+// Prop Keys
+// =============================================================================
+
+// Prop key constants — shared by VNode and Instance to avoid magic strings.
+const (
+	propActiveTab = "activeTab"
+	propActiveTabID = "activeTabID"
+	propActiveTabStyle = "activeTabStyle"
+	propChangeIntent = "changeIntent"
+	propChangeIntentField = "changeIntentField"
+	propComponentID = "componentID"
+	propDisabledTabStyle = "disabledTabStyle"
+	propDivider = "divider"
+	propFlex = "flex"
+	propHeight = "height"
+	propKey = "key"
+	propLoopNavigation = "loopNavigation"
+	propPosition = "position"
+	propShowHotkeys = "showHotkeys"
+	propTabGap = "tabGap"
+	propTabStyle = "tabStyle"
+	propTabs = "tabs"
+	propWidth = "width"
+	propWrapTabs = "wrapTabs"
+)
+
+// =============================================================================
 // Types
 // =============================================================================
 
@@ -166,84 +193,84 @@ func (v *VNode) TextContent() string { return "" }
 
 func (v *VNode) Props() rtui.Props {
 	return rtui.Props{
-		"key":               v.key,
-		"componentID":       v.componentID, // Phase 7
-		"tabs":              v.tabs,
-		"position":          v.position,
-		"activeTab":         v.activeTab,
-		"activeTabID":       v.activeTabID,
-		"wrapTabs":          v.wrapTabs,
-		"tabGap":            v.tabGap,
-		"loopNavigation":    v.loopNavigation,
-		"showHotkeys":       v.showHotkeys,
-		"divider":           v.divider,
-		"width":             v.width,
-		"height":            v.height,
-		"flex":              v.flex,
-		"tabStyle":          v.tabStyle,
-		"activeTabStyle":    v.activeTabStyle,
-		"disabledTabStyle":  v.disabledTabStyle,
-		"changeIntent":      v.changeIntent,
-		"changeIntentField": v.changeIntentField, // Phase 7
+		propKey:               v.key,
+		propComponentID:       v.componentID, // Phase 7
+		propTabs:              v.tabs,
+		propPosition:          v.position,
+		propActiveTab:         v.activeTab,
+		propActiveTabID:       v.activeTabID,
+		propWrapTabs:          v.wrapTabs,
+		propTabGap:            v.tabGap,
+		propLoopNavigation:    v.loopNavigation,
+		propShowHotkeys:       v.showHotkeys,
+		propDivider:           v.divider,
+		propWidth:             v.width,
+		propHeight:            v.height,
+		propFlex:              v.flex,
+		propTabStyle:          v.tabStyle,
+		propActiveTabStyle:    v.activeTabStyle,
+		propDisabledTabStyle:  v.disabledTabStyle,
+		propChangeIntent:      v.changeIntent,
+		propChangeIntentField: v.changeIntentField, // Phase 7
 	}
 }
 
 func (v *VNode) SetProps(p rtui.Props) rtui.VNode {
-	if val, ok := p["key"].(string); ok {
+	if val, ok := p[propKey].(string); ok {
 		v.key = val
 	}
-	if val, ok := p["componentID"].(string); ok {
+	if val, ok := p[propComponentID].(string); ok {
 		v.componentID = val // Phase 7
 	}
-	if val, ok := p["tabs"].([]TabItem); ok {
+	if val, ok := p[propTabs].([]TabItem); ok {
 		v.tabs = val
 	}
-	if val, ok := p["position"].(TabPosition); ok {
+	if val, ok := p[propPosition].(TabPosition); ok {
 		v.position = val
 	}
-	if val, ok := p["activeTab"].(int); ok {
+	if val, ok := p[propActiveTab].(int); ok {
 		v.activeTab = val
 	}
-	if val, ok := p["activeTabID"].(string); ok {
+	if val, ok := p[propActiveTabID].(string); ok {
 		v.activeTabID = val
 	}
-	if val, ok := p["wrapTabs"].(bool); ok {
+	if val, ok := p[propWrapTabs].(bool); ok {
 		v.wrapTabs = val
 	}
-	if val, ok := p["tabGap"].(int); ok {
+	if val, ok := p[propTabGap].(int); ok {
 		v.tabGap = val
 	}
-	if val, ok := p["loopNavigation"].(bool); ok {
+	if val, ok := p[propLoopNavigation].(bool); ok {
 		v.loopNavigation = val
 	}
-	if val, ok := p["showHotkeys"].(bool); ok {
+	if val, ok := p[propShowHotkeys].(bool); ok {
 		v.showHotkeys = val
 	}
-	if val, ok := p["divider"].(string); ok {
+	if val, ok := p[propDivider].(string); ok {
 		v.divider = val
 	}
-	if val, ok := p["width"].(int); ok {
+	if val, ok := p[propWidth].(int); ok {
 		v.width = val
 	}
-	if val, ok := p["height"].(int); ok {
+	if val, ok := p[propHeight].(int); ok {
 		v.height = val
 	}
-	if val, ok := p["flex"].(int); ok {
+	if val, ok := p[propFlex].(int); ok {
 		v.flex = val
 	}
-	if val, ok := p["tabStyle"].(style.Style); ok {
+	if val, ok := p[propTabStyle].(style.Style); ok {
 		v.tabStyle = val
 	}
-	if val, ok := p["activeTabStyle"].(style.Style); ok {
+	if val, ok := p[propActiveTabStyle].(style.Style); ok {
 		v.activeTabStyle = val
 	}
-	if val, ok := p["disabledTabStyle"].(style.Style); ok {
+	if val, ok := p[propDisabledTabStyle].(style.Style); ok {
 		v.disabledTabStyle = val
 	}
-	if val, ok := p["changeIntent"].(intent.Intent); ok {
+	if val, ok := p[propChangeIntent].(intent.Intent); ok {
 		v.changeIntent = val
 	}
-	if val, ok := p["changeIntentField"].(intent.FieldIntent); ok {
+	if val, ok := p[propChangeIntentField].(intent.FieldIntent); ok {
 		v.changeIntentField = val // Phase 7
 	}
 	return v
@@ -255,25 +282,25 @@ func (v *VNode) SetProps(p rtui.Props) rtui.VNode {
 
 func (v *VNode) CreateInstance() rtui.ComponentInstance {
 	return NewInstance(rtui.Props{
-		"key":               v.key,
-		"componentID":       v.componentID, // Phase 7
-		"tabs":              v.tabs,
-		"position":          v.position,
-		"activeTab":         v.activeTab,
-		"activeTabID":       v.activeTabID,
-		"wrapTabs":          v.wrapTabs,
-		"tabGap":            v.tabGap,
-		"loopNavigation":    v.loopNavigation,
-		"showHotkeys":       v.showHotkeys,
-		"divider":           v.divider,
-		"width":             v.width,
-		"height":            v.height,
-		"flex":              v.flex,
-		"tabStyle":          v.tabStyle,
-		"activeTabStyle":    v.activeTabStyle,
-		"disabledTabStyle":  v.disabledTabStyle,
-		"changeIntent":      v.changeIntent,
-		"changeIntentField": v.changeIntentField, // Phase 7
+		propKey:               v.key,
+		propComponentID:       v.componentID, // Phase 7
+		propTabs:              v.tabs,
+		propPosition:          v.position,
+		propActiveTab:         v.activeTab,
+		propActiveTabID:       v.activeTabID,
+		propWrapTabs:          v.wrapTabs,
+		propTabGap:            v.tabGap,
+		propLoopNavigation:    v.loopNavigation,
+		propShowHotkeys:       v.showHotkeys,
+		propDivider:           v.divider,
+		propWidth:             v.width,
+		propHeight:            v.height,
+		propFlex:              v.flex,
+		propTabStyle:          v.tabStyle,
+		propActiveTabStyle:    v.activeTabStyle,
+		propDisabledTabStyle:  v.disabledTabStyle,
+		propChangeIntent:      v.changeIntent,
+		propChangeIntentField: v.changeIntentField, // Phase 7
 	})
 }
 

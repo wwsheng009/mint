@@ -8,6 +8,21 @@ import (
 )
 
 // =============================================================================
+// Prop Keys
+// =============================================================================
+
+// Prop key constants — shared by VNode and Instance to avoid magic strings.
+const (
+	propChecked = "checked"
+	propDisabled = "disabled"
+	propFormID = "formID"
+	propKey = "key"
+	propLabel = "label"
+	propStyle = "style"
+	propToggleIntent = "toggleIntent"
+)
+
+// =============================================================================
 // VNode - Description Only (No State, No Closures, No Paint)
 // =============================================================================
 
@@ -108,37 +123,37 @@ func (c *VNode) SetLayer(l rtui.Layer) rtui.VNode {
 // Props returns the node properties.
 func (c *VNode) Props() rtui.Props {
 	return rtui.Props{
-		"key":          c.key,
-		"label":        c.label,
-		"style":        c.style,
-		"toggleIntent": c.toggleIntent,
-		"formID":       c.formID,
-		"disabled":     c.disabled,
-		"checked":      c.checked,
+		propKey:          c.key,
+		propLabel:        c.label,
+		propStyle:        c.style,
+		propToggleIntent: c.toggleIntent,
+		propFormID:       c.formID,
+		propDisabled:     c.disabled,
+		propChecked:      c.checked,
 	}
 }
 
 // SetProps sets the node properties - returns VNode for chaining.
 func (c *VNode) SetProps(p rtui.Props) rtui.VNode {
-	if v, ok := p["key"].(string); ok {
+	if v, ok := p[propKey].(string); ok {
 		c.key = v
 	}
-	if v, ok := p["label"].(string); ok {
+	if v, ok := p[propLabel].(string); ok {
 		c.label = v
 	}
-	if v, ok := p["style"].(style.Style); ok {
+	if v, ok := p[propStyle].(style.Style); ok {
 		c.style = v
 	}
-	if v, ok := p["toggleIntent"].(intent.Intent); ok {
+	if v, ok := p[propToggleIntent].(intent.Intent); ok {
 		c.toggleIntent = v
 	}
-	if v, ok := p["formID"].(string); ok {
+	if v, ok := p[propFormID].(string); ok {
 		c.formID = v
 	}
-	if v, ok := p["disabled"].(bool); ok {
+	if v, ok := p[propDisabled].(bool); ok {
 		c.disabled = v
 	}
-	if v, ok := p["checked"].(bool); ok {
+	if v, ok := p[propChecked].(bool); ok {
 		c.checked = v
 	}
 	return c
@@ -151,13 +166,13 @@ func (c *VNode) SetProps(p rtui.Props) rtui.VNode {
 // CreateInstance creates a new CheckboxInstance from this VNode description.
 func (c *VNode) CreateInstance() rtui.ComponentInstance {
 	props := rtui.Props{
-		"key":          c.key,
-		"label":        c.label,
-		"style":        c.style,
-		"toggleIntent": c.toggleIntent,
-		"formID":       c.formID,
-		"disabled":     c.disabled,
-		"checked":      c.checked,
+		propKey:          c.key,
+		propLabel:        c.label,
+		propStyle:        c.style,
+		propToggleIntent: c.toggleIntent,
+		propFormID:       c.formID,
+		propDisabled:     c.disabled,
+		propChecked:      c.checked,
 	}
 	return NewInstance(props)
 }

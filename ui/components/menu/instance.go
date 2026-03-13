@@ -186,7 +186,7 @@ func (inst *popupInstance) SetProps(props rtui.Props) bool {
 }
 
 func (inst *barInstance) GetProps() rtui.Props {
-	return rtui.Props{"key": inst.key, "model": inst.model, "theme": inst.theme, "style": inst.rootStyle}
+	return rtui.Props{propKey: inst.key, "model": inst.model, "theme": inst.theme, propStyle: inst.rootStyle}
 }
 
 func (inst *popupInstance) GetProps() rtui.Props {
@@ -195,7 +195,7 @@ func (inst *popupInstance) GetProps() rtui.Props {
 	model.ActivePath = inst.prefixedPath(inst.activePath())
 	model.SelectedIndex = inst.selectedIndex
 	model.ScrollOffset = inst.scrollOffset
-	return rtui.Props{"key": inst.key, "model": model, "theme": inst.theme, "style": inst.rootStyle}
+	return rtui.Props{propKey: inst.key, "model": model, "theme": inst.theme, propStyle: inst.rootStyle}
 }
 
 func (inst *barInstance) Measure(constraints layout.Constraints) layout.Size {

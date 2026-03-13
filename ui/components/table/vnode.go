@@ -8,6 +8,48 @@ import (
 )
 
 // =============================================================================
+// Prop Keys
+// =============================================================================
+
+// Prop key constants — shared by VNode and Instance to avoid magic strings.
+const (
+	propBorderStyle = "borderStyle"
+	propChangeIntent = "changeIntent"
+	propChangeIntentField = "changeIntentField"
+	propCheckedIndices = "checkedIndices"
+	propCheckedIndicesControlled = "checkedIndicesControlled"
+	propColumns = "columns"
+	propComponentID = "componentID"
+	propCurrentPage = "currentPage"
+	propCurrentPageControlled = "currentPageControlled"
+	propEmptyText = "emptyText"
+	propFilterStyle = "filterStyle"
+	propFilters = "filters"
+	propGap = "gap"
+	propHeaderStyle = "headerStyle"
+	propKey = "key"
+	propPageIntentField = "pageIntentField"
+	propPageSize = "pageSize"
+	propRows = "rows"
+	propScrollbarStyle = "scrollbarStyle"
+	propSearchQuery = "searchQuery"
+	propSelectedIndex = "selectedIndex"
+	propSelectedIndexControlled = "selectedIndexControlled"
+	propSelectedStyle = "selectedStyle"
+	propSelectionIntent = "selectionIntent"
+	propSelectionIntentField = "selectionIntentField"
+	propSelectionMode = "selectionMode"
+	propShowBorder = "showBorder"
+	propShowFooter = "showFooter"
+	propShowScrollbar = "showScrollbar"
+	propSortColumn = "sortColumn"
+	propSortControlled = "sortControlled"
+	propSortDescending = "sortDescending"
+	propStatusStyle = "statusStyle"
+	propTableStyle = "tableStyle"
+)
+
+// =============================================================================
 // Types
 // =============================================================================
 
@@ -140,150 +182,150 @@ func (v *VNode) TextContent() string { return "" }
 
 func (v *VNode) Props() rtui.Props {
 	props := rtui.Props{
-		"key":                     v.key,
-		"componentID":             v.componentID,
-		"columns":                 v.columns,
-		"rows":                    v.rows,
-		"emptyText":               v.emptyText,
-		"headerStyle":             v.headerStyle,
-		"tableStyle":              v.tableStyle,
-		"selectedStyle":           v.selectedStyle,
-		"borderStyle":             v.borderStyle,
-		"statusStyle":             v.statusStyle,
-		"filterStyle":             v.filterStyle,
-		"scrollbarStyle":          v.scrollbarStyle,
-		"gap":                     v.gap,
-		"showBorder":              v.showBorder,
-		"showFooter":              v.showFooter,
-		"showScrollbar":           v.showScrollbar,
-		"pageSize":                v.pageSize,
-		"searchQuery":             v.searchQuery,
-		"filters":                 v.filters,
-		"currentPage":             v.currentPage,
-		"currentPageControlled":   v.currentPageControlled,
-		"sortColumn":              v.sortColumn,
-		"sortDescending":          v.sortDescending,
-		"sortControlled":          v.sortControlled,
-		"selectedIndex":           v.selectedIndex,
-		"selectedIndexControlled": v.selectedIndexControlled,
-		"selectionIntent":         v.selectionIntent,
-		"selectionMode":           v.selectionMode,
-		"changeIntent":            v.changeIntent,
-		"changeIntentField":       v.changeIntentField,
-		"pageIntentField":         v.pageIntentField,
+		propKey:                     v.key,
+		propComponentID:             v.componentID,
+		propColumns:                 v.columns,
+		propRows:                    v.rows,
+		propEmptyText:               v.emptyText,
+		propHeaderStyle:             v.headerStyle,
+		propTableStyle:              v.tableStyle,
+		propSelectedStyle:           v.selectedStyle,
+		propBorderStyle:             v.borderStyle,
+		propStatusStyle:             v.statusStyle,
+		propFilterStyle:             v.filterStyle,
+		propScrollbarStyle:          v.scrollbarStyle,
+		propGap:                     v.gap,
+		propShowBorder:              v.showBorder,
+		propShowFooter:              v.showFooter,
+		propShowScrollbar:           v.showScrollbar,
+		propPageSize:                v.pageSize,
+		propSearchQuery:             v.searchQuery,
+		propFilters:                 v.filters,
+		propCurrentPage:             v.currentPage,
+		propCurrentPageControlled:   v.currentPageControlled,
+		propSortColumn:              v.sortColumn,
+		propSortDescending:          v.sortDescending,
+		propSortControlled:          v.sortControlled,
+		propSelectedIndex:           v.selectedIndex,
+		propSelectedIndexControlled: v.selectedIndexControlled,
+		propSelectionIntent:         v.selectionIntent,
+		propSelectionMode:           v.selectionMode,
+		propChangeIntent:            v.changeIntent,
+		propChangeIntentField:       v.changeIntentField,
+		propPageIntentField:         v.pageIntentField,
 	}
 	if v.selectionIntentField != nil {
-		props["selectionIntentField"] = v.selectionIntentField
+		props[propSelectionIntentField] = v.selectionIntentField
 	}
 	if v.checkedIndicesControlled {
-		props["checkedIndicesControlled"] = true
-		props["checkedIndices"] = append([]int(nil), v.checkedIndices...)
+		props[propCheckedIndicesControlled] = true
+		props[propCheckedIndices] = append([]int(nil), v.checkedIndices...)
 	}
 	return props
 }
 
 func (v *VNode) SetProps(p rtui.Props) rtui.VNode {
-	if val, ok := p["key"].(string); ok {
+	if val, ok := p[propKey].(string); ok {
 		v.key = val
 	}
-	if val, ok := p["componentID"].(string); ok {
+	if val, ok := p[propComponentID].(string); ok {
 		v.componentID = val
 	}
-	if val, ok := p["columns"].([]TableColumn); ok {
+	if val, ok := p[propColumns].([]TableColumn); ok {
 		v.columns = val
 	}
-	if val, ok := p["rows"].([][]string); ok {
+	if val, ok := p[propRows].([][]string); ok {
 		v.rows = val
 	}
-	if val, ok := p["emptyText"].(string); ok {
+	if val, ok := p[propEmptyText].(string); ok {
 		v.emptyText = val
 	}
-	if val, ok := p["headerStyle"].(style.Style); ok {
+	if val, ok := p[propHeaderStyle].(style.Style); ok {
 		v.headerStyle = val
 	}
-	if val, ok := p["tableStyle"].(style.Style); ok {
+	if val, ok := p[propTableStyle].(style.Style); ok {
 		v.tableStyle = val
 	}
-	if val, ok := p["selectedStyle"].(style.Style); ok {
+	if val, ok := p[propSelectedStyle].(style.Style); ok {
 		v.selectedStyle = val
 	}
-	if val, ok := p["borderStyle"].(style.Style); ok {
+	if val, ok := p[propBorderStyle].(style.Style); ok {
 		v.borderStyle = val
 	}
-	if val, ok := p["statusStyle"].(style.Style); ok {
+	if val, ok := p[propStatusStyle].(style.Style); ok {
 		v.statusStyle = val
 	}
-	if val, ok := p["filterStyle"].(style.Style); ok {
+	if val, ok := p[propFilterStyle].(style.Style); ok {
 		v.filterStyle = val
 	}
-	if val, ok := p["scrollbarStyle"].(style.Style); ok {
+	if val, ok := p[propScrollbarStyle].(style.Style); ok {
 		v.scrollbarStyle = val
 	}
-	if val, ok := p["gap"].(int); ok {
+	if val, ok := p[propGap].(int); ok {
 		v.gap = val
 	}
-	if val, ok := p["showBorder"].(bool); ok {
+	if val, ok := p[propShowBorder].(bool); ok {
 		v.showBorder = val
 	}
-	if val, ok := p["showFooter"].(bool); ok {
+	if val, ok := p[propShowFooter].(bool); ok {
 		v.showFooter = val
 	}
-	if val, ok := p["showScrollbar"].(bool); ok {
+	if val, ok := p[propShowScrollbar].(bool); ok {
 		v.showScrollbar = val
 	}
-	if val, ok := p["pageSize"].(int); ok {
+	if val, ok := p[propPageSize].(int); ok {
 		v.pageSize = val
 	}
-	if val, ok := p["searchQuery"].(string); ok {
+	if val, ok := p[propSearchQuery].(string); ok {
 		v.searchQuery = val
 	}
-	if val, ok := p["filters"].(map[int]string); ok {
+	if val, ok := p[propFilters].(map[int]string); ok {
 		v.filters = cloneFilters(val)
 	}
-	if val, ok := p["currentPage"].(int); ok {
+	if val, ok := p[propCurrentPage].(int); ok {
 		v.currentPage = val
 	}
-	if val, ok := p["currentPageControlled"].(bool); ok {
+	if val, ok := p[propCurrentPageControlled].(bool); ok {
 		v.currentPageControlled = val
 	}
-	if val, ok := p["sortColumn"].(int); ok {
+	if val, ok := p[propSortColumn].(int); ok {
 		v.sortColumn = val
 	}
-	if val, ok := p["sortDescending"].(bool); ok {
+	if val, ok := p[propSortDescending].(bool); ok {
 		v.sortDescending = val
 	}
-	if val, ok := p["sortControlled"].(bool); ok {
+	if val, ok := p[propSortControlled].(bool); ok {
 		v.sortControlled = val
 	}
-	if val, ok := p["selectedIndex"].(int); ok {
+	if val, ok := p[propSelectedIndex].(int); ok {
 		v.selectedIndex = val
 	}
-	if val, ok := p["selectedIndexControlled"].(bool); ok {
+	if val, ok := p[propSelectedIndexControlled].(bool); ok {
 		v.selectedIndexControlled = val
 	}
-	if val, ok := p["selectionIntent"].(intent.Intent); ok {
+	if val, ok := p[propSelectionIntent].(intent.Intent); ok {
 		v.selectionIntent = val
 	}
-	if val, ok := p["selectionIntentField"].(intent.FieldIntent); ok {
+	if val, ok := p[propSelectionIntentField].(intent.FieldIntent); ok {
 		v.selectionIntentField = val
 	}
-	if val, ok := p["selectionMode"].(SelectionMode); ok {
+	if val, ok := p[propSelectionMode].(SelectionMode); ok {
 		v.selectionMode = val
 	}
-	if val, ok := p["checkedIndices"].([]int); ok {
+	if val, ok := p[propCheckedIndices].([]int); ok {
 		v.checkedIndices = append([]int(nil), val...)
 		v.checkedIndicesControlled = true
 	}
-	if val, ok := p["checkedIndicesControlled"].(bool); ok {
+	if val, ok := p[propCheckedIndicesControlled].(bool); ok {
 		v.checkedIndicesControlled = val
 	}
-	if val, ok := p["changeIntent"].(intent.Intent); ok {
+	if val, ok := p[propChangeIntent].(intent.Intent); ok {
 		v.changeIntent = val
 	}
-	if val, ok := p["changeIntentField"].(intent.FieldIntent); ok {
+	if val, ok := p[propChangeIntentField].(intent.FieldIntent); ok {
 		v.changeIntentField = val
 	}
-	if val, ok := p["pageIntentField"].(intent.FieldIntent); ok {
+	if val, ok := p[propPageIntentField].(intent.FieldIntent); ok {
 		v.pageIntentField = val
 	}
 	return v

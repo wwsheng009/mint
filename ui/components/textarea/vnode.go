@@ -11,6 +11,30 @@ import (
 )
 
 // =============================================================================
+// Prop Keys
+// =============================================================================
+
+// Prop key constants — shared by VNode and Instance to avoid magic strings.
+const (
+	propChangeIntent = "changeIntent"
+	propCols = "cols"
+	propCursorConfig = "cursorConfig"
+	propDisabled = "disabled"
+	propFormID = "formID"
+	propKey = "key"
+	propMaxLen = "maxLen"
+	propPlaceholder = "placeholder"
+	propRows = "rows"
+	propScrollOffset = "scrollOffset"
+	propScrollOffsetControlled = "scrollOffsetControlled"
+	propScrollbarStyle = "scrollbarStyle"
+	propShowScrollbar = "showScrollbar"
+	propStyle = "style"
+	propSubmitIntent = "submitIntent"
+	propValue = "value"
+)
+
+// =============================================================================
 // VNode - Description Only (No State, No Closures, No Paint)
 // =============================================================================
 
@@ -82,76 +106,76 @@ func (t *VNode) SetLayer(l rtui.Layer) rtui.VNode             { return t }
 
 func (t *VNode) Props() rtui.Props {
 	props := rtui.Props{
-		"key":                    t.key,
-		"placeholder":            t.placeholder,
-		"style":                  t.style,
-		"rows":                   t.rows,
-		"cols":                   t.cols,
-		"scrollOffsetControlled": t.scrollOffsetControlled,
-		"showScrollbar":          t.showScrollbar,
-		"scrollbarStyle":         t.scrollbarStyle,
-		"changeIntent":           t.changeIntent,
-		"submitIntent":           t.submitIntent,
-		"value":                  t.value,
-		"maxLen":                 t.maxLen,
-		"disabled":               t.disabled,
-		"formID":                 t.formID,
-		"cursorConfig":           t.cursorConfig,
+		propKey:                    t.key,
+		propPlaceholder:            t.placeholder,
+		propStyle:                  t.style,
+		propRows:                   t.rows,
+		propCols:                   t.cols,
+		propScrollOffsetControlled: t.scrollOffsetControlled,
+		propShowScrollbar:          t.showScrollbar,
+		propScrollbarStyle:         t.scrollbarStyle,
+		propChangeIntent:           t.changeIntent,
+		propSubmitIntent:           t.submitIntent,
+		propValue:                  t.value,
+		propMaxLen:                 t.maxLen,
+		propDisabled:               t.disabled,
+		propFormID:                 t.formID,
+		propCursorConfig:           t.cursorConfig,
 	}
 	if t.scrollOffsetControlled {
-		props["scrollOffset"] = t.scrollOffset
+		props[propScrollOffset] = t.scrollOffset
 	}
 	return props
 }
 
 func (t *VNode) SetProps(p rtui.Props) rtui.VNode {
-	if v, ok := p["key"].(string); ok {
+	if v, ok := p[propKey].(string); ok {
 		t.key = v
 	}
-	if v, ok := p["placeholder"].(string); ok {
+	if v, ok := p[propPlaceholder].(string); ok {
 		t.placeholder = v
 	}
-	if v, ok := p["style"].(style.Style); ok {
+	if v, ok := p[propStyle].(style.Style); ok {
 		t.style = v
 	}
-	if v, ok := p["rows"].(int); ok {
+	if v, ok := p[propRows].(int); ok {
 		t.rows = v
 	}
-	if v, ok := p["cols"].(int); ok {
+	if v, ok := p[propCols].(int); ok {
 		t.cols = v
 	}
-	if v, ok := p["scrollOffset"].(int); ok {
+	if v, ok := p[propScrollOffset].(int); ok {
 		t.scrollOffset = v
 		t.scrollOffsetControlled = true
 	}
-	if v, ok := p["scrollOffsetControlled"].(bool); ok {
+	if v, ok := p[propScrollOffsetControlled].(bool); ok {
 		t.scrollOffsetControlled = v
 	}
-	if v, ok := p["showScrollbar"].(bool); ok {
+	if v, ok := p[propShowScrollbar].(bool); ok {
 		t.showScrollbar = v
 	}
-	if v, ok := p["scrollbarStyle"].(style.Style); ok {
+	if v, ok := p[propScrollbarStyle].(style.Style); ok {
 		t.scrollbarStyle = v
 	}
-	if v, ok := p["changeIntent"].(intent.Intent); ok {
+	if v, ok := p[propChangeIntent].(intent.Intent); ok {
 		t.changeIntent = v
 	}
-	if v, ok := p["submitIntent"].(intent.Intent); ok {
+	if v, ok := p[propSubmitIntent].(intent.Intent); ok {
 		t.submitIntent = v
 	}
-	if v, ok := p["value"].(string); ok {
+	if v, ok := p[propValue].(string); ok {
 		t.value = v
 	}
-	if v, ok := p["maxLen"].(int); ok {
+	if v, ok := p[propMaxLen].(int); ok {
 		t.maxLen = v
 	}
-	if v, ok := p["disabled"].(bool); ok {
+	if v, ok := p[propDisabled].(bool); ok {
 		t.disabled = v
 	}
-	if v, ok := p["formID"].(string); ok {
+	if v, ok := p[propFormID].(string); ok {
 		t.formID = v
 	}
-	if v, ok := p["cursorConfig"].(cursor.Config); ok {
+	if v, ok := p[propCursorConfig].(cursor.Config); ok {
 		t.cursorConfig = cursor.NormalizeConfig(v)
 	}
 	return t

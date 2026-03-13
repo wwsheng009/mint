@@ -147,7 +147,7 @@ func NewInstance(props rtui.Props) *Instance {
 	}
 
 	// Extract rowStyleFn if provided in props
-	if fn, ok := props["rowStyleFn"].(func(int, string) style.Style); ok {
+	if fn, ok := props[propRowStyleFn].(func(int, string) style.Style); ok {
 		inst.rowStyleFn = fn
 	}
 	inst.scrollOffsetInitialized = inst.scrollOffsetControlled || hasProp(props, "scrollOffset")
@@ -236,7 +236,7 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	inst.searchFn = getSearchFnOrCurrent(props, inst.searchFn)
 	inst.showSearchStats = proputil.GetBool(props, "showSearchStats", inst.showSearchStats)
 	inst.searchStatsStyle = proputil.GetStyle(props, "searchStatsStyle", style.Style{})
-	if controlled, ok := props["scrollOffsetControlled"].(bool); ok {
+	if controlled, ok := props[propScrollOffsetControlled].(bool); ok {
 		inst.scrollOffsetControlled = controlled
 	}
 	if inst.scrollOffsetControlled {
@@ -253,7 +253,7 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 			inst.scrollOffset = nextScroll
 		}
 		inst.scrollOffsetInitialized = true
-	} else if offset, ok := props["scrollOffset"].(int); ok {
+	} else if offset, ok := props[propScrollOffset].(int); ok {
 		if !inst.scrollOffsetInitialized {
 			inst.scrollOffset = offset
 			inst.scrollOffsetInitialized = true
@@ -265,7 +265,7 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 		inst.lastPropScrollOffset = inst.scrollOffset
 		inst.hasPendingScrollOffset = false
 	}
-	if controlled, ok := props["selectedIndexControlled"].(bool); ok {
+	if controlled, ok := props[propSelectedIndexControlled].(bool); ok {
 		inst.selectedIndexControlled = controlled
 	}
 	if inst.selectedIndexControlled {
@@ -282,7 +282,7 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 			inst.selectedIndex = nextSelected
 		}
 		inst.selectedIndexInitialized = true
-	} else if selectedIndex, ok := props["selectedIndex"].(int); ok {
+	} else if selectedIndex, ok := props[propSelectedIndex].(int); ok {
 		if !inst.selectedIndexInitialized {
 			inst.selectedIndex = selectedIndex
 			inst.selectedIndexInitialized = true
@@ -294,7 +294,7 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 		inst.lastPropSelectedIndex = inst.selectedIndex
 		inst.hasPendingSelectedIndex = false
 	}
-	if controlled, ok := props["checkedIndicesControlled"].(bool); ok {
+	if controlled, ok := props[propCheckedIndicesControlled].(bool); ok {
 		inst.checkedIndicesControlled = controlled
 	}
 	if inst.checkedIndicesControlled {
@@ -311,7 +311,7 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 			inst.checkedIndices = nextChecked
 		}
 		inst.checkedIndicesInitialized = true
-	} else if checkedIndices, ok := props["checkedIndices"].([]int); ok {
+	} else if checkedIndices, ok := props[propCheckedIndices].([]int); ok {
 		if !inst.checkedIndicesInitialized {
 			inst.checkedIndices = append([]int(nil), checkedIndices...)
 			inst.checkedIndicesInitialized = true
@@ -328,9 +328,9 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	inst.allowScroll = proputil.GetBool(props, "allowScroll", inst.allowScroll)
 
 	// Update rowStyleFn if provided in props
-	if fn, ok := props["rowStyleFn"].(func(int, string) style.Style); ok {
+	if fn, ok := props[propRowStyleFn].(func(int, string) style.Style); ok {
 		inst.rowStyleFn = fn
-	} else if _, exists := props["rowStyleFn"]; exists {
+	} else if _, exists := props[propRowStyleFn]; exists {
 		inst.rowStyleFn = nil
 	}
 
@@ -379,32 +379,32 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 
 func (inst *Instance) GetProps() rtui.Props {
 	props := rtui.Props{
-		"key":                      inst.key,
-		"componentID":              inst.componentID,
-		"header":                   inst.header,
-		"rows":                     inst.rows,
-		"emptyText":                inst.emptyText,
-		"showScrollbar":            inst.showScrollbar,
-		"scrollbarStyle":           inst.scrollbarStyle,
-		"changeIntent":             inst.changeIntent,
-		"selectionIntent":          inst.selectionIntent,
-		"selectionMode":            inst.selectionMode,
-		"matchStyle":               inst.matchStyle,
-		"searchQuery":              inst.searchQuery,
-		"showSearchStats":          inst.showSearchStats,
-		"searchStatsStyle":         inst.searchStatsStyle,
-		"scrollOffsetControlled":   inst.scrollOffsetControlled,
-		"scrollOffset":             inst.scrollOffset,
-		"selectedIndex":            inst.selectedIndex,
-		"selectedIndexControlled":  inst.selectedIndexControlled,
-		"checkedIndices":           append([]int(nil), inst.checkedIndices...),
-		"checkedIndicesControlled": inst.checkedIndicesControlled,
-		"viewportHeight":           inst.viewportHeight,
-		"formID":                   inst.formID,
-		"allowScroll":              inst.allowScroll,
+		propKey:                      inst.key,
+		propComponentID:              inst.componentID,
+		propHeader:                   inst.header,
+		propRows:                     inst.rows,
+		propEmptyText:                inst.emptyText,
+		propShowScrollbar:            inst.showScrollbar,
+		propScrollbarStyle:           inst.scrollbarStyle,
+		propChangeIntent:             inst.changeIntent,
+		propSelectionIntent:          inst.selectionIntent,
+		propSelectionMode:            inst.selectionMode,
+		propMatchStyle:               inst.matchStyle,
+		propSearchQuery:              inst.searchQuery,
+		propShowSearchStats:          inst.showSearchStats,
+		propSearchStatsStyle:         inst.searchStatsStyle,
+		propScrollOffsetControlled:   inst.scrollOffsetControlled,
+		propScrollOffset:             inst.scrollOffset,
+		propSelectedIndex:            inst.selectedIndex,
+		propSelectedIndexControlled:  inst.selectedIndexControlled,
+		propCheckedIndices:           append([]int(nil), inst.checkedIndices...),
+		propCheckedIndicesControlled: inst.checkedIndicesControlled,
+		propViewportHeight:           inst.viewportHeight,
+		propFormID:                   inst.formID,
+		propAllowScroll:              inst.allowScroll,
 	}
 	if inst.searchFn != nil {
-		props["searchFn"] = inst.searchFn
+		props[propSearchFn] = inst.searchFn
 	}
 	return props
 }
@@ -1732,7 +1732,7 @@ func (inst *Instance) IsDisabled() bool {
 // =============================================================================
 
 func getStringsProp(props rtui.Props, def []string) []string {
-	v, ok := props["rows"]
+	v, ok := props[propRows]
 	if !ok {
 		return def
 	}
@@ -1770,7 +1770,7 @@ func getChangeIntentFieldProp(props rtui.Props, key string) intent.FieldIntent {
 }
 
 func getSearchFn(props rtui.Props) func(string, string) bool {
-	if value, ok := props["searchFn"]; ok {
+	if value, ok := props[propSearchFn]; ok {
 		if fn, ok := value.(func(string, string) bool); ok {
 			return fn
 		}
@@ -1779,7 +1779,7 @@ func getSearchFn(props rtui.Props) func(string, string) bool {
 }
 
 func getSearchFnOrCurrent(props rtui.Props, current func(string, string) bool) func(string, string) bool {
-	if value, ok := props["searchFn"]; ok {
+	if value, ok := props[propSearchFn]; ok {
 		if fn, ok := value.(func(string, string) bool); ok {
 			return fn
 		}

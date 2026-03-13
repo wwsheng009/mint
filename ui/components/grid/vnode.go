@@ -8,6 +8,38 @@ import (
 )
 
 // =============================================================================
+// Prop Keys
+// =============================================================================
+
+// Prop key constants — shared by VNode and Instance to avoid magic strings.
+const (
+	propAlignContent = "alignContent"
+	propBorderColor = "borderColor"
+	propBorderLabel = "borderLabel"
+	propBorderStyle = "borderStyle"
+	propCellBorderColor = "cellBorderColor"
+	propCellBorderRounded = "cellBorderRounded"
+	propCellBorderStyle = "cellBorderStyle"
+	propCells = "cells"
+	propColumnGap = "columnGap"
+	propColumns = "columns"
+	propDashed = "dashed"
+	propDouble = "double"
+	propFlex = "flex"
+	propHeight = "height"
+	propKey = "key"
+	propLabel = "label"
+	propPadding = "padding"
+	propRounded = "rounded"
+	propRowGap = "rowGap"
+	propRows = "rows"
+	propShowCellBorders = "showCellBorders"
+	propSingle = "single"
+	propStyle = "style"
+	propWidth = "width"
+)
+
+// =============================================================================
 // Grid Dimension Types (VNode layer - declarative only)
 // =============================================================================
 
@@ -207,88 +239,88 @@ func (g *VNode) SetLayer(l rtui.Layer) rtui.VNode {
 // Props returns the node properties.
 func (g *VNode) Props() rtui.Props {
 	return rtui.Props{
-		"key":          g.key,
-		"columns":      g.columns,
-		"rows":         g.rows,
-		"cells":        g.cells,
-		"columnGap":    g.columnGap,
-		"rowGap":       g.rowGap,
-		"padding":      g.padding,
-		"alignContent": g.alignContent,
-		"width":        g.width,
-		"height":       g.height,
-		"flex":         g.flex,
-		"borderStyle":  g.borderStyle,      // ✨ 边框样式
-		"label":        g.borderLabel,      // ✨ 边框标签 (Fiber 使用)
-		"borderLabel":  g.borderLabel,      // ✨ 边框标签 (backward compatibility)
-		"borderColor":  string(g.borderColor),  // ✨ 容器边框颜色
+		propKey:          g.key,
+		propColumns:      g.columns,
+		propRows:         g.rows,
+		propCells:        g.cells,
+		propColumnGap:    g.columnGap,
+		propRowGap:       g.rowGap,
+		propPadding:      g.padding,
+		propAlignContent: g.alignContent,
+		propWidth:        g.width,
+		propHeight:       g.height,
+		propFlex:         g.flex,
+		propBorderStyle:  g.borderStyle,      // ✨ 边框样式
+		propLabel:        g.borderLabel,      // ✨ 边框标签 (Fiber 使用)
+		propBorderLabel:  g.borderLabel,      // ✨ 边框标签 (backward compatibility)
+		propBorderColor:  string(g.borderColor),  // ✨ 容器边框颜色
 		// ✨ Cell Borders 属性
-		"showCellBorders":   g.showCellBorders,
-		"cellBorderStyle":   g.cellBorderStyle,
-		"cellBorderRounded": g.cellBorderRounded,
-		"cellBorderColor":   g.cellBorderColor,
+		propShowCellBorders:   g.showCellBorders,
+		propCellBorderStyle:   g.cellBorderStyle,
+		propCellBorderRounded: g.cellBorderRounded,
+		propCellBorderColor:   g.cellBorderColor,
 	}
 }
 
 // SetProps sets the node properties - returns VNode for chaining.
 func (g *VNode) SetProps(p rtui.Props) rtui.VNode {
-	if v, ok := p["key"].(string); ok {
+	if v, ok := p[propKey].(string); ok {
 		g.key = v
 	}
-	if v, ok := p["columns"].([]Dimension); ok {
+	if v, ok := p[propColumns].([]Dimension); ok {
 		g.columns = v
 	}
-	if v, ok := p["rows"].([]Dimension); ok {
+	if v, ok := p[propRows].([]Dimension); ok {
 		g.rows = v
 	}
-	if v, ok := p["cells"].([]Cell); ok {
+	if v, ok := p[propCells].([]Cell); ok {
 		g.cells = v
 	}
-	if v, ok := p["columnGap"].(int); ok {
+	if v, ok := p[propColumnGap].(int); ok {
 		g.columnGap = v
 	}
-	if v, ok := p["rowGap"].(int); ok {
+	if v, ok := p[propRowGap].(int); ok {
 		g.rowGap = v
 	}
-	if v, ok := p["padding"].([4]int); ok {
+	if v, ok := p[propPadding].([4]int); ok {
 		g.padding = v
 	}
-	if v, ok := p["alignContent"].(rtui.Align); ok {
+	if v, ok := p[propAlignContent].(rtui.Align); ok {
 		g.alignContent = v
 	}
-	if v, ok := p["width"].(int); ok {
+	if v, ok := p[propWidth].(int); ok {
 		g.width = v
 	}
-	if v, ok := p["height"].(int); ok {
+	if v, ok := p[propHeight].(int); ok {
 		g.height = v
 	}
-	if v, ok := p["flex"].(int); ok {
+	if v, ok := p[propFlex].(int); ok {
 		g.flex = v
 	}
 	// ✨ 边框属性
-	if v, ok := p["borderStyle"].(string); ok {
+	if v, ok := p[propBorderStyle].(string); ok {
 		g.borderStyle = v
 	}
-	if v, ok := p["label"].(string); ok {
+	if v, ok := p[propLabel].(string); ok {
 		g.borderLabel = v
 	}
-	if v, ok := p["borderLabel"].(string); ok {
+	if v, ok := p[propBorderLabel].(string); ok {
 		g.borderLabel = v
 	}
-	if v, ok := p["borderColor"].(string); ok {
+	if v, ok := p[propBorderColor].(string); ok {
 		g.borderColor = style.Color(v)
 	}
 	// ✨ Cell Borders 属性
-	if v, ok := p["showCellBorders"].(bool); ok {
+	if v, ok := p[propShowCellBorders].(bool); ok {
 		g.showCellBorders = v
 	}
-	if v, ok := p["cellBorderStyle"].(string); ok {
+	if v, ok := p[propCellBorderStyle].(string); ok {
 		g.cellBorderStyle = v
 	}
-	if v, ok := p["cellBorderRounded"].(bool); ok {
+	if v, ok := p[propCellBorderRounded].(bool); ok {
 		g.cellBorderRounded = v
 	}
-	if v, ok := p["cellBorderColor"].(string); ok {
+	if v, ok := p[propCellBorderColor].(string); ok {
 		g.cellBorderColor = v
 	}
 	return g
@@ -301,25 +333,25 @@ func (g *VNode) SetProps(p rtui.Props) rtui.VNode {
 // CreateInstance creates a new GridInstance from this VNode description.
 func (g *VNode) CreateInstance() rtui.ComponentInstance {
 	return NewInstance(rtui.Props{
-		"key":          g.key,
-		"columns":      g.columns,
-		"rows":         g.rows,
-		"cells":        g.cells,
-		"columnGap":    g.columnGap,
-		"rowGap":       g.rowGap,
-		"padding":      g.padding,
-		"alignContent": g.alignContent,
-		"width":        g.width,
-		"height":       g.height,
-		"flex":         g.flex,
-		"borderStyle":  g.borderStyle,  // ✨ 边框样式
-		"label":        g.borderLabel,  // ✨ 边框标签
+		propKey:          g.key,
+		propColumns:      g.columns,
+		propRows:         g.rows,
+		propCells:        g.cells,
+		propColumnGap:    g.columnGap,
+		propRowGap:       g.rowGap,
+		propPadding:      g.padding,
+		propAlignContent: g.alignContent,
+		propWidth:        g.width,
+		propHeight:       g.height,
+		propFlex:         g.flex,
+		propBorderStyle:  g.borderStyle,  // ✨ 边框样式
+		propLabel:        g.borderLabel,  // ✨ 边框标签
 		// ✨ Cell Borders 属性
-		"showCellBorders":   g.showCellBorders,
-		"cellBorderStyle":   g.cellBorderStyle,
-		"cellBorderRounded": g.cellBorderRounded,
-		"cellBorderColor":   g.cellBorderColor,
-		"style":        g.style,
+		propShowCellBorders:   g.showCellBorders,
+		propCellBorderStyle:   g.cellBorderStyle,
+		propCellBorderRounded: g.cellBorderRounded,
+		propCellBorderColor:   g.cellBorderColor,
+		propStyle:        g.style,
 	})
 }
 
@@ -518,13 +550,13 @@ func (g *VNode) GetBoxModel() layout.BoxModel {
 	if g.borderStyle != "none" && g.borderStyle != "" {
 		var borderStyle layout.BorderStyle
 		switch g.borderStyle {
-		case "double":
+		case propDouble:
 			borderStyle = layout.BorderDouble
-		case "rounded":
+		case propRounded:
 			borderStyle = layout.BorderRounded
-		case "dashed":
+		case propDashed:
 			borderStyle = layout.BorderDashed
-		case "single":
+		case propSingle:
 			borderStyle = layout.BorderSingle
 		default:
 			borderStyle = layout.BorderNone

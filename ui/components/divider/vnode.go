@@ -8,6 +8,21 @@ import (
 )
 
 // =============================================================================
+// Prop Keys
+// =============================================================================
+
+// Prop key constants — shared by VNode and Instance to avoid magic strings.
+const (
+	propDividerStyle = "dividerStyle"
+	propFillWidth = "fillWidth"
+	propKey = "key"
+	propLabel = "label"
+	propOrientation = "orientation"
+	propStyle = "style"
+	propThickness = "thickness"
+)
+
+// =============================================================================
 // Types
 // =============================================================================
 
@@ -128,37 +143,37 @@ func (d *VNode) SetLayer(l rtui.Layer) rtui.VNode {
 // Props returns the node properties.
 func (d *VNode) Props() rtui.Props {
 	return rtui.Props{
-		"key":          d.key,
-		"label":        d.label,
-		"dividerStyle": d.dividerStyle,
-		"orientation":  d.orientation,
-		"thickness":    d.thickness,
-		"style":        d.style,
-		"fillWidth":    d.fillWidth,
+		propKey:          d.key,
+		propLabel:        d.label,
+		propDividerStyle: d.dividerStyle,
+		propOrientation:  d.orientation,
+		propThickness:    d.thickness,
+		propStyle:        d.style,
+		propFillWidth:    d.fillWidth,
 	}
 }
 
 // SetProps sets the node properties - returns VNode for chaining.
 func (d *VNode) SetProps(p rtui.Props) rtui.VNode {
-	if v, ok := p["key"].(string); ok {
+	if v, ok := p[propKey].(string); ok {
 		d.key = v
 	}
-	if v, ok := p["label"].(string); ok {
+	if v, ok := p[propLabel].(string); ok {
 		d.label = v
 	}
-	if v, ok := p["dividerStyle"].(Style); ok {
+	if v, ok := p[propDividerStyle].(Style); ok {
 		d.dividerStyle = v
 	}
-	if v, ok := p["orientation"].(Orientation); ok {
+	if v, ok := p[propOrientation].(Orientation); ok {
 		d.orientation = v
 	}
-	if v, ok := p["thickness"].(int); ok {
+	if v, ok := p[propThickness].(int); ok {
 		d.thickness = v
 	}
-	if v, ok := p["style"].(style.Style); ok {
+	if v, ok := p[propStyle].(style.Style); ok {
 		d.style = v
 	}
-	if v, ok := p["fillWidth"].(bool); ok {
+	if v, ok := p[propFillWidth].(bool); ok {
 		d.fillWidth = v
 	}
 	return d
@@ -171,13 +186,13 @@ func (d *VNode) SetProps(p rtui.Props) rtui.VNode {
 // CreateInstance creates a new DividerInstance from this VNode description.
 func (d *VNode) CreateInstance() rtui.ComponentInstance {
 	props := rtui.Props{
-		"key":          d.key,
-		"label":        d.label,
-		"dividerStyle": d.dividerStyle,
-		"orientation":  d.orientation,
-		"thickness":    d.thickness,
-		"style":        d.style,
-		"fillWidth":    d.fillWidth,
+		propKey:          d.key,
+		propLabel:        d.label,
+		propDividerStyle: d.dividerStyle,
+		propOrientation:  d.orientation,
+		propThickness:    d.thickness,
+		propStyle:        d.style,
+		propFillWidth:    d.fillWidth,
 	}
 	return NewInstance(props)
 }

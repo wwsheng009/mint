@@ -95,21 +95,21 @@ func NewInstance(props rtui.Props) *Instance {
 	}
 
 	// Parse columns
-	if v, ok := props["columns"].([]Dimension); ok {
+	if v, ok := props[propColumns].([]Dimension); ok {
 		inst.columns = v
 	} else {
 		inst.columns = []Dimension{Flex{Factor: 1}}
 	}
 
 	// Parse rows
-	if v, ok := props["rows"].([]Dimension); ok {
+	if v, ok := props[propRows].([]Dimension); ok {
 		inst.rows = v
 	} else {
 		inst.rows = []Dimension{Auto{}}
 	}
 
 	// Parse cells
-	if v, ok := props["cells"].([]Cell); ok {
+	if v, ok := props[propCells].([]Cell); ok {
 		inst.cells = v
 	}
 
@@ -166,34 +166,34 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	inst.instStyle = proputil.GetStyle(props, "style", style.Style{})
 
 	// ✨ 容器边框属性
-	if v, ok := props["borderStyle"].(string); ok {
+	if v, ok := props[propBorderStyle].(string); ok {
 		inst.borderStyle = v
 	}
-	if v, ok := props["label"].(string); ok {
+	if v, ok := props[propLabel].(string); ok {
 		inst.borderLabel = v
 	}
 
 	// ✨ Cell Borders 属性
-	if v, ok := props["showCellBorders"].(bool); ok {
+	if v, ok := props[propShowCellBorders].(bool); ok {
 		inst.showCellBorders = v
 	}
-	if v, ok := props["cellBorderStyle"].(string); ok {
+	if v, ok := props[propCellBorderStyle].(string); ok {
 		inst.cellBorderStyle = v
 	}
-	if v, ok := props["cellBorderRounded"].(bool); ok {
+	if v, ok := props[propCellBorderRounded].(bool); ok {
 		inst.cellBorderRounded = v
 	}
-	if v, ok := props["cellBorderColor"].(string); ok {
+	if v, ok := props[propCellBorderColor].(string); ok {
 		inst.cellBorderColor = v
 	}
 
-	if v, ok := props["columns"].([]Dimension); ok {
+	if v, ok := props[propColumns].([]Dimension); ok {
 		inst.columns = v
 	}
-	if v, ok := props["rows"].([]Dimension); ok {
+	if v, ok := props[propRows].([]Dimension); ok {
 		inst.rows = v
 	}
-	if v, ok := props["cells"].([]Cell); ok {
+	if v, ok := props[propCells].([]Cell); ok {
 		inst.cells = v
 	}
 
@@ -213,25 +213,25 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 // GetProps implements ComponentInstance.
 func (inst *Instance) GetProps() rtui.Props {
 	return rtui.Props{
-		"key":          inst.key,
-		"columns":      inst.columns,
-		"rows":         inst.rows,
-		"cells":        inst.cells,
-		"columnGap":    inst.columnGap,
-		"rowGap":       inst.rowGap,
-		"padding":      inst.padding,
-		"alignContent": inst.alignContent,
-		"width":        inst.width,
-		"height":       inst.height,
-		"flex":         inst.flex,
+		propKey:          inst.key,
+		propColumns:      inst.columns,
+		propRows:         inst.rows,
+		propCells:        inst.cells,
+		propColumnGap:    inst.columnGap,
+		propRowGap:       inst.rowGap,
+		propPadding:      inst.padding,
+		propAlignContent: inst.alignContent,
+		propWidth:        inst.width,
+		propHeight:       inst.height,
+		propFlex:         inst.flex,
 		// ✨ 容器边框属性
-		"borderStyle": inst.borderStyle,
-		"label":       inst.borderLabel,
+		propBorderStyle: inst.borderStyle,
+		propLabel:       inst.borderLabel,
 		// ✨ Cell Borders 属性
-		"showCellBorders":   inst.showCellBorders,
-		"cellBorderStyle":   inst.cellBorderStyle,
-		"cellBorderRounded": inst.cellBorderRounded,
-		"cellBorderColor":   inst.cellBorderColor,
+		propShowCellBorders:   inst.showCellBorders,
+		propCellBorderStyle:   inst.cellBorderStyle,
+		propCellBorderRounded: inst.cellBorderRounded,
+		propCellBorderColor:   inst.cellBorderColor,
 	}
 }
 
@@ -766,7 +766,7 @@ func (inst *Instance) ClearDirty() {
 // =============================================================================
 
 func getPaddingProp(props rtui.Props) [4]int {
-	if v, ok := props["padding"]; ok {
+	if v, ok := props[propPadding]; ok {
 		if p, ok := v.([4]int); ok {
 			return p
 		}
@@ -775,7 +775,7 @@ func getPaddingProp(props rtui.Props) [4]int {
 }
 
 func getPaddingPropWithDefault(props rtui.Props, def [4]int) [4]int {
-	if v, ok := props["padding"]; ok {
+	if v, ok := props[propPadding]; ok {
 		if p, ok := v.([4]int); ok {
 			return p
 		}
@@ -784,7 +784,7 @@ func getPaddingPropWithDefault(props rtui.Props, def [4]int) [4]int {
 }
 
 func getAlignContentProp(props rtui.Props) rtui.Align {
-	if v, ok := props["alignContent"]; ok {
+	if v, ok := props[propAlignContent]; ok {
 		if a, ok := v.(rtui.Align); ok {
 			return a
 		}

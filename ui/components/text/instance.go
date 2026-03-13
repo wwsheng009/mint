@@ -124,13 +124,13 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 // GetProps implements ComponentInstance.
 func (inst *Instance) GetProps() rtui.Props {
 	return rtui.Props{
-		"key":       inst.key,
-		"content":   inst.content,
-		"style":     inst.textStyle,
-		"padding":   inst.padding,
-		"textAlign": inst.textAlign,
-		"maxWidth":  inst.maxWidth,
-		"wrap":      inst.wrap,
+		propKey:       inst.key,
+		propContent:   inst.content,
+		propStyle:     inst.textStyle,
+		propPadding:   inst.padding,
+		propTextAlign: inst.textAlign,
+		propMaxWidth:  inst.maxWidth,
+		propWrap:      inst.wrap,
 	}
 }
 
@@ -456,7 +456,7 @@ func (inst *Instance) SetStyle(s style.Style) {
 // =============================================================================
 
 func getPaddingProp(props rtui.Props) [4]int {
-	if v, ok := props["padding"]; ok {
+	if v, ok := props[propPadding]; ok {
 		if p, ok := v.([4]int); ok {
 			return p
 		}
@@ -465,7 +465,7 @@ func getPaddingProp(props rtui.Props) [4]int {
 }
 
 func getTextAlignProp(props rtui.Props, def rtui.Align) rtui.Align {
-	if v, ok := props["textAlign"]; ok {
+	if v, ok := props[propTextAlign]; ok {
 		if a, ok := v.(rtui.Align); ok {
 			return a
 		}
