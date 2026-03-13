@@ -1,6 +1,13 @@
 # 文档归档清理总结
 
-**日期**: 2026-03-10
+**日期**: 2026-03-10（更新：2026-03-13）
+
+## 2026-03-13 追加归档（阶段/计划/总结类）
+
+- 归档 `docs/plan/**` 全部文档 → `docsArchive/plans/**`（含 `action/`、`event/`、`fiber/`、`inspector/`、`layer/` 等）
+- 归档命名包含 `PHASE/REPORT/SUMMARY/PLAN/ROADMAP/TODO/TASKS/COMPLETION` 的文档 → `docsArchive/` 对应路径
+- 覆盖目录示例：`docs/layout/layout/20260215/`、`docs/render/paint/optimized/`、`docs/sandbox/fiber_debug/`
+- 本轮新增归档 55 个文件
 
 ## 已归档的文档
 
