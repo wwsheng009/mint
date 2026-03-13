@@ -213,7 +213,7 @@ Let me start by reading my context files, then dive into analyzing that director
 
 ### 二、存在的不足
 
-#### 🔴 1. 巨型文件问题（最严重）
+#### ✅ 1. 巨型文件问题（已解决）
 
 | 文件 | 行数 |
 |------|------|
@@ -240,7 +240,7 @@ treeview/
 
 ---
 
-#### 🔴 2. SelectionMode 类型重复定义
+#### ✅ 2. SelectionMode 类型重复定义（已解决）
 
 `list/selection.go`、`table/selection.go`、`treeview/selection.go` 三个文件几乎完全相同：
 
@@ -293,7 +293,7 @@ type ButtonProps struct {
 
 ---
 
-#### 🟡 4. menu 包架构不统一
+#### ✅ 4. menu 包架构不统一（已解决）
 
 `menu` 组件没有遵循标准的 `vnode.go + instance.go + builder.go` 文件结构。它的核心逻辑全在 `component.go`（1562 行），另外还有 `types.go`、`theme.go`、`middleware.go`、`controller.go`、`install.go` 等，结构与其他组件完全不同。
 
@@ -335,7 +335,7 @@ ROADMAP.md 也提到了这个问题（Phase 1 计划将 toast 重构为独立组
 
 ---
 
-#### 🟡 7. Panel 的 builder_enhanced.go 与 builder.go 并存
+#### ✅ 7. Panel 的 builder_enhanced.go 与 builder.go 并存（已解决）
 
 Panel 组件有两套 builder：
 - `builder.go`（4.9KB）— 基础版
@@ -347,7 +347,7 @@ Panel 组件有两套 builder：
 
 ---
 
-#### 🟡 8. 缺少统一的 getXxxProp 辅助函数
+#### ✅ 8. 缺少统一的 getXxxProp 辅助函数（已解决）
 
 每个组件都各自实现了一套 `getStringProp`、`getBoolProp`、`getIntProp` 等辅助函数。这些函数的逻辑几乎完全一样，但分散在各个包的私有函数里。
 
@@ -355,7 +355,7 @@ Panel 组件有两套 builder：
 
 ---
 
-#### 🟡 9. 文档过重，部分已过时
+#### ✅ 9. 文档过重，部分已过时（已解决）
 
 `grid/docs/` 下有 **11 个 .md 文件**，总计超过 200KB。`control/` 下有 3 个 `PRESSED_*_FIX.md`。这些文档记录了调试过程和设计决策，虽然有历史价值，但混在代码目录里增加噪音。
 
