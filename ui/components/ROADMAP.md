@@ -27,6 +27,7 @@
 | Alert | `alert/` | ★★★☆☆ | 内联提示，info/success/warning/error，可关闭 |
 | Spin | `spin/` | ★★★☆☆ | 加载指示器，small/default/large，tip，TickFrame动画 |
 | Notification | `notification/` | ★★★☆☆ | 通知弹窗，info/success/warning/error，可关闭，placement，duration |
+| Empty | `empty/` | ★★★☆☆ | 空状态占位，自定义描述和图片 |
 | Toast | `toast/` | ★★★☆☆ | 已从 tooltip 独立，info/success/warning/error，自动消失 |
 | Tooltip | `tooltip/` | ★★★☆☆ | placement 方位有限 |
 | Progress | `progress/` | ★★☆☆☆ | 线形进度条，value/max，showPercent |
@@ -87,7 +88,7 @@
 | **Tag** | 标签，支持可关闭、颜色 | `Tag` |
 | **Collapse** | 折叠面板，手风琴模式 | `Collapse` |
 | **Descriptions** | 描述列表，键值对展示 | `Descriptions` |
-| **Empty** | 空状态占位 | `Empty` |
+| ~~**Empty**~~ | ~~空状态占位~~ | `Empty` ✅ 已实现（2026-03）|
 | **Statistic** | 统计数字展示 | `Statistic` |
 | **Timeline** | 时间轴 | `Timeline` |
 
