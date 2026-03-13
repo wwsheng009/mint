@@ -11,7 +11,7 @@
 | 组件 | 目录 | 完整度 | 说明 |
 |------|------|--------|------|
 | Button | `button/` | ★★★★☆ | Primary/Secondary/Danger/Ghost变体，disabled，icon |
-| Input | `input/` | ★★★★☆ | text/password/number/email，placeholder，maxLen，readOnly |
+| Input | `input/` | ★★★★☆ | text/password/number/email，placeholder，maxLen，readOnly，prefix/suffix，addonBefore/addonAfter，Search变体 |
 | Textarea | `textarea/` | ★★★☆☆ | 多行文本输入 |
 | Select | `select/` | ★★★★☆ | 单选/多选，overlay popup，placeholder，disabled |
 | Checkbox | `checkbox/` | ★★★★☆ | 基本勾选、indeterminate、CheckboxGroup |
@@ -117,7 +117,7 @@
 | 组件 | 缺失功能 | 优先级 |
 |------|---------|--------|
 | **Form** | Context 化替代全局 registry；补 touched/dirty 等字段级状态 | 中 |
-| **Input** | prefix/suffix 插槽；addonBefore/addonAfter；Search 变体；InputNumber 完整实现 | 高 |
+| **Input** | InputNumber 完整实现 | 高 |
 | ~~**Checkbox**~~ | ~~indeterminate 半选状态；CheckboxGroup 组件~~ | ~~高~~ |
 | **Progress** | 圆形（Circle）和仪表盘（Dashboard）样式；status（success/exception/active） | 中 |
 | **Select** | OptGroup 分组；filterOption 搜索过滤；tags 模式（自定义输入+选择） | 中 |
@@ -150,7 +150,7 @@
 - [x] `Radio` — 独立单选按钮 + RadioGroup（2026-03）
 - [x] `Switch` — 开关控件（2026-03）
 - [x] `Checkbox` 增强 — indeterminate 状态，CheckboxGroup（2026-03）
-- [ ] `Input` 增强 — prefix/suffix，Search 变体，addonBefore/addonAfter
+- [x] `Input` 增强 — prefix/suffix，Search 变体，addonBefore/addonAfter（2026-03）
 - [ ] `Select` 增强 — OptGroup，filterOption，tags 模式
 - [ ] `Slider` — 数值滑块
 - [ ] `Rate` — 星级评分

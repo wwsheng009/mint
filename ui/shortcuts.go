@@ -60,6 +60,10 @@ func NewInputBuilder() *input.Builder {
 	return input.NewBuilder()
 }
 
+func NewSearchInputBuilder() *input.Builder {
+	return input.NewBuilder().Search()
+}
+
 func NewTextareaBuilder() *textarea.Builder {
 	return textarea.NewBuilder()
 }
@@ -365,6 +369,11 @@ func NewCheckboxOption(value, label string) checkbox.Option {
 // Input creates an input field with placeholder
 func Input(placeholder string) rtui.VNode {
 	return input.NewBuilder().Placeholder(placeholder).Build()
+}
+
+// SearchInput creates a search input field with placeholder.
+func SearchInput(placeholder string) rtui.VNode {
+	return input.NewBuilder().Search().Placeholder(placeholder).Build()
 }
 
 // InputWithValue creates an input field with initial value and placeholder

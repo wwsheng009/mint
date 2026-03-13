@@ -66,6 +66,33 @@ func TestVNode_Builder(t *testing.T) {
 	}
 }
 
+func TestVNode_Builder_AffixesAndSearch(t *testing.T) {
+	input := NewBuilder().
+		Placeholder("Search users").
+		Prefix("@").
+		Suffix(".com").
+		AddonBefore("https://").
+		AddonAfter("/profile").
+		Search().
+		BuildTyped()
+
+	if input.Prefix() != "@" {
+		t.Fatalf("Prefix = %q, want %q", input.Prefix(), "@")
+	}
+	if input.Suffix() != ".com" {
+		t.Fatalf("Suffix = %q, want %q", input.Suffix(), ".com")
+	}
+	if input.AddonBefore() != "https://" {
+		t.Fatalf("AddonBefore = %q, want %q", input.AddonBefore(), "https://")
+	}
+	if input.AddonAfter() != "/profile" {
+		t.Fatalf("AddonAfter = %q, want %q", input.AddonAfter(), "/profile")
+	}
+	if !input.SearchVariant() {
+		t.Fatal("SearchVariant should be true")
+	}
+}
+
 func TestVNode_Builder_InsertCursor(t *testing.T) {
 	input := NewBuilder().InsertCursor().Build().(*VNode)
 	if input.cursorConfig.Shape != cursor.ShapeBar {
@@ -123,20 +150,26 @@ func TestInstance_Measure(t *testing.T) {
 		name    string
 		value   string
 		width   int
+		props   rtui.Props
 		wantMin int
 	}{
-		{"Empty value", "", 0, 12}, // 10 min content + 2 bracket padding
-		{"Short value", "hi", 0, 12},
-		{"Long value", "hello world", 0, 13},  // 11 content + 2 padding
-		{"With explicit width", "hi", 20, 22}, // 20 width + 2 padding
+		{"Empty value", "", 0, nil, 12}, // 10 min content + 2 bracket padding
+		{"Short value", "hi", 0, nil, 12},
+		{"Long value", "hello world", 0, nil, 13},  // 11 content + 2 padding
+		{"With explicit width", "hi", 20, nil, 22}, // 20 width + 2 padding
+		{"With addons", "go", 12, rtui.Props{"addonBefore": "https://", "addonAfter": ".dev"}, 28},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			inst := NewInstance(rtui.Props{
+			props := rtui.Props{
 				"value": tt.value,
 				"width": tt.width,
-			})
+			}
+			for k, v := range tt.props {
+				props[k] = v
+			}
+			inst := NewInstance(props)
 
 			size := inst.Measure(layout.UnboundedConstraints())
 
@@ -431,6 +464,60 @@ func TestInstance_Paint(t *testing.T) {
 	}
 }
 
+func TestInstance_Paint_WithPrefixSuffix(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"value":  "alice",
+		"prefix": "@",
+		"suffix": ".com",
+		"width":  14,
+	})
+
+	cmds := inst.Paint(0, 0)
+	if len(cmds) != 5 {
+		t.Fatalf("Paint returned %d commands, want 5", len(cmds))
+	}
+
+	if cmds[4].Text != "@alice    .com" {
+		t.Fatalf("Text = %q, want %q", cmds[4].Text, "@alice    .com")
+	}
+}
+
+func TestInstance_Paint_WithAddons(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"value":       "mint",
+		"width":       10,
+		"addonBefore": "https://",
+		"addonAfter":  ".dev",
+	})
+
+	cmds := inst.Paint(0, 0)
+	if len(cmds) != 7 {
+		t.Fatalf("Paint returned %d commands, want 7", len(cmds))
+	}
+	if cmds[0].Text != "https://" {
+		t.Fatalf("addon before = %q, want %q", cmds[0].Text, "https://")
+	}
+	if cmds[len(cmds)-1].Text != ".dev" {
+		t.Fatalf("addon after = %q, want %q", cmds[len(cmds)-1].Text, ".dev")
+	}
+}
+
+func TestInstance_Paint_SearchVariant(t *testing.T) {
+	inst := NewBuilder().
+		Search().
+		Placeholder("Find packages").
+		Width(16).
+		BuildInstance()
+
+	cmds := inst.Paint(0, 0)
+	if len(cmds) != 5 {
+		t.Fatalf("Paint returned %d commands, want 5", len(cmds))
+	}
+	if cmds[4].Text != "/ Find packages " {
+		t.Fatalf("Text = %q, want %q", cmds[4].Text, "/ Find packages ")
+	}
+}
+
 func TestInstance_Paint_BorderNone(t *testing.T) {
 	inst := NewInstance(rtui.Props{
 		"value":       "test",
@@ -478,7 +565,9 @@ func TestInstance_Paint_WithWidth(t *testing.T) {
 
 func TestInstance_Paint_FocusedShowsCursor(t *testing.T) {
 	inst := NewInstance(rtui.Props{
-		"value": "abc",
+		"value":  "abc",
+		"prefix": "@",
+		"width":  10,
 	})
 	inst.SetFocus(true)
 	inst.SetCursorPos(1)
@@ -489,8 +578,8 @@ func TestInstance_Paint_FocusedShowsCursor(t *testing.T) {
 	}
 
 	cursorCmd := cmds[len(cmds)-1]
-	if cursorCmd.X != 2 || cursorCmd.Y != 1 {
-		t.Fatalf("Cursor command at (%d,%d), want (2,1)", cursorCmd.X, cursorCmd.Y)
+	if cursorCmd.X != 3 || cursorCmd.Y != 1 {
+		t.Fatalf("Cursor command at (%d,%d), want (3,1)", cursorCmd.X, cursorCmd.Y)
 	}
 	if cursorCmd.Text != "b" {
 		t.Fatalf("Cursor command text = %q, want %q", cursorCmd.Text, "b")

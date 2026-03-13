@@ -16,20 +16,25 @@ import (
 
 // Prop key constants — shared by VNode and Instance to avoid magic strings.
 const (
-	propBorderStyle = "borderStyle"
-	propChangeIntent = "changeIntent"
-	propCursorConfig = "cursorConfig"
-	propDisabled = "disabled"
-	propFormID = "formID"
-	propInputType = "inputType"
-	propKey = "key"
-	propMaxLen = "maxLen"
-	propPlaceholder = "placeholder"
-	propReadOnly = "readOnly"
-	propStyle = "style"
-	propSubmitIntent = "submitIntent"
-	propValue = "value"
-	propWidth = "width"
+	propAddonAfter    = "addonAfter"
+	propAddonBefore   = "addonBefore"
+	propBorderStyle   = "borderStyle"
+	propChangeIntent  = "changeIntent"
+	propCursorConfig  = "cursorConfig"
+	propDisabled      = "disabled"
+	propFormID        = "formID"
+	propInputType     = "inputType"
+	propKey           = "key"
+	propMaxLen        = "maxLen"
+	propPlaceholder   = "placeholder"
+	propPrefix        = "prefix"
+	propReadOnly      = "readOnly"
+	propSearchVariant = "searchVariant"
+	propStyle         = "style"
+	propSubmitIntent  = "submitIntent"
+	propSuffix        = "suffix"
+	propValue         = "value"
+	propWidth         = "width"
 )
 
 // =============================================================================
@@ -61,6 +66,10 @@ type VNode struct {
 	// === Visual Props ===
 	placeholder string
 	inputType   Type
+	prefix      string
+	suffix      string
+	addonBefore string
+	addonAfter  string
 	style       style.Style
 
 	// === Layout Props ===
@@ -75,11 +84,12 @@ type VNode struct {
 	formID       string        // Form ID for Form integration (Phase 6)
 
 	// === State Props (declarative, actual state managed by Instance) ===
-	value        string
-	maxLen       int
-	disabled     bool
-	readOnly     bool
-	cursorConfig cursor.Config
+	value         string
+	maxLen        int
+	disabled      bool
+	readOnly      bool
+	searchVariant bool
+	cursorConfig  cursor.Config
 
 	// === Box Model (via interface) ===
 	rtui.BoxModelMixin
@@ -160,20 +170,25 @@ func (i *VNode) SetLayer(l rtui.Layer) rtui.VNode {
 // Props returns the node properties.
 func (i *VNode) Props() rtui.Props {
 	return rtui.Props{
-		propKey:          i.key,
-		propPlaceholder:  i.placeholder,
-		propInputType:    i.inputType,
-		propStyle:        i.style,
-		propWidth:        i.width,
-		propBorderStyle:  i.borderStyle,
-		propChangeIntent: i.changeIntent,
-		propSubmitIntent: i.submitIntent,
-		propFormID:       i.formID,
-		propValue:        i.value,
-		propMaxLen:       i.maxLen,
-		propDisabled:     i.disabled,
-		propReadOnly:     i.readOnly,
-		propCursorConfig: i.cursorConfig,
+		propKey:           i.key,
+		propPlaceholder:   i.placeholder,
+		propInputType:     i.inputType,
+		propPrefix:        i.prefix,
+		propSuffix:        i.suffix,
+		propAddonBefore:   i.addonBefore,
+		propAddonAfter:    i.addonAfter,
+		propStyle:         i.style,
+		propWidth:         i.width,
+		propBorderStyle:   i.borderStyle,
+		propChangeIntent:  i.changeIntent,
+		propSubmitIntent:  i.submitIntent,
+		propFormID:        i.formID,
+		propValue:         i.value,
+		propMaxLen:        i.maxLen,
+		propDisabled:      i.disabled,
+		propReadOnly:      i.readOnly,
+		propSearchVariant: i.searchVariant,
+		propCursorConfig:  i.cursorConfig,
 	}
 }
 
@@ -187,6 +202,18 @@ func (i *VNode) SetProps(p rtui.Props) rtui.VNode {
 	}
 	if v, ok := p[propInputType].(Type); ok {
 		i.inputType = v
+	}
+	if v, ok := p[propPrefix].(string); ok {
+		i.prefix = v
+	}
+	if v, ok := p[propSuffix].(string); ok {
+		i.suffix = v
+	}
+	if v, ok := p[propAddonBefore].(string); ok {
+		i.addonBefore = v
+	}
+	if v, ok := p[propAddonAfter].(string); ok {
+		i.addonAfter = v
 	}
 	if v, ok := p[propStyle].(style.Style); ok {
 		i.style = v
@@ -218,6 +245,9 @@ func (i *VNode) SetProps(p rtui.Props) rtui.VNode {
 	if v, ok := p[propReadOnly].(bool); ok {
 		i.readOnly = v
 	}
+	if v, ok := p[propSearchVariant].(bool); ok {
+		i.searchVariant = v
+	}
 	if v, ok := p[propCursorConfig].(cursor.Config); ok {
 		i.cursorConfig = cursor.NormalizeConfig(v)
 	}
@@ -231,20 +261,25 @@ func (i *VNode) SetProps(p rtui.Props) rtui.VNode {
 // CreateInstance creates a new InputInstance from this VNode description.
 func (i *VNode) CreateInstance() rtui.ComponentInstance {
 	props := rtui.Props{
-		propKey:          i.key,
-		propPlaceholder:  i.placeholder,
-		propInputType:    i.inputType,
-		propStyle:        i.style,
-		propWidth:        i.width,
-		propBorderStyle:  i.borderStyle,
-		propChangeIntent: i.changeIntent,
-		propSubmitIntent: i.submitIntent,
-		propFormID:       i.formID,
-		propValue:        i.value,
-		propMaxLen:       i.maxLen,
-		propDisabled:     i.disabled,
-		propReadOnly:     i.readOnly,
-		propCursorConfig: i.cursorConfig,
+		propKey:           i.key,
+		propPlaceholder:   i.placeholder,
+		propInputType:     i.inputType,
+		propPrefix:        i.prefix,
+		propSuffix:        i.suffix,
+		propAddonBefore:   i.addonBefore,
+		propAddonAfter:    i.addonAfter,
+		propStyle:         i.style,
+		propWidth:         i.width,
+		propBorderStyle:   i.borderStyle,
+		propChangeIntent:  i.changeIntent,
+		propSubmitIntent:  i.submitIntent,
+		propFormID:        i.formID,
+		propValue:         i.value,
+		propMaxLen:        i.maxLen,
+		propDisabled:      i.disabled,
+		propReadOnly:      i.readOnly,
+		propSearchVariant: i.searchVariant,
+		propCursorConfig:  i.cursorConfig,
 	}
 	return NewInstance(props)
 }
@@ -271,6 +306,30 @@ func (i *VNode) SetType(t Type) *VNode {
 	return i
 }
 
+// SetPrefix sets the inner prefix text rendered before the editable value.
+func (i *VNode) SetPrefix(prefix string) *VNode {
+	i.prefix = prefix
+	return i
+}
+
+// SetSuffix sets the inner suffix text rendered after the editable value.
+func (i *VNode) SetSuffix(suffix string) *VNode {
+	i.suffix = suffix
+	return i
+}
+
+// SetAddonBefore sets the outer text rendered before the input box.
+func (i *VNode) SetAddonBefore(addon string) *VNode {
+	i.addonBefore = addon
+	return i
+}
+
+// SetAddonAfter sets the outer text rendered after the input box.
+func (i *VNode) SetAddonAfter(addon string) *VNode {
+	i.addonAfter = addon
+	return i
+}
+
 // SetPassword sets the input type to password.
 func (i *VNode) SetPassword() *VNode {
 	i.inputType = TypePassword
@@ -292,6 +351,15 @@ func (i *VNode) SetDisabled(disabled bool) *VNode {
 // SetReadOnly sets the read-only state.
 func (i *VNode) SetReadOnly(readOnly bool) *VNode {
 	i.readOnly = readOnly
+	return i
+}
+
+// SetSearchVariant enables or disables the Search input variant.
+func (i *VNode) SetSearchVariant(enabled bool) *VNode {
+	i.searchVariant = enabled
+	if enabled && i.inputType == TypePassword {
+		i.inputType = TypeText
+	}
 	return i
 }
 
@@ -400,6 +468,26 @@ func (i *VNode) InputType() Type {
 	return i.inputType
 }
 
+// Prefix returns the prefix text.
+func (i *VNode) Prefix() string {
+	return i.prefix
+}
+
+// Suffix returns the suffix text.
+func (i *VNode) Suffix() string {
+	return i.suffix
+}
+
+// AddonBefore returns the leading addon text.
+func (i *VNode) AddonBefore() string {
+	return i.addonBefore
+}
+
+// AddonAfter returns the trailing addon text.
+func (i *VNode) AddonAfter() string {
+	return i.addonAfter
+}
+
 // Value returns the initial value.
 func (i *VNode) Value() string {
 	return i.value
@@ -418,6 +506,11 @@ func (i *VNode) Disabled() bool {
 // ReadOnly returns the read-only state.
 func (i *VNode) ReadOnly() bool {
 	return i.readOnly
+}
+
+// SearchVariant reports whether the Search input variant is enabled.
+func (i *VNode) SearchVariant() bool {
+	return i.searchVariant
 }
 
 // Width returns the explicit width.

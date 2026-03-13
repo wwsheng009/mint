@@ -4,8 +4,13 @@ import (
 	"testing"
 
 	"github.com/wwsheng009/mint/runtime/action"
+	"github.com/wwsheng009/mint/runtime/intent"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
+
+type testSearchIntent struct{}
+
+func (testSearchIntent) IntentType() string { return "test:search" }
 
 // TestActionHandlerInstance_KeyInput 测试 Instance.HandleAction 处理键盘输入
 func TestActionHandlerInstance_KeyInput(t *testing.T) {
@@ -90,6 +95,17 @@ func TestActionHandlerInstance_Submit(t *testing.T) {
 	// Enter 不应该调用什么（没有 submitIntent）
 	if !inst.HandleAction(action.NewAction(action.ActionEnter)) {
 		t.Error("HandleAction(action.Enter) should return true")
+	}
+}
+
+func TestBuilder_OnSearchSetsSubmitIntent(t *testing.T) {
+	vnode := NewBuilder().Search().OnSearch(testSearchIntent{}).Build()
+	submitIntent, ok := vnode.Props()[propSubmitIntent].(intent.Intent)
+	if !ok {
+		t.Fatal("submitIntent should be present")
+	}
+	if submitIntent.IntentType() != "test:search" {
+		t.Fatalf("submitIntent = %q, want %q", submitIntent.IntentType(), "test:search")
 	}
 }
 

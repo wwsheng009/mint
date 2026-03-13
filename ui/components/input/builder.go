@@ -56,6 +56,36 @@ func (b *Builder) Type(t Type) *Builder {
 	return b
 }
 
+// Prefix sets the inner prefix text rendered before the editable value.
+func (b *Builder) Prefix(text string) *Builder {
+	b.node.SetPrefix(text)
+	return b
+}
+
+// Suffix sets the inner suffix text rendered after the editable value.
+func (b *Builder) Suffix(text string) *Builder {
+	b.node.SetSuffix(text)
+	return b
+}
+
+// AddonBefore sets the outer leading addon text.
+func (b *Builder) AddonBefore(text string) *Builder {
+	b.node.SetAddonBefore(text)
+	return b
+}
+
+// AddonAfter sets the outer trailing addon text.
+func (b *Builder) AddonAfter(text string) *Builder {
+	b.node.SetAddonAfter(text)
+	return b
+}
+
+// Search enables the search input variant.
+func (b *Builder) Search() *Builder {
+	b.node.SetSearchVariant(true)
+	return b
+}
+
 // Password sets the input type to password.
 func (b *Builder) Password() *Builder {
 	b.node.SetPassword()
@@ -200,6 +230,12 @@ func (b *Builder) OnSubmit(submitIntent intent.Intent) *Builder {
 	return b
 }
 
+// OnSearch is an alias of OnSubmit for the Search variant.
+func (b *Builder) OnSearch(searchIntent intent.Intent) *Builder {
+	b.node.SetSubmitIntent(searchIntent)
+	return b
+}
+
 // Build returns the VNode.
 func (b *Builder) Build() rtui.VNode {
 	return b.node
@@ -208,6 +244,11 @@ func (b *Builder) Build() rtui.VNode {
 // BuildTyped returns the typed VNode.
 func (b *Builder) BuildTyped() *VNode {
 	return b.node
+}
+
+// BuildInstance returns the runtime instance.
+func (b *Builder) BuildInstance() *Instance {
+	return NewInstance(b.node.Props())
 }
 
 // =============================================================================
@@ -224,6 +265,11 @@ func Input() *VNode {
 // This matches the old form.NewInput() API.
 func NewInput() *VNode {
 	return New()
+}
+
+// SearchInput creates a new Search input builder.
+func SearchInput() *Builder {
+	return NewBuilder().Search()
 }
 
 // InputBuilder is an alias for Builder (for backward compatibility).

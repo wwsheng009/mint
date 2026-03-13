@@ -18,6 +18,11 @@ import (
 	"github.com/wwsheng009/mint/ui/components/form"
 )
 
+const (
+	searchVariantPrefix = "/ "
+	addonGapWidth       = 1
+)
+
 // =============================================================================
 // Instance - Runtime Entity
 // =============================================================================
@@ -29,16 +34,21 @@ type Instance struct {
 	key string
 
 	// === Props (from VNode, may change each render) ===
-	placeholder  string
-	inputType    Type
-	inputStyle   style.Style
-	width        int
-	borderStyle  layout.BorderStyle
-	changeIntent intent.Intent
-	submitIntent intent.Intent
-	formID       string // Form ID for Form integration (Phase 6)
-	maxLen       int
-	cursorConfig cursor.Config
+	placeholder   string
+	inputType     Type
+	prefix        string
+	suffix        string
+	addonBefore   string
+	addonAfter    string
+	inputStyle    style.Style
+	width         int
+	borderStyle   layout.BorderStyle
+	changeIntent  intent.Intent
+	submitIntent  intent.Intent
+	formID        string // Form ID for Form integration (Phase 6)
+	maxLen        int
+	searchVariant bool
+	cursorConfig  cursor.Config
 
 	// === Runtime State (managed by instance) ===
 	state       control.InteractionState
@@ -76,24 +86,32 @@ var (
 func NewInstance(props rtui.Props) *Instance {
 	cursorCfg := getCursorConfigProp(props, "cursorConfig", cursor.DefaultConfig())
 	inst := &Instance{
-		key:          proputil.GetString(props, "key", ""),
-		placeholder:  proputil.GetString(props, "placeholder", ""),
-		inputType:    getTypeProp(props, TypeText),
-		inputStyle:   proputil.GetStyle(props, "style", style.Style{}),
-		width:        proputil.GetInt(props, "width", 0),
-		borderStyle:  getBorderStyleProp(props, "borderStyle", layout.BorderSingle),
-		changeIntent: proputil.GetIntent(props, "changeIntent", nil),
-		submitIntent: proputil.GetIntent(props, "submitIntent", nil),
-		formID:       proputil.GetString(props, "formID", ""),
-		value:        proputil.GetString(props, "value", ""),
-		maxLen:       proputil.GetInt(props, "maxLen", 0),
-		cursorConfig: cursorCfg,
-		cursorModel:  cursor.NewModel(cursorCfg),
-		dirty:        true,
+		key:           proputil.GetString(props, "key", ""),
+		placeholder:   proputil.GetString(props, "placeholder", ""),
+		inputType:     getTypeProp(props, TypeText),
+		prefix:        proputil.GetString(props, propPrefix, ""),
+		suffix:        proputil.GetString(props, propSuffix, ""),
+		addonBefore:   proputil.GetString(props, propAddonBefore, ""),
+		addonAfter:    proputil.GetString(props, propAddonAfter, ""),
+		inputStyle:    proputil.GetStyle(props, "style", style.Style{}),
+		width:         proputil.GetInt(props, "width", 0),
+		borderStyle:   getBorderStyleProp(props, "borderStyle", layout.BorderSingle),
+		changeIntent:  proputil.GetIntent(props, "changeIntent", nil),
+		submitIntent:  proputil.GetIntent(props, "submitIntent", nil),
+		formID:        proputil.GetString(props, "formID", ""),
+		value:         proputil.GetString(props, "value", ""),
+		maxLen:        proputil.GetInt(props, "maxLen", 0),
+		searchVariant: proputil.GetBool(props, propSearchVariant, false),
+		cursorConfig:  cursorCfg,
+		cursorModel:   cursor.NewModel(cursorCfg),
+		dirty:         true,
 	}
 
 	// Initialize cursor position at end of value
 	inst.cursorPos = utf8.RuneCountInString(inst.value)
+	if inst.searchVariant && inst.inputType == TypePassword {
+		inst.inputType = TypeText
+	}
 
 	// Initialize state
 	inst.state = control.InteractionState{
@@ -163,10 +181,19 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	oldDisabled := inst.state.Disabled
 	oldReadOnly := inst.state.Active
 	oldPlaceholder := inst.placeholder
+	oldPrefix := inst.prefix
+	oldSuffix := inst.suffix
+	oldAddonBefore := inst.addonBefore
+	oldAddonAfter := inst.addonAfter
+	oldSearchVariant := inst.searchVariant
 	oldCursorConfig := inst.cursorConfig
 
 	inst.placeholder = proputil.GetString(props, "placeholder", inst.placeholder)
 	inst.inputType = getTypeProp(props, inst.inputType)
+	inst.prefix = proputil.GetString(props, propPrefix, inst.prefix)
+	inst.suffix = proputil.GetString(props, propSuffix, inst.suffix)
+	inst.addonBefore = proputil.GetString(props, propAddonBefore, inst.addonBefore)
+	inst.addonAfter = proputil.GetString(props, propAddonAfter, inst.addonAfter)
 	inst.inputStyle = proputil.GetStyle(props, "style", style.Style{})
 	inst.width = proputil.GetInt(props, "width", inst.width)
 	inst.borderStyle = getBorderStyleProp(props, "borderStyle", inst.borderStyle)
@@ -183,6 +210,10 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 		inst.cursorModel.ResetBlink()
 	}
 	inst.maxLen = proputil.GetInt(props, "maxLen", inst.maxLen)
+	inst.searchVariant = proputil.GetBool(props, propSearchVariant, inst.searchVariant)
+	if inst.searchVariant && inst.inputType == TypePassword {
+		inst.inputType = TypeText
+	}
 
 	newDisabled := proputil.GetBool(props, "disabled", inst.state.Disabled)
 	if newDisabled != inst.state.Disabled {
@@ -205,7 +236,12 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 		oldDisabled != inst.state.Disabled ||
 		oldReadOnly != inst.state.Active ||
 		oldCursorConfig != inst.cursorConfig ||
-		oldPlaceholder != inst.placeholder
+		oldPlaceholder != inst.placeholder ||
+		oldPrefix != inst.prefix ||
+		oldSuffix != inst.suffix ||
+		oldAddonBefore != inst.addonBefore ||
+		oldAddonAfter != inst.addonAfter ||
+		oldSearchVariant != inst.searchVariant
 
 	if changed {
 		inst.dirty = true
@@ -216,12 +252,17 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 // GetProps implements ComponentInstance.
 func (inst *Instance) GetProps() rtui.Props {
 	return rtui.Props{
-		propKey:          inst.key,
-		propPlaceholder:  inst.placeholder,
-		propValue:        inst.value,
-		propDisabled:     inst.state.Disabled,
-		propReadOnly:     inst.state.Active,
-		propCursorConfig: inst.cursorConfig,
+		propKey:           inst.key,
+		propPlaceholder:   inst.placeholder,
+		propPrefix:        inst.prefix,
+		propSuffix:        inst.suffix,
+		propAddonBefore:   inst.addonBefore,
+		propAddonAfter:    inst.addonAfter,
+		propValue:         inst.value,
+		propDisabled:      inst.state.Disabled,
+		propReadOnly:      inst.state.Active,
+		propSearchVariant: inst.searchVariant,
+		propCursorConfig:  inst.cursorConfig,
 	}
 }
 
@@ -251,11 +292,7 @@ func (inst *Instance) Paint(x, y int) []paint.DrawCmd {
 	// Get actual content size from bounds, or calculate from props
 	_, _, boxWidth, boxHeight := inst.GetBounds()
 	if boxWidth == 0 {
-		// Calculate size from props if bounds not set
-		boxWidth = 12 // Default minimum with border
-		if inst.width > 0 {
-			boxWidth = inst.width + 2 // Add bracket/border padding
-		}
+		boxWidth = inst.defaultBoxWidth()
 	}
 
 	// Determine if we need brackets (BorderNone still uses [ ] brackets)
@@ -279,43 +316,43 @@ func (inst *Instance) Paint(x, y int) []paint.DrawCmd {
 		borderWidth = 1 // Brackets also take 1 char on each side
 	}
 
+	addonBeforeWidth := paint.StringWidth(inst.addonBefore)
+	addonAfterWidth := paint.StringWidth(inst.addonAfter)
+	borderX := x
+	if addonBeforeWidth > 0 {
+		borderX += addonBeforeWidth + addonGapWidth
+	}
+	addonY := y
+	if useFullBorder {
+		addonY = y + 1
+	}
+
+	if addonBeforeWidth > 0 {
+		cmds = append(cmds, paint.DrawCmd{
+			X:     x,
+			Y:     addonY,
+			Text:  inst.addonBefore,
+			Style: inst.resolveAddonStyle(),
+		})
+	}
+
 	// Draw full border if present
 	if useFullBorder {
-		cmds = append(cmds, inst.paintBorder(x, y, boxWidth, boxHeight)...)
+		cmds = append(cmds, inst.paintBorder(borderX, y, boxWidth, boxHeight)...)
 	}
 
 	// Calculate content position (inside border/brackets)
-	contentX := x + borderWidth
+	contentX := borderX + borderWidth
 	contentY := y + borderWidth
 	contentWidth := boxWidth - borderWidth*2
 	if contentWidth < 1 {
 		contentWidth = 1
 	}
 
-	// Determine what to display
-	displayValue := inst.value
-	if displayValue == "" {
-		displayValue = inst.placeholder
-	}
-
-	// Format based on type
-	var text string
-	switch inst.inputType {
-	case TypePassword:
-		if inst.value == "" {
-			text = inst.placeholder
-		} else {
-			text = strings.Repeat("*", utf8.RuneCountInString(inst.value))
-		}
-	default:
-		text = displayValue
-	}
-
-	// Keep raw text for cursor calculation, then clamp/pad for rendering.
-	rawText := text
-	if contentWidth > 0 {
-		text = inst.padText(text, contentWidth)
-	}
+	prefix := inst.effectivePrefix()
+	suffix := inst.effectiveSuffix()
+	rawEditable := inst.displayEditableText()
+	text := inst.buildDisplayText(prefix, rawEditable, suffix, contentWidth)
 
 	// Resolve style
 	inputStyle := inst.resolveStyle()
@@ -325,9 +362,9 @@ func (inst *Instance) Paint(x, y int) []paint.DrawCmd {
 		// Draw [text] format
 		bracketStyle := inst.resolveBorderColor()
 		cmds = append(cmds,
-			paint.DrawCmd{X: x, Y: contentY, Text: "[", Style: style.Style{FG: bracketStyle}},
-			paint.DrawCmd{X: x + 1, Y: contentY, Text: text, Style: inputStyle},
-			paint.DrawCmd{X: x + 1 + contentWidth, Y: contentY, Text: "]", Style: style.Style{FG: bracketStyle}},
+			paint.DrawCmd{X: borderX, Y: contentY, Text: "[", Style: style.Style{FG: bracketStyle}},
+			paint.DrawCmd{X: borderX + 1, Y: contentY, Text: text, Style: inputStyle},
+			paint.DrawCmd{X: borderX + 1 + contentWidth, Y: contentY, Text: "]", Style: style.Style{FG: bracketStyle}},
 		)
 	} else {
 		// Add text draw command (for full border mode)
@@ -341,12 +378,25 @@ func (inst *Instance) Paint(x, y int) []paint.DrawCmd {
 
 	// Draw caret overlay when focused.
 	if inst.shouldDrawCursor() {
-		cursorCol, cursorChar := inst.computeCursorOverlay(rawText, contentWidth)
+		cursorCol, cursorChar := inst.computeCursorOverlay(rawEditable, contentWidth, paint.StringWidth(prefix), paint.StringWidth(suffix))
 		if cursorCol >= 0 && cursorCol < contentWidth {
 			if cmd, ok := inst.cursorModel.DrawCmd(contentX+cursorCol, contentY, cursorChar, inputStyle); ok {
 				cmds = append(cmds, cmd)
 			}
 		}
+	}
+
+	if addonAfterWidth > 0 {
+		addonAfterX := borderX + boxWidth
+		if addonBeforeWidth > 0 || addonAfterWidth > 0 {
+			addonAfterX += addonGapWidth
+		}
+		cmds = append(cmds, paint.DrawCmd{
+			X:     addonAfterX,
+			Y:     addonY,
+			Text:  inst.addonAfter,
+			Style: inst.resolveAddonStyle(),
+		})
 	}
 
 	return cmds
@@ -405,6 +455,104 @@ func (inst *Instance) paintBorder(x, y, width, height int) []paint.DrawCmd {
 	})
 
 	return cmds
+}
+
+func (inst *Instance) defaultBoxWidth() int {
+	return inst.innerContentWidth() + 2
+}
+
+func (inst *Instance) innerContentWidth() int {
+	prefixWidth := paint.StringWidth(inst.effectivePrefix())
+	suffixWidth := paint.StringWidth(inst.effectiveSuffix())
+	editableWidth := paint.StringWidth(inst.displayEditableText())
+
+	width := prefixWidth + editableWidth + suffixWidth
+	if inst.width > 0 {
+		width = inst.width
+	}
+
+	if inst.maxLen > 0 {
+		maxEditableWidth := inst.maxLen + prefixWidth + suffixWidth
+		if width > maxEditableWidth {
+			width = maxEditableWidth
+		}
+	}
+
+	if width < 10 {
+		width = 10
+	}
+
+	return width
+}
+
+func (inst *Instance) measureTotalWidth() int {
+	totalWidth := inst.defaultBoxWidth()
+	if inst.addonBefore != "" {
+		totalWidth += paint.StringWidth(inst.addonBefore) + addonGapWidth
+	}
+	if inst.addonAfter != "" {
+		totalWidth += addonGapWidth + paint.StringWidth(inst.addonAfter)
+	}
+	return totalWidth
+}
+
+func (inst *Instance) displayEditableText() string {
+	switch inst.inputType {
+	case TypePassword:
+		if inst.value == "" {
+			return inst.placeholder
+		}
+		return strings.Repeat("*", utf8.RuneCountInString(inst.value))
+	default:
+		if inst.value == "" {
+			return inst.placeholder
+		}
+		return inst.value
+	}
+}
+
+func (inst *Instance) effectivePrefix() string {
+	if inst.prefix != "" {
+		return inst.prefix
+	}
+	if inst.searchVariant {
+		return searchVariantPrefix
+	}
+	return ""
+}
+
+func (inst *Instance) effectiveSuffix() string {
+	return inst.suffix
+}
+
+func (inst *Instance) buildDisplayText(prefix, editable, suffix string, contentWidth int) string {
+	if contentWidth <= 0 {
+		return ""
+	}
+
+	prefixWidth := paint.StringWidth(prefix)
+	suffixWidth := paint.StringWidth(suffix)
+	editableWidth := contentWidth - prefixWidth - suffixWidth
+	if editableWidth < 0 {
+		editableWidth = 0
+	}
+
+	editableText := editable
+	if editableWidth > 0 {
+		editableText = inst.padText(editable, editableWidth)
+	} else {
+		editableText = ""
+	}
+
+	text := prefix + editableText + suffix
+	textWidth := paint.StringWidth(text)
+	if textWidth > contentWidth {
+		return truncateByDisplayWidth(text, contentWidth)
+	}
+	if textWidth < contentWidth {
+		return text + strings.Repeat(" ", contentWidth-textWidth)
+	}
+	return text
 }
 
 // getBorderChars returns border characters based on style and state.
@@ -472,9 +620,19 @@ func truncateByDisplayWidth(text string, maxWidth int) string {
 
 // resolveStyle resolves the visual style based on state.
 func (inst *Instance) resolveStyle() style.Style {
+	s := inst.resolveBaseStyle()
+
+	// Placeholder styling
+	if inst.value == "" && inst.placeholder != "" {
+		s = s.Foreground(theme.Placeholder())
+	}
+
+	return s
+}
+
+func (inst *Instance) resolveBaseStyle() style.Style {
 	s := inst.inputStyle
 
-	// Apply default colors
 	if s.FG == "" {
 		s = s.Foreground(theme.Text())
 	}
@@ -482,12 +640,6 @@ func (inst *Instance) resolveStyle() style.Style {
 		s = s.Background(theme.Surface())
 	}
 
-	// Placeholder styling
-	if inst.value == "" && inst.placeholder != "" {
-		s = s.Foreground(theme.Placeholder())
-	}
-
-	// State priority: Disabled > Focused > Hovered > Normal
 	if inst.state.Disabled {
 		s = s.Foreground(theme.DisabledFG()).Background(theme.DisabledBG())
 	} else if inst.state.Focused {
@@ -496,6 +648,17 @@ func (inst *Instance) resolveStyle() style.Style {
 		s = s.Underline(true)
 	}
 
+	return s
+}
+
+func (inst *Instance) resolveAddonStyle() style.Style {
+	s := inst.resolveBaseStyle()
+	if !inst.state.Disabled && s.FG == theme.Focus() {
+		s = s.Foreground(theme.Muted()).Underline(false).Bold(false)
+	}
+	if s.FG == "" {
+		s = s.Foreground(theme.Muted())
+	}
 	return s
 }
 
@@ -669,17 +832,20 @@ func (inst *Instance) clampInsertRunesByWidth(current []rune, inserted []rune) [
 
 func (inst *Instance) editableContentWidth() int {
 	_, _, boxWidth, _ := inst.GetBounds()
+	innerWidth := 0
 	if boxWidth > 0 {
-		contentWidth := boxWidth - 2 // left+right border/bracket
-		if contentWidth < 1 {
-			return 1
-		}
-		return contentWidth
+		innerWidth = boxWidth - 2 // left+right border/bracket
+	} else if inst.width > 0 {
+		innerWidth = inst.width
+	} else {
+		return 0
 	}
-	if inst.width > 0 {
-		return inst.width
+
+	editableWidth := innerWidth - paint.StringWidth(inst.effectivePrefix()) - paint.StringWidth(inst.effectiveSuffix())
+	if editableWidth < 0 {
+		return 0
 	}
-	return 0
+	return editableWidth
 }
 
 // DeleteText deletes text relative to cursor.
@@ -808,8 +974,13 @@ func (inst *Instance) syncCursorVisibility() bool {
 }
 
 // computeCursorOverlay calculates the caret column and displayed glyph.
-func (inst *Instance) computeCursorOverlay(rawText string, contentWidth int) (int, string) {
+func (inst *Instance) computeCursorOverlay(rawText string, contentWidth, prefixWidth, suffixWidth int) (int, string) {
 	if contentWidth <= 0 {
+		return -1, ""
+	}
+
+	editableWidth := contentWidth - prefixWidth - suffixWidth
+	if editableWidth <= 0 {
 		return -1, ""
 	}
 
@@ -829,9 +1000,10 @@ func (inst *Instance) computeCursorOverlay(rawText string, contentWidth int) (in
 		cursor = valueLen
 	}
 
-	cursorCol := displayWidthByRuneIndex(runes, cursor)
-	if cursorCol >= contentWidth {
-		cursorCol = contentWidth - 1
+	cursorCol := prefixWidth + displayWidthByRuneIndex(runes, cursor)
+	maxCursorCol := prefixWidth + editableWidth - 1
+	if cursorCol > maxCursorCol {
+		cursorCol = maxCursorCol
 	}
 
 	// Draw current rune under caret, or a space if caret is at end.
@@ -913,10 +1085,20 @@ func (inst *Instance) GetProp(key string) (interface{}, bool) {
 		return inst.placeholder, true
 	case propInputType:
 		return inst.inputType, true
+	case propPrefix:
+		return inst.prefix, true
+	case propSuffix:
+		return inst.suffix, true
+	case propAddonBefore:
+		return inst.addonBefore, true
+	case propAddonAfter:
+		return inst.addonAfter, true
 	case propChangeIntent:
 		return inst.changeIntent, true
 	case propSubmitIntent:
 		return inst.submitIntent, true
+	case propSearchVariant:
+		return inst.searchVariant, true
 	default:
 		return nil, false
 	}
@@ -969,44 +1151,10 @@ func (inst *Instance) Measure(constraints layout.Constraints) layout.Size {
 		return layout.Size{}
 	}
 
-	// Calculate padding: full border uses 2, brackets also use 2
-	padding := 2 // Always 2 for input (brackets or full border)
-
-	// Calculate content width
-	content := inst.value
-	if content == "" {
-		content = inst.placeholder
-	}
-	if content == "" {
-		content = " "
-	}
-
-	contentWidth := paint.StringWidth(content)
-	contentHeight := 1
-
-	// Apply explicit width if set
-	width := contentWidth
-	if inst.width > 0 {
-		width = inst.width
-	}
-
-	// Apply max length constraint
-	if inst.maxLen > 0 && width > inst.maxLen {
-		width = inst.maxLen
-	}
-
-	// Apply minimum width (for content only)
-	if width < 10 {
-		width = 10
-	}
-
-	// Add padding to get total size
-	totalWidth := width + padding
-
-	// Height: brackets use 1 line, full border uses 3 lines
-	totalHeight := contentHeight
+	totalWidth := inst.measureTotalWidth()
+	totalHeight := 1
 	if inst.borderStyle != layout.BorderNone {
-		totalHeight = contentHeight + 2 // Add top and bottom border lines
+		totalHeight = 3
 	}
 
 	// Apply constraints
