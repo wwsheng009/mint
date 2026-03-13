@@ -1,9 +1,12 @@
 package treeview
 
-type SelectionMode int
+import "github.com/wwsheng009/mint/ui/components/internal/selection"
+
+// SelectionMode defines how nodes can be selected in the treeview.
+type SelectionMode = selection.SelectionMode
 
 const (
-	SelectionNone SelectionMode = iota
-	SelectionSingle
-	SelectionMultiple
+	SelectionNone     = selection.SelectionNone
+	SelectionSingle   = selection.SelectionSingle
+	SelectionMultiple = selection.SelectionMultiple
 )
