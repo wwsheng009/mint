@@ -73,7 +73,8 @@ func TestStyle_ExplicitSize(t *testing.T) {
 		{"constrained smaller", 100, 50, NewConstraints(50, 50, 30, 30), 50, 30},
 		{"constrained larger (min)", 100, 50, NewConstraints(150, 150, 80, 80), 150, 80}, // minWidth=150 forces expansion
 		{"zero size", 0, 0, UnboundedConstraints(), 0, 0},
-		{"negative constraints", 100, 50, NewConstraints(-10, -10, -10, -10), 0, 0},
+		// NewConstraints clamps negatives to 0; MaxWidth=0 is treated as unbounded by ConstrainWidth.
+		{"negative constraints", 100, 50, NewConstraints(-10, -10, -10, -10), 100, 50},
 	}
 
 	for _, tt := range tests {

@@ -109,9 +109,10 @@ func WithOnWorkYield(fn func(task *ScheduledTask)) SchedulerOption {
 func NewScheduler(opts ...SchedulerOption) *Scheduler {
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &Scheduler{
-		queues: make(map[Lane][]*ScheduledTask),
-		ctx:    ctx,
-		cancel: cancel,
+		queues:     make(map[Lane][]*ScheduledTask),
+		nextTaskID: 1,
+		ctx:        ctx,
+		cancel:     cancel,
 	}
 	for _, opt := range opts {
 		opt(s)
@@ -192,6 +193,11 @@ func (s *Scheduler) removeFromQueue(task *ScheduledTask) {
 // This is useful for testing or when immediate updates are needed.
 func (s *Scheduler) Flush() {
 	for s.HasPendingWork() {
+		select {
+		case <-s.ctx.Done():
+			return
+		default:
+		}
 		s.performWorkUntilDeadline()
 	}
 }

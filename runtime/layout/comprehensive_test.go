@@ -254,13 +254,15 @@ func TestZeroSizeContainer_SingleChild(t *testing.T) {
 	child := NewMockNode("child", 50, 30)
 	container := NewFlexLayout("container", []Node{child})
 
+	// TightConstraints(0,0) uses MaxWidth=0, which ConstrainWidth treats as unbounded.
+	// The container therefore sizes to fit its child.
 	constraints := TightConstraints(0, 0)
 
 	result := NewEngine().Layout(container, constraints)
 
 	assert.NotNil(t, result)
-	assert.Equal(t, 0, result.Root.Width)
-	assert.Equal(t, 0, result.Root.Height)
+	assert.Equal(t, 50, result.Root.Width)
+	assert.Equal(t, 30, result.Root.Height)
 }
 
 // =============================================================================

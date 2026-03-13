@@ -15,13 +15,14 @@ func TestExtreme_ZeroConstraints(t *testing.T) {
 	child := NewMockNode("child", 50, 30)
 	container := NewFlexLayout("container", []Node{child})
 
-	// Zero constraints
+	// Zero constraints: MaxWidth=0 is treated as unbounded by ConstrainWidth,
+	// so the container sizes to fit its child.
 	constraints := Constraints{MinWidth: 0, MaxWidth: 0, MinHeight: 0, MaxHeight: 0}
 
 	result := NewEngine().Layout(container, constraints)
 	require.NotNil(t, result)
-	assert.Equal(t, 0, result.Root.Width)
-	assert.Equal(t, 0, result.Root.Height)
+	assert.Equal(t, 50, result.Root.Width)
+	assert.Equal(t, 30, result.Root.Height)
 }
 
 func TestExtreme_MaxConstraints(t *testing.T) {

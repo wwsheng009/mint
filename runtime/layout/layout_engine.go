@@ -818,12 +818,14 @@ func (e *Engine) layoutNodeIncrementalWithDepth(node Node, constraints Constrain
 
 		box := &LayoutBox{
 			ID:           node.ID(),
+			Tag:          node.Type(),
 			X:            curX,
 			Y:            curY,
 			AbsX:         absX, // ✨ Phase 1.2: 保存全局坐标
 			AbsY:         absY,
 			Width:        width,
 			Height:       height,
+			Layer:        GetLayerFromNode(node),
 			ShouldCenter: (anchor == AnchorCenter && position == PositionFixed), // ✨ 修复 Dirty 状态
 			Children:     make([]*LayoutBox, 0),
 		}
@@ -949,12 +951,14 @@ func (e *Engine) layoutNodeIncrementalWithDepth(node Node, constraints Constrain
 
 	box := &LayoutBox{
 		ID:           node.ID(),
+		Tag:          node.Type(),
 		X:            x,
 		Y:            y,
 		AbsX:         absX, // ✨ Phase 1.2: 保存全局坐标
 		AbsY:         absY,
 		Width:        width,
 		Height:       height,
+		Layer:        layer,
 		ShouldCenter: shouldCenter, // ✨ Phase 1.1: 保存居中标记
 		Children:     make([]*LayoutBox, 0),
 	}
