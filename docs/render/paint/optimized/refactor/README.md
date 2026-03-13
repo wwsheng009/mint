@@ -74,7 +74,7 @@ PaintableBox 是渲染单元
 
 ## 实施阶段
 
-### Phase 1: Fiber 结构优化 [详情](./phase1_fiber_structure.md)
+### Phase 1: Fiber 结构优化 [详情](/docsArchive/render/paint/optimized/refactor/phase1_fiber_structure.md)
 **时间**: 1-2 天
 **目标**: 清理 Fiber 结构，删除冗余字段
 
@@ -83,7 +83,7 @@ PaintableBox 是渲染单元
 - 明确 ComputedBox 类型
 - 删除 deprecated 字段
 
-### Phase 2: Layout 引擎优化 [详情](./phase2_layout_engine.md)
+### Phase 2: Layout 引擎优化 [详情](/docsArchive/render/paint/optimized/refactor/phase2_layout_engine.md)
 **时间**: 2-3 天
 **目标**: 实现 Fiber-first Layout
 
@@ -92,7 +92,7 @@ PaintableBox 是渲染单元
 - 实现 Fiber → PaintableBox 转换器
 - 集成到渲染管线
 
-### Phase 3: Paint 引擎优化 [详情](./phase3_paint_engine.md)
+### Phase 3: Paint 引擎优化 [详情](/docsArchive/render/paint/optimized/refactor/phase3_paint_engine.md)
 **时间**: 1-2 天
 **目标**: 确保 Paint 完全解耦
 
@@ -100,7 +100,7 @@ PaintableBox 是渲染单元
 - 删除 PaintVNode 方法
 - 验证 Paint 只用 PaintableBox
 
-### Phase 4: 渲染管线集成 [详情](./phase4_rendering_pipeline.md)
+### Phase 4: 渲染管线集成 [详情](/docsArchive/render/paint/optimized/refactor/phase4_rendering_pipeline.md)
 **时间**: 3-5 天
 **目标**: 重构核心渲染流程
 
@@ -109,7 +109,7 @@ PaintableBox 是渲染单元
 - 移除 VNode 运行时依赖
 - 双轨运行验证
 
-### Phase 5: 组件迁移 [详情](./phase5_component_migration.md)
+### Phase 5: 组件迁移 [详情](/docsArchive/render/paint/optimized/refactor/phase5_component_migration.md)
 **时间**: 5-7 天
 **目标**: 所有组件使用新架构
 
@@ -161,23 +161,23 @@ PaintableBox 是渲染单元
 ## 文档索引
 
 ### 设计文档
-- [当前系统分析](../declarative_node_paint_analysis.md)
+- [当前系统分析](/docsArchive/declarative_node_paint_analysis.md)
 - [Fiber-First 架构](../FIBER_FIRST_RENDER_PIPELINE.md)
 - [实施指南](../IMPLEMENTATION_GUIDE.md)
 
 ### 重构步骤
-- [Phase 1: Fiber 结构优化](./phase1_fiber_structure.md)
-- [Phase 2: Layout 引擎优化](./phase2_layout_engine.md)
-- [Phase 3: Paint 引擎优化](./phase3_paint_engine.md)
-- [Phase 4: 渲染管线集成](./phase4_rendering_pipeline.md)
-- [Phase 5: 组件迁移](./phase5_component_migration.md)
+- [Phase 1: Fiber 结构优化](/docsArchive/render/paint/optimized/refactor/phase1_fiber_structure.md)
+- [Phase 2: Layout 引擎优化](/docsArchive/render/paint/optimized/refactor/phase2_layout_engine.md)
+- [Phase 3: Paint 引擎优化](/docsArchive/render/paint/optimized/refactor/phase3_paint_engine.md)
+- [Phase 4: 渲染管线集成](/docsArchive/render/paint/optimized/refactor/phase4_rendering_pipeline.md)
+- [Phase 5: 组件迁移](/docsArchive/render/paint/optimized/refactor/phase5_component_migration.md)
 
 ### 检查清单
-- [Phase 1 检查清单](./checklist_phase1.md)
-- [Phase 2 检查清单](./checklist_phase2.md)
-- [Phase 3 检查清单](./checklist_phase3.md)
-- [Phase 4 检查清单](./checklist_phase4.md)
-- [Phase 5 检查清单](./checklist_phase5.md)
+- Phase 1 检查清单（待补充）
+- Phase 2 检查清单（待补充）
+- Phase 3 检查清单（待补充）
+- Phase 4 检查清单（待补充）
+- Phase 5 检查清单（待补充）
 
 ---
 

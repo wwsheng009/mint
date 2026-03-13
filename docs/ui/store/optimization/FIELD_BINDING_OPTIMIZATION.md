@@ -601,10 +601,10 @@ BindFieldMap(map[string]func(AppState, string) AppState{
 
 ## 相关文档
 
-- **API 参考**: [API_REFERENCE.md](./API_REFERENCE.md)
-- **迁移指南**: [MIGRATION_GUIDE.md](./MIGRATION_GUIDE.md)
-- **开发指南**: [DEVELOPMENT_GUIDE.md](./DEVELOPMENT_GUIDE.md)
-- **优化示例**: `examples/typesafe_form_demo/main_optimized.go`
+- **API 参考**: [API_REFERENCE.md](../api/API_REFERENCE.md)
+- **迁移指南**: [MIGRATION_GUIDE.md](../guides/MIGRATION_GUIDE.md)
+- **开发指南**: [DEVELOPMENT_GUIDE.md](../guides/DEVELOPMENT_GUIDE.md)
+- **优化示例**: `examples/typesafe_form_demo_runapp/README.md`
 
 ---
 

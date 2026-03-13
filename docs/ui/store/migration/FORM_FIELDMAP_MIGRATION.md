@@ -453,7 +453,7 @@ ui.RunApp(rt,
 
 | 示例 | 位置 | 说明 |
 |------|------|------|
-| 原 | `examples/typesafe_form_demo/main_optimized_test.go` | ui.Run + Store |
+| 原 | `examples/typesafe_form_demo_runapp/README.md` | ui.Run + Store |
 | 新 | `examples/typesafe_form_demo_runapp/main.go` | ui.RunApp[T] + FieldMap |
 | 参考 | `examples/runapp_demo/main.go` | RunApp 基础示例 |
 

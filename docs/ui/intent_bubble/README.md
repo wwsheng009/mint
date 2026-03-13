@@ -327,7 +327,7 @@ form := form.NewBuilder(fields).
 
 ### 文档
 
-- [系统现状分析](../../current_system_analysis.md)
+- [系统现状分析](/docsArchive/current_system_analysis.md)
 - [架构升级总体报告](./MINT_RUNTIME_2.0_ARCHITECTURE.md)
 - [Phase 1 实施方案](./INSTANCE_TREE_IMPLEMENTATION.md)
 - [Phase 2 实施方案](./CONTEXT_IMPLEMENTATION.md)
@@ -335,14 +335,14 @@ form := form.NewBuilder(fields).
 
 ### 代码
 
-- [Fiber Runtime](../../runtime/ui/fiber.go)
-- [VNode 接口](../../runtime/ui/vnode.go)
-- [OptionGroup 组件](../../ui/components/optiongroup/)
+- [Fiber Runtime](/runtime/ui/fiber.go)
+- [VNode 接口](/runtime/ui/vnode.go)
+- [OptionGroup 组件](/ui/components/optiongroup/)
 
 ### 示例
 
-- [Multi-Select Demo](../../examples/multiselect_demo/)
-- [Type-Safe Form Demo](../../examples/typesafe_form_demo_runapp/)
+- [Multi-Select Demo](/examples/multiselect_demo/)
+- [Type-Safe Form Demo](/examples/typesafe_form_demo_runapp/)
 
 ---
 

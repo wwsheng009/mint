@@ -1,6 +1,6 @@
 # 使用 Sandbox 调试 Fiber 集成指南
 
-> 针对问题: [Fiber架构集成状态与问题分析](./2026-02-01-fiber-integration-status.md)
+> 针对问题: [Fiber架构集成状态与问题分析](/docsArchive/issue/2026-02-01-fiber-integration-status.md)
 
 ## 概述
 

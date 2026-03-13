@@ -318,9 +318,9 @@ A: 建议迁移所有使用 `ui.On` 的组件。对于简单的函数式更新�
 
 ## 相关文档
 
-- [REFACTOR_PLAN.md](./REFACTOR_PLAN.md) - 完整重构计划
-- [store.md](./store.md) - Store + Reducer 设计
-- [MVP_MIGRATION_GUIDE.md](../mvp/MVP_MIGRATION_GUIDE.md) - MVP 基础迁移
+- [REFACTOR_PLAN.md](/docsArchive/REFACTOR_PLAN.md) - 完整重构计划
+- [store.md](../README.md) - Store + Reducer 设计
+- [MVP_MIGRATION_GUIDE.md](/docsArchive/architecture/mvp/MVP_MIGRATION_GUIDE.md) - MVP 基础迁移
 
 ---
 

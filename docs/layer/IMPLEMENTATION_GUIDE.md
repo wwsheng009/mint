@@ -307,7 +307,7 @@ type LayoutBox struct {
 
 #### 同时在 PaintableBox 中添加
 
-**文件**: `runtime/paint/types.go`（如果需要）
+**文件**: `runtime/paint/paintable_box.go`（如果需要）
 
 ```go
 type PaintableBox struct {
@@ -785,7 +785,7 @@ type Fiber struct {
 #### 设计
 
 ```go
-// runtime/layout/overlay.go
+// runtime/layout/overlay_manager.go
 
 // OverlayManager 管理所有浮层节点
 type OverlayManager struct {
@@ -913,10 +913,10 @@ func NewEngine() *Engine {
 
 ## 参考资料
 
-- [Fiber-first 渲染路径完整分析](../fiber/FIBER_FIRST_PAINT_PATH.md)
+- [Fiber-first 渲染路径完整分析](/docsArchive/FIBER_FIRST_PAINT_PATH.md)
 - [Layer 系统设计文档](./layer_design.md)
 - [Layer 架构文档](./LAYER_SYSTEM_ARCHITECTURE.md)
-- [Modal 定位实现指南](./POSITIONING.md)
+- [Modal 定位实现指南](/docs/layout/modal/POSITIONING.md)
 - [布局引擎文档](../layout/README.md)
 
 ---

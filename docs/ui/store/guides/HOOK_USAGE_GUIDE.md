@@ -448,7 +448,7 @@ func main() {
 
 ## 相关文档
 
-- [Fiber 架构](./FIBER_ARCHITECTURE.md)
+- [Fiber 架构](/docs/architecture/design/FIBER_ARCHITECTURE.md)
 - [Store + Reducer 指南](./STORE_REDUCER_GUIDE.md)
-- [Intent 迁移指南](./INTENT_HANDLER_MIGRATION.md)
-- [重构计划](./REFACTOR_PLAN.md)
+- [Intent 迁移指南](../migration/INTENT_HANDLER_MIGRATION.md)
+- [重构计划](/docsArchive/REFACTOR_PLAN.md)

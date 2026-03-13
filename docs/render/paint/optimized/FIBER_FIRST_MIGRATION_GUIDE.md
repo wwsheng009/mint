@@ -6,8 +6,8 @@
 
 ## 新增文件
 
-### 1. internal/render/declarative_node_fiber_first.go
-**核心渲染管线**
+### 1. internal/render/declarative_node.go
+**核心渲染管线（已合并到 DeclarativeNode）**
 
 提供 FiberFirstPipeline 类型和 PaintFiberFirst() 函数，实现完整的 Fiber-first 渲染流程。
 
@@ -27,10 +27,8 @@ Phase 2: Layout (Fiber -> LayoutResult, 无 VNode 访问)
 Phase 3: Paint (LayoutResult -> Buffer, 无 VNode 访问)
 ```
 
-### 2. internal/render/fiber_layout_adapter.go
+### 2. internal/render/fiber_adapter.go
 **Fiber 到 Layout 接口适配器**
-
-> **注意**：适配器实际位于 `internal/render/fiber_adapter.go`，文件名为 `FiberToNodeAdapter`。
 
 提供 FiberToNodeAdapter 类型，从 Fiber 树提取布局信息，替代访问 VNode。
 
@@ -44,8 +42,8 @@ Phase 3: Paint (LayoutResult -> Buffer, 无 VNode 访问)
 **使用场景：**
 Layout 引擎通过此适配器访问 Fiber 数据，无需访问 VNode。
 
-### 3. internal/reconciler/fiber_first_methods.go
-**Reconciler 的 Fiber-first 方法**
+### 3. internal/reconciler/get_fiber_root.go
+**Reconciler 的 Fiber 根节点访问**
 
 为 Reconciler 添加返回 Fiber 树的方法，替代旧的 Render() 方法。
 
@@ -70,7 +68,7 @@ Layout 引擎通过此适配器访问 Fiber 数据，无需访问 VNode。
     → Layout/Paint 由调用者处理
 ```
 
-### 4. internal/render/declarative_node_fiber_first_integration.go
+### 4. internal/render/declarative_node.go
 **DeclarativeNode 集成**
 
 提供 PaintWithFiberFirst() 方法，供 DeclarativeNode 使用新渲染路径。
@@ -80,8 +78,8 @@ Layout 引擎通过此适配器访问 Fiber 数据，无需访问 VNode。
 - ShouldUseFiberFirst() - 判断是否应该使用新路径
 - getOrCreateFiberFirstPipeline() - 获取或创建渲染管线
 
-### 5. internal/render/fiber_first_test.go
-**测试用例**
+### 5. internal/render/portal_layout_reset_test.go
+**测试用例（Fiber-first 回归用例）**
 
 提供单元测试，验证 Fiber-first 渲染路径的正确性。
 
@@ -332,7 +330,7 @@ pipeline.Render(fiberRoot, ctx, buf)
 
 - [Fiber-First 架构设计](./FIBER_FIRST_RENDER_PIPELINE.md)
 - [实施指南](./IMPLEMENTATION_GUIDE.md)
-- [当前系统分析](../declarative_node_paint_analysis.md)
+- [当前系统分析](/docsArchive/declarative_node_paint_analysis.md)
 
 ## 联系方式
 

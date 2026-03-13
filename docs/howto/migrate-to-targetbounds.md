@@ -297,7 +297,7 @@ if mouseEvent.TargetBounds.Width > 0 && mouseEvent.TargetBounds.Height > 0 {
 
 ## Related Documentation
 
-- **Investigation:** `docs/issue/modal-button-click-investigation.md`
+- **Investigation:** `docsArchive/issue/modal-button-click-investigation.md`
 - **Architecture:** Runtime event system, HitMap-based routing
 - **Implementation:**
   - `framework/event/event.go` - MouseEvent.TargetBounds definition

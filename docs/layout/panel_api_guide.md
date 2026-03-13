@@ -481,8 +481,8 @@ func createSettingsPanelSimple() ui.VNode {
 ## 参考资源
 
 - [Panel API 源代码](../../ui/components/panel/)
-- [布局系统优化计划](./02-optimization.md)
-- [Border 组件文档](../../ui/components/border/)
+- [布局系统优化计划](/docsArchive/02-optimization.md)
+- [Border API 文档](/docs/api/border.md)
 - [Text 组件文档](../../ui/components/text/)
 
 ---

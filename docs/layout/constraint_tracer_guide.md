@@ -279,9 +279,9 @@ content.SetPath("/app/panel/border/content")
 
 ## 相关文档
 
-- [布局系统优化计划 - Phase 1](../layout/plan/01-analysis.md)
-- [约束系统设计](../layout/constraints/README.md)
-- [调试工具](../layout/plan/04-debug-tools.md)
+- [布局系统优化计划 - Phase 1](/docsArchive/01-analysis.md)
+- [约束系统设计](/docsArchive/layout/constraint_tracer_summary.md)
+- [调试工具](/docsArchive/04-debug-tools.md)
 
 ## 故障案例
 

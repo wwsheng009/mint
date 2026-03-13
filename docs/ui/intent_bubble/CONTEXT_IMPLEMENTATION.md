@@ -180,7 +180,7 @@ func (c *FiberContext) Clear() {
 
 ### 2.2 Context Provider 组件
 
-文件：`ui/components/context/provider.go`
+文件：`runtime/ui/context_provider.go`
 
 ```go
 package context
@@ -287,7 +287,7 @@ func CreateFiber(vnode VNode, parent *Fiber) *Fiber {
 
 ### 3.3 处理 Provider 组件
 
-文件：`runtime/ui/reconciler.go`
+文件：`internal/reconciler/reconciler.go`
 
 ```go
 func reconcile(returnFiber, currentFiber, workInProgress *Fiber) *Fiber {
@@ -714,7 +714,7 @@ func TestUseContextValue_CustomType(t *testing.T) {
 
 ### 5.3 Fiber 集成测试
 
-文件：`runtime/ui/context_fiber_test.go`
+文件：`runtime/ui/context_test.go`
 
 ```go
 package ui

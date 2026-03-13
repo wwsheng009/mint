@@ -8,7 +8,7 @@
 |------|------|
 | **[FIBER_STATE_ARCHITECTURE.md](./FIBER_STATE_ARCHITECTURE.md)** | 核心架构说明 - 完整的状态管理机制、Fiber 树构建流程、Intent 系统和 InstanceManager 详解 |
 | **[BEST_PRACTICES.md](./BEST_PRACTICES.md)** | 最佳实践指南 - 如何选择正确的状态类型、常见架构模式、性能优化技巧和代码示例 |
-| **[MIGRATION.md](./MIGRATION.md)** | 迁移指南 - 从闭包模式迁移到纯状态模式的完整步骤、对比和常见问题解答 |
+| **[MIGRATION.md](/docsArchive/MIGRATION.md)** | 迁移指南 - 从闭包模式迁移到纯状态模式的完整步骤、对比和常见问题解答 |
 
 ## 快速导航
 
@@ -19,7 +19,7 @@
 
 ### 迁移现有代码
 
-1. 阅读 **[MIGRATION.md](./MIGRATION.md)** 了解迁移步骤
+1. 阅读 **[MIGRATION.md](/docsArchive/MIGRATION.md)** 了解迁移步骤
 2. 参考迁移前后的代码对比
 3. 使用迁移检查清单
 

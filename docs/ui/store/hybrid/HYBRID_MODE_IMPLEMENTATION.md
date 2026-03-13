@@ -141,7 +141,7 @@ go run ./examples/store_mixed_demo/
 
 ### 新增文件
 1. `ui/hooks.go` - 新增 4 个 Store hooks
-2. `docs/architecture/store/STATE_MANAGEMENT_GUIDE.md` - 完整使用指南
+2. `docs/ui/store/hybrid/STATE_MANAGEMENT_GUIDE.md` - 完整使用指南
 3. `examples/store_mixed_demo/main.go` - 混合模式示例
 
 ### 修改文件

@@ -13,7 +13,7 @@
 | `RENDER_ENGINE_DECOUPLING.md` | 渲染引擎解耦方案 | 设计 |
 | `SIMPLIFIED_PIPELINE_V2.md` | 简化渲染管线设计 | 设计 |
 | `SIMPLIFY_RENDER_PIPELINE.md` | 简化渲染管线 | 设计 |
-| `RENDER_PIPELINE_SIMPLIFICATION_COMPLETED.md` | 渲染管线简化完成 (2026-03) | ✅ 完成 |
+| `RENDER_PIPELINE_SIMPLIFICATION_COMPLETED.md` | 渲染管线简化完成 (2026-03, 已归档) | ✅ 完成 |
 
 ### 🎨 Paint 系统 (`paint/`)
 
@@ -37,7 +37,7 @@ TUI 特定的渲染文档
 
 ### ✅ 渲染管线简化已完成
 
-详见 [`plan/RENDER_PIPELINE_SIMPLIFICATION_COMPLETED.md`](plan/RENDER_PIPELINE_SIMPLIFICATION_COMPLETED.md)
+详见 [`/docsArchive/RENDER_PIPELINE_SIMPLIFICATION_COMPLETED.md`](/docsArchive/RENDER_PIPELINE_SIMPLIFICATION_COMPLETED.md)
 
 #### 主要变更
 

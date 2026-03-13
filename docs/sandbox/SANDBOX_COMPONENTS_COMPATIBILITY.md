@@ -150,9 +150,9 @@ examples/sandbox/demo/compatibility       ✅ PASS (新增)
 
 ## 兼容层说明
 
-### ui/compat.go
+### runtime/ui/compat.go
 
-为保持向后兼容，`ui/compat.go` 提供了旧组件类型的访问器方法：
+为保持向后兼容，`runtime/ui/compat.go` 提供了旧组件类型的访问器方法：
 
 ```go
 // InputVNode 访问器
@@ -226,7 +226,7 @@ testApp, _ := ui.RunTestWithSandbox(MyApp, ui.WithSize(80, 24))
 1. **完全兼容**: Sandbox 系统与新的 `runtime/ui` VNode 系统完全兼容
 2. **API 稳定**: 现有测试代码无需修改即可继续使用
 3. **新功能**: `ui.RunTest()` 和 `ui.RunTestWithSandbox()` 提供更好的集成
-4. **向后兼容**: `ui/compat.go` 确保内部模块正常工作
+4. **向后兼容**: `runtime/ui/compat.go` 确保内部模块正常工作
 
 ---
 

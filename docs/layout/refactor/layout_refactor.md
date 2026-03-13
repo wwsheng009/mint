@@ -287,7 +287,7 @@ func (c *LayoutCache) Set(nodeID string, constraints Constraints, size Size) {
 
 ### 阶段 1：创建基础数据结构 (1-2天)
 
-**文件**：`runtime/layout_tree.go`, `runtime/layout_engine.go`
+**文件**：`ui/layout/visualizer/layout_tree.go`, `runtime/layout/layout_engine.go`
 
 ```go
 // 1. 创建 LayoutTree 和 LayoutNode 结构
@@ -298,7 +298,7 @@ func (c *LayoutCache) Set(nodeID string, constraints Constraints, size Size) {
 
 ### 阶段 2：实现核心布局算法 (2-3天)
 
-**文件**：`runtime/layout_engine.go`
+**文件**：`runtime/layout/layout_engine.go`
 
 ```go
 // 1. 实现 measureNode（约束驱动的测量）
@@ -356,7 +356,7 @@ func (p *RenderingPipeline) Render(vnode VNode, constraints Constraints, buffer 
 
 ### 阶段 5：实现增量布局 (2天)
 
-**文件**：`runtime/dirty_layout.go`
+**文件**：`runtime/layout/dirty.go`
 
 ```go
 // 1. 实现脏标记传播
@@ -378,7 +378,7 @@ func (p *RenderingPipeline) Render(vnode VNode, constraints Constraints, buffer 
 
 ### 阶段 7：测试和验证 (2-3天)
 
-**文件**：`runtime/layout_test.go`
+**文件**：`runtime/layout/comprehensive_layout_test.go`
 
 ```go
 // 1. 单元测试：各种布局算法
@@ -731,7 +731,7 @@ internal/render/
 ### 完成的任务
 
 #### 1. 单元测试
-创建了完整的测试套件 (`examples/sandbox/dump_buffer/rendering_pipeline_test.go`)：
+创建了完整的测试套件 (`internal/render/pipeline_renderer_hook_test.go`)：
 - `TestRenderingPipeline_BorderPosition` - 验证边框位置正确
 - `TestRenderingPipeline_HStack` - 测试横向布局
 - `TestRenderingPipeline_VStack` - 测试纵向布局
@@ -871,7 +871,7 @@ func (l *LayoutNode) Measure(constraints runtime.BoxConstraints) runtime.Size {
 **解决方案**: 在 `getChildConstraints()` 中添加 flex 计算逻辑
 
 ```go
-// runtime/compute/engine.go:592-658
+// runtime/layout/layout_engine.go:592-658
 case "hstack":
     if childInfo.Flex > 0 && parentConstraints.HasBoundedWidth() {
         // 计算所有兄弟元素的 flex 分布
@@ -929,14 +929,14 @@ func HStackBuilder(children ...VNode) *LayoutBuilder {
 
 | 文件 | 说明 |
 |------|------|
-| `docs/layout/stretch_layout.md` | 完整的拉伸布局系统文档 |
+| `docs/layout/core_concepts/stretch_layout.md` | 完整的拉伸布局系统文档 |
 
 ### 修改文件
 
 | 文件 | 变更 |
 |------|------|
 | `runtime/ui/layout.go` | 添加 Flex 分布算法，HStackBuilder() |
-| `runtime/compute/engine.go` | 完善 getChildConstraints() flex 计算 |
+| `runtime/layout/layout_engine.go` | 完善 getChildConstraints() flex 计算 |
 | `ui/layout.go` | 重新导出 HStackBuilder() |
 | `examples/ui_demos/demo1_full_featured/main.go` | 使用 Stretch 和 Gap(0) |
 
@@ -1028,9 +1028,9 @@ func HStackBuilder(children ...VNode) *LayoutBuilder {
 | 功能 | 文件 | 行号 |
 |------|------|------|
 | Flex 分布算法 | `runtime/ui/layout.go` | 287-477 |
-| getChildConstraints | `runtime/compute/engine.go` | 578-732 |
-| layoutVStack | `runtime/compute/engine.go` | 579-645 |
-| layoutHStack | `runtime/compute/engine.go` | 541-576 |
+| getChildConstraints | `runtime/layout/layout_engine.go` | 578-732 |
+| layoutVStack | `runtime/layout/layout_engine.go` | 579-645 |
+| layoutHStack | `runtime/layout/layout_engine.go` | 541-576 |
 | GetLayoutInfo | `runtime/ui/layout_util.go` | 50-146 |
 | HStackBuilder | `runtime/ui/layout.go` | 64-77 |
 

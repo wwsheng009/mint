@@ -4,7 +4,7 @@
 
 ## 2026-03-13 追加归档（阶段/计划/总结类）
 
-- 归档 `docs/plan/**` 全部文档 → `docsArchive/plans/**`（含 `action/`、`event/`、`fiber/`、`inspector/`、`layer/` 等）
+- 归档 `docsArchive/plans/**` 全部文档 → `docsArchive/plans/**`（含 `action/`、`event/`、`fiber/`、`inspector/`、`layer/` 等）
 - 归档命名包含 `PHASE/REPORT/SUMMARY/PLAN/ROADMAP/TODO/TASKS/COMPLETION` 的文档 → `docsArchive/` 对应路径
 - 覆盖目录示例：`docs/layout/layout/20260215/`、`docs/render/paint/optimized/`、`docs/sandbox/fiber_debug/`
 - 本轮新增归档 55 个文件
@@ -116,12 +116,12 @@
 
 5. **架构文档**（核心的，非临时分析）：
    - `docs/architecture/README.md`
-   - `docs/architecture/mvp/MVP_MIGRATION_GUIDE.md`
-   - `docs/architecture/mvp/COMPONENT_INTENT_REVIEW.md`
+   - `docsArchive/architecture/mvp/MVP_MIGRATION_GUIDE.md`
+   - `docsArchive/architecture/mvp/COMPONENT_INTENT_REVIEW.md`
 
 6. **组件文档**：
    - `docs/components/README.md`
-   - `docs/components/COMPONENTS_SUMMARY.md`
+   - `docsArchive/components/COMPONENTS_SUMMARY.md`
 
 7. **布局系统**（用户导向的）：
    - `docs/layout/README.md`
@@ -136,9 +136,9 @@
    - `docs/inspector/FINAL_GUIDE.md`
 
 9. **主题系统**：
-   - `docs/theme/README.md`（如果存在）
    - `docs/theme/theme_system_guide.md`
-   - `docs/theme/ant_design_summary.md`
+   - `docs/theme/theme_system_guide.md`
+   - `docsArchive/theme/ant_design_summary.md`
 
 10. **存储系统**：
     - `docs/ui/store/README.md`

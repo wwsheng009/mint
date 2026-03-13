@@ -176,7 +176,7 @@ flexWidth = (remainingSpace × childFlexFactor) / totalFlexFactor
 |------|------|
 | `runtime/ui/layout.go` | LayoutNode.Measure() 实现 |
 | `runtime/ui/layout_util.go` | GetLayoutInfo() 提取布局信息 |
-| `runtime/compute/engine.go` | getChildConstraints() 约束传递 |
+| `runtime/layout/layout_engine.go` | getChildConstraints() 约束传递 |
 | `ui/layout.go` | 公开 API 重新导出 |
 
 ### 新增 API
@@ -250,7 +250,7 @@ func GetLayoutInfo(vnode VNode) LayoutInfo {
 ### 3. 约束传递
 
 ```go
-// getChildConstraints (runtime/compute/engine.go:592-658)
+// getChildConstraints (runtime/layout/layout_engine.go:592-658)
 case "hstack":
     childInfo := rtui.GetLayoutInfo(child)
 
@@ -287,7 +287,7 @@ case "hstack":
 ### 4. StretchCross 应用
 
 ```go
-// layoutVStack (runtime/compute/engine.go:579-645)
+// layoutVStack (runtime/layout/layout_engine.go:579-645)
 func (e *Engine) layoutVStack(box *ComputedBox, x, y int) {
     layoutInfo := rtui.GetLayoutInfo(box.VNode)
     stretchCross := layoutInfo.StretchCross
@@ -450,5 +450,5 @@ TUI_PIPELINE_DEBUG=true go run ./examples/demo1
 ## 相关文档
 
 - [Stretch Layout System](./stretch_layout.md) - 完整的拉伸布局系统文档
-- [Layout Refactor](./layout_refactor.md) - 布局重构方案
-- [Rendering Pipeline](./LAYOUT_RENDERING_REFACTOR.md) - 渲染管线
+- [Layout Refactor](../refactor/layout_refactor.md) - 布局重构方案
+- [Rendering Pipeline](/docsArchive/LAYOUT_RENDERING_REFACTOR.md) - 渲染管线

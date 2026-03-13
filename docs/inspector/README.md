@@ -6,39 +6,39 @@ This directory contains comprehensive documentation about the Mint TUI Inspector
 
 ### 🚀 Getting Started
 - [Hook-Based Integration](../render/hook/README.md) - How the hook system automatically injects Inspector
-- [Inspector Usage Guide](usage/) - How to use the Inspector in your application
+- [Inspector Usage Guide](QUICK_START.md) - How to use the Inspector in your application
 
 ### 🏗️ Architecture
-- [Rendering Flow Analysis](architecture/INSPECTOR_RENDERING_FLOW_ANALYSIS.md) - How Inspector rendering works
-- [Layer System Integration](architecture/INSPECTOR_LAYER_SOLUTION_ANALYSIS.md) - Multi-layer rendering architecture
-- [Framework Layer Management](architecture/FRAMEWORK_LAYER_MANAGEMENT.md) - Layer management in the framework
+- [Rendering Flow Analysis](/docsArchive/architecture/INSPECTOR_RENDERING_FLOW_ANALYSIS.md) - How Inspector rendering works (archived)
+- [Layer System Integration](/docsArchive/architecture/INSPECTOR_LAYER_SOLUTION_ANALYSIS.md) - Multi-layer rendering architecture (archived)
+- [Framework Layer Management](/docsArchive/architecture/FRAMEWORK_LAYER_MANAGEMENT.md) - Layer management in the framework (archived)
 
 ### 🔍 Investigation & Analysis
-- [Initial Investigation](investigation/INSPECTOR_INVESTIGATION_COMPLETE.md) - Complete investigation of Inspector issues
-- [Final Investigation Report](investigation/INSPECTOR_FINAL_INVESTIGATION_REPORT.md) - Detailed findings
-- [TreeView Issues](investigation/INSPECTOR_TREEVIEW_OVERFLOW.md) - TreeView overflow and scrolling
-- [UniqueID Problem](investigation/INSPECTOR_UNIQUEID_FINAL_SOLUTION.md) - UniqueID collision issues and solutions
+- [Initial Investigation](/docsArchive/investigation/INSPECTOR_INVESTIGATION_COMPLETE.md) - Complete investigation of Inspector issues (archived)
+- [Final Investigation Report](/docsArchive/investigation/INSPECTOR_FINAL_INVESTIGATION_REPORT.md) - Detailed findings (archived)
+- [TreeView Issues](/docsArchive/investigation/INSPECTOR_TREEVIEW_OVERFLOW.md) - TreeView overflow and scrolling (archived)
+- [UniqueID Problem](/docsArchive/INSPECTOR_UNIQUEID_FINAL_SOLUTION.md) - UniqueID collision issues and solutions (archived)
 
 ### 🔧 Implementation Details
 - [Flex Layout Implementation](implementation/INSPECTOR_FLEX_LAYOUT_IMPLEMENTATION.md) - Flex layout for TreeView
 - [AutoSize Implementation](implementation/INSPECTOR_FLEX_AUTOSIZE_IMPLEMENTATION.md) - Auto-sizing components
-- [Pointer ID Fix](implementation/INSPECTOR_POINTER_ID_FIX.md) - Pointer-based UniqueID solution
-- [Border Fix](implementation/INSPECTOR_HARDCODED_BORDER_FIX.md) - Border rendering fixes
+- [Pointer ID Fix](/docsArchive/INSPECTOR_POINTER_ID_FIX.md) - Pointer-based UniqueID solution (archived)
+- [Border Fix](/docsArchive/INSPECTOR_HARDCODED_BORDER_FIX.md) - Border rendering fixes (archived)
 
 ### 🎯 Key Solutions
-- [UniqueID Final Solution](implementation/INSPECTOR_UNIQUEID_FINAL_SOLUTION.md) - How UniqueID collisions were resolved
-- [Position Fix](implementation/INSPECTOR_POSITION_FIX.md) - Inspector positioning solution
-- [SetLayer Bug Fix](implementation/INSPECTOR_SETLAYER_BUG_FIX.md) - SetProps/SetLayer order fix
+- [UniqueID Final Solution](/docsArchive/INSPECTOR_UNIQUEID_FINAL_SOLUTION.md) - How UniqueID collisions were resolved (archived)
+- [Position Fix](/docsArchive/INSPECTOR_POSITION_FIX.md) - Inspector positioning solution (archived)
+- [SetLayer Bug Fix](/docsArchive/INSPECTOR_SETLAYER_BUG_FIX.md) - SetProps/SetLayer order fix (archived)
 
 ## Project Structure
 
 ```
 docs/inspector/
 ├── README.md (this file)
-├── architecture/        # Architecture and design documents
-├── investigation/       # Investigation and analysis reports
+├── architecture/        # Architecture and design documents (archived: /docsArchive/architecture/)
+├── investigation/       # Investigation and analysis reports (archived: /docsArchive/investigation/)
 ├── implementation/      # Implementation details and fixes
-└── integration/         # Integration with framework and hook system
+└── integration/         # Integration with framework and hook system (archived: /docsArchive/integration/)
 ```
 
 ## Development Timeline
@@ -79,5 +79,5 @@ go test -v ./internal/render -run Pipeline
 ## Related Documentation
 
 - [Hook System Documentation](../render/hook/README.md)
-- [Framework Architecture](../../framework/README.md)
-- [Rendering Pipeline](../../internal/render/README.md)
+- [Framework Architecture](/framework/docs/ARCHITECTURE.md)
+- [Rendering Pipeline](/runtime/render/README.md)

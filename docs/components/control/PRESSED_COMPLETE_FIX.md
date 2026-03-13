@@ -214,7 +214,7 @@ func (b *PressableBehavior) OnStateChange(inst Instance, oldState, newState Inte
 
 #### 3.1 创建 InputState Tracker
 
-**文件**: `runtime/input/state_tracker.go`
+**文件**: `runtime/input/tracker.go`
 
 ```go
 package input
@@ -333,7 +333,7 @@ func (a *App) processMsg(msg runtimemsg.Msg) {
 
 ### Priority 3: 长期架构
 
-**文件**: 新建 `runtime/input/state_tracker.go`
+**文件**: 更新 `runtime/input/tracker.go`
 **任务**: 实施完整的 InputState Tracker
 **时间**: 1-2 小时
 **效果**: 完整的状态跟踪和推断机制，符合 `key_release.md` 的设计原则

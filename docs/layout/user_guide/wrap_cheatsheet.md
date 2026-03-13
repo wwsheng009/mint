@@ -208,4 +208,4 @@ return app.WrapBuilder(items...).
 - **VStack**: Vertical layout
 - **Grid**: Two-dimensional layout
 
-See full documentation: [wrap_component.md](./wrap_component.md)
+See full documentation: [wrap_component.md](../core_concepts/wrap_component.md)

@@ -20,33 +20,33 @@
 
 | 文档 | 描述 | 重要性 |
 |------|------|--------|
-| **[容器背景渲染](./container_background_rendering.md)** | 容器背景、遮挡、继承系统 | ⭐⭐⭐ |
-| **[Flex 布局](./flex_layout.md)** | Mint TUI 布局系统详解 | ⭐⭐⭐ |
-| **[Layer 系统](./layer_system_guide.md)** | 渲染层级和覆盖层 | ⭐⭐ |
-| **[Wrap 组件](./wrap_component.md)** | 自动换行布局组件 | ⭐⭐⭐ |
+| **[容器背景渲染](../core_concepts/container_background_rendering.md)** | 容器背景、遮挡、继承系统 | ⭐⭐⭐ |
+| **[Flex 布局](../core_concepts/flex_layout.md)** | Mint TUI 布局系统详解 | ⭐⭐⭐ |
+| **[Layer 系统](../core_concepts/layer_system_guide.md)** | 渲染层级和覆盖层 | ⭐⭐ |
+| **[Wrap 组件](../core_concepts/wrap_component.md)** | 自动换行布局组件 | ⭐⭐⭐ |
 
 ### 高级主题
 
 | 文档 | 描述 | 难度 |
 |------|------|------|
-| **[Stretch 布局](./stretch_layout.md)** | FillWidth/FillHeight 机制 | ⭐⭐⭐ |
-| **[Layer 架构](./LAYER_LAYOUT_ARCHITECTURE_REVIEW.md)** | Layer 系统架构分析 | ⭐⭐⭐⭐ |
-| **[Constraints](./getChildconstraints_architecture_analysis.md)** | 约束传递机制 | ⭐⭐⭐⭐ |
+| **[Stretch 布局](../core_concepts/stretch_layout.md)** | FillWidth/FillHeight 机制 | ⭐⭐⭐ |
+| **[Layer 架构](/docsArchive/LAYER_LAYOUT_ARCHITECTURE_REVIEW.md)** | Layer 系统架构分析（已归档） | ⭐⭐⭐⭐ |
+| **[Constraints](/docsArchive/getChildconstraints_architecture_analysis.md)** | 约束传递机制（已归档） | ⭐⭐⭐⭐ |
 
 ### 常见问题
 
 | 文档 | 描述 |
 |------|------|
-| **[Flex Wrap 限制](./flex_wrap_limitation.md)** | 为什么不支持 flex-wrap，如何解决 |
-| **[Layer 约束审计](./layer_constraint_audit_report.md)** | Layer 系统约束问题分析 |
+| **[Flex Wrap 限制](/docsArchive/issues/flex_wrap_limitation.md)** | 为什么不支持 flex-wrap，如何解决（已归档） |
+| **[Layer 约束审计](/docsArchive/layer_constraint_audit_report.md)** | Layer 系统约束问题分析（已归档） |
 
 ### 重构历史
 
 | 文档 | 描述 |
 |------|------|
-| **[布局重构](./layout_refactor.md)** | 布局系统重构历史 |
-| **[渲染重构](./LAYOUT_RENDERING_REFACTOR.md)** | 渲染管线重构 |
-| **[单次重构](./single_pass_refactor_summary.md)** | 单次布局重构总结 |
+| **[布局重构](../refactor/layout_refactor.md)** | 布局系统重构历史 |
+| **[渲染重构](/docsArchive/LAYOUT_RENDERING_REFACTOR.md)** | 渲染管线重构（已归档） |
+| **[单次重构](/docsArchive/single_pass_refactor_summary.md)** | 单次布局重构总结（已归档） |
 
 ---
 
@@ -56,7 +56,7 @@
 
 #### 自动换行布局
 
-→ 查看 **[Wrap 组件](./wrap_component.md)**
+→ 查看 **[Wrap 组件](../core_concepts/wrap_component.md)**
 
 ```go
 wrapped := app.WrapBuilder(buttons...).
@@ -67,7 +67,7 @@ wrapped := app.WrapBuilder(buttons...).
 
 #### 容器有背景色
 
-→ 查看 **[容器背景渲染](./container_background_rendering.md)**
+→ 查看 **[容器背景渲染](../core_concepts/container_background_rendering.md)**
 
 ```go
 container.SetStyle(style.NewStyle().Background(style.Blue))
@@ -75,7 +75,7 @@ container.SetStyle(style.NewStyle().Background(style.Blue))
 
 #### 元素居中对齐
 
-→ 查看 **[Flex 布局](./flex_layout.md)**
+→ 查看 **[Flex 布局](../core_concepts/flex_layout.md)**
 
 ```go
 ui.HStackBuilder(...).
@@ -85,7 +85,7 @@ ui.HStackBuilder(...).
 
 #### 横向填充剩余空间
 
-→ 查看 **[Stretch 布局](./stretch_layout.md)**
+→ 查看 **[Stretch 布局](../core_concepts/stretch_layout.md)**
 
 ```go
 ui.Text("").FillWidth().Build()
@@ -93,7 +93,7 @@ ui.Text("").FillWidth().Build()
 
 #### 浮动面板/覆盖层
 
-→ 查看 **[Layer 系统](./layer_system_guide.md)**
+→ 查看 **[Layer 系统](../core_concepts/layer_system_guide.md)**
 
 ```go
 vnode.SetLayer(rtui.LayerOverlay)
@@ -101,7 +101,7 @@ vnode.SetLayer(rtui.LayerOverlay)
 
 #### Inspector 调试面板
 
-→ 查看 **[Layer 系统指南](./layer_system_guide.md#inspector)**
+→ 查看 **[Layer 系统指南](../core_concepts/layer_system_guide.md#inspector)**
 
 ---
 
@@ -115,17 +115,17 @@ vnode.SetLayer(rtui.LayerOverlay)
 
 ### 进阶路径
 
-1. **深入理解**: [Flex 布局](./flex_layout.md)
-2. **容器背景**: [容器背景渲染](./container_background_rendering.md)
-3. **Layer 系统**: [Layer 指南](./layer_system_guide.md)
-4. **高级布局**: [Stretch 布局](./stretch_layout.md)
+1. **深入理解**: [Flex 布局](../core_concepts/flex_layout.md)
+2. **容器背景**: [容器背景渲染](../core_concepts/container_background_rendering.md)
+3. **Layer 系统**: [Layer 指南](../core_concepts/layer_system_guide.md)
+4. **高级布局**: [Stretch 布局](../core_concepts/stretch_layout.md)
 
 ### 专家路径
 
-1. **架构分析**: [Layer 架构](./LAYER_LAYOUT_ARCHITECTURE_REVIEW.md)
-2. **约束系统**: [Constraints](./getChildconstraints_architecture_analysis.md)
-3. **重构历史**: [布局重构](./layout_refactor.md)
-4. **渲染管线**: [渲染重构](./LAYOUT_RENDERING_REFACTOR.md)
+1. **架构分析**: [Layer 架构](/docsArchive/LAYER_LAYOUT_ARCHITECTURE_REVIEW.md)
+2. **约束系统**: [Constraints](/docsArchive/getChildconstraints_architecture_analysis.md)
+3. **重构历史**: [布局重构](../refactor/layout_refactor.md)
+4. **渲染管线**: [渲染重构](/docsArchive/LAYOUT_RENDERING_REFACTOR.md)
 
 ---
 

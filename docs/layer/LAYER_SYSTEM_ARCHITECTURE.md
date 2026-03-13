@@ -662,7 +662,7 @@ fiberVNode.SetLayer(rtui.LayerOverlay)
 ## 📚 相关文档
 
 - `docs/layer/FIBER_FIRST_LAYER_SYSTEM.md` - Fiber-First Layer 系统完整技术细节
-- `ui/components/tooltip/layer_demo.go` - Tooltip Layer 使用示例
+- `ui/components/tooltip/layer_demo_example.md` - Tooltip Layer 使用示例
 - `internal/render/` - 源码实现
 
 ---

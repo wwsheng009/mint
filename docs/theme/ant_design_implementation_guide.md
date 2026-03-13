@@ -743,4 +743,4 @@ func formItemPassword(label, placeholder string, width int, value string, onChan
 - Ant Design 官方文档: https://ant.design/
 - 本项目设计规范: `docs/theme/design/ant_design.md`
 - 主题系统指南: `docs/theme/theme_system_guide.md`
-- 组件配色检查: `docs/theme/component_color_compliance.md`
+- 组件配色检查: `docs/theme/check_1.md`

@@ -458,7 +458,7 @@ totalHeight = 1 (上padding) + 1 (上边框)        // = 2
 ### 2.3 VNode → Fiber 转换的完整流程
 
 ```go
-// internal/reconciler/create_fiber.go
+// internal/reconciler/reconciler.go
 
 func createWorkInProgress(current *Fiber, pendingProps Props) *Fiber {
     // 1. 创建或复用 Fiber
@@ -1752,7 +1752,7 @@ fmt.Printf("[GRID PAINT] Generated %d draw commands\n", len(cmds))
 
 1. **运行 demo**
    ```bash
-   go run examples/fiber_firsts/border_as_property/simple_grid_demo.go
+   go test ./ui/components/grid/... -v
    ```
 
 2. **检查输出**

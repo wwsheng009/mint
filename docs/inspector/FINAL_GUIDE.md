@@ -210,5 +210,5 @@ TUI_INSPECTOR=true go run main.go
 **文档位置**：
 - 快速开始：`docs/inspector/QUICK_START.md`
 - 快捷键说明：`docs/inspector/KEYBOARD_SHORTCUTS.md`
-- 修复总结：`docs/inspector/FIX_SUMMARY.md`
+- 修复总结：`/docsArchive/INSPECTOR_FIX_SUMMARY.md`
 - 本指南：`docs/inspector/FINAL_GUIDE.md`

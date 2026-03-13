@@ -1098,7 +1098,7 @@ go test -v -run TestGrid_Flex ./ui/components/grid/...
 ## 附录：调试配置示例
 
 ```go
-// ui/components/grid/config.go
+// ui/components/grid/debug.go
 
 package grid
 

@@ -12,7 +12,7 @@
 
 本指南介绍的混合模式（UseStoreField/UseStoreSelector）是为了帮助平滑过渡到 Store + Reducer 架构。对于新代码，强烈建议直接使用 **Store + Reducer** 架构。
 
-**详细说明**: [GlobalState 弃用公告](../GLOBALSTATE_DEPRECATION.md) | [迁移指南](../guides/MIGRATION_GUIDE.md)
+**详细说明**: [GlobalState 弃用公告](/docsArchive/GLOBALSTATE_DEPRECATION.md) | [迁移指南](../guides/MIGRATION_GUIDE.md)
 
 ---
 
@@ -1160,10 +1160,10 @@ func increment() {
 
 ## 相关文档
 
-- [Store + Reducer API 参考](../ui/store/api/API_REFERENCE.md)
-- [MVP 迁移指南](../mvp/MVP_MIGRATION_GUIDE.md)
-- [Field Binding 优化指南](../ui/store/api/FIELD_BINDING_OPTIMIZATION.md)
-- [混合模式示例](../../../examples/store_mixed_demo)
+- [Store + Reducer API 参考](../api/API_REFERENCE.md)
+- [MVP 迁移指南](/docsArchive/architecture/mvp/MVP_MIGRATION_GUIDE.md)
+- [Field Binding 优化指南](../optimization/FIELD_BINDING_OPTIMIZATION.md)
+- [混合模式示例](/examples/store_mixed_demo)
 
 ---
 

@@ -8,8 +8,8 @@ Mint TUI 提供了一套强大的调试工具，帮助开发者快速定位和�
 |------|------|---------|
 | [quick_start.md](quick_start.md) | 快速入门指南 | 第一次使用、常用命令 |
 | [environment_variables.md](environment_variables.md) | 环境变量参考 | 查询所有调试选项 |
-| [layout_api.md](layout_api.md) | 布局调试 API | 编程方式使用调试功能 |
-| [paint_debug.md](paint_debug.md) | 渲染调试详解 | 深入理解 Paint 过程 |
+| [/docsArchive/layout_api.md](/docsArchive/layout_api.md) | 布局调试 API（已归档） | 编程方式使用调试功能 |
+| [/docsArchive/paint_debug.md](/docsArchive/paint_debug.md) | 渲染调试详解（已归档） | 深入理解 Paint 过程 |
 
 ## 🎯 三种调试模式
 
@@ -101,7 +101,7 @@ TUI_UI_DEBUG_PAINT=true ./demo2.exe 2>&1 | grep "DEBUG-ALIGN"
 TUI_UI_DEBUG_PAINT=true ./demo2.exe 2>&1 | grep "buttonText len="
 ```
 
-**详细调试方法**: [paint_debug.md#实际调试案例](paint_debug.md)
+**详细调试方法**: [/docsArchive/paint_debug.md#实际调试案例](/docsArchive/paint_debug.md)
 
 ### 问题: Wrap 没有换行
 
@@ -159,8 +159,8 @@ TUI_UI_DEBUG_LAYOUT=true ./demo2.exe 2>&1 | grep "✅"
 
 ### 进阶使用
 
-1. 阅读 [paint_debug.md](paint_debug.md) - 理解渲染原理
-2. 学习 [layout_api.md](layout_api.md) - 编程方式使用
+1. 阅读 [/docsArchive/paint_debug.md](/docsArchive/paint_debug.md) - 理解渲染原理
+2. 学习 [/docsArchive/layout_api.md](/docsArchive/layout_api.md) - 编程方式使用
 3. 查看 [environment_variables.md](environment_variables.md) - 所有选项
 
 ### 专家模式
@@ -176,20 +176,20 @@ TUI_UI_DEBUG_LAYOUT=true ./demo2.exe 2>&1 | grep "✅"
 - ✅ `TUI_UI_DEBUG_LAYOUT` - 新命名（推荐）
 - ⚠️ `TUI_LAYOUT_DEBUG` - 旧命名（仍可用）
 
-**迁移指南**: [MIGRATION.md](MIGRATION.md)
+**迁移指南**: [/docsArchive/MIGRATION.md](/docsArchive/MIGRATION.md)
 
 ## 📖 扩展阅读
 
-- [渲染流程说明](../report/rendering_flow_explained.md) - 理解两阶段渲染
-- [Demo2 按钮布局分析](../report/demo2_button_layout_analysis.md) - 实战案例分析
-- [布局调试 API 详解](layout_api.md) - 完整 API 参考
+- [渲染流程说明](/docsArchive/rendering_flow_explained.md) - 理解两阶段渲染（已归档）
+- [Demo2 按钮布局分析](/docsArchive/demo2_button_layout_analysis.md) - 实战案例分析（已归档）
+- [布局调试 API 详解](/docsArchive/layout_api.md) - 完整 API 参考
 
 ---
 
 **需要帮助?**
 - 快速问题: 查看 [quick_start.md](quick_start.md)
 - 参数查询: 查看 [environment_variables.md](environment_variables.md)
-- 深入学习: 查看 [paint_debug.md](paint_debug.md)
+- 深入学习: 查看 [/docsArchive/paint_debug.md](/docsArchive/paint_debug.md)
 
 **版本**: v1.0
 **最后更新**: 2025-02-08

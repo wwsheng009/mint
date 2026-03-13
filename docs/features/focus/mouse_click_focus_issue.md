@@ -219,7 +219,7 @@ func (n *DeclarativeNode) HandleEvent(ev event.Event) bool {
 
 ### 方案 3：实现全局键盘导航处理
 
-**新建**: `internal/render/focus_navigation.go`
+**现有实现**: `runtime/focus/manager.go`
 
 ```go
 package render

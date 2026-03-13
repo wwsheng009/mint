@@ -693,7 +693,7 @@ func (o *VNode) Children() []rtui.VNode {
 创建性能基准测试：
 
 ```go
-// ui/components/optiongroup/benchmark_test.go
+// ui/components/optiongroup/optiongroup_test.go
 package optiongroup
 
 import (
@@ -841,8 +841,8 @@ git commit -m "fix(optiongroup): 修复闭包包装，解决子选项无法选�
 - multiselect_demo 和 typed_intent_demo 正常运行
 
 参考：
-- docs/ui/optiongroup/ARCHITECTURE_ANALYSIS_REPORT.md
-- docs/ui/optiongroup/CURRENT_STATUS.md
+- docsArchive/ARCHITECTURE_ANALYSIS_REPORT.md
+- docsArchive/CURRENT_STATUS.md
 - docs/ui/optiongroup/IMPLEMENTATION_GUIDE.md"
 
 # 推送到远程（如果需要）
@@ -856,8 +856,8 @@ git push origin optiongroup-fix-closure
 如果遇到问题：
 
 1. 查看相关文档：
-   - [架构分析报告](./ARCHITECTURE_ANALYSIS_REPORT.md)
-   - [当前状态](./CURRENT_STATUS.md)
+   - [架构分析报告](/docsArchive/ARCHITECTURE_ANALYSIS_REPORT.md)
+   - [当前状态](/docsArchive/CURRENT_STATUS.md)
 
 2. 检查示例代码：
    - `examples/multiselect_demo/main.go`
@@ -876,16 +876,16 @@ git push origin optiongroup-fix-closure
 ## 🔗 相关资源
 
 ### 设计文档
-- [Store + Reducer 架构](../../examples/typesafe_form_demo_runapp/README.md)
-- [Fiber-first 架构](../../runtime/ui/fiber.go)
+- [Store + Reducer 架构](/examples/typesafe_form_demo_runapp/README.md)
+- [Fiber-first 架构](/runtime/ui/fiber.go)
 
 ### API 文档
-- [OptionGroup Builder API](../builder.go)
-- [VNode 接口](../../runtime/ui/vnode.go)
+- [OptionGroup Builder API](/ui/components/optiongroup/builder.go)
+- [VNode 接口](/runtime/ui/vnode.go)
 
 ### 示例程序
-- [Multi-Select Demo](../../examples/multiselect_demo/)
-- [Type-Safe Form Demo](../../examples/typesafe_form_demo_runapp/)
+- [Multi-Select Demo](/examples/multiselect_demo/)
+- [Type-Safe Form Demo](/examples/typesafe_form_demo_runapp/)
 
 ---
 

@@ -16,7 +16,7 @@
 - ✅ 单一数据源原则
 - ✅ 更清晰的代码结构
 
-**详细说明**: [GlobalState 弃用公告](../GLOBALSTATE_DEPRECATION.md) | [混合模式指南](../hybrid/STATE_MANAGEMENT_GUIDE.md)
+**详细说明**: [GlobalState 弃用公告](/docsArchive/GLOBALSTATE_DEPRECATION.md) | [混合模式指南](../hybrid/STATE_MANAGEMENT_GUIDE.md)
 
 ---
 
@@ -277,7 +277,7 @@ var appReducer = reducer.BindField(reducer.NewBuilder[AppState]()).
 | 分散的字段逻辑 | 集中的字段定义 |
 | 需要手动类型转换 | 自动类型转换（BindIntField、BindBoolField） |
 
-**详细优化指南**: [FIELD_BINDING_OPTIMIZATION.md](./FIELD_BINDING_OPTIMIZATION.md)
+**详细优化指南**: [FIELD_BINDING_OPTIMIZATION.md](../optimization/FIELD_BINDING_OPTIMIZATION.md)
 
 ---
 
@@ -595,10 +595,10 @@ On(intent.FieldChangeIntent{}, func(s AppState, i intent.Intent) AppState {
 
 ## 相关文档
 
-- [Store 架构指南](STORE_ARCHITECTURE.md)
-- [Reducer 指南](REDUCER_GUIDE.md)
-- [最佳实践](BEST_PRACTICES.md)
-- [API 参考](API_REFERENCE.md)
+- [Store 架构指南](/docs/ui/store/README.md)
+- [Reducer 指南](STORE_REDUCER_GUIDE.md)
+- [最佳实践](/docs/state/BEST_PRACTICES.md)
+- [API 参考](../api/API_REFERENCE.md)
 
 ---
 
@@ -606,6 +606,6 @@ On(intent.FieldChangeIntent{}, func(s AppState, i intent.Intent) AppState {
 
 如果有问题，请参考：
 
-1. [focus_switching_demo](../../../examples/fiber_firsts/focus_switching_demo/) - 最新迁移的示例
-2. [store_reducer_demo](../../../examples/store_reducer_demo/) - 完整的 Store + Reducer 示例
-3. [常见问题](FAQ.md) - 迁移过程中的常见问题
+1. [focus_switching_demo](/examples/fiber_firsts/focus_switching_demo/) - 最新迁移的示例
+2. [store_reducer_demo](/examples/store_reducer_demo/) - 完整的 Store + Reducer 示例
+3. [常见问题](/docs/guide/migration-guide.md) - 迁移过程中的常见问题

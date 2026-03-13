@@ -40,7 +40,7 @@ Instance Tree (逻辑树)
 ### 1.2 核心接口
 
 ```go
-// runtime/instance/instance.go
+// runtime/ui/instance.go
 package instance
 
 // ComponentInstance 组件实例接口
@@ -69,7 +69,7 @@ type AddChilder interface {
 ```
 
 ```go
-// runtime/instance/base.go
+// runtime/ui/instance.go
 package instance
 
 import "github.com/wwsheng009/mint/runtime/ui"
@@ -217,7 +217,7 @@ func mountInstance(f *Fiber) {
 
 ### 2.3 修改 `reconcileChildren`
 
-文件：`runtime/ui/reconciler.go`
+文件：`internal/reconciler/reconciler.go`
 
 ```go
 func reconcileChildren(returnFiber, newChildVNode VNode) *Fiber {
@@ -412,7 +412,7 @@ type Instance struct {
 
 ### 4.1 BaseInstance 测试
 
-文件：`runtime/instance/base_test.go`
+文件：`runtime/ui/instance_tree_test.go`
 
 ```go
 package instance
@@ -480,7 +480,7 @@ func TestBaseInstance_RemoveChild(t *testing.T) {
 
 ### 4.2 Fiber 集成测试
 
-文件：`runtime/ui/fiber_instance_tree_test.go`
+文件：`runtime/ui/instance_tree_test.go`
 
 ```go
 package ui
@@ -529,7 +529,7 @@ func TestInstanceTree_Unmount(t *testing.T) {
 
 ### 4.3 OptionGroup 集成测试
 
-文件：`ui/components/optiongroup/instance_tree_test.go`
+文件：`runtime/ui/instance_tree_test.go`
 
 ```go
 package optiongroup
@@ -610,7 +610,7 @@ go build ./ui/components/...
 
 ```bash
 # 测试 BaseInstance
-go test ./runtime/instance/...
+go test ./runtime/ui/...
 
 # 测试 Fiber 集成
 go test ./runtime/ui/...
@@ -641,7 +641,7 @@ go run main.go
 
 ```bash
 # 基准测试
-go test -bench=. -benchmem ./runtime/instance/...
+go test -bench=. -benchmem ./runtime/ui/...
 go test -bench=. -benchmem ./ui/components/optiongroup/...
 ```
 

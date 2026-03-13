@@ -439,9 +439,9 @@ Age.Get(ctx, 0)            // 期望 int
 
 ## 相关文档
 
-- [INTENT_HANDLER_MIGRATION.md](./INTENT_HANDLER_MIGRATION.md) - Intent Handler 迁移指南
-- [STORE_REDUCER_GUIDE.md](./STORE_REDUCER_GUIDE.md) - Store + Reducer 完整指南
-- [REFACTOR_PLAN.md](./REFACTOR_PLAN.md) - 架构重构计划
+- [INTENT_HANDLER_MIGRATION.md](../migration/INTENT_HANDLER_MIGRATION.md) - Intent Handler 迁移指南
+- [STORE_REDUCER_GUIDE.md](../guides/STORE_REDUCER_GUIDE.md) - Store + Reducer 完整指南
+- [REFACTOR_PLAN.md](/docsArchive/REFACTOR_PLAN.md) - 架构重构计划
 
 ---
 

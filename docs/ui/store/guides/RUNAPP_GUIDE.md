@@ -387,10 +387,10 @@ func main() {
 
 ## 参考资料
 
-- **API 文档**: `docs/architecture/store/API_REFERENCE.md`
+- **API 文档**: `docs/ui/store/api/API_REFERENCE.md`
 - **完整示例**: `examples/runapp_demo/main.go`
-- **Store + Reducer 指南**: `docs/architecture/store/STORE_REDUCER_GUIDE.md`
-- **迁移指南**: `docs/architecture/store/MIGRATION_GUIDE.md`
+- **Store + Reducer 指南**: `docs/ui/store/guides/STORE_REDUCER_GUIDE.md`
+- **迁移指南**: `docs/ui/store/guides/MIGRATION_GUIDE.md`
 
 ---
 

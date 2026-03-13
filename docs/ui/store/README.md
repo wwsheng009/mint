@@ -58,7 +58,7 @@ store/
 |------|------|
 | `README.md` | Store + Reducer 架构概述和快速开始 |
 | `DEVELOPMENT_GUIDE.md` | 完整的开发指南，包含最佳实践 |
-| `STORE_REDUCER_GUIDE.md` | Store + Reducer 模式详细指南 |
+| `STORE_STORE_REDUCER_GUIDE.md` | Store + Reducer 模式详细指南 |
 | `HOOK_USAGE_GUIDE.md` | Hooks 使用指南和最佳实践 |
 | `MIGRATION_GUIDE.md` | 从 UseState 迁移到 Store + Reducer |
 | `RUNAPP_GUIDE.md` | AppRuntime 和 RunApp 使用指南 |

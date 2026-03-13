@@ -307,4 +307,4 @@ subBox := e.layoutNodeWithDepth(child, childConstraints, childX, childY, depth+1
 | `runtime/layout/types.go` | 布局引擎核心，包含 margin 位置应用和递归约束创建 |
 | `runtime/layout/flex.go` | Flex 布局实现，包含子节点测量和分配 |
 | `runtime/layout/constraints.go` | 约束定义和处理 |
-| `docs/layout/margin_and_measurement.md` | 详细的概念文档 |
+| `docs/layout/margin/margin_and_measurement.md` | 详细的概念文档 |

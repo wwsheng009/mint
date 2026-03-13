@@ -40,7 +40,7 @@
 
 ## 2. Sandbox接口定义
 
-### 2.1 核心接口 (`runtime/sandbox/sandbox.go`)
+### 2.1 核心接口 (`sandbox/sandbox.go`)
 
 ```go
 package sandbox
@@ -186,7 +186,7 @@ type Snapshot struct {
 }
 ```
 
-### 2.2 应用容器 (`runtime/sandbox/container.go`)
+### 2.2 Sandbox 核心 (`sandbox/sandbox.go`)
 
 ```go
 package sandbox
@@ -315,7 +315,7 @@ func (c *Container) GetRoot() component.Node {
 
 ## 3. Sandbox实现
 
-### 3.1 RealSandbox (`runtime/sandbox/real.go`)
+### 3.1 RealSandbox (`sandbox/real/sandbox.go`)
 
 ```go
 package sandbox
@@ -544,7 +544,7 @@ func (r *RealSandbox) ImportEvents(data []byte) error {
 }
 ```
 
-### 3.2 MockSandbox (`runtime/sandbox/mock.go`)
+### 3.2 MockSandbox (`sandbox/mock/sandbox.go`)
 
 ```go
 package sandbox
@@ -899,7 +899,7 @@ func (m *MockSandbox) DrainEvents(timeout time.Duration) int {
 }
 ```
 
-### 3.3 ReplaySandbox (`runtime/sandbox/replay.go`)
+### 3.3 ReplaySandbox (`sandbox/replay/sandbox.go`)
 
 ```go
 package sandbox
@@ -1022,7 +1022,7 @@ func (r *ReplaySandbox) Type() SandboxType {
 package ui
 
 import (
-    "github.com/wwsheng009/mint/runtime/sandbox"
+    "github.com/wwsheng009/mint/sandbox"
 )
 
 // App 应用程序
@@ -1379,9 +1379,9 @@ testApp.AssertRender("results found")
 ## 阶段1: 创建Sandbox核心接口
 
 **文件列表:**
-1. `runtime/sandbox/sandbox.go` - Sandbox接口定义
-2. `runtime/sandbox/errors.go` - 错误定义
-3. `runtime/sandbox/types.go` - 类型定义
+1. `sandbox/sandbox.go` - Sandbox接口定义
+2. `sandbox/errors.go` - 错误定义
+3. `sandbox/types.go` - 类型定义
 
 **任务:**
 - 定义 `Sandbox` 接口
@@ -1392,11 +1392,11 @@ testApp.AssertRender("results found")
 ## 阶段2: 实现Sandbox类型
 
 **文件列表:**
-1. `runtime/sandbox/container.go` - 应用容器
-2. `runtime/sandbox/real.go` - RealSandbox实现
-3. `runtime/sandbox/mock.go` - MockSandbox实现
-4. `runtime/sandbox/replay.go` - ReplaySandbox实现
-5. `runtime/sandbox/snapshot.go` - 快照功能
+1. `sandbox/sandbox.go` - 应用容器
+2. `sandbox/real/sandbox.go` - RealSandbox实现
+3. `sandbox/mock/sandbox.go` - MockSandbox实现
+4. `sandbox/replay/sandbox.go` - ReplaySandbox实现
+5. `sandbox/snapshot.go` - 快照功能
 
 **任务:**
 - `Container`: 封装应用和Sandbox，提供主循环
@@ -1428,8 +1428,8 @@ type TestApp struct {
 ## 阶段4: 添加测试
 
 **文件列表:**
-1. `examples/test_button/main_test.go` - 按钮测试
-2. `ui/app_test.go` - 核心功能测试
+1. `ui/components/button/button_test.go` - 按钮测试
+2. `ui/layout_test.go` - 核心功能测试
 
 **测试场景:**
 - 按钮点击测试
@@ -1441,13 +1441,13 @@ type TestApp struct {
 ## 阶段5: 文档
 
 **文件列表:**
-1. `docs/TESTING_GUIDE.md` - 测试指南（新增）
+1. `docs/testing/TESTING_TOOL.md` - 测试指南（新增）
 
 ## 验证方式
 
 ### 1. 单元测试
 ```bash
-go test ./runtime/sandbox/... -v
+go test ./sandbox/... -v
 go test ./ui/... -v
 ```
 
@@ -1474,15 +1474,15 @@ testApp.AssertRender("Hello")
 
 | 文件 | 操作 |
 |------|------|
-| `runtime/sandbox/sandbox.go` | 新增 |
-| `runtime/sandbox/container.go` | 新增 |
-| `runtime/sandbox/real.go` | 新增 |
-| `runtime/sandbox/mock.go` | 新增 |
-| `runtime/sandbox/replay.go` | 新增 |
-| `runtime/sandbox/errors.go` | 新增 |
-| `runtime/sandbox/types.go` | 新增 |
+| `sandbox/sandbox.go` | 新增 |
+| `sandbox/sandbox.go` | 新增 |
+| `sandbox/real/sandbox.go` | 新增 |
+| `sandbox/mock/sandbox.go` | 新增 |
+| `sandbox/replay/sandbox.go` | 新增 |
+| `sandbox/errors.go` | 新增 |
+| `sandbox/types.go` | 新增 |
 | `ui/app.go` | 修改（添加TestRun） |
-| `examples/test_button/main_test.go` | 新增 |
-| `ui/app_test.go` | 新增 |
-| `docs/TESTING_GUIDE.md` | 新增 |
+| `ui/components/button/button_test.go` | 新增 |
+| `ui/layout_test.go` | 新增 |
+| `docs/testing/TESTING_TOOL.md` | 新增 |
 

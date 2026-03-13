@@ -604,5 +604,5 @@ ui.HStackBuilder(
 - `runtime/layout/types.go` - 布局引擎核心逻辑
 - `runtime/layout/flex.go` - Flex 布局实现
 - `runtime/layout/constraints.go` - 约束定义
-- `examples/elegant_api_demo/test_margin_simple.go` - Margin 测试
-- `examples/elegant_api_demo/test_margin_measure.go` - 测量相关测试
+- `runtime/layout/style_layout_test.go` - Margin 布局测试
+- `runtime/layout/comprehensive_layout_test.go` - 测量相关测试

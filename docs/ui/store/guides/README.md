@@ -103,7 +103,7 @@ var appReducer = reducer.BindField(reducer.NewBuilder[AppState]()).
     })
 ```
 
-**详细优化指南**: [FIELD_BINDING_OPTIMIZATION.md](./FIELD_BINDING_OPTIMIZATION.md)
+**详细优化指南**: [FIELD_BINDING_OPTIMIZATION.md](../optimization/FIELD_BINDING_OPTIMIZATION.md)
 
 ### 3. 注册 Handlers
 
@@ -137,7 +137,7 @@ func App() ui.VNode {
 
 | API | 说明 |
 |------|------|
-| `NewStore[T](initial T) | 初始化 Store |
+| `NewStore[T](initial T)` | 初始化 Store |
 | `Get() T` | 读取状态 |
 | `Set(next T)` | 更新状态 |
 | `Subscribe(callback func(T)) func()` | 订阅变化 |
@@ -170,7 +170,7 @@ func App() ui.VNode {
 | `BindIntField(name, Handler)` | 绑定整型字段（自动转换）|
 | `BindBoolField(name, Handler)` | 绑定布尔字段（自动转换）|
 
-**详细文档**: [FIELD_BINDING_OPTIMIZATION.md](./FIELD_BINDING_OPTIMIZATION.md)
+**详细文档**: [FIELD_BINDING_OPTIMIZATION.md](../optimization/FIELD_BINDING_OPTIMIZATION.md)
 
 **自动注册**:
 ```go
@@ -229,12 +229,12 @@ appReducer.BuildAndRegister(registry, appStore)
 
 | 文档 | 说明 |
 |------|------|
-| **API** | `docs/architecture/store/API_REFERENCE.md` - API 参考 |
-| **迁移** | `docs/architecture/store/MIGRATION_GUIDE.md` - 迁移指南 |
-| **开发** | `docs/architecture/store/DEVELOPMENT_GUIDE.md` - 开发指南 |
-| **状态** | `docs/architecture/store/CURRENT_STATUS.md` - 状态评估 |
-| **优化** | `docs/architecture/store/FIELD_BINDING_OPTIMIZATION.md` - 字段绑定优化 |
-| **进度** | `docs/architecture/store/MIGRATION_PROGRESS.md` - 迁移进度 |
+| **API** | `docs/ui/store/api/API_REFERENCE.md` - API 参考 |
+| **迁移** | `docs/ui/store/guides/MIGRATION_GUIDE.md` - 迁移指南 |
+| **开发** | `docs/ui/store/guides/DEVELOPMENT_GUIDE.md` - 开发指南 |
+| **状态** | `docsArchive/status/CURRENT_STATUS.md` - 状态评估 |
+| **优化** | `docs/ui/store/optimization/FIELD_BINDING_OPTIMIZATION.md` - 字段绑定优化 |
+| **进度** | `docsArchive/status/MIGRATION_PROGRESS.md` - 迁移进度 |
 
 ---
 

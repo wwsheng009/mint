@@ -12,8 +12,8 @@
 
 | 文档 | 描述 | 目标读者 |
 |------|------|---------|
-| [ARCHITECTURE_ANALYSIS_REPORT.md](./ARCHITECTURE_ANALYSIS_REPORT.md) | 深度架构分析和方案对比 | 架构师、高级开发者 |
-| [CURRENT_STATUS.md](./CURRENT_STATUS.md) | 当前系统现状和问题清单 | 开发者、测试人员 |
+| [ARCHITECTURE_ANALYSIS_REPORT.md](/docsArchive/ARCHITECTURE_ANALYSIS_REPORT.md) | 深度架构分析和方案对比 | 架构师、高级开发者 |
+| [CURRENT_STATUS.md](/docsArchive/CURRENT_STATUS.md) | 当前系统现状和问题清单 | 开发者、测试人员 |
 | [IMPLEMENTATION_GUIDE.md](./IMPLEMENTATION_GUIDE.md) | 详细实施指南和步骤 | 实施开发者 |
 | [README.md](./README.md) | 文档入口和快速导航 | （本文件） |
 
@@ -25,39 +25,39 @@
 
 #### 🔍 问题是什么？
 
-→ 阅读 [ARCHITECTURE_ANALYSIS_REPORT.md - 问题分析](./ARCHITECTURE_ANALYSIS_REPORT.md#-问题分析)
+→ 阅读 [ARCHITECTURE_ANALYSIS_REPORT.md - 问题分析](/docsArchive/ARCHITECTURE_ANALYSIS_REPORT.md#-问题分析)
 
 #### 💡 为什么会出现这个问题？
 
-→ 阅读 [ARCHITECTURE_ANALYSIS_REPORT.md - 时序问题详解](./ARCHITECTURE_ANALYSIS_REPORT.md#-根本原因时序问题)
+→ 阅读 [ARCHITECTURE_ANALYSIS_REPORT.md - 时序问题详解](/docsArchive/ARCHITECTURE_ANALYSIS_REPORT.md#-根本原因时序问题)
 
 #### 🌐 React 是如何解决的？
 
-→ 阅读 [ARCHITECTURE_ANALYSIS_REPORT.md - React 解决方案对比](./ARCHITECTURE_ANALYSIS_REPORT.md#-react-如何处理类似问题)
+→ 阅读 [ARCHITECTURE_ANALYSIS_REPORT.md - React 解决方案对比](/docsArchive/ARCHITECTURE_ANALYSIS_REPORT.md#-react-如何处理类似问题)
 
 #### 🏗️ 当前架构是什么样子的？
 
-→ 阅读 [ARCHITECTURE_ANALYSIS_REPORT.md - Mint Fiber-first 架构特点](./ARCHITECTURE_ANALYSIS_REPORT.md#-mint-fiber-first-架构特点)
+→ 阅读 [ARCHITECTURE_ANALYSIS_REPORT.md - Mint Fiber-first 架构特点](/docsArchive/ARCHITECTURE_ANALYSIS_REPORT.md#-mint-fiber-first-架构特点)
 
 #### 📊 有哪些可用的解决方案？
 
-→ 阅读 [ARCHITECTURE_ANALYSIS_REPORT.md - Mint 解决方案对比](./ARCHITECTURE_ANALYSIS_REPORT.md#-mint-解决方案对比)
+→ 阅读 [ARCHITECTURE_ANALYSIS_REPORT.md - Mint 解决方案对比](/docsArchive/ARCHITECTURE_ANALYSIS_REPORT.md#-mint-解决方案对比)
 
 #### ✅ 哪个方案最推荐？
 
-→ 阅读 [ARCHITECTURE_ANALYSIS_REPORT.md - 推荐方案](./ARCHITECTURE_ANALYSIS_REPORT.md#-推荐方案)
+→ 阅读 [ARCHITECTURE_ANALYSIS_REPORT.md - 推荐方案](/docsArchive/ARCHITECTURE_ANALYSIS_REPORT.md#-推荐方案)
 
 #### 📋 当前系统状态如何？
 
-→ 阅读 [CURRENT_STATUS.md - 已实现功能清单](./CURRENT_STATUS.md#-已实现功能清单)
+→ 阅读 [CURRENT_STATUS.md - 已实现功能清单](/docsArchive/CURRENT_STATUS.md#-已实现功能清单)
 
 #### 🔴 已知有哪些问题？
 
-→ 阅读 [CURRENT_STATUS.md - 已知问题](./CURRENT_STATUS.md#-已知问题)
+→ 阅读 [CURRENT_STATUS.md - 已知问题](/docsArchive/CURRENT_STATUS.md#-已知问题)
 
 #### 📁 有哪些相关文件？
 
-→ 阅读 [CURRENT_STATUS.md - 文件清单](./CURRENT_STATUS.md#-文件清单)
+→ 阅读 [CURRENT_STATUS.md - 文件清单](/docsArchive/CURRENT_STATUS.md#-文件清单)
 
 #### 🔧 如何实施修复？
 
@@ -78,8 +78,8 @@
 ```
 docs/ui/optiongroup/
 ├── README.md                          # 文档入口（本文件）
-├── ARCHITECTURE_ANALYSIS_REPORT.md    # 架构分析报告
-├── CURRENT_STATUS.md                  # 当前系统现状
+├── ARCHITECTURE_ANALYSIS_REPORT.md    # 架构分析报告（已归档：/docsArchive/ARCHITECTURE_ANALYSIS_REPORT.md）
+├── CURRENT_STATUS.md                  # 当前系统现状（已归档：/docsArchive/CURRENT_STATUS.md）
 ├── IMPLEMENTATION_GUIDE.md            # 实施指南
 └── (未来可能添加的文档)
     ├── CHANGELOG.md                   # 变更日志
@@ -146,8 +146,8 @@ group := optiongroup.NewBuilder(options).
 ```
 
 更多示例请查看：
-- [`examples/multiselect_demo/main.go`](../../examples/multiselect_demo/)
-- [`examples/typed_intent_demo/main.go`](../../examples/typed_intent_demo/)
+- [`examples/multiselect_demo/main.go`](/examples/multiselect_demo/)
+- [`examples/typed_intent_demo/main.go`](/examples/typed_intent_demo/)
 
 ---
 
@@ -169,7 +169,7 @@ Fiber-first 架构的 Fiber 创建时序导致父-子回调无法正确传递。
 - 单元测试全部通过 ✅
 - 但存在运行时问题 🔴
 
-**详细分析** → [ARCHITECTURE_ANALYSIS_REPORT.md](./ARCHITECTURE_ANALYSIS_REPORT.md)
+**详细分析** → [ARCHITECTURE_ANALYSIS_REPORT.md](/docsArchive/ARCHITECTURE_ANALYSIS_REPORT.md)
 
 ---
 
@@ -191,7 +191,7 @@ Fiber-first 架构的 Fiber 创建时序导致父-子回调无法正确传递。
 - 方案B: OnMount 注册（全局注册表）- 可用作回退方案
 - 方案D: Intent 系统 - 长期方案，适合大型应用
 
-**方案对比** → [ARCHITECTURE_ANALYSIS_REPORT.md - 方案对比表](./ARCHITECTURE_ANALYSIS_REPORT.md#-方案对比表)
+**方案对比** → [ARCHITECTURE_ANALYSIS_REPORT.md - 方案对比表](/docsArchive/ARCHITECTURE_ANALYSIS_REPORT.md#-方案对比表)
 
 ---
 
@@ -199,12 +199,12 @@ Fiber-first 架构的 Fiber 创建时序导致父-子回调无法正确传递。
 
 ### 对于想了解问题的读者
 
-1. 阅读 [ARCHITECTURE_ANALYSIS_REPORT.md](./ARCHITECTURE_ANALYSIS_REPORT.md)
+1. 阅读 [ARCHITECTURE_ANALYSIS_REPORT.md](/docsArchive/ARCHITECTURE_ANALYSIS_REPORT.md)
    - 第1章：问题分析
    - 第2章：时序问题详解
    - 第3章：React 解决方案对比
 
-2. 阅读 [CURRENT_STATUS.md](./CURRENT_STATUS.md)
+2. 阅读 [CURRENT_STATUS.md](/docsArchive/CURRENT_STATUS.md)
    - 第1章：当前架构状态
    - 第2章：已实现功能清单
    - 第3章：已知问题
@@ -231,7 +231,7 @@ Fiber-first 架构的 Fiber 创建时序导致父-子回调无法正确传递。
 
 ### 对于想深入了解的读者
 
-1. 阅读 [ARCHITECTURE_ANALYSIS_REPORT.md](./ARCHITECTURE_ANALYSIS_REPORT.md)
+1. 阅读 [ARCHITECTURE_ANALYSIS_REPORT.md](/docsArchive/ARCHITECTURE_ANALYSIS_REPORT.md)
    - 全部章节
 
 2. 研究相关源码：
@@ -260,8 +260,8 @@ Fiber-first 架构的 Fiber 创建时序导致父-子回调无法正确传递。
 
 ### 文档相关
 
-- 问题描述不清晰？→ 阅读 [ARCHITECTURE_ANALYSIS_REPORT.md](./ARCHITECTURE_ANALYSIS_REPORT.md)
-- 代码位置不清楚？→ 阅读 [CURRENT_STATUS.md - 文件清单](./CURRENT_STATUS.md#-文件清单)
+- 问题描述不清晰？→ 阅读 [ARCHITECTURE_ANALYSIS_REPORT.md](/docsArchive/ARCHITECTURE_ANALYSIS_REPORT.md)
+- 代码位置不清楚？→ 阅读 [CURRENT_STATUS.md - 文件清单](/docsArchive/CURRENT_STATUS.md#-文件清单)
 - 不知道如何实施？→ 阅读 [IMPLEMENTATION_GUIDE.md](./IMPLEMENTATION_GUIDE.md)
 
 ### 问题排查
@@ -281,27 +281,27 @@ Fiber-first 架构的 Fiber 创建时序导致父-子回调无法正确传递。
 
 ### Mint 文档
 
-- [系统现状分析](../../current_system_analysis.md)
-- [组件迁移计划](../../COMPONENT_MIGRATION_PLAN.md)
+- [系统现状分析](/docsArchive/current_system_analysis.md)
+- [组件迁移计划](/docsArchive/COMPONENT_MIGRATION_PLAN.md)
 - [主 README](../../README.md)
 
 ### 示例程序
 
-- [Multi-Select Demo](../../examples/multiselect_demo/)
-- [Type-Safe Form Demo](../../examples/typesafe_form_demo_runapp/)
+- [Multi-Select Demo](/examples/multiselect_demo/)
+- [Type-Safe Form Demo](/examples/typesafe_form_demo_runapp/)
 
 ### 组件源码
 
-- [VNode 实现](../../ui/components/optiongroup/vnode.go)
-- [Instance 实现](../../ui/components/optiongroup/instance.go)
-- [Option 子组件](../../ui/components/optiongroup/option.go)
-- [Builder API](../../ui/components/optiongroup/builder.go)
+- [VNode 实现](/ui/components/optiongroup/vnode.go)
+- [Instance 实现](/ui/components/optiongroup/instance.go)
+- [Option 子组件](/ui/components/optiongroup/option.go)
+- [Builder API](/ui/components/optiongroup/builder.go)
 
 ### 架构相关
 
-- [Fiber-first 架构](../../runtime/ui/fiber.go)
-- [Store + Reducer](../../runtime/statemachine/runtime.go)
-- [Intent 系统](../../runtime/intent/)
+- [Fiber-first 架构](/runtime/ui/fiber.go)
+- [Store + Reducer](/runtime/statemachine/runtime.go)
+- [Intent 系统](/runtime/intent/)
 
 ---
 

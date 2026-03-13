@@ -279,7 +279,7 @@ MCP Client
 
 ```text
 framework/
-  ai_config.go            # 公开配置类型：AIConfig / MCPConfig
+  ai_api.go            # 公开配置类型：AIConfig / MCPConfig
   ai_enable.go            # App.EnableAI / 生命周期挂接
   ai_invoke.go            # App.Invoke / 主循环串行调用桥
   ai_api.go               # App 对外暴露的 AI facade / helper
@@ -1279,7 +1279,7 @@ type MCPConfig struct {
 交付物：
 
 1. `runtime/ai/doc.go` 迁移说明或废弃说明。
-2. `framework/ai_config.go` / `framework/ai_enable.go` / `framework/ai_invoke.go`。
+2. `framework/ai_api.go` / `framework/ai_enable.go` / `framework/ai_invoke.go`。
 3. `internal/ai/service/*` 基础骨架。
 4. `internal/inspectmeta/*` 基础骨架。
 

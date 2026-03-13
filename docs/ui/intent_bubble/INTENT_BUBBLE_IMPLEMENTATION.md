@@ -202,7 +202,7 @@ func (inst *ParentComponent) HandleIntent(i intent.Intent) bool {
 ### 新增文件
 
 1. `runtime/intent/global_intent.go` - GlobalIntent 接口定义
-2. `docs/ui/mint2/INTENT_ARCHITECTURE_ANALYSIS.md` - 架构分析文档
+2. `docsArchive/INTENT_ARCHITECTURE_ANALYSIS.md` - 架构分析文档
 
 ### 修改文件
 
@@ -228,7 +228,7 @@ func (inst *ParentComponent) HandleIntent(i intent.Intent) bool {
 修改内容：
 1. 新增 runtime/intent/global_intent.go
 2. 更新 runtime/ui/fiber_util.go
-3. 新增 docs/ui/mint2/INTENT_ARCHITECTURE_ANALYSIS.md
+3. 新增 docsArchive/INTENT_ARCHITECTURE_ANALYSIS.md
 
 测试结果：
 ✅ typed_intent_demo: 所有功能正常

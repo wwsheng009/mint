@@ -692,5 +692,5 @@ EmitIntent(UpdateStepIntent{Step: 2})  // 在组件中
 ### 相关文档
 
 - [FIBER_STATE_ARCHITECTURE.md](./FIBER_STATE_ARCHITECTURE.md) - 核心架构
-- [PERFORMANCE.md](./PERFORMANCE.md) - 性能优化
-- [MIGRATION.md](./MIGRATION.md) - 从闭包模式迁移
+- [PERFORMANCE.md](/docsArchive/performance/FINAL_SUMMARY.md) - 性能优化
+- [MIGRATION.md](/docsArchive/MIGRATION.md) - 从闭包模式迁移

@@ -127,7 +127,7 @@ var appReducer = reducer.BindField(reducer.NewBuilder[AppState]()).
     })
 ```
 
-**详细 FieldBinding 优化指南**: [FIELD_BINDING_OPTIMIZATION.md](./FIELD_BINDING_OPTIMIZATION.md)
+**详细 FieldBinding 优化指南**: [FIELD_BINDING_OPTIMIZATION.md](../optimization/FIELD_BINDING_OPTIMIZATION.md)
 
 ### 4. 创建 Store
 
@@ -577,11 +577,11 @@ func main() {
 
 ### 相关文档
 
-- **API 参考**: [API_REFERENCE.md](./API_REFERENCE.md)
+- **API 参考**: [API_REFERENCE.md](../api/API_REFERENCE.md)
 - **迁移指南**: [MIGRATION_GUIDE.md](./MIGRATION_GUIDE.md)
-- **状态评估**: [CURRENT_STATUS.md](./CURRENT_STATUS.md)
-- **字段绑定优化**: [FIELD_BINDING_OPTIMIZATION.md](./FIELD_BINDING_OPTIMIZATION.md)
-- **迁移进度**: [MIGRATION_PROGRESS.md](./MIGRATION_PROGRESS.md)
+- **状态评估**: [CURRENT_STATUS.md](/docsArchive/status/CURRENT_STATUS.md)
+- **字段绑定优化**: [FIELD_BINDING_OPTIMIZATION.md](../optimization/FIELD_BINDING_OPTIMIZATION.md)
+- **迁移进度**: [MIGRATION_PROGRESS.md](/docsArchive/status/MIGRATION_PROGRESS.md)
 
 ---
 

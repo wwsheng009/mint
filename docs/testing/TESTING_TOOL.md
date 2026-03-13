@@ -926,10 +926,10 @@ A: 当前测试框架是同步的。对于异步操作，使用 `time.Sleep` 或
 
 ### 完整测试示例文件
 
-参见 `ui/component_test.go` 获取更多测试示例。
+参见 `internal/render/component_test.go` 获取更多测试示例。
 
 ### 相关文档
 
-- [组件 API 文档](./ui/README.md)
-- [Hooks API 文档](./ui/README.md#hooks-api)
+- [组件 API 文档](/ui/README.md)
+- [Hooks API 文档](/ui/README.md#hooks-api)
 - [主 README](../README.md)

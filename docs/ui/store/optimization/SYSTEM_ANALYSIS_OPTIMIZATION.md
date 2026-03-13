@@ -519,7 +519,7 @@ func registerHandlers() {
 为 Intent 类型添加命名空间，避免冲突。
 
 ```go
-// runtime/intent/intent.go
+// runtime/intent/types.go
 
 type Intent interface {
     // IntentType 返回命名空间:类型
@@ -619,7 +619,7 @@ func (r *Registry) GetHandlerWithNamespace(intentType string, ns string) (Handle
 - Intent 处理全程追踪
 
 ```go
-// runtime/logging/logger.go
+// internal/log/logger.go
 
 type LogLevel int
 
@@ -971,10 +971,10 @@ func registerHandlers() {
 
 ### B. 相关文档
 
-- [STORE_REDUCER_GUIDE.md](./STORE_REDUCER_GUIDE.md) - Store + Reducer 完整指南
-- [TYPE_SAFE_INTENT.md](./TYPE_SAFE_INTENT.md) - 类型安全 Intent DSL
-- [INTENT_HANDLER_MIGRATION.md](./INTENT_HANDLER_MIGRATION.md) - Intent Handler 迁移指南
-- [REFACTOR_PLAN.md](./REFACTOR_PLAN.md) - 完整架构重构计划
+- [STORE_REDUCER_GUIDE.md](../guides/STORE_REDUCER_GUIDE.md) - Store + Reducer 完整指南
+- [TYPE_SAFE_INTENT.md](../features/TYPE_SAFE_INTENT.md) - 类型安全 Intent DSL
+- [INTENT_HANDLER_MIGRATION.md](../migration/INTENT_HANDLER_MIGRATION.md) - Intent Handler 迁移指南
+- [REFACTOR_PLAN.md](/docsArchive/REFACTOR_PLAN.md) - 完整架构重构计划
 
 ---
 

@@ -868,7 +868,7 @@ type Constraints struct {
 
 **Step 1.1**: 定义 `BaseInstance` 和接口
 ```go
-// runtime/instance/base.go
+// runtime/ui/instance.go
 package instance
 
 type BaseInstance struct {
@@ -883,7 +883,7 @@ func (b *BaseInstance) AddChild(c ComponentInstance)
 
 **Step 1.2**: 更新 `ComponentInstance` 接口
 ```go
-// runtime/instance/instance.go
+// runtime/ui/instance.go
 type ComponentInstance interface {
     Parent() ComponentInstance
     Children() []ComponentInstance
@@ -955,7 +955,7 @@ type Fiber struct {
 
 **Step 2.3**: 创建 Context Provider 组件
 ```go
-// ui/components/context/provider.go
+// runtime/ui/context_provider.go
 type Provider struct {
     key   context.ContextKey
     value any
@@ -996,7 +996,7 @@ func (inst *OptionInstance) OnMount() {
 
 **Step 3.1**: 定义 Intent 接口
 ```go
-// runtime/intent/intent.go
+// runtime/intent/types.go
 package intent
 
 type Intent interface {
@@ -1180,11 +1180,11 @@ mint/
 
 ### B. 相关文档
 
-- [ARCHITECTURE_ANALYSIS_REPORT.md](./ARCHITECTURE_ANALYSIS_REPORT.md) - 原始 Bug 分析
-- [IMPLEMENTATION_GUIDE.md](./IMPLEMENTATION_GUIDE.md) - 临时闭包方案
-- [CURRENT_STATUS.md](./CURRENT_STATUS.md) - 当前系统状态
-- [review/review1.md](./review/review1.md) - 架构演进建议
-- [review/review2.md](./review/review2.md) - 完整架构设计
+- [ARCHITECTURE_ANALYSIS_REPORT.md](/docsArchive/ARCHITECTURE_ANALYSIS_REPORT.md) - 原始 Bug 分析
+- [IMPLEMENTATION_GUIDE.md](./INTENT_BUBBLE_IMPLEMENTATION.md) - 临时闭包方案
+- [CURRENT_STATUS.md](/docsArchive/CURRENT_STATUS.md) - 当前系统状态
+- [review/review1.md](/docsArchive/review/review1.md) - 架构演进建议
+- [review/review2.md](./review2.md) - 完整架构设计
 
 ---
 

@@ -799,9 +799,9 @@ func TestInteractionContext_KeyboardReset(t *testing.T) {
 
 ## 七、相关文档
 
-- [docs/platform/key_release.md](../../platform/key_release.md) - 设计原则
-- [docs/platform/FIBER_ARCHITECTURE.md](../../platform/FIBER_ARCHITECTURE.md) - Fiber 架构
-- [docs/fiber/fiber_first/fiber_intent.md](../../fiber/fiber_first/fiber_intent.md) - Intent 系统
+- [docs/platform/key_release.md](/docs/platform/key_release.md) - 设计原则
+- [/docs/architecture/design/FIBER_ARCHITECTURE.md](/docs/architecture/design/FIBER_ARCHITECTURE.md) - Fiber 架构
+- [/docsArchive/fiber_intent.md](/docsArchive/fiber_intent.md) - Intent 系统
 
 ---
 

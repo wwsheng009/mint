@@ -450,9 +450,9 @@ func main() {
 
 ## 参考资料
 
-- **RunApp 指南**: `docs/architecture/store/RUNAPP_GUIDE.md`
-- **Store + Reducer 指南**: `docs/architecture/store/STORE_REDUCER_GUIDE.md`
-- **实现总结**: `docs/architecture/store/IMPLEMENTATION_SUMMARY.md`
+- **RunApp 指南**: `docs/ui/store/guides/RUNAPP_GUIDE.md`
+- **Store + Reducer 指南**: `docs/ui/store/guides/STORE_REDUCER_GUIDE.md`
+- **实现总结**: `docsArchive/reviews/IMPLEMENTATION_SUMMARY.md`
 - **示例代码**:
   - `examples/runapp_demo/main.go` - RunApp 示例
   - `examples/store_reducer_demo/main.go` - Store + Reducer 示例

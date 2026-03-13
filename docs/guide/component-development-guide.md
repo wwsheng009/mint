@@ -593,4 +593,4 @@ func CounterWithCustomHook() ui.VNode {
 - [组件规范](../api/component.md)
 - [内存安全工具 API](../api/memory-safety.md)
 - [迁移指南](./migration-guide.md)
-- [内存泄露分析](../issue/2026-02-01-memory-leak-analysis.md)
+- [内存泄露分析](/docsArchive/issue/2026-02-01-memory-leak-analysis.md)

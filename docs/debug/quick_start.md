@@ -18,8 +18,8 @@
 
 - [README.md](README.md) - Debug 工具总览和导航
 - [environment_variables.md](environment_variables.md) - 完整环境变量参考
-- [paint_debug.md](paint_debug.md) - Paint 调试深入分析
-- [layout_api.md](layout_api.md) - 布局调试 API 详解
+- [paint_debug.md](/docsArchive/paint_debug.md) - Paint 调试深入分析（已归档）
+- [layout_api.md](/docsArchive/layout_api.md) - 布局调试 API 详解（已归档）
 
 ## 🚀 快速开始
 
@@ -309,8 +309,8 @@ TUI_UI_DEBUG_COLOR=false TUI_UI_DEBUG_LAYOUT=true ./demo2.exe
 
 - [README.md](README.md) - Debug 工具总览
 - [environment_variables.md](environment_variables.md) - 完整环境变量参考
-- [layout_api.md](layout_api.md) - 布局调试 API 详细说明
-- [paint_debug.md](paint_debug.md) - Paint 调试深入分析
+- [layout_api.md](/docsArchive/layout_api.md) - 布局调试 API 详细说明（已归档）
+- [paint_debug.md](/docsArchive/paint_debug.md) - Paint 调试深入分析（已归档）
 
 ## 🔗 从旧变量迁移
 

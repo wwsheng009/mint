@@ -196,7 +196,7 @@ fmt.Printf("Subscribers: %d\n", count)
 
 ## Reducer API
 
-**位置**: `github.com/wwsheng009/mint/runtime/reducer/generic_reducer.go`
+**位置**: `github.com/wwsheng009/mint/runtime/reducer/reducer.go`
 
 ### 创建 Reducer
 
@@ -533,7 +533,7 @@ var appReducer2 = reducer.BindField(reducer.NewBuilder[AppState]()).
     })
 ```
 
-**详细优化指南**: [FIELD_BINDING_OPTIMIZATION.md](./FIELD_BINDING_OPTIMIZATION.md)
+**详细优化指南**: [FIELD_BINDING_OPTIMIZATION.md](../optimization/FIELD_BINDING_OPTIMIZATION.md)
 
 ---
 

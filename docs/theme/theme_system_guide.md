@@ -78,7 +78,7 @@
 
 ### 23个语义颜色
 
-根据 `docs/theme/design/终端UI设计规范.md`，系统定义了23个语义颜色：
+根据 `docs/theme/design/theme.md`，系统定义了23个语义颜色：
 
 #### 1. 层级系统 (Layer System) - 3个
 ```go
@@ -903,7 +903,7 @@ func (d *DirtyTracker) Diff(prev, curr *Buffer) DiffResult {
 
 ### 设计规范
 
-- `docs/theme/design/终端UI设计规范.md` - 语义颜色定义
+- `docs/theme/design/theme.md` - 语义颜色定义
 - `docs/theme/design/theme.md` - 5套主题的RGB值
 - `docs/theme/design/comp_*.md` - 组件设计规范
 
@@ -917,7 +917,7 @@ func (d *DirtyTracker) Diff(prev, curr *Buffer) DiffResult {
 
 ### 相关文档
 
-- `docs/theme_rendering_flow.md` - 渲染流程说明
+- `docs/theme/theme_rendering_flow.md` - 渲染流程说明
 - `runtime/style/README.md` - Style系统说明
 
 ---

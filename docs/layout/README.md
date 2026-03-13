@@ -25,7 +25,7 @@ Welcome to the Mint TUI Layout System documentation. This directory contains com
 - **[wrap_component.md](./core_concepts/wrap_component.md)** - Wrap component for automatic line wrapping
 - **[container_background_rendering.md](./core_concepts/container_background_rendering.md)** - Container background rendering system
 - **[layer_system_guide.md](./core_concepts/layer_system_guide.md)** - Layer system for overlays and modals
-- **[CONTAINER_BACKGROUND_IMPLEMENTATION_SUMMARY.md](./core_concepts/CONTAINER_BACKGROUND_IMPLEMENTATION_SUMMARY.md)** - Background implementation summary
+- **[CONTAINER_BACKGROUND_IMPLEMENTATION_SUMMARY.md](/docsArchive/layout/core_concepts/CONTAINER_BACKGROUND_IMPLEMENTATION_SUMMARY.md)** - Background implementation summary (archived)
 
 **Best for**: Developers who want to understand how the layout system works
 
@@ -34,29 +34,29 @@ Welcome to the Mint TUI Layout System documentation. This directory contains com
 ### [architecture/](./architecture/)
 **System architecture and technical analysis**
 
-- **[LAYER_LAYOUT_ARCHITECTURE_REVIEW.md](./architecture/LAYER_LAYOUT_ARCHITECTURE_REVIEW.md)** - Comprehensive Layer and Layout architecture review
-- **[getChildconstraints_architecture_analysis.md](./architecture/getChildconstraints_architecture_analysis.md)** - Constraint propagation mechanism analysis
-- **[layer_constraint_audit_report.md](./architecture/layer_constraint_audit_report.md)** - Layer system constraint issues
+- **[LAYER_LAYOUT_ARCHITECTURE_REVIEW.md](/docsArchive/LAYER_LAYOUT_ARCHITECTURE_REVIEW.md)** - Comprehensive Layer and Layout architecture review (archived)
+- **[getChildconstraints_architecture_analysis.md](/docsArchive/getChildconstraints_architecture_analysis.md)** - Constraint propagation mechanism analysis (archived)
+- **[layer_constraint_audit_report.md](/docsArchive/layer_constraint_audit_report.md)** - Layer system constraint issues (archived)
 - **[rendering_pipeline_implementation.md](./architecture/rendering_pipeline_implementation.md)** - Rendering pipeline implementation details
 
 **Best for**: Contributors working on the layout system internals
 
 ---
 
-### [issues/](./issues/)
+### [issues/](/docsArchive/issues/)
 **Problem analysis and fix documentation**
 
-- **[FLEX_LAYOUT_ISSUE_ANALYSIS.md](./issues/FLEX_LAYOUT_ISSUE_ANALYSIS.md)** - Flex layout issue analysis (elegant_api_demo)
-- **[layout_fix_analysis_20260209.md](./issues/layout_fix_analysis_20260209.md)** - TreeView constraint propagation fix
-- **[FILLWIDTH_FINAL_FIX.md](./issues/FILLWIDTH_FINAL_FIX.md)** - Wrap component FillWidth final fix
-- **[FILLWIDTH_REAL_FIX.md](./issues/FILLWIDTH_REAL_FIX.md)** - FillWidth real fix attempt
-- **[FILLWIDTH_TRUE_FIX.md](./issues/FILLWIDTH_TRUE_FIX.md)** - FillWidth true fix attempt
-- **[WRAP_FILLWIDTH_FIX_SUMMARY.md](./issues/WRAP_FILLWIDTH_FIX_SUMMARY.md)** - Wrap FillWidth fix summary
-- **[LAYOUT_FIX_PLAN.md](./issues/LAYOUT_FIX_PLAN.md)** - Layout fix plan
-- **[border_overflow_explanation.md](./issues/border_overflow_explanation.md)** - Border overflow explanation
-- **[flex_wrap_limitation.md](./issues/flex_wrap_limitation.md)** - Why flex-wrap is not supported
-- **[layout_engine_fix_summary.md](./issues/layout_engine_fix_summary.md)** - Layout engine fix summary
-- **[modal_centering_fix.md](./issues/modal_centering_fix.md)** - Modal centering fix
+- **[FLEX_LAYOUT_ISSUE_ANALYSIS.md](/docsArchive/issues/FLEX_LAYOUT_ISSUE_ANALYSIS.md)** - Flex layout issue analysis (elegant_api_demo)
+- **[layout_fix_analysis_20260209.md](/docsArchive/issues/layout_fix_analysis_20260209.md)** - TreeView constraint propagation fix
+- **[FILLWIDTH_FINAL_FIX.md](/docsArchive/issues/FILLWIDTH_FINAL_FIX.md)** - Wrap component FillWidth final fix
+- **[FILLWIDTH_REAL_FIX.md](/docsArchive/issues/FILLWIDTH_REAL_FIX.md)** - FillWidth real fix attempt
+- **[FILLWIDTH_TRUE_FIX.md](/docsArchive/issues/FILLWIDTH_TRUE_FIX.md)** - FillWidth true fix attempt
+- **[WRAP_FILLWIDTH_FIX_SUMMARY.md](/docsArchive/issues/WRAP_FILLWIDTH_FIX_SUMMARY.md)** - Wrap FillWidth fix summary
+- **[LAYOUT_FIX_PLAN.md](/docsArchive/issues/LAYOUT_FIX_PLAN.md)** - Layout fix plan
+- **[border_overflow_explanation.md](/docsArchive/issues/border_overflow_explanation.md)** - Border overflow explanation
+- **[flex_wrap_limitation.md](/docsArchive/issues/flex_wrap_limitation.md)** - Why flex-wrap is not supported
+- **[layout_engine_fix_summary.md](/docsArchive/issues/layout_engine_fix_summary.md)** - Layout engine fix summary
+- **[modal_centering_fix.md](/docsArchive/issues/modal_centering_fix.md)** - Modal centering fix
 
 **Best for**: Debugging issues and understanding historical problems
 
@@ -66,30 +66,30 @@ Welcome to the Mint TUI Layout System documentation. This directory contains com
 **Refactoring design and history**
 
 - **[layout_refactor.md](./refactor/layout_refactor.md)** - Layout system refactor history
-- **[LAYOUT_RENDERING_REFACTOR.md](./refactor/LAYOUT_RENDERING_REFACTOR.md)** - Rendering pipeline refactor
-- **[single_pass_layout_refactor_design.md](./refactor/single_pass_layout_refactor_design.md)** - Single-pass layout refactor design
-- **[single_pass_refactor_summary.md](./refactor/single_pass_refactor_summary.md)** - Single-pass refactor summary
+- **[LAYOUT_RENDERING_REFACTOR.md](/docsArchive/LAYOUT_RENDERING_REFACTOR.md)** - Rendering pipeline refactor (archived)
+- **[single_pass_layout_refactor_design.md](/docsArchive/single_pass_layout_refactor_design.md)** - Single-pass layout refactor design (archived)
+- **[single_pass_refactor_summary.md](/docsArchive/single_pass_refactor_summary.md)** - Single-pass refactor summary (archived)
 
 **Best for**: Understanding the evolution of the layout system
 
 ---
 
-### [api_reference/](./api_reference/)
-**API documentation** (placeholder - to be populated)
+### api_reference/
+**API documentation** (planned - not yet available)
 
 **Best for**: Looking up specific API methods and parameters
 
 ---
 
-### [design/](./design/)
-**Design documents** (placeholder - for future design docs)
+### design/
+**Design documents** (planned - not yet available)
 
 **Best for**: Proposed features and design discussions
 
 ---
 
-### [components/](./components/)
-**Component-specific documentation** (placeholder - to be populated)
+### components/
+**Component-specific documentation** (planned - not yet available)
 
 **Best for**: Documentation about specific layout components
 
@@ -118,10 +118,10 @@ Welcome to the Mint TUI Layout System documentation. This directory contains com
 → Read [core_concepts/layer_system_guide.md](./core_concepts/layer_system_guide.md)
 
 #### "I'm debugging a layout issue"
-→ Check [issues/](./issues/) for similar problems and solutions
+→ Check [issues/](/docsArchive/issues/) for similar problems and solutions
 
 #### "I want to contribute to the layout system"
-→ Read [architecture/LAYER_LAYOUT_ARCHITECTURE_REVIEW.md](./architecture/LAYER_LAYOUT_ARCHITECTURE_REVIEW.md)
+→ Read [architecture/LAYER_LAYOUT_ARCHITECTURE_REVIEW.md](/docsArchive/LAYER_LAYOUT_ARCHITECTURE_REVIEW.md)
 
 ---
 
@@ -167,8 +167,8 @@ When adding new documentation:
 ## 🔗 Related Documentation
 
 - [Main Project README](../../README.md)
-- [Architecture Documentation](../../architecture/)
-- [Component Documentation](../../components/)
+- [Architecture Documentation](/docs/architecture/)
+- [Component Documentation](/docs/components/)
 
 ---
 
