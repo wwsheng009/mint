@@ -323,7 +323,7 @@ var (
 
 ---
 
-#### 🟡 6. Toast 放在 Tooltip 包里，职责不清
+#### ✅ 6. Toast 放在 Tooltip 包里，职责不清（已解决）
 
 `tooltip/toast.go` 和 `tooltip/toast_manager.go` 实现了完整的 Toast 通知系统，但放在 tooltip 包下。Toast 和 Tooltip 是完全不同的 UX 模式：
 - Tooltip = 悬停时的文字提示

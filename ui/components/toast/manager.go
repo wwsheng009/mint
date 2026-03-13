@@ -1,4 +1,4 @@
-package tooltip
+package toast
 
 import (
 	rtui "github.com/wwsheng009/mint/runtime/ui"

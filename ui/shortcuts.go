@@ -42,6 +42,7 @@ import (
 	"github.com/wwsheng009/mint/ui/components/tabs"
 	"github.com/wwsheng009/mint/ui/components/text"
 	"github.com/wwsheng009/mint/ui/components/textarea"
+	"github.com/wwsheng009/mint/ui/components/toast"
 	"github.com/wwsheng009/mint/ui/components/tooltip"
 	"github.com/wwsheng009/mint/ui/components/treeview"
 	"github.com/wwsheng009/mint/ui/components/virtuallist"
@@ -171,8 +172,8 @@ func NewTooltipBuilder(content rtui.VNode, tooltipText string) *tooltip.Builder 
 	return tooltip.NewBuilder(content, tooltipText)
 }
 
-func NewToastBuilder(message string) *tooltip.ToastBuilder {
-	return tooltip.NewToastBuilder(message)
+func NewToastBuilder(message string) *toast.ToastBuilder {
+	return toast.NewToastBuilder(message)
 }
 
 // =============================================================================
@@ -288,13 +289,13 @@ const (
 )
 
 // Toast Types
-type ToastType = tooltip.ToastType
+type ToastType = toast.ToastType
 
 const (
-	ToastTypeInfo    = tooltip.ToastInfo
-	ToastTypeSuccess = tooltip.ToastSuccess
-	ToastTypeWarning = tooltip.ToastWarning
-	ToastTypeError   = tooltip.ToastError
+	ToastTypeInfo    = toast.ToastInfo
+	ToastTypeSuccess = toast.ToastSuccess
+	ToastTypeWarning = toast.ToastWarning
+	ToastTypeError   = toast.ToastError
 )
 
 // Select Types
@@ -912,22 +913,22 @@ func PureComponentWithProps(name string, fn rtui.ComponentFuncWithProps) rtui.VN
 
 // ToastInfo creates an info toast notification
 func ToastInfo(message string) rtui.VNode {
-	return tooltip.Info(message)
+	return toast.Info(message)
 }
 
 // ToastSuccess creates a success toast notification
 func ToastSuccess(message string) rtui.VNode {
-	return tooltip.Success(message)
+	return toast.Success(message)
 }
 
 // ToastWarning creates a warning toast notification
 func ToastWarning(message string) rtui.VNode {
-	return tooltip.Warning(message)
+	return toast.Warning(message)
 }
 
 // ToastError creates an error toast notification
 func ToastError(message string) rtui.VNode {
-	return tooltip.Error(message)
+	return toast.Error(message)
 }
 
 // Tooltip shortcut
