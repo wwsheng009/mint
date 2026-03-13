@@ -366,7 +366,7 @@ Panel 组件有两套 builder：
 
 ---
 
-#### 🟢 10. 缺乏统一的可访问性（Accessibility）支持
+#### ✅ 10. 缺乏统一的可访问性（Accessibility）支持（已解决）
 
 目前组件的焦点管理是各自实现的，没有统一的 a11y 机制（如 ARIA role、tab order 管理、screen reader hint 等）。虽然这是 TUI，但终端下的焦点导航顺序、焦点陷阱（Modal/Select 的焦点锁定）等仍需统一方案。
 
