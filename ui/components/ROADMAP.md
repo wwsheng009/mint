@@ -26,6 +26,7 @@
 | Menu | `menu/` | ★★★★★ | menubar/dropdown/context/popup，submenu，shortcut |
 | Alert | `alert/` | ★★★☆☆ | 内联提示，info/success/warning/error，可关闭 |
 | Spin | `spin/` | ★★★☆☆ | 加载指示器，small/default/large，tip，TickFrame动画 |
+| Notification | `notification/` | ★★★☆☆ | 通知弹窗，info/success/warning/error，可关闭，placement，duration |
 | Toast | `toast/` | ★★★☆☆ | 已从 tooltip 独立，info/success/warning/error，自动消失 |
 | Tooltip | `tooltip/` | ★★★☆☆ | placement 方位有限 |
 | Progress | `progress/` | ★★☆☆☆ | 线形进度条，value/max，showPercent |
@@ -133,9 +134,9 @@
 补全应用开发中最高频的反馈类组件，让用户能清晰感知操作结果和系统状态。
 
 - [x] `Alert` — 内联状态提示（2026-03）
-- [ ] `Spin` — 加载状态指示器
+- [x] `Spin` — 加载状态指示器（2026-03）
 - [x] `Message`/`Toast` — 已独立为 `ui/components/toast/` 包（2026-03）
-- [ ] `Notification` — 通知弹窗
+- [x] `Notification` — 通知弹窗（2026-03）
 - [ ] `Empty` — 空状态
 - [ ] `Form` 增强 — 完成 FormItem 封装，支持 label + 验证错误提示联动
 
