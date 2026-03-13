@@ -39,6 +39,7 @@ import (
 	"github.com/wwsheng009/mint/ui/components/scrollview"
 	selectcomp "github.com/wwsheng009/mint/ui/components/select"
 	"github.com/wwsheng009/mint/ui/components/statusbar"
+	switchcomp "github.com/wwsheng009/mint/ui/components/switch"
 	"github.com/wwsheng009/mint/ui/components/table"
 	"github.com/wwsheng009/mint/ui/components/tabs"
 	"github.com/wwsheng009/mint/ui/components/text"
@@ -69,6 +70,10 @@ func NewCheckboxBuilder() *checkbox.Builder {
 
 func NewRadioBuilder() *radio.Builder {
 	return radio.NewBuilder()
+}
+
+func NewSwitchBuilder() *switchcomp.Builder {
+	return switchcomp.NewBuilder()
 }
 
 func NewRadioGroupBuilder(options []radio.Option) *radio.GroupBuilder {
@@ -371,6 +376,11 @@ func Checkbox(label string, checked bool) rtui.VNode {
 // Radio creates a radio button.
 func Radio(label string, checked bool) rtui.VNode {
 	return radio.NewBuilder().Label(label).Checked(checked).Build()
+}
+
+// Switch creates a switch.
+func Switch(label string, checked bool) rtui.VNode {
+	return switchcomp.NewBuilder().Label(label).Checked(checked).Build()
 }
 
 // RadioGroup creates a radio group builder.

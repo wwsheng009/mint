@@ -6,7 +6,7 @@
 
 ---
 
-## 当前组件清单（34个）
+## 当前组件清单（35个）
 
 | 组件 | 目录 | 完整度 | 说明 |
 |------|------|--------|------|
@@ -16,6 +16,7 @@
 | Select | `select/` | ★★★★☆ | 单选/多选，overlay popup，placeholder，disabled |
 | Checkbox | `checkbox/` | ★★★☆☆ | 基本勾选，缺 indeterminate 和 CheckboxGroup |
 | Radio | `radio/` | ★★★☆☆ | 独立单选按钮，含 RadioGroup 包装层 |
+| Switch | `switch/` | ★★★☆☆ | 开关切换，支持 label、自定义 on/off 文案、Field/Form 绑定 |
 | OptionGroup | `optiongroup/` | ★★★☆☆ | 选项组，支持 radio/checkbox 模式 |
 | Form | `form/` | ★★★☆☆ | 表单容器，submit/reset intent，已补 FormItem、layout、validator 联动 |
 | Table | `table/` | ★★★★☆ | 排序、分页、过滤、多选、搜索、滚动 |
@@ -64,7 +65,7 @@
 | 组件 | 说明 | AntD 对应 |
 |------|------|-----------|
 | ~~**Radio**~~ | ~~独立单选按钮，含 RadioGroup~~ | `Radio` ✅ 已实现（2026-03）|
-| **Switch** | 开关，toggle，UX 与 Checkbox 不同 | `Switch` |
+| ~~**Switch**~~ | ~~开关，toggle，UX 与 Checkbox 不同~~ | `Switch` ✅ 已实现（2026-03） |
 | **Slider** | 数值范围滑块，支持单值和范围 | `Slider` |
 | **Rate** | 星级评分 | `Rate` |
 | **DatePicker** | 日期选择器 | `DatePicker` |
@@ -147,7 +148,7 @@
 完善表单控件，使表单体系与 Form 验证体系闭环。
 
 - [x] `Radio` — 独立单选按钮 + RadioGroup（2026-03）
-- [ ] `Switch` — 开关控件
+- [x] `Switch` — 开关控件（2026-03）
 - [ ] `Checkbox` 增强 — indeterminate 状态，CheckboxGroup
 - [ ] `Input` 增强 — prefix/suffix，Search 变体，addonBefore/addonAfter
 - [ ] `Select` 增强 — OptGroup，filterOption，tags 模式
