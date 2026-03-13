@@ -1,9 +1,9 @@
 package form
 
 import (
-	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/runtime/style"
+	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
 
 // =============================================================================
@@ -12,13 +12,14 @@ import (
 
 // Prop key constants — shared by VNode and Instance to avoid magic strings.
 const (
-	propKey = "key"
-	propLabel = "label"
-	propOnReset = "onReset"
-	propOnSubmit = "onSubmit"
-	propStyle = "style"
+	propKey         = "key"
+	propLabel       = "label"
+	propLayout      = "layout"
+	propOnReset     = "onReset"
+	propOnSubmit    = "onSubmit"
+	propStyle       = "style"
 	propValidateAll = "validateAll"
-	propValues = "values"
+	propValues      = "values"
 )
 
 // =============================================================================
@@ -34,11 +35,12 @@ type VNode struct {
 
 	// === Props ===
 	label       string
+	layout      FormLayout
 	formStyle   style.Style
 	values      map[string]interface{} // Initial field values
-	validateAll bool                    // Whether to validate all on submit
-	onSubmit    intent.Intent           // Intent to emit on submit
-	onReset     intent.Intent           // Intent to emit on reset
+	validateAll bool                   // Whether to validate all on submit
+	onSubmit    intent.Intent          // Intent to emit on submit
+	onReset     intent.Intent          // Intent to emit on reset
 
 	// === Children ===
 	children []rtui.VNode
@@ -62,6 +64,7 @@ func New() *VNode {
 	return &VNode{
 		ElementVNode: rtui.NewElement("form"),
 		key:          "form",
+		layout:       LayoutVertical,
 		validateAll:  true,
 		values:       make(map[string]interface{}),
 	}
@@ -71,7 +74,7 @@ func New() *VNode {
 // VNode Interface Implementation
 // =============================================================================
 
-func (f *VNode) Key() string        { return f.key }
+func (f *VNode) Key() string { return f.key }
 func (f *VNode) SetKey(key string) rtui.VNode {
 	f.key = key
 	return f
@@ -84,16 +87,20 @@ func (f *VNode) SetStyle(s style.Style) rtui.VNode {
 }
 func (f *VNode) Children() []rtui.VNode { return f.children }
 func (f *VNode) SetChildren(children []rtui.VNode) rtui.VNode {
-	f.children = children
+	f.children = f.children[:0]
+	for _, child := range children {
+		f.children = append(f.children, decorateFormChild(f.key, child))
+	}
 	return f
 }
-func (f *VNode) GetLayer() rtui.Layer { return rtui.LayerBase }
+func (f *VNode) GetLayer() rtui.Layer             { return rtui.LayerBase }
 func (f *VNode) SetLayer(l rtui.Layer) rtui.VNode { return f }
 
 func (f *VNode) Props() rtui.Props {
 	props := rtui.Props{
 		propKey:         f.key,
 		propLabel:       f.label,
+		propLayout:      f.layout,
 		propValidateAll: f.validateAll,
 		propValues:      f.values,
 	}
@@ -117,6 +124,11 @@ func (f *VNode) SetProps(p rtui.Props) rtui.VNode {
 	}
 	if v, ok := p[propLabel].(string); ok {
 		f.label = v
+	}
+	if v, ok := p[propLayout].(FormLayout); ok {
+		f.layout = normalizeLayout(v)
+	} else if v, ok := p[propLayout].(string); ok {
+		f.layout = normalizeLayout(FormLayout(v))
 	}
 	if v, ok := p[propStyle].(style.Style); ok {
 		f.formStyle = v
@@ -151,6 +163,12 @@ func (f *VNode) CreateInstance() rtui.ComponentInstance {
 // Label sets the form label.
 func (f *VNode) Label(label string) *VNode {
 	f.label = label
+	return f
+}
+
+// Layout sets the default layout used by nested FormItems.
+func (f *VNode) Layout(layout FormLayout) *VNode {
+	f.layout = normalizeLayout(layout)
 	return f
 }
 
@@ -195,12 +213,14 @@ func (f *VNode) WithStyle(s style.Style) *VNode {
 
 // AddChild adds a child component (field) to the form.
 func (f *VNode) AddChild(child rtui.VNode) *VNode {
-	f.children = append(f.children, child)
+	f.children = append(f.children, decorateFormChild(f.key, child))
 	return f
 }
 
 // AddChildren adds multiple child components (fields) to the form.
 func (f *VNode) AddChildren(children ...rtui.VNode) *VNode {
-	f.children = append(f.children, children...)
+	for _, child := range children {
+		f.children = append(f.children, decorateFormChild(f.key, child))
+	}
 	return f
 }

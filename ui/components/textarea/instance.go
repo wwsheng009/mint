@@ -343,7 +343,11 @@ func (inst *Instance) resolveStyle() style.Style {
 func (inst *Instance) SetFocus(focused bool) {
 	if inst.state.Focused != focused {
 		oldState := inst.state
+		wasFocused := inst.state.Focused
 		inst.state.Focused = focused
+		if wasFocused && !focused {
+			inst.emitFieldBlur()
+		}
 		inst.syncCursorVisibility()
 		inst.dirty = true
 		inst.behaviors.OnStateChange(inst, oldState, inst.state)

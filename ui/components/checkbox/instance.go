@@ -4,8 +4,8 @@ import (
 	"github.com/wwsheng009/mint/ui/components/internal/proputil"
 	"unicode/utf8"
 
-	"github.com/wwsheng009/mint/runtime/action"
 	"github.com/wwsheng009/mint/framework/theme"
+	"github.com/wwsheng009/mint/runtime/action"
 	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/paint"
@@ -26,7 +26,7 @@ type Instance struct {
 	key string
 
 	// === Props (from VNode, may change each render) ===
-	label        string
+	label         string
 	checkboxStyle style.Style
 	toggleIntent  intent.Intent
 	formID        string // Form ID for Form integration (Phase 6)
@@ -259,7 +259,11 @@ func (inst *Instance) resolveStyle() style.Style {
 func (inst *Instance) SetFocus(focused bool) {
 	if inst.state.Focused != focused {
 		oldState := inst.state
+		wasFocused := inst.state.Focused
 		inst.state.Focused = focused
+		if wasFocused && !focused {
+			inst.emitFieldBlur()
+		}
 		inst.dirty = true
 		inst.behaviors.OnStateChange(inst, oldState, inst.state)
 	}
@@ -520,4 +524,3 @@ func (inst *Instance) emitFieldBlur() {
 // =============================================================================
 // Prop Extraction Helpers
 // =============================================================================
-

@@ -1,8 +1,8 @@
 package form
 
 import (
-	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/runtime/intent"
+	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
 
 // =============================================================================
@@ -87,9 +87,9 @@ func WithFieldLabel(text string) FieldOption {
 //	intent.Emit(formInstance)
 func FieldChange(formID, field string, value interface{}, isDirty bool) FormFieldChangeIntent {
 	return FormFieldChangeIntent{
-		FormID: formID,
-		Field:  field,
-		Value:  value,
+		FormID:  formID,
+		Field:   field,
+		Value:   value,
 		IsDirty: isDirty,
 	}
 }
@@ -224,6 +224,13 @@ func WithFormValues(values map[string]interface{}) FormConfigOption {
 func WithFormValidation(validate bool) FormConfigOption {
 	return func(b Builder) Builder {
 		return b.ValidateAll(validate)
+	}
+}
+
+// WithFormLayout sets the default layout for nested FormItems.
+func WithFormLayout(layout FormLayout) FormConfigOption {
+	return func(b Builder) Builder {
+		return b.Layout(layout)
 	}
 }
 

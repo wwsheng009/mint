@@ -2,7 +2,7 @@
 
 > 本文档记录 Mint UI 组件库的现状、与 Ant Design 的对比分析，以及后续开发计划。
 >
-> 更新日期：2026-03-14
+> 更新日期：2026-03-13
 
 ---
 
@@ -16,7 +16,7 @@
 | Select | `select/` | ★★★★☆ | 单选/多选，overlay popup，placeholder，disabled |
 | Checkbox | `checkbox/` | ★★★☆☆ | 基本勾选，缺 indeterminate 和 CheckboxGroup |
 | OptionGroup | `optiongroup/` | ★★★☆☆ | 选项组，支持 radio/checkbox 模式 |
-| Form | `form/` | ★★☆☆☆ | 表单容器，submit/reset intent，缺 FormItem 封装 |
+| Form | `form/` | ★★★☆☆ | 表单容器，submit/reset intent，已补 FormItem、layout、validator 联动 |
 | Table | `table/` | ★★★★☆ | 排序、分页、过滤、多选、搜索、滚动 |
 | List | `list/` | ★★★☆☆ | 基本列表，选择模式 |
 | VirtualList | `virtuallist/` | ★★★☆☆ | 虚拟滚动列表 |
@@ -114,7 +114,7 @@
 
 | 组件 | 缺失功能 | 优先级 |
 |------|---------|--------|
-| **Form** | FormItem 封装（label + 控件 + 错误提示三合一）；layout 配置（horizontal/vertical/inline） | 高 |
+| **Form** | Context 化替代全局 registry；补 touched/dirty 等字段级状态 | 中 |
 | **Input** | prefix/suffix 插槽；addonBefore/addonAfter；Search 变体；InputNumber 完整实现 | 高 |
 | **Checkbox** | indeterminate 半选状态；CheckboxGroup 组件 | 高 |
 | **Progress** | 圆形（Circle）和仪表盘（Dashboard）样式；status（success/exception/active） | 中 |
@@ -138,8 +138,8 @@
 - [x] `Spin` — 加载状态指示器（2026-03）
 - [x] `Message`/`Toast` — 已独立为 `ui/components/toast/` 包（2026-03）
 - [x] `Notification` — 通知弹窗（2026-03）
-- [ ] `Empty` — 空状态
-- [ ] `Form` 增强 — 完成 FormItem 封装，支持 label + 验证错误提示联动
+- [x] `Empty` — 空状态（2026-03）
+- [x] `Form` 增强 — 完成 FormItem 封装，支持 label + 验证错误提示联动（2026-03）
 
 ### Phase 2 — 表单体系完善（中期）
 
