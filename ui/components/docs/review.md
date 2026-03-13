@@ -303,7 +303,7 @@ type ButtonProps struct {
 
 ---
 
-#### 🟡 5. Form 使用全局 Registry 而非 Context 树传递
+#### 🟡 5. Form 使用全局 Registry 而非 Context 树传递（部分改善）
 
 `form/form_context.go` 使用全局的 `sync.RWMutex` + `map[string]*Instance` 来注册表单实例：
 

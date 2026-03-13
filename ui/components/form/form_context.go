@@ -42,6 +42,14 @@ func GetForm(formID string) *Instance {
 	return formRegistry[formID]
 }
 
+// ResetRegistry clears all registered form instances.
+// Intended for use in tests to ensure isolation between test cases.
+func ResetRegistry() {
+	formMu.Lock()
+	defer formMu.Unlock()
+	formRegistry = make(map[string]*Instance)
+}
+
 // =============================================================================
 // Form Context Interface
 // =============================================================================
