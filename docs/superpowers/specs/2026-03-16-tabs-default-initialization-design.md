@@ -201,7 +201,12 @@ The final style order is state-specific:
 3. explicit `ActiveTabStyle`
 4. selected-state readability protection
 
-For active tabs, this means the selected baseline replaces any shared `TabStyle.FG` or `TabStyle.BG` before `ActiveTabStyle` is merged.
+For active tabs, baseline color application is channel-specific:
+
+- if the active baseline provides `FG`, it replaces shared `TabStyle.FG`
+- if the active baseline provides `BG`, it replaces shared `TabStyle.BG`
+- if the active baseline provides neither `FG` nor `BG` but sets `Reverse = true`, shared `TabStyle` colors are cleared before readability protection runs
+- otherwise, any channel not explicitly provided by the active baseline may survive until later protection or explicit active-state overrides change it
 
 The active-tab readability protection rule is exact:
 
@@ -211,7 +216,7 @@ The active-tab readability protection rule is exact:
    - else if the active baseline came from semantic synthesis, `protectedActiveFG = fwtheme.BG()`
    - else `protectedActiveFG = NoColor`
 2. If `protectedActiveFG` is usable, final `FG` is forced to `protectedActiveFG` after all merges, regardless of whether the conflicting foreground came from `TabStyle` or `ActiveTabStyle`.
-3. If the active baseline came from the local reverse fallback, final color overrides from `ActiveTabStyle` are ignored:
+3. If the active baseline came from the local reverse fallback, or from a reverse-only `tabs/select` baseline, final color overrides from `ActiveTabStyle` are ignored:
    - `FG` remains `NoColor`
    - `BG` remains `NoColor`
    - `Reverse = true`
@@ -291,11 +296,13 @@ Add or adjust tests in `ui/components/tabs/tabs_test.go` to cover exact invarian
    - when the active baseline comes from `tabs/select`, final `FG` equals the theme-selected `FG` even if `TabStyle.FG` or `ActiveTabStyle.FG` is set
    - when `tabs/select` is non-empty but lacks `FG`, final `FG` falls back to `fwtheme.BG()` if `tabs/select.BG` is set and `fwtheme.BG()` is usable
    - when the active baseline comes from semantic synthesis, final `FG` equals `fwtheme.BG()` even if `TabStyle.FG` or `ActiveTabStyle.FG` is set
+   - when `tabs/select` is reverse-only, shared and explicit active color overrides are cleared and the final active style remains reverse-driven
 
 5. state precedence and neutrality of non-selected elements
    - disabled wins over active if a broken test fixture creates that overlap
    - divider and unselected tabs do not inherit selected background behavior
    - hotkey rendering does not add a separate style layer
+   - add active-style branch coverage for `tabs/select` as reverse-only, BG-only, FG-only, and non-protectable-but-non-empty
 
 ## Verification
 
