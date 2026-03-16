@@ -64,6 +64,7 @@ type ComponentContext struct {
 	HookIndex   int
 	Validator   *HookValidator
 	RenderCount int
+	owner       ComponentInstance
 
 	// IntentRuntime is the intent runtime for this component context.
 	// Initialized by DeclarativeNode and shared across root component tree.
@@ -252,6 +253,16 @@ func (ctx *ComponentContext) GetOrCreateHook(hookType HookType) *Hook {
 
 	ctx.HookIndex++
 	return &ctx.Hooks[len(ctx.Hooks)-1]
+}
+
+// SetOwnerInstance records which component instance is rendering with this context.
+func (ctx *ComponentContext) SetOwnerInstance(owner ComponentInstance) {
+	ctx.owner = owner
+}
+
+// OwnerInstance returns the component instance currently associated with this context.
+func (ctx *ComponentContext) OwnerInstance() ComponentInstance {
+	return ctx.owner
 }
 
 // =============================================================================

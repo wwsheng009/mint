@@ -10,12 +10,13 @@ import (
 const FormContextKey fcontext.ContextKey = "github.com/wwsheng009/mint/ui/components/form:form"
 
 // =============================================================================
-// Global Form Registry (for context access)
+// Compatibility Form Registry
 // =============================================================================
 
 // formRegistry stores active form instances by their formID.
-// This allows child components to access form data via formID without
-// needing a direct parent reference through the tree.
+// Runtime form items now prefer resolving their ancestor Form through the
+// instance tree. The registry remains as a compatibility path for helpers such
+// as GetFormContext and cross-tree lookups that still address forms by formID.
 var (
 	formRegistry = make(map[string]*Instance)
 	formMu       sync.RWMutex
@@ -141,9 +142,9 @@ func newFormContext(form *Instance) FormContext {
 	return &formContextImpl{form: form}
 }
 
-// GetFormContext 通过 formID 获取 FormContext
-// 这是一个便捷方法，供子组件使用
-// 返回的 FormContext 是一个临时的包装器，每次访问都会创建
+// GetFormContext 通过 formID 获取 FormContext。
+// 这是一个兼容层便捷方法，返回的 FormContext 是一个临时包装器；
+// 常规的 FormItem 运行时联动会优先走实例树祖先解析。
 func GetFormContext(formID string) FormContext {
 	form := GetForm(formID)
 	if form == nil {

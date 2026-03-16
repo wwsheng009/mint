@@ -368,6 +368,7 @@ func setInstanceParent(child ComponentInstance, parent ComponentInstance) {
 
 // Render calls the component function
 func (b *BaseComponentInstance) Render() VNode {
+	b.context.SetOwnerInstance(b)
 	b.context.ResetContext()
 	SetCurrentContext(b.context)
 

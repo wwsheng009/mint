@@ -28,37 +28,28 @@
 
 ### 已迁移组件参考
 
-以下组件已完成迁移，可作为参考：
-- ✅ `ui/components/button/` - 按钮组件
-- ✅ `ui/components/stack/` - 布局容器
-- ✅ `ui/components/text/` - 文本组件
-- ✅ `ui/components/divider/` - 分隔线
-- ✅ `ui/components/input/` - 输入框
-- ✅ `ui/components/checkbox/` - 复选框
-- ✅ `ui/components/panel/` - 面板容器
-- ✅ `ui/components/grid/` - 网格布局
-- ✅ `ui/components/scrollview/` - 滚动视图
-- ✅ `ui/components/select/` - 选择器
-- ✅ `ui/components/textarea/` - 多行输入
-- ✅ `ui/components/wrap/` - 自动换行
-- ✅ `ui/components/absolute/` - 绝对定位
-- ✅ `ui/components/border/` - 边框
-- ✅ `ui/components/progress/` - 进度条
-- ✅ `ui/components/tooltip/` - 提示框 & Toast 通知
-- ✅ `ui/components/modal/` - 模态对话框
-- ✅ `ui/components/tabs/` - 标签页导航
-- ✅ `ui/components/table/` - 表格数据展示
-- ✅ `ui/components/virtuallist/` - 虚拟列表组件
-- ✅ `ui/components/treeview/` - 树形视图组件（简化版）
-- ✅ `ui/components/list/` - 列表组件
+以下目录可作为迁移参考：
+- ✅ `ui/components/button/` - 标准交互组件
+- ✅ `ui/components/input/` - 表单输入组件
+- ✅ `ui/components/form/` - FormItem、字段绑定、验证联动
+- ✅ `ui/components/grid/` - 布局/测量/调试支持
+- ✅ `ui/components/wrap/` - 布局容器
+- ✅ `ui/components/absolute/` - 绝对定位容器
+- ✅ `ui/components/panel/` - 容器组件
+- ✅ `ui/components/select/` - 复合选择器 + overlay
+- ✅ `ui/components/table/` - 数据组件
+- ✅ `ui/components/treeview/` - 复杂树形数据组件
+- ✅ `ui/components/drawer/` - 覆盖层组件
+- ✅ `ui/components/statusbar/` - 组合式 builder 特例
 
-### ✅ 所有组件迁移完成！
+### ✅ 当前状态
 
-所有计划中的组件已成功迁移到Fiber-first架构。
-- 📋 **`docs/COMPONENT_MIGRATION_PLAN.md`** - 详细的迁移时间表和任务分解
+`ui/components/` 已从“迁移中”进入“大面积落地、少量边角未收口”的阶段。
 
-**待迁移组件**：
-🎉 **所有计划中的组件迁移已完成！**
+- 排除 `docs/` 与 `internal/` 后，当前共有 39 个目录
+- 其中 35 个严格遵循 `builder.go + vnode.go + instance.go` 规范
+- `toast`、`statusbar`、`control`、`validation` 是刻意保留的特例/支撑模块
+- 历史上的 `stack` / `border` 现在主要表现为运行时布局/边框能力与示例，不再对应 `ui/components/stack/`、`ui/components/border/` 目录
 
 ---
 
@@ -149,12 +140,12 @@ ui/components/
 │   ├── instance.go    # 运行时实例
 │   ├── tracing.go     # 调试钩子
 │   └── button_test.go # 测试
-├── stack/
+├── wrap/
 │   ├── vnode.go
 │   ├── builder.go
 │   ├── instance.go
-│   ├── tracing.go
-│   └── stack_test.go
+│   ├── README.md
+│   └── wrap_test.go
 └── ...
 ```
 
@@ -169,7 +160,7 @@ ui/components/
 | `components/form/checkbox.go` | `ui/components/checkbox/` | 表单组件 |
 | `components/form/select.go` | `ui/components/select/` | 表单组件 |
 | `components/form/textarea.go` | `ui/components/textarea/` | 表单组件 |
-| `components/layout/stack.go` | `ui/components/stack/` | 布局组件 |
+| `components/layout/stack.go` | `runtime/ui` 的 `VStackBuilder` / `HStackBuilder` | 布局原语 |
 | `components/layout/grid.go` | `ui/components/grid/` | 布局组件 |
 | `components/layout/absolute.go` | `ui/components/absolute/` | 布局组件 |
 | `components/layout/wrap.go` | `ui/components/wrap/` | 布局组件 |
@@ -1205,8 +1196,8 @@ func printBuffer(buf *paint.Buffer, width, height int) {
 
 | 组件 | 旧路径 | 新路径 | 示例程序 |
 |------|--------|--------|----------|
-| Button | `components/button/` | `ui/components/button/` | ❌ 待创建 |
-| Stack | `components/layout/stack.go` | `ui/components/stack/` | ✅ stack_demo |
+| Button | `components/button/` | `ui/components/button/` | ✅ README + 单测 |
+| Stack | `components/layout/stack.go` | `runtime/ui` 的 `VStackBuilder` / `HStackBuilder` | ✅ stack_demo |
 | Text | `components/basic/text.go` | `ui/components/text/` | ✅ text_demo |
 | Divider | `components/basic/divider.go` | `ui/components/divider/` | ✅ divider_demo |
 | Input | `components/form/input.go` | `ui/components/input/` | ✅ input_demo |
@@ -1218,7 +1209,7 @@ func printBuffer(buf *paint.Buffer, width, height int) {
 | Textarea | `components/form/textarea.go` | `ui/components/textarea/` | ✅ textarea_demo |
 | Wrap | `components/layout/wrap.go` | `ui/components/wrap/` | ✅ wrap_demo |
 | Absolute | `components/layout/absolute.go` | `ui/components/absolute/` | ✅ absolute_demo |
-| Border | - | `ui/components/border/` | ✅ border_demo |
+| Border | - | `runtime/ui` 容器边框能力 | ✅ border_demo |
 | Progress | `components/feedback/progress.go` | `ui/components/progress/` | ✅ progress_demo |
 | Modal | `components/overlay/modal.go` | `ui/components/modal/` | ✅ modal_demo |
 | Tabs | `components/navigation/tabs.go` | `ui/components/tabs/` | ✅ tabs_demo |
@@ -1227,9 +1218,9 @@ func printBuffer(buf *paint.Buffer, width, height int) {
 | TreeView | `display/treeview.go` | `ui/components/treeview/` | ✅ treeview_demo |
 | List | `components/data/list.go` | `ui/components/list/` | ✅ list_demo |
 
-### ✅ 迁移完成
+### 历史会话记录
 
-🎉 **所有计划中的组件已成功迁移！**
+以下内容保留为早期迁移会话的归档记录，反映当时一次集中迁移的产出，不代表当前目录的完整清单。
 
 #### 本次迁移会话完成的组件：
 1. **Modal** - 模态对话框 (443行旧代码)
@@ -1269,13 +1260,14 @@ func printBuffer(buf *paint.Buffer, width, height int) {
 
 ### 示例组件
 - `ui/components/button/` - 完整的交互组件参考
-- `ui/components/stack/` - 布局组件参考
+- `ui/components/grid/` - 布局与测量参考
+- `ui/components/wrap/` - 布局容器参考
 - `ui/components/text/` - 简单组件参考
 
 ### 已迁移组件对比
 对比以下组件了解迁移差异：
 - `components/button/button.go` vs `ui/components/button/vnode.go`
-- `components/layout/stack.go` vs `ui/components/stack/vnode.go`
+- `components/layout/stack.go` vs `runtime/ui/layout.go`
 
 ---
 
@@ -1293,7 +1285,7 @@ A: 创建对应的 Intent 类型，使用 `intent.NewAction()` 或自定义 Inte
 A: 使用 `control.NewBehaviorList()` 组合多个 Behavior。
 
 **Q: 布局组件如何迁移？**
-A: 参考 `ui/components/stack/` 和 `ui/components/grid/`，重点关注 Measure() 实现。
+A: 优先参考 `runtime/ui/layout.go` 中的 `VStackBuilder` / `HStackBuilder`，以及 `ui/components/grid/`、`ui/components/wrap/` 的 `Measure()` 实现。
 
 ---
 

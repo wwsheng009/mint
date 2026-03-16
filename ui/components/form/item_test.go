@@ -110,6 +110,62 @@ func TestFormItemSubscribesAndRendersValidationError(t *testing.T) {
 	}
 }
 
+func TestFormItemResolvesAncestorFormWithoutRegistry(t *testing.T) {
+	ResetRegistry()
+	defer ResetRegistry()
+
+	formInst := NewInstance(rtui.Props{
+		"key":    "profileForm",
+		"layout": LayoutInline,
+	})
+
+	child := rtui.NewElement("field").SetProps(rtui.Props{"key": "email-field"})
+	item := NewItem("email", child).
+		Label("Email").
+		ForForm("profileForm").
+		Validators(validation.Required(), validation.Email()).
+		Build()
+
+	owner := rtui.NewBaseComponentInstanceWithProps("FormItem", renderFormItem, item.Props())
+	formInst.AddChild(owner)
+
+	ctx := owner.GetContext()
+	updateCount := 0
+	ctx.SetScheduleUpdate(func() {
+		updateCount++
+	})
+
+	first := owner.Render()
+	if err := ctx.FinishRender(); err != nil {
+		t.Fatalf("finish render failed: %v", err)
+	}
+
+	if first.Tag() != "hstack" {
+		t.Fatalf("expected inline form item to render as hstack via ancestor form, got %s", first.Tag())
+	}
+
+	formInst.HandleIntent(FieldBlur("profileForm", "email", "invalid-email"))
+	if updateCount == 0 {
+		t.Fatal("expected ancestor-backed form item subscription to schedule an update")
+	}
+
+	ctx.ResetContext()
+	second := owner.Render()
+	if err := ctx.FinishRender(); err != nil {
+		t.Fatalf("finish render after validation failed: %v", err)
+	}
+
+	renderedText := strings.Join(collectText(second), "\n")
+	if !strings.Contains(renderedText, "请输入有效的邮箱地址") {
+		t.Fatalf("expected rendered validation error via ancestor form, got %q", renderedText)
+	}
+
+	ctx.CleanupAll()
+	if sources := formInst.validatorSources["email"]; len(sources) != 0 {
+		t.Fatalf("expected validator source cleanup, got %d remaining sources", len(sources))
+	}
+}
+
 func collectText(node rtui.VNode) []string {
 	if node == nil {
 		return nil

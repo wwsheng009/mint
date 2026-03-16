@@ -2,21 +2,26 @@
 
 > 本文档记录 Mint UI 组件库的现状、与 Ant Design 的对比分析，以及后续开发计划。
 >
-> 更新日期：2026-03-13
+> 更新日期：2026-03-16
 
 ---
 
-## 当前组件清单（35个）
+## 当前组件清单（39 个目录 + 1 个内置 Scrollbar）
+
+> 排除 `docs/` 与 `internal/` 后，当前共有 39 个组件/支撑目录；其中 35 个严格遵循 `builder.go + vnode.go + instance.go` 结构，`toast`、`statusbar`、`control`、`validation` 属于特例或基础设施模块。
 
 | 组件 | 目录 | 完整度 | 说明 |
 |------|------|--------|------|
 | Button | `button/` | ★★★★☆ | Primary/Secondary/Danger/Ghost变体，disabled，icon |
+| Breadcrumb | `breadcrumb/` | ★★★☆☆ | 面包屑导航，支持自定义分隔符、当前项高亮、窄宽度折叠 |
 | Input | `input/` | ★★★★☆ | text/password/number/email，placeholder，maxLen，readOnly，prefix/suffix，addonBefore/addonAfter，Search变体 |
 | Textarea | `textarea/` | ★★★☆☆ | 多行文本输入 |
 | Select | `select/` | ★★★★★ | 单选/多选/tags，overlay popup，OptGroup，filterOption，placeholder，disabled |
 | Checkbox | `checkbox/` | ★★★★☆ | 基本勾选、indeterminate、CheckboxGroup |
 | Radio | `radio/` | ★★★☆☆ | 独立单选按钮，含 RadioGroup 包装层 |
 | Switch | `switch/` | ★★★☆☆ | 开关切换，支持 label、自定义 on/off 文案、Field/Form 绑定 |
+| Slider | `slider/` | ★★★★☆ | 数值滑块，支持键盘调节、Form 绑定、受控模式 |
+| Rate | `rate/` | ★★★☆☆ | 星级评分，支持键盘调节、可清空、Form 绑定 |
 | OptionGroup | `optiongroup/` | ★★★☆☆ | 选项组，支持 radio/checkbox 模式 |
 | Form | `form/` | ★★★☆☆ | 表单容器，submit/reset intent，已补 FormItem、layout、validator 联动 |
 | Table | `table/` | ★★★★☆ | 排序、分页、过滤、多选、搜索、滚动 |
@@ -24,17 +29,19 @@
 | VirtualList | `virtuallist/` | ★★★☆☆ | 虚拟滚动列表 |
 | TreeView | `treeview/` | ★★★★☆ | 懒加载、展开折叠、搜索、多选、受控模式 |
 | Modal | `modal/` | ★★★★☆ | overlay定位，portal架构 |
+| Drawer | `drawer/` | ★★★★☆ | 侧边抽屉，支持 placement、受控显隐、overlay 与 ESC/遮罩关闭 |
 | Tabs | `tabs/` | ★★★★☆ | intent，controlled模式 |
 | Menu | `menu/` | ★★★★★ | menubar/dropdown/context/popup，submenu，shortcut |
 | Alert | `alert/` | ★★★☆☆ | 内联提示，info/success/warning/error，可关闭 |
 | Spin | `spin/` | ★★★☆☆ | 加载指示器，small/default/large，tip，TickFrame动画 |
 | Notification | `notification/` | ★★★☆☆ | 通知弹窗，info/success/warning/error，可关闭，placement，duration |
 | Empty | `empty/` | ★★★☆☆ | 空状态占位，自定义描述和图片 |
-| Toast | `toast/` | ★★★☆☆ | 已从 tooltip 独立，info/success/warning/error，自动消失 |
-| Tooltip | `tooltip/` | ★★★☆☆ | placement 方位有限 |
+| Toast | `toast/` | ★★★☆☆ | 独立 manager + runtime，info/success/warning/error，自动消失 |
+| Tooltip | `tooltip/` | ★★★★☆ | 已支持 top/bottom/left/right、delay、layer |
+| Tag | `tag/` | ★★★☆☆ | 标签，颜色变体，可关闭，可选图标前缀 |
 | Progress | `progress/` | ★★☆☆☆ | 线形进度条，value/max，showPercent |
 | Divider | `divider/` | ★★★☆☆ | 水平/垂直分隔线 |
-| StatusBar | `statusbar/` | ★★★☆☆ | help、section 子组件 |
+| StatusBar | `statusbar/` | ★★★☆☆ | 组合式 builder，含 help、section 内部组件 |
 | Panel | `panel/` | ★★★☆☆ | 容器面板，有 enhanced builder |
 | ScrollView | `scrollview/` | ★★★☆☆ | 可滚动容器 |
 | Grid | `grid/` | ★★★★☆ | 单元格边框，完整文档 |
@@ -66,8 +73,8 @@
 |------|------|-----------|
 | ~~**Radio**~~ | ~~独立单选按钮，含 RadioGroup~~ | `Radio` ✅ 已实现（2026-03）|
 | ~~**Switch**~~ | ~~开关，toggle，UX 与 Checkbox 不同~~ | `Switch` ✅ 已实现（2026-03） |
-| **Slider** | 数值范围滑块，支持单值和范围 | `Slider` |
-| **Rate** | 星级评分 | `Rate` |
+| ~~**Slider**~~ | ~~数值范围滑块，支持单值和范围~~ | `Slider` ✅ 已实现（2026-03）|
+| ~~**Rate**~~ | ~~星级评分~~ | `Rate` ✅ 已实现（2026-03）|
 | **DatePicker** | 日期选择器 | `DatePicker` |
 | **TimePicker** | 时间选择器 | `TimePicker` |
 | **Cascader** | 级联选择，层级数据选择 | `Cascader` |
@@ -77,7 +84,7 @@
 
 | 组件 | 说明 | AntD 对应 |
 |------|------|-----------|
-| **Breadcrumb** | 面包屑导航，层级路径展示 | `Breadcrumb` |
+| ~~**Breadcrumb**~~ | ~~面包屑导航，层级路径展示~~ | `Breadcrumb` ✅ 已实现（2026-03） |
 | **Pagination** | 独立分页组件（Table 内置了分页，但缺独立组件） | `Pagination` |
 | **Steps** | 步骤条，引导流程 | `Steps` |
 | **Anchor** | 锚点导航 | `Anchor` |
@@ -87,7 +94,7 @@
 | 组件 | 说明 | AntD 对应 |
 |------|------|-----------|
 | **Badge** | 徽标数，消息计数角标 | `Badge` |
-| **Tag** | 标签，支持可关闭、颜色 | `Tag` |
+| ~~**Tag**~~ | ~~标签，支持可关闭、颜色~~ | `Tag` ✅ 已实现（2026-03）|
 | **Collapse** | 折叠面板，手风琴模式 | `Collapse` |
 | **Descriptions** | 描述列表，键值对展示 | `Descriptions` |
 | ~~**Empty**~~ | ~~空状态占位~~ | `Empty` ✅ 已实现（2026-03）|
@@ -108,7 +115,7 @@
 |------|------|-----------|
 | **Popover** | 气泡卡片，比 Tooltip 更复杂，有标题和内容区 | `Popover` |
 | **Popconfirm** | 气泡确认框 | `Popconfirm` |
-| **Drawer** | 侧边抽屉，从边缘滑出的覆盖层 | `Drawer` |
+| ~~**Drawer**~~ | ~~侧边抽屉，从边缘滑出的覆盖层~~ | `Drawer` ✅ 已实现（2026-03） |
 
 ---
 
@@ -116,7 +123,7 @@
 
 | 组件 | 缺失功能 | 优先级 |
 |------|---------|--------|
-| **Form** | Context 化替代全局 registry；补 touched/dirty 等字段级状态 | 中 |
+| **Form** | 字段级 touched/dirty 状态；逐步收敛兼容层 `GetFormContext` 对 registry 的依赖 | 中 |
 | **Input** | InputNumber 完整实现 | 高 |
 | ~~**Checkbox**~~ | ~~indeterminate 半选状态；CheckboxGroup 组件~~ | ~~高~~ |
 | **Progress** | 圆形（Circle）和仪表盘（Dashboard）样式；status（success/exception/active） | 中 |
@@ -152,16 +159,16 @@
 - [x] `Checkbox` 增强 — indeterminate 状态，CheckboxGroup（2026-03）
 - [x] `Input` 增强 — prefix/suffix，Search 变体，addonBefore/addonAfter（2026-03）
 - [x] `Select` 增强 — OptGroup，filterOption，tags 模式（2026-03）
-- [ ] `Slider` — 数值滑块
-- [ ] `Rate` — 星级评分
+- [x] `Slider` — 数值滑块（2026-03）
+- [x] `Rate` — 星级评分（2026-03）
 
 ### Phase 3 — 导航与数据展示（中期）
 
-- [ ] `Breadcrumb` — 面包屑
+- [x] `Breadcrumb` — 面包屑（2026-03）
 - [ ] `Pagination` — 独立分页
 - [ ] `Steps` — 步骤条
 - [ ] `Badge` — 徽标数
-- [ ] `Tag` — 标签
+- [x] `Tag` — 标签（2026-03）
 - [ ] `Collapse` — 折叠面板
 - [ ] `Descriptions` — 描述列表
 - [ ] `Statistic` — 统计数字
@@ -169,7 +176,7 @@
 
 ### Phase 4 — 高级交互组件（远期）
 
-- [ ] `Drawer` — 侧边抽屉
+- [x] `Drawer` — 侧边抽屉（2026-03）
 - [ ] `Popover` — 气泡卡片
 - [ ] `Popconfirm` — 气泡确认框
 - [ ] `Progress` 增强 — Circle/Dashboard 样式

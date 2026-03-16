@@ -7,8 +7,8 @@ import (
 	"github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
-	"github.com/wwsheng009/mint/ui/components/internal/proputil"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
+	"github.com/wwsheng009/mint/ui/components/internal/proputil"
 )
 
 // =============================================================================
@@ -29,9 +29,11 @@ type Instance struct {
 }
 
 var (
-	_ rtui.ComponentInstance                               = (*Instance)(nil)
-	_ rtui.PaintableInstance                              = (*Instance)(nil)
-	_ interface{ Measure(layout.Constraints) layout.Size } = (*Instance)(nil)
+	_ rtui.ComponentInstance = (*Instance)(nil)
+	_ rtui.PaintableInstance = (*Instance)(nil)
+	_ interface {
+		Measure(layout.Constraints) layout.Size
+	} = (*Instance)(nil)
 )
 
 // NewInstance creates a new Empty Instance from props.
@@ -49,19 +51,20 @@ func NewInstance(props rtui.Props) *Instance {
 // ComponentInstance Interface
 // =============================================================================
 
-func (inst *Instance) Key() string                       { return inst.key }
-func (inst *Instance) SetKey(key string)                 { inst.key = key }
-func (inst *Instance) IsDirty() bool                     { return inst.dirty }
-func (inst *Instance) MarkClean()                        { inst.dirty = false }
-func (inst *Instance) MarkDirty()                        { inst.dirty = true }
-func (inst *Instance) Destroy()                          {}
-func (inst *Instance) OnMount()                          {}
-func (inst *Instance) OnUnmount()                        {}
+func (inst *Instance) Key() string                        { return inst.key }
+func (inst *Instance) SetKey(key string)                  { inst.key = key }
+func (inst *Instance) IsDirty() bool                      { return inst.dirty }
+func (inst *Instance) MarkClean()                         { inst.dirty = false }
+func (inst *Instance) MarkDirty()                         { inst.dirty = true }
+func (inst *Instance) Destroy()                           {}
+func (inst *Instance) OnMount()                           {}
+func (inst *Instance) OnUnmount()                         {}
 func (inst *Instance) GetContext() *rtui.ComponentContext { return nil }
 
 func (inst *Instance) Init(props rtui.Props) { inst.SetProps(props) }
 
 func (inst *Instance) SetProps(props rtui.Props) bool {
+	inst.key = proputil.GetString(props, propKey, inst.key)
 	inst.description = proputil.GetString(props, propDescription, "No Data")
 	inst.image = proputil.GetString(props, propImage, "")
 	inst.emptyStyle = proputil.GetStyle(props, propStyle, style.Style{})

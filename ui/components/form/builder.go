@@ -152,8 +152,9 @@ func Reset(formID string) FormResetIntent {
 // Context Support (Phase 2)
 // =============================================================================
 
-// ProvideForm wraps a Form VNode with a Provider to inject FormContext.
-// This allows child components to use UseContext to access form methods.
+// ProvideForm is a compatibility helper that attaches children to a Form VNode.
+// Form runtime linkage is currently resolved by explicit formID plus ancestor
+// Form lookup at render time; this helper remains for call-site readability.
 //
 // Example:
 //
@@ -168,33 +169,13 @@ func Reset(formID string) FormResetIntent {
 //		{Value: "user2", Label: "User 2"},
 //	})
 //
-//	// Wrap form with context provider
-//	formWithCtx := form.ProvideForm(formBuilder, selectField)
-//
-// Use this method when you want child components to access FormContext:
-// - formCtx := UseContext(form.FormContext)
-// - formCtx.SetValue("field", value)
-// - formCtx.GetValue("field")
+//	formWithChildren := form.ProvideForm(formBuilder, selectField)
 func ProvideForm(formBuilder Builder, children ...rtui.VNode) rtui.VNode {
 	formBuilder.AddChildren(children...)
-
-	// Create a wrapper that will provide context
-	// Note: Context is injected at the Instance level during OnMount
-	// The Provider pattern expects a static context value, but for Form,
-	// we need to provide the instance reference dynamically.
-	//
-	// To achieve this, we use a special pattern:
-	// 1. Store a reference to the form instance that will be created
-	// 2. Provide a context value that enables access to this instance
-	// 3. The context value is updated by the form instance's OnMount
-
-	// For now, we'll implement this by having the user use the Form's built-in context
-	// The actual context injection happens at runtime via OptionGroup-like pattern
 	return formBuilder
 }
 
-// BuildWithConfig builds a Form with explicit Context injection
-// This is the recommended way to build forms that need Context support
+// BuildWithConfig builds a Form with explicit configuration.
 func BuildWithConfig(key string, opts ...FormConfigOption) rtui.VNode {
 	builder := NewForm(key)
 	for _, opt := range opts {
