@@ -68,20 +68,55 @@ The component will not:
 - mutate global theme state
 - expose a new initialization API
 
+### Exact Theme Inputs
+
+This change reads only the following theme inputs:
+
+- component style: `style.GetStyle("tabs", "select")`
+- semantic selected background: `fwtheme.Select()`
+- semantic contrasting foreground: `fwtheme.BG()`
+- semantic disabled foreground: `fwtheme.DisabledFG()`
+
+No other component-level theme keys are introduced in this design.
+
+For this spec:
+
+- a component theme style is "usable" when `style.GetStyle("tabs", "select")` is not empty
+- a semantic color is "usable" when it is not `style.NoColor`
+- "host did not initialize theme" means the style bridge was never registered, so `style.GetStyle(...)` returns empty; semantic colors may still be usable because `framework/theme` carries its own default manager
+
 ### Fallback Trigger Rules
 
 Fallback is evaluated at render time for each tab header.
 
-1. If the caller supplied an explicit tab style, use it as part of the composed result.
-2. If the theme exposes `tabs/select` or related component-level styles, prefer those.
-3. If the theme exposes semantic colors but not `tabs/select`, synthesize a minimal selected style from semantic colors.
-4. If no usable theme data exists, use component-local fallback defaults.
+Active tab resolution is deterministic:
+
+1. If `style.GetStyle("tabs", "select")` is non-empty, use that as the active-state theme style source.
+2. Otherwise, if `fwtheme.Select()` is usable, synthesize the active-state theme style as:
+   - `BG = fwtheme.Select()`
+   - `FG = fwtheme.BG()` when `fwtheme.BG()` is usable
+   - `Bold = true`
+3. Otherwise, use the component-local active fallback:
+   - `Reverse = true`
+   - `Bold = true`
+
+Disabled tab resolution is deterministic:
+
+1. If `fwtheme.DisabledFG()` is usable, use it as the disabled baseline foreground.
+2. Otherwise, use the component-local disabled fallback:
+   - `Italic = true`
+   - no foreground color
+
+Normal tab resolution is deterministic:
+
+- no theme lookup is required
+- foreground and background remain unset at the baseline layer
 
 This keeps the component usable in three host states:
 
-- fully themed host
-- partially themed host
-- host with no theme initialization
+- fully themed host with registered style bridge
+- host without registered style bridge but with semantic colors available
+- host where both theme bridge and semantic colors are unavailable
 
 ### Local Default Style Model
 
@@ -89,40 +124,67 @@ The local fallback must follow terminal defaults as much as possible.
 
 #### Normal Tab
 
-- leave background unset
-- leave foreground unset unless needed to preserve existing behavior
-- keep current spacing, divider, and label logic unchanged
+- `FG = NoColor`
+- `BG = NoColor`
+- no style flags are set at the baseline layer
+- spacing, divider, and label logic remain unchanged
 
 #### Active Tab
 
-- prefer `Reverse(true)` as the primary signal
-- add `Bold(true)` when needed to keep the active tab visually distinct
-- avoid fixed color values
-- if theme semantic colors are available, a synthesized selected style may use them, but the local fallback remains the final safety net
+- preferred active style source order is:
+  1. `tabs/select` component style
+  2. semantic synthesis from `fwtheme.Select()` and `fwtheme.BG()`
+  3. local fallback `Reverse(true).Bold(true)`
+- local fallback never introduces fixed color values
+- the local fallback is the final safety net only when both theme style and semantic colors are unavailable
 
 #### Disabled Tab
 
-- use a light weakening effect such as `Faint(true)` when available
-- do not hard-code gray or other fixed color values
+- baseline style uses `fwtheme.DisabledFG()` when available
+- otherwise baseline style is `Italic(true)` with unset colors
+- this avoids introducing a fixed disabled color in the component-local fallback
 
 #### Divider And Hotkeys
 
 - divider remains neutral and does not participate in selected background filling
-- hotkey emphasis may remain, but it must not reduce active-tab contrast
+- hotkey display remains text-only in the current component and does not add a separate style layer
+
+### State Precedence
+
+Header state precedence is:
+
+1. hidden: item is not rendered
+2. disabled: disabled style path wins over active style path
+3. active: active style path applies only to visible, enabled items whose index equals `activeTab`
+4. normal: all other visible items
+
+`normalizeActiveTab()` already attempts to avoid active disabled tabs. If the render path still sees an active+disabled overlap, disabled wins so the header does not present a non-interactive tab as selected.
 
 ### Style Composition Order
 
 The final style order remains explicit and stable:
 
-1. component-local baseline emphasis for the current state
-2. shared explicit tab style from the caller
-3. theme-derived component style
-4. explicit per-state style from the caller
-5. selected-state readability protection
+1. state baseline
+2. shared explicit `TabStyle`
+3. state-specific explicit style
+4. selected-state readability protection for active tabs
 
-The readability protection rule is narrow:
+State baselines are:
 
-- if a tab is active and the composed foreground color would undermine contrast against the selected background or reverse state, preserve the high-contrast selected foreground instead of blindly applying the caller's foreground override
+- normal: empty style
+- disabled: resolved disabled baseline
+- active: resolved active baseline from component theme style, semantic synthesis, or local reverse fallback
+
+The active-tab readability protection rule is exact:
+
+1. If the active baseline came from `tabs/select` and that baseline specifies `FG`, final `FG` is forced back to that baseline `FG` after all merges.
+2. If the active baseline came from semantic synthesis, final `FG` is forced to the synthesized `FG` when that `FG` is usable.
+3. If the active baseline came from the local reverse fallback, final color overrides from `ActiveTabStyle` are ignored:
+   - `FG` remains `NoColor`
+   - `BG` remains `NoColor`
+   - `Reverse = true`
+   - non-color flags from `ActiveTabStyle` may still merge
+4. `ActiveTabStyle.BG` is allowed to override the theme-derived selected background only when the active baseline came from component theme style or semantic synthesis. In that case the component guarantees foreground preservation only; it does not attempt runtime contrast computation for arbitrary caller-provided backgrounds.
 
 This preserves caller customization while preventing the specific failure mode that made selected labels hard to read.
 
@@ -132,9 +194,15 @@ The change should stay inside the tabs rendering helpers rather than spreading t
 
 Expected units:
 
-- a helper that resolves theme-derived selected styling
-- a helper that resolves component-local fallback styles when theme data is unavailable
-- a single composition path for normal, active, and disabled tab header styles
+- `resolveActiveBaseline() (style.Style, activeBaselineSource)`
+  - inputs: `style.GetStyle("tabs", "select")`, `fwtheme.Select()`, `fwtheme.BG()`
+  - outputs: the active baseline style and its source enum: `componentTheme`, `semanticTheme`, or `localFallback`
+- `resolveDisabledBaseline() style.Style`
+  - inputs: `fwtheme.DisabledFG()`
+  - output: disabled baseline style
+- `resolveTabStyle(index int) style.Style`
+  - inputs: tab state, shared explicit style, state-specific explicit style, resolved baselines
+  - output: final tab header style for one visible tab
 
 No changes are required in:
 
@@ -161,22 +229,33 @@ No warnings, logs, or panics are introduced for this path.
 
 ## Testing
 
-Add or adjust tests in `ui/components/tabs/tabs_test.go` to cover:
+Add or adjust tests in `ui/components/tabs/tabs_test.go` to cover exact invariants:
 
 1. no theme initialization
-   - render a normal tab, active tab, and disabled tab
-   - verify active styling includes a stable readable fallback without depending on `InitTheme()`
+   - simulate missing style bridge so `style.GetStyle("tabs", "select")` returns empty
+   - verify active tab resolves to `BG = fwtheme.Select()`, `FG = fwtheme.BG()`, `Bold = true`
+   - verify disabled tab resolves to `FG = fwtheme.DisabledFG()` when available
+   - verify normal tab keeps `FG = NoColor` and `BG = NoColor` at the baseline layer
 
 2. partial theme availability
    - semantic colors available but no `tabs/select` style
-   - verify the component synthesizes selected styling and stays readable
+   - verify the component uses semantic synthesis, not local reverse fallback
+   - assert `IsReverse() == false` for this case
 
-3. explicit caller styles
+3. local fallback path
+   - simulate both missing style bridge and missing semantic colors
+   - verify active tab resolves to `Reverse = true`, `Bold = true`, `FG = NoColor`, `BG = NoColor`
+   - verify `ActiveTabStyle` color overrides do not replace the reverse fallback colors
+
+4. explicit caller styles
    - caller-supplied `TabStyle` and `ActiveTabStyle` still participate in composition
-   - selected foreground protection prevents unreadable active text
+   - when the active baseline comes from `tabs/select`, final `FG` equals the theme-selected `FG` even if `ActiveTabStyle.FG` is set
+   - when the active baseline comes from semantic synthesis, final `FG` equals `fwtheme.BG()` even if `ActiveTabStyle.FG` is set
 
-4. neutrality of non-selected elements
+5. state precedence and neutrality of non-selected elements
+   - disabled wins over active if a broken test fixture creates that overlap
    - divider and unselected tabs do not inherit selected background behavior
+   - hotkey rendering does not add a separate style layer
 
 ## Verification
 
