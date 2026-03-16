@@ -127,6 +127,22 @@ func TestVNode_SetSelectedIndex(t *testing.T) {
 	}
 }
 
+func TestBuilder_ItemStyleFn(t *testing.T) {
+	custom := style.Style{FG: style.Green}
+	vnode := NewBuilder().
+		ItemStyleFn(func(_ int, _ string) style.Style { return custom }).
+		BuildVNode()
+
+	if vnode.ItemStyleFn() == nil {
+		t.Fatal("Expected ItemStyleFn to be set on vnode")
+	}
+
+	inst := vnode.CreateInstance().(*Instance)
+	if inst.itemStyleFn == nil {
+		t.Fatal("Expected itemStyleFn to be set on instance")
+	}
+}
+
 // =============================================================================
 // Instance Tests
 // =============================================================================
@@ -259,6 +275,36 @@ func TestInstance_MeasureWithConstraints(t *testing.T) {
 	}
 	if size.Height != 10 {
 		t.Errorf("Expected constrained height 10, got %d", size.Height)
+	}
+}
+
+func TestInstance_Paint_ItemStyleFnMergesIntoRows(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"items": []string{"A", "B", "C"},
+		"itemStyleFn": func(index int, text string) style.Style {
+			if index == 1 && text == "B" {
+				return style.Style{FG: style.Green, BG: style.Yellow}
+			}
+			return style.Style{}
+		},
+		"selectedIndex": 1,
+		"selectedStyle": style.Style{FG: style.Red}.Underline(true),
+	})
+
+	cmds := inst.Paint(0, 0)
+	if len(cmds) < 3 {
+		t.Fatalf("cmd count = %d, want >= 3", len(cmds))
+	}
+
+	rowCmd := cmds[2]
+	if rowCmd.Style.FG != style.Red {
+		t.Fatalf("selected row fg = %s, want %s", rowCmd.Style.FG, style.Red)
+	}
+	if rowCmd.Style.BG != style.Yellow {
+		t.Fatalf("selected row bg = %s, want %s", rowCmd.Style.BG, style.Yellow)
+	}
+	if !rowCmd.Style.IsUnderline() {
+		t.Fatal("expected selected style flags to merge with itemStyleFn result")
 	}
 }
 

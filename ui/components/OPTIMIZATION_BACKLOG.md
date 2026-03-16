@@ -37,8 +37,6 @@
 
 在第一轮收口后，处理中等规模的结构增强。
 
-6. `List`
-
 ### 第三轮
 
 最后处理状态面和布局面最重的组件。
@@ -164,8 +162,9 @@
 
 #### 当前缺口
 
-- 缺与 `VirtualList` 的正式集成
 - `List.Item` / item 模型已完成（2026-03-17）
+- `VirtualList` 渲染桥接已完成（2026-03-17）
+- 选择、搜索、高亮与 `VirtualList` 的进一步同步已完成（2026-03-17）
 
 #### 主要入口
 
@@ -186,8 +185,10 @@
    - ✅ 已完成（2026-03-17）
 
 3. 为大数据量场景增加与 `VirtualList` 的桥接层
-   - 先做渲染桥接
-   - 再做选择、搜索、高亮同步
+   - ~~先做渲染桥接~~
+   - ✅ 已完成（2026-03-17）
+   - ~~再做选择、搜索、高亮同步~~
+   - ✅ 已完成（2026-03-17）
 
 #### 风险点
 
@@ -199,6 +200,7 @@
 - 旧 API 继续可用
 - 新 item 模型可表达 richer row
 - 大列表能切到虚拟渲染路径
+- 当前已具备正式 bridge API 与双向 state sync，List 增强项已全部完成
 
 #### 建议测试
 
@@ -211,6 +213,9 @@
 - 新增 `RowItem` 结构与 `Item(...)` helper，支持 `title`、`description`、`prefix`、`suffix`
 - `Builder` / `VNode` / `Instance` 已支持 `Items(...)` / `AddItem(...)`，并统一降级成现有 `rows []string` 语义
 - 旧 `rows []string` API 保持不变，selection/search/paint 继续基于扁平化 row text 工作
+- 新增 `ToVirtualList()` / `BuildVirtualList()` bridge，能把当前 List 的 rows、search filter、scrollOffset、selectedIndex 快照成 `VirtualList`
+- 新增 `ToVirtualBridge()` / `BuildVirtualBridge()` / `SyncToList(...)`，把 `VirtualList` 的 source index、selection、scrollOffset 回写到 `List`
+- `VirtualList` 新增 `ItemStyleFn`，bridge 现在会把 `rowStyleFn` / `matchStyle` 一并透传到虚拟渲染路径
 
 ---
 

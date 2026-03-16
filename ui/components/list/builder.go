@@ -4,6 +4,7 @@ import (
 	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
+	"github.com/wwsheng009/mint/ui/components/virtuallist"
 )
 
 // =============================================================================
@@ -303,6 +304,16 @@ func (b *Builder) BuildVNode() *VNode {
 // BuildInstance directly creates an Instance.
 func (b *Builder) BuildInstance() *Instance {
 	return NewInstance(b.vnode.Props())
+}
+
+// BuildVirtualList snapshots the current List builder state into a VirtualList bridge.
+func (b *Builder) BuildVirtualList() *virtuallist.VNode {
+	return b.vnode.ToVirtualList()
+}
+
+// BuildVirtualBridge snapshots the current List builder state into a VirtualBridge.
+func (b *Builder) BuildVirtualBridge() *VirtualBridge {
+	return b.vnode.ToVirtualBridge()
 }
 
 // =============================================================================

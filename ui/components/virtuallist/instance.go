@@ -30,6 +30,7 @@ type Instance struct {
 	width         int
 	listStyle     style.Style
 	selectedStyle style.Style
+	itemStyleFn   func(int, string) style.Style
 	allowScroll   bool
 
 	// === Runtime State ===
@@ -70,6 +71,9 @@ func NewInstance(props rtui.Props) *Instance {
 		selectedIndex: proputil.GetInt(props, "selectedIndex", -1),
 		dirty:         true,
 	}
+	if fn, ok := props[propItemStyleFn].(func(int, string) style.Style); ok {
+		inst.itemStyleFn = fn
+	}
 	inst.normalizeItemCount()
 	inst.clampOffset()
 	inst.clampSelectedIndex()
@@ -99,6 +103,11 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	inst.width = proputil.GetInt(props, "width", inst.width)
 	inst.listStyle = proputil.GetStyle(props, "listStyle", style.Style{})
 	inst.selectedStyle = proputil.GetStyle(props, "selectedStyle", style.Style{})
+	if fn, ok := props[propItemStyleFn].(func(int, string) style.Style); ok {
+		inst.itemStyleFn = fn
+	} else if _, exists := props[propItemStyleFn]; exists {
+		inst.itemStyleFn = nil
+	}
 	inst.allowScroll = proputil.GetBool(props, "allowScroll", inst.allowScroll)
 	inst.scrollOffset = proputil.GetInt(props, "scrollOffset", inst.scrollOffset)
 	inst.selectedIndex = proputil.GetInt(props, "selectedIndex", inst.selectedIndex)
@@ -129,6 +138,7 @@ func (inst *Instance) GetProps() rtui.Props {
 		propAllowScroll:   inst.allowScroll,
 		propScrollOffset:  inst.scrollOffset,
 		propSelectedIndex: inst.selectedIndex,
+		propItemStyleFn:   inst.itemStyleFn,
 	}
 }
 
@@ -190,19 +200,22 @@ func (inst *Instance) Paint(x, y int) []paint.DrawCmd {
 		}
 
 		// Get item text
-		itemText := ""
+		rawItemText := ""
 		if i < len(inst.items) {
-			itemText = inst.items[i]
+			rawItemText = inst.items[i]
 		}
 
-		itemText = inst.truncateText(itemText, contentWidth)
+		itemText := inst.truncateText(rawItemText, contentWidth)
 		paddingWidth := maxInt(0, contentWidth-paint.StringWidth(itemText))
 		itemText = "│ " + itemText + strings.Repeat(" ", paddingWidth) + " │"
 
 		// Highlight selected item
 		itemStyle := listStyle
+		if inst.itemStyleFn != nil {
+			itemStyle = itemStyle.Merge(inst.itemStyleFn(i, rawItemText))
+		}
 		if i == inst.selectedIndex {
-			itemStyle = inst.selectedStyle
+			itemStyle = itemStyle.Merge(inst.selectedStyle)
 		}
 
 		cmds = append(cmds, paint.NewTextCmd(x, rowY, itemText, itemStyle))

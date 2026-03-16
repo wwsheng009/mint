@@ -101,6 +101,12 @@ func (b *Builder) ListStyle(s style.Style) *Builder {
 	return b
 }
 
+// ItemStyleFn sets a dynamic style function for individual items.
+func (b *Builder) ItemStyleFn(fn func(int, string) style.Style) *Builder {
+	b.vnode.SetItemStyleFn(fn)
+	return b
+}
+
 // SelectedStyle sets the style for the selected item.
 func (b *Builder) SelectedStyle(s style.Style) *Builder {
 	b.vnode.SetSelectedStyle(s)

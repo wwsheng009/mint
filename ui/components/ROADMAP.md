@@ -27,7 +27,7 @@
 | OptionGroup | `optiongroup/` | ★★★☆☆ | 选项组，支持 radio/checkbox 模式 |
 | Form | `form/` | ★★★☆☆ | 表单容器，submit/reset intent，已补 FormItem、layout、validator 联动 |
 | Table | `table/` | ★★★★☆ | 排序、分页、过滤、多选、搜索、滚动 |
-| List | `list/` | ★★★★☆ | 基本列表，选择模式，List.Item/item 模型 |
+| List | `list/` | ★★★★★ | 基本列表，选择模式，List.Item/item 模型，VirtualList bridge/state sync |
 | VirtualList | `virtuallist/` | ★★★☆☆ | 虚拟滚动列表 |
 | TreeView | `treeview/` | ★★★★☆ | 懒加载、展开折叠、搜索、多选、受控模式 |
 | Modal | `modal/` | ★★★★☆ | overlay定位，portal架构 |
@@ -135,7 +135,7 @@
 | ~~**Tooltip**~~ | ~~12方位 placement 精细控制；delay 配置~~ ✅ 已完成（2026-03-17） | ~~中~~ |
 | ~~**Tabs**~~ | ~~card、closable、拖拽排序已完成~~ ✅（2026-03-17） | ~~低~~ |
 | **TreeView** | drag-and-drop 拖拽排序；异步搜索高亮分页 | 低 |
-| **List** | List.Item / item 模型已完成（2026-03-17）；剩虚拟滚动集成 | 低 |
+| ~~**List**~~ | ~~List.Item / item 模型、VirtualList bridge 与选择/搜索/高亮同步已完成~~ ✅（2026-03-17） | ~~低~~ |
 
 ---
 

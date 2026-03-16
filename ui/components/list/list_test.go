@@ -8,6 +8,7 @@ import (
 	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
+	"github.com/wwsheng009/mint/ui/components/virtuallist"
 )
 
 type bubbleCaptureParent struct {
@@ -81,6 +82,72 @@ func TestBuilder_Items(t *testing.T) {
 	}
 	if rows := vnode.Rows(); rows[0] != "Orders - 3 pending" || rows[1] != "Invoices (new)" {
 		t.Fatalf("Rows = %v, want [Orders - 3 pending Invoices (new)]", rows)
+	}
+}
+
+func TestVNode_ToVirtualList_MapsRowsAndSelection(t *testing.T) {
+	vnode := New().
+		SetRows([]string{"alpha", "beta", "betamax", "gamma"}).
+		SetSearchQuery("beta").
+		SetViewportHeight(2).
+		SetInitialScrollOffset(0).
+		SetInitialSelectedIndex(2)
+
+	virtual := vnode.ToVirtualList()
+	if virtual == nil {
+		t.Fatal("Expected ToVirtualList to return a vnode")
+	}
+
+	items := virtual.Items()
+	wantItems := []string{"beta", "betamax"}
+	if len(items) != len(wantItems) {
+		t.Fatalf("virtual items len = %d, want %d (%v)", len(items), len(wantItems), items)
+	}
+	for i := range wantItems {
+		if items[i] != wantItems[i] {
+			t.Fatalf("virtual items[%d] = %q, want %q", i, items[i], wantItems[i])
+		}
+	}
+	if virtual.SelectedIndex() != 1 {
+		t.Fatalf("virtual selected index = %d, want 1", virtual.SelectedIndex())
+	}
+	if virtual.VisibleCount() != 2 {
+		t.Fatalf("virtual visible count = %d, want 2", virtual.VisibleCount())
+	}
+}
+
+func TestBuilder_BuildVirtualList(t *testing.T) {
+	virtual := NewBuilder().
+		Items([]RowItem{
+			Item("Orders").WithDescription("3 pending"),
+			Item("Invoices").WithSuffix("(new)"),
+		}).
+		ViewportHeight(3).
+		BuildVirtualList()
+
+	if virtual == nil {
+		t.Fatal("Expected BuildVirtualList to return a vnode")
+	}
+	if _, ok := interface{}(virtual).(*virtuallist.VNode); !ok {
+		t.Fatalf("BuildVirtualList returned %T, want *virtuallist.VNode", virtual)
+	}
+	items := virtual.Items()
+	if len(items) != 2 || items[0] != "Orders - 3 pending" || items[1] != "Invoices (new)" {
+		t.Fatalf("virtual items = %v, want [Orders - 3 pending Invoices (new)]", items)
+	}
+}
+
+func TestBuilder_BuildVirtualBridge(t *testing.T) {
+	bridge := NewBuilder().
+		Rows([]string{"alpha", "beta", "betamax"}).
+		SearchQuery("beta").
+		BuildVirtualBridge()
+
+	if bridge == nil || bridge.VNode == nil {
+		t.Fatal("Expected BuildVirtualBridge to return a bridge with vnode")
+	}
+	if len(bridge.SourceIndices) != 2 || bridge.SourceIndices[0] != 1 || bridge.SourceIndices[1] != 2 {
+		t.Fatalf("SourceIndices = %v, want [1 2]", bridge.SourceIndices)
 	}
 }
 
@@ -196,6 +263,85 @@ func TestInstance_Items_SelectIntentUsesFlattenedText(t *testing.T) {
 	}
 	if row != "[*] Orders - 3 pending" {
 		t.Fatalf("selected row = %q, want %q", row, "[*] Orders - 3 pending")
+	}
+}
+
+func TestInstance_ToVirtualList_UsesRuntimeScrollAndSelection(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"rows":           []string{"alpha", "beta", "betamax", "gamma"},
+		"searchQuery":    "beta",
+		"viewportHeight": 1,
+		"selectedIndex":  2,
+		"scrollOffset":   1,
+	})
+
+	virtual := inst.ToVirtualList()
+	if virtual == nil {
+		t.Fatal("Expected instance bridge to return a vnode")
+	}
+
+	items := virtual.Items()
+	wantItems := []string{"beta", "betamax"}
+	if len(items) != len(wantItems) {
+		t.Fatalf("virtual items len = %d, want %d (%v)", len(items), len(wantItems), items)
+	}
+	for i := range wantItems {
+		if items[i] != wantItems[i] {
+			t.Fatalf("virtual items[%d] = %q, want %q", i, items[i], wantItems[i])
+		}
+	}
+	if virtual.ScrollOffset() != 1 {
+		t.Fatalf("virtual scroll offset = %d, want 1", virtual.ScrollOffset())
+	}
+	if virtual.SelectedIndex() != 1 {
+		t.Fatalf("virtual selected index = %d, want 1", virtual.SelectedIndex())
+	}
+}
+
+func TestInstance_ToVirtualBridge_PreservesMatchStyleThroughItemStyleFn(t *testing.T) {
+	matchStyle := style.Style{FG: style.Cyan}
+	inst := NewInstance(rtui.Props{
+		"rows":           []string{"alpha", "beta", "betamax"},
+		"searchQuery":    "beta",
+		"matchStyle":     matchStyle,
+		"viewportHeight": 2,
+	})
+
+	bridge := inst.ToVirtualBridge()
+	if bridge == nil || bridge.VNode == nil {
+		t.Fatal("Expected ToVirtualBridge to return a bridge")
+	}
+
+	virtualInst := bridge.VNode.CreateInstance().(*virtuallist.Instance)
+	cmds := virtualInst.Paint(0, 0)
+	if len(cmds) < 3 {
+		t.Fatalf("cmd count = %d, want >= 3", len(cmds))
+	}
+	if cmds[1].Style.FG != matchStyle.FG {
+		t.Fatalf("first virtual row fg = %q, want %q", cmds[1].Style.FG, matchStyle.FG)
+	}
+}
+
+func TestVirtualBridge_SyncToList_MapsVirtualSelectionBackToSourceRows(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"rows":           []string{"alpha", "beta", "betamax", "gamma"},
+		"searchQuery":    "beta",
+		"viewportHeight": 1,
+	})
+
+	bridge := inst.ToVirtualBridge()
+	if !bridge.SyncToList(inst, 1, 1) {
+		t.Fatal("Expected SyncToList to report changes")
+	}
+	if inst.GetScrollOffset() != 1 {
+		t.Fatalf("scrollOffset = %d, want 1", inst.GetScrollOffset())
+	}
+	if inst.GetSelectedIndex() != 2 {
+		t.Fatalf("selectedIndex = %d, want 2", inst.GetSelectedIndex())
+	}
+	row, ok := inst.GetSelectedRow()
+	if !ok || row != "betamax" {
+		t.Fatalf("selected row = (%q,%v), want (betamax,true)", row, ok)
 	}
 }
 
