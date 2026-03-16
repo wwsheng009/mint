@@ -53,9 +53,21 @@ func (b *Builder) Rows(rows []string) *Builder {
 	return b
 }
 
+// Items sets all structured list items at once.
+func (b *Builder) Items(items []RowItem) *Builder {
+	b.vnode.SetItems(items)
+	return b
+}
+
 // AddRow appends a single row.
 func (b *Builder) AddRow(row string) *Builder {
 	b.vnode.AddRow(row)
+	return b
+}
+
+// AddItem appends a structured list item.
+func (b *Builder) AddItem(item RowItem) *Builder {
+	b.vnode.AddItem(item)
 	return b
 }
 

@@ -114,6 +114,28 @@ func (b *Builder) Divider(divider string) *Builder {
 	return b
 }
 
+// Reorderable toggles mouse drag tab reordering.
+func (b *Builder) Reorderable(reorderable bool) *Builder {
+	b.vnode.SetReorderable(reorderable)
+	return b
+}
+
+// Variant sets the tab visual variant.
+func (b *Builder) Variant(variant TabVariant) *Builder {
+	b.vnode.SetTabVariant(variant)
+	return b
+}
+
+// Line uses the default line-style tabs.
+func (b *Builder) Line() *Builder {
+	return b.Variant(TabVariantLine)
+}
+
+// Card uses card-style tabs.
+func (b *Builder) Card() *Builder {
+	return b.Variant(TabVariantCard)
+}
+
 // Width sets the width.
 func (b *Builder) Width(w int) *Builder {
 	b.vnode.SetWidth(w)
@@ -159,6 +181,18 @@ func (b *Builder) DisabledTabStyle(s style.Style) *Builder {
 // OnChange sets the change intent.
 func (b *Builder) OnChange(intent intent.Intent) *Builder {
 	b.vnode.SetIntent(intent)
+	return b
+}
+
+// OnClose sets the close intent emitted after a tab is closed.
+func (b *Builder) OnClose(intent intent.Intent) *Builder {
+	b.vnode.OnClose(intent)
+	return b
+}
+
+// OnReorder sets the reorder intent emitted after a drag reorders tabs.
+func (b *Builder) OnReorder(intent intent.Intent) *Builder {
+	b.vnode.OnReorder(intent)
 	return b
 }
 

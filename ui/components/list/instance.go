@@ -1,7 +1,6 @@
 package list
 
 import (
-	"github.com/wwsheng009/mint/ui/components/internal/proputil"
 	"fmt"
 	"reflect"
 	"sort"
@@ -16,6 +15,7 @@ import (
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/ui/components/form"
+	"github.com/wwsheng009/mint/ui/components/internal/proputil"
 	scrollutil "github.com/wwsheng009/mint/ui/components/internal/scroll"
 )
 
@@ -31,6 +31,7 @@ type Instance struct {
 
 	// === Props (from VNode, may change each render) ===
 	header                   string
+	items                    []RowItem
 	rows                     []string
 	emptyText                string
 	maxRows                  int
@@ -110,7 +111,6 @@ func NewInstance(props rtui.Props) *Instance {
 		key:                      proputil.GetString(props, "key", ""),
 		componentID:              proputil.GetString(props, "componentID", ""),
 		header:                   proputil.GetString(props, "header", ""),
-		rows:                     getStringsProp(props, []string{}),
 		emptyText:                proputil.GetString(props, "emptyText", "(empty)"),
 		maxRows:                  proputil.GetInt(props, "maxRows", 0),
 		showBorder:               proputil.GetBool(props, "showBorder", true),
@@ -146,6 +146,7 @@ func NewInstance(props rtui.Props) *Instance {
 		lastPropCheckedIndices:   getIntsProp(props, "checkedIndices", nil),
 		dirty:                    true,
 	}
+	inst.items, inst.rows = getListRowsAndItems(props, []RowItem{}, []string{})
 
 	// Extract rowStyleFn if provided in props
 	if fn, ok := props[propRowStyleFn].(func(int, string) style.Style); ok {
@@ -180,6 +181,7 @@ func (inst *Instance) SetParent(parent rtui.ComponentInstance) {
 func (inst *Instance) SetProps(props rtui.Props) bool {
 	oldComponentID := inst.componentID
 	oldHeader := inst.header
+	oldItems := cloneItems(inst.items)
 	oldRows := append([]string(nil), inst.rows...)
 	oldEmptyText := inst.emptyText
 	oldMaxRows := inst.maxRows
@@ -216,7 +218,7 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 
 	inst.componentID = proputil.GetString(props, "componentID", inst.componentID)
 	inst.header = proputil.GetString(props, "header", inst.header)
-	inst.rows = getStringsProp(props, inst.rows)
+	inst.items, inst.rows = getListRowsAndItems(props, inst.items, inst.rows)
 	inst.emptyText = proputil.GetString(props, "emptyText", inst.emptyText)
 	inst.maxRows = proputil.GetInt(props, "maxRows", inst.maxRows)
 	inst.showBorder = proputil.GetBool(props, "showBorder", inst.showBorder)
@@ -346,6 +348,7 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 
 	changed := oldHeader != inst.header ||
 		oldComponentID != inst.componentID ||
+		!equalItems(oldItems, inst.items) ||
 		!equalStrings(oldRows, inst.rows) ||
 		oldEmptyText != inst.emptyText ||
 		oldMaxRows != inst.maxRows ||
@@ -387,6 +390,7 @@ func (inst *Instance) GetProps() rtui.Props {
 		propKey:                      inst.key,
 		propComponentID:              inst.componentID,
 		propHeader:                   inst.header,
+		propItems:                    cloneItems(inst.items),
 		propRows:                     inst.rows,
 		propEmptyText:                inst.emptyText,
 		propShowScrollbar:            inst.showScrollbar,
@@ -1707,6 +1711,7 @@ func (inst *Instance) GetScrollOffset() int   { return inst.scrollOffset }
 func (inst *Instance) GetSelectedIndex() int  { return inst.selectedIndex }
 func (inst *Instance) GetViewportHeight() int { return inst.viewportHeight }
 func (inst *Instance) GetComponentID() string { return inst.componentID }
+func (inst *Instance) GetItems() []RowItem    { return cloneItems(inst.items) }
 func (inst *Instance) GetRows() []string      { return append([]string(nil), inst.rows...) }
 func (inst *Instance) GetCheckedIndices() []int {
 	return append([]int(nil), inst.checkedIndices...)
@@ -1758,6 +1763,15 @@ func (inst *Instance) IsDisabled() bool {
 // Prop Extraction Helpers
 // =============================================================================
 
+func getItemsProp(props rtui.Props, def []RowItem) []RowItem {
+	if value, ok := props[propItems]; ok {
+		if items, ok := value.([]RowItem); ok {
+			return cloneItems(items)
+		}
+	}
+	return cloneItems(def)
+}
+
 func getStringsProp(props rtui.Props, def []string) []string {
 	v, ok := props[propRows]
 	if !ok {
@@ -1767,6 +1781,18 @@ func getStringsProp(props rtui.Props, def []string) []string {
 		return rows
 	}
 	return def
+}
+
+func getListRowsAndItems(props rtui.Props, currentItems []RowItem, currentRows []string) ([]RowItem, []string) {
+	if _, ok := props[propItems]; ok {
+		return normalizeItemsAndRows(getItemsProp(props, currentItems), nil)
+	}
+	if _, ok := props[propRows]; ok {
+		return normalizeItemsAndRows(nil, getStringsProp(props, currentRows))
+	}
+	currentItems = cloneItems(currentItems)
+	currentRows = append([]string(nil), currentRows...)
+	return currentItems, currentRows
 }
 
 func getIntsProp(props rtui.Props, key string, def []int) []int {

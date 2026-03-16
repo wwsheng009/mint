@@ -3,6 +3,8 @@
 > 本文档记录 Mint UI 组件库的现状、与 Ant Design 的对比分析，以及后续开发计划。
 >
 > 更新日期：2026-03-16
+>
+> 详细增强任务拆分见：[OPTIMIZATION_BACKLOG.md](./OPTIMIZATION_BACKLOG.md)
 
 ---
 
@@ -25,12 +27,12 @@
 | OptionGroup | `optiongroup/` | ★★★☆☆ | 选项组，支持 radio/checkbox 模式 |
 | Form | `form/` | ★★★☆☆ | 表单容器，submit/reset intent，已补 FormItem、layout、validator 联动 |
 | Table | `table/` | ★★★★☆ | 排序、分页、过滤、多选、搜索、滚动 |
-| List | `list/` | ★★★☆☆ | 基本列表，选择模式 |
+| List | `list/` | ★★★★☆ | 基本列表，选择模式，List.Item/item 模型 |
 | VirtualList | `virtuallist/` | ★★★☆☆ | 虚拟滚动列表 |
 | TreeView | `treeview/` | ★★★★☆ | 懒加载、展开折叠、搜索、多选、受控模式 |
 | Modal | `modal/` | ★★★★☆ | overlay定位，portal架构 |
 | Drawer | `drawer/` | ★★★★☆ | 侧边抽屉，支持 placement、受控显隐、overlay 与 ESC/遮罩关闭 |
-| Tabs | `tabs/` | ★★★★☆ | intent，controlled模式 |
+| Tabs | `tabs/` | ★★★★★ | intent，controlled 模式，card/closable/drag reorder |
 | Menu | `menu/` | ★★★★★ | menubar/dropdown/context/popup，submenu，shortcut |
 | Alert | `alert/` | ★★★☆☆ | 内联提示，info/success/warning/error，可关闭 |
 | Spin | `spin/` | ★★★☆☆ | 加载指示器，small/default/large，tip，TickFrame动画 |
@@ -123,17 +125,17 @@
 
 | 组件 | 缺失功能 | 优先级 |
 |------|---------|--------|
-| **Form** | 字段级 touched/dirty 状态；逐步收敛兼容层 `GetFormContext` 对 registry 的依赖 | 中 |
-| **Input** | InputNumber 完整实现 | 高 |
+| **Form** | 字段级 touched/dirty 状态已完成（2026-03-17）；下一步逐步收敛兼容层 `GetFormContext` 对 registry 的依赖 | 中 |
+| ~~**Input**~~ | ~~InputNumber 完整实现~~ ✅ 已完成（2026-03-17） | ~~高~~ |
 | ~~**Checkbox**~~ | ~~indeterminate 半选状态；CheckboxGroup 组件~~ | ~~高~~ |
-| **Progress** | 圆形（Circle）和仪表盘（Dashboard）样式；status（success/exception/active） | 中 |
+| ~~**Progress**~~ | ~~圆形（Circle）和仪表盘（Dashboard）样式；status（success/exception/active）~~ ✅ 已完成（2026-03-17） | ~~中~~ |
 | ~~**Select**~~ | ~~OptGroup 分组；filterOption 搜索过滤；tags 模式（自定义输入+选择）~~ | ~~中~~ ✅ 已完成（2026-03） |
-| **Table** | expandable 行展开；固定列（sticky column）；列宽百分比/自适应；树形数据展示 | 中 |
-| **Modal** | confirm/info/success/error/warning 快捷静态方法 | 中 |
-| **Tooltip** | 12方位 placement 精细控制；delay 配置 | 中 |
-| **Tabs** | card 样式；可关闭标签页（closable）；标签页拖拽排序 | 低 |
+| ~~**Table**~~ | ~~expandable 行展开；固定列（sticky column）；列宽百分比/自适应；树形数据展示~~ ✅ 已完成（2026-03-17） | ~~中~~ |
+| ~~**Modal**~~ | ~~confirm/info/success/error/warning 快捷静态方法~~ ✅ 已完成（2026-03-17） | ~~中~~ |
+| ~~**Tooltip**~~ | ~~12方位 placement 精细控制；delay 配置~~ ✅ 已完成（2026-03-17） | ~~中~~ |
+| ~~**Tabs**~~ | ~~card、closable、拖拽排序已完成~~ ✅（2026-03-17） | ~~低~~ |
 | **TreeView** | drag-and-drop 拖拽排序；异步搜索高亮分页 | 低 |
-| **List** | List.Item 子组件；虚拟滚动集成 | 低 |
+| **List** | List.Item / item 模型已完成（2026-03-17）；剩虚拟滚动集成 | 低 |
 
 ---
 

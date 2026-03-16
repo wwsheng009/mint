@@ -15,39 +15,40 @@ import (
 
 // Prop key constants — shared by VNode and Instance to avoid magic strings.
 const (
-	propAllowScroll = "allowScroll"
-	propBorderStyle = "borderStyle"
-	propChangeIntent = "changeIntent"
-	propCheckedIndices = "checkedIndices"
+	propAllowScroll              = "allowScroll"
+	propBorderStyle              = "borderStyle"
+	propChangeIntent             = "changeIntent"
+	propCheckedIndices           = "checkedIndices"
 	propCheckedIndicesControlled = "checkedIndicesControlled"
-	propComponentID = "componentID"
-	propEmptyText = "emptyText"
-	propFormID = "formID"
-	propHeader = "header"
-	propHeaderStyle = "headerStyle"
-	propKey = "key"
-	propMatchStyle = "matchStyle"
-	propMaxRows = "maxRows"
-	propRowStyle = "rowStyle"
-	propRowStyleFn = "rowStyleFn"
-	propRows = "rows"
-	propScrollOffset = "scrollOffset"
-	propScrollOffsetControlled = "scrollOffsetControlled"
-	propScrollbarStyle = "scrollbarStyle"
-	propSearchFn = "searchFn"
-	propSearchQuery = "searchQuery"
-	propSearchStatsStyle = "searchStatsStyle"
-	propSelectedIndex = "selectedIndex"
-	propSelectedIndexControlled = "selectedIndexControlled"
-	propSelectedStyle = "selectedStyle"
-	propSelectionIntent = "selectionIntent"
-	propSelectionMode = "selectionMode"
-	propSeparatorChar = "separatorChar"
-	propShowBorder = "showBorder"
-	propShowScrollbar = "showScrollbar"
-	propShowSearchStats = "showSearchStats"
-	propShowSeparator = "showSeparator"
-	propViewportHeight = "viewportHeight"
+	propComponentID              = "componentID"
+	propEmptyText                = "emptyText"
+	propFormID                   = "formID"
+	propHeader                   = "header"
+	propHeaderStyle              = "headerStyle"
+	propItems                    = "items"
+	propKey                      = "key"
+	propMatchStyle               = "matchStyle"
+	propMaxRows                  = "maxRows"
+	propRowStyle                 = "rowStyle"
+	propRowStyleFn               = "rowStyleFn"
+	propRows                     = "rows"
+	propScrollOffset             = "scrollOffset"
+	propScrollOffsetControlled   = "scrollOffsetControlled"
+	propScrollbarStyle           = "scrollbarStyle"
+	propSearchFn                 = "searchFn"
+	propSearchQuery              = "searchQuery"
+	propSearchStatsStyle         = "searchStatsStyle"
+	propSelectedIndex            = "selectedIndex"
+	propSelectedIndexControlled  = "selectedIndexControlled"
+	propSelectedStyle            = "selectedStyle"
+	propSelectionIntent          = "selectionIntent"
+	propSelectionMode            = "selectionMode"
+	propSeparatorChar            = "separatorChar"
+	propShowBorder               = "showBorder"
+	propShowScrollbar            = "showScrollbar"
+	propShowSearchStats          = "showSearchStats"
+	propShowSeparator            = "showSeparator"
+	propViewportHeight           = "viewportHeight"
 )
 
 // =============================================================================
@@ -64,11 +65,12 @@ type VNode struct {
 	componentID string
 
 	// === Visual Properties ===
-	header     string   // Optional column header text
-	rows       []string // Pre-formatted data rows
-	emptyText  string   // Text shown when rows is empty
-	maxRows    int      // Maximum visible rows (0 = unlimited)
-	showBorder bool     // Show border around the list
+	header     string    // Optional column header text
+	items      []RowItem // Structured data rows
+	rows       []string  // Flattened row text for backward compatibility
+	emptyText  string    // Text shown when rows is empty
+	maxRows    int       // Maximum visible rows (0 = unlimited)
+	showBorder bool      // Show border around the list
 
 	// === Separator ===
 	showSeparator bool // Show separator line between header and rows
@@ -122,6 +124,7 @@ func New() *VNode {
 		key:             "",
 		componentID:     "",
 		header:          "",
+		items:           nil,
 		rows:            []string{},
 		emptyText:       "(empty)",
 		maxRows:         0,
@@ -167,6 +170,7 @@ func (v *VNode) Props() rtui.Props {
 		propKey:                     v.key,
 		propComponentID:             v.componentID,
 		propHeader:                  v.header,
+		propItems:                   cloneItems(v.items),
 		propRows:                    v.rows,
 		propEmptyText:               v.emptyText,
 		propMaxRows:                 v.maxRows,
@@ -218,8 +222,11 @@ func (v *VNode) SetProps(p rtui.Props) rtui.VNode {
 	if header, ok := p[propHeader].(string); ok {
 		v.header = header
 	}
+	if items, ok := p[propItems].([]RowItem); ok {
+		v.items, v.rows = normalizeItemsAndRows(items, nil)
+	}
 	if rows, ok := p[propRows].([]string); ok {
-		v.rows = rows
+		v.items, v.rows = normalizeItemsAndRows(nil, rows)
 	}
 	if emptyText, ok := p[propEmptyText].(string); ok {
 		v.emptyText = emptyText
@@ -320,9 +327,16 @@ func (v *VNode) CreateInstance() rtui.ComponentInstance {
 // Setter Methods (Fluent API)
 // =============================================================================
 
-func (v *VNode) SetComponentID(id string) *VNode                       { v.componentID = id; return v }
-func (v *VNode) SetHeader(header string) *VNode                        { v.header = header; return v }
-func (v *VNode) SetRows(rows []string) *VNode                          { v.rows = rows; return v }
+func (v *VNode) SetComponentID(id string) *VNode { v.componentID = id; return v }
+func (v *VNode) SetHeader(header string) *VNode  { v.header = header; return v }
+func (v *VNode) SetItems(items []RowItem) *VNode {
+	v.items, v.rows = normalizeItemsAndRows(items, nil)
+	return v
+}
+func (v *VNode) SetRows(rows []string) *VNode {
+	v.items, v.rows = normalizeItemsAndRows(nil, rows)
+	return v
+}
 func (v *VNode) SetEmptyText(text string) *VNode                       { v.emptyText = text; return v }
 func (v *VNode) SetMaxRows(n int) *VNode                               { v.maxRows = n; return v }
 func (v *VNode) SetShowBorder(show bool) *VNode                        { v.showBorder = show; return v }
@@ -405,13 +419,21 @@ func (v *VNode) SetAllowScroll(allow bool) *VNode    { v.allowScroll = allow; re
 
 // AddRow adds a single row to the list
 func (v *VNode) AddRow(row string) *VNode {
-	v.rows = append(v.rows, row)
+	return v.AddItem(Item(row))
+}
+
+// AddItem adds a structured row to the list.
+func (v *VNode) AddItem(item RowItem) *VNode {
+	v.items = append(v.items, item)
+	v.rows = append(v.rows, item.Text())
 	return v
 }
 
 // AddRows adds multiple rows to the list
 func (v *VNode) AddRows(rows ...string) *VNode {
-	v.rows = append(v.rows, rows...)
+	for _, row := range rows {
+		v.AddRow(row)
+	}
 	return v
 }
 
@@ -420,6 +442,7 @@ func (v *VNode) AddRows(rows ...string) *VNode {
 // ============================================================================
 
 func (v *VNode) Header() string         { return v.header }
+func (v *VNode) Items() []RowItem       { return cloneItems(v.items) }
 func (v *VNode) Rows() []string         { return v.rows }
 func (v *VNode) RowCount() int          { return len(v.rows) }
 func (v *VNode) GetComponentID() string { return v.componentID }

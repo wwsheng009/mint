@@ -64,6 +64,93 @@ func TestTabChangeIntent_Transition(t *testing.T) {
 // TabNextIntent Tests
 // =============================================================================
 
+func TestTabCloseIntent_Type(t *testing.T) {
+	i := TabClose("comp1", 1, "tab2", "Tab 2", 1, "tab3", "Tab 3")
+	if i.IntentType() != "Tabs:TabClose" {
+		t.Errorf("Expected intent type 'Tabs:TabClose', got '%s'", i.IntentType())
+	}
+}
+
+func TestTabCloseIntent_Properties(t *testing.T) {
+	i := TabClose("comp1", 1, "tab2", "Tab 2", 1, "tab3", "Tab 3")
+
+	if i.ComponentID != "comp1" {
+		t.Errorf("Expected ComponentID 'comp1', got '%s'", i.ComponentID)
+	}
+	if i.ClosedTabIndex != 1 {
+		t.Errorf("Expected ClosedTabIndex 1, got %d", i.ClosedTabIndex)
+	}
+	if i.ClosedTabID != "tab2" {
+		t.Errorf("Expected ClosedTabID 'tab2', got '%s'", i.ClosedTabID)
+	}
+	if i.ClosedTabLabel != "Tab 2" {
+		t.Errorf("Expected ClosedTabLabel 'Tab 2', got '%s'", i.ClosedTabLabel)
+	}
+	if i.ActiveTab != 1 || i.ActiveTabID != "tab3" || i.ActiveTabLabel != "Tab 3" {
+		t.Errorf("Unexpected active tab payload: %+v", i)
+	}
+}
+
+func TestTabCloseIntent_Priority(t *testing.T) {
+	i := TabClose("comp1", 1, "tab2", "Tab 2", 1, "tab3", "Tab 3")
+	if i.Priority() != intent.PriorityNormal {
+		t.Errorf("Expected priority %s, got %s", intent.PriorityNormal, i.Priority())
+	}
+}
+
+func TestTabCloseIntent_Transition(t *testing.T) {
+	i := TabClose("comp1", 1, "tab2", "Tab 2", 1, "tab3", "Tab 3")
+	if i.IsTransition() {
+		t.Error("TabCloseIntent should be handled synchronously")
+	}
+}
+
+// =============================================================================
+// TabReorderIntent Tests
+// =============================================================================
+
+func TestTabReorderIntent_Type(t *testing.T) {
+	i := TabReorder("comp1", 0, 2, "tab1", "Tab 1", []string{"tab2", "tab3", "tab1"}, 2, "tab1", "Tab 1")
+	if i.IntentType() != "Tabs:TabReorder" {
+		t.Errorf("Expected intent type 'Tabs:TabReorder', got '%s'", i.IntentType())
+	}
+}
+
+func TestTabReorderIntent_Properties(t *testing.T) {
+	i := TabReorder("comp1", 0, 2, "tab1", "Tab 1", []string{"tab2", "tab3", "tab1"}, 2, "tab1", "Tab 1")
+
+	if i.ComponentID != "comp1" || i.FromIndex != 0 || i.ToIndex != 2 {
+		t.Errorf("Unexpected location payload: %+v", i)
+	}
+	if i.TabID != "tab1" || i.TabLabel != "Tab 1" {
+		t.Errorf("Unexpected tab payload: %+v", i)
+	}
+	if len(i.TabOrder) != 3 || i.TabOrder[2] != "tab1" {
+		t.Errorf("Unexpected TabOrder payload: %+v", i.TabOrder)
+	}
+	if i.ActiveTab != 2 || i.ActiveTabID != "tab1" || i.ActiveTabLabel != "Tab 1" {
+		t.Errorf("Unexpected active tab payload: %+v", i)
+	}
+}
+
+func TestTabReorderIntent_Priority(t *testing.T) {
+	i := TabReorder("comp1", 0, 2, "tab1", "Tab 1", []string{"tab2", "tab3", "tab1"}, 2, "tab1", "Tab 1")
+	if i.Priority() != intent.PriorityNormal {
+		t.Errorf("Expected priority %s, got %s", intent.PriorityNormal, i.Priority())
+	}
+}
+
+func TestTabReorderIntent_Transition(t *testing.T) {
+	i := TabReorder("comp1", 0, 2, "tab1", "Tab 1", []string{"tab2", "tab3", "tab1"}, 2, "tab1", "Tab 1")
+	if i.IsTransition() {
+		t.Error("TabReorderIntent should be handled synchronously")
+	}
+}
+
+// =============================================================================
+// TabNextIntent Tests
+// =============================================================================
+
 func TestTabNextIntent_Type(t *testing.T) {
 	i := TabNext("comp1")
 	if i.IntentType() != "Tabs:TabNext" {

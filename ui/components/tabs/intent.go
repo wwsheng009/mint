@@ -53,6 +53,108 @@ func (TabChangeIntent) IsGlobal() bool {
 // TabNextIntent
 // =============================================================================
 
+// TabCloseIntent is emitted after a tab is closed.
+type TabCloseIntent struct {
+	// ComponentID identifies the tabs component emitting this intent.
+	ComponentID string
+
+	// ClosedTabIndex is the index of the tab before it was removed.
+	ClosedTabIndex int
+
+	// ClosedTabID is the ID of the removed tab.
+	ClosedTabID string
+
+	// ClosedTabLabel is the label of the removed tab.
+	ClosedTabLabel string
+
+	// ActiveTab is the new active tab index after the close settles.
+	ActiveTab int
+
+	// ActiveTabID is the ID of the new active tab, if any.
+	ActiveTabID string
+
+	// ActiveTabLabel is the label of the new active tab, if any.
+	ActiveTabLabel string
+}
+
+// IntentType implements Intent interface.
+func (TabCloseIntent) IntentType() string {
+	return "Tabs:TabClose"
+}
+
+// Priority implements Intent interface.
+func (TabCloseIntent) Priority() intent.ActionPriority {
+	return intent.PriorityNormal
+}
+
+// IsTransition implements Intent interface.
+func (TabCloseIntent) IsTransition() bool {
+	return false
+}
+
+// IsGlobal implements intent.GlobalIntent.
+func (TabCloseIntent) IsGlobal() bool {
+	return false
+}
+
+// =============================================================================
+// TabReorderIntent
+// =============================================================================
+
+// TabReorderIntent is emitted after a drag operation changes tab order.
+type TabReorderIntent struct {
+	// ComponentID identifies the tabs component emitting this intent.
+	ComponentID string
+
+	// FromIndex is the original index when dragging started.
+	FromIndex int
+
+	// ToIndex is the final index after dropping.
+	ToIndex int
+
+	// TabID is the ID of the dragged tab.
+	TabID string
+
+	// TabLabel is the label of the dragged tab.
+	TabLabel string
+
+	// TabOrder is the final ordered tab ID list after reordering.
+	TabOrder []string
+
+	// ActiveTab is the active tab index after reorder settles.
+	ActiveTab int
+
+	// ActiveTabID is the active tab ID after reorder settles.
+	ActiveTabID string
+
+	// ActiveTabLabel is the active tab label after reorder settles.
+	ActiveTabLabel string
+}
+
+// IntentType implements Intent interface.
+func (TabReorderIntent) IntentType() string {
+	return "Tabs:TabReorder"
+}
+
+// Priority implements Intent interface.
+func (TabReorderIntent) Priority() intent.ActionPriority {
+	return intent.PriorityNormal
+}
+
+// IsTransition implements Intent interface.
+func (TabReorderIntent) IsTransition() bool {
+	return false
+}
+
+// IsGlobal implements intent.GlobalIntent.
+func (TabReorderIntent) IsGlobal() bool {
+	return false
+}
+
+// =============================================================================
+// TabNextIntent
+// =============================================================================
+
 // TabNextIntent is a command intent to switch to the next tab.
 // This can be handled by the Tabs Instance to navigate forward.
 type TabNextIntent struct {
@@ -169,6 +271,48 @@ func TabChange(componentID string, activeTab int, tabID, tabLabel string) TabCha
 		ActiveTab:   activeTab,
 		TabID:       tabID,
 		TabLabel:    tabLabel,
+	}
+}
+
+// TabClose creates a TabCloseIntent.
+func TabClose(
+	componentID string,
+	closedTabIndex int,
+	closedTabID, closedTabLabel string,
+	activeTab int,
+	activeTabID, activeTabLabel string,
+) TabCloseIntent {
+	return TabCloseIntent{
+		ComponentID:    componentID,
+		ClosedTabIndex: closedTabIndex,
+		ClosedTabID:    closedTabID,
+		ClosedTabLabel: closedTabLabel,
+		ActiveTab:      activeTab,
+		ActiveTabID:    activeTabID,
+		ActiveTabLabel: activeTabLabel,
+	}
+}
+
+// TabReorder creates a TabReorderIntent.
+func TabReorder(
+	componentID string,
+	fromIndex, toIndex int,
+	tabID, tabLabel string,
+	tabOrder []string,
+	activeTab int,
+	activeTabID, activeTabLabel string,
+) TabReorderIntent {
+	orderCopy := append([]string(nil), tabOrder...)
+	return TabReorderIntent{
+		ComponentID:    componentID,
+		FromIndex:      fromIndex,
+		ToIndex:        toIndex,
+		TabID:          tabID,
+		TabLabel:       tabLabel,
+		TabOrder:       orderCopy,
+		ActiveTab:      activeTab,
+		ActiveTabID:    activeTabID,
+		ActiveTabLabel: activeTabLabel,
 	}
 }
 

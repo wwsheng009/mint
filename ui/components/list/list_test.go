@@ -33,6 +33,57 @@ func (p *bubbleCaptureParent) HandleIntent(i intent.Intent) bool {
 	return true
 }
 
+func TestRowItem_Text(t *testing.T) {
+	item := Item("Orders").
+		WithPrefix("[*]").
+		WithDescription("3 pending").
+		WithSuffix("(hot)")
+
+	if got := item.Text(); got != "[*] Orders - 3 pending (hot)" {
+		t.Fatalf("Text() = %q, want %q", got, "[*] Orders - 3 pending (hot)")
+	}
+}
+
+func TestVNode_ItemsAndRowsStayInSync(t *testing.T) {
+	items := []RowItem{
+		Item("Orders").WithPrefix("[*]").WithDescription("3 pending"),
+		Item("Invoices").WithSuffix("(new)"),
+	}
+
+	vnode := New().
+		SetItems(items).
+		AddItem(Item("Shipments").WithDescription("ready"))
+
+	if len(vnode.Items()) != 3 {
+		t.Fatalf("Items len = %d, want 3", len(vnode.Items()))
+	}
+	wantRows := []string{
+		"[*] Orders - 3 pending",
+		"Invoices (new)",
+		"Shipments - ready",
+	}
+	rows := vnode.Rows()
+	for i := range wantRows {
+		if rows[i] != wantRows[i] {
+			t.Fatalf("Rows[%d] = %q, want %q; full=%v", i, rows[i], wantRows[i], rows)
+		}
+	}
+}
+
+func TestBuilder_Items(t *testing.T) {
+	vnode := NewBuilder().
+		Items([]RowItem{Item("Orders").WithDescription("3 pending")}).
+		AddItem(Item("Invoices").WithSuffix("(new)")).
+		BuildVNode()
+
+	if len(vnode.Items()) != 2 {
+		t.Fatalf("Items len = %d, want 2", len(vnode.Items()))
+	}
+	if rows := vnode.Rows(); rows[0] != "Orders - 3 pending" || rows[1] != "Invoices (new)" {
+		t.Fatalf("Rows = %v, want [Orders - 3 pending Invoices (new)]", rows)
+	}
+}
+
 func TestInstance_HandleAction_ScrollWithMousePayload(t *testing.T) {
 	rows := []string{"a", "b", "c", "d", "e", "f"}
 	inst := NewInstance(rtui.Props{
@@ -94,6 +145,57 @@ func TestInstance_RowStyleFn_AppliesToRenderedRows(t *testing.T) {
 	}
 	if cmds[1].Style.FG != custom.FG {
 		t.Fatalf("second row fg = %q, want %q", cmds[1].Style.FG, custom.FG)
+	}
+}
+
+func TestInstance_Items_RenderAsFlattenedRows(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"items": []RowItem{
+			Item("Orders").WithPrefix("[*]").WithDescription("3 pending"),
+			Item("Invoices").WithSuffix("(new)"),
+		},
+		"showBorder":    false,
+		"showSeparator": false,
+	})
+
+	rows := inst.GetRows()
+	wantRows := []string{"[*] Orders - 3 pending", "Invoices (new)"}
+	for i := range wantRows {
+		if rows[i] != wantRows[i] {
+			t.Fatalf("rows[%d] = %q, want %q; full=%v", i, rows[i], wantRows[i], rows)
+		}
+	}
+
+	cmds := inst.Paint(0, 0)
+	if len(cmds) < 2 {
+		t.Fatalf("cmd count = %d, want >= 2", len(cmds))
+	}
+	if cmds[0].Text != wantRows[0] {
+		t.Fatalf("first rendered row = %q, want %q", cmds[0].Text, wantRows[0])
+	}
+	if cmds[1].Text != wantRows[1] {
+		t.Fatalf("second rendered row = %q, want %q", cmds[1].Text, wantRows[1])
+	}
+}
+
+func TestInstance_Items_SelectIntentUsesFlattenedText(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"items": []RowItem{
+			Item("Orders").WithPrefix("[*]").WithDescription("3 pending"),
+			Item("Invoices").WithSuffix("(new)"),
+		},
+	})
+
+	if !inst.HandleAction(action.NewAction(action.ActionNavigateDown)) {
+		t.Fatal("navigate down should select first item")
+	}
+
+	row, ok := inst.GetSelectedRow()
+	if !ok {
+		t.Fatal("expected a selected row")
+	}
+	if row != "[*] Orders - 3 pending" {
+		t.Fatalf("selected row = %q, want %q", row, "[*] Orders - 3 pending")
 	}
 }
 
