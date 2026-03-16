@@ -55,8 +55,8 @@ func TestTabChangeIntent_Priority(t *testing.T) {
 
 func TestTabChangeIntent_Transition(t *testing.T) {
 	i := TabChange("comp1", 0, "tab1", "Tab 1")
-	if !i.IsTransition() {
-		t.Error("TabChangeIntent should be a transition intent")
+	if i.IsTransition() {
+		t.Error("TabChangeIntent should be handled synchronously")
 	}
 }
 
@@ -91,8 +91,8 @@ func TestTabNextIntent_Priority(t *testing.T) {
 
 func TestTabNextIntent_Transition(t *testing.T) {
 	i := TabNext("comp1")
-	if !i.IsTransition() {
-		t.Error("TabNextIntent should be a transition intent")
+	if i.IsTransition() {
+		t.Error("TabNextIntent should be handled synchronously")
 	}
 }
 
@@ -127,8 +127,8 @@ func TestTabPreviousIntent_Priority(t *testing.T) {
 
 func TestTabPreviousIntent_Transition(t *testing.T) {
 	i := TabPrevious("comp1")
-	if !i.IsTransition() {
-		t.Error("TabPreviousIntent should be a transition intent")
+	if i.IsTransition() {
+		t.Error("TabPreviousIntent should be handled synchronously")
 	}
 }
 

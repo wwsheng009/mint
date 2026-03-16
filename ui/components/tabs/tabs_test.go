@@ -3,6 +3,9 @@ package tabs
 import (
 	"testing"
 
+	"github.com/wwsheng009/mint/framework/styling"
+	fwtheme "github.com/wwsheng009/mint/framework/theme"
+	"github.com/wwsheng009/mint/runtime/action"
 	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/runtime/layout"
 	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
@@ -473,6 +476,79 @@ func TestInstance_Paint(t *testing.T) {
 	}
 }
 
+func TestInstance_ResolveTabStyle_ActiveTabPreservesThemeSelectForegroundForContrast(t *testing.T) {
+	style.RegisterStyleGetter(func() func(string, string) style.Style {
+		return func(componentID, state string) style.Style {
+			if componentID == "tabs" && state == "select" {
+				return style.NewStyle().
+					Foreground(style.Red).
+					Background(style.Yellow).
+					Underline(true)
+			}
+			return style.Style{}
+		}
+	})
+	t.Cleanup(func() {
+		style.RegisterStyleGetter(func() func(string, string) style.Style { return nil })
+	})
+
+	inst := NewInstance(rtui.Props{
+		"tabs": []TabItem{
+			{ID: "tab1", Label: "Tab 1"},
+			{ID: "tab2", Label: "Tab 2"},
+		},
+		"activeTabStyle": style.NewStyle().Foreground(style.Cyan),
+	})
+
+	active := inst.resolveTabStyle(0)
+	if active.FG != style.Red {
+		t.Fatalf("Expected theme select FG to be preserved for contrast, got %s", active.FG)
+	}
+	if active.BG != style.Yellow {
+		t.Fatalf("Expected theme select BG to be preserved, got %s", active.BG)
+	}
+	if !active.IsUnderline() {
+		t.Fatal("Expected theme select underline to be applied to active tab")
+	}
+
+	inactive := inst.resolveTabStyle(1)
+	if inactive.BG != style.NoColor {
+		t.Fatalf("Inactive tab should not inherit theme select BG, got %s", inactive.BG)
+	}
+	if inactive.IsUnderline() {
+		t.Fatal("Inactive tab should not inherit theme select underline")
+	}
+}
+
+func TestInstance_ResolveTabStyle_ActiveTabFallsBackToThemeSelectBackground(t *testing.T) {
+	mgr, err := fwtheme.InitThemes("nord")
+	if err != nil {
+		t.Fatalf("InitThemes(nord) error = %v", err)
+	}
+
+	oldProvider := styling.GetProvider()
+	styling.SetProvider(fwtheme.NewThemeStyleProvider(mgr))
+	t.Cleanup(func() {
+		styling.SetProvider(oldProvider)
+	})
+
+	inst := NewInstance(rtui.Props{
+		"tabs": []TabItem{
+			{ID: "tab1", Label: "Tab 1"},
+			{ID: "tab2", Label: "Tab 2"},
+		},
+		"activeTabStyle": style.NewStyle().Foreground(style.Cyan),
+	})
+
+	active := inst.resolveTabStyle(0)
+	if active.BG != fwtheme.Select() {
+		t.Fatalf("Expected active tab fallback BG %s from theme select color, got %s", fwtheme.Select(), active.BG)
+	}
+	if active.FG != fwtheme.BG() {
+		t.Fatalf("Expected active tab fallback FG %s for contrast, got %s", fwtheme.BG(), active.FG)
+	}
+}
+
 func TestInstance_GetActiveTabInfo(t *testing.T) {
 	tabs := []TabItem{
 		{ID: "tab1", Label: "Tab 1"},
@@ -616,6 +692,25 @@ func TestInstance_HandleMouseMessage_UsesLocalCoordinates(t *testing.T) {
 	}
 }
 
+func TestInstance_HandleAction_ClickUsesMousePayload(t *testing.T) {
+	tabs := []TabItem{
+		{ID: "tab1", Label: "Home"},
+		{ID: "tab2", Label: "Settings"},
+	}
+
+	inst := NewInstance(rtui.Props{"tabs": tabs})
+	inst.Paint(12, 4)
+
+	mouse := runtimemsg.NewMouseMsgWithTarget(21, 4, 9, 0, 0, runtimemsg.MouseLeft, runtimemsg.MouseActionPress)
+	handled := inst.HandleAction(action.NewAction(action.ActionClick).WithPayload(mouse))
+	if !handled {
+		t.Fatal("Expected ActionClick with MouseMsg payload to activate second tab")
+	}
+	if inst.activeTab != 1 {
+		t.Errorf("Expected activeTab 1, got %d", inst.activeTab)
+	}
+}
+
 func TestInstance_Paint_WrapTabsCreatesMultipleRows(t *testing.T) {
 	tabs := []TabItem{
 		{ID: "tab1", Label: "Alpha"},
@@ -725,6 +820,56 @@ func TestInstance_SetTabEnabled_RehomesActiveTab(t *testing.T) {
 	}
 }
 
+func TestInstance_IsFocusable(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"tabs": []TabItem{{ID: "tab1", Label: "Tab 1"}},
+	})
+
+	focusable, ok := interface{}(inst).(rtui.FocusableInstance)
+	if !ok {
+		t.Fatal("tabs instance should implement FocusableInstance")
+	}
+
+	focusable.SetFocus(true)
+	if !focusable.HasFocus() {
+		t.Fatal("tabs instance should track focus state")
+	}
+
+	focusable.SetFocus(false)
+	if focusable.HasFocus() {
+		t.Fatal("tabs instance should clear focus state")
+	}
+}
+
+func TestInstance_HandleAction_KeyboardNavigationAndHotkeys(t *testing.T) {
+	tabs := []TabItem{
+		{ID: "tab1", Label: "Tab 1", Hotkey: 'h'},
+		{ID: "tab2", Label: "Tab 2", Hotkey: 'p'},
+		{ID: "tab3", Label: "Tab 3", Hotkey: 's'},
+	}
+
+	inst := NewInstance(rtui.Props{
+		"tabs":           tabs,
+		"loopNavigation": true,
+	})
+
+	if !inst.HandleAction(action.NewAction(action.ActionNavigateRight)) {
+		t.Fatal("ActionNavigateRight should switch to the next tab")
+	}
+	if inst.activeTab != 1 {
+		t.Fatalf("Expected activeTab 1 after ActionNavigateRight, got %d", inst.activeTab)
+	}
+
+	if !inst.HandleAction(action.NewAction(action.ActionInputText).WithPayload(
+		runtimemsg.NewKeyMsg('s', platform.KeyUnknown, runtimemsg.Modifiers{}),
+	)) {
+		t.Fatal("ActionInputText with hotkey payload should select matching tab")
+	}
+	if inst.activeTab != 2 {
+		t.Fatalf("Expected activeTab 2 after hotkey action, got %d", inst.activeTab)
+	}
+}
+
 func TestInstance_FieldIntentPropExtraction(t *testing.T) {
 	tabs := []TabItem{
 		{ID: "tab1", Label: "Tab 1"},
@@ -755,5 +900,189 @@ func TestInstance_FieldIntentPropExtraction(t *testing.T) {
 	}
 	if fieldIntent.Field != "currentTab" || fieldIntent.Value != "1" {
 		t.Fatalf("Unexpected field intent payload: %+v", fieldIntent)
+	}
+}
+
+func withTabsTestIntentRuntime(t *testing.T) *intent.Runtime {
+	t.Helper()
+
+	oldRuntime := rtui.GetGlobalIntentRuntime()
+	rt := intent.NewRuntimeWithNewRegistry()
+	rtui.SetGlobalIntentRuntime(rt)
+	t.Cleanup(func() {
+		rtui.SetGlobalIntentRuntime(oldRuntime)
+	})
+	return rt
+}
+
+func TestInstance_ComponentIDEmitsTabChangeIntentToGlobalRuntimeWhenHandlerRegistered(t *testing.T) {
+	tabs := []TabItem{
+		{ID: "tab1", Label: "Tab 1"},
+		{ID: "tab2", Label: "Tab 2"},
+	}
+
+	inst := NewInstance(rtui.Props{
+		"tabs":        tabs,
+		"componentID": "workspace-tabs",
+	})
+
+	rt := withTabsTestIntentRuntime(t)
+
+	var emitted []TabChangeIntent
+	unregister := intent.RegisterTypedRuntime(rt, func(_ *intent.ActionContext, i TabChangeIntent) intent.IntentResult {
+		emitted = append(emitted, i)
+		return intent.HandledResult()
+	})
+	defer unregister()
+
+	bubbleCount := 0
+	intent.SetBubbleTestHook(func(component interface{}, i intent.Intent) bool {
+		if _, ok := i.(TabChangeIntent); ok {
+			bubbleCount++
+		}
+		return false
+	})
+	defer intent.SetBubbleTestHook(nil)
+
+	if !inst.NextTab() {
+		t.Fatal("Expected NextTab to succeed")
+	}
+
+	if len(emitted) != 1 {
+		t.Fatalf("Expected exactly 1 globally emitted intent, got %d", len(emitted))
+	}
+
+	change := emitted[0]
+	if change.ComponentID != "workspace-tabs" || change.ActiveTab != 1 || change.TabID != "tab2" || change.TabLabel != "Tab 2" {
+		t.Fatalf("Unexpected TabChangeIntent payload: %+v", change)
+	}
+	if bubbleCount != 1 {
+		t.Fatalf("Expected one bubbled TabChangeIntent, got %d", bubbleCount)
+	}
+}
+
+func TestInstance_ComponentIDAndFieldIntentEmitTabChangeGloballyAndFieldIntentLocally(t *testing.T) {
+	tabs := []TabItem{
+		{ID: "tab1", Label: "Tab 1"},
+		{ID: "tab2", Label: "Tab 2"},
+	}
+
+	inst := NewInstance(rtui.Props{
+		"tabs":              tabs,
+		"componentID":       "workspace-tabs",
+		"changeIntentField": intent.FieldChangeIntent{Field: "currentTab"},
+	})
+
+	rt := withTabsTestIntentRuntime(t)
+
+	var tabChanges []TabChangeIntent
+	unregister := intent.RegisterTypedRuntime(rt, func(_ *intent.ActionContext, i TabChangeIntent) intent.IntentResult {
+		tabChanges = append(tabChanges, i)
+		return intent.HandledResult()
+	})
+	defer unregister()
+
+	var emitted []intent.Intent
+	inst.SetIntentEmitter(func(i intent.Intent) {
+		emitted = append(emitted, i)
+	})
+
+	if !inst.NextTab() {
+		t.Fatal("Expected NextTab to succeed")
+	}
+
+	if len(tabChanges) != 1 {
+		t.Fatalf("Expected 1 global TabChangeIntent, got %d", len(tabChanges))
+	}
+	change := tabChanges[0]
+	if change.ComponentID != "workspace-tabs" || change.ActiveTab != 1 || change.TabID != "tab2" || change.TabLabel != "Tab 2" {
+		t.Fatalf("Unexpected TabChangeIntent payload: %+v", change)
+	}
+
+	if len(emitted) != 1 {
+		t.Fatalf("Expected 1 locally emitted intent, got %d", len(emitted))
+	}
+
+	fieldIntent, ok := emitted[0].(intent.FieldChangeIntent)
+	if !ok {
+		t.Fatalf("Expected locally emitted intent to be FieldChangeIntent, got %T", emitted[0])
+	}
+	if fieldIntent.Field != "currentTab" || fieldIntent.Value != "1" {
+		t.Fatalf("Unexpected FieldChangeIntent payload: %+v", fieldIntent)
+	}
+}
+
+func TestInstance_ComponentIDAndCustomIntentEmitTabChangeGloballyAndCustomIntentLocally(t *testing.T) {
+	tabs := []TabItem{
+		{ID: "tab1", Label: "Tab 1"},
+		{ID: "tab2", Label: "Tab 2"},
+	}
+
+	inst := NewInstance(rtui.Props{
+		"tabs":         tabs,
+		"componentID":  "workspace-tabs",
+		"changeIntent": TestCustomIntent{},
+	})
+
+	rt := withTabsTestIntentRuntime(t)
+
+	var tabChanges []TabChangeIntent
+	unregister := intent.RegisterTypedRuntime(rt, func(_ *intent.ActionContext, i TabChangeIntent) intent.IntentResult {
+		tabChanges = append(tabChanges, i)
+		return intent.HandledResult()
+	})
+	defer unregister()
+
+	var emitted []intent.Intent
+	inst.SetIntentEmitter(func(i intent.Intent) {
+		emitted = append(emitted, i)
+	})
+
+	if !inst.NextTab() {
+		t.Fatal("Expected NextTab to succeed")
+	}
+
+	if len(tabChanges) != 1 {
+		t.Fatalf("Expected 1 global TabChangeIntent, got %d", len(tabChanges))
+	}
+	if change := tabChanges[0]; change.ComponentID != "workspace-tabs" || change.ActiveTab != 1 || change.TabID != "tab2" || change.TabLabel != "Tab 2" {
+		t.Fatalf("Unexpected TabChangeIntent payload: %+v", change)
+	}
+
+	if len(emitted) != 1 {
+		t.Fatalf("Expected 1 locally emitted intent, got %d", len(emitted))
+	}
+	if _, ok := emitted[0].(TestCustomIntent); !ok {
+		t.Fatalf("Expected locally emitted intent to be TestCustomIntent, got %T", emitted[0])
+	}
+}
+
+func TestInstance_ComponentIDWithoutEmitterStillBubblesWithoutPanic(t *testing.T) {
+	tabs := []TabItem{
+		{ID: "tab1", Label: "Tab 1"},
+		{ID: "tab2", Label: "Tab 2"},
+	}
+
+	inst := NewInstance(rtui.Props{
+		"tabs":              tabs,
+		"componentID":       "workspace-tabs",
+		"changeIntentField": intent.FieldChangeIntent{Field: "currentTab"},
+	})
+
+	bubbleCount := 0
+	intent.SetBubbleTestHook(func(component interface{}, i intent.Intent) bool {
+		if _, ok := i.(TabChangeIntent); ok {
+			bubbleCount++
+		}
+		return false
+	})
+	defer intent.SetBubbleTestHook(nil)
+
+	if !inst.NextTab() {
+		t.Fatal("Expected NextTab to succeed without emitter")
+	}
+
+	if bubbleCount != 1 {
+		t.Fatalf("Expected one bubbled TabChangeIntent, got %d", bubbleCount)
 	}
 }

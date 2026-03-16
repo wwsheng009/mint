@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/wwsheng009/mint/framework"
+	fwtheme "github.com/wwsheng009/mint/framework/theme"
 	"github.com/wwsheng009/mint/internal/render"
 	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/runtime/paint"
@@ -205,7 +206,7 @@ func RunTest(app ComponentFunc, opts ...Option) (*TestableApp, error) {
 	fwApp.Resize(options.Width, options.Height)
 
 	// Initialize theme (optional, don't fail on error)
-	fwApp.InitTheme("dark")
+	fwApp.InitTheme(fwtheme.DefaultThemeName)
 
 	// Set global appInstance
 	appInstance = fwApp
@@ -289,7 +290,7 @@ func RunTestWithSandbox(app ComponentFunc, opts ...Option) (*TestableApp, error)
 	fwApp.Resize(options.Width, options.Height)
 
 	// Initialize theme (optional, don't fail on error)
-	fwApp.InitTheme("dark")
+	fwApp.InitTheme(fwtheme.DefaultThemeName)
 
 	// Set global appInstance
 	appInstance = fwApp

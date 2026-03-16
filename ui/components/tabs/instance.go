@@ -1,11 +1,11 @@
 package tabs
 
 import (
-	"github.com/wwsheng009/mint/ui/components/internal/proputil"
 	"fmt"
 	"strings"
 	"unicode"
 
+	fwtheme "github.com/wwsheng009/mint/framework/theme"
 	"github.com/wwsheng009/mint/runtime/action"
 	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/runtime/layout"
@@ -14,6 +14,7 @@ import (
 	"github.com/wwsheng009/mint/runtime/platform"
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
+	"github.com/wwsheng009/mint/ui/components/internal/proputil"
 )
 
 // =============================================================================
@@ -51,6 +52,7 @@ type Instance struct {
 	requestedActiveTab   int
 	requestedActiveTabID string
 	bounds               [4]int // x, y, w, h
+	focused              bool
 	dirty                bool
 
 	// === Tab Bar Bounds (for click detection, local coordinates) ===
@@ -90,6 +92,7 @@ var (
 	_ rtui.ComponentInstance     = (*Instance)(nil)
 	_ rtui.PaintableInstance     = (*Instance)(nil)
 	_ rtui.ActionHandlerInstance = (*Instance)(nil)
+	_ rtui.FocusableInstance     = (*Instance)(nil)
 	_ intent.IntentHandler       = (*Instance)(nil) // Phase 7: Intent Bubble
 	_ intent.TreeComponent       = (*Instance)(nil) // Phase 7: Intent Bubble
 	_ interface {
@@ -224,6 +227,24 @@ func (inst *Instance) GetContext() *rtui.ComponentContext { return nil }
 func (inst *Instance) ClearDirty()                        { inst.dirty = false }
 
 // =============================================================================
+// FocusableInstance Interface
+// =============================================================================
+
+func (inst *Instance) SetFocus(focused bool) {
+	if inst.focused == focused {
+		return
+	}
+	inst.focused = focused
+	inst.dirty = true
+}
+
+func (inst *Instance) HasFocus() bool { return inst.focused }
+
+func (inst *Instance) IsDisabled() bool {
+	return inst.firstEnabledVisibleIndex() < 0
+}
+
+// =============================================================================
 // Measurable Interface
 // =============================================================================
 
@@ -323,9 +344,34 @@ func (inst *Instance) paintTabBar(x, y int) []paint.DrawCmd {
 // =============================================================================
 
 func (inst *Instance) HandleAction(act *action.Action) bool {
+	if act == nil {
+		return false
+	}
+
 	switch act.Type {
 	case action.ActionClick:
 		return inst.handleClick(act.Payload)
+	case action.ActionNavigateLeft, action.ActionNavigateUp, action.ActionNavigatePrev:
+		return inst.PreviousTab()
+	case action.ActionNavigateRight, action.ActionNavigateDown, action.ActionNavigateNext:
+		return inst.NextTab()
+	case action.ActionNavigateFirst, action.ActionNavigateHome:
+		return inst.FirstTab()
+	case action.ActionNavigateLast, action.ActionNavigateEnd:
+		return inst.LastTab()
+	case action.ActionInputText:
+		switch payload := act.Payload.(type) {
+		case *runtimemsg.KeyMsg:
+			return inst.HandleKeyMessage(payload)
+		case runtimemsg.KeyMsg:
+			return inst.HandleKeyMessage(&payload)
+		case string:
+			runes := []rune(payload)
+			if len(runes) != 1 {
+				return false
+			}
+			return inst.HandleKeyMessage(runtimemsg.NewKeyMsg(runes[0], platform.KeyUnknown, runtimemsg.Modifiers{}))
+		}
 	}
 	return false
 }
@@ -385,13 +431,10 @@ func shouldHandleIntent(myID, intentID string) bool {
 
 // handleClick handles mouse clicks on tabs.
 func (inst *Instance) handleClick(payload interface{}) bool {
-	coords, ok := payload.(map[string]interface{})
+	localX, localY, ok := inst.localClickCoordinates(payload)
 	if !ok {
 		return false
 	}
-
-	localX, _ := coords["localX"].(int)
-	localY, _ := coords["localY"].(int)
 
 	for _, tb := range inst.tabBarBounds {
 		if localX >= tb.x && localX < tb.x+tb.width &&
@@ -408,6 +451,27 @@ func (inst *Instance) handleClick(payload interface{}) bool {
 	}
 
 	return false
+}
+
+func (inst *Instance) localClickCoordinates(payload interface{}) (int, int, bool) {
+	switch v := payload.(type) {
+	case *runtimemsg.MouseMsg:
+		if v == nil {
+			return 0, 0, false
+		}
+		return v.LocalX, v.LocalY, true
+	case runtimemsg.MouseMsg:
+		return v.LocalX, v.LocalY, true
+	case map[string]interface{}:
+		localX, okX := v["localX"].(int)
+		localY, okY := v["localY"].(int)
+		if !okX || !okY {
+			return 0, 0, false
+		}
+		return localX, localY, true
+	default:
+		return 0, 0, false
+	}
 }
 
 // HandleKeyMessage handles keyboard navigation.
@@ -706,10 +770,6 @@ func (inst *Instance) SetIntentEmitter(fn func(intent.Intent)) {
 // emitChangeIntent emits the change intent.
 // Phase 7: Use intent.Emit to enable Intent Bubble.
 func (inst *Instance) emitChangeIntent(tabID string) {
-	if inst.intentEmitter == nil {
-		return
-	}
-
 	if inst.componentID != "" {
 		changeIntent := TabChange(
 			inst.componentID,
@@ -718,6 +778,11 @@ func (inst *Instance) emitChangeIntent(tabID string) {
 			inst.GetActiveTabLabel(),
 		)
 		intent.Emit(inst, changeIntent)
+		inst.emitOptionalGlobalIntent(changeIntent)
+	}
+
+	if inst.intentEmitter == nil {
+		return
 	}
 
 	if inst.changeIntentField != nil {
@@ -732,6 +797,21 @@ func (inst *Instance) emitChangeIntent(tabID string) {
 	if inst.changeIntent != nil {
 		inst.intentEmitter(inst.changeIntent)
 	}
+}
+
+func (inst *Instance) emitOptionalGlobalIntent(i intent.Intent) {
+	if i == nil {
+		return
+	}
+	runtime := rtui.GetGlobalIntentRuntime()
+	if runtime == nil || runtime.Registry == nil {
+		return
+	}
+	intentType := i.IntentType()
+	if !runtime.Registry.HasHandler(intentType) && !runtime.Registry.HasFallback() {
+		return
+	}
+	rtui.EmitIntentGlobal(i)
 }
 
 // =============================================================================
@@ -840,6 +920,20 @@ func (inst *Instance) resolveDividerStyle() style.Style {
 	return style.NewStyle().Foreground(style.BrightBlack).Merge(inst.tabStyle)
 }
 
+func (inst *Instance) resolveSelectedThemeStyle() style.Style {
+	selectedThemeStyle := style.GetStyle("tabs", "select")
+	if selectedThemeStyle.IsEmpty() {
+		selectedThemeStyle = style.NewStyle().
+			Foreground(fwtheme.BG()).
+			Background(fwtheme.Select()).
+			Bold(true)
+	}
+	if selectedThemeStyle.BG != style.NoColor && selectedThemeStyle.FG == style.NoColor {
+		selectedThemeStyle.FG = fwtheme.BG()
+	}
+	return selectedThemeStyle
+}
+
 func (inst *Instance) resolveTabStyle(index int) style.Style {
 	tab := inst.tabs[index]
 
@@ -850,11 +944,18 @@ func (inst *Instance) resolveTabStyle(index int) style.Style {
 			Merge(inst.tabStyle).
 			Merge(inst.disabledTabStyle)
 	case index == inst.activeTab:
-		return style.NewStyle().
+		selectedThemeStyle := inst.resolveSelectedThemeStyle()
+		activeStyle := style.NewStyle().
 			Foreground(style.Cyan).
 			Bold(true).
 			Merge(inst.tabStyle).
+			Merge(selectedThemeStyle).
 			Merge(inst.activeTabStyle)
+		if selectedThemeStyle.FG != style.NoColor {
+			// Keep the theme-selected foreground so active headers stay readable.
+			activeStyle.FG = selectedThemeStyle.FG
+		}
+		return activeStyle
 	default:
 		return style.NewStyle().
 			Foreground(style.White).

@@ -82,7 +82,7 @@ func MainComponent() ui.VNode {
 			ShowHotkeys(true).
 			LoopNavigation(true).
 			Width(52).
-			ActiveTabStyle(style.NewStyle().Foreground(style.Cyan).Bold(true)).
+			ActiveTabStyle(style.NewStyle().Bold(true)).
 			DisabledTabStyle(style.NewStyle().Foreground(style.BrightBlack)).
 			Build(),
 		ui.NewTextBuilder("Use arrows, Ctrl+Tab, or H/P/S to switch tabs.").FgColor("bright-black").Build(),

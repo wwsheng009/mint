@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/wwsheng009/mint/framework"
+	fwtheme "github.com/wwsheng009/mint/framework/theme"
 	"github.com/wwsheng009/mint/internal/log"
 	"github.com/wwsheng009/mint/internal/render"
 	"github.com/wwsheng009/mint/runtime/intent"
@@ -219,7 +220,7 @@ func Run(app ComponentFunc, opts ...Option) error {
 
 	// Initialize theme
 	log.UILogger.IfEnabled().Debug("ui.Run: Initializing theme")
-	if err := fwApp.InitTheme("dark"); err != nil {
+	if err := fwApp.InitTheme(fwtheme.DefaultThemeName); err != nil {
 		log.UILogger.IfEnabled().Debug("Failed to initialize theme: %v", err)
 	}
 
@@ -408,7 +409,7 @@ func RunApp[T any](rt *statemachine.AppRuntime[T], opts ...Option) error {
 
 	// Initialize theme
 	log.UILogger.IfEnabled().Debug("ui.RunApp: Initializing theme")
-	if err := fwApp.InitTheme("dark"); err != nil {
+	if err := fwApp.InitTheme(fwtheme.DefaultThemeName); err != nil {
 		log.UILogger.IfEnabled().Debug("Failed to initialize theme: %v", err)
 	}
 

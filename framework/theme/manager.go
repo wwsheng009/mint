@@ -32,8 +32,8 @@ type ThemeChangeListener func(old, new *Theme)
 // NewManager 创建主题管理器
 func NewManager() *Manager {
 	return &Manager{
-		themes:            make(map[string]*Theme),
-		listeners:         make([]ThemeChangeListener, 0),
+		themes:             make(map[string]*Theme),
+		listeners:          make([]ThemeChangeListener, 0),
 		transitionDuration: 300 * time.Millisecond,
 	}
 }
@@ -542,13 +542,15 @@ func (t *Transition) IsComplete() bool {
 // Global Theme Manager
 // =============================================================================
 
+const DefaultThemeName = "nord"
+
 var globalManager = NewManager()
 
 // init initializes the global theme manager with all presets
 func init() {
 	globalManager.RegisterAllPresets()
-	// Set nord as the default theme
-	_ = globalManager.Set("nord")
+	// Set the default theme used across app and tests.
+	_ = globalManager.Set(DefaultThemeName)
 }
 
 // GlobalManager returns the global theme manager
@@ -694,4 +696,3 @@ func DisabledFGColor() Color { return GetColor("disabled-fg") }
 func ScrollbarColor() Color { return GetColor("scrollbar") }
 func ShadowColor() Color    { return GetColor("shadow") }
 func CaretColor() Color     { return GetColor("caret") }
-

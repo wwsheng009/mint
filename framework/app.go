@@ -427,7 +427,7 @@ func (a *App) ForceRender() {
 // ============================================================================
 
 // InitTheme 初始化主题系统
-// 如果未指定主题名称，则使用默认主题 "dark"
+// 如果未指定主题名称，则使用主题包中的默认主题。
 func (a *App) InitTheme(themeName string) error {
 	mgr, err := theme.InitThemes(themeName)
 	if err != nil {
@@ -1348,7 +1348,13 @@ func (a *App) processMsg(msg runtimemsg.Msg) {
 	}
 
 	// 3. 导航 Action 由焦点管理器直接处理
-	if act.IsNavigation() {
+	// Ctrl+Tab / Ctrl+Shift+Tab should stay on the focused component so widgets
+	// like tabs can use them for intra-component navigation.
+	isCtrlTab := false
+	if keyMsg, ok := msg.(*runtimemsg.KeyMsg); ok && keyMsg != nil && keyMsg.IsTab() && keyMsg.HasCtrl() {
+		isCtrlTab = true
+	}
+	if act.IsNavigation() && !isCtrlTab {
 		if a.handleNavigationAction(act) {
 			a.applyActionMiddlewareAfter(act, &action.RouterResult{
 				Handled: true,
@@ -1699,6 +1705,9 @@ func mouseMsgToRuntimeSelectionEvent(mouseMsg *runtimemsg.MouseMsg) *runtimeeven
 // 导航由焦点管理器处理，不经过 ActionRouter
 func (a *App) handleNavigationAction(act *action.Action) bool {
 	if a.focusManager == nil {
+		return false
+	}
+	if keyMsg, ok := act.Payload.(*runtimemsg.KeyMsg); ok && keyMsg != nil && keyMsg.IsTab() && keyMsg.HasCtrl() {
 		return false
 	}
 

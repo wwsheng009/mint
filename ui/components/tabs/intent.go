@@ -37,8 +37,9 @@ func (TabChangeIntent) Priority() intent.ActionPriority {
 }
 
 // IsTransition implements Intent interface.
+// Tab changes are synchronous UI events and should update state immediately.
 func (TabChangeIntent) IsTransition() bool {
-	return true
+	return false
 }
 
 // IsGlobal implements intent.GlobalIntent.
@@ -70,8 +71,9 @@ func (TabNextIntent) Priority() intent.ActionPriority {
 }
 
 // IsTransition implements Intent interface.
+// Tab navigation commands are handled synchronously by the component.
 func (TabNextIntent) IsTransition() bool {
-	return true
+	return false
 }
 
 // IsGlobal implements intent.GlobalIntent.
@@ -103,8 +105,9 @@ func (TabPreviousIntent) Priority() intent.ActionPriority {
 }
 
 // IsTransition implements Intent interface.
+// Tab navigation commands are handled synchronously by the component.
 func (TabPreviousIntent) IsTransition() bool {
-	return true
+	return false
 }
 
 // IsGlobal implements intent.GlobalIntent.
@@ -141,8 +144,9 @@ func (TabSelectIntent) Priority() intent.ActionPriority {
 }
 
 // IsTransition implements Intent interface.
+// Selecting a tab is an immediate state change, not an async transition.
 func (TabSelectIntent) IsTransition() bool {
-	return true
+	return false
 }
 
 // IsGlobal implements intent.GlobalIntent.
