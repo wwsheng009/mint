@@ -40,6 +40,12 @@ The relevant behavior is concentrated in:
 - `ui/components/tabs/vnode.go`
 - `ui/components/tabs/builder.go`
 
+Existing explicit style inputs already exposed by the component are:
+
+- shared `TabStyle`
+- per-active-state `ActiveTabStyle`
+- per-disabled-state `DisabledTabStyle`
+
 Current active-header rendering already attempts to compose:
 
 1. built-in active emphasis
@@ -91,14 +97,21 @@ Fallback is evaluated at render time for each tab header.
 
 Active tab resolution is deterministic:
 
-1. If `style.GetStyle("tabs", "select")` is non-empty, use that as the active-state theme style source.
-2. Otherwise, if both `fwtheme.Select()` and `fwtheme.BG()` are usable, synthesize the active-state theme style as:
+1. Read `componentSelected := style.GetStyle("tabs", "select")`.
+2. If `componentSelected` is non-empty and protectable, use it as the active-state theme style source.
+   A component-selected style is protectable when at least one of these is true:
+   - `componentSelected.FG` is usable
+   - `componentSelected.BG` is usable and `fwtheme.BG()` is usable
+   - `componentSelected.IsReverse() == true`
+3. Otherwise, if both `fwtheme.Select()` and `fwtheme.BG()` are usable, synthesize the active-state theme style as:
    - `BG = fwtheme.Select()`
    - `FG = fwtheme.BG()`
    - `Bold = true`
-3. Otherwise, use the component-local active fallback:
+4. Otherwise, use the component-local active fallback:
    - `Reverse = true`
    - `Bold = true`
+
+A non-empty but non-protectable `tabs/select` style is treated as insufficient for active readability and does not win over semantic synthesis or the local reverse fallback.
 
 Disabled tab resolution is deterministic:
 
@@ -192,8 +205,12 @@ For active tabs, this means the selected baseline replaces any shared `TabStyle.
 
 The active-tab readability protection rule is exact:
 
-1. If the active baseline came from `tabs/select` and that baseline specifies `FG`, final `FG` is forced back to that baseline `FG` after all merges, regardless of whether the conflicting foreground came from `TabStyle` or `ActiveTabStyle`.
-2. If the active baseline came from semantic synthesis, final `FG` is forced to the synthesized `FG` after all merges.
+1. Compute `protectedActiveFG` before the final merge step:
+   - if the active baseline came from `tabs/select` and `baseline.FG` is usable, `protectedActiveFG = baseline.FG`
+   - else if the active baseline came from `tabs/select`, `baseline.BG` is usable, and `fwtheme.BG()` is usable, `protectedActiveFG = fwtheme.BG()`
+   - else if the active baseline came from semantic synthesis, `protectedActiveFG = fwtheme.BG()`
+   - else `protectedActiveFG = NoColor`
+2. If `protectedActiveFG` is usable, final `FG` is forced to `protectedActiveFG` after all merges, regardless of whether the conflicting foreground came from `TabStyle` or `ActiveTabStyle`.
 3. If the active baseline came from the local reverse fallback, final color overrides from `ActiveTabStyle` are ignored:
    - `FG` remains `NoColor`
    - `BG` remains `NoColor`
@@ -272,6 +289,7 @@ Add or adjust tests in `ui/components/tabs/tabs_test.go` to cover exact invarian
 4. explicit caller styles
    - caller-supplied `TabStyle` and `ActiveTabStyle` still participate in composition
    - when the active baseline comes from `tabs/select`, final `FG` equals the theme-selected `FG` even if `TabStyle.FG` or `ActiveTabStyle.FG` is set
+   - when `tabs/select` is non-empty but lacks `FG`, final `FG` falls back to `fwtheme.BG()` if `tabs/select.BG` is set and `fwtheme.BG()` is usable
    - when the active baseline comes from semantic synthesis, final `FG` equals `fwtheme.BG()` even if `TabStyle.FG` or `ActiveTabStyle.FG` is set
 
 5. state precedence and neutrality of non-selected elements
