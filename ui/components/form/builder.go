@@ -45,6 +45,15 @@ func BindField(field string) intent.FieldBinding {
 	return intent.BindField(field)
 }
 
+// BindForm creates a FormBinding for a form.
+// This can be passed to field components' ForForm() method.
+// Example:
+//
+//	form.BindForm("loginForm")
+func BindForm(formID string) intent.FormBinding {
+	return intent.BindForm(formID)
+}
+
 // ============================================================
 // Component Configuration Options
 // ============================================================

@@ -213,6 +213,12 @@ func (b *Builder) OnSelectionChange(selectionIntent intent.Intent) *Builder {
 	return b
 }
 
+// OnReorder sets the intent emitted when sibling drag reorder changes node order.
+func (b *Builder) OnReorder(reorderIntent intent.Intent) *Builder {
+	b.vnode.SetReorderIntent(reorderIntent)
+	return b
+}
+
 // SelectionForField binds checked nodes to a field.
 func (b *Builder) SelectionForField(binding intent.FieldIntent) *Builder {
 	b.vnode.SetSelectionFieldIntent(binding)
@@ -252,6 +258,12 @@ func (b *Builder) AllowScroll(allow bool) *Builder {
 // AllowExpand enables/disables expand/collapse.
 func (b *Builder) AllowExpand(allow bool) *Builder {
 	b.vnode.SetAllowExpand(allow)
+	return b
+}
+
+// Reorderable enables/disables sibling drag reorder.
+func (b *Builder) Reorderable(reorderable bool) *Builder {
+	b.vnode.SetReorderable(reorderable)
 	return b
 }
 

@@ -232,6 +232,38 @@ func (inst *Instance) emitNodeCollapse(nodeIndex int, path string, nodeID int) {
 	inst.emitOptionalGlobalIntent(collapseIntent)
 }
 
+func (inst *Instance) emitNodeReorder(result dragReorderResult) {
+	reorderIntent := NodeReorder(
+		result.fromIndex,
+		result.toIndex,
+		result.fromVisibleIndex,
+		result.toVisibleIndex,
+		result.entry.Node.Path,
+		result.entry.Node.NodeID,
+		result.entry.Node.NodeType,
+		result.entry.Node.Content,
+		result.parentKey,
+	)
+	if inst.componentID != "" {
+		reorderIntent = NodeReorderWithID(
+			inst.componentID,
+			result.fromIndex,
+			result.toIndex,
+			result.fromVisibleIndex,
+			result.toVisibleIndex,
+			result.entry.Node.Path,
+			result.entry.Node.NodeID,
+			result.entry.Node.NodeType,
+			result.entry.Node.Content,
+			result.parentKey,
+		)
+	}
+	inst.emitOptionalGlobalIntent(reorderIntent)
+	if inst.intentEmitter != nil && inst.reorderIntent != nil {
+		inst.intentEmitter(inst.reorderIntent)
+	}
+}
+
 // emitNavigation emits a NavigationIntent when the selection changes via navigation.
 func (inst *Instance) emitNavigation(direction string, fromIndex, toIndex int) {
 	var navIntent NavigationIntent
@@ -287,4 +319,3 @@ func (inst *Instance) emitOptionalGlobalIntent(i intent.Intent) {
 	}
 	rtui.EmitIntentGlobal(i)
 }
-

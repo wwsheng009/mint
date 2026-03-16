@@ -40,6 +40,7 @@ type Instance struct {
 	// === Tracking ===
 	mouseOver    bool
 	anchorBounds [4]int
+	viewportSize [2]int
 }
 
 // Ensure Instance implements required interfaces
@@ -222,37 +223,130 @@ func (inst *Instance) SetAnchorBounds(x, y, w, h int) {
 	inst.anchorBounds = [4]int{x, y, w, h}
 }
 
+// SetViewportSize sets the viewport size used for placement fallback.
+func (inst *Instance) SetViewportSize(width, height int) {
+	inst.viewportSize = [2]int{width, height}
+}
+
 // CalculatePosition calculates the tooltip position based on the anchor bounds.
 // Returns (x, y) coordinates for the tooltip.
 func (inst *Instance) CalculatePosition() (x, y int) {
+	tooltipWidth := paint.StringWidth(inst.text) + 2 // +2 for padding
+	tooltipHeight := 1
+	return inst.calculatePositionWithViewport(tooltipWidth, tooltipHeight, inst.viewportSize[0], inst.viewportSize[1])
+}
+
+func (inst *Instance) calculatePositionWithViewport(tooltipWidth, tooltipHeight, viewportWidth, viewportHeight int) (x, y int) {
 	if len(inst.anchorBounds) != 4 {
 		return 0, 0
 	}
 
-	anchorX, anchorY, anchorW, anchorH := inst.anchorBounds[0], inst.anchorBounds[1], inst.anchorBounds[2], inst.anchorBounds[3]
-	tooltipWidth := paint.StringWidth(inst.text) + 2 // +2 for padding
-	tooltipHeight := 1
-
-	switch inst.position {
-	case PositionTop:
-		x = anchorX + anchorW/2 - tooltipWidth/2
-		y = anchorY - tooltipHeight - 1
-	case PositionBottom:
-		x = anchorX + anchorW/2 - tooltipWidth/2
-		y = anchorY + anchorH + 1
-	case PositionLeft:
-		x = anchorX - tooltipWidth - 1
-		y = anchorY + anchorH/2 - tooltipHeight/2
-	case PositionRight:
-		x = anchorX + anchorW + 1
-		y = anchorY + anchorH/2 - tooltipHeight/2
-	case PositionAuto:
-		// Default to top
-		x = anchorX + anchorW/2 - tooltipWidth/2
-		y = anchorY - tooltipHeight - 1
+	candidates := inst.positionCandidates()
+	if viewportWidth > 0 && viewportHeight > 0 {
+		for _, pos := range candidates {
+			candidateX, candidateY := inst.positionCoordinates(pos, tooltipWidth, tooltipHeight)
+			if fitsViewport(candidateX, candidateY, tooltipWidth, tooltipHeight, viewportWidth, viewportHeight) {
+				return candidateX, candidateY
+			}
+		}
 	}
 
+	x, y = inst.positionCoordinates(candidates[0], tooltipWidth, tooltipHeight)
+	if viewportWidth > 0 && viewportHeight > 0 {
+		x = clamp(x, 0, maxInt(0, viewportWidth-tooltipWidth))
+		y = clamp(y, 0, maxInt(0, viewportHeight-tooltipHeight))
+	}
 	return x, y
+}
+
+func (inst *Instance) positionCandidates() []Position {
+	switch inst.position {
+	case PositionTopLeft:
+		return []Position{PositionTopLeft, PositionTop, PositionTopRight, PositionBottomLeft, PositionBottom}
+	case PositionTopRight:
+		return []Position{PositionTopRight, PositionTop, PositionTopLeft, PositionBottomRight, PositionBottom}
+	case PositionBottomLeft:
+		return []Position{PositionBottomLeft, PositionBottom, PositionBottomRight, PositionTopLeft, PositionTop}
+	case PositionBottomRight:
+		return []Position{PositionBottomRight, PositionBottom, PositionBottomLeft, PositionTopRight, PositionTop}
+	case PositionLeftTop:
+		return []Position{PositionLeftTop, PositionLeft, PositionLeftBottom, PositionTop, PositionBottom}
+	case PositionLeftBottom:
+		return []Position{PositionLeftBottom, PositionLeft, PositionLeftTop, PositionBottom, PositionTop}
+	case PositionRightTop:
+		return []Position{PositionRightTop, PositionRight, PositionRightBottom, PositionTop, PositionBottom}
+	case PositionRightBottom:
+		return []Position{PositionRightBottom, PositionRight, PositionRightTop, PositionBottom, PositionTop}
+	case PositionBottom:
+		return []Position{PositionBottom, PositionBottomLeft, PositionBottomRight, PositionTop}
+	case PositionLeft:
+		return []Position{PositionLeft, PositionLeftTop, PositionLeftBottom, PositionRight}
+	case PositionRight:
+		return []Position{PositionRight, PositionRightTop, PositionRightBottom, PositionLeft}
+	case PositionAuto:
+		return []Position{
+			PositionTop,
+			PositionBottom,
+			PositionRight,
+			PositionLeft,
+			PositionTopLeft,
+			PositionTopRight,
+			PositionBottomLeft,
+			PositionBottomRight,
+			PositionRightTop,
+			PositionRightBottom,
+			PositionLeftTop,
+			PositionLeftBottom,
+		}
+	default:
+		return []Position{PositionTop, PositionTopLeft, PositionTopRight, PositionBottom}
+	}
+}
+
+func (inst *Instance) positionCoordinates(position Position, tooltipWidth, tooltipHeight int) (x, y int) {
+	anchorX, anchorY, anchorW, anchorH := inst.anchorBounds[0], inst.anchorBounds[1], inst.anchorBounds[2], inst.anchorBounds[3]
+
+	centerX := anchorX + anchorW/2 - tooltipWidth/2
+	topY := anchorY - tooltipHeight - 1
+	bottomY := anchorY + anchorH + 1
+	leftX := anchorX - tooltipWidth - 1
+	rightX := anchorX + anchorW + 1
+	centerY := anchorY + anchorH/2 - tooltipHeight/2
+	topAlignedY := anchorY
+	bottomAlignedY := anchorY + anchorH - tooltipHeight
+	leftAlignedX := anchorX
+	rightAlignedX := anchorX + anchorW - tooltipWidth
+
+	switch position {
+	case PositionTop:
+		return centerX, topY
+	case PositionTopLeft:
+		return leftAlignedX, topY
+	case PositionTopRight:
+		return rightAlignedX, topY
+	case PositionBottom:
+		return centerX, bottomY
+	case PositionBottomLeft:
+		return leftAlignedX, bottomY
+	case PositionBottomRight:
+		return rightAlignedX, bottomY
+	case PositionLeft:
+		return leftX, centerY
+	case PositionLeftTop:
+		return leftX, topAlignedY
+	case PositionLeftBottom:
+		return leftX, bottomAlignedY
+	case PositionRight:
+		return rightX, centerY
+	case PositionRightTop:
+		return rightX, topAlignedY
+	case PositionRightBottom:
+		return rightX, bottomAlignedY
+	case PositionAuto:
+		return centerX, topY
+	default:
+		return centerX, topY
+	}
 }
 
 // =============================================================================
@@ -306,3 +400,26 @@ func getToastTypeProp(props rtui.Props, def ToastType) ToastType {
 	return def
 }
 
+func fitsViewport(x, y, width, height, viewportWidth, viewportHeight int) bool {
+	if viewportWidth <= 0 || viewportHeight <= 0 {
+		return true
+	}
+	return x >= 0 && y >= 0 && x+width <= viewportWidth && y+height <= viewportHeight
+}
+
+func clamp(value, min, max int) int {
+	if value < min {
+		return min
+	}
+	if value > max {
+		return max
+	}
+	return value
+}
+
+func maxInt(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}

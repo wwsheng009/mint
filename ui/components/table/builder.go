@@ -155,6 +155,36 @@ func (b *Builder) Filters(filters map[int]string) *Builder {
 	return b
 }
 
+// ExpandedContent sets the expandable detail content by source row index.
+func (b *Builder) ExpandedContent(content map[int]string) *Builder {
+	b.vnode.SetExpandedContent(content)
+	return b
+}
+
+// TreeParents sets the tree parent mapping by source row index.
+func (b *Builder) TreeParents(parents map[int]int) *Builder {
+	b.vnode.SetTreeParents(parents)
+	return b
+}
+
+// TreeParent sets the tree parent for a single source row.
+func (b *Builder) TreeParent(index int, parentIndex int) *Builder {
+	b.vnode.SetTreeParent(index, parentIndex)
+	return b
+}
+
+// ExpandedRow sets or clears expandable detail content for a single source row.
+func (b *Builder) ExpandedRow(index int, content string) *Builder {
+	b.vnode.SetExpandedRow(index, content)
+	return b
+}
+
+// ExpandedIndices sets the expanded source row indices in controlled mode.
+func (b *Builder) ExpandedIndices(indices ...int) *Builder {
+	b.vnode.SetExpandedIndices(indices)
+	return b
+}
+
 // Filter applies or clears a filter for a single column.
 func (b *Builder) Filter(columnIndex int, value string) *Builder {
 	b.vnode.SetFilter(columnIndex, value)
@@ -222,6 +252,18 @@ func (b *Builder) SelectionForField(binding intent.FieldBinding) *Builder {
 // PageForField binds the current page index to a field.
 func (b *Builder) PageForField(binding intent.FieldBinding) *Builder {
 	b.vnode.SetPageFieldIntent(binding)
+	return b
+}
+
+// OnExpand sets an intent emitted when expanded row state changes.
+func (b *Builder) OnExpand(expandIntent intent.Intent) *Builder {
+	b.vnode.SetExpandIntent(expandIntent)
+	return b
+}
+
+// ExpandForField binds expanded source row indices to FieldChangeIntent.
+func (b *Builder) ExpandForField(binding intent.FieldBinding) *Builder {
+	b.vnode.SetExpandFieldIntent(binding)
 	return b
 }
 

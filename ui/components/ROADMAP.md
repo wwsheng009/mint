@@ -134,7 +134,7 @@
 | ~~**Modal**~~ | ~~confirm/info/success/error/warning 快捷静态方法~~ ✅ 已完成（2026-03-17） | ~~中~~ |
 | ~~**Tooltip**~~ | ~~12方位 placement 精细控制；delay 配置~~ ✅ 已完成（2026-03-17） | ~~中~~ |
 | ~~**Tabs**~~ | ~~card、closable、拖拽排序已完成~~ ✅（2026-03-17） | ~~低~~ |
-| **TreeView** | drag-and-drop 拖拽排序；异步搜索高亮分页 | 低 |
+| **TreeView** | 同父级 subtree 拖拽排序已完成（2026-03-17）；剩异步搜索高亮分页 | 低 |
 | ~~**List**~~ | ~~List.Item / item 模型、VirtualList bridge 与选择/搜索/高亮同步已完成~~ ✅（2026-03-17） | ~~低~~ |
 
 ---

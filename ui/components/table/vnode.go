@@ -2,6 +2,8 @@
 package table
 
 import (
+	"strings"
+
 	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
@@ -13,40 +15,46 @@ import (
 
 // Prop key constants — shared by VNode and Instance to avoid magic strings.
 const (
-	propBorderStyle = "borderStyle"
-	propChangeIntent = "changeIntent"
-	propChangeIntentField = "changeIntentField"
-	propCheckedIndices = "checkedIndices"
+	propBorderStyle              = "borderStyle"
+	propChangeIntent             = "changeIntent"
+	propChangeIntentField        = "changeIntentField"
+	propCheckedIndices           = "checkedIndices"
 	propCheckedIndicesControlled = "checkedIndicesControlled"
-	propColumns = "columns"
-	propComponentID = "componentID"
-	propCurrentPage = "currentPage"
-	propCurrentPageControlled = "currentPageControlled"
-	propEmptyText = "emptyText"
-	propFilterStyle = "filterStyle"
-	propFilters = "filters"
-	propGap = "gap"
-	propHeaderStyle = "headerStyle"
-	propKey = "key"
-	propPageIntentField = "pageIntentField"
-	propPageSize = "pageSize"
-	propRows = "rows"
-	propScrollbarStyle = "scrollbarStyle"
-	propSearchQuery = "searchQuery"
-	propSelectedIndex = "selectedIndex"
-	propSelectedIndexControlled = "selectedIndexControlled"
-	propSelectedStyle = "selectedStyle"
-	propSelectionIntent = "selectionIntent"
-	propSelectionIntentField = "selectionIntentField"
-	propSelectionMode = "selectionMode"
-	propShowBorder = "showBorder"
-	propShowFooter = "showFooter"
-	propShowScrollbar = "showScrollbar"
-	propSortColumn = "sortColumn"
-	propSortControlled = "sortControlled"
-	propSortDescending = "sortDescending"
-	propStatusStyle = "statusStyle"
-	propTableStyle = "tableStyle"
+	propColumns                  = "columns"
+	propComponentID              = "componentID"
+	propCurrentPage              = "currentPage"
+	propCurrentPageControlled    = "currentPageControlled"
+	propEmptyText                = "emptyText"
+	propExpandIntent             = "expandIntent"
+	propExpandIntentField        = "expandIntentField"
+	propExpandedContent          = "expandedContent"
+	propExpandedControlled       = "expandedControlled"
+	propExpandedIndices          = "expandedIndices"
+	propFilterStyle              = "filterStyle"
+	propFilters                  = "filters"
+	propGap                      = "gap"
+	propHeaderStyle              = "headerStyle"
+	propKey                      = "key"
+	propPageIntentField          = "pageIntentField"
+	propPageSize                 = "pageSize"
+	propRows                     = "rows"
+	propScrollbarStyle           = "scrollbarStyle"
+	propSearchQuery              = "searchQuery"
+	propSelectedIndex            = "selectedIndex"
+	propSelectedIndexControlled  = "selectedIndexControlled"
+	propSelectedStyle            = "selectedStyle"
+	propSelectionIntent          = "selectionIntent"
+	propSelectionIntentField     = "selectionIntentField"
+	propSelectionMode            = "selectionMode"
+	propShowBorder               = "showBorder"
+	propShowFooter               = "showFooter"
+	propShowScrollbar            = "showScrollbar"
+	propSortColumn               = "sortColumn"
+	propSortControlled           = "sortControlled"
+	propSortDescending           = "sortDescending"
+	propStatusStyle              = "statusStyle"
+	propTableStyle               = "tableStyle"
+	propTreeParents              = "treeParents"
 )
 
 // =============================================================================
@@ -55,10 +63,15 @@ const (
 
 // TableColumn represents a column in a table
 type TableColumn struct {
-	Title    string
-	Width    int
-	Sortable bool
-	Align    rtui.Align
+	Title        string
+	Width        int
+	WidthPercent int
+	MinWidth     int
+	MaxWidth     int
+	FixedLeft    bool
+	FixedRight   bool
+	Sortable     bool
+	Align        rtui.Align
 }
 
 // =============================================================================
@@ -87,16 +100,20 @@ type VNode struct {
 	scrollbarStyle style.Style
 
 	// === Layout Props ===
-	gap           int
-	showBorder    bool
-	showFooter    bool
-	showScrollbar bool
-	pageSize      int
-	searchQuery   string
-	filters       map[int]string
+	gap             int
+	showBorder      bool
+	showFooter      bool
+	showScrollbar   bool
+	pageSize        int
+	searchQuery     string
+	filters         map[int]string
+	expandedContent map[int]string
+	treeParents     map[int]int
 
 	currentPage              int
 	currentPageControlled    bool
+	expandedIndices          []int
+	expandedControlled       bool
 	sortColumn               int
 	sortDescending           bool
 	sortControlled           bool
@@ -111,6 +128,8 @@ type VNode struct {
 	changeIntent      intent.Intent
 	changeIntentField intent.FieldIntent
 	pageIntentField   intent.FieldIntent
+	expandIntent      intent.Intent
+	expandIntentField intent.FieldIntent
 }
 
 // Ensure VNode implements required interfaces
@@ -144,6 +163,9 @@ func New() *VNode {
 		pageSize:          0,
 		searchQuery:       "",
 		filters:           map[int]string{},
+		expandedContent:   map[int]string{},
+		treeParents:       map[int]int{},
+		expandedIndices:   nil,
 		currentPage:       0,
 		sortColumn:        -1,
 		selectedIndex:     -1,
@@ -201,6 +223,8 @@ func (v *VNode) Props() rtui.Props {
 		propPageSize:                v.pageSize,
 		propSearchQuery:             v.searchQuery,
 		propFilters:                 v.filters,
+		propExpandedContent:         cloneFilters(v.expandedContent),
+		propTreeParents:             cloneIntMap(v.treeParents),
 		propCurrentPage:             v.currentPage,
 		propCurrentPageControlled:   v.currentPageControlled,
 		propSortColumn:              v.sortColumn,
@@ -213,9 +237,15 @@ func (v *VNode) Props() rtui.Props {
 		propChangeIntent:            v.changeIntent,
 		propChangeIntentField:       v.changeIntentField,
 		propPageIntentField:         v.pageIntentField,
+		propExpandIntent:            v.expandIntent,
+		propExpandIntentField:       v.expandIntentField,
 	}
 	if v.selectionIntentField != nil {
 		props[propSelectionIntentField] = v.selectionIntentField
+	}
+	if v.expandedControlled {
+		props[propExpandedControlled] = true
+		props[propExpandedIndices] = append([]int(nil), v.expandedIndices...)
 	}
 	if v.checkedIndicesControlled {
 		props[propCheckedIndicesControlled] = true
@@ -282,11 +312,24 @@ func (v *VNode) SetProps(p rtui.Props) rtui.VNode {
 	if val, ok := p[propFilters].(map[int]string); ok {
 		v.filters = cloneFilters(val)
 	}
+	if val, ok := p[propExpandedContent].(map[int]string); ok {
+		v.expandedContent = cloneFilters(val)
+	}
+	if val, ok := p[propTreeParents].(map[int]int); ok {
+		v.treeParents = cloneIntMap(val)
+	}
 	if val, ok := p[propCurrentPage].(int); ok {
 		v.currentPage = val
 	}
 	if val, ok := p[propCurrentPageControlled].(bool); ok {
 		v.currentPageControlled = val
+	}
+	if val, ok := p[propExpandedIndices].([]int); ok {
+		v.expandedIndices = append([]int(nil), val...)
+		v.expandedControlled = true
+	}
+	if val, ok := p[propExpandedControlled].(bool); ok {
+		v.expandedControlled = val
 	}
 	if val, ok := p[propSortColumn].(int); ok {
 		v.sortColumn = val
@@ -328,6 +371,12 @@ func (v *VNode) SetProps(p rtui.Props) rtui.VNode {
 	if val, ok := p[propPageIntentField].(intent.FieldIntent); ok {
 		v.pageIntentField = val
 	}
+	if val, ok := p[propExpandIntent].(intent.Intent); ok {
+		v.expandIntent = val
+	}
+	if val, ok := p[propExpandIntentField].(intent.FieldIntent); ok {
+		v.expandIntentField = val
+	}
 	return v
 }
 
@@ -364,6 +413,37 @@ func (v *VNode) SetPageSize(pageSize int) *VNode    { v.pageSize = pageSize; ret
 func (v *VNode) SetSearchQuery(query string) *VNode { v.searchQuery = query; return v }
 func (v *VNode) SetFilters(filters map[int]string) *VNode {
 	v.filters = cloneFilters(filters)
+	return v
+}
+func (v *VNode) SetExpandedContent(content map[int]string) *VNode {
+	v.expandedContent = cloneFilters(content)
+	return v
+}
+func (v *VNode) SetTreeParents(parents map[int]int) *VNode {
+	v.treeParents = cloneIntMap(parents)
+	return v
+}
+func (v *VNode) SetTreeParent(index int, parentIndex int) *VNode {
+	if v.treeParents == nil {
+		v.treeParents = make(map[int]int)
+	}
+	v.treeParents[index] = parentIndex
+	return v
+}
+func (v *VNode) SetExpandedRow(index int, content string) *VNode {
+	if v.expandedContent == nil {
+		v.expandedContent = make(map[int]string)
+	}
+	if strings.TrimSpace(content) == "" {
+		delete(v.expandedContent, index)
+	} else {
+		v.expandedContent[index] = content
+	}
+	return v
+}
+func (v *VNode) SetExpandedIndices(indices []int) *VNode {
+	v.expandedIndices = append([]int(nil), indices...)
+	v.expandedControlled = true
 	return v
 }
 func (v *VNode) SetFilter(columnIndex int, value string) *VNode {
@@ -422,6 +502,14 @@ func (v *VNode) SetPageFieldIntent(i intent.FieldIntent) *VNode {
 	v.pageIntentField = i
 	return v
 }
+func (v *VNode) SetExpandIntent(i intent.Intent) *VNode {
+	v.expandIntent = i
+	return v
+}
+func (v *VNode) SetExpandFieldIntent(i intent.FieldIntent) *VNode {
+	v.expandIntentField = i
+	return v
+}
 
 func (v *VNode) AddRow(row ...string) *VNode {
 	v.rows = append(v.rows, row)
@@ -445,6 +533,17 @@ func cloneFilters(filters map[int]string) map[int]string {
 	}
 	cloned := make(map[int]string, len(filters))
 	for key, value := range filters {
+		cloned[key] = value
+	}
+	return cloned
+}
+
+func cloneIntMap(values map[int]int) map[int]int {
+	if len(values) == 0 {
+		return map[int]int{}
+	}
+	cloned := make(map[int]int, len(values))
+	for key, value := range values {
 		cloned[key] = value
 	}
 	return cloned

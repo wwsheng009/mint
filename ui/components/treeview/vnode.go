@@ -14,42 +14,44 @@ import (
 
 // Prop key constants — shared by VNode and Instance to avoid magic strings.
 const (
-	propAllowExpand = "allowExpand"
-	propAllowScroll = "allowScroll"
-	propCheckedKeys = "checkedKeys"
-	propCheckedKeysControlled = "checkedKeysControlled"
-	propCompact = "compact"
-	propComponentID = "componentID"
-	propExpandLevel = "expandLevel"
-	propExpandedKeys = "expandedKeys"
-	propExpandedKeysControlled = "expandedKeysControlled"
-	propIconStyle = "iconStyle"
-	propKey = "key"
-	propLazyLoadChildrenFn = "lazyLoadChildrenFn"
-	propLazyLoadFn = "lazyLoadFn"
-	propMatchStyle = "matchStyle"
-	propNodes = "nodes"
-	propRowStyleFn = "rowStyleFn"
-	propScrollOffset = "scrollOffset"
-	propScrollOffsetControlled = "scrollOffsetControlled"
-	propScrollbarStyle = "scrollbarStyle"
-	propSearchFn = "searchFn"
-	propSearchQuery = "searchQuery"
-	propSearchQueryControlled = "searchQueryControlled"
-	propSearchStatsStyle = "searchStatsStyle"
-	propSelectedIndex = "selectedIndex"
+	propAllowExpand             = "allowExpand"
+	propAllowScroll             = "allowScroll"
+	propCheckedKeys             = "checkedKeys"
+	propCheckedKeysControlled   = "checkedKeysControlled"
+	propCompact                 = "compact"
+	propComponentID             = "componentID"
+	propExpandLevel             = "expandLevel"
+	propExpandedKeys            = "expandedKeys"
+	propExpandedKeysControlled  = "expandedKeysControlled"
+	propIconStyle               = "iconStyle"
+	propKey                     = "key"
+	propLazyLoadChildrenFn      = "lazyLoadChildrenFn"
+	propLazyLoadFn              = "lazyLoadFn"
+	propMatchStyle              = "matchStyle"
+	propNodes                   = "nodes"
+	propReorderIntent           = "reorderIntent"
+	propReorderable             = "reorderable"
+	propRowStyleFn              = "rowStyleFn"
+	propScrollOffset            = "scrollOffset"
+	propScrollOffsetControlled  = "scrollOffsetControlled"
+	propScrollbarStyle          = "scrollbarStyle"
+	propSearchFn                = "searchFn"
+	propSearchQuery             = "searchQuery"
+	propSearchQueryControlled   = "searchQueryControlled"
+	propSearchStatsStyle        = "searchStatsStyle"
+	propSelectedIndex           = "selectedIndex"
 	propSelectedIndexControlled = "selectedIndexControlled"
-	propSelectedStyle = "selectedStyle"
-	propSelectionIntent = "selectionIntent"
-	propSelectionIntentField = "selectionIntentField"
-	propSelectionMode = "selectionMode"
-	propShowBorder = "showBorder"
-	propShowIcons = "showIcons"
-	propShowLineNums = "showLineNums"
-	propShowScrollbar = "showScrollbar"
-	propShowSearchStats = "showSearchStats"
-	propTreeStyle = "treeStyle"
-	propViewportHeight = "viewportHeight"
+	propSelectedStyle           = "selectedStyle"
+	propSelectionIntent         = "selectionIntent"
+	propSelectionIntentField    = "selectionIntentField"
+	propSelectionMode           = "selectionMode"
+	propShowBorder              = "showBorder"
+	propShowIcons               = "showIcons"
+	propShowLineNums            = "showLineNums"
+	propShowScrollbar           = "showScrollbar"
+	propShowSearchStats         = "showSearchStats"
+	propTreeStyle               = "treeStyle"
+	propViewportHeight          = "viewportHeight"
 )
 
 // =============================================================================
@@ -116,12 +118,14 @@ type VNode struct {
 	checkedKeysControlled   bool
 	selectionIntent         intent.Intent
 	selectionIntentField    intent.FieldIntent
+	reorderIntent           intent.Intent
 	showSearchStats         bool
 	searchStatsStyle        style.Style
 
 	// === Interaction ===
 	allowScroll bool // Whether scrolling is enabled
 	allowExpand bool // Whether expand/collapse is enabled
+	reorderable bool // Whether sibling drag reorder is enabled
 }
 
 // Ensure VNode implements required interfaces
@@ -164,6 +168,7 @@ func New() *VNode {
 		lazyLoadChildrenFn: nil,
 		allowScroll:        true,
 		allowExpand:        true,
+		reorderable:        false,
 	}
 }
 
@@ -209,12 +214,14 @@ func (v *VNode) Props() rtui.Props {
 		propCheckedKeysControlled:   v.checkedKeysControlled,
 		propSelectionIntent:         v.selectionIntent,
 		propSelectionIntentField:    v.selectionIntentField,
+		propReorderIntent:           v.reorderIntent,
 		propLazyLoadFn:              v.lazyLoadFn,
 		propLazyLoadChildrenFn:      v.lazyLoadChildrenFn,
 		propShowSearchStats:         v.showSearchStats,
 		propSearchStatsStyle:        v.searchStatsStyle,
 		propAllowScroll:             v.allowScroll,
 		propAllowExpand:             v.allowExpand,
+		propReorderable:             v.reorderable,
 	}
 	if v.expandedKeysControlled {
 		props[propExpandedKeys] = cloneExpandedKeys(v.expandedKeys)
@@ -336,6 +343,9 @@ func (v *VNode) SetProps(p rtui.Props) rtui.VNode {
 	if selectionIntentField, ok := p[propSelectionIntentField].(intent.FieldIntent); ok {
 		v.selectionIntentField = selectionIntentField
 	}
+	if reorderIntent, ok := p[propReorderIntent].(intent.Intent); ok {
+		v.reorderIntent = reorderIntent
+	}
 	if lazyLoadFn, ok := p[propLazyLoadFn].(func(TreeNode)); ok {
 		v.lazyLoadFn = lazyLoadFn
 	}
@@ -353,6 +363,9 @@ func (v *VNode) SetProps(p rtui.Props) rtui.VNode {
 	}
 	if allowExpand, ok := p[propAllowExpand].(bool); ok {
 		v.allowExpand = allowExpand
+	}
+	if reorderable, ok := p[propReorderable].(bool); ok {
+		v.reorderable = reorderable
 	}
 	return v
 }
@@ -465,6 +478,10 @@ func (v *VNode) SetSelectionFieldIntent(selectionIntentField intent.FieldIntent)
 	v.selectionIntentField = selectionIntentField
 	return v
 }
+func (v *VNode) SetReorderIntent(reorderIntent intent.Intent) *VNode {
+	v.reorderIntent = reorderIntent
+	return v
+}
 func (v *VNode) SetLazyLoadFn(fn func(TreeNode)) *VNode {
 	v.lazyLoadFn = fn
 	return v
@@ -483,6 +500,10 @@ func (v *VNode) SetSearchStatsStyle(s style.Style) *VNode {
 }
 func (v *VNode) SetAllowScroll(allow bool) *VNode { v.allowScroll = allow; return v }
 func (v *VNode) SetAllowExpand(allow bool) *VNode { v.allowExpand = allow; return v }
+func (v *VNode) SetReorderable(reorderable bool) *VNode {
+	v.reorderable = reorderable
+	return v
+}
 
 // =============================================================================
 // Getter Methods

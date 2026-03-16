@@ -53,9 +53,29 @@ func (b *Builder) Top() *Builder {
 	return b.Position(PositionTop)
 }
 
+// TopLeft sets position to top-left.
+func (b *Builder) TopLeft() *Builder {
+	return b.Position(PositionTopLeft)
+}
+
+// TopRight sets position to top-right.
+func (b *Builder) TopRight() *Builder {
+	return b.Position(PositionTopRight)
+}
+
 // Bottom sets position to bottom.
 func (b *Builder) Bottom() *Builder {
 	return b.Position(PositionBottom)
+}
+
+// BottomLeft sets position to bottom-left.
+func (b *Builder) BottomLeft() *Builder {
+	return b.Position(PositionBottomLeft)
+}
+
+// BottomRight sets position to bottom-right.
+func (b *Builder) BottomRight() *Builder {
+	return b.Position(PositionBottomRight)
 }
 
 // Left sets position to left.
@@ -63,9 +83,29 @@ func (b *Builder) Left() *Builder {
 	return b.Position(PositionLeft)
 }
 
+// LeftTop sets position to left-top.
+func (b *Builder) LeftTop() *Builder {
+	return b.Position(PositionLeftTop)
+}
+
+// LeftBottom sets position to left-bottom.
+func (b *Builder) LeftBottom() *Builder {
+	return b.Position(PositionLeftBottom)
+}
+
 // Right sets position to right.
 func (b *Builder) Right() *Builder {
 	return b.Position(PositionRight)
+}
+
+// RightTop sets position to right-top.
+func (b *Builder) RightTop() *Builder {
+	return b.Position(PositionRightTop)
+}
+
+// RightBottom sets position to right-bottom.
+func (b *Builder) RightBottom() *Builder {
+	return b.Position(PositionRightBottom)
 }
 
 // Auto sets position to auto.
@@ -156,7 +196,6 @@ func (b *Builder) InspectorLayer() *Builder {
 func (b *Builder) BuildInstance() *Instance {
 	return NewInstance(b.node.Props())
 }
-
 
 // =============================================================================
 // Convenience Functions

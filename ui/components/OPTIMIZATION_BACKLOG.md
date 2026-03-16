@@ -365,8 +365,8 @@
 
 #### 当前缺口
 
-- 缺拖拽排序
 - 缺异步搜索高亮分页
+- 同父级 subtree 拖拽排序已完成（2026-03-17）
 
 #### 主要入口
 
@@ -385,10 +385,11 @@
    - 当前匹配项定位
    - 大树场景下高亮与滚动联动
 
-2. Epic B: 拖拽排序
-   - 节点拖拽 intent
-   - 拖拽预览
-   - 重排后的 path / key / selection / expanded state 修正
+2. ~~Epic B: 拖拽排序~~
+   - ~~节点拖拽 intent~~
+   - ~~拖拽预览~~
+   - ~~重排后的 path / key / selection / expanded state 修正~~
+   - ✅ 已完成（2026-03-17）
 
 #### 风险点
 
@@ -401,6 +402,12 @@
 - 异步搜索不会破坏现有搜索和滚动逻辑
 - 拖拽后 expanded / selected / focused 状态仍正确
 - 懒加载节点的拖拽边界清晰
+
+#### 本轮完成
+
+- 新增 `Reorderable` / `OnReorder` / `NodeReorderIntent`，TreeView 已支持同父级 sibling subtree 拖拽排序
+- 拖拽走 `ActionClick/ActionHover/ActionMouseRelease` 状态机，点击 expander 时仍保持原有展开/折叠语义
+- 重排后 `selectedIndex` 会按稳定 node key 回收，`expandedKeys` / `checkedKeys` / `selectionAnchorKey` 继续跟随稳定 key 生效
 
 #### 建议测试
 

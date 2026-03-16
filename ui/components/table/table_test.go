@@ -177,6 +177,49 @@ func TestInstance_MeasureWithGap(t *testing.T) {
 	}
 }
 
+func TestInstance_CalculateColumnWidths_RespectsPercentAndBounds(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"columns": []TableColumn{
+			{Title: "ID", WidthPercent: 50, MinWidth: 6},
+			{Title: "Name", WidthPercent: 25, MinWidth: 4, MaxWidth: 5},
+			{Title: "Role", Width: 4},
+		},
+		"rows": [][]string{
+			{"1", "Alice", "Admin"},
+			{"2", "Bob", "User"},
+		},
+	})
+
+	widths, contentWidth := inst.calculateColumnWidths(inst.filteredSortedRows(), 25)
+	if !equalInts(widths, []int{9, 4, 4}) {
+		t.Fatalf("widths = %#v, want [9 4 4]", widths)
+	}
+	if contentWidth != 23 {
+		t.Fatalf("contentWidth = %d, want 23", contentWidth)
+	}
+}
+
+func TestInstance_CalculateColumnWidths_ExpandsAutoColumnsIntoRemainingSpace(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"columns": []TableColumn{
+			{Title: "ID", Width: 4},
+			{Title: "Name"},
+			{Title: "Role"},
+		},
+		"rows": [][]string{
+			{"1", "Al", "QA"},
+		},
+	})
+
+	widths, contentWidth := inst.calculateColumnWidths(inst.filteredSortedRows(), 24)
+	if !equalInts(widths, []int{4, 7, 7}) {
+		t.Fatalf("widths = %#v, want [4 7 7]", widths)
+	}
+	if contentWidth != 24 {
+		t.Fatalf("contentWidth = %d, want 24", contentWidth)
+	}
+}
+
 func TestInstance_Paint(t *testing.T) {
 	cols := []TableColumn{
 		{Title: "ID"},
@@ -216,6 +259,66 @@ func TestInstance_PaintEmpty(t *testing.T) {
 	cmds := inst.Paint(0, 0)
 	if cmds != nil {
 		t.Error("Paint() with no columns should return nil")
+	}
+}
+
+func TestInstance_Paint_UsesWidthStrategyWithinBounds(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"columns": []TableColumn{
+			{Title: "ID", WidthPercent: 50},
+			{Title: "Name", WidthPercent: 50},
+		},
+		"rows":          [][]string{{"10", "Alice"}, {"20", "Bob"}},
+		"showFooter":    false,
+		"showScrollbar": false,
+	})
+	inst.SetBounds(0, 0, 25, 4)
+
+	cmds := inst.Paint(0, 0)
+	header := textAtY(cmds, 0)
+	row := textAtY(cmds, 2)
+
+	if got := paint.StringWidth(header); got != 25 {
+		t.Fatalf("header width = %d, want 25", got)
+	}
+	if got := paint.StringWidth(row); got != 25 {
+		t.Fatalf("row width = %d, want 25", got)
+	}
+	if !strings.Contains(row, "Alice") {
+		t.Fatalf("row = %q, want Alice within constrained width strategy", row)
+	}
+}
+
+func TestInstance_Paint_FixedColumnsRemainVisibleAcrossHorizontalScroll(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"columns": []TableColumn{
+			{Title: "ID", Width: 4, FixedLeft: true},
+			{Title: "Name", Width: 6},
+			{Title: "Role", Width: 6},
+			{Title: "Region", Width: 6},
+			{Title: "Status", Width: 6, FixedRight: true},
+		},
+		"rows":          [][]string{{"1", "Alice", "Admin", "Tokyo", "Ready"}},
+		"showFooter":    false,
+		"showScrollbar": false,
+	})
+	inst.SetBounds(0, 0, 24, 4)
+
+	initial := textAtY(inst.Paint(0, 0), 2)
+	if !strings.Contains(initial, "1") || !strings.Contains(initial, "Ready") {
+		t.Fatalf("initial row = %q, want fixed edge cells visible", initial)
+	}
+	if !strings.Contains(initial, "Alice") {
+		t.Fatalf("initial row = %q, want left-side center content before scroll", initial)
+	}
+
+	inst.horizontalOffset = 8
+	scrolled := textAtY(inst.Paint(0, 0), 2)
+	if !strings.Contains(scrolled, "1") || !strings.Contains(scrolled, "Ready") {
+		t.Fatalf("scrolled row = %q, want fixed edge cells still visible", scrolled)
+	}
+	if strings.Contains(scrolled, "Alice") {
+		t.Fatalf("scrolled row = %q, want center viewport to move off Alice", scrolled)
 	}
 }
 
@@ -308,6 +411,32 @@ func TestColumnsEqual_DifferentLength(t *testing.T) {
 
 	if columnsEqual(cols1, cols2) {
 		t.Error("Expected unequal columns with different length")
+	}
+}
+
+func TestColumnsEqual_WidthStrategyFields(t *testing.T) {
+	cols1 := []TableColumn{{Title: "A", WidthPercent: 50, MinWidth: 4, MaxWidth: 10}}
+	cols2 := []TableColumn{{Title: "A", WidthPercent: 50, MinWidth: 4, MaxWidth: 10}}
+	cols3 := []TableColumn{{Title: "A", WidthPercent: 60, MinWidth: 4, MaxWidth: 10}}
+
+	if !columnsEqual(cols1, cols2) {
+		t.Fatal("expected columns with same width strategy to be equal")
+	}
+	if columnsEqual(cols1, cols3) {
+		t.Fatal("expected columns with different width strategy to differ")
+	}
+}
+
+func TestColumnsEqual_FixedColumnFlags(t *testing.T) {
+	cols1 := []TableColumn{{Title: "ID", FixedLeft: true}, {Title: "Status", FixedRight: true}}
+	cols2 := []TableColumn{{Title: "ID", FixedLeft: true}, {Title: "Status", FixedRight: true}}
+	cols3 := []TableColumn{{Title: "ID", FixedLeft: false}, {Title: "Status", FixedRight: true}}
+
+	if !columnsEqual(cols1, cols2) {
+		t.Fatal("expected fixed column flags to match")
+	}
+	if columnsEqual(cols1, cols3) {
+		t.Fatal("expected differing fixed flags to be unequal")
 	}
 }
 
@@ -471,6 +600,38 @@ func TestBuilder_FluentEnhancements(t *testing.T) {
 	}
 	if !equalInts(vnode.checkedIndices, []int{1, 4}) {
 		t.Fatalf("checkedIndices = %#v, want [1 4]", vnode.checkedIndices)
+	}
+}
+
+func TestBuilder_ExpandableRows(t *testing.T) {
+	vnode := NewBuilder().
+		Columns([]TableColumn{{Title: "ID"}, {Title: "Name"}}).
+		Rows([][]string{{"1", "Alice"}, {"2", "Bob"}}).
+		ExpandedRow(1, "Bob details").
+		ExpandedIndices(1).
+		ExpandForField(intent.BindField("expanded_rows")).
+		BuildVNode()
+
+	if got := vnode.expandedContent[1]; got != "Bob details" {
+		t.Fatalf("expandedContent[1] = %q, want %q", got, "Bob details")
+	}
+	if !equalInts(vnode.expandedIndices, []int{1}) {
+		t.Fatalf("expandedIndices = %#v, want [1]", vnode.expandedIndices)
+	}
+	if vnode.expandIntentField == nil || vnode.expandIntentField.GetField() != "expanded_rows" {
+		t.Fatalf("expandIntentField = %#v, want expanded_rows binding", vnode.expandIntentField)
+	}
+}
+
+func TestBuilder_TreeParents(t *testing.T) {
+	vnode := NewBuilder().
+		Columns([]TableColumn{{Title: "Name"}}).
+		Rows([][]string{{"Root"}, {"Child"}}).
+		TreeParent(1, 0).
+		BuildVNode()
+
+	if parent, ok := vnode.treeParents[1]; !ok || parent != 0 {
+		t.Fatalf("treeParents[1] = %d, exists=%t, want 0,true", parent, ok)
 	}
 }
 
@@ -731,6 +892,212 @@ func TestInstance_PaintShowsFilterRowWhenColumnFiltersActive(t *testing.T) {
 	}
 }
 
+func TestInstance_PaintShowsExpandedRows(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"columns": []TableColumn{
+			{Title: "ID", Width: 4},
+			{Title: "Name", Width: 8},
+		},
+		"rows": [][]string{
+			{"1", "Alice"},
+			{"2", "Bob"},
+		},
+		"expandedContent": map[int]string{
+			1: "Bob detail line",
+		},
+		"expandedIndices": []int{1},
+	})
+
+	if got := textAtY(inst.Paint(0, 0), 3); !strings.Contains(got, ">") && !strings.Contains(got, "v") {
+		t.Fatalf("row line = %q, want expand marker column", got)
+	}
+	if got := textAtY(inst.Paint(0, 0), 4); !strings.Contains(got, "Bob detail line") {
+		t.Fatalf("expanded line = %q, want detail content", got)
+	}
+}
+
+func TestInstance_HandleAction_ClickExpandCellTogglesExpandedRowAndEmitsFieldChange(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"columns": []TableColumn{
+			{Title: "ID", Width: 4},
+			{Title: "Name", Width: 8},
+		},
+		"rows": [][]string{
+			{"1", "Alice"},
+			{"2", "Bob"},
+		},
+		"expandedContent":   map[int]string{0: "Alice detail"},
+		"expandIntentField": intent.BindField("expanded_rows"),
+	})
+	var emitted []intent.Intent
+	inst.SetIntentEmitter(func(i intent.Intent) { emitted = append(emitted, i) })
+
+	mouseMsg := runtimemsg.NewMouseMsg(0, 0, runtimemsg.MouseLeft, runtimemsg.MouseActionPress)
+	mouseMsg.LocalX = 0
+	mouseMsg.LocalY = 2
+	act := action.NewAction(action.ActionClick).WithPayload(mouseMsg)
+
+	if !inst.HandleAction(act) {
+		t.Fatal("expected expand cell click to be handled")
+	}
+	if !equalInts(inst.expandedIndices, []int{0}) {
+		t.Fatalf("expandedIndices = %#v, want [0]", inst.expandedIndices)
+	}
+	found := false
+	for _, emittedIntent := range emitted {
+		fieldChange, ok := emittedIntent.(intent.FieldChangeIntent)
+		if !ok {
+			continue
+		}
+		if fieldChange.Field == "expanded_rows" && fieldChange.Value == "0" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("emitted intents = %#v, want expanded_rows=0 field change", emitted)
+	}
+}
+
+func TestInstance_HandleAction_ScrollRightMovesHorizontalViewportForFixedColumns(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"columns": []TableColumn{
+			{Title: "ID", Width: 4, FixedLeft: true},
+			{Title: "Name", Width: 6},
+			{Title: "Role", Width: 6},
+			{Title: "Region", Width: 6},
+			{Title: "Status", Width: 6, FixedRight: true},
+		},
+		"rows":          [][]string{{"1", "Alice", "Admin", "Tokyo", "Ready"}},
+		"showFooter":    false,
+		"showScrollbar": false,
+	})
+	inst.SetBounds(0, 0, 24, 4)
+
+	before := textAtY(inst.Paint(0, 0), 2)
+	if !inst.HandleAction(action.NewAction(action.ActionScrollRight)) {
+		t.Fatal("expected horizontal scroll right to be handled")
+	}
+	if inst.horizontalOffset <= 0 {
+		t.Fatalf("horizontalOffset = %d, want > 0", inst.horizontalOffset)
+	}
+	after := textAtY(inst.Paint(0, 0), 2)
+	if before == after {
+		t.Fatalf("row before/after scroll should differ, got %q", after)
+	}
+	if !strings.Contains(after, "1") || !strings.Contains(after, "Ready") {
+		t.Fatalf("row after scroll = %q, want fixed columns preserved", after)
+	}
+}
+
+func TestInstance_HandleAction_EnterTogglesExpandedSelectedRow(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"columns": []TableColumn{
+			{Title: "ID", Width: 4},
+			{Title: "Name", Width: 8},
+		},
+		"rows": [][]string{
+			{"1", "Alice"},
+			{"2", "Bob"},
+		},
+		"expandedContent": map[int]string{1: "Bob detail"},
+		"selectedIndex":   1,
+	})
+
+	if !inst.HandleAction(action.NewAction(action.ActionEnter)) {
+		t.Fatal("expected enter to be handled")
+	}
+	if !equalInts(inst.expandedIndices, []int{1}) {
+		t.Fatalf("expandedIndices = %#v, want [1]", inst.expandedIndices)
+	}
+}
+
+func TestInstance_PaintExpandedRowsRespectsPagination(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"columns": []TableColumn{
+			{Title: "ID", Width: 4},
+			{Title: "Name", Width: 8},
+		},
+		"rows": [][]string{
+			{"1", "Alice"},
+			{"2", "Bob"},
+			{"3", "Carol"},
+			{"4", "Dave"},
+		},
+		"pageSize":        2,
+		"currentPage":     1,
+		"expandedContent": map[int]string{2: "Carol detail", 0: "Alice detail"},
+		"expandedIndices": []int{0, 2},
+	})
+
+	cmds := inst.Paint(0, 0)
+	if got := textAtY(cmds, 2); !strings.Contains(got, "3") || !strings.Contains(got, "Carol") {
+		t.Fatalf("first paged row = %q, want Carol row", got)
+	}
+	if got := textAtY(cmds, 3); !strings.Contains(got, "Carol detail") {
+		t.Fatalf("expanded line = %q, want Carol detail on current page", got)
+	}
+	if all := strings.Join(allTexts(cmds), "\n"); strings.Contains(all, "Alice detail") {
+		t.Fatalf("paint output should not contain off-page expanded content, got %q", all)
+	}
+}
+
+func TestInstance_PaintTreeRowsUsesExpandedState(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"columns": []TableColumn{
+			{Title: "Name", Width: 12},
+		},
+		"rows": [][]string{
+			{"Root"},
+			{"Child A"},
+			{"Child B"},
+		},
+		"treeParents":     map[int]int{1: 0, 2: 0},
+		"expandedIndices": []int{0},
+	})
+
+	cmds := inst.Paint(0, 0)
+	if got := textAtY(cmds, 2); !strings.Contains(got, "v") || !strings.Contains(got, "Root") {
+		t.Fatalf("root row = %q, want expanded marker and root text", got)
+	}
+	if got := textAtY(cmds, 3); !strings.Contains(got, "  Child A") {
+		t.Fatalf("child row = %q, want indented child text", got)
+	}
+	if got := textAtY(cmds, 4); !strings.Contains(got, "  Child B") {
+		t.Fatalf("child row = %q, want second indented child text", got)
+	}
+}
+
+func TestInstance_HandleAction_ClickTreeExpandTogglesChildren(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"columns": []TableColumn{
+			{Title: "Name", Width: 12},
+		},
+		"rows": [][]string{
+			{"Root"},
+			{"Child"},
+		},
+		"treeParents": map[int]int{1: 0},
+	})
+
+	before := strings.Join(allTexts(inst.Paint(0, 0)), "\n")
+	if strings.Contains(before, "Child") {
+		t.Fatalf("collapsed tree should hide child rows, got %q", before)
+	}
+
+	mouseMsg := runtimemsg.NewMouseMsg(0, 0, runtimemsg.MouseLeft, runtimemsg.MouseActionPress)
+	mouseMsg.LocalX = 0
+	mouseMsg.LocalY = 2
+	act := action.NewAction(action.ActionClick).WithPayload(mouseMsg)
+
+	if !inst.HandleAction(act) {
+		t.Fatal("expected tree expand click to be handled")
+	}
+	after := strings.Join(allTexts(inst.Paint(0, 0)), "\n")
+	if !strings.Contains(after, "Child") {
+		t.Fatalf("expanded tree should show child rows, got %q", after)
+	}
+}
+
 func TestInstance_HandleAction_MultiSelectEmitsSelectionFieldChangeIntent(t *testing.T) {
 	inst := NewInstance(rtui.Props{
 		"columns":         []TableColumn{{Title: "ID", Width: 4}, {Title: "Name", Width: 8}},
@@ -856,4 +1223,12 @@ func textAtY(cmds []paint.DrawCmd, y int) string {
 		}
 	}
 	return ""
+}
+
+func allTexts(cmds []paint.DrawCmd) []string {
+	texts := make([]string, len(cmds))
+	for i, cmd := range cmds {
+		texts[i] = cmd.Text
+	}
+	return texts
 }

@@ -43,6 +43,8 @@ type Instance struct {
 	inputStyle    style.Style
 	width         int
 	borderStyle   layout.BorderStyle
+	allowNegative bool
+	allowDecimal  bool
 	changeIntent  intent.Intent
 	submitIntent  intent.Intent
 	formID        string // Form ID for Form integration (Phase 6)
@@ -85,10 +87,18 @@ var (
 // NewInstance creates a new InputInstance from props.
 func NewInstance(props rtui.Props) *Instance {
 	cursorCfg := getCursorConfigProp(props, "cursorConfig", cursor.DefaultConfig())
+	inputType := getTypeProp(props, TypeText)
+	allowNegative := proputil.GetBool(props, propAllowNegative, true)
+	allowDecimal := proputil.GetBool(props, propAllowDecimal, true)
+	value := proputil.GetString(props, "value", "")
+	if inputType == TypeNumber {
+		value = sanitizeEditableNumberValue(value, allowNegative, allowDecimal)
+	}
+
 	inst := &Instance{
 		key:           proputil.GetString(props, "key", ""),
 		placeholder:   proputil.GetString(props, "placeholder", ""),
-		inputType:     getTypeProp(props, TypeText),
+		inputType:     inputType,
 		prefix:        proputil.GetString(props, propPrefix, ""),
 		suffix:        proputil.GetString(props, propSuffix, ""),
 		addonBefore:   proputil.GetString(props, propAddonBefore, ""),
@@ -96,10 +106,12 @@ func NewInstance(props rtui.Props) *Instance {
 		inputStyle:    proputil.GetStyle(props, "style", style.Style{}),
 		width:         proputil.GetInt(props, "width", 0),
 		borderStyle:   getBorderStyleProp(props, "borderStyle", layout.BorderSingle),
+		allowNegative: allowNegative,
+		allowDecimal:  allowDecimal,
 		changeIntent:  proputil.GetIntent(props, "changeIntent", nil),
 		submitIntent:  proputil.GetIntent(props, "submitIntent", nil),
 		formID:        proputil.GetString(props, "formID", ""),
-		value:         proputil.GetString(props, "value", ""),
+		value:         value,
 		maxLen:        proputil.GetInt(props, "maxLen", 0),
 		searchVariant: proputil.GetBool(props, propSearchVariant, false),
 		cursorConfig:  cursorCfg,
@@ -187,6 +199,9 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	oldAddonAfter := inst.addonAfter
 	oldSearchVariant := inst.searchVariant
 	oldCursorConfig := inst.cursorConfig
+	oldInputType := inst.inputType
+	oldAllowNegative := inst.allowNegative
+	oldAllowDecimal := inst.allowDecimal
 
 	inst.placeholder = proputil.GetString(props, "placeholder", inst.placeholder)
 	inst.inputType = getTypeProp(props, inst.inputType)
@@ -197,6 +212,8 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	inst.inputStyle = proputil.GetStyle(props, "style", style.Style{})
 	inst.width = proputil.GetInt(props, "width", inst.width)
 	inst.borderStyle = getBorderStyleProp(props, "borderStyle", inst.borderStyle)
+	inst.allowNegative = proputil.GetBool(props, propAllowNegative, inst.allowNegative)
+	inst.allowDecimal = proputil.GetBool(props, propAllowDecimal, inst.allowDecimal)
 	inst.changeIntent = proputil.GetIntent(props, "changeIntent", nil)
 	inst.submitIntent = proputil.GetIntent(props, "submitIntent", nil)
 	inst.formID = proputil.GetString(props, "formID", inst.formID)
@@ -204,6 +221,9 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	// ✨ CRITICAL: When value changes, update cursorPos to prevent out-of-bounds
 	// This fixes panic in InsertText when cursorPos > len(value)
 	newValue := proputil.GetString(props, "value", inst.value)
+	if inst.inputType == TypeNumber {
+		newValue = sanitizeEditableNumberValue(newValue, inst.allowNegative, inst.allowDecimal)
+	}
 	if newValue != inst.value {
 		inst.value = newValue
 		inst.cursorPos = utf8.RuneCountInString(inst.value)
@@ -236,6 +256,9 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 		oldDisabled != inst.state.Disabled ||
 		oldReadOnly != inst.state.Active ||
 		oldCursorConfig != inst.cursorConfig ||
+		oldInputType != inst.inputType ||
+		oldAllowNegative != inst.allowNegative ||
+		oldAllowDecimal != inst.allowDecimal ||
 		oldPlaceholder != inst.placeholder ||
 		oldPrefix != inst.prefix ||
 		oldSuffix != inst.suffix ||
@@ -254,10 +277,13 @@ func (inst *Instance) GetProps() rtui.Props {
 	return rtui.Props{
 		propKey:           inst.key,
 		propPlaceholder:   inst.placeholder,
+		propInputType:     inst.inputType,
 		propPrefix:        inst.prefix,
 		propSuffix:        inst.suffix,
 		propAddonBefore:   inst.addonBefore,
 		propAddonAfter:    inst.addonAfter,
+		propAllowNegative: inst.allowNegative,
+		propAllowDecimal:  inst.allowDecimal,
 		propValue:         inst.value,
 		propDisabled:      inst.state.Disabled,
 		propReadOnly:      inst.state.Active,
@@ -673,6 +699,9 @@ func (inst *Instance) SetFocus(focused bool) {
 		wasFocused := inst.state.Focused
 		inst.state.Focused = focused
 		if wasFocused && !focused {
+			if inst.normalizeValueOnBlur() {
+				inst.emitFieldValueChanged()
+			}
 			inst.emitFieldBlur()
 		}
 		inst.syncCursorVisibility()
@@ -759,18 +788,11 @@ func (inst *Instance) InsertText(text string) bool {
 		return false
 	}
 
-	// Check max length
-	if inst.maxLen > 0 {
-		currentLen := utf8.RuneCountInString(inst.value)
-		textLen := utf8.RuneCountInString(text)
-		if currentLen+textLen > inst.maxLen {
-			return false
-		}
+	if text == "" {
+		return false
 	}
 
-	// Insert at cursor
 	runes := []rune(inst.value)
-	textRunes := []rune(text)
 
 	// ✨ CRITICAL: Clamp cursorPos to valid range to prevent panic
 	// This handles edge cases where cursorPos was set incorrectly
@@ -779,6 +801,23 @@ func (inst *Instance) InsertText(text string) bool {
 		inst.cursorPos = 0
 	} else if inst.cursorPos > maxPos {
 		inst.cursorPos = maxPos
+	}
+
+	textRunes := []rune(text)
+	if inst.inputType == TypeNumber {
+		textRunes = filterNumberInsert(runes, inst.cursorPos, textRunes, inst.allowNegative, inst.allowDecimal)
+		if len(textRunes) == 0 {
+			return false
+		}
+	}
+
+	// Check max length
+	if inst.maxLen > 0 {
+		currentLen := len(runes)
+		textLen := len(textRunes)
+		if currentLen+textLen > inst.maxLen {
+			return false
+		}
 	}
 
 	// Enforce input width (content area width), allowing partial insert when needed.
@@ -900,6 +939,9 @@ func (inst *Instance) DeleteText(direction int) bool {
 
 // SetValue sets the entire value.
 func (inst *Instance) SetValue(value string) {
+	if inst.inputType == TypeNumber {
+		value = sanitizeEditableNumberValue(value, inst.allowNegative, inst.allowDecimal)
+	}
 	if inst.value != value {
 		inst.value = value
 		inst.cursorPos = utf8.RuneCountInString(value)
@@ -1085,6 +1127,10 @@ func (inst *Instance) GetProp(key string) (interface{}, bool) {
 		return inst.placeholder, true
 	case propInputType:
 		return inst.inputType, true
+	case propAllowNegative:
+		return inst.allowNegative, true
+	case propAllowDecimal:
+		return inst.allowDecimal, true
 	case propPrefix:
 		return inst.prefix, true
 	case propSuffix:
@@ -1170,6 +1216,23 @@ func (inst *Instance) Measure(constraints layout.Constraints) layout.Size {
 	}
 
 	return layout.Size{Width: totalWidth, Height: totalHeight}
+}
+
+func (inst *Instance) normalizeValueOnBlur() bool {
+	if inst.inputType != TypeNumber {
+		return false
+	}
+
+	normalized := normalizeBlurNumberValue(inst.value, inst.allowNegative, inst.allowDecimal)
+	if normalized == inst.value {
+		return false
+	}
+
+	inst.value = normalized
+	inst.cursorPos = utf8.RuneCountInString(inst.value)
+	inst.cursorModel.ResetBlink()
+	inst.dirty = true
+	return true
 }
 
 // =============================================================================

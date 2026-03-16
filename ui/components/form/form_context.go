@@ -81,6 +81,12 @@ type FormContext interface {
 
 	// IsSubmitting 返回表单是否正在提交
 	IsSubmitting() bool
+
+	// IsFieldTouched 返回字段是否已被访问（blur）
+	IsFieldTouched(field string) bool
+
+	// IsFieldDirty 返回字段值是否相对初始值发生变化
+	IsFieldDirty(field string) bool
 }
 
 // =============================================================================
@@ -131,6 +137,16 @@ func (c *formContextImpl) IsValid() bool {
 // IsSubmitting 返回表单是否正在提交
 func (c *formContextImpl) IsSubmitting() bool {
 	return c.form.IsSubmitting()
+}
+
+// IsFieldTouched 返回字段是否已被访问（blur）
+func (c *formContextImpl) IsFieldTouched(field string) bool {
+	return c.form.IsFieldTouched(field)
+}
+
+// IsFieldDirty 返回字段值是否相对初始值发生变化
+func (c *formContextImpl) IsFieldDirty(field string) bool {
+	return c.form.IsFieldDirty(field)
 }
 
 // =============================================================================

@@ -45,11 +45,14 @@ type Instance struct {
 	values           map[string]interface{} // Current field values
 	initialValues    map[string]interface{} // Initial field values (for reset)
 	errors           map[string]string      // Field validation errors
+	touchedFields    map[string]bool        // Fields that have been blurred/visited
+	dirtyFields      map[string]bool        // Fields that differ from initial values
 	validators       map[string][]validation.Validator
 	validatorSources map[string]map[string][]validation.Validator
 	isValid          bool // Overall form validity
 	isSubmitting     bool // Submission in progress
 	dirty            bool // Form has unsubmitted changes
+	showAllErrors    bool // Show validation errors for all fields after validate-all/submit
 
 	// === Instance Tree (Phase 1) ===
 	childInstances   []rtui.ComponentInstance
@@ -82,6 +85,8 @@ func NewInstance(props rtui.Props) *Instance {
 		values:           make(map[string]interface{}),
 		initialValues:    make(map[string]interface{}),
 		errors:           make(map[string]string),
+		touchedFields:    make(map[string]bool),
+		dirtyFields:      make(map[string]bool),
 		validators:       make(map[string][]validation.Validator),
 		validatorSources: make(map[string]map[string][]validation.Validator),
 		subscribers:      make(map[int]func(string)),
@@ -97,10 +102,8 @@ func NewInstance(props rtui.Props) *Instance {
 
 	// Initialize with field values from props
 	if fieldValues, ok := props[propValues].(map[string]interface{}); ok {
-		for k, v := range fieldValues {
-			inst.values[k] = v
-			inst.initialValues[k] = v
-		}
+		inst.values = cloneValuesMap(fieldValues)
+		inst.initialValues = cloneValuesMap(fieldValues)
 	}
 
 	return inst
@@ -145,6 +148,7 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	defer inst.mu.Unlock()
 
 	changed := false
+	valuesChanged := false
 
 	if v, ok := props[propLabel].(string); ok {
 		if inst.label != v {
@@ -172,9 +176,24 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	if v, ok := props[propValidateAll].(bool); ok {
 		inst.validateAll = v
 	}
+	if v, ok := props[propValues].(map[string]interface{}); ok {
+		nextValues := cloneValuesMap(v)
+		if !reflect.DeepEqual(inst.values, nextValues) || !reflect.DeepEqual(inst.initialValues, nextValues) {
+			inst.values = cloneValuesMap(v)
+			inst.initialValues = nextValues
+			inst.errors = make(map[string]string)
+			inst.touchedFields = make(map[string]bool)
+			inst.dirtyFields = make(map[string]bool)
+			inst.isValid = true
+			inst.dirty = false
+			inst.showAllErrors = false
+			valuesChanged = true
+			changed = true
+		}
+	}
 
 	if changed {
-		inst.dirty = true
+		inst.dirty = inst.dirty || !valuesChanged
 	}
 
 	return changed
@@ -339,11 +358,7 @@ func (inst *Instance) shouldHandleIntent(i intent.Intent) bool {
 func (inst *Instance) handleFieldChange(changeIntent FormFieldChangeIntent) {
 	inst.mu.Lock()
 	inst.values[changeIntent.Field] = changeIntent.Value
-
-	// Mark form as dirty if field changed
-	if changeIntent.IsDirty {
-		inst.dirty = true
-	}
+	inst.syncFieldDirtyLocked(changeIntent.Field)
 
 	// Clear error for this field
 	delete(inst.errors, changeIntent.Field)
@@ -357,6 +372,8 @@ func (inst *Instance) handleFieldChange(changeIntent FormFieldChangeIntent) {
 func (inst *Instance) handleFieldBlur(blurIntent FormFieldBlurIntent) {
 	inst.mu.Lock()
 	inst.values[blurIntent.Field] = blurIntent.Value
+	inst.touchedFields[blurIntent.Field] = true
+	inst.syncFieldDirtyLocked(blurIntent.Field)
 
 	// Validate this field
 	inst.validateFieldLocked(blurIntent.Field)
@@ -372,6 +389,7 @@ func (inst *Instance) handleValidate(validateIntent FormValidateIntent) {
 	changedField := validateIntent.Field
 	if validateIntent.Field == "" {
 		// Validate entire form
+		inst.showAllErrors = true
 		inst.validateFormLocked()
 		changedField = ""
 	} else {
@@ -393,6 +411,16 @@ func (inst *Instance) handleSubmit(submitIntent FormSubmitIntent) {
 		inst.mu.Unlock()
 		return
 	}
+
+	if submitIntent.Data != nil {
+		for field, value := range submitIntent.Data {
+			inst.values[field] = value
+			inst.syncFieldDirtyLocked(field)
+			delete(inst.errors, field)
+		}
+		inst.updateValidityLocked()
+	}
+	inst.showAllErrors = true
 
 	// Validate all fields if required
 	if inst.validateAll {
@@ -435,6 +463,9 @@ func (inst *Instance) handleReset() {
 
 	// Clear errors
 	inst.errors = make(map[string]string)
+	inst.touchedFields = make(map[string]bool)
+	inst.dirtyFields = make(map[string]bool)
+	inst.showAllErrors = false
 
 	// Reset validity
 	inst.isValid = true
@@ -560,7 +591,7 @@ func (inst *Instance) GetValue(field string) (interface{}, bool) {
 func (inst *Instance) SetValue(field string, value interface{}) {
 	inst.mu.Lock()
 	inst.values[field] = value
-	inst.dirty = true
+	inst.syncFieldDirtyLocked(field)
 	// Clear error for this field
 	delete(inst.errors, field)
 	inst.updateValidityLocked()
@@ -585,8 +616,8 @@ func (inst *Instance) SetValues(values map[string]interface{}) {
 	inst.mu.Lock()
 	for k, v := range values {
 		inst.values[k] = v
+		inst.syncFieldDirtyLocked(k)
 	}
-	inst.dirty = true
 	inst.updateValidityLocked()
 	inst.mu.Unlock()
 
@@ -624,6 +655,27 @@ func (inst *Instance) IsSubmitting() bool {
 	inst.mu.RLock()
 	defer inst.mu.RUnlock()
 	return inst.isSubmitting
+}
+
+// IsFieldTouched returns whether a field has been visited/blurred.
+func (inst *Instance) IsFieldTouched(field string) bool {
+	inst.mu.RLock()
+	defer inst.mu.RUnlock()
+	return inst.touchedFields[field]
+}
+
+// IsFieldDirty returns whether a field differs from its initial value.
+func (inst *Instance) IsFieldDirty(field string) bool {
+	inst.mu.RLock()
+	defer inst.mu.RUnlock()
+	return inst.dirtyFields[field]
+}
+
+// ShouldShowError returns whether a field error should be rendered.
+func (inst *Instance) ShouldShowError(field string) bool {
+	inst.mu.RLock()
+	defer inst.mu.RUnlock()
+	return inst.shouldShowErrorLocked(field)
 }
 
 // Layout returns the form's default item layout.
@@ -771,6 +823,37 @@ func (inst *Instance) setValidatorSource(field string, source string, validators
 
 func (inst *Instance) clearValidatorSource(field string, source string) {
 	inst.setValidatorSource(field, source, nil)
+}
+
+func (inst *Instance) syncFieldDirtyLocked(field string) {
+	if field == "" {
+		return
+	}
+
+	currentValue, hasCurrent := inst.values[field]
+	initialValue, hasInitial := inst.initialValues[field]
+	isDirty := hasCurrent != hasInitial || !reflect.DeepEqual(currentValue, initialValue)
+	if isDirty {
+		inst.dirtyFields[field] = true
+	} else {
+		delete(inst.dirtyFields, field)
+	}
+	inst.dirty = len(inst.dirtyFields) > 0
+}
+
+func (inst *Instance) shouldShowErrorLocked(field string) bool {
+	if field == "" {
+		return false
+	}
+	return inst.showAllErrors || inst.touchedFields[field]
+}
+
+func cloneValuesMap(values map[string]interface{}) map[string]interface{} {
+	cloned := make(map[string]interface{}, len(values))
+	for k, v := range values {
+		cloned[k] = v
+	}
+	return cloned
 }
 
 func getLayoutProp(props rtui.Props, fallback FormLayout) FormLayout {

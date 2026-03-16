@@ -69,9 +69,17 @@ func TestTooltipPositionShortcuts(t *testing.T) {
 		expected Position
 	}{
 		{"Top", NewBuilder(content, "text").Top(), PositionTop},
+		{"TopLeft", NewBuilder(content, "text").TopLeft(), PositionTopLeft},
+		{"TopRight", NewBuilder(content, "text").TopRight(), PositionTopRight},
 		{"Bottom", NewBuilder(content, "text").Bottom(), PositionBottom},
+		{"BottomLeft", NewBuilder(content, "text").BottomLeft(), PositionBottomLeft},
+		{"BottomRight", NewBuilder(content, "text").BottomRight(), PositionBottomRight},
 		{"Left", NewBuilder(content, "text").Left(), PositionLeft},
+		{"LeftTop", NewBuilder(content, "text").LeftTop(), PositionLeftTop},
+		{"LeftBottom", NewBuilder(content, "text").LeftBottom(), PositionLeftBottom},
 		{"Right", NewBuilder(content, "text").Right(), PositionRight},
+		{"RightTop", NewBuilder(content, "text").RightTop(), PositionRightTop},
+		{"RightBottom", NewBuilder(content, "text").RightBottom(), PositionRightBottom},
 		{"Auto", NewBuilder(content, "text").Auto(), PositionAuto},
 	}
 
@@ -169,16 +177,24 @@ func TestTooltipCalculatePosition(t *testing.T) {
 	inst := NewInstance(rtui.Props{"text": "Test"})
 
 	tests := []struct {
-		name          string
-		position      Position
+		name                               string
+		position                           Position
 		anchorX, anchorY, anchorW, anchorH int
-		expectedX, expectedY int
+		expectedX, expectedY               int
 	}{
 		// Test text is "Test" (4 chars), tooltip width = 4 + 2 = 6
-		{"Top", PositionTop, 10, 10, 20, 5, 17, 8},    // X = 10 + 10 - 3 = 17
+		{"Top", PositionTop, 10, 10, 20, 5, 17, 8}, // X = 10 + 10 - 3 = 17
+		{"TopLeft", PositionTopLeft, 10, 10, 20, 5, 10, 8},
+		{"TopRight", PositionTopRight, 10, 10, 20, 5, 24, 8},
 		{"Bottom", PositionBottom, 10, 10, 20, 5, 17, 16}, // X = 10 + 10 - 3 = 17
-		{"Left", PositionLeft, 10, 10, 20, 5, 3, 12},     // X = 10 - 6 - 1 = 3
-		{"Right", PositionRight, 10, 10, 20, 5, 31, 12},  // X = 10 + 20 + 1 = 31
+		{"BottomLeft", PositionBottomLeft, 10, 10, 20, 5, 10, 16},
+		{"BottomRight", PositionBottomRight, 10, 10, 20, 5, 24, 16},
+		{"Left", PositionLeft, 10, 10, 20, 5, 3, 12}, // X = 10 - 6 - 1 = 3
+		{"LeftTop", PositionLeftTop, 10, 10, 20, 5, 3, 10},
+		{"LeftBottom", PositionLeftBottom, 10, 10, 20, 5, 3, 14},
+		{"Right", PositionRight, 10, 10, 20, 5, 31, 12}, // X = 10 + 20 + 1 = 31
+		{"RightTop", PositionRightTop, 10, 10, 20, 5, 31, 10},
+		{"RightBottom", PositionRightBottom, 10, 10, 20, 5, 31, 14},
 	}
 
 	for _, tt := range tests {
@@ -194,3 +210,46 @@ func TestTooltipCalculatePosition(t *testing.T) {
 	}
 }
 
+func TestTooltipCalculatePosition_AutoAndFallback(t *testing.T) {
+	t.Run("auto falls back into viewport", func(t *testing.T) {
+		inst := NewInstance(rtui.Props{
+			"text":     "Test",
+			"position": PositionAuto,
+		})
+		inst.SetAnchorBounds(1, 1, 4, 2)
+		inst.SetViewportSize(20, 10)
+
+		x, y := inst.CalculatePosition()
+		if x != 0 || y != 4 {
+			t.Fatalf("auto position = (%d,%d), want (0,4)", x, y)
+		}
+	})
+
+	t.Run("explicit placement falls back when clipped", func(t *testing.T) {
+		inst := NewInstance(rtui.Props{
+			"text":     "Test",
+			"position": PositionTopLeft,
+		})
+		inst.SetAnchorBounds(1, 1, 4, 2)
+		inst.SetViewportSize(20, 10)
+
+		x, y := inst.CalculatePosition()
+		if x != 1 || y != 4 {
+			t.Fatalf("fallback position = (%d,%d), want (1,4)", x, y)
+		}
+	})
+
+	t.Run("clamps when nothing fully fits", func(t *testing.T) {
+		inst := NewInstance(rtui.Props{
+			"text":     "LongTooltip",
+			"position": PositionRightBottom,
+		})
+		inst.SetAnchorBounds(8, 4, 2, 2)
+		inst.SetViewportSize(8, 5)
+
+		x, y := inst.CalculatePosition()
+		if x != 0 || y != 4 {
+			t.Fatalf("clamped position = (%d,%d), want (0,4)", x, y)
+		}
+	})
+}

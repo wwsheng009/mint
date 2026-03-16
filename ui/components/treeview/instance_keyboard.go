@@ -36,7 +36,14 @@ func (inst *Instance) HandleAction(act *action.Action) bool {
 		}
 		return inst.scrollBy(1)
 	case action.ActionClick:
+		if inst.reorderable {
+			return inst.handlePress(act)
+		}
 		return inst.handleClick(act)
+	case action.ActionHover, action.ActionMouseMotion, action.ActionDragMove:
+		return inst.handleDragMove(act)
+	case action.ActionMouseRelease, action.ActionRelease, action.ActionDragEnd:
+		return inst.handleDragRelease(act)
 	case action.ActionDoubleClick:
 		return inst.handleDoubleClick(act)
 	case action.ActionNavigateUp:
@@ -109,7 +116,6 @@ func (inst *Instance) borderInnerText(width int, fill, label string) string {
 	}
 	return label + strings.Repeat(fill, width-labelWidth)
 }
-
 
 // =============================================================================
 // Navigation Methods
@@ -395,7 +401,6 @@ func (inst *Instance) requestLazyLoad(entry nodeEntry, force bool) bool {
 	inst.emitLazyLoad(entry.Index, entry.Node.Path, entry.Node.NodeID)
 	return true
 }
-
 
 func (inst *Instance) handleActivate() bool {
 	visible, _ := inst.visibleEntries()
@@ -796,4 +801,3 @@ func clampIndex(value, max int) int {
 	}
 	return value
 }
-

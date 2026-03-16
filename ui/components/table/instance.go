@@ -1,8 +1,8 @@
 package table
 
 import (
-	"github.com/wwsheng009/mint/ui/components/internal/proputil"
 	"fmt"
+	"github.com/wwsheng009/mint/ui/components/internal/proputil"
 	"reflect"
 	"sort"
 	"strconv"
@@ -21,6 +21,8 @@ import (
 type rowView struct {
 	sourceIndex int
 	cells       []string
+	level       int
+	hasChildren bool
 }
 
 type tableView struct {
@@ -37,6 +39,7 @@ type tableView struct {
 const (
 	scrollbarReservedWidth = 2
 	selectionColumnWidth   = 3
+	expandColumnWidth      = 1
 )
 
 // Instance is the runtime entity for table components.
@@ -44,26 +47,30 @@ type Instance struct {
 	key         string
 	componentID string
 
-	columns        []TableColumn
-	rows           [][]string
-	emptyText      string
-	headerStyle    style.Style
-	tableStyle     style.Style
-	selectedStyle  style.Style
-	borderStyle    style.Style
-	statusStyle    style.Style
-	filterStyle    style.Style
-	scrollbarStyle style.Style
-	gap            int
-	showBorder     bool
-	showFooter     bool
-	showScrollbar  bool
-	pageSize       int
-	searchQuery    string
-	filters        map[int]string
+	columns         []TableColumn
+	rows            [][]string
+	emptyText       string
+	headerStyle     style.Style
+	tableStyle      style.Style
+	selectedStyle   style.Style
+	borderStyle     style.Style
+	statusStyle     style.Style
+	filterStyle     style.Style
+	scrollbarStyle  style.Style
+	gap             int
+	showBorder      bool
+	showFooter      bool
+	showScrollbar   bool
+	pageSize        int
+	searchQuery     string
+	filters         map[int]string
+	expandedContent map[int]string
+	treeParents     map[int]int
 
 	currentPage              int
 	currentPageControlled    bool
+	expandedIndices          []int
+	expandedControlled       bool
 	sortColumn               int
 	sortDescending           bool
 	sortControlled           bool
@@ -81,6 +88,8 @@ type Instance struct {
 	changeIntent      intent.Intent
 	changeIntentField intent.FieldIntent
 	pageIntentField   intent.FieldIntent
+	expandIntent      intent.Intent
+	expandIntentField intent.FieldIntent
 
 	pendingCurrentPage    int
 	hasPendingCurrentPage bool
@@ -88,11 +97,12 @@ type Instance struct {
 	pendingSortDescending bool
 	hasPendingSort        bool
 
-	parent        rtui.ComponentInstance
-	intentEmitter func(intent.Intent)
-	focused       bool
-	bounds        [4]int
-	dirty         bool
+	parent           rtui.ComponentInstance
+	intentEmitter    func(intent.Intent)
+	horizontalOffset int
+	focused          bool
+	bounds           [4]int
+	dirty            bool
 }
 
 var (
@@ -126,8 +136,12 @@ func NewInstance(props rtui.Props) *Instance {
 		pageSize:                 maxInt(0, proputil.GetInt(props, "pageSize", 0)),
 		searchQuery:              proputil.GetString(props, "searchQuery", ""),
 		filters:                  getFiltersProp(props, map[int]string{}),
+		expandedContent:          getExpandedContentProp(props, map[int]string{}),
+		treeParents:              getTreeParentsProp(props, map[int]int{}),
 		currentPage:              maxInt(0, proputil.GetInt(props, "currentPage", 0)),
 		currentPageControlled:    proputil.GetBool(props, "currentPageControlled", false),
+		expandedIndices:          getIntsProp(props, propExpandedIndices, nil),
+		expandedControlled:       proputil.GetBool(props, propExpandedControlled, false),
 		sortColumn:               proputil.GetInt(props, "sortColumn", -1),
 		sortDescending:           proputil.GetBool(props, "sortDescending", false),
 		sortControlled:           proputil.GetBool(props, "sortControlled", false),
@@ -144,10 +158,13 @@ func NewInstance(props rtui.Props) *Instance {
 		changeIntent:             proputil.GetIntent(props, "changeIntent", nil),
 		changeIntentField:        getFieldIntentProp(props, "changeIntent"),
 		pageIntentField:          getFieldIntentProp(props, "pageIntent"),
+		expandIntent:             proputil.GetIntent(props, propExpandIntent, nil),
+		expandIntentField:        getFieldIntentProp(props, propExpandIntent),
 		dirty:                    true,
 	}
 	inst.normalizeViewState(false)
 	inst.normalizeCheckedIndices()
+	inst.normalizeExpandedIndices()
 	return inst
 }
 
@@ -180,8 +197,12 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	oldPageSize := inst.pageSize
 	oldSearchQuery := inst.searchQuery
 	oldFilters := cloneFilters(inst.filters)
+	oldExpandedContent := cloneFilters(inst.expandedContent)
+	oldTreeParents := cloneIntMap(inst.treeParents)
 	oldCurrentPage := inst.currentPage
 	oldCurrentPageControlled := inst.currentPageControlled
+	oldExpandedIndices := append([]int(nil), inst.expandedIndices...)
+	oldExpandedControlled := inst.expandedControlled
 	oldSortColumn := inst.sortColumn
 	oldSortDescending := inst.sortDescending
 	oldSortControlled := inst.sortControlled
@@ -198,6 +219,8 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	oldChangeIntent := inst.changeIntent
 	oldChangeIntentField := inst.changeIntentField
 	oldPageIntentField := inst.pageIntentField
+	oldExpandIntent := inst.expandIntent
+	oldExpandIntentField := inst.expandIntentField
 
 	inst.componentID = proputil.GetString(props, "componentID", inst.componentID)
 	inst.columns = getColumnsProp(props, inst.columns)
@@ -217,9 +240,13 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	inst.pageSize = maxInt(0, proputil.GetInt(props, "pageSize", inst.pageSize))
 	inst.searchQuery = proputil.GetString(props, "searchQuery", inst.searchQuery)
 	inst.filters = getFiltersProp(props, inst.filters)
+	inst.expandedContent = getExpandedContentProp(props, inst.expandedContent)
+	inst.treeParents = getTreeParentsProp(props, inst.treeParents)
 	inst.changeIntent = proputil.GetIntent(props, "changeIntent", nil)
 	inst.changeIntentField = getFieldIntentProp(props, "changeIntent")
 	inst.pageIntentField = getFieldIntentProp(props, "pageIntent")
+	inst.expandIntent = proputil.GetIntent(props, propExpandIntent, inst.expandIntent)
+	inst.expandIntentField = getFieldIntentProp(props, propExpandIntent)
 	inst.selectionIntent = proputil.GetIntent(props, "selectionIntent", nil)
 	inst.selectionIntentField = getFieldIntentProp(props, "selectionIntent")
 	inst.selectionMode = getSelectionModeProp(props, "selectionMode", inst.selectionMode)
@@ -230,6 +257,14 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	if inst.currentPageControlled {
 		inst.currentPage = maxInt(0, proputil.GetInt(props, "currentPage", inst.currentPage))
 		inst.lastPropCurrentPage = inst.currentPage
+	}
+	if controlled, ok := props[propExpandedControlled].(bool); ok {
+		inst.expandedControlled = controlled
+	}
+	if inst.expandedControlled {
+		inst.expandedIndices = getIntsProp(props, propExpandedIndices, inst.expandedIndices)
+	} else if expandedIndices, ok := props[propExpandedIndices].([]int); ok {
+		inst.expandedIndices = append([]int(nil), expandedIndices...)
 	}
 
 	if controlled, ok := props[propSortControlled].(bool); ok {
@@ -262,6 +297,7 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	resetPage := oldSearchQuery != inst.searchQuery || !equalFilters(oldFilters, inst.filters) || oldPageSize != inst.pageSize
 	inst.normalizeViewState(resetPage)
 	inst.normalizeCheckedIndices()
+	inst.normalizeExpandedIndices()
 
 	changed := !columnsEqual(oldColumns, inst.columns) ||
 		!rowsEqual(oldRows, inst.rows) ||
@@ -280,8 +316,12 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 		oldPageSize != inst.pageSize ||
 		oldSearchQuery != inst.searchQuery ||
 		!equalFilters(oldFilters, inst.filters) ||
+		!equalFilters(oldExpandedContent, inst.expandedContent) ||
+		!equalIntMaps(oldTreeParents, inst.treeParents) ||
 		oldCurrentPage != inst.currentPage ||
 		oldCurrentPageControlled != inst.currentPageControlled ||
+		oldExpandedControlled != inst.expandedControlled ||
+		!equalInts(oldExpandedIndices, inst.expandedIndices) ||
 		oldSortColumn != inst.sortColumn ||
 		oldSortDescending != inst.sortDescending ||
 		oldSortControlled != inst.sortControlled ||
@@ -297,7 +337,9 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 		oldComponentID != inst.componentID ||
 		!sameIntent(oldChangeIntent, inst.changeIntent) ||
 		!sameFieldIntent(oldChangeIntentField, inst.changeIntentField) ||
-		!sameFieldIntent(oldPageIntentField, inst.pageIntentField)
+		!sameFieldIntent(oldPageIntentField, inst.pageIntentField) ||
+		!sameIntent(oldExpandIntent, inst.expandIntent) ||
+		!sameFieldIntent(oldExpandIntentField, inst.expandIntentField)
 	if changed {
 		inst.dirty = true
 	}
@@ -324,6 +366,8 @@ func (inst *Instance) GetProps() rtui.Props {
 		propPageSize:                inst.pageSize,
 		propSearchQuery:             inst.searchQuery,
 		propFilters:                 cloneFilters(inst.filters),
+		propExpandedContent:         cloneFilters(inst.expandedContent),
+		propTreeParents:             cloneIntMap(inst.treeParents),
 		propCurrentPage:             inst.currentPage,
 		propCurrentPageControlled:   inst.currentPageControlled,
 		propSortColumn:              inst.sortColumn,
@@ -337,9 +381,15 @@ func (inst *Instance) GetProps() rtui.Props {
 		propChangeIntent:            inst.changeIntent,
 		propChangeIntentField:       inst.changeIntentField,
 		propPageIntentField:         inst.pageIntentField,
+		propExpandIntent:            inst.expandIntent,
+		propExpandIntentField:       inst.expandIntentField,
 	}
 	if inst.selectionIntentField != nil {
 		props[propSelectionIntentField] = inst.selectionIntentField
+	}
+	if inst.expandedControlled {
+		props[propExpandedControlled] = true
+		props[propExpandedIndices] = append([]int(nil), inst.expandedIndices...)
 	}
 	if inst.checkedIndicesControlled {
 		props[propCheckedIndicesControlled] = true
@@ -362,7 +412,14 @@ func (inst *Instance) Measure(constraints layout.Constraints) layout.Size {
 	}
 
 	view := inst.processedView()
-	_, contentWidth := inst.calculateColumnWidths(view.rows, 0)
+	maxInnerWidth := 0
+	if constraints.MaxWidth > 0 && constraints.MaxWidth < layout.MaxInt {
+		maxInnerWidth = constraints.MaxWidth
+		if inst.showBorder {
+			maxInnerWidth = maxInt(1, maxInnerWidth-4)
+		}
+	}
+	_, contentWidth := inst.calculateColumnWidths(view.rows, maxInnerWidth)
 	if inst.shouldShowFooter(view) {
 		contentWidth = maxInt(contentWidth, paint.StringWidth(inst.statusText(view)))
 	}
@@ -393,21 +450,25 @@ func (inst *Instance) Paint(x, y int) []paint.DrawCmd {
 	if contentWidth < 1 {
 		contentWidth = 1
 	}
+	visibleContentWidth := contentWidth
+	if maxContentWidth > 0 {
+		visibleContentWidth = minInt(contentWidth, maxContentWidth)
+	}
 
 	showFooter := inst.shouldShowFooter(view)
 	statusText := inst.statusText(view)
 	if showFooter {
-		contentWidth = maxInt(contentWidth, paint.StringWidth(statusText))
+		visibleContentWidth = maxInt(visibleContentWidth, paint.StringWidth(statusText))
 		if maxContentWidth > 0 {
-			contentWidth = minInt(contentWidth, maxContentWidth)
+			visibleContentWidth = minInt(visibleContentWidth, maxContentWidth)
 		}
 	}
 	renderedRows := view.pageRows
-	if limit := inst.maxRenderableRows(showFooter); limit >= 0 && len(renderedRows) > limit {
-		renderedRows = renderedRows[:limit]
+	if limit := inst.maxRenderableRows(showFooter); limit >= 0 {
+		renderedRows = inst.rowsWithinLineBudget(renderedRows, limit)
 	}
 	showScrollbar := inst.shouldPaintScrollbar(view, len(renderedRows))
-	innerWidth := inst.innerWidth(contentWidth, view, len(renderedRows))
+	innerWidth := inst.innerWidth(visibleContentWidth, view, len(renderedRows))
 
 	type lineSpec struct {
 		text  string
@@ -415,39 +476,62 @@ func (inst *Instance) Paint(x, y int) []paint.DrawCmd {
 	}
 
 	innerLines := make([]lineSpec, 0, inst.lineCountForView(view))
-	innerLines = append(innerLines, lineSpec{
-		text:  inst.composeInnerLine(inst.buildHeaderLine(widths, view), contentWidth, showScrollbar),
-		style: inst.headerStyle,
-	})
-	if inst.hasActiveColumnFilters() {
+	if inst.hasFixedColumns() && visibleContentWidth > 0 {
+		headerLine, _, maxOffset := inst.composeFixedViewportLine(inst.lineSegmentsForHeader(widths, view), visibleContentWidth, inst.horizontalOffset)
+		inst.horizontalOffset = clampInt(inst.horizontalOffset, 0, maxOffset)
 		innerLines = append(innerLines, lineSpec{
-			text:  inst.composeInnerLine(inst.buildFilterLine(widths), contentWidth, showScrollbar),
+			text:  inst.composeInnerLine(headerLine, visibleContentWidth, showScrollbar),
+			style: inst.headerStyle,
+		})
+	} else {
+		innerLines = append(innerLines, lineSpec{
+			text:  inst.composeInnerLine(inst.buildHeaderLine(widths, view), visibleContentWidth, showScrollbar),
+			style: inst.headerStyle,
+		})
+	}
+	if inst.hasActiveColumnFilters() {
+		filterText := inst.buildFilterLine(widths)
+		if inst.hasFixedColumns() && visibleContentWidth > 0 {
+			filterText, _, _ = inst.composeFixedViewportLine(inst.lineSegmentsForFilter(widths), visibleContentWidth, inst.horizontalOffset)
+		}
+		innerLines = append(innerLines, lineSpec{
+			text:  inst.composeInnerLine(filterText, visibleContentWidth, showScrollbar),
 			style: inst.filterStyle,
 		})
 	}
-	innerLines = append(innerLines, lineSpec{text: inst.composeInnerLine(strings.Repeat("─", maxInt(1, contentWidth)), contentWidth, showScrollbar), style: inst.borderStyle})
+	innerLines = append(innerLines, lineSpec{text: inst.composeInnerLine(strings.Repeat("─", maxInt(1, visibleContentWidth)), visibleContentWidth, showScrollbar), style: inst.borderStyle})
 	for i := 0; i < inst.gap; i++ {
-		innerLines = append(innerLines, lineSpec{text: inst.composeInnerLine("", contentWidth, showScrollbar), style: inst.tableStyle})
+		innerLines = append(innerLines, lineSpec{text: inst.composeInnerLine("", visibleContentWidth, showScrollbar), style: inst.tableStyle})
 	}
 
 	if len(renderedRows) == 0 {
 		innerLines = append(innerLines, lineSpec{
-			text:  inst.composeInnerLine(inst.emptyLineText(), contentWidth, showScrollbar),
+			text:  inst.composeInnerLine(inst.emptyLineText(), visibleContentWidth, showScrollbar),
 			style: inst.tableStyle,
 		})
 	} else {
 		for rowOffset, row := range renderedRows {
 			absoluteIndex := view.start + rowOffset
+			rowText := inst.buildDataLine(row, widths)
+			if inst.hasFixedColumns() && visibleContentWidth > 0 {
+				rowText, _, _ = inst.composeFixedViewportLine(inst.lineSegmentsForData(row, widths), visibleContentWidth, inst.horizontalOffset)
+			}
 			innerLines = append(innerLines, lineSpec{
-				text:  inst.composeInnerLine(inst.buildDataLine(row, widths), contentWidth, showScrollbar),
+				text:  inst.composeInnerLine(rowText, visibleContentWidth, showScrollbar),
 				style: inst.rowStyleFor(absoluteIndex),
 			})
+			if inst.isExpanded(row.sourceIndex) && inst.hasExpandedContent(row.sourceIndex) {
+				innerLines = append(innerLines, lineSpec{
+					text:  inst.composeInnerLine(inst.buildExpandedLine(row, visibleContentWidth), visibleContentWidth, showScrollbar),
+					style: inst.rowStyleFor(absoluteIndex),
+				})
+			}
 		}
 	}
 
 	if showFooter {
 		innerLines = append(innerLines, lineSpec{
-			text:  inst.composeInnerLine(statusText, contentWidth, showScrollbar),
+			text:  inst.composeInnerLine(statusText, visibleContentWidth, showScrollbar),
 			style: inst.statusStyle,
 		})
 	}
@@ -487,7 +571,7 @@ func (inst *Instance) Paint(x, y int) []paint.DrawCmd {
 
 	if showScrollbar {
 		viewport := scrollutil.NewVerticalViewport(view.filteredCount, maxInt(1, len(renderedRows)), view.start)
-		scrollbarX := x + contentWidth + 1
+		scrollbarX := x + visibleContentWidth + 1
 		scrollbarY := y + 2 + inst.gap
 		if inst.showBorder {
 			scrollbarX += 2
@@ -533,9 +617,25 @@ func (inst *Instance) HandleAction(act *action.Action) bool {
 		return inst.navigateHome()
 	case action.ActionNavigateEnd:
 		return inst.navigateEnd()
-	case action.ActionNavigatePageUp, action.ActionNavigateLeft:
+	case action.ActionNavigateLeft, action.ActionScrollLeft:
+		if inst.scrollHorizontal(-1) {
+			return true
+		}
+		if act.Type == action.ActionNavigateLeft {
+			return inst.movePage(-1)
+		}
+		return false
+	case action.ActionNavigateRight, action.ActionScrollRight:
+		if inst.scrollHorizontal(1) {
+			return true
+		}
+		if act.Type == action.ActionNavigateRight {
+			return inst.movePage(1)
+		}
+		return false
+	case action.ActionNavigatePageUp:
 		return inst.movePage(-1)
-	case action.ActionNavigatePageDown, action.ActionNavigateRight:
+	case action.ActionNavigatePageDown:
 		return inst.movePage(1)
 	case action.ActionScroll:
 		delta, ok := scrollutil.DeltaFromAction(act)
@@ -555,7 +655,11 @@ func (inst *Instance) HandleAction(act *action.Action) bool {
 		if inst.selectionMode != SelectionNone {
 			return inst.handleActivateSelection()
 		}
-		return len(inst.filteredSortedRows()) > 0
+		view := inst.processedView()
+		if inst.selectedIndex >= 0 && inst.selectedIndex < len(view.rows) && inst.hasExpandableNode(view.rows[inst.selectedIndex].sourceIndex) {
+			return inst.toggleExpandAtSourceIndex(view.rows[inst.selectedIndex].sourceIndex)
+		}
+		return len(view.rows) > 0
 	case action.ActionSelectAll:
 		return inst.selectAllFilteredRows()
 	case action.ActionClear:
@@ -689,6 +793,10 @@ func (inst *Instance) filteredSortedRows() []rowView {
 		})
 	}
 
+	if inst.hasTreeData() {
+		return inst.treeRowsView(rows)
+	}
+
 	sortColumn, descending := inst.effectiveSortState()
 	if sortColumn >= 0 && sortColumn < len(inst.columns) {
 		sort.SliceStable(rows, func(i, j int) bool {
@@ -703,6 +811,61 @@ func (inst *Instance) filteredSortedRows() []rowView {
 		})
 	}
 	return rows
+}
+
+func (inst *Instance) hasTreeData() bool {
+	return len(inst.treeParents) > 0
+}
+
+func (inst *Instance) treeRowsView(flatRows []rowView) []rowView {
+	if len(flatRows) == 0 {
+		return nil
+	}
+
+	sourceToRow := make(map[int]rowView, len(flatRows))
+	children := make(map[int][]int, len(flatRows))
+	rootIndices := make([]int, 0, len(flatRows))
+	for _, row := range flatRows {
+		sourceToRow[row.sourceIndex] = row
+	}
+
+	for _, row := range flatRows {
+		parentIndex, hasParent := inst.treeParents[row.sourceIndex]
+		if !hasParent || parentIndex < 0 {
+			rootIndices = append(rootIndices, row.sourceIndex)
+			continue
+		}
+		if _, ok := sourceToRow[parentIndex]; !ok {
+			rootIndices = append(rootIndices, row.sourceIndex)
+			continue
+		}
+		children[parentIndex] = append(children[parentIndex], row.sourceIndex)
+	}
+
+	visible := make([]rowView, 0, len(flatRows))
+	visited := make(map[int]struct{}, len(flatRows))
+	var appendNode func(sourceIndex int, level int)
+	appendNode = func(sourceIndex int, level int) {
+		if _, seen := visited[sourceIndex]; seen {
+			return
+		}
+		visited[sourceIndex] = struct{}{}
+		row := sourceToRow[sourceIndex]
+		row.level = level
+		row.hasChildren = len(children[sourceIndex]) > 0
+		visible = append(visible, row)
+		if !inst.isExpanded(sourceIndex) {
+			return
+		}
+		for _, childIndex := range children[sourceIndex] {
+			appendNode(childIndex, level+1)
+		}
+	}
+
+	for _, rootIndex := range rootIndices {
+		appendNode(rootIndex, 0)
+	}
+	return visible
 }
 
 func (inst *Instance) normalizeRow(row []string) []string {
@@ -743,30 +906,40 @@ func (inst *Instance) matchesSearch(cells []string, searchTerm string) bool {
 func (inst *Instance) calculateColumnWidths(rows []rowView, maxInnerWidth int) ([]int, int) {
 	widths := make([]int, len(inst.columns))
 	totalContentWidth := 0
-	for columnIndex, column := range inst.columns {
-		width := column.Width
-		if width <= 0 {
-			width = paint.StringWidth(inst.headerLabel(columnIndex))
-			for _, row := range rows {
-				if columnIndex < len(row.cells) {
-					width = maxInt(width, paint.StringWidth(row.cells[columnIndex]))
-				}
-			}
-			width = maxInt(3, width)
-		}
-		width = maxInt(1, width)
-		widths[columnIndex] = width
-		totalContentWidth += width
-	}
-
 	separatorCount := maxInt(0, len(inst.columns)-1)
-	prefixWidth := inst.selectionPrefixWidth()
+	prefixWidth := inst.selectionPrefixWidth() + inst.expandPrefixWidth()
+	if inst.hasExpandableRows() {
+		separatorCount++
+	}
 	if inst.selectionMode != SelectionNone {
 		separatorCount++
 	}
 	separatorWidth := separatorCount * 3
-	if maxInnerWidth > 0 && totalContentWidth+separatorWidth+prefixWidth > maxInnerWidth {
-		widths = shrinkWidthsToFit(widths, maxInnerWidth-separatorWidth-prefixWidth)
+	availableContentWidth := 0
+	if maxInnerWidth > 0 {
+		availableContentWidth = maxInt(1, maxInnerWidth-separatorWidth-prefixWidth)
+	}
+
+	autoColumns := make([]int, 0, len(inst.columns))
+	for columnIndex, column := range inst.columns {
+		width := inst.baseColumnWidth(columnIndex, column, rows, availableContentWidth)
+		widths[columnIndex] = width
+		totalContentWidth += width
+		if column.Width <= 0 && column.WidthPercent <= 0 {
+			autoColumns = append(autoColumns, columnIndex)
+		}
+	}
+
+	if availableContentWidth > 0 && totalContentWidth < availableContentWidth && len(autoColumns) > 0 {
+		inst.expandAutoWidths(widths, autoColumns, availableContentWidth-totalContentWidth)
+		totalContentWidth = 0
+		for _, width := range widths {
+			totalContentWidth += width
+		}
+	}
+
+	if availableContentWidth > 0 && totalContentWidth > availableContentWidth && !inst.hasFixedColumns() {
+		widths = shrinkWidthsToFitWithBounds(widths, inst.columns, availableContentWidth)
 		totalContentWidth = 0
 		for _, width := range widths {
 			totalContentWidth += width
@@ -774,6 +947,336 @@ func (inst *Instance) calculateColumnWidths(rows []rowView, maxInnerWidth int) (
 	}
 
 	return widths, totalContentWidth + separatorWidth + prefixWidth
+}
+
+func (inst *Instance) baseColumnWidth(columnIndex int, column TableColumn, rows []rowView, availableContentWidth int) int {
+	width := column.Width
+	switch {
+	case width > 0:
+		// Keep the explicit fixed width.
+	case column.WidthPercent > 0 && availableContentWidth > 0:
+		width = (availableContentWidth * clampInt(column.WidthPercent, 1, 100)) / 100
+	default:
+		width = inst.autoColumnWidth(columnIndex, rows)
+	}
+	return inst.applyColumnWidthBounds(column, width)
+}
+
+func (inst *Instance) autoColumnWidth(columnIndex int, rows []rowView) int {
+	width := paint.StringWidth(inst.headerLabel(columnIndex))
+	for _, row := range rows {
+		if columnIndex < len(row.cells) {
+			width = maxInt(width, paint.StringWidth(row.cells[columnIndex]))
+		}
+	}
+	return maxInt(3, width)
+}
+
+func (inst *Instance) applyColumnWidthBounds(column TableColumn, width int) int {
+	width = maxInt(1, width)
+	if column.MinWidth > 0 {
+		width = maxInt(width, column.MinWidth)
+	}
+	if column.MaxWidth > 0 {
+		width = minInt(width, column.MaxWidth)
+	}
+	return maxInt(1, width)
+}
+
+func (inst *Instance) expandAutoWidths(widths []int, autoColumns []int, remaining int) {
+	if remaining <= 0 || len(autoColumns) == 0 {
+		return
+	}
+
+	progress := true
+	for remaining > 0 && progress {
+		progress = false
+		for _, columnIndex := range autoColumns {
+			if remaining <= 0 {
+				break
+			}
+			column := inst.columns[columnIndex]
+			if column.MaxWidth > 0 && widths[columnIndex] >= column.MaxWidth {
+				continue
+			}
+			widths[columnIndex]++
+			remaining--
+			progress = true
+		}
+	}
+}
+
+type fixedZone int
+
+const (
+	zoneLeft fixedZone = iota
+	zoneCenter
+	zoneRight
+)
+
+type lineSegment struct {
+	text        string
+	width       int
+	zone        fixedZone
+	columnIndex int
+}
+
+type segmentSpan struct {
+	columnIndex int
+	start       int
+	end         int
+}
+
+func (inst *Instance) hasFixedColumns() bool {
+	for _, column := range inst.columns {
+		if column.FixedLeft || column.FixedRight {
+			return true
+		}
+	}
+	return false
+}
+
+func (inst *Instance) segmentZoneForColumn(columnIndex int) fixedZone {
+	if columnIndex < 0 || columnIndex >= len(inst.columns) {
+		return zoneCenter
+	}
+	if inst.columns[columnIndex].FixedRight {
+		return zoneRight
+	}
+	if inst.columns[columnIndex].FixedLeft {
+		return zoneLeft
+	}
+	return zoneCenter
+}
+
+func (inst *Instance) lineSegmentsForHeader(widths []int, view tableView) []lineSegment {
+	segments := make([]lineSegment, 0, len(inst.columns)+2)
+	if inst.hasExpandableRows() {
+		segments = append(segments, lineSegment{text: formatCell("", expandColumnWidth, rtui.AlignStart), width: expandColumnWidth, zone: zoneLeft, columnIndex: -1})
+	}
+	if inst.selectionMode != SelectionNone {
+		segments = append(segments, lineSegment{text: formatCell(inst.selectionHeaderMarker(view), selectionColumnWidth, rtui.AlignStart), width: selectionColumnWidth, zone: zoneLeft, columnIndex: -1})
+	}
+	for columnIndex := range inst.columns {
+		segments = append(segments, lineSegment{
+			text:        formatCell(inst.headerLabel(columnIndex), widths[columnIndex], inst.columns[columnIndex].Align),
+			width:       widths[columnIndex],
+			zone:        inst.segmentZoneForColumn(columnIndex),
+			columnIndex: columnIndex,
+		})
+	}
+	return segments
+}
+
+func (inst *Instance) lineSegmentsForData(row rowView, widths []int) []lineSegment {
+	segments := make([]lineSegment, 0, len(widths)+2)
+	if inst.hasExpandableRows() {
+		segments = append(segments, lineSegment{text: formatCell(inst.expandMarker(row.sourceIndex), expandColumnWidth, rtui.AlignStart), width: expandColumnWidth, zone: zoneLeft, columnIndex: -1})
+	}
+	if inst.selectionMode != SelectionNone {
+		segments = append(segments, lineSegment{text: formatCell(inst.selectionMarker(row.sourceIndex), selectionColumnWidth, rtui.AlignStart), width: selectionColumnWidth, zone: zoneLeft, columnIndex: -1})
+	}
+	for columnIndex := range widths {
+		cell := ""
+		if columnIndex < len(row.cells) {
+			cell = inst.displayCellText(row, columnIndex, row.cells[columnIndex])
+		}
+		segments = append(segments, lineSegment{
+			text:        formatCell(cell, widths[columnIndex], inst.columns[columnIndex].Align),
+			width:       widths[columnIndex],
+			zone:        inst.segmentZoneForColumn(columnIndex),
+			columnIndex: columnIndex,
+		})
+	}
+	return segments
+}
+
+func (inst *Instance) lineSegmentsForFilter(widths []int) []lineSegment {
+	segments := make([]lineSegment, 0, len(widths)+2)
+	if inst.hasExpandableRows() {
+		segments = append(segments, lineSegment{text: formatCell("", expandColumnWidth, rtui.AlignStart), width: expandColumnWidth, zone: zoneLeft, columnIndex: -1})
+	}
+	if inst.selectionMode != SelectionNone {
+		segments = append(segments, lineSegment{text: formatCell("", selectionColumnWidth, rtui.AlignStart), width: selectionColumnWidth, zone: zoneLeft, columnIndex: -1})
+	}
+	for columnIndex := range widths {
+		label := ""
+		if filter, ok := inst.filters[columnIndex]; ok {
+			label = "~" + strings.TrimSpace(filter)
+		}
+		segments = append(segments, lineSegment{
+			text:        formatCell(label, widths[columnIndex], inst.columns[columnIndex].Align),
+			width:       widths[columnIndex],
+			zone:        inst.segmentZoneForColumn(columnIndex),
+			columnIndex: columnIndex,
+		})
+	}
+	return segments
+}
+
+func buildSectionFromSegments(segments []lineSegment) (string, []segmentSpan) {
+	if len(segments) == 0 {
+		return "", nil
+	}
+	var builder strings.Builder
+	spans := make([]segmentSpan, 0, len(segments))
+	position := 0
+	for index, segment := range segments {
+		if index > 0 {
+			builder.WriteString(" │ ")
+			position += 3
+		}
+		builder.WriteString(segment.text)
+		spans = append(spans, segmentSpan{
+			columnIndex: segment.columnIndex,
+			start:       position,
+			end:         position + paint.StringWidth(segment.text),
+		})
+		position += paint.StringWidth(segment.text)
+	}
+	return builder.String(), spans
+}
+
+func clipSection(text string, spans []segmentSpan, offset, width int) (string, []segmentSpan) {
+	if width <= 0 {
+		return "", nil
+	}
+	clipped := sliceDisplayWidth(text, offset, width)
+	if clipped == "" {
+		return "", nil
+	}
+	end := offset + width
+	clippedSpans := make([]segmentSpan, 0, len(spans))
+	for _, span := range spans {
+		if span.end <= offset || span.start >= end {
+			continue
+		}
+		start := maxInt(span.start, offset) - offset
+		finish := minInt(span.end, end) - offset
+		clippedSpans = append(clippedSpans, segmentSpan{
+			columnIndex: span.columnIndex,
+			start:       start,
+			end:         finish,
+		})
+	}
+	return clipped, clippedSpans
+}
+
+func (inst *Instance) composeFixedViewportLine(segments []lineSegment, viewportWidth, offset int) (string, []segmentSpan, int) {
+	if viewportWidth <= 0 {
+		line, spans := buildSectionFromSegments(segments)
+		return line, spans, 0
+	}
+
+	leftSegments := make([]lineSegment, 0, len(segments))
+	centerSegments := make([]lineSegment, 0, len(segments))
+	rightSegments := make([]lineSegment, 0, len(segments))
+	for _, segment := range segments {
+		switch segment.zone {
+		case zoneLeft:
+			leftSegments = append(leftSegments, segment)
+		case zoneRight:
+			rightSegments = append(rightSegments, segment)
+		default:
+			centerSegments = append(centerSegments, segment)
+		}
+	}
+
+	leftText, leftSpans := buildSectionFromSegments(leftSegments)
+	centerText, centerSpans := buildSectionFromSegments(centerSegments)
+	rightText, rightSpans := buildSectionFromSegments(rightSegments)
+
+	leftWidth := paint.StringWidth(leftText)
+	centerWidth := paint.StringWidth(centerText)
+	rightWidth := paint.StringWidth(rightText)
+
+	centerSeparatorAllowance := 0
+	if centerWidth > 0 {
+		if leftWidth > 0 {
+			centerSeparatorAllowance += 3
+		}
+		if rightWidth > 0 {
+			centerSeparatorAllowance += 3
+		}
+	}
+	centerViewportWidth := viewportWidth - leftWidth - rightWidth - centerSeparatorAllowance
+	if centerViewportWidth < 0 {
+		centerViewportWidth = 0
+	}
+	maxOffset := maxInt(0, centerWidth-centerViewportWidth)
+	offset = clampInt(offset, 0, maxOffset)
+	centerClipped, centerClippedSpans := clipSection(centerText, centerSpans, offset, centerViewportWidth)
+
+	sections := make([]string, 0, 3)
+	sectionSpans := make([][]segmentSpan, 0, 3)
+	if leftText != "" {
+		sections = append(sections, leftText)
+		sectionSpans = append(sectionSpans, leftSpans)
+	}
+	if centerClipped != "" {
+		sections = append(sections, centerClipped)
+		sectionSpans = append(sectionSpans, centerClippedSpans)
+	}
+	if rightText != "" {
+		sections = append(sections, rightText)
+		sectionSpans = append(sectionSpans, rightSpans)
+	}
+
+	if len(sections) == 0 {
+		return padRightToWidth("", viewportWidth), nil, maxOffset
+	}
+
+	var builder strings.Builder
+	combinedSpans := make([]segmentSpan, 0, len(leftSpans)+len(centerClippedSpans)+len(rightSpans))
+	position := 0
+	for index, section := range sections {
+		if index > 0 {
+			builder.WriteString(" │ ")
+			position += 3
+		}
+		builder.WriteString(section)
+		for _, span := range sectionSpans[index] {
+			combinedSpans = append(combinedSpans, segmentSpan{
+				columnIndex: span.columnIndex,
+				start:       position + span.start,
+				end:         position + span.end,
+			})
+		}
+		position += paint.StringWidth(section)
+	}
+
+	line := builder.String()
+	if paint.StringWidth(line) < viewportWidth {
+		line = padRightToWidth(line, viewportWidth)
+	}
+	return line, combinedSpans, maxOffset
+}
+
+func sliceDisplayWidth(text string, offset, width int) string {
+	if width <= 0 {
+		return ""
+	}
+	if offset < 0 {
+		offset = 0
+	}
+	var builder strings.Builder
+	current := 0
+	for _, character := range text {
+		charWidth := paint.RuneWidth(character)
+		next := current + charWidth
+		if next <= offset {
+			current = next
+			continue
+		}
+		if current >= offset+width {
+			break
+		}
+		if current >= offset && next <= offset+width {
+			builder.WriteRune(character)
+		}
+		current = next
+	}
+	return builder.String()
 }
 
 func (inst *Instance) lineCountForView(view tableView) int {
@@ -787,7 +1290,7 @@ func (inst *Instance) lineCountForView(view tableView) int {
 	if len(view.pageRows) == 0 {
 		lines++
 	} else {
-		lines += len(view.pageRows)
+		lines += len(view.pageRows) + inst.expandedLineCount(view.pageRows)
 	}
 	if inst.shouldShowFooter(view) {
 		lines++
@@ -805,11 +1308,19 @@ func (inst *Instance) selectionPrefixWidth() int {
 	return selectionColumnWidth
 }
 
+func (inst *Instance) expandPrefixWidth() int {
+	if !inst.hasExpandableRows() {
+		return 0
+	}
+	return expandColumnWidth
+}
+
 func (inst *Instance) emptyLineText() string {
-	if inst.selectionMode == SelectionNone {
+	if inst.selectionMode == SelectionNone && !inst.hasExpandableRows() {
 		return inst.emptyText
 	}
-	return formatCell("", selectionColumnWidth, rtui.AlignStart) + " │ " + inst.emptyText
+	prefix := inst.expandedLinePrefix()
+	return prefix + inst.emptyText
 }
 
 func (inst *Instance) hasActiveColumnFilters() bool {
@@ -927,7 +1438,10 @@ func (inst *Instance) maxRenderableRows(showFooter bool) int {
 }
 
 func (inst *Instance) buildHeaderLine(widths []int, view tableView) string {
-	cells := make([]string, 0, len(inst.columns)+1)
+	cells := make([]string, 0, len(inst.columns)+2)
+	if inst.hasExpandableRows() {
+		cells = append(cells, formatCell("", expandColumnWidth, rtui.AlignStart))
+	}
 	if inst.selectionMode != SelectionNone {
 		cells = append(cells, formatCell(inst.selectionHeaderMarker(view), selectionColumnWidth, rtui.AlignStart))
 	}
@@ -938,18 +1452,38 @@ func (inst *Instance) buildHeaderLine(widths []int, view tableView) string {
 }
 
 func (inst *Instance) buildDataLine(row rowView, widths []int) string {
-	formatted := make([]string, 0, len(widths)+1)
+	formatted := make([]string, 0, len(widths)+2)
+	if inst.hasExpandableRows() {
+		formatted = append(formatted, formatCell(inst.expandMarker(row.sourceIndex), expandColumnWidth, rtui.AlignStart))
+	}
 	if inst.selectionMode != SelectionNone {
 		formatted = append(formatted, formatCell(inst.selectionMarker(row.sourceIndex), selectionColumnWidth, rtui.AlignStart))
 	}
 	for columnIndex := range widths {
 		cell := ""
 		if columnIndex < len(row.cells) {
-			cell = row.cells[columnIndex]
+			cell = inst.displayCellText(row, columnIndex, row.cells[columnIndex])
 		}
 		formatted = append(formatted, formatCell(cell, widths[columnIndex], inst.columns[columnIndex].Align))
 	}
 	return strings.Join(formatted, " │ ")
+}
+
+func (inst *Instance) displayCellText(row rowView, columnIndex int, cell string) string {
+	if columnIndex != 0 || !inst.hasTreeData() || row.level <= 0 {
+		return cell
+	}
+	return strings.Repeat("  ", row.level) + cell
+}
+
+func (inst *Instance) buildExpandedLine(row rowView, contentWidth int) string {
+	content, ok := inst.expandedContent[row.sourceIndex]
+	if !ok || strings.TrimSpace(content) == "" {
+		return ""
+	}
+	prefix := inst.expandedLinePrefix()
+	availableWidth := maxInt(1, contentWidth-paint.StringWidth(prefix))
+	return prefix + truncateText(content, availableWidth)
 }
 
 func (inst *Instance) headerLabel(columnIndex int) string {
@@ -969,6 +1503,104 @@ func (inst *Instance) rowStyleFor(absoluteIndex int) style.Style {
 		return inst.selectedStyle
 	}
 	return inst.tableStyle
+}
+
+func (inst *Instance) hasExpandableRows() bool {
+	for _, content := range inst.expandedContent {
+		if strings.TrimSpace(content) != "" {
+			return true
+		}
+	}
+	if inst.hasTreeData() {
+		for sourceIndex := range inst.rows {
+			if inst.hasExpandableNode(sourceIndex) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func (inst *Instance) hasExpandedContent(sourceIndex int) bool {
+	content, ok := inst.expandedContent[sourceIndex]
+	return ok && strings.TrimSpace(content) != ""
+}
+
+func (inst *Instance) hasExpandableNode(sourceIndex int) bool {
+	if inst.hasExpandedContent(sourceIndex) {
+		return true
+	}
+	if inst.hasTreeData() {
+		for childIndex, parentIndex := range inst.treeParents {
+			if childIndex >= 0 && parentIndex == sourceIndex {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func (inst *Instance) isExpanded(sourceIndex int) bool {
+	for _, expandedIndex := range inst.expandedIndices {
+		if expandedIndex == sourceIndex {
+			return true
+		}
+	}
+	return false
+}
+
+func (inst *Instance) expandMarker(sourceIndex int) string {
+	if !inst.hasExpandableNode(sourceIndex) {
+		return " "
+	}
+	if inst.isExpanded(sourceIndex) {
+		return "v"
+	}
+	return ">"
+}
+
+func (inst *Instance) expandedLinePrefix() string {
+	segments := make([]string, 0, 2)
+	if inst.hasExpandableRows() {
+		segments = append(segments, strings.Repeat(" ", expandColumnWidth))
+	}
+	if inst.selectionMode != SelectionNone {
+		segments = append(segments, strings.Repeat(" ", selectionColumnWidth))
+	}
+	if len(segments) == 0 {
+		return "  "
+	}
+	return strings.Join(segments, " │ ") + " │ "
+}
+
+func (inst *Instance) expandedLineCount(rows []rowView) int {
+	count := 0
+	for _, row := range rows {
+		if inst.isExpanded(row.sourceIndex) && inst.hasExpandedContent(row.sourceIndex) {
+			count++
+		}
+	}
+	return count
+}
+
+func (inst *Instance) rowsWithinLineBudget(rows []rowView, lineBudget int) []rowView {
+	if lineBudget < 0 || len(rows) == 0 {
+		return rows
+	}
+	used := 0
+	rendered := make([]rowView, 0, len(rows))
+	for _, row := range rows {
+		rowLines := 1
+		if inst.isExpanded(row.sourceIndex) && inst.hasExpandedContent(row.sourceIndex) {
+			rowLines++
+		}
+		if used+rowLines > lineBudget {
+			break
+		}
+		rendered = append(rendered, row)
+		used += rowLines
+	}
+	return rendered
 }
 
 func (inst *Instance) shouldShowFooter(view tableView) bool {
@@ -1021,7 +1653,7 @@ func (inst *Instance) handleClick(act *action.Action) bool {
 		if inst.selectionHeaderHit(mouseMsg.LocalX) {
 			return inst.selectAllFilteredRows()
 		}
-		columnIndex, hit := inst.columnAtLocalX(mouseMsg.LocalX, widths)
+		columnIndex, hit := inst.columnAtLocalX(mouseMsg.LocalX, widths, view)
 		if !hit {
 			return false
 		}
@@ -1031,13 +1663,20 @@ func (inst *Instance) handleClick(act *action.Action) bool {
 		return inst.columns[columnIndex].Sortable
 	}
 
-	rowIndex, hit := inst.rowIndexAtLocalY(mouseMsg.LocalY, view)
+	rowIndex, onExpandedLine, hit := inst.rowIndexAtLocalY(mouseMsg.LocalY, view)
 	if !hit {
 		return false
 	}
 	inst.selectIndex(rowIndex)
-	if inst.selectionMode != SelectionNone && rowIndex >= 0 && rowIndex < len(view.rows) {
-		inst.applySelectionAtSourceIndex(view.rows[rowIndex].sourceIndex)
+	if rowIndex < 0 || rowIndex >= len(view.rows) {
+		return false
+	}
+	sourceIndex := view.rows[rowIndex].sourceIndex
+	if !onExpandedLine && inst.expandCellHit(mouseMsg.LocalX) && inst.hasExpandableNode(sourceIndex) {
+		return inst.toggleExpandAtSourceIndex(sourceIndex)
+	}
+	if inst.selectionMode != SelectionNone {
+		inst.applySelectionAtSourceIndex(sourceIndex)
 	}
 	return true
 }
@@ -1060,12 +1699,25 @@ func (inst *Instance) dataStartLocalY() int {
 	return start
 }
 
-func (inst *Instance) rowIndexAtLocalY(localY int, view tableView) (int, bool) {
+func (inst *Instance) rowIndexAtLocalY(localY int, view tableView) (int, bool, bool) {
 	relative := localY - inst.dataStartLocalY()
-	if relative < 0 || relative >= len(view.pageRows) {
-		return -1, false
+	if relative < 0 {
+		return -1, false, false
 	}
-	return view.start + relative, true
+	line := 0
+	for rowOffset, row := range view.pageRows {
+		if relative == line {
+			return view.start + rowOffset, false, true
+		}
+		line++
+		if inst.isExpanded(row.sourceIndex) && inst.hasExpandedContent(row.sourceIndex) {
+			if relative == line {
+				return view.start + rowOffset, true, true
+			}
+			line++
+		}
+	}
+	return -1, false, false
 }
 
 func (inst *Instance) selectionHeaderHit(localX int) bool {
@@ -1076,7 +1728,28 @@ func (inst *Instance) selectionHeaderHit(localX int) bool {
 	if !ok {
 		return false
 	}
+	if inst.hasExpandableRows() {
+		if contentX < expandColumnWidth {
+			return false
+		}
+		contentX -= expandColumnWidth
+		if contentX < 3 {
+			return false
+		}
+		contentX -= 3
+	}
 	return contentX >= 0 && contentX < selectionColumnWidth
+}
+
+func (inst *Instance) expandCellHit(localX int) bool {
+	if !inst.hasExpandableRows() {
+		return false
+	}
+	contentX, ok := inst.contentLocalX(localX)
+	if !ok {
+		return false
+	}
+	return contentX >= 0 && contentX < expandColumnWidth
 }
 
 func (inst *Instance) effectiveCurrentPage() int {
@@ -1087,6 +1760,9 @@ func (inst *Instance) effectiveCurrentPage() int {
 }
 
 func (inst *Instance) effectiveSortState() (int, bool) {
+	if inst.hasTreeData() {
+		return -1, false
+	}
 	if inst.sortControlled && inst.hasPendingSort {
 		return inst.pendingSortColumn, inst.pendingSortDescending
 	}
@@ -1107,14 +1783,22 @@ func (inst *Instance) reconcilePendingState(oldCurrentPage, oldSortColumn int, o
 	}
 }
 
-func (inst *Instance) columnAtLocalX(localX int, widths []int) (int, bool) {
+func (inst *Instance) columnAtLocalX(localX int, widths []int, view tableView) (int, bool) {
 	contentX, ok := inst.contentLocalX(localX)
 	if !ok {
 		return -1, false
 	}
 	localX = contentX
 
-	if inst.showBorder {
+	if inst.hasExpandableRows() {
+		if localX < expandColumnWidth {
+			return -1, false
+		}
+		localX -= expandColumnWidth
+		if localX < 3 {
+			return -1, false
+		}
+		localX -= 3
 	}
 
 	if inst.selectionMode != SelectionNone {
@@ -1126,6 +1810,21 @@ func (inst *Instance) columnAtLocalX(localX int, widths []int) (int, bool) {
 			return -1, false
 		}
 		localX -= 3
+	}
+
+	if inst.hasFixedColumns() {
+		viewportWidth := inst.maxInnerPaintWidth()
+		if viewportWidth > 0 && inst.showScrollbar {
+			viewportWidth = maxInt(1, viewportWidth-scrollbarReservedWidth)
+		}
+		_, spans, maxOffset := inst.composeFixedViewportLine(inst.lineSegmentsForHeader(widths, view), viewportWidth, inst.horizontalOffset)
+		inst.horizontalOffset = clampInt(inst.horizontalOffset, 0, maxOffset)
+		for _, span := range spans {
+			if span.columnIndex >= 0 && localX >= span.start && localX < span.end {
+				return span.columnIndex, true
+			}
+		}
+		return -1, false
 	}
 
 	position := 0
@@ -1142,6 +1841,29 @@ func (inst *Instance) columnAtLocalX(localX int, widths []int) (int, bool) {
 		}
 	}
 	return -1, false
+}
+
+func (inst *Instance) scrollHorizontal(delta int) bool {
+	if delta == 0 || !inst.hasFixedColumns() {
+		return false
+	}
+	view := inst.processedView()
+	widths, _ := inst.calculateColumnWidths(view.rows, inst.maxInnerPaintWidth())
+	viewportWidth := inst.maxInnerPaintWidth()
+	if viewportWidth > 0 && inst.showScrollbar {
+		viewportWidth = maxInt(1, viewportWidth-scrollbarReservedWidth)
+	}
+	_, _, maxOffset := inst.composeFixedViewportLine(inst.lineSegmentsForHeader(widths, view), viewportWidth, inst.horizontalOffset)
+	if maxOffset <= 0 {
+		return false
+	}
+	nextOffset := clampInt(inst.horizontalOffset+delta, 0, maxOffset)
+	if nextOffset == inst.horizontalOffset {
+		return false
+	}
+	inst.horizontalOffset = nextOffset
+	inst.dirty = true
+	return true
 }
 
 func (inst *Instance) contentLocalX(localX int) (int, bool) {
@@ -1166,6 +1888,9 @@ func (inst *Instance) nextSortState(columnIndex int) (int, bool) {
 }
 
 func (inst *Instance) toggleSort(columnIndex int) bool {
+	if inst.hasTreeData() {
+		return false
+	}
 	if columnIndex < 0 || columnIndex >= len(inst.columns) {
 		return false
 	}
@@ -1328,6 +2053,7 @@ func (inst *Instance) emitStateSnapshot(selectedIndex, currentPage, sortColumn i
 			inst.componentID,
 			selectedIndex,
 			selectedSourceIndex,
+			inst.expandedIndices,
 			clampedPage,
 			pageCount,
 			inst.pageSize,
@@ -1430,6 +2156,22 @@ func (inst *Instance) clearCheckedSelection() bool {
 	return true
 }
 
+func (inst *Instance) toggleExpandAtSourceIndex(sourceIndex int) bool {
+	if !inst.hasExpandableNode(sourceIndex) {
+		return false
+	}
+
+	if inst.isExpanded(sourceIndex) {
+		inst.expandedIndices = removeInt(inst.expandedIndices, sourceIndex)
+	} else {
+		inst.expandedIndices = append(inst.expandedIndices, sourceIndex)
+	}
+	inst.normalizeExpandedIndices()
+	inst.dirty = true
+	inst.emitExpandedStateChanged()
+	return true
+}
+
 func (inst *Instance) applySelectionAtSourceIndex(sourceIndex int) bool {
 	if inst.selectionMode == SelectionNone || sourceIndex < 0 || sourceIndex >= len(inst.rows) {
 		return false
@@ -1474,6 +2216,23 @@ func (inst *Instance) emitCheckedSelectionChanged() {
 	}
 }
 
+func (inst *Instance) emitExpandedStateChanged() {
+	if inst.intentEmitter == nil {
+		return
+	}
+	inst.emitStateChanged()
+	if inst.expandIntentField != nil {
+		inst.intentEmitter(intent.FieldChangeIntent{
+			Field: inst.expandIntentField.GetField(),
+			Value: inst.expandedSelectionValue(),
+		})
+		return
+	}
+	if inst.expandIntent != nil {
+		inst.intentEmitter(inst.expandIntent)
+	}
+}
+
 func (inst *Instance) checkedSelectionValue() string {
 	if len(inst.checkedIndices) == 0 {
 		return ""
@@ -1484,6 +2243,17 @@ func (inst *Instance) checkedSelectionValue() string {
 	}
 	if inst.selectionMode == SelectionSingle {
 		return parts[0]
+	}
+	return strings.Join(parts, ",")
+}
+
+func (inst *Instance) expandedSelectionValue() string {
+	if len(inst.expandedIndices) == 0 {
+		return ""
+	}
+	parts := make([]string, len(inst.expandedIndices))
+	for index, value := range inst.expandedIndices {
+		parts[index] = strconv.Itoa(value)
 	}
 	return strings.Join(parts, ",")
 }
@@ -1526,6 +2296,30 @@ func (inst *Instance) normalizeCheckedIndices() {
 		normalized = normalized[:1]
 	}
 	inst.checkedIndices = normalized
+}
+
+func (inst *Instance) normalizeExpandedIndices() {
+	if len(inst.expandedContent) == 0 && !inst.hasTreeData() {
+		inst.expandedIndices = nil
+		return
+	}
+	normalized := make([]int, 0, len(inst.expandedIndices))
+	seen := make(map[int]struct{}, len(inst.expandedIndices))
+	for _, expandedIndex := range inst.expandedIndices {
+		if expandedIndex < 0 || expandedIndex >= len(inst.rows) {
+			continue
+		}
+		if !inst.hasExpandableNode(expandedIndex) {
+			continue
+		}
+		if _, exists := seen[expandedIndex]; exists {
+			continue
+		}
+		seen[expandedIndex] = struct{}{}
+		normalized = append(normalized, expandedIndex)
+	}
+	sort.Ints(normalized)
+	inst.expandedIndices = normalized
 }
 
 func (inst *Instance) selectedSourceIndex(rows []rowView) int {
@@ -1601,6 +2395,28 @@ func getFiltersProp(props rtui.Props, def map[int]string) map[int]string {
 	return cloneFilters(def)
 }
 
+func getExpandedContentProp(props rtui.Props, def map[int]string) map[int]string {
+	value, ok := props[propExpandedContent]
+	if !ok {
+		return cloneFilters(def)
+	}
+	if content, ok := value.(map[int]string); ok {
+		return cloneFilters(content)
+	}
+	return cloneFilters(def)
+}
+
+func getTreeParentsProp(props rtui.Props, def map[int]int) map[int]int {
+	value, ok := props[propTreeParents]
+	if !ok {
+		return cloneIntMap(def)
+	}
+	if parents, ok := value.(map[int]int); ok {
+		return cloneIntMap(parents)
+	}
+	return cloneIntMap(def)
+}
+
 func getIntsProp(props rtui.Props, key string, def []int) []int {
 	if value, ok := props[key]; ok {
 		if ints, ok := value.([]int); ok {
@@ -1640,6 +2456,11 @@ func columnsEqual(left, right []TableColumn) bool {
 	for index := range left {
 		if left[index].Title != right[index].Title ||
 			left[index].Width != right[index].Width ||
+			left[index].WidthPercent != right[index].WidthPercent ||
+			left[index].MinWidth != right[index].MinWidth ||
+			left[index].MaxWidth != right[index].MaxWidth ||
+			left[index].FixedLeft != right[index].FixedLeft ||
+			left[index].FixedRight != right[index].FixedRight ||
 			left[index].Sortable != right[index].Sortable ||
 			left[index].Align != right[index].Align {
 			return false
@@ -1678,6 +2499,18 @@ func equalInts(left, right []int) bool {
 }
 
 func equalFilters(left, right map[int]string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for key, leftValue := range left {
+		if rightValue, ok := right[key]; !ok || rightValue != leftValue {
+			return false
+		}
+	}
+	return true
+}
+
+func equalIntMaps(left, right map[int]int) bool {
 	if len(left) != len(right) {
 		return false
 	}
@@ -1792,6 +2625,10 @@ func padCenterToWidth(text string, width int) string {
 }
 
 func shrinkWidthsToFit(widths []int, target int) []int {
+	return shrinkWidthsToFitWithBounds(widths, nil, target)
+}
+
+func shrinkWidthsToFitWithBounds(widths []int, columns []TableColumn, target int) []int {
 	if target <= 0 {
 		shrunk := make([]int, len(widths))
 		for index := range shrunk {
@@ -1808,7 +2645,11 @@ func shrinkWidthsToFit(widths []int, target int) []int {
 	for current > target {
 		largestIndex := -1
 		for index, width := range shrunk {
-			if width <= 1 {
+			minWidth := 1
+			if columns != nil && index < len(columns) && columns[index].MinWidth > 0 {
+				minWidth = maxInt(minWidth, columns[index].MinWidth)
+			}
+			if width <= minWidth {
 				continue
 			}
 			if largestIndex == -1 || width > shrunk[largestIndex] {

@@ -166,6 +166,68 @@ func TestFormItemResolvesAncestorFormWithoutRegistry(t *testing.T) {
 	}
 }
 
+func TestFormItemHidesUntouchedErrorsUntilSubmit(t *testing.T) {
+	ResetRegistry()
+	defer ResetRegistry()
+
+	formInst := NewInstance(rtui.Props{
+		"key":    "profileForm",
+		"layout": LayoutVertical,
+		"values": map[string]interface{}{
+			"email": "",
+		},
+	})
+	RegisterForm("profileForm", formInst)
+	defer UnregisterForm("profileForm")
+
+	ctx := rtui.NewComponentContext("FormItem")
+	updateCount := 0
+	ctx.SetScheduleUpdate(func() {
+		updateCount++
+	})
+
+	rtui.SetCurrentContext(ctx)
+	defer rtui.SetCurrentContext(nil)
+
+	child := rtui.NewElement("field").SetProps(rtui.Props{"key": "email-field"})
+	item := NewItem("email", child).
+		Label("Email").
+		ForForm("profileForm").
+		Validators(validation.Required(), validation.Email()).
+		Build()
+
+	first := renderFormItem(item.Props())
+	if err := ctx.FinishRender(); err != nil {
+		t.Fatalf("finish render failed: %v", err)
+	}
+
+	if renderedText := strings.Join(collectText(first), "\n"); strings.Contains(renderedText, "请输入有效的邮箱地址") || strings.Contains(renderedText, "必填") {
+		t.Fatalf("expected untouched field errors to stay hidden on first render, got %q", renderedText)
+	}
+	updateCount = 0
+
+	formInst.HandleIntent(Submit("profileForm", nil))
+	if updateCount == 0 {
+		t.Fatal("expected submit-driven validate-all to schedule an update")
+	}
+
+	ctx.ResetContext()
+	second := renderFormItem(item.Props())
+	if err := ctx.FinishRender(); err != nil {
+		t.Fatalf("finish render after submit failed: %v", err)
+	}
+
+	renderedText := strings.Join(collectText(second), "\n")
+	if !strings.Contains(renderedText, "Email") {
+		t.Fatalf("expected rendered label after submit, got %q", renderedText)
+	}
+	if !strings.Contains(renderedText, "此字段为必填项") {
+		t.Fatalf("expected submit to reveal required validation error, got %q", renderedText)
+	}
+
+	ctx.CleanupAll()
+}
+
 func collectText(node rtui.VNode) []string {
 	if node == nil {
 		return nil

@@ -26,6 +26,7 @@ import (
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 
 	"github.com/wwsheng009/mint/ui/components/absolute"
+	"github.com/wwsheng009/mint/ui/components/breadcrumb"
 	"github.com/wwsheng009/mint/ui/components/button"
 	"github.com/wwsheng009/mint/ui/components/checkbox"
 	"github.com/wwsheng009/mint/ui/components/divider"
@@ -167,6 +168,11 @@ func NewVirtualListBuilder() *virtuallist.Builder {
 func NewTabsBuilder() *tabs.Builder {
 	return tabs.NewBuilder()
 }
+
+func NewBreadcrumbBuilder() *breadcrumb.Builder {
+	return breadcrumb.NewBuilder()
+}
+
 func NewSelectBuilder() *selectcomp.Builder {
 	return selectcomp.NewBuilder()
 }
@@ -289,6 +295,7 @@ type Anchor = absolute.Anchor
 // Tab Types
 type TabPosition = tabs.TabPosition
 type TabItem = tabs.TabItem
+type BreadcrumbItem = breadcrumb.Item
 
 const (
 	TabPositionTop    = tabs.TabPositionTop
@@ -342,6 +349,11 @@ const (
 // NewSelectOption creates a new select option with value and label
 func NewSelectOption(value, label string) selectcomp.Option {
 	return selectcomp.Option{Value: value, Label: label}
+}
+
+// NewBreadcrumbItem creates a breadcrumb item with the given label.
+func NewBreadcrumbItem(label string) breadcrumb.Item {
+	return breadcrumb.Crumb(label)
 }
 
 // NewRadioOption creates a new radio option with value and label.
@@ -737,6 +749,11 @@ func Tabs(tabItems []tabs.TabItem) rtui.VNode {
 	return tabs.Of(tabItems)
 }
 
+// Breadcrumb creates a breadcrumb component from the provided items.
+func Breadcrumb(items []breadcrumb.Item) rtui.VNode {
+	return breadcrumb.Of(items)
+}
+
 // =============================================================================
 // Divider shortcuts
 // =============================================================================
@@ -785,12 +802,32 @@ func ModalTitled(title string, content rtui.VNode) rtui.VNode {
 
 // ModalAlert creates an alert modal dialog
 func ModalAlert(title, message string) rtui.VNode {
-	return modal.Alert(title, message)
+	return modal.Alert(title, message).Build()
 }
 
 // ModalConfirm creates a confirm modal dialog
 func ModalConfirm(title, message string) rtui.VNode {
-	return modal.Confirm(title, message)
+	return modal.Confirm(title, message).Build()
+}
+
+// ModalInfo creates an informational modal dialog.
+func ModalInfo(message string) rtui.VNode {
+	return modal.Info(message).Build()
+}
+
+// ModalSuccess creates a success modal dialog.
+func ModalSuccess(message string) rtui.VNode {
+	return modal.Success(message).Build()
+}
+
+// ModalWarning creates a warning modal dialog.
+func ModalWarning(message string) rtui.VNode {
+	return modal.Warning(message).Build()
+}
+
+// ModalError creates an error modal dialog.
+func ModalError(message string) rtui.VNode {
+	return modal.Error(message).Build()
 }
 
 // =============================================================================

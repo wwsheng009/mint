@@ -20,7 +20,7 @@ func TestMain(m *testing.M) {
 func TestFormContext_Registration(t *testing.T) {
 	t.Run("Register and unregister form", func(t *testing.T) {
 		props := rtui.Props{
-			"key":  "test-form-reg",
+			"key":   "test-form-reg",
 			"label": "Test Form",
 		}
 		inst := NewInstance(props)
@@ -49,11 +49,11 @@ func TestFormContext_Registration(t *testing.T) {
 
 	t.Run("Multiple forms can coexist", func(t *testing.T) {
 		form1Props := rtui.Props{
-			"key": "form-1",
+			"key":   "form-1",
 			"label": "Form 1",
 		}
 		form2Props := rtui.Props{
-			"key": "form-2",
+			"key":   "form-2",
 			"label": "Form 2",
 		}
 
@@ -98,7 +98,7 @@ func TestFormContext_Registration(t *testing.T) {
 func TestFormContext_GetFormContext(t *testing.T) {
 	t.Run("GetFormContext returns valid context", func(t *testing.T) {
 		props := rtui.Props{
-			"key":  "test-form-ctx",
+			"key":   "test-form-ctx",
 			"label": "Test Form",
 			"values": map[string]interface{}{
 				"username": "initial_user",
@@ -130,6 +130,12 @@ func TestFormContext_GetFormContext(t *testing.T) {
 		newValue, exists := ctx.GetValue("username")
 		if !exists || newValue != "new_user" {
 			t.Error("SetValue should update the value")
+		}
+		if !ctx.IsFieldDirty("username") {
+			t.Error("IsFieldDirty should return true after field value changes")
+		}
+		if ctx.IsFieldTouched("username") {
+			t.Error("IsFieldTouched should remain false until blur/visit is recorded")
 		}
 
 		// Test GetValues
@@ -165,11 +171,58 @@ func TestFormContext_GetFormContext(t *testing.T) {
 	})
 }
 
+func TestFormContext_FieldState(t *testing.T) {
+	props := rtui.Props{
+		"key": "test-form-field-state",
+		"values": map[string]interface{}{
+			"email": "initial@example.com",
+		},
+	}
+	inst := NewInstance(props)
+
+	inst.OnMount()
+	defer inst.OnUnmount()
+
+	ctx := GetFormContext("test-form-field-state")
+	if ctx == nil {
+		t.Fatal("expected non-nil form context")
+	}
+
+	if ctx.IsFieldTouched("email") {
+		t.Fatal("expected field to start untouched")
+	}
+	if ctx.IsFieldDirty("email") {
+		t.Fatal("expected field to start clean")
+	}
+
+	inst.HandleIntent(FormFieldBlurIntent{
+		FormID: "test-form-field-state",
+		Field:  "email",
+		Value:  "initial@example.com",
+	})
+	if !ctx.IsFieldTouched("email") {
+		t.Fatal("expected blur to mark field touched")
+	}
+	if ctx.IsFieldDirty("email") {
+		t.Fatal("expected unchanged blur value to keep field clean")
+	}
+
+	inst.HandleIntent(FormFieldChangeIntent{
+		FormID:  "test-form-field-state",
+		Field:   "email",
+		Value:   "changed@example.com",
+		IsDirty: true,
+	})
+	if !ctx.IsFieldDirty("email") {
+		t.Fatal("expected changed value to mark field dirty")
+	}
+}
+
 // TestFormContext_SetValue tests SetValue through context.
 func TestFormContext_SetValue(t *testing.T) {
 	t.Run("SetValue updates form values", func(t *testing.T) {
 		props := rtui.Props{
-			"key": "test-form-setvalue",
+			"key":   "test-form-setvalue",
 			"label": "Test Form",
 			"values": map[string]interface{}{
 				"field1": "value1",
@@ -200,7 +253,7 @@ func TestFormContext_SetValue(t *testing.T) {
 
 	t.Run("SetValues updates multiple values", func(t *testing.T) {
 		props := rtui.Props{
-			"key": "test-form-setvalues",
+			"key":   "test-form-setvalues",
 			"label": "Test Form",
 			"values": map[string]interface{}{
 				"a": 1,
@@ -236,7 +289,7 @@ func TestFormContext_SetValue(t *testing.T) {
 func TestFormContext_Errors(t *testing.T) {
 	t.Run("GetError and GetErrors", func(t *testing.T) {
 		props := rtui.Props{
-			"key":  "test-form-errors",
+			"key":   "test-form-errors",
 			"label": "Test Form",
 		}
 		inst := NewInstance(props)

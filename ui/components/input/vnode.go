@@ -18,6 +18,8 @@ import (
 const (
 	propAddonAfter    = "addonAfter"
 	propAddonBefore   = "addonBefore"
+	propAllowDecimal  = "allowDecimal"
+	propAllowNegative = "allowNegative"
 	propBorderStyle   = "borderStyle"
 	propChangeIntent  = "changeIntent"
 	propCursorConfig  = "cursorConfig"
@@ -89,6 +91,8 @@ type VNode struct {
 	disabled      bool
 	readOnly      bool
 	searchVariant bool
+	allowNegative bool
+	allowDecimal  bool
 	cursorConfig  cursor.Config
 
 	// === Box Model (via interface) ===
@@ -109,10 +113,12 @@ var (
 // New creates a new Input VNode.
 func New() *VNode {
 	return &VNode{
-		ElementVNode: rtui.NewElement("input"),
-		inputType:    TypeText,
-		borderStyle:  layout.BorderSingle, // Default border
-		cursorConfig: cursor.DefaultConfig(),
+		ElementVNode:  rtui.NewElement("input"),
+		inputType:     TypeText,
+		borderStyle:   layout.BorderSingle, // Default border
+		allowNegative: true,
+		allowDecimal:  true,
+		cursorConfig:  cursor.DefaultConfig(),
 	}
 }
 
@@ -180,6 +186,8 @@ func (i *VNode) Props() rtui.Props {
 		propStyle:         i.style,
 		propWidth:         i.width,
 		propBorderStyle:   i.borderStyle,
+		propAllowNegative: i.allowNegative,
+		propAllowDecimal:  i.allowDecimal,
 		propChangeIntent:  i.changeIntent,
 		propSubmitIntent:  i.submitIntent,
 		propFormID:        i.formID,
@@ -223,6 +231,12 @@ func (i *VNode) SetProps(p rtui.Props) rtui.VNode {
 	}
 	if v, ok := p[propBorderStyle].(layout.BorderStyle); ok {
 		i.borderStyle = v
+	}
+	if v, ok := p[propAllowNegative].(bool); ok {
+		i.allowNegative = v
+	}
+	if v, ok := p[propAllowDecimal].(bool); ok {
+		i.allowDecimal = v
 	}
 	if v, ok := p[propChangeIntent].(intent.Intent); ok {
 		i.changeIntent = v
@@ -271,6 +285,8 @@ func (i *VNode) CreateInstance() rtui.ComponentInstance {
 		propStyle:         i.style,
 		propWidth:         i.width,
 		propBorderStyle:   i.borderStyle,
+		propAllowNegative: i.allowNegative,
+		propAllowDecimal:  i.allowDecimal,
 		propChangeIntent:  i.changeIntent,
 		propSubmitIntent:  i.submitIntent,
 		propFormID:        i.formID,
@@ -360,6 +376,18 @@ func (i *VNode) SetSearchVariant(enabled bool) *VNode {
 	if enabled && i.inputType == TypePassword {
 		i.inputType = TypeText
 	}
+	return i
+}
+
+// SetAllowNegative configures whether TypeNumber accepts a leading minus sign.
+func (i *VNode) SetAllowNegative(allow bool) *VNode {
+	i.allowNegative = allow
+	return i
+}
+
+// SetAllowDecimal configures whether TypeNumber accepts a decimal point.
+func (i *VNode) SetAllowDecimal(allow bool) *VNode {
+	i.allowDecimal = allow
 	return i
 }
 
@@ -511,6 +539,16 @@ func (i *VNode) ReadOnly() bool {
 // SearchVariant reports whether the Search input variant is enabled.
 func (i *VNode) SearchVariant() bool {
 	return i.searchVariant
+}
+
+// AllowNegative reports whether TypeNumber accepts a leading minus sign.
+func (i *VNode) AllowNegative() bool {
+	return i.allowNegative
+}
+
+// AllowDecimal reports whether TypeNumber accepts a decimal point.
+func (i *VNode) AllowDecimal() bool {
+	return i.allowDecimal
 }
 
 // Width returns the explicit width.

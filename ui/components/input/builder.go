@@ -56,6 +56,18 @@ func (b *Builder) Type(t Type) *Builder {
 	return b
 }
 
+// AllowNegative configures whether TypeNumber accepts a leading minus sign.
+func (b *Builder) AllowNegative(v bool) *Builder {
+	b.node.SetAllowNegative(v)
+	return b
+}
+
+// AllowDecimal configures whether TypeNumber accepts a decimal point.
+func (b *Builder) AllowDecimal(v bool) *Builder {
+	b.node.SetAllowDecimal(v)
+	return b
+}
+
 // Prefix sets the inner prefix text rendered before the editable value.
 func (b *Builder) Prefix(text string) *Builder {
 	b.node.SetPrefix(text)

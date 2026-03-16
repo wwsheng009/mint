@@ -13,7 +13,6 @@ import (
 	"github.com/wwsheng009/mint/ui/components/internal/proputil"
 )
 
-
 // =============================================================================
 // Instance - Runtime Entity
 // =============================================================================
@@ -37,41 +36,43 @@ type Instance struct {
 	componentID string // Component ID for Intent routing (Phase 10)
 
 	// === Props (from VNode, may change each render) ===
-	nodes                   []TreeNode
-	expandLevel             int
-	showIcons               bool
-	showLineNums            bool
-	compact                 bool
-	showBorder              bool
-	showScrollbar           bool
-	treeStyle               style.Style
-	selectedStyle           style.Style
-	iconStyle               style.Style
-	scrollbarStyle          style.Style
-	rowStyleFn              func(int, TreeNode) style.Style
-	matchStyle              style.Style
-	searchQuery             string
-	searchQueryControlled   bool
-	searchFn                func(TreeNode, string) bool
-	selectionMode           SelectionMode
-	checkedKeys             map[string]bool
-	checkedKeysControlled   bool
-	selectionIntent         intent.Intent
-	selectionIntentField    intent.FieldIntent
-	lazyLoadFn              func(TreeNode)
-	lazyLoadChildrenFn      func(TreeNode) []TreeNode
-	showSearchStats         bool
-	searchStatsStyle        style.Style
-	scrollOffset            int
-	scrollOffsetControlled  bool
-	selectedIndex           int
-	selectedIndexControlled bool
-	viewportHeight          int
-	expandedKeys                map[string]bool
-	expandedKeysControlled     bool
-	lastExternalExpandedKeys   map[string]bool
-	allowScroll             bool
-	allowExpand             bool
+	nodes                    []TreeNode
+	expandLevel              int
+	showIcons                bool
+	showLineNums             bool
+	compact                  bool
+	showBorder               bool
+	showScrollbar            bool
+	treeStyle                style.Style
+	selectedStyle            style.Style
+	iconStyle                style.Style
+	scrollbarStyle           style.Style
+	rowStyleFn               func(int, TreeNode) style.Style
+	matchStyle               style.Style
+	searchQuery              string
+	searchQueryControlled    bool
+	searchFn                 func(TreeNode, string) bool
+	selectionMode            SelectionMode
+	checkedKeys              map[string]bool
+	checkedKeysControlled    bool
+	selectionIntent          intent.Intent
+	selectionIntentField     intent.FieldIntent
+	reorderIntent            intent.Intent
+	lazyLoadFn               func(TreeNode)
+	lazyLoadChildrenFn       func(TreeNode) []TreeNode
+	showSearchStats          bool
+	searchStatsStyle         style.Style
+	scrollOffset             int
+	scrollOffsetControlled   bool
+	selectedIndex            int
+	selectedIndexControlled  bool
+	viewportHeight           int
+	expandedKeys             map[string]bool
+	expandedKeysControlled   bool
+	lastExternalExpandedKeys map[string]bool
+	allowScroll              bool
+	allowExpand              bool
+	reorderable              bool
 
 	// === Runtime State ===
 	focused                  bool
@@ -93,6 +94,13 @@ type Instance struct {
 	autoSelectMatch          bool
 	searchQueryInitialized   bool
 	selectionAnchorKey       string
+	dragging                 bool
+	dragMoved                bool
+	dragSourceKey            string
+	dragSourceParentKey      string
+	dragSourceNodeIndex      int
+	dragSourceVisibleIndex   int
+	dragPendingSelect        bool
 
 	// === Intent Support (Phase 10) ===
 	intentEmitter func(intent.Intent) // Intent emitter for bubbling
@@ -139,6 +147,7 @@ func NewInstance(props rtui.Props) *Instance {
 		checkedKeysControlled:   proputil.GetBool(props, "checkedKeysControlled", false),
 		selectionIntent:         proputil.GetIntent(props, "selectionIntent", nil),
 		selectionIntentField:    getFieldIntentProp(props, "selectionIntentField"),
+		reorderIntent:           proputil.GetIntent(props, propReorderIntent, nil),
 		lazyLoadFn:              getLazyLoadFn(props),
 		lazyLoadChildrenFn:      getLazyLoadChildrenFn(props),
 		showSearchStats:         proputil.GetBool(props, "showSearchStats", false),
@@ -152,6 +161,7 @@ func NewInstance(props rtui.Props) *Instance {
 		expandedKeysControlled:  proputil.GetBool(props, "expandedKeysControlled", false),
 		allowScroll:             proputil.GetBool(props, "allowScroll", true),
 		allowExpand:             proputil.GetBool(props, "allowExpand", true),
+		reorderable:             proputil.GetBool(props, propReorderable, false),
 		expandState:             make(map[string]bool),
 		lazyRequested:           make(map[string]bool),
 		lazyInsertions:          make(map[string][]TreeNode),
@@ -324,6 +334,7 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	oldCheckedKeysControlled := inst.checkedKeysControlled
 	oldSelectionIntent := inst.selectionIntent
 	oldSelectionIntentField := inst.selectionIntentField
+	oldReorderIntent := inst.reorderIntent
 	oldLazyLoadFn := inst.lazyLoadFn
 	oldLazyLoadChildrenFn := inst.lazyLoadChildrenFn
 	oldSearchQueryControlled := inst.searchQueryControlled
@@ -338,6 +349,7 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	oldExpandedKeysControlled := inst.expandedKeysControlled
 	oldAllowScroll := inst.allowScroll
 	oldAllowExpand := inst.allowExpand
+	oldReorderable := inst.reorderable
 
 	inst.componentID = proputil.GetString(props, "componentID", inst.componentID)
 	inst.nodes = getNodesProp(props, inst.nodes)
@@ -375,6 +387,7 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	inst.selectionMode = getSelectionModeProp(props, "selectionMode", inst.selectionMode)
 	inst.selectionIntent = proputil.GetIntent(props, "selectionIntent", nil)
 	inst.selectionIntentField = getFieldIntentProp(props, "selectionIntentField")
+	inst.reorderIntent = proputil.GetIntent(props, propReorderIntent, inst.reorderIntent)
 	inst.showSearchStats = proputil.GetBool(props, "showSearchStats", inst.showSearchStats)
 	inst.searchStatsStyle = proputil.GetStyle(props, "searchStatsStyle", style.Style{})
 	if fn, ok := props[propLazyLoadFn].(func(TreeNode)); ok {
@@ -437,6 +450,7 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	}
 	inst.allowScroll = proputil.GetBool(props, "allowScroll", inst.allowScroll)
 	inst.allowExpand = proputil.GetBool(props, "allowExpand", inst.allowExpand)
+	inst.reorderable = proputil.GetBool(props, propReorderable, inst.reorderable)
 
 	lazyInserted := inst.reapplyLazyInsertions()
 	nodesChanged := !nodesEqual(oldNodes, inst.nodes) || lazyInserted
@@ -446,6 +460,9 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	searchChanged := oldSearchQuery != inst.searchQuery || !sameSearchFn(oldSearchFn, inst.searchFn)
 	if searchChanged && !inst.selectedIndexControlled {
 		inst.autoSelectMatch = true
+	}
+	if !inst.reorderable || nodesChanged || searchChanged {
+		inst.clearDragState()
 	}
 	if inst.expandedKeysControlled {
 		if nodesChanged || expandLevelChanged || externalExpandedKeysChanged {
@@ -480,6 +497,7 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 		checkedKeysChanged ||
 		!sameIntent(oldSelectionIntent, inst.selectionIntent) ||
 		!sameFieldIntent(oldSelectionIntentField, inst.selectionIntentField) ||
+		!sameIntent(oldReorderIntent, inst.reorderIntent) ||
 		!sameLazyLoadFn(oldLazyLoadFn, inst.lazyLoadFn) ||
 		!sameLazyLoadChildrenFn(oldLazyLoadChildrenFn, inst.lazyLoadChildrenFn) ||
 		oldSearchQueryControlled != inst.searchQueryControlled ||
@@ -492,7 +510,8 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 		oldViewportHeight != inst.viewportHeight ||
 		expandedKeysChanged ||
 		oldAllowScroll != inst.allowScroll ||
-		oldAllowExpand != inst.allowExpand
+		oldAllowExpand != inst.allowExpand ||
+		oldReorderable != inst.reorderable
 	if changed {
 		inst.dirty = true
 	}
@@ -517,6 +536,7 @@ func (inst *Instance) GetProps() rtui.Props {
 		propCheckedKeysControlled:   inst.checkedKeysControlled,
 		propSelectionIntent:         inst.selectionIntent,
 		propSelectionIntentField:    inst.selectionIntentField,
+		propReorderIntent:           inst.reorderIntent,
 		propLazyLoadFn:              inst.lazyLoadFn,
 		propLazyLoadChildrenFn:      inst.lazyLoadChildrenFn,
 		propShowSearchStats:         inst.showSearchStats,
@@ -529,6 +549,7 @@ func (inst *Instance) GetProps() rtui.Props {
 		propExpandedKeysControlled:  inst.expandedKeysControlled,
 		propAllowScroll:             inst.allowScroll,
 		propAllowExpand:             inst.allowExpand,
+		propReorderable:             inst.reorderable,
 	}
 	if inst.expandedKeysControlled {
 		props[propExpandedKeys] = cloneExpandedKeys(inst.expandedKeys)
@@ -586,7 +607,6 @@ func (inst *Instance) calculateHeight(visibleCount int) int {
 	}
 	return height
 }
-
 
 // =============================================================================
 // Bounds Support

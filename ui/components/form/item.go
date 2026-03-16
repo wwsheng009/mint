@@ -294,7 +294,7 @@ func resolveItemView(ctx *rtui.ComponentContext, model itemModel) (FormLayout, s
 			if layout == "" {
 				layout = formInst.Layout()
 			}
-			if err, ok := formInst.GetError(model.field); ok {
+			if err, ok := formInst.GetError(model.field); ok && formInst.ShouldShowError(model.field) {
 				errorText = err
 			}
 		}

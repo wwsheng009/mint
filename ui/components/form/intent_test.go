@@ -23,9 +23,9 @@ func TestFormInstance_HandleIntent_FieldChange(t *testing.T) {
 
 	// Act: Emit field change intent
 	changeIntent := FormFieldChangeIntent{
-		FormID: "testForm",
-		Field:  "username",
-		Value:  "johndoe",
+		FormID:  "testForm",
+		Field:   "username",
+		Value:   "johndoe",
 		IsDirty: true,
 	}
 	inst.HandleIntent(changeIntent)
@@ -79,6 +79,62 @@ func TestFormInstance_HandleIntent_FieldBlur(t *testing.T) {
 	// Assert: Form should be valid (placeholder validation)
 	if !inst.IsValid() {
 		t.Error("Expected form to be valid")
+	}
+
+	if !inst.IsFieldTouched("email") {
+		t.Error("Expected email field to be marked touched after blur")
+	}
+	if !inst.IsFieldDirty("email") {
+		t.Error("Expected email field to be marked dirty after blur")
+	}
+}
+
+func TestFormInstance_FieldStateTracking(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"key":    "profileForm",
+		"values": map[string]interface{}{"email": "initial@example.com"},
+	})
+
+	if inst.IsFieldTouched("email") {
+		t.Fatal("expected field to start untouched")
+	}
+	if inst.IsFieldDirty("email") {
+		t.Fatal("expected field to start clean")
+	}
+
+	inst.HandleIntent(FormFieldChangeIntent{
+		FormID:  "profileForm",
+		Field:   "email",
+		Value:   "edited@example.com",
+		IsDirty: true,
+	})
+
+	if inst.IsFieldTouched("email") {
+		t.Fatal("field change should not mark field touched")
+	}
+	if !inst.IsFieldDirty("email") {
+		t.Fatal("field change should mark field dirty when value differs from initial")
+	}
+
+	inst.HandleIntent(FormFieldBlurIntent{
+		FormID: "profileForm",
+		Field:  "email",
+		Value:  "edited@example.com",
+	})
+
+	if !inst.IsFieldTouched("email") {
+		t.Fatal("field blur should mark field touched")
+	}
+
+	inst.HandleIntent(FormFieldChangeIntent{
+		FormID:  "profileForm",
+		Field:   "email",
+		Value:   "initial@example.com",
+		IsDirty: true,
+	})
+
+	if inst.IsFieldDirty("email") {
+		t.Fatal("field should return to clean state when value matches initial value again")
 	}
 }
 
@@ -230,9 +286,9 @@ func TestFormInstance_HandleIntent_WrongForm(t *testing.T) {
 
 	// Act: Try to send form1 intent to form2
 	changeIntent := FormFieldChangeIntent{
-		FormID: "form1", // Wrong form ID for inst2
-		Field:  "username",
-		Value:  "test",
+		FormID:  "form1", // Wrong form ID for inst2
+		Field:   "username",
+		Value:   "test",
 		IsDirty: true,
 	}
 	handled := inst2.HandleIntent(changeIntent)
@@ -284,6 +340,80 @@ func TestFormInstance_GetSetValues(t *testing.T) {
 	}
 	if allValues["field1"] != "value1" || allValues["field2"] != "value2" || allValues["field3"] != "value3" {
 		t.Error("Values don't match expected")
+	}
+}
+
+func TestFormInstance_SetPropsSyncsValues(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"key":    "testForm",
+		"values": map[string]interface{}{"username": "initial"},
+	})
+
+	inst.HandleIntent(FormFieldChangeIntent{
+		FormID:  "testForm",
+		Field:   "username",
+		Value:   "edited",
+		IsDirty: true,
+	})
+	inst.HandleIntent(FormFieldBlurIntent{
+		FormID: "testForm",
+		Field:  "username",
+		Value:  "edited",
+	})
+
+	inst.mu.Lock()
+	inst.errors["username"] = "stale error"
+	inst.isValid = false
+	inst.mu.Unlock()
+
+	changed := inst.SetProps(rtui.Props{
+		"values": map[string]interface{}{
+			"username": "server",
+			"email":    "server@example.com",
+		},
+	})
+
+	if !changed {
+		t.Fatal("expected SetProps to report a values change")
+	}
+
+	values := inst.GetValues()
+	if len(values) != 2 {
+		t.Fatalf("expected 2 synced values, got %d", len(values))
+	}
+	if values["username"] != "server" || values["email"] != "server@example.com" {
+		t.Fatalf("unexpected synced values: %#v", values)
+	}
+	if !inst.IsValid() {
+		t.Fatal("expected prop-driven value sync to clear stale validation state")
+	}
+	if _, ok := inst.GetError("username"); ok {
+		t.Fatal("expected prop-driven value sync to clear stale field errors")
+	}
+	if inst.IsDirty() {
+		t.Fatal("expected prop-driven value sync to reset form dirty state")
+	}
+	if inst.IsFieldDirty("username") {
+		t.Fatal("expected prop-driven value sync to reset field dirty state")
+	}
+	if inst.IsFieldTouched("username") {
+		t.Fatal("expected prop-driven value sync to reset field touched state")
+	}
+
+	inst.HandleIntent(FormFieldChangeIntent{
+		FormID:  "testForm",
+		Field:   "username",
+		Value:   "edited-again",
+		IsDirty: true,
+	})
+	inst.HandleIntent(Reset("testForm"))
+
+	value, ok := inst.GetValue("username")
+	if !ok || value != "server" {
+		t.Fatalf("expected reset to use the latest synced initial value, got %v (exists=%v)", value, ok)
+	}
+	if inst.IsFieldDirty("username") || inst.IsFieldTouched("username") {
+		t.Fatal("expected reset to clear field state metadata")
 	}
 }
 
@@ -438,5 +568,37 @@ func TestFormIntents_Creation(t *testing.T) {
 	intent5 := Reset("testForm")
 	if intent5.IntentType() != "Form:Reset" {
 		t.Errorf("Expected intent type='Form:Reset', got '%s'", intent5.IntentType())
+	}
+}
+
+func TestFormBindings_Creation(t *testing.T) {
+	fieldBinding := BindField("username")
+	if fieldBinding.GetField() != "username" {
+		t.Fatalf("expected field binding to target username, got %q", fieldBinding.GetField())
+	}
+
+	formBinding := BindForm("loginForm")
+	if formBinding.GetFormID() != "loginForm" {
+		t.Fatalf("expected form binding to target loginForm, got %q", formBinding.GetFormID())
+	}
+}
+
+func TestFormInstance_HandleIntent_SubmitUsesIntentData(t *testing.T) {
+	inst := NewInstance(rtui.Props{"key": "paymentForm"})
+	inst.SetValue("amount", "100")
+	inst.SetValue("currency", "USD")
+
+	inst.HandleIntent(FormSubmitIntent{
+		FormID: "paymentForm",
+		Data: map[string]interface{}{
+			"amount":   "250",
+			"currency": "CNY",
+			"memo":     "updated by submit",
+		},
+	})
+
+	values := inst.GetValues()
+	if values["amount"] != "250" || values["currency"] != "CNY" || values["memo"] != "updated by submit" {
+		t.Fatalf("expected submit payload to be reflected in form values, got %#v", values)
 	}
 }

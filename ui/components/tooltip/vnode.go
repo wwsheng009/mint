@@ -13,12 +13,12 @@ import (
 
 // Prop key constants — shared by VNode and Instance to avoid magic strings.
 const (
-	propDelay = "delay"
-	propKey = "key"
-	propLayer = "layer"
+	propDelay    = "delay"
+	propKey      = "key"
+	propLayer    = "layer"
 	propPosition = "position"
-	propStyle = "style"
-	propText = "text"
+	propStyle    = "style"
+	propText     = "text"
 )
 
 // =============================================================================
@@ -29,11 +29,19 @@ const (
 type Position int
 
 const (
-	PositionTop    Position = iota // Tooltip appears above anchor
-	PositionBottom                 // Tooltip appears below anchor
-	PositionLeft                   // Tooltip appears to the left of anchor
-	PositionRight                  // Tooltip appears to the right of anchor
-	PositionAuto                   // Position is automatically determined
+	PositionTop         Position = iota // Tooltip appears above anchor
+	PositionTopLeft                     // Tooltip appears above anchor, left-aligned
+	PositionTopRight                    // Tooltip appears above anchor, right-aligned
+	PositionBottom                      // Tooltip appears below anchor
+	PositionBottomLeft                  // Tooltip appears below anchor, left-aligned
+	PositionBottomRight                 // Tooltip appears below anchor, right-aligned
+	PositionLeft                        // Tooltip appears to the left of anchor
+	PositionLeftTop                     // Tooltip appears to the left of anchor, top-aligned
+	PositionLeftBottom                  // Tooltip appears to the left of anchor, bottom-aligned
+	PositionRight                       // Tooltip appears to the right of anchor
+	PositionRightTop                    // Tooltip appears to the right of anchor, top-aligned
+	PositionRightBottom                 // Tooltip appears to the right of anchor, bottom-aligned
+	PositionAuto                        // Position is automatically determined
 )
 
 // =============================================================================
@@ -243,4 +251,3 @@ func (t *VNode) Delay() time.Duration {
 func (t *VNode) Content() rtui.VNode {
 	return t.content
 }
-

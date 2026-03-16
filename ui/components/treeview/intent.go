@@ -140,6 +140,40 @@ func (i NodeCollapseIntent) GetComponentID() string {
 	return i.ComponentID
 }
 
+// NodeReorderIntent is emitted when a node subtree is reordered among siblings.
+type NodeReorderIntent struct {
+	FromIndex        int
+	ToIndex          int
+	FromVisibleIndex int
+	ToVisibleIndex   int
+	Path             string
+	NodeID           int
+	NodeType         string
+	Content          string
+	ParentKey        string
+	ComponentID      string
+}
+
+func (i NodeReorderIntent) IntentType() string {
+	return "treeview.NodeReorderIntent"
+}
+
+func (i NodeReorderIntent) Priority() intent.ActionPriority {
+	return intent.PriorityNormal
+}
+
+func (i NodeReorderIntent) IsTransition() bool {
+	return false
+}
+
+func (i NodeReorderIntent) IsGlobal() bool {
+	return false
+}
+
+func (i NodeReorderIntent) GetComponentID() string {
+	return i.ComponentID
+}
+
 // NavigationIntent is emitted for navigation events (up/down/pageup/pagedown)
 // Useful for parent components or external controllers to monitor selection changes
 type NavigationIntent struct {
@@ -546,6 +580,28 @@ func NodeCollapseWithID(componentID string, nodeIndex int, path string, nodeID i
 		Path:        path,
 		NodeID:      nodeID,
 	}
+}
+
+// NodeReorder creates a NodeReorderIntent.
+func NodeReorder(fromIndex, toIndex, fromVisibleIndex, toVisibleIndex int, path string, nodeID int, nodeType, content, parentKey string) NodeReorderIntent {
+	return NodeReorderIntent{
+		FromIndex:        fromIndex,
+		ToIndex:          toIndex,
+		FromVisibleIndex: fromVisibleIndex,
+		ToVisibleIndex:   toVisibleIndex,
+		Path:             path,
+		NodeID:           nodeID,
+		NodeType:         nodeType,
+		Content:          content,
+		ParentKey:        parentKey,
+	}
+}
+
+// NodeReorderWithID creates a NodeReorderIntent with component ID.
+func NodeReorderWithID(componentID string, fromIndex, toIndex, fromVisibleIndex, toVisibleIndex int, path string, nodeID int, nodeType, content, parentKey string) NodeReorderIntent {
+	reorderIntent := NodeReorder(fromIndex, toIndex, fromVisibleIndex, toVisibleIndex, path, nodeID, nodeType, content, parentKey)
+	reorderIntent.ComponentID = componentID
+	return reorderIntent
 }
 
 // Navigation creates a NavigationIntent
