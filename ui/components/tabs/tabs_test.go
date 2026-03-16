@@ -14,6 +14,35 @@ import (
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
 
+func withTabsTestStyleGetter(t *testing.T, getter func(string, string) style.Style) {
+	t.Helper()
+
+	style.RegisterStyleGetter(func() func(string, string) style.Style {
+		return getter
+	})
+	t.Cleanup(func() {
+		style.RegisterStyleGetter(func() func(string, string) style.Style { return nil })
+	})
+}
+
+func withTabsTestTheme(t *testing.T, theme *fwtheme.Theme) {
+	t.Helper()
+
+	mgr := fwtheme.GlobalManager()
+	oldTheme := fwtheme.GetTheme()
+	mgr.Register(theme)
+	if err := mgr.Set(theme.Name); err != nil {
+		t.Fatalf("Set(%q) error = %v", theme.Name, err)
+	}
+
+	t.Cleanup(func() {
+		if oldTheme != nil {
+			_ = mgr.Set(oldTheme.Name)
+		}
+		mgr.Unregister(theme.Name)
+	})
+}
+
 // =============================================================================
 // VNode Tests
 // =============================================================================
@@ -546,6 +575,154 @@ func TestInstance_ResolveTabStyle_ActiveTabFallsBackToThemeSelectBackground(t *t
 	}
 	if active.FG != fwtheme.BG() {
 		t.Fatalf("Expected active tab fallback FG %s for contrast, got %s", fwtheme.BG(), active.FG)
+	}
+}
+
+func TestInstance_ResolveTabStyle_ReverseFallbackClearsCallerColors(t *testing.T) {
+	withTabsTestStyleGetter(t, nil)
+
+	theme := fwtheme.NewTheme("tabs-reverse-fallback")
+	theme.Colors.Select = fwtheme.NoColor
+	theme.Colors.BG = fwtheme.NoColor
+	withTabsTestTheme(t, theme)
+
+	inst := NewInstance(rtui.Props{
+		"tabs": []TabItem{
+			{ID: "tab1", Label: "Tab 1"},
+			{ID: "tab2", Label: "Tab 2"},
+		},
+		"tabStyle":       style.NewStyle().Foreground(style.Green).Background(style.Yellow),
+		"activeTabStyle": style.NewStyle().Foreground(style.Cyan).Background(style.Red).Underline(true),
+	})
+
+	active := inst.resolveTabStyle(0)
+	if active.FG != style.NoColor {
+		t.Fatalf("Expected reverse fallback to clear FG, got %s", active.FG)
+	}
+	if active.BG != style.NoColor {
+		t.Fatalf("Expected reverse fallback to clear BG, got %s", active.BG)
+	}
+	if !active.IsReverse() {
+		t.Fatal("Expected reverse fallback to set reverse")
+	}
+	if !active.IsBold() {
+		t.Fatal("Expected reverse fallback to keep active tab bold")
+	}
+	if !active.IsUnderline() {
+		t.Fatal("Expected non-color active flags to survive reverse fallback")
+	}
+}
+
+func TestInstance_ResolveTabStyle_DisabledTabFallsBackToItalicWhenSemanticColorMissing(t *testing.T) {
+	withTabsTestStyleGetter(t, nil)
+
+	theme := fwtheme.NewTheme("tabs-disabled-fallback")
+	theme.Colors.DisabledFG = fwtheme.NoColor
+	withTabsTestTheme(t, theme)
+
+	inst := NewInstance(rtui.Props{
+		"tabs": []TabItem{
+			{ID: "tab1", Label: "Tab 1", Disabled: true},
+			{ID: "tab2", Label: "Tab 2"},
+		},
+	})
+
+	disabled := inst.resolveTabStyle(0)
+	if disabled.FG != style.NoColor {
+		t.Fatalf("Expected disabled fallback FG to remain unset, got %s", disabled.FG)
+	}
+	if !disabled.IsItalic() {
+		t.Fatal("Expected disabled fallback to use italic when theme disabled color is missing")
+	}
+}
+
+func TestInstance_ResolveTabStyle_BGOnlySelectStyleUsesThemeBGForContrast(t *testing.T) {
+	withTabsTestStyleGetter(t, func(componentID, state string) style.Style {
+		if componentID == "tabs" && state == "select" {
+			return style.NewStyle().Background(style.Yellow).Underline(true)
+		}
+		return style.Style{}
+	})
+
+	inst := NewInstance(rtui.Props{
+		"tabs": []TabItem{
+			{ID: "tab1", Label: "Tab 1"},
+			{ID: "tab2", Label: "Tab 2"},
+		},
+		"tabStyle":       style.NewStyle().Foreground(style.Green),
+		"activeTabStyle": style.NewStyle().Foreground(style.Cyan),
+	})
+
+	active := inst.resolveTabStyle(0)
+	if active.BG != style.Yellow {
+		t.Fatalf("Expected BG-only select style to set BG yellow, got %s", active.BG)
+	}
+	if active.FG != fwtheme.BG() {
+		t.Fatalf("Expected BG-only select style to protect FG with theme BG %s, got %s", fwtheme.BG(), active.FG)
+	}
+	if !active.IsUnderline() {
+		t.Fatal("Expected BG-only select style flags to survive")
+	}
+}
+
+func TestInstance_ResolveTabStyle_ReverseOnlySelectStyleClearsCallerColors(t *testing.T) {
+	withTabsTestStyleGetter(t, func(componentID, state string) style.Style {
+		if componentID == "tabs" && state == "select" {
+			return style.NewStyle().Reverse(true)
+		}
+		return style.Style{}
+	})
+
+	inst := NewInstance(rtui.Props{
+		"tabs": []TabItem{
+			{ID: "tab1", Label: "Tab 1"},
+			{ID: "tab2", Label: "Tab 2"},
+		},
+		"tabStyle":       style.NewStyle().Foreground(style.Green).Background(style.Yellow),
+		"activeTabStyle": style.NewStyle().Foreground(style.Cyan).Background(style.Red).Underline(true),
+	})
+
+	active := inst.resolveTabStyle(0)
+	if active.FG != style.NoColor {
+		t.Fatalf("Expected reverse-only select style to clear FG, got %s", active.FG)
+	}
+	if active.BG != style.NoColor {
+		t.Fatalf("Expected reverse-only select style to clear BG, got %s", active.BG)
+	}
+	if !active.IsReverse() {
+		t.Fatal("Expected reverse-only select style to keep reverse")
+	}
+	if !active.IsUnderline() {
+		t.Fatal("Expected non-color active flags to survive reverse-only select style")
+	}
+}
+
+func TestInstance_ResolveTabStyle_NonProtectableSelectStyleFallsBackToSemanticTheme(t *testing.T) {
+	withTabsTestStyleGetter(t, func(componentID, state string) style.Style {
+		if componentID == "tabs" && state == "select" {
+			return style.NewStyle().Underline(true)
+		}
+		return style.Style{}
+	})
+
+	inst := NewInstance(rtui.Props{
+		"tabs": []TabItem{
+			{ID: "tab1", Label: "Tab 1"},
+			{ID: "tab2", Label: "Tab 2"},
+		},
+		"tabStyle":       style.NewStyle().Foreground(style.Green),
+		"activeTabStyle": style.NewStyle().Foreground(style.Cyan),
+	})
+
+	active := inst.resolveTabStyle(0)
+	if active.BG != fwtheme.Select() {
+		t.Fatalf("Expected non-protectable select style to fall back to semantic BG %s, got %s", fwtheme.Select(), active.BG)
+	}
+	if active.FG != fwtheme.BG() {
+		t.Fatalf("Expected non-protectable select style to fall back to semantic FG %s, got %s", fwtheme.BG(), active.FG)
+	}
+	if active.IsUnderline() {
+		t.Fatal("Expected non-protectable select style flags to be ignored in favor of semantic fallback")
 	}
 }
 

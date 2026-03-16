@@ -87,6 +87,14 @@ type tabLayout struct {
 	height int
 }
 
+type activeBaselineSource int
+
+const (
+	activeBaselineComponentTheme activeBaselineSource = iota
+	activeBaselineSemanticTheme
+	activeBaselineLocalFallback
+)
+
 // Ensure Instance implements required interfaces
 var (
 	_ rtui.ComponentInstance     = (*Instance)(nil)
@@ -920,18 +928,69 @@ func (inst *Instance) resolveDividerStyle() style.Style {
 	return style.NewStyle().Foreground(style.BrightBlack).Merge(inst.tabStyle)
 }
 
-func (inst *Instance) resolveSelectedThemeStyle() style.Style {
-	selectedThemeStyle := style.GetStyle("tabs", "select")
-	if selectedThemeStyle.IsEmpty() {
-		selectedThemeStyle = style.NewStyle().
-			Foreground(fwtheme.BG()).
-			Background(fwtheme.Select()).
-			Bold(true)
+func (inst *Instance) resolveActiveBaseline() (style.Style, activeBaselineSource) {
+	componentSelected := style.GetStyle("tabs", "select")
+	if inst.isProtectableComponentSelected(componentSelected) {
+		return componentSelected, activeBaselineComponentTheme
 	}
-	if selectedThemeStyle.BG != style.NoColor && selectedThemeStyle.FG == style.NoColor {
-		selectedThemeStyle.FG = fwtheme.BG()
+
+	selectColor := fwtheme.Select()
+	backgroundColor := fwtheme.BG()
+	if isUsableStyleColor(selectColor) && isUsableStyleColor(backgroundColor) {
+		return style.NewStyle().
+			Foreground(backgroundColor).
+			Background(selectColor).
+			Bold(true), activeBaselineSemanticTheme
 	}
-	return selectedThemeStyle
+
+	return style.NewStyle().Reverse(true).Bold(true), activeBaselineLocalFallback
+}
+
+func (inst *Instance) isProtectableComponentSelected(selected style.Style) bool {
+	if selected.IsEmpty() {
+		return false
+	}
+	if isUsableStyleColor(selected.FG) {
+		return true
+	}
+	if isUsableStyleColor(selected.BG) && isUsableStyleColor(fwtheme.BG()) {
+		return true
+	}
+	return selected.IsReverse()
+}
+
+func (inst *Instance) resolveDisabledBaseline() style.Style {
+	if disabledFG := fwtheme.DisabledFG(); isUsableStyleColor(disabledFG) {
+		return style.NewStyle().Foreground(disabledFG)
+	}
+	return style.NewStyle().Italic(true)
+}
+
+func (inst *Instance) protectedActiveForeground(source activeBaselineSource, baseline style.Style) style.Color {
+	switch {
+	case source == activeBaselineComponentTheme && isUsableStyleColor(baseline.FG):
+		return baseline.FG
+	case source == activeBaselineComponentTheme && isUsableStyleColor(baseline.BG):
+		if contrastFG := fwtheme.BG(); isUsableStyleColor(contrastFG) {
+			return contrastFG
+		}
+	case source == activeBaselineSemanticTheme:
+		if contrastFG := fwtheme.BG(); isUsableStyleColor(contrastFG) {
+			return contrastFG
+		}
+	}
+	return style.NoColor
+}
+
+func (inst *Instance) isReverseOnlyBaseline(source activeBaselineSource, baseline style.Style) bool {
+	return baseline.IsReverse() &&
+		!isUsableStyleColor(baseline.FG) &&
+		!isUsableStyleColor(baseline.BG) &&
+		(source == activeBaselineComponentTheme || source == activeBaselineLocalFallback)
+}
+
+func isUsableStyleColor(color style.Color) bool {
+	return color != style.NoColor
 }
 
 func (inst *Instance) resolveTabStyle(index int) style.Style {
@@ -939,26 +998,27 @@ func (inst *Instance) resolveTabStyle(index int) style.Style {
 
 	switch {
 	case tab.Disabled:
-		return style.NewStyle().
-			Foreground(style.BrightBlack).
+		return inst.resolveDisabledBaseline().
 			Merge(inst.tabStyle).
 			Merge(inst.disabledTabStyle)
 	case index == inst.activeTab:
-		selectedThemeStyle := inst.resolveSelectedThemeStyle()
-		activeStyle := style.NewStyle().
-			Foreground(style.Cyan).
-			Bold(true).
-			Merge(inst.tabStyle).
-			Merge(selectedThemeStyle).
-			Merge(inst.activeTabStyle)
-		if selectedThemeStyle.FG != style.NoColor {
-			// Keep the theme-selected foreground so active headers stay readable.
-			activeStyle.FG = selectedThemeStyle.FG
+		baseline, source := inst.resolveActiveBaseline()
+		activeStyle := style.NewStyle().Merge(inst.tabStyle)
+		if inst.isReverseOnlyBaseline(source, baseline) {
+			activeStyle.FG = style.NoColor
+			activeStyle.BG = style.NoColor
+		}
+		activeStyle = activeStyle.Merge(baseline).Merge(inst.activeTabStyle)
+		if inst.isReverseOnlyBaseline(source, baseline) {
+			activeStyle.FG = style.NoColor
+			activeStyle.BG = style.NoColor
+		}
+		if protectedFG := inst.protectedActiveForeground(source, baseline); isUsableStyleColor(protectedFG) {
+			activeStyle.FG = protectedFG
 		}
 		return activeStyle
 	default:
 		return style.NewStyle().
-			Foreground(style.White).
 			Merge(inst.tabStyle)
 	}
 }
