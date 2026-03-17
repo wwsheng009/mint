@@ -44,7 +44,7 @@ func TestFormItemInheritsParentFormID(t *testing.T) {
 	}
 }
 
-func TestFormItemSubscribesAndRendersValidationError(t *testing.T) {
+func TestFormItemOwnerlessRenderDoesNotResolveRegisteredForm(t *testing.T) {
 	ResetRegistry()
 	defer ResetRegistry()
 
@@ -76,37 +76,26 @@ func TestFormItemSubscribesAndRendersValidationError(t *testing.T) {
 		t.Fatalf("finish render failed: %v", err)
 	}
 
-	if first.Tag() != "hstack" {
-		t.Fatalf("expected inline form item to render as hstack, got %s", first.Tag())
+	if first.Tag() != "vstack" {
+		t.Fatalf("expected ownerless form item to stay unresolved, got %s", first.Tag())
 	}
 
 	childFormID, _ := child.Props()[itemPropFormID].(string)
 	if childFormID != "profileForm" {
 		t.Fatalf("expected child formID to be injected, got %q", childFormID)
 	}
+	if updateCount != 1 {
+		t.Fatalf("expected ownerless unresolved form item to queue one retry, got %d", updateCount)
+	}
 
 	formInst.HandleIntent(FieldBlur("profileForm", "email", "invalid-email"))
-	if updateCount == 0 {
-		t.Fatal("expected form item subscription to schedule an update")
-	}
-
-	ctx.ResetContext()
-	second := renderFormItem(item.Props())
-	if err := ctx.FinishRender(); err != nil {
-		t.Fatalf("finish render after validation failed: %v", err)
-	}
-
-	renderedText := strings.Join(collectText(second), "\n")
-	if !strings.Contains(renderedText, "Email") {
-		t.Fatalf("expected rendered label, got %q", renderedText)
-	}
-	if !strings.Contains(renderedText, "请输入有效的邮箱地址") {
-		t.Fatalf("expected rendered validation error, got %q", renderedText)
+	if updateCount != 1 {
+		t.Fatalf("expected no subscription-driven update from registry form, got %d updates", updateCount)
 	}
 
 	ctx.CleanupAll()
 	if sources := formInst.validatorSources["email"]; len(sources) != 0 {
-		t.Fatalf("expected validator source cleanup, got %d remaining sources", len(sources))
+		t.Fatalf("expected ownerless path to avoid registry validator source, got %d remaining sources", len(sources))
 	}
 }
 
@@ -166,19 +155,108 @@ func TestFormItemResolvesAncestorFormWithoutRegistry(t *testing.T) {
 	}
 }
 
-func TestFormItemHidesUntouchedErrorsUntilSubmit(t *testing.T) {
+func TestFormItemAncestorResolutionWinsOverRegistryFallback(t *testing.T) {
 	ResetRegistry()
 	defer ResetRegistry()
 
-	formInst := NewInstance(rtui.Props{
+	ancestorForm := NewInstance(rtui.Props{
+		"key":    "profileForm",
+		"layout": LayoutInline,
+	})
+	registryForm := NewInstance(rtui.Props{
 		"key":    "profileForm",
 		"layout": LayoutVertical,
-		"values": map[string]interface{}{
-			"email": "",
-		},
 	})
-	RegisterForm("profileForm", formInst)
+	RegisterForm("profileForm", registryForm)
 	defer UnregisterForm("profileForm")
+
+	child := rtui.NewElement("field").SetProps(rtui.Props{"key": "email-field"})
+	item := NewItem("email", child).
+		Label("Email").
+		ForForm("profileForm").
+		Validators(validation.Required(), validation.Email()).
+		Build()
+
+	owner := rtui.NewBaseComponentInstanceWithProps("FormItem", renderFormItem, item.Props())
+	ancestorForm.AddChild(owner)
+
+	ctx := owner.GetContext()
+	updateCount := 0
+	ctx.SetScheduleUpdate(func() {
+		updateCount++
+	})
+
+	first := owner.Render()
+	if err := ctx.FinishRender(); err != nil {
+		t.Fatalf("finish render failed: %v", err)
+	}
+
+	if first.Tag() != "hstack" {
+		t.Fatalf("expected ancestor inline layout to win over registry fallback, got %s", first.Tag())
+	}
+
+	ancestorForm.HandleIntent(FieldBlur("profileForm", "email", "invalid-email"))
+	if updateCount == 0 {
+		t.Fatal("expected ancestor-backed form item subscription to schedule an update")
+	}
+
+	ctx.CleanupAll()
+
+	if sources := ancestorForm.validatorSources["email"]; len(sources) != 0 {
+		t.Fatalf("expected ancestor validator sources to be cleaned up, got %d", len(sources))
+	}
+	if sources := registryForm.validatorSources["email"]; len(sources) != 0 {
+		t.Fatalf("expected registry fallback form to stay untouched, got %d", len(sources))
+	}
+}
+
+func TestFormItemDoesNotCrossTreeToRegistryWhenOwnerExists(t *testing.T) {
+	ResetRegistry()
+	defer ResetRegistry()
+
+	registryForm := NewInstance(rtui.Props{
+		"key":    "profileForm",
+		"layout": LayoutInline,
+	})
+	RegisterForm("profileForm", registryForm)
+	defer UnregisterForm("profileForm")
+
+	child := rtui.NewElement("field").SetProps(rtui.Props{"key": "email-field"})
+	item := NewItem("email", child).
+		Label("Email").
+		ForForm("profileForm").
+		Validators(validation.Required(), validation.Email()).
+		Build()
+
+	owner := rtui.NewBaseComponentInstanceWithProps("FormItem", renderFormItem, item.Props())
+
+	ctx := owner.GetContext()
+	updateCount := 0
+	ctx.SetScheduleUpdate(func() {
+		updateCount++
+	})
+
+	first := owner.Render()
+	if err := ctx.FinishRender(); err != nil {
+		t.Fatalf("finish render failed: %v", err)
+	}
+
+	if first.Tag() != "vstack" {
+		t.Fatalf("expected unresolved cross-tree form item to stay vertical, got %s", first.Tag())
+	}
+	if updateCount != 0 {
+		t.Fatalf("expected owner-bound unresolved form item to avoid retry, got %d retries", updateCount)
+	}
+
+	ctx.CleanupAll()
+	if sources := registryForm.validatorSources["email"]; len(sources) != 0 {
+		t.Fatalf("expected registry form to remain untouched, got %d validator sources", len(sources))
+	}
+}
+
+func TestFormItemOwnerlessResolutionQueuesSingleRetry(t *testing.T) {
+	ResetRegistry()
+	defer ResetRegistry()
 
 	ctx := rtui.NewComponentContext("FormItem")
 	updateCount := 0
@@ -192,11 +270,52 @@ func TestFormItemHidesUntouchedErrorsUntilSubmit(t *testing.T) {
 	child := rtui.NewElement("field").SetProps(rtui.Props{"key": "email-field"})
 	item := NewItem("email", child).
 		Label("Email").
+		ForForm("missingForm").
+		Validators(validation.Required()).
+		Build()
+
+	first := renderFormItem(item.Props())
+	if err := ctx.FinishRender(); err != nil {
+		t.Fatalf("finish render failed: %v", err)
+	}
+
+	if first.Tag() != "vstack" {
+		t.Fatalf("expected unresolved ownerless form item to stay vertical, got %s", first.Tag())
+	}
+	if updateCount != 1 {
+		t.Fatalf("expected ownerless unresolved form item to queue one retry, got %d", updateCount)
+	}
+}
+
+func TestFormItemHidesUntouchedErrorsUntilSubmit(t *testing.T) {
+	ResetRegistry()
+	defer ResetRegistry()
+
+	formInst := NewInstance(rtui.Props{
+		"key":    "profileForm",
+		"layout": LayoutVertical,
+		"values": map[string]interface{}{
+			"email": "",
+		},
+	})
+
+	child := rtui.NewElement("field").SetProps(rtui.Props{"key": "email-field"})
+	item := NewItem("email", child).
+		Label("Email").
 		ForForm("profileForm").
 		Validators(validation.Required(), validation.Email()).
 		Build()
 
-	first := renderFormItem(item.Props())
+	owner := rtui.NewBaseComponentInstanceWithProps("FormItem", renderFormItem, item.Props())
+	formInst.AddChild(owner)
+
+	ctx := owner.GetContext()
+	updateCount := 0
+	ctx.SetScheduleUpdate(func() {
+		updateCount++
+	})
+
+	first := owner.Render()
 	if err := ctx.FinishRender(); err != nil {
 		t.Fatalf("finish render failed: %v", err)
 	}
@@ -212,7 +331,7 @@ func TestFormItemHidesUntouchedErrorsUntilSubmit(t *testing.T) {
 	}
 
 	ctx.ResetContext()
-	second := renderFormItem(item.Props())
+	second := owner.Render()
 	if err := ctx.FinishRender(); err != nil {
 		t.Fatalf("finish render after submit failed: %v", err)
 	}

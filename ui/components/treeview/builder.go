@@ -167,6 +167,30 @@ func (b *Builder) SearchQuery(query string) *Builder {
 	return b
 }
 
+// SearchMatchesControlled sets externally computed async search matches by stable key.
+func (b *Builder) SearchMatchesControlled(keys map[string]bool) *Builder {
+	b.vnode.SetSearchMatchesControlled(keys)
+	return b
+}
+
+// SearchMatchPathsControlled sets externally computed async search matches by path.
+func (b *Builder) SearchMatchPathsControlled(paths ...string) *Builder {
+	b.vnode.SetSearchMatchPathsControlled(paths...)
+	return b
+}
+
+// SearchPending marks the externally controlled search as still running.
+func (b *Builder) SearchPending(pending bool) *Builder {
+	b.vnode.SetSearchPending(pending)
+	return b
+}
+
+// SearchPageSize configures the size of emitted search result pages.
+func (b *Builder) SearchPageSize(size int) *Builder {
+	b.vnode.SetSearchPageSize(size)
+	return b
+}
+
 // SearchQueryControlled sets a controlled filter query for nodes.
 func (b *Builder) SearchQueryControlled(query string) *Builder {
 	b.vnode.SetSearchQueryControlled(query)

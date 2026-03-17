@@ -38,7 +38,7 @@ func (inst *Instance) visibleEntries() ([]nodeEntry, []int) {
 	}
 
 	query := strings.TrimSpace(inst.searchQuery)
-	filterActive := query != ""
+	filterActive := inst.searchFilterActive(query)
 	match := make([]bool, len(entries))
 	include := make([]bool, len(entries))
 	if filterActive {
@@ -47,7 +47,7 @@ func (inst *Instance) visibleEntries() ([]nodeEntry, []int) {
 			for len(stack) > 0 && entries[stack[len(stack)-1]].Depth >= entry.Depth {
 				stack = stack[:len(stack)-1]
 			}
-			if inst.nodeMatches(entry.Node, query) {
+			if inst.entryMatchesSearch(entry, query) {
 				match[entry.Index] = true
 				include[entry.Index] = true
 				for _, ancestor := range stack {
@@ -332,6 +332,26 @@ func (inst *Instance) nodeMatches(node TreeNode, query string) bool {
 	return false
 }
 
+func (inst *Instance) searchFilterActive(query string) bool {
+	if query == "" {
+		return false
+	}
+	if inst.searchMatchesControlled {
+		return !inst.searchPending
+	}
+	return true
+}
+
+func (inst *Instance) entryMatchesSearch(entry nodeEntry, query string) bool {
+	if query == "" {
+		return false
+	}
+	if inst.searchMatchesControlled {
+		return inst.searchMatches != nil && inst.searchMatches[entry.Key]
+	}
+	return inst.nodeMatches(entry.Node, query)
+}
+
 func (inst *Instance) parentVisibleIndex(visible []nodeEntry, index int) int {
 	if index <= 0 || index >= len(visible) {
 		return -1
@@ -421,11 +441,18 @@ func (inst *Instance) statsHeight() int {
 
 func (inst *Instance) searchStatsLine() string {
 	query := strings.TrimSpace(inst.searchQuery)
-	total, selected := inst.GetMatchStats()
 	if query == "" {
 		return "Search: --"
 	}
-	return fmt.Sprintf("Search: %q %d/%d", query, selected, total)
+	if inst.searchMatchesControlled && inst.searchPending {
+		return fmt.Sprintf("Search: %q [pending]", query)
+	}
+	snapshot := inst.searchResultsSnapshot()
+	line := fmt.Sprintf("Search: %q %d/%d", query, snapshot.selected, snapshot.total)
+	if snapshot.pageCount > 1 {
+		line += fmt.Sprintf(" p%d/%d", snapshot.page, snapshot.pageCount)
+	}
+	return line
 }
 
 func (inst *Instance) desiredViewportHeight(visibleCount int) int {
@@ -477,10 +504,10 @@ func (inst *Instance) normalizeSelectionAndScroll() {
 	}
 
 	query := strings.TrimSpace(inst.searchQuery)
-	if query == "" {
+	if query == "" || (inst.searchMatchesControlled && inst.searchPending) {
 		inst.autoSelectMatch = false
 	}
-	if query != "" && !inst.selectedIndexControlled {
+	if inst.searchFilterActive(query) && !inst.selectedIndexControlled {
 		firstMatch := -1
 		for i, entry := range visible {
 			if entry.Match {
@@ -1015,4 +1042,3 @@ func (inst *Instance) selectionClearScopeFromAction(act *action.Action) (scoped 
 	}
 	return false, false, false
 }
-

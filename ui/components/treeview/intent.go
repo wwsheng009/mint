@@ -353,6 +353,51 @@ func (i SearchStatsIntent) GetComponentID() string {
 	return i.ComponentID
 }
 
+// SearchResultItem describes one matched tree node in tree-order.
+type SearchResultItem struct {
+	MatchIndex   int
+	NodeIndex    int
+	VisibleIndex int
+	Key          string
+	Path         string
+	NodeID       int
+	Content      string
+	Depth        int
+}
+
+// SearchResultsIntent reports the current paged search result snapshot.
+type SearchResultsIntent struct {
+	ComponentID string
+	Query       string
+	Pending     bool
+	Total       int
+	Selected    int
+	Page        int
+	PageSize    int
+	PageCount   int
+	Results     []SearchResultItem
+}
+
+func (i SearchResultsIntent) IntentType() string {
+	return "treeview.SearchResultsIntent"
+}
+
+func (i SearchResultsIntent) Priority() intent.ActionPriority {
+	return intent.PriorityNormal
+}
+
+func (i SearchResultsIntent) IsTransition() bool {
+	return false
+}
+
+func (i SearchResultsIntent) IsGlobal() bool {
+	return false
+}
+
+func (i SearchResultsIntent) GetComponentID() string {
+	return i.ComponentID
+}
+
 // ScrollIntent is emitted when the treeview scroll offset changes.
 type ScrollIntent struct {
 	Offset      int
@@ -774,4 +819,25 @@ func SearchStatsWithID(componentID, query string, total, selected int) SearchSta
 		Total:       total,
 		Selected:    selected,
 	}
+}
+
+// SearchResults creates a SearchResultsIntent.
+func SearchResults(query string, pending bool, total, selected, page, pageSize, pageCount int, results []SearchResultItem) SearchResultsIntent {
+	return SearchResultsIntent{
+		Query:     query,
+		Pending:   pending,
+		Total:     total,
+		Selected:  selected,
+		Page:      page,
+		PageSize:  pageSize,
+		PageCount: pageCount,
+		Results:   append([]SearchResultItem(nil), results...),
+	}
+}
+
+// SearchResultsWithID creates a SearchResultsIntent with component ID.
+func SearchResultsWithID(componentID, query string, pending bool, total, selected, page, pageSize, pageCount int, results []SearchResultItem) SearchResultsIntent {
+	intent := SearchResults(query, pending, total, selected, page, pageSize, pageCount, results)
+	intent.ComponentID = componentID
+	return intent
 }

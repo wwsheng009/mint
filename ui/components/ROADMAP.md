@@ -17,7 +17,7 @@
 | Button | `button/` | ★★★★☆ | Primary/Secondary/Danger/Ghost变体，disabled，icon |
 | Breadcrumb | `breadcrumb/` | ★★★☆☆ | 面包屑导航，支持自定义分隔符、当前项高亮、窄宽度折叠 |
 | Pagination | `pagination/` | ★★★☆☆ | 独立分页组件，支持页码跳转、ellipsis、field 绑定 |
-| Steps | `steps/` | ★★☆☆☆ | 基础步骤条，支持 horizontal/vertical、current/status、description、progressDot、percent、键鼠切换与 change intent，进行中 |
+| Steps | `steps/` | ★★★☆☆ | 基础步骤条，支持 horizontal/vertical、current/status、description、progressDot、percent、键鼠切换、`StepChangeIntent`/field 绑定，README 与 e2e 已补齐 |
 | Badge | `badge/` | ★★★☆☆ | 徽标数/点状态，支持 count/text/dot、overflow、showZero、status、label |
 | Input | `input/` | ★★★★☆ | text/password/number/email，placeholder，maxLen，readOnly，prefix/suffix，addonBefore/addonAfter，Search变体 |
 | Textarea | `textarea/` | ★★★☆☆ | 多行文本输入 |
@@ -91,7 +91,7 @@
 |------|------|-----------|
 | ~~**Breadcrumb**~~ | ~~面包屑导航，层级路径展示~~ | `Breadcrumb` ✅ 已实现（2026-03） |
 | ~~**Pagination**~~ | ~~独立分页组件（Table 内置了分页，但缺独立组件）~~ | `Pagination` ✅ 已实现（2026-03） |
-| **Steps** | 步骤条，引导流程 | `Steps` 🚧 基础交互版进行中（2026-03-17） |
+| ~~**Steps**~~ | ~~步骤条，引导流程~~ | `Steps` ✅ 已实现（2026-03-17） |
 | **Anchor** | 锚点导航 | `Anchor` |
 
 ### 数据展示类（中优先级）
@@ -171,7 +171,7 @@
 
 - [x] `Breadcrumb` — 面包屑（2026-03）
 - [x] `Pagination` — 独立分页（2026-03）
-- [~] `Steps` — 步骤条（进行中，2026-03-17）
+- [x] `Steps` — 步骤条（2026-03-17）
 - [x] `Badge` — 徽标数（2026-03-17）
 - [x] `Tag` — 标签（2026-03）
 - [ ] `Collapse` — 折叠面板

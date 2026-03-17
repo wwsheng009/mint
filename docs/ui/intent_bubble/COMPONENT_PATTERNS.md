@@ -287,15 +287,11 @@ func (inst *Instance) OnUnmount() {
     }
 }
 
-// 子组件通过 formID 访问
+// 子组件通过实例树解析祖先 Form
 func GetFormContext(formID string) FormContext {
-    formMu.RLock()
-    defer formMu.RUnlock()
-    form := formRegistry[formID]
-    if form == nil {
-        return nil
-    }
-    return &formContextImpl{form: form}
+    // 当前 owner 所在实例树内查找匹配 Form
+    // 若需要显式跨树兼容访问，则调用 GetRegisteredFormContext(formID)
+    ...
 }
 ```
 
@@ -310,10 +306,10 @@ type SelectInstance struct {
     // ...
 }
 
-// 通过 Intent 获取表单数据
+// 通过实例树 + Intent 获取表单数据
 func (inst *Instance) emitFieldValueChanged() {
     if inst.formID != "" {
-        formCtx := GetFormContext(inst.formID)
+        formCtx := GetFormContext(inst.formID) // owner-bound 场景
         if formCtx != nil {
             // 可以在这里访问表单状态
             value := formCtx.GetValue("field")
@@ -378,7 +374,8 @@ formBuilder.AddChild(selectBuilder)
 // 1. Reconciler 在 diff 阶段调用 form.AddChild(selectInstance)
 // 2. Form 的 AddChild 实现（自动模式）维护 childInstances
 // 3. Select 在 OnMount 时，用户改变选项时发射 SelectChangeIntent
-// 4. 由于 formID 已设置，Select 可以通过 GetFormContext("loginForm") 访问表单
+// 4. 由于 formID 已设置，Select 在 owner-bound 场景下可通过 GetFormContext("loginForm") 访问祖先表单
+//    若需要跨树兼容访问，则显式调用 GetRegisteredFormContext("loginForm")
 ```
 
 ### 示例 2: OptionGroup + Option (OnMount Manual + Intent Bubble)

@@ -29,7 +29,7 @@ func TestFormContext_Registration(t *testing.T) {
 		inst.OnMount()
 
 		// Verify form is registered
-		form := GetForm("test-form-reg")
+		form := GetRegisteredForm("test-form-reg")
 		if form == nil {
 			t.Error("Form should be registered after OnMount")
 		}
@@ -41,7 +41,7 @@ func TestFormContext_Registration(t *testing.T) {
 		inst.OnUnmount()
 
 		// Verify form is unregistered
-		form = GetForm("test-form-reg")
+		form = GetRegisteredForm("test-form-reg")
 		if form != nil {
 			t.Error("Form should be unregistered after OnUnmount")
 		}
@@ -65,8 +65,8 @@ func TestFormContext_Registration(t *testing.T) {
 		inst2.OnMount()
 
 		// Verify both are registered
-		form1 := GetForm("form-1")
-		form2 := GetForm("form-2")
+		form1 := GetRegisteredForm("form-1")
+		form2 := GetRegisteredForm("form-2")
 
 		if form1 == nil || form1 != inst1 {
 			t.Error("Form 1 should be registered")
@@ -79,8 +79,8 @@ func TestFormContext_Registration(t *testing.T) {
 		inst1.OnUnmount()
 
 		// Verify form1 is unregistered but form2 remains
-		form1 = GetForm("form-1")
-		form2 = GetForm("form-2")
+		form1 = GetRegisteredForm("form-1")
+		form2 = GetRegisteredForm("form-2")
 
 		if form1 != nil {
 			t.Error("Form 1 should be unregistered")
@@ -92,11 +92,22 @@ func TestFormContext_Registration(t *testing.T) {
 		// Cleanup
 		inst2.OnUnmount()
 	})
+
+	t.Run("GetForm remains compatibility alias", func(t *testing.T) {
+		props := rtui.Props{"key": "alias-form"}
+		inst := NewInstance(props)
+		inst.OnMount()
+		defer inst.OnUnmount()
+
+		if got := GetForm("alias-form"); got != inst {
+			t.Fatalf("GetForm alias returned %p, want %p", got, inst)
+		}
+	})
 }
 
 // TestFormContext_GetFormContext tests the GetFormContext helper function.
 func TestFormContext_GetFormContext(t *testing.T) {
-	t.Run("GetFormContext returns valid context", func(t *testing.T) {
+	t.Run("GetRegisteredFormContext returns valid context", func(t *testing.T) {
 		props := rtui.Props{
 			"key":   "test-form-ctx",
 			"label": "Test Form",
@@ -110,10 +121,9 @@ func TestFormContext_GetFormContext(t *testing.T) {
 		inst.OnMount()
 		defer inst.OnUnmount()
 
-		// Get FormContext
-		ctx := GetFormContext("test-form-ctx")
+		ctx := GetRegisteredFormContext("test-form-ctx")
 		if ctx == nil {
-			t.Fatal("GetFormContext should return non-nil context")
+			t.Fatal("GetRegisteredFormContext should return non-nil context")
 		}
 
 		// Test GetValue
@@ -148,10 +158,127 @@ func TestFormContext_GetFormContext(t *testing.T) {
 		}
 	})
 
-	t.Run("GetFormContext with non-existent form", func(t *testing.T) {
-		ctx := GetFormContext("non-existent-form")
+	t.Run("GetRegisteredFormContext with non-existent form", func(t *testing.T) {
+		ctx := GetRegisteredFormContext("non-existent-form")
 		if ctx != nil {
-			t.Error("GetFormContext should return nil for non-existent form")
+			t.Error("GetRegisteredFormContext should return nil for non-existent form")
+		}
+	})
+
+	t.Run("GetFormContext without current owner returns nil", func(t *testing.T) {
+		ctx := GetFormContext("test-form-ctx")
+		if ctx != nil {
+			t.Error("GetFormContext should require a current owner-bound render context")
+		}
+	})
+
+	t.Run("GetFormContext resolves ancestor form without registry", func(t *testing.T) {
+		formInst := NewInstance(rtui.Props{
+			"key": "ancestor-form",
+			"values": map[string]interface{}{
+				"username": "ancestor-user",
+			},
+		})
+
+		owner := rtui.NewBaseComponentInstanceWithProps("Child", func(props rtui.Props) rtui.VNode {
+			return rtui.NewElement("child")
+		}, nil)
+		formInst.AddChild(owner)
+
+		ctx := owner.GetContext()
+		ctx.SetOwnerInstance(owner)
+		rtui.SetCurrentContext(ctx)
+		defer rtui.SetCurrentContext(nil)
+
+		formCtx := GetFormContext("ancestor-form")
+		if formCtx == nil {
+			t.Fatal("GetFormContext should resolve ancestor form without registry")
+		}
+		value, ok := formCtx.GetValue("username")
+		if !ok || value != "ancestor-user" {
+			t.Fatalf("resolved ancestor form value = (%v,%v), want ancestor-user,true", value, ok)
+		}
+	})
+
+	t.Run("GetFormContext with empty formID resolves nearest ancestor", func(t *testing.T) {
+		formInst := NewInstance(rtui.Props{
+			"key": "nearest-form",
+			"values": map[string]interface{}{
+				"email": "nearest@example.com",
+			},
+		})
+
+		owner := rtui.NewBaseComponentInstanceWithProps("Child", func(props rtui.Props) rtui.VNode {
+			return rtui.NewElement("child")
+		}, nil)
+		formInst.AddChild(owner)
+
+		ctx := owner.GetContext()
+		ctx.SetOwnerInstance(owner)
+		rtui.SetCurrentContext(ctx)
+		defer rtui.SetCurrentContext(nil)
+
+		formCtx := GetFormContext("")
+		if formCtx == nil {
+			t.Fatal("GetFormContext(\"\") should resolve nearest ancestor form")
+		}
+		value, ok := formCtx.GetValue("email")
+		if !ok || value != "nearest@example.com" {
+			t.Fatalf("resolved nearest ancestor form value = (%v,%v), want nearest@example.com,true", value, ok)
+		}
+	})
+
+	t.Run("GetFormContext does not cross tree when owner exists", func(t *testing.T) {
+		registryForm := NewInstance(rtui.Props{
+			"key": "cross-tree-form",
+			"values": map[string]interface{}{
+				"username": "registry-user",
+			},
+		})
+		registryForm.OnMount()
+		defer registryForm.OnUnmount()
+
+		owner := rtui.NewBaseComponentInstanceWithProps("Child", func(props rtui.Props) rtui.VNode {
+			return rtui.NewElement("child")
+		}, nil)
+
+		ctx := owner.GetContext()
+		ctx.SetOwnerInstance(owner)
+		rtui.SetCurrentContext(ctx)
+		defer rtui.SetCurrentContext(nil)
+
+		formCtx := GetFormContext("cross-tree-form")
+		if formCtx != nil {
+			t.Fatal("GetFormContext should not cross tree via registry when owner exists")
+		}
+	})
+
+	t.Run("GetRegisteredFormContext keeps explicit cross-tree compatibility", func(t *testing.T) {
+		registryForm := NewInstance(rtui.Props{
+			"key": "cross-tree-form",
+			"values": map[string]interface{}{
+				"username": "registry-user",
+			},
+		})
+		registryForm.OnMount()
+		defer registryForm.OnUnmount()
+
+		owner := rtui.NewBaseComponentInstanceWithProps("Child", func(props rtui.Props) rtui.VNode {
+			return rtui.NewElement("child")
+		}, nil)
+
+		ctx := owner.GetContext()
+		ctx.SetOwnerInstance(owner)
+		rtui.SetCurrentContext(ctx)
+		defer rtui.SetCurrentContext(nil)
+
+		formCtx := GetRegisteredFormContext("cross-tree-form")
+		if formCtx == nil {
+			t.Fatal("GetRegisteredFormContext should preserve explicit registry lookup")
+		}
+		value, ok := formCtx.GetValue("username")
+		if !ok || value != "registry-user" {
+			t.Fatalf("registry form context value = (%v,%v), want registry-user,true", value, ok)
 		}
 	})
 
@@ -164,9 +291,9 @@ func TestFormContext_GetFormContext(t *testing.T) {
 		inst.OnMount()
 		inst.OnUnmount()
 
-		ctx := GetFormContext("test-form-unmount")
+		ctx := GetRegisteredFormContext("test-form-unmount")
 		if ctx != nil {
-			t.Error("GetFormContext should return nil after form is unmounted")
+			t.Error("GetRegisteredFormContext should return nil after form is unmounted")
 		}
 	})
 }
@@ -183,7 +310,7 @@ func TestFormContext_FieldState(t *testing.T) {
 	inst.OnMount()
 	defer inst.OnUnmount()
 
-	ctx := GetFormContext("test-form-field-state")
+	ctx := GetRegisteredFormContext("test-form-field-state")
 	if ctx == nil {
 		t.Fatal("expected non-nil form context")
 	}
@@ -216,6 +343,23 @@ func TestFormContext_FieldState(t *testing.T) {
 	if !ctx.IsFieldDirty("email") {
 		t.Fatal("expected changed value to mark field dirty")
 	}
+
+	touched := ctx.GetTouchedFields()
+	if len(touched) != 1 || touched[0] != "email" {
+		t.Fatalf("touched fields = %v, want [email]", touched)
+	}
+
+	if ctx.IsFieldSubmitted("email") {
+		t.Fatal("expected field to stay unsubmitted before validate-all/submit")
+	}
+	if submitted := ctx.GetSubmittedFields(); len(submitted) != 0 {
+		t.Fatalf("submitted fields = %v, want []", submitted)
+	}
+
+	dirty := ctx.GetDirtyFields()
+	if len(dirty) != 1 || dirty[0] != "email" {
+		t.Fatalf("dirty fields = %v, want [email]", dirty)
+	}
 }
 
 // TestFormContext_SetValue tests SetValue through context.
@@ -233,7 +377,7 @@ func TestFormContext_SetValue(t *testing.T) {
 		inst.OnMount()
 		defer inst.OnUnmount()
 
-		ctx := GetFormContext("test-form-setvalue")
+		ctx := GetRegisteredFormContext("test-form-setvalue")
 
 		// Set new value
 		ctx.SetValue("field1", "updated_value")
@@ -265,7 +409,7 @@ func TestFormContext_SetValue(t *testing.T) {
 		inst.OnMount()
 		defer inst.OnUnmount()
 
-		ctx := GetFormContext("test-form-setvalues")
+		ctx := GetRegisteredFormContext("test-form-setvalues")
 
 		// Set multiple values
 		ctx.SetValues(map[string]interface{}{
@@ -297,7 +441,7 @@ func TestFormContext_Errors(t *testing.T) {
 		inst.OnMount()
 		defer inst.OnUnmount()
 
-		ctx := GetFormContext("test-form-errors")
+		ctx := GetRegisteredFormContext("test-form-errors")
 
 		// Set some errors
 		inst.mu.Lock()
@@ -340,6 +484,46 @@ func TestFormContext_Errors(t *testing.T) {
 
 		if !ctx.IsValid() {
 			t.Error("IsValid should return true when there are no errors")
+		}
+	})
+
+	t.Run("Submitted field helpers", func(t *testing.T) {
+		props := rtui.Props{
+			"key": "test-form-submitted",
+			"values": map[string]interface{}{
+				"email": "",
+				"name":  "Mint",
+			},
+		}
+		inst := NewInstance(props)
+		inst.OnMount()
+		defer inst.OnUnmount()
+
+		ctx := GetRegisteredFormContext("test-form-submitted")
+		if ctx == nil {
+			t.Fatal("expected non-nil registered form context")
+		}
+		if ctx.HasSubmitted() || ctx.GetSubmitCount() != 0 {
+			t.Fatalf("initial submit status = (%v,%d), want (false,0)", ctx.HasSubmitted(), ctx.GetSubmitCount())
+		}
+
+		inst.HandleIntent(FormSubmitIntent{
+			FormID: "test-form-submitted",
+			Data: map[string]interface{}{
+				"email": "",
+				"name":  "Mint",
+			},
+		})
+
+		if !ctx.IsFieldSubmitted("email") || !ctx.IsFieldSubmitted("name") {
+			t.Fatal("expected submit to mark both fields submitted")
+		}
+		if !ctx.HasSubmitted() || ctx.GetSubmitCount() != 1 {
+			t.Fatalf("submit status = (%v,%d), want (true,1)", ctx.HasSubmitted(), ctx.GetSubmitCount())
+		}
+		submitted := ctx.GetSubmittedFields()
+		if len(submitted) != 2 || submitted[0] != "email" || submitted[1] != "name" {
+			t.Fatalf("submitted fields = %v, want [email name]", submitted)
 		}
 	})
 }

@@ -49,11 +49,16 @@
 - `COMPONENT_MIGRATION_GUIDE.md` 仍残留 `stack` / `border` 目录引用与过时示例状态
 - `grid/README.md` 曾将追踪与调试能力误记为“未实现”
 
-### 2. 表单仍保留兼容层 registry
+### 2. 表单仍保留少量兼容层 registry
 
-- `FormItem` 的运行时联动现在已优先沿实例树解析祖先 `Form`
-- `GetFormContext()` 和跨树兼容路径仍保留 registry 回退
-- 剩余工作主要是字段级 `touched` / `dirty` 状态，以及进一步收敛兼容层
+- `FormItem` 的运行时联动、validator source 管理和布局解析已全部沿实例树解析祖先 `Form`
+- `GetFormContext()` 也已改为实例树内解析；registry 兼容已显式收口到 `GetRegisteredFormContext()`
+- 字段状态辅助 API `GetTouchedFields()` / `GetDirtyFields()` / `GetSubmittedFields()` 已补齐，表单级 `HasSubmitted()` / `GetSubmitCount()` 也已公开
+- 当前 render 若已有 owner 但祖先树不匹配，也不会再跨树回退到 registry
+- unresolved `FormItem` 的重试已收窄到 ownerless 场景，owner-bound 路径不会再做空重试
+- 显式跨树兼容已集中到 `GetRegisteredForm` / `GetRegisteredFormContext`
+- `RegisterForm` / `UnregisterForm` / `GetForm` 已在注释层明确为 compatibility API，其中 `GetForm` 仅保留别名
+- 剩余工作主要是继续缩减这些显式 compat helper，而不是普通运行时逻辑
 
 ### 3. 文档卫生需要持续整理
 

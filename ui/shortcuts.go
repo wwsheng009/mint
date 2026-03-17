@@ -26,6 +26,7 @@ import (
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 
 	"github.com/wwsheng009/mint/ui/components/absolute"
+	"github.com/wwsheng009/mint/ui/components/badge"
 	"github.com/wwsheng009/mint/ui/components/breadcrumb"
 	"github.com/wwsheng009/mint/ui/components/button"
 	"github.com/wwsheng009/mint/ui/components/checkbox"
@@ -34,12 +35,14 @@ import (
 	"github.com/wwsheng009/mint/ui/components/input"
 	"github.com/wwsheng009/mint/ui/components/list"
 	"github.com/wwsheng009/mint/ui/components/modal"
+	"github.com/wwsheng009/mint/ui/components/pagination"
 	"github.com/wwsheng009/mint/ui/components/panel"
 	"github.com/wwsheng009/mint/ui/components/progress"
 	"github.com/wwsheng009/mint/ui/components/radio"
 	"github.com/wwsheng009/mint/ui/components/scrollview"
 	selectcomp "github.com/wwsheng009/mint/ui/components/select"
 	"github.com/wwsheng009/mint/ui/components/statusbar"
+	"github.com/wwsheng009/mint/ui/components/steps"
 	switchcomp "github.com/wwsheng009/mint/ui/components/switch"
 	"github.com/wwsheng009/mint/ui/components/table"
 	"github.com/wwsheng009/mint/ui/components/tabs"
@@ -118,6 +121,10 @@ func NewPanelBuilder() *panel.Builder {
 	return panel.NewBuilder()
 }
 
+func NewPaginationBuilder() *pagination.Builder {
+	return pagination.NewBuilder()
+}
+
 func NewScrollViewBuilder() *scrollview.Builder {
 	return scrollview.NewBuilder()
 }
@@ -154,6 +161,10 @@ func NewListBuilder() *list.Builder {
 	return list.NewBuilder()
 }
 
+func NewBadgeBuilder(label string) *badge.Builder {
+	return badge.NewBuilder(label)
+}
+
 func NewTableBuilder() *table.Builder {
 	return table.NewBuilder()
 }
@@ -171,6 +182,10 @@ func NewTabsBuilder() *tabs.Builder {
 
 func NewBreadcrumbBuilder() *breadcrumb.Builder {
 	return breadcrumb.NewBuilder()
+}
+
+func NewStepsBuilder() *steps.Builder {
+	return steps.NewBuilder()
 }
 
 func NewSelectBuilder() *selectcomp.Builder {
@@ -296,12 +311,32 @@ type Anchor = absolute.Anchor
 type TabPosition = tabs.TabPosition
 type TabItem = tabs.TabItem
 type BreadcrumbItem = breadcrumb.Item
+type BadgeStatus = badge.Status
+type StepsDirection = steps.Direction
+type StepsStatus = steps.Status
+type StepsItem = steps.Item
 
 const (
 	TabPositionTop    = tabs.TabPositionTop
 	TabPositionBottom = tabs.TabPositionBottom
 	TabPositionLeft   = tabs.TabPositionLeft
 	TabPositionRight  = tabs.TabPositionRight
+
+	BadgeStatusDefault    = badge.StatusDefault
+	BadgeStatusPrimary    = badge.StatusPrimary
+	BadgeStatusSuccess    = badge.StatusSuccess
+	BadgeStatusWarning    = badge.StatusWarning
+	BadgeStatusError      = badge.StatusError
+	BadgeStatusProcessing = badge.StatusProcessing
+
+	StepsHorizontal = steps.DirectionHorizontal
+	StepsVertical   = steps.DirectionVertical
+
+	StepsStatusAuto    = steps.StatusAuto
+	StepsStatusWait    = steps.StatusWait
+	StepsStatusProcess = steps.StatusProcess
+	StepsStatusFinish  = steps.StatusFinish
+	StepsStatusError   = steps.StatusError
 )
 
 // Table Types
@@ -354,6 +389,16 @@ func NewSelectOption(value, label string) selectcomp.Option {
 // NewBreadcrumbItem creates a breadcrumb item with the given label.
 func NewBreadcrumbItem(label string) breadcrumb.Item {
 	return breadcrumb.Crumb(label)
+}
+
+// NewBadge creates a badge builder seed with the given label.
+func NewBadge(label string) *badge.VNode {
+	return badge.New(label)
+}
+
+// NewStepsItem creates a steps item with the given title.
+func NewStepsItem(title string) steps.Item {
+	return steps.Step(title)
 }
 
 // NewRadioOption creates a new radio option with value and label.
@@ -560,6 +605,11 @@ func TextRight(content string) rtui.VNode {
 	return TextAlign(content, "right")
 }
 
+// Badge creates an inline badge with a numeric count.
+func Badge(label string, count int) rtui.VNode {
+	return badge.NewBuilder(label).Count(count).Build()
+}
+
 // Progress shortcuts
 
 // Progress creates a progress bar
@@ -570,6 +620,11 @@ func Progress(value, max int) rtui.VNode {
 // ProgressPercent creates a progress bar with percentage
 func ProgressPercent(percent int) rtui.VNode {
 	return progress.NewBuilder().Value(percent).Max(100).Build()
+}
+
+// Steps creates a steps component from items.
+func Steps(items []steps.Item) rtui.VNode {
+	return steps.NewBuilder().Items(items).Build()
 }
 
 // Wrap shortcuts
@@ -714,6 +769,22 @@ func TableOf(columns []string, rows [][]string) rtui.VNode {
 		cols[i] = table.TableColumn{Title: col}
 	}
 	return table.Of(cols, rows)
+}
+
+// Pagination shortcuts
+
+// Pagination creates a pagination component builder.
+func Pagination() *pagination.Builder {
+	return pagination.NewBuilder()
+}
+
+// PaginationOf creates a pagination component with the provided state.
+func PaginationOf(total, pageSize, currentPage int) rtui.VNode {
+	return pagination.NewBuilder().
+		Total(total).
+		PageSize(pageSize).
+		CurrentPage(currentPage).
+		Build()
 }
 
 // TreeView shortcuts

@@ -4,6 +4,7 @@ import (
 	"sync"
 
 	fcontext "github.com/wwsheng009/mint/runtime/context"
+	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
 
 // Context Key for Form (Phase 2)
@@ -14,33 +15,46 @@ const FormContextKey fcontext.ContextKey = "github.com/wwsheng009/mint/ui/compon
 // =============================================================================
 
 // formRegistry stores active form instances by their formID.
-// Runtime form items now prefer resolving their ancestor Form through the
-// instance tree. The registry remains as a compatibility path for helpers such
-// as GetFormContext and cross-tree lookups that still address forms by formID.
+// Runtime form items and GetFormContext now resolve through the instance tree.
+// The registry remains only as an explicit compatibility path for ownerless /
+// cross-tree lookups via GetRegisteredForm and GetRegisteredFormContext.
 var (
 	formRegistry = make(map[string]*Instance)
 	formMu       sync.RWMutex
 )
 
-// RegisterForm registers a form instance with the given formID.
+// RegisterForm registers a form instance with the compatibility registry.
+// Deprecated: Form instances register themselves on mount; avoid calling this
+// directly outside compatibility shims and tests.
 func RegisterForm(formID string, form *Instance) {
 	formMu.Lock()
 	defer formMu.Unlock()
 	formRegistry[formID] = form
 }
 
-// UnregisterForm unregisters a form instance.
+// UnregisterForm removes a form instance from the compatibility registry.
+// Deprecated: Form instances unregister themselves on unmount; avoid calling
+// this directly outside compatibility shims and tests.
 func UnregisterForm(formID string) {
 	formMu.Lock()
 	defer formMu.Unlock()
 	delete(formRegistry, formID)
 }
 
-// GetForm returns the form instance for the given formID.
-func GetForm(formID string) *Instance {
+// GetRegisteredForm returns the registered form instance for the given formID.
+// This is the explicit registry compatibility lookup, not an instance-tree search.
+func GetRegisteredForm(formID string) *Instance {
 	formMu.RLock()
 	defer formMu.RUnlock()
 	return formRegistry[formID]
+}
+
+// GetForm returns the registered form instance for the given formID.
+// Deprecated: use GetFormContext for owner-bound instance-tree resolution,
+// GetRegisteredFormContext for registry-backed context access, or
+// GetRegisteredForm for explicit registry instance lookup.
+func GetForm(formID string) *Instance {
+	return GetRegisteredForm(formID)
 }
 
 // ResetRegistry clears all registered form instances.
@@ -82,11 +96,29 @@ type FormContext interface {
 	// IsSubmitting 返回表单是否正在提交
 	IsSubmitting() bool
 
+	// HasSubmitted 返回表单是否至少提交过一次。
+	HasSubmitted() bool
+
+	// GetSubmitCount 返回表单提交次数。
+	GetSubmitCount() int
+
 	// IsFieldTouched 返回字段是否已被访问（blur）
 	IsFieldTouched(field string) bool
 
+	// GetTouchedFields 返回所有已访问字段，按字段名稳定排序。
+	GetTouchedFields() []string
+
+	// IsFieldSubmitted 返回字段是否已参与提交/validate-all。
+	IsFieldSubmitted(field string) bool
+
+	// GetSubmittedFields 返回所有已提交字段，按字段名稳定排序。
+	GetSubmittedFields() []string
+
 	// IsFieldDirty 返回字段值是否相对初始值发生变化
 	IsFieldDirty(field string) bool
+
+	// GetDirtyFields 返回所有脏字段，按字段名稳定排序。
+	GetDirtyFields() []string
 }
 
 // =============================================================================
@@ -139,14 +171,44 @@ func (c *formContextImpl) IsSubmitting() bool {
 	return c.form.IsSubmitting()
 }
 
+// HasSubmitted 返回表单是否至少提交过一次。
+func (c *formContextImpl) HasSubmitted() bool {
+	return c.form.HasSubmitted()
+}
+
+// GetSubmitCount 返回表单提交次数。
+func (c *formContextImpl) GetSubmitCount() int {
+	return c.form.GetSubmitCount()
+}
+
 // IsFieldTouched 返回字段是否已被访问（blur）
 func (c *formContextImpl) IsFieldTouched(field string) bool {
 	return c.form.IsFieldTouched(field)
 }
 
+// GetTouchedFields 返回所有已访问字段。
+func (c *formContextImpl) GetTouchedFields() []string {
+	return c.form.GetTouchedFields()
+}
+
+// IsFieldSubmitted 返回字段是否已参与提交/validate-all。
+func (c *formContextImpl) IsFieldSubmitted(field string) bool {
+	return c.form.IsFieldSubmitted(field)
+}
+
+// GetSubmittedFields 返回所有已提交字段。
+func (c *formContextImpl) GetSubmittedFields() []string {
+	return c.form.GetSubmittedFields()
+}
+
 // IsFieldDirty 返回字段值是否相对初始值发生变化
 func (c *formContextImpl) IsFieldDirty(field string) bool {
 	return c.form.IsFieldDirty(field)
+}
+
+// GetDirtyFields 返回所有脏字段。
+func (c *formContextImpl) GetDirtyFields() []string {
+	return c.form.GetDirtyFields()
 }
 
 // =============================================================================
@@ -158,13 +220,59 @@ func newFormContext(form *Instance) FormContext {
 	return &formContextImpl{form: form}
 }
 
-// GetFormContext 通过 formID 获取 FormContext。
-// 这是一个兼容层便捷方法，返回的 FormContext 是一个临时包装器；
-// 常规的 FormItem 运行时联动会优先走实例树祖先解析。
+// GetFormContext resolves a FormContext from the current render owner's
+// instance tree only. It never performs implicit registry lookup.
+// When formID is empty, it resolves the nearest ancestor Form.
 func GetFormContext(formID string) FormContext {
-	form := GetForm(formID)
+	ctx := rtui.GetCurrentContext()
+	if ctx == nil {
+		return nil
+	}
+	owner := ctx.OwnerInstance()
+	if owner == nil {
+		return nil
+	}
+	form := resolveFormFromOwner(owner, formID)
 	if form == nil {
 		return nil
 	}
 	return newFormContext(form)
+}
+
+// GetRegisteredFormContext returns a FormContext backed by the compatibility
+// registry only. Use this only for explicit cross-tree / ownerless lookups.
+func GetRegisteredFormContext(formID string) FormContext {
+	if formID == "" {
+		return nil
+	}
+	form := GetRegisteredForm(formID)
+	if form == nil {
+		return nil
+	}
+	return newFormContext(form)
+}
+
+func resolveFormFromOwner(owner rtui.ComponentInstance, formID string) *Instance {
+	if owner == nil {
+		return nil
+	}
+	return resolveFormAncestor(owner, formID)
+}
+
+func resolveFormAncestor(owner rtui.ComponentInstance, formID string) *Instance {
+	var current interface{} = owner
+	for hops := 0; current != nil && hops < 64; hops++ {
+		if formInst, ok := current.(*Instance); ok {
+			if formID == "" || formInst.Key() == formID {
+				return formInst
+			}
+		}
+
+		treeNode, ok := current.(interface{ Parent() interface{} })
+		if !ok {
+			return nil
+		}
+		current = treeNode.Parent()
+	}
+	return nil
 }

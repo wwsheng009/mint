@@ -178,6 +178,12 @@ type App struct {
 	// ============================================================================
 	// InputTracker + InteractionFSM (Phase 1-3: Pressed State 解决方案)
 	// ============================================================================
+
+	// ============================================================================
+	// Test Probes (testing only)
+	// ============================================================================
+	testMsgProbe    func(runtimemsg.Msg)
+	testActionProbe func(*action.Action, bool, string)
 	// 根据 docs/event/PRESSED_STATE_COMPLETE_SOLUTION.md 的设计：
 	// - InputTracker: 追踪输入状态变化，推断边缘事件
 	// - InteractionContext: 全局交互状态管理，分配 Click/Cancel/ResetPressed
@@ -1265,6 +1271,18 @@ func (a *App) processMsg(msg runtimemsg.Msg) {
 	if msg == nil {
 		return
 	}
+	if a.testMsgProbe != nil {
+		a.testMsgProbe(msg)
+	}
+
+	var mappedAction *action.Action
+	var actionHandled bool
+	var actionStage string
+	defer func() {
+		if a.testActionProbe != nil && mappedAction != nil {
+			a.testActionProbe(mappedAction, actionHandled, actionStage)
+		}
+	}()
 
 	// Global key shortcuts (OnKeyCombo/OnKey) must work in Action path too.
 	if a.handleGlobalKeyShortcut(msg) {
@@ -1298,6 +1316,7 @@ func (a *App) processMsg(msg runtimemsg.Msg) {
 
 	// 1. 尝试转换为 Action
 	act := a.inputProcessor.ProcessMsg(msg)
+	mappedAction = act
 
 	// 2. 处理无法转换的消息（系统消息）
 	if act == nil {
@@ -1335,6 +1354,8 @@ func (a *App) processMsg(msg runtimemsg.Msg) {
 	act = a.applyActionMiddlewareBefore(act)
 	if act == nil {
 		a.dirty = true
+		actionHandled = true
+		actionStage = "middleware_before"
 		return
 	}
 	if act.IsStopped() {
@@ -1344,6 +1365,8 @@ func (a *App) processMsg(msg runtimemsg.Msg) {
 			Phase:   action.ActionPhaseNone,
 		})
 		a.dirty = true
+		actionHandled = true
+		actionStage = "middleware_stop"
 		return
 	}
 
@@ -1360,6 +1383,8 @@ func (a *App) processMsg(msg runtimemsg.Msg) {
 				Handled: true,
 				Phase:   action.ActionPhaseTarget,
 			})
+			actionHandled = true
+			actionStage = "navigation"
 			return
 		}
 	}
@@ -1410,6 +1435,8 @@ func (a *App) processMsg(msg runtimemsg.Msg) {
 					Phase:   action.ActionPhaseTarget,
 				})
 				a.dirty = true
+				actionHandled = true
+				actionStage = "mouse_target"
 				return
 			}
 		}
@@ -1425,6 +1452,8 @@ func (a *App) processMsg(msg runtimemsg.Msg) {
 			a.applyActionMiddlewareAfter(act, result)
 			if result.Handled {
 				a.dirty = true
+				actionHandled = true
+				actionStage = "router_cancel"
 				return
 			}
 		}
@@ -1437,6 +1466,8 @@ func (a *App) processMsg(msg runtimemsg.Msg) {
 					Phase:   action.ActionPhaseTarget,
 				})
 				a.dirty = true
+				actionHandled = true
+				actionStage = "keyboard_target"
 				return
 			}
 		}
@@ -1450,6 +1481,10 @@ func (a *App) processMsg(msg runtimemsg.Msg) {
 	a.applyActionMiddlewareAfter(act, result)
 	if result.Handled {
 		a.dirty = true
+		actionHandled = true
+		actionStage = "router_fallback"
+	} else {
+		actionStage = "unhandled"
 	}
 }
 
@@ -2591,4 +2626,14 @@ func (a *App) GetFocusManager() *rtui.FiberFocusManager {
 // This is called during render to ensure event routing uses the correct focus state
 func (a *App) SetFocusManagerFromDeclarativeNode(fm *rtui.FiberFocusManager) {
 	a.focusManager = fm
+}
+
+// SetTestMessageProbe installs a test-only callback for observing processed Msg values.
+func (a *App) SetTestMessageProbe(fn func(runtimemsg.Msg)) {
+	a.testMsgProbe = fn
+}
+
+// SetTestActionProbe installs a test-only callback for observing mapped Action values.
+func (a *App) SetTestActionProbe(fn func(*action.Action, bool, string)) {
+	a.testActionProbe = fn
 }

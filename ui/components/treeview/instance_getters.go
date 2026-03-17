@@ -1,6 +1,8 @@
 package treeview
 
 import (
+	"strings"
+
 	"github.com/wwsheng009/mint/runtime/intent"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
@@ -27,36 +29,132 @@ func (inst *Instance) GetSelectedNode() (TreeNode, bool) {
 	return visibleNodes[inst.selectedIndex], true
 }
 func (inst *Instance) GetMatchStats() (total int, selected int) {
-	visible, _ := inst.visibleEntries()
-	if len(visible) == 0 {
-		return 0, 0
-	}
-	count := 0
-	selectedMatch := 0
-	for i, entry := range visible {
-		if entry.Match {
-			count++
-			if i == inst.selectedIndex {
-				selectedMatch = count
-			}
-		}
-	}
-	return count, selectedMatch
+	snapshot := inst.searchResultsSnapshot()
+	return snapshot.total, snapshot.selected
 }
 
 func (inst *Instance) updateSearchStats() {
-	total, selected := inst.GetMatchStats()
+	snapshot := inst.searchResultsSnapshot()
+	digest := searchResultsDigest(snapshot.results)
 	if inst.lastSearchQuery == inst.searchQuery &&
-		inst.lastSearchTotal == total &&
-		inst.lastSearchSelected == selected {
+		inst.lastSearchTotal == snapshot.total &&
+		inst.lastSearchSelected == snapshot.selected &&
+		inst.lastSearchPending == inst.searchPending &&
+		inst.lastSearchPage == snapshot.page &&
+		inst.lastSearchPageCount == snapshot.pageCount &&
+		inst.lastSearchPageSize == snapshot.pageSize &&
+		inst.lastSearchResultsDigest == digest {
 		return
 	}
 	inst.lastSearchQuery = inst.searchQuery
-	inst.lastSearchTotal = total
-	inst.lastSearchSelected = selected
-	if inst.intentEmitter != nil {
-		inst.emitSearchStats(total, selected)
+	inst.lastSearchTotal = snapshot.total
+	inst.lastSearchSelected = snapshot.selected
+	inst.lastSearchPending = inst.searchPending
+	inst.lastSearchPage = snapshot.page
+	inst.lastSearchPageCount = snapshot.pageCount
+	inst.lastSearchPageSize = snapshot.pageSize
+	inst.lastSearchResultsDigest = digest
+	inst.emitSearchStats(snapshot.total, snapshot.selected)
+	inst.emitSearchResults(snapshot)
+}
+
+func (inst *Instance) GetSearchResults() []SearchResultItem {
+	snapshot := inst.searchResultsSnapshot()
+	return append([]SearchResultItem(nil), snapshot.results...)
+}
+
+func (inst *Instance) GetSearchPage() int {
+	return inst.searchResultsSnapshot().page
+}
+
+func (inst *Instance) GetSearchPageCount() int {
+	return inst.searchResultsSnapshot().pageCount
+}
+
+func (inst *Instance) GetSearchPageSize() int {
+	return inst.searchResultsSnapshot().pageSize
+}
+
+type searchResultsSnapshotData struct {
+	total     int
+	selected  int
+	page      int
+	pageSize  int
+	pageCount int
+	results   []SearchResultItem
+}
+
+func (inst *Instance) searchResultsSnapshot() searchResultsSnapshotData {
+	visible, _ := inst.visibleEntries()
+	if len(visible) == 0 {
+		return searchResultsSnapshotData{pageSize: max(0, inst.searchPageSize)}
 	}
+
+	matches := make([]SearchResultItem, 0, len(visible))
+	selectedMatch := 0
+	for visibleIndex, entry := range visible {
+		if !entry.Match {
+			continue
+		}
+		matches = append(matches, SearchResultItem{
+			MatchIndex:   len(matches) + 1,
+			NodeIndex:    entry.Index,
+			VisibleIndex: visibleIndex,
+			Key:          entry.Key,
+			Path:         entry.Node.Path,
+			NodeID:       entry.Node.NodeID,
+			Content:      entry.Node.Content,
+			Depth:        entry.Depth,
+		})
+		if visibleIndex == inst.selectedIndex {
+			selectedMatch = len(matches)
+		}
+	}
+
+	total := len(matches)
+	configuredPageSize := max(0, inst.searchPageSize)
+	if total == 0 {
+		return searchResultsSnapshotData{
+			total:     0,
+			selected:  0,
+			page:      0,
+			pageSize:  configuredPageSize,
+			pageCount: 0,
+		}
+	}
+
+	pageSize := configuredPageSize
+	if pageSize <= 0 || pageSize > total {
+		pageSize = total
+	}
+	pageCount := (total + pageSize - 1) / pageSize
+	page := 1
+	if selectedMatch > 0 {
+		page = (selectedMatch-1)/pageSize + 1
+	}
+	start := (page - 1) * pageSize
+	end := min(start+pageSize, total)
+
+	return searchResultsSnapshotData{
+		total:     total,
+		selected:  selectedMatch,
+		page:      page,
+		pageSize:  pageSize,
+		pageCount: pageCount,
+		results:   append([]SearchResultItem(nil), matches[start:end]...),
+	}
+}
+
+func searchResultsDigest(results []SearchResultItem) string {
+	if len(results) == 0 {
+		return ""
+	}
+	var builder strings.Builder
+	for _, result := range results {
+		builder.WriteString(result.Key)
+		builder.WriteByte('|')
+	}
+	return builder.String()
 }
 func (inst *Instance) GetCheckedKeys() []string {
 	keys, _, _, _ := inst.checkedSnapshot()
@@ -293,6 +391,35 @@ func (inst *Instance) emitSearchStats(total, selected int) {
 		statsIntent = SearchStats(inst.searchQuery, total, selected)
 	}
 	inst.emitOptionalGlobalIntent(statsIntent)
+}
+
+func (inst *Instance) emitSearchResults(snapshot searchResultsSnapshotData) {
+	var resultsIntent SearchResultsIntent
+	if inst.componentID != "" {
+		resultsIntent = SearchResultsWithID(
+			inst.componentID,
+			inst.searchQuery,
+			inst.searchPending,
+			snapshot.total,
+			snapshot.selected,
+			snapshot.page,
+			snapshot.pageSize,
+			snapshot.pageCount,
+			snapshot.results,
+		)
+	} else {
+		resultsIntent = SearchResults(
+			inst.searchQuery,
+			inst.searchPending,
+			snapshot.total,
+			snapshot.selected,
+			snapshot.page,
+			snapshot.pageSize,
+			snapshot.pageCount,
+			snapshot.results,
+		)
+	}
+	inst.emitOptionalGlobalIntent(resultsIntent)
 }
 
 func (inst *Instance) emitLazyLoad(nodeIndex int, path string, nodeID int) {

@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/wwsheng009/mint/framework"
@@ -17,24 +18,28 @@ import (
 const treeComponentID = "examples.treeview.showcase"
 
 type AppState struct {
-	Nodes           []treeviewcomp.TreeNode
-	ExpandedPaths   string
-	SearchText      string
-	CheckedPaths    string
-	SelectionMode   string
-	SelectedPath    string
-	SelectedContent string
-	SelectedNodeID  int
-	ShowBorder      bool
-	ShowIcons       bool
-	Compact         bool
-	ShowLineNums    bool
-	ShowScrollbar   bool
-	ViewportHeight  int
-	AsyncMode       string
-	LazyRequests    int
-	LazyResults     int
-	LastAction      string
+	Nodes              []treeviewcomp.TreeNode
+	ExpandedPaths      string
+	SearchText         string
+	SearchMatchedPaths string
+	SearchPending      bool
+	SearchRequestID    int
+	SearchPageSize     int
+	CheckedPaths       string
+	SelectionMode      string
+	SelectedPath       string
+	SelectedContent    string
+	SelectedNodeID     int
+	ShowBorder         bool
+	ShowIcons          bool
+	Compact            bool
+	ShowLineNums       bool
+	ShowScrollbar      bool
+	ViewportHeight     int
+	AsyncMode          string
+	LazyRequests       int
+	LazyResults        int
+	LastAction         string
 }
 
 type ToggleBorderIntent struct{}
@@ -50,6 +55,11 @@ type ExpandAllDemoIntent struct{}
 type CollapseAllDemoIntent struct{}
 type SearchNextDemoIntent struct{}
 type SearchPrevDemoIntent struct{}
+type ResolveSearchIntent struct {
+	RequestID    int
+	Query        string
+	MatchedPaths string
+}
 
 type AdjustViewportIntent struct{ Delta int }
 type SetSelectionModeIntent struct{ Mode string }
@@ -67,6 +77,7 @@ func (ExpandAllDemoIntent) IntentType() string     { return "TreeDemoExpandAll" 
 func (CollapseAllDemoIntent) IntentType() string   { return "TreeDemoCollapseAll" }
 func (SearchNextDemoIntent) IntentType() string    { return "TreeDemoSearchNext" }
 func (SearchPrevDemoIntent) IntentType() string    { return "TreeDemoSearchPrev" }
+func (ResolveSearchIntent) IntentType() string     { return "TreeDemoResolveSearch" }
 func (AdjustViewportIntent) IntentType() string    { return "TreeDemoAdjustViewport" }
 func (SetSelectionModeIntent) IntentType() string  { return "TreeDemoSetSelectionMode" }
 
@@ -83,10 +94,12 @@ func (ExpandAllDemoIntent) StayPressed() bool     { return true }
 func (CollapseAllDemoIntent) StayPressed() bool   { return true }
 func (SearchNextDemoIntent) StayPressed() bool    { return true }
 func (SearchPrevDemoIntent) StayPressed() bool    { return true }
+func (ResolveSearchIntent) StayPressed() bool     { return true }
 func (AdjustViewportIntent) StayPressed() bool    { return true }
 func (SetSelectionModeIntent) StayPressed() bool  { return true }
 
 var demoStore = store.NewStore(newInitialState())
+var searchRequestSeq int64
 
 func init() {
 	reducer.NewBuilder[AppState]().
@@ -98,7 +111,16 @@ func init() {
 			switch change.Field {
 			case "searchText":
 				s.SearchText = change.Value
-				s.LastAction = fmt.Sprintf("Search query = %q", strings.TrimSpace(s.SearchText))
+				query := strings.TrimSpace(s.SearchText)
+				if query == "" {
+					s.SearchMatchedPaths = ""
+					s.SearchPending = false
+					s.SearchRequestID = nextSearchRequestID()
+					s.LastAction = "Cleared search query"
+					return syncSelectedMetadata(s)
+				}
+				s = beginAsyncSearch(s, fmt.Sprintf("Searching %q asynchronously", query))
+				return syncSelectedMetadata(s)
 			case "checkedPaths":
 				s.CheckedPaths = normalizeCheckedPaths(change.Value, s.SelectionMode)
 				s.LastAction = fmt.Sprintf("Checked %d node(s)", len(splitList(s.CheckedPaths)))
@@ -156,6 +178,9 @@ func init() {
 			s.Nodes = applyLazySuccess(s.Nodes, path, load.Children, load.Replace)
 			s.LazyResults++
 			s.LastAction = fmt.Sprintf("Lazy success: %s (%d child nodes)", path, len(load.Children))
+			if strings.TrimSpace(s.SearchText) != "" {
+				return syncSelectedMetadata(beginAsyncSearch(s, s.LastAction+" -> refresh search"))
+			}
 			return syncSelectedMetadata(s)
 		}).
 		On(treeviewcomp.LazyLoadFailureIntent{}, func(s AppState, i intent.Intent) AppState {
@@ -167,6 +192,22 @@ func init() {
 			s.Nodes = applyLazyFailure(s.Nodes, path, load.Error)
 			s.LazyResults++
 			s.LastAction = fmt.Sprintf("Lazy failure: %s (%s)", path, strings.TrimSpace(load.Error))
+			if strings.TrimSpace(s.SearchText) != "" {
+				return syncSelectedMetadata(beginAsyncSearch(s, s.LastAction+" -> refresh search"))
+			}
+			return syncSelectedMetadata(s)
+		}).
+		On(ResolveSearchIntent{}, func(s AppState, i intent.Intent) AppState {
+			resolved, ok := i.(ResolveSearchIntent)
+			if !ok {
+				return s
+			}
+			if resolved.RequestID != s.SearchRequestID || strings.TrimSpace(resolved.Query) != strings.TrimSpace(s.SearchText) {
+				return s
+			}
+			s.SearchPending = false
+			s.SearchMatchedPaths = resolved.MatchedPaths
+			s.LastAction = fmt.Sprintf("Search resolved: %d match(es)", len(splitList(s.SearchMatchedPaths)))
 			return syncSelectedMetadata(s)
 		}).
 		On(ToggleBorderIntent{}, func(s AppState, i intent.Intent) AppState {
@@ -210,6 +251,9 @@ func init() {
 		}).
 		On(ClearSearchIntent{}, func(s AppState, i intent.Intent) AppState {
 			s.SearchText = ""
+			s.SearchMatchedPaths = ""
+			s.SearchPending = false
+			s.SearchRequestID = nextSearchRequestID()
 			s.LastAction = "Cleared search query"
 			return syncSelectedMetadata(s)
 		}).
@@ -282,32 +326,37 @@ func App() ui.VNode {
 	state := demoStore.Get()
 	checkedPaths := splitList(state.CheckedPaths)
 	expandedPaths := splitList(state.ExpandedPaths)
-	visible := computeVisibleEntries(state.Nodes, expandedPaths, state.SearchText)
+	searchMatchedPaths := splitList(state.SearchMatchedPaths)
+	visible := computeVisibleEntries(state.Nodes, expandedPaths, state.SearchText, searchMatchedPaths, state.SearchPending)
 	selectedIndex := visibleIndexByPath(visible, state.SelectedPath)
 	matchTotal, matchSelected := matchStats(visible, state.SelectedPath)
+	pageResults, matchPage, matchPageCount := matchPageEntries(visible, state.SelectedPath, state.SearchPageSize)
 
 	return ui.NewVStack().
 		SetGap(1).
 		SetChildrenList([]ui.VNode{
-			headerPanel(state, checkedPaths, matchTotal, matchSelected),
+			headerPanel(state, checkedPaths, matchTotal, matchSelected, matchPage, matchPageCount),
 			controlsPanel(state),
 			ui.HStackBuilder(
-				ui.Flex(treePanel(state, checkedPaths, expandedPaths, selectedIndex), 3),
-				ui.Flex(sidebar(state, checkedPaths, expandedPaths, matchTotal, matchSelected), 2),
+				ui.Flex(treePanel(state, checkedPaths, expandedPaths, searchMatchedPaths, selectedIndex), 3),
+				ui.Flex(sidebar(state, checkedPaths, expandedPaths, matchTotal, matchSelected, matchPage, matchPageCount, pageResults), 2),
 			).Gap(1).Stretch().Build(),
 		})
 }
 
-func headerPanel(state AppState, checkedPaths []string, matchTotal, matchSelected int) ui.VNode {
+func headerPanel(state AppState, checkedPaths []string, matchTotal, matchSelected, matchPage, matchPageCount int) ui.VNode {
 	return ui.NewVStack().
 		SingleBorder("Interactive TreeView Showcase").
 		SetGap(0).
 		SetChildrenList([]ui.VNode{
-			ui.NewTextBuilder("受控搜索 / 外部控制展开与匹配跳转 / 父子勾选联动 / 同步与异步 lazy load / 错误重试").Bold(true).FgColor("bright-cyan").Build(),
-			ui.NewTextBuilder(fmt.Sprintf("Search=%q  Matches=%d/%d  Checked=%d  Viewport=%d  Async=%s",
+			ui.NewTextBuilder("异步受控搜索 / match 高亮分页 / 外部控制展开与匹配跳转 / 父子勾选联动 / 同步与异步 lazy load / 错误重试").Bold(true).FgColor("bright-cyan").Build(),
+			ui.NewTextBuilder(fmt.Sprintf("Search=%q  Pending=%t  Matches=%d/%d  Page=%d/%d  Checked=%d  Viewport=%d  Async=%s",
 				strings.TrimSpace(state.SearchText),
+				state.SearchPending,
 				matchSelected,
 				matchTotal,
+				matchPage,
+				matchPageCount,
 				len(checkedPaths),
 				state.ViewportHeight,
 				strings.ToUpper(state.AsyncMode),
@@ -337,7 +386,7 @@ func controlsPanel(state AppState) ui.VNode {
 				ui.NewButtonBuilder("Clear").OnPress(ClearSearchIntent{}).Build(),
 				ui.NewButtonBuilder("Prev Match").OnPress(SearchPrevDemoIntent{}).Build(),
 				ui.NewButtonBuilder("Next Match").OnPress(SearchNextDemoIntent{}).Build(),
-				ui.NewTextBuilder("Search uses controlled store state and controlled selected index.").FgColor("bright-black").Build(),
+				ui.NewTextBuilder("Search is resolved asynchronously, then projected back as controlled matches + controlled selected index.").FgColor("bright-black").Build(),
 			).Gap(1).Stretch().Build(),
 			ui.HStackBuilder(
 				ui.NewButtonBuilder("Expand All").OnPress(ExpandAllDemoIntent{}).Build(),
@@ -361,13 +410,16 @@ func controlsPanel(state AppState) ui.VNode {
 		})
 }
 
-func treePanel(state AppState, checkedPaths, expandedPaths []string, selectedIndex int) ui.VNode {
+func treePanel(state AppState, checkedPaths, expandedPaths, searchMatchedPaths []string, selectedIndex int) ui.VNode {
 	builder := treeviewcomp.NewBuilder().
 		ComponentID(treeComponentID).
 		Nodes(state.Nodes).
 		SelectedIndexControlled(selectedIndex).
 		ExpandedPaths(expandedPaths...).
 		ViewportHeight(state.ViewportHeight).
+		SearchMatchPathsControlled(searchMatchedPaths...).
+		SearchPending(state.SearchPending).
+		SearchPageSize(state.SearchPageSize).
 		SearchQueryControlled(state.SearchText).
 		ShowSearchStats(true).
 		ShowBorder(state.ShowBorder).
@@ -396,22 +448,23 @@ func treePanel(state AppState, checkedPaths, expandedPaths []string, selectedInd
 		SingleBorder("Tree").
 		SetGap(0).
 		SetChildrenList([]ui.VNode{
-			ui.NewTextBuilder("cmd/ and services/ succeed. experiments/ follows the current async mode and can be retried with r or focused F5.").FgColor("bright-black").Build(),
+			ui.NewTextBuilder("Search input is async-controlled. cmd/ and services/ succeed; experiments/ follows the current async mode and can be retried with r or focused F5.").FgColor("bright-black").Build(),
 			builder.Build(),
 		})
 }
 
-func sidebar(state AppState, checkedPaths, expandedPaths []string, matchTotal, matchSelected int) ui.VNode {
+func sidebar(state AppState, checkedPaths, expandedPaths []string, matchTotal, matchSelected, matchPage, matchPageCount int, pageResults []pagedMatchEntry) ui.VNode {
 	return ui.NewVStack().
 		SetGap(1).
 		SetChildrenList([]ui.VNode{
-			statePanel(state, checkedPaths, expandedPaths, matchTotal, matchSelected),
+			statePanel(state, checkedPaths, expandedPaths, matchTotal, matchSelected, matchPage, matchPageCount),
+			searchResultsPanel(state, pageResults),
 			usagePanel(),
 			shortcutsPanel(),
 		})
 }
 
-func statePanel(state AppState, checkedPaths, expandedPaths []string, matchTotal, matchSelected int) ui.VNode {
+func statePanel(state AppState, checkedPaths, expandedPaths []string, matchTotal, matchSelected, matchPage, matchPageCount int) ui.VNode {
 	checkedPreview := "[]"
 	if len(checkedPaths) > 0 {
 		checkedPreview = "[" + strings.Join(checkedPaths, ", ") + "]"
@@ -426,7 +479,8 @@ func statePanel(state AppState, checkedPaths, expandedPaths []string, matchTotal
 		SetGap(0).
 		SetChildrenList([]ui.VNode{
 			ui.NewTextBuilder(fmt.Sprintf("SelectionMode: %s", strings.ToUpper(state.SelectionMode))).FgColor("cyan").Build(),
-			ui.NewTextBuilder(fmt.Sprintf("Matches: %d/%d", matchSelected, matchTotal)).FgColor("yellow").Build(),
+			ui.NewTextBuilder(fmt.Sprintf("Matches: %d/%d  Page: %d/%d", matchSelected, matchTotal, matchPage, matchPageCount)).FgColor("yellow").Build(),
+			ui.NewTextBuilder(fmt.Sprintf("SearchPending: %t", state.SearchPending)).FgColor("bright-black").Build(),
 			ui.NewTextBuilder(fmt.Sprintf("SelectedNodeID: %d", state.SelectedNodeID)).FgColor("bright-white").Build(),
 			ui.NewTextBuilder(fmt.Sprintf("Selected: %s", truncateText(displaySelected(state.SelectedPath, state.SelectedContent), 52))).FgColor("bright-white").Build(),
 			ui.NewTextBuilder(fmt.Sprintf("Expanded: %s", truncateText(expandedPreview, 52))).FgColor("bright-black").Build(),
@@ -434,6 +488,35 @@ func statePanel(state AppState, checkedPaths, expandedPaths []string, matchTotal
 			ui.NewTextBuilder(fmt.Sprintf("Lazy Requests/Results: %d/%d", state.LazyRequests, state.LazyResults)).FgColor("bright-black").Build(),
 			ui.NewTextBuilder(fmt.Sprintf("Async experiments mode: %s", strings.ToUpper(state.AsyncMode))).FgColor(asyncModeStyle(state.AsyncMode)).Build(),
 		})
+}
+
+func searchResultsPanel(state AppState, pageResults []pagedMatchEntry) ui.VNode {
+	children := []ui.VNode{
+		ui.NewTextBuilder(fmt.Sprintf("PageSize: %d", state.SearchPageSize)).FgColor("bright-black").Build(),
+	}
+	switch {
+	case strings.TrimSpace(state.SearchText) == "":
+		children = append(children, ui.NewTextBuilder("Type in Search to start async match paging.").FgColor("bright-black").Build())
+	case state.SearchPending:
+		children = append(children, ui.NewTextBuilder("Searching asynchronously...").FgColor("yellow").Build())
+	case len(pageResults) == 0:
+		children = append(children, ui.NewTextBuilder("No matches on the current query.").FgColor("bright-black").Build())
+	default:
+		for _, result := range pageResults {
+			prefix := "  "
+			rowStyle := style.Style{}.Foreground(style.BrightWhite)
+			if result.selected {
+				prefix = "> "
+				rowStyle = style.Style{}.Foreground(style.Black).Background(style.BrightCyan).Bold(true)
+			}
+			children = append(children, ui.NewTextBuilder(fmt.Sprintf("%s%02d %s", prefix, result.matchIndex, truncateText(result.path, 42))).Style(rowStyle).Build())
+		}
+	}
+
+	return ui.NewVStack().
+		SingleBorder("Search Results").
+		SetGap(0).
+		SetChildrenList(children)
 }
 
 func usagePanel() ui.VNode {
@@ -444,6 +527,8 @@ func usagePanel() ui.VNode {
 			ui.NewTextBuilder(`ComponentID("examples.treeview.showcase")`).FgColor("bright-white").Build(),
 			ui.NewTextBuilder(`SelectedIndexControlled(selectedIndex)`).FgColor("bright-white").Build(),
 			ui.NewTextBuilder(`ExpandedPaths(expandedPaths...)`).FgColor("bright-white").Build(),
+			ui.NewTextBuilder(`SearchMatchPathsControlled(matchPaths...)`).FgColor("bright-white").Build(),
+			ui.NewTextBuilder(`SearchPending(state.SearchPending) + SearchPageSize(state.SearchPageSize)`).FgColor("bright-white").Build(),
 			ui.NewTextBuilder(`SearchQueryControlled(state.SearchText)`).FgColor("bright-white").Build(),
 			ui.NewTextBuilder(`SelectionForField(intent.BindField("checkedPaths"))`).FgColor("bright-white").Build(),
 			ui.NewTextBuilder(`OnLazyLoad(simulateLazyLoad)`).FgColor("bright-white").Build(),
@@ -458,7 +543,7 @@ func shortcutsPanel() ui.VNode {
 			ui.NewTextBuilder("Tab 切换搜索框和 TreeView 焦点；TreeView 聚焦后可用 ↑ ↓ ← → / Home End / PageUp PageDown").FgColor("bright-white").Build(),
 			ui.NewTextBuilder("Enter / Space 切换 checkbox；父节点勾选会联动整棵子树").FgColor("bright-white").Build(),
 			ui.NewTextBuilder("r 或聚焦 TreeView 后按 F5: 重试当前 lazy/error 节点").FgColor("bright-white").Build(),
-			ui.NewTextBuilder("F2/F3: 上一/下一匹配  F4/F6: 展开全部/收起全部  F7: 切换 experiments 成功或失败").FgColor("bright-black").Build(),
+			ui.NewTextBuilder("F2/F3: 上一/下一匹配（结果页会随当前 match 自动切换）  F4/F6: 展开全部/收起全部  F7: 切换 experiments 成功或失败").FgColor("bright-black").Build(),
 			ui.NewTextBuilder("F8/F9/F10: none/single/multi  F11: clear checked  F12: reset  Ctrl+L: clear search").FgColor("bright-black").Build(),
 		})
 }
@@ -525,26 +610,84 @@ func simulateLazyLoad(node treeviewcomp.TreeNode) {
 	}()
 }
 
+func nextSearchRequestID() int {
+	return int(atomic.AddInt64(&searchRequestSeq, 1))
+}
+
+func beginAsyncSearch(state AppState, action string) AppState {
+	query := strings.TrimSpace(state.SearchText)
+	state.SearchMatchedPaths = ""
+	state.SearchRequestID = nextSearchRequestID()
+	if query == "" {
+		state.SearchPending = false
+		state.LastAction = action
+		return state
+	}
+	state.SearchPending = true
+	state.LastAction = action
+	dispatchAsyncSearch(query, state.SearchRequestID)
+	return state
+}
+
+func dispatchAsyncSearch(query string, requestID int) {
+	go func() {
+		delay := 180 * time.Millisecond
+		if strings.Contains(strings.ToLower(query), "go") || strings.Contains(strings.ToLower(query), "service") {
+			delay = 320 * time.Millisecond
+		}
+		time.Sleep(delay)
+
+		nodes := demoStore.Get().Nodes
+		matchedPaths := strings.Join(asyncSearchMatches(nodes, query), ",")
+		ui.EmitIntentGlobal(ResolveSearchIntent{
+			RequestID:    requestID,
+			Query:        query,
+			MatchedPaths: matchedPaths,
+		})
+	}()
+}
+
+func asyncSearchMatches(nodes []treeviewcomp.TreeNode, query string) []string {
+	trimmedQuery := strings.TrimSpace(query)
+	if trimmedQuery == "" {
+		return nil
+	}
+	matches := make([]string, 0, len(nodes))
+	for _, node := range nodes {
+		if node.Path == "" {
+			continue
+		}
+		if nodeMatches(node, trimmedQuery) {
+			matches = append(matches, node.Path)
+		}
+	}
+	return matches
+}
+
 func newInitialState() AppState {
 	state := AppState{
-		Nodes:           baseTreeNodes(),
-		ExpandedPaths:   "workspace,workspace/pkg,workspace/pkg/treeview,workspace/docs",
-		SearchText:      "",
-		CheckedPaths:    "workspace/pkg/treeview/selection.go",
-		SelectionMode:   "multi",
-		SelectedPath:    "workspace/README.md",
-		SelectedContent: "README.md",
-		SelectedNodeID:  2,
-		ShowBorder:      true,
-		ShowIcons:       true,
-		Compact:         false,
-		ShowLineNums:    false,
-		ShowScrollbar:   true,
-		ViewportHeight:  11,
-		AsyncMode:       "error",
-		LazyRequests:    0,
-		LazyResults:     0,
-		LastAction:      "Ready",
+		Nodes:              baseTreeNodes(),
+		ExpandedPaths:      "workspace,workspace/pkg,workspace/pkg/treeview,workspace/docs",
+		SearchText:         "",
+		SearchMatchedPaths: "",
+		SearchPending:      false,
+		SearchRequestID:    0,
+		SearchPageSize:     2,
+		CheckedPaths:       "workspace/pkg/treeview/selection.go",
+		SelectionMode:      "multi",
+		SelectedPath:       "workspace/README.md",
+		SelectedContent:    "README.md",
+		SelectedNodeID:     2,
+		ShowBorder:         true,
+		ShowIcons:          true,
+		Compact:            false,
+		ShowLineNums:       false,
+		ShowScrollbar:      true,
+		ViewportHeight:     11,
+		AsyncMode:          "error",
+		LazyRequests:       0,
+		LazyResults:        0,
+		LastAction:         "Ready",
 	}
 	return syncSelectedMetadata(state)
 }
@@ -575,7 +718,13 @@ type demoEntry struct {
 	hasChildren bool
 }
 
-func computeVisibleEntries(nodes []treeviewcomp.TreeNode, expandedPaths []string, query string) []demoEntry {
+type pagedMatchEntry struct {
+	matchIndex int
+	path       string
+	selected   bool
+}
+
+func computeVisibleEntries(nodes []treeviewcomp.TreeNode, expandedPaths []string, query string, matchedPaths []string, pending bool) []demoEntry {
 	entries := buildEntries(nodes)
 	expanded := make(map[string]bool, len(expandedPaths))
 	for _, path := range expandedPaths {
@@ -583,9 +732,15 @@ func computeVisibleEntries(nodes []treeviewcomp.TreeNode, expandedPaths []string
 			expanded[path] = true
 		}
 	}
+	matchesByPath := make(map[string]bool, len(matchedPaths))
+	for _, path := range matchedPaths {
+		if path != "" {
+			matchesByPath[path] = true
+		}
+	}
 
 	trimmedQuery := strings.TrimSpace(query)
-	filterActive := trimmedQuery != ""
+	filterActive := trimmedQuery != "" && !pending
 	include := make([]bool, len(entries))
 	match := make([]bool, len(entries))
 	if filterActive {
@@ -594,7 +749,7 @@ func computeVisibleEntries(nodes []treeviewcomp.TreeNode, expandedPaths []string
 			for len(stack) > 0 && entries[stack[len(stack)-1]].depth >= entry.depth {
 				stack = stack[:len(stack)-1]
 			}
-			if nodeMatches(entry.node, trimmedQuery) {
+			if matchesByPath[entry.path] {
 				match[idx] = true
 				include[idx] = true
 				for _, ancestor := range stack {
@@ -641,6 +796,38 @@ func computeVisibleEntries(nodes []treeviewcomp.TreeNode, expandedPaths []string
 	return visible
 }
 
+func matchPageEntries(visible []demoEntry, selectedPath string, pageSize int) ([]pagedMatchEntry, int, int) {
+	matches := make([]pagedMatchEntry, 0, len(visible))
+	selectedMatch := 0
+	for _, entry := range visible {
+		if !entry.match {
+			continue
+		}
+		matches = append(matches, pagedMatchEntry{
+			matchIndex: len(matches) + 1,
+			path:       entry.path,
+			selected:   entry.path == selectedPath,
+		})
+		if entry.path == selectedPath {
+			selectedMatch = len(matches)
+		}
+	}
+	if len(matches) == 0 {
+		return nil, 0, 0
+	}
+	if pageSize <= 0 || pageSize > len(matches) {
+		pageSize = len(matches)
+	}
+	pageCount := (len(matches) + pageSize - 1) / pageSize
+	page := 1
+	if selectedMatch > 0 {
+		page = (selectedMatch-1)/pageSize + 1
+	}
+	start := (page - 1) * pageSize
+	end := min(start+pageSize, len(matches))
+	return matches[start:end], page, pageCount
+}
+
 func buildEntries(nodes []treeviewcomp.TreeNode) []demoEntry {
 	entries := make([]demoEntry, len(nodes))
 	for i, node := range nodes {
@@ -661,12 +848,16 @@ func navigateMatchInState(s AppState, direction int) AppState {
 	if direction == 0 {
 		return s
 	}
-	visible := computeVisibleEntries(s.Nodes, splitList(s.ExpandedPaths), s.SearchText)
-	if len(visible) == 0 {
-		return s
-	}
 	if strings.TrimSpace(s.SearchText) == "" {
 		s.LastAction = "Search navigation ignored: empty query"
+		return s
+	}
+	if s.SearchPending {
+		s.LastAction = "Search navigation ignored: async search pending"
+		return s
+	}
+	visible := computeVisibleEntries(s.Nodes, splitList(s.ExpandedPaths), s.SearchText, splitList(s.SearchMatchedPaths), s.SearchPending)
+	if len(visible) == 0 {
 		return s
 	}
 	start := visibleIndexByPath(visible, s.SelectedPath)
@@ -856,7 +1047,10 @@ func syncSelectedMetadata(state AppState) AppState {
 	state.SelectedNodeID = state.Nodes[index].NodeID
 
 	// Now check if the node is currently visible
-	visible := computeVisibleEntries(state.Nodes, splitList(state.ExpandedPaths), state.SearchText)
+	visible := computeVisibleEntries(state.Nodes, splitList(state.ExpandedPaths), state.SearchText, splitList(state.SearchMatchedPaths), state.SearchPending)
+	if strings.TrimSpace(state.SearchText) != "" && !state.SearchPending {
+		return syncSearchSelection(state, visible)
+	}
 	visibleIdx := visibleIndexByPath(visible, state.SelectedPath)
 
 	if visibleIdx >= 0 {
@@ -869,7 +1063,7 @@ func syncSelectedMetadata(state AppState) AppState {
 }
 
 func resetToFirstVisible(state AppState) AppState {
-	visible := computeVisibleEntries(state.Nodes, splitList(state.ExpandedPaths), state.SearchText)
+	visible := computeVisibleEntries(state.Nodes, splitList(state.ExpandedPaths), state.SearchText, splitList(state.SearchMatchedPaths), state.SearchPending)
 	if len(visible) == 0 {
 		// No visible nodes, clear selection
 		state.SelectedPath = ""
@@ -917,6 +1111,34 @@ func findVisibleAncestorOrFirst(state AppState, visible []demoEntry) AppState {
 	state.SelectedPath = visible[0].path
 	state.SelectedContent = visible[0].node.Content
 	state.SelectedNodeID = visible[0].node.NodeID
+	return state
+}
+
+func syncSearchSelection(state AppState, visible []demoEntry) AppState {
+	if len(visible) == 0 {
+		state.SelectedPath = ""
+		state.SelectedContent = ""
+		state.SelectedNodeID = 0
+		return state
+	}
+	for _, entry := range visible {
+		if entry.path == state.SelectedPath && entry.match {
+			state.SelectedContent = entry.node.Content
+			state.SelectedNodeID = entry.node.NodeID
+			return state
+		}
+	}
+	for _, entry := range visible {
+		if entry.match {
+			state.SelectedPath = entry.path
+			state.SelectedContent = entry.node.Content
+			state.SelectedNodeID = entry.node.NodeID
+			return state
+		}
+	}
+	state.SelectedPath = ""
+	state.SelectedContent = ""
+	state.SelectedNodeID = 0
 	return state
 }
 

@@ -36,6 +36,10 @@ const (
 	propScrollOffsetControlled  = "scrollOffsetControlled"
 	propScrollbarStyle          = "scrollbarStyle"
 	propSearchFn                = "searchFn"
+	propSearchMatches           = "searchMatches"
+	propSearchMatchesControlled = "searchMatchesControlled"
+	propSearchPageSize          = "searchPageSize"
+	propSearchPending           = "searchPending"
 	propSearchQuery             = "searchQuery"
 	propSearchQueryControlled   = "searchQueryControlled"
 	propSearchStatsStyle        = "searchStatsStyle"
@@ -110,6 +114,10 @@ type VNode struct {
 	viewportHeight          int  // Visible height for scrolling
 	expandedKeys            map[string]bool
 	expandedKeysControlled  bool
+	searchMatches           map[string]bool
+	searchMatchesControlled bool
+	searchPending           bool
+	searchPageSize          int
 	searchQuery             string
 	searchQueryControlled   bool
 	searchFn                func(TreeNode, string) bool
@@ -160,6 +168,8 @@ func New() *VNode {
 		selectedIndex:      -1,
 		viewportHeight:     10,
 		expandedKeys:       nil,
+		searchMatches:      nil,
+		searchPageSize:     0,
 		searchQuery:        "",
 		searchStatsStyle:   style.Style{},
 		selectionMode:      SelectionNone,
@@ -207,6 +217,9 @@ func (v *VNode) Props() rtui.Props {
 		propSelectedIndexControlled: v.selectedIndexControlled,
 		propViewportHeight:          v.viewportHeight,
 		propExpandedKeysControlled:  v.expandedKeysControlled,
+		propSearchMatchesControlled: v.searchMatchesControlled,
+		propSearchPending:           v.searchPending,
+		propSearchPageSize:          v.searchPageSize,
 		propSearchQuery:             v.searchQuery,
 		propSearchQueryControlled:   v.searchQueryControlled,
 		propMatchStyle:              v.matchStyle,
@@ -225,6 +238,9 @@ func (v *VNode) Props() rtui.Props {
 	}
 	if v.expandedKeysControlled {
 		props[propExpandedKeys] = cloneExpandedKeys(v.expandedKeys)
+	}
+	if v.searchMatchesControlled {
+		props[propSearchMatches] = cloneExpandedKeys(v.searchMatches)
 	}
 	if v.checkedKeysControlled {
 		props[propCheckedKeys] = cloneExpandedKeys(v.checkedKeys)
@@ -317,6 +333,19 @@ func (v *VNode) SetProps(p rtui.Props) rtui.VNode {
 	}
 	if controlled, ok := p[propExpandedKeysControlled].(bool); ok {
 		v.expandedKeysControlled = controlled
+	}
+	if searchMatches, ok := p[propSearchMatches].(map[string]bool); ok {
+		v.searchMatches = cloneExpandedKeys(searchMatches)
+		v.searchMatchesControlled = true
+	}
+	if controlled, ok := p[propSearchMatchesControlled].(bool); ok {
+		v.searchMatchesControlled = controlled
+	}
+	if searchPending, ok := p[propSearchPending].(bool); ok {
+		v.searchPending = searchPending
+	}
+	if searchPageSize, ok := p[propSearchPageSize].(int); ok {
+		v.searchPageSize = searchPageSize
 	}
 	if searchQuery, ok := p[propSearchQuery].(string); ok {
 		v.searchQuery = searchQuery
@@ -432,6 +461,36 @@ func (v *VNode) SetExpandedPaths(paths ...string) *VNode {
 	}
 	v.expandedKeys = keys
 	v.expandedKeysControlled = true
+	return v
+}
+func (v *VNode) SetSearchMatchesControlled(keys map[string]bool) *VNode {
+	v.searchMatches = cloneExpandedKeys(keys)
+	v.searchMatchesControlled = true
+	return v
+}
+func (v *VNode) SetSearchMatchPathsControlled(paths ...string) *VNode {
+	if len(paths) == 0 {
+		v.searchMatches = nil
+		v.searchMatchesControlled = true
+		return v
+	}
+	keys := make(map[string]bool, len(paths))
+	for _, path := range paths {
+		if path == "" {
+			continue
+		}
+		keys["path:"+path] = true
+	}
+	v.searchMatches = keys
+	v.searchMatchesControlled = true
+	return v
+}
+func (v *VNode) SetSearchPending(pending bool) *VNode {
+	v.searchPending = pending
+	return v
+}
+func (v *VNode) SetSearchPageSize(size int) *VNode {
+	v.searchPageSize = size
 	return v
 }
 func (v *VNode) SetSearchQuery(query string) *VNode {

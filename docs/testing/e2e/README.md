@@ -12,6 +12,7 @@
 - 当前已包含 backdrop close / overlay hit / modal 内按钮命中等 fixture 回归
 - 当前已包含 select overlay popup 的 filter / commit / outside click close 回归
 - 当前已包含 treeview 的 search / lazy load / selection / drag reorder 联动回归
+- 当前已包含 steps 的 keyboard navigation / vertical click 回归
 - 当前已提供：
   - `Run` / `RunWithSandbox`
   - `Driver`

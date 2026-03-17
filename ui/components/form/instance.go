@@ -3,6 +3,7 @@ package form
 import (
 	"github.com/wwsheng009/mint/ui/components/internal/proputil"
 	"reflect"
+	"sort"
 	"sync"
 
 	"github.com/wwsheng009/mint/runtime/intent"
@@ -46,13 +47,14 @@ type Instance struct {
 	initialValues    map[string]interface{} // Initial field values (for reset)
 	errors           map[string]string      // Field validation errors
 	touchedFields    map[string]bool        // Fields that have been blurred/visited
+	submittedFields  map[string]bool        // Fields included in validate-all / submit
 	dirtyFields      map[string]bool        // Fields that differ from initial values
 	validators       map[string][]validation.Validator
 	validatorSources map[string]map[string][]validation.Validator
 	isValid          bool // Overall form validity
 	isSubmitting     bool // Submission in progress
-	dirty            bool // Form has unsubmitted changes
-	showAllErrors    bool // Show validation errors for all fields after validate-all/submit
+	submitCount      int  // Number of submit attempts
+	dirty            bool // Form differs from current initialValues baseline
 
 	// === Instance Tree (Phase 1) ===
 	childInstances   []rtui.ComponentInstance
@@ -86,6 +88,7 @@ func NewInstance(props rtui.Props) *Instance {
 		initialValues:    make(map[string]interface{}),
 		errors:           make(map[string]string),
 		touchedFields:    make(map[string]bool),
+		submittedFields:  make(map[string]bool),
 		dirtyFields:      make(map[string]bool),
 		validators:       make(map[string][]validation.Validator),
 		validatorSources: make(map[string]map[string][]validation.Validator),
@@ -183,10 +186,11 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 			inst.initialValues = nextValues
 			inst.errors = make(map[string]string)
 			inst.touchedFields = make(map[string]bool)
+			inst.submittedFields = make(map[string]bool)
 			inst.dirtyFields = make(map[string]bool)
 			inst.isValid = true
+			inst.submitCount = 0
 			inst.dirty = false
-			inst.showAllErrors = false
 			valuesChanged = true
 			changed = true
 		}
@@ -389,7 +393,7 @@ func (inst *Instance) handleValidate(validateIntent FormValidateIntent) {
 	changedField := validateIntent.Field
 	if validateIntent.Field == "" {
 		// Validate entire form
-		inst.showAllErrors = true
+		inst.markSubmittedFieldsLocked()
 		inst.validateFormLocked()
 		changedField = ""
 	} else {
@@ -411,6 +415,7 @@ func (inst *Instance) handleSubmit(submitIntent FormSubmitIntent) {
 		inst.mu.Unlock()
 		return
 	}
+	inst.submitCount++
 
 	if submitIntent.Data != nil {
 		for field, value := range submitIntent.Data {
@@ -420,7 +425,7 @@ func (inst *Instance) handleSubmit(submitIntent FormSubmitIntent) {
 		}
 		inst.updateValidityLocked()
 	}
-	inst.showAllErrors = true
+	inst.markSubmittedFieldsLocked()
 
 	// Validate all fields if required
 	if inst.validateAll {
@@ -464,11 +469,12 @@ func (inst *Instance) handleReset() {
 	// Clear errors
 	inst.errors = make(map[string]string)
 	inst.touchedFields = make(map[string]bool)
+	inst.submittedFields = make(map[string]bool)
 	inst.dirtyFields = make(map[string]bool)
-	inst.showAllErrors = false
 
 	// Reset validity
 	inst.isValid = true
+	inst.submitCount = 0
 
 	// Reset dirty state (form is clean after reset)
 	inst.dirty = false
@@ -657,6 +663,20 @@ func (inst *Instance) IsSubmitting() bool {
 	return inst.isSubmitting
 }
 
+// HasSubmitted returns whether the form has been submitted at least once.
+func (inst *Instance) HasSubmitted() bool {
+	inst.mu.RLock()
+	defer inst.mu.RUnlock()
+	return inst.submitCount > 0
+}
+
+// GetSubmitCount returns the number of submit attempts.
+func (inst *Instance) GetSubmitCount() int {
+	inst.mu.RLock()
+	defer inst.mu.RUnlock()
+	return inst.submitCount
+}
+
 // IsFieldTouched returns whether a field has been visited/blurred.
 func (inst *Instance) IsFieldTouched(field string) bool {
 	inst.mu.RLock()
@@ -664,11 +684,60 @@ func (inst *Instance) IsFieldTouched(field string) bool {
 	return inst.touchedFields[field]
 }
 
+// GetTouchedFields returns all touched fields in stable sorted order.
+func (inst *Instance) GetTouchedFields() []string {
+	inst.mu.RLock()
+	defer inst.mu.RUnlock()
+	fields := make([]string, 0, len(inst.touchedFields))
+	for field, touched := range inst.touchedFields {
+		if touched {
+			fields = append(fields, field)
+		}
+	}
+	sort.Strings(fields)
+	return fields
+}
+
+// IsFieldSubmitted returns whether a field has been included in validate-all / submit.
+func (inst *Instance) IsFieldSubmitted(field string) bool {
+	inst.mu.RLock()
+	defer inst.mu.RUnlock()
+	return inst.submittedFields[field]
+}
+
+// GetSubmittedFields returns all submitted fields in stable sorted order.
+func (inst *Instance) GetSubmittedFields() []string {
+	inst.mu.RLock()
+	defer inst.mu.RUnlock()
+	fields := make([]string, 0, len(inst.submittedFields))
+	for field, submitted := range inst.submittedFields {
+		if submitted {
+			fields = append(fields, field)
+		}
+	}
+	sort.Strings(fields)
+	return fields
+}
+
 // IsFieldDirty returns whether a field differs from its initial value.
 func (inst *Instance) IsFieldDirty(field string) bool {
 	inst.mu.RLock()
 	defer inst.mu.RUnlock()
 	return inst.dirtyFields[field]
+}
+
+// GetDirtyFields returns all dirty fields in stable sorted order.
+func (inst *Instance) GetDirtyFields() []string {
+	inst.mu.RLock()
+	defer inst.mu.RUnlock()
+	fields := make([]string, 0, len(inst.dirtyFields))
+	for field, dirty := range inst.dirtyFields {
+		if dirty {
+			fields = append(fields, field)
+		}
+	}
+	sort.Strings(fields)
+	return fields
 }
 
 // ShouldShowError returns whether a field error should be rendered.
@@ -845,7 +914,14 @@ func (inst *Instance) shouldShowErrorLocked(field string) bool {
 	if field == "" {
 		return false
 	}
-	return inst.showAllErrors || inst.touchedFields[field]
+	return inst.submittedFields[field] || inst.touchedFields[field]
+}
+
+func (inst *Instance) markSubmittedFieldsLocked() {
+	inst.submittedFields = make(map[string]bool)
+	for field := range inst.collectFieldsLocked() {
+		inst.submittedFields[field] = true
+	}
 }
 
 func cloneValuesMap(values map[string]interface{}) map[string]interface{} {

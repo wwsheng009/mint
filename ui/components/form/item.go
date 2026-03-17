@@ -227,10 +227,9 @@ func syncItemRuntimeState(
 		return
 	}
 
-	formInst := GetForm(model.formID)
-	formInst = resolveFormInstance(ctx, model.formID, formInst)
+	formInst := resolveFormInstance(ctx, model.formID)
 	if formInst == nil {
-		if ctx != nil && state.retryQueued {
+		if shouldRetryFormResolution(ctx) && state.retryQueued {
 			state.retryQueued = false
 			ctx.ScheduleUpdate()
 		}
@@ -273,14 +272,8 @@ func cleanupItemRuntimeState(state *itemRuntimeState) {
 		state.unsubscribe()
 		state.unsubscribe = nil
 	}
-	if state.formID != "" && state.field != "" && state.sourceID != "" {
-		formInst := state.form
-		if formInst == nil {
-			formInst = GetForm(state.formID)
-		}
-		if formInst != nil {
-			formInst.clearValidatorSource(state.field, state.sourceID)
-		}
+	if state.form != nil && state.field != "" && state.sourceID != "" {
+		state.form.clearValidatorSource(state.field, state.sourceID)
 	}
 	state.form = nil
 	state.validators = nil
@@ -290,7 +283,7 @@ func resolveItemView(ctx *rtui.ComponentContext, model itemModel) (FormLayout, s
 	layout := model.layout
 	errorText := ""
 	if model.formID != "" && model.field != "" {
-		if formInst := resolveFormInstance(ctx, model.formID, nil); formInst != nil {
+		if formInst := resolveFormInstance(ctx, model.formID); formInst != nil {
 			if layout == "" {
 				layout = formInst.Layout()
 			}
@@ -302,39 +295,22 @@ func resolveItemView(ctx *rtui.ComponentContext, model itemModel) (FormLayout, s
 	return normalizeLayout(layout), errorText
 }
 
-func resolveFormInstance(ctx *rtui.ComponentContext, formID string, fallback *Instance) *Instance {
-	if ctx != nil {
-		if owner := ctx.OwnerInstance(); owner != nil {
-			if formInst := resolveFormAncestor(owner, formID); formInst != nil {
-				return formInst
-			}
-		}
-	}
-	if fallback != nil {
-		return fallback
-	}
-	if formID == "" {
+func resolveFormInstance(ctx *rtui.ComponentContext, formID string) *Instance {
+	if ctx == nil {
 		return nil
 	}
-	return GetForm(formID)
+	owner := ctx.OwnerInstance()
+	if owner == nil {
+		return nil
+	}
+	return resolveFormFromOwner(owner, formID)
 }
 
-func resolveFormAncestor(owner rtui.ComponentInstance, formID string) *Instance {
-	var current interface{} = owner
-	for hops := 0; current != nil && hops < 64; hops++ {
-		if formInst, ok := current.(*Instance); ok {
-			if formID == "" || formInst.Key() == formID {
-				return formInst
-			}
-		}
-
-		treeNode, ok := current.(interface{ Parent() interface{} })
-		if !ok {
-			return nil
-		}
-		current = treeNode.Parent()
+func shouldRetryFormResolution(ctx *rtui.ComponentContext) bool {
+	if ctx == nil {
+		return false
 	}
-	return nil
+	return ctx.OwnerInstance() == nil
 }
 
 func decorateFormChild(formID string, child rtui.VNode) rtui.VNode {

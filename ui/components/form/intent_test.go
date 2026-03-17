@@ -6,6 +6,7 @@ import (
 	"github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
+	"github.com/wwsheng009/mint/ui/components/validation"
 )
 
 // =============================================================================
@@ -135,6 +136,129 @@ func TestFormInstance_FieldStateTracking(t *testing.T) {
 
 	if inst.IsFieldDirty("email") {
 		t.Fatal("field should return to clean state when value matches initial value again")
+	}
+}
+
+func TestFormInstance_FieldStateCollections(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"key": "profileForm",
+		"values": map[string]interface{}{
+			"email": "initial@example.com",
+			"name":  "Mint",
+			"role":  "user",
+		},
+	})
+
+	inst.HandleIntent(FormFieldBlurIntent{
+		FormID: "profileForm",
+		Field:  "name",
+		Value:  "Mint",
+	})
+	inst.HandleIntent(FormFieldChangeIntent{
+		FormID:  "profileForm",
+		Field:   "role",
+		Value:   "admin",
+		IsDirty: true,
+	})
+	inst.HandleIntent(FormFieldBlurIntent{
+		FormID: "profileForm",
+		Field:  "email",
+		Value:  "changed@example.com",
+	})
+
+	touched := inst.GetTouchedFields()
+	if len(touched) != 2 || touched[0] != "email" || touched[1] != "name" {
+		t.Fatalf("touched fields = %v, want [email name]", touched)
+	}
+
+	dirty := inst.GetDirtyFields()
+	if len(dirty) != 2 || dirty[0] != "email" || dirty[1] != "role" {
+		t.Fatalf("dirty fields = %v, want [email role]", dirty)
+	}
+}
+
+func TestFormInstance_SubmittedFieldStateTracking(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"key": "profileForm",
+		"values": map[string]interface{}{
+			"email": "",
+			"name":  "Mint",
+		},
+	})
+	inst.AddValidator("email", validation.Required())
+
+	inst.HandleIntent(FormValidateIntent{FormID: "profileForm"})
+	if !inst.IsFieldSubmitted("email") || !inst.IsFieldSubmitted("name") {
+		t.Fatal("expected validate-all to mark current fields as submitted")
+	}
+	if inst.HasSubmitted() || inst.GetSubmitCount() != 0 {
+		t.Fatal("expected validate-all to not count as form submit")
+	}
+	submitted := inst.GetSubmittedFields()
+	if len(submitted) != 2 || submitted[0] != "email" || submitted[1] != "name" {
+		t.Fatalf("submitted fields = %v, want [email name]", submitted)
+	}
+
+	inst.SetProps(rtui.Props{
+		"values": map[string]interface{}{
+			"email": "server@example.com",
+		},
+	})
+	if got := inst.GetSubmittedFields(); len(got) != 0 {
+		t.Fatalf("expected prop-driven sync to clear submitted fields, got %v", got)
+	}
+
+	inst.HandleIntent(FormSubmitIntent{
+		FormID: "profileForm",
+		Data: map[string]interface{}{
+			"email": "server@example.com",
+			"role":  "admin",
+		},
+	})
+	if !inst.HasSubmitted() || inst.GetSubmitCount() != 1 {
+		t.Fatalf("submit status = (%v,%d), want (true,1)", inst.HasSubmitted(), inst.GetSubmitCount())
+	}
+	submitted = inst.GetSubmittedFields()
+	if len(submitted) != 2 || submitted[0] != "email" || submitted[1] != "role" {
+		t.Fatalf("submitted fields after submit = %v, want [email role]", submitted)
+	}
+
+	inst.HandleIntent(Reset("profileForm"))
+	if inst.HasSubmitted() || inst.GetSubmitCount() != 0 {
+		t.Fatalf("expected reset to clear submit status, got (%v,%d)", inst.HasSubmitted(), inst.GetSubmitCount())
+	}
+	if got := inst.GetSubmittedFields(); len(got) != 0 {
+		t.Fatalf("expected reset to clear submitted fields, got %v", got)
+	}
+}
+
+func TestFormInstance_SubmitCountTracksInvalidAttempts(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"key": "profileForm",
+		"values": map[string]interface{}{
+			"email": "",
+		},
+	})
+	inst.AddValidator("email", validation.Required())
+
+	inst.HandleIntent(FormSubmitIntent{
+		FormID: "profileForm",
+		Data: map[string]interface{}{
+			"email": "",
+		},
+	})
+	if !inst.HasSubmitted() || inst.GetSubmitCount() != 1 {
+		t.Fatalf("invalid submit status = (%v,%d), want (true,1)", inst.HasSubmitted(), inst.GetSubmitCount())
+	}
+
+	inst.HandleIntent(FormSubmitIntent{
+		FormID: "profileForm",
+		Data: map[string]interface{}{
+			"email": "ok@example.com",
+		},
+	})
+	if inst.GetSubmitCount() != 2 {
+		t.Fatalf("submitCount = %d, want 2", inst.GetSubmitCount())
 	}
 }
 

@@ -53,8 +53,13 @@
 
 - 字段级 `touched/dirty` 已完成（2026-03-17）
 - `FormItem` 已按 `touched` 或提交后校验状态控制错误展示
-- `GetFormContext` 仍依赖 registry 兼容层
-- 下一步是继续收敛跨树兼容路径，减少新逻辑对 registry 的依赖
+- `GetFormContext` 已改为实例树内解析；显式跨树兼容改走 `GetRegisteredFormContext`
+- `FormItem` 的 validator source / 订阅 / layout 解析普通运行时路径已完全切到实例树，不再隐式触碰 registry
+- 当当前 render 已存在 owner 但祖先树中找不到匹配 `Form` 时，已不再跨树跳到 registry
+- unresolved 的 `FormItem` 重试也已收窄到 ownerless 场景，避免 owner-bound 空重试
+- 显式跨树兼容已收口到 `GetRegisteredForm` / `GetRegisteredFormContext`
+- `RegisterForm` / `UnregisterForm` / `GetForm` 现已明确标注为兼容层 API，其中 `GetForm` 仅保留别名语义
+- 下一步是继续评估这些显式 compat helper 是否还能进一步下沉或瘦身
 
 #### 主要入口
 
@@ -68,12 +73,13 @@
 
 1. 收敛 registry 兼容层
    - 保留 `GetFormContext` 兼容 API
-   - 但让 `FormItem` 与普通运行时路径优先走祖先实例解析
+   - `FormItem` 与 `GetFormContext` 已优先走祖先实例解析
    - 减少新逻辑继续依赖 registry
 
 2. 继续补字段状态辅助 API
-   - 如有需要补 `GetTouchedFields` / `GetDirtyFields`
-   - 评估是否需要更明确的字段级提交状态
+   - ✅ 已补 `GetTouchedFields` / `GetDirtyFields`
+   - ✅ 已补 `IsFieldSubmitted` / `GetSubmittedFields`
+   - ✅ 已补 `HasSubmitted` / `GetSubmitCount`
 
 #### 风险点
 
@@ -91,6 +97,10 @@
 - 字段元状态回归
 - `SetProps(values)` 后字段级状态归零
 - `FormItem` 在 untouched 时不显示错误，在 blur 或提交后显示错误
+- `GetFormContext("")` 与 `GetFormContext(formID)` 的祖先实例解析回归
+- `GetTouchedFields` / `GetDirtyFields` 稳定排序回归
+- `IsFieldSubmitted` / `GetSubmittedFields` 提交态回归
+- `HasSubmitted` / `GetSubmitCount` 提交次数回归
 
 ---
 
@@ -365,8 +375,8 @@
 
 #### 当前缺口
 
-- 缺异步搜索高亮分页
-- 同父级 subtree 拖拽排序已完成（2026-03-17）
+- ~~缺异步搜索高亮分页~~ ✅ 已完成（2026-03-17）
+- ~~同父级 subtree 拖拽排序~~ ✅ 已完成（2026-03-17）
 
 #### 主要入口
 
@@ -380,10 +390,11 @@
 
 #### 建议拆分
 
-1. Epic A: 异步搜索高亮分页
-   - 搜索结果分页
-   - 当前匹配项定位
-   - 大树场景下高亮与滚动联动
+1. ~~Epic A: 异步搜索高亮分页~~
+   - ~~搜索结果分页~~
+   - ~~当前匹配项定位~~
+   - ~~大树场景下高亮与滚动联动~~
+   - ✅ 已完成（2026-03-17）
 
 2. ~~Epic B: 拖拽排序~~
    - ~~节点拖拽 intent~~
@@ -405,6 +416,9 @@
 
 #### 本轮完成
 
+- 新增 `SearchMatchesControlled` / `SearchMatchPathsControlled` / `SearchPending` / `SearchPageSize`，TreeView 可承接外部异步搜索结果并按稳定 key 做过滤和高亮
+- 新增 `SearchResultsIntent` 与分页快照 getter；当前 match 会驱动结果页切换，`selectedIndex` / 滚动 / 高亮保持同步
+- 搜索统计行已支持 pending 状态与分页信息，`examples/fiber_firsts/treeview_demo` 现已展示异步搜索结果分页
 - 新增 `Reorderable` / `OnReorder` / `NodeReorderIntent`，TreeView 已支持同父级 sibling subtree 拖拽排序
 - 拖拽走 `ActionClick/ActionHover/ActionMouseRelease` 状态机，点击 expander 时仍保持原有展开/折叠语义
 - 重排后 `selectedIndex` 会按稳定 node key 回收，`expandedKeys` / `checkedKeys` / `selectionAnchorKey` 继续跟随稳定 key 生效
@@ -413,6 +427,8 @@
 
 - 搜索分页切换
 - 搜索结果高亮与选中联动
+- 异步搜索 pending / resolve 切换
+- 懒加载后搜索结果刷新
 - 拖拽后 path 更新
 - 拖拽后 expanded keys 与 selected keys 回归
 

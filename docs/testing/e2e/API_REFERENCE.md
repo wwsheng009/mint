@@ -303,6 +303,10 @@ TraceMatch{
   - lazy load child 出现
   - 节点点击命中与 checkbox-style selection 状态更新
   - drag reorder 与 `NodeReorderIntent` 联动
+- Steps
+  - 键盘左右导航切换 current step
+  - vertical 模式下的点击切换
+  - current field 绑定驱动的状态更新与样式切换
 
 ---
 

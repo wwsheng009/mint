@@ -23,6 +23,8 @@ examples/ui_demos/demo1_full_featured/*_verification.md
 
 # Trash directory (moved temporary files)
 trash/
+tmp/
 *.log
 .qoder
 .crush
+/~/.codex/
