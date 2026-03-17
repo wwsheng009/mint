@@ -8,9 +8,9 @@
 
 ---
 
-## 当前组件清单（44 个目录 + 1 个内置 Scrollbar）
+## 当前组件清单（45 个目录 + 1 个内置 Scrollbar）
 
-> 排除 `docs/` 与 `internal/` 后，当前共有 44 个组件/支撑目录；其中 40 个严格遵循 `builder.go + vnode.go + instance.go` 结构，`toast`、`statusbar`、`control`、`validation` 属于特例或基础设施模块。
+> 排除 `docs/` 与 `internal/` 后，当前共有 45 个组件/支撑目录；其中 41 个严格遵循 `builder.go + vnode.go + instance.go` 结构，`toast`、`statusbar`、`control`、`validation` 属于特例或基础设施模块。
 
 | 组件 | 目录 | 完整度 | 说明 |
 |------|------|--------|------|
@@ -21,6 +21,7 @@
 | Badge | `badge/` | ★★★☆☆ | 徽标数/点状态，支持 count/text/dot、overflow、showZero、status、label |
 | Collapse | `collapse/` | ★★★☆☆ | 折叠面板，支持多面板展开、accordion、受控/非受控 activeKeys、panel disabled、`CollapseToggleIntent`/`CollapseChangeIntent`、field 绑定 |
 | Descriptions | `descriptions/` | ★★★☆☆ | 描述列表，支持多列布局、span、horizontal/vertical、title/extra、bordered |
+| Statistic | `statistic/` | ★★★☆☆ | 统计数字展示，支持 title/value、prefix/suffix、precision、千分位/小数分隔符、trend、bordered、extra |
 | Input | `input/` | ★★★★☆ | text/password/number/email，placeholder，maxLen，readOnly，prefix/suffix，addonBefore/addonAfter，Search变体 |
 | Textarea | `textarea/` | ★★★☆☆ | 多行文本输入 |
 | Select | `select/` | ★★★★★ | 单选/多选/tags，overlay popup，OptGroup，filterOption，placeholder，disabled |
@@ -105,7 +106,7 @@
 | ~~**Collapse**~~ | ~~折叠面板，手风琴模式~~ | `Collapse` ✅ 已实现（2026-03-18） |
 | ~~**Descriptions**~~ | ~~描述列表，键值对展示~~ | `Descriptions` ✅ 已实现（2026-03-18） |
 | ~~**Empty**~~ | ~~空状态占位~~ | `Empty` ✅ 已实现（2026-03）|
-| **Statistic** | 统计数字展示 | `Statistic` |
+| ~~**Statistic**~~ | ~~统计数字展示~~ | `Statistic` ✅ 已实现（2026-03-18） |
 | **Timeline** | 时间轴 | `Timeline` |
 
 ### 布局类（低优先级）
@@ -178,7 +179,7 @@
 - [x] `Tag` — 标签（2026-03）
 - [x] `Collapse` — 折叠面板（2026-03-18）
 - [x] `Descriptions` — 描述列表（2026-03-18）
-- [ ] `Statistic` — 统计数字
+- [x] `Statistic` — 统计数字（2026-03-18）
 - [x] `Table` 增强 — expandable 行，固定列，树形数据（2026-03-17）
 
 ### Phase 4 — 高级交互组件（远期）

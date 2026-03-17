@@ -43,6 +43,7 @@ import (
 	"github.com/wwsheng009/mint/ui/components/radio"
 	"github.com/wwsheng009/mint/ui/components/scrollview"
 	selectcomp "github.com/wwsheng009/mint/ui/components/select"
+	"github.com/wwsheng009/mint/ui/components/statistic"
 	"github.com/wwsheng009/mint/ui/components/statusbar"
 	"github.com/wwsheng009/mint/ui/components/steps"
 	switchcomp "github.com/wwsheng009/mint/ui/components/switch"
@@ -173,6 +174,10 @@ func NewCollapseBuilder() *collapse.Builder {
 
 func NewDescriptionsBuilder() *descriptions.Builder {
 	return descriptions.NewBuilder()
+}
+
+func NewStatisticBuilder() *statistic.Builder {
+	return statistic.NewBuilder()
 }
 
 func NewTableBuilder() *table.Builder {
@@ -325,6 +330,7 @@ type BadgeStatus = badge.Status
 type CollapseItem = collapse.Item
 type DescriptionsItem = descriptions.Item
 type DescriptionsLayout = descriptions.Layout
+type StatisticTrend = statistic.Trend
 type StepsDirection = steps.Direction
 type StepsStatus = steps.Status
 type StepsItem = steps.Item
@@ -344,6 +350,10 @@ const (
 
 	DescriptionsHorizontal = descriptions.LayoutHorizontal
 	DescriptionsVertical   = descriptions.LayoutVertical
+
+	StatisticTrendNone = statistic.TrendNone
+	StatisticTrendUp   = statistic.TrendUp
+	StatisticTrendDown = statistic.TrendDown
 
 	StepsHorizontal = steps.DirectionHorizontal
 	StepsVertical   = steps.DirectionVertical
@@ -415,6 +425,11 @@ func NewCollapseItem(header string, content rtui.VNode) collapse.Item {
 // NewDescriptionsItem creates a descriptions item with the given label and content.
 func NewDescriptionsItem(label string, content rtui.VNode) descriptions.Item {
 	return descriptions.Entry(label, content)
+}
+
+// NewStatistic creates a statistic builder with title and value.
+func NewStatistic(title string, value interface{}) *statistic.VNode {
+	return statistic.New().SetTitle(title).SetValue(value)
 }
 
 // NewBadge creates a badge builder seed with the given label.
@@ -644,6 +659,11 @@ func Collapse(items []collapse.Item) rtui.VNode {
 // Descriptions creates a descriptions component from items.
 func Descriptions(items []descriptions.Item) rtui.VNode {
 	return descriptions.Of(items)
+}
+
+// Statistic creates a statistic component with title and value.
+func Statistic(title string, value interface{}) rtui.VNode {
+	return statistic.New().SetTitle(title).SetValue(value)
 }
 
 // Progress shortcuts
