@@ -1,5 +1,12 @@
 # Mint UI 测试框架文档
 
+> 延伸阅读：`docs/testing/e2e/INTERACTIVE_E2E_SUITE_DESIGN.md`  
+> 面向交互型程序的增强版 E2E 测试套件设计，覆盖消息处理、焦点切换、样式断言、selector/locator、await/idle 与 trace。
+>
+> 当前 `ui/e2e` API 参考见：`docs/testing/e2e/API_REFERENCE.md`
+>
+> 当前 Phase 1 最小实现已落地到 `ui/e2e/`。
+
 ## 目录
 
 - [概述](#概述)
@@ -220,6 +227,12 @@ func TestButtonClick(t *testing.T) {
 ---
 
 ## API 参考
+
+如果你要查当前已落地的交互式 E2E 能力，请优先看：
+
+- `docs/testing/e2e/API_REFERENCE.md`
+
+本节继续保留现有 `ComponentTest` / `TestHelper` API 说明。
 
 ### ComponentTest API
 

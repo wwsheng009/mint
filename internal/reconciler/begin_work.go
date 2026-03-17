@@ -181,15 +181,15 @@ func beginWorkComponent(current, workInProgress *Fiber) *Fiber {
 		return workInProgress
 	}
 
-	// Get the component context for hooks execution
+	// Get the component-local context for hooks execution.
+	// Component hooks must never run against the shared root context, or nested
+	// components will corrupt each other's hook slots and trigger order panics.
 	ctx := instance.GetContext()
-	if currentReconciler != nil {
-		// Use shared context from root if available
-		ctx = currentReconciler.ctx
-	} else {
+	if ctx == nil {
 		// Fallback: create temporary context
 		ctx = rtui.NewComponentContextForRoot()
 	}
+	ctx.SetOwnerInstance(instance)
 
 	// CRITICAL: Reset hook index before re-rendering
 	ctx.ResetContext()

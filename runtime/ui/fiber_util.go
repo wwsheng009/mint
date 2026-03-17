@@ -91,6 +91,9 @@ func CreateFiber(vnode VNode) *Fiber {
 		errorBoundaryVNode = n // Store reference for state sync
 	case *MemoVNode:
 		memoCompare = n.GetCompare()
+		componentFunc = func() VNode {
+			return n.Render()
+		}
 	}
 
 	// Debug logging to understand VNode types
