@@ -49,6 +49,10 @@ type Instance struct {
 	scrollbarStyle           style.Style
 	rowStyleFn               func(int, TreeNode) style.Style
 	matchStyle               style.Style
+	searchMatches            map[string]bool
+	searchMatchesControlled  bool
+	searchPending            bool
+	searchPageSize           int
 	searchQuery              string
 	searchQueryControlled    bool
 	searchFn                 func(TreeNode, string) bool
@@ -70,6 +74,7 @@ type Instance struct {
 	expandedKeys             map[string]bool
 	expandedKeysControlled   bool
 	lastExternalExpandedKeys map[string]bool
+	lastExternalNodes        []TreeNode
 	allowScroll              bool
 	allowExpand              bool
 	reorderable              bool
@@ -82,6 +87,11 @@ type Instance struct {
 	lastSearchTotal          int
 	lastSearchSelected       int
 	lastSearchQuery          string
+	lastSearchPending        bool
+	lastSearchPage           int
+	lastSearchPageCount      int
+	lastSearchPageSize       int
+	lastSearchResultsDigest  string
 	bounds                   [4]int // x, y, w, h
 	dirty                    bool
 	cacheDirty               bool
@@ -139,6 +149,10 @@ func NewInstance(props rtui.Props) *Instance {
 		scrollbarStyle:          proputil.GetStyle(props, "scrollbarStyle", style.Style{}),
 		rowStyleFn:              getRowStyleFn(props),
 		matchStyle:              proputil.GetStyle(props, "matchStyle", style.Style{}),
+		searchMatches:           normalizeNodeKeys(getSearchMatchesProp(props)),
+		searchMatchesControlled: proputil.GetBool(props, "searchMatchesControlled", false),
+		searchPending:           proputil.GetBool(props, "searchPending", false),
+		searchPageSize:          max(0, proputil.GetInt(props, "searchPageSize", 0)),
 		searchQuery:             proputil.GetString(props, "searchQuery", ""),
 		searchQueryControlled:   proputil.GetBool(props, "searchQueryControlled", false),
 		searchFn:                getSearchFn(props),
@@ -172,6 +186,9 @@ func NewInstance(props rtui.Props) *Instance {
 	if inst.expandedKeys != nil && len(inst.expandedKeys) > 0 {
 		inst.expandedKeysControlled = true
 	}
+	if hasProp(props, propSearchMatches) {
+		inst.searchMatchesControlled = true
+	}
 	if inst.checkedKeys != nil && len(inst.checkedKeys) > 0 {
 		inst.checkedKeysControlled = true
 	}
@@ -185,6 +202,9 @@ func NewInstance(props rtui.Props) *Instance {
 	// and a subsequent update passes an empty map.
 	if hasProp(props, "expandedKeys") {
 		inst.lastExternalExpandedKeys = cloneExpandedKeys(normalizeExpandedKeys(inst.expandedKeys))
+	}
+	if hasProp(props, "nodes") {
+		inst.lastExternalNodes = append([]TreeNode(nil), inst.nodes...)
 	}
 
 	// Initialize expand state based on expandLevel or controlled keys
@@ -327,6 +347,10 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	oldScrollbarStyle := inst.scrollbarStyle
 	oldRowStyleFn := inst.rowStyleFn
 	oldMatchStyle := inst.matchStyle
+	oldSearchMatches := cloneExpandedKeys(inst.searchMatches)
+	oldSearchMatchesControlled := inst.searchMatchesControlled
+	oldSearchPending := inst.searchPending
+	oldSearchPageSize := inst.searchPageSize
 	oldSearchQuery := inst.searchQuery
 	oldSearchFn := inst.searchFn
 	oldSelectionMode := inst.selectionMode
@@ -352,7 +376,15 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	oldReorderable := inst.reorderable
 
 	inst.componentID = proputil.GetString(props, "componentID", inst.componentID)
-	inst.nodes = getNodesProp(props, inst.nodes)
+	externalNodesChanged := false
+	if hasProp(props, "nodes") {
+		incomingNodes := getNodesProp(props, inst.nodes)
+		if !nodesEqual(incomingNodes, inst.lastExternalNodes) {
+			inst.lastExternalNodes = append([]TreeNode(nil), incomingNodes...)
+			inst.nodes = incomingNodes
+			externalNodesChanged = true
+		}
+	}
 	inst.expandLevel = proputil.GetInt(props, "expandLevel", inst.expandLevel)
 	inst.showIcons = proputil.GetBool(props, "showIcons", inst.showIcons)
 	inst.showLineNums = proputil.GetBool(props, "showLineNums", inst.showLineNums)
@@ -369,6 +401,18 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 		inst.rowStyleFn = nil
 	}
 	inst.matchStyle = proputil.GetStyle(props, "matchStyle", style.Style{})
+	if searchMatches, ok := props[propSearchMatches].(map[string]bool); ok {
+		inst.searchMatches = normalizeNodeKeys(searchMatches)
+		inst.searchMatchesControlled = true
+	}
+	if controlled, ok := props[propSearchMatchesControlled].(bool); ok {
+		inst.searchMatchesControlled = controlled
+	}
+	if inst.searchMatchesControlled && hasProp(props, propSearchMatches) {
+		inst.searchMatches = normalizeNodeKeys(getSearchMatchesProp(props))
+	}
+	inst.searchPending = proputil.GetBool(props, "searchPending", inst.searchPending)
+	inst.searchPageSize = max(0, proputil.GetInt(props, "searchPageSize", inst.searchPageSize))
 	if controlled, ok := props[propSearchQueryControlled].(bool); ok {
 		inst.searchQueryControlled = controlled
 	}
@@ -453,11 +497,16 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	inst.reorderable = proputil.GetBool(props, propReorderable, inst.reorderable)
 
 	lazyInserted := inst.reapplyLazyInsertions()
-	nodesChanged := !nodesEqual(oldNodes, inst.nodes) || lazyInserted
+	nodesChanged := externalNodesChanged || !nodesEqual(oldNodes, inst.nodes) || lazyInserted
 	expandLevelChanged := oldExpandLevel != inst.expandLevel
 	expandedKeysChanged := !equalExpandedKeys(oldExpandedKeys, inst.expandedKeys) || oldExpandedKeysControlled != inst.expandedKeysControlled
 	checkedKeysChanged := !equalExpandedKeys(oldCheckedKeys, inst.checkedKeys) || oldCheckedKeysControlled != inst.checkedKeysControlled
-	searchChanged := oldSearchQuery != inst.searchQuery || !sameSearchFn(oldSearchFn, inst.searchFn)
+	searchMatchesChanged := !equalExpandedKeys(oldSearchMatches, inst.searchMatches) || oldSearchMatchesControlled != inst.searchMatchesControlled
+	searchChanged := oldSearchQuery != inst.searchQuery ||
+		!sameSearchFn(oldSearchFn, inst.searchFn) ||
+		searchMatchesChanged ||
+		oldSearchPending != inst.searchPending
+	searchPresentationChanged := searchChanged || oldSearchPageSize != inst.searchPageSize
 	if searchChanged && !inst.selectedIndexControlled {
 		inst.autoSelectMatch = true
 	}
@@ -493,6 +542,7 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 		!sameRowStyleFn(oldRowStyleFn, inst.rowStyleFn) ||
 		oldMatchStyle != inst.matchStyle ||
 		searchChanged ||
+		oldSearchPageSize != inst.searchPageSize ||
 		oldSelectionMode != inst.selectionMode ||
 		checkedKeysChanged ||
 		!sameIntent(oldSelectionIntent, inst.selectionIntent) ||
@@ -512,6 +562,9 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 		oldAllowScroll != inst.allowScroll ||
 		oldAllowExpand != inst.allowExpand ||
 		oldReorderable != inst.reorderable
+	if searchPresentationChanged {
+		changed = true
+	}
 	if changed {
 		inst.dirty = true
 	}
@@ -547,12 +600,18 @@ func (inst *Instance) GetProps() rtui.Props {
 		propSelectedIndex:           inst.selectedIndex,
 		propViewportHeight:          inst.viewportHeight,
 		propExpandedKeysControlled:  inst.expandedKeysControlled,
+		propSearchMatchesControlled: inst.searchMatchesControlled,
+		propSearchPending:           inst.searchPending,
+		propSearchPageSize:          inst.searchPageSize,
 		propAllowScroll:             inst.allowScroll,
 		propAllowExpand:             inst.allowExpand,
 		propReorderable:             inst.reorderable,
 	}
 	if inst.expandedKeysControlled {
 		props[propExpandedKeys] = cloneExpandedKeys(inst.expandedKeys)
+	}
+	if inst.searchMatchesControlled {
+		props[propSearchMatches] = cloneExpandedKeys(inst.searchMatches)
 	}
 	if inst.checkedKeysControlled {
 		props[propCheckedKeys] = cloneExpandedKeys(inst.checkedKeys)
@@ -671,6 +730,15 @@ func equalExpandedKeys(left, right map[string]bool) bool {
 
 func getExpandedKeysProp(props rtui.Props) map[string]bool {
 	if value, ok := props[propExpandedKeys]; ok {
+		if keys, ok := value.(map[string]bool); ok {
+			return cloneExpandedKeys(keys)
+		}
+	}
+	return nil
+}
+
+func getSearchMatchesProp(props rtui.Props) map[string]bool {
+	if value, ok := props[propSearchMatches]; ok {
 		if keys, ok := value.(map[string]bool); ok {
 			return cloneExpandedKeys(keys)
 		}

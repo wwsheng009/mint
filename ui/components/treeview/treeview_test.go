@@ -372,6 +372,210 @@ func TestInstance_SearchQueryFilters(t *testing.T) {
 	}
 }
 
+func TestInstance_SearchMatchesControlledFiltersVisibleEntries(t *testing.T) {
+	props := rtui.Props{
+		"nodes": []TreeNode{
+			{Content: "root", Path: "root", NodeID: 0, NodeType: "folder"},
+			{Indent: 4, Content: "alpha", Path: "root/alpha", NodeID: 1, NodeType: "file"},
+			{Indent: 4, Content: "beta", Path: "root/beta", NodeID: 2, NodeType: "file"},
+		},
+		"searchQuery":             "beta",
+		"searchMatches":           map[string]bool{"root/beta": true},
+		"searchMatchesControlled": true,
+	}
+	inst := NewInstance(props)
+
+	visible, _ := inst.visibleEntries()
+	if len(visible) != 2 {
+		t.Fatalf("expected 2 visible entries (root + beta), got %d", len(visible))
+	}
+	if !visible[1].Match || visible[1].Node.Path != "root/beta" {
+		t.Fatalf("expected controlled async match to point at root/beta, got %+v", visible[1])
+	}
+}
+
+func TestInstance_SearchPendingKeepsVisibleRowsAndStats(t *testing.T) {
+	props := rtui.Props{
+		"nodes": []TreeNode{
+			{Content: "root", Path: "root", NodeID: 0, NodeType: "folder"},
+			{Indent: 4, Content: "alpha", Path: "root/alpha", NodeID: 1, NodeType: "file"},
+			{Indent: 4, Content: "beta", Path: "root/beta", NodeID: 2, NodeType: "file"},
+		},
+		"searchQuery":             "beta",
+		"searchMatches":           map[string]bool{"root/beta": true},
+		"searchMatchesControlled": true,
+		"searchPending":           true,
+		"showSearchStats":         true,
+	}
+	inst := NewInstance(props)
+
+	visible, _ := inst.visibleEntries()
+	if len(visible) != 3 {
+		t.Fatalf("expected pending search to keep full tree visible, got %d rows", len(visible))
+	}
+	if total, selected := inst.GetMatchStats(); total != 0 || selected != 0 {
+		t.Fatalf("pending search stats = %d/%d, want 0/0", selected, total)
+	}
+
+	cmds := inst.Paint(0, 0)
+	foundPending := false
+	for _, cmd := range cmds {
+		if strings.Contains(cmd.Text, `Search: "beta" [pending]`) {
+			foundPending = true
+			break
+		}
+	}
+	if !foundPending {
+		t.Fatalf("expected pending search stats line to be painted")
+	}
+}
+
+func TestInstance_SearchResultsPaginationSnapshot(t *testing.T) {
+	props := rtui.Props{
+		"nodes": []TreeNode{
+			{Content: "root", Path: "root", NodeID: 0, NodeType: "folder"},
+			{Indent: 4, Content: "alpha", Path: "root/alpha", NodeID: 1, NodeType: "file"},
+			{Indent: 4, Content: "beta", Path: "root/beta", NodeID: 2, NodeType: "file"},
+			{Indent: 4, Content: "gamma", Path: "root/gamma", NodeID: 3, NodeType: "file"},
+		},
+		"searchQuery":             "a",
+		"searchMatches":           map[string]bool{"root/alpha": true, "root/beta": true, "root/gamma": true},
+		"searchMatchesControlled": true,
+		"searchPageSize":          2,
+		"selectedIndex":           3,
+		"expandLevel":             2,
+	}
+	inst := NewInstance(props)
+
+	if page := inst.GetSearchPage(); page != 2 {
+		t.Fatalf("search page = %d, want 2", page)
+	}
+	if pageCount := inst.GetSearchPageCount(); pageCount != 2 {
+		t.Fatalf("search pageCount = %d, want 2", pageCount)
+	}
+	results := inst.GetSearchResults()
+	if len(results) != 1 {
+		t.Fatalf("search page result len = %d, want 1", len(results))
+	}
+	if results[0].Path != "root/gamma" || results[0].MatchIndex != 3 {
+		t.Fatalf("unexpected paged result: %+v", results[0])
+	}
+}
+
+func TestInstance_EmitSearchResultsIntent(t *testing.T) {
+	rt := withTreeIntentRuntime(t)
+	var emitted []SearchResultsIntent
+	unregister := intent.RegisterTypedRuntime(rt, func(_ *intent.ActionContext, i SearchResultsIntent) intent.IntentResult {
+		emitted = append(emitted, i)
+		return intent.HandledResult()
+	})
+	defer unregister()
+
+	NewInstance(rtui.Props{
+		"componentID": "tree.search",
+		"nodes": []TreeNode{
+			{Content: "root", Path: "root", NodeID: 0, NodeType: "folder"},
+			{Indent: 4, Content: "beta", Path: "root/beta", NodeID: 1, NodeType: "file"},
+			{Indent: 4, Content: "gamma", Path: "root/gamma", NodeID: 2, NodeType: "file"},
+		},
+		"searchQuery":             "match",
+		"searchMatches":           map[string]bool{"root/beta": true, "root/gamma": true},
+		"searchMatchesControlled": true,
+		"searchPageSize":          1,
+		"selectedIndex":           2,
+	})
+
+	if len(emitted) == 0 {
+		t.Fatal("expected SearchResultsIntent to be emitted")
+	}
+	last := emitted[len(emitted)-1]
+	if last.ComponentID != "tree.search" || last.Total != 2 || last.Selected != 2 || last.Page != 2 || last.PageCount != 2 {
+		t.Fatalf("unexpected SearchResultsIntent payload: %+v", last)
+	}
+	if len(last.Results) != 1 || last.Results[0].Path != "root/gamma" {
+		t.Fatalf("unexpected SearchResultsIntent page results: %+v", last.Results)
+	}
+}
+
+func TestInstance_SearchUpdatesDoNotResetControlledExpandedOrCheckedState(t *testing.T) {
+	props := rtui.Props{
+		"nodes": []TreeNode{
+			{Content: "root", Path: "root", NodeID: 0, NodeType: "folder"},
+			{Indent: 4, Content: "alpha", Path: "root/alpha", NodeID: 1, NodeType: "file"},
+			{Indent: 4, Content: "beta", Path: "root/beta", NodeID: 2, NodeType: "file"},
+		},
+		"selectionMode": SelectionMultiple,
+		"expandedKeys": map[string]bool{
+			"root": true,
+		},
+		"expandedKeysControlled": true,
+		"checkedKeys": map[string]bool{
+			"root/beta": true,
+		},
+		"checkedKeysControlled":   true,
+		"searchQuery":             "beta",
+		"searchMatches":           map[string]bool{"root/beta": true},
+		"searchMatchesControlled": true,
+	}
+	inst := NewInstance(props)
+
+	inst.SetProps(rtui.Props{
+		"nodes": []TreeNode{
+			{Content: "root", Path: "root", NodeID: 0, NodeType: "folder"},
+			{Indent: 4, Content: "alpha", Path: "root/alpha", NodeID: 1, NodeType: "file"},
+			{Indent: 4, Content: "beta", Path: "root/beta", NodeID: 2, NodeType: "file"},
+		},
+		"selectionMode": SelectionMultiple,
+		"expandedKeys": map[string]bool{
+			"root": true,
+		},
+		"expandedKeysControlled": true,
+		"checkedKeys": map[string]bool{
+			"root/beta": true,
+		},
+		"checkedKeysControlled":   true,
+		"searchQuery":             "alpha",
+		"searchMatches":           map[string]bool{"root/alpha": true},
+		"searchMatchesControlled": true,
+	})
+
+	if !inst.expandState["path:root"] {
+		t.Fatalf("expected root expansion to survive search update")
+	}
+	keys := inst.GetCheckedKeys()
+	if len(keys) != 1 || keys[0] != "path:root/beta" {
+		t.Fatalf("checked keys after search update = %v, want [path:root/beta]", keys)
+	}
+}
+
+func TestInstance_SearchUpdatesDoNotDiscardLazyChildren(t *testing.T) {
+	props := rtui.Props{
+		"nodes": []TreeNode{
+			{Content: "lazy", Path: "root/lazy", NodeID: 7, NodeType: "folder", Lazy: true, Loading: true},
+		},
+		"expandLevel": 0,
+	}
+	inst := NewInstance(props)
+	if !inst.HandleIntent(LazyLoadSuccess(0, "root/lazy", 7, []TreeNode{{Content: "child", NodeID: 8}})) {
+		t.Fatalf("expected lazy load success intent to be handled")
+	}
+
+	inst.SetProps(rtui.Props{
+		"nodes":                   inst.GetNodes(),
+		"expandLevel":             0,
+		"searchQuery":             "child",
+		"searchMatches":           map[string]bool{"root/lazy/child": true},
+		"searchMatchesControlled": true,
+	})
+
+	if len(inst.nodes) != 2 {
+		t.Fatalf("expected lazy child to survive search prop update, got %d nodes", len(inst.nodes))
+	}
+	if inst.nodes[1].Path != "root/lazy/child" {
+		t.Fatalf("expected lazy child path to remain stable, got %q", inst.nodes[1].Path)
+	}
+}
+
 func TestInstance_ToggleChecked(t *testing.T) {
 	props := rtui.Props{
 		"nodes": []TreeNode{
@@ -978,6 +1182,50 @@ func TestInstance_DragReorder_EmitsIntents(t *testing.T) {
 	}
 	if emittedGlobal[0].ComponentID != "tree.orders" || emittedGlobal[0].Path != "alpha" || emittedGlobal[0].ToVisibleIndex != 2 {
 		t.Fatalf("unexpected reorder intent payload: %+v", emittedGlobal[0])
+	}
+}
+
+func TestInstance_SetPropsPreservesLocalReorderWhenExternalNodesUnchanged(t *testing.T) {
+	props := rtui.Props{
+		"nodes": []TreeNode{
+			{Content: "workspace", Path: "workspace", NodeType: "folder"},
+			{Indent: 4, Content: "alpha", Path: "workspace/alpha", NodeType: "folder"},
+			{Indent: 4, Content: "beta", Path: "workspace/beta", NodeType: "folder"},
+			{Indent: 4, Content: "gamma", Path: "workspace/gamma", NodeType: "folder"},
+		},
+		"expandLevel":   1,
+		"reorderable":   true,
+		"selectedIndex": 1,
+	}
+	inst := NewInstance(props)
+
+	start := runtimemsg.NewMouseMsgWithTarget(0, 0, 1, 2, 0, runtimemsg.MouseLeft, runtimemsg.MouseActionPress)
+	move := runtimemsg.NewMouseMsgWithTarget(0, 0, 1, 4, 0, runtimemsg.MouseLeft, runtimemsg.MouseActionMove)
+	release := runtimemsg.NewMouseMsgWithTarget(0, 0, 1, 4, 0, runtimemsg.MouseLeft, runtimemsg.MouseActionRelease)
+
+	if !inst.HandleAction(action.NewAction(action.ActionClick).WithPayload(start)) {
+		t.Fatal("expected ActionClick press to start drag")
+	}
+	if !inst.HandleAction(action.NewAction(action.ActionHover).WithPayload(move)) {
+		t.Fatal("expected ActionHover to reorder dragged node")
+	}
+	if !inst.HandleAction(action.NewAction(action.ActionMouseRelease).WithPayload(release)) {
+		t.Fatal("expected ActionMouseRelease to finish drag")
+	}
+
+	wantOrder := []string{"workspace", "workspace/beta", "workspace/gamma", "workspace/alpha"}
+	for i, want := range wantOrder {
+		if inst.nodes[i].Path != want {
+			t.Fatalf("before SetProps nodes[%d].Path = %q, want %q", i, inst.nodes[i].Path, want)
+		}
+	}
+
+	inst.SetProps(props)
+
+	for i, want := range wantOrder {
+		if inst.nodes[i].Path != want {
+			t.Fatalf("after SetProps nodes[%d].Path = %q, want %q", i, inst.nodes[i].Path, want)
+		}
 	}
 }
 

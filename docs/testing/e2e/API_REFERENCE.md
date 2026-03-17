@@ -84,8 +84,16 @@ app, err := e2e.RunWithSandbox(MyApp, ui.WithSize(80, 24))
 
 ### 鼠标
 
+- `Press(locator Locator) error`
+- `PressAt(x, y int) error`
+- `Move(locator Locator) error`
+- `MoveAt(x, y int) error`
+- `Release(locator Locator) error`
+- `ReleaseAt(x, y int) error`
 - `Click(locator Locator) error`
 - `ClickAt(x, y int) error`
+- `Drag(from, to Locator) error`
+- `DragAt(fromX, fromY, toX, toY int) error`
 
 默认行为：
 
@@ -288,6 +296,13 @@ TraceMatch{
   - popup 内命中与样式断言
   - 提交后状态更新
   - outside click close 且不泄漏到 background action
+- TreeView
+  - 外部 search input 驱动 `SearchQueryControlled(...)`
+  - `SearchResultsIntent` / `FieldChangeIntent` 联动
+  - focus 切换到 treeview 后的键盘展开
+  - lazy load child 出现
+  - 节点点击命中与 checkbox-style selection 状态更新
+  - drag reorder 与 `NodeReorderIntent` 联动
 
 ---
 

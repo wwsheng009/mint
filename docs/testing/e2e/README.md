@@ -11,9 +11,11 @@
 - 已开始覆盖 modal/overlay 这类复杂交互场景
 - 当前已包含 backdrop close / overlay hit / modal 内按钮命中等 fixture 回归
 - 当前已包含 select overlay popup 的 filter / commit / outside click close 回归
+- 当前已包含 treeview 的 search / lazy load / selection / drag reorder 联动回归
 - 当前已提供：
   - `Run` / `RunWithSandbox`
   - `Driver`
+  - mouse `Press` / `Move` / `Release` / `Drag`
   - `AwaitIdle`
   - RawInput trace + Msg trace + Action trace + Intent dispatch log trace
   - 基础 locator（`At` / `ByText` / `ByID` / `ByKey` / `ByTag` / `ByTargetID` / `ByComponentID` / `Focused`）
