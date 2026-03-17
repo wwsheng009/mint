@@ -31,6 +31,7 @@ import (
 	"github.com/wwsheng009/mint/ui/components/button"
 	"github.com/wwsheng009/mint/ui/components/checkbox"
 	"github.com/wwsheng009/mint/ui/components/collapse"
+	"github.com/wwsheng009/mint/ui/components/descriptions"
 	"github.com/wwsheng009/mint/ui/components/divider"
 	"github.com/wwsheng009/mint/ui/components/grid"
 	"github.com/wwsheng009/mint/ui/components/input"
@@ -168,6 +169,10 @@ func NewBadgeBuilder(label string) *badge.Builder {
 
 func NewCollapseBuilder() *collapse.Builder {
 	return collapse.NewBuilder()
+}
+
+func NewDescriptionsBuilder() *descriptions.Builder {
+	return descriptions.NewBuilder()
 }
 
 func NewTableBuilder() *table.Builder {
@@ -318,6 +323,8 @@ type TabItem = tabs.TabItem
 type BreadcrumbItem = breadcrumb.Item
 type BadgeStatus = badge.Status
 type CollapseItem = collapse.Item
+type DescriptionsItem = descriptions.Item
+type DescriptionsLayout = descriptions.Layout
 type StepsDirection = steps.Direction
 type StepsStatus = steps.Status
 type StepsItem = steps.Item
@@ -334,6 +341,9 @@ const (
 	BadgeStatusWarning    = badge.StatusWarning
 	BadgeStatusError      = badge.StatusError
 	BadgeStatusProcessing = badge.StatusProcessing
+
+	DescriptionsHorizontal = descriptions.LayoutHorizontal
+	DescriptionsVertical   = descriptions.LayoutVertical
 
 	StepsHorizontal = steps.DirectionHorizontal
 	StepsVertical   = steps.DirectionVertical
@@ -400,6 +410,11 @@ func NewBreadcrumbItem(label string) breadcrumb.Item {
 // NewCollapseItem creates a collapse item with the given header and content.
 func NewCollapseItem(header string, content rtui.VNode) collapse.Item {
 	return collapse.Section(header, content)
+}
+
+// NewDescriptionsItem creates a descriptions item with the given label and content.
+func NewDescriptionsItem(label string, content rtui.VNode) descriptions.Item {
+	return descriptions.Entry(label, content)
 }
 
 // NewBadge creates a badge builder seed with the given label.
@@ -624,6 +639,11 @@ func Badge(label string, count int) rtui.VNode {
 // Collapse creates a collapse component from items.
 func Collapse(items []collapse.Item) rtui.VNode {
 	return collapse.Of(items)
+}
+
+// Descriptions creates a descriptions component from items.
+func Descriptions(items []descriptions.Item) rtui.VNode {
+	return descriptions.Of(items)
 }
 
 // Progress shortcuts
