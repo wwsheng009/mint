@@ -2,20 +2,23 @@
 
 > 本文档记录 Mint UI 组件库的现状、与 Ant Design 的对比分析，以及后续开发计划。
 >
-> 更新日期：2026-03-16
+> 更新日期：2026-03-17
 >
 > 详细增强任务拆分见：[OPTIMIZATION_BACKLOG.md](./OPTIMIZATION_BACKLOG.md)
 
 ---
 
-## 当前组件清单（39 个目录 + 1 个内置 Scrollbar）
+## 当前组件清单（42 个目录 + 1 个内置 Scrollbar）
 
-> 排除 `docs/` 与 `internal/` 后，当前共有 39 个组件/支撑目录；其中 35 个严格遵循 `builder.go + vnode.go + instance.go` 结构，`toast`、`statusbar`、`control`、`validation` 属于特例或基础设施模块。
+> 排除 `docs/` 与 `internal/` 后，当前共有 42 个组件/支撑目录；其中 38 个严格遵循 `builder.go + vnode.go + instance.go` 结构，`toast`、`statusbar`、`control`、`validation` 属于特例或基础设施模块。
 
 | 组件 | 目录 | 完整度 | 说明 |
 |------|------|--------|------|
 | Button | `button/` | ★★★★☆ | Primary/Secondary/Danger/Ghost变体，disabled，icon |
 | Breadcrumb | `breadcrumb/` | ★★★☆☆ | 面包屑导航，支持自定义分隔符、当前项高亮、窄宽度折叠 |
+| Pagination | `pagination/` | ★★★☆☆ | 独立分页组件，支持页码跳转、ellipsis、field 绑定 |
+| Steps | `steps/` | ★★☆☆☆ | 基础步骤条，支持 horizontal/vertical、current/status、description、progressDot、percent、键鼠切换与 change intent，进行中 |
+| Badge | `badge/` | ★★★☆☆ | 徽标数/点状态，支持 count/text/dot、overflow、showZero、status、label |
 | Input | `input/` | ★★★★☆ | text/password/number/email，placeholder，maxLen，readOnly，prefix/suffix，addonBefore/addonAfter，Search变体 |
 | Textarea | `textarea/` | ★★★☆☆ | 多行文本输入 |
 | Select | `select/` | ★★★★★ | 单选/多选/tags，overlay popup，OptGroup，filterOption，placeholder，disabled |
@@ -25,11 +28,11 @@
 | Slider | `slider/` | ★★★★☆ | 数值滑块，支持键盘调节、Form 绑定、受控模式 |
 | Rate | `rate/` | ★★★☆☆ | 星级评分，支持键盘调节、可清空、Form 绑定 |
 | OptionGroup | `optiongroup/` | ★★★☆☆ | 选项组，支持 radio/checkbox 模式 |
-| Form | `form/` | ★★★☆☆ | 表单容器，submit/reset intent，已补 FormItem、layout、validator 联动 |
-| Table | `table/` | ★★★★☆ | 排序、分页、过滤、多选、搜索、滚动 |
+| Form | `form/` | ★★★★☆ | 表单容器，submit/reset intent，已补 FormItem、layout、validator 联动，以及 touched/dirty/submitted/submitCount 等字段状态 |
+| Table | `table/` | ★★★★☆ | 排序、分页、过滤、多选、搜索、滚动，已补 expandable 行、固定列与树形数据 |
 | List | `list/` | ★★★★★ | 基本列表，选择模式，List.Item/item 模型，VirtualList bridge/state sync |
 | VirtualList | `virtuallist/` | ★★★☆☆ | 虚拟滚动列表 |
-| TreeView | `treeview/` | ★★★★☆ | 懒加载、展开折叠、搜索、多选、受控模式 |
+| TreeView | `treeview/` | ★★★★☆ | 懒加载、展开折叠、搜索、多选、受控模式、同父级 subtree 拖拽排序、异步搜索结果分页 |
 | Modal | `modal/` | ★★★★☆ | overlay定位，portal架构 |
 | Drawer | `drawer/` | ★★★★☆ | 侧边抽屉，支持 placement、受控显隐、overlay 与 ESC/遮罩关闭 |
 | Tabs | `tabs/` | ★★★★★ | intent，controlled 模式，card/closable/drag reorder |
@@ -41,7 +44,7 @@
 | Toast | `toast/` | ★★★☆☆ | 独立 manager + runtime，info/success/warning/error，自动消失 |
 | Tooltip | `tooltip/` | ★★★★☆ | 已支持 top/bottom/left/right、delay、layer |
 | Tag | `tag/` | ★★★☆☆ | 标签，颜色变体，可关闭，可选图标前缀 |
-| Progress | `progress/` | ★★☆☆☆ | 线形进度条，value/max，showPercent |
+| Progress | `progress/` | ★★★☆☆ | 线形/圆形/仪表盘进度条，status（normal/success/exception/active），showPercent |
 | Divider | `divider/` | ★★★☆☆ | 水平/垂直分隔线 |
 | StatusBar | `statusbar/` | ★★★☆☆ | 组合式 builder，含 help、section 内部组件 |
 | Panel | `panel/` | ★★★☆☆ | 容器面板，有 enhanced builder |
@@ -87,15 +90,15 @@
 | 组件 | 说明 | AntD 对应 |
 |------|------|-----------|
 | ~~**Breadcrumb**~~ | ~~面包屑导航，层级路径展示~~ | `Breadcrumb` ✅ 已实现（2026-03） |
-| **Pagination** | 独立分页组件（Table 内置了分页，但缺独立组件） | `Pagination` |
-| **Steps** | 步骤条，引导流程 | `Steps` |
+| ~~**Pagination**~~ | ~~独立分页组件（Table 内置了分页，但缺独立组件）~~ | `Pagination` ✅ 已实现（2026-03） |
+| **Steps** | 步骤条，引导流程 | `Steps` 🚧 基础交互版进行中（2026-03-17） |
 | **Anchor** | 锚点导航 | `Anchor` |
 
 ### 数据展示类（中优先级）
 
 | 组件 | 说明 | AntD 对应 |
 |------|------|-----------|
-| **Badge** | 徽标数，消息计数角标 | `Badge` |
+| ~~**Badge**~~ | ~~徽标数，消息计数角标~~ | `Badge` ✅ 已实现（2026-03-17） |
 | ~~**Tag**~~ | ~~标签，支持可关闭、颜色~~ | `Tag` ✅ 已实现（2026-03）|
 | **Collapse** | 折叠面板，手风琴模式 | `Collapse` |
 | **Descriptions** | 描述列表，键值对展示 | `Descriptions` |
@@ -125,7 +128,7 @@
 
 | 组件 | 缺失功能 | 优先级 |
 |------|---------|--------|
-| **Form** | 字段级 touched/dirty 状态已完成（2026-03-17）；下一步逐步收敛兼容层 `GetFormContext` 对 registry 的依赖 | 中 |
+| **Form** | 字段级 touched/dirty/submitted、表单级 `HasSubmitted`/`GetSubmitCount`、`GetTouchedFields`/`GetDirtyFields`/`GetSubmittedFields`、`GetFormContext` 实例树解析已完成（2026-03-17）；剩显式 compat helper `GetRegisteredForm` / `GetRegisteredFormContext` 的瘦身评估 | 中 |
 | ~~**Input**~~ | ~~InputNumber 完整实现~~ ✅ 已完成（2026-03-17） | ~~高~~ |
 | ~~**Checkbox**~~ | ~~indeterminate 半选状态；CheckboxGroup 组件~~ | ~~高~~ |
 | ~~**Progress**~~ | ~~圆形（Circle）和仪表盘（Dashboard）样式；status（success/exception/active）~~ ✅ 已完成（2026-03-17） | ~~中~~ |
@@ -134,7 +137,7 @@
 | ~~**Modal**~~ | ~~confirm/info/success/error/warning 快捷静态方法~~ ✅ 已完成（2026-03-17） | ~~中~~ |
 | ~~**Tooltip**~~ | ~~12方位 placement 精细控制；delay 配置~~ ✅ 已完成（2026-03-17） | ~~中~~ |
 | ~~**Tabs**~~ | ~~card、closable、拖拽排序已完成~~ ✅（2026-03-17） | ~~低~~ |
-| **TreeView** | 同父级 subtree 拖拽排序已完成（2026-03-17）；剩异步搜索高亮分页 | 低 |
+| ~~**TreeView**~~ | ~~同父级 subtree 拖拽排序 + 异步搜索高亮分页~~ ✅ 已完成（2026-03-17，且已补 `ui/e2e` 的 search / lazy load / selection / drag reorder 回归） | ~~低~~ |
 | ~~**List**~~ | ~~List.Item / item 模型、VirtualList bridge 与选择/搜索/高亮同步已完成~~ ✅（2026-03-17） | ~~低~~ |
 
 ---
@@ -167,21 +170,21 @@
 ### Phase 3 — 导航与数据展示（中期）
 
 - [x] `Breadcrumb` — 面包屑（2026-03）
-- [ ] `Pagination` — 独立分页
-- [ ] `Steps` — 步骤条
-- [ ] `Badge` — 徽标数
+- [x] `Pagination` — 独立分页（2026-03）
+- [~] `Steps` — 步骤条（进行中，2026-03-17）
+- [x] `Badge` — 徽标数（2026-03-17）
 - [x] `Tag` — 标签（2026-03）
 - [ ] `Collapse` — 折叠面板
 - [ ] `Descriptions` — 描述列表
 - [ ] `Statistic` — 统计数字
-- [ ] `Table` 增强 — expandable 行，固定列，树形数据
+- [x] `Table` 增强 — expandable 行，固定列，树形数据（2026-03-17）
 
 ### Phase 4 — 高级交互组件（远期）
 
 - [x] `Drawer` — 侧边抽屉（2026-03）
 - [ ] `Popover` — 气泡卡片
 - [ ] `Popconfirm` — 气泡确认框
-- [ ] `Progress` 增强 — Circle/Dashboard 样式
+- [x] `Progress` 增强 — Circle/Dashboard 样式（2026-03-17）
 - [ ] `Timeline` — 时间轴
 - [ ] `Result` — 结果状态页
 - [ ] `Skeleton` — 骨架屏
