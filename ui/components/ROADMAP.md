@@ -2,15 +2,15 @@
 
 > 本文档记录 Mint UI 组件库的现状、与 Ant Design 的对比分析，以及后续开发计划。
 >
-> 更新日期：2026-03-17
+> 更新日期：2026-03-18
 >
 > 详细增强任务拆分见：[OPTIMIZATION_BACKLOG.md](./OPTIMIZATION_BACKLOG.md)
 
 ---
 
-## 当前组件清单（42 个目录 + 1 个内置 Scrollbar）
+## 当前组件清单（43 个目录 + 1 个内置 Scrollbar）
 
-> 排除 `docs/` 与 `internal/` 后，当前共有 42 个组件/支撑目录；其中 38 个严格遵循 `builder.go + vnode.go + instance.go` 结构，`toast`、`statusbar`、`control`、`validation` 属于特例或基础设施模块。
+> 排除 `docs/` 与 `internal/` 后，当前共有 43 个组件/支撑目录；其中 39 个严格遵循 `builder.go + vnode.go + instance.go` 结构，`toast`、`statusbar`、`control`、`validation` 属于特例或基础设施模块。
 
 | 组件 | 目录 | 完整度 | 说明 |
 |------|------|--------|------|
@@ -19,6 +19,7 @@
 | Pagination | `pagination/` | ★★★☆☆ | 独立分页组件，支持页码跳转、ellipsis、field 绑定 |
 | Steps | `steps/` | ★★★☆☆ | 基础步骤条，支持 horizontal/vertical、current/status、description、progressDot、percent、键鼠切换、`StepChangeIntent`/field 绑定，README 与 e2e 已补齐 |
 | Badge | `badge/` | ★★★☆☆ | 徽标数/点状态，支持 count/text/dot、overflow、showZero、status、label |
+| Collapse | `collapse/` | ★★★☆☆ | 折叠面板，支持多面板展开、accordion、受控/非受控 activeKeys、panel disabled、`CollapseToggleIntent`/`CollapseChangeIntent`、field 绑定 |
 | Input | `input/` | ★★★★☆ | text/password/number/email，placeholder，maxLen，readOnly，prefix/suffix，addonBefore/addonAfter，Search变体 |
 | Textarea | `textarea/` | ★★★☆☆ | 多行文本输入 |
 | Select | `select/` | ★★★★★ | 单选/多选/tags，overlay popup，OptGroup，filterOption，placeholder，disabled |
@@ -100,7 +101,7 @@
 |------|------|-----------|
 | ~~**Badge**~~ | ~~徽标数，消息计数角标~~ | `Badge` ✅ 已实现（2026-03-17） |
 | ~~**Tag**~~ | ~~标签，支持可关闭、颜色~~ | `Tag` ✅ 已实现（2026-03）|
-| **Collapse** | 折叠面板，手风琴模式 | `Collapse` |
+| ~~**Collapse**~~ | ~~折叠面板，手风琴模式~~ | `Collapse` ✅ 已实现（2026-03-18） |
 | **Descriptions** | 描述列表，键值对展示 | `Descriptions` |
 | ~~**Empty**~~ | ~~空状态占位~~ | `Empty` ✅ 已实现（2026-03）|
 | **Statistic** | 统计数字展示 | `Statistic` |
@@ -174,7 +175,7 @@
 - [x] `Steps` — 步骤条（2026-03-17）
 - [x] `Badge` — 徽标数（2026-03-17）
 - [x] `Tag` — 标签（2026-03）
-- [ ] `Collapse` — 折叠面板
+- [x] `Collapse` — 折叠面板（2026-03-18）
 - [ ] `Descriptions` — 描述列表
 - [ ] `Statistic` — 统计数字
 - [x] `Table` 增强 — expandable 行，固定列，树形数据（2026-03-17）

@@ -30,6 +30,7 @@ import (
 	"github.com/wwsheng009/mint/ui/components/breadcrumb"
 	"github.com/wwsheng009/mint/ui/components/button"
 	"github.com/wwsheng009/mint/ui/components/checkbox"
+	"github.com/wwsheng009/mint/ui/components/collapse"
 	"github.com/wwsheng009/mint/ui/components/divider"
 	"github.com/wwsheng009/mint/ui/components/grid"
 	"github.com/wwsheng009/mint/ui/components/input"
@@ -163,6 +164,10 @@ func NewListBuilder() *list.Builder {
 
 func NewBadgeBuilder(label string) *badge.Builder {
 	return badge.NewBuilder(label)
+}
+
+func NewCollapseBuilder() *collapse.Builder {
+	return collapse.NewBuilder()
 }
 
 func NewTableBuilder() *table.Builder {
@@ -312,6 +317,7 @@ type TabPosition = tabs.TabPosition
 type TabItem = tabs.TabItem
 type BreadcrumbItem = breadcrumb.Item
 type BadgeStatus = badge.Status
+type CollapseItem = collapse.Item
 type StepsDirection = steps.Direction
 type StepsStatus = steps.Status
 type StepsItem = steps.Item
@@ -389,6 +395,11 @@ func NewSelectOption(value, label string) selectcomp.Option {
 // NewBreadcrumbItem creates a breadcrumb item with the given label.
 func NewBreadcrumbItem(label string) breadcrumb.Item {
 	return breadcrumb.Crumb(label)
+}
+
+// NewCollapseItem creates a collapse item with the given header and content.
+func NewCollapseItem(header string, content rtui.VNode) collapse.Item {
+	return collapse.Section(header, content)
 }
 
 // NewBadge creates a badge builder seed with the given label.
@@ -608,6 +619,11 @@ func TextRight(content string) rtui.VNode {
 // Badge creates an inline badge with a numeric count.
 func Badge(label string, count int) rtui.VNode {
 	return badge.NewBuilder(label).Count(count).Build()
+}
+
+// Collapse creates a collapse component from items.
+func Collapse(items []collapse.Item) rtui.VNode {
+	return collapse.Of(items)
 }
 
 // Progress shortcuts

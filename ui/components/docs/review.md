@@ -1,6 +1,6 @@
 # Mint UI Components Review
 
-> 更新时间：2026-03-16
+> 更新时间：2026-03-18
 > 范围：`ui/components/`（排除 `docs/`、`internal/`）
 
 ---
@@ -9,8 +9,8 @@
 
 `ui/components/` 已经不是“骨架期”，而是“已大面积落地、少量边角未收口”的状态。
 
-- 当前共有 39 个组件/支撑目录
-- 其中 35 个严格遵循 `builder.go + vnode.go + instance.go` 规范
+- 当前共有 43 个组件/支撑目录
+- 其中 39 个严格遵循 `builder.go + vnode.go + instance.go` 规范
 - `toast`、`statusbar`、`control`、`validation` 属于特例或基础设施模块
 - `go test ./ui/components/...` 当前可通过；无测试文件的包已收敛到 `internal/` 支撑模块
 
@@ -29,13 +29,13 @@
 
 ### 第二梯队
 
-- `button/`、`input/`、`checkbox/`、`modal/`、`tabs/`、`list/`、`notification/`、`toast/`、`tooltip/`、`grid/`、`panel/`、`statusbar/` 已具备稳定可用的 API 与测试基础
+- `button/`、`input/`、`checkbox/`、`collapse/`、`modal/`、`tabs/`、`list/`、`notification/`、`toast/`、`tooltip/`、`grid/`、`panel/`、`statusbar/` 已具备稳定可用的 API 与测试基础
 - `tooltip/` 的实际能力已经超过旧路线图，当前支持 top/bottom/left/right、delay 和 layer
 - `statusbar/` 采用“builder + section/help 内部组件”的组合式路线，不是传统单组件目录
 
 ### 相对薄弱
 
-- `progress/`：仍以线性进度条为主，尚未扩展到 Circle / Dashboard
+- `collapse/`：基础折叠与 accordion 已补齐，但 header 视觉、动画和更丰富的 item 表达还有扩展空间
 - `empty/`：功能与测试已补齐，但能力面仍较窄
 - `control/`、`validation/`：更接近基础设施包，不适合用单一 UI 组件标准衡量
 
