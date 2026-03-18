@@ -46,6 +46,7 @@ import (
 	"github.com/wwsheng009/mint/ui/components/result"
 	"github.com/wwsheng009/mint/ui/components/scrollview"
 	selectcomp "github.com/wwsheng009/mint/ui/components/select"
+	"github.com/wwsheng009/mint/ui/components/skeleton"
 	"github.com/wwsheng009/mint/ui/components/statistic"
 	"github.com/wwsheng009/mint/ui/components/statusbar"
 	"github.com/wwsheng009/mint/ui/components/steps"
@@ -190,6 +191,10 @@ func NewPopconfirmBuilder(content rtui.VNode) *popconfirm.Builder {
 
 func NewStatisticBuilder() *statistic.Builder {
 	return statistic.NewBuilder()
+}
+
+func NewSkeletonBuilder() *skeleton.Builder {
+	return skeleton.NewBuilder()
 }
 
 func NewTableBuilder() *table.Builder {
@@ -353,6 +358,7 @@ type DescriptionsLayout = descriptions.Layout
 type TimelineItem = timeline.Item
 type TimelineStatus = timeline.Status
 type ResultStatus = result.Status
+type SkeletonShape = skeleton.Shape
 type PopoverPlacement = popover.Placement
 type PopoverTriggerMode = popover.TriggerMode
 type PopconfirmPlacement = popconfirm.Placement
@@ -391,6 +397,9 @@ const (
 	ResultStatus403     = result.Status403
 	ResultStatus404     = result.Status404
 	ResultStatus500     = result.Status500
+
+	SkeletonShapeSquare = skeleton.ShapeSquare
+	SkeletonShapeRound  = skeleton.ShapeRound
 
 	PopoverPlacementAuto        = popover.PlacementAuto
 	PopoverPlacementTop         = popover.PlacementTop
