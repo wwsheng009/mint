@@ -8,9 +8,9 @@
 
 ---
 
-## 当前组件清单（45 个目录 + 1 个内置 Scrollbar）
+## 当前组件清单（46 个目录 + 1 个内置 Scrollbar）
 
-> 排除 `docs/` 与 `internal/` 后，当前共有 45 个组件/支撑目录；其中 41 个严格遵循 `builder.go + vnode.go + instance.go` 结构，`toast`、`statusbar`、`control`、`validation` 属于特例或基础设施模块。
+> 排除 `docs/` 与 `internal/` 后，当前共有 46 个组件/支撑目录；其中 42 个严格遵循 `builder.go + vnode.go + instance.go` 结构，`toast`、`statusbar`、`control`、`validation` 属于特例或基础设施模块。
 
 | 组件 | 目录 | 完整度 | 说明 |
 |------|------|--------|------|
@@ -51,6 +51,7 @@
 | Divider | `divider/` | ★★★☆☆ | 水平/垂直分隔线 |
 | StatusBar | `statusbar/` | ★★★☆☆ | 组合式 builder，含 help、section 内部组件 |
 | Panel | `panel/` | ★★★☆☆ | 容器面板，有 enhanced builder |
+| Popover | `popover/` | ★★★☆☆ | 气泡卡片，支持 title/body、click/hover/manual 触发、top/bottom placement、local open intents |
 | ScrollView | `scrollview/` | ★★★☆☆ | 可滚动容器 |
 | Grid | `grid/` | ★★★★☆ | 单元格边框，完整文档 |
 | Text | `text/` | ★★★☆☆ | 文本显示 |
@@ -121,7 +122,7 @@
 
 | 组件 | 说明 | AntD 对应 |
 |------|------|-----------|
-| **Popover** | 气泡卡片，比 Tooltip 更复杂，有标题和内容区 | `Popover` |
+| ~~**Popover**~~ | ~~气泡卡片，比 Tooltip 更复杂，有标题和内容区~~ | `Popover` ✅ 已实现（2026-03-18） |
 | **Popconfirm** | 气泡确认框 | `Popconfirm` |
 | ~~**Drawer**~~ | ~~侧边抽屉，从边缘滑出的覆盖层~~ | `Drawer` ✅ 已实现（2026-03） |
 
@@ -185,7 +186,7 @@
 ### Phase 4 — 高级交互组件（远期）
 
 - [x] `Drawer` — 侧边抽屉（2026-03）
-- [ ] `Popover` — 气泡卡片
+- [x] `Popover` — 气泡卡片（2026-03-18）
 - [ ] `Popconfirm` — 气泡确认框
 - [x] `Progress` 增强 — Circle/Dashboard 样式（2026-03-17）
 - [ ] `Timeline` — 时间轴

@@ -39,6 +39,7 @@ import (
 	"github.com/wwsheng009/mint/ui/components/modal"
 	"github.com/wwsheng009/mint/ui/components/pagination"
 	"github.com/wwsheng009/mint/ui/components/panel"
+	"github.com/wwsheng009/mint/ui/components/popover"
 	"github.com/wwsheng009/mint/ui/components/progress"
 	"github.com/wwsheng009/mint/ui/components/radio"
 	"github.com/wwsheng009/mint/ui/components/scrollview"
@@ -174,6 +175,10 @@ func NewCollapseBuilder() *collapse.Builder {
 
 func NewDescriptionsBuilder() *descriptions.Builder {
 	return descriptions.NewBuilder()
+}
+
+func NewPopoverBuilder(content rtui.VNode) *popover.Builder {
+	return popover.NewBuilder(content)
 }
 
 func NewStatisticBuilder() *statistic.Builder {
@@ -330,6 +335,8 @@ type BadgeStatus = badge.Status
 type CollapseItem = collapse.Item
 type DescriptionsItem = descriptions.Item
 type DescriptionsLayout = descriptions.Layout
+type PopoverPlacement = popover.Placement
+type PopoverTriggerMode = popover.TriggerMode
 type StatisticTrend = statistic.Trend
 type StepsDirection = steps.Direction
 type StepsStatus = steps.Status
@@ -350,6 +357,18 @@ const (
 
 	DescriptionsHorizontal = descriptions.LayoutHorizontal
 	DescriptionsVertical   = descriptions.LayoutVertical
+
+	PopoverPlacementAuto        = popover.PlacementAuto
+	PopoverPlacementTop         = popover.PlacementTop
+	PopoverPlacementTopLeft     = popover.PlacementTopLeft
+	PopoverPlacementTopRight    = popover.PlacementTopRight
+	PopoverPlacementBottom      = popover.PlacementBottom
+	PopoverPlacementBottomLeft  = popover.PlacementBottomLeft
+	PopoverPlacementBottomRight = popover.PlacementBottomRight
+
+	PopoverTriggerClick  = popover.TriggerClick
+	PopoverTriggerHover  = popover.TriggerHover
+	PopoverTriggerManual = popover.TriggerManual
 
 	StatisticTrendNone = statistic.TrendNone
 	StatisticTrendUp   = statistic.TrendUp
@@ -425,6 +444,11 @@ func NewCollapseItem(header string, content rtui.VNode) collapse.Item {
 // NewDescriptionsItem creates a descriptions item with the given label and content.
 func NewDescriptionsItem(label string, content rtui.VNode) descriptions.Item {
 	return descriptions.Entry(label, content)
+}
+
+// NewPopover creates a popover builder with anchor content.
+func NewPopover(content rtui.VNode) *popover.VNode {
+	return popover.New(content)
 }
 
 // NewStatistic creates a statistic builder with title and value.
@@ -659,6 +683,11 @@ func Collapse(items []collapse.Item) rtui.VNode {
 // Descriptions creates a descriptions component from items.
 func Descriptions(items []descriptions.Item) rtui.VNode {
 	return descriptions.Of(items)
+}
+
+// Popover creates a popover component with anchor, title, and body.
+func Popover(anchor rtui.VNode, title, body string) rtui.VNode {
+	return popover.New(anchor).SetTitle(title).SetBody(body)
 }
 
 // Statistic creates a statistic component with title and value.
