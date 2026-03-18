@@ -7,6 +7,7 @@ import (
 	"github.com/wwsheng009/mint/framework/theme"
 	"github.com/wwsheng009/mint/runtime/action"
 	"github.com/wwsheng009/mint/runtime/intent"
+	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
 	rttypes "github.com/wwsheng009/mint/runtime/types"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
@@ -358,6 +359,7 @@ func (inst *Instance) buildOverlaySurface() rtui.VNode {
 	children = append(children, inst.buildActionRow())
 
 	surface := rtui.VStackBuilder(children...).Gap(1).AlignCross(rtui.AlignStart)
+	surface.Width(inst.overlayWidth())
 	surface.SingleBorder()
 	surface.SetBorderColor(theme.Primary())
 	surface.SetStyleProps(style.NewStyle().Background(theme.Surface()).Foreground(theme.Text()).Merge(inst.overlayStyle))
@@ -456,6 +458,30 @@ func (inst *Instance) normalize() {
 	if strings.TrimSpace(inst.cancelText) == "" {
 		inst.cancelText = "Cancel"
 	}
+}
+
+func (inst *Instance) overlayWidth() int {
+	width := paint.StringWidth(inst.title)
+	for _, line := range strings.Split(strings.ReplaceAll(inst.description, "\r\n", "\n"), "\n") {
+		lineWidth := paint.StringWidth(line)
+		if lineWidth > width {
+			width = lineWidth
+		}
+	}
+	actionWidth := paint.StringWidth("[" + inst.okText + "]")
+	if inst.showCancel {
+		actionWidth += 1 + paint.StringWidth("["+inst.cancelText+"]")
+	}
+	if actionWidth > width {
+		width = actionWidth
+	}
+	if inst.maxWidth > 0 && width > inst.maxWidth {
+		width = inst.maxWidth
+	}
+	if width < 12 {
+		width = 12
+	}
+	return width + 4
 }
 
 func (inst *Instance) anchor() rttypes.Anchor {

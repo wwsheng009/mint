@@ -47,6 +47,7 @@ type Instance struct {
 	state  control.InteractionState
 	bounds [4]int // x, y, w, h
 	dirty  bool
+	parent rtui.ComponentInstance
 
 	// === Intent Emitter ===
 	intentEmitter func(intent.Intent)
@@ -62,6 +63,7 @@ var (
 	_ rtui.FocusableInstance     = (*Instance)(nil)
 	_ rtui.ActionHandlerInstance = (*Instance)(nil)
 	_ control.Instance           = (*Instance)(nil)
+	_ intent.TreeComponent       = (*Instance)(nil)
 	_ interface {
 		Measure(layout.Constraints) layout.Size
 	} = (*Instance)(nil)
@@ -203,12 +205,12 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 func (inst *Instance) GetProps() rtui.Props {
 	return rtui.Props{
 		"key":        inst.key,
-		propLabel:      inst.label,
+		propLabel:    inst.label,
 		"variant":    inst.variant,
 		"size":       inst.size,
 		"focusStyle": inst.focusStyle,
-		propDisabled:   inst.state.Disabled,
-		propFlex:       inst.flex,
+		propDisabled: inst.state.Disabled,
+		propFlex:     inst.flex,
 	}
 }
 
@@ -225,6 +227,16 @@ func (inst *Instance) IsDirty() bool {
 // GetContext implements ComponentInstance (no hooks for Button).
 func (inst *Instance) GetContext() *rtui.ComponentContext {
 	return nil
+}
+
+// Parent implements intent.TreeComponent for local intent bubbling.
+func (inst *Instance) Parent() interface{} {
+	return inst.parent
+}
+
+// SetParent stores the runtime parent instance for local intent bubbling.
+func (inst *Instance) SetParent(parent rtui.ComponentInstance) {
+	inst.parent = parent
 }
 
 // =============================================================================
