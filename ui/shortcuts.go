@@ -39,6 +39,7 @@ import (
 	"github.com/wwsheng009/mint/ui/components/modal"
 	"github.com/wwsheng009/mint/ui/components/pagination"
 	"github.com/wwsheng009/mint/ui/components/panel"
+	"github.com/wwsheng009/mint/ui/components/popconfirm"
 	"github.com/wwsheng009/mint/ui/components/popover"
 	"github.com/wwsheng009/mint/ui/components/progress"
 	"github.com/wwsheng009/mint/ui/components/radio"
@@ -179,6 +180,10 @@ func NewDescriptionsBuilder() *descriptions.Builder {
 
 func NewPopoverBuilder(content rtui.VNode) *popover.Builder {
 	return popover.NewBuilder(content)
+}
+
+func NewPopconfirmBuilder(content rtui.VNode) *popconfirm.Builder {
+	return popconfirm.NewBuilder(content)
 }
 
 func NewStatisticBuilder() *statistic.Builder {
@@ -337,6 +342,8 @@ type DescriptionsItem = descriptions.Item
 type DescriptionsLayout = descriptions.Layout
 type PopoverPlacement = popover.Placement
 type PopoverTriggerMode = popover.TriggerMode
+type PopconfirmPlacement = popconfirm.Placement
+type PopconfirmTriggerMode = popconfirm.TriggerMode
 type StatisticTrend = statistic.Trend
 type StepsDirection = steps.Direction
 type StepsStatus = steps.Status
@@ -369,6 +376,18 @@ const (
 	PopoverTriggerClick  = popover.TriggerClick
 	PopoverTriggerHover  = popover.TriggerHover
 	PopoverTriggerManual = popover.TriggerManual
+
+	PopconfirmPlacementAuto        = popconfirm.PlacementAuto
+	PopconfirmPlacementTop         = popconfirm.PlacementTop
+	PopconfirmPlacementTopLeft     = popconfirm.PlacementTopLeft
+	PopconfirmPlacementTopRight    = popconfirm.PlacementTopRight
+	PopconfirmPlacementBottom      = popconfirm.PlacementBottom
+	PopconfirmPlacementBottomLeft  = popconfirm.PlacementBottomLeft
+	PopconfirmPlacementBottomRight = popconfirm.PlacementBottomRight
+
+	PopconfirmTriggerClick  = popconfirm.TriggerClick
+	PopconfirmTriggerHover  = popconfirm.TriggerHover
+	PopconfirmTriggerManual = popconfirm.TriggerManual
 
 	StatisticTrendNone = statistic.TrendNone
 	StatisticTrendUp   = statistic.TrendUp
@@ -449,6 +468,11 @@ func NewDescriptionsItem(label string, content rtui.VNode) descriptions.Item {
 // NewPopover creates a popover builder with anchor content.
 func NewPopover(content rtui.VNode) *popover.VNode {
 	return popover.New(content)
+}
+
+// NewPopconfirm creates a popconfirm builder around an anchor content node.
+func NewPopconfirm(content rtui.VNode) *popconfirm.VNode {
+	return popconfirm.New(content)
 }
 
 // NewStatistic creates a statistic builder with title and value.
@@ -688,6 +712,11 @@ func Descriptions(items []descriptions.Item) rtui.VNode {
 // Popover creates a popover component with anchor, title, and body.
 func Popover(anchor rtui.VNode, title, body string) rtui.VNode {
 	return popover.New(anchor).SetTitle(title).SetBody(body)
+}
+
+// Popconfirm creates a popconfirm component with anchor, title, and description.
+func Popconfirm(anchor rtui.VNode, title, description string) rtui.VNode {
+	return popconfirm.New(anchor).SetTitle(title).SetDescription(description)
 }
 
 // Statistic creates a statistic component with title and value.
