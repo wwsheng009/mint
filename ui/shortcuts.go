@@ -43,6 +43,7 @@ import (
 	"github.com/wwsheng009/mint/ui/components/popover"
 	"github.com/wwsheng009/mint/ui/components/progress"
 	"github.com/wwsheng009/mint/ui/components/radio"
+	"github.com/wwsheng009/mint/ui/components/result"
 	"github.com/wwsheng009/mint/ui/components/scrollview"
 	selectcomp "github.com/wwsheng009/mint/ui/components/select"
 	"github.com/wwsheng009/mint/ui/components/statistic"
@@ -235,6 +236,10 @@ func NewProgressBuilder() *progress.Builder {
 	return progress.NewBuilder()
 }
 
+func NewResultBuilder() *result.Builder {
+	return result.NewBuilder()
+}
+
 // Modal Components
 func NewModalBuilder() *modal.Builder {
 	return modal.NewBuilder()
@@ -347,6 +352,7 @@ type DescriptionsItem = descriptions.Item
 type DescriptionsLayout = descriptions.Layout
 type TimelineItem = timeline.Item
 type TimelineStatus = timeline.Status
+type ResultStatus = result.Status
 type PopoverPlacement = popover.Placement
 type PopoverTriggerMode = popover.TriggerMode
 type PopconfirmPlacement = popconfirm.Placement
@@ -377,6 +383,14 @@ const (
 	TimelineStatusWarning = timeline.StatusWarning
 	TimelineStatusError   = timeline.StatusError
 	TimelineStatusPending = timeline.StatusPending
+
+	ResultStatusInfo    = result.StatusInfo
+	ResultStatusSuccess = result.StatusSuccess
+	ResultStatusWarning = result.StatusWarning
+	ResultStatusError   = result.StatusError
+	ResultStatus403     = result.Status403
+	ResultStatus404     = result.Status404
+	ResultStatus500     = result.Status500
 
 	PopoverPlacementAuto        = popover.PlacementAuto
 	PopoverPlacementTop         = popover.PlacementTop
@@ -481,6 +495,11 @@ func NewDescriptionsItem(label string, content rtui.VNode) descriptions.Item {
 // NewTimelineItem creates a timeline item with content text.
 func NewTimelineItem(content string) timeline.Item {
 	return timeline.Event(content)
+}
+
+// NewResult creates a result builder with a status.
+func NewResult(status result.Status) *result.VNode {
+	return result.New().SetStatus(status)
 }
 
 // NewPopover creates a popover builder with anchor content.
@@ -730,6 +749,11 @@ func Descriptions(items []descriptions.Item) rtui.VNode {
 // Timeline creates a timeline component from items.
 func Timeline(items []timeline.Item) rtui.VNode {
 	return timeline.Of(items)
+}
+
+// Result creates a result component with status, title, and subtitle.
+func Result(status result.Status, title, subtitle string) rtui.VNode {
+	return result.New().SetStatus(status).SetTitle(title).SetSubtitle(subtitle)
 }
 
 // Popover creates a popover component with anchor, title, and body.

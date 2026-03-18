@@ -9,8 +9,8 @@
 
 `ui/components/` 已经不是“骨架期”，而是“已大面积落地、少量边角未收口”的状态。
 
-- 当前共有 48 个组件/支撑目录
-- 其中 44 个严格遵循 `builder.go + vnode.go + instance.go` 规范
+- 当前共有 49 个组件/支撑目录
+- 其中 45 个严格遵循 `builder.go + vnode.go + instance.go` 规范
 - `toast`、`statusbar`、`control`、`validation` 属于特例或基础设施模块
 - `go test ./ui/components/...` 当前可通过；无测试文件的包已收敛到 `internal/` 支撑模块
 
@@ -29,7 +29,7 @@
 
 ### 第二梯队
 
-- `button/`、`input/`、`checkbox/`、`collapse/`、`descriptions/`、`statistic/`、`popover/`、`popconfirm/`、`timeline/`、`modal/`、`tabs/`、`list/`、`notification/`、`toast/`、`tooltip/`、`grid/`、`panel/`、`statusbar/` 已具备稳定可用的 API 与测试基础
+- `button/`、`input/`、`checkbox/`、`collapse/`、`descriptions/`、`statistic/`、`popover/`、`popconfirm/`、`timeline/`、`result/`、`modal/`、`tabs/`、`list/`、`notification/`、`toast/`、`tooltip/`、`grid/`、`panel/`、`statusbar/` 已具备稳定可用的 API 与测试基础
 - `tooltip/` 的实际能力已经超过旧路线图，当前支持 top/bottom/left/right、delay 和 layer
 - `statusbar/` 采用“builder + section/help 内部组件”的组合式路线，不是传统单组件目录
 
@@ -41,6 +41,7 @@
 - `popover/`：基础气泡卡片已经可用，后续可继续补 outside-click 关闭、更丰富 placement 与可组合内容区域
 - `popconfirm/`：基础确认气泡已经可用，后续可继续补 outside-click/ESC 收口、危险态样式和 richer footer 配置
 - `timeline/`：基础纵向时间轴已经可用，后续可继续补更丰富的 mode/alternate 布局和自定义内容节点
+- `result/`：基础结果页已经可用，后续可继续补 richer icon 模板、状态动作预设和更复杂的结果编排
 - `empty/`：功能与测试已补齐，但能力面仍较窄
 - `control/`、`validation/`：更接近基础设施包，不适合用单一 UI 组件标准衡量
 

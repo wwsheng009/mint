@@ -8,9 +8,9 @@
 
 ---
 
-## 当前组件清单（48 个目录 + 1 个内置 Scrollbar）
+## 当前组件清单（49 个目录 + 1 个内置 Scrollbar）
 
-> 排除 `docs/` 与 `internal/` 后，当前共有 48 个组件/支撑目录；其中 44 个严格遵循 `builder.go + vnode.go + instance.go` 结构，`toast`、`statusbar`、`control`、`validation` 属于特例或基础设施模块。
+> 排除 `docs/` 与 `internal/` 后，当前共有 49 个组件/支撑目录；其中 45 个严格遵循 `builder.go + vnode.go + instance.go` 结构，`toast`、`statusbar`、`control`、`validation` 属于特例或基础设施模块。
 
 | 组件 | 目录 | 完整度 | 说明 |
 |------|------|--------|------|
@@ -44,6 +44,7 @@
 | Spin | `spin/` | ★★★☆☆ | 加载指示器，small/default/large，tip，TickFrame动画 |
 | Notification | `notification/` | ★★★☆☆ | 通知弹窗，info/success/warning/error，可关闭，placement，duration |
 | Empty | `empty/` | ★★★☆☆ | 空状态占位，自定义描述和图片 |
+| Result | `result/` | ★★★☆☆ | 结果状态页，支持 info/success/warning/error/403/404/500、title/subtitle、extra、bordered |
 | Toast | `toast/` | ★★★☆☆ | 独立 manager + runtime，info/success/warning/error，自动消失 |
 | Tooltip | `tooltip/` | ★★★★☆ | 已支持 top/bottom/left/right、delay、layer |
 | Tag | `tag/` | ★★★☆☆ | 标签，颜色变体，可关闭，可选图标前缀 |
@@ -75,7 +76,7 @@
 | ~~**Spin**~~ | ~~异步加载指示器，支持全屏遮罩和局部 loading~~ | `Spin` ✅ 已实现（2026-03）|
 | ~~**Notification**~~ | ~~右上角通知弹窗，带标题和内容~~ | `Notification` ✅ 已实现（2026-03）|
 | ~~**Message**~~ | ~~全局顶部消息提示（已由 `ui/components/toast/` 提供）~~ | `message` ✅ 已实现（2026-03）|
-| **Result** | 结果状态页，success/error/404/403 | `Result` |
+| ~~**Result**~~ | ~~结果状态页，success/error/404/403~~ | `Result` ✅ 已实现（2026-03-18） |
 | **Skeleton** | 骨架屏加载占位 | `Skeleton` |
 
 ### 表单类（高优先级）
@@ -192,7 +193,7 @@
 - [x] `Popconfirm` — 气泡确认框（2026-03-18）
 - [x] `Progress` 增强 — Circle/Dashboard 样式（2026-03-17）
 - [x] `Timeline` — 时间轴（2026-03-18）
-- [ ] `Result` — 结果状态页
+- [x] `Result` — 结果状态页（2026-03-18）
 - [ ] `Skeleton` — 骨架屏
 - [ ] `DatePicker` — 日期选择（TUI 适配）
 - [ ] `TimePicker` — 时间选择
