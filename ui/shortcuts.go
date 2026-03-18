@@ -53,6 +53,7 @@ import (
 	"github.com/wwsheng009/mint/ui/components/tabs"
 	"github.com/wwsheng009/mint/ui/components/text"
 	"github.com/wwsheng009/mint/ui/components/textarea"
+	"github.com/wwsheng009/mint/ui/components/timeline"
 	"github.com/wwsheng009/mint/ui/components/toast"
 	"github.com/wwsheng009/mint/ui/components/tooltip"
 	"github.com/wwsheng009/mint/ui/components/treeview"
@@ -213,6 +214,10 @@ func NewStepsBuilder() *steps.Builder {
 	return steps.NewBuilder()
 }
 
+func NewTimelineBuilder() *timeline.Builder {
+	return timeline.NewBuilder()
+}
+
 func NewSelectBuilder() *selectcomp.Builder {
 	return selectcomp.NewBuilder()
 }
@@ -340,6 +345,8 @@ type BadgeStatus = badge.Status
 type CollapseItem = collapse.Item
 type DescriptionsItem = descriptions.Item
 type DescriptionsLayout = descriptions.Layout
+type TimelineItem = timeline.Item
+type TimelineStatus = timeline.Status
 type PopoverPlacement = popover.Placement
 type PopoverTriggerMode = popover.TriggerMode
 type PopconfirmPlacement = popconfirm.Placement
@@ -364,6 +371,12 @@ const (
 
 	DescriptionsHorizontal = descriptions.LayoutHorizontal
 	DescriptionsVertical   = descriptions.LayoutVertical
+
+	TimelineStatusDefault = timeline.StatusDefault
+	TimelineStatusSuccess = timeline.StatusSuccess
+	TimelineStatusWarning = timeline.StatusWarning
+	TimelineStatusError   = timeline.StatusError
+	TimelineStatusPending = timeline.StatusPending
 
 	PopoverPlacementAuto        = popover.PlacementAuto
 	PopoverPlacementTop         = popover.PlacementTop
@@ -463,6 +476,11 @@ func NewCollapseItem(header string, content rtui.VNode) collapse.Item {
 // NewDescriptionsItem creates a descriptions item with the given label and content.
 func NewDescriptionsItem(label string, content rtui.VNode) descriptions.Item {
 	return descriptions.Entry(label, content)
+}
+
+// NewTimelineItem creates a timeline item with content text.
+func NewTimelineItem(content string) timeline.Item {
+	return timeline.Event(content)
 }
 
 // NewPopover creates a popover builder with anchor content.
@@ -707,6 +725,11 @@ func Collapse(items []collapse.Item) rtui.VNode {
 // Descriptions creates a descriptions component from items.
 func Descriptions(items []descriptions.Item) rtui.VNode {
 	return descriptions.Of(items)
+}
+
+// Timeline creates a timeline component from items.
+func Timeline(items []timeline.Item) rtui.VNode {
+	return timeline.Of(items)
 }
 
 // Popover creates a popover component with anchor, title, and body.

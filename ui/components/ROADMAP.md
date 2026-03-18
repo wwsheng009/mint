@@ -8,9 +8,9 @@
 
 ---
 
-## 当前组件清单（47 个目录 + 1 个内置 Scrollbar）
+## 当前组件清单（48 个目录 + 1 个内置 Scrollbar）
 
-> 排除 `docs/` 与 `internal/` 后，当前共有 47 个组件/支撑目录；其中 43 个严格遵循 `builder.go + vnode.go + instance.go` 结构，`toast`、`statusbar`、`control`、`validation` 属于特例或基础设施模块。
+> 排除 `docs/` 与 `internal/` 后，当前共有 48 个组件/支撑目录；其中 44 个严格遵循 `builder.go + vnode.go + instance.go` 结构，`toast`、`statusbar`、`control`、`validation` 属于特例或基础设施模块。
 
 | 组件 | 目录 | 完整度 | 说明 |
 |------|------|--------|------|
@@ -53,6 +53,7 @@
 | Panel | `panel/` | ★★★☆☆ | 容器面板，有 enhanced builder |
 | Popover | `popover/` | ★★★☆☆ | 气泡卡片，支持 title/body、click/hover/manual 触发、top/bottom placement、local open intents |
 | Popconfirm | `popconfirm/` | ★★★☆☆ | 气泡确认框，支持 title/description、OK/Cancel 操作、click/hover/manual 触发、confirm/cancel intents |
+| Timeline | `timeline/` | ★★★☆☆ | 时间轴，支持 label/content/description、status、自定义 dot、pending、reverse |
 | ScrollView | `scrollview/` | ★★★☆☆ | 可滚动容器 |
 | Grid | `grid/` | ★★★★☆ | 单元格边框，完整文档 |
 | Text | `text/` | ★★★☆☆ | 文本显示 |
@@ -109,7 +110,7 @@
 | ~~**Descriptions**~~ | ~~描述列表，键值对展示~~ | `Descriptions` ✅ 已实现（2026-03-18） |
 | ~~**Empty**~~ | ~~空状态占位~~ | `Empty` ✅ 已实现（2026-03）|
 | ~~**Statistic**~~ | ~~统计数字展示~~ | `Statistic` ✅ 已实现（2026-03-18） |
-| **Timeline** | 时间轴 | `Timeline` |
+| ~~**Timeline**~~ | ~~时间轴~~ | `Timeline` ✅ 已实现（2026-03-18） |
 
 ### 布局类（低优先级）
 
@@ -190,7 +191,7 @@
 - [x] `Popover` — 气泡卡片（2026-03-18）
 - [x] `Popconfirm` — 气泡确认框（2026-03-18）
 - [x] `Progress` 增强 — Circle/Dashboard 样式（2026-03-17）
-- [ ] `Timeline` — 时间轴
+- [x] `Timeline` — 时间轴（2026-03-18）
 - [ ] `Result` — 结果状态页
 - [ ] `Skeleton` — 骨架屏
 - [ ] `DatePicker` — 日期选择（TUI 适配）
