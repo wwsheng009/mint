@@ -27,4 +27,5 @@ tmp/
 *.log
 .qoder
 .crush
+.codex/
 /~/.codex/
