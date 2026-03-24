@@ -2,15 +2,15 @@
 
 > 本文档记录 Mint UI 组件库的现状、与 Ant Design 的对比分析，以及后续开发计划。
 >
-> 更新日期：2026-03-18
+> 更新日期：2026-03-24
 >
 > 详细增强任务拆分见：[OPTIMIZATION_BACKLOG.md](./OPTIMIZATION_BACKLOG.md)
 
 ---
 
-## 当前组件清单（50 个目录 + 1 个内置 Scrollbar）
+## 当前组件清单（52 个目录 + 1 个内置 Scrollbar）
 
-> 排除 `docs/` 与 `internal/` 后，当前共有 50 个组件/支撑目录；其中 46 个严格遵循 `builder.go + vnode.go + instance.go` 结构，`toast`、`statusbar`、`control`、`validation` 属于特例或基础设施模块。
+> 排除 `docs/` 与 `internal/` 后，当前共有 52 个组件/支撑目录；其中 48 个严格遵循 `builder.go + vnode.go + instance.go` 结构，`toast`、`statusbar`、`control`、`validation` 属于特例或基础设施模块。
 
 | 组件 | 目录 | 完整度 | 说明 |
 |------|------|--------|------|
@@ -30,6 +30,8 @@
 | Switch | `switch/` | ★★★☆☆ | 开关切换，支持 label、自定义 on/off 文案、Field/Form 绑定 |
 | Slider | `slider/` | ★★★★☆ | 数值滑块，支持键盘调节、Form 绑定、受控模式 |
 | Rate | `rate/` | ★★★☆☆ | 星级评分，支持键盘调节、可清空、Form 绑定 |
+| DatePicker | `datepicker/` | ★★★☆☆ | 日期选择，支持 `YYYY-MM-DD` 输入、弹出月视图、键盘/鼠标导航、Field/Form 绑定 |
+| TimePicker | `timepicker/` | ★★★☆☆ | 时间选择，支持 `HH:mm` 输入、弹出时间面板、键盘/鼠标导航、Field/Form 绑定 |
 | OptionGroup | `optiongroup/` | ★★★☆☆ | 选项组，支持 radio/checkbox 模式 |
 | Form | `form/` | ★★★★☆ | 表单容器，submit/reset intent，已补 FormItem、layout、validator 联动，以及 touched/dirty/submitted/submitCount 等字段状态 |
 | Table | `table/` | ★★★★☆ | 排序、分页、过滤、多选、搜索、滚动，已补 expandable 行、固定列与树形数据 |
@@ -88,8 +90,8 @@
 | ~~**Switch**~~ | ~~开关，toggle，UX 与 Checkbox 不同~~ | `Switch` ✅ 已实现（2026-03） |
 | ~~**Slider**~~ | ~~数值范围滑块，支持单值和范围~~ | `Slider` ✅ 已实现（2026-03）|
 | ~~**Rate**~~ | ~~星级评分~~ | `Rate` ✅ 已实现（2026-03）|
-| **DatePicker** | 日期选择器 | `DatePicker` |
-| **TimePicker** | 时间选择器 | `TimePicker` |
+| ~~**DatePicker**~~ | ~~日期选择器~~ | `DatePicker` ✅ 已实现（2026-03-18） |
+| ~~**TimePicker**~~ | ~~时间选择器~~ | `TimePicker` ✅ 已实现（2026-03-24） |
 | **Cascader** | 级联选择，层级数据选择 | `Cascader` |
 | **Transfer** | 穿梭框，双列选择 | `Transfer` |
 
@@ -196,8 +198,8 @@
 - [x] `Timeline` — 时间轴（2026-03-18）
 - [x] `Result` — 结果状态页（2026-03-18）
 - [x] `Skeleton` — 骨架屏（2026-03-18）
-- [ ] `DatePicker` — 日期选择（TUI 适配）
-- [ ] `TimePicker` — 时间选择
+- [x] `DatePicker` — 日期选择（TUI 适配，2026-03-18）
+- [x] `TimePicker` — 时间选择（TUI 适配，2026-03-24）
 - [ ] `Cascader` — 级联选择
 - [ ] `Space` — 间距布局
 - [ ] `Layout` — 整体布局框架

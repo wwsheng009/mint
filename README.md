@@ -74,6 +74,10 @@ go run .
 cd examples/select
 go run .
 
+# Date + Time Picker Demo
+cd examples/date_time_picker_demo
+go run .
+
 # Demo - 综合演示
 cd examples/demo
 go run .
@@ -90,6 +94,8 @@ go run .
 | `Input` | 单行输入 | ✅ |
 | `Textarea` | 多行输入 | ✅ |
 | `Checkbox` | 复选框 | ✅ |
+| `DatePicker` | 日期选择 | ✅ |
+| `TimePicker` | 时间选择 | ✅ |
 | `Progress` | 进度条 | ✅ |
 | `Spinner` | 加载动画 | ✅ |
 | `Select` | 下拉选择器 | ✅ |
@@ -241,6 +247,7 @@ mint/
 │   ├── timer/          # 状态管理示例
 │   ├── input/          # 输入组件示例
 │   ├── checkbox/       # 复选框示例
+│   ├── date_time_picker_demo/ # 日期时间选择示例
 │   ├── progress/       # 进度条示例
 │   ├── select/         # 选择器示例
 │   └── demo/           # 综合演示

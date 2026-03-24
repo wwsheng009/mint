@@ -69,6 +69,8 @@ type AppState struct {
 	Email    string
 	Bio      string
 	Country  string // 使用 string 存储索引
+	ShipDate string
+	ShipTime string
 	Agree    string // 使用 string 存储布尔值
 
 	// 提交状态
@@ -91,6 +93,8 @@ func initStore() {
 		Email:           "",
 		Bio:             "",
 		Country:         "0", // 默认选中第一个
+		ShipDate:        "2026-04-05",
+		ShipTime:        "09:30",
 		Agree:           "false",
 		Submitted:       false,
 		InteractionMode: "interactive",
@@ -118,6 +122,10 @@ var appReducer = reducer.NewBuilder[AppState]().
 			s.Bio = fieldChange.Value
 		case "country":
 			s.Country = fieldChange.Value
+		case "shipDate":
+			s.ShipDate = fieldChange.Value
+		case "shipTime":
+			s.ShipTime = fieldChange.Value
 		case "agree":
 			s.Agree = fieldChange.Value
 		}
@@ -129,6 +137,8 @@ var appReducer = reducer.NewBuilder[AppState]().
 		s.Email = ""
 		s.Bio = ""
 		s.Country = "0"
+		s.ShipDate = "2026-04-05"
+		s.ShipTime = "09:30"
 		s.Agree = "false"
 		s.Submitted = false
 		return s
@@ -243,10 +253,10 @@ func FormView(state AppState) ui.VNode {
 		ui.Text(""),
 
 		// 表单内容
-		BasicFormFields(state),
+		ProfileFormFields(state),
 		ui.NewTextBuilder("─").FgColor("gray").Build(),
 		ui.Text(""),
-		ProfileFormFields(state),
+		BasicFormFields(state),
 
 		ui.Text(""),
 		ui.NewTextBuilder("─").FgColor("gray").Build(),
@@ -290,48 +300,36 @@ func FormView(state AppState) ui.VNode {
 // BasicFormFields - 基本信息字段 (Input + Checkbox)
 func BasicFormFields(state AppState) ui.VNode {
 	return ui.VStack(
-		// Input 组件 - 用户名
-		ui.NewTextBuilder("Username:").FgColor("blue").Build(),
 		ui.HStack(
-			ui.Text("  "),
+			ui.NewTextBuilder("Username:").FgColor("blue").Build(),
+			ui.Text(" "),
 			ui.NewInputBuilder().
 				// ForField() 自动处理 FieldChangeIntent
 				ForField(intent.BindField("username")).
 				Value(state.Username).
 				Placeholder("Enter username").
-				Width(45).
+				Width(32).
 				Build(),
 		),
-
-		ui.Text(""),
-
-		// Input 组件 - 电子邮件
-		ui.NewTextBuilder("Email:").FgColor("blue").Build(),
 		ui.HStack(
-			ui.Text("  "),
+			ui.NewTextBuilder("Email:").FgColor("blue").Build(),
+			ui.Text("    "),
 			ui.NewInputBuilder().
 				ForField(intent.BindField("email")).
 				Value(state.Email).
 				Placeholder("Enter email").
-				Width(45).
+				Width(32).
 				Build(),
 		),
-
-		ui.Text(""),
-
-		// Checkbox 组件 - 同意条款
 		ui.HStack(
-			ui.Text("  "),
+			ui.NewTextBuilder("Agree:").FgColor("blue").Build(),
+			ui.Text("    "),
 			ui.NewCheckboxBuilder().
 				ForField(intent.BindField("agree")).
 				Checked(state.Agree == "true").
-				Label("I agree to the terms and conditions").
+				Label("I agree to the terms").
 				Build(),
 		),
-
-		ui.Text(""),
-		ui.NewTextBuilder(fmt.Sprintf("✓ Store: username=%q, email=%q, agree=%v",
-			state.Username, state.Email, state.Agree == "true")).FgColor("gray").Build(),
 	)
 }
 
@@ -518,13 +516,11 @@ func ProfileFormFields(state AppState) ui.VNode {
 	}
 
 	return ui.VStack(
-		// Select 组件 - 国家选择
-		ui.NewTextBuilder("Country:").FgColor("blue").Build(),
 		ui.HStack(
+			ui.NewTextBuilder("Country:").FgColor("blue").Build(),
 			ui.Text("  "),
 			ui.NewSelectBuilder().
 				SetID("profile.country").
-				OverlayPopup(true).
 				Options(countries).
 				Selected(countryIdx).
 				// ForField() 会将选中的索引存储到 State
@@ -532,25 +528,41 @@ func ProfileFormFields(state AppState) ui.VNode {
 				Width(45).
 				Build(),
 		),
-
-		ui.Text(""),
-
-		// Textarea 组件 - 个人简介
-		ui.NewTextBuilder("Bio:").FgColor("blue").Build(),
 		ui.HStack(
-			ui.Text("  "),
+			ui.NewTextBuilder("Ship Date:").FgColor("blue").Build(),
+			ui.Text(" "),
+			ui.NewDatePickerBuilder().
+				SetID("profile.shipDate").
+				ComponentID("profile.shipDate").
+				Value(state.ShipDate).
+				ForField(intent.BindField("shipDate")).
+				Width(18).
+				Build(),
+		),
+		ui.HStack(
+			ui.NewTextBuilder("Ship Time:").FgColor("blue").Build(),
+			ui.Text(" "),
+			ui.NewTimePickerBuilder().
+				SetID("profile.shipTime").
+				ComponentID("profile.shipTime").
+				Value(state.ShipTime).
+				ForField(intent.BindField("shipTime")).
+				Width(10).
+				Build(),
+		),
+		ui.HStack(
+			ui.NewTextBuilder("Bio:").FgColor("blue").Build(),
+			ui.Text("      "),
 			ui.NewTextareaBuilder().
 				ForField(intent.BindField("bio")).
 				Value(state.Bio).
 				Placeholder("Tell us about yourself...").
-				Rows(5).
-				Cols(45).
+				Rows(4).
+				Cols(38).
 				Build(),
 		),
-
-		ui.Text(""),
-		ui.NewTextBuilder(fmt.Sprintf("✓ Store: country=%s (%s), bio chars=%d",
-			countryLabel, state.Country, len(state.Bio))).FgColor("gray").Build(),
+		ui.NewTextBuilder(fmt.Sprintf("✓ Store: country=%s (%s), ship=%s %s, bio chars=%d",
+			countryLabel, state.Country, state.ShipDate, state.ShipTime, len(state.Bio))).FgColor("gray").Build(),
 	)
 }
 
@@ -591,6 +603,8 @@ func SuccessView(state AppState) ui.VNode {
 		ui.NewTextBuilder(fmt.Sprintf("Username: %s", state.Username)).Build(),
 		ui.NewTextBuilder(fmt.Sprintf("Email: %s", state.Email)).Build(),
 		ui.NewTextBuilder(fmt.Sprintf("Country: %s", countryLabel)).Build(),
+		ui.NewTextBuilder(fmt.Sprintf("Ship Date: %s", state.ShipDate)).Build(),
+		ui.NewTextBuilder(fmt.Sprintf("Ship Time: %s", state.ShipTime)).Build(),
 		ui.NewTextBuilder(fmt.Sprintf("Bio: %s", state.Bio)).Build(),
 		ui.NewTextBuilder(fmt.Sprintf("Agreed: %v", state.Agree == "true")).Build(),
 

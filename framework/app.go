@@ -2610,6 +2610,17 @@ func (a *App) InjectEvent(raw platform.RawInput) error {
 	return nil
 }
 
+// InjectMsg injects a runtime message directly for test-only scenarios.
+// This bypasses raw-input conversion and is useful when tests need precise
+// control over Msg payloads such as punctuation key input.
+func (a *App) InjectMsg(msg runtimemsg.Msg) error {
+	if msg == nil {
+		return errors.New("message is nil")
+	}
+	a.processMsg(msg)
+	return nil
+}
+
 // GetPump 获取事件泵（用于高级测试场景）
 // 注意：此方法仅用于测试
 func (a *App) GetPump() *frameworkevent.Pump {

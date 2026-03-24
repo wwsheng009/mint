@@ -31,6 +31,7 @@ import (
 	"github.com/wwsheng009/mint/ui/components/button"
 	"github.com/wwsheng009/mint/ui/components/checkbox"
 	"github.com/wwsheng009/mint/ui/components/collapse"
+	"github.com/wwsheng009/mint/ui/components/datepicker"
 	"github.com/wwsheng009/mint/ui/components/descriptions"
 	"github.com/wwsheng009/mint/ui/components/divider"
 	"github.com/wwsheng009/mint/ui/components/grid"
@@ -56,6 +57,7 @@ import (
 	"github.com/wwsheng009/mint/ui/components/text"
 	"github.com/wwsheng009/mint/ui/components/textarea"
 	"github.com/wwsheng009/mint/ui/components/timeline"
+	"github.com/wwsheng009/mint/ui/components/timepicker"
 	"github.com/wwsheng009/mint/ui/components/toast"
 	"github.com/wwsheng009/mint/ui/components/tooltip"
 	"github.com/wwsheng009/mint/ui/components/treeview"
@@ -78,6 +80,14 @@ func NewSearchInputBuilder() *input.Builder {
 
 func NewTextareaBuilder() *textarea.Builder {
 	return textarea.NewBuilder()
+}
+
+func NewDatePickerBuilder() *datepicker.Builder {
+	return datepicker.NewBuilder()
+}
+
+func NewTimePickerBuilder() *timepicker.Builder {
+	return timepicker.NewBuilder()
 }
 
 func NewCheckboxBuilder() *checkbox.Builder {
