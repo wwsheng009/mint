@@ -45,6 +45,12 @@ func TestBuilderFluentAPI(t *testing.T) {
 	if !node.wrap || node.width != 42 || node.align != AlignCenter || node.split != "|" {
 		t.Fatalf("unexpected builder state: wrap=%v width=%d align=%v split=%q", node.wrap, node.width, node.align, node.split)
 	}
+	if children := node.Children(); len(children) != 0 {
+		t.Fatalf("VNode.Children len = %d, want 0 so runtime children drive rendering", len(children))
+	}
+	if propsChildren, ok := node.Props()[propChildren].([]rtui.VNode); !ok || len(propsChildren) != 1 {
+		t.Fatalf("props children = %v, want 1 child preserved in props", node.Props()[propChildren])
+	}
 }
 
 func TestInstanceRuntimeChildrenHorizontal(t *testing.T) {

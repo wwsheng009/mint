@@ -4,10 +4,12 @@ import (
 	"time"
 
 	"github.com/wwsheng009/mint/framework/theme"
+	"github.com/wwsheng009/mint/runtime/action"
 	"github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
+	"github.com/wwsheng009/mint/ui/components/control"
 	"github.com/wwsheng009/mint/ui/components/internal/overlayposition"
 	"github.com/wwsheng009/mint/ui/components/internal/proputil"
 )
@@ -36,18 +38,25 @@ type Instance struct {
 	dirty      bool
 
 	// === Content ===
-	content rtui.VNode
+	parent         rtui.ComponentInstance
+	childInstances []rtui.ComponentInstance
+	content        rtui.VNode
 
 	// === Tracking ===
-	mouseOver    bool
-	anchorBounds [4]int
-	viewportSize [2]int
+	mouseOver     bool
+	triggerActive bool
+	anchorBounds  [4]int
+	viewportSize  [2]int
 }
 
 // Ensure Instance implements required interfaces
 var (
-	_ rtui.ComponentInstance = (*Instance)(nil)
-	_ rtui.PaintableInstance = (*Instance)(nil)
+	_ rtui.ComponentInstance       = (*Instance)(nil)
+	_ rtui.PaintableInstance       = (*Instance)(nil)
+	_ rtui.ActionHandlerInstance   = (*Instance)(nil)
+	_ rtui.RuntimeChildrenProvider = (*Instance)(nil)
+	_ rtui.TreeNode                = (*Instance)(nil)
+	_ rtui.TreeContainer           = (*Instance)(nil)
 	_ interface {
 		Measure(layout.Constraints) layout.Size
 	} = (*Instance)(nil)
@@ -157,42 +166,70 @@ func (inst *Instance) GetContext() *rtui.ComponentContext {
 	return nil
 }
 
+func (inst *Instance) Parent() interface{} { return inst.parent }
+
+func (inst *Instance) SetParent(parent rtui.ComponentInstance) { inst.parent = parent }
+
+func (inst *Instance) Children() []rtui.ComponentInstance {
+	return append([]rtui.ComponentInstance(nil), inst.childInstances...)
+}
+
+func (inst *Instance) AddChild(child rtui.ComponentInstance) {
+	if child == nil {
+		return
+	}
+	for index, existing := range inst.childInstances {
+		if existing == child || existing.Key() == child.Key() {
+			inst.childInstances[index] = child
+			if setter, ok := child.(interface{ SetParent(rtui.ComponentInstance) }); ok {
+				setter.SetParent(inst)
+			}
+			return
+		}
+	}
+	inst.childInstances = append(inst.childInstances, child)
+	if setter, ok := child.(interface{ SetParent(rtui.ComponentInstance) }); ok {
+		setter.SetParent(inst)
+	}
+}
+
+func (inst *Instance) RemoveChild(child rtui.ComponentInstance) {
+	if child == nil {
+		return
+	}
+	for index, existing := range inst.childInstances {
+		if existing != child {
+			continue
+		}
+		inst.childInstances = append(inst.childInstances[:index], inst.childInstances[index+1:]...)
+		if setter, ok := child.(interface{ SetParent(rtui.ComponentInstance) }); ok {
+			setter.SetParent(nil)
+		}
+		return
+	}
+}
+
+func (inst *Instance) ClearChildren() {
+	for _, child := range inst.childInstances {
+		if setter, ok := child.(interface{ SetParent(rtui.ComponentInstance) }); ok {
+			setter.SetParent(nil)
+		}
+	}
+	inst.childInstances = inst.childInstances[:0]
+}
+
 // =============================================================================
 // PaintableInstance Interface
 // =============================================================================
 
 // Paint implements PaintableInstance.
 func (inst *Instance) Paint(x, y int) []paint.DrawCmd {
-	if !inst.visible || inst.text == "" {
-		return nil
-	}
-
-	// Resolve tooltip style
-	tooltipStyle := inst.resolveStyle()
-
-	// Simple tooltip rendering with padding
-	tooltipText := " " + inst.text + " "
-
-	return []paint.DrawCmd{
-		{
-			X:     x,
-			Y:     y,
-			Text:  tooltipText,
-			Style: tooltipStyle,
-		},
-	}
+	return nil
 }
 
 // resolveStyle resolves the visual style for the tooltip.
 func (inst *Instance) resolveStyle() style.Style {
-	s := inst.tooltipStyle
-
-	// Apply default styling if not explicitly set
-	if s.FG == "" && s.BG == "" {
-		s = s.Foreground(theme.BG()).Background(theme.Primary()).Bold(true)
-	}
-
-	return s
+	return resolveTooltipStyle(inst.tooltipStyle)
 }
 
 // =============================================================================
@@ -217,6 +254,48 @@ func (inst *Instance) Hide() {
 		inst.hoverTimer.Stop()
 		inst.hoverTimer = nil
 	}
+}
+
+func (inst *Instance) RuntimeChildren() []rtui.VNode {
+	inst.syncTriggerFromChildren()
+	if !inst.visible || inst.text == "" {
+		return nil
+	}
+	overlay := newOverlayVNode(inst.text, inst.position, inst.tooltipStyle, inst.anchorBounds, inst.viewportSize)
+	if inst.key != "" {
+		overlay.SetKey(inst.key + "-overlay")
+	}
+	return []rtui.VNode{overlay}
+}
+
+func (inst *Instance) SetBounds(x, y, w, h int) {
+	next := [4]int{x, y, w, h}
+	if inst.bounds == next && inst.anchorBounds == next {
+		return
+	}
+	inst.bounds = next
+	inst.anchorBounds = next
+	if inst.visible {
+		inst.dirty = true
+	}
+}
+
+func (inst *Instance) HandleAction(act *action.Action) bool {
+	if act == nil {
+		return false
+	}
+
+	switch act.Type {
+	case action.ActionMouseEnter, action.ActionHover:
+		inst.mouseOver = true
+		inst.syncTriggerActive(true)
+		return true
+	case action.ActionMouseLeave, action.ActionCancel:
+		inst.mouseOver = false
+		inst.syncTriggerActive(false)
+		return true
+	}
+	return false
 }
 
 // SetAnchorBounds sets the bounds of the anchor element for positioning.
@@ -256,6 +335,15 @@ func (inst *Instance) calculatePositionWithViewport(tooltipWidth, tooltipHeight,
 
 func (inst *Instance) positionCandidates() []overlayposition.Placement {
 	switch inst.position {
+	case PositionTop:
+		return []overlayposition.Placement{
+			overlayposition.PlacementTop,
+			overlayposition.PlacementTopLeft,
+			overlayposition.PlacementTopRight,
+			overlayposition.PlacementBottom,
+			overlayposition.PlacementBottomLeft,
+			overlayposition.PlacementBottomRight,
+		}
 	case PositionTopLeft:
 		return []overlayposition.Placement{
 			overlayposition.PlacementTopLeft,
@@ -415,4 +503,103 @@ func getToastTypeProp(props rtui.Props, def ToastType) ToastType {
 		}
 	}
 	return def
+}
+
+func (inst *Instance) scheduleShow() {
+	if inst.visible {
+		return
+	}
+	if inst.delay <= 0 {
+		inst.Show()
+		return
+	}
+	if inst.showTimer != nil {
+		inst.showTimer.Stop()
+	}
+	inst.showTimer = time.AfterFunc(inst.delay, func() {
+		if !inst.triggerActive {
+			return
+		}
+		inst.Show()
+	})
+}
+
+func (inst *Instance) syncTriggerFromChildren() {
+	childHovered, childBounds, hasChildBounds := tooltipChildHoverState(inst.childInstances)
+	if hasChildBounds && inst.anchorBounds != childBounds {
+		inst.anchorBounds = childBounds
+		if inst.visible {
+			inst.dirty = true
+		}
+	}
+	inst.syncTriggerActive(inst.mouseOver || childHovered)
+}
+
+func (inst *Instance) syncTriggerActive(active bool) {
+	if active == inst.triggerActive {
+		return
+	}
+	inst.triggerActive = active
+	if active {
+		inst.scheduleShow()
+		return
+	}
+	inst.Hide()
+}
+
+func tooltipChildHoverState(children []rtui.ComponentInstance) (hovered bool, bounds [4]int, hasBounds bool) {
+	for _, child := range children {
+		if child == nil {
+			continue
+		}
+
+		if !hasBounds {
+			if childBounds, ok := tooltipInstanceBounds(child); ok {
+				bounds = childBounds
+				hasBounds = true
+			}
+		}
+
+		if stateProvider, ok := child.(interface {
+			GetState() *control.InteractionState
+		}); ok {
+			if state := stateProvider.GetState(); state != nil && state.Hovered {
+				if childBounds, ok := tooltipInstanceBounds(child); ok {
+					return true, childBounds, true
+				}
+				return true, bounds, hasBounds
+			}
+		}
+
+		if node, ok := child.(rtui.TreeNode); ok {
+			childHovered, childBounds, childHasBounds := tooltipChildHoverState(node.Children())
+			if childHovered {
+				return true, childBounds, childHasBounds
+			}
+			if !hasBounds && childHasBounds {
+				bounds = childBounds
+				hasBounds = true
+			}
+		}
+	}
+	return false, bounds, hasBounds
+}
+
+func tooltipInstanceBounds(inst rtui.ComponentInstance) ([4]int, bool) {
+	reader, ok := inst.(interface{ GetBounds() (int, int, int, int) })
+	if !ok {
+		return [4]int{}, false
+	}
+	x, y, w, h := reader.GetBounds()
+	if w <= 0 || h <= 0 {
+		return [4]int{}, false
+	}
+	return [4]int{x, y, w, h}, true
+}
+
+func resolveTooltipStyle(s style.Style) style.Style {
+	if s.FG == "" && s.BG == "" {
+		return s.Foreground(theme.BG()).Background(theme.Primary()).Bold(true)
+	}
+	return s
 }

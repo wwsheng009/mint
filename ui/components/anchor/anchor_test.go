@@ -4,7 +4,9 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/wwsheng009/mint/runtime/action"
 	runtimeintent "github.com/wwsheng009/mint/runtime/intent"
+	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/ui/components/list"
 )
@@ -186,5 +188,66 @@ func TestFieldBindingEmitsActiveKey(t *testing.T) {
 	}
 	if fieldChange.Field != "section" || fieldChange.Value != "api" {
 		t.Fatalf("field change = %#v, want field=section value=api", fieldChange)
+	}
+}
+
+func TestChildListClickEmitsAnchorFieldChange(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		propComponentID:         "doc-anchor",
+		propActiveKey:           "guide",
+		propActiveKeyControlled: true,
+		propItems: []Item{
+			NewItem("intro", "Introduction"),
+			NewItem("guide", "Guide Section"),
+			{Key: "archive", Title: "Archive Section", Disabled: true},
+			NewItem("reference", "Reference Docs"),
+		},
+		propTitle:          "Contents",
+		propShowBorder:     true,
+		propViewportHeight: 4,
+		propChangeIntent:   runtimeintent.BindField("section"),
+	})
+
+	var emitted []runtimeintent.Intent
+	inst.SetIntentEmitter(func(i runtimeintent.Intent) {
+		emitted = append(emitted, i)
+	})
+
+	items := flattenItems(inst.items)
+	child := list.NewInstance(rtui.Props{
+		"componentID":    inst.listComponentID(),
+		"header":         inst.title,
+		"rows":           renderRows(items),
+		"selectedIndex":  inst.activeIndex(items),
+		"viewportHeight": inst.effectiveViewportHeight(len(items)),
+		"showBorder":     inst.showBorder,
+		"showSeparator":  inst.title != "",
+	})
+	child.SetParent(inst)
+	child.SetBounds(0, 0, 28, 8)
+
+	mouseMsg := runtimemsg.NewMouseMsg(1, 6, runtimemsg.MouseLeft, runtimemsg.MouseActionPress)
+	mouseMsg.LocalY = 6
+	act := action.NewActionWithPayload(action.ActionClick, mouseMsg)
+
+	if !child.HandleAction(act) {
+		t.Fatal("click on child list row should be handled")
+	}
+	if len(emitted) < 2 {
+		t.Fatalf("emitted intents len = %d, want at least 2", len(emitted))
+	}
+	change, ok := emitted[0].(ChangeIntent)
+	if !ok {
+		t.Fatalf("first emitted intent type = %T, want anchor.ChangeIntent", emitted[0])
+	}
+	if change.Key != "reference" || change.Href != "#reference" || change.Title != "Reference Docs" {
+		t.Fatalf("change intent = %#v, want key reference href #reference title Reference Docs", change)
+	}
+	fieldChange, ok := emitted[1].(runtimeintent.FieldChangeIntent)
+	if !ok {
+		t.Fatalf("second emitted intent type = %T, want intent.FieldChangeIntent", emitted[1])
+	}
+	if fieldChange.Field != "section" || fieldChange.Value != "reference" {
+		t.Fatalf("field change = %#v, want field=section value=reference", fieldChange)
 	}
 }

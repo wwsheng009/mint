@@ -19,18 +19,20 @@ import (
 // Instance manages scrollview runtime state and behavior.
 type Instance struct {
 	// === Props (from VNode) ===
-	child         rtui.VNode
-	width         int
-	height        int
-	scrollOffset  int
-	showBorder    bool
-	showIndicator bool
-	instStyle     style.Style
+	child                  rtui.VNode
+	width                  int
+	height                 int
+	scrollOffset           int
+	scrollOffsetControlled bool
+	showBorder             bool
+	showIndicator          bool
+	instStyle              style.Style
 
 	// === Runtime State ===
-	dirty      bool
-	bounds     [4]int // x, y, w, h
-	totalLines int    // total content lines
+	dirty                   bool
+	bounds                  [4]int // x, y, w, h
+	totalLines              int    // total content lines
+	scrollOffsetInitialized bool
 
 	// === Cached Content ===
 	contentLines []string // cached content lines
@@ -66,6 +68,15 @@ func NewInstance(props rtui.Props) *Instance {
 
 // SetProps sets properties from VNode.
 func (inst *Instance) SetProps(props rtui.Props) bool {
+	oldChild := inst.child
+	oldWidth := inst.width
+	oldHeight := inst.height
+	oldScrollOffset := inst.scrollOffset
+	oldScrollOffsetControlled := inst.scrollOffsetControlled
+	oldShowBorder := inst.showBorder
+	oldShowIndicator := inst.showIndicator
+	oldStyle := inst.instStyle
+
 	inst.dirty = true
 
 	if val, ok := props[propStyle].(style.Style); ok {
@@ -77,8 +88,17 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	if val, ok := props[propHeight].(int); ok {
 		inst.height = val
 	}
-	if val, ok := props[propScrollOffset].(int); ok {
+	if val, ok := props[propScrollOffsetControlled].(bool); ok {
+		inst.scrollOffsetControlled = val
+	}
+	if inst.scrollOffsetControlled {
+		if val, ok := props[propScrollOffset].(int); ok {
+			inst.scrollOffset = val
+		}
+		inst.scrollOffsetInitialized = true
+	} else if val, ok := props[propScrollOffset].(int); ok && !inst.scrollOffsetInitialized {
 		inst.scrollOffset = val
+		inst.scrollOffsetInitialized = true
 	}
 	if val, ok := props[propShowBorder].(bool); ok {
 		inst.showBorder = val
@@ -90,7 +110,14 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 		inst.child = val
 		inst.extractContent()
 	}
-	return true
+	return oldChild != inst.child ||
+		oldWidth != inst.width ||
+		oldHeight != inst.height ||
+		oldScrollOffset != inst.scrollOffset ||
+		oldScrollOffsetControlled != inst.scrollOffsetControlled ||
+		oldShowBorder != inst.showBorder ||
+		oldShowIndicator != inst.showIndicator ||
+		oldStyle != inst.instStyle
 }
 
 // GetStyle returns the instance style.
@@ -117,16 +144,18 @@ func (inst *Instance) IsDirty() bool {
 // Clone creates a copy of the instance.
 func (inst *Instance) Clone() rtui.ComponentInstance {
 	return &Instance{
-		child:         inst.child,
-		width:         inst.width,
-		height:        inst.height,
-		scrollOffset:  inst.scrollOffset,
-		showBorder:    inst.showBorder,
-		showIndicator: inst.showIndicator,
-		instStyle:     inst.instStyle,
-		dirty:         true,
-		totalLines:    inst.totalLines,
-		contentLines:  inst.contentLines,
+		child:                   inst.child,
+		width:                   inst.width,
+		height:                  inst.height,
+		scrollOffset:            inst.scrollOffset,
+		scrollOffsetControlled:  inst.scrollOffsetControlled,
+		showBorder:              inst.showBorder,
+		showIndicator:           inst.showIndicator,
+		instStyle:               inst.instStyle,
+		dirty:                   true,
+		totalLines:              inst.totalLines,
+		scrollOffsetInitialized: inst.scrollOffsetInitialized,
+		contentLines:            inst.contentLines,
 	}
 }
 
@@ -167,11 +196,12 @@ func (inst *Instance) OnUnmount() {
 // GetProps returns current props.
 func (inst *Instance) GetProps() rtui.Props {
 	return rtui.Props{
-		propWidth:         inst.width,
-		propHeight:        inst.height,
-		propScrollOffset:  inst.scrollOffset,
-		propShowBorder:    inst.showBorder,
-		propShowIndicator: inst.showIndicator,
+		propWidth:                  inst.width,
+		propHeight:                 inst.height,
+		propScrollOffset:           inst.scrollOffset,
+		propScrollOffsetControlled: inst.scrollOffsetControlled,
+		propShowBorder:             inst.showBorder,
+		propShowIndicator:          inst.showIndicator,
 	}
 }
 

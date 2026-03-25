@@ -1,8 +1,8 @@
 package grid
 
 import (
-	"github.com/wwsheng009/mint/ui/components/internal/proputil"
 	"fmt"
+	"github.com/wwsheng009/mint/ui/components/internal/proputil"
 
 	"github.com/wwsheng009/mint/internal/log"
 	"github.com/wwsheng009/mint/runtime/layout"
@@ -19,7 +19,7 @@ import (
 // It persists across renders and holds all state.
 type Instance struct {
 	// === Identification ===
-	key string
+	key     string
 	fiberId int // Fiber node ID for tracing
 
 	// === Grid Definition ===
@@ -39,8 +39,8 @@ type Instance struct {
 	flex   int
 
 	// ✨ Border Props (方案 A - 边框作为容器属性) ===
-	borderStyle  string // "none", "single", "double", "rounded", "dashed"
-	borderLabel  string // Optional label displayed on top border
+	borderStyle string // "none", "single", "double", "rounded", "dashed"
+	borderLabel string // Optional label displayed on top border
 
 	// === ✨ Cell Borders Props (格子间边框) ===
 	showCellBorders   bool   // 是否显示格子边框
@@ -52,11 +52,11 @@ type Instance struct {
 	instStyle style.Style
 
 	// === Runtime State ===
-	bounds     [4]int // x, y, w, h
-	colWidths  []int  // calculated column widths
-	rowHeights []int  // calculated row heights
+	bounds      [4]int // x, y, w, h
+	colWidths   []int  // calculated column widths
+	rowHeights  []int  // calculated row heights
 	childBounds [][4]int
-	dirty      bool
+	dirty       bool
 }
 
 // Ensure Instance implements required interfaces
@@ -263,11 +263,6 @@ func (inst *Instance) GetBounds() (x, y, w, h int) {
 func (inst *Instance) SetBounds(x, y, w, h int) {
 	inst.bounds = [4]int{x, y, w, h}
 
-	// ✨ 调试打印 SetBounds 调用
-	if inst.showCellBorders {
-		fmt.Printf("[DEBUG GRID SETBOUNDS] x=%d, y=%d, w=%d, h=%d\n", x, y, w, h)
-	}
-
 	// ✨ 当 Layout Engine 设置 bounds 后，根据实际分配的 box 高度重新计算 rowHeights
 	// 这样可以确保边框绘制在正确的位置，不会超出 box 范围
 	if len(inst.columns) == 0 {
@@ -280,7 +275,7 @@ func (inst *Instance) SetBounds(x, y, w, h int) {
 	// ✨ Cell Borders: 计算边框占用高度
 	cellBorderHeight := 0
 	if inst.showCellBorders {
-		cellBorderHeight = numRows + 1  // 上边框 + 中间分隔 + 下边框 = numRows + 1
+		cellBorderHeight = numRows + 1 // 上边框 + 中间分隔 + 下边框 = numRows + 1
 	}
 
 	// ✨ 计算实际可用的内容高度
@@ -308,13 +303,6 @@ func (inst *Instance) SetBounds(x, y, w, h int) {
 	copy(oldColWidths, inst.colWidths)
 	inst.colWidths = inst.calculateColumnWidths(availableW)
 
-	// ✨ 调试打印 rowHeights 和 colWidths 计算结果
-	if inst.showCellBorders {
-		fmt.Printf("[DEBUG GRID SETBOUNDS] numRows=%d, cellBorderHeight=%d, availableH=%d, oldRowHeights=%v, newRowHeights=%v\n",
-			numRows, cellBorderHeight, availableH, oldRowHeights, inst.rowHeights)
-		fmt.Printf("[DEBUG GRID SETBOUNDS] numCols=%d, cellBorderWidth=%d, availableW=%d, oldColWidths=%v, newColWidths=%v\n",
-			numCols, cellBorderWidth, availableW, oldColWidths, inst.colWidths)
-	}
 }
 
 // SetChildBounds sets bounds for a specific child.
@@ -457,24 +445,6 @@ func (inst *Instance) Measure(constraints layout.Constraints) layout.Size {
 				inst.columnGap, inst.rowGap,
 			),
 		)
-	}
-
-	// ✨ DEBUG: 打印布局结果
-	if len(inst.rowHeights) > 0 {
-		contentH := 0
-		for _, h := range inst.rowHeights {
-			contentH += h
-		}
-		borderCharsH := 0
-		if inst.showCellBorders {
-			borderCharsH = len(inst.rowHeights) + 1
-		}
-		rowGaps := 0
-		if len(inst.rowHeights) > 1 {
-			rowGaps = inst.rowGap * (len(inst.rowHeights) - 1)
-		}
-		fmt.Printf("[DEBUG GRID MEASURE] numRows=%d, contentH=%d, borderCharsH=%d, rowGaps=%d, totalH=%d\n",
-			len(inst.rowHeights), contentH, borderCharsH, rowGaps, size.Height)
 	}
 
 	// === 追踪集成：记录出口 ===
@@ -692,9 +662,8 @@ func (inst *Instance) calculateRowHeights(availableHeight int, numCols, actualNu
 	// ✨ Third pass: scale Auto rows proportionally if there's remaining space
 	// This allows Auto rows to use available space beyond their measured minimum
 	// ✨ DEBUG
-		log.RenderLogger.Debug("[DEBUG SETBOUNDS] Before Third pass: autoCount=%d, remainingHeight=%d\n",
-			autoCount, remainingHeight)
-	
+	log.RenderLogger.Debug("[DEBUG SETBOUNDS] Before Third pass: autoCount=%d, remainingHeight=%d\n",
+		autoCount, remainingHeight)
 
 	// ✨ FIX: Auto rows may also need to be scaled down when content > available space
 	// or scaled up when content < available space
@@ -842,17 +811,17 @@ func (inst *Instance) GetGridStyle() *layout.GridStyle {
 	// 4. 这样可以确保子节点的位置通过 gridLayout.LayoutChildren() 正确计算
 
 	return &layout.GridStyle{
-		Columns:           gridCols,
-		Rows:              gridRows,
-		Cells:             nil, // 不返回 Cells，使用自动布局
-		ColumnGap:         inst.columnGap,
-		RowGap:            inst.rowGap,
-		Padding:           layout.Padding{Top: inst.padding[0], Right: inst.padding[1], Bottom: inst.padding[2], Left: inst.padding[3]},
-		Width:             inst.width,
-		Height:            inst.height,
-		ShowCellBorders:   inst.showCellBorders,
-		CellBorderWidth:   1,
-		CellBorderHeight:  1,
+		Columns:          gridCols,
+		Rows:             gridRows,
+		Cells:            nil, // 不返回 Cells，使用自动布局
+		ColumnGap:        inst.columnGap,
+		RowGap:           inst.rowGap,
+		Padding:          layout.Padding{Top: inst.padding[0], Right: inst.padding[1], Bottom: inst.padding[2], Left: inst.padding[3]},
+		Width:            inst.width,
+		Height:           inst.height,
+		ShowCellBorders:  inst.showCellBorders,
+		CellBorderWidth:  1,
+		CellBorderHeight: 1,
 	}
 }
 
@@ -892,4 +861,3 @@ func sumWithGaps(arr []int, gap int) int {
 	}
 	return total
 }
-

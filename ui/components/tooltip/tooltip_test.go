@@ -4,8 +4,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/wwsheng009/mint/runtime/action"
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
+	"github.com/wwsheng009/mint/ui/components/control"
 	newtext "github.com/wwsheng009/mint/ui/components/text"
 )
 
@@ -239,6 +241,20 @@ func TestTooltipCalculatePosition_AutoAndFallback(t *testing.T) {
 		}
 	})
 
+	t.Run("top placement keeps falling back until below anchor fits", func(t *testing.T) {
+		inst := NewInstance(rtui.Props{
+			"text":     "Top edge tooltip fallback",
+			"position": PositionTop,
+		})
+		inst.SetAnchorBounds(0, 1, 19, 1)
+		inst.SetViewportSize(72, 12)
+
+		x, y := inst.CalculatePosition()
+		if x != 0 || y != 3 {
+			t.Fatalf("fallback position = (%d,%d), want (0,3)", x, y)
+		}
+	})
+
 	t.Run("lateral placement falls back within viewport", func(t *testing.T) {
 		inst := NewInstance(rtui.Props{
 			"text":     "Test",
@@ -267,3 +283,98 @@ func TestTooltipCalculatePosition_AutoAndFallback(t *testing.T) {
 		}
 	})
 }
+
+func TestTooltipHandleActionHoverLifecycle(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"text":  "Test",
+		"delay": time.Duration(0),
+	})
+
+	inst.HandleAction(action.NewAction(action.ActionMouseEnter))
+	if !inst.visible {
+		t.Fatal("tooltip should become visible on mouse enter when delay is zero")
+	}
+
+	inst.HandleAction(action.NewAction(action.ActionMouseLeave))
+	if inst.visible {
+		t.Fatal("tooltip should hide on mouse leave")
+	}
+}
+
+func TestTooltipRuntimeChildrenVisible(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"text":     "Test",
+		"position": PositionTop,
+	})
+	inst.SetBounds(10, 4, 8, 1)
+	inst.Show()
+
+	children := inst.RuntimeChildren()
+	if len(children) != 1 {
+		t.Fatalf("runtime children = %d, want 1", len(children))
+	}
+	if children[0].GetLayer() != rtui.LayerTooltip {
+		t.Fatalf("runtime child layer = %v, want %v", children[0].GetLayer(), rtui.LayerTooltip)
+	}
+}
+
+func TestTooltipRuntimeChildrenFollowHoveredChildState(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"text":     "Test",
+		"position": PositionTop,
+		"delay":    time.Duration(0),
+	})
+	child := &tooltipMockChild{
+		key:    "anchor",
+		state:  control.InteractionState{Hovered: true},
+		bounds: [4]int{12, 5, 8, 1},
+	}
+	inst.AddChild(child)
+
+	children := inst.RuntimeChildren()
+	if !inst.visible {
+		t.Fatal("tooltip should become visible when a child control is hovered")
+	}
+	if len(children) != 1 {
+		t.Fatalf("runtime children = %d, want 1", len(children))
+	}
+	if got := getBoundsProp(children[0].Props(), propAnchorBounds, [4]int{}); got != child.bounds {
+		t.Fatalf("overlay anchor bounds = %v, want %v", got, child.bounds)
+	}
+
+	child.state.Hovered = false
+	if children := inst.RuntimeChildren(); len(children) != 0 {
+		t.Fatalf("runtime children = %d, want 0 after child hover clears", len(children))
+	}
+	if inst.visible {
+		t.Fatal("tooltip should hide when hovered child clears")
+	}
+}
+
+type tooltipMockChild struct {
+	key    string
+	props  rtui.Props
+	state  control.InteractionState
+	bounds [4]int
+	dirty  bool
+	parent rtui.ComponentInstance
+}
+
+func (m *tooltipMockChild) Key() string                        { return m.key }
+func (m *tooltipMockChild) SetKey(key string)                  { m.key = key }
+func (m *tooltipMockChild) Init(props rtui.Props)              { m.props = props }
+func (m *tooltipMockChild) Destroy()                           {}
+func (m *tooltipMockChild) OnMount()                           {}
+func (m *tooltipMockChild) OnUnmount()                         {}
+func (m *tooltipMockChild) SetProps(props rtui.Props) bool     { m.props = props; return true }
+func (m *tooltipMockChild) GetProps() rtui.Props               { return m.props }
+func (m *tooltipMockChild) MarkDirty()                         { m.dirty = true }
+func (m *tooltipMockChild) IsDirty() bool                      { return m.dirty }
+func (m *tooltipMockChild) GetContext() *rtui.ComponentContext { return nil }
+func (m *tooltipMockChild) GetState() *control.InteractionState {
+	return &m.state
+}
+func (m *tooltipMockChild) GetBounds() (int, int, int, int) {
+	return m.bounds[0], m.bounds[1], m.bounds[2], m.bounds[3]
+}
+func (m *tooltipMockChild) SetParent(parent rtui.ComponentInstance) { m.parent = parent }

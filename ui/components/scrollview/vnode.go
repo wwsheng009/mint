@@ -12,14 +12,15 @@ import (
 
 // Prop key constants — shared by VNode and Instance to avoid magic strings.
 const (
-	propChild = "child"
-	propHeight = "height"
-	propKey = "key"
-	propScrollOffset = "scrollOffset"
-	propShowBorder = "showBorder"
-	propShowIndicator = "showIndicator"
-	propStyle = "style"
-	propWidth = "width"
+	propChild                  = "child"
+	propHeight                 = "height"
+	propKey                    = "key"
+	propScrollOffset           = "scrollOffset"
+	propScrollOffsetControlled = "scrollOffsetControlled"
+	propShowBorder             = "showBorder"
+	propShowIndicator          = "showIndicator"
+	propStyle                  = "style"
+	propWidth                  = "width"
 )
 
 // =============================================================================
@@ -45,9 +46,10 @@ type VNode struct {
 	height int // viewport height (0 = auto, shows all content)
 
 	// === Scroll Props ===
-	scrollOffset int // current scroll position
-	showBorder   bool
-	showIndicator bool // show scroll position indicator
+	scrollOffset           int  // current scroll position
+	scrollOffsetControlled bool // whether scrollOffset is externally controlled
+	showBorder             bool
+	showIndicator          bool // show scroll position indicator
 
 	// === Box Model (via interface) ===
 	rtui.BoxModelMixin
@@ -133,14 +135,15 @@ func (v *VNode) SetLayer(l rtui.Layer) rtui.VNode {
 // Props returns the node properties.
 func (v *VNode) Props() rtui.Props {
 	return rtui.Props{
-		propKey:           v.key,
-		propStyle:         v.style,
-		propWidth:         v.width,
-		propHeight:        v.height,
-		propScrollOffset:  v.scrollOffset,
-		propShowBorder:    v.showBorder,
-		propShowIndicator: v.showIndicator,
-		propChild:         v.child,
+		propKey:                    v.key,
+		propStyle:                  v.style,
+		propWidth:                  v.width,
+		propHeight:                 v.height,
+		propScrollOffset:           v.scrollOffset,
+		propScrollOffsetControlled: v.scrollOffsetControlled,
+		propShowBorder:             v.showBorder,
+		propShowIndicator:          v.showIndicator,
+		propChild:                  v.child,
 	}
 }
 
@@ -161,6 +164,9 @@ func (v *VNode) SetProps(p rtui.Props) rtui.VNode {
 	if val, ok := p[propScrollOffset].(int); ok {
 		v.scrollOffset = val
 	}
+	if val, ok := p[propScrollOffsetControlled].(bool); ok {
+		v.scrollOffsetControlled = val
+	}
 	if val, ok := p[propShowBorder].(bool); ok {
 		v.showBorder = val
 	}
@@ -180,13 +186,14 @@ func (v *VNode) SetProps(p rtui.Props) rtui.VNode {
 // CreateInstance creates a new ScrollView Instance from this VNode description.
 func (v *VNode) CreateInstance() rtui.ComponentInstance {
 	props := rtui.Props{
-		propStyle:         v.style,
-		propWidth:         v.width,
-		propHeight:        v.height,
-		propScrollOffset:  v.scrollOffset,
-		propShowBorder:    v.showBorder,
-		propShowIndicator: v.showIndicator,
-		propChild:         v.child,
+		propStyle:                  v.style,
+		propWidth:                  v.width,
+		propHeight:                 v.height,
+		propScrollOffset:           v.scrollOffset,
+		propScrollOffsetControlled: v.scrollOffsetControlled,
+		propShowBorder:             v.showBorder,
+		propShowIndicator:          v.showIndicator,
+		propChild:                  v.child,
 	}
 	return NewInstance(props)
 }
@@ -238,9 +245,24 @@ func (v *VNode) SetHeight(height int) *VNode {
 	return v
 }
 
-// SetScrollOffset sets the scroll position.
+// SetScrollOffset sets the initial scroll position in uncontrolled mode.
 func (v *VNode) SetScrollOffset(offset int) *VNode {
 	v.scrollOffset = offset
+	v.scrollOffsetControlled = false
+	return v
+}
+
+// SetScrollOffsetControlled sets the scroll position in controlled mode.
+func (v *VNode) SetScrollOffsetControlled(offset int) *VNode {
+	v.scrollOffset = offset
+	v.scrollOffsetControlled = true
+	return v
+}
+
+// SetInitialScrollOffset sets the initial scroll position in uncontrolled mode.
+func (v *VNode) SetInitialScrollOffset(offset int) *VNode {
+	v.scrollOffset = offset
+	v.scrollOffsetControlled = false
 	return v
 }
 
@@ -284,6 +306,11 @@ func (v *VNode) Height() int {
 // ScrollOffset returns the current scroll position.
 func (v *VNode) ScrollOffset() int {
 	return v.scrollOffset
+}
+
+// ScrollOffsetControlled returns whether the scroll position is externally controlled.
+func (v *VNode) ScrollOffsetControlled() bool {
+	return v.scrollOffsetControlled
 }
 
 // ShowBorder returns whether border is shown.

@@ -53,6 +53,12 @@ func TestRowBuilderFluentAPI(t *testing.T) {
 	if node.wrap || node.width != 80 {
 		t.Fatalf("unexpected row state: wrap=%v width=%d", node.wrap, node.width)
 	}
+	if children := node.Children(); len(children) != 0 {
+		t.Fatalf("RowVNode.Children len = %d, want 0 so runtime children drive rendering", len(children))
+	}
+	if propsChildren, ok := node.Props()[propChildren].([]rtui.VNode); !ok || len(propsChildren) != 1 {
+		t.Fatalf("row props children = %v, want 1 child preserved in props", node.Props()[propChildren])
+	}
 }
 
 func TestColBuilderFluentAPI(t *testing.T) {
@@ -71,6 +77,12 @@ func TestColBuilderFluentAPI(t *testing.T) {
 	}
 	if len(node.children) != 1 {
 		t.Fatalf("children len = %d, want 1", len(node.children))
+	}
+	if children := node.Children(); len(children) != 0 {
+		t.Fatalf("ColVNode.Children len = %d, want 0 so runtime children drive rendering", len(children))
+	}
+	if propsChildren, ok := node.Props()[propChildren].([]rtui.VNode); !ok || len(propsChildren) != 1 {
+		t.Fatalf("col props children = %v, want 1 child preserved in props", node.Props()[propChildren])
 	}
 }
 

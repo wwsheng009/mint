@@ -40,9 +40,21 @@ func (b *Builder) Height(height int) *Builder {
 	return b
 }
 
-// ScrollOffset sets the scroll position.
+// ScrollOffset sets the initial scroll position in uncontrolled mode.
 func (b *Builder) ScrollOffset(offset int) *Builder {
-	b.vnode.scrollOffset = offset
+	b.vnode.SetInitialScrollOffset(offset)
+	return b
+}
+
+// ScrollOffsetControlled sets the scroll position in controlled mode.
+func (b *Builder) ScrollOffsetControlled(offset int) *Builder {
+	b.vnode.SetScrollOffsetControlled(offset)
+	return b
+}
+
+// InitialScrollOffset sets the initial scroll position in uncontrolled mode.
+func (b *Builder) InitialScrollOffset(offset int) *Builder {
+	b.vnode.SetInitialScrollOffset(offset)
 	return b
 }
 

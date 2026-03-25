@@ -7,7 +7,7 @@ import (
 
 const (
 	propAlign     = "align"
-	propChildren  = "children"
+	propChildren  = "spaceChildren"
 	propDirection = "direction"
 	propKey       = "key"
 	propSize      = "size"
@@ -100,7 +100,7 @@ func (v *VNode) SetStyle(s style.Style) rtui.VNode {
 }
 
 func (v *VNode) Children() []rtui.VNode {
-	return append([]rtui.VNode(nil), v.children...)
+	return nil
 }
 
 func (v *VNode) SetChildren(children []rtui.VNode) rtui.VNode {

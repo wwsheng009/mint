@@ -7,7 +7,7 @@ import (
 
 const (
 	propAlign          = "align"
-	propChildren       = "children"
+	propChildren       = "rowChildren"
 	propColOffset      = "offset"
 	propColSpan        = "span"
 	propGutter         = "gutter"
@@ -99,7 +99,7 @@ func (v *RowVNode) SetStyle(s style.Style) rtui.VNode {
 }
 
 func (v *RowVNode) Children() []rtui.VNode {
-	return append([]rtui.VNode(nil), v.children...)
+	return nil
 }
 
 func (v *RowVNode) SetChildren(children []rtui.VNode) rtui.VNode {
@@ -235,7 +235,7 @@ func (v *ColVNode) SetStyle(s style.Style) rtui.VNode {
 }
 
 func (v *ColVNode) Children() []rtui.VNode {
-	return append([]rtui.VNode(nil), v.children...)
+	return nil
 }
 
 func (v *ColVNode) SetChildren(children []rtui.VNode) rtui.VNode {

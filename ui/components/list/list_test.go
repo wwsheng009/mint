@@ -970,6 +970,42 @@ func TestInstance_EmitLocalNavigationAndRowSelectIntents(t *testing.T) {
 	}
 }
 
+func TestInstance_HandleAction_ClickEmitsLocalRowSelectIntent(t *testing.T) {
+	parent := &bubbleCaptureParent{}
+	inst := NewInstance(rtui.Props{
+		"componentID":    "orders.list",
+		"header":         "Items",
+		"rows":           []string{"first", "second", "third", "fourth"},
+		"viewportHeight": 3,
+		"showBorder":     true,
+		"showSeparator":  true,
+		"scrollOffset":   1,
+	})
+	inst.SetParent(parent)
+	inst.SetBounds(0, 0, 20, 6)
+
+	mouseMsg := runtimemsg.NewMouseMsg(1, 4, runtimemsg.MouseLeft, runtimemsg.MouseActionPress)
+	mouseMsg.LocalY = 4
+	act := action.NewActionWithPayload(action.ActionClick, mouseMsg)
+
+	if !inst.HandleAction(act) {
+		t.Fatal("click on visible row should be handled")
+	}
+	if inst.GetSelectedIndex() != 2 {
+		t.Fatalf("selectedIndex = %d, want 2", inst.GetSelectedIndex())
+	}
+	if len(parent.intents) != 1 {
+		t.Fatalf("captured intents = %d, want 1", len(parent.intents))
+	}
+	rowSelect, ok := parent.intents[0].(RowSelectIntent)
+	if !ok {
+		t.Fatalf("captured intent = %T, want RowSelectIntent", parent.intents[0])
+	}
+	if rowSelect.ComponentID != "orders.list" || rowSelect.SelectedIndex != 2 || rowSelect.SelectedRow != "third" {
+		t.Fatalf("row select = %#v, want componentID orders.list index 2 row third", rowSelect)
+	}
+}
+
 func TestInstance_EmitLocalScrollIntent(t *testing.T) {
 	parent := &bubbleCaptureParent{}
 	inst := NewInstance(rtui.Props{

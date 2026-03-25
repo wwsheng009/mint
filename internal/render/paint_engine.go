@@ -164,6 +164,10 @@ func (e *PaintEngine) paintBox(box *paint.PaintableBox, buffer *paint.Buffer) er
 	log.PaintLogger.Debug("[Paint.paintBox] paint element: [%s]%s at (%d,%d) size %dx%d",
 		box.Node.ID(), box.Node.Tag(), box.X, box.Y, box.Width, box.Height)
 
+	if viewportSetter, ok := box.Node.(interface{ SetViewportSize(width, height int) }); ok {
+		viewportSetter.SetViewportSize(buffer.Width, buffer.Height)
+	}
+
 	// IMPORTANT: Set bounds before Paint (Fiber-first architecture)
 	// This allows Instance to access layout-computed dimensions
 	if boundsSetter, ok := box.Node.(interface{ SetBounds(x, y, w, h int) }); ok {
