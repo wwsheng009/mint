@@ -44,12 +44,13 @@
 
 ### ✅ 当前状态
 
-`ui/components/` 已从“迁移中”进入“大面积落地、少量边角未收口”的阶段。
+`ui/components/` 已从“迁移中”进入“主体组件面基本补齐、以文档和增强收口为主”的阶段。
 
-- 排除 `docs/` 与 `internal/` 后，当前共有 39 个目录
-- 其中 35 个严格遵循 `builder.go + vnode.go + instance.go` 规范
+- 排除 `docs/` 与 `internal/` 后，当前共有 58 个目录
+- 其中 54 个严格遵循 `builder.go + vnode.go + instance.go` 规范
 - `toast`、`statusbar`、`control`、`validation` 是刻意保留的特例/支撑模块
 - 历史上的 `stack` / `border` 现在主要表现为运行时布局/边框能力与示例，不再对应 `ui/components/stack/`、`ui/components/border/` 目录
+- 完整组件现状与 backlog 以 [ROADMAP.md](./ROADMAP.md) 和 [OPTIMIZATION_BACKLOG.md](./OPTIMIZATION_BACKLOG.md) 为准
 
 ---
 

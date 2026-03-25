@@ -6,9 +6,11 @@
 
 - `title` + `body`
 - `click` / `hover` / `manual` 三种触发模式
-- top / bottom 系列 placement
+- `PlacementAuto` + top / bottom 系列 6 个 placement：`top/topLeft/topRight`、`bottom/bottomLeft/bottomRight`
 - 非受控 `InitialOpen(...)` 与受控 `Open(...)`
+- `Install(app)` 后可统一收口 ESC / outside-click 关闭
 - 本地 `PopoverToggleIntent` / `PopoverOpenIntent` / `PopoverCloseIntent`
+- overlay 坐标换算已复用 `ui/components/internal/overlayposition`
 
 ## 示例
 
@@ -22,3 +24,5 @@ ui.NewPopoverBuilder(ui.Text("Hover me")).
 ```
 
 如果 anchor 本身是会吞掉点击的交互组件，例如 `Button`，可把按钮的 press intent 设为 `popover.ToggleWithID(...)`。
+
+如果希望 ESC 和 outside-click 能关闭已打开的 Popover，需要在应用启动时调用一次 `popover.Install(app)`。

@@ -2,15 +2,15 @@
 
 > 本文档记录 Mint UI 组件库的现状、与 Ant Design 的对比分析，以及后续开发计划。
 >
-> 更新日期：2026-03-24
+> 更新日期：2026-03-25
 >
 > 详细增强任务拆分见：[OPTIMIZATION_BACKLOG.md](./OPTIMIZATION_BACKLOG.md)
 
 ---
 
-## 当前组件清单（52 个目录 + 1 个内置 Scrollbar）
+## 当前组件清单（58 个目录 + 1 个内置 Scrollbar）
 
-> 排除 `docs/` 与 `internal/` 后，当前共有 52 个组件/支撑目录；其中 48 个严格遵循 `builder.go + vnode.go + instance.go` 结构，`toast`、`statusbar`、`control`、`validation` 属于特例或基础设施模块。
+> 排除 `docs/` 与 `internal/` 后，当前共有 58 个组件/支撑目录；其中 54 个严格遵循 `builder.go + vnode.go + instance.go` 结构，`toast`、`statusbar`、`control`、`validation` 属于特例或基础设施模块。
 
 | 组件 | 目录 | 完整度 | 说明 |
 |------|------|--------|------|
@@ -22,7 +22,7 @@
 | Collapse | `collapse/` | ★★★☆☆ | 折叠面板，支持多面板展开、accordion、受控/非受控 activeKeys、panel disabled、`CollapseToggleIntent`/`CollapseChangeIntent`、field 绑定 |
 | Descriptions | `descriptions/` | ★★★☆☆ | 描述列表，支持多列布局、span、horizontal/vertical、title/extra、bordered |
 | Statistic | `statistic/` | ★★★☆☆ | 统计数字展示，支持 title/value、prefix/suffix、precision、千分位/小数分隔符、trend、bordered、extra |
-| Input | `input/` | ★★★★☆ | text/password/number/email，placeholder，maxLen，readOnly，prefix/suffix，addonBefore/addonAfter，Search变体 |
+| Input | `input/` | ★★★★☆ | text/password/number/email，placeholder，maxLen，readOnly，prefix/suffix，addonBefore/addonAfter，Search变体，number 模式的负号/小数控制、`min/max/step` |
 | Textarea | `textarea/` | ★★★☆☆ | 多行文本输入 |
 | Select | `select/` | ★★★★★ | 单选/多选/tags，overlay popup，OptGroup，filterOption，placeholder，disabled |
 | Checkbox | `checkbox/` | ★★★★☆ | 基本勾选、indeterminate、CheckboxGroup |
@@ -32,16 +32,19 @@
 | Rate | `rate/` | ★★★☆☆ | 星级评分，支持键盘调节、可清空、Form 绑定 |
 | DatePicker | `datepicker/` | ★★★☆☆ | 日期选择，支持 `YYYY-MM-DD` 输入、弹出月视图、键盘/鼠标导航、Field/Form 绑定 |
 | TimePicker | `timepicker/` | ★★★☆☆ | 时间选择，支持 `HH:mm` 输入、弹出时间面板、键盘/鼠标导航、Field/Form 绑定 |
+| Cascader | `cascader/` | ★★★☆☆ | 级联选择，支持层级数据、列式展开、键盘/鼠标导航、叶子提交、`changeOnSelect`、Field/Form 绑定 |
+| Transfer | `transfer/` | ★★★☆☆ | 穿梭框，支持双列表迁移、`targetKeys` 受控/非受控、禁用项过滤、Field/Form 绑定 |
 | OptionGroup | `optiongroup/` | ★★★☆☆ | 选项组，支持 radio/checkbox 模式 |
 | Form | `form/` | ★★★★☆ | 表单容器，submit/reset intent，已补 FormItem、layout、validator 联动，以及 touched/dirty/submitted/submitCount 等字段状态 |
 | Table | `table/` | ★★★★☆ | 排序、分页、过滤、多选、搜索、滚动，已补 expandable 行、固定列与树形数据 |
 | List | `list/` | ★★★★★ | 基本列表，选择模式，List.Item/item 模型，VirtualList bridge/state sync |
 | VirtualList | `virtuallist/` | ★★★☆☆ | 虚拟滚动列表 |
 | TreeView | `treeview/` | ★★★★☆ | 懒加载、展开折叠、搜索、多选、受控模式、同父级 subtree 拖拽排序、异步搜索结果分页 |
-| Modal | `modal/` | ★★★★☆ | overlay定位，portal架构 |
+| Modal | `modal/` | ★★★★☆ | overlay定位，portal架构，静态 helper 支持 prefix/footer layout/按钮文案与变体模板 |
 | Drawer | `drawer/` | ★★★★☆ | 侧边抽屉，支持 placement、受控显隐、overlay 与 ESC/遮罩关闭 |
 | Tabs | `tabs/` | ★★★★★ | intent，controlled 模式，card/closable/drag reorder |
-| Menu | `menu/` | ★★★★★ | menubar/dropdown/context/popup，submenu，shortcut |
+| Menu | `menu/` | ★★★★★ | menubar/dropdown/context/popup，submenu，shortcut；anchored popup 根面板已支持显式 placement 与 anchor-aware auto |
+| Anchor | `anchor/` | ★★★☆☆ | 锚点导航，支持层级链接、当前项高亮、键鼠切换、受控/非受控 `activeKey`、Field/Form 绑定 |
 | Alert | `alert/` | ★★★☆☆ | 内联提示，info/success/warning/error，可关闭 |
 | Spin | `spin/` | ★★★☆☆ | 加载指示器，small/default/large，tip，TickFrame动画 |
 | Notification | `notification/` | ★★★☆☆ | 通知弹窗，info/success/warning/error，可关闭，placement，duration |
@@ -49,16 +52,19 @@
 | Skeleton | `skeleton/` | ★★★☆☆ | 骨架屏占位，支持 avatar/title/paragraph、loading gate、内容回落 |
 | Result | `result/` | ★★★☆☆ | 结果状态页，支持 info/success/warning/error/403/404/500、title/subtitle、extra、bordered |
 | Toast | `toast/` | ★★★☆☆ | 独立 manager + runtime，info/success/warning/error，自动消失 |
-| Tooltip | `tooltip/` | ★★★★☆ | 已支持 top/bottom/left/right、delay、layer |
+| Tooltip | `tooltip/` | ★★★★☆ | 已支持 12 方位 placement、auto/显式回退、viewport clamp、delay、layer，且定位 helper 已开始被其他 overlay 复用 |
 | Tag | `tag/` | ★★★☆☆ | 标签，颜色变体，可关闭，可选图标前缀 |
-| Progress | `progress/` | ★★★☆☆ | 线形/圆形/仪表盘进度条，status（normal/success/exception/active），showPercent |
+| Progress | `progress/` | ★★★☆☆ | 线形/圆形/仪表盘进度条，status（normal/success/exception/active），showPercent，`active` tick 动画 |
 | Divider | `divider/` | ★★★☆☆ | 水平/垂直分隔线 |
-| StatusBar | `statusbar/` | ★★★☆☆ | 组合式 builder，含 help、section 内部组件 |
+| StatusBar | `statusbar/` | ★★★☆☆ | 组合式 builder，含 help、section 内部组件；overlay tooltip 支持 auto/top/bottom、fallback 与 clamp |
 | Panel | `panel/` | ★★★☆☆ | 容器面板，有 enhanced builder |
-| Popover | `popover/` | ★★★☆☆ | 气泡卡片，支持 title/body、click/hover/manual 触发、top/bottom placement、local open intents |
-| Popconfirm | `popconfirm/` | ★★★☆☆ | 气泡确认框，支持 title/description、OK/Cancel 操作、click/hover/manual 触发、confirm/cancel intents |
+| Popover | `popover/` | ★★★☆☆ | 气泡卡片，支持 title/body、click/hover/manual 触发、auto + top/bottom 6 方位 placement、local open intents，以及 Install 后的 ESC / outside-click 收口 |
+| Popconfirm | `popconfirm/` | ★★★☆☆ | 气泡确认框，支持 title/description、OK/Cancel 操作、click/hover/manual 触发、top/bottom 系列 placement、confirm/cancel intents、按钮 variant/footer layout，以及 Install 后的 ESC / outside-click 收口 |
 | Timeline | `timeline/` | ★★★☆☆ | 时间轴，支持 label/content/description、status、自定义 dot、pending、reverse |
 | ScrollView | `scrollview/` | ★★★☆☆ | 可滚动容器 |
+| Space | `space/` | ★★★☆☆ | 间距布局，支持 horizontal/vertical、size、wrap、split、cross-axis align |
+| Layout | `layout/` | ★★★☆☆ | 整体布局，支持 Header/Sider/Content/Footer 组合、左右双侧边栏、body/content `flex` 填充 |
+| Row/Col | `rowcol/` | ★★★☆☆ | 24 栅格 Flex 行列布局，支持 span、offset、gutter、wrap、justify、align |
 | Grid | `grid/` | ★★★★☆ | 单元格边框，完整文档 |
 | Text | `text/` | ★★★☆☆ | 文本显示 |
 | Absolute | `absolute/` | ★★☆☆☆ | 绝对定位容器 |
@@ -92,8 +98,8 @@
 | ~~**Rate**~~ | ~~星级评分~~ | `Rate` ✅ 已实现（2026-03）|
 | ~~**DatePicker**~~ | ~~日期选择器~~ | `DatePicker` ✅ 已实现（2026-03-18） |
 | ~~**TimePicker**~~ | ~~时间选择器~~ | `TimePicker` ✅ 已实现（2026-03-24） |
-| **Cascader** | 级联选择，层级数据选择 | `Cascader` |
-| **Transfer** | 穿梭框，双列选择 | `Transfer` |
+| ~~**Cascader**~~ | ~~级联选择，层级数据选择~~ | `Cascader` ✅ 已实现（2026-03-24） |
+| ~~**Transfer**~~ | ~~穿梭框，双列选择~~ | `Transfer` ✅ 已实现（2026-03-25） |
 
 ### 导航类（中优先级）
 
@@ -102,7 +108,7 @@
 | ~~**Breadcrumb**~~ | ~~面包屑导航，层级路径展示~~ | `Breadcrumb` ✅ 已实现（2026-03） |
 | ~~**Pagination**~~ | ~~独立分页组件（Table 内置了分页，但缺独立组件）~~ | `Pagination` ✅ 已实现（2026-03） |
 | ~~**Steps**~~ | ~~步骤条，引导流程~~ | `Steps` ✅ 已实现（2026-03-17） |
-| **Anchor** | 锚点导航 | `Anchor` |
+| ~~**Anchor**~~ | ~~锚点导航~~ | `Anchor` ✅ 已实现（2026-03-25） |
 
 ### 数据展示类（中优先级）
 
@@ -120,9 +126,9 @@
 
 | 组件 | 说明 | AntD 对应 |
 |------|------|-----------|
-| **Space** | 间距组件，统一子元素间距 | `Space` |
-| **Layout** | 整体布局（Header/Sider/Content/Footer） | `Layout` |
-| **Row/Col** | Flex 栅格行列布局 | `Row`, `Col` |
+| ~~**Space**~~ | ~~间距组件，统一子元素间距~~ | `Space` ✅ 已实现（2026-03-25） |
+| ~~**Layout**~~ | ~~整体布局（Header/Sider/Content/Footer）~~ | `Layout` ✅ 已实现（2026-03-25） |
+| ~~**Row/Col**~~ | ~~Flex 栅格行列布局~~ | `Row`, `Col` ✅ 已实现（2026-03-25） |
 
 ### 其他（低优先级）
 
@@ -138,7 +144,7 @@
 
 | 组件 | 缺失功能 | 优先级 |
 |------|---------|--------|
-| **Form** | 字段级 touched/dirty/submitted、表单级 `HasSubmitted`/`GetSubmitCount`、`GetTouchedFields`/`GetDirtyFields`/`GetSubmittedFields`、`GetFormContext` 实例树解析已完成（2026-03-17）；剩显式 compat helper `GetRegisteredForm` / `GetRegisteredFormContext` 的瘦身评估 | 中 |
+| ~~**Form**~~ | ~~字段级 touched/dirty/submitted、表单级 `HasSubmitted`/`GetSubmitCount`、`GetTouchedFields`/`GetDirtyFields`/`GetSubmittedFields`、`GetFormContext` 实例树解析与 compat registry 收口~~ ✅ 已完成（2026-03-25） | ~~中~~ |
 | ~~**Input**~~ | ~~InputNumber 完整实现~~ ✅ 已完成（2026-03-17） | ~~高~~ |
 | ~~**Checkbox**~~ | ~~indeterminate 半选状态；CheckboxGroup 组件~~ | ~~高~~ |
 | ~~**Progress**~~ | ~~圆形（Circle）和仪表盘（Dashboard）样式；status（success/exception/active）~~ ✅ 已完成（2026-03-17） | ~~中~~ |
@@ -176,10 +182,12 @@
 - [x] `Select` 增强 — OptGroup，filterOption，tags 模式（2026-03）
 - [x] `Slider` — 数值滑块（2026-03）
 - [x] `Rate` — 星级评分（2026-03）
+- [x] `Transfer` — 穿梭框（2026-03-25）
 
 ### Phase 3 — 导航与数据展示（中期）
 
 - [x] `Breadcrumb` — 面包屑（2026-03）
+- [x] `Anchor` — 锚点导航（2026-03-25）
 - [x] `Pagination` — 独立分页（2026-03）
 - [x] `Steps` — 步骤条（2026-03-17）
 - [x] `Badge` — 徽标数（2026-03-17）
@@ -200,9 +208,10 @@
 - [x] `Skeleton` — 骨架屏（2026-03-18）
 - [x] `DatePicker` — 日期选择（TUI 适配，2026-03-18）
 - [x] `TimePicker` — 时间选择（TUI 适配，2026-03-24）
-- [ ] `Cascader` — 级联选择
-- [ ] `Space` — 间距布局
-- [ ] `Layout` — 整体布局框架
+- [x] `Cascader` — 级联选择（2026-03-24）
+- [x] `Space` — 间距布局（2026-03-25）
+- [x] `Layout` — 整体布局框架（2026-03-25）
+- [x] `Row/Col` — Flex 栅格行列布局（2026-03-25）
 
 ---
 

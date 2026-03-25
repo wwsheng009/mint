@@ -20,6 +20,7 @@
 - **Phase 1.5**：已支持 popup anchor/portal 配置、typeahead 导航、submenu path helpers
 - **Phase 1.6**：已支持单实例级联 submenu 渲染与 `ActivePath(...)` 受控展开
 - **Phase 1.7**：已支持 outside-click / ESC 关闭中间件，以及 app 级 shortcut 注册 helper
+- **Phase 1.8**：已支持 anchored popup 根面板的 `Placement(...)` 对齐映射（`bottom/top/right/left-start` 与 `bottom/top-end`），`auto` 会按现有 anchor 方向推导默认 placement
 - **接入方式**：可通过 `menu.NewMiddleware()` 接入 action router，通过 `ui.BindMenuGlobalShortcuts(...)` 接入全局快捷键
 - **一键安装**：可通过 `menu.Install(...)` 或 `ui.InstallMenu(...)` 一次性安装中间件与全局快捷键
 - **默认挂载点**：`ui.Run` / `ui.RunApp` 会自动注入 `overlay/modal/tooltip` PortalRoot，菜单 popup 默认挂到 overlay host
@@ -369,17 +370,20 @@ const (
 
 ### 7.2 定位规则
 
-- menubar 下拉：默认 `bottom-start`
-- submenu：默认 `right-start`，空间不足时自动翻转到 `left-start`
-- context menu：根据鼠标坐标直接定位，再自动贴边避让
+- anchored popup 的根面板已接入 `Placement(...)`：
+  `bottom-start` / `bottom-end` / `top-start` / `top-end` / `right-start` / `left-start`
+- `PlacementAuto` 当前会按现有 anchor 方向推导默认 placement：
+  `BottomLeft -> bottom-start`、`BottomRight -> bottom-end`、`TopLeft -> top-start`、`TopRight -> top-end`、`Right -> right-start`、`Left -> left-start`
+- submenu 仍默认从根面板右侧级联展开；自动翻转到 `left-start` 仍在后续阶段
+- context menu 仍按 portal 偏移直接定位；自动贴边避让仍在后续阶段
 - overlay 一律走多层渲染，不能作为普通流式节点下沉，否则会被正文覆盖
 
 ### 7.3 碰撞与边界处理
 
-- 超出右边界：左移或翻转
-- 超出底边界：向上翻转
-- 高度超出可视区：进入 scrollable 模式
-- 宽度超出限制：内容截断或折行（标题/描述可配置）
+- 根 popup 当前已支持显式 placement 对齐，但还没有接入统一 collision / viewport clamp
+- submenu 左右翻转、context menu 贴边避让仍在后续阶段
+- 高度超出可视区时仍可通过 `MaxHeight` + scrollable 模式控制
+- 宽度超出限制时仍按现有 `MaxWidth` / 截断规则处理
 
 ---
 

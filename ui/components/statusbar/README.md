@@ -15,6 +15,7 @@
 - Inline tooltip/help: `WithHelp(...)` / `WithTooltip(...)` + `BuildWithHelp()`
 - Help display modes: `HelpDisplayInline` / `HelpDisplayOverlay` / `HelpDisplayBoth`
 - Overlay placement: `TooltipPlacementAuto` / `TooltipPlacementTop` / `TooltipPlacementBottom`
+- Overlay fallback / clamp: `TooltipPlacementAuto` 会按可见空间在上下方间回退，横向候选与视口 clamp 已复用 `ui/components/internal/overlayposition`
 - Overlay wrapping: `TooltipMaxWidth(...)` limits content width and wraps to multiple lines
 - Overlay gap: `TooltipGapRows(...)` adds a clearer vertical separation from the anchor
 - Overlay visibility: overlay tooltips only appear while the mouse is hovering the section
@@ -130,7 +131,7 @@ bar := statusbar.NewBuilder().
     BuildWithHelp()
 ```
 
-`BuildWithHelp()` ?????? `HelpDisplayMode(...)`?
+`BuildWithHelp()` 会根据 `HelpDisplayMode(...)` 决定是否渲染 inline help、overlay tooltip 或两者同时渲染。
 
 - Inline help: hovered first, focused second, fallback last
 - Overlay tooltip: only appears while the mouse is hovering the section

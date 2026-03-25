@@ -59,7 +59,7 @@
 - unresolved 的 `FormItem` 重试也已收窄到 ownerless 场景，避免 owner-bound 空重试
 - 显式跨树兼容已收口到 `GetRegisteredForm` / `GetRegisteredFormContext`
 - `RegisterForm` / `UnregisterForm` / `GetForm` 现已明确标注为兼容层 API，其中 `GetForm` 仅保留别名语义
-- 下一步是继续评估这些显式 compat helper 是否还能进一步下沉或瘦身
+- 显式 compat helper 已进一步下沉到独立 compat registry 文件；运行时仅保留显式跨树访问 API（2026-03-25）
 
 #### 主要入口
 
@@ -71,10 +71,10 @@
 
 #### 建议任务
 
-1. 收敛 registry 兼容层
-   - 保留 `GetFormContext` 兼容 API
-   - `FormItem` 与 `GetFormContext` 已优先走祖先实例解析
-   - 减少新逻辑继续依赖 registry
+1. ~~收敛 registry 兼容层~~
+   - ✅ `GetFormContext` 继续保留 owner-bound API
+   - ✅ `FormItem` 与 `GetFormContext` 已优先走祖先实例解析
+   - ✅ compat registry 已下沉到独立文件，避免核心上下文路径继续混入 registry 细节（2026-03-25）
 
 2. 继续补字段状态辅助 API
    - ✅ 已补 `GetTouchedFields` / `GetDirtyFields`
@@ -90,7 +90,7 @@
 
 - 已有字段级 `touched/dirty` 行为保持稳定
 - `Reset` 与 `SetProps(values)` 后字段元状态保持一致
-- 兼容 API 仍可用，但核心运行时进一步减少对 registry 的依赖
+- 兼容 API 仍可用，且核心运行时已把 registry 细节下沉到显式 compat 层
 
 #### 建议测试
 
@@ -106,62 +106,55 @@
 
 ### 2. Input
 
-#### 已完成（2026-03-17）
+#### 已完成（2026-03-25）
 
 - `TypeNumber` 现在具备完整 `InputNumber` 运行时语义，非法字符不会进入最终值
 - 新增 `AllowNegative(bool)` 和 `AllowDecimal(bool)`，用于控制负号和小数点模式
 - blur 会归一化前导零、`.5` / `-.5`、`1.`、`-0`、悬空 `-` / `-.` 等临界输入
 - blur 归一化如果改写了值，会先补发一次 change，再发 blur，确保 Form 与非 Form 路径最终值一致
-
-#### 后续
-
-- 第二阶段再考虑 `Min`、`Max`、`Step`
+- 新增 `Min(float64)` / `Max(float64)`，在 blur 后对最终值做范围收口
+- 新增 `Step(float64)`，并支持 number 模式下 `ActionCursorUp` / `ActionCursorDown` 步进调节
 
 ---
 
 ### 3. Progress
 
-#### 已完成（2026-03-17）
+#### 已完成（2026-03-25）
 
 - 新增 `status`：`normal`、`success`、`exception`、`active`
 - 新增 `type`：`line`、`circle`、`dashboard`
 - `circle` 和 `dashboard` 已有稳定的 ASCII/分段式 TUI 表达
 - 三种模式的 `Measure` 与 `label/showPercent` 布局已统一收口
-
-#### 后续
-
-- 如果要继续增强，可单独追加 `active` 的逐帧动画而不影响当前 API
+- `active` 状态现已支持逐帧 tick 动画，且不新增 API（2026-03-25）
 
 ---
 
 ### 4. Modal
 
-#### 已完成（2026-03-17）
+#### 已完成（2026-03-25）
 
 - 已补 `Confirm(...)`、`Info(...)`、`Success(...)`、`Error(...)`、`Warning(...)` 静态 helper，并保留 `Alert(...)`
 - helper 默认会生成可用 modal：标题、内容、默认 footer、默认关闭策略都已收口
 - helper 返回 `*Builder`，可以继续叠加普通 builder 配置
 - helper footer 按钮通过 modal 包内统一 close intent handler 复用 `requestClose()`，不会绕开现有 ESC / backdrop 关闭语义
 - 已补 `ui` shortcut：`ModalInfo/Success/Warning/Error`
-
-#### 后续
-
-- 如果需要，可继续补更细的 helper 选项模板，例如 icon/prefix、按钮文案国际化、按钮布局预设
+- helper 已补 `WithHelperPrefix(...)` / `WithHelperPrefixNode(...)`、`WithConfirmText(...)` / `WithCancelText(...)`、`WithConfirmVariant(...)` / `WithCancelVariant(...)`、`WithFooterLayout(...)`
 
 ---
 
 ### 5. Tooltip
 
-#### 已完成（2026-03-17）
+#### 已完成（2026-03-25）
 
 - `delay` 维持现有能力
 - `placement` 已扩到完整 12 方位：`top/topLeft/topRight`、`bottom/bottomLeft/bottomRight`、`left/leftTop/leftBottom`、`right/rightTop/rightBottom`
 - `auto` 与显式 placement 都已接入统一的候选回退策略
 - 当所有候选位置都无法完整放入视口时，会自动 clamp 到可见区域
+- `viewport` 回退 / clamp / 候选落点计算已下沉到 `ui/components/internal/overlayposition`，并已接入 `tooltip`、`popover`、`popconfirm`、`statusbar`
 
 #### 后续
 
-- 如果后面接入真实视口/portal 布局信息，可把当前 `viewport` 回退逻辑进一步下沉到统一 overlay 定位层
+- 如果后面接入更完整的真实视口 / portal 布局信息，可继续让更多 overlay 复用这层定位 helper
 - `delay` 回归验证，避免已有能力退化
 
 ---
