@@ -541,12 +541,13 @@ func (e *PortalAwareLayoutEngine) layoutPortal(
 
 	// Parse portal positioning configuration from Fiber props
 	props := portal.PortalFiber.Props
+	portalWidth, portalHeight := resolvePortalPositioningSize(props, box.Root)
 	posConfig := layout.ParsePortalPositionConfig(
 		props,
 		constraints.MaxWidth,  // viewport width
 		constraints.MaxHeight, // viewport height
-		box.Root.Width,        // portal width (from layout)
-		box.Root.Height,       // portal height (from layout)
+		portalWidth,           // portal positioning width
+		portalHeight,          // portal positioning height
 	)
 
 	// Check if using Anchor-based positioning
@@ -571,6 +572,23 @@ func (e *PortalAwareLayoutEngine) layoutPortal(
 	e.setPortalZIndex(box.Root, PortalZIndexBase+priority)
 
 	return box.Root
+}
+
+func resolvePortalPositioningSize(props map[string]interface{}, box *layout.LayoutBox) (width, height int) {
+	if box != nil {
+		width = box.Width
+		height = box.Height
+	}
+	if props == nil {
+		return width, height
+	}
+	if explicitWidth, ok := props["positioningWidth"].(int); ok && explicitWidth > 0 {
+		width = explicitWidth
+	}
+	if explicitHeight, ok := props["positioningHeight"].(int); ok && explicitHeight > 0 {
+		height = explicitHeight
+	}
+	return width, height
 }
 
 // findPortalRootLayoutPosition finds the layout position of a PortalRoot in the main tree

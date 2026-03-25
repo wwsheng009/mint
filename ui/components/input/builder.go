@@ -68,6 +68,24 @@ func (b *Builder) AllowDecimal(v bool) *Builder {
 	return b
 }
 
+// Min sets the inclusive minimum number value for TypeNumber.
+func (b *Builder) Min(v float64) *Builder {
+	b.node.SetMin(v)
+	return b
+}
+
+// Max sets the inclusive maximum number value for TypeNumber.
+func (b *Builder) Max(v float64) *Builder {
+	b.node.SetMax(v)
+	return b
+}
+
+// Step sets the keyboard step size for TypeNumber.
+func (b *Builder) Step(v float64) *Builder {
+	b.node.SetStep(v)
+	return b
+}
+
 // Prefix sets the inner prefix text rendered before the editable value.
 func (b *Builder) Prefix(text string) *Builder {
 	b.node.SetPrefix(text)

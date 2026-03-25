@@ -12,8 +12,8 @@ import (
 	"github.com/wwsheng009/mint/runtime/style"
 	rttypes "github.com/wwsheng009/mint/runtime/types"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
-	scrollutil "github.com/wwsheng009/mint/ui/components/internal/scroll"
 	"github.com/wwsheng009/mint/ui/components/internal/proputil"
+	scrollutil "github.com/wwsheng009/mint/ui/components/internal/scroll"
 )
 
 type barInstance struct {
@@ -579,6 +579,10 @@ func (inst *barInstance) activateBarIndex(index int) {
 }
 
 func (inst *popupInstance) popupMetricsFor(items []MenuItem) popupMetrics {
+	return popupMetricsForModel(inst.model, inst.theme, items)
+}
+
+func popupMetricsForModel(model Model, theme Theme, items []MenuItem) popupMetrics {
 	visible := make([]int, 0, len(items))
 	contentWidth := 0
 	markWidth := 0
@@ -595,26 +599,26 @@ func (inst *popupInstance) popupMetricsFor(items []MenuItem) popupMetrics {
 			continue
 		}
 		contentWidth = max(contentWidth, paint.StringWidth(item.Label))
-		if inst.model.ShowDescriptions && item.Description != "" {
+		if model.ShowDescriptions && item.Description != "" {
 			contentWidth = max(contentWidth, paint.StringWidth(item.Label)+paint.StringWidth(" — ")+paint.StringWidth(item.Description))
 		}
-		if !inst.model.ShowDescriptions && item.SecondaryText != "" {
+		if !model.ShowDescriptions && item.SecondaryText != "" {
 			contentWidth = max(contentWidth, paint.StringWidth(item.Label)+1+paint.StringWidth(item.SecondaryText))
 		}
-		if inst.model.ShowCheckMarks && (item.Kind == ItemCheckbox || item.Kind == ItemRadio || item.Checked) {
+		if model.ShowCheckMarks && (item.Kind == ItemCheckbox || item.Kind == ItemRadio || item.Checked) {
 			markWidth = max(markWidth, 1)
 		}
-		if inst.model.ShowIcons && item.Icon != "" {
+		if model.ShowIcons && item.Icon != "" {
 			iconWidth = max(iconWidth, max(1, paint.StringWidth(item.Icon)))
 		}
-		if inst.model.ShowShortcuts && strings.TrimSpace(item.Shortcut.DisplayText()) != "" {
+		if model.ShowShortcuts && strings.TrimSpace(item.Shortcut.DisplayText()) != "" {
 			shortcutWidth = max(shortcutWidth, paint.StringWidth(item.Shortcut.DisplayText()))
 		}
 		if item.HasSubmenu() {
 			arrowWidth = max(arrowWidth, 1)
 		}
 	}
-	contentWidth = max(contentWidth, paint.StringWidth(inst.model.Title))
+	contentWidth = max(contentWidth, paint.StringWidth(model.Title))
 	fixedWidth := popupLeftPadding + popupRightPadding
 	if markWidth > 0 {
 		fixedWidth += markWidth + 1
@@ -629,12 +633,12 @@ func (inst *popupInstance) popupMetricsFor(items []MenuItem) popupMetrics {
 		fixedWidth += 1 + arrowWidth
 	}
 	innerWidth := fixedWidth + max(contentWidth, 4)
-	minInner := max(defaultPopupMinWidth-2, inst.model.MinWidth-2)
+	minInner := max(defaultPopupMinWidth-2, model.MinWidth-2)
 	if minInner > innerWidth {
 		innerWidth = minInner
 	}
-	if inst.model.MaxWidth > 0 {
-		maxInner := max(1, inst.model.MaxWidth-2)
+	if model.MaxWidth > 0 {
+		maxInner := max(1, model.MaxWidth-2)
 		if innerWidth > maxInner {
 			innerWidth = maxInner
 		}
@@ -646,8 +650,8 @@ func (inst *popupInstance) popupMetricsFor(items []MenuItem) popupMetrics {
 	if viewportRows == 0 {
 		viewportRows = 1
 	}
-	if inst.model.MaxHeight > 0 {
-		maxRows := max(1, inst.model.MaxHeight-2)
+	if model.MaxHeight > 0 {
+		maxRows := max(1, model.MaxHeight-2)
 		if viewportRows > maxRows {
 			viewportRows = maxRows
 		}
@@ -655,7 +659,7 @@ func (inst *popupInstance) popupMetricsFor(items []MenuItem) popupMetrics {
 	surfaceHeight := viewportRows + 2
 	shadowWidth := 0
 	shadowHeight := 0
-	if !inst.theme.SurfaceShadowStyle.IsEmpty() {
+	if !theme.SurfaceShadowStyle.IsEmpty() {
 		shadowWidth = 1
 		shadowHeight = 1
 	}

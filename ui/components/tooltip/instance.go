@@ -1,7 +1,6 @@
 package tooltip
 
 import (
-	"github.com/wwsheng009/mint/ui/components/internal/proputil"
 	"time"
 
 	"github.com/wwsheng009/mint/framework/theme"
@@ -9,6 +8,8 @@ import (
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
+	"github.com/wwsheng009/mint/ui/components/internal/overlayposition"
+	"github.com/wwsheng009/mint/ui/components/internal/proputil"
 )
 
 // =============================================================================
@@ -237,115 +238,131 @@ func (inst *Instance) CalculatePosition() (x, y int) {
 }
 
 func (inst *Instance) calculatePositionWithViewport(tooltipWidth, tooltipHeight, viewportWidth, viewportHeight int) (x, y int) {
-	if len(inst.anchorBounds) != 4 {
-		return 0, 0
-	}
-
-	candidates := inst.positionCandidates()
-	if viewportWidth > 0 && viewportHeight > 0 {
-		for _, pos := range candidates {
-			candidateX, candidateY := inst.positionCoordinates(pos, tooltipWidth, tooltipHeight)
-			if fitsViewport(candidateX, candidateY, tooltipWidth, tooltipHeight, viewportWidth, viewportHeight) {
-				return candidateX, candidateY
-			}
-		}
-	}
-
-	x, y = inst.positionCoordinates(candidates[0], tooltipWidth, tooltipHeight)
-	if viewportWidth > 0 && viewportHeight > 0 {
-		x = clamp(x, 0, maxInt(0, viewportWidth-tooltipWidth))
-		y = clamp(y, 0, maxInt(0, viewportHeight-tooltipHeight))
-	}
-	return x, y
+	result := overlayposition.Resolve(overlayposition.Config{
+		Anchor: overlayposition.RectFromBounds(inst.anchorBounds),
+		Overlay: overlayposition.Size{
+			Width:  tooltipWidth,
+			Height: tooltipHeight,
+		},
+		Viewport: overlayposition.Size{
+			Width:  viewportWidth,
+			Height: viewportHeight,
+		},
+		Candidates: inst.positionCandidates(),
+		Gap:        1,
+	})
+	return result.X, result.Y
 }
 
-func (inst *Instance) positionCandidates() []Position {
+func (inst *Instance) positionCandidates() []overlayposition.Placement {
 	switch inst.position {
 	case PositionTopLeft:
-		return []Position{PositionTopLeft, PositionTop, PositionTopRight, PositionBottomLeft, PositionBottom}
+		return []overlayposition.Placement{
+			overlayposition.PlacementTopLeft,
+			overlayposition.PlacementTop,
+			overlayposition.PlacementTopRight,
+			overlayposition.PlacementBottomLeft,
+			overlayposition.PlacementBottom,
+		}
 	case PositionTopRight:
-		return []Position{PositionTopRight, PositionTop, PositionTopLeft, PositionBottomRight, PositionBottom}
+		return []overlayposition.Placement{
+			overlayposition.PlacementTopRight,
+			overlayposition.PlacementTop,
+			overlayposition.PlacementTopLeft,
+			overlayposition.PlacementBottomRight,
+			overlayposition.PlacementBottom,
+		}
 	case PositionBottomLeft:
-		return []Position{PositionBottomLeft, PositionBottom, PositionBottomRight, PositionTopLeft, PositionTop}
+		return []overlayposition.Placement{
+			overlayposition.PlacementBottomLeft,
+			overlayposition.PlacementBottom,
+			overlayposition.PlacementBottomRight,
+			overlayposition.PlacementTopLeft,
+			overlayposition.PlacementTop,
+		}
 	case PositionBottomRight:
-		return []Position{PositionBottomRight, PositionBottom, PositionBottomLeft, PositionTopRight, PositionTop}
+		return []overlayposition.Placement{
+			overlayposition.PlacementBottomRight,
+			overlayposition.PlacementBottom,
+			overlayposition.PlacementBottomLeft,
+			overlayposition.PlacementTopRight,
+			overlayposition.PlacementTop,
+		}
 	case PositionLeftTop:
-		return []Position{PositionLeftTop, PositionLeft, PositionLeftBottom, PositionTop, PositionBottom}
+		return []overlayposition.Placement{
+			overlayposition.PlacementLeftTop,
+			overlayposition.PlacementLeft,
+			overlayposition.PlacementLeftBottom,
+			overlayposition.PlacementTop,
+			overlayposition.PlacementBottom,
+		}
 	case PositionLeftBottom:
-		return []Position{PositionLeftBottom, PositionLeft, PositionLeftTop, PositionBottom, PositionTop}
+		return []overlayposition.Placement{
+			overlayposition.PlacementLeftBottom,
+			overlayposition.PlacementLeft,
+			overlayposition.PlacementLeftTop,
+			overlayposition.PlacementBottom,
+			overlayposition.PlacementTop,
+		}
 	case PositionRightTop:
-		return []Position{PositionRightTop, PositionRight, PositionRightBottom, PositionTop, PositionBottom}
+		return []overlayposition.Placement{
+			overlayposition.PlacementRightTop,
+			overlayposition.PlacementRight,
+			overlayposition.PlacementRightBottom,
+			overlayposition.PlacementTop,
+			overlayposition.PlacementBottom,
+		}
 	case PositionRightBottom:
-		return []Position{PositionRightBottom, PositionRight, PositionRightTop, PositionBottom, PositionTop}
+		return []overlayposition.Placement{
+			overlayposition.PlacementRightBottom,
+			overlayposition.PlacementRight,
+			overlayposition.PlacementRightTop,
+			overlayposition.PlacementBottom,
+			overlayposition.PlacementTop,
+		}
 	case PositionBottom:
-		return []Position{PositionBottom, PositionBottomLeft, PositionBottomRight, PositionTop}
+		return []overlayposition.Placement{
+			overlayposition.PlacementBottom,
+			overlayposition.PlacementBottomLeft,
+			overlayposition.PlacementBottomRight,
+			overlayposition.PlacementTop,
+		}
 	case PositionLeft:
-		return []Position{PositionLeft, PositionLeftTop, PositionLeftBottom, PositionRight}
+		return []overlayposition.Placement{
+			overlayposition.PlacementLeft,
+			overlayposition.PlacementLeftTop,
+			overlayposition.PlacementLeftBottom,
+			overlayposition.PlacementRight,
+		}
 	case PositionRight:
-		return []Position{PositionRight, PositionRightTop, PositionRightBottom, PositionLeft}
+		return []overlayposition.Placement{
+			overlayposition.PlacementRight,
+			overlayposition.PlacementRightTop,
+			overlayposition.PlacementRightBottom,
+			overlayposition.PlacementLeft,
+		}
 	case PositionAuto:
-		return []Position{
-			PositionTop,
-			PositionBottom,
-			PositionRight,
-			PositionLeft,
-			PositionTopLeft,
-			PositionTopRight,
-			PositionBottomLeft,
-			PositionBottomRight,
-			PositionRightTop,
-			PositionRightBottom,
-			PositionLeftTop,
-			PositionLeftBottom,
+		return []overlayposition.Placement{
+			overlayposition.PlacementTop,
+			overlayposition.PlacementBottom,
+			overlayposition.PlacementRight,
+			overlayposition.PlacementLeft,
+			overlayposition.PlacementTopLeft,
+			overlayposition.PlacementTopRight,
+			overlayposition.PlacementBottomLeft,
+			overlayposition.PlacementBottomRight,
+			overlayposition.PlacementRightTop,
+			overlayposition.PlacementRightBottom,
+			overlayposition.PlacementLeftTop,
+			overlayposition.PlacementLeftBottom,
 		}
 	default:
-		return []Position{PositionTop, PositionTopLeft, PositionTopRight, PositionBottom}
-	}
-}
-
-func (inst *Instance) positionCoordinates(position Position, tooltipWidth, tooltipHeight int) (x, y int) {
-	anchorX, anchorY, anchorW, anchorH := inst.anchorBounds[0], inst.anchorBounds[1], inst.anchorBounds[2], inst.anchorBounds[3]
-
-	centerX := anchorX + anchorW/2 - tooltipWidth/2
-	topY := anchorY - tooltipHeight - 1
-	bottomY := anchorY + anchorH + 1
-	leftX := anchorX - tooltipWidth - 1
-	rightX := anchorX + anchorW + 1
-	centerY := anchorY + anchorH/2 - tooltipHeight/2
-	topAlignedY := anchorY
-	bottomAlignedY := anchorY + anchorH - tooltipHeight
-	leftAlignedX := anchorX
-	rightAlignedX := anchorX + anchorW - tooltipWidth
-
-	switch position {
-	case PositionTop:
-		return centerX, topY
-	case PositionTopLeft:
-		return leftAlignedX, topY
-	case PositionTopRight:
-		return rightAlignedX, topY
-	case PositionBottom:
-		return centerX, bottomY
-	case PositionBottomLeft:
-		return leftAlignedX, bottomY
-	case PositionBottomRight:
-		return rightAlignedX, bottomY
-	case PositionLeft:
-		return leftX, centerY
-	case PositionLeftTop:
-		return leftX, topAlignedY
-	case PositionLeftBottom:
-		return leftX, bottomAlignedY
-	case PositionRight:
-		return rightX, centerY
-	case PositionRightTop:
-		return rightX, topAlignedY
-	case PositionRightBottom:
-		return rightX, bottomAlignedY
-	case PositionAuto:
-		return centerX, topY
-	default:
-		return centerX, topY
+		return []overlayposition.Placement{
+			overlayposition.PlacementTop,
+			overlayposition.PlacementTopLeft,
+			overlayposition.PlacementTopRight,
+			overlayposition.PlacementBottom,
+		}
 	}
 }
 
@@ -398,28 +415,4 @@ func getToastTypeProp(props rtui.Props, def ToastType) ToastType {
 		}
 	}
 	return def
-}
-
-func fitsViewport(x, y, width, height, viewportWidth, viewportHeight int) bool {
-	if viewportWidth <= 0 || viewportHeight <= 0 {
-		return true
-	}
-	return x >= 0 && y >= 0 && x+width <= viewportWidth && y+height <= viewportHeight
-}
-
-func clamp(value, min, max int) int {
-	if value < min {
-		return min
-	}
-	if value > max {
-		return max
-	}
-	return value
-}
-
-func maxInt(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
 }

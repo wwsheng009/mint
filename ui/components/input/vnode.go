@@ -25,14 +25,19 @@ const (
 	propCursorConfig  = "cursorConfig"
 	propDisabled      = "disabled"
 	propFormID        = "formID"
+	propHasMax        = "hasMax"
+	propHasMin        = "hasMin"
 	propInputType     = "inputType"
 	propKey           = "key"
+	propMax           = "max"
 	propMaxLen        = "maxLen"
+	propMin           = "min"
 	propPlaceholder   = "placeholder"
 	propPrefix        = "prefix"
 	propReadOnly      = "readOnly"
 	propSearchVariant = "searchVariant"
 	propStyle         = "style"
+	propStep          = "step"
 	propSubmitIntent  = "submitIntent"
 	propSuffix        = "suffix"
 	propValue         = "value"
@@ -93,6 +98,11 @@ type VNode struct {
 	searchVariant bool
 	allowNegative bool
 	allowDecimal  bool
+	hasMin        bool
+	min           float64
+	hasMax        bool
+	max           float64
+	step          float64
 	cursorConfig  cursor.Config
 
 	// === Box Model (via interface) ===
@@ -188,6 +198,11 @@ func (i *VNode) Props() rtui.Props {
 		propBorderStyle:   i.borderStyle,
 		propAllowNegative: i.allowNegative,
 		propAllowDecimal:  i.allowDecimal,
+		propHasMin:        i.hasMin,
+		propMin:           i.min,
+		propHasMax:        i.hasMax,
+		propMax:           i.max,
+		propStep:          i.step,
 		propChangeIntent:  i.changeIntent,
 		propSubmitIntent:  i.submitIntent,
 		propFormID:        i.formID,
@@ -238,6 +253,30 @@ func (i *VNode) SetProps(p rtui.Props) rtui.VNode {
 	if v, ok := p[propAllowDecimal].(bool); ok {
 		i.allowDecimal = v
 	}
+	if v, ok := p[propHasMin].(bool); ok {
+		i.hasMin = v
+	}
+	if v, ok := p[propMin]; ok {
+		if num, ok := coerceFloat64(v); ok {
+			i.min = num
+		}
+	}
+	if v, ok := p[propHasMax].(bool); ok {
+		i.hasMax = v
+	}
+	if v, ok := p[propMax]; ok {
+		if num, ok := coerceFloat64(v); ok {
+			i.max = num
+		}
+	}
+	if v, ok := p[propStep]; ok {
+		if num, ok := coerceFloat64(v); ok {
+			if num < 0 {
+				num = -num
+			}
+			i.step = num
+		}
+	}
 	if v, ok := p[propChangeIntent].(intent.Intent); ok {
 		i.changeIntent = v
 	}
@@ -287,6 +326,11 @@ func (i *VNode) CreateInstance() rtui.ComponentInstance {
 		propBorderStyle:   i.borderStyle,
 		propAllowNegative: i.allowNegative,
 		propAllowDecimal:  i.allowDecimal,
+		propHasMin:        i.hasMin,
+		propMin:           i.min,
+		propHasMax:        i.hasMax,
+		propMax:           i.max,
+		propStep:          i.step,
 		propChangeIntent:  i.changeIntent,
 		propSubmitIntent:  i.submitIntent,
 		propFormID:        i.formID,
@@ -388,6 +432,29 @@ func (i *VNode) SetAllowNegative(allow bool) *VNode {
 // SetAllowDecimal configures whether TypeNumber accepts a decimal point.
 func (i *VNode) SetAllowDecimal(allow bool) *VNode {
 	i.allowDecimal = allow
+	return i
+}
+
+// SetMin sets the inclusive minimum number value for TypeNumber.
+func (i *VNode) SetMin(min float64) *VNode {
+	i.hasMin = true
+	i.min = min
+	return i
+}
+
+// SetMax sets the inclusive maximum number value for TypeNumber.
+func (i *VNode) SetMax(max float64) *VNode {
+	i.hasMax = true
+	i.max = max
+	return i
+}
+
+// SetStep sets the keyboard step size for TypeNumber.
+func (i *VNode) SetStep(step float64) *VNode {
+	if step < 0 {
+		step = -step
+	}
+	i.step = step
 	return i
 }
 
@@ -549,6 +616,31 @@ func (i *VNode) AllowNegative() bool {
 // AllowDecimal reports whether TypeNumber accepts a decimal point.
 func (i *VNode) AllowDecimal() bool {
 	return i.allowDecimal
+}
+
+// HasMin reports whether TypeNumber has a minimum value constraint.
+func (i *VNode) HasMin() bool {
+	return i.hasMin
+}
+
+// Min returns the inclusive minimum value for TypeNumber.
+func (i *VNode) Min() float64 {
+	return i.min
+}
+
+// HasMax reports whether TypeNumber has a maximum value constraint.
+func (i *VNode) HasMax() bool {
+	return i.hasMax
+}
+
+// Max returns the inclusive maximum value for TypeNumber.
+func (i *VNode) Max() float64 {
+	return i.max
+}
+
+// Step returns the keyboard step size for TypeNumber.
+func (i *VNode) Step() float64 {
+	return i.step
 }
 
 // Width returns the explicit width.

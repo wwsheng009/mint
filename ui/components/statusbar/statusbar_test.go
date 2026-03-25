@@ -217,12 +217,15 @@ func TestResolveThemeDefaultsPreservesTooltipArrowStyle(t *testing.T) {
 	}
 }
 
-func TestResolveTooltipXUsesPopoverAnchoring(t *testing.T) {
-	if got := resolveTooltipX([4]int{12, 0, 4, 1}, 10, 40); got != 12 {
-		t.Fatalf("left anchored x = %d, want 12", got)
+func TestResolveTooltipPositionUsesPopoverAnchoring(t *testing.T) {
+	left := resolveTooltipPosition([4]int{12, 2, 4, 1}, TooltipPlacementBottom, 10, 3, 1, 0, 1, 40, 12)
+	if left.X != 12 {
+		t.Fatalf("left anchored x = %d, want 12", left.X)
 	}
-	if got := resolveTooltipX([4]int{34, 0, 4, 1}, 10, 40); got != 28 {
-		t.Fatalf("right anchored x = %d, want 28", got)
+
+	right := resolveTooltipPosition([4]int{34, 2, 4, 1}, TooltipPlacementBottom, 10, 3, 1, 0, 1, 40, 12)
+	if right.X != 28 {
+		t.Fatalf("right anchored x = %d, want 28", right.X)
 	}
 }
 

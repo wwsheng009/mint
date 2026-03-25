@@ -157,6 +157,34 @@ func TestInstance_HandleAction_HomeEnd(t *testing.T) {
 	}
 }
 
+func TestInstance_HandleAction_NavigateAliases(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		propValue: 2,
+		propCount: 5,
+	})
+
+	if !inst.HandleAction(&action.Action{Type: action.ActionNavigateRight}) {
+		t.Fatal("NavigateRight should be handled")
+	}
+	if inst.GetValue() != 3 {
+		t.Fatalf("after NavigateRight: value = %d, want 3", inst.GetValue())
+	}
+
+	if !inst.HandleAction(&action.Action{Type: action.ActionNavigateHome}) {
+		t.Fatal("NavigateHome should be handled")
+	}
+	if inst.GetValue() != 0 {
+		t.Fatalf("after NavigateHome: value = %d, want 0", inst.GetValue())
+	}
+
+	if !inst.HandleAction(&action.Action{Type: action.ActionNavigateEnd}) {
+		t.Fatal("NavigateEnd should be handled")
+	}
+	if inst.GetValue() != 5 {
+		t.Fatalf("after NavigateEnd: value = %d, want 5", inst.GetValue())
+	}
+}
+
 func TestInstance_HandleAction_ToggleCycle(t *testing.T) {
 	inst := NewInstance(rtui.Props{
 		propValue:      4,

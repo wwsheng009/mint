@@ -6,11 +6,20 @@ import (
 
 	"github.com/wwsheng009/mint/runtime/action"
 	"github.com/wwsheng009/mint/runtime/intent"
+	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 	textcomp "github.com/wwsheng009/mint/ui/components/text"
 )
+
+type fakeInstallerHost struct {
+	middlewareCount int
+}
+
+func (h *fakeInstallerHost) AddMiddleware(_ action.ActionMiddleware) {
+	h.middlewareCount++
+}
 
 func TestNew(t *testing.T) {
 	v := New(textcomp.New("anchor"))
@@ -171,6 +180,30 @@ func TestOverlayPaintRendersTitleBodyAndArrow(t *testing.T) {
 	}
 }
 
+func TestComputePopoverBoxUsesSharedPlacementCoordinates(t *testing.T) {
+	anchor := [4]int{10, 8, 8, 1}
+
+	topLeft := computePopoverBox("", "1234567890", PlacementTopLeft, true, 1, 16, anchor)
+	if topLeft.x != 10 || topLeft.y != 4 {
+		t.Fatalf("top-left box = (%d,%d), want (10,4)", topLeft.x, topLeft.y)
+	}
+
+	top := computePopoverBox("", "1234567890", PlacementTop, true, 1, 16, anchor)
+	if top.x != 7 || top.y != 4 {
+		t.Fatalf("top box = (%d,%d), want (7,4)", top.x, top.y)
+	}
+
+	topRight := computePopoverBox("", "1234567890", PlacementTopRight, true, 1, 16, anchor)
+	if topRight.x != 4 || topRight.y != 4 {
+		t.Fatalf("top-right box = (%d,%d), want (4,4)", topRight.x, topRight.y)
+	}
+
+	bottomRight := computePopoverBox("", "1234567890", PlacementBottomRight, true, 1, 16, anchor)
+	if bottomRight.x != 4 || bottomRight.y != 10 {
+		t.Fatalf("bottom-right box = (%d,%d), want (4,10)", bottomRight.x, bottomRight.y)
+	}
+}
+
 func TestSetOpenEmitsFieldChange(t *testing.T) {
 	inst := NewInstance(rtui.Props{
 		propTitle:             "Mint",
@@ -191,6 +224,96 @@ func TestSetOpenEmitsFieldChange(t *testing.T) {
 	}
 	if fieldChange.Field != "popoverOpen" || fieldChange.Value != "true" {
 		t.Fatalf("unexpected field change: %+v", fieldChange)
+	}
+}
+
+func TestPopoverMiddlewareEscapeClosesTopmostOpenPopover(t *testing.T) {
+	popoverRegistryGlobal.reset()
+	defer popoverRegistryGlobal.reset()
+
+	first := NewInstance(rtui.Props{propTitle: "First", propBody: "Body"})
+	first.OnMount()
+	defer first.Destroy()
+	if !first.setOpen(true, TriggerClick) {
+		t.Fatal("expected first popover to open")
+	}
+
+	second := NewInstance(rtui.Props{propTitle: "Second", propBody: "Body"})
+	second.OnMount()
+	defer second.Destroy()
+	if !second.setOpen(true, TriggerClick) {
+		t.Fatal("expected second popover to open")
+	}
+
+	middleware := NewMiddleware()
+	if next := middleware.Before(action.NewAction(action.ActionCancel)); next != nil {
+		t.Fatal("escape should be intercepted when a popover closes")
+	}
+	if !first.open {
+		t.Fatal("older popover should remain open after ESC closes topmost")
+	}
+	if second.open {
+		t.Fatal("topmost popover should close after ESC")
+	}
+}
+
+func TestPopoverMiddlewareClickOutsideClosesOpenPopover(t *testing.T) {
+	popoverRegistryGlobal.reset()
+	defer popoverRegistryGlobal.reset()
+
+	inst := NewInstance(rtui.Props{propTitle: "Mint", propBody: "Body"})
+	inst.SetBounds(10, 5, 8, 1)
+	inst.OnMount()
+	defer inst.Destroy()
+	inst.setOpen(true, TriggerClick)
+
+	middleware := NewMiddleware()
+	act := action.NewAction(action.ActionClick).WithPayload(runtimemsg.NewMouseMsg(1, 1, runtimemsg.MouseLeft, runtimemsg.MouseActionPress))
+	if next := middleware.Before(act); next == nil {
+		t.Fatal("outside click should continue dispatch after closing popover")
+	}
+	if inst.open {
+		t.Fatal("popover should close after outside click")
+	}
+}
+
+func TestPopoverMiddlewareLeavesAnchorAndOverlayClicksAlone(t *testing.T) {
+	popoverRegistryGlobal.reset()
+	defer popoverRegistryGlobal.reset()
+
+	inst := NewInstance(rtui.Props{propTitle: "Mint", propBody: "Popover body"})
+	inst.SetBounds(10, 5, 8, 1)
+	inst.OnMount()
+	defer inst.Destroy()
+	inst.setOpen(true, TriggerClick)
+
+	middleware := NewMiddleware()
+	anchorClick := action.NewAction(action.ActionClick).WithPayload(runtimemsg.NewMouseMsg(11, 5, runtimemsg.MouseLeft, runtimemsg.MouseActionPress))
+	if next := middleware.Before(anchorClick); next == nil {
+		t.Fatal("anchor click should continue dispatch")
+	}
+	if !inst.open {
+		t.Fatal("anchor click should not be treated as outside click")
+	}
+
+	box := computePopoverBox(inst.title, inst.body, inst.placement, inst.showArrow, inst.gapRows, inst.maxWidth, inst.bounds)
+	overlayClick := action.NewAction(action.ActionClick).WithPayload(runtimemsg.NewMouseMsg(box.x+1, box.y+1, runtimemsg.MouseLeft, runtimemsg.MouseActionPress))
+	if next := middleware.Before(overlayClick); next == nil {
+		t.Fatal("overlay click should continue dispatch")
+	}
+	if !inst.open {
+		t.Fatal("overlay click should keep popover open")
+	}
+}
+
+func TestInstallAddsMiddlewareOnce(t *testing.T) {
+	host := &fakeInstallerHost{}
+
+	Install(host)
+	Install(host)
+
+	if host.middlewareCount != 1 {
+		t.Fatalf("middlewareCount = %d, want 1", host.middlewareCount)
 	}
 }
 

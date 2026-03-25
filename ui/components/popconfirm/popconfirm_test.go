@@ -5,10 +5,20 @@ import (
 
 	"github.com/wwsheng009/mint/runtime/action"
 	"github.com/wwsheng009/mint/runtime/intent"
+	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
+	rttypes "github.com/wwsheng009/mint/runtime/types"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/ui/components/button"
 	textcomp "github.com/wwsheng009/mint/ui/components/text"
 )
+
+type fakeInstallerHost struct {
+	middlewareCount int
+}
+
+func (h *fakeInstallerHost) AddMiddleware(_ action.ActionMiddleware) {
+	h.middlewareCount++
+}
 
 func TestNewCapturesButtonIntent(t *testing.T) {
 	anchor := button.NewBuilder("Delete").OnPress(intent.FieldChangeIntent{Field: "delete", Value: "1"}).Build().(*button.VNode)
@@ -123,6 +133,207 @@ func TestBuildOverlaySurfaceContainsButtons(t *testing.T) {
 	if !containsVNodeText(surface, "OK") || !containsVNodeText(surface, "Cancel") {
 		t.Fatal("expected action buttons in overlay surface")
 	}
+}
+
+func TestOverlayBoundsUseSharedPlacementCoordinates(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		propComponentID: "delete.confirm",
+		propTitle:       "Delete?",
+	})
+	inst.SetBounds(10, 8, 8, 1)
+
+	inst.placement = PlacementTop
+	x, y, w, h := inst.overlayBounds()
+	if x != 10+(8-w)/2 || y != 8-h-inst.gapRows {
+		t.Fatalf("top bounds = (%d,%d,%d,%d)", x, y, w, h)
+	}
+
+	inst.placement = PlacementTopRight
+	x, y, w, h = inst.overlayBounds()
+	if x != 18-w || y != 8-h-inst.gapRows {
+		t.Fatalf("top-right bounds = (%d,%d,%d,%d)", x, y, w, h)
+	}
+
+	inst.placement = PlacementBottomLeft
+	x, y, w, h = inst.overlayBounds()
+	if x != 10 || y != 10 {
+		t.Fatalf("bottom-left bounds = (%d,%d,%d,%d)", x, y, w, h)
+	}
+}
+
+func TestRuntimeChildrenPlacementAutoUsesTopAnchorAlignment(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		propComponentID:    "delete.confirm",
+		propAnchorID:       "delete.confirm-anchor",
+		propTitle:          "Delete?",
+		propPlacement:      PlacementAuto,
+		propOpen:           true,
+		propOpenControlled: true,
+	})
+	inst.SetBounds(10, 5, 12, 1)
+
+	children := inst.RuntimeChildren()
+	if len(children) != 1 {
+		t.Fatalf("RuntimeChildren len = %d, want 1", len(children))
+	}
+
+	props := children[0].Props()
+	if got, _ := props["anchor"].(rttypes.Anchor); got != rttypes.AnchorBottom {
+		t.Fatalf("anchor = %v, want %v", props["anchor"], rttypes.AnchorBottom)
+	}
+	if got, ok := props["left"].(int); !ok || got != 6 {
+		t.Fatalf("left = %v, want 6", props["left"])
+	}
+	if got, ok := props["top"].(int); !ok || got != -1 {
+		t.Fatalf("top = %v, want -1", props["top"])
+	}
+}
+
+func TestBuildActionRowSupportsVariantsAndFooterLayouts(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		propComponentID:   "delete.confirm",
+		propAnchorID:      "delete.confirm-anchor",
+		propTitle:         "Delete?",
+		propOkVariant:     button.VariantDanger,
+		propCancelVariant: button.VariantSuccess,
+		propFooterLayout:  FooterLayoutCenter,
+	})
+
+	row := inst.buildActionRow()
+	if row.Tag() != "hstack" {
+		t.Fatalf("row tag = %q, want hstack", row.Tag())
+	}
+	if align, ok := row.Props()["align"].(rtui.Align); !ok || align != rtui.AlignCenter {
+		t.Fatalf("row align = %v, want AlignCenter", row.Props()["align"])
+	}
+	buttons := actionRowButtons(t, row)
+	if buttons[0].Variant() != button.VariantSuccess || buttons[1].Variant() != button.VariantDanger {
+		t.Fatalf("button variants = (%v,%v), want (%v,%v)", buttons[0].Variant(), buttons[1].Variant(), button.VariantSuccess, button.VariantDanger)
+	}
+
+	inst.footerLayout = FooterLayoutStretch
+	row = inst.buildActionRow()
+	buttons = actionRowButtons(t, row)
+	if buttons[0].GetFlex() != 1 || buttons[1].GetFlex() != 1 {
+		t.Fatalf("button flex = (%d,%d), want (1,1)", buttons[0].GetFlex(), buttons[1].GetFlex())
+	}
+
+	inst.footerLayout = FooterLayoutVertical
+	row = inst.buildActionRow()
+	if row.Tag() != "vstack" {
+		t.Fatalf("vertical row tag = %q, want vstack", row.Tag())
+	}
+}
+
+func TestPopconfirmMiddlewareEscapeClosesTopmostOpenPopconfirm(t *testing.T) {
+	popconfirmRegistryGlobal.reset()
+	defer popconfirmRegistryGlobal.reset()
+
+	first := NewInstance(rtui.Props{propComponentID: "first.confirm", propTitle: "First?"})
+	first.OnMount()
+	defer first.Destroy()
+	if !first.setOpen(true, TriggerClick) {
+		t.Fatal("expected first popconfirm to open")
+	}
+
+	second := NewInstance(rtui.Props{propComponentID: "second.confirm", propTitle: "Second?"})
+	second.OnMount()
+	defer second.Destroy()
+	if !second.setOpen(true, TriggerClick) {
+		t.Fatal("expected second popconfirm to open")
+	}
+
+	middleware := NewMiddleware()
+	if next := middleware.Before(action.NewAction(action.ActionCancel)); next != nil {
+		t.Fatal("escape should be intercepted when a popconfirm closes")
+	}
+	if !first.open {
+		t.Fatal("older popconfirm should remain open after ESC closes topmost")
+	}
+	if second.open {
+		t.Fatal("topmost popconfirm should close after ESC")
+	}
+}
+
+func TestPopconfirmMiddlewareClickOutsideClosesOpenPopconfirm(t *testing.T) {
+	popconfirmRegistryGlobal.reset()
+	defer popconfirmRegistryGlobal.reset()
+
+	inst := NewInstance(rtui.Props{propComponentID: "delete.confirm", propTitle: "Delete?"})
+	inst.SetBounds(10, 5, 12, 1)
+	inst.OnMount()
+	defer inst.Destroy()
+	inst.setOpen(true, TriggerClick)
+
+	middleware := NewMiddleware()
+	act := action.NewAction(action.ActionClick).WithPayload(runtimemsg.NewMouseMsg(1, 1, runtimemsg.MouseLeft, runtimemsg.MouseActionPress))
+	if next := middleware.Before(act); next == nil {
+		t.Fatal("outside click should continue dispatch after closing popconfirm")
+	}
+	if inst.open {
+		t.Fatal("popconfirm should close after outside click")
+	}
+}
+
+func TestPopconfirmMiddlewareLeavesAnchorAndOverlayClicksAlone(t *testing.T) {
+	popconfirmRegistryGlobal.reset()
+	defer popconfirmRegistryGlobal.reset()
+
+	inst := NewInstance(rtui.Props{
+		propComponentID: "delete.confirm",
+		propTitle:       "Delete?",
+		propDescription: "This action cannot be undone.",
+	})
+	inst.SetBounds(10, 5, 12, 1)
+	inst.OnMount()
+	defer inst.Destroy()
+	inst.setOpen(true, TriggerClick)
+
+	middleware := NewMiddleware()
+	anchorClick := action.NewAction(action.ActionClick).WithPayload(runtimemsg.NewMouseMsg(11, 5, runtimemsg.MouseLeft, runtimemsg.MouseActionPress))
+	if next := middleware.Before(anchorClick); next == nil {
+		t.Fatal("anchor click should continue dispatch")
+	}
+	if !inst.open {
+		t.Fatal("anchor click should keep popconfirm open")
+	}
+
+	x, y, _, _ := inst.overlayBounds()
+	overlayClick := action.NewAction(action.ActionClick).WithPayload(runtimemsg.NewMouseMsg(x+1, y+1, runtimemsg.MouseLeft, runtimemsg.MouseActionPress))
+	if next := middleware.Before(overlayClick); next == nil {
+		t.Fatal("overlay click should continue dispatch")
+	}
+	if !inst.open {
+		t.Fatal("overlay click should keep popconfirm open")
+	}
+}
+
+func TestInstallAddsMiddlewareOnce(t *testing.T) {
+	host := &fakeInstallerHost{}
+
+	Install(host)
+	Install(host)
+
+	if host.middlewareCount != 1 {
+		t.Fatalf("middlewareCount = %d, want 1", host.middlewareCount)
+	}
+}
+
+func actionRowButtons(t *testing.T, row rtui.VNode) []*button.VNode {
+	t.Helper()
+	children := row.Children()
+	if len(children) == 0 {
+		t.Fatal("expected action buttons")
+	}
+	result := make([]*button.VNode, 0, len(children))
+	for _, child := range children {
+		btn, ok := child.(*button.VNode)
+		if !ok {
+			t.Fatalf("action child = %T, want *button.VNode", child)
+		}
+		result = append(result, btn)
+	}
+	return result
 }
 
 func containsVNodeText(node rtui.VNode, want string) bool {

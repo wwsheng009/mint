@@ -11,6 +11,7 @@ import (
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
+	"github.com/wwsheng009/mint/ui/components/internal/overlayposition"
 	"github.com/wwsheng009/mint/ui/components/internal/proputil"
 )
 
@@ -133,11 +134,16 @@ func (inst *Instance) SetKey(key string) { inst.key = key }
 
 func (inst *Instance) Init(props rtui.Props) { inst.SetProps(props) }
 
-func (inst *Instance) Destroy() {}
+func (inst *Instance) Destroy() { popoverRegistryGlobal.unregister(inst) }
 
-func (inst *Instance) OnMount() {}
+func (inst *Instance) OnMount() {
+	popoverRegistryGlobal.register(inst)
+	if inst.open {
+		popoverRegistryGlobal.touch(inst)
+	}
+}
 
-func (inst *Instance) OnUnmount() {}
+func (inst *Instance) OnUnmount() { popoverRegistryGlobal.unregister(inst) }
 
 func (inst *Instance) SetProps(props rtui.Props) bool {
 	old := *inst
@@ -167,6 +173,9 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	inst.changeIntent = proputil.GetIntent(props, propChangeIntent, inst.changeIntent)
 	inst.changeIntentField = getFieldIntentProp(props, propChangeIntentField)
 	inst.normalize()
+	if !old.open && inst.open {
+		popoverRegistryGlobal.touch(inst)
+	}
 
 	changed := old.key != inst.key ||
 		old.componentID != inst.componentID ||
@@ -355,9 +364,36 @@ func (inst *Instance) setOpen(next bool, trigger TriggerMode) bool {
 	if !inst.openControlled {
 		inst.open = next
 		inst.dirty = true
+		if next {
+			popoverRegistryGlobal.touch(inst)
+		}
 	}
 	inst.emitChange(next, trigger)
 	return true
+}
+
+func (inst *Instance) requestClose(trigger TriggerMode) bool {
+	if !inst.open {
+		return false
+	}
+	return inst.setOpen(false, trigger)
+}
+
+func (inst *Instance) containsAnchorPoint(x, y int) bool {
+	if inst.bounds[2] <= 0 || inst.bounds[3] <= 0 {
+		return false
+	}
+	return x >= inst.bounds[0] && x < inst.bounds[0]+inst.bounds[2] &&
+		y >= inst.bounds[1] && y < inst.bounds[1]+inst.bounds[3]
+}
+
+func (inst *Instance) containsOverlayPoint(x, y int) bool {
+	box := computePopoverBox(inst.title, inst.body, inst.placement, inst.showArrow, inst.gapRows, inst.maxWidth, inst.bounds)
+	if box.width <= 0 || box.height <= 0 {
+		return false
+	}
+	return x >= box.x && x < box.x+box.width &&
+		y >= box.y && y < box.y+box.height
 }
 
 func (inst *Instance) emitChange(open bool, trigger TriggerMode) {
@@ -617,8 +653,12 @@ func (inst *overlayInstance) paintInteriorLine(x, y, contentWidth int, line stri
 }
 
 func (inst *overlayInstance) computeBox() popoverBox {
-	title := strings.TrimSpace(inst.title)
-	bodyLines := wrapTextLines(inst.body, inst.maxWidth)
+	return computePopoverBox(inst.title, inst.body, inst.placement, inst.showArrow, inst.gapRows, inst.maxWidth, inst.anchorBounds)
+}
+
+func computePopoverBox(title, body string, placement Placement, showArrow bool, gapRows, maxWidth int, anchorBounds [4]int) popoverBox {
+	title = strings.TrimSpace(title)
+	bodyLines := wrapTextLines(body, maxWidth)
 	if len(bodyLines) == 0 {
 		bodyLines = []string{""}
 	}
@@ -630,7 +670,7 @@ func (inst *overlayInstance) computeBox() popoverBox {
 	}
 	titleLine := ""
 	if title != "" {
-		titleLine = truncateByDisplayWidth(title, maxInt(contentWidth, inst.maxWidth))
+		titleLine = truncateByDisplayWidth(title, maxInt(contentWidth, maxWidth))
 		if w := paint.StringWidth(titleLine); w > contentWidth {
 			contentWidth = w
 		}
@@ -644,14 +684,13 @@ func (inst *overlayInstance) computeBox() popoverBox {
 		divider = "├" + strings.Repeat("─", contentWidth+2) + "┤"
 	}
 
-	placement := inst.resolvePlacement(height)
-	x := inst.resolveX(width, placement)
-	y := inst.resolveY(height, placement)
-	arrowOffset := inst.resolveArrowOffset(x, width)
+	resolvedPlacement := resolvePopoverPlacement(placement, gapRows, anchorBounds, height)
+	x, y := resolvePopoverPosition(anchorBounds, resolvedPlacement, width, height, gapRows)
+	arrowOffset := resolvePopoverArrowOffset(anchorBounds, x, width)
 	topBorder := "┌" + strings.Repeat("─", contentWidth+2) + "┐"
 	bottomBorder := "└" + strings.Repeat("─", contentWidth+2) + "┘"
-	if inst.showArrow {
-		switch placement {
+	if showArrow {
+		switch resolvedPlacement {
 		case PlacementTop, PlacementTopLeft, PlacementTopRight:
 			bottomBorder = replaceRune(bottomBorder, arrowOffset, '▼')
 		default:
@@ -673,51 +712,48 @@ func (inst *overlayInstance) computeBox() popoverBox {
 	}
 }
 
-func (inst *overlayInstance) resolvePlacement(height int) Placement {
-	if inst.placement != PlacementAuto {
-		return inst.placement
+func resolvePopoverPlacement(placement Placement, gapRows int, anchorBounds [4]int, height int) Placement {
+	if placement != PlacementAuto {
+		return placement
 	}
-	if inst.anchorBounds[1] > height+inst.gapRows {
+	if anchorBounds[1] > height+gapRows {
 		return PlacementTop
 	}
 	return PlacementBottom
 }
 
-func (inst *overlayInstance) resolveX(width int, placement Placement) int {
-	ax, aw := inst.anchorBounds[0], inst.anchorBounds[2]
+func resolvePopoverPosition(anchorBounds [4]int, placement Placement, width, height, gapRows int) (int, int) {
+	result := overlayposition.Resolve(overlayposition.Config{
+		Anchor: overlayposition.RectFromBounds(anchorBounds),
+		Overlay: overlayposition.Size{
+			Width:  width,
+			Height: height,
+		},
+		Candidates: []overlayposition.Placement{popoverOverlayPlacement(placement)},
+		Gap:        gapRows,
+	})
+	return result.X, result.Y
+}
+
+func popoverOverlayPlacement(placement Placement) overlayposition.Placement {
 	switch placement {
-	case PlacementTopRight, PlacementBottomRight:
-		return ax + aw - width
-	case PlacementTop, PlacementBottom:
-		return ax + (aw-width)/2
+	case PlacementTopLeft:
+		return overlayposition.PlacementTopLeft
+	case PlacementTopRight:
+		return overlayposition.PlacementTopRight
+	case PlacementBottom:
+		return overlayposition.PlacementBottom
+	case PlacementBottomLeft:
+		return overlayposition.PlacementBottomLeft
+	case PlacementBottomRight:
+		return overlayposition.PlacementBottomRight
 	default:
-		return ax
+		return overlayposition.PlacementTop
 	}
 }
 
-func (inst *overlayInstance) resolveY(height int, placement Placement) int {
-	anchorY, anchorH := inst.anchorBounds[1], inst.anchorBounds[3]
-	switch placement {
-	case PlacementTop, PlacementTopLeft, PlacementTopRight:
-		return anchorY - height - inst.gapRows
-	default:
-		return anchorY + anchorH + inst.gapRows
-	}
-}
-
-func (inst *overlayInstance) resolveArrowOffset(boxX, width int) int {
-	anchorCenter := inst.anchorBounds[0]
-	if inst.anchorBounds[2] > 0 {
-		anchorCenter = inst.anchorBounds[0] + inst.anchorBounds[2]/2
-	}
-	offset := anchorCenter - boxX
-	if offset < 1 {
-		offset = 1
-	}
-	if offset > width-2 {
-		offset = width - 2
-	}
-	return offset
+func resolvePopoverArrowOffset(anchorBounds [4]int, boxX, width int) int {
+	return overlayposition.PointerX(overlayposition.RectFromBounds(anchorBounds), boxX, width) - boxX
 }
 
 func getPlacementProp(props rtui.Props, def Placement) Placement {

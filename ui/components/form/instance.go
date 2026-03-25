@@ -134,7 +134,7 @@ func (inst *Instance) OnMount() {
 	// Register form instance so children can access it via FormContext
 	formID := inst.Key()
 	if formID != "" {
-		RegisterForm(formID, inst)
+		registerCompatibleForm(formID, inst)
 	}
 }
 
@@ -142,7 +142,7 @@ func (inst *Instance) OnUnmount() {
 	// Unregister form instance to clean up
 	formID := inst.Key()
 	if formID != "" {
-		UnregisterForm(formID)
+		unregisterCompatibleForm(formID)
 	}
 }
 

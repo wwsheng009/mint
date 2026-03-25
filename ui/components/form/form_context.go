@@ -1,69 +1,12 @@
 package form
 
 import (
-	"sync"
-
 	fcontext "github.com/wwsheng009/mint/runtime/context"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
 
 // Context Key for Form (Phase 2)
 const FormContextKey fcontext.ContextKey = "github.com/wwsheng009/mint/ui/components/form:form"
-
-// =============================================================================
-// Compatibility Form Registry
-// =============================================================================
-
-// formRegistry stores active form instances by their formID.
-// Runtime form items and GetFormContext now resolve through the instance tree.
-// The registry remains only as an explicit compatibility path for ownerless /
-// cross-tree lookups via GetRegisteredForm and GetRegisteredFormContext.
-var (
-	formRegistry = make(map[string]*Instance)
-	formMu       sync.RWMutex
-)
-
-// RegisterForm registers a form instance with the compatibility registry.
-// Deprecated: Form instances register themselves on mount; avoid calling this
-// directly outside compatibility shims and tests.
-func RegisterForm(formID string, form *Instance) {
-	formMu.Lock()
-	defer formMu.Unlock()
-	formRegistry[formID] = form
-}
-
-// UnregisterForm removes a form instance from the compatibility registry.
-// Deprecated: Form instances unregister themselves on unmount; avoid calling
-// this directly outside compatibility shims and tests.
-func UnregisterForm(formID string) {
-	formMu.Lock()
-	defer formMu.Unlock()
-	delete(formRegistry, formID)
-}
-
-// GetRegisteredForm returns the registered form instance for the given formID.
-// This is the explicit registry compatibility lookup, not an instance-tree search.
-func GetRegisteredForm(formID string) *Instance {
-	formMu.RLock()
-	defer formMu.RUnlock()
-	return formRegistry[formID]
-}
-
-// GetForm returns the registered form instance for the given formID.
-// Deprecated: use GetFormContext for owner-bound instance-tree resolution,
-// GetRegisteredFormContext for registry-backed context access, or
-// GetRegisteredForm for explicit registry instance lookup.
-func GetForm(formID string) *Instance {
-	return GetRegisteredForm(formID)
-}
-
-// ResetRegistry clears all registered form instances.
-// Intended for use in tests to ensure isolation between test cases.
-func ResetRegistry() {
-	formMu.Lock()
-	defer formMu.Unlock()
-	formRegistry = make(map[string]*Instance)
-}
 
 // =============================================================================
 // Form Context Interface
@@ -217,6 +160,9 @@ func (c *formContextImpl) GetDirtyFields() []string {
 
 // newFormContext 创建一个新的 FormContext 实例
 func newFormContext(form *Instance) FormContext {
+	if form == nil {
+		return nil
+	}
 	return &formContextImpl{form: form}
 }
 
@@ -232,24 +178,7 @@ func GetFormContext(formID string) FormContext {
 	if owner == nil {
 		return nil
 	}
-	form := resolveFormFromOwner(owner, formID)
-	if form == nil {
-		return nil
-	}
-	return newFormContext(form)
-}
-
-// GetRegisteredFormContext returns a FormContext backed by the compatibility
-// registry only. Use this only for explicit cross-tree / ownerless lookups.
-func GetRegisteredFormContext(formID string) FormContext {
-	if formID == "" {
-		return nil
-	}
-	form := GetRegisteredForm(formID)
-	if form == nil {
-		return nil
-	}
-	return newFormContext(form)
+	return newFormContext(resolveFormFromOwner(owner, formID))
 }
 
 func resolveFormFromOwner(owner rtui.ComponentInstance, formID string) *Instance {

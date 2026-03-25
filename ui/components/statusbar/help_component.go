@@ -7,6 +7,7 @@ import (
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
+	"github.com/wwsheng009/mint/ui/components/internal/overlayposition"
 )
 
 type helpLineVNode struct {
@@ -345,9 +346,11 @@ func (inst *overlayHelpInstance) computeTooltipBox(text string, anchor [4]int) o
 	boxWidth := innerWidth + 4
 	boxHeight := len(lines) + 2
 	shadowH := 1
-	tooltipX := resolveTooltipX(anchor, boxWidth, viewportWidth)
+	position := resolveTooltipPosition(anchor, inst.placement, boxWidth, boxHeight, inst.gapRows, inst.bottomOffsetRows, shadowH, viewportWidth, viewportHeight)
+	tooltipX := position.X
 	arrowX := resolveTooltipArrowX(anchor, tooltipX, boxWidth)
-	tooltipY, placement := resolveTooltipY(anchor, inst.placement, boxHeight, inst.gapRows, inst.bottomOffsetRows, shadowH, viewportHeight)
+	tooltipY := position.Y
+	placement := position.Placement
 	boxLines := buildOverlayTooltipLines(lines, innerWidth, placement, inst.arrowStyle, true, arrowX-tooltipX)
 
 	return overlayTooltipBox{
@@ -400,68 +403,89 @@ func replaceBorderRune(content string, index int, replacement rune) string {
 }
 
 func resolveTooltipArrowX(anchor [4]int, boxX, boxWidth int) int {
-	arrowX := anchor[0]
-	if anchor[2] > 0 {
-		arrowX = anchor[0] + anchor[2]/2
-	}
-	minX := boxX + 1
-	maxX := boxX + boxWidth - 2
-	if arrowX < minX {
-		arrowX = minX
-	}
-	if arrowX > maxX {
-		arrowX = maxX
-	}
-	return arrowX
+	return overlayposition.PointerX(overlayposition.RectFromBounds(anchor), boxX, boxWidth)
 }
 
-func resolveTooltipY(anchor [4]int, placement TooltipPlacement, boxHeight, gapRows, bottomOffsetRows, shadowH, viewportHeight int) (int, TooltipPlacement) {
-	if gapRows < 0 {
-		gapRows = 0
+type tooltipPositionResult struct {
+	X         int
+	Y         int
+	Placement TooltipPlacement
+}
+
+func resolveTooltipPosition(anchor [4]int, placement TooltipPlacement, boxWidth, boxHeight, gapRows, bottomOffsetRows, shadowH, viewportWidth, viewportHeight int) tooltipPositionResult {
+	gapRows = clampNonNegative(gapRows)
+	bottomOffsetRows = clampNonNegative(bottomOffsetRows)
+	anchorRect := overlayposition.RectFromBounds(anchor)
+	anchorRect.Height += bottomOffsetRows
+
+	result := overlayposition.Resolve(overlayposition.Config{
+		Anchor: anchorRect,
+		Overlay: overlayposition.Size{
+			Width:  boxWidth,
+			Height: boxHeight,
+		},
+		Viewport: overlayposition.Size{
+			Width:  tooltipViewportLimit(viewportWidth, 1),
+			Height: tooltipViewportLimit(viewportHeight, shadowH),
+		},
+		Candidates: resolveTooltipCandidates(anchor, placement, boxHeight, gapRows, bottomOffsetRows, shadowH, viewportHeight),
+		Gap:        gapRows,
+	})
+
+	return tooltipPositionResult{
+		X:         result.X,
+		Y:         result.Y,
+		Placement: tooltipPlacementFromOverlay(result.Placement),
 	}
-	if bottomOffsetRows < 0 {
-		bottomOffsetRows = 0
+}
+
+func resolveTooltipCandidates(anchor [4]int, placement TooltipPlacement, boxHeight, gapRows, bottomOffsetRows, shadowH, viewportHeight int) []overlayposition.Placement {
+	switch preferredTooltipPlacement(anchor, placement, boxHeight, gapRows, bottomOffsetRows, shadowH, viewportHeight) {
+	case TooltipPlacementTop:
+		return []overlayposition.Placement{
+			overlayposition.PlacementTopLeft,
+			overlayposition.PlacementTopRight,
+			overlayposition.PlacementTop,
+		}
+	default:
+		return []overlayposition.Placement{
+			overlayposition.PlacementBottomLeft,
+			overlayposition.PlacementBottomRight,
+			overlayposition.PlacementBottom,
+		}
+	}
+}
+
+func preferredTooltipPlacement(anchor [4]int, placement TooltipPlacement, boxHeight, gapRows, bottomOffsetRows, shadowH, viewportHeight int) TooltipPlacement {
+	gapRows = clampNonNegative(gapRows)
+	bottomOffsetRows = clampNonNegative(bottomOffsetRows)
+	if placement != TooltipPlacementAuto {
+		return placement
 	}
 
 	aboveBoxY := anchor[1] - boxHeight - gapRows
 	belowBoxY := anchor[1] + anchor[3] + gapRows + bottomOffsetRows
-
-	resolved := placement
-	if resolved == TooltipPlacementAuto {
-		fitsBelow := viewportHeight <= 0 || belowBoxY+boxHeight+shadowH <= viewportHeight
-		fitsAbove := aboveBoxY >= 0 && (viewportHeight <= 0 || aboveBoxY+boxHeight+shadowH <= viewportHeight)
-		switch {
-		case fitsAbove && !fitsBelow:
-			resolved = TooltipPlacementTop
-		case viewportHeight > 0 && fitsAbove && anchor[1] > viewportHeight/2:
-			resolved = TooltipPlacementTop
-		default:
-			resolved = TooltipPlacementBottom
-		}
-		if viewportHeight <= 0 && anchor[1] > boxHeight+gapRows {
-			resolved = TooltipPlacementTop
-		}
+	fitsBelow := viewportHeight <= 0 || belowBoxY+boxHeight+shadowH <= viewportHeight
+	fitsAbove := aboveBoxY >= 0 && (viewportHeight <= 0 || aboveBoxY+boxHeight+shadowH <= viewportHeight)
+	switch {
+	case fitsAbove && !fitsBelow:
+		return TooltipPlacementTop
+	case viewportHeight > 0 && fitsAbove && anchor[1] > viewportHeight/2:
+		return TooltipPlacementTop
+	case viewportHeight <= 0 && anchor[1] > boxHeight+gapRows:
+		return TooltipPlacementTop
+	default:
+		return TooltipPlacementBottom
 	}
+}
 
-	boxY := belowBoxY
-	if resolved == TooltipPlacementTop {
-		boxY = aboveBoxY
+func tooltipPlacementFromOverlay(placement overlayposition.Placement) TooltipPlacement {
+	switch placement {
+	case overlayposition.PlacementTop, overlayposition.PlacementTopLeft, overlayposition.PlacementTopRight:
+		return TooltipPlacementTop
+	default:
+		return TooltipPlacementBottom
 	}
-
-	if viewportHeight > 0 {
-		maxBoxY := viewportHeight - boxHeight - shadowH
-		if maxBoxY < 0 {
-			maxBoxY = 0
-		}
-		if boxY < 0 {
-			boxY = 0
-		}
-		if boxY > maxBoxY {
-			boxY = maxBoxY
-		}
-	}
-
-	return boxY, resolved
 }
 
 func overlayTooltipArrowRune(placement TooltipPlacement, arrowStyle TooltipArrowStyle) string {
@@ -496,36 +520,15 @@ func (inst *overlayHelpInstance) SetBounds(x, y, w, h int) {
 	inst.bounds = [4]int{x, y, w, h}
 }
 
-func resolveTooltipX(anchor [4]int, boxWidth, viewportWidth int) int {
-	anchorLeft := anchor[0]
-	anchorRight := anchor[0] + anchor[2]
-	tooltipX := anchorLeft
-
-	if viewportWidth <= 0 {
-		return tooltipX
+func tooltipViewportLimit(viewportSize, reserve int) int {
+	if viewportSize <= 0 {
+		return 0
 	}
-
-	maxX := viewportWidth - boxWidth - 1
-	if maxX < 0 {
-		maxX = 0
+	limit := viewportSize - reserve
+	if limit < 1 {
+		return 1
 	}
-	if tooltipX >= 0 && tooltipX <= maxX {
-		return tooltipX
-	}
-
-	tooltipX = anchorRight - boxWidth
-	if tooltipX >= 0 && tooltipX <= maxX {
-		return tooltipX
-	}
-
-	tooltipX = anchor[0] + anchor[2]/2 - boxWidth/2
-	if tooltipX < 0 {
-		tooltipX = 0
-	}
-	if tooltipX > maxX {
-		tooltipX = maxX
-	}
-	return tooltipX
+	return limit
 }
 
 func wrapByDisplayWidth(text string, maxWidth int) []string {

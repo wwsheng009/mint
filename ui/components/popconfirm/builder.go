@@ -4,6 +4,7 @@ import (
 	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
+	"github.com/wwsheng009/mint/ui/components/button"
 )
 
 // Builder provides a fluent API for creating Popconfirm VNodes.
@@ -103,6 +104,21 @@ func (b *Builder) OkText(text string) *Builder {
 
 func (b *Builder) CancelText(text string) *Builder {
 	b.node.SetCancelText(text)
+	return b
+}
+
+func (b *Builder) OkVariant(variant button.Variant) *Builder {
+	b.node.SetOkVariant(variant)
+	return b
+}
+
+func (b *Builder) CancelVariant(variant button.Variant) *Builder {
+	b.node.SetCancelVariant(variant)
+	return b
+}
+
+func (b *Builder) FooterLayout(layout FooterLayout) *Builder {
+	b.node.SetFooterLayout(layout)
 	return b
 }
 

@@ -32,6 +32,15 @@ func (staticActionIntent) Priority() runtimeintent.ActionPriority {
 
 type StaticOption func(*staticDialogConfig)
 
+type StaticFooterLayout int
+
+const (
+	StaticFooterLayoutEnd StaticFooterLayout = iota
+	StaticFooterLayoutCenter
+	StaticFooterLayoutStretch
+	StaticFooterLayoutVertical
+)
+
 type staticDialogConfig struct {
 	title          string
 	message        string
@@ -45,6 +54,8 @@ type staticDialogConfig struct {
 	confirmIntent  runtimeintent.Intent
 	cancelIntent   runtimeintent.Intent
 	modalStyle     style.Style
+	helperPrefix   rtui.VNode
+	footerLayout   StaticFooterLayout
 }
 
 func init() {
@@ -79,9 +90,45 @@ func WithCancelText(text string) StaticOption {
 	}
 }
 
+func WithConfirmVariant(v button.Variant) StaticOption {
+	return func(cfg *staticDialogConfig) {
+		cfg.confirmVariant = v
+	}
+}
+
+func WithCancelVariant(v button.Variant) StaticOption {
+	return func(cfg *staticDialogConfig) {
+		cfg.cancelVariant = v
+	}
+}
+
 func WithHelperStyle(s style.Style) StaticOption {
 	return func(cfg *staticDialogConfig) {
 		cfg.modalStyle = s
+	}
+}
+
+func WithHelperPrefix(prefix string) StaticOption {
+	return func(cfg *staticDialogConfig) {
+		if prefix == "" {
+			return
+		}
+		cfg.helperPrefix = newtext.New(prefix).
+			SetStyleProps(style.NewStyle().Foreground(theme.Muted()).Bold(true))
+	}
+}
+
+func WithHelperPrefixNode(v rtui.VNode) StaticOption {
+	return func(cfg *staticDialogConfig) {
+		if v != nil {
+			cfg.helperPrefix = v
+		}
+	}
+}
+
+func WithFooterLayout(layout StaticFooterLayout) StaticOption {
+	return func(cfg *staticDialogConfig) {
+		cfg.footerLayout = layout
 	}
 }
 
@@ -96,6 +143,7 @@ func Alert(title, message string, opts ...StaticOption) *Builder {
 		cancelText:     "Cancel",
 		confirmVariant: button.VariantPrimary,
 		cancelVariant:  button.VariantSecondary,
+		footerLayout:   StaticFooterLayoutEnd,
 	}
 	applyStaticOptions(&cfg, opts...)
 	return newStaticDialogBuilder(cfg)
@@ -113,6 +161,7 @@ func Confirm(title, message string, opts ...StaticOption) *Builder {
 		confirmVariant: button.VariantPrimary,
 		cancelVariant:  button.VariantSecondary,
 		modalStyle:     style.NewStyle().Foreground(theme.Primary()),
+		footerLayout:   StaticFooterLayoutEnd,
 	}
 	applyStaticOptions(&cfg, opts...)
 	return newStaticDialogBuilder(cfg)
@@ -130,6 +179,7 @@ func Info(message string, opts ...StaticOption) *Builder {
 		confirmVariant: button.VariantPrimary,
 		cancelVariant:  button.VariantSecondary,
 		modalStyle:     style.NewStyle().Foreground(theme.Primary()),
+		footerLayout:   StaticFooterLayoutEnd,
 	}
 	applyStaticOptions(&cfg, opts...)
 	return newStaticDialogBuilder(cfg)
@@ -147,6 +197,7 @@ func Success(message string, opts ...StaticOption) *Builder {
 		confirmVariant: button.VariantSuccess,
 		cancelVariant:  button.VariantSecondary,
 		modalStyle:     style.NewStyle().Foreground(theme.Success()),
+		footerLayout:   StaticFooterLayoutEnd,
 	}
 	applyStaticOptions(&cfg, opts...)
 	return newStaticDialogBuilder(cfg)
@@ -164,6 +215,7 @@ func Error(message string, opts ...StaticOption) *Builder {
 		confirmVariant: button.VariantDanger,
 		cancelVariant:  button.VariantSecondary,
 		modalStyle:     style.NewStyle().Foreground(theme.Error()),
+		footerLayout:   StaticFooterLayoutEnd,
 	}
 	applyStaticOptions(&cfg, opts...)
 	return newStaticDialogBuilder(cfg)
@@ -181,6 +233,7 @@ func Warning(message string, opts ...StaticOption) *Builder {
 		confirmVariant: button.VariantSecondary,
 		cancelVariant:  button.VariantSecondary,
 		modalStyle:     style.NewStyle().Foreground(theme.Warning()),
+		footerLayout:   StaticFooterLayoutEnd,
 	}
 	applyStaticOptions(&cfg, opts...)
 	return newStaticDialogBuilder(cfg)
@@ -197,7 +250,7 @@ func applyStaticOptions(cfg *staticDialogConfig, opts ...StaticOption) {
 func newStaticDialogBuilder(cfg staticDialogConfig) *Builder {
 	builder := NewBuilder().
 		Title(cfg.title).
-		Content(newtext.New(cfg.message)).
+		Content(staticContent(cfg)).
 		Footer(staticFooter(cfg)).
 		Width(cfg.width).
 		Height(cfg.height).
@@ -212,13 +265,34 @@ func newStaticDialogBuilder(cfg staticDialogConfig) *Builder {
 	return builder
 }
 
+func staticContent(cfg staticDialogConfig) rtui.VNode {
+	message := newtext.New(cfg.message)
+	if cfg.helperPrefix == nil {
+		return message
+	}
+	return rtui.HStackBuilder(cfg.helperPrefix, message).
+		AlignCross(rtui.AlignStart).
+		Gap(1).
+		Build()
+}
+
 func staticFooter(cfg staticDialogConfig) rtui.VNode {
 	children := make([]rtui.VNode, 0, 2)
 	if cfg.showCancel {
-		children = append(children, newStaticFooterButton(cfg.cancelText, cfg.cancelVariant, staticActionCancel, cfg.cancelIntent))
+		children = append(children, newStaticFooterButton(cfg.cancelText, cfg.cancelVariant, staticActionCancel, cfg.cancelIntent, cfg.footerLayout == StaticFooterLayoutStretch))
 	}
-	children = append(children, newStaticFooterButton(cfg.confirmText, cfg.confirmVariant, confirmStaticAction(cfg), cfg.confirmIntent))
-	return rtui.HStackBuilder(children...).Align(rtui.AlignEnd).Gap(1).Build()
+	children = append(children, newStaticFooterButton(cfg.confirmText, cfg.confirmVariant, confirmStaticAction(cfg), cfg.confirmIntent, cfg.footerLayout == StaticFooterLayoutStretch))
+
+	switch cfg.footerLayout {
+	case StaticFooterLayoutCenter:
+		return rtui.HStackBuilder(children...).Align(rtui.AlignCenter).Gap(1).Build()
+	case StaticFooterLayoutStretch:
+		return rtui.HStackBuilder(children...).Gap(1).Build()
+	case StaticFooterLayoutVertical:
+		return rtui.VStackBuilder(children...).Gap(1).Build()
+	default:
+		return rtui.HStackBuilder(children...).Align(rtui.AlignEnd).Gap(1).Build()
+	}
 }
 
 func confirmStaticAction(cfg staticDialogConfig) staticAction {
@@ -228,11 +302,14 @@ func confirmStaticAction(cfg staticDialogConfig) staticAction {
 	return staticActionAcknowledge
 }
 
-func newStaticFooterButton(label string, variant button.Variant, action staticAction, next runtimeintent.Intent) rtui.VNode {
+func newStaticFooterButton(label string, variant button.Variant, action staticAction, next runtimeintent.Intent, stretch bool) rtui.VNode {
 	builder := button.NewBuilder(label).Variant(variant).OnPress(staticActionIntent{
 		Action: action,
 		Next:   next,
 	})
+	if stretch {
+		builder.Flex(1).TextAlign(rtui.AlignCenter)
+	}
 	return builder.Build()
 }
 

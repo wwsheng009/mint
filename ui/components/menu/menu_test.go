@@ -161,6 +161,145 @@ func TestBuilderPreservesPortalProps(t *testing.T) {
 	}
 }
 
+func TestBuilderPlacementBottomEndUsesRootPopupMetrics(t *testing.T) {
+	vnode := NewPopup([]MenuItem{Action("open", "Open", testIntent{"open"})}).
+		AnchorTo("toolbar.file", rttypes.AnchorBottomLeft).
+		Placement(PlacementBottomEnd).
+		Build()
+
+	props := vnode.Props()
+	if got, _ := props["anchor"].(rttypes.Anchor); got != rttypes.AnchorBottomRight {
+		t.Fatalf("anchor = %v, want AnchorBottomRight", got)
+	}
+
+	child := vnode.Children()[0].(*popupVNode)
+	inst := child.CreateInstance().(*popupInstance)
+	root := inst.popupSurfaces()[0]
+
+	if got, _ := props["left"].(int); got != 0 {
+		t.Fatalf("left = %d, want 0", got)
+	}
+	if got, _ := props["top"].(int); got != root.metrics.surfaceHeight {
+		t.Fatalf("top = %d, want %d", got, root.metrics.surfaceHeight)
+	}
+	if got, _ := props["width"].(int); got != root.metrics.surfaceWidth {
+		t.Fatalf("width = %d, want %d", got, root.metrics.surfaceWidth)
+	}
+	if got, _ := props["height"].(int); got != root.metrics.surfaceHeight {
+		t.Fatalf("height = %d, want %d", got, root.metrics.surfaceHeight)
+	}
+	if got, _ := props["positioningWidth"].(int); got != root.metrics.surfaceWidth {
+		t.Fatalf("positioningWidth = %d, want %d", got, root.metrics.surfaceWidth)
+	}
+	if got, _ := props["positioningHeight"].(int); got != root.metrics.surfaceHeight {
+		t.Fatalf("positioningHeight = %d, want %d", got, root.metrics.surfaceHeight)
+	}
+}
+
+func TestBuilderPlacementRightStartUsesRootWidthOffset(t *testing.T) {
+	vnode := NewPopup([]MenuItem{Action("open", "Open", testIntent{"open"})}).
+		AnchorTo("toolbar.file", rttypes.AnchorBottomLeft).
+		Placement(PlacementRightStart).
+		Build()
+
+	props := vnode.Props()
+	if got, _ := props["anchor"].(rttypes.Anchor); got != rttypes.AnchorTopRight {
+		t.Fatalf("anchor = %v, want AnchorTopRight", got)
+	}
+
+	child := vnode.Children()[0].(*popupVNode)
+	inst := child.CreateInstance().(*popupInstance)
+	root := inst.popupSurfaces()[0]
+
+	if got, _ := props["left"].(int); got != root.metrics.surfaceWidth {
+		t.Fatalf("left = %d, want %d", got, root.metrics.surfaceWidth)
+	}
+	if got, _ := props["top"].(int); got != 0 {
+		t.Fatalf("top = %d, want 0", got)
+	}
+	if got, _ := props["width"].(int); got != root.metrics.surfaceWidth {
+		t.Fatalf("width = %d, want %d", got, root.metrics.surfaceWidth)
+	}
+	if got, _ := props["height"].(int); got != root.metrics.surfaceHeight {
+		t.Fatalf("height = %d, want %d", got, root.metrics.surfaceHeight)
+	}
+	if got, _ := props["positioningWidth"].(int); got != root.metrics.surfaceWidth {
+		t.Fatalf("positioningWidth = %d, want %d", got, root.metrics.surfaceWidth)
+	}
+	if got, _ := props["positioningHeight"].(int); got != root.metrics.surfaceHeight {
+		t.Fatalf("positioningHeight = %d, want %d", got, root.metrics.surfaceHeight)
+	}
+}
+
+func TestBuilderPlacementAutoDefaultsToBottomStart(t *testing.T) {
+	vnode := NewPopup([]MenuItem{Action("open", "Open", testIntent{"open"})}).
+		AnchorTo("toolbar.file", rttypes.AnchorBottomLeft).
+		Placement(PlacementAuto).
+		Build()
+
+	props := vnode.Props()
+	if got, _ := props["anchor"].(rttypes.Anchor); got != rttypes.AnchorBottomLeft {
+		t.Fatalf("anchor = %v, want AnchorBottomLeft", got)
+	}
+
+	child := vnode.Children()[0].(*popupVNode)
+	inst := child.CreateInstance().(*popupInstance)
+	root := inst.popupSurfaces()[0]
+
+	if got, _ := props["left"].(int); got != 0 {
+		t.Fatalf("left = %d, want 0", got)
+	}
+	if got, _ := props["top"].(int); got != root.metrics.surfaceHeight {
+		t.Fatalf("top = %d, want %d", got, root.metrics.surfaceHeight)
+	}
+}
+
+func TestBuilderPlacementAutoTracksTopRightAnchor(t *testing.T) {
+	vnode := NewPopup([]MenuItem{Action("open", "Open", testIntent{"open"})}).
+		AnchorTo("toolbar.file", rttypes.AnchorTopRight).
+		Placement(PlacementAuto).
+		Build()
+
+	props := vnode.Props()
+	if got, _ := props["anchor"].(rttypes.Anchor); got != rttypes.AnchorTopRight {
+		t.Fatalf("anchor = %v, want AnchorTopRight", got)
+	}
+
+	child := vnode.Children()[0].(*popupVNode)
+	inst := child.CreateInstance().(*popupInstance)
+	root := inst.popupSurfaces()[0]
+
+	if got, _ := props["left"].(int); got != 0 {
+		t.Fatalf("left = %d, want 0", got)
+	}
+	if got, _ := props["top"].(int); got != -root.metrics.surfaceHeight {
+		t.Fatalf("top = %d, want %d", got, -root.metrics.surfaceHeight)
+	}
+}
+
+func TestBuilderPlacementAutoTracksRightAnchor(t *testing.T) {
+	vnode := NewPopup([]MenuItem{Action("open", "Open", testIntent{"open"})}).
+		AnchorTo("toolbar.file", rttypes.AnchorRight).
+		Placement(PlacementAuto).
+		Build()
+
+	props := vnode.Props()
+	if got, _ := props["anchor"].(rttypes.Anchor); got != rttypes.AnchorTopRight {
+		t.Fatalf("anchor = %v, want AnchorTopRight", got)
+	}
+
+	child := vnode.Children()[0].(*popupVNode)
+	inst := child.CreateInstance().(*popupInstance)
+	root := inst.popupSurfaces()[0]
+
+	if got, _ := props["left"].(int); got != root.metrics.surfaceWidth {
+		t.Fatalf("left = %d, want %d", got, root.metrics.surfaceWidth)
+	}
+	if got, _ := props["top"].(int); got != 0 {
+		t.Fatalf("top = %d, want 0", got)
+	}
+}
+
 func TestPopupInstanceNavigateAndActivate(t *testing.T) {
 	menuRegistryGlobal.reset()
 	defer menuRegistryGlobal.reset()

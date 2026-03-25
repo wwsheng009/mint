@@ -3,6 +3,7 @@ package progress
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/wwsheng009/mint/framework/theme"
 	"github.com/wwsheng009/mint/runtime/layout"
@@ -18,6 +19,7 @@ const (
 	circleVisualHeight    = 3
 	dashboardVisualWidth  = 7
 	dashboardVisualHeight = 2
+	activeTickInterval    = 120 * time.Millisecond
 )
 
 type gridPoint struct {
@@ -40,6 +42,8 @@ type Instance struct {
 	progressType  Type
 	status        Status
 	showPercent   bool
+	activeFrame   int
+	lastTick      time.Time
 	bounds        [4]int
 	dirty         bool
 }
@@ -47,6 +51,7 @@ type Instance struct {
 var (
 	_ rtui.ComponentInstance = (*Instance)(nil)
 	_ rtui.PaintableInstance = (*Instance)(nil)
+	_ rtui.TickableInstance  = (*Instance)(nil)
 	_ interface {
 		Measure(layout.Constraints) layout.Size
 	} = (*Instance)(nil)
@@ -112,6 +117,11 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	inst.status = getStatusProp(props, inst.status)
 	inst.showPercent = proputil.GetBool(props, propShowPercent, inst.showPercent)
 
+	if oldType != inst.progressType || oldStatus != inst.status || oldValue != inst.value || oldMax != inst.max {
+		inst.activeFrame = 0
+		inst.lastTick = time.Time{}
+	}
+
 	changed := oldKey != inst.key ||
 		oldLabel != inst.label ||
 		oldStyle != inst.progressStyle ||
@@ -146,6 +156,28 @@ func (inst *Instance) IsDirty() bool {
 	return inst.dirty
 }
 func (inst *Instance) GetContext() *rtui.ComponentContext { return nil }
+
+// =============================================================================
+// TickableInstance Interface
+// =============================================================================
+
+func (inst *Instance) WantsTick() bool {
+	return inst.status == StatusActive && inst.value > 0 && inst.value < inst.max
+}
+
+func (inst *Instance) Tick(now time.Time) bool {
+	if !inst.WantsTick() {
+		return false
+	}
+	if !inst.lastTick.IsZero() && now.Sub(inst.lastTick) < activeTickInterval {
+		return false
+	}
+
+	inst.lastTick = now
+	inst.activeFrame++
+	inst.dirty = true
+	return true
+}
 
 // =============================================================================
 // PaintableInstance Interface
@@ -228,18 +260,20 @@ func (inst *Instance) lineRow() string {
 		filledCount = innerWidth
 	}
 
-	filled := strings.Repeat("=", filledCount)
-	remainingCount := innerWidth - filledCount
-	if inst.status == StatusActive && percent < 100 && remainingCount > 0 {
-		if filledCount > 0 {
-			filled = strings.Repeat("=", filledCount-1)
-		} else {
-			filled = ""
-		}
-		filled += ">"
+	cells := make([]rune, innerWidth)
+	for i := range cells {
+		cells[i] = '-'
+	}
+	for i := 0; i < filledCount; i++ {
+		cells[i] = '='
 	}
 
-	return "[" + filled + strings.Repeat("-", remainingCount) + "]"
+	if inst.status == StatusActive && percent < 100 && filledCount > 0 {
+		head := inst.activeFrame % filledCount
+		cells[head] = '>'
+	}
+
+	return "[" + string(cells) + "]"
 }
 
 func (inst *Instance) circleRows() []string {
@@ -273,15 +307,18 @@ func (inst *Instance) dashboardRows() []string {
 
 func (inst *Instance) fillSegments(grid [][]rune, positions []gridPoint) {
 	filledCount := segmentFillCount(inst.Percent(), len(positions))
-	fillRune := '#'
 	trackRune := 'o'
-	if inst.status == StatusActive {
-		fillRune = '*'
+	activeIndex := -1
+	if inst.status == StatusActive && filledCount > 0 {
+		activeIndex = inst.activeFrame % filledCount
 	}
 
 	for idx, pos := range positions {
 		if idx < filledCount {
-			grid[pos.row][pos.col] = fillRune
+			grid[pos.row][pos.col] = '#'
+			if idx == activeIndex {
+				grid[pos.row][pos.col] = '*'
+			}
 		} else {
 			grid[pos.row][pos.col] = trackRune
 		}

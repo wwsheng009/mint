@@ -91,8 +91,8 @@ func (inst *Instance) initBehaviors() {
 
 // --- ComponentInstance ---
 
-func (inst *Instance) Key() string       { return inst.key }
-func (inst *Instance) SetKey(key string) { inst.key = key }
+func (inst *Instance) Key() string         { return inst.key }
+func (inst *Instance) SetKey(key string)   { inst.key = key }
 func (inst *Instance) Parent() interface{} { return nil }
 
 func (inst *Instance) Init(props rtui.Props) { inst.SetProps(props) }
@@ -154,7 +154,7 @@ func (inst *Instance) GetProps() rtui.Props {
 
 func (inst *Instance) MarkDirty()                         { inst.dirty = true }
 func (inst *Instance) IsDirty() bool                      { return inst.dirty }
-func (inst *Instance) GetContext() *rtui.ComponentContext  { return nil }
+func (inst *Instance) GetContext() *rtui.ComponentContext { return nil }
 
 // --- PaintableInstance ---
 
@@ -287,16 +287,16 @@ func (inst *Instance) HandleAction(act *action.Action) bool {
 	}
 
 	switch act.Type {
-	case action.ActionCursorLeft:
+	case action.ActionCursorLeft, action.ActionNavigateLeft:
 		inst.changeBy(-inst.step)
 		return true
-	case action.ActionCursorRight:
+	case action.ActionCursorRight, action.ActionNavigateRight:
 		inst.changeBy(inst.step)
 		return true
-	case action.ActionCursorHome:
+	case action.ActionCursorHome, action.ActionNavigateHome:
 		inst.setValue(inst.min)
 		return true
-	case action.ActionCursorEnd:
+	case action.ActionCursorEnd, action.ActionNavigateEnd:
 		inst.setValue(inst.max)
 		return true
 	}
@@ -350,7 +350,7 @@ func (inst *Instance) SetBounds(x, y, w, h int) {
 	inst.bounds = [4]int{x, y, w, h}
 }
 
-func (inst *Instance) GetStyle() style.Style { return inst.sliderStyle }
+func (inst *Instance) GetStyle() style.Style   { return inst.sliderStyle }
 func (inst *Instance) SetStyle(st style.Style) { inst.sliderStyle = st }
 
 func (inst *Instance) GetProp(key string) (interface{}, bool) {
@@ -406,7 +406,7 @@ func (inst *Instance) Measure(constraints layout.Constraints) layout.Size {
 
 	contentWidth := w
 	if inst.label != "" {
-		contentWidth += paint.StringWidth(inst.label+": ")
+		contentWidth += paint.StringWidth(inst.label + ": ")
 	}
 	if inst.showValue {
 		contentWidth += 1 + len(fmt.Sprintf("%d", inst.max))

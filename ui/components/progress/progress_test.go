@@ -2,6 +2,7 @@ package progress
 
 import (
 	"testing"
+	"time"
 
 	"github.com/wwsheng009/mint/framework/theme"
 	"github.com/wwsheng009/mint/runtime/layout"
@@ -340,7 +341,7 @@ func TestInstance_Paint_StatusStyles(t *testing.T) {
 	}{
 		{name: "success", status: StatusSuccess, wantFG: string(theme.Success()), wantBar: "[=====-----]"},
 		{name: "exception", status: StatusException, wantFG: string(theme.Error()), wantBar: "[=====-----]"},
-		{name: "active", status: StatusActive, wantFG: string(theme.Focus()), wantBold: true, wantBlink: true, wantBar: "[====>-----]"},
+		{name: "active", status: StatusActive, wantFG: string(theme.Focus()), wantBold: true, wantBlink: true, wantBar: "[>====-----]"},
 	}
 
 	for _, tt := range tests {
@@ -370,6 +371,101 @@ func TestInstance_Paint_StatusStyles(t *testing.T) {
 				t.Fatalf("blink = %v, want %v", cmds[0].Style.IsBlink(), tt.wantBlink)
 			}
 		})
+	}
+}
+
+func TestInstance_WantsTick(t *testing.T) {
+	tests := []struct {
+		name string
+		inst *Instance
+		want bool
+	}{
+		{
+			name: "active in progress",
+			inst: NewInstance(rtui.Props{
+				propValue:  50,
+				propMax:    100,
+				propStatus: StatusActive,
+			}),
+			want: true,
+		},
+		{
+			name: "active complete",
+			inst: NewInstance(rtui.Props{
+				propValue:  100,
+				propMax:    100,
+				propStatus: StatusActive,
+			}),
+			want: false,
+		},
+		{
+			name: "normal",
+			inst: NewInstance(rtui.Props{
+				propValue:  50,
+				propMax:    100,
+				propStatus: StatusNormal,
+			}),
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.inst.WantsTick(); got != tt.want {
+				t.Fatalf("WantsTick() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestInstance_Tick_AnimatesLineActiveProgress(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		propValue:       50,
+		propMax:         100,
+		propWidth:       12,
+		propStatus:      StatusActive,
+		propShowPercent: false,
+	})
+
+	before := inst.Paint(0, 0)
+	if got := before[0].Text; got != "[>====-----]" {
+		t.Fatalf("initial bar = %q, want %q", got, "[>====-----]")
+	}
+
+	if changed := inst.Tick(time.Unix(0, 0)); !changed {
+		t.Fatal("first Tick should advance animation")
+	}
+	after := inst.Paint(0, 0)
+	if got := after[0].Text; got != "[=>===-----]" {
+		t.Fatalf("bar after tick = %q, want %q", got, "[=>===-----]")
+	}
+
+	if changed := inst.Tick(time.Unix(0, int64(activeTickInterval/2))); changed {
+		t.Fatal("tick before interval should not advance animation")
+	}
+	still := inst.Paint(0, 0)
+	if got := still[0].Text; got != "[=>===-----]" {
+		t.Fatalf("bar after short tick = %q, want %q", got, "[=>===-----]")
+	}
+}
+
+func TestInstance_Tick_AnimatesCircleActiveProgress(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		propType:        TypeCircle,
+		propValue:       50,
+		propMax:         100,
+		propStatus:      StatusActive,
+		propShowPercent: false,
+	})
+
+	before := drawCmdTexts(inst.Paint(0, 0))
+	if !inst.Tick(time.Unix(0, 0)) {
+		t.Fatal("first Tick should advance circle animation")
+	}
+	after := drawCmdTexts(inst.Paint(0, 0))
+
+	if before[0] == after[0] && before[1] == after[1] && before[2] == after[2] {
+		t.Fatal("circle active animation should change painted rows")
 	}
 }
 

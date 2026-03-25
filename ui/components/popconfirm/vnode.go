@@ -12,18 +12,21 @@ const (
 	propAnchorID          = "anchorID"
 	propCancelIntent      = "cancelIntent"
 	propCancelText        = "cancelText"
+	propCancelVariant     = "cancelVariant"
 	propChangeIntent      = "changeIntent"
 	propChangeIntentField = "changeIntentField"
 	propComponentID       = "componentID"
 	propConfirmIntent     = "confirmIntent"
 	propDescription       = "description"
 	propDisabled          = "disabled"
+	propFooterLayout      = "footerLayout"
 	propGapRows           = "gapRows"
 	propInitialOpen       = "initialOpen"
 	propKey               = "key"
 	propMaxWidth          = "maxWidth"
 	propOkButtonStyle     = "okButtonStyle"
 	propOkText            = "okText"
+	propOkVariant         = "okVariant"
 	propOpen              = "open"
 	propOpenControlled    = "openControlled"
 	propOverlayStyle      = "overlayStyle"
@@ -54,6 +57,16 @@ const (
 	TriggerManual = popover.TriggerManual
 )
 
+// FooterLayout controls how action buttons are arranged inside the overlay footer.
+type FooterLayout int
+
+const (
+	FooterLayoutEnd FooterLayout = iota
+	FooterLayoutCenter
+	FooterLayoutStretch
+	FooterLayoutVertical
+)
+
 // VNode is the declarative description of a Popconfirm component.
 type VNode struct {
 	*rtui.ElementVNode
@@ -76,6 +89,9 @@ type VNode struct {
 	maxWidth          int
 	okText            string
 	cancelText        string
+	okVariant         button.Variant
+	cancelVariant     button.Variant
+	footerLayout      FooterLayout
 	rootStyle         style.Style
 	overlayStyle      style.Style
 	titleStyle        style.Style
@@ -95,16 +111,19 @@ var (
 // New creates a new Popconfirm VNode around an anchor child.
 func New(child rtui.VNode) *VNode {
 	node := &VNode{
-		ElementVNode: rtui.NewElement("popconfirm"),
-		child:        child,
-		placement:    PlacementTop,
-		trigger:      TriggerClick,
-		showArrow:    true,
-		showCancel:   true,
-		gapRows:      1,
-		maxWidth:     36,
-		okText:       "OK",
-		cancelText:   "Cancel",
+		ElementVNode:  rtui.NewElement("popconfirm"),
+		child:         child,
+		placement:     PlacementTop,
+		trigger:       TriggerClick,
+		showArrow:     true,
+		showCancel:    true,
+		gapRows:       1,
+		maxWidth:      36,
+		okText:        "OK",
+		cancelText:    "Cancel",
+		okVariant:     button.VariantPrimary,
+		cancelVariant: button.VariantSecondary,
+		footerLayout:  FooterLayoutEnd,
 	}
 	node.captureButtonIntent(child)
 	return node
@@ -156,18 +175,21 @@ func (v *VNode) Props() rtui.Props {
 		propAnchorID:          v.resolvedAnchorID(),
 		propCancelIntent:      v.cancelIntent,
 		propCancelText:        v.cancelText,
+		propCancelVariant:     v.cancelVariant,
 		propChangeIntent:      v.changeIntent,
 		propChangeIntentField: v.changeIntentField,
 		propComponentID:       v.componentRef(),
 		propConfirmIntent:     v.confirmIntent,
 		propDescription:       v.description,
 		propDisabled:          v.disabled,
+		propFooterLayout:      v.footerLayout,
 		propGapRows:           v.gapRows,
 		propInitialOpen:       v.initialOpen,
 		propKey:               v.key,
 		propMaxWidth:          v.maxWidth,
 		propOkButtonStyle:     v.okButtonStyle,
 		propOkText:            v.okText,
+		propOkVariant:         v.okVariant,
 		propOpen:              v.open,
 		propOpenControlled:    v.openControlled,
 		propOverlayStyle:      v.overlayStyle,
@@ -233,6 +255,15 @@ func (v *VNode) SetProps(props rtui.Props) rtui.VNode {
 	}
 	if cancelText, ok := props[propCancelText].(string); ok {
 		v.cancelText = cancelText
+	}
+	if okVariant, ok := props[propOkVariant].(button.Variant); ok {
+		v.okVariant = okVariant
+	}
+	if cancelVariant, ok := props[propCancelVariant].(button.Variant); ok {
+		v.cancelVariant = cancelVariant
+	}
+	if footerLayout, ok := props[propFooterLayout].(FooterLayout); ok {
+		v.footerLayout = footerLayout
 	}
 	if s, ok := props[propRootStyle].(style.Style); ok {
 		v.rootStyle = s
@@ -347,6 +378,21 @@ func (v *VNode) SetOkText(text string) *VNode {
 
 func (v *VNode) SetCancelText(text string) *VNode {
 	v.cancelText = text
+	return v
+}
+
+func (v *VNode) SetOkVariant(variant button.Variant) *VNode {
+	v.okVariant = variant
+	return v
+}
+
+func (v *VNode) SetCancelVariant(variant button.Variant) *VNode {
+	v.cancelVariant = variant
+	return v
+}
+
+func (v *VNode) SetFooterLayout(layout FooterLayout) *VNode {
+	v.footerLayout = layout
 	return v
 }
 

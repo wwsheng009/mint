@@ -270,16 +270,16 @@ func (inst *Instance) HandleAction(act *action.Action) bool {
 	}
 
 	switch act.Type {
-	case action.ActionCursorLeft:
+	case action.ActionCursorLeft, action.ActionNavigateLeft:
 		inst.setValue(inst.value - 1)
 		return true
-	case action.ActionCursorRight:
+	case action.ActionCursorRight, action.ActionNavigateRight:
 		inst.setValue(inst.value + 1)
 		return true
-	case action.ActionCursorHome:
+	case action.ActionCursorHome, action.ActionNavigateHome:
 		inst.setValue(0)
 		return true
-	case action.ActionCursorEnd:
+	case action.ActionCursorEnd, action.ActionNavigateEnd:
 		inst.setValue(inst.count)
 		return true
 	case action.ActionSelectItem:

@@ -184,7 +184,7 @@ func newPopupPortalVNode(model ThemeableModel, child rtui.VNode) rtui.VNode {
 		"height":   1,
 		"_layer":   model.Layer,
 	})
-	applyPortalProps(portal, model.Model)
+	applyPopupPortalProps(portal, model)
 	portal.SetChildren([]rtui.VNode{child})
 	return portal
 }
@@ -199,4 +199,3 @@ func clearPortalModel(model ThemeableModel) ThemeableModel {
 	model.PortalOffsetY = 0
 	return model
 }
-

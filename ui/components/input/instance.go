@@ -45,6 +45,11 @@ type Instance struct {
 	borderStyle   layout.BorderStyle
 	allowNegative bool
 	allowDecimal  bool
+	hasMin        bool
+	min           float64
+	hasMax        bool
+	max           float64
+	step          float64
 	changeIntent  intent.Intent
 	submitIntent  intent.Intent
 	formID        string // Form ID for Form integration (Phase 6)
@@ -90,6 +95,10 @@ func NewInstance(props rtui.Props) *Instance {
 	inputType := getTypeProp(props, TypeText)
 	allowNegative := proputil.GetBool(props, propAllowNegative, true)
 	allowDecimal := proputil.GetBool(props, propAllowDecimal, true)
+	hasMin := proputil.GetBool(props, propHasMin, false)
+	min := getFloat64Prop(props, propMin, 0)
+	hasMax := proputil.GetBool(props, propHasMax, false)
+	max := getFloat64Prop(props, propMax, 0)
 	value := proputil.GetString(props, "value", "")
 	if inputType == TypeNumber {
 		value = sanitizeEditableNumberValue(value, allowNegative, allowDecimal)
@@ -108,6 +117,11 @@ func NewInstance(props rtui.Props) *Instance {
 		borderStyle:   getBorderStyleProp(props, "borderStyle", layout.BorderSingle),
 		allowNegative: allowNegative,
 		allowDecimal:  allowDecimal,
+		hasMin:        hasMin,
+		min:           min,
+		hasMax:        hasMax,
+		max:           max,
+		step:          normalizeConfiguredNumberStep(getFloat64Prop(props, propStep, 0)),
 		changeIntent:  proputil.GetIntent(props, "changeIntent", nil),
 		submitIntent:  proputil.GetIntent(props, "submitIntent", nil),
 		formID:        proputil.GetString(props, "formID", ""),
@@ -202,6 +216,11 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	oldInputType := inst.inputType
 	oldAllowNegative := inst.allowNegative
 	oldAllowDecimal := inst.allowDecimal
+	oldHasMin := inst.hasMin
+	oldMin := inst.min
+	oldHasMax := inst.hasMax
+	oldMax := inst.max
+	oldStep := inst.step
 
 	inst.placeholder = proputil.GetString(props, "placeholder", inst.placeholder)
 	inst.inputType = getTypeProp(props, inst.inputType)
@@ -214,6 +233,11 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	inst.borderStyle = getBorderStyleProp(props, "borderStyle", inst.borderStyle)
 	inst.allowNegative = proputil.GetBool(props, propAllowNegative, inst.allowNegative)
 	inst.allowDecimal = proputil.GetBool(props, propAllowDecimal, inst.allowDecimal)
+	inst.hasMin = proputil.GetBool(props, propHasMin, inst.hasMin)
+	inst.min = getFloat64Prop(props, propMin, inst.min)
+	inst.hasMax = proputil.GetBool(props, propHasMax, inst.hasMax)
+	inst.max = getFloat64Prop(props, propMax, inst.max)
+	inst.step = normalizeConfiguredNumberStep(getFloat64Prop(props, propStep, inst.step))
 	inst.changeIntent = proputil.GetIntent(props, "changeIntent", nil)
 	inst.submitIntent = proputil.GetIntent(props, "submitIntent", nil)
 	inst.formID = proputil.GetString(props, "formID", inst.formID)
@@ -259,6 +283,11 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 		oldInputType != inst.inputType ||
 		oldAllowNegative != inst.allowNegative ||
 		oldAllowDecimal != inst.allowDecimal ||
+		oldHasMin != inst.hasMin ||
+		oldMin != inst.min ||
+		oldHasMax != inst.hasMax ||
+		oldMax != inst.max ||
+		oldStep != inst.step ||
 		oldPlaceholder != inst.placeholder ||
 		oldPrefix != inst.prefix ||
 		oldSuffix != inst.suffix ||
@@ -284,6 +313,11 @@ func (inst *Instance) GetProps() rtui.Props {
 		propAddonAfter:    inst.addonAfter,
 		propAllowNegative: inst.allowNegative,
 		propAllowDecimal:  inst.allowDecimal,
+		propHasMin:        inst.hasMin,
+		propMin:           inst.min,
+		propHasMax:        inst.hasMax,
+		propMax:           inst.max,
+		propStep:          inst.step,
 		propValue:         inst.value,
 		propDisabled:      inst.state.Disabled,
 		propReadOnly:      inst.state.Active,
@@ -769,6 +803,16 @@ func (inst *Instance) HandleAction(act *action.Action) bool {
 		return inst.MoveCursorToHome()
 	case action.ActionCursorEnd:
 		return inst.MoveCursorToEnd()
+	case action.ActionCursorUp:
+		if inst.inputType == TypeNumber {
+			return inst.StepValue(1)
+		}
+		return false
+	case action.ActionCursorDown:
+		if inst.inputType == TypeNumber {
+			return inst.StepValue(-1)
+		}
+		return false
 	case action.ActionSubmit, action.ActionEnter:
 		if inst.submitIntent != nil && inst.intentEmitter != nil {
 			inst.intentEmitter(inst.submitIntent)
@@ -982,6 +1026,35 @@ func (inst *Instance) MoveCursor(delta int) bool {
 	return inst.cursorPos != oldPos
 }
 
+// StepValue increments or decrements a TypeNumber input by the configured step.
+func (inst *Instance) StepValue(direction int) bool {
+	if inst.state.Disabled || inst.state.Active || inst.inputType != TypeNumber {
+		return false
+	}
+
+	next, changed := stepNumberValue(inst.value, direction, inst.step, inst.allowNegative, inst.allowDecimal, inst.hasMin, inst.min, inst.hasMax, inst.max)
+	if !changed {
+		return false
+	}
+
+	inst.value = next
+	inst.cursorPos = utf8.RuneCountInString(inst.value)
+	inst.cursorModel.ResetBlink()
+	inst.dirty = true
+	inst.emitFieldValueChanged()
+	return true
+}
+
+// MoveCursorUp allows framework key routing to reuse number-step behavior.
+func (inst *Instance) MoveCursorUp() bool {
+	return inst.StepValue(1)
+}
+
+// MoveCursorDown allows framework key routing to reuse number-step behavior.
+func (inst *Instance) MoveCursorDown() bool {
+	return inst.StepValue(-1)
+}
+
 // MoveCursorToHome moves the cursor to the beginning.
 func (inst *Instance) MoveCursorToHome() bool {
 	oldPos := inst.cursorPos
@@ -1131,6 +1204,16 @@ func (inst *Instance) GetProp(key string) (interface{}, bool) {
 		return inst.allowNegative, true
 	case propAllowDecimal:
 		return inst.allowDecimal, true
+	case propHasMin:
+		return inst.hasMin, true
+	case propMin:
+		return inst.min, true
+	case propHasMax:
+		return inst.hasMax, true
+	case propMax:
+		return inst.max, true
+	case propStep:
+		return inst.step, true
 	case propPrefix:
 		return inst.prefix, true
 	case propSuffix:
@@ -1162,6 +1245,31 @@ func (inst *Instance) SetProp(key string, value interface{}) {
 	case propValue:
 		if v, ok := value.(string); ok {
 			inst.SetValue(v)
+		}
+	case propHasMin:
+		if v, ok := value.(bool); ok {
+			inst.hasMin = v
+			inst.dirty = true
+		}
+	case propMin:
+		if v, ok := coerceFloat64(value); ok {
+			inst.min = v
+			inst.dirty = true
+		}
+	case propHasMax:
+		if v, ok := value.(bool); ok {
+			inst.hasMax = v
+			inst.dirty = true
+		}
+	case propMax:
+		if v, ok := coerceFloat64(value); ok {
+			inst.max = v
+			inst.dirty = true
+		}
+	case propStep:
+		if v, ok := coerceFloat64(value); ok {
+			inst.step = normalizeConfiguredNumberStep(v)
+			inst.dirty = true
 		}
 	}
 }
@@ -1223,7 +1331,7 @@ func (inst *Instance) normalizeValueOnBlur() bool {
 		return false
 	}
 
-	normalized := normalizeBlurNumberValue(inst.value, inst.allowNegative, inst.allowDecimal)
+	normalized := normalizeBlurNumberValueWithConstraints(inst.value, inst.allowNegative, inst.allowDecimal, inst.hasMin, inst.min, inst.hasMax, inst.max)
 	if normalized == inst.value {
 		return false
 	}
@@ -1319,4 +1427,13 @@ func getCursorConfigProp(props rtui.Props, key string, def cursor.Config) cursor
 		}
 	}
 	return cursor.NormalizeConfig(def)
+}
+
+func getFloat64Prop(props rtui.Props, key string, def float64) float64 {
+	if v, ok := props[key]; ok {
+		if num, ok := coerceFloat64(v); ok {
+			return num
+		}
+	}
+	return def
 }

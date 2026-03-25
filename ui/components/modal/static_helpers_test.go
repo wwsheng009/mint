@@ -6,6 +6,7 @@ import (
 	runtimeintent "github.com/wwsheng009/mint/runtime/intent"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/ui/components/button"
+	newtext "github.com/wwsheng009/mint/ui/components/text"
 )
 
 type testHelperFollowUpIntent struct{}
@@ -166,6 +167,89 @@ func TestStaticHelpersCanBeFurtherConfigured(t *testing.T) {
 	}
 }
 
+func TestStaticHelpersSupportPrefixContent(t *testing.T) {
+	customPrefix := newtext.New("(!)")
+	tests := []struct {
+		name       string
+		builder    *Builder
+		wantPrefix string
+	}{
+		{
+			name:       "string prefix",
+			builder:    Info("Heads up", WithHelperPrefix("[i]")),
+			wantPrefix: "[i]",
+		},
+		{
+			name:       "node prefix",
+			builder:    Warning("Careful", WithHelperPrefixNode(customPrefix)),
+			wantPrefix: "(!)",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			content := tt.builder.BuildVNode().Content()
+			if content == nil {
+				t.Fatal("content should not be nil")
+			}
+			if content.Tag() != "hstack" {
+				t.Fatalf("content tag = %q, want hstack", content.Tag())
+			}
+
+			children := content.Children()
+			if len(children) != 2 {
+				t.Fatalf("content child count = %d, want 2", len(children))
+			}
+
+			if got := textContent(children[0]); got != tt.wantPrefix {
+				t.Fatalf("prefix content = %q, want %q", got, tt.wantPrefix)
+			}
+		})
+	}
+}
+
+func TestStaticHelpersSupportFooterLayoutsAndVariantOverrides(t *testing.T) {
+	t.Run("center layout", func(t *testing.T) {
+		footer := Confirm("Delete", "Proceed?", WithFooterLayout(StaticFooterLayoutCenter)).BuildVNode().Footer()
+		if footer.Tag() != "hstack" {
+			t.Fatalf("footer tag = %q, want hstack", footer.Tag())
+		}
+		if align, ok := footer.Props()["align"].(rtui.Align); !ok || align != rtui.AlignCenter {
+			t.Fatalf("footer align = %v, want AlignCenter", footer.Props()["align"])
+		}
+	})
+
+	t.Run("vertical layout", func(t *testing.T) {
+		footer := Confirm("Delete", "Proceed?", WithFooterLayout(StaticFooterLayoutVertical)).BuildVNode().Footer()
+		if footer.Tag() != "vstack" {
+			t.Fatalf("footer tag = %q, want vstack", footer.Tag())
+		}
+	})
+
+	t.Run("stretch layout and variants", func(t *testing.T) {
+		buttons := footerButtons(t, Confirm(
+			"Delete",
+			"Proceed?",
+			WithFooterLayout(StaticFooterLayoutStretch),
+			WithConfirmVariant(button.VariantDanger),
+			WithCancelVariant(button.VariantPrimary),
+		).BuildVNode().Footer())
+
+		if len(buttons) != 2 {
+			t.Fatalf("footer button count = %d, want 2", len(buttons))
+		}
+		if buttons[0].GetFlex() != 1 || buttons[1].GetFlex() != 1 {
+			t.Fatalf("button flex = (%d,%d), want (1,1)", buttons[0].GetFlex(), buttons[1].GetFlex())
+		}
+		if buttons[0].Variant() != button.VariantPrimary {
+			t.Fatalf("cancel variant = %v, want %v", buttons[0].Variant(), button.VariantPrimary)
+		}
+		if buttons[1].Variant() != button.VariantDanger {
+			t.Fatalf("confirm variant = %v, want %v", buttons[1].Variant(), button.VariantDanger)
+		}
+	})
+}
+
 func footerButtons(t *testing.T, footer rtui.VNode) []*button.VNode {
 	t.Helper()
 	if footer == nil {
@@ -190,6 +274,16 @@ func buttonLabel(v *button.VNode) string {
 	}
 	if label, ok := v.Props()["label"].(string); ok {
 		return label
+	}
+	return ""
+}
+
+func textContent(v rtui.VNode) string {
+	if v == nil {
+		return ""
+	}
+	if content, ok := v.Props()["content"].(string); ok {
+		return content
 	}
 	return ""
 }

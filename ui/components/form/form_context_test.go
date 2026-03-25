@@ -103,6 +103,23 @@ func TestFormContext_Registration(t *testing.T) {
 			t.Fatalf("GetForm alias returned %p, want %p", got, inst)
 		}
 	})
+
+	t.Run("Compatibility registry ignores empty keys and nil instances", func(t *testing.T) {
+		inst := NewInstance(rtui.Props{"key": "ignored-form"})
+
+		RegisterForm("", inst)
+		RegisterForm("nil-form", nil)
+
+		if got := GetRegisteredForm(""); got != nil {
+			t.Fatalf("GetRegisteredForm(\"\") = %p, want nil", got)
+		}
+		if got := GetRegisteredForm("nil-form"); got != nil {
+			t.Fatalf("GetRegisteredForm(\"nil-form\") = %p, want nil", got)
+		}
+		if ctx := GetRegisteredFormContext(""); ctx != nil {
+			t.Fatal("GetRegisteredFormContext(\"\") should return nil")
+		}
+	})
 }
 
 // TestFormContext_GetFormContext tests the GetFormContext helper function.

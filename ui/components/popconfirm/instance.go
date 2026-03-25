@@ -12,6 +12,7 @@ import (
 	rttypes "github.com/wwsheng009/mint/runtime/types"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/ui/components/button"
+	"github.com/wwsheng009/mint/ui/components/internal/overlayposition"
 	"github.com/wwsheng009/mint/ui/components/internal/proputil"
 	textcomp "github.com/wwsheng009/mint/ui/components/text"
 )
@@ -50,6 +51,9 @@ type Instance struct {
 	maxWidth          int
 	okText            string
 	cancelText        string
+	okVariant         button.Variant
+	cancelVariant     button.Variant
+	footerLayout      FooterLayout
 	rootStyle         style.Style
 	overlayStyle      style.Style
 	titleStyle        style.Style
@@ -99,6 +103,9 @@ func NewInstance(props rtui.Props) *Instance {
 		maxWidth:          proputil.GetInt(props, propMaxWidth, 36),
 		okText:            proputil.GetString(props, propOkText, "OK"),
 		cancelText:        proputil.GetString(props, propCancelText, "Cancel"),
+		okVariant:         getButtonVariantProp(props, propOkVariant, button.VariantPrimary),
+		cancelVariant:     getButtonVariantProp(props, propCancelVariant, button.VariantSecondary),
+		footerLayout:      getFooterLayoutProp(props, FooterLayoutEnd),
 		rootStyle:         proputil.GetStyle(props, propRootStyle, style.Style{}),
 		overlayStyle:      proputil.GetStyle(props, propOverlayStyle, style.Style{}),
 		titleStyle:        proputil.GetStyle(props, propTitleStyle, style.Style{}),
@@ -117,9 +124,14 @@ func NewInstance(props rtui.Props) *Instance {
 func (inst *Instance) Key() string           { return inst.key }
 func (inst *Instance) SetKey(key string)     { inst.key = key }
 func (inst *Instance) Init(props rtui.Props) { inst.SetProps(props) }
-func (inst *Instance) Destroy()              {}
-func (inst *Instance) OnMount()              {}
-func (inst *Instance) OnUnmount()            {}
+func (inst *Instance) Destroy()              { popconfirmRegistryGlobal.unregister(inst) }
+func (inst *Instance) OnMount() {
+	popconfirmRegistryGlobal.register(inst)
+	if inst.open {
+		popconfirmRegistryGlobal.touch(inst)
+	}
+}
+func (inst *Instance) OnUnmount() { popconfirmRegistryGlobal.unregister(inst) }
 
 func (inst *Instance) SetProps(props rtui.Props) bool {
 	old := *inst
@@ -144,6 +156,9 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	inst.maxWidth = proputil.GetInt(props, propMaxWidth, inst.maxWidth)
 	inst.okText = proputil.GetString(props, propOkText, inst.okText)
 	inst.cancelText = proputil.GetString(props, propCancelText, inst.cancelText)
+	inst.okVariant = getButtonVariantProp(props, propOkVariant, inst.okVariant)
+	inst.cancelVariant = getButtonVariantProp(props, propCancelVariant, inst.cancelVariant)
+	inst.footerLayout = getFooterLayoutProp(props, inst.footerLayout)
 	inst.rootStyle = proputil.GetStyle(props, propRootStyle, inst.rootStyle)
 	inst.overlayStyle = proputil.GetStyle(props, propOverlayStyle, inst.overlayStyle)
 	inst.titleStyle = proputil.GetStyle(props, propTitleStyle, inst.titleStyle)
@@ -154,6 +169,9 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	inst.changeIntent = proputil.GetIntent(props, propChangeIntent, inst.changeIntent)
 	inst.changeIntentField = getFieldIntentProp(props, propChangeIntentField)
 	inst.normalize()
+	if !old.open && inst.open {
+		popconfirmRegistryGlobal.touch(inst)
+	}
 
 	changed := old.key != inst.key ||
 		old.componentID != inst.componentID ||
@@ -171,6 +189,9 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 		old.maxWidth != inst.maxWidth ||
 		old.okText != inst.okText ||
 		old.cancelText != inst.cancelText ||
+		old.okVariant != inst.okVariant ||
+		old.cancelVariant != inst.cancelVariant ||
+		old.footerLayout != inst.footerLayout ||
 		old.rootStyle != inst.rootStyle ||
 		old.overlayStyle != inst.overlayStyle ||
 		old.titleStyle != inst.titleStyle ||
@@ -191,17 +212,20 @@ func (inst *Instance) GetProps() rtui.Props {
 		propAnchorID:          inst.anchorID,
 		propCancelIntent:      inst.cancelIntent,
 		propCancelText:        inst.cancelText,
+		propCancelVariant:     inst.cancelVariant,
 		propChangeIntent:      inst.changeIntent,
 		propChangeIntentField: inst.changeIntentField,
 		propComponentID:       inst.componentID,
 		propConfirmIntent:     inst.confirmIntent,
 		propDescription:       inst.description,
 		propDisabled:          inst.disabled,
+		propFooterLayout:      inst.footerLayout,
 		propGapRows:           inst.gapRows,
 		propKey:               inst.key,
 		propMaxWidth:          inst.maxWidth,
 		propOkButtonStyle:     inst.okButtonStyle,
 		propOkText:            inst.okText,
+		propOkVariant:         inst.okVariant,
 		propOpen:              inst.open,
 		propOpenControlled:    inst.openControlled,
 		propOverlayStyle:      inst.overlayStyle,
@@ -310,13 +334,13 @@ func (inst *Instance) HandleIntent(i intent.Intent) bool {
 	case PopconfirmOpenIntent:
 		return inst.setOpen(true, inst.trigger)
 	case PopconfirmCloseIntent:
-		return inst.setOpen(false, inst.trigger)
+		return inst.requestClose(inst.trigger)
 	case confirmClickIntent:
-		inst.setOpen(false, TriggerClick)
+		inst.requestClose(TriggerClick)
 		inst.emitResult(PopconfirmConfirmIntent{ComponentID: inst.componentID}, inst.confirmIntent)
 		return true
 	case cancelClickIntent:
-		inst.setOpen(false, TriggerClick)
+		inst.requestClose(TriggerClick)
 		inst.emitResult(PopconfirmCancelIntent{ComponentID: inst.componentID}, inst.cancelIntent)
 		return true
 	default:
@@ -371,26 +395,45 @@ func (inst *Instance) buildOverlaySurface() rtui.VNode {
 func (inst *Instance) buildActionRow() rtui.VNode {
 	children := make([]rtui.VNode, 0, 3)
 	if inst.showCancel {
-		cancelBtn := button.NewBuilder(inst.cancelText).
+		cancelBuilder := button.NewBuilder(inst.cancelText).
 			Key(inst.key + "-cancel").
-			Secondary().
+			Variant(inst.cancelVariant).
 			Small().
-			OnPress(cancelClickIntent{ComponentID: inst.componentID}).
-			Build()
+			OnPress(cancelClickIntent{ComponentID: inst.componentID})
+		if inst.footerLayout == FooterLayoutStretch {
+			cancelBuilder.Flex(1).TextAlign(rtui.AlignCenter)
+		}
+		cancelBtn := cancelBuilder.Build()
 		children = append(children, cancelBtn)
 	}
 	okBuilder := button.NewBuilder(inst.okText).
 		Key(inst.key + "-ok").
-		Primary().
+		Variant(inst.okVariant).
 		Small().
 		OnPress(confirmClickIntent{ComponentID: inst.componentID})
+	if inst.footerLayout == FooterLayoutStretch {
+		okBuilder.Flex(1).TextAlign(rtui.AlignCenter)
+	}
 	if !inst.okButtonStyle.IsEmpty() {
 		okBuilder.Style(inst.okButtonStyle)
 	}
 	children = append(children, okBuilder.Build())
 
-	row := rtui.HStackBuilder(children...).Gap(1).AlignCross(rtui.AlignCenter)
-	node := row.Build()
+	var node rtui.VNode
+	switch inst.footerLayout {
+	case FooterLayoutCenter:
+		row := rtui.HStackBuilder(children...).Gap(1).Align(rtui.AlignCenter).AlignCross(rtui.AlignCenter).FillWidth()
+		node = row.Build()
+	case FooterLayoutStretch:
+		row := rtui.HStackBuilder(children...).Gap(1).AlignCross(rtui.AlignCenter).FillWidth()
+		node = row.Build()
+	case FooterLayoutVertical:
+		column := rtui.VStackBuilder(children...).Gap(1)
+		node = column.Build()
+	default:
+		row := rtui.HStackBuilder(children...).Gap(1).Align(rtui.AlignEnd).AlignCross(rtui.AlignCenter).FillWidth()
+		node = row.Build()
+	}
 	node.SetKey(inst.key + "-actions")
 	return node
 }
@@ -402,9 +445,35 @@ func (inst *Instance) setOpen(next bool, trigger TriggerMode) bool {
 	if !inst.openControlled {
 		inst.open = next
 		inst.dirty = true
+		if next {
+			popconfirmRegistryGlobal.touch(inst)
+		}
 	}
 	inst.emitChange(next, trigger)
 	return true
+}
+
+func (inst *Instance) requestClose(trigger TriggerMode) bool {
+	if !inst.open {
+		return false
+	}
+	return inst.setOpen(false, trigger)
+}
+
+func (inst *Instance) containsAnchorPoint(x, y int) bool {
+	if inst.bounds[2] <= 0 || inst.bounds[3] <= 0 {
+		return false
+	}
+	return x >= inst.bounds[0] && x < inst.bounds[0]+inst.bounds[2] &&
+		y >= inst.bounds[1] && y < inst.bounds[1]+inst.bounds[3]
+}
+
+func (inst *Instance) containsOverlayPoint(x, y int) bool {
+	ox, oy, ow, oh := inst.overlayBounds()
+	if ow <= 0 || oh <= 0 {
+		return false
+	}
+	return x >= ox && x < ox+ow && y >= oy && y < oy+oh
 }
 
 func (inst *Instance) emitChange(open bool, trigger TriggerMode) {
@@ -458,6 +527,11 @@ func (inst *Instance) normalize() {
 	if strings.TrimSpace(inst.cancelText) == "" {
 		inst.cancelText = "Cancel"
 	}
+	switch inst.footerLayout {
+	case FooterLayoutEnd, FooterLayoutCenter, FooterLayoutStretch, FooterLayoutVertical:
+	default:
+		inst.footerLayout = FooterLayoutEnd
+	}
 }
 
 func (inst *Instance) overlayWidth() int {
@@ -470,7 +544,12 @@ func (inst *Instance) overlayWidth() int {
 	}
 	actionWidth := paint.StringWidth("[" + inst.okText + "]")
 	if inst.showCancel {
-		actionWidth += 1 + paint.StringWidth("["+inst.cancelText+"]")
+		cancelWidth := paint.StringWidth("[" + inst.cancelText + "]")
+		if inst.footerLayout == FooterLayoutVertical {
+			actionWidth = maxInt(actionWidth, cancelWidth)
+		} else {
+			actionWidth += 1 + cancelWidth
+		}
 	}
 	if actionWidth > width {
 		width = actionWidth
@@ -484,8 +563,74 @@ func (inst *Instance) overlayWidth() int {
 	return width + 4
 }
 
+func (inst *Instance) overlayHeight() int {
+	rows := 1 + inst.actionAreaHeight()
+	children := 2
+	if desc := strings.TrimSpace(inst.description); desc != "" {
+		lines := wrapPopconfirmLines(desc, inst.maxWidth)
+		rows += maxInt(1, len(lines))
+		children++
+	}
+	return rows + (children - 1) + 2
+}
+
+func (inst *Instance) actionAreaHeight() int {
+	if inst.footerLayout != FooterLayoutVertical {
+		return 1
+	}
+	count := 1
+	if inst.showCancel {
+		count++
+	}
+	return count + (count - 1)
+}
+
+func (inst *Instance) overlayBounds() (x, y, w, h int) {
+	w = inst.overlayWidth()
+	h = inst.overlayHeight()
+	x, y = resolvePopconfirmPosition(inst.bounds, inst.resolvedPlacement(), w, h, inst.gapRows)
+	return x, y, w, h
+}
+
+func resolvePopconfirmPosition(anchorBounds [4]int, placement Placement, width, height, gapRows int) (int, int) {
+	result := overlayposition.Resolve(overlayposition.Config{
+		Anchor: overlayposition.RectFromBounds(anchorBounds),
+		Overlay: overlayposition.Size{
+			Width:  width,
+			Height: height,
+		},
+		Candidates: []overlayposition.Placement{popconfirmOverlayPlacement(placement)},
+		Gap:        gapRows,
+	})
+	return result.X, result.Y
+}
+
+func popconfirmOverlayPlacement(placement Placement) overlayposition.Placement {
+	switch placement {
+	case PlacementTopLeft:
+		return overlayposition.PlacementTopLeft
+	case PlacementTopRight:
+		return overlayposition.PlacementTopRight
+	case PlacementBottom:
+		return overlayposition.PlacementBottom
+	case PlacementBottomLeft:
+		return overlayposition.PlacementBottomLeft
+	case PlacementBottomRight:
+		return overlayposition.PlacementBottomRight
+	default:
+		return overlayposition.PlacementTop
+	}
+}
+
+func (inst *Instance) resolvedPlacement() Placement {
+	if inst.placement == PlacementAuto {
+		return PlacementTop
+	}
+	return inst.placement
+}
+
 func (inst *Instance) anchor() rttypes.Anchor {
-	switch inst.placement {
+	switch inst.resolvedPlacement() {
 	case PlacementBottom, PlacementBottomLeft:
 		return rttypes.AnchorTopLeft
 	case PlacementBottomRight:
@@ -500,7 +645,7 @@ func (inst *Instance) anchor() rttypes.Anchor {
 }
 
 func (inst *Instance) portalOffsetX() int {
-	switch inst.placement {
+	switch inst.resolvedPlacement() {
 	case PlacementTop, PlacementBottom:
 		return inst.bounds[2] / 2
 	default:
@@ -509,7 +654,7 @@ func (inst *Instance) portalOffsetX() int {
 }
 
 func (inst *Instance) portalOffsetY() int {
-	switch inst.placement {
+	switch inst.resolvedPlacement() {
 	case PlacementBottom, PlacementBottomLeft, PlacementBottomRight:
 		return inst.bounds[3] + inst.gapRows
 	default:
@@ -542,4 +687,69 @@ func getFieldIntentProp(props rtui.Props, key string) intent.FieldIntent {
 		}
 	}
 	return nil
+}
+
+func getButtonVariantProp(props rtui.Props, key string, def button.Variant) button.Variant {
+	if value, ok := props[key]; ok {
+		if variant, ok := value.(button.Variant); ok {
+			return variant
+		}
+	}
+	return def
+}
+
+func getFooterLayoutProp(props rtui.Props, def FooterLayout) FooterLayout {
+	if value, ok := props[propFooterLayout]; ok {
+		if layout, ok := value.(FooterLayout); ok {
+			return layout
+		}
+	}
+	return def
+}
+
+func wrapPopconfirmLines(text string, maxWidth int) []string {
+	text = strings.ReplaceAll(text, "\r\n", "\n")
+	parts := strings.Split(text, "\n")
+	lines := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if maxWidth <= 0 || paint.StringWidth(part) <= maxWidth {
+			lines = append(lines, part)
+			continue
+		}
+		lines = append(lines, wrapPopconfirmLine(part, maxWidth)...)
+	}
+	return lines
+}
+
+func wrapPopconfirmLine(text string, maxWidth int) []string {
+	if maxWidth <= 0 {
+		return []string{text}
+	}
+	var lines []string
+	var builder strings.Builder
+	width := 0
+	for _, r := range text {
+		rw := paint.RuneWidth(r)
+		if width+rw > maxWidth && builder.Len() > 0 {
+			lines = append(lines, builder.String())
+			builder.Reset()
+			width = 0
+		}
+		builder.WriteRune(r)
+		width += rw
+	}
+	if builder.Len() > 0 {
+		lines = append(lines, builder.String())
+	}
+	if len(lines) == 0 {
+		return []string{""}
+	}
+	return lines
+}
+
+func maxInt(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }

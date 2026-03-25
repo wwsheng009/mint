@@ -239,6 +239,20 @@ func TestTooltipCalculatePosition_AutoAndFallback(t *testing.T) {
 		}
 	})
 
+	t.Run("lateral placement falls back within viewport", func(t *testing.T) {
+		inst := NewInstance(rtui.Props{
+			"text":     "Test",
+			"position": PositionRightBottom,
+		})
+		inst.SetAnchorBounds(16, 1, 3, 3)
+		inst.SetViewportSize(20, 10)
+
+		x, y := inst.CalculatePosition()
+		if x != 14 || y != 5 {
+			t.Fatalf("fallback position = (%d,%d), want (14,5)", x, y)
+		}
+	})
+
 	t.Run("clamps when nothing fully fits", func(t *testing.T) {
 		inst := NewInstance(rtui.Props{
 			"text":     "LongTooltip",

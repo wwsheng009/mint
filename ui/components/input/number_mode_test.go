@@ -3,6 +3,7 @@ package input
 import (
 	"testing"
 
+	"github.com/wwsheng009/mint/runtime/action"
 	runtimeintent "github.com/wwsheng009/mint/runtime/intent"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/ui/components/form"
@@ -13,6 +14,9 @@ func TestVNode_Builder_NumberMode(t *testing.T) {
 		Type(TypeNumber).
 		AllowNegative(false).
 		AllowDecimal(false).
+		Min(1).
+		Max(10).
+		Step(2).
 		BuildTyped()
 
 	if vnode.InputType() != TypeNumber {
@@ -24,6 +28,15 @@ func TestVNode_Builder_NumberMode(t *testing.T) {
 	if vnode.AllowDecimal() {
 		t.Fatal("AllowDecimal should be false")
 	}
+	if !vnode.HasMin() || vnode.Min() != 1 {
+		t.Fatalf("Min = (%t, %v), want (true, 1)", vnode.HasMin(), vnode.Min())
+	}
+	if !vnode.HasMax() || vnode.Max() != 10 {
+		t.Fatalf("Max = (%t, %v), want (true, 10)", vnode.HasMax(), vnode.Max())
+	}
+	if vnode.Step() != 2 {
+		t.Fatalf("Step = %v, want 2", vnode.Step())
+	}
 
 	props := vnode.Props()
 	if allowNegative, _ := props[propAllowNegative].(bool); allowNegative {
@@ -31,6 +44,21 @@ func TestVNode_Builder_NumberMode(t *testing.T) {
 	}
 	if allowDecimal, _ := props[propAllowDecimal].(bool); allowDecimal {
 		t.Fatal("propAllowDecimal should be false")
+	}
+	if hasMin, _ := props[propHasMin].(bool); !hasMin {
+		t.Fatal("propHasMin should be true")
+	}
+	if min, _ := props[propMin].(float64); min != 1 {
+		t.Fatalf("propMin = %v, want 1", min)
+	}
+	if hasMax, _ := props[propHasMax].(bool); !hasMax {
+		t.Fatal("propHasMax should be true")
+	}
+	if max, _ := props[propMax].(float64); max != 10 {
+		t.Fatalf("propMax = %v, want 10", max)
+	}
+	if step, _ := props[propStep].(float64); step != 2 {
+		t.Fatalf("propStep = %v, want 2", step)
 	}
 }
 
@@ -145,6 +173,47 @@ func TestInstance_NumberInputBlurNormalizesValue(t *testing.T) {
 	}
 }
 
+func TestInstance_NumberInputBlurClampsMinMax(t *testing.T) {
+	tests := []struct {
+		name  string
+		props rtui.Props
+		want  string
+	}{
+		{
+			name: "clamp to max",
+			props: rtui.Props{
+				propInputType: TypeNumber,
+				propValue:     "15",
+				propHasMax:    true,
+				propMax:       10.0,
+			},
+			want: "10",
+		},
+		{
+			name: "clamp to min",
+			props: rtui.Props{
+				propInputType: TypeNumber,
+				propValue:     "-5",
+				propHasMin:    true,
+				propMin:       -2.0,
+			},
+			want: "-2",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			inst := NewInstance(tt.props)
+			inst.SetFocus(true)
+			inst.SetFocus(false)
+
+			if got := inst.GetValue(); got != tt.want {
+				t.Fatalf("Value = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestInstance_NumberInputBlurEmitsNormalizedFieldChange(t *testing.T) {
 	inst := NewInstance(rtui.Props{
 		propInputType:    TypeNumber,
@@ -219,5 +288,87 @@ func TestInstance_NumberInputBlurEmitsNormalizedFormIntents(t *testing.T) {
 	}
 	if blurIntent.FormID != "paymentForm" || blurIntent.Field != "amount" || blurIntent.Value != "-0.5" {
 		t.Fatalf("unexpected blur intent: %+v", blurIntent)
+	}
+}
+
+func TestInstance_NumberInputCursorStepActions(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		propInputType:    TypeNumber,
+		propValue:        "1.5",
+		propStep:         0.25,
+		propHasMax:       true,
+		propMax:          2.0,
+		propChangeIntent: runtimeintent.BindField("amount"),
+	})
+
+	var emitted []runtimeintent.Intent
+	inst.SetIntentEmitter(func(i runtimeintent.Intent) {
+		emitted = append(emitted, i)
+	})
+
+	if !inst.HandleAction(action.NewAction(action.ActionCursorUp)) {
+		t.Fatal("ActionCursorUp should be handled for number input")
+	}
+	if got := inst.GetValue(); got != "1.75" {
+		t.Fatalf("Value after up = %q, want %q", got, "1.75")
+	}
+
+	if !inst.HandleAction(action.NewAction(action.ActionCursorDown)) {
+		t.Fatal("ActionCursorDown should be handled for number input")
+	}
+	if got := inst.GetValue(); got != "1.5" {
+		t.Fatalf("Value after down = %q, want %q", got, "1.5")
+	}
+
+	inst.SetValue("2")
+	if inst.HandleAction(action.NewAction(action.ActionCursorUp)) {
+		t.Fatal("ActionCursorUp at max should not report a change")
+	}
+	if got := inst.GetValue(); got != "2" {
+		t.Fatalf("Value at max = %q, want %q", got, "2")
+	}
+
+	if len(emitted) != 2 {
+		t.Fatalf("emitted %d intents, want 2", len(emitted))
+	}
+}
+
+func TestInstance_NumberInputCursorStepHonorsNonNegative(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		propInputType:     TypeNumber,
+		propValue:         "0",
+		propAllowNegative: false,
+		propStep:          1,
+	})
+
+	if inst.HandleAction(action.NewAction(action.ActionCursorDown)) {
+		t.Fatal("ActionCursorDown should not move below zero when negatives are disabled")
+	}
+	if got := inst.GetValue(); got != "0" {
+		t.Fatalf("Value = %q, want %q", got, "0")
+	}
+}
+
+func TestInstance_NumberInputVerticalCursorMethods(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		propInputType: TypeNumber,
+		propValue:     "5",
+		propStep:      5.0,
+		propHasMax:    true,
+		propMax:       10.0,
+	})
+
+	if !inst.MoveCursorUp() {
+		t.Fatal("MoveCursorUp should step number input upward")
+	}
+	if got := inst.GetValue(); got != "10" {
+		t.Fatalf("Value after MoveCursorUp = %q, want %q", got, "10")
+	}
+
+	if !inst.MoveCursorDown() {
+		t.Fatal("MoveCursorDown should step number input downward")
+	}
+	if got := inst.GetValue(); got != "5" {
+		t.Fatalf("Value after MoveCursorDown = %q, want %q", got, "5")
 	}
 }
