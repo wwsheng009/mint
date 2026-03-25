@@ -4,6 +4,8 @@
 >
 > 更新日期：2026-03-25
 >
+> 实施状态核对：截至 2026-03-25，本文中的 Phase 1-4 路线图条目已全部完成；`go test ./ui/components/...` 当前通过，本轮 dedicated `ui/e2e` 组件覆盖也已扩到 `absolute`、`alert`、`anchor`、`badge`、`breadcrumb`、`button`、`cascader`、`collapse`、`cursor`、`descriptions`、`divider`、`empty`、`grid`、`layout`、`list`、`pagination`、`panel`、`popconfirm`、`popover`、`progress`、`result`、`rowcol`、`scrollview`、`space`、`spin`、`statistic`、`table`、`tag`、`text`、`timeline`、`tooltip`、`transfer`、`wrap` 等补齐批次。
+>
 > 详细增强任务拆分见：[OPTIMIZATION_BACKLOG.md](./OPTIMIZATION_BACKLOG.md)
 
 ---
@@ -160,6 +162,8 @@
 
 ## 开发路线图
 
+> 当前状态：本节已从“待实施计划”收口为“已完成阶段记录”。如果后续继续做组件增强、README/demo 收口或测试覆盖补强，不再继续向下追加新的 Phase，而是以 [OPTIMIZATION_BACKLOG.md](./OPTIMIZATION_BACKLOG.md) 与各组件 README 为准。
+
 ### Phase 1 — 基础反馈体系（近期）
 
 补全应用开发中最高频的反馈类组件，让用户能清晰感知操作结果和系统状态。
@@ -214,6 +218,14 @@
 - [x] `Row/Col` — Flex 栅格行列布局（2026-03-25）
 
 ---
+
+## 当前余量
+
+当前 roadmap 级工作已经完成；剩余事项主要是“已有组件增强”和“文档/测试收口”，不再是新增组件缺口。
+
+- 组件增强以 [OPTIMIZATION_BACKLOG.md](./OPTIMIZATION_BACKLOG.md) 为主，重点是较薄弱组件的能力补齐与语义收口
+- 文档整理重点仍是复杂组件 README、迁移指南和历史设计文档的现状同步
+- 测试层面已从“组件缺失”转向“dedicated e2e 覆盖密度”和 `internal/` 支撑模块空白补齐
 
 ## 组件实现规范
 
