@@ -117,7 +117,7 @@ func NewInstance(props rtui.Props) *Instance {
 		placeholder:       proputil.GetString(props, propPlaceholder, defaultPlaceholder),
 		valueControlled:   proputil.GetBool(props, propValueControlled, false),
 		disabled:          proputil.GetBool(props, propDisabled, false),
-		portalRoot:        proputil.GetString(props, propPortalRoot, rtui.DefaultOverlayPortalRootID),
+		portalRoot:        getPopupPortalRoot(props, rtui.DefaultOverlayPortalRootID),
 		changeIntent:      proputil.GetIntent(props, propChangeIntent, nil),
 		changeIntentField: getChangeIntentFieldProp(props, propChangeIntent),
 		formID:            proputil.GetString(props, propFormID, ""),
@@ -158,7 +158,7 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	inst.width = proputil.GetInt(props, propWidth, inst.width)
 	inst.placeholder = proputil.GetString(props, propPlaceholder, inst.placeholder)
 	inst.disabled = proputil.GetBool(props, propDisabled, inst.disabled)
-	inst.portalRoot = proputil.GetString(props, propPortalRoot, inst.portalRoot)
+	inst.portalRoot = getPopupPortalRoot(props, inst.portalRoot)
 	inst.changeIntent = proputil.GetIntent(props, propChangeIntent, inst.changeIntent)
 	inst.changeIntentField = getChangeIntentFieldProp(props, propChangeIntent)
 	inst.formID = proputil.GetString(props, propFormID, inst.formID)
@@ -260,6 +260,17 @@ func (inst *Instance) RuntimeChildren() []rtui.VNode {
 		return nil
 	}
 
+	anchor := rtui.NewElement("box")
+	anchor.SetKey(inst.key + "-popup-anchor")
+	anchor.SetID(inst.popupAnchorID())
+	anchor.SetProps(rtui.Props{
+		"position": "absolute",
+		"left":     0,
+		"top":      0,
+		"width":    inst.triggerPaintWidth(),
+		"height":   1,
+	})
+
 	popup := newPopupVNode(inst.popupProps())
 	popup.SetKey(inst.key + "-popup")
 	popup.SetID(inst.popupID())
@@ -272,14 +283,14 @@ func (inst *Instance) RuntimeChildren() []rtui.VNode {
 		"position": "absolute",
 		"left":     0,
 		"top":      0,
-		"width":    inst.popupWidth(),
-		"height":   inst.popupHeight(),
+		"width":    1,
+		"height":   1,
 	})
 	portal.SetPortalRoot(inst.portalRoot)
-	portal.SetAnchorTo(inst.anchorID(), rttypes.AnchorBottomLeft)
+	portal.SetAnchorTo(inst.popupAnchorID(), rttypes.AnchorBottomLeft)
 	portal.SetPortalPosition(rttypes.PositionAbsolute)
 	portal.SetChildren([]rtui.VNode{popup})
-	return []rtui.VNode{portal}
+	return []rtui.VNode{anchor, portal}
 }
 
 func (inst *Instance) popupCallbacks() *popupCallbacks {
@@ -858,6 +869,8 @@ func (inst *Instance) syncFromExternalValue(raw string) {
 
 func (inst *Instance) popupID() string { return inst.anchorID() + "-popup" }
 
+func (inst *Instance) popupAnchorID() string { return inst.anchorID() + "-popup-anchor" }
+
 func (inst *Instance) anchorID() string {
 	return firstNonEmpty(inst.pickerID, inst.componentID, inst.key)
 }
@@ -869,6 +882,19 @@ func firstNonEmpty(values ...string) string {
 		}
 	}
 	return "datepicker"
+}
+
+func getPopupPortalRoot(props rtui.Props, def string) string {
+	if props == nil {
+		return def
+	}
+	if root, ok := props[propPortalRoot].(string); ok && root != "" {
+		return root
+	}
+	if root, ok := props["portalRoot"].(string); ok && root != "" {
+		return root
+	}
+	return def
 }
 
 func newPopupVNode(props rtui.Props) *popupVNode {

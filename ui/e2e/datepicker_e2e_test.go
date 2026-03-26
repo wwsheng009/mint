@@ -169,6 +169,16 @@ func TestE2EDatePickerStaticRenderAndPopupStyles(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	triggerBounds, err := app.BoundsOf(ByID("fixture-datepicker"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if popupBounds.X != triggerBounds.X {
+		t.Fatalf("popup x = %d, want trigger x %d", popupBounds.X, triggerBounds.X)
+	}
+	if popupBounds.Y != triggerBounds.Y+triggerBounds.Height {
+		t.Fatalf("popup y = %d, want trigger bottom %d", popupBounds.Y, triggerBounds.Y+triggerBounds.Height)
+	}
 	cellX, cellY := dateCellPoint(time.Date(2026, time.March, 1, 0, 0, 0, 0, time.UTC), time.Date(2026, time.March, 18, 0, 0, 0, 0, time.UTC), popupBounds.X, popupBounds.Y)
 	if err := app.AssertCellStyleAt(cellX, cellY, StyleExpect{
 		HasFG: true,

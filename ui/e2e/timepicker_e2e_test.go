@@ -169,6 +169,16 @@ func TestE2ETimePickerStaticRenderAndPopupStyles(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	triggerBounds, err := app.BoundsOf(ByID("fixture-timepicker"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if popupBounds.X != triggerBounds.X {
+		t.Fatalf("popup x = %d, want trigger x %d", popupBounds.X, triggerBounds.X)
+	}
+	if popupBounds.Y != triggerBounds.Y+triggerBounds.Height {
+		t.Fatalf("popup y = %d, want trigger bottom %d", popupBounds.Y, triggerBounds.Y+triggerBounds.Height)
+	}
 	hourX, hourY := timePickerPoint(popupBounds.X, popupBounds.Y, popupBounds.Width, true, 2)
 	if err := app.AssertCellStyleAt(hourX, hourY, StyleExpect{
 		HasFG:   true,

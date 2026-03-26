@@ -5,6 +5,7 @@ import (
 	"time"
 
 	runtimeintent "github.com/wwsheng009/mint/runtime/intent"
+	rttypes "github.com/wwsheng009/mint/runtime/types"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
 
@@ -102,11 +103,28 @@ func TestRuntimeChildrenOpenAddsPopupPortal(t *testing.T) {
 	inst.openPicker()
 
 	children := inst.RuntimeChildren()
-	if len(children) != 1 {
-		t.Fatalf("RuntimeChildren len = %d, want 1", len(children))
+	if len(children) != 2 {
+		t.Fatalf("RuntimeChildren len = %d, want 2", len(children))
 	}
-	if children[0].ID() != "fixture-datepicker-popup-portal" {
-		t.Fatalf("portal ID = %q", children[0].ID())
+	if children[0].ID() != "fixture-datepicker-popup-anchor" {
+		t.Fatalf("anchor ID = %q", children[0].ID())
+	}
+	if children[1].ID() != "fixture-datepicker-popup-portal" {
+		t.Fatalf("portal ID = %q", children[1].ID())
+	}
+
+	props := children[1].Props()
+	if got, _ := props["top"].(int); got != 0 {
+		t.Fatalf("portal top = %d, want 0", got)
+	}
+	if got, _ := props["width"].(int); got != 1 {
+		t.Fatalf("portal width = %d, want 1", got)
+	}
+	if got, _ := props["height"].(int); got != 1 {
+		t.Fatalf("portal height = %d, want 1", got)
+	}
+	if got, _ := props["anchor"].(rttypes.Anchor); got != rttypes.AnchorBottomLeft {
+		t.Fatalf("portal anchor = %v, want %v", got, rttypes.AnchorBottomLeft)
 	}
 }
 

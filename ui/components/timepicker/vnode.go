@@ -16,7 +16,7 @@ const (
 	propPickerID        = "pickerID"
 	propPickerStyle     = "style"
 	propPlaceholder     = "placeholder"
-	propPortalRoot      = "portalRoot"
+	propPortalRoot      = "popupPortalRoot"
 	propValue           = "value"
 	propValueControlled = "valueControlled"
 	propWidth           = "width"
@@ -142,6 +142,9 @@ func (v *VNode) SetProps(props rtui.Props) rtui.VNode {
 		v.disabled = disabled
 	}
 	if portalRoot, ok := props[propPortalRoot].(string); ok {
+		v.portalRoot = portalRoot
+	}
+	if portalRoot, ok := props["portalRoot"].(string); ok {
 		v.portalRoot = portalRoot
 	}
 	if changeIntent, ok := props[propChangeIntent].(intent.Intent); ok {
