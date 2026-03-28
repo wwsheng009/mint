@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/wwsheng009/mint/framework/theme"
+	"github.com/wwsheng009/mint/runtime/animation"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
 )
@@ -13,18 +14,22 @@ type Model struct {
 	config       Config
 	visible      bool
 	phaseVisible bool
-	lastBlink    time.Time
+	blinkLoop    *animation.LoopDriver
 }
 
 // NewModel creates a new runtime cursor model.
 func NewModel(cfg Config) *Model {
 	cfg = NormalizeConfig(cfg)
-	return &Model{
+	model := &Model{
 		config:       cfg,
 		visible:      true,
 		phaseVisible: true,
-		lastBlink:    time.Now(),
+		blinkLoop:    newBlinkLoop(cfg),
 	}
+	if model.blinkLoop != nil {
+		model.blinkLoop.Prime(time.Now())
+	}
+	return model
 }
 
 // Config returns the current cursor config.
@@ -65,7 +70,10 @@ func (m *Model) Visible() bool {
 // ResetBlink makes the cursor immediately visible and restarts the blink cycle.
 func (m *Model) ResetBlink() {
 	m.phaseVisible = true
-	m.lastBlink = time.Now()
+	m.blinkLoop = newBlinkLoop(m.config)
+	if m.blinkLoop != nil {
+		m.blinkLoop.Prime(time.Now())
+	}
 }
 
 // WantsTick reports whether the cursor needs periodic updates.
@@ -78,15 +86,22 @@ func (m *Model) Tick(now time.Time) bool {
 	if !m.WantsTick() {
 		return false
 	}
-	if m.lastBlink.IsZero() {
-		m.lastBlink = now
+	if m.blinkLoop == nil {
+		m.ResetBlink()
 		return false
 	}
-	if now.Sub(m.lastBlink) < m.config.BlinkInterval {
+	if !m.blinkLoop.Primed() {
+		m.blinkLoop.Prime(now)
+		return false
+	}
+	prevCycle := m.blinkLoop.Cycle()
+	if !m.blinkLoop.Tick(now) {
+		return false
+	}
+	if m.blinkLoop.Cycle() == prevCycle {
 		return false
 	}
 	m.phaseVisible = !m.phaseVisible
-	m.lastBlink = now
 	return true
 }
 
@@ -211,4 +226,15 @@ func firstGlyph(text string) string {
 		return string(r)
 	}
 	return " "
+}
+
+func newBlinkLoop(cfg Config) *animation.LoopDriver {
+	if !cfg.Blink || cfg.BlinkInterval <= 0 {
+		return nil
+	}
+	return animation.NewLoopDriver(animation.LoopDriverConfig{
+		Duration:  cfg.BlinkInterval,
+		Cycles:    0,
+		AutoStart: true,
+	})
 }

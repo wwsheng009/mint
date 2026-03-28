@@ -139,6 +139,9 @@ func TestNewToastInstance(t *testing.T) {
 	if !inst.visible {
 		t.Error("Expected visible initially")
 	}
+	if !inst.WantsTick() {
+		t.Error("visible timed toast should want tick updates")
+	}
 }
 
 func TestToastShowHide(t *testing.T) {
@@ -163,30 +166,66 @@ func TestToastShowHide(t *testing.T) {
 }
 
 func TestToastExpiration(t *testing.T) {
-	// Short duration for testing
 	duration := 50 * time.Millisecond
 	inst := NewToastInstance(rtui.Props{
 		"message":  "Test",
 		"duration": duration,
 	})
+	start := time.Unix(0, 0)
+	inst.showAt(start)
 
 	if inst.IsExpired() {
 		t.Error("Should not be expired immediately")
 	}
-
-	// Wait for expiration (longer than duration to ensure expiration)
-	time.Sleep(duration + 50*time.Millisecond)
-
-	// Debug: check actual time
-	now := time.Now()
-	timeSinceCreation := now.Sub(inst.createdAt)
-	timeUntilExpire := inst.expireAt.Sub(now)
-
-	t.Logf("Duration: %v, Created: %v, ExpireAt: %v", inst.toastDuration, inst.createdAt.Format("15:04:05.000"), inst.expireAt.Format("15:04:05.000"))
-	t.Logf("Time since creation: %v, Time until expire: %v", timeSinceCreation, timeUntilExpire)
-
+	if changed := inst.Tick(start.Add(20 * time.Millisecond)); changed {
+		t.Fatal("toast should not expire before duration elapses")
+	}
+	if changed := inst.Tick(start.Add(duration + 10*time.Millisecond)); !changed {
+		t.Fatal("toast should report a state change when it expires")
+	}
 	if !inst.IsExpired() {
-		t.Errorf("Should be expired after duration+%v", duration)
+		t.Errorf("Should be expired after duration")
+	}
+	if inst.visible {
+		t.Error("Expired toast should become hidden")
+	}
+	if inst.WantsTick() {
+		t.Error("Expired toast should stop requesting ticks")
+	}
+}
+
+func TestToastHideStopsTicking(t *testing.T) {
+	inst := NewToastInstance(rtui.Props{
+		"message":  "Test",
+		"duration": 50 * time.Millisecond,
+	})
+	inst.Hide()
+
+	if inst.WantsTick() {
+		t.Fatal("hidden toast should not want ticks")
+	}
+	if inst.IsExpired() {
+		t.Fatal("manual hide should not mark toast expired")
+	}
+}
+
+func TestToastManagerTickRemovesExpired(t *testing.T) {
+	tm := NewManager()
+	active := NewToastBuilder("Active").Duration(5 * time.Second).BuildInstance()
+	expired := NewToastBuilder("Expired").Duration(50 * time.Millisecond).BuildInstance()
+	tm.Add(active)
+	tm.Add(expired)
+
+	start := time.Unix(0, 0)
+	active.showAt(start)
+	expired.showAt(start)
+	tm.tickAt(start.Add(100 * time.Millisecond))
+
+	if tm.Count() != 1 {
+		t.Fatalf("count after Tick = %d, want 1", tm.Count())
+	}
+	if tm.GetToasts()[0].Message() != "Active" {
+		t.Fatalf("remaining toast = %q, want Active", tm.GetToasts()[0].Message())
 	}
 }
 
@@ -312,13 +351,15 @@ func TestToastManagerCleanExpired(t *testing.T) {
 	// Add expired toast (very short duration)
 	expired := NewToastBuilder("Expired").Duration(50 * time.Millisecond).BuildInstance()
 	tm.Add(expired)
-	time.Sleep(100 * time.Millisecond) // Wait for expiration
+	start := time.Unix(0, 0)
+	active.showAt(start)
+	expired.showAt(start)
 
 	if tm.Count() != 2 {
 		t.Errorf("Expected 2 toasts before clean, got %d", tm.Count())
 	}
 
-	tm.CleanExpired()
+	tm.tickAt(start.Add(100 * time.Millisecond))
 
 	if tm.Count() != 1 {
 		t.Errorf("Expected 1 toast after clean expired, got %d", tm.Count())

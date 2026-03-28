@@ -5,6 +5,7 @@ import (
 
 	"github.com/wwsheng009/mint/framework/theme"
 	"github.com/wwsheng009/mint/runtime/action"
+	"github.com/wwsheng009/mint/runtime/animation"
 	"github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
@@ -31,11 +32,10 @@ type Instance struct {
 	tooltipStyle style.Style
 
 	// === Runtime State ===
-	visible    bool
-	showTimer  *time.Timer
-	hoverTimer *time.Timer
-	bounds     [4]int // x, y, w, h
-	dirty      bool
+	visible   bool
+	delayLoop *animation.LoopDriver
+	bounds    [4]int // x, y, w, h
+	dirty     bool
 
 	// === Content ===
 	parent         rtui.ComponentInstance
@@ -55,6 +55,7 @@ var (
 	_ rtui.PaintableInstance       = (*Instance)(nil)
 	_ rtui.ActionHandlerInstance   = (*Instance)(nil)
 	_ rtui.RuntimeChildrenProvider = (*Instance)(nil)
+	_ rtui.TickableInstance        = (*Instance)(nil)
 	_ rtui.TreeNode                = (*Instance)(nil)
 	_ rtui.TreeContainer           = (*Instance)(nil)
 	_ interface {
@@ -102,12 +103,7 @@ func (inst *Instance) Init(props rtui.Props) {
 
 // Destroy implements ComponentInstance.
 func (inst *Instance) Destroy() {
-	if inst.showTimer != nil {
-		inst.showTimer.Stop()
-	}
-	if inst.hoverTimer != nil {
-		inst.hoverTimer.Stop()
-	}
+	inst.stopDelayLoop()
 }
 
 // OnMount implements ComponentInstance.
@@ -125,6 +121,7 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	oldText := inst.text
 	oldPosition := inst.position
 	oldDelay := inst.delay
+	oldStyle := inst.tooltipStyle
 
 	inst.text = proputil.GetString(props, "text", inst.text)
 	inst.position = getPositionProp(props, inst.position)
@@ -133,11 +130,22 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 
 	changed := oldText != inst.text ||
 		oldPosition != inst.position ||
-		oldDelay != inst.delay
+		oldDelay != inst.delay ||
+		oldStyle != inst.tooltipStyle
 
-	if changed {
+	if !changed {
+		return false
+	}
+
+	switch {
+	case inst.text == "":
+		inst.Hide()
+	case oldDelay != inst.delay && inst.triggerActive && !inst.visible:
+		inst.beginDelayAt(time.Now())
+	default:
 		inst.dirty = true
 	}
+
 	return changed
 }
 
@@ -164,6 +172,33 @@ func (inst *Instance) IsDirty() bool {
 // GetContext implements ComponentInstance (no hooks for Tooltip).
 func (inst *Instance) GetContext() *rtui.ComponentContext {
 	return nil
+}
+
+// =============================================================================
+// TickableInstance Interface
+// =============================================================================
+
+func (inst *Instance) WantsTick() bool {
+	return inst.delayLoop != nil && inst.delayLoop.WantsTick()
+}
+
+func (inst *Instance) Tick(now time.Time) bool {
+	if inst.delayLoop == nil || !inst.delayLoop.WantsTick() {
+		return false
+	}
+	if !inst.delayLoop.Tick(now) {
+		return false
+	}
+	if !inst.delayLoop.Done() {
+		return false
+	}
+	if !inst.triggerActive || inst.text == "" {
+		inst.stopDelayLoop()
+		return false
+	}
+	inst.stopDelayLoop()
+	inst.Show()
+	return true
 }
 
 func (inst *Instance) Parent() interface{} { return inst.parent }
@@ -238,22 +273,23 @@ func (inst *Instance) resolveStyle() style.Style {
 
 // Show displays the tooltip.
 func (inst *Instance) Show() {
+	inst.stopDelayLoop()
+	if inst.visible {
+		return
+	}
 	inst.visible = true
 	inst.dirty = true
 }
 
 // Hide hides the tooltip.
 func (inst *Instance) Hide() {
+	inst.stopDelayLoop()
+	if !inst.visible {
+		inst.dirty = true
+		return
+	}
 	inst.visible = false
 	inst.dirty = true
-	if inst.showTimer != nil {
-		inst.showTimer.Stop()
-		inst.showTimer = nil
-	}
-	if inst.hoverTimer != nil {
-		inst.hoverTimer.Stop()
-		inst.hoverTimer = nil
-	}
 }
 
 func (inst *Instance) RuntimeChildren() []rtui.VNode {
@@ -436,23 +472,7 @@ func getToastTypeProp(props rtui.Props, def ToastType) ToastType {
 }
 
 func (inst *Instance) scheduleShow() {
-	if inst.visible {
-		return
-	}
-	if inst.delay <= 0 {
-		inst.Show()
-		return
-	}
-	if inst.showTimer != nil {
-		inst.showTimer.Stop()
-	}
-	inst.showTimer = time.AfterFunc(inst.delay, func() {
-		if !inst.triggerActive {
-			return
-		}
-		inst.Show()
-		rtui.RequestGlobalRender()
-	})
+	inst.beginDelayAt(time.Now())
 }
 
 func (inst *Instance) syncTriggerFromChildren() {
@@ -476,6 +496,36 @@ func (inst *Instance) syncTriggerActive(active bool) {
 		return
 	}
 	inst.Hide()
+}
+
+func (inst *Instance) beginDelayAt(now time.Time) {
+	inst.stopDelayLoop()
+	if inst.text == "" {
+		inst.visible = false
+		inst.dirty = true
+		return
+	}
+	if inst.delay <= 0 {
+		inst.Show()
+		return
+	}
+	inst.delayLoop = animation.NewLoopDriver(animation.LoopDriverConfig{
+		Duration:  inst.delay,
+		Cycles:    1,
+		AutoStart: true,
+	})
+	if !now.IsZero() {
+		inst.delayLoop.Prime(now)
+	}
+	inst.dirty = true
+}
+
+func (inst *Instance) stopDelayLoop() {
+	if inst.delayLoop == nil {
+		return
+	}
+	inst.delayLoop.Stop()
+	inst.delayLoop = nil
 }
 
 func tooltipChildHoverState(children []rtui.ComponentInstance) (hovered bool, bounds [4]int, hasBounds bool) {

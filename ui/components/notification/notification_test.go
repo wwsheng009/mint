@@ -121,6 +121,9 @@ func TestNewInstance_Defaults(t *testing.T) {
 	if inst.IsVisible() {
 		t.Error("visible: want false before Show")
 	}
+	if inst.WantsTick() {
+		t.Error("persistent hidden notification should not want ticks")
+	}
 }
 
 func TestInstance_ShowHide(t *testing.T) {
@@ -140,21 +143,75 @@ func TestInstance_ShowHide(t *testing.T) {
 
 func TestInstance_IsExpired_Persistent(t *testing.T) {
 	inst := NewInstance(rtui.Props{propDuration: time.Duration(0)})
-	inst.Show()
+	inst.showAt(time.Unix(0, 0))
 	if inst.IsExpired() {
 		t.Error("persistent notification should never expire")
+	}
+	if inst.WantsTick() {
+		t.Error("persistent notification should not want tick updates")
 	}
 }
 
 func TestInstance_IsExpired_Timed(t *testing.T) {
 	inst := NewInstance(rtui.Props{propDuration: 10 * time.Millisecond})
-	inst.Show()
+	start := time.Unix(0, 0)
+	inst.showAt(start)
+	if !inst.WantsTick() {
+		t.Fatal("timed notification should want tick updates after Show")
+	}
 	if inst.IsExpired() {
 		t.Error("should not be expired immediately")
 	}
-	time.Sleep(20 * time.Millisecond)
+	if changed := inst.Tick(start.Add(5 * time.Millisecond)); changed {
+		t.Fatal("notification should not change before duration elapses")
+	}
+	if changed := inst.Tick(start.Add(20 * time.Millisecond)); !changed {
+		t.Fatal("notification should report a state change when it expires")
+	}
 	if !inst.IsExpired() {
-		t.Error("should be expired after duration")
+		t.Error("should be expired after duration-driven tick")
+	}
+	if inst.IsVisible() {
+		t.Error("expired notification should become hidden")
+	}
+	if inst.WantsTick() {
+		t.Error("expired notification should stop requesting ticks")
+	}
+}
+
+func TestInstance_HideStopsTicking(t *testing.T) {
+	inst := NewInstance(rtui.Props{propDuration: 50 * time.Millisecond})
+	inst.showAt(time.Unix(0, 0))
+	inst.Hide()
+
+	if inst.WantsTick() {
+		t.Fatal("hidden notification should not want ticks")
+	}
+	if inst.IsExpired() {
+		t.Fatal("manual hide should not mark notification expired")
+	}
+}
+
+func TestInstance_SetProps_DoesNotResetDeadlineWhenDurationUnchanged(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		propMessage:  "before",
+		propDuration: 10 * time.Millisecond,
+	})
+	start := time.Unix(0, 0)
+	inst.showAt(start)
+
+	changed := inst.SetProps(rtui.Props{
+		propMessage:  "after",
+		propDuration: 10 * time.Millisecond,
+	})
+	if !changed {
+		t.Fatal("SetProps should report changed when message changes")
+	}
+	if changed := inst.Tick(start.Add(20 * time.Millisecond)); !changed {
+		t.Fatal("notification should still expire on the original deadline")
+	}
+	if !inst.IsExpired() {
+		t.Fatal("notification should expire after its original duration")
 	}
 }
 
@@ -172,8 +229,8 @@ func TestInstance_Paint_Hidden(t *testing.T) {
 
 func TestInstance_Paint_Visible(t *testing.T) {
 	inst := NewInstance(rtui.Props{
-		propTitle:   "Alert",
-		propMessage: "Something happened",
+		propTitle:    "Alert",
+		propMessage:  "Something happened",
 		propClosable: true,
 	})
 	inst.SetBounds(0, 0, 40, 3)
@@ -295,8 +352,9 @@ func TestManager_Tick_RemovesExpired(t *testing.T) {
 	m := NewManager()
 	m.InfoTimed("T", "m", 10*time.Millisecond)
 	m.Info("Persistent", "stays")
-	time.Sleep(20 * time.Millisecond)
-	m.Tick()
+	start := time.Unix(0, 0)
+	m.notifications[0].showAt(start)
+	m.tickAt(start.Add(20 * time.Millisecond))
 	if m.Count() != 1 {
 		t.Errorf("after Tick count: got %d, want 1", m.Count())
 	}

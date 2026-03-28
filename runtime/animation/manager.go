@@ -12,6 +12,8 @@ type Manager struct {
 	running    bool
 	ticker     *time.Ticker
 	stopChan   chan struct{}
+	frameTime  time.Duration
+	lastTick   time.Time
 }
 
 // NewManager creates a new animation manager.
@@ -20,6 +22,7 @@ func NewManager() *Manager {
 		animations: make(map[string]*Animation),
 		running:    false,
 		stopChan:   make(chan struct{}),
+		frameTime:  time.Second / 60,
 	}
 }
 
@@ -33,10 +36,17 @@ func (m *Manager) Start(fps int) {
 	}
 
 	m.running = true
+	if fps <= 0 {
+		fps = 60
+	}
 	interval := time.Second / time.Duration(fps)
+	m.frameTime = interval
+	m.lastTick = time.Time{}
 	m.ticker = time.NewTicker(interval)
+	ticker := m.ticker
+	stopChan := m.stopChan
 
-	go m.updateLoop()
+	go m.updateLoop(ticker, stopChan)
 }
 
 // Stop stops the animation manager.
@@ -50,17 +60,19 @@ func (m *Manager) Stop() {
 
 	m.running = false
 	m.ticker.Stop()
+	m.ticker = nil
+	m.lastTick = time.Time{}
 	close(m.stopChan)
 	m.stopChan = make(chan struct{})
 }
 
 // updateLoop runs the animation update loop.
-func (m *Manager) updateLoop() {
+func (m *Manager) updateLoop(ticker *time.Ticker, stopChan <-chan struct{}) {
 	for {
 		select {
-		case <-m.ticker.C:
-			m.Update()
-		case <-m.stopChan:
+		case now := <-ticker.C:
+			m.Tick(now)
+		case <-stopChan:
 			return
 		}
 	}
@@ -68,26 +80,57 @@ func (m *Manager) updateLoop() {
 
 // Update updates all running animations.
 func (m *Manager) Update() {
+	m.UpdateWithDelta(m.getFrameTime())
+}
+
+// UpdateWithDelta updates all running animations using an explicit frame delta.
+func (m *Manager) UpdateWithDelta(delta time.Duration) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.updateWithDeltaLocked(delta)
+}
+
+// Tick advances running animations using wall-clock timestamps.
+// The first tick primes the manager and does not advance progress.
+func (m *Manager) Tick(now time.Time) {
+	if now.IsZero() {
+		return
+	}
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	frameTime := m.getFrameTime()
-
-	for _, anim := range m.animations {
-		if anim.State == AnimationStateRunning {
-			m.updateAnimation(anim, frameTime)
-		}
+	if m.lastTick.IsZero() {
+		m.lastTick = now
+		return
 	}
 
-	// Remove completed animations (that don't repeat)
+	delta := now.Sub(m.lastTick)
+	if delta < 0 {
+		delta = 0
+	}
+	m.lastTick = now
+	m.updateWithDeltaLocked(delta)
+}
+
+func (m *Manager) updateWithDeltaLocked(delta time.Duration) {
+	if delta < 0 {
+		delta = 0
+	}
+	for _, anim := range m.animations {
+		if anim.State == AnimationStateRunning {
+			m.updateAnimation(anim, delta)
+		}
+	}
 	m.cleanupCompletedAnimations()
 }
 
 // getFrameTime returns the time per frame based on ticker interval.
 func (m *Manager) getFrameTime() time.Duration {
-	// For now, return default 60 FPS
-	// TODO: Store interval when ticker is created for accurate frame timing
-	return time.Second / 60
+	if m.frameTime <= 0 {
+		return time.Second / 60
+	}
+	return m.frameTime
 }
 
 // updateAnimation updates a single animation.
@@ -189,7 +232,7 @@ func interpolate(from, to interface{}, progress float64) interface{} {
 // cleanupCompletedAnimations removes non-repeating completed animations.
 func (m *Manager) cleanupCompletedAnimations() {
 	for id, anim := range m.animations {
-		if anim.State == AnimationStateCompleted && anim.Repeat == 0 {
+		if anim.State == AnimationStateCompleted {
 			delete(m.animations, id)
 		}
 	}

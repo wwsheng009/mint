@@ -208,6 +208,7 @@ func Run(app ComponentFunc, opts ...Option) error {
 	// Resize() only sets the BUFFER size (actual terminal size)
 	fwApp.SetConfigSize(options.Width, options.Height)
 	fwApp.Resize(options.Width, options.Height) // Initial terminal size
+	fwApp.SetFPS(options.FPS)
 	appInstance = fwApp
 	if err := fwApp.SetInteractionMode(options.InteractionMode); err != nil {
 		return err
@@ -397,6 +398,7 @@ func RunApp[T any](rt *statemachine.AppRuntime[T], opts ...Option) error {
 	fwApp := framework.NewApp()
 	fwApp.SetConfigSize(options.Width, options.Height)
 	fwApp.Resize(options.Width, options.Height)
+	fwApp.SetFPS(options.FPS)
 	appInstance = fwApp
 	if err := fwApp.SetInteractionMode(options.InteractionMode); err != nil {
 		return err

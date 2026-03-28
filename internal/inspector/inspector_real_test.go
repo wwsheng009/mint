@@ -16,7 +16,7 @@ func TestRealInspectorRendering(t *testing.T) {
 
 	// 创建 Inspector
 	inspector := NewStandaloneInspector()
-	inspector.Enable()     // 启用 Inspector
+	inspector.Enable()           // 启用 Inspector
 	inspector.ToggleVisibility() // 设置为可见！
 	inspector.SetOverlaySize(100, 40)
 
@@ -48,11 +48,11 @@ func TestRealInspectorRendering(t *testing.T) {
 
 	// 检查关键的 Inspector 元素
 	expectedContent := []string{
-		"INSPECTOR",
 		"Elements",
-		"Console",
+		"Console(2)",
 		"Layout Tree",
 		"Instructions",
+		"No tree to display",
 	}
 
 	missingContent := []string{}

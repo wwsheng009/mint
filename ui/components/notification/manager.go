@@ -107,8 +107,16 @@ func (m *Manager) DismissAll() {
 // Tick removes any expired (timed-out) notifications. Call this on each
 // render frame to enable auto-dismiss behaviour.
 func (m *Manager) Tick() {
+	m.tickAt(time.Now())
+}
+
+func (m *Manager) tickAt(now time.Time) {
 	active := m.notifications[:0]
 	for _, inst := range m.notifications {
+		if inst == nil {
+			continue
+		}
+		inst.Tick(now)
 		if inst.IsExpired() {
 			inst.Hide()
 		} else {

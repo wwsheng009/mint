@@ -154,6 +154,9 @@ func TestNewTooltipInstance(t *testing.T) {
 	if inst.position != PositionTop {
 		t.Errorf("Expected position PositionTop, got %v", inst.position)
 	}
+	if inst.WantsTick() {
+		t.Fatal("new tooltip should not want ticks before activation")
+	}
 }
 
 func TestTooltipShowHide(t *testing.T) {
@@ -694,16 +697,28 @@ func TestTooltipHandleActionDelayedShowWaitsForTimer(t *testing.T) {
 		"text":  "Test",
 		"delay": 20 * time.Millisecond,
 	})
-	t.Cleanup(inst.Destroy)
 
 	inst.HandleAction(action.NewAction(action.ActionMouseEnter))
 	if inst.visible {
 		t.Fatal("tooltip should stay hidden until delay elapses")
 	}
+	if !inst.WantsTick() {
+		t.Fatal("tooltip should request ticks while waiting for delayed show")
+	}
 
-	time.Sleep(40 * time.Millisecond)
+	start := time.Unix(0, 0)
+	inst.beginDelayAt(start)
+	if changed := inst.Tick(start.Add(10 * time.Millisecond)); changed {
+		t.Fatal("tooltip should stay hidden before delay elapses")
+	}
+	if changed := inst.Tick(start.Add(30 * time.Millisecond)); !changed {
+		t.Fatal("tooltip should become visible after delay elapses")
+	}
 	if !inst.visible {
 		t.Fatal("tooltip should become visible after delay elapses")
+	}
+	if inst.WantsTick() {
+		t.Fatal("visible tooltip should stop requesting ticks")
 	}
 }
 
@@ -712,12 +727,17 @@ func TestTooltipHandleActionMouseLeaveCancelsPendingShow(t *testing.T) {
 		"text":  "Test",
 		"delay": 30 * time.Millisecond,
 	})
-	t.Cleanup(inst.Destroy)
 
-	inst.HandleAction(action.NewAction(action.ActionMouseEnter))
-	time.Sleep(10 * time.Millisecond)
+	start := time.Unix(0, 0)
+	inst.beginDelayAt(start)
+	inst.triggerActive = true
+	if changed := inst.Tick(start.Add(10 * time.Millisecond)); changed {
+		t.Fatal("tooltip should stay hidden before the leave action")
+	}
 	inst.HandleAction(action.NewAction(action.ActionMouseLeave))
-	time.Sleep(40 * time.Millisecond)
+	if inst.WantsTick() {
+		t.Fatal("tooltip should stop requesting ticks after mouse leave")
+	}
 
 	if inst.visible {
 		t.Fatal("tooltip should remain hidden when hover exits before delay elapses")
@@ -780,7 +800,6 @@ func TestTooltipRuntimeChildrenHoveredChildRespectsDelay(t *testing.T) {
 		"position": PositionTop,
 		"delay":    20 * time.Millisecond,
 	})
-	t.Cleanup(inst.Destroy)
 
 	child := &tooltipMockChild{
 		key:    "anchor",
@@ -795,8 +814,18 @@ func TestTooltipRuntimeChildrenHoveredChildRespectsDelay(t *testing.T) {
 	if inst.visible {
 		t.Fatal("tooltip should stay hidden before delayed child hover resolves")
 	}
+	if !inst.WantsTick() {
+		t.Fatal("tooltip should request ticks while hovered child delay is pending")
+	}
 
-	time.Sleep(40 * time.Millisecond)
+	start := time.Unix(0, 0)
+	inst.beginDelayAt(start)
+	if changed := inst.Tick(start.Add(10 * time.Millisecond)); changed {
+		t.Fatal("tooltip should not become visible before delayed child hover resolves")
+	}
+	if changed := inst.Tick(start.Add(30 * time.Millisecond)); !changed {
+		t.Fatal("tooltip should become visible after delayed child hover resolves")
+	}
 	children := inst.RuntimeChildren()
 	if len(children) != 1 {
 		t.Fatalf("runtime children = %d, want 1 after delay elapses", len(children))

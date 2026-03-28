@@ -3,6 +3,7 @@ package spin
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/wwsheng009/mint/runtime/layout"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
@@ -57,8 +58,8 @@ func TestVNode_Setters(t *testing.T) {
 
 func TestVNode_SizeHelpers(t *testing.T) {
 	tests := []struct {
-		name    string
-		setFn   func(*VNode) *VNode
+		name     string
+		setFn    func(*VNode) *VNode
 		wantSize Size
 	}{
 		{"Small", func(v *VNode) *VNode { return v.Small() }, SizeSmall},
@@ -141,6 +142,9 @@ func TestInstance_NewInstance(t *testing.T) {
 	if inst.delay != 50 {
 		t.Errorf("delay = %d, want 50", inst.delay)
 	}
+	if !inst.WantsTick() {
+		t.Error("spinning instance should want tick updates")
+	}
 }
 
 func TestInstance_Lifecycle(t *testing.T) {
@@ -212,12 +216,12 @@ func TestInstance_GetProps(t *testing.T) {
 
 func TestInstance_Measure(t *testing.T) {
 	tests := []struct {
-		name        string
-		spinning    bool
-		tip         string
-		size        Size
-		wantHeight  int
-		wantMinW    int
+		name       string
+		spinning   bool
+		tip        string
+		size       Size
+		wantHeight int
+		wantMinW   int
 	}{
 		{"not spinning", false, "", SizeDefault, 0, 0},
 		{"spinning no tip", true, "", SizeDefault, 1, 1},
@@ -259,6 +263,9 @@ func TestInstance_Paint_Spinning(t *testing.T) {
 	if cmds[0].Text == "" {
 		t.Error("Paint text should not be empty")
 	}
+	if inst.frame != 0 {
+		t.Error("Paint should not mutate frame state")
+	}
 }
 
 func TestInstance_Paint_WithTip(t *testing.T) {
@@ -277,11 +284,55 @@ func TestInstance_TickFrame(t *testing.T) {
 	inst.MarkClean()
 	initFrame := inst.frame
 	inst.TickFrame()
-	if inst.frame != initFrame+1 {
-		t.Errorf("frame = %d, want %d", inst.frame, initFrame+1)
+	if inst.frame != (initFrame+1)%len(framesDefault) {
+		t.Errorf("frame = %d, want %d", inst.frame, (initFrame+1)%len(framesDefault))
 	}
 	if !inst.IsDirty() {
 		t.Error("TickFrame should mark instance dirty")
+	}
+}
+
+func TestInstance_Tick(t *testing.T) {
+	inst := NewInstance(rtui.Props{})
+	inst.MarkClean()
+
+	start := time.Unix(0, 0)
+	if changed := inst.Tick(start); changed {
+		t.Fatal("first tick should only prime the loop")
+	}
+	if changed := inst.Tick(start.Add(spinFrameInterval)); !changed {
+		t.Fatal("tick should advance the spinner after one frame interval")
+	}
+	if inst.frame == 0 {
+		t.Fatal("frame should advance after tick")
+	}
+	if !inst.IsDirty() {
+		t.Fatal("Tick should mark spinner dirty")
+	}
+}
+
+func TestInstance_DelayPreventsImmediatePaint(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		propSpinning: true,
+		propDelay:    50,
+	})
+	if cmds := inst.Paint(0, 0); len(cmds) != 0 {
+		t.Fatalf("expected no paint output before delay elapses, got %d cmds", len(cmds))
+	}
+
+	start := time.Unix(0, 0)
+	inst.Tick(start)
+	if changed := inst.Tick(start.Add(40 * time.Millisecond)); changed {
+		t.Fatal("spinner should remain hidden before delay elapses")
+	}
+	if cmds := inst.Paint(0, 0); len(cmds) != 0 {
+		t.Fatalf("expected no paint output at 40ms, got %d cmds", len(cmds))
+	}
+	if changed := inst.Tick(start.Add(60 * time.Millisecond)); !changed {
+		t.Fatal("spinner should become visible after delay")
+	}
+	if cmds := inst.Paint(0, 0); len(cmds) == 0 {
+		t.Fatal("expected paint output after delay elapses")
 	}
 }
 

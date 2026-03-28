@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/wwsheng009/mint/framework/theme"
+	"github.com/wwsheng009/mint/runtime/animation"
 	"github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
@@ -43,7 +44,7 @@ type Instance struct {
 	status        Status
 	showPercent   bool
 	activeFrame   int
-	lastTick      time.Time
+	activeLoop    *animation.LoopDriver
 	bounds        [4]int
 	dirty         bool
 }
@@ -64,7 +65,7 @@ func NewInstance(props rtui.Props) *Instance {
 		proputil.GetInt(props, propMax, 100),
 	)
 
-	return &Instance{
+	inst := &Instance{
 		key:           proputil.GetString(props, propKey, ""),
 		label:         proputil.GetString(props, propLabel, ""),
 		progressStyle: proputil.GetStyle(props, propStyle, style.Style{}),
@@ -76,6 +77,8 @@ func NewInstance(props rtui.Props) *Instance {
 		showPercent:   proputil.GetBool(props, propShowPercent, true),
 		dirty:         true,
 	}
+	inst.resetActiveLoop()
+	return inst
 }
 
 // =============================================================================
@@ -119,7 +122,7 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 
 	if oldType != inst.progressType || oldStatus != inst.status || oldValue != inst.value || oldMax != inst.max {
 		inst.activeFrame = 0
-		inst.lastTick = time.Time{}
+		inst.resetActiveLoop()
 	}
 
 	changed := oldKey != inst.key ||
@@ -169,12 +172,25 @@ func (inst *Instance) Tick(now time.Time) bool {
 	if !inst.WantsTick() {
 		return false
 	}
-	if !inst.lastTick.IsZero() && now.Sub(inst.lastTick) < activeTickInterval {
+	if inst.activeLoop == nil {
+		inst.resetActiveLoop()
+		if inst.activeLoop == nil {
+			return false
+		}
+	}
+	if !inst.activeLoop.Primed() {
+		inst.activeLoop.Prime(now.Add(-activeTickInterval))
+	}
+
+	prevFrame := inst.activeFrame
+	if !inst.activeLoop.Tick(now) {
 		return false
 	}
 
-	inst.lastTick = now
-	inst.activeFrame++
+	inst.activeFrame = inst.activeLoop.Cycle()
+	if inst.activeFrame == prevFrame {
+		return false
+	}
 	inst.dirty = true
 	return true
 }
@@ -409,6 +425,7 @@ func (inst *Instance) SetValue(value int) {
 	value, _ = normalizeProgressRange(value, inst.max)
 	if inst.value != value {
 		inst.value = value
+		inst.resetActiveLoop()
 		inst.dirty = true
 	}
 }
@@ -426,6 +443,19 @@ func (inst *Instance) Percent() int {
 		return 0
 	}
 	return (value * 100) / max
+}
+
+func (inst *Instance) resetActiveLoop() {
+	inst.activeFrame = 0
+	if !inst.WantsTick() {
+		inst.activeLoop = nil
+		return
+	}
+	inst.activeLoop = animation.NewLoopDriver(animation.LoopDriverConfig{
+		Duration:  activeTickInterval,
+		Cycles:    0,
+		AutoStart: true,
+	})
 }
 
 // =============================================================================

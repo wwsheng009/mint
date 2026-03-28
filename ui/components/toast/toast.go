@@ -1,14 +1,15 @@
 package toast
 
 import (
-	"github.com/wwsheng009/mint/ui/components/internal/proputil"
 	"time"
 
 	"github.com/wwsheng009/mint/framework/theme"
+	"github.com/wwsheng009/mint/runtime/animation"
 	"github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
+	"github.com/wwsheng009/mint/ui/components/internal/proputil"
 )
 
 // =============================================================================
@@ -30,20 +31,18 @@ type ToastInstance struct {
 	padding       [4]int
 
 	// === Runtime State ===
-	visible bool
-	timer   *time.Timer
-	bounds  [4]int // x, y, w, h
-	dirty   bool
-
-	// === Timestamps ===
-	createdAt time.Time
-	expireAt  time.Time
+	visible     bool
+	expired     bool
+	autoDismiss *animation.LoopDriver
+	bounds      [4]int // x, y, w, h
+	dirty       bool
 }
 
 // Ensure ToastInstance implements required interfaces
 var (
 	_ rtui.ComponentInstance = (*ToastInstance)(nil)
 	_ rtui.PaintableInstance = (*ToastInstance)(nil)
+	_ rtui.TickableInstance  = (*ToastInstance)(nil)
 	_ interface {
 		Measure(layout.Constraints) layout.Size
 	} = (*ToastInstance)(nil)
@@ -67,12 +66,8 @@ func NewToastInstance(props rtui.Props) *ToastInstance {
 		padding:       getPaddingProp(props),
 		visible:       true,
 		dirty:         true,
-		createdAt:     time.Now(),
-		expireAt:      time.Now().Add(duration),
 	}
-
-	// Start auto-hide timer
-	inst.startTimer()
+	inst.showAt(time.Now())
 
 	return inst
 }
@@ -98,9 +93,7 @@ func (inst *ToastInstance) Init(props rtui.Props) {
 
 // Destroy implements ComponentInstance.
 func (inst *ToastInstance) Destroy() {
-	if inst.timer != nil {
-		inst.timer.Stop()
-	}
+	inst.stopAutoDismiss()
 }
 
 // OnMount implements ComponentInstance.
@@ -118,6 +111,8 @@ func (inst *ToastInstance) SetProps(props rtui.Props) bool {
 	oldTitle := inst.title
 	oldMessage := inst.message
 	oldType := inst.toastType
+	oldDuration := inst.toastDuration
+	oldStyle := inst.toastStyle
 
 	inst.title = proputil.GetString(props, "title", inst.title)
 	inst.message = proputil.GetString(props, "message", inst.message)
@@ -128,23 +123,29 @@ func (inst *ToastInstance) SetProps(props rtui.Props) bool {
 	inst.padding = getPaddingProp(props)
 
 	visible := proputil.GetBool(props, "visible", inst.visible)
-	if visible != inst.visible {
-		inst.visible = visible
-		inst.dirty = true
-		if visible {
-			inst.startTimer()
-		} else {
-			inst.stopTimer()
-		}
-	}
-
 	changed := oldTitle != inst.title ||
 		oldMessage != inst.message ||
-		oldType != inst.toastType
+		oldType != inst.toastType ||
+		oldDuration != inst.toastDuration ||
+		oldStyle != inst.toastStyle ||
+		visible != inst.visible
 
-	if changed {
+	if !changed {
+		return false
+	}
+
+	switch {
+	case visible && !inst.visible:
+		inst.showAt(time.Now())
+	case !visible && inst.visible:
+		inst.Hide()
+	case oldDuration != inst.toastDuration && inst.visible:
+		inst.expired = false
+		inst.restartAutoDismiss(time.Now())
+	default:
 		inst.dirty = true
 	}
+
 	return changed
 }
 
@@ -172,6 +173,32 @@ func (inst *ToastInstance) IsDirty() bool {
 // GetContext implements ComponentInstance (no hooks for Toast).
 func (inst *ToastInstance) GetContext() *rtui.ComponentContext {
 	return nil
+}
+
+// =============================================================================
+// TickableInstance Interface
+// =============================================================================
+
+func (inst *ToastInstance) WantsTick() bool {
+	return inst.visible && inst.autoDismiss != nil && inst.autoDismiss.WantsTick()
+}
+
+func (inst *ToastInstance) Tick(now time.Time) bool {
+	if !inst.WantsTick() {
+		return false
+	}
+	if !inst.autoDismiss.Tick(now) {
+		return false
+	}
+	if !inst.autoDismiss.Done() {
+		return false
+	}
+
+	inst.expired = true
+	inst.visible = false
+	inst.stopAutoDismiss()
+	inst.dirty = true
+	return true
 }
 
 // =============================================================================
@@ -243,30 +270,36 @@ func (inst *ToastInstance) resolveStyle() style.Style {
 
 // Show displays the toast and starts auto-hide timer.
 func (inst *ToastInstance) Show() {
-	if !inst.visible {
-		inst.visible = true
-		inst.dirty = true
-		inst.startTimer()
-	}
+	inst.showAt(time.Now())
+}
+
+func (inst *ToastInstance) showAt(now time.Time) {
+	inst.visible = true
+	inst.expired = false
+	inst.restartAutoDismiss(now)
+	inst.dirty = true
 }
 
 // Hide hides the toast and stops the timer.
 func (inst *ToastInstance) Hide() {
 	inst.visible = false
 	inst.dirty = true
-	inst.stopTimer()
+	inst.stopAutoDismiss()
+}
+
+// IsVisible returns whether the toast is currently visible.
+func (inst *ToastInstance) IsVisible() bool {
+	return inst.visible
 }
 
 // IsExpired returns true if the toast has exceeded its duration.
 func (inst *ToastInstance) IsExpired() bool {
-	return time.Now().After(inst.expireAt)
+	return inst.expired
 }
 
 // Refresh resets the expire time for the toast.
 func (inst *ToastInstance) Refresh() {
-	inst.expireAt = time.Now().Add(inst.toastDuration)
-	inst.stopTimer()
-	inst.startTimer()
+	inst.showAt(time.Now())
 }
 
 // Message returns the toast message.
@@ -287,24 +320,6 @@ func (inst *ToastInstance) ToastType() ToastType {
 // Duration returns the toast duration.
 func (inst *ToastInstance) Duration() time.Duration {
 	return inst.toastDuration
-}
-
-// =============================================================================
-// Timer Management
-// =============================================================================
-
-func (inst *ToastInstance) startTimer() {
-	inst.stopTimer()
-	inst.timer = time.AfterFunc(inst.toastDuration, func() {
-		inst.Hide()
-	})
-}
-
-func (inst *ToastInstance) stopTimer() {
-	if inst.timer != nil {
-		inst.timer.Stop()
-		inst.timer = nil
-	}
 }
 
 // =============================================================================
@@ -354,3 +369,25 @@ func (inst *ToastInstance) Measure(constraints layout.Constraints) layout.Size {
 	return layout.Size{Width: width, Height: height}
 }
 
+func (inst *ToastInstance) restartAutoDismiss(now time.Time) {
+	inst.stopAutoDismiss()
+	if inst.toastDuration <= 0 {
+		return
+	}
+	inst.autoDismiss = animation.NewLoopDriver(animation.LoopDriverConfig{
+		Duration:  inst.toastDuration,
+		Cycles:    1,
+		AutoStart: true,
+	})
+	if !now.IsZero() {
+		inst.autoDismiss.Prime(now)
+	}
+}
+
+func (inst *ToastInstance) stopAutoDismiss() {
+	if inst.autoDismiss == nil {
+		return
+	}
+	inst.autoDismiss.Stop()
+	inst.autoDismiss = nil
+}

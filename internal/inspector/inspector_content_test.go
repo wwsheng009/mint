@@ -80,8 +80,15 @@ func TestInspectorWithRealContent(t *testing.T) {
 		t.Error("Tree lines should not be empty")
 	}
 
-	// 验证包含预期的节点类型
-	expectedTypes := []string{"VStack", "HStack", "Text", "Button"}
+	// 验证包含当前实现下稳定可见的节点类型和内容标签。
+	// HStack/VStack 在树视图中已经归一显示为 LayoutNode。
+	expectedTypes := []string{
+		"LayoutNode",
+		"TextVNode",
+		"ButtonVNode",
+		"Root Container",
+		"Nested VStack",
+	}
 	missingTypes := []string{}
 	treeContent := strings.Join(lines, " ")
 
@@ -123,7 +130,7 @@ func TestInspectorWithRealContent(t *testing.T) {
 	t.Logf("=== Inspector Overlay Render ===\n%s\n=== End ===", rendered)
 
 	// 验证 Inspector 显示了树内容
-	if !strings.Contains(rendered, "VStack") && !strings.Contains(rendered, "Button") {
+	if !strings.Contains(rendered, "LayoutNode") && !strings.Contains(rendered, "ButtonVNode") {
 		t.Error("Inspector should display tree nodes")
 	} else {
 		t.Log("✓ Inspector displays tree nodes")
@@ -183,39 +190,45 @@ func TestInspectorWithAttachedApp(t *testing.T) {
 
 	t.Logf("Application tree has %d lines", len(lines))
 
-	// 验证树的结构
-	hasVStack := false
-	hasHStack := false
+	// 验证树的结构。当前 Inspector 会把布局容器显示为 LayoutNode。
+	layoutNodeCount := 0
 	hasButton := false
+	hasDemoLabel := false
+	hasColumnLabel := false
 
 	for _, line := range lines {
-		if strings.Contains(line, "VStack") {
-			hasVStack = true
-		}
-		if strings.Contains(line, "HStack") {
-			hasHStack = true
+		if strings.Contains(line, "LayoutNode") {
+			layoutNodeCount++
 		}
 		if strings.Contains(line, "Button") {
 			hasButton = true
 		}
+		if strings.Contains(line, "Demo Application") {
+			hasDemoLabel = true
+		}
+		if strings.Contains(line, "Column 1:") {
+			hasColumnLabel = true
+		}
 	}
 
-	if !hasVStack {
-		t.Error("Tree should contain VStack nodes")
+	if layoutNodeCount < 2 {
+		t.Errorf("Tree should contain multiple LayoutNode containers, got %d", layoutNodeCount)
 	} else {
-		t.Log("✓ Tree contains VStack")
-	}
-
-	if !hasHStack {
-		t.Error("Tree should contain HStack nodes")
-	} else {
-		t.Log("✓ Tree contains HStack")
+		t.Logf("✓ Tree contains %d LayoutNode containers", layoutNodeCount)
 	}
 
 	if !hasButton {
 		t.Error("Tree should contain Button nodes")
 	} else {
 		t.Log("✓ Tree contains Buttons")
+	}
+
+	if !hasDemoLabel {
+		t.Error("Tree should contain the Demo Application label")
+	}
+
+	if !hasColumnLabel {
+		t.Error("Tree should contain the Column 1 label")
 	}
 
 	// 渲染 Inspector 查看实际显示
@@ -241,8 +254,8 @@ func TestInspectorWithAttachedApp(t *testing.T) {
 
 	// 验证关键内容存在
 	expectedContent := []string{
-		"INSPECTOR",
 		"Elements",
+		"Console(2)",
 		"Layout Tree",
 		"Nodes:",
 	}

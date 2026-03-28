@@ -5,11 +5,12 @@ import (
 	"time"
 
 	"github.com/wwsheng009/mint/framework/theme"
+	"github.com/wwsheng009/mint/runtime/animation"
 	"github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
-	"github.com/wwsheng009/mint/ui/components/internal/proputil"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
+	"github.com/wwsheng009/mint/ui/components/internal/proputil"
 )
 
 // =============================================================================
@@ -28,16 +29,20 @@ type Instance struct {
 	placement        Placement
 	notifyStyle      style.Style
 
-	bounds    [4]int
-	dirty     bool
-	visible   bool
-	shownAt   time.Time
+	bounds      [4]int
+	dirty       bool
+	visible     bool
+	expired     bool
+	autoDismiss *animation.LoopDriver
 }
 
 var (
-	_ rtui.ComponentInstance                               = (*Instance)(nil)
-	_ rtui.PaintableInstance                              = (*Instance)(nil)
-	_ interface{ Measure(layout.Constraints) layout.Size } = (*Instance)(nil)
+	_ rtui.ComponentInstance = (*Instance)(nil)
+	_ rtui.PaintableInstance = (*Instance)(nil)
+	_ rtui.TickableInstance  = (*Instance)(nil)
+	_ interface {
+		Measure(layout.Constraints) layout.Size
+	} = (*Instance)(nil)
 )
 
 // NewInstance creates a new Notification Instance from props.
@@ -63,14 +68,20 @@ func NewInstance(props rtui.Props) *Instance {
 
 // Show marks the notification as visible and records show time.
 func (inst *Instance) Show() {
+	inst.showAt(time.Now())
+}
+
+func (inst *Instance) showAt(now time.Time) {
 	inst.visible = true
-	inst.shownAt = time.Now()
+	inst.expired = false
+	inst.restartAutoDismiss(now)
 	inst.dirty = true
 }
 
 // Hide marks the notification as hidden.
 func (inst *Instance) Hide() {
 	inst.visible = false
+	inst.stopAutoDismiss()
 	inst.dirty = true
 }
 
@@ -80,31 +91,35 @@ func (inst *Instance) IsVisible() bool {
 }
 
 // IsExpired returns true if the notification has exceeded its duration.
-// Always false when duration is 0 (persistent).
 func (inst *Instance) IsExpired() bool {
-	if inst.duration == 0 {
-		return false
-	}
-	return time.Since(inst.shownAt) >= inst.duration
+	return inst.expired
 }
 
 // =============================================================================
 // ComponentInstance Interface
 // =============================================================================
 
-func (inst *Instance) Key() string                       { return inst.key }
-func (inst *Instance) SetKey(key string)                 { inst.key = key }
-func (inst *Instance) IsDirty() bool                     { return inst.dirty }
-func (inst *Instance) MarkClean()                        { inst.dirty = false }
-func (inst *Instance) MarkDirty()                        { inst.dirty = true }
-func (inst *Instance) Destroy()                          {}
-func (inst *Instance) OnMount()                          {}
-func (inst *Instance) OnUnmount()                        {}
+func (inst *Instance) Key() string                        { return inst.key }
+func (inst *Instance) SetKey(key string)                  { inst.key = key }
+func (inst *Instance) IsDirty() bool                      { return inst.dirty }
+func (inst *Instance) MarkClean()                         { inst.dirty = false }
+func (inst *Instance) MarkDirty()                         { inst.dirty = true }
+func (inst *Instance) Destroy()                           {}
+func (inst *Instance) OnMount()                           {}
+func (inst *Instance) OnUnmount()                         {}
 func (inst *Instance) GetContext() *rtui.ComponentContext { return nil }
 
 func (inst *Instance) Init(props rtui.Props) { inst.SetProps(props) }
 
 func (inst *Instance) SetProps(props rtui.Props) bool {
+	oldType := inst.notificationType
+	oldTitle := inst.title
+	oldMessage := inst.message
+	oldClosable := inst.closable
+	oldDuration := inst.duration
+	oldPlacement := inst.placement
+	oldStyle := inst.notifyStyle
+
 	inst.notificationType = getNotificationTypeProp(props, NotificationInfo)
 	inst.title = proputil.GetString(props, propTitle, "")
 	inst.message = proputil.GetString(props, propMessage, "")
@@ -115,8 +130,28 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	inst.duration = getDurationProp(props, 0)
 	inst.placement = getPlacementProp(props, PlacementTopRight)
 	inst.notifyStyle = proputil.GetStyle(props, propStyle, style.Style{})
+
+	changed := oldType != inst.notificationType ||
+		oldTitle != inst.title ||
+		oldMessage != inst.message ||
+		oldClosable != inst.closable ||
+		oldDuration != inst.duration ||
+		oldPlacement != inst.placement ||
+		oldStyle != inst.notifyStyle
+	if !changed {
+		return false
+	}
+
+	if oldDuration != inst.duration {
+		if inst.visible {
+			inst.expired = false
+			inst.restartAutoDismiss(time.Now())
+		} else {
+			inst.stopAutoDismiss()
+		}
+	}
 	inst.dirty = true
-	return true
+	return changed
 }
 
 func (inst *Instance) GetProps() rtui.Props {
@@ -131,6 +166,32 @@ func (inst *Instance) GetProps() rtui.Props {
 		propPlacement:        inst.placement,
 		propStyle:            inst.notifyStyle,
 	}
+}
+
+// =============================================================================
+// TickableInstance Interface
+// =============================================================================
+
+func (inst *Instance) WantsTick() bool {
+	return inst.visible && inst.autoDismiss != nil && inst.autoDismiss.WantsTick()
+}
+
+func (inst *Instance) Tick(now time.Time) bool {
+	if !inst.WantsTick() {
+		return false
+	}
+	if !inst.autoDismiss.Tick(now) {
+		return false
+	}
+	if !inst.autoDismiss.Done() {
+		return false
+	}
+
+	inst.expired = true
+	inst.visible = false
+	inst.stopAutoDismiss()
+	inst.dirty = true
+	return true
 }
 
 // =============================================================================
@@ -231,4 +292,27 @@ func notificationTypeLabel(t NotificationType) string {
 	default:
 		return "Info"
 	}
+}
+
+func (inst *Instance) restartAutoDismiss(now time.Time) {
+	inst.stopAutoDismiss()
+	if inst.duration <= 0 {
+		return
+	}
+	inst.autoDismiss = animation.NewLoopDriver(animation.LoopDriverConfig{
+		Duration:  inst.duration,
+		Cycles:    1,
+		AutoStart: true,
+	})
+	if !now.IsZero() {
+		inst.autoDismiss.Prime(now)
+	}
+}
+
+func (inst *Instance) stopAutoDismiss() {
+	if inst.autoDismiss == nil {
+		return
+	}
+	inst.autoDismiss.Stop()
+	inst.autoDismiss = nil
 }

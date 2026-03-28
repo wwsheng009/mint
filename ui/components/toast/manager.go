@@ -1,6 +1,8 @@
 package toast
 
 import (
+	"time"
+
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
 
@@ -119,8 +121,21 @@ func (tm *Manager) GetVNodes() []rtui.VNode {
 
 // CleanExpired removes all expired toasts.
 func (tm *Manager) CleanExpired() {
+	tm.Tick()
+}
+
+// Tick advances timed toasts and removes any that have expired.
+func (tm *Manager) Tick() {
+	tm.tickAt(time.Now())
+}
+
+func (tm *Manager) tickAt(now time.Time) {
 	activeToasts := make([]*ToastInstance, 0, len(tm.toasts))
 	for _, toast := range tm.toasts {
+		if toast == nil {
+			continue
+		}
+		toast.Tick(now)
 		if !toast.IsExpired() && toast.visible {
 			activeToasts = append(activeToasts, toast)
 		} else if toast.visible {

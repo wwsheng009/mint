@@ -16,8 +16,11 @@ import (
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/ui/components/cursor"
 	"github.com/wwsheng009/mint/ui/components/input"
+	"github.com/wwsheng009/mint/ui/components/notification"
 	selectcomp "github.com/wwsheng009/mint/ui/components/select"
 	"github.com/wwsheng009/mint/ui/components/textarea"
+	"github.com/wwsheng009/mint/ui/components/toast"
+	"github.com/wwsheng009/mint/ui/components/tooltip"
 )
 
 // TestApp_Throttler 测试 App 的节流器集成
@@ -33,6 +36,9 @@ func TestApp_Throttler(t *testing.T) {
 	app.SetFPS(30)
 	if fps := app.FPS(); fps != 30 {
 		t.Errorf("expected FPS 30, got %d", fps)
+	}
+	if app.tickInterval != time.Second/30 {
+		t.Errorf("expected tickInterval %v, got %v", time.Second/30, app.tickInterval)
 	}
 
 	// 测试统计信息
@@ -277,6 +283,93 @@ func TestApp_HandleTick_DrivesFocusedInputCursor(t *testing.T) {
 	app.handleTick()
 	if !app.dirty {
 		t.Fatal("handleTick should mark app dirty for focused blinking input")
+	}
+}
+
+func TestApp_HandleTick_ExpiresTimedNotification(t *testing.T) {
+	app := NewApp()
+
+	inst := notification.NewBuilder("done").
+		Title("Saved").
+		Duration(time.Millisecond).
+		BuildInstance()
+
+	rootFiber := &rtui.Fiber{
+		Tag:      "notification",
+		Instance: inst,
+	}
+	app.root = &mockFiberRootNode{fiberRoot: rootFiber}
+
+	app.dirty = false
+	time.Sleep(10 * time.Millisecond)
+	app.handleTick()
+
+	if !app.dirty {
+		t.Fatal("handleTick should mark app dirty when a timed notification expires")
+	}
+	if !inst.IsExpired() {
+		t.Fatal("notification should be expired after handleTick")
+	}
+	if inst.IsVisible() {
+		t.Fatal("expired notification should be hidden")
+	}
+}
+
+func TestApp_HandleTick_ExpiresTimedToast(t *testing.T) {
+	app := NewApp()
+
+	inst := toast.NewToastBuilder("Saved").
+		Duration(time.Millisecond).
+		BuildInstance()
+
+	rootFiber := &rtui.Fiber{
+		Tag:      "toast",
+		Instance: inst,
+	}
+	app.root = &mockFiberRootNode{fiberRoot: rootFiber}
+
+	app.dirty = false
+	time.Sleep(10 * time.Millisecond)
+	app.handleTick()
+
+	if !app.dirty {
+		t.Fatal("handleTick should mark app dirty when a timed toast expires")
+	}
+	if !inst.IsExpired() {
+		t.Fatal("toast should be expired after handleTick")
+	}
+	if inst.IsVisible() {
+		t.Fatal("expired toast should be hidden")
+	}
+}
+
+func TestApp_HandleTick_ShowsDelayedTooltip(t *testing.T) {
+	app := NewApp()
+
+	inst := tooltip.NewInstance(rtui.Props{
+		"text":  "hint",
+		"delay": time.Millisecond,
+	})
+	inst.HandleAction(action.NewAction(action.ActionMouseEnter))
+
+	rootFiber := &rtui.Fiber{
+		Tag:      "tooltip",
+		Instance: inst,
+	}
+	app.root = &mockFiberRootNode{fiberRoot: rootFiber}
+
+	app.dirty = false
+	time.Sleep(10 * time.Millisecond)
+	app.handleTick()
+
+	if !app.dirty {
+		t.Fatal("handleTick should mark app dirty when a delayed tooltip becomes visible")
+	}
+	if children := inst.RuntimeChildren(); len(children) != 1 {
+		t.Fatalf("runtime children after tooltip delay = %d, want 1", len(children))
+	}
+	if inst.WantsTick() {
+		t.Fatal("visible tooltip should stop requesting ticks after delay completes")
 	}
 }
 

@@ -104,6 +104,9 @@ type App struct {
 	state int32 // accessed atomically; use AppState constants cast to int32
 	quit  chan struct{}
 	dirty bool
+	// activeTickables caches whether the current fiber tree contains any instance
+	// that still wants periodic ticks. This avoids full-tree scans on idle frames.
+	activeTickables bool
 
 	// AI / external invoke support
 	aiService      *aiservice.Service
@@ -405,6 +408,7 @@ func (a *App) AddPanicHandler(handler core.PanicHandler) {
 // SetFPS 设置目标帧率
 func (a *App) SetFPS(fps int) {
 	a.throttler.SetFPS(fps)
+	a.tickInterval = time.Second / time.Duration(a.throttler.FPS())
 }
 
 // FPS 获取当前帧率
@@ -1143,7 +1147,12 @@ func (a *App) Run() error {
 
 		case <-ticker.C:
 			log.UILogger.IfEnabled().Debug("[APP] Tick triggered")
-			a.handleTick()
+			if !a.activeTickables && !a.dirty {
+				continue
+			}
+			if a.activeTickables {
+				a.handleTick()
+			}
 
 			// 处理完 tick 后，如果需要渲染则渲染
 			needsRender := a.dirty && a.throttler.ShouldRender()
@@ -2033,10 +2042,12 @@ func (a *App) handleEvent(ev frameworkevent.Event) {
 func (a *App) handleTick() {
 	rootFiber := a.getFiberRoot()
 	if rootFiber == nil {
+		a.activeTickables = false
 		return
 	}
 
 	now := time.Now()
+	hasActiveTickables := false
 	rtui.WalkFiberDepthFirst(rootFiber, func(fiber *rtui.Fiber) bool {
 		if fiber == nil || fiber.Instance == nil {
 			return true
@@ -2046,12 +2057,14 @@ func (a *App) handleTick() {
 		if !ok || !tickable.WantsTick() {
 			return true
 		}
+		hasActiveTickables = true
 
 		if tickable.Tick(now) {
 			a.dirty = true
 		}
 		return true
 	})
+	a.activeTickables = hasActiveTickables
 }
 
 // render 渲染界面
@@ -2231,11 +2244,34 @@ func (a *App) render() {
 			RenderedAt: time.Now(),
 		})
 	}
+	a.refreshActiveTickables()
 	a.dirty = false
 	// 清除首次渲染标记
 	if a.firstRender {
 		a.firstRender = false
 	}
+}
+
+func (a *App) refreshActiveTickables() {
+	rootFiber := a.getFiberRoot()
+	if rootFiber == nil {
+		a.activeTickables = false
+		return
+	}
+
+	active := false
+	rtui.WalkFiberDepthFirst(rootFiber, func(fiber *rtui.Fiber) bool {
+		if fiber == nil || fiber.Instance == nil {
+			return true
+		}
+		tickable, ok := rtui.AsTickableInstance(fiber.Instance)
+		if !ok || !tickable.WantsTick() {
+			return true
+		}
+		active = true
+		return false
+	})
+	a.activeTickables = active
 }
 
 // outputBuffer 输出缓冲区到终端（局部刷新优化版）
