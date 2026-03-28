@@ -16,6 +16,7 @@
 - Help display modes: `HelpDisplayInline` / `HelpDisplayOverlay` / `HelpDisplayBoth`
 - Overlay placement: `TooltipPlacementAuto` / `TooltipPlacementTop` / `TooltipPlacementBottom`
 - Overlay fallback / clamp: `TooltipPlacementAuto` 会按可见空间在上下方间回退，横向候选与视口 clamp 已复用 `ui/components/internal/overlayposition`；显式 `TooltipPlacementTop` / `TooltipPlacementBottom` 在左右边界场景下都会保持各自 family，并分别向左/向右选择合适的横向候选；在顶角 / 底角这类双轴受限场景下，则会在保留 edges-first 候选顺序的前提下回退到对侧 vertical family
+- Overlay viewport source: tooltip-layer 下的 overlay help 现在会优先使用运行时注入的真实 viewport，而不是依赖局部 layout bounds，因此顶角 / 底角 fallback 不会再因为零尺寸 layer bounds 而把内容画到可视区外
 - Overlay wrapping: `TooltipMaxWidth(...)` limits content width and wraps to multiple lines
 - Overlay gap: `TooltipGapRows(...)` adds a clearer vertical separation from the anchor
 - Overlay visibility: overlay tooltips only appear while the mouse is hovering the section
@@ -140,9 +141,9 @@ bar := statusbar.NewBuilder().
 ## 测试入口
 
 - 单测：`go test ./ui/components/statusbar`
-- 重点覆盖：overlay tooltip 的 wrap、arrow theme、`TooltipPlacementAuto` 的 bottom bias、显式 `TooltipPlacementTop` / `TooltipPlacementBottom` 在左右边界的 family 内横向回退，以及顶角 / 底角下回退到对侧 vertical family 的双轴受限几何；极窄 viewport 下显式 `TooltipPlacementTop` / `TooltipPlacementBottom` 的 left-edge clamp 仍保持原 vertical family
-- E2E：`go test ./ui/e2e -run "TestE2EStatusbarOverlayHelpTracksHoverPlacementAndHide|TestE2EOverlay"`
-- 重点覆盖：hover 显隐、overlay help 跟随 hovered section、左右边界下显式 `TooltipPlacementTop` / `TooltipPlacementBottom` 的横向候选回退；角落双轴受限场景当前以组件单测收口
+- 重点覆盖：overlay tooltip 的 wrap、arrow theme、`TooltipPlacementAuto` 的 bottom bias、显式 `TooltipPlacementTop` / `TooltipPlacementBottom` 在左右边界的 family 内横向回退，以及顶角 / 底角下回退到对侧 vertical family 的双轴受限几何；overlay help 会优先读取真实 viewport；极窄 viewport 下显式 `TooltipPlacementTop` / `TooltipPlacementBottom` 的 left-edge clamp 仍保持原 vertical family；当 viewport 过窄且过矮、同侧和对侧候选都放不下时，也会通过双轴 clamp 保持 `Top` / `Bottom` family
+- E2E：`go test ./ui/e2e -run "TestE2EStatusbar|TestE2EOverlay"`
+- 重点覆盖：hover 显隐、overlay help 跟随 hovered section、左右边界下显式 `TooltipPlacementTop` / `TooltipPlacementBottom` 的横向候选回退；顶角 / 底角双轴受限场景现在既有 dedicated `statusbar` e2e，也已纳入 `overlay_consistency_e2e_test.go` 的跨组件 corner 回归，覆盖回退到对侧 vertical family 后仍保持左右侧 family 语义；另外还补了极窄且过矮 viewport 下的 dedicated dual-axis clamp e2e，验证 `TooltipPlacementTop` / `TooltipPlacementBottom` 在没有任何 vertical candidate 能完整放入时仍保留原箭头方向
 
 ## `ui` 顶层快捷入口
 

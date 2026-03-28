@@ -1,6 +1,6 @@
 # Mint UI Components Review
 
-> 更新时间：2026-03-25
+> 更新时间：2026-03-28
 > 范围：`ui/components/`（排除 `docs/`、`internal/`）
 
 ---
@@ -12,7 +12,7 @@
 - 当前共有 58 个组件/支撑目录
 - 其中 54 个严格遵循 `builder.go + vnode.go + instance.go` 规范
 - `toast`、`statusbar`、`control`、`validation` 属于特例或基础设施模块
-- `go test ./ui/components/...` 当前可通过；无测试文件的包已收敛到 `internal/` 支撑模块
+- `go test ./ui/components/...` 与 `go test ./ui/e2e/...` 当前可通过；无测试文件的包已不再是主要矛盾，重点已转向高风险交互与跨组件回归
 
 ---
 
@@ -21,7 +21,7 @@
 ### 第一梯队
 
 - `select/`：overlay popup、多选、tags、`filterOption`、portal、outside-click 收口已经齐备
-- `menu/`：menubar、dropdown、context menu、popup、submenu、typeahead、shortcut 安装和关闭中间件已接通；anchored popup 根面板 placement 与 anchor-aware auto 现已接到 runtime，但 submenu flip / context-menu collision 仍在后续阶段
+- `menu/`：menubar、dropdown、context menu、popup、submenu、typeahead、shortcut 安装和关闭中间件已接通；anchored popup 根面板 placement 与 anchor-aware auto 现已接到 runtime，多级 submenu 的 flip / clamp / hit bounds 与共享 cascade helper 也已补齐，后续重点转为更极端组合角落矩阵
 - `treeview/`：懒加载、搜索、多选、受控展开、可见节点缓存已经成型
 - `table/`：分页、搜索、列过滤、选择和滚动条能力可用
 - `form/`：`FormItem`、字段意图、validator 联动已打通
@@ -77,7 +77,7 @@
 
 - `list/` 与 `table/` 已开始共享选择模型，说明内部抽象在收敛
 - 覆盖层能力在 `select/`、`menu/`、`modal/`、`drawer/` 之间已经形成相对一致的运行时思路
-- `tooltip/`、`popover/`、`popconfirm/`、`statusbar` 已开始共享同一套 overlay 定位 helper，后续继续扩散到其他浮层的成本会更低
+- `tooltip/`、`popover/`、`popconfirm/`、`statusbar` 已开始共享同一套 overlay 定位 helper，`statusbar` overlay help 运行时也已补上真实 viewport 注入，后续继续扩散到其他浮层的成本会更低
 - `form/` 的 `FormItem + validator source` 机制已经从“能跑”进入“可维护”阶段
 
 ---
@@ -85,5 +85,5 @@
 ## 建议的后续顺序
 
 1. 继续清理组件级文档漂移，优先 `ROADMAP.md`、迁移指南、复杂组件 README。
-2. 继续把测试空白从公共组件收敛到内部支撑模块，优先补 `internal/` 下仍无测试的工具包。
-3. 对新增组件批次补 README / demo / shortcut 说明，降低后续接手成本。
+2. 继续把测试密度倾斜到高风险交互，优先补更极端的 overlay / menu 组合角落矩阵。
+3. 对复杂组件 README、迁移指南与历史评审文档持续做“现状 / 历史”分层，降低后续接手成本。

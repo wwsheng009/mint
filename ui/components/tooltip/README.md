@@ -33,6 +33,6 @@ ui.NewTooltipBuilder(
 ## 测试入口
 
 - 单测：`go test ./ui/components/tooltip`
-- 重点覆盖：`tooltip_test.go` 中的 `delay` timer 生命周期、runtime children hover 路径，以及 top/bottom 与 left/right 显式 placement 的共享 candidate fallback 计算；`right-top` / `left-bottom` 的镜像回退，以及在两侧 horizontal family 都放不下时继续回退到 `top` / `bottom`；`top-left` / `top-right` / `bottom-left` / `bottom-right` 的 corner family 回退，以及对应 corner clamp；极窄 viewport 下显式 `top-right` / `bottom-right` 仍保持原 vertical family 的 left-edge clamp
+- 重点覆盖：`tooltip_test.go` 中的 `delay` timer 生命周期、runtime children hover 路径，以及 top/bottom 与 left/right 显式 placement 的共享 candidate fallback 计算；`right-top` / `left-bottom` 的镜像回退，以及在两侧 horizontal family 都放不下时继续回退到 `top` / `bottom`；`top-left` / `top-right` / `bottom-left` / `bottom-right` 的 corner family 回退，以及对应 corner clamp；极窄 viewport 下显式 `top-left` / `top-right` / `bottom-left` / `bottom-right` 仍保持原 vertical family 的 left-edge clamp；当 viewport 过窄且过矮、没有任何 vertical candidate 能完整放入时，仍会通过双轴 clamp 保持 `top` / `bottom` family
 - E2E：`go test ./ui/e2e -run TestE2ETooltip`
 - 重点覆盖：hover 显隐、`delay` 延迟显示、顶边 `top` fallback、右边界 `right` fallback，以及 `right-top` 角落 placement 的镜像回退；跨组件一致性回归已覆盖顶边 fallback、左右边界下显式 `top` / `bottom` 的 family 内横向回退，以及 `top-left` / `top-right` 在顶角场景下回退到下方同侧 family、`bottom-left` / `bottom-right` 在底角场景下回退到上方同侧 family，见 `go test ./ui/e2e -run TestE2EOverlay`

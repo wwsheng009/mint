@@ -40,5 +40,5 @@ ui.NewPopconfirmBuilder(
 ## 测试入口
 
 - 单测：`go test ./ui/components/popconfirm`
-- 重点覆盖：`popconfirm_test.go` 中的 placement、footer layout、confirm / cancel intent 与 middleware 关闭链路；显式 `top-left` / `top-right` 在顶角场景下回退到下方同侧 family、`bottom-left` / `bottom-right` 在底角场景下回退到上方同侧 family 的 corner 几何，E2E 也已补对应专用 fixture；极窄 viewport 下显式 `top-right` / `bottom-right` 仍保持各自 vertical family，目前由组件单测验证 left-edge clamp
+- 重点覆盖：`popconfirm_test.go` 中的 placement、footer layout、confirm / cancel intent 与 middleware 关闭链路；显式 `top-left` / `top-right` 在顶角场景下回退到下方同侧 family、`bottom-left` / `bottom-right` 在底角场景下回退到上方同侧 family 的 corner 几何，E2E 也已补对应专用 fixture；极窄 viewport 下显式 `top-left` / `top-right` / `bottom-left` / `bottom-right` 仍保持各自 vertical family，目前组件单测除了 left-edge clamp，也覆盖了“没有任何 vertical candidate 能完整放入时”的双轴 clamp 与 resolved placement
 - E2E：`go test ./ui/e2e -run TestE2EPopconfirm`

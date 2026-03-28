@@ -2,9 +2,9 @@
 
 > 本文档记录 Mint UI 组件库的现状、与 Ant Design 的对比分析，以及后续开发计划。
 >
-> 更新日期：2026-03-27
+> 更新日期：2026-03-28
 >
-> 实施状态核对：截至 2026-03-27，本文中的 Phase 1-4 路线图条目已全部完成；`go test ./ui/components/...` 与 `go test ./ui/e2e/...` 当前通过，本轮 overlay 收口已把 `popover`、`popconfirm` 的 viewport-aware placement / fallback / clamp 进一步下沉到 `internal/overlayposition`，并补齐与 `statusbar` 的一致性回归。
+> 实施状态核对：截至 2026-03-28，本文中的 Phase 1-4 路线图条目已全部完成；`go test ./ui/components/...` 与 `go test ./ui/e2e/...` 当前通过，本轮 overlay 收口已把 `popover`、`popconfirm` 的 viewport-aware placement / fallback / clamp 进一步下沉到 `internal/overlayposition`，`statusbar` overlay help 也已补上真实 viewport 注入与 dedicated corner e2e。
 >
 > 详细增强任务拆分见：[OPTIMIZATION_BACKLOG.md](./OPTIMIZATION_BACKLOG.md)
 
@@ -45,7 +45,7 @@
 | Modal | `modal/` | ★★★★☆ | overlay定位，portal架构，静态 helper 支持 prefix/footer layout/按钮文案与变体模板 |
 | Drawer | `drawer/` | ★★★★☆ | 侧边抽屉，支持 placement、受控显隐、overlay 与 ESC/遮罩关闭 |
 | Tabs | `tabs/` | ★★★★★ | intent，controlled 模式，card/closable/drag reorder |
-| Menu | `menu/` | ★★★★★ | menubar/dropdown/context/popup，submenu，shortcut；anchored popup 根面板已支持显式 placement 与 anchor-aware auto |
+| Menu | `menu/` | ★★★★★ | menubar/dropdown/context/popup，submenu，shortcut；anchored popup 根面板已支持显式 placement 与 anchor-aware auto，多级 submenu 也已覆盖 left-flip、viewport clamp 与共享 cascade helper |
 | Anchor | `anchor/` | ★★★☆☆ | 锚点导航，支持层级链接、当前项高亮、键鼠切换、受控/非受控 `activeKey`、Field/Form 绑定 |
 | Alert | `alert/` | ★★★☆☆ | 内联提示，info/success/warning/error，可关闭 |
 | Spin | `spin/` | ★★★☆☆ | 加载指示器，small/default/large，tip，TickFrame动画 |
@@ -58,7 +58,7 @@
 | Tag | `tag/` | ★★★☆☆ | 标签，颜色变体，可关闭，可选图标前缀 |
 | Progress | `progress/` | ★★★☆☆ | 线形/圆形/仪表盘进度条，status（normal/success/exception/active），showPercent，`active` tick 动画 |
 | Divider | `divider/` | ★★★☆☆ | 水平/垂直分隔线 |
-| StatusBar | `statusbar/` | ★★★☆☆ | 组合式 builder，含 help、section 内部组件；overlay tooltip 支持 auto/top/bottom、fallback 与 clamp，并已复用共享候选位置 helper |
+| StatusBar | `statusbar/` | ★★★☆☆ | 组合式 builder，含 help、section 内部组件；overlay tooltip 支持 auto/top/bottom、fallback 与 clamp，并已复用共享候选位置 helper，overlay help 运行时已接入真实 viewport 注入 |
 | Panel | `panel/` | ★★★☆☆ | 容器面板，有 enhanced builder |
 | Popover | `popover/` | ★★★☆☆ | 气泡卡片，支持 title/body、click/hover/manual 触发、auto + top/bottom 6 方位 placement、viewport-aware fallback/clamp、local open intents，以及 Install 后的 ESC / outside-click 收口 |
 | Popconfirm | `popconfirm/` | ★★★☆☆ | 气泡确认框，支持 title/description、OK/Cancel 操作、click/hover/manual 触发、top/bottom 系列 placement、viewport-aware fallback/clamp、confirm/cancel intents、按钮 variant/footer layout，以及 Install 后的 ESC / outside-click 收口 |

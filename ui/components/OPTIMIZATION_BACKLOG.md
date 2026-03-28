@@ -85,21 +85,21 @@
 - `popover` / `popconfirm` 已把 vertical auto placement、candidate fallback 与 viewport clamp 主路径进一步下沉到 `overlayposition`
 - `tooltip` 的 top/bottom 与 left/right 显式 placement candidate 展开已复用 `overlayposition` 共享 vertical / horizontal helper
 - `statusbar` 已复用共享候选位置 helper，但 auto placement 偏好仍保留本地策略，以兼容既有 hover 布局语义
-- `statusbar` 的显式 `TooltipPlacementTop` / `TooltipPlacementBottom` 现在会在保留 edges-first 候选顺序的前提下，处理顶角 / 底角场景下对侧 vertical family 的回退；对应双轴受限几何与极窄 viewport 下保持原 family 的 left-edge clamp 都已补到组件单测
+- `statusbar` 的显式 `TooltipPlacementTop` / `TooltipPlacementBottom` 现在会在保留 edges-first 候选顺序的前提下，处理顶角 / 底角场景下对侧 vertical family 的回退；overlay help 运行时也已接入真实 viewport 注入，避免 tooltip-layer 下因零尺寸 bounds 丢失顶角 / 底角 fallback；对应双轴受限几何、极窄 viewport 下保持原 family 的 left-edge clamp，以及“同侧/对侧候选都放不下时的双轴 clamp”都已补到组件单测，arrow-capable 的 dual-axis clamp 也已有 dedicated e2e
 - `runtime/ui` 已暴露异步 render request 入口，`tooltip` 的 delayed show 现在会在 timer 回调后主动请求重绘
 - `tooltip` 单测与 e2e 已补 `delay` 生命周期、child-hover 路径、延迟显示，以及右边界 `right` fallback 回归
-- `tooltip` 的 `right-top` / `left-bottom` 角落 placement 现在会优先回退到镜像 horizontal family，再退回上下方向；对应 corner clamp、`right-top` e2e，以及“horizontal family 都放不下时回退到 `top` / `bottom`”的窄视口单测都已补；`internal/overlayposition` 的共享 horizontal helper / resolver 现在也有独立单测覆盖 `RightTop` / `LeftBottom` 以及对称的 `RightBottom` / `LeftTop` 回退链；`bottom-left` / `bottom-right` 的底角回退单测与显式 `top-right` / `bottom-right` 的 left-edge clamp 保持原 vertical family 也都已由组件单测覆盖
-- `menu` 根 popup 已接通 viewport-aware anchored placement fallback / clamp，定位尺寸改为真实外框（`surface + shadow`）；`context menu` 已接通基于真实外框尺寸的 viewport clamp；submenu 级联面板也已支持右侧放不下时自动翻转到左侧、纵向 viewport clamp、沿父级方向连续展开，并在极窄 viewport 下按最终 clamp 侧继续推导后续方向，同时覆盖整棵 cascade 的 hit bounds；这套 cascade 规则已开始下沉到 `internal/overlayposition`，共享 helper 也已补 preferred-left、top-edge、double-axis clamp，以及“left-edge clamp 后下一层镜像回右侧”的矩阵单测；`menu` e2e 也已覆盖 bottom-right upward clamp、窄底角 left-edge clamp + upward clamp，以及镜像回右侧链路
-- `popover` / `popconfirm` 在极窄 viewport 下的显式 `top-right` / `bottom-right` clamp 语义，目前由组件单测覆盖，确保在 left-edge clamp 时仍保持原 vertical family；`internal/overlayposition` 的共享 vertical helper / resolver 也已补对称的 `TopLeft` / `TopRight` / `BottomLeft` / `BottomRight` candidate 顺序、顶角/底角 family fallback 与窄视口 clamp 单测；专门的 dedicated e2e 先不下沉，避免把终端宽度噪声引入主套件
-- 跨组件一致性回归已覆盖 `tooltip` / `popover` / `popconfirm` 的 `auto` 与显式 `top` 在顶边场景下的 fallback 行为；同时也已覆盖 `tooltip` / `popover` / `popconfirm` / `statusbar` 在左右边界且仍有可用垂直空间时，显式 `top` / `bottom` 会保持各自 family 并分别向左/向右选择横向候选；此外 `tooltip` / `popover` / `popconfirm` 的显式 `top-left` / `top-right` 在顶角场景下回退到下方同侧 family、`bottom-left` / `bottom-right` 在底角场景下回退到上方同侧 family 的 corner 语义也已补到 e2e；`statusbar` 的对应顶角 / 底角双轴回退目前已由组件单测覆盖，`go test ./ui/e2e/...` 当前通过
+- `tooltip` 的 `right-top` / `left-bottom` 角落 placement 现在会优先回退到镜像 horizontal family，再退回上下方向；对应 corner clamp、`right-top` e2e，以及“horizontal family 都放不下时回退到 `top` / `bottom`”的窄视口单测都已补；`internal/overlayposition` 的共享 horizontal helper / resolver 现在也有独立单测覆盖 `RightTop` / `LeftBottom` 以及对称的 `RightBottom` / `LeftTop` 回退链；`bottom-left` / `bottom-right` 的底角回退单测、显式 `top-right` / `bottom-right` 的 left-edge clamp 保持原 vertical family，以及“没有任何 vertical candidate 能完整放入时”的双轴 clamp 现在也都已由组件单测覆盖
+- `menu` 根 popup 已接通 viewport-aware anchored placement fallback / clamp，定位尺寸改为真实外框（`surface + shadow`）；`context menu` 已接通基于真实外框尺寸的 viewport clamp；submenu 级联面板也已支持右侧放不下时自动翻转到左侧、纵向 viewport clamp、沿父级方向连续展开，并在极窄 viewport 下按最终 clamp 侧继续推导后续方向，同时覆盖整棵 cascade 的 hit bounds；这套 cascade 规则已开始下沉到 `internal/overlayposition`，共享 helper 也已补 preferred-left、top-edge、double-axis clamp，以及“left-edge clamp 后下一层镜像回右侧”与“right-edge clamp 后下一层镜像回左侧”的方向传递矩阵；`menu` e2e 也已覆盖 bottom-right upward clamp、窄底角 left-edge clamp + upward clamp，以及左右两侧的镜像回退链路，而且两条镜像链路都已进一步补了靠近底边时伴随 upward clamp 的组合场景，并新增了更极端的底边 zig-zag 级联链路
+- `popover` / `popconfirm` / `tooltip` 在极窄 viewport 下的显式 `top-left` / `top-right` / `bottom-left` / `bottom-right` clamp 语义，目前都已由组件单测对称覆盖，确保在 left-edge clamp 时仍保持原 vertical family；`internal/overlayposition` 的共享 vertical helper / resolver 也已补对称的 `TopLeft` / `TopRight` / `BottomLeft` / `BottomRight` candidate 顺序、顶角/底角 family fallback、窄视口 clamp，以及“没有任何 vertical candidate 能完整放入时的双轴 clamp”单测；其中 `popover` 已补 arrow-based dedicated e2e，用于验证 dual-axis clamp 后仍保留 `top` / `bottom` family，`tooltip` / `popconfirm` 继续以组件单测为主，避免把终端宽度噪声引入主套件
+- 跨组件一致性回归已覆盖 `tooltip` / `popover` / `popconfirm` 的 `auto` 与显式 `top` 在顶边场景下的 fallback 行为；同时也已覆盖 `tooltip` / `popover` / `popconfirm` / `statusbar` 在左右边界且仍有可用垂直空间时，显式 `top` / `bottom` 会保持各自 family 并分别向左/向右选择横向候选；此外显式 `top-left` / `top-right` 在顶角场景下回退到下方同侧 family、`bottom-left` / `bottom-right` 在底角场景下回退到上方同侧 family 的 corner 语义，现在也已补到 `tooltip` / `popover` / `popconfirm` / `statusbar` 的 e2e，其中 `statusbar` 同时保留了 dedicated corner e2e，`go test ./ui/e2e/...` 当前通过
 
 #### 待办
 
-- 如果 runtime 后续暴露更完整的真实 viewport / portal 布局信息，继续把这部分信息下沉到共享 helper
+- 如果 runtime 后续暴露更完整的 portal / anchor 布局信息，继续把这些信息下沉到共享 helper；当前 `statusbar` overlay help 已先接入真实 viewport 注入
 - 继续收口 `menu` 的 submenu 级联路径，重点转为是否把这套共享 cascade helper 推广到更多 overlay / menu 变体，以及继续补更多组合角落回归，尤其是更多多层 cascade 的顶部/底部/左右同时受限矩阵
 - 继续扩 `Tooltip` 的 placement / fallback / clamp 边界回归，重点把更多角落组合和 clamp 极限场景补到跨组件 e2e，而不只停留在 `tooltip` 单测
 - 评估是否把 `statusbar` 的 auto placement 偏好也纳入共享策略，前提是不破坏既有 hover 布局语义
-- 继续补跨组件一致性回归：`tooltip`、`popover`、`popconfirm`、`statusbar` 在更多边界条件下行为一致，尤其是 `statusbar` 顶角 / 底角的 dedicated e2e 是否值得继续下沉
+- 继续补跨组件一致性回归：`tooltip`、`popover`、`popconfirm`、`statusbar` 在更多边界条件下行为一致，重点转向更极端的多轴 clamp / 窄视口组合，而不再停留在基础 corner family
 
 #### 验收标准
 
@@ -109,7 +109,7 @@
 
 #### 建议测试
 
-- `overlayposition` 共享 vertical helper 的单测，覆盖 auto bias、candidate 顺序与 placement 家族展开
+- `overlayposition` 共享 vertical / horizontal / cascade helper 的单测，覆盖 auto bias、candidate 顺序、family fallback、direction 推导与 clamp
 - 顶部、底部、左右边缘 anchor 的 placement/fallback 回归
 - auto placement 与显式 placement 的 clamp 回归
 - hover/click/manual 三类触发方式的关闭路径回归
@@ -142,27 +142,37 @@
 
 ---
 
-### 4. 测试空白收敛到支撑模块
+### 4. 测试密度继续向高风险交互倾斜
 
 #### 目标
 
-公共组件的测试覆盖已经大幅补齐，下一阶段要把“无测试空白”继续压缩到真正低风险的内部工具。
+公共组件的测试覆盖已经大幅补齐，支撑模块里最明显的“无测试空白”也已基本收口；下一阶段要把测试密度继续倾斜到最容易因重渲染、action 路径或跨组件联动而退化的高风险交互。
 
 #### 主要入口
 
 - `ui/components/internal/proputil/`
 - `ui/components/internal/selection/`
+- `ui/components/internal/scroll/`
+- `ui/components/internal/overlayposition/`
 - 各复杂组件的跨组件集成测试
+
+#### 当前状态
+
+- `internal/proputil` 已补最小单测，覆盖 `GetString`、`GetBool`、`GetInt`、`GetStyle`、`GetIntent`
+- `internal/selection` 已补最小单测，锁定 `SelectionMode` 的稳定值与互异性
+- `internal/scroll` 已有基础单测，覆盖 action delta、viewport normalize / visible range / page up-down 与 scrollbar 绘制
+- `internal/overlayposition` 已有 shared helper 矩阵单测，覆盖 vertical / horizontal placement family 与 cascade direction / clamp
+- 当前剩余测试空白的重点，已经从“支撑模块有没有测试”，转成“高耦合交互链路是否有 dedicated regression coverage”
 
 #### 待办
 
-- 评估 `internal/proputil`、`internal/selection` 是否值得补最低限度单测
 - 为高耦合交互路径补跨组件回归，而不是继续只堆单组件 happy-path e2e
 - 优先补“最容易因重渲染或 action 路径变化而退化”的场景：受控/非受控切换、虚拟滚动、overlay 关闭链路、表单状态同步
+- 继续评估哪些跨组件链路值得从大而宽的全量 e2e，收口成更聚焦、更稳定的 regression fixture
 
 #### 验收标准
 
-- 测试空白主要收敛到纯薄封装或低复杂度 helper
+- 支撑模块的测试空白主要收敛到纯薄封装或低复杂度 helper
 - 高风险交互路径至少有一层 dedicated regression coverage
 
 ---

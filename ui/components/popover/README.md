@@ -37,5 +37,6 @@ ui.NewPopoverBuilder(ui.Text("Hover me")).
 ## 测试入口
 
 - 单测：`go test ./ui/components/popover`
-- 重点覆盖：`popover_test.go` 中的触发模式、`PopoverChangeIntent`、共享定位计算与 middleware 关闭链路；显式 `top-left` / `top-right` 在顶角场景下回退到 `bottom-left` / `bottom-right`，`bottom-left` / `bottom-right` 在底角场景下回退到 `top-left` / `top-right` 的 corner 几何；极窄 viewport 下显式 `top-right` / `bottom-right` 仍保持各自 vertical family，只在组件单测里验证 left-edge clamp
+- 重点覆盖：`popover_test.go` 中的触发模式、`PopoverChangeIntent`、共享定位计算与 middleware 关闭链路；显式 `top-left` / `top-right` 在顶角场景下回退到 `bottom-left` / `bottom-right`，`bottom-left` / `bottom-right` 在底角场景下回退到 `top-left` / `top-right` 的 corner 几何；极窄 viewport 下显式 `top-left` / `top-right` / `bottom-left` / `bottom-right` 仍保持各自 vertical family，除了 left-edge clamp 之外，也覆盖了“没有任何 vertical candidate 能完整放入时”的双轴 clamp 与箭头朝向
 - E2E：`go test ./ui/e2e -run TestE2EPopover`
+- 重点补充：arrow-capable dual-axis clamp 场景现在也有 dedicated e2e，验证 viewport 过窄且过矮、没有任何 vertical candidate 能完整放入时，`PopoverPlacementTop*` 仍保留 `▼`，`PopoverPlacementBottom*` 仍保留 `▲`

@@ -34,7 +34,7 @@
 - context menu 仍以 `PortalOffset(...)` 作为目标原点，但当根面板超出 viewport 时会自动 clamp 回可见区。
 - submenu 级联面板现在会在右侧放不下时自动翻转到左侧，并对纵向位置做 viewport clamp；多级 submenu 在翻转后会尽量沿同一侧继续展开，极窄 viewport 下也会按最终 clamp 到的一侧继续推导后续方向。这套规则已开始下沉到 `internal/overlayposition` 的共享 cascade helper，组件对外暴露的 hit bounds 也会覆盖整棵 cascade。
 - `menu.Install(app, nil)` 可接入 outside-click / ESC 中间件；如果还要注册全局快捷键，则传入 `emit` 和开启 `RegisterShortcuts(true)` 的 builder。
-- 当前剩余 gap 主要是把这套级联 candidate / direction 规则进一步推广到更多 overlay 场景，以及继续补更复杂角落组合回归；`menu` 与共享 helper 这边已经补了单层、多层、极窄 viewport、双轴 clamp、bottom-right upward clamp、窄底角同时 left-edge clamp + upward clamp，以及“left-edge clamp 后下一层镜像回右侧”的方向传递矩阵；其中最后一条现在也已经有真实 e2e。
+- 当前剩余 gap 主要是把这套级联 candidate / direction 规则进一步推广到更多 overlay 场景，以及继续补更复杂角落组合回归；`menu` 与共享 helper 这边已经补了单层、多层、极窄 viewport、双轴 clamp、bottom-right upward clamp、窄底角同时 left-edge clamp + upward clamp，以及“left-edge clamp 后下一层镜像回右侧”和“right-edge clamp 后下一层镜像回左侧”的方向传递矩阵；这两条镜像链路现在都已经有真实 e2e，而且左右两侧都已补齐“靠近底边时 clamp + upward clamp 后再镜像回另一侧”的组合回归，另外还新增了更极端的 zig-zag 链路：先右向展开、再右侧夹边、再左向镜像、最后再次右向镜像并伴随 upward clamp。
 
 ## 安装方式
 
@@ -62,7 +62,7 @@ menu.Install(app, emit, builder)
 ## 测试入口
 
 - 单测：`go test ./ui/components/menu`
-- 重点覆盖：`menu_test.go` 中的 placement、submenu path、cascade corner/clamp 回归、typeahead、middleware 和 shortcut 安装；`internal/overlayposition/cascade_test.go` 负责共享 cascade helper 的矩阵校验；`menu_e2e_test.go` 已覆盖单层左翻、多层连续左翻、极窄 corner clamp、bottom-right upward clamp、窄底角 left-edge clamp + upward clamp，以及“left-edge clamp 后下一层镜像回右侧”的真实交互链路
+- 重点覆盖：`menu_test.go` 中的 placement、submenu path、cascade corner/clamp 回归、typeahead、middleware 和 shortcut 安装；`internal/overlayposition/cascade_test.go` 负责共享 cascade helper 的矩阵校验；`menu_e2e_test.go` 已覆盖单层左翻、多层连续左翻、极窄 corner clamp、bottom-right upward clamp、窄底角 left-edge clamp + upward clamp，以及“left-edge clamp 后下一层镜像回右侧”和“right-edge clamp 后下一层镜像回左侧”的真实交互链路；这两条镜像链路现在都已进一步覆盖靠近底边时伴随 upward clamp 的镜像回退，并新增了底边 zig-zag 级联场景，验证右向展开 -> 右侧夹边 -> 左向镜像 -> 右向镜像 + upward clamp 的整链路
 - E2E：`go test ./ui/e2e -run TestE2EMenu`
 
 ---
