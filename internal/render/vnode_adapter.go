@@ -3,6 +3,7 @@ package render
 import (
 	"fmt"
 
+	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/layout"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
@@ -139,6 +140,27 @@ func (a *VNodeToNodeAdapter) Measure(constraints layout.Constraints) layout.Size
 	}
 	if m, ok := a.vnode.(vnodeMeasurable); ok {
 		return m.Measure(constraints)
+	}
+	// 也检查接受 runtime.BoxConstraints 的 Measurable（如 LayoutNode）
+	// 仅当节点有明确尺寸 prop 时使用，避免覆盖空节点的默认 1x1 行为
+	hasExplicitSize := props != nil && (props.GetInt("height") > 0 || props.GetInt("width") > 0)
+	if hasExplicitSize {
+		type runtimeMeasurable interface {
+			Measure(runtime.BoxConstraints) runtime.Size
+		}
+		if m, ok := a.vnode.(runtimeMeasurable); ok {
+			bc := runtime.BoxConstraints{
+				MinWidth:  constraints.MinWidth,
+				MaxWidth:  constraints.MaxWidth,
+				MinHeight: constraints.MinHeight,
+				MaxHeight: constraints.MaxHeight,
+			}
+			size := m.Measure(bc)
+			return layout.Size{
+				Width:  constraints.ConstrainWidth(size.Width),
+				Height: constraints.ConstrainHeight(size.Height),
+			}
+		}
 	}
 
 	// 3. 对于文本节点，测量文本内容

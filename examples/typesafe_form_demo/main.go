@@ -130,13 +130,13 @@ func init() {
 
 	// 方案 2: 处理 SubmitIntent - log the form data
 	appReducer.On(SubmitIntent{}, func(s AppState, i intent.Intent) AppState {
-		fmt.Println("\n=== Form Submission ===")
+		fmt.Println("=== Form Submission ===")
 		fmt.Printf("Username:   %v\n", s.Username)
 		fmt.Printf("Email:      %v\n", s.Email)
 		fmt.Printf("Age:        %v\n", s.Age)
 		fmt.Printf("Accept T&C: %v\n", s.AcceptTerms)
 		fmt.Printf("Subscribe:  %v\n", s.Subscribe)
-		fmt.Println("========================\n")
+		fmt.Println("========================")
 		return s
 	})
 }

@@ -1,6 +1,9 @@
 package ui
 
 import (
+	"fmt"
+	"unsafe"
+
 	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/layout"
 )
@@ -12,14 +15,12 @@ type VNodeAdapter struct {
 }
 
 // ID 实现 layout.Node
+// 返回唯一 ID：优先使用 key，无 key 时使用指针地址确保唯一性，避免循环检测误判同类型兄弟节点。
 func (a *VNodeAdapter) ID() string {
 	if key := a.VNode.Key(); key != "" {
 		return key
 	}
-	if tagger, ok := a.VNode.(interface{ Tag() string }); ok {
-		return tagger.Tag()
-	}
-	return a.VNode.Type().String()
+	return fmt.Sprintf("%s@%x", a.VNode.Type().String(), uintptr(unsafe.Pointer(a)))
 }
 
 // Type 实现 layout.Node

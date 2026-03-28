@@ -67,6 +67,7 @@ type Instance struct {
 	childInstances    []rtui.ComponentInstance
 	intentEmitter     func(intent.Intent)
 	bounds            [4]int
+	viewportSize      [2]int
 	dirty             bool
 }
 
@@ -297,6 +298,17 @@ func (inst *Instance) SetIntentEmitter(fn func(intent.Intent)) { inst.intentEmit
 
 func (inst *Instance) SetBounds(x, y, w, h int) { inst.bounds = [4]int{x, y, w, h} }
 
+func (inst *Instance) SetViewportSize(width, height int) {
+	next := [2]int{width, height}
+	if inst.viewportSize == next {
+		return
+	}
+	inst.viewportSize = next
+	if inst.open {
+		inst.dirty = true
+	}
+}
+
 func (inst *Instance) HandleAction(act *action.Action) bool {
 	if act == nil || inst.disabled {
 		return false
@@ -352,18 +364,19 @@ func (inst *Instance) RuntimeChildren() []rtui.VNode {
 	if !inst.open || strings.TrimSpace(inst.title) == "" {
 		return nil
 	}
+	overlayX, overlayY, _, _ := inst.overlayBounds()
 	portal := rtui.NewElement("box")
 	portal.SetKey(inst.key + "-portal")
 	portal.SetProps(rtui.Props{
 		"position": "absolute",
-		"left":     inst.portalOffsetX(),
-		"top":      inst.portalOffsetY(),
+		"left":     overlayX - inst.bounds[0],
+		"top":      overlayY - inst.bounds[1],
 		"width":    1,
 		"height":   1,
 	})
 	portal.SetLayer(rtui.LayerOverlay)
 	portal.SetPortalRoot(rtui.DefaultOverlayPortalRootID)
-	portal.SetAnchorTo(inst.anchorID, inst.anchor())
+	portal.SetAnchorTo(inst.anchorID, rttypes.AnchorTopLeft)
 	portal.SetPortalPosition(rttypes.PositionAbsolute)
 	portal.SetChildren([]rtui.VNode{inst.buildOverlaySurface()})
 	return []rtui.VNode{portal}
@@ -588,24 +601,63 @@ func (inst *Instance) actionAreaHeight() int {
 func (inst *Instance) overlayBounds() (x, y, w, h int) {
 	w = inst.overlayWidth()
 	h = inst.overlayHeight()
-	x, y = resolvePopconfirmPosition(inst.bounds, inst.resolvedPlacement(), w, h, inst.gapRows)
+	result := resolvePopconfirmLayout(inst.bounds, inst.placement, w, h, inst.gapRows, inst.viewportSize)
+	x, y = result.X, result.Y
 	return x, y, w, h
 }
 
-func resolvePopconfirmPosition(anchorBounds [4]int, placement Placement, width, height, gapRows int) (int, int) {
-	result := overlayposition.Resolve(overlayposition.Config{
+func resolvePopconfirmPlacement(anchorBounds [4]int, placement Placement, gapRows, height int, viewportSize [2]int) Placement {
+	if placement != PlacementAuto {
+		return placement
+	}
+	return popconfirmPlacementFromOverlay(overlayposition.PreferredVerticalPlacement(
+		overlayposition.RectFromBounds(anchorBounds),
+		height,
+		gapRows,
+		viewportSize[1],
+		overlayposition.VerticalAutoPreferTop,
+	))
+}
+
+func resolvePopconfirmLayout(anchorBounds [4]int, placement Placement, width, height, gapRows int, viewportSize [2]int) overlayposition.Result {
+	preferred := resolvePopconfirmPlacement(anchorBounds, placement, gapRows, height, viewportSize)
+	return overlayposition.Resolve(overlayposition.Config{
 		Anchor: overlayposition.RectFromBounds(anchorBounds),
 		Overlay: overlayposition.Size{
 			Width:  width,
 			Height: height,
 		},
-		Candidates: []overlayposition.Placement{popconfirmOverlayPlacement(placement)},
+		Viewport: overlayposition.Size{
+			Width:  viewportSize[0],
+			Height: viewportSize[1],
+		},
+		Candidates: resolvePopconfirmCandidates(preferred),
 		Gap:        gapRows,
 	})
-	return result.X, result.Y
 }
 
-func popconfirmOverlayPlacement(placement Placement) overlayposition.Placement {
+func resolvePopconfirmCandidates(placement Placement) []overlayposition.Placement {
+	return overlayposition.VerticalPlacementCandidates(popconfirmPlacementToOverlay(placement))
+}
+
+func popconfirmPlacementFromOverlay(placement overlayposition.Placement) Placement {
+	switch placement {
+	case overlayposition.PlacementTopLeft:
+		return PlacementTopLeft
+	case overlayposition.PlacementTopRight:
+		return PlacementTopRight
+	case overlayposition.PlacementBottom:
+		return PlacementBottom
+	case overlayposition.PlacementBottomLeft:
+		return PlacementBottomLeft
+	case overlayposition.PlacementBottomRight:
+		return PlacementBottomRight
+	default:
+		return PlacementTop
+	}
+}
+
+func popconfirmPlacementToOverlay(placement Placement) overlayposition.Placement {
 	switch placement {
 	case PlacementTopLeft:
 		return overlayposition.PlacementTopLeft
@@ -619,46 +671,6 @@ func popconfirmOverlayPlacement(placement Placement) overlayposition.Placement {
 		return overlayposition.PlacementBottomRight
 	default:
 		return overlayposition.PlacementTop
-	}
-}
-
-func (inst *Instance) resolvedPlacement() Placement {
-	if inst.placement == PlacementAuto {
-		return PlacementTop
-	}
-	return inst.placement
-}
-
-func (inst *Instance) anchor() rttypes.Anchor {
-	switch inst.resolvedPlacement() {
-	case PlacementBottom, PlacementBottomLeft:
-		return rttypes.AnchorTopLeft
-	case PlacementBottomRight:
-		return rttypes.AnchorTopRight
-	case PlacementTop:
-		return rttypes.AnchorBottom
-	case PlacementTopRight:
-		return rttypes.AnchorBottomRight
-	default:
-		return rttypes.AnchorBottomLeft
-	}
-}
-
-func (inst *Instance) portalOffsetX() int {
-	switch inst.resolvedPlacement() {
-	case PlacementTop, PlacementBottom:
-		return inst.bounds[2] / 2
-	default:
-		return 0
-	}
-}
-
-func (inst *Instance) portalOffsetY() int {
-	switch inst.resolvedPlacement() {
-	case PlacementBottom, PlacementBottomLeft, PlacementBottomRight:
-		return inst.bounds[3] + inst.gapRows
-	default:
-		return -inst.gapRows
 	}
 }
 

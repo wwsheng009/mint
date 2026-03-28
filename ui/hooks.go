@@ -803,12 +803,10 @@ func UseStoreField[S any, T any](
 
 	// Subscribe to store changes and trigger re-render
 	// This uses useEffect to manage the subscription lifecycle
+	componentID := ctx.ComponentID // capture at subscription time (not inside callback)
 	UseEffect(func() CleanupFunc {
 		unsubscribe := store.Subscribe(func(state S) {
-			currentCtx := rtui.GetCurrentContext()
-			if currentCtx != nil {
-				scheduleRender(currentCtx.ComponentID)
-			}
+			scheduleRender(componentID)
 		})
 
 		return unsubscribe
@@ -924,12 +922,10 @@ func UseStoreSelector[S any, T any](
 	}
 
 	// Subscribe to store changes and trigger re-render
+	componentID := ctx.ComponentID // capture at subscription time (not inside callback)
 	UseEffect(func() CleanupFunc {
 		unsubscribe := store.Subscribe(func(state S) {
-			currentCtx := rtui.GetCurrentContext()
-			if currentCtx != nil {
-				scheduleRender(currentCtx.ComponentID)
-			}
+			scheduleRender(componentID)
 		})
 
 		return unsubscribe
@@ -1041,12 +1037,10 @@ func UseStoreFieldFunctional[S any, T any](
 	}
 
 	// Subscribe to store changes and trigger re-render
+	componentID := ctx.ComponentID // capture at subscription time (not inside callback)
 	UseEffect(func() CleanupFunc {
 		unsubscribe := store.Subscribe(func(state S) {
-			currentCtx := rtui.GetCurrentContext()
-			if currentCtx != nil {
-				scheduleRender(currentCtx.ComponentID)
-			}
+			scheduleRender(componentID)
 		})
 
 		return unsubscribe
@@ -1157,6 +1151,7 @@ func (b *StoreFieldBinding[S]) subscribe() {
 	// Use a ref to track if we've already subscribed
 	subscribed := UseRef(false)
 
+	componentID := b.ctx.ComponentID // capture at subscription time (not inside callback)
 	UseEffect(func() CleanupFunc {
 		if subscribed.Value.(bool) {
 			return nil // Already subscribed
@@ -1164,9 +1159,7 @@ func (b *StoreFieldBinding[S]) subscribe() {
 		subscribed.Value = true
 
 		unsubscribe := b.store.Subscribe(func(state S) {
-			if ctx := rtui.GetCurrentContext(); ctx != nil {
-				scheduleRender(ctx.ComponentID)
-			}
+			scheduleRender(componentID)
 		})
 
 		return unsubscribe

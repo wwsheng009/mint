@@ -541,6 +541,166 @@ func TestFormInstance_SetPropsSyncsValues(t *testing.T) {
 	}
 }
 
+func TestFormInstance_FieldStateRegressionMatrix(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"key": "profileForm",
+		"values": map[string]interface{}{
+			"email": "",
+		},
+	})
+	inst.AddValidator("email", validation.Required())
+	inst.AddValidator("email", validation.Email())
+
+	if inst.ShouldShowError("email") {
+		t.Fatal("expected pristine field to hide errors")
+	}
+	if inst.IsFieldTouched("email") || inst.IsFieldDirty("email") || inst.IsFieldSubmitted("email") {
+		t.Fatal("expected pristine field metadata to be empty")
+	}
+
+	inst.HandleIntent(FormFieldBlurIntent{
+		FormID: "profileForm",
+		Field:  "email",
+		Value:  "",
+	})
+
+	if !inst.IsFieldTouched("email") {
+		t.Fatal("expected blur to mark field touched")
+	}
+	if inst.IsFieldDirty("email") {
+		t.Fatal("expected unchanged blur to keep field clean")
+	}
+	if !inst.ShouldShowError("email") {
+		t.Fatal("expected touched invalid field to show errors")
+	}
+	if errText, ok := inst.GetError("email"); !ok || errText == "" {
+		t.Fatal("expected blur validation to record required error")
+	}
+
+	inst.HandleIntent(FormFieldChangeIntent{
+		FormID:  "profileForm",
+		Field:   "email",
+		Value:   "invalid-email",
+		IsDirty: true,
+	})
+
+	if !inst.IsFieldTouched("email") {
+		t.Fatal("expected change after blur to preserve touched state")
+	}
+	if !inst.IsFieldDirty("email") {
+		t.Fatal("expected changed value to mark field dirty")
+	}
+	if _, ok := inst.GetError("email"); ok {
+		t.Fatal("expected change to clear stale field error before next validation")
+	}
+	if !inst.ShouldShowError("email") {
+		t.Fatal("expected touched field to keep error visibility gate open")
+	}
+
+	inst.HandleIntent(FormValidateIntent{
+		FormID: "profileForm",
+		Field:  "email",
+	})
+
+	if errText, ok := inst.GetError("email"); !ok || errText == "" {
+		t.Fatal("expected explicit validate to restore field error")
+	}
+	if inst.IsFieldSubmitted("email") {
+		t.Fatal("expected field-only validate to avoid submitted metadata")
+	}
+
+	inst.HandleIntent(FormSubmitIntent{
+		FormID: "profileForm",
+		Data: map[string]interface{}{
+			"email": "invalid-email",
+		},
+	})
+
+	if !inst.HasSubmitted() || inst.GetSubmitCount() != 1 {
+		t.Fatalf("submit status = (%v,%d), want (true,1)", inst.HasSubmitted(), inst.GetSubmitCount())
+	}
+	if !inst.IsFieldSubmitted("email") {
+		t.Fatal("expected submit to mark field submitted")
+	}
+	if !inst.ShouldShowError("email") {
+		t.Fatal("expected submitted invalid field to keep showing errors")
+	}
+
+	inst.HandleIntent(FormResetIntent{FormID: "profileForm"})
+
+	if inst.ShouldShowError("email") {
+		t.Fatal("expected reset to hide field errors again")
+	}
+	if inst.IsFieldTouched("email") || inst.IsFieldDirty("email") || inst.IsFieldSubmitted("email") {
+		t.Fatal("expected reset to clear field metadata")
+	}
+	if inst.HasSubmitted() || inst.GetSubmitCount() != 0 {
+		t.Fatalf("expected reset to clear submit metadata, got (%v,%d)", inst.HasSubmitted(), inst.GetSubmitCount())
+	}
+	if _, ok := inst.GetError("email"); ok {
+		t.Fatal("expected reset to clear field errors")
+	}
+}
+
+func TestFormInstance_SetPropsRebasesAcceptedControlledValue(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"key": "profileForm",
+		"values": map[string]interface{}{
+			"email": "initial@example.com",
+		},
+	})
+
+	inst.HandleIntent(FormFieldChangeIntent{
+		FormID:  "profileForm",
+		Field:   "email",
+		Value:   "accepted@example.com",
+		IsDirty: true,
+	})
+	inst.HandleIntent(FormFieldBlurIntent{
+		FormID: "profileForm",
+		Field:  "email",
+		Value:  "accepted@example.com",
+	})
+	inst.HandleIntent(FormSubmitIntent{
+		FormID: "profileForm",
+		Data: map[string]interface{}{
+			"email": "accepted@example.com",
+		},
+	})
+
+	if !inst.IsFieldDirty("email") || !inst.IsFieldTouched("email") || !inst.IsFieldSubmitted("email") {
+		t.Fatal("expected precondition: field should be dirty, touched and submitted before rebase")
+	}
+
+	changed := inst.SetProps(rtui.Props{
+		"values": map[string]interface{}{
+			"email": "accepted@example.com",
+		},
+	})
+
+	if !changed {
+		t.Fatal("expected SetProps to treat accepted controlled value as a new baseline")
+	}
+	if inst.IsDirty() || inst.IsFieldDirty("email") {
+		t.Fatal("expected accepted controlled value to clear dirty state")
+	}
+	if inst.IsFieldTouched("email") {
+		t.Fatal("expected accepted controlled value to clear touched state")
+	}
+	if inst.IsFieldSubmitted("email") || inst.HasSubmitted() || inst.GetSubmitCount() != 0 {
+		t.Fatalf("expected accepted controlled value to clear submit state, got (%v,%v,%d)", inst.IsFieldSubmitted("email"), inst.HasSubmitted(), inst.GetSubmitCount())
+	}
+	if inst.ShouldShowError("email") {
+		t.Fatal("expected accepted controlled value to close error visibility gate")
+	}
+
+	inst.HandleIntent(Reset("profileForm"))
+	value, ok := inst.GetValue("email")
+	if !ok || value != "accepted@example.com" {
+		t.Fatalf("expected reset to use rebased controlled value, got %v (exists=%v)", value, ok)
+	}
+}
+
 // TestFormInstance_GetSetErrors tests getting and setting errors.
 func TestFormInstance_GetSetErrors(t *testing.T) {
 	// Arrange

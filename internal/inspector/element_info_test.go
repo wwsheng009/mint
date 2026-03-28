@@ -381,7 +381,7 @@ func TestFormatNodeInfo_RealWorld(t *testing.T) {
 			).Build(),
 			contains: []string{
 				"Element",
-				"vstack", // Wrap creates a VStack internally
+				"wrap", // Wrap component uses 'wrap' tag
 			},
 		},
 		{
@@ -518,7 +518,7 @@ func TestExtractElementInfo_Flex(t *testing.T) {
 	button := ui.NewButtonBuilder("Test").Build()
 
 	// Get the element and set prop
-	if elem, ok := button.(interface{ SetProp(string, interface{}) }); ok {
+	if elem, ok := button.(interface{ SetProp(string, interface{}) ui.VNode }); ok {
 		elem.SetProp("flex", 1)
 	}
 
@@ -558,18 +558,16 @@ func TestFormatElementInfo(t *testing.T) {
 		t.Error("Formatted output should not be empty")
 	}
 
-	// Check for expected sections (without Bounds since we haven't set it)
-	expectedSections := []string{
-		"Element:",
-		"Tag:",
-		"Position:",
-		"Size:",
-		"Layout:",
+	// formatNodeInfo returns a compact one-liner like "ButtonVNode/(button) 'Test Button'"
+	expectedParts := []string{
+		"Button",      // node type (ButtonVNode or Element)
+		"button",      // tag
+		"Test Button", // label
 	}
 
-	for _, section := range expectedSections {
-		if !contains(formatted, section) {
-			t.Errorf("Formatted output should contain '%s'", section)
+	for _, part := range expectedParts {
+		if !contains(formatted, part) {
+			t.Errorf("Formatted output should contain %q, got: %s", part, formatted)
 		}
 	}
 }

@@ -114,6 +114,13 @@ func TestOverlayTooltipPlacementConfig(t *testing.T) {
 	}
 }
 
+func TestPreferredTooltipPlacementKeepsBottomBiasWhenBothSidesFit(t *testing.T) {
+	got := preferredTooltipPlacement([4]int{12, 4, 4, 1}, TooltipPlacementAuto, 3, 1, 0, 1, 12)
+	if got != TooltipPlacementBottom {
+		t.Fatalf("preferredTooltipPlacement() = %v, want %v", got, TooltipPlacementBottom)
+	}
+}
+
 func TestOverlayTooltipBoxFlipsAndClamps(t *testing.T) {
 	inst := &overlayHelpInstance{bounds: [4]int{0, 0, 30, 8}, placement: TooltipPlacementAuto, maxContentWidth: 20}
 	box := inst.computeTooltipBox("Tooltip content", [4]int{26, 6, 3, 1})
@@ -226,6 +233,136 @@ func TestResolveTooltipPositionUsesPopoverAnchoring(t *testing.T) {
 	right := resolveTooltipPosition([4]int{34, 2, 4, 1}, TooltipPlacementBottom, 10, 3, 1, 0, 1, 40, 12)
 	if right.X != 28 {
 		t.Fatalf("right anchored x = %d, want 28", right.X)
+	}
+}
+
+func TestResolveTooltipPositionShiftsLeftWithinTopFamilyNearRightEdge(t *testing.T) {
+	result := resolveTooltipPosition([4]int{34, 8, 4, 1}, TooltipPlacementTop, 16, 4, 1, 0, 1, 40, 16)
+	if result.X != 22 {
+		t.Fatalf("right-edge top fallback x = %d, want 22", result.X)
+	}
+	if result.Y >= 8 {
+		t.Fatalf("right-edge top fallback y = %d, want above anchor row 8", result.Y)
+	}
+	if result.Placement != TooltipPlacementTop {
+		t.Fatalf("right-edge top fallback placement = %v, want %v", result.Placement, TooltipPlacementTop)
+	}
+}
+
+func TestResolveTooltipPositionShiftsRightWithinTopFamilyNearLeftEdge(t *testing.T) {
+	result := resolveTooltipPosition([4]int{2, 8, 4, 1}, TooltipPlacementTop, 16, 4, 1, 0, 1, 40, 16)
+	if result.X != 2 {
+		t.Fatalf("left-edge top fallback x = %d, want 2", result.X)
+	}
+	if result.Y >= 8 {
+		t.Fatalf("left-edge top fallback y = %d, want above anchor row 8", result.Y)
+	}
+	if result.Placement != TooltipPlacementTop {
+		t.Fatalf("left-edge top fallback placement = %v, want %v", result.Placement, TooltipPlacementTop)
+	}
+}
+
+func TestResolveTooltipPositionShiftsLeftWithinBottomFamilyNearRightEdge(t *testing.T) {
+	result := resolveTooltipPosition([4]int{34, 4, 4, 1}, TooltipPlacementBottom, 16, 4, 1, 0, 1, 40, 16)
+	if result.X != 22 {
+		t.Fatalf("right-edge bottom fallback x = %d, want 22", result.X)
+	}
+	if result.Y <= 4 {
+		t.Fatalf("right-edge bottom fallback y = %d, want below anchor row 4", result.Y)
+	}
+	if result.Placement != TooltipPlacementBottom {
+		t.Fatalf("right-edge bottom fallback placement = %v, want %v", result.Placement, TooltipPlacementBottom)
+	}
+}
+
+func TestResolveTooltipPositionShiftsRightWithinBottomFamilyNearLeftEdge(t *testing.T) {
+	result := resolveTooltipPosition([4]int{2, 4, 4, 1}, TooltipPlacementBottom, 16, 4, 1, 0, 1, 40, 16)
+	if result.X != 2 {
+		t.Fatalf("left-edge bottom fallback x = %d, want 2", result.X)
+	}
+	if result.Y <= 4 {
+		t.Fatalf("left-edge bottom fallback y = %d, want below anchor row 4", result.Y)
+	}
+	if result.Placement != TooltipPlacementBottom {
+		t.Fatalf("left-edge bottom fallback placement = %v, want %v", result.Placement, TooltipPlacementBottom)
+	}
+}
+
+func TestResolveTooltipPositionTopFallsBelowAndShiftsLeftNearTopRightCorner(t *testing.T) {
+	result := resolveTooltipPosition([4]int{34, 1, 4, 1}, TooltipPlacementTop, 16, 4, 1, 0, 1, 40, 10)
+	if result.X != 22 {
+		t.Fatalf("top-right corner fallback x = %d, want 22", result.X)
+	}
+	if result.Y != 3 {
+		t.Fatalf("top-right corner fallback y = %d, want 3", result.Y)
+	}
+	if result.Placement != TooltipPlacementBottom {
+		t.Fatalf("top-right corner fallback placement = %v, want %v", result.Placement, TooltipPlacementBottom)
+	}
+}
+
+func TestResolveTooltipPositionTopClampsLeftAndStaysAboveInNarrowViewport(t *testing.T) {
+	result := resolveTooltipPosition([4]int{9, 7, 4, 1}, TooltipPlacementTop, 16, 4, 1, 0, 1, 14, 14)
+	if result.X != 0 {
+		t.Fatalf("narrow top clamp x = %d, want 0", result.X)
+	}
+	if result.Y != 2 {
+		t.Fatalf("narrow top clamp y = %d, want 2", result.Y)
+	}
+	if result.Placement != TooltipPlacementTop {
+		t.Fatalf("narrow top clamp placement = %v, want %v", result.Placement, TooltipPlacementTop)
+	}
+}
+
+func TestResolveTooltipPositionTopFallsBelowAndShiftsRightNearTopLeftCorner(t *testing.T) {
+	result := resolveTooltipPosition([4]int{2, 1, 4, 1}, TooltipPlacementTop, 16, 4, 1, 0, 1, 40, 10)
+	if result.X != 2 {
+		t.Fatalf("top-left corner fallback x = %d, want 2", result.X)
+	}
+	if result.Y != 3 {
+		t.Fatalf("top-left corner fallback y = %d, want 3", result.Y)
+	}
+	if result.Placement != TooltipPlacementBottom {
+		t.Fatalf("top-left corner fallback placement = %v, want %v", result.Placement, TooltipPlacementBottom)
+	}
+}
+
+func TestResolveTooltipPositionBottomFallsAboveAndShiftsLeftNearBottomRightCorner(t *testing.T) {
+	result := resolveTooltipPosition([4]int{34, 8, 4, 1}, TooltipPlacementBottom, 16, 4, 1, 0, 1, 40, 10)
+	if result.X != 22 {
+		t.Fatalf("bottom-right corner fallback x = %d, want 22", result.X)
+	}
+	if result.Y != 3 {
+		t.Fatalf("bottom-right corner fallback y = %d, want 3", result.Y)
+	}
+	if result.Placement != TooltipPlacementTop {
+		t.Fatalf("bottom-right corner fallback placement = %v, want %v", result.Placement, TooltipPlacementTop)
+	}
+}
+
+func TestResolveTooltipPositionBottomClampsLeftAndStaysBelowInNarrowViewport(t *testing.T) {
+	result := resolveTooltipPosition([4]int{9, 7, 4, 1}, TooltipPlacementBottom, 16, 4, 1, 0, 1, 14, 14)
+	if result.X != 0 {
+		t.Fatalf("narrow bottom clamp x = %d, want 0", result.X)
+	}
+	if result.Y != 9 {
+		t.Fatalf("narrow bottom clamp y = %d, want 9", result.Y)
+	}
+	if result.Placement != TooltipPlacementBottom {
+		t.Fatalf("narrow bottom clamp placement = %v, want %v", result.Placement, TooltipPlacementBottom)
+	}
+}
+
+func TestResolveTooltipPositionBottomFallsAboveAndShiftsRightNearBottomLeftCorner(t *testing.T) {
+	result := resolveTooltipPosition([4]int{2, 8, 4, 1}, TooltipPlacementBottom, 16, 4, 1, 0, 1, 40, 10)
+	if result.X != 2 {
+		t.Fatalf("bottom-left corner fallback x = %d, want 2", result.X)
+	}
+	if result.Y != 3 {
+		t.Fatalf("bottom-left corner fallback y = %d, want 3", result.Y)
+	}
+	if result.Placement != TooltipPlacementTop {
+		t.Fatalf("bottom-left corner fallback placement = %v, want %v", result.Placement, TooltipPlacementTop)
 	}
 }
 

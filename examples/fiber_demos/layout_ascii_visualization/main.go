@@ -13,7 +13,7 @@ import (
 // 本程序使用 ASCII 艺术可视化布局结果
 // 显示每个节点的位置、尺寸和层级关系
 func main() {
-	fmt.Println("=== Layout ASCII Visualization ===\n")
+	fmt.Println("=== Layout ASCII Visualization ===")
 
 	// 获取测试组件
 	fixtures := component_fixtures.StandardFixtures()

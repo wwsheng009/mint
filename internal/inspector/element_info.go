@@ -96,6 +96,8 @@ func ExtractElementInfo(vnode rtui.VNode) ElementInfo {
 }
 
 // getTypeName gets the type name of a VNode
+// Returns the concrete Go type name for specificity.
+// For types named "VNode" (component package VNodes), uses "pkg.VNode" format.
 func getTypeName(vnode rtui.VNode) string {
 	if vnode == nil {
 		return "nil"
@@ -104,7 +106,22 @@ func getTypeName(vnode rtui.VNode) string {
 	if t.Kind() == reflect.Ptr {
 		t = t.Elem()
 	}
-	return t.Name()
+	name := t.Name()
+	if name == "" {
+		return vnode.Type().String()
+	}
+	// For types named "VNode" disambiguate by package
+	if name == "VNode" {
+		pkg := t.PkgPath()
+		// Extract last package segment (e.g. "button" from ".../button")
+		if idx := strings.LastIndex(pkg, "/"); idx >= 0 {
+			pkg = pkg[idx+1:]
+		}
+		if pkg != "" {
+			return strings.Title(pkg) + "VNode"
+		}
+	}
+	return name
 }
 
 // getTag gets the tag from a VNode

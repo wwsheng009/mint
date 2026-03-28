@@ -1,3 +1,6 @@
+//go:build ignore
+// +build ignore
+
 // Renderer Bug Test - Full Render Path
 //
 // Purpose: Reproduce bug using full Renderer.Render() path with diff

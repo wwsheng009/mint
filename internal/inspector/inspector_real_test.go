@@ -95,6 +95,7 @@ func TestInspectorWithRealApp(t *testing.T) {
 	// 创建 Inspector
 	inspector := NewStandaloneInspector()
 	inspector.Enable()
+	inspector.ToggleVisibility() // Make visible so RenderOverlay returns content
 	inspector.SetOverlaySize(100, 40)
 
 	// 渲染 Inspector overlay

@@ -490,10 +490,10 @@ func TestBuildTree_Structure(t *testing.T) {
 		t.Error("Expected vstack to contain Button children")
 	}
 
-	// Verify second child is ElementVNode (Text wrapper)
+	// Verify second child is a text node (TextVNode or ElementVNode)
 	textNode := treeView.root.Children[1]
-	if !contains(textNode.Info.Type, "ElementVNode") {
-		t.Errorf("Expected second child to contain ElementVNode, got %s", textNode.Info.Type)
+	if !contains(textNode.Info.Type, "Text") && !contains(textNode.Info.Type, "Element") {
+		t.Errorf("Expected second child to contain Text or Element type, got %s", textNode.Info.Type)
 	}
 }
 

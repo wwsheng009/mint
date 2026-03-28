@@ -183,24 +183,242 @@ func TestOverlayPaintRendersTitleBodyAndArrow(t *testing.T) {
 func TestComputePopoverBoxUsesSharedPlacementCoordinates(t *testing.T) {
 	anchor := [4]int{10, 8, 8, 1}
 
-	topLeft := computePopoverBox("", "1234567890", PlacementTopLeft, true, 1, 16, anchor)
+	topLeft := computePopoverBox("", "1234567890", PlacementTopLeft, true, 1, 16, anchor, [2]int{})
 	if topLeft.x != 10 || topLeft.y != 4 {
 		t.Fatalf("top-left box = (%d,%d), want (10,4)", topLeft.x, topLeft.y)
 	}
 
-	top := computePopoverBox("", "1234567890", PlacementTop, true, 1, 16, anchor)
+	top := computePopoverBox("", "1234567890", PlacementTop, true, 1, 16, anchor, [2]int{})
 	if top.x != 7 || top.y != 4 {
 		t.Fatalf("top box = (%d,%d), want (7,4)", top.x, top.y)
 	}
 
-	topRight := computePopoverBox("", "1234567890", PlacementTopRight, true, 1, 16, anchor)
+	topRight := computePopoverBox("", "1234567890", PlacementTopRight, true, 1, 16, anchor, [2]int{})
 	if topRight.x != 4 || topRight.y != 4 {
 		t.Fatalf("top-right box = (%d,%d), want (4,4)", topRight.x, topRight.y)
 	}
 
-	bottomRight := computePopoverBox("", "1234567890", PlacementBottomRight, true, 1, 16, anchor)
+	bottomRight := computePopoverBox("", "1234567890", PlacementBottomRight, true, 1, 16, anchor, [2]int{})
 	if bottomRight.x != 4 || bottomRight.y != 10 {
 		t.Fatalf("bottom-right box = (%d,%d), want (4,10)", bottomRight.x, bottomRight.y)
+	}
+}
+
+func TestResolvePopoverPlacementAutoUsesTopBottomHeuristic(t *testing.T) {
+	tests := []struct {
+		name    string
+		anchor  [4]int
+		height  int
+		gapRows int
+		want    Placement
+	}{
+		{
+			name:    "uses top when anchor has enough room above",
+			anchor:  [4]int{10, 9, 8, 1},
+			height:  5,
+			gapRows: 1,
+			want:    PlacementTop,
+		},
+		{
+			name:    "falls back to bottom near top edge",
+			anchor:  [4]int{10, 1, 8, 1},
+			height:  5,
+			gapRows: 1,
+			want:    PlacementBottom,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := resolvePopoverPlacement(PlacementAuto, tt.gapRows, tt.anchor, tt.height, [2]int{}); got != tt.want {
+				t.Fatalf("resolvePopoverPlacement() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestComputePopoverBoxPlacementTopFallsBackWithinViewport(t *testing.T) {
+	box := computePopoverBox(
+		"",
+		"Fallback row",
+		PlacementTop,
+		true,
+		1,
+		12,
+		[4]int{1, 1, 4, 1},
+		[2]int{28, 8},
+	)
+	if box.y <= 1 {
+		t.Fatalf("box y = %d, want below anchor after top-edge fallback", box.y)
+	}
+	if !strings.Contains(box.topBorder, "▲") {
+		t.Fatalf("top border = %q, want top arrow after bottom fallback", box.topBorder)
+	}
+}
+
+func TestComputePopoverBoxPlacementTopStaysAboveAndShiftsRightNearLeftEdge(t *testing.T) {
+	box := computePopoverBox(
+		"",
+		"1234567890",
+		PlacementTop,
+		true,
+		1,
+		16,
+		[4]int{2, 8, 4, 1},
+		[2]int{40, 16},
+	)
+	if box.x != 2 || box.y != 4 {
+		t.Fatalf("left-edge top-family box = (%d,%d), want (2,4)", box.x, box.y)
+	}
+}
+
+func TestComputePopoverBoxPlacementTopRightFallsBelowWithinRightFamilyNearCorner(t *testing.T) {
+	box := computePopoverBox(
+		"",
+		"1234567890",
+		PlacementTopRight,
+		true,
+		1,
+		16,
+		[4]int{34, 1, 4, 1},
+		[2]int{40, 10},
+	)
+	if box.x != 24 || box.y != 3 {
+		t.Fatalf("top-right corner box = (%d,%d), want (24,3)", box.x, box.y)
+	}
+}
+
+func TestComputePopoverBoxPlacementTopLeftFallsBelowWithinLeftFamilyNearCorner(t *testing.T) {
+	box := computePopoverBox(
+		"",
+		"1234567890",
+		PlacementTopLeft,
+		true,
+		1,
+		16,
+		[4]int{2, 1, 4, 1},
+		[2]int{40, 10},
+	)
+	if box.x != 2 || box.y != 3 {
+		t.Fatalf("top-left corner box = (%d,%d), want (2,3)", box.x, box.y)
+	}
+}
+
+func TestComputePopoverBoxPlacementBottomStaysBelowAndShiftsLeftNearRightEdge(t *testing.T) {
+	box := computePopoverBox(
+		"",
+		"1234567890",
+		PlacementBottom,
+		true,
+		1,
+		16,
+		[4]int{34, 8, 4, 1},
+		[2]int{40, 16},
+	)
+	if box.x != 24 || box.y != 10 {
+		t.Fatalf("right-edge bottom-family box = (%d,%d), want (24,10)", box.x, box.y)
+	}
+}
+
+func TestComputePopoverBoxPlacementBottomRightFallsAboveWithinRightFamilyNearCorner(t *testing.T) {
+	box := computePopoverBox(
+		"",
+		"1234567890",
+		PlacementBottomRight,
+		true,
+		1,
+		16,
+		[4]int{34, 8, 4, 1},
+		[2]int{40, 10},
+	)
+	if box.x != 24 || box.y != 4 {
+		t.Fatalf("bottom-right corner box = (%d,%d), want (24,4)", box.x, box.y)
+	}
+}
+
+func TestComputePopoverBoxPlacementBottomLeftFallsAboveWithinLeftFamilyNearCorner(t *testing.T) {
+	box := computePopoverBox(
+		"",
+		"1234567890",
+		PlacementBottomLeft,
+		true,
+		1,
+		16,
+		[4]int{2, 8, 4, 1},
+		[2]int{40, 10},
+	)
+	if box.x != 2 || box.y != 4 {
+		t.Fatalf("bottom-left corner box = (%d,%d), want (2,4)", box.x, box.y)
+	}
+}
+
+func TestComputePopoverBoxPlacementTopRightClampsLeftAndStaysAboveInNarrowViewport(t *testing.T) {
+	box := computePopoverBox(
+		"",
+		"1234567890",
+		PlacementTopRight,
+		true,
+		1,
+		20,
+		[4]int{9, 7, 4, 1},
+		[2]int{14, 14},
+	)
+	if box.x != 0 || box.y != 3 {
+		t.Fatalf("narrow top-right box = (%d,%d), want (0,3)", box.x, box.y)
+	}
+	if !strings.Contains(box.bottomBorder, "▼") {
+		t.Fatalf("bottom border = %q, want top-family arrow after left clamp", box.bottomBorder)
+	}
+}
+
+func TestComputePopoverBoxPlacementBottomStaysBelowAndShiftsRightNearLeftEdge(t *testing.T) {
+	box := computePopoverBox(
+		"",
+		"1234567890",
+		PlacementBottom,
+		true,
+		1,
+		16,
+		[4]int{2, 8, 4, 1},
+		[2]int{40, 16},
+	)
+	if box.x != 2 || box.y != 10 {
+		t.Fatalf("left-edge bottom-family box = (%d,%d), want (2,10)", box.x, box.y)
+	}
+}
+
+func TestComputePopoverBoxPlacementBottomRightClampsLeftAndStaysBelowInNarrowViewport(t *testing.T) {
+	box := computePopoverBox(
+		"",
+		"1234567890",
+		PlacementBottomRight,
+		true,
+		1,
+		20,
+		[4]int{9, 7, 4, 1},
+		[2]int{14, 14},
+	)
+	if box.x != 0 || box.y != 9 {
+		t.Fatalf("narrow bottom-right box = (%d,%d), want (0,9)", box.x, box.y)
+	}
+	if !strings.Contains(box.topBorder, "▲") {
+		t.Fatalf("top border = %q, want bottom-family arrow after left clamp", box.topBorder)
+	}
+}
+
+func TestComputePopoverBoxClampsWithinViewportWhenNoCandidateFits(t *testing.T) {
+	box := computePopoverBox(
+		"",
+		"01234567890123456789",
+		PlacementBottom,
+		true,
+		1,
+		20,
+		[4]int{1, 4, 4, 1},
+		[2]int{16, 8},
+	)
+	if box.x != 0 {
+		t.Fatalf("box x = %d, want left-edge clamp to 0", box.x)
 	}
 }
 
@@ -296,7 +514,7 @@ func TestPopoverMiddlewareLeavesAnchorAndOverlayClicksAlone(t *testing.T) {
 		t.Fatal("anchor click should not be treated as outside click")
 	}
 
-	box := computePopoverBox(inst.title, inst.body, inst.placement, inst.showArrow, inst.gapRows, inst.maxWidth, inst.bounds)
+	box := computePopoverBox(inst.title, inst.body, inst.placement, inst.showArrow, inst.gapRows, inst.maxWidth, inst.bounds, inst.viewportSize)
 	overlayClick := action.NewAction(action.ActionClick).WithPayload(runtimemsg.NewMouseMsg(box.x+1, box.y+1, runtimemsg.MouseLeft, runtimemsg.MouseActionPress))
 	if next := middleware.Before(overlayClick); next == nil {
 		t.Fatal("overlay click should continue dispatch")

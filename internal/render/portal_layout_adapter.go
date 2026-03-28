@@ -48,6 +48,32 @@ type PortalCollector struct {
 	portalRoot map[string]*reconciler.Fiber // portalRootID -> PortalRoot Fiber
 }
 
+func isPortalFiber(fiber *reconciler.Fiber) bool {
+	if fiber == nil || fiber.Props == nil {
+		return false
+	}
+	portalRootID, ok := fiber.Props["portalRoot"].(string)
+	if !ok || portalRootID == "" {
+		return false
+	}
+	if marked, ok := fiber.Props["_portal"].(bool); ok && marked {
+		return true
+	}
+	if _, ok := fiber.Props["anchorId"].(string); ok {
+		return true
+	}
+	if _, ok := fiber.Props["position"].(types.PositionType); ok {
+		return true
+	}
+	if position, ok := fiber.Props["position"].(string); ok && position != "" {
+		return true
+	}
+	if _, ok := fiber.Props["priority"].(int); ok {
+		return true
+	}
+	return false
+}
+
 // NewPortalCollector creates a new PortalCollector
 func NewPortalCollector() *PortalCollector {
 	return &PortalCollector{
@@ -91,15 +117,10 @@ func (pc *PortalCollector) AddPortal(portalFiber *reconciler.Fiber) error {
 		return fmt.Errorf("portal fiber is nil")
 	}
 
-	// Check if this fiber is a Portal
-	if portalFiber.Props == nil {
+	if !isPortalFiber(portalFiber) {
 		return nil
 	}
-
-	portalRootID, ok := portalFiber.Props["portalRoot"].(string)
-	if !ok || portalRootID == "" {
-		return nil // Not a Portal node
-	}
+	portalRootID, _ := portalFiber.Props["portalRoot"].(string)
 
 	// Collect portal children
 	children := make([]layout.Node, 0)
@@ -156,16 +177,15 @@ func NewPortalAwareFiberToNodeAdapter(fiber *reconciler.Fiber, collector *Portal
 	}
 
 	// Check if this fiber is a Portal
-	if fiber.Props != nil {
-		if portalRootID, ok := fiber.Props["portalRoot"].(string); ok && portalRootID != "" {
-			adapter.isPortal = true
-			// Find the PortalRoot
-			if root, exists := collector.GetPortalRoot(portalRootID); exists {
-				adapter.portalRoot = root
-			}
-			// Add to collection queue
-			collector.AddPortal(fiber)
+	if isPortalFiber(fiber) {
+		portalRootID, _ := fiber.Props["portalRoot"].(string)
+		adapter.isPortal = true
+		// Find the PortalRoot
+		if root, exists := collector.GetPortalRoot(portalRootID); exists {
+			adapter.portalRoot = root
 		}
+		// Add to collection queue
+		collector.AddPortal(fiber)
 	}
 
 	// Initialize children (skip Portal children)
@@ -560,8 +580,15 @@ func (e *PortalAwareLayoutEngine) layoutPortal(
 	}
 
 	// Calculate final portal position using PortalPositionCalculator
-	calculator := layout.NewPortalPositionCalculator()
-	finalX, finalY := calculator.CalculatePosition(posConfig)
+	finalX, finalY := 0, 0
+	if popupResult, ok := layout.ResolveAnchoredPopupPositionFromProps(props, posConfig); ok {
+		finalX, finalY = popupResult.X, popupResult.Y
+	} else if popupResult, ok := layout.ResolveViewportClampedPopupPositionFromProps(props, posConfig); ok {
+		finalX, finalY = popupResult.X, popupResult.Y
+	} else {
+		calculator := layout.NewPortalPositionCalculator()
+		finalX, finalY = calculator.CalculatePosition(posConfig)
+	}
 
 	// Apply calculated position to the layout box
 	e.applyPortalTransform(box.Root, finalX, finalY)

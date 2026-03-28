@@ -15,7 +15,7 @@ import (
 
 // Demo: SVG visualization with actual layout engine data
 func main() {
-	fmt.Println("=== SVG Layout Visualization (with Layout Engine) ===\n")
+	fmt.Println("=== SVG Layout Visualization (with Layout Engine) ===")
 
 	// Create layout engine
 	engine := compute.NewEngine()
@@ -64,7 +64,7 @@ func main() {
 		return
 	}
 	fmt.Println("✓ Generated simple_layout_nested.svg (nested box view)")
-	fmt.Println("  The nested box SVG shows actual spatial layout!\n")
+	fmt.Println("  The nested box SVG shows actual spatial layout!")
 
 	// Example 2: Complex nested layout
 	fmt.Println("Example 2: Complex Nested Layout")
@@ -118,7 +118,7 @@ func main() {
 		fmt.Printf("Error writing nested SVG: %v\n", err)
 		return
 	}
-	fmt.Println("✓ Generated complex_layout_nested.svg (nested box view)\n")
+	fmt.Println("✓ Generated complex_layout_nested.svg (nested box view)")
 
 	// Example 3: HStack with horizontal layout
 	fmt.Println("Example 3: Horizontal Stack (HStack)")
@@ -160,7 +160,7 @@ func main() {
 		fmt.Printf("Error writing nested SVG: %v\n", err)
 		return
 	}
-	fmt.Println("✓ Generated hstack_layout_nested.svg (nested box view)\n")
+	fmt.Println("✓ Generated hstack_layout_nested.svg (nested box view)")
 
 	// Print summary
 	fmt.Println("=== Summary ===")
@@ -171,7 +171,7 @@ func main() {
 	fmt.Printf("\nExample 3: HStack\n")
 	printLayoutSummary(computedLayout3)
 
-	fmt.Println("\n=== Generated SVG Files ===")
+	fmt.Println("=== Generated SVG Files ===")
 	fmt.Println("Tree view (structural):")
 	fmt.Println("  simple_layout_real.svg     - Shows tree structure with detailed info")
 	fmt.Println("  complex_layout_real.svg    - Shows complex nested structure")

@@ -14,7 +14,7 @@ import (
 
 // 演示 1: 基础 Panel 可视化 - 盒模型样式 (Chrome DevTools 风格)
 func example1() {
-	fmt.Println("=== 示例 1: 基础 Panel 盒模型可视化 ===\n")
+	fmt.Println("=== 示例 1: 基础 Panel 盒模型可视化 ===")
 
 	// 创建一个简单的 Panel
 	p := panel.NewBuilder().
@@ -40,7 +40,7 @@ func example1() {
 
 // 演示 1b: 树形图样式
 func example1b() {
-	fmt.Println("\n=== 示例 1b: 树形图样式 ===\n")
+	fmt.Println("=== 示例 1b: 树形图样式 ===")
 
 	// 创建一个简单的 Panel
 	p := panel.NewBuilder().
@@ -66,7 +66,7 @@ func example1b() {
 
 // 演示 1c: 网格可视化
 func example1c() {
-	fmt.Println("\n=== 示例 1c: 网格可视化 ===\n")
+	fmt.Println("=== 示例 1c: 网格可视化 ===")
 
 	// 创建一个简单的 Panel
 	p := panel.NewBuilder().
@@ -92,7 +92,7 @@ func example1c() {
 
 // 演示 2: 手动构建可视化
 func example2() {
-	fmt.Println("\n=== 示例 2: 手动构建可视化 ===\n")
+	fmt.Println("=== 示例 2: 手动构建可视化 ===")
 
 	vis := visualizer.NewVisualizer()
 
@@ -138,7 +138,7 @@ func example2() {
 
 // 演示 3: 检测布局问题
 func example3() {
-	fmt.Println("\n=== 示例 3: 检测布局问题 ===\n")
+	fmt.Println("=== 示例 3: 检测布局问题 ===")
 
 	vis := visualizer.NewVisualizer()
 
@@ -168,7 +168,7 @@ func example3() {
 
 // 演示 4: 约束传播链
 func example4() {
-	fmt.Println("\n=== 示例 4: 约束传播链 ===\n")
+	fmt.Println("=== 示例 4: 约束传播链 ===")
 
 	vis := visualizer.NewVisualizer()
 
@@ -209,7 +209,7 @@ func example4() {
 
 // 演示 5: 布局摘要
 func example5() {
-	fmt.Println("=== 示例 5: 布局摘要 ===\n")
+	fmt.Println("=== 示例 5: 布局摘要 ===")
 
 	vis := visualizer.NewVisualizer()
 
@@ -242,7 +242,7 @@ func example5() {
 
 // 演示 6: 复杂布局（带子布局）
 func example6() {
-	fmt.Println("\n=== 示例 6: 复杂布局 ===\n")
+	fmt.Println("=== 示例 6: 复杂布局 ===")
 
 	// 创建带有子布局的 Panel
 	mainPanel := panel.NewBuilder().
@@ -281,7 +281,7 @@ func example6() {
 	// 检查问题
 	problems := vis.FindProblems()
 	if len(problems) > 0 {
-		fmt.Println("\n⚠️  发现布局问题：")
+		fmt.Println("⚠️  发现布局问题：")
 		for _, problem := range problems {
 			fmt.Printf("  - %s\n", problem)
 		}
@@ -290,7 +290,7 @@ func example6() {
 
 // 演示 7: 对比不同约束
 func example7() {
-	fmt.Println("\n=== 示例 7: 对比不同约束 ===\n")
+	fmt.Println("=== 示例 7: 对比不同约束 ===")
 
 	// 创建一个简单的 Panel
 	p := panel.NewBuilder().
@@ -320,7 +320,7 @@ func example7() {
 	fmt.Println("--- 小尺寸约束 ---")
 	fmt.Println(vis1.PrintSummary())
 
-	fmt.Println("\n--- 大尺寸约束 ---")
+	fmt.Println("--- 大尺寸约束 ---")
 	fmt.Println(vis2.PrintSummary())
 }
 
@@ -336,6 +336,6 @@ func main() {
 
 	// 环境变量控制详细输出
 	if os.Getenv("DEBUG_LAYOUT") == "true" {
-		fmt.Println("\n=== 详细输出已启用 ===")
+		fmt.Println("=== 详细输出已启用 ===")
 	}
 }

@@ -486,6 +486,9 @@ func (o *Overlay) PaintHighlight(buf *paint.Buffer, vnode rtui.VNode, char rune)
 	if vnode == nil {
 		return nil
 	}
+	if buf == nil {
+		return nil
+	}
 
 	boundsAware, ok := vnode.(interface{ GetBounds() [4]int })
 	if !ok {

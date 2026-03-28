@@ -253,6 +253,14 @@ func (b *VNode) CreateInstance() rtui.ComponentInstance {
 // Builder Methods - Fluent API (return *VNode for chaining)
 // =============================================================================
 
+// Label returns the button label.
+func (b *VNode) Label() string {
+	if b == nil {
+		return ""
+	}
+	return b.label
+}
+
 // SetLabel sets the button label.
 func (b *VNode) SetLabel(label string) *VNode {
 	b.label = label

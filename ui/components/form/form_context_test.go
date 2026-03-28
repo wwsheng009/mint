@@ -379,6 +379,68 @@ func TestFormContext_FieldState(t *testing.T) {
 	}
 }
 
+func TestFormContext_RemountDoesNotLeakFieldMetadata(t *testing.T) {
+	ResetRegistry()
+	defer ResetRegistry()
+
+	first := NewInstance(rtui.Props{
+		"key": "profileForm",
+		"values": map[string]interface{}{
+			"email": "initial@example.com",
+		},
+	})
+	first.OnMount()
+
+	first.HandleIntent(FormFieldBlurIntent{
+		FormID: "profileForm",
+		Field:  "email",
+		Value:  "changed@example.com",
+	})
+	first.HandleIntent(FormSubmitIntent{
+		FormID: "profileForm",
+		Data: map[string]interface{}{
+			"email": "changed@example.com",
+		},
+	})
+
+	ctx := GetRegisteredFormContext("profileForm")
+	if ctx == nil {
+		t.Fatal("expected non-nil registered context for first mount")
+	}
+	if !ctx.IsFieldTouched("email") || !ctx.IsFieldDirty("email") || !ctx.IsFieldSubmitted("email") {
+		t.Fatal("expected first mount to accumulate field metadata before remount")
+	}
+
+	first.OnUnmount()
+
+	second := NewInstance(rtui.Props{
+		"key": "profileForm",
+		"values": map[string]interface{}{
+			"email": "fresh@example.com",
+		},
+	})
+	second.OnMount()
+	defer second.OnUnmount()
+
+	if got := GetRegisteredForm("profileForm"); got != second {
+		t.Fatalf("registry form = %p, want %p", got, second)
+	}
+
+	ctx = GetRegisteredFormContext("profileForm")
+	if ctx == nil {
+		t.Fatal("expected non-nil registered context after remount")
+	}
+	if value, ok := ctx.GetValue("email"); !ok || value != "fresh@example.com" {
+		t.Fatalf("remounted value = (%v,%v), want fresh@example.com,true", value, ok)
+	}
+	if ctx.IsFieldTouched("email") || ctx.IsFieldDirty("email") || ctx.IsFieldSubmitted("email") {
+		t.Fatal("expected remounted form to start with clean field metadata")
+	}
+	if ctx.HasSubmitted() || ctx.GetSubmitCount() != 0 {
+		t.Fatalf("expected remounted form to reset submit metadata, got (%v,%d)", ctx.HasSubmitted(), ctx.GetSubmitCount())
+	}
+}
+
 // TestFormContext_SetValue tests SetValue through context.
 func TestFormContext_SetValue(t *testing.T) {
 	t.Run("SetValue updates form values", func(t *testing.T) {

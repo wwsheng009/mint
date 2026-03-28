@@ -11,7 +11,7 @@ import (
 // 此程序使用 component_fixtures 中的测试数据对 runtime/layout 包进行集成测试
 // 验证布局引擎与真实UI组件的兼容性
 func main() {
-	fmt.Println("=== Layout Engine Integration Test with Component Fixtures ===\n")
+	fmt.Println("=== Layout Engine Integration Test with Component Fixtures ===")
 
 	// 创建布局引擎
 	engine := rtlayout.NewEngine()

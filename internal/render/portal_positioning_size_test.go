@@ -145,3 +145,170 @@ func TestDeclarativeNode_PortalLayoutAnchorPositionUsesExplicitWrapperSize(t *te
 		t.Fatalf("portal root y = %d, want 2\n%s", root.Y, node.GetPortalTreeString())
 	}
 }
+
+func TestDeclarativeNode_AnchoredPopupPlacementFallsBackBelowTopEdge(t *testing.T) {
+	app := func() rtui.VNode {
+		overlayHost := rtui.NewElement("box")
+		overlayHost.SetProps(rtui.Props{
+			"portalRootId": "overlay-root",
+			"_layer":       rtui.LayerOverlay,
+			"width":        1,
+			"height":       1,
+		})
+
+		header := rtui.NewElement("box")
+		header.SetProps(rtui.Props{
+			"width":  72,
+			"height": 1,
+		})
+
+		leftSpacer := rtui.NewElement("box")
+		leftSpacer.SetProps(rtui.Props{
+			"width":  61,
+			"height": 1,
+		})
+
+		anchor := rtui.NewElement("box")
+		anchor.SetID("menu-anchor")
+		anchor.SetProps(rtui.Props{
+			"width":  11,
+			"height": 1,
+		})
+
+		anchorRow := rtui.NewElement("hstack")
+		anchorRow.SetProps(rtui.Props{
+			"direction": rtui.DirectionRow,
+			"gap":       0,
+			"width":     72,
+			"height":    1,
+		})
+		anchorRow.SetChildren([]rtui.VNode{leftSpacer, anchor})
+
+		content := rtui.NewElement("box")
+		content.SetProps(rtui.Props{
+			"width":  19,
+			"height": 3,
+			"_layer": rtui.LayerOverlay,
+		})
+
+		portal := rtui.NewElement("box")
+		portal.SetProps(rtui.Props{
+			"portalRoot":        "overlay-root",
+			"position":          rttypes.PositionAbsolute,
+			"anchorId":          "menu-anchor",
+			"anchor":            rttypes.AnchorTopRight,
+			"left":              0,
+			"top":               -3,
+			"width":             19,
+			"height":            3,
+			"positioningWidth":  19,
+			"positioningHeight": 3,
+			"popupPlacement":    "top-end",
+			"popupOffsetX":      0,
+			"popupOffsetY":      0,
+		})
+		portal.SetChildren([]rtui.VNode{content})
+
+		return rtui.VStack(
+			overlayHost,
+			header,
+			anchorRow,
+			portal,
+		)
+	}
+
+	node := NewDeclarativeNodeFromFuncWithFiber(app)
+	node.SetApp(framework.NewApp())
+	node.SetRenderMode(RenderModeFiberFirst)
+
+	ctx := component.PaintContext{
+		Bounds:          paint.Rect{X: 0, Y: 0, Width: 72, Height: 18},
+		AvailableWidth:  72,
+		AvailableHeight: 18,
+	}
+
+	node.Paint(ctx, paint.NewBuffer(72, 18))
+
+	portalRoots := node.GetPortalRoots()
+	if len(portalRoots) != 1 {
+		t.Fatalf("portal roots = %d, want 1\n%s", len(portalRoots), node.GetPortalTreeString())
+	}
+
+	root := portalRoots[0]
+	if root.X != 53 {
+		t.Fatalf("portal root x = %d, want 53\n%s", root.X, node.GetPortalTreeString())
+	}
+	if root.Y != 3 {
+		t.Fatalf("portal root y = %d, want 3 after top-edge fallback\n%s", root.Y, node.GetPortalTreeString())
+	}
+}
+
+func TestDeclarativeNode_ViewportClampedPopupPositionFitsWithinBottomRightEdge(t *testing.T) {
+	app := func() rtui.VNode {
+		overlayHost := rtui.NewElement("box")
+		overlayHost.SetProps(rtui.Props{
+			"portalRootId": "overlay-root",
+			"_layer":       rtui.LayerOverlay,
+			"width":        1,
+			"height":       1,
+		})
+
+		body := rtui.NewElement("box")
+		body.SetProps(rtui.Props{
+			"width":  72,
+			"height": 18,
+		})
+
+		content := rtui.NewElement("box")
+		content.SetProps(rtui.Props{
+			"width":  19,
+			"height": 4,
+			"_layer": rtui.LayerOverlay,
+		})
+
+		portal := rtui.NewElement("box")
+		portal.SetProps(rtui.Props{
+			"portalRoot":           "overlay-root",
+			"position":             rttypes.PositionAbsolute,
+			"left":                 66,
+			"top":                  16,
+			"width":                19,
+			"height":               4,
+			"positioningWidth":     19,
+			"positioningHeight":    4,
+			"popupClampToViewport": true,
+		})
+		portal.SetChildren([]rtui.VNode{content})
+
+		return rtui.VStack(
+			overlayHost,
+			body,
+			portal,
+		)
+	}
+
+	node := NewDeclarativeNodeFromFuncWithFiber(app)
+	node.SetApp(framework.NewApp())
+	node.SetRenderMode(RenderModeFiberFirst)
+
+	ctx := component.PaintContext{
+		Bounds:          paint.Rect{X: 0, Y: 0, Width: 72, Height: 18},
+		AvailableWidth:  72,
+		AvailableHeight: 18,
+	}
+
+	node.Paint(ctx, paint.NewBuffer(72, 18))
+
+	portalRoots := node.GetPortalRoots()
+	if len(portalRoots) != 1 {
+		t.Fatalf("portal roots = %d, want 1\n%s", len(portalRoots), node.GetPortalTreeString())
+	}
+
+	root := portalRoots[0]
+	if root.X != 53 {
+		t.Fatalf("portal root x = %d, want 53 after right-edge clamp\n%s", root.X, node.GetPortalTreeString())
+	}
+	if root.Y != 14 {
+		t.Fatalf("portal root y = %d, want 14 after bottom-edge clamp\n%s", root.Y, node.GetPortalTreeString())
+	}
+}

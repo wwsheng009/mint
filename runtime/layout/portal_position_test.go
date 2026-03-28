@@ -11,14 +11,14 @@ import (
 // TestParsePortalPositionConfig tests parsing of Portal positioning props
 func TestParsePortalPositionConfig(t *testing.T) {
 	props := map[string]interface{}{
-		"position":  types.PositionFixed,
-		"anchor":    types.AnchorCenter,
-		"anchorId":  "button-123",
-		"top":       100,
-		"left":      50,
-		"right":     0,
-		"bottom":    0,
-		"priority":  10,
+		"position": types.PositionFixed,
+		"anchor":   types.AnchorCenter,
+		"anchorId": "button-123",
+		"top":      100,
+		"left":     50,
+		"right":    0,
+		"bottom":   0,
+		"priority": 10,
 	}
 
 	config := ParsePortalPositionConfig(props, 800, 600, 400, 300)
@@ -46,12 +46,12 @@ func TestCalculateFixedPosition_PositionFixed(t *testing.T) {
 
 	// Test: Center anchor (default modal centering)
 	config := PortalPositionConfig{
-		Position:      types.PositionFixed,
-		Anchor:        types.AnchorCenter,
-		ViewportWidth: 800,
+		Position:       types.PositionFixed,
+		Anchor:         types.AnchorCenter,
+		ViewportWidth:  800,
 		ViewportHeight: 600,
-		PortalWidth:   400,
-		PortalHeight:  300,
+		PortalWidth:    400,
+		PortalHeight:   300,
 	}
 
 	x, y := calculator.CalculatePosition(config)
@@ -60,14 +60,14 @@ func TestCalculateFixedPosition_PositionFixed(t *testing.T) {
 
 	// Test: TopLeft with offsets
 	configTopLeft := PortalPositionConfig{
-		Position:      types.PositionFixed,
-		Anchor:        types.AnchorTopLeft,
-		Top:           ptrInt(10),
-		Left:          ptrInt(20),
-		ViewportWidth: 800,
+		Position:       types.PositionFixed,
+		Anchor:         types.AnchorTopLeft,
+		Top:            ptrInt(10),
+		Left:           ptrInt(20),
+		ViewportWidth:  800,
 		ViewportHeight: 600,
-		PortalWidth:   400,
-		PortalHeight:  300,
+		PortalWidth:    400,
+		PortalHeight:   300,
 	}
 
 	x, y = calculator.CalculatePosition(configTopLeft)
@@ -76,19 +76,19 @@ func TestCalculateFixedPosition_PositionFixed(t *testing.T) {
 
 	// Test: BottomRight
 	configBottomRight := PortalPositionConfig{
-		Position:      types.PositionFixed,
-		Anchor:        types.AnchorBottomRight,
-		Right:         ptrInt(10),
-		Bottom:        ptrInt(5),
-		ViewportWidth: 800,
+		Position:       types.PositionFixed,
+		Anchor:         types.AnchorBottomRight,
+		Right:          ptrInt(10),
+		Bottom:         ptrInt(5),
+		ViewportWidth:  800,
 		ViewportHeight: 600,
-		PortalWidth:   400,
-		PortalHeight:  300,
+		PortalWidth:    400,
+		PortalHeight:   300,
 	}
 
 	x, y = calculator.CalculatePosition(configBottomRight)
-	assert.Equal(t, 800-400-10, x)  // viewport - portalWidth - right
-	assert.Equal(t, 600-300-5, y)   // viewport - portalHeight - bottom
+	assert.Equal(t, 800-400-10, x) // viewport - portalWidth - right
+	assert.Equal(t, 600-300-5, y)  // viewport - portalHeight - bottom
 	assert.Equal(t, 390, x)
 	assert.Equal(t, 295, y)
 }
@@ -98,7 +98,7 @@ func TestCalculateAnchorBasedPosition(t *testing.T) {
 	calculator := NewPortalPositionCalculator()
 
 	// Test basic alignment scenarios without offsets
-	pw, ph := 150, 40 // portal width/height
+	pw, ph := 150, 40                   // portal width/height
 	ax, ay, aw, ah := 100, 100, 200, 50 // anchor position/size
 
 	// Test TopLeft alignment
@@ -113,8 +113,8 @@ func TestCalculateAnchorBasedPosition(t *testing.T) {
 		PortalHeight: ph,
 	}
 	x, y := calculator.CalculatePosition(config)
-	assert.Equal(t, ax, x)  // portal's top-left at anchor's top-left (100)
-	assert.Equal(t, ay, y)  // portal's top-left at anchor's top-left (100)
+	assert.Equal(t, ax, x) // portal's top-left at anchor's top-left (100)
+	assert.Equal(t, ay, y) // portal's top-left at anchor's top-left (100)
 
 	// Test Bottom alignment (common for tooltips)
 	configBottom := PortalPositionConfig{
@@ -124,7 +124,7 @@ func TestCalculateAnchorBasedPosition(t *testing.T) {
 		AnchorY:      ay,
 		AnchorWidth:  aw,
 		AnchorHeight: ah,
-		Top:          ptrInt(5),  // 5px gap
+		Top:          ptrInt(5), // 5px gap
 		PortalWidth:  pw,
 		PortalHeight: ph,
 	}
@@ -258,33 +258,149 @@ func TestPortalPositionConfig_SetAnchorPosition(t *testing.T) {
 	assert.Equal(t, 60, config.AnchorHeight)
 }
 
+func TestResolveAnchoredPopupPositionPrefersMirroredHorizontalCandidate(t *testing.T) {
+	config := PortalPositionConfig{
+		ViewportWidth:  40,
+		ViewportHeight: 12,
+		PortalWidth:    18,
+		PortalHeight:   4,
+		AnchorX:        32,
+		AnchorY:        2,
+		AnchorWidth:    6,
+		AnchorHeight:   1,
+	}
+
+	result := ResolveAnchoredPopupPosition(config, "bottom-start", 0, 0)
+	assert.Equal(t, "bottom-end", result.Placement)
+	assert.Equal(t, 20, result.X)
+	assert.Equal(t, 3, result.Y)
+	assert.False(t, result.Clamped)
+}
+
+func TestResolveAnchoredPopupPositionFallsBackBelowTopEdge(t *testing.T) {
+	config := PortalPositionConfig{
+		ViewportWidth:  40,
+		ViewportHeight: 12,
+		PortalWidth:    18,
+		PortalHeight:   4,
+		AnchorX:        24,
+		AnchorY:        1,
+		AnchorWidth:    6,
+		AnchorHeight:   1,
+	}
+
+	result := ResolveAnchoredPopupPosition(config, "top-end", 0, 0)
+	assert.Equal(t, "bottom-end", result.Placement)
+	assert.Equal(t, 12, result.X)
+	assert.Equal(t, 2, result.Y)
+	assert.False(t, result.Clamped)
+}
+
+func TestResolveAnchoredPopupPositionClampsWhenNoCandidateFits(t *testing.T) {
+	config := PortalPositionConfig{
+		ViewportWidth:  10,
+		ViewportHeight: 4,
+		PortalWidth:    18,
+		PortalHeight:   6,
+		AnchorX:        8,
+		AnchorY:        0,
+		AnchorWidth:    2,
+		AnchorHeight:   1,
+	}
+
+	result := ResolveAnchoredPopupPosition(config, "right-start", 0, 0)
+	assert.Equal(t, "right-start", result.Placement)
+	assert.Equal(t, 0, result.X)
+	assert.Equal(t, 0, result.Y)
+	assert.True(t, result.Clamped)
+}
+
+func TestResolveAnchoredPopupPositionFromPropsUsesPopupOffsets(t *testing.T) {
+	config := PortalPositionConfig{
+		ViewportWidth:  40,
+		ViewportHeight: 12,
+		PortalWidth:    18,
+		PortalHeight:   4,
+		AnchorX:        32,
+		AnchorY:        2,
+		AnchorWidth:    6,
+		AnchorHeight:   1,
+	}
+
+	result, ok := ResolveAnchoredPopupPositionFromProps(map[string]interface{}{
+		"popupPlacement": "bottom-start",
+		"popupOffsetX":   -2,
+		"popupOffsetY":   1,
+	}, config)
+	assert.True(t, ok)
+	assert.Equal(t, "bottom-end", result.Placement)
+	assert.Equal(t, 18, result.X)
+	assert.Equal(t, 4, result.Y)
+}
+
+func TestResolveViewportClampedPopupPositionFromPropsPreservesInBoundsPosition(t *testing.T) {
+	config := ParsePortalPositionConfig(map[string]interface{}{
+		"popupClampToViewport": true,
+		"left":                 18,
+		"top":                  2,
+	}, 72, 18, 19, 4)
+
+	result, ok := ResolveViewportClampedPopupPositionFromProps(map[string]interface{}{
+		"popupClampToViewport": true,
+		"left":                 18,
+		"top":                  2,
+	}, config)
+	assert.True(t, ok)
+	assert.Equal(t, 18, result.X)
+	assert.Equal(t, 2, result.Y)
+	assert.False(t, result.Clamped)
+}
+
+func TestResolveViewportClampedPopupPositionFromPropsClampsBottomRightOverflow(t *testing.T) {
+	config := ParsePortalPositionConfig(map[string]interface{}{
+		"popupClampToViewport": true,
+		"left":                 66,
+		"top":                  16,
+	}, 72, 18, 19, 4)
+
+	result, ok := ResolveViewportClampedPopupPositionFromProps(map[string]interface{}{
+		"popupClampToViewport": true,
+		"left":                 66,
+		"top":                  16,
+	}, config)
+	assert.True(t, ok)
+	assert.Equal(t, 53, result.X)
+	assert.Equal(t, 14, result.Y)
+	assert.True(t, result.Clamped)
+}
+
 // TestPortalPositionConfig_String tests string representation
 func TestPortalPositionConfig_String(t *testing.T) {
 	config := PortalPositionConfig{
-		Position:      types.PositionFixed,
-		Anchor:        types.AnchorCenter,
-		AnchorID:      "test-anchor",
-		Left:          ptrInt(10),
-		Top:           ptrInt(20),
-		ViewportWidth: 800,
+		Position:       types.PositionFixed,
+		Anchor:         types.AnchorCenter,
+		AnchorID:       "test-anchor",
+		Left:           ptrInt(10),
+		Top:            ptrInt(20),
+		ViewportWidth:  800,
 		ViewportHeight: 600,
-		PortalWidth:   400,
-		PortalHeight:  300,
-		AnchorX:       100,
-		AnchorY:       200,
-		AnchorWidth:   200,
-		AnchorHeight:  100,
+		PortalWidth:    400,
+		PortalHeight:   300,
+		AnchorX:        100,
+		AnchorY:        200,
+		AnchorWidth:    200,
+		AnchorHeight:   100,
 	}
 
 	s := config.String()
 	assert.Contains(t, s, "fixed")  // PositionFixed.String() returns "fixed"
 	assert.Contains(t, s, "center") // AnchorCenter.String() returns "center"
 	assert.Contains(t, s, "test-anchor")
-	assert.Contains(t, s, "10")  // Left
-	assert.Contains(t, s, "20")  // Top
-	assert.Contains(t, s, "800x600")  // Viewport
-	assert.Contains(t, s, "400x300")  // Portal
-	assert.Contains(t, s, "(100,200-200x100)")  // Anchor
+	assert.Contains(t, s, "10")                // Left
+	assert.Contains(t, s, "20")                // Top
+	assert.Contains(t, s, "800x600")           // Viewport
+	assert.Contains(t, s, "400x300")           // Portal
+	assert.Contains(t, s, "(100,200-200x100)") // Anchor
 }
 
 // TestCalculateFixedPosition_AllAnchors tests all PositionFixed anchor variants
@@ -295,10 +411,10 @@ func TestCalculateFixedPosition_AllAnchors(t *testing.T) {
 	calculator := NewPortalPositionCalculator()
 
 	tests := []struct {
-		name         string
-		anchor       types.Anchor
-		expectedX    int
-		expectedY    int
+		name      string
+		anchor    types.Anchor
+		expectedX int
+		expectedY int
 	}{
 		{"TopLeft", types.AnchorTopLeft, 0, 0},
 		{"Top", types.AnchorTop, (vw - pw) / 2, 0},
@@ -314,12 +430,12 @@ func TestCalculateFixedPosition_AllAnchors(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			config := PortalPositionConfig{
-				Position:      types.PositionFixed,
-				Anchor:        tt.anchor,
-				ViewportWidth: vw,
+				Position:       types.PositionFixed,
+				Anchor:         tt.anchor,
+				ViewportWidth:  vw,
 				ViewportHeight: vh,
-				PortalWidth:   pw,
-				PortalHeight:  ph,
+				PortalWidth:    pw,
+				PortalHeight:   ph,
 			}
 
 			x, y := calculator.CalculatePosition(config)
@@ -356,13 +472,13 @@ func TestCalculateAnchorBasedPosition_AllAnchors(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			config := PortalPositionConfig{
-				Position:    types.PositionAbsolute,
-				Anchor:      tt.anchor,
-				AnchorX:     ax,
-				AnchorY:     ay,
-				AnchorWidth: aw,
+				Position:     types.PositionAbsolute,
+				Anchor:       tt.anchor,
+				AnchorX:      ax,
+				AnchorY:      ay,
+				AnchorWidth:  aw,
 				AnchorHeight: ah,
-				PortalWidth: pw,
+				PortalWidth:  pw,
 				PortalHeight: ph,
 			}
 

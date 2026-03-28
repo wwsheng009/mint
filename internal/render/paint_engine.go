@@ -3,6 +3,7 @@ package render
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/wwsheng009/mint/internal/log"
 	cachepkg "github.com/wwsheng009/mint/internal/render/cache"
@@ -17,6 +18,7 @@ import (
 // PaintEngine renders layout trees using pre-computed layout information
 // This is the paint-only phase of the new rendering pipeline
 type PaintEngine struct {
+	mu                sync.Mutex
 	debug             bool
 	lastHadModal      bool                                // Track if modal was present in last frame (for backdrop restoration)
 	forceFullRender   bool                                // Flag to force full buffer render on next frame
@@ -649,6 +651,9 @@ func (e *PaintEngine) PaintPaintablePlanes(
 	planes *paint.PaintablePlanes,
 	buffer *paint.Buffer,
 ) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
 	if planes == nil {
 		return nil
 	}

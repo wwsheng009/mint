@@ -13,7 +13,7 @@ import (
 
 // 演示: HTML 可视化输出
 func main() {
-	fmt.Println("=== HTML Layout Visualization Demo ===\n")
+	fmt.Println("=== HTML Layout Visualization Demo ===")
 
 	// 示例 1: 简单的 Panel 布局
 	fmt.Println("示例 1: 简单的 Panel 布局")
@@ -44,7 +44,7 @@ func main() {
 	}
 
 	fmt.Println("✓ 已生成 simple_layout.html 文件")
-	fmt.Println("  在浏览器中打开此文件查看可视化布局\n")
+	fmt.Println("  在浏览器中打开此文件查看可视化布局")
 
 	// 示例 2: 带有多个嵌套组件的复杂布局
 	fmt.Println("示例 2: 复杂的嵌套布局")
@@ -85,14 +85,14 @@ func main() {
 	}
 
 	fmt.Println("✓ 已生成 complex_layout.html 文件")
-	fmt.Println("  在浏览器中打开此文件查看可视化布局\n")
+	fmt.Println("  在浏览器中打开此文件查看可视化布局")
 
 	// 示例 3: 行内 HTML 格式 (适合嵌入其他页面)
 	fmt.Println("示例 3: 行内 HTML 输出")
 	fmt.Println("---")
 	inlineHTML := vis.PrintHTMLOneline()
 	fmt.Println("行内 HTML (前 200 字符):")
-	fmt.Println(inlineHTML[:min(200, len(inlineHTML))] + "...\n")
+	fmt.Println(inlineHTML[:min(200, len(inlineHTML))] + "...")
 
 	// 示例 4: 节点索引
 	fmt.Println("示例 4: 节点索引")
@@ -104,7 +104,7 @@ func main() {
 		return
 	}
 
-	fmt.Println("✓ 已生成 node_index.html 文件\n")
+	fmt.Println("✓ 已生成 node_index.html 文件")
 
 	// 示例 5: 检测布局问题
 	fmt.Println("示例 5: 布局问题检测")
@@ -134,7 +134,7 @@ func main() {
 	}
 
 	fmt.Println("✓ 已生成 problems_layout.html 文件")
-	fmt.Println("  此文件展示了布局问题的可视化（超出约束）\n")
+	fmt.Println("  此文件展示了布局问题的可视化（超出约束）")
 
 	// 打印检测到的问题
 	problems := vis3.FindProblems()
@@ -147,8 +147,8 @@ func main() {
 		fmt.Println("✓ 未检测到布局问题")
 	}
 
-	fmt.Println("\n=== Demo 完成 ===")
-	fmt.Println("\n提示: 生成的 HTML 文件包含:")
+	fmt.Println("=== Demo 完成 ===")
+	fmt.Println("提示: 生成的 HTML 文件包含:")
 	fmt.Println("  - 交互式节点导航")
 	fmt.Println("  - 约束详情显示")
 	fmt.Println("  - 布局问题高亮")

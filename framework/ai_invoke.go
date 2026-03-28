@@ -34,7 +34,7 @@ func (a *App) Invoke(ctx context.Context, fn func() (any, error)) (any, error) {
 
 	// Before the app enters the main loop there is nothing to serialize against,
 	// so execute inline.
-	if a == nil || a.invokeQ == nil || a.state != StateRunning {
+	if a == nil || a.invokeQ == nil || !a.IsRunning() {
 		return fn()
 	}
 

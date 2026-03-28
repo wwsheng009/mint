@@ -117,6 +117,7 @@ func (f *FragmentVNode) SetPortalRoot(portalRootID string) VNode {
 		f.props = make(Props)
 	}
 	f.props["portalRoot"] = portalRootID
+	f.props["_portal"] = true
 	return f
 }
 

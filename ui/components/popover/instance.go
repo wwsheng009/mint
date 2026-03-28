@@ -41,6 +41,7 @@ type Instance struct {
 	childInstances    []rtui.ComponentInstance
 	intentEmitter     func(intent.Intent)
 	bounds            [4]int
+	viewportSize      [2]int
 	dirty             bool
 }
 
@@ -62,6 +63,7 @@ type overlayInstance struct {
 	bodyStyle    style.Style
 	anchorBounds [4]int
 	bounds       [4]int
+	viewportSize [2]int
 	dirty        bool
 }
 
@@ -292,6 +294,17 @@ func (inst *Instance) SetBounds(x, y, w, h int) {
 	inst.bounds = [4]int{x, y, w, h}
 }
 
+func (inst *Instance) SetViewportSize(width, height int) {
+	next := [2]int{width, height}
+	if inst.viewportSize == next {
+		return
+	}
+	inst.viewportSize = next
+	if inst.open {
+		inst.dirty = true
+	}
+}
+
 func (inst *Instance) HandleAction(act *action.Action) bool {
 	if act == nil || inst.disabled {
 		return false
@@ -352,6 +365,7 @@ func (inst *Instance) RuntimeChildren() []rtui.VNode {
 		titleStyle:   inst.resolveTitleStyle(),
 		bodyStyle:    inst.resolveBodyStyle(),
 		anchorBounds: inst.bounds,
+		viewportSize: inst.viewportSize,
 	})
 	overlay.SetKey(inst.key + "-overlay")
 	return []rtui.VNode{overlay}
@@ -388,7 +402,7 @@ func (inst *Instance) containsAnchorPoint(x, y int) bool {
 }
 
 func (inst *Instance) containsOverlayPoint(x, y int) bool {
-	box := computePopoverBox(inst.title, inst.body, inst.placement, inst.showArrow, inst.gapRows, inst.maxWidth, inst.bounds)
+	box := computePopoverBox(inst.title, inst.body, inst.placement, inst.showArrow, inst.gapRows, inst.maxWidth, inst.bounds, inst.viewportSize)
 	if box.width <= 0 || box.height <= 0 {
 		return false
 	}
@@ -477,6 +491,7 @@ type overlayProps struct {
 	titleStyle   style.Style
 	bodyStyle    style.Style
 	anchorBounds [4]int
+	viewportSize [2]int
 }
 
 func newOverlayVNode(model overlayProps) *overlayVNode {
@@ -493,6 +508,7 @@ func newOverlayVNode(model overlayProps) *overlayVNode {
 	node.SetProp("titleStyle", model.titleStyle)
 	node.SetProp("bodyStyle", model.bodyStyle)
 	node.SetProp("anchorBounds", model.anchorBounds)
+	node.SetProp("viewportSize", model.viewportSize)
 	return node
 }
 
@@ -518,6 +534,7 @@ func newOverlayInstance(props rtui.Props) *overlayInstance {
 		titleStyle:   proputil.GetStyle(props, "titleStyle", style.Style{}),
 		bodyStyle:    proputil.GetStyle(props, "bodyStyle", style.Style{}),
 		anchorBounds: getAnchorBoundsProp(props),
+		viewportSize: getViewportSizeProp(props),
 		dirty:        true,
 	}
 	if inst.maxWidth <= 0 {
@@ -549,6 +566,7 @@ func (inst *overlayInstance) SetProps(props rtui.Props) bool {
 	oldTitleStyle := inst.titleStyle
 	oldBodyStyle := inst.bodyStyle
 	oldAnchor := inst.anchorBounds
+	oldViewport := inst.viewportSize
 
 	inst.title = proputil.GetString(props, "title", inst.title)
 	inst.body = proputil.GetString(props, "body", inst.body)
@@ -562,6 +580,7 @@ func (inst *overlayInstance) SetProps(props rtui.Props) bool {
 	inst.titleStyle = proputil.GetStyle(props, "titleStyle", inst.titleStyle)
 	inst.bodyStyle = proputil.GetStyle(props, "bodyStyle", inst.bodyStyle)
 	inst.anchorBounds = getAnchorBoundsPropWithDefault(props, inst.anchorBounds)
+	inst.viewportSize = getViewportSizePropWithDefault(props, inst.viewportSize)
 	changed := oldTitle != inst.title ||
 		oldBody != inst.body ||
 		oldPlacement != inst.placement ||
@@ -573,7 +592,8 @@ func (inst *overlayInstance) SetProps(props rtui.Props) bool {
 		oldShadow != inst.shadowStyle ||
 		oldTitleStyle != inst.titleStyle ||
 		oldBodyStyle != inst.bodyStyle ||
-		oldAnchor != inst.anchorBounds
+		oldAnchor != inst.anchorBounds ||
+		oldViewport != inst.viewportSize
 	if changed {
 		inst.dirty = true
 	}
@@ -594,6 +614,7 @@ func (inst *overlayInstance) GetProps() rtui.Props {
 		"titleStyle":   inst.titleStyle,
 		"bodyStyle":    inst.bodyStyle,
 		"anchorBounds": inst.anchorBounds,
+		"viewportSize": inst.viewportSize,
 	}
 }
 
@@ -603,6 +624,15 @@ func (inst *overlayInstance) Measure(constraints layout.Constraints) layout.Size
 
 func (inst *overlayInstance) SetBounds(x, y, w, h int) {
 	inst.bounds = [4]int{x, y, w, h}
+}
+
+func (inst *overlayInstance) SetViewportSize(width, height int) {
+	next := [2]int{width, height}
+	if inst.viewportSize == next {
+		return
+	}
+	inst.viewportSize = next
+	inst.dirty = true
 }
 
 func (inst *overlayInstance) Paint(x, y int) []paint.DrawCmd {
@@ -653,10 +683,10 @@ func (inst *overlayInstance) paintInteriorLine(x, y, contentWidth int, line stri
 }
 
 func (inst *overlayInstance) computeBox() popoverBox {
-	return computePopoverBox(inst.title, inst.body, inst.placement, inst.showArrow, inst.gapRows, inst.maxWidth, inst.anchorBounds)
+	return computePopoverBox(inst.title, inst.body, inst.placement, inst.showArrow, inst.gapRows, inst.maxWidth, inst.anchorBounds, inst.viewportSize)
 }
 
-func computePopoverBox(title, body string, placement Placement, showArrow bool, gapRows, maxWidth int, anchorBounds [4]int) popoverBox {
+func computePopoverBox(title, body string, placement Placement, showArrow bool, gapRows, maxWidth int, anchorBounds [4]int, viewportSize [2]int) popoverBox {
 	title = strings.TrimSpace(title)
 	bodyLines := wrapTextLines(body, maxWidth)
 	if len(bodyLines) == 0 {
@@ -684,8 +714,9 @@ func computePopoverBox(title, body string, placement Placement, showArrow bool, 
 		divider = "├" + strings.Repeat("─", contentWidth+2) + "┤"
 	}
 
-	resolvedPlacement := resolvePopoverPlacement(placement, gapRows, anchorBounds, height)
-	x, y := resolvePopoverPosition(anchorBounds, resolvedPlacement, width, height, gapRows)
+	result := resolvePopoverLayout(anchorBounds, placement, width, height, gapRows, viewportSize)
+	resolvedPlacement := popoverPlacementFromOverlay(result.Placement)
+	x, y := result.X, result.Y
 	arrowOffset := resolvePopoverArrowOffset(anchorBounds, x, width)
 	topBorder := "┌" + strings.Repeat("─", contentWidth+2) + "┐"
 	bottomBorder := "└" + strings.Repeat("─", contentWidth+2) + "┘"
@@ -712,30 +743,58 @@ func computePopoverBox(title, body string, placement Placement, showArrow bool, 
 	}
 }
 
-func resolvePopoverPlacement(placement Placement, gapRows int, anchorBounds [4]int, height int) Placement {
+func resolvePopoverPlacement(placement Placement, gapRows int, anchorBounds [4]int, height int, viewportSize [2]int) Placement {
 	if placement != PlacementAuto {
 		return placement
 	}
-	if anchorBounds[1] > height+gapRows {
-		return PlacementTop
-	}
-	return PlacementBottom
+	return popoverPlacementFromOverlay(overlayposition.PreferredVerticalPlacement(
+		overlayposition.RectFromBounds(anchorBounds),
+		height,
+		gapRows,
+		viewportSize[1],
+		overlayposition.VerticalAutoPreferTop,
+	))
 }
 
-func resolvePopoverPosition(anchorBounds [4]int, placement Placement, width, height, gapRows int) (int, int) {
-	result := overlayposition.Resolve(overlayposition.Config{
+func resolvePopoverLayout(anchorBounds [4]int, placement Placement, width, height, gapRows int, viewportSize [2]int) overlayposition.Result {
+	preferred := resolvePopoverPlacement(placement, gapRows, anchorBounds, height, viewportSize)
+	return overlayposition.Resolve(overlayposition.Config{
 		Anchor: overlayposition.RectFromBounds(anchorBounds),
 		Overlay: overlayposition.Size{
 			Width:  width,
 			Height: height,
 		},
-		Candidates: []overlayposition.Placement{popoverOverlayPlacement(placement)},
+		Viewport: overlayposition.Size{
+			Width:  viewportSize[0],
+			Height: viewportSize[1],
+		},
+		Candidates: resolvePopoverCandidates(preferred),
 		Gap:        gapRows,
 	})
-	return result.X, result.Y
 }
 
-func popoverOverlayPlacement(placement Placement) overlayposition.Placement {
+func resolvePopoverCandidates(placement Placement) []overlayposition.Placement {
+	return overlayposition.VerticalPlacementCandidates(popoverPlacementToOverlay(placement))
+}
+
+func popoverPlacementFromOverlay(placement overlayposition.Placement) Placement {
+	switch placement {
+	case overlayposition.PlacementTopLeft:
+		return PlacementTopLeft
+	case overlayposition.PlacementTopRight:
+		return PlacementTopRight
+	case overlayposition.PlacementBottom:
+		return PlacementBottom
+	case overlayposition.PlacementBottomLeft:
+		return PlacementBottomLeft
+	case overlayposition.PlacementBottomRight:
+		return PlacementBottomRight
+	default:
+		return PlacementTop
+	}
+}
+
+func popoverPlacementToOverlay(placement Placement) overlayposition.Placement {
 	switch placement {
 	case PlacementTopLeft:
 		return overlayposition.PlacementTopLeft
@@ -797,6 +856,20 @@ func getAnchorBoundsProp(props rtui.Props) [4]int {
 
 func getAnchorBoundsPropWithDefault(props rtui.Props, def [4]int) [4]int {
 	if value, ok := props["anchorBounds"].([4]int); ok {
+		return value
+	}
+	return def
+}
+
+func getViewportSizeProp(props rtui.Props) [2]int {
+	if value, ok := props["viewportSize"].([2]int); ok {
+		return value
+	}
+	return [2]int{}
+}
+
+func getViewportSizePropWithDefault(props rtui.Props, def [2]int) [2]int {
+	if value, ok := props["viewportSize"].([2]int); ok {
 		return value
 	}
 	return def

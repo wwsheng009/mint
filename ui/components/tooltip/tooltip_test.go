@@ -1,6 +1,7 @@
 package tooltip
 
 import (
+	"reflect"
 	"testing"
 	"time"
 
@@ -8,6 +9,7 @@ import (
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/ui/components/control"
+	"github.com/wwsheng009/mint/ui/components/internal/overlayposition"
 	newtext "github.com/wwsheng009/mint/ui/components/text"
 )
 
@@ -255,7 +257,133 @@ func TestTooltipCalculatePosition_AutoAndFallback(t *testing.T) {
 		}
 	})
 
-	t.Run("lateral placement falls back within viewport", func(t *testing.T) {
+	t.Run("top placement stays above and shifts right within top family near left edge", func(t *testing.T) {
+		inst := NewInstance(rtui.Props{
+			"text":     "1234567890",
+			"position": PositionTop,
+		})
+		inst.SetAnchorBounds(2, 8, 4, 1)
+		inst.SetViewportSize(40, 16)
+
+		x, y := inst.CalculatePosition()
+		if x != 2 || y != 6 {
+			t.Fatalf("left-edge top-family position = (%d,%d), want (2,6)", x, y)
+		}
+	})
+
+	t.Run("top right placement falls below within right family near top-right corner", func(t *testing.T) {
+		inst := NewInstance(rtui.Props{
+			"text":     "1234567890",
+			"position": PositionTopRight,
+		})
+		inst.SetAnchorBounds(34, 1, 4, 1)
+		inst.SetViewportSize(40, 10)
+
+		x, y := inst.CalculatePosition()
+		if x != 26 || y != 3 {
+			t.Fatalf("top-right corner fallback position = (%d,%d), want (26,3)", x, y)
+		}
+	})
+
+	t.Run("top right placement clamps left and stays above in narrow viewport", func(t *testing.T) {
+		inst := NewInstance(rtui.Props{
+			"text":     "12345678901234",
+			"position": PositionTopRight,
+		})
+		inst.SetAnchorBounds(9, 7, 4, 1)
+		inst.SetViewportSize(14, 14)
+
+		x, y := inst.CalculatePosition()
+		if x != 0 || y != 5 {
+			t.Fatalf("narrow top-right clamped position = (%d,%d), want (0,5)", x, y)
+		}
+	})
+
+	t.Run("top left placement falls below within left family near top-left corner", func(t *testing.T) {
+		inst := NewInstance(rtui.Props{
+			"text":     "1234567890",
+			"position": PositionTopLeft,
+		})
+		inst.SetAnchorBounds(2, 1, 4, 1)
+		inst.SetViewportSize(40, 10)
+
+		x, y := inst.CalculatePosition()
+		if x != 2 || y != 3 {
+			t.Fatalf("top-left corner fallback position = (%d,%d), want (2,3)", x, y)
+		}
+	})
+
+	t.Run("bottom placement stays below and shifts left within bottom family near right edge", func(t *testing.T) {
+		inst := NewInstance(rtui.Props{
+			"text":     "1234567890",
+			"position": PositionBottom,
+		})
+		inst.SetAnchorBounds(34, 8, 4, 1)
+		inst.SetViewportSize(40, 16)
+
+		x, y := inst.CalculatePosition()
+		if x != 26 || y != 10 {
+			t.Fatalf("right-edge bottom-family position = (%d,%d), want (26,10)", x, y)
+		}
+	})
+
+	t.Run("bottom placement stays below and shifts right within bottom family near left edge", func(t *testing.T) {
+		inst := NewInstance(rtui.Props{
+			"text":     "1234567890",
+			"position": PositionBottom,
+		})
+		inst.SetAnchorBounds(2, 8, 4, 1)
+		inst.SetViewportSize(40, 16)
+
+		x, y := inst.CalculatePosition()
+		if x != 2 || y != 10 {
+			t.Fatalf("left-edge bottom-family position = (%d,%d), want (2,10)", x, y)
+		}
+	})
+
+	t.Run("bottom right placement falls above within right family near bottom-right corner", func(t *testing.T) {
+		inst := NewInstance(rtui.Props{
+			"text":     "1234567890",
+			"position": PositionBottomRight,
+		})
+		inst.SetAnchorBounds(34, 8, 4, 1)
+		inst.SetViewportSize(40, 10)
+
+		x, y := inst.CalculatePosition()
+		if x != 26 || y != 6 {
+			t.Fatalf("bottom-right corner fallback position = (%d,%d), want (26,6)", x, y)
+		}
+	})
+
+	t.Run("bottom right placement clamps left and stays below in narrow viewport", func(t *testing.T) {
+		inst := NewInstance(rtui.Props{
+			"text":     "12345678901234",
+			"position": PositionBottomRight,
+		})
+		inst.SetAnchorBounds(9, 7, 4, 1)
+		inst.SetViewportSize(14, 14)
+
+		x, y := inst.CalculatePosition()
+		if x != 0 || y != 9 {
+			t.Fatalf("narrow bottom-right clamped position = (%d,%d), want (0,9)", x, y)
+		}
+	})
+
+	t.Run("bottom left placement falls above within left family near bottom-left corner", func(t *testing.T) {
+		inst := NewInstance(rtui.Props{
+			"text":     "1234567890",
+			"position": PositionBottomLeft,
+		})
+		inst.SetAnchorBounds(2, 8, 4, 1)
+		inst.SetViewportSize(40, 10)
+
+		x, y := inst.CalculatePosition()
+		if x != 2 || y != 6 {
+			t.Fatalf("bottom-left corner fallback position = (%d,%d), want (2,6)", x, y)
+		}
+	})
+
+	t.Run("right bottom placement prefers mirrored horizontal family before vertical fallback", func(t *testing.T) {
 		inst := NewInstance(rtui.Props{
 			"text":     "Test",
 			"position": PositionRightBottom,
@@ -264,8 +392,92 @@ func TestTooltipCalculatePosition_AutoAndFallback(t *testing.T) {
 		inst.SetViewportSize(20, 10)
 
 		x, y := inst.CalculatePosition()
-		if x != 14 || y != 5 {
-			t.Fatalf("fallback position = (%d,%d), want (14,5)", x, y)
+		if x != 9 || y != 3 {
+			t.Fatalf("fallback position = (%d,%d), want (9,3)", x, y)
+		}
+	})
+
+	t.Run("right placement falls back to left family when right edge clips", func(t *testing.T) {
+		inst := NewInstance(rtui.Props{
+			"text":     "Test",
+			"position": PositionRight,
+		})
+		inst.SetAnchorBounds(17, 4, 2, 1)
+		inst.SetViewportSize(20, 10)
+
+		x, y := inst.CalculatePosition()
+		if x != 10 || y != 4 {
+			t.Fatalf("fallback position = (%d,%d), want (10,4)", x, y)
+		}
+	})
+
+	t.Run("left placement falls back to right family when left edge clips", func(t *testing.T) {
+		inst := NewInstance(rtui.Props{
+			"text":     "Test",
+			"position": PositionLeft,
+		})
+		inst.SetAnchorBounds(1, 4, 2, 1)
+		inst.SetViewportSize(20, 10)
+
+		x, y := inst.CalculatePosition()
+		if x != 4 || y != 4 {
+			t.Fatalf("fallback position = (%d,%d), want (4,4)", x, y)
+		}
+	})
+
+	t.Run("right top placement falls back to mirrored left top family near corner", func(t *testing.T) {
+		inst := NewInstance(rtui.Props{
+			"text":     "Corner",
+			"position": PositionRightTop,
+		})
+		inst.SetAnchorBounds(15, 1, 2, 1)
+		inst.SetViewportSize(20, 10)
+
+		x, y := inst.CalculatePosition()
+		if x != 6 || y != 1 {
+			t.Fatalf("fallback position = (%d,%d), want (6,1)", x, y)
+		}
+	})
+
+	t.Run("right top placement falls back to top before clamp when both horizontal families overflow", func(t *testing.T) {
+		inst := NewInstance(rtui.Props{
+			"text":     "123456",
+			"position": PositionRightTop,
+		})
+		inst.SetAnchorBounds(4, 3, 2, 1)
+		inst.SetViewportSize(10, 8)
+
+		x, y := inst.CalculatePosition()
+		if x != 1 || y != 1 {
+			t.Fatalf("vertical fallback position = (%d,%d), want (1,1)", x, y)
+		}
+	})
+
+	t.Run("left bottom placement falls back to mirrored right bottom family near corner", func(t *testing.T) {
+		inst := NewInstance(rtui.Props{
+			"text":     "Corner",
+			"position": PositionLeftBottom,
+		})
+		inst.SetAnchorBounds(1, 7, 2, 2)
+		inst.SetViewportSize(20, 10)
+
+		x, y := inst.CalculatePosition()
+		if x != 4 || y != 8 {
+			t.Fatalf("fallback position = (%d,%d), want (4,8)", x, y)
+		}
+	})
+
+	t.Run("left bottom placement falls back to bottom before clamp when both horizontal families overflow", func(t *testing.T) {
+		inst := NewInstance(rtui.Props{
+			"text":     "123456",
+			"position": PositionLeftBottom,
+		})
+		inst.SetAnchorBounds(4, 3, 2, 1)
+		inst.SetViewportSize(10, 8)
+
+		x, y := inst.CalculatePosition()
+		if x != 1 || y != 5 {
+			t.Fatalf("vertical fallback position = (%d,%d), want (1,5)", x, y)
 		}
 	})
 
@@ -282,6 +494,98 @@ func TestTooltipCalculatePosition_AutoAndFallback(t *testing.T) {
 			t.Fatalf("clamped position = (%d,%d), want (0,4)", x, y)
 		}
 	})
+
+	t.Run("corner placement clamps when mirrored families and vertical fallbacks still overflow", func(t *testing.T) {
+		inst := NewInstance(rtui.Props{
+			"text":     "LongTooltip",
+			"position": PositionRightTop,
+		})
+		inst.SetAnchorBounds(6, 0, 1, 1)
+		inst.SetViewportSize(8, 1)
+
+		x, y := inst.CalculatePosition()
+		if x != 0 || y != 0 {
+			t.Fatalf("clamped position = (%d,%d), want (0,0)", x, y)
+		}
+	})
+}
+
+func TestTooltipPositionCandidatesReuseSharedPlacementHelpers(t *testing.T) {
+	tests := []struct {
+		name     string
+		position Position
+		want     []overlayposition.Placement
+	}{
+		{
+			name:     "top",
+			position: PositionTop,
+			want:     overlayposition.VerticalPlacementCandidates(overlayposition.PlacementTop),
+		},
+		{
+			name:     "top left",
+			position: PositionTopLeft,
+			want:     overlayposition.VerticalPlacementCandidates(overlayposition.PlacementTopLeft),
+		},
+		{
+			name:     "top right",
+			position: PositionTopRight,
+			want:     overlayposition.VerticalPlacementCandidates(overlayposition.PlacementTopRight),
+		},
+		{
+			name:     "bottom",
+			position: PositionBottom,
+			want:     overlayposition.VerticalPlacementCandidates(overlayposition.PlacementBottom),
+		},
+		{
+			name:     "bottom left",
+			position: PositionBottomLeft,
+			want:     overlayposition.VerticalPlacementCandidates(overlayposition.PlacementBottomLeft),
+		},
+		{
+			name:     "bottom right",
+			position: PositionBottomRight,
+			want:     overlayposition.VerticalPlacementCandidates(overlayposition.PlacementBottomRight),
+		},
+		{
+			name:     "left",
+			position: PositionLeft,
+			want:     overlayposition.HorizontalPlacementCandidates(overlayposition.PlacementLeft),
+		},
+		{
+			name:     "left top",
+			position: PositionLeftTop,
+			want:     overlayposition.HorizontalPlacementCandidates(overlayposition.PlacementLeftTop),
+		},
+		{
+			name:     "left bottom",
+			position: PositionLeftBottom,
+			want:     overlayposition.HorizontalPlacementCandidates(overlayposition.PlacementLeftBottom),
+		},
+		{
+			name:     "right",
+			position: PositionRight,
+			want:     overlayposition.HorizontalPlacementCandidates(overlayposition.PlacementRight),
+		},
+		{
+			name:     "right top",
+			position: PositionRightTop,
+			want:     overlayposition.HorizontalPlacementCandidates(overlayposition.PlacementRightTop),
+		},
+		{
+			name:     "right bottom",
+			position: PositionRightBottom,
+			want:     overlayposition.HorizontalPlacementCandidates(overlayposition.PlacementRightBottom),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			inst := NewInstance(rtui.Props{"text": "Test", "position": tt.position})
+			if got := inst.positionCandidates(); !reflect.DeepEqual(got, tt.want) {
+				t.Fatalf("positionCandidates() = %v, want %v", got, tt.want)
+			}
+		})
+	}
 }
 
 func TestTooltipHandleActionHoverLifecycle(t *testing.T) {
@@ -298,6 +602,41 @@ func TestTooltipHandleActionHoverLifecycle(t *testing.T) {
 	inst.HandleAction(action.NewAction(action.ActionMouseLeave))
 	if inst.visible {
 		t.Fatal("tooltip should hide on mouse leave")
+	}
+}
+
+func TestTooltipHandleActionDelayedShowWaitsForTimer(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"text":  "Test",
+		"delay": 20 * time.Millisecond,
+	})
+	t.Cleanup(inst.Destroy)
+
+	inst.HandleAction(action.NewAction(action.ActionMouseEnter))
+	if inst.visible {
+		t.Fatal("tooltip should stay hidden until delay elapses")
+	}
+
+	time.Sleep(40 * time.Millisecond)
+	if !inst.visible {
+		t.Fatal("tooltip should become visible after delay elapses")
+	}
+}
+
+func TestTooltipHandleActionMouseLeaveCancelsPendingShow(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"text":  "Test",
+		"delay": 30 * time.Millisecond,
+	})
+	t.Cleanup(inst.Destroy)
+
+	inst.HandleAction(action.NewAction(action.ActionMouseEnter))
+	time.Sleep(10 * time.Millisecond)
+	inst.HandleAction(action.NewAction(action.ActionMouseLeave))
+	time.Sleep(40 * time.Millisecond)
+
+	if inst.visible {
+		t.Fatal("tooltip should remain hidden when hover exits before delay elapses")
 	}
 }
 
@@ -348,6 +687,46 @@ func TestTooltipRuntimeChildrenFollowHoveredChildState(t *testing.T) {
 	}
 	if inst.visible {
 		t.Fatal("tooltip should hide when hovered child clears")
+	}
+}
+
+func TestTooltipRuntimeChildrenHoveredChildRespectsDelay(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"text":     "Test",
+		"position": PositionTop,
+		"delay":    20 * time.Millisecond,
+	})
+	t.Cleanup(inst.Destroy)
+
+	child := &tooltipMockChild{
+		key:    "anchor",
+		state:  control.InteractionState{Hovered: true},
+		bounds: [4]int{12, 5, 8, 1},
+	}
+	inst.AddChild(child)
+
+	if children := inst.RuntimeChildren(); len(children) != 0 {
+		t.Fatalf("runtime children = %d, want 0 before delay elapses", len(children))
+	}
+	if inst.visible {
+		t.Fatal("tooltip should stay hidden before delayed child hover resolves")
+	}
+
+	time.Sleep(40 * time.Millisecond)
+	children := inst.RuntimeChildren()
+	if len(children) != 1 {
+		t.Fatalf("runtime children = %d, want 1 after delay elapses", len(children))
+	}
+	if !inst.visible {
+		t.Fatal("tooltip should become visible after delayed child hover resolves")
+	}
+
+	child.state.Hovered = false
+	if children := inst.RuntimeChildren(); len(children) != 0 {
+		t.Fatalf("runtime children = %d, want 0 after child hover clears", len(children))
+	}
+	if inst.visible {
+		t.Fatal("tooltip should hide when delayed child hover clears")
 	}
 }
 

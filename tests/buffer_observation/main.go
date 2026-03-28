@@ -1,3 +1,6 @@
+//go:build ignore
+// +build ignore
+
 // Buffer Observation Test - Single Node Instance
 //
 // Purpose: Observe buffer content changes when UI content updates on the SAME node instance

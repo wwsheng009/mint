@@ -77,6 +77,11 @@ func New(content string) *VNode {
 // rtui.VNode Interface Implementation
 // =============================================================================
 
+// Type returns VNodeText to identify this as a text node.
+func (t *VNode) Type() rtui.VNodeType {
+	return rtui.VNodeText
+}
+
 // Key returns the component key.
 func (t *VNode) Key() string {
 	return t.key

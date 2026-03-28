@@ -440,20 +440,19 @@ func resolveTooltipPosition(anchor [4]int, placement TooltipPlacement, boxWidth,
 }
 
 func resolveTooltipCandidates(anchor [4]int, placement TooltipPlacement, boxHeight, gapRows, bottomOffsetRows, shadowH, viewportHeight int) []overlayposition.Placement {
-	switch preferredTooltipPlacement(anchor, placement, boxHeight, gapRows, bottomOffsetRows, shadowH, viewportHeight) {
-	case TooltipPlacementTop:
-		return []overlayposition.Placement{
-			overlayposition.PlacementTopLeft,
-			overlayposition.PlacementTopRight,
-			overlayposition.PlacementTop,
+	if placement != TooltipPlacementAuto {
+		sameFamily := overlayposition.VerticalFamilyCandidates(tooltipPlacementToOverlay(placement), overlayposition.VerticalEdgesFirst)
+		otherFamilyPlacement := TooltipPlacementTop
+		if placement == TooltipPlacementTop {
+			otherFamilyPlacement = TooltipPlacementBottom
 		}
-	default:
-		return []overlayposition.Placement{
-			overlayposition.PlacementBottomLeft,
-			overlayposition.PlacementBottomRight,
-			overlayposition.PlacementBottom,
-		}
+		otherFamily := overlayposition.VerticalFamilyCandidates(tooltipPlacementToOverlay(otherFamilyPlacement), overlayposition.VerticalEdgesFirst)
+		return append(sameFamily, otherFamily...)
 	}
+	return overlayposition.VerticalFamilyCandidates(
+		tooltipPlacementToOverlay(preferredTooltipPlacement(anchor, placement, boxHeight, gapRows, bottomOffsetRows, shadowH, viewportHeight)),
+		overlayposition.VerticalEdgesFirst,
+	)
 }
 
 func preferredTooltipPlacement(anchor [4]int, placement TooltipPlacement, boxHeight, gapRows, bottomOffsetRows, shadowH, viewportHeight int) TooltipPlacement {
@@ -462,7 +461,6 @@ func preferredTooltipPlacement(anchor [4]int, placement TooltipPlacement, boxHei
 	if placement != TooltipPlacementAuto {
 		return placement
 	}
-
 	aboveBoxY := anchor[1] - boxHeight - gapRows
 	belowBoxY := anchor[1] + anchor[3] + gapRows + bottomOffsetRows
 	fitsBelow := viewportHeight <= 0 || belowBoxY+boxHeight+shadowH <= viewportHeight
@@ -486,6 +484,13 @@ func tooltipPlacementFromOverlay(placement overlayposition.Placement) TooltipPla
 	default:
 		return TooltipPlacementBottom
 	}
+}
+
+func tooltipPlacementToOverlay(placement TooltipPlacement) overlayposition.Placement {
+	if placement == TooltipPlacementTop {
+		return overlayposition.PlacementTop
+	}
+	return overlayposition.PlacementBottom
 }
 
 func overlayTooltipArrowRune(placement TooltipPlacement, arrowStyle TooltipArrowStyle) string {

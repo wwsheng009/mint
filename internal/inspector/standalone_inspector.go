@@ -180,9 +180,9 @@ func NewStandaloneInspector() *StandaloneInspector {
 		overlayWidth:  80,
 		overlayHeight: 25,
 		position:      PositionFloating, // Change to floating by default
-		// Floating position (left side, visible in 80-column terminal)
-		floatX:         0, // Default X position (left edge)
-		floatY:         0, // Default Y position (top edge)
+		// Floating position (right side, visible in 80-column terminal)
+		floatX:         80, // Default X position
+		floatY:         5,  // Default Y position
 		isDragging:     false,
 		updateInterval: 200 * time.Millisecond, // Throttle updates (5 FPS for tree/diagnostics)
 		screenWidth:    80,                     // Default terminal width
@@ -349,6 +349,12 @@ func (si *StandaloneInspector) RenderOverlay() ui.VNode {
 
 	// Mark as Inspector layer
 	content.SetLayer(ui.LayerInspector)
+
+	// Set position props
+	content.SetProps(rtui.Props{
+		"x": si.floatX,
+		"y": si.floatY,
+	})
 
 	// Cache for event dispatching
 	si.cachedOverlayContent = content
@@ -1817,9 +1823,9 @@ func (si *StandaloneInspector) Move(dx, dy int) {
 // Returns true if the event was handled
 func (si *StandaloneInspector) HandleKeyEvent(key string, alt bool, ctrl bool, shift bool) bool {
 	si.mu.Lock()
-	defer si.mu.Unlock()
 
 	if !si.visible || !si.enabled {
+		si.mu.Unlock()
 		return false
 	}
 
@@ -1850,6 +1856,7 @@ func (si *StandaloneInspector) HandleKeyEvent(key string, alt bool, ctrl bool, s
 	if key == "d" && ctrl {
 		si.showKeyDebug = !si.showKeyDebug
 		log.InspectorLogger.IfEnabled().Debug("showKeyDebug toggled to %v", si.showKeyDebug)
+		si.mu.Unlock()
 		return true
 	}
 
@@ -1862,6 +1869,7 @@ func (si *StandaloneInspector) HandleKeyEvent(key string, alt bool, ctrl bool, s
 			_ = os.WriteFile("layout_dump.txt", []byte(treeStr), 0644)
 			log.InspectorLogger.IfEnabled().Debug("Layout dump saved to layout_dump.txt")
 		}
+		si.mu.Unlock()
 		return true
 	}
 
@@ -1895,7 +1903,8 @@ func (si *StandaloneInspector) HandleKeyEvent(key string, alt bool, ctrl bool, s
 	}
 
 	if tab, ok := tabKeyMap[key]; ok {
-		si.mu.Unlock() // Unlock before emitting intent
+		si.activeTab = tab // Update directly for immediate effect
+		si.mu.Unlock()     // Unlock before emitting intent
 		go ui.EmitIntentGlobal(SwitchTabIntent{Tab: tab})
 		return true
 	}
@@ -1980,6 +1989,7 @@ func (si *StandaloneInspector) HandleKeyEvent(key string, alt bool, ctrl bool, s
 				si.treeScrollOffset = 0
 			}
 			log.InspectorLogger.IfEnabled().Debug("Tree scrolled up to offset %d", si.treeScrollOffset)
+			si.mu.Unlock()
 			return true
 		case "pagedown", "pgdn":
 			si.treeScrollOffset += treeViewHeight
@@ -1987,17 +1997,21 @@ func (si *StandaloneInspector) HandleKeyEvent(key string, alt bool, ctrl bool, s
 				si.treeScrollOffset = maxOffset
 			}
 			log.InspectorLogger.IfEnabled().Debug("Tree scrolled down to offset %d", si.treeScrollOffset)
+			si.mu.Unlock()
 			return true
 		case "home":
 			si.treeScrollOffset = 0
 			log.InspectorLogger.IfEnabled().Debug("Tree scrolled to top")
+			si.mu.Unlock()
 			return true
 		case "end":
 			si.treeScrollOffset = maxOffset
 			log.InspectorLogger.IfEnabled().Debug("Tree scrolled to bottom")
+			si.mu.Unlock()
 			return true
 		}
 
+		si.mu.Unlock()
 		return true
 	}
 
@@ -2006,6 +2020,7 @@ func (si *StandaloneInspector) HandleKeyEvent(key string, alt bool, ctrl bool, s
 	// (F12 and Ctrl+D are handled earlier by keyMap shortcuts)
 	log.InspectorLogger.Debug("Visible mode: capturing key '%s' (alt=%v, ctrl=%v)",
 		key, alt, ctrl)
+	si.mu.Unlock()
 	return true
 }
 

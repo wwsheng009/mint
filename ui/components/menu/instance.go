@@ -12,6 +12,7 @@ import (
 	"github.com/wwsheng009/mint/runtime/style"
 	rttypes "github.com/wwsheng009/mint/runtime/types"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
+	overlayposition "github.com/wwsheng009/mint/ui/components/internal/overlayposition"
 	"github.com/wwsheng009/mint/ui/components/internal/proputil"
 	scrollutil "github.com/wwsheng009/mint/ui/components/internal/scroll"
 )
@@ -42,7 +43,9 @@ type popupInstance struct {
 	open          bool
 	registered    bool
 	focused       bool
-	bounds        [4]int
+	layoutBounds  [4]int
+	hitBounds     [4]int
+	viewportSize  [2]int
 	dirty         bool
 	intentEmitter func(intent.Intent)
 }
@@ -77,6 +80,7 @@ type popupSurface struct {
 	scrollOffset int
 	x            int
 	y            int
+	direction    overlayposition.CascadeDirection
 	metrics      popupMetrics
 }
 
@@ -513,23 +517,30 @@ func (inst *barInstance) containsPoint(screenX, screenY int) bool {
 }
 
 func (inst *popupInstance) GetBounds() (x, y, w, h int) {
-	return inst.bounds[0], inst.bounds[1], inst.bounds[2], inst.bounds[3]
+	bounds := inst.hitBounds
+	if bounds[2] <= 0 || bounds[3] <= 0 {
+		bounds = inst.layoutBounds
+	}
+	return bounds[0], bounds[1], bounds[2], bounds[3]
 }
 
 func (inst *popupInstance) SetBounds(x, y, w, h int) {
-	inst.bounds = [4]int{x, y, w, h}
+	inst.layoutBounds = [4]int{x, y, w, h}
+	inst.updateHitBounds()
+}
+
+func (inst *popupInstance) SetViewportSize(width, height int) {
+	inst.viewportSize = [2]int{clampNonNegative(width), clampNonNegative(height)}
+	inst.updateHitBounds()
 }
 
 func (inst *popupInstance) containsPoint(screenX, screenY int) bool {
 	if !inst.open {
 		return false
 	}
-	baseX, baseY := inst.bounds[0], inst.bounds[1]
+	baseX, baseY := inst.layoutBounds[0], inst.layoutBounds[1]
 	for _, surface := range inst.popupSurfaces() {
-		left := baseX + surface.x
-		top := baseY + surface.y
-		right := left + surface.metrics.surfaceWidth + surface.metrics.shadowWidth
-		bottom := top + surface.metrics.surfaceHeight + surface.metrics.shadowHeight
+		left, top, right, bottom := popupSurfaceBounds(surface, baseX, baseY)
 		if screenX >= left && screenX < right && screenY >= top && screenY < bottom {
 			return true
 		}
@@ -668,7 +679,8 @@ func popupMetricsForModel(model Model, theme Theme, items []MenuItem) popupMetri
 
 func (inst *popupInstance) popupIndexAt(localX, localY int) (int, int, bool) {
 	surfaces := inst.popupSurfaces()
-	for _, surface := range surfaces {
+	for i := len(surfaces) - 1; i >= 0; i-- {
+		surface := surfaces[i]
 		if localX < surface.x || localX >= surface.x+surface.metrics.surfaceWidth {
 			continue
 		}
@@ -858,6 +870,8 @@ func (inst *popupInstance) normalizeCascadeState() {
 
 func (inst *popupInstance) popupSurfaces() []popupSurface {
 	rootMetrics := inst.popupMetricsFor(inst.model.Items)
+	baseX, baseY := inst.layoutBounds[0], inst.layoutBounds[1]
+	viewportWidth, viewportHeight := inst.viewportSize[0], inst.viewportSize[1]
 	surfaces := []popupSurface{{
 		depth:        0,
 		items:        inst.model.Items,
@@ -865,6 +879,7 @@ func (inst *popupInstance) popupSurfaces() []popupSurface {
 		scrollOffset: inst.scrollOffset,
 		x:            0,
 		y:            0,
+		direction:    overlayposition.CascadeRight,
 		metrics:      rootMetrics,
 	}}
 	prefix := []int{inst.selectedIndex}
@@ -880,20 +895,77 @@ func (inst *popupInstance) popupSurfaces() []popupSurface {
 		if rowPos < 0 {
 			rowPos = 0
 		}
+		parentTop := baseY + parentSurface.y
+		cascade := overlayposition.ResolveCascade(overlayposition.CascadeConfig{
+			Parent: overlayposition.Rect{
+				X:      baseX + parentSurface.x,
+				Y:      parentTop,
+				Width:  popupSurfaceOuterWidth(parentSurface.metrics),
+				Height: popupSurfaceOuterHeight(parentSurface.metrics),
+			},
+			Overlay: overlayposition.Size{
+				Width:  popupSurfaceOuterWidth(metrics),
+				Height: popupSurfaceOuterHeight(metrics),
+			},
+			Viewport: overlayposition.Size{
+				Width:  viewportWidth,
+				Height: viewportHeight,
+			},
+			Top:                parentTop + rowPos,
+			PreferredDirection: parentSurface.direction,
+		})
 		surface := popupSurface{
 			depth:        depth,
 			parentPath:   append([]int(nil), prefix[:depth]...),
 			items:        parentItem.Children,
 			selectedIdx:  selectedIdx,
 			scrollOffset: inst.scrollAtDepth(depth),
-			x:            parentSurface.x + parentSurface.metrics.surfaceWidth + parentSurface.metrics.shadowWidth,
-			y:            parentSurface.y + rowPos,
+			x:            cascade.X - baseX,
+			y:            cascade.Y - baseY,
+			direction:    cascade.Direction,
 			metrics:      metrics,
 		}
 		surfaces = append(surfaces, surface)
 		prefix = append(prefix, selectedIdx)
 	}
 	return surfaces
+}
+
+func (inst *popupInstance) updateHitBounds() {
+	inst.hitBounds = inst.layoutBounds
+	if !inst.open {
+		return
+	}
+	surfaces := inst.popupSurfaces()
+	if len(surfaces) == 0 {
+		return
+	}
+	baseX, baseY := inst.layoutBounds[0], inst.layoutBounds[1]
+	left, top, right, bottom := popupSurfaceBounds(surfaces[0], baseX, baseY)
+	for _, surface := range surfaces[1:] {
+		surfaceLeft, surfaceTop, surfaceRight, surfaceBottom := popupSurfaceBounds(surface, baseX, baseY)
+		left = min(left, surfaceLeft)
+		top = min(top, surfaceTop)
+		right = max(right, surfaceRight)
+		bottom = max(bottom, surfaceBottom)
+	}
+	inst.hitBounds = [4]int{left, top, max(0, right-left), max(0, bottom-top)}
+}
+
+func popupSurfaceBounds(surface popupSurface, baseX, baseY int) (left, top, right, bottom int) {
+	left = baseX + surface.x
+	top = baseY + surface.y
+	right = left + popupSurfaceOuterWidth(surface.metrics)
+	bottom = top + popupSurfaceOuterHeight(surface.metrics)
+	return left, top, right, bottom
+}
+
+func popupSurfaceOuterWidth(metrics popupMetrics) int {
+	return metrics.surfaceWidth + metrics.shadowWidth
+}
+
+func popupSurfaceOuterHeight(metrics popupMetrics) int {
+	return metrics.surfaceHeight + metrics.shadowHeight
 }
 
 func (inst *popupInstance) paintSurface(surface popupSurface, offsetX, offsetY int) []paint.DrawCmd {

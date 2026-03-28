@@ -56,7 +56,7 @@ func (a *App) EnableAI(cfg AIConfig) error {
 	normalized := normalizeAIConfig(cfg)
 	a.aiService = aiservice.New(a, toInternalAIConfig(normalized))
 
-	if a.state == StateRunning && normalized.AutoStart {
+	if a.IsRunning() && normalized.AutoStart {
 		return a.aiService.Start()
 	}
 	return nil

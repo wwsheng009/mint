@@ -13,7 +13,7 @@ import (
 
 // 本程序测试 border 和 style 如何影响布局约束的处理
 func main() {
-	fmt.Println("=== Border and Style Layout Constraint Test ===\n")
+	fmt.Println("=== Border and Style Layout Constraint Test ===")
 
 	// 测试不同的约束场景
 	testScenarios := []struct {
@@ -89,7 +89,7 @@ func main() {
 	}
 
 	// 专门测试border行为
-	fmt.Println("\n=== Border-Specific Tests ===\n")
+	fmt.Println("\n=== Border-Specific Tests ===")
 	testBorderBehavior()
 }
 

@@ -13,6 +13,8 @@ import (
 // TestCounterWithSandbox demonstrates interactive component testing using sandbox
 // 使用新版 RunTest API
 func TestCounterWithSandbox(t *testing.T) {
+	sandboxStore.Set(AppState{Count: 0, Name: "Guest"})
+
 	testApp, err := ui.RunTest(Counter,
 		ui.WithSize(40, 18),
 	)
@@ -154,6 +156,8 @@ func TestStyledText(t *testing.T) {
 // TestCounterComponentStructure tests counter VNode structure
 // 使用新版 RunTest API
 func TestCounterComponentStructure(t *testing.T) {
+	sandboxStore.Set(AppState{Count: 0, Name: "Guest"})
+
 	testApp, err := ui.RunTest(Counter,
 		ui.WithSize(40, 18),
 	)

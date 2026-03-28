@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/wwsheng009/mint/framework/component"
@@ -100,7 +101,7 @@ type App struct {
 	inputReader  platform.InputReader
 
 	// 生命周期
-	state AppState
+	state int32 // accessed atomically; use AppState constants cast to int32
 	quit  chan struct{}
 	dirty bool
 
@@ -109,6 +110,7 @@ type App struct {
 	invokeQ        chan invokeRequest
 	invokeDone     chan struct{}
 	invokeDoneOnce sync.Once
+	closeOnce      sync.Once
 	renderSeq      uint64
 
 	// 终端尺寸
@@ -148,6 +150,9 @@ type App struct {
 
 	// 渲染节流器
 	throttler *render.Throttler
+
+	// renderMu guards render() against concurrent calls (e.g. ForceRenderNow from test goroutine)
+	renderMu sync.Mutex
 
 	// 上下文管理器
 	contextMgr *core.ContextManager
@@ -594,7 +599,7 @@ func (a *App) Context() context.Context {
 
 // Shutdown 优雅关闭
 func (a *App) Shutdown(timeout time.Duration) error {
-	a.state = StateStopping
+	atomic.StoreInt32(&a.state, int32(StateStopping))
 	return a.contextMgr.Shutdown(timeout)
 }
 
@@ -885,11 +890,11 @@ func (a *App) OnEvent(eventType frameworkevent.EventType, handler frameworkevent
 
 // Init 初始化应用
 func (a *App) Init() error {
-	if a.state != StateCreated {
+	if AppState(atomic.LoadInt32(&a.state)) != StateCreated {
 		return errors.New("app already initialized")
 	}
 
-	a.state = StateInitializing
+	atomic.StoreInt32(&a.state, int32(StateInitializing))
 
 	// 设置默认终端尺寸
 	a.terminalWidth = 80
@@ -946,10 +951,10 @@ func (a *App) Init() error {
 		log.RenderLogger.IfEnabled().Debug("[APP] async renderer enabled, frame interval=%s", a.asyncFrameInterval)
 	}
 
-	a.state = StateRunning
+	atomic.StoreInt32(&a.state, int32(StateRunning))
 	if a.aiService != nil && a.aiService.ShouldAutoStart() {
 		if err := a.aiService.Start(); err != nil {
-			a.state = StateError
+			atomic.StoreInt32(&a.state, int32(StateError))
 			return err
 		}
 	}
@@ -996,11 +1001,11 @@ func (a *App) Run() error {
 
 	// DEBUG 主循环状态
 	log.UILogger.Debug("[APP] Starting main loop, state=%d, pump running=%v",
-		a.state, a.pump != nil && a.pump.IsRunning())
+		atomic.LoadInt32(&a.state), a.pump != nil && a.pump.IsRunning())
 	log.UILogger.Debug("[APP] eventChan=%p, pump.Events()=%p",
 		eventChan, a.pump.Events())
 
-	for a.state == StateRunning {
+	for AppState(atomic.LoadInt32(&a.state)) == StateRunning {
 		// 等待事件或定时器（优先处理事件）
 		select {
 		case req := <-a.invokeQ:
@@ -1166,13 +1171,13 @@ func (a *App) Run() error {
 
 		case <-quitAppChan:
 			// Ctrl+C 退出
-			a.state = StateStopping
+			atomic.StoreInt32(&a.state, int32(StateStopping))
 			return nil
 		case <-a.quit:
-			a.state = StateStopping
+			atomic.StoreInt32(&a.state, int32(StateStopping))
 			return nil
 		case <-a.contextMgr.Context().Done():
-			a.state = StateStopping
+			atomic.StoreInt32(&a.state, int32(StateStopping))
 			return nil
 		}
 	}
@@ -2051,6 +2056,8 @@ func (a *App) handleTick() {
 
 // render 渲染界面
 func (a *App) render() {
+	a.renderMu.Lock()
+	defer a.renderMu.Unlock()
 	if a.root == nil {
 		return
 	}
@@ -2381,56 +2388,57 @@ func (a *App) Quit() {
 
 // Close 关闭应用
 func (a *App) Close() error {
-	a.state = StateStopped
-	a.invokeDoneOnce.Do(func() {
-		close(a.invokeDone)
-	})
-	if a.aiService != nil {
-		_ = a.aiService.Stop()
-	}
-
-	// 让根组件失去焦点
-	if a.root != nil {
-		if focusable, ok := a.root.(interface{ OnBlur() }); ok {
-			focusable.OnBlur()
+	a.closeOnce.Do(func() {
+		atomic.StoreInt32(&a.state, int32(StateStopped))
+		a.invokeDoneOnce.Do(func() {
+			close(a.invokeDone)
+		})
+		if a.aiService != nil {
+			_ = a.aiService.Stop()
 		}
-	}
 
-	// 停止事件泵
-	if a.pump != nil {
-		a.pump.Stop()
-	}
-	if a.asyncRenderer != nil {
-		a.asyncRenderer.Stop()
-		a.asyncRenderer = nil
-	}
+		// 让根组件失去焦点
+		if a.root != nil {
+			if focusable, ok := a.root.(interface{ OnBlur() }); ok {
+				focusable.OnBlur()
+			}
+		}
 
-	// 调试模式：保存日志
-	if a.debugMode && a.debugRecorder != nil {
-		if err := a.debugRecorder.DumpToFile(); err != nil {
-			log.UILogger.IfEnabled().Debug("Failed to save debug log: %v", err)
+		// 停止事件泵
+		if a.pump != nil {
+			a.pump.Stop()
+		}
+		if a.asyncRenderer != nil {
+			a.asyncRenderer.Stop()
+			a.asyncRenderer = nil
+		}
+
+		// 调试模式：保存日志
+		if a.debugMode && a.debugRecorder != nil {
+			if err := a.debugRecorder.DumpToFile(); err != nil {
+				log.UILogger.IfEnabled().Debug("Failed to save debug log: %v", err)
+			} else {
+				log.UILogger.IfEnabled().Debug("Debug log saved")
+			}
+		}
+
+		// 显示终端光标
+		a.ShowCursor()
+
+		// 清屏，避免退出时残留内容
+		// 除非 MINT_NO_ALTERNATE_SCREEN=true（保留输出以便复制）
+		if os.Getenv("MINT_NO_ALTERNATE_SCREEN") != "true" {
+			a.clearScreen()
 		} else {
-			log.UILogger.IfEnabled().Debug("Debug log saved")
+			// 在 NoAlternateScreen 模式下，打印一个空行分隔输出
+			fmt.Println()
 		}
-	}
 
-	// 显示终端光标
-	a.ShowCursor()
-
-	// 清屏，避免退出时残留内容
-	// 除非 MINT_NO_ALTERNATE_SCREEN=true（保留输出以便复制）
-	if os.Getenv("MINT_NO_ALTERNATE_SCREEN") != "true" {
-		a.clearScreen()
-	} else {
-		// 在 NoAlternateScreen 模式下，打印一个空行分隔输出
-		fmt.Println()
-	}
-
-	// 关闭 panic 恢复管理器
-	if a.recovery != nil {
-		a.recovery.Close()
-	}
-
+		// 关闭 panic 恢复管理器
+		if a.recovery != nil {
+			a.recovery.Close()
+		}
+	})
 	return nil
 }
 
@@ -2468,12 +2476,12 @@ func (a *App) Flush() {
 
 // GetState 获取应用状态
 func (a *App) GetState() AppState {
-	return a.state
+	return AppState(atomic.LoadInt32(&a.state))
 }
 
 // IsRunning 检查是否在运行
 func (a *App) IsRunning() bool {
-	return a.state == StateRunning
+	return AppState(atomic.LoadInt32(&a.state)) == StateRunning
 }
 
 // SetTickInterval 设置定时器间隔
@@ -2603,7 +2611,7 @@ func (a *App) InjectEvent(raw platform.RawInput) error {
 		return errors.New("event pump not initialized")
 	}
 	if !a.pump.IsRunning() {
-		log.UILogger.IfEnabled().Debug("[APP] InjectEvent: pump not running, state=%d, pump=%v", a.state, a.pump)
+		log.UILogger.IfEnabled().Debug("[APP] InjectEvent: pump not running, state=%d, pump=%v", atomic.LoadInt32(&a.state), a.pump)
 		return errors.New("event pump not running")
 	}
 	a.pump.Inject(raw)

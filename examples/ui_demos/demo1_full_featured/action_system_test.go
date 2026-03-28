@@ -61,6 +61,11 @@ func TestActionSystemBasicNavigation(t *testing.T) {
 
 // TestActionSystemEnter tests ActionEnter (button click via keyboard)
 func TestActionSystemEnter(t *testing.T) {
+	// Reset store to clean state so this test is safe for -count>1
+	prevState := appStore.Get()
+	appStore.Set(AppState{Count: 0, ShowModal: false, Input: ""})
+	t.Cleanup(func() { appStore.Set(prevState) })
+
 	testApp, err := ui.RunTest(App,
 		ui.WithWidth(80),
 		ui.WithHeight(24),

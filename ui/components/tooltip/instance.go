@@ -336,99 +336,29 @@ func (inst *Instance) calculatePositionWithViewport(tooltipWidth, tooltipHeight,
 func (inst *Instance) positionCandidates() []overlayposition.Placement {
 	switch inst.position {
 	case PositionTop:
-		return []overlayposition.Placement{
-			overlayposition.PlacementTop,
-			overlayposition.PlacementTopLeft,
-			overlayposition.PlacementTopRight,
-			overlayposition.PlacementBottom,
-			overlayposition.PlacementBottomLeft,
-			overlayposition.PlacementBottomRight,
-		}
+		return overlayposition.VerticalPlacementCandidates(overlayposition.PlacementTop)
 	case PositionTopLeft:
-		return []overlayposition.Placement{
-			overlayposition.PlacementTopLeft,
-			overlayposition.PlacementTop,
-			overlayposition.PlacementTopRight,
-			overlayposition.PlacementBottomLeft,
-			overlayposition.PlacementBottom,
-		}
+		return overlayposition.VerticalPlacementCandidates(overlayposition.PlacementTopLeft)
 	case PositionTopRight:
-		return []overlayposition.Placement{
-			overlayposition.PlacementTopRight,
-			overlayposition.PlacementTop,
-			overlayposition.PlacementTopLeft,
-			overlayposition.PlacementBottomRight,
-			overlayposition.PlacementBottom,
-		}
-	case PositionBottomLeft:
-		return []overlayposition.Placement{
-			overlayposition.PlacementBottomLeft,
-			overlayposition.PlacementBottom,
-			overlayposition.PlacementBottomRight,
-			overlayposition.PlacementTopLeft,
-			overlayposition.PlacementTop,
-		}
-	case PositionBottomRight:
-		return []overlayposition.Placement{
-			overlayposition.PlacementBottomRight,
-			overlayposition.PlacementBottom,
-			overlayposition.PlacementBottomLeft,
-			overlayposition.PlacementTopRight,
-			overlayposition.PlacementTop,
-		}
-	case PositionLeftTop:
-		return []overlayposition.Placement{
-			overlayposition.PlacementLeftTop,
-			overlayposition.PlacementLeft,
-			overlayposition.PlacementLeftBottom,
-			overlayposition.PlacementTop,
-			overlayposition.PlacementBottom,
-		}
-	case PositionLeftBottom:
-		return []overlayposition.Placement{
-			overlayposition.PlacementLeftBottom,
-			overlayposition.PlacementLeft,
-			overlayposition.PlacementLeftTop,
-			overlayposition.PlacementBottom,
-			overlayposition.PlacementTop,
-		}
-	case PositionRightTop:
-		return []overlayposition.Placement{
-			overlayposition.PlacementRightTop,
-			overlayposition.PlacementRight,
-			overlayposition.PlacementRightBottom,
-			overlayposition.PlacementTop,
-			overlayposition.PlacementBottom,
-		}
-	case PositionRightBottom:
-		return []overlayposition.Placement{
-			overlayposition.PlacementRightBottom,
-			overlayposition.PlacementRight,
-			overlayposition.PlacementRightTop,
-			overlayposition.PlacementBottom,
-			overlayposition.PlacementTop,
-		}
+		return overlayposition.VerticalPlacementCandidates(overlayposition.PlacementTopRight)
 	case PositionBottom:
-		return []overlayposition.Placement{
-			overlayposition.PlacementBottom,
-			overlayposition.PlacementBottomLeft,
-			overlayposition.PlacementBottomRight,
-			overlayposition.PlacementTop,
-		}
+		return overlayposition.VerticalPlacementCandidates(overlayposition.PlacementBottom)
+	case PositionBottomLeft:
+		return overlayposition.VerticalPlacementCandidates(overlayposition.PlacementBottomLeft)
+	case PositionBottomRight:
+		return overlayposition.VerticalPlacementCandidates(overlayposition.PlacementBottomRight)
+	case PositionLeftTop:
+		return overlayposition.HorizontalPlacementCandidates(overlayposition.PlacementLeftTop)
+	case PositionLeftBottom:
+		return overlayposition.HorizontalPlacementCandidates(overlayposition.PlacementLeftBottom)
+	case PositionRightTop:
+		return overlayposition.HorizontalPlacementCandidates(overlayposition.PlacementRightTop)
+	case PositionRightBottom:
+		return overlayposition.HorizontalPlacementCandidates(overlayposition.PlacementRightBottom)
 	case PositionLeft:
-		return []overlayposition.Placement{
-			overlayposition.PlacementLeft,
-			overlayposition.PlacementLeftTop,
-			overlayposition.PlacementLeftBottom,
-			overlayposition.PlacementRight,
-		}
+		return overlayposition.HorizontalPlacementCandidates(overlayposition.PlacementLeft)
 	case PositionRight:
-		return []overlayposition.Placement{
-			overlayposition.PlacementRight,
-			overlayposition.PlacementRightTop,
-			overlayposition.PlacementRightBottom,
-			overlayposition.PlacementLeft,
-		}
+		return overlayposition.HorizontalPlacementCandidates(overlayposition.PlacementRight)
 	case PositionAuto:
 		return []overlayposition.Placement{
 			overlayposition.PlacementTop,
@@ -521,6 +451,7 @@ func (inst *Instance) scheduleShow() {
 			return
 		}
 		inst.Show()
+		rtui.RequestGlobalRender()
 	})
 }
 

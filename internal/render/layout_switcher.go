@@ -214,6 +214,7 @@ func convertLayoutHitMap(hm *layout.HitMap, fiberRoot *rtui.Fiber) *event.HitMap
 	entries := make([]event.HitMapEntryInternal, 0, len(allEntries))
 	for _, layoutEntry := range allEntries {
 		rect := layoutEntry.Rect
+		hitBounds := rect
 
 		// Convert NodeID string to uint64
 		// Since adapter_fiber.go now returns NodeID as plain string (e.g., "123"),
@@ -227,14 +228,21 @@ func convertLayoutHitMap(hm *layout.HitMap, fiberRoot *rtui.Fiber) *event.HitMap
 		if fiberRoot != nil {
 			if fiber := rtui.FindFiberByID(fiberRoot, nodeID); fiber != nil {
 				targetFiber = fiber
+				if boundsAware, ok := fiber.Instance.(interface{ GetBounds() (int, int, int, int) }); ok {
+					x, y, width, height := boundsAware.GetBounds()
+					if width > 0 && height > 0 {
+						hitBounds = layout.Rect{X: x, Y: y, Width: width, Height: height}
+					}
+				}
 			}
 		}
+		localRect := rect
 
 		entries = append(entries, event.HitMapEntryInternal{
 			NodeID: nodeID,
-			Bounds: rect,
+			Bounds: hitBounds,
 			LocalXY: func(screenX, screenY int) (int, int) {
-				return screenX - rect.X, screenY - rect.Y
+				return screenX - localRect.X, screenY - localRect.Y
 			},
 			ZOrder:      layoutEntry.ZIndex,
 			TargetFiber: targetFiber, // Set TargetFiber for action routing

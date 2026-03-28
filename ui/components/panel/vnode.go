@@ -63,6 +63,11 @@ type VNode struct {
 	// === Style ===
 	instStyle style.Style
 
+	// === Layer and position (set by inspector hook) ===
+	layer rtui.Layer
+	posX  int
+	posY  int
+
 	// === Composed node (built on demand) ===
 	composed rtui.VNode
 }
@@ -130,11 +135,12 @@ func (v *VNode) SetChildren(children []rtui.VNode) rtui.VNode {
 
 // GetLayer returns the rendering layer.
 func (v *VNode) GetLayer() rtui.Layer {
-	return rtui.LayerBase
+	return v.layer
 }
 
 // SetLayer sets the rendering layer - returns VNode for chaining.
 func (v *VNode) SetLayer(l rtui.Layer) rtui.VNode {
+	v.layer = l
 	return v
 }
 
@@ -154,6 +160,9 @@ func (v *VNode) Props() rtui.Props {
 		propHeader:      v.header,
 		propContent:     v.content,
 		propFooter:      v.footer,
+		"x":             v.posX,
+		"y":             v.posY,
+		"_layer":        v.layer,
 	}
 }
 
@@ -197,6 +206,12 @@ func (v *VNode) SetProps(p rtui.Props) rtui.VNode {
 	}
 	if val, ok := p[propFooter].(rtui.VNode); ok {
 		v.footer = val
+	}
+	if val, ok := p["x"].(int); ok {
+		v.posX = val
+	}
+	if val, ok := p["y"].(int); ok {
+		v.posY = val
 	}
 	// Reset composed to rebuild
 	v.composed = nil

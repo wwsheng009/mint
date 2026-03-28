@@ -126,6 +126,23 @@ func (n *DeclarativeNode) SetApp(app interface{}) {
 			reconciler.SetApp(app)
 		}
 	}
+
+	rtui.SetGlobalRenderScheduler(func() {
+		n.mu.RLock()
+		reconciler := n.reconciler
+		scheduler := n.scheduler
+		n.mu.RUnlock()
+
+		if reconciler != nil {
+			if adapter, ok := reconciler.(*fiberReconcilerAdapter); ok {
+				adapter.r.ScheduleUpdate(rtui.LaneSyncLane)
+				return
+			}
+		}
+		if scheduler != nil {
+			scheduler.MarkDirty()
+		}
+	})
 }
 
 // NewDeclarativeNodeFromFuncWithFiber creates a new declarative node with Fiber reconciler enabled
@@ -1955,11 +1972,11 @@ func (n *DeclarativeNode) hasPortals(fiber *reconciler.Fiber) bool {
 		}
 
 		// Check if this is a Portal node
+		if isPortalFiber(f) {
+			found = true
+			return
+		}
 		if f.Props != nil {
-			if _, ok := f.Props["portalRoot"].(string); ok {
-				found = true
-				return
-			}
 			// Also check for PortalRoot
 			if _, ok := f.Props["portalRootId"].(string); ok {
 				found = true

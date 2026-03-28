@@ -109,6 +109,7 @@ func (e *ElementVNode) SetPortalRoot(portalRootID string) VNode {
 		e.props = make(Props)
 	}
 	e.props["portalRoot"] = portalRootID
+	e.props["_portal"] = true
 	return e
 }
 

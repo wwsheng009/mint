@@ -1,3 +1,6 @@
+//go:build ignore
+// +build ignore
+
 // Expand/Collapse Bug Reproduction
 //
 // Purpose: Reproduce the EXACT bug from store_mixed_demo

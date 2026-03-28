@@ -141,6 +141,7 @@ func (f *FiberVNode) SetPortalRoot(portalRootID string) VNode {
 		f.fiber.Props = make(Props)
 	}
 	f.fiber.Props["portalRoot"] = portalRootID
+	f.fiber.Props["_portal"] = true
 	return f
 }
 

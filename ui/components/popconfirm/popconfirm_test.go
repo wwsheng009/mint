@@ -170,7 +170,7 @@ func TestRuntimeChildrenPlacementAutoUsesTopAnchorAlignment(t *testing.T) {
 		propOpen:           true,
 		propOpenControlled: true,
 	})
-	inst.SetBounds(10, 5, 12, 1)
+	inst.SetBounds(10, 8, 12, 1)
 
 	children := inst.RuntimeChildren()
 	if len(children) != 1 {
@@ -178,14 +178,272 @@ func TestRuntimeChildrenPlacementAutoUsesTopAnchorAlignment(t *testing.T) {
 	}
 
 	props := children[0].Props()
-	if got, _ := props["anchor"].(rttypes.Anchor); got != rttypes.AnchorBottom {
-		t.Fatalf("anchor = %v, want %v", props["anchor"], rttypes.AnchorBottom)
+	if got, _ := props["anchor"].(rttypes.Anchor); got != rttypes.AnchorTopLeft {
+		t.Fatalf("anchor = %v, want %v", props["anchor"], rttypes.AnchorTopLeft)
 	}
-	if got, ok := props["left"].(int); !ok || got != 6 {
-		t.Fatalf("left = %v, want 6", props["left"])
+	overlayX, overlayY, _, _ := inst.overlayBounds()
+	if got, ok := props["left"].(int); !ok || got != overlayX-inst.bounds[0] {
+		t.Fatalf("left = %v, want %d", props["left"], overlayX-inst.bounds[0])
 	}
-	if got, ok := props["top"].(int); !ok || got != -1 {
-		t.Fatalf("top = %v, want -1", props["top"])
+	if got, ok := props["top"].(int); !ok || got != overlayY-inst.bounds[1] {
+		t.Fatalf("top = %v, want %d", props["top"], overlayY-inst.bounds[1])
+	}
+}
+
+func TestRuntimeChildrenPlacementAutoFallsBackBelowWhenTopSpaceInsufficient(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		propComponentID:    "delete.confirm",
+		propAnchorID:       "delete.confirm-anchor",
+		propTitle:          "Delete?",
+		propPlacement:      PlacementAuto,
+		propOpen:           true,
+		propOpenControlled: true,
+	})
+	inst.SetBounds(10, 1, 12, 1)
+
+	children := inst.RuntimeChildren()
+	if len(children) != 1 {
+		t.Fatalf("RuntimeChildren len = %d, want 1", len(children))
+	}
+
+	props := children[0].Props()
+	if got, _ := props["anchor"].(rttypes.Anchor); got != rttypes.AnchorTopLeft {
+		t.Fatalf("anchor = %v, want %v", props["anchor"], rttypes.AnchorTopLeft)
+	}
+	overlayX, overlayY, _, _ := inst.overlayBounds()
+	if got, ok := props["left"].(int); !ok || got != overlayX-inst.bounds[0] {
+		t.Fatalf("left = %v, want %d", props["left"], overlayX-inst.bounds[0])
+	}
+	if got, ok := props["top"].(int); !ok || got != overlayY-inst.bounds[1] {
+		t.Fatalf("top = %v, want %d", props["top"], overlayY-inst.bounds[1])
+	}
+}
+
+func TestResolvePopconfirmPlacementAutoMirrorsPopoverHeuristic(t *testing.T) {
+	tests := []struct {
+		name    string
+		anchor  [4]int
+		height  int
+		gapRows int
+		want    Placement
+	}{
+		{
+			name:    "uses top when anchor has enough room above",
+			anchor:  [4]int{10, 9, 8, 1},
+			height:  5,
+			gapRows: 1,
+			want:    PlacementTop,
+		},
+		{
+			name:    "falls back to bottom near top edge",
+			anchor:  [4]int{10, 1, 8, 1},
+			height:  5,
+			gapRows: 1,
+			want:    PlacementBottom,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := resolvePopconfirmPlacement(tt.anchor, PlacementAuto, tt.gapRows, tt.height, [2]int{}); got != tt.want {
+				t.Fatalf("resolvePopconfirmPlacement() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestOverlayBoundsPlacementTopFallsBackWithinViewport(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		propComponentID: "delete.confirm",
+		propTitle:       "Delete now?",
+		propPlacement:   PlacementTop,
+	})
+	inst.SetBounds(1, 1, 4, 1)
+	inst.SetViewportSize(28, 8)
+
+	x, y, _, _ := inst.overlayBounds()
+	if y <= inst.bounds[1] {
+		t.Fatalf("overlay y = %d, want below anchor after top-edge fallback", y)
+	}
+	if x < 0 || x >= 28 {
+		t.Fatalf("overlay x = %d, want within viewport", x)
+	}
+}
+
+func TestOverlayBoundsPlacementTopStaysAboveAndShiftsRightNearLeftEdge(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		propComponentID: "delete.confirm",
+		propTitle:       "Delete now?",
+		propPlacement:   PlacementTop,
+	})
+	inst.SetBounds(2, 8, 4, 1)
+	inst.SetViewportSize(40, 16)
+
+	x, y, _, _ := inst.overlayBounds()
+	if x != 2 {
+		t.Fatalf("overlay x = %d, want 2 after top-family fallback near left edge", x)
+	}
+	if y >= inst.bounds[1] {
+		t.Fatalf("overlay y = %d, want above anchor row %d", y, inst.bounds[1])
+	}
+}
+
+func TestOverlayBoundsPlacementTopRightFallsBelowWithinRightFamilyNearCorner(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		propComponentID: "delete.confirm",
+		propTitle:       "Delete now?",
+		propPlacement:   PlacementTopRight,
+	})
+	inst.SetBounds(34, 1, 4, 1)
+	inst.SetViewportSize(40, 10)
+
+	x, y, _, _ := inst.overlayBounds()
+	if x != 21 {
+		t.Fatalf("overlay x = %d, want 21 after top-right corner fallback", x)
+	}
+	if y != 3 {
+		t.Fatalf("overlay y = %d, want 3 after top-right corner fallback", y)
+	}
+}
+
+func TestOverlayBoundsPlacementTopLeftFallsBelowWithinLeftFamilyNearCorner(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		propComponentID: "delete.confirm",
+		propTitle:       "Delete now?",
+		propPlacement:   PlacementTopLeft,
+	})
+	inst.SetBounds(2, 1, 4, 1)
+	inst.SetViewportSize(40, 10)
+
+	x, y, _, _ := inst.overlayBounds()
+	if x != 2 {
+		t.Fatalf("overlay x = %d, want 2 after top-left corner fallback", x)
+	}
+	if y != 3 {
+		t.Fatalf("overlay y = %d, want 3 after top-left corner fallback", y)
+	}
+}
+
+func TestOverlayBoundsPlacementBottomStaysBelowAndShiftsLeftNearRightEdge(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		propComponentID: "delete.confirm",
+		propTitle:       "Delete now?",
+		propPlacement:   PlacementBottom,
+	})
+	inst.SetBounds(34, 8, 4, 1)
+	inst.SetViewportSize(40, 16)
+
+	x, y, _, _ := inst.overlayBounds()
+	if x != 21 {
+		t.Fatalf("overlay x = %d, want 21 after bottom-family fallback near right edge", x)
+	}
+	if y <= inst.bounds[1] {
+		t.Fatalf("overlay y = %d, want below anchor row %d", y, inst.bounds[1])
+	}
+}
+
+func TestOverlayBoundsPlacementBottomRightFallsAboveWithinRightFamilyNearCorner(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		propComponentID: "delete.confirm",
+		propTitle:       "Delete now?",
+		propPlacement:   PlacementBottomRight,
+	})
+	inst.SetBounds(34, 8, 4, 1)
+	inst.SetViewportSize(40, 10)
+
+	x, y, _, _ := inst.overlayBounds()
+	if x != 21 {
+		t.Fatalf("overlay x = %d, want 21 after bottom-right corner fallback", x)
+	}
+	if y != 2 {
+		t.Fatalf("overlay y = %d, want 2 after bottom-right corner fallback", y)
+	}
+}
+
+func TestOverlayBoundsPlacementBottomLeftFallsAboveWithinLeftFamilyNearCorner(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		propComponentID: "delete.confirm",
+		propTitle:       "Delete now?",
+		propPlacement:   PlacementBottomLeft,
+	})
+	inst.SetBounds(2, 8, 4, 1)
+	inst.SetViewportSize(40, 10)
+
+	x, y, _, _ := inst.overlayBounds()
+	if x != 2 {
+		t.Fatalf("overlay x = %d, want 2 after bottom-left corner fallback", x)
+	}
+	if y != 2 {
+		t.Fatalf("overlay y = %d, want 2 after bottom-left corner fallback", y)
+	}
+}
+
+func TestOverlayBoundsPlacementTopRightClampsLeftAndStaysAboveInNarrowViewport(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		propComponentID: "delete.confirm",
+		propTitle:       "Delete now?",
+		propPlacement:   PlacementTopRight,
+	})
+	inst.SetBounds(9, 7, 4, 1)
+	inst.SetViewportSize(14, 14)
+
+	x, y, _, _ := inst.overlayBounds()
+	if x != 0 {
+		t.Fatalf("overlay x = %d, want left-edge clamp to 0 in narrow viewport", x)
+	}
+	if y != 1 {
+		t.Fatalf("overlay y = %d, want 1 while staying above anchor in narrow viewport", y)
+	}
+}
+
+func TestOverlayBoundsPlacementBottomStaysBelowAndShiftsRightNearLeftEdge(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		propComponentID: "delete.confirm",
+		propTitle:       "Delete now?",
+		propPlacement:   PlacementBottom,
+	})
+	inst.SetBounds(2, 8, 4, 1)
+	inst.SetViewportSize(40, 16)
+
+	x, y, _, _ := inst.overlayBounds()
+	if x != 2 {
+		t.Fatalf("overlay x = %d, want 2 after bottom-family fallback near left edge", x)
+	}
+	if y <= inst.bounds[1] {
+		t.Fatalf("overlay y = %d, want below anchor row %d", y, inst.bounds[1])
+	}
+}
+
+func TestOverlayBoundsPlacementBottomRightClampsLeftAndStaysBelowInNarrowViewport(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		propComponentID: "delete.confirm",
+		propTitle:       "Delete now?",
+		propPlacement:   PlacementBottomRight,
+	})
+	inst.SetBounds(9, 7, 4, 1)
+	inst.SetViewportSize(14, 14)
+
+	x, y, _, _ := inst.overlayBounds()
+	if x != 0 {
+		t.Fatalf("overlay x = %d, want left-edge clamp to 0 in narrow viewport", x)
+	}
+	if y != 9 {
+		t.Fatalf("overlay y = %d, want 9 while staying below anchor in narrow viewport", y)
+	}
+}
+
+func TestOverlayBoundsClampWithinViewportWhenNoCandidateFits(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		propComponentID: "delete.confirm",
+		propTitle:       "Delete this record now?",
+		propPlacement:   PlacementBottom,
+	})
+	inst.SetBounds(1, 4, 4, 1)
+	inst.SetViewportSize(16, 8)
+
+	x, _, _, _ := inst.overlayBounds()
+	if x != 0 {
+		t.Fatalf("overlay x = %d, want left-edge clamp to 0", x)
 	}
 }
 

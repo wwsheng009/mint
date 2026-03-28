@@ -1,3 +1,6 @@
+//go:build ignore
+// +build ignore
+
 // Focus Change Buffer Test
 //
 // Purpose: Test buffer behavior when focus state changes

@@ -37,9 +37,7 @@ func popupPortalPlacement(model ThemeableModel) (anchor rttypes.Anchor, offsetX,
 		return 0, 0, 0, 0, 0, false
 	}
 
-	metrics := popupMetricsForModel(model.Model, model.Theme, model.Items)
-	width = metrics.surfaceWidth
-	height = metrics.surfaceHeight
+	width, height = popupOuterSize(model)
 
 	switch resolvePopupPlacement(model.Model) {
 	case PlacementBottomEnd:
@@ -57,13 +55,31 @@ func popupPortalPlacement(model ThemeableModel) (anchor rttypes.Anchor, offsetX,
 	}
 }
 
+func popupOuterSize(model ThemeableModel) (width, height int) {
+	metrics := popupMetricsForModel(model.Model, model.Theme, model.Items)
+	width = metrics.surfaceWidth + metrics.shadowWidth
+	height = metrics.surfaceHeight + metrics.shadowHeight
+	return width, height
+}
+
 func applyPopupPortalProps(node *rtui.ElementVNode, model ThemeableModel) {
 	if node == nil {
 		return
 	}
 
 	portalModel := model.Model
+	if model.Model.Variant == VariantContext {
+		width, height := popupOuterSize(model)
+		node.SetProp("popupClampToViewport", true)
+		node.SetProp("width", width)
+		node.SetProp("height", height)
+		node.SetProp("positioningWidth", width)
+		node.SetProp("positioningHeight", height)
+	}
 	if anchor, offsetX, offsetY, width, height, ok := popupPortalPlacement(model); ok {
+		node.SetProp("popupPlacement", string(resolvePopupPlacement(model.Model)))
+		node.SetProp("popupOffsetX", model.Model.PortalOffsetX)
+		node.SetProp("popupOffsetY", model.Model.PortalOffsetY)
 		portalModel.Anchor = anchor
 		portalModel.PortalOffsetX += offsetX
 		portalModel.PortalOffsetY += offsetY
