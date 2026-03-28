@@ -371,6 +371,63 @@ func TestComputePopoverBoxPlacementTopRightClampsLeftAndStaysAboveInNarrowViewpo
 	}
 }
 
+func TestComputePopoverBoxPlacementTopLeftClampsLeftAndStaysAboveInNarrowViewport(t *testing.T) {
+	box := computePopoverBox(
+		"",
+		"1234567890",
+		PlacementTopLeft,
+		true,
+		1,
+		20,
+		[4]int{9, 7, 4, 1},
+		[2]int{14, 14},
+	)
+	if box.x != 0 || box.y != 3 {
+		t.Fatalf("narrow top-left box = (%d,%d), want (0,3)", box.x, box.y)
+	}
+	if !strings.Contains(box.bottomBorder, "▼") {
+		t.Fatalf("bottom border = %q, want top-family arrow after left clamp", box.bottomBorder)
+	}
+}
+
+func TestComputePopoverBoxPlacementTopLeftClampsBothAxesAndKeepsTopArrowWhenNothingFits(t *testing.T) {
+	box := computePopoverBox(
+		"",
+		"1234567890",
+		PlacementTopLeft,
+		true,
+		1,
+		20,
+		[4]int{9, 1, 4, 1},
+		[2]int{14, 3},
+	)
+	if box.x != 0 || box.y != 0 {
+		t.Fatalf("dual-axis top-left box = (%d,%d), want (0,0)", box.x, box.y)
+	}
+	if !strings.Contains(box.bottomBorder, "▼") {
+		t.Fatalf("bottom border = %q, want top-family arrow after dual-axis clamp", box.bottomBorder)
+	}
+}
+
+func TestComputePopoverBoxPlacementTopRightClampsBothAxesAndKeepsTopArrowWhenNothingFits(t *testing.T) {
+	box := computePopoverBox(
+		"",
+		"1234567890",
+		PlacementTopRight,
+		true,
+		1,
+		20,
+		[4]int{9, 1, 4, 1},
+		[2]int{14, 3},
+	)
+	if box.x != 0 || box.y != 0 {
+		t.Fatalf("dual-axis top-right box = (%d,%d), want (0,0)", box.x, box.y)
+	}
+	if !strings.Contains(box.bottomBorder, "▼") {
+		t.Fatalf("bottom border = %q, want top-family arrow after dual-axis clamp", box.bottomBorder)
+	}
+}
+
 func TestComputePopoverBoxPlacementBottomStaysBelowAndShiftsRightNearLeftEdge(t *testing.T) {
 	box := computePopoverBox(
 		"",
@@ -403,6 +460,63 @@ func TestComputePopoverBoxPlacementBottomRightClampsLeftAndStaysBelowInNarrowVie
 	}
 	if !strings.Contains(box.topBorder, "▲") {
 		t.Fatalf("top border = %q, want bottom-family arrow after left clamp", box.topBorder)
+	}
+}
+
+func TestComputePopoverBoxPlacementBottomLeftClampsLeftAndStaysBelowInNarrowViewport(t *testing.T) {
+	box := computePopoverBox(
+		"",
+		"1234567890",
+		PlacementBottomLeft,
+		true,
+		1,
+		20,
+		[4]int{9, 7, 4, 1},
+		[2]int{14, 14},
+	)
+	if box.x != 0 || box.y != 9 {
+		t.Fatalf("narrow bottom-left box = (%d,%d), want (0,9)", box.x, box.y)
+	}
+	if !strings.Contains(box.topBorder, "▲") {
+		t.Fatalf("top border = %q, want bottom-family arrow after left clamp", box.topBorder)
+	}
+}
+
+func TestComputePopoverBoxPlacementBottomLeftClampsBothAxesAndKeepsBottomArrowWhenNothingFits(t *testing.T) {
+	box := computePopoverBox(
+		"",
+		"1234567890",
+		PlacementBottomLeft,
+		true,
+		1,
+		20,
+		[4]int{9, 1, 4, 1},
+		[2]int{14, 3},
+	)
+	if box.x != 0 || box.y != 0 {
+		t.Fatalf("dual-axis bottom-left box = (%d,%d), want (0,0)", box.x, box.y)
+	}
+	if !strings.Contains(box.topBorder, "▲") {
+		t.Fatalf("top border = %q, want bottom-family arrow after dual-axis clamp", box.topBorder)
+	}
+}
+
+func TestComputePopoverBoxPlacementBottomRightClampsBothAxesAndKeepsBottomArrowWhenNothingFits(t *testing.T) {
+	box := computePopoverBox(
+		"",
+		"1234567890",
+		PlacementBottomRight,
+		true,
+		1,
+		20,
+		[4]int{9, 1, 4, 1},
+		[2]int{14, 3},
+	)
+	if box.x != 0 || box.y != 0 {
+		t.Fatalf("dual-axis bottom-right box = (%d,%d), want (0,0)", box.x, box.y)
+	}
+	if !strings.Contains(box.topBorder, "▲") {
+		t.Fatalf("top border = %q, want bottom-family arrow after dual-axis clamp", box.topBorder)
 	}
 }
 

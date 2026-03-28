@@ -78,6 +78,7 @@ type overlayHelpInstance struct {
 	maxContentWidth  int
 	gapRows          int
 	bottomOffsetRows int
+	viewportSize     [2]int
 	bounds           [4]int
 	dirty            bool
 }
@@ -313,8 +314,14 @@ func (inst *overlayHelpInstance) Paint(x, y int) []paint.DrawCmd {
 }
 
 func (inst *overlayHelpInstance) computeTooltipBox(text string, anchor [4]int) overlayTooltipBox {
-	viewportWidth := inst.bounds[2]
-	viewportHeight := inst.bounds[3]
+	viewportWidth := inst.viewportSize[0]
+	viewportHeight := inst.viewportSize[1]
+	if viewportWidth <= 0 {
+		viewportWidth = inst.bounds[2]
+	}
+	if viewportHeight <= 0 {
+		viewportHeight = inst.bounds[3]
+	}
 	contentWidth := inst.maxContentWidth
 	if contentWidth <= 0 {
 		contentWidth = 48
@@ -523,6 +530,15 @@ func (inst *overlayHelpInstance) GetBounds() (x, y, w, h int) {
 
 func (inst *overlayHelpInstance) SetBounds(x, y, w, h int) {
 	inst.bounds = [4]int{x, y, w, h}
+}
+
+func (inst *overlayHelpInstance) SetViewportSize(width, height int) {
+	next := [2]int{width, height}
+	if inst.viewportSize == next {
+		return
+	}
+	inst.viewportSize = next
+	inst.dirty = true
 }
 
 func tooltipViewportLimit(viewportSize, reserve int) int {

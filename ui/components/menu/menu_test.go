@@ -844,6 +844,408 @@ func TestPopupInstanceNestedSubmenusMirrorRightAfterLeftEdgeClampDirection(t *te
 	}
 }
 
+func TestPopupInstanceNestedSubmenusMirrorLeftAfterRightEdgeClampDirection(t *testing.T) {
+	menuRegistryGlobal.reset()
+	defer menuRegistryGlobal.reset()
+
+	model := NewPopup([]MenuItem{
+		Action("new", "New", testIntent{"new"}),
+		Action("open", "Open", testIntent{"open"}),
+		Action("save", "Save", testIntent{"save"}),
+		Action("export", "Export", testIntent{"export"}),
+		Submenu("ops", "Operations",
+			Action("wide", "Extremely Wide Recovery Workspace Ledger", testIntent{"wide"}),
+			Action("repair", "Repair", testIntent{"repair"}),
+			Action("archive", "Archive", testIntent{"archive"}),
+			Submenu("branch", "Branch",
+				Action("node", "Moderately Wide Inner Recovery Journal", testIntent{"node"}),
+				Submenu("pivot", "Pivot",
+					Action("deep", "Deep Action", testIntent{"deep"}),
+				),
+			),
+		),
+	}).ActivePath(4, 3, 1, 0).BuildModel()
+	inst := newPopupVNode(clearPortalModel(model)).CreateInstance().(*popupInstance)
+
+	rootMetrics := inst.popupMetricsFor(inst.model.Items)
+	firstMetrics := inst.popupMetricsFor(inst.model.Items[4].Normalize().Children)
+	secondMetrics := inst.popupMetricsFor(inst.model.Items[4].Normalize().Children[3].Normalize().Children)
+	thirdMetrics := inst.popupMetricsFor(inst.model.Items[4].Normalize().Children[3].Normalize().Children[1].Normalize().Children)
+	rootOuterWidth := popupSurfaceOuterWidth(rootMetrics)
+	rootOuterHeight := popupSurfaceOuterHeight(rootMetrics)
+	firstOuterWidth := popupSurfaceOuterWidth(firstMetrics)
+	secondOuterWidth := popupSurfaceOuterWidth(secondMetrics)
+	thirdOuterWidth := popupSurfaceOuterWidth(thirdMetrics)
+	viewportWidth := rootOuterWidth + firstOuterWidth + 2
+	viewportHeight := 18
+
+	inst.SetViewportSize(viewportWidth, viewportHeight)
+	inst.SetBounds(0, 2, rootOuterWidth, rootOuterHeight)
+
+	surfaces := inst.popupSurfaces()
+	if len(surfaces) != 4 {
+		t.Fatalf("popupSurfaces len = %d, want 4", len(surfaces))
+	}
+	if surfaces[1].x != rootOuterWidth {
+		t.Fatalf("first submenu x = %d, want %d for right cascade", surfaces[1].x, rootOuterWidth)
+	}
+	if surfaces[1].direction != overlayposition.CascadeRight {
+		t.Fatalf("first submenu direction = %v, want overlayposition.CascadeRight", surfaces[1].direction)
+	}
+	expectedSecondX := viewportWidth - secondOuterWidth
+	if surfaces[2].x != expectedSecondX {
+		t.Fatalf("second submenu x = %d, want %d after right-edge clamp", surfaces[2].x, expectedSecondX)
+	}
+	if surfaces[2].direction != overlayposition.CascadeRight {
+		t.Fatalf("second submenu direction = %v, want overlayposition.CascadeRight after resolved clamp", surfaces[2].direction)
+	}
+	if thirdOuterWidth > surfaces[2].x {
+		t.Fatalf("test setup invalid: third width = %d should fit to the left of second submenu x = %d", thirdOuterWidth, surfaces[2].x)
+	}
+	if surfaces[3].x >= surfaces[2].x {
+		t.Fatalf("third submenu x = %d, want < second submenu x = %d after mirrored left fallback", surfaces[3].x, surfaces[2].x)
+	}
+	if surfaces[3].direction != overlayposition.CascadeLeft {
+		t.Fatalf("third submenu direction = %v, want overlayposition.CascadeLeft after mirrored fallback", surfaces[3].direction)
+	}
+
+	boundsX, _, boundsWidth, _ := inst.GetBounds()
+	expectedRight := max(
+		rootOuterWidth,
+		max(surfaces[1].x+firstOuterWidth, max(surfaces[2].x+secondOuterWidth, surfaces[3].x+thirdOuterWidth)),
+	)
+	if boundsX != 0 {
+		t.Fatalf("hit bounds x = %d, want 0 with root anchored at left edge", boundsX)
+	}
+	if boundsX+boundsWidth != expectedRight {
+		t.Fatalf("hit bounds right edge = %d, want %d to include right-edge clamped second submenu", boundsX+boundsWidth, expectedRight)
+	}
+}
+
+func TestPopupInstanceNestedSubmenusMirrorLeftAndClampUpwardNearBottomRight(t *testing.T) {
+	menuRegistryGlobal.reset()
+	defer menuRegistryGlobal.reset()
+
+	model := NewPopup([]MenuItem{
+		Action("new", "New", testIntent{"new"}),
+		Action("open", "Open", testIntent{"open"}),
+		Action("save", "Save", testIntent{"save"}),
+		Action("export", "Export", testIntent{"export"}),
+		Submenu("ops", "Operations",
+			Action("scan", "Scan", testIntent{"scan"}),
+			Action("repair", "Repair", testIntent{"repair"}),
+			Action("archive", "Archive", testIntent{"archive"}),
+			Action("cleanup", "Cleanup", testIntent{"cleanup"}),
+			Submenu("branch", "Branch",
+				Action("wide", "Extremely Wide Recovery Workspace Ledger", testIntent{"wide"}),
+				Action("repair-node", "Repair Recovery Nodes", testIntent{"repair-node"}),
+				Action("audit", "Audit", testIntent{"audit"}),
+				Action("history", "Historical Recovery Timeline Browser", testIntent{"history"}),
+				Submenu("pivot", "Pivot",
+					Action("deep", "Deep Action", testIntent{"deep"}),
+					Action("verify", "Verify", testIntent{"verify"}),
+					Action("recover", "Recover", testIntent{"recover"}),
+				),
+			),
+		),
+	}).ActivePath(4, 4, 4, 0).BuildModel()
+	inst := newPopupVNode(clearPortalModel(model)).CreateInstance().(*popupInstance)
+
+	rootMetrics := inst.popupMetricsFor(inst.model.Items)
+	firstMetrics := inst.popupMetricsFor(inst.model.Items[4].Normalize().Children)
+	secondMetrics := inst.popupMetricsFor(inst.model.Items[4].Normalize().Children[4].Normalize().Children)
+	thirdMetrics := inst.popupMetricsFor(inst.model.Items[4].Normalize().Children[4].Normalize().Children[4].Normalize().Children)
+	rootOuterWidth := popupSurfaceOuterWidth(rootMetrics)
+	rootOuterHeight := popupSurfaceOuterHeight(rootMetrics)
+	firstOuterWidth := popupSurfaceOuterWidth(firstMetrics)
+	secondOuterWidth := popupSurfaceOuterWidth(secondMetrics)
+	secondOuterHeight := popupSurfaceOuterHeight(secondMetrics)
+	thirdOuterWidth := popupSurfaceOuterWidth(thirdMetrics)
+	thirdOuterHeight := popupSurfaceOuterHeight(thirdMetrics)
+	viewportWidth := max(rootOuterWidth+firstOuterWidth+2, secondOuterWidth+thirdOuterWidth)
+	viewportHeight := max(rootOuterHeight, thirdOuterHeight) + 2
+
+	inst.SetViewportSize(viewportWidth, viewportHeight)
+	inst.SetBounds(0, viewportHeight-rootOuterHeight, rootOuterWidth, rootOuterHeight)
+
+	surfaces := inst.popupSurfaces()
+	if len(surfaces) != 4 {
+		t.Fatalf("popupSurfaces len = %d, want 4", len(surfaces))
+	}
+	if surfaces[1].x != rootOuterWidth {
+		t.Fatalf("first submenu x = %d, want %d for right cascade", surfaces[1].x, rootOuterWidth)
+	}
+	if surfaces[1].direction != overlayposition.CascadeRight {
+		t.Fatalf("first submenu direction = %v, want overlayposition.CascadeRight", surfaces[1].direction)
+	}
+	expectedSecondX := viewportWidth - secondOuterWidth
+	if surfaces[2].x != expectedSecondX {
+		t.Fatalf("second submenu x = %d, want %d after right-edge clamp", surfaces[2].x, expectedSecondX)
+	}
+	if surfaces[2].direction != overlayposition.CascadeRight {
+		t.Fatalf("second submenu direction = %v, want overlayposition.CascadeRight after resolved clamp", surfaces[2].direction)
+	}
+	if thirdOuterWidth > surfaces[2].x {
+		t.Fatalf("test setup invalid: third width = %d should fit to the left of second submenu x = %d", thirdOuterWidth, surfaces[2].x)
+	}
+	if surfaces[3].x >= surfaces[2].x {
+		t.Fatalf("third submenu x = %d, want < second submenu x = %d after mirrored left fallback", surfaces[3].x, surfaces[2].x)
+	}
+	if surfaces[3].direction != overlayposition.CascadeLeft {
+		t.Fatalf("third submenu direction = %v, want overlayposition.CascadeLeft after mirrored fallback", surfaces[3].direction)
+	}
+
+	baseY := inst.layoutBounds[1]
+	secondTop := baseY + surfaces[2].y
+	thirdTop := baseY + surfaces[3].y
+	if secondTop+secondOuterHeight > viewportHeight {
+		t.Fatalf("second submenu bottom edge = %d, want <= %d", secondTop+secondOuterHeight, viewportHeight)
+	}
+	if thirdTop != viewportHeight-thirdOuterHeight {
+		t.Fatalf("third submenu top = %d, want %d after bottom-edge clamp", thirdTop, viewportHeight-thirdOuterHeight)
+	}
+	if thirdTop >= secondTop+4 {
+		t.Fatalf("third submenu top = %d, want < %d after upward clamp from pivot row geometry", thirdTop, secondTop+4)
+	}
+
+	boundsX, boundsY, boundsWidth, boundsHeight := inst.GetBounds()
+	expectedRight := max(
+		rootOuterWidth,
+		max(surfaces[1].x+firstOuterWidth, max(surfaces[2].x+secondOuterWidth, surfaces[3].x+thirdOuterWidth)),
+	)
+	if boundsX != 0 {
+		t.Fatalf("hit bounds x = %d, want 0 with root anchored at left edge", boundsX)
+	}
+	if boundsY > thirdTop {
+		t.Fatalf("hit bounds y = %d, want <= third submenu top = %d", boundsY, thirdTop)
+	}
+	if boundsX+boundsWidth != expectedRight {
+		t.Fatalf("hit bounds right edge = %d, want %d to include mirrored-left third submenu", boundsX+boundsWidth, expectedRight)
+	}
+	if boundsY+boundsHeight > viewportHeight {
+		t.Fatalf("hit bounds bottom edge = %d, want <= %d", boundsY+boundsHeight, viewportHeight)
+	}
+}
+
+func TestPopupInstanceNestedSubmenusMirrorRightAndClampUpwardNearBottomLeft(t *testing.T) {
+	menuRegistryGlobal.reset()
+	defer menuRegistryGlobal.reset()
+
+	model := NewPopup([]MenuItem{
+		Action("new", "New", testIntent{"new"}),
+		Action("open", "Open", testIntent{"open"}),
+		Action("save", "Save", testIntent{"save"}),
+		Action("export", "Export", testIntent{"export"}),
+		Submenu("ops", "Operations",
+			Action("scan", "Scan", testIntent{"scan"}),
+			Action("repair", "Repair", testIntent{"repair"}),
+			Action("archive", "Archive", testIntent{"archive"}),
+			Action("cleanup", "Cleanup", testIntent{"cleanup"}),
+			Submenu("branch", "Branch",
+				Action("wide", "Extremely Wide Recovery Workspace Ledger", testIntent{"wide"}),
+				Action("repair-node", "Repair Recovery Nodes", testIntent{"repair-node"}),
+				Action("audit", "Audit", testIntent{"audit"}),
+				Action("history", "Historical Recovery Timeline Browser", testIntent{"history"}),
+				Submenu("pivot", "Pivot",
+					Action("deep", "Deep Action", testIntent{"deep"}),
+					Action("verify", "Verify", testIntent{"verify"}),
+					Action("recover", "Recover", testIntent{"recover"}),
+				),
+			),
+		),
+	}).ActivePath(4, 4, 4, 0).BuildModel()
+	inst := newPopupVNode(clearPortalModel(model)).CreateInstance().(*popupInstance)
+
+	rootMetrics := inst.popupMetricsFor(inst.model.Items)
+	firstMetrics := inst.popupMetricsFor(inst.model.Items[4].Normalize().Children)
+	secondMetrics := inst.popupMetricsFor(inst.model.Items[4].Normalize().Children[4].Normalize().Children)
+	thirdMetrics := inst.popupMetricsFor(inst.model.Items[4].Normalize().Children[4].Normalize().Children[4].Normalize().Children)
+	rootOuterWidth := popupSurfaceOuterWidth(rootMetrics)
+	rootOuterHeight := popupSurfaceOuterHeight(rootMetrics)
+	firstOuterWidth := popupSurfaceOuterWidth(firstMetrics)
+	secondOuterWidth := popupSurfaceOuterWidth(secondMetrics)
+	secondOuterHeight := popupSurfaceOuterHeight(secondMetrics)
+	thirdOuterWidth := popupSurfaceOuterWidth(thirdMetrics)
+	thirdOuterHeight := popupSurfaceOuterHeight(thirdMetrics)
+	viewportWidth := max(rootOuterWidth+firstOuterWidth+2, secondOuterWidth+thirdOuterWidth)
+	viewportHeight := max(rootOuterHeight, thirdOuterHeight) + 2
+
+	inst.SetViewportSize(viewportWidth, viewportHeight)
+	inst.SetBounds(viewportWidth-rootOuterWidth, viewportHeight-rootOuterHeight, rootOuterWidth, rootOuterHeight)
+
+	surfaces := inst.popupSurfaces()
+	if len(surfaces) != 4 {
+		t.Fatalf("popupSurfaces len = %d, want 4", len(surfaces))
+	}
+	if surfaces[1].direction != overlayposition.CascadeLeft {
+		t.Fatalf("first submenu direction = %v, want overlayposition.CascadeLeft", surfaces[1].direction)
+	}
+	if surfaces[2].x != -inst.layoutBounds[0] {
+		t.Fatalf("second submenu x = %d, want %d after left-edge clamp", surfaces[2].x, -inst.layoutBounds[0])
+	}
+	if surfaces[2].direction != overlayposition.CascadeLeft {
+		t.Fatalf("second submenu direction = %v, want overlayposition.CascadeLeft after resolved clamp", surfaces[2].direction)
+	}
+	if secondOuterWidth+thirdOuterWidth > viewportWidth {
+		t.Fatalf("test setup invalid: second+third widths = %d exceed viewport width = %d", secondOuterWidth+thirdOuterWidth, viewportWidth)
+	}
+	if surfaces[3].x <= surfaces[2].x {
+		t.Fatalf("third submenu x = %d, want > second submenu x = %d after mirrored right fallback", surfaces[3].x, surfaces[2].x)
+	}
+	if surfaces[3].direction != overlayposition.CascadeRight {
+		t.Fatalf("third submenu direction = %v, want overlayposition.CascadeRight after mirrored fallback", surfaces[3].direction)
+	}
+
+	baseY := inst.layoutBounds[1]
+	secondTop := baseY + surfaces[2].y
+	thirdTop := baseY + surfaces[3].y
+	if secondTop+secondOuterHeight > viewportHeight {
+		t.Fatalf("second submenu bottom edge = %d, want <= %d", secondTop+secondOuterHeight, viewportHeight)
+	}
+	if thirdTop != viewportHeight-thirdOuterHeight {
+		t.Fatalf("third submenu top = %d, want %d after bottom-edge clamp", thirdTop, viewportHeight-thirdOuterHeight)
+	}
+	if thirdTop >= secondTop+4 {
+		t.Fatalf("third submenu top = %d, want < %d after upward clamp from pivot row geometry", thirdTop, secondTop+4)
+	}
+
+	boundsX, boundsY, boundsWidth, boundsHeight := inst.GetBounds()
+	expectedRight := inst.layoutBounds[0] + max(
+		rootOuterWidth,
+		max(surfaces[1].x+firstOuterWidth, max(surfaces[2].x+secondOuterWidth, surfaces[3].x+thirdOuterWidth)),
+	)
+	if boundsX != 0 {
+		t.Fatalf("hit bounds x = %d, want 0 after second submenu clamps to left edge", boundsX)
+	}
+	if boundsY > thirdTop {
+		t.Fatalf("hit bounds y = %d, want <= third submenu top = %d", boundsY, thirdTop)
+	}
+	if boundsX+boundsWidth != expectedRight {
+		t.Fatalf("hit bounds right edge = %d, want %d to include mirrored-right third submenu", boundsX+boundsWidth, expectedRight)
+	}
+	if boundsY+boundsHeight > viewportHeight {
+		t.Fatalf("hit bounds bottom edge = %d, want <= %d", boundsY+boundsHeight, viewportHeight)
+	}
+}
+
+func TestPopupInstanceNestedSubmenusZigZagMirrorAndClampUpwardNearBottom(t *testing.T) {
+	menuRegistryGlobal.reset()
+	defer menuRegistryGlobal.reset()
+
+	model := NewPopup([]MenuItem{
+		Action("new", "New", testIntent{"new"}),
+		Action("open", "Open", testIntent{"open"}),
+		Action("save", "Save", testIntent{"save"}),
+		Action("export", "Export", testIntent{"export"}),
+		Submenu("ops", "Operations",
+			Action("scan", "Scan", testIntent{"scan"}),
+			Action("repair", "Repair", testIntent{"repair"}),
+			Action("archive", "Archive", testIntent{"archive"}),
+			Action("cleanup", "Cleanup", testIntent{"cleanup"}),
+			Submenu("branch", "Branch",
+				Action("wide", "Extremely Wide Recovery Workspace Ledger", testIntent{"wide"}),
+				Action("repair-node", "Repair Recovery Nodes", testIntent{"repair-node"}),
+				Action("audit", "Audit", testIntent{"audit"}),
+				Action("history", "Historical Recovery Timeline Browser", testIntent{"history"}),
+				Submenu("pivot", "Pivot",
+					Action("verify", "Verify", testIntent{"verify"}),
+					Action("compare", "Compare", testIntent{"compare"}),
+					Action("recover", "Recover", testIntent{"recover"}),
+					Submenu("rebound", "Rebound",
+						Action("deep", "Deep Action", testIntent{"deep"}),
+						Action("secondary", "Secondary Recovery Marker", testIntent{"secondary"}),
+						Action("rollback", "Rollback", testIntent{"rollback"}),
+						Action("archive-tail", "Archive Tail", testIntent{"archive-tail"}),
+					),
+				),
+			),
+		),
+	}).ActivePath(4, 4, 4, 3, 0).BuildModel()
+	inst := newPopupVNode(clearPortalModel(model)).CreateInstance().(*popupInstance)
+
+	rootMetrics := inst.popupMetricsFor(inst.model.Items)
+	firstMetrics := inst.popupMetricsFor(inst.model.Items[4].Normalize().Children)
+	secondMetrics := inst.popupMetricsFor(inst.model.Items[4].Normalize().Children[4].Normalize().Children)
+	thirdMetrics := inst.popupMetricsFor(inst.model.Items[4].Normalize().Children[4].Normalize().Children[4].Normalize().Children)
+	fourthMetrics := inst.popupMetricsFor(inst.model.Items[4].Normalize().Children[4].Normalize().Children[4].Normalize().Children[3].Normalize().Children)
+	rootOuterWidth := popupSurfaceOuterWidth(rootMetrics)
+	rootOuterHeight := popupSurfaceOuterHeight(rootMetrics)
+	firstOuterWidth := popupSurfaceOuterWidth(firstMetrics)
+	secondOuterWidth := popupSurfaceOuterWidth(secondMetrics)
+	thirdOuterWidth := popupSurfaceOuterWidth(thirdMetrics)
+	fourthOuterWidth := popupSurfaceOuterWidth(fourthMetrics)
+	fourthOuterHeight := popupSurfaceOuterHeight(fourthMetrics)
+	viewportWidth := max(rootOuterWidth+firstOuterWidth+2, secondOuterWidth+thirdOuterWidth)
+	viewportHeight := max(rootOuterHeight, fourthOuterHeight) + 2
+
+	inst.SetViewportSize(viewportWidth, viewportHeight)
+	inst.SetBounds(0, viewportHeight-rootOuterHeight, rootOuterWidth, rootOuterHeight)
+
+	surfaces := inst.popupSurfaces()
+	if len(surfaces) != 5 {
+		t.Fatalf("popupSurfaces len = %d, want 5", len(surfaces))
+	}
+	if surfaces[1].direction != overlayposition.CascadeRight {
+		t.Fatalf("first submenu direction = %v, want overlayposition.CascadeRight", surfaces[1].direction)
+	}
+	expectedSecondX := viewportWidth - secondOuterWidth
+	if surfaces[2].x != expectedSecondX {
+		t.Fatalf("second submenu x = %d, want %d after right-edge clamp", surfaces[2].x, expectedSecondX)
+	}
+	if surfaces[2].direction != overlayposition.CascadeRight {
+		t.Fatalf("second submenu direction = %v, want overlayposition.CascadeRight after resolved clamp", surfaces[2].direction)
+	}
+	expectedThirdX := max(0, surfaces[2].x-thirdOuterWidth)
+	if surfaces[3].x != expectedThirdX {
+		t.Fatalf("third submenu x = %d, want %d after mirrored left fallback", surfaces[3].x, expectedThirdX)
+	}
+	if surfaces[3].direction != overlayposition.CascadeLeft {
+		t.Fatalf("third submenu direction = %v, want overlayposition.CascadeLeft after mirrored fallback", surfaces[3].direction)
+	}
+	if surfaces[4].x <= surfaces[3].x {
+		t.Fatalf("fourth submenu x = %d, want > third submenu x = %d after mirrored right fallback", surfaces[4].x, surfaces[3].x)
+	}
+	if surfaces[4].direction != overlayposition.CascadeRight {
+		t.Fatalf("fourth submenu direction = %v, want overlayposition.CascadeRight after rebound fallback", surfaces[4].direction)
+	}
+	if surfaces[3].x != 0 {
+		t.Fatalf("third submenu x = %d, want 0 to prove mirrored-left branch hit the viewport edge", surfaces[3].x)
+	}
+	if fourthOuterWidth > secondOuterWidth {
+		t.Fatalf("test setup invalid: fourth width = %d should fit to the right of third within second width = %d", fourthOuterWidth, secondOuterWidth)
+	}
+
+	baseY := inst.layoutBounds[1]
+	thirdTop := baseY + surfaces[3].y
+	fourthTop := baseY + surfaces[4].y
+	if fourthTop != viewportHeight-fourthOuterHeight {
+		t.Fatalf("fourth submenu top = %d, want %d after bottom-edge clamp", fourthTop, viewportHeight-fourthOuterHeight)
+	}
+	if fourthTop >= thirdTop+3 {
+		t.Fatalf("fourth submenu top = %d, want < %d after upward clamp from rebound row geometry", fourthTop, thirdTop+3)
+	}
+
+	boundsX, boundsY, boundsWidth, boundsHeight := inst.GetBounds()
+	expectedRight := max(
+		rootOuterWidth,
+		max(surfaces[1].x+firstOuterWidth,
+			max(surfaces[2].x+secondOuterWidth,
+				max(surfaces[3].x+thirdOuterWidth, surfaces[4].x+fourthOuterWidth))),
+	)
+	if boundsX != 0 {
+		t.Fatalf("hit bounds x = %d, want 0 after mirrored-left branch reaches viewport edge", boundsX)
+	}
+	if boundsY > fourthTop {
+		t.Fatalf("hit bounds y = %d, want <= fourth submenu top = %d", boundsY, fourthTop)
+	}
+	if boundsX+boundsWidth != expectedRight {
+		t.Fatalf("hit bounds right edge = %d, want %d to include mirrored-right fourth submenu", boundsX+boundsWidth, expectedRight)
+	}
+	if boundsY+boundsHeight > viewportHeight {
+		t.Fatalf("hit bounds bottom edge = %d, want <= %d", boundsY+boundsHeight, viewportHeight)
+	}
+}
+
 func TestPopupInstancePathPrefixIsIncludedInEmittedPath(t *testing.T) {
 	menuRegistryGlobal.reset()
 	defer menuRegistryGlobal.reset()

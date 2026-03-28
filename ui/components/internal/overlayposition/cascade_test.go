@@ -209,3 +209,78 @@ func TestResolveCascadeFallsBackRightAfterLeftEdgeClampDirection(t *testing.T) {
 		t.Fatalf("result clamp flags = (%v,%v), want false,false", result.ClampedX, result.ClampedY)
 	}
 }
+
+func TestResolveCascadeFallsBackLeftAfterRightEdgeClampDirection(t *testing.T) {
+	result := ResolveCascade(CascadeConfig{
+		Parent:             Rect{X: 17, Y: 10, Width: 30, Height: 6},
+		Overlay:            Size{Width: 12, Height: 5},
+		Viewport:           Size{Width: 47, Height: 18},
+		Top:                11,
+		PreferredDirection: CascadeRight,
+	})
+
+	if result.X != 5 {
+		t.Fatalf("result.X = %d, want 5 when mirrored left side fits", result.X)
+	}
+	if result.Y != 11 {
+		t.Fatalf("result.Y = %d, want 11 without vertical clamp", result.Y)
+	}
+	if result.Direction != CascadeLeft {
+		t.Fatalf("result.Direction = %v, want CascadeLeft after mirrored fallback from right edge", result.Direction)
+	}
+	if result.ClampedX || result.ClampedY {
+		t.Fatalf("result clamp flags = (%v,%v), want false,false", result.ClampedX, result.ClampedY)
+	}
+}
+
+func TestResolveCascadeFallsBackLeftAndClampsVerticallyNearBottom(t *testing.T) {
+	result := ResolveCascade(CascadeConfig{
+		Parent:             Rect{X: 17, Y: 10, Width: 30, Height: 6},
+		Overlay:            Size{Width: 12, Height: 8},
+		Viewport:           Size{Width: 47, Height: 16},
+		Top:                12,
+		PreferredDirection: CascadeRight,
+	})
+
+	if result.X != 5 {
+		t.Fatalf("result.X = %d, want 5 when mirrored left side fits", result.X)
+	}
+	if result.Y != 8 {
+		t.Fatalf("result.Y = %d, want 8 after bottom-edge clamp", result.Y)
+	}
+	if result.Direction != CascadeLeft {
+		t.Fatalf("result.Direction = %v, want CascadeLeft after mirrored fallback from right edge", result.Direction)
+	}
+	if result.ClampedX {
+		t.Fatalf("result.ClampedX = %v, want false when mirrored candidate fits", result.ClampedX)
+	}
+	if !result.ClampedY {
+		t.Fatal("result.ClampedY = false, want true after bottom-edge clamp")
+	}
+}
+
+func TestResolveCascadeFallsBackRightAndClampsVerticallyNearBottom(t *testing.T) {
+	result := ResolveCascade(CascadeConfig{
+		Parent:             Rect{X: 0, Y: 10, Width: 18, Height: 6},
+		Overlay:            Size{Width: 12, Height: 8},
+		Viewport:           Size{Width: 36, Height: 16},
+		Top:                12,
+		PreferredDirection: CascadeLeft,
+	})
+
+	if result.X != 18 {
+		t.Fatalf("result.X = %d, want 18 when mirrored right side fits", result.X)
+	}
+	if result.Y != 8 {
+		t.Fatalf("result.Y = %d, want 8 after bottom-edge clamp", result.Y)
+	}
+	if result.Direction != CascadeRight {
+		t.Fatalf("result.Direction = %v, want CascadeRight after mirrored fallback from left edge", result.Direction)
+	}
+	if result.ClampedX {
+		t.Fatalf("result.ClampedX = %v, want false when mirrored candidate fits", result.ClampedX)
+	}
+	if !result.ClampedY {
+		t.Fatal("result.ClampedY = false, want true after bottom-edge clamp")
+	}
+}

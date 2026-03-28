@@ -2,6 +2,7 @@ package e2e
 
 import (
 	"fmt"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -24,6 +25,15 @@ func (statusbarNeutralIntent) IntentType() string { return "e2e.statusbar.neutra
 type statusbarFixtureMeta struct {
 	ActivateIntentType string
 	HelpText           string
+}
+
+type statusbarOverlayCornerFixtureSpec struct {
+	Title         string
+	HelpKey       string
+	HelpText      string
+	Placement     statusbarcomp.TooltipPlacement
+	AnchorOnRight bool
+	StickToBottom bool
 }
 
 var statusbarFixtureSeq int64
@@ -89,6 +99,67 @@ func newStatusbarFixture(displayMode statusbarcomp.HelpDisplayMode) (ui.Componen
 	return appFn, initFn, cleanupFn, meta
 }
 
+func newStatusbarOverlayCornerFixture(spec statusbarOverlayCornerFixtureSpec) ui.ComponentFunc {
+	return func() ui.VNode {
+		children := make([]ui.VNode, 0, 32)
+		children = append(children, ui.NewTextBuilder(spec.Title).Build())
+
+		if spec.StickToBottom {
+			for i := 0; i < 20; i++ {
+				children = append(children, ui.NewTextBuilder(fmt.Sprintf("Spacer %02d", i+1)).Build())
+			}
+		}
+
+		builder := statusbarcomp.NewBuilder().
+			DefaultTheme().
+			HelpFallback("Ready").
+			HelpDisplayMode(statusbarcomp.HelpDisplayOverlay).
+			TooltipPlacement(spec.Placement).
+			TooltipMaxWidth(24)
+
+		if spec.AnchorOnRight {
+			builder = builder.
+				Left(statusbarcomp.Text("Mode: stable").WithWidth(16)).
+				Center(statusbarcomp.Text("Overlay: corner").WithWidth(24).WithAlign(ui.AlignCenter)).
+				Right(statusbarcomp.Text("Help").WithKey(spec.HelpKey).WithHelp(spec.HelpText).WithWidth(16).WithAlign(ui.AlignEnd))
+		} else {
+			builder = builder.
+				Left(statusbarcomp.Text("Help").WithKey(spec.HelpKey).WithHelp(spec.HelpText).WithWidth(16)).
+				Center(statusbarcomp.Text("Overlay: corner").WithWidth(24).WithAlign(ui.AlignCenter)).
+				Right(statusbarcomp.Text("Mode: stable").WithWidth(16).WithAlign(ui.AlignEnd))
+		}
+
+		children = append(children, builder.BuildWithHelp())
+
+		if !spec.StickToBottom {
+			children = append(children,
+				ui.NewTextBuilder("Workspace: alpha").Build(),
+				ui.NewTextBuilder("Queue: healthy").Build(),
+				ui.NewTextBuilder("Runtime: idle").Build(),
+			)
+		}
+
+		return ui.NewVStack().
+			SetGap(0).
+			SetChildrenList(children)
+	}
+}
+
+func waitForRenderedText(t *testing.T, app *App, text string) {
+	t.Helper()
+	if err := app.AwaitIdleFor(200 * time.Millisecond); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.Eventually(1200*time.Millisecond, 20*time.Millisecond, func(app *App) error {
+		if !strings.Contains(app.RenderString(), text) {
+			return fmt.Errorf("render does not contain %q", text)
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestE2EStatusbarOverlayHelpTracksHoverPlacementAndHide(t *testing.T) {
 	appFn, initFn, cleanupFn, meta := newStatusbarFixture(statusbarcomp.HelpDisplayOverlay)
 	defer cleanupFn()
@@ -128,8 +199,8 @@ func TestE2EStatusbarOverlayHelpTracksHoverPlacementAndHide(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if overlayPoint.Y >= anchorBounds.Y {
-		t.Fatalf("overlay help row = %d, want above anchor row %d", overlayPoint.Y, anchorBounds.Y)
+	if overlayPoint.Y <= anchorBounds.Y {
+		t.Fatalf("overlay help row = %d, want below anchor row %d for auto bottom-bias placement", overlayPoint.Y, anchorBounds.Y)
 	}
 
 	if err := app.Driver().Move(ByID("statusbar-top-action")); err != nil {
@@ -206,5 +277,212 @@ func TestE2EStatusbarInlineHelpFallbackAndActivation(t *testing.T) {
 	}
 	if !handled {
 		t.Fatalf("handled activation intent %q not found in dispatch logs: %+v", meta.ActivateIntentType, logs)
+	}
+}
+
+func TestE2EStatusbarOverlayTopRightCornerFallsBelowWithinRightFamily(t *testing.T) {
+	app, err := Run(
+		newStatusbarOverlayCornerFixture(statusbarOverlayCornerFixtureSpec{
+			Title:         "Statusbar Top Right Corner Fixture",
+			HelpKey:       "statusbar-top-right-corner-help",
+			HelpText:      "TR corner help",
+			Placement:     statusbarcomp.TooltipPlacementTop,
+			AnchorOnRight: true,
+		}),
+		ui.WithSize(72, 24),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer app.Close()
+
+	anchorBounds, err := app.BoundsOf(ByKey("statusbar-top-right-corner-help"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := app.Driver().Move(ByKey("statusbar-top-right-corner-help")); err != nil {
+		t.Fatal(err)
+	}
+	waitForRenderedText(t, app, "TR corner help")
+
+	overlayPoint, err := app.ResolvePoint(ByText("TR corner help"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertOverlayBelowAndShiftedLeft(t, "statusbar top-right corner help", overlayPoint.X, overlayPoint.Y, anchorBounds.X, anchorBounds.Y, anchorBounds.Width, 72)
+}
+
+func TestE2EStatusbarOverlayTopLeftCornerFallsBelowWithinLeftFamily(t *testing.T) {
+	app, err := Run(
+		newStatusbarOverlayCornerFixture(statusbarOverlayCornerFixtureSpec{
+			Title:     "Statusbar Top Left Corner Fixture",
+			HelpKey:   "statusbar-top-left-corner-help",
+			HelpText:  "TL corner help",
+			Placement: statusbarcomp.TooltipPlacementTop,
+		}),
+		ui.WithSize(72, 24),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer app.Close()
+
+	anchorBounds, err := app.BoundsOf(ByKey("statusbar-top-left-corner-help"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := app.Driver().Move(ByKey("statusbar-top-left-corner-help")); err != nil {
+		t.Fatal(err)
+	}
+	waitForRenderedText(t, app, "TL corner help")
+
+	overlayPoint, err := app.ResolvePoint(ByText("TL corner help"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertOverlayBelowAndShiftedRight(t, "statusbar top-left corner help", overlayPoint.X, overlayPoint.Y, anchorBounds.X, anchorBounds.Y, 72)
+}
+
+func TestE2EStatusbarOverlayBottomRightCornerFallsAboveWithinRightFamily(t *testing.T) {
+	app, err := Run(
+		newStatusbarOverlayCornerFixture(statusbarOverlayCornerFixtureSpec{
+			Title:         "Statusbar Bottom Right Corner Fixture",
+			HelpKey:       "statusbar-bottom-right-corner-help",
+			HelpText:      "BR corner help",
+			Placement:     statusbarcomp.TooltipPlacementBottom,
+			AnchorOnRight: true,
+			StickToBottom: true,
+		}),
+		ui.WithSize(72, 24),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer app.Close()
+
+	anchorBounds, err := app.BoundsOf(ByKey("statusbar-bottom-right-corner-help"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := app.Driver().Move(ByKey("statusbar-bottom-right-corner-help")); err != nil {
+		t.Fatal(err)
+	}
+	waitForRenderedText(t, app, "BR corner help")
+
+	overlayPoint, err := app.ResolvePoint(ByText("BR corner help"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertOverlayAboveAndShiftedLeft(t, "statusbar bottom-right corner help", overlayPoint.X, overlayPoint.Y, anchorBounds.X, anchorBounds.Y, anchorBounds.Width, 72)
+}
+
+func TestE2EStatusbarOverlayBottomLeftCornerFallsAboveWithinLeftFamily(t *testing.T) {
+	app, err := Run(
+		newStatusbarOverlayCornerFixture(statusbarOverlayCornerFixtureSpec{
+			Title:         "Statusbar Bottom Left Corner Fixture",
+			HelpKey:       "statusbar-bottom-left-corner-help",
+			HelpText:      "BL corner help",
+			Placement:     statusbarcomp.TooltipPlacementBottom,
+			StickToBottom: true,
+		}),
+		ui.WithSize(72, 24),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer app.Close()
+
+	anchorBounds, err := app.BoundsOf(ByKey("statusbar-bottom-left-corner-help"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := app.Driver().Move(ByKey("statusbar-bottom-left-corner-help")); err != nil {
+		t.Fatal(err)
+	}
+	waitForRenderedText(t, app, "BL corner help")
+
+	overlayPoint, err := app.ResolvePoint(ByText("BL corner help"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertOverlayAboveAndShiftedRight(t, "statusbar bottom-left corner help", overlayPoint.X, overlayPoint.Y, anchorBounds.X, anchorBounds.Y, 72)
+}
+
+func newStatusbarDualAxisClampFixture(placement statusbarcomp.TooltipPlacement, helpKey, helpText string) ui.ComponentFunc {
+	return func() ui.VNode {
+		return ui.NewVStack().
+			SetGap(0).
+			SetChildrenList([]ui.VNode{
+				statusbarcomp.NewBuilder().
+					DefaultTheme().
+					HelpFallback("Ready").
+					HelpDisplayMode(statusbarcomp.HelpDisplayOverlay).
+					TooltipPlacement(placement).
+					TooltipMaxWidth(16).
+					Left(statusbarcomp.Text("Help").WithKey(helpKey).WithHelp(helpText).WithWidth(6)).
+					Center(statusbarcomp.Text("Run").WithWidth(4).WithAlign(ui.AlignCenter)).
+					Right(statusbarcomp.Text("OK").WithWidth(2).WithAlign(ui.AlignEnd)).
+					BuildWithHelp(),
+			})
+	}
+}
+
+func TestE2EStatusbarTopDualAxisClampKeepsTopArrow(t *testing.T) {
+	app, err := RunWithSandbox(
+		newStatusbarDualAxisClampFixture(statusbarcomp.TooltipPlacementTop, "statusbar-dualaxis-top-help", "ClampHelp"),
+		ui.WithSize(14, 4),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer app.Close()
+	app.FrameworkApp().SetConfigSize(14, 4)
+	app.FrameworkApp().Resize(14, 4)
+	app.ForceRender()
+	if err := app.AwaitIdleFor(500 * time.Millisecond); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := app.Driver().Move(ByKey("statusbar-dualaxis-top-help")); err != nil {
+		t.Fatal(err)
+	}
+	waitForRenderedText(t, app, "ClampHelp")
+	if err := app.AssertVisible(ByText("▼")); err != nil {
+		t.Fatalf("top-family dual-axis clamp should keep bottom arrow: %v", err)
+	}
+	if err := app.AssertVisible(ByText("▲")); err == nil {
+		t.Fatal("top-family dual-axis clamp should not render a top-border arrow")
+	}
+}
+
+func TestE2EStatusbarBottomDualAxisClampKeepsBottomArrow(t *testing.T) {
+	app, err := RunWithSandbox(
+		newStatusbarDualAxisClampFixture(statusbarcomp.TooltipPlacementBottom, "statusbar-dualaxis-bottom-help", "ClampHelp"),
+		ui.WithSize(14, 4),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer app.Close()
+	app.FrameworkApp().SetConfigSize(14, 4)
+	app.FrameworkApp().Resize(14, 4)
+	app.ForceRender()
+	if err := app.AwaitIdleFor(500 * time.Millisecond); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := app.Driver().Move(ByKey("statusbar-dualaxis-bottom-help")); err != nil {
+		t.Fatal(err)
+	}
+	waitForRenderedText(t, app, "ClampHelp")
+	if err := app.AssertVisible(ByText("▲")); err != nil {
+		t.Fatalf("bottom-family dual-axis clamp should keep top arrow: %v", err)
+	}
+	if err := app.AssertVisible(ByText("▼")); err == nil {
+		t.Fatal("bottom-family dual-axis clamp should not render a bottom-border arrow")
 	}
 }

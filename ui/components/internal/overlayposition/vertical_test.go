@@ -98,6 +98,26 @@ func TestVerticalResolveClampsTopLeftAndStaysInTopFamilyInNarrowViewport(t *test
 	}
 }
 
+func TestVerticalResolveClampsTopLeftOnBothAxesAndStaysInTopFamilyWhenNothingFits(t *testing.T) {
+	result := Resolve(Config{
+		Anchor:     Rect{X: 4, Y: 1, Width: 2, Height: 1},
+		Overlay:    Size{Width: 10, Height: 3},
+		Viewport:   Size{Width: 8, Height: 4},
+		Candidates: VerticalPlacementCandidates(PlacementTopLeft),
+		Gap:        1,
+	})
+
+	if result.Placement != PlacementTopLeft {
+		t.Fatalf("placement = %v, want %v", result.Placement, PlacementTopLeft)
+	}
+	if result.X != 0 || result.Y != 0 {
+		t.Fatalf("position = (%d,%d), want (0,0)", result.X, result.Y)
+	}
+	if !result.Clamped {
+		t.Fatal("result should report dual-axis clamping when no vertical candidate fits")
+	}
+}
+
 func TestVerticalResolveFallsBelowWithinLeftFamilyNearTopLeftCorner(t *testing.T) {
 	result := Resolve(Config{
 		Anchor:     Rect{X: 2, Y: 1, Width: 4, Height: 1},
@@ -158,6 +178,26 @@ func TestVerticalResolveClampsBottomRightAndStaysInBottomFamilyInNarrowViewport(
 	}
 }
 
+func TestVerticalResolveClampsTopRightOnBothAxesAndStaysInTopFamilyWhenNothingFits(t *testing.T) {
+	result := Resolve(Config{
+		Anchor:     Rect{X: 4, Y: 1, Width: 2, Height: 1},
+		Overlay:    Size{Width: 10, Height: 3},
+		Viewport:   Size{Width: 8, Height: 4},
+		Candidates: VerticalPlacementCandidates(PlacementTopRight),
+		Gap:        1,
+	})
+
+	if result.Placement != PlacementTopRight {
+		t.Fatalf("placement = %v, want %v", result.Placement, PlacementTopRight)
+	}
+	if result.X != 0 || result.Y != 0 {
+		t.Fatalf("position = (%d,%d), want (0,0)", result.X, result.Y)
+	}
+	if !result.Clamped {
+		t.Fatal("result should report dual-axis clamping when no vertical candidate fits")
+	}
+}
+
 func TestVerticalResolveFallsAboveWithinLeftFamilyNearBottomLeftCorner(t *testing.T) {
 	result := Resolve(Config{
 		Anchor:     Rect{X: 2, Y: 8, Width: 4, Height: 1},
@@ -198,6 +238,26 @@ func TestVerticalResolveClampsBottomLeftAndStaysInBottomFamilyInNarrowViewport(t
 	}
 }
 
+func TestVerticalResolveClampsBottomLeftOnBothAxesAndStaysInBottomFamilyWhenNothingFits(t *testing.T) {
+	result := Resolve(Config{
+		Anchor:     Rect{X: 4, Y: 1, Width: 2, Height: 1},
+		Overlay:    Size{Width: 10, Height: 3},
+		Viewport:   Size{Width: 8, Height: 4},
+		Candidates: VerticalPlacementCandidates(PlacementBottomLeft),
+		Gap:        1,
+	})
+
+	if result.Placement != PlacementBottomLeft {
+		t.Fatalf("placement = %v, want %v", result.Placement, PlacementBottomLeft)
+	}
+	if result.X != 0 || result.Y != 1 {
+		t.Fatalf("position = (%d,%d), want (0,1)", result.X, result.Y)
+	}
+	if !result.Clamped {
+		t.Fatal("result should report dual-axis clamping when no vertical candidate fits")
+	}
+}
+
 func TestVerticalResolveFallsAboveWithinRightFamilyNearBottomRightCorner(t *testing.T) {
 	result := Resolve(Config{
 		Anchor:     Rect{X: 34, Y: 8, Width: 4, Height: 1},
@@ -215,6 +275,26 @@ func TestVerticalResolveFallsAboveWithinRightFamilyNearBottomRightCorner(t *test
 	}
 	if result.Clamped {
 		t.Fatal("result should not be clamped when top-right fallback fits")
+	}
+}
+
+func TestVerticalResolveClampsBottomRightOnBothAxesAndStaysInBottomFamilyWhenNothingFits(t *testing.T) {
+	result := Resolve(Config{
+		Anchor:     Rect{X: 4, Y: 1, Width: 2, Height: 1},
+		Overlay:    Size{Width: 10, Height: 3},
+		Viewport:   Size{Width: 8, Height: 4},
+		Candidates: VerticalPlacementCandidates(PlacementBottomRight),
+		Gap:        1,
+	})
+
+	if result.Placement != PlacementBottomRight {
+		t.Fatalf("placement = %v, want %v", result.Placement, PlacementBottomRight)
+	}
+	if result.X != 0 || result.Y != 1 {
+		t.Fatalf("position = (%d,%d), want (0,1)", result.X, result.Y)
+	}
+	if !result.Clamped {
+		t.Fatal("result should report dual-axis clamping when no vertical candidate fits")
 	}
 }
 

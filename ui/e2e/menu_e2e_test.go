@@ -578,6 +578,291 @@ func newMirrorRightAfterLeftClampFixture() (ui.ComponentFunc, func(), func(), su
 	return appFn, initFn, cleanupFn, meta
 }
 
+func newMirrorLeftAfterRightClampFixture() (ui.ComponentFunc, func(), func(), submenuFlipFixtureMeta) {
+	token := fmt.Sprintf("%d", atomic.AddInt64(&menuFixtureSeq, 1))
+	activateIntent := submenuFlipActivateIntent{Token: token}
+	meta := submenuFlipFixtureMeta{ActivateIntentType: activateIntent.IntentType()}
+
+	unregisters := make([]func(), 0, 1)
+	initFn := func() {
+		rt := rtui.GetGlobalIntentRuntime()
+		if rt == nil {
+			return
+		}
+		unregisters = append(unregisters, rt.Register(meta.ActivateIntentType, runtimeintent.HandlerFunc(func(_ *runtimeintent.ActionContext, _ runtimeintent.Intent) runtimeintent.IntentResult {
+			return runtimeintent.HandledResult()
+		})))
+	}
+
+	cleanupFn := func() {
+		for i := len(unregisters) - 1; i >= 0; i-- {
+			if unregisters[i] != nil {
+				unregisters[i]()
+			}
+		}
+	}
+
+	appFn := func() ui.VNode {
+		return ui.NewVStack().
+			SetGap(0).
+			SetChildrenList([]ui.VNode{
+				ui.NewTextBuilder("Menu E2E Mirror Left Fixture").Build(),
+				ui.NewHStack().
+					SetGap(0).
+					SetChildrenList([]ui.VNode{
+						ui.NewTextBuilder("A").SetID("menu-mirror-left-anchor").Build(),
+						ui.NewTextBuilder(strings.Repeat(" ", 63)).Build(),
+					}),
+				menucomp.NewPopup([]menucomp.MenuItem{
+					menucomp.Action("new", "New", nil),
+					menucomp.Action("open", "Open", nil),
+					menucomp.Action("save", "Save", nil),
+					menucomp.Action("export", "Export", nil),
+					menucomp.Submenu("ops", "Operations",
+						menucomp.Action("wide", "Extremely Wide Recovery Workspace Ledger", nil),
+						menucomp.Action("repair", "Repair", nil),
+						menucomp.Action("archive", "Archive", nil),
+						menucomp.Submenu("branch", "Branch",
+							menucomp.Action("node", "Moderately Wide Inner Recovery Journal", nil),
+							menucomp.Submenu("pivot", "Pivot",
+								menucomp.Action("deep", "Deep Action", activateIntent),
+							),
+						),
+					),
+				}).
+					SetID("fixture-mirror-left-submenu-menu").
+					AnchorTo("menu-mirror-left-anchor", rttypes.AnchorBottomLeft).
+					Placement(menucomp.PlacementBottomStart).
+					ActivePath(4, 3, 1, 0).
+					Build(),
+				ui.NewTextBuilder("Mirror left footer").Build(),
+			})
+	}
+
+	return appFn, initFn, cleanupFn, meta
+}
+
+func newBottomMirrorLeftAfterRightClampFixture() (ui.ComponentFunc, func(), func(), submenuFlipFixtureMeta) {
+	token := fmt.Sprintf("%d", atomic.AddInt64(&menuFixtureSeq, 1))
+	activateIntent := submenuFlipActivateIntent{Token: token}
+	meta := submenuFlipFixtureMeta{ActivateIntentType: activateIntent.IntentType()}
+
+	unregisters := make([]func(), 0, 1)
+	initFn := func() {
+		rt := rtui.GetGlobalIntentRuntime()
+		if rt == nil {
+			return
+		}
+		unregisters = append(unregisters, rt.Register(meta.ActivateIntentType, runtimeintent.HandlerFunc(func(_ *runtimeintent.ActionContext, _ runtimeintent.Intent) runtimeintent.IntentResult {
+			return runtimeintent.HandledResult()
+		})))
+	}
+
+	cleanupFn := func() {
+		for i := len(unregisters) - 1; i >= 0; i-- {
+			if unregisters[i] != nil {
+				unregisters[i]()
+			}
+		}
+	}
+
+	appFn := func() ui.VNode {
+		children := []ui.VNode{
+			ui.NewTextBuilder("Menu E2E Bottom Mirror Left Fixture").Build(),
+		}
+		for i := 0; i < 19; i++ {
+			children = append(children, ui.NewTextBuilder(" ").Build())
+		}
+		children = append(children,
+			ui.NewTextBuilder("Bottom Mirror Left Anchor").SetID("menu-bottom-mirror-left-anchor").Build(),
+			menucomp.NewPopup([]menucomp.MenuItem{
+				menucomp.Action("new", "New", nil),
+				menucomp.Action("open", "Open", nil),
+				menucomp.Action("save", "Save", nil),
+				menucomp.Action("export", "Export", nil),
+				menucomp.Submenu("ops", "Operations",
+					menucomp.Action("scan", "Scan", nil),
+					menucomp.Action("repair", "Repair", nil),
+					menucomp.Action("archive", "Archive", nil),
+					menucomp.Action("cleanup", "Cleanup", nil),
+					menucomp.Submenu("branch", "Branch",
+						menucomp.Action("wide", "Extremely Wide Recovery Workspace Ledger", nil),
+						menucomp.Action("repair-node", "Repair Recovery Nodes", nil),
+						menucomp.Action("audit", "Audit", nil),
+						menucomp.Action("history", "Historical Recovery Timeline Browser", nil),
+						menucomp.Submenu("pivot", "Pivot",
+							menucomp.Action("deep", "Deep Action", activateIntent),
+							menucomp.Action("verify", "Verify", nil),
+							menucomp.Action("recover", "Recover", nil),
+						),
+					),
+				),
+			}).
+				SetID("fixture-bottom-mirror-left-submenu-menu").
+				AnchorTo("menu-bottom-mirror-left-anchor", rttypes.AnchorTopLeft).
+				Placement(menucomp.PlacementTopStart).
+				ActivePath(4, 4, 4, 0).
+				Build(),
+		)
+		return ui.NewVStack().
+			SetGap(0).
+			SetChildrenList(children)
+	}
+
+	return appFn, initFn, cleanupFn, meta
+}
+
+func newBottomMirrorRightAfterLeftClampFixture() (ui.ComponentFunc, func(), func(), submenuFlipFixtureMeta) {
+	token := fmt.Sprintf("%d", atomic.AddInt64(&menuFixtureSeq, 1))
+	activateIntent := submenuFlipActivateIntent{Token: token}
+	meta := submenuFlipFixtureMeta{ActivateIntentType: activateIntent.IntentType()}
+
+	unregisters := make([]func(), 0, 1)
+	initFn := func() {
+		rt := rtui.GetGlobalIntentRuntime()
+		if rt == nil {
+			return
+		}
+		unregisters = append(unregisters, rt.Register(meta.ActivateIntentType, runtimeintent.HandlerFunc(func(_ *runtimeintent.ActionContext, _ runtimeintent.Intent) runtimeintent.IntentResult {
+			return runtimeintent.HandledResult()
+		})))
+	}
+
+	cleanupFn := func() {
+		for i := len(unregisters) - 1; i >= 0; i-- {
+			if unregisters[i] != nil {
+				unregisters[i]()
+			}
+		}
+	}
+
+	appFn := func() ui.VNode {
+		children := []ui.VNode{
+			ui.NewTextBuilder("Menu E2E Bottom Mirror Right Fixture").Build(),
+		}
+		for i := 0; i < 19; i++ {
+			children = append(children, ui.NewTextBuilder(" ").Build())
+		}
+		children = append(children,
+			ui.NewHStack().
+				SetGap(0).
+				SetChildrenList([]ui.VNode{
+					ui.NewTextBuilder(strings.Repeat(" ", 75)).Build(),
+					ui.NewTextBuilder("A").SetID("menu-bottom-mirror-right-anchor").Build(),
+				}),
+			menucomp.NewPopup([]menucomp.MenuItem{
+				menucomp.Action("new", "New", nil),
+				menucomp.Action("open", "Open", nil),
+				menucomp.Action("save", "Save", nil),
+				menucomp.Action("export", "Export", nil),
+				menucomp.Submenu("ops", "Operations",
+					menucomp.Action("scan", "Scan", nil),
+					menucomp.Action("repair", "Repair", nil),
+					menucomp.Action("archive", "Archive", nil),
+					menucomp.Action("cleanup", "Cleanup", nil),
+					menucomp.Submenu("branch", "Branch",
+						menucomp.Action("wide", "Extremely Wide Recovery Workspace Ledger", nil),
+						menucomp.Action("repair-node", "Repair Recovery Nodes", nil),
+						menucomp.Action("audit", "Audit", nil),
+						menucomp.Action("history", "Historical Recovery Timeline Browser", nil),
+						menucomp.Submenu("pivot", "Pivot",
+							menucomp.Action("deep", "Deep Action", activateIntent),
+							menucomp.Action("verify", "Verify", nil),
+							menucomp.Action("recover", "Recover", nil),
+						),
+					),
+				),
+			}).
+				SetID("fixture-bottom-mirror-right-submenu-menu").
+				AnchorTo("menu-bottom-mirror-right-anchor", rttypes.AnchorTopRight).
+				Placement(menucomp.PlacementTopEnd).
+				ActivePath(4, 4, 4, 0).
+				Build(),
+		)
+		return ui.NewVStack().
+			SetGap(0).
+			SetChildrenList(children)
+	}
+
+	return appFn, initFn, cleanupFn, meta
+}
+
+func newBottomZigZagMirrorFixture() (ui.ComponentFunc, func(), func(), submenuFlipFixtureMeta) {
+	token := fmt.Sprintf("%d", atomic.AddInt64(&menuFixtureSeq, 1))
+	activateIntent := submenuFlipActivateIntent{Token: token}
+	meta := submenuFlipFixtureMeta{ActivateIntentType: activateIntent.IntentType()}
+
+	unregisters := make([]func(), 0, 1)
+	initFn := func() {
+		rt := rtui.GetGlobalIntentRuntime()
+		if rt == nil {
+			return
+		}
+		unregisters = append(unregisters, rt.Register(meta.ActivateIntentType, runtimeintent.HandlerFunc(func(_ *runtimeintent.ActionContext, _ runtimeintent.Intent) runtimeintent.IntentResult {
+			return runtimeintent.HandledResult()
+		})))
+	}
+
+	cleanupFn := func() {
+		for i := len(unregisters) - 1; i >= 0; i-- {
+			if unregisters[i] != nil {
+				unregisters[i]()
+			}
+		}
+	}
+
+	appFn := func() ui.VNode {
+		children := []ui.VNode{
+			ui.NewTextBuilder("Menu E2E Bottom ZigZag Fixture").Build(),
+		}
+		for i := 0; i < 19; i++ {
+			children = append(children, ui.NewTextBuilder(" ").Build())
+		}
+		children = append(children,
+			ui.NewTextBuilder("Bottom ZigZag Anchor").SetID("menu-bottom-zigzag-anchor").Build(),
+			menucomp.NewPopup([]menucomp.MenuItem{
+				menucomp.Action("new", "New", nil),
+				menucomp.Action("open", "Open", nil),
+				menucomp.Action("save", "Save", nil),
+				menucomp.Action("export", "Export", nil),
+				menucomp.Submenu("ops", "Operations",
+					menucomp.Action("scan", "Scan", nil),
+					menucomp.Action("repair", "Repair", nil),
+					menucomp.Action("archive", "Archive", nil),
+					menucomp.Action("cleanup", "Cleanup", nil),
+					menucomp.Submenu("branch", "Branch",
+						menucomp.Action("wide", "Extremely Wide Recovery Workspace Ledger", nil),
+						menucomp.Action("repair-node", "Repair Recovery Nodes", nil),
+						menucomp.Action("audit", "Audit", nil),
+						menucomp.Action("history", "Historical Recovery Timeline Browser", nil),
+						menucomp.Submenu("pivot", "Pivot",
+							menucomp.Action("verify", "Verify", nil),
+							menucomp.Action("compare", "Compare", nil),
+							menucomp.Action("recover", "Recover", nil),
+							menucomp.Submenu("rebound", "Rebound",
+								menucomp.Action("deep", "Deep Action", activateIntent),
+								menucomp.Action("secondary", "Secondary Recovery Marker", nil),
+								menucomp.Action("rollback", "Rollback", nil),
+								menucomp.Action("archive-tail", "Archive Tail", nil),
+							),
+						),
+					),
+				),
+			}).
+				SetID("fixture-bottom-zigzag-submenu-menu").
+				AnchorTo("menu-bottom-zigzag-anchor", rttypes.AnchorTopLeft).
+				Placement(menucomp.PlacementTopStart).
+				ActivePath(4, 4, 4, 3, 0).
+				Build(),
+		)
+		return ui.NewVStack().
+			SetGap(0).
+			SetChildrenList(children)
+	}
+
+	return appFn, initFn, cleanupFn, meta
+}
+
 func newTopEdgeAnchoredMenuFixture() ui.ComponentFunc {
 	return func() ui.VNode {
 		return ui.NewVStack().
@@ -1203,6 +1488,314 @@ func TestE2EMenuNestedSubmenusMirrorRightAfterLeftEdgeClamp(t *testing.T) {
 	}
 
 	if err := app.AssertHit(deepPoint, ByID("fixture-mirror-right-submenu-menu")); err != nil {
+		t.Fatal(err)
+	}
+
+	app.ClearIntentLogs()
+	if err := app.Driver().Click(ByText("Deep Action")); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.AwaitIntent(meta.ActivateIntentType, 500*time.Millisecond); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.AssertIntentHandled(meta.ActivateIntentType); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestE2EMenuNestedSubmenusMirrorLeftAfterRightEdgeClamp(t *testing.T) {
+	appFn, initFn, cleanupFn, meta := newMirrorLeftAfterRightClampFixture()
+	defer cleanupFn()
+
+	app, err := Run(appFn,
+		ui.WithSize(64, 18),
+		ui.WithInit(initFn),
+		ui.WithPluginSetup(func(app *framework.App) {
+			menucomp.Install(app, nil)
+		}),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer app.Close()
+
+	if err := app.AssertVisible(ByText("Operations")); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.AssertVisible(ByText("Pivot")); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.AssertVisible(ByText("Deep Action")); err != nil {
+		t.Fatal(err)
+	}
+
+	rootPoint, err := app.ResolvePoint(ByText("Operations"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	pivotPoint, err := app.ResolvePoint(ByText("Pivot"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	deepPoint, err := app.ResolvePoint(ByText("Deep Action"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pivotPoint.X <= rootPoint.X {
+		t.Fatalf("pivot submenu x = %d, want > root x = %d after right-edge clamp branch", pivotPoint.X, rootPoint.X)
+	}
+	if deepPoint.X >= pivotPoint.X {
+		t.Fatalf("deep submenu x = %d, want < pivot x = %d after mirrored left fallback", deepPoint.X, pivotPoint.X)
+	}
+
+	popupBounds, err := app.BoundsOf(ByID("fixture-mirror-left-submenu-menu"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if popupBounds.X != 0 {
+		t.Fatalf("popup hit bounds x = %d, want 0 with root anchored at left edge", popupBounds.X)
+	}
+	if popupBounds.X+popupBounds.Width <= pivotPoint.X {
+		t.Fatalf("popup hit bounds right edge = %d, want > pivot submenu x = %d", popupBounds.X+popupBounds.Width, pivotPoint.X)
+	}
+
+	if err := app.AssertHit(deepPoint, ByID("fixture-mirror-left-submenu-menu")); err != nil {
+		t.Fatal(err)
+	}
+
+	app.ClearIntentLogs()
+	if err := app.Driver().Click(ByText("Deep Action")); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.AwaitIntent(meta.ActivateIntentType, 500*time.Millisecond); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.AssertIntentHandled(meta.ActivateIntentType); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestE2EMenuNestedSubmenusMirrorLeftAndClampUpwardNearBottomRightCorner(t *testing.T) {
+	appFn, initFn, cleanupFn, meta := newBottomMirrorLeftAfterRightClampFixture()
+	defer cleanupFn()
+
+	app, err := Run(appFn,
+		ui.WithSize(64, 24),
+		ui.WithInit(initFn),
+		ui.WithPluginSetup(func(app *framework.App) {
+			menucomp.Install(app, nil)
+		}),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer app.Close()
+
+	if err := app.AssertVisible(ByText("Operations")); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.AssertVisible(ByText("Pivot")); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.AssertVisible(ByText("Deep Action")); err != nil {
+		t.Fatal(err)
+	}
+
+	rootPoint, err := app.ResolvePoint(ByText("Operations"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	pivotPoint, err := app.ResolvePoint(ByText("Pivot"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	deepPoint, err := app.ResolvePoint(ByText("Deep Action"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pivotPoint.X <= rootPoint.X {
+		t.Fatalf("pivot submenu x = %d, want > root x = %d after right-edge clamp branch", pivotPoint.X, rootPoint.X)
+	}
+	if deepPoint.X >= pivotPoint.X {
+		t.Fatalf("deep submenu x = %d, want < pivot x = %d after mirrored left fallback", deepPoint.X, pivotPoint.X)
+	}
+	if deepPoint.Y >= pivotPoint.Y {
+		t.Fatalf("deep submenu y = %d, want < pivot y = %d after upward clamp", deepPoint.Y, pivotPoint.Y)
+	}
+
+	popupBounds, err := app.BoundsOf(ByID("fixture-bottom-mirror-left-submenu-menu"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if popupBounds.X != 0 {
+		t.Fatalf("popup hit bounds x = %d, want 0 with root anchored at left edge", popupBounds.X)
+	}
+	if popupBounds.Y > deepPoint.Y {
+		t.Fatalf("popup hit bounds y = %d, want <= deep submenu y = %d", popupBounds.Y, deepPoint.Y)
+	}
+	if popupBounds.X+popupBounds.Width <= pivotPoint.X {
+		t.Fatalf("popup hit bounds right edge = %d, want > pivot submenu x = %d", popupBounds.X+popupBounds.Width, pivotPoint.X)
+	}
+	if popupBounds.Y+popupBounds.Height > 24 {
+		t.Fatalf("popup bottom edge = %d, want <= 24", popupBounds.Y+popupBounds.Height)
+	}
+
+	if err := app.AssertHit(deepPoint, ByID("fixture-bottom-mirror-left-submenu-menu")); err != nil {
+		t.Fatal(err)
+	}
+
+	app.ClearIntentLogs()
+	if err := app.Driver().Click(ByText("Deep Action")); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.AwaitIntent(meta.ActivateIntentType, 500*time.Millisecond); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.AssertIntentHandled(meta.ActivateIntentType); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestE2EMenuNestedSubmenusMirrorRightAndClampUpwardNearBottomLeftCorner(t *testing.T) {
+	appFn, initFn, cleanupFn, meta := newBottomMirrorRightAfterLeftClampFixture()
+	defer cleanupFn()
+
+	app, err := Run(appFn,
+		ui.WithSize(80, 24),
+		ui.WithInit(initFn),
+		ui.WithPluginSetup(func(app *framework.App) {
+			menucomp.Install(app, nil)
+		}),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer app.Close()
+
+	if err := app.AssertVisible(ByText("Operations")); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.AssertVisible(ByText("Pivot")); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.AssertVisible(ByText("Deep Action")); err != nil {
+		t.Fatal(err)
+	}
+
+	rootPoint, err := app.ResolvePoint(ByText("Operations"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	pivotPoint, err := app.ResolvePoint(ByText("Pivot"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	deepPoint, err := app.ResolvePoint(ByText("Deep Action"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pivotPoint.X >= rootPoint.X {
+		t.Fatalf("pivot submenu x = %d, want < root x = %d after left-edge clamp branch", pivotPoint.X, rootPoint.X)
+	}
+	if deepPoint.X <= pivotPoint.X {
+		t.Fatalf("deep submenu x = %d, want > pivot x = %d after mirrored right fallback", deepPoint.X, pivotPoint.X)
+	}
+	if deepPoint.Y >= pivotPoint.Y {
+		t.Fatalf("deep submenu y = %d, want < pivot y = %d after upward clamp", deepPoint.Y, pivotPoint.Y)
+	}
+
+	popupBounds, err := app.BoundsOf(ByID("fixture-bottom-mirror-right-submenu-menu"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if popupBounds.X != 0 {
+		t.Fatalf("popup hit bounds x = %d, want 0 after left-edge clamp branch", popupBounds.X)
+	}
+	if popupBounds.Y > deepPoint.Y {
+		t.Fatalf("popup hit bounds y = %d, want <= deep submenu y = %d", popupBounds.Y, deepPoint.Y)
+	}
+	if popupBounds.X+popupBounds.Width <= deepPoint.X {
+		t.Fatalf("popup hit bounds right edge = %d, want > deep submenu x = %d", popupBounds.X+popupBounds.Width, deepPoint.X)
+	}
+	if popupBounds.Y+popupBounds.Height > 24 {
+		t.Fatalf("popup bottom edge = %d, want <= 24", popupBounds.Y+popupBounds.Height)
+	}
+
+	if err := app.AssertHit(deepPoint, ByID("fixture-bottom-mirror-right-submenu-menu")); err != nil {
+		t.Fatal(err)
+	}
+
+	app.ClearIntentLogs()
+	if err := app.Driver().Click(ByText("Deep Action")); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.AwaitIntent(meta.ActivateIntentType, 500*time.Millisecond); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.AssertIntentHandled(meta.ActivateIntentType); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestE2EMenuNestedSubmenusZigZagMirrorAndClampUpwardNearBottom(t *testing.T) {
+	appFn, initFn, cleanupFn, meta := newBottomZigZagMirrorFixture()
+	defer cleanupFn()
+
+	app, err := Run(appFn,
+		ui.WithSize(80, 24),
+		ui.WithInit(initFn),
+		ui.WithPluginSetup(func(app *framework.App) {
+			menucomp.Install(app, nil)
+		}),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer app.Close()
+
+	if err := app.AssertVisible(ByText("Operations")); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.AssertVisible(ByText("Rebound")); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.AssertVisible(ByText("Deep Action")); err != nil {
+		t.Fatal(err)
+	}
+
+	reboundPoint, err := app.ResolvePoint(ByText("Rebound"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	deepPoint, err := app.ResolvePoint(ByText("Deep Action"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if deepPoint.X <= reboundPoint.X {
+		t.Fatalf("deep submenu x = %d, want > rebound x = %d after mirrored right rebound", deepPoint.X, reboundPoint.X)
+	}
+	if deepPoint.Y >= reboundPoint.Y {
+		t.Fatalf("deep submenu y = %d, want < rebound y = %d after upward clamp", deepPoint.Y, reboundPoint.Y)
+	}
+
+	popupBounds, err := app.BoundsOf(ByID("fixture-bottom-zigzag-submenu-menu"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if popupBounds.X != 0 {
+		t.Fatalf("popup hit bounds x = %d, want 0 after mirrored-left branch reaches viewport edge", popupBounds.X)
+	}
+	if popupBounds.Y > deepPoint.Y {
+		t.Fatalf("popup hit bounds y = %d, want <= deep submenu y = %d", popupBounds.Y, deepPoint.Y)
+	}
+	if popupBounds.X+popupBounds.Width <= deepPoint.X {
+		t.Fatalf("popup hit bounds right edge = %d, want > deep submenu x = %d", popupBounds.X+popupBounds.Width, deepPoint.X)
+	}
+	if popupBounds.Y+popupBounds.Height > 24 {
+		t.Fatalf("popup bottom edge = %d, want <= 24", popupBounds.Y+popupBounds.Height)
+	}
+
+	if err := app.AssertHit(deepPoint, ByID("fixture-bottom-zigzag-submenu-menu")); err != nil {
 		t.Fatal(err)
 	}
 

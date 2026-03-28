@@ -299,6 +299,48 @@ func TestTooltipCalculatePosition_AutoAndFallback(t *testing.T) {
 		}
 	})
 
+	t.Run("top left placement clamps left and stays above in narrow viewport", func(t *testing.T) {
+		inst := NewInstance(rtui.Props{
+			"text":     "12345678901234",
+			"position": PositionTopLeft,
+		})
+		inst.SetAnchorBounds(9, 7, 4, 1)
+		inst.SetViewportSize(14, 14)
+
+		x, y := inst.CalculatePosition()
+		if x != 0 || y != 5 {
+			t.Fatalf("narrow top-left clamped position = (%d,%d), want (0,5)", x, y)
+		}
+	})
+
+	t.Run("top left placement clamps both axes and stays above when no vertical candidate fits", func(t *testing.T) {
+		inst := NewInstance(rtui.Props{
+			"text":     "12345678901234",
+			"position": PositionTopLeft,
+		})
+		inst.SetAnchorBounds(9, 1, 4, 1)
+		inst.SetViewportSize(14, 3)
+
+		x, y := inst.CalculatePosition()
+		if x != 0 || y != 0 {
+			t.Fatalf("dual-axis top-left clamped position = (%d,%d), want (0,0)", x, y)
+		}
+	})
+
+	t.Run("top right placement clamps both axes and stays above when no vertical candidate fits", func(t *testing.T) {
+		inst := NewInstance(rtui.Props{
+			"text":     "12345678901234",
+			"position": PositionTopRight,
+		})
+		inst.SetAnchorBounds(9, 1, 4, 1)
+		inst.SetViewportSize(14, 3)
+
+		x, y := inst.CalculatePosition()
+		if x != 0 || y != 0 {
+			t.Fatalf("dual-axis top-right clamped position = (%d,%d), want (0,0)", x, y)
+		}
+	})
+
 	t.Run("top left placement falls below within left family near top-left corner", func(t *testing.T) {
 		inst := NewInstance(rtui.Props{
 			"text":     "1234567890",
@@ -366,6 +408,48 @@ func TestTooltipCalculatePosition_AutoAndFallback(t *testing.T) {
 		x, y := inst.CalculatePosition()
 		if x != 0 || y != 9 {
 			t.Fatalf("narrow bottom-right clamped position = (%d,%d), want (0,9)", x, y)
+		}
+	})
+
+	t.Run("bottom left placement clamps left and stays below in narrow viewport", func(t *testing.T) {
+		inst := NewInstance(rtui.Props{
+			"text":     "12345678901234",
+			"position": PositionBottomLeft,
+		})
+		inst.SetAnchorBounds(9, 7, 4, 1)
+		inst.SetViewportSize(14, 14)
+
+		x, y := inst.CalculatePosition()
+		if x != 0 || y != 9 {
+			t.Fatalf("narrow bottom-left clamped position = (%d,%d), want (0,9)", x, y)
+		}
+	})
+
+	t.Run("bottom left placement clamps both axes and stays below when no vertical candidate fits", func(t *testing.T) {
+		inst := NewInstance(rtui.Props{
+			"text":     "12345678901234",
+			"position": PositionBottomLeft,
+		})
+		inst.SetAnchorBounds(9, 1, 4, 1)
+		inst.SetViewportSize(14, 3)
+
+		x, y := inst.CalculatePosition()
+		if x != 0 || y != 2 {
+			t.Fatalf("dual-axis bottom-left clamped position = (%d,%d), want (0,2)", x, y)
+		}
+	})
+
+	t.Run("bottom right placement clamps both axes and stays below when no vertical candidate fits", func(t *testing.T) {
+		inst := NewInstance(rtui.Props{
+			"text":     "12345678901234",
+			"position": PositionBottomRight,
+		})
+		inst.SetAnchorBounds(9, 1, 4, 1)
+		inst.SetViewportSize(14, 3)
+
+		x, y := inst.CalculatePosition()
+		if x != 0 || y != 2 {
+			t.Fatalf("dual-axis bottom-right clamped position = (%d,%d), want (0,2)", x, y)
 		}
 	})
 

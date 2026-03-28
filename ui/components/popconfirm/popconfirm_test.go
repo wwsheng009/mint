@@ -396,6 +396,60 @@ func TestOverlayBoundsPlacementTopRightClampsLeftAndStaysAboveInNarrowViewport(t
 	}
 }
 
+func TestOverlayBoundsPlacementTopLeftClampsLeftAndStaysAboveInNarrowViewport(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		propComponentID: "delete.confirm",
+		propTitle:       "Delete now?",
+		propPlacement:   PlacementTopLeft,
+	})
+	inst.SetBounds(9, 7, 4, 1)
+	inst.SetViewportSize(14, 14)
+
+	x, y, _, _ := inst.overlayBounds()
+	if x != 0 {
+		t.Fatalf("overlay x = %d, want left-edge clamp to 0 in narrow viewport", x)
+	}
+	if y != 1 {
+		t.Fatalf("overlay y = %d, want 1 while staying above anchor in narrow viewport", y)
+	}
+}
+
+func TestResolvePopconfirmLayoutPlacementTopLeftClampsBothAxesAndKeepsTopFamilyWhenNothingFits(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		propComponentID: "delete.confirm",
+		propTitle:       "Delete now?",
+		propPlacement:   PlacementTopLeft,
+	})
+	result := resolvePopconfirmLayout([4]int{9, 1, 4, 1}, PlacementTopLeft, inst.overlayWidth(), inst.overlayHeight(), inst.gapRows, [2]int{14, 5})
+	if result.X != 0 || result.Y != 0 {
+		t.Fatalf("dual-axis top-left result = (%d,%d), want (0,0)", result.X, result.Y)
+	}
+	if result.Placement != popconfirmPlacementToOverlay(PlacementTopLeft) {
+		t.Fatalf("placement = %v, want %v after dual-axis clamp", result.Placement, popconfirmPlacementToOverlay(PlacementTopLeft))
+	}
+	if !result.Clamped {
+		t.Fatal("result should report clamping when no vertical candidate fits")
+	}
+}
+
+func TestResolvePopconfirmLayoutPlacementTopRightClampsBothAxesAndKeepsTopFamilyWhenNothingFits(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		propComponentID: "delete.confirm",
+		propTitle:       "Delete now?",
+		propPlacement:   PlacementTopRight,
+	})
+	result := resolvePopconfirmLayout([4]int{9, 1, 4, 1}, PlacementTopRight, inst.overlayWidth(), inst.overlayHeight(), inst.gapRows, [2]int{14, 5})
+	if result.X != 0 || result.Y != 0 {
+		t.Fatalf("dual-axis top-right result = (%d,%d), want (0,0)", result.X, result.Y)
+	}
+	if result.Placement != popconfirmPlacementToOverlay(PlacementTopRight) {
+		t.Fatalf("placement = %v, want %v after dual-axis clamp", result.Placement, popconfirmPlacementToOverlay(PlacementTopRight))
+	}
+	if !result.Clamped {
+		t.Fatal("result should report clamping when no vertical candidate fits")
+	}
+}
+
 func TestOverlayBoundsPlacementBottomStaysBelowAndShiftsRightNearLeftEdge(t *testing.T) {
 	inst := NewInstance(rtui.Props{
 		propComponentID: "delete.confirm",
@@ -429,6 +483,60 @@ func TestOverlayBoundsPlacementBottomRightClampsLeftAndStaysBelowInNarrowViewpor
 	}
 	if y != 9 {
 		t.Fatalf("overlay y = %d, want 9 while staying below anchor in narrow viewport", y)
+	}
+}
+
+func TestOverlayBoundsPlacementBottomLeftClampsLeftAndStaysBelowInNarrowViewport(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		propComponentID: "delete.confirm",
+		propTitle:       "Delete now?",
+		propPlacement:   PlacementBottomLeft,
+	})
+	inst.SetBounds(9, 7, 4, 1)
+	inst.SetViewportSize(14, 14)
+
+	x, y, _, _ := inst.overlayBounds()
+	if x != 0 {
+		t.Fatalf("overlay x = %d, want left-edge clamp to 0 in narrow viewport", x)
+	}
+	if y != 9 {
+		t.Fatalf("overlay y = %d, want 9 while staying below anchor in narrow viewport", y)
+	}
+}
+
+func TestResolvePopconfirmLayoutPlacementBottomLeftClampsBothAxesAndKeepsBottomFamilyWhenNothingFits(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		propComponentID: "delete.confirm",
+		propTitle:       "Delete now?",
+		propPlacement:   PlacementBottomLeft,
+	})
+	result := resolvePopconfirmLayout([4]int{9, 1, 4, 1}, PlacementBottomLeft, inst.overlayWidth(), inst.overlayHeight(), inst.gapRows, [2]int{14, 5})
+	if result.X != 0 || result.Y != 0 {
+		t.Fatalf("dual-axis bottom-left result = (%d,%d), want (0,0)", result.X, result.Y)
+	}
+	if result.Placement != popconfirmPlacementToOverlay(PlacementBottomLeft) {
+		t.Fatalf("placement = %v, want %v after dual-axis clamp", result.Placement, popconfirmPlacementToOverlay(PlacementBottomLeft))
+	}
+	if !result.Clamped {
+		t.Fatal("result should report clamping when no vertical candidate fits")
+	}
+}
+
+func TestResolvePopconfirmLayoutPlacementBottomRightClampsBothAxesAndKeepsBottomFamilyWhenNothingFits(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		propComponentID: "delete.confirm",
+		propTitle:       "Delete now?",
+		propPlacement:   PlacementBottomRight,
+	})
+	result := resolvePopconfirmLayout([4]int{9, 1, 4, 1}, PlacementBottomRight, inst.overlayWidth(), inst.overlayHeight(), inst.gapRows, [2]int{14, 5})
+	if result.X != 0 || result.Y != 0 {
+		t.Fatalf("dual-axis bottom-right result = (%d,%d), want (0,0)", result.X, result.Y)
+	}
+	if result.Placement != popconfirmPlacementToOverlay(PlacementBottomRight) {
+		t.Fatalf("placement = %v, want %v after dual-axis clamp", result.Placement, popconfirmPlacementToOverlay(PlacementBottomRight))
+	}
+	if !result.Clamped {
+		t.Fatal("result should report clamping when no vertical candidate fits")
 	}
 }
 

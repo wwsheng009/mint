@@ -198,3 +198,96 @@ func TestE2EPopoverHoverShowsAndHides(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func newPopoverDualAxisClampFixture(placement ui.PopoverPlacement, anchorID, title string) ui.ComponentFunc {
+	return func() ui.VNode {
+		return ui.NewVStack().
+			SetGap(0).
+			SetChildrenList([]ui.VNode{
+				ui.NewPopoverBuilder(
+					ui.NewButtonBuilder("Open").
+						SetID(anchorID).
+						OnPress(popovercomp.ToggleWithID("fixture.popover.dualaxis")).
+						Build(),
+				).
+					SetID("fixture-popover-dualaxis").
+					ComponentID("fixture.popover.dualaxis").
+					Title(title).
+					Body("").
+					MaxWidth(20).
+					Placement(placement).
+					Trigger(ui.PopoverTriggerClick).
+					Build(),
+			})
+	}
+}
+
+func TestE2EPopoverTopDualAxisClampKeepsTopArrow(t *testing.T) {
+	app, err := RunWithSandbox(
+		newPopoverDualAxisClampFixture(ui.PopoverPlacementTopLeft, "popover-dualaxis-top-anchor", "ClampTitle"),
+		ui.WithSize(14, 5),
+		ui.WithPluginSetup(func(app *framework.App) {
+			popovercomp.Install(app)
+		}),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer app.Close()
+	app.FrameworkApp().SetConfigSize(14, 5)
+	app.FrameworkApp().Resize(14, 5)
+	app.ForceRender()
+	if err := app.AwaitIdleFor(500 * time.Millisecond); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := app.Driver().Click(ByID("popover-dualaxis-top-anchor")); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.Eventually(500*time.Millisecond, 20*time.Millisecond, func(app *App) error {
+		return app.AssertVisible(ByText("ClampTitle"))
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.AssertVisible(ByText("▼")); err != nil {
+		t.Fatalf("top-family dual-axis clamp should keep bottom arrow: %v", err)
+	}
+	if err := app.AssertVisible(ByText("▲")); err == nil {
+		t.Fatal("top-family dual-axis clamp should not render a top-border arrow")
+	}
+}
+
+func TestE2EPopoverBottomDualAxisClampKeepsBottomArrow(t *testing.T) {
+	app, err := RunWithSandbox(
+		newPopoverDualAxisClampFixture(ui.PopoverPlacementBottomLeft, "popover-dualaxis-bottom-anchor", "ClampTitle"),
+		ui.WithSize(14, 5),
+		ui.WithPluginSetup(func(app *framework.App) {
+			popovercomp.Install(app)
+		}),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer app.Close()
+	app.FrameworkApp().SetConfigSize(14, 5)
+	app.FrameworkApp().Resize(14, 5)
+	app.ForceRender()
+	if err := app.AwaitIdleFor(500 * time.Millisecond); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := app.Driver().Click(ByID("popover-dualaxis-bottom-anchor")); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.Eventually(500*time.Millisecond, 20*time.Millisecond, func(app *App) error {
+		return app.AssertVisible(ByText("ClampTitle"))
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.AssertVisible(ByText("▲")); err != nil {
+		t.Fatalf("bottom-family dual-axis clamp should keep top arrow: %v", err)
+	}
+	if err := app.AssertVisible(ByText("▼")); err == nil {
+		t.Fatal("bottom-family dual-axis clamp should not render a bottom-border arrow")
+	}
+}

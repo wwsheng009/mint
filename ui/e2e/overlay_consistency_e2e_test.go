@@ -1801,3 +1801,445 @@ func TestE2EOverlayExplicitBottomLeftCornerPopconfirmFallsAboveWithinLeftFamily(
 	}
 	assertOverlayAboveAndShiftedRight(t, "bottom-left corner popconfirm", popconfirmPoint.X, popconfirmPoint.Y, popconfirmAnchor.X, popconfirmAnchor.Y, 72)
 }
+
+func TestE2EOverlayStatusbarCornerFallbackMatchesSharedCornerRules(t *testing.T) {
+	cases := []struct {
+		name      string
+		helpKey   string
+		helpText  string
+		spec      statusbarOverlayCornerFixtureSpec
+		assertion func(*testing.T, int, int, int, int, int)
+	}{
+		{
+			name:     "top-right",
+			helpKey:  "overlay-statusbar-top-right-corner-help",
+			helpText: "OC TR help",
+			spec: statusbarOverlayCornerFixtureSpec{
+				Title:         "Overlay Statusbar Top Right Corner Fixture",
+				HelpKey:       "overlay-statusbar-top-right-corner-help",
+				HelpText:      "OC TR help",
+				Placement:     statusbarcomp.TooltipPlacementTop,
+				AnchorOnRight: true,
+			},
+			assertion: func(t *testing.T, overlayX, overlayY, anchorX, anchorY, anchorWidth int) {
+				assertOverlayBelowAndShiftedLeft(t, "overlay consistency top-right statusbar help", overlayX, overlayY, anchorX, anchorY, anchorWidth, 72)
+			},
+		},
+		{
+			name:     "top-left",
+			helpKey:  "overlay-statusbar-top-left-corner-help",
+			helpText: "OC TL help",
+			spec: statusbarOverlayCornerFixtureSpec{
+				Title:     "Overlay Statusbar Top Left Corner Fixture",
+				HelpKey:   "overlay-statusbar-top-left-corner-help",
+				HelpText:  "OC TL help",
+				Placement: statusbarcomp.TooltipPlacementTop,
+			},
+			assertion: func(t *testing.T, overlayX, overlayY, anchorX, anchorY, _ int) {
+				assertOverlayBelowAndShiftedRight(t, "overlay consistency top-left statusbar help", overlayX, overlayY, anchorX, anchorY, 72)
+			},
+		},
+		{
+			name:     "bottom-right",
+			helpKey:  "overlay-statusbar-bottom-right-corner-help",
+			helpText: "OC BR help",
+			spec: statusbarOverlayCornerFixtureSpec{
+				Title:         "Overlay Statusbar Bottom Right Corner Fixture",
+				HelpKey:       "overlay-statusbar-bottom-right-corner-help",
+				HelpText:      "OC BR help",
+				Placement:     statusbarcomp.TooltipPlacementBottom,
+				AnchorOnRight: true,
+				StickToBottom: true,
+			},
+			assertion: func(t *testing.T, overlayX, overlayY, anchorX, anchorY, anchorWidth int) {
+				assertOverlayAboveAndShiftedLeft(t, "overlay consistency bottom-right statusbar help", overlayX, overlayY, anchorX, anchorY, anchorWidth, 72)
+			},
+		},
+		{
+			name:     "bottom-left",
+			helpKey:  "overlay-statusbar-bottom-left-corner-help",
+			helpText: "OC BL help",
+			spec: statusbarOverlayCornerFixtureSpec{
+				Title:         "Overlay Statusbar Bottom Left Corner Fixture",
+				HelpKey:       "overlay-statusbar-bottom-left-corner-help",
+				HelpText:      "OC BL help",
+				Placement:     statusbarcomp.TooltipPlacementBottom,
+				StickToBottom: true,
+			},
+			assertion: func(t *testing.T, overlayX, overlayY, anchorX, anchorY, _ int) {
+				assertOverlayAboveAndShiftedRight(t, "overlay consistency bottom-left statusbar help", overlayX, overlayY, anchorX, anchorY, 72)
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			app, err := Run(newStatusbarOverlayCornerFixture(tc.spec), ui.WithSize(72, 24))
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer app.Close()
+
+			anchorBounds, err := app.BoundsOf(ByKey(tc.helpKey))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := app.Driver().Move(ByKey(tc.helpKey)); err != nil {
+				t.Fatal(err)
+			}
+			waitForRenderedText(t, app, tc.helpText)
+
+			overlayPoint, err := app.ResolvePoint(ByText(tc.helpText))
+			if err != nil {
+				t.Fatal(err)
+			}
+			tc.assertion(t, overlayPoint.X, overlayPoint.Y, anchorBounds.X, anchorBounds.Y, anchorBounds.Width)
+		})
+	}
+}
+
+func newOverlayTooltipDualAxisClampFixture(topFamily bool, anchorID, text string) ui.ComponentFunc {
+	return func() ui.VNode {
+		builder := ui.NewTooltipBuilder(
+			ui.NewButtonBuilder("Tip").SetID(anchorID).Build(),
+			text,
+		).
+			Delay(0)
+		if topFamily {
+			builder = builder.TopLeft()
+		} else {
+			builder = builder.BottomLeft()
+		}
+
+		return ui.NewVStack().
+			SetGap(0).
+			SetChildrenList([]ui.VNode{
+				ui.NewTextBuilder("Overlay Tooltip Dual Axis Fixture").Build(),
+				ui.NewVStack().
+					SetWidth(14).
+					SetHeight(1).
+					SetChildrenList([]ui.VNode{
+						absolutecomp.NewBuilder(builder.Build()).
+							Left(absolutecomp.AbsolutePos(9)).
+							Top(absolutecomp.AbsolutePos(0)).
+							Width(4).
+							Height(1).
+							Build(),
+					}),
+			})
+	}
+}
+
+func newOverlayPopoverDualAxisClampFixture(placement ui.PopoverPlacement, anchorID, title string) ui.ComponentFunc {
+	return func() ui.VNode {
+		return ui.NewVStack().
+			SetGap(0).
+			SetChildrenList([]ui.VNode{
+				ui.NewTextBuilder("Overlay Popover Dual Axis Fixture").Build(),
+				ui.NewTextBuilder("Spacer").Build(),
+				ui.NewVStack().
+					SetWidth(14).
+					SetHeight(1).
+					SetChildrenList([]ui.VNode{
+						absolutecomp.NewBuilder(
+							ui.NewPopoverBuilder(
+								ui.NewButtonBuilder("Open").
+									SetID(anchorID).
+									OnPress(popovercomp.ToggleWithID("fixture.overlay.dualaxis.popover")).
+									Build(),
+							).
+								SetID("overlay-dualaxis-popover").
+								ComponentID("fixture.overlay.dualaxis.popover").
+								Title(title).
+								Body("").
+								MaxWidth(10).
+								Placement(placement).
+								Trigger(ui.PopoverTriggerClick).
+								Build(),
+						).
+							Left(absolutecomp.AbsolutePos(9)).
+							Top(absolutecomp.AbsolutePos(0)).
+							Width(4).
+							Height(1).
+							Build(),
+					}),
+			})
+	}
+}
+
+func newOverlayPopconfirmDualAxisClampFixture(placement ui.PopconfirmPlacement, anchorID, title string) ui.ComponentFunc {
+	return func() ui.VNode {
+		return ui.NewVStack().
+			SetGap(0).
+			SetChildrenList([]ui.VNode{
+				ui.NewTextBuilder("Overlay Popconfirm Dual Axis Fixture").Build(),
+				ui.NewTextBuilder("Spacer").Build(),
+				ui.NewVStack().
+					SetWidth(14).
+					SetHeight(1).
+					SetChildrenList([]ui.VNode{
+						absolutecomp.NewBuilder(
+							ui.NewPopconfirmBuilder(
+								ui.NewButtonBuilder("Ask").
+									SetID(anchorID).
+									Build(),
+							).
+								SetID("overlay-dualaxis-popconfirm").
+								ComponentID("fixture.overlay.dualaxis.popconfirm").
+								Title(title).
+								Description("").
+								OkText("OK").
+								ShowCancel(false).
+								MaxWidth(12).
+								Placement(placement).
+								Build(),
+						).
+							Left(absolutecomp.AbsolutePos(9)).
+							Top(absolutecomp.AbsolutePos(0)).
+							Width(4).
+							Height(1).
+							Build(),
+					}),
+			})
+	}
+}
+
+func newOverlayStatusbarDualAxisClampFixture(placement statusbarcomp.TooltipPlacement, helpKey, helpText string) ui.ComponentFunc {
+	return func() ui.VNode {
+		return ui.NewVStack().
+			SetGap(0).
+			SetChildrenList([]ui.VNode{
+				statusbarcomp.NewBuilder().
+					DefaultTheme().
+					HelpFallback("Ready").
+					HelpDisplayMode(statusbarcomp.HelpDisplayOverlay).
+					TooltipPlacement(placement).
+					TooltipMaxWidth(12).
+					Left(statusbarcomp.Text("Run").WithWidth(4)).
+					Center(statusbarcomp.Text("OK").WithWidth(2).WithAlign(ui.AlignCenter)).
+					Right(statusbarcomp.Text("Help").WithKey(helpKey).WithHelp(helpText).WithWidth(6).WithAlign(ui.AlignEnd)).
+					BuildWithHelp(),
+			})
+	}
+}
+
+func runOverlayConsistencySandboxApp(t *testing.T, appFn ui.ComponentFunc, width, height int, pluginSetup func(*framework.App)) *App {
+	t.Helper()
+
+	opts := []ui.Option{ui.WithSize(width, height)}
+	if pluginSetup != nil {
+		opts = append(opts, ui.WithPluginSetup(pluginSetup))
+	}
+
+	app, err := RunWithSandbox(appFn, opts...)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	fwApp := app.FrameworkApp()
+	if fwApp == nil {
+		_ = app.Close()
+		t.Fatal("framework app unavailable")
+	}
+	fwApp.SetConfigSize(width, height)
+	fwApp.Resize(width, height)
+	app.ForceRender()
+	if err := app.AwaitIdleFor(500 * time.Millisecond); err != nil {
+		_ = app.Close()
+		t.Fatal(err)
+	}
+	return app
+}
+
+func assertOverlayTextRow(t *testing.T, app *App, name, text string, wantY int) {
+	t.Helper()
+	point, err := app.ResolvePoint(ByText(text))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if point.Y != wantY {
+		t.Fatalf("%s text row = %d, want %d", name, point.Y, wantY)
+	}
+}
+
+func assertOverlayArrowFamily(t *testing.T, app *App, name, wantArrow, rejectArrow string) {
+	t.Helper()
+	if wantArrow != "" {
+		if err := app.AssertVisible(ByText(wantArrow)); err != nil {
+			t.Fatalf("%s should keep arrow %q after dual-axis clamp: %v", name, wantArrow, err)
+		}
+	}
+	if rejectArrow != "" {
+		if err := app.AssertVisible(ByText(rejectArrow)); err == nil {
+			t.Fatalf("%s should not render arrow %q after dual-axis clamp", name, rejectArrow)
+		}
+	}
+}
+
+func TestE2EOverlayTopDualAxisClampKeepsTopFamilyAcrossComponents(t *testing.T) {
+	cases := []struct {
+		name        string
+		width       int
+		height      int
+		appFn       ui.ComponentFunc
+		pluginSetup func(*framework.App)
+		open        func(*App) error
+		text        string
+		wantTextY   int
+		wantArrow   string
+		rejectArrow string
+	}{
+		{
+			name:   "tooltip",
+			width:  14,
+			height: 3,
+			appFn:  newOverlayTooltipDualAxisClampFixture(true, "overlay-dualaxis-top-tooltip-anchor", "ClampTip0123"),
+			open: func(app *App) error {
+				return app.Driver().Move(ByID("overlay-dualaxis-top-tooltip-anchor"))
+			},
+			text:      "ClampTip0123",
+			wantTextY: 0,
+		},
+		{
+			name:   "popover",
+			width:  14,
+			height: 7,
+			appFn:  newOverlayPopoverDualAxisClampFixture(ui.PopoverPlacementTopLeft, "overlay-dualaxis-top-popover-anchor", "ClampTit10"),
+			pluginSetup: func(app *framework.App) {
+				popovercomp.Install(app)
+			},
+			open: func(app *App) error {
+				return app.Driver().Click(ByID("overlay-dualaxis-top-popover-anchor"))
+			},
+			text:        "ClampTit10",
+			wantTextY:   1,
+			wantArrow:   "▼",
+			rejectArrow: "▲",
+		},
+		{
+			name:   "popconfirm",
+			width:  14,
+			height: 7,
+			appFn:  newOverlayPopconfirmDualAxisClampFixture(ui.PopconfirmPlacementTopLeft, "overlay-dualaxis-top-popconfirm-anchor", "ClampTitle12"),
+			pluginSetup: func(app *framework.App) {
+				popconfirmcomp.Install(app)
+			},
+			open: func(app *App) error {
+				return app.Driver().Click(ByID("overlay-dualaxis-top-popconfirm-anchor"))
+			},
+			text:      "ClampTitle12",
+			wantTextY: 1,
+		},
+		{
+			name:   "statusbar",
+			width:  14,
+			height: 5,
+			appFn:  newOverlayStatusbarDualAxisClampFixture(statusbarcomp.TooltipPlacementTop, "overlay-dualaxis-top-statusbar-help", "ClampHelp012"),
+			open: func(app *App) error {
+				return app.Driver().Move(ByKey("overlay-dualaxis-top-statusbar-help"))
+			},
+			text:        "ClampHelp012",
+			wantTextY:   1,
+			wantArrow:   "▼",
+			rejectArrow: "▲",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			app := runOverlayConsistencySandboxApp(t, tc.appFn, tc.width, tc.height, tc.pluginSetup)
+			defer app.Close()
+
+			if err := tc.open(app); err != nil {
+				t.Fatal(err)
+			}
+			waitForRenderedText(t, app, tc.text)
+			assertOverlayTextRow(t, app, tc.name, tc.text, tc.wantTextY)
+			assertOverlayArrowFamily(t, app, tc.name, tc.wantArrow, tc.rejectArrow)
+		})
+	}
+}
+
+func TestE2EOverlayBottomDualAxisClampKeepsBottomFamilyAcrossComponents(t *testing.T) {
+	cases := []struct {
+		name        string
+		width       int
+		height      int
+		appFn       ui.ComponentFunc
+		pluginSetup func(*framework.App)
+		open        func(*App) error
+		text        string
+		wantTextY   int
+		wantArrow   string
+		rejectArrow string
+	}{
+		{
+			name:   "tooltip",
+			width:  14,
+			height: 3,
+			appFn:  newOverlayTooltipDualAxisClampFixture(false, "overlay-dualaxis-bottom-tooltip-anchor", "ClampTip0123"),
+			open: func(app *App) error {
+				return app.Driver().Move(ByID("overlay-dualaxis-bottom-tooltip-anchor"))
+			},
+			text:      "ClampTip0123",
+			wantTextY: 2,
+		},
+		{
+			name:   "popover",
+			width:  14,
+			height: 7,
+			appFn:  newOverlayPopoverDualAxisClampFixture(ui.PopoverPlacementBottomLeft, "overlay-dualaxis-bottom-popover-anchor", "ClampTit10"),
+			pluginSetup: func(app *framework.App) {
+				popovercomp.Install(app)
+			},
+			open: func(app *App) error {
+				return app.Driver().Click(ByID("overlay-dualaxis-bottom-popover-anchor"))
+			},
+			text:        "ClampTit10",
+			wantTextY:   3,
+			wantArrow:   "▲",
+			rejectArrow: "▼",
+		},
+		{
+			name:   "popconfirm",
+			width:  14,
+			height: 7,
+			appFn:  newOverlayPopconfirmDualAxisClampFixture(ui.PopconfirmPlacementBottomLeft, "overlay-dualaxis-bottom-popconfirm-anchor", "ClampTitle12"),
+			pluginSetup: func(app *framework.App) {
+				popconfirmcomp.Install(app)
+			},
+			open: func(app *App) error {
+				return app.Driver().Click(ByID("overlay-dualaxis-bottom-popconfirm-anchor"))
+			},
+			text:      "ClampTitle12",
+			wantTextY: 3,
+		},
+		{
+			name:   "statusbar",
+			width:  14,
+			height: 5,
+			appFn:  newOverlayStatusbarDualAxisClampFixture(statusbarcomp.TooltipPlacementBottom, "overlay-dualaxis-bottom-statusbar-help", "ClampHelp012"),
+			open: func(app *App) error {
+				return app.Driver().Move(ByKey("overlay-dualaxis-bottom-statusbar-help"))
+			},
+			text:        "ClampHelp012",
+			wantTextY:   2,
+			wantArrow:   "▲",
+			rejectArrow: "▼",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			app := runOverlayConsistencySandboxApp(t, tc.appFn, tc.width, tc.height, tc.pluginSetup)
+			defer app.Close()
+
+			if err := tc.open(app); err != nil {
+				t.Fatal(err)
+			}
+			waitForRenderedText(t, app, tc.text)
+			assertOverlayTextRow(t, app, tc.name, tc.text, tc.wantTextY)
+			assertOverlayArrowFamily(t, app, tc.name, tc.wantArrow, tc.rejectArrow)
+		})
+	}
+}

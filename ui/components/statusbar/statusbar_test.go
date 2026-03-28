@@ -314,6 +314,19 @@ func TestResolveTooltipPositionTopClampsLeftAndStaysAboveInNarrowViewport(t *tes
 	}
 }
 
+func TestResolveTooltipPositionTopClampsBothAxesAndPreservesTopFamilyWhenNothingFits(t *testing.T) {
+	result := resolveTooltipPosition([4]int{9, 7, 4, 1}, TooltipPlacementTop, 16, 4, 1, 0, 1, 14, 5)
+	if result.X != 0 {
+		t.Fatalf("dual-axis top clamp x = %d, want 0", result.X)
+	}
+	if result.Y != 0 {
+		t.Fatalf("dual-axis top clamp y = %d, want 0", result.Y)
+	}
+	if result.Placement != TooltipPlacementTop {
+		t.Fatalf("dual-axis top clamp placement = %v, want %v", result.Placement, TooltipPlacementTop)
+	}
+}
+
 func TestResolveTooltipPositionTopFallsBelowAndShiftsRightNearTopLeftCorner(t *testing.T) {
 	result := resolveTooltipPosition([4]int{2, 1, 4, 1}, TooltipPlacementTop, 16, 4, 1, 0, 1, 40, 10)
 	if result.X != 2 {
@@ -353,6 +366,19 @@ func TestResolveTooltipPositionBottomClampsLeftAndStaysBelowInNarrowViewport(t *
 	}
 }
 
+func TestResolveTooltipPositionBottomClampsBothAxesAndPreservesBottomFamilyWhenNothingFits(t *testing.T) {
+	result := resolveTooltipPosition([4]int{9, 7, 4, 1}, TooltipPlacementBottom, 16, 4, 1, 0, 1, 14, 5)
+	if result.X != 0 {
+		t.Fatalf("dual-axis bottom clamp x = %d, want 0", result.X)
+	}
+	if result.Y != 0 {
+		t.Fatalf("dual-axis bottom clamp y = %d, want 0", result.Y)
+	}
+	if result.Placement != TooltipPlacementBottom {
+		t.Fatalf("dual-axis bottom clamp placement = %v, want %v", result.Placement, TooltipPlacementBottom)
+	}
+}
+
 func TestResolveTooltipPositionBottomFallsAboveAndShiftsRightNearBottomLeftCorner(t *testing.T) {
 	result := resolveTooltipPosition([4]int{2, 8, 4, 1}, TooltipPlacementBottom, 16, 4, 1, 0, 1, 40, 10)
 	if result.X != 2 {
@@ -363,6 +389,19 @@ func TestResolveTooltipPositionBottomFallsAboveAndShiftsRightNearBottomLeftCorne
 	}
 	if result.Placement != TooltipPlacementTop {
 		t.Fatalf("bottom-left corner fallback placement = %v, want %v", result.Placement, TooltipPlacementTop)
+	}
+}
+
+func TestOverlayTooltipUsesViewportSizeForCornerFallback(t *testing.T) {
+	inst := &overlayHelpInstance{placement: TooltipPlacementTop, maxContentWidth: 16}
+	inst.SetViewportSize(40, 10)
+
+	box := inst.computeTooltipBox("Tooltip", [4]int{34, 1, 4, 1})
+	if box.y <= 1 {
+		t.Fatalf("viewport-driven top corner fallback y = %d, want below anchor row 1", box.y)
+	}
+	if box.y < 0 {
+		t.Fatalf("viewport-driven top corner fallback y = %d, want visible row", box.y)
 	}
 }
 
