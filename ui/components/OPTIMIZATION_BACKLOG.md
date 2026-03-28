@@ -4,7 +4,7 @@
 >
 > 基线文档：[ROADMAP.md](./ROADMAP.md)
 >
-> 更新日期：2026-03-25
+> 更新日期：2026-03-28
 >
 > 状态说明：`ROADMAP.md` 中的 Phase 1-4 与本文件最初记录的组件功能 epic 已全部完成；本文现改为记录“后路线图阶段”的真实剩余优化项。
 
@@ -80,12 +80,26 @@
 - `ui/components/statusbar/`
 - `ui/components/menu/`
 
+#### 当前状态
+
+- `popover` / `popconfirm` 已把 vertical auto placement、candidate fallback 与 viewport clamp 主路径进一步下沉到 `overlayposition`
+- `tooltip` 的 top/bottom 与 left/right 显式 placement candidate 展开已复用 `overlayposition` 共享 vertical / horizontal helper
+- `statusbar` 已复用共享候选位置 helper，但 auto placement 偏好仍保留本地策略，以兼容既有 hover 布局语义
+- `statusbar` 的显式 `TooltipPlacementTop` / `TooltipPlacementBottom` 现在会在保留 edges-first 候选顺序的前提下，处理顶角 / 底角场景下对侧 vertical family 的回退；对应双轴受限几何与极窄 viewport 下保持原 family 的 left-edge clamp 都已补到组件单测
+- `runtime/ui` 已暴露异步 render request 入口，`tooltip` 的 delayed show 现在会在 timer 回调后主动请求重绘
+- `tooltip` 单测与 e2e 已补 `delay` 生命周期、child-hover 路径、延迟显示，以及右边界 `right` fallback 回归
+- `tooltip` 的 `right-top` / `left-bottom` 角落 placement 现在会优先回退到镜像 horizontal family，再退回上下方向；对应 corner clamp、`right-top` e2e，以及“horizontal family 都放不下时回退到 `top` / `bottom`”的窄视口单测都已补；`internal/overlayposition` 的共享 horizontal helper / resolver 现在也有独立单测覆盖 `RightTop` / `LeftBottom` 以及对称的 `RightBottom` / `LeftTop` 回退链；`bottom-left` / `bottom-right` 的底角回退单测与显式 `top-right` / `bottom-right` 的 left-edge clamp 保持原 vertical family 也都已由组件单测覆盖
+- `menu` 根 popup 已接通 viewport-aware anchored placement fallback / clamp，定位尺寸改为真实外框（`surface + shadow`）；`context menu` 已接通基于真实外框尺寸的 viewport clamp；submenu 级联面板也已支持右侧放不下时自动翻转到左侧、纵向 viewport clamp、沿父级方向连续展开，并在极窄 viewport 下按最终 clamp 侧继续推导后续方向，同时覆盖整棵 cascade 的 hit bounds；这套 cascade 规则已开始下沉到 `internal/overlayposition`，共享 helper 也已补 preferred-left、top-edge、double-axis clamp，以及“left-edge clamp 后下一层镜像回右侧”的矩阵单测；`menu` e2e 也已覆盖 bottom-right upward clamp、窄底角 left-edge clamp + upward clamp，以及镜像回右侧链路
+- `popover` / `popconfirm` 在极窄 viewport 下的显式 `top-right` / `bottom-right` clamp 语义，目前由组件单测覆盖，确保在 left-edge clamp 时仍保持原 vertical family；`internal/overlayposition` 的共享 vertical helper / resolver 也已补对称的 `TopLeft` / `TopRight` / `BottomLeft` / `BottomRight` candidate 顺序、顶角/底角 family fallback 与窄视口 clamp 单测；专门的 dedicated e2e 先不下沉，避免把终端宽度噪声引入主套件
+- 跨组件一致性回归已覆盖 `tooltip` / `popover` / `popconfirm` 的 `auto` 与显式 `top` 在顶边场景下的 fallback 行为；同时也已覆盖 `tooltip` / `popover` / `popconfirm` / `statusbar` 在左右边界且仍有可用垂直空间时，显式 `top` / `bottom` 会保持各自 family 并分别向左/向右选择横向候选；此外 `tooltip` / `popover` / `popconfirm` 的显式 `top-left` / `top-right` 在顶角场景下回退到下方同侧 family、`bottom-left` / `bottom-right` 在底角场景下回退到上方同侧 family 的 corner 语义也已补到 e2e；`statusbar` 的对应顶角 / 底角双轴回退目前已由组件单测覆盖，`go test ./ui/e2e/...` 当前通过
+
 #### 待办
 
 - 如果 runtime 后续暴露更完整的真实 viewport / portal 布局信息，继续把这部分信息下沉到共享 helper
-- 继续排查是否还有浮层组件未完全复用 `overlayposition`
-- 为 `Tooltip` 的 `delay`、`placement`、fallback、clamp 增加更系统的回归覆盖
-- 补跨组件一致性回归：`tooltip`、`popover`、`popconfirm`、`statusbar` 在相同边界条件下行为一致
+- 继续收口 `menu` 的 submenu 级联路径，重点转为是否把这套共享 cascade helper 推广到更多 overlay / menu 变体，以及继续补更多组合角落回归，尤其是更多多层 cascade 的顶部/底部/左右同时受限矩阵
+- 继续扩 `Tooltip` 的 placement / fallback / clamp 边界回归，重点把更多角落组合和 clamp 极限场景补到跨组件 e2e，而不只停留在 `tooltip` 单测
+- 评估是否把 `statusbar` 的 auto placement 偏好也纳入共享策略，前提是不破坏既有 hover 布局语义
+- 继续补跨组件一致性回归：`tooltip`、`popover`、`popconfirm`、`statusbar` 在更多边界条件下行为一致，尤其是 `statusbar` 顶角 / 底角的 dedicated e2e 是否值得继续下沉
 
 #### 验收标准
 
@@ -95,6 +109,7 @@
 
 #### 建议测试
 
+- `overlayposition` 共享 vertical helper 的单测，覆盖 auto bias、candidate 顺序与 placement 家族展开
 - 顶部、底部、左右边缘 anchor 的 placement/fallback 回归
 - auto placement 与显式 placement 的 clamp 回归
 - hover/click/manual 三类触发方式的关闭路径回归
@@ -116,10 +131,9 @@
 
 #### 待办
 
-- 更新 `COMPONENT_MIGRATION_GUIDE.md` 中仍残留的旧目录、旧示例和过时状态
-- 优先补齐复杂组件 README：`select`、`menu`、`table`、`treeview`、`tooltip`、`popover`、`popconfirm`、`drawer`
-- 对“已实现但容易误解”的 controlled/uncontrolled 语义补更明确的说明
-- 对新增 dedicated e2e 覆盖批次补文档入口，降低后续排查成本
+- 继续拆分 `COMPONENT_MIGRATION_GUIDE.md` 中“大段历史迁移模板”和“当前组件入口”，避免读者把迁移期说明误解为现状文档
+- 继续整理 `ui/components/docs/` 下历史分析文档的“现状 / 历史”分层，避免旧结论继续被误读成当前实现
+- 继续为其余复杂或支撑型组件 README 补“状态语义 / 安装方式 / 测试入口”，避免信息只停留在测试文件里
 
 #### 验收标准
 

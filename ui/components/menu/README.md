@@ -1,6 +1,6 @@
 # Menu
 
-> 状态：Phase 1 已实现（模型、主题、MenuBar/Popup/ContextMenu 基础渲染与导航），级联子菜单控制器与全局快捷键注册仍在后续阶段。
+> 状态：`MenuBar` / `Popup` / `ContextMenu`、级联 submenu、outside-click / ESC 收口、全局 shortcut 安装 helper 已可用。本文后半仍保留部分设计草案，阅读时以前置“当前实现摘要”为准。
 
 `menu` 目标是提供一套可复用的菜单家族能力，覆盖：
 
@@ -24,6 +24,46 @@
 - **接入方式**：可通过 `menu.NewMiddleware()` 接入 action router，通过 `ui.BindMenuGlobalShortcuts(...)` 接入全局快捷键
 - **一键安装**：可通过 `menu.Install(...)` 或 `ui.InstallMenu(...)` 一次性安装中间件与全局快捷键
 - **默认挂载点**：`ui.Run` / `ui.RunApp` 会自动注入 `overlay/modal/tooltip` PortalRoot，菜单 popup 默认挂到 overlay host
+
+## 当前实现摘要
+
+- 可直接使用 `menu.NewPopup(...)`、`menu.NewContextMenu(...)`、`menu.NewBuilder()` 构建 anchored popup、context menu 与 menu bar 族能力。
+- `ActivePath(...)` 可显式控制 submenu 展开路径；单实例级联 submenu 渲染已经接通。
+- `Placement(...)`、`AnchorTo(...)`、`PortalRoot(...)`、`PortalOffset(...)` 已可用于 anchored popup / context menu 的定位与挂载。
+- anchored root popup 现在会基于真实外框尺寸做 viewport-aware candidate fallback 与 clamp，覆盖 `bottom/top/right/left-start` 和 `bottom/top-end`。
+- context menu 仍以 `PortalOffset(...)` 作为目标原点，但当根面板超出 viewport 时会自动 clamp 回可见区。
+- submenu 级联面板现在会在右侧放不下时自动翻转到左侧，并对纵向位置做 viewport clamp；多级 submenu 在翻转后会尽量沿同一侧继续展开，极窄 viewport 下也会按最终 clamp 到的一侧继续推导后续方向。这套规则已开始下沉到 `internal/overlayposition` 的共享 cascade helper，组件对外暴露的 hit bounds 也会覆盖整棵 cascade。
+- `menu.Install(app, nil)` 可接入 outside-click / ESC 中间件；如果还要注册全局快捷键，则传入 `emit` 和开启 `RegisterShortcuts(true)` 的 builder。
+- 当前剩余 gap 主要是把这套级联 candidate / direction 规则进一步推广到更多 overlay 场景，以及继续补更复杂角落组合回归；`menu` 与共享 helper 这边已经补了单层、多层、极窄 viewport、双轴 clamp、bottom-right upward clamp、窄底角同时 left-edge clamp + upward clamp，以及“left-edge clamp 后下一层镜像回右侧”的方向传递矩阵；其中最后一条现在也已经有真实 e2e。
+
+## 安装方式
+
+- 只需要关闭中间件时：
+
+```go
+menu.Install(app, nil)
+```
+
+- 需要同时安装全局快捷键时：
+
+```go
+menu.Install(app, emit, builder)
+```
+
+其中 `builder` 需要开启 `RegisterShortcuts(true)`，且对应快捷键的 `Scope` 不能是 `local`。
+
+## 状态语义
+
+- `Open(bool)` 用于显式控制 popup / context menu 是否打开。
+- `ActivePath(...)` 用于显式控制级联 submenu 的活动路径。
+- `ComponentID(...)` / `SetID(...)` 会影响路由与安装阶段生成的 menu ID，建议对业务菜单保持稳定。
+- `auto` placement 会结合当前 anchor 方向推导默认落点，而不是简单固定到底部。
+
+## 测试入口
+
+- 单测：`go test ./ui/components/menu`
+- 重点覆盖：`menu_test.go` 中的 placement、submenu path、cascade corner/clamp 回归、typeahead、middleware 和 shortcut 安装；`internal/overlayposition/cascade_test.go` 负责共享 cascade helper 的矩阵校验；`menu_e2e_test.go` 已覆盖单层左翻、多层连续左翻、极窄 corner clamp、bottom-right upward clamp、窄底角 left-edge clamp + upward clamp，以及“left-edge clamp 后下一层镜像回右侧”的真实交互链路
+- E2E：`go test ./ui/e2e -run TestE2EMenu`
 
 ---
 
@@ -374,14 +414,14 @@ const (
   `bottom-start` / `bottom-end` / `top-start` / `top-end` / `right-start` / `left-start`
 - `PlacementAuto` 当前会按现有 anchor 方向推导默认 placement：
   `BottomLeft -> bottom-start`、`BottomRight -> bottom-end`、`TopLeft -> top-start`、`TopRight -> top-end`、`Right -> right-start`、`Left -> left-start`
-- submenu 仍默认从根面板右侧级联展开；自动翻转到 `left-start` 仍在后续阶段
-- context menu 仍按 portal 偏移直接定位；自动贴边避让仍在后续阶段
+- submenu 默认优先从父面板右侧级联展开；右侧放不下时会翻转到左侧，并对纵向位置做 viewport clamp；多级 submenu 会优先延续父级已选中的展开方向，在极窄 viewport 下则按最终解析出来的位置继续传递方向；对应规则已抽到共享 cascade helper
+- context menu 仍按 `PortalOffset(...)` 直接给出目标原点；如果右侧或底部超出 viewport，会自动 clamp 到可见区内
 - overlay 一律走多层渲染，不能作为普通流式节点下沉，否则会被正文覆盖
 
 ### 7.3 碰撞与边界处理
 
-- 根 popup 当前已支持显式 placement 对齐，但还没有接入统一 collision / viewport clamp
-- submenu 左右翻转、context menu 贴边避让仍在后续阶段
+- 根 popup 已支持 viewport-aware candidate fallback 与 clamp；显式 `bottom/top/right/left-start`、`bottom/top-end` 和 `PlacementAuto` 都会基于根面板真实外框尺寸求最终落点
+- context menu 已支持基于真实外框尺寸的 viewport clamp；submenu 也已支持 `left-start` 翻转与级联 hit bounds 扩展
 - 高度超出可视区时仍可通过 `MaxHeight` + scrollable 模式控制
 - 宽度超出限制时仍按现有 `MaxWidth` / 截断规则处理
 

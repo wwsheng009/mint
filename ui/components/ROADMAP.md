@@ -2,9 +2,9 @@
 
 > 本文档记录 Mint UI 组件库的现状、与 Ant Design 的对比分析，以及后续开发计划。
 >
-> 更新日期：2026-03-25
+> 更新日期：2026-03-27
 >
-> 实施状态核对：截至 2026-03-25，本文中的 Phase 1-4 路线图条目已全部完成；`go test ./ui/components/...` 当前通过，本轮 dedicated `ui/e2e` 组件覆盖也已扩到 `absolute`、`alert`、`anchor`、`badge`、`breadcrumb`、`button`、`cascader`、`collapse`、`cursor`、`descriptions`、`divider`、`empty`、`grid`、`layout`、`list`、`pagination`、`panel`、`popconfirm`、`popover`、`progress`、`result`、`rowcol`、`scrollview`、`space`、`spin`、`statistic`、`table`、`tag`、`text`、`timeline`、`tooltip`、`transfer`、`wrap` 等补齐批次。
+> 实施状态核对：截至 2026-03-27，本文中的 Phase 1-4 路线图条目已全部完成；`go test ./ui/components/...` 与 `go test ./ui/e2e/...` 当前通过，本轮 overlay 收口已把 `popover`、`popconfirm` 的 viewport-aware placement / fallback / clamp 进一步下沉到 `internal/overlayposition`，并补齐与 `statusbar` 的一致性回归。
 >
 > 详细增强任务拆分见：[OPTIMIZATION_BACKLOG.md](./OPTIMIZATION_BACKLOG.md)
 
@@ -58,10 +58,10 @@
 | Tag | `tag/` | ★★★☆☆ | 标签，颜色变体，可关闭，可选图标前缀 |
 | Progress | `progress/` | ★★★☆☆ | 线形/圆形/仪表盘进度条，status（normal/success/exception/active），showPercent，`active` tick 动画 |
 | Divider | `divider/` | ★★★☆☆ | 水平/垂直分隔线 |
-| StatusBar | `statusbar/` | ★★★☆☆ | 组合式 builder，含 help、section 内部组件；overlay tooltip 支持 auto/top/bottom、fallback 与 clamp |
+| StatusBar | `statusbar/` | ★★★☆☆ | 组合式 builder，含 help、section 内部组件；overlay tooltip 支持 auto/top/bottom、fallback 与 clamp，并已复用共享候选位置 helper |
 | Panel | `panel/` | ★★★☆☆ | 容器面板，有 enhanced builder |
-| Popover | `popover/` | ★★★☆☆ | 气泡卡片，支持 title/body、click/hover/manual 触发、auto + top/bottom 6 方位 placement、local open intents，以及 Install 后的 ESC / outside-click 收口 |
-| Popconfirm | `popconfirm/` | ★★★☆☆ | 气泡确认框，支持 title/description、OK/Cancel 操作、click/hover/manual 触发、top/bottom 系列 placement、confirm/cancel intents、按钮 variant/footer layout，以及 Install 后的 ESC / outside-click 收口 |
+| Popover | `popover/` | ★★★☆☆ | 气泡卡片，支持 title/body、click/hover/manual 触发、auto + top/bottom 6 方位 placement、viewport-aware fallback/clamp、local open intents，以及 Install 后的 ESC / outside-click 收口 |
+| Popconfirm | `popconfirm/` | ★★★☆☆ | 气泡确认框，支持 title/description、OK/Cancel 操作、click/hover/manual 触发、top/bottom 系列 placement、viewport-aware fallback/clamp、confirm/cancel intents、按钮 variant/footer layout，以及 Install 后的 ESC / outside-click 收口 |
 | Timeline | `timeline/` | ★★★☆☆ | 时间轴，支持 label/content/description、status、自定义 dot、pending、reverse |
 | ScrollView | `scrollview/` | ★★★☆☆ | 可滚动容器 |
 | Space | `space/` | ★★★☆☆ | 间距布局，支持 horizontal/vertical、size、wrap、split、cross-axis align |

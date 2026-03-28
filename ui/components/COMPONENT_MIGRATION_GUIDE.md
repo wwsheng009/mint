@@ -5,6 +5,7 @@
 ## 目录
 
 - [概述](#概述)
+- [当前阅读建议](#当前阅读建议)
 - [架构变化](#架构变化)
 - [目录结构变化](#目录结构变化)
 - [迁移步骤](#迁移步骤)
@@ -12,7 +13,7 @@
 - [布局系统新特性](#布局系统新特性)
 - [示例程序要求](#示例程序要求)
 - [验证清单](#验证清单)
-- [迁移进度追踪](#迁移进度追踪)
+- [当前入口与历史归档](#当前入口与历史归档)
 
 ---
 
@@ -51,6 +52,30 @@
 - `toast`、`statusbar`、`control`、`validation` 是刻意保留的特例/支撑模块
 - 历史上的 `stack` / `border` 现在主要表现为运行时布局/边框能力与示例，不再对应 `ui/components/stack/`、`ui/components/border/` 目录
 - 完整组件现状与 backlog 以 [ROADMAP.md](./ROADMAP.md) 和 [OPTIMIZATION_BACKLOG.md](./OPTIMIZATION_BACKLOG.md) 为准
+
+---
+
+## 当前阅读建议
+
+如果你关心的是“当前有哪些组件、还剩哪些 backlog、入口文档该看哪里”，优先按下面顺序阅读：
+
+1. [ROADMAP.md](./ROADMAP.md)：当前组件面、完成状态和余量摘要
+2. [OPTIMIZATION_BACKLOG.md](./OPTIMIZATION_BACKLOG.md)：后路线图阶段的真实活跃待办
+3. 各组件目录下 `README.md`：具体 API、状态语义、安装方式与测试入口
+
+本文件下面的大部分内容仍保留迁移期的模板、示例和检查清单，主要用于：
+
+- 回顾旧组件如何迁到 Fiber-first 架构
+- 为后续少量历史组件迁移提供参考模板
+- 解释 `stack` / `border` 等运行时布局能力与早期示例的来历
+
+不要把后续章节里的历史迁移样例、`stack_demo` / `border_demo` 引用或“已迁移”表格，误读为 `ui/components/` 当前目录的完整现状清单；当前现状仍以 [ROADMAP.md](./ROADMAP.md) 和 [OPTIMIZATION_BACKLOG.md](./OPTIMIZATION_BACKLOG.md) 为准。
+
+---
+
+## 历史迁移模板（归档参考）
+
+以下章节保留的是迁移期形成的架构说明、代码模板、验证清单和阶段性记录。它们仍有参考价值，但定位是“归档参考”，不是当前组件覆盖面的权威清单。
 
 ---
 
@@ -1191,9 +1216,15 @@ func printBuffer(buf *paint.Buffer, width, height int) {
 
 ---
 
-## 迁移进度追踪
+## 当前入口与历史归档
 
-### 已迁移
+### 当前实现入口
+
+- 当前组件现状、完成度和余量，以 [ROADMAP.md](./ROADMAP.md) 为主
+- 后路线图阶段的活跃 backlog，以 [OPTIMIZATION_BACKLOG.md](./OPTIMIZATION_BACKLOG.md) 为主
+- 具体组件能力和测试入口，以各组件目录下 `README.md` 为主
+
+### 早期迁移样例（非完整清单）
 
 | 组件 | 旧路径 | 新路径 | 示例程序 |
 |------|--------|--------|----------|
@@ -1219,7 +1250,9 @@ func printBuffer(buf *paint.Buffer, width, height int) {
 | TreeView | `display/treeview.go` | `ui/components/treeview/` | ✅ treeview_demo |
 | List | `components/data/list.go` | `ui/components/list/` | ✅ list_demo |
 
-### 历史会话记录
+上表是迁移期留下的样例快照，便于追踪“旧路径如何映射到新结构”，不是当前 `ui/components/` 的完整目录盘点。
+
+### 历史会话归档
 
 以下内容保留为早期迁移会话的归档记录，反映当时一次集中迁移的产出，不代表当前目录的完整清单。
 

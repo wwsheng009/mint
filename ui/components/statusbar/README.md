@@ -15,7 +15,7 @@
 - Inline tooltip/help: `WithHelp(...)` / `WithTooltip(...)` + `BuildWithHelp()`
 - Help display modes: `HelpDisplayInline` / `HelpDisplayOverlay` / `HelpDisplayBoth`
 - Overlay placement: `TooltipPlacementAuto` / `TooltipPlacementTop` / `TooltipPlacementBottom`
-- Overlay fallback / clamp: `TooltipPlacementAuto` 会按可见空间在上下方间回退，横向候选与视口 clamp 已复用 `ui/components/internal/overlayposition`
+- Overlay fallback / clamp: `TooltipPlacementAuto` 会按可见空间在上下方间回退，横向候选与视口 clamp 已复用 `ui/components/internal/overlayposition`；显式 `TooltipPlacementTop` / `TooltipPlacementBottom` 在左右边界场景下都会保持各自 family，并分别向左/向右选择合适的横向候选；在顶角 / 底角这类双轴受限场景下，则会在保留 edges-first 候选顺序的前提下回退到对侧 vertical family
 - Overlay wrapping: `TooltipMaxWidth(...)` limits content width and wraps to multiple lines
 - Overlay gap: `TooltipGapRows(...)` adds a clearer vertical separation from the anchor
 - Overlay visibility: overlay tooltips only appear while the mouse is hovering the section
@@ -136,6 +136,13 @@ bar := statusbar.NewBuilder().
 - Inline help: hovered first, focused second, fallback last
 - Overlay tooltip: only appears while the mouse is hovering the section
 - Both: inline keeps keyboard fallback semantics, overlay remains hover-only
+
+## 测试入口
+
+- 单测：`go test ./ui/components/statusbar`
+- 重点覆盖：overlay tooltip 的 wrap、arrow theme、`TooltipPlacementAuto` 的 bottom bias、显式 `TooltipPlacementTop` / `TooltipPlacementBottom` 在左右边界的 family 内横向回退，以及顶角 / 底角下回退到对侧 vertical family 的双轴受限几何；极窄 viewport 下显式 `TooltipPlacementTop` / `TooltipPlacementBottom` 的 left-edge clamp 仍保持原 vertical family
+- E2E：`go test ./ui/e2e -run "TestE2EStatusbarOverlayHelpTracksHoverPlacementAndHide|TestE2EOverlay"`
+- 重点覆盖：hover 显隐、overlay help 跟随 hovered section、左右边界下显式 `TooltipPlacementTop` / `TooltipPlacementBottom` 的横向候选回退；角落双轴受限场景当前以组件单测收口
 
 ## `ui` 顶层快捷入口
 
