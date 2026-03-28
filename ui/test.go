@@ -420,7 +420,13 @@ func (ta *TestableApp) GetBuffer() *paint.Buffer {
 	hasContent := false
 	if front != nil && front.Height > 0 && len(front.Cells) > 0 {
 		for y := 0; y < front.Height; y++ {
+			if y >= len(front.Cells) {
+				break
+			}
 			for x := 0; x < front.Width; x++ {
+				if x >= len(front.Cells[y]) {
+					break
+				}
 				if front.Cells[y][x].Cluster != "" && front.Cells[y][x].Cluster != " " {
 					hasContent = true
 					break
@@ -440,29 +446,7 @@ func (ta *TestableApp) GetBuffer() *paint.Buffer {
 
 // GetRenderString 获取渲染输出字符串
 func (ta *TestableApp) GetRenderString() string {
-	buf := ta.GetBuffer()
-	if buf == nil {
-		return ""
-	}
-
-	var sb strings.Builder
-	for y := 0; y < buf.Height; y++ {
-		for x := 0; x < buf.Width; x++ {
-			cell := buf.Cells[y][x]
-			if cell.IsContinuation {
-				continue
-			}
-			if cell.Cluster == "" {
-				sb.WriteRune(' ')
-			} else {
-				sb.WriteString(cell.Cluster)
-			}
-		}
-		if y < buf.Height-1 {
-			sb.WriteRune('\n')
-		}
-	}
-	return sb.String()
+	return ta.fwApp.GetRenderer().GetRenderSnapshot()
 }
 
 // AssertRender 断言渲染输出包含指定文本

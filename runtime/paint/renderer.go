@@ -3,6 +3,7 @@ package paint
 import (
 	"bytes"
 	"sort"
+	"strings"
 	"sync"
 
 	"github.com/wwsheng009/mint/internal/log"
@@ -485,6 +486,66 @@ func (r *Renderer) Resize(width, height int) {
 // GetFrontBuffer 获取前缓冲区（用于测试）
 func (r *Renderer) GetFrontBuffer() *Buffer {
 	return r.front
+}
+
+// GetRenderSnapshot returns a plain-text snapshot of the current rendered
+// content. It locks the renderer so callers never see a partially-reset buffer.
+func (r *Renderer) GetRenderSnapshot() string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	buf := r.back
+	if buf == nil || buf.Height == 0 || buf.Width == 0 {
+		buf = r.front
+	}
+	if buf == nil {
+		return ""
+	}
+
+	// Check for non-trivial content; fall back to front if back is blank.
+	hasContent := false
+	for y := 0; y < buf.Height && !hasContent; y++ {
+		if y >= len(buf.Cells) {
+			break
+		}
+		for x := 0; x < buf.Width && !hasContent; x++ {
+			if x >= len(buf.Cells[y]) {
+				break
+			}
+			c := buf.Cells[y][x].Cluster
+			if c != "" && c != " " {
+				hasContent = true
+			}
+		}
+	}
+	if !hasContent && r.front != nil {
+		buf = r.front
+	}
+
+	var sb strings.Builder
+	for y := 0; y < buf.Height; y++ {
+		if y >= len(buf.Cells) {
+			break
+		}
+		for x := 0; x < buf.Width; x++ {
+			if x >= len(buf.Cells[y]) {
+				break
+			}
+			cell := buf.Cells[y][x]
+			if cell.IsContinuation {
+				continue
+			}
+			if cell.Cluster == "" {
+				sb.WriteRune(' ')
+			} else {
+				sb.WriteString(cell.Cluster)
+			}
+		}
+		if y < buf.Height-1 {
+			sb.WriteRune('\n')
+		}
+	}
+	return sb.String()
 }
 
 // MarkDirty 标记整个缓冲区为脏（兼容 API）
