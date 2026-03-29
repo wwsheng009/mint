@@ -136,12 +136,13 @@ func (m *Manager) getFrameTime() time.Duration {
 // updateAnimation updates a single animation.
 func (m *Manager) updateAnimation(anim *Animation, delta time.Duration) {
 	// Handle delay
-	if anim.Delay > 0 && anim.Elapsed == 0 {
-		anim.Delay -= delta
-		if anim.Delay < 0 {
-			anim.Delay = 0
+	if anim.delayRemaining > 0 {
+		if delta < anim.delayRemaining {
+			anim.delayRemaining -= delta
+			return
 		}
-		return
+		delta -= anim.delayRemaining
+		anim.delayRemaining = 0
 	}
 
 	// Update elapsed time
@@ -154,7 +155,7 @@ func (m *Manager) updateAnimation(anim *Animation, delta time.Duration) {
 
 	// Calculate progress and apply easing
 	progress := anim.GetEasedProgress()
-	anim.Current = interpolate(anim.From, anim.To, progress)
+	anim.Current = interpolate(anim.playFrom, anim.playTo, progress)
 
 	// Call progress callback
 	if anim.OnProgress != nil {
@@ -163,26 +164,26 @@ func (m *Manager) updateAnimation(anim *Animation, delta time.Duration) {
 
 	// Check if animation is complete
 	if anim.IsFinished() {
-		if anim.Repeat == 0 || (anim.Repeat > 0 && anim.Repeat == 1) {
+		if anim.playsRemaining == 1 {
 			anim.State = AnimationStateCompleted
 			if anim.OnComplete != nil {
 				anim.OnComplete()
 			}
 		} else {
 			// Handle repeat
-			if anim.Repeat > 0 {
-				anim.Repeat--
+			if anim.playsRemaining > 1 {
+				anim.playsRemaining--
 			}
 
 			// Reset for next iteration
 			if anim.Alternate {
-				// Swap from/to for alternate
-				anim.From, anim.To = anim.To, anim.From
+				// Swap playback range for alternate without mutating exported config.
+				anim.playFrom, anim.playTo = anim.playTo, anim.playFrom
 			}
 
 			anim.Elapsed = 0
 			if anim.RepeatDelay > 0 {
-				anim.Delay = anim.RepeatDelay
+				anim.delayRemaining = anim.RepeatDelay
 			}
 		}
 	}
@@ -273,6 +274,9 @@ func (m *Manager) StartAnimation(id string) bool {
 		return false
 	}
 
+	if anim.State != AnimationStatePaused {
+		anim.Reset()
+	}
 	anim.State = AnimationStateRunning
 	return true
 }

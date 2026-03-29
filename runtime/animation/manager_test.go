@@ -89,8 +89,8 @@ func TestManagerRepeatAlternateCompletesAndCleans(t *testing.T) {
 	if anim.State != AnimationStateRunning {
 		t.Fatalf("State after first cycle = %q, want %q", anim.State, AnimationStateRunning)
 	}
-	if anim.From != 8 || anim.To != 0 {
-		t.Fatalf("alternate swap = (%v -> %v), want (8 -> 0)", anim.From, anim.To)
+	if anim.From != 0 || anim.To != 8 {
+		t.Fatalf("config range = (%v -> %v), want original (0 -> 8)", anim.From, anim.To)
 	}
 
 	mgr.UpdateWithDelta(40 * time.Millisecond)
@@ -102,6 +102,73 @@ func TestManagerRepeatAlternateCompletesAndCleans(t *testing.T) {
 	}
 	if mgr.Count() != 0 {
 		t.Fatalf("Count() = %d, want 0 after repeated animation cleanup", mgr.Count())
+	}
+}
+
+func TestManagerDelayOverflowAdvancesSameTick(t *testing.T) {
+	mgr := NewManager()
+	anim := NewAnimation("delay-overflow", AnimationCustom, 100*time.Millisecond).
+		WithFromTo(0.0, 10.0).
+		WithDelay(10 * time.Millisecond).
+		WithEasing(Linear)
+
+	mgr.Add(anim)
+	if !mgr.StartAnimation(anim.ID) {
+		t.Fatal("StartAnimation should succeed")
+	}
+
+	mgr.UpdateWithDelta(16 * time.Millisecond)
+	if got, ok := anim.Current.(float64); !ok || got != 0.6 {
+		t.Fatalf("Current after 16ms with 10ms delay = %#v, want 0.6", anim.Current)
+	}
+}
+
+func TestManagerRestartRestoresOriginalConfig(t *testing.T) {
+	mgr := NewManager()
+	anim := NewAnimation("restart", AnimationCustom, 100*time.Millisecond).
+		WithFromTo(0.0, 10.0).
+		WithDelay(20 * time.Millisecond).
+		WithRepeat(2).
+		WithAlternate(true).
+		WithEasing(Linear)
+
+	mgr.Add(anim)
+	if !mgr.StartAnimation(anim.ID) {
+		t.Fatal("StartAnimation should succeed")
+	}
+
+	mgr.UpdateWithDelta(20 * time.Millisecond)
+	mgr.UpdateWithDelta(100 * time.Millisecond)
+	if anim.State != AnimationStateRunning {
+		t.Fatalf("State after first play = %q, want %q", anim.State, AnimationStateRunning)
+	}
+	if anim.Current != 10.0 {
+		t.Fatalf("Current after first play = %#v, want 10", anim.Current)
+	}
+
+	if !mgr.StopAnimation(anim.ID) {
+		t.Fatal("StopAnimation should succeed")
+	}
+	if anim.Delay != 20*time.Millisecond {
+		t.Fatalf("Delay after stop = %v, want %v", anim.Delay, 20*time.Millisecond)
+	}
+	if anim.Repeat != 2 {
+		t.Fatalf("Repeat after stop = %d, want 2", anim.Repeat)
+	}
+	if anim.From != 0.0 || anim.To != 10.0 {
+		t.Fatalf("range after stop = (%v -> %v), want original (0 -> 10)", anim.From, anim.To)
+	}
+
+	if !mgr.StartAnimation(anim.ID) {
+		t.Fatal("StartAnimation should restart successfully")
+	}
+	mgr.UpdateWithDelta(20 * time.Millisecond)
+	if anim.Current != 0.0 {
+		t.Fatalf("Current after restart delay = %#v, want 0", anim.Current)
+	}
+	mgr.UpdateWithDelta(50 * time.Millisecond)
+	if got, ok := anim.Current.(float64); !ok || got != 5 {
+		t.Fatalf("Current after restart progress = %#v, want 5", anim.Current)
 	}
 }
 

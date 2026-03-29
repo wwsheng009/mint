@@ -65,3 +65,17 @@ func TestSequenceDurationIncludesDelayAndRepeats(t *testing.T) {
 		t.Fatalf("Sequence To = %#v, want 2", seq.To)
 	}
 }
+
+func TestSequencePanicsOnInfiniteChildAnimation(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("Sequence should panic when given an infinite child animation")
+		}
+	}()
+
+	Sequence("seq",
+		NewAnimation("pulse", AnimationCustom, 50*time.Millisecond).
+			WithFromTo(0.0, 1.0).
+			WithRepeat(-1),
+	)
+}

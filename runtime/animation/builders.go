@@ -151,6 +151,9 @@ func Sequence(id string, animations ...*Animation) *Animation {
 		if anim == nil {
 			continue
 		}
+		if anim.Repeat < 0 {
+			panic("animation.Sequence does not support infinitely repeating child animations")
+		}
 		clone := anim.Clone()
 		steps = append(steps, clone)
 		totalDuration += animationTimelineDuration(clone)

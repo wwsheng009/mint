@@ -30,9 +30,9 @@ const (
 type AnimationState string
 
 const (
-	AnimationStateIdle     AnimationState = "idle"
-	AnimationStateRunning  AnimationState = "running"
-	AnimationStatePaused   AnimationState = "paused"
+	AnimationStateIdle      AnimationState = "idle"
+	AnimationStateRunning   AnimationState = "running"
+	AnimationStatePaused    AnimationState = "paused"
 	AnimationStateCompleted AnimationState = "completed"
 	AnimationStateCancelled AnimationState = "cancelled"
 )
@@ -46,7 +46,7 @@ type Animation struct {
 	Easing      EasingFunction
 	State       AnimationState
 	Delay       time.Duration // Start delay
-	Repeat      int           // Number of times to repeat (-1 for infinite)
+	Repeat      int           // Total play count (0=single play, >0=exact play count, -1=infinite)
 	RepeatDelay time.Duration // Delay between repeats
 	Alternate   bool          // Alternate direction on repeat (ping-pong)
 
@@ -68,11 +68,18 @@ type Animation struct {
 
 	// Whether animation is reversible
 	Reversible bool
+
+	// Runtime playback state. These values are derived from the exported
+	// configuration fields and must not leak back into them while an animation runs.
+	delayRemaining time.Duration
+	playsRemaining int
+	playFrom       interface{}
+	playTo         interface{}
 }
 
 // NewAnimation creates a new animation.
 func NewAnimation(id string, animType AnimationType, duration time.Duration) *Animation {
-	return &Animation{
+	anim := &Animation{
 		ID:       id,
 		Type:     animType,
 		Duration: duration,
@@ -80,6 +87,8 @@ func NewAnimation(id string, animType AnimationType, duration time.Duration) *An
 		State:    AnimationStateIdle,
 		Repeat:   0, // No repeat by default
 	}
+	anim.resetRuntimeState()
+	return anim
 }
 
 // WithEasing sets the easing function.
@@ -183,7 +192,7 @@ func (a *Animation) IsFinished() bool {
 func (a *Animation) Reset() {
 	a.Elapsed = 0
 	a.State = AnimationStateIdle
-	a.Current = a.From
+	a.resetRuntimeState()
 }
 
 // Clone creates a copy of the animation.
@@ -207,7 +216,24 @@ func (a *Animation) Clone() *Animation {
 		Current:     a.From,
 		Reversible:  a.Reversible,
 	}
+	clone.resetRuntimeState()
 	return clone
+}
+
+func (a *Animation) resetRuntimeState() {
+	a.delayRemaining = a.Delay
+	a.playFrom = a.From
+	a.playTo = a.To
+	a.Current = a.From
+
+	switch {
+	case a.Repeat < 0:
+		a.playsRemaining = -1
+	case a.Repeat > 0:
+		a.playsRemaining = a.Repeat
+	default:
+		a.playsRemaining = 1
+	}
 }
 
 // Transition represents a transition between two states.
