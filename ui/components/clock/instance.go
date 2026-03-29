@@ -34,6 +34,7 @@ type Instance struct {
 	showSecondHand  bool
 	smoothSecond    bool
 	showDigital     bool
+	numericTicks    bool
 	preset          Preset
 	handStyle       HandRenderStyle
 	dialStyle       style.Style
@@ -74,6 +75,7 @@ func NewInstance(props rtui.Props) *Instance {
 		showSecondHand:  proputil.GetBool(props, propShowSecondHand, true),
 		smoothSecond:    proputil.GetBool(props, propSmoothSecond, true),
 		showDigital:     proputil.GetBool(props, propShowDigital, true),
+		numericTicks:    proputil.GetBool(props, propNumericTicks, false),
 		preset:          getPresetProp(props, PresetNone),
 		handStyle:       getHandStyleProp(props, HandRenderStyleASCII),
 		dialStyle:       proputil.GetStyle(props, propDialStyle, style.Style{}),
@@ -113,6 +115,7 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	oldShowSecondHand := inst.showSecondHand
 	oldSmoothSecond := inst.smoothSecond
 	oldShowDigital := inst.showDigital
+	oldNumericTicks := inst.numericTicks
 	oldPreset := inst.preset
 	oldHandStyle := inst.handStyle
 	oldDialStyle := inst.dialStyle
@@ -138,6 +141,7 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	inst.showSecondHand = proputil.GetBool(props, propShowSecondHand, inst.showSecondHand)
 	inst.smoothSecond = proputil.GetBool(props, propSmoothSecond, inst.smoothSecond)
 	inst.showDigital = proputil.GetBool(props, propShowDigital, inst.showDigital)
+	inst.numericTicks = proputil.GetBool(props, propNumericTicks, inst.numericTicks)
 	inst.preset = getPresetProp(props, inst.preset)
 	inst.handStyle = getHandStyleProp(props, inst.handStyle)
 	inst.dialStyle = proputil.GetStyle(props, propDialStyle, inst.dialStyle)
@@ -159,6 +163,7 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 		oldShowSecondHand != inst.showSecondHand ||
 		oldSmoothSecond != inst.smoothSecond ||
 		oldShowDigital != inst.showDigital ||
+		oldNumericTicks != inst.numericTicks ||
 		oldPreset != inst.preset ||
 		oldHandStyle != inst.handStyle ||
 		oldDialStyle != inst.dialStyle ||
@@ -197,6 +202,7 @@ func (inst *Instance) GetProps() rtui.Props {
 		propShowSecondHand:  inst.showSecondHand,
 		propSmoothSecond:    inst.smoothSecond,
 		propShowDigital:     inst.showDigital,
+		propNumericTicks:    inst.numericTicks,
 		propPreset:          inst.preset,
 		propHandStyle:       inst.handStyle,
 		propDialStyle:       inst.dialStyle,
@@ -253,6 +259,10 @@ func (inst *Instance) Paint(x, y int) []paint.DrawCmd {
 
 	cmds = append(cmds, inst.facePaintCommands(x, y, visualStyle, presetTheme)...)
 	cmds = append(cmds, inst.handPaintCommands(x, y, visualStyle, presetTheme)...)
+	if inst.numericTicks {
+		tickStyle := resolvePartStyle(visualStyle, presetTheme.TickStyle, inst.tickStyle)
+		cmds = append(cmds, inst.tickPaintCommands(x, y, tickStyle)...)
+	}
 	cmds = append(cmds, paint.DrawCmd{
 		X:     x + inst.centerX(),
 		Y:     y + inst.centerY(),
@@ -345,6 +355,44 @@ func (inst *Instance) faceRows() []string {
 	return rows
 }
 
+func (inst *Instance) tickPaintCommands(x, y int, tickStyle style.Style) []paint.DrawCmd {
+	cmds := make([]paint.DrawCmd, 0, 24)
+	for i := 0; i < 12; i++ {
+		cellX, cellY := inst.tickCellFor(i)
+		if cellY < 0 || cellY >= inst.heightCells() || cellX < 0 || cellX >= inst.widthCells() {
+			continue
+		}
+		if inst.numericTicks {
+			hour := i
+			if hour == 0 {
+				hour = 12
+			}
+			label := fmt.Sprintf("%d", hour)
+			// Center multi-char labels: shift left by half the label width
+			startX := cellX - (len(label)-1)/2
+			for ci, ch := range label {
+				px := startX + ci
+				if px >= 0 && px < inst.widthCells() {
+					cmds = append(cmds, paint.DrawCmd{
+						X:     x + px,
+						Y:     y + cellY,
+						Text:  string(ch),
+						Style: tickStyle,
+					})
+				}
+			}
+		} else {
+			cmds = append(cmds, paint.DrawCmd{
+				X:     x + cellX,
+				Y:     y + cellY,
+				Text:  "#",
+				Style: tickStyle,
+			})
+		}
+	}
+	return cmds
+}
+
 func (inst *Instance) facePaintCommands(x, y int, baseStyle style.Style, presetTheme Theme) []paint.DrawCmd {
 	cmds := make([]paint.DrawCmd, 0, inst.widthCells()+inst.heightCells()+24)
 	dialStyle := resolvePartStyle(baseStyle, presetTheme.DialStyle, inst.dialStyle)
@@ -363,18 +411,7 @@ func (inst *Instance) facePaintCommands(x, y int, baseStyle style.Style, presetT
 		}
 	}
 
-	for i := 0; i < 12; i++ {
-		cellX, cellY := inst.tickCellFor(i)
-		if cellY >= 0 && cellY < inst.heightCells() && cellX >= 0 && cellX < inst.widthCells() {
-			cmds = append(cmds, paint.DrawCmd{
-				X:     x + cellX,
-				Y:     y + cellY,
-				Text:  "#",
-				Style: tickStyle,
-			})
-		}
-	}
-
+	cmds = append(cmds, inst.tickPaintCommands(x, y, tickStyle)...)
 	return cmds
 }
 
@@ -413,7 +450,23 @@ func (inst *Instance) drawDial(grid [][]rune, centerX, centerY int) {
 func (inst *Instance) drawTickMarks(grid [][]rune, centerX, centerY int) {
 	for i := 0; i < 12; i++ {
 		x, y := inst.tickCellFor(i)
-		if y >= 0 && y < len(grid) && x >= 0 && x < len(grid[y]) {
+		if y < 0 || y >= len(grid) || x < 0 || x >= len(grid[y]) {
+			continue
+		}
+		if inst.numericTicks {
+			hour := i
+			if hour == 0 {
+				hour = 12
+			}
+			label := fmt.Sprintf("%d", hour)
+			startX := x - (len(label)-1)/2
+			for ci, ch := range label {
+				px := startX + ci
+				if px >= 0 && px < len(grid[y]) {
+					grid[y][px] = ch
+				}
+			}
+		} else {
 			grid[y][x] = '#'
 		}
 	}

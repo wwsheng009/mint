@@ -29,6 +29,7 @@ type AppState struct {
 	ShowSecondHand bool
 	SmoothSecond   bool
 	ShowDigital    bool
+	NumericTicks   bool
 	Preset         clockcomp.Preset
 	HandStyle      clockcomp.HandRenderStyle
 	LastAction     string
@@ -37,6 +38,7 @@ type AppState struct {
 type ToggleSecondHandIntent struct{}
 type ToggleSmoothSecondIntent struct{}
 type ToggleDigitalIntent struct{}
+type ToggleNumericTicksIntent struct{}
 type ToggleHandStyleIntent struct{}
 type ResetDemoIntent struct{}
 type NextZoneIntent struct{}
@@ -69,8 +71,9 @@ type SetShapeIntent struct {
 
 func (ToggleSecondHandIntent) IntentType() string   { return "ClockDemoToggleSecondHand" }
 func (ToggleSmoothSecondIntent) IntentType() string { return "ClockDemoToggleSmoothSecond" }
-func (ToggleDigitalIntent) IntentType() string      { return "ClockDemoToggleDigital" }
-func (ToggleHandStyleIntent) IntentType() string    { return "ClockDemoToggleHandStyle" }
+func (ToggleDigitalIntent) IntentType() string          { return "ClockDemoToggleDigital" }
+func (ToggleNumericTicksIntent) IntentType() string    { return "ClockDemoToggleNumericTicks" }
+func (ToggleHandStyleIntent) IntentType() string       { return "ClockDemoToggleHandStyle" }
 func (ResetDemoIntent) IntentType() string          { return "ClockDemoReset" }
 func (NextZoneIntent) IntentType() string           { return "ClockDemoNextZone" }
 func (NextPresetIntent) IntentType() string         { return "ClockDemoNextPreset" }
@@ -153,6 +156,11 @@ func init() {
 		On(ToggleDigitalIntent{}, func(s AppState, i intent.Intent) AppState {
 			s.ShowDigital = !s.ShowDigital
 			s.LastAction = fmt.Sprintf("ShowDigital = %t", s.ShowDigital)
+			return s
+		}).
+		On(ToggleNumericTicksIntent{}, func(s AppState, i intent.Intent) AppState {
+			s.NumericTicks = !s.NumericTicks
+			s.LastAction = fmt.Sprintf("NumericTicks = %t", s.NumericTicks)
 			return s
 		}).
 		On(ToggleHandStyleIntent{}, func(s AppState, i intent.Intent) AppState {
@@ -257,6 +265,7 @@ func main() {
 			app.OnKeyCombo("f10", func() { ui.EmitIntentGlobal(NextPresetIntent{}) })
 			app.OnKeyCombo("f11", func() { ui.EmitIntentGlobal(AdjustHeightIntent{Delta: -1}) })
 			app.OnKeyCombo("f12", func() { ui.EmitIntentGlobal(AdjustHeightIntent{Delta: 1}) })
+			app.OnKeyCombo("n", func() { ui.EmitIntentGlobal(ToggleNumericTicksIntent{}) })
 		}),
 	)
 	if err != nil {
@@ -363,7 +372,7 @@ func controlsPanel(state AppState) ui.VNode {
 			).Gap(1).Build(),
 			ui.HStackBuilder(zoneButtons...).Gap(1).Build(),
 			ui.HStackBuilder(presetButtons...).Gap(1).Build(),
-			ui.NewTextBuilder("Shortcuts: F1 shape  F2 seconds  F3 smooth  F4 digital  F5/F6 width  F7 next zone  F8 reset  F9 hand style  F10 preset  F11/F12 height  Aspect uses buttons").FgColor("bright-black").Build(),
+			ui.NewTextBuilder("Shortcuts: F1 shape  F2 seconds  F3 smooth  F4 digital  N numeric ticks  F5/F6 width  F7 next zone  F8 reset  F9 hand style  F10 preset  F11/F12 height  Aspect uses buttons").FgColor("bright-black").Build(),
 		})
 }
 
@@ -398,6 +407,7 @@ func livePreviewPanel(state AppState) ui.VNode {
 		ShowSecondHand(state.ShowSecondHand).
 		SmoothSecond(state.SmoothSecond).
 		ShowDigital(state.ShowDigital).
+		NumericTicks(state.NumericTicks).
 		Preset(state.Preset).
 		HandStyle(state.HandStyle).
 		Build()
@@ -422,6 +432,7 @@ func livePreviewPanel(state AppState) ui.VNode {
 						ui.NewTextBuilder(fmt.Sprintf("Digital label: %s", onOff(state.ShowDigital))).FgColor("bright-white").Build(),
 						ui.NewTextBuilder(fmt.Sprintf("Preset: %s", clockcomp.PresetName(state.Preset))).FgColor("bright-white").Build(),
 						ui.NewTextBuilder(fmt.Sprintf("Hand style: %s", handStyleLabel(state.HandStyle))).FgColor("bright-white").Build(),
+						ui.NewTextBuilder(fmt.Sprintf("Numeric ticks: %s", onOff(state.NumericTicks))).FgColor("bright-white").Build(),
 						ui.NewTextBuilder("Circle mode keeps width and height locked. Ellipse mode lets each axis vary independently.").FgColor("bright-black").Build(),
 					}),
 			).Gap(3).Build(),
@@ -448,6 +459,7 @@ func snapshotPanel(state AppState) ui.VNode {
 		ShowSecondHand(true).
 		SmoothSecond(false).
 		ShowDigital(true).
+		NumericTicks(state.NumericTicks).
 		Theme(snapshotTheme).
 		HandStyle(state.HandStyle).
 		Build()

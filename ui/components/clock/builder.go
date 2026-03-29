@@ -112,6 +112,11 @@ func (b *Builder) ShowDigital(show bool) *Builder {
 	return b
 }
 
+func (b *Builder) NumericTicks(show bool) *Builder {
+	b.node.SetNumericTicks(show)
+	return b
+}
+
 func (b *Builder) Preset(preset Preset) *Builder {
 	b.node.SetPreset(preset)
 	return b

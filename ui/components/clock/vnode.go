@@ -20,6 +20,7 @@ const (
 	propShowSecondHand  = "showSecondHand"
 	propSmoothSecond    = "smoothSecond"
 	propShowDigital     = "showDigital"
+	propNumericTicks    = "numericTicks"
 	propPreset          = "preset"
 	propHandStyle       = "handStyle"
 	propDialStyle       = "dialStyle"
@@ -55,6 +56,7 @@ type VNode struct {
 	showSecondHand  bool
 	smoothSecond    bool
 	showDigital     bool
+	numericTicks    bool
 	preset          Preset
 	handStyle       HandRenderStyle
 	dialStyle       style.Style
@@ -113,6 +115,7 @@ func (v *VNode) Props() rtui.Props {
 		propShowSecondHand:  v.showSecondHand,
 		propSmoothSecond:    v.smoothSecond,
 		propShowDigital:     v.showDigital,
+		propNumericTicks:    v.numericTicks,
 		propPreset:          v.preset,
 		propHandStyle:       v.handStyle,
 		propDialStyle:       v.dialStyle,
@@ -163,6 +166,9 @@ func (v *VNode) SetProps(props rtui.Props) rtui.VNode {
 	}
 	if showDigital, ok := props[propShowDigital].(bool); ok {
 		v.showDigital = showDigital
+	}
+	if numericTicks, ok := props[propNumericTicks].(bool); ok {
+		v.numericTicks = numericTicks
 	}
 	if preset, ok := props[propPreset].(Preset); ok {
 		v.preset = preset
@@ -244,6 +250,7 @@ func (v *VNode) SetLocation(location *time.Location) *VNode { v.location = locat
 func (v *VNode) SetShowSecondHand(show bool) *VNode         { v.showSecondHand = show; return v }
 func (v *VNode) SetSmoothSecond(smooth bool) *VNode         { v.smoothSecond = smooth; return v }
 func (v *VNode) SetShowDigital(show bool) *VNode            { v.showDigital = show; return v }
+func (v *VNode) SetNumericTicks(show bool) *VNode          { v.numericTicks = show; return v }
 func (v *VNode) SetPreset(preset Preset) *VNode             { v.preset = preset; return v }
 func (v *VNode) SetTheme(theme Theme) *VNode {
 	v.clockStyle = theme.BaseStyle
