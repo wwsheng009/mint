@@ -1,9 +1,40 @@
 # framework/app AI + MCP 集成设计
 
-**文档状态**: Draft  
-**适用范围**: `framework.App` / `ui.Run()` / `ui.RunApp()` 交互式应用  
-**参考文档**: `framework/docs/AI_INTEGRATION.md`  
-**代码基线**: 基于 2026-03-09 仓库现状审计
+**文档状态**: Active (Phase 0-4 已实现)
+**适用范围**: `framework.App` / `ui.Run()` / `ui.RunApp()` 交互式应用
+**参考文档**: `framework/docs/AI_INTEGRATION.md`
+**代码基线**: 基于 2026-03-09 仓库现状审计，2026-03-30 更新实施状态
+
+## 实施状态摘要
+
+| Phase | 设计章节 | 状态 | 说明 |
+|-------|---------|------|------|
+| Phase 0 | §6.1 目录重构 | ✅ 已完成 | `internal/ai/{service,snapshot,selector,capability,mcp}` 已建立 |
+| Phase 1 | §6.3-6.4 Service/AppController | ✅ 已完成 | Service + Host + SnapshotBuilder + OnAfterRender |
+| Phase 2 | §6.5 树级元信息导出 | ✅ 已完成 | GetTree 支持 vnode/fiber/layout/paintable/hitmap |
+| Phase 3 | §6.7 CapabilityRegistry | ✅ 已完成 | SetValue/SetProp/SelectIndex/ToggleSelection |
+| Phase 4 | §6.8 MCP Server | ✅ 已完成 | 18 工具 + HTTP REST 双接口 + 认证 |
+| Phase 5 | §8 高层 UI API 集成 | ✅ 已完成 | WithAI/WithMCP Option |
+
+### 已实施的安全加固
+
+1. **Token 认证**: 空令牌请求被拒绝，`crypto/subtle.ConstantTimeCompare` 防时序攻击
+2. **请求体限制**: `io.LimitReader` 10MB 上限
+3. **输入校验**: 所有 MCP 工具和 HTTP 处理器均添加统一参数验证（长度上限、枚举值校验）
+4. **只读模式**: 支持 ReadOnly 配置
+
+### 已实施的性能优化
+
+1. **ByType 索引**: `Frame.ByType map[string][]NodeLocator` 避免 `.Type` 选择器线性扫描
+2. **快照节流**: `minSnapshotInterval=50ms` 限制高频渲染下快照构建频率
+
+### 尚未实施的设计项
+
+1. `layer:` 和 `cap:` 选择器（§10.2）
+2. MCP Resources 协议（§13.4 URI 资源只设计了 HTTP 端点，未走 MCP Resources 协议）
+3. 审计日志（§15.3 客户端连接/工具调用记录）
+4. Watcher 背压（§16.4 快照订阅机制）
+5. `internal/inspectmeta` 共享元信息提取包（§6.1，当前 Inspector 与 AI 各自独立实现）
 
 ## 1. 背景
 

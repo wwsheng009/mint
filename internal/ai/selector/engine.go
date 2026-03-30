@@ -28,10 +28,10 @@ func Find(frame *snapshotpkg.Frame, selector string) ([]snapshotpkg.NodeLocator,
 	}
 	if strings.HasPrefix(selector, ".") {
 		typ := selector[1:]
-		return filter(frame, func(loc snapshotpkg.NodeLocator) bool {
-			comp, ok := frame.Snapshot.GetComponent(loc.ComponentID)
-			return ok && comp.Type == typ
-		}), nil
+		if locs, ok := frame.ByType[typ]; ok {
+			return locs, nil
+		}
+		return nil, nil
 	}
 	if strings.HasPrefix(selector, "@") {
 		nodeID, err := strconv.ParseUint(selector[1:], 10, 64)

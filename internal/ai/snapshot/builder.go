@@ -37,6 +37,7 @@ type Frame struct {
 	ByComponentID map[string]NodeLocator
 	ByNodeID      map[uint64]NodeLocator
 	ByPath        map[string]NodeLocator
+	ByType        map[string][]NodeLocator
 }
 
 func NewBuilder() *Builder {
@@ -69,6 +70,7 @@ func (b *Builder) BuildFrame(in Input) *Frame {
 			ByComponentID: map[string]NodeLocator{},
 			ByNodeID:      map[uint64]NodeLocator{},
 			ByPath:        map[string]NodeLocator{},
+			ByType:        map[string][]NodeLocator{},
 		}
 	}
 
@@ -77,6 +79,7 @@ func (b *Builder) BuildFrame(in Input) *Frame {
 		ByComponentID: make(map[string]NodeLocator),
 		ByNodeID:      make(map[uint64]NodeLocator),
 		ByPath:        make(map[string]NodeLocator),
+		ByType:        make(map[string][]NodeLocator),
 	}
 	focused := currentFocusedFiber(in.FocusManager)
 	seenIDs := make(map[string]struct{})
@@ -114,6 +117,10 @@ func (b *Builder) BuildFrame(in Input) *Frame {
 		frame.ByNodeID[fiber.NodeID] = locator
 		if fiber.Path != "" {
 			frame.ByPath[fiber.Path] = locator
+		}
+		ctype := componentType(fiber)
+		if ctype != "" {
+			frame.ByType[ctype] = append(frame.ByType[ctype], locator)
 		}
 
 		if focused != nil && focused.NodeID == fiber.NodeID {

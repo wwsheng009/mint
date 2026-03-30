@@ -67,6 +67,7 @@ type Status struct {
 	MCPEnabled   bool
 	MCPEndpoint  string
 	HTTPEndpoint string
+	AuthToken    string
 }
 
 type Direction string
@@ -135,7 +136,10 @@ type Service struct {
 	hookInstalled bool
 	renderCh      chan struct{}
 	batchWarnings []string
+	lastBuildAt   time.Time
 }
+
+const minSnapshotInterval = 50 * time.Millisecond
 
 func New(host Host, cfg Config) *Service {
 	svc := &Service{
@@ -230,6 +234,7 @@ func (s *Service) Start() error {
 	s.status.Running = true
 	s.status.StartedAt = time.Now()
 	s.status.StoppedAt = time.Time{}
+	s.status.AuthToken = s.cfg.MCP.AuthToken
 	return nil
 }
 
@@ -279,15 +284,19 @@ func (s *Service) OnAfterRender(info RenderInfo) {
 	}
 
 	if s.builder != nil && s.host != nil {
-		s.latestFrame = s.builder.BuildFrame(snapshotpkg.Input{
-			Root:         s.host.GetRoot(),
-			FocusManager: s.host.GetFocusManager(),
-			HitMap:       s.host.GetHitMap(),
-			RenderSeq:    info.RenderSeq,
-			RenderedAt:   info.RenderedAt,
-		})
-		if s.latestFrame != nil {
-			s.latest = s.latestFrame.Snapshot
+		now := time.Now()
+		if now.Sub(s.lastBuildAt) >= minSnapshotInterval {
+			s.latestFrame = s.builder.BuildFrame(snapshotpkg.Input{
+				Root:         s.host.GetRoot(),
+				FocusManager: s.host.GetFocusManager(),
+				HitMap:       s.host.GetHitMap(),
+				RenderSeq:    info.RenderSeq,
+				RenderedAt:   info.RenderedAt,
+			})
+			if s.latestFrame != nil {
+				s.latest = s.latestFrame.Snapshot
+			}
+			s.lastBuildAt = now
 		}
 	}
 

@@ -19,14 +19,6 @@ func SetValue(fiber *ui.Fiber, value interface{}) bool {
 	}
 
 	if setter, ok := fiber.Instance.(interface {
-		SetValue(field string, value interface{})
-	}); ok {
-		// Form-like instances require a field key, so a plain SetValue(locator, value)
-		// should not route here.
-		_ = setter
-	}
-
-	if setter, ok := fiber.Instance.(interface {
 		SetProp(key string, value interface{})
 	}); ok {
 		setter.SetProp("value", value)

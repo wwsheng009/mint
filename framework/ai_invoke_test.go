@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"testing"
 	"time"
@@ -319,7 +320,9 @@ func TestAIHTTPInspectAndSetValue(t *testing.T) {
 		t.Fatal("HTTPEndpoint is empty")
 	}
 
-	resp, err := http.Get(endpoint + "/ai/inspect")
+	authToken := app.AIStatus().AuthToken
+
+	resp, err := doAuthenticatedGet(endpoint+"/ai/inspect", authToken)
 	if err != nil {
 		t.Fatalf("GET /ai/inspect error = %v", err)
 	}
@@ -341,7 +344,7 @@ func TestAIHTTPInspectAndSetValue(t *testing.T) {
 		"locator": "username",
 		"value":   "carol",
 	})
-	resp, err = http.Post(endpoint+"/ai/value/set", "application/json", bytes.NewReader(payload))
+	resp, err = doAuthenticatedPost(endpoint+"/ai/value/set", "application/json", bytes.NewReader(payload), authToken)
 	if err != nil {
 		t.Fatalf("POST /ai/value/set error = %v", err)
 	}
@@ -366,7 +369,7 @@ func TestAIHTTPInspectAndSetValue(t *testing.T) {
 			{"operation": "dispatch", "locator": "username", "action_type": "input_text", "payload": "!"},
 		},
 	})
-	resp, err = http.Post(endpoint+"/ai/batch", "application/json", bytes.NewReader(batchPayload))
+	resp, err = doAuthenticatedPost(endpoint+"/ai/batch", "application/json", bytes.NewReader(batchPayload), authToken)
 	if err != nil {
 		t.Fatalf("POST /ai/batch error = %v", err)
 	}
@@ -473,7 +476,7 @@ func TestAIHTTPInspectAndSetValue(t *testing.T) {
 			{"operation": "set_value", "locator": "username", "value": "emma"},
 		},
 	})
-	resp, err = http.Post(endpoint+"/ai/batch", "application/json", bytes.NewReader(dryPayload))
+	resp, err = doAuthenticatedPost(endpoint+"/ai/batch", "application/json", bytes.NewReader(dryPayload), authToken)
 	if err != nil {
 		t.Fatalf("POST /ai/batch dry_run error = %v", err)
 	}
@@ -1187,7 +1190,9 @@ func TestMCPExposureFlags(t *testing.T) {
 		t.Fatal("HTTPEndpoint is empty")
 	}
 
-	resp, err := http.Get(endpoint + "/ai/tree?kind=fiber")
+	authToken := app.AIStatus().AuthToken
+
+	resp, err := doAuthenticatedGet(endpoint+"/ai/tree?kind=fiber", authToken)
 	if err != nil {
 		t.Fatalf("GET /ai/tree error = %v", err)
 	}
@@ -1200,7 +1205,7 @@ func TestMCPExposureFlags(t *testing.T) {
 		"locator": "username",
 		"value":   "bob",
 	})
-	resp, err = http.Post(endpoint+"/ai/value/set", "application/json", bytes.NewReader(payload))
+	resp, err = doAuthenticatedPost(endpoint+"/ai/value/set", "application/json", bytes.NewReader(payload), authToken)
 	if err != nil {
 		t.Fatalf("POST /ai/value/set error = %v", err)
 	}
@@ -1286,4 +1291,23 @@ func stopAppAndWait(t *testing.T, app *App, runDone <-chan error) {
 
 func boolPtr(v bool) *bool {
 	return &v
+}
+
+func doAuthenticatedGet(url, authToken string) (*http.Response, error) {
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", "Bearer "+authToken)
+	return http.DefaultClient.Do(req)
+}
+
+func doAuthenticatedPost(url, contentType string, body io.Reader, authToken string) (*http.Response, error) {
+	req, err := http.NewRequest(http.MethodPost, url, body)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", contentType)
+	req.Header.Set("Authorization", "Bearer "+authToken)
+	return http.DefaultClient.Do(req)
 }

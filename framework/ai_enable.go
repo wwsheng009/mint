@@ -1,6 +1,8 @@
 package framework
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"strings"
 	"time"
@@ -41,6 +43,7 @@ type AIStatus struct {
 	MCPEnabled   bool
 	MCPEndpoint  string
 	HTTPEndpoint string
+	AuthToken    string
 }
 
 // EnableAI attaches the embedded AI service to the app.
@@ -80,6 +83,7 @@ func (a *App) AIStatus() AIStatus {
 		MCPEnabled:   status.MCPEnabled,
 		MCPEndpoint:  status.MCPEndpoint,
 		HTTPEndpoint: status.HTTPEndpoint,
+		AuthToken:    status.AuthToken,
 	}
 }
 
@@ -94,6 +98,9 @@ func normalizeAIConfig(cfg AIConfig) AIConfig {
 		}
 		if cfg.MCP.Transport == "http" && strings.TrimSpace(cfg.MCP.Host) == "" {
 			cfg.MCP.Host = "127.0.0.1"
+		}
+		if strings.TrimSpace(cfg.MCP.AuthToken) == "" {
+			cfg.MCP.AuthToken = generateRandomToken()
 		}
 	}
 	return cfg
@@ -128,4 +135,11 @@ func boolValue(value *bool, fallback bool) bool {
 		return fallback
 	}
 	return *value
+}
+
+// generateRandomToken creates a cryptographically random 32-byte hex token.
+func generateRandomToken() string {
+	b := make([]byte, 32)
+	_, _ = rand.Read(b)
+	return hex.EncodeToString(b)
 }

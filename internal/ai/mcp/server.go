@@ -2,8 +2,10 @@ package mcp
 
 import (
 	"context"
+	"crypto/subtle"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -15,6 +17,171 @@ import (
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/wwsheng009/mint/runtime/state"
 )
+
+const maxRequestBody = 10 << 20 // 10 MB
+
+const (
+	maxSelectorLen    = 1024
+	maxLocatorLen     = 256
+	maxInputTextLen   = 64 * 1024 // 64 KB
+	maxPropKeyLen     = 128
+	maxBatchOps       = 50
+	maxFieldNameLen   = 128
+	maxActionTypeLen  = 64
+	maxDirectionLen   = 16
+	maxTreeKindLen    = 32
+)
+
+var validDirections = []string{"next", "prev", "first", "last", "up", "down", "left", "right"}
+var validTreeKinds = []string{"vnode", "fiber", "layout", "paintable", "hitmap"}
+var validBatchOps = []string{"set_value", "set_prop", "set_form_field", "select", "click", "input", "dispatch", "navigate"}
+
+func validateLocator(locator string) error {
+	if locator == "" {
+		return fmt.Errorf("locator is required")
+	}
+	if len(locator) > maxLocatorLen {
+		return fmt.Errorf("locator too long (%d bytes, max %d)", len(locator), maxLocatorLen)
+	}
+	return nil
+}
+
+func validateSelector(sel string) error {
+	if sel == "" {
+		return fmt.Errorf("selector is required")
+	}
+	if len(sel) > maxSelectorLen {
+		return fmt.Errorf("selector too long (%d bytes, max %d)", len(sel), maxSelectorLen)
+	}
+	return nil
+}
+
+func validatePropKey(key string) error {
+	if key == "" {
+		return fmt.Errorf("key is required")
+	}
+	if len(key) > maxPropKeyLen {
+		return fmt.Errorf("key too long (%d bytes, max %d)", len(key), maxPropKeyLen)
+	}
+	return nil
+}
+
+func validateFieldName(field string) error {
+	if field == "" {
+		return fmt.Errorf("field is required")
+	}
+	if len(field) > maxFieldNameLen {
+		return fmt.Errorf("field too long (%d bytes, max %d)", len(field), maxFieldNameLen)
+	}
+	return nil
+}
+
+func validateDirection(dir string) error {
+	if dir == "" {
+		return fmt.Errorf("direction is required")
+	}
+	if len(dir) > maxDirectionLen {
+		return fmt.Errorf("direction too long")
+	}
+	for _, d := range validDirections {
+		if dir == d {
+			return nil
+		}
+	}
+	return fmt.Errorf("invalid direction: %q", dir)
+}
+
+func validateTreeKind(kind string) error {
+	if kind == "" {
+		return fmt.Errorf("kind is required")
+	}
+	if len(kind) > maxTreeKindLen {
+		return fmt.Errorf("kind too long")
+	}
+	for _, k := range validTreeKinds {
+		if kind == k {
+			return nil
+		}
+	}
+	return fmt.Errorf("invalid tree kind: %q (valid: %s)", kind, strings.Join(validTreeKinds, ", "))
+}
+
+func validateInputText(text string) error {
+	if len(text) > maxInputTextLen {
+		return fmt.Errorf("input text too long (%d bytes, max %d)", len(text), maxInputTextLen)
+	}
+	return nil
+}
+
+func validateActionType(at string) error {
+	if at == "" {
+		return fmt.Errorf("action_type is required")
+	}
+	if len(at) > maxActionTypeLen {
+		return fmt.Errorf("action_type too long (%d bytes, max %d)", len(at), maxActionTypeLen)
+	}
+	return nil
+}
+
+func validateBatchOperation(op BatchOperation) error {
+	valid := false
+	for _, v := range validBatchOps {
+		if op.Operation == v {
+			valid = true
+			break
+		}
+	}
+	if !valid {
+		return fmt.Errorf("unsupported batch operation: %s", op.Operation)
+	}
+	switch op.Operation {
+	case "set_value":
+		if err := validateLocator(op.Locator); err != nil {
+			return fmt.Errorf("set_value: %w", err)
+		}
+	case "set_prop":
+		if err := validateLocator(op.Locator); err != nil {
+			return fmt.Errorf("set_prop: %w", err)
+		}
+		if err := validatePropKey(op.Key); err != nil {
+			return fmt.Errorf("set_prop: %w", err)
+		}
+	case "set_form_field":
+		if err := validateLocator(op.Locator); err != nil {
+			return fmt.Errorf("set_form_field: %w", err)
+		}
+		if err := validateFieldName(op.Field); err != nil {
+			return fmt.Errorf("set_form_field: %w", err)
+		}
+	case "select":
+		if err := validateLocator(op.Locator); err != nil {
+			return fmt.Errorf("select: %w", err)
+		}
+	case "click":
+		if err := validateLocator(op.Locator); err != nil {
+			return fmt.Errorf("click: %w", err)
+		}
+	case "input":
+		if err := validateLocator(op.Locator); err != nil {
+			return fmt.Errorf("input: %w", err)
+		}
+		if err := validateInputText(op.Text); err != nil {
+			return fmt.Errorf("input: %w", err)
+		}
+	case "dispatch":
+		if err := validateLocator(op.Locator); err != nil {
+			return fmt.Errorf("dispatch: %w", err)
+		}
+		if err := validateActionType(op.ActionType); err != nil {
+			return fmt.Errorf("dispatch: %w", err)
+		}
+	case "navigate":
+		if err := validateDirection(op.Direction); err != nil {
+			return fmt.Errorf("navigate: %w", err)
+		}
+	}
+	return nil
+}
 
 type Config struct {
 	Transport   string
@@ -310,7 +477,9 @@ func (s *Server) withMiddleware(next http.Handler) http.Handler {
 			if strings.HasPrefix(token, "Bearer ") {
 				token = strings.TrimPrefix(token, "Bearer ")
 			}
-			if token != s.cfg.AuthToken && r.Header.Get("X-Mint-AI-Token") != s.cfg.AuthToken {
+			customToken := r.Header.Get("X-Mint-AI-Token")
+			if subtle.ConstantTimeCompare([]byte(token), []byte(s.cfg.AuthToken)) != 1 &&
+				subtle.ConstantTimeCompare([]byte(customToken), []byte(s.cfg.AuthToken)) != 1 {
 				writeError(w, http.StatusUnauthorized, "unauthorized")
 				return
 			}
@@ -356,6 +525,9 @@ func (s *Server) registerTools(server *mcpsdk.Server) {
 		Description: "Find components by selector.",
 		InputSchema: schemaObject(schemaReqProp("selector", "string", "component selector")),
 	}, func(_ context.Context, in findInput) (any, error) {
+		if err := validateSelector(in.Selector); err != nil {
+			return nil, err
+		}
 		return s.api.Find(in.Selector)
 	})
 	addTypedTool(server, &mcpsdk.Tool{
@@ -378,6 +550,9 @@ func (s *Server) registerTools(server *mcpsdk.Server) {
 				schemaProp("compact", "boolean", "return a compact tree snapshot"),
 			),
 		}, func(_ context.Context, in treeInput) (any, error) {
+			if err := validateTreeKind(in.Kind); err != nil {
+				return nil, err
+			}
 			compact := false
 			if in.Compact != nil {
 				compact = *in.Compact
@@ -393,6 +568,9 @@ func (s *Server) registerTools(server *mcpsdk.Server) {
 		Description: "Get a node bundle by locator.",
 		InputSchema: schemaObject(schemaReqProp("locator", "string", "component id, selector, path, or @nodeid")),
 	}, func(_ context.Context, in locatorInput) (any, error) {
+		if err := validateLocator(in.Locator); err != nil {
+			return nil, err
+		}
 		return s.api.GetNode(in.Locator)
 	})
 	addTypedTool(server, &mcpsdk.Tool{
@@ -400,6 +578,9 @@ func (s *Server) registerTools(server *mcpsdk.Server) {
 		Description: "Get a component value.",
 		InputSchema: schemaObject(schemaReqProp("locator", "string", "component locator")),
 	}, func(_ context.Context, in locatorInput) (any, error) {
+		if err := validateLocator(in.Locator); err != nil {
+			return nil, err
+		}
 		value, err := s.api.GetValue(in.Locator)
 		if err != nil {
 			return nil, err
@@ -411,6 +592,9 @@ func (s *Server) registerTools(server *mcpsdk.Server) {
 		Description: "Get a form's field data.",
 		InputSchema: schemaObject(schemaReqProp("locator", "string", "form locator")),
 	}, func(_ context.Context, in locatorInput) (any, error) {
+		if err := validateLocator(in.Locator); err != nil {
+			return nil, err
+		}
 		return s.api.GetFormData(in.Locator)
 	})
 	mcpsdk.AddTool(server, &mcpsdk.Tool{
@@ -452,6 +636,9 @@ func (s *Server) registerTools(server *mcpsdk.Server) {
 			Description: "Set a component value.",
 			InputSchema: schemaObject(schemaReqProp("locator", "string", "component locator")),
 		}, func(_ context.Context, in setValueInput) (any, error) {
+			if err := validateLocator(in.Locator); err != nil {
+				return nil, err
+			}
 			err := s.api.SetValue(in.Locator, in.Value)
 			return map[string]any{"ok": err == nil}, err
 		})
@@ -463,6 +650,12 @@ func (s *Server) registerTools(server *mcpsdk.Server) {
 				schemaReqProp("key", "string", "property key"),
 			),
 		}, func(_ context.Context, in setPropInput) (any, error) {
+			if err := validateLocator(in.Locator); err != nil {
+				return nil, err
+			}
+			if err := validatePropKey(in.Key); err != nil {
+				return nil, err
+			}
 			err := s.api.SetProp(in.Locator, in.Key, in.Value)
 			return map[string]any{"ok": err == nil}, err
 		})
@@ -474,6 +667,12 @@ func (s *Server) registerTools(server *mcpsdk.Server) {
 				schemaReqProp("field", "string", "field name"),
 			),
 		}, func(_ context.Context, in setFormFieldInput) (any, error) {
+			if err := validateLocator(in.Locator); err != nil {
+				return nil, err
+			}
+			if err := validateFieldName(in.Field); err != nil {
+				return nil, err
+			}
 			err := s.api.SetFormField(in.Locator, in.Field, in.Value)
 			return map[string]any{"ok": err == nil}, err
 		})
@@ -482,6 +681,9 @@ func (s *Server) registerTools(server *mcpsdk.Server) {
 			Description: "Select an option or item.",
 			InputSchema: schemaObject(schemaReqProp("locator", "string", "component locator")),
 		}, func(_ context.Context, in selectInput) (any, error) {
+			if err := validateLocator(in.Locator); err != nil {
+				return nil, err
+			}
 			err := s.api.Select(in.Locator, in.Value)
 			return map[string]any{"ok": err == nil}, err
 		})
@@ -490,6 +692,9 @@ func (s *Server) registerTools(server *mcpsdk.Server) {
 			Description: "Trigger a click action.",
 			InputSchema: schemaObject(schemaReqProp("locator", "string", "component locator")),
 		}, func(_ context.Context, in locatorInput) (any, error) {
+			if err := validateLocator(in.Locator); err != nil {
+				return nil, err
+			}
 			err := s.api.Click(in.Locator)
 			return map[string]any{"ok": err == nil}, err
 		})
@@ -501,6 +706,12 @@ func (s *Server) registerTools(server *mcpsdk.Server) {
 				schemaReqProp("text", "string", "input text"),
 			),
 		}, func(_ context.Context, in inputTextInput) (any, error) {
+			if err := validateLocator(in.Locator); err != nil {
+				return nil, err
+			}
+			if err := validateInputText(in.Text); err != nil {
+				return nil, err
+			}
 			err := s.api.Input(in.Locator, in.Text)
 			return map[string]any{"ok": err == nil}, err
 		})
@@ -512,6 +723,12 @@ func (s *Server) registerTools(server *mcpsdk.Server) {
 				schemaReqProp("action_type", "string", "runtime action type"),
 			),
 		}, func(_ context.Context, in dispatchInput) (any, error) {
+			if err := validateLocator(in.Locator); err != nil {
+				return nil, err
+			}
+			if err := validateActionType(in.ActionType); err != nil {
+				return nil, err
+			}
 			err := s.api.Dispatch(in.Locator, in.ActionType, in.Payload)
 			return map[string]any{"ok": err == nil}, err
 		})
@@ -520,6 +737,9 @@ func (s *Server) registerTools(server *mcpsdk.Server) {
 			Description: "Move focus.",
 			InputSchema: schemaObject(schemaEnumProp("direction", "focus direction", "next", "prev", "first", "last", "up", "down", "left", "right")),
 		}, func(_ context.Context, in navigateInput) (any, error) {
+			if err := validateDirection(in.Direction); err != nil {
+				return nil, err
+			}
 			err := s.api.Navigate(in.Direction)
 			return map[string]any{"ok": err == nil}, err
 		})
@@ -530,6 +750,14 @@ func (s *Server) registerTools(server *mcpsdk.Server) {
 		}, func(_ context.Context, _ *mcpsdk.CallToolRequest, in batchInput) (*mcpsdk.CallToolResult, map[string]any, error) {
 			if len(in.Operations) == 0 {
 				return jsonToolError(fmt.Errorf("batch requires at least one operation")), nil, nil
+			}
+			if len(in.Operations) > maxBatchOps {
+				return jsonToolError(fmt.Errorf("batch too many operations (%d, max %d)", len(in.Operations), maxBatchOps)), nil, nil
+			}
+			for i, op := range in.Operations {
+				if err := validateBatchOperation(op); err != nil {
+					return jsonToolError(fmt.Errorf("operation[%d]: %w", i, err)), nil, nil
+				}
 			}
 
 			stopOnError := true
@@ -996,6 +1224,14 @@ func hitEntrySchema() map[string]any {
 }
 
 func (s *Server) runBatch(operations []BatchOperation, stopOnError bool, dryRun bool) (*BatchResult, error) {
+	if len(operations) > maxBatchOps {
+		return nil, fmt.Errorf("too many batch operations (%d, max %d)", len(operations), maxBatchOps)
+	}
+	for i, op := range operations {
+		if err := validateBatchOperation(op); err != nil {
+			return nil, fmt.Errorf("operation[%d]: %w", i, err)
+		}
+	}
 	if s.api.Batch != nil {
 		return s.api.Batch(operations, stopOnError, dryRun)
 	}
@@ -1148,6 +1384,10 @@ func (s *Server) handleFind(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	if err := validateSelector(req.Selector); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	result, err := s.api.Find(req.Selector)
 	writeJSONResult(w, result, err)
 }
@@ -1181,6 +1421,10 @@ func (s *Server) handleTree(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	kind := strings.TrimSpace(r.URL.Query().Get("kind"))
+	if err := validateTreeKind(kind); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	compact := parseBoolQuery(r.URL.Query().Get("compact"))
 	if compact && s.api.GetTreeCompact != nil {
 		result, err := s.api.GetTreeCompact(kind)
@@ -1197,6 +1441,10 @@ func (s *Server) handleNode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	locator := strings.TrimSpace(r.URL.Query().Get("locator"))
+	if err := validateLocator(locator); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	result, err := s.api.GetNode(locator)
 	writeJSONResult(w, result, err)
 }
@@ -1210,6 +1458,10 @@ func (s *Server) handleGetValue(w http.ResponseWriter, r *http.Request) {
 		Locator string `json:"locator"`
 	}
 	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err := validateLocator(req.Locator); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -1227,6 +1479,10 @@ func (s *Server) handleSetValue(w http.ResponseWriter, r *http.Request) {
 		Value   interface{} `json:"value"`
 	}
 	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err := validateLocator(req.Locator); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -1248,6 +1504,14 @@ func (s *Server) handleSetProp(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	if err := validateLocator(req.Locator); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err := validatePropKey(req.Key); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	err := s.api.SetProp(req.Locator, req.Key, req.Value)
 	writeJSONResult(w, map[string]bool{"ok": err == nil}, err)
 }
@@ -1261,6 +1525,10 @@ func (s *Server) handleGetFormData(w http.ResponseWriter, r *http.Request) {
 		Locator string `json:"locator"`
 	}
 	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err := validateLocator(req.Locator); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -1286,6 +1554,14 @@ func (s *Server) handleSetFormField(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	if err := validateLocator(req.Locator); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err := validateFieldName(req.Field); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	err := s.api.SetFormField(req.Locator, req.Field, req.Value)
 	writeJSONResult(w, map[string]bool{"ok": err == nil}, err)
 }
@@ -1307,6 +1583,10 @@ func (s *Server) handleSelect(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	if err := validateLocator(req.Locator); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	err := s.api.Select(req.Locator, req.Value)
 	writeJSONResult(w, map[string]bool{"ok": err == nil}, err)
 }
@@ -1320,6 +1600,10 @@ func (s *Server) handleClick(w http.ResponseWriter, r *http.Request) {
 		Locator string `json:"locator"`
 	}
 	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err := validateLocator(req.Locator); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -1340,6 +1624,14 @@ func (s *Server) handleInput(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	if err := validateLocator(req.Locator); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err := validateInputText(req.Text); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	err := s.api.Input(req.Locator, req.Text)
 	writeJSONResult(w, map[string]bool{"ok": err == nil}, err)
 }
@@ -1353,6 +1645,10 @@ func (s *Server) handleNavigate(w http.ResponseWriter, r *http.Request) {
 		Direction string `json:"direction"`
 	}
 	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err := validateDirection(req.Direction); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -1382,13 +1678,24 @@ func (s *Server) handleBatch(w http.ResponseWriter, r *http.Request) {
 	if req.DryRun != nil {
 		dryRun = *req.DryRun
 	}
+	if len(req.Operations) > maxBatchOps {
+		writeError(w, http.StatusBadRequest, fmt.Sprintf("too many batch operations (%d, max %d)", len(req.Operations), maxBatchOps))
+		return
+	}
+	for i, op := range req.Operations {
+		if err := validateBatchOperation(op); err != nil {
+			writeError(w, http.StatusBadRequest, fmt.Sprintf("operation[%d]: %s", i, err.Error()))
+			return
+		}
+	}
 	result, err := s.api.Batch(req.Operations, stopOnError, dryRun)
 	writeJSONResultWithOptionalError(w, result, err)
 }
 
 func decodeJSON(r *http.Request, dst interface{}) error {
 	defer r.Body.Close()
-	return json.NewDecoder(r.Body).Decode(dst)
+	limited := io.LimitReader(r.Body, maxRequestBody)
+	return json.NewDecoder(limited).Decode(dst)
 }
 
 func writeJSONResult(w http.ResponseWriter, result interface{}, err error) {
