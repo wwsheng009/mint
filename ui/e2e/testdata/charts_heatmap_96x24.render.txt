@@ -1,0 +1,7 @@
+Charts Heatmap Fixture
+Matrix Heatmap
+Low ░ ▒ ▓ █ High
+      M T W T
+API   ░ ░ ▒ ▒
+DB    ░ ▒ ▓ █
+Queue ░ ▒ ▓ █

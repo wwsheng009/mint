@@ -1,0 +1,6 @@
+Charts Heatmap Auto Scale Fixture
+Auto Contrast Heatmap
+Low ░ ▒ ▓ █ High
+     T W T
+Sou~ ░ ▒ ▓
+Eur~ ▒ ▓ █

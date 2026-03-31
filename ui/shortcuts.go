@@ -33,6 +33,7 @@ import (
 	"github.com/wwsheng009/mint/ui/components/button"
 	"github.com/wwsheng009/mint/ui/components/cascader"
 	"github.com/wwsheng009/mint/ui/components/checkbox"
+	"github.com/wwsheng009/mint/ui/components/clock"
 	"github.com/wwsheng009/mint/ui/components/collapse"
 	"github.com/wwsheng009/mint/ui/components/datepicker"
 	"github.com/wwsheng009/mint/ui/components/descriptions"
@@ -322,6 +323,10 @@ func NewDividerBuilder() *divider.Builder {
 // Progress Components
 func NewProgressBuilder() *progress.Builder {
 	return progress.NewBuilder()
+}
+
+func NewClockBuilder() *clock.Builder {
+	return clock.NewBuilder()
 }
 
 func NewSpinBuilder() *spin.Builder {
@@ -1083,6 +1088,11 @@ func Progress(value, max int) rtui.VNode {
 // ProgressPercent creates a progress bar with percentage
 func ProgressPercent(percent int) rtui.VNode {
 	return progress.NewBuilder().Value(percent).Max(100).Build()
+}
+
+// Clock creates a realtime clock with the requested radius.
+func Clock(radius int) rtui.VNode {
+	return clock.NewBuilder().Radius(radius).Build()
 }
 
 // Spin creates a spinner with an optional tip.

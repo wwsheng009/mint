@@ -50,6 +50,11 @@ func (b *Builder) Dashboard() *Builder {
 	return b
 }
 
+func (b *Builder) Block() *Builder {
+	b.node.Block()
+	return b
+}
+
 func (b *Builder) Normal() *Builder {
 	b.node.Normal()
 	return b

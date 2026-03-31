@@ -1,0 +1,13 @@
+Charts Candlestick Styled Fixture
+Candlestick Styled
+▓ Up
+█ Down
+■ Flat
+▆ Volume
+    │
+│ │ │
+▓ █ ■
+▓ │ │
+│
+▆
+▆ ▆ ▆

@@ -1,0 +1,14 @@
+Charts Value Label Fixture
+Value Labels Vertical
+    █
+█   █
+█ █ █
+█ █ █
+─────
+A B C
+Values: 12 7 15
+Value Labels Horizontal
+East ███████████████12
+
+West █████████████ 9
+     ─────────────────

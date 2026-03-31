@@ -33,6 +33,7 @@ const (
 	TypeLine Type = iota
 	TypeCircle
 	TypeDashboard
+	TypeBlock
 )
 
 // Status controls the semantic state of the progress component.
@@ -171,6 +172,11 @@ func (p *VNode) Circle() *VNode {
 
 func (p *VNode) Dashboard() *VNode {
 	p.progressType = TypeDashboard
+	return p
+}
+
+func (p *VNode) Block() *VNode {
+	p.progressType = TypeBlock
 	return p
 }
 

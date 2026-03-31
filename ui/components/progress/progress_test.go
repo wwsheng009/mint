@@ -1,6 +1,7 @@
 package progress
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -69,6 +70,18 @@ func TestVNode_Builder(t *testing.T) {
 	}
 	if vnode.Status() != StatusSuccess {
 		t.Errorf("Status = %v, want %v", vnode.Status(), StatusSuccess)
+	}
+}
+
+func TestVNode_Builder_Block(t *testing.T) {
+	p := NewBuilder().
+		Value(60).
+		Block().
+		Build()
+
+	vnode := p.(*VNode)
+	if vnode.ProgressType() != TypeBlock {
+		t.Fatalf("Type = %v, want %v", vnode.ProgressType(), TypeBlock)
 	}
 }
 
@@ -209,6 +222,49 @@ func TestInstance_SetValue(t *testing.T) {
 	}
 }
 
+func TestInstance_SetValue_AnimatesDisplayedPercent(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		propValue:       20,
+		propMax:         100,
+		propWidth:       22,
+		propShowPercent: false,
+	})
+
+	inst.SetValue(80)
+	if inst.GetValue() != 80 {
+		t.Fatalf("GetValue() = %d, want 80", inst.GetValue())
+	}
+	if got := inst.Percent(); got != 20 {
+		t.Fatalf("Percent() before tick = %d, want 20", got)
+	}
+	if !inst.WantsTick() {
+		t.Fatal("WantsTick() should be true while value tween is active")
+	}
+
+	before := inst.Paint(0, 0)[0].Text
+	if !inst.Tick(time.Unix(0, 0)) {
+		t.Fatal("first Tick should advance value tween")
+	}
+
+	midPercent := inst.Percent()
+	if midPercent <= 20 || midPercent >= 80 {
+		t.Fatalf("mid Percent() = %d, want between 20 and 80", midPercent)
+	}
+
+	midBar := inst.Paint(0, 0)[0].Text
+	if midBar == before {
+		t.Fatalf("bar should change during tween: before=%q after=%q", before, midBar)
+	}
+
+	inst.Tick(time.Unix(0, int64(valueTweenDuration)))
+	if got := inst.Percent(); got != 80 {
+		t.Fatalf("Percent() after completion = %d, want 80", got)
+	}
+	if inst.WantsTick() {
+		t.Fatal("WantsTick() should be false after tween completion")
+	}
+}
+
 func TestInstance_Percent(t *testing.T) {
 	inst := NewInstance(rtui.Props{
 		propValue: 25,
@@ -217,6 +273,42 @@ func TestInstance_Percent(t *testing.T) {
 
 	if inst.Percent() != 50 {
 		t.Errorf("Percent = %d, want 50", inst.Percent())
+	}
+}
+
+func TestInstance_SetProps_AnimatesPercentAcrossMaxChange(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		propValue:       50,
+		propMax:         100,
+		propWidth:       22,
+		propShowPercent: false,
+	})
+
+	changed := inst.SetProps(rtui.Props{
+		propValue: 50,
+		propMax:   200,
+	})
+	if !changed {
+		t.Fatal("SetProps() should report changed when max changes")
+	}
+	if got := inst.Percent(); got != 50 {
+		t.Fatalf("Percent() before tick = %d, want 50", got)
+	}
+	if !inst.WantsTick() {
+		t.Fatal("WantsTick() should be true while percent tween is active")
+	}
+
+	if !inst.Tick(time.Unix(0, 0)) {
+		t.Fatal("first Tick should advance percent tween after SetProps")
+	}
+	midPercent := inst.Percent()
+	if midPercent <= 25 || midPercent >= 50 {
+		t.Fatalf("mid Percent() = %d, want between 25 and 50", midPercent)
+	}
+
+	inst.Tick(time.Unix(0, int64(valueTweenDuration)))
+	if got := inst.Percent(); got != 25 {
+		t.Fatalf("Percent() after completion = %d, want 25", got)
 	}
 }
 
@@ -233,6 +325,26 @@ func TestInstance_Paint_Line(t *testing.T) {
 	}
 	if cmds[0].Text != "[=====-----]" {
 		t.Errorf("bar = %q, want %q", cmds[0].Text, "[=====-----]")
+	}
+	if cmds[1].Text != "50%" {
+		t.Errorf("label = %q, want %q", cmds[1].Text, "50%")
+	}
+}
+
+func TestInstance_Paint_Block(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		propType:  TypeBlock,
+		propValue: 50,
+		propMax:   100,
+		propWidth: 12,
+	})
+
+	cmds := inst.Paint(0, 0)
+	if len(cmds) != 2 {
+		t.Fatalf("Paint returned %d commands, want 2", len(cmds))
+	}
+	if cmds[0].Text != "[█████░░░░░]" {
+		t.Errorf("bar = %q, want %q", cmds[0].Text, "[█████░░░░░]")
 	}
 	if cmds[1].Text != "50%" {
 		t.Errorf("label = %q, want %q", cmds[1].Text, "50%")
@@ -330,9 +442,55 @@ func TestInstance_Paint_Dashboard(t *testing.T) {
 	}
 }
 
+func TestInstance_Paint_Circle_PartialSegment(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		propType:        TypeCircle,
+		propValue:       80,
+		propMax:         100,
+		propWidth:       5,
+		propShowPercent: true,
+	})
+
+	rows := drawCmdTexts(inst.Paint(0, 0))
+	if rows[0] != " ### " {
+		t.Fatalf("row 0 = %q, want %q", rows[0], " ### ")
+	}
+	if rows[1] != "o   #" {
+		t.Fatalf("row 1 = %q, want %q", rows[1], "o   #")
+	}
+	if rows[2] != " ▒## " {
+		t.Fatalf("row 2 = %q, want %q", rows[2], " ▒## ")
+	}
+	if rows[3] != "80%" {
+		t.Fatalf("row 3 = %q, want %q", rows[3], "80%")
+	}
+}
+
+func TestInstance_Paint_Dashboard_PartialSegment(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		propType:        TypeDashboard,
+		propValue:       80,
+		propMax:         100,
+		propWidth:       7,
+		propShowPercent: true,
+	})
+
+	rows := drawCmdTexts(inst.Paint(0, 0))
+	if rows[0] != " ####▒ " {
+		t.Fatalf("row 0 = %q, want %q", rows[0], " ####▒ ")
+	}
+	if rows[1] != "#     o" {
+		t.Fatalf("row 1 = %q, want %q", rows[1], "#     o")
+	}
+	if rows[2] != "80%" {
+		t.Fatalf("row 2 = %q, want %q", rows[2], "80%")
+	}
+}
+
 func TestInstance_Paint_StatusStyles(t *testing.T) {
 	tests := []struct {
 		name      string
+		props     rtui.Props
 		status    Status
 		wantFG    string
 		wantBold  bool
@@ -342,17 +500,23 @@ func TestInstance_Paint_StatusStyles(t *testing.T) {
 		{name: "success", status: StatusSuccess, wantFG: string(theme.Success()), wantBar: "[=====-----]"},
 		{name: "exception", status: StatusException, wantFG: string(theme.Error()), wantBar: "[=====-----]"},
 		{name: "active", status: StatusActive, wantFG: string(theme.Focus()), wantBold: true, wantBlink: true, wantBar: "[>====-----]"},
+		{name: "block active", props: rtui.Props{propType: TypeBlock}, status: StatusActive, wantFG: string(theme.Focus()), wantBold: true, wantBlink: true, wantBar: "[▓████░░░░░]"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			inst := NewInstance(rtui.Props{
+			props := rtui.Props{
 				propValue:       50,
 				propMax:         100,
 				propWidth:       12,
 				propStatus:      tt.status,
 				propShowPercent: false,
-			})
+			}
+			for key, value := range tt.props {
+				props[key] = value
+			}
+
+			inst := NewInstance(props)
 
 			cmds := inst.Paint(0, 0)
 			if len(cmds) != 1 {
@@ -449,6 +613,30 @@ func TestInstance_Tick_AnimatesLineActiveProgress(t *testing.T) {
 	}
 }
 
+func TestInstance_Tick_AnimatesBlockActiveProgress(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		propType:        TypeBlock,
+		propValue:       50,
+		propMax:         100,
+		propWidth:       12,
+		propStatus:      StatusActive,
+		propShowPercent: false,
+	})
+
+	before := inst.Paint(0, 0)
+	if got := before[0].Text; got != "[▓████░░░░░]" {
+		t.Fatalf("initial bar = %q, want %q", got, "[▓████░░░░░]")
+	}
+
+	if changed := inst.Tick(time.Unix(0, 0)); !changed {
+		t.Fatal("first Tick should advance animation")
+	}
+	after := inst.Paint(0, 0)
+	if got := after[0].Text; got != "[█▓███░░░░░]" {
+		t.Fatalf("bar after tick = %q, want %q", got, "[█▓███░░░░░]")
+	}
+}
+
 func TestInstance_Tick_AnimatesCircleActiveProgress(t *testing.T) {
 	inst := NewInstance(rtui.Props{
 		propType:        TypeCircle,
@@ -466,6 +654,32 @@ func TestInstance_Tick_AnimatesCircleActiveProgress(t *testing.T) {
 
 	if before[0] == after[0] && before[1] == after[1] && before[2] == after[2] {
 		t.Fatal("circle active animation should change painted rows")
+	}
+	if !strings.HasPrefix(after[0], " #@# ") {
+		t.Fatalf("circle active row 0 after tick = %q, want prefix %q", after[0], " #@# ")
+	}
+}
+
+func TestInstance_Tick_AnimatesDashboardActiveProgress(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		propType:        TypeDashboard,
+		propValue:       70,
+		propMax:         100,
+		propStatus:      StatusActive,
+		propShowPercent: false,
+	})
+
+	before := drawCmdTexts(inst.Paint(0, 0))
+	if !inst.Tick(time.Unix(0, 0)) {
+		t.Fatal("first Tick should advance dashboard animation")
+	}
+	after := drawCmdTexts(inst.Paint(0, 0))
+
+	if before[0] == after[0] && before[1] == after[1] {
+		t.Fatal("dashboard active animation should change painted rows")
+	}
+	if !strings.HasPrefix(after[0], " @##▓o ") {
+		t.Fatalf("dashboard active row 0 after tick = %q, want prefix %q", after[0], " @##▓o ")
 	}
 }
 

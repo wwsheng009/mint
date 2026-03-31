@@ -2,6 +2,7 @@ package progress
 
 import (
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -21,6 +22,8 @@ const (
 	dashboardVisualWidth  = 7
 	dashboardVisualHeight = 2
 	activeTickInterval    = 120 * time.Millisecond
+	valueTickInterval     = time.Second / 60
+	valueTweenDuration    = 180 * time.Millisecond
 )
 
 type gridPoint struct {
@@ -34,19 +37,21 @@ type gridPoint struct {
 
 // Instance is the runtime entity for Progress components.
 type Instance struct {
-	key           string
-	label         string
-	progressStyle style.Style
-	width         int
-	value         int
-	max           int
-	progressType  Type
-	status        Status
-	showPercent   bool
-	activeFrame   int
-	activeLoop    *animation.LoopDriver
-	bounds        [4]int
-	dirty         bool
+	key            string
+	label          string
+	progressStyle  style.Style
+	width          int
+	value          int
+	max            int
+	progressType   Type
+	status         Status
+	showPercent    bool
+	displayPercent float64
+	percentTween   *animation.TweenDriver
+	activeFrame    int
+	activeLoop     *animation.LoopDriver
+	bounds         [4]int
+	dirty          bool
 }
 
 var (
@@ -66,16 +71,17 @@ func NewInstance(props rtui.Props) *Instance {
 	)
 
 	inst := &Instance{
-		key:           proputil.GetString(props, propKey, ""),
-		label:         proputil.GetString(props, propLabel, ""),
-		progressStyle: proputil.GetStyle(props, propStyle, style.Style{}),
-		width:         proputil.GetInt(props, propWidth, 30),
-		value:         value,
-		max:           max,
-		progressType:  getTypeProp(props, TypeLine),
-		status:        getStatusProp(props, StatusNormal),
-		showPercent:   proputil.GetBool(props, propShowPercent, true),
-		dirty:         true,
+		key:            proputil.GetString(props, propKey, ""),
+		label:          proputil.GetString(props, propLabel, ""),
+		progressStyle:  proputil.GetStyle(props, propStyle, style.Style{}),
+		width:          proputil.GetInt(props, propWidth, 30),
+		value:          value,
+		max:            max,
+		progressType:   getTypeProp(props, TypeLine),
+		status:         getStatusProp(props, StatusNormal),
+		showPercent:    proputil.GetBool(props, propShowPercent, true),
+		displayPercent: float64(progressPercent(value, max)),
+		dirty:          true,
 	}
 	inst.resetActiveLoop()
 	return inst
@@ -104,6 +110,7 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	oldType := inst.progressType
 	oldStatus := inst.status
 	oldShowPercent := inst.showPercent
+	currentPercent := inst.currentPercentFloat()
 
 	value, max := normalizeProgressRange(
 		proputil.GetInt(props, propValue, inst.value),
@@ -120,9 +127,14 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	inst.status = getStatusProp(props, inst.status)
 	inst.showPercent = proputil.GetBool(props, propShowPercent, inst.showPercent)
 
-	if oldType != inst.progressType || oldStatus != inst.status || oldValue != inst.value || oldMax != inst.max {
-		inst.activeFrame = 0
+	if oldValue != inst.value || oldMax != inst.max {
+		inst.startPercentTween(currentPercent, float64(inst.targetPercent()))
+	}
+
+	if oldType != inst.progressType || oldStatus != inst.status {
 		inst.resetActiveLoop()
+	} else {
+		inst.syncActiveLoop(false)
 	}
 
 	changed := oldKey != inst.key ||
@@ -165,34 +177,60 @@ func (inst *Instance) GetContext() *rtui.ComponentContext { return nil }
 // =============================================================================
 
 func (inst *Instance) WantsTick() bool {
-	return inst.status == StatusActive && inst.value > 0 && inst.value < inst.max
+	return (inst.percentTween != nil && inst.percentTween.WantsTick()) || inst.wantsActiveLoop()
 }
 
 func (inst *Instance) Tick(now time.Time) bool {
 	if !inst.WantsTick() {
 		return false
 	}
-	if inst.activeLoop == nil {
-		inst.resetActiveLoop()
-		if inst.activeLoop == nil {
-			return false
+
+	changed := false
+
+	if inst.percentTween != nil {
+		if !inst.percentTween.Primed() {
+			inst.percentTween.Prime(now.Add(-valueTickInterval))
+		}
+		if inst.percentTween.Tick(now) {
+			nextPercent := normalizePercent(inst.percentTween.Value())
+			if inst.displayPercent != nextPercent {
+				inst.displayPercent = nextPercent
+				changed = true
+			}
+		}
+		if inst.percentTween.Done() {
+			finalPercent := float64(inst.targetPercent())
+			if inst.displayPercent != finalPercent {
+				inst.displayPercent = finalPercent
+				changed = true
+			}
+			inst.percentTween = nil
 		}
 	}
+
+	inst.syncActiveLoop(false)
+	if inst.activeLoop == nil {
+		if changed {
+			inst.dirty = true
+		}
+		return changed
+	}
+
 	if !inst.activeLoop.Primed() {
 		inst.activeLoop.Prime(now.Add(-activeTickInterval))
 	}
-
 	prevFrame := inst.activeFrame
-	if !inst.activeLoop.Tick(now) {
-		return false
+	if inst.activeLoop.Tick(now) {
+		inst.activeFrame = inst.activeLoop.Cycle()
+		if inst.activeFrame != prevFrame {
+			changed = true
+		}
 	}
 
-	inst.activeFrame = inst.activeLoop.Cycle()
-	if inst.activeFrame == prevFrame {
-		return false
+	if changed {
+		inst.dirty = true
 	}
-	inst.dirty = true
-	return true
+	return changed
 }
 
 // =============================================================================
@@ -254,6 +292,8 @@ func (inst *Instance) statusColor() style.Color {
 
 func (inst *Instance) visualRows() []string {
 	switch inst.progressType {
+	case TypeBlock:
+		return []string{inst.blockRow()}
 	case TypeCircle:
 		return inst.circleRows()
 	case TypeDashboard:
@@ -264,6 +304,14 @@ func (inst *Instance) visualRows() []string {
 }
 
 func (inst *Instance) lineRow() string {
+	return inst.linearRow('=', '-', '>')
+}
+
+func (inst *Instance) blockRow() string {
+	return inst.linearRow('█', '░', '▓')
+}
+
+func (inst *Instance) linearRow(filledRune, emptyRune, activeRune rune) string {
 	width := inst.visualWidth()
 	innerWidth := width - 2
 	if innerWidth < 1 {
@@ -278,15 +326,15 @@ func (inst *Instance) lineRow() string {
 
 	cells := make([]rune, innerWidth)
 	for i := range cells {
-		cells[i] = '-'
+		cells[i] = emptyRune
 	}
 	for i := 0; i < filledCount; i++ {
-		cells[i] = '='
+		cells[i] = filledRune
 	}
 
 	if inst.status == StatusActive && percent < 100 && filledCount > 0 {
 		head := inst.activeFrame % filledCount
-		cells[head] = '>'
+		cells[head] = activeRune
 	}
 
 	return "[" + string(cells) + "]"
@@ -322,22 +370,27 @@ func (inst *Instance) dashboardRows() []string {
 }
 
 func (inst *Instance) fillSegments(grid [][]rune, positions []gridPoint) {
-	filledCount := segmentFillCount(inst.Percent(), len(positions))
+	percent := inst.Percent()
+	scaled := float64(percent) * float64(len(positions)) / 100
 	trackRune := 'o'
 	activeIndex := -1
-	if inst.status == StatusActive && filledCount > 0 {
-		activeIndex = inst.activeFrame % filledCount
+	activeSpan := int(math.Ceil(scaled))
+	if inst.status == StatusActive && percent < 100 && activeSpan > 0 {
+		activeIndex = inst.activeFrame % activeSpan
 	}
 
 	for idx, pos := range positions {
-		if idx < filledCount {
-			grid[pos.row][pos.col] = '#'
-			if idx == activeIndex {
-				grid[pos.row][pos.col] = '*'
-			}
-		} else {
+		fill := scaled - float64(idx)
+		if fill <= 0 {
 			grid[pos.row][pos.col] = trackRune
+			continue
 		}
+
+		glyph := segmentFillRune(fill)
+		if idx == activeIndex {
+			glyph = '@'
+		}
+		grid[pos.row][pos.col] = glyph
 	}
 }
 
@@ -362,15 +415,17 @@ func gridToStrings(grid [][]rune) []string {
 	return rows
 }
 
-func segmentFillCount(percent, total int) int {
-	if total <= 0 || percent <= 0 {
-		return 0
+func segmentFillRune(fill float64) rune {
+	switch {
+	case fill >= 1:
+		return '#'
+	case fill >= 0.67:
+		return '▓'
+	case fill >= 0.34:
+		return '▒'
+	default:
+		return '░'
 	}
-	count := (percent*total + 99) / 100
-	if count > total {
-		return total
-	}
-	return count
 }
 
 func (inst *Instance) labelText() string {
@@ -424,8 +479,10 @@ func (inst *Instance) visualHeight() int {
 func (inst *Instance) SetValue(value int) {
 	value, _ = normalizeProgressRange(value, inst.max)
 	if inst.value != value {
+		startPercent := inst.currentPercentFloat()
 		inst.value = value
-		inst.resetActiveLoop()
+		inst.startPercentTween(startPercent, float64(inst.targetPercent()))
+		inst.syncActiveLoop(false)
 		inst.dirty = true
 	}
 }
@@ -434,20 +491,12 @@ func (inst *Instance) GetValue() int { return inst.value }
 func (inst *Instance) GetMax() int   { return inst.max }
 
 func (inst *Instance) Percent() int {
-	if inst.max <= 0 {
-		return 0
-	}
-
-	value, max := normalizeProgressRange(inst.value, inst.max)
-	if max == 0 {
-		return 0
-	}
-	return (value * 100) / max
+	return int(math.Round(inst.currentPercentFloat()))
 }
 
 func (inst *Instance) resetActiveLoop() {
 	inst.activeFrame = 0
-	if !inst.WantsTick() {
+	if !inst.wantsActiveLoop() {
 		inst.activeLoop = nil
 		return
 	}
@@ -456,6 +505,52 @@ func (inst *Instance) resetActiveLoop() {
 		Cycles:    0,
 		AutoStart: true,
 	})
+}
+
+func (inst *Instance) startPercentTween(from, to float64) {
+	from = normalizePercent(from)
+	to = normalizePercent(to)
+	if from == to {
+		inst.displayPercent = to
+		inst.percentTween = nil
+		return
+	}
+
+	inst.displayPercent = from
+	inst.percentTween = animation.NewTweenDriver(animation.TweenDriverConfig{
+		From:      from,
+		To:        to,
+		Duration:  valueTweenDuration,
+		Easing:    animation.EaseOutCubic,
+		AutoStart: true,
+	})
+}
+
+func (inst *Instance) syncActiveLoop(reset bool) {
+	if !inst.wantsActiveLoop() {
+		if inst.activeLoop != nil {
+			inst.activeLoop.Stop()
+			inst.activeLoop = nil
+		}
+		inst.activeFrame = 0
+		return
+	}
+	if reset || inst.activeLoop == nil {
+		inst.resetActiveLoop()
+	}
+}
+
+func (inst *Instance) wantsActiveLoop() bool {
+	percent := inst.Percent()
+	return inst.status == StatusActive && percent > 0 && percent < 100
+}
+
+func (inst *Instance) currentPercentFloat() float64 {
+	return normalizePercent(inst.displayPercent)
+}
+
+func (inst *Instance) targetPercent() int {
+	return progressPercent(inst.value, inst.max)
 }
 
 // =============================================================================
@@ -519,4 +614,26 @@ func normalizeProgressRange(value, max int) (int, int) {
 		value = max
 	}
 	return value, max
+}
+
+func progressPercent(value, max int) int {
+	if max <= 0 {
+		return 0
+	}
+
+	value, max = normalizeProgressRange(value, max)
+	if max == 0 {
+		return 0
+	}
+	return (value * 100) / max
+}
+
+func normalizePercent(percent float64) float64 {
+	if percent < 0 {
+		return 0
+	}
+	if percent > 100 {
+		return 100
+	}
+	return percent
 }

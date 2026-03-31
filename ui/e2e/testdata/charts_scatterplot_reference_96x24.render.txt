@@ -1,0 +1,13 @@
+Charts ScatterPlot Reference Fixture
+ScatterPlot References
+● API
+◆ Worker
+│ x: Target
+─ y: Floor
+     │
+   ◆ │  ●
+─────┼─────
+  ●  │ ◆
+     │
+───────────
+x:0..10 y:0..10

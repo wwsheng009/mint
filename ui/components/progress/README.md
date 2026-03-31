@@ -4,8 +4,9 @@
 
 ## 已支持
 
-- `line` / `circle` / `dashboard`
+- `line` / `block` / `circle` / `dashboard`
 - `normal` / `success` / `exception` / `active`
+- `value` / `max` 变化时的平滑百分比过渡
 - `active` 状态逐帧动画
 - 自定义 `label`
 - 自定义 `width`
@@ -18,6 +19,7 @@ ui.NewProgressBuilder().
     Value(60).
     Max(100).
     Label("Uploading").
+    Block().
     Active().
     Width(24).
     Build()
@@ -28,3 +30,8 @@ ui.NewProgressBuilder().
 ```go
 ui.Progress(60, 100)
 ```
+
+## 测试
+
+- 单元测试：`go test ./ui/components/progress`
+- E2E：`go test ./ui/e2e -run TestE2EProgress`

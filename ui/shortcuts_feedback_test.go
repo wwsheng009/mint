@@ -15,6 +15,9 @@ func TestFeedbackBuilderFactories(t *testing.T) {
 	if vnode := NewSpinBuilder().Tip("Loading").Build(); vnode == nil {
 		t.Fatal("NewSpinBuilder().Build() returned nil")
 	}
+	if vnode := NewClockBuilder().Radius(4).Build(); vnode == nil {
+		t.Fatal("NewClockBuilder().Build() returned nil")
+	}
 }
 
 func TestFeedbackShortcuts(t *testing.T) {
@@ -29,5 +32,8 @@ func TestFeedbackShortcuts(t *testing.T) {
 	}
 	if vnode := Spin("Loading"); vnode.Tag() != "spin" {
 		t.Fatalf("Spin().Tag() = %q, want spin", vnode.Tag())
+	}
+	if vnode := Clock(4); vnode.Tag() != "clock" {
+		t.Fatalf("Clock().Tag() = %q, want clock", vnode.Tag())
 	}
 }

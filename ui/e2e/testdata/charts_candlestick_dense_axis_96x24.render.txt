@@ -1,0 +1,9 @@
+Charts Candlestick Dense Axis Fixture
+Candlestick Dense Axis
+    │   │ ▓
+│┈│┈│┈│┈▓┈▓
+▓┈█┈■┈▓┈▓┈┈
+▓┈│┈│┈│┈┈┈┈
+│
+───────────
+4 5 6 7 8 9

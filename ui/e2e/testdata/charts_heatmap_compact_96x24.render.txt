@@ -1,0 +1,6 @@
+Charts Heatmap Compact Fixture
+Compact Legend Heatmap
+L ░▒▓█ H
+    M T W
+API ░ ▒ ▓
+DB  ▒ ▓ █

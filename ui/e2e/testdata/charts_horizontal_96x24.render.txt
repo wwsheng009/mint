@@ -1,0 +1,10 @@
+Charts Horizontal Fixture
+Throughput Horizontal
+█ Online
+█ Retail
+East ██████████
+     ████████
+
+West █████
+     █████████████
+     ─────────────

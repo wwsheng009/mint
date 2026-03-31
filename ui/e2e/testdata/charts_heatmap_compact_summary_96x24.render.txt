@@ -1,0 +1,6 @@
+Charts Heatmap Compact Summary Fixture
+Compact Summary Heatmap
+40..43 avg 41.5
+     T W T
+Sou~ ░ ▒ ▓
+Eur~ ▒ ▓ ▓

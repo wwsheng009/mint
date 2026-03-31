@@ -1,0 +1,6 @@
+Charts Heatmap Summary Fixture
+Summary Heatmap
+range 40..43 avg 41.5
+     T W T
+Sou~ ░ ▒ ▓
+Eur~ ▒ ▓ ▓

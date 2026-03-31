@@ -1,0 +1,6 @@
+Charts Heatmap Contrast Fixture
+Viewport Contrast Heatmap
+Low ░ ▒ ▓ █ High
+     T W T
+Sou~ ░ ▒ ▓
+Eur~ ▒ ▓ █
