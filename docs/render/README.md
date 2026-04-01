@@ -31,6 +31,31 @@ Paint 相关的文档
 
 TUI 特定的渲染文档
 
+### 🖼️ Pixel 渲染 (`pixel/`)
+
+面向图片像素图表与混合文本/图像渲染的方案文档
+
+| 文档 | 说明 | 状态 |
+|------|------|------|
+| `README.md` | Pixel 渲染目录说明 | 设计 |
+| `DELIVERY_HANDOFF_GUIDE.md` | Pixel 渲染方案交付与移交指南 | 设计 |
+| `DECISION_LOG.md` | Pixel 渲染 Phase 1 决策日志 | 设计 |
+| `PIXEL_CHART_RENDERING_ARCHITECTURE.md` | 图片像素图表渲染架构方案 | 设计 |
+| `CURRENT_SYSTEM_IMPACT_AND_FEASIBILITY_REVIEW.md` | 结合当前实现的冲击审查与可行性验证 | 设计 |
+| `PERFORMANCE_IMPACT_AND_OPTIMIZATION_PLAN.md` | 性能影响、优化策略与验证指标 | 设计 |
+| `LINECHART_IMAGE_PROTOTYPE_PLAN.md` | `linechart` image prototype PoC 计划 | 设计 |
+| `PHASE1_TASK_BREAKDOWN.md` | Phase 1 分组拆解、验收和风险控制 | 设计 |
+| `GROUP_A_GRAPHICS_CAPABILITY_SPEC.md` | 图形能力层技术规格 | 设计 |
+| `GROUP_BC_SCENE_AND_APP_RENDER_INTEGRATION_SPEC.md` | Scene 与 `App.render()` 接入规格 | 设计 |
+| `GROUP_D_LINECHART_IMAGE_RENDERER_SPEC.md` | `linechart` image renderer 技术规格 | 设计 |
+| `GROUP_E_PROTOTYPE_BENCHMARK_AND_DIAGNOSTICS_SPEC.md` | Prototype、benchmark 与 diagnostics 规格 | 设计 |
+| `RUNTIME_PLATFORM_GRAPHICS_API_SKETCH.md` | `runtime/platform/graphics` API 草案与伪代码清单 | 设计 |
+| `RUNTIME_PAINT_SCENE_API_SKETCH.md` | `runtime/paint/scene` API 草案与最小数据模型 | 设计 |
+| `FRAMEWORK_APP_RENDER_IMAGE_FLOW_SPEC.md` | `framework.App.render()` 图像帧接入流程规格 | 设计 |
+| `EXAMPLES_LINECHART_IMAGE_PROTOTYPE_LAYOUT_SPEC.md` | `examples/charts_linechart_image_prototype` 目录与页面布局规格 | 设计 |
+| `PROTOTYPE_BENCHMARK_AND_ARTIFACT_LAYOUT_SPEC.md` | Prototype benchmark 与 diagnostics 产物布局规格 | 设计 |
+| `IMPLEMENTATION_SEQUENCE_AND_PR_PLAN.md` | Pixel 渲染实施顺序与 PR 切分计划 | 设计 |
+
 ---
 
 ## 最新变更 (2026-03)
