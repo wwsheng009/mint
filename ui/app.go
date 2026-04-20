@@ -224,6 +224,7 @@ func Run(app ComponentFunc, opts ...Option) error {
 	if err := fwApp.InitTheme(fwtheme.DefaultThemeName); err != nil {
 		log.UILogger.IfEnabled().Debug("Failed to initialize theme: %v", err)
 	}
+	installGraphicsBootstrap(fwApp, runtimeGraphicsWriter())
 
 	// Initialize Intent Runtime (declarative UI layer)
 	intentRuntime := intent.NewRuntime()
@@ -414,6 +415,7 @@ func RunApp[T any](rt *statemachine.AppRuntime[T], opts ...Option) error {
 	if err := fwApp.InitTheme(fwtheme.DefaultThemeName); err != nil {
 		log.UILogger.IfEnabled().Debug("Failed to initialize theme: %v", err)
 	}
+	installGraphicsBootstrap(fwApp, runtimeGraphicsWriter())
 
 	// Initialize Intent Runtime
 	intentRuntime := intent.NewRuntime()

@@ -137,6 +137,9 @@ type App struct {
 	asyncRenderer      *paint.AsyncRenderer
 	asyncRenderEnabled bool
 	asyncFrameInterval time.Duration
+	graphicsPresenter  platform.GraphicsPresenter
+	graphicsImagesOn   bool
+	graphicsLayout     []presentedGraphicsLayer
 
 	// 上一帧缓冲区（用于局部刷新） - deprecated，保留用于兼容
 	prevBuffer [][]paint.Cell
@@ -213,6 +216,13 @@ type App struct {
 	debugMode     bool            // 调试模式开关
 	debugLogFile  string          // 调试日志文件路径
 	debugRecorder *debug.Recorder // 调试记录器
+}
+
+type presentedGraphicsLayer struct {
+	ID          string
+	Bounds      paint.Rect
+	PixelWidth  int
+	PixelHeight int
 }
 
 // NewApp 创建新应用 (Phase 1: 初始化 Action 系统)
@@ -557,12 +567,12 @@ func (a *App) updateHoveredFiber(next *rtui.Fiber, payload interface{}) {
 	if a.hoveredFiber == next {
 		return
 	}
-	if a.actionBridge != nil && a.hoveredFiber != nil {
+	if a.actionBridge != nil && a.hoveredFiber != nil && a.shouldDispatchToFiberTarget(a.hoveredFiber) {
 		if a.actionBridge.DispatchFromFiber(a.hoveredFiber, action.ActionMouseLeave, payload) {
 			a.dirty = true
 		}
 	}
-	if a.actionBridge != nil && next != nil {
+	if a.actionBridge != nil && next != nil && a.shouldDispatchToFiberTarget(next) {
 		if a.actionBridge.DispatchFromFiber(next, action.ActionMouseEnter, payload) {
 			a.dirty = true
 		}
@@ -1442,7 +1452,7 @@ func (a *App) processMsg(msg runtimemsg.Msg) {
 			}
 
 			// 传入 act.Payload (MouseMsg) 而不是 act
-			if a.actionBridge.DispatchFromFiber(fiber, act.Type, act.Payload) {
+			if a.shouldDispatchToFiberTarget(fiber) && a.actionBridge.DispatchFromFiber(fiber, act.Type, act.Payload) {
 				mouseDispatchCleanup()
 				a.applyActionMiddlewareAfter(act, &action.RouterResult{
 					Handled: true,
@@ -1632,6 +1642,44 @@ func nearestFocusableFiber(fiber *rtui.Fiber) *rtui.Fiber {
 		return node
 	}
 	return nil
+}
+
+func (a *App) shouldDispatchToFiberTarget(start *rtui.Fiber) bool {
+	if a == nil || start == nil {
+		return false
+	}
+
+	for node := start; node != nil; node = node.Return {
+		if node.Instance != nil {
+			if _, ok := node.Instance.(rtui.ActionHandlerInstance); ok {
+				return true
+			}
+		}
+		if node.ActionTargetID == "" {
+			continue
+		}
+		if a.scopeDispatcher != nil && a.scopeDispatcher.HasHandler(node.ActionTargetID) {
+			return true
+		}
+		if a.actionRouter != nil {
+			if _, ok := a.actionRouter.TargetHandlers[node.ActionTargetID]; ok {
+				return true
+			}
+		}
+	}
+
+	// Legacy router bubble/capture chains still require targeted dispatch even
+	// when the Fiber path itself has no ActionHandlerInstance.
+	if a.actionRouter == nil {
+		return false
+	}
+	if a.actionRouter.Root != nil {
+		return true
+	}
+	if len(a.actionRouter.CaptureHandlers) > 0 || len(a.actionRouter.BubbleHandlers) > 0 {
+		return true
+	}
+	return false
 }
 
 func (a *App) handleGlobalKeyShortcut(msg runtimemsg.Msg) bool {
@@ -2100,7 +2148,15 @@ func (a *App) render() {
 				a.terminalWidth, a.terminalHeight, layoutWidth, layoutHeight)
 		}
 
-		paintable.Paint(ctx, buf)
+		var scene *paint.SceneFrame
+		if scenePaintable, ok := a.root.(component.ScenePaintable); ok {
+			scene = scenePaintable.PaintScene(ctx, buf)
+			if scene != nil && scene.Buffer == nil {
+				scene.Buffer = buf
+			}
+		} else {
+			paintable.Paint(ctx, buf)
+		}
 
 		// Apply app-managed text selection highlight (mode C).
 		if a.interactionMode == InteractionModeAppSelection {
@@ -2138,72 +2194,36 @@ func (a *App) render() {
 			a.debugRecorder.RecordRender(buf)
 		}
 
-		// 将缓冲区内容输出到终端
-		// 使用环境变量控制输出模式：
-		// TUI_OUTPUT_MODE=direct  使用全量刷新（绕过差异比较）
-		// TUI_OUTPUT_MODE=diff    使用差异比较优化（默认）
-		// TUI_OUTPUT_MODE=debug   调试模式，显示 diff 信息
-		// MINT_NO_ALTERNATE_SCREEN=true  不清屏，允许复制/滚动
 		outputMode := os.Getenv("TUI_OUTPUT_MODE")
 		noAltScreen := os.Getenv("MINT_NO_ALTERNATE_SCREEN") == "true"
-		if outputMode == "direct" {
-			a.outputBufferDirect(buf)
-		} else {
-			// 首次渲染：清屏、隐藏光标、强制全量渲染
-			// 除非 MINT_NO_ALTERNATE_SCREEN=true
-			if a.firstRender {
-				if !noAltScreen {
-					fmt.Print("\x1b[2J") // 清屏
-				}
-				fmt.Print("\x1b[?25l") // 隐藏光标
-			}
-
-			// Fiber-first 路径：将 PaintableBox 脏矩形作为渲染提示传给 Renderer。
-			// 这是提示信息，Renderer 仍会以 buffer diff 作为最终正确性依据。
-			dirtyHints := make([]paint.Rect, 0, 8)
-			if dirtyProvider, ok := a.root.(interface{ GetPaintDirtyRects() []paint.Rect }); ok {
-				for _, rect := range dirtyProvider.GetPaintDirtyRects() {
-					dirtyHints = append(dirtyHints, rect)
-				}
-			}
-
-			if a.asyncRenderer != nil {
-				a.asyncRenderer.SubmitFrame(buf, dirtyHints, a.firstRender)
+		dirtyHints := a.collectPaintDirtyHints()
+		clearGraphicsBeforeText := a.shouldClearGraphicsBeforeText(scene)
+		if clearGraphicsBeforeText {
+			if err := a.clearPresentedGraphics(); err != nil {
+				log.RenderLogger.IfEnabled().Debug("[APP] scene graphics pre-clear failed: %v", err)
 			} else {
-				if a.firstRender {
-					a.renderer.ForceFullRender() // 同步路径保持首帧全量
-				}
-				for _, rect := range dirtyHints {
-					a.renderer.MarkDirtyRect(rect)
-				}
+				a.prepareFullTextRepaintAfterGraphicsClear()
+			}
+		}
 
-				// 使用新的 Renderer 输出（自动 diff + run merging + 光标优化）
-				output := a.renderer.Render()
-
-				if os.Getenv("MINT_DEBUG_TEST") == "true" {
-					// Count non-empty cells after Render (which swaps buffers)
-					back := a.renderer.GetBackBuffer()
-					front := a.renderer.GetFrontBuffer()
-					backCount := 0
-					frontCount := 0
-					for y := 0; y < back.Height; y++ {
-						for x := 0; x < back.Width; x++ {
-							if back.Cells[y][x].Cluster != "" && back.Cells[y][x].Cluster != " " {
-								backCount++
-							}
-							if front.Cells[y][x].Cluster != "" && front.Cells[y][x].Cluster != " " {
-								frontCount++
-							}
-						}
+		forceFullSceneText := a.shouldForceFullTextRenderForScene(scene)
+		if a.shouldBypassAsyncForScene(scene) {
+			a.maskSceneImageTextRegions(buf, scene)
+			dirtyHints = append(dirtyHints, a.sceneImageDirtyHints(scene)...)
+			a.renderTextFrame(buf, dirtyHints, outputMode, noAltScreen, false, forceFullSceneText)
+			if err := a.presentSceneFrame(scene); err != nil {
+				log.RenderLogger.IfEnabled().Debug("[APP] scene graphics present failed: %v", err)
+				if !clearGraphicsBeforeText {
+					if clearErr := a.clearPresentedGraphics(); clearErr != nil {
+						log.RenderLogger.IfEnabled().Debug("[APP] scene graphics clear failed: %v", clearErr)
 					}
-					log.UILogger.IfEnabled().Debug("[App.render] AFTER renderer.Render(): back=%d cells, front=%d cells", backCount, frontCount)
 				}
-
-				// DEBUG: 输出渲染信息（每次）
-				log.RenderLogger.IfEnabled().Debug("[APP] FirstRender=%v, OutputLen=%d, Dirty=%v", a.firstRender, len(output), a.dirty)
-
-				if output != "" {
-					fmt.Print(output)
+			}
+		} else {
+			a.renderTextFrame(buf, dirtyHints, outputMode, noAltScreen, !clearGraphicsBeforeText, false)
+			if !clearGraphicsBeforeText {
+				if clearErr := a.clearPresentedGraphics(); clearErr != nil {
+					log.RenderLogger.IfEnabled().Debug("[APP] scene graphics clear failed: %v", clearErr)
 				}
 			}
 		}
@@ -2448,6 +2468,9 @@ func (a *App) Close() error {
 			a.asyncRenderer.Stop()
 			a.asyncRenderer = nil
 		}
+		if err := a.clearPresentedGraphics(); err != nil {
+			log.RenderLogger.IfEnabled().Debug("[APP] graphics clear on close failed: %v", err)
+		}
 
 		// 调试模式：保存日志
 		if a.debugMode && a.debugRecorder != nil {
@@ -2552,6 +2575,9 @@ func (a *App) GetConfigSize() (width, height int) {
 // 注意：这只是更新 buffer 大小，不会改变用户配置的布局约束
 func (a *App) Resize(width, height int) {
 	sizeChanged := a.terminalWidth != width || a.terminalHeight != height
+	if !sizeChanged {
+		return
+	}
 	a.terminalWidth = width
 	a.terminalHeight = height
 	a.dirty = true
@@ -2598,6 +2624,15 @@ func (a *App) GetRenderer() *paint.Renderer {
 	return a.renderer
 }
 
+// SetGraphicsPresenter installs an optional graphics presenter used by
+// experimental scene/image rendering paths.
+func (a *App) SetGraphicsPresenter(presenter platform.GraphicsPresenter) {
+	a.graphicsPresenter = presenter
+	if presenter == nil {
+		a.graphicsImagesOn = false
+	}
+}
+
 // GetHitMap 获取当前的命中映射表（Phase 1: HitMap 集成）
 // 返回从最新渲染构建的 HitMap，用于鼠标事件命中测试
 //
@@ -2634,6 +2669,246 @@ func (a *App) MarkDirty() {
 func (a *App) ForceRenderNow() {
 	a.render()
 	a.dirty = false
+}
+
+func (a *App) collectPaintDirtyHints() []paint.Rect {
+	dirtyHints := make([]paint.Rect, 0, 8)
+	if dirtyProvider, ok := a.root.(interface{ GetPaintDirtyRects() []paint.Rect }); ok {
+		for _, rect := range dirtyProvider.GetPaintDirtyRects() {
+			dirtyHints = append(dirtyHints, rect)
+		}
+	}
+	return dirtyHints
+}
+
+func (a *App) shouldBypassAsyncForScene(scene *paint.SceneFrame) bool {
+	if scene == nil || !scene.HasImageLayers() || a.graphicsPresenter == nil {
+		return false
+	}
+	return a.graphicsPresenter.Capabilities().HasReliableGraphics()
+}
+
+func (a *App) shouldClearGraphicsBeforeText(scene *paint.SceneFrame) bool {
+	if a == nil || a.graphicsPresenter == nil || !a.graphicsImagesOn {
+		return false
+	}
+	if a.graphicsPresenter.Capabilities().SupportsDelete {
+		return false
+	}
+
+	nextLayout := snapshotPresentedGraphics(scene)
+	if len(nextLayout) == 0 {
+		return true
+	}
+	return !presentedGraphicsLayoutEqual(a.graphicsLayout, nextLayout)
+}
+
+func (a *App) shouldForceFullTextRenderForScene(scene *paint.SceneFrame) bool {
+	if a == nil || scene == nil || !scene.HasImageLayers() || a.graphicsPresenter == nil {
+		return false
+	}
+	return a.graphicsPresenter.Capabilities().UsesTerminalFramePresentation()
+}
+
+func (a *App) invalidateRenderedTextState() {
+	if a == nil || a.renderer == nil {
+		return
+	}
+	a.renderer.ForceFullRender()
+}
+
+func (a *App) prepareFullTextRepaintAfterGraphicsClear() {
+	if a == nil {
+		return
+	}
+	a.invalidateRenderedTextState()
+	a.firstRender = true
+}
+
+func (a *App) renderTextFrame(buf *paint.Buffer, dirtyHints []paint.Rect, outputMode string, noAltScreen bool, allowAsync bool, forceFull bool) {
+	if outputMode == "direct" {
+		a.outputBufferDirect(buf)
+		return
+	}
+
+	if forceFull {
+		a.invalidateRenderedTextState()
+	}
+	if a.firstRender {
+		if !noAltScreen {
+			fmt.Print("\x1b[2J")
+		}
+		fmt.Print("\x1b[?25l")
+	}
+
+	if allowAsync && a.asyncRenderer != nil {
+		a.asyncRenderer.SubmitFrame(buf, dirtyHints, a.firstRender)
+		return
+	}
+
+	if a.firstRender {
+		a.renderer.ForceFullRender()
+	}
+	for _, rect := range dirtyHints {
+		a.renderer.MarkDirtyRect(rect)
+	}
+
+	output := a.renderer.Render()
+
+	if os.Getenv("MINT_DEBUG_TEST") == "true" {
+		back := a.renderer.GetBackBuffer()
+		front := a.renderer.GetFrontBuffer()
+		backCount := 0
+		frontCount := 0
+		for y := 0; y < back.Height; y++ {
+			for x := 0; x < back.Width; x++ {
+				if back.Cells[y][x].Cluster != "" && back.Cells[y][x].Cluster != " " {
+					backCount++
+				}
+				if front.Cells[y][x].Cluster != "" && front.Cells[y][x].Cluster != " " {
+					frontCount++
+				}
+			}
+		}
+		log.UILogger.IfEnabled().Debug("[App.render] AFTER renderer.Render(): back=%d cells, front=%d cells", backCount, frontCount)
+	}
+
+	log.RenderLogger.IfEnabled().Debug("[APP] FirstRender=%v, OutputLen=%d, Dirty=%v, AllowAsync=%v", a.firstRender, len(output), a.dirty, allowAsync)
+
+	if output != "" {
+		fmt.Print(output)
+	}
+}
+
+func (a *App) sceneImageDirtyHints(scene *paint.SceneFrame) []paint.Rect {
+	if scene == nil || !scene.HasImageLayers() {
+		return nil
+	}
+
+	dirty := make([]paint.Rect, 0, len(scene.ImageLayers))
+	for _, layer := range scene.ImageLayers {
+		dirty = append(dirty, layer.Bounds)
+	}
+	return dirty
+}
+
+func (a *App) maskSceneImageTextRegions(buf *paint.Buffer, scene *paint.SceneFrame) {
+	if a == nil || buf == nil || scene == nil || !scene.HasImageLayers() {
+		return
+	}
+
+	for _, layer := range scene.ImageLayers {
+		if layer.Bounds.Width <= 0 || layer.Bounds.Height <= 0 {
+			continue
+		}
+		for row := 0; row < layer.Bounds.Height; row++ {
+			y := layer.Bounds.Y + row
+			if y < 0 || y >= buf.Height {
+				continue
+			}
+			for col := 0; col < layer.Bounds.Width; col++ {
+				x := layer.Bounds.X + col
+				if x < 0 || x >= buf.Width {
+					continue
+				}
+				buf.SetCell(x, y, ' ', style.Style{})
+			}
+		}
+	}
+}
+
+func (a *App) presentSceneFrame(scene *paint.SceneFrame) error {
+	if scene == nil || !scene.HasImageLayers() || a.graphicsPresenter == nil {
+		return nil
+	}
+
+	caps := a.graphicsPresenter.Capabilities()
+	terminalFrame := caps.UsesTerminalFramePresentation()
+	nextState := snapshotPresentedGraphics(scene)
+	presentedAny := false
+	for _, layer := range scene.ImageLayers {
+		if !layer.HasPixels() {
+			return fmt.Errorf("scene image layer %q has no pixels", layer.ID)
+		}
+		_, err := a.graphicsPresenter.Present(platform.DrawImageRequest{
+			ID:              layer.ID,
+			PixelWidth:      layer.PixelWidth,
+			PixelHeight:     layer.PixelHeight,
+			CellX:           layer.Bounds.X,
+			CellY:           layer.Bounds.Y,
+			CellWidth:       layer.Bounds.Width,
+			CellHeight:      layer.Bounds.Height,
+			RGBA:            append([]byte(nil), layer.RGBA...),
+			AltText:         layer.AltText,
+			ReplaceIfExists: true,
+		})
+		if err != nil {
+			if presentedAny {
+				a.graphicsImagesOn = true
+				if terminalFrame {
+					a.invalidateRenderedTextState()
+				}
+			}
+			return err
+		}
+		presentedAny = true
+	}
+
+	a.graphicsImagesOn = presentedAny
+	if presentedAny {
+		a.graphicsLayout = nextState
+		if terminalFrame {
+			a.invalidateRenderedTextState()
+		}
+	}
+	return nil
+}
+
+func (a *App) clearPresentedGraphics() error {
+	if a.graphicsPresenter == nil || !a.graphicsImagesOn {
+		return nil
+	}
+	if err := a.graphicsPresenter.Clear(); err != nil {
+		return err
+	}
+	a.graphicsImagesOn = false
+	a.graphicsLayout = nil
+	return nil
+}
+
+func snapshotPresentedGraphics(scene *paint.SceneFrame) []presentedGraphicsLayer {
+	if scene == nil || !scene.HasImageLayers() {
+		return nil
+	}
+
+	layout := make([]presentedGraphicsLayer, 0, len(scene.ImageLayers))
+	for _, layer := range scene.ImageLayers {
+		layout = append(layout, presentedGraphicsLayer{
+			ID:          layer.ID,
+			Bounds:      layer.Bounds,
+			PixelWidth:  layer.PixelWidth,
+			PixelHeight: layer.PixelHeight,
+		})
+	}
+	return layout
+}
+
+func presentedGraphicsLayoutEqual(a, b []presentedGraphicsLayer) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i].ID != b[i].ID {
+			return false
+		}
+		if a[i].Bounds != b[i].Bounds {
+			return false
+		}
+		if a[i].PixelWidth != b[i].PixelWidth || a[i].PixelHeight != b[i].PixelHeight {
+			return false
+		}
+	}
+	return true
 }
 
 // ============================================================================

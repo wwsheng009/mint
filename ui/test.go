@@ -207,6 +207,7 @@ func RunTest(app ComponentFunc, opts ...Option) (*TestableApp, error) {
 
 	// Initialize theme (optional, don't fail on error)
 	fwApp.InitTheme(fwtheme.DefaultThemeName)
+	installGraphicsBootstrap(fwApp, testGraphicsWriter())
 
 	// Set global appInstance
 	appInstance = fwApp
@@ -291,6 +292,7 @@ func RunTestWithSandbox(app ComponentFunc, opts ...Option) (*TestableApp, error)
 
 	// Initialize theme (optional, don't fail on error)
 	fwApp.InitTheme(fwtheme.DefaultThemeName)
+	installGraphicsBootstrap(fwApp, testGraphicsWriter())
 
 	// Set global appInstance
 	appInstance = fwApp

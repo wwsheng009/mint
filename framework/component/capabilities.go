@@ -58,29 +58,46 @@ type Paintable interface {
 	Paint(ctx PaintContext, buf *paint.Buffer)
 }
 
+// SceneFrame is re-exported for framework capabilities that need to return an
+// experimental mixed text/image scene without importing runtime/platform.
+type SceneFrame = paint.SceneFrame
+
+// ScenePaintable is an optional extension of Paintable for components that can
+// render a SceneFrame in addition to the text buffer.
+//
+// Implementations should fully render the text layer into buf and may return a
+// nil scene to indicate text-only output for the current frame.
+type ScenePaintable interface {
+	Paintable
+	PaintScene(ctx PaintContext, buf *paint.Buffer) *paint.SceneFrame
+}
+
 // PaintContext is the painting context for framework components.
 // It is now an alias to runtime.PaintContext to maintain consistency.
 //
 // The runtime PaintContext provides compatibility fields (X, Y, AvailableWidth, AvailableHeight)
 // that are kept in sync with Bounds. Components can access these directly:
-//   ctx.X, ctx.Y - Component position (relative to parent)
-//   ctx.AvailableWidth, ctx.AvailableHeight - Available drawing size
-//   ctx.Bounds.X, ctx.Bounds.Y, ctx.Bounds.Width, ctx.Bounds.Height - Same as above
-//   ctx.Focused - Whether component has focus
-//   ctx.Disabled - Whether component is disabled
-//   ctx.Buffer - The drawing buffer
+//
+//	ctx.X, ctx.Y - Component position (relative to parent)
+//	ctx.AvailableWidth, ctx.AvailableHeight - Available drawing size
+//	ctx.Bounds.X, ctx.Bounds.Y, ctx.Bounds.Width, ctx.Bounds.Height - Same as above
+//	ctx.Focused - Whether component has focus
+//	ctx.Disabled - Whether component is disabled
+//	ctx.Buffer - The drawing buffer
 //
 // Drawing methods (use these instead of direct Buffer access):
-//   ctx.SetCell(x, y, char, style) - Draw a single character
-//   ctx.SetString(x, y, text, style) - Draw a string
-//   ctx.Fill(rect, char, style) - Fill a rectangle
-//   ctx.DrawBox(rect, boxStyle) - Draw a border
-//   ctx.DrawText(x, y, text, align, style) - Draw aligned text
+//
+//	ctx.SetCell(x, y, char, style) - Draw a single character
+//	ctx.SetString(x, y, text, style) - Draw a string
+//	ctx.Fill(rect, char, style) - Fill a rectangle
+//	ctx.DrawBox(rect, boxStyle) - Draw a border
+//	ctx.DrawText(x, y, text, align, style) - Draw aligned text
 //
 // Or use Painter for even more convenience:
-//   painter := paint.NewPainter(&ctx)
-//   painter.Print(0, 0, "Hello", style)
-//   painter.DrawBorder(0, 0, width, height, style)
+//
+//	painter := paint.NewPainter(&ctx)
+//	painter.Print(0, 0, "Hello", style)
+//	painter.DrawBorder(0, 0, width, height, style)
 type PaintContext = paint.PaintContext
 
 // =============================================================================

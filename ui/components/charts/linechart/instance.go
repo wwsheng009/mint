@@ -30,6 +30,7 @@ type Instance struct {
 	seriesName    string
 	labels        []string
 	axisLabelMode AxisLabelMode
+	renderBackend RenderBackend
 	width         int
 	height        int
 	showAxis      bool
@@ -37,12 +38,14 @@ type Instance struct {
 	showLegend    bool
 	showPoints    bool
 	chartStyle    style.Style
+	bounds        [4]int
 	dirty         bool
 }
 
 var (
-	_ rtui.ComponentInstance = (*Instance)(nil)
-	_ rtui.PaintableInstance = (*Instance)(nil)
+	_ rtui.ComponentInstance      = (*Instance)(nil)
+	_ rtui.PaintableInstance      = (*Instance)(nil)
+	_ rtui.ScenePaintableInstance = (*Instance)(nil)
 	_ interface {
 		Measure(layout.Constraints) layout.Size
 	} = (*Instance)(nil)
@@ -58,6 +61,7 @@ func NewInstance(props rtui.Props) *Instance {
 		seriesName:    proputil.GetString(props, propSeriesName, ""),
 		labels:        getLabelsProp(props, nil),
 		axisLabelMode: getAxisLabelModeProp(props, AxisLabelModeAuto),
+		renderBackend: getRenderBackendProp(props, RenderBackendText),
 		width:         proputil.GetInt(props, propWidth, 0),
 		height:        proputil.GetInt(props, propHeight, dimension.ChartMinHeight),
 		showAxis:      proputil.GetBool(props, propShowAxis, true),
@@ -87,6 +91,7 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	oldSeriesName := inst.seriesName
 	oldLabels := inst.labels
 	oldAxisLabelMode := inst.axisLabelMode
+	oldRenderBackend := inst.renderBackend
 	oldSeries := inst.series
 	oldStyle := inst.chartStyle
 	oldData := inst.data
@@ -98,6 +103,7 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	inst.seriesName = proputil.GetString(props, propSeriesName, inst.seriesName)
 	inst.labels = getLabelsProp(props, inst.labels)
 	inst.axisLabelMode = getAxisLabelModeProp(props, inst.axisLabelMode)
+	inst.renderBackend = getRenderBackendProp(props, inst.renderBackend)
 	inst.width = proputil.GetInt(props, propWidth, inst.width)
 	inst.height = proputil.GetInt(props, propHeight, inst.height)
 	if inst.height <= 0 {
@@ -114,6 +120,7 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 		oldSeriesName != inst.seriesName ||
 		!stringSlicesEqual(oldLabels, inst.labels) ||
 		oldAxisLabelMode != inst.axisLabelMode ||
+		oldRenderBackend != inst.renderBackend ||
 		oldWidth != inst.width ||
 		oldHeight != inst.height ||
 		oldShowAxis != inst.showAxis ||
@@ -137,6 +144,7 @@ func (inst *Instance) GetProps() rtui.Props {
 		propSeriesName:    inst.seriesName,
 		propLabels:        copyStringSlice(inst.labels),
 		propAxisLabelMode: inst.axisLabelMode,
+		propRenderBackend: inst.renderBackend,
 		propWidth:         inst.width,
 		propHeight:        inst.height,
 		propShowAxis:      inst.showAxis,
@@ -150,6 +158,7 @@ func (inst *Instance) GetProps() rtui.Props {
 func (inst *Instance) MarkDirty()                         { inst.dirty = true }
 func (inst *Instance) IsDirty() bool                      { return inst.dirty }
 func (inst *Instance) GetContext() *rtui.ComponentContext { return nil }
+func (inst *Instance) SetBounds(x, y, w, h int)           { inst.bounds = [4]int{x, y, w, h} }
 
 func (inst *Instance) Measure(constraints layout.Constraints) layout.Size {
 	header := inst.buildHeaderFrame()

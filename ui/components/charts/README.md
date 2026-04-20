@@ -45,6 +45,11 @@
 - `barchart` 已补齐分类过多时的标签折叠优化
 - `linechart` 已补齐窄宽度下优先保留 turning point 的连续性采样
 
+当前约束说明：
+
+- `linechart` 的 chart 级像素 backend 已暂停接入，组件层统一走文本渲染
+- 终端图形协议和基础 image-layer 机制仍然保留，但它们现在只面向专用图片控件，不再作为 charts 的默认能力
+
 ## 当前结论
 
 第一批图表已经跑通：

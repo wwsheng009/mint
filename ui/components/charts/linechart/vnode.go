@@ -42,6 +42,7 @@ type VNode struct {
 	seriesName    string
 	labels        []string
 	axisLabelMode AxisLabelMode
+	renderBackend RenderBackend
 	width         int
 	height        int
 	showAxis      bool
@@ -62,6 +63,7 @@ func New(data []float64) *VNode {
 		ElementVNode:  rtui.NewElement("linechart"),
 		data:          copyFloat64Slice(data),
 		axisLabelMode: AxisLabelModeAuto,
+		renderBackend: RenderBackendText,
 		showAxis:      true,
 		showPoints:    true,
 	}
@@ -86,6 +88,7 @@ func (v *VNode) Props() rtui.Props {
 		propSeriesName:    v.seriesName,
 		propLabels:        copyStringSlice(v.labels),
 		propAxisLabelMode: v.axisLabelMode,
+		propRenderBackend: v.renderBackend,
 		propWidth:         v.width,
 		propHeight:        v.height,
 		propShowAxis:      v.showAxis,
@@ -117,6 +120,9 @@ func (v *VNode) SetProps(props rtui.Props) rtui.VNode {
 	}
 	if axisLabelMode, ok := props[propAxisLabelMode].(AxisLabelMode); ok {
 		v.axisLabelMode = axisLabelMode
+	}
+	if renderBackend, ok := props[propRenderBackend].(RenderBackend); ok {
+		v.renderBackend = normalizeRenderBackend(renderBackend)
 	}
 	if width, ok := props[propWidth].(int); ok {
 		v.width = width
@@ -176,6 +182,11 @@ func (v *VNode) SetAxisLabelMode(mode AxisLabelMode) *VNode {
 	return v
 }
 
+func (v *VNode) SetRenderBackend(backend RenderBackend) *VNode {
+	v.renderBackend = normalizeRenderBackend(backend)
+	return v
+}
+
 func (v *VNode) SetWidth(width int) *VNode {
 	v.width = width
 	return v
@@ -217,6 +228,7 @@ func (v *VNode) Series() []Series             { return copySeriesSlice(v.series)
 func (v *VNode) SeriesName() string           { return v.seriesName }
 func (v *VNode) Labels() []string             { return copyStringSlice(v.labels) }
 func (v *VNode) AxisLabelMode() AxisLabelMode { return v.axisLabelMode }
+func (v *VNode) RenderBackend() RenderBackend { return v.renderBackend }
 func (v *VNode) Width() int                   { return v.width }
 func (v *VNode) Height() int                  { return v.height }
 func (v *VNode) ShowAxis() bool               { return v.showAxis }

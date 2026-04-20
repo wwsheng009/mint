@@ -55,6 +55,7 @@ TUI 特定的渲染文档
 | `EXAMPLES_LINECHART_IMAGE_PROTOTYPE_LAYOUT_SPEC.md` | `examples/charts_linechart_image_prototype` 目录与页面布局规格 | 设计 |
 | `PROTOTYPE_BENCHMARK_AND_ARTIFACT_LAYOUT_SPEC.md` | Prototype benchmark 与 diagnostics 产物布局规格 | 设计 |
 | `IMPLEMENTATION_SEQUENCE_AND_PR_PLAN.md` | Pixel 渲染实施顺序与 PR 切分计划 | 设计 |
+| `TEAM_EXECUTION_TICKETS.md` | Pixel Phase 1 团队执行工单与 owner 划分 | 设计 |
 
 ---
 

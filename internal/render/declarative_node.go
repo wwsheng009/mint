@@ -441,6 +441,26 @@ func (n *DeclarativeNode) Paint(ctx paint.PaintContext, buf *paint.Buffer) {
 	log.PaintLogger.IfEnabled().Warn("[DeclarativeNode.Paint] Legacy rendering path not available. Fiber-first mode is recommended.")
 }
 
+// PaintScene renders the text buffer using the existing Fiber-first paint
+// pipeline and then collects any raster image layers exposed by runtime
+// instances. Returning nil preserves text-only behavior for callers.
+func (n *DeclarativeNode) PaintScene(ctx paint.PaintContext, buf *paint.Buffer) *paint.SceneFrame {
+	n.Paint(ctx, buf)
+
+	layers := n.collectSceneImageLayers()
+	if len(layers) == 0 {
+		return nil
+	}
+
+	scene := paint.NewSceneFrame(buf)
+	scene.ImageLayers = layers
+	scene.Diagnostics = paint.SceneDiagnostics{
+		Summary: fmt.Sprintf("declarative scene images=%d", len(layers)),
+		Notes:   []string{"source=declarative-fiber"},
+	}
+	return scene
+}
+
 // fiberFirstPaint renders using the new Fiber-first pipeline
 // Phase 1: Reconcile (VNode -> Fiber, VNode discarded)
 // Phase 2: Layout (Fiber -> LayoutBox, no VNode access)
@@ -1951,6 +1971,49 @@ func collectPaintableDirtyRects(root *paint.PaintableBox) []paint.Rect {
 	}
 	walk(root)
 	return rects
+}
+
+func (n *DeclarativeNode) collectSceneImageLayers() []paint.ImageLayer {
+	n.mu.RLock()
+	root := n.lastPaintableRoot
+	n.mu.RUnlock()
+
+	return collectSceneImageLayersFromPaintableRoot(root)
+}
+
+func collectSceneImageLayersFromPaintableRoot(root *paint.PaintableBox) []paint.ImageLayer {
+	if root == nil {
+		return nil
+	}
+
+	layers := make([]paint.ImageLayer, 0, 4)
+	var walk func(box *paint.PaintableBox)
+	walk = func(box *paint.PaintableBox) {
+		if box == nil {
+			return
+		}
+
+		if fiberNode, ok := box.Node.(*FiberPaintableNode); ok && fiberNode != nil && fiberNode.fiber != nil {
+			if sceneInst, ok := rtui.AsScenePaintableInstance(fiberNode.fiber.Instance); ok {
+				for _, layer := range sceneInst.SceneLayers() {
+					if !layer.HasPixels() || layer.Bounds.Width <= 0 || layer.Bounds.Height <= 0 {
+						continue
+					}
+					layers = append(layers, layer.Clone())
+				}
+			}
+		}
+
+		for _, child := range box.Children {
+			walk(child)
+		}
+	}
+	walk(root)
+
+	if len(layers) == 0 {
+		return nil
+	}
+	return layers
 }
 
 // =============================================================================

@@ -2,17 +2,26 @@ package framework
 
 import (
 	"context"
+	"fmt"
+	"io"
+	"os"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/wwsheng009/mint/framework/component"
 	frameworkevent "github.com/wwsheng009/mint/framework/event"
 	irender "github.com/wwsheng009/mint/internal/render"
+	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/action"
 	"github.com/wwsheng009/mint/runtime/core"
 	runtimeevent "github.com/wwsheng009/mint/runtime/event"
+	"github.com/wwsheng009/mint/runtime/layout"
 	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
+	"github.com/wwsheng009/mint/runtime/paint"
 	runtimeplatform "github.com/wwsheng009/mint/runtime/platform"
 	"github.com/wwsheng009/mint/runtime/render"
+	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/ui/components/cursor"
 	"github.com/wwsheng009/mint/ui/components/input"
@@ -918,6 +927,113 @@ func popupHitDetail(t *testing.T, app *App, localX, localY int) *runtimeevent.De
 	return detail
 }
 
+func hitDetailForFiberID(t *testing.T, app *App, fiberID string, localX, localY int) *runtimeevent.DetailedHitTestResult {
+	t.Helper()
+	hitMap := app.GetHitMap()
+	if hitMap == nil {
+		t.Fatal("expected hitmap after render")
+	}
+
+	var targetEntry *runtimeevent.HitMapEntry
+	for _, entry := range hitMap.AllEntries() {
+		fiber, ok := entry.TargetFiber.(*rtui.Fiber)
+		if !ok || fiber == nil {
+			continue
+		}
+		if fiber.ID == fiberID {
+			entryCopy := entry
+			targetEntry = &entryCopy
+			break
+		}
+	}
+	if targetEntry == nil {
+		t.Fatalf("expected hitmap entry for fiber id %q", fiberID)
+	}
+
+	screenX := targetEntry.Bounds.X + localX
+	screenY := targetEntry.Bounds.Y + localY
+	detail := hitMap.HitTestDetailed(screenX, screenY)
+	if detail == nil || !detail.Found || detail.Entry == nil {
+		t.Fatalf("expected hit at (%d,%d) for fiber id %q", screenX, screenY, fiberID)
+	}
+	return detail
+}
+
+func staticTerminalFrameSceneVNode() rtui.VNode {
+	return newSceneImageTestVNode("linechart-image-prototype-image", "Image Plot Backend", 31, 6, 248, 72)
+}
+
+func describeActionPath(app *App, target any) string {
+	fiber, ok := target.(*rtui.Fiber)
+	if !ok || fiber == nil {
+		return "<nil>"
+	}
+
+	parts := make([]string, 0, 8)
+	for node := fiber; node != nil; node = node.Return {
+		instanceType := "<nil>"
+		if node.Instance != nil {
+			instanceType = fmt.Sprintf("%T", node.Instance)
+		}
+		_, hasInstanceHandler := node.Instance.(rtui.ActionHandlerInstance)
+		hasScopeHandler := false
+		if app != nil && app.scopeDispatcher != nil && node.ActionTargetID != "" {
+			hasScopeHandler = app.scopeDispatcher.HasHandler(node.ActionTargetID)
+		}
+		hasRouterHandler := false
+		if app != nil && app.actionRouter != nil && node.ActionTargetID != "" {
+			_, hasRouterHandler = app.actionRouter.TargetHandlers[node.ActionTargetID]
+		}
+		parts = append(parts, fmt.Sprintf("%s[id=%s target=%s inst=%s instHandler=%v scope=%v router=%v]",
+			node.Tag, node.ID, node.ActionTargetID, instanceType, hasInstanceHandler, hasScopeHandler, hasRouterHandler))
+	}
+	return strings.Join(parts, " -> ")
+}
+
+func describeLayoutActionPath(app *App, target any) string {
+	fiber, ok := target.(*rtui.Fiber)
+	if !ok || fiber == nil || app == nil || app.actionRouter == nil || app.actionRouter.Root == nil {
+		return "<nil>"
+	}
+
+	targetID := fiber.GetActionTargetID()
+	if targetID == "" {
+		return "<no-target-id>"
+	}
+
+	node := findLayoutNodeByID(app.actionRouter.Root, targetID)
+	if node == nil {
+		return "<layout-miss>"
+	}
+
+	parts := make([]string, 0, 8)
+	for current := node; current != nil; current = current.Parent {
+		instanceType := "<nil>"
+		hasTarget := false
+		if current.Component != nil && current.Component.Instance != nil {
+			instanceType = fmt.Sprintf("%T", current.Component.Instance)
+			_, hasTarget = current.Component.Instance.(action.Target)
+		}
+		parts = append(parts, fmt.Sprintf("%v[id=%s inst=%s target=%v]", current.Type, current.ID, instanceType, hasTarget))
+	}
+	return strings.Join(parts, " -> ")
+}
+
+func findLayoutNodeByID(root *runtime.LayoutNode, id string) *runtime.LayoutNode {
+	if root == nil {
+		return nil
+	}
+	if root.ID == id {
+		return root
+	}
+	for _, child := range root.Children {
+		if found := findLayoutNodeByID(child, id); found != nil {
+			return found
+		}
+	}
+	return nil
+}
+
 func selectTriggerHitDetail(t *testing.T, app *App, localX, localY int) *runtimeevent.DetailedHitTestResult {
 	t.Helper()
 	hitMap := app.GetHitMap()
@@ -993,6 +1109,536 @@ func TestApp_ProcessMsg_TargetedClickRunsMiddlewareBeforeFiberDispatch(t *testin
 	}
 	if len(recorder.handled) != 1 || recorder.handled[0] != action.ActionClick {
 		t.Fatalf("handled actions = %#v, want [ActionClick]", recorder.handled)
+	}
+}
+
+func TestApp_ProcessMsg_StaticTerminalFrameSceneMouseMoveDoesNotMarkDirty(t *testing.T) {
+	t.Setenv("MINT_NO_ALTERNATE_SCREEN", "true")
+
+	app := NewApp()
+	app.Resize(104, 24)
+	var handled bool
+	var stage string
+	var actionType action.ActionType
+	app.SetTestActionProbe(func(act *action.Action, wasHandled bool, handledStage string) {
+		actionType = act.Type
+		handled = wasHandled
+		stage = handledStage
+	})
+	presenter := &recordingGraphicsPresenter{
+		caps: runtimeplatform.GraphicsCapabilities{
+			Mode:              runtimeplatform.GraphicsModeSixel,
+			PresentationModel: runtimeplatform.GraphicsPresentationModelTerminalFrame,
+			Reliable:          true,
+			SupportsPlacement: true,
+			SupportsReplace:   true,
+			SupportsDelete:    false,
+		},
+	}
+	app.SetGraphicsPresenter(presenter)
+
+	decl := irender.NewDeclarativeNodeFromFuncWithFiber(func() rtui.VNode {
+		return staticTerminalFrameSceneVNode()
+	})
+	decl.SetApp(app)
+	if fm := decl.GetFocusManager(); fm != nil {
+		app.SetFocusManagerFromDeclarativeNode(fm)
+	}
+	app.SetRoot(decl)
+
+	captureStdout(t, func() {
+		app.render()
+	})
+	if presenter.presentCalls != 1 {
+		t.Fatalf("initial present calls = %d, want 1", presenter.presentCalls)
+	}
+
+	detail := hitDetailForFiberID(t, app, "linechart-image-prototype-image", 2, 2)
+	mouseMsg := runtimemsg.NewMouseMsg(detail.ScreenX, detail.ScreenY, runtimemsg.MouseButtonUnknown, runtimemsg.MouseActionMove)
+	mouseMsg.TargetID = detail.Entry.NodeID
+	mouseMsg.TargetFiber = detail.Entry.TargetFiber
+	mouseMsg.LocalX = detail.LocalX
+	mouseMsg.LocalY = detail.LocalY
+
+	app.dirty = false
+	app.processMsg(mouseMsg)
+
+	if app.dirty {
+		t.Fatalf("expected static scene mouse move to leave app clean, action=%q handled=%v stage=%q fiberPath=%s layoutPath=%s", actionType, handled, stage, describeActionPath(app, detail.Entry.TargetFiber), describeLayoutActionPath(app, detail.Entry.TargetFiber))
+	}
+	if presenter.presentCalls != 1 {
+		t.Fatalf("present calls after mouse move = %d, want 1", presenter.presentCalls)
+	}
+}
+
+func TestApp_ProcessMsg_StaticTerminalFrameSceneMouseClickDoesNotMarkDirty(t *testing.T) {
+	t.Setenv("MINT_NO_ALTERNATE_SCREEN", "true")
+
+	app := NewApp()
+	app.Resize(104, 24)
+	var handled bool
+	var stage string
+	var actionType action.ActionType
+	app.SetTestActionProbe(func(act *action.Action, wasHandled bool, handledStage string) {
+		actionType = act.Type
+		handled = wasHandled
+		stage = handledStage
+	})
+	presenter := &recordingGraphicsPresenter{
+		caps: runtimeplatform.GraphicsCapabilities{
+			Mode:              runtimeplatform.GraphicsModeSixel,
+			PresentationModel: runtimeplatform.GraphicsPresentationModelTerminalFrame,
+			Reliable:          true,
+			SupportsPlacement: true,
+			SupportsReplace:   true,
+			SupportsDelete:    false,
+		},
+	}
+	app.SetGraphicsPresenter(presenter)
+
+	decl := irender.NewDeclarativeNodeFromFuncWithFiber(func() rtui.VNode {
+		return staticTerminalFrameSceneVNode()
+	})
+	decl.SetApp(app)
+	if fm := decl.GetFocusManager(); fm != nil {
+		app.SetFocusManagerFromDeclarativeNode(fm)
+	}
+	app.SetRoot(decl)
+
+	captureStdout(t, func() {
+		app.render()
+	})
+	if presenter.presentCalls != 1 {
+		t.Fatalf("initial present calls = %d, want 1", presenter.presentCalls)
+	}
+
+	detail := hitDetailForFiberID(t, app, "linechart-image-prototype-image", 2, 2)
+	mousePress := runtimemsg.NewMouseMsg(detail.ScreenX, detail.ScreenY, runtimemsg.MouseLeft, runtimemsg.MouseActionPress)
+	mousePress.TargetID = detail.Entry.NodeID
+	mousePress.TargetFiber = detail.Entry.TargetFiber
+	mousePress.LocalX = detail.LocalX
+	mousePress.LocalY = detail.LocalY
+
+	mouseRelease := runtimemsg.NewMouseMsg(detail.ScreenX, detail.ScreenY, runtimemsg.MouseLeft, runtimemsg.MouseActionRelease)
+	mouseRelease.TargetID = detail.Entry.NodeID
+	mouseRelease.TargetFiber = detail.Entry.TargetFiber
+	mouseRelease.LocalX = detail.LocalX
+	mouseRelease.LocalY = detail.LocalY
+
+	app.dirty = false
+	app.processMsg(mousePress)
+	if app.dirty {
+		t.Fatalf("expected static scene mouse press to leave app clean, action=%q handled=%v stage=%q fiberPath=%s layoutPath=%s", actionType, handled, stage, describeActionPath(app, detail.Entry.TargetFiber), describeLayoutActionPath(app, detail.Entry.TargetFiber))
+	}
+
+	app.processMsg(mouseRelease)
+	if app.dirty {
+		t.Fatalf("expected static scene mouse release to leave app clean, action=%q handled=%v stage=%q fiberPath=%s layoutPath=%s", actionType, handled, stage, describeActionPath(app, detail.Entry.TargetFiber), describeLayoutActionPath(app, detail.Entry.TargetFiber))
+	}
+	if presenter.presentCalls != 1 {
+		t.Fatalf("present calls after mouse click = %d, want 1", presenter.presentCalls)
+	}
+}
+
+func TestApp_Render_TextOnlyPathStillOutputsText(t *testing.T) {
+	t.Setenv("MINT_NO_ALTERNATE_SCREEN", "true")
+
+	app := NewApp()
+	app.Resize(20, 4)
+	app.root = &renderTextNode{text: "hello scene"}
+
+	output := captureStdout(t, func() {
+		app.render()
+	})
+
+	if !strings.Contains(app.GetRenderer().GetRenderSnapshot(), "hello scene") {
+		t.Fatalf("render snapshot = %q, want text content", app.GetRenderer().GetRenderSnapshot())
+	}
+	if !strings.Contains(output, "hello scene") {
+		t.Fatalf("stdout output = %q, want text content", output)
+	}
+}
+
+func TestApp_Render_SceneWithImagesBypassesAsyncRenderer(t *testing.T) {
+	t.Setenv("MINT_NO_ALTERNATE_SCREEN", "true")
+	app := NewApp()
+	app.Resize(20, 4)
+	app.asyncRenderer = paint.NewAsyncRenderer(20, 4, paint.AsyncRendererOptions{
+		Output: func(string) {},
+	})
+	presenter := &recordingGraphicsPresenter{}
+	app.SetGraphicsPresenter(presenter)
+	app.root = &renderSceneNode{
+		text: "image frame",
+		scene: &paint.SceneFrame{
+			ImageLayers: []paint.ImageLayer{{
+				ID:          "plot",
+				Bounds:      paint.Rect{X: 1, Y: 1, Width: 6, Height: 2},
+				PixelWidth:  12,
+				PixelHeight: 4,
+				RGBA:        []byte{255, 0, 0, 255},
+			}},
+		},
+	}
+
+	output := captureStdout(t, func() {
+		app.render()
+	})
+
+	if got := app.asyncRenderer.Stats().SubmittedFrames; got != 0 {
+		t.Fatalf("async submitted frames = %d, want 0 for image bypass", got)
+	}
+	if presenter.presentCalls != 1 {
+		t.Fatalf("present calls = %d, want 1", presenter.presentCalls)
+	}
+	if !app.graphicsImagesOn {
+		t.Fatal("expected graphicsImagesOn to be true after successful image present")
+	}
+	if !strings.Contains(output, "image frame") {
+		t.Fatalf("stdout output = %q, want image frame text", output)
+	}
+}
+
+func TestApp_Render_ScenePresenterFailureFallsBackToText(t *testing.T) {
+	t.Setenv("MINT_NO_ALTERNATE_SCREEN", "true")
+	app := NewApp()
+	app.Resize(20, 4)
+	app.asyncRenderer = paint.NewAsyncRenderer(20, 4, paint.AsyncRendererOptions{
+		Output: func(string) {},
+	})
+	presenter := &recordingGraphicsPresenter{failPresent: true}
+	app.SetGraphicsPresenter(presenter)
+	app.root = &renderSceneNode{
+		text: "fallback text",
+		scene: &paint.SceneFrame{
+			ImageLayers: []paint.ImageLayer{{
+				ID:          "plot",
+				Bounds:      paint.Rect{X: 1, Y: 1, Width: 6, Height: 2},
+				PixelWidth:  12,
+				PixelHeight: 4,
+				RGBA:        []byte{255, 0, 0, 255},
+			}},
+		},
+	}
+
+	output := captureStdout(t, func() {
+		app.render()
+	})
+
+	if got := app.asyncRenderer.Stats().SubmittedFrames; got != 0 {
+		t.Fatalf("async submitted frames = %d, want 0 for failed image bypass", got)
+	}
+	if presenter.presentCalls != 1 {
+		t.Fatalf("present calls = %d, want 1", presenter.presentCalls)
+	}
+	if app.graphicsImagesOn {
+		t.Fatal("expected graphicsImagesOn to remain false after presenter failure")
+	}
+	if !strings.Contains(output, "fallback text") {
+		t.Fatalf("stdout output = %q, want fallback text", output)
+	}
+}
+
+func TestApp_Render_DeclarativeSceneLayersBypassAsyncRenderer(t *testing.T) {
+	t.Setenv("MINT_NO_ALTERNATE_SCREEN", "true")
+
+	app := NewApp()
+	app.Resize(24, 8)
+	app.asyncRenderer = paint.NewAsyncRenderer(24, 8, paint.AsyncRendererOptions{
+		Output: func(string) {},
+	})
+
+	presenter := &recordingGraphicsPresenter{}
+	app.SetGraphicsPresenter(presenter)
+	app.root = irender.NewDeclarativeNodeFromFuncWithFiber(func() rtui.VNode {
+		return newSceneImageTestVNode("trend-image-scene", "Trend", 5, 4, 40, 48)
+	})
+
+	output := captureStdout(t, func() {
+		app.render()
+	})
+
+	if got := app.asyncRenderer.Stats().SubmittedFrames; got != 0 {
+		t.Fatalf("async submitted frames = %d, want 0 for declarative scene bypass", got)
+	}
+	if presenter.presentCalls != 1 {
+		t.Fatalf("present calls = %d, want 1", presenter.presentCalls)
+	}
+	if len(presenter.requests) != 1 {
+		t.Fatalf("recorded requests = %d, want 1", len(presenter.requests))
+	}
+
+	req := presenter.requests[0]
+	if req.CellX != 0 || req.CellY != 1 {
+		t.Fatalf("request cell origin = (%d,%d), want (0,1)", req.CellX, req.CellY)
+	}
+	if req.CellWidth != 5 || req.CellHeight != 4 {
+		t.Fatalf("request cell size = %dx%d, want 5x4", req.CellWidth, req.CellHeight)
+	}
+	if req.PixelWidth != 40 || req.PixelHeight != 48 {
+		t.Fatalf("request pixel size = %dx%d, want 40x48", req.PixelWidth, req.PixelHeight)
+	}
+	if len(req.RGBA) != req.PixelWidth*req.PixelHeight*4 {
+		t.Fatalf("len(req.RGBA) = %d, want %d", len(req.RGBA), req.PixelWidth*req.PixelHeight*4)
+	}
+	if !app.graphicsImagesOn {
+		t.Fatal("expected graphicsImagesOn to be true after declarative scene present")
+	}
+	if !strings.Contains(output, "Trend") {
+		t.Fatalf("stdout output = %q, want title text", output)
+	}
+}
+
+func TestApp_Render_NonDeletableGraphicsClearBeforeTextRepaint(t *testing.T) {
+	t.Setenv("MINT_NO_ALTERNATE_SCREEN", "true")
+
+	app := NewApp()
+	app.Resize(20, 4)
+	app.asyncRenderer = paint.NewAsyncRenderer(20, 4, paint.AsyncRendererOptions{
+		Output: func(string) {},
+	})
+	presenter := &recordingGraphicsPresenter{
+		caps: runtimeplatform.GraphicsCapabilities{
+			Mode:              runtimeplatform.GraphicsModeSixel,
+			Reliable:          true,
+			SupportsPlacement: true,
+			SupportsReplace:   true,
+			SupportsDelete:    false,
+		},
+	}
+	app.SetGraphicsPresenter(presenter)
+	app.root = &renderSceneNode{
+		text: "image frame",
+		scene: &paint.SceneFrame{
+			ImageLayers: []paint.ImageLayer{{
+				ID:          "plot",
+				Bounds:      paint.Rect{X: 1, Y: 1, Width: 6, Height: 2},
+				PixelWidth:  12,
+				PixelHeight: 4,
+				RGBA:        []byte{255, 0, 0, 255},
+			}},
+		},
+	}
+
+	captureStdout(t, func() {
+		app.render()
+	})
+	if !app.graphicsImagesOn {
+		t.Fatal("expected graphicsImagesOn to be true after image frame")
+	}
+
+	app.root = &renderSceneNode{text: "text only"}
+	output := captureStdout(t, func() {
+		app.render()
+	})
+
+	if presenter.clearCalls != 1 {
+		t.Fatalf("clear calls = %d, want 1", presenter.clearCalls)
+	}
+	if got := app.asyncRenderer.Stats().SubmittedFrames; got != 0 {
+		t.Fatalf("async submitted frames = %d, want 0 after non-deletable graphics clear", got)
+	}
+	if app.graphicsImagesOn {
+		t.Fatal("expected graphicsImagesOn to be false after text repaint")
+	}
+	if !strings.Contains(output, "text only") {
+		t.Fatalf("stdout output = %q, want text only content", output)
+	}
+}
+
+func TestApp_Render_NonDeletableGraphicsSameLayoutDoesNotClearBetweenFrames(t *testing.T) {
+	t.Setenv("MINT_NO_ALTERNATE_SCREEN", "true")
+
+	app := NewApp()
+	app.Resize(20, 4)
+	app.asyncRenderer = paint.NewAsyncRenderer(20, 4, paint.AsyncRendererOptions{
+		Output: func(string) {},
+	})
+	presenter := &recordingGraphicsPresenter{
+		caps: runtimeplatform.GraphicsCapabilities{
+			Mode:              runtimeplatform.GraphicsModeSixel,
+			Reliable:          true,
+			SupportsPlacement: true,
+			SupportsReplace:   true,
+			SupportsDelete:    false,
+		},
+	}
+	app.SetGraphicsPresenter(presenter)
+
+	scene := &paint.SceneFrame{
+		ImageLayers: []paint.ImageLayer{{
+			ID:          "plot",
+			Bounds:      paint.Rect{X: 1, Y: 1, Width: 6, Height: 2},
+			PixelWidth:  12,
+			PixelHeight: 4,
+			RGBA:        []byte{255, 0, 0, 255},
+		}},
+	}
+
+	app.root = &renderSceneNode{text: "frame one", scene: scene}
+	captureStdout(t, func() {
+		app.render()
+	})
+	if !app.graphicsImagesOn {
+		t.Fatal("expected graphicsImagesOn to be true after first image frame")
+	}
+
+	app.root = &renderSceneNode{text: "frame two", scene: scene}
+	output := captureStdout(t, func() {
+		app.render()
+	})
+
+	if presenter.clearCalls != 0 {
+		t.Fatalf("clear calls = %d, want 0 for same-layout rerender", presenter.clearCalls)
+	}
+	if presenter.presentCalls != 2 {
+		t.Fatalf("present calls = %d, want 2 for same-layout rerender", presenter.presentCalls)
+	}
+	if !app.graphicsImagesOn {
+		t.Fatal("expected graphicsImagesOn to remain true after same-layout rerender")
+	}
+	if !strings.Contains(output, "frame two") {
+		t.Fatalf("stdout output = %q, want updated text content", output)
+	}
+}
+
+func TestApp_Render_TerminalFrameGraphicsStableSceneForcesFullTextRepaint(t *testing.T) {
+	t.Setenv("MINT_NO_ALTERNATE_SCREEN", "true")
+
+	app := NewApp()
+	app.Resize(20, 4)
+	presenter := &recordingGraphicsPresenter{
+		caps: runtimeplatform.GraphicsCapabilities{
+			Mode:              runtimeplatform.GraphicsModeSixel,
+			PresentationModel: runtimeplatform.GraphicsPresentationModelTerminalFrame,
+			Reliable:          true,
+			SupportsPlacement: true,
+			SupportsReplace:   true,
+			SupportsDelete:    false,
+		},
+	}
+	app.SetGraphicsPresenter(presenter)
+
+	scene := &paint.SceneFrame{
+		ImageLayers: []paint.ImageLayer{{
+			ID:          "plot",
+			Bounds:      paint.Rect{X: 1, Y: 1, Width: 6, Height: 2},
+			PixelWidth:  12,
+			PixelHeight: 4,
+			RGBA:        []byte{255, 0, 0, 255},
+		}},
+	}
+
+	app.root = &renderSceneNode{text: "stable frame", scene: scene}
+	captureStdout(t, func() {
+		app.render()
+	})
+
+	app.root = &renderSceneNode{text: "stable frame", scene: scene}
+	output := captureStdout(t, func() {
+		app.render()
+	})
+
+	if presenter.clearCalls != 0 {
+		t.Fatalf("clear calls = %d, want 0 for stable terminal-frame rerender", presenter.clearCalls)
+	}
+	if presenter.presentCalls != 2 {
+		t.Fatalf("present calls = %d, want 2 for stable terminal-frame rerender", presenter.presentCalls)
+	}
+	if !strings.Contains(output, "stable frame") {
+		t.Fatalf("stdout output = %q, want full text repaint for terminal-frame graphics", output)
+	}
+}
+
+func TestApp_Render_OverlayGraphicsStableSceneKeepsDiffBasedTextRendering(t *testing.T) {
+	t.Setenv("MINT_NO_ALTERNATE_SCREEN", "true")
+
+	app := NewApp()
+	app.Resize(20, 4)
+	presenter := &recordingGraphicsPresenter{
+		caps: runtimeplatform.GraphicsCapabilities{
+			Mode:              runtimeplatform.GraphicsModeKitty,
+			PresentationModel: runtimeplatform.GraphicsPresentationModelOverlay,
+			Reliable:          true,
+			SupportsPlacement: true,
+			SupportsReplace:   true,
+			SupportsDelete:    true,
+		},
+	}
+	app.SetGraphicsPresenter(presenter)
+
+	scene := &paint.SceneFrame{
+		ImageLayers: []paint.ImageLayer{{
+			ID:          "plot",
+			Bounds:      paint.Rect{X: 1, Y: 1, Width: 6, Height: 2},
+			PixelWidth:  12,
+			PixelHeight: 4,
+			RGBA:        []byte{255, 0, 0, 255},
+		}},
+	}
+
+	app.root = &renderSceneNode{text: "stable frame", scene: scene}
+	captureStdout(t, func() {
+		app.render()
+	})
+
+	app.root = &renderSceneNode{text: "stable frame", scene: scene}
+	output := captureStdout(t, func() {
+		app.render()
+	})
+
+	if presenter.presentCalls != 2 {
+		t.Fatalf("present calls = %d, want 2 for overlay rerender", presenter.presentCalls)
+	}
+	if strings.Contains(output, "stable frame") {
+		t.Fatalf("stdout output = %q, want diff-based text rendering without forced full repaint", output)
+	}
+}
+
+func TestApp_Render_SceneBypassMasksTextUnderImageBounds(t *testing.T) {
+	t.Setenv("MINT_NO_ALTERNATE_SCREEN", "true")
+
+	app := NewApp()
+	app.Resize(20, 4)
+	presenter := &recordingGraphicsPresenter{
+		caps: runtimeplatform.GraphicsCapabilities{
+			Mode:              runtimeplatform.GraphicsModeSixel,
+			Reliable:          true,
+			SupportsPlacement: true,
+			SupportsReplace:   true,
+			SupportsDelete:    false,
+		},
+	}
+	app.SetGraphicsPresenter(presenter)
+	app.root = &renderSceneTextRowsNode{
+		rows: map[int]string{
+			0: "title",
+			1: "ABCDE",
+			2: "footer",
+		},
+		scene: &paint.SceneFrame{
+			ImageLayers: []paint.ImageLayer{{
+				ID:          "plot",
+				Bounds:      paint.Rect{X: 0, Y: 1, Width: 5, Height: 1},
+				PixelWidth:  10,
+				PixelHeight: 2,
+				RGBA:        []byte{255, 0, 0, 255},
+			}},
+		},
+	}
+
+	output := captureStdout(t, func() {
+		app.render()
+	})
+
+	if strings.Contains(output, "ABCDE") {
+		t.Fatalf("stdout output = %q, want image-covered text to be masked", output)
+	}
+	if !strings.Contains(output, "title") || !strings.Contains(output, "footer") {
+		t.Fatalf("stdout output = %q, want surrounding text rows to remain", output)
+	}
+	if presenter.presentCalls != 1 {
+		t.Fatalf("present calls = %d, want 1", presenter.presentCalls)
 	}
 }
 
@@ -1103,4 +1749,324 @@ type testPanicHandler struct{}
 
 func (h *testPanicHandler) HandlePanic(r interface{}, stack []byte) {
 	// 测试实现，什么都不做
+}
+
+type renderTextNode struct {
+	text string
+}
+
+func (n *renderTextNode) ID() string {
+	return "render-text-node"
+}
+
+func (n *renderTextNode) Type() string {
+	return "render-text-node"
+}
+
+func (n *renderTextNode) Paint(ctx component.PaintContext, buf *paint.Buffer) {
+	buf.SetString(ctx.X, ctx.Y, n.text, style.Style{})
+}
+
+type renderSceneNode struct {
+	text  string
+	scene *paint.SceneFrame
+}
+
+func (n *renderSceneNode) ID() string {
+	return "render-scene-node"
+}
+
+func (n *renderSceneNode) Type() string {
+	return "render-scene-node"
+}
+
+func (n *renderSceneNode) Paint(ctx component.PaintContext, buf *paint.Buffer) {
+	buf.SetString(ctx.X, ctx.Y, n.text, style.Style{})
+}
+
+func (n *renderSceneNode) PaintScene(ctx component.PaintContext, buf *paint.Buffer) *paint.SceneFrame {
+	n.Paint(ctx, buf)
+	if n.scene == nil {
+		return nil
+	}
+
+	sceneCopy := *n.scene
+	sceneCopy.Buffer = buf
+	sceneCopy.ImageLayers = paint.CloneImageLayers(n.scene.ImageLayers)
+	sceneCopy.Diagnostics.Notes = append([]string(nil), n.scene.Diagnostics.Notes...)
+	return &sceneCopy
+}
+
+type renderSceneTextRowsNode struct {
+	rows  map[int]string
+	scene *paint.SceneFrame
+}
+
+func (n *renderSceneTextRowsNode) ID() string {
+	return "render-scene-text-rows-node"
+}
+
+func (n *renderSceneTextRowsNode) Type() string {
+	return "render-scene-text-rows-node"
+}
+
+func (n *renderSceneTextRowsNode) Paint(ctx component.PaintContext, buf *paint.Buffer) {
+	for row, text := range n.rows {
+		buf.SetString(ctx.X, ctx.Y+row, text, style.Style{})
+	}
+}
+
+func (n *renderSceneTextRowsNode) PaintScene(ctx component.PaintContext, buf *paint.Buffer) *paint.SceneFrame {
+	n.Paint(ctx, buf)
+	if n.scene == nil {
+		return nil
+	}
+
+	sceneCopy := *n.scene
+	sceneCopy.Buffer = buf
+	sceneCopy.ImageLayers = paint.CloneImageLayers(n.scene.ImageLayers)
+	sceneCopy.Diagnostics.Notes = append([]string(nil), n.scene.Diagnostics.Notes...)
+	return &sceneCopy
+}
+
+type sceneImageTestVNode struct {
+	*rtui.ElementVNode
+}
+
+const (
+	sceneImageTestPropTitle       = "title"
+	sceneImageTestPropPlotWidth   = "plotWidth"
+	sceneImageTestPropPlotHeight  = "plotHeight"
+	sceneImageTestPropPixelWidth  = "pixelWidth"
+	sceneImageTestPropPixelHeight = "pixelHeight"
+)
+
+func newSceneImageTestVNode(id, title string, plotWidth, plotHeight, pixelWidth, pixelHeight int) *sceneImageTestVNode {
+	node := &sceneImageTestVNode{ElementVNode: rtui.NewElement("scene-image-test")}
+	node.SetID(id)
+	node.SetProps(rtui.Props{
+		sceneImageTestPropTitle:       title,
+		sceneImageTestPropPlotWidth:   plotWidth,
+		sceneImageTestPropPlotHeight:  plotHeight,
+		sceneImageTestPropPixelWidth:  pixelWidth,
+		sceneImageTestPropPixelHeight: pixelHeight,
+	})
+	return node
+}
+
+func (v *sceneImageTestVNode) CreateInstance() rtui.ComponentInstance {
+	return newSceneImageTestInstance(v.ID(), v.Props())
+}
+
+type sceneImageTestInstance struct {
+	key         string
+	id          string
+	title       string
+	plotWidth   int
+	plotHeight  int
+	pixelWidth  int
+	pixelHeight int
+	bounds      [4]int
+	dirty       bool
+}
+
+var (
+	_ rtui.ComponentInstance      = (*sceneImageTestInstance)(nil)
+	_ rtui.PaintableInstance      = (*sceneImageTestInstance)(nil)
+	_ rtui.ScenePaintableInstance = (*sceneImageTestInstance)(nil)
+)
+
+func newSceneImageTestInstance(id string, props rtui.Props) *sceneImageTestInstance {
+	inst := &sceneImageTestInstance{id: id, dirty: true}
+	inst.Init(props)
+	return inst
+}
+
+func (inst *sceneImageTestInstance) Key() string                        { return inst.key }
+func (inst *sceneImageTestInstance) SetKey(key string)                  { inst.key = key }
+func (inst *sceneImageTestInstance) Destroy()                           {}
+func (inst *sceneImageTestInstance) OnMount()                           {}
+func (inst *sceneImageTestInstance) OnUnmount()                         {}
+func (inst *sceneImageTestInstance) MarkDirty()                         { inst.dirty = true }
+func (inst *sceneImageTestInstance) IsDirty() bool                      { return inst.dirty }
+func (inst *sceneImageTestInstance) GetContext() *rtui.ComponentContext { return nil }
+
+func (inst *sceneImageTestInstance) Init(props rtui.Props) {
+	inst.SetProps(props)
+}
+
+func (inst *sceneImageTestInstance) SetProps(props rtui.Props) bool {
+	oldTitle := inst.title
+	oldPlotWidth := inst.plotWidth
+	oldPlotHeight := inst.plotHeight
+	oldPixelWidth := inst.pixelWidth
+	oldPixelHeight := inst.pixelHeight
+
+	if title, ok := props[sceneImageTestPropTitle].(string); ok {
+		inst.title = title
+	}
+	if plotWidth, ok := props[sceneImageTestPropPlotWidth].(int); ok {
+		inst.plotWidth = plotWidth
+	}
+	if plotHeight, ok := props[sceneImageTestPropPlotHeight].(int); ok {
+		inst.plotHeight = plotHeight
+	}
+	if pixelWidth, ok := props[sceneImageTestPropPixelWidth].(int); ok {
+		inst.pixelWidth = pixelWidth
+	}
+	if pixelHeight, ok := props[sceneImageTestPropPixelHeight].(int); ok {
+		inst.pixelHeight = pixelHeight
+	}
+
+	changed := oldTitle != inst.title ||
+		oldPlotWidth != inst.plotWidth ||
+		oldPlotHeight != inst.plotHeight ||
+		oldPixelWidth != inst.pixelWidth ||
+		oldPixelHeight != inst.pixelHeight
+	if changed {
+		inst.dirty = true
+	}
+	return changed
+}
+
+func (inst *sceneImageTestInstance) GetProps() rtui.Props {
+	return rtui.Props{
+		sceneImageTestPropTitle:       inst.title,
+		sceneImageTestPropPlotWidth:   inst.plotWidth,
+		sceneImageTestPropPlotHeight:  inst.plotHeight,
+		sceneImageTestPropPixelWidth:  inst.pixelWidth,
+		sceneImageTestPropPixelHeight: inst.pixelHeight,
+	}
+}
+
+func (inst *sceneImageTestInstance) SetBounds(x, y, w, h int) {
+	inst.bounds = [4]int{x, y, w, h}
+}
+
+func (inst *sceneImageTestInstance) Measure(constraints layout.Constraints) layout.Size {
+	width := inst.plotWidth
+	if width < len(inst.title) {
+		width = len(inst.title)
+	}
+	height := inst.plotHeight + 1
+	return layout.Size{
+		Width:  constraints.ConstrainWidth(width),
+		Height: constraints.ConstrainHeight(height),
+	}
+}
+
+func (inst *sceneImageTestInstance) Paint(x, y int) []paint.DrawCmd {
+	return []paint.DrawCmd{{
+		X:     x,
+		Y:     y,
+		Text:  inst.title,
+		Style: style.Style{},
+	}}
+}
+
+func (inst *sceneImageTestInstance) SceneLayers() []paint.ImageLayer {
+	if inst.plotWidth <= 0 || inst.plotHeight <= 0 || inst.pixelWidth <= 0 || inst.pixelHeight <= 0 {
+		return nil
+	}
+	return []paint.ImageLayer{{
+		ID:          inst.id + ":plot-image",
+		Bounds:      paint.Rect{X: inst.bounds[0], Y: inst.bounds[1] + 1, Width: inst.plotWidth, Height: inst.plotHeight},
+		PixelWidth:  inst.pixelWidth,
+		PixelHeight: inst.pixelHeight,
+		RGBA:        solidSceneImageRGBA(inst.pixelWidth, inst.pixelHeight, 255, 0, 0, 255),
+		AltText:     inst.title + " plot image",
+	}}
+}
+
+func solidSceneImageRGBA(width, height int, r, g, b, a byte) []byte {
+	if width <= 0 || height <= 0 {
+		return nil
+	}
+	rgba := make([]byte, width*height*4)
+	for i := 0; i < len(rgba); i += 4 {
+		rgba[i] = r
+		rgba[i+1] = g
+		rgba[i+2] = b
+		rgba[i+3] = a
+	}
+	return rgba
+}
+
+type recordingGraphicsPresenter struct {
+	caps         runtimeplatform.GraphicsCapabilities
+	presentCalls int
+	clearCalls   int
+	failPresent  bool
+	requests     []runtimeplatform.DrawImageRequest
+}
+
+func (p *recordingGraphicsPresenter) Capabilities() runtimeplatform.GraphicsCapabilities {
+	caps := p.caps
+	if caps.Mode == runtimeplatform.GraphicsModeNone {
+		caps.Mode = runtimeplatform.GraphicsModeKitty
+		caps.Reliable = true
+		caps.SupportsPlacement = true
+		caps.SupportsReplace = true
+		caps.SupportsDelete = true
+	}
+	return caps
+}
+
+func (p *recordingGraphicsPresenter) Present(req runtimeplatform.DrawImageRequest) (string, error) {
+	p.presentCalls++
+	p.requests = append(p.requests, req)
+	if p.failPresent {
+		return "", os.ErrInvalid
+	}
+	if req.ID != "" {
+		return req.ID, nil
+	}
+	return "generated", nil
+}
+
+func (p *recordingGraphicsPresenter) Replace(id string, req runtimeplatform.DrawImageRequest) error {
+	if id == "" {
+		return os.ErrInvalid
+	}
+	return nil
+}
+
+func (p *recordingGraphicsPresenter) Delete(id string) error {
+	if id == "" {
+		return os.ErrInvalid
+	}
+	return nil
+}
+
+func (p *recordingGraphicsPresenter) Clear() error {
+	p.clearCalls++
+	return nil
+}
+
+func captureStdout(t *testing.T, fn func()) string {
+	t.Helper()
+
+	originalStdout := os.Stdout
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("os.Pipe() error = %v", err)
+	}
+	defer r.Close()
+
+	os.Stdout = w
+	defer func() {
+		os.Stdout = originalStdout
+	}()
+
+	fn()
+
+	if err := w.Close(); err != nil {
+		t.Fatalf("stdout writer close error = %v", err)
+	}
+
+	bytes, err := io.ReadAll(r)
+	if err != nil {
+		t.Fatalf("io.ReadAll() error = %v", err)
+	}
+	return string(bytes)
 }

@@ -56,6 +56,23 @@ func (b *Builder) AxisLabelMode(mode AxisLabelMode) *Builder {
 	return b
 }
 
+func (b *Builder) RenderBackend(backend RenderBackend) *Builder {
+	b.node.SetRenderBackend(backend)
+	return b
+}
+
+func (b *Builder) TextBackend() *Builder {
+	b.node.SetRenderBackend(RenderBackendText)
+	return b
+}
+
+func (b *Builder) ImagePlotBackend() *Builder {
+	// Chart image-plot integration is temporarily paused; keep the builder
+	// API stable while normalizing runtime behavior back to text rendering.
+	b.node.SetRenderBackend(RenderBackendImagePlot)
+	return b
+}
+
 func (b *Builder) DenseAxisLabels() *Builder {
 	b.node.SetAxisLabelMode(AxisLabelModeDense)
 	return b

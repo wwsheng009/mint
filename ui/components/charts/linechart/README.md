@@ -2,6 +2,12 @@
 
 `linechart` 是第一批优先实现的图表组件之一。
 
+状态说明：
+
+- `linechart` 当前只承诺稳定的文本渲染路径
+- 为兼容保留的 `ImagePlotBackend()` API 目前会在运行时回退到文本 backend
+- 终端像素图像能力仍然保留给专用图片显示控件，不再作为 charts 的接入面
+
 目标定位：
 
 - 时间序列
@@ -66,6 +72,7 @@ linechart.NewBuilder([]float64{1, 9, 2, 8, 3, 7}).
 - `AutoAxisLabels()` 保持当前默认启发式，尽量兼顾信息量和不拥挤
 - `DenseAxisLabels()` 尽量保留所有可见标签
 - `SparseAxisLabels()` 主动降低标签密度，适合窄宽度或更强调走势的场景
+- 如果旧代码仍然调用 `ImagePlotBackend()`，当前也只会得到文本 `linechart`
 
 实现建议：
 
