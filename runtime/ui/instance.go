@@ -405,6 +405,16 @@ type PaintableInstance interface {
 	Paint(x, y int) []paint.DrawCmd
 }
 
+// ScenePaintableInstance is an optional extension for native instances that can
+// contribute raster image layers after the regular text paint has completed.
+//
+// Implementations should return layers in absolute cell coordinates based on
+// the most recent layout bounds pushed through SetBounds().
+type ScenePaintableInstance interface {
+	ComponentInstance
+	SceneLayers() []paint.ImageLayer
+}
+
 // =============================================================================
 // FocusableInstance - Instance with Focus capability
 // =============================================================================
@@ -462,6 +472,12 @@ type InstanceFactory interface {
 func AsPaintableInstance(inst ComponentInstance) (PaintableInstance, bool) {
 	p, ok := inst.(PaintableInstance)
 	return p, ok
+}
+
+// AsScenePaintableInstance attempts to cast to ScenePaintableInstance.
+func AsScenePaintableInstance(inst ComponentInstance) (ScenePaintableInstance, bool) {
+	s, ok := inst.(ScenePaintableInstance)
+	return s, ok
 }
 
 // AsFocusableInstance attempts to cast to FocusableInstance
